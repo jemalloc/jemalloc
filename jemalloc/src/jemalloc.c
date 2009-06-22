@@ -110,6 +110,15 @@
  */
 
 /*
+ * Set to false if single-threaded.  Even better, rip out all of the code that
+ * doesn't get used if __isthreaded is false, so that libpthread isn't
+ * necessary.
+ */
+#ifndef __isthreaded
+#  define __isthreaded true
+#endif
+
+/*
  * MALLOC_PRODUCTION disables assertions and statistics gathering.  It also
  * defaults the A and J runtime options to off.  These settings are appropriate
  * for production systems.
@@ -153,17 +162,14 @@
  * unnecessary, but we are burdened by history and the lack of resource limits
  * for anonymous mapped memory.
  */
-#define	MALLOC_DSS
+/* #define	MALLOC_DSS */
 
-#include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/lib/libc/stdlib/malloc.c,v 1.183 2008/12/01 10:20:59 jasone Exp $");
+#define	_GNU_SOURCE /* For mremap(2). */
+#define	issetugid() 0
+#define	__DECONST(type, var)	((type)(uintptr_t)(const void *)(var))
 
-#include "libc_private.h"
-#ifdef MALLOC_DEBUG
-#  define _LOCK_DEBUG
-#endif
-#include "spinlock.h"
-#include "namespace.h"
+/* __FBSDID("$FreeBSD: src/lib/libc/stdlib/malloc.c,v 1.183 2008/12/01 10:20:59 jasone Exp $"); */
+
 #include <sys/mman.h>
 #include <sys/param.h>
 #include <sys/stddef.h>
@@ -171,14 +177,12 @@ __FBSDID("$FreeBSD: src/lib/libc/stdlib/malloc.c,v 1.183 2008/12/01 10:20:59 jas
 #include <sys/types.h>
 #include <sys/sysctl.h>
 #include <sys/uio.h>
-#include <sys/ktrace.h> /* Must come after several other sys/ includes. */
-
-#include <machine/cpufunc.h>
-#include <machine/param.h>
-#include <machine/vmparam.h>
 
 #include <errno.h>
 #include <limits.h>
+#ifndef SIZE_T_MAX
+#  define SIZE_T_MAX	SIZE_MAX
+#endif
 #include <pthread.h>
 #include <sched.h>
 #include <stdarg.h>
@@ -189,19 +193,8 @@ __FBSDID("$FreeBSD: src/lib/libc/stdlib/malloc.c,v 1.183 2008/12/01 10:20:59 jas
 #include <string.h>
 #include <strings.h>
 #include <unistd.h>
-
-#include "un-namespace.h"
-
-#ifdef MALLOC_DEBUG
-#  ifdef NDEBUG
-#    undef NDEBUG
-#  endif
-#else
-#  ifndef NDEBUG
-#    define NDEBUG
-#  endif
-#endif
-#include <assert.h>
+#include <fcntl.h>
+#include <pthread.h>
 
 #include "rb.h"
 
@@ -217,43 +210,54 @@ __FBSDID("$FreeBSD: src/lib/libc/stdlib/malloc.c,v 1.183 2008/12/01 10:20:59 jas
  * Minimum alignment of allocations is 2^QUANTUM_2POW bytes.
  */
 #ifdef __i386__
+#  define PAGE_SHIFT		12
 #  define QUANTUM_2POW		4
 #  define SIZEOF_PTR_2POW	2
 #  define CPU_SPINWAIT		__asm__ volatile("pause")
 #endif
 #ifdef __ia64__
+#  define PAGE_SHIFT		12
 #  define QUANTUM_2POW		4
 #  define SIZEOF_PTR_2POW	3
 #endif
 #ifdef __alpha__
+#  define PAGE_SHIFT		13
 #  define QUANTUM_2POW		4
 #  define SIZEOF_PTR_2POW	3
 #  define NO_TLS
 #endif
 #ifdef __sparc64__
+#  define PAGE_SHIFT		13
 #  define QUANTUM_2POW		4
 #  define SIZEOF_PTR_2POW	3
 #  define NO_TLS
 #endif
 #ifdef __amd64__
+#  define PAGE_SHIFT		12
 #  define QUANTUM_2POW		4
 #  define SIZEOF_PTR_2POW	3
 #  define CPU_SPINWAIT		__asm__ volatile("pause")
 #endif
 #ifdef __arm__
+#  define PAGE_SHIFT		12
 #  define QUANTUM_2POW		3
 #  define SIZEOF_PTR_2POW	2
 #  define NO_TLS
 #endif
 #ifdef __mips__
+#  define PAGE_SHIFT		12
 #  define QUANTUM_2POW		3
 #  define SIZEOF_PTR_2POW	2
 #  define NO_TLS
 #endif
 #ifdef __powerpc__
+#  define PAGE_SHIFT		12
 #  define QUANTUM_2POW		4
 #  define SIZEOF_PTR_2POW	2
 #endif
+
+#define	PAGE_SIZE (1U << PAGE_SHIFT)
+#define	PAGE_MASK (PAGE_SIZE - 1)
 
 #define	QUANTUM			((size_t)(1U << QUANTUM_2POW))
 #define	QUANTUM_MASK		(QUANTUM - 1)
@@ -404,20 +408,14 @@ __FBSDID("$FreeBSD: src/lib/libc/stdlib/malloc.c,v 1.183 2008/12/01 10:20:59 jas
 
 /******************************************************************************/
 
-/*
- * Mutexes based on spinlocks.  We can't use normal pthread spinlocks in all
- * places, because they require malloc()ed memory, which causes bootstrapping
- * issues in some cases.
- */
-typedef struct {
-	spinlock_t	lock;
-} malloc_mutex_t;
+typedef pthread_mutex_t malloc_mutex_t;
+typedef pthread_mutex_t malloc_spinlock_t;
 
 /* Set to true once the allocator has been initialized. */
 static bool malloc_initialized = false;
 
 /* Used to avoid initialization races. */
-static malloc_mutex_t init_lock = {_SPINLOCK_INITIALIZER};
+static malloc_mutex_t init_lock = PTHREAD_ADAPTIVE_MUTEX_INITIALIZER_NP;
 
 /******************************************************************************/
 /*
@@ -700,8 +698,8 @@ struct arena_s {
 
 	/*
 	 * Current count of pages within unused runs that are potentially
-	 * dirty, and for which madvise(... MADV_FREE) has not been called.  By
-	 * tracking this, we can institute a limit on how much dirty unused
+	 * dirty, and for which madvise(... MADV_DONTNEED) has not been called.
+	 * By tracking this, we can institute a limit on how much dirty unused
 	 * memory is mapped for each arena.
 	 */
 	size_t			ndirty;
@@ -1076,6 +1074,7 @@ typedef struct {
 	void	*r;
 } malloc_utrace_t;
 
+#ifdef MALLOC_STATS
 #define	UTRACE(a, b, c)							\
 	if (opt_utrace) {						\
 		malloc_utrace_t ut;					\
@@ -1084,13 +1083,16 @@ typedef struct {
 		ut.r = (c);						\
 		utrace(&ut, sizeof(ut));				\
 	}
+#else
+#define	UTRACE(a, b, c)
+#endif
 
 /******************************************************************************/
 /*
  * Begin function prototypes for non-inline static functions.
  */
 
-static void	malloc_mutex_init(malloc_mutex_t *mutex);
+static bool	malloc_mutex_init(malloc_mutex_t *mutex);
 static bool	malloc_spin_init(pthread_mutex_t *lock);
 static void	wrtmessage(const char *p1, const char *p2, const char *p3,
 		const char *p4);
@@ -1181,24 +1183,138 @@ static void	size2bin_validate(void);
 #endif
 static bool	size2bin_init(void);
 static bool	size2bin_init_hard(void);
+static unsigned	malloc_ncpus(void);
 static bool	malloc_init_hard(void);
+void		_malloc_prefork(void);
+void		_malloc_postfork(void);
 
 /*
  * End function prototypes.
  */
 /******************************************************************************/
-/*
- * Begin mutex.  We can't use normal pthread mutexes in all places, because
- * they require malloc()ed memory, which causes bootstrapping issues in some
- * cases.
- */
 
 static void
+wrtmessage(const char *p1, const char *p2, const char *p3, const char *p4)
+{
+
+	write(STDERR_FILENO, p1, strlen(p1));
+	write(STDERR_FILENO, p2, strlen(p2));
+	write(STDERR_FILENO, p3, strlen(p3));
+	write(STDERR_FILENO, p4, strlen(p4));
+}
+
+#define	_malloc_message malloc_message
+void	(*_malloc_message)(const char *p1, const char *p2, const char *p3,
+	    const char *p4) = wrtmessage;
+
+/*
+ * We don't want to depend on vsnprintf() for production builds, since that can
+ * cause unnecessary bloat for static binaries.  umax2s() provides minimal
+ * integer printing functionality, so that malloc_printf() use can be limited to
+ * MALLOC_STATS code.
+ */
+#define	UMAX2S_BUFSIZE	21
+static char *
+umax2s(uintmax_t x, char *s)
+{
+	unsigned i;
+
+	i = UMAX2S_BUFSIZE - 1;
+	s[i] = '\0';
+	do {
+		i--;
+		s[i] = "0123456789"[x % 10];
+		x /= 10;
+	} while (x > 0);
+
+	return (&s[i]);
+}
+
+/*
+ * Define a custom assert() in order to reduce the chances of deadlock during
+ * assertion failure.
+ */
+#ifdef MALLOC_DEBUG
+#  define assert(e) do {						\
+	if (!(e)) {							\
+		char line_buf[UMAX2S_BUFSIZE];				\
+		_malloc_message(__FILE__, ":", umax2s(__LINE__,		\
+		    line_buf), ": Failed assertion: ");			\
+		_malloc_message("\"", #e, "\"\n", "");			\
+		abort();						\
+	}								\
+} while (0)
+#else
+#define assert(e)
+#endif
+
+#ifdef MALLOC_STATS
+static int
+utrace(const void *addr, size_t len)
+{
+	malloc_utrace_t *ut = (malloc_utrace_t *)addr;
+
+	assert(len == sizeof(malloc_utrace_t));
+
+	if (ut->p == NULL && ut->s == 0 && ut->r == NULL)
+		malloc_printf("%d x USER malloc_init()\n", getpid());
+	else if (ut->p == NULL && ut->r != NULL) {
+		malloc_printf("%d x USER %p = malloc(%zu)\n", getpid(), ut->r,
+		    ut->s);
+	} else if (ut->p != NULL && ut->r != NULL) {
+		malloc_printf("%d x USER %p = realloc(%p, %zu)\n", getpid(),
+		    ut->r, ut->p, ut->s);
+	} else
+		malloc_printf("%d x USER free(%p)\n", getpid(), ut->p);
+
+	return (0);
+}
+#endif
+
+static inline const char *
+_getprogname(void)
+{
+
+	return ("<jemalloc>");
+}
+
+#ifdef MALLOC_STATS
+/*
+ * Print to stderr in such a way as to (hopefully) avoid memory allocation.
+ */
+static void
+malloc_printf(const char *format, ...)
+{
+	char buf[4096];
+	va_list ap;
+
+	va_start(ap, format);
+	vsnprintf(buf, sizeof(buf), format, ap);
+	va_end(ap);
+	_malloc_message(buf, "", "", "");
+}
+#endif
+
+/******************************************************************************/
+/*
+ * Begin mutex.
+ */
+
+static bool
 malloc_mutex_init(malloc_mutex_t *mutex)
 {
-	static const spinlock_t lock = _SPINLOCK_INITIALIZER;
+	pthread_mutexattr_t attr;
 
-	mutex->lock = lock;
+	if (pthread_mutexattr_init(&attr) != 0)
+		return (true);
+	pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_ADAPTIVE_NP);
+	if (pthread_mutex_init(mutex, &attr) != 0) {
+		pthread_mutexattr_destroy(&attr);
+		return (true);
+	}
+	pthread_mutexattr_destroy(&attr);
+
+	return (false);
 }
 
 static inline void
@@ -1206,7 +1322,7 @@ malloc_mutex_lock(malloc_mutex_t *mutex)
 {
 
 	if (__isthreaded)
-		_SPINLOCK(&mutex->lock);
+		pthread_mutex_lock(mutex);
 }
 
 static inline void
@@ -1214,7 +1330,7 @@ malloc_mutex_unlock(malloc_mutex_t *mutex)
 {
 
 	if (__isthreaded)
-		_SPINUNLOCK(&mutex->lock);
+		pthread_mutex_unlock(mutex);
 }
 
 /*
@@ -1227,29 +1343,11 @@ malloc_mutex_unlock(malloc_mutex_t *mutex)
  * priority inversion.
  */
 
-/*
- * We use an unpublished interface to initialize pthread mutexes with an
- * allocation callback, in order to avoid infinite recursion.
- */
-int	_pthread_mutex_init_calloc_cb(pthread_mutex_t *mutex,
-    void *(calloc_cb)(size_t, size_t));
-
-__weak_reference(_pthread_mutex_init_calloc_cb_stub,
-    _pthread_mutex_init_calloc_cb);
-
-int
-_pthread_mutex_init_calloc_cb_stub(pthread_mutex_t *mutex,
-    void *(calloc_cb)(size_t, size_t))
-{
-
-	return (0);
-}
-
 static bool
 malloc_spin_init(pthread_mutex_t *lock)
 {
 
-	if (_pthread_mutex_init_calloc_cb(lock, base_calloc) != 0)
+	if (pthread_mutex_init(lock, NULL) != 0)
 		return (true);
 
 	return (false);
@@ -1261,7 +1359,7 @@ malloc_spin_lock(pthread_mutex_t *lock)
 	unsigned ret = 0;
 
 	if (__isthreaded) {
-		if (_pthread_mutex_trylock(lock) != 0) {
+		if (pthread_mutex_trylock(lock) != 0) {
 			/* Exponentially back off if there are multiple CPUs. */
 			if (ncpus > 1) {
 				unsigned i;
@@ -1273,7 +1371,7 @@ malloc_spin_lock(pthread_mutex_t *lock)
 						CPU_SPINWAIT;
 					}
 
-					if (_pthread_mutex_trylock(lock) == 0)
+					if (pthread_mutex_trylock(lock) == 0)
 						return (ret);
 				}
 			}
@@ -1283,7 +1381,7 @@ malloc_spin_lock(pthread_mutex_t *lock)
 			 * available, in order to avoid indefinite priority
 			 * inversion.
 			 */
-			_pthread_mutex_lock(lock);
+			pthread_mutex_lock(lock);
 			assert((ret << BLOCK_COST_2POW) != 0 || ncpus == 1);
 			return (ret << BLOCK_COST_2POW);
 		}
@@ -1297,7 +1395,7 @@ malloc_spin_unlock(pthread_mutex_t *lock)
 {
 
 	if (__isthreaded)
-		_pthread_mutex_unlock(lock);
+		pthread_mutex_unlock(lock);
 }
 
 /*
@@ -1332,9 +1430,9 @@ malloc_spin_unlock(pthread_mutex_t *lock)
 #define	SUBPAGE_CEILING(s)						\
 	(((s) + SUBPAGE_MASK) & ~SUBPAGE_MASK)
 
-/* Return the smallest PAGE_SIZE multiple that is >= s. */
+/* Return the smallest pagesize multiple that is >= s. */
 #define	PAGE_CEILING(s)							\
-	(((s) + PAGE_MASK) & ~PAGE_MASK)
+	(((s) + pagesize_mask) & ~pagesize_mask)
 
 #ifdef MALLOC_TINY
 /* Compute the smallest power of 2 that is >= x. */
@@ -1405,62 +1503,6 @@ prn_##suffix(uint32_t lg_range)						\
 static __thread uint32_t balance_x;
 PRN_DEFINE(balance, balance_x, 1297, 1301)
 #endif
-
-static void
-wrtmessage(const char *p1, const char *p2, const char *p3, const char *p4)
-{
-
-	_write(STDERR_FILENO, p1, strlen(p1));
-	_write(STDERR_FILENO, p2, strlen(p2));
-	_write(STDERR_FILENO, p3, strlen(p3));
-	_write(STDERR_FILENO, p4, strlen(p4));
-}
-
-void	(*_malloc_message)(const char *p1, const char *p2, const char *p3,
-	    const char *p4) = wrtmessage;
-
-#ifdef MALLOC_STATS
-/*
- * Print to stderr in such a way as to (hopefully) avoid memory allocation.
- */
-static void
-malloc_printf(const char *format, ...)
-{
-	char buf[4096];
-	va_list ap;
-
-	va_start(ap, format);
-	vsnprintf(buf, sizeof(buf), format, ap);
-	va_end(ap);
-	_malloc_message(buf, "", "", "");
-}
-#endif
-
-/*
- * We don't want to depend on vsnprintf() for production builds, since that can
- * cause unnecessary bloat for static binaries.  umax2s() provides minimal
- * integer printing functionality, so that malloc_printf() use can be limited to
- * MALLOC_STATS code.
- */
-#define	UMAX2S_BUFSIZE	21
-static char *
-umax2s(uintmax_t x, char *s)
-{
-	unsigned i;
-
-	/* Make sure UMAX2S_BUFSIZE is large enough. */
-	assert(sizeof(uintmax_t) <= 8);
-
-	i = UMAX2S_BUFSIZE - 1;
-	s[i] = '\0';
-	do {
-		i--;
-		s[i] = "0123456789"[x % 10];
-		x /= 10;
-	} while (x > 0);
-
-	return (&s[i]);
-}
 
 /******************************************************************************/
 
@@ -1538,20 +1580,17 @@ base_pages_alloc(size_t minsize)
 {
 
 #ifdef MALLOC_DSS
+	if (opt_dss) {
+		if (base_pages_alloc_dss(minsize) == false)
+			return (false);
+	}
+
 	if (opt_mmap && minsize != 0)
 #endif
 	{
 		if (base_pages_alloc_mmap(minsize) == false)
 			return (false);
 	}
-
-#ifdef MALLOC_DSS
-	if (opt_dss) {
-		if (base_pages_alloc_dss(minsize) == false)
-			return (false);
-	}
-
-#endif
 
 	return (true);
 }
@@ -1735,7 +1774,7 @@ extent_szad_comp(extent_node_t *a, extent_node_t *b)
 }
 
 /* Wrap red-black tree macros in functions. */
-rb_wrap(__unused static, extent_tree_szad_, extent_tree_t, extent_node_t,
+rb_wrap(static, extent_tree_szad_, extent_tree_t, extent_node_t,
     link_szad, extent_szad_comp)
 #endif
 
@@ -1749,7 +1788,7 @@ extent_ad_comp(extent_node_t *a, extent_node_t *b)
 }
 
 /* Wrap red-black tree macros in functions. */
-rb_wrap(__unused static, extent_tree_ad_, extent_tree_t, extent_node_t, link_ad,
+rb_wrap(static, extent_tree_ad_, extent_tree_t, extent_node_t, link_ad,
     extent_ad_comp)
 
 /*
@@ -1989,15 +2028,6 @@ chunk_alloc(size_t size, bool zero)
 	assert((size & chunksize_mask) == 0);
 
 #ifdef MALLOC_DSS
-	if (opt_mmap)
-#endif
-	{
-		ret = chunk_alloc_mmap(size);
-		if (ret != NULL)
-			goto RETURN;
-	}
-
-#ifdef MALLOC_DSS
 	if (opt_dss) {
 		ret = chunk_recycle_dss(size, zero);
 		if (ret != NULL) {
@@ -2008,7 +2038,14 @@ chunk_alloc(size_t size, bool zero)
 		if (ret != NULL)
 			goto RETURN;
 	}
+
+	if (opt_mmap)
 #endif
+	{
+		ret = chunk_alloc_mmap(size);
+		if (ret != NULL)
+			goto RETURN;
+	}
 
 	/* All strategies for allocation failed. */
 	ret = NULL;
@@ -2124,7 +2161,7 @@ chunk_dealloc_dss(void *chunk, size_t size)
 			malloc_mutex_unlock(&dss_mtx);
 		} else {
 			malloc_mutex_unlock(&dss_mtx);
-			madvise(chunk, size, MADV_FREE);
+			madvise(chunk, size, MADV_DONTNEED);
 		}
 
 		return (false);
@@ -2204,14 +2241,14 @@ choose_arena(void)
 		unsigned long ind;
 
 		/*
-		 * Hash _pthread_self() to one of the arenas.  There is a prime
+		 * Hash pthread_self() to one of the arenas.  There is a prime
 		 * number of arenas, so this has a reasonable chance of
 		 * working.  Even so, the hashing can be easily thwarted by
-		 * inconvenient _pthread_self() values.  Without specific
-		 * knowledge of how _pthread_self() calculates values, we can't
+		 * inconvenient pthread_self() values.  Without specific
+		 * knowledge of how pthread_self() calculates values, we can't
 		 * easily do much better than this.
 		 */
-		ind = (unsigned long) _pthread_self() % narenas;
+		ind = (unsigned long) pthread_self() % narenas;
 
 		/*
 		 * Optimistially assume that arenas[ind] has been initialized.
@@ -2261,7 +2298,7 @@ choose_arena_hard(void)
 
 #ifdef MALLOC_BALANCE
 	/* Seed the PRNG used for arena load balancing. */
-	SPRN(balance, (uint32_t)(uintptr_t)(_pthread_self()));
+	SPRN(balance, (uint32_t)(uintptr_t)(pthread_self()));
 #endif
 
 	if (narenas > 1) {
@@ -2304,7 +2341,7 @@ arena_chunk_comp(arena_chunk_t *a, arena_chunk_t *b)
 }
 
 /* Wrap red-black tree macros in functions. */
-rb_wrap(__unused static, arena_chunk_tree_dirty_, arena_chunk_tree_t,
+rb_wrap(static, arena_chunk_tree_dirty_, arena_chunk_tree_t,
     arena_chunk_t, link_dirty, arena_chunk_comp)
 
 static inline int
@@ -2320,7 +2357,7 @@ arena_run_comp(arena_chunk_map_t *a, arena_chunk_map_t *b)
 }
 
 /* Wrap red-black tree macros in functions. */
-rb_wrap(__unused static, arena_run_tree_, arena_run_tree_t, arena_chunk_map_t,
+rb_wrap(static, arena_run_tree_, arena_run_tree_t, arena_chunk_map_t,
     link, arena_run_comp)
 
 static inline int
@@ -2352,7 +2389,7 @@ arena_avail_comp(arena_chunk_map_t *a, arena_chunk_map_t *b)
 }
 
 /* Wrap red-black tree macros in functions. */
-rb_wrap(__unused static, arena_avail_tree_, arena_avail_tree_t,
+rb_wrap(static, arena_avail_tree_, arena_avail_tree_t,
     arena_chunk_map_t, link, arena_avail_comp)
 
 static inline void *
@@ -2774,7 +2811,7 @@ arena_purge(arena_t *arena)
 
 				madvise((void *)((uintptr_t)chunk + (i <<
 				    PAGE_SHIFT)), (npages << PAGE_SHIFT),
-				    MADV_FREE);
+				    MADV_DONTNEED);
 #ifdef MALLOC_STATS
 				arena->stats.nmadvise++;
 				arena->stats.purged += npages;
@@ -4748,6 +4785,52 @@ size2bin_init_hard(void)
 	return (false);
 }
 
+static unsigned
+malloc_ncpus(void)
+{
+	unsigned ret;
+	int fd, nread, column;
+	char buf[1];
+	static const char matchstr[] = "processor\t:";
+
+	/*
+	 * sysconf(3) would be the preferred method for determining the number
+	 * of CPUs, but it uses malloc internally, which causes untennable
+	 * recursion during malloc initialization.
+	 */
+	fd = open("/proc/cpuinfo", O_RDONLY);
+	if (fd == -1)
+		return (1); /* Error. */
+	/*
+	 * Count the number of occurrences of matchstr at the beginnings of
+	 * lines.  This treats hyperthreaded CPUs as multiple processors.
+	 */
+	column = 0;
+	ret = 0;
+	while (true) {
+		nread = read(fd, &buf, sizeof(buf));
+		if (nread <= 0)
+			break; /* EOF or error. */
+
+		if (buf[0] == '\n')
+			column = 0;
+		else if (column != -1) {
+			if (buf[0] == matchstr[column]) {
+				column++;
+				if (column == sizeof(matchstr) - 1) {
+					column = -1;
+					ret++;
+				}
+			} else
+				column = -1;
+		}
+	}
+	if (ret == 0)
+		ret = 1; /* Something went wrong in the parser. */
+	close(fd);
+
+	return (ret);
+}
 /*
  * FreeBSD's pthreads implementation calls malloc(3), so the malloc
  * implementation has to take pains to avoid infinite recursion during
@@ -4782,18 +4865,18 @@ malloc_init_hard(void)
 	}
 
 	/* Get number of CPUs. */
-	{
-		int mib[2];
-		size_t len;
+	ncpus = malloc_ncpus();
 
-		mib[0] = CTL_HW;
-		mib[1] = HW_NCPU;
-		len = sizeof(ncpus);
-		if (sysctl(mib, 2, &ncpus, &len, (void *) 0, 0) == -1) {
-			/* Error. */
-			ncpus = 1;
-		}
+#ifdef MALLOC_DEBUG
+	/* Get page size. */
+	{
+		long result;
+
+		result = sysconf(_SC_PAGESIZE);
+		assert(result != -1);
+		assert((unsigned)result == PAGE_SIZE);
 	}
+#endif
 
 	for (i = 0; i < 3; i++) {
 		unsigned j;
@@ -5047,6 +5130,9 @@ MALLOC_OUT:
 		atexit(malloc_print_stats);
 	}
 
+	/* Register fork handlers. */
+	pthread_atfork(_malloc_prefork, _malloc_postfork, _malloc_postfork);
+
 #ifdef MALLOC_MAG
 	/*
 	 * Calculate the actual number of rounds per magazine, taking into
@@ -5111,10 +5197,16 @@ MALLOC_OUT:
 	assert(chunksize >= PAGE_SIZE);
 
 	/* Initialize chunks data. */
-	malloc_mutex_init(&huge_mtx);
+	if (malloc_mutex_init(&huge_mtx)) {
+		malloc_mutex_unlock(&init_lock);
+		return (true);
+	}
 	extent_tree_ad_new(&huge);
 #ifdef MALLOC_DSS
-	malloc_mutex_init(&dss_mtx);
+	if (malloc_mutex_init(&dss_mtx)) {
+		malloc_mutex_unlock(&init_lock);
+		return (true);
+	}
 	dss_base = sbrk(0);
 	dss_prev = dss_base;
 	dss_max = dss_base;
@@ -5141,7 +5233,10 @@ MALLOC_OUT:
 		base_pages_alloc(0);
 #endif
 	base_nodes = NULL;
-	malloc_mutex_init(&base_mtx);
+	if (malloc_mutex_init(&base_mtx)) {
+		malloc_mutex_unlock(&init_lock);
+		return (true);
+	}
 
 	if (ncpus > 1) {
 		/*
