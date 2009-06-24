@@ -1,0 +1,11 @@
+syntax: glob
+
+syntax: regexp
+^jemalloc/autom4te\.cache
+^jemalloc/cfg(hdrs|outputs)\.stamp$
+^jemalloc/config\.(log|status)$
+^jemalloc/configure$
+^jemalloc/lib$
+^jemalloc/Makefile$
+^jemalloc/src/jemalloc_defs\.h$
+^jemalloc/src/[a-z]+.o$

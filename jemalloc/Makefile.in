@@ -1,0 +1,122 @@
+# Clear out all vpaths, then set just one (default vpath) for the main build
+# directory.
+vpath
+vpath % .
+
+# Clear the default suffixes, so that built-in rules are not used.
+.SUFFIXES :
+
+SHELL := /bin/sh
+
+CC := @CC@
+
+# Configuration parameters.
+BINDIR := @BINDIR@
+INCLUDEDIR := @INCLUDEDIR@
+LIBDIR := @LIBDIR@
+DATADIR := @DATADIR@
+MANDIR := @MANDIR@
+
+# Build parameters.
+CPPFLAGS := @CPPFLAGS@
+CFLAGS := @CFLAGS@ -fPIC -DPIC
+ifeq (macho, @abi@)
+CFLAGS += -dynamic
+endif
+LDFLAGS := @LDFLAGS@
+LIBS := @LIBS@
+RPATH_EXTRA := @RPATH_EXTRA@
+ifeq (macho, @abi@)
+SO := dylib
+else
+SO := so
+endif
+REV := 0
+
+# File lists.
+CHDRS := src/jemalloc.h
+CSRCS := src/jemalloc.c
+DSO := lib/libjemalloc.so.$(REV)
+MAN3 := doc/jemalloc.3
+
+.PHONY: all dist install check clean distclean relclean
+
+# Default target.
+all: $(DSO)
+
+src/%.o: src/%.c
+	$(CC) $(CFLAGS) -c $(CPPFLAGS) -o $@ $+
+
+$(DSO): $(CSRCS:%.c=%.o)
+	@mkdir -p $(@D)
+	gcc -shared -o $@ $+ $(LDFLAGS) $(LIBS)
+	ln -sf libjemalloc.so.$(REV) lib/libjemalloc.so
+
+install:
+	install -d $(INCLUDEDIR)
+	@for h in $(CHDRS); do \
+	echo "install -m 644 $$h $(INCLUDEDIR)"; \
+	install -m 644 $$h $(INCLUDEDIR); \
+done
+	install -d $(LIBDIR)
+	install -m 755 $(DSO) $(LIBDIR)
+	install -d $(MANDIR)
+	@for m in $(MAN3); do \
+	echo "install -m 644 $$m $(MANDIR)/man3"; \
+	install -m 644 $$m $(MANDIR)/man3; \
+done
+
+check:
+
+clean:
+	rm -f src/*.o
+	rm -f lib/libjemalloc.so
+	rm -f lib/libjemalloc.so.$(REV)
+
+distclean: clean
+	rm -f @objroot@config.log
+	rm -f @objroot@config.status
+	rm -f @objroot@cfghdrs.stamp
+	rm -f @objroot@cfgoutputs.stamp
+	rm -f @cfghdrs@
+	rm -f @cfgoutputs@
+
+relclean: distclean
+	rm -rf @objroot@autom4te.cache
+	rm -f @objroot@configure
+
+#===============================================================================
+# Re-configuration rules.
+
+ifeq (@enable_autogen@, 1)
+@srcroot@configure : @srcroot@configure.ac
+	cd ./@srcroot@ && @AUTOCONF@
+
+@objroot@config.status : @srcroot@configure
+	./@objroot@config.status --recheck
+
+# cfghdrs rules.
+@srcroot@cfghdrs.stamp.in : @srcroot@configure.ac
+	echo stamp > @srcroot@cfghdrs.stamp.in
+
+@objroot@cfghdrs.stamp : $(patsubst %, %.in, @cfghdrs@) \
+			 @srcroot@configure
+	./@objroot@config.status
+	@touch $@
+
+@cfghdrs@ : @objroot@cfghdrs.stamp
+
+# cfgoutputs rules.
+@srcroot@cfgoutputs.stamp.in : @srcroot@configure.ac
+	echo stamp > @srcroot@cfgoutputs.stamp.in
+
+@objroot@cfgoutputs.stamp : $(patsubst %, @srcroot@%.in, @cfgoutputs@) \
+			    @srcroot@configure
+	./@objroot@config.status
+	@touch $@
+
+# There must be some action in order for make to re-read Makefile when it is
+# out of date.
+@cfgoutputs@ : @objroot@cfgoutputs.stamp
+	@true
+endif

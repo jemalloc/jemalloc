@@ -137,70 +137,14 @@
  *******************************************************************************
  */
 
-/*
- * Set to false if single-threaded.  Even better, rip out all of the code that
- * doesn't get used if __isthreaded is false, so that libpthread isn't
- * necessary.
- */
-#ifndef __isthreaded
-#  define __isthreaded true
+#include "jemalloc_defs.h"
+
+#if 0
+__FBSDID("$FreeBSD: src/lib/libc/stdlib/malloc.c,v 1.183 2008/12/01 10:20:59 jasone Exp $");
 #endif
-
-/*
- * MALLOC_PRODUCTION disables assertions and statistics gathering.  It also
- * defaults the A and J runtime options to off.  These settings are appropriate
- * for production systems.
- */
-/* #define	MALLOC_PRODUCTION */
-
-#ifndef MALLOC_PRODUCTION
-   /*
-    * MALLOC_DEBUG enables assertions and other sanity checks, and disables
-    * inline functions.
-    */
-#  define MALLOC_DEBUG
-
-   /* MALLOC_STATS enables statistics calculation. */
-#  define MALLOC_STATS
-#endif
-
-/*
- * MALLOC_TINY enables support for tiny objects, which are smaller than one
- * quantum.
- */
-#define	MALLOC_TINY
-
-/*
- * MALLOC_MAG enables a magazine-based thread-specific caching layer for small
- * objects.  This makes it possible to allocate/deallocate objects without any
- * locking when the cache is in the steady state.
- */
-#define	MALLOC_MAG
-
-/*
- * MALLOC_BALANCE enables monitoring of arena lock contention and dynamically
- * re-balances arena load if exponentially averaged contention exceeds a
- * certain threshold.
- */
-#define	MALLOC_BALANCE
-
-/*
- * MALLOC_DSS enables use of sbrk(2) to allocate chunks from the data storage
- * segment (DSS).  In an ideal world, this functionality would be completely
- * unnecessary, but we are burdened by history and the lack of resource limits
- * for anonymous mapped memory.
- */
-/* #define	MALLOC_DSS */
-
-#define	_GNU_SOURCE /* For mremap(2). */
-#define	issetugid() 0
-#define	__DECONST(type, var)	((type)(uintptr_t)(const void *)(var))
-
-/* __FBSDID("$FreeBSD: src/lib/libc/stdlib/malloc.c,v 1.183 2008/12/01 10:20:59 jasone Exp $"); */
 
 #include <sys/mman.h>
 #include <sys/param.h>
-#include <sys/stddef.h>
 #include <sys/time.h>
 #include <sys/types.h>
 #include <sys/sysctl.h>
@@ -223,10 +167,17 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <pthread.h>
+#ifdef JEMALLOC_LAZY_LOCK
+#include <dlfcn.h>
+#endif
+
+#ifndef __DECONST
+#  define	__DECONST(type, var)	((type)(uintptr_t)(const void *)(var))
+#endif
 
 #include "rb.h"
 
-#ifdef MALLOC_DEBUG
+#ifdef JEMALLOC_DEBUG
    /* Disable inlining to make debugging easier. */
 #  define inline
 #endif
@@ -238,54 +189,29 @@
  * Minimum alignment of allocations is 2^QUANTUM_2POW bytes.
  */
 #ifdef __i386__
-#  define PAGE_SHIFT		12
 #  define QUANTUM_2POW		4
-#  define SIZEOF_PTR_2POW	2
-#  define CPU_SPINWAIT		__asm__ volatile("pause")
 #endif
 #ifdef __ia64__
-#  define PAGE_SHIFT		12
 #  define QUANTUM_2POW		4
-#  define SIZEOF_PTR_2POW	3
 #endif
 #ifdef __alpha__
-#  define PAGE_SHIFT		13
 #  define QUANTUM_2POW		4
-#  define SIZEOF_PTR_2POW	3
-#  define NO_TLS
 #endif
 #ifdef __sparc64__
-#  define PAGE_SHIFT		13
 #  define QUANTUM_2POW		4
-#  define SIZEOF_PTR_2POW	3
-#  define NO_TLS
 #endif
 #ifdef __amd64__
-#  define PAGE_SHIFT		12
 #  define QUANTUM_2POW		4
-#  define SIZEOF_PTR_2POW	3
-#  define CPU_SPINWAIT		__asm__ volatile("pause")
 #endif
 #ifdef __arm__
-#  define PAGE_SHIFT		12
 #  define QUANTUM_2POW		3
-#  define SIZEOF_PTR_2POW	2
-#  define NO_TLS
 #endif
 #ifdef __mips__
-#  define PAGE_SHIFT		12
 #  define QUANTUM_2POW		3
-#  define SIZEOF_PTR_2POW	2
-#  define NO_TLS
 #endif
 #ifdef __powerpc__
-#  define PAGE_SHIFT		12
 #  define QUANTUM_2POW		4
-#  define SIZEOF_PTR_2POW	2
 #endif
-
-#define	PAGE_SIZE (1U << PAGE_SHIFT)
-#define	PAGE_MASK (PAGE_SIZE - 1)
 
 #define	QUANTUM			((size_t)(1U << QUANTUM_2POW))
 #define	QUANTUM_MASK		(QUANTUM - 1)
@@ -303,13 +229,13 @@
 #endif
 
 #ifdef NO_TLS
-   /* MALLOC_MAG requires TLS. */
-#  ifdef MALLOC_MAG
-#    undef MALLOC_MAG
+   /* JEMALLOC_MAG requires TLS. */
+#  ifdef JEMALLOC_MAG
+#    undef JEMALLOC_MAG
 #  endif
-   /* MALLOC_BALANCE requires TLS. */
-#  ifdef MALLOC_BALANCE
-#    undef MALLOC_BALANCE
+   /* JEMALLOC_BALANCE requires TLS. */
+#  ifdef JEMALLOC_BALANCE
+#    undef JEMALLOC_BALANCE
 #  endif
 #endif
 
@@ -341,7 +267,7 @@
 #define	SUBPAGE			((size_t)(1U << SUBPAGE_2POW))
 #define	SUBPAGE_MASK		(SUBPAGE - 1)
 
-#ifdef MALLOC_TINY
+#ifdef JEMALLOC_TINY
    /* Smallest size class to support. */
 #  define TINY_MIN_2POW		1
 #endif
@@ -385,15 +311,6 @@
 #define	RUN_MAX_SMALL	(12 * PAGE_SIZE)
 
 /*
- * Hyper-threaded CPUs may need a special instruction inside spin loops in
- * order to yield to another virtual CPU.  If no such instruction is defined
- * above, make CPU_SPINWAIT a no-op.
- */
-#ifndef CPU_SPINWAIT
-#  define CPU_SPINWAIT
-#endif
-
-/*
  * Adaptive spinning must eventually switch to blocking, in order to avoid the
  * potential for priority inversion deadlock.  Backing off past a certain point
  * can actually waste time.
@@ -407,7 +324,7 @@
  */
 #define	BLOCK_COST_2POW		4
 
-#ifdef MALLOC_MAG
+#ifdef JEMALLOC_MAG
    /*
     * Default magazine size, in bytes.  max_rounds is calculated to make
     * optimal use of the space, leaving just enough room for the magazine
@@ -416,7 +333,7 @@
 #  define MAG_SIZE_2POW_DEFAULT	9
 #endif
 
-#ifdef MALLOC_BALANCE
+#ifdef JEMALLOC_BALANCE
    /*
     * We use an exponential moving average to track recent lock contention,
     * where the size of the history window is N, and alpha=2/(N+1).
@@ -442,6 +359,9 @@ typedef pthread_mutex_t malloc_spinlock_t;
 /* Set to true once the allocator has been initialized. */
 static bool malloc_initialized = false;
 
+/* Used to let the initializing thread recursively allocate. */
+static pthread_t malloc_initializer = (unsigned long)0;
+
 /* Used to avoid initialization races. */
 static malloc_mutex_t init_lock = PTHREAD_ADAPTIVE_MUTEX_INITIALIZER_NP;
 
@@ -450,7 +370,7 @@ static malloc_mutex_t init_lock = PTHREAD_ADAPTIVE_MUTEX_INITIALIZER_NP;
  * Statistics data structures.
  */
 
-#ifdef MALLOC_STATS
+#ifdef JEMALLOC_STATS
 
 typedef struct malloc_bin_stats_s malloc_bin_stats_t;
 struct malloc_bin_stats_s {
@@ -460,7 +380,7 @@ struct malloc_bin_stats_s {
 	 */
 	uint64_t	nrequests;
 
-#ifdef MALLOC_MAG
+#ifdef JEMALLOC_MAG
 	/* Number of magazine reloads from this bin. */
 	uint64_t	nmags;
 #endif
@@ -504,7 +424,7 @@ struct arena_stats_s {
 	uint64_t	nmalloc_large;
 	uint64_t	ndalloc_large;
 
-#ifdef MALLOC_BALANCE
+#ifdef JEMALLOC_BALANCE
 	/* Number of times this arena reassigned a thread due to contention. */
 	uint64_t	nbalance;
 #endif
@@ -526,7 +446,7 @@ struct chunk_stats_s {
 	unsigned long	curchunks;
 };
 
-#endif /* #ifdef MALLOC_STATS */
+#endif /* #ifdef JEMALLOC_STATS */
 
 /******************************************************************************/
 /*
@@ -536,7 +456,7 @@ struct chunk_stats_s {
 /* Tree of extents. */
 typedef struct extent_node_s extent_node_t;
 struct extent_node_s {
-#ifdef MALLOC_DSS
+#ifdef JEMALLOC_DSS
 	/* Linkage for the size/address-ordered tree. */
 	rb_node(extent_node_t) link_szad;
 #endif
@@ -641,7 +561,7 @@ typedef rb_tree(arena_chunk_t) arena_chunk_tree_t;
 
 typedef struct arena_run_s arena_run_t;
 struct arena_run_s {
-#ifdef MALLOC_DEBUG
+#ifdef JEMALLOC_DEBUG
 	uint32_t	magic;
 #  define ARENA_RUN_MAGIC 0x384adf93
 #endif
@@ -690,14 +610,14 @@ struct arena_bin_s {
 	/* Offset of first region in a run for this bin's size class. */
 	uint32_t	reg0_offset;
 
-#ifdef MALLOC_STATS
+#ifdef JEMALLOC_STATS
 	/* Bin statistics. */
 	malloc_bin_stats_t stats;
 #endif
 };
 
 struct arena_s {
-#ifdef MALLOC_DEBUG
+#ifdef JEMALLOC_DEBUG
 	uint32_t		magic;
 #  define ARENA_MAGIC 0x947d3d24
 #endif
@@ -705,7 +625,7 @@ struct arena_s {
 	/* All operations on this arena require that lock be locked. */
 	pthread_mutex_t		lock;
 
-#ifdef MALLOC_STATS
+#ifdef JEMALLOC_STATS
 	arena_stats_t		stats;
 #endif
 
@@ -738,7 +658,7 @@ struct arena_s {
 	 */
 	arena_avail_tree_t	runs_avail;
 
-#ifdef MALLOC_BALANCE
+#ifdef JEMALLOC_BALANCE
 	/*
 	 * The arena load balancing machinery needs to keep track of how much
 	 * lock contention there is.  This value is exponentially averaged.
@@ -778,7 +698,7 @@ struct arena_s {
  * Magazine data structures.
  */
 
-#ifdef MALLOC_MAG
+#ifdef JEMALLOC_MAG
 typedef struct mag_s mag_t;
 struct mag_s {
 	size_t		binind; /* Index of associated bin. */
@@ -807,11 +727,39 @@ struct mag_rack_s {
  * Data.
  */
 
+#ifdef JEMALLOC_LAZY_LOCK
+static bool isthreaded = false;
+#else
+#  define isthreaded true
+#endif
+
 /* Number of CPUs. */
 static unsigned		ncpus;
 
+/*
+ * Page size.  STATIC_PAGE_SHIFT is determined by the configure script.  If
+ * DYNAMIC_PAGE_SHIFT is enabled, only use the STATIC_PAGE_* macros where
+ * compile-time values are required for the purposes of defining data
+ * structures.
+ */
+#define	STATIC_PAGE_SIZE ((size_t)(1U << STATIC_PAGE_SHIFT))
+#define	STATIC_PAGE_MASK ((size_t)(STATIC_PAGE_SIZE - 1))
+
+#ifdef DYNAMIC_PAGE_SHIFT
+static size_t		pagesize;
+static size_t		pagesize_mask;
+static size_t		pagesize_2pow;
+#  define PAGE_SHIFT	pagesize_2pow
+#  define PAGE_SIZE	pagesize
+#  define PAGE_MASK	pagesize_mask
+#else
+#  define PAGE_SHIFT	STATIC_PAGE_SHIFT
+#  define PAGE_SIZE	STATIC_PAGE_SIZE
+#  define PAGE_MASK	STATIC_PAGE_MASK
+#endif
+
 /* Various bin-related settings. */
-#ifdef MALLOC_TINY		/* Number of (2^n)-spaced tiny bins. */
+#ifdef JEMALLOC_TINY		/* Number of (2^n)-spaced tiny bins. */
 #  define		ntbins	((unsigned)(QUANTUM_2POW - TINY_MIN_2POW))
 #else
 #  define		ntbins	0
@@ -820,7 +768,7 @@ static unsigned		nqbins; /* Number of quantum-spaced bins. */
 static unsigned		ncbins; /* Number of cacheline-spaced bins. */
 static unsigned		nsbins; /* Number of subpage-spaced bins. */
 static unsigned		nbins;
-#ifdef MALLOC_TINY
+#ifdef JEMALLOC_TINY
 #  define		tspace_max	((size_t)(QUANTUM >> 1))
 #endif
 #define			qspace_min	QUANTUM
@@ -846,11 +794,11 @@ static uint8_t const	*size2bin;
 #define	S2B_64(i)	S2B_32(i) S2B_32(i)
 #define	S2B_128(i)	S2B_64(i) S2B_64(i)
 #define	S2B_256(i)	S2B_128(i) S2B_128(i)
-static const uint8_t	const_size2bin[PAGE_SIZE - 255] = {
+static const uint8_t	const_size2bin[STATIC_PAGE_SIZE - 255] = {
 	S2B_1(0xffU)		/*    0 */
 #if (QUANTUM_2POW == 4)
 /* 64-bit system ************************/
-#  ifdef MALLOC_TINY
+#  ifdef JEMALLOC_TINY
 	S2B_2(0)		/*    2 */
 	S2B_2(1)		/*    4 */
 	S2B_4(2)		/*    8 */
@@ -870,7 +818,7 @@ static const uint8_t	const_size2bin[PAGE_SIZE - 255] = {
 #  define S2B_CMIN (S2B_QMIN + 8)
 #else
 /* 32-bit system ************************/
-#  ifdef MALLOC_TINY
+#  ifdef JEMALLOC_TINY
 	S2B_2(0)		/*    2 */
 	S2B_2(1)		/*    4 */
 	S2B_4(2)		/*    8 */
@@ -917,7 +865,7 @@ static const uint8_t	const_size2bin[PAGE_SIZE - 255] = {
 	S2B_256(S2B_SMIN + 10)	/* 3328 */
 	S2B_256(S2B_SMIN + 11)	/* 3584 */
 	S2B_256(S2B_SMIN + 12)	/* 3840 */
-#if (PAGE_SHIFT == 13)
+#if (STATIC_PAGE_SHIFT == 13)
 	S2B_256(S2B_SMIN + 13)	/* 4096 */
 	S2B_256(S2B_SMIN + 14)	/* 4352 */
 	S2B_256(S2B_SMIN + 15)	/* 4608 */
@@ -949,7 +897,7 @@ static const uint8_t	const_size2bin[PAGE_SIZE - 255] = {
 #undef S2B_CMIN
 #undef S2B_SMIN
 
-#ifdef MALLOC_MAG
+#ifdef JEMALLOC_MAG
 static size_t		max_rounds;
 #endif
 
@@ -971,7 +919,7 @@ static malloc_mutex_t	huge_mtx;
 /* Tree of chunks that are stand-alone huge allocations. */
 static extent_tree_t	huge;
 
-#ifdef MALLOC_DSS
+#ifdef JEMALLOC_DSS
 /*
  * Protects sbrk() calls.  This avoids malloc races among threads, though it
  * does not protect against races with threads that call sbrk() directly.
@@ -994,7 +942,7 @@ static extent_tree_t	dss_chunks_szad;
 static extent_tree_t	dss_chunks_ad;
 #endif
 
-#ifdef MALLOC_STATS
+#ifdef JEMALLOC_STATS
 /* Huge allocation statistics. */
 static uint64_t		huge_nmalloc;
 static uint64_t		huge_ndalloc;
@@ -1016,7 +964,7 @@ static void		*base_next_addr;
 static void		*base_past_addr; /* Addr immediately past base_pages. */
 static extent_node_t	*base_nodes;
 static malloc_mutex_t	base_mtx;
-#ifdef MALLOC_STATS
+#ifdef JEMALLOC_STATS
 static size_t		base_mapped;
 #endif
 
@@ -1032,7 +980,7 @@ static size_t		base_mapped;
 static arena_t		**arenas;
 static unsigned		narenas;
 #ifndef NO_TLS
-#  ifdef MALLOC_BALANCE
+#  ifdef JEMALLOC_BALANCE
 static unsigned		narenas_2pow;
 #  else
 static unsigned		next_arena;
@@ -1048,15 +996,21 @@ static pthread_mutex_t	arenas_lock; /* Protects arenas initialization. */
 static __thread arena_t	*arenas_map;
 #endif
 
-#ifdef MALLOC_MAG
+#ifdef JEMALLOC_MAG
 /*
  * Map of thread-specific magazine racks, used for thread-specific object
  * caching.
  */
 static __thread mag_rack_t	*mag_rack;
+
+/*
+ * Same contents as mag_rack, but initialized such that the TSD destructor is
+ * called when a thread exits, so that the cache can be cleaned up.
+ */
+static pthread_key_t		mag_rack_tsd;
 #endif
 
-#ifdef MALLOC_STATS
+#ifdef JEMALLOC_STATS
 /* Chunk statistics. */
 static chunk_stats_t	stats_chunks;
 #endif
@@ -1067,42 +1021,52 @@ static chunk_stats_t	stats_chunks;
  */
 const char	*jemalloc_options;
 
-#ifndef MALLOC_PRODUCTION
+#ifdef JEMALLOC_DEBUG
 static bool	opt_abort = true;
+#  ifdef JEMALLOC_FILL
 static bool	opt_junk = true;
+#  endif
 #else
 static bool	opt_abort = false;
+#  ifdef JEMALLOC_FILL
 static bool	opt_junk = false;
+#  endif
 #endif
-#ifdef MALLOC_DSS
+#ifdef JEMALLOC_DSS
 static bool	opt_dss = true;
 static bool	opt_mmap = true;
 #endif
-#ifdef MALLOC_MAG
+#ifdef JEMALLOC_MAG
 static bool	opt_mag = true;
 static size_t	opt_mag_size_2pow = MAG_SIZE_2POW_DEFAULT;
 #endif
 static size_t	opt_dirty_max = DIRTY_MAX_DEFAULT;
-#ifdef MALLOC_BALANCE
+#ifdef JEMALLOC_BALANCE
 static uint64_t	opt_balance_threshold = BALANCE_THRESHOLD_DEFAULT;
 #endif
 static bool	opt_print_stats = false;
 static size_t	opt_qspace_max_2pow = QSPACE_MAX_2POW_DEFAULT;
 static size_t	opt_cspace_max_2pow = CSPACE_MAX_2POW_DEFAULT;
 static size_t	opt_chunk_2pow = CHUNK_2POW_DEFAULT;
+#ifdef JEMALLOC_STATS
 static bool	opt_utrace = false;
+#endif
+#ifdef JEMALLOC_SYSV
 static bool	opt_sysv = false;
+#endif
 static bool	opt_xmalloc = false;
+#ifdef JEMALLOC_FILL
 static bool	opt_zero = false;
+#endif
 static int	opt_narenas_lshift = 0;
 
+#ifdef JEMALLOC_STATS
 typedef struct {
 	void	*p;
 	size_t	s;
 	void	*r;
 } malloc_utrace_t;
 
-#ifdef MALLOC_STATS
 #define	UTRACE(a, b, c)							\
 	if (opt_utrace) {						\
 		malloc_utrace_t ut;					\
@@ -1124,11 +1088,11 @@ static bool	malloc_mutex_init(malloc_mutex_t *mutex);
 static bool	malloc_spin_init(pthread_mutex_t *lock);
 static void	wrtmessage(const char *p1, const char *p2, const char *p3,
 		const char *p4);
-#ifdef MALLOC_STATS
+#ifdef JEMALLOC_STATS
 static void	malloc_printf(const char *format, ...);
 #endif
 static char	*umax2s(uintmax_t x, char *s);
-#ifdef MALLOC_DSS
+#ifdef JEMALLOC_DSS
 static bool	base_pages_alloc_dss(size_t minsize);
 #endif
 static bool	base_pages_alloc_mmap(size_t minsize);
@@ -1137,18 +1101,18 @@ static void	*base_alloc(size_t size);
 static void	*base_calloc(size_t number, size_t size);
 static extent_node_t *base_node_alloc(void);
 static void	base_node_dealloc(extent_node_t *node);
-#ifdef MALLOC_STATS
+#ifdef JEMALLOC_STATS
 static void	stats_print(arena_t *arena);
 #endif
 static void	*pages_map(void *addr, size_t size);
 static void	pages_unmap(void *addr, size_t size);
-#ifdef MALLOC_DSS
+#ifdef JEMALLOC_DSS
 static void	*chunk_alloc_dss(size_t size);
 static void	*chunk_recycle_dss(size_t size, bool zero);
 #endif
 static void	*chunk_alloc_mmap(size_t size);
 static void	*chunk_alloc(size_t size, bool zero);
-#ifdef MALLOC_DSS
+#ifdef JEMALLOC_DSS
 static extent_node_t *chunk_dealloc_dss_record(void *chunk, size_t size);
 static bool	chunk_dealloc_dss(void *chunk, size_t size);
 #endif
@@ -1172,17 +1136,17 @@ static void	arena_run_trim_tail(arena_t *arena, arena_chunk_t *chunk,
 static arena_run_t *arena_bin_nonfull_run_get(arena_t *arena, arena_bin_t *bin);
 static void	*arena_bin_malloc_hard(arena_t *arena, arena_bin_t *bin);
 static size_t	arena_bin_run_size_calc(arena_bin_t *bin, size_t min_run_size);
-#ifdef MALLOC_BALANCE
+#ifdef JEMALLOC_BALANCE
 static void	arena_lock_balance_hard(arena_t *arena);
 #endif
-#ifdef MALLOC_MAG
+#ifdef JEMALLOC_MAG
 static void	mag_load(mag_t *mag);
 #endif
 static void	*arena_malloc_large(arena_t *arena, size_t size, bool zero);
 static void	*arena_palloc(arena_t *arena, size_t alignment, size_t size,
     size_t alloc_size);
 static size_t	arena_salloc(const void *ptr);
-#ifdef MALLOC_MAG
+#ifdef JEMALLOC_MAG
 static void	mag_unload(mag_t *mag);
 #endif
 static void	arena_dalloc_large(arena_t *arena, arena_chunk_t *chunk,
@@ -1195,7 +1159,7 @@ static bool	arena_ralloc_large(void *ptr, size_t size, size_t oldsize);
 static void	*arena_ralloc(void *ptr, size_t size, size_t oldsize);
 static bool	arena_new(arena_t *arena);
 static arena_t	*arenas_extend(unsigned ind);
-#ifdef MALLOC_MAG
+#ifdef JEMALLOC_MAG
 static mag_t	*mag_create(arena_t *arena, size_t binind);
 static void	mag_destroy(mag_t *mag);
 static mag_rack_t *mag_rack_create(arena_t *arena);
@@ -1206,13 +1170,14 @@ static void	*huge_palloc(size_t alignment, size_t size);
 static void	*huge_ralloc(void *ptr, size_t size, size_t oldsize);
 static void	huge_dalloc(void *ptr);
 static void	malloc_print_stats(void);
-#ifdef MALLOC_DEBUG
+#ifdef JEMALLOC_DEBUG
 static void	size2bin_validate(void);
 #endif
 static bool	size2bin_init(void);
 static bool	size2bin_init_hard(void);
 static unsigned	malloc_ncpus(void);
 static bool	malloc_init_hard(void);
+static void	thread_cleanup(void *arg);
 void		jemalloc_prefork(void);
 void		jemalloc_postfork(void);
 
@@ -1225,10 +1190,11 @@ static void
 wrtmessage(const char *p1, const char *p2, const char *p3, const char *p4)
 {
 
-	write(STDERR_FILENO, p1, strlen(p1));
-	write(STDERR_FILENO, p2, strlen(p2));
-	write(STDERR_FILENO, p3, strlen(p3));
-	write(STDERR_FILENO, p4, strlen(p4));
+	if (write(STDERR_FILENO, p1, strlen(p1)) < 0
+	    || write(STDERR_FILENO, p2, strlen(p2)) < 0
+	    || write(STDERR_FILENO, p3, strlen(p3)) < 0
+	    || write(STDERR_FILENO, p4, strlen(p4)) < 0)
+		return;
 }
 
 void	(*jemalloc_message)(const char *p1, const char *p2, const char *p3,
@@ -1238,7 +1204,7 @@ void	(*jemalloc_message)(const char *p1, const char *p2, const char *p3,
  * We don't want to depend on vsnprintf() for production builds, since that can
  * cause unnecessary bloat for static binaries.  umax2s() provides minimal
  * integer printing functionality, so that malloc_printf() use can be limited to
- * MALLOC_STATS code.
+ * JEMALLOC_STATS code.
  */
 #define	UMAX2S_BUFSIZE	21
 static char *
@@ -1261,7 +1227,7 @@ umax2s(uintmax_t x, char *s)
  * Define a custom assert() in order to reduce the chances of deadlock during
  * assertion failure.
  */
-#ifdef MALLOC_DEBUG
+#ifdef JEMALLOC_DEBUG
 #  define assert(e) do {						\
 	if (!(e)) {							\
 		char line_buf[UMAX2S_BUFSIZE];				\
@@ -1275,7 +1241,7 @@ umax2s(uintmax_t x, char *s)
 #define assert(e)
 #endif
 
-#ifdef MALLOC_STATS
+#ifdef JEMALLOC_STATS
 static int
 utrace(const void *addr, size_t len)
 {
@@ -1298,7 +1264,7 @@ utrace(const void *addr, size_t len)
 }
 #endif
 
-#ifdef MALLOC_STATS
+#ifdef JEMALLOC_STATS
 /*
  * Print to stderr in such a way as to (hopefully) avoid memory allocation.
  */
@@ -1312,6 +1278,42 @@ malloc_printf(const char *format, ...)
 	vsnprintf(buf, sizeof(buf), format, ap);
 	va_end(ap);
 	jemalloc_message(buf, "", "", "");
+}
+#endif
+
+/******************************************************************************/
+/*
+ * Begin pthreads integration.  We intercept pthread_create() calls in order
+ * to toggle isthreaded if the process goes multi-threaded.
+ */
+
+#ifdef JEMALLOC_LAZY_LOCK
+int (*pthread_create_fptr)(pthread_t *restrict, const pthread_attr_t *,
+    void *(*)(void *), void *restrict);
+
+static void
+get_pthread_create_fptr(void)
+{
+
+	pthread_create_fptr = dlsym(RTLD_NEXT, "pthread_create");
+	if (pthread_create_fptr == NULL) {
+		jemalloc_message("<jemalloc>",
+		    ": Error in dlsym(RTLD_NEXT, \"pthread_create\")\n", "",
+		    "");
+		abort();
+	}
+}
+
+int
+pthread_create(pthread_t *restrict thread, const pthread_attr_t *restrict attr,
+    void *(*start_routine)(void *), void *restrict arg)
+{
+	static pthread_once_t once_control = PTHREAD_ONCE_INIT;
+
+	pthread_once(&once_control, get_pthread_create_fptr);
+
+	isthreaded = true;
+	return pthread_create_fptr(thread, attr, start_routine, arg);
 }
 #endif
 
@@ -1341,7 +1343,7 @@ static inline void
 malloc_mutex_lock(malloc_mutex_t *mutex)
 {
 
-	if (__isthreaded)
+	if (isthreaded)
 		pthread_mutex_lock(mutex);
 }
 
@@ -1349,7 +1351,7 @@ static inline void
 malloc_mutex_unlock(malloc_mutex_t *mutex)
 {
 
-	if (__isthreaded)
+	if (isthreaded)
 		pthread_mutex_unlock(mutex);
 }
 
@@ -1378,7 +1380,7 @@ malloc_spin_lock(pthread_mutex_t *lock)
 {
 	unsigned ret = 0;
 
-	if (__isthreaded) {
+	if (isthreaded) {
 		if (pthread_mutex_trylock(lock) != 0) {
 			/* Exponentially back off if there are multiple CPUs. */
 			if (ncpus > 1) {
@@ -1414,7 +1416,7 @@ static inline void
 malloc_spin_unlock(pthread_mutex_t *lock)
 {
 
-	if (__isthreaded)
+	if (isthreaded)
 		pthread_mutex_unlock(lock);
 }
 
@@ -1452,9 +1454,9 @@ malloc_spin_unlock(pthread_mutex_t *lock)
 
 /* Return the smallest pagesize multiple that is >= s. */
 #define	PAGE_CEILING(s)							\
-	(((s) + pagesize_mask) & ~pagesize_mask)
+	(((s) + PAGE_MASK) & ~PAGE_MASK)
 
-#ifdef MALLOC_TINY
+#ifdef JEMALLOC_TINY
 /* Compute the smallest power of 2 that is >= x. */
 static inline size_t
 pow2_ceil(size_t x)
@@ -1474,7 +1476,7 @@ pow2_ceil(size_t x)
 }
 #endif
 
-#ifdef MALLOC_BALANCE
+#ifdef JEMALLOC_BALANCE
 /*
  * Use a simple linear congruential pseudo-random number generator:
  *
@@ -1518,7 +1520,7 @@ prn_##suffix(uint32_t lg_range)						\
 #  define PRN(suffix, lg_range)	prn_##suffix(lg_range)
 #endif
 
-#ifdef MALLOC_BALANCE
+#ifdef JEMALLOC_BALANCE
 /* Define the PRNG used for arena assignment. */
 static __thread uint32_t balance_x;
 PRN_DEFINE(balance, balance_x, 1297, 1301)
@@ -1526,7 +1528,7 @@ PRN_DEFINE(balance, balance_x, 1297, 1301)
 
 /******************************************************************************/
 
-#ifdef MALLOC_DSS
+#ifdef JEMALLOC_DSS
 static bool
 base_pages_alloc_dss(size_t minsize)
 {
@@ -1562,7 +1564,7 @@ base_pages_alloc_dss(size_t minsize)
 				base_pages = dss_prev;
 				base_next_addr = base_pages;
 				base_past_addr = dss_max;
-#ifdef MALLOC_STATS
+#ifdef JEMALLOC_STATS
 				base_mapped += incr;
 #endif
 				malloc_mutex_unlock(&dss_mtx);
@@ -1588,7 +1590,7 @@ base_pages_alloc_mmap(size_t minsize)
 		return (true);
 	base_next_addr = base_pages;
 	base_past_addr = (void *)((uintptr_t)base_pages + csize);
-#ifdef MALLOC_STATS
+#ifdef JEMALLOC_STATS
 	base_mapped += csize;
 #endif
 
@@ -1599,7 +1601,7 @@ static bool
 base_pages_alloc(size_t minsize)
 {
 
-#ifdef MALLOC_DSS
+#ifdef JEMALLOC_DSS
 	if (opt_dss) {
 		if (base_pages_alloc_dss(minsize) == false)
 			return (false);
@@ -1681,7 +1683,7 @@ base_node_dealloc(extent_node_t *node)
 
 /******************************************************************************/
 
-#ifdef MALLOC_STATS
+#ifdef JEMALLOC_STATS
 static void
 stats_print(arena_t *arena)
 {
@@ -1707,15 +1709,15 @@ stats_print(arena_t *arena)
 	    arena->stats.ndalloc_small + arena->stats.ndalloc_large);
 	malloc_printf("mapped:  %12zu\n", arena->stats.mapped);
 
-#ifdef MALLOC_MAG
-	if (__isthreaded && opt_mag) {
+#ifdef JEMALLOC_MAG
+	if (opt_mag) {
 		malloc_printf("bins:     bin   size regs pgs      mags   "
 		    "newruns    reruns maxruns curruns\n");
 	} else {
 #endif
 		malloc_printf("bins:     bin   size regs pgs  requests   "
 		    "newruns    reruns maxruns curruns\n");
-#ifdef MALLOC_MAG
+#ifdef JEMALLOC_MAG
 	}
 #endif
 	for (i = 0, gap_start = UINT_MAX; i < nbins; i++) {
@@ -1743,9 +1745,8 @@ stats_print(arena_t *arena)
 			    arena->bins[i].reg_size,
 			    arena->bins[i].nregs,
 			    arena->bins[i].run_size >> PAGE_SHIFT,
-#ifdef MALLOC_MAG
-			    (__isthreaded && opt_mag) ?
-			    arena->bins[i].stats.nmags :
+#ifdef JEMALLOC_MAG
+			    (opt_mag) ? arena->bins[i].stats.nmags :
 #endif
 			    arena->bins[i].stats.nrequests,
 			    arena->bins[i].stats.nruns,
@@ -1774,7 +1775,7 @@ stats_print(arena_t *arena)
  * Begin extent tree code.
  */
 
-#ifdef MALLOC_DSS
+#ifdef JEMALLOC_DSS
 static inline int
 extent_szad_comp(extent_node_t *a, extent_node_t *b)
 {
@@ -1870,7 +1871,7 @@ pages_unmap(void *addr, size_t size)
 	}
 }
 
-#ifdef MALLOC_DSS
+#ifdef JEMALLOC_DSS
 static void *
 chunk_alloc_dss(size_t size)
 {
@@ -2047,7 +2048,7 @@ chunk_alloc(size_t size, bool zero)
 	assert(size != 0);
 	assert((size & chunksize_mask) == 0);
 
-#ifdef MALLOC_DSS
+#ifdef JEMALLOC_DSS
 	if (opt_dss) {
 		ret = chunk_recycle_dss(size, zero);
 		if (ret != NULL) {
@@ -2070,7 +2071,7 @@ chunk_alloc(size_t size, bool zero)
 	/* All strategies for allocation failed. */
 	ret = NULL;
 RETURN:
-#ifdef MALLOC_STATS
+#ifdef JEMALLOC_STATS
 	if (ret != NULL) {
 		stats_chunks.nchunks += (size / chunksize);
 		stats_chunks.curchunks += (size / chunksize);
@@ -2083,7 +2084,7 @@ RETURN:
 	return (ret);
 }
 
-#ifdef MALLOC_DSS
+#ifdef JEMALLOC_DSS
 static extent_node_t *
 chunk_dealloc_dss_record(void *chunk, size_t size)
 {
@@ -2208,11 +2209,11 @@ chunk_dealloc(void *chunk, size_t size)
 	assert(size != 0);
 	assert((size & chunksize_mask) == 0);
 
-#ifdef MALLOC_STATS
+#ifdef JEMALLOC_STATS
 	stats_chunks.curchunks -= (size / chunksize);
 #endif
 
-#ifdef MALLOC_DSS
+#ifdef JEMALLOC_DSS
 	if (opt_dss) {
 		if (chunk_dealloc_dss(chunk, size) == false)
 			return;
@@ -2246,7 +2247,7 @@ choose_arena(void)
 	 * introduces a bootstrapping issue.
 	 */
 #ifndef NO_TLS
-	if (__isthreaded == false) {
+	if (isthreaded == false) {
 	    /* Avoid the overhead of TLS for single-threaded operation. */
 	    return (arenas[0]);
 	}
@@ -2257,7 +2258,7 @@ choose_arena(void)
 		assert(ret != NULL);
 	}
 #else
-	if (__isthreaded && narenas > 1) {
+	if (isthreaded && narenas > 1) {
 		unsigned long ind;
 
 		/*
@@ -2314,15 +2315,15 @@ choose_arena_hard(void)
 {
 	arena_t *ret;
 
-	assert(__isthreaded);
+	assert(isthreaded);
 
-#ifdef MALLOC_BALANCE
+#ifdef JEMALLOC_BALANCE
 	/* Seed the PRNG used for arena load balancing. */
 	SPRN(balance, (uint32_t)(uintptr_t)(pthread_self()));
 #endif
 
 	if (narenas > 1) {
-#ifdef MALLOC_BALANCE
+#ifdef JEMALLOC_BALANCE
 		unsigned ind;
 
 		ind = PRN(balance, narenas_2pow);
@@ -2570,7 +2571,7 @@ arena_run_reg_dalloc(arena_run_t *run, arena_bin_t *bin, void *ptr, size_t size)
 		    SSIZE_INV(4), SSIZE_INV(5), SSIZE_INV(6), SSIZE_INV(7),
 		    SSIZE_INV(8), SSIZE_INV(9), SSIZE_INV(10), SSIZE_INV(11),
 		    SSIZE_INV(12), SSIZE_INV(13), SSIZE_INV(14), SSIZE_INV(15)
-#if (PAGE_SHIFT == 13)
+#if (STATIC_PAGE_SHIFT == 13)
 		    ,
 		    SSIZE_INV(16), SSIZE_INV(17), SSIZE_INV(18), SSIZE_INV(19),
 		    SSIZE_INV(20), SSIZE_INV(21), SSIZE_INV(22), SSIZE_INV(23),
@@ -2687,7 +2688,7 @@ arena_chunk_alloc(arena_t *arena)
 		chunk = (arena_chunk_t *)chunk_alloc(chunksize, true);
 		if (chunk == NULL)
 			return (NULL);
-#ifdef MALLOC_STATS
+#ifdef JEMALLOC_STATS
 		arena->stats.mapped += chunksize;
 #endif
 
@@ -2730,7 +2731,7 @@ arena_chunk_dealloc(arena_t *arena, arena_chunk_t *chunk)
 			arena->ndirty -= arena->spare->ndirty;
 		}
 		chunk_dealloc((void *)arena->spare, chunksize);
-#ifdef MALLOC_STATS
+#ifdef JEMALLOC_STATS
 		arena->stats.mapped -= chunksize;
 #endif
 	}
@@ -2789,7 +2790,7 @@ arena_purge(arena_t *arena)
 {
 	arena_chunk_t *chunk;
 	size_t i, npages;
-#ifdef MALLOC_DEBUG
+#ifdef JEMALLOC_DEBUG
 	size_t ndirty = 0;
 
 	rb_foreach_begin(arena_chunk_t, link_dirty, &arena->chunks_dirty,
@@ -2800,7 +2801,7 @@ arena_purge(arena_t *arena)
 #endif
 	assert(arena->ndirty > opt_dirty_max);
 
-#ifdef MALLOC_STATS
+#ifdef JEMALLOC_STATS
 	arena->stats.npurge++;
 #endif
 
@@ -2832,7 +2833,7 @@ arena_purge(arena_t *arena)
 				madvise((void *)((uintptr_t)chunk + (i <<
 				    PAGE_SHIFT)), (npages << PAGE_SHIFT),
 				    MADV_DONTNEED);
-#ifdef MALLOC_STATS
+#ifdef JEMALLOC_STATS
 				arena->stats.nmadvise++;
 				arena->stats.purged += npages;
 #endif
@@ -3012,7 +3013,7 @@ arena_bin_nonfull_run_get(arena_t *arena, arena_bin_t *bin)
 		/* run is guaranteed to have available space. */
 		arena_run_tree_remove(&bin->runs, mapelm);
 		run = (arena_run_t *)(mapelm->bits & ~PAGE_MASK);
-#ifdef MALLOC_STATS
+#ifdef JEMALLOC_STATS
 		bin->stats.reruns++;
 #endif
 		return (run);
@@ -3041,11 +3042,11 @@ arena_bin_nonfull_run_get(arena_t *arena, arena_bin_t *bin)
 	run->regs_minelm = 0;
 
 	run->nfree = bin->nregs;
-#ifdef MALLOC_DEBUG
+#ifdef JEMALLOC_DEBUG
 	run->magic = ARENA_RUN_MAGIC;
 #endif
 
-#ifdef MALLOC_STATS
+#ifdef JEMALLOC_STATS
 	bin->stats.nruns++;
 	bin->stats.curruns++;
 	if (bin->stats.curruns > bin->stats.highruns)
@@ -3167,7 +3168,7 @@ arena_bin_run_size_calc(arena_bin_t *bin, size_t min_run_size)
 	return (good_run_size);
 }
 
-#ifdef MALLOC_BALANCE
+#ifdef JEMALLOC_BALANCE
 static inline void
 arena_lock_balance(arena_t *arena)
 {
@@ -3194,7 +3195,7 @@ arena_lock_balance_hard(arena_t *arena)
 	uint32_t ind;
 
 	arena->contention = 0;
-#ifdef MALLOC_STATS
+#ifdef JEMALLOC_STATS
 	arena->stats.nbalance++;
 #endif
 	ind = PRN(balance, narenas_2pow);
@@ -3211,7 +3212,7 @@ arena_lock_balance_hard(arena_t *arena)
 }
 #endif
 
-#ifdef MALLOC_MAG
+#ifdef JEMALLOC_MAG
 static inline void *
 mag_alloc(mag_t *mag)
 {
@@ -3234,7 +3235,7 @@ mag_load(mag_t *mag)
 
 	arena = choose_arena();
 	bin = &arena->bins[mag->binind];
-#ifdef MALLOC_BALANCE
+#ifdef JEMALLOC_BALANCE
 	arena_lock_balance(arena);
 #else
 	malloc_spin_lock(&arena->lock);
@@ -3248,7 +3249,7 @@ mag_load(mag_t *mag)
 			break;
 		mag->rounds[i] = round;
 	}
-#ifdef MALLOC_STATS
+#ifdef JEMALLOC_STATS
 	bin->stats.nmags++;
 	arena->stats.nmalloc_small += (i - mag->nrounds);
 	arena->stats.allocated_small += (i - mag->nrounds) * bin->reg_size;
@@ -3307,10 +3308,12 @@ mag_rack_alloc(mag_rack_t *rack, size_t size, bool zero)
 	}
 
 	if (zero == false) {
+#ifdef JEMALLOC_FILL
 		if (opt_junk)
 			memset(ret, 0xa5, size);
 		else if (opt_zero)
 			memset(ret, 0, size);
+#endif
 	} else
 		memset(ret, 0, size);
 
@@ -3331,7 +3334,7 @@ arena_malloc_small(arena_t *arena, size_t size, bool zero)
 	bin = &arena->bins[binind];
 	size = bin->reg_size;
 
-#ifdef MALLOC_BALANCE
+#ifdef JEMALLOC_BALANCE
 	arena_lock_balance(arena);
 #else
 	malloc_spin_lock(&arena->lock);
@@ -3346,7 +3349,7 @@ arena_malloc_small(arena_t *arena, size_t size, bool zero)
 		return (NULL);
 	}
 
-#ifdef MALLOC_STATS
+#ifdef JEMALLOC_STATS
 	bin->stats.nrequests++;
 	arena->stats.nmalloc_small++;
 	arena->stats.allocated_small += size;
@@ -3354,10 +3357,12 @@ arena_malloc_small(arena_t *arena, size_t size, bool zero)
 	malloc_spin_unlock(&arena->lock);
 
 	if (zero == false) {
+#ifdef JEMALLOC_FILL
 		if (opt_junk)
 			memset(ret, 0xa5, size);
 		else if (opt_zero)
 			memset(ret, 0, size);
+#endif
 	} else
 		memset(ret, 0, size);
 
@@ -3371,7 +3376,7 @@ arena_malloc_large(arena_t *arena, size_t size, bool zero)
 
 	/* Large allocation. */
 	size = PAGE_CEILING(size);
-#ifdef MALLOC_BALANCE
+#ifdef JEMALLOC_BALANCE
 	arena_lock_balance(arena);
 #else
 	malloc_spin_lock(&arena->lock);
@@ -3381,17 +3386,19 @@ arena_malloc_large(arena_t *arena, size_t size, bool zero)
 		malloc_spin_unlock(&arena->lock);
 		return (NULL);
 	}
-#ifdef MALLOC_STATS
+#ifdef JEMALLOC_STATS
 	arena->stats.nmalloc_large++;
 	arena->stats.allocated_large += size;
 #endif
 	malloc_spin_unlock(&arena->lock);
 
 	if (zero == false) {
+#ifdef JEMALLOC_FILL
 		if (opt_junk)
 			memset(ret, 0xa5, size);
 		else if (opt_zero)
 			memset(ret, 0, size);
+#endif
 	}
 
 	return (ret);
@@ -3407,14 +3414,15 @@ arena_malloc(arena_t *arena, size_t size, bool zero)
 	assert(QUANTUM_CEILING(size) <= arena_maxclass);
 
 	if (size <= bin_maxclass) {
-#ifdef MALLOC_MAG
-		if (__isthreaded && opt_mag) {
+#ifdef JEMALLOC_MAG
+		if (opt_mag) {
 			mag_rack_t *rack = mag_rack;
 			if (rack == NULL) {
 				rack = mag_rack_create(arena);
 				if (rack == NULL)
 					return (NULL);
 				mag_rack = rack;
+				pthread_setspecific(mag_rack_tsd, rack);
 			}
 			return (mag_rack_alloc(rack, size, zero));
 		} else
@@ -3457,7 +3465,7 @@ arena_palloc(arena_t *arena, size_t alignment, size_t size, size_t alloc_size)
 	assert((size & PAGE_MASK) == 0);
 	assert((alignment & PAGE_MASK) == 0);
 
-#ifdef MALLOC_BALANCE
+#ifdef JEMALLOC_BALANCE
 	arena_lock_balance(arena);
 #else
 	malloc_spin_lock(&arena->lock);
@@ -3494,16 +3502,18 @@ arena_palloc(arena_t *arena, size_t alignment, size_t size, size_t alloc_size)
 		}
 	}
 
-#ifdef MALLOC_STATS
+#ifdef JEMALLOC_STATS
 	arena->stats.nmalloc_large++;
 	arena->stats.allocated_large += size;
 #endif
 	malloc_spin_unlock(&arena->lock);
 
+#ifdef JEMALLOC_FILL
 	if (opt_junk)
 		memset(ret, 0xa5, size);
 	else if (opt_zero)
 		memset(ret, 0, size);
+#endif
 	return (ret);
 }
 
@@ -3676,8 +3686,10 @@ arena_dalloc_small(arena_t *arena, arena_chunk_t *chunk, void *ptr,
 	bin = run->bin;
 	size = bin->reg_size;
 
+#ifdef JEMALLOC_FILL
 	if (opt_junk)
 		memset(ptr, 0x5a, size);
+#endif
 
 	arena_run_reg_dalloc(run, bin, ptr, size);
 	run->nfree++;
@@ -3698,11 +3710,11 @@ arena_dalloc_small(arena_t *arena, arena_chunk_t *chunk, void *ptr,
 			 */
 			arena_run_tree_remove(&bin->runs, run_mapelm);
 		}
-#ifdef MALLOC_DEBUG
+#ifdef JEMALLOC_DEBUG
 		run->magic = 0;
 #endif
 		arena_run_dalloc(arena, run, true);
-#ifdef MALLOC_STATS
+#ifdef JEMALLOC_STATS
 		bin->stats.curruns--;
 #endif
 	} else if (run->nfree == 1 && run != bin->runcur) {
@@ -3739,13 +3751,13 @@ arena_dalloc_small(arena_t *arena, arena_chunk_t *chunk, void *ptr,
 			arena_run_tree_insert(&bin->runs, run_mapelm);
 		}
 	}
-#ifdef MALLOC_STATS
+#ifdef JEMALLOC_STATS
 	arena->stats.allocated_small -= size;
 	arena->stats.ndalloc_small++;
 #endif
 }
 
-#ifdef MALLOC_MAG
+#ifdef JEMALLOC_MAG
 static void
 mag_unload(mag_t *mag)
 {
@@ -3759,7 +3771,7 @@ mag_unload(mag_t *mag)
 		/* Lock the arena associated with the first round. */
 		chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(mag->rounds[0]);
 		arena = chunk->arena;
-#ifdef MALLOC_BALANCE
+#ifdef JEMALLOC_BALANCE
 		arena_lock_balance(arena);
 #else
 		malloc_spin_lock(&arena->lock);
@@ -3814,8 +3826,10 @@ mag_rack_dalloc(mag_rack_t *rack, void *ptr)
 	    sizeof(arena_bin_t);
 	assert(binind < nbins);
 
+#ifdef JEMALLOC_FILL
 	if (opt_junk)
 		memset(ptr, 0x5a, arena->bins[binind].reg_size);
+#endif
 
 	bin_mags = &rack->bin_mags[binind];
 	mag = bin_mags->curmag;
@@ -3867,23 +3881,29 @@ arena_dalloc_large(arena_t *arena, arena_chunk_t *chunk, void *ptr)
 	/* Large allocation. */
 	malloc_spin_lock(&arena->lock);
 
-#ifndef MALLOC_STATS
+#ifdef JEMALLOC_FILL
+#ifndef JEMALLOC_STATS
 	if (opt_junk)
 #endif
+#endif
 	{
+#if (defined(JEMALLOC_FILL) || defined(JEMALLOC_STATS))
 		size_t pageind = ((uintptr_t)ptr - (uintptr_t)chunk) >>
 		    PAGE_SHIFT;
 		size_t size = chunk->map[pageind].bits & ~PAGE_MASK;
+#endif
 
-#ifdef MALLOC_STATS
+#ifdef JEMALLOC_FILL
+#ifdef JEMALLOC_STATS
 		if (opt_junk)
 #endif
 			memset(ptr, 0x5a, size);
-#ifdef MALLOC_STATS
+#endif
+#ifdef JEMALLOC_STATS
 		arena->stats.allocated_large -= size;
 #endif
 	}
-#ifdef MALLOC_STATS
+#ifdef JEMALLOC_STATS
 	arena->stats.ndalloc_large++;
 #endif
 
@@ -3908,8 +3928,8 @@ arena_dalloc(arena_t *arena, arena_chunk_t *chunk, void *ptr)
 	assert((mapelm->bits & CHUNK_MAP_ALLOCATED) != 0);
 	if ((mapelm->bits & CHUNK_MAP_LARGE) == 0) {
 		/* Small allocation. */
-#ifdef MALLOC_MAG
-		if (__isthreaded && opt_mag) {
+#ifdef JEMALLOC_MAG
+		if (opt_mag) {
 			mag_rack_t *rack = mag_rack;
 			if (rack == NULL) {
 				rack = mag_rack_create(arena);
@@ -3920,6 +3940,7 @@ arena_dalloc(arena_t *arena, arena_chunk_t *chunk, void *ptr)
 					malloc_spin_unlock(&arena->lock);
 				}
 				mag_rack = rack;
+				pthread_setspecific(mag_rack_tsd, rack);
 			}
 			mag_rack_dalloc(rack, ptr);
 		} else {
@@ -3927,7 +3948,7 @@ arena_dalloc(arena_t *arena, arena_chunk_t *chunk, void *ptr)
 			malloc_spin_lock(&arena->lock);
 			arena_dalloc_small(arena, chunk, ptr, mapelm);
 			malloc_spin_unlock(&arena->lock);
-#ifdef MALLOC_MAG
+#ifdef JEMALLOC_MAG
 		}
 #endif
 	} else
@@ -3959,14 +3980,14 @@ arena_ralloc_large_shrink(arena_t *arena, arena_chunk_t *chunk, void *ptr,
 	 * Shrink the run, and make trailing pages available for other
 	 * allocations.
 	 */
-#ifdef MALLOC_BALANCE
+#ifdef JEMALLOC_BALANCE
 	arena_lock_balance(arena);
 #else
 	malloc_spin_lock(&arena->lock);
 #endif
 	arena_run_trim_tail(arena, chunk, (arena_run_t *)ptr, oldsize, size,
 	    true);
-#ifdef MALLOC_STATS
+#ifdef JEMALLOC_STATS
 	arena->stats.allocated_large -= oldsize - size;
 #endif
 	malloc_spin_unlock(&arena->lock);
@@ -3983,7 +4004,7 @@ arena_ralloc_large_grow(arena_t *arena, arena_chunk_t *chunk, void *ptr,
 
 	/* Try to extend the run. */
 	assert(size > oldsize);
-#ifdef MALLOC_BALANCE
+#ifdef JEMALLOC_BALANCE
 	arena_lock_balance(arena);
 #else
 	malloc_spin_lock(&arena->lock);
@@ -4005,7 +4026,7 @@ arena_ralloc_large_grow(arena_t *arena, arena_chunk_t *chunk, void *ptr,
 		chunk->map[pageind+npages].bits = CHUNK_MAP_LARGE |
 		    CHUNK_MAP_ALLOCATED;
 
-#ifdef MALLOC_STATS
+#ifdef JEMALLOC_STATS
 		arena->stats.allocated_large += size - oldsize;
 #endif
 		malloc_spin_unlock(&arena->lock);
@@ -4028,10 +4049,12 @@ arena_ralloc_large(void *ptr, size_t size, size_t oldsize)
 	psize = PAGE_CEILING(size);
 	if (psize == oldsize) {
 		/* Same size class. */
+#ifdef JEMALLOC_FILL
 		if (opt_junk && size < oldsize) {
 			memset((void *)((uintptr_t)ptr + size), 0x5a, oldsize -
 			    size);
 		}
+#endif
 		return (false);
 	} else {
 		arena_chunk_t *chunk;
@@ -4042,21 +4065,25 @@ arena_ralloc_large(void *ptr, size_t size, size_t oldsize)
 		assert(arena->magic == ARENA_MAGIC);
 
 		if (psize < oldsize) {
+#ifdef JEMALLOC_FILL
 			/* Fill before shrinking in order avoid a race. */
 			if (opt_junk) {
 				memset((void *)((uintptr_t)ptr + size), 0x5a,
 				    oldsize - size);
 			}
+#endif
 			arena_ralloc_large_shrink(arena, chunk, ptr, psize,
 			    oldsize);
 			return (false);
 		} else {
 			bool ret = arena_ralloc_large_grow(arena, chunk, ptr,
 			    psize, oldsize);
+#ifdef JEMALLOC_FILL
 			if (ret == false && opt_zero) {
 				memset((void *)((uintptr_t)ptr + oldsize), 0,
 				    size - oldsize);
 			}
+#endif
 			return (ret);
 		}
 	}
@@ -4096,10 +4123,12 @@ arena_ralloc(void *ptr, size_t size, size_t oldsize)
 	idalloc(ptr);
 	return (ret);
 IN_PLACE:
+#ifdef JEMALLOC_FILL
 	if (opt_junk && size < oldsize)
 		memset((void *)((uintptr_t)ptr + size), 0x5a, oldsize - size);
 	else if (opt_zero && size > oldsize)
 		memset((void *)((uintptr_t)ptr + oldsize), 0, size - oldsize);
+#endif
 	return (ptr);
 }
 
@@ -4129,7 +4158,7 @@ arena_new(arena_t *arena)
 	if (malloc_spin_init(&arena->lock))
 		return (true);
 
-#ifdef MALLOC_STATS
+#ifdef JEMALLOC_STATS
 	memset(&arena->stats, 0, sizeof(arena_stats_t));
 #endif
 
@@ -4141,7 +4170,7 @@ arena_new(arena_t *arena)
 
 	arena_avail_tree_new(&arena->runs_avail);
 
-#ifdef MALLOC_BALANCE
+#ifdef JEMALLOC_BALANCE
 	arena->contention = 0;
 #endif
 
@@ -4149,7 +4178,7 @@ arena_new(arena_t *arena)
 	prev_run_size = PAGE_SIZE;
 
 	i = 0;
-#ifdef MALLOC_TINY
+#ifdef JEMALLOC_TINY
 	/* (2^n)-spaced tiny bins. */
 	for (; i < ntbins; i++) {
 		bin = &arena->bins[i];
@@ -4160,7 +4189,7 @@ arena_new(arena_t *arena)
 
 		prev_run_size = arena_bin_run_size_calc(bin, prev_run_size);
 
-#ifdef MALLOC_STATS
+#ifdef JEMALLOC_STATS
 		memset(&bin->stats, 0, sizeof(malloc_bin_stats_t));
 #endif
 	}
@@ -4176,7 +4205,7 @@ arena_new(arena_t *arena)
 
 		prev_run_size = arena_bin_run_size_calc(bin, prev_run_size);
 
-#ifdef MALLOC_STATS
+#ifdef JEMALLOC_STATS
 		memset(&bin->stats, 0, sizeof(malloc_bin_stats_t));
 #endif
 	}
@@ -4192,7 +4221,7 @@ arena_new(arena_t *arena)
 
 		prev_run_size = arena_bin_run_size_calc(bin, prev_run_size);
 
-#ifdef MALLOC_STATS
+#ifdef JEMALLOC_STATS
 		memset(&bin->stats, 0, sizeof(malloc_bin_stats_t));
 #endif
 	}
@@ -4208,12 +4237,12 @@ arena_new(arena_t *arena)
 
 		prev_run_size = arena_bin_run_size_calc(bin, prev_run_size);
 
-#ifdef MALLOC_STATS
+#ifdef JEMALLOC_STATS
 		memset(&bin->stats, 0, sizeof(malloc_bin_stats_t));
 #endif
 	}
 
-#ifdef MALLOC_DEBUG
+#ifdef JEMALLOC_DEBUG
 	arena->magic = ARENA_MAGIC;
 #endif
 
@@ -4249,7 +4278,7 @@ arenas_extend(unsigned ind)
 	return (arenas[0]);
 }
 
-#ifdef MALLOC_MAG
+#ifdef JEMALLOC_MAG
 static mag_t *
 mag_create(arena_t *arena, size_t binind)
 {
@@ -4378,18 +4407,20 @@ huge_malloc(size_t size, bool zero)
 
 	malloc_mutex_lock(&huge_mtx);
 	extent_tree_ad_insert(&huge, node);
-#ifdef MALLOC_STATS
+#ifdef JEMALLOC_STATS
 	huge_nmalloc++;
 	huge_allocated += csize;
 #endif
 	malloc_mutex_unlock(&huge_mtx);
 
+#ifdef JEMALLOC_FILL
 	if (zero == false) {
 		if (opt_junk)
 			memset(ret, 0xa5, csize);
 		else if (opt_zero)
 			memset(ret, 0, csize);
 	}
+#endif
 
 	return (ret);
 }
@@ -4460,16 +4491,18 @@ huge_palloc(size_t alignment, size_t size)
 
 	malloc_mutex_lock(&huge_mtx);
 	extent_tree_ad_insert(&huge, node);
-#ifdef MALLOC_STATS
+#ifdef JEMALLOC_STATS
 	huge_nmalloc++;
 	huge_allocated += chunk_size;
 #endif
 	malloc_mutex_unlock(&huge_mtx);
 
+#ifdef JEMALLOC_FILL
 	if (opt_junk)
 		memset(ret, 0xa5, chunk_size);
 	else if (opt_zero)
 		memset(ret, 0, chunk_size);
+#endif
 
 	return (ret);
 }
@@ -4483,6 +4516,7 @@ huge_ralloc(void *ptr, size_t size, size_t oldsize)
 	/* Avoid moving the allocation if the size class would not change. */
 	if (oldsize > arena_maxclass &&
 	    CHUNK_CEILING(size) == CHUNK_CEILING(oldsize)) {
+#ifdef JEMALLOC_FILL
 		if (opt_junk && size < oldsize) {
 			memset((void *)((uintptr_t)ptr + size), 0x5a, oldsize
 			    - size);
@@ -4490,6 +4524,7 @@ huge_ralloc(void *ptr, size_t size, size_t oldsize)
 			memset((void *)((uintptr_t)ptr + oldsize), 0, size
 			    - oldsize);
 		}
+#endif
 		return (ptr);
 	}
 
@@ -4522,7 +4557,7 @@ huge_dalloc(void *ptr)
 	assert(node->addr == ptr);
 	extent_tree_ad_remove(&huge, node);
 
-#ifdef MALLOC_STATS
+#ifdef JEMALLOC_STATS
 	huge_ndalloc++;
 	huge_allocated -= node->size;
 #endif
@@ -4530,9 +4565,11 @@ huge_dalloc(void *ptr)
 	malloc_mutex_unlock(&huge_mtx);
 
 	/* Unmap chunk. */
-#ifdef MALLOC_DSS
+#ifdef JEMALLOC_FILL
+#ifdef JEMALLOC_DSS
 	if (opt_dss && opt_junk)
 		memset(node->addr, 0x5a, node->size);
+#endif
 #endif
 	chunk_dealloc(node->addr, node->size);
 
@@ -4556,24 +4593,36 @@ malloc_print_stats(void)
 		    "\n", "");
 		jemalloc_message("Boolean JEMALLOC_OPTIONS: ",
 		    opt_abort ? "A" : "a", "", "");
-#ifdef MALLOC_DSS
+#ifdef JEMALLOC_DSS
 		jemalloc_message(opt_dss ? "D" : "d", "", "", "");
 #endif
-#ifdef MALLOC_MAG
+#ifdef JEMALLOC_MAG
 		jemalloc_message(opt_mag ? "G" : "g", "", "", "");
 #endif
+#ifdef JEMALLOC_FILL
 		jemalloc_message(opt_junk ? "J" : "j", "", "", "");
-#ifdef MALLOC_DSS
+#endif
+#ifdef JEMALLOC_DSS
 		jemalloc_message(opt_mmap ? "M" : "m", "", "", "");
 #endif
-		jemalloc_message(opt_utrace ? "PU" : "Pu",
-		    opt_sysv ? "V" : "v",
-		    opt_xmalloc ? "X" : "x",
-		    opt_zero ? "Z\n" : "z\n");
+		jemalloc_message("P", "", "", "");
+#ifdef JEMALLOC_STATS
+		jemalloc_message(opt_utrace ? "U" : "u", "", "", "");
+#endif
+#ifdef JEMALLOC_SYSV
+		jemalloc_message(opt_sysv ? "V" : "v", "", "", "");
+#endif
+#ifdef JEMALLOC_XMALLOC
+		jemalloc_message(opt_xmalloc ? "X" : "x", "", "", "");
+#endif
+#ifdef JEMALLOC_FILL
+		jemalloc_message(opt_zero ? "Z" : "z", "", "", "");
+#endif
+		jemalloc_message("\n", "", "", "");
 
 		jemalloc_message("CPUs: ", umax2s(ncpus, s), "\n", "");
 		jemalloc_message("Max arenas: ", umax2s(narenas, s), "\n", "");
-#ifdef MALLOC_BALANCE
+#ifdef JEMALLOC_BALANCE
 		jemalloc_message("Arena balance threshold: ",
 		    umax2s(opt_balance_threshold, s), "\n", "");
 #endif
@@ -4583,7 +4632,7 @@ malloc_print_stats(void)
 		    "");
 		jemalloc_message("Cacheline size (assumed): ",
 		    umax2s(CACHELINE, s), "\n", "");
-#ifdef MALLOC_TINY
+#ifdef JEMALLOC_TINY
 		jemalloc_message("Tiny 2^n-spaced sizes: [", umax2s((1U <<
 		    TINY_MIN_2POW), s), "..", "");
 		jemalloc_message(umax2s((qspace_min >> 1), s), "]\n", "", "");
@@ -4597,7 +4646,7 @@ malloc_print_stats(void)
 		jemalloc_message("Subpage-spaced sizes: [", umax2s(sspace_min,
 		    s), "..", "");
 		jemalloc_message(umax2s(sspace_max, s), "]\n", "", "");
-#ifdef MALLOC_MAG
+#ifdef JEMALLOC_MAG
 		jemalloc_message("Rounds per magazine: ", umax2s(max_rounds,
 		    s), "\n", "");
 #endif
@@ -4607,10 +4656,10 @@ malloc_print_stats(void)
 		jemalloc_message("Chunk size: ", umax2s(chunksize, s), "", "");
 		jemalloc_message(" (2^", umax2s(opt_chunk_2pow, s), ")\n", "");
 
-#ifdef MALLOC_STATS
+#ifdef JEMALLOC_STATS
 		{
 			size_t allocated, mapped;
-#ifdef MALLOC_BALANCE
+#ifdef JEMALLOC_BALANCE
 			uint64_t nbalance = 0;
 #endif
 			unsigned i;
@@ -4626,7 +4675,7 @@ malloc_print_stats(void)
 					    arenas[i]->stats.allocated_small;
 					allocated +=
 					    arenas[i]->stats.allocated_large;
-#ifdef MALLOC_BALANCE
+#ifdef JEMALLOC_BALANCE
 					nbalance += arenas[i]->stats.nbalance;
 #endif
 					malloc_spin_unlock(&arenas[i]->lock);
@@ -4646,7 +4695,7 @@ malloc_print_stats(void)
 			malloc_printf("Allocated: %zu, mapped: %zu\n",
 			    allocated, mapped);
 
-#ifdef MALLOC_BALANCE
+#ifdef JEMALLOC_BALANCE
 			malloc_printf("Arena balance reassignments: %llu\n",
 			    nbalance);
 #endif
@@ -4685,13 +4734,13 @@ malloc_print_stats(void)
 				}
 			}
 		}
-#endif /* #ifdef MALLOC_STATS */
+#endif /* #ifdef JEMALLOC_STATS */
 		jemalloc_message("--- End jemalloc statistics ---\n", "", "",
 		    "");
 	}
 }
 
-#ifdef MALLOC_DEBUG
+#ifdef JEMALLOC_DEBUG
 static void
 size2bin_validate(void)
 {
@@ -4699,7 +4748,7 @@ size2bin_validate(void)
 
 	assert(size2bin[0] == 0xffU);
 	i = 1;
-#  ifdef MALLOC_TINY
+#  ifdef JEMALLOC_TINY
 	/* Tiny. */
 	for (; i < (1U << TINY_MIN_2POW); i++) {
 		size = pow2_ceil(1U << TINY_MIN_2POW);
@@ -4744,7 +4793,7 @@ size2bin_init(void)
 		return (size2bin_init_hard());
 
 	size2bin = const_size2bin;
-#ifdef MALLOC_DEBUG
+#ifdef JEMALLOC_DEBUG
 	assert(sizeof(const_size2bin) == bin_maxclass + 1);
 	size2bin_validate();
 #endif
@@ -4766,7 +4815,7 @@ size2bin_init_hard(void)
 
 	custom_size2bin[0] = 0xffU;
 	i = 1;
-#ifdef MALLOC_TINY
+#ifdef JEMALLOC_TINY
 	/* Tiny. */
 	for (; i < (1U << TINY_MIN_2POW); i++) {
 		size = pow2_ceil(1U << TINY_MIN_2POW);
@@ -4801,7 +4850,7 @@ size2bin_init_hard(void)
 	}
 
 	size2bin = custom_size2bin;
-#ifdef MALLOC_DEBUG
+#ifdef JEMALLOC_DEBUG
 	size2bin_validate();
 #endif
 	return (false);
@@ -4811,48 +4860,18 @@ static unsigned
 malloc_ncpus(void)
 {
 	unsigned ret;
-	int fd, nread, column;
-	char buf[1];
-	static const char matchstr[] = "processor\t:";
+	long result;
 
-	/*
-	 * sysconf(3) would be the preferred method for determining the number
-	 * of CPUs, but it uses malloc internally, which causes untennable
-	 * recursion during malloc initialization.
-	 */
-	fd = open("/proc/cpuinfo", O_RDONLY);
-	if (fd == -1)
-		return (1); /* Error. */
-	/*
-	 * Count the number of occurrences of matchstr at the beginnings of
-	 * lines.  This treats hyperthreaded CPUs as multiple processors.
-	 */
-	column = 0;
-	ret = 0;
-	while (true) {
-		nread = read(fd, &buf, sizeof(buf));
-		if (nread <= 0)
-			break; /* EOF or error. */
-
-		if (buf[0] == '\n')
-			column = 0;
-		else if (column != -1) {
-			if (buf[0] == matchstr[column]) {
-				column++;
-				if (column == sizeof(matchstr) - 1) {
-					column = -1;
-					ret++;
-				}
-			} else
-				column = -1;
-		}
+	result = sysconf(_SC_NPROCESSORS_ONLN);
+	if (result == -1) {
+		/* Error. */
+		ret = 1;
 	}
-	if (ret == 0)
-		ret = 1; /* Something went wrong in the parser. */
-	close(fd);
+	ret = (unsigned)result;
 
 	return (ret);
 }
+
 /*
  * FreeBSD's pthreads implementation calls malloc(3), so the malloc
  * implementation has to take pains to avoid infinite recursion during
@@ -4875,28 +4894,44 @@ malloc_init_hard(void)
 	int linklen;
 	char buf[PATH_MAX + 1];
 	const char *opts;
+	arena_t *init_arenas[1];
 
 	malloc_mutex_lock(&init_lock);
-	if (malloc_initialized) {
+	if (malloc_initialized || malloc_initializer == pthread_self()) {
 		/*
 		 * Another thread initialized the allocator before this one
-		 * acquired init_lock.
+		 * acquired init_lock, or this thread is the inializing thread,
+		 * and it is recursively allocating.
 		 */
 		malloc_mutex_unlock(&init_lock);
 		return (false);
 	}
+	if (malloc_initializer != (unsigned long)0) {
+		/* Busy-wait until the initializing thread completes. */
+		do {
+			malloc_mutex_unlock(&init_lock);
+			CPU_SPINWAIT;
+			malloc_mutex_lock(&init_lock);
+		} while (malloc_initialized == false);
+		return (false);
+	}
 
-	/* Get number of CPUs. */
-	ncpus = malloc_ncpus();
-
-#ifdef MALLOC_DEBUG
+#ifdef DYNAMIC_PAGE_SHIFT
 	/* Get page size. */
 	{
 		long result;
 
 		result = sysconf(_SC_PAGESIZE);
 		assert(result != -1);
-		assert((unsigned)result == PAGE_SIZE);
+		pagesize = (unsigned)result;
+
+		/*
+		 * We assume that pagesize is a power of 2 when calculating
+		 * pagesize_mask and pagesize_2pow.
+		 */
+		assert(((result - 1) & result) == 0);
+		pagesize_mask = result - 1;
+		pagesize_2pow = ffs((int)result) - 1;
 	}
 #endif
 
@@ -4921,8 +4956,7 @@ malloc_init_hard(void)
 			}
 			break;
 		case 1:
-			if (issetugid() == 0 && (opts =
-			    getenv("JEMALLOC_OPTIONS")) != NULL) {
+			if ((opts = getenv("JEMALLOC_OPTIONS")) != NULL) {
 				/*
 				 * Do nothing; opts is already initialized to
 				 * the value of the JEMALLOC_OPTIONS
@@ -4950,6 +4984,8 @@ malloc_init_hard(void)
 		default:
 			/* NOTREACHED */
 			assert(false);
+			buf[0] = '\0';
+			opts = buf;
 		}
 
 		for (j = 0; opts[j] != '\0'; j++) {
@@ -4982,12 +5018,12 @@ MALLOC_OUT:
 					opt_abort = true;
 					break;
 				case 'b':
-#ifdef MALLOC_BALANCE
+#ifdef JEMALLOC_BALANCE
 					opt_balance_threshold >>= 1;
 #endif
 					break;
 				case 'B':
-#ifdef MALLOC_BALANCE
+#ifdef JEMALLOC_BALANCE
 					if (opt_balance_threshold == 0)
 						opt_balance_threshold = 1;
 					else if ((opt_balance_threshold << 1)
@@ -5008,12 +5044,12 @@ MALLOC_OUT:
 						opt_cspace_max_2pow++;
 					break;
 				case 'd':
-#ifdef MALLOC_DSS
+#ifdef JEMALLOC_DSS
 					opt_dss = false;
 #endif
 					break;
 				case 'D':
-#ifdef MALLOC_DSS
+#ifdef JEMALLOC_DSS
 					opt_dss = true;
 #endif
 					break;
@@ -5026,7 +5062,7 @@ MALLOC_OUT:
 					else if ((opt_dirty_max << 1) != 0)
 						opt_dirty_max <<= 1;
 					break;
-#ifdef MALLOC_MAG
+#ifdef JEMALLOC_MAG
 				case 'g':
 					opt_mag = false;
 					break;
@@ -5034,12 +5070,14 @@ MALLOC_OUT:
 					opt_mag = true;
 					break;
 #endif
+#ifdef JEMALLOC_FILL
 				case 'j':
 					opt_junk = false;
 					break;
 				case 'J':
 					opt_junk = true;
 					break;
+#endif
 				case 'k':
 					/*
 					 * Chunks always require at least one
@@ -5055,12 +5093,12 @@ MALLOC_OUT:
 						opt_chunk_2pow++;
 					break;
 				case 'm':
-#ifdef MALLOC_DSS
+#ifdef JEMALLOC_DSS
 					opt_mmap = false;
 #endif
 					break;
 				case 'M':
-#ifdef MALLOC_DSS
+#ifdef JEMALLOC_DSS
 					opt_mmap = true;
 #endif
 					break;
@@ -5085,7 +5123,7 @@ MALLOC_OUT:
 					    opt_cspace_max_2pow)
 						opt_qspace_max_2pow++;
 					break;
-#ifdef MALLOC_MAG
+#ifdef JEMALLOC_MAG
 				case 'R':
 					if (opt_mag_size_2pow + 1 < (8U <<
 					    SIZEOF_PTR_2POW))
@@ -5101,30 +5139,38 @@ MALLOC_OUT:
 						opt_mag_size_2pow--;
 					break;
 #endif
+#ifdef JEMALLOC_STATS
 				case 'u':
 					opt_utrace = false;
 					break;
 				case 'U':
 					opt_utrace = true;
 					break;
+#endif
+#ifdef JEMALLOC_SYSV
 				case 'v':
 					opt_sysv = false;
 					break;
 				case 'V':
 					opt_sysv = true;
 					break;
+#endif
+#ifdef JEMALLOC_XMALLOC
 				case 'x':
 					opt_xmalloc = false;
 					break;
 				case 'X':
 					opt_xmalloc = true;
 					break;
+#endif
+#ifdef JEMALLOC_FILL
 				case 'z':
 					opt_zero = false;
 					break;
 				case 'Z':
 					opt_zero = true;
 					break;
+#endif
 				default: {
 					char cbuf[2];
 
@@ -5140,7 +5186,7 @@ MALLOC_OUT:
 		}
 	}
 
-#ifdef MALLOC_DSS
+#ifdef JEMALLOC_DSS
 	/* Make sure that there is some method for acquiring memory. */
 	if (opt_dss == false && opt_mmap == false)
 		opt_mmap = true;
@@ -5155,7 +5201,7 @@ MALLOC_OUT:
 	/* Register fork handlers. */
 	pthread_atfork(jemalloc_prefork, jemalloc_postfork, jemalloc_postfork);
 
-#ifdef MALLOC_MAG
+#ifdef JEMALLOC_MAG
 	/*
 	 * Calculate the actual number of rounds per magazine, taking into
 	 * account header overhead.
@@ -5176,7 +5222,7 @@ MALLOC_OUT:
 	assert(sspace_min < PAGE_SIZE);
 	sspace_max = PAGE_SIZE - SUBPAGE;
 
-#ifdef MALLOC_TINY
+#ifdef JEMALLOC_TINY
 	assert(QUANTUM_2POW >= TINY_MIN_2POW);
 #endif
 	assert(ntbins <= QUANTUM_2POW);
@@ -5211,7 +5257,7 @@ MALLOC_OUT:
 
 	UTRACE(0, 0, 0);
 
-#ifdef MALLOC_STATS
+#ifdef JEMALLOC_STATS
 	memset(&stats_chunks, 0, sizeof(chunk_stats_t));
 #endif
 
@@ -5224,7 +5270,7 @@ MALLOC_OUT:
 		return (true);
 	}
 	extent_tree_ad_new(&huge);
-#ifdef MALLOC_DSS
+#ifdef JEMALLOC_DSS
 	if (malloc_mutex_init(&dss_mtx)) {
 		malloc_mutex_unlock(&init_lock);
 		return (true);
@@ -5235,17 +5281,17 @@ MALLOC_OUT:
 	extent_tree_szad_new(&dss_chunks_szad);
 	extent_tree_ad_new(&dss_chunks_ad);
 #endif
-#ifdef MALLOC_STATS
+#ifdef JEMALLOC_STATS
 	huge_nmalloc = 0;
 	huge_ndalloc = 0;
 	huge_allocated = 0;
 #endif
 
 	/* Initialize base allocation data structures. */
-#ifdef MALLOC_STATS
+#ifdef JEMALLOC_STATS
 	base_mapped = 0;
 #endif
-#ifdef MALLOC_DSS
+#ifdef JEMALLOC_DSS
 	/*
 	 * Allocate a base chunk here, since it doesn't actually have to be
 	 * chunk-aligned.  Doing this before allocating any other chunks allows
@@ -5259,6 +5305,56 @@ MALLOC_OUT:
 		malloc_mutex_unlock(&init_lock);
 		return (true);
 	}
+
+	/*
+	 * Create enough scaffolding to allow recursive allocation in
+	 * malloc_ncpus().
+	 */
+	narenas = 1;
+	arenas = init_arenas;
+	memset(arenas, 0, sizeof(arena_t *) * narenas);
+
+	/*
+	 * Initialize one arena here.  The rest are lazily created in
+	 * choose_arena_hard().
+	 */
+	arenas_extend(0);
+	if (arenas[0] == NULL) {
+		malloc_mutex_unlock(&init_lock);
+		return (true);
+	}
+
+#ifndef NO_TLS
+	/*
+	 * Assign the initial arena to the initial thread, in order to avoid
+	 * spurious creation of an extra arena if the application switches to
+	 * threaded mode.
+	 */
+	arenas_map = arenas[0];
+#endif
+
+#ifdef JEMALLOC_MAG
+	if (pthread_key_create(&mag_rack_tsd, thread_cleanup) != 0) {
+		jemalloc_message("<jemalloc>",
+		    ": Error in pthread_key_create()\n", "", "");
+		abort();
+	}
+#endif
+	/*
+	 * Seed here for the initial thread, since choose_arena_hard() is only
+	 * called for other threads.  The seed value doesn't really matter.
+	 */
+#ifdef JEMALLOC_BALANCE
+	SPRN(balance, 42);
+#endif
+
+	malloc_spin_init(&arenas_lock);
+
+	/* Get number of CPUs. */
+	malloc_initializer = pthread_self();
+	malloc_mutex_unlock(&init_lock);
+	ncpus = malloc_ncpus();
+	malloc_mutex_lock(&init_lock);
 
 	if (ncpus > 1) {
 		/*
@@ -5286,7 +5382,7 @@ MALLOC_OUT:
 		if (narenas == 0)
 			narenas = 1;
 	}
-#ifdef MALLOC_BALANCE
+#ifdef JEMALLOC_BALANCE
 	assert(narenas != 0);
 	for (narenas_2pow = 0;
 	     (narenas >> (narenas_2pow + 1)) != 0;
@@ -5321,7 +5417,7 @@ MALLOC_OUT:
 #endif
 
 #ifndef NO_TLS
-#  ifndef MALLOC_BALANCE
+#  ifndef JEMALLOC_BALANCE
 	next_arena = 0;
 #  endif
 #endif
@@ -5337,33 +5433,8 @@ MALLOC_OUT:
 	 * since it was just mmap()ed, but let's be sure.
 	 */
 	memset(arenas, 0, sizeof(arena_t *) * narenas);
-
-	/*
-	 * Initialize one arena here.  The rest are lazily created in
-	 * choose_arena_hard().
-	 */
-	arenas_extend(0);
-	if (arenas[0] == NULL) {
-		malloc_mutex_unlock(&init_lock);
-		return (true);
-	}
-#ifndef NO_TLS
-	/*
-	 * Assign the initial arena to the initial thread, in order to avoid
-	 * spurious creation of an extra arena if the application switches to
-	 * threaded mode.
-	 */
-	arenas_map = arenas[0];
-#endif
-	/*
-	 * Seed here for the initial thread, since choose_arena_hard() is only
-	 * called for other threads.  The seed value doesn't really matter.
-	 */
-#ifdef MALLOC_BALANCE
-	SPRN(balance, 42);
-#endif
-
-	malloc_spin_init(&arenas_lock);
+	/* Copy the pointer to the one arena that was already initialized. */
+	arenas[0] = init_arenas[0];
 
 	malloc_initialized = true;
 	malloc_mutex_unlock(&init_lock);
@@ -5389,24 +5460,30 @@ malloc(size_t size)
 	}
 
 	if (size == 0) {
+#ifdef JEMALLOC_SYSV
 		if (opt_sysv == false)
+#endif
 			size = 1;
+#ifdef JEMALLOC_SYSV
 		else {
 			ret = NULL;
 			goto RETURN;
 		}
+#endif
 	}
 
 	ret = imalloc(size);
 
 RETURN:
 	if (ret == NULL) {
+#ifdef JEMALLOC_XMALLOC
 		if (opt_xmalloc) {
 			jemalloc_message("<jemalloc>",
 			    ": Error in malloc(): out of memory\n", "",
 			    "");
 			abort();
 		}
+#endif
 		errno = ENOMEM;
 	}
 
@@ -5426,12 +5503,14 @@ posix_memalign(void **memptr, size_t alignment, size_t size)
 		/* Make sure that alignment is a large enough power of 2. */
 		if (((alignment - 1) & alignment) != 0
 		    || alignment < sizeof(void *)) {
+#ifdef JEMALLOC_XMALLOC
 			if (opt_xmalloc) {
 				jemalloc_message("<jemalloc>",
 				    ": Error in posix_memalign(): "
 				    "invalid alignment\n", "", "");
 				abort();
 			}
+#endif
 			result = NULL;
 			ret = EINVAL;
 			goto RETURN;
@@ -5441,12 +5520,14 @@ posix_memalign(void **memptr, size_t alignment, size_t size)
 	}
 
 	if (result == NULL) {
+#ifdef JEMALLOC_XMALLOC
 		if (opt_xmalloc) {
 			jemalloc_message("<jemalloc>",
 			": Error in posix_memalign(): out of memory\n",
 			"", "");
 			abort();
 		}
+#endif
 		ret = ENOMEM;
 		goto RETURN;
 	}
@@ -5473,12 +5554,16 @@ calloc(size_t num, size_t size)
 
 	num_size = num * size;
 	if (num_size == 0) {
+#ifdef JEMALLOC_SYSV
 		if ((opt_sysv == false) && ((num == 0) || (size == 0)))
+#endif
 			num_size = 1;
+#ifdef JEMALLOC_SYSV
 		else {
 			ret = NULL;
 			goto RETURN;
 		}
+#endif
 	/*
 	 * Try to avoid division here.  We know that it isn't possible to
 	 * overflow during multiplication if neither operand uses any of the
@@ -5495,12 +5580,14 @@ calloc(size_t num, size_t size)
 
 RETURN:
 	if (ret == NULL) {
+#ifdef JEMALLOC_XMALLOC
 		if (opt_xmalloc) {
 			jemalloc_message("<jemalloc>",
 			    ": Error in calloc(): out of memory\n", "",
 			    "");
 			abort();
 		}
+#endif
 		errno = ENOMEM;
 	}
 
@@ -5514,14 +5601,18 @@ realloc(void *ptr, size_t size)
 	void *ret;
 
 	if (size == 0) {
+#ifdef JEMALLOC_SYSV
 		if (opt_sysv == false)
+#endif
 			size = 1;
+#ifdef JEMALLOC_SYSV
 		else {
 			if (ptr != NULL)
 				idalloc(ptr);
 			ret = NULL;
 			goto RETURN;
 		}
+#endif
 	}
 
 	if (ptr != NULL) {
@@ -5530,12 +5621,14 @@ realloc(void *ptr, size_t size)
 		ret = iralloc(ptr, size);
 
 		if (ret == NULL) {
+#ifdef JEMALLOC_XMALLOC
 			if (opt_xmalloc) {
 				jemalloc_message("<jemalloc>",
 				    ": Error in realloc(): out of "
 				    "memory\n", "", "");
 				abort();
 			}
+#endif
 			errno = ENOMEM;
 		}
 	} else {
@@ -5545,12 +5638,14 @@ realloc(void *ptr, size_t size)
 			ret = imalloc(size);
 
 		if (ret == NULL) {
+#ifdef JEMALLOC_XMALLOC
 			if (opt_xmalloc) {
 				jemalloc_message("<jemalloc>",
 				    ": Error in realloc(): out of "
 				    "memory\n", "", "");
 				abort();
 			}
+#endif
 			errno = ENOMEM;
 		}
 	}
@@ -5607,15 +5702,16 @@ malloc_usable_size(const void *ptr)
  * the pthreads library whenever a thread exits.  This allows us to clean up
  * thread caches.
  */
-void
-jemalloc_thread_cleanup(void)
+static void
+thread_cleanup(void *arg)
 {
 
-#ifdef MALLOC_MAG
+#ifdef JEMALLOC_MAG
+	assert((mag_rack_t *)arg == mag_rack);
 	if (mag_rack != NULL) {
 		assert(mag_rack != (void *)-1);
 		mag_rack_destroy(mag_rack);
-#ifdef MALLOC_DEBUG
+#ifdef JEMALLOC_DEBUG
 		mag_rack = (void *)-1;
 #endif
 	}
@@ -5672,7 +5768,7 @@ jemalloc_prefork(void)
 
 	malloc_mutex_lock(&huge_mtx);
 
-#ifdef MALLOC_DSS
+#ifdef JEMALLOC_DSS
 	malloc_mutex_lock(&dss_mtx);
 #endif
 }
@@ -5685,7 +5781,7 @@ jemalloc_postfork(void)
 
 	/* Release all mutexes, now that fork() has completed. */
 
-#ifdef MALLOC_DSS
+#ifdef JEMALLOC_DSS
 	malloc_mutex_unlock(&dss_mtx);
 #endif
 
