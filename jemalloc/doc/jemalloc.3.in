@@ -1,5 +1,5 @@
-.\" Copyright (c) 2006-2008 Jason Evans <jasone@canonware.com>.
 .\" Copyright (c) 2009 Facebook, Inc.  All rights reserved.
+.\" Copyright (c) 2006-2008 Jason Evans <jasone@canonware.com>.
 .\" All rights reserved.
 .\" Copyright (c) 1980, 1991, 1993
 .\"	The Regents of the University of California.  All rights reserved.
@@ -42,7 +42,7 @@
 .Nm malloc , calloc , posix_memalign , realloc , free , malloc_usable_size
 .Nd general purpose memory allocation functions
 .Sh LIBRARY
-.Lb libc
+.Lb libjemalloc
 .Sh SYNOPSIS
 .In stdlib.h
 .Ft void *
@@ -55,22 +55,23 @@
 .Fn realloc "void *ptr" "size_t size"
 .Ft void
 .Fn free "void *ptr"
+.In jemalloc.h
+.Ft size_t
+.Fn malloc_usable_size "const void *ptr"
 .Ft const char *
 .Va jemalloc_options ;
 .Ft void
 .Fo \*(lp*jemalloc_message\*(rp
 .Fa "const char *p1" "const char *p2" "const char *p3" "const char *p4"
 .Fc
-.In malloc_np.h
-.Ft size_t
-.Fn malloc_usable_size "const void *ptr"
 .Sh DESCRIPTION
 The
 .Fn malloc
 function allocates
 .Fa size
 bytes of uninitialized memory.
-The allocated space is suitably aligned (after possible pointer coercion)
+The allocated space is suitably aligned
+@roff_tiny@(after possible pointer coercion)
 for storage of any type of object.
 .Pp
 The
@@ -187,31 +188,32 @@ flags being set) become fatal.
 The process will call
 .Xr abort 3
 in these cases.
-.It B
-Double/halve the per-arena lock contention threshold at which a thread is
-randomly re-assigned to an arena.
-This dynamic load balancing tends to push threads away from highly contended
-arenas, which avoids worst case contention scenarios in which threads
-disproportionately utilize arenas.
-However, due to the highly dynamic load that applications may place on the
-allocator, it is impossible for the allocator to know in advance how sensitive
-it should be to contention over arenas.
-Therefore, some applications may benefit from increasing or decreasing this
-threshold parameter.
-This option is not available for some configurations (non-PIC).
+@roff_balance@@roff_tls@.It B
+@roff_balance@@roff_tls@Double/halve the per-arena lock contention threshold at
+@roff_balance@@roff_tls@which a thread is randomly re-assigned to an arena.
+@roff_balance@@roff_tls@This dynamic load balancing tends to push threads away
+@roff_balance@@roff_tls@from highly contended arenas, which avoids worst case
+@roff_balance@@roff_tls@contention scenarios in which threads disproportionately
+@roff_balance@@roff_tls@utilize arenas.
+@roff_balance@@roff_tls@However, due to the highly dynamic load that
+@roff_balance@@roff_tls@applications may place on the allocator, it is
+@roff_balance@@roff_tls@impossible for the allocator to know in advance how
+@roff_balance@@roff_tls@sensitive it should be to contention over arenas.
+@roff_balance@@roff_tls@Therefore, some applications may benefit from increasing
+@roff_balance@@roff_tls@or decreasing this threshold parameter.
 .It C
 Double/halve the size of the maximum size class that is a multiple of the
 cacheline size (64).
 Above this size, subpage spacing (256 bytes) is used for size classes.
 The default value is 512 bytes.
-.It D
-Use
-.Xr sbrk 2
-to acquire memory in the data storage segment (DSS).
-This option is enabled by default.
-See the
-.Dq M
-option for related information and interactions.
+@roff_dss@.It D
+@roff_dss@Use
+@roff_dss@.Xr sbrk 2
+@roff_dss@to acquire memory in the data storage segment (DSS).
+@roff_dss@This option is enabled by default.
+@roff_dss@See the
+@roff_dss@.Dq M
+@roff_dss@option for related information and interactions.
 .It F
 Double/halve the per-arena maximum number of dirty unused pages that are
 allowed to accumulate before informing the kernel about at least half of those
@@ -222,46 +224,48 @@ physical memory becomes scarce and the pages remain unused.
 The default is 512 pages per arena;
 .Ev JEMALLOC_OPTIONS=10f
 will prevent any dirty unused pages from accumulating.
-.It G
-When there are multiple threads, use thread-specific caching for objects that
-are smaller than one page.
-This option is enabled by default.
-Thread-specific caching allows many allocations to be satisfied without
-performing any thread synchronization, at the cost of increased memory use.
-See the
-.Dq R
-option for related tuning information.
-This option is not available for some configurations (non-PIC).
-.It J
-Each byte of new memory allocated by
-.Fn malloc
-or
-.Fn realloc
-will be initialized to 0xa5.
-All memory returned by
-.Fn free
-or
-.Fn realloc
-will be initialized to 0x5a.
-This is intended for debugging and will impact performance negatively.
+@roff_mag@@roff_tls@.It G
+@roff_mag@@roff_tls@When there are multiple threads, use thread-specific caching
+@roff_mag@@roff_tls@for objects that are smaller than one page.
+@roff_mag@@roff_tls@This option is enabled by default.
+@roff_mag@@roff_tls@Thread-specific caching allows many allocations to be
+@roff_mag@@roff_tls@satisfied without performing any thread synchronization, at
+@roff_mag@@roff_tls@the cost of increased memory use.
+@roff_mag@@roff_tls@See the
+@roff_mag@@roff_tls@.Dq R
+@roff_mag@@roff_tls@option for related tuning information.
+@roff_fill@.It J
+@roff_fill@Each byte of new memory allocated by
+@roff_fill@.Fn malloc
+@roff_fill@or
+@roff_fill@.Fn realloc
+@roff_fill@will be initialized to 0xa5.
+@roff_fill@All memory returned by
+@roff_fill@.Fn free
+@roff_fill@or
+@roff_fill@.Fn realloc
+@roff_fill@will be initialized to 0x5a.
+@roff_fill@This is intended for debugging and will impact performance
+@roff_fill@negatively.
 .It K
 Double/halve the virtual memory chunk size.
 The default chunk size is 1 MB.
-.It M
-Use
-.Xr mmap 2
-to acquire anonymously mapped memory.
-This option is enabled by default.
-If both the
-.Dq D
-and
-.Dq M
-options are enabled, the allocator prefers the DSS over anonymous mappings,
-but allocation only fails if memory cannot be acquired via either method.
-If neither option is enabled, then the
-.Dq M
-option is implicitly enabled in order to assure that there is a method for
-acquiring memory.
+@roff_dss@.It M
+@roff_dss@Use
+@roff_dss@.Xr mmap 2
+@roff_dss@to acquire anonymously mapped memory.
+@roff_dss@This option is enabled by default.
+@roff_dss@If both the
+@roff_dss@.Dq D
+@roff_dss@and
+@roff_dss@.Dq M
+@roff_dss@options are enabled, the allocator prefers the DSS over anonymous
+@roff_dss@mappings, but allocation only fails if memory cannot be acquired via
+@roff_dss@either method.
+@roff_dss@If neither option is enabled, then the
+@roff_dss@.Dq M
+@roff_dss@option is implicitly enabled in order to assure that there is a method
+@roff_dss@for acquiring memory.
 .It N
 Double/halve the number of arenas.
 The default number of arenas is two times the number of CPUs, or one if there
@@ -279,88 +283,70 @@ Double/halve the size of the maximum size class that is a multiple of the
 quantum (8 or 16 bytes, depending on architecture).
 Above this size, cacheline spacing is used for size classes.
 The default value is 128 bytes.
-.It R
-Double/halve magazine size, which approximately doubles/halves the number of
-rounds in each magazine.
-Magazines are used by the thread-specific caching machinery to acquire and
-release objects in bulk.
-Increasing the magazine size decreases locking overhead, at the expense of
-increased memory usage.
-This option is not available for some configurations (non-PIC).
-.It U
-Generate
-.Dq utrace
-entries for
-.Xr ktrace 1 ,
-for all operations.
-Consult the source for details on this option.
-.It V
-Attempting to allocate zero bytes will return a
-.Dv NULL
-pointer instead of
-a valid pointer.
-(The default behavior is to make a minimal allocation and return a
-pointer to it.)
-This option is provided for System V compatibility.
-This option is incompatible with the
-.Dq X
-option.
-.It X
-Rather than return failure for any allocation function,
-display a diagnostic message on
-.Dv stderr
-and cause the program to drop
-core (using
-.Xr abort 3 ) .
-This option should be set at compile time by including the following in
-the source code:
-.Bd -literal -offset indent
-jemalloc_options = "X";
-.Ed
-.It Z
-Each byte of new memory allocated by
-.Fn malloc
-or
-.Fn realloc
-will be initialized to 0.
-Note that this initialization only happens once for each byte, so
-.Fn realloc
-calls do not zero memory that was previously allocated.
-This is intended for debugging and will impact performance negatively.
+@roff_mag@@roff_tls@.It R
+@roff_mag@@roff_tls@Double/halve magazine size, which approximately
+@roff_mag@@roff_tls@doubles/halves the number of rounds in each magazine.
+@roff_mag@@roff_tls@Magazines are used by the thread-specific caching machinery
+@roff_mag@@roff_tls@to acquire and release objects in bulk.
+@roff_mag@@roff_tls@Increasing the magazine size decreases locking overhead, at
+@roff_mag@@roff_tls@the expense of increased memory usage.
+@roff_stats@.It U
+@roff_stats@Generate a verbose trace log via
+@roff_stats@.Fn jemalloc_message
+@roff_stats@for all allocation operations.
+@roff_sysv@.It V
+@roff_sysv@Attempting to allocate zero bytes will return a
+@roff_sysv@.Dv NULL
+@roff_sysv@pointer instead of a valid pointer.
+@roff_sysv@(The default behavior is to make a minimal allocation and return a
+@roff_sysv@pointer to it.)
+@roff_sysv@This option is provided for System V compatibility.
+@roff_sysv@@roff_xmalloc@This option is incompatible with the
+@roff_sysv@@roff_xmalloc@.Dq X
+@roff_sysv@@roff_xmalloc@option.
+@roff_xmalloc@.It X
+@roff_xmalloc@Rather than return failure for any allocation function, display a
+@roff_xmalloc@diagnostic message on
+@roff_xmalloc@.Dv stderr
+@roff_xmalloc@and cause the program to drop core (using
+@roff_xmalloc@.Xr abort 3 ) .
+@roff_xmalloc@This option should be set at compile time by including the
+@roff_xmalloc@following in the source code:
+@roff_xmalloc@.Bd -literal -offset indent
+@roff_xmalloc@jemalloc_options = "X";
+@roff_xmalloc@.Ed
+@roff_fill@.It Z
+@roff_fill@Each byte of new memory allocated by
+@roff_fill@.Fn malloc
+@roff_fill@or
+@roff_fill@.Fn realloc
+@roff_fill@will be initialized to 0.
+@roff_fill@Note that this initialization only happens once for each byte, so
+@roff_fill@.Fn realloc
+@roff_fill@calls do not zero memory that was previously allocated.
+@roff_fill@This is intended for debugging and will impact performance
+@roff_fill@negatively.
 .El
 .Pp
-The
-.Dq J
-and
-.Dq Z
-options are intended for testing and debugging.
-An application which changes its behavior when these options are used
-is flawed.
+@roff_fill@The
+@roff_fill@.Dq J
+@roff_fill@and
+@roff_fill@.Dq Z
+@roff_fill@options are intended for testing and debugging.
+@roff_fill@An application which changes its behavior when these options are used
+@roff_fill@is flawed.
 .Sh IMPLEMENTATION NOTES
-Traditionally, allocators have used
-.Xr sbrk 2
-to obtain memory, which is suboptimal for several reasons, including race
-conditions, increased fragmentation, and artificial limitations on maximum
-usable memory.
-This allocator uses both
-.Xr sbrk 2
-and
-.Xr mmap 2
-by default, but it can be configured at run time to use only one or the other.
-If resource limits are not a primary concern, the preferred configuration is
-.Ev JEMALLOC_OPTIONS=dM
-or
-.Ev JEMALLOC_OPTIONS=DM .
-When so configured, the
-.Ar datasize
-resource limit has little practical effect for typical applications; use
-.Ev JEMALLOC_OPTIONS=Dm
-if that is a concern.
-Regardless of allocator configuration, the
-.Ar vmemoryuse
-resource limit can be used to bound the total virtual memory used by a
-process, as described in
-.Xr limits 1 .
+@roff_dss@Traditionally, allocators have used
+@roff_dss@.Xr sbrk 2
+@roff_dss@to obtain memory, which is suboptimal for several reasons, including
+@roff_dss@race conditions, increased fragmentation, and artificial limitations
+@roff_dss@on maximum usable memory.
+@roff_dss@This allocator uses both
+@roff_dss@.Xr sbrk 2
+@roff_dss@and
+@roff_dss@.Xr mmap 2
+@roff_dss@by default, but it can be configured at run time to use only one or
+@roff_dss@the other.
 .Pp
 This allocator uses multiple arenas in order to reduce lock contention for
 threaded programs on multi-processor systems.
@@ -375,13 +361,14 @@ improve performance, mainly due to reduced cache performance.
 However, it may make sense to reduce the number of arenas if an application
 does not make much use of the allocation functions.
 .Pp
-In addition to multiple arenas, this allocator supports thread-specific
-caching for small objects (smaller than one page), in order to make it
-possible to completely avoid synchronization for most small allocation requests.
-Such caching allows very fast allocation in the common case, but it increases
-memory usage and fragmentation, since a bounded number of objects can remain
-allocated in each thread cache.
-.Pp
+@roff_mag@In addition to multiple arenas, this allocator supports
+@roff_mag@thread-specific caching for small objects (smaller than one page), in
+@roff_mag@order to make it possible to completely avoid synchronization for most
+@roff_mag@small allocation requests.
+@roff_mag@Such caching allows very fast allocation in the common case, but it
+@roff_mag@increases memory usage and fragmentation, since a bounded number of
+@roff_mag@objects can remain allocated in each thread cache.
+@roff_mag@.Pp
 Memory is conceptually broken into equal-sized chunks, where the chunk size is
 a power of two that is greater than the page size.
 Chunks are always aligned to multiples of the chunk size.
@@ -406,12 +393,16 @@ determine all metadata regarding small and large allocations in constant time.
 .Pp
 Small objects are managed in groups by page runs.
 Each run maintains a bitmap that tracks which regions are in use.
-Allocation requests that are no more than half the quantum (8 or 16, depending
-on architecture) are rounded up to the nearest power of two.
-Allocation requests that are more than half the quantum, but no more than the
-minimum cacheline-multiple size class (see the
+@roff_tiny@Allocation requests that are no more than half the quantum (8 or 16,
+@roff_tiny@depending on architecture) are rounded up to the nearest power of
+@roff_tiny@two.
+Allocation requests that are
+@roff_tiny@more than half the quantum, but
+no more than the minimum cacheline-multiple size class (see the
 .Dq Q
-option) are rounded up to the nearest multiple of the quantum.
+option) are rounded up to the nearest multiple of the
+@roff_tiny@quantum.
+@roff_no_tiny@quantum (8 or 16, depending on architecture).
 Allocation requests that are more than the minumum cacheline-multiple size
 class, but no more than the minimum subpage-multiple size class (see the
 .Dq C
@@ -440,26 +431,26 @@ rather than the normal policy of trying to continue if at all possible.
 It is probably also a good idea to recompile the program with suitable
 options and symbols for debugger support.
 .Pp
-If the program starts to give unusual results, coredump or generally behave
-differently without emitting any of the messages mentioned in the next
-section, it is likely because it depends on the storage being filled with
-zero bytes.
-Try running it with the
-.Dq Z
-option set;
-if that improves the situation, this diagnosis has been confirmed.
-If the program still misbehaves,
-the likely problem is accessing memory outside the allocated area.
-.Pp
-Alternatively, if the symptoms are not easy to reproduce, setting the
-.Dq J
-option may help provoke the problem.
-.Pp
-In truly difficult cases, the
-.Dq U
-option, if supported by the kernel, can provide a detailed trace of
-all calls made to these functions.
-.Pp
+@roff_fill@If the program starts to give unusual results, coredump or generally
+@roff_fill@behave differently without emitting any of the messages mentioned in
+@roff_fill@the next section, it is likely because it depends on the storage
+@roff_fill@being filled with zero bytes.
+@roff_fill@Try running it with the
+@roff_fill@.Dq Z
+@roff_fill@option set;
+@roff_fill@if that improves the situation, this diagnosis has been confirmed.
+@roff_fill@If the program still misbehaves,
+@roff_fill@the likely problem is accessing memory outside the allocated area.
+@roff_fill@.Pp
+@roff_fill@Alternatively, if the symptoms are not easy to reproduce, setting the
+@roff_fill@.Dq J
+@roff_fill@option may help provoke the problem.
+@roff_fill@.Pp
+@roff_stats@In truly difficult cases, the
+@roff_stats@.Dq U
+@roff_stats@option can provide a detailed trace of all calls made to these
+@roff_stats@functions.
+@roff_stats@.Pp
 Unfortunately this implementation does not provide much detail about
 the problems it detects; the performance impact for storing such information
 would be prohibitive.
@@ -476,7 +467,7 @@ If the
 option is set, all warnings are treated as errors.
 .Pp
 The
-.Va _malloc_message
+.Va jemalloc_message
 variable allows the programmer to override the function which emits
 the text strings forming the errors and warnings if for some reason
 the
@@ -486,7 +477,7 @@ Please note that doing anything which tries to allocate memory in
 this function is likely to result in a crash or deadlock.
 .Pp
 All messages are prefixed by
-.Dq Ao Ar progname Ac Ns Li : (malloc) .
+.Dq <jemalloc>: .
 .Sh RETURN VALUES
 The
 .Fn malloc
@@ -564,15 +555,12 @@ on calls to these functions:
 jemalloc_options = "X";
 .Ed
 .Sh SEE ALSO
-.Xr limits 1 ,
 .Xr madvise 2 ,
 .Xr mmap 2 ,
 .Xr sbrk 2 ,
 .Xr alloca 3 ,
 .Xr atexit 3 ,
-.Xr getpagesize 3 ,
-.Xr memory 3 ,
-.Xr posix_memalign 3
+.Xr getpagesize 3
 .Sh STANDARDS
 The
 .Fn malloc ,

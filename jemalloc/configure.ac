@@ -41,7 +41,7 @@ MANDIR=`eval echo $mandir`
 MANDIR=`eval echo $MANDIR`
 AC_SUBST([MANDIR])
 
-cfgoutputs="Makefile"
+cfgoutputs="Makefile doc/jemalloc.3"
 cfghdrs="src/jemalloc_defs.h"
 
 dnl If CFLAGS isn't defined and using gcc, set CFLAGS to something reasonable.
@@ -219,6 +219,12 @@ if test "x$enable_stats" = "x1" ; then
   AC_DEFINE([JEMALLOC_STATS], [ ])
 fi
 AC_SUBST([enable_stats])
+if test "x$enable_stats" = "x0" ; then
+  roff_stats=".\\\" "
+else
+  roff_stats=""
+fi
+AC_SUBST([roff_stats])
 
 dnl Enable tiny allocations by default.
 AC_ARG_ENABLE([tiny],
@@ -235,6 +241,15 @@ if test "x$enable_tiny" = "x1" ; then
   AC_DEFINE([JEMALLOC_TINY], [ ])
 fi
 AC_SUBST([enable_tiny])
+if test "x$enable_tiny" = "x0" ; then
+  roff_tiny=".\\\" "
+  roff_no_tiny=""
+else
+  roff_tiny=""
+  roff_no_tiny=".\\\" "
+fi
+AC_SUBST([roff_tiny])
+AC_SUBST([roff_no_tiny])
 
 dnl Enable magazines by default.
 AC_ARG_ENABLE([mag],
@@ -251,6 +266,12 @@ if test "x$enable_mag" = "x1" ; then
   AC_DEFINE([JEMALLOC_MAG], [ ])
 fi
 AC_SUBST([enable_mag])
+if test "x$enable_mag" = "x0" ; then
+  roff_mag=".\\\" "
+else
+  roff_mag=""
+fi
+AC_SUBST([roff_mag])
 
 dnl Enable dynamic arena load balancing by default.
 AC_ARG_ENABLE([balance],
@@ -267,6 +288,12 @@ if test "x$enable_balance" = "x1" ; then
   AC_DEFINE([JEMALLOC_BALANCE], [ ])
 fi
 AC_SUBST([enable_balance])
+if test "x$enable_balance" = "x0" ; then
+  roff_balance=".\\\" "
+else
+  roff_balance=""
+fi
+AC_SUBST([roff_balance])
 
 dnl Do not enable allocation from DSS by default.
 AC_ARG_ENABLE([dss],
@@ -283,6 +310,12 @@ if test "x$enable_dss" = "x1" ; then
   AC_DEFINE([JEMALLOC_DSS], [ ])
 fi
 AC_SUBST([enable_dss])
+if test "x$enable_dss" = "x0" ; then
+  roff_dss=".\\\" "
+else
+  roff_dss=""
+fi
+AC_SUBST([roff_dss])
 
 dnl Do not support the junk/zero filling option by default.
 AC_ARG_ENABLE([fill],
@@ -299,6 +332,12 @@ if test "x$enable_fill" = "x1" ; then
   AC_DEFINE([JEMALLOC_FILL], [ ])
 fi
 AC_SUBST([enable_fill])
+if test "x$enable_fill" = "x0" ; then
+  roff_fill=".\\\" "
+else
+  roff_fill=""
+fi
+AC_SUBST([roff_fill])
 
 dnl Do not support the xmalloc option by default.
 AC_ARG_ENABLE([xmalloc],
@@ -315,6 +354,12 @@ if test "x$enable_xmalloc" = "x1" ; then
   AC_DEFINE([JEMALLOC_XMALLOC], [ ])
 fi
 AC_SUBST([enable_xmalloc])
+if test "x$enable_xmalloc" = "x0" ; then
+  roff_xmalloc=".\\\" "
+else
+  roff_xmalloc=""
+fi
+AC_SUBST([roff_xmalloc])
 
 dnl Do not support the SYSV option by default.
 AC_ARG_ENABLE([sysv],
@@ -331,6 +376,12 @@ if test "x$enable_sysv" = "x1" ; then
   AC_DEFINE([JEMALLOC_SYSV], [ ])
 fi
 AC_SUBST([enable_sysv])
+if test "x$enable_sysv" = "x0" ; then
+  roff_sysv=".\\\" "
+else
+  roff_sysv=""
+fi
+AC_SUBST([roff_sysv])
 
 dnl Do not determine page shift at run time by default.
 AC_ARG_ENABLE([dynamic_page_shift],
@@ -380,6 +431,7 @@ dnl ============================================================================
 dnl jemalloc configuration.
 dnl 
 jemalloc_version=`cat ${srcroot}VERSION`
+AC_DEFINE_UNQUOTED([JEMALLOC_VERSION], ["$jemalloc_version"])
 AC_SUBST([jemalloc_version])
 
 dnl ============================================================================
@@ -400,21 +452,24 @@ AC_RUN_IFELSE([AC_LANG_PROGRAM(
 
     return 0;
 ]])],
-              AC_MSG_RESULT([yes]),
+              AC_MSG_RESULT([yes])
+              roff_tls="",
               AC_MSG_RESULT([no])
+              roff_tls=".\\\" "
               AC_DEFINE_UNQUOTED([NO_TLS], [ ]))
+AC_SUBST([roff_tls])
 
-dnl Do not enable lazy locking by default.
+dnl Enable lazy locking by default.
 AC_ARG_ENABLE([lazy_lock],
   [AS_HELP_STRING([--enable-lazy-lock],
-  [Enable lazy locking (avoid locking unless multiple threads)])],
+  [Disable lazy locking (always lock, even when single-threaded)])],
 [if test "x$enable_lazy_lock" = "xno" ; then
   enable_lazy_lock="0"
 else
   enable_lazy_lock="1"
 fi
 ],
-[enable_lazy_lock="0"]
+[enable_lazy_lock="1"]
 )
 if test "x$enable_lazy_lock" = "x1" ; then
   AC_CHECK_HEADERS([dlfcn.h], , [AC_MSG_ERROR([dlfcn.h is missing])])

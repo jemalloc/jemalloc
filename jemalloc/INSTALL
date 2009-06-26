@@ -1,0 +1,172 @@
+Building and installing jemalloc can be as simple as typing the following while
+in the root directory of the source tree:
+
+    ./configure
+    make
+    make install
+
+=== Advanced configuration =====================================================
+
+The 'configure' script supports numerous options that allow control of which
+functionality is enabled, where jemalloc is installed, etc.  Optionally, pass
+any of the following arguments (not a definitive list) to 'configure':
+
+--help
+    Print a definitive list of options.
+
+--prefix=<install-root-dir>
+    Set the base directory in which to install.  For example:
+
+        ./configure --prefix=/usr/local
+
+    will cause files to be installed into /usr/local/include, /usr/local/lib,
+    and /usr/local/man.
+
+--with-rpath=<colon-separated-rpath>
+    Embed one or more library paths, so that Crux's internal shared library can
+    find the libraries it is linked to.  This works only on ELF-based systems.
+
+--enable-debug
+    Enable assertions and validation code.  This incurs a substantial
+    performance hit, but is very useful during application development.
+
+--enable-stats
+    Enable statistics gathering functionality.  Use the 'P' option to print
+    detailed allocation statistics at exit, and/or the 'U' option to print a
+    detailed allocation trace log.
+
+--disable-tiny
+    Disable tiny (sub-quantum-sized) object support.  Technically it is not
+    legal for a malloc implementation to allocate objects with less than
+    quantum alignment (8 or 16 bytes, depending on architecture), but in
+    practice it never causes any problems if, for example, 4-byte allocationsj
+    are 4-byte-aligned.
+
+--disable-mag
+    Disable thread-specific caches for sub-page-sized objects.  Objects are
+    cached and released in bulk using "magazines" -- a term coined by the
+    developers of Solaris's umem allocator.
+
+--disable-balance
+    Disable dynamic rebalancing of thread-->arena assignments.
+
+--enable-dss
+    Enable support for page allocation/deallocation via sbrk(2), in addition to
+    mmap(2).
+
+--enable-fill
+    Enable support for junk/zero filling of memory.  Use the 'J' option to
+    control junk filling, or the 'Z' option to control zero filling.
+
+--enable-xmalloc
+    Enable support for optional immediate termination due to out-of-memory
+    errors, as is commonly implemented by "xmalloc" wrapper function for malloc.
+    Use the 'X' option to control termination behavior.
+
+--enable-sysv
+    Enable support for System V semantics, wherein malloc(0) returns NULL
+    rather than a minimal allocation.  Use the 'V' option to control System V
+    compatibility.
+
+--enable-dynamic-page-shift
+    Under most conditions, the system page size never changes (usually 4KiB or
+    8KiB, depending on architecture and configuration), and unless this option
+    is enabled, jemalloc assumes that page size can safely be determined during
+    configuration and hard-coded.  Enabling dynamic page size determination has
+    a measurable impact on performance, since the compiler is forced to load
+    the page size from memory rather than embedding immediate values.
+
+--disable-lazy-lock
+    Disable code that wraps pthread_create() to detect when an application
+    switches from single-threaded to multi-threaded mode, so that it can avoid
+    mutex locking/unlocking operations while in single-threaded mode.  In
+    practice, this feature usually has little impact on performance unless
+    magazines are disabled.
+
+The following environment variables (not a definitive list) impact configure's
+behavior:
+
+CFLAGS="?"
+    Pass these flags to the compiler.  You probably shouldn't define this unless
+    you know what you are doing.  (Use EXTRA_CFLAGS instead.)
+
+EXTRA_CFLAGS="?"
+    Append these flags to CFLAGS.  This makes it possible to add flags such as
+    -Werror, while allowing the configure script to determine what other flags
+    are appropriate for the specified configuration.
+
+    The configure script specifically checks whether an optimization flag (-O*)
+    is specified in EXTRA_CFLAGS, and refrains from specifying an optimization
+    level if it finds that one has already been specified.
+
+CPPFLAGS="?"
+    Pass these flags to the C preprocessor.  Note that CFLAGS is not passed to
+    'cpp' when 'configure' is looking for include files, so you must use
+    CPPFLAGS instead if you need to help 'configure' find header files.
+
+LD_LIBRARY_PATH="?"
+    'ld' uses this colon-separated list to find libraries.
+
+LDFLAGS="?"
+    Pass these flags when linking.
+
+PATH="?"
+    'configure' uses this to find programs.
+
+=== Advanced compilation =======================================================
+
+To run integrated regression tests, type:
+
+    make check
+
+To clean up build results to varying degrees, use the following make targets:
+
+    clean
+    distclean
+    relclean
+
+=== Advanced installation ======================================================
+
+Optionally, define make variables when invoking make, including (not
+exclusively):
+
+INCLUDEDIR="?"
+    Use this as the installation prefix for header files.
+
+LIBDIR="?"
+    Use this as the installation prefix for libraries.
+
+MANDIR="?"
+    Use this as the installation prefix for man pages.
+
+CC="?"
+    Use this to invoke the C compiler.
+
+CFLAGS="?"
+    Pass these flags to the compiler.
+
+CPPFLAGS="?"
+    Pass these flags to the C preprocessor.
+
+LDFLAGS="?"
+    Pass these flags when linking.
+
+PATH="?"
+    Use this to search for programs used during configuration and building.
+
+=== Development ================================================================
+
+If you intend to make non-trivial changes to jemalloc, use the 'autogen.sh'
+script rather than 'configure'.  This re-generates 'configure', enables
+configuration dependency rules, and enables re-generation of automatically
+generated source files.
+
+The build system supports using an object directory separate from the source
+tree.  For example, you can create an 'obj' directory, and from within that
+directory, issue configuration and build commands:
+
+    autoconf
+    mkdir obj
+    cd obj
+    ../configure --enable-autogen
+    make

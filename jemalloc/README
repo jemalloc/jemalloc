@@ -1,0 +1,4 @@
+jemalloc is a general-purpose scalable concurrent malloc(3) implementation.
+
+The INSTALL file contains information on how to configure, build, and install
+jemalloc.

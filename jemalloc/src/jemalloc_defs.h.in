@@ -28,6 +28,14 @@
  *******************************************************************************
  */
 
+#ifndef JEMALLOC_DEFS_H_
+#define	JEMALLOC_DEFS_H_
+
+/*
+ * jemalloc version string.
+ */
+#undef JEMALLOC_VERSION
+
 /*
  * Hyper-threaded CPUs may need a special instruction inside spin loops in
  * order to yield to another virtual CPU.
@@ -92,3 +100,5 @@
 
 /* sizeof(void *) == 2^SIZEOF_PTR_2POW. */
 #undef SIZEOF_PTR_2POW
+
+#endif /* JEMALLOC_DEFS_H_ */

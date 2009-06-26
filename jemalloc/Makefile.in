@@ -11,10 +11,8 @@ SHELL := /bin/sh
 CC := @CC@
 
 # Configuration parameters.
-BINDIR := @BINDIR@
 INCLUDEDIR := @INCLUDEDIR@
 LIBDIR := @LIBDIR@
-DATADIR := @DATADIR@
 MANDIR := @MANDIR@
 
 # Build parameters.
@@ -34,20 +32,20 @@ endif
 REV := 0
 
 # File lists.
-CHDRS := src/jemalloc.h
-CSRCS := src/jemalloc.c
-DSO := lib/libjemalloc.so.$(REV)
-MAN3 := doc/jemalloc.3
+CHDRS := @srcroot@src/jemalloc.h @objroot@src/jemalloc_defs.h
+CSRCS := @srcroot@src/jemalloc.c
+DSOS := @objroot@lib/libjemalloc.so.$(REV) @objroot@lib/libjemalloc.so
+MAN3 := @objroot@doc/jemalloc.3
 
 .PHONY: all dist install check clean distclean relclean
 
 # Default target.
-all: $(DSO)
+all: $(DSOS)
 
-src/%.o: src/%.c
+@objroot@src/%.o: @srcroot@src/%.c
 	$(CC) $(CFLAGS) -c $(CPPFLAGS) -o $@ $+
 
-$(DSO): $(CSRCS:%.c=%.o)
+$(DSOS): $(CSRCS:@srcroot@%.c=@objroot@%.o)
 	@mkdir -p $(@D)
 	gcc -shared -o $@ $+ $(LDFLAGS) $(LIBS)
 	ln -sf libjemalloc.so.$(REV) lib/libjemalloc.so
@@ -59,7 +57,10 @@ install:
 	install -m 644 $$h $(INCLUDEDIR); \
 done
 	install -d $(LIBDIR)
-	install -m 755 $(DSO) $(LIBDIR)
+	@for s in $(DSOS); do \
+	echo "install -m 755 $$s $(LIBDIR)"; \
+	install -m 755 $$s $(LIBDIR); \
+done
 	install -d $(MANDIR)
 	@for m in $(MAN3); do \
 	echo "install -m 644 $$m $(MANDIR)/man3"; \
@@ -69,9 +70,9 @@ done
 check:
 
 clean:
-	rm -f src/*.o
-	rm -f lib/libjemalloc.so
-	rm -f lib/libjemalloc.so.$(REV)
+	rm -f @objroot@src/*.o
+	rm -f @objroot@lib/libjemalloc.so
+	rm -f @objroot@lib/libjemalloc.so.$(REV)
 
 distclean: clean
 	rm -f @objroot@config.log

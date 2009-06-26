@@ -1178,8 +1178,8 @@ static bool	size2bin_init_hard(void);
 static unsigned	malloc_ncpus(void);
 static bool	malloc_init_hard(void);
 static void	thread_cleanup(void *arg);
-void		jemalloc_prefork(void);
-void		jemalloc_postfork(void);
+static void	jemalloc_prefork(void);
+static void	jemalloc_postfork(void);
 
 /*
  * End function prototypes.
@@ -1231,9 +1231,10 @@ umax2s(uintmax_t x, char *s)
 #  define assert(e) do {						\
 	if (!(e)) {							\
 		char line_buf[UMAX2S_BUFSIZE];				\
-		jemalloc_message(__FILE__, ":", umax2s(__LINE__,	\
-		    line_buf), ": Failed assertion: ");			\
-		jemalloc_message("\"", #e, "\"\n", "");			\
+		jemalloc_message("<jemalloc>: ", __FILE__, ":",		\
+		    umax2s(__LINE__, line_buf));			\
+		jemalloc_message(": Failed assertion: ", "\"", #e,	\
+		    "\"\n");						\
 		abort();						\
 	}								\
 } while (0)
@@ -1250,15 +1251,17 @@ utrace(const void *addr, size_t len)
 	assert(len == sizeof(malloc_utrace_t));
 
 	if (ut->p == NULL && ut->s == 0 && ut->r == NULL)
-		malloc_printf("%d x USER malloc_init()\n", getpid());
+		malloc_printf("<jemalloc>:utrace: %d malloc_init()\n",
+		    getpid());
 	else if (ut->p == NULL && ut->r != NULL) {
-		malloc_printf("%d x USER %p = malloc(%zu)\n", getpid(), ut->r,
-		    ut->s);
+		malloc_printf("<jemalloc>:utrace: %d %p = malloc(%zu)\n",
+		    getpid(), ut->r, ut->s);
 	} else if (ut->p != NULL && ut->r != NULL) {
-		malloc_printf("%d x USER %p = realloc(%p, %zu)\n", getpid(),
-		    ut->r, ut->p, ut->s);
+		malloc_printf("<jemalloc>:utrace: %d %p = realloc(%p, %zu)\n",
+		    getpid(), ut->r, ut->p, ut->s);
 	} else
-		malloc_printf("%d x USER free(%p)\n", getpid(), ut->p);
+		malloc_printf("<jemalloc>:utrace: %d free(%p)\n", getpid(),
+		    ut->p);
 
 	return (0);
 }
@@ -2247,11 +2250,6 @@ choose_arena(void)
 	 * introduces a bootstrapping issue.
 	 */
 #ifndef NO_TLS
-	if (isthreaded == false) {
-	    /* Avoid the overhead of TLS for single-threaded operation. */
-	    return (arenas[0]);
-	}
-
 	ret = arenas_map;
 	if (ret == NULL) {
 		ret = choose_arena_hard();
@@ -3405,11 +3403,9 @@ arena_malloc_large(arena_t *arena, size_t size, bool zero)
 }
 
 static inline void *
-arena_malloc(arena_t *arena, size_t size, bool zero)
+arena_malloc(size_t size, bool zero)
 {
 
-	assert(arena != NULL);
-	assert(arena->magic == ARENA_MAGIC);
 	assert(size != 0);
 	assert(QUANTUM_CEILING(size) <= arena_maxclass);
 
@@ -3418,7 +3414,7 @@ arena_malloc(arena_t *arena, size_t size, bool zero)
 		if (opt_mag) {
 			mag_rack_t *rack = mag_rack;
 			if (rack == NULL) {
-				rack = mag_rack_create(arena);
+				rack = mag_rack_create(choose_arena());
 				if (rack == NULL)
 					return (NULL);
 				mag_rack = rack;
@@ -3427,9 +3423,9 @@ arena_malloc(arena_t *arena, size_t size, bool zero)
 			return (mag_rack_alloc(rack, size, zero));
 		} else
 #endif
-			return (arena_malloc_small(arena, size, zero));
+			return (arena_malloc_small(choose_arena(), size, zero));
 	} else
-		return (arena_malloc_large(arena, size, zero));
+		return (arena_malloc_large(choose_arena(), size, zero));
 }
 
 static inline void *
@@ -3439,7 +3435,7 @@ imalloc(size_t size)
 	assert(size != 0);
 
 	if (size <= arena_maxclass)
-		return (arena_malloc(choose_arena(), size, false));
+		return (arena_malloc(size, false));
 	else
 		return (huge_malloc(size, false));
 }
@@ -3449,7 +3445,7 @@ icalloc(size_t size)
 {
 
 	if (size <= arena_maxclass)
-		return (arena_malloc(choose_arena(), size, true));
+		return (arena_malloc(size, true));
 	else
 		return (huge_malloc(size, true));
 }
@@ -3553,7 +3549,7 @@ ipalloc(size_t alignment, size_t size)
 
 	if (ceil_size <= PAGE_SIZE || (alignment <= PAGE_SIZE
 	    && ceil_size <= arena_maxclass))
-		ret = arena_malloc(choose_arena(), ceil_size, false);
+		ret = arena_malloc(ceil_size, false);
 	else {
 		size_t run_size;
 
@@ -4113,7 +4109,7 @@ arena_ralloc(void *ptr, size_t size, size_t oldsize)
 	 * need to move the object.  In that case, fall back to allocating new
 	 * space and copying.
 	 */
-	ret = arena_malloc(choose_arena(), size, false);
+	ret = arena_malloc(size, false);
 	if (ret == NULL)
 		return (NULL);
 
@@ -5725,7 +5721,7 @@ thread_cleanup(void *arg)
  * is threaded here.
  */
 
-void
+static void
 jemalloc_prefork(void)
 {
 	bool again;
@@ -5773,7 +5769,7 @@ jemalloc_prefork(void)
 #endif
 }
 
-void
+static void
 jemalloc_postfork(void)
 {
 	unsigned i;
