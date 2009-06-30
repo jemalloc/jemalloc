@@ -1799,7 +1799,7 @@ extent_szad_comp(extent_node_t *a, extent_node_t *b)
 }
 
 /* Wrap red-black tree macros in functions. */
-rb_wrap(static __attribute__((unused)), extent_tree_szad_, extent_tree_t, extent_node_t,
+rb_wrap(static JEMALLOC_UNUSED, extent_tree_szad_, extent_tree_t, extent_node_t,
     link_szad, extent_szad_comp)
 #endif
 
@@ -1813,7 +1813,7 @@ extent_ad_comp(extent_node_t *a, extent_node_t *b)
 }
 
 /* Wrap red-black tree macros in functions. */
-rb_wrap(static __attribute__((unused)), extent_tree_ad_, extent_tree_t, extent_node_t, link_ad,
+rb_wrap(static JEMALLOC_UNUSED, extent_tree_ad_, extent_tree_t, extent_node_t, link_ad,
     extent_ad_comp)
 
 /*
@@ -2361,7 +2361,7 @@ arena_chunk_comp(arena_chunk_t *a, arena_chunk_t *b)
 }
 
 /* Wrap red-black tree macros in functions. */
-rb_wrap(static __attribute__((unused)), arena_chunk_tree_dirty_, arena_chunk_tree_t,
+rb_wrap(static JEMALLOC_UNUSED, arena_chunk_tree_dirty_, arena_chunk_tree_t,
     arena_chunk_t, link_dirty, arena_chunk_comp)
 
 static inline int
@@ -2377,7 +2377,7 @@ arena_run_comp(arena_chunk_map_t *a, arena_chunk_map_t *b)
 }
 
 /* Wrap red-black tree macros in functions. */
-rb_wrap(static __attribute__((unused)), arena_run_tree_, arena_run_tree_t, arena_chunk_map_t,
+rb_wrap(static JEMALLOC_UNUSED, arena_run_tree_, arena_run_tree_t, arena_chunk_map_t,
     link, arena_run_comp)
 
 static inline int
@@ -2409,7 +2409,7 @@ arena_avail_comp(arena_chunk_map_t *a, arena_chunk_map_t *b)
 }
 
 /* Wrap red-black tree macros in functions. */
-rb_wrap(static __attribute__((unused)), arena_avail_tree_, arena_avail_tree_t,
+rb_wrap(static JEMALLOC_UNUSED, arena_avail_tree_, arena_avail_tree_t,
     arena_chunk_map_t, link, arena_avail_comp)
 
 static inline void *

@@ -1,6 +1,45 @@
 dnl Process this file with autoconf to produce a configure script.
 AC_INIT([Makefile.in])
 
+dnl ============================================================================
+dnl Custom macro definitions.
+
+dnl JE_CFLAGS_APPEND(cflag)
+AC_DEFUN([JE_CFLAGS_APPEND],
+[
+AC_MSG_CHECKING([whether compiler supports $1])
+TCFLAGS="${CFLAGS}"
+if test "x${CFLAGS}" = "x" ; then
+  CFLAGS="$1"
+else
+  CFLAGS="${CFLAGS} $1"
+fi
+AC_RUN_IFELSE([AC_LANG_PROGRAM(
+[[
+]], [[
+    return 0;
+]])],
+              AC_MSG_RESULT([yes]),
+              AC_MSG_RESULT([no])
+              [CFLAGS="${TCFLAGS}"]
+)
+])
+
+dnl JE_COMPILABLE(label, hcode, mcode, rvar)
+AC_DEFUN([JE_COMPILABLE],
+[
+AC_MSG_CHECKING([whether $1 is compilable])
+AC_RUN_IFELSE([AC_LANG_PROGRAM(
+[$2], [$3])],
+              AC_MSG_RESULT([yes])
+              [$4="yes"],
+              AC_MSG_RESULT([no])
+              [$4="no"]
+)
+])
+
+dnl ============================================================================
+
 srcroot=$srcdir
 if test "x${srcroot}" = "x." ; then
   srcroot=""
@@ -44,23 +83,22 @@ AC_SUBST([MANDIR])
 cfgoutputs="Makefile doc/jemalloc.3"
 cfghdrs="src/jemalloc_defs.h"
 
-dnl If CFLAGS isn't defined and using gcc, set CFLAGS to something reasonable.
-dnl Otherwise, just prevent autoconf from molesting CFLAGS.
+dnl If CFLAGS isn't defined, set CFLAGS to something reasonable.  Otherwise,
+dnl just prevent autoconf from molesting CFLAGS.
 CFLAGS=$CFLAGS
 AC_PROG_CC
 if test "x$CFLAGS" = "x" ; then
   no_CFLAGS="yes"
-fi
-if test "x$no_CFLAGS" = "xyes" -a "x$GCC" = "xyes" ; then
- CFLAGS="-std=gnu99 -Wall -pipe -g3"
+  JE_CFLAGS_APPEND([-std=gnu99])
+  JE_CFLAGS_APPEND([-Wall])
+  JE_CFLAGS_APPEND([-pipe])
+  JE_CFLAGS_APPEND([-g3])
+  JE_CFLAGS_APPEND([-march=native])
+  JE_CFLAGS_APPEND([-ftls-model=initial-exec])
 fi
 dnl Append EXTRA_CFLAGS to CFLAGS, if defined.
 if test "x$EXTRA_CFLAGS" != "x" ; then
-  CFLAGS="$CFLAGS $EXTRA_CFLAGS"
-fi
-dnl XXX These flags only work with newer versions of gcc.
-if test "x$GCC" = "xyes" ; then
-  CFLAGS="${CFLAGS} -march=native -ftls-model=initial-exec"
+  JE_CFLAGS_APPEND([$EXTRA_CFLAGS])
 fi
 AC_PROG_CPP
 
@@ -82,15 +120,33 @@ case "${host_cpu}" in
   i[[345]]86)
 	;;
   i686)
-	CPU_SPINWAIT='__asm__ volatile("pause")'
+	JE_COMPILABLE([__asm__], [], [[__asm__ volatile("pause"); return 0;]],
+	              [asm])
+	if test "x${asm}" = "xyes" ; then
+	    CPU_SPINWAIT='__asm__ volatile("pause")'
+	fi
 	;;
   x86_64)
-	CPU_SPINWAIT='__asm__ volatile("pause")'
+	JE_COMPILABLE([__asm__ syntax], [],
+	              [[__asm__ volatile("pause"); return 0;]], [asm])
+	if test "x${asm}" = "xyes" ; then
+	    CPU_SPINWAIT='__asm__ volatile("pause")'
+	fi
 	;;
   *)
 	;;
 esac
 AC_DEFINE_UNQUOTED([CPU_SPINWAIT], [$CPU_SPINWAIT])
+
+JE_COMPILABLE([__attribute__ syntax],
+              [static __attribute__((unused)) void foo(void){}],
+              [],
+              [attribute])
+if test "x${attribute}" = "xyes" ; then
+  AC_DEFINE_UNQUOTED([JEMALLOC_UNUSED], [__attribute__((unused))])
+else
+  AC_DEFINE_UNQUOTED([JEMALLOC_UNUSED], [])
+fi
 
 dnl Platform-specific settings.  abi and RPATH can probably be determined
 dnl programmatically, but doing so is error-prone, which makes it generally
@@ -197,10 +253,16 @@ AC_SUBST([enable_debug])
 dnl Only optimize if not debugging.
 if test "x$enable_debug" = "x0" -a "x$no_CFLAGS" = "xyes" ; then
   dnl Make sure that an optimization flag was not specified in EXTRA_CFLAGS.
-  if test "x$GCC" = "xyes" ; then
-    echo "$EXTRA_CFLAGS" | grep "\-O" >/dev/null || CFLAGS="$CFLAGS -O3 -funroll-loops -fomit-frame-pointer"
-  else
-    echo "$EXTRA_CFLAGS" | grep "\-O" >/dev/null || CFLAGS="$CFLAGS -O"
+  optimize="no"
+  echo "$EXTRA_CFLAGS" | grep "\-O" >/dev/null || optimize="yes"
+  if test "x${optimize}" = "xyes" ; then
+    if test "x$GCC" = "xyes" ; then
+      JE_CFLAGS_APPEND([-O3])
+      JE_CFLAGS_APPEND([-funroll-loops])
+      JE_CFLAGS_APPEND([-fomit-frame-pointer])
+    else
+      JE_CFLAGS_APPEND([-O])
+    fi
   fi
 fi
 
