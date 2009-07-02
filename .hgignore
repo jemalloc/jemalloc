@@ -5,6 +5,7 @@ syntax: regexp
 ^jemalloc/cfg(hdrs|outputs)\.stamp$
 ^jemalloc/config\.(log|status)$
 ^jemalloc/configure$
+^jemalloc/doc/jemalloc.3$
 ^jemalloc/lib$
 ^jemalloc/Makefile$
 ^jemalloc/src/jemalloc_defs\.h$

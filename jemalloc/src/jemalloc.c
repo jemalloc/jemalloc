@@ -5658,11 +5658,11 @@ void
 free(void *ptr)
 {
 
-	UTRACE(ptr, 0, 0);
 	if (ptr != NULL) {
 		assert(malloc_initialized);
 
 		idalloc(ptr);
+		UTRACE(ptr, 0, 0);
 	}
 }
 

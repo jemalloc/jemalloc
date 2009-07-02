@@ -542,6 +542,26 @@ fi
 AC_SUBST([enable_lazy_lock])
 
 dnl ============================================================================
+dnl Configure libgd for mtrgraph.
+bins="${objroot}bin/mtrplay"
+GDLIBS=""
+
+have_libgd="yes"
+AC_CHECK_HEADERS([gd.h], , [have_libgd="no"])
+AC_CHECK_HEADERS([gdfontt.h], , [have_libgd="no"])
+AC_CHECK_HEADERS([gdfonts.h], , [have_libgd="no"])
+AC_CHECK_HEADERS([gdfontmb.h], , [have_libgd="no"])
+AC_CHECK_HEADERS([gdfontl.h], , [have_libgd="no"])
+AC_CHECK_HEADERS([gdfontg.h], , [have_libgd="no"])
+AC_CHECK_LIB([gd], [gdImageCreate], [GDLIBS="-lgd"], [have_libgd="no"])
+
+if test "x${have_libgd}" = "xyes" ; then
+  bins="${bins} ${objroot}bin/mtrgraph"
+fi
+AC_SUBST([bins])
+AC_SUBST([GDLIBS])
+
+dnl ============================================================================
 dnl Check for typedefs, structures, and compiler characteristics.
 AC_HEADER_STDBOOL
 
@@ -569,6 +589,8 @@ AC_MSG_RESULT([RPATH_EXTRA        : ${RPATH_EXTRA}])
 AC_MSG_RESULT([])
 AC_MSG_RESULT([PREFIX             : ${PREFIX}])
 AC_MSG_RESULT([BINDIR             : ${BINDIR}])
+AC_MSG_RESULT([INCLUDEDIR         : ${INCLUDEDIR}])
+AC_MSG_RESULT([LIBDIR             : ${LIBDIR}])
 AC_MSG_RESULT([DATADIR            : ${DATADIR}])
 AC_MSG_RESULT([MANDIR             : ${MANDIR}])
 AC_MSG_RESULT([])
@@ -576,6 +598,8 @@ AC_MSG_RESULT([srcroot            : ${srcroot}])
 AC_MSG_RESULT([abs_srcroot        : ${abs_srcroot}])
 AC_MSG_RESULT([objroot            : ${objroot}])
 AC_MSG_RESULT([abs_objroot        : ${abs_objroot}])
+AC_MSG_RESULT([])
+AC_MSG_RESULT([bins               : ${bins}])
 AC_MSG_RESULT([])
 AC_MSG_RESULT([autogen            : ${enable_autogen}])
 AC_MSG_RESULT([debug              : ${enable_debug}])

@@ -11,6 +11,7 @@ SHELL := /bin/sh
 CC := @CC@
 
 # Configuration parameters.
+BINDIR := @BINDIR@
 INCLUDEDIR := @INCLUDEDIR@
 LIBDIR := @LIBDIR@
 MANDIR := @MANDIR@
@@ -23,6 +24,7 @@ CFLAGS += -dynamic
 endif
 LDFLAGS := @LDFLAGS@
 LIBS := @LIBS@
+GDLIBS := @GDLIBS@
 RPATH_EXTRA := @RPATH_EXTRA@
 ifeq (macho, @abi@)
 SO := dylib
@@ -32,6 +34,7 @@ endif
 REV := 0
 
 # File lists.
+BINS := @bins@
 CHDRS := @srcroot@src/jemalloc.h @objroot@src/jemalloc_defs.h
 CSRCS := @srcroot@src/jemalloc.c
 DSOS := @objroot@lib/libjemalloc.so.$(REV) @objroot@lib/libjemalloc.so
@@ -40,7 +43,7 @@ MAN3 := @objroot@doc/jemalloc.3
 .PHONY: all dist install check clean distclean relclean
 
 # Default target.
-all: $(DSOS)
+all: $(DSOS) bins
 
 @objroot@src/%.o: @srcroot@src/%.c
 	$(CC) $(CFLAGS) -c $(CPPFLAGS) -o $@ $+
@@ -50,7 +53,22 @@ $(DSOS): $(CSRCS:@srcroot@%.c=@objroot@%.o)
 	gcc -shared -o $@ $+ $(LDFLAGS) $(LIBS)
 	ln -sf libjemalloc.so.$(REV) lib/libjemalloc.so
 
+bins: $(BINS)
+
+@objroot@bin/mtrgraph: @objroot@src/mtrgraph.o
+	@mkdir -p $(@D)
+	gcc -o $@ $+ $(LDFLAGS) $(LIBS) $(GDLIBS)
+
+@objroot@bin/%: @objroot@src/%.o
+	@mkdir -p $(@D)
+	gcc -o $@ $+ $(LDFLAGS) $(LIBS)
+
 install:
+	install -d $(BINDIR)
+	@for b in $(BINS); do \
+	echo "install -m 755 $$b $(BINDIR)"; \
+	install -m 755 $$b $(BINDIR); \
+done
 	install -d $(INCLUDEDIR)
 	@for h in $(CHDRS); do \
 	echo "install -m 644 $$h $(INCLUDEDIR)"; \
