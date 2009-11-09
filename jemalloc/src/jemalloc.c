@@ -197,7 +197,7 @@ __FBSDID("$FreeBSD: src/lib/libc/stdlib/malloc.c,v 1.183 2008/12/01 10:20:59 jas
 #ifdef __alpha__
 #  define QUANTUM_2POW		4
 #endif
-#ifdef __sparc64__
+#ifdef __sparc__
 #  define QUANTUM_2POW		4
 #endif
 #ifdef __amd64__
@@ -210,6 +210,9 @@ __FBSDID("$FreeBSD: src/lib/libc/stdlib/malloc.c,v 1.183 2008/12/01 10:20:59 jas
 #  define QUANTUM_2POW		3
 #endif
 #ifdef __powerpc__
+#  define QUANTUM_2POW		4
+#endif
+#ifdef __s390x__
 #  define QUANTUM_2POW		4
 #endif
 
