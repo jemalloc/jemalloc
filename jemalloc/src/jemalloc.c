@@ -27,7 +27,7 @@
  *
  *******************************************************************************
  *
- * Copyright (C) 2006-2008 Jason Evans <jasone@FreeBSD.org>.
+ * Copyright (C) 2006-2009 Jason Evans <jasone@FreeBSD.org>.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -1021,6 +1021,18 @@ static __thread mag_rack_t	*mag_rack;
 static pthread_key_t		mag_rack_tsd;
 #endif
 
+/*
+ * Used by chunk_alloc_mmap() to decide whether to attempt the fast path and
+ * potentially avoid some system calls.  We can get away without TLS here,
+ * since the state of mmap_unaligned only affects performance, rather than
+ * correct function.
+ */
+static
+#ifndef NO_TLS
+       __thread
+#endif
+                bool	mmap_unaligned;
+
 #ifdef JEMALLOC_STATS
 /* Chunk statistics. */
 static chunk_stats_t	stats_chunks;
@@ -1122,6 +1134,7 @@ static void	pages_unmap(void *addr, size_t size);
 static void	*chunk_alloc_dss(size_t size);
 static void	*chunk_recycle_dss(size_t size, bool zero);
 #endif
+static void	*chunk_alloc_mmap_slow(size_t size, bool unaligned);
 static void	*chunk_alloc_mmap(size_t size);
 static void	*chunk_alloc(size_t size, bool zero);
 #ifdef JEMALLOC_DSS
@@ -1813,8 +1826,8 @@ extent_ad_comp(extent_node_t *a, extent_node_t *b)
 }
 
 /* Wrap red-black tree macros in functions. */
-rb_wrap(static JEMALLOC_UNUSED, extent_tree_ad_, extent_tree_t, extent_node_t, link_ad,
-    extent_ad_comp)
+rb_wrap(static JEMALLOC_UNUSED, extent_tree_ad_, extent_tree_t, extent_node_t,
+    link_ad, extent_ad_comp)
 
 /*
  * End extent tree code.
@@ -1970,76 +1983,112 @@ chunk_recycle_dss(size_t size, bool zero)
 #endif
 
 static void *
-chunk_alloc_mmap(size_t size)
+chunk_alloc_mmap_slow(size_t size, bool unaligned)
 {
 	void *ret;
 	size_t offset;
+
+	/* Beware size_t wrap-around. */
+	if (size + chunksize <= size)
+		return (NULL);
+
+	ret = pages_map(NULL, size + chunksize);
+	if (ret == NULL)
+		return (NULL);
+
+	/* Clean up unneeded leading/trailing space. */
+	offset = CHUNK_ADDR2OFFSET(ret);
+	if (offset != 0) {
+		/* Note that mmap() returned an unaligned mapping. */
+		unaligned = true;
+
+		/* Leading space. */
+		pages_unmap(ret, chunksize - offset);
+
+		ret = (void *)((uintptr_t)ret +
+		    (chunksize - offset));
+
+		/* Trailing space. */
+		pages_unmap((void *)((uintptr_t)ret + size),
+		    offset);
+	} else {
+		/* Trailing space only. */
+		pages_unmap((void *)((uintptr_t)ret + size),
+		    chunksize);
+	}
+
+	/*
+	 * If mmap() returned an aligned mapping, reset mmap_unaligned so that
+	 * the next chunk_alloc_mmap() execution tries the fast allocation
+	 * method.
+	 */
+	if (unaligned == false)
+		mmap_unaligned = false;
+
+	return (ret);
+}
+
+static void *
+chunk_alloc_mmap(size_t size)
+{
+	void *ret;
 
 	/*
 	 * Ideally, there would be a way to specify alignment to mmap() (like
 	 * NetBSD has), but in the absence of such a feature, we have to work
 	 * hard to efficiently create aligned mappings.  The reliable, but
-	 * expensive method is to create a mapping that is over-sized, then
-	 * trim the excess.  However, that always results in at least one call
-	 * to pages_unmap().
+	 * slow method is to create a mapping that is over-sized, then trim the
+	 * excess.  However, that always results in at least one call to
+	 * pages_unmap().
 	 *
 	 * A more optimistic approach is to try mapping precisely the right
 	 * amount, then try to append another mapping if alignment is off.  In
 	 * practice, this works out well as long as the application is not
 	 * interleaving mappings via direct mmap() calls.  If we do run into a
 	 * situation where there is an interleaved mapping and we are unable to
-	 * extend an unaligned mapping, our best option is to momentarily
-	 * revert to the reliable-but-expensive method.  This will tend to
-	 * leave a gap in the memory map that is too small to cause later
-	 * problems for the optimistic method.
+	 * extend an unaligned mapping, our best option is to switch to the
+	 * slow method until mmap() returns another aligned mapping.  This will
+	 * tend to leave a gap in the memory map that is too small to cause
+	 * later problems for the optimistic method.
+	 *
+	 * Another possible confounding factor is address space layout
+	 * randomization (ASLR), which causes mmap(2) to disregard the
+	 * requested address.  mmap_unaligned tracks whether the previous
+	 * chunk_alloc_mmap() execution received any unaligned or relocated
+	 * mappings, and if so, the current execution will immediately fall
+	 * back to the slow method.  However, we keep track of whether the fast
+	 * method would have succeeded, and if so, we make a note to try the
+	 * fast method next time.
 	 */
 
-	ret = pages_map(NULL, size);
-	if (ret == NULL)
-		return (NULL);
+	if (mmap_unaligned == false) {
+		size_t offset;
 
-	offset = CHUNK_ADDR2OFFSET(ret);
-	if (offset != 0) {
-		/* Try to extend chunk boundary. */
-		if (pages_map((void *)((uintptr_t)ret + size),
-		    chunksize - offset) == NULL) {
-			/*
-			 * Extension failed.  Clean up, then revert to the
-			 * reliable-but-expensive method.
-			 */
-			pages_unmap(ret, size);
+		ret = pages_map(NULL, size);
+		if (ret == NULL)
+			return (NULL);
 
-			/* Beware size_t wrap-around. */
-			if (size + chunksize <= size)
-				return NULL;
-
-			ret = pages_map(NULL, size + chunksize);
-			if (ret == NULL)
-				return (NULL);
-
-			/* Clean up unneeded leading/trailing space. */
-			offset = CHUNK_ADDR2OFFSET(ret);
-			if (offset != 0) {
-				/* Leading space. */
-				pages_unmap(ret, chunksize - offset);
-
-				ret = (void *)((uintptr_t)ret +
-				    (chunksize - offset));
-
-				/* Trailing space. */
-				pages_unmap((void *)((uintptr_t)ret + size),
-				    offset);
+		offset = CHUNK_ADDR2OFFSET(ret);
+		if (offset != 0) {
+			mmap_unaligned = true;
+			/* Try to extend chunk boundary. */
+			if (pages_map((void *)((uintptr_t)ret + size),
+			    chunksize - offset) == NULL) {
+				/*
+				 * Extension failed.  Clean up, then revert to
+				 * the reliable-but-expensive method.
+				 */
+				pages_unmap(ret, size);
+				ret = chunk_alloc_mmap_slow(size, true);
 			} else {
-				/* Trailing space only. */
-				pages_unmap((void *)((uintptr_t)ret + size),
-				    chunksize);
+				/* Clean up unneeded leading space. */
+				pages_unmap(ret, chunksize - offset);
+				ret = (void *)((uintptr_t)ret + (chunksize -
+				    offset));
 			}
-		} else {
-			/* Clean up unneeded leading space. */
-			pages_unmap(ret, chunksize - offset);
-			ret = (void *)((uintptr_t)ret + (chunksize - offset));
 		}
 	}
+		ret = chunk_alloc_mmap_slow(size, false);
 
 	return (ret);
 }
