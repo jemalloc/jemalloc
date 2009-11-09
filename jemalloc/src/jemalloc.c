@@ -4897,8 +4897,8 @@ malloc_init_hard(void)
 	if (malloc_initialized || malloc_initializer == pthread_self()) {
 		/*
 		 * Another thread initialized the allocator before this one
-		 * acquired init_lock, or this thread is the inializing thread,
-		 * and it is recursively allocating.
+		 * acquired init_lock, or this thread is the initializing
+		 * thread, and it is recursively allocating.
 		 */
 		malloc_mutex_unlock(&init_lock);
 		return (false);
@@ -5613,7 +5613,8 @@ realloc(void *ptr, size_t size)
 	}
 
 	if (ptr != NULL) {
-		assert(malloc_initialized);
+		assert(malloc_initialized || malloc_initializer ==
+		    pthread_self());
 
 		ret = iralloc(ptr, size);
 
@@ -5659,7 +5660,8 @@ free(void *ptr)
 {
 
 	if (ptr != NULL) {
-		assert(malloc_initialized);
+		assert(malloc_initialized || malloc_initializer ==
+		    pthread_self());
 
 		idalloc(ptr);
 		UTRACE(ptr, 0, 0);
