@@ -523,7 +523,7 @@ AC_SUBST([roff_tls])
 
 dnl Enable lazy locking by default.
 AC_ARG_ENABLE([lazy_lock],
-  [AS_HELP_STRING([--enable-lazy-lock],
+  [AS_HELP_STRING([--disable-lazy-lock],
   [Disable lazy locking (always lock, even when single-threaded)])],
 [if test "x$enable_lazy_lock" = "xno" ; then
   enable_lazy_lock="0"

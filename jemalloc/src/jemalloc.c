@@ -1341,7 +1341,7 @@ pthread_create(pthread_t *restrict thread, const pthread_attr_t *restrict attr,
 	pthread_once(&once_control, get_pthread_create_fptr);
 
 	isthreaded = true;
-	return pthread_create_fptr(thread, attr, start_routine, arg);
+	return (pthread_create_fptr(thread, attr, start_routine, arg));
 }
 #endif
 
@@ -2426,8 +2426,8 @@ arena_run_comp(arena_chunk_map_t *a, arena_chunk_map_t *b)
 }
 
 /* Wrap red-black tree macros in functions. */
-rb_wrap(static JEMALLOC_UNUSED, arena_run_tree_, arena_run_tree_t, arena_chunk_map_t,
-    link, arena_run_comp)
+rb_wrap(static JEMALLOC_UNUSED, arena_run_tree_, arena_run_tree_t,
+    arena_chunk_map_t, link, arena_run_comp)
 
 static inline int
 arena_avail_comp(arena_chunk_map_t *a, arena_chunk_map_t *b)
