@@ -3977,18 +3977,33 @@ arena_dalloc(arena_t *arena, arena_chunk_t *chunk, void *ptr)
 #ifdef JEMALLOC_MAG
 		if (opt_mag) {
 			mag_rack_t *rack = mag_rack;
-			if (rack == NULL) {
-				rack = mag_rack_create(arena);
+			if ((uintptr_t)rack > (uintptr_t)1)
+				mag_rack_dalloc(rack, ptr);
+			else {
 				if (rack == NULL) {
+					rack = mag_rack_create(arena);
+					if (rack == NULL) {
+						malloc_spin_lock(&arena->lock);
+						arena_dalloc_small(arena,
+						    chunk, ptr, mapelm);
+						malloc_spin_unlock(
+						    &arena->lock);
+					}
+					mag_rack = rack;
+					pthread_setspecific(mag_rack_tsd, rack);
+					mag_rack_dalloc(rack, ptr);
+				} else {
+					/*
+					 * This thread is currently exiting, so
+					 * directly deallocate.
+					 */
+					assert(rack == (void *)(uintptr_t)1);
 					malloc_spin_lock(&arena->lock);
 					arena_dalloc_small(arena, chunk, ptr,
 					    mapelm);
 					malloc_spin_unlock(&arena->lock);
 				}
-				mag_rack = rack;
-				pthread_setspecific(mag_rack_tsd, rack);
 			}
-			mag_rack_dalloc(rack, ptr);
 		} else {
 #endif
 			malloc_spin_lock(&arena->lock);
@@ -5759,11 +5774,9 @@ thread_cleanup(void *arg)
 #ifdef JEMALLOC_MAG
 	assert((mag_rack_t *)arg == mag_rack);
 	if (mag_rack != NULL) {
-		assert(mag_rack != (void *)-1);
+		assert(mag_rack != (void *)(uintptr_t)1);
 		mag_rack_destroy(mag_rack);
-#ifdef JEMALLOC_DEBUG
-		mag_rack = (void *)-1;
-#endif
+		mag_rack = (void *)(uintptr_t)1;
 	}
 #endif
 }
