@@ -5294,6 +5294,17 @@ MALLOC_OUT:
 	ncbins = ((cspace_max - cspace_min) >> CACHELINE_2POW) + 1;
 	nsbins = ((sspace_max - sspace_min) >> SUBPAGE_2POW) + 1;
 	nbins = ntbins + nqbins + ncbins + nsbins;
+	/*
+	 * The size2bin lookup table uses uint8_t to encode each bin index, so
+	 * we cannot support more than 256 size classes (not a problem in
+	 * practice).
+	 */
+	if (nbins > 256) {
+	    char line_buf[UMAX2S_BUFSIZE];
+	    jemalloc_message("<jemalloc>: Too many size classes (",
+	        umax2s(nbins, line_buf), " > 256)\n", "");
+	    abort();
+	}
 
 	if (size2bin_init()) {
 		malloc_mutex_unlock(&init_lock);
