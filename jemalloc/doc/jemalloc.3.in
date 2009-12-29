@@ -207,16 +207,16 @@ Double/halve the size of the maximum size class that is a multiple of the
 cacheline size (64).
 Above this size, subpage spacing (256 bytes) is used for size classes.
 The default value is 512 bytes.
-.It F
-Double/halve the per-arena maximum number of dirty unused pages that are
-allowed to accumulate before informing the kernel about at least half of those
-pages via
+.It D
+Halve/double the per-arena minimum ratio of active to dirty pages.
+Some dirty unused pages may be allowed to accumulate, within the limit set by
+the ratio, before informing the kernel about at least half of those pages via
 .Xr madvise 2 .
 This provides the kernel with sufficient information to recycle dirty pages if
 physical memory becomes scarce and the pages remain unused.
-The default is 512 pages per arena;
-.Ev JEMALLOC_OPTIONS=10f
-will prevent any dirty unused pages from accumulating.
+The default minimum ratio is 32:1;
+.Ev JEMALLOC_OPTIONS=6D
+will disable dirty page purging.
 @roff_tcache@.It G
 @roff_tcache@Enable/disable incremental garbage collection of unused objects
 @roff_tcache@stored in thread-specific caches.
