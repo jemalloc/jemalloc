@@ -1115,6 +1115,9 @@ static void	wrtmessage(const char *p1, const char *p2, const char *p3,
 #ifdef JEMALLOC_STATS
 static void	malloc_printf(const char *format, ...);
 #endif
+#ifdef JEMALLOC_LAZY_LOCK
+static void	pthread_create_once(void);
+#endif
 static char	*umax2s(uintmax_t x, unsigned base, char *s);
 #ifdef JEMALLOC_DSS
 static bool	base_pages_alloc_dss(size_t minsize);
@@ -1336,7 +1339,7 @@ int (*pthread_create_fptr)(pthread_t *__restrict, const pthread_attr_t *,
     void *(*)(void *), void *__restrict);
 
 static void
-get_pthread_create_fptr(void)
+pthread_create_once(void)
 {
 
 	pthread_create_fptr = dlsym(RTLD_NEXT, "pthread_create");
@@ -1346,6 +1349,8 @@ get_pthread_create_fptr(void)
 		    "");
 		abort();
 	}
+
+	isthreaded = true;
 }
 
 int
@@ -1355,9 +1360,8 @@ pthread_create(pthread_t *__restrict thread,
 {
 	static pthread_once_t once_control = PTHREAD_ONCE_INIT;
 
-	pthread_once(&once_control, get_pthread_create_fptr);
+	pthread_once(&once_control, pthread_create_once);
 
-	isthreaded = true;
 	return (pthread_create_fptr(thread, attr, start_routine, arg));
 }
 #endif
