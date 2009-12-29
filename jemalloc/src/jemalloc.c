@@ -1108,6 +1108,7 @@ static void	*arena_bin_malloc_hard(arena_t *arena, arena_bin_t *bin);
 static size_t	arena_bin_run_size_calc(arena_bin_t *bin, size_t min_run_size);
 #ifdef JEMALLOC_MAG
 static void	mag_load(mag_t *mag);
+static void	*mag_rack_alloc_hard(bin_mags_t *bin_mags, size_t size);
 #endif
 static void	*arena_malloc_large(arena_t *arena, size_t size, bool zero);
 static void	*arena_palloc(arena_t *arena, size_t alignment, size_t size,
@@ -1118,6 +1119,10 @@ static void	mag_unload(mag_t *mag);
 #endif
 static void	arena_dalloc_large(arena_t *arena, arena_chunk_t *chunk,
     void *ptr);
+#ifdef JEMALLOC_MAG
+static void	arena_dalloc_hard(arena_t *arena, arena_chunk_t *chunk,
+    void *ptr, arena_chunk_map_t *mapelm, mag_rack_t *rack);
+#endif
 static void	arena_ralloc_large_shrink(arena_t *arena, arena_chunk_t *chunk,
     void *ptr, size_t size, size_t oldsize);
 static bool	arena_ralloc_large_grow(arena_t *arena, arena_chunk_t *chunk,
@@ -3090,38 +3095,9 @@ mag_rack_alloc(mag_rack_t *rack, size_t size, bool zero)
 	bin_mags = &rack->bin_mags[binind];
 
 	mag = bin_mags->curmag;
-	if (mag == NULL) {
-		/* Create an initial magazine for this size class. */
-		assert(bin_mags->sparemag == NULL);
-		mag = mag_create(choose_arena(), binind);
-		if (mag == NULL)
-			return (NULL);
-		bin_mags->curmag = mag;
-		mag_load(mag);
-	}
-
 	ret = mag_alloc(mag);
 	if (ret == NULL) {
-		if (bin_mags->sparemag != NULL) {
-			if (bin_mags->sparemag->nrounds > 0) {
-				/* Swap magazines. */
-				bin_mags->curmag = bin_mags->sparemag;
-				bin_mags->sparemag = mag;
-				mag = bin_mags->curmag;
-			} else {
-				/* Reload the current magazine. */
-				mag_load(mag);
-			}
-		} else {
-			/* Create a second magazine. */
-			mag = mag_create(choose_arena(), binind);
-			if (mag == NULL)
-				return (NULL);
-			mag_load(mag);
-			bin_mags->sparemag = bin_mags->curmag;
-			bin_mags->curmag = mag;
-		}
-		ret = mag_alloc(mag);
+		ret = mag_rack_alloc_hard(bin_mags, size);
 		if (ret == NULL)
 			return (NULL);
 	}
@@ -3135,6 +3111,31 @@ mag_rack_alloc(mag_rack_t *rack, size_t size, bool zero)
 #endif
 	} else
 		memset(ret, 0, size);
+
+	return (ret);
+}
+
+static void *
+mag_rack_alloc_hard(bin_mags_t *bin_mags, size_t size)
+{
+	void *ret;
+	mag_t *mag;
+
+	mag = bin_mags->curmag;
+	if (bin_mags->sparemag->nrounds > 0) {
+		/* Swap magazines. */
+		bin_mags->curmag = bin_mags->sparemag;
+		bin_mags->sparemag = mag;
+		mag = bin_mags->curmag;
+
+		/* Unconditionally allocate. */
+		mag->nrounds--;
+		ret = mag->rounds[mag->nrounds];
+	} else {
+		/* Reload the current magazine. */
+		mag_load(mag);
+		ret = mag_alloc(mag);
+	}
 
 	return (ret);
 }
@@ -3230,8 +3231,6 @@ arena_malloc(size_t size, bool zero)
 				rack = mag_rack_create(choose_arena());
 				if (rack == NULL)
 					return (NULL);
-				mag_rack = rack;
-				pthread_setspecific(mag_rack_tsd, rack);
 			}
 			return (mag_rack_alloc(rack, size, zero));
 		} else
@@ -3735,29 +3734,8 @@ arena_dalloc(arena_t *arena, arena_chunk_t *chunk, void *ptr)
 			if ((uintptr_t)rack > (uintptr_t)1)
 				mag_rack_dalloc(rack, ptr);
 			else {
-				if (rack == NULL) {
-					rack = mag_rack_create(arena);
-					if (rack == NULL) {
-						malloc_mutex_lock(&arena->lock);
-						arena_dalloc_small(arena,
-						    chunk, ptr, mapelm);
-						malloc_mutex_unlock(
-						    &arena->lock);
-					}
-					mag_rack = rack;
-					pthread_setspecific(mag_rack_tsd, rack);
-					mag_rack_dalloc(rack, ptr);
-				} else {
-					/*
-					 * This thread is currently exiting, so
-					 * directly deallocate.
-					 */
-					assert(rack == (void *)(uintptr_t)1);
-					malloc_mutex_lock(&arena->lock);
-					arena_dalloc_small(arena, chunk, ptr,
-					    mapelm);
-					malloc_mutex_unlock(&arena->lock);
-				}
+				arena_dalloc_hard(arena, chunk, ptr, mapelm,
+				    rack);
 			}
 		} else {
 #endif
@@ -3770,6 +3748,30 @@ arena_dalloc(arena_t *arena, arena_chunk_t *chunk, void *ptr)
 	} else
 		arena_dalloc_large(arena, chunk, ptr);
 }
+
+#ifdef JEMALLOC_MAG
+static void
+arena_dalloc_hard(arena_t *arena, arena_chunk_t *chunk, void *ptr,
+    arena_chunk_map_t *mapelm, mag_rack_t *rack)
+{
+
+	if (rack == NULL) {
+		rack = mag_rack_create(arena);
+		if (rack == NULL) {
+			malloc_mutex_lock(&arena->lock);
+			arena_dalloc_small(arena, chunk, ptr, mapelm);
+			malloc_mutex_unlock(&arena->lock);
+		} else
+			mag_rack_dalloc(rack, ptr);
+	} else {
+		/* This thread is currently exiting, so directly deallocate. */
+		assert(rack == (void *)(uintptr_t)1);
+		malloc_mutex_lock(&arena->lock);
+		arena_dalloc_small(arena, chunk, ptr, mapelm);
+		malloc_mutex_unlock(&arena->lock);
+	}
+}
+#endif
 
 static inline void
 idalloc(void *ptr)
@@ -4173,11 +4175,50 @@ mag_destroy(mag_t *mag)
 static mag_rack_t *
 mag_rack_create(arena_t *arena)
 {
+	mag_rack_t *rack;
+	mag_t *mag;
+	unsigned i;
+
+	// XXX Consolidate into one big object?
 
 	assert(sizeof(mag_rack_t) + (sizeof(bin_mags_t *) * (nbins - 1)) <=
 	    bin_maxclass);
-	return (arena_malloc_small(arena, sizeof(mag_rack_t) +
-	    (sizeof(bin_mags_t) * (nbins - 1)), true));
+	rack = arena_malloc_small(arena, sizeof(mag_rack_t) +
+	    (sizeof(bin_mags_t) * (nbins - 1)), true);
+	if (rack == NULL)
+		return (NULL);
+
+	for (i = 0; i < nbins; i++) {
+		mag = mag_create(arena, i);
+		if (mag == NULL) {
+			unsigned j;
+			for (j = 0; j < i; j++) {
+				mag_destroy(rack->bin_mags[j].curmag);
+				mag_destroy(rack->bin_mags[j].sparemag);
+			}
+			mag_rack_destroy(rack);
+			return (NULL);
+		}
+		rack->bin_mags[i].curmag = mag;
+
+		mag = mag_create(arena, i);
+		if (mag == NULL) {
+			unsigned j;
+			for (j = 0; j < i; j++) {
+				mag_destroy(rack->bin_mags[j].curmag);
+				mag_destroy(rack->bin_mags[j].sparemag);
+			}
+			mag_destroy(rack->bin_mags[j].curmag);
+			mag_rack_destroy(rack);
+			return (NULL);
+		}
+		rack->bin_mags[i].sparemag = mag;
+	}
+
+	mag_rack = rack;
+	pthread_setspecific(mag_rack_tsd, rack);
+
+	return (rack);
 }
 
 static void
@@ -5392,10 +5433,27 @@ MALLOC_OUT:
 
 	if (ncpus > 1) {
 		/*
-		 * For SMP systems, create twice as many arenas as there are
-		 * CPUs by default.
+		 * For SMP systems, create more than one arena per CPU by
+		 * default.
 		 */
-		opt_narenas_lshift++;
+#ifdef JEMALLOC_MAG
+		if (opt_mag) {
+			/*
+			 * Only large object allocation/deallocation is
+			 * guaranteed to acquire an arena mutex, so we can get
+			 * away with fewer arenas than without thread caching.
+			 */
+			opt_narenas_lshift += 1;
+		} else {
+#endif
+			/*
+			 * All allocations must acquire an arena mutex, so use
+			 * plenty of arenas.
+			 */
+			opt_narenas_lshift += 2;
+#ifdef JEMALLOC_MAG
+		}
+#endif
 	}
 
 	/* Determine how many arenas to use. */
