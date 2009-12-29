@@ -397,10 +397,24 @@ struct malloc_bin_stats_s {
 	uint64_t	reruns;
 
 	/* High-water mark for this bin. */
-	unsigned long	highruns;
+	size_t		highruns;
 
 	/* Current number of runs in this bin. */
-	unsigned long	curruns;
+	size_t		curruns;
+};
+
+typedef struct malloc_large_stats_s malloc_large_stats_t;
+struct malloc_large_stats_s {
+	/*
+	 * Number of allocation requests that corresponded to this size class.
+	 */
+	uint64_t	nrequests;
+
+	/* High-water mark for this size class. */
+	size_t		highruns;
+
+	/* Current number of runs of this size class. */
+	size_t		curruns;
 };
 
 typedef struct arena_stats_s arena_stats_t;
@@ -429,6 +443,14 @@ struct arena_stats_s {
 	size_t		allocated_large;
 	uint64_t	nmalloc_large;
 	uint64_t	ndalloc_large;
+
+	/*
+	 * One element for each possible size class, including sizes that
+	 * overlap with bin size classes.  This is necessary because ipalloc()
+	 * sometimes has to use such large objects in order to assure proper
+	 * alignment.
+	 */
+	malloc_large_stats_t	*lstats;
 };
 
 typedef struct chunk_stats_s chunk_stats_t;
@@ -1635,7 +1657,6 @@ base_node_dealloc(extent_node_t *node)
 static void
 stats_print(arena_t *arena)
 {
-	unsigned i, gap_start;
 
 	malloc_printf("dirty pages: %zu:%zu active:dirty, %llu sweep%s,"
 	    " %llu madvise%s, %llu purged\n",
@@ -1662,61 +1683,97 @@ stats_print(arena_t *arena)
 	    arena->stats.ndalloc_large);
 	malloc_printf("mapped:  %12zu\n", arena->stats.mapped);
 
+	if (arena->stats.nmalloc_small + arena->stats.nmalloc_medium > 0) {
+		unsigned i, gap_start;
 #ifdef JEMALLOC_TCACHE
-	malloc_printf("bins:     bin    size regs pgs  requests    "
-	    "nfills  nflushes   newruns    reruns maxruns curruns\n");
+		malloc_printf("bins:     bin    size regs pgs  requests    "
+		    "nfills  nflushes   newruns    reruns maxruns curruns\n");
 #else
-	malloc_printf("bins:     bin    size regs pgs  requests   "
-	    "newruns    reruns maxruns curruns\n");
+		malloc_printf("bins:     bin    size regs pgs  requests   "
+		    "newruns    reruns maxruns curruns\n");
 #endif
-	for (i = 0, gap_start = UINT_MAX; i < nbins; i++) {
-		if (arena->bins[i].stats.nruns == 0) {
-			if (gap_start == UINT_MAX)
-				gap_start = i;
-		} else {
-			if (gap_start != UINT_MAX) {
-				if (i > gap_start + 1) {
-					/* Gap of more than one size class. */
-					malloc_printf("[%u..%u]\n",
-					    gap_start, i - 1);
-				} else {
-					/* Gap of one size class. */
-					malloc_printf("[%u]\n", gap_start);
+		for (i = 0, gap_start = UINT_MAX; i < nbins; i++) {
+			if (arena->bins[i].stats.nruns == 0) {
+				if (gap_start == UINT_MAX)
+					gap_start = i;
+			} else {
+				if (gap_start != UINT_MAX) {
+					if (i > gap_start + 1) {
+						/*
+						 * Gap of more than one size
+						 * class.
+						 */
+						malloc_printf("[%u..%u]\n",
+						    gap_start, i - 1);
+					} else {
+						/* Gap of one size class. */
+						malloc_printf("[%u]\n",
+						    gap_start);
+					}
+					gap_start = UINT_MAX;
 				}
-				gap_start = UINT_MAX;
+				malloc_printf(
+				    "%13u %1s %5u %4u %3u %9llu %9llu"
+#ifdef JEMALLOC_TCACHE
+				    " %9llu %9llu"
+#endif
+				    " %9llu %7lu %7lu\n",
+				    i,
+				    i < ntbins ? "T" : i < ntbins + nqbins ?
+				    "Q" : i < ntbins + nqbins + ncbins ? "C" :
+				    i < ntbins + nqbins + ncbins + nsbins ? "S"
+				    : "M",
+				    arena->bins[i].reg_size,
+				    arena->bins[i].nregs,
+				    arena->bins[i].run_size >> PAGE_SHIFT,
+				    arena->bins[i].stats.nrequests,
+#ifdef JEMALLOC_TCACHE
+				    arena->bins[i].stats.nfills,
+				    arena->bins[i].stats.nflushes,
+#endif
+				    arena->bins[i].stats.nruns,
+				    arena->bins[i].stats.reruns,
+				    arena->bins[i].stats.highruns,
+				    arena->bins[i].stats.curruns);
 			}
-			malloc_printf(
-			    "%13u %1s %5u %4u %3u %9llu %9llu"
-#ifdef JEMALLOC_TCACHE
-			    " %9llu %9llu"
-#endif
-			    " %9llu %7lu %7lu\n",
-			    i,
-			    i < ntbins ? "T" : i < ntbins + nqbins ? "Q" :
-			    i < ntbins + nqbins + ncbins ? "C" :
-			    i < ntbins + nqbins + ncbins + nsbins ? "S" : "M",
-			    arena->bins[i].reg_size,
-			    arena->bins[i].nregs,
-			    arena->bins[i].run_size >> PAGE_SHIFT,
-			    arena->bins[i].stats.nrequests,
-#ifdef JEMALLOC_TCACHE
-			    arena->bins[i].stats.nfills,
-			    arena->bins[i].stats.nflushes,
-#endif
-			    arena->bins[i].stats.nruns,
-			    arena->bins[i].stats.reruns,
-			    arena->bins[i].stats.highruns,
-			    arena->bins[i].stats.curruns);
+		}
+		if (gap_start != UINT_MAX) {
+			if (i > gap_start + 1) {
+				/* Gap of more than one size class. */
+				malloc_printf("[%u..%u]\n", gap_start, i - 1);
+			} else {
+				/* Gap of one size class. */
+				malloc_printf("[%u]\n", gap_start);
+			}
 		}
 	}
-	if (gap_start != UINT_MAX) {
-		if (i > gap_start + 1) {
-			/* Gap of more than one size class. */
-			malloc_printf("[%u..%u]\n", gap_start, i - 1);
-		} else {
-			/* Gap of one size class. */
-			malloc_printf("[%u]\n", gap_start);
+
+	if (arena->stats.nmalloc_large > 0) {
+		size_t i;
+		ssize_t gap_start;
+		size_t nlclasses = (chunksize - PAGE_SIZE) >> PAGE_SHIFT;
+
+		malloc_printf(
+		    "large:   size pages nrequests   maxruns   curruns\n");
+
+		for (i = 0, gap_start = -1; i < nlclasses; i++) {
+			if (arena->stats.lstats[i].nrequests == 0) {
+				if (gap_start == -1)
+					gap_start = i;
+			} else {
+				if (gap_start != -1) {
+					malloc_printf("[%zu]\n", i - gap_start);
+					gap_start = -1;
+				}
+				malloc_printf("%13zu %5zu %9llu %9zu %9zu\n",
+				    (i+1) << PAGE_SHIFT, i+1,
+				    arena->stats.lstats[i].nrequests,
+				    arena->stats.lstats[i].highruns,
+				    arena->stats.lstats[i].curruns);
+			}
 		}
+		if (gap_start != -1)
+			malloc_printf("[%zu]\n", i - gap_start);
 	}
 }
 #endif
@@ -3474,6 +3531,13 @@ arena_malloc_large(arena_t *arena, size_t size, bool zero)
 #ifdef JEMALLOC_STATS
 	arena->stats.nmalloc_large++;
 	arena->stats.allocated_large += size;
+	arena->stats.lstats[size >> PAGE_SHIFT].nrequests++;
+	arena->stats.lstats[size >> PAGE_SHIFT].curruns++;
+	if (arena->stats.lstats[size >> PAGE_SHIFT].curruns >
+	    arena->stats.lstats[size >> PAGE_SHIFT].highruns) {
+		arena->stats.lstats[size >> PAGE_SHIFT].highruns =
+		    arena->stats.lstats[size >> PAGE_SHIFT].curruns;
+	}
 #endif
 	malloc_mutex_unlock(&arena->lock);
 
@@ -3591,6 +3655,13 @@ arena_palloc(arena_t *arena, size_t alignment, size_t size, size_t alloc_size)
 #ifdef JEMALLOC_STATS
 	arena->stats.nmalloc_large++;
 	arena->stats.allocated_large += size;
+	arena->stats.lstats[size >> PAGE_SHIFT].nrequests++;
+	arena->stats.lstats[size >> PAGE_SHIFT].curruns++;
+	if (arena->stats.lstats[size >> PAGE_SHIFT].curruns >
+	    arena->stats.lstats[size >> PAGE_SHIFT].highruns) {
+		arena->stats.lstats[size >> PAGE_SHIFT].highruns =
+		    arena->stats.lstats[size >> PAGE_SHIFT].curruns;
+	}
 #endif
 	malloc_mutex_unlock(&arena->lock);
 
@@ -4070,6 +4141,7 @@ arena_dalloc_large(arena_t *arena, arena_chunk_t *chunk, void *ptr)
 #endif
 #ifdef JEMALLOC_STATS
 		arena->stats.allocated_large -= size;
+		arena->stats.lstats[size >> PAGE_SHIFT].curruns--;
 #endif
 	}
 #ifdef JEMALLOC_STATS
@@ -4172,6 +4244,14 @@ arena_ralloc_large_shrink(arena_t *arena, arena_chunk_t *chunk, void *ptr,
 	    true);
 #ifdef JEMALLOC_STATS
 	arena->stats.allocated_large -= oldsize - size;
+	arena->stats.lstats[size >> PAGE_SHIFT].nrequests++;
+	arena->stats.lstats[size >> PAGE_SHIFT].curruns++;
+	if (arena->stats.lstats[size >> PAGE_SHIFT].curruns >
+	    arena->stats.lstats[size >> PAGE_SHIFT].highruns) {
+		arena->stats.lstats[size >> PAGE_SHIFT].highruns =
+		    arena->stats.lstats[size >> PAGE_SHIFT].curruns;
+	}
+	arena->stats.lstats[oldsize >> PAGE_SHIFT].curruns--;
 #endif
 	malloc_mutex_unlock(&arena->lock);
 }
@@ -4207,6 +4287,14 @@ arena_ralloc_large_grow(arena_t *arena, arena_chunk_t *chunk, void *ptr,
 
 #ifdef JEMALLOC_STATS
 		arena->stats.allocated_large += size - oldsize;
+		arena->stats.lstats[size >> PAGE_SHIFT].nrequests++;
+		arena->stats.lstats[size >> PAGE_SHIFT].curruns++;
+		if (arena->stats.lstats[size >> PAGE_SHIFT].curruns >
+		    arena->stats.lstats[size >> PAGE_SHIFT].highruns) {
+			arena->stats.lstats[size >> PAGE_SHIFT].highruns =
+			    arena->stats.lstats[size >> PAGE_SHIFT].curruns;
+		}
+		arena->stats.lstats[oldsize >> PAGE_SHIFT].curruns--;
 #endif
 		malloc_mutex_unlock(&arena->lock);
 		return (false);
@@ -4374,6 +4462,13 @@ arena_new(arena_t *arena, unsigned ind)
 
 #ifdef JEMALLOC_STATS
 	memset(&arena->stats, 0, sizeof(arena_stats_t));
+	arena->stats.lstats = (malloc_large_stats_t *)base_alloc(
+	    sizeof(malloc_large_stats_t) * ((chunksize - PAGE_SIZE) >>
+	        PAGE_SHIFT));
+	if (arena->stats.lstats == NULL)
+		return (true);
+	memset(arena->stats.lstats, 0, sizeof(malloc_large_stats_t) *
+	    ((chunksize - PAGE_SIZE) >> PAGE_SHIFT));
 #endif
 
 #ifdef JEMALLOC_TRACE
@@ -5923,10 +6018,13 @@ MALLOC_OUT:
 #endif
 
 #ifdef JEMALLOC_TCACHE
-	if (pthread_key_create(&tcache_tsd, tcache_thread_cleanup) != 0) {
-		malloc_message("<jemalloc>",
-		    ": Error in pthread_key_create()\n", "", "");
-		abort();
+	if (opt_tcache) {
+		if (pthread_key_create(&tcache_tsd, tcache_thread_cleanup) !=
+		    0) {
+			malloc_message("<jemalloc>",
+			    ": Error in pthread_key_create()\n", "", "");
+			abort();
+		}
 	}
 
 #  ifdef JEMALLOC_STATS
