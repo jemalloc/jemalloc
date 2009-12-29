@@ -188,19 +188,6 @@ flags being set) become fatal.
 The process will call
 .Xr abort 3
 in these cases.
-@roff_balance@@roff_tls@.It B
-@roff_balance@@roff_tls@Double/halve the per-arena lock contention threshold at
-@roff_balance@@roff_tls@which a thread is randomly re-assigned to an arena.
-@roff_balance@@roff_tls@This dynamic load balancing tends to push threads away
-@roff_balance@@roff_tls@from highly contended arenas, which avoids worst case
-@roff_balance@@roff_tls@contention scenarios in which threads disproportionately
-@roff_balance@@roff_tls@utilize arenas.
-@roff_balance@@roff_tls@However, due to the highly dynamic load that
-@roff_balance@@roff_tls@applications may place on the allocator, it is
-@roff_balance@@roff_tls@impossible for the allocator to know in advance how
-@roff_balance@@roff_tls@sensitive it should be to contention over arenas.
-@roff_balance@@roff_tls@Therefore, some applications may benefit from increasing
-@roff_balance@@roff_tls@or decreasing this threshold parameter.
 .It C
 Double/halve the size of the maximum size class that is a multiple of the
 cacheline size (64).

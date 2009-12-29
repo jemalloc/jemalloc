@@ -98,13 +98,6 @@
 #undef JEMALLOC_MAG
 
 /*
- * JEMALLOC_BALANCE enables monitoring of arena lock contention and dynamically
- * re-balances arena load if exponentially averaged contention exceeds a
- * certain threshold.
- */
-#undef JEMALLOC_BALANCE
-
-/*
  * JEMALLOC_DSS enables use of sbrk(2) to allocate chunks from the data storage
  * segment (DSS).
  */

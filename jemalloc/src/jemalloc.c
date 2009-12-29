@@ -238,10 +238,6 @@ __FBSDID("$FreeBSD: src/lib/libc/stdlib/malloc.c,v 1.183 2008/12/01 10:20:59 jas
 #  ifdef JEMALLOC_MAG
 #    undef JEMALLOC_MAG
 #  endif
-   /* JEMALLOC_BALANCE requires TLS. */
-#  ifdef JEMALLOC_BALANCE
-#    undef JEMALLOC_BALANCE
-#  endif
 #endif
 
 /*
@@ -315,20 +311,6 @@ __FBSDID("$FreeBSD: src/lib/libc/stdlib/malloc.c,v 1.183 2008/12/01 10:20:59 jas
 /* Put a cap on small object run size.  This overrides RUN_MAX_OVRHD. */
 #define	RUN_MAX_SMALL	(12 * PAGE_SIZE)
 
-/*
- * Adaptive spinning must eventually switch to blocking, in order to avoid the
- * potential for priority inversion deadlock.  Backing off past a certain point
- * can actually waste time.
- */
-#define	SPIN_LIMIT_2POW		11
-
-/*
- * Conversion from spinning to blocking is expensive; we use (1U <<
- * BLOCK_COST_2POW) to estimate how many more times costly blocking is than
- * worst-case spinning.
- */
-#define	BLOCK_COST_2POW		4
-
 #ifdef JEMALLOC_MAG
    /*
     * Default magazine size, in bytes.  max_rounds is calculated to make
@@ -338,28 +320,9 @@ __FBSDID("$FreeBSD: src/lib/libc/stdlib/malloc.c,v 1.183 2008/12/01 10:20:59 jas
 #  define MAG_SIZE_2POW_DEFAULT	9
 #endif
 
-#ifdef JEMALLOC_BALANCE
-   /*
-    * We use an exponential moving average to track recent lock contention,
-    * where the size of the history window is N, and alpha=2/(N+1).
-    *
-    * Due to integer math rounding, very small values here can cause
-    * substantial degradation in accuracy, thus making the moving average decay
-    * faster than it would with precise calculation.
-    */
-#  define BALANCE_ALPHA_INV_2POW	9
-
-   /*
-    * Threshold value for the exponential moving contention average at which to
-    * re-assign a thread.
-    */
-#  define BALANCE_THRESHOLD_DEFAULT	(1U << (SPIN_LIMIT_2POW-4))
-#endif
-
 /******************************************************************************/
 
 typedef pthread_mutex_t malloc_mutex_t;
-typedef pthread_mutex_t malloc_spinlock_t;
 
 /* Set to true once the allocator has been initialized. */
 static bool malloc_initialized = false;
@@ -428,11 +391,6 @@ struct arena_stats_s {
 	size_t		allocated_large;
 	uint64_t	nmalloc_large;
 	uint64_t	ndalloc_large;
-
-#ifdef JEMALLOC_BALANCE
-	/* Number of times this arena reassigned a thread due to contention. */
-	uint64_t	nbalance;
-#endif
 };
 
 typedef struct chunk_stats_s chunk_stats_t;
@@ -628,7 +586,7 @@ struct arena_s {
 #endif
 
 	/* All operations on this arena require that lock be locked. */
-	pthread_mutex_t		lock;
+	malloc_mutex_t		lock;
 
 #ifdef JEMALLOC_STATS
 	arena_stats_t		stats;
@@ -669,14 +627,6 @@ struct arena_s {
 	 * is used for first-best-fit run allocation.
 	 */
 	arena_avail_tree_t	runs_avail;
-
-#ifdef JEMALLOC_BALANCE
-	/*
-	 * The arena load balancing machinery needs to keep track of how much
-	 * lock contention there is.  This value is exponentially averaged.
-	 */
-	uint32_t		contention;
-#endif
 
 	/*
 	 * bins is used to store rings of free regions of the following sizes,
@@ -1010,13 +960,9 @@ static size_t		base_mapped;
 static arena_t		**arenas;
 static unsigned		narenas;
 #ifndef NO_TLS
-#  ifdef JEMALLOC_BALANCE
-static unsigned		narenas_2pow;
-#  else
 static unsigned		next_arena;
-#  endif
 #endif
-static pthread_mutex_t	arenas_lock; /* Protects arenas initialization. */
+static malloc_mutex_t	arenas_lock; /* Protects arenas initialization. */
 
 #ifndef NO_TLS
 /*
@@ -1083,9 +1029,6 @@ static bool	opt_mag = true;
 static size_t	opt_mag_size_2pow = MAG_SIZE_2POW_DEFAULT;
 #endif
 static size_t	opt_dirty_max = DIRTY_MAX_DEFAULT;
-#ifdef JEMALLOC_BALANCE
-static uint64_t	opt_balance_threshold = BALANCE_THRESHOLD_DEFAULT;
-#endif
 static bool	opt_print_stats = false;
 static size_t	opt_qspace_max_2pow = QSPACE_MAX_2POW_DEFAULT;
 static size_t	opt_cspace_max_2pow = CSPACE_MAX_2POW_DEFAULT;
@@ -1110,7 +1053,9 @@ static int	opt_narenas_lshift = 0;
  */
 
 static bool	malloc_mutex_init(malloc_mutex_t *mutex);
-static bool	malloc_spin_init(pthread_mutex_t *lock);
+#ifdef JEMALLOC_TINY
+static size_t	pow2_ceil(size_t x);
+#endif
 static void	wrtmessage(const char *p1, const char *p2, const char *p3,
 		const char *p4);
 #ifdef JEMALLOC_STATS
@@ -1161,9 +1106,6 @@ static void	arena_run_trim_tail(arena_t *arena, arena_chunk_t *chunk,
 static arena_run_t *arena_bin_nonfull_run_get(arena_t *arena, arena_bin_t *bin);
 static void	*arena_bin_malloc_hard(arena_t *arena, arena_bin_t *bin);
 static size_t	arena_bin_run_size_calc(arena_bin_t *bin, size_t min_run_size);
-#ifdef JEMALLOC_BALANCE
-static void	arena_lock_balance_hard(arena_t *arena);
-#endif
 #ifdef JEMALLOC_MAG
 static void	mag_load(mag_t *mag);
 #endif
@@ -1397,71 +1339,6 @@ malloc_mutex_unlock(malloc_mutex_t *mutex)
  */
 /******************************************************************************/
 /*
- * Begin spin lock.  Spin locks here are actually adaptive mutexes that block
- * after a period of spinning, because unbounded spinning would allow for
- * priority inversion.
- */
-
-static bool
-malloc_spin_init(pthread_mutex_t *lock)
-{
-
-	if (pthread_mutex_init(lock, NULL) != 0)
-		return (true);
-
-	return (false);
-}
-
-static inline unsigned
-malloc_spin_lock(pthread_mutex_t *lock)
-{
-	unsigned ret = 0;
-
-	if (isthreaded) {
-		if (pthread_mutex_trylock(lock) != 0) {
-			/* Exponentially back off if there are multiple CPUs. */
-			if (ncpus > 1) {
-				unsigned i;
-				volatile unsigned j;
-
-				for (i = 1; i <= SPIN_LIMIT_2POW; i++) {
-					for (j = 0; j < (1U << i); j++) {
-						ret++;
-						CPU_SPINWAIT;
-					}
-
-					if (pthread_mutex_trylock(lock) == 0)
-						return (ret);
-				}
-			}
-
-			/*
-			 * Spinning failed.  Block until the lock becomes
-			 * available, in order to avoid indefinite priority
-			 * inversion.
-			 */
-			pthread_mutex_lock(lock);
-			assert((ret << BLOCK_COST_2POW) != 0 || ncpus == 1);
-			return (ret << BLOCK_COST_2POW);
-		}
-	}
-
-	return (ret);
-}
-
-static inline void
-malloc_spin_unlock(pthread_mutex_t *lock)
-{
-
-	if (isthreaded)
-		pthread_mutex_unlock(lock);
-}
-
-/*
- * End spin lock.
- */
-/******************************************************************************/
-/*
  * Begin Utility functions/macros.
  */
 
@@ -1495,7 +1372,7 @@ malloc_spin_unlock(pthread_mutex_t *lock)
 
 #ifdef JEMALLOC_TINY
 /* Compute the smallest power of 2 that is >= x. */
-static inline size_t
+static size_t
 pow2_ceil(size_t x)
 {
 
@@ -1511,56 +1388,6 @@ pow2_ceil(size_t x)
 	x++;
 	return (x);
 }
-#endif
-
-#ifdef JEMALLOC_BALANCE
-/*
- * Use a simple linear congruential pseudo-random number generator:
- *
- *   prn(y) = (a*x + c) % m
- *
- * where the following constants ensure maximal period:
- *
- *   a == Odd number (relatively prime to 2^n), and (a-1) is a multiple of 4.
- *   c == Odd number (relatively prime to 2^n).
- *   m == 2^32
- *
- * See Knuth's TAOCP 3rd Ed., Vol. 2, pg. 17 for details on these constraints.
- *
- * This choice of m has the disadvantage that the quality of the bits is
- * proportional to bit position.  For example. the lowest bit has a cycle of 2,
- * the next has a cycle of 4, etc.  For this reason, we prefer to use the upper
- * bits.
- */
-#  define PRN_DEFINE(suffix, var, a, c)					\
-static inline void							\
-sprn_##suffix(uint32_t seed)						\
-{									\
-	var = seed;							\
-}									\
-									\
-static inline uint32_t							\
-prn_##suffix(uint32_t lg_range)						\
-{									\
-	uint32_t ret, x;						\
-									\
-	assert(lg_range > 0);						\
-	assert(lg_range <= 32);						\
-									\
-	x = (var * (a)) + (c);						\
-	var = x;							\
-	ret = x >> (32 - lg_range);					\
-									\
-	return (ret);							\
-}
-#  define SPRN(suffix, seed)	sprn_##suffix(seed)
-#  define PRN(suffix, lg_range)	prn_##suffix(lg_range)
-#endif
-
-#ifdef JEMALLOC_BALANCE
-/* Define the PRNG used for arena assignment. */
-static __thread uint32_t balance_x;
-PRN_DEFINE(balance, balance_x, 1297, 1301)
 #endif
 
 /******************************************************************************/
@@ -2347,12 +2174,12 @@ choose_arena(void)
 			 * Avoid races with another thread that may have already
 			 * initialized arenas[ind].
 			 */
-			malloc_spin_lock(&arenas_lock);
+			malloc_mutex_lock(&arenas_lock);
 			if (arenas[ind] == NULL)
 				ret = arenas_extend((unsigned)ind);
 			else
 				ret = arenas[ind];
-			malloc_spin_unlock(&arenas_lock);
+			malloc_mutex_unlock(&arenas_lock);
 		}
 	} else
 		ret = arenas[0];
@@ -2374,29 +2201,12 @@ choose_arena_hard(void)
 
 	assert(isthreaded);
 
-#ifdef JEMALLOC_BALANCE
-	/* Seed the PRNG used for arena load balancing. */
-	SPRN(balance, (uint32_t)(uintptr_t)(pthread_self()));
-#endif
-
 	if (narenas > 1) {
-#ifdef JEMALLOC_BALANCE
-		unsigned ind;
-
-		ind = PRN(balance, narenas_2pow);
-		if ((ret = arenas[ind]) == NULL) {
-			malloc_spin_lock(&arenas_lock);
-			if ((ret = arenas[ind]) == NULL)
-				ret = arenas_extend(ind);
-			malloc_spin_unlock(&arenas_lock);
-		}
-#else
-		malloc_spin_lock(&arenas_lock);
+		malloc_mutex_lock(&arenas_lock);
 		if ((ret = arenas[next_arena]) == NULL)
 			ret = arenas_extend(next_arena);
 		next_arena = (next_arena + 1) % narenas;
-		malloc_spin_unlock(&arenas_lock);
-#endif
+		malloc_mutex_unlock(&arenas_lock);
 	} else
 		ret = arenas[0];
 
@@ -3225,50 +3035,6 @@ arena_bin_run_size_calc(arena_bin_t *bin, size_t min_run_size)
 	return (good_run_size);
 }
 
-#ifdef JEMALLOC_BALANCE
-static inline void
-arena_lock_balance(arena_t *arena)
-{
-	unsigned contention;
-
-	contention = malloc_spin_lock(&arena->lock);
-	if (narenas > 1) {
-		/*
-		 * Calculate the exponentially averaged contention for this
-		 * arena.  Due to integer math always rounding down, this value
-		 * decays somewhat faster than normal.
-		 */
-		arena->contention = (((uint64_t)arena->contention
-		    * (uint64_t)((1U << BALANCE_ALPHA_INV_2POW)-1))
-		    + (uint64_t)contention) >> BALANCE_ALPHA_INV_2POW;
-		if (arena->contention >= opt_balance_threshold)
-			arena_lock_balance_hard(arena);
-	}
-}
-
-static void
-arena_lock_balance_hard(arena_t *arena)
-{
-	uint32_t ind;
-
-	arena->contention = 0;
-#ifdef JEMALLOC_STATS
-	arena->stats.nbalance++;
-#endif
-	ind = PRN(balance, narenas_2pow);
-	if (arenas[ind] != NULL)
-		arenas_map = arenas[ind];
-	else {
-		malloc_spin_lock(&arenas_lock);
-		if (arenas[ind] != NULL)
-			arenas_map = arenas[ind];
-		else
-			arenas_map = arenas_extend(ind);
-		malloc_spin_unlock(&arenas_lock);
-	}
-}
-#endif
-
 #ifdef JEMALLOC_MAG
 static inline void *
 mag_alloc(mag_t *mag)
@@ -3292,11 +3058,7 @@ mag_load(mag_t *mag)
 
 	arena = choose_arena();
 	bin = &arena->bins[mag->binind];
-#ifdef JEMALLOC_BALANCE
-	arena_lock_balance(arena);
-#else
-	malloc_spin_lock(&arena->lock);
-#endif
+	malloc_mutex_lock(&arena->lock);
 	for (i = mag->nrounds; i < max_rounds; i++) {
 		if ((run = bin->runcur) != NULL && run->nfree > 0)
 			round = arena_bin_malloc_easy(arena, bin, run);
@@ -3311,7 +3073,7 @@ mag_load(mag_t *mag)
 	arena->stats.nmalloc_small += (i - mag->nrounds);
 	arena->stats.allocated_small += (i - mag->nrounds) * bin->reg_size;
 #endif
-	malloc_spin_unlock(&arena->lock);
+	malloc_mutex_unlock(&arena->lock);
 	mag->nrounds = i;
 }
 
@@ -3391,18 +3153,14 @@ arena_malloc_small(arena_t *arena, size_t size, bool zero)
 	bin = &arena->bins[binind];
 	size = bin->reg_size;
 
-#ifdef JEMALLOC_BALANCE
-	arena_lock_balance(arena);
-#else
-	malloc_spin_lock(&arena->lock);
-#endif
+	malloc_mutex_lock(&arena->lock);
 	if ((run = bin->runcur) != NULL && run->nfree > 0)
 		ret = arena_bin_malloc_easy(arena, bin, run);
 	else
 		ret = arena_bin_malloc_hard(arena, bin);
 
 	if (ret == NULL) {
-		malloc_spin_unlock(&arena->lock);
+		malloc_mutex_unlock(&arena->lock);
 		return (NULL);
 	}
 
@@ -3411,7 +3169,7 @@ arena_malloc_small(arena_t *arena, size_t size, bool zero)
 	arena->stats.nmalloc_small++;
 	arena->stats.allocated_small += size;
 #endif
-	malloc_spin_unlock(&arena->lock);
+	malloc_mutex_unlock(&arena->lock);
 
 	if (zero == false) {
 #ifdef JEMALLOC_FILL
@@ -3433,21 +3191,17 @@ arena_malloc_large(arena_t *arena, size_t size, bool zero)
 
 	/* Large allocation. */
 	size = PAGE_CEILING(size);
-#ifdef JEMALLOC_BALANCE
-	arena_lock_balance(arena);
-#else
-	malloc_spin_lock(&arena->lock);
-#endif
+	malloc_mutex_lock(&arena->lock);
 	ret = (void *)arena_run_alloc(arena, size, true, zero);
 	if (ret == NULL) {
-		malloc_spin_unlock(&arena->lock);
+		malloc_mutex_unlock(&arena->lock);
 		return (NULL);
 	}
 #ifdef JEMALLOC_STATS
 	arena->stats.nmalloc_large++;
 	arena->stats.allocated_large += size;
 #endif
-	malloc_spin_unlock(&arena->lock);
+	malloc_mutex_unlock(&arena->lock);
 
 	if (zero == false) {
 #ifdef JEMALLOC_FILL
@@ -3520,14 +3274,10 @@ arena_palloc(arena_t *arena, size_t alignment, size_t size, size_t alloc_size)
 	assert((size & PAGE_MASK) == 0);
 	assert((alignment & PAGE_MASK) == 0);
 
-#ifdef JEMALLOC_BALANCE
-	arena_lock_balance(arena);
-#else
-	malloc_spin_lock(&arena->lock);
-#endif
+	malloc_mutex_lock(&arena->lock);
 	ret = (void *)arena_run_alloc(arena, alloc_size, true, false);
 	if (ret == NULL) {
-		malloc_spin_unlock(&arena->lock);
+		malloc_mutex_unlock(&arena->lock);
 		return (NULL);
 	}
 
@@ -3561,7 +3311,7 @@ arena_palloc(arena_t *arena, size_t alignment, size_t size, size_t alloc_size)
 	arena->stats.nmalloc_large++;
 	arena->stats.allocated_large += size;
 #endif
-	malloc_spin_unlock(&arena->lock);
+	malloc_mutex_unlock(&arena->lock);
 
 #ifdef JEMALLOC_FILL
 	if (opt_junk)
@@ -3826,11 +3576,7 @@ mag_unload(mag_t *mag)
 		/* Lock the arena associated with the first round. */
 		chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(mag->rounds[0]);
 		arena = chunk->arena;
-#ifdef JEMALLOC_BALANCE
-		arena_lock_balance(arena);
-#else
-		malloc_spin_lock(&arena->lock);
-#endif
+		malloc_mutex_lock(&arena->lock);
 		/* Deallocate every round that belongs to the locked arena. */
 		for (i = ndeferred = 0; i < nrounds; i++) {
 			round = mag->rounds[i];
@@ -3852,7 +3598,7 @@ mag_unload(mag_t *mag)
 				ndeferred++;
 			}
 		}
-		malloc_spin_unlock(&arena->lock);
+		malloc_mutex_unlock(&arena->lock);
 	}
 
 	mag->nrounds = 0;
@@ -3893,9 +3639,9 @@ mag_rack_dalloc(mag_rack_t *rack, void *ptr)
 		assert(bin_mags->sparemag == NULL);
 		mag = mag_create(choose_arena(), binind);
 		if (mag == NULL) {
-			malloc_spin_lock(&arena->lock);
+			malloc_mutex_lock(&arena->lock);
 			arena_dalloc_small(arena, chunk, ptr, mapelm);
-			malloc_spin_unlock(&arena->lock);
+			malloc_mutex_unlock(&arena->lock);
 			return;
 		}
 		bin_mags->curmag = mag;
@@ -3934,7 +3680,7 @@ static void
 arena_dalloc_large(arena_t *arena, arena_chunk_t *chunk, void *ptr)
 {
 	/* Large allocation. */
-	malloc_spin_lock(&arena->lock);
+	malloc_mutex_lock(&arena->lock);
 
 #ifdef JEMALLOC_FILL
 #ifndef JEMALLOC_STATS
@@ -3963,7 +3709,7 @@ arena_dalloc_large(arena_t *arena, arena_chunk_t *chunk, void *ptr)
 #endif
 
 	arena_run_dalloc(arena, (arena_run_t *)ptr, true);
-	malloc_spin_unlock(&arena->lock);
+	malloc_mutex_unlock(&arena->lock);
 }
 
 static inline void
@@ -3992,10 +3738,10 @@ arena_dalloc(arena_t *arena, arena_chunk_t *chunk, void *ptr)
 				if (rack == NULL) {
 					rack = mag_rack_create(arena);
 					if (rack == NULL) {
-						malloc_spin_lock(&arena->lock);
+						malloc_mutex_lock(&arena->lock);
 						arena_dalloc_small(arena,
 						    chunk, ptr, mapelm);
-						malloc_spin_unlock(
+						malloc_mutex_unlock(
 						    &arena->lock);
 					}
 					mag_rack = rack;
@@ -4007,17 +3753,17 @@ arena_dalloc(arena_t *arena, arena_chunk_t *chunk, void *ptr)
 					 * directly deallocate.
 					 */
 					assert(rack == (void *)(uintptr_t)1);
-					malloc_spin_lock(&arena->lock);
+					malloc_mutex_lock(&arena->lock);
 					arena_dalloc_small(arena, chunk, ptr,
 					    mapelm);
-					malloc_spin_unlock(&arena->lock);
+					malloc_mutex_unlock(&arena->lock);
 				}
 			}
 		} else {
 #endif
-			malloc_spin_lock(&arena->lock);
+			malloc_mutex_lock(&arena->lock);
 			arena_dalloc_small(arena, chunk, ptr, mapelm);
-			malloc_spin_unlock(&arena->lock);
+			malloc_mutex_unlock(&arena->lock);
 #ifdef JEMALLOC_MAG
 		}
 #endif
@@ -4050,17 +3796,13 @@ arena_ralloc_large_shrink(arena_t *arena, arena_chunk_t *chunk, void *ptr,
 	 * Shrink the run, and make trailing pages available for other
 	 * allocations.
 	 */
-#ifdef JEMALLOC_BALANCE
-	arena_lock_balance(arena);
-#else
-	malloc_spin_lock(&arena->lock);
-#endif
+	malloc_mutex_lock(&arena->lock);
 	arena_run_trim_tail(arena, chunk, (arena_run_t *)ptr, oldsize, size,
 	    true);
 #ifdef JEMALLOC_STATS
 	arena->stats.allocated_large -= oldsize - size;
 #endif
-	malloc_spin_unlock(&arena->lock);
+	malloc_mutex_unlock(&arena->lock);
 }
 
 static bool
@@ -4074,11 +3816,7 @@ arena_ralloc_large_grow(arena_t *arena, arena_chunk_t *chunk, void *ptr,
 
 	/* Try to extend the run. */
 	assert(size > oldsize);
-#ifdef JEMALLOC_BALANCE
-	arena_lock_balance(arena);
-#else
-	malloc_spin_lock(&arena->lock);
-#endif
+	malloc_mutex_lock(&arena->lock);
 	if (pageind + npages < chunk_npages && (chunk->map[pageind+npages].bits
 	    & CHUNK_MAP_ALLOCATED) == 0 && (chunk->map[pageind+npages].bits &
 	    ~PAGE_MASK) >= size - oldsize) {
@@ -4099,10 +3837,10 @@ arena_ralloc_large_grow(arena_t *arena, arena_chunk_t *chunk, void *ptr,
 #ifdef JEMALLOC_STATS
 		arena->stats.allocated_large += size - oldsize;
 #endif
-		malloc_spin_unlock(&arena->lock);
+		malloc_mutex_unlock(&arena->lock);
 		return (false);
 	}
-	malloc_spin_unlock(&arena->lock);
+	malloc_mutex_unlock(&arena->lock);
 
 	return (true);
 }
@@ -4225,7 +3963,7 @@ arena_new(arena_t *arena, unsigned ind)
 	arena_bin_t *bin;
 	size_t prev_run_size;
 
-	if (malloc_spin_init(&arena->lock))
+	if (malloc_mutex_init(&arena->lock))
 		return (true);
 
 #ifdef JEMALLOC_STATS
@@ -4282,10 +4020,6 @@ arena_new(arena_t *arena, unsigned ind)
 	arena->ndirty = 0;
 
 	arena_avail_tree_new(&arena->runs_avail);
-
-#ifdef JEMALLOC_BALANCE
-	arena->contention = 0;
-#endif
 
 	/* Initialize bins. */
 	prev_run_size = PAGE_SIZE;
@@ -4429,9 +4163,9 @@ mag_destroy(mag_t *mag)
 	assert(mag->nrounds == 0);
 	if (sizeof(mag_t) + (sizeof(void *) * (max_rounds - 1)) <=
 	    bin_maxclass) {
-		malloc_spin_lock(&arena->lock);
+		malloc_mutex_lock(&arena->lock);
 		arena_dalloc_small(arena, chunk, mag, mapelm);
-		malloc_spin_unlock(&arena->lock);
+		malloc_mutex_unlock(&arena->lock);
 	} else
 		idalloc(mag);
 }
@@ -4474,9 +4208,9 @@ mag_rack_destroy(mag_rack_t *rack)
 	pageind = (((uintptr_t)rack - (uintptr_t)chunk) >> PAGE_SHIFT);
 	mapelm = &chunk->map[pageind];
 
-	malloc_spin_lock(&arena->lock);
+	malloc_mutex_lock(&arena->lock);
 	arena_dalloc_small(arena, chunk, rack, mapelm);
-	malloc_spin_unlock(&arena->lock);
+	malloc_mutex_unlock(&arena->lock);
 }
 #endif
 
@@ -4767,9 +4501,9 @@ malloc_trace_flush_all(void)
 
 	for (i = 0; i < narenas; i++) {
 		if (arenas[i] != NULL) {
-			malloc_spin_lock(&arenas[i]->lock);
+			malloc_mutex_lock(&arenas[i]->lock);
 			trace_flush(arenas[i]);
-			malloc_spin_unlock(&arenas[i]->lock);
+			malloc_mutex_unlock(&arenas[i]->lock);
 		}
 	}
 }
@@ -4780,7 +4514,7 @@ trace_malloc(const void *ptr, size_t size)
 	char buf[UMAX2S_BUFSIZE];
 	arena_t *arena = trace_arena(ptr);
 
-	malloc_spin_lock(&arena->lock);
+	malloc_mutex_lock(&arena->lock);
 
 	trace_write(arena, umax2s(trace_get_tid(), 10, buf));
 	trace_write(arena, " m 0x");
@@ -4789,7 +4523,7 @@ trace_malloc(const void *ptr, size_t size)
 	trace_write(arena, umax2s(size, 10, buf));
 	trace_write(arena, "\n");
 
-	malloc_spin_unlock(&arena->lock);
+	malloc_mutex_unlock(&arena->lock);
 }
 
 static void
@@ -4798,7 +4532,7 @@ trace_calloc(const void *ptr, size_t number, size_t size)
 	char buf[UMAX2S_BUFSIZE];
 	arena_t *arena = trace_arena(ptr);
 
-	malloc_spin_lock(&arena->lock);
+	malloc_mutex_lock(&arena->lock);
 
 	trace_write(arena, umax2s(trace_get_tid(), 10, buf));
 	trace_write(arena, " c 0x");
@@ -4809,7 +4543,7 @@ trace_calloc(const void *ptr, size_t number, size_t size)
 	trace_write(arena, umax2s(size, 10, buf));
 	trace_write(arena, "\n");
 
-	malloc_spin_unlock(&arena->lock);
+	malloc_mutex_unlock(&arena->lock);
 }
 
 static void
@@ -4818,7 +4552,7 @@ trace_posix_memalign(const void *ptr, size_t alignment, size_t size)
 	char buf[UMAX2S_BUFSIZE];
 	arena_t *arena = trace_arena(ptr);
 
-	malloc_spin_lock(&arena->lock);
+	malloc_mutex_lock(&arena->lock);
 
 	trace_write(arena, umax2s(trace_get_tid(), 10, buf));
 	trace_write(arena, " a 0x");
@@ -4829,7 +4563,7 @@ trace_posix_memalign(const void *ptr, size_t alignment, size_t size)
 	trace_write(arena, umax2s(size, 10, buf));
 	trace_write(arena, "\n");
 
-	malloc_spin_unlock(&arena->lock);
+	malloc_mutex_unlock(&arena->lock);
 }
 
 static void
@@ -4839,7 +4573,7 @@ trace_realloc(const void *ptr, const void *old_ptr, size_t size,
 	char buf[UMAX2S_BUFSIZE];
 	arena_t *arena = trace_arena(ptr);
 
-	malloc_spin_lock(&arena->lock);
+	malloc_mutex_lock(&arena->lock);
 
 	trace_write(arena, umax2s(trace_get_tid(), 10, buf));
 	trace_write(arena, " r 0x");
@@ -4852,7 +4586,7 @@ trace_realloc(const void *ptr, const void *old_ptr, size_t size,
 	trace_write(arena, umax2s(old_size, 10, buf));
 	trace_write(arena, "\n");
 
-	malloc_spin_unlock(&arena->lock);
+	malloc_mutex_unlock(&arena->lock);
 }
 
 static void
@@ -4861,7 +4595,7 @@ trace_free(const void *ptr, size_t size)
 	char buf[UMAX2S_BUFSIZE];
 	arena_t *arena = trace_arena(ptr);
 
-	malloc_spin_lock(&arena->lock);
+	malloc_mutex_lock(&arena->lock);
 
 	trace_write(arena, umax2s(trace_get_tid(), 10, buf));
 	trace_write(arena, " f 0x");
@@ -4870,7 +4604,7 @@ trace_free(const void *ptr, size_t size)
 	trace_write(arena, umax2s(isalloc(ptr), 10, buf));
 	trace_write(arena, "\n");
 
-	malloc_spin_unlock(&arena->lock);
+	malloc_mutex_unlock(&arena->lock);
 }
 
 static void
@@ -4879,7 +4613,7 @@ trace_malloc_usable_size(size_t size, const void *ptr)
 	char buf[UMAX2S_BUFSIZE];
 	arena_t *arena = trace_arena(ptr);
 
-	malloc_spin_lock(&arena->lock);
+	malloc_mutex_lock(&arena->lock);
 
 	trace_write(arena, umax2s(trace_get_tid(), 10, buf));
 	trace_write(arena, " s ");
@@ -4888,7 +4622,7 @@ trace_malloc_usable_size(size_t size, const void *ptr)
 	trace_write(arena, umax2s((uintptr_t)ptr, 16, buf));
 	trace_write(arena, "\n");
 
-	malloc_spin_unlock(&arena->lock);
+	malloc_mutex_unlock(&arena->lock);
 }
 
 static void
@@ -4897,12 +4631,12 @@ trace_thread_exit(void)
 	char buf[UMAX2S_BUFSIZE];
 	arena_t *arena = choose_arena();
 
-	malloc_spin_lock(&arena->lock);
+	malloc_mutex_lock(&arena->lock);
 
 	trace_write(arena, umax2s(trace_get_tid(), 10, buf));
 	trace_write(arena, " x\n");
 
-	malloc_spin_unlock(&arena->lock);
+	malloc_mutex_unlock(&arena->lock);
 }
 #endif
 
@@ -4950,10 +4684,6 @@ malloc_print_stats(void)
 
 	malloc_message("CPUs: ", umax2s(ncpus, 10, s), "\n", "");
 	malloc_message("Max arenas: ", umax2s(narenas, 10, s), "\n", "");
-#ifdef JEMALLOC_BALANCE
-	malloc_message("Arena balance threshold: ",
-	    umax2s(opt_balance_threshold, 10, s), "\n", "");
-#endif
 	malloc_message("Pointer size: ", umax2s(sizeof(void *), 10, s), "\n",
 	    "");
 	malloc_message("Quantum size: ", umax2s(QUANTUM, 10, s), "\n", "");
@@ -4986,9 +4716,6 @@ malloc_print_stats(void)
 #ifdef JEMALLOC_STATS
 	{
 		size_t allocated, mapped;
-#ifdef JEMALLOC_BALANCE
-		uint64_t nbalance = 0;
-#endif
 		unsigned i;
 		arena_t *arena;
 
@@ -4997,13 +4724,10 @@ malloc_print_stats(void)
 		/* arenas. */
 		for (i = 0, allocated = 0; i < narenas; i++) {
 			if (arenas[i] != NULL) {
-				malloc_spin_lock(&arenas[i]->lock);
+				malloc_mutex_lock(&arenas[i]->lock);
 				allocated += arenas[i]->stats.allocated_small;
 				allocated += arenas[i]->stats.allocated_large;
-#ifdef JEMALLOC_BALANCE
-				nbalance += arenas[i]->stats.nbalance;
-#endif
-				malloc_spin_unlock(&arenas[i]->lock);
+				malloc_mutex_unlock(&arenas[i]->lock);
 			}
 		}
 
@@ -5019,10 +4743,6 @@ malloc_print_stats(void)
 
 		malloc_printf("Allocated: %zu, mapped: %zu\n", allocated,
 		    mapped);
-
-#ifdef JEMALLOC_BALANCE
-		malloc_printf("Arena balance reassignments: %llu\n", nbalance);
-#endif
 
 		/* Print chunk stats. */
 		{
@@ -5050,9 +4770,9 @@ malloc_print_stats(void)
 			arena = arenas[i];
 			if (arena != NULL) {
 				malloc_printf("\narenas[%u]:\n", i);
-				malloc_spin_lock(&arena->lock);
+				malloc_mutex_lock(&arena->lock);
 				stats_print(arena);
-				malloc_spin_unlock(&arena->lock);
+				malloc_mutex_unlock(&arena->lock);
 			}
 		}
 	}
@@ -5336,20 +5056,6 @@ MALLOC_OUT:
 					break;
 				case 'A':
 					opt_abort = true;
-					break;
-				case 'b':
-#ifdef JEMALLOC_BALANCE
-					opt_balance_threshold >>= 1;
-#endif
-					break;
-				case 'B':
-#ifdef JEMALLOC_BALANCE
-					if (opt_balance_threshold == 0)
-						opt_balance_threshold = 1;
-					else if ((opt_balance_threshold << 1)
-					    > opt_balance_threshold)
-						opt_balance_threshold <<= 1;
-#endif
 					break;
 				case 'c':
 					if (opt_cspace_max_2pow - 1 >
@@ -5675,15 +5381,8 @@ MALLOC_OUT:
 		abort();
 	}
 #endif
-	/*
-	 * Seed here for the initial thread, since choose_arena_hard() is only
-	 * called for other threads.  The seed value doesn't really matter.
-	 */
-#ifdef JEMALLOC_BALANCE
-	SPRN(balance, 42);
-#endif
 
-	malloc_spin_init(&arenas_lock);
+	malloc_mutex_init(&arenas_lock);
 
 	/* Get number of CPUs. */
 	malloc_initializer = pthread_self();
@@ -5717,12 +5416,6 @@ MALLOC_OUT:
 		if (narenas == 0)
 			narenas = 1;
 	}
-#ifdef JEMALLOC_BALANCE
-	assert(narenas != 0);
-	for (narenas_2pow = 0;
-	     (narenas >> (narenas_2pow + 1)) != 0;
-	     narenas_2pow++);
-#endif
 
 #ifdef NO_TLS
 	if (narenas > 1) {
@@ -5752,9 +5445,7 @@ MALLOC_OUT:
 #endif
 
 #ifndef NO_TLS
-#  ifndef JEMALLOC_BALANCE
 	next_arena = 0;
-#  endif
 #endif
 
 	/* Allocate and initialize arenas. */
@@ -6120,16 +5811,16 @@ jemalloc_prefork(void)
 	do {
 		again = false;
 
-		malloc_spin_lock(&arenas_lock);
+		malloc_mutex_lock(&arenas_lock);
 		for (i = 0; i < narenas; i++) {
 			if (arenas[i] != larenas[i]) {
 				memcpy(tarenas, arenas, sizeof(arena_t *) *
 				    narenas);
-				malloc_spin_unlock(&arenas_lock);
+				malloc_mutex_unlock(&arenas_lock);
 				for (j = 0; j < narenas; j++) {
 					if (larenas[j] != tarenas[j]) {
 						larenas[j] = tarenas[j];
-						malloc_spin_lock(
+						malloc_mutex_lock(
 						    &larenas[j]->lock);
 					}
 				}
@@ -6165,10 +5856,10 @@ jemalloc_postfork(void)
 	malloc_mutex_unlock(&base_mtx);
 
 	memcpy(larenas, arenas, sizeof(arena_t *) * narenas);
-	malloc_spin_unlock(&arenas_lock);
+	malloc_mutex_unlock(&arenas_lock);
 	for (i = 0; i < narenas; i++) {
 		if (larenas[i] != NULL)
-			malloc_spin_unlock(&larenas[i]->lock);
+			malloc_mutex_unlock(&larenas[i]->lock);
 	}
 }
 

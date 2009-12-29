@@ -381,28 +381,6 @@ else
 fi
 AC_SUBST([roff_mag])
 
-dnl Enable dynamic arena load balancing by default.
-AC_ARG_ENABLE([balance],
-  [AS_HELP_STRING([--disable-balance], [Disable dynamic arena load balancing])],
-[if test "x$enable_balance" = "xno" ; then
-  enable_balance="0"
-else
-  enable_balance="1"
-fi
-],
-[enable_balance="1"]
-)
-if test "x$enable_balance" = "x1" ; then
-  AC_DEFINE([JEMALLOC_BALANCE], [ ])
-fi
-AC_SUBST([enable_balance])
-if test "x$enable_balance" = "x0" ; then
-  roff_balance=".\\\" "
-else
-  roff_balance=""
-fi
-AC_SUBST([roff_balance])
-
 dnl Do not enable allocation from DSS by default.
 AC_ARG_ENABLE([dss],
   [AS_HELP_STRING([--enable-dss], [Enable allocation from DSS])],
@@ -654,7 +632,6 @@ AC_MSG_RESULT([stats              : ${enable_stats}])
 AC_MSG_RESULT([trace              : ${enable_trace}])
 AC_MSG_RESULT([tiny               : ${enable_tiny}])
 AC_MSG_RESULT([mag                : ${enable_mag}])
-AC_MSG_RESULT([balance            : ${enable_balance}])
 AC_MSG_RESULT([fill               : ${enable_fill}])
 AC_MSG_RESULT([xmalloc            : ${enable_xmalloc}])
 AC_MSG_RESULT([sysv               : ${enable_sysv}])

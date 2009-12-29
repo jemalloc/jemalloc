@@ -51,9 +51,6 @@ any of the following arguments (not a definitive list) to 'configure':
     cached and released in bulk using "magazines" -- a term coined by the
     developers of Solaris's umem allocator.
 
---disable-balance
-    Disable dynamic rebalancing of thread-->arena assignments.
-
 --enable-dss
     Enable support for page allocation/deallocation via sbrk(2), in addition to
     mmap(2).
