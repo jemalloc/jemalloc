@@ -201,45 +201,40 @@ __FBSDID("$FreeBSD: src/lib/libc/stdlib/malloc.c,v 1.183 2008/12/01 10:20:59 jas
 #define	STRERROR_BUF		64
 
 /*
- * Minimum alignment of allocations is 2^QUANTUM_2POW bytes.
+ * Minimum alignment of allocations is 2^LG_QUANTUM bytes.
  */
 #ifdef __i386__
-#  define QUANTUM_2POW		4
+#  define LG_QUANTUM		4
 #endif
 #ifdef __ia64__
-#  define QUANTUM_2POW		4
+#  define LG_QUANTUM		4
 #endif
 #ifdef __alpha__
-#  define QUANTUM_2POW		4
+#  define LG_QUANTUM		4
 #endif
 #ifdef __sparc__
-#  define QUANTUM_2POW		4
+#  define LG_QUANTUM		4
 #endif
 #ifdef __amd64__
-#  define QUANTUM_2POW		4
+#  define LG_QUANTUM		4
 #endif
 #ifdef __arm__
-#  define QUANTUM_2POW		3
+#  define LG_QUANTUM		3
 #endif
 #ifdef __mips__
-#  define QUANTUM_2POW		3
+#  define LG_QUANTUM		3
 #endif
 #ifdef __powerpc__
-#  define QUANTUM_2POW		4
+#  define LG_QUANTUM		4
 #endif
 #ifdef __s390x__
-#  define QUANTUM_2POW		4
+#  define LG_QUANTUM		4
 #endif
 
-#define	QUANTUM			((size_t)(1U << QUANTUM_2POW))
+#define	QUANTUM			((size_t)(1U << LG_QUANTUM))
 #define	QUANTUM_MASK		(QUANTUM - 1)
 
-#define	SIZEOF_PTR		(1U << SIZEOF_PTR_2POW)
-
-/* sizeof(int) == (1U << SIZEOF_INT_2POW). */
-#ifndef SIZEOF_INT_2POW
-#  define SIZEOF_INT_2POW	2
-#endif
+#define	SIZEOF_PTR		(1U << LG_SIZEOF_PTR)
 
 /* We can't use TLS in non-PIC programs, since TLS relies on loader magic. */
 #if (!defined(PIC) && !defined(NO_TLS))
@@ -250,7 +245,7 @@ __FBSDID("$FreeBSD: src/lib/libc/stdlib/malloc.c,v 1.183 2008/12/01 10:20:59 jas
  * Size and alignment of memory chunks that are allocated by the OS's virtual
  * memory system.
  */
-#define	CHUNK_2POW_DEFAULT	22
+#define	LG_CHUNK_DEFAULT	22
 
 /* Maximum number of dirty pages per arena. */
 #define	DIRTY_MAX_DEFAULT	(1U << 9)
@@ -259,8 +254,8 @@ __FBSDID("$FreeBSD: src/lib/libc/stdlib/malloc.c,v 1.183 2008/12/01 10:20:59 jas
  * Maximum size of L1 cache line.  This is used to avoid cache line aliasing.
  * In addition, this controls the spacing of cacheline-spaced size classes.
  */
-#define	CACHELINE_2POW		6
-#define	CACHELINE		((size_t)(1U << CACHELINE_2POW))
+#define	LG_CACHELINE		6
+#define	CACHELINE		((size_t)(1U << LG_CACHELINE))
 #define	CACHELINE_MASK		(CACHELINE - 1)
 
 /*
@@ -270,13 +265,13 @@ __FBSDID("$FreeBSD: src/lib/libc/stdlib/malloc.c,v 1.183 2008/12/01 10:20:59 jas
  * There must be at least 4 subpages per page, due to the way size classes are
  * handled.
  */
-#define	SUBPAGE_2POW		8
-#define	SUBPAGE			((size_t)(1U << SUBPAGE_2POW))
+#define	LG_SUBPAGE		8
+#define	SUBPAGE			((size_t)(1U << LG_SUBPAGE))
 #define	SUBPAGE_MASK		(SUBPAGE - 1)
 
 #ifdef JEMALLOC_TINY
    /* Smallest size class to support. */
-#  define TINY_MIN_2POW		1
+#  define LG_TINY_MIN		1
 #endif
 
 /*
@@ -284,20 +279,20 @@ __FBSDID("$FreeBSD: src/lib/libc/stdlib/malloc.c,v 1.183 2008/12/01 10:20:59 jas
  * a power of 2.  Above this size, allocations are rounded up to the nearest
  * power of 2.
  */
-#define	QSPACE_MAX_2POW_DEFAULT	7
+#define	LG_QSPACE_MAX_DEFAULT	7
 
 /*
  * Maximum size class that is a multiple of the cacheline, but not (necessarily)
  * a power of 2.  Above this size, allocations are rounded up to the nearest
  * power of 2.
  */
-#define	CSPACE_MAX_2POW_DEFAULT	9
+#define	LG_CSPACE_MAX_DEFAULT	9
 
 /*
  * Maximum medium size class.  This must not be more than 1/4 of a chunk
- * (MEDIUM_MAX_2POW_DEFAULT <= CHUNK_2POW_DEFAULT - 2).
+ * (LG_MEDIUM_MAX_DEFAULT <= LG_CHUNK_DEFAULT - 2).
  */
-#define	MEDIUM_MAX_2POW_DEFAULT	15
+#define	LG_MEDIUM_MAX_DEFAULT	15
 
 /*
  * RUN_MAX_OVRHD indicates maximum desired run header overhead.  Runs are sized
@@ -768,8 +763,8 @@ static pthread_key_t		trace_tsd;
 #ifdef DYNAMIC_PAGE_SHIFT
 static size_t		pagesize;
 static size_t		pagesize_mask;
-static size_t		pagesize_2pow;
-#  define PAGE_SHIFT	pagesize_2pow
+static size_t		lg_pagesize;
+#  define PAGE_SHIFT	lg_pagesize
 #  define PAGE_SIZE	pagesize
 #  define PAGE_MASK	pagesize_mask
 #else
@@ -780,7 +775,7 @@ static size_t		pagesize_2pow;
 
 /* Various bin-related settings. */
 #ifdef JEMALLOC_TINY		/* Number of (2^n)-spaced tiny bins. */
-#  define		ntbins	((unsigned)(QUANTUM_2POW - TINY_MIN_2POW))
+#  define		ntbins	((unsigned)(LG_QUANTUM - LG_TINY_MIN))
 #else
 #  define		ntbins	0
 #endif
@@ -811,7 +806,7 @@ static size_t		medium_max;
  */
 #define	NMBINS_MAX	16
 /* Spacing between medium size classes. */
-static size_t		mspace_2pow;
+static size_t		lg_mspace;
 static size_t		mspace_mask;
 
 static uint8_t const	*small_size2bin;
@@ -831,7 +826,7 @@ static uint8_t const	*small_size2bin;
 #define	S2B_256(i)	S2B_128(i) S2B_128(i)
 static const uint8_t	const_small_size2bin[STATIC_PAGE_SIZE - 255] = {
 	S2B_1(0xffU)		/*    0 */
-#if (QUANTUM_2POW == 4)
+#if (LG_QUANTUM == 4)
 /* 64-bit system ************************/
 #  ifdef JEMALLOC_TINY
 	S2B_2(0)		/*    2 */
@@ -1083,10 +1078,10 @@ static size_t	opt_tcache_gc = true;
 #endif
 static size_t	opt_dirty_max = DIRTY_MAX_DEFAULT;
 static bool	opt_print_stats = false;
-static size_t	opt_qspace_max_2pow = QSPACE_MAX_2POW_DEFAULT;
-static size_t	opt_cspace_max_2pow = CSPACE_MAX_2POW_DEFAULT;
-static size_t	opt_medium_max_2pow = MEDIUM_MAX_2POW_DEFAULT;
-static size_t	opt_chunk_2pow = CHUNK_2POW_DEFAULT;
+static size_t	opt_lg_qspace_max = LG_QSPACE_MAX_DEFAULT;
+static size_t	opt_lg_cspace_max = LG_CSPACE_MAX_DEFAULT;
+static size_t	opt_lg_medium_max = LG_MEDIUM_MAX_DEFAULT;
+static size_t	opt_lg_chunk = LG_CHUNK_DEFAULT;
 #ifdef JEMALLOC_TRACE
 static bool	opt_trace = false;
 #endif
@@ -2370,7 +2365,7 @@ arena_run_reg_alloc(arena_run_t *run, arena_bin_t *bin)
 		/* Usable allocation found. */
 		bit = ffs((int)mask) - 1;
 
-		regind = ((i << (SIZEOF_INT_2POW + 3)) + bit);
+		regind = ((i << (LG_SIZEOF_INT + 3)) + bit);
 		assert(regind < bin->nregs);
 		ret = (void *)(((uintptr_t)run) + bin->reg0_offset
 		    + (bin->reg_size * regind));
@@ -2388,7 +2383,7 @@ arena_run_reg_alloc(arena_run_t *run, arena_bin_t *bin)
 			/* Usable allocation found. */
 			bit = ffs((int)mask) - 1;
 
-			regind = ((i << (SIZEOF_INT_2POW + 3)) + bit);
+			regind = ((i << (LG_SIZEOF_INT + 3)) + bit);
 			assert(regind < bin->nregs);
 			ret = (void *)(((uintptr_t)run) + bin->reg0_offset
 			    + (bin->reg_size * regind));
@@ -2470,10 +2465,10 @@ arena_run_reg_dalloc(arena_run_t *run, arena_bin_t *bin, void *ptr, size_t size)
 	assert(diff == regind * size);
 	assert(regind < bin->nregs);
 
-	elm = regind >> (SIZEOF_INT_2POW + 3);
+	elm = regind >> (LG_SIZEOF_INT + 3);
 	if (elm < run->regs_minelm)
 		run->regs_minelm = elm;
-	bit = regind - (elm << (SIZEOF_INT_2POW + 3));
+	bit = regind - (elm << (LG_SIZEOF_INT + 3));
 	assert((run->regs_mask[elm] & (1U << bit)) == 0);
 	run->regs_mask[elm] |= (1U << bit);
 }
@@ -2905,12 +2900,12 @@ arena_bin_nonfull_run_get(arena_t *arena, arena_bin_t *bin)
 
 	for (i = 0; i < bin->regs_mask_nelms - 1; i++)
 		run->regs_mask[i] = UINT_MAX;
-	remainder = bin->nregs & ((1U << (SIZEOF_INT_2POW + 3)) - 1);
+	remainder = bin->nregs & ((1U << (LG_SIZEOF_INT + 3)) - 1);
 	if (remainder == 0)
 		run->regs_mask[i] = UINT_MAX;
 	else {
 		/* The last element has spare bits that need to be unset. */
-		run->regs_mask[i] = (UINT_MAX >> ((1U << (SIZEOF_INT_2POW + 3))
+		run->regs_mask[i] = (UINT_MAX >> ((1U << (LG_SIZEOF_INT + 3))
 		    - remainder));
 	}
 
@@ -2997,8 +2992,8 @@ arena_bin_run_size_calc(arena_bin_t *bin, size_t min_run_size)
 	    + 1; /* Counter-act try_nregs-- in loop. */
 	do {
 		try_nregs--;
-		try_mask_nelms = (try_nregs >> (SIZEOF_INT_2POW + 3)) +
-		    ((try_nregs & ((1U << (SIZEOF_INT_2POW + 3)) - 1)) ? 1 : 0);
+		try_mask_nelms = (try_nregs >> (LG_SIZEOF_INT + 3)) +
+		    ((try_nregs & ((1U << (LG_SIZEOF_INT + 3)) - 1)) ? 1 : 0);
 		try_reg0_offset = try_run_size - (try_nregs * bin->reg_size);
 	} while (sizeof(arena_run_t) + (sizeof(unsigned) * (try_mask_nelms - 1))
 	    > try_reg0_offset);
@@ -3019,8 +3014,8 @@ arena_bin_run_size_calc(arena_bin_t *bin, size_t min_run_size)
 		    bin->reg_size) + 1; /* Counter-act try_nregs-- in loop. */
 		do {
 			try_nregs--;
-			try_mask_nelms = (try_nregs >> (SIZEOF_INT_2POW + 3)) +
-			    ((try_nregs & ((1U << (SIZEOF_INT_2POW + 3)) - 1)) ?
+			try_mask_nelms = (try_nregs >> (LG_SIZEOF_INT + 3)) +
+			    ((try_nregs & ((1U << (LG_SIZEOF_INT + 3)) - 1)) ?
 			    1 : 0);
 			try_reg0_offset = try_run_size - (try_nregs *
 			    bin->reg_size);
@@ -3032,7 +3027,7 @@ arena_bin_run_size_calc(arena_bin_t *bin, size_t min_run_size)
 
 	assert(sizeof(arena_run_t) + (sizeof(unsigned) * (good_mask_nelms - 1))
 	    <= good_reg0_offset);
-	assert((good_mask_nelms << (SIZEOF_INT_2POW + 3)) >= good_nregs);
+	assert((good_mask_nelms << (LG_SIZEOF_INT + 3)) >= good_nregs);
 
 	/* Copy final settings. */
 	bin->run_size = good_run_size;
@@ -3152,7 +3147,7 @@ tcache_alloc(tcache_t *tcache, size_t size, bool zero)
 		binind = small_size2bin[size];
 	else {
 		binind = mbin0 + ((MEDIUM_CEILING(size) - medium_min) >>
-		    mspace_2pow);
+		    lg_mspace);
 	}
 	assert(binind < nbins);
 	tbin = tcache->tbins[binind];
@@ -3258,7 +3253,7 @@ arena_malloc_medium(arena_t *arena, size_t size, bool zero)
 	size_t binind;
 
 	size = MEDIUM_CEILING(size);
-	binind = mbin0 + ((size - medium_min) >> mspace_2pow);
+	binind = mbin0 + ((size - medium_min) >> lg_mspace);
 	assert(binind < nbins);
 	bin = &arena->bins[binind];
 	assert(bin->reg_size == size);
@@ -4272,7 +4267,7 @@ arena_new(arena_t *arena, unsigned ind)
 		bin->runcur = NULL;
 		arena_run_tree_new(&bin->runs);
 
-		bin->reg_size = (1U << (TINY_MIN_2POW + i));
+		bin->reg_size = (1U << (LG_TINY_MIN + i));
 
 		prev_run_size = arena_bin_run_size_calc(bin, prev_run_size);
 
@@ -4288,7 +4283,7 @@ arena_new(arena_t *arena, unsigned ind)
 		bin->runcur = NULL;
 		arena_run_tree_new(&bin->runs);
 
-		bin->reg_size = (i - ntbins + 1) << QUANTUM_2POW;
+		bin->reg_size = (i - ntbins + 1) << LG_QUANTUM;
 
 		prev_run_size = arena_bin_run_size_calc(bin, prev_run_size);
 
@@ -4304,7 +4299,7 @@ arena_new(arena_t *arena, unsigned ind)
 		arena_run_tree_new(&bin->runs);
 
 		bin->reg_size = cspace_min + ((i - (ntbins + nqbins)) <<
-		    CACHELINE_2POW);
+		    LG_CACHELINE);
 
 		prev_run_size = arena_bin_run_size_calc(bin, prev_run_size);
 
@@ -4320,7 +4315,7 @@ arena_new(arena_t *arena, unsigned ind)
 		arena_run_tree_new(&bin->runs);
 
 		bin->reg_size = sspace_min + ((i - (ntbins + nqbins + ncbins))
-		    << SUBPAGE_2POW);
+		    << LG_SUBPAGE);
 
 		prev_run_size = arena_bin_run_size_calc(bin, prev_run_size);
 
@@ -4336,7 +4331,7 @@ arena_new(arena_t *arena, unsigned ind)
 		arena_run_tree_new(&bin->runs);
 
 		bin->reg_size = medium_min + ((i - (ntbins + nqbins + ncbins +
-		    nsbins)) << mspace_2pow);
+		    nsbins)) << lg_mspace);
 
 		prev_run_size = arena_bin_run_size_calc(bin, prev_run_size);
 
@@ -5064,10 +5059,10 @@ malloc_print_stats(void)
 	malloc_message("Cacheline size (assumed): ",
 	    umax2s(CACHELINE, 10, s), "\n", "");
 	malloc_message("Subpage spacing: ", umax2s(SUBPAGE, 10, s), "\n", "");
-	malloc_message("Medium spacing: ", umax2s((1U << mspace_2pow), 10, s),
+	malloc_message("Medium spacing: ", umax2s((1U << lg_mspace), 10, s),
 	    "\n", "");
 #ifdef JEMALLOC_TINY
-	malloc_message("Tiny 2^n-spaced sizes: [", umax2s((1U << TINY_MIN_2POW),
+	malloc_message("Tiny 2^n-spaced sizes: [", umax2s((1U << LG_TINY_MIN),
 	    10, s), "..", "");
 	malloc_message(umax2s((qspace_min >> 1), 10, s), "]\n", "", "");
 #endif
@@ -5086,7 +5081,7 @@ malloc_print_stats(void)
 	    umax2s(opt_dirty_max, 10, s), "\n", "");
 
 	malloc_message("Chunk size: ", umax2s(chunksize, 10, s), "", "");
-	malloc_message(" (2^", umax2s(opt_chunk_2pow, 10, s), ")\n", "");
+	malloc_message(" (2^", umax2s(opt_lg_chunk, 10, s), ")\n", "");
 
 #ifdef JEMALLOC_STATS
 	{
@@ -5165,35 +5160,35 @@ small_size2bin_validate(void)
 	i = 1;
 #  ifdef JEMALLOC_TINY
 	/* Tiny. */
-	for (; i < (1U << TINY_MIN_2POW); i++) {
-		size = pow2_ceil(1U << TINY_MIN_2POW);
-		binind = ffs((int)(size >> (TINY_MIN_2POW + 1)));
+	for (; i < (1U << LG_TINY_MIN); i++) {
+		size = pow2_ceil(1U << LG_TINY_MIN);
+		binind = ffs((int)(size >> (LG_TINY_MIN + 1)));
 		assert(small_size2bin[i] == binind);
 	}
 	for (; i < qspace_min; i++) {
 		size = pow2_ceil(i);
-		binind = ffs((int)(size >> (TINY_MIN_2POW + 1)));
+		binind = ffs((int)(size >> (LG_TINY_MIN + 1)));
 		assert(small_size2bin[i] == binind);
 	}
 #  endif
 	/* Quantum-spaced. */
 	for (; i <= qspace_max; i++) {
 		size = QUANTUM_CEILING(i);
-		binind = ntbins + (size >> QUANTUM_2POW) - 1;
+		binind = ntbins + (size >> LG_QUANTUM) - 1;
 		assert(small_size2bin[i] == binind);
 	}
 	/* Cacheline-spaced. */
 	for (; i <= cspace_max; i++) {
 		size = CACHELINE_CEILING(i);
 		binind = ntbins + nqbins + ((size - cspace_min) >>
-		    CACHELINE_2POW);
+		    LG_CACHELINE);
 		assert(small_size2bin[i] == binind);
 	}
 	/* Sub-page. */
 	for (; i <= sspace_max; i++) {
 		size = SUBPAGE_CEILING(i);
 		binind = ntbins + nqbins + ncbins + ((size - sspace_min)
-		    >> SUBPAGE_2POW);
+		    >> LG_SUBPAGE);
 		assert(small_size2bin[i] == binind);
 	}
 }
@@ -5203,8 +5198,8 @@ static bool
 small_size2bin_init(void)
 {
 
-	if (opt_qspace_max_2pow != QSPACE_MAX_2POW_DEFAULT
-	    || opt_cspace_max_2pow != CSPACE_MAX_2POW_DEFAULT
+	if (opt_lg_qspace_max != LG_QSPACE_MAX_DEFAULT
+	    || opt_lg_cspace_max != LG_CSPACE_MAX_DEFAULT
 	    || sizeof(const_small_size2bin) != small_maxclass + 1)
 		return (small_size2bin_init_hard());
 
@@ -5222,8 +5217,8 @@ small_size2bin_init_hard(void)
 	size_t i, size, binind;
 	uint8_t *custom_small_size2bin;
 
-	assert(opt_qspace_max_2pow != QSPACE_MAX_2POW_DEFAULT
-	    || opt_cspace_max_2pow != CSPACE_MAX_2POW_DEFAULT
+	assert(opt_lg_qspace_max != LG_QSPACE_MAX_DEFAULT
+	    || opt_lg_cspace_max != LG_CSPACE_MAX_DEFAULT
 	    || sizeof(const_small_size2bin) != small_maxclass + 1);
 
 	custom_small_size2bin = (uint8_t *)base_alloc(small_maxclass + 1);
@@ -5234,35 +5229,35 @@ small_size2bin_init_hard(void)
 	i = 1;
 #ifdef JEMALLOC_TINY
 	/* Tiny. */
-	for (; i < (1U << TINY_MIN_2POW); i++) {
-		size = pow2_ceil(1U << TINY_MIN_2POW);
-		binind = ffs((int)(size >> (TINY_MIN_2POW + 1)));
+	for (; i < (1U << LG_TINY_MIN); i++) {
+		size = pow2_ceil(1U << LG_TINY_MIN);
+		binind = ffs((int)(size >> (LG_TINY_MIN + 1)));
 		custom_small_size2bin[i] = binind;
 	}
 	for (; i < qspace_min; i++) {
 		size = pow2_ceil(i);
-		binind = ffs((int)(size >> (TINY_MIN_2POW + 1)));
+		binind = ffs((int)(size >> (LG_TINY_MIN + 1)));
 		custom_small_size2bin[i] = binind;
 	}
 #endif
 	/* Quantum-spaced. */
 	for (; i <= qspace_max; i++) {
 		size = QUANTUM_CEILING(i);
-		binind = ntbins + (size >> QUANTUM_2POW) - 1;
+		binind = ntbins + (size >> LG_QUANTUM) - 1;
 		custom_small_size2bin[i] = binind;
 	}
 	/* Cacheline-spaced. */
 	for (; i <= cspace_max; i++) {
 		size = CACHELINE_CEILING(i);
 		binind = ntbins + nqbins + ((size - cspace_min) >>
-		    CACHELINE_2POW);
+		    LG_CACHELINE);
 		custom_small_size2bin[i] = binind;
 	}
 	/* Sub-page. */
 	for (; i <= sspace_max; i++) {
 		size = SUBPAGE_CEILING(i);
 		binind = ntbins + nqbins + ncbins + ((size - sspace_min) >>
-		    SUBPAGE_2POW);
+		    LG_SUBPAGE);
 		custom_small_size2bin[i] = binind;
 	}
 
@@ -5344,11 +5339,11 @@ malloc_init_hard(void)
 
 		/*
 		 * We assume that pagesize is a power of 2 when calculating
-		 * pagesize_mask and pagesize_2pow.
+		 * pagesize_mask and lg_pagesize.
 		 */
 		assert(((result - 1) & result) == 0);
 		pagesize_mask = result - 1;
-		pagesize_2pow = ffs((int)result) - 1;
+		lg_pagesize = ffs((int)result) - 1;
 	}
 #endif
 
@@ -5435,16 +5430,16 @@ MALLOC_OUT:
 					opt_abort = true;
 					break;
 				case 'c':
-					if (opt_cspace_max_2pow - 1 >
-					    opt_qspace_max_2pow &&
-					    opt_cspace_max_2pow >
-					    CACHELINE_2POW)
-						opt_cspace_max_2pow--;
+					if (opt_lg_cspace_max - 1 >
+					    opt_lg_qspace_max &&
+					    opt_lg_cspace_max >
+					    LG_CACHELINE)
+						opt_lg_cspace_max--;
 					break;
 				case 'C':
-					if (opt_cspace_max_2pow < PAGE_SHIFT
+					if (opt_lg_cspace_max < PAGE_SHIFT
 					    - 1)
-						opt_cspace_max_2pow++;
+						opt_lg_cspace_max++;
 					break;
 				case 'f':
 					opt_dirty_max >>= 1;
@@ -5485,24 +5480,24 @@ MALLOC_OUT:
 					 * size class (one page more than the
 					 * size).
 					 */
-					if ((1U << (opt_chunk_2pow - 1)) >=
+					if ((1U << (opt_lg_chunk - 1)) >=
 					    (2U << PAGE_SHIFT) + (1U <<
-					    opt_medium_max_2pow))
-						opt_chunk_2pow--;
+					    opt_lg_medium_max))
+						opt_lg_chunk--;
 					break;
 				case 'K':
-					if (opt_chunk_2pow + 1 <
+					if (opt_lg_chunk + 1 <
 					    (sizeof(size_t) << 3))
-						opt_chunk_2pow++;
+						opt_lg_chunk++;
 					break;
 				case 'm':
-					if (opt_medium_max_2pow > PAGE_SHIFT)
-						opt_medium_max_2pow--;
+					if (opt_lg_medium_max > PAGE_SHIFT)
+						opt_lg_medium_max--;
 					break;
 				case 'M':
-					if (opt_medium_max_2pow + 1 <
-					    opt_chunk_2pow)
-						opt_medium_max_2pow++;
+					if (opt_lg_medium_max + 1 <
+					    opt_lg_chunk)
+						opt_lg_medium_max++;
 					break;
 				case 'n':
 					opt_narenas_lshift--;
@@ -5517,13 +5512,13 @@ MALLOC_OUT:
 					opt_print_stats = true;
 					break;
 				case 'q':
-					if (opt_qspace_max_2pow > QUANTUM_2POW)
-						opt_qspace_max_2pow--;
+					if (opt_lg_qspace_max > LG_QUANTUM)
+						opt_lg_qspace_max--;
 					break;
 				case 'Q':
-					if (opt_qspace_max_2pow + 1 <
-					    opt_cspace_max_2pow)
-						opt_qspace_max_2pow++;
+					if (opt_lg_qspace_max + 1 <
+					    opt_lg_cspace_max)
+						opt_lg_qspace_max++;
 					break;
 #ifdef JEMALLOC_TRACE
 				case 't':
@@ -5593,26 +5588,26 @@ MALLOC_OUT:
 	/* Register fork handlers. */
 	pthread_atfork(jemalloc_prefork, jemalloc_postfork, jemalloc_postfork);
 
-	/* Set variables according to the value of opt_[qc]space_max_2pow. */
-	qspace_max = (1U << opt_qspace_max_2pow);
+	/* Set variables according to the value of opt_lg_[qc]space_max. */
+	qspace_max = (1U << opt_lg_qspace_max);
 	cspace_min = CACHELINE_CEILING(qspace_max);
 	if (cspace_min == qspace_max)
 		cspace_min += CACHELINE;
-	cspace_max = (1U << opt_cspace_max_2pow);
+	cspace_max = (1U << opt_lg_cspace_max);
 	sspace_min = SUBPAGE_CEILING(cspace_max);
 	if (sspace_min == cspace_max)
 		sspace_min += SUBPAGE;
 	assert(sspace_min < PAGE_SIZE);
 	sspace_max = PAGE_SIZE - SUBPAGE;
-	medium_max = (1U << opt_medium_max_2pow);
+	medium_max = (1U << opt_lg_medium_max);
 
 #ifdef JEMALLOC_TINY
-	assert(QUANTUM_2POW >= TINY_MIN_2POW);
+	assert(LG_QUANTUM >= LG_TINY_MIN);
 #endif
-	assert(ntbins <= QUANTUM_2POW);
-	nqbins = qspace_max >> QUANTUM_2POW;
-	ncbins = ((cspace_max - cspace_min) >> CACHELINE_2POW) + 1;
-	nsbins = ((sspace_max - sspace_min) >> SUBPAGE_2POW) + 1;
+	assert(ntbins <= LG_QUANTUM);
+	nqbins = qspace_max >> LG_QUANTUM;
+	ncbins = ((cspace_max - cspace_min) >> LG_CACHELINE) + 1;
+	nsbins = ((sspace_max - sspace_min) >> LG_SUBPAGE) + 1;
 
 	/*
 	 * Compute medium size class spacing and the number of medium size
@@ -5620,13 +5615,13 @@ MALLOC_OUT:
 	 * use the smallest spacing that does not exceed NMBINS_MAX medium size
 	 * classes.
 	 */
-	mspace_2pow = SUBPAGE_2POW;
-	nmbins = ((medium_max - medium_min) >> mspace_2pow) + 1;
-	while (mspace_2pow < PAGE_SHIFT && nmbins > NMBINS_MAX) {
-		mspace_2pow = mspace_2pow + 1;
-		nmbins = ((medium_max - medium_min) >> mspace_2pow) + 1;
+	lg_mspace = LG_SUBPAGE;
+	nmbins = ((medium_max - medium_min) >> lg_mspace) + 1;
+	while (lg_mspace < PAGE_SHIFT && nmbins > NMBINS_MAX) {
+		lg_mspace = lg_mspace + 1;
+		nmbins = ((medium_max - medium_min) >> lg_mspace) + 1;
 	}
-	mspace_mask = (1U << mspace_2pow) - 1U;
+	mspace_mask = (1U << lg_mspace) - 1U;
 
 	mbin0 = ntbins + nqbins + ncbins + nsbins;
 	nbins = mbin0 + nmbins;
@@ -5656,8 +5651,8 @@ MALLOC_OUT:
 	    ((TCACHE_GC_THRESHOLD % nbins == 0) ? 0 : 1);
 #endif
 
-	/* Set variables according to the value of opt_chunk_2pow. */
-	chunksize = (1LU << opt_chunk_2pow);
+	/* Set variables according to the value of opt_lg_chunk. */
+	chunksize = (1LU << opt_lg_chunk);
 	chunksize_mask = chunksize - 1;
 	chunk_npages = (chunksize >> PAGE_SHIFT);
 	{
@@ -5830,7 +5825,7 @@ MALLOC_OUT:
 		 * spread allocations evenly among the arenas.
 		 */
 		assert((narenas & 1) == 0); /* narenas must be even. */
-		nprimes = (sizeof(primes) >> SIZEOF_INT_2POW);
+		nprimes = (sizeof(primes) >> LG_SIZEOF_INT);
 		parenas = primes[nprimes - 1]; /* In case not enough primes. */
 		for (i = 1; i < nprimes; i++) {
 			if (primes[i] > narenas) {

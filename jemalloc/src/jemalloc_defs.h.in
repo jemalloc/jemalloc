@@ -125,7 +125,10 @@
 /* TLS is used to map arenas and magazine caches to threads. */
 #undef NO_TLS
 
-/* sizeof(void *) == 2^SIZEOF_PTR_2POW. */
-#undef SIZEOF_PTR_2POW
+/* sizeof(void *) == 2^LG_SIZEOF_PTR. */
+#undef LG_SIZEOF_PTR
+
+/* sizeof(int) == 2^LG_SIZEOF_INT. */
+#undef LG_SIZEOF_INT
 
 #endif /* JEMALLOC_DEFS_H_ */

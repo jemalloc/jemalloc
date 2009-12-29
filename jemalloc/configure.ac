@@ -102,16 +102,25 @@ if test "x$EXTRA_CFLAGS" != "x" ; then
 fi
 AC_PROG_CPP
 
-dnl sizeof_ptr is needed by the build system.
 AC_CHECK_SIZEOF([void *])
 if test "x${ac_cv_sizeof_void_p}" = "x8" ; then
-  SIZEOF_PTR_2POW=3
+  LG_SIZEOF_PTR=3
 elif test "x${ac_cv_sizeof_void_p}" = "x4" ; then
-  SIZEOF_PTR_2POW=2
+  LG_SIZEOF_PTR=2
 else
   AC_MSG_ERROR([Unsupported pointer size: ${ac_cv_sizeof_void_p}])
 fi
-AC_DEFINE_UNQUOTED([SIZEOF_PTR_2POW], [$SIZEOF_PTR_2POW])
+AC_DEFINE_UNQUOTED([LG_SIZEOF_PTR], [$LG_SIZEOF_PTR])
+
+AC_CHECK_SIZEOF([int])
+if test "x${ac_cv_sizeof_int}" = "x8" ; then
+  LG_SIZEOF_INT=3
+elif test "x${ac_cv_sizeof_int}" = "x4" ; then
+  LG_SIZEOF_INT=2
+else
+  AC_MSG_ERROR([Unsupported int size: ${ac_cv_sizeof_int}])
+fi
+AC_DEFINE_UNQUOTED([LG_SIZEOF_INT], [$LG_SIZEOF_INT])
 
 AC_CANONICAL_HOST
 dnl CPU-specific settings.
