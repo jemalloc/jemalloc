@@ -5876,7 +5876,7 @@ malloc(size_t size)
 
 	if (malloc_init()) {
 		ret = NULL;
-		goto RETURN;
+		goto OOM;
 	}
 
 	if (size == 0) {
@@ -5886,6 +5886,14 @@ malloc(size_t size)
 			size = 1;
 #ifdef JEMALLOC_SYSV
 		else {
+#  ifdef JEMALLOC_XMALLOC
+			if (opt_xmalloc) {
+				malloc_message("<jemalloc>",
+				    ": Error in malloc(): invalid size 0\n", "",
+				    "");
+				abort();
+			}
+#  endif
 			ret = NULL;
 			goto RETURN;
 		}
@@ -5894,7 +5902,7 @@ malloc(size_t size)
 
 	ret = imalloc(size);
 
-RETURN:
+OOM:
 	if (ret == NULL) {
 #ifdef JEMALLOC_XMALLOC
 		if (opt_xmalloc) {
@@ -5907,6 +5915,9 @@ RETURN:
 		errno = ENOMEM;
 	}
 
+#ifdef JEMALLOC_SYSV
+RETURN:
+#endif
 #ifdef JEMALLOC_TRACE
 	if (opt_trace)
 		trace_malloc(ret, size);
@@ -5923,6 +5934,29 @@ posix_memalign(void **memptr, size_t alignment, size_t size)
 	if (malloc_init())
 		result = NULL;
 	else {
+		if (size == 0) {
+#ifdef JEMALLOC_SYSV
+			if (opt_sysv == false)
+#endif
+				size = 1;
+#ifdef JEMALLOC_SYSV
+			else {
+#  ifdef JEMALLOC_XMALLOC
+				if (opt_xmalloc) {
+					malloc_message("<jemalloc>",
+					    ": Error in posix_memalign(): "
+					    "invalid size 0\n", "", "");
+					abort();
+				}
+#  endif
+				result = NULL;
+				*memptr = NULL;
+				ret = 0;
+				goto RETURN;
+			}
+#endif
+		}
+
 		/* Make sure that alignment is a large enough power of 2. */
 		if (((alignment - 1) & alignment) != 0
 		    || alignment < sizeof(void *)) {
