@@ -1020,10 +1020,6 @@ static bool	opt_abort = false;
 static bool	opt_junk = false;
 #  endif
 #endif
-#ifdef JEMALLOC_DSS
-static bool	opt_dss = true;
-static bool	opt_mmap = true;
-#endif
 #ifdef JEMALLOC_MAG
 static bool	opt_mag = true;
 static size_t	opt_mag_size_2pow = MAG_SIZE_2POW_DEFAULT;
@@ -1471,12 +1467,10 @@ base_pages_alloc(size_t minsize)
 {
 
 #ifdef JEMALLOC_DSS
-	if (opt_dss) {
-		if (base_pages_alloc_dss(minsize) == false)
-			return (false);
-	}
+	if (base_pages_alloc_dss(minsize) == false)
+		return (false);
 
-	if (opt_mmap && minsize != 0)
+	if (minsize != 0)
 #endif
 	{
 		if (base_pages_alloc_mmap(minsize) == false)
@@ -1943,24 +1937,19 @@ chunk_alloc(size_t size, bool zero)
 	assert((size & chunksize_mask) == 0);
 
 #ifdef JEMALLOC_DSS
-	if (opt_dss) {
-		ret = chunk_recycle_dss(size, zero);
-		if (ret != NULL) {
-			goto RETURN;
-		}
-
-		ret = chunk_alloc_dss(size);
-		if (ret != NULL)
-			goto RETURN;
+	ret = chunk_recycle_dss(size, zero);
+	if (ret != NULL) {
+		goto RETURN;
 	}
 
-	if (opt_mmap)
+	ret = chunk_alloc_dss(size);
+	if (ret != NULL)
+		goto RETURN;
+
 #endif
-	{
-		ret = chunk_alloc_mmap(size);
-		if (ret != NULL)
-			goto RETURN;
-	}
+	ret = chunk_alloc_mmap(size);
+	if (ret != NULL)
+		goto RETURN;
 
 	/* All strategies for allocation failed. */
 	ret = NULL;
@@ -2108,14 +2097,11 @@ chunk_dealloc(void *chunk, size_t size)
 #endif
 
 #ifdef JEMALLOC_DSS
-	if (opt_dss) {
-		if (chunk_dealloc_dss(chunk, size) == false)
-			return;
-	}
+	if (chunk_dealloc_dss(chunk, size) == false)
+		return;
 
-	if (opt_mmap)
 #endif
-		chunk_dealloc_mmap(chunk, size);
+	chunk_dealloc_mmap(chunk, size);
 }
 
 /*
@@ -4455,7 +4441,7 @@ huge_dalloc(void *ptr)
 	/* Unmap chunk. */
 #ifdef JEMALLOC_FILL
 #ifdef JEMALLOC_DSS
-	if (opt_dss && opt_junk)
+	if (opt_junk)
 		memset(node->addr, 0x5a, node->size);
 #endif
 #endif
@@ -4696,17 +4682,11 @@ malloc_print_stats(void)
 	    "\n", "");
 	malloc_message("Boolean JEMALLOC_OPTIONS: ",
 	    opt_abort ? "A" : "a", "", "");
-#ifdef JEMALLOC_DSS
-	malloc_message(opt_dss ? "D" : "d", "", "", "");
-#endif
 #ifdef JEMALLOC_MAG
 	malloc_message(opt_mag ? "G" : "g", "", "", "");
 #endif
 #ifdef JEMALLOC_FILL
 	malloc_message(opt_junk ? "J" : "j", "", "", "");
-#endif
-#ifdef JEMALLOC_DSS
-	malloc_message(opt_mmap ? "M" : "m", "", "", "");
 #endif
 	malloc_message("P", "", "", "");
 #ifdef JEMALLOC_TRACE
@@ -5110,16 +5090,6 @@ MALLOC_OUT:
 					    - 1)
 						opt_cspace_max_2pow++;
 					break;
-				case 'd':
-#ifdef JEMALLOC_DSS
-					opt_dss = false;
-#endif
-					break;
-				case 'D':
-#ifdef JEMALLOC_DSS
-					opt_dss = true;
-#endif
-					break;
 				case 'f':
 					opt_dirty_max >>= 1;
 					break;
@@ -5158,16 +5128,6 @@ MALLOC_OUT:
 					if (opt_chunk_2pow + 1 <
 					    (sizeof(size_t) << 3))
 						opt_chunk_2pow++;
-					break;
-				case 'm':
-#ifdef JEMALLOC_DSS
-					opt_mmap = false;
-#endif
-					break;
-				case 'M':
-#ifdef JEMALLOC_DSS
-					opt_mmap = true;
-#endif
 					break;
 				case 'n':
 					opt_narenas_lshift--;
@@ -5252,12 +5212,6 @@ MALLOC_OUT:
 			}
 		}
 	}
-
-#ifdef JEMALLOC_DSS
-	/* Make sure that there is some method for acquiring memory. */
-	if (opt_dss == false && opt_mmap == false)
-		opt_mmap = true;
-#endif
 
 #ifdef JEMALLOC_TRACE
 	if (opt_trace) {
@@ -5379,8 +5333,7 @@ MALLOC_OUT:
 	 * chunk-aligned.  Doing this before allocating any other chunks allows
 	 * the use of space that would otherwise be wasted.
 	 */
-	if (opt_dss)
-		base_pages_alloc(0);
+	base_pages_alloc(0);
 #endif
 	base_nodes = NULL;
 	if (malloc_mutex_init(&base_mtx)) {

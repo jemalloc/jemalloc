@@ -193,14 +193,6 @@ Double/halve the size of the maximum size class that is a multiple of the
 cacheline size (64).
 Above this size, subpage spacing (256 bytes) is used for size classes.
 The default value is 512 bytes.
-@roff_dss@.It D
-@roff_dss@Use
-@roff_dss@.Xr sbrk 2
-@roff_dss@to acquire memory in the data storage segment (DSS).
-@roff_dss@This option is enabled by default.
-@roff_dss@See the
-@roff_dss@.Dq M
-@roff_dss@option for related information and interactions.
 .It F
 Double/halve the per-arena maximum number of dirty unused pages that are
 allowed to accumulate before informing the kernel about at least half of those
@@ -237,22 +229,6 @@ will prevent any dirty unused pages from accumulating.
 .It K
 Double/halve the virtual memory chunk size.
 The default chunk size is 1 MB.
-@roff_dss@.It M
-@roff_dss@Use
-@roff_dss@.Xr mmap 2
-@roff_dss@to acquire anonymously mapped memory.
-@roff_dss@This option is enabled by default.
-@roff_dss@If both the
-@roff_dss@.Dq D
-@roff_dss@and
-@roff_dss@.Dq M
-@roff_dss@options are enabled, the allocator prefers the DSS over anonymous
-@roff_dss@mappings, but allocation only fails if memory cannot be acquired via
-@roff_dss@either method.
-@roff_dss@If neither option is enabled, then the
-@roff_dss@.Dq M
-@roff_dss@option is implicitly enabled in order to assure that there is a method
-@roff_dss@for acquiring memory.
 .It N
 Double/halve the number of arenas.
 The default number of arenas is two times the number of CPUs, or one if there
@@ -342,9 +318,8 @@ The default value is 128 bytes.
 @roff_dss@This allocator uses both
 @roff_dss@.Xr sbrk 2
 @roff_dss@and
-@roff_dss@.Xr mmap 2
-@roff_dss@by default, but it can be configured at run time to use only one or
-@roff_dss@the other.
+@roff_dss@.Xr mmap 2 ,
+@roff_dss@in that order of preference.
 .Pp
 This allocator uses multiple arenas in order to reduce lock contention for
 threaded programs on multi-processor systems.
