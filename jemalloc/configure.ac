@@ -254,6 +254,7 @@ if test "x$JEMALLOC_PREFIX" != "x" ; then
   AC_DEFINE_UNQUOTED([realloc], [${JEMALLOC_PREFIX}realloc])
   AC_DEFINE_UNQUOTED([free], [${JEMALLOC_PREFIX}free])
   AC_DEFINE_UNQUOTED([malloc_usable_size], [${JEMALLOC_PREFIX}malloc_usable_size])
+  AC_DEFINE_UNQUOTED([malloc_tcache_flush], [${JEMALLOC_PREFIX}malloc_tcache_flush])
   AC_DEFINE_UNQUOTED([malloc_options], [${JEMALLOC_PREFIX}malloc_options])
   AC_DEFINE_UNQUOTED([malloc_message], [${JEMALLOC_PREFIX}malloc_message])
 fi
@@ -359,27 +360,18 @@ fi
 AC_SUBST([roff_tiny])
 AC_SUBST([roff_no_tiny])
 
-dnl Enable magazines by default.
-AC_ARG_ENABLE([mag],
-  [AS_HELP_STRING([--disable-mag], [Disable magazines (per thread caches)])],
-[if test "x$enable_mag" = "xno" ; then
-  enable_mag="0"
+dnl Enable thread-specific caching by default.
+AC_ARG_ENABLE([tcache],
+  [AS_HELP_STRING([--disable-tcache], [Disable per thread caches])],
+[if test "x$enable_tcache" = "xno" ; then
+  enable_tcache="0"
 else
-  enable_mag="1"
+  enable_tcache="1"
 fi
 ],
-[enable_mag="1"]
+[enable_tcache="1"]
 )
-if test "x$enable_mag" = "x1" ; then
-  AC_DEFINE([JEMALLOC_MAG], [ ])
-fi
-AC_SUBST([enable_mag])
-if test "x$enable_mag" = "x0" ; then
-  roff_mag=".\\\" "
-else
-  roff_mag=""
-fi
-AC_SUBST([roff_mag])
+dnl Finish tcache-related definitions below, once TLS configuration is done.
 
 dnl Do not enable allocation from DSS by default.
 AC_ARG_ENABLE([dss],
@@ -539,11 +531,28 @@ AC_RUN_IFELSE([AC_LANG_PROGRAM(
     return 0;
 ]])],
               AC_MSG_RESULT([yes])
-              roff_tls="",
+              have_tls="1",
               AC_MSG_RESULT([no])
-              roff_tls=".\\\" "
+              have_tls="0"
               AC_DEFINE_UNQUOTED([NO_TLS], [ ]))
-AC_SUBST([roff_tls])
+
+dnl Finish tcache-related definitions, now that TLS configuration is done.
+if test "x$have_tls" = "x0" ; then
+  enable_tcache="0"
+fi
+if test "x$enable_tcache" = "x1" ; then
+  AC_DEFINE([JEMALLOC_TCACHE], [ ])
+fi
+AC_SUBST([enable_tcache])
+if test "x$enable_tcache" = "x0" ; then
+  roff_tcache=".\\\" "
+  roff_no_tcache=""
+else
+  roff_tcache=""
+  roff_no_tcache=".\\\" "
+fi
+AC_SUBST([roff_tcache])
+AC_SUBST([roff_no_tcache])
 
 dnl Enable lazy locking by default.
 AC_ARG_ENABLE([lazy_lock],
@@ -631,7 +640,7 @@ AC_MSG_RESULT([debug              : ${enable_debug}])
 AC_MSG_RESULT([stats              : ${enable_stats}])
 AC_MSG_RESULT([trace              : ${enable_trace}])
 AC_MSG_RESULT([tiny               : ${enable_tiny}])
-AC_MSG_RESULT([mag                : ${enable_mag}])
+AC_MSG_RESULT([tcache             : ${enable_tcache}])
 AC_MSG_RESULT([fill               : ${enable_fill}])
 AC_MSG_RESULT([xmalloc            : ${enable_xmalloc}])
 AC_MSG_RESULT([sysv               : ${enable_sysv}])

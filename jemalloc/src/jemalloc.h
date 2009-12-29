@@ -38,6 +38,10 @@ extern "C" {
 
 size_t	malloc_usable_size(const void *ptr);
 
+#ifdef JEMALLOC_TCACHE
+void	malloc_tcache_flush(void);
+#endif
+
 extern const char	*malloc_options;
 extern void		(*malloc_message)(const char *p1,
     const char *p2, const char *p3, const char *p4);

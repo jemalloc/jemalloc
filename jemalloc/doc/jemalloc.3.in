@@ -35,7 +35,7 @@
 .\"     @(#)malloc.3	8.1 (Berkeley) 6/4/93
 .\" $FreeBSD: head/lib/libc/stdlib/malloc.3 182225 2008-08-27 02:00:53Z jasone $
 .\"
-.Dd November 19, 2009
+.Dd December 3, 2009
 .Dt JEMALLOC 3
 .Os
 .Sh NAME
@@ -58,6 +58,8 @@
 .Fn @jemalloc_prefix@free "void *ptr"
 .Ft size_t
 .Fn @jemalloc_prefix@malloc_usable_size "const void *ptr"
+@roff_tcache@.Ft void
+@roff_tcache@.Fn @jemalloc_prefix@malloc_tcache_flush "void"
 .Ft const char *
 .Va @jemalloc_prefix@malloc_options ;
 .Ft void
@@ -156,6 +158,18 @@ Any discrepancy between the requested allocation size and the size reported by
 .Fn @jemalloc_prefix@malloc_usable_size
 should not be depended on, since such behavior is entirely
 implementation-dependent.
+@roff_tcache@.Pp
+@roff_tcache@The
+@roff_tcache@.Fn @jemalloc_prefix@malloc_tcache_flush
+@roff_tcache@function releases all cached objects and internal data structures
+@roff_tcache@associated with the calling thread's thread-specific cache.
+@roff_tcache@Ordinarily, this function need not be called, since automatic
+@roff_tcache@periodic incremental garbage collection occurs, and the thread
+@roff_tcache@cache is automatically discarded when a thread exits.
+@roff_tcache@However, garbage collection is triggered by allocation activity,
+@roff_tcache@so it is possible for a thread that stops allocating/deallocating
+@roff_tcache@to retain its cache indefinitely, in which case the developer may
+@roff_tcache@find this function useful.
 .Sh TUNING
 Once, when the first call is made to one of these memory allocation
 routines, various flags will be set or reset, which affects the
@@ -203,16 +217,20 @@ physical memory becomes scarce and the pages remain unused.
 The default is 512 pages per arena;
 .Ev JEMALLOC_OPTIONS=10f
 will prevent any dirty unused pages from accumulating.
-@roff_mag@@roff_tls@.It G
-@roff_mag@@roff_tls@When there are multiple threads, use thread-specific caching
-@roff_mag@@roff_tls@for objects that are smaller than one page.
-@roff_mag@@roff_tls@This option is enabled by default.
-@roff_mag@@roff_tls@Thread-specific caching allows many allocations to be
-@roff_mag@@roff_tls@satisfied without performing any thread synchronization, at
-@roff_mag@@roff_tls@the cost of increased memory use.
-@roff_mag@@roff_tls@See the
-@roff_mag@@roff_tls@.Dq R
-@roff_mag@@roff_tls@option for related tuning information.
+@roff_tcache@.It G
+@roff_tcache@Enable/disable incremental garbage collection of unused objects
+@roff_tcache@stored in thread-specific caches.
+@roff_tcache@This option is enabled by default.
+@roff_tcache@.It H
+@roff_tcache@When there are multiple threads, use thread-specific caching for
+@roff_tcache@small and medium objects.
+@roff_tcache@This option is enabled by default.
+@roff_tcache@Thread-specific caching allows many allocations to be satisfied
+@roff_tcache@without performing any thread synchronization, at the cost of
+@roff_tcache@increased memory use.
+@roff_tcache@See the
+@roff_tcache@.Dq G
+@roff_tcache@option for related tuning information.
 @roff_fill@.It J
 @roff_fill@Each byte of new memory allocated by
 @roff_fill@.Fn @jemalloc_prefix@malloc
@@ -235,8 +253,10 @@ The valid range is from one page to one half chunk.
 The default value is 32 KiB.
 .It N
 Double/halve the number of arenas.
-The default number of arenas is two times the number of CPUs, or one if there
-is a single CPU.
+The default number of arenas is
+@roff_tcache@two
+@roff_no_tcache@four
+times the number of CPUs, or one if there is a single CPU.
 .It P
 Various statistics are printed at program exit via an
 .Xr atexit 3
@@ -250,13 +270,6 @@ Double/halve the size of the maximum size class that is a multiple of the
 quantum (8 or 16 bytes, depending on architecture).
 Above this size, cacheline spacing is used for size classes.
 The default value is 128 bytes.
-@roff_mag@@roff_tls@.It R
-@roff_mag@@roff_tls@Double/halve magazine size, which approximately
-@roff_mag@@roff_tls@doubles/halves the number of rounds in each magazine.
-@roff_mag@@roff_tls@Magazines are used by the thread-specific caching machinery
-@roff_mag@@roff_tls@to acquire and release objects in bulk.
-@roff_mag@@roff_tls@Increasing the magazine size decreases locking overhead, at
-@roff_mag@@roff_tls@the expense of increased memory usage.
 @roff_trace@.It T
 @roff_trace@Write a verbose trace log to a set of files named according to the
 @roff_trace@pattern
@@ -338,14 +351,14 @@ improve performance, mainly due to reduced cache performance.
 However, it may make sense to reduce the number of arenas if an application
 does not make much use of the allocation functions.
 .Pp
-@roff_mag@In addition to multiple arenas, this allocator supports
-@roff_mag@thread-specific caching for small and medium objects, in order to make
-@roff_mag@it possible to completely avoid synchronization for most small and
-@roff_mag@medium allocation requests.
-@roff_mag@Such caching allows very fast allocation in the common case, but it
-@roff_mag@increases memory usage and fragmentation, since a bounded number of
-@roff_mag@objects can remain allocated in each thread cache.
-@roff_mag@.Pp
+@roff_tcache@In addition to multiple arenas, this allocator supports
+@roff_tcache@thread-specific caching for small and medium objects, in order to
+@roff_tcache@make it possible to completely avoid synchronization for most small
+@roff_tcache@and medium allocation requests.
+@roff_tcache@Such caching allows very fast allocation in the common case, but it
+@roff_tcache@increases memory usage and fragmentation, since a bounded number of
+@roff_tcache@objects can remain allocated in each thread cache.
+@roff_tcache@.Pp
 Memory is conceptually broken into equal-sized chunks, where the chunk size is
 a power of two that is greater than the page size.
 Chunks are always aligned to multiples of the chunk size.

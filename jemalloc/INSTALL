@@ -46,10 +46,10 @@ any of the following arguments (not a definitive list) to 'configure':
     practice it never causes any problems if, for example, 4-byte allocations
     are 4-byte-aligned.
 
---disable-mag
-    Disable thread-specific caches for sub-page-sized objects.  Objects are
-    cached and released in bulk using "magazines" -- a term coined by the
-    developers of Solaris's umem allocator.
+--disable-tcache
+    Disable thread-specific caches for small and medium objects.  Objects are
+    cached and released in bulk, thus reducing the total number of mutex
+    operations.  Use the 'H' and 'G' options to control thread-specific caching.
 
 --enable-dss
     Enable support for page allocation/deallocation via sbrk(2), in addition to
@@ -82,7 +82,7 @@ any of the following arguments (not a definitive list) to 'configure':
     switches from single-threaded to multi-threaded mode, so that it can avoid
     mutex locking/unlocking operations while in single-threaded mode.  In
     practice, this feature usually has little impact on performance unless
-    magazines are disabled.
+    thread-specific caching is disabled.
 
 The following environment variables (not a definitive list) impact configure's
 behavior:

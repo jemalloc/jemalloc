@@ -187,6 +187,10 @@ __FBSDID("$FreeBSD: src/lib/libc/stdlib/malloc.c,v 1.183 2008/12/01 10:20:59 jas
 #endif
 
 #include "rb.h"
+#if (defined(JEMALLOC_TCACHE) && defined(JEMALLOC_STATS))
+#include "qr.h"
+#include "ql.h"
+#endif
 
 #ifdef JEMALLOC_DEBUG
    /* Disable inlining to make debugging easier. */
@@ -240,13 +244,6 @@ __FBSDID("$FreeBSD: src/lib/libc/stdlib/malloc.c,v 1.183 2008/12/01 10:20:59 jas
 /* We can't use TLS in non-PIC programs, since TLS relies on loader magic. */
 #if (!defined(PIC) && !defined(NO_TLS))
 #  define NO_TLS
-#endif
-
-#ifdef NO_TLS
-   /* JEMALLOC_MAG requires TLS. */
-#  ifdef JEMALLOC_MAG
-#    undef JEMALLOC_MAG
-#  endif
 #endif
 
 /*
@@ -326,13 +323,16 @@ __FBSDID("$FreeBSD: src/lib/libc/stdlib/malloc.c,v 1.183 2008/12/01 10:20:59 jas
 /* Put a cap on small object run size.  This overrides RUN_MAX_OVRHD. */
 #define	RUN_MAX_SMALL	(arena_maxclass)
 
-#ifdef JEMALLOC_MAG
+#ifdef JEMALLOC_TCACHE
+   /* Number of cache slots for each bin in the thread cache. */
+#  define TCACHE_LG_NSLOTS	7
+#  define TCACHE_NSLOTS		(1U << TCACHE_LG_NSLOTS)
    /*
-    * Default magazine size, in bytes.  max_rounds is calculated to make
-    * optimal use of the space, leaving just enough room for the magazine
-    * header.
+    * Approximate number of allocation events between full GC sweeps.  Integer
+    * rounding may cause the actual number to be slightly higher, since GC is
+    * performed incrementally.
     */
-#  define MAG_SIZE_2POW_DEFAULT	9
+#  define TCACHE_GC_THRESHOLD	8192
 #endif
 
 /******************************************************************************/
@@ -355,6 +355,17 @@ static malloc_mutex_t init_lock = PTHREAD_ADAPTIVE_MUTEX_INITIALIZER_NP;
 
 #ifdef JEMALLOC_STATS
 
+#ifdef JEMALLOC_TCACHE
+typedef struct tcache_bin_stats_s tcache_bin_stats_t;
+struct tcache_bin_stats_s {
+	/*
+	 * Number of allocation requests that corresponded to the size of this
+	 * bin.
+	 */
+	uint64_t	nrequests;
+};
+#endif
+
 typedef struct malloc_bin_stats_s malloc_bin_stats_t;
 struct malloc_bin_stats_s {
 	/*
@@ -363,9 +374,12 @@ struct malloc_bin_stats_s {
 	 */
 	uint64_t	nrequests;
 
-#ifdef JEMALLOC_MAG
-	/* Number of magazine reloads from this bin. */
-	uint64_t	nmags;
+#ifdef JEMALLOC_TCACHE
+	/* Number of tcache fills from this bin. */
+	uint64_t	nfills;
+
+	/* Number of tcache flushes to this bin. */
+	uint64_t	nflushes;
 #endif
 
 	/* Total number of runs created for this bin's size class. */
@@ -695,30 +709,27 @@ struct arena_s {
 
 /******************************************************************************/
 /*
- * Magazine data structures.
+ * Thread cache data structures.
  */
 
-#ifdef JEMALLOC_MAG
-typedef struct mag_s mag_t;
-struct mag_s {
-	size_t		binind; /* Index of associated bin. */
-	size_t		nrounds;
-	void		*rounds[1]; /* Dynamically sized. */
+#ifdef JEMALLOC_TCACHE
+typedef struct tcache_bin_s tcache_bin_t;
+struct tcache_bin_s {
+	unsigned	low_water;	/* Min # cached since last GC. */
+	unsigned	high_water;	/* Max # cached since last GC. */
+	unsigned	ncached;	/* # of cached objects. */
+	void		*slots[TCACHE_NSLOTS];
 };
 
-/*
- * Magazines are lazily allocated, but once created, they remain until the
- * associated mag_rack is destroyed.
- */
-typedef struct bin_mags_s bin_mags_t;
-struct bin_mags_s {
-	mag_t	*curmag;
-	mag_t	*sparemag;
-};
-
-typedef struct mag_rack_s mag_rack_t;
-struct mag_rack_s {
-	bin_mags_t	bin_mags[1]; /* Dynamically sized. */
+typedef struct tcache_s tcache_t;
+struct tcache_s {
+#  ifdef JEMALLOC_STATS
+	ql_elm(tcache_t) link;		/* Used for aggregating stats. */
+	tcache_bin_stats_t *tstats;	/* Corresponds to tbins. */
+#  endif
+	unsigned	ev_cnt;		/* Event count since incremental GC. */
+	unsigned	next_gc_bin;	/* Next bin to GC. */
+	tcache_bin_t	*tbins[1];	/* Dynamically sized. */
 };
 #endif
 
@@ -741,6 +752,8 @@ static malloc_mutex_t		trace_mtx;
 static unsigned			trace_next_tid = 1;
 
 static unsigned __thread	trace_tid;
+/* Used to cause trace_cleanup() to be called. */
+static pthread_key_t		trace_tsd;
 #endif
 
 /*
@@ -919,10 +932,6 @@ static const uint8_t	const_small_size2bin[STATIC_PAGE_SIZE - 255] = {
 #undef S2B_CMIN
 #undef S2B_SMIN
 
-#ifdef JEMALLOC_MAG
-static size_t		max_rounds;
-#endif
-
 /* Various chunk-related settings. */
 static size_t		chunksize;
 static size_t		chunksize_mask; /* (chunksize - 1). */
@@ -1011,21 +1020,27 @@ static malloc_mutex_t	arenas_lock; /* Protects arenas initialization. */
  * Map of pthread_self() --> arenas[???], used for selecting an arena to use
  * for allocations.
  */
-static __thread arena_t	*arenas_map;
+static __thread arena_t		*arenas_map;
 #endif
 
-#ifdef JEMALLOC_MAG
-/*
- * Map of thread-specific magazine racks, used for thread-specific object
- * caching.
- */
-static __thread mag_rack_t	*mag_rack;
+#ifdef JEMALLOC_TCACHE
+/* Map of thread-specific caches. */
+static __thread tcache_t	*tcache_tls;
 
 /*
- * Same contents as mag_rack, but initialized such that the TSD destructor is
+ * Same contents as tcache, but initialized such that the TSD destructor is
  * called when a thread exits, so that the cache can be cleaned up.
  */
-static pthread_key_t		mag_rack_tsd;
+static pthread_key_t		tcache_tsd;
+
+/* Number of tcache allocation/deallocation events between incremental GCs. */
+unsigned			tcache_gc_threshold;
+
+#  ifdef JEMALLOC_STATS
+static malloc_mutex_t		tcache_ql_mtx;
+/* List of tcaches for extant threads.  Stats from these are merged at exit. */
+static ql_head(tcache_t)	tcache_ql;
+#  endif
 #endif
 
 /*
@@ -1062,9 +1077,9 @@ static bool	opt_abort = false;
 static bool	opt_junk = false;
 #  endif
 #endif
-#ifdef JEMALLOC_MAG
-static bool	opt_mag = true;
-static size_t	opt_mag_size_2pow = MAG_SIZE_2POW_DEFAULT;
+#ifdef JEMALLOC_TCACHE
+static bool	opt_tcache = true;
+static size_t	opt_tcache_gc = true;
 #endif
 static size_t	opt_dirty_max = DIRTY_MAX_DEFAULT;
 static bool	opt_print_stats = false;
@@ -1145,9 +1160,9 @@ static void	arena_run_trim_tail(arena_t *arena, arena_chunk_t *chunk,
 static arena_run_t *arena_bin_nonfull_run_get(arena_t *arena, arena_bin_t *bin);
 static void	*arena_bin_malloc_hard(arena_t *arena, arena_bin_t *bin);
 static size_t	arena_bin_run_size_calc(arena_bin_t *bin, size_t min_run_size);
-#ifdef JEMALLOC_MAG
-static void	mag_load(mag_t *mag);
-static void	*mag_rack_alloc_hard(bin_mags_t *bin_mags, size_t size);
+#ifdef JEMALLOC_TCACHE
+static void	tcache_bin_fill(tcache_bin_t *tbin, size_t binind);
+static void	*tcache_alloc_hard(tcache_bin_t *tbin, size_t binind);
 #endif
 static void	*arena_malloc_medium(arena_t *arena, size_t size, bool zero);
 static void	*arena_malloc_large(arena_t *arena, size_t size, bool zero);
@@ -1155,14 +1170,15 @@ static void	*arena_palloc(arena_t *arena, size_t alignment, size_t size,
     size_t alloc_size);
 static bool	arena_is_large(const void *ptr);
 static size_t	arena_salloc(const void *ptr);
-#ifdef JEMALLOC_MAG
-static void	mag_unload(mag_t *mag);
+#ifdef JEMALLOC_TCACHE
+static void	tcache_bin_flush(tcache_bin_t *tbin, size_t binind,
+    unsigned rem);
 #endif
 static void	arena_dalloc_large(arena_t *arena, arena_chunk_t *chunk,
     void *ptr);
-#ifdef JEMALLOC_MAG
+#ifdef JEMALLOC_TCACHE
 static void	arena_dalloc_hard(arena_t *arena, arena_chunk_t *chunk,
-    void *ptr, arena_chunk_map_t *mapelm, mag_rack_t *rack);
+    void *ptr, arena_chunk_map_t *mapelm, tcache_t *tcache);
 #endif
 static void	arena_ralloc_large_shrink(arena_t *arena, arena_chunk_t *chunk,
     void *ptr, size_t size, size_t oldsize);
@@ -1172,11 +1188,15 @@ static bool	arena_ralloc_large(void *ptr, size_t size, size_t oldsize);
 static void	*arena_ralloc(void *ptr, size_t size, size_t oldsize);
 static bool	arena_new(arena_t *arena, unsigned ind);
 static arena_t	*arenas_extend(unsigned ind);
-#ifdef JEMALLOC_MAG
-static mag_t	*mag_create(arena_t *arena, size_t binind);
-static void	mag_destroy(mag_t *mag);
-static mag_rack_t *mag_rack_create(arena_t *arena);
-static void	mag_rack_destroy(mag_rack_t *rack);
+#ifdef JEMALLOC_TCACHE
+static tcache_bin_t	*tcache_bin_create(arena_t *arena);
+static void	tcache_bin_destroy(tcache_bin_t *tbin);
+#  ifdef JEMALLOC_STATS
+static void	tcache_stats_merge(tcache_t *tcache);
+#  endif
+static tcache_t	*tcache_create(arena_t *arena);
+static void	tcache_destroy(tcache_t *tcache);
+static void	tcache_thread_cleanup(void *arg);
 #endif
 static void	*huge_malloc(size_t size, bool zero);
 static void	*huge_palloc(size_t alignment, size_t size);
@@ -1186,7 +1206,7 @@ static void	huge_dalloc(void *ptr);
 static arena_t	*trace_arena(const void *ptr);
 static void	trace_flush(arena_t *arena);
 static void	trace_write(arena_t *arena, const char *s);
-static unsigned	trace_get_tid(void);
+static void	trace_thread_cleanup(void *arg);
 static void	malloc_trace_flush_all(void);
 static void	trace_malloc(const void *ptr, size_t size);
 static void	trace_calloc(const void *ptr, size_t number, size_t size);
@@ -1197,6 +1217,7 @@ static void	trace_realloc(const void *ptr, const void *old_ptr,
 static void	trace_free(const void *ptr, size_t size);
 static void	trace_malloc_usable_size(size_t size, const void *ptr);
 static void	trace_thread_exit(void);
+static unsigned	trace_get_tid(void);
 #endif
 static void	malloc_print_stats(void);
 #ifdef JEMALLOC_DEBUG
@@ -1206,7 +1227,6 @@ static bool	small_size2bin_init(void);
 static bool	small_size2bin_init_hard(void);
 static unsigned	malloc_ncpus(void);
 static bool	malloc_init_hard(void);
-static void	thread_cleanup(void *arg);
 static void	jemalloc_prefork(void);
 static void	jemalloc_postfork(void);
 
@@ -1615,16 +1635,12 @@ stats_print(arena_t *arena)
 	    arena->stats.ndalloc_large);
 	malloc_printf("mapped:  %12zu\n", arena->stats.mapped);
 
-#ifdef JEMALLOC_MAG
-	if (opt_mag) {
-		malloc_printf("bins:     bin    size regs pgs      mags   "
-		    "newruns    reruns maxruns curruns\n");
-	} else {
-#endif
-		malloc_printf("bins:     bin    size regs pgs  requests   "
-		    "newruns    reruns maxruns curruns\n");
-#ifdef JEMALLOC_MAG
-	}
+#ifdef JEMALLOC_TCACHE
+	malloc_printf("bins:     bin    size regs pgs  requests    "
+	    "nfills  nflushes   newruns    reruns maxruns curruns\n");
+#else
+	malloc_printf("bins:     bin    size regs pgs  requests   "
+	    "newruns    reruns maxruns curruns\n");
 #endif
 	for (i = 0, gap_start = UINT_MAX; i < nbins; i++) {
 		if (arena->bins[i].stats.nruns == 0) {
@@ -1644,6 +1660,9 @@ stats_print(arena_t *arena)
 			}
 			malloc_printf(
 			    "%13u %1s %5u %4u %3u %9llu %9llu"
+#ifdef JEMALLOC_TCACHE
+			    " %9llu %9llu"
+#endif
 			    " %9llu %7lu %7lu\n",
 			    i,
 			    i < ntbins ? "T" : i < ntbins + nqbins ? "Q" :
@@ -1652,10 +1671,11 @@ stats_print(arena_t *arena)
 			    arena->bins[i].reg_size,
 			    arena->bins[i].nregs,
 			    arena->bins[i].run_size >> PAGE_SHIFT,
-#ifdef JEMALLOC_MAG
-			    (opt_mag) ? arena->bins[i].stats.nmags :
-#endif
 			    arena->bins[i].stats.nrequests,
+#ifdef JEMALLOC_TCACHE
+			    arena->bins[i].stats.nfills,
+			    arena->bins[i].stats.nflushes,
+#endif
 			    arena->bins[i].stats.nruns,
 			    arena->bins[i].stats.reruns,
 			    arena->bins[i].stats.highruns,
@@ -3019,61 +3039,109 @@ arena_bin_run_size_calc(arena_bin_t *bin, size_t min_run_size)
 	return (good_run_size);
 }
 
-#ifdef JEMALLOC_MAG
-static inline void *
-mag_alloc(mag_t *mag)
+#ifdef JEMALLOC_TCACHE
+static inline void
+tcache_event(tcache_t *tcache)
 {
 
-	if (mag->nrounds == 0)
-		return (NULL);
-	mag->nrounds--;
+	tcache->ev_cnt++;
+	assert(tcache->ev_cnt <= tcache_gc_threshold);
+	if (tcache->ev_cnt >= tcache_gc_threshold) {
+		size_t binind = tcache->next_gc_bin;
+		tcache_bin_t *tbin = tcache->tbins[binind];
 
-	return (mag->rounds[mag->nrounds]);
+		if (tbin != NULL) {
+			if (tbin->high_water == 0) {
+				/*
+				 * This bin went completely unused for an
+				 * entire GC cycle, so throw away the tbin.
+				 */
+				assert(tbin->ncached == 0);
+				tcache_bin_destroy(tbin);
+				tcache->tbins[binind] = NULL;
+			} else {
+				if (tbin->low_water > 0) {
+					/*
+					 * Flush (ceiling) half of the objects
+					 * below the low water mark.
+					 */
+					tcache_bin_flush(tbin, binind,
+					    tbin->ncached - (tbin->low_water >>
+					    1) - (tbin->low_water & 1));
+				}
+				tbin->low_water = tbin->ncached;
+				tbin->high_water = tbin->ncached;
+			}
+		}
+
+		tcache->next_gc_bin++;
+		if (tcache->next_gc_bin == nbins)
+			tcache->next_gc_bin = 0;
+		tcache->ev_cnt = 0;
+	}
+}
+static inline void *
+tcache_bin_alloc(tcache_bin_t *tbin)
+{
+
+	if (tbin->ncached == 0)
+		return (NULL);
+	tbin->ncached--;
+	if (tbin->ncached < tbin->low_water)
+		tbin->low_water = tbin->ncached;
+	return (tbin->slots[tbin->ncached]);
 }
 
 static void
-mag_load(mag_t *mag)
+tcache_bin_fill(tcache_bin_t *tbin, size_t binind)
 {
 	arena_t *arena;
 	arena_bin_t *bin;
 	arena_run_t *run;
-	void *round;
-	size_t i;
+	void *ptr;
+	unsigned i;
+
+	assert(tbin->ncached == 0);
 
 	arena = choose_arena();
-	bin = &arena->bins[mag->binind];
+	bin = &arena->bins[binind];
 	malloc_mutex_lock(&arena->lock);
-	for (i = mag->nrounds; i < max_rounds; i++) {
+	for (i = 0; i < (TCACHE_NSLOTS >> 1); i++) {
 		if ((run = bin->runcur) != NULL && run->nfree > 0)
-			round = arena_bin_malloc_easy(arena, bin, run);
+			ptr = arena_bin_malloc_easy(arena, bin, run);
 		else
-			round = arena_bin_malloc_hard(arena, bin);
-		if (round == NULL)
+			ptr = arena_bin_malloc_hard(arena, bin);
+		if (ptr == NULL)
 			break;
-		mag->rounds[i] = round;
+		/*
+		 * Fill tbin such that the objects lowest in memory are used
+		 * first.
+		 */
+		tbin->slots[(TCACHE_NSLOTS >> 1) - 1 - i] = ptr;
 	}
 #ifdef JEMALLOC_STATS
-	bin->stats.nmags++;
+	bin->stats.nfills++;
 	if (bin->reg_size <= small_maxclass) {
-		arena->stats.nmalloc_small += (i - mag->nrounds);
-		arena->stats.allocated_small += (i - mag->nrounds) *
+		arena->stats.nmalloc_small += (i - tbin->ncached);
+		arena->stats.allocated_small += (i - tbin->ncached) *
 		    bin->reg_size;
 	} else {
-		arena->stats.nmalloc_medium += (i - mag->nrounds);
-		arena->stats.allocated_medium += (i - mag->nrounds) *
+		arena->stats.nmalloc_medium += (i - tbin->ncached);
+		arena->stats.allocated_medium += (i - tbin->ncached) *
 		    bin->reg_size;
 	}
 #endif
 	malloc_mutex_unlock(&arena->lock);
-	mag->nrounds = i;
+	tbin->ncached = i;
+	if (tbin->ncached > tbin->high_water)
+		tbin->high_water = tbin->ncached;
 }
 
 static inline void *
-mag_rack_alloc(mag_rack_t *rack, size_t size, bool zero)
+tcache_alloc(tcache_t *tcache, size_t size, bool zero)
 {
 	void *ret;
-	bin_mags_t *bin_mags;
-	mag_t *mag;
+	tcache_bin_t *tbin;
 	size_t binind;
 
 	if (size <= small_maxclass)
@@ -3083,12 +3151,17 @@ mag_rack_alloc(mag_rack_t *rack, size_t size, bool zero)
 		    mspace_2pow);
 	}
 	assert(binind < nbins);
-	bin_mags = &rack->bin_mags[binind];
+	tbin = tcache->tbins[binind];
+	if (tbin == NULL) {
+		tbin = tcache_bin_create(choose_arena());
+		if (tbin == NULL)
+			return (NULL);
+		tcache->tbins[binind] = tbin;
+	}
 
-	mag = bin_mags->curmag;
-	ret = mag_alloc(mag);
+	ret = tcache_bin_alloc(tbin);
 	if (ret == NULL) {
-		ret = mag_rack_alloc_hard(bin_mags, size);
+		ret = tcache_alloc_hard(tbin, binind);
 		if (ret == NULL)
 			return (NULL);
 	}
@@ -3103,30 +3176,20 @@ mag_rack_alloc(mag_rack_t *rack, size_t size, bool zero)
 	} else
 		memset(ret, 0, size);
 
+#ifdef JEMALLOC_STATS
+	tcache->tstats[binind].nrequests++;
+#endif
+	tcache_event(tcache);
 	return (ret);
 }
 
 static void *
-mag_rack_alloc_hard(bin_mags_t *bin_mags, size_t size)
+tcache_alloc_hard(tcache_bin_t *tbin, size_t binind)
 {
 	void *ret;
-	mag_t *mag;
 
-	mag = bin_mags->curmag;
-	if (bin_mags->sparemag->nrounds > 0) {
-		/* Swap magazines. */
-		bin_mags->curmag = bin_mags->sparemag;
-		bin_mags->sparemag = mag;
-		mag = bin_mags->curmag;
-
-		/* Unconditionally allocate. */
-		mag->nrounds--;
-		ret = mag->rounds[mag->nrounds];
-	} else {
-		/* Reload the current magazine. */
-		mag_load(mag);
-		ret = mag_alloc(mag);
-	}
+	tcache_bin_fill(tbin, binind);
+	ret = tcache_bin_alloc(tbin);
 
 	return (ret);
 }
@@ -3157,8 +3220,14 @@ arena_malloc_small(arena_t *arena, size_t size, bool zero)
 	}
 
 #ifdef JEMALLOC_STATS
-	bin->stats.nrequests++;
-	arena->stats.nmalloc_small++;
+#  ifdef JEMALLOC_TCACHE
+	if (isthreaded == false) {
+#  endif
+		bin->stats.nrequests++;
+		arena->stats.nmalloc_small++;
+#  ifdef JEMALLOC_TCACHE
+	}
+#  endif
 	arena->stats.allocated_small += size;
 #endif
 	malloc_mutex_unlock(&arena->lock);
@@ -3202,8 +3271,14 @@ arena_malloc_medium(arena_t *arena, size_t size, bool zero)
 	}
 
 #ifdef JEMALLOC_STATS
-	bin->stats.nrequests++;
-	arena->stats.nmalloc_medium++;
+#  ifdef JEMALLOC_TCACHE
+	if (isthreaded == false) {
+#  endif
+		bin->stats.nrequests++;
+		arena->stats.nmalloc_medium++;
+#  ifdef JEMALLOC_TCACHE
+	}
+#  endif
 	arena->stats.allocated_medium += size;
 #endif
 	malloc_mutex_unlock(&arena->lock);
@@ -3260,15 +3335,15 @@ arena_malloc(size_t size, bool zero)
 	assert(QUANTUM_CEILING(size) <= arena_maxclass);
 
 	if (size <= bin_maxclass) {
-#ifdef JEMALLOC_MAG
-		if (opt_mag) {
-			mag_rack_t *rack = mag_rack;
-			if (rack == NULL) {
-				rack = mag_rack_create(choose_arena());
-				if (rack == NULL)
+#ifdef JEMALLOC_TCACHE
+		if (isthreaded && opt_tcache) {
+			tcache_t *tcache = tcache_tls;
+			if (tcache == NULL) {
+				tcache = tcache_create(choose_arena());
+				if (tcache == NULL)
 					return (NULL);
 			}
-			return (mag_rack_alloc(rack, size, zero));
+			return (tcache_alloc(tcache, size, zero));
 		} else {
 #endif
 			if (size <= small_maxclass) {
@@ -3278,7 +3353,7 @@ arena_malloc(size_t size, bool zero)
 				return (arena_malloc_medium(choose_arena(),
 				    size, zero));
 			}
-#ifdef JEMALLOC_MAG
+#ifdef JEMALLOC_TCACHE
 		}
 #endif
 	} else
@@ -3628,57 +3703,134 @@ arena_dalloc_bin(arena_t *arena, arena_chunk_t *chunk, void *ptr,
 #endif
 }
 
-#ifdef JEMALLOC_MAG
-static void
-mag_unload(mag_t *mag)
+#ifdef JEMALLOC_TCACHE
+static inline void
+tcache_bin_merge(void **to, void **fr, unsigned lcnt, unsigned rcnt)
 {
-	arena_chunk_t *chunk;
-	arena_t *arena;
-	void *round;
-	size_t i, ndeferred, nrounds;
+	void **l, **r;
+	unsigned li, ri, i;
 
-	for (ndeferred = mag->nrounds; ndeferred > 0;) {
-		nrounds = ndeferred;
-		/* Lock the arena associated with the first round. */
-		chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(mag->rounds[0]);
-		arena = chunk->arena;
-		malloc_mutex_lock(&arena->lock);
-		/* Deallocate every round that belongs to the locked arena. */
-		for (i = ndeferred = 0; i < nrounds; i++) {
-			round = mag->rounds[i];
-			chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(round);
-			if (chunk->arena == arena) {
-				size_t pageind = (((uintptr_t)round -
-				    (uintptr_t)chunk) >> PAGE_SHIFT);
-				arena_chunk_map_t *mapelm =
-				    &chunk->map[pageind];
-				arena_dalloc_bin(arena, chunk, round, mapelm);
-			} else {
-				/*
-				 * This round was allocated via a different
-				 * arena than the one that is currently locked.
-				 * Stash the round, so that it can be handled
-				 * in a future pass.
-				 */
-				mag->rounds[ndeferred] = round;
-				ndeferred++;
-			}
+	l = fr;
+	r = &fr[lcnt];
+	li = ri = i = 0;
+	while (li < lcnt && ri < rcnt) {
+		/* High pointers come first in sorted result. */
+		if ((uintptr_t)l[li] > (uintptr_t)r[ri]) {
+			to[i] = l[li];
+			li++;
+		} else {
+			to[i] = r[ri];
+			ri++;
 		}
-		malloc_mutex_unlock(&arena->lock);
+		i++;
 	}
 
-	mag->nrounds = 0;
+	if (li < lcnt)
+		memcpy(&to[i], &l[li], sizeof(void *) * (lcnt - li));
+	else if (ri < rcnt)
+		memcpy(&to[i], &r[ri], sizeof(void *) * (rcnt - ri));
 }
 
 static inline void
-mag_rack_dalloc(mag_rack_t *rack, void *ptr)
+tcache_bin_sort(tcache_bin_t *tbin)
+{
+	unsigned e, i;
+	void **fr, **to;
+	void *mslots[TCACHE_NSLOTS];
+
+	/*
+	 * Perform iterative merge sort, swapping source and destination arrays
+	 * during each iteration.
+	 */
+
+	fr = mslots; to = tbin->slots;
+	for (e = 1; e < tbin->ncached; e <<= 1) {
+		void **tmp = fr; fr = to; to = tmp;
+		for (i = 0; i + (e << 1) <= tbin->ncached; i += (e << 1))
+			tcache_bin_merge(&to[i], &fr[i], e, e);
+		if (i + e <= tbin->ncached) {
+			tcache_bin_merge(&to[i], &fr[i],
+			    e, tbin->ncached - (i + e));
+		} else if (i < tbin->ncached)
+			tcache_bin_merge(&to[i], &fr[i], tbin->ncached - i, 0);
+	}
+
+	/* Copy the final result out of mslots, if necessary. */
+	if (to == mslots)
+		memcpy(tbin->slots, mslots, sizeof(void *) * tbin->ncached);
+
+#ifdef JEMALLOC_DEBUG
+	for (i = 1; i < tbin->ncached; i++)
+		assert(tbin->slots[i-1] > tbin->slots[i]);
+#endif
+}
+
+static void
+tcache_bin_flush(tcache_bin_t *tbin, size_t binind, unsigned rem)
+{
+	arena_chunk_t *chunk;
+	arena_t *arena;
+	void *ptr;
+	unsigned i, ndeferred, ncached;
+
+	if (rem > 0) {
+		assert(rem < tbin->ncached);
+		/* Sort pointers such that the highest objects will be freed. */
+		tcache_bin_sort(tbin);
+	}
+
+	for (ndeferred = tbin->ncached - rem; ndeferred > 0;) {
+		ncached = ndeferred;
+		/* Lock the arena associated with the first object. */
+		chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(tbin->slots[0]);
+		arena = chunk->arena;
+		malloc_mutex_lock(&arena->lock);
+		/* Deallocate every object that belongs to the locked arena. */
+		for (i = ndeferred = 0; i < ncached; i++) {
+			ptr = tbin->slots[i];
+			chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
+			if (chunk->arena == arena) {
+				size_t pageind = (((uintptr_t)ptr -
+				    (uintptr_t)chunk) >> PAGE_SHIFT);
+				arena_chunk_map_t *mapelm =
+				    &chunk->map[pageind];
+				arena_dalloc_bin(arena, chunk, ptr, mapelm);
+			} else {
+				/*
+				 * This object was allocated via a different
+				 * arena than the one that is currently locked.
+				 * Stash the object, so that it can be handled
+				 * in a future pass.
+				 */
+				tbin->slots[ndeferred] = ptr;
+				ndeferred++;
+			}
+		}
+#ifdef JEMALLOC_STATS
+		arena->bins[binind].stats.nflushes++;
+#endif
+		malloc_mutex_unlock(&arena->lock);
+	}
+
+	if (rem > 0) {
+		/*
+		 * Shift the remaining valid pointers to the base of the slots
+		 * array.
+		 */
+		memmove(&tbin->slots[0], &tbin->slots[tbin->ncached - rem],
+		    rem * sizeof(void *));
+	}
+	tbin->ncached = rem;
+}
+
+static inline void
+tcache_dalloc(tcache_t *tcache, void *ptr)
 {
 	arena_t *arena;
 	arena_chunk_t *chunk;
 	arena_run_t *run;
 	arena_bin_t *bin;
-	bin_mags_t *bin_mags;
-	mag_t *mag;
+	tcache_bin_t *tbin;
 	size_t pageind, binind;
 	arena_chunk_map_t *mapelm;
 
@@ -3698,47 +3850,27 @@ mag_rack_dalloc(mag_rack_t *rack, void *ptr)
 		memset(ptr, 0x5a, arena->bins[binind].reg_size);
 #endif
 
-	bin_mags = &rack->bin_mags[binind];
-	mag = bin_mags->curmag;
-	if (mag == NULL) {
-		/* Create an initial magazine for this size class. */
-		assert(bin_mags->sparemag == NULL);
-		mag = mag_create(choose_arena(), binind);
-		if (mag == NULL) {
+	tbin = tcache->tbins[binind];
+	if (tbin == NULL) {
+		tbin = tcache_bin_create(choose_arena());
+		if (tbin == NULL) {
 			malloc_mutex_lock(&arena->lock);
 			arena_dalloc_bin(arena, chunk, ptr, mapelm);
 			malloc_mutex_unlock(&arena->lock);
 			return;
 		}
-		bin_mags->curmag = mag;
+		tcache->tbins[binind] = tbin;
 	}
 
-	if (mag->nrounds == max_rounds) {
-		if (bin_mags->sparemag != NULL) {
-			if (bin_mags->sparemag->nrounds < max_rounds) {
-				/* Swap magazines. */
-				bin_mags->curmag = bin_mags->sparemag;
-				bin_mags->sparemag = mag;
-				mag = bin_mags->curmag;
-			} else {
-				/* Unload the current magazine. */
-				mag_unload(mag);
-			}
-		} else {
-			/* Create a second magazine. */
-			mag = mag_create(choose_arena(), binind);
-			if (mag == NULL) {
-				mag = rack->bin_mags[binind].curmag;
-				mag_unload(mag);
-			} else {
-				bin_mags->sparemag = bin_mags->curmag;
-				bin_mags->curmag = mag;
-			}
-		}
-		assert(mag->nrounds < max_rounds);
-	}
-	mag->rounds[mag->nrounds] = ptr;
-	mag->nrounds++;
+	if (tbin->ncached == TCACHE_NSLOTS)
+		tcache_bin_flush(tbin, binind, (TCACHE_NSLOTS >> 1));
+	assert(tbin->ncached < TCACHE_NSLOTS);
+	tbin->slots[tbin->ncached] = ptr;
+	tbin->ncached++;
+	if (tbin->ncached > tbin->high_water)
+		tbin->high_water = tbin->ncached;
+
+	tcache_event(tcache);
 }
 #endif
 
@@ -3795,44 +3927,44 @@ arena_dalloc(arena_t *arena, arena_chunk_t *chunk, void *ptr)
 	assert((mapelm->bits & CHUNK_MAP_ALLOCATED) != 0);
 	if ((mapelm->bits & CHUNK_MAP_LARGE) == 0) {
 		/* Small allocation. */
-#ifdef JEMALLOC_MAG
-		if (opt_mag) {
-			mag_rack_t *rack = mag_rack;
-			if ((uintptr_t)rack > (uintptr_t)1)
-				mag_rack_dalloc(rack, ptr);
+#ifdef JEMALLOC_TCACHE
+		if (isthreaded && opt_tcache) {
+			tcache_t *tcache = tcache_tls;
+			if ((uintptr_t)tcache > (uintptr_t)1)
+				tcache_dalloc(tcache, ptr);
 			else {
 				arena_dalloc_hard(arena, chunk, ptr, mapelm,
-				    rack);
+				    tcache);
 			}
 		} else {
 #endif
 			malloc_mutex_lock(&arena->lock);
 			arena_dalloc_bin(arena, chunk, ptr, mapelm);
 			malloc_mutex_unlock(&arena->lock);
-#ifdef JEMALLOC_MAG
+#ifdef JEMALLOC_TCACHE
 		}
 #endif
 	} else
 		arena_dalloc_large(arena, chunk, ptr);
 }
 
-#ifdef JEMALLOC_MAG
+#ifdef JEMALLOC_TCACHE
 static void
 arena_dalloc_hard(arena_t *arena, arena_chunk_t *chunk, void *ptr,
-    arena_chunk_map_t *mapelm, mag_rack_t *rack)
+    arena_chunk_map_t *mapelm, tcache_t *tcache)
 {
 
-	if (rack == NULL) {
-		rack = mag_rack_create(arena);
-		if (rack == NULL) {
+	if (tcache == NULL) {
+		tcache = tcache_create(arena);
+		if (tcache == NULL) {
 			malloc_mutex_lock(&arena->lock);
 			arena_dalloc_bin(arena, chunk, ptr, mapelm);
 			malloc_mutex_unlock(&arena->lock);
 		} else
-			mag_rack_dalloc(rack, ptr);
+			tcache_dalloc(tcache, ptr);
 	} else {
 		/* This thread is currently exiting, so directly deallocate. */
-		assert(rack == (void *)(uintptr_t)1);
+		assert(tcache == (void *)(uintptr_t)1);
 		malloc_mutex_lock(&arena->lock);
 		arena_dalloc_bin(arena, chunk, ptr, mapelm);
 		malloc_mutex_unlock(&arena->lock);
@@ -4245,142 +4377,187 @@ arenas_extend(unsigned ind)
 	return (arenas[0]);
 }
 
-#ifdef JEMALLOC_MAG
-static mag_t *
-mag_create(arena_t *arena, size_t binind)
+#ifdef JEMALLOC_TCACHE
+static tcache_bin_t *
+tcache_bin_create(arena_t *arena)
 {
-	mag_t *ret;
+	tcache_bin_t *ret;
 
-	if (sizeof(mag_t) + (sizeof(void *) * (max_rounds - 1)) <=
-	    small_maxclass) {
-		ret = arena_malloc_small(arena, sizeof(mag_t) + (sizeof(void *)
-		    * (max_rounds - 1)), false);
-	} else if (sizeof(mag_t) + (sizeof(void *) * (max_rounds - 1)) <=
-	    bin_maxclass) {
-		ret = arena_malloc_medium(arena, sizeof(mag_t) + (sizeof(void *)
-		    * (max_rounds - 1)), false);
-	} else {
-		ret = imalloc(sizeof(mag_t) + (sizeof(void *) * (max_rounds -
-		    1)));
-	}
+	if (sizeof(tcache_bin_t) <= small_maxclass) {
+		ret = (tcache_bin_t *)arena_malloc_small(arena,
+		    sizeof(tcache_bin_t), false);
+	} else if (sizeof(tcache_bin_t) <= bin_maxclass) {
+		ret = (tcache_bin_t *)arena_malloc_medium(arena,
+		    sizeof(tcache_bin_t), false);
+	} else
+		ret = imalloc(sizeof(tcache_bin_t));
 	if (ret == NULL)
 		return (NULL);
-	ret->binind = binind;
-	ret->nrounds = 0;
+	ret->low_water = 0;
+	ret->high_water = 0;
+	ret->ncached = 0;
 
 	return (ret);
 }
 
 static void
-mag_destroy(mag_t *mag)
+tcache_bin_destroy(tcache_bin_t *tbin)
 {
 	arena_t *arena;
 	arena_chunk_t *chunk;
 	size_t pageind;
 	arena_chunk_map_t *mapelm;
 
-	chunk = CHUNK_ADDR2BASE(mag);
+	chunk = CHUNK_ADDR2BASE(tbin);
 	arena = chunk->arena;
-	pageind = (((uintptr_t)mag - (uintptr_t)chunk) >> PAGE_SHIFT);
+	pageind = (((uintptr_t)tbin - (uintptr_t)chunk) >> PAGE_SHIFT);
 	mapelm = &chunk->map[pageind];
 
-	assert(mag->nrounds == 0);
-	if (sizeof(mag_t) + (sizeof(void *) * (max_rounds - 1)) <=
-	    bin_maxclass) {
+	assert(tbin->ncached == 0);
+	if (sizeof(tcache_bin_t) <= bin_maxclass) {
 		malloc_mutex_lock(&arena->lock);
-		arena_dalloc_bin(arena, chunk, mag, mapelm);
+		arena_dalloc_bin(arena, chunk, tbin, mapelm);
 		malloc_mutex_unlock(&arena->lock);
 	} else
-		idalloc(mag);
+		idalloc(tbin);
 }
 
-static mag_rack_t *
-mag_rack_create(arena_t *arena)
+#ifdef JEMALLOC_STATS
+static void
+tcache_stats_merge(tcache_t *tcache)
 {
-	mag_rack_t *rack;
-	mag_t *mag;
+	arena_t *arena = choose_arena();
 	unsigned i;
 
-	// XXX Consolidate into one big object?
+	malloc_mutex_lock(&arena->lock);
+	for (i = 0; i < mbin0; i++) {
+		arena_bin_t *bin = &arena->bins[i];
+		tcache_bin_stats_t *tstats = &tcache->tstats[i];
+		bin->stats.nrequests += tstats->nrequests;
+		arena->stats.nmalloc_small += tstats->nrequests;
+	}
+	for (; i < nbins; i++) {
+		arena_bin_t *bin = &arena->bins[i];
+		tcache_bin_stats_t *tstats = &tcache->tstats[i];
+		bin->stats.nrequests += tstats->nrequests;
+		arena->stats.nmalloc_medium += tstats->nrequests;
+	}
+	malloc_mutex_unlock(&arena->lock);
 
-	if (sizeof(mag_rack_t) + (sizeof(bin_mags_t *) * (nbins - 1)) <=
+	if (sizeof(tcache_bin_stats_t) * nbins <= bin_maxclass) {
+		arena_chunk_t *chunk = CHUNK_ADDR2BASE(tcache->tstats);
+		arena_t *arena = chunk->arena;
+		size_t pageind = (((uintptr_t)tcache->tstats -
+		    (uintptr_t)chunk) >> PAGE_SHIFT);
+		arena_chunk_map_t *mapelm = &chunk->map[pageind];
+
+		malloc_mutex_lock(&arena->lock);
+		arena_dalloc_bin(arena, chunk, tcache->tstats, mapelm);
+		malloc_mutex_unlock(&arena->lock);
+	}
+}
+#endif
+
+static tcache_t *
+tcache_create(arena_t *arena)
+{
+	tcache_t *tcache;
+
+	if (sizeof(tcache_t) + (sizeof(tcache_bin_t *) * (nbins - 1)) <=
 	    small_maxclass) {
-		rack = arena_malloc_small(arena, sizeof(mag_rack_t) +
-		    (sizeof(bin_mags_t) * (nbins - 1)), true);
+		tcache = (tcache_t *)arena_malloc_small(arena, sizeof(tcache_t)
+		    + (sizeof(tcache_bin_t *) * (nbins - 1)), true);
+	} else if (sizeof(tcache_t) + (sizeof(tcache_bin_t *) * (nbins - 1)) <=
+	    bin_maxclass) {
+		tcache = (tcache_t *)arena_malloc_medium(arena, sizeof(tcache_t)
+		    + (sizeof(tcache_bin_t *) * (nbins - 1)), true);
 	} else {
-		assert(sizeof(mag_rack_t) + (sizeof(bin_mags_t *) * (nbins - 1))
-		    <= bin_maxclass);
-		rack = arena_malloc_medium(arena, sizeof(mag_rack_t) +
-		    (sizeof(bin_mags_t) * (nbins - 1)), true);
+		tcache = (tcache_t *)icalloc(sizeof(tcache_t) +
+		    (sizeof(tcache_bin_t *) * (nbins - 1)));
 	}
 
-	if (rack == NULL)
+	if (tcache == NULL)
 		return (NULL);
 
-	for (i = 0; i < nbins; i++) {
-		mag = mag_create(arena, i);
-		if (mag == NULL) {
-			unsigned j;
-			for (j = 0; j < i; j++) {
-				mag_destroy(rack->bin_mags[j].curmag);
-				mag_destroy(rack->bin_mags[j].sparemag);
-			}
-			mag_rack_destroy(rack);
-			return (NULL);
-		}
-		rack->bin_mags[i].curmag = mag;
-
-		mag = mag_create(arena, i);
-		if (mag == NULL) {
-			unsigned j;
-			for (j = 0; j < i; j++) {
-				mag_destroy(rack->bin_mags[j].curmag);
-				mag_destroy(rack->bin_mags[j].sparemag);
-			}
-			mag_destroy(rack->bin_mags[j].curmag);
-			mag_rack_destroy(rack);
-			return (NULL);
-		}
-		rack->bin_mags[i].sparemag = mag;
+#if (defined(JEMALLOC_TCACHE) && defined(JEMALLOC_STATS))
+	if (sizeof(tcache_bin_stats_t) * nbins <= small_maxclass) {
+		tcache->tstats = (tcache_bin_stats_t *)arena_malloc_small(arena,
+		    sizeof(tcache_bin_stats_t) * nbins, true);
+	} else if (sizeof(tcache_bin_stats_t) * nbins <= bin_maxclass) {
+		tcache->tstats = (tcache_bin_stats_t *)arena_malloc_medium(
+		    arena, sizeof(tcache_bin_stats_t) * nbins, true);
+	} else {
+		tcache->tstats = (tcache_bin_stats_t *)icalloc(
+		    sizeof(tcache_bin_stats_t) * nbins);
 	}
 
-	mag_rack = rack;
-	pthread_setspecific(mag_rack_tsd, rack);
+	if (tcache->tstats == NULL) {
+		tcache_destroy(tcache);
+		return (NULL);
+	}
 
-	return (rack);
+	/* Link into list of extant tcaches. */
+	malloc_mutex_lock(&tcache_ql_mtx);
+	ql_elm_new(tcache, link);
+	ql_tail_insert(&tcache_ql, tcache, link);
+	malloc_mutex_unlock(&tcache_ql_mtx);
+#endif
+
+	tcache_tls = tcache;
+	pthread_setspecific(tcache_tsd, tcache);
+
+	return (tcache);
 }
 
 static void
-mag_rack_destroy(mag_rack_t *rack)
+tcache_destroy(tcache_t *tcache)
 {
-	arena_t *arena;
-	arena_chunk_t *chunk;
-	bin_mags_t *bin_mags;
-	size_t i, pageind;
-	arena_chunk_map_t *mapelm;
+	size_t i;
+
+#ifdef JEMALLOC_STATS
+	if (tcache->tstats != NULL) {
+		/* Unlink from list of extant tcaches. */
+		malloc_mutex_lock(&tcache_ql_mtx);
+		ql_remove(&tcache_ql, tcache, link);
+		malloc_mutex_unlock(&tcache_ql_mtx);
+
+		tcache_stats_merge(tcache);
+	}
+#endif
 
 	for (i = 0; i < nbins; i++) {
-		bin_mags = &rack->bin_mags[i];
-		if (bin_mags->curmag != NULL) {
-			assert(bin_mags->curmag->binind == i);
-			mag_unload(bin_mags->curmag);
-			mag_destroy(bin_mags->curmag);
-		}
-		if (bin_mags->sparemag != NULL) {
-			assert(bin_mags->sparemag->binind == i);
-			mag_unload(bin_mags->sparemag);
-			mag_destroy(bin_mags->sparemag);
+		tcache_bin_t *tbin = tcache->tbins[i];
+		if (tbin != NULL) {
+			tcache_bin_flush(tbin, i, 0);
+			tcache_bin_destroy(tbin);
 		}
 	}
 
-	chunk = CHUNK_ADDR2BASE(rack);
-	arena = chunk->arena;
-	pageind = (((uintptr_t)rack - (uintptr_t)chunk) >> PAGE_SHIFT);
-	mapelm = &chunk->map[pageind];
+	if (arena_salloc(tcache) <= bin_maxclass) {
+		arena_chunk_t *chunk = CHUNK_ADDR2BASE(tcache);
+		arena_t *arena = chunk->arena;
+		size_t pageind = (((uintptr_t)tcache - (uintptr_t)chunk) >>
+		    PAGE_SHIFT);
+		arena_chunk_map_t *mapelm = &chunk->map[pageind];
 
-	malloc_mutex_lock(&arena->lock);
-	arena_dalloc_bin(arena, chunk, rack, mapelm);
-	malloc_mutex_unlock(&arena->lock);
+		malloc_mutex_lock(&arena->lock);
+		arena_dalloc_bin(arena, chunk, tcache, mapelm);
+		malloc_mutex_unlock(&arena->lock);
+	} else
+		idalloc(tcache);
+}
+
+static void
+tcache_thread_cleanup(void *arg)
+{
+	tcache_t *tcache = (tcache_t *)arg;
+
+	assert(tcache == tcache_tls);
+	if (tcache != NULL) {
+		assert(tcache != (void *)(uintptr_t)1);
+		tcache_destroy(tcache);
+		tcache_tls = (void *)(uintptr_t)1;
+	}
 }
 #endif
 
@@ -4659,6 +4836,12 @@ trace_get_tid(void)
 		trace_next_tid++;
 		malloc_mutex_unlock(&trace_mtx);
 		ret = trace_tid;
+
+		/*
+		 * Set trace_tsd to non-zero so that the cleanup function will
+		 * be called upon thread exit.
+		 */
+		pthread_setspecific(trace_tsd, (void *)ret);
 	}
 
 	return (ret);
@@ -4808,12 +4991,34 @@ trace_thread_exit(void)
 
 	malloc_mutex_unlock(&arena->lock);
 }
+
+static void
+trace_thread_cleanup(void *arg)
+{
+
+	trace_thread_exit();
+}
 #endif
 
 static void
 malloc_print_stats(void)
 {
 	char s[UMAX2S_BUFSIZE];
+
+#if (defined(JEMALLOC_TCACHE) && defined(JEMALLOC_STATS))
+	/*
+	 * Merge stats from extant threads.  This is racy (tcache stats may be
+	 * merged twice), but no crashes will occur.
+	 */
+	tcache_t *tcache;
+
+	malloc_mutex_lock(&tcache_ql_mtx);
+	while ((tcache = ql_first(&tcache_ql)) != NULL) {
+		ql_remove(&tcache_ql, tcache, link);
+		tcache_stats_merge(tcache);
+	}
+	malloc_mutex_unlock(&tcache_ql_mtx);
+#endif
 
 	malloc_message("___ Begin jemalloc statistics ___\n", "", "", "");
 	malloc_message("Assertions ",
@@ -4825,8 +5030,9 @@ malloc_print_stats(void)
 	    "\n", "");
 	malloc_message("Boolean JEMALLOC_OPTIONS: ",
 	    opt_abort ? "A" : "a", "", "");
-#ifdef JEMALLOC_MAG
-	malloc_message(opt_mag ? "G" : "g", "", "", "");
+#ifdef JEMALLOC_TCACHE
+	malloc_message(opt_tcache_gc ? "G" : "g", "", "", "");
+	malloc_message(opt_tcache ? "H" : "h", "", "", "");
 #endif
 #ifdef JEMALLOC_FILL
 	malloc_message(opt_junk ? "J" : "j", "", "", "");
@@ -4872,10 +5078,6 @@ malloc_print_stats(void)
 	malloc_message(umax2s(sspace_max, 10, s), "]\n", "", "");
 	malloc_message("Medium sizes: [", umax2s(medium_min, 10, s), "..", "");
 	malloc_message(umax2s(medium_max, 10, s), "]\n", "", "");
-#ifdef JEMALLOC_MAG
-	malloc_message("Rounds per magazine: ", umax2s(max_rounds, 10, s), "\n",
-	    "");
-#endif
 	malloc_message("Max dirty pages per arena: ",
 	    umax2s(opt_dirty_max, 10, s), "\n", "");
 
@@ -5249,12 +5451,18 @@ MALLOC_OUT:
 					else if ((opt_dirty_max << 1) != 0)
 						opt_dirty_max <<= 1;
 					break;
-#ifdef JEMALLOC_MAG
+#ifdef JEMALLOC_TCACHE
 				case 'g':
-					opt_mag = false;
+					opt_tcache_gc = false;
 					break;
 				case 'G':
-					opt_mag = true;
+					opt_tcache_gc = true;
+					break;
+				case 'h':
+					opt_tcache = false;
+					break;
+				case 'H':
+					opt_tcache = true;
 					break;
 #endif
 #ifdef JEMALLOC_FILL
@@ -5313,22 +5521,6 @@ MALLOC_OUT:
 					    opt_cspace_max_2pow)
 						opt_qspace_max_2pow++;
 					break;
-#ifdef JEMALLOC_MAG
-				case 'R':
-					if (opt_mag_size_2pow + 1 < (8U <<
-					    SIZEOF_PTR_2POW))
-						opt_mag_size_2pow++;
-					break;
-				case 'r':
-					/*
-					 * Make sure there's always at least
-					 * one round per magazine.
-					 */
-					if ((1U << (opt_mag_size_2pow-1)) >=
-					    sizeof(mag_t))
-						opt_mag_size_2pow--;
-					break;
-#endif
 #ifdef JEMALLOC_TRACE
 				case 't':
 					opt_trace = false;
@@ -5381,6 +5573,12 @@ MALLOC_OUT:
 		malloc_mutex_init(&trace_mtx);
 		/* Flush trace buffers at exit. */
 		atexit(malloc_trace_flush_all);
+		/* Receive thread exit notifications. */
+		if (pthread_key_create(&trace_tsd, trace_thread_cleanup) != 0) {
+			malloc_message("<jemalloc>",
+			    ": Error in pthread_key_create()\n", "", "");
+			abort();
+		}
 	}
 #endif
 	if (opt_print_stats) {
@@ -5390,15 +5588,6 @@ MALLOC_OUT:
 
 	/* Register fork handlers. */
 	pthread_atfork(jemalloc_prefork, jemalloc_postfork, jemalloc_postfork);
-
-#ifdef JEMALLOC_MAG
-	/*
-	 * Calculate the actual number of rounds per magazine, taking into
-	 * account header overhead.
-	 */
-	max_rounds = (1LLU << (opt_mag_size_2pow - SIZEOF_PTR_2POW)) -
-	    (sizeof(mag_t) >> SIZEOF_PTR_2POW) + 1;
-#endif
 
 	/* Set variables according to the value of opt_[qc]space_max_2pow. */
 	qspace_max = (1U << opt_qspace_max_2pow);
@@ -5456,6 +5645,12 @@ MALLOC_OUT:
 		malloc_mutex_unlock(&init_lock);
 		return (true);
 	}
+
+#ifdef JEMALLOC_TCACHE
+	/* Compute incremental GC event threshold. */
+	tcache_gc_threshold = (TCACHE_GC_THRESHOLD / nbins) +
+	    ((TCACHE_GC_THRESHOLD % nbins == 0) ? 0 : 1);
+#endif
 
 	/* Set variables according to the value of opt_chunk_2pow. */
 	chunksize = (1LU << opt_chunk_2pow);
@@ -5551,12 +5746,17 @@ MALLOC_OUT:
 	arenas_map = arenas[0];
 #endif
 
-#ifdef JEMALLOC_MAG
-	if (pthread_key_create(&mag_rack_tsd, thread_cleanup) != 0) {
+#ifdef JEMALLOC_TCACHE
+	if (pthread_key_create(&tcache_tsd, tcache_thread_cleanup) != 0) {
 		malloc_message("<jemalloc>",
 		    ": Error in pthread_key_create()\n", "", "");
 		abort();
 	}
+
+#  ifdef JEMALLOC_STATS
+	malloc_mutex_init(&tcache_ql_mtx);
+	ql_new(&tcache_ql);
+#  endif
 #endif
 
 	malloc_mutex_init(&arenas_lock);
@@ -5572,8 +5772,8 @@ MALLOC_OUT:
 		 * For SMP systems, create more than one arena per CPU by
 		 * default.
 		 */
-#ifdef JEMALLOC_MAG
-		if (opt_mag) {
+#ifdef JEMALLOC_TCACHE
+		if (opt_tcache) {
 			/*
 			 * Only large object allocation/deallocation is
 			 * guaranteed to acquire an arena mutex, so we can get
@@ -5587,7 +5787,7 @@ MALLOC_OUT:
 			 * plenty of arenas.
 			 */
 			opt_narenas_lshift += 2;
-#ifdef JEMALLOC_MAG
+#ifdef JEMALLOC_TCACHE
 		}
 #endif
 	}
@@ -5942,6 +6142,21 @@ malloc_usable_size(const void *ptr)
 	return (ret);
 }
 
+#ifdef JEMALLOC_TCACHE
+void
+malloc_tcache_flush(void)
+{
+	tcache_t *tcache;
+
+	tcache = tcache_tls;
+	if (tcache == NULL)
+		return;
+
+	tcache_destroy(tcache);
+	tcache_tls = NULL;
+}
+#endif
+
 /*
  * End non-standard functions.
  */
@@ -5949,34 +6164,6 @@ malloc_usable_size(const void *ptr)
 /*
  * Begin library-private functions.
  */
-
-/******************************************************************************/
-/*
- * Begin thread cache.
- */
-
-/*
- * We provide an unpublished interface in order to receive notifications from
- * the pthreads library whenever a thread exits.  This allows us to clean up
- * thread caches.
- */
-static void
-thread_cleanup(void *arg)
-{
-
-#ifdef JEMALLOC_MAG
-	assert((mag_rack_t *)arg == mag_rack);
-	if (mag_rack != NULL) {
-		assert(mag_rack != (void *)(uintptr_t)1);
-		mag_rack_destroy(mag_rack);
-		mag_rack = (void *)(uintptr_t)1;
-	}
-#endif
-#ifdef JEMALLOC_TRACE
-	if (opt_trace)
-		trace_thread_exit();
-#endif
-}
 
 /*
  * The following functions are used by threading libraries for protection of
