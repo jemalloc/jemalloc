@@ -205,7 +205,7 @@ AC_SUBST([RPATH])
 
 dnl Support optional additions to rpath.
 AC_ARG_WITH([rpath],
-  [AS_HELP_STRING([--with-rpath=<rpath>], [colon-separated rpath (ELF systems only)])],
+  [AS_HELP_STRING([--with-rpath=<rpath>], [Colon-separated rpath (ELF systems only)])],
 if test "x$with_rpath" = "xno" ; then
   RPATH_EXTRA=
 else
@@ -233,6 +233,30 @@ AC_PROG_RANLIB
 AC_PATH_PROG([AR], [ar], , [$PATH])
 AC_PATH_PROG([LD], [ld], , [$PATH])
 AC_PATH_PROG([AUTOCONF], [autoconf], , [$PATH])
+
+dnl Do not prefix public APIs by default.
+AC_ARG_WITH([jemalloc_prefix],
+  [AS_HELP_STRING([--with-jemalloc-prefix=<prefix>], [Prefix to prepend to all public APIs])],
+if test "x$with_jemalloc_prefix" = "xno" ; then
+  JEMALLOC_PREFIX=
+else
+  JEMALLOC_PREFIX="$with_jemalloc_prefix"
+fi,
+  JEMALLOC_PREFIX=
+)
+if test "x$JEMALLOC_PREFIX" != "x" ; then
+  AC_DEFINE([JEMALLOC_PREFIX], [ ])
+  jemalloc_prefix=$JEMALLOC_PREFIX
+  AC_SUBST([jemalloc_prefix])
+  AC_DEFINE_UNQUOTED([malloc], [${JEMALLOC_PREFIX}malloc])
+  AC_DEFINE_UNQUOTED([calloc], [${JEMALLOC_PREFIX}calloc])
+  AC_DEFINE_UNQUOTED([posix_memalign], [${JEMALLOC_PREFIX}posix_memalign])
+  AC_DEFINE_UNQUOTED([realloc], [${JEMALLOC_PREFIX}realloc])
+  AC_DEFINE_UNQUOTED([free], [${JEMALLOC_PREFIX}free])
+  AC_DEFINE_UNQUOTED([malloc_usable_size], [${JEMALLOC_PREFIX}malloc_usable_size])
+  AC_DEFINE_UNQUOTED([malloc_options], [${JEMALLOC_PREFIX}malloc_options])
+  AC_DEFINE_UNQUOTED([malloc_message], [${JEMALLOC_PREFIX}malloc_message])
+fi
 
 dnl Do not compile with debugging by default.
 AC_ARG_ENABLE([debug],
@@ -601,6 +625,7 @@ AC_MSG_RESULT([abs_objroot        : ${abs_objroot}])
 AC_MSG_RESULT([])
 AC_MSG_RESULT([bins               : ${bins}])
 AC_MSG_RESULT([])
+AC_MSG_RESULT([JEMALLOC_PREFIX    : ${JEMALLOC_PREFIX}])
 AC_MSG_RESULT([autogen            : ${enable_autogen}])
 AC_MSG_RESULT([debug              : ${enable_debug}])
 AC_MSG_RESULT([stats              : ${enable_stats}])

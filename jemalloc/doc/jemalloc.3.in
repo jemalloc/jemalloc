@@ -35,7 +35,7 @@
 .\"     @(#)malloc.3	8.1 (Berkeley) 6/4/93
 .\" $FreeBSD: head/lib/libc/stdlib/malloc.3 182225 2008-08-27 02:00:53Z jasone $
 .\"
-.Dd June 22, 2009
+.Dd November 13, 2009
 .Dt JEMALLOC 3
 .Os
 .Sh NAME
@@ -45,28 +45,28 @@
 .Lb libjemalloc
 .Sh SYNOPSIS
 .In stdlib.h
-.Ft void *
-.Fn malloc "size_t size"
-.Ft void *
-.Fn calloc "size_t number" "size_t size"
-.Ft int
-.Fn posix_memalign "void **ptr" "size_t alignment" "size_t size"
-.Ft void *
-.Fn realloc "void *ptr" "size_t size"
-.Ft void
-.Fn free "void *ptr"
 .In jemalloc.h
-.Ft size_t
-.Fn malloc_usable_size "const void *ptr"
-.Ft const char *
-.Va jemalloc_options ;
+.Ft void *
+.Fn @jemalloc_prefix@malloc "size_t size"
+.Ft void *
+.Fn @jemalloc_prefix@calloc "size_t number" "size_t size"
+.Ft int
+.Fn @jemalloc_prefix@posix_memalign "void **ptr" "size_t alignment" "size_t size"
+.Ft void *
+.Fn @jemalloc_prefix@realloc "void *ptr" "size_t size"
 .Ft void
-.Fo \*(lp*jemalloc_message\*(rp
+.Fn @jemalloc_prefix@free "void *ptr"
+.Ft size_t
+.Fn @jemalloc_prefix@malloc_usable_size "const void *ptr"
+.Ft const char *
+.Va @jemalloc_prefix@malloc_options ;
+.Ft void
+.Fo \*(lp*@jemalloc_prefix@malloc_message\*(rp
 .Fa "const char *p1" "const char *p2" "const char *p3" "const char *p4"
 .Fc
 .Sh DESCRIPTION
 The
-.Fn malloc
+.Fn @jemalloc_prefix@malloc
 function allocates
 .Fa size
 bytes of uninitialized memory.
@@ -75,7 +75,7 @@ The allocated space is suitably aligned
 for storage of any type of object.
 .Pp
 The
-.Fn calloc
+.Fn @jemalloc_prefix@calloc
 function allocates space for
 .Fa number
 objects,
@@ -83,14 +83,14 @@ each
 .Fa size
 bytes in length.
 The result is identical to calling
-.Fn malloc
+.Fn @jemalloc_prefix@malloc
 with an argument of
 .Dq "number * size" ,
 with the exception that the allocated memory is explicitly initialized
 to zero bytes.
 .Pp
 The
-.Fn posix_memalign
+.Fn @jemalloc_prefix@posix_memalign
 function allocates
 .Fa size
 bytes of memory such that the allocation's base address is an even multiple of
@@ -103,7 +103,7 @@ must be a power of 2 at least as large as
 .Fn sizeof "void *" .
 .Pp
 The
-.Fn realloc
+.Fn @jemalloc_prefix@realloc
 function changes the size of the previously allocated memory referenced by
 .Fa ptr
 to
@@ -117,7 +117,7 @@ Upon success, the memory referenced by
 .Fa ptr
 is freed and a pointer to the newly allocated memory is returned.
 Note that
-.Fn realloc
+.Fn @jemalloc_prefix@realloc
 may move the memory allocation, resulting in a different return value than
 .Fa ptr .
 If
@@ -125,13 +125,13 @@ If
 is
 .Dv NULL ,
 the
-.Fn realloc
+.Fn @jemalloc_prefix@realloc
 function behaves identically to
-.Fn malloc
+.Fn @jemalloc_prefix@malloc
 for the specified size.
 .Pp
 The
-.Fn free
+.Fn @jemalloc_prefix@free
 function causes the allocated memory referenced by
 .Fa ptr
 to be made available for future allocations.
@@ -142,18 +142,18 @@ is
 no action occurs.
 .Pp
 The
-.Fn malloc_usable_size
+.Fn @jemalloc_prefix@malloc_usable_size
 function returns the usable size of the allocation pointed to by
 .Fa ptr .
 The return value may be larger than the size that was requested during
 allocation.
 The
-.Fn malloc_usable_size
+.Fn @jemalloc_prefix@malloc_usable_size
 function is not a mechanism for in-place
-.Fn realloc ;
+.Fn @jemalloc_prefix@realloc ;
 rather it is provided solely as a tool for introspection purposes.
 Any discrepancy between the requested allocation size and the size reported by
-.Fn malloc_usable_size
+.Fn @jemalloc_prefix@malloc_usable_size
 should not be depended on, since such behavior is entirely
 implementation-dependent.
 .Sh TUNING
@@ -168,7 +168,7 @@ of the file referenced by the symbolic link named
 the value of the environment variable
 .Ev JEMALLOC_OPTIONS ,
 and the string pointed to by the global variable
-.Va jemalloc_options
+.Va @jemalloc_prefix@malloc_options
 will be interpreted, in that order, from left to right as flags.
 .Pp
 Each flag is a single letter, optionally prefixed by a non-negative base 10
@@ -236,14 +236,14 @@ will prevent any dirty unused pages from accumulating.
 @roff_mag@@roff_tls@option for related tuning information.
 @roff_fill@.It J
 @roff_fill@Each byte of new memory allocated by
-@roff_fill@.Fn malloc
+@roff_fill@.Fn @jemalloc_prefix@malloc
 @roff_fill@or
-@roff_fill@.Fn realloc
+@roff_fill@.Fn @jemalloc_prefix@realloc
 @roff_fill@will be initialized to 0xa5.
 @roff_fill@All memory returned by
-@roff_fill@.Fn free
+@roff_fill@.Fn @jemalloc_prefix@free
 @roff_fill@or
-@roff_fill@.Fn realloc
+@roff_fill@.Fn @jemalloc_prefix@realloc
 @roff_fill@will be initialized to 0x5a.
 @roff_fill@This is intended for debugging and will impact performance
 @roff_fill@negatively.
@@ -292,7 +292,7 @@ The default value is 128 bytes.
 @roff_mag@@roff_tls@the expense of increased memory usage.
 @roff_stats@.It U
 @roff_stats@Generate a verbose trace log via
-@roff_stats@.Fn jemalloc_message
+@roff_stats@.Fn @jemalloc_prefix@malloc_message
 @roff_stats@for all allocation operations.
 @roff_sysv@.It V
 @roff_sysv@Attempting to allocate zero bytes will return a
@@ -313,16 +313,16 @@ The default value is 128 bytes.
 @roff_xmalloc@This option should be set at compile time by including the
 @roff_xmalloc@following in the source code:
 @roff_xmalloc@.Bd -literal -offset indent
-@roff_xmalloc@jemalloc_options = "X";
+@roff_xmalloc@@jemalloc_prefix@malloc_options = "X";
 @roff_xmalloc@.Ed
 @roff_fill@.It Z
 @roff_fill@Each byte of new memory allocated by
-@roff_fill@.Fn malloc
+@roff_fill@.Fn @jemalloc_prefix@malloc
 @roff_fill@or
-@roff_fill@.Fn realloc
+@roff_fill@.Fn @jemalloc_prefix@realloc
 @roff_fill@will be initialized to 0.
 @roff_fill@Note that this initialization only happens once for each byte, so
-@roff_fill@.Fn realloc
+@roff_fill@.Fn @jemalloc_prefix@realloc
 @roff_fill@calls do not zero memory that was previously allocated.
 @roff_fill@This is intended for debugging and will impact performance
 @roff_fill@negatively.
@@ -467,7 +467,7 @@ If the
 option is set, all warnings are treated as errors.
 .Pp
 The
-.Va jemalloc_message
+.Va @jemalloc_prefix@malloc_message
 variable allows the programmer to override the function which emits
 the text strings forming the errors and warnings if for some reason
 the
@@ -480,9 +480,9 @@ All messages are prefixed by
 .Dq <jemalloc>: .
 .Sh RETURN VALUES
 The
-.Fn malloc
+.Fn @jemalloc_prefix@malloc
 and
-.Fn calloc
+.Fn @jemalloc_prefix@calloc
 functions return a pointer to the allocated memory if successful; otherwise
 a
 .Dv NULL
@@ -492,10 +492,10 @@ is set to
 .Er ENOMEM .
 .Pp
 The
-.Fn posix_memalign
+.Fn @jemalloc_prefix@posix_memalign
 function returns the value 0 if successful; otherwise it returns an error value.
 The
-.Fn posix_memalign
+.Fn @jemalloc_prefix@posix_memalign
 function will fail if:
 .Bl -tag -width Er
 .It Bq Er EINVAL
@@ -508,7 +508,7 @@ Memory allocation error.
 .El
 .Pp
 The
-.Fn realloc
+.Fn @jemalloc_prefix@realloc
 function returns a pointer, possibly identical to
 .Fa ptr ,
 to the allocated memory
@@ -520,16 +520,16 @@ is set to
 .Er ENOMEM
 if the error was the result of an allocation failure.
 The
-.Fn realloc
+.Fn @jemalloc_prefix@realloc
 function always leaves the original buffer intact
 when an error occurs.
 .Pp
 The
-.Fn free
+.Fn @jemalloc_prefix@free
 function returns no value.
 .Pp
 The
-.Fn malloc_usable_size
+.Fn @jemalloc_prefix@malloc_usable_size
 function returns the usable size of the allocation pointed to by
 .Fa ptr .
 .Sh ENVIRONMENT
@@ -552,7 +552,7 @@ ln -s 'A' /etc/jemalloc.conf
 To specify in the source that a program does no return value checking
 on calls to these functions:
 .Bd -literal -offset indent
-jemalloc_options = "X";
+@jemalloc_prefix@malloc_options = "X";
 .Ed
 .Sh SEE ALSO
 .Xr madvise 2 ,
@@ -563,15 +563,15 @@ jemalloc_options = "X";
 .Xr getpagesize 3
 .Sh STANDARDS
 The
-.Fn malloc ,
-.Fn calloc ,
-.Fn realloc
+.Fn @jemalloc_prefix@malloc ,
+.Fn @jemalloc_prefix@calloc ,
+.Fn @jemalloc_prefix@realloc
 and
-.Fn free
+.Fn @jemalloc_prefix@free
 functions conform to
 .St -isoC .
 .Pp
 The
-.Fn posix_memalign
+.Fn @jemalloc_prefix@posix_memalign
 function conforms to
 .St -p1003.1-2001 .

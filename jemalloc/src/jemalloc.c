@@ -137,8 +137,6 @@
  *******************************************************************************
  */
 
-#include "jemalloc_defs.h"
-
 #if 0
 __FBSDID("$FreeBSD: src/lib/libc/stdlib/malloc.c,v 1.183 2008/12/01 10:20:59 jasone Exp $");
 #endif
@@ -167,6 +165,10 @@ __FBSDID("$FreeBSD: src/lib/libc/stdlib/malloc.c,v 1.183 2008/12/01 10:20:59 jas
 #include <unistd.h>
 #include <fcntl.h>
 #include <pthread.h>
+
+#define	JEMALLOC_MANGLE
+#include "jemalloc.h"
+
 #ifdef JEMALLOC_LAZY_LOCK
 #include <dlfcn.h>
 #endif
@@ -1045,7 +1047,7 @@ static chunk_stats_t	stats_chunks;
 /*
  * Runtime configuration options.
  */
-const char	*jemalloc_options;
+const char	*malloc_options;
 
 #ifdef JEMALLOC_DEBUG
 static bool	opt_abort = true;
@@ -1225,7 +1227,7 @@ wrtmessage(const char *p1, const char *p2, const char *p3, const char *p4)
 		return;
 }
 
-void	(*jemalloc_message)(const char *p1, const char *p2, const char *p3,
+void	(*malloc_message)(const char *p1, const char *p2, const char *p3,
 	    const char *p4) = wrtmessage;
 
 /*
@@ -1259,9 +1261,9 @@ umax2s(uintmax_t x, char *s)
 #  define assert(e) do {						\
 	if (!(e)) {							\
 		char line_buf[UMAX2S_BUFSIZE];				\
-		jemalloc_message("<jemalloc>: ", __FILE__, ":",		\
+		malloc_message("<jemalloc>: ", __FILE__, ":",		\
 		    umax2s(__LINE__, line_buf));			\
-		jemalloc_message(": Failed assertion: ", "\"", #e,	\
+		malloc_message(": Failed assertion: ", "\"", #e,	\
 		    "\"\n");						\
 		abort();						\
 	}								\
@@ -1308,7 +1310,7 @@ malloc_printf(const char *format, ...)
 	va_start(ap, format);
 	vsnprintf(buf, sizeof(buf), format, ap);
 	va_end(ap);
-	jemalloc_message(buf, "", "", "");
+	malloc_message(buf, "", "", "");
 }
 #endif
 
@@ -1328,7 +1330,7 @@ get_pthread_create_fptr(void)
 
 	pthread_create_fptr = dlsym(RTLD_NEXT, "pthread_create");
 	if (pthread_create_fptr == NULL) {
-		jemalloc_message("<jemalloc>",
+		malloc_message("<jemalloc>",
 		    ": Error in dlsym(RTLD_NEXT, \"pthread_create\")\n", "",
 		    "");
 		abort();
@@ -1864,7 +1866,7 @@ pages_map(void *addr, size_t size)
 			char buf[STRERROR_BUF];
 
 			strerror_r(errno, buf, sizeof(buf));
-			jemalloc_message("<jemalloc>",
+			malloc_message("<jemalloc>",
 			    ": Error in munmap(): ", buf, "\n");
 			if (opt_abort)
 				abort();
@@ -1885,7 +1887,7 @@ pages_unmap(void *addr, size_t size)
 		char buf[STRERROR_BUF];
 
 		strerror_r(errno, buf, sizeof(buf));
-		jemalloc_message("<jemalloc>",
+		malloc_message("<jemalloc>",
 		    ": Error in munmap(): ", buf, "\n");
 		if (opt_abort)
 			abort();
@@ -4335,7 +4337,7 @@ arenas_extend(unsigned ind)
 	 * by using arenas[0].  In practice, this is an extremely unlikely
 	 * failure.
 	 */
-	jemalloc_message("<jemalloc>",
+	malloc_message("<jemalloc>",
 	    ": Error initializing arena\n", "", "");
 	if (opt_abort)
 		abort();
@@ -4647,79 +4649,79 @@ malloc_print_stats(void)
 
 	if (opt_print_stats) {
 		char s[UMAX2S_BUFSIZE];
-		jemalloc_message("___ Begin jemalloc statistics ___\n", "", "",
+		malloc_message("___ Begin jemalloc statistics ___\n", "", "",
 		    "");
-		jemalloc_message("Assertions ",
+		malloc_message("Assertions ",
 #ifdef NDEBUG
 		    "disabled",
 #else
 		    "enabled",
 #endif
 		    "\n", "");
-		jemalloc_message("Boolean JEMALLOC_OPTIONS: ",
+		malloc_message("Boolean JEMALLOC_OPTIONS: ",
 		    opt_abort ? "A" : "a", "", "");
 #ifdef JEMALLOC_DSS
-		jemalloc_message(opt_dss ? "D" : "d", "", "", "");
+		malloc_message(opt_dss ? "D" : "d", "", "", "");
 #endif
 #ifdef JEMALLOC_MAG
-		jemalloc_message(opt_mag ? "G" : "g", "", "", "");
+		malloc_message(opt_mag ? "G" : "g", "", "", "");
 #endif
 #ifdef JEMALLOC_FILL
-		jemalloc_message(opt_junk ? "J" : "j", "", "", "");
+		malloc_message(opt_junk ? "J" : "j", "", "", "");
 #endif
 #ifdef JEMALLOC_DSS
-		jemalloc_message(opt_mmap ? "M" : "m", "", "", "");
+		malloc_message(opt_mmap ? "M" : "m", "", "", "");
 #endif
-		jemalloc_message("P", "", "", "");
+		malloc_message("P", "", "", "");
 #ifdef JEMALLOC_STATS
-		jemalloc_message(opt_utrace ? "U" : "u", "", "", "");
+		malloc_message(opt_utrace ? "U" : "u", "", "", "");
 #endif
 #ifdef JEMALLOC_SYSV
-		jemalloc_message(opt_sysv ? "V" : "v", "", "", "");
+		malloc_message(opt_sysv ? "V" : "v", "", "", "");
 #endif
 #ifdef JEMALLOC_XMALLOC
-		jemalloc_message(opt_xmalloc ? "X" : "x", "", "", "");
+		malloc_message(opt_xmalloc ? "X" : "x", "", "", "");
 #endif
 #ifdef JEMALLOC_FILL
-		jemalloc_message(opt_zero ? "Z" : "z", "", "", "");
+		malloc_message(opt_zero ? "Z" : "z", "", "", "");
 #endif
-		jemalloc_message("\n", "", "", "");
+		malloc_message("\n", "", "", "");
 
-		jemalloc_message("CPUs: ", umax2s(ncpus, s), "\n", "");
-		jemalloc_message("Max arenas: ", umax2s(narenas, s), "\n", "");
+		malloc_message("CPUs: ", umax2s(ncpus, s), "\n", "");
+		malloc_message("Max arenas: ", umax2s(narenas, s), "\n", "");
 #ifdef JEMALLOC_BALANCE
-		jemalloc_message("Arena balance threshold: ",
+		malloc_message("Arena balance threshold: ",
 		    umax2s(opt_balance_threshold, s), "\n", "");
 #endif
-		jemalloc_message("Pointer size: ", umax2s(sizeof(void *), s),
+		malloc_message("Pointer size: ", umax2s(sizeof(void *), s),
 		    "\n", "");
-		jemalloc_message("Quantum size: ", umax2s(QUANTUM, s), "\n",
+		malloc_message("Quantum size: ", umax2s(QUANTUM, s), "\n",
 		    "");
-		jemalloc_message("Cacheline size (assumed): ",
+		malloc_message("Cacheline size (assumed): ",
 		    umax2s(CACHELINE, s), "\n", "");
 #ifdef JEMALLOC_TINY
-		jemalloc_message("Tiny 2^n-spaced sizes: [", umax2s((1U <<
+		malloc_message("Tiny 2^n-spaced sizes: [", umax2s((1U <<
 		    TINY_MIN_2POW), s), "..", "");
-		jemalloc_message(umax2s((qspace_min >> 1), s), "]\n", "", "");
+		malloc_message(umax2s((qspace_min >> 1), s), "]\n", "", "");
 #endif
-		jemalloc_message("Quantum-spaced sizes: [", umax2s(qspace_min,
+		malloc_message("Quantum-spaced sizes: [", umax2s(qspace_min,
 		    s), "..", "");
-		jemalloc_message(umax2s(qspace_max, s), "]\n", "", "");
-		jemalloc_message("Cacheline-spaced sizes: [",
+		malloc_message(umax2s(qspace_max, s), "]\n", "", "");
+		malloc_message("Cacheline-spaced sizes: [",
 		    umax2s(cspace_min, s), "..", "");
-		jemalloc_message(umax2s(cspace_max, s), "]\n", "", "");
-		jemalloc_message("Subpage-spaced sizes: [", umax2s(sspace_min,
+		malloc_message(umax2s(cspace_max, s), "]\n", "", "");
+		malloc_message("Subpage-spaced sizes: [", umax2s(sspace_min,
 		    s), "..", "");
-		jemalloc_message(umax2s(sspace_max, s), "]\n", "", "");
+		malloc_message(umax2s(sspace_max, s), "]\n", "", "");
 #ifdef JEMALLOC_MAG
-		jemalloc_message("Rounds per magazine: ", umax2s(max_rounds,
+		malloc_message("Rounds per magazine: ", umax2s(max_rounds,
 		    s), "\n", "");
 #endif
-		jemalloc_message("Max dirty pages per arena: ",
+		malloc_message("Max dirty pages per arena: ",
 		    umax2s(opt_dirty_max, s), "\n", "");
 
-		jemalloc_message("Chunk size: ", umax2s(chunksize, s), "", "");
-		jemalloc_message(" (2^", umax2s(opt_chunk_2pow, s), ")\n", "");
+		malloc_message("Chunk size: ", umax2s(chunksize, s), "", "");
+		malloc_message(" (2^", umax2s(opt_chunk_2pow, s), ")\n", "");
 
 #ifdef JEMALLOC_STATS
 		{
@@ -4800,7 +4802,7 @@ malloc_print_stats(void)
 			}
 		}
 #endif /* #ifdef JEMALLOC_STATS */
-		jemalloc_message("--- End jemalloc statistics ---\n", "", "",
+		malloc_message("--- End jemalloc statistics ---\n", "", "",
 		    "");
 	}
 }
@@ -5034,12 +5036,12 @@ malloc_init_hard(void)
 			}
 			break;
 		case 2:
-			if (jemalloc_options != NULL) {
+			if (malloc_options != NULL) {
 				/*
 				 * Use options that were compiled into the
 				 * program.
 				 */
-				opts = jemalloc_options;
+				opts = malloc_options;
 			} else {
 				/* No configuration specified. */
 				buf[0] = '\0';
@@ -5241,7 +5243,7 @@ MALLOC_OUT:
 
 					cbuf[0] = opts[j];
 					cbuf[1] = '\0';
-					jemalloc_message("<jemalloc>",
+					malloc_message("<jemalloc>",
 					    ": Unsupported character "
 					    "in malloc options: '", cbuf,
 					    "'\n");
@@ -5302,7 +5304,7 @@ MALLOC_OUT:
 	 */
 	if (nbins > 256) {
 	    char line_buf[UMAX2S_BUFSIZE];
-	    jemalloc_message("<jemalloc>: Too many size classes (",
+	    malloc_message("<jemalloc>: Too many size classes (",
 	        umax2s(nbins, line_buf), " > 256)\n", "");
 	    abort();
 	}
@@ -5411,7 +5413,7 @@ MALLOC_OUT:
 
 #ifdef JEMALLOC_MAG
 	if (pthread_key_create(&mag_rack_tsd, thread_cleanup) != 0) {
-		jemalloc_message("<jemalloc>",
+		malloc_message("<jemalloc>",
 		    ": Error in pthread_key_create()\n", "", "");
 		abort();
 	}
@@ -5554,7 +5556,7 @@ RETURN:
 	if (ret == NULL) {
 #ifdef JEMALLOC_XMALLOC
 		if (opt_xmalloc) {
-			jemalloc_message("<jemalloc>",
+			malloc_message("<jemalloc>",
 			    ": Error in malloc(): out of memory\n", "",
 			    "");
 			abort();
@@ -5581,7 +5583,7 @@ posix_memalign(void **memptr, size_t alignment, size_t size)
 		    || alignment < sizeof(void *)) {
 #ifdef JEMALLOC_XMALLOC
 			if (opt_xmalloc) {
-				jemalloc_message("<jemalloc>",
+				malloc_message("<jemalloc>",
 				    ": Error in posix_memalign(): "
 				    "invalid alignment\n", "", "");
 				abort();
@@ -5598,7 +5600,7 @@ posix_memalign(void **memptr, size_t alignment, size_t size)
 	if (result == NULL) {
 #ifdef JEMALLOC_XMALLOC
 		if (opt_xmalloc) {
-			jemalloc_message("<jemalloc>",
+			malloc_message("<jemalloc>",
 			": Error in posix_memalign(): out of memory\n",
 			"", "");
 			abort();
@@ -5658,7 +5660,7 @@ RETURN:
 	if (ret == NULL) {
 #ifdef JEMALLOC_XMALLOC
 		if (opt_xmalloc) {
-			jemalloc_message("<jemalloc>",
+			malloc_message("<jemalloc>",
 			    ": Error in calloc(): out of memory\n", "",
 			    "");
 			abort();
@@ -5700,7 +5702,7 @@ realloc(void *ptr, size_t size)
 		if (ret == NULL) {
 #ifdef JEMALLOC_XMALLOC
 			if (opt_xmalloc) {
-				jemalloc_message("<jemalloc>",
+				malloc_message("<jemalloc>",
 				    ": Error in realloc(): out of "
 				    "memory\n", "", "");
 				abort();
@@ -5717,7 +5719,7 @@ realloc(void *ptr, size_t size)
 		if (ret == NULL) {
 #ifdef JEMALLOC_XMALLOC
 			if (opt_xmalloc) {
-				jemalloc_message("<jemalloc>",
+				malloc_message("<jemalloc>",
 				    ": Error in realloc(): out of "
 				    "memory\n", "", "");
 				abort();

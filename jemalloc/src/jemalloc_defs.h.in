@@ -37,6 +37,29 @@
 #undef JEMALLOC_VERSION
 
 /*
+ * If JEMALLOC_PREFIX is defined, it will cause all public APIs to be prefixed.
+ * This makes it possible, with some care, to use multiple allocators
+ * simultaneously.
+ *
+ * In many cases it is more convenient to manually prefix allocator function
+ * calls than to let macros do it automatically, particularly when using
+ * multiple allocators simultaneously.  Define JEMALLOC_MANGLE before
+ * #include'ing jemalloc.h in order to cause name mangling that corresponds to
+ * the API prefixing.
+ */
+#undef JEMALLOC_PREFIX
+#if (defined(JEMALLOC_PREFIX) && defined(JEMALLOC_MANGLE))
+#undef malloc
+#undef calloc
+#undef posix_memalign
+#undef realloc
+#undef free
+#undef malloc_usable_size
+#undef malloc_options
+#undef malloc_message
+#endif
+
+/*
  * Hyper-threaded CPUs may need a special instruction inside spin loops in
  * order to yield to another virtual CPU.
  */

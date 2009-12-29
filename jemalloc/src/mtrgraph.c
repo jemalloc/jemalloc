@@ -74,7 +74,7 @@
 #include <gdfontl.h>
 #include <gdfontg.h>
 
-#include "jemalloc_defs.h"
+#include "jemalloc.h"
 #ifndef JEMALLOC_DEBUG
 #  define NDEBUG
 #endif

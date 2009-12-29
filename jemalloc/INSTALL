@@ -26,6 +26,11 @@ any of the following arguments (not a definitive list) to 'configure':
     Embed one or more library paths, so that Crux's internal shared library can
     find the libraries it is linked to.  This works only on ELF-based systems.
 
+--with-jemalloc-prefix=<prefix>
+    Prefix all public APIs with <prefix>, so that, for example, malloc()
+    becomes <prefix>malloc().  This makes it possible to use jemalloc at the
+    same time as the system allocator.
+
 --enable-debug
     Enable assertions and validation code.  This incurs a substantial
     performance hit, but is very useful during application development.
