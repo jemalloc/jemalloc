@@ -290,10 +290,21 @@ The default value is 128 bytes.
 @roff_mag@@roff_tls@to acquire and release objects in bulk.
 @roff_mag@@roff_tls@Increasing the magazine size decreases locking overhead, at
 @roff_mag@@roff_tls@the expense of increased memory usage.
-@roff_stats@.It U
-@roff_stats@Generate a verbose trace log via
-@roff_stats@.Fn @jemalloc_prefix@malloc_message
-@roff_stats@for all allocation operations.
+@roff_trace@.It T
+@roff_trace@Write a verbose trace log to a set of files named according to the
+@roff_trace@pattern
+@roff_trace@.Pa jemtr.<pid>.<arena>
+@roff_trace@for all allocation operations.
+@roff_trace@The result can be converted from
+@roff_trace@.Nm jemtr
+@roff_trace@to
+@roff_trace@.Nm mtr
+@roff_trace@format via
+@roff_trace@.Xr jemtr2mtr 1 ,
+@roff_trace@the output of which can be used by
+@roff_trace@.Xr mtrplay 1
+@roff_trace@and
+@roff_trace@.Xr mtrgraph 1 .
 @roff_sysv@.It V
 @roff_sysv@Attempting to allocate zero bytes will return a
 @roff_sysv@.Dv NULL
@@ -555,6 +566,9 @@ on calls to these functions:
 @jemalloc_prefix@malloc_options = "X";
 .Ed
 .Sh SEE ALSO
+.Xr mtrgraph 1 ,
+.Xr mtrplay 1 ,
+.Xr jemtr2mtr 1 ,
 .Xr madvise 2 ,
 .Xr mmap 2 ,
 .Xr sbrk 2 ,

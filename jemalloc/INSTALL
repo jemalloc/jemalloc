@@ -37,8 +37,7 @@ any of the following arguments (not a definitive list) to 'configure':
 
 --enable-stats
     Enable statistics gathering functionality.  Use the 'P' option to print
-    detailed allocation statistics at exit, and/or the 'U' option to print a
-    detailed allocation trace log.
+    detailed allocation statistics at exit.
 
 --disable-tiny
     Disable tiny (sub-quantum-sized) object support.  Technically it is not

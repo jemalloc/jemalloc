@@ -81,6 +81,9 @@
 /* JEMALLOC_STATS enables statistics calculation. */
 #undef JEMALLOC_STATS
 
+/* JEMALLOC_TRACE enables allocation tracing. */
+#undef JEMALLOC_TRACE
+
 /*
  * JEMALLOC_TINY enables support for tiny objects, which are smaller than one
  * quantum.

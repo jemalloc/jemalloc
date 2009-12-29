@@ -312,6 +312,28 @@ else
 fi
 AC_SUBST([roff_stats])
 
+dnl Do not enable tracing by default.
+AC_ARG_ENABLE([trace],
+  [AS_HELP_STRING([--enable-trace], [Enable allocation tracing (logging)])],
+[if test "x$enable_trace" = "xno" ; then
+  enable_trace="0"
+else
+  enable_trace="1"
+fi
+],
+[enable_trace="0"]
+)
+if test "x$enable_trace" = "x1" ; then
+  AC_DEFINE([JEMALLOC_TRACE], [ ])
+fi
+AC_SUBST([enable_trace])
+if test "x$enable_trace" = "x0" ; then
+  roff_trace=".\\\" "
+else
+  roff_trace=""
+fi
+AC_SUBST([roff_trace])
+
 dnl Enable tiny allocations by default.
 AC_ARG_ENABLE([tiny],
   [AS_HELP_STRING([--disable-tiny], [Disable tiny (sub-quantum) allocations])],
@@ -567,7 +589,7 @@ AC_SUBST([enable_lazy_lock])
 
 dnl ============================================================================
 dnl Configure libgd for mtrgraph.
-bins="${objroot}bin/mtrplay"
+bins="${objroot}bin/jemtr2mtr ${objroot}bin/mtrplay"
 GDLIBS=""
 
 have_libgd="yes"
@@ -629,6 +651,7 @@ AC_MSG_RESULT([JEMALLOC_PREFIX    : ${JEMALLOC_PREFIX}])
 AC_MSG_RESULT([autogen            : ${enable_autogen}])
 AC_MSG_RESULT([debug              : ${enable_debug}])
 AC_MSG_RESULT([stats              : ${enable_stats}])
+AC_MSG_RESULT([trace              : ${enable_trace}])
 AC_MSG_RESULT([tiny               : ${enable_tiny}])
 AC_MSG_RESULT([mag                : ${enable_mag}])
 AC_MSG_RESULT([balance            : ${enable_balance}])

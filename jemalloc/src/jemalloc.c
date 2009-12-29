@@ -634,6 +634,13 @@ struct arena_s {
 	arena_stats_t		stats;
 #endif
 
+#ifdef JEMALLOC_TRACE
+#  define TRACE_BUF_SIZE 65536
+	unsigned		trace_buf_end;
+	char			trace_buf[TRACE_BUF_SIZE];
+	int			trace_fd;
+#endif
+
 	/* Tree of dirty-page-containing chunks this arena manages. */
 	arena_chunk_tree_t	chunks_dirty;
 
@@ -751,6 +758,13 @@ static bool isthreaded = false;
 
 /* Number of CPUs. */
 static unsigned		ncpus;
+
+#ifdef JEMALLOC_TRACE
+static malloc_mutex_t		trace_mtx;
+static unsigned			trace_next_tid = 1;
+
+static unsigned __thread	trace_tid;
+#endif
 
 /*
  * Page size.  STATIC_PAGE_SHIFT is determined by the configure script.  If
@@ -1076,8 +1090,8 @@ static bool	opt_print_stats = false;
 static size_t	opt_qspace_max_2pow = QSPACE_MAX_2POW_DEFAULT;
 static size_t	opt_cspace_max_2pow = CSPACE_MAX_2POW_DEFAULT;
 static size_t	opt_chunk_2pow = CHUNK_2POW_DEFAULT;
-#ifdef JEMALLOC_STATS
-static bool	opt_utrace = false;
+#ifdef JEMALLOC_TRACE
+static bool	opt_trace = false;
 #endif
 #ifdef JEMALLOC_SYSV
 static bool	opt_sysv = false;
@@ -1089,25 +1103,6 @@ static bool	opt_xmalloc = false;
 static bool	opt_zero = false;
 #endif
 static int	opt_narenas_lshift = 0;
-
-#ifdef JEMALLOC_STATS
-typedef struct {
-	void	*p;
-	size_t	s;
-	void	*r;
-} malloc_utrace_t;
-
-#define	UTRACE(a, b, c)							\
-	if (opt_utrace) {						\
-		malloc_utrace_t ut;					\
-		ut.p = (a);						\
-		ut.s = (b);						\
-		ut.r = (c);						\
-		utrace(&ut, sizeof(ut));				\
-	}
-#else
-#define	UTRACE(a, b, c)
-#endif
 
 /******************************************************************************/
 /*
@@ -1121,7 +1116,7 @@ static void	wrtmessage(const char *p1, const char *p2, const char *p3,
 #ifdef JEMALLOC_STATS
 static void	malloc_printf(const char *format, ...);
 #endif
-static char	*umax2s(uintmax_t x, char *s);
+static char	*umax2s(uintmax_t x, unsigned base, char *s);
 #ifdef JEMALLOC_DSS
 static bool	base_pages_alloc_dss(size_t minsize);
 #endif
@@ -1187,7 +1182,7 @@ static bool	arena_ralloc_large_grow(arena_t *arena, arena_chunk_t *chunk,
     void *ptr, size_t size, size_t oldsize);
 static bool	arena_ralloc_large(void *ptr, size_t size, size_t oldsize);
 static void	*arena_ralloc(void *ptr, size_t size, size_t oldsize);
-static bool	arena_new(arena_t *arena);
+static bool	arena_new(arena_t *arena, unsigned ind);
 static arena_t	*arenas_extend(unsigned ind);
 #ifdef JEMALLOC_MAG
 static mag_t	*mag_create(arena_t *arena, size_t binind);
@@ -1199,6 +1194,22 @@ static void	*huge_malloc(size_t size, bool zero);
 static void	*huge_palloc(size_t alignment, size_t size);
 static void	*huge_ralloc(void *ptr, size_t size, size_t oldsize);
 static void	huge_dalloc(void *ptr);
+#ifdef JEMALLOC_TRACE
+static arena_t	*trace_arena(const void *ptr);
+static void	trace_flush(arena_t *arena);
+static void	trace_write(arena_t *arena, const char *s);
+static unsigned	trace_get_tid(void);
+static void	malloc_trace_flush_all(void);
+static void	trace_malloc(const void *ptr, size_t size);
+static void	trace_calloc(const void *ptr, size_t number, size_t size);
+static void	trace_posix_memalign(const void *ptr, size_t alignment,
+    size_t size);
+static void	trace_realloc(const void *ptr, const void *old_ptr,
+    size_t size, size_t old_size);
+static void	trace_free(const void *ptr, size_t size);
+static void	trace_malloc_usable_size(size_t size, const void *ptr);
+static void	trace_thread_exit(void);
+#endif
 static void	malloc_print_stats(void);
 #ifdef JEMALLOC_DEBUG
 static void	size2bin_validate(void);
@@ -1236,19 +1247,36 @@ void	(*malloc_message)(const char *p1, const char *p2, const char *p3,
  * integer printing functionality, so that malloc_printf() use can be limited to
  * JEMALLOC_STATS code.
  */
-#define	UMAX2S_BUFSIZE	21
+#define	UMAX2S_BUFSIZE	65
 static char *
-umax2s(uintmax_t x, char *s)
+umax2s(uintmax_t x, unsigned base, char *s)
 {
 	unsigned i;
 
 	i = UMAX2S_BUFSIZE - 1;
 	s[i] = '\0';
-	do {
-		i--;
-		s[i] = "0123456789"[x % 10];
-		x /= 10;
-	} while (x > 0);
+	switch (base) {
+	case 10:
+		do {
+			i--;
+			s[i] = "0123456789"[x % 10];
+			x /= 10;
+		} while (x > 0);
+		break;
+	case 16:
+		do {
+			i--;
+			s[i] = "0123456789abcdef"[x & 0xf];
+			x >>= 4;
+		} while (x > 0);
+		break;
+	default:
+		do {
+			i--;
+			s[i] = "0123456789abcdefghijklmnopqrstuvwxyz"[x % base];
+			x /= base;
+		} while (x > 0);
+	}
 
 	return (&s[i]);
 }
@@ -1262,7 +1290,7 @@ umax2s(uintmax_t x, char *s)
 	if (!(e)) {							\
 		char line_buf[UMAX2S_BUFSIZE];				\
 		malloc_message("<jemalloc>: ", __FILE__, ":",		\
-		    umax2s(__LINE__, line_buf));			\
+		    umax2s(__LINE__, 10, line_buf));			\
 		malloc_message(": Failed assertion: ", "\"", #e,	\
 		    "\"\n");						\
 		abort();						\
@@ -1270,31 +1298,6 @@ umax2s(uintmax_t x, char *s)
 } while (0)
 #else
 #define assert(e)
-#endif
-
-#ifdef JEMALLOC_STATS
-static int
-utrace(const void *addr, size_t len)
-{
-	malloc_utrace_t *ut = (malloc_utrace_t *)addr;
-
-	assert(len == sizeof(malloc_utrace_t));
-
-	if (ut->p == NULL && ut->s == 0 && ut->r == NULL)
-		malloc_printf("<jemalloc>:utrace: %d malloc_init()\n",
-		    getpid());
-	else if (ut->p == NULL && ut->r != NULL) {
-		malloc_printf("<jemalloc>:utrace: %d %p = malloc(%zu)\n",
-		    getpid(), ut->r, ut->s);
-	} else if (ut->p != NULL && ut->r != NULL) {
-		malloc_printf("<jemalloc>:utrace: %d %p = realloc(%p, %zu)\n",
-		    getpid(), ut->r, ut->p, ut->s);
-	} else
-		malloc_printf("<jemalloc>:utrace: %d free(%p)\n", getpid(),
-		    ut->p);
-
-	return (0);
-}
 #endif
 
 #ifdef JEMALLOC_STATS
@@ -4216,7 +4219,7 @@ iralloc(void *ptr, size_t size)
 }
 
 static bool
-arena_new(arena_t *arena)
+arena_new(arena_t *arena, unsigned ind)
 {
 	unsigned i;
 	arena_bin_t *bin;
@@ -4227,6 +4230,49 @@ arena_new(arena_t *arena)
 
 #ifdef JEMALLOC_STATS
 	memset(&arena->stats, 0, sizeof(arena_stats_t));
+#endif
+
+#ifdef JEMALLOC_TRACE
+	if (opt_trace) {
+		/* "jemtr.<pid>.<arena>" */
+		char buf[UMAX2S_BUFSIZE];
+		char filename[6 + UMAX2S_BUFSIZE + 1 + UMAX2S_BUFSIZE + 1];
+		char *s;
+		unsigned i, slen;
+
+		arena->trace_buf_end = 0;
+
+		i = 0;
+
+		s = "jemtr.";
+		slen = strlen(s);
+		memcpy(&filename[i], s, slen);
+		i += slen;
+
+		s = umax2s(getpid(), 10, buf);
+		slen = strlen(s);
+		memcpy(&filename[i], s, slen);
+		i += slen;
+
+		s = ".";
+		slen = strlen(s);
+		memcpy(&filename[i], s, slen);
+		i += slen;
+
+		s = umax2s(ind, 10, buf);
+		slen = strlen(s);
+		memcpy(&filename[i], s, slen);
+		i += slen;
+
+		filename[i] = '\0';
+
+		arena->trace_fd = creat(filename, 0644);
+		if (arena->trace_fd == -1) {
+			malloc_message("<jemalloc>",
+			    ": creat(\"", filename, "\", O_RDWR) failed\n");
+			abort();
+		}
+	}
 #endif
 
 	/* Initialize chunks. */
@@ -4325,7 +4371,7 @@ arenas_extend(unsigned ind)
 	/* Allocate enough space for trailing bins. */
 	ret = (arena_t *)base_alloc(sizeof(arena_t)
 	    + (sizeof(arena_bin_t) * (nbins - 1)));
-	if (ret != NULL && arena_new(ret) == false) {
+	if (ret != NULL && arena_new(ret, ind) == false) {
 		arenas[ind] = ret;
 		return (ret);
 	}
@@ -4643,168 +4689,375 @@ huge_dalloc(void *ptr)
 	base_node_dealloc(node);
 }
 
+#ifdef JEMALLOC_TRACE
+static arena_t *
+trace_arena(const void *ptr)
+{
+	arena_t *arena;
+	arena_chunk_t *chunk;
+
+	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
+	if ((void *)chunk == ptr)
+		arena = arenas[0];
+	else
+		arena = chunk->arena;
+
+	return (arena);
+}
+
+static void
+trace_flush(arena_t *arena)
+{
+	ssize_t err;
+
+	err = write(arena->trace_fd, arena->trace_buf, arena->trace_buf_end);
+	if (err == -1) {
+		malloc_message("<jemalloc>",
+		    ": write() failed during trace flush", "\n", "");
+		abort();
+	}
+	arena->trace_buf_end = 0;
+}
+
+static void
+trace_write(arena_t *arena, const char *s)
+{
+	unsigned i, slen, n;
+
+	i = 0;
+	slen = strlen(s);
+	while (i < slen) {
+		/* Flush the trace buffer if it is full. */
+		if (arena->trace_buf_end == TRACE_BUF_SIZE)
+			trace_flush(arena);
+
+		if (arena->trace_buf_end + slen <= TRACE_BUF_SIZE) {
+			/* Finish writing. */
+			n = slen - i;
+		} else {
+			/* Write as much of s as will fit. */
+			n = TRACE_BUF_SIZE - arena->trace_buf_end;
+		}
+		memcpy(&arena->trace_buf[arena->trace_buf_end], &s[i], n);
+		arena->trace_buf_end += n;
+		i += n;
+	}
+}
+
+static unsigned
+trace_get_tid(void)
+{
+	unsigned ret = trace_tid;
+
+	if (ret == 0) {
+		malloc_mutex_lock(&trace_mtx);
+		trace_tid = trace_next_tid;
+		trace_next_tid++;
+		malloc_mutex_unlock(&trace_mtx);
+		ret = trace_tid;
+	}
+
+	return (ret);
+}
+
+static void
+malloc_trace_flush_all(void)
+{
+	unsigned i;
+
+	for (i = 0; i < narenas; i++) {
+		if (arenas[i] != NULL) {
+			malloc_spin_lock(&arenas[i]->lock);
+			trace_flush(arenas[i]);
+			malloc_spin_unlock(&arenas[i]->lock);
+		}
+	}
+}
+
+static void
+trace_malloc(const void *ptr, size_t size)
+{
+	char buf[UMAX2S_BUFSIZE];
+	arena_t *arena = trace_arena(ptr);
+
+	malloc_spin_lock(&arena->lock);
+
+	trace_write(arena, umax2s(trace_get_tid(), 10, buf));
+	trace_write(arena, " m 0x");
+	trace_write(arena, umax2s((uintptr_t)ptr, 16, buf));
+	trace_write(arena, " ");
+	trace_write(arena, umax2s(size, 10, buf));
+	trace_write(arena, "\n");
+
+	malloc_spin_unlock(&arena->lock);
+}
+
+static void
+trace_calloc(const void *ptr, size_t number, size_t size)
+{
+	char buf[UMAX2S_BUFSIZE];
+	arena_t *arena = trace_arena(ptr);
+
+	malloc_spin_lock(&arena->lock);
+
+	trace_write(arena, umax2s(trace_get_tid(), 10, buf));
+	trace_write(arena, " c 0x");
+	trace_write(arena, umax2s((uintptr_t)ptr, 16, buf));
+	trace_write(arena, " ");
+	trace_write(arena, umax2s(number, 10, buf));
+	trace_write(arena, " ");
+	trace_write(arena, umax2s(size, 10, buf));
+	trace_write(arena, "\n");
+
+	malloc_spin_unlock(&arena->lock);
+}
+
+static void
+trace_posix_memalign(const void *ptr, size_t alignment, size_t size)
+{
+	char buf[UMAX2S_BUFSIZE];
+	arena_t *arena = trace_arena(ptr);
+
+	malloc_spin_lock(&arena->lock);
+
+	trace_write(arena, umax2s(trace_get_tid(), 10, buf));
+	trace_write(arena, " a 0x");
+	trace_write(arena, umax2s((uintptr_t)ptr, 16, buf));
+	trace_write(arena, " ");
+	trace_write(arena, umax2s(alignment, 10, buf));
+	trace_write(arena, " ");
+	trace_write(arena, umax2s(size, 10, buf));
+	trace_write(arena, "\n");
+
+	malloc_spin_unlock(&arena->lock);
+}
+
+static void
+trace_realloc(const void *ptr, const void *old_ptr, size_t size,
+    size_t old_size)
+{
+	char buf[UMAX2S_BUFSIZE];
+	arena_t *arena = trace_arena(ptr);
+
+	malloc_spin_lock(&arena->lock);
+
+	trace_write(arena, umax2s(trace_get_tid(), 10, buf));
+	trace_write(arena, " r 0x");
+	trace_write(arena, umax2s((uintptr_t)ptr, 16, buf));
+	trace_write(arena, " 0x");
+	trace_write(arena, umax2s((uintptr_t)old_ptr, 16, buf));
+	trace_write(arena, " ");
+	trace_write(arena, umax2s(size, 10, buf));
+	trace_write(arena, " ");
+	trace_write(arena, umax2s(old_size, 10, buf));
+	trace_write(arena, "\n");
+
+	malloc_spin_unlock(&arena->lock);
+}
+
+static void
+trace_free(const void *ptr, size_t size)
+{
+	char buf[UMAX2S_BUFSIZE];
+	arena_t *arena = trace_arena(ptr);
+
+	malloc_spin_lock(&arena->lock);
+
+	trace_write(arena, umax2s(trace_get_tid(), 10, buf));
+	trace_write(arena, " f 0x");
+	trace_write(arena, umax2s((uintptr_t)ptr, 16, buf));
+	trace_write(arena, " ");
+	trace_write(arena, umax2s(isalloc(ptr), 10, buf));
+	trace_write(arena, "\n");
+
+	malloc_spin_unlock(&arena->lock);
+}
+
+static void
+trace_malloc_usable_size(size_t size, const void *ptr)
+{
+	char buf[UMAX2S_BUFSIZE];
+	arena_t *arena = trace_arena(ptr);
+
+	malloc_spin_lock(&arena->lock);
+
+	trace_write(arena, umax2s(trace_get_tid(), 10, buf));
+	trace_write(arena, " s ");
+	trace_write(arena, umax2s(size, 10, buf));
+	trace_write(arena, " 0x");
+	trace_write(arena, umax2s((uintptr_t)ptr, 16, buf));
+	trace_write(arena, "\n");
+
+	malloc_spin_unlock(&arena->lock);
+}
+
+static void
+trace_thread_exit(void)
+{
+	char buf[UMAX2S_BUFSIZE];
+	arena_t *arena = choose_arena();
+
+	malloc_spin_lock(&arena->lock);
+
+	trace_write(arena, umax2s(trace_get_tid(), 10, buf));
+	trace_write(arena, " x\n");
+
+	malloc_spin_unlock(&arena->lock);
+}
+#endif
+
 static void
 malloc_print_stats(void)
 {
+	char s[UMAX2S_BUFSIZE];
 
-	if (opt_print_stats) {
-		char s[UMAX2S_BUFSIZE];
-		malloc_message("___ Begin jemalloc statistics ___\n", "", "",
-		    "");
-		malloc_message("Assertions ",
+	malloc_message("___ Begin jemalloc statistics ___\n", "", "", "");
+	malloc_message("Assertions ",
 #ifdef NDEBUG
-		    "disabled",
+	    "disabled",
 #else
-		    "enabled",
+	    "enabled",
 #endif
-		    "\n", "");
-		malloc_message("Boolean JEMALLOC_OPTIONS: ",
-		    opt_abort ? "A" : "a", "", "");
+	    "\n", "");
+	malloc_message("Boolean JEMALLOC_OPTIONS: ",
+	    opt_abort ? "A" : "a", "", "");
 #ifdef JEMALLOC_DSS
-		malloc_message(opt_dss ? "D" : "d", "", "", "");
+	malloc_message(opt_dss ? "D" : "d", "", "", "");
 #endif
 #ifdef JEMALLOC_MAG
-		malloc_message(opt_mag ? "G" : "g", "", "", "");
+	malloc_message(opt_mag ? "G" : "g", "", "", "");
 #endif
 #ifdef JEMALLOC_FILL
-		malloc_message(opt_junk ? "J" : "j", "", "", "");
+	malloc_message(opt_junk ? "J" : "j", "", "", "");
 #endif
 #ifdef JEMALLOC_DSS
-		malloc_message(opt_mmap ? "M" : "m", "", "", "");
+	malloc_message(opt_mmap ? "M" : "m", "", "", "");
 #endif
-		malloc_message("P", "", "", "");
-#ifdef JEMALLOC_STATS
-		malloc_message(opt_utrace ? "U" : "u", "", "", "");
+	malloc_message("P", "", "", "");
+#ifdef JEMALLOC_TRACE
+	malloc_message(opt_trace ? "T" : "t", "", "", "");
 #endif
 #ifdef JEMALLOC_SYSV
-		malloc_message(opt_sysv ? "V" : "v", "", "", "");
+	malloc_message(opt_sysv ? "V" : "v", "", "", "");
 #endif
 #ifdef JEMALLOC_XMALLOC
-		malloc_message(opt_xmalloc ? "X" : "x", "", "", "");
+	malloc_message(opt_xmalloc ? "X" : "x", "", "", "");
 #endif
 #ifdef JEMALLOC_FILL
-		malloc_message(opt_zero ? "Z" : "z", "", "", "");
+	malloc_message(opt_zero ? "Z" : "z", "", "", "");
 #endif
-		malloc_message("\n", "", "", "");
+	malloc_message("\n", "", "", "");
 
-		malloc_message("CPUs: ", umax2s(ncpus, s), "\n", "");
-		malloc_message("Max arenas: ", umax2s(narenas, s), "\n", "");
+	malloc_message("CPUs: ", umax2s(ncpus, 10, s), "\n", "");
+	malloc_message("Max arenas: ", umax2s(narenas, 10, s), "\n", "");
 #ifdef JEMALLOC_BALANCE
-		malloc_message("Arena balance threshold: ",
-		    umax2s(opt_balance_threshold, s), "\n", "");
+	malloc_message("Arena balance threshold: ",
+	    umax2s(opt_balance_threshold, 10, s), "\n", "");
 #endif
-		malloc_message("Pointer size: ", umax2s(sizeof(void *), s),
-		    "\n", "");
-		malloc_message("Quantum size: ", umax2s(QUANTUM, s), "\n",
-		    "");
-		malloc_message("Cacheline size (assumed): ",
-		    umax2s(CACHELINE, s), "\n", "");
+	malloc_message("Pointer size: ", umax2s(sizeof(void *), 10, s), "\n",
+	    "");
+	malloc_message("Quantum size: ", umax2s(QUANTUM, 10, s), "\n", "");
+	malloc_message("Cacheline size (assumed): ",
+	    umax2s(CACHELINE, 10, s), "\n", "");
 #ifdef JEMALLOC_TINY
-		malloc_message("Tiny 2^n-spaced sizes: [", umax2s((1U <<
-		    TINY_MIN_2POW), s), "..", "");
-		malloc_message(umax2s((qspace_min >> 1), s), "]\n", "", "");
+	malloc_message("Tiny 2^n-spaced sizes: [", umax2s((1U << TINY_MIN_2POW),
+	    10, s), "..", "");
+	malloc_message(umax2s((qspace_min >> 1), 10, s), "]\n", "", "");
 #endif
-		malloc_message("Quantum-spaced sizes: [", umax2s(qspace_min,
-		    s), "..", "");
-		malloc_message(umax2s(qspace_max, s), "]\n", "", "");
-		malloc_message("Cacheline-spaced sizes: [",
-		    umax2s(cspace_min, s), "..", "");
-		malloc_message(umax2s(cspace_max, s), "]\n", "", "");
-		malloc_message("Subpage-spaced sizes: [", umax2s(sspace_min,
-		    s), "..", "");
-		malloc_message(umax2s(sspace_max, s), "]\n", "", "");
+	malloc_message("Quantum-spaced sizes: [", umax2s(qspace_min, 10, s),
+	    "..", "");
+	malloc_message(umax2s(qspace_max, 10, s), "]\n", "", "");
+	malloc_message("Cacheline-spaced sizes: [",
+	    umax2s(cspace_min, 10, s), "..", "");
+	malloc_message(umax2s(cspace_max, 10, s), "]\n", "", "");
+	malloc_message("Subpage-spaced sizes: [", umax2s(sspace_min, 10, s),
+	    "..", "");
+	malloc_message(umax2s(sspace_max, 10, s), "]\n", "", "");
 #ifdef JEMALLOC_MAG
-		malloc_message("Rounds per magazine: ", umax2s(max_rounds,
-		    s), "\n", "");
+	malloc_message("Rounds per magazine: ", umax2s(max_rounds, 10, s), "\n",
+	    "");
 #endif
-		malloc_message("Max dirty pages per arena: ",
-		    umax2s(opt_dirty_max, s), "\n", "");
+	malloc_message("Max dirty pages per arena: ",
+	    umax2s(opt_dirty_max, 10, s), "\n", "");
 
-		malloc_message("Chunk size: ", umax2s(chunksize, s), "", "");
-		malloc_message(" (2^", umax2s(opt_chunk_2pow, s), ")\n", "");
+	malloc_message("Chunk size: ", umax2s(chunksize, 10, s), "", "");
+	malloc_message(" (2^", umax2s(opt_chunk_2pow, 10, s), ")\n", "");
 
 #ifdef JEMALLOC_STATS
-		{
-			size_t allocated, mapped;
+	{
+		size_t allocated, mapped;
 #ifdef JEMALLOC_BALANCE
-			uint64_t nbalance = 0;
+		uint64_t nbalance = 0;
 #endif
-			unsigned i;
-			arena_t *arena;
+		unsigned i;
+		arena_t *arena;
 
-			/* Calculate and print allocated/mapped stats. */
+		/* Calculate and print allocated/mapped stats. */
 
-			/* arenas. */
-			for (i = 0, allocated = 0; i < narenas; i++) {
-				if (arenas[i] != NULL) {
-					malloc_spin_lock(&arenas[i]->lock);
-					allocated +=
-					    arenas[i]->stats.allocated_small;
-					allocated +=
-					    arenas[i]->stats.allocated_large;
+		/* arenas. */
+		for (i = 0, allocated = 0; i < narenas; i++) {
+			if (arenas[i] != NULL) {
+				malloc_spin_lock(&arenas[i]->lock);
+				allocated += arenas[i]->stats.allocated_small;
+				allocated += arenas[i]->stats.allocated_large;
 #ifdef JEMALLOC_BALANCE
-					nbalance += arenas[i]->stats.nbalance;
+				nbalance += arenas[i]->stats.nbalance;
 #endif
-					malloc_spin_unlock(&arenas[i]->lock);
-				}
-			}
-
-			/* huge/base. */
-			malloc_mutex_lock(&huge_mtx);
-			allocated += huge_allocated;
-			mapped = stats_chunks.curchunks * chunksize;
-			malloc_mutex_unlock(&huge_mtx);
-
-			malloc_mutex_lock(&base_mtx);
-			mapped += base_mapped;
-			malloc_mutex_unlock(&base_mtx);
-
-			malloc_printf("Allocated: %zu, mapped: %zu\n",
-			    allocated, mapped);
-
-#ifdef JEMALLOC_BALANCE
-			malloc_printf("Arena balance reassignments: %llu\n",
-			    nbalance);
-#endif
-
-			/* Print chunk stats. */
-			{
-				chunk_stats_t chunks_stats;
-
-				malloc_mutex_lock(&huge_mtx);
-				chunks_stats = stats_chunks;
-				malloc_mutex_unlock(&huge_mtx);
-
-				malloc_printf("chunks: nchunks   "
-				    "highchunks    curchunks\n");
-				malloc_printf("  %13llu%13lu%13lu\n",
-				    chunks_stats.nchunks,
-				    chunks_stats.highchunks,
-				    chunks_stats.curchunks);
-			}
-
-			/* Print chunk stats. */
-			malloc_printf(
-			    "huge: nmalloc      ndalloc    allocated\n");
-			malloc_printf(" %12llu %12llu %12zu\n",
-			    huge_nmalloc, huge_ndalloc, huge_allocated);
-
-			/* Print stats for each arena. */
-			for (i = 0; i < narenas; i++) {
-				arena = arenas[i];
-				if (arena != NULL) {
-					malloc_printf(
-					    "\narenas[%u]:\n", i);
-					malloc_spin_lock(&arena->lock);
-					stats_print(arena);
-					malloc_spin_unlock(&arena->lock);
-				}
+				malloc_spin_unlock(&arenas[i]->lock);
 			}
 		}
-#endif /* #ifdef JEMALLOC_STATS */
-		malloc_message("--- End jemalloc statistics ---\n", "", "",
-		    "");
+
+		/* huge/base. */
+		malloc_mutex_lock(&huge_mtx);
+		allocated += huge_allocated;
+		mapped = stats_chunks.curchunks * chunksize;
+		malloc_mutex_unlock(&huge_mtx);
+
+		malloc_mutex_lock(&base_mtx);
+		mapped += base_mapped;
+		malloc_mutex_unlock(&base_mtx);
+
+		malloc_printf("Allocated: %zu, mapped: %zu\n", allocated,
+		    mapped);
+
+#ifdef JEMALLOC_BALANCE
+		malloc_printf("Arena balance reassignments: %llu\n", nbalance);
+#endif
+
+		/* Print chunk stats. */
+		{
+			chunk_stats_t chunks_stats;
+
+			malloc_mutex_lock(&huge_mtx);
+			chunks_stats = stats_chunks;
+			malloc_mutex_unlock(&huge_mtx);
+
+			malloc_printf("chunks: nchunks   "
+			    "highchunks    curchunks\n");
+			malloc_printf("  %13llu%13lu%13lu\n",
+			    chunks_stats.nchunks, chunks_stats.highchunks,
+			    chunks_stats.curchunks);
+		}
+
+		/* Print chunk stats. */
+		malloc_printf(
+		    "huge: nmalloc      ndalloc    allocated\n");
+		malloc_printf(" %12llu %12llu %12zu\n", huge_nmalloc,
+		    huge_ndalloc, huge_allocated);
+
+		/* Print stats for each arena. */
+		for (i = 0; i < narenas; i++) {
+			arena = arenas[i];
+			if (arena != NULL) {
+				malloc_printf("\narenas[%u]:\n", i);
+				malloc_spin_lock(&arena->lock);
+				stats_print(arena);
+				malloc_spin_unlock(&arena->lock);
+			}
+		}
 	}
+#endif /* #ifdef JEMALLOC_STATS */
+	malloc_message("--- End jemalloc statistics ---\n", "", "", "");
 }
 
 #ifdef JEMALLOC_DEBUG
@@ -5206,12 +5459,12 @@ MALLOC_OUT:
 						opt_mag_size_2pow--;
 					break;
 #endif
-#ifdef JEMALLOC_STATS
-				case 'u':
-					opt_utrace = false;
+#ifdef JEMALLOC_TRACE
+				case 't':
+					opt_trace = false;
 					break;
-				case 'U':
-					opt_utrace = true;
+				case 'T':
+					opt_trace = true;
 					break;
 #endif
 #ifdef JEMALLOC_SYSV
@@ -5259,7 +5512,13 @@ MALLOC_OUT:
 		opt_mmap = true;
 #endif
 
-	/* Take care to call atexit() only once. */
+#ifdef JEMALLOC_TRACE
+	if (opt_trace) {
+		malloc_mutex_init(&trace_mtx);
+		/* Flush trace buffers at exit. */
+		atexit(malloc_trace_flush_all);
+	}
+#endif
 	if (opt_print_stats) {
 		/* Print statistics at exit. */
 		atexit(malloc_print_stats);
@@ -5305,7 +5564,7 @@ MALLOC_OUT:
 	if (nbins > 256) {
 	    char line_buf[UMAX2S_BUFSIZE];
 	    malloc_message("<jemalloc>: Too many size classes (",
-	        umax2s(nbins, line_buf), " > 256)\n", "");
+	        umax2s(nbins, 10, line_buf), " > 256)\n", "");
 	    abort();
 	}
 
@@ -5332,8 +5591,6 @@ MALLOC_OUT:
 	}
 	arena_maxclass = chunksize - (arena_chunk_header_npages <<
 	    PAGE_SHIFT);
-
-	UTRACE(0, 0, 0);
 
 #ifdef JEMALLOC_STATS
 	memset(&stats_chunks, 0, sizeof(chunk_stats_t));
@@ -5565,7 +5822,10 @@ RETURN:
 		errno = ENOMEM;
 	}
 
-	UTRACE(0, size, ret);
+#ifdef JEMALLOC_TRACE
+	if (opt_trace)
+		trace_malloc(ret, size);
+#endif
 	return (ret);
 }
 
@@ -5614,7 +5874,10 @@ posix_memalign(void **memptr, size_t alignment, size_t size)
 	ret = 0;
 
 RETURN:
-	UTRACE(0, size, result);
+#ifdef JEMALLOC_TRACE
+	if (opt_trace)
+		trace_posix_memalign(result, alignment, size);
+#endif
 	return (ret);
 }
 
@@ -5669,7 +5932,10 @@ RETURN:
 		errno = ENOMEM;
 	}
 
-	UTRACE(0, num_size, ret);
+#ifdef JEMALLOC_TRACE
+	if (opt_trace)
+		trace_calloc(ret, num, size);
+#endif
 	return (ret);
 }
 
@@ -5677,6 +5943,9 @@ void *
 realloc(void *ptr, size_t size)
 {
 	void *ret;
+#ifdef JEMALLOC_TRACE
+	size_t old_size;
+#endif
 
 	if (size == 0) {
 #ifdef JEMALLOC_SYSV
@@ -5697,6 +5966,11 @@ realloc(void *ptr, size_t size)
 		assert(malloc_initialized || malloc_initializer ==
 		    pthread_self());
 
+#ifdef JEMALLOC_TRACE
+		if (opt_trace)
+			old_size = isalloc(ptr);
+#endif
+
 		ret = iralloc(ptr, size);
 
 		if (ret == NULL) {
@@ -5716,6 +5990,11 @@ realloc(void *ptr, size_t size)
 		else
 			ret = imalloc(size);
 
+#ifdef JEMALLOC_TRACE
+		if (opt_trace)
+			old_size = 0;
+#endif
+
 		if (ret == NULL) {
 #ifdef JEMALLOC_XMALLOC
 			if (opt_xmalloc) {
@@ -5732,7 +6011,10 @@ realloc(void *ptr, size_t size)
 #ifdef JEMALLOC_SYSV
 RETURN:
 #endif
-	UTRACE(ptr, size, ret);
+#ifdef JEMALLOC_TRACE
+	if (opt_trace)
+		trace_realloc(ret, ptr, size, old_size);
+#endif
 	return (ret);
 }
 
@@ -5744,8 +6026,11 @@ free(void *ptr)
 		assert(malloc_initialized || malloc_initializer ==
 		    pthread_self());
 
+#ifdef JEMALLOC_TRACE
+		if (opt_trace)
+			trace_free(ptr, isalloc(ptr));
+#endif
 		idalloc(ptr);
-		UTRACE(ptr, 0, 0);
 	}
 }
 
@@ -5760,10 +6045,16 @@ free(void *ptr)
 size_t
 malloc_usable_size(const void *ptr)
 {
+	size_t ret;
 
 	assert(ptr != NULL);
+	ret = isalloc(ptr);
 
-	return (isalloc(ptr));
+#ifdef JEMALLOC_TRACE
+	if (opt_trace)
+		trace_malloc_usable_size(ret, ptr);
+#endif
+	return (ret);
 }
 
 /*
@@ -5795,6 +6086,10 @@ thread_cleanup(void *arg)
 		mag_rack_destroy(mag_rack);
 		mag_rack = (void *)(uintptr_t)1;
 	}
+#endif
+#ifdef JEMALLOC_TRACE
+	if (opt_trace)
+		trace_thread_exit();
 #endif
 }
 
