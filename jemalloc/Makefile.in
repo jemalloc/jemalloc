@@ -88,6 +88,7 @@ done
 check:
 
 clean:
+	rm -f $(BINS)
 	rm -f @objroot@src/*.o
 	rm -f @objroot@lib/libjemalloc.so
 	rm -f @objroot@lib/libjemalloc.so.$(REV)
