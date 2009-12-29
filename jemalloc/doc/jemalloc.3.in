@@ -35,7 +35,7 @@
 .\"     @(#)malloc.3	8.1 (Berkeley) 6/4/93
 .\" $FreeBSD: head/lib/libc/stdlib/malloc.3 182225 2008-08-27 02:00:53Z jasone $
 .\"
-.Dd November 13, 2009
+.Dd November 19, 2009
 .Dt JEMALLOC 3
 .Os
 .Sh NAME
@@ -228,7 +228,11 @@ will prevent any dirty unused pages from accumulating.
 @roff_fill@negatively.
 .It K
 Double/halve the virtual memory chunk size.
-The default chunk size is 1 MB.
+The default chunk size is 16 MiB.
+.It M
+Double/halve the size of the maximum medium size class.
+The valid range is from one page to one half chunk.
+The default value is 32 KiB.
 .It N
 Double/halve the number of arenas.
 The default number of arenas is two times the number of CPUs, or one if there
@@ -281,7 +285,7 @@ The default value is 128 bytes.
 @roff_xmalloc@.It X
 @roff_xmalloc@Rather than return failure for any allocation function, display a
 @roff_xmalloc@diagnostic message on
-@roff_xmalloc@.Dv stderr
+@roff_xmalloc@.Dv STDERR_FILENO
 @roff_xmalloc@and cause the program to drop core (using
 @roff_xmalloc@.Xr abort 3 ) .
 @roff_xmalloc@This option should be set at compile time by including the
@@ -335,9 +339,9 @@ However, it may make sense to reduce the number of arenas if an application
 does not make much use of the allocation functions.
 .Pp
 @roff_mag@In addition to multiple arenas, this allocator supports
-@roff_mag@thread-specific caching for small objects (smaller than one page), in
-@roff_mag@order to make it possible to completely avoid synchronization for most
-@roff_mag@small allocation requests.
+@roff_mag@thread-specific caching for small and medium objects, in order to make
+@roff_mag@it possible to completely avoid synchronization for most small and
+@roff_mag@medium allocation requests.
 @roff_mag@Such caching allows very fast allocation in the common case, but it
 @roff_mag@increases memory usage and fragmentation, since a bounded number of
 @roff_mag@objects can remain allocated in each thread cache.
@@ -348,23 +352,27 @@ Chunks are always aligned to multiples of the chunk size.
 This alignment makes it possible to find metadata for user objects very
 quickly.
 .Pp
-User objects are broken into three categories according to size: small, large,
-and huge.
+User objects are broken into four categories according to size: small, medium,
+large, and huge.
 Small objects are smaller than one page.
+Medium objects range from one page to an upper limit determined at run time (see
+the
+.Dq M
+option).
 Large objects are smaller than the chunk size.
 Huge objects are a multiple of the chunk size.
-Small and large objects are managed by arenas; huge objects are managed
+Small, medium, and large objects are managed by arenas; huge objects are managed
 separately in a single data structure that is shared by all threads.
 Huge objects are used by applications infrequently enough that this single
 data structure is not a scalability issue.
 .Pp
 Each chunk that is managed by an arena tracks its contents as runs of
-contiguous pages (unused, backing a set of small objects, or backing one large
-object).
+contiguous pages (unused, backing a set of small or medium objects, or backing
+one large object).
 The combination of chunk alignment and chunk page maps makes it possible to
 determine all metadata regarding small and large allocations in constant time.
 .Pp
-Small objects are managed in groups by page runs.
+Small and medium objects are managed in groups by page runs.
 Each run maintains a bitmap that tracks which regions are in use.
 @roff_tiny@Allocation requests that are no more than half the quantum (8 or 16,
 @roff_tiny@depending on architecture) are rounded up to the nearest power of
@@ -380,10 +388,17 @@ Allocation requests that are more than the minumum cacheline-multiple size
 class, but no more than the minimum subpage-multiple size class (see the
 .Dq C
 option) are rounded up to the nearest multiple of the cacheline size (64).
-Allocation requests that are more than the minimum subpage-multiple size class
-are rounded up to the nearest multiple of the subpage size (256).
-Allocation requests that are more than one page, but small enough to fit in
-an arena-managed chunk (see the
+Allocation requests that are more than the minimum subpage-multiple size class,
+but no more than the maximum subpage-multiple size class are rounded up to the
+nearest multiple of the subpage size (256).
+Allocation requests that are more than the maximum subpage-multiple size class,
+but no more than the maximum medium size class (see the
+.Dq M
+option) are rounded up to the nearest medium size class; spacing is an
+automatically determined power of two and ranges from the subpage size to the
+page size.
+Allocation requests that are more than the maximum medium size class, but small
+enough to fit in an arena-managed chunk (see the
 .Dq K
 option), are rounded up to the nearest run size.
 Allocation requests that are too large to fit in an arena-managed chunk are
@@ -444,7 +459,7 @@ The
 variable allows the programmer to override the function which emits
 the text strings forming the errors and warnings if for some reason
 the
-.Dv stderr
+.Dv STDERR_FILENO
 file descriptor is not suitable for this.
 Please note that doing anything which tries to allocate memory in
 this function is likely to result in a crash or deadlock.
