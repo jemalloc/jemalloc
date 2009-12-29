@@ -1319,8 +1319,8 @@ malloc_printf(const char *format, ...)
  */
 
 #ifdef JEMALLOC_LAZY_LOCK
-int (*pthread_create_fptr)(pthread_t *restrict, const pthread_attr_t *,
-    void *(*)(void *), void *restrict);
+int (*pthread_create_fptr)(pthread_t *__restrict, const pthread_attr_t *,
+    void *(*)(void *), void *__restrict);
 
 static void
 get_pthread_create_fptr(void)
@@ -1336,8 +1336,9 @@ get_pthread_create_fptr(void)
 }
 
 int
-pthread_create(pthread_t *restrict thread, const pthread_attr_t *restrict attr,
-    void *(*start_routine)(void *), void *restrict arg)
+pthread_create(pthread_t *__restrict thread,
+    const pthread_attr_t *__restrict attr, void *(*start_routine)(void *),
+    void *__restrict arg)
 {
 	static pthread_once_t once_control = PTHREAD_ONCE_INIT;
 
