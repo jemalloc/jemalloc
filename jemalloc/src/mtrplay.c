@@ -43,8 +43,8 @@ record_comp(record_t *a, record_t *b)
 		return (1);
 }
 
-rb_wrap(static JEMALLOC_UNUSED, record_tree_, record_tree_t, record_t, link,
-    record_comp)
+rb_wrap(static JEMALLOC_ATTR(unused), record_tree_, record_tree_t, record_t,
+    link, record_comp)
 
 static record_t *rec_stack = NULL;
 

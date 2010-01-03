@@ -94,7 +94,6 @@ if test "x$CFLAGS" = "x" ; then
   JE_CFLAGS_APPEND([-pipe])
   JE_CFLAGS_APPEND([-g3])
   JE_CFLAGS_APPEND([-march=native])
-  JE_CFLAGS_APPEND([-ftls-model=initial-exec])
 fi
 dnl Append EXTRA_CFLAGS to CFLAGS, if defined.
 if test "x$EXTRA_CFLAGS" != "x" ; then
@@ -152,9 +151,7 @@ JE_COMPILABLE([__attribute__ syntax],
               [],
               [attribute])
 if test "x${attribute}" = "xyes" ; then
-  AC_DEFINE_UNQUOTED([JEMALLOC_UNUSED], [__attribute__((unused))])
-else
-  AC_DEFINE_UNQUOTED([JEMALLOC_UNUSED], [])
+  AC_DEFINE([JEMALLOC_HAVE_ATTR], [ ])
 fi
 
 dnl Platform-specific settings.  abi and RPATH can probably be determined

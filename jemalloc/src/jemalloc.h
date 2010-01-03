@@ -6,8 +6,14 @@ extern "C" {
 
 #include "jemalloc_defs.h"
 
-size_t	malloc_usable_size(const void *ptr);
+void	*malloc(size_t size) JEMALLOC_ATTR(malloc);
+void	*calloc(size_t num, size_t size) JEMALLOC_ATTR(malloc);
+int	posix_memalign(void **memptr, size_t alignment, size_t size)
+    JEMALLOC_ATTR(nonnull(1));
+void	*realloc(void *ptr, size_t size);
+void	free(void *ptr);
 
+size_t	malloc_usable_size(const void *ptr);
 #ifdef JEMALLOC_TCACHE
 void	malloc_tcache_flush(void);
 #endif

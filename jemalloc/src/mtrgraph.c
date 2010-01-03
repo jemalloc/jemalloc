@@ -65,7 +65,7 @@ cacheComp(AllocationCacheRecord *a, AllocationCacheRecord *b)
     }
 }
 
-rb_wrap(static JEMALLOC_UNUSED, cache_tree_, AllocationCache,
+rb_wrap(static JEMALLOC_ATTR(unused), cache_tree_, AllocationCache,
     AllocationCacheRecord, link, cacheComp)
 
 // Parse utrace records.  Following are prototypical examples of each type of
@@ -324,7 +324,7 @@ genOutput(FILE *outfile, const char *fileType, bool legend,
 		fprintf(stderr,
 			"mtrgraph: Trace record %"PRIu64
 			" realloc()s unknown object 0x%"PRIx64"\n",
-			i, trace->trace[i].oldAddr);
+			i, (uint64_t)trace->trace[i].oldAddr);
 		rVal = true;
 		goto RETURN;
 	    }
@@ -429,7 +429,7 @@ genOutput(FILE *outfile, const char *fileType, bool legend,
 		fprintf(stderr,
 			"mtrgraph: Trace record %"PRIu64
 			" free()s unknown object 0x%"PRIx64"\n",
-			i, trace->trace[i].oldAddr);
+			i, (uint64_t)trace->trace[i].oldAddr);
 		rVal = true;
 		goto RETURN;
 	    }

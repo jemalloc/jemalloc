@@ -739,7 +739,8 @@ static unsigned		ncpus;
 static malloc_mutex_t		trace_mtx;
 static unsigned			trace_next_tid = 1;
 
-static unsigned __thread	trace_tid;
+static unsigned __thread	trace_tid
+    JEMALLOC_ATTR(tls_model("initial-exec"));
 /* Used to cause trace_cleanup() to be called. */
 static pthread_key_t		trace_tsd;
 #endif
@@ -1008,12 +1009,14 @@ static malloc_mutex_t	arenas_lock; /* Protects arenas initialization. */
  * Map of pthread_self() --> arenas[???], used for selecting an arena to use
  * for allocations.
  */
-static __thread arena_t		*arenas_map;
+static __thread arena_t		*arenas_map
+    JEMALLOC_ATTR(tls_model("initial-exec"));
 #endif
 
 #ifdef JEMALLOC_TCACHE
 /* Map of thread-specific caches. */
-static __thread tcache_t	*tcache_tls;
+static __thread tcache_t	*tcache_tls
+    JEMALLOC_ATTR(tls_model("initial-exec"));
 
 /*
  * Same contents as tcache, but initialized such that the TSD destructor is
@@ -1041,8 +1044,11 @@ static
 #ifndef NO_TLS
        __thread
 #endif
-                bool	mmap_unaligned;
-
+                bool	mmap_unaligned
+#ifndef NO_TLS
+                                       JEMALLOC_ATTR(tls_model("initial-exec"))
+#endif
+                                                                               ;
 #ifdef JEMALLOC_STATS
 /* Chunk statistics. */
 static chunk_stats_t	stats_chunks;
@@ -1749,8 +1755,8 @@ extent_szad_comp(extent_node_t *a, extent_node_t *b)
 }
 
 /* Wrap red-black tree macros in functions. */
-rb_wrap(static JEMALLOC_UNUSED, extent_tree_szad_, extent_tree_t, extent_node_t,
-    link_szad, extent_szad_comp)
+rb_wrap(static JEMALLOC_ATTR(unused), extent_tree_szad_, extent_tree_t,
+    extent_node_t, link_szad, extent_szad_comp)
 #endif
 
 static inline int
@@ -1763,8 +1769,8 @@ extent_ad_comp(extent_node_t *a, extent_node_t *b)
 }
 
 /* Wrap red-black tree macros in functions. */
-rb_wrap(static JEMALLOC_UNUSED, extent_tree_ad_, extent_tree_t, extent_node_t,
-    link_ad, extent_ad_comp)
+rb_wrap(static JEMALLOC_ATTR(unused), extent_tree_ad_, extent_tree_t,
+    extent_node_t, link_ad, extent_ad_comp)
 
 /*
  * End extent tree code.
@@ -2322,8 +2328,8 @@ arena_chunk_comp(arena_chunk_t *a, arena_chunk_t *b)
 }
 
 /* Wrap red-black tree macros in functions. */
-rb_wrap(static JEMALLOC_UNUSED, arena_chunk_tree_dirty_, arena_chunk_tree_t,
-    arena_chunk_t, link_dirty, arena_chunk_comp)
+rb_wrap(static JEMALLOC_ATTR(unused), arena_chunk_tree_dirty_,
+    arena_chunk_tree_t, arena_chunk_t, link_dirty, arena_chunk_comp)
 
 static inline int
 arena_run_comp(arena_chunk_map_t *a, arena_chunk_map_t *b)
@@ -2338,7 +2344,7 @@ arena_run_comp(arena_chunk_map_t *a, arena_chunk_map_t *b)
 }
 
 /* Wrap red-black tree macros in functions. */
-rb_wrap(static JEMALLOC_UNUSED, arena_run_tree_, arena_run_tree_t,
+rb_wrap(static JEMALLOC_ATTR(unused), arena_run_tree_, arena_run_tree_t,
     arena_chunk_map_t, link, arena_run_comp)
 
 static inline int
@@ -2370,7 +2376,7 @@ arena_avail_comp(arena_chunk_map_t *a, arena_chunk_map_t *b)
 }
 
 /* Wrap red-black tree macros in functions. */
-rb_wrap(static JEMALLOC_UNUSED, arena_avail_tree_, arena_avail_tree_t,
+rb_wrap(static JEMALLOC_ATTR(unused), arena_avail_tree_, arena_avail_tree_t,
     arena_chunk_map_t, link, arena_avail_comp)
 
 static inline void
@@ -6086,6 +6092,7 @@ MALLOC_OUT:
  * Begin malloc(3)-compatible functions.
  */
 
+JEMALLOC_ATTR(malloc)
 void *
 malloc(size_t size)
 {
@@ -6142,6 +6149,7 @@ RETURN:
 	return (ret);
 }
 
+JEMALLOC_ATTR(nonnull(1))
 int
 posix_memalign(void **memptr, size_t alignment, size_t size)
 {
@@ -6217,6 +6225,7 @@ RETURN:
 	return (ret);
 }
 
+JEMALLOC_ATTR(malloc)
 void *
 calloc(size_t num, size_t size)
 {

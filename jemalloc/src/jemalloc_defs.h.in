@@ -36,12 +36,13 @@
  */
 #undef CPU_SPINWAIT
 
-/*
- * Attribute with which to mark potentially unused functions.  For gcc this is:
- *
- *   __attribute__((unused))
- */
-#undef JEMALLOC_UNUSED
+/* Defined if __attribute__((...)) syntax is supported. */
+#undef JEMALLOC_HAVE_ATTR
+#ifdef JEMALLOC_HAVE_ATTR
+#  define JEMALLOC_ATTR(s) __attribute__((s))
+#else
+#  define JEMALLOC_ATTR(s)
+#endif
 
 /*
  * JEMALLOC_DEBUG enables assertions and other sanity checks, and disables
