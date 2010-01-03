@@ -37,7 +37,8 @@ REV := 0
 BINS := @bins@
 CHDRS := @srcroot@src/jemalloc.h @objroot@src/jemalloc_defs.h
 CSRCS := @srcroot@src/jemalloc.c
-DSOS := @objroot@lib/libjemalloc.so.$(REV) @objroot@lib/libjemalloc.so
+DSOS := @objroot@lib/libjemalloc.so.$(REV) @objroot@lib/libjemalloc.so \
+	@objroot@lib/libjemalloc_pic.a
 MAN3 := @objroot@doc/jemalloc.3
 
 .PHONY: all dist install check clean distclean relclean
@@ -50,18 +51,19 @@ all: $(DSOS) bins
 
 $(DSOS): $(CSRCS:@srcroot@%.c=@objroot@%.o)
 	@mkdir -p $(@D)
-	gcc -shared -o $@ $+ $(LDFLAGS) $(LIBS)
+	$(CC) -shared -o $@ $+ $(LDFLAGS) $(LIBS)
 	ln -sf libjemalloc.so.$(REV) lib/libjemalloc.so
+	ar crus @objroot@lib/libjemalloc_pic.a $+
 
 bins: $(BINS)
 
 @objroot@bin/mtrgraph: @objroot@src/mtrgraph.o
 	@mkdir -p $(@D)
-	gcc -o $@ $+ $(LDFLAGS) $(LIBS) $(GDLIBS)
+	$(CC) -o $@ $+ $(LDFLAGS) $(LIBS) $(GDLIBS)
 
 @objroot@bin/%: @objroot@src/%.o
 	@mkdir -p $(@D)
-	gcc -o $@ $+ $(LDFLAGS) $(LIBS)
+	$(CC) -o $@ $+ $(LDFLAGS) $(LIBS)
 
 install:
 	install -d $(BINDIR)
@@ -92,6 +94,7 @@ clean:
 	rm -f @objroot@src/*.o
 	rm -f @objroot@lib/libjemalloc.so
 	rm -f @objroot@lib/libjemalloc.so.$(REV)
+	rm -f @objroot@lib/libjemalloc_pic.a
 
 distclean: clean
 	rm -f @objroot@config.log
