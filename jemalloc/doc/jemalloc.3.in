@@ -42,7 +42,8 @@
 .Dt JEMALLOC 3
 .Os
 .Sh NAME
-.Nm malloc , calloc , posix_memalign , realloc , free , malloc_usable_size
+@roff_tcache@.Nm @jemalloc_prefix@malloc , @jemalloc_prefix@calloc , @jemalloc_prefix@posix_memalign , @jemalloc_prefix@realloc , @jemalloc_prefix@free , @jemalloc_prefix@malloc_usable_size , @jemalloc_prefix@malloc_tcache_flush , @jemalloc_prefix@malloc_stats_print
+@roff_no_tcache@.Nm @jemalloc_prefix@malloc , @jemalloc_prefix@calloc , @jemalloc_prefix@posix_memalign , @jemalloc_prefix@realloc , @jemalloc_prefix@free , @jemalloc_prefix@malloc_usable_size , @jemalloc_prefix@malloc_stats_print
 .Nd general purpose memory allocation functions
 .Sh LIBRARY
 .Lb libjemalloc
@@ -63,6 +64,8 @@
 .Fn @jemalloc_prefix@malloc_usable_size "const void *ptr"
 @roff_tcache@.Ft void
 @roff_tcache@.Fn @jemalloc_prefix@malloc_tcache_flush "void"
+.Ft void
+.Fn @jemalloc_prefix@malloc_stats_print "const char *opts"
 .Ft const char *
 .Va @jemalloc_prefix@malloc_options ;
 .Ft void
@@ -173,6 +176,27 @@ implementation-dependent.
 @roff_tcache@so it is possible for a thread that stops allocating/deallocating
 @roff_tcache@to retain its cache indefinitely, in which case the developer may
 @roff_tcache@find this function useful.
+.Pp
+The
+.Fn @jemalloc_prefix@malloc_stats_print
+function prints human-readable summary statistics.
+This function can be called repeatedly.
+General information that never changes
+during execution can be omitted by specifying
+.Dq g
+as a character within the
+.Fa opts
+string.
+@roff_stats@Similarly,
+@roff_stats@.Dq b
+@roff_stats@and
+@roff_stats@.Dq l
+@roff_stats@can be specified to omit per size class statistics for bins and
+@roff_stats@large objects, respectively.
+Unrecognized characters are silently ignored.
+@roff_tcache@Note that thread caching may prevent some statistics from being
+@roff_tcache@completely up to date, since extra locking would be required to
+@roff_tcache@merge counters that track thread cache operations.
 .Sh TUNING
 Once, when the first call is made to one of these memory allocation
 routines, various flags will be set or reset, which affects the
@@ -249,7 +273,7 @@ will disable dirty page purging.
 @roff_fill@negatively.
 .It K
 Double/halve the virtual memory chunk size.
-The default chunk size is 16 MiB.
+The default chunk size is 4 MiB.
 .It M
 Double/halve the size of the maximum medium size class.
 The valid range is from one page to one half chunk.
@@ -261,13 +285,17 @@ The default number of arenas is
 @roff_no_tcache@four
 times the number of CPUs, or one if there is a single CPU.
 .It P
-Various statistics are printed at program exit via an
+The
+.Fn malloc_stats_print
+function is called at program exit via an
 .Xr atexit 3
 function.
-This has the potential to cause deadlock for a multi-threaded process that exits
-while one or more threads are executing in the memory allocation functions.
-Therefore, this option should only be used with care; it is primarily intended
-as a performance tuning aid during application development.
+@roff_stats@This has the potential to cause deadlock for a multi-threaded
+@roff_stats@process that exits while one or more threads are executing in the
+@roff_stats@memory allocation functions.
+@roff_stats@Therefore, this option should only be used with care; it is
+@roff_stats@primarily intended as a performance tuning aid during application
+@roff_stats@development.
 .It Q
 Double/halve the size of the maximum size class that is a multiple of the
 quantum (8 or 16 bytes, depending on architecture).
@@ -450,11 +478,11 @@ options and symbols for debugger support.
 @roff_fill@.Dq J
 @roff_fill@option may help provoke the problem.
 @roff_fill@.Pp
-@roff_stats@In truly difficult cases, the
-@roff_stats@.Dq U
-@roff_stats@option can provide a detailed trace of all calls made to these
-@roff_stats@functions.
-@roff_stats@.Pp
+@roff_trace@In truly difficult cases, the
+@roff_trace@.Dq T
+@roff_trace@option can provide a detailed trace of all calls made to these
+@roff_trace@functions.
+@roff_trace@.Pp
 Unfortunately this implementation does not provide much detail about
 the problems it detects; the performance impact for storing such information
 would be prohibitive.

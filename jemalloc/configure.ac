@@ -261,6 +261,7 @@ if test "x$JEMALLOC_PREFIX" != "x" ; then
   AC_DEFINE_UNQUOTED([free], [${JEMALLOC_PREFIX}free])
   AC_DEFINE_UNQUOTED([malloc_usable_size], [${JEMALLOC_PREFIX}malloc_usable_size])
   AC_DEFINE_UNQUOTED([malloc_tcache_flush], [${JEMALLOC_PREFIX}malloc_tcache_flush])
+  AC_DEFINE_UNQUOTED([malloc_stats_print], [${JEMALLOC_PREFIX}malloc_stats_print])
   AC_DEFINE_UNQUOTED([malloc_options], [${JEMALLOC_PREFIX}malloc_options])
   AC_DEFINE_UNQUOTED([malloc_message], [${JEMALLOC_PREFIX}malloc_message])
 fi

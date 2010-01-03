@@ -26,6 +26,7 @@
 #undef free
 #undef malloc_usable_size
 #undef malloc_tcache_flush
+#undef malloc_stats_print
 #undef malloc_options
 #undef malloc_message
 #endif
