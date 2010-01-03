@@ -1,6 +1,9 @@
-.\" Copyright (c) 2009 Facebook, Inc.  All rights reserved.
-.\" Copyright (c) 2006-2008 Jason Evans <jasone@canonware.com>.
+.\" Copyright (c) 2006-2010 Jason Evans <jasone@canonware.com>.
 .\" All rights reserved.
+.\" Copyright (c) 2009 Facebook, Inc.  All rights reserved.
+.\"
+.\" See COPYING for licensing terms provided by the above copyright holders.
+.\"
 .\" Copyright (c) 1980, 1991, 1993
 .\"	The Regents of the University of California.  All rights reserved.
 .\"
@@ -35,7 +38,7 @@
 .\"     @(#)malloc.3	8.1 (Berkeley) 6/4/93
 .\" $FreeBSD: head/lib/libc/stdlib/malloc.3 182225 2008-08-27 02:00:53Z jasone $
 .\"
-.Dd December 3, 2009
+.Dd January 3, 2010
 .Dt JEMALLOC 3
 .Os
 .Sh NAME
