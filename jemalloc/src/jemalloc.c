@@ -276,11 +276,12 @@ __FBSDID("$FreeBSD: src/lib/libc/stdlib/malloc.c,v 1.183 2008/12/01 10:20:59 jas
 #  define TCACHE_LG_NSLOTS	7
 #  define TCACHE_NSLOTS		(1U << TCACHE_LG_NSLOTS)
    /*
-    * Approximate number of allocation events between full GC sweeps.  Integer
+    * (1U << opt_lg_tcache_gc_sweep) is the approximate number of
+    * allocation events between full GC sweeps (-1: disabled).  Integer
     * rounding may cause the actual number to be slightly higher, since GC is
     * performed incrementally.
     */
-#  define TCACHE_GC_THRESHOLD	8192
+#  define LG_TCACHE_GC_SWEEP_DEFAULT	13
 #endif
 
 /******************************************************************************/
@@ -1038,7 +1039,7 @@ static __thread tcache_t	*tcache_tls
 static pthread_key_t		tcache_tsd;
 
 /* Number of tcache allocation/deallocation events between incremental GCs. */
-unsigned			tcache_gc_threshold;
+unsigned			tcache_gc_incr;
 #endif
 
 /*
@@ -1080,7 +1081,7 @@ static bool	opt_junk = false;
 #endif
 #ifdef JEMALLOC_TCACHE
 static bool	opt_tcache = true;
-static size_t	opt_tcache_gc = true;
+static ssize_t	opt_lg_tcache_gc_sweep = LG_TCACHE_GC_SWEEP_DEFAULT;
 #endif
 static ssize_t	opt_lg_dirty_mult = LG_DIRTY_MULT_DEFAULT;
 static bool	opt_stats_print = false;
@@ -3107,9 +3108,12 @@ static inline void
 tcache_event(tcache_t *tcache)
 {
 
+	if (tcache_gc_incr == 0)
+		return;
+
 	tcache->ev_cnt++;
-	assert(tcache->ev_cnt <= tcache_gc_threshold);
-	if (tcache->ev_cnt >= tcache_gc_threshold) {
+	assert(tcache->ev_cnt <= tcache_gc_incr);
+	if (tcache->ev_cnt >= tcache_gc_incr) {
 		size_t binind = tcache->next_gc_bin;
 		tcache_bin_t *tbin = tcache->tbins[binind];
 
@@ -5609,10 +5613,13 @@ MALLOC_OUT:
 					break;
 #ifdef JEMALLOC_TCACHE
 				case 'g':
-					opt_tcache_gc = false;
+					if (opt_lg_tcache_gc_sweep >= 0)
+						opt_lg_tcache_gc_sweep--;
 					break;
 				case 'G':
-					opt_tcache_gc = true;
+					if (opt_lg_tcache_gc_sweep + 1 <
+					    (sizeof(size_t) << 3))
+						opt_lg_tcache_gc_sweep++;
 					break;
 				case 'h':
 					opt_tcache = false;
@@ -5804,8 +5811,12 @@ MALLOC_OUT:
 
 #ifdef JEMALLOC_TCACHE
 	/* Compute incremental GC event threshold. */
-	tcache_gc_threshold = (TCACHE_GC_THRESHOLD / nbins) +
-	    ((TCACHE_GC_THRESHOLD % nbins == 0) ? 0 : 1);
+	if (opt_lg_tcache_gc_sweep >= 0) {
+		tcache_gc_incr = ((1U << opt_lg_tcache_gc_sweep) /
+		    nbins) + (((1U << opt_lg_tcache_gc_sweep) % nbins == 0)
+		    ? 0 : 1);
+	} else
+		tcache_gc_incr = 0;
 #endif
 
 	/* Set variables according to the value of opt_lg_chunk. */
@@ -6387,7 +6398,6 @@ malloc_stats_print(const char *opts)
 		malloc_message("Boolean JEMALLOC_OPTIONS: ",
 		    opt_abort ? "A" : "a", "", "");
 #ifdef JEMALLOC_TCACHE
-		malloc_message(opt_tcache_gc ? "G" : "g", "", "", "");
 		malloc_message(opt_tcache ? "H" : "h", "", "", "");
 #endif
 #ifdef JEMALLOC_FILL
@@ -6448,7 +6458,20 @@ malloc_stats_print(const char *opts)
 			    "Min active:dirty page ratio per arena: N/A\n",
 			    "", "", "");
 		}
-
+#ifdef JEMALLOC_TCACHE
+		if (opt_tcache) {
+			malloc_message("Thread cache GC sweep interval: ",
+			    (tcache_gc_incr > 0) ?
+			    umax2s((1U << opt_lg_tcache_gc_sweep), 10, s)
+			    : "N/A",
+			    "", "");
+			malloc_message(" (increment interval: ",
+			    (tcache_gc_incr > 0) ?
+			    umax2s(tcache_gc_incr, 10, s)
+			    : "N/A",
+			    ")\n", "");
+		}
+#endif
 		malloc_message("Chunk size: ", umax2s(chunksize, 10, s), "",
 		    "");
 		malloc_message(" (2^", umax2s(opt_lg_chunk, 10, s), ")\n", "");

@@ -245,9 +245,14 @@ The default minimum ratio is 32:1;
 .Ev JEMALLOC_OPTIONS=6D
 will disable dirty page purging.
 @roff_tcache@.It G
-@roff_tcache@Enable/disable incremental garbage collection of unused objects
-@roff_tcache@stored in thread-specific caches.
-@roff_tcache@This option is enabled by default.
+@roff_tcache@Double/halve the approximate interval (counted in terms of
+@roff_tcache@thread-specific cache allocation/deallocation events) between full
+@roff_tcache@thread-specific cache garbage collection sweeps.
+@roff_tcache@Garbage collection is actually performed incrementally, one size
+@roff_tcache@class at a time, in order to avoid large collection pauses.
+@roff_tcache@The default sweep interval is 8192;
+@roff_tcache@.Ev JEMALLOC_OPTIONS=14g
+@roff_tcache@will disable garbage collection.
 @roff_tcache@.It H
 @roff_tcache@When there are multiple threads, use thread-specific caching for
 @roff_tcache@small and medium objects.
