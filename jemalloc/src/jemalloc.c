@@ -1173,6 +1173,9 @@ static void	*arena_palloc(arena_t *arena, size_t alignment, size_t size,
     size_t alloc_size);
 static bool	arena_is_large(const void *ptr);
 static size_t	arena_salloc(const void *ptr);
+static void
+arena_dalloc_bin_run(arena_t *arena, arena_chunk_t *chunk, arena_run_t *run,
+    arena_bin_t *bin);
 #ifdef JEMALLOC_STATS
 static void	arena_stats_print(arena_t *arena, bool bins, bool large);
 #endif
@@ -2263,8 +2266,7 @@ rb_wrap(static JEMALLOC_ATTR(unused), arena_avail_tree_, arena_avail_tree_t,
     arena_chunk_map_t, link, arena_avail_comp)
 
 static inline void
-arena_run_rc_incr(arena_run_t *run, arena_bin_t *bin, const void *ptr,
-    unsigned regind)
+arena_run_rc_incr(arena_run_t *run, arena_bin_t *bin, const void *ptr)
 {
 	arena_chunk_t *chunk;
 	arena_t *arena;
@@ -2292,8 +2294,7 @@ arena_run_rc_incr(arena_run_t *run, arena_bin_t *bin, const void *ptr,
 }
 
 static inline void
-arena_run_rc_decr(arena_run_t *run, arena_bin_t *bin, const void *ptr,
-    unsigned regind)
+arena_run_rc_decr(arena_run_t *run, arena_bin_t *bin, const void *ptr)
 {
 	arena_chunk_t *chunk;
 	arena_t *arena;
@@ -2392,7 +2393,7 @@ arena_run_reg_alloc(arena_run_t *run, arena_bin_t *bin)
 		mask ^= (1U << bit);
 		run->regs_mask[i] = mask;
 
-		arena_run_rc_incr(run, bin, ret, regind);
+		arena_run_rc_incr(run, bin, ret);
 
 		return (ret);
 	}
@@ -2418,7 +2419,7 @@ arena_run_reg_alloc(arena_run_t *run, arena_bin_t *bin)
 			 */
 			run->regs_minelm = i; /* Low payoff: + (mask == 0); */
 
-			arena_run_rc_incr(run, bin, ret, regind);
+			arena_run_rc_incr(run, bin, ret);
 
 			return (ret);
 		}
@@ -2494,7 +2495,7 @@ arena_run_reg_dalloc(arena_run_t *run, arena_bin_t *bin, void *ptr, size_t size)
 	assert((run->regs_mask[elm] & (1U << bit)) == 0);
 	run->regs_mask[elm] |= (1U << bit);
 
-	arena_run_rc_decr(run, bin, ptr, regind);
+	arena_run_rc_decr(run, bin, ptr);
 }
 
 static void
@@ -2776,18 +2777,18 @@ arena_run_dalloc(arena_t *arena, arena_run_t *run, bool dirty)
 		size_t i;
 
 		for (i = 0; i < run_pages; i++) {
-			if ((chunk->map[run_ind + i].bits & CHUNK_MAP_DIRTY)
-			    == 0) {
-				chunk->ndirty++;
-				arena->ndirty++;
-			}
+			/*
+			 * When (dirty == true), *all* pages within the run
+			 * need to have their dirty bits set, because only
+			 * small runs can create a mixture of clean/dirty
+			 * pages, but such runs are passed to this function
+			 * with (dirty == false).
+			 */
+			assert((chunk->map[run_ind + i].bits & CHUNK_MAP_DIRTY)
+			    == 0);
+			chunk->ndirty++;
+			arena->ndirty++;
 			chunk->map[run_ind + i].bits = CHUNK_MAP_DIRTY;
-		}
-
-		if (chunk->dirtied == false) {
-			arena_chunk_tree_dirty_insert(&arena->chunks_dirty,
-			    chunk);
-			chunk->dirtied = true;
 		}
 	} else {
 		size_t i;
@@ -2860,10 +2861,18 @@ arena_run_dalloc(arena_t *arena, arena_run_t *run, bool dirty)
 	    CHUNK_MAP_ALLOCATED)) == arena_maxclass)
 		arena_chunk_dealloc(arena, chunk);
 
-	/* Enforce opt_lg_dirty_mult. */
-	if (opt_lg_dirty_mult >= 0 && (arena->nactive >> opt_lg_dirty_mult) <
-	    arena->ndirty)
-		arena_purge(arena);
+	if (dirty) {
+		if (chunk->dirtied == false) {
+			arena_chunk_tree_dirty_insert(&arena->chunks_dirty,
+			    chunk);
+			chunk->dirtied = true;
+		}
+
+		/* Enforce opt_lg_dirty_mult. */
+		if (opt_lg_dirty_mult >= 0 && (arena->nactive >>
+		    opt_lg_dirty_mult) < arena->ndirty)
+			arena_purge(arena);
+	}
 }
 
 static void
@@ -3014,6 +3023,7 @@ arena_bin_malloc_hard(arena_t *arena, arena_bin_t *bin)
  *   *) bin->run_size <= arena_maxclass
  *   *) bin->run_size <= RUN_MAX_SMALL
  *   *) run header overhead <= RUN_MAX_OVRHD (or header overhead relaxed).
+ *   *) run header size < PAGE_SIZE
  *
  * bin->nregs, bin->regs_mask_nelms, and bin->reg0_offset are
  * also calculated here, since these settings are all interdependent.
@@ -3075,7 +3085,9 @@ arena_bin_run_size_calc(arena_bin_t *bin, size_t min_run_size)
 		    (try_mask_nelms - 1)) > try_reg0_offset);
 	} while (try_run_size <= arena_maxclass && try_run_size <= RUN_MAX_SMALL
 	    && RUN_MAX_OVRHD * (bin->reg_size << 3) > RUN_MAX_OVRHD_RELAX
-	    && (try_reg0_offset << RUN_BFP) > RUN_MAX_OVRHD * try_run_size);
+	    && (try_reg0_offset << RUN_BFP) > RUN_MAX_OVRHD * try_run_size
+	    && (sizeof(arena_run_t) + (sizeof(unsigned) * (try_mask_nelms - 1)))
+	    < PAGE_SIZE);
 
 	assert(sizeof(arena_run_t) + (sizeof(unsigned) * (good_mask_nelms - 1))
 	    <= good_reg0_offset);
@@ -3710,30 +3722,9 @@ arena_dalloc_bin(arena_t *arena, arena_chunk_t *chunk, void *ptr,
 	arena_run_reg_dalloc(run, bin, ptr, size);
 	run->nfree++;
 
-	if (run->nfree == bin->nregs) {
-		/* Deallocate run. */
-		if (run == bin->runcur)
-			bin->runcur = NULL;
-		else if (bin->nregs != 1) {
-			size_t run_pageind = (((uintptr_t)run -
-			    (uintptr_t)chunk)) >> PAGE_SHIFT;
-			arena_chunk_map_t *run_mapelm =
-			    &chunk->map[run_pageind];
-			/*
-			 * This block's conditional is necessary because if the
-			 * run only contains one region, then it never gets
-			 * inserted into the non-full runs tree.
-			 */
-			arena_run_tree_remove(&bin->runs, run_mapelm);
-		}
-#ifdef JEMALLOC_DEBUG
-		run->magic = 0;
-#endif
-		arena_run_dalloc(arena, run, true);
-#ifdef JEMALLOC_STATS
-		bin->stats.curruns--;
-#endif
-	} else if (run->nfree == 1 && run != bin->runcur) {
+	if (run->nfree == bin->nregs)
+		arena_dalloc_bin_run(arena, chunk, run, bin);
+	else if (run->nfree == 1 && run != bin->runcur) {
 		/*
 		 * Make sure that bin->runcur always refers to the lowest
 		 * non-full run, if one exists.
@@ -3777,6 +3768,57 @@ arena_dalloc_bin(arena_t *arena, arena_chunk_t *chunk, void *ptr,
 		arena->stats.ndalloc_medium++;
 	}
 #endif
+}
+
+static void
+arena_dalloc_bin_run(arena_t *arena, arena_chunk_t *chunk, arena_run_t *run,
+    arena_bin_t *bin)
+{
+	size_t run_ind;
+
+	/* Deallocate run. */
+	if (run == bin->runcur)
+		bin->runcur = NULL;
+	else if (bin->nregs != 1) {
+		size_t run_pageind = (((uintptr_t)run -
+		    (uintptr_t)chunk)) >> PAGE_SHIFT;
+		arena_chunk_map_t *run_mapelm =
+		    &chunk->map[run_pageind];
+		/*
+		 * This block's conditional is necessary because if the
+		 * run only contains one region, then it never gets
+		 * inserted into the non-full runs tree.
+		 */
+		arena_run_tree_remove(&bin->runs, run_mapelm);
+	}
+	/*
+	 * Mark the first page as dirty.  The dirty bit for every other page in
+	 * the run is already properly set, which means we can call
+	 * arena_run_dalloc(..., false), thus potentially avoiding the needless
+	 * creation of many dirty pages.
+	 */
+	run_ind = (size_t)(((uintptr_t)run - (uintptr_t)chunk) >> PAGE_SHIFT);
+	assert((chunk->map[run_ind].bits & CHUNK_MAP_DIRTY) == 0);
+	chunk->map[run_ind].bits |= CHUNK_MAP_DIRTY;
+	chunk->ndirty++;
+	arena->ndirty++;
+
+#ifdef JEMALLOC_DEBUG
+	run->magic = 0;
+#endif
+	arena_run_dalloc(arena, run, false);
+#ifdef JEMALLOC_STATS
+	bin->stats.curruns--;
+#endif
+
+	if (chunk->dirtied == false) {
+		arena_chunk_tree_dirty_insert(&arena->chunks_dirty, chunk);
+		chunk->dirtied = true;
+	}
+	/* Enforce opt_lg_dirty_mult. */
+	if (opt_lg_dirty_mult >= 0 && (arena->nactive >> opt_lg_dirty_mult) <
+	    arena->ndirty)
+		arena_purge(arena);
 }
 
 #ifdef JEMALLOC_STATS
