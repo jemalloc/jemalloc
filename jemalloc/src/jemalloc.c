@@ -1090,6 +1090,7 @@ static bool	opt_junk = false;
 #ifdef JEMALLOC_TCACHE
 static size_t	opt_lg_tcache_nslots = LG_TCACHE_NSLOTS_DEFAULT;
 static ssize_t	opt_lg_tcache_gc_sweep = LG_TCACHE_GC_SWEEP_DEFAULT;
+static bool	opt_tcache_sort = true;
 #endif
 static ssize_t	opt_lg_dirty_mult = LG_DIRTY_MULT_DEFAULT;
 static bool	opt_stats_print = false;
@@ -4058,7 +4059,7 @@ tcache_bin_flush(tcache_bin_t *tbin, size_t binind, unsigned rem)
 	void *ptr;
 	unsigned i, ndeferred, ncached;
 
-	if (rem > 0) {
+	if (opt_tcache_sort && rem > 0) {
 		assert(rem < tbin->ncached);
 		/* Sort pointers such that the highest objects will be freed. */
 		tcache_bin_sort(tbin);
@@ -5696,6 +5697,14 @@ MALLOC_OUT:
 					    opt_lg_cspace_max)
 						opt_lg_qspace_max++;
 					break;
+#ifdef JEMALLOC_TCACHE
+				case 's':
+					opt_tcache_sort = false;
+					break;
+				case 'S':
+					opt_tcache_sort = true;
+					break;
+#endif
 #ifdef JEMALLOC_TRACE
 				case 't':
 					opt_trace = false;
@@ -6418,6 +6427,9 @@ malloc_stats_print(const char *opts)
 		malloc_message(opt_junk ? "J" : "j", "", "", "");
 #endif
 		malloc_message("P", "", "", "");
+#ifdef JEMALLOC_TCACHE
+		malloc_message(opt_tcache_sort ? "S" : "s", "", "", "");
+#endif
 #ifdef JEMALLOC_TRACE
 		malloc_message(opt_trace ? "T" : "t", "", "", "");
 #endif
