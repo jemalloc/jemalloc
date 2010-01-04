@@ -272,9 +272,11 @@ __FBSDID("$FreeBSD: src/lib/libc/stdlib/malloc.c,v 1.183 2008/12/01 10:20:59 jas
 	    PAGE_SHIFT)))
 
 #ifdef JEMALLOC_TCACHE
-   /* Number of cache slots for each bin in the thread cache. */
-#  define TCACHE_LG_NSLOTS	7
-#  define TCACHE_NSLOTS		(1U << TCACHE_LG_NSLOTS)
+   /*
+    * Default number of cache slots for each bin in the thread cache (0:
+    * disabled).
+    */
+#  define LG_TCACHE_NSLOTS_DEFAULT	7
    /*
     * (1U << opt_lg_tcache_gc_sweep) is the approximate number of
     * allocation events between full GC sweeps (-1: disabled).  Integer
@@ -721,7 +723,7 @@ struct tcache_bin_s {
 	unsigned	low_water;	/* Min # cached since last GC. */
 	unsigned	high_water;	/* Max # cached since last GC. */
 	unsigned	ncached;	/* # of cached objects. */
-	void		*slots[TCACHE_NSLOTS];
+	void		*slots[1];	/* Dynamically sized. */
 };
 
 struct tcache_s {
@@ -1038,6 +1040,12 @@ static __thread tcache_t	*tcache_tls
  */
 static pthread_key_t		tcache_tsd;
 
+/*
+ * Number of cache slots for each bin in the thread cache, or 0 if tcache is
+ * disabled.
+ */
+size_t				tcache_nslots;
+
 /* Number of tcache allocation/deallocation events between incremental GCs. */
 unsigned			tcache_gc_incr;
 #endif
@@ -1080,7 +1088,7 @@ static bool	opt_junk = false;
 #  endif
 #endif
 #ifdef JEMALLOC_TCACHE
-static bool	opt_tcache = true;
+static size_t	opt_lg_tcache_nslots = LG_TCACHE_NSLOTS_DEFAULT;
 static ssize_t	opt_lg_tcache_gc_sweep = LG_TCACHE_GC_SWEEP_DEFAULT;
 #endif
 static ssize_t	opt_lg_dirty_mult = LG_DIRTY_MULT_DEFAULT;
@@ -3174,7 +3182,7 @@ tcache_bin_fill(tcache_t *tcache, tcache_bin_t *tbin, size_t binind)
 	arena = tcache->arena;
 	bin = &arena->bins[binind];
 	malloc_mutex_lock(&arena->lock);
-	for (i = 0; i < (TCACHE_NSLOTS >> 1); i++) {
+	for (i = 0; i < (tcache_nslots >> 1); i++) {
 		if ((run = bin->runcur) != NULL && run->nfree > 0)
 			ptr = arena_bin_malloc_easy(arena, bin, run);
 		else
@@ -3185,7 +3193,7 @@ tcache_bin_fill(tcache_t *tcache, tcache_bin_t *tbin, size_t binind)
 		 * Fill tbin such that the objects lowest in memory are used
 		 * first.
 		 */
-		tbin->slots[(TCACHE_NSLOTS >> 1) - 1 - i] = ptr;
+		tbin->slots[(tcache_nslots >> 1) - 1 - i] = ptr;
 	}
 #ifdef JEMALLOC_STATS
 	bin->stats.nfills++;
@@ -3384,12 +3392,12 @@ arena_malloc_large(arena_t *arena, size_t size, bool zero)
 #ifdef JEMALLOC_STATS
 	arena->stats.nmalloc_large++;
 	arena->stats.allocated_large += size;
-	arena->stats.lstats[size >> PAGE_SHIFT].nrequests++;
-	arena->stats.lstats[size >> PAGE_SHIFT].curruns++;
-	if (arena->stats.lstats[size >> PAGE_SHIFT].curruns >
-	    arena->stats.lstats[size >> PAGE_SHIFT].highruns) {
-		arena->stats.lstats[size >> PAGE_SHIFT].highruns =
-		    arena->stats.lstats[size >> PAGE_SHIFT].curruns;
+	arena->stats.lstats[(size >> PAGE_SHIFT) - 1].nrequests++;
+	arena->stats.lstats[(size >> PAGE_SHIFT) - 1].curruns++;
+	if (arena->stats.lstats[(size >> PAGE_SHIFT) - 1].curruns >
+	    arena->stats.lstats[(size >> PAGE_SHIFT) - 1].highruns) {
+		arena->stats.lstats[(size >> PAGE_SHIFT) - 1].highruns =
+		    arena->stats.lstats[(size >> PAGE_SHIFT) - 1].curruns;
 	}
 #endif
 	malloc_mutex_unlock(&arena->lock);
@@ -3415,7 +3423,7 @@ arena_malloc(size_t size, bool zero)
 
 	if (size <= bin_maxclass) {
 #ifdef JEMALLOC_TCACHE
-		if (isthreaded && opt_tcache) {
+		if (isthreaded && tcache_nslots) {
 			tcache_t *tcache = tcache_tls;
 			if (tcache == NULL) {
 				tcache = tcache_create(choose_arena());
@@ -3508,12 +3516,12 @@ arena_palloc(arena_t *arena, size_t alignment, size_t size, size_t alloc_size)
 #ifdef JEMALLOC_STATS
 	arena->stats.nmalloc_large++;
 	arena->stats.allocated_large += size;
-	arena->stats.lstats[size >> PAGE_SHIFT].nrequests++;
-	arena->stats.lstats[size >> PAGE_SHIFT].curruns++;
-	if (arena->stats.lstats[size >> PAGE_SHIFT].curruns >
-	    arena->stats.lstats[size >> PAGE_SHIFT].highruns) {
-		arena->stats.lstats[size >> PAGE_SHIFT].highruns =
-		    arena->stats.lstats[size >> PAGE_SHIFT].curruns;
+	arena->stats.lstats[(size >> PAGE_SHIFT) - 1].nrequests++;
+	arena->stats.lstats[(size >> PAGE_SHIFT) - 1].curruns++;
+	if (arena->stats.lstats[(size >> PAGE_SHIFT) - 1].curruns >
+	    arena->stats.lstats[(size >> PAGE_SHIFT) - 1].highruns) {
+		arena->stats.lstats[(size >> PAGE_SHIFT) - 1].highruns =
+		    arena->stats.lstats[(size >> PAGE_SHIFT) - 1].curruns;
 	}
 #endif
 	malloc_mutex_unlock(&arena->lock);
@@ -4013,7 +4021,7 @@ tcache_bin_sort(tcache_bin_t *tbin)
 {
 	unsigned e, i;
 	void **fr, **to;
-	void *mslots[TCACHE_NSLOTS];
+	void *mslots[tcache_nslots];
 
 	/*
 	 * Perform iterative merge sort, swapping source and destination arrays
@@ -4153,9 +4161,9 @@ tcache_dalloc(tcache_t *tcache, void *ptr)
 		tcache->tbins[binind] = tbin;
 	}
 
-	if (tbin->ncached == TCACHE_NSLOTS)
-		tcache_bin_flush(tbin, binind, (TCACHE_NSLOTS >> 1));
-	assert(tbin->ncached < TCACHE_NSLOTS);
+	if (tbin->ncached == tcache_nslots)
+		tcache_bin_flush(tbin, binind, (tcache_nslots >> 1));
+	assert(tbin->ncached < tcache_nslots);
 	tbin->slots[tbin->ncached] = ptr;
 	tbin->ncached++;
 	if (tbin->ncached > tbin->high_water)
@@ -4220,7 +4228,7 @@ arena_dalloc(arena_t *arena, arena_chunk_t *chunk, void *ptr)
 	if ((mapelm->bits & CHUNK_MAP_LARGE) == 0) {
 		/* Small allocation. */
 #ifdef JEMALLOC_TCACHE
-		if (isthreaded && opt_tcache) {
+		if (isthreaded && tcache_nslots) {
 			tcache_t *tcache = tcache_tls;
 			if ((uintptr_t)tcache > (uintptr_t)1)
 				tcache_dalloc(tcache, ptr);
@@ -4701,15 +4709,15 @@ static tcache_bin_t *
 tcache_bin_create(arena_t *arena)
 {
 	tcache_bin_t *ret;
+	size_t tsize;
 
-	if (sizeof(tcache_bin_t) <= small_maxclass) {
-		ret = (tcache_bin_t *)arena_malloc_small(arena,
-		    sizeof(tcache_bin_t), false);
-	} else if (sizeof(tcache_bin_t) <= bin_maxclass) {
-		ret = (tcache_bin_t *)arena_malloc_medium(arena,
-		    sizeof(tcache_bin_t), false);
-	} else
-		ret = imalloc(sizeof(tcache_bin_t));
+	tsize = sizeof(tcache_bin_t) + (sizeof(void *) * (tcache_nslots - 1));
+	if (tsize <= small_maxclass)
+		ret = (tcache_bin_t *)arena_malloc_small(arena, tsize, false);
+	else if (tsize <= bin_maxclass)
+		ret = (tcache_bin_t *)arena_malloc_medium(arena, tsize, false);
+	else
+		ret = (tcache_bin_t *)imalloc(tsize);
 	if (ret == NULL)
 		return (NULL);
 #ifdef JEMALLOC_STATS
@@ -4727,7 +4735,7 @@ tcache_bin_destroy(tcache_t *tcache, tcache_bin_t *tbin, unsigned binind)
 {
 	arena_t *arena;
 	arena_chunk_t *chunk;
-	size_t pageind;
+	size_t pageind, tsize;
 	arena_chunk_map_t *mapelm;
 
 	chunk = CHUNK_ADDR2BASE(tbin);
@@ -4750,7 +4758,8 @@ tcache_bin_destroy(tcache_t *tcache, tcache_bin_t *tbin, unsigned binind)
 #endif
 
 	assert(tbin->ncached == 0);
-	if (sizeof(tcache_bin_t) <= bin_maxclass) {
+	tsize = sizeof(tcache_bin_t) + (sizeof(void *) * (tcache_nslots - 1));
+	if (tsize <= bin_maxclass) {
 		malloc_mutex_lock(&arena->lock);
 		arena_dalloc_bin(arena, chunk, tbin, mapelm);
 		malloc_mutex_unlock(&arena->lock);
@@ -5622,10 +5631,13 @@ MALLOC_OUT:
 						opt_lg_tcache_gc_sweep++;
 					break;
 				case 'h':
-					opt_tcache = false;
+					if (opt_lg_tcache_nslots > 0)
+						opt_lg_tcache_nslots--;
 					break;
 				case 'H':
-					opt_tcache = true;
+					if (opt_lg_tcache_nslots + 1 <
+					    (sizeof(size_t) << 3))
+						opt_lg_tcache_nslots++;
 					break;
 #endif
 #ifdef JEMALLOC_FILL
@@ -5810,13 +5822,18 @@ MALLOC_OUT:
 	}
 
 #ifdef JEMALLOC_TCACHE
-	/* Compute incremental GC event threshold. */
-	if (opt_lg_tcache_gc_sweep >= 0) {
-		tcache_gc_incr = ((1U << opt_lg_tcache_gc_sweep) /
-		    nbins) + (((1U << opt_lg_tcache_gc_sweep) % nbins == 0)
-		    ? 0 : 1);
+	if (opt_lg_tcache_nslots > 0) {
+		tcache_nslots = (1U << opt_lg_tcache_nslots);
+
+		/* Compute incremental GC event threshold. */
+		if (opt_lg_tcache_gc_sweep >= 0) {
+			tcache_gc_incr = ((1U << opt_lg_tcache_gc_sweep) /
+			    nbins) + (((1U << opt_lg_tcache_gc_sweep) % nbins ==
+			    0) ? 0 : 1);
+		} else
+			tcache_gc_incr = 0;
 	} else
-		tcache_gc_incr = 0;
+		tcache_nslots = 0;
 #endif
 
 	/* Set variables according to the value of opt_lg_chunk. */
@@ -5914,7 +5931,7 @@ MALLOC_OUT:
 #endif
 
 #ifdef JEMALLOC_TCACHE
-	if (opt_tcache) {
+	if (tcache_nslots) {
 		if (pthread_key_create(&tcache_tsd, tcache_thread_cleanup) !=
 		    0) {
 			malloc_message("<jemalloc>",
@@ -5938,7 +5955,7 @@ MALLOC_OUT:
 		 * default.
 		 */
 #ifdef JEMALLOC_TCACHE
-		if (opt_tcache) {
+		if (tcache_nslots) {
 			/*
 			 * Only large object allocation/deallocation is
 			 * guaranteed to acquire an arena mutex, so we can get
@@ -6397,9 +6414,6 @@ malloc_stats_print(const char *opts)
 		    "\n", "");
 		malloc_message("Boolean JEMALLOC_OPTIONS: ",
 		    opt_abort ? "A" : "a", "", "");
-#ifdef JEMALLOC_TCACHE
-		malloc_message(opt_tcache ? "H" : "h", "", "", "");
-#endif
 #ifdef JEMALLOC_FILL
 		malloc_message(opt_junk ? "J" : "j", "", "", "");
 #endif
@@ -6459,18 +6473,17 @@ malloc_stats_print(const char *opts)
 			    "", "", "");
 		}
 #ifdef JEMALLOC_TCACHE
-		if (opt_tcache) {
-			malloc_message("Thread cache GC sweep interval: ",
-			    (tcache_gc_incr > 0) ?
-			    umax2s((1U << opt_lg_tcache_gc_sweep), 10, s)
-			    : "N/A",
-			    "", "");
-			malloc_message(" (increment interval: ",
-			    (tcache_gc_incr > 0) ?
-			    umax2s(tcache_gc_incr, 10, s)
-			    : "N/A",
-			    ")\n", "");
-		}
+		malloc_message("Thread cache slots per size class: ",
+		    tcache_nslots ? umax2s(tcache_nslots, 10, s) : "N/A",
+		    "\n", "");
+		malloc_message("Thread cache GC sweep interval: ",
+		    (tcache_nslots && tcache_gc_incr > 0) ?
+		    umax2s((1U << opt_lg_tcache_gc_sweep), 10, s) : "N/A",
+		    "", "");
+		malloc_message(" (increment interval: ",
+		    (tcache_nslots && tcache_gc_incr > 0) ?
+		    umax2s(tcache_gc_incr, 10, s) : "N/A",
+		    ")\n", "");
 #endif
 		malloc_message("Chunk size: ", umax2s(chunksize, 10, s), "",
 		    "");

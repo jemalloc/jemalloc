@@ -254,15 +254,21 @@ will disable dirty page purging.
 @roff_tcache@.Ev JEMALLOC_OPTIONS=14g
 @roff_tcache@will disable garbage collection.
 @roff_tcache@.It H
-@roff_tcache@When there are multiple threads, use thread-specific caching for
-@roff_tcache@small and medium objects.
-@roff_tcache@This option is enabled by default.
+@roff_tcache@Double/halve the number of thread-specific cache slots per size
+@roff_tcache@class.
+@roff_tcache@When there are multiple threads, each thread uses a
+@roff_tcache@thread-specific cache for small and medium objects.
 @roff_tcache@Thread-specific caching allows many allocations to be satisfied
 @roff_tcache@without performing any thread synchronization, at the cost of
 @roff_tcache@increased memory use.
 @roff_tcache@See the
 @roff_tcache@.Dq G
 @roff_tcache@option for related tuning information.
+@roff_tcache@The default number of cache slots is 128;
+@roff_tcache@.Ev JEMALLOC_OPTIONS=7h
+@roff_tcache@will disable thread-specific caching.
+@roff_tcache@Note that one cache slot per size class is not a valid
+@roff_tcache@configuration due to implementation details.
 @roff_fill@.It J
 @roff_fill@Each byte of new memory allocated by
 @roff_fill@.Fn @jemalloc_prefix@malloc
