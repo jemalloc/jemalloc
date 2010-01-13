@@ -3426,24 +3426,23 @@ arena_malloc(size_t size, bool zero)
 #ifdef JEMALLOC_TCACHE
 		if (isthreaded && tcache_nslots) {
 			tcache_t *tcache = tcache_tls;
-			if (tcache == NULL) {
+			if ((uintptr_t)tcache > (uintptr_t)1)
+				return (tcache_alloc(tcache, size, zero));
+			else if (tcache == NULL) {
 				tcache = tcache_create(choose_arena());
 				if (tcache == NULL)
 					return (NULL);
+				return (tcache_alloc(tcache, size, zero));
 			}
-			return (tcache_alloc(tcache, size, zero));
-		} else {
-#endif
-			if (size <= small_maxclass) {
-				return (arena_malloc_small(choose_arena(), size,
-				    zero));
-			} else {
-				return (arena_malloc_medium(choose_arena(),
-				    size, zero));
-			}
-#ifdef JEMALLOC_TCACHE
 		}
 #endif
+		if (size <= small_maxclass) {
+			return (arena_malloc_small(choose_arena(), size,
+			    zero));
+		} else {
+			return (arena_malloc_medium(choose_arena(),
+			    size, zero));
+		}
 	} else
 		return (arena_malloc_large(choose_arena(), size, zero));
 }
