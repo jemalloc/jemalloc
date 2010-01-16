@@ -19,16 +19,7 @@
  */
 #undef JEMALLOC_PREFIX
 #if (defined(JEMALLOC_PREFIX) && defined(JEMALLOC_MANGLE))
-#undef malloc
-#undef calloc
-#undef posix_memalign
-#undef realloc
-#undef free
-#undef malloc_usable_size
-#undef malloc_tcache_flush
-#undef malloc_stats_print
-#undef malloc_options
-#undef malloc_message
+#undef JEMALLOC_P
 #endif
 
 /*

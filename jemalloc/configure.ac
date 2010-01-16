@@ -152,6 +152,9 @@ JE_COMPILABLE([__attribute__ syntax],
               [attribute])
 if test "x${attribute}" = "xyes" ; then
   AC_DEFINE([JEMALLOC_HAVE_ATTR], [ ])
+  if test "x$GCC" = "xyes" ; then
+    JE_CFLAGS_APPEND([-fvisibility=internal])
+  fi
 fi
 
 dnl Platform-specific settings.  abi and RPATH can probably be determined
@@ -254,16 +257,7 @@ if test "x$JEMALLOC_PREFIX" != "x" ; then
   AC_DEFINE([JEMALLOC_PREFIX], [ ])
   jemalloc_prefix=$JEMALLOC_PREFIX
   AC_SUBST([jemalloc_prefix])
-  AC_DEFINE_UNQUOTED([malloc], [${JEMALLOC_PREFIX}malloc])
-  AC_DEFINE_UNQUOTED([calloc], [${JEMALLOC_PREFIX}calloc])
-  AC_DEFINE_UNQUOTED([posix_memalign], [${JEMALLOC_PREFIX}posix_memalign])
-  AC_DEFINE_UNQUOTED([realloc], [${JEMALLOC_PREFIX}realloc])
-  AC_DEFINE_UNQUOTED([free], [${JEMALLOC_PREFIX}free])
-  AC_DEFINE_UNQUOTED([malloc_usable_size], [${JEMALLOC_PREFIX}malloc_usable_size])
-  AC_DEFINE_UNQUOTED([malloc_tcache_flush], [${JEMALLOC_PREFIX}malloc_tcache_flush])
-  AC_DEFINE_UNQUOTED([malloc_stats_print], [${JEMALLOC_PREFIX}malloc_stats_print])
-  AC_DEFINE_UNQUOTED([malloc_options], [${JEMALLOC_PREFIX}malloc_options])
-  AC_DEFINE_UNQUOTED([malloc_message], [${JEMALLOC_PREFIX}malloc_message])
+  AC_DEFINE_UNQUOTED([JEMALLOC_P(string_that_no_one_should_want_to_use_as_a_jemalloc_API_prefix)], [${JEMALLOC_PREFIX}##string_that_no_one_should_want_to_use_as_a_jemalloc_API_prefix])
 fi
 
 dnl Do not compile with debugging by default.

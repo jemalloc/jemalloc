@@ -36,20 +36,24 @@ REV := 0
 # List of files to be installed.
 BINS := @bins@
 CHDRS := @srcroot@src/jemalloc.h @objroot@src/jemalloc_defs.h
-CSRCS := @srcroot@src/jemalloc.c
+CSRCS := @srcroot@src/jemalloc.c @srcroot@src/jemalloc_arena.c \
+	@srcroot@src/jemalloc_base.c @srcroot@src/jemalloc_chunk.c \
+	@srcroot@src/jemalloc_extent.c @srcroot@src/jemalloc_huge.c \
+	@srcroot@src/jemalloc_mutex.c @srcroot@src/jemalloc_stats.c \
+	@srcroot@src/jemalloc_tcache.c @srcroot@src/jemalloc_trace.c
 DSOS := @objroot@lib/libjemalloc.so.$(REV) @objroot@lib/libjemalloc.so \
 	@objroot@lib/libjemalloc_pic.a
 MAN3 := @objroot@doc/jemalloc.3
-
-#
-# Include generated dependency files.
-#
--include $(CSRCS:@srcroot@%.c=@objroot@%.d)
 
 .PHONY: all dist install check clean distclean relclean
 
 # Default target.
 all: $(DSOS) bins
+
+#
+# Include generated dependency files.
+#
+-include $(CSRCS:@srcroot@%.c=@objroot@%.d)
 
 @objroot@src/%.o: @srcroot@src/%.c
 	$(CC) $(CFLAGS) -c $(CPPFLAGS) -o $@ $<

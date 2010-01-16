@@ -10,5 +10,5 @@ syntax: regexp
 ^jemalloc/lib$
 ^jemalloc/Makefile$
 ^jemalloc/src/jemalloc_defs\.h$
-^jemalloc/src/[a-z0-9]+.o$
-^jemalloc/src/[a-z0-9]+.d$
+^jemalloc/src/[a-z0-9_]+.o$
+^jemalloc/src/[a-z0-9_]+.d$
