@@ -405,7 +405,8 @@ void	arena_dalloc_bin(arena_t *arena, arena_chunk_t *chunk, void *ptr,
     arena_chunk_map_t *mapelm);
 void	arena_dalloc_large(arena_t *arena, arena_chunk_t *chunk, void *ptr);
 #ifdef JEMALLOC_STATS
-void	arena_stats_print(arena_t *arena, bool bins, bool large);
+void	arena_stats_print(arena_t *arena, bool bins, bool large,
+    void (*write4)(const char *, const char *, const char *, const char *));
 #endif
 void	*arena_ralloc(void *ptr, size_t size, size_t oldsize);
 bool	arena_new(arena_t *arena, unsigned ind);

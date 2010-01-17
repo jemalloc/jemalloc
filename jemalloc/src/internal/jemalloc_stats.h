@@ -129,7 +129,10 @@ extern bool	opt_stats_print;
 
 char	*umax2s(uintmax_t x, unsigned base, char *s);
 #ifdef JEMALLOC_STATS
-void	malloc_printf(const char *format, ...);
+void malloc_cprintf(void (*write4)(const char *, const char *, const char *,
+    const char *), const char *format, ...) JEMALLOC_ATTR(format(printf, 2, 3));
+void	malloc_printf(const char *format, ...)
+    JEMALLOC_ATTR(format(printf, 1, 2));
 #endif
 
 #endif /* JEMALLOC_H_EXTERNS */

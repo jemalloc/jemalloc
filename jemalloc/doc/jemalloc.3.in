@@ -65,7 +65,7 @@
 @roff_tcache@.Ft void
 @roff_tcache@.Fn @jemalloc_prefix@malloc_tcache_flush "void"
 .Ft void
-.Fn @jemalloc_prefix@malloc_stats_print "const char *opts"
+.Fn @jemalloc_prefix@malloc_stats_print "void (*write4)(const char *, const char *, const char *, const char *)" "const char *opts"
 .Ft const char *
 .Va @jemalloc_prefix@malloc_options ;
 .Ft void
@@ -179,7 +179,14 @@ implementation-dependent.
 .Pp
 The
 .Fn @jemalloc_prefix@malloc_stats_print
-function prints human-readable summary statistics.
+function writes human-readable summary statistics via the
+.Fa write4
+callback function, or
+.Fn malloc_message
+if
+.Fa write4
+is
+.Dv NULL .
 This function can be called repeatedly.
 General information that never changes
 during execution can be omitted by specifying

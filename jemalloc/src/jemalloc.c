@@ -361,7 +361,7 @@ stats_print_atexit(void)
 		}
 	}
 #endif
-	JEMALLOC_P(malloc_stats_print)(NULL);
+	JEMALLOC_P(malloc_stats_print)(NULL, NULL);
 }
 
 static inline void *

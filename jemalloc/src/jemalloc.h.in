@@ -24,7 +24,8 @@ size_t	JEMALLOC_P(malloc_usable_size)(const void *ptr);
 #ifdef JEMALLOC_TCACHE
 void	JEMALLOC_P(malloc_tcache_flush)(void);
 #endif
-void	JEMALLOC_P(malloc_stats_print)(const char *opts);
+void	JEMALLOC_P(malloc_stats_print)(void (*write4)(const char *,
+    const char *, const char *, const char *), const char *opts);
 
 #ifdef __cplusplus
 };
