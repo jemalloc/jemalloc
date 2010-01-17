@@ -1,0 +1,12 @@
+/jemalloc/autom4te.cache/
+/jemalloc/bin/
+/jemalloc/cfghdrs.stamp
+/jemalloc/cfgoutputs.stamp
+/jemalloc/config.log
+/jemalloc/config.status
+/jemalloc/configure
+/jemalloc/doc/jemalloc.3
+/jemalloc/lib/
+/jemalloc/Makefile
+/jemalloc/src/jemalloc_defs\.h
+/jemalloc/src/*.[od]
