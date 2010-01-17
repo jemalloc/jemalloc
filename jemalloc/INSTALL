@@ -89,6 +89,12 @@ any of the following arguments (not a definitive list) to 'configure':
     practice, this feature usually has little impact on performance unless
     thread-specific caching is disabled.
 
+--disable-tls
+    Disable thread-local storage (TLS), which allows for fast access to
+    thread-local variables via the __thread keyword.  If TLS is available,
+    jemalloc uses it for several purposes.  Not that disabling TLS implies
+    --disable-tcache.
+
 The following environment variables (not a definitive list) impact configure's
 behavior:
 
