@@ -223,7 +223,7 @@ AC_SUBST([RPATH_EXTRA])
 
 dnl Disable rules that do automatic regeneration of configure output by default.
 AC_ARG_ENABLE([autogen],
-  [AS_HELP_STRING[--enable-autogen], [Automatically regenerate configure output])],
+  [AS_HELP_STRING([--enable-autogen], [Automatically regenerate configure output])],
 if test "x$enable_autogen" = "xno" ; then
   enable_autogen="0"
 else
@@ -548,39 +548,6 @@ AC_CHECK_LIB([pthread], [pthread_create], [LIBS="$LIBS -lpthread"],
 
 CPPFLAGS="$CPPFLAGS -D_REENTRANT"
 
-AC_MSG_CHECKING([for TLS])
-AC_RUN_IFELSE([AC_LANG_PROGRAM(
-[[
-    __thread int x;
-]], [[
-    x = 42;
-
-    return 0;
-]])],
-              AC_MSG_RESULT([yes])
-              have_tls="1",
-              AC_MSG_RESULT([no])
-              have_tls="0"
-              AC_DEFINE_UNQUOTED([NO_TLS], [ ]))
-
-dnl Finish tcache-related definitions, now that TLS configuration is done.
-if test "x$have_tls" = "x0" ; then
-  enable_tcache="0"
-fi
-if test "x$enable_tcache" = "x1" ; then
-  AC_DEFINE([JEMALLOC_TCACHE], [ ])
-fi
-AC_SUBST([enable_tcache])
-if test "x$enable_tcache" = "x0" ; then
-  roff_tcache=".\\\" "
-  roff_no_tcache=""
-else
-  roff_tcache=""
-  roff_no_tcache=".\\\" "
-fi
-AC_SUBST([roff_tcache])
-AC_SUBST([roff_no_tcache])
-
 dnl Enable lazy locking by default.
 AC_ARG_ENABLE([lazy_lock],
   [AS_HELP_STRING([--disable-lazy-lock],
@@ -600,6 +567,52 @@ if test "x$enable_lazy_lock" = "x1" ; then
   AC_DEFINE([JEMALLOC_LAZY_LOCK], [ ])
 fi
 AC_SUBST([enable_lazy_lock])
+
+AC_ARG_ENABLE([tls],
+  [AS_HELP_STRING([--disable-tls], [Disable thread-local storage (__thread keyword)])],
+if test "x$enable_tls" = "xno" ; then
+  enable_tls="0"
+else
+  enable_tls="1"
+fi
+,
+enable_tls="1"
+)
+if test "x${enable_tls}" = "x1" ; then
+AC_MSG_CHECKING([for TLS])
+AC_RUN_IFELSE([AC_LANG_PROGRAM(
+[[
+    __thread int x;
+]], [[
+    x = 42;
+
+    return 0;
+]])],
+              AC_MSG_RESULT([yes]),
+              AC_MSG_RESULT([no])
+              enable_tls="0")
+fi
+if test "x${enable_tls}" = "x0" ; then
+  AC_DEFINE_UNQUOTED([NO_TLS], [ ])
+fi
+
+dnl Finish tcache-related definitions, now that TLS configuration is done.
+if test "x$enable_tls" = "x0" ; then
+  enable_tcache="0"
+fi
+if test "x$enable_tcache" = "x1" ; then
+  AC_DEFINE([JEMALLOC_TCACHE], [ ])
+fi
+AC_SUBST([enable_tcache])
+if test "x$enable_tcache" = "x0" ; then
+  roff_tcache=".\\\" "
+  roff_no_tcache=""
+else
+  roff_tcache=""
+  roff_no_tcache=".\\\" "
+fi
+AC_SUBST([roff_tcache])
+AC_SUBST([roff_no_tcache])
 
 dnl ============================================================================
 dnl Configure libgd for mtrgraph.
