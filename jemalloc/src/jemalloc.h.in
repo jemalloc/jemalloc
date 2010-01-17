@@ -4,7 +4,7 @@
 extern "C" {
 #endif
 
-#include "jemalloc_defs.h"
+#include "jemalloc_defs@install_suffix@.h"
 #ifndef JEMALLOC_P
 #  define JEMALLOC_P(s) s
 #endif

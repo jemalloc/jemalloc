@@ -17,7 +17,7 @@ LIBDIR := @LIBDIR@
 MANDIR := @MANDIR@
 
 # Build parameters.
-CPPFLAGS := @CPPFLAGS@
+CPPFLAGS := @CPPFLAGS@ -I@srcroot@src -I@objroot@src
 CFLAGS := @CFLAGS@ -fPIC -DPIC
 ifeq (macho, @abi@)
 CFLAGS += -dynamic
@@ -33,17 +33,19 @@ SO := so
 endif
 REV := 0
 
-# List of files to be installed.
+# Lists of files.
 BINS := @bins@
-CHDRS := @srcroot@src/jemalloc.h @objroot@src/jemalloc_defs.h
+CHDRS := @objroot@src/jemalloc@install_suffix@.h \
+	@objroot@src/jemalloc_defs@install_suffix@.h
 CSRCS := @srcroot@src/jemalloc.c @srcroot@src/jemalloc_arena.c \
 	@srcroot@src/jemalloc_base.c @srcroot@src/jemalloc_chunk.c \
 	@srcroot@src/jemalloc_extent.c @srcroot@src/jemalloc_huge.c \
 	@srcroot@src/jemalloc_mutex.c @srcroot@src/jemalloc_stats.c \
 	@srcroot@src/jemalloc_tcache.c @srcroot@src/jemalloc_trace.c
-DSOS := @objroot@lib/libjemalloc.so.$(REV) @objroot@lib/libjemalloc.so \
-	@objroot@lib/libjemalloc_pic.a
-MAN3 := @objroot@doc/jemalloc.3
+DSOS := @objroot@lib/libjemalloc@install_suffix@.so.$(REV) \
+	@objroot@lib/libjemalloc@install_suffix@.so \
+	@objroot@lib/libjemalloc@install_suffix@_pic.a
+MAN3 := @objroot@doc/jemalloc@install_suffix@.3
 
 .PHONY: all dist install check clean distclean relclean
 
@@ -62,16 +64,16 @@ all: $(DSOS) bins
 $(DSOS): $(CSRCS:@srcroot@%.c=@objroot@%.o)
 	@mkdir -p $(@D)
 	$(CC) -shared -o $@ $+ $(LDFLAGS) $(LIBS)
-	ln -sf libjemalloc.so.$(REV) lib/libjemalloc.so
-	ar crus @objroot@lib/libjemalloc_pic.a $+
+	ln -sf libjemalloc@install_suffix@.so.$(REV) lib/libjemalloc@install_suffix@.so
+	ar crus @objroot@lib/libjemalloc@install_suffix@_pic.a $+
 
 bins: $(BINS)
 
-@objroot@bin/mtrgraph: @objroot@src/mtrgraph.o
+@objroot@bin/mtrgraph@install_suffix@: @objroot@src/mtrgraph.o
 	@mkdir -p $(@D)
 	$(CC) -o $@ $< $(LDFLAGS) $(LIBS) $(GDLIBS)
 
-@objroot@bin/%: @objroot@src/%.o
+@objroot@bin/%@install_suffix@: @objroot@src/%.o
 	@mkdir -p $(@D)
 	$(CC) -o $@ $< $(LDFLAGS) $(LIBS)
 
@@ -87,11 +89,10 @@ done
 	install -m 644 $$h $(INCLUDEDIR); \
 done
 	install -d $(LIBDIR)
-	@for s in $(DSOS); do \
-	echo "install -m 755 $$s $(LIBDIR)"; \
-	install -m 755 $$s $(LIBDIR); \
-done
-	install -d $(MANDIR)
+	install -m 755 @objroot@lib/libjemalloc@install_suffix@.so.$(REV) $(LIBDIR)
+	ln -sf libjemalloc@install_suffix@.so.$(REV) $(LIBDIR)/libjemalloc@install_suffix@.so
+	install -m 755 @objroot@lib/libjemalloc@install_suffix@_pic.a $(LIBDIR)
+	install -d $(MANDIR)/man3
 	@for m in $(MAN3); do \
 	echo "install -m 644 $$m $(MANDIR)/man3"; \
 	install -m 644 $$m $(MANDIR)/man3; \
@@ -112,8 +113,8 @@ distclean: clean
 	rm -f @objroot@config.status
 	rm -f @objroot@cfghdrs.stamp
 	rm -f @objroot@cfgoutputs.stamp
-	rm -f @cfghdrs@
-	rm -f @cfgoutputs@
+	rm -f @cfghdrs_out@
+	rm -f @cfgoutputs_out@
 
 relclean: distclean
 	rm -rf @objroot@autom4te.cache
@@ -133,8 +134,7 @@ ifeq (@enable_autogen@, 1)
 @srcroot@cfghdrs.stamp.in : @srcroot@configure.ac
 	echo stamp > @srcroot@cfghdrs.stamp.in
 
-@objroot@cfghdrs.stamp : $(patsubst %, %.in, @cfghdrs@) \
-			 @srcroot@configure
+@objroot@cfghdrs.stamp : @cfghdrs_in@ @srcroot@configure
 	./@objroot@config.status
 	@touch $@
 
@@ -144,8 +144,7 @@ ifeq (@enable_autogen@, 1)
 @srcroot@cfgoutputs.stamp.in : @srcroot@configure.ac
 	echo stamp > @srcroot@cfgoutputs.stamp.in
 
-@objroot@cfgoutputs.stamp : $(patsubst %, @srcroot@%.in, @cfgoutputs@) \
-			    @srcroot@configure
+@objroot@cfgoutputs.stamp : @cfgoutputs_in@ @srcroot@configure
 	./@objroot@config.status
 	@touch $@
 

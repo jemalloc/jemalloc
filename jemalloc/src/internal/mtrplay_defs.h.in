@@ -1,0 +1,14 @@
+#ifndef MTRPLAY_DEFS_H_
+#define	MTRPLAY_DEFS_H_
+
+/* Defined if __attribute__((...)) syntax is supported. */
+#undef JEMALLOC_HAVE_ATTR
+#ifdef JEMALLOC_HAVE_ATTR
+#  define JEMALLOC_ATTR(s) __attribute__((s))
+#else
+#  define JEMALLOC_ATTR(s)
+#endif
+
+#undef JEMALLOC_DEBUG
+
+#endif /* MTRPLAY_DEFS_H_ */

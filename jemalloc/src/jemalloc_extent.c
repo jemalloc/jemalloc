@@ -1,5 +1,5 @@
 #define	JEMALLOC_EXTENT_C_
-#include "jemalloc_internal.h"
+#include "internal/jemalloc_internal.h"
 
 /******************************************************************************/
 

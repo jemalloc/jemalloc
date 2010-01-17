@@ -1,5 +1,5 @@
 #define	JEMALLOC_TCACHE_C_
-#include "jemalloc_internal.h"
+#include "internal/jemalloc_internal.h"
 #ifdef JEMALLOC_TCACHE
 /******************************************************************************/
 /* Data. */

@@ -31,6 +31,11 @@ any of the following arguments (not a definitive list) to 'configure':
     becomes <prefix>malloc().  This makes it possible to use jemalloc at the
     same time as the system allocator.
 
+--with-install-suffix=<suffix>
+    Append <suffix> to the base name of all installed files, such that multiple
+    versions of jemalloc can coexist in the same installation directory.  For
+    example, libjemalloc.so.0 becomes libjemalloc<suffix>.so.0.
+
 --enable-debug
     Enable assertions and validation code.  This incurs a substantial
     performance hit, but is very useful during application development.

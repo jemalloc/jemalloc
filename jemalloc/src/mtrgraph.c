@@ -15,12 +15,12 @@
 #include <gdfontl.h>
 #include <gdfontg.h>
 
-#include "jemalloc.h"
+#include "internal/mtrgraph_defs.h"
 #ifndef JEMALLOC_DEBUG
 #  define NDEBUG
 #endif
 #include <assert.h>
-#include "rb.h"
+#include "internal/rb.h"
 
 typedef struct
 {

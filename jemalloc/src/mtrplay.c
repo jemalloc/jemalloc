@@ -16,12 +16,12 @@
 #include <sys/mman.h>
 #include <sys/types.h>
 
-#include "jemalloc_defs.h"
+#include "internal/mtrplay_defs.h"
 #ifndef JEMALLOC_DEBUG
 #  define NDEBUG
 #endif
 #include <assert.h>
-#include "rb.h"
+#include "internal/rb.h"
 
 typedef struct record_s record_t;
 struct record_s {

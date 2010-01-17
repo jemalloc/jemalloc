@@ -80,9 +80,6 @@ MANDIR=`eval echo $mandir`
 MANDIR=`eval echo $MANDIR`
 AC_SUBST([MANDIR])
 
-cfgoutputs="Makefile doc/jemalloc.3"
-cfghdrs="src/jemalloc_defs.h"
-
 dnl If CFLAGS isn't defined, set CFLAGS to something reasonable.  Otherwise,
 dnl just prevent autoconf from molesting CFLAGS.
 CFLAGS=$CFLAGS
@@ -246,19 +243,48 @@ AC_PATH_PROG([AUTOCONF], [autoconf], , [$PATH])
 dnl Do not prefix public APIs by default.
 AC_ARG_WITH([jemalloc_prefix],
   [AS_HELP_STRING([--with-jemalloc-prefix=<prefix>], [Prefix to prepend to all public APIs])],
-if test "x$with_jemalloc_prefix" = "xno" ; then
-  JEMALLOC_PREFIX=
-else
-  JEMALLOC_PREFIX="$with_jemalloc_prefix"
-fi,
-  JEMALLOC_PREFIX=
+  [JEMALLOC_PREFIX="$with_jemalloc_prefix"],
+  [JEMALLOC_PREFIX=]
 )
 if test "x$JEMALLOC_PREFIX" != "x" ; then
   AC_DEFINE([JEMALLOC_PREFIX], [ ])
-  jemalloc_prefix=$JEMALLOC_PREFIX
+  jemalloc_prefix="$JEMALLOC_PREFIX"
   AC_SUBST([jemalloc_prefix])
   AC_DEFINE_UNQUOTED([JEMALLOC_P(string_that_no_one_should_want_to_use_as_a_jemalloc_API_prefix)], [${JEMALLOC_PREFIX}##string_that_no_one_should_want_to_use_as_a_jemalloc_API_prefix])
 fi
+
+dnl Do not add suffix to installed files by default.
+AC_ARG_WITH([install_suffix],
+  [AS_HELP_STRING([--with-install-suffix=<suffix>], [Suffix to append to all installed files])],
+  [INSTALL_SUFFIX="$with_install_suffix"],
+  [INSTALL_SUFFIX=]
+)
+install_suffix="$INSTALL_SUFFIX"
+AC_SUBST([install_suffix])
+
+cfgoutputs_in="Makefile doc/jemalloc.3.in"
+cfgoutputs_in="${cfgoutputs_in} src/jemalloc.h.in"
+cfgoutputs_in="${cfgoutputs_in} src/internal/jemalloc_internal.h.in"
+
+cfgoutputs_out="Makefile doc/jemalloc${install_suffix}.3"
+cfgoutputs_out="${cfgoutputs_out} src/jemalloc${install_suffix}.h"
+cfgoutputs_out="${cfgoutputs_out} src/internal/jemalloc_internal.h"
+
+cfgoutputs_tup="Makefile doc/jemalloc${install_suffix}.3:doc/jemalloc.3.in"
+cfgoutputs_tup="${cfgoutputs_tup} src/jemalloc${install_suffix}.h:src/jemalloc.h.in"
+cfgoutputs_tup="${cfgoutputs_tup} src/internal/jemalloc_internal.h"
+
+cfghdrs_in="src/jemalloc_defs.h.in"
+cfghdrs_in="${cfghdrs_in} src/internal/mtrgraph_defs.h.in"
+cfghdrs_in="${cfghdrs_in} src/internal/mtrplay_defs.h.in"
+
+cfghdrs_out="src/jemalloc_defs${install_suffix}.h"
+cfghdrs_out="${cfghdrs_out} src/internal/mtrgraph_defs.h"
+cfghdrs_out="${cfghdrs_out} src/internal/mtrplay_defs.h"
+
+cfghdrs_tup="src/jemalloc_defs${install_suffix}.h:src/jemalloc_defs.h.in"
+cfghdrs_tup="${cfghdrs_tup} src/internal/mtrgraph_defs.h"
+cfghdrs_tup="${cfghdrs_tup} src/internal/mtrplay_defs.h"
 
 dnl Do not compile with debugging by default.
 AC_ARG_ENABLE([debug],
@@ -577,7 +603,8 @@ AC_SUBST([enable_lazy_lock])
 
 dnl ============================================================================
 dnl Configure libgd for mtrgraph.
-bins="${objroot}bin/jemtr2mtr ${objroot}bin/mtrplay"
+bins="${objroot}bin/jemtr2mtr${install_suffix}"
+bins="${bins} ${objroot}bin/mtrplay${install_suffix}"
 GDLIBS=""
 
 have_libgd="yes"
@@ -590,7 +617,7 @@ AC_CHECK_HEADERS([gdfontg.h], , [have_libgd="no"])
 AC_CHECK_LIB([gd], [gdImageCreate], [GDLIBS="-lgd"], [have_libgd="no"])
 
 if test "x${have_libgd}" = "xyes" ; then
-  bins="${bins} ${objroot}bin/mtrgraph"
+  bins="${bins} ${objroot}bin/mtrgraph${install_suffix}"
 fi
 AC_SUBST([bins])
 AC_SUBST([GDLIBS])
@@ -600,13 +627,15 @@ dnl Check for typedefs, structures, and compiler characteristics.
 AC_HEADER_STDBOOL
 
 dnl Process .in files.
-AC_SUBST([cfghdrs])
-AC_CONFIG_HEADERS([$cfghdrs cfghdrs.stamp])
+AC_SUBST([cfghdrs_in])
+AC_SUBST([cfghdrs_out])
+AC_CONFIG_HEADERS([$cfghdrs_tup cfghdrs.stamp])
 
 dnl ============================================================================
 dnl Generate outputs.
-AC_CONFIG_FILES([$cfgoutputs cfgoutputs.stamp])
-AC_SUBST([cfgoutputs])
+AC_CONFIG_FILES([$cfgoutputs_tup cfgoutputs.stamp])
+AC_SUBST([cfgoutputs_in])
+AC_SUBST([cfgoutputs_out])
 AC_OUTPUT
 
 dnl ============================================================================
@@ -636,6 +665,7 @@ AC_MSG_RESULT([])
 AC_MSG_RESULT([bins               : ${bins}])
 AC_MSG_RESULT([])
 AC_MSG_RESULT([JEMALLOC_PREFIX    : ${JEMALLOC_PREFIX}])
+AC_MSG_RESULT([install_suffix     : ${install_suffix}])
 AC_MSG_RESULT([autogen            : ${enable_autogen}])
 AC_MSG_RESULT([debug              : ${enable_debug}])
 AC_MSG_RESULT([stats              : ${enable_stats}])

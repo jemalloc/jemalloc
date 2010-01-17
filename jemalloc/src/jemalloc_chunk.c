@@ -1,5 +1,5 @@
 #define	JEMALLOC_CHUNK_C_
-#include "jemalloc_internal.h"
+#include "internal/jemalloc_internal.h"
 
 /******************************************************************************/
 /* Data. */

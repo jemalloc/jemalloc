@@ -38,7 +38,7 @@
 .\"     @(#)malloc.3	8.1 (Berkeley) 6/4/93
 .\" $FreeBSD: head/lib/libc/stdlib/malloc.3 182225 2008-08-27 02:00:53Z jasone $
 .\"
-.Dd January 3, 2010
+.Dd January 17, 2010
 .Dt JEMALLOC 3
 .Os
 .Sh NAME
@@ -46,10 +46,10 @@
 @roff_no_tcache@.Nm @jemalloc_prefix@malloc , @jemalloc_prefix@calloc , @jemalloc_prefix@posix_memalign , @jemalloc_prefix@realloc , @jemalloc_prefix@free , @jemalloc_prefix@malloc_usable_size , @jemalloc_prefix@malloc_stats_print
 .Nd general purpose memory allocation functions
 .Sh LIBRARY
-.Lb libjemalloc
+.Lb libjemalloc@install_suffix@
 .Sh SYNOPSIS
 .In stdlib.h
-.In jemalloc.h
+.In jemalloc@install_suffix@.h
 .Ft void *
 .Fn @jemalloc_prefix@malloc "size_t size"
 .Ft void *
