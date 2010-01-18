@@ -405,6 +405,13 @@ void	arena_dalloc_bin(arena_t *arena, arena_chunk_t *chunk, void *ptr,
     arena_chunk_map_t *mapelm);
 void	arena_dalloc_large(arena_t *arena, arena_chunk_t *chunk, void *ptr);
 #ifdef JEMALLOC_STATS
+void	arena_stats_merge(arena_t *arena, size_t *nactive, size_t *ndirty,
+    arena_stats_t *astats, malloc_bin_stats_t *bstats,
+    malloc_large_stats_t *lstats);
+void	arena_stats_mprint(arena_t *arena, size_t nactive, size_t ndirty,
+    const arena_stats_t *astats, const malloc_bin_stats_t *bstats,
+    const malloc_large_stats_t *lstats, bool bins, bool large,
+    void (*write4)(const char *, const char *, const char *, const char *));
 void	arena_stats_print(arena_t *arena, bool bins, bool large,
     void (*write4)(const char *, const char *, const char *, const char *));
 #endif

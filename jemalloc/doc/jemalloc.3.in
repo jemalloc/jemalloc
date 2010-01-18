@@ -194,7 +194,11 @@ during execution can be omitted by specifying
 as a character within the
 .Fa opts
 string.
-@roff_stats@Similarly,
+@roff_stats@.Dq m
+@roff_stats@and
+@roff_stats@.Dq a
+@roff_stats@can be specified to omit merged arena and per arena statistics,
+@roff_stats@respectively.
 @roff_stats@.Dq b
 @roff_stats@and
 @roff_stats@.Dq l

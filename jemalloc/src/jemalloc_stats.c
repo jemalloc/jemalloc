@@ -113,6 +113,8 @@ JEMALLOC_P(malloc_stats_print)(void (*write4)(const char *, const char *,
 {
 	char s[UMAX2S_BUFSIZE];
 	bool general = true;
+	bool merged = true;
+	bool unmerged = true;
 	bool bins = true;
 	bool large = true;
 
@@ -132,6 +134,12 @@ JEMALLOC_P(malloc_stats_print)(void (*write4)(const char *, const char *,
 			switch (opts[i]) {
 				case 'g':
 					general = false;
+					break;
+				case 'm':
+					merged = false;
+					break;
+				case 'a':
+					unmerged = false;
 					break;
 				case 'b':
 					bins = false;
@@ -279,14 +287,48 @@ JEMALLOC_P(malloc_stats_print)(void (*write4)(const char *, const char *,
 		malloc_cprintf(write4, " %12llu %12llu %12zu\n", huge_nmalloc,
 		    huge_ndalloc, huge_allocated);
 
-		/* Print stats for each arena. */
-		for (i = 0; i < narenas; i++) {
-			arena = arenas[i];
-			if (arena != NULL) {
-				malloc_cprintf(write4, "\narenas[%u]:\n", i);
-				malloc_mutex_lock(&arena->lock);
-				arena_stats_print(arena, bins, large, write4);
-				malloc_mutex_unlock(&arena->lock);
+		if (merged) {
+			size_t nactive, ndirty;
+			arena_stats_t astats;
+			malloc_bin_stats_t bstats[nbins];
+			malloc_large_stats_t lstats[((chunksize - PAGE_SIZE) >>
+			    PAGE_SHIFT)];
+
+			nactive = 0;
+			ndirty = 0;
+			memset(&astats, 0, sizeof(astats));
+			memset(bstats, 0, sizeof(bstats));
+			memset(lstats, 0, sizeof(lstats));
+
+			/* Create merged arena stats. */
+			for (i = 0; i < narenas; i++) {
+				arena = arenas[i];
+				if (arena != NULL) {
+					malloc_mutex_lock(&arena->lock);
+					arena_stats_merge(arena, &nactive,
+					    &ndirty, &astats, bstats, lstats);
+					malloc_mutex_unlock(&arena->lock);
+				}
+			}
+			/* Print merged arena stats. */
+			malloc_cprintf(write4, "\nMerge arenas stats:\n");
+			/* arenas[0] is used only for invariant bin settings. */
+			arena_stats_mprint(arenas[0], nactive, ndirty, &astats,
+			    bstats, lstats, bins, large, write4);
+		}
+
+		if (unmerged) {
+			/* Print stats for each arena. */
+			for (i = 0; i < narenas; i++) {
+				arena = arenas[i];
+				if (arena != NULL) {
+					malloc_cprintf(write4,
+					    "\narenas[%u]:\n", i);
+					malloc_mutex_lock(&arena->lock);
+					arena_stats_print(arena, bins, large,
+					    write4);
+					malloc_mutex_unlock(&arena->lock);
+				}
 			}
 		}
 	}
