@@ -10,7 +10,7 @@ extern "C" {
 #endif
 
 extern const char	*JEMALLOC_P(malloc_options);
-extern void		(*JEMALLOC_P(malloc_message))(const char *p1,
+extern void		(*JEMALLOC_P(malloc_message))(void *, const char *p1,
     const char *p2, const char *p3, const char *p4);
 
 void	*JEMALLOC_P(malloc)(size_t size) JEMALLOC_ATTR(malloc);
@@ -24,8 +24,9 @@ size_t	JEMALLOC_P(malloc_usable_size)(const void *ptr);
 #ifdef JEMALLOC_TCACHE
 void	JEMALLOC_P(malloc_tcache_flush)(void);
 #endif
-void	JEMALLOC_P(malloc_stats_print)(void (*write4)(const char *,
-    const char *, const char *, const char *), const char *opts);
+void	JEMALLOC_P(malloc_stats_print)(void (*write4)(void *, const char *,
+    const char *, const char *, const char *), void *w4opaque,
+    const char *opts);
 
 #ifdef __cplusplus
 };

@@ -36,8 +36,8 @@
 #include "internal/ql.h"
 #endif
 
-extern void	(*JEMALLOC_P(malloc_message))(const char *p1, const char *p2,
-    const char *p3, const char *p4);
+extern void	(*JEMALLOC_P(malloc_message))(void *w4opaque, const char *p1,
+    const char *p2, const char *p3, const char *p4);
 
 /*
  * Define a custom assert() in order to reduce the chances of deadlock during
@@ -274,7 +274,7 @@ JEMALLOC_INLINE void
 malloc_write4(const char *p1, const char *p2, const char *p3, const char *p4)
 {
 
-	JEMALLOC_P(malloc_message)(p1, p2, p3, p4);
+	JEMALLOC_P(malloc_message)(NULL, p1, p2, p3, p4);
 }
 
 /*

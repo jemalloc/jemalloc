@@ -411,9 +411,11 @@ void	arena_stats_merge(arena_t *arena, size_t *nactive, size_t *ndirty,
 void	arena_stats_mprint(arena_t *arena, size_t nactive, size_t ndirty,
     const arena_stats_t *astats, const malloc_bin_stats_t *bstats,
     const malloc_large_stats_t *lstats, bool bins, bool large,
-    void (*write4)(const char *, const char *, const char *, const char *));
+    void (*write4)(void *, const char *, const char *, const char *,
+    const char *), void *w4opaque);
 void	arena_stats_print(arena_t *arena, bool bins, bool large,
-    void (*write4)(const char *, const char *, const char *, const char *));
+    void (*write4)(void *, const char *, const char *, const char *,
+    const char *), void *w4opaque);
 #endif
 void	*arena_ralloc(void *ptr, size_t size, size_t oldsize);
 bool	arena_new(arena_t *arena, unsigned ind);

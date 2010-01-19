@@ -10,8 +10,8 @@ bool	opt_stats_print = false;
 /* Function prototypes for non-inline static functions. */
 
 static void
-malloc_vcprintf(void (*write4)(const char *, const char *, const char *,
-    const char *), const char *format, va_list ap);
+malloc_vcprintf(void (*write4)(void *, const char *, const char *, const char *,
+    const char *), void *w4opaque, const char *format, va_list ap);
 
 /******************************************************************************/
 
@@ -56,8 +56,8 @@ umax2s(uintmax_t x, unsigned base, char *s)
 
 #ifdef JEMALLOC_STATS
 static void
-malloc_vcprintf(void (*write4)(const char *, const char *, const char *,
-    const char *), const char *format, va_list ap)
+malloc_vcprintf(void (*write4)(void *, const char *, const char *, const char *,
+    const char *), void *w4opaque, const char *format, va_list ap)
 {
 	char buf[4096];
 
@@ -68,25 +68,26 @@ malloc_vcprintf(void (*write4)(const char *, const char *, const char *,
 		 * inline function, so use malloc_message() directly here.
 		 */
 		write4 = JEMALLOC_P(malloc_message);
+		w4opaque = NULL;
 	}
 
 	vsnprintf(buf, sizeof(buf), format, ap);
-	write4(buf, "", "", "");
+	write4(w4opaque, buf, "", "", "");
 }
 
 /*
  * Print to a callback function in such a way as to (hopefully) avoid memory
  * allocation.
  */
-JEMALLOC_ATTR(format(printf, 2, 3))
+JEMALLOC_ATTR(format(printf, 3, 4))
 void
-malloc_cprintf(void (*write4)(const char *, const char *, const char *,
-    const char *), const char *format, ...)
+malloc_cprintf(void (*write4)(void *, const char *, const char *, const char *,
+    const char *), void *w4opaque, const char *format, ...)
 {
 	va_list ap;
 
 	va_start(ap, format);
-	malloc_vcprintf(write4, format, ap);
+	malloc_vcprintf(write4, w4opaque, format, ap);
 	va_end(ap);
 }
 
@@ -100,7 +101,7 @@ malloc_printf(const char *format, ...)
 	va_list ap;
 
 	va_start(ap, format);
-	malloc_vcprintf(NULL, format, ap);
+	malloc_vcprintf(NULL, NULL, format, ap);
 	va_end(ap);
 }
 
@@ -108,8 +109,8 @@ malloc_printf(const char *format, ...)
 
 JEMALLOC_ATTR(visibility("default"))
 void
-JEMALLOC_P(malloc_stats_print)(void (*write4)(const char *, const char *,
-    const char *, const char *), const char *opts)
+JEMALLOC_P(malloc_stats_print)(void (*write4)(void *, const char *,
+    const char *, const char *, const char *), void *w4opaque, const char *opts)
 {
 	char s[UMAX2S_BUFSIZE];
 	bool general = true;
@@ -125,6 +126,7 @@ JEMALLOC_P(malloc_stats_print)(void (*write4)(const char *, const char *,
 		 * inline function, so use malloc_message() directly here.
 		 */
 		write4 = JEMALLOC_P(malloc_message);
+		w4opaque = NULL;
 	}
 
 	if (opts != NULL) {
@@ -152,87 +154,97 @@ JEMALLOC_P(malloc_stats_print)(void (*write4)(const char *, const char *,
 		}
 	}
 
-	write4("___ Begin jemalloc statistics ___\n", "", "", "");
+	write4(w4opaque, "___ Begin jemalloc statistics ___\n", "", "", "");
 	if (general) {
-		write4("Assertions ",
+		write4(w4opaque, "Assertions ",
 #ifdef NDEBUG
 		    "disabled",
 #else
 		    "enabled",
 #endif
 		    "\n", "");
-		write4("Boolean JEMALLOC_OPTIONS: ", opt_abort ? "A" : "a",
-		    "", "");
+		write4(w4opaque, "Boolean JEMALLOC_OPTIONS: ",
+		    opt_abort ? "A" : "a", "", "");
 #ifdef JEMALLOC_FILL
-		write4(opt_junk ? "J" : "j", "", "", "");
+		write4(w4opaque, opt_junk ? "J" : "j", "", "", "");
 #endif
-		write4("P", "", "", "");
+		write4(w4opaque, "P", "", "", "");
 #ifdef JEMALLOC_TCACHE
-		write4(opt_tcache_sort ? "S" : "s", "", "", "");
+		write4(w4opaque, opt_tcache_sort ? "S" : "s", "", "", "");
 #endif
 #ifdef JEMALLOC_TRACE
-		write4(opt_trace ? "T" : "t", "", "", "");
+		write4(w4opaque, opt_trace ? "T" : "t", "", "", "");
 #endif
 #ifdef JEMALLOC_SYSV
-		write4(opt_sysv ? "V" : "v", "", "", "");
+		write4(w4opaque, opt_sysv ? "V" : "v", "", "", "");
 #endif
 #ifdef JEMALLOC_XMALLOC
-		write4(opt_xmalloc ? "X" : "x", "", "", "");
+		write4(w4opaque, opt_xmalloc ? "X" : "x", "", "", "");
 #endif
 #ifdef JEMALLOC_FILL
-		write4(opt_zero ? "Z" : "z", "", "", "");
+		write4(w4opaque, opt_zero ? "Z" : "z", "", "", "");
 #endif
-		write4("\n", "", "", "");
+		write4(w4opaque, "\n", "", "", "");
 
-		write4("CPUs: ", umax2s(ncpus, 10, s), "\n", "");
-		write4("Max arenas: ", umax2s(narenas, 10, s), "\n", "");
-		write4("Pointer size: ", umax2s(sizeof(void *), 10, s), "\n",
+		write4(w4opaque, "CPUs: ", umax2s(ncpus, 10, s), "\n", "");
+		write4(w4opaque, "Max arenas: ", umax2s(narenas, 10, s), "\n",
 		    "");
-		write4("Quantum size: ", umax2s(QUANTUM, 10, s), "\n", "");
-		write4("Cacheline size (assumed): ", umax2s(CACHELINE, 10, s),
+		write4(w4opaque, "Pointer size: ", umax2s(sizeof(void *), 10,
+		    s), "\n", "");
+		write4(w4opaque, "Quantum size: ", umax2s(QUANTUM, 10, s), "\n",
+		    "");
+		write4(w4opaque, "Cacheline size (assumed): ", umax2s(CACHELINE,
+		    10, s),
 		    "\n", "");
-		write4("Subpage spacing: ", umax2s(SUBPAGE, 10, s), "\n", "");
-		write4("Medium spacing: ", umax2s((1U << lg_mspace), 10, s),
+		write4(w4opaque, "Subpage spacing: ", umax2s(SUBPAGE, 10, s),
 		    "\n", "");
+		write4(w4opaque, "Medium spacing: ", umax2s((1U << lg_mspace),
+		    10, s), "\n", "");
 #ifdef JEMALLOC_TINY
-		write4("Tiny 2^n-spaced sizes: [", umax2s((1U << LG_TINY_MIN),
-		    10, s), "..", "");
-		write4(umax2s((qspace_min >> 1), 10, s), "]\n", "", "");
+		write4(w4opaque, "Tiny 2^n-spaced sizes: [", umax2s((1U <<
+		    LG_TINY_MIN), 10, s), "..", "");
+		write4(w4opaque, umax2s((qspace_min >> 1), 10, s), "]\n", "",
+		    "");
 #endif
-		write4("Quantum-spaced sizes: [", umax2s(qspace_min, 10, s),
+		write4(w4opaque, "Quantum-spaced sizes: [", umax2s(qspace_min,
+		    10, s), "..", "");
+		write4(w4opaque, umax2s(qspace_max, 10, s), "]\n", "", "");
+		write4(w4opaque, "Cacheline-spaced sizes: [", umax2s(cspace_min,
+		    10, s), "..", "");
+		write4(w4opaque, umax2s(cspace_max, 10, s), "]\n", "", "");
+		write4(w4opaque, "Subpage-spaced sizes: [", umax2s(sspace_min,
+		    10, s), "..", "");
+		write4(w4opaque, umax2s(sspace_max, 10, s), "]\n", "", "");
+		write4(w4opaque, "Medium sizes: [", umax2s(medium_min, 10, s),
 		    "..", "");
-		write4(umax2s(qspace_max, 10, s), "]\n", "", "");
-		write4("Cacheline-spaced sizes: [", umax2s(cspace_min, 10, s),
-		    "..", "");
-		write4(umax2s(cspace_max, 10, s), "]\n", "", "");
-		write4("Subpage-spaced sizes: [", umax2s(sspace_min, 10, s),
-		    "..", "");
-		write4(umax2s(sspace_max, 10, s), "]\n", "", "");
-		write4("Medium sizes: [", umax2s(medium_min, 10, s), "..", "");
-		write4(umax2s(medium_max, 10, s), "]\n", "", "");
+		write4(w4opaque, umax2s(medium_max, 10, s), "]\n", "", "");
 		if (opt_lg_dirty_mult >= 0) {
-			write4("Min active:dirty page ratio per arena: ",
+			write4(w4opaque,
+			    "Min active:dirty page ratio per arena: ",
 			    umax2s((1U << opt_lg_dirty_mult), 10, s), ":1\n",
 			    "");
 		} else {
-			write4("Min active:dirty page ratio per arena: N/A\n",
-			    "", "", "");
+			write4(w4opaque,
+			    "Min active:dirty page ratio per arena: N/A\n", "",
+			    "", "");
 		}
 #ifdef JEMALLOC_TCACHE
-		write4("Thread cache slots per size class: ",
+		write4(w4opaque, "Thread cache slots per size class: ",
 		    tcache_nslots ? umax2s(tcache_nslots, 10, s) : "N/A", "\n",
 		    "");
-		write4("Thread cache GC sweep interval: ",
+		write4(w4opaque, "Thread cache GC sweep interval: ",
 		    (tcache_nslots && tcache_gc_incr > 0) ?
 		    umax2s((1U << opt_lg_tcache_gc_sweep), 10, s) : "N/A",
 		    "", "");
-		write4(" (increment interval: ",
+		write4(w4opaque, " (increment interval: ",
 		    (tcache_nslots && tcache_gc_incr > 0) ?
 		    umax2s(tcache_gc_incr, 10, s) : "N/A",
 		    ")\n", "");
 #endif
-		write4("Chunk size: ", umax2s(chunksize, 10, s), "", "");
-		write4(" (2^", umax2s(opt_lg_chunk, 10, s), ")\n", "");
+		write4(w4opaque, "Chunk size: ", umax2s(chunksize, 10, s), "",
+		    "");
+		write4(w4opaque, " (2^", umax2s(opt_lg_chunk, 10, s), ")\n",
+		    "");
 	}
 
 #ifdef JEMALLOC_STATS
@@ -263,8 +275,8 @@ JEMALLOC_P(malloc_stats_print)(void (*write4)(const char *, const char *,
 		mapped += base_mapped;
 		malloc_mutex_unlock(&base_mtx);
 
-		malloc_cprintf(write4, "Allocated: %zu, mapped: %zu\n",
-		    allocated, mapped);
+		malloc_cprintf(write4, w4opaque,
+		    "Allocated: %zu, mapped: %zu\n", allocated, mapped);
 
 		/* Print chunk stats. */
 		{
@@ -274,18 +286,18 @@ JEMALLOC_P(malloc_stats_print)(void (*write4)(const char *, const char *,
 			chunks_stats = stats_chunks;
 			malloc_mutex_unlock(&huge_mtx);
 
-			malloc_cprintf(write4, "chunks: nchunks   "
+			malloc_cprintf(write4, w4opaque, "chunks: nchunks   "
 			    "highchunks    curchunks\n");
-			malloc_cprintf(write4, "  %13llu%13lu%13lu\n",
+			malloc_cprintf(write4, w4opaque, "  %13llu%13lu%13lu\n",
 			    chunks_stats.nchunks, chunks_stats.highchunks,
 			    chunks_stats.curchunks);
 		}
 
 		/* Print chunk stats. */
-		malloc_cprintf(write4,
+		malloc_cprintf(write4, w4opaque,
 		    "huge: nmalloc      ndalloc    allocated\n");
-		malloc_cprintf(write4, " %12llu %12llu %12zu\n", huge_nmalloc,
-		    huge_ndalloc, huge_allocated);
+		malloc_cprintf(write4, w4opaque, " %12llu %12llu %12zu\n",
+		    huge_nmalloc, huge_ndalloc, huge_allocated);
 
 		if (merged) {
 			size_t nactive, ndirty;
@@ -311,10 +323,11 @@ JEMALLOC_P(malloc_stats_print)(void (*write4)(const char *, const char *,
 				}
 			}
 			/* Print merged arena stats. */
-			malloc_cprintf(write4, "\nMerge arenas stats:\n");
+			malloc_cprintf(write4, w4opaque,
+			    "\nMerge arenas stats:\n");
 			/* arenas[0] is used only for invariant bin settings. */
 			arena_stats_mprint(arenas[0], nactive, ndirty, &astats,
-			    bstats, lstats, bins, large, write4);
+			    bstats, lstats, bins, large, write4, w4opaque);
 		}
 
 		if (unmerged) {
@@ -322,16 +335,16 @@ JEMALLOC_P(malloc_stats_print)(void (*write4)(const char *, const char *,
 			for (i = 0; i < narenas; i++) {
 				arena = arenas[i];
 				if (arena != NULL) {
-					malloc_cprintf(write4,
+					malloc_cprintf(write4, w4opaque,
 					    "\narenas[%u]:\n", i);
 					malloc_mutex_lock(&arena->lock);
 					arena_stats_print(arena, bins, large,
-					    write4);
+					    write4, w4opaque);
 					malloc_mutex_unlock(&arena->lock);
 				}
 			}
 		}
 	}
 #endif /* #ifdef JEMALLOC_STATS */
-	write4("--- End jemalloc statistics ---\n", "", "", "");
+	write4(w4opaque, "--- End jemalloc statistics ---\n", "", "", "");
 }

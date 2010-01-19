@@ -151,8 +151,8 @@ static int	opt_narenas_lshift = 0;
 /******************************************************************************/
 /* Function prototypes for non-inline static functions. */
 
-static void	wrtmessage(const char *p1, const char *p2, const char *p3,
-		const char *p4);
+static void	wrtmessage(void *w4opaque, const char *p1, const char *p2,
+    const char *p3, const char *p4);
 static void	stats_print_atexit(void);
 static unsigned	malloc_ncpus(void);
 static bool	malloc_init_hard(void);
@@ -168,7 +168,8 @@ JEMALLOC_ATTR(visibility("hidden"))
 static
 #endif
 void
-wrtmessage(const char *p1, const char *p2, const char *p3, const char *p4)
+wrtmessage(void *w4opaque, const char *p1, const char *p2, const char *p3,
+    const char *p4)
 {
 
 	if (write(STDERR_FILENO, p1, strlen(p1)) < 0
@@ -178,7 +179,7 @@ wrtmessage(const char *p1, const char *p2, const char *p3, const char *p4)
 		return;
 }
 
-void	(*JEMALLOC_P(malloc_message))(const char *p1, const char *p2,
+void	(*JEMALLOC_P(malloc_message))(void *, const char *p1, const char *p2,
     const char *p3, const char *p4) JEMALLOC_ATTR(visibility("default")) =
     wrtmessage;
 
@@ -361,7 +362,7 @@ stats_print_atexit(void)
 		}
 	}
 #endif
-	JEMALLOC_P(malloc_stats_print)(NULL, NULL);
+	JEMALLOC_P(malloc_stats_print)(NULL, NULL, NULL);
 }
 
 static inline void *

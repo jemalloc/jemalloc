@@ -65,12 +65,12 @@
 @roff_tcache@.Ft void
 @roff_tcache@.Fn @jemalloc_prefix@malloc_tcache_flush "void"
 .Ft void
-.Fn @jemalloc_prefix@malloc_stats_print "void (*write4)(const char *, const char *, const char *, const char *)" "const char *opts"
+.Fn @jemalloc_prefix@malloc_stats_print "void (*write4)(void *" "const char *" "const char *" "const char *" "const char *)" "const char *opts"
 .Ft const char *
 .Va @jemalloc_prefix@malloc_options ;
 .Ft void
 .Fo \*(lp*@jemalloc_prefix@malloc_message\*(rp
-.Fa "const char *p1" "const char *p2" "const char *p3" "const char *p4"
+.Fa "void *w4opaque" "const char *p1" "const char *p2" "const char *p3" "const char *p4"
 .Fc
 .Sh DESCRIPTION
 The
@@ -181,8 +181,12 @@ The
 .Fn @jemalloc_prefix@malloc_stats_print
 function writes human-readable summary statistics via the
 .Fa write4
-callback function, or
-.Fn malloc_message
+callback function pointer and
+.Fa w4opaque
+data passed to
+.Fn write4 ,
+or
+.Fn @jemalloc_prefix@malloc_message
 if
 .Fa write4
 is
@@ -531,13 +535,20 @@ option is set, all warnings are treated as errors.
 .Pp
 The
 .Va @jemalloc_prefix@malloc_message
-variable allows the programmer to override the function which emits
-the text strings forming the errors and warnings if for some reason
-the
+variable allows the programmer to override the function which emits the text
+strings forming the errors and warnings if for some reason the
 .Dv STDERR_FILENO
 file descriptor is not suitable for this.
-Please note that doing anything which tries to allocate memory in
-this function is likely to result in a crash or deadlock.
+.Va @jemalloc_prefix@malloc_message
+takes the
+.Fa w4opaque
+pointer argument that is
+.Dv NULL
+unless overridden by the arguments in a call to
+.Fn @jemalloc_prefix@malloc_stats_print ,
+followed by four string pointers.
+Please note that doing anything which tries to allocate memory in this function
+is likely to result in a crash or deadlock.
 .Pp
 All messages are prefixed by
 .Dq <jemalloc>: .
