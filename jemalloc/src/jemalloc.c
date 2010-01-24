@@ -632,6 +632,14 @@ MALLOC_OUT:
 				case 'N':
 					opt_narenas_lshift++;
 					break;
+#ifdef JEMALLOC_SWAP
+				case 'o':
+					opt_overcommit = false;
+					break;
+				case 'O':
+					opt_overcommit = true;
+					break;
+#endif
 				case 'p':
 					opt_stats_print = false;
 					break;
@@ -1197,6 +1205,23 @@ JEMALLOC_P(malloc_usable_size)(const void *ptr)
 	return (ret);
 }
 
+#ifdef JEMALLOC_SWAP
+JEMALLOC_ATTR(visibility("default"))
+int
+JEMALLOC_P(malloc_swap_enable)(const int *fds, unsigned nfds, int prezeroed)
+{
+
+	/*
+	 * Make sure malloc is initialized, because we need page size, chunk
+	 * size, etc.
+	 */
+	if (malloc_init())
+		return (-1);
+
+	return (chunk_swap_enable(fds, nfds, (prezeroed != 0)) ? -1 : 0);
+}
+#endif
+
 #ifdef JEMALLOC_TCACHE
 JEMALLOC_ATTR(visibility("default"))
 void
@@ -1212,6 +1237,15 @@ JEMALLOC_P(malloc_tcache_flush)(void)
 	tcache_tls = NULL;
 }
 #endif
+
+JEMALLOC_ATTR(visibility("default"))
+void
+JEMALLOC_P(malloc_stats_print)(void (*write4)(void *, const char *,
+    const char *, const char *, const char *), void *w4opaque, const char *opts)
+{
+
+	stats_print(write4, w4opaque, opts);
+}
 
 /*
  * End non-standard functions.
@@ -1271,6 +1305,10 @@ jemalloc_prefork(void)
 #ifdef JEMALLOC_DSS
 	malloc_mutex_lock(&dss_mtx);
 #endif
+
+#ifdef JEMALLOC_SWAP
+	malloc_mutex_lock(&swap_mtx);
+#endif
 }
 
 static void
@@ -1280,6 +1318,10 @@ jemalloc_postfork(void)
 	arena_t *larenas[narenas];
 
 	/* Release all mutexes, now that fork() has completed. */
+
+#ifdef JEMALLOC_SWAP
+	malloc_mutex_unlock(&swap_mtx);
+#endif
 
 #ifdef JEMALLOC_DSS
 	malloc_mutex_unlock(&dss_mtx);

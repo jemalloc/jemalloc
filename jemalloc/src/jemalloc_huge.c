@@ -208,7 +208,7 @@ huge_dalloc(void *ptr)
 
 	/* Unmap chunk. */
 #ifdef JEMALLOC_FILL
-#ifdef JEMALLOC_DSS
+#if (defined(JEMALLOC_SWAP) || defined(JEMALLOC_DSS))
 	if (opt_junk)
 		memset(node->addr, 0x5a, node->size);
 #endif

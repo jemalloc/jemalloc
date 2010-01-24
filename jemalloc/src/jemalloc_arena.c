@@ -1570,6 +1570,7 @@ arena_stats_merge(arena_t *arena, size_t *nactive, size_t *ndirty,
 	*nactive += arena->nactive;
 	*ndirty += arena->ndirty;
 
+	astats->mapped += arena->stats.mapped;
 	astats->npurge += arena->stats.npurge;
 	astats->nmadvise += arena->stats.nmadvise;
 	astats->purged += arena->stats.purged;

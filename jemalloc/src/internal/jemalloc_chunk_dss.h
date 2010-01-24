@@ -1,3 +1,4 @@
+#ifdef JEMALLOC_DSS
 /******************************************************************************/
 #ifdef JEMALLOC_H_TYPES
 
@@ -9,12 +10,15 @@
 /******************************************************************************/
 #ifdef JEMALLOC_H_EXTERNS
 
-extern malloc_mutex_t	base_mtx;
+/*
+ * Protects sbrk() calls.  This avoids malloc races among threads, though it
+ * does not protect against races with threads that call sbrk() directly.
+ */
+extern malloc_mutex_t	dss_mtx;
 
-void	*base_alloc(size_t size);
-extent_node_t *base_node_alloc(void);
-void	base_node_dealloc(extent_node_t *node);
-bool	base_boot(void);
+void	*chunk_alloc_dss(size_t size, bool zero);
+bool	chunk_dealloc_dss(void *chunk, size_t size);
+bool	chunk_dss_boot(void);
 
 #endif /* JEMALLOC_H_EXTERNS */
 /******************************************************************************/
@@ -22,3 +26,4 @@ bool	base_boot(void);
 
 #endif /* JEMALLOC_H_INLINES */
 /******************************************************************************/
+#endif /* JEMALLOC_DSS */

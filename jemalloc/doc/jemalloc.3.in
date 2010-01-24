@@ -38,12 +38,19 @@
 .\"     @(#)malloc.3	8.1 (Berkeley) 6/4/93
 .\" $FreeBSD: head/lib/libc/stdlib/malloc.3 182225 2008-08-27 02:00:53Z jasone $
 .\"
-.Dd January 17, 2010
+.Dd January 23, 2010
 .Dt JEMALLOC 3
 .Os
 .Sh NAME
-@roff_tcache@.Nm @jemalloc_prefix@malloc , @jemalloc_prefix@calloc , @jemalloc_prefix@posix_memalign , @jemalloc_prefix@realloc , @jemalloc_prefix@free , @jemalloc_prefix@malloc_usable_size , @jemalloc_prefix@malloc_tcache_flush , @jemalloc_prefix@malloc_stats_print
-@roff_no_tcache@.Nm @jemalloc_prefix@malloc , @jemalloc_prefix@calloc , @jemalloc_prefix@posix_memalign , @jemalloc_prefix@realloc , @jemalloc_prefix@free , @jemalloc_prefix@malloc_usable_size , @jemalloc_prefix@malloc_stats_print
+.Nm @jemalloc_prefix@malloc ,
+.Nm @jemalloc_prefix@calloc ,
+.Nm @jemalloc_prefix@posix_memalign ,
+.Nm @jemalloc_prefix@realloc ,
+.Nm @jemalloc_prefix@free ,
+.Nm @jemalloc_prefix@malloc_usable_size ,
+@roff_swap@.Nm @jemalloc_prefix@malloc_swap_enable ,
+@roff_tcache@.Nm @jemalloc_prefix@malloc_tcache_flush ,
+.Nm @jemalloc_prefix@malloc_stats_print
 .Nd general purpose memory allocation functions
 .Sh LIBRARY
 .Lb libjemalloc@install_suffix@
@@ -62,6 +69,8 @@
 .Fn @jemalloc_prefix@free "void *ptr"
 .Ft size_t
 .Fn @jemalloc_prefix@malloc_usable_size "const void *ptr"
+@roff_swap@.Ft int
+@roff_swap@.Fn @jemalloc_prefix@malloc_swap_enable "const int *fds" "unsigned nfds" "int prezeroed"
 @roff_tcache@.Ft void
 @roff_tcache@.Fn @jemalloc_prefix@malloc_tcache_flush "void"
 .Ft void
@@ -164,6 +173,27 @@ Any discrepancy between the requested allocation size and the size reported by
 .Fn @jemalloc_prefix@malloc_usable_size
 should not be depended on, since such behavior is entirely
 implementation-dependent.
+@roff_swap@.Pp
+@roff_swap@The
+@roff_swap@.Fn @jemalloc_prefix@malloc_swap_enable
+@roff_swap@function opens and contiguously maps a list of
+@roff_swap@.Fa nfds
+@roff_swap@file descriptors pointed to by
+@roff_swap@.Fa fds
+@roff_swap@via
+@roff_swap@.Xr mmap 2 .
+@roff_swap@The resulting virtual memory region is preferred over anonymous
+@roff_swap@.Xr mmap 2
+@roff_swap@@roff_dss@and
+@roff_swap@@roff_dss@.Xr sbrk 2
+@roff_swap@memory.
+@roff_swap@Note that if a file's size is not a multiple of the page size, it is
+@roff_swap@automatically truncated to the nearest page size multiple.
+@roff_swap@If
+@roff_swap@.Fa prezeroed
+@roff_swap@is non-zero, the allocator assumes that the file(s) contain nothing
+@roff_swap@but nil bytes.
+@roff_swap@If this assumption is violated, allocator behavior is undefined.
 @roff_tcache@.Pp
 @roff_tcache@The
 @roff_tcache@.Fn @jemalloc_prefix@malloc_tcache_flush
@@ -310,6 +340,16 @@ The default number of arenas is
 @roff_tcache@two
 @roff_no_tcache@four
 times the number of CPUs, or one if there is a single CPU.
+@roff_swap@.It O
+@roff_swap@Over-commit memory as a side effect of using anonymous
+@roff_swap@.Xr mmap 2
+@roff_swap@@roff_dss@ and
+@roff_swap@@roff_dss@.Xr sbrk 2
+@roff_swap@for virtual memory allocation.
+@roff_swap@In order for overcommit to be disabled, the
+@roff_swap@.Fn malloc_swap_enable
+@roff_swap@function must have been successfully called.
+@roff_swap@This option is enabled by default.
 .It P
 The
 .Fn malloc_stats_print
@@ -606,6 +646,11 @@ The
 .Fn @jemalloc_prefix@malloc_usable_size
 function returns the usable size of the allocation pointed to by
 .Fa ptr .
+@roff_swap@.Pp
+@roff_swap@The
+@roff_swap@.Fn @jemalloc_prefix@malloc_swap_enable
+@roff_swap@function returns the value 0 if successful; otherwise it returns a
+@roff_swap@non-zero value.
 .Sh ENVIRONMENT
 The following environment variables affect the execution of the allocation
 functions:
@@ -623,10 +668,9 @@ To dump core whenever a problem occurs:
 ln -s 'A' /etc/jemalloc.conf
 .Ed
 .Pp
-To specify in the source that a program does no return value checking
-on calls to these functions:
+To specify in the source a chunk size that is twice the default:
 .Bd -literal -offset indent
-@jemalloc_prefix@malloc_options = "X";
+@jemalloc_prefix@malloc_options = "K";
 .Ed
 .Sh SEE ALSO
 .Xr mtrgraph 1 ,
@@ -634,7 +678,7 @@ on calls to these functions:
 .Xr jemtr2mtr 1 ,
 .Xr madvise 2 ,
 .Xr mmap 2 ,
-.Xr sbrk 2 ,
+@roff_dss@.Xr sbrk 2 ,
 .Xr alloca 3 ,
 .Xr atexit 3 ,
 .Xr getpagesize 3

@@ -21,6 +21,10 @@ void	*JEMALLOC_P(realloc)(void *ptr, size_t size);
 void	JEMALLOC_P(free)(void *ptr);
 
 size_t	JEMALLOC_P(malloc_usable_size)(const void *ptr);
+#ifdef JEMALLOC_SWAP
+int	JEMALLOC_P(malloc_swap_enable)(const int *fds, unsigned nfds,
+    int prezeroed);
+#endif
 #ifdef JEMALLOC_TCACHE
 void	JEMALLOC_P(malloc_tcache_flush)(void);
 #endif

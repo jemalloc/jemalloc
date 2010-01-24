@@ -1,3 +1,4 @@
+#ifdef JEMALLOC_SWAP
 /******************************************************************************/
 #ifdef JEMALLOC_H_TYPES
 
@@ -9,12 +10,16 @@
 /******************************************************************************/
 #ifdef JEMALLOC_H_EXTERNS
 
-extern malloc_mutex_t	base_mtx;
+extern malloc_mutex_t	swap_mtx;
+extern bool		swap_enabled;
+#ifdef JEMALLOC_STATS
+extern size_t		swap_avail;
+#endif
 
-void	*base_alloc(size_t size);
-extent_node_t *base_node_alloc(void);
-void	base_node_dealloc(extent_node_t *node);
-bool	base_boot(void);
+void	*chunk_alloc_swap(size_t size, bool zero);
+bool	chunk_dealloc_swap(void *chunk, size_t size);
+bool	chunk_swap_enable(const int *fds, unsigned nfds, bool prezeroed);
+bool	chunk_swap_boot(void);
 
 #endif /* JEMALLOC_H_EXTERNS */
 /******************************************************************************/
@@ -22,3 +27,4 @@ bool	base_boot(void);
 
 #endif /* JEMALLOC_H_INLINES */
 /******************************************************************************/
+#endif /* JEMALLOC_SWAP */

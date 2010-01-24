@@ -3,7 +3,7 @@
 
 /******************************************************************************/
 
-#ifdef JEMALLOC_DSS
+#if (defined(JEMALLOC_SWAP) || defined(JEMALLOC_DSS))
 static inline int
 extent_szad_comp(extent_node_t *a, extent_node_t *b)
 {

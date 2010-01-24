@@ -56,6 +56,11 @@ any of the following arguments (not a definitive list) to 'configure':
     cached and released in bulk, thus reducing the total number of mutex
     operations.  Use the 'H' and 'G' options to control thread-specific caching.
 
+--enable-swap
+    Enable mmap()ed swap file support.  When this feature is built in, it is
+    possible to specify one or more files that act as backing store.  This
+    effectively allows for per application swap files.
+
 --enable-dss
     Enable support for page allocation/deallocation via sbrk(2), in addition to
     mmap(2).

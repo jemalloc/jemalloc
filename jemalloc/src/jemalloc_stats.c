@@ -104,13 +104,11 @@ malloc_printf(const char *format, ...)
 	malloc_vcprintf(NULL, NULL, format, ap);
 	va_end(ap);
 }
-
 #endif
 
-JEMALLOC_ATTR(visibility("default"))
 void
-JEMALLOC_P(malloc_stats_print)(void (*write4)(void *, const char *,
-    const char *, const char *, const char *), void *w4opaque, const char *opts)
+stats_print(void (*write4)(void *, const char *, const char *, const char *,
+    const char *), void *w4opaque, const char *opts)
 {
 	char s[UMAX2S_BUFSIZE];
 	bool general = true;
@@ -167,6 +165,9 @@ JEMALLOC_P(malloc_stats_print)(void (*write4)(void *, const char *,
 		    opt_abort ? "A" : "a", "", "");
 #ifdef JEMALLOC_FILL
 		write4(w4opaque, opt_junk ? "J" : "j", "", "", "");
+#endif
+#ifdef JEMALLOC_SWAP
+		write4(w4opaque, opt_overcommit ? "O" : "o", "", "", "");
 #endif
 		write4(w4opaque, "P", "", "", "");
 #ifdef JEMALLOC_TCACHE
@@ -271,10 +272,6 @@ JEMALLOC_P(malloc_stats_print)(void (*write4)(void *, const char *,
 		mapped = stats_chunks.curchunks * chunksize;
 		malloc_mutex_unlock(&huge_mtx);
 
-		malloc_mutex_lock(&base_mtx);
-		mapped += base_mapped;
-		malloc_mutex_unlock(&base_mtx);
-
 		malloc_cprintf(write4, w4opaque,
 		    "Allocated: %zu, mapped: %zu\n", allocated, mapped);
 
@@ -287,10 +284,22 @@ JEMALLOC_P(malloc_stats_print)(void (*write4)(void *, const char *,
 			malloc_mutex_unlock(&huge_mtx);
 
 			malloc_cprintf(write4, w4opaque, "chunks: nchunks   "
-			    "highchunks    curchunks\n");
-			malloc_cprintf(write4, w4opaque, "  %13llu%13lu%13lu\n",
+			    "highchunks    curchunks"
+#ifdef JEMALLOC_SWAP
+			    "   swap_avail"
+#endif
+			    "\n");
+			malloc_cprintf(write4, w4opaque, "  %13llu%13lu%13lu"
+#ifdef JEMALLOC_SWAP
+			    "%13zu"
+#endif
+			    "\n",
 			    chunks_stats.nchunks, chunks_stats.highchunks,
-			    chunks_stats.curchunks);
+			    chunks_stats.curchunks
+#ifdef JEMALLOC_SWAP
+			    , (swap_avail >> opt_lg_chunk)
+#endif
+			    );
 		}
 
 		/* Print chunk stats. */

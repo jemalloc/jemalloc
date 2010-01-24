@@ -135,6 +135,8 @@ void malloc_cprintf(void (*write4)(void *, const char *, const char *,
 void	malloc_printf(const char *format, ...)
     JEMALLOC_ATTR(format(printf, 1, 2));
 #endif
+void	stats_print(void (*write4)(void *, const char *, const char *,
+    const char *, const char *), void *w4opaque, const char *opts);
 
 #endif /* JEMALLOC_H_EXTERNS */
 /******************************************************************************/

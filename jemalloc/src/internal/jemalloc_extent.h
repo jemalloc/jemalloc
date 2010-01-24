@@ -9,7 +9,7 @@ typedef struct extent_node_s extent_node_t;
 
 /* Tree of extents. */
 struct extent_node_s {
-#ifdef JEMALLOC_DSS
+#if (defined(JEMALLOC_SWAP) || defined(JEMALLOC_DSS))
 	/* Linkage for the size/address-ordered tree. */
 	rb_node(extent_node_t) link_szad;
 #endif
@@ -29,7 +29,7 @@ typedef rb_tree(extent_node_t) extent_tree_t;
 /******************************************************************************/
 #ifdef JEMALLOC_H_EXTERNS
 
-#ifdef JEMALLOC_DSS
+#if (defined(JEMALLOC_SWAP) || defined(JEMALLOC_DSS))
 rb_proto(, extent_tree_szad_, extent_tree_t, extent_node_t)
 #endif
 

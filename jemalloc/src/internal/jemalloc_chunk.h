@@ -27,33 +27,22 @@
 /******************************************************************************/
 #ifdef JEMALLOC_H_EXTERNS
 
+extern size_t		opt_lg_chunk;
+#ifdef JEMALLOC_SWAP
+extern bool		opt_overcommit;
+#endif
+
 #ifdef JEMALLOC_STATS
 /* Chunk statistics. */
 extern chunk_stats_t	stats_chunks;
 #endif
 
-extern size_t		opt_lg_chunk;
 extern size_t		chunksize;
 extern size_t		chunksize_mask; /* (chunksize - 1). */
 extern size_t		chunk_npages;
 extern size_t		arena_chunk_header_npages;
 extern size_t		arena_maxclass; /* Max size class for arenas. */
 
-#ifdef JEMALLOC_DSS
-/*
- * Protects sbrk() calls.  This avoids malloc races among threads, though it
- * does not protect against races with threads that call sbrk() directly.
- */
-extern malloc_mutex_t	dss_mtx;
-/* Base address of the DSS. */
-extern void		*dss_base;
-/* Current end of the DSS, or ((void *)-1) if the DSS is exhausted. */
-extern void		*dss_prev;
-/* Current upper limit on DSS addresses. */
-extern void		*dss_max;
-#endif
-
-void	*pages_map(void *addr, size_t size);
 void	*chunk_alloc(size_t size, bool zero);
 void	chunk_dealloc(void *chunk, size_t size);
 bool	chunk_boot(void);
@@ -64,3 +53,7 @@ bool	chunk_boot(void);
 
 #endif /* JEMALLOC_H_INLINES */
 /******************************************************************************/
+
+#include "internal/jemalloc_chunk_swap.h"
+#include "internal/jemalloc_chunk_dss.h"
+#include "internal/jemalloc_chunk_mmap.h"
