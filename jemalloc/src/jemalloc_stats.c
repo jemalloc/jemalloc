@@ -278,10 +278,19 @@ stats_print(void (*write4)(void *, const char *, const char *, const char *,
 		/* Print chunk stats. */
 		{
 			chunk_stats_t chunks_stats;
+#ifdef JEMALLOC_SWAP
+			size_t swap_avail_chunks;
+#endif
 
 			malloc_mutex_lock(&huge_mtx);
 			chunks_stats = stats_chunks;
 			malloc_mutex_unlock(&huge_mtx);
+
+#ifdef JEMALLOC_SWAP
+			malloc_mutex_lock(&swap_mtx);
+			swap_avail_chunks = swap_avail >> opt_lg_chunk;
+			malloc_mutex_unlock(&swap_mtx);
+#endif
 
 			malloc_cprintf(write4, w4opaque, "chunks: nchunks   "
 			    "highchunks    curchunks"
@@ -289,7 +298,8 @@ stats_print(void (*write4)(void *, const char *, const char *, const char *,
 			    "   swap_avail"
 #endif
 			    "\n");
-			malloc_cprintf(write4, w4opaque, "  %13llu%13lu%13lu"
+			malloc_cprintf(write4, w4opaque,
+			    "  %13"PRIu64"%13zu%13zu"
 #ifdef JEMALLOC_SWAP
 			    "%13zu"
 #endif
@@ -297,7 +307,7 @@ stats_print(void (*write4)(void *, const char *, const char *, const char *,
 			    chunks_stats.nchunks, chunks_stats.highchunks,
 			    chunks_stats.curchunks
 #ifdef JEMALLOC_SWAP
-			    , (swap_avail >> opt_lg_chunk)
+			    , swap_avail_chunks
 #endif
 			    );
 		}
@@ -305,7 +315,8 @@ stats_print(void (*write4)(void *, const char *, const char *, const char *,
 		/* Print chunk stats. */
 		malloc_cprintf(write4, w4opaque,
 		    "huge: nmalloc      ndalloc    allocated\n");
-		malloc_cprintf(write4, w4opaque, " %12llu %12llu %12zu\n",
+		malloc_cprintf(write4, w4opaque,
+		    " %12"PRIu64" %12"PRIu64" %12zu\n",
 		    huge_nmalloc, huge_ndalloc, huge_allocated);
 
 		if (merged) {

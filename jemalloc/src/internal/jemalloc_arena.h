@@ -289,7 +289,7 @@ struct arena_s {
 	arena_chunk_t		*spare;
 
 	/* Number of pages in active runs. */
-	size_t		nactive;
+	size_t			nactive;
 
 	/*
 	 * Current count of pages within unused runs that are potentially
@@ -298,7 +298,6 @@ struct arena_s {
 	 * memory is mapped for each arena.
 	 */
 	size_t			ndirty;
-
 
 	/*
 	 * Size/address-ordered tree of this arena's available runs.  This tree

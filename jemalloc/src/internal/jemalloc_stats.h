@@ -110,14 +110,14 @@ struct chunk_stats_s {
 	uint64_t	nchunks;
 
 	/* High-water mark for number of chunks allocated. */
-	unsigned long	highchunks;
+	size_t		highchunks;
 
 	/*
 	 * Current number of chunks allocated.  This value isn't maintained for
 	 * any other purpose, so keep track of it in order to be able to set
 	 * highchunks.
 	 */
-	unsigned long	curchunks;
+	size_t		curchunks;
 };
 
 #endif /* JEMALLOC_H_STRUCTS */

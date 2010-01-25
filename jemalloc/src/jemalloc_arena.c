@@ -1612,8 +1612,8 @@ arena_stats_aprint(size_t nactive, size_t ndirty, const arena_stats_t *astats,
 {
 
 	malloc_cprintf(write4, w4opaque,
-	    "dirty pages: %zu:%zu active:dirty, %llu sweep%s,"
-	    " %llu madvise%s, %llu purged\n",
+	    "dirty pages: %zu:%zu active:dirty, %"PRIu64" sweep%s,"
+	    " %"PRIu64" madvise%s, %"PRIu64" purged\n",
 	    nactive, ndirty,
 	    astats->npurge, astats->npurge == 1 ? "" : "s",
 	    astats->nmadvise, astats->nmadvise == 1 ? "" : "s",
@@ -1621,16 +1621,20 @@ arena_stats_aprint(size_t nactive, size_t ndirty, const arena_stats_t *astats,
 
 	malloc_cprintf(write4, w4opaque,
 	    "            allocated      nmalloc      ndalloc\n");
-	malloc_cprintf(write4, w4opaque, "small:   %12zu %12llu %12llu\n",
+	malloc_cprintf(write4, w4opaque,
+	    "small:   %12zu %12"PRIu64" %12"PRIu64"\n",
 	    astats->allocated_small, astats->nmalloc_small,
 	    astats->ndalloc_small);
-	malloc_cprintf(write4, w4opaque, "medium:  %12zu %12llu %12llu\n",
+	malloc_cprintf(write4, w4opaque,
+	    "medium:  %12zu %12"PRIu64" %12"PRIu64"\n",
 	    astats->allocated_medium, astats->nmalloc_medium,
 	    astats->ndalloc_medium);
-	malloc_cprintf(write4, w4opaque, "large:   %12zu %12llu %12llu\n",
+	malloc_cprintf(write4, w4opaque,
+	    "large:   %12zu %12"PRIu64" %12"PRIu64"\n",
 	    astats->allocated_large, astats->nmalloc_large,
 	    astats->ndalloc_large);
-	malloc_cprintf(write4, w4opaque, "total:   %12zu %12llu %12llu\n",
+	malloc_cprintf(write4, w4opaque,
+	    "total:   %12zu %12"PRIu64" %12"PRIu64"\n",
 	    astats->allocated_small + astats->allocated_medium +
 	    astats->allocated_large, astats->nmalloc_small +
 	    astats->nmalloc_medium + astats->nmalloc_large,
@@ -1674,11 +1678,11 @@ arena_stats_bprint(arena_t *arena, const malloc_bin_stats_t *bstats,
 				gap_start = UINT_MAX;
 			}
 			malloc_cprintf(write4, w4opaque,
-			    "%13u %1s %5u %4u %3u %9llu %9llu"
+			    "%13u %1s %5u %4u %3u %9"PRIu64" %9"PRIu64
 #ifdef JEMALLOC_TCACHE
-			    " %9llu %9llu"
+			    " %9"PRIu64" %9"PRIu64""
 #endif
-			    " %9llu %7zu %7zu\n",
+			    " %9"PRIu64" %7zu %7zu\n",
 			    i,
 			    i < ntbins ? "T" : i < ntbins + nqbins ?
 			    "Q" : i < ntbins + nqbins + ncbins ? "C" :
@@ -1733,7 +1737,7 @@ arena_stats_lprint(const malloc_large_stats_t *lstats,
 				gap_start = -1;
 			}
 			malloc_cprintf(write4, w4opaque,
-			    "%13zu %5zu %9llu %9zu %9zu\n",
+			    "%13zu %5zu %9"PRIu64" %9zu %9zu\n",
 			    (i+1) << PAGE_SHIFT, i+1,
 			    lstats[i].nrequests,
 			    lstats[i].highruns,
