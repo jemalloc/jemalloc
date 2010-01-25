@@ -1262,41 +1262,15 @@ JEMALLOC_P(malloc_stats_print)(void (*write4)(void *, const char *,
 static void
 jemalloc_prefork(void)
 {
-	bool again;
-	unsigned i, j;
-	arena_t *larenas[narenas], *tarenas[narenas];
+	unsigned i;
 
 	/* Acquire all mutexes in a safe order. */
 
-	/*
-	 * arenas_lock must be acquired after all of the arena mutexes, in
-	 * order to avoid potential deadlock with arena_lock_balance[_hard]().
-	 * Since arenas_lock protects the arenas array, the following code has
-	 * to race with arenas_extend() callers until it succeeds in locking
-	 * all arenas before locking arenas_lock.
-	 */
-	memset(larenas, 0, sizeof(arena_t *) * narenas);
-	do {
-		again = false;
-
-		malloc_mutex_lock(&arenas_lock);
-		for (i = 0; i < narenas; i++) {
-			if (arenas[i] != larenas[i]) {
-				memcpy(tarenas, arenas, sizeof(arena_t *) *
-				    narenas);
-				malloc_mutex_unlock(&arenas_lock);
-				for (j = 0; j < narenas; j++) {
-					if (larenas[j] != tarenas[j]) {
-						larenas[j] = tarenas[j];
-						malloc_mutex_lock(
-						    &larenas[j]->lock);
-					}
-				}
-				again = true;
-				break;
-			}
-		}
-	} while (again);
+	malloc_mutex_lock(&arenas_lock);
+	for (i = 0; i < narenas; i++) {
+		if (arenas[i] != NULL)
+			malloc_mutex_lock(&arenas[i]->lock);
+	}
 
 	malloc_mutex_lock(&base_mtx);
 
@@ -1315,7 +1289,6 @@ static void
 jemalloc_postfork(void)
 {
 	unsigned i;
-	arena_t *larenas[narenas];
 
 	/* Release all mutexes, now that fork() has completed. */
 
@@ -1331,10 +1304,9 @@ jemalloc_postfork(void)
 
 	malloc_mutex_unlock(&base_mtx);
 
-	memcpy(larenas, arenas, sizeof(arena_t *) * narenas);
-	malloc_mutex_unlock(&arenas_lock);
 	for (i = 0; i < narenas; i++) {
-		if (larenas[i] != NULL)
-			malloc_mutex_unlock(&larenas[i]->lock);
+		if (arenas[i] != NULL)
+			malloc_mutex_unlock(&arenas[i]->lock);
 	}
+	malloc_mutex_unlock(&arenas_lock);
 }
