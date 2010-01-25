@@ -25,13 +25,13 @@ static extent_tree_t	dss_chunks_ad;
 /******************************************************************************/
 /* Function prototypes for non-inline static functions. */
 
-static void	*chunk_recycle_dss(size_t size, bool zero);
+static void	*chunk_recycle_dss(size_t size, bool *zero);
 static extent_node_t *chunk_dealloc_dss_record(void *chunk, size_t size);
 
 /******************************************************************************/
 
 static void *
-chunk_recycle_dss(size_t size, bool zero)
+chunk_recycle_dss(size_t size, bool *zero)
 {
 	extent_node_t *node, key;
 
@@ -60,7 +60,7 @@ chunk_recycle_dss(size_t size, bool zero)
 		}
 		malloc_mutex_unlock(&dss_mtx);
 
-		if (zero)
+		if (*zero)
 			memset(ret, 0, size);
 		return (ret);
 	}
@@ -70,7 +70,7 @@ chunk_recycle_dss(size_t size, bool zero)
 }
 
 void *
-chunk_alloc_dss(size_t size, bool zero)
+chunk_alloc_dss(size_t size, bool *zero)
 {
 	void *ret;
 
@@ -116,6 +116,7 @@ chunk_alloc_dss(size_t size, bool zero)
 				/* Success. */
 				dss_max = (void *)((intptr_t)dss_prev + incr);
 				malloc_mutex_unlock(&dss_mtx);
+				*zero = true;
 				return (ret);
 			}
 		} while (dss_prev != (void *)-1);

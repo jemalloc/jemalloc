@@ -27,10 +27,12 @@ static bool
 base_pages_alloc(size_t minsize)
 {
 	size_t csize;
+	bool zero;
 
 	assert(minsize != 0);
 	csize = CHUNK_CEILING(minsize);
-	base_pages = chunk_alloc(csize, false);
+	zero = false;
+	base_pages = chunk_alloc(csize, &zero);
 	if (base_pages == NULL)
 		return (true);
 	base_next_addr = base_pages;

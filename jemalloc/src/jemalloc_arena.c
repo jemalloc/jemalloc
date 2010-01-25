@@ -586,7 +586,11 @@ arena_chunk_alloc(arena_t *arena)
 		chunk = arena->spare;
 		arena->spare = NULL;
 	} else {
-		chunk = (arena_chunk_t *)chunk_alloc(chunksize, true);
+		bool zero;
+		size_t zeroed;
+
+		zero = false;
+		chunk = (arena_chunk_t *)chunk_alloc(chunksize, &zero);
 		if (chunk == NULL)
 			return (NULL);
 #ifdef JEMALLOC_STATS
@@ -604,15 +608,16 @@ arena_chunk_alloc(arena_t *arena)
 
 		/*
 		 * Initialize the map to contain one maximal free untouched run.
+		 * Mark the pages as zeroed iff chunk_alloc() returned a zeroed
+		 * chunk.
 		 */
+		zeroed = zero ? CHUNK_MAP_ZEROED : 0;
 		for (i = 0; i < arena_chunk_header_npages; i++)
 			chunk->map[i].bits = 0;
-		chunk->map[i].bits = arena_maxclass | CHUNK_MAP_ZEROED;
-		for (i++; i < chunk_npages-1; i++) {
-			chunk->map[i].bits = CHUNK_MAP_ZEROED;
-		}
-		chunk->map[chunk_npages-1].bits = arena_maxclass |
-		    CHUNK_MAP_ZEROED;
+		chunk->map[i].bits = arena_maxclass | zeroed;
+		for (i++; i < chunk_npages-1; i++)
+			chunk->map[i].bits = zeroed;
+		chunk->map[chunk_npages-1].bits = arena_maxclass | zeroed;
 	}
 
 	/* Insert the run into the runs_avail tree. */

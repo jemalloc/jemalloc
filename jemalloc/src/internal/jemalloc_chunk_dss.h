@@ -16,7 +16,7 @@
  */
 extern malloc_mutex_t	dss_mtx;
 
-void	*chunk_alloc_dss(size_t size, bool zero);
+void	*chunk_alloc_dss(size_t size, bool *zero);
 bool	chunk_dealloc_dss(void *chunk, size_t size);
 bool	chunk_dss_boot(void);
 

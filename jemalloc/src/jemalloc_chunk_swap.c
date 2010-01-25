@@ -31,13 +31,13 @@ static extent_tree_t	swap_chunks_ad;
 /******************************************************************************/
 /* Function prototypes for non-inline static functions. */
 
-static void	*chunk_recycle_swap(size_t size, bool zero);
+static void	*chunk_recycle_swap(size_t size, bool *zero);
 static extent_node_t *chunk_dealloc_swap_record(void *chunk, size_t size);
 
 /******************************************************************************/
 
 static void *
-chunk_recycle_swap(size_t size, bool zero)
+chunk_recycle_swap(size_t size, bool *zero)
 {
 	extent_node_t *node, key;
 
@@ -69,7 +69,7 @@ chunk_recycle_swap(size_t size, bool zero)
 #endif
 		malloc_mutex_unlock(&swap_mtx);
 
-		if (zero)
+		if (*zero)
 			memset(ret, 0, size);
 		return (ret);
 	}
@@ -79,7 +79,7 @@ chunk_recycle_swap(size_t size, bool zero)
 }
 
 void *
-chunk_alloc_swap(size_t size, bool zero)
+chunk_alloc_swap(size_t size, bool *zero)
 {
 	void *ret;
 
@@ -98,7 +98,9 @@ chunk_alloc_swap(size_t size, bool zero)
 #endif
 		malloc_mutex_unlock(&swap_mtx);
 
-		if (zero && swap_prezeroed == false)
+		if (swap_prezeroed)
+			*zero = true;
+		else if (*zero)
 			memset(ret, 0, size);
 	} else {
 		malloc_mutex_unlock(&swap_mtx);

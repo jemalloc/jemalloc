@@ -22,8 +22,14 @@ size_t		arena_maxclass; /* Max size class for arenas. */
 
 /******************************************************************************/
 
+/*
+ * If the caller specifies (*zero == false), it is still possible to receive
+ * zeroed memory, in which case *zero is toggled to true.  arena_chunk_alloc()
+ * takes advantage of this to avoid demanding zeroed chunks, but taking
+ * advantage of them if they are returned.
+ */
 void *
-chunk_alloc(size_t size, bool zero)
+chunk_alloc(size_t size, bool *zero)
 {
 	void *ret;
 
@@ -45,8 +51,10 @@ chunk_alloc(size_t size, bool zero)
 			goto RETURN;
 #endif
 		ret = chunk_alloc_mmap(size);
-		if (ret != NULL)
+		if (ret != NULL) {
+			*zero = true;
 			goto RETURN;
+		}
 #ifdef JEMALLOC_SWAP
 	}
 #endif

@@ -37,7 +37,7 @@ huge_malloc(size_t size, bool zero)
 	if (node == NULL)
 		return (NULL);
 
-	ret = chunk_alloc(csize, zero);
+	ret = chunk_alloc(csize, &zero);
 	if (ret == NULL) {
 		base_node_dealloc(node);
 		return (NULL);
@@ -74,6 +74,7 @@ huge_palloc(size_t alignment, size_t size)
 	void *ret;
 	size_t alloc_size, chunk_size, offset;
 	extent_node_t *node;
+	bool zero;
 
 	/*
 	 * This allocation requires alignment that is even larger than chunk
@@ -97,7 +98,8 @@ huge_palloc(size_t alignment, size_t size)
 	if (node == NULL)
 		return (NULL);
 
-	ret = chunk_alloc(alloc_size, false);
+	zero = false;
+	ret = chunk_alloc(alloc_size, &zero);
 	if (ret == NULL) {
 		base_node_dealloc(node);
 		return (NULL);

@@ -16,7 +16,7 @@ extern bool		swap_enabled;
 extern size_t		swap_avail;
 #endif
 
-void	*chunk_alloc_swap(size_t size, bool zero);
+void	*chunk_alloc_swap(size_t size, bool *zero);
 bool	chunk_dealloc_swap(void *chunk, size_t size);
 bool	chunk_swap_enable(const int *fds, unsigned nfds, bool prezeroed);
 bool	chunk_swap_boot(void);
