@@ -320,6 +320,7 @@ stats_print(void (*write4)(void *, const char *, const char *, const char *,
 		    huge_nmalloc, huge_ndalloc, huge_allocated);
 
 		if (merged) {
+			unsigned nmerged;
 			size_t nactive, ndirty;
 			arena_stats_t astats;
 			malloc_bin_stats_t bstats[nbins];
@@ -333,21 +334,29 @@ stats_print(void (*write4)(void *, const char *, const char *, const char *,
 			memset(lstats, 0, sizeof(lstats));
 
 			/* Create merged arena stats. */
-			for (i = 0; i < narenas; i++) {
+			for (i = nmerged = 0; i < narenas; i++) {
 				arena = arenas[i];
 				if (arena != NULL) {
 					malloc_mutex_lock(&arena->lock);
 					arena_stats_merge(arena, &nactive,
 					    &ndirty, &astats, bstats, lstats);
 					malloc_mutex_unlock(&arena->lock);
+					nmerged++;
 				}
 			}
-			/* Print merged arena stats. */
-			malloc_cprintf(write4, w4opaque,
-			    "\nMerge arenas stats:\n");
-			/* arenas[0] is used only for invariant bin settings. */
-			arena_stats_mprint(arenas[0], nactive, ndirty, &astats,
-			    bstats, lstats, bins, large, write4, w4opaque);
+
+			if (nmerged > 1) {
+				/* Print merged arena stats. */
+				malloc_cprintf(write4, w4opaque,
+				    "\nMerge arenas stats:\n");
+				/*
+				 * arenas[0] is used only for invariant bin
+				 * settings.
+				 */
+				arena_stats_mprint(arenas[0], nactive, ndirty,
+				    &astats, bstats, lstats, bins, large,
+				    write4, w4opaque);
+			}
 		}
 
 		if (unmerged) {
