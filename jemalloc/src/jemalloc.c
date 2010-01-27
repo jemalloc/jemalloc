@@ -1246,6 +1246,9 @@ JEMALLOC_P(mallctl)(const char *name, void *oldp, size_t *oldlenp, void *newp,
     size_t newlen)
 {
 
+	if (malloc_init())
+		return (EAGAIN);
+
 	return (ctl_byname(name, oldp, oldlenp, newp, newlen));
 }
 
@@ -1253,6 +1256,9 @@ JEMALLOC_ATTR(visibility("default"))
 int
 JEMALLOC_P(mallctlnametomib)(const char *name, size_t *mibp, size_t *miblenp)
 {
+
+	if (malloc_init())
+		return (EAGAIN);
 
 	return (ctl_nametomib(name, mibp, miblenp));
 }
@@ -1262,6 +1268,9 @@ int
 JEMALLOC_P(mallctlbymib)(const size_t *mib, size_t miblen, void *oldp,
     size_t *oldlenp, void *newp, size_t newlen)
 {
+
+	if (malloc_init())
+		return (EAGAIN);
 
 	return (ctl_bymib(mib, miblen, oldp, oldlenp, newp, newlen));
 }

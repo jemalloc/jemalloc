@@ -311,6 +311,19 @@ chunk_swap_enable(const int *fds, unsigned nfds, bool prezeroed)
 			goto RETURN;
 		}
 		assert(addr == (void *)((uintptr_t)vaddr + voff));
+
+		/*
+		 * Tell the kernel that the mapping will be accessed randomly,
+		 * and that it should not gratuitously sync pages to the
+		 * filesystem.
+		 */
+#ifdef MADV_RANDOM
+		madvise(addr, sizes[i], MADV_RANDOM);
+#endif
+#ifdef MADV_NOSYNC
+		madvise(addr, sizes[i], MADV_NOSYNC);
+#endif
+
 		voff += sizes[i];
 	}
 
