@@ -391,6 +391,8 @@ extern size_t		medium_max;
 extern size_t		lg_mspace;
 extern size_t		mspace_mask;
 
+#define			nlclasses	((chunksize - PAGE_SIZE) >> PAGE_SHIFT)
+
 #ifdef JEMALLOC_TCACHE
 void	arena_tcache_fill(arena_t *arena, tcache_bin_t *tbin, size_t binind);
 #endif
@@ -407,14 +409,6 @@ void	arena_dalloc_large(arena_t *arena, arena_chunk_t *chunk, void *ptr);
 void	arena_stats_merge(arena_t *arena, size_t *nactive, size_t *ndirty,
     arena_stats_t *astats, malloc_bin_stats_t *bstats,
     malloc_large_stats_t *lstats);
-void	arena_stats_mprint(arena_t *arena, size_t nactive, size_t ndirty,
-    const arena_stats_t *astats, const malloc_bin_stats_t *bstats,
-    const malloc_large_stats_t *lstats, bool bins, bool large,
-    void (*write4)(void *, const char *, const char *, const char *,
-    const char *), void *w4opaque);
-void	arena_stats_print(arena_t *arena, bool bins, bool large,
-    void (*write4)(void *, const char *, const char *, const char *,
-    const char *), void *w4opaque);
 #endif
 void	*arena_ralloc(void *ptr, size_t size, size_t oldsize);
 bool	arena_new(arena_t *arena, unsigned ind);

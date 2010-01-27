@@ -10,6 +10,7 @@ bool	opt_overcommit = true;
 #endif
 
 #ifdef JEMALLOC_STATS
+malloc_mutex_t	chunks_mtx;
 chunk_stats_t	stats_chunks;
 #endif
 
@@ -64,11 +65,13 @@ chunk_alloc(size_t size, bool *zero)
 RETURN:
 #ifdef JEMALLOC_STATS
 	if (ret != NULL) {
+		malloc_mutex_lock(&chunks_mtx);
 		stats_chunks.nchunks += (size / chunksize);
 		stats_chunks.curchunks += (size / chunksize);
+		if (stats_chunks.curchunks > stats_chunks.highchunks)
+			stats_chunks.highchunks = stats_chunks.curchunks;
+		malloc_mutex_unlock(&chunks_mtx);
 	}
-	if (stats_chunks.curchunks > stats_chunks.highchunks)
-		stats_chunks.highchunks = stats_chunks.curchunks;
 #endif
 
 	assert(CHUNK_ADDR2BASE(ret) == ret);
@@ -85,7 +88,9 @@ chunk_dealloc(void *chunk, size_t size)
 	assert((size & chunksize_mask) == 0);
 
 #ifdef JEMALLOC_STATS
+	malloc_mutex_lock(&chunks_mtx);
 	stats_chunks.curchunks -= (size / chunksize);
+	malloc_mutex_unlock(&chunks_mtx);
 #endif
 
 #ifdef JEMALLOC_SWAP
@@ -110,6 +115,8 @@ chunk_boot(void)
 	chunk_npages = (chunksize >> PAGE_SHIFT);
 
 #ifdef JEMALLOC_STATS
+	if (malloc_mutex_init(&chunks_mtx))
+		return (true);
 	memset(&stats_chunks, 0, sizeof(chunk_stats_t));
 #endif
 

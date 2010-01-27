@@ -40,10 +40,10 @@ CHDRS := @objroot@src/jemalloc@install_suffix@.h \
 CSRCS := @srcroot@src/jemalloc.c @srcroot@src/jemalloc_arena.c \
 	@srcroot@src/jemalloc_base.c @srcroot@src/jemalloc_chunk.c \
 	@srcroot@src/jemalloc_chunk_dss.c @srcroot@src/jemalloc_chunk_mmap.c \
-	@srcroot@src/jemalloc_chunk_swap.c @srcroot@src/jemalloc_extent.c \
-	@srcroot@src/jemalloc_huge.c @srcroot@src/jemalloc_mutex.c \
-	@srcroot@src/jemalloc_stats.c @srcroot@src/jemalloc_tcache.c \
-	@srcroot@src/jemalloc_trace.c
+	@srcroot@src/jemalloc_chunk_swap.c @srcroot@src/jemalloc_ctl.c \
+	@srcroot@src/jemalloc_extent.c @srcroot@src/jemalloc_huge.c \
+	@srcroot@src/jemalloc_mutex.c @srcroot@src/jemalloc_stats.c \
+	@srcroot@src/jemalloc_tcache.c @srcroot@src/jemalloc_trace.c
 DSOS := @objroot@lib/libjemalloc@install_suffix@.so.$(REV) \
 	@objroot@lib/libjemalloc@install_suffix@.so \
 	@objroot@lib/libjemalloc@install_suffix@_pic.a

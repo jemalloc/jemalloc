@@ -243,7 +243,7 @@ chunk_dealloc_dss(void *chunk, size_t size)
 		goto RETURN;
 	}
 
-	ret = true
+	ret = true;
 RETURN:
 	malloc_mutex_unlock(&dss_mtx);
 	return (ret);

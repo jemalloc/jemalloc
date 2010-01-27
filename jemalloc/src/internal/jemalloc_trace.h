@@ -21,7 +21,7 @@ void	trace_free(const void *ptr, size_t size);
 void	trace_malloc_usable_size(size_t size, const void *ptr);
 void	trace_thread_exit(void);
 
-void	trace_boot(void);
+bool	trace_boot(void);
 
 #endif /* JEMALLOC_H_EXTERNS */
 /******************************************************************************/

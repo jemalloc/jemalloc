@@ -33,6 +33,8 @@ extern bool		opt_overcommit;
 #endif
 
 #ifdef JEMALLOC_STATS
+/* Protects stats_chunks; currently not used for any other purpose. */
+extern malloc_mutex_t	chunks_mtx;
 /* Chunk statistics. */
 extern chunk_stats_t	stats_chunks;
 #endif

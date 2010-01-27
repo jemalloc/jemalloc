@@ -95,12 +95,12 @@
 /******************************************************************************/
 /* Data. */
 
+malloc_mutex_t		arenas_lock;
 arena_t			**arenas;
 unsigned		narenas;
 #ifndef NO_TLS
 static unsigned		next_arena;
 #endif
-static malloc_mutex_t	arenas_lock; /* Protects arenas initialization. */
 
 #ifndef NO_TLS
 __thread arena_t	*arenas_map JEMALLOC_ATTR(tls_model("initial-exec"));
@@ -710,9 +710,18 @@ MALLOC_OUT:
 		}
 	}
 
+	if (ctl_boot()) {
+		malloc_mutex_unlock(&init_lock);
+		return (true);
+	}
+
 #ifdef JEMALLOC_TRACE
-	if (opt_trace)
-		trace_boot();
+	if (opt_trace) {
+		if (trace_boot()) {
+			malloc_mutex_unlock(&init_lock);
+			return (true);
+		}
+	}
 #endif
 	if (opt_stats_print) {
 		/* Print statistics at exit. */
@@ -721,6 +730,11 @@ MALLOC_OUT:
 
 	/* Register fork handlers. */
 	pthread_atfork(jemalloc_prefork, jemalloc_postfork, jemalloc_postfork);
+
+	if (base_boot()) {
+		malloc_mutex_unlock(&init_lock);
+		return (true);
+	}
 
 	if (arena_boot0()) {
 		malloc_mutex_unlock(&init_lock);
@@ -736,11 +750,6 @@ MALLOC_OUT:
 		return (true);
 	}
 	arena_boot1();
-
-	if (huge_boot()) {
-		malloc_mutex_unlock(&init_lock);
-		return (true);
-	}
 
 	if (huge_boot()) {
 		malloc_mutex_unlock(&init_lock);
@@ -1222,22 +1231,6 @@ JEMALLOC_P(malloc_swap_enable)(const int *fds, unsigned nfds, int prezeroed)
 }
 #endif
 
-#ifdef JEMALLOC_TCACHE
-JEMALLOC_ATTR(visibility("default"))
-void
-JEMALLOC_P(malloc_tcache_flush)(void)
-{
-	tcache_t *tcache;
-
-	tcache = tcache_tls;
-	if (tcache == NULL)
-		return;
-
-	tcache_destroy(tcache);
-	tcache_tls = NULL;
-}
-#endif
-
 JEMALLOC_ATTR(visibility("default"))
 void
 JEMALLOC_P(malloc_stats_print)(void (*write4)(void *, const char *,
@@ -1245,6 +1238,32 @@ JEMALLOC_P(malloc_stats_print)(void (*write4)(void *, const char *,
 {
 
 	stats_print(write4, w4opaque, opts);
+}
+
+JEMALLOC_ATTR(visibility("default"))
+int
+JEMALLOC_P(mallctl)(const char *name, void *oldp, size_t *oldlenp, void *newp,
+    size_t newlen)
+{
+
+	return (ctl_byname(name, oldp, oldlenp, newp, newlen));
+}
+
+JEMALLOC_ATTR(visibility("default"))
+int
+JEMALLOC_P(mallctlnametomib)(const char *name, size_t *mibp, size_t *miblenp)
+{
+
+	return (ctl_nametomib(name, mibp, miblenp));
+}
+
+JEMALLOC_ATTR(visibility("default"))
+int
+JEMALLOC_P(mallctlbymib)(const size_t *mib, size_t miblen, void *oldp,
+    size_t *oldlenp, void *newp, size_t newlen)
+{
+
+	return (ctl_bymib(mib, miblen, oldp, oldlenp, newp, newlen));
 }
 
 /*

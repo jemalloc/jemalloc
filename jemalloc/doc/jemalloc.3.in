@@ -38,7 +38,7 @@
 .\"     @(#)malloc.3	8.1 (Berkeley) 6/4/93
 .\" $FreeBSD: head/lib/libc/stdlib/malloc.3 182225 2008-08-27 02:00:53Z jasone $
 .\"
-.Dd January 23, 2010
+.Dd January 27, 2010
 .Dt JEMALLOC 3
 .Os
 .Sh NAME
@@ -48,12 +48,13 @@
 .Nm @jemalloc_prefix@realloc ,
 .Nm @jemalloc_prefix@free ,
 .Nm @jemalloc_prefix@malloc_usable_size ,
-@roff_swap@.Nm @jemalloc_prefix@malloc_swap_enable ,
-@roff_tcache@.Nm @jemalloc_prefix@malloc_tcache_flush ,
-.Nm @jemalloc_prefix@malloc_stats_print
+.Nm @jemalloc_prefix@malloc_stats_print ,
+.Nm @jemalloc_prefix@mallctl ,
+.Nm @jemalloc_prefix@mallctlnametomib ,
+.Nm @jemalloc_prefix@mallctlbymib
 .Nd general purpose memory allocation functions
 .Sh LIBRARY
-.Lb libjemalloc@install_suffix@
+.Sy libjemalloc@install_suffix@
 .Sh SYNOPSIS
 .In stdlib.h
 .In jemalloc@install_suffix@.h
@@ -69,18 +70,18 @@
 .Fn @jemalloc_prefix@free "void *ptr"
 .Ft size_t
 .Fn @jemalloc_prefix@malloc_usable_size "const void *ptr"
-@roff_swap@.Ft int
-@roff_swap@.Fn @jemalloc_prefix@malloc_swap_enable "const int *fds" "unsigned nfds" "int prezeroed"
-@roff_tcache@.Ft void
-@roff_tcache@.Fn @jemalloc_prefix@malloc_tcache_flush "void"
 .Ft void
 .Fn @jemalloc_prefix@malloc_stats_print "void (*write4)(void *" "const char *" "const char *" "const char *" "const char *)" "const char *opts"
+.Ft int
+.Fn @jemalloc_prefix@mallctl "const char *name" "void *oldp" "size_t *oldlenp" "void *newp" "size_t newlen"
+.Ft int
+.Fn @jemalloc_prefix@mallctlnametomib "const char *name" "int *mibp" "size_t *miblenp"
+.Ft int
+.Fn @jemalloc_prefix@mallctlbymib "const size_t *mib" "size_t miblen" "void *oldp" "size_t *oldlenp" "void *newp" "size_t newlen"
 .Ft const char *
 .Va @jemalloc_prefix@malloc_options ;
 .Ft void
-.Fo \*(lp*@jemalloc_prefix@malloc_message\*(rp
-.Fa "void *w4opaque" "const char *p1" "const char *p2" "const char *p3" "const char *p4"
-.Fc
+.Fn \*(lp*@jemalloc_prefix@malloc_message\*(rp "void *w4opaque" "const char *p1" "const char *p2" "const char *p3" "const char *p4"
 .Sh DESCRIPTION
 The
 .Fn @jemalloc_prefix@malloc
@@ -173,39 +174,6 @@ Any discrepancy between the requested allocation size and the size reported by
 .Fn @jemalloc_prefix@malloc_usable_size
 should not be depended on, since such behavior is entirely
 implementation-dependent.
-@roff_swap@.Pp
-@roff_swap@The
-@roff_swap@.Fn @jemalloc_prefix@malloc_swap_enable
-@roff_swap@function opens and contiguously maps a list of
-@roff_swap@.Fa nfds
-@roff_swap@file descriptors pointed to by
-@roff_swap@.Fa fds
-@roff_swap@via
-@roff_swap@.Xr mmap 2 .
-@roff_swap@The resulting virtual memory region is preferred over anonymous
-@roff_swap@.Xr mmap 2
-@roff_swap@@roff_dss@and
-@roff_swap@@roff_dss@.Xr sbrk 2
-@roff_swap@memory.
-@roff_swap@Note that if a file's size is not a multiple of the page size, it is
-@roff_swap@automatically truncated to the nearest page size multiple.
-@roff_swap@If
-@roff_swap@.Fa prezeroed
-@roff_swap@is non-zero, the allocator assumes that the file(s) contain nothing
-@roff_swap@but nil bytes.
-@roff_swap@If this assumption is violated, allocator behavior is undefined.
-@roff_tcache@.Pp
-@roff_tcache@The
-@roff_tcache@.Fn @jemalloc_prefix@malloc_tcache_flush
-@roff_tcache@function releases all cached objects and internal data structures
-@roff_tcache@associated with the calling thread's thread-specific cache.
-@roff_tcache@Ordinarily, this function need not be called, since automatic
-@roff_tcache@periodic incremental garbage collection occurs, and the thread
-@roff_tcache@cache is automatically discarded when a thread exits.
-@roff_tcache@However, garbage collection is triggered by allocation activity,
-@roff_tcache@so it is possible for a thread that stops allocating/deallocating
-@roff_tcache@to retain its cache indefinitely, in which case the developer may
-@roff_tcache@find this function useful.
 .Pp
 The
 .Fn @jemalloc_prefix@malloc_stats_print
@@ -228,6 +196,12 @@ during execution can be omitted by specifying
 as a character within the
 .Fa opts
 string.
+Note that
+.Fn @jemalloc_prefix@malloc_message
+uses the
+.Fn @jemalloc_prefix@mallctl*
+functions internally, so inconsistent statistics can be reported if multiple
+threads use these functions simultaneously.
 @roff_stats@.Dq m
 @roff_stats@and
 @roff_stats@.Dq a
@@ -242,6 +216,79 @@ Unrecognized characters are silently ignored.
 @roff_tcache@Note that thread caching may prevent some statistics from being
 @roff_tcache@completely up to date, since extra locking would be required to
 @roff_tcache@merge counters that track thread cache operations.
+.Pp
+The
+.Fn @jemalloc_prefix@mallctl
+function provides a general interface for introspecting the memory allocator,
+as well as setting modifiable parameters and triggering actions.
+The period-separated
+.Fa name
+argument specifies a location in a tree-structured namespace; see the
+.Sx "MALLCTL NAMESPACE"
+section for documentation on the tree contents.
+To read a value, pass a pointer via
+.Fa oldp
+to adequate space to contain the value, and a pointer to its length via
+.Fa oldlenp ;
+otherwise pass
+.Dv NULL
+and
+.Dv NULL .
+Similarly, to write a value, pass a pointer to the value via
+.Fa newp ,
+and its length via
+.Fa newlen ;
+otherwise pass
+.Dv NULL
+and 0.
+.Pp
+The
+.Fn @jemalloc_prefix@mallctlnametomib
+function provides a way to avoid repeated name lookups for applications that
+repeatedly query the same portion of the namespace, by translating a name to a
+.Dq Management Information Base
+(MIB) that can be passed repeatedly to
+.Fn @jemalloc_prefix@mallctlbymib .
+Upon successful return from
+.Fn @jemalloc_prefix@mallctlnametomib ,
+.Fa mibp
+contains an array of
+.Fa *miblenp
+integers, where
+.Fa *miblenp
+is the lesser of the number of components in
+.Fa name
+and the input value of
+.Fa *miblenp .
+Thus it is possible to pass a
+.Fa *miblenp
+that is smaller than the number of period-separated name components, which
+results in a partial MIB that can be used as the basis for constructing a
+complete MIB.
+For name components that are integers (e.g. the 2 in
+.Qq arenas.bin.2.size ) ,
+the corresponding MIB component will always be that integer.
+Therefore, it is legitimate to construct code like the following:
+.Pp
+.Bd -literal -offset indent -compact
+unsigned nbins, i;
+int mib[4];
+size_t len, miblen;
+
+len = sizeof(nbins);
+@jemalloc_prefix@mallctl("arenas.nbins", &nbins, &len, NULL, 0);
+
+miblen = 4;
+@jemalloc_prefix@mallnametomib("arenas.bin.0.size", mib, &miblen);
+for (i = 0; i < nbins; i++) {
+	size_t bin_size;
+
+	mib[2] = i;
+	len = sizeof(bin_size);
+	@jemalloc_prefix@mallctlbymib(mib, miblen, &bin_size, &len, NULL, 0);
+	/* Do something with bin_size... */
+}
+.Ed
 .Sh TUNING
 Once, when the first call is made to one of these memory allocation
 routines, various flags will be set or reset, which affects the
@@ -347,8 +394,8 @@ times the number of CPUs, or one if there is a single CPU.
 @roff_swap@@roff_dss@.Xr sbrk 2
 @roff_swap@for virtual memory allocation.
 @roff_swap@In order for overcommit to be disabled, the
-@roff_swap@.Fn malloc_swap_enable
-@roff_swap@function must have been successfully called.
+@roff_swap@.Dq swap.fds
+@roff_swap@mallctl must have been successfully written to.
 @roff_swap@This option is enabled by default.
 .It P
 The
@@ -503,7 +550,7 @@ no more than the minimum cacheline-multiple size class (see the
 option) are rounded up to the nearest multiple of the
 @roff_tiny@quantum.
 @roff_no_tiny@quantum (8 or 16, depending on architecture).
-Allocation requests that are more than the minumum cacheline-multiple size
+Allocation requests that are more than the minimum cacheline-multiple size
 class, but no more than the minimum subpage-multiple size class (see the
 .Dq C
 option) are rounded up to the nearest multiple of the cacheline size (64).
@@ -528,6 +575,592 @@ multi-threaded applications.
 If you need to assure that allocations do not suffer from cacheline sharing,
 round your allocation requests up to the nearest multiple of the cacheline
 size.
+.Sh MALLCTL NAMESPACE
+The following names are defined in the namespace accessible via the
+.Fn mallctl*
+functions.
+Value types are specified in parentheses, and their readable/writable statuses
+are encoded as rw, r-, -w, or --.
+A name element encoded as <i> or <j> indicates an integer component, where the
+integer varies from 0 to some upper value that must be determined via
+introspection.
+@roff_stats@In the case of
+@roff_stats@.Dq stats.arenas.<i>.* ,
+@roff_stats@<i> equal to
+@roff_stats@.Dq arenas.narenas
+@roff_stats@can be used to access the summation of statistics from all arenas.
+.Bl -ohang
+.\"-----------------------------------------------------------------------------
+.It Sy "epoch (uint64_t) rw"
+.Bd -ragged -offset indent -compact
+If a value is passed in, refresh the data from which the
+.Fn mallctl*
+functions report values, and increment the epoch.
+Return the current epoch.
+This is useful for detecting whether another thread caused a refresh.
+.Ed
+.\"-----------------------------------------------------------------------------
+@roff_tcache@.It Sy "tcache.flush (void) --"
+@roff_tcache@.Bd -ragged -offset indent -compact
+@roff_tcache@Flush calling thread's tcache.
+@roff_tcache@This interface releases all cached objects and internal data
+@roff_tcache@structures associated with the calling thread's thread-specific
+@roff_tcache@cache.
+@roff_tcache@Ordinarily, this interface need not be called, since automatic
+@roff_tcache@periodic incremental garbage collection occurs, and the thread
+@roff_tcache@cache is automatically discarded when a thread exits.
+@roff_tcache@However, garbage collection is triggered by allocation activity,
+@roff_tcache@so it is possible for a thread that stops allocating/deallocating
+@roff_tcache@to retain its cache indefinitely, in which case the developer may
+@roff_tcache@find manual flushing useful.
+.Ed
+.\"-----------------------------------------------------------------------------
+.It Sy "config.debug (bool) r-"
+.Bd -ragged -offset indent -compact
+--enable-debug was specified during build configuration.
+.Ed
+.\"-----------------------------------------------------------------------------
+.It Sy "config.dss (bool) r-"
+.Bd -ragged -offset indent -compact
+--enable-dss was specified during build configuration.
+.Ed
+.\"-----------------------------------------------------------------------------
+.It Sy "config.dynamic_page_shift (bool) r-"
+.Bd -ragged -offset indent -compact
+--enable-dynamic-page-shift was specified during build configuration.
+.Ed
+.\"-----------------------------------------------------------------------------
+.It Sy "config.fill (bool) r-"
+.Bd -ragged -offset indent -compact
+--enable-fill was specified during build configuration.
+.Ed
+.\"-----------------------------------------------------------------------------
+.It Sy "config.lazy_lock (bool) r-"
+.Bd -ragged -offset indent -compact
+--enable-lazy-lock was specified during build configuration.
+.Ed
+.\"-----------------------------------------------------------------------------
+.It Sy "config.stats (bool) r-"
+.Bd -ragged -offset indent -compact
+--enable-stats was specified during build configuration.
+.Ed
+.\"-----------------------------------------------------------------------------
+.It Sy "config.swap (bool) r-"
+.Bd -ragged -offset indent -compact
+--enable-swap was specified during build configuration.
+.Ed
+.\"-----------------------------------------------------------------------------
+.It Sy "config.sysv (bool) r-"
+.Bd -ragged -offset indent -compact
+--enable-sysv was specified during build configuration.
+.Ed
+.\"-----------------------------------------------------------------------------
+.It Sy "config.tcache (bool) r-"
+.Bd -ragged -offset indent -compact
+--disable-tcache was not specified during build configuration.
+.Ed
+.\"-----------------------------------------------------------------------------
+.It Sy "config.tiny (bool) r-"
+.Bd -ragged -offset indent -compact
+--disable-tiny was not specified during build configuration.
+.Ed
+.\"-----------------------------------------------------------------------------
+.It Sy "config.tls (bool) r-"
+.Bd -ragged -offset indent -compact
+--disable-tls was not specified during build configuration.
+.Ed
+.\"-----------------------------------------------------------------------------
+.It Sy "config.trace (bool) r-"
+.Bd -ragged -offset indent -compact
+--enable-trace was specified during build configuration.
+.Ed
+.\"-----------------------------------------------------------------------------
+.It Sy "config.xmalloc (bool) r-"
+.Bd -ragged -offset indent -compact
+--enable-xmalloc was specified during build configuration.
+.Ed
+.\"-----------------------------------------------------------------------------
+.It Sy "opt.abort (bool) r-"
+.Bd -ragged -offset indent -compact
+See the
+.Dq A
+option.
+.Ed
+.\"-----------------------------------------------------------------------------
+@roff_fill@.It Sy "opt.junk (bool) r-"
+@roff_fill@.Bd -ragged -offset indent -compact
+@roff_fill@See the
+@roff_fill@.Dq J
+@roff_fill@option.
+@roff_fill@.Ed
+.\"-----------------------------------------------------------------------------
+@roff_fill@.It Sy "opt.zero (bool) r-"
+@roff_fill@.Bd -ragged -offset indent -compact
+@roff_fill@See the
+@roff_fill@.Dq Z
+@roff_fill@option.
+@roff_fill@.Ed
+.\"-----------------------------------------------------------------------------
+@roff_xmalloc@.It Sy "opt.xmalloc (bool) r-"
+@roff_xmalloc@.Bd -ragged -offset indent -compact
+@roff_xmalloc@See the
+@roff_xmalloc@.Dq X
+@roff_xmalloc@option.
+@roff_xmalloc@.Ed
+.\"-----------------------------------------------------------------------------
+@roff_tcache@.It Sy "opt.lg_tcache_nslots (size_t) r-"
+@roff_tcache@.Bd -ragged -offset indent -compact
+@roff_tcache@See the
+@roff_tcache@.Dq H
+@roff_tcache@option.
+@roff_tcache@.Ed
+.\"-----------------------------------------------------------------------------
+@roff_tcache@.It Sy "opt.lg_tcache_gc_sweep (ssize_t) r-"
+@roff_tcache@.Bd -ragged -offset indent -compact
+@roff_tcache@See the
+@roff_tcache@.Dq G
+@roff_tcache@option.
+@roff_tcache@.Ed
+.\"-----------------------------------------------------------------------------
+@roff_tcache@.It Sy "opt.tcache_sort (bool) r-"
+@roff_tcache@.Bd -ragged -offset indent -compact
+@roff_tcache@See the
+@roff_tcache@.Dq S
+@roff_tcache@option.
+@roff_tcache@.Ed
+.\"-----------------------------------------------------------------------------
+.It Sy "opt.stats_print (bool) r-"
+.Bd -ragged -offset indent -compact
+See the
+.Dq P
+option.
+.Ed
+.\"-----------------------------------------------------------------------------
+@roff_trace@.It Sy "opt.trace (bool) r-"
+@roff_trace@.Bd -ragged -offset indent -compact
+@roff_trace@See the
+@roff_trace@.Dq T
+@roff_trace@option.
+@roff_trace@.Ed
+.\"-----------------------------------------------------------------------------
+.It Sy "opt.lg_qspace_max (size_t) r-"
+.Bd -ragged -offset indent -compact
+See the
+.Dq Q
+option.
+.Ed
+.\"-----------------------------------------------------------------------------
+.It Sy "opt.lg_cspace_max (size_t) r-"
+.Bd -ragged -offset indent -compact
+See the
+.Dq C
+option.
+.Ed
+.\"-----------------------------------------------------------------------------
+.It Sy "opt.lg_medium_max (size_t) r-"
+.Bd -ragged -offset indent -compact
+See the
+.Dq M
+option.
+.Ed
+.\"-----------------------------------------------------------------------------
+.It Sy "opt.lg_dirty_mult (ssize_t) r-"
+.Bd -ragged -offset indent -compact
+See the
+.Dq D
+option.
+.Ed
+.\"-----------------------------------------------------------------------------
+.It Sy "opt.lg_chunk (size_t) r-"
+.Bd -ragged -offset indent -compact
+See the
+.Dq K
+option.
+.Ed
+.\"-----------------------------------------------------------------------------
+.It Sy "opt.overcommit (bool) r-"
+.Bd -ragged -offset indent -compact
+See the
+.Dq O
+option.
+.Ed
+.\"-----------------------------------------------------------------------------
+.It Sy "arenas.narenas (unsigned) r-"
+.Bd -ragged -offset indent -compact
+Maximum number of arenas.
+See the
+.Dq N
+option.
+.Ed
+.\"-----------------------------------------------------------------------------
+.It Sy "arenas.initialized (bool *) r-"
+.Bd -ragged -offset indent -compact
+An array of arenas.narenas booleans.
+Each boolean indicates whether the corresponding arena is initialized.
+.Ed
+.\"-----------------------------------------------------------------------------
+.It Sy "arenas.quantum (size_t) r-"
+.Bd -ragged -offset indent -compact
+Quantum size.
+.Ed
+.\"-----------------------------------------------------------------------------
+.It Sy "arenas.cacheline (size_t) r-"
+.Bd -ragged -offset indent -compact
+Assumed cacheline size.
+.Ed
+.\"-----------------------------------------------------------------------------
+.It Sy "arenas.subpage (size_t) r-"
+.Bd -ragged -offset indent -compact
+Subpage size class interval.
+.Ed
+.\"-----------------------------------------------------------------------------
+.It Sy "arenas.pagesize (size_t) r-"
+.Bd -ragged -offset indent -compact
+Page size.
+.Ed
+.\"-----------------------------------------------------------------------------
+.It Sy "arenas.medium (size_t) r-"
+.Bd -ragged -offset indent -compact
+Medium size class interval.
+.Ed
+.\"-----------------------------------------------------------------------------
+.It Sy "arenas.chunksize (size_t) r-"
+.Bd -ragged -offset indent -compact
+Chunk size.
+.Ed
+.\"-----------------------------------------------------------------------------
+.It Sy "arenas.tspace_min (size_t) r-"
+.Bd -ragged -offset indent -compact
+Minimum tiny size class.
+Tiny size classes are powers of two.
+.Ed
+.\"-----------------------------------------------------------------------------
+.It Sy "arenas.tspace_max (size_t) r-"
+.Bd -ragged -offset indent -compact
+Maximum tiny size class.
+Tiny size classes are powers of two.
+.Ed
+.\"-----------------------------------------------------------------------------
+.It Sy "arenas.qspace_min (size_t) r-"
+.Bd -ragged -offset indent -compact
+Minimum quantum-spaced size class.
+.Ed
+.\"-----------------------------------------------------------------------------
+.It Sy "arenas.qspace_max (size_t) r-"
+.Bd -ragged -offset indent -compact
+Maximum quantum-spaced size class.
+.Ed
+.\"-----------------------------------------------------------------------------
+.It Sy "arenas.cspace_min (size_t) r-"
+.Bd -ragged -offset indent -compact
+Minimum cacheline-spaced size class.
+.Ed
+.\"-----------------------------------------------------------------------------
+.It Sy "arenas.cspace_max (size_t) r-"
+.Bd -ragged -offset indent -compact
+Maximum cacheline-spaced size class.
+.Ed
+.\"-----------------------------------------------------------------------------
+.It Sy "arenas.sspace_min (size_t) r-"
+.Bd -ragged -offset indent -compact
+Minimum subpage-spaced size class.
+.Ed
+.\"-----------------------------------------------------------------------------
+.It Sy "arenas.sspace_max (size_t) r-"
+.Bd -ragged -offset indent -compact
+Maximum subpage-spaced size class.
+.Ed
+.\"-----------------------------------------------------------------------------
+.It Sy "arenas.medium_min (size_t) r-"
+.Bd -ragged -offset indent -compact
+Minimum medium-spaced size class.
+.Ed
+.\"-----------------------------------------------------------------------------
+.It Sy "arenas.medium_max (size_t) r-"
+.Bd -ragged -offset indent -compact
+Maximum medium-spaced size class.
+.Ed
+.\"-----------------------------------------------------------------------------
+.It Sy "arenas.ntbins (unsigned) r-"
+.Bd -ragged -offset indent -compact
+Number of tiny bin size classes.
+.Ed
+.\"-----------------------------------------------------------------------------
+.It Sy "arenas.nqbins (unsigned) r-"
+.Bd -ragged -offset indent -compact
+Number of quantum-spaced bin size classes.
+.Ed
+.\"-----------------------------------------------------------------------------
+.It Sy "arenas.ncbins (unsigned) r-"
+.Bd -ragged -offset indent -compact
+Number of cacheline-spaced bin size classes.
+.Ed
+.\"-----------------------------------------------------------------------------
+.It Sy "arenas.nsbins (unsigned) r-"
+.Bd -ragged -offset indent -compact
+Number of subpage-spaced bin size classes.
+.Ed
+.\"-----------------------------------------------------------------------------
+.It Sy "arenas.nmbins (unsigned) r-"
+.Bd -ragged -offset indent -compact
+Number of medium-spaced bin size classes.
+.Ed
+.\"-----------------------------------------------------------------------------
+.It Sy "arenas.nbins (unsigned) r-"
+.Bd -ragged -offset indent -compact
+Total number of bin size classes.
+.Ed
+.\"-----------------------------------------------------------------------------
+.It Sy "arenas.bin.<i>.size (size_t) r-"
+.Bd -ragged -offset indent -compact
+Maximum size supported by size class.
+.Ed
+.\"-----------------------------------------------------------------------------
+.It Sy "arenas.bin.<i>.nregs (uint32_t) r-"
+.Bd -ragged -offset indent -compact
+Number of regions per page run.
+.Ed
+.\"-----------------------------------------------------------------------------
+.It Sy "arenas.bin.<i>.run_size (size_t) r-"
+.Bd -ragged -offset indent -compact
+Number of bytes per page run.
+.Ed
+.\"-----------------------------------------------------------------------------
+.It Sy "arenas.nlruns (size_t) r-"
+.Bd -ragged -offset indent -compact
+Total number of large size classes.
+.Ed
+.\"-----------------------------------------------------------------------------
+.It Sy "arenas.lrun.<i>.size (size_t) r-"
+.Bd -ragged -offset indent -compact
+Maximum size supported by this large size class.
+.Ed
+.\"-----------------------------------------------------------------------------
+@roff_stats@.It Sy "stats.allocated (size_t) r-"
+@roff_stats@.Bd -ragged -offset indent -compact
+@roff_stats@Total number of bytes allocated by the application.
+@roff_stats@.Ed
+.\"-----------------------------------------------------------------------------
+@roff_stats@.It Sy "stats.active (size_t) r-"
+@roff_stats@.Bd -ragged -offset indent -compact
+@roff_stats@Total number of bytes in active pages allocated by the application.
+@roff_stats@This is a multiple of the page size, and is larger than
+@roff_stats@.Dq stats.allocated .
+@roff_stats@.Ed
+.\"-----------------------------------------------------------------------------
+@roff_stats@.It Sy "stats.mapped (size_t) r-"
+@roff_stats@.Bd -ragged -offset indent -compact
+@roff_stats@Total number of bytes in chunks mapped on behalf of the application.
+@roff_stats@This is a multiple of the chunk size, and is at least as large as
+@roff_stats@.Dq stats.active .
+@roff_stats@@roff_swap@This does not include inactive chunks backed by swap
+@roff_stats@@roff_swap@files.
+@roff_stats@@roff_dss@This does not include inactive chunks embedded in the DSS.
+@roff_stats@.Ed
+.\"-----------------------------------------------------------------------------
+@roff_stats@.It Sy "stats.chunks.current (size_t) r-"
+@roff_stats@.Bd -ragged -offset indent -compact
+@roff_stats@Total number of chunks actively mapped on behalf of the application.
+@roff_stats@@roff_swap@This does not include inactive chunks backed by swap
+@roff_stats@@roff_swap@files.
+@roff_stats@@roff_dss@This does not include inactive chunks embedded in the DSS.
+@roff_stats@.Ed
+.\"-----------------------------------------------------------------------------
+@roff_stats@.It Sy "stats.chunks.total (uint64_t) r-"
+@roff_stats@.Bd -ragged -offset indent -compact
+@roff_stats@Cumulative number of chunks allocated.
+@roff_stats@.Ed
+.\"-----------------------------------------------------------------------------
+@roff_stats@.It Sy "stats.chunks.high (size_t) r-"
+@roff_stats@.Bd -ragged -offset indent -compact
+@roff_stats@Maximum number of active chunks at any time thus far.
+@roff_stats@.Ed
+.\"-----------------------------------------------------------------------------
+@roff_stats@.It Sy "stats.huge.allocated (size_t) r-"
+@roff_stats@.Bd -ragged -offset indent -compact
+@roff_stats@Number of bytes currently allocated by huge objects.
+@roff_stats@.Ed
+.\"-----------------------------------------------------------------------------
+@roff_stats@.It Sy "stats.huge.nmalloc (uint64_t) r-"
+@roff_stats@.Bd -ragged -offset indent -compact
+@roff_stats@Cumulative number of huge allocation requests.
+@roff_stats@.Ed
+.\"-----------------------------------------------------------------------------
+@roff_stats@.It Sy "stats.huge.ndalloc (uint64_t) r-"
+@roff_stats@.Bd -ragged -offset indent -compact
+@roff_stats@Cumulative number of huge deallocation requests.
+@roff_stats@.Ed
+.\"-----------------------------------------------------------------------------
+.It Sy "stats.arenas.<i>.pactive (size_t) r-"
+.Bd -ragged -offset indent -compact
+Number of pages in active runs.
+.Ed
+.\"-----------------------------------------------------------------------------
+.It Sy "stats.arenas.<i>.pdirty (size_t) r-"
+.Bd -ragged -offset indent -compact
+Number of pages within unused runs that are potentially dirty, and for which
+.Fn madvise "..." "MADV_DONTNEED"
+has not been called.
+.Ed
+.\"-----------------------------------------------------------------------------
+@roff_stats@.It Sy "stats.arenas.<i>.mapped (size_t) r-"
+@roff_stats@.Bd -ragged -offset indent -compact
+@roff_stats@Number of mapped bytes.
+@roff_stats@.Ed
+.\"-----------------------------------------------------------------------------
+@roff_stats@.It Sy "stats.arenas.<i>.npurge (uint64_t) r-"
+@roff_stats@.Bd -ragged -offset indent -compact
+@roff_stats@Number of dirty page purge sweeps performed.
+@roff_stats@.Ed
+.\"-----------------------------------------------------------------------------
+@roff_stats@.It Sy "stats.arenas.<i>.nmadvise (uint64_t) r-"
+@roff_stats@.Bd -ragged -offset indent -compact
+@roff_stats@Number of
+@roff_stats@.Fn madvise "..." "MADV_DONTNEED"
+@roff_stats@calls made to purge dirty pages.
+@roff_stats@.Ed
+.\"-----------------------------------------------------------------------------
+@roff_stats@.It Sy "stats.arenas.<i>.npurged (uint64_t) r-"
+@roff_stats@.Bd -ragged -offset indent -compact
+@roff_stats@Number of pages purged.
+@roff_stats@.Ed
+.\"-----------------------------------------------------------------------------
+@roff_stats@.It Sy "stats.arenas.<i>.small.allocated (size_t) r-"
+@roff_stats@.Bd -ragged -offset indent -compact
+@roff_stats@Number of bytes currently allocated by small objects.
+@roff_stats@.Ed
+.\"-----------------------------------------------------------------------------
+@roff_stats@.It Sy "stats.arenas.<i>.small.nmalloc (uint64_t) r-"
+@roff_stats@.Bd -ragged -offset indent -compact
+@roff_stats@Cumulative number of small allocation requests.
+@roff_stats@.Ed
+.\"-----------------------------------------------------------------------------
+@roff_stats@.It Sy "stats.arenas.<i>.small.ndalloc (uint64_t) r-"
+@roff_stats@.Bd -ragged -offset indent -compact
+@roff_stats@Cumulative number of small deallocation requests.
+@roff_stats@.Ed
+.\"-----------------------------------------------------------------------------
+@roff_stats@.It Sy "stats.arenas.<i>.medium.allocated (size_t) r-"
+@roff_stats@.Bd -ragged -offset indent -compact
+@roff_stats@Number of bytes currently allocated by medium objects.
+@roff_stats@.Ed
+.\"-----------------------------------------------------------------------------
+@roff_stats@.It Sy "stats.arenas.<i>.medium.nmalloc (uint64_t) r-"
+@roff_stats@.Bd -ragged -offset indent -compact
+@roff_stats@Cumulative number of medium allocation requests.
+@roff_stats@.Ed
+.\"-----------------------------------------------------------------------------
+@roff_stats@.It Sy "stats.arenas.<i>.medium.ndalloc (uint64_t) r-"
+@roff_stats@.Bd -ragged -offset indent -compact
+@roff_stats@Cumulative number of medium deallocation requests.
+@roff_stats@.Ed
+.\"-----------------------------------------------------------------------------
+@roff_stats@.It Sy "stats.arenas.<i>.large.allocated (size_t) r-"
+@roff_stats@.Bd -ragged -offset indent -compact
+@roff_stats@Number of bytes currently allocated by large objects.
+@roff_stats@.Ed
+.\"-----------------------------------------------------------------------------
+@roff_stats@.It Sy "stats.arenas.<i>.large.nmalloc (uint64_t) r-"
+@roff_stats@.Bd -ragged -offset indent -compact
+@roff_stats@Cumulative number of large allocation requests.
+@roff_stats@.Ed
+.\"-----------------------------------------------------------------------------
+@roff_stats@.It Sy "stats.arenas.<i>.large.ndalloc (uint64_t) r-"
+@roff_stats@.Bd -ragged -offset indent -compact
+@roff_stats@Cumulative number of large deallocation requests.
+@roff_stats@.Ed
+.\"-----------------------------------------------------------------------------
+@roff_stats@.It Sy "stats.arenas.<i>.bins.<j>.nrequests (uint64_t) r-"
+@roff_stats@.Bd -ragged -offset indent -compact
+@roff_stats@Cumulative number of allocation requests.
+@roff_stats@.Ed
+.\"-----------------------------------------------------------------------------
+@roff_stats@@roff_tcache@.It Sy "stats.arenas.<i>.bins.<j>.nfills (uint64_t) r-"
+@roff_stats@@roff_tcache@.Bd -ragged -offset indent -compact
+@roff_stats@@roff_tcache@Cumulative number of tcache fills.
+@roff_stats@@roff_tcache@.Ed
+.\"-----------------------------------------------------------------------------
+@roff_stats@@roff_tcache@.It Sy "stats.arenas.<i>.bins.<j>.nflushes (uint64_t) r-"
+@roff_stats@@roff_tcache@.Bd -ragged -offset indent -compact
+@roff_stats@@roff_tcache@Cumulative number of tcache flushes.
+@roff_stats@@roff_tcache@.Ed
+.\"-----------------------------------------------------------------------------
+@roff_stats@.It Sy "stats.arenas.<i>.bins.<j>.nruns (uint64_t) r-"
+@roff_stats@.Bd -ragged -offset indent -compact
+@roff_stats@Cumulative number of runs created.
+@roff_stats@.Ed
+.\"-----------------------------------------------------------------------------
+@roff_stats@.It Sy "stats.arenas.<i>.bins.<j>.nreruns (uint64_t) r-"
+@roff_stats@.Bd -ragged -offset indent -compact
+@roff_stats@Cumulative number of times the current run from which to allocate
+@roff_stats@changed.
+@roff_stats@.Ed
+.\"-----------------------------------------------------------------------------
+@roff_stats@.It Sy "stats.arenas.<i>.bins.<j>.highruns (size_t) r-"
+@roff_stats@.Bd -ragged -offset indent -compact
+@roff_stats@Maximum number of runs at any time thus far.
+@roff_stats@.Ed
+.\"-----------------------------------------------------------------------------
+@roff_stats@.It Sy "stats.arenas.<i>.bins.<j>.curruns (size_t) r-"
+@roff_stats@.Bd -ragged -offset indent -compact
+@roff_stats@Current number of runs.
+@roff_stats@.Ed
+.\"-----------------------------------------------------------------------------
+@roff_stats@.It Sy "stats.arenas.<i>.lruns.<j>.nrequests (uint64_t) r-"
+@roff_stats@.Bd -ragged -offset indent -compact
+@roff_stats@Cumulative number of allocation requests for this size class.
+@roff_stats@.Ed
+.\"-----------------------------------------------------------------------------
+@roff_stats@.It Sy "stats.arenas.<i>.lruns.<j>.highruns (size_t) r-"
+@roff_stats@.Bd -ragged -offset indent -compact
+@roff_stats@Maximum number of runs at any time thus far for this size class.
+@roff_stats@.Ed
+.\"-----------------------------------------------------------------------------
+@roff_stats@.It Sy "stats.arenas.<i>.lruns.<j>.curruns (size_t) r-"
+@roff_stats@.Bd -ragged -offset indent -compact
+@roff_stats@Current number of runs for this size class.
+@roff_stats@.Ed
+.\"-----------------------------------------------------------------------------
+@roff_stats@@roff_swap@.It Sy "swap.avail (size_t) r-"
+@roff_stats@@roff_swap@.Bd -ragged -offset indent -compact
+@roff_stats@@roff_swap@Number of swap file bytes that are currently not
+@roff_stats@@roff_swap@associated with any chunk (i.e. mapped, but otherwise
+@roff_stats@@roff_swap@completely unmanaged).
+@roff_stats@@roff_swap@.Ed
+.\"-----------------------------------------------------------------------------
+@roff_swap@.It Sy "swap.prezeroed (bool) rw"
+@roff_swap@.Bd -ragged -offset indent -compact
+@roff_swap@If true, the allocator assumes that the swap file(s) contain nothing
+@roff_swap@but nil bytes.
+@roff_swap@If this assumption is violated, allocator behavior is undefined.
+@roff_swap@This value becomes read-only after
+@roff_swap@.Dq swap.fds
+@roff_swap@is successfully written to.
+@roff_swap@.Ed
+.\"-----------------------------------------------------------------------------
+@roff_swap@.It Sy "swap.nfds (size_t) r-"
+@roff_swap@.Bd -ragged -offset indent -compact
+@roff_swap@Number of file descriptors in use for swap.
+@roff_swap@.Ed
+.\"-----------------------------------------------------------------------------
+@roff_swap@.It Sy "swap.fds (int *) r-"
+@roff_swap@.Bd -ragged -offset indent -compact
+@roff_swap@When written to, the files associated with the specified file
+@roff_swap@descriptors are contiguously mapped via
+@roff_swap@.Xr mmap 2 .
+@roff_swap@The resulting virtual memory region is preferred over anonymous
+@roff_swap@.Xr mmap 2
+@roff_swap@@roff_dss@and
+@roff_swap@@roff_dss@.Xr sbrk 2
+@roff_swap@memory.
+@roff_swap@Note that if a file's size is not a multiple of the page size, it is
+@roff_swap@automatically truncated to the nearest page size multiple.
+@roff_swap@See the
+@roff_swap@.Dq swap.prezeroed
+@roff_swap@interface for specifying that the files are pre-zeroed.
+@roff_swap@.Ed
+.\"-----------------------------------------------------------------------------
+.El
 .Sh DEBUGGING MALLOC PROBLEMS
 The first thing to do is to set the
 .Dq A
@@ -646,11 +1279,43 @@ The
 .Fn @jemalloc_prefix@malloc_usable_size
 function returns the usable size of the allocation pointed to by
 .Fa ptr .
-@roff_swap@.Pp
-@roff_swap@The
-@roff_swap@.Fn @jemalloc_prefix@malloc_swap_enable
-@roff_swap@function returns the value 0 if successful; otherwise it returns a
-@roff_swap@non-zero value.
+.Pp
+The
+.Fn @jemalloc_prefix@mallctl ,
+.Fn @jemalloc_prefix@mallctlnametomib ,
+and
+.Fn @jemalloc_prefix@mallctlbymib
+functions return 0 on success; otherwise they return an error value.
+The functions will fail if:
+.Bl -tag -width Er
+.It Bq Er EINVAL
+.Fa newp
+is
+.Dv non-NULL ,
+and
+.Fa newlen
+is too large or too small.
+Alternatively,
+.Fa *oldlenp
+is too large or too small; in this case as much data as possible are read
+despite the error.
+.It Bq Er ENOMEM
+.Fa *oldlenp
+is too short to hold the requested value.
+.It Bq Er ENOENT
+.Fa name
+or
+.Fa mib
+specifies an unknown/invalid value.
+.It Bq Er EPERM
+Attempt to read or write void value, or attempt to write read-only value.
+.It Bq Er EAGAIN
+A memory allocation failure occurred.
+.It Bq Er EFAULT
+An interface with side effects failed in some way not directly related to
+.Fn mallctl*
+read/write processing.
+.El
 .Sh ENVIRONMENT
 The following environment variables affect the execution of the allocation
 functions:

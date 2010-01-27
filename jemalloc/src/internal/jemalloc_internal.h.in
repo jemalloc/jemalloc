@@ -170,6 +170,7 @@ extern void	(*JEMALLOC_P(malloc_message))(void *w4opaque, const char *p1,
 	(((s) + PAGE_MASK) & ~PAGE_MASK)
 
 #include "internal/jemalloc_stats.h"
+#include "internal/jemalloc_ctl.h"
 #include "internal/jemalloc_mutex.h"
 #include "internal/jemalloc_extent.h"
 #include "internal/jemalloc_arena.h"
@@ -184,6 +185,7 @@ extern void	(*JEMALLOC_P(malloc_message))(void *w4opaque, const char *p1,
 #define JEMALLOC_H_STRUCTS
 
 #include "internal/jemalloc_stats.h"
+#include "internal/jemalloc_ctl.h"
 #include "internal/jemalloc_mutex.h"
 #include "internal/jemalloc_extent.h"
 #include "internal/jemalloc_arena.h"
@@ -220,6 +222,7 @@ extern size_t		lg_pagesize;
 /* Number of CPUs. */
 extern unsigned		ncpus;
 
+extern malloc_mutex_t	arenas_lock; /* Protects arenas initialization. */
 #ifndef NO_TLS
 /*
  * Map of pthread_self() --> arenas[???], used for selecting an arena to use
@@ -240,6 +243,7 @@ arena_t	*choose_arena_hard(void);
 #endif
 
 #include "internal/jemalloc_stats.h"
+#include "internal/jemalloc_ctl.h"
 #include "internal/jemalloc_mutex.h"
 #include "internal/jemalloc_extent.h"
 #include "internal/jemalloc_arena.h"
@@ -254,6 +258,7 @@ arena_t	*choose_arena_hard(void);
 #define JEMALLOC_H_INLINES
 
 #include "internal/jemalloc_stats.h"
+#include "internal/jemalloc_ctl.h"
 #include "internal/jemalloc_mutex.h"
 #include "internal/jemalloc_extent.h"
 #include "internal/jemalloc_base.h"

@@ -21,16 +21,15 @@ void	*JEMALLOC_P(realloc)(void *ptr, size_t size);
 void	JEMALLOC_P(free)(void *ptr);
 
 size_t	JEMALLOC_P(malloc_usable_size)(const void *ptr);
-#ifdef JEMALLOC_SWAP
-int	JEMALLOC_P(malloc_swap_enable)(const int *fds, unsigned nfds,
-    int prezeroed);
-#endif
-#ifdef JEMALLOC_TCACHE
-void	JEMALLOC_P(malloc_tcache_flush)(void);
-#endif
 void	JEMALLOC_P(malloc_stats_print)(void (*write4)(void *, const char *,
     const char *, const char *, const char *), void *w4opaque,
     const char *opts);
+int	JEMALLOC_P(mallctl)(const char *name, void *oldp, size_t *oldlenp,
+    void *newp, size_t newlen);
+int	JEMALLOC_P(mallctlnametomib)(const char *name, size_t *mibp,
+    size_t *miblenp);
+int	JEMALLOC_P(mallctlbymib)(const size_t *mib, size_t miblen, void *oldp,
+    size_t *oldlenp, void *newp, size_t newlen);
 
 #ifdef __cplusplus
 };

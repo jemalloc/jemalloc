@@ -254,11 +254,13 @@ trace_thread_cleanup(void *arg)
 	trace_thread_exit();
 }
 
-void
+bool
 trace_boot(void)
 {
 
-	malloc_mutex_init(&trace_mtx);
+	if (malloc_mutex_init(&trace_mtx))
+		return (true);
+
 	/* Flush trace buffers at exit. */
 	atexit(malloc_trace_flush_all);
 	/* Receive thread exit notifications. */
@@ -267,6 +269,8 @@ trace_boot(void)
 		    ": Error in pthread_key_create()\n", "", "");
 		abort();
 	}
+
+	return (false);
 }
 /******************************************************************************/
 #endif /* JEMALLOC_TRACE */

@@ -12,6 +12,9 @@
 
 extern malloc_mutex_t	swap_mtx;
 extern bool		swap_enabled;
+extern bool		swap_prezeroed;
+extern size_t		swap_nfds;
+extern int		*swap_fds;
 #ifdef JEMALLOC_STATS
 extern size_t		swap_avail;
 #endif

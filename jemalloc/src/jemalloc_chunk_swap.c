@@ -6,11 +6,12 @@
 
 malloc_mutex_t	swap_mtx;
 bool		swap_enabled;
+bool		swap_prezeroed;
+size_t		swap_nfds;
+int		*swap_fds;
 #ifdef JEMALLOC_STATS
 size_t		swap_avail;
 #endif
-
-static bool	swap_prezeroed;
 
 /* Base address of the mmap()ed file(s). */
 static void	*swap_base;
@@ -318,11 +319,20 @@ chunk_swap_enable(const int *fds, unsigned nfds, bool prezeroed)
 	swap_end = swap_base;
 	swap_max = (void *)((uintptr_t)vaddr + cumsize);
 
-	swap_enabled = true;
+	/* Copy the fds array for mallctl purposes. */
+	swap_fds = (int *)base_alloc(nfds * sizeof(int));
+	if (swap_fds == NULL) {
+		ret = true;
+		goto RETURN;
+	}
+	memcpy(swap_fds, fds, nfds * sizeof(int));
+	swap_nfds = nfds;
 
 #ifdef JEMALLOC_STATS
 	swap_avail = cumsize;
 #endif
+
+	swap_enabled = true;
 
 	ret = false;
 RETURN:
@@ -338,10 +348,12 @@ chunk_swap_boot(void)
 		return (true);
 
 	swap_enabled = false;
+	swap_prezeroed = false; /* swap.* mallctl's depend on this. */
+	swap_nfds = 0;
+	swap_fds = NULL;
 #ifdef JEMALLOC_STATS
 	swap_avail = 0;
 #endif
-	swap_prezeroed = false;
 	swap_base = NULL;
 	swap_end = NULL;
 	swap_max = NULL;
