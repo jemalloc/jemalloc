@@ -848,11 +848,22 @@ arena_run_dalloc(arena_t *arena, arena_run_t *run, bool dirty)
 	/* Insert into runs_avail, now that coalescing is complete. */
 	arena_avail_tree_insert(&arena->runs_avail, &chunk->map[run_ind]);
 
-	/* Deallocate chunk if it is now completely unused. */
+	/*
+	 * Deallocate chunk if it is now completely unused.  The bit
+	 * manipulation checks whether the first run is unallocated and extends
+	 * to the end of the chunk.
+	 */
 	if ((chunk->map[arena_chunk_header_npages].bits & (~PAGE_MASK |
 	    CHUNK_MAP_ALLOCATED)) == arena_maxclass)
 		arena_chunk_dealloc(arena, chunk);
 
+	/*
+	 * It is okay to do dirty page processing even if the chunk was
+	 * deallocated above, since in that case it is the spare.  Waiting
+	 * until after possible chunk deallocation to do dirty processing
+	 * allows for an old spare to be fully deallocated, thus decreasing the
+	 * chances of spuriously crossing the dirty page purging threshold.
+	 */
 	if (dirty) {
 		if (chunk->dirtied == false) {
 			arena_chunk_tree_dirty_insert(&arena->chunks_dirty,

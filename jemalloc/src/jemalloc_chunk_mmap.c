@@ -184,7 +184,7 @@ chunk_alloc_mmap(size_t size)
 				    offset));
 			}
 		}
-	}
+	} else
 		ret = chunk_alloc_mmap_slow(size, false);
 
 	return (ret);
