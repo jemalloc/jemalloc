@@ -702,6 +702,15 @@ MALLOC_OUT:
 		}
 	}
 
+	/* Register fork handlers. */
+	if (pthread_atfork(jemalloc_prefork, jemalloc_postfork,
+	    jemalloc_postfork) != 0) {
+		malloc_write4("<jemalloc>", ": Error in pthread_atfork()\n", "",
+		    "");
+		if (opt_abort)
+			abort();
+	}
+
 	if (ctl_boot()) {
 		malloc_mutex_unlock(&init_lock);
 		return (true);
@@ -717,18 +726,25 @@ MALLOC_OUT:
 #endif
 	if (opt_stats_print) {
 		/* Print statistics at exit. */
-		atexit(stats_print_atexit);
+		if (atexit(stats_print_atexit) != 0) {
+			malloc_write4("<jemalloc>", ": Error in atexit()\n", "",
+			    "");
+			if (opt_abort)
+				abort();
+		}
 	}
 
-	/* Register fork handlers. */
-	pthread_atfork(jemalloc_prefork, jemalloc_postfork, jemalloc_postfork);
+	if (chunk_boot()) {
+		malloc_mutex_unlock(&init_lock);
+		return (true);
+	}
 
 	if (base_boot()) {
 		malloc_mutex_unlock(&init_lock);
 		return (true);
 	}
 
-	if (arena_boot0()) {
+	if (arena_boot()) {
 		malloc_mutex_unlock(&init_lock);
 		return (true);
 	}
@@ -736,12 +752,6 @@ MALLOC_OUT:
 #ifdef JEMALLOC_TCACHE
 	tcache_boot();
 #endif
-
-	if (chunk_boot()) {
-		malloc_mutex_unlock(&init_lock);
-		return (true);
-	}
-	arena_boot1();
 
 	if (huge_boot()) {
 		malloc_mutex_unlock(&init_lock);

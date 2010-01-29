@@ -2156,8 +2156,9 @@ small_size2bin_init_hard(void)
 }
 
 bool
-arena_boot0(void)
+arena_boot(void)
 {
+	size_t header_size;
 
 	/* Set variables according to the value of opt_lg_[qc]space_max. */
 	qspace_max = (1U << opt_lg_qspace_max);
@@ -2214,14 +2215,6 @@ arena_boot0(void)
 	if (small_size2bin_init())
 		return (true);
 
-	return (false);
-}
-
-void
-arena_boot1(void)
-{
-	size_t header_size;
-
 	/*
 	 * Compute the header size such that it is large enough to contain the
 	 * page map.
@@ -2231,4 +2224,6 @@ arena_boot1(void)
 	arena_chunk_header_npages = (header_size >> PAGE_SHIFT) +
 	    ((header_size & PAGE_MASK) != 0);
 	arena_maxclass = chunksize - (arena_chunk_header_npages << PAGE_SHIFT);
+
+	return (false);
 }

@@ -412,8 +412,7 @@ void	arena_stats_merge(arena_t *arena, size_t *nactive, size_t *ndirty,
 #endif
 void	*arena_ralloc(void *ptr, size_t size, size_t oldsize);
 bool	arena_new(arena_t *arena, unsigned ind);
-bool	arena_boot0(void);
-void	arena_boot1(void);
+bool	arena_boot(void);
 
 #endif /* JEMALLOC_H_EXTERNS */
 /******************************************************************************/

@@ -262,7 +262,11 @@ trace_boot(void)
 		return (true);
 
 	/* Flush trace buffers at exit. */
-	atexit(malloc_trace_flush_all);
+	if (atexit(malloc_trace_flush_all) != 0) {
+		malloc_write4("<jemalloc>", ": Error in atexit()\n", "", "");
+		if (opt_abort)
+			abort();
+	}
 	/* Receive thread exit notifications. */
 	if (pthread_key_create(&trace_tsd, trace_thread_cleanup) != 0) {
 		malloc_write4("<jemalloc>",
