@@ -63,7 +63,6 @@ CTL_PROTO(opt_zero)
 #ifdef JEMALLOC_TCACHE
 CTL_PROTO(opt_lg_tcache_nslots)
 CTL_PROTO(opt_lg_tcache_gc_sweep)
-CTL_PROTO(opt_tcache_sort)
 #endif
 CTL_PROTO(opt_stats_print)
 #ifdef JEMALLOC_TRACE
@@ -219,7 +218,6 @@ static const ctl_node_t opt_node[] = {
 #ifdef JEMALLOC_TCACHE
 	{NAME("lg_tcache_nslots"),	CTL(opt_lg_tcache_nslots)},
 	{NAME("lg_tcache_gc_sweep"),	CTL(opt_lg_tcache_gc_sweep)},
-	{NAME("tcache_sort"),		CTL(opt_tcache_sort)},
 #endif
 	{NAME("stats_print"),		CTL(opt_stats_print)},
 #ifdef JEMALLOC_TRACE
@@ -1026,7 +1024,6 @@ CTL_RO_GEN(opt_zero, opt_zero, bool)
 #ifdef JEMALLOC_TCACHE
 CTL_RO_GEN(opt_lg_tcache_nslots, opt_lg_tcache_nslots, size_t)
 CTL_RO_GEN(opt_lg_tcache_gc_sweep, opt_lg_tcache_gc_sweep, ssize_t)
-CTL_RO_GEN(opt_tcache_sort, opt_tcache_sort, bool)
 #endif
 CTL_RO_GEN(opt_stats_print, opt_stats_print, bool)
 #ifdef JEMALLOC_TRACE

@@ -436,8 +436,6 @@ stats_print(void (*write4)(void *, const char *, const char *, const char *,
 		if ((err = mallctl("opt.overcommit", &bv, &bsz, NULL, 0)) == 0)
 			write4(w4opaque, bv ? "O" : "o", "", "", "");
 		write4(w4opaque, "P", "", "", "");
-		if ((err = mallctl("opt.tcache_sort", &bv, &bsz, NULL, 0)) == 0)
-			write4(w4opaque, bv ? "S" : "s", "", "", "");
 		if ((err = mallctl("opt.trace", &bv, &bsz, NULL, 0)) == 0)
 			write4(w4opaque, bv ? "T" : "t", "", "", "");
 		if ((err = mallctl("opt.sysv", &bv, &bsz, NULL, 0)) == 0)

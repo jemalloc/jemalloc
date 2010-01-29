@@ -414,15 +414,6 @@ Double/halve the size of the maximum size class that is a multiple of the
 quantum (8 or 16 bytes, depending on architecture).
 Above this size, cacheline spacing is used for size classes.
 The default value is 128 bytes.
-@roff_tcache@.It S
-@roff_tcache@Sort the objects of a particular size class that are stored in a
-@roff_tcache@thread-specific cache just before flushing some of them from the
-@roff_tcache@cache, such that the objects highest in memory are preferentially
-@roff_tcache@freed.
-@roff_tcache@This tends to reduce fragmentation, but sorting is (n lg n), and in
-@roff_tcache@practice it is expensive enough to have a moderate performance
-@roff_tcache@impact.
-@roff_tcache@This option is enabled by default.
 @roff_trace@.It T
 @roff_trace@Write a verbose trace log to a set of files named according to the
 @roff_trace@pattern
@@ -719,13 +710,6 @@ option.
 @roff_tcache@.Bd -ragged -offset indent -compact
 @roff_tcache@See the
 @roff_tcache@.Dq G
-@roff_tcache@option.
-@roff_tcache@.Ed
-.\"-----------------------------------------------------------------------------
-@roff_tcache@.It Sy "opt.tcache_sort (bool) r-"
-@roff_tcache@.Bd -ragged -offset indent -compact
-@roff_tcache@See the
-@roff_tcache@.Dq S
 @roff_tcache@option.
 @roff_tcache@.Ed
 .\"-----------------------------------------------------------------------------

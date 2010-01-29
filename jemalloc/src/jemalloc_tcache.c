@@ -6,7 +6,6 @@
 
 size_t	opt_lg_tcache_nslots = LG_TCACHE_NSLOTS_DEFAULT;
 ssize_t	opt_lg_tcache_gc_sweep = LG_TCACHE_GC_SWEEP_DEFAULT;
-bool	opt_tcache_sort = true;
 
 /* Map of thread-specific caches. */
 __thread tcache_t	*tcache_tls JEMALLOC_ATTR(tls_model("initial-exec"));
@@ -38,67 +37,6 @@ tcache_alloc_hard(tcache_t *tcache, tcache_bin_t *tbin, size_t binind)
 	return (ret);
 }
 
-static inline void
-tcache_bin_merge(void **to, void **fr, unsigned lcnt, unsigned rcnt)
-{
-	void **l, **r;
-	unsigned li, ri, i;
-
-	l = fr;
-	r = &fr[lcnt];
-	li = ri = i = 0;
-	while (li < lcnt && ri < rcnt) {
-		/* High pointers come first in sorted result. */
-		if ((uintptr_t)l[li] > (uintptr_t)r[ri]) {
-			to[i] = l[li];
-			li++;
-		} else {
-			to[i] = r[ri];
-			ri++;
-		}
-		i++;
-	}
-
-	if (li < lcnt)
-		memcpy(&to[i], &l[li], sizeof(void *) * (lcnt - li));
-	else if (ri < rcnt)
-		memcpy(&to[i], &r[ri], sizeof(void *) * (rcnt - ri));
-}
-
-static inline void
-tcache_bin_sort(tcache_bin_t *tbin)
-{
-	unsigned e, i;
-	void **fr, **to;
-	void *mslots[tcache_nslots];
-
-	/*
-	 * Perform iterative merge sort, swapping source and destination arrays
-	 * during each iteration.
-	 */
-
-	fr = mslots; to = tbin->slots;
-	for (e = 1; e < tbin->ncached; e <<= 1) {
-		void **tmp = fr; fr = to; to = tmp;
-		for (i = 0; i + (e << 1) <= tbin->ncached; i += (e << 1))
-			tcache_bin_merge(&to[i], &fr[i], e, e);
-		if (i + e <= tbin->ncached) {
-			tcache_bin_merge(&to[i], &fr[i],
-			    e, tbin->ncached - (i + e));
-		} else if (i < tbin->ncached)
-			tcache_bin_merge(&to[i], &fr[i], tbin->ncached - i, 0);
-	}
-
-	/* Copy the final result out of mslots, if necessary. */
-	if (to == mslots)
-		memcpy(tbin->slots, mslots, sizeof(void *) * tbin->ncached);
-
-#ifdef JEMALLOC_DEBUG
-	for (i = 1; i < tbin->ncached; i++)
-		assert(tbin->slots[i-1] > tbin->slots[i]);
-#endif
-}
-
 void
 tcache_bin_flush(tcache_bin_t *tbin, size_t binind, unsigned rem)
 {
@@ -106,12 +44,6 @@ tcache_bin_flush(tcache_bin_t *tbin, size_t binind, unsigned rem)
 	arena_t *arena;
 	void *ptr;
 	unsigned i, ndeferred, ncached;
-
-	if (opt_tcache_sort && rem > 0) {
-		assert(rem < tbin->ncached);
-		/* Sort pointers such that the highest objects will be freed. */
-		tcache_bin_sort(tbin);
-	}
 
 	for (ndeferred = tbin->ncached - rem; ndeferred > 0;) {
 		ncached = ndeferred;

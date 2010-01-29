@@ -48,7 +48,6 @@ struct tcache_s {
 
 extern size_t	opt_lg_tcache_nslots;
 extern ssize_t	opt_lg_tcache_gc_sweep;
-extern bool	opt_tcache_sort;
 
 /* Map of thread-specific caches. */
 extern __thread tcache_t	*tcache_tls

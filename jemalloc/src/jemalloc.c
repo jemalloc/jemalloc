@@ -655,14 +655,6 @@ MALLOC_OUT:
 					    opt_lg_cspace_max)
 						opt_lg_qspace_max++;
 					break;
-#ifdef JEMALLOC_TCACHE
-				case 's':
-					opt_tcache_sort = false;
-					break;
-				case 'S':
-					opt_tcache_sort = true;
-					break;
-#endif
 #ifdef JEMALLOC_TRACE
 				case 't':
 					opt_trace = false;
