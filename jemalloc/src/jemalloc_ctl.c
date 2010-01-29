@@ -529,7 +529,8 @@ ctl_refresh(void)
 	    + ctl_stats.arenas[narenas].astats.allocated_medium
 	    + ctl_stats.arenas[narenas].astats.allocated_large
 	    + ctl_stats.huge.allocated;
-	ctl_stats.active = (ctl_stats.arenas[narenas].pactive << PAGE_SHIFT);
+	ctl_stats.active = (ctl_stats.arenas[narenas].pactive << PAGE_SHIFT)
+	    + ctl_stats.huge.allocated;
 	ctl_stats.mapped = (ctl_stats.chunks.current << opt_lg_chunk);
 
 #  ifdef JEMALLOC_SWAP

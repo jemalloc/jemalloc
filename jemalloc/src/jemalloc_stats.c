@@ -268,7 +268,7 @@ stats_arena_lruns_print(void (*write4)(void *, const char *, const char *,
 
 	malloc_cprintf(write4, w4opaque,
 	    "large:   size pages nrequests   maxruns   curruns\n");
-	CTL_GET("arenas.nlruns", &nlruns, unsigned);
+	CTL_GET("arenas.nlruns", &nlruns, size_t);
 	for (j = 0, gap_start = -1; j < nlruns; j++) {
 		uint64_t nrequests;
 		size_t run_size, highruns, curruns;
@@ -303,7 +303,7 @@ static void
 stats_arena_print(void (*write4)(void *, const char *, const char *,
     const char *, const char *), void *w4opaque, unsigned i)
 {
-	size_t pactive, pdirty, mapped;
+	size_t pagesize, pactive, pdirty, mapped;
 	uint64_t npurge, nmadvise, purged;
 	size_t small_allocated;
 	uint64_t small_nmalloc, small_ndalloc;
@@ -311,6 +311,8 @@ stats_arena_print(void (*write4)(void *, const char *, const char *,
 	uint64_t medium_nmalloc, medium_ndalloc;
 	size_t large_allocated;
 	uint64_t large_nmalloc, large_ndalloc;
+
+	CTL_GET("arenas.pagesize", &pagesize, size_t);
 
 	CTL_I_GET("stats.arenas.0.pactive", &pactive, size_t);
 	CTL_I_GET("stats.arenas.0.pdirty", &pdirty, size_t);
@@ -348,6 +350,8 @@ stats_arena_print(void (*write4)(void *, const char *, const char *,
 	    small_allocated + medium_allocated + large_allocated,
 	    small_nmalloc + medium_nmalloc + large_nmalloc,
 	    small_ndalloc + medium_ndalloc + large_ndalloc);
+	malloc_cprintf(write4, w4opaque, "active:  %12zu\n",
+	    pactive * pagesize );
 	CTL_I_GET("stats.arenas.0.mapped", &mapped, size_t);
 	malloc_cprintf(write4, w4opaque, "mapped:  %12zu\n", mapped);
 
@@ -415,12 +419,10 @@ stats_print(void (*write4)(void *, const char *, const char *, const char *,
 		bool bv;
 		unsigned uv;
 		ssize_t ssv;
-		size_t sv, bsz, usz, ssz, sssz;
+		size_t sv, bsz, ssz;
 
 		bsz = sizeof(bool);
-		usz = sizeof(unsigned);
 		ssz = sizeof(size_t);
-		sssz = sizeof(ssize_t);
 
 		CTL_GET("config.debug", &bv, bool);
 		write4(w4opaque, "Assertions ", bv ? "enabled" : "disabled",
@@ -538,27 +540,28 @@ stats_print(void (*write4)(void *, const char *, const char *, const char *,
 #ifdef JEMALLOC_STATS
 	{
 		int err;
-		size_t ssz, u64sz;
-		size_t allocated, mapped;
+		size_t ssz;
+		size_t allocated, active, mapped;
 		size_t chunks_current, chunks_high, swap_avail;
 		uint64_t chunks_total;
 		size_t huge_allocated;
 		uint64_t huge_nmalloc, huge_ndalloc;
 
 		ssz = sizeof(size_t);
-		u64sz = sizeof(uint64_t);
 
 		CTL_GET("stats.allocated", &allocated, size_t);
+		CTL_GET("stats.active", &active, size_t);
 		CTL_GET("stats.mapped", &mapped, size_t);
 		malloc_cprintf(write4, w4opaque,
-		    "Allocated: %zu, mapped: %zu\n", allocated, mapped);
+		    "Allocated: %zu, active: %zu, mapped: %zu\n", allocated,
+		    active, mapped);
 
 		/* Print chunk stats. */
 		CTL_GET("stats.chunks.total", &chunks_total, uint64_t);
 		CTL_GET("stats.chunks.high", &chunks_high, size_t);
 		CTL_GET("stats.chunks.current", &chunks_current, size_t);
-		if ((err = mallctl("swap.avail", &swap_avail, &ssz,
-		    NULL, 0)) == 0) {
+		if ((err = mallctl("swap.avail", &swap_avail, &ssz, NULL, 0))
+		    == 0) {
 			size_t lg_chunk;
 
 			malloc_cprintf(write4, w4opaque, "chunks: nchunks   "
@@ -588,9 +591,7 @@ stats_print(void (*write4)(void *, const char *, const char *, const char *,
 
 		if (merged) {
 			unsigned narenas;
-			size_t usz;
 
-			usz = sizeof(unsigned);
 			CTL_GET("arenas.narenas", &narenas, unsigned);
 			{
 				bool initialized[narenas];
@@ -617,11 +618,9 @@ stats_print(void (*write4)(void *, const char *, const char *, const char *,
 
 		if (unmerged) {
 			unsigned narenas;
-			size_t usz;
 
 			/* Print stats for each arena. */
 
-			usz = sizeof(unsigned);
 			CTL_GET("arenas.narenas", &narenas, unsigned);
 			{
 				bool initialized[narenas];

@@ -944,7 +944,7 @@ Maximum size supported by this large size class.
 @roff_stats@.It Sy "stats.active (size_t) r-"
 @roff_stats@.Bd -ragged -offset indent -compact
 @roff_stats@Total number of bytes in active pages allocated by the application.
-@roff_stats@This is a multiple of the page size, and is larger than
+@roff_stats@This is a multiple of the page size, and greater than or equal to
 @roff_stats@.Dq stats.allocated .
 @roff_stats@.Ed
 .\"-----------------------------------------------------------------------------
