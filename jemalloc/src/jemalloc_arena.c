@@ -1614,9 +1614,9 @@ arena_dalloc_large(arena_t *arena, arena_chunk_t *chunk, void *ptr)
 	malloc_mutex_lock(&arena->lock);
 
 #ifdef JEMALLOC_FILL
-#ifndef JEMALLOC_STATS
+#  ifndef JEMALLOC_STATS
 	if (opt_junk)
-#endif
+#  endif
 #endif
 	{
 #if (defined(JEMALLOC_FILL) || defined(JEMALLOC_STATS))
@@ -1626,19 +1626,17 @@ arena_dalloc_large(arena_t *arena, arena_chunk_t *chunk, void *ptr)
 #endif
 
 #ifdef JEMALLOC_FILL
-#ifdef JEMALLOC_STATS
+#  ifdef JEMALLOC_STATS
 		if (opt_junk)
-#endif
+#  endif
 			memset(ptr, 0x5a, size);
 #endif
 #ifdef JEMALLOC_STATS
+		arena->stats.ndalloc_large++;
 		arena->stats.allocated_large -= size;
 		arena->stats.lstats[(size >> PAGE_SHIFT) - 1].curruns--;
 #endif
 	}
-#ifdef JEMALLOC_STATS
-	arena->stats.ndalloc_large++;
-#endif
 
 	arena_run_dalloc(arena, (arena_run_t *)ptr, true);
 	malloc_mutex_unlock(&arena->lock);
@@ -1659,15 +1657,19 @@ arena_ralloc_large_shrink(arena_t *arena, arena_chunk_t *chunk, void *ptr,
 	arena_run_trim_tail(arena, chunk, (arena_run_t *)ptr, oldsize, size,
 	    true);
 #ifdef JEMALLOC_STATS
-	arena->stats.allocated_large -= oldsize - size;
-	arena->stats.lstats[size >> PAGE_SHIFT].nrequests++;
-	arena->stats.lstats[size >> PAGE_SHIFT].curruns++;
-	if (arena->stats.lstats[size >> PAGE_SHIFT].curruns >
-	    arena->stats.lstats[size >> PAGE_SHIFT].highruns) {
-		arena->stats.lstats[size >> PAGE_SHIFT].highruns =
-		    arena->stats.lstats[size >> PAGE_SHIFT].curruns;
+	arena->stats.ndalloc_large++;
+	arena->stats.allocated_large -= oldsize;
+	arena->stats.lstats[(oldsize >> PAGE_SHIFT) - 1].curruns--;
+
+	arena->stats.nmalloc_large++;
+	arena->stats.allocated_large += size;
+	arena->stats.lstats[(size >> PAGE_SHIFT) - 1].nrequests++;
+	arena->stats.lstats[(size >> PAGE_SHIFT) - 1].curruns++;
+	if (arena->stats.lstats[(size >> PAGE_SHIFT) - 1].curruns >
+	    arena->stats.lstats[(size >> PAGE_SHIFT) - 1].highruns) {
+		arena->stats.lstats[(size >> PAGE_SHIFT) - 1].highruns =
+		    arena->stats.lstats[(size >> PAGE_SHIFT) - 1].curruns;
 	}
-	arena->stats.lstats[oldsize >> PAGE_SHIFT].curruns--;
 #endif
 	malloc_mutex_unlock(&arena->lock);
 }
@@ -1702,15 +1704,19 @@ arena_ralloc_large_grow(arena_t *arena, arena_chunk_t *chunk, void *ptr,
 		    CHUNK_MAP_ALLOCATED;
 
 #ifdef JEMALLOC_STATS
-		arena->stats.allocated_large += size - oldsize;
-		arena->stats.lstats[size >> PAGE_SHIFT].nrequests++;
-		arena->stats.lstats[size >> PAGE_SHIFT].curruns++;
-		if (arena->stats.lstats[size >> PAGE_SHIFT].curruns >
-		    arena->stats.lstats[size >> PAGE_SHIFT].highruns) {
-			arena->stats.lstats[size >> PAGE_SHIFT].highruns =
-			    arena->stats.lstats[size >> PAGE_SHIFT].curruns;
-		}
-		arena->stats.lstats[oldsize >> PAGE_SHIFT].curruns--;
+	arena->stats.ndalloc_large++;
+	arena->stats.allocated_large -= oldsize;
+	arena->stats.lstats[(oldsize >> PAGE_SHIFT) - 1].curruns--;
+
+	arena->stats.nmalloc_large++;
+	arena->stats.allocated_large += size;
+	arena->stats.lstats[(size >> PAGE_SHIFT) - 1].nrequests++;
+	arena->stats.lstats[(size >> PAGE_SHIFT) - 1].curruns++;
+	if (arena->stats.lstats[(size >> PAGE_SHIFT) - 1].curruns >
+	    arena->stats.lstats[(size >> PAGE_SHIFT) - 1].highruns) {
+		arena->stats.lstats[(size >> PAGE_SHIFT) - 1].highruns =
+		    arena->stats.lstats[(size >> PAGE_SHIFT) - 1].curruns;
+	}
 #endif
 		malloc_mutex_unlock(&arena->lock);
 		return (false);
