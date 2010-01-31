@@ -185,6 +185,7 @@ struct arena_chunk_s {
 
 	/* Number of dirty pages. */
 	size_t		ndirty;
+
 	/* Map of pages within chunk that keeps track of free/large/small. */
 	arena_chunk_map_t map[1]; /* Dynamically sized. */
 };

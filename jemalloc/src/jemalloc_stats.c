@@ -607,7 +607,7 @@ stats_print(void (*write4)(void *, const char *, const char *, const char *,
 				if (ninitialized > 1) {
 					/* Print merged arena stats. */
 					malloc_cprintf(write4, w4opaque,
-					    "\nMerge arenas stats:\n");
+					    "\nMerged arenas stats:\n");
 					stats_arena_print(write4, w4opaque,
 					    narenas);
 				}

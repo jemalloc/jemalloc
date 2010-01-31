@@ -1610,6 +1610,7 @@ arena_stats_merge(arena_t *arena, size_t *nactive, size_t *ndirty,
 void
 arena_dalloc_large(arena_t *arena, arena_chunk_t *chunk, void *ptr)
 {
+
 	/* Large allocation. */
 	malloc_mutex_lock(&arena->lock);
 

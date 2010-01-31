@@ -506,7 +506,7 @@ ctl_refresh(void)
 #endif
 
 	/*
-	 * Clear sum stats, since the will be merged into by
+	 * Clear sum stats, since they will be merged into by
 	 * ctl_arena_refresh().
 	 */
 	ctl_arena_clear(&ctl_stats.arenas[narenas]);
@@ -1231,7 +1231,7 @@ swap_prezeroed_ctl(const size_t *mib, size_t miblen, void *oldp,
 	} else {
 		/*
 		 * swap_prezeroed isn't actually used by the swap code until it
-		 * is set during a successfull chunk_swap_enabled() call.  We
+		 * is set during a successful chunk_swap_enabled() call.  We
 		 * use it here to store the value that we'll pass to
 		 * chunk_swap_enable() in a swap.fds mallctl().  This is not
 		 * very clean, but the obvious alternatives are even worse.
