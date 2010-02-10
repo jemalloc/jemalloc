@@ -44,6 +44,17 @@ any of the following arguments (not a definitive list) to 'configure':
     Enable statistics gathering functionality.  Use the 'P' option to print
     detailed allocation statistics at exit.
 
+--enable-prof
+    Enable heap profiling and leak detection functionality.  Use the 'B', 'F',
+    'I', 'L', and 'U' options to control these features.
+
+--enable-prof-libunwind
+    Use the libunwind library (http://www.nongnu.org/libunwind/) for stack
+    backtracing, rather than frame pointers.  libunwind is quite slow in
+    comparison to frame pointer-based backtracing, but it has the advantage of
+    working on applications/libraries that were compiled with
+    -fomit-frame-pointer.
+
 --disable-tiny
     Disable tiny (sub-quantum-sized) object support.  Technically it is not
     legal for a malloc implementation to allocate objects with less than

@@ -110,6 +110,11 @@ struct arena_chunk_map_s {
 	 */
 	rb_node(arena_chunk_map_t)	link;
 
+#ifdef JEMALLOC_PROF
+	/* Profile counters, used for large object runs. */
+	prof_thr_cnt_t			*prof_cnt;
+#endif
+
 	/*
 	 * Run address (or size) and various flags are stored together.  The bit
 	 * layout looks like (assuming 32-bit system):
@@ -238,6 +243,14 @@ struct arena_bin_s {
 	/* Number of elements in a run's regs_mask for this bin's size class. */
 	uint32_t	regs_mask_nelms;
 
+#ifdef JEMALLOC_PROF
+	/*
+	 * Offset of first (prof_cnt_t *) in a run header for this bin's size
+	 * class, or 0 if (opt_prof == false).
+	 */
+	uint32_t	cnt0_offset;
+#endif
+
 	/* Offset of first region in a run for this bin's size class. */
 	uint32_t	reg0_offset;
 
@@ -252,6 +265,9 @@ struct arena_s {
 	uint32_t		magic;
 #  define ARENA_MAGIC 0x947d3d24
 #endif
+
+	/* This arena's index within the arenas array. */
+	unsigned		ind;
 
 	/* All operations on this arena require that lock be locked. */
 	malloc_mutex_t		lock;
@@ -403,6 +419,10 @@ void	*arena_malloc(size_t size, bool zero);
 void	*arena_palloc(arena_t *arena, size_t alignment, size_t size,
     size_t alloc_size);
 size_t	arena_salloc(const void *ptr);
+#ifdef JEMALLOC_PROF
+prof_thr_cnt_t	*arena_prof_cnt_get(const void *ptr);
+void	arena_prof_cnt_set(const void *ptr, prof_thr_cnt_t *cnt);
+#endif
 void	arena_dalloc_bin(arena_t *arena, arena_chunk_t *chunk, void *ptr,
     arena_chunk_map_t *mapelm);
 void	arena_dalloc_large(arena_t *arena, arena_chunk_t *chunk, void *ptr);

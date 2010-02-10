@@ -9,7 +9,7 @@ size_t	opt_lg_chunk = LG_CHUNK_DEFAULT;
 bool	opt_overcommit = true;
 #endif
 
-#ifdef JEMALLOC_STATS
+#if (defined(JEMALLOC_STATS) || defined(JEMALLOC_PROF))
 malloc_mutex_t	chunks_mtx;
 chunk_stats_t	stats_chunks;
 #endif
@@ -63,14 +63,31 @@ chunk_alloc(size_t size, bool *zero)
 	/* All strategies for allocation failed. */
 	ret = NULL;
 RETURN:
-#ifdef JEMALLOC_STATS
+#if (defined(JEMALLOC_STATS) || defined(JEMALLOC_PROF))
 	if (ret != NULL) {
+#  ifdef JEMALLOC_PROF
+		bool udump;
+#  endif
 		malloc_mutex_lock(&chunks_mtx);
+#  ifdef JEMALLOC_STATS
 		stats_chunks.nchunks += (size / chunksize);
+#  endif
 		stats_chunks.curchunks += (size / chunksize);
-		if (stats_chunks.curchunks > stats_chunks.highchunks)
+		if (stats_chunks.curchunks > stats_chunks.highchunks) {
 			stats_chunks.highchunks = stats_chunks.curchunks;
+#  ifdef JEMALLOC_PROF
+			udump = true;
+#  endif
+		}
+#  ifdef JEMALLOC_PROF
+		else
+			udump = false;
+#  endif
 		malloc_mutex_unlock(&chunks_mtx);
+#  ifdef JEMALLOC_PROF
+		if (opt_prof && opt_prof_udump && udump)
+			prof_udump();
+#  endif
 	}
 #endif
 
@@ -87,7 +104,7 @@ chunk_dealloc(void *chunk, size_t size)
 	assert(size != 0);
 	assert((size & chunksize_mask) == 0);
 
-#ifdef JEMALLOC_STATS
+#if (defined(JEMALLOC_STATS) || defined(JEMALLOC_PROF))
 	malloc_mutex_lock(&chunks_mtx);
 	stats_chunks.curchunks -= (size / chunksize);
 	malloc_mutex_unlock(&chunks_mtx);
@@ -114,7 +131,7 @@ chunk_boot(void)
 	chunksize_mask = chunksize - 1;
 	chunk_npages = (chunksize >> PAGE_SHIFT);
 
-#ifdef JEMALLOC_STATS
+#if (defined(JEMALLOC_STATS) || defined(JEMALLOC_PROF))
 	if (malloc_mutex_init(&chunks_mtx))
 		return (true);
 	memset(&stats_chunks, 0, sizeof(chunk_stats_t));

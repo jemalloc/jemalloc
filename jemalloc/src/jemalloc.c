@@ -241,101 +241,6 @@ choose_arena_hard(void)
 }
 #endif
 
-static inline void *
-ipalloc(size_t alignment, size_t size)
-{
-	void *ret;
-	size_t ceil_size;
-
-	/*
-	 * Round size up to the nearest multiple of alignment.
-	 *
-	 * This done, we can take advantage of the fact that for each small
-	 * size class, every object is aligned at the smallest power of two
-	 * that is non-zero in the base two representation of the size.  For
-	 * example:
-	 *
-	 *   Size |   Base 2 | Minimum alignment
-	 *   -----+----------+------------------
-	 *     96 |  1100000 |  32
-	 *    144 | 10100000 |  32
-	 *    192 | 11000000 |  64
-	 *
-	 * Depending on runtime settings, it is possible that arena_malloc()
-	 * will further round up to a power of two, but that never causes
-	 * correctness issues.
-	 */
-	ceil_size = (size + (alignment - 1)) & (-alignment);
-	/*
-	 * (ceil_size < size) protects against the combination of maximal
-	 * alignment and size greater than maximal alignment.
-	 */
-	if (ceil_size < size) {
-		/* size_t overflow. */
-		return (NULL);
-	}
-
-	if (ceil_size <= PAGE_SIZE || (alignment <= PAGE_SIZE
-	    && ceil_size <= arena_maxclass))
-		ret = arena_malloc(ceil_size, false);
-	else {
-		size_t run_size;
-
-		/*
-		 * We can't achieve subpage alignment, so round up alignment
-		 * permanently; it makes later calculations simpler.
-		 */
-		alignment = PAGE_CEILING(alignment);
-		ceil_size = PAGE_CEILING(size);
-		/*
-		 * (ceil_size < size) protects against very large sizes within
-		 * PAGE_SIZE of SIZE_T_MAX.
-		 *
-		 * (ceil_size + alignment < ceil_size) protects against the
-		 * combination of maximal alignment and ceil_size large enough
-		 * to cause overflow.  This is similar to the first overflow
-		 * check above, but it needs to be repeated due to the new
-		 * ceil_size value, which may now be *equal* to maximal
-		 * alignment, whereas before we only detected overflow if the
-		 * original size was *greater* than maximal alignment.
-		 */
-		if (ceil_size < size || ceil_size + alignment < ceil_size) {
-			/* size_t overflow. */
-			return (NULL);
-		}
-
-		/*
-		 * Calculate the size of the over-size run that arena_palloc()
-		 * would need to allocate in order to guarantee the alignment.
-		 */
-		if (ceil_size >= alignment)
-			run_size = ceil_size + alignment - PAGE_SIZE;
-		else {
-			/*
-			 * It is possible that (alignment << 1) will cause
-			 * overflow, but it doesn't matter because we also
-			 * subtract PAGE_SIZE, which in the case of overflow
-			 * leaves us with a very large run_size.  That causes
-			 * the first conditional below to fail, which means
-			 * that the bogus run_size value never gets used for
-			 * anything important.
-			 */
-			run_size = (alignment << 1) - PAGE_SIZE;
-		}
-
-		if (run_size <= arena_maxclass) {
-			ret = arena_palloc(choose_arena(), alignment, ceil_size,
-			    run_size);
-		} else if (alignment <= chunksize)
-			ret = huge_malloc(ceil_size, false);
-		else
-			ret = huge_palloc(alignment, ceil_size);
-	}
-
-	assert(((uintptr_t)ret & (alignment - 1)) == 0);
-	return (ret);
-}
-
 static void
 stats_print_atexit(void)
 {
@@ -363,22 +268,6 @@ stats_print_atexit(void)
 	}
 #endif
 	JEMALLOC_P(malloc_stats_print)(NULL, NULL, NULL);
-}
-
-static inline void *
-iralloc(void *ptr, size_t size)
-{
-	size_t oldsize;
-
-	assert(ptr != NULL);
-	assert(size != 0);
-
-	oldsize = isalloc(ptr);
-
-	if (size <= arena_maxclass)
-		return (arena_ralloc(ptr, size, oldsize));
-	else
-		return (huge_ralloc(ptr, size, oldsize));
 }
 
 /*
@@ -550,6 +439,16 @@ MALLOC_OUT:
 				case 'A':
 					opt_abort = true;
 					break;
+#ifdef JEMALLOC_PROF
+				case 'b':
+					if (opt_lg_prof_bt_max > 0)
+						opt_lg_prof_bt_max--;
+					break;
+				case 'B':
+					if (opt_lg_prof_bt_max < LG_PROF_BT_MAX)
+						opt_lg_prof_bt_max++;
+					break;
+#endif
 				case 'c':
 					if (opt_lg_cspace_max - 1 >
 					    opt_lg_qspace_max &&
@@ -571,6 +470,14 @@ MALLOC_OUT:
 					if (opt_lg_dirty_mult >= 0)
 						opt_lg_dirty_mult--;
 					break;
+#ifdef JEMALLOC_PROF
+				case 'f':
+					opt_prof = false;
+					break;
+				case 'F':
+					opt_prof = true;
+					break;
+#endif
 #ifdef JEMALLOC_TCACHE
 				case 'g':
 					if (opt_lg_tcache_gc_sweep >= 0)
@@ -589,6 +496,17 @@ MALLOC_OUT:
 					if (opt_lg_tcache_nslots + 1 <
 					    (sizeof(size_t) << 3))
 						opt_lg_tcache_nslots++;
+					break;
+#endif
+#ifdef JEMALLOC_PROF
+				case 'i':
+					if (opt_lg_prof_interval > 0)
+						opt_lg_prof_interval--;
+					break;
+				case 'I':
+					if (opt_lg_prof_interval + 1 <
+					    (sizeof(uint64_t) << 3))
+						opt_lg_prof_interval++;
 					break;
 #endif
 #ifdef JEMALLOC_FILL
@@ -617,6 +535,14 @@ MALLOC_OUT:
 					    (sizeof(size_t) << 3))
 						opt_lg_chunk++;
 					break;
+#ifdef JEMALLOC_PROF
+				case 'l':
+					opt_prof_leak = false;
+					break;
+				case 'L':
+					opt_prof_leak = true;
+					break;
+#endif
 				case 'm':
 					if (opt_lg_medium_max > PAGE_SHIFT)
 						opt_lg_medium_max--;
@@ -663,6 +589,14 @@ MALLOC_OUT:
 					opt_trace = true;
 					break;
 #endif
+#ifdef JEMALLOC_PROF
+				case 'u':
+					opt_prof_udump = false;
+					break;
+				case 'U':
+					opt_prof_udump = true;
+					break;
+#endif
 #ifdef JEMALLOC_SYSV
 				case 'v':
 					opt_sysv = false;
@@ -701,6 +635,10 @@ MALLOC_OUT:
 			}
 		}
 	}
+
+#ifdef JEMALLOC_PROF
+	prof_boot0();
+#endif
 
 	/* Register fork handlers. */
 	if (pthread_atfork(jemalloc_prefork, jemalloc_postfork,
@@ -799,7 +737,16 @@ MALLOC_OUT:
 		 * default.
 		 */
 #ifdef JEMALLOC_TCACHE
-		if (tcache_nslots) {
+		if (tcache_nslots
+#  ifdef JEMALLOC_PROF
+		    /*
+		     * Profile data storage concurrency is directly linked to
+		     * the number of arenas, so only drop the number of arenas
+		     * on behalf of enabled tcache if profiling is disabled.
+		     */
+		    && opt_prof == false
+#  endif
+		    ) {
 			/*
 			 * Only large object allocation/deallocation is
 			 * guaranteed to acquire an arena mutex, so we can get
@@ -868,6 +815,13 @@ MALLOC_OUT:
 	next_arena = 0;
 #endif
 
+#ifdef JEMALLOC_PROF
+	if (prof_boot1()) {
+		malloc_mutex_unlock(&init_lock);
+		return (true);
+	}
+#endif
+
 	/* Allocate and initialize arenas. */
 	arenas = (arena_t **)base_alloc(sizeof(arena_t *) * narenas);
 	if (arenas == NULL) {
@@ -901,6 +855,9 @@ void *
 JEMALLOC_P(malloc)(size_t size)
 {
 	void *ret;
+#ifdef JEMALLOC_PROF
+	prof_thr_cnt_t *cnt;
+#endif
 
 	if (malloc_init()) {
 		ret = NULL;
@@ -928,6 +885,13 @@ JEMALLOC_P(malloc)(size_t size)
 #endif
 	}
 
+#ifdef JEMALLOC_PROF
+	if (opt_prof && (cnt = prof_alloc_prep()) == NULL) {
+		ret = NULL;
+		goto OOM;
+	}
+#endif
+
 	ret = imalloc(size);
 
 OOM:
@@ -946,6 +910,10 @@ OOM:
 #ifdef JEMALLOC_SYSV
 RETURN:
 #endif
+#ifdef JEMALLOC_PROF
+	if (opt_prof && ret != NULL)
+		prof_malloc(ret, cnt);
+#endif
 #ifdef JEMALLOC_TRACE
 	if (opt_trace)
 		trace_malloc(ret, size);
@@ -960,6 +928,9 @@ JEMALLOC_P(posix_memalign)(void **memptr, size_t alignment, size_t size)
 {
 	int ret;
 	void *result;
+#ifdef JEMALLOC_PROF
+	prof_thr_cnt_t *cnt;
+#endif
 
 	if (malloc_init())
 		result = NULL;
@@ -1003,7 +974,14 @@ JEMALLOC_P(posix_memalign)(void **memptr, size_t alignment, size_t size)
 			goto RETURN;
 		}
 
-		result = ipalloc(alignment, size);
+#ifdef JEMALLOC_PROF
+		if (opt_prof && (cnt = prof_alloc_prep()) == NULL) {
+			result = NULL;
+			ret = EINVAL;
+		} else
+#endif
+
+			result = ipalloc(alignment, size);
 	}
 
 	if (result == NULL) {
@@ -1023,6 +1001,10 @@ JEMALLOC_P(posix_memalign)(void **memptr, size_t alignment, size_t size)
 	ret = 0;
 
 RETURN:
+#ifdef JEMALLOC_PROF
+	if (opt_prof && result != NULL)
+		prof_malloc(result, cnt);
+#endif
 #ifdef JEMALLOC_TRACE
 	if (opt_trace)
 		trace_posix_memalign(result, alignment, size);
@@ -1037,6 +1019,9 @@ JEMALLOC_P(calloc)(size_t num, size_t size)
 {
 	void *ret;
 	size_t num_size;
+#ifdef JEMALLOC_PROF
+	prof_thr_cnt_t *cnt;
+#endif
 
 	if (malloc_init()) {
 		num_size = 0;
@@ -1068,6 +1053,13 @@ JEMALLOC_P(calloc)(size_t num, size_t size)
 		goto RETURN;
 	}
 
+#ifdef JEMALLOC_PROF
+	if (opt_prof && (cnt = prof_alloc_prep()) == NULL) {
+		ret = NULL;
+		goto RETURN;
+	}
+#endif
+
 	ret = icalloc(num_size);
 
 RETURN:
@@ -1083,6 +1075,10 @@ RETURN:
 		errno = ENOMEM;
 	}
 
+#ifdef JEMALLOC_PROF
+	if (opt_prof && ret != NULL)
+		prof_malloc(ret, cnt);
+#endif
 #ifdef JEMALLOC_TRACE
 	if (opt_trace)
 		trace_calloc(ret, num, size);
@@ -1095,8 +1091,26 @@ void *
 JEMALLOC_P(realloc)(void *ptr, size_t size)
 {
 	void *ret;
-#ifdef JEMALLOC_TRACE
+#if (defined(JEMALLOC_PROF) || defined(JEMALLOC_TRACE))
 	size_t old_size;
+#endif
+#ifdef JEMALLOC_PROF
+	prof_thr_cnt_t *cnt, *old_cnt;
+#endif
+
+/*
+ * Both profiling and tracing may need old_size, and the conditional logic for
+ * deciding whether to call isalloc() is messy.  Define need_old_size here in
+ * order to avoid repeated nasty cpp conditional logic.
+ */
+#ifdef JEMALLOC_PROF
+#  ifdef JEMALLOC_TRACE
+#    define need_old_size opt_prof || opt_trace
+#  else
+#    define need_old_size opt_prof
+#  endif
+#elif (defined(JEMALLOC_TRACE))
+#  define need_old_size opt_trace
 #endif
 
 	if (size == 0) {
@@ -1107,12 +1121,26 @@ JEMALLOC_P(realloc)(void *ptr, size_t size)
 #ifdef JEMALLOC_SYSV
 		else {
 			if (ptr != NULL) {
-#ifdef JEMALLOC_TRACE
-				if (opt_trace)
+#if (defined(JEMALLOC_PROF) || defined(JEMALLOC_TRACE))
+				if (need_old_size) {
 					old_size = isalloc(ptr);
+#  ifdef JEMALLOC_PROF
+					old_cnt = prof_cnt_get(ptr);
+					cnt = NULL;
+#  endif
+				}
 #endif
 				idalloc(ptr);
 			}
+#if (defined(JEMALLOC_PROF) || defined(JEMALLOC_TRACE))
+			else if (need_old_size) {
+				old_size = 0;
+#  ifdef JEMALLOC_PROF
+				old_cnt = NULL;
+				cnt = NULL;
+#  endif
+			}
+#endif
 			ret = NULL;
 			goto RETURN;
 		}
@@ -1123,13 +1151,24 @@ JEMALLOC_P(realloc)(void *ptr, size_t size)
 		assert(malloc_initialized || malloc_initializer ==
 		    pthread_self());
 
-#ifdef JEMALLOC_TRACE
-		if (opt_trace)
+#if (defined(JEMALLOC_PROF) || defined(JEMALLOC_TRACE))
+		if (need_old_size) {
 			old_size = isalloc(ptr);
+#  ifdef JEMALLOC_PROF
+			old_cnt = prof_cnt_get(ptr);
+			if ((cnt = prof_alloc_prep()) == NULL) {
+				ret = NULL;
+				goto OOM;
+			}
+#  endif
+		}
 #endif
 
 		ret = iralloc(ptr, size);
 
+#ifdef JEMALLOC_PROF
+OOM:
+#endif
 		if (ret == NULL) {
 #ifdef JEMALLOC_XMALLOC
 			if (opt_xmalloc) {
@@ -1142,15 +1181,28 @@ JEMALLOC_P(realloc)(void *ptr, size_t size)
 			errno = ENOMEM;
 		}
 	} else {
-		if (malloc_init())
-			ret = NULL;
-		else
-			ret = imalloc(size);
-
-#ifdef JEMALLOC_TRACE
-		if (opt_trace)
+#if (defined(JEMALLOC_PROF) || defined(JEMALLOC_TRACE))
+		if (need_old_size) {
 			old_size = 0;
+#  ifdef JEMALLOC_PROF
+			old_cnt = NULL;
+#  endif
+		}
 #endif
+		if (malloc_init()) {
+#ifdef JEMALLOC_PROF
+			if (opt_prof)
+				cnt = NULL;
+#endif
+			ret = NULL;
+		} else {
+#ifdef JEMALLOC_PROF
+			if (opt_prof && (cnt = prof_alloc_prep()) == NULL) {
+				ret = NULL;
+			} else
+#endif
+				ret = imalloc(size);
+		}
 
 		if (ret == NULL) {
 #ifdef JEMALLOC_XMALLOC
@@ -1172,7 +1224,14 @@ RETURN:
 	if (opt_trace)
 		trace_realloc(ret, ptr, size, old_size);
 #endif
+#ifdef JEMALLOC_PROF
+	if (opt_prof)
+		prof_realloc(ret, cnt, ptr, old_size, old_cnt);
+#endif
 	return (ret);
+#ifdef need_old_size
+#  undef need_old_size
+#endif
 }
 
 JEMALLOC_ATTR(visibility("default"))
@@ -1184,6 +1243,10 @@ JEMALLOC_P(free)(void *ptr)
 		assert(malloc_initialized || malloc_initializer ==
 		    pthread_self());
 
+#ifdef JEMALLOC_PROF
+		if (opt_prof)
+			prof_free(ptr);
+#endif
 #ifdef JEMALLOC_TRACE
 		if (opt_trace)
 			trace_free(ptr, isalloc(ptr));

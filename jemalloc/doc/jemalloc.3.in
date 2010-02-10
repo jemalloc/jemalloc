@@ -321,6 +321,10 @@ flags being set) become fatal.
 The process will call
 .Xr abort 3
 in these cases.
+@roff_prof@.It B
+@roff_prof@Double/halve the maximum backtrace depth when profiling memory
+@roff_prof@allocation activity.
+@roff_prof@The default is 4.
 .It C
 Double/halve the size of the maximum size class that is a multiple of the
 cacheline size (64).
@@ -336,6 +340,23 @@ physical memory becomes scarce and the pages remain unused.
 The default minimum ratio is 32:1;
 .Ev JEMALLOC_OPTIONS=6D
 will disable dirty page purging.
+@roff_prof@.It F
+@roff_prof@Profile memory allocation activity, and use an
+@roff_prof@.Xr atexit 3
+@roff_prof@function to dump final memory usage to a file named according to
+@roff_prof@the pattern
+@roff_prof@.Pa jeprof.<pid>.<seq>.f.heap .
+@roff_prof@See the
+@roff_prof@.Dq B
+@roff_prof@option for backtrace depth control.
+@roff_prof@See the
+@roff_prof@.Dq I
+@roff_prof@option for information on interval-triggered profile dumping, and the
+@roff_prof@.Dq U
+@roff_prof@option for information on high-water-triggered profile dumping.
+@roff_prof@Profile output is compatible with the pprof Perl script, which is
+@roff_prof@part of the google-perftools package
+@roff_prof@(http://code.google.com/p/google-perftools/).
 @roff_tcache@.It G
 @roff_tcache@Double/halve the approximate interval (counted in terms of
 @roff_tcache@thread-specific cache allocation/deallocation events) between full
@@ -361,6 +382,16 @@ will disable dirty page purging.
 @roff_tcache@will disable thread-specific caching.
 @roff_tcache@Note that one cache slot per size class is not a valid
 @roff_tcache@configuration due to implementation details.
+@roff_prof@.It I
+@roff_prof@Double/halve the maximum interval between memory profile dumps, as
+@roff_prof@measured in bytes of allocation activity.
+@roff_prof@On average, profiles are written four times as often as the maximum
+@roff_prof@interval requires.
+@roff_prof@This is an artifact of the concurrent algorithm that is used to
+@roff_prof@track allocation activity.
+@roff_prof@Profiles are dumped to files named according to the pattern
+@roff_prof@.Pa jeprof.<pid>.<seq>.i<iseq>.heap .
+@roff_prof@The default maximum interval is 4 GiB.
 @roff_fill@.It J
 @roff_fill@Each byte of new memory allocated by
 @roff_fill@.Fn @jemalloc_prefix@malloc
@@ -377,6 +408,16 @@ will disable dirty page purging.
 .It K
 Double/halve the virtual memory chunk size.
 The default chunk size is 4 MiB.
+@roff_prof@.It L
+@roff_prof@Use an
+@roff_prof@.Xr atexit 3
+@roff_prof@function to report memory leaks.
+@roff_prof@See the
+@roff_prof@.Dq B
+@roff_prof@option for backtrace depth control.
+@roff_prof@See the
+@roff_prof@.Dq F option for information on analyzing heap profile output.
+@roff_prof@This option is disabled by default.
 .It M
 Double/halve the size of the maximum medium size class.
 The valid range is from one page to one half chunk.
@@ -429,6 +470,12 @@ The default value is 128 bytes.
 @roff_trace@.Xr mtrplay 1
 @roff_trace@and
 @roff_trace@.Xr mtrgraph 1 .
+@roff_prof@.It U
+@roff_prof@Trigger a memory profile dump every time the total virtual memory
+@roff_prof@exceeds the previous maximum.
+@roff_prof@Profiles are dumped to files named according to the pattern
+@roff_prof@.Pa jeprof.<pid>.<seq>.u<useq>.heap .
+@roff_prof@This option is disabled by default.
 @roff_sysv@.It V
 @roff_sysv@Attempting to allocate zero bytes will return a
 @roff_sysv@.Dv NULL
@@ -919,6 +966,12 @@ Total number of large size classes.
 .Bd -ragged -offset indent -compact
 Maximum size supported by this large size class.
 .Ed
+.\"-----------------------------------------------------------------------------
+@roff_prof@.It Sy "prof.dump (void) --"
+@roff_prof@.Bd -ragged -offset indent -compact
+@roff_prof@Dump a memory profile to a file according to the pattern
+@roff_prof@.Pa jeprof.<pid>.<seq>.m<mseq>.heap .
+@roff_prof@.Ed
 .\"-----------------------------------------------------------------------------
 @roff_stats@.It Sy "stats.allocated (size_t) r-"
 @roff_stats@.Bd -ragged -offset indent -compact

@@ -362,6 +362,29 @@ else
 fi
 AC_SUBST([roff_trace])
 
+dnl Do not enable profiling by default.
+AC_ARG_ENABLE([prof],
+  [AS_HELP_STRING([--enable-prof], [Enable allocation profiling])],
+[if test "x$enable_prof" = "xno" ; then
+  enable_prof="0"
+else
+  enable_prof="1"
+fi
+],
+[enable_prof="0"]
+)
+AC_ARG_ENABLE([prof-libunwind],
+  [AS_HELP_STRING([--enable-prof-libunwind], [Use libunwind for backtracing])],
+[if test "x$enable_prof_libunwind" = "xno" ; then
+  enable_prof_libunwind="0"
+else
+  enable_prof_libunwind="1"
+fi
+],
+[enable_prof_libunwind="0"]
+)
+dnl Finish prof-related definitions below, once TLS configuration is done.
+
 dnl Enable tiny allocations by default.
 AC_ARG_ENABLE([tiny],
   [AS_HELP_STRING([--disable-tiny], [Disable tiny (sub-quantum) allocations])],
@@ -636,6 +659,29 @@ fi
 AC_SUBST([roff_tcache])
 AC_SUBST([roff_no_tcache])
 
+dnl Finish prof-related definitions, now that TLS configuration is done.
+if test "x$enable_tls" = "x0" ; then
+  enable_prof="0"
+fi
+if test "x$enable_prof" = "x1" ; then
+  AC_DEFINE([JEMALLOC_PROF], [ ])
+  if test "x$enable_prof_libunwind" = "x1" ; then
+    AC_CHECK_HEADERS([libunwind.h], , [enable_prof_libunwind="0"])
+    AC_CHECK_LIB([unwind], [backtrace], [LIBS="$LIBS -lunwind"],
+                 [enable_prof_libunwind="0"])
+    if test "x${enable_prof_libunwind}" = "x1" ; then
+      AC_DEFINE([JEMALLOC_PROF_LIBUNWIND], [ ])
+    fi
+  fi
+fi
+AC_SUBST([enable_prof])
+if test "x$enable_prof" = "x0" ; then
+  roff_prof=".\\\" "
+else
+  roff_prof=""
+fi
+AC_SUBST([roff_prof])
+
 dnl ============================================================================
 dnl Configure libgd for mtrgraph.
 bins="${objroot}bin/jemtr2mtr${install_suffix}"
@@ -705,6 +751,8 @@ AC_MSG_RESULT([autogen            : ${enable_autogen}])
 AC_MSG_RESULT([debug              : ${enable_debug}])
 AC_MSG_RESULT([stats              : ${enable_stats}])
 AC_MSG_RESULT([trace              : ${enable_trace}])
+AC_MSG_RESULT([prof               : ${enable_prof}])
+AC_MSG_RESULT([prof-libunwind     : ${enable_prof_libunwind}])
 AC_MSG_RESULT([tiny               : ${enable_tiny}])
 AC_MSG_RESULT([tcache             : ${enable_tcache}])
 AC_MSG_RESULT([fill               : ${enable_fill}])

@@ -13,8 +13,9 @@ typedef struct chunk_stats_s chunk_stats_t;
 
 #endif /* JEMALLOC_H_TYPES */
 /******************************************************************************/
-#ifdef JEMALLOC_STATS
 #ifdef JEMALLOC_H_STRUCTS
+
+#ifdef JEMALLOC_STATS
 
 #ifdef JEMALLOC_TCACHE
 struct tcache_bin_stats_s {
@@ -104,10 +105,14 @@ struct arena_stats_s {
 	 */
 	malloc_large_stats_t	*lstats;
 };
+#endif /* JEMALLOC_STATS */
 
+#if (defined(JEMALLOC_STATS) || defined(JEMALLOC_PROF))
 struct chunk_stats_s {
+#  ifdef JEMALLOC_STATS
 	/* Number of chunks that were allocated. */
 	uint64_t	nchunks;
+#  endif
 
 	/* High-water mark for number of chunks allocated. */
 	size_t		highchunks;
@@ -119,9 +124,9 @@ struct chunk_stats_s {
 	 */
 	size_t		curchunks;
 };
+#endif /* JEMALLOC_STATS */
 
 #endif /* JEMALLOC_H_STRUCTS */
-#endif /* JEMALLOC_STATS */
 /******************************************************************************/
 #ifdef JEMALLOC_H_EXTERNS
 

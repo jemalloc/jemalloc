@@ -240,6 +240,45 @@ huge_salloc(const void *ptr)
 	return (ret);
 }
 
+#ifdef JEMALLOC_PROF
+prof_thr_cnt_t *
+huge_prof_cnt_get(const void *ptr)
+{
+	prof_thr_cnt_t *ret;
+	extent_node_t *node, key;
+
+	malloc_mutex_lock(&huge_mtx);
+
+	/* Extract from tree of huge allocations. */
+	key.addr = __DECONST(void *, ptr);
+	node = extent_tree_ad_search(&huge, &key);
+	assert(node != NULL);
+
+	ret = node->prof_cnt;
+
+	malloc_mutex_unlock(&huge_mtx);
+
+	return (ret);
+}
+
+void
+huge_prof_cnt_set(const void *ptr, prof_thr_cnt_t *cnt)
+{
+	extent_node_t *node, key;
+
+	malloc_mutex_lock(&huge_mtx);
+
+	/* Extract from tree of huge allocations. */
+	key.addr = __DECONST(void *, ptr);
+	node = extent_tree_ad_search(&huge, &key);
+	assert(node != NULL);
+
+	node->prof_cnt = cnt;
+
+	malloc_mutex_unlock(&huge_mtx);
+}
+#endif
+
 bool
 huge_boot(void)
 {

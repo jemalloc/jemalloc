@@ -34,6 +34,9 @@ CTL_PROTO(epoch)
 #ifdef JEMALLOC_TCACHE
 CTL_PROTO(tcache_flush)
 #endif
+#ifdef JEMALLOC_PROF
+CTL_PROTO(prof_dump)
+#endif
 CTL_PROTO(config_debug)
 CTL_PROTO(config_dss)
 CTL_PROTO(config_dynamic_page_shift)
@@ -182,6 +185,12 @@ CTL_PROTO(swap_fds)
 #ifdef JEMALLOC_TCACHE
 static const ctl_node_t	tcache_node[] = {
 	{NAME("flush"),		CTL(tcache_flush)}
+};
+#endif
+
+#ifdef JEMALLOC_PROF
+static const ctl_node_t	prof_node[] = {
+	{NAME("dump"),		CTL(prof_dump)}
 };
 #endif
 
@@ -404,6 +413,9 @@ static const ctl_node_t	root_node[] = {
 	{NAME("epoch"),		CTL(epoch)},
 #ifdef JEMALLOC_TCACHE
 	{NAME("tcache"),	CHILD(tcache)},
+#endif
+#ifdef JEMALLOC_PROF
+	{NAME("prof"),		CHILD(prof)},
 #endif
 	{NAME("config"),	CHILD(config)},
 	{NAME("opt"),		CHILD(opt)},
@@ -919,6 +931,23 @@ tcache_flush_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
 	}
 	tcache_destroy(tcache);
 	tcache_tls = NULL;
+
+	ret = 0;
+RETURN:
+	return (ret);
+}
+#endif
+
+#ifdef JEMALLOC_PROF
+static int
+prof_dump_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
+    void *newp, size_t newlen)
+{
+	int ret;
+
+	VOID();
+
+	prof_mdump();
 
 	ret = 0;
 RETURN:

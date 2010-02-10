@@ -50,7 +50,8 @@ trace_flush(arena_t *arena)
 	if (err == -1) {
 		malloc_write4("<jemalloc>",
 		    ": write() failed during trace flush", "\n", "");
-		abort();
+		if (opt_abort)
+			abort();
 	}
 	arena->trace_buf_end = 0;
 }

@@ -24,6 +24,10 @@ void	*huge_palloc(size_t alignment, size_t size);
 void	*huge_ralloc(void *ptr, size_t size, size_t oldsize);
 void	huge_dalloc(void *ptr);
 size_t	huge_salloc(const void *ptr);
+#ifdef JEMALLOC_PROF
+prof_thr_cnt_t	*huge_prof_cnt_get(const void *ptr);
+void	huge_prof_cnt_set(const void *ptr, prof_thr_cnt_t *cnt);
+#endif
 bool	huge_boot(void);
 
 #endif /* JEMALLOC_H_EXTERNS */
