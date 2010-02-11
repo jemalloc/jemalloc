@@ -1100,10 +1100,12 @@ void
 arena_prof_accum(arena_t *arena, uint64_t accumbytes)
 {
 
-	arena->prof_accumbytes += accumbytes;
-	if (arena->prof_accumbytes >= prof_interval) {
-		prof_idump();
-		arena->prof_accumbytes -= prof_interval;
+	if (prof_interval != 0) {
+		arena->prof_accumbytes += accumbytes;
+		if (arena->prof_accumbytes >= prof_interval) {
+			prof_idump();
+			arena->prof_accumbytes -= prof_interval;
+		}
 	}
 }
 #endif
