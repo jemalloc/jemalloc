@@ -263,22 +263,22 @@ install_suffix="$INSTALL_SUFFIX"
 AC_SUBST([install_suffix])
 
 cfgoutputs_in="Makefile doc/jemalloc.3.in"
-cfgoutputs_in="${cfgoutputs_in} src/jemalloc.h.in"
-cfgoutputs_in="${cfgoutputs_in} src/internal/jemalloc_internal.h.in"
+cfgoutputs_in="${cfgoutputs_in} include/jemalloc/jemalloc.h.in"
+cfgoutputs_in="${cfgoutputs_in} include/jemalloc/internal/jemalloc_internal.h.in"
 
 cfgoutputs_out="Makefile doc/jemalloc${install_suffix}.3"
-cfgoutputs_out="${cfgoutputs_out} src/jemalloc${install_suffix}.h"
-cfgoutputs_out="${cfgoutputs_out} src/internal/jemalloc_internal.h"
+cfgoutputs_out="${cfgoutputs_out} include/jemalloc/jemalloc${install_suffix}.h"
+cfgoutputs_out="${cfgoutputs_out} include/jemalloc/internal/jemalloc_internal.h"
 
 cfgoutputs_tup="Makefile doc/jemalloc${install_suffix}.3:doc/jemalloc.3.in"
-cfgoutputs_tup="${cfgoutputs_tup} src/jemalloc${install_suffix}.h:src/jemalloc.h.in"
-cfgoutputs_tup="${cfgoutputs_tup} src/internal/jemalloc_internal.h"
+cfgoutputs_tup="${cfgoutputs_tup} include/jemalloc/jemalloc${install_suffix}.h:include/jemalloc/jemalloc.h.in"
+cfgoutputs_tup="${cfgoutputs_tup} include/jemalloc/internal/jemalloc_internal.h"
 
-cfghdrs_in="src/jemalloc_defs.h.in"
+cfghdrs_in="include/jemalloc/jemalloc_defs.h.in"
 
-cfghdrs_out="src/jemalloc_defs${install_suffix}.h"
+cfghdrs_out="include/jemalloc/jemalloc_defs${install_suffix}.h"
 
-cfghdrs_tup="src/jemalloc_defs${install_suffix}.h:src/jemalloc_defs.h.in"
+cfghdrs_tup="include/jemalloc/jemalloc_defs${install_suffix}.h:include/jemalloc/jemalloc_defs.h.in"
 
 dnl Do not compile with debugging by default.
 AC_ARG_ENABLE([debug],

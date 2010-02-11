@@ -57,7 +57,7 @@
 .Sy libjemalloc@install_suffix@
 .Sh SYNOPSIS
 .In stdlib.h
-.In jemalloc@install_suffix@.h
+.In jemalloc/jemalloc@install_suffix@.h
 .Ft void *
 .Fn @jemalloc_prefix@malloc "size_t size"
 .Ft void *

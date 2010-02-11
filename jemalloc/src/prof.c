@@ -1,5 +1,5 @@
 #define	JEMALLOC_PROF_C_
-#include "internal/jemalloc_internal.h"
+#include "jemalloc/internal/jemalloc_internal.h"
 #ifdef JEMALLOC_PROF
 /******************************************************************************/
 

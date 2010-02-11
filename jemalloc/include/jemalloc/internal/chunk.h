@@ -56,6 +56,6 @@ bool	chunk_boot(void);
 #endif /* JEMALLOC_H_INLINES */
 /******************************************************************************/
 
-#include "internal/jemalloc_chunk_swap.h"
-#include "internal/jemalloc_chunk_dss.h"
-#include "internal/jemalloc_chunk_mmap.h"
+#include "jemalloc/internal/chunk_swap.h"
+#include "jemalloc/internal/chunk_dss.h"
+#include "jemalloc/internal/chunk_mmap.h"

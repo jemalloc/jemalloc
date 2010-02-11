@@ -1,5 +1,5 @@
 #define	JEMALLOC_STATS_C_
-#include "internal/jemalloc_internal.h"
+#include "jemalloc/internal/jemalloc_internal.h"
 
 #define	CTL_GET(n, v, t) do {						\
 	size_t sz = sizeof(t);						\
