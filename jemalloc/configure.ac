@@ -373,6 +373,17 @@ fi
 ],
 [enable_prof="0"]
 )
+AC_ARG_ENABLE([prof-libgcc],
+  [AS_HELP_STRING([--disable-prof-libgcc],
+  [Do not use libgcc for backtracing])],
+[if test "x$enable_prof_libgcc" = "xno" ; then
+  enable_prof_libgcc="0"
+else
+  enable_prof_libgcc="1"
+fi
+],
+[enable_prof_libgcc="1"]
+)
 AC_ARG_ENABLE([prof-libunwind],
   [AS_HELP_STRING([--enable-prof-libunwind], [Use libunwind for backtracing])],
 [if test "x$enable_prof_libunwind" = "xno" ; then
@@ -681,6 +692,18 @@ else
   roff_prof=""
 fi
 AC_SUBST([roff_prof])
+
+dnl If libunwind isn't enabled, try to use libgcc rather than gcc intrinsics
+dnl for backtracing.
+if test "x$enable_prof" = "x1" -a "x$enable_prof_libunwind" = "x0" \
+ -a "x$GCC" = "xyes" -a "x$enable_prof_libgcc" = "x1" ; then
+  enable_prof_libgcc="1"
+  AC_CHECK_HEADERS([unwind.h], , [enable_prof_libgcc="0"])
+  AC_CHECK_LIB([gcc], [_Unwind_Backtrace], [LIBS="$LIBS -lgcc"], [enable_prof_libgcc="0"])
+  if test "x${enable_prof_libgcc}" = "x1" ; then
+    AC_DEFINE([JEMALLOC_PROF_LIBGCC], [ ])
+  fi
+fi
 
 dnl ============================================================================
 dnl Configure libgd for mtrgraph.

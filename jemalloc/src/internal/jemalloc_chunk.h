@@ -32,7 +32,7 @@ extern size_t		opt_lg_chunk;
 extern bool		opt_overcommit;
 #endif
 
-#ifdef JEMALLOC_STATS
+#if (defined(JEMALLOC_STATS) || defined(JEMALLOC_PROF))
 /* Protects stats_chunks; currently not used for any other purpose. */
 extern malloc_mutex_t	chunks_mtx;
 /* Chunk statistics. */

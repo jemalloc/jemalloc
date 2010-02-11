@@ -8,6 +8,8 @@ typedef struct tcache_bin_stats_s tcache_bin_stats_t;
 typedef struct malloc_bin_stats_s malloc_bin_stats_t;
 typedef struct malloc_large_stats_s malloc_large_stats_t;
 typedef struct arena_stats_s arena_stats_t;
+#endif
+#if (defined(JEMALLOC_STATS) || defined(JEMALLOC_PROF))
 typedef struct chunk_stats_s chunk_stats_t;
 #endif
 

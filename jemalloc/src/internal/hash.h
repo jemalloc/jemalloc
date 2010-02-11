@@ -30,8 +30,10 @@ hash(const void *key, size_t len, uint64_t seed)
 	const int r = 47;
 	uint64_t h = seed ^ (len * m);
 	const uint64_t *data = (const uint64_t *)key;
-	const unsigned char *data2 = (const unsigned char*)data;
 	const uint64_t *end = data + (len/8);
+	const unsigned char *data2;
+
+	assert(((uintptr_t)key & 0x7) == 0);
 
 	while(data != end) {
 		uint64_t k = *data++;
@@ -44,6 +46,7 @@ hash(const void *key, size_t len, uint64_t seed)
 		h *= m;
 	}
 
+	data2 = (const unsigned char *)data;
 	switch(len & 7) {
 		case 7: h ^= ((uint64_t)(data2[6])) << 48;
 		case 6: h ^= ((uint64_t)(data2[5])) << 40;

@@ -35,6 +35,15 @@ struct prof_bt_s {
 	unsigned		len;
 };
 
+#ifdef JEMALLOC_PROF_LIBGCC
+/* Data structure passed to libgcc _Unwind_Backtrace() callback functions. */
+typedef struct {
+	prof_bt_t *bt;
+	unsigned nignore;
+	unsigned max;
+} prof_unwind_data_t;
+#endif
+
 struct prof_cnt_s {
 	/*
 	 * Profiling counters.  An allocation/deallocation pair can operate on

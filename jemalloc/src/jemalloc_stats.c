@@ -219,8 +219,8 @@ stats_arena_bins_print(void (*write4)(void *, const char *, const char *,
 			    size_t);
 			if (config_tcache) {
 				malloc_cprintf(write4, w4opaque,
-				    "%13u %1s %5u %4u %3u %10"PRIu64" %9"PRIu64
-				    " %9"PRIu64" %9"PRIu64""
+				    "%13u %1s %5zu %4u %3zu %10"PRIu64
+				    " %9"PRIu64" %9"PRIu64" %9"PRIu64""
 				    " %9"PRIu64" %7zu %7zu\n",
 				    j,
 				    j < ntbins_ ? "T" : j < ntbins_ + nqbins ?
@@ -232,8 +232,8 @@ stats_arena_bins_print(void (*write4)(void *, const char *, const char *,
 				    highruns, curruns);
 			} else {
 				malloc_cprintf(write4, w4opaque,
-				    "%13u %1s %5u %4u %3u %10"PRIu64" %9"PRIu64
-				    " %9"PRIu64" %7zu %7zu\n",
+				    "%13u %1s %5zu %4u %3zu %10"PRIu64
+				    " %9"PRIu64" %9"PRIu64" %7zu %7zu\n",
 				    j,
 				    j < ntbins_ ? "T" : j < ntbins_ + nqbins ?
 				    "Q" : j < ntbins_ + nqbins + ncbins ? "C" :

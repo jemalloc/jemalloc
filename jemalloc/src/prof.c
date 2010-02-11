@@ -3,6 +3,10 @@
 #ifdef JEMALLOC_PROF
 /******************************************************************************/
 
+#ifdef JEMALLOC_PROF_LIBGCC
+#include <unwind.h>
+#endif
+
 #ifdef JEMALLOC_PROF_LIBUNWIND
 #define	UNW_LOCAL_ONLY
 #include <libunwind.h>
@@ -82,7 +86,13 @@ static bool		enq_udump;
 
 static prof_bt_t	*bt_dup(prof_bt_t *bt);
 static void	bt_init(prof_bt_t *bt, void **vec);
-static bool	prof_backtrace(prof_bt_t *bt, unsigned nignore, unsigned max);
+#ifdef JEMALLOC_PROF_LIBGCC
+static _Unwind_Reason_Code	prof_unwind_init_callback(
+    struct _Unwind_Context *context, void *arg);
+static _Unwind_Reason_Code	prof_unwind_callback(
+    struct _Unwind_Context *context, void *arg);
+#endif
+static void	prof_backtrace(prof_bt_t *bt, unsigned nignore, unsigned max);
 static prof_thr_cnt_t	*prof_lookup(prof_bt_t *bt);
 static void	prof_cnt_set(const void *ptr, prof_thr_cnt_t *cnt);
 static void	prof_flush(void);
@@ -160,8 +170,40 @@ prof_leave(void)
 		prof_udump();
 }
 
-#ifdef JEMALLOC_PROF_LIBUNWIND
-static bool
+#ifdef JEMALLOC_PROF_LIBGCC
+static _Unwind_Reason_Code
+prof_unwind_init_callback(struct _Unwind_Context *context, void *arg)
+{
+
+	return (_URC_NO_REASON);
+}
+
+static _Unwind_Reason_Code
+prof_unwind_callback(struct _Unwind_Context *context, void *arg)
+{
+	prof_unwind_data_t *data = (prof_unwind_data_t *)arg;
+
+	if (data->nignore > 0)
+		data->nignore--;
+	else {
+		data->bt->vec[data->bt->len] = (void *)_Unwind_GetIP(context);
+		data->bt->len++;
+		if (data->bt->len == data->max)
+			return (_URC_END_OF_STACK);
+	}
+
+	return (_URC_NO_REASON);
+}
+
+static void
+prof_backtrace(prof_bt_t *bt, unsigned nignore, unsigned max)
+{
+	prof_unwind_data_t data = {bt, nignore, max};
+
+	_Unwind_Backtrace(prof_unwind_callback, &data);
+}
+#elif defined(JEMALLOC_PROF_LIBUNWIND)
+static void
 prof_backtrace(prof_bt_t *bt, unsigned nignore, unsigned max)
 {
 	unw_context_t uc;
@@ -180,7 +222,7 @@ prof_backtrace(prof_bt_t *bt, unsigned nignore, unsigned max)
 	for (i = 0; i < nignore + 1; i++) {
 		err = unw_step(&cursor);
 		if (err <= 0)
-			return (false);
+			return;
 	}
 
 	/*
@@ -195,11 +237,9 @@ prof_backtrace(prof_bt_t *bt, unsigned nignore, unsigned max)
 			break;
 		}
 	}
-
-	return (false);
 }
 #else
-static bool
+static void
 prof_backtrace(prof_bt_t *bt, unsigned nignore, unsigned max)
 {
 #define	NIGNORE	3
@@ -207,16 +247,16 @@ prof_backtrace(prof_bt_t *bt, unsigned nignore, unsigned max)
 	if ((i) < NIGNORE + max) {					\
 		void *p;						\
 		if (__builtin_frame_address(i) == 0)			\
-			return (false);					\
+			return;						\
 		p = __builtin_return_address(i);			\
 		if (p == NULL)						\
-			return (false);					\
+			return;						\
 		if (i >= NIGNORE) {					\
 			bt->vec[(i) - NIGNORE] = p;			\
 			bt->len = (i) - NIGNORE + 1;			\
 		}							\
 	} else								\
-		return (false);
+		return;
 
 	assert(max <= (1U << opt_lg_prof_bt_max));
 
@@ -376,9 +416,7 @@ prof_backtrace(prof_bt_t *bt, unsigned nignore, unsigned max)
 	BT_FRAME(128)
 	BT_FRAME(129)
 	BT_FRAME(130)
-
 #undef BT_FRAME
-	return (false);
 }
 #endif
 
@@ -1038,6 +1076,14 @@ prof_boot1(void)
 				abort();
 		}
 	}
+
+#ifdef JEMALLOC_PROF_LIBGCC
+	/*
+	 * Cause the backtracing machinery to allocate its internal state
+	 * before enabling profiling.
+	 */
+	_Unwind_Backtrace(prof_unwind_init_callback, NULL);
+#endif
 
 	prof_booted = true;
 

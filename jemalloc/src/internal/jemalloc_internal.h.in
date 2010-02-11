@@ -32,10 +32,8 @@
 #endif
 
 #include "internal/rb.h"
-#if (defined(JEMALLOC_TCACHE) && defined(JEMALLOC_STATS))
 #include "internal/qr.h"
 #include "internal/ql.h"
-#endif
 
 extern void	(*JEMALLOC_P(malloc_message))(void *w4opaque, const char *p1,
     const char *p2, const char *p3, const char *p4);
@@ -106,7 +104,7 @@ extern void	(*JEMALLOC_P(malloc_message))(void *w4opaque, const char *p1,
 #ifdef __sparc64__
 #  define LG_QUANTUM		4
 #endif
-#ifdef __amd64__
+#if (defined(__amd64__) || defined(__x86_64__))
 #  define LG_QUANTUM		4
 #endif
 #ifdef __arm__
@@ -172,7 +170,6 @@ extern void	(*JEMALLOC_P(malloc_message))(void *w4opaque, const char *p1,
 	(((s) + PAGE_MASK) & ~PAGE_MASK)
 
 #include "internal/prn.h"
-#include "internal/hash.h"
 #include "internal/mb.h"
 #include "internal/ckh.h"
 #include "internal/jemalloc_stats.h"
@@ -185,6 +182,7 @@ extern void	(*JEMALLOC_P(malloc_message))(void *w4opaque, const char *p1,
 #include "internal/jemalloc_huge.h"
 #include "internal/jemalloc_tcache.h"
 #include "internal/jemalloc_trace.h"
+#include "internal/hash.h"
 #include "internal/prof.h"
 
 #undef JEMALLOC_H_TYPES
@@ -192,7 +190,6 @@ extern void	(*JEMALLOC_P(malloc_message))(void *w4opaque, const char *p1,
 #define JEMALLOC_H_STRUCTS
 
 #include "internal/prn.h"
-#include "internal/hash.h"
 #include "internal/mb.h"
 #include "internal/ckh.h"
 #include "internal/jemalloc_stats.h"
@@ -205,6 +202,7 @@ extern void	(*JEMALLOC_P(malloc_message))(void *w4opaque, const char *p1,
 #include "internal/jemalloc_huge.h"
 #include "internal/jemalloc_tcache.h"
 #include "internal/jemalloc_trace.h"
+#include "internal/hash.h"
 #include "internal/prof.h"
 
 #undef JEMALLOC_H_STRUCTS
@@ -255,7 +253,6 @@ arena_t	*choose_arena_hard(void);
 #endif
 
 #include "internal/prn.h"
-#include "internal/hash.h"
 #include "internal/mb.h"
 #include "internal/ckh.h"
 #include "internal/jemalloc_stats.h"
@@ -268,6 +265,7 @@ arena_t	*choose_arena_hard(void);
 #include "internal/jemalloc_huge.h"
 #include "internal/jemalloc_tcache.h"
 #include "internal/jemalloc_trace.h"
+#include "internal/hash.h"
 #include "internal/prof.h"
 
 #undef JEMALLOC_H_EXTERNS
@@ -275,7 +273,6 @@ arena_t	*choose_arena_hard(void);
 #define JEMALLOC_H_INLINES
 
 #include "internal/prn.h"
-#include "internal/hash.h"
 #include "internal/mb.h"
 #include "internal/ckh.h"
 #include "internal/jemalloc_stats.h"
@@ -376,6 +373,7 @@ choose_arena(void)
 #include "internal/jemalloc_tcache.h"
 #include "internal/jemalloc_arena.h"
 #include "internal/jemalloc_trace.h"
+#include "internal/hash.h"
 #include "internal/prof.h"
 
 #ifndef JEMALLOC_ENABLE_INLINE

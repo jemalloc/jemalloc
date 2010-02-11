@@ -54,6 +54,9 @@
 /* Use libunwind for profile backtracing if defined. */
 #undef JEMALLOC_PROF_LIBUNWIND
 
+/* Use libgcc for profile backtracing if defined. */
+#undef JEMALLOC_PROF_LIBGCC
+
 /*
  * JEMALLOC_TINY enables support for tiny objects, which are smaller than one
  * quantum.

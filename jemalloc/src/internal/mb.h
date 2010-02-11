@@ -54,7 +54,7 @@ mb_write(void)
 	    );
 #endif
 }
-#elif defined(__amd64_)
+#elif (defined(__amd64_) || defined(__x86_64__))
 JEMALLOC_INLINE void
 mb_write(void)
 {
