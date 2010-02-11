@@ -688,10 +688,13 @@ fi
 AC_SUBST([enable_prof])
 if test "x$enable_prof" = "x0" ; then
   roff_prof=".\\\" "
+  roff_no_prof=""
 else
   roff_prof=""
+  roff_no_prof=".\\\" "
 fi
 AC_SUBST([roff_prof])
+AC_SUBST([roff_no_prof])
 
 dnl If libunwind isn't enabled, try to use libgcc rather than gcc intrinsics
 dnl for backtracing.

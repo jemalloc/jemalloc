@@ -38,7 +38,7 @@
 .\"     @(#)malloc.3	8.1 (Berkeley) 6/4/93
 .\" $FreeBSD: head/lib/libc/stdlib/malloc.3 182225 2008-08-27 02:00:53Z jasone $
 .\"
-.Dd January 27, 2010
+.Dd February 11, 2010
 .Dt JEMALLOC 3
 .Os
 .Sh NAME
@@ -345,7 +345,12 @@ will disable dirty page purging.
 @roff_prof@.Xr atexit 3
 @roff_prof@function to dump final memory usage to a file named according to
 @roff_prof@the pattern
-@roff_prof@.Pa jeprof.<pid>.<seq>.f.heap .
+@roff_prof@.Pa <prefix>.<pid>.<seq>.f.heap ,
+@roff_prof@where
+@roff_prof@.Pa <prefix>
+@roff_prof@is controlled by the
+@roff_prof@JEMALLOC_PROF_PREFIX
+@roff_prof@environment variable.
 @roff_prof@See the
 @roff_prof@.Dq B
 @roff_prof@option for backtrace depth control.
@@ -390,7 +395,12 @@ will disable dirty page purging.
 @roff_prof@This is an artifact of the concurrent algorithm that is used to
 @roff_prof@track allocation activity.
 @roff_prof@Profiles are dumped to files named according to the pattern
-@roff_prof@.Pa jeprof.<pid>.<seq>.i<iseq>.heap .
+@roff_prof@.Pa <prefix>.<pid>.<seq>.i<iseq>.heap ,
+@roff_prof@where
+@roff_prof@.Pa <prefix>
+@roff_prof@is controlled by the
+@roff_prof@JEMALLOC_PROF_PREFIX
+@roff_prof@environment variable.
 @roff_prof@The default maximum interval is 4 GiB.
 @roff_fill@.It J
 @roff_fill@Each byte of new memory allocated by
@@ -474,7 +484,12 @@ The default value is 128 bytes.
 @roff_prof@Trigger a memory profile dump every time the total virtual memory
 @roff_prof@exceeds the previous maximum.
 @roff_prof@Profiles are dumped to files named according to the pattern
-@roff_prof@.Pa jeprof.<pid>.<seq>.u<useq>.heap .
+@roff_prof@.Pa <prefix>.<pid>.<seq>.u<useq>.heap ,
+@roff_prof@where
+@roff_prof@.Pa <prefix>
+@roff_prof@is controlled by the
+@roff_prof@JEMALLOC_PROF_PREFIX
+@roff_prof@environment variable.
 @roff_prof@This option is disabled by default.
 @roff_sysv@.It V
 @roff_sysv@Attempting to allocate zero bytes will return a
@@ -970,7 +985,12 @@ Maximum size supported by this large size class.
 @roff_prof@.It Sy "prof.dump (void) --"
 @roff_prof@.Bd -ragged -offset indent -compact
 @roff_prof@Dump a memory profile to a file according to the pattern
-@roff_prof@.Pa jeprof.<pid>.<seq>.m<mseq>.heap .
+@roff_prof@.Pa <prefix>.<pid>.<seq>.m<mseq>.heap ,
+@roff_prof@where
+@roff_prof@.Pa <prefix>
+@roff_prof@is controlled by the
+@roff_prof@JEMALLOC_PROF_PREFIX
+@roff_prof@environment variable.
 @roff_prof@.Ed
 .\"-----------------------------------------------------------------------------
 @roff_stats@.It Sy "stats.allocated (size_t) r-"
@@ -1356,12 +1376,19 @@ read/write processing.
 .Sh ENVIRONMENT
 The following environment variables affect the execution of the allocation
 functions:
-.Bl -tag -width ".Ev JEMALLOC_OPTIONS"
+@roff_prof@.Bl -tag -width ".Ev JEMALLOC_PROF_PREFIX"
+@roff_no_prof@.Bl -tag -width ".Ev JEMALLOC_OPTIONS"
 .It Ev JEMALLOC_OPTIONS
 If the environment variable
 .Ev JEMALLOC_OPTIONS
 is set, the characters it contains will be interpreted as flags to the
 allocation functions.
+@roff_prof@.It Ev JEMALLOC_PROF_PREFIX
+@roff_prof@If the environment variable
+@roff_prof@.Ev JEMALLOC_PROF_PREFIX
+@roff_prof@is set, use itas the filename prefix for profile dumps; otherwise use
+@roff_prof@.Pa jeprof
+@roff_prof@as the prefix.
 .El
 .Sh EXAMPLES
 To dump core whenever a problem occurs:

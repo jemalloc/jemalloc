@@ -854,13 +854,12 @@ prof_dump(const char *filename, bool leakcheck)
 	}
 }
 
-/*                               jeprof.<pid>.<seq>.v<vseq>.heap\0     */
-#define	DUMP_FILENAME_BUFSIZE	(7	+ UMAX2S_BUFSIZE		\
-					     + 1			\
-					      + UMAX2S_BUFSIZE		\
-						   + 2			\
-						     + UMAX2S_BUFSIZE	\
-						           + 5  + 1)
+#define	DUMP_FILENAME_BUFSIZE	(PATH_MAX+ UMAX2S_BUFSIZE		\
+					       + 1			\
+						+ UMAX2S_BUFSIZE	\
+						     + 2		\
+						       + UMAX2S_BUFSIZE	\
+						             + 5  + 1)
 static void
 prof_dump_filename(char *filename, char v, int64_t vseq)
 {
@@ -868,9 +867,30 @@ prof_dump_filename(char *filename, char v, int64_t vseq)
 	char *s;
 	unsigned i, slen;
 
+	/*
+	 * Construct a filename of the form:
+	 *
+	 *   <prefix>.<pid>.<seq>.v<vseq>.heap\0
+	 * or
+	 *   jeprof.<pid>.<seq>.v<vseq>.heap\0
+	 */
+
 	i = 0;
 
-	s = "jeprof.";
+	/*
+	 * Use JEMALLOC_PROF_PREFIX if it's set, and if it is short enough to
+	 * avoid overflowing DUMP_FILENAME_BUFSIZE.  The result may exceed
+	 * PATH_MAX, but creat(2) will catch that problem.
+	 */
+	if ((s = getenv("JEMALLOC_PROF_PREFIX")) != NULL
+	    && strlen(s) + (DUMP_FILENAME_BUFSIZE - PATH_MAX) <= PATH_MAX) {
+		slen = strlen(s);
+		memcpy(&filename[i], s, slen);
+		i += slen;
+
+		s = ".";
+	} else
+		s = "jeprof.";
 	slen = strlen(s);
 	memcpy(&filename[i], s, slen);
 	i += slen;
