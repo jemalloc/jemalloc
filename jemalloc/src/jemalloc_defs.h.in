@@ -45,9 +45,6 @@
 /* JEMALLOC_STATS enables statistics calculation. */
 #undef JEMALLOC_STATS
 
-/* JEMALLOC_TRACE enables allocation tracing. */
-#undef JEMALLOC_TRACE
-
 /* JEMALLOC_PROF enables allocation profiling. */
 #undef JEMALLOC_PROF
 

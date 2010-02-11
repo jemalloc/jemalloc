@@ -275,16 +275,10 @@ cfgoutputs_tup="${cfgoutputs_tup} src/jemalloc${install_suffix}.h:src/jemalloc.h
 cfgoutputs_tup="${cfgoutputs_tup} src/internal/jemalloc_internal.h"
 
 cfghdrs_in="src/jemalloc_defs.h.in"
-cfghdrs_in="${cfghdrs_in} src/internal/mtrgraph_defs.h.in"
-cfghdrs_in="${cfghdrs_in} src/internal/mtrplay_defs.h.in"
 
 cfghdrs_out="src/jemalloc_defs${install_suffix}.h"
-cfghdrs_out="${cfghdrs_out} src/internal/mtrgraph_defs.h"
-cfghdrs_out="${cfghdrs_out} src/internal/mtrplay_defs.h"
 
 cfghdrs_tup="src/jemalloc_defs${install_suffix}.h:src/jemalloc_defs.h.in"
-cfghdrs_tup="${cfghdrs_tup} src/internal/mtrgraph_defs.h"
-cfghdrs_tup="${cfghdrs_tup} src/internal/mtrplay_defs.h"
 
 dnl Do not compile with debugging by default.
 AC_ARG_ENABLE([debug],
@@ -339,28 +333,6 @@ else
   roff_stats=""
 fi
 AC_SUBST([roff_stats])
-
-dnl Do not enable tracing by default.
-AC_ARG_ENABLE([trace],
-  [AS_HELP_STRING([--enable-trace], [Enable allocation tracing (logging)])],
-[if test "x$enable_trace" = "xno" ; then
-  enable_trace="0"
-else
-  enable_trace="1"
-fi
-],
-[enable_trace="0"]
-)
-if test "x$enable_trace" = "x1" ; then
-  AC_DEFINE([JEMALLOC_TRACE], [ ])
-fi
-AC_SUBST([enable_trace])
-if test "x$enable_trace" = "x0" ; then
-  roff_trace=".\\\" "
-else
-  roff_trace=""
-fi
-AC_SUBST([roff_trace])
 
 dnl Do not enable profiling by default.
 AC_ARG_ENABLE([prof],
@@ -709,27 +681,6 @@ if test "x$enable_prof" = "x1" -a "x$enable_prof_libunwind" = "x0" \
 fi
 
 dnl ============================================================================
-dnl Configure libgd for mtrgraph.
-bins="${objroot}bin/jemtr2mtr${install_suffix}"
-bins="${bins} ${objroot}bin/mtrplay${install_suffix}"
-GDLIBS=""
-
-have_libgd="yes"
-AC_CHECK_HEADERS([gd.h], , [have_libgd="no"])
-AC_CHECK_HEADERS([gdfontt.h], , [have_libgd="no"])
-AC_CHECK_HEADERS([gdfonts.h], , [have_libgd="no"])
-AC_CHECK_HEADERS([gdfontmb.h], , [have_libgd="no"])
-AC_CHECK_HEADERS([gdfontl.h], , [have_libgd="no"])
-AC_CHECK_HEADERS([gdfontg.h], , [have_libgd="no"])
-AC_CHECK_LIB([gd], [gdImageCreate], [GDLIBS="-lgd"], [have_libgd="no"])
-
-if test "x${have_libgd}" = "xyes" ; then
-  bins="${bins} ${objroot}bin/mtrgraph${install_suffix}"
-fi
-AC_SUBST([bins])
-AC_SUBST([GDLIBS])
-
-dnl ============================================================================
 dnl Check for typedefs, structures, and compiler characteristics.
 AC_HEADER_STDBOOL
 
@@ -769,14 +720,11 @@ AC_MSG_RESULT([abs_srcroot        : ${abs_srcroot}])
 AC_MSG_RESULT([objroot            : ${objroot}])
 AC_MSG_RESULT([abs_objroot        : ${abs_objroot}])
 AC_MSG_RESULT([])
-AC_MSG_RESULT([bins               : ${bins}])
-AC_MSG_RESULT([])
 AC_MSG_RESULT([JEMALLOC_PREFIX    : ${JEMALLOC_PREFIX}])
 AC_MSG_RESULT([install_suffix     : ${install_suffix}])
 AC_MSG_RESULT([autogen            : ${enable_autogen}])
 AC_MSG_RESULT([debug              : ${enable_debug}])
 AC_MSG_RESULT([stats              : ${enable_stats}])
-AC_MSG_RESULT([trace              : ${enable_trace}])
 AC_MSG_RESULT([prof               : ${enable_prof}])
 AC_MSG_RESULT([prof-libunwind     : ${enable_prof_libunwind}])
 AC_MSG_RESULT([tiny               : ${enable_tiny}])

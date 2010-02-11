@@ -24,7 +24,6 @@ CFLAGS += -dynamic
 endif
 LDFLAGS := @LDFLAGS@
 LIBS := @LIBS@
-GDLIBS := @GDLIBS@
 RPATH_EXTRA := @RPATH_EXTRA@
 ifeq (macho, @abi@)
 SO := dylib
@@ -34,7 +33,6 @@ endif
 REV := 0
 
 # Lists of files.
-BINS := @bins@
 CHDRS := @objroot@src/jemalloc@install_suffix@.h \
 	@objroot@src/jemalloc_defs@install_suffix@.h
 CSRCS := @srcroot@src/jemalloc.c @srcroot@src/jemalloc_arena.c \
@@ -44,8 +42,7 @@ CSRCS := @srcroot@src/jemalloc.c @srcroot@src/jemalloc_arena.c \
 	@srcroot@src/jemalloc_ctl.c @srcroot@src/jemalloc_extent.c \
 	@srcroot@src/hash.c @srcroot@src/jemalloc_huge.c @srcroot@src/mb.c \
 	@srcroot@src/jemalloc_mutex.c @srcroot@src/prof.c \
-	@srcroot@src/jemalloc_stats.c @srcroot@src/jemalloc_tcache.c \
-	@srcroot@src/jemalloc_trace.c
+	@srcroot@src/jemalloc_stats.c @srcroot@src/jemalloc_tcache.c
 DSOS := @objroot@lib/libjemalloc@install_suffix@.so.$(REV) \
 	@objroot@lib/libjemalloc@install_suffix@.so \
 	@objroot@lib/libjemalloc@install_suffix@_pic.a
@@ -54,7 +51,7 @@ MAN3 := @objroot@doc/jemalloc@install_suffix@.3
 .PHONY: all dist install check clean distclean relclean
 
 # Default target.
-all: $(DSOS) bins
+all: $(DSOS)
 
 #
 # Include generated dependency files.
@@ -70,12 +67,6 @@ $(DSOS): $(CSRCS:@srcroot@%.c=@objroot@%.o)
 	$(CC) -shared -o $@ $+ $(LDFLAGS) $(LIBS)
 	ln -sf libjemalloc@install_suffix@.so.$(REV) lib/libjemalloc@install_suffix@.so
 	ar crus @objroot@lib/libjemalloc@install_suffix@_pic.a $+
-
-bins: $(BINS)
-
-@objroot@bin/mtrgraph@install_suffix@: @objroot@src/mtrgraph.o
-	@mkdir -p $(@D)
-	$(CC) -o $@ $< $(LDFLAGS) $(LIBS) $(GDLIBS)
 
 @objroot@bin/%@install_suffix@: @objroot@src/%.o
 	@mkdir -p $(@D)

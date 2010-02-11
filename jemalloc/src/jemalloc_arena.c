@@ -2023,49 +2023,6 @@ arena_new(arena_t *arena, unsigned ind)
 #  endif
 #endif
 
-#ifdef JEMALLOC_TRACE
-	if (opt_trace) {
-		/* "jemtr.<pid>.<arena>" */
-		char buf[UMAX2S_BUFSIZE];
-		char filename[6 + UMAX2S_BUFSIZE + 1 + UMAX2S_BUFSIZE + 1];
-		char *s;
-		unsigned i, slen;
-
-		arena->trace_buf_end = 0;
-
-		i = 0;
-
-		s = "jemtr.";
-		slen = strlen(s);
-		memcpy(&filename[i], s, slen);
-		i += slen;
-
-		s = umax2s(getpid(), 10, buf);
-		slen = strlen(s);
-		memcpy(&filename[i], s, slen);
-		i += slen;
-
-		s = ".";
-		slen = strlen(s);
-		memcpy(&filename[i], s, slen);
-		i += slen;
-
-		s = umax2s(ind, 10, buf);
-		slen = strlen(s);
-		memcpy(&filename[i], s, slen);
-		i += slen;
-
-		filename[i] = '\0';
-
-		arena->trace_fd = creat(filename, 0644);
-		if (arena->trace_fd == -1) {
-			malloc_write4("<jemalloc>",
-			    ": creat(\"", filename, "\", 0644) failed\n");
-			abort();
-		}
-	}
-#endif
-
 #ifdef JEMALLOC_PROF
 	arena->prof_accumbytes = 0;
 #endif

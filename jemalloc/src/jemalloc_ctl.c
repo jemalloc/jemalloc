@@ -48,7 +48,6 @@ CTL_PROTO(config_sysv)
 CTL_PROTO(config_tcache)
 CTL_PROTO(config_tiny)
 CTL_PROTO(config_tls)
-CTL_PROTO(config_trace)
 CTL_PROTO(config_xmalloc)
 CTL_PROTO(opt_abort)
 #ifdef JEMALLOC_FILL
@@ -75,9 +74,6 @@ CTL_PROTO(opt_prof_udump)
 CTL_PROTO(opt_prof_leak)
 #endif
 CTL_PROTO(opt_stats_print)
-#ifdef JEMALLOC_TRACE
-CTL_PROTO(opt_trace)
-#endif
 CTL_PROTO(opt_lg_qspace_max)
 CTL_PROTO(opt_lg_cspace_max)
 CTL_PROTO(opt_lg_medium_max)
@@ -214,7 +210,6 @@ static const ctl_node_t	config_node[] = {
 	{NAME("tcache"),		CTL(config_tcache)},
 	{NAME("tiny"),			CTL(config_tiny)},
 	{NAME("tls"),			CTL(config_tls)},
-	{NAME("trace"),			CTL(config_trace)},
 	{NAME("xmalloc"),		CTL(config_xmalloc)}
 };
 
@@ -244,9 +239,6 @@ static const ctl_node_t opt_node[] = {
 	{NAME("prof_leak"),		CTL(opt_prof_leak)},
 #endif
 	{NAME("stats_print"),		CTL(opt_stats_print)},
-#ifdef JEMALLOC_TRACE
-	{NAME("trace"),			CTL(opt_trace)},
-#endif
 	{NAME("lg_qspace_max"),		CTL(opt_lg_qspace_max)},
 	{NAME("lg_cspace_max"),		CTL(opt_lg_cspace_max)},
 	{NAME("lg_medium_max"),		CTL(opt_lg_medium_max)},
@@ -1046,12 +1038,6 @@ CTL_RO_TRUE_GEN(config_tls)
 CTL_RO_FALSE_GEN(config_tls)
 #endif
 
-#ifdef JEMALLOC_TRACE
-CTL_RO_TRUE_GEN(config_trace)
-#else
-CTL_RO_FALSE_GEN(config_trace)
-#endif
-
 #ifdef JEMALLOC_XMALLOC
 CTL_RO_TRUE_GEN(config_xmalloc)
 #else
@@ -1085,9 +1071,6 @@ CTL_RO_GEN(opt_prof_udump, opt_prof_udump, bool)
 CTL_RO_GEN(opt_prof_leak, opt_prof_leak, bool)
 #endif
 CTL_RO_GEN(opt_stats_print, opt_stats_print, bool)
-#ifdef JEMALLOC_TRACE
-CTL_RO_GEN(opt_trace, opt_trace, bool)
-#endif
 CTL_RO_GEN(opt_lg_qspace_max, opt_lg_qspace_max, size_t)
 CTL_RO_GEN(opt_lg_cspace_max, opt_lg_cspace_max, size_t)
 CTL_RO_GEN(opt_lg_medium_max, opt_lg_medium_max, size_t)

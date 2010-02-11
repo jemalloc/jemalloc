@@ -58,8 +58,8 @@ extern void	(*JEMALLOC_P(malloc_message))(void *w4opaque, const char *p1,
 #endif
 
 /*
- * jemalloc can conceptually be broken into components (arena, tcache, trace,
- * etc.), but there are circular dependencies that cannot be broken without
+ * jemalloc can conceptually be broken into components (arena, tcache, etc.),
+ * but there are circular dependencies that cannot be broken without
  * substantial performance degradation.  In order to reduce the effect on
  * visual code flow, read the header files in multiple passes, with one of the
  * following cpp variables defined during each pass:
@@ -181,7 +181,6 @@ extern void	(*JEMALLOC_P(malloc_message))(void *w4opaque, const char *p1,
 #include "internal/jemalloc_chunk.h"
 #include "internal/jemalloc_huge.h"
 #include "internal/jemalloc_tcache.h"
-#include "internal/jemalloc_trace.h"
 #include "internal/hash.h"
 #include "internal/prof.h"
 
@@ -201,7 +200,6 @@ extern void	(*JEMALLOC_P(malloc_message))(void *w4opaque, const char *p1,
 #include "internal/jemalloc_chunk.h"
 #include "internal/jemalloc_huge.h"
 #include "internal/jemalloc_tcache.h"
-#include "internal/jemalloc_trace.h"
 #include "internal/hash.h"
 #include "internal/prof.h"
 
@@ -264,7 +262,6 @@ arena_t	*choose_arena_hard(void);
 #include "internal/jemalloc_chunk.h"
 #include "internal/jemalloc_huge.h"
 #include "internal/jemalloc_tcache.h"
-#include "internal/jemalloc_trace.h"
 #include "internal/hash.h"
 #include "internal/prof.h"
 
@@ -372,7 +369,6 @@ choose_arena(void)
 
 #include "internal/jemalloc_tcache.h"
 #include "internal/jemalloc_arena.h"
-#include "internal/jemalloc_trace.h"
 #include "internal/hash.h"
 #include "internal/prof.h"
 

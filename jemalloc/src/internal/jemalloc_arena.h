@@ -283,13 +283,6 @@ struct arena_s {
 #  endif
 #endif
 
-#ifdef JEMALLOC_TRACE
-#  define TRACE_BUF_SIZE 65536
-	unsigned		trace_buf_end;
-	char			trace_buf[TRACE_BUF_SIZE];
-	int			trace_fd;
-#endif
-
 #ifdef JEMALLOC_PROF
 	uint64_t		prof_accumbytes;
 #endif

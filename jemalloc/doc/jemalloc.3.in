@@ -464,21 +464,6 @@ Double/halve the size of the maximum size class that is a multiple of the
 quantum (8 or 16 bytes, depending on architecture).
 Above this size, cacheline spacing is used for size classes.
 The default value is 128 bytes.
-@roff_trace@.It T
-@roff_trace@Write a verbose trace log to a set of files named according to the
-@roff_trace@pattern
-@roff_trace@.Pa jemtr.<pid>.<arena>
-@roff_trace@for all allocation operations.
-@roff_trace@The result can be converted from
-@roff_trace@.Nm jemtr
-@roff_trace@to
-@roff_trace@.Nm mtr
-@roff_trace@format via
-@roff_trace@.Xr jemtr2mtr 1 ,
-@roff_trace@the output of which can be used by
-@roff_trace@.Xr mtrplay 1
-@roff_trace@and
-@roff_trace@.Xr mtrgraph 1 .
 @roff_prof@.It U
 @roff_prof@Trigger a memory profile dump every time the total virtual memory
 @roff_prof@exceeds the previous maximum.
@@ -737,11 +722,6 @@ This is useful for detecting whether another thread caused a refresh.
 --disable-tls was not specified during build configuration.
 .Ed
 .\"-----------------------------------------------------------------------------
-.It Sy "config.trace (bool) r-"
-.Bd -ragged -offset indent -compact
---enable-trace was specified during build configuration.
-.Ed
-.\"-----------------------------------------------------------------------------
 .It Sy "config.xmalloc (bool) r-"
 .Bd -ragged -offset indent -compact
 --enable-xmalloc was specified during build configuration.
@@ -830,13 +810,6 @@ option.
 @roff_prof@.Dq L
 @roff_prof@option.
 @roff_prof@.Ed
-.\"-----------------------------------------------------------------------------
-@roff_trace@.It Sy "opt.trace (bool) r-"
-@roff_trace@.Bd -ragged -offset indent -compact
-@roff_trace@See the
-@roff_trace@.Dq T
-@roff_trace@option.
-@roff_trace@.Ed
 .\"-----------------------------------------------------------------------------
 .It Sy "opt.lg_qspace_max (size_t) r-"
 .Bd -ragged -offset indent -compact
@@ -1301,11 +1274,6 @@ options and symbols for debugger support.
 @roff_fill@.Dq J
 @roff_fill@option may help provoke the problem.
 @roff_fill@.Pp
-@roff_trace@In truly difficult cases, the
-@roff_trace@.Dq T
-@roff_trace@option can provide a detailed trace of all calls made to these
-@roff_trace@functions.
-@roff_trace@.Pp
 Unfortunately this implementation does not provide much detail about
 the problems it detects; the performance impact for storing such information
 would be prohibitive.
@@ -1460,9 +1428,6 @@ To specify in the source a chunk size that is twice the default:
 @jemalloc_prefix@malloc_options = "K";
 .Ed
 .Sh SEE ALSO
-.Xr mtrgraph 1 ,
-.Xr mtrplay 1 ,
-.Xr jemtr2mtr 1 ,
 .Xr madvise 2 ,
 .Xr mmap 2 ,
 @roff_dss@.Xr sbrk 2 ,

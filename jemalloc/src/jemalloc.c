@@ -581,14 +581,6 @@ MALLOC_OUT:
 					    opt_lg_cspace_max)
 						opt_lg_qspace_max++;
 					break;
-#ifdef JEMALLOC_TRACE
-				case 't':
-					opt_trace = false;
-					break;
-				case 'T':
-					opt_trace = true;
-					break;
-#endif
 #ifdef JEMALLOC_PROF
 				case 'u':
 					opt_prof_udump = false;
@@ -650,14 +642,6 @@ MALLOC_OUT:
 		return (true);
 	}
 
-#ifdef JEMALLOC_TRACE
-	if (opt_trace) {
-		if (trace_boot()) {
-			malloc_mutex_unlock(&init_lock);
-			return (true);
-		}
-	}
-#endif
 	if (opt_stats_print) {
 		/* Print statistics at exit. */
 		if (atexit(stats_print_atexit) != 0) {
@@ -914,10 +898,6 @@ RETURN:
 	if (opt_prof && ret != NULL)
 		prof_malloc(ret, cnt);
 #endif
-#ifdef JEMALLOC_TRACE
-	if (opt_trace)
-		trace_malloc(ret, size);
-#endif
 	return (ret);
 }
 
@@ -1005,10 +985,6 @@ RETURN:
 	if (opt_prof && result != NULL)
 		prof_malloc(result, cnt);
 #endif
-#ifdef JEMALLOC_TRACE
-	if (opt_trace)
-		trace_posix_memalign(result, alignment, size);
-#endif
 	return (ret);
 }
 
@@ -1079,10 +1055,6 @@ RETURN:
 	if (opt_prof && ret != NULL)
 		prof_malloc(ret, cnt);
 #endif
-#ifdef JEMALLOC_TRACE
-	if (opt_trace)
-		trace_calloc(ret, num, size);
-#endif
 	return (ret);
 }
 
@@ -1091,26 +1063,9 @@ void *
 JEMALLOC_P(realloc)(void *ptr, size_t size)
 {
 	void *ret;
-#if (defined(JEMALLOC_PROF) || defined(JEMALLOC_TRACE))
+#ifdef JEMALLOC_PROF
 	size_t old_size;
-#endif
-#ifdef JEMALLOC_PROF
 	prof_thr_cnt_t *cnt, *old_cnt;
-#endif
-
-/*
- * Both profiling and tracing may need old_size, and the conditional logic for
- * deciding whether to call isalloc() is messy.  Define need_old_size here in
- * order to avoid repeated nasty cpp conditional logic.
- */
-#ifdef JEMALLOC_PROF
-#  ifdef JEMALLOC_TRACE
-#    define need_old_size opt_prof || opt_trace
-#  else
-#    define need_old_size opt_prof
-#  endif
-#elif (defined(JEMALLOC_TRACE))
-#  define need_old_size opt_trace
 #endif
 
 	if (size == 0) {
@@ -1121,24 +1076,20 @@ JEMALLOC_P(realloc)(void *ptr, size_t size)
 #ifdef JEMALLOC_SYSV
 		else {
 			if (ptr != NULL) {
-#if (defined(JEMALLOC_PROF) || defined(JEMALLOC_TRACE))
-				if (need_old_size) {
+#ifdef JEMALLOC_PROF
+				if (opt_prof) {
 					old_size = isalloc(ptr);
-#  ifdef JEMALLOC_PROF
 					old_cnt = prof_cnt_get(ptr);
 					cnt = NULL;
-#  endif
 				}
 #endif
 				idalloc(ptr);
 			}
-#if (defined(JEMALLOC_PROF) || defined(JEMALLOC_TRACE))
-			else if (need_old_size) {
+#ifdef JEMALLOC_PROF
+			else if (opt_prof) {
 				old_size = 0;
-#  ifdef JEMALLOC_PROF
 				old_cnt = NULL;
 				cnt = NULL;
-#  endif
 			}
 #endif
 			ret = NULL;
@@ -1151,16 +1102,14 @@ JEMALLOC_P(realloc)(void *ptr, size_t size)
 		assert(malloc_initialized || malloc_initializer ==
 		    pthread_self());
 
-#if (defined(JEMALLOC_PROF) || defined(JEMALLOC_TRACE))
-		if (need_old_size) {
+#ifdef JEMALLOC_PROF
+		if (opt_prof) {
 			old_size = isalloc(ptr);
-#  ifdef JEMALLOC_PROF
 			old_cnt = prof_cnt_get(ptr);
 			if ((cnt = prof_alloc_prep()) == NULL) {
 				ret = NULL;
 				goto OOM;
 			}
-#  endif
 		}
 #endif
 
@@ -1181,12 +1130,10 @@ OOM:
 			errno = ENOMEM;
 		}
 	} else {
-#if (defined(JEMALLOC_PROF) || defined(JEMALLOC_TRACE))
-		if (need_old_size) {
+#ifdef JEMALLOC_PROF
+		if (opt_prof) {
 			old_size = 0;
-#  ifdef JEMALLOC_PROF
 			old_cnt = NULL;
-#  endif
 		}
 #endif
 		if (malloc_init()) {
@@ -1220,18 +1167,11 @@ OOM:
 #ifdef JEMALLOC_SYSV
 RETURN:
 #endif
-#ifdef JEMALLOC_TRACE
-	if (opt_trace)
-		trace_realloc(ret, ptr, size, old_size);
-#endif
 #ifdef JEMALLOC_PROF
 	if (opt_prof)
 		prof_realloc(ret, cnt, ptr, old_size, old_cnt);
 #endif
 	return (ret);
-#ifdef need_old_size
-#  undef need_old_size
-#endif
 }
 
 JEMALLOC_ATTR(visibility("default"))
@@ -1246,10 +1186,6 @@ JEMALLOC_P(free)(void *ptr)
 #ifdef JEMALLOC_PROF
 		if (opt_prof)
 			prof_free(ptr);
-#endif
-#ifdef JEMALLOC_TRACE
-		if (opt_trace)
-			trace_free(ptr, isalloc(ptr));
 #endif
 		idalloc(ptr);
 	}
@@ -1272,10 +1208,6 @@ JEMALLOC_P(malloc_usable_size)(const void *ptr)
 	assert(ptr != NULL);
 	ret = isalloc(ptr);
 
-#ifdef JEMALLOC_TRACE
-	if (opt_trace)
-		trace_malloc_usable_size(ret, ptr);
-#endif
 	return (ret);
 }
 
