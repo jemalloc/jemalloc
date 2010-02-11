@@ -1043,11 +1043,6 @@ prof_boot1(void)
 {
 
 	if (opt_prof) {
-		/*
-		 * Finish initializing prof_interval, now that narenas is set.
-		 */
-		prof_interval /= narenas;
-
 		if (ckh_new(&bt2ctx, PROF_CKH_MINITEMS, prof_bt_hash,
 		    prof_bt_keycomp))
 			return (true);
@@ -1088,6 +1083,18 @@ prof_boot1(void)
 	prof_booted = true;
 
 	return (false);
+}
+
+void
+prof_boot2(void)
+{
+
+	if (opt_prof) {
+		/*
+		 * Finish initializing prof_interval, now that narenas is set.
+		 */
+		prof_interval /= narenas;
+	}
 }
 
 /******************************************************************************/

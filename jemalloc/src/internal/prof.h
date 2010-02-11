@@ -135,6 +135,7 @@ void	prof_mdump(void);
 void	prof_udump(void);
 void	prof_boot0(void);
 bool	prof_boot1(void);
+void	prof_boot2(void);
 
 #endif /* JEMALLOC_H_EXTERNS */
 /******************************************************************************/

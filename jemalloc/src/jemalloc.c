@@ -636,10 +636,6 @@ MALLOC_OUT:
 		}
 	}
 
-#ifdef JEMALLOC_PROF
-	prof_boot0();
-#endif
-
 	/* Register fork handlers. */
 	if (pthread_atfork(jemalloc_prefork, jemalloc_postfork,
 	    jemalloc_postfork) != 0) {
@@ -681,6 +677,10 @@ MALLOC_OUT:
 		malloc_mutex_unlock(&init_lock);
 		return (true);
 	}
+
+#ifdef JEMALLOC_PROF
+	prof_boot0();
+#endif
 
 	if (arena_boot()) {
 		malloc_mutex_unlock(&init_lock);
@@ -724,6 +724,13 @@ MALLOC_OUT:
 #endif
 
 	malloc_mutex_init(&arenas_lock);
+
+#ifdef JEMALLOC_PROF
+	if (prof_boot1()) {
+		malloc_mutex_unlock(&init_lock);
+		return (true);
+	}
+#endif
 
 	/* Get number of CPUs. */
 	malloc_initializer = pthread_self();
@@ -816,10 +823,7 @@ MALLOC_OUT:
 #endif
 
 #ifdef JEMALLOC_PROF
-	if (prof_boot1()) {
-		malloc_mutex_unlock(&init_lock);
-		return (true);
-	}
+	prof_boot2();
 #endif
 
 	/* Allocate and initialize arenas. */
