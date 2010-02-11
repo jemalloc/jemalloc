@@ -8,7 +8,7 @@ typedef struct prof_thr_cnt_s prof_thr_cnt_t;
 typedef struct prof_ctx_s prof_ctx_t;
 typedef struct prof_s prof_t;
 
-#define	LG_PROF_INTERVAL_DEFAULT	32
+#define	LG_PROF_INTERVAL_DEFAULT	30
 
 /*
  * Hard limit on stack backtrace depth.  Note that the version of
@@ -121,6 +121,15 @@ extern size_t	opt_lg_prof_interval;
 extern bool	opt_prof_udump; /* High-water memory dumping. */
 extern bool	opt_prof_leak; /* Dump leak summary at exit. */
 
+/*
+ * Profile dump interval, measured in bytes allocated.  Each arena triggers a
+ * profile dump when it reaches this threshold.  The effect is that the
+ * interval between profile dumps averages prof_interval, though the actual
+ * interval between dumps will tend to be sporadic, and the interval will be a
+ * maximum of approximately (prof_interval * narenas).
+ */
+extern uint64_t	prof_interval;
+
 bool	prof_init(prof_t *prof, bool master);
 void	prof_destroy(prof_t *prof);
 
@@ -135,7 +144,6 @@ void	prof_mdump(void);
 void	prof_udump(void);
 void	prof_boot0(void);
 bool	prof_boot1(void);
-void	prof_boot2(void);
 
 #endif /* JEMALLOC_H_EXTERNS */
 /******************************************************************************/

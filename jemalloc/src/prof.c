@@ -21,6 +21,8 @@ size_t		opt_lg_prof_interval = LG_PROF_INTERVAL_DEFAULT;
 bool		opt_prof_udump = false;
 bool		opt_prof_leak = false;
 
+uint64_t	prof_interval;
+
 /*
  * Global hash of (prof_bt_t *)-->(prof_ctx_t *).  This is the master data
  * structure that knows about all backtraces ever captured.
@@ -50,15 +52,6 @@ static pthread_key_t	bt2cnt_tsd;
 /* (1U << opt_lg_prof_bt_max). */
 static unsigned		prof_bt_max;
 
-/*
- * Per arena profile dump interval, measured in bytes allocated.  Each arena
- * triggers a profile dump when it reaches this threshold.  The effect is that
- * the interval between profile dumps is never longer than (prof_interval *
- * narenas), though the actual interval between dumps will tend to be sporadic,
- * and the interval will on average be prof_interval.
- */
-static uint64_t		prof_interval;
-
 static malloc_mutex_t	prof_dump_seq_mtx;
 static uint64_t		prof_dump_seq;
 static uint64_t		prof_dump_iseq;
@@ -79,6 +72,7 @@ static bool		prof_booted = false;
 
 static malloc_mutex_t	enq_mtx;
 static bool		enq;
+static bool		enq_idump;
 static bool		enq_udump;
 
 /******************************************************************************/
@@ -157,16 +151,20 @@ prof_enter(void)
 static inline void
 prof_leave(void)
 {
-	bool udump;
+	bool idump, udump;
 
 	malloc_mutex_unlock(&bt2ctx_mtx);
 
 	malloc_mutex_lock(&enq_mtx);
 	enq = false;
+	idump = enq_idump;
+	enq_idump = false;
 	udump = enq_udump;
 	enq_udump = false;
 	malloc_mutex_unlock(&enq_mtx);
 
+	if (idump)
+		prof_idump();
 	if (udump)
 		prof_udump();
 }
@@ -785,6 +783,7 @@ prof_dump_maps(void)
 			nread = read(mfd, &prof_dump_buf[prof_dump_buf_end],
 			    PROF_DUMP_BUF_SIZE - prof_dump_buf_end);
 		} while (nread > 0);
+		close(mfd);
 	}
 }
 
@@ -955,6 +954,13 @@ prof_idump(void)
 
 	if (prof_booted == false)
 		return;
+	malloc_mutex_lock(&enq_mtx);
+	if (enq) {
+		enq_idump = true;
+		malloc_mutex_unlock(&enq_mtx);
+		return;
+	}
+	malloc_mutex_unlock(&enq_mtx);
 
 	malloc_mutex_lock(&prof_dump_seq_mtx);
 	prof_dump_filename(filename, 'i', prof_dump_iseq);
@@ -1134,6 +1140,7 @@ prof_boot1(void)
 		if (malloc_mutex_init(&enq_mtx))
 			return (true);
 		enq = false;
+		enq_idump = false;
 		enq_udump = false;
 
 		if (atexit(prof_fdump) != 0) {
@@ -1155,18 +1162,6 @@ prof_boot1(void)
 	prof_booted = true;
 
 	return (false);
-}
-
-void
-prof_boot2(void)
-{
-
-	if (opt_prof) {
-		/*
-		 * Finish initializing prof_interval, now that narenas is set.
-		 */
-		prof_interval /= narenas;
-	}
 }
 
 /******************************************************************************/

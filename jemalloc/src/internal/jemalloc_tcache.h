@@ -36,6 +36,9 @@ struct tcache_s {
 #  ifdef JEMALLOC_STATS
 	ql_elm(tcache_t) link;		/* Used for aggregating stats. */
 #  endif
+#  ifdef JEMALLOC_PROF
+	uint64_t	prof_accumbytes;/* Cleared after arena_prof_accum() */
+#  endif
 	arena_t		*arena;		/* This thread's arena. */
 	unsigned	ev_cnt;		/* Event count since incremental GC. */
 	unsigned	next_gc_bin;	/* Next bin to GC. */
@@ -62,7 +65,11 @@ extern size_t			tcache_nslots;
 /* Number of tcache allocation/deallocation events between incremental GCs. */
 extern unsigned			tcache_gc_incr;
 
-void	tcache_bin_flush(tcache_bin_t *tbin, size_t binind, unsigned rem);
+void	tcache_bin_flush(tcache_bin_t *tbin, size_t binind, unsigned rem
+#ifdef JEMALLOC_PROF
+    , tcache_t *tcache
+#endif
+    );
 tcache_t *tcache_create(arena_t *arena);
 void	tcache_bin_destroy(tcache_t *tcache, tcache_bin_t *tbin,
     unsigned binind);
@@ -138,7 +145,11 @@ tcache_event(tcache_t *tcache)
 					 */
 					tcache_bin_flush(tbin, binind,
 					    tbin->ncached - (tbin->low_water >>
-					    1) - (tbin->low_water & 1));
+					    1) - (tbin->low_water & 1)
+#ifdef JEMALLOC_PROF
+					    , tcache
+#endif
+					    );
 				}
 				tbin->low_water = tbin->ncached;
 				tbin->high_water = tbin->ncached;
@@ -206,6 +217,9 @@ tcache_alloc(tcache_t *tcache, size_t size, bool zero)
 #ifdef JEMALLOC_STATS
 	tbin->tstats.nrequests++;
 #endif
+#ifdef JEMALLOC_PROF
+	tcache->prof_accumbytes += tcache->arena->bins[binind].reg_size;
+#endif
 	tcache_event(tcache);
 	return (ret);
 }
@@ -252,7 +266,11 @@ tcache_dalloc(tcache_t *tcache, void *ptr)
 	}
 
 	if (tbin->ncached == tcache_nslots)
-		tcache_bin_flush(tbin, binind, (tcache_nslots >> 1));
+		tcache_bin_flush(tbin, binind, (tcache_nslots >> 1)
+#ifdef JEMALLOC_PROF
+		    , tcache
+#endif
+		    );
 	assert(tbin->ncached < tcache_nslots);
 	tbin->slots[tbin->ncached] = ptr;
 	tbin->ncached++;

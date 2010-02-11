@@ -1031,7 +1031,11 @@ arena_bin_malloc_hard(arena_t *arena, arena_bin_t *bin)
 
 #ifdef JEMALLOC_TCACHE
 void
-arena_tcache_fill(arena_t *arena, tcache_bin_t *tbin, size_t binind)
+arena_tcache_fill(arena_t *arena, tcache_bin_t *tbin, size_t binind
+#  ifdef JEMALLOC_PROF
+    , uint64_t prof_accumbytes
+#  endif
+    )
 {
 	unsigned i, nfill;
 	arena_bin_t *bin;
@@ -1042,6 +1046,9 @@ arena_tcache_fill(arena_t *arena, tcache_bin_t *tbin, size_t binind)
 
 	bin = &arena->bins[binind];
 	malloc_mutex_lock(&arena->lock);
+#ifdef JEMALLOC_PROF
+	arena_prof_accum(arena, prof_accumbytes);
+#endif
 	for (i = 0, nfill = (tcache_nslots >> 1); i < nfill; i++) {
 		if ((run = bin->runcur) != NULL && run->nfree > 0)
 			ptr = arena_bin_malloc_easy(arena, bin, run);
@@ -1085,6 +1092,19 @@ arena_tcache_fill(arena_t *arena, tcache_bin_t *tbin, size_t binind)
 	tbin->ncached = i;
 	if (tbin->ncached > tbin->high_water)
 		tbin->high_water = tbin->ncached;
+}
+#endif
+
+#ifdef JEMALLOC_PROF
+void
+arena_prof_accum(arena_t *arena, uint64_t accumbytes)
+{
+
+	arena->prof_accumbytes += accumbytes;
+	if (arena->prof_accumbytes >= prof_interval) {
+		prof_idump();
+		arena->prof_accumbytes -= prof_interval;
+	}
 }
 #endif
 
@@ -1244,6 +1264,10 @@ arena_malloc_small(arena_t *arena, size_t size, bool zero)
 #  endif
 	arena->stats.allocated_small += size;
 #endif
+#ifdef JEMALLOC_PROF
+	if (isthreaded == false)
+		arena_prof_accum(arena, size);
+#endif
 	malloc_mutex_unlock(&arena->lock);
 
 	if (zero == false) {
@@ -1295,6 +1319,10 @@ arena_malloc_medium(arena_t *arena, size_t size, bool zero)
 #  endif
 	arena->stats.allocated_medium += size;
 #endif
+#ifdef JEMALLOC_PROF
+	if (isthreaded == false)
+		arena_prof_accum(arena, size);
+#endif
 	malloc_mutex_unlock(&arena->lock);
 
 	if (zero == false) {
@@ -1333,6 +1361,9 @@ arena_malloc_large(arena_t *arena, size_t size, bool zero)
 		arena->stats.lstats[(size >> PAGE_SHIFT) - 1].highruns =
 		    arena->stats.lstats[(size >> PAGE_SHIFT) - 1].curruns;
 	}
+#endif
+#ifdef JEMALLOC_PROF
+	arena_prof_accum(arena, size);
 #endif
 	malloc_mutex_unlock(&arena->lock);
 
@@ -2033,6 +2064,10 @@ arena_new(arena_t *arena, unsigned ind)
 			abort();
 		}
 	}
+#endif
+
+#ifdef JEMALLOC_PROF
+	arena->prof_accumbytes = 0;
 #endif
 
 	/* Initialize chunks. */

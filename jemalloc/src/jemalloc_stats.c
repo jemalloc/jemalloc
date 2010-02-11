@@ -431,13 +431,19 @@ stats_print(void (*write4)(void *, const char *, const char *, const char *,
 		write4(w4opaque, "Boolean JEMALLOC_OPTIONS: ", "", "", "");
 		if ((err = mallctl("opt.abort", &bv, &bsz, NULL, 0)) == 0)
 			write4(w4opaque, bv ? "A" : "a", "", "", "");
+		if ((err = mallctl("opt.prof", &bv, &bsz, NULL, 0)) == 0)
+			write4(w4opaque, bv ? "F" : "f", "", "", "");
 		if ((err = mallctl("opt.junk", &bv, &bsz, NULL, 0)) == 0)
 			write4(w4opaque, bv ? "J" : "j", "", "", "");
+		if ((err = mallctl("opt.prof_leak", &bv, &bsz, NULL, 0)) == 0)
+			write4(w4opaque, bv ? "L" : "l", "", "", "");
 		if ((err = mallctl("opt.overcommit", &bv, &bsz, NULL, 0)) == 0)
 			write4(w4opaque, bv ? "O" : "o", "", "", "");
 		write4(w4opaque, "P", "", "", "");
 		if ((err = mallctl("opt.trace", &bv, &bsz, NULL, 0)) == 0)
 			write4(w4opaque, bv ? "T" : "t", "", "", "");
+		if ((err = mallctl("opt.prof_udump", &bv, &bsz, NULL, 0)) == 0)
+			write4(w4opaque, bv ? "U" : "u", "", "", "");
 		if ((err = mallctl("opt.sysv", &bv, &bsz, NULL, 0)) == 0)
 			write4(w4opaque, bv ? "V" : "v", "", "", "");
 		if ((err = mallctl("opt.xmalloc", &bv, &bsz, NULL, 0)) == 0)
@@ -512,7 +518,6 @@ stats_print(void (*write4)(void *, const char *, const char *, const char *,
 			    "Min active:dirty page ratio per arena: N/A\n", "",
 			    "", "");
 		}
-#ifdef JEMALLOC_TCACHE
 		if ((err = mallctl("opt.lg_tcache_nslots", &sv, &ssz, NULL, 0))
 		    == 0) {
 			size_t tcache_nslots, tcache_gc_sweep;
@@ -528,7 +533,17 @@ stats_print(void (*write4)(void *, const char *, const char *, const char *,
 			    tcache_nslots && ssv >= 0 ? umax2s(tcache_gc_sweep,
 			    10, s) : "N/A", "\n", "");
 		}
-#endif
+		if ((err = mallctl("opt.lg_prof_bt_max", &sv, &ssz, NULL, 0))
+		    == 0) {
+			write4(w4opaque, "Maximum profile backtrace depth: ",
+			    umax2s((1U << sv), 10, s), "\n", "");
+		}
+		if ((err = mallctl("opt.lg_prof_interval", &sv, &ssz, NULL, 0))
+		    == 0) {
+			write4(w4opaque, "Average profile dump interval: ",
+			    umax2s((1U << sv), 10, s), "", "");
+			write4(w4opaque, " (2^", umax2s(sv, 10, s), ")\n", "");
+		}
 		CTL_GET("arenas.chunksize", &sv, size_t);
 		write4(w4opaque, "Chunk size: ", umax2s(sv, 10, s), "", "");
 		CTL_GET("opt.lg_chunk", &sv, size_t);

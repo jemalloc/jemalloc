@@ -290,6 +290,10 @@ struct arena_s {
 	int			trace_fd;
 #endif
 
+#ifdef JEMALLOC_PROF
+	uint64_t		prof_accumbytes;
+#endif
+
 	/* Tree of dirty-page-containing chunks this arena manages. */
 	arena_chunk_tree_t	chunks_dirty;
 
@@ -411,7 +415,14 @@ extern size_t		mspace_mask;
 #define			nlclasses	((chunksize - PAGE_SIZE) >> PAGE_SHIFT)
 
 #ifdef JEMALLOC_TCACHE
-void	arena_tcache_fill(arena_t *arena, tcache_bin_t *tbin, size_t binind);
+void	arena_tcache_fill(arena_t *arena, tcache_bin_t *tbin, size_t binind
+#  ifdef JEMALLOC_PROF
+    , uint64_t prof_accumbytes
+#  endif
+    );
+#endif
+#ifdef JEMALLOC_PROF
+void	arena_prof_accum(arena_t *arena, uint64_t accumbytes);
 #endif
 void	*arena_malloc_small(arena_t *arena, size_t size, bool zero);
 void	*arena_malloc_medium(arena_t *arena, size_t size, bool zero);

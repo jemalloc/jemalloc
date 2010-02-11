@@ -18,9 +18,9 @@
  *
  * Allocation requests are rounded up to the nearest size class, and no record
  * of the original request size is maintained.  Allocations are broken into
- * categories according to size class.  Assuming runtime defaults, 4 KiB pages
- * and a 16 byte quantum on a 32-bit system, the size classes in each category
- * are as follows:
+ * categories according to size class.  Assuming 1 MiB chunks, 4 KiB pages and
+ * a 16 byte quantum on a 32-bit system, the size classes in each category are
+ * as follows:
  *
  *   |========================================|
  *   | Category | Subcategory      |     Size |
@@ -820,10 +820,6 @@ MALLOC_OUT:
 
 #ifndef NO_TLS
 	next_arena = 0;
-#endif
-
-#ifdef JEMALLOC_PROF
-	prof_boot2();
 #endif
 
 	/* Allocate and initialize arenas. */

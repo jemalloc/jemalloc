@@ -388,12 +388,11 @@ will disable dirty page purging.
 @roff_tcache@Note that one cache slot per size class is not a valid
 @roff_tcache@configuration due to implementation details.
 @roff_prof@.It I
-@roff_prof@Double/halve the maximum interval between memory profile dumps, as
+@roff_prof@Double/halve the average interval between memory profile dumps, as
 @roff_prof@measured in bytes of allocation activity.
-@roff_prof@On average, profiles are written four times as often as the maximum
-@roff_prof@interval requires.
-@roff_prof@This is an artifact of the concurrent algorithm that is used to
-@roff_prof@track allocation activity.
+@roff_prof@The actual interval between dumps may be sporadic because
+@roff_prof@decentralized allocation counters are used to avoid synchronization
+@roff_prof@bottlenecks.
 @roff_prof@Profiles are dumped to files named according to the pattern
 @roff_prof@.Pa <prefix>.<pid>.<seq>.i<iseq>.heap ,
 @roff_prof@where
@@ -401,7 +400,7 @@ will disable dirty page purging.
 @roff_prof@is controlled by the
 @roff_prof@JEMALLOC_PROF_PREFIX
 @roff_prof@environment variable.
-@roff_prof@The default maximum interval is 4 GiB.
+@roff_prof@The default average interval is 1 GiB.
 @roff_fill@.It J
 @roff_fill@Each byte of new memory allocated by
 @roff_fill@.Fn @jemalloc_prefix@malloc
@@ -693,6 +692,21 @@ This is useful for detecting whether another thread caused a refresh.
 --enable-lazy-lock was specified during build configuration.
 .Ed
 .\"-----------------------------------------------------------------------------
+.It Sy "config.prof (bool) r-"
+.Bd -ragged -offset indent -compact
+--enable-prof was specified during build configuration.
+.Ed
+.\"-----------------------------------------------------------------------------
+.It Sy "config.prof_libgcc (bool) r-"
+.Bd -ragged -offset indent -compact
+--disable-prof-libgcc was not specified during build configuration.
+.Ed
+.\"-----------------------------------------------------------------------------
+.It Sy "config.prof_libunwind (bool) r-"
+.Bd -ragged -offset indent -compact
+--enable-prof-libunwind was specified during build configuration.
+.Ed
+.\"-----------------------------------------------------------------------------
 .It Sy "config.stats (bool) r-"
 .Bd -ragged -offset indent -compact
 --enable-stats was specified during build configuration.
@@ -781,6 +795,41 @@ See the
 .Dq P
 option.
 .Ed
+.\"-----------------------------------------------------------------------------
+@roff_prof@.It Sy "opt.prof (bool) r-"
+@roff_prof@.Bd -ragged -offset indent -compact
+@roff_prof@See the
+@roff_prof@.Dq F
+@roff_prof@option.
+@roff_prof@.Ed
+.\"-----------------------------------------------------------------------------
+@roff_prof@.It Sy "opt.lg_prof_bt_max (size_t) r-"
+@roff_prof@.Bd -ragged -offset indent -compact
+@roff_prof@See the
+@roff_prof@.Dq B
+@roff_prof@option.
+@roff_prof@.Ed
+.\"-----------------------------------------------------------------------------
+@roff_prof@.It Sy "opt.lg_prof_interval (size_t) r-"
+@roff_prof@.Bd -ragged -offset indent -compact
+@roff_prof@See the
+@roff_prof@.Dq I
+@roff_prof@option.
+@roff_prof@.Ed
+.\"-----------------------------------------------------------------------------
+@roff_prof@.It Sy "opt.prof_udump (bool) r-"
+@roff_prof@.Bd -ragged -offset indent -compact
+@roff_prof@See the
+@roff_prof@.Dq U
+@roff_prof@option.
+@roff_prof@.Ed
+.\"-----------------------------------------------------------------------------
+@roff_prof@.It Sy "opt.prof_leak (bool) r-"
+@roff_prof@.Bd -ragged -offset indent -compact
+@roff_prof@See the
+@roff_prof@.Dq L
+@roff_prof@option.
+@roff_prof@.Ed
 .\"-----------------------------------------------------------------------------
 @roff_trace@.It Sy "opt.trace (bool) r-"
 @roff_trace@.Bd -ragged -offset indent -compact
@@ -991,6 +1040,15 @@ Maximum size supported by this large size class.
 @roff_prof@is controlled by the
 @roff_prof@JEMALLOC_PROF_PREFIX
 @roff_prof@environment variable.
+@roff_prof@.Ed
+.\"-----------------------------------------------------------------------------
+@roff_prof@.It Sy "prof.interval (uint64_t) r-"
+@roff_prof@.Bd -ragged -offset indent -compact
+@roff_prof@Average number of bytes allocated between inverval-based profile
+@roff_prof@dumps.
+@roff_prof@See the
+@roff_prof@.Dq I
+@roff_prof@option for additional information.
 @roff_prof@.Ed
 .\"-----------------------------------------------------------------------------
 @roff_stats@.It Sy "stats.allocated (size_t) r-"

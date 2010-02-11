@@ -31,14 +31,25 @@ tcache_alloc_hard(tcache_t *tcache, tcache_bin_t *tbin, size_t binind)
 {
 	void *ret;
 
-	arena_tcache_fill(tcache->arena, tbin, binind);
+	arena_tcache_fill(tcache->arena, tbin, binind
+#ifdef JEMALLOC_PROF
+	    , tcache->prof_accumbytes
+#endif
+	    );
+#ifdef JEMALLOC_PROF
+	tcache->prof_accumbytes = 0;
+#endif
 	ret = tcache_bin_alloc(tbin);
 
 	return (ret);
 }
 
 void
-tcache_bin_flush(tcache_bin_t *tbin, size_t binind, unsigned rem)
+tcache_bin_flush(tcache_bin_t *tbin, size_t binind, unsigned rem
+#ifdef JEMALLOC_PROF
+    , tcache_t *tcache
+#endif
+    )
 {
 	arena_chunk_t *chunk;
 	arena_t *arena;
@@ -51,6 +62,12 @@ tcache_bin_flush(tcache_bin_t *tbin, size_t binind, unsigned rem)
 		chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(tbin->slots[0]);
 		arena = chunk->arena;
 		malloc_mutex_lock(&arena->lock);
+#ifdef JEMALLOC_PROF
+		if (arena == tcache->arena) {
+			arena_prof_accum(arena, tcache->prof_accumbytes);
+			tcache->prof_accumbytes = 0;
+		}
+#endif
 		/* Deallocate every object that belongs to the locked arena. */
 		for (i = ndeferred = 0; i < ncached; i++) {
 			ptr = tbin->slots[i];
@@ -216,10 +233,22 @@ tcache_destroy(tcache_t *tcache)
 	for (i = 0; i < nbins; i++) {
 		tcache_bin_t *tbin = tcache->tbins[i];
 		if (tbin != NULL) {
-			tcache_bin_flush(tbin, i, 0);
+			tcache_bin_flush(tbin, i, 0
+#ifdef JEMALLOC_PROF
+			    , tcache
+#endif
+			    );
 			tcache_bin_destroy(tcache, tbin, i);
 		}
 	}
+
+#ifdef JEMALLOC_PROF
+	if (tcache->prof_accumbytes > 0) {
+		malloc_mutex_lock(&tcache->arena->lock);
+		arena_prof_accum(tcache->arena, tcache->prof_accumbytes);
+		malloc_mutex_unlock(&tcache->arena->lock);
+	}
+#endif
 
 	if (arena_salloc(tcache) <= bin_maxclass) {
 		arena_chunk_t *chunk = CHUNK_ADDR2BASE(tcache);

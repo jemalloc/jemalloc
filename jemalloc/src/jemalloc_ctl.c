@@ -34,14 +34,14 @@ CTL_PROTO(epoch)
 #ifdef JEMALLOC_TCACHE
 CTL_PROTO(tcache_flush)
 #endif
-#ifdef JEMALLOC_PROF
-CTL_PROTO(prof_dump)
-#endif
 CTL_PROTO(config_debug)
 CTL_PROTO(config_dss)
 CTL_PROTO(config_dynamic_page_shift)
 CTL_PROTO(config_fill)
 CTL_PROTO(config_lazy_lock)
+CTL_PROTO(config_prof)
+CTL_PROTO(config_prof_libgcc)
+CTL_PROTO(config_prof_libunwind)
 CTL_PROTO(config_stats)
 CTL_PROTO(config_swap)
 CTL_PROTO(config_sysv)
@@ -66,6 +66,13 @@ CTL_PROTO(opt_zero)
 #ifdef JEMALLOC_TCACHE
 CTL_PROTO(opt_lg_tcache_nslots)
 CTL_PROTO(opt_lg_tcache_gc_sweep)
+#endif
+#ifdef JEMALLOC_PROF
+CTL_PROTO(opt_prof)
+CTL_PROTO(opt_lg_prof_bt_max)
+CTL_PROTO(opt_lg_prof_interval)
+CTL_PROTO(opt_prof_udump)
+CTL_PROTO(opt_prof_leak)
 #endif
 CTL_PROTO(opt_stats_print)
 #ifdef JEMALLOC_TRACE
@@ -112,6 +119,10 @@ CTL_PROTO(arenas_nsbins)
 CTL_PROTO(arenas_nmbins)
 CTL_PROTO(arenas_nbins)
 CTL_PROTO(arenas_nlruns)
+#ifdef JEMALLOC_PROF
+CTL_PROTO(prof_dump)
+CTL_PROTO(prof_interval)
+#endif
 #ifdef JEMALLOC_STATS
 CTL_PROTO(stats_chunks_current)
 CTL_PROTO(stats_chunks_total)
@@ -188,18 +199,15 @@ static const ctl_node_t	tcache_node[] = {
 };
 #endif
 
-#ifdef JEMALLOC_PROF
-static const ctl_node_t	prof_node[] = {
-	{NAME("dump"),		CTL(prof_dump)}
-};
-#endif
-
 static const ctl_node_t	config_node[] = {
 	{NAME("debug"),			CTL(config_debug)},
 	{NAME("dss"),			CTL(config_dss)},
 	{NAME("dynamic_page_shift"),	CTL(config_dynamic_page_shift)},
 	{NAME("fill"),			CTL(config_fill)},
 	{NAME("lazy_lock"),		CTL(config_lazy_lock)},
+	{NAME("prof"),			CTL(config_prof)},
+	{NAME("prof_libgcc"),		CTL(config_prof_libgcc)},
+	{NAME("prof_libunwind"),	CTL(config_prof_libunwind)},
 	{NAME("stats"),			CTL(config_stats)},
 	{NAME("swap"),			CTL(config_swap)},
 	{NAME("sysv"),			CTL(config_sysv)},
@@ -227,6 +235,13 @@ static const ctl_node_t opt_node[] = {
 #ifdef JEMALLOC_TCACHE
 	{NAME("lg_tcache_nslots"),	CTL(opt_lg_tcache_nslots)},
 	{NAME("lg_tcache_gc_sweep"),	CTL(opt_lg_tcache_gc_sweep)},
+#endif
+#ifdef JEMALLOC_PROF
+	{NAME("prof"),			CTL(opt_prof)},
+	{NAME("lg_prof_bt_max"),	CTL(opt_lg_prof_bt_max)},
+	{NAME("lg_prof_interval"),	CTL(opt_lg_prof_interval)},
+	{NAME("prof_udump"),		CTL(opt_prof_udump)},
+	{NAME("prof_leak"),		CTL(opt_prof_leak)},
 #endif
 	{NAME("stats_print"),		CTL(opt_stats_print)},
 #ifdef JEMALLOC_TRACE
@@ -298,6 +313,13 @@ static const ctl_node_t arenas_node[] = {
 	{NAME("nlruns"),		CTL(arenas_nlruns)},
 	{NAME("lrun"),			CHILD(arenas_lrun)}
 };
+
+#ifdef JEMALLOC_PROF
+static const ctl_node_t	prof_node[] = {
+	{NAME("dump"),		CTL(prof_dump)},
+	{NAME("interval"),	CTL(prof_interval)}
+};
+#endif
 
 #ifdef JEMALLOC_STATS
 static const ctl_node_t stats_chunks_node[] = {
@@ -414,12 +436,12 @@ static const ctl_node_t	root_node[] = {
 #ifdef JEMALLOC_TCACHE
 	{NAME("tcache"),	CHILD(tcache)},
 #endif
-#ifdef JEMALLOC_PROF
-	{NAME("prof"),		CHILD(prof)},
-#endif
 	{NAME("config"),	CHILD(config)},
 	{NAME("opt"),		CHILD(opt)},
 	{NAME("arenas"),	CHILD(arenas)},
+#ifdef JEMALLOC_PROF
+	{NAME("prof"),		CHILD(prof)},
+#endif
 	{NAME("stats"),		CHILD(stats)}
 #ifdef JEMALLOC_SWAP
 	,
@@ -938,23 +960,6 @@ RETURN:
 }
 #endif
 
-#ifdef JEMALLOC_PROF
-static int
-prof_dump_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
-    void *newp, size_t newlen)
-{
-	int ret;
-
-	VOID();
-
-	prof_mdump();
-
-	ret = 0;
-RETURN:
-	return (ret);
-}
-#endif
-
 /******************************************************************************/
 
 #ifdef JEMALLOC_DEBUG
@@ -985,6 +990,24 @@ CTL_RO_FALSE_GEN(config_fill)
 CTL_RO_TRUE_GEN(config_lazy_lock)
 #else
 CTL_RO_FALSE_GEN(config_lazy_lock)
+#endif
+
+#ifdef JEMALLOC_PROF
+CTL_RO_TRUE_GEN(config_prof)
+#else
+CTL_RO_FALSE_GEN(config_prof)
+#endif
+
+#ifdef JEMALLOC_PROF_LIBGCC
+CTL_RO_TRUE_GEN(config_prof_libgcc)
+#else
+CTL_RO_FALSE_GEN(config_prof_libgcc)
+#endif
+
+#ifdef JEMALLOC_PROF_LIBUNWIND
+CTL_RO_TRUE_GEN(config_prof_libunwind)
+#else
+CTL_RO_FALSE_GEN(config_prof_libunwind)
 #endif
 
 #ifdef JEMALLOC_STATS
@@ -1053,6 +1076,13 @@ CTL_RO_GEN(opt_zero, opt_zero, bool)
 #ifdef JEMALLOC_TCACHE
 CTL_RO_GEN(opt_lg_tcache_nslots, opt_lg_tcache_nslots, size_t)
 CTL_RO_GEN(opt_lg_tcache_gc_sweep, opt_lg_tcache_gc_sweep, ssize_t)
+#endif
+#ifdef JEMALLOC_PROF
+CTL_RO_GEN(opt_prof, opt_prof, bool)
+CTL_RO_GEN(opt_lg_prof_bt_max, opt_lg_prof_bt_max, size_t)
+CTL_RO_GEN(opt_lg_prof_interval, opt_lg_prof_interval, size_t)
+CTL_RO_GEN(opt_prof_udump, opt_prof_udump, bool)
+CTL_RO_GEN(opt_prof_leak, opt_prof_leak, bool)
 #endif
 CTL_RO_GEN(opt_stats_print, opt_stats_print, bool)
 #ifdef JEMALLOC_TRACE
@@ -1142,6 +1172,27 @@ CTL_RO_GEN(arenas_nsbins, nsbins, unsigned)
 CTL_RO_GEN(arenas_nmbins, nmbins, unsigned)
 CTL_RO_GEN(arenas_nbins, nbins, unsigned)
 CTL_RO_GEN(arenas_nlruns, nlclasses, size_t)
+
+/******************************************************************************/
+
+#ifdef JEMALLOC_PROF
+static int
+prof_dump_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
+    void *newp, size_t newlen)
+{
+	int ret;
+
+	VOID();
+
+	prof_mdump();
+
+	ret = 0;
+RETURN:
+	return (ret);
+}
+
+CTL_RO_GEN(prof_interval, prof_interval, uint64_t)
+#endif
 
 /******************************************************************************/
 
