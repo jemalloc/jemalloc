@@ -170,11 +170,11 @@ extern void	(*JEMALLOC_P(malloc_message))(void *w4opaque, const char *p1,
 	(((s) + PAGE_MASK) & ~PAGE_MASK)
 
 #include "jemalloc/internal/prn.h"
-#include "jemalloc/internal/mb.h"
 #include "jemalloc/internal/ckh.h"
 #include "jemalloc/internal/stats.h"
 #include "jemalloc/internal/ctl.h"
 #include "jemalloc/internal/mutex.h"
+#include "jemalloc/internal/mb.h"
 #include "jemalloc/internal/extent.h"
 #include "jemalloc/internal/arena.h"
 #include "jemalloc/internal/base.h"
@@ -189,11 +189,11 @@ extern void	(*JEMALLOC_P(malloc_message))(void *w4opaque, const char *p1,
 #define JEMALLOC_H_STRUCTS
 
 #include "jemalloc/internal/prn.h"
-#include "jemalloc/internal/mb.h"
 #include "jemalloc/internal/ckh.h"
 #include "jemalloc/internal/stats.h"
 #include "jemalloc/internal/ctl.h"
 #include "jemalloc/internal/mutex.h"
+#include "jemalloc/internal/mb.h"
 #include "jemalloc/internal/extent.h"
 #include "jemalloc/internal/arena.h"
 #include "jemalloc/internal/base.h"
@@ -251,11 +251,11 @@ arena_t	*choose_arena_hard(void);
 #endif
 
 #include "jemalloc/internal/prn.h"
-#include "jemalloc/internal/mb.h"
 #include "jemalloc/internal/ckh.h"
 #include "jemalloc/internal/stats.h"
 #include "jemalloc/internal/ctl.h"
 #include "jemalloc/internal/mutex.h"
+#include "jemalloc/internal/mb.h"
 #include "jemalloc/internal/extent.h"
 #include "jemalloc/internal/arena.h"
 #include "jemalloc/internal/base.h"
@@ -270,11 +270,11 @@ arena_t	*choose_arena_hard(void);
 #define JEMALLOC_H_INLINES
 
 #include "jemalloc/internal/prn.h"
-#include "jemalloc/internal/mb.h"
 #include "jemalloc/internal/ckh.h"
 #include "jemalloc/internal/stats.h"
 #include "jemalloc/internal/ctl.h"
 #include "jemalloc/internal/mutex.h"
+#include "jemalloc/internal/mb.h"
 #include "jemalloc/internal/extent.h"
 #include "jemalloc/internal/base.h"
 #include "jemalloc/internal/chunk.h"
