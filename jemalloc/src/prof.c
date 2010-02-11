@@ -100,6 +100,7 @@ static void	prof_write(const char *s);
 static void	prof_ctx_merge(prof_ctx_t *ctx, prof_cnt_t *cnt_all,
     size_t *leak_nctx);
 static void	prof_dump_ctx(prof_ctx_t *ctx, prof_bt_t *bt);
+static void	prof_dump_maps(void);
 static void	prof_dump(const char *filename, bool leakcheck);
 static void	prof_dump_filename(char *filename, char v, int64_t vseq);
 static void	prof_fdump(void);
@@ -740,6 +741,54 @@ prof_dump_ctx(prof_ctx_t *ctx, prof_bt_t *bt)
 }
 
 static void
+prof_dump_maps(void)
+{
+	int mfd;
+	char buf[UMAX2S_BUFSIZE];
+	char *s;
+	unsigned i, slen;
+	/*         /proc/<pid>/maps\0 */
+	char mpath[6     + UMAX2S_BUFSIZE
+			      + 5  + 1];
+
+	i = 0;
+
+	s = "/proc/";
+	slen = strlen(s);
+	memcpy(&mpath[i], s, slen);
+	i += slen;
+
+	s = umax2s(getpid(), 10, buf);
+	slen = strlen(s);
+	memcpy(&mpath[i], s, slen);
+	i += slen;
+
+	s = "/maps";
+	slen = strlen(s);
+	memcpy(&mpath[i], s, slen);
+	i += slen;
+
+	mpath[i] = '\0';
+
+	mfd = open(mpath, O_RDONLY);
+	if (mfd != -1) {
+		ssize_t nread;
+
+		prof_write("\nMAPPED_LIBRARIES:\n");
+		nread = 0;
+		do {
+			prof_dump_buf_end += nread;
+			if (prof_dump_buf_end == PROF_DUMP_BUF_SIZE) {
+				/* Make space in prof_dump_buf before read(). */
+				prof_flush();
+			}
+			nread = read(mfd, &prof_dump_buf[prof_dump_buf_end],
+			    PROF_DUMP_BUF_SIZE - prof_dump_buf_end);
+		} while (nread > 0);
+	}
+}
+
+static void
 prof_dump(const char *filename, bool leakcheck)
 {
 	prof_cnt_t cnt_all;
@@ -784,6 +833,9 @@ prof_dump(const char *filename, bool leakcheck)
 	    == false;) {
 		prof_dump_ctx(ctx, bt);
 	}
+
+	/* Dump /proc/<pid>/maps if possible. */
+	prof_dump_maps();
 
 	prof_flush();
 	close(prof_dump_fd);
