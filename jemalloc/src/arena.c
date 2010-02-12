@@ -1076,12 +1076,10 @@ arena_tcache_fill(arena_t *arena, tcache_bin_t *tbin, size_t binind
 	bin->stats.nfills++;
 	bin->stats.nrequests += tbin->tstats.nrequests;
 	if (bin->reg_size <= small_maxclass) {
-		arena->stats.nmalloc_small += (i - tbin->ncached);
 		arena->stats.allocated_small += (i - tbin->ncached) *
 		    bin->reg_size;
 		arena->stats.nmalloc_small += tbin->tstats.nrequests;
 	} else {
-		arena->stats.nmalloc_medium += (i - tbin->ncached);
 		arena->stats.allocated_medium += (i - tbin->ncached) *
 		    bin->reg_size;
 		arena->stats.nmalloc_medium += tbin->tstats.nrequests;
