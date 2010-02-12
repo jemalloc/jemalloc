@@ -1412,7 +1412,8 @@ allocation functions.
 @roff_prof@.It Ev JEMALLOC_PROF_PREFIX
 @roff_prof@If the environment variable
 @roff_prof@.Ev JEMALLOC_PROF_PREFIX
-@roff_prof@is set, use itas the filename prefix for profile dumps; otherwise use
+@roff_prof@is set, use it as the filename prefix for profile dumps; otherwise
+@roff_prof@use
 @roff_prof@.Pa jeprof
 @roff_prof@as the prefix.
 .El
