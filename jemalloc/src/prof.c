@@ -1112,7 +1112,7 @@ prof_boot0(void)
 		opt_prof = true;
 		opt_prof_udump = false;
 		prof_interval = 0;
-	} else
+	} else if (opt_prof)
 		prof_interval = (((uint64_t)1U) << opt_lg_prof_interval);
 }
 
