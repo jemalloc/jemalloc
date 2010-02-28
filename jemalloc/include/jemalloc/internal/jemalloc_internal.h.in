@@ -31,6 +31,7 @@
 #include <dlfcn.h>
 #endif
 
+#define	RB_COMPACT
 #include "jemalloc/internal/rb.h"
 #include "jemalloc/internal/qr.h"
 #include "jemalloc/internal/ql.h"

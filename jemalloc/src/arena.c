@@ -200,8 +200,8 @@ arena_chunk_comp(arena_chunk_t *a, arena_chunk_t *b)
 	return ((a_chunk > b_chunk) - (a_chunk < b_chunk));
 }
 
-/* Wrap red-black tree macros in functions. */
-rb_wrap(static JEMALLOC_ATTR(unused), arena_chunk_tree_dirty_,
+/* Generate red-black tree functions. */
+rb_gen(static JEMALLOC_ATTR(unused), arena_chunk_tree_dirty_,
     arena_chunk_tree_t, arena_chunk_t, link_dirty, arena_chunk_comp)
 
 static inline int
@@ -216,8 +216,8 @@ arena_run_comp(arena_chunk_map_t *a, arena_chunk_map_t *b)
 	return ((a_mapelm > b_mapelm) - (a_mapelm < b_mapelm));
 }
 
-/* Wrap red-black tree macros in functions. */
-rb_wrap(static JEMALLOC_ATTR(unused), arena_run_tree_, arena_run_tree_t,
+/* Generate red-black tree functions. */
+rb_gen(static JEMALLOC_ATTR(unused), arena_run_tree_, arena_run_tree_t,
     arena_chunk_map_t, link, arena_run_comp)
 
 static inline int
@@ -248,8 +248,8 @@ arena_avail_comp(arena_chunk_map_t *a, arena_chunk_map_t *b)
 	return (ret);
 }
 
-/* Wrap red-black tree macros in functions. */
-rb_wrap(static JEMALLOC_ATTR(unused), arena_avail_tree_, arena_avail_tree_t,
+/* Generate red-black tree functions. */
+rb_gen(static JEMALLOC_ATTR(unused), arena_avail_tree_, arena_avail_tree_t,
     arena_chunk_map_t, link, arena_avail_comp)
 
 static inline void
@@ -689,6 +689,18 @@ arena_run_alloc(arena_t *arena, size_t size, bool large, bool zero)
 	return (run);
 }
 
+#ifdef JEMALLOC_DEBUG
+static arena_chunk_t *
+chunks_dirty_iter_cb(arena_chunk_tree_t *tree, arena_chunk_t *chunk, void *arg)
+{
+	size_t *ndirty = (size_t *)arg;
+
+	assert(chunk->dirtied);
+	*ndirty += chunk->ndirty;
+	return (NULL);
+}
+#endif
+
 static void
 arena_purge(arena_t *arena)
 {
@@ -697,11 +709,8 @@ arena_purge(arena_t *arena)
 #ifdef JEMALLOC_DEBUG
 	size_t ndirty = 0;
 
-	rb_foreach_begin(arena_chunk_t, link_dirty, &arena->chunks_dirty,
-	    chunk) {
-		assert(chunk->dirtied);
-		ndirty += chunk->ndirty;
-	} rb_foreach_end(arena_chunk_t, link_dirty, &arena->chunks_dirty, chunk)
+	arena_chunk_tree_dirty_iter(&arena->chunks_dirty, NULL,
+	    chunks_dirty_iter_cb, (void *)&ndirty);
 	assert(ndirty == arena->ndirty);
 #endif
 	assert((arena->nactive >> opt_lg_dirty_mult) < arena->ndirty);

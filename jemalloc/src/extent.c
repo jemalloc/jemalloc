@@ -22,8 +22,8 @@ extent_szad_comp(extent_node_t *a, extent_node_t *b)
 	return (ret);
 }
 
-/* Wrap red-black tree macros in functions. */
-rb_wrap(, extent_tree_szad_, extent_tree_t, extent_node_t, link_szad,
+/* Generate red-black tree functions. */
+rb_gen(, extent_tree_szad_, extent_tree_t, extent_node_t, link_szad,
     extent_szad_comp)
 #endif
 
@@ -36,6 +36,6 @@ extent_ad_comp(extent_node_t *a, extent_node_t *b)
 	return ((a_addr > b_addr) - (a_addr < b_addr));
 }
 
-/* Wrap red-black tree macros in functions. */
-rb_wrap(, extent_tree_ad_, extent_tree_t, extent_node_t, link_ad,
+/* Generate red-black tree functions. */
+rb_gen(, extent_tree_ad_, extent_tree_t, extent_node_t, link_ad,
     extent_ad_comp)
