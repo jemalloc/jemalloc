@@ -194,11 +194,10 @@ a_prefix##reverse_iter(a_rbt_type *rbtree, a_type *start,		\
  * Arguments:
  *
  *   a_attr    : Function attribute for generated functions (ex: static).
- *   a_prefix  : Prefix for generated functions (ex: extree_).
- *   a_rb_type : Type for red-black tree data structure (ex: extree_t).
- *   a_type    : Type for red-black tree node data structure (ex:
- *               extree_node_t).
- *   a_field   : Name of red-black tree node linkage (ex: extree_link).
+ *   a_prefix  : Prefix for generated functions (ex: ex_).
+ *   a_rb_type : Type for red-black tree data structure (ex: ex_t).
+ *   a_type    : Type for red-black tree node data structure (ex: ex_node_t).
+ *   a_field   : Name of red-black tree node linkage (ex: ex_link).
  *   a_cmp     : Node comparison function name, with the following prototype:
  *                 int (a_cmp *)(a_type *a_node, a_type *a_other);
  *                                       ^^^^^^
@@ -218,8 +217,8 @@ a_prefix##reverse_iter(a_rbt_type *rbtree, a_type *start,		\
  *   struct ex_node_s {
  *       rb_node(ex_node_t) ex_link;
  *   };
- *   typedef rb(ex_node_t) ex_t;
- *   rb_gen(static, ex_, ex_t, ex_node_t, ex_link, ex_cmp, 1297, 1301)
+ *   typedef rb_tree(ex_node_t) ex_t;
+ *   rb_gen(static, ex_, ex_t, ex_node_t, ex_link, ex_cmp)
  *
  * The following API is generated:
  *
