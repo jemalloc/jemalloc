@@ -640,6 +640,11 @@ introspection.
 @roff_stats@can be used to access the summation of statistics from all arenas.
 .Bl -ohang
 .\"-----------------------------------------------------------------------------
+.It Sy "version (const char *) r-"
+.Bd -ragged -offset indent -compact
+Return the jemalloc version string.
+.Ed
+.\"-----------------------------------------------------------------------------
 .It Sy "epoch (uint64_t) rw"
 .Bd -ragged -offset indent -compact
 If a value is passed in, refresh the data from which the

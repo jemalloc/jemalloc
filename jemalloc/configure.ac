@@ -563,9 +563,23 @@ AC_RUN_IFELSE([AC_LANG_PROGRAM(
 dnl ============================================================================
 dnl jemalloc configuration.
 dnl 
+
+dnl Set VERSION if source directory has an embedded git repository.
+if test -d "${srcroot}../.git" ; then
+  git describe --long > ${srcroot}VERSION
+fi
 jemalloc_version=`cat ${srcroot}VERSION`
-AC_DEFINE_UNQUOTED([JEMALLOC_VERSION], ["$jemalloc_version"])
+jemalloc_version_major=`echo ${jemalloc_version} | tr ".g-" " " | awk '{print [$]1}'`
+jemalloc_version_minor=`echo ${jemalloc_version} | tr ".g-" " " | awk '{print [$]2}'`
+jemalloc_version_bugfix=`echo ${jemalloc_version} | tr ".g-" " " | awk '{print [$]3}'`
+jemalloc_version_nrev=`echo ${jemalloc_version} | tr ".g-" " " | awk '{print [$]4}'`
+jemalloc_version_gid=`echo ${jemalloc_version} | tr ".g-" " " | awk '{print [$]5}'`
 AC_SUBST([jemalloc_version])
+AC_SUBST([jemalloc_version_major])
+AC_SUBST([jemalloc_version_minor])
+AC_SUBST([jemalloc_version_bugfix])
+AC_SUBST([jemalloc_version_nrev])
+AC_SUBST([jemalloc_version_gid])
 
 dnl ============================================================================
 dnl Configure pthreads.

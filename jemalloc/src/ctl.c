@@ -30,6 +30,7 @@ static bool	ctl_init(void);
 static int	ctl_lookup(const char *name, ctl_node_t const **nodesp,
     size_t *mibp, size_t *depthp);
 
+CTL_PROTO(version)
 CTL_PROTO(epoch)
 #ifdef JEMALLOC_TCACHE
 CTL_PROTO(tcache_flush)
@@ -426,6 +427,7 @@ static const ctl_node_t swap_node[] = {
 #endif
 
 static const ctl_node_t	root_node[] = {
+	{NAME("version"),	CTL(version)},
 	{NAME("epoch"),		CTL(epoch)},
 #ifdef JEMALLOC_TCACHE
 	{NAME("tcache"),	CHILD(tcache)},
@@ -915,6 +917,8 @@ n##_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,	\
 RETURN:									\
 	return (ret);							\
 }
+
+CTL_RO_GEN(version, JEMALLOC_VERSION, const char *)
 
 static int
 epoch_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,

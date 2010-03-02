@@ -14,3 +14,4 @@
 /jemalloc/src/jemalloc\.h
 /jemalloc/src/jemalloc_defs\.h
 /jemalloc/src/*.[od]
+/jemalloc/VERSION
