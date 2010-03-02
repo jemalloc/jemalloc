@@ -1016,9 +1016,10 @@ Total number of large size classes.
 Maximum size supported by this large size class.
 .Ed
 .\"-----------------------------------------------------------------------------
-@roff_prof@.It Sy "prof.dump (void) --"
+@roff_prof@.It Sy "prof.dump (const char *) -w"
 @roff_prof@.Bd -ragged -offset indent -compact
-@roff_prof@Dump a memory profile to a file according to the pattern
+@roff_prof@Dump a memory profile to the specified file, or if NULL is specified,
+@roff_prof@to a file according to the pattern
 @roff_prof@.Pa <prefix>.<pid>.<seq>.m<mseq>.heap ,
 @roff_prof@where
 @roff_prof@.Pa <prefix>

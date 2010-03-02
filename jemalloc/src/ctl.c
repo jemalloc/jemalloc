@@ -830,12 +830,16 @@ ctl_boot(void)
 	}								\
 } while (0)
 
-#define	VOID()	do {							\
-	READONLY();							\
+#define	WRITEONLY()	do {						\
 	if (oldp != NULL || oldlenp != NULL) {				\
 		ret = EPERM;						\
 		goto RETURN;						\
 	}								\
+} while (0)
+
+#define	VOID()	do {							\
+	READONLY();							\
+	WRITEONLY();							\
 } while (0)
 
 #define	READ(v, t)	do {						\
@@ -1167,10 +1171,15 @@ prof_dump_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
     void *newp, size_t newlen)
 {
 	int ret;
+	const char *filename = NULL;
 
-	VOID();
+	WRITEONLY();
+	WRITE(filename, const char *);
 
-	prof_mdump();
+	if (prof_mdump(filename)) {
+		ret = EFAULT;
+		goto RETURN;
+	}
 
 	ret = 0;
 RETURN:

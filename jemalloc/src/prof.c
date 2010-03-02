@@ -99,13 +99,15 @@ static _Unwind_Reason_Code	prof_unwind_callback(
 static void	prof_backtrace(prof_bt_t *bt, unsigned nignore, unsigned max);
 static prof_thr_cnt_t	*prof_lookup(prof_bt_t *bt);
 static void	prof_cnt_set(const void *ptr, prof_thr_cnt_t *cnt);
-static void	prof_flush(void);
-static void	prof_write(const char *s);
+static bool	prof_flush(bool propagate_err);
+static bool	prof_write(const char *s, bool propagate_err);
 static void	prof_ctx_merge(prof_ctx_t *ctx, prof_cnt_t *cnt_all,
     size_t *leak_nctx);
-static void	prof_dump_ctx(prof_ctx_t *ctx, prof_bt_t *bt);
-static void	prof_dump_maps(void);
-static void	prof_dump(const char *filename, bool leakcheck);
+static bool	prof_dump_ctx(prof_ctx_t *ctx, prof_bt_t *bt,
+    bool propagate_err);
+static bool	prof_dump_maps(bool propagate_err);
+static bool	prof_dump(const char *filename, bool leakcheck,
+    bool propagate_err);
 static void	prof_dump_filename(char *filename, char v, int64_t vseq);
 static void	prof_fdump(void);
 static void	prof_bt_hash(const void *key, unsigned minbits, size_t *hash1,
@@ -715,23 +717,30 @@ prof_free(const void *ptr)
 	}
 }
 
-static void
-prof_flush(void)
+static bool
+prof_flush(bool propagate_err)
 {
+	bool ret = false;
 	ssize_t err;
 
 	err = write(prof_dump_fd, prof_dump_buf, prof_dump_buf_end);
 	if (err == -1) {
-		malloc_write4("<jemalloc>",
-		    ": write() failed during heap profile flush", "\n", "");
-		if (opt_abort)
-			abort();
+		if (propagate_err == false) {
+			malloc_write4("<jemalloc>",
+			    ": write() failed during heap profile flush", "\n",
+			    "");
+			if (opt_abort)
+				abort();
+		}
+		ret = true;
 	}
 	prof_dump_buf_end = 0;
+
+	return (ret);
 }
 
-static void
-prof_write(const char *s)
+static bool
+prof_write(const char *s, bool propagate_err)
 {
 	unsigned i, slen, n;
 
@@ -740,7 +749,8 @@ prof_write(const char *s)
 	while (i < slen) {
 		/* Flush the buffer if it is full. */
 		if (prof_dump_buf_end == PROF_DUMP_BUF_SIZE)
-			prof_flush();
+			if (prof_flush(propagate_err) && propagate_err)
+				return (true);
 
 		if (prof_dump_buf_end + slen <= PROF_DUMP_BUF_SIZE) {
 			/* Finish writing. */
@@ -753,6 +763,8 @@ prof_write(const char *s)
 		prof_dump_buf_end += n;
 		i += n;
 	}
+
+	return (false);
 }
 
 static void
@@ -799,31 +811,40 @@ prof_ctx_merge(prof_ctx_t *ctx, prof_cnt_t *cnt_all, size_t *leak_nctx)
 	malloc_mutex_unlock(&ctx->lock);
 }
 
-static void
-prof_dump_ctx(prof_ctx_t *ctx, prof_bt_t *bt)
+static bool
+prof_dump_ctx(prof_ctx_t *ctx, prof_bt_t *bt, bool propagate_err)
 {
 	char buf[UMAX2S_BUFSIZE];
 	unsigned i;
 
-	prof_write(umax2s(ctx->cnt_dump.curobjs, 10, buf));
-	prof_write(": ");
-	prof_write(umax2s(ctx->cnt_dump.curbytes, 10, buf));
-	prof_write(" [");
-	prof_write(umax2s(ctx->cnt_dump.accumobjs, 10, buf));
-	prof_write(": ");
-	prof_write(umax2s(ctx->cnt_dump.accumbytes, 10, buf));
-	prof_write("] @");
+	if (prof_write(umax2s(ctx->cnt_dump.curobjs, 10, buf), propagate_err)
+	    || prof_write(": ", propagate_err)
+	    || prof_write(umax2s(ctx->cnt_dump.curbytes, 10, buf),
+	    propagate_err)
+	    || prof_write(" [", propagate_err)
+	    || prof_write(umax2s(ctx->cnt_dump.accumobjs, 10, buf),
+	    propagate_err)
+	    || prof_write(": ", propagate_err)
+	    || prof_write(umax2s(ctx->cnt_dump.accumbytes, 10, buf),
+	    propagate_err)
+	    || prof_write("] @", propagate_err))
+		return (true);
 
 	for (i = 0; i < bt->len; i++) {
-		prof_write(" 0x");
-		prof_write(umax2s((uintptr_t)bt->vec[i], 16, buf));
+		if (prof_write(" 0x", propagate_err)
+		    || prof_write(umax2s((uintptr_t)bt->vec[i], 16, buf),
+		    propagate_err))
+			return (true);
 	}
 
-	prof_write("\n");
+	if (prof_write("\n", propagate_err))
+		return (true);
+
+	return (false);
 }
 
-static void
-prof_dump_maps(void)
+static bool
+prof_dump_maps(bool propagate_err)
 {
 	int mfd;
 	char buf[UMAX2S_BUFSIZE];
@@ -856,23 +877,29 @@ prof_dump_maps(void)
 	if (mfd != -1) {
 		ssize_t nread;
 
-		prof_write("\nMAPPED_LIBRARIES:\n");
+		if (prof_write("\nMAPPED_LIBRARIES:\n", propagate_err) &&
+		    propagate_err)
+			return (true);
 		nread = 0;
 		do {
 			prof_dump_buf_end += nread;
 			if (prof_dump_buf_end == PROF_DUMP_BUF_SIZE) {
 				/* Make space in prof_dump_buf before read(). */
-				prof_flush();
+				if (prof_flush(propagate_err) && propagate_err)
+					return (true);
 			}
 			nread = read(mfd, &prof_dump_buf[prof_dump_buf_end],
 			    PROF_DUMP_BUF_SIZE - prof_dump_buf_end);
 		} while (nread > 0);
 		close(mfd);
-	}
+	} else
+		return (true);
+
+	return (false);
 }
 
-static void
-prof_dump(const char *filename, bool leakcheck)
+static bool
+prof_dump(const char *filename, bool leakcheck, bool propagate_err)
 {
 	prof_cnt_t cnt_all;
 	size_t tabind;
@@ -884,12 +911,14 @@ prof_dump(const char *filename, bool leakcheck)
 	prof_enter();
 	prof_dump_fd = creat(filename, 0644);
 	if (prof_dump_fd == -1) {
-		malloc_write4("<jemalloc>",
-		    ": creat(\"", filename, "\", 0644) failed\n");
-		if (opt_abort)
-			abort();
+		if (propagate_err == false) {
+			malloc_write4("<jemalloc>",
+			    ": creat(\"", filename, "\", 0644) failed\n");
+			if (opt_abort)
+				abort();
+		}
 		prof_leave();
-		return;
+		goto ERROR;
 	}
 
 	/* Merge per thread profile stats, and sum them in cnt_all. */
@@ -901,32 +930,40 @@ prof_dump(const char *filename, bool leakcheck)
 	}
 
 	/* Dump profile header. */
-	prof_write("heap profile: ");
-	prof_write(umax2s(cnt_all.curobjs, 10, buf));
-	prof_write(": ");
-	prof_write(umax2s(cnt_all.curbytes, 10, buf));
-	prof_write(" [");
-	prof_write(umax2s(cnt_all.accumobjs, 10, buf));
-	prof_write(": ");
-	prof_write(umax2s(cnt_all.accumbytes, 10, buf));
-	if (opt_lg_prof_sample == 0)
-		prof_write("] @ heapprofile\n");
-	else {
-		prof_write("] @ heap_v2/");
-		prof_write(umax2s((uint64_t)1U << opt_lg_prof_sample, 10, buf));
-		prof_write("\n");
+	if (prof_write("heap profile: ", propagate_err)
+	    || prof_write(umax2s(cnt_all.curobjs, 10, buf), propagate_err)
+	    || prof_write(": ", propagate_err)
+	    || prof_write(umax2s(cnt_all.curbytes, 10, buf), propagate_err)
+	    || prof_write(" [", propagate_err)
+	    || prof_write(umax2s(cnt_all.accumobjs, 10, buf), propagate_err)
+	    || prof_write(": ", propagate_err)
+	    || prof_write(umax2s(cnt_all.accumbytes, 10, buf), propagate_err))
+		goto ERROR;
+
+	if (opt_lg_prof_sample == 0) {
+		if (prof_write("] @ heapprofile\n", propagate_err))
+			goto ERROR;
+	} else {
+		if (prof_write("] @ heap_v2/", propagate_err)
+		    || prof_write(umax2s((uint64_t)1U << opt_lg_prof_sample, 10,
+		    buf), propagate_err)
+		    || prof_write("\n", propagate_err))
+			goto ERROR;
 	}
 
 	/* Dump  per ctx profile stats. */
 	for (tabind = 0; ckh_iter(&bt2ctx, &tabind, (void **)&bt, (void **)&ctx)
 	    == false;) {
-		prof_dump_ctx(ctx, bt);
+		if (prof_dump_ctx(ctx, bt, propagate_err))
+			goto ERROR;
 	}
 
 	/* Dump /proc/<pid>/maps if possible. */
-	prof_dump_maps();
+	if (prof_dump_maps(propagate_err))
+		goto ERROR;
 
-	prof_flush();
+	if (prof_flush(propagate_err))
+		goto ERROR;
 	close(prof_dump_fd);
 	prof_leave();
 
@@ -941,6 +978,11 @@ prof_dump(const char *filename, bool leakcheck)
 		malloc_write4("<jemalloc>: Run pprof on \"",
 		    filename, "\" for leak detail\n", "");
 	}
+
+	return (false);
+ERROR:
+	prof_leave();
+	return (true);
 }
 
 #define	DUMP_FILENAME_BUFSIZE	(PATH_MAX+ UMAX2S_BUFSIZE		\
@@ -1034,7 +1076,7 @@ prof_fdump(void)
 	malloc_mutex_lock(&prof_dump_seq_mtx);
 	prof_dump_filename(filename, 'f', 0xffffffffffffffffLLU);
 	malloc_mutex_unlock(&prof_dump_seq_mtx);
-	prof_dump(filename, opt_prof_leak);
+	prof_dump(filename, opt_prof_leak, false);
 }
 
 void
@@ -1056,22 +1098,26 @@ prof_idump(void)
 	prof_dump_filename(filename, 'i', prof_dump_iseq);
 	prof_dump_iseq++;
 	malloc_mutex_unlock(&prof_dump_seq_mtx);
-	prof_dump(filename, false);
+	prof_dump(filename, false, false);
 }
 
-void
-prof_mdump(void)
+bool
+prof_mdump(const char *filename)
 {
-	char filename[DUMP_FILENAME_BUFSIZE];
+	char filename_buf[DUMP_FILENAME_BUFSIZE];
 
-	if (prof_booted == false)
-		return;
+	if (opt_prof == false || prof_booted == false)
+		return (true);
 
-	malloc_mutex_lock(&prof_dump_seq_mtx);
-	prof_dump_filename(filename, 'm', prof_dump_mseq);
-	prof_dump_mseq++;
-	malloc_mutex_unlock(&prof_dump_seq_mtx);
-	prof_dump(filename, false);
+	if (filename == NULL) {
+		/* No filename specified, so automatically generate one. */
+		malloc_mutex_lock(&prof_dump_seq_mtx);
+		prof_dump_filename(filename_buf, 'm', prof_dump_mseq);
+		prof_dump_mseq++;
+		malloc_mutex_unlock(&prof_dump_seq_mtx);
+		filename = filename_buf;
+	}
+	return (prof_dump(filename, false, true));
 }
 
 void
@@ -1093,7 +1139,7 @@ prof_udump(void)
 	prof_dump_filename(filename, 'u', prof_dump_useq);
 	prof_dump_useq++;
 	malloc_mutex_unlock(&prof_dump_seq_mtx);
-	prof_dump(filename, false);
+	prof_dump(filename, false, false);
 }
 
 static void

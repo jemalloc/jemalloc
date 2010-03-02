@@ -144,7 +144,7 @@ void	prof_realloc(const void *ptr, prof_thr_cnt_t *cnt, const void *old_ptr,
     size_t old_size, prof_thr_cnt_t *old_cnt);
 void	prof_free(const void *ptr);
 void	prof_idump(void);
-void	prof_mdump(void);
+bool	prof_mdump(const char *filename);
 void	prof_udump(void);
 void	prof_boot0(void);
 bool	prof_boot1(void);
