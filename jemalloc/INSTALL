@@ -59,6 +59,10 @@ any of the following arguments (not a definitive list) to 'configure':
     variety of system configurations than the default backtracing code, which is
     based on libgcc functionality or gcc intrinsics.
 
+--with-static-libunwind=<libunwind.a>
+    Statically link against the specified libunwind.a rather than dynamically
+    linking with -lunwind.
+
 --disable-tiny
     Disable tiny (sub-quantum-sized) object support.  Technically it is not
     legal for a malloc implementation to allocate objects with less than

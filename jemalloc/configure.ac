@@ -366,6 +366,19 @@ fi
 ],
 [enable_prof_libunwind="0"]
 )
+AC_ARG_WITH([static_libunwind],
+  [AS_HELP_STRING([--with-static-libunwind=<libunwind.a>],
+  [Path to static libunwind library; use rather than dynamically linking])],
+if test "x$with_static_libunwind" = "xno" ; then
+  LUNWIND="-lunwind"
+else
+  if test ! -f "$with_static_libunwind" ; then
+    AC_MSG_ERROR([Static libunwind not found: $with_static_libunwind])
+  fi
+  LUNWIND="$with_static_libunwind"
+fi,
+  LUNWIND="-lunwind"
+)
 dnl Finish prof-related definitions below, once TLS configuration is done.
 
 dnl Enable tiny allocations by default.
@@ -665,7 +678,7 @@ if test "x$enable_prof" = "x1" ; then
   AC_DEFINE([JEMALLOC_PROF], [ ])
   if test "x$enable_prof_libunwind" = "x1" ; then
     AC_CHECK_HEADERS([libunwind.h], , [enable_prof_libunwind="0"])
-    AC_CHECK_LIB([unwind], [backtrace], [LIBS="$LIBS -lunwind"],
+    AC_CHECK_LIB([unwind], [backtrace], [LIBS="$LIBS $LUNWIND"],
                  [enable_prof_libunwind="0"])
     if test "x${enable_prof_libunwind}" = "x1" ; then
       AC_DEFINE([JEMALLOC_PROF_LIBUNWIND], [ ])
