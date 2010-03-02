@@ -25,13 +25,23 @@
  *   uint32_t state      : Seed value.
  *   const uint32_t a, c : See above discussion.
  */
-#define prn(r, lg_range, state, a, c) do {				\
+#define prn32(r, lg_range, state, a, c) do {				\
 	assert(lg_range > 0);						\
 	assert(lg_range <= 32);						\
 									\
 	r = (state * (a)) + (c);					\
 	state = r;							\
 	r >>= (32 - lg_range);						\
+} while (false)
+
+/* Same as prn32(), but 64 bits of pseudo-randomness, using uint64_t. */
+#define prn64(r, lg_range, state, a, c) do {				\
+	assert(lg_range > 0);						\
+	assert(lg_range <= 64);						\
+									\
+	r = (state * (a)) + (c);					\
+	state = r;							\
+	r >>= (64 - lg_range);						\
 } while (false)
 
 #endif /* JEMALLOC_H_TYPES */

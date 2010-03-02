@@ -38,7 +38,7 @@
 .\"     @(#)malloc.3	8.1 (Berkeley) 6/4/93
 .\" $FreeBSD: head/lib/libc/stdlib/malloc.3 182225 2008-08-27 02:00:53Z jasone $
 .\"
-.Dd February 11, 2010
+.Dd March 1, 2010
 .Dt JEMALLOC 3
 .Os
 .Sh NAME
@@ -355,6 +355,9 @@ will disable dirty page purging.
 @roff_prof@.Dq B
 @roff_prof@option for backtrace depth control.
 @roff_prof@See the
+@roff_prof@.Dq S
+@roff_prof@option for probabilistic sampling control.
+@roff_prof@See the
 @roff_prof@.Dq I
 @roff_prof@option for information on interval-triggered profile dumping, and the
 @roff_prof@.Dq U
@@ -464,6 +467,15 @@ Double/halve the size of the maximum size class that is a multiple of the
 quantum (8 or 16 bytes, depending on architecture).
 Above this size, cacheline spacing is used for size classes.
 The default value is 128 bytes.
+@roff_prof@.It S
+@roff_prof@Double/halve the average interval between allocation samples, as
+@roff_prof@measured in bytes of allocation activity.
+@roff_prof@Increasing the sampling interval decreases profile fidelity, but
+@roff_prof@also decreases the computational overhead.
+@roff_prof@The default sample interval is one (i.e. all allocations are
+@roff_prof@sampled).
+@roff_prof@A sample interval greater than one implicitly disables leak
+@roff_prof@reporting.
 @roff_prof@.It U
 @roff_prof@Trigger a memory profile dump every time the total virtual memory
 @roff_prof@exceeds the previous maximum.

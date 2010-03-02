@@ -8,6 +8,9 @@ typedef struct prof_thr_cnt_s prof_thr_cnt_t;
 typedef struct prof_ctx_s prof_ctx_t;
 typedef struct prof_s prof_t;
 
+/* Option defaults. */
+#define	LG_PROF_BT_MAX_DEFAULT		2
+#define	LG_PROF_SAMPLE_DEFAULT		0
 #define	LG_PROF_INTERVAL_DEFAULT	30
 
 /*
@@ -16,7 +19,7 @@ typedef struct prof_s prof_t;
  * a hard-coded number of backtrace frame handlers, so increasing
  * LG_PROF_BT_MAX requires changing prof_backtrace().
  */
-#define	LG_PROF_BT_MAX		7
+#define	LG_PROF_BT_MAX		7 /* >= LG_PROF_BT_MAX_DEFAULT */
 #define	PROF_BT_MAX		(1U << LG_PROF_BT_MAX)
 
 /* Initial hash table size. */
@@ -117,7 +120,8 @@ struct prof_ctx_s {
 
 extern bool	opt_prof;
 extern size_t	opt_lg_prof_bt_max; /* Maximum backtrace depth. */
-extern size_t	opt_lg_prof_interval;
+extern size_t	opt_lg_prof_sample; /* Mean bytes between samples. */
+extern size_t	opt_lg_prof_interval; /* lg(prof_interval). */
 extern bool	opt_prof_udump; /* High-water memory dumping. */
 extern bool	opt_prof_leak; /* Dump leak summary at exit. */
 
@@ -133,7 +137,7 @@ extern uint64_t	prof_interval;
 bool	prof_init(prof_t *prof, bool master);
 void	prof_destroy(prof_t *prof);
 
-prof_thr_cnt_t	*prof_alloc_prep(void);
+prof_thr_cnt_t	*prof_alloc_prep(size_t size);
 prof_thr_cnt_t	*prof_cnt_get(const void *ptr);
 void	prof_malloc(const void *ptr, prof_thr_cnt_t *cnt);
 void	prof_realloc(const void *ptr, prof_thr_cnt_t *cnt, const void *old_ptr,

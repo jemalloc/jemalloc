@@ -647,6 +647,7 @@ if test "x$enable_tls" = "x0" ; then
   enable_prof="0"
 fi
 if test "x$enable_prof" = "x1" ; then
+  LIBS="$LIBS -lm"
   AC_DEFINE([JEMALLOC_PROF], [ ])
   if test "x$enable_prof_libunwind" = "x1" ; then
     AC_CHECK_HEADERS([libunwind.h], , [enable_prof_libunwind="0"])

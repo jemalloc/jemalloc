@@ -582,6 +582,15 @@ MALLOC_OUT:
 						opt_lg_qspace_max++;
 					break;
 #ifdef JEMALLOC_PROF
+				case 's':
+					if (opt_lg_prof_sample > 0)
+						opt_lg_prof_sample--;
+					break;
+				case 'S':
+					if (opt_lg_prof_sample + 1 <
+					    (sizeof(uint64_t) << 3))
+						opt_lg_prof_sample++;
+					break;
 				case 'u':
 					opt_prof_udump = false;
 					break;
@@ -870,7 +879,7 @@ JEMALLOC_P(malloc)(size_t size)
 	}
 
 #ifdef JEMALLOC_PROF
-	if (opt_prof && (cnt = prof_alloc_prep()) == NULL) {
+	if (opt_prof && (cnt = prof_alloc_prep(size)) == NULL) {
 		ret = NULL;
 		goto OOM;
 	}
@@ -955,7 +964,7 @@ JEMALLOC_P(posix_memalign)(void **memptr, size_t alignment, size_t size)
 		}
 
 #ifdef JEMALLOC_PROF
-		if (opt_prof && (cnt = prof_alloc_prep()) == NULL) {
+		if (opt_prof && (cnt = prof_alloc_prep(size)) == NULL) {
 			result = NULL;
 			ret = EINVAL;
 		} else
@@ -1030,7 +1039,7 @@ JEMALLOC_P(calloc)(size_t num, size_t size)
 	}
 
 #ifdef JEMALLOC_PROF
-	if (opt_prof && (cnt = prof_alloc_prep()) == NULL) {
+	if (opt_prof && (cnt = prof_alloc_prep(num_size)) == NULL) {
 		ret = NULL;
 		goto RETURN;
 	}
@@ -1106,7 +1115,7 @@ JEMALLOC_P(realloc)(void *ptr, size_t size)
 		if (opt_prof) {
 			old_size = isalloc(ptr);
 			old_cnt = prof_cnt_get(ptr);
-			if ((cnt = prof_alloc_prep()) == NULL) {
+			if ((cnt = prof_alloc_prep(size)) == NULL) {
 				ret = NULL;
 				goto OOM;
 			}
@@ -1144,7 +1153,7 @@ OOM:
 			ret = NULL;
 		} else {
 #ifdef JEMALLOC_PROF
-			if (opt_prof && (cnt = prof_alloc_prep()) == NULL) {
+			if (opt_prof && (cnt = prof_alloc_prep(size)) == NULL) {
 				ret = NULL;
 			} else
 #endif

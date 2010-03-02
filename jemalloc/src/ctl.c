@@ -69,6 +69,7 @@ CTL_PROTO(opt_lg_tcache_gc_sweep)
 #ifdef JEMALLOC_PROF
 CTL_PROTO(opt_prof)
 CTL_PROTO(opt_lg_prof_bt_max)
+CTL_PROTO(opt_lg_prof_sample)
 CTL_PROTO(opt_lg_prof_interval)
 CTL_PROTO(opt_prof_udump)
 CTL_PROTO(opt_prof_leak)
@@ -234,6 +235,7 @@ static const ctl_node_t opt_node[] = {
 #ifdef JEMALLOC_PROF
 	{NAME("prof"),			CTL(opt_prof)},
 	{NAME("lg_prof_bt_max"),	CTL(opt_lg_prof_bt_max)},
+	{NAME("lg_prof_sample"),	CTL(opt_lg_prof_sample)},
 	{NAME("lg_prof_interval"),	CTL(opt_lg_prof_interval)},
 	{NAME("prof_udump"),		CTL(opt_prof_udump)},
 	{NAME("prof_leak"),		CTL(opt_prof_leak)},
@@ -1066,6 +1068,7 @@ CTL_RO_GEN(opt_lg_tcache_gc_sweep, opt_lg_tcache_gc_sweep, ssize_t)
 #ifdef JEMALLOC_PROF
 CTL_RO_GEN(opt_prof, opt_prof, bool)
 CTL_RO_GEN(opt_lg_prof_bt_max, opt_lg_prof_bt_max, size_t)
+CTL_RO_GEN(opt_lg_prof_sample, opt_lg_prof_sample, size_t)
 CTL_RO_GEN(opt_lg_prof_interval, opt_lg_prof_interval, size_t)
 CTL_RO_GEN(opt_prof_udump, opt_prof_udump, bool)
 CTL_RO_GEN(opt_prof_leak, opt_prof_leak, bool)

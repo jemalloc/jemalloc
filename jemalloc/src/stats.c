@@ -540,13 +540,18 @@ stats_print(void (*write4)(void *, const char *, const char *, const char *,
 			    tcache_nslots && ssv >= 0 ? umax2s(tcache_gc_sweep,
 			    10, s) : "N/A", "\n", "");
 		}
-		if ((err = JEMALLOC_P(mallctl)("opt.lg_prof_bt_max", &sv, &ssz,
-		    NULL, 0)) == 0) {
+		if ((err = JEMALLOC_P(mallctl)("opt.prof", &bv, &bsz, NULL, 0))
+		   == 0 && bv) {
+			xmallctl("opt.lg_prof_bt_max", &sv, &ssz, NULL, 0);
 			write4(w4opaque, "Maximum profile backtrace depth: ",
 			    umax2s((1U << sv), 10, s), "\n", "");
-		}
-		if ((err = JEMALLOC_P(mallctl)("opt.lg_prof_interval", &sv,
-		    &ssz, NULL, 0)) == 0) {
+
+			xmallctl("opt.lg_prof_sample", &sv, &ssz, NULL, 0);
+			write4(w4opaque, "Average profile sample interval: ",
+			    umax2s((1U << sv), 10, s), "", "");
+			write4(w4opaque, " (2^", umax2s(sv, 10, s), ")\n", "");
+
+			xmallctl("opt.lg_prof_interval", &sv, &ssz, NULL, 0);
 			write4(w4opaque, "Average profile dump interval: ",
 			    umax2s((1U << sv), 10, s), "", "");
 			write4(w4opaque, " (2^", umax2s(sv, 10, s), ")\n", "");

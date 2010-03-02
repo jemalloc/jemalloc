@@ -12,11 +12,14 @@
 #include <libunwind.h>
 #endif
 
+#include <math.h>
+
 /******************************************************************************/
 /* Data. */
 
 bool		opt_prof = false;
-size_t		opt_lg_prof_bt_max = 2;
+size_t		opt_lg_prof_bt_max = LG_PROF_BT_MAX_DEFAULT;
+size_t		opt_lg_prof_sample = LG_PROF_SAMPLE_DEFAULT;
 size_t		opt_lg_prof_interval = LG_PROF_INTERVAL_DEFAULT;
 bool		opt_prof_udump = false;
 bool		opt_prof_leak = false;
@@ -51,6 +54,13 @@ static pthread_key_t	bt2cnt_tsd;
 
 /* (1U << opt_lg_prof_bt_max). */
 static unsigned		prof_bt_max;
+
+static __thread uint64_t prof_sample_prn_state
+    JEMALLOC_ATTR(tls_model("initial-exec"));
+static __thread uint64_t prof_sample_threshold
+    JEMALLOC_ATTR(tls_model("initial-exec"));
+static __thread uint64_t prof_sample_accum
+    JEMALLOC_ATTR(tls_model("initial-exec"));
 
 static malloc_mutex_t	prof_dump_seq_mtx;
 static uint64_t		prof_dump_seq;
@@ -500,15 +510,27 @@ prof_lookup(prof_bt_t *bt)
 }
 
 prof_thr_cnt_t *
-prof_alloc_prep(void)
+prof_alloc_prep(size_t size)
 {
 	prof_thr_cnt_t *ret;
 	void *vec[prof_bt_max];
 	prof_bt_t bt;
 
-	bt_init(&bt, vec);
-	prof_backtrace(&bt, 2, prof_bt_max);
-	ret = prof_lookup(&bt);
+	/*
+	 * Determine whether to capture a backtrace based on whether size is
+	 * enough for prof_accum to reach prof_sample_threshold.  However,
+	 * delay updating these variables until prof_{m,re}alloc(), because we
+	 * don't know for sure that the allocation will succeed.
+	 *
+	 * Use subtraction rather than addition to avoid potential integer
+	 * overflow.
+	 */
+	if (size >= prof_sample_threshold - prof_sample_accum) {
+		bt_init(&bt, vec);
+		prof_backtrace(&bt, 2, prof_bt_max);
+		ret = prof_lookup(&bt);
+	} else
+		ret = (prof_thr_cnt_t *)(uintptr_t)1U;
 
 	return (ret);
 }
@@ -550,28 +572,84 @@ prof_cnt_set(const void *ptr, prof_thr_cnt_t *cnt)
 		huge_prof_cnt_set(ptr, cnt);
 }
 
+static inline void
+prof_sample_threshold_update(void)
+{
+	uint64_t r;
+	double u;
+
+	/*
+	 * Compute prof_sample_threshold as a geometrically distributed random
+	 * variable with mean (2^opt_lg_prof_sample).
+	 */
+	prn64(r, 53, prof_sample_prn_state, (uint64_t)1125899906842625LLU,
+	    1058392653243283975);
+	u = (double)r * (1.0/9007199254740992.0L);
+	prof_sample_threshold = (uint64_t)(log(u) /
+	    log(1.0 - (1.0 / (double)((uint64_t)1U << opt_lg_prof_sample))))
+	    + (uint64_t)1U;
+}
+
+static inline void
+prof_sample_accum_update(size_t size)
+{
+
+	if (opt_lg_prof_sample == 0) {
+		/*
+		 * Don't bother with sampling logic, since sampling interval is
+		 * 1.
+		 */
+		return;
+	}
+
+	if (prof_sample_threshold == 0) {
+		/* Initialize.  Seed the prng differently for each thread. */
+		prof_sample_prn_state = (uint64_t)(uintptr_t)&size;
+		prof_sample_threshold_update();
+	}
+
+	/* Take care to avoid integer overflow. */
+	if (size >= prof_sample_threshold - prof_sample_accum) {
+		prof_sample_accum -= (prof_sample_threshold - size);
+		/*
+		 * Compute new geometrically distributed prof_sample_threshold.
+		 */
+		prof_sample_threshold_update();
+		while (prof_sample_accum >= prof_sample_threshold) {
+			prof_sample_accum -= prof_sample_threshold;
+			prof_sample_threshold_update();
+		}
+	} else
+		prof_sample_accum += size;
+}
+
 void
 prof_malloc(const void *ptr, prof_thr_cnt_t *cnt)
 {
 	size_t size = isalloc(ptr);
 
-	prof_cnt_set(ptr, cnt);
+	assert(ptr != NULL);
 
-	cnt->epoch++;
-	/*********/
-	mb_write();
-	/*********/
-	cnt->cnts.curobjs++;
-	cnt->cnts.curbytes += size;
-	cnt->cnts.accumobjs++;
-	cnt->cnts.accumbytes += size;
-	/*********/
-	mb_write();
-	/*********/
-	cnt->epoch++;
-	/*********/
-	mb_write();
-	/*********/
+	prof_cnt_set(ptr, cnt);
+	prof_sample_accum_update(size);
+
+	if ((uintptr_t)cnt > (uintptr_t)1U) {
+		cnt->epoch++;
+		/*********/
+		mb_write();
+		/*********/
+		cnt->cnts.curobjs++;
+		cnt->cnts.curbytes += size;
+		cnt->cnts.accumobjs++;
+		cnt->cnts.accumbytes += size;
+		/*********/
+		mb_write();
+		/*********/
+		cnt->epoch++;
+		/*********/
+		mb_write();
+		/*********/
+	}
 }
 
 void
@@ -580,20 +658,23 @@ prof_realloc(const void *ptr, prof_thr_cnt_t *cnt, const void *old_ptr,
 {
 	size_t size = isalloc(ptr);
 
-	prof_cnt_set(ptr, cnt);
+	if (ptr != NULL) {
+		prof_cnt_set(ptr, cnt);
+		prof_sample_accum_update(size);
+	}
 
-	if (old_cnt != NULL)
+	if ((uintptr_t)old_cnt > (uintptr_t)1U)
 		old_cnt->epoch++;
-	if (cnt != NULL)
+	if ((uintptr_t)cnt > (uintptr_t)1U)
 		cnt->epoch++;
 	/*********/
 	mb_write();
 	/*********/
-	if (old_cnt != NULL) {
+	if ((uintptr_t)old_cnt > (uintptr_t)1U) {
 		old_cnt->cnts.curobjs--;
 		old_cnt->cnts.curbytes -= old_size;
 	}
-	if (cnt != NULL) {
+	if ((uintptr_t)cnt > (uintptr_t)1U) {
 		cnt->cnts.curobjs++;
 		cnt->cnts.curbytes += size;
 		cnt->cnts.accumobjs++;
@@ -602,9 +683,9 @@ prof_realloc(const void *ptr, prof_thr_cnt_t *cnt, const void *old_ptr,
 	/*********/
 	mb_write();
 	/*********/
-	if (old_cnt != NULL)
+	if ((uintptr_t)old_cnt > (uintptr_t)1U)
 		old_cnt->epoch++;
-	if (cnt != NULL)
+	if ((uintptr_t)cnt > (uintptr_t)1U)
 		cnt->epoch++;
 	/*********/
 	mb_write(); /* Not strictly necessary. */
@@ -614,21 +695,24 @@ void
 prof_free(const void *ptr)
 {
 	prof_thr_cnt_t *cnt = prof_cnt_get(ptr);
-	size_t size = isalloc(ptr);
 
-	cnt->epoch++;
-	/*********/
-	mb_write();
-	/*********/
-	cnt->cnts.curobjs--;
-	cnt->cnts.curbytes -= size;
-	/*********/
-	mb_write();
-	/*********/
-	cnt->epoch++;
-	/*********/
-	mb_write();
-	/*********/
+	if ((uintptr_t)cnt > (uintptr_t)1) {
+		size_t size = isalloc(ptr);
+
+		cnt->epoch++;
+		/*********/
+		mb_write();
+		/*********/
+		cnt->cnts.curobjs--;
+		cnt->cnts.curbytes -= size;
+		/*********/
+		mb_write();
+		/*********/
+		cnt->epoch++;
+		/*********/
+		mb_write();
+		/*********/
+	}
 }
 
 static void
@@ -825,7 +909,13 @@ prof_dump(const char *filename, bool leakcheck)
 	prof_write(umax2s(cnt_all.accumobjs, 10, buf));
 	prof_write(": ");
 	prof_write(umax2s(cnt_all.accumbytes, 10, buf));
-	prof_write("] @ heapprofile\n");
+	if (opt_lg_prof_sample == 0)
+		prof_write("] @ heapprofile\n");
+	else {
+		prof_write("] @ heap_v2/");
+		prof_write(umax2s((uint64_t)1U << opt_lg_prof_sample, 10, buf));
+		prof_write("\n");
+	}
 
 	/* Dump  per ctx profile stats. */
 	for (tabind = 0; ckh_iter(&bt2ctx, &tabind, (void **)&bt, (void **)&ctx)
@@ -1103,6 +1193,14 @@ prof_boot0(void)
 	 * opt_prof must be in its final state before any arenas are
 	 * initialized, so this function must be executed early.
 	 */
+
+	if (opt_lg_prof_sample > 0) {
+		/*
+		 * Disable leak checking, since not all allocations will be
+		 * sampled.
+		 */
+		opt_prof_leak = false;
+	}
 
 	if (opt_prof_leak && opt_prof == false) {
 		/*
