@@ -511,6 +511,24 @@ prof_lookup(prof_bt_t *bt)
 	return (ret);
 }
 
+static inline void
+prof_sample_threshold_update(void)
+{
+	uint64_t r;
+	double u;
+
+	/*
+	 * Compute prof_sample_threshold as a geometrically distributed random
+	 * variable with mean (2^opt_lg_prof_sample).
+	 */
+	prn64(r, 53, prof_sample_prn_state, (uint64_t)1125899906842625LLU,
+	    1058392653243283975);
+	u = (double)r * (1.0/9007199254740992.0L);
+	prof_sample_threshold = (uint64_t)(log(u) /
+	    log(1.0 - (1.0 / (double)((uint64_t)1U << opt_lg_prof_sample))))
+	    + (uint64_t)1U;
+}
+
 prof_thr_cnt_t *
 prof_alloc_prep(size_t size)
 {
@@ -518,21 +536,41 @@ prof_alloc_prep(size_t size)
 	void *vec[prof_bt_max];
 	prof_bt_t bt;
 
-	/*
-	 * Determine whether to capture a backtrace based on whether size is
-	 * enough for prof_accum to reach prof_sample_threshold.  However,
-	 * delay updating these variables until prof_{m,re}alloc(), because we
-	 * don't know for sure that the allocation will succeed.
-	 *
-	 * Use subtraction rather than addition to avoid potential integer
-	 * overflow.
-	 */
-	if (size >= prof_sample_threshold - prof_sample_accum) {
+	if (opt_lg_prof_sample == 0) {
+		/*
+		 * Don't bother with sampling logic, since sampling interval is
+		 * 1.
+		 */
 		bt_init(&bt, vec);
 		prof_backtrace(&bt, 2, prof_bt_max);
 		ret = prof_lookup(&bt);
-	} else
-		ret = (prof_thr_cnt_t *)(uintptr_t)1U;
+	} else {
+		if (prof_sample_threshold == 0) {
+			/*
+			 * Initialize.  Seed the prng differently for each
+			 * thread.
+			 */
+			prof_sample_prn_state = (uint64_t)(uintptr_t)&size;
+			prof_sample_threshold_update();
+		}
+
+		/*
+		 * Determine whether to capture a backtrace based on whether
+		 * size is enough for prof_accum to reach
+		 * prof_sample_threshold.  However, delay updating these
+		 * variables until prof_{m,re}alloc(), because we don't know
+		 * for sure that the allocation will succeed.
+		 *
+		 * Use subtraction rather than addition to avoid potential
+		 * integer overflow.
+		 */
+		if (size >= prof_sample_threshold - prof_sample_accum) {
+			bt_init(&bt, vec);
+			prof_backtrace(&bt, 2, prof_bt_max);
+			ret = prof_lookup(&bt);
+		} else
+			ret = (prof_thr_cnt_t *)(uintptr_t)1U;
+	}
 
 	return (ret);
 }
@@ -575,24 +613,6 @@ prof_cnt_set(const void *ptr, prof_thr_cnt_t *cnt)
 }
 
 static inline void
-prof_sample_threshold_update(void)
-{
-	uint64_t r;
-	double u;
-
-	/*
-	 * Compute prof_sample_threshold as a geometrically distributed random
-	 * variable with mean (2^opt_lg_prof_sample).
-	 */
-	prn64(r, 53, prof_sample_prn_state, (uint64_t)1125899906842625LLU,
-	    1058392653243283975);
-	u = (double)r * (1.0/9007199254740992.0L);
-	prof_sample_threshold = (uint64_t)(log(u) /
-	    log(1.0 - (1.0 / (double)((uint64_t)1U << opt_lg_prof_sample))))
-	    + (uint64_t)1U;
-}
-
-static inline void
 prof_sample_accum_update(size_t size)
 {
 
@@ -604,18 +624,10 @@ prof_sample_accum_update(size_t size)
 		return;
 	}
 
-	if (prof_sample_threshold == 0) {
-		/* Initialize.  Seed the prng differently for each thread. */
-		prof_sample_prn_state = (uint64_t)(uintptr_t)&size;
-		prof_sample_threshold_update();
-	}
-
 	/* Take care to avoid integer overflow. */
 	if (size >= prof_sample_threshold - prof_sample_accum) {
 		prof_sample_accum -= (prof_sample_threshold - size);
-		/*
-		 * Compute new geometrically distributed prof_sample_threshold.
-		 */
+		/* Compute new prof_sample_threshold. */
 		prof_sample_threshold_update();
 		while (prof_sample_accum >= prof_sample_threshold) {
 			prof_sample_accum -= prof_sample_threshold;
