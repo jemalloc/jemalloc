@@ -151,9 +151,11 @@ PATH="?"
 
 === Advanced compilation =======================================================
 
-To run integrated regression tests, type:
+To install only parts of jemalloc, use the following targets:
 
-    make check
+    install_include
+    install_lib
+    install_man
 
 To clean up build results to varying degrees, use the following make targets:
 
@@ -174,6 +176,10 @@ LIBDIR="?"
 
 MANDIR="?"
     Use this as the installation prefix for man pages.
+
+DESTDIR="?"
+    Prepend DESTDIR to INCLUDEDIR, LIBDIR, and MANDIR.  This is useful when
+    installing to a different path than was specified via --prefix.
 
 CC="?"
     Use this to invoke the C compiler.

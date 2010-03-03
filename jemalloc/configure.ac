@@ -86,11 +86,12 @@ CFLAGS=$CFLAGS
 AC_PROG_CC
 if test "x$CFLAGS" = "x" ; then
   no_CFLAGS="yes"
-  JE_CFLAGS_APPEND([-std=gnu99])
-  JE_CFLAGS_APPEND([-Wall])
-  JE_CFLAGS_APPEND([-pipe])
-  JE_CFLAGS_APPEND([-g3])
-  JE_CFLAGS_APPEND([-march=native])
+  if test "x$GCC" = "xyes" ; then
+    JE_CFLAGS_APPEND([-std=gnu99])
+    JE_CFLAGS_APPEND([-Wall])
+    JE_CFLAGS_APPEND([-pipe])
+    JE_CFLAGS_APPEND([-g3])
+  fi
 fi
 dnl Append EXTRA_CFLAGS to CFLAGS, if defined.
 if test "x$EXTRA_CFLAGS" != "x" ; then
@@ -305,7 +306,7 @@ if test "x$enable_debug" = "x0" -a "x$no_CFLAGS" = "xyes" ; then
     if test "x$GCC" = "xyes" ; then
       JE_CFLAGS_APPEND([-O3])
       JE_CFLAGS_APPEND([-funroll-loops])
-      JE_CFLAGS_APPEND([-fomit-frame-pointer])
+      JE_CFLAGS_APPEND([-march=native])
     else
       JE_CFLAGS_APPEND([-O])
     fi
@@ -678,8 +679,12 @@ if test "x$enable_prof" = "x1" ; then
   AC_DEFINE([JEMALLOC_PROF], [ ])
   if test "x$enable_prof_libunwind" = "x1" ; then
     AC_CHECK_HEADERS([libunwind.h], , [enable_prof_libunwind="0"])
-    AC_CHECK_LIB([unwind], [backtrace], [LIBS="$LIBS $LUNWIND"],
-                 [enable_prof_libunwind="0"])
+    if test "x$LUNWIND" = "x-lunwind" ; then
+      AC_CHECK_LIB([unwind], [backtrace], [LIBS="$LIBS $LUNWIND"],
+                   [enable_prof_libunwind="0"])
+    else
+      LIBS="$LIBS $LUNWIND"
+    fi
     if test "x${enable_prof_libunwind}" = "x1" ; then
       AC_DEFINE([JEMALLOC_PROF_LIBUNWIND], [ ])
     fi

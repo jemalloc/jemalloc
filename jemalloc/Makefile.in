@@ -11,9 +11,10 @@ SHELL := /bin/sh
 CC := @CC@
 
 # Configuration parameters.
-INCLUDEDIR := @INCLUDEDIR@
-LIBDIR := @LIBDIR@
-MANDIR := @MANDIR@
+DESTDIR =
+INCLUDEDIR := $(DESTDIR)@INCLUDEDIR@
+LIBDIR := $(DESTDIR)@LIBDIR@
+MANDIR := $(DESTDIR)@MANDIR@
 
 # Build parameters.
 CPPFLAGS := @CPPFLAGS@ -I@srcroot@include -I@objroot@include
@@ -32,8 +33,8 @@ endif
 REV := 0
 
 # Lists of files.
-CHDRS := @objroot@include/jemalloc@install_suffix@.h \
-	@objroot@include/jemalloc_defs@install_suffix@.h
+CHDRS := @objroot@include/jemalloc/jemalloc@install_suffix@.h \
+	@objroot@include/jemalloc/jemalloc_defs@install_suffix@.h
 CSRCS := @srcroot@src/jemalloc.c @srcroot@src/arena.c @srcroot@src/base.c \
 	@srcroot@src/chunk.c @srcroot@src/chunk_dss.c \
 	@srcroot@src/chunk_mmap.c @srcroot@src/chunk_swap.c @srcroot@src/ckh.c \
@@ -62,25 +63,31 @@ all: $(DSOS)
 
 $(DSOS): $(CSRCS:@srcroot@%.c=@objroot@%.o)
 	@mkdir -p $(@D)
-	$(CC) -shared -o $@ $+ $(LDFLAGS) $(LIBS)
+	$(CC) -shared -Wl,-soname,libjemalloc@install_suffix@.so.$(REV) -o $@ $+ $(LDFLAGS) $(LIBS)
 	ln -sf libjemalloc@install_suffix@.so.$(REV) lib/libjemalloc@install_suffix@.so
 	ar crus @objroot@lib/libjemalloc@install_suffix@_pic.a $+
 
-install:
+install_include:
 	install -d $(INCLUDEDIR)/jemalloc
 	@for h in $(CHDRS); do \
 	echo "install -m 644 $$h $(INCLUDEDIR)/jemalloc"; \
 	install -m 644 $$h $(INCLUDEDIR)/jemalloc; \
 done
+
+install_lib: $(DSOS)
 	install -d $(LIBDIR)
 	install -m 755 @objroot@lib/libjemalloc@install_suffix@.so.$(REV) $(LIBDIR)
 	ln -sf libjemalloc@install_suffix@.so.$(REV) $(LIBDIR)/libjemalloc@install_suffix@.so
 	install -m 755 @objroot@lib/libjemalloc@install_suffix@_pic.a $(LIBDIR)
+
+install_man:
 	install -d $(MANDIR)/man3
 	@for m in $(MAN3); do \
 	echo "install -m 644 $$m $(MANDIR)/man3"; \
 	install -m 644 $$m $(MANDIR)/man3; \
 done
+
+install: install_include install_lib install_man
 
 check:
 
