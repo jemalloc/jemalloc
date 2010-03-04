@@ -17,8 +17,7 @@ extern "C" {
 #endif
 
 extern const char	*JEMALLOC_P(malloc_options);
-extern void		(*JEMALLOC_P(malloc_message))(void *, const char *p1,
-    const char *p2, const char *p3, const char *p4);
+extern void		(*JEMALLOC_P(malloc_message))(void *, const char *);
 
 void	*JEMALLOC_P(malloc)(size_t size) JEMALLOC_ATTR(malloc);
 void	*JEMALLOC_P(calloc)(size_t num, size_t size) JEMALLOC_ATTR(malloc);
@@ -28,9 +27,8 @@ void	*JEMALLOC_P(realloc)(void *ptr, size_t size);
 void	JEMALLOC_P(free)(void *ptr);
 
 size_t	JEMALLOC_P(malloc_usable_size)(const void *ptr);
-void	JEMALLOC_P(malloc_stats_print)(void (*write4)(void *, const char *,
-    const char *, const char *, const char *), void *w4opaque,
-    const char *opts);
+void	JEMALLOC_P(malloc_stats_print)(void (*write_cb)(void *, const char *),
+    void *cbopaque, const char *opts);
 int	JEMALLOC_P(mallctl)(const char *name, void *oldp, size_t *oldlenp,
     void *newp, size_t newlen);
 int	JEMALLOC_P(mallctlnametomib)(const char *name, size_t *mibp,

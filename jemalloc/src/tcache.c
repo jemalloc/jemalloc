@@ -325,8 +325,8 @@ tcache_boot(void)
 	if (tcache_nslots != 0) {
 		if (pthread_key_create(&tcache_tsd, tcache_thread_cleanup) !=
 		    0) {
-			malloc_write4("<jemalloc>",
-			    ": Error in pthread_key_create()\n", "", "");
+			malloc_write(
+			    "<jemalloc>: Error in pthread_key_create()\n");
 			abort();
 		}
 	}

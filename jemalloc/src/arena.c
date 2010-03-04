@@ -2326,8 +2326,9 @@ arena_boot(void)
 	 */
 	if (mbin0 > 256) {
 	    char line_buf[UMAX2S_BUFSIZE];
-	    malloc_write4("<jemalloc>: Too many small size classes (",
-	        umax2s(mbin0, 10, line_buf), " > max 256)\n", "");
+	    malloc_write("<jemalloc>: Too many small size classes (");
+	    malloc_write(umax2s(mbin0, 10, line_buf));
+	    malloc_write(" > max 256)\n");
 	    abort();
 	}
 

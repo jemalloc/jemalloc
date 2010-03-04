@@ -71,7 +71,7 @@
 .Ft size_t
 .Fn @jemalloc_prefix@malloc_usable_size "const void *ptr"
 .Ft void
-.Fn @jemalloc_prefix@malloc_stats_print "void (*write4)(void *" "const char *" "const char *" "const char *" "const char *)" "const char *opts"
+.Fn @jemalloc_prefix@malloc_stats_print "void (*write_cb)(void *" "const char *)" "const char *opts"
 .Ft int
 .Fn @jemalloc_prefix@mallctl "const char *name" "void *oldp" "size_t *oldlenp" "void *newp" "size_t newlen"
 .Ft int
@@ -81,7 +81,7 @@
 .Ft const char *
 .Va @jemalloc_prefix@malloc_options ;
 .Ft void
-.Fn \*(lp*@jemalloc_prefix@malloc_message\*(rp "void *w4opaque" "const char *p1" "const char *p2" "const char *p3" "const char *p4"
+.Fn \*(lp*@jemalloc_prefix@malloc_message\*(rp "void *cbopaque" "const char *s"
 .Sh DESCRIPTION
 The
 .Fn @jemalloc_prefix@malloc
@@ -178,15 +178,15 @@ implementation-dependent.
 The
 .Fn @jemalloc_prefix@malloc_stats_print
 function writes human-readable summary statistics via the
-.Fa write4
+.Fa write_cb
 callback function pointer and
-.Fa w4opaque
+.Fa cbopaque
 data passed to
-.Fn write4 ,
+.Fn write_cb ,
 or
 .Fn @jemalloc_prefix@malloc_message
 if
-.Fa write4
+.Fa write_cb
 is
 .Dv NULL .
 This function can be called repeatedly.
@@ -1315,12 +1315,12 @@ strings forming the errors and warnings if for some reason the
 file descriptor is not suitable for this.
 .Va @jemalloc_prefix@malloc_message
 takes the
-.Fa w4opaque
+.Fa cbopaque
 pointer argument that is
 .Dv NULL
 unless overridden by the arguments in a call to
 .Fn @jemalloc_prefix@malloc_stats_print ,
-followed by four string pointers.
+followed by a string pointer.
 Please note that doing anything which tries to allocate memory in this function
 is likely to result in a crash or deadlock.
 .Pp

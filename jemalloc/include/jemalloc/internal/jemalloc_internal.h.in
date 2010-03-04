@@ -36,8 +36,7 @@
 #include "jemalloc/internal/qr.h"
 #include "jemalloc/internal/ql.h"
 
-extern void	(*JEMALLOC_P(malloc_message))(void *w4opaque, const char *p1,
-    const char *p2, const char *p3, const char *p4);
+extern void	(*JEMALLOC_P(malloc_message))(void *wcbopaque, const char *s);
 
 /*
  * Define a custom assert() in order to reduce the chances of deadlock during
@@ -47,10 +46,14 @@ extern void	(*JEMALLOC_P(malloc_message))(void *w4opaque, const char *p1,
 #  define assert(e) do {						\
 	if (!(e)) {							\
 		char line_buf[UMAX2S_BUFSIZE];				\
-		malloc_write4("<jemalloc>: ", __FILE__, ":",		\
-		    umax2s(__LINE__, 10, line_buf));			\
-		malloc_write4(": Failed assertion: ", "\"", #e,		\
-		    "\"\n");						\
+		malloc_write("<jemalloc>: ");				\
+		malloc_write(__FILE__);					\
+		malloc_write(":");					\
+		malloc_write(umax2s(__LINE__, 10, line_buf));		\
+		malloc_write(": Failed assertion: ");			\
+		malloc_write("\"");					\
+		malloc_write(#e);					\
+		malloc_write("\"\n");					\
 		abort();						\
 	}								\
 } while (0)
@@ -282,8 +285,7 @@ arena_t	*choose_arena_hard(void);
 #include "jemalloc/internal/huge.h"
 
 #ifndef JEMALLOC_ENABLE_INLINE
-void	malloc_write4(const char *p1, const char *p2, const char *p3,
-    const char *p4);
+void	malloc_write(const char *s);
 arena_t	*choose_arena(void);
 #endif
 
@@ -293,10 +295,10 @@ arena_t	*choose_arena(void);
  * JEMALLOC_P(malloc_message)(...) throughout the code.
  */
 JEMALLOC_INLINE void
-malloc_write4(const char *p1, const char *p2, const char *p3, const char *p4)
+malloc_write(const char *s)
 {
 
-	JEMALLOC_P(malloc_message)(NULL, p1, p2, p3, p4);
+	JEMALLOC_P(malloc_message)(NULL, s);
 }
 
 /*

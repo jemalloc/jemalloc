@@ -738,9 +738,8 @@ prof_flush(bool propagate_err)
 	err = write(prof_dump_fd, prof_dump_buf, prof_dump_buf_end);
 	if (err == -1) {
 		if (propagate_err == false) {
-			malloc_write4("<jemalloc>",
-			    ": write() failed during heap profile flush", "\n",
-			    "");
+			malloc_write("<jemalloc>: write() failed during heap "
+			    "profile flush\n");
 			if (opt_abort)
 				abort();
 		}
@@ -924,8 +923,9 @@ prof_dump(const char *filename, bool leakcheck, bool propagate_err)
 	prof_dump_fd = creat(filename, 0644);
 	if (prof_dump_fd == -1) {
 		if (propagate_err == false) {
-			malloc_write4("<jemalloc>",
-			    ": creat(\"", filename, "\", 0644) failed\n");
+			malloc_write("<jemalloc>: creat(\"");
+			malloc_write(filename);
+			malloc_write("\", 0644) failed\n");
 			if (opt_abort)
 				abort();
 		}
@@ -980,15 +980,17 @@ prof_dump(const char *filename, bool leakcheck, bool propagate_err)
 	prof_leave();
 
 	if (leakcheck && cnt_all.curbytes != 0) {
-		malloc_write4("<jemalloc>: Leak summary: ",
-		    umax2s(cnt_all.curbytes, 10, buf),
-		    (cnt_all.curbytes != 1) ? " bytes" : " byte", ", ");
-		malloc_write4(umax2s(cnt_all.curobjs, 10, buf),
-		    (cnt_all.curobjs != 1) ? " objects" : " object", ", ", "");
-		malloc_write4(umax2s(leak_nctx, 10, buf),
-		    (leak_nctx != 1) ? " contexts" : " context", "\n", "");
-		malloc_write4("<jemalloc>: Run pprof on \"",
-		    filename, "\" for leak detail\n", "");
+		malloc_write("<jemalloc>: Leak summary: ");
+		malloc_write(umax2s(cnt_all.curbytes, 10, buf));
+		malloc_write((cnt_all.curbytes != 1) ? " bytes, " : " byte, ");
+		malloc_write(umax2s(cnt_all.curobjs, 10, buf));
+		malloc_write((cnt_all.curobjs != 1) ? " objects, " :
+		    " object, ");
+		malloc_write(umax2s(leak_nctx, 10, buf));
+		malloc_write((leak_nctx != 1) ? " contexts\n" : " context\n");
+		malloc_write("<jemalloc>: Run pprof on \"");
+		malloc_write(filename);
+		malloc_write("\" for leak detail\n");
 	}
 
 	return (false);
@@ -1284,8 +1286,8 @@ prof_boot1(void)
 			return (true);
 		if (pthread_key_create(&bt2cnt_tsd, bt2cnt_thread_cleanup)
 		    != 0) {
-			malloc_write4("<jemalloc>",
-			    ": Error in pthread_key_create()\n", "", "");
+			malloc_write(
+			    "<jemalloc>: Error in pthread_key_create()\n");
 			abort();
 		}
 
@@ -1300,8 +1302,7 @@ prof_boot1(void)
 		enq_udump = false;
 
 		if (atexit(prof_fdump) != 0) {
-			malloc_write4("<jemalloc>", ": Error in atexit()\n", "",
-			    "");
+			malloc_write("<jemalloc>: Error in atexit()\n");
 			if (opt_abort)
 				abort();
 		}

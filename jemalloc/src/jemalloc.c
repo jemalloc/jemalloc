@@ -151,8 +151,7 @@ static int	opt_narenas_lshift = 0;
 /******************************************************************************/
 /* Function prototypes for non-inline static functions. */
 
-static void	wrtmessage(void *w4opaque, const char *p1, const char *p2,
-    const char *p3, const char *p4);
+static void	wrtmessage(void *cbopaque, const char *s);
 static void	stats_print_atexit(void);
 static unsigned	malloc_ncpus(void);
 static bool	malloc_init_hard(void);
@@ -168,20 +167,14 @@ JEMALLOC_ATTR(visibility("hidden"))
 static
 #endif
 void
-wrtmessage(void *w4opaque, const char *p1, const char *p2, const char *p3,
-    const char *p4)
+wrtmessage(void *cbopaque, const char *s)
 {
 
-	if (write(STDERR_FILENO, p1, strlen(p1)) < 0
-	    || write(STDERR_FILENO, p2, strlen(p2)) < 0
-	    || write(STDERR_FILENO, p3, strlen(p3)) < 0
-	    || write(STDERR_FILENO, p4, strlen(p4)) < 0)
-		return;
+	write(STDERR_FILENO, s, strlen(s));
 }
 
-void	(*JEMALLOC_P(malloc_message))(void *, const char *p1, const char *p2,
-    const char *p3, const char *p4) JEMALLOC_ATTR(visibility("default")) =
-    wrtmessage;
+void	(*JEMALLOC_P(malloc_message))(void *, const char *s)
+    JEMALLOC_ATTR(visibility("default")) = wrtmessage;
 
 /******************************************************************************/
 /*
@@ -209,7 +202,7 @@ arenas_extend(unsigned ind)
 	 * by using arenas[0].  In practice, this is an extremely unlikely
 	 * failure.
 	 */
-	malloc_write4("<jemalloc>", ": Error initializing arena\n", "", "");
+	malloc_write("<jemalloc>: Error initializing arena\n");
 	if (opt_abort)
 		abort();
 
@@ -627,10 +620,11 @@ MALLOC_OUT:
 
 					cbuf[0] = opts[j];
 					cbuf[1] = '\0';
-					malloc_write4("<jemalloc>",
-					    ": Unsupported character "
-					    "in malloc options: '", cbuf,
-					    "'\n");
+					malloc_write(
+					    "<jemalloc>: Unsupported character "
+					    "in malloc options: '");
+					malloc_write(cbuf);
+					malloc_write("'\n");
 				}
 				}
 			}
@@ -640,8 +634,7 @@ MALLOC_OUT:
 	/* Register fork handlers. */
 	if (pthread_atfork(jemalloc_prefork, jemalloc_postfork,
 	    jemalloc_postfork) != 0) {
-		malloc_write4("<jemalloc>", ": Error in pthread_atfork()\n", "",
-		    "");
+		malloc_write("<jemalloc>: Error in pthread_atfork()\n");
 		if (opt_abort)
 			abort();
 	}
@@ -654,8 +647,7 @@ MALLOC_OUT:
 	if (opt_stats_print) {
 		/* Print statistics at exit. */
 		if (atexit(stats_print_atexit) != 0) {
-			malloc_write4("<jemalloc>", ": Error in atexit()\n", "",
-			    "");
+			malloc_write("<jemalloc>: Error in atexit()\n");
 			if (opt_abort)
 				abort();
 		}
@@ -866,9 +858,8 @@ JEMALLOC_P(malloc)(size_t size)
 		else {
 #  ifdef JEMALLOC_XMALLOC
 			if (opt_xmalloc) {
-				malloc_write4("<jemalloc>",
-				    ": Error in malloc(): invalid size 0\n", "",
-				    "");
+				malloc_write("<jemalloc>: Error in malloc(): "
+				    "invalid size 0\n");
 				abort();
 			}
 #  endif
@@ -891,9 +882,8 @@ OOM:
 	if (ret == NULL) {
 #ifdef JEMALLOC_XMALLOC
 		if (opt_xmalloc) {
-			malloc_write4("<jemalloc>",
-			    ": Error in malloc(): out of memory\n", "",
-			    "");
+			malloc_write("<jemalloc>: Error in malloc(): "
+			    "out of memory\n");
 			abort();
 		}
 #endif
@@ -933,9 +923,9 @@ JEMALLOC_P(posix_memalign)(void **memptr, size_t alignment, size_t size)
 			else {
 #  ifdef JEMALLOC_XMALLOC
 				if (opt_xmalloc) {
-					malloc_write4("<jemalloc>",
-					    ": Error in posix_memalign(): "
-					    "invalid size 0\n", "", "");
+					malloc_write("<jemalloc>: Error in "
+					    "posix_memalign(): invalid size "
+					    "0\n");
 					abort();
 				}
 #  endif
@@ -952,9 +942,8 @@ JEMALLOC_P(posix_memalign)(void **memptr, size_t alignment, size_t size)
 		    || alignment < sizeof(void *)) {
 #ifdef JEMALLOC_XMALLOC
 			if (opt_xmalloc) {
-				malloc_write4("<jemalloc>",
-				    ": Error in posix_memalign(): "
-				    "invalid alignment\n", "", "");
+				malloc_write("<jemalloc>: Error in "
+				    "posix_memalign(): invalid alignment\n");
 				abort();
 			}
 #endif
@@ -976,9 +965,8 @@ JEMALLOC_P(posix_memalign)(void **memptr, size_t alignment, size_t size)
 	if (result == NULL) {
 #ifdef JEMALLOC_XMALLOC
 		if (opt_xmalloc) {
-			malloc_write4("<jemalloc>",
-			": Error in posix_memalign(): out of memory\n",
-			"", "");
+			malloc_write("<jemalloc>: Error in posix_memalign(): "
+			    "out of memory\n");
 			abort();
 		}
 #endif
@@ -1051,9 +1039,8 @@ RETURN:
 	if (ret == NULL) {
 #ifdef JEMALLOC_XMALLOC
 		if (opt_xmalloc) {
-			malloc_write4("<jemalloc>",
-			    ": Error in calloc(): out of memory\n", "",
-			    "");
+			malloc_write("<jemalloc>: Error in calloc(): out of "
+			    "memory\n");
 			abort();
 		}
 #endif
@@ -1130,9 +1117,8 @@ OOM:
 		if (ret == NULL) {
 #ifdef JEMALLOC_XMALLOC
 			if (opt_xmalloc) {
-				malloc_write4("<jemalloc>",
-				    ": Error in realloc(): out of "
-				    "memory\n", "", "");
+				malloc_write("<jemalloc>: Error in realloc(): "
+				    "out of memory\n");
 				abort();
 			}
 #endif
@@ -1163,9 +1149,8 @@ OOM:
 		if (ret == NULL) {
 #ifdef JEMALLOC_XMALLOC
 			if (opt_xmalloc) {
-				malloc_write4("<jemalloc>",
-				    ": Error in realloc(): out of "
-				    "memory\n", "", "");
+				malloc_write("<jemalloc>: Error in realloc(): "
+				    "out of memory\n");
 				abort();
 			}
 #endif
@@ -1239,11 +1224,11 @@ JEMALLOC_P(malloc_swap_enable)(const int *fds, unsigned nfds, int prezeroed)
 
 JEMALLOC_ATTR(visibility("default"))
 void
-JEMALLOC_P(malloc_stats_print)(void (*write4)(void *, const char *,
-    const char *, const char *, const char *), void *w4opaque, const char *opts)
+JEMALLOC_P(malloc_stats_print)(void (*write_cb)(void *, const char *),
+    void *cbopaque, const char *opts)
 {
 
-	stats_print(write4, w4opaque, opts);
+	stats_print(write_cb, cbopaque, opts);
 }
 
 JEMALLOC_ATTR(visibility("default"))

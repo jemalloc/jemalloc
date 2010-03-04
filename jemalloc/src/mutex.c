@@ -28,9 +28,8 @@ pthread_create_once(void)
 
 	pthread_create_fptr = dlsym(RTLD_NEXT, "pthread_create");
 	if (pthread_create_fptr == NULL) {
-		malloc_write4("<jemalloc>",
-		    ": Error in dlsym(RTLD_NEXT, \"pthread_create\")\n", "",
-		    "");
+		malloc_write("<jemalloc>: Error in dlsym(RTLD_NEXT, "
+		    "\"pthread_create\")\n");
 		abort();
 	}
 
