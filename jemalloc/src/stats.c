@@ -415,6 +415,7 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 	write_cb(cbopaque, "___ Begin jemalloc statistics ___\n");
 	if (general) {
 		int err;
+		const char *cpv;
 		bool bv;
 		unsigned uv;
 		ssize_t ssv;
@@ -423,6 +424,10 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		bsz = sizeof(bool);
 		ssz = sizeof(size_t);
 
+		CTL_GET("version", &cpv, const char *);
+		write_cb(cbopaque, "Version: ");
+		write_cb(cbopaque, cpv);
+		write_cb(cbopaque, "\n");
 		CTL_GET("config.debug", &bv, bool);
 		write_cb(cbopaque, "Assertions ");
 		write_cb(cbopaque, bv ? "enabled" : "disabled");
