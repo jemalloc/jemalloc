@@ -25,6 +25,7 @@ bool	malloc_mutex_init(malloc_mutex_t *mutex);
 
 #ifndef JEMALLOC_ENABLE_INLINE
 void	malloc_mutex_lock(malloc_mutex_t *mutex);
+bool	malloc_mutex_trylock(malloc_mutex_t *mutex);
 void	malloc_mutex_unlock(malloc_mutex_t *mutex);
 #endif
 
@@ -35,6 +36,16 @@ malloc_mutex_lock(malloc_mutex_t *mutex)
 
 	if (isthreaded)
 		pthread_mutex_lock(mutex);
+}
+
+JEMALLOC_INLINE bool
+malloc_mutex_trylock(malloc_mutex_t *mutex)
+{
+
+	if (isthreaded)
+		return (pthread_mutex_trylock(mutex) != 0);
+	else
+		return (false);
 }
 
 JEMALLOC_INLINE void

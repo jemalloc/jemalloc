@@ -38,7 +38,7 @@
 .\"     @(#)malloc.3	8.1 (Berkeley) 6/4/93
 .\" $FreeBSD: head/lib/libc/stdlib/malloc.3 182225 2008-08-27 02:00:53Z jasone $
 .\"
-.Dd March 1, 2010
+.Dd March 4, 2010
 .Dt JEMALLOC 3
 .Os
 .Sh NAME
@@ -333,7 +333,8 @@ The default value is 512 bytes.
 .It D
 Halve/double the per-arena minimum ratio of active to dirty pages.
 Some dirty unused pages may be allowed to accumulate, within the limit set by
-the ratio, before informing the kernel about at least half of those pages via
+the ratio (or one chunk worth of dirty pages, whichever is greater), before
+informing the kernel about some of those pages via
 .Xr madvise 2 .
 This provides the kernel with sufficient information to recycle dirty pages if
 physical memory becomes scarce and the pages remain unused.

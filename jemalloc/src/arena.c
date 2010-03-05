@@ -27,6 +27,9 @@ size_t		medium_max;
 size_t		lg_mspace;
 size_t		mspace_mask;
 
+/* Used to prevent threads from concurrently calling madvise(2). */
+static malloc_mutex_t	purge_lock;
+
 /*
  * const_small_size2bin is a static constant lookup table that in the common
  * case can be used as-is for small_size2bin.  For dynamically linked programs,
@@ -189,22 +192,6 @@ static bool	small_size2bin_init_hard(void);
 /******************************************************************************/
 
 static inline int
-arena_chunk_comp(arena_chunk_t *a, arena_chunk_t *b)
-{
-	uintptr_t a_chunk = (uintptr_t)a;
-	uintptr_t b_chunk = (uintptr_t)b;
-
-	assert(a != NULL);
-	assert(b != NULL);
-
-	return ((a_chunk > b_chunk) - (a_chunk < b_chunk));
-}
-
-/* Generate red-black tree functions. */
-rb_gen(static JEMALLOC_ATTR(unused), arena_chunk_tree_dirty_,
-    arena_chunk_tree_t, arena_chunk_t, link_dirty, arena_chunk_comp)
-
-static inline int
 arena_run_comp(arena_chunk_map_t *a, arena_chunk_map_t *b)
 {
 	uintptr_t a_mapelm = (uintptr_t)a;
@@ -339,14 +326,13 @@ arena_run_rc_decr(arena_run_t *run, arena_bin_t *bin, const void *ptr)
 
 	if (dirtier) {
 		if (chunk->dirtied == false) {
-			arena_chunk_tree_dirty_insert(&arena->chunks_dirty,
-			    chunk);
+			ql_tail_insert(&arena->chunks_dirty, chunk, link_dirty);
 			chunk->dirtied = true;
 		}
 
 		/* Enforce opt_lg_dirty_mult. */
-		if (opt_lg_dirty_mult >= 0 && (arena->nactive >>
-		    opt_lg_dirty_mult) < arena->ndirty)
+		if (opt_lg_dirty_mult >= 0 && arena->ndirty > chunk_npages &&
+		    (arena->nactive >> opt_lg_dirty_mult) < arena->ndirty)
 			arena_purge(arena);
 	}
 }
@@ -595,6 +581,7 @@ arena_chunk_alloc(arena_t *arena)
 #endif
 
 		chunk->arena = arena;
+		ql_elm_new(chunk, link_dirty);
 		chunk->dirtied = false;
 
 		/*
@@ -630,8 +617,8 @@ arena_chunk_dealloc(arena_t *arena, arena_chunk_t *chunk)
 
 	if (arena->spare != NULL) {
 		if (arena->spare->dirtied) {
-			arena_chunk_tree_dirty_remove(
-			    &chunk->arena->chunks_dirty, arena->spare);
+			ql_remove(&chunk->arena->chunks_dirty, arena->spare,
+			    link_dirty);
 			arena->ndirty -= arena->spare->ndirty;
 		}
 		chunk_dealloc((void *)arena->spare, chunksize);
@@ -641,10 +628,8 @@ arena_chunk_dealloc(arena_t *arena, arena_chunk_t *chunk)
 	}
 
 	/*
-	 * Remove run from runs_avail, regardless of whether this chunk
-	 * will be cached, so that the arena does not use it.  Dirty page
-	 * flushing only uses the chunks_dirty tree, so leaving this chunk in
-	 * the chunks_* trees is sufficient for that purpose.
+	 * Remove run from runs_avail, regardless of whether this chunk will be
+	 * cached, so that the arena does not use it.
 	 */
 	arena_avail_tree_remove(&arena->runs_avail,
 	    &chunk->map[arena_chunk_header_npages]);
@@ -689,30 +674,21 @@ arena_run_alloc(arena_t *arena, size_t size, bool large, bool zero)
 	return (run);
 }
 
-#ifdef JEMALLOC_DEBUG
-static arena_chunk_t *
-chunks_dirty_iter_cb(arena_chunk_tree_t *tree, arena_chunk_t *chunk, void *arg)
-{
-	size_t *ndirty = (size_t *)arg;
-
-	assert(chunk->dirtied);
-	*ndirty += chunk->ndirty;
-	return (NULL);
-}
-#endif
-
 static void
 arena_purge(arena_t *arena)
 {
 	arena_chunk_t *chunk;
-	size_t i, npages;
+	size_t i, j, npages;
 #ifdef JEMALLOC_DEBUG
 	size_t ndirty = 0;
 
-	arena_chunk_tree_dirty_iter(&arena->chunks_dirty, NULL,
-	    chunks_dirty_iter_cb, (void *)&ndirty);
+	ql_foreach(chunk, &arena->chunks_dirty, link_dirty) {
+	    assert(chunk->dirtied);
+	    ndirty += chunk->ndirty;
+	}
 	assert(ndirty == arena->ndirty);
 #endif
+	assert(arena->ndirty > chunk_npages);
 	assert((arena->nactive >> opt_lg_dirty_mult) < arena->ndirty);
 
 #ifdef JEMALLOC_STATS
@@ -720,49 +696,64 @@ arena_purge(arena_t *arena)
 #endif
 
 	/*
-	 * Iterate downward through chunks until enough dirty memory has been
-	 * purged.  Terminate as soon as possible in order to minimize the
-	 * number of system calls, even if a chunk has only been partially
-	 * purged.
+	 * Only allow one thread at a time to purge dirty pages.  madvise(2)
+	 * causes the kernel to modify virtual memory data structures that are
+	 * typically protected by a lock, and purging isn't important enough to
+	 * suffer lock contention in the kernel.  The result of failing to
+	 * acquire purge_lock here is that this arena will operate with ndirty
+	 * above the threshold until some dirty pages are re-used, or the
+	 * creation of more dirty pages causes this function to be called
+	 * again.
 	 */
+	if (malloc_mutex_trylock(&purge_lock))
+		return;
 
-	while ((arena->nactive >> (opt_lg_dirty_mult + 1)) < arena->ndirty) {
-		chunk = arena_chunk_tree_dirty_last(&arena->chunks_dirty);
+	/*
+	 * Iterate through chunks until enough dirty memory has been
+	 * purged (all dirty pages in one chunk, or enough pages to drop to
+	 * threshold, whichever is greater).  Terminate as soon as possible in
+	 * order to minimize the number of system calls, even if a chunk has
+	 * only been partially purged.
+	 */
+	for (i = 0; (arena->nactive >> opt_lg_dirty_mult) < arena->ndirty;
+	    i++) {
+		chunk = ql_first(&arena->chunks_dirty);
 		assert(chunk != NULL);
 
-		for (i = chunk_npages - 1; chunk->ndirty > 0; i--) {
-			assert(i >= arena_chunk_header_npages);
-			if (chunk->map[i].bits & CHUNK_MAP_DIRTY) {
-				chunk->map[i].bits ^= CHUNK_MAP_DIRTY;
+		/* Purge pages from high to low within each chunk. */
+		for (j = chunk_npages - 1; chunk->ndirty > 0; j--) {
+			assert(j >= arena_chunk_header_npages);
+			if (chunk->map[j].bits & CHUNK_MAP_DIRTY) {
+				chunk->map[j].bits ^= CHUNK_MAP_DIRTY;
 				/* Find adjacent dirty run(s). */
-				for (npages = 1; i > arena_chunk_header_npages
-				    && (chunk->map[i - 1].bits &
+				for (npages = 1; j > arena_chunk_header_npages
+				    && (chunk->map[j - 1].bits &
 				    CHUNK_MAP_DIRTY); npages++) {
-					i--;
-					chunk->map[i].bits ^= CHUNK_MAP_DIRTY;
+					j--;
+					chunk->map[j].bits ^= CHUNK_MAP_DIRTY;
 				}
 				chunk->ndirty -= npages;
 				arena->ndirty -= npages;
 
-				madvise((void *)((uintptr_t)chunk + (i <<
+				madvise((void *)((uintptr_t)chunk + (j <<
 				    PAGE_SHIFT)), (npages << PAGE_SHIFT),
 				    MADV_DONTNEED);
 #ifdef JEMALLOC_STATS
 				arena->stats.nmadvise++;
 				arena->stats.purged += npages;
 #endif
-				if ((arena->nactive >> (opt_lg_dirty_mult + 1))
-				    >= arena->ndirty)
+				if ((arena->nactive >> opt_lg_dirty_mult) >=
+				    arena->ndirty && i > 0)
 					break;
 			}
 		}
 
 		if (chunk->ndirty == 0) {
-			arena_chunk_tree_dirty_remove(&arena->chunks_dirty,
-			    chunk);
+			ql_remove(&arena->chunks_dirty, chunk, link_dirty);
 			chunk->dirtied = false;
 		}
 	}
+	malloc_mutex_unlock(&purge_lock);
 }
 
 static void
@@ -885,14 +876,13 @@ arena_run_dalloc(arena_t *arena, arena_run_t *run, bool dirty)
 	 */
 	if (dirty) {
 		if (chunk->dirtied == false) {
-			arena_chunk_tree_dirty_insert(&arena->chunks_dirty,
-			    chunk);
+			ql_tail_insert(&arena->chunks_dirty, chunk, link_dirty);
 			chunk->dirtied = true;
 		}
 
 		/* Enforce opt_lg_dirty_mult. */
-		if (opt_lg_dirty_mult >= 0 && (arena->nactive >>
-		    opt_lg_dirty_mult) < arena->ndirty)
+		if (opt_lg_dirty_mult >= 0 && arena->ndirty > chunk_npages &&
+		    (arena->nactive >> opt_lg_dirty_mult) < arena->ndirty)
 			arena_purge(arena);
 	}
 }
@@ -1629,12 +1619,12 @@ arena_dalloc_bin_run(arena_t *arena, arena_chunk_t *chunk, arena_run_t *run,
 #endif
 
 	if (chunk->dirtied == false) {
-		arena_chunk_tree_dirty_insert(&arena->chunks_dirty, chunk);
+		ql_tail_insert(&arena->chunks_dirty, chunk, link_dirty);
 		chunk->dirtied = true;
 	}
 	/* Enforce opt_lg_dirty_mult. */
-	if (opt_lg_dirty_mult >= 0 && (arena->nactive >> opt_lg_dirty_mult) <
-	    arena->ndirty)
+	if (opt_lg_dirty_mult >= 0 && arena->ndirty > chunk_npages &&
+	    (arena->nactive >> opt_lg_dirty_mult) < arena->ndirty)
 		arena_purge(arena);
 }
 
@@ -2037,7 +2027,7 @@ arena_new(arena_t *arena, unsigned ind)
 #endif
 
 	/* Initialize chunks. */
-	arena_chunk_tree_dirty_new(&arena->chunks_dirty);
+	ql_new(&arena->chunks_dirty);
 	arena->spare = NULL;
 
 	arena->nactive = 0;
@@ -2344,6 +2334,9 @@ arena_boot(void)
 	arena_chunk_header_npages = (header_size >> PAGE_SHIFT) +
 	    ((header_size & PAGE_MASK) != 0);
 	arena_maxclass = chunksize - (arena_chunk_header_npages << PAGE_SHIFT);
+
+	if (malloc_mutex_init(&purge_lock))
+		return (true);
 
 	return (false);
 }

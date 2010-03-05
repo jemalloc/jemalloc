@@ -178,11 +178,11 @@ struct arena_chunk_s {
 	/* Arena that owns the chunk. */
 	arena_t		*arena;
 
-	/* Linkage for the arena's chunks_dirty tree. */
-	rb_node(arena_chunk_t) link_dirty;
+	/* Linkage for the arena's chunks_dirty list. */
+	ql_elm(arena_chunk_t) link_dirty;
 
 	/*
-	 * True if the chunk is currently in the chunks_dirty tree, due to
+	 * True if the chunk is currently in the chunks_dirty list, due to
 	 * having at some point contained one or more dirty pages.  Removal
 	 * from chunks_dirty is lazy, so (dirtied && ndirty == 0) is possible.
 	 */
@@ -287,8 +287,8 @@ struct arena_s {
 	uint64_t		prof_accumbytes;
 #endif
 
-	/* Tree of dirty-page-containing chunks this arena manages. */
-	arena_chunk_tree_t	chunks_dirty;
+	/* List of dirty-page-containing chunks this arena manages. */
+	ql_head(arena_chunk_t)	chunks_dirty;
 
 	/*
 	 * In order to avoid rapid chunk allocation/deallocation when an arena
