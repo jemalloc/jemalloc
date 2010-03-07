@@ -482,13 +482,10 @@ MALLOC_OUT:
 						opt_lg_tcache_gc_sweep++;
 					break;
 				case 'h':
-					if (opt_lg_tcache_nslots > 0)
-						opt_lg_tcache_nslots--;
+					opt_tcache = false;
 					break;
 				case 'H':
-					if (opt_lg_tcache_nslots + 1 <
-					    (sizeof(size_t) << 3))
-						opt_lg_tcache_nslots++;
+					opt_tcache = true;
 					break;
 #endif
 #ifdef JEMALLOC_PROF
@@ -729,7 +726,7 @@ MALLOC_OUT:
 		 * default.
 		 */
 #ifdef JEMALLOC_TCACHE
-		if (tcache_nslots
+		if (opt_tcache
 #  ifdef JEMALLOC_PROF
 		    /*
 		     * Profile data storage concurrency is directly linked to

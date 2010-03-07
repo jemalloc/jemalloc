@@ -6,10 +6,13 @@ typedef struct tcache_bin_s tcache_bin_t;
 typedef struct tcache_s tcache_t;
 
 /*
- * Default number of cache slots for each bin in the thread cache (0:
- * disabled).
+ * Absolute maximum number of cache slots for each bin in the thread cache.
+ * This is an additional constraint beyond that imposed as: twice the number of
+ * regions per run for this size class.
+ *
+ * This constant must be an even number.
  */
-#define LG_TCACHE_NSLOTS_DEFAULT	7
+#define TCACHE_NSLOTS_MAX		200
  /*
   * (1U << opt_lg_tcache_gc_sweep) is the approximate number of allocation
   * events between full GC sweeps (-1: disabled).  Integer rounding may cause
@@ -29,7 +32,8 @@ struct tcache_bin_s {
 	unsigned	low_water;	/* Min # cached since last GC. */
 	unsigned	high_water;	/* Max # cached since last GC. */
 	unsigned	ncached;	/* # of cached objects. */
-	void		*slots[1];	/* Dynamically sized. */
+	unsigned	ncached_max;	/* Upper limit on ncached. */
+	void		*avail;		/* Chain of available objects. */
 };
 
 struct tcache_s {
@@ -42,25 +46,19 @@ struct tcache_s {
 	arena_t		*arena;		/* This thread's arena. */
 	unsigned	ev_cnt;		/* Event count since incremental GC. */
 	unsigned	next_gc_bin;	/* Next bin to GC. */
-	tcache_bin_t	*tbins[1];	/* Dynamically sized. */
+	tcache_bin_t	tbins[1];	/* Dynamically sized. */
 };
 
 #endif /* JEMALLOC_H_STRUCTS */
 /******************************************************************************/
 #ifdef JEMALLOC_H_EXTERNS
 
-extern size_t	opt_lg_tcache_nslots;
+extern bool	opt_tcache;
 extern ssize_t	opt_lg_tcache_gc_sweep;
 
 /* Map of thread-specific caches. */
 extern __thread tcache_t	*tcache_tls
     JEMALLOC_ATTR(tls_model("initial-exec"));
-
-/*
- * Number of cache slots for each bin in the thread cache, or 0 if tcache is
- * disabled.
- */
-extern size_t			tcache_nslots;
 
 /* Number of tcache allocation/deallocation events between incremental GCs. */
 extern unsigned			tcache_gc_incr;
@@ -71,10 +69,7 @@ void	tcache_bin_flush(tcache_bin_t *tbin, size_t binind, unsigned rem
 #endif
     );
 tcache_t *tcache_create(arena_t *arena);
-void	tcache_bin_destroy(tcache_t *tcache, tcache_bin_t *tbin,
-    unsigned binind);
 void	*tcache_alloc_hard(tcache_t *tcache, tcache_bin_t *tbin, size_t binind);
-tcache_bin_t *tcache_bin_create(arena_t *arena);
 void	tcache_destroy(tcache_t *tcache);
 #ifdef JEMALLOC_STATS
 void	tcache_stats_merge(tcache_t *tcache, arena_t *arena);
@@ -99,7 +94,7 @@ tcache_get(void)
 {
 	tcache_t *tcache;
 
-	if (isthreaded == false || tcache_nslots == 0)
+	if ((isthreaded & opt_tcache) == false)
 		return (NULL);
 
 	tcache = tcache_tls;
@@ -124,37 +119,24 @@ tcache_event(tcache_t *tcache)
 
 	tcache->ev_cnt++;
 	assert(tcache->ev_cnt <= tcache_gc_incr);
-	if (tcache->ev_cnt >= tcache_gc_incr) {
+	if (tcache->ev_cnt == tcache_gc_incr) {
 		size_t binind = tcache->next_gc_bin;
-		tcache_bin_t *tbin = tcache->tbins[binind];
+		tcache_bin_t *tbin = &tcache->tbins[binind];
 
-		if (tbin != NULL) {
-			if (tbin->high_water == 0) {
-				/*
-				 * This bin went completely unused for an
-				 * entire GC cycle, so throw away the tbin.
-				 */
-				assert(tbin->ncached == 0);
-				tcache_bin_destroy(tcache, tbin, binind);
-				tcache->tbins[binind] = NULL;
-			} else {
-				if (tbin->low_water > 0) {
-					/*
-					 * Flush (ceiling) half of the objects
-					 * below the low water mark.
-					 */
-					tcache_bin_flush(tbin, binind,
-					    tbin->ncached - (tbin->low_water >>
-					    1) - (tbin->low_water & 1)
+		if (tbin->low_water > 0) {
+			/*
+			 * Flush (ceiling) 3/4 of the objects below the low
+			 * water mark.
+			 */
+			tcache_bin_flush(tbin, binind, tbin->ncached -
+			    tbin->low_water + (tbin->low_water >> 2)
 #ifdef JEMALLOC_PROF
-					    , tcache
+			    , tcache
 #endif
-					    );
-				}
-				tbin->low_water = tbin->ncached;
-				tbin->high_water = tbin->ncached;
-			}
+			    );
 		}
+		tbin->low_water = tbin->ncached;
+		tbin->high_water = tbin->ncached;
 
 		tcache->next_gc_bin++;
 		if (tcache->next_gc_bin == nbins)
@@ -166,21 +148,24 @@ tcache_event(tcache_t *tcache)
 JEMALLOC_INLINE void *
 tcache_bin_alloc(tcache_bin_t *tbin)
 {
+	void *ret;
 
 	if (tbin->ncached == 0)
 		return (NULL);
 	tbin->ncached--;
 	if (tbin->ncached < tbin->low_water)
 		tbin->low_water = tbin->ncached;
-	return (tbin->slots[tbin->ncached]);
+	ret = tbin->avail;
+	tbin->avail = *(void **)ret;
+	return (ret);
 }
 
 JEMALLOC_INLINE void *
 tcache_alloc(tcache_t *tcache, size_t size, bool zero)
 {
 	void *ret;
-	tcache_bin_t *tbin;
 	size_t binind;
+	tcache_bin_t *tbin;
 
 	if (size <= small_maxclass)
 		binind = small_size2bin[size];
@@ -189,14 +174,7 @@ tcache_alloc(tcache_t *tcache, size_t size, bool zero)
 		    lg_mspace);
 	}
 	assert(binind < nbins);
-	tbin = tcache->tbins[binind];
-	if (tbin == NULL) {
-		tbin = tcache_bin_create(tcache->arena);
-		if (tbin == NULL)
-			return (NULL);
-		tcache->tbins[binind] = tbin;
-	}
-
+	tbin = &tcache->tbins[binind];
 	ret = tcache_bin_alloc(tbin);
 	if (ret == NULL) {
 		ret = tcache_alloc_hard(tcache, tbin, binind);
@@ -250,29 +228,20 @@ tcache_dalloc(tcache_t *tcache, void *ptr)
 
 #ifdef JEMALLOC_FILL
 	if (opt_junk)
-		memset(ptr, 0x5a, arena->bins[binind].reg_size);
+		memset(ptr, 0x5a, bin->reg_size);
 #endif
 
-	tbin = tcache->tbins[binind];
-	if (tbin == NULL) {
-		tbin = tcache_bin_create(choose_arena());
-		if (tbin == NULL) {
-			malloc_mutex_lock(&arena->lock);
-			arena_dalloc_bin(arena, chunk, ptr, mapelm);
-			malloc_mutex_unlock(&arena->lock);
-			return;
-		}
-		tcache->tbins[binind] = tbin;
-	}
-
-	if (tbin->ncached == tcache_nslots)
-		tcache_bin_flush(tbin, binind, (tcache_nslots >> 1)
+	tbin = &tcache->tbins[binind];
+	if (tbin->ncached == tbin->ncached_max) {
+		tcache_bin_flush(tbin, binind, (tbin->ncached_max >> 1)
 #ifdef JEMALLOC_PROF
 		    , tcache
 #endif
 		    );
-	assert(tbin->ncached < tcache_nslots);
-	tbin->slots[tbin->ncached] = ptr;
+	}
+	assert(tbin->ncached < tbin->ncached_max);
+	*(void **)ptr = tbin->avail;
+	tbin->avail = ptr;
 	tbin->ncached++;
 	if (tbin->ncached > tbin->high_water)
 		tbin->high_water = tbin->ncached;

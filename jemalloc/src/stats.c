@@ -440,6 +440,9 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		if ((err = JEMALLOC_P(mallctl)("opt.prof", &bv, &bsz, NULL, 0))
 		   == 0)
 			write_cb(cbopaque, bv ? "F" : "f");
+		if ((err = JEMALLOC_P(mallctl)("opt.tcache", &bv, &bsz, NULL,
+		    0)) == 0)
+			write_cb(cbopaque, bv ? "H" : "h");
 		if ((err = JEMALLOC_P(mallctl)("opt.junk", &bv, &bsz, NULL, 0))
 		    == 0)
 			write_cb(cbopaque, bv ? "J" : "j");
@@ -550,21 +553,13 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 			write_cb(cbopaque,
 			    "Min active:dirty page ratio per arena: N/A\n");
 		}
-		if ((err = JEMALLOC_P(mallctl)("opt.lg_tcache_nslots", &sv,
+		if ((err = JEMALLOC_P(mallctl)("opt.lg_tcache_gc_sweep", &ssv,
 		    &ssz, NULL, 0)) == 0) {
-			size_t tcache_nslots, tcache_gc_sweep;
-
-			tcache_nslots = (1U << sv);
-			write_cb(cbopaque,
-			    "Thread cache slots per size class: ");
-			write_cb(cbopaque, tcache_nslots ?
-			    umax2s(tcache_nslots, 10, s) : "N/A");
-			write_cb(cbopaque, "\n");
-
-			CTL_GET("opt.lg_tcache_gc_sweep", &ssv, ssize_t);
-			tcache_gc_sweep = (1U << ssv);
+			size_t tcache_gc_sweep = (1U << ssv);
+			bool tcache_enabled;
+			CTL_GET("opt.tcache", &tcache_enabled, bool);
 			write_cb(cbopaque, "Thread cache GC sweep interval: ");
-			write_cb(cbopaque, tcache_nslots && ssv >= 0 ?
+			write_cb(cbopaque, tcache_enabled && ssv >= 0 ?
 			    umax2s(tcache_gc_sweep, 10, s) : "N/A");
 			write_cb(cbopaque, "\n");
 		}

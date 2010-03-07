@@ -376,8 +376,7 @@ will disable dirty page purging.
 @roff_tcache@.Ev JEMALLOC_OPTIONS=14g
 @roff_tcache@will disable garbage collection.
 @roff_tcache@.It H
-@roff_tcache@Double/halve the number of thread-specific cache slots per size
-@roff_tcache@class.
+@roff_tcache@Enable/disable thread-specific caching.
 @roff_tcache@When there are multiple threads, each thread uses a
 @roff_tcache@thread-specific cache for small and medium objects.
 @roff_tcache@Thread-specific caching allows many allocations to be satisfied
@@ -386,11 +385,7 @@ will disable dirty page purging.
 @roff_tcache@See the
 @roff_tcache@.Dq G
 @roff_tcache@option for related tuning information.
-@roff_tcache@The default number of cache slots is 128;
-@roff_tcache@.Ev JEMALLOC_OPTIONS=7h
-@roff_tcache@will disable thread-specific caching.
-@roff_tcache@Note that one cache slot per size class is not a valid
-@roff_tcache@configuration due to implementation details.
+@roff_tcache@This option is enabled by default.
 @roff_prof@.It I
 @roff_prof@Double/halve the average interval between memory profile dumps, as
 @roff_prof@measured in bytes of allocation activity.
@@ -773,7 +768,7 @@ option.
 @roff_xmalloc@option.
 @roff_xmalloc@.Ed
 .\"-----------------------------------------------------------------------------
-@roff_tcache@.It Sy "opt.lg_tcache_nslots (size_t) r-"
+@roff_tcache@.It Sy "opt.tcache (bool) r-"
 @roff_tcache@.Bd -ragged -offset indent -compact
 @roff_tcache@See the
 @roff_tcache@.Dq H

@@ -64,7 +64,7 @@ CTL_PROTO(opt_xmalloc)
 CTL_PROTO(opt_zero)
 #endif
 #ifdef JEMALLOC_TCACHE
-CTL_PROTO(opt_lg_tcache_nslots)
+CTL_PROTO(opt_tcache)
 CTL_PROTO(opt_lg_tcache_gc_sweep)
 #endif
 #ifdef JEMALLOC_PROF
@@ -230,7 +230,7 @@ static const ctl_node_t opt_node[] = {
 	{NAME("zero"),			CTL(opt_zero)},
 #endif
 #ifdef JEMALLOC_TCACHE
-	{NAME("lg_tcache_nslots"),	CTL(opt_lg_tcache_nslots)},
+	{NAME("tcache"),		CTL(opt_tcache)},
 	{NAME("lg_tcache_gc_sweep"),	CTL(opt_lg_tcache_gc_sweep)},
 #endif
 #ifdef JEMALLOC_PROF
@@ -1070,7 +1070,7 @@ CTL_RO_GEN(opt_xmalloc, opt_xmalloc, bool)
 CTL_RO_GEN(opt_zero, opt_zero, bool)
 #endif
 #ifdef JEMALLOC_TCACHE
-CTL_RO_GEN(opt_lg_tcache_nslots, opt_lg_tcache_nslots, size_t)
+CTL_RO_GEN(opt_tcache, opt_tcache, bool)
 CTL_RO_GEN(opt_lg_tcache_gc_sweep, opt_lg_tcache_gc_sweep, ssize_t)
 #endif
 #ifdef JEMALLOC_PROF

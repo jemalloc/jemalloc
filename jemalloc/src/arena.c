@@ -53,13 +53,26 @@ static malloc_mutex_t	purge_lock;
 static const uint8_t	const_small_size2bin[STATIC_PAGE_SIZE - 255] = {
 	S2B_1(0xffU)		/*    0 */
 #if (LG_QUANTUM == 4)
-/* 64-bit system ************************/
+/* 16-byte quantum **********************/
 #  ifdef JEMALLOC_TINY
-	S2B_2(0)		/*    2 */
-	S2B_2(1)		/*    4 */
-	S2B_4(2)		/*    8 */
-	S2B_8(3)		/*   16 */
+#    if (LG_TINY_MIN == 1)
+       S2B_2(0)			/*    2 */
+       S2B_2(1)			/*    4 */
+       S2B_4(2)			/*    8 */
+       S2B_8(3)			/*   16 */
 #    define S2B_QMIN 3
+#    elif (LG_TINY_MIN == 2)
+       S2B_4(0)			/*    4 */
+       S2B_4(1)			/*    8 */
+       S2B_8(2)			/*   16 */
+#    define S2B_QMIN 2
+#    elif (LG_TINY_MIN == 3)
+       S2B_8(0)			/*    8 */
+       S2B_8(1)			/*   16 */
+#    define S2B_QMIN 1
+#    else
+#      error "Unsupported LG_TINY_MIN"
+#    endif
 #  else
 	S2B_16(0)		/*   16 */
 #    define S2B_QMIN 0
@@ -73,12 +86,20 @@ static const uint8_t	const_small_size2bin[STATIC_PAGE_SIZE - 255] = {
 	S2B_16(S2B_QMIN + 7)	/*  128 */
 #  define S2B_CMIN (S2B_QMIN + 8)
 #else
-/* 32-bit system ************************/
+/* 8-byte quantum ***********************/
 #  ifdef JEMALLOC_TINY
-	S2B_2(0)		/*    2 */
-	S2B_2(1)		/*    4 */
-	S2B_4(2)		/*    8 */
+#    if (LG_TINY_MIN == 1)
+       S2B_2(0)			/*    2 */
+       S2B_2(1)			/*    4 */
+       S2B_4(2)			/*    8 */
 #    define S2B_QMIN 2
+#    elif (LG_TINY_MIN == 2)
+       S2B_4(0)			/*    4 */
+       S2B_4(1)			/*    8 */
+#    define S2B_QMIN 1
+#    else
+#      error "Unsupported LG_TINY_MIN"
+#    endif
 #  else
 	S2B_8(0)		/*    8 */
 #    define S2B_QMIN 0
@@ -1048,28 +1069,15 @@ arena_tcache_fill(arena_t *arena, tcache_bin_t *tbin, size_t binind
 #ifdef JEMALLOC_PROF
 	arena_prof_accum(arena, prof_accumbytes);
 #endif
-	for (i = 0, nfill = (tcache_nslots >> 1); i < nfill; i++) {
+	for (i = 0, nfill = (tbin->ncached_max >> 1); i < nfill; i++) {
 		if ((run = bin->runcur) != NULL && run->nfree > 0)
 			ptr = arena_bin_malloc_easy(arena, bin, run);
 		else
 			ptr = arena_bin_malloc_hard(arena, bin);
-		if (ptr == NULL) {
-			if (i > 0) {
-				/*
-				 * Move valid pointers to the base of
-				 * tbin->slots.
-				 */
-				memmove(&tbin->slots[0],
-				    &tbin->slots[nfill - i],
-				    i * sizeof(void *));
-			}
+		if (ptr == NULL)
 			break;
-		}
-		/*
-		 * Fill slots such that the objects lowest in memory come last.
-		 * This causes tcache to use low objects first.
-		 */
-		tbin->slots[nfill - 1 - i] = ptr;
+		*(void **)ptr = tbin->avail;
+		tbin->avail = ptr;
 	}
 #ifdef JEMALLOC_STATS
 	bin->stats.nfills++;

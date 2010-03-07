@@ -18,7 +18,11 @@
 
 #ifdef JEMALLOC_TINY
    /* Smallest size class to support. */
-#  define LG_TINY_MIN		1
+#  ifdef JEMALLOC_TCACHE
+#    define LG_TINY_MIN		LG_SIZEOF_PTR
+#  else
+#    define LG_TINY_MIN		1
+#  endif
 #endif
 
 /*
