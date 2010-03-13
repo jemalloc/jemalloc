@@ -55,21 +55,15 @@ static const uint8_t	const_small_size2bin[STATIC_PAGE_SIZE - 255] = {
 #if (LG_QUANTUM == 4)
 /* 16-byte quantum **********************/
 #  ifdef JEMALLOC_TINY
-#    if (LG_TINY_MIN == 1)
-       S2B_2(0)			/*    2 */
-       S2B_2(1)			/*    4 */
-       S2B_4(2)			/*    8 */
-       S2B_8(3)			/*   16 */
-#    define S2B_QMIN 3
-#    elif (LG_TINY_MIN == 2)
+#    if (LG_TINY_MIN == 2)
        S2B_4(0)			/*    4 */
        S2B_4(1)			/*    8 */
        S2B_8(2)			/*   16 */
-#    define S2B_QMIN 2
+#      define S2B_QMIN 2
 #    elif (LG_TINY_MIN == 3)
        S2B_8(0)			/*    8 */
        S2B_8(1)			/*   16 */
-#    define S2B_QMIN 1
+#      define S2B_QMIN 1
 #    else
 #      error "Unsupported LG_TINY_MIN"
 #    endif
@@ -88,15 +82,10 @@ static const uint8_t	const_small_size2bin[STATIC_PAGE_SIZE - 255] = {
 #else
 /* 8-byte quantum ***********************/
 #  ifdef JEMALLOC_TINY
-#    if (LG_TINY_MIN == 1)
-       S2B_2(0)			/*    2 */
-       S2B_2(1)			/*    4 */
-       S2B_4(2)			/*    8 */
-#    define S2B_QMIN 2
-#    elif (LG_TINY_MIN == 2)
+#    if (LG_TINY_MIN == 2)
        S2B_4(0)			/*    4 */
        S2B_4(1)			/*    8 */
-#    define S2B_QMIN 1
+#      define S2B_QMIN 1
 #    else
 #      error "Unsupported LG_TINY_MIN"
 #    endif
@@ -260,246 +249,48 @@ arena_avail_comp(arena_chunk_map_t *a, arena_chunk_map_t *b)
 rb_gen(static JEMALLOC_ATTR(unused), arena_avail_tree_, arena_avail_tree_t,
     arena_chunk_map_t, link, arena_avail_comp)
 
-static inline void
-arena_run_rc_incr(arena_run_t *run, arena_bin_t *bin, const void *ptr)
-{
-	arena_chunk_t *chunk;
-	arena_t *arena;
-	size_t pagebeg, pageend, i;
-
-	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
-	arena = chunk->arena;
-	pagebeg = ((uintptr_t)ptr - (uintptr_t)chunk) >> PAGE_SHIFT;
-	pageend = ((uintptr_t)ptr + (uintptr_t)(bin->reg_size - 1) -
-	    (uintptr_t)chunk) >> PAGE_SHIFT;
-
-	for (i = pagebeg; i <= pageend; i++) {
-		size_t mapbits = chunk->map[i].bits;
-
-		if (mapbits & CHUNK_MAP_DIRTY) {
-			assert((mapbits & CHUNK_MAP_RC_MASK) == 0);
-			chunk->ndirty--;
-			arena->ndirty--;
-			mapbits ^= CHUNK_MAP_DIRTY;
-		}
-		assert((mapbits & CHUNK_MAP_RC_MASK) != CHUNK_MAP_RC_MASK);
-		mapbits += CHUNK_MAP_RC_ONE;
-		chunk->map[i].bits = mapbits;
-	}
-}
-
-static inline void
-arena_run_rc_decr(arena_run_t *run, arena_bin_t *bin, const void *ptr)
-{
-	arena_chunk_t *chunk;
-	arena_t *arena;
-	size_t pagebeg, pageend, mapbits, i;
-	bool dirtier = false;
-
-	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
-	arena = chunk->arena;
-	pagebeg = ((uintptr_t)ptr - (uintptr_t)chunk) >> PAGE_SHIFT;
-	pageend = ((uintptr_t)ptr + (uintptr_t)(bin->reg_size - 1) -
-	    (uintptr_t)chunk) >> PAGE_SHIFT;
-
-	/* First page. */
-	mapbits = chunk->map[pagebeg].bits;
-	mapbits -= CHUNK_MAP_RC_ONE;
-	if ((mapbits & CHUNK_MAP_RC_MASK) == 0) {
-		dirtier = true;
-		assert((mapbits & CHUNK_MAP_DIRTY) == 0);
-		mapbits |= CHUNK_MAP_DIRTY;
-		chunk->ndirty++;
-		arena->ndirty++;
-	}
-	chunk->map[pagebeg].bits = mapbits;
-
-	if (pageend - pagebeg >= 1) {
-		/*
-		 * Interior pages are completely consumed by the object being
-		 * deallocated, which means that the pages can be
-		 * unconditionally marked dirty.
-		 */
-		for (i = pagebeg + 1; i < pageend; i++) {
-			mapbits = chunk->map[i].bits;
-			mapbits -= CHUNK_MAP_RC_ONE;
-			assert((mapbits & CHUNK_MAP_RC_MASK) == 0);
-			dirtier = true;
-			assert((mapbits & CHUNK_MAP_DIRTY) == 0);
-			mapbits |= CHUNK_MAP_DIRTY;
-			chunk->ndirty++;
-			arena->ndirty++;
-			chunk->map[i].bits = mapbits;
-		}
-
-		/* Last page. */
-		mapbits = chunk->map[pageend].bits;
-		mapbits -= CHUNK_MAP_RC_ONE;
-		if ((mapbits & CHUNK_MAP_RC_MASK) == 0) {
-			dirtier = true;
-			assert((mapbits & CHUNK_MAP_DIRTY) == 0);
-			mapbits |= CHUNK_MAP_DIRTY;
-			chunk->ndirty++;
-			arena->ndirty++;
-		}
-		chunk->map[pageend].bits = mapbits;
-	}
-
-	if (dirtier) {
-		if (chunk->dirtied == false) {
-			ql_tail_insert(&arena->chunks_dirty, chunk, link_dirty);
-			chunk->dirtied = true;
-		}
-
-		/* Enforce opt_lg_dirty_mult. */
-		if (opt_lg_dirty_mult >= 0 && arena->ndirty > chunk_npages &&
-		    (arena->nactive >> opt_lg_dirty_mult) < arena->ndirty)
-			arena_purge(arena);
-	}
-}
-
 static inline void *
 arena_run_reg_alloc(arena_run_t *run, arena_bin_t *bin)
 {
 	void *ret;
-	unsigned i, mask, bit, regind;
 
 	assert(run->magic == ARENA_RUN_MAGIC);
-	assert(run->regs_minelm < bin->regs_mask_nelms);
+	assert(run->nfree > 0);
 
-	/*
-	 * Move the first check outside the loop, so that run->regs_minelm can
-	 * be updated unconditionally, without the possibility of updating it
-	 * multiple times.
-	 */
-	i = run->regs_minelm;
-	mask = run->regs_mask[i];
-	if (mask != 0) {
-		/* Usable allocation found. */
-		bit = ffs((int)mask) - 1;
-
-		regind = ((i << (LG_SIZEOF_INT + 3)) + bit);
-		assert(regind < bin->nregs);
-		ret = (void *)(((uintptr_t)run) + bin->reg0_offset
-		    + (bin->reg_size * regind));
-
-		/* Clear bit. */
-		mask ^= (1U << bit);
-		run->regs_mask[i] = mask;
-
-		arena_run_rc_incr(run, bin, ret);
-
+	run->nfree--;
+	ret = run->avail;
+	if (ret != NULL) {
+		run->avail = *(void **)ret;
+		/* Double free can cause assertion failure.*/
+		assert(ret != NULL);
+		/* Write-after free can cause assertion failure. */
+		assert((uintptr_t)ret >= (uintptr_t)run +
+		    (uintptr_t)bin->reg0_offset);
+		assert((uintptr_t)ret < (uintptr_t)run->next);
+		assert(((uintptr_t)ret - ((uintptr_t)run +
+		    (uintptr_t)bin->reg0_offset)) % (uintptr_t)bin->reg_size ==
+		    0);
 		return (ret);
 	}
-
-	for (i++; i < bin->regs_mask_nelms; i++) {
-		mask = run->regs_mask[i];
-		if (mask != 0) {
-			/* Usable allocation found. */
-			bit = ffs((int)mask) - 1;
-
-			regind = ((i << (LG_SIZEOF_INT + 3)) + bit);
-			assert(regind < bin->nregs);
-			ret = (void *)(((uintptr_t)run) + bin->reg0_offset
-			    + (bin->reg_size * regind));
-
-			/* Clear bit. */
-			mask ^= (1U << bit);
-			run->regs_mask[i] = mask;
-
-			/*
-			 * Make a note that nothing before this element
-			 * contains a free region.
-			 */
-			run->regs_minelm = i; /* Low payoff: + (mask == 0); */
-
-			arena_run_rc_incr(run, bin, ret);
-
-			return (ret);
-		}
-	}
-	/* Not reached. */
-	assert(0);
-	return (NULL);
-}
-
-static inline unsigned
-arena_run_regind(arena_run_t *run, arena_bin_t *bin, const void *ptr,
-    size_t size)
-{
-	unsigned shift, diff, regind;
-
-	assert(run->magic == ARENA_RUN_MAGIC);
-
-	/*
-	 * Avoid doing division with a variable divisor if possible.  Using
-	 * actual division here can reduce allocator throughput by over 20%!
-	 */
-	diff = (unsigned)((uintptr_t)ptr - (uintptr_t)run - bin->reg0_offset);
-
-	/* Rescale (factor powers of 2 out of the numerator and denominator). */
-	shift = ffs(size) - 1;
-	diff >>= shift;
-	size >>= shift;
-
-	if (size == 1) {
-		/* The divisor was a power of 2. */
-		regind = diff;
-	} else {
-		/*
-		 * To divide by a number D that is not a power of two we
-		 * multiply by (2^21 / D) and then right shift by 21 positions.
-		 *
-		 *   X / D
-		 *
-		 * becomes
-		 *
-		 *   (X * size_invs[D - 3]) >> SIZE_INV_SHIFT
-		 *
-		 * We can omit the first three elements, because we never
-		 * divide by 0, and 1 and 2 are both powers of two, which are
-		 * handled above.
-		 */
-#define	SIZE_INV_SHIFT 21
-#define	SIZE_INV(s) (((1U << SIZE_INV_SHIFT) / (s)) + 1)
-		static const unsigned size_invs[] = {
-		    SIZE_INV(3),
-		    SIZE_INV(4), SIZE_INV(5), SIZE_INV(6), SIZE_INV(7),
-		    SIZE_INV(8), SIZE_INV(9), SIZE_INV(10), SIZE_INV(11),
-		    SIZE_INV(12), SIZE_INV(13), SIZE_INV(14), SIZE_INV(15),
-		    SIZE_INV(16), SIZE_INV(17), SIZE_INV(18), SIZE_INV(19),
-		    SIZE_INV(20), SIZE_INV(21), SIZE_INV(22), SIZE_INV(23),
-		    SIZE_INV(24), SIZE_INV(25), SIZE_INV(26), SIZE_INV(27),
-		    SIZE_INV(28), SIZE_INV(29), SIZE_INV(30), SIZE_INV(31)
-		};
-
-		if (size <= ((sizeof(size_invs) / sizeof(unsigned)) + 2))
-			regind = (diff * size_invs[size - 3]) >> SIZE_INV_SHIFT;
-		else
-			regind = diff / size;
-#undef SIZE_INV
-#undef SIZE_INV_SHIFT
-	}
-	assert(diff == regind * size);
-	assert(regind < bin->nregs);
-
-	return (regind);
+	ret = run->next;
+	run->next = (void *)((uintptr_t)ret + (uintptr_t)bin->reg_size);
+	assert(ret != NULL);
+	return (ret);
 }
 
 static inline void
-arena_run_reg_dalloc(arena_run_t *run, arena_bin_t *bin, void *ptr, size_t size)
+arena_run_reg_dalloc(arena_run_t *run, void *ptr)
 {
-	unsigned regind, elm, bit;
 
-	regind = arena_run_regind(run, bin, ptr, size);
-	elm = regind >> (LG_SIZEOF_INT + 3);
-	if (elm < run->regs_minelm)
-		run->regs_minelm = elm;
-	bit = regind - (elm << (LG_SIZEOF_INT + 3));
-	assert((run->regs_mask[elm] & (1U << bit)) == 0);
-	run->regs_mask[elm] |= (1U << bit);
+	assert(run->nfree < run->bin->nregs);
+	/* Freeing an interior pointer can cause assertion failure. */
+	assert(((uintptr_t)ptr - ((uintptr_t)run +
+	    (uintptr_t)run->bin->reg0_offset)) % (uintptr_t)run->bin->reg_size
+	    == 0);
 
-	arena_run_rc_decr(run, bin, ptr);
+	*(void **)ptr = run->avail;
+	run->avail = ptr;
+	run->nfree++;
 }
 
 static void
@@ -571,12 +362,6 @@ arena_run_split(arena_t *arena, arena_run_t *run, size_t size, bool large,
 		 * tries to operate on an interior pointer.
 		 */
 		chunk->map[run_ind].bits |= size;
-	} else {
-		/*
-		 * Initialize the first page's refcount to 1, so that the run
-		 * header is protected from dirty page purging.
-		 */
-		chunk->map[run_ind].bits += CHUNK_MAP_RC_ONE;
 	}
 }
 
@@ -960,7 +745,6 @@ arena_bin_nonfull_run_get(arena_t *arena, arena_bin_t *bin)
 {
 	arena_chunk_map_t *mapelm;
 	arena_run_t *run;
-	unsigned i, remainder;
 
 	/* Look for a usable run. */
 	mapelm = arena_run_tree_first(&bin->runs);
@@ -991,20 +775,8 @@ arena_bin_nonfull_run_get(arena_t *arena, arena_bin_t *bin)
 
 	/* Initialize run internals. */
 	run->bin = bin;
-
-	for (i = 0; i < bin->regs_mask_nelms - 1; i++)
-		run->regs_mask[i] = UINT_MAX;
-	remainder = bin->nregs & ((1U << (LG_SIZEOF_INT + 3)) - 1);
-	if (remainder == 0)
-		run->regs_mask[i] = UINT_MAX;
-	else {
-		/* The last element has spare bits that need to be unset. */
-		run->regs_mask[i] = (UINT_MAX >> ((1U << (LG_SIZEOF_INT + 3))
-		    - remainder));
-	}
-
-	run->regs_minelm = 0;
-
+	run->avail = NULL;
+	run->next = (void *)(((uintptr_t)run) + (uintptr_t)bin->reg0_offset);
 	run->nfree = bin->nregs;
 #ifdef JEMALLOC_DEBUG
 	run->magic = ARENA_RUN_MAGIC;
@@ -1019,23 +791,7 @@ arena_bin_nonfull_run_get(arena_t *arena, arena_bin_t *bin)
 	return (run);
 }
 
-/* bin->runcur must have space available before this function is called. */
-static inline void *
-arena_bin_malloc_easy(arena_t *arena, arena_bin_t *bin, arena_run_t *run)
-{
-	void *ret;
-
-	assert(run->magic == ARENA_RUN_MAGIC);
-	assert(run->nfree > 0);
-
-	ret = arena_run_reg_alloc(run, bin);
-	assert(ret != NULL);
-	run->nfree--;
-
-	return (ret);
-}
-
-/* Re-fill bin->runcur, then call arena_bin_malloc_easy(). */
+/* Re-fill bin->runcur, then call arena_run_reg_alloc(). */
 static void *
 arena_bin_malloc_hard(arena_t *arena, arena_bin_t *bin)
 {
@@ -1046,7 +802,7 @@ arena_bin_malloc_hard(arena_t *arena, arena_bin_t *bin)
 	assert(bin->runcur->magic == ARENA_RUN_MAGIC);
 	assert(bin->runcur->nfree > 0);
 
-	return (arena_bin_malloc_easy(arena, bin, bin->runcur));
+	return (arena_run_reg_alloc(bin->runcur, bin));
 }
 
 #ifdef JEMALLOC_TCACHE
@@ -1071,7 +827,7 @@ arena_tcache_fill(arena_t *arena, tcache_bin_t *tbin, size_t binind
 #endif
 	for (i = 0, nfill = (tbin->ncached_max >> 1); i < nfill; i++) {
 		if ((run = bin->runcur) != NULL && run->nfree > 0)
-			ptr = arena_bin_malloc_easy(arena, bin, run);
+			ptr = arena_run_reg_alloc(run, bin);
 		else
 			ptr = arena_bin_malloc_hard(arena, bin);
 		if (ptr == NULL)
@@ -1120,19 +876,17 @@ arena_prof_accum(arena_t *arena, uint64_t accumbytes)
  *
  *   *) bin->run_size >= min_run_size
  *   *) bin->run_size <= arena_maxclass
- *   *) bin->run_size <= RUN_MAX_SMALL
  *   *) run header overhead <= RUN_MAX_OVRHD (or header overhead relaxed).
  *   *) run header size < PAGE_SIZE
  *
- * bin->nregs, bin->regs_mask_nelms, and bin->reg0_offset are
- * also calculated here, since these settings are all interdependent.
+ * bin->nregs and bin->reg0_offset are also calculated here, since these
+ * settings are all interdependent.
  */
 static size_t
 arena_bin_run_size_calc(arena_bin_t *bin, size_t min_run_size)
 {
 	size_t try_run_size, good_run_size;
 	uint32_t try_nregs, good_nregs;
-	uint32_t try_mask_nelms, good_mask_nelms;
 	uint32_t try_hdr_size, good_hdr_size;
 #ifdef JEMALLOC_PROF
 	uint32_t try_cnt0_offset, good_cnt0_offset;
@@ -1141,7 +895,6 @@ arena_bin_run_size_calc(arena_bin_t *bin, size_t min_run_size)
 
 	assert(min_run_size >= PAGE_SIZE);
 	assert(min_run_size <= arena_maxclass);
-	assert(min_run_size <= RUN_MAX_SMALL);
 
 	/*
 	 * Calculate known-valid settings before entering the run_size
@@ -1158,10 +911,7 @@ arena_bin_run_size_calc(arena_bin_t *bin, size_t min_run_size)
 	    + 1; /* Counter-act try_nregs-- in loop. */
 	do {
 		try_nregs--;
-		try_mask_nelms = (try_nregs >> (LG_SIZEOF_INT + 3)) +
-		    ((try_nregs & ((1U << (LG_SIZEOF_INT + 3)) - 1)) ? 1 : 0);
-		try_hdr_size = sizeof(arena_run_t) + (sizeof(unsigned) *
-		    (try_mask_nelms - 1));
+		try_hdr_size = sizeof(arena_run_t);
 #ifdef JEMALLOC_PROF
 		if (opt_prof) {
 			/* Pad to a quantum boundary. */
@@ -1182,7 +932,6 @@ arena_bin_run_size_calc(arena_bin_t *bin, size_t min_run_size)
 		 */
 		good_run_size = try_run_size;
 		good_nregs = try_nregs;
-		good_mask_nelms = try_mask_nelms;
 		good_hdr_size = try_hdr_size;
 #ifdef JEMALLOC_PROF
 		good_cnt0_offset = try_cnt0_offset;
@@ -1195,11 +944,7 @@ arena_bin_run_size_calc(arena_bin_t *bin, size_t min_run_size)
 		    bin->reg_size) + 1; /* Counter-act try_nregs-- in loop. */
 		do {
 			try_nregs--;
-			try_mask_nelms = (try_nregs >> (LG_SIZEOF_INT + 3)) +
-			    ((try_nregs & ((1U << (LG_SIZEOF_INT + 3)) - 1)) ?
-			    1 : 0);
-			try_hdr_size = sizeof(arena_run_t) + (sizeof(unsigned) *
-			    (try_mask_nelms - 1));
+			try_hdr_size = sizeof(arena_run_t);
 #ifdef JEMALLOC_PROF
 			if (opt_prof) {
 				/* Pad to a quantum boundary. */
@@ -1216,18 +961,17 @@ arena_bin_run_size_calc(arena_bin_t *bin, size_t min_run_size)
 			try_reg0_offset = try_run_size - (try_nregs *
 			    bin->reg_size);
 		} while (try_hdr_size > try_reg0_offset);
-	} while (try_run_size <= arena_maxclass && try_run_size <= RUN_MAX_SMALL
+	} while (try_run_size <= arena_maxclass
+	    && try_run_size <= arena_maxclass
 	    && RUN_MAX_OVRHD * (bin->reg_size << 3) > RUN_MAX_OVRHD_RELAX
 	    && (try_reg0_offset << RUN_BFP) > RUN_MAX_OVRHD * try_run_size
 	    && try_hdr_size < PAGE_SIZE);
 
 	assert(good_hdr_size <= good_reg0_offset);
-	assert((good_mask_nelms << (LG_SIZEOF_INT + 3)) >= good_nregs);
 
 	/* Copy final settings. */
 	bin->run_size = good_run_size;
 	bin->nregs = good_nregs;
-	bin->regs_mask_nelms = good_mask_nelms;
 #ifdef JEMALLOC_PROF
 	bin->cnt0_offset = good_cnt0_offset;
 #endif
@@ -1251,7 +995,7 @@ arena_malloc_small(arena_t *arena, size_t size, bool zero)
 
 	malloc_mutex_lock(&arena->lock);
 	if ((run = bin->runcur) != NULL && run->nfree > 0)
-		ret = arena_bin_malloc_easy(arena, bin, run);
+		ret = arena_run_reg_alloc(run, bin);
 	else
 		ret = arena_bin_malloc_hard(arena, bin);
 
@@ -1306,7 +1050,7 @@ arena_malloc_medium(arena_t *arena, size_t size, bool zero)
 
 	malloc_mutex_lock(&arena->lock);
 	if ((run = bin->runcur) != NULL && run->nfree > 0)
-		ret = arena_bin_malloc_easy(arena, bin, run);
+		ret = arena_run_reg_alloc(run, bin);
 	else
 		ret = arena_bin_malloc_hard(arena, bin);
 
@@ -1522,6 +1266,69 @@ arena_salloc(const void *ptr)
 }
 
 #ifdef JEMALLOC_PROF
+static inline unsigned
+arena_run_regind(arena_run_t *run, arena_bin_t *bin, const void *ptr,
+    size_t size)
+{
+	unsigned shift, diff, regind;
+
+	assert(run->magic == ARENA_RUN_MAGIC);
+
+	/*
+	 * Avoid doing division with a variable divisor if possible.  Using
+	 * actual division here can reduce allocator throughput by over 20%!
+	 */
+	diff = (unsigned)((uintptr_t)ptr - (uintptr_t)run - bin->reg0_offset);
+
+	/* Rescale (factor powers of 2 out of the numerator and denominator). */
+	shift = ffs(size) - 1;
+	diff >>= shift;
+	size >>= shift;
+
+	if (size == 1) {
+		/* The divisor was a power of 2. */
+		regind = diff;
+	} else {
+		/*
+		 * To divide by a number D that is not a power of two we
+		 * multiply by (2^21 / D) and then right shift by 21 positions.
+		 *
+		 *   X / D
+		 *
+		 * becomes
+		 *
+		 *   (X * size_invs[D - 3]) >> SIZE_INV_SHIFT
+		 *
+		 * We can omit the first three elements, because we never
+		 * divide by 0, and 1 and 2 are both powers of two, which are
+		 * handled above.
+		 */
+#define	SIZE_INV_SHIFT 21
+#define	SIZE_INV(s) (((1U << SIZE_INV_SHIFT) / (s)) + 1)
+		static const unsigned size_invs[] = {
+		    SIZE_INV(3),
+		    SIZE_INV(4), SIZE_INV(5), SIZE_INV(6), SIZE_INV(7),
+		    SIZE_INV(8), SIZE_INV(9), SIZE_INV(10), SIZE_INV(11),
+		    SIZE_INV(12), SIZE_INV(13), SIZE_INV(14), SIZE_INV(15),
+		    SIZE_INV(16), SIZE_INV(17), SIZE_INV(18), SIZE_INV(19),
+		    SIZE_INV(20), SIZE_INV(21), SIZE_INV(22), SIZE_INV(23),
+		    SIZE_INV(24), SIZE_INV(25), SIZE_INV(26), SIZE_INV(27),
+		    SIZE_INV(28), SIZE_INV(29), SIZE_INV(30), SIZE_INV(31)
+		};
+
+		if (size <= ((sizeof(size_invs) / sizeof(unsigned)) + 2))
+			regind = (diff * size_invs[size - 3]) >> SIZE_INV_SHIFT;
+		else
+			regind = diff / size;
+#undef SIZE_INV
+#undef SIZE_INV_SHIFT
+	}
+	assert(diff == regind * size);
+	assert(regind < bin->nregs);
+
+	return (regind);
+}
+
 prof_thr_cnt_t *
 arena_prof_cnt_get(const void *ptr)
 {
@@ -1589,7 +1396,7 @@ static void
 arena_dalloc_bin_run(arena_t *arena, arena_chunk_t *chunk, arena_run_t *run,
     arena_bin_t *bin)
 {
-	size_t run_ind;
+	size_t run_ind, past;
 
 	/* Deallocate run. */
 	if (run == bin->runcur)
@@ -1606,17 +1413,16 @@ arena_dalloc_bin_run(arena_t *arena, arena_chunk_t *chunk, arena_run_t *run,
 		 */
 		arena_run_tree_remove(&bin->runs, run_mapelm);
 	}
-	/*
-	 * Mark the first page as dirty.  The dirty bit for every other page in
-	 * the run is already properly set, which means we can call
-	 * arena_run_dalloc(..., false), thus potentially avoiding the needless
-	 * creation of many dirty pages.
-	 */
+	/* Mark all pages that were ever used for allocations as dirty. */
 	run_ind = (size_t)(((uintptr_t)run - (uintptr_t)chunk) >> PAGE_SHIFT);
-	assert((chunk->map[run_ind].bits & CHUNK_MAP_DIRTY) == 0);
-	chunk->map[run_ind].bits |= CHUNK_MAP_DIRTY;
-	chunk->ndirty++;
-	arena->ndirty++;
+	past = (size_t)(((uintptr_t)run->next - (uintptr_t)1U -
+	    (uintptr_t)chunk) >> PAGE_SHIFT) + 1;
+	chunk->ndirty += past - run_ind;
+	arena->ndirty += past - run_ind;
+	for (; run_ind < past; run_ind++) {
+		assert((chunk->map[run_ind].bits & CHUNK_MAP_DIRTY) == 0);
+		chunk->map[run_ind].bits |= CHUNK_MAP_DIRTY;
+	}
 
 #ifdef JEMALLOC_DEBUG
 	run->magic = 0;
@@ -1643,7 +1449,9 @@ arena_dalloc_bin(arena_t *arena, arena_chunk_t *chunk, void *ptr,
 	size_t pageind;
 	arena_run_t *run;
 	arena_bin_t *bin;
+#if (defined(JEMALLOC_FILL) || defined(JEMALLOC_STATS))
 	size_t size;
+#endif
 
 	pageind = (((uintptr_t)ptr - (uintptr_t)chunk) >> PAGE_SHIFT);
 	run = (arena_run_t *)((uintptr_t)chunk + (uintptr_t)((pageind -
@@ -1651,15 +1459,16 @@ arena_dalloc_bin(arena_t *arena, arena_chunk_t *chunk, void *ptr,
 	    PAGE_SHIFT));
 	assert(run->magic == ARENA_RUN_MAGIC);
 	bin = run->bin;
+#if (defined(JEMALLOC_FILL) || defined(JEMALLOC_STATS))
 	size = bin->reg_size;
+#endif
 
 #ifdef JEMALLOC_FILL
 	if (opt_junk)
 		memset(ptr, 0x5a, size);
 #endif
 
-	arena_run_reg_dalloc(run, bin, ptr, size);
-	run->nfree++;
+	arena_run_reg_dalloc(run, ptr);
 
 	if (run->nfree == bin->nregs)
 		arena_dalloc_bin_run(arena, chunk, run, bin);

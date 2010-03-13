@@ -18,11 +18,7 @@
 
 #ifdef JEMALLOC_TINY
    /* Smallest size class to support. */
-#  ifdef JEMALLOC_TCACHE
-#    define LG_TINY_MIN		LG_SIZEOF_PTR
-#  else
-#    define LG_TINY_MIN		1
-#  endif
+#  define LG_TINY_MIN		LG_SIZEOF_PTR
 #endif
 
 /*
@@ -77,12 +73,6 @@
 #define	RUN_MAX_OVRHD		0x0000003dU
 #define	RUN_MAX_OVRHD_RELAX	0x00001800U
 
-/* Put a cap on small object run size.  This overrides RUN_MAX_OVRHD. */
-#define	RUN_MAX_SMALL							\
-	(arena_maxclass <= (1U << (CHUNK_MAP_LG_PG_RANGE + PAGE_SHIFT))	\
-	    ? arena_maxclass : (1U << (CHUNK_MAP_LG_PG_RANGE +		\
-	    PAGE_SHIFT)))
-
 /*
  * The minimum ratio of active:dirty pages per arena is computed as:
  *
@@ -130,7 +120,6 @@ struct arena_chunk_map_s {
 	 *     Small/medium: Don't care.
 	 *     Large: Run size for first page, unset for trailing pages.
 	 * - : Unused.
-	 * c : refcount (could overflow for PAGE_SIZE >= 128 KiB)
 	 * d : dirty?
 	 * z : zeroed?
 	 * l : large?
@@ -150,9 +139,9 @@ struct arena_chunk_map_s {
 	 *     ssssssss ssssssss ssss---- -----z--
 	 *
 	 *   Small/medium:
-	 *     pppppppp ppppcccc cccccccc cccc---a
-	 *     pppppppp ppppcccc cccccccc cccc---a
-	 *     pppppppp ppppcccc cccccccc cccc---a
+	 *     pppppppp pppppppp pppp---- -------a
+	 *     pppppppp pppppppp pppp---- -------a
+	 *     pppppppp pppppppp pppp---- -------a
 	 *
 	 *   Large:
 	 *     ssssssss ssssssss ssss---- ------la
@@ -160,12 +149,9 @@ struct arena_chunk_map_s {
 	 *     -------- -------- -------- ------la
 	 */
 	size_t				bits;
-#define	CHUNK_MAP_PG_MASK	((size_t)0xfff00000U)
-#define	CHUNK_MAP_PG_SHIFT	20
-#define	CHUNK_MAP_LG_PG_RANGE	12
-
-#define	CHUNK_MAP_RC_MASK	((size_t)0xffff0U)
-#define	CHUNK_MAP_RC_ONE	((size_t)0x00010U)
+#define	CHUNK_MAP_PG_MASK	((size_t)0xfffff000U)
+#define	CHUNK_MAP_PG_SHIFT	12
+#define	CHUNK_MAP_LG_PG_RANGE	20
 
 #define	CHUNK_MAP_FLAGS_MASK	((size_t)0xfU)
 #define	CHUNK_MAP_DIRTY		((size_t)0x8U)
@@ -209,14 +195,14 @@ struct arena_run_s {
 	/* Bin this run is associated with. */
 	arena_bin_t	*bin;
 
-	/* Index of first element that might have a free region. */
-	unsigned	regs_minelm;
+	/* Stack of available freed regions, or NULL. */
+	void		*avail;
+
+	/* Next region that has never been allocated, or run boundary. */
+	void		*next;
 
 	/* Number of free regions in run. */
 	unsigned	nfree;
-
-	/* Bitmask of in-use regions (0: in use, 1: free). */
-	unsigned	regs_mask[1]; /* Dynamically sized. */
 };
 
 struct arena_bin_s {
@@ -243,9 +229,6 @@ struct arena_bin_s {
 
 	/* Total number of regions in a run for this bin's size class. */
 	uint32_t	nregs;
-
-	/* Number of elements in a run's regs_mask for this bin's size class. */
-	uint32_t	regs_mask_nelms;
 
 #ifdef JEMALLOC_PROF
 	/*
