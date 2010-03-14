@@ -24,6 +24,12 @@ const ctl_node_t	*n##_index(const size_t *mib, size_t miblen,	\
 static bool	ctl_arena_init(ctl_arena_stats_t *astats);
 #endif
 static void	ctl_arena_clear(ctl_arena_stats_t *astats);
+#ifdef JEMALLOC_STATS
+static void	ctl_arena_stats_amerge(ctl_arena_stats_t *cstats,
+    arena_t *arena);
+static void	ctl_arena_stats_smerge(ctl_arena_stats_t *sstats,
+    ctl_arena_stats_t *astats);
+#endif
 static void	ctl_arena_refresh(arena_t *arena, unsigned i);
 static void	ctl_refresh(void);
 static bool	ctl_init(void);
@@ -131,12 +137,17 @@ CTL_PROTO(stats_huge_ndalloc)
 CTL_PROTO(stats_arenas_i_small_allocated)
 CTL_PROTO(stats_arenas_i_small_nmalloc)
 CTL_PROTO(stats_arenas_i_small_ndalloc)
+CTL_PROTO(stats_arenas_i_small_nrequests)
 CTL_PROTO(stats_arenas_i_medium_allocated)
 CTL_PROTO(stats_arenas_i_medium_nmalloc)
 CTL_PROTO(stats_arenas_i_medium_ndalloc)
+CTL_PROTO(stats_arenas_i_medium_nrequests)
 CTL_PROTO(stats_arenas_i_large_allocated)
 CTL_PROTO(stats_arenas_i_large_nmalloc)
 CTL_PROTO(stats_arenas_i_large_ndalloc)
+CTL_PROTO(stats_arenas_i_bins_j_allocated)
+CTL_PROTO(stats_arenas_i_bins_j_nmalloc)
+CTL_PROTO(stats_arenas_i_bins_j_ndalloc)
 CTL_PROTO(stats_arenas_i_bins_j_nrequests)
 #ifdef JEMALLOC_TCACHE
 CTL_PROTO(stats_arenas_i_bins_j_nfills)
@@ -332,13 +343,15 @@ static const ctl_node_t stats_huge_node[] = {
 static const ctl_node_t stats_arenas_i_small_node[] = {
 	{NAME("allocated"),		CTL(stats_arenas_i_small_allocated)},
 	{NAME("nmalloc"),		CTL(stats_arenas_i_small_nmalloc)},
-	{NAME("ndalloc"),		CTL(stats_arenas_i_small_ndalloc)}
+	{NAME("ndalloc"),		CTL(stats_arenas_i_small_ndalloc)},
+	{NAME("nrequests"),		CTL(stats_arenas_i_small_nrequests)}
 };
 
 static const ctl_node_t stats_arenas_i_medium_node[] = {
 	{NAME("allocated"),		CTL(stats_arenas_i_medium_allocated)},
 	{NAME("nmalloc"),		CTL(stats_arenas_i_medium_nmalloc)},
-	{NAME("ndalloc"),		CTL(stats_arenas_i_medium_ndalloc)}
+	{NAME("ndalloc"),		CTL(stats_arenas_i_medium_ndalloc)},
+	{NAME("nrequests"),		CTL(stats_arenas_i_medium_nrequests)}
 };
 
 static const ctl_node_t stats_arenas_i_large_node[] = {
@@ -348,6 +361,9 @@ static const ctl_node_t stats_arenas_i_large_node[] = {
 };
 
 static const ctl_node_t stats_arenas_i_bins_j_node[] = {
+	{NAME("allocated"),		CTL(stats_arenas_i_bins_j_allocated)},
+	{NAME("nmalloc"),		CTL(stats_arenas_i_bins_j_nmalloc)},
+	{NAME("ndalloc"),		CTL(stats_arenas_i_bins_j_ndalloc)},
 	{NAME("nrequests"),		CTL(stats_arenas_i_bins_j_nrequests)},
 #ifdef JEMALLOC_TCACHE
 	{NAME("nfills"),		CTL(stats_arenas_i_bins_j_nfills)},
@@ -485,10 +501,92 @@ ctl_arena_clear(ctl_arena_stats_t *astats)
 	astats->pdirty = 0;
 #ifdef JEMALLOC_STATS
 	memset(&astats->astats, 0, sizeof(arena_stats_t));
+	astats->allocated_small = 0;
+	astats->nmalloc_small = 0;
+	astats->ndalloc_small = 0;
+	astats->nrequests_small = 0;
+	astats->allocated_medium = 0;
+	astats->nmalloc_medium = 0;
+	astats->ndalloc_medium = 0;
+	astats->nrequests_medium = 0;
 	memset(astats->bstats, 0, nbins * sizeof(malloc_bin_stats_t));
 	memset(astats->lstats, 0, nlclasses * sizeof(malloc_large_stats_t));
 #endif
 }
+
+#ifdef JEMALLOC_STATS
+static void
+ctl_arena_stats_amerge(ctl_arena_stats_t *cstats, arena_t *arena)
+{
+	unsigned i;
+
+	arena_stats_merge(arena, &cstats->pactive, &cstats->pdirty,
+	    &cstats->astats, cstats->bstats, cstats->lstats);
+
+	for (i = 0; i < mbin0; i++) {
+		cstats->allocated_small += cstats->bstats[i].allocated;
+		cstats->nmalloc_small += cstats->bstats[i].nmalloc;
+		cstats->ndalloc_small += cstats->bstats[i].ndalloc;
+		cstats->nrequests_small += cstats->bstats[i].nrequests;
+	}
+
+	for (; i < nbins; i++) {
+		cstats->allocated_medium += cstats->bstats[i].allocated;
+		cstats->nmalloc_medium += cstats->bstats[i].nmalloc;
+		cstats->ndalloc_medium += cstats->bstats[i].ndalloc;
+		cstats->nrequests_medium += cstats->bstats[i].nrequests;
+	}
+}
+
+static void
+ctl_arena_stats_smerge(ctl_arena_stats_t *sstats, ctl_arena_stats_t *astats)
+{
+	unsigned i;
+
+	sstats->pactive += astats->pactive;
+	sstats->pdirty += astats->pdirty;
+
+	sstats->astats.mapped += astats->astats.mapped;
+	sstats->astats.npurge += astats->astats.npurge;
+	sstats->astats.nmadvise += astats->astats.nmadvise;
+	sstats->astats.purged += astats->astats.purged;
+
+	sstats->allocated_small += astats->allocated_small;
+	sstats->nmalloc_small += astats->nmalloc_small;
+	sstats->ndalloc_small += astats->ndalloc_small;
+	sstats->nrequests_small += astats->nrequests_small;
+
+	sstats->allocated_medium += astats->allocated_medium;
+	sstats->nmalloc_medium += astats->nmalloc_medium;
+	sstats->ndalloc_medium += astats->ndalloc_medium;
+	sstats->nrequests_medium += astats->nrequests_medium;
+
+	sstats->astats.allocated_large += astats->astats.allocated_large;
+	sstats->astats.nmalloc_large += astats->astats.nmalloc_large;
+	sstats->astats.ndalloc_large += astats->astats.ndalloc_large;
+
+	for (i = 0; i < nlclasses; i++) {
+		sstats->lstats[i].nrequests += astats->lstats[i].nrequests;
+		sstats->lstats[i].highruns += astats->lstats[i].highruns;
+		sstats->lstats[i].curruns += astats->lstats[i].curruns;
+	}
+
+	for (i = 0; i < nbins; i++) {
+		sstats->bstats[i].allocated += astats->bstats[i].allocated;
+		sstats->bstats[i].nmalloc += astats->bstats[i].nmalloc;
+		sstats->bstats[i].ndalloc += astats->bstats[i].ndalloc;
+		sstats->bstats[i].nrequests += astats->bstats[i].nrequests;
+#ifdef JEMALLOC_TCACHE
+		sstats->bstats[i].nfills += astats->bstats[i].nfills;
+		sstats->bstats[i].nflushes += astats->bstats[i].nflushes;
+#endif
+		sstats->bstats[i].nruns += astats->bstats[i].nruns;
+		sstats->bstats[i].reruns += astats->bstats[i].reruns;
+		sstats->bstats[i].highruns += astats->bstats[i].highruns;
+		sstats->bstats[i].curruns += astats->bstats[i].curruns;
+	}
+}
+#endif
 
 static void
 ctl_arena_refresh(arena_t *arena, unsigned i)
@@ -498,13 +596,10 @@ ctl_arena_refresh(arena_t *arena, unsigned i)
 
 	ctl_arena_clear(astats);
 
-	malloc_mutex_lock(&arena->lock);
 #ifdef JEMALLOC_STATS
-	arena_stats_merge(arena, &astats->pactive, &astats->pdirty,
-	    &astats->astats, astats->bstats, astats->lstats);
+	ctl_arena_stats_amerge(astats, arena);
 	/* Merge into sum stats as well. */
-	arena_stats_merge(arena, &sstats->pactive, &sstats->pdirty,
-	    &sstats->astats, sstats->bstats, sstats->lstats);
+	ctl_arena_stats_smerge(sstats, astats);
 #else
 	astats->pactive += arena->nactive;
 	astats->pdirty += arena->ndirty;
@@ -512,7 +607,6 @@ ctl_arena_refresh(arena_t *arena, unsigned i)
 	sstats->pactive += arena->nactive;
 	sstats->pdirty += arena->ndirty;
 #endif
-	malloc_mutex_unlock(&arena->lock);
 }
 
 static void
@@ -553,8 +647,8 @@ ctl_refresh(void)
 	}
 
 #ifdef JEMALLOC_STATS
-	ctl_stats.allocated = ctl_stats.arenas[narenas].astats.allocated_small
-	    + ctl_stats.arenas[narenas].astats.allocated_medium
+	ctl_stats.allocated = ctl_stats.arenas[narenas].allocated_small
+	    + ctl_stats.arenas[narenas].allocated_medium
 	    + ctl_stats.arenas[narenas].astats.allocated_large
 	    + ctl_stats.huge.allocated;
 	ctl_stats.active = (ctl_stats.arenas[narenas].pactive << PAGE_SHIFT)
@@ -1203,17 +1297,21 @@ CTL_RO_GEN(stats_huge_allocated, huge_allocated, size_t)
 CTL_RO_GEN(stats_huge_nmalloc, huge_nmalloc, uint64_t)
 CTL_RO_GEN(stats_huge_ndalloc, huge_ndalloc, uint64_t)
 CTL_RO_GEN(stats_arenas_i_small_allocated,
-    ctl_stats.arenas[mib[2]].astats.allocated_small, size_t)
+    ctl_stats.arenas[mib[2]].allocated_small, size_t)
 CTL_RO_GEN(stats_arenas_i_small_nmalloc,
-    ctl_stats.arenas[mib[2]].astats.nmalloc_small, uint64_t)
+    ctl_stats.arenas[mib[2]].nmalloc_small, uint64_t)
 CTL_RO_GEN(stats_arenas_i_small_ndalloc,
-    ctl_stats.arenas[mib[2]].astats.ndalloc_small, uint64_t)
+    ctl_stats.arenas[mib[2]].ndalloc_small, uint64_t)
+CTL_RO_GEN(stats_arenas_i_small_nrequests,
+    ctl_stats.arenas[mib[2]].nrequests_small, uint64_t)
 CTL_RO_GEN(stats_arenas_i_medium_allocated,
-    ctl_stats.arenas[mib[2]].astats.allocated_medium, size_t)
+    ctl_stats.arenas[mib[2]].allocated_medium, size_t)
 CTL_RO_GEN(stats_arenas_i_medium_nmalloc,
-    ctl_stats.arenas[mib[2]].astats.nmalloc_medium, uint64_t)
+    ctl_stats.arenas[mib[2]].nmalloc_medium, uint64_t)
 CTL_RO_GEN(stats_arenas_i_medium_ndalloc,
-    ctl_stats.arenas[mib[2]].astats.ndalloc_medium, uint64_t)
+    ctl_stats.arenas[mib[2]].ndalloc_medium, uint64_t)
+CTL_RO_GEN(stats_arenas_i_medium_nrequests,
+    ctl_stats.arenas[mib[2]].nrequests_medium, uint64_t)
 CTL_RO_GEN(stats_arenas_i_large_allocated,
     ctl_stats.arenas[mib[2]].astats.allocated_large, size_t)
 CTL_RO_GEN(stats_arenas_i_large_nmalloc,
@@ -1221,6 +1319,12 @@ CTL_RO_GEN(stats_arenas_i_large_nmalloc,
 CTL_RO_GEN(stats_arenas_i_large_ndalloc,
     ctl_stats.arenas[mib[2]].astats.ndalloc_large, uint64_t)
 
+CTL_RO_GEN(stats_arenas_i_bins_j_allocated,
+    ctl_stats.arenas[mib[2]].bstats[mib[4]].allocated, size_t)
+CTL_RO_GEN(stats_arenas_i_bins_j_nmalloc,
+    ctl_stats.arenas[mib[2]].bstats[mib[4]].nmalloc, uint64_t)
+CTL_RO_GEN(stats_arenas_i_bins_j_ndalloc,
+    ctl_stats.arenas[mib[2]].bstats[mib[4]].ndalloc, uint64_t)
 CTL_RO_GEN(stats_arenas_i_bins_j_nrequests,
     ctl_stats.arenas[mib[2]].bstats[mib[4]].nrequests, uint64_t)
 #ifdef JEMALLOC_TCACHE

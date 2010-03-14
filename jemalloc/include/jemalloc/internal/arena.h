@@ -207,6 +207,14 @@ struct arena_run_s {
 
 struct arena_bin_s {
 	/*
+	 * All operations on runcur, runs, and stats require that lock be
+	 * locked.  Run allocation/deallocation are protected by the arena lock,
+	 * which may be acquired while holding one or more bin locks, but not
+	 * vise versa.
+	 */
+	malloc_mutex_t	lock;
+
+	/*
 	 * Current run being used to service allocations of this bin's size
 	 * class.
 	 */
@@ -256,7 +264,10 @@ struct arena_s {
 	/* This arena's index within the arenas array. */
 	unsigned		ind;
 
-	/* All operations on this arena require that lock be locked. */
+	/*
+	 * All non-bin-related operations on this arena require that lock be
+	 * locked.
+	 */
 	malloc_mutex_t		lock;
 
 #ifdef JEMALLOC_STATS
@@ -459,9 +470,18 @@ arena_dalloc(arena_t *arena, arena_chunk_t *chunk, void *ptr)
 			tcache_dalloc(tcache, ptr);
 		else {
 #endif
-			malloc_mutex_lock(&arena->lock);
+			arena_run_t *run;
+			arena_bin_t *bin;
+
+			run = (arena_run_t *)((uintptr_t)chunk +
+			    (uintptr_t)((pageind - ((mapelm->bits &
+			    CHUNK_MAP_PG_MASK) >> CHUNK_MAP_PG_SHIFT)) <<
+			    PAGE_SHIFT));
+			assert(run->magic == ARENA_RUN_MAGIC);
+			bin = run->bin;
+			malloc_mutex_lock(&bin->lock);
 			arena_dalloc_bin(arena, chunk, ptr, mapelm);
-			malloc_mutex_unlock(&arena->lock);
+			malloc_mutex_unlock(&bin->lock);
 #ifdef JEMALLOC_TCACHE
 		}
 #endif

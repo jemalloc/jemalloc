@@ -38,7 +38,7 @@
 .\"     @(#)malloc.3	8.1 (Berkeley) 6/4/93
 .\" $FreeBSD: head/lib/libc/stdlib/malloc.3 182225 2008-08-27 02:00:53Z jasone $
 .\"
-.Dd March 4, 2010
+.Dd March 13, 2010
 .Dt JEMALLOC 3
 .Os
 .Sh NAME
@@ -1134,12 +1134,17 @@ has not been called.
 .\"-----------------------------------------------------------------------------
 @roff_stats@.It Sy "stats.arenas.<i>.small.nmalloc (uint64_t) r-"
 @roff_stats@.Bd -ragged -offset indent -compact
-@roff_stats@Cumulative number of small allocation requests.
+@roff_stats@Cumulative number of allocation requests served by small bins.
 @roff_stats@.Ed
 .\"-----------------------------------------------------------------------------
 @roff_stats@.It Sy "stats.arenas.<i>.small.ndalloc (uint64_t) r-"
 @roff_stats@.Bd -ragged -offset indent -compact
-@roff_stats@Cumulative number of small deallocation requests.
+@roff_stats@Cumulative number of small objects returned to bins.
+@roff_stats@.Ed
+.\"-----------------------------------------------------------------------------
+@roff_stats@.It Sy "stats.arenas.<i>.small.nrequests (uint64_t) r-"
+@roff_stats@.Bd -ragged -offset indent -compact
+@roff_stats@Cumulative number of small allocation requests.
 @roff_stats@.Ed
 .\"-----------------------------------------------------------------------------
 @roff_stats@.It Sy "stats.arenas.<i>.medium.allocated (size_t) r-"
@@ -1149,12 +1154,17 @@ has not been called.
 .\"-----------------------------------------------------------------------------
 @roff_stats@.It Sy "stats.arenas.<i>.medium.nmalloc (uint64_t) r-"
 @roff_stats@.Bd -ragged -offset indent -compact
-@roff_stats@Cumulative number of medium allocation requests.
+@roff_stats@Cumulative number of allocation requests served by medium bins.
 @roff_stats@.Ed
 .\"-----------------------------------------------------------------------------
 @roff_stats@.It Sy "stats.arenas.<i>.medium.ndalloc (uint64_t) r-"
 @roff_stats@.Bd -ragged -offset indent -compact
-@roff_stats@Cumulative number of medium deallocation requests.
+@roff_stats@Cumulative number of medium objects returned to bins.
+@roff_stats@.Ed
+.\"-----------------------------------------------------------------------------
+@roff_stats@.It Sy "stats.arenas.<i>.medium.nrequests (uint64_t) r-"
+@roff_stats@.Bd -ragged -offset indent -compact
+@roff_stats@Cumulative number of medium allocation requests.
 @roff_stats@.Ed
 .\"-----------------------------------------------------------------------------
 @roff_stats@.It Sy "stats.arenas.<i>.large.allocated (size_t) r-"
@@ -1170,6 +1180,21 @@ has not been called.
 @roff_stats@.It Sy "stats.arenas.<i>.large.ndalloc (uint64_t) r-"
 @roff_stats@.Bd -ragged -offset indent -compact
 @roff_stats@Cumulative number of large deallocation requests.
+@roff_stats@.Ed
+.\"-----------------------------------------------------------------------------
+@roff_stats@.It Sy "stats.arenas.<i>.bins.<j>.allocated (size_t) r-"
+@roff_stats@.Bd -ragged -offset indent -compact
+@roff_stats@Current number of bytes allocated by bin.
+@roff_stats@.Ed
+.\"-----------------------------------------------------------------------------
+@roff_stats@.It Sy "stats.arenas.<i>.bins.<j>.nmalloc (uint64_t) r-"
+@roff_stats@.Bd -ragged -offset indent -compact
+@roff_stats@Cumulative number of allocations served by bin.
+@roff_stats@.Ed
+.\"-----------------------------------------------------------------------------
+@roff_stats@.It Sy "stats.arenas.<i>.bins.<j>.ndalloc (uint64_t) r-"
+@roff_stats@.Bd -ragged -offset indent -compact
+@roff_stats@Cumulative number of allocations returned to bin.
 @roff_stats@.Ed
 .\"-----------------------------------------------------------------------------
 @roff_stats@.It Sy "stats.arenas.<i>.bins.<j>.nrequests (uint64_t) r-"

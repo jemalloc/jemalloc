@@ -769,7 +769,9 @@ arena_bin_nonfull_run_get(arena_t *arena, arena_bin_t *bin)
 	/* No existing runs have any space available. */
 
 	/* Allocate a new run. */
+	malloc_mutex_lock(&arena->lock);
 	run = arena_run_alloc(arena, bin->run_size, false, false);
+	malloc_mutex_unlock(&arena->lock);
 	if (run == NULL)
 		return (NULL);
 
@@ -805,6 +807,21 @@ arena_bin_malloc_hard(arena_t *arena, arena_bin_t *bin)
 	return (arena_run_reg_alloc(bin->runcur, bin));
 }
 
+#ifdef JEMALLOC_PROF
+void
+arena_prof_accum(arena_t *arena, uint64_t accumbytes)
+{
+
+	if (prof_interval != 0) {
+		arena->prof_accumbytes += accumbytes;
+		if (arena->prof_accumbytes >= prof_interval) {
+			prof_idump();
+			arena->prof_accumbytes -= prof_interval;
+		}
+	}
+}
+#endif
+
 #ifdef JEMALLOC_TCACHE
 void
 arena_tcache_fill(arena_t *arena, tcache_bin_t *tbin, size_t binind
@@ -821,9 +838,11 @@ arena_tcache_fill(arena_t *arena, tcache_bin_t *tbin, size_t binind
 	assert(tbin->ncached == 0);
 
 	bin = &arena->bins[binind];
-	malloc_mutex_lock(&arena->lock);
+	malloc_mutex_lock(&bin->lock);
 #ifdef JEMALLOC_PROF
+	malloc_mutex_lock(&arena->lock);
 	arena_prof_accum(arena, prof_accumbytes);
+	malloc_mutex_unlock(&arena->lock);
 #endif
 	for (i = 0, nfill = (tbin->ncached_max >> 1); i < nfill; i++) {
 		if ((run = bin->runcur) != NULL && run->nfree > 0)
@@ -836,38 +855,16 @@ arena_tcache_fill(arena_t *arena, tcache_bin_t *tbin, size_t binind
 		tbin->avail = ptr;
 	}
 #ifdef JEMALLOC_STATS
-	bin->stats.nfills++;
+	bin->stats.allocated += (i - tbin->ncached) * bin->reg_size;
+	bin->stats.nmalloc += i;
 	bin->stats.nrequests += tbin->tstats.nrequests;
-	if (bin->reg_size <= small_maxclass) {
-		arena->stats.allocated_small += (i - tbin->ncached) *
-		    bin->reg_size;
-		arena->stats.nmalloc_small += tbin->tstats.nrequests;
-	} else {
-		arena->stats.allocated_medium += (i - tbin->ncached) *
-		    bin->reg_size;
-		arena->stats.nmalloc_medium += tbin->tstats.nrequests;
-	}
+	bin->stats.nfills++;
 	tbin->tstats.nrequests = 0;
 #endif
-	malloc_mutex_unlock(&arena->lock);
+	malloc_mutex_unlock(&bin->lock);
 	tbin->ncached = i;
 	if (tbin->ncached > tbin->high_water)
 		tbin->high_water = tbin->ncached;
-}
-#endif
-
-#ifdef JEMALLOC_PROF
-void
-arena_prof_accum(arena_t *arena, uint64_t accumbytes)
-{
-
-	if (prof_interval != 0) {
-		arena->prof_accumbytes += accumbytes;
-		if (arena->prof_accumbytes >= prof_interval) {
-			prof_idump();
-			arena->prof_accumbytes -= prof_interval;
-		}
-	}
 }
 #endif
 
@@ -993,33 +990,30 @@ arena_malloc_small(arena_t *arena, size_t size, bool zero)
 	bin = &arena->bins[binind];
 	size = bin->reg_size;
 
-	malloc_mutex_lock(&arena->lock);
+	malloc_mutex_lock(&bin->lock);
 	if ((run = bin->runcur) != NULL && run->nfree > 0)
 		ret = arena_run_reg_alloc(run, bin);
 	else
 		ret = arena_bin_malloc_hard(arena, bin);
 
 	if (ret == NULL) {
-		malloc_mutex_unlock(&arena->lock);
+		malloc_mutex_unlock(&bin->lock);
 		return (NULL);
 	}
 
 #ifdef JEMALLOC_STATS
-#  ifdef JEMALLOC_TCACHE
-	if (isthreaded == false) {
-#  endif
-		bin->stats.nrequests++;
-		arena->stats.nmalloc_small++;
-#  ifdef JEMALLOC_TCACHE
-	}
-#  endif
-	arena->stats.allocated_small += size;
+	bin->stats.allocated += size;
+	bin->stats.nmalloc++;
+	bin->stats.nrequests++;
 #endif
+	malloc_mutex_unlock(&bin->lock);
 #ifdef JEMALLOC_PROF
-	if (isthreaded == false)
+	if (isthreaded == false) {
+		malloc_mutex_lock(&arena->lock);
 		arena_prof_accum(arena, size);
+		malloc_mutex_unlock(&arena->lock);
+	}
 #endif
-	malloc_mutex_unlock(&arena->lock);
 
 	if (zero == false) {
 #ifdef JEMALLOC_FILL
@@ -1048,33 +1042,30 @@ arena_malloc_medium(arena_t *arena, size_t size, bool zero)
 	bin = &arena->bins[binind];
 	assert(bin->reg_size == size);
 
-	malloc_mutex_lock(&arena->lock);
+	malloc_mutex_lock(&bin->lock);
 	if ((run = bin->runcur) != NULL && run->nfree > 0)
 		ret = arena_run_reg_alloc(run, bin);
 	else
 		ret = arena_bin_malloc_hard(arena, bin);
 
 	if (ret == NULL) {
-		malloc_mutex_unlock(&arena->lock);
+		malloc_mutex_unlock(&bin->lock);
 		return (NULL);
 	}
 
 #ifdef JEMALLOC_STATS
-#  ifdef JEMALLOC_TCACHE
-	if (isthreaded == false) {
-#  endif
-		bin->stats.nrequests++;
-		arena->stats.nmalloc_medium++;
-#  ifdef JEMALLOC_TCACHE
-	}
-#  endif
-	arena->stats.allocated_medium += size;
+	bin->stats.allocated += size;
+	bin->stats.nmalloc++;
+	bin->stats.nrequests++;
 #endif
+	malloc_mutex_unlock(&bin->lock);
 #ifdef JEMALLOC_PROF
-	if (isthreaded == false)
+	if (isthreaded == false) {
+		malloc_mutex_lock(&arena->lock);
 		arena_prof_accum(arena, size);
+		malloc_mutex_unlock(&arena->lock);
+	}
 #endif
-	malloc_mutex_unlock(&arena->lock);
 
 	if (zero == false) {
 #ifdef JEMALLOC_FILL
@@ -1417,6 +1408,8 @@ arena_dalloc_bin_run(arena_t *arena, arena_chunk_t *chunk, arena_run_t *run,
 	run_ind = (size_t)(((uintptr_t)run - (uintptr_t)chunk) >> PAGE_SHIFT);
 	past = (size_t)(((uintptr_t)run->next - (uintptr_t)1U -
 	    (uintptr_t)chunk) >> PAGE_SHIFT) + 1;
+
+	malloc_mutex_lock(&arena->lock);
 	chunk->ndirty += past - run_ind;
 	arena->ndirty += past - run_ind;
 	for (; run_ind < past; run_ind++) {
@@ -1428,9 +1421,6 @@ arena_dalloc_bin_run(arena_t *arena, arena_chunk_t *chunk, arena_run_t *run,
 	run->magic = 0;
 #endif
 	arena_run_dalloc(arena, run, false);
-#ifdef JEMALLOC_STATS
-	bin->stats.curruns--;
-#endif
 
 	if (chunk->dirtied == false) {
 		ql_tail_insert(&arena->chunks_dirty, chunk, link_dirty);
@@ -1440,6 +1430,11 @@ arena_dalloc_bin_run(arena_t *arena, arena_chunk_t *chunk, arena_run_t *run,
 	if (opt_lg_dirty_mult >= 0 && arena->ndirty > chunk_npages &&
 	    (arena->nactive >> opt_lg_dirty_mult) < arena->ndirty)
 		arena_purge(arena);
+
+	malloc_mutex_unlock(&arena->lock);
+#ifdef JEMALLOC_STATS
+	bin->stats.curruns--;
+#endif
 }
 
 void
@@ -1508,13 +1503,8 @@ arena_dalloc_bin(arena_t *arena, arena_chunk_t *chunk, void *ptr,
 	}
 
 #ifdef JEMALLOC_STATS
-	if (size <= small_maxclass) {
-		arena->stats.allocated_small -= size;
-		arena->stats.ndalloc_small++;
-	} else {
-		arena->stats.allocated_medium -= size;
-		arena->stats.ndalloc_medium++;
-	}
+	bin->stats.allocated -= size;
+	bin->stats.ndalloc++;
 #endif
 }
 
@@ -1526,6 +1516,7 @@ arena_stats_merge(arena_t *arena, size_t *nactive, size_t *ndirty,
 {
 	unsigned i;
 
+	malloc_mutex_lock(&arena->lock);
 	*nactive += arena->nactive;
 	*ndirty += arena->ndirty;
 
@@ -1533,32 +1524,34 @@ arena_stats_merge(arena_t *arena, size_t *nactive, size_t *ndirty,
 	astats->npurge += arena->stats.npurge;
 	astats->nmadvise += arena->stats.nmadvise;
 	astats->purged += arena->stats.purged;
-	astats->allocated_small += arena->stats.allocated_small;
-	astats->nmalloc_small += arena->stats.nmalloc_small;
-	astats->ndalloc_small += arena->stats.ndalloc_small;
-	astats->allocated_medium += arena->stats.allocated_medium;
-	astats->nmalloc_medium += arena->stats.nmalloc_medium;
-	astats->ndalloc_medium += arena->stats.ndalloc_medium;
 	astats->allocated_large += arena->stats.allocated_large;
 	astats->nmalloc_large += arena->stats.nmalloc_large;
 	astats->ndalloc_large += arena->stats.ndalloc_large;
-
-	for (i = 0; i < nbins; i++) {
-		bstats[i].nrequests += arena->bins[i].stats.nrequests;
-#ifdef JEMALLOC_TCACHE
-		bstats[i].nfills += arena->bins[i].stats.nfills;
-		bstats[i].nflushes += arena->bins[i].stats.nflushes;
-#endif
-		bstats[i].nruns += arena->bins[i].stats.nruns;
-		bstats[i].reruns += arena->bins[i].stats.reruns;
-		bstats[i].highruns += arena->bins[i].stats.highruns;
-		bstats[i].curruns += arena->bins[i].stats.curruns;
-	}
 
 	for (i = 0; i < nlclasses; i++) {
 		lstats[i].nrequests += arena->stats.lstats[i].nrequests;
 		lstats[i].highruns += arena->stats.lstats[i].highruns;
 		lstats[i].curruns += arena->stats.lstats[i].curruns;
+	}
+	malloc_mutex_unlock(&arena->lock);
+
+	for (i = 0; i < nbins; i++) {
+		arena_bin_t *bin = &arena->bins[i];
+
+		malloc_mutex_lock(&bin->lock);
+		bstats[i].allocated += bin->stats.allocated;
+		bstats[i].nmalloc += bin->stats.nmalloc;
+		bstats[i].ndalloc += bin->stats.ndalloc;
+		bstats[i].nrequests += bin->stats.nrequests;
+#ifdef JEMALLOC_TCACHE
+		bstats[i].nfills += bin->stats.nfills;
+		bstats[i].nflushes += bin->stats.nflushes;
+#endif
+		bstats[i].nruns += bin->stats.nruns;
+		bstats[i].reruns += bin->stats.reruns;
+		bstats[i].highruns += bin->stats.highruns;
+		bstats[i].curruns += bin->stats.curruns;
+		malloc_mutex_unlock(&bin->lock);
 	}
 }
 #endif
@@ -1860,6 +1853,8 @@ arena_new(arena_t *arena, unsigned ind)
 	/* (2^n)-spaced tiny bins. */
 	for (; i < ntbins; i++) {
 		bin = &arena->bins[i];
+		if (malloc_mutex_init(&bin->lock))
+			return (true);
 		bin->runcur = NULL;
 		arena_run_tree_new(&bin->runs);
 
@@ -1876,6 +1871,8 @@ arena_new(arena_t *arena, unsigned ind)
 	/* Quantum-spaced bins. */
 	for (; i < ntbins + nqbins; i++) {
 		bin = &arena->bins[i];
+		if (malloc_mutex_init(&bin->lock))
+			return (true);
 		bin->runcur = NULL;
 		arena_run_tree_new(&bin->runs);
 
@@ -1891,6 +1888,8 @@ arena_new(arena_t *arena, unsigned ind)
 	/* Cacheline-spaced bins. */
 	for (; i < ntbins + nqbins + ncbins; i++) {
 		bin = &arena->bins[i];
+		if (malloc_mutex_init(&bin->lock))
+			return (true);
 		bin->runcur = NULL;
 		arena_run_tree_new(&bin->runs);
 
@@ -1907,6 +1906,8 @@ arena_new(arena_t *arena, unsigned ind)
 	/* Subpage-spaced bins. */
 	for (; i < ntbins + nqbins + ncbins + nsbins; i++) {
 		bin = &arena->bins[i];
+		if (malloc_mutex_init(&bin->lock))
+			return (true);
 		bin->runcur = NULL;
 		arena_run_tree_new(&bin->runs);
 
@@ -1923,6 +1924,8 @@ arena_new(arena_t *arena, unsigned ind)
 	/* Medium bins. */
 	for (; i < nbins; i++) {
 		bin = &arena->bins[i];
+		if (malloc_mutex_init(&bin->lock))
+			return (true);
 		bin->runcur = NULL;
 		arena_run_tree_new(&bin->runs);
 

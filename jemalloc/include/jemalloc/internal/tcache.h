@@ -64,7 +64,7 @@ extern __thread tcache_t	*tcache_tls
 extern unsigned			tcache_gc_incr;
 
 void	tcache_bin_flush(tcache_bin_t *tbin, size_t binind, unsigned rem
-#ifdef JEMALLOC_PROF
+#if (defined(JEMALLOC_STATS) || defined(JEMALLOC_PROF))
     , tcache_t *tcache
 #endif
     );
@@ -130,7 +130,7 @@ tcache_event(tcache_t *tcache)
 			 */
 			tcache_bin_flush(tbin, binind, tbin->ncached -
 			    tbin->low_water + (tbin->low_water >> 2)
-#ifdef JEMALLOC_PROF
+#if (defined(JEMALLOC_STATS) || defined(JEMALLOC_PROF))
 			    , tcache
 #endif
 			    );
@@ -234,7 +234,7 @@ tcache_dalloc(tcache_t *tcache, void *ptr)
 	tbin = &tcache->tbins[binind];
 	if (tbin->ncached == tbin->ncached_max) {
 		tcache_bin_flush(tbin, binind, (tbin->ncached_max >> 1)
-#ifdef JEMALLOC_PROF
+#if (defined(JEMALLOC_STATS) || defined(JEMALLOC_PROF))
 		    , tcache
 #endif
 		    );

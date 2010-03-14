@@ -31,8 +31,23 @@ struct tcache_bin_stats_s {
 
 struct malloc_bin_stats_s {
 	/*
-	 * Number of allocation requests that corresponded to the size of this
-	 * bin.
+	 * Current number of bytes allocated, including objects currently
+	 * cached by tcache.
+	 */
+	size_t		allocated;
+	/*
+	 * Total number of allocation/deallocation requests served directly by
+	 * the bin.  Note that tcache may allocate an object, then recycle it
+	 * many times, resulting many increments to nrequests, but only one
+	 * each to nmalloc and ndalloc.
+	 */
+	uint64_t	nmalloc;
+	uint64_t	ndalloc;
+
+	/*
+	 * Number of allocation requests that correspond to the size of this
+	 * bin.  This includes requests served by tcache, though tcache only
+	 * periodically merges into this counter.
 	 */
 	uint64_t	nrequests;
 
@@ -87,14 +102,6 @@ struct arena_stats_s {
 	uint64_t	purged;
 
 	/* Per-size-category statistics. */
-	size_t		allocated_small;
-	uint64_t	nmalloc_small;
-	uint64_t	ndalloc_small;
-
-	size_t		allocated_medium;
-	uint64_t	nmalloc_medium;
-	uint64_t	ndalloc_medium;
-
 	size_t		allocated_large;
 	uint64_t	nmalloc_large;
 	uint64_t	ndalloc_large;
