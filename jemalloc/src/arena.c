@@ -376,7 +376,9 @@ arena_chunk_alloc(arena_t *arena)
 		size_t zeroed;
 
 		zero = false;
+		malloc_mutex_unlock(&arena->lock);
 		chunk = (arena_chunk_t *)chunk_alloc(chunksize, &zero);
+		malloc_mutex_lock(&arena->lock);
 		if (chunk == NULL)
 			return (NULL);
 #ifdef JEMALLOC_STATS
@@ -418,13 +420,18 @@ static void
 arena_chunk_dealloc(arena_t *arena, arena_chunk_t *chunk)
 {
 
-	if (arena->spare != NULL) {
-		if (arena->spare->dirtied) {
-			ql_remove(&chunk->arena->chunks_dirty, arena->spare,
+	while (arena->spare != NULL) {
+		arena_chunk_t *spare = arena->spare;
+
+		arena->spare = NULL;
+		if (spare->dirtied) {
+			ql_remove(&chunk->arena->chunks_dirty, spare,
 			    link_dirty);
-			arena->ndirty -= arena->spare->ndirty;
+			arena->ndirty -= spare->ndirty;
 		}
-		chunk_dealloc((void *)arena->spare, chunksize);
+		malloc_mutex_unlock(&arena->lock);
+		chunk_dealloc((void *)spare, chunksize);
+		malloc_mutex_lock(&arena->lock);
 #ifdef JEMALLOC_STATS
 		arena->stats.mapped -= chunksize;
 #endif
@@ -458,8 +465,8 @@ arena_run_alloc(arena_t *arena, size_t size, bool large, bool zero)
 		size_t pageind = ((uintptr_t)mapelm - (uintptr_t)run_chunk->map)
 		    / sizeof(arena_chunk_map_t);
 
-		run = (arena_run_t *)((uintptr_t)run_chunk + (pageind
-		    << PAGE_SHIFT));
+		run = (arena_run_t *)((uintptr_t)run_chunk + (pageind <<
+		    PAGE_SHIFT));
 		arena_run_split(arena, run, size, large, zero);
 		return (run);
 	}
@@ -468,13 +475,31 @@ arena_run_alloc(arena_t *arena, size_t size, bool large, bool zero)
 	 * No usable runs.  Create a new chunk from which to allocate the run.
 	 */
 	chunk = arena_chunk_alloc(arena);
-	if (chunk == NULL)
-		return (NULL);
-	run = (arena_run_t *)((uintptr_t)chunk + (arena_chunk_header_npages <<
-	    PAGE_SHIFT));
-	/* Update page map. */
-	arena_run_split(arena, run, size, large, zero);
-	return (run);
+	if (chunk != NULL) {
+		run = (arena_run_t *)((uintptr_t)chunk +
+		    (arena_chunk_header_npages << PAGE_SHIFT));
+		arena_run_split(arena, run, size, large, zero);
+		return (run);
+	}
+
+	/*
+	 * arena_chunk_alloc() failed, but another thread may have made
+	 * sufficient memory available while this one dropped arena->lock in
+	 * arena_chunk_alloc(), so search one more time.
+	 */
+	mapelm = arena_avail_tree_nsearch(&arena->runs_avail, &key);
+	if (mapelm != NULL) {
+		arena_chunk_t *run_chunk = CHUNK_ADDR2BASE(mapelm);
+		size_t pageind = ((uintptr_t)mapelm - (uintptr_t)run_chunk->map)
+		    / sizeof(arena_chunk_map_t);
+
+		run = (arena_run_t *)((uintptr_t)run_chunk + (pageind <<
+		    PAGE_SHIFT));
+		arena_run_split(arena, run, size, large, zero);
+		return (run);
+	}
+
+	return (NULL);
 }
 
 static inline void
@@ -936,38 +961,90 @@ arena_bin_nonfull_run_get(arena_t *arena, arena_bin_t *bin)
 	/* No existing runs have any space available. */
 
 	/* Allocate a new run. */
+	malloc_mutex_unlock(&bin->lock);
 	malloc_mutex_lock(&arena->lock);
 	run = arena_run_alloc(arena, bin->run_size, false, false);
 	malloc_mutex_unlock(&arena->lock);
-	if (run == NULL)
-		return (NULL);
-
-	/* Initialize run internals. */
-	run->bin = bin;
-	run->avail = NULL;
-	run->next = (void *)(((uintptr_t)run) + (uintptr_t)bin->reg0_offset);
-	run->nfree = bin->nregs;
+	malloc_mutex_lock(&bin->lock);
+	if (run != NULL) {
+		/* Initialize run internals. */
+		run->bin = bin;
+		run->avail = NULL;
+		run->next = (void *)(((uintptr_t)run) + (uintptr_t)bin->reg0_offset);
+		run->nfree = bin->nregs;
 #ifdef JEMALLOC_DEBUG
-	run->magic = ARENA_RUN_MAGIC;
+		run->magic = ARENA_RUN_MAGIC;
 #endif
 
 #ifdef JEMALLOC_STATS
-	bin->stats.nruns++;
-	bin->stats.curruns++;
-	if (bin->stats.curruns > bin->stats.highruns)
-		bin->stats.highruns = bin->stats.curruns;
+		bin->stats.nruns++;
+		bin->stats.curruns++;
+		if (bin->stats.curruns > bin->stats.highruns)
+			bin->stats.highruns = bin->stats.curruns;
 #endif
-	return (run);
+		return (run);
+	}
+
+	/*
+	 * arena_run_alloc() failed, but another thread may have made
+	 * sufficient memory available while this one dopped bin->lock above,
+	 * so search one more time.
+	 */
+	mapelm = arena_run_tree_first(&bin->runs);
+	if (mapelm != NULL) {
+		arena_chunk_t *chunk;
+		size_t pageind;
+
+		/* run is guaranteed to have available space. */
+		arena_run_tree_remove(&bin->runs, mapelm);
+
+		chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(mapelm);
+		pageind = (((uintptr_t)mapelm - (uintptr_t)chunk->map) /
+		    sizeof(arena_chunk_map_t));
+		run = (arena_run_t *)((uintptr_t)chunk + (uintptr_t)((pageind -
+		    ((mapelm->bits & CHUNK_MAP_PG_MASK) >> CHUNK_MAP_PG_SHIFT))
+		    << PAGE_SHIFT));
+#ifdef JEMALLOC_STATS
+		bin->stats.reruns++;
+#endif
+		return (run);
+	}
+
+	return (NULL);
 }
 
 /* Re-fill bin->runcur, then call arena_run_reg_alloc(). */
 static void *
 arena_bin_malloc_hard(arena_t *arena, arena_bin_t *bin)
 {
+	void *ret;
+	arena_run_t *run;
 
-	bin->runcur = arena_bin_nonfull_run_get(arena, bin);
-	if (bin->runcur == NULL)
+	bin->runcur = NULL;
+	run = arena_bin_nonfull_run_get(arena, bin);
+	if (bin->runcur != NULL && bin->runcur->nfree > 0) {
+		/*
+		 * Another thread updated runcur while this one ran without the
+		 * bin lock in arena_bin_nonfull_run_get().
+		 */
+		assert(bin->runcur->magic == ARENA_RUN_MAGIC);
+		assert(bin->runcur->nfree > 0);
+		ret = arena_run_reg_alloc(bin->runcur, bin);
+		if (run != NULL) {
+			malloc_mutex_unlock(&bin->lock);
+			malloc_mutex_lock(&arena->lock);
+			arena_run_dalloc(arena, run, false);
+			malloc_mutex_unlock(&arena->lock);
+			malloc_mutex_lock(&bin->lock);
+		}
+		return (ret);
+	}
+
+	if (run == NULL)
 		return (NULL);
+
+	bin->runcur = run;
+
 	assert(bin->runcur->magic == ARENA_RUN_MAGIC);
 	assert(bin->runcur->nfree > 0);
 
@@ -1560,14 +1637,13 @@ arena_dalloc_bin_run(arena_t *arena, arena_chunk_t *chunk, arena_run_t *run,
 	if (run == bin->runcur)
 		bin->runcur = NULL;
 	else if (bin->nregs != 1) {
-		size_t run_pageind = (((uintptr_t)run -
-		    (uintptr_t)chunk)) >> PAGE_SHIFT;
-		arena_chunk_map_t *run_mapelm =
-		    &chunk->map[run_pageind];
+		size_t run_pageind = (((uintptr_t)run - (uintptr_t)chunk)) >>
+		    PAGE_SHIFT;
+		arena_chunk_map_t *run_mapelm = &chunk->map[run_pageind];
 		/*
-		 * This block's conditional is necessary because if the
-		 * run only contains one region, then it never gets
-		 * inserted into the non-full runs tree.
+		 * This block's conditional is necessary because if the run
+		 * only contains one region, then it never gets inserted into
+		 * the non-full runs tree.
 		 */
 		arena_run_tree_remove(&bin->runs, run_mapelm);
 	}
@@ -1576,6 +1652,8 @@ arena_dalloc_bin_run(arena_t *arena, arena_chunk_t *chunk, arena_run_t *run,
 	past = (size_t)(((uintptr_t)run->next - (uintptr_t)1U -
 	    (uintptr_t)chunk) >> PAGE_SHIFT) + 1;
 
+	malloc_mutex_unlock(&bin->lock);
+	/******************************/
 	malloc_mutex_lock(&arena->lock);
 	chunk->ndirty += past - run_ind;
 	arena->ndirty += past - run_ind;
@@ -1583,19 +1661,18 @@ arena_dalloc_bin_run(arena_t *arena, arena_chunk_t *chunk, arena_run_t *run,
 		assert((chunk->map[run_ind].bits & CHUNK_MAP_DIRTY) == 0);
 		chunk->map[run_ind].bits |= CHUNK_MAP_DIRTY;
 	}
-
 #ifdef JEMALLOC_DEBUG
 	run->magic = 0;
 #endif
-	arena_run_dalloc(arena, run, false);
-
 	if (chunk->dirtied == false) {
 		ql_tail_insert(&arena->chunks_dirty, chunk, link_dirty);
 		chunk->dirtied = true;
 	}
+	arena_run_dalloc(arena, run, false);
 	arena_maybe_purge(arena);
-
 	malloc_mutex_unlock(&arena->lock);
+	/****************************/
+	malloc_mutex_lock(&bin->lock);
 #ifdef JEMALLOC_STATS
 	bin->stats.curruns--;
 #endif
