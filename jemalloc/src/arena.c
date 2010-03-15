@@ -1492,8 +1492,12 @@ arena_salloc(const void *ptr)
 		    (uintptr_t)((pageind - ((mapbits & CHUNK_MAP_PG_MASK) >>
 		    CHUNK_MAP_PG_SHIFT)) << PAGE_SHIFT));
 		assert(run->magic == ARENA_RUN_MAGIC);
+		assert(((uintptr_t)ptr - ((uintptr_t)run +
+		    (uintptr_t)run->bin->reg0_offset)) % run->bin->reg_size ==
+		    0);
 		ret = run->bin->reg_size;
 	} else {
+		assert(((uintptr_t)ptr & PAGE_MASK) == 0);
 		ret = mapbits & ~PAGE_MASK;
 		assert(ret != 0);
 	}

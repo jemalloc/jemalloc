@@ -181,6 +181,7 @@ tcache_alloc(tcache_t *tcache, size_t size, bool zero)
 		if (ret == NULL)
 			return (NULL);
 	}
+	assert(arena_salloc(ret) == tcache->arena->bins[binind].reg_size);
 
 	if (zero == false) {
 #ifdef JEMALLOC_FILL

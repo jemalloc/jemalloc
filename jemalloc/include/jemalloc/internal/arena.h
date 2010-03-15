@@ -495,6 +495,9 @@ arena_dalloc(arena_t *arena, arena_chunk_t *chunk, void *ptr)
 			    CHUNK_MAP_PG_MASK) >> CHUNK_MAP_PG_SHIFT)) <<
 			    PAGE_SHIFT));
 			assert(run->magic == ARENA_RUN_MAGIC);
+			assert(((uintptr_t)ptr - ((uintptr_t)run +
+			    (uintptr_t)run->bin->reg0_offset)) %
+			    run->bin->reg_size == 0);
 			bin = run->bin;
 			malloc_mutex_lock(&bin->lock);
 			arena_dalloc_bin(arena, chunk, ptr, mapelm);
@@ -502,8 +505,10 @@ arena_dalloc(arena_t *arena, arena_chunk_t *chunk, void *ptr)
 #ifdef JEMALLOC_TCACHE
 		}
 #endif
-	} else
+	} else {
+		assert(((uintptr_t)ptr & PAGE_MASK) == 0);
 		arena_dalloc_large(arena, chunk, ptr);
+	}
 }
 #endif
 
