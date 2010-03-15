@@ -580,19 +580,19 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		}
 		if ((err = JEMALLOC_P(mallctl)("opt.prof", &bv, &bsz, NULL, 0))
 		   == 0 && bv) {
-			xmallctl("opt.lg_prof_bt_max", &sv, &ssz, NULL, 0);
+			CTL_GET("opt.lg_prof_bt_max", &sv, size_t);
 			write_cb(cbopaque, "Maximum profile backtrace depth: ");
 			write_cb(cbopaque, umax2s((1U << sv), 10, s));
 			write_cb(cbopaque, "\n");
 
-			xmallctl("opt.lg_prof_sample", &sv, &ssz, NULL, 0);
+			CTL_GET("opt.lg_prof_sample", &sv, size_t);
 			write_cb(cbopaque, "Average profile sample interval: ");
 			write_cb(cbopaque, umax2s((1U << sv), 10, s));
 			write_cb(cbopaque, " (2^");
 			write_cb(cbopaque, umax2s(sv, 10, s));
 			write_cb(cbopaque, ")\n");
 
-			xmallctl("opt.lg_prof_interval", &sv, &ssz, NULL, 0);
+			CTL_GET("opt.lg_prof_interval", &sv, size_t);
 			write_cb(cbopaque, "Average profile dump interval: ");
 			write_cb(cbopaque, umax2s((1U << sv), 10, s));
 			write_cb(cbopaque, " (2^");
