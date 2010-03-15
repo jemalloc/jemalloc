@@ -570,6 +570,7 @@ arena_chunk_purge(arena_t *arena, arena_chunk_t *chunk)
 					chunk->map[pageind + npages - 1].bits |=
 					    (CHUNK_MAP_LARGE |
 					    CHUNK_MAP_ALLOCATED);
+					arena->nactive += npages;
 					/*
 					 * Append to list for later processing.
 					 */
