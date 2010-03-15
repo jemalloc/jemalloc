@@ -27,9 +27,6 @@ size_t		medium_max;
 size_t		lg_mspace;
 size_t		mspace_mask;
 
-/* Used to prevent threads from concurrently calling madvise(2). */
-static malloc_mutex_t	purge_lock;
-
 /*
  * const_small_size2bin is a static constant lookup table that in the common
  * case can be used as-is for small_size2bin.  For dynamically linked programs,
@@ -215,7 +212,7 @@ arena_run_comp(arena_chunk_map_t *a, arena_chunk_map_t *b)
 
 /* Generate red-black tree functions. */
 rb_gen(static JEMALLOC_ATTR(unused), arena_run_tree_, arena_run_tree_t,
-    arena_chunk_map_t, link, arena_run_comp)
+    arena_chunk_map_t, u.rb_link, arena_run_comp)
 
 static inline int
 arena_avail_comp(arena_chunk_map_t *a, arena_chunk_map_t *b)
@@ -247,7 +244,7 @@ arena_avail_comp(arena_chunk_map_t *a, arena_chunk_map_t *b)
 
 /* Generate red-black tree functions. */
 rb_gen(static JEMALLOC_ATTR(unused), arena_avail_tree_, arena_avail_tree_t,
-    arena_chunk_map_t, link, arena_avail_comp)
+    arena_chunk_map_t, u.rb_link, arena_avail_comp)
 
 static inline void *
 arena_run_reg_alloc(arena_run_t *run, arena_bin_t *bin)
@@ -480,11 +477,183 @@ arena_run_alloc(arena_t *arena, size_t size, bool large, bool zero)
 	return (run);
 }
 
+static inline void
+arena_maybe_purge(arena_t *arena)
+{
+
+	/* Enforce opt_lg_dirty_mult. */
+	if (opt_lg_dirty_mult >= 0 && arena->ndirty > arena->npurgatory &&
+	    (arena->ndirty - arena->npurgatory) > chunk_npages &&
+	    (arena->nactive >> opt_lg_dirty_mult) < (arena->ndirty -
+	    arena->npurgatory))
+		arena_purge(arena);
+}
+
+static inline void
+arena_chunk_purge(arena_t *arena, arena_chunk_t *chunk)
+{
+	ql_head(arena_chunk_map_t) mapelms;
+	arena_chunk_map_t *mapelm;
+	size_t pageind;
+#ifdef JEMALLOC_DEBUG
+	size_t ndirty;
+#endif
+#ifdef JEMALLOC_STATS
+	size_t nmadvise;
+#endif
+
+	ql_new(&mapelms);
+
+	/*
+	 * If chunk is the spare, temporarily re-allocate it, 1) so that its
+	 * run is reinserted into runs_avail, and 2) so that it cannot be
+	 * completely discarded by another thread while arena->lock is dropped
+	 * by this thread.  Note that the arena_run_dalloc() call will
+	 * implicitly deallocate the chunk, so no explicit action is required
+	 * in this function to deallocate the chunk.
+	 */
+	if (chunk == arena->spare)
+		arena_chunk_alloc(arena);
+
+	/* Temporarily allocate all free runs that contain dirty pages. */
+	for (pageind = arena_chunk_header_npages; pageind < chunk_npages;) {
+		mapelm = &chunk->map[pageind];
+		if ((mapelm->bits & CHUNK_MAP_ALLOCATED) == 0) {
+			size_t npages, i;
+
+			npages = (mapelm->bits & CHUNK_MAP_PG_MASK) >>
+			    CHUNK_MAP_PG_SHIFT;
+			for (i = 0; i < npages; i++) {
+				if (chunk->map[pageind + i].bits &
+				    CHUNK_MAP_DIRTY) {
+					/*
+					 * This run contains at least one dirty
+					 * page.  Temporarily allocate it.
+					 * Don't bother setting the
+					 * CHUNK_MAP_ALLOCATED bit for interior
+					 * pages yet.  The bit will be set
+					 * during the loop that actually does
+					 * the madvise() calls, so that the run
+					 * looks like a normal large run by the
+					 * time it is passed to
+					 * arena_run_dalloc().
+					 */
+					arena_avail_tree_remove(
+					    &arena->runs_avail, mapelm);
+					mapelm->bits |= (CHUNK_MAP_LARGE |
+					    CHUNK_MAP_ALLOCATED);
+					chunk->map[pageind + npages - 1].bits |=
+					    (CHUNK_MAP_LARGE |
+					    CHUNK_MAP_ALLOCATED);
+					/*
+					 * Append to list for later processing.
+					 */
+					ql_elm_new(mapelm, u.ql_link);
+					ql_tail_insert(&mapelms, mapelm,
+					    u.ql_link);
+					break;
+				}
+			}
+			pageind += npages;
+		} else {
+			/* Skip allocated run. */
+			if (mapelm->bits & CHUNK_MAP_LARGE) {
+				pageind += (mapelm->bits & CHUNK_MAP_PG_MASK)
+				    >> CHUNK_MAP_PG_SHIFT;
+			} else {
+				arena_run_t *run = (arena_run_t *)((uintptr_t)
+				    chunk + (uintptr_t)((pageind -
+				    ((mapelm->bits & CHUNK_MAP_PG_MASK) >>
+				    CHUNK_MAP_PG_SHIFT)) << PAGE_SHIFT));
+				pageind += run->bin->run_size >> PAGE_SHIFT;
+			}
+		}
+	}
+
+#ifdef JEMALLOC_DEBUG
+	ndirty = chunk->ndirty;
+#endif
+#ifdef JEMALLOC_STATS
+	arena->stats.purged += chunk->ndirty;
+#endif
+	arena->ndirty -= chunk->ndirty;
+	chunk->ndirty = 0;
+	ql_remove(&arena->chunks_dirty, chunk, link_dirty);
+	chunk->dirtied = false;
+
+	malloc_mutex_unlock(&arena->lock);
+#ifdef JEMALLOC_STATS
+	nmadvise = 0;
+#endif
+	ql_foreach(mapelm, &mapelms, u.ql_link) {
+		size_t i, j;
+		size_t pageind = ((uintptr_t)mapelm - (uintptr_t)chunk->map) /
+		    sizeof(arena_chunk_map_t);
+		size_t npages = (mapelm->bits & CHUNK_MAP_PG_MASK) >>
+		    CHUNK_MAP_PG_SHIFT;
+
+		for (i = 0; i < npages;) {
+			if (chunk->map[pageind + i].bits & CHUNK_MAP_DIRTY) {
+				chunk->map[pageind + i].bits ^= CHUNK_MAP_DIRTY;
+				chunk->map[pageind + i].bits |=
+				    (CHUNK_MAP_LARGE | CHUNK_MAP_ALLOCATED);
+
+				/* Find adjacent dirty page(s). */
+				for (j = 1; i + j < npages; j++) {
+					if ((chunk->map[pageind + i + j].bits &
+					    CHUNK_MAP_DIRTY) == 0)
+						break;
+					chunk->map[pageind + i + j].bits ^=
+					    CHUNK_MAP_DIRTY;
+					chunk->map[pageind + i + j].bits |=
+					    (CHUNK_MAP_LARGE |
+					    CHUNK_MAP_ALLOCATED);
+				}
+#ifdef JEMALLOC_DEBUG
+				assert(ndirty >= j);
+				ndirty -= j;
+#endif
+
+				madvise((void *)((uintptr_t)chunk + ((pageind +
+				    i) << PAGE_SHIFT)), (j << PAGE_SHIFT),
+				    MADV_DONTNEED);
+#ifdef JEMALLOC_STATS
+				nmadvise++;
+#endif
+				i += j;
+			} else {
+				chunk->map[pageind + i].bits |=
+				    (CHUNK_MAP_LARGE | CHUNK_MAP_ALLOCATED);
+				i++;
+			}
+		}
+	}
+#ifdef JEMALLOC_DEBUG
+	assert(ndirty == 0);
+#endif
+	malloc_mutex_lock(&arena->lock);
+#ifdef JEMALLOC_STATS
+	arena->stats.nmadvise += nmadvise;
+#endif
+
+	/* Deallocate runs. */
+	for (mapelm = ql_first(&mapelms); mapelm != NULL;
+	    mapelm = ql_first(&mapelms)) {
+		size_t pageind = ((uintptr_t)mapelm - (uintptr_t)chunk->map) /
+		    sizeof(arena_chunk_map_t);
+		arena_run_t *run = (arena_run_t *)((uintptr_t)chunk +
+		    (uintptr_t)(pageind << PAGE_SHIFT));
+
+		ql_remove(&mapelms, mapelm, u.ql_link);
+		arena_run_dalloc(arena, run, false);
+	}
+}
+
 static void
 arena_purge(arena_t *arena)
 {
 	arena_chunk_t *chunk;
-	size_t i, j, npages;
+	size_t npurgatory;
 #ifdef JEMALLOC_DEBUG
 	size_t ndirty = 0;
 
@@ -494,6 +663,7 @@ arena_purge(arena_t *arena)
 	}
 	assert(ndirty == arena->ndirty);
 #endif
+	assert(arena->ndirty > arena->npurgatory);
 	assert(arena->ndirty > chunk_npages);
 	assert((arena->nactive >> opt_lg_dirty_mult) < arena->ndirty);
 
@@ -502,64 +672,65 @@ arena_purge(arena_t *arena)
 #endif
 
 	/*
-	 * Only allow one thread at a time to purge dirty pages.  madvise(2)
-	 * causes the kernel to modify virtual memory data structures that are
-	 * typically protected by a lock, and purging isn't important enough to
-	 * suffer lock contention in the kernel.  The result of failing to
-	 * acquire purge_lock here is that this arena will operate with ndirty
-	 * above the threshold until some dirty pages are re-used, or the
-	 * creation of more dirty pages causes this function to be called
-	 * again.
+	 * Compute the minimum number of pages that this thread should try to
+	 * purge, and add the result to arena->npurgatory.  This will keep
+	 * multiple threads from racing to reduce ndirty below the threshold.
 	 */
-	if (malloc_mutex_trylock(&purge_lock))
-		return;
+	npurgatory = (arena->ndirty - arena->npurgatory) - (arena->nactive >>
+	    opt_lg_dirty_mult);
+	arena->npurgatory += npurgatory;
 
-	/*
-	 * Iterate through chunks until enough dirty memory has been
-	 * purged (all dirty pages in one chunk, or enough pages to drop to
-	 * threshold, whichever is greater).  Terminate as soon as possible in
-	 * order to minimize the number of system calls, even if a chunk has
-	 * only been partially purged.
-	 */
-	for (i = 0; (arena->nactive >> opt_lg_dirty_mult) < arena->ndirty;
-	    i++) {
+	while (npurgatory > 0) {
+		/* Get next chunk with dirty pages. */
 		chunk = ql_first(&arena->chunks_dirty);
-		assert(chunk != NULL);
-
-		/* Purge pages from high to low within each chunk. */
-		for (j = chunk_npages - 1; chunk->ndirty > 0; j--) {
-			assert(j >= arena_chunk_header_npages);
-			if (chunk->map[j].bits & CHUNK_MAP_DIRTY) {
-				chunk->map[j].bits ^= CHUNK_MAP_DIRTY;
-				/* Find adjacent dirty run(s). */
-				for (npages = 1; j > arena_chunk_header_npages
-				    && (chunk->map[j - 1].bits &
-				    CHUNK_MAP_DIRTY); npages++) {
-					j--;
-					chunk->map[j].bits ^= CHUNK_MAP_DIRTY;
-				}
-				chunk->ndirty -= npages;
-				arena->ndirty -= npages;
-
-				madvise((void *)((uintptr_t)chunk + (j <<
-				    PAGE_SHIFT)), (npages << PAGE_SHIFT),
-				    MADV_DONTNEED);
-#ifdef JEMALLOC_STATS
-				arena->stats.nmadvise++;
-				arena->stats.purged += npages;
-#endif
-				if ((arena->nactive >> opt_lg_dirty_mult) >=
-				    arena->ndirty && i > 0)
-					break;
+		if (chunk == NULL) {
+			/*
+			 * This thread was unable to purge as many pages as
+			 * originally intended, due to races with other threads
+			 * that either did some of the purging work, or re-used
+			 * dirty pages.
+			 */
+			arena->npurgatory -= npurgatory;
+			return;
+		}
+		while (chunk->ndirty == 0) {
+			ql_remove(&arena->chunks_dirty, chunk, link_dirty);
+			chunk->dirtied = false;
+			chunk = ql_first(&arena->chunks_dirty);
+			if (chunk == NULL) {
+				/* Same logic as for above. */
+				arena->npurgatory -= npurgatory;
+				return;
 			}
 		}
 
-		if (chunk->ndirty == 0) {
-			ql_remove(&arena->chunks_dirty, chunk, link_dirty);
-			chunk->dirtied = false;
+		if (chunk->ndirty > npurgatory) {
+			/*
+			 * This thread will, at a minimum, purge all the dirty
+			 * pages in chunk, so set npurgatory to reflect this
+			 * thread's commitment to purge the pages.  This tends
+			 * to reduce the chances of the following scenario:
+			 *
+			 * 1) This thread sets arena->npurgatory such that
+			 *    (arena->ndirty - arena->npurgatory) is at the
+			 *    threshold.
+			 * 2) This thread drops arena->lock.
+			 * 3) Another thread causes one or more pages to be
+			 *    dirtied, and immediately determines that it must
+			 *    purge dirty pages.
+			 *
+			 * If this scenario *does* play out, that's okay,
+			 * because all of the purging work being done really
+			 * needs to happen.
+			 */
+			arena->npurgatory += chunk->ndirty - npurgatory;
+			npurgatory = chunk->ndirty;
 		}
+
+		arena->npurgatory -= chunk->ndirty;
+		npurgatory -= chunk->ndirty;
+		arena_chunk_purge(arena, chunk);
 	}
-	malloc_mutex_unlock(&purge_lock);
 }
 
 static void
@@ -685,11 +856,7 @@ arena_run_dalloc(arena_t *arena, arena_run_t *run, bool dirty)
 			ql_tail_insert(&arena->chunks_dirty, chunk, link_dirty);
 			chunk->dirtied = true;
 		}
-
-		/* Enforce opt_lg_dirty_mult. */
-		if (opt_lg_dirty_mult >= 0 && arena->ndirty > chunk_npages &&
-		    (arena->nactive >> opt_lg_dirty_mult) < arena->ndirty)
-			arena_purge(arena);
+		arena_maybe_purge(arena);
 	}
 }
 
@@ -1426,10 +1593,7 @@ arena_dalloc_bin_run(arena_t *arena, arena_chunk_t *chunk, arena_run_t *run,
 		ql_tail_insert(&arena->chunks_dirty, chunk, link_dirty);
 		chunk->dirtied = true;
 	}
-	/* Enforce opt_lg_dirty_mult. */
-	if (opt_lg_dirty_mult >= 0 && arena->ndirty > chunk_npages &&
-	    (arena->nactive >> opt_lg_dirty_mult) < arena->ndirty)
-		arena_purge(arena);
+	arena_maybe_purge(arena);
 
 	malloc_mutex_unlock(&arena->lock);
 #ifdef JEMALLOC_STATS
@@ -1842,6 +2006,7 @@ arena_new(arena_t *arena, unsigned ind)
 
 	arena->nactive = 0;
 	arena->ndirty = 0;
+	arena->npurgatory = 0;
 
 	arena_avail_tree_new(&arena->runs_avail);
 
@@ -2154,9 +2319,6 @@ arena_boot(void)
 	arena_chunk_header_npages = (header_size >> PAGE_SHIFT) +
 	    ((header_size & PAGE_MASK) != 0);
 	arena_maxclass = chunksize - (arena_chunk_header_npages << PAGE_SHIFT);
-
-	if (malloc_mutex_init(&purge_lock))
-		return (true);
 
 	return (false);
 }

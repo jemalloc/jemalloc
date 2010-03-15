@@ -95,14 +95,23 @@ typedef struct arena_s arena_t;
 
 /* Each element of the chunk map corresponds to one page within the chunk. */
 struct arena_chunk_map_s {
-	/*
-	 * Linkage for run trees.  There are two disjoint uses:
-	 *
-	 * 1) arena_t's runs_avail tree.
-	 * 2) arena_run_t conceptually uses this linkage for in-use non-full
-	 *    runs, rather than directly embedding linkage.
-	 */
-	rb_node(arena_chunk_map_t)	link;
+	union {
+		/*
+		 * Linkage for run trees.  There are two disjoint uses:
+		 *
+		 * 1) arena_t's runs_avail tree.
+		 * 2) arena_run_t conceptually uses this linkage for in-use
+		 *    non-full runs, rather than directly embedding linkage.
+		 */
+		rb_node(arena_chunk_map_t)	rb_link;
+		/*
+		 * List of runs currently in purgatory.  arena_chunk_purge()
+		 * temporarily allocates runs that contain dirty pages while
+		 * purging, so that other threads cannot use the runs while the
+		 * purging thread is operating without the arena lock held.
+		 */
+		ql_elm(arena_chunk_map_t)	ql_link;
+	}				u;
 
 #ifdef JEMALLOC_PROF
 	/* Profile counters, used for large object runs. */
@@ -310,6 +319,14 @@ struct arena_s {
 	 * memory is mapped for each arena.
 	 */
 	size_t			ndirty;
+
+	/*
+	 * Approximate number of pages being purged.  It is possible for
+	 * multiple threads to purge dirty pages concurrently, and they use
+	 * npurgatory to indicate the total number of pages all threads are
+	 * attempting to purge.
+	 */
+	size_t			npurgatory;
 
 	/*
 	 * Size/address-ordered tree of this arena's available runs.  This tree
