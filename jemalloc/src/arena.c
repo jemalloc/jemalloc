@@ -548,6 +548,7 @@ arena_chunk_purge(arena_t *arena, arena_chunk_t *chunk)
 
 			npages = (mapelm->bits & CHUNK_MAP_PG_MASK) >>
 			    CHUNK_MAP_PG_SHIFT;
+			assert(pageind + npages <= chunk_npages);
 			for (i = 0; i < npages; i++) {
 				if (chunk->map[pageind + i].bits &
 				    CHUNK_MAP_DIRTY) {
@@ -588,13 +589,15 @@ arena_chunk_purge(arena_t *arena, arena_chunk_t *chunk)
 				    >> CHUNK_MAP_PG_SHIFT;
 			} else {
 				arena_run_t *run = (arena_run_t *)((uintptr_t)
-				    chunk + (uintptr_t)((pageind -
-				    ((mapelm->bits & CHUNK_MAP_PG_MASK) >>
-				    CHUNK_MAP_PG_SHIFT)) << PAGE_SHIFT));
+				    chunk + (uintptr_t)(pageind << PAGE_SHIFT));
+
+				assert((mapelm->bits & CHUNK_MAP_PG_MASK) == 0);
+				assert(run->magic == ARENA_RUN_MAGIC);
 				pageind += run->bin->run_size >> PAGE_SHIFT;
 			}
 		}
 	}
+	assert(pageind == chunk_npages);
 
 #ifdef JEMALLOC_DEBUG
 	ndirty = chunk->ndirty;
@@ -618,6 +621,7 @@ arena_chunk_purge(arena_t *arena, arena_chunk_t *chunk)
 		size_t npages = (mapelm->bits & CHUNK_MAP_PG_MASK) >>
 		    CHUNK_MAP_PG_SHIFT;
 
+		assert(pageind + npages <= chunk_npages);
 		for (i = 0; i < npages;) {
 			if (chunk->map[pageind + i].bits & CHUNK_MAP_DIRTY) {
 				chunk->map[pageind + i].bits ^= CHUNK_MAP_DIRTY;
@@ -963,20 +967,24 @@ arena_bin_nonfull_run_get(arena_t *arena, arena_bin_t *bin)
 
 	/* Allocate a new run. */
 	malloc_mutex_unlock(&bin->lock);
+	/******************************/
 	malloc_mutex_lock(&arena->lock);
 	run = arena_run_alloc(arena, bin->run_size, false, false);
-	malloc_mutex_unlock(&arena->lock);
-	malloc_mutex_lock(&bin->lock);
 	if (run != NULL) {
 		/* Initialize run internals. */
 		run->bin = bin;
 		run->avail = NULL;
-		run->next = (void *)(((uintptr_t)run) + (uintptr_t)bin->reg0_offset);
+		run->next = (void *)(((uintptr_t)run) +
+		    (uintptr_t)bin->reg0_offset);
 		run->nfree = bin->nregs;
 #ifdef JEMALLOC_DEBUG
 		run->magic = ARENA_RUN_MAGIC;
 #endif
-
+	}
+	malloc_mutex_unlock(&arena->lock);
+	/********************************/
+	malloc_mutex_lock(&bin->lock);
+	if (run != NULL) {
 #ifdef JEMALLOC_STATS
 		bin->stats.nruns++;
 		bin->stats.curruns++;
@@ -1082,13 +1090,13 @@ arena_tcache_fill(arena_t *arena, tcache_bin_t *tbin, size_t binind
 
 	assert(tbin->ncached == 0);
 
-	bin = &arena->bins[binind];
-	malloc_mutex_lock(&bin->lock);
 #ifdef JEMALLOC_PROF
 	malloc_mutex_lock(&arena->lock);
 	arena_prof_accum(arena, prof_accumbytes);
 	malloc_mutex_unlock(&arena->lock);
 #endif
+	bin = &arena->bins[binind];
+	malloc_mutex_lock(&bin->lock);
 	for (i = 0, nfill = (tbin->ncached_max >> 1); i < nfill; i++) {
 		if ((run = bin->runcur) != NULL && run->nfree > 0)
 			ptr = arena_run_reg_alloc(run, bin);

@@ -62,20 +62,21 @@ tcache_bin_flush(tcache_bin_t *tbin, size_t binind, unsigned rem
 		arena_t *arena = chunk->arena;
 		arena_bin_t *bin = &arena->bins[binind];
 
-		malloc_mutex_lock(&bin->lock);
-#if (defined(JEMALLOC_STATS) || defined(JEMALLOC_PROF))
+#ifdef JEMALLOC_PROF
 		if (arena == tcache->arena) {
-#  ifdef JEMALLOC_PROF
 			malloc_mutex_lock(&arena->lock);
 			arena_prof_accum(arena, tcache->prof_accumbytes);
 			malloc_mutex_unlock(&arena->lock);
 			tcache->prof_accumbytes = 0;
-#  endif
-#  ifdef JEMALLOC_STATS
+		}
+#endif
+
+		malloc_mutex_lock(&bin->lock);
+#ifdef JEMALLOC_STATS
+		if (arena == tcache->arena) {
 			bin->stats.nflushes++;
 			bin->stats.nrequests += tbin->tstats.nrequests;
 			tbin->tstats.nrequests = 0;
-#  endif
 		}
 #endif
 		deferred = NULL;
