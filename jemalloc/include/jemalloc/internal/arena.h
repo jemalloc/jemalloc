@@ -36,23 +36,6 @@
 #define	LG_CSPACE_MAX_DEFAULT	9
 
 /*
- * Maximum medium size class.  This must not be more than 1/4 of a chunk
- * (LG_MEDIUM_MAX_DEFAULT <= LG_CHUNK_DEFAULT - 2).
- */
-#define	LG_MEDIUM_MAX_DEFAULT	15
-
-/* Return the smallest medium size class that is >= s. */
-#define	MEDIUM_CEILING(s)						\
-	(((s) + mspace_mask) & ~mspace_mask)
-
-/*
- * Soft limit on the number of medium size classes.  Spacing between medium
- * size classes never exceeds pagesize, which can force more than NBINS_MAX
- * medium size classes.
- */
-#define	NMBINS_MAX	16
-
-/*
  * RUN_MAX_OVRHD indicates maximum desired run header overhead.  Runs are sized
  * as small as possible such that this setting is still honored, without
  * violating other constraints.  The goal is to make runs as small as possible
@@ -126,7 +109,7 @@ struct arena_chunk_map_s {
 	 *
 	 * ? : Unallocated: Run address for first/last pages, unset for internal
 	 *                  pages.
-	 *     Small/medium: Don't care.
+	 *     Small: Don't care.
 	 *     Large: Run size for first page, unset for trailing pages.
 	 * - : Unused.
 	 * d : dirty?
@@ -147,7 +130,7 @@ struct arena_chunk_map_s {
 	 *     xxxxxxxx xxxxxxxx xxxx---- ----d---
 	 *     ssssssss ssssssss ssss---- -----z--
 	 *
-	 *   Small/medium:
+	 *   Small:
 	 *     pppppppp pppppppp pppp---- -------a
 	 *     pppppppp pppppppp pppp---- -------a
 	 *     pppppppp pppppppp pppp---- -------a
@@ -386,7 +369,6 @@ struct arena_s {
 
 extern size_t	opt_lg_qspace_max;
 extern size_t	opt_lg_cspace_max;
-extern size_t	opt_lg_medium_max;
 extern ssize_t		opt_lg_dirty_mult;
 extern uint8_t const	*small_size2bin;
 
@@ -399,9 +381,7 @@ extern uint8_t const	*small_size2bin;
 extern unsigned		nqbins; /* Number of quantum-spaced bins. */
 extern unsigned		ncbins; /* Number of cacheline-spaced bins. */
 extern unsigned		nsbins; /* Number of subpage-spaced bins. */
-extern unsigned		nmbins; /* Number of medium bins. */
 extern unsigned		nbins;
-extern unsigned		mbin0; /* mbin offset (nbins - nmbins). */
 #ifdef JEMALLOC_TINY
 #  define		tspace_max	((size_t)(QUANTUM >> 1))
 #endif
@@ -412,18 +392,12 @@ extern size_t		cspace_max;
 extern size_t		sspace_min;
 extern size_t		sspace_max;
 #define			small_maxclass	sspace_max
-#define			medium_min	PAGE_SIZE
-extern size_t		medium_max;
-#define			bin_maxclass	medium_max
 
-/* Spacing between medium size classes. */
-extern size_t		lg_mspace;
-extern size_t		mspace_mask;
-
-#define			nlclasses	((chunksize - PAGE_SIZE) >> PAGE_SHIFT)
+#define			nlclasses (chunk_npages - arena_chunk_header_npages)
 
 #ifdef JEMALLOC_TCACHE
-void	arena_tcache_fill(arena_t *arena, tcache_bin_t *tbin, size_t binind
+void	arena_tcache_fill_small(arena_t *arena, tcache_bin_t *tbin,
+    size_t binind
 #  ifdef JEMALLOC_PROF
     , uint64_t prof_accumbytes
 #  endif
@@ -433,7 +407,7 @@ void	arena_tcache_fill(arena_t *arena, tcache_bin_t *tbin, size_t binind
 void	arena_prof_accum(arena_t *arena, uint64_t accumbytes);
 #endif
 void	*arena_malloc_small(arena_t *arena, size_t size, bool zero);
-void	*arena_malloc_medium(arena_t *arena, size_t size, bool zero);
+void	*arena_malloc_large(arena_t *arena, size_t size, bool zero);
 void	*arena_malloc(size_t size, bool zero);
 void	*arena_palloc(arena_t *arena, size_t alignment, size_t size,
     size_t alloc_size);
@@ -484,7 +458,7 @@ arena_dalloc(arena_t *arena, arena_chunk_t *chunk, void *ptr)
 		tcache_t *tcache;
 
 		if ((tcache = tcache_get()) != NULL)
-			tcache_dalloc(tcache, ptr);
+			tcache_dalloc_small(tcache, ptr);
 		else {
 #endif
 			arena_run_t *run;
@@ -506,8 +480,31 @@ arena_dalloc(arena_t *arena, arena_chunk_t *chunk, void *ptr)
 		}
 #endif
 	} else {
+#ifdef JEMALLOC_TCACHE
+		size_t size = mapelm->bits & ~PAGE_MASK;
+
 		assert(((uintptr_t)ptr & PAGE_MASK) == 0);
+		if (size <= tcache_maxclass) {
+			tcache_t *tcache;
+
+			if ((tcache = tcache_get()) != NULL)
+				tcache_dalloc_large(tcache, ptr, size);
+			else {
+				malloc_mutex_lock(&arena->lock);
+				arena_dalloc_large(arena, chunk, ptr);
+				malloc_mutex_unlock(&arena->lock);
+			}
+		} else {
+			malloc_mutex_lock(&arena->lock);
+			arena_dalloc_large(arena, chunk, ptr);
+			malloc_mutex_unlock(&arena->lock);
+		}
+#else
+		assert(((uintptr_t)ptr & PAGE_MASK) == 0);
+		malloc_mutex_lock(&arena->lock);
 		arena_dalloc_large(arena, chunk, ptr);
+		malloc_mutex_unlock(&arena->lock);
+#endif
 	}
 }
 #endif

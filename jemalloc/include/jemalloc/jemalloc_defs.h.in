@@ -61,9 +61,9 @@
 #undef JEMALLOC_TINY
 
 /*
- * JEMALLOC_TCACHE enables a thread-specific caching layer for small and medium
- * objects.  This makes it possible to allocate/deallocate objects without any
- * locking when the cache is in the steady state.
+ * JEMALLOC_TCACHE enables a thread-specific caching layer for small objects.
+ * This makes it possible to allocate/deallocate objects without any locking
+ * when the cache is in the steady state.
  */
 #undef JEMALLOC_TCACHE
 

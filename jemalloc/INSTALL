@@ -71,9 +71,9 @@ any of the following arguments (not a definitive list) to 'configure':
     are 4-byte-aligned.
 
 --disable-tcache
-    Disable thread-specific caches for small and medium objects.  Objects are
-    cached and released in bulk, thus reducing the total number of mutex
-    operations.  Use the 'H' and 'G' options to control thread-specific caching.
+    Disable thread-specific caches for small objects.  Objects are cached and
+    released in bulk, thus reducing the total number of mutex operations.  Use
+    the 'H', 'G', and 'M' options to control thread-specific caching.
 
 --enable-swap
     Enable mmap()ed swap file support.  When this feature is built in, it is

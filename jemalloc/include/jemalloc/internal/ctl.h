@@ -34,16 +34,11 @@ struct ctl_arena_stats_s {
 #ifdef JEMALLOC_STATS
 	arena_stats_t		astats;
 
-	/* Aggregate stats for small/medium size classes, based on bin stats. */
+	/* Aggregate stats for small size classes, based on bin stats. */
 	size_t			allocated_small;
 	uint64_t		nmalloc_small;
 	uint64_t		ndalloc_small;
 	uint64_t		nrequests_small;
-
-	size_t			allocated_medium;
-	uint64_t		nmalloc_medium;
-	uint64_t		ndalloc_medium;
-	uint64_t		nrequests_medium;
 
 	malloc_bin_stats_t	*bstats;	/* nbins elements. */
 	malloc_large_stats_t	*lstats;	/* nlclasses elements. */

@@ -6,20 +6,27 @@ typedef struct tcache_bin_s tcache_bin_t;
 typedef struct tcache_s tcache_t;
 
 /*
- * Absolute maximum number of cache slots for each bin in the thread cache.
- * This is an additional constraint beyond that imposed as: twice the number of
- * regions per run for this size class.
+ * Absolute maximum number of cache slots for each small bin in the thread
+ * cache.  This is an additional constraint beyond that imposed as: twice the
+ * number of regions per run for this size class.
  *
  * This constant must be an even number.
  */
-#define TCACHE_NSLOTS_MAX		200
- /*
-  * (1U << opt_lg_tcache_gc_sweep) is the approximate number of allocation
-  * events between full GC sweeps (-1: disabled).  Integer rounding may cause
-  * the actual number to be slightly higher, since GC is performed
-  * incrementally.
-  */
-#define LG_TCACHE_GC_SWEEP_DEFAULT	13
+#define	TCACHE_NSLOTS_SMALL_MAX		200
+
+/* Number of cache slots for large size classes. */
+#define	TCACHE_NSLOTS_LARGE		20
+
+/* (1U << opt_lg_tcache_maxclass) is used to compute tcache_maxclass. */
+#define	LG_TCACHE_MAXCLASS_DEFAULT	15
+
+/*
+ * (1U << opt_lg_tcache_gc_sweep) is the approximate number of allocation
+ * events between full GC sweeps (-1: disabled).  Integer rounding may cause
+ * the actual number to be slightly higher, since GC is performed
+ * incrementally.
+ */
+#define	LG_TCACHE_GC_SWEEP_DEFAULT	13
 
 #endif /* JEMALLOC_H_TYPES */
 /******************************************************************************/
@@ -54,22 +61,38 @@ struct tcache_s {
 #ifdef JEMALLOC_H_EXTERNS
 
 extern bool	opt_tcache;
+extern ssize_t	opt_lg_tcache_maxclass;
 extern ssize_t	opt_lg_tcache_gc_sweep;
 
 /* Map of thread-specific caches. */
 extern __thread tcache_t	*tcache_tls
     JEMALLOC_ATTR(tls_model("initial-exec"));
 
+/*
+ * Number of tcache bins.  There are nbins small-object bins, plus 0 or more
+ * large-object bins.
+ */
+extern size_t			nhbins;
+
+/* Maximum cached size class. */
+extern size_t			tcache_maxclass;
+
 /* Number of tcache allocation/deallocation events between incremental GCs. */
 extern unsigned			tcache_gc_incr;
 
-void	tcache_bin_flush(tcache_bin_t *tbin, size_t binind, unsigned rem
+void	tcache_bin_flush_small(tcache_bin_t *tbin, size_t binind, unsigned rem
+#if (defined(JEMALLOC_STATS) || defined(JEMALLOC_PROF))
+    , tcache_t *tcache
+#endif
+    );
+void	tcache_bin_flush_large(tcache_bin_t *tbin, size_t binind, unsigned rem
 #if (defined(JEMALLOC_STATS) || defined(JEMALLOC_PROF))
     , tcache_t *tcache
 #endif
     );
 tcache_t *tcache_create(arena_t *arena);
-void	*tcache_alloc_hard(tcache_t *tcache, tcache_bin_t *tbin, size_t binind);
+void	*tcache_alloc_small_hard(tcache_t *tcache, tcache_bin_t *tbin,
+    size_t binind);
 void	tcache_destroy(tcache_t *tcache);
 #ifdef JEMALLOC_STATS
 void	tcache_stats_merge(tcache_t *tcache, arena_t *arena);
@@ -83,9 +106,11 @@ void	tcache_boot(void);
 #ifndef JEMALLOC_ENABLE_INLINE
 void	tcache_event(tcache_t *tcache);
 tcache_t *tcache_get(void);
-void	*tcache_bin_alloc(tcache_bin_t *tbin);
-void	*tcache_alloc(tcache_t *tcache, size_t size, bool zero);
-void	tcache_dalloc(tcache_t *tcache, void *ptr);
+void	*tcache_alloc_easy(tcache_bin_t *tbin);
+void	*tcache_alloc_small(tcache_t *tcache, size_t size, bool zero);
+void	*tcache_alloc_large(tcache_t *tcache, size_t size, bool zero);
+void	tcache_dalloc_small(tcache_t *tcache, void *ptr);
+void	tcache_dalloc_large(tcache_t *tcache, void *ptr, size_t size);
 #endif
 
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_TCACHE_C_))
@@ -128,25 +153,36 @@ tcache_event(tcache_t *tcache)
 			 * Flush (ceiling) 3/4 of the objects below the low
 			 * water mark.
 			 */
-			tcache_bin_flush(tbin, binind, tbin->ncached -
-			    tbin->low_water + (tbin->low_water >> 2)
+			if (binind < nbins) {
+				tcache_bin_flush_small(tbin, binind,
+				    tbin->ncached - tbin->low_water +
+				    (tbin->low_water >> 2)
 #if (defined(JEMALLOC_STATS) || defined(JEMALLOC_PROF))
-			    , tcache
+				    , tcache
 #endif
-			    );
+				    );
+			} else {
+				tcache_bin_flush_large(tbin, binind,
+				    tbin->ncached - tbin->low_water +
+				    (tbin->low_water >> 2)
+#if (defined(JEMALLOC_STATS) || defined(JEMALLOC_PROF))
+				    , tcache
+#endif
+				    );
+			}
 		}
 		tbin->low_water = tbin->ncached;
 		tbin->high_water = tbin->ncached;
 
 		tcache->next_gc_bin++;
-		if (tcache->next_gc_bin == nbins)
+		if (tcache->next_gc_bin == nhbins)
 			tcache->next_gc_bin = 0;
 		tcache->ev_cnt = 0;
 	}
 }
 
 JEMALLOC_INLINE void *
-tcache_bin_alloc(tcache_bin_t *tbin)
+tcache_alloc_easy(tcache_bin_t *tbin)
 {
 	void *ret;
 
@@ -161,23 +197,18 @@ tcache_bin_alloc(tcache_bin_t *tbin)
 }
 
 JEMALLOC_INLINE void *
-tcache_alloc(tcache_t *tcache, size_t size, bool zero)
+tcache_alloc_small(tcache_t *tcache, size_t size, bool zero)
 {
 	void *ret;
 	size_t binind;
 	tcache_bin_t *tbin;
 
-	if (size <= small_maxclass)
-		binind = small_size2bin[size];
-	else {
-		binind = mbin0 + ((MEDIUM_CEILING(size) - medium_min) >>
-		    lg_mspace);
-	}
+	binind = small_size2bin[size];
 	assert(binind < nbins);
 	tbin = &tcache->tbins[binind];
-	ret = tcache_bin_alloc(tbin);
+	ret = tcache_alloc_easy(tbin);
 	if (ret == NULL) {
-		ret = tcache_alloc_hard(tcache, tbin, binind);
+		ret = tcache_alloc_small_hard(tcache, tbin, binind);
 		if (ret == NULL)
 			return (NULL);
 	}
@@ -203,8 +234,52 @@ tcache_alloc(tcache_t *tcache, size_t size, bool zero)
 	return (ret);
 }
 
+JEMALLOC_INLINE void *
+tcache_alloc_large(tcache_t *tcache, size_t size, bool zero)
+{
+	void *ret;
+	size_t binind;
+	tcache_bin_t *tbin;
+
+	size = PAGE_CEILING(size);
+	assert(size <= tcache_maxclass);
+	binind = nbins + (size >> PAGE_SHIFT) - 1;
+	assert(binind < nhbins);
+	tbin = &tcache->tbins[binind];
+	ret = tcache_alloc_easy(tbin);
+	if (ret == NULL) {
+		/*
+		 * Only allocate one large object at a time, because it's quite
+		 * expensive to create one and not use it.
+		 */
+		ret = arena_malloc_large(tcache->arena, size, zero);
+		if (ret == NULL)
+			return (NULL);
+	} else {
+		if (zero == false) {
+#ifdef JEMALLOC_FILL
+			if (opt_junk)
+				memset(ret, 0xa5, size);
+			else if (opt_zero)
+				memset(ret, 0, size);
+#endif
+		} else
+			memset(ret, 0, size);
+
+#ifdef JEMALLOC_STATS
+		tbin->tstats.nrequests++;
+#endif
+#ifdef JEMALLOC_PROF
+		tcache->prof_accumbytes += size;
+#endif
+	}
+
+	tcache_event(tcache);
+	return (ret);
+}
+
 JEMALLOC_INLINE void
-tcache_dalloc(tcache_t *tcache, void *ptr)
+tcache_dalloc_small(tcache_t *tcache, void *ptr)
 {
 	arena_t *arena;
 	arena_chunk_t *chunk;
@@ -234,7 +309,47 @@ tcache_dalloc(tcache_t *tcache, void *ptr)
 
 	tbin = &tcache->tbins[binind];
 	if (tbin->ncached == tbin->ncached_max) {
-		tcache_bin_flush(tbin, binind, (tbin->ncached_max >> 1)
+		tcache_bin_flush_small(tbin, binind, (tbin->ncached_max >> 1)
+#if (defined(JEMALLOC_STATS) || defined(JEMALLOC_PROF))
+		    , tcache
+#endif
+		    );
+	}
+	assert(tbin->ncached < tbin->ncached_max);
+	*(void **)ptr = tbin->avail;
+	tbin->avail = ptr;
+	tbin->ncached++;
+	if (tbin->ncached > tbin->high_water)
+		tbin->high_water = tbin->ncached;
+
+	tcache_event(tcache);
+}
+
+JEMALLOC_INLINE void
+tcache_dalloc_large(tcache_t *tcache, void *ptr, size_t size)
+{
+	arena_t *arena;
+	arena_chunk_t *chunk;
+	size_t pageind, binind;
+	tcache_bin_t *tbin;
+	arena_chunk_map_t *mapelm;
+
+	assert((size & PAGE_MASK) == 0);
+
+	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
+	arena = chunk->arena;
+	pageind = (((uintptr_t)ptr - (uintptr_t)chunk) >> PAGE_SHIFT);
+	mapelm = &chunk->map[pageind];
+	binind = nbins + (size >> PAGE_SHIFT) - 1;
+
+#ifdef JEMALLOC_FILL
+	if (opt_junk)
+		memset(ptr, 0x5a, bin->reg_size);
+#endif
+
+	tbin = &tcache->tbins[binind];
+	if (tbin->ncached == tbin->ncached_max) {
+		tcache_bin_flush_large(tbin, binind, (tbin->ncached_max >> 1)
 #if (defined(JEMALLOC_STATS) || defined(JEMALLOC_PROF))
 		    , tcache
 #endif

@@ -84,7 +84,6 @@ CTL_PROTO(opt_prof_leak)
 CTL_PROTO(opt_stats_print)
 CTL_PROTO(opt_lg_qspace_max)
 CTL_PROTO(opt_lg_cspace_max)
-CTL_PROTO(opt_lg_medium_max)
 CTL_PROTO(opt_lg_dirty_mult)
 CTL_PROTO(opt_lg_chunk)
 #ifdef JEMALLOC_SWAP
@@ -102,7 +101,6 @@ CTL_PROTO(arenas_quantum)
 CTL_PROTO(arenas_cacheline)
 CTL_PROTO(arenas_subpage)
 CTL_PROTO(arenas_pagesize)
-CTL_PROTO(arenas_medium)
 CTL_PROTO(arenas_chunksize)
 #ifdef JEMALLOC_TINY
 CTL_PROTO(arenas_tspace_min)
@@ -114,14 +112,17 @@ CTL_PROTO(arenas_cspace_min)
 CTL_PROTO(arenas_cspace_max)
 CTL_PROTO(arenas_sspace_min)
 CTL_PROTO(arenas_sspace_max)
-CTL_PROTO(arenas_medium_min)
-CTL_PROTO(arenas_medium_max)
+#ifdef JEMALLOC_TCACHE
+CTL_PROTO(arenas_tcache_max)
+#endif
 CTL_PROTO(arenas_ntbins)
 CTL_PROTO(arenas_nqbins)
 CTL_PROTO(arenas_ncbins)
 CTL_PROTO(arenas_nsbins)
-CTL_PROTO(arenas_nmbins)
 CTL_PROTO(arenas_nbins)
+#ifdef JEMALLOC_TCACHE
+CTL_PROTO(arenas_nhbins)
+#endif
 CTL_PROTO(arenas_nlruns)
 #ifdef JEMALLOC_PROF
 CTL_PROTO(prof_dump)
@@ -138,13 +139,10 @@ CTL_PROTO(stats_arenas_i_small_allocated)
 CTL_PROTO(stats_arenas_i_small_nmalloc)
 CTL_PROTO(stats_arenas_i_small_ndalloc)
 CTL_PROTO(stats_arenas_i_small_nrequests)
-CTL_PROTO(stats_arenas_i_medium_allocated)
-CTL_PROTO(stats_arenas_i_medium_nmalloc)
-CTL_PROTO(stats_arenas_i_medium_ndalloc)
-CTL_PROTO(stats_arenas_i_medium_nrequests)
 CTL_PROTO(stats_arenas_i_large_allocated)
 CTL_PROTO(stats_arenas_i_large_nmalloc)
 CTL_PROTO(stats_arenas_i_large_ndalloc)
+CTL_PROTO(stats_arenas_i_large_nrequests)
 CTL_PROTO(stats_arenas_i_bins_j_allocated)
 CTL_PROTO(stats_arenas_i_bins_j_nmalloc)
 CTL_PROTO(stats_arenas_i_bins_j_ndalloc)
@@ -158,6 +156,8 @@ CTL_PROTO(stats_arenas_i_bins_j_nreruns)
 CTL_PROTO(stats_arenas_i_bins_j_highruns)
 CTL_PROTO(stats_arenas_i_bins_j_curruns)
 INDEX_PROTO(stats_arenas_i_bins_j)
+CTL_PROTO(stats_arenas_i_lruns_j_nmalloc)
+CTL_PROTO(stats_arenas_i_lruns_j_ndalloc)
 CTL_PROTO(stats_arenas_i_lruns_j_nrequests)
 CTL_PROTO(stats_arenas_i_lruns_j_highruns)
 CTL_PROTO(stats_arenas_i_lruns_j_curruns)
@@ -255,7 +255,6 @@ static const ctl_node_t opt_node[] = {
 	{NAME("stats_print"),		CTL(opt_stats_print)},
 	{NAME("lg_qspace_max"),		CTL(opt_lg_qspace_max)},
 	{NAME("lg_cspace_max"),		CTL(opt_lg_cspace_max)},
-	{NAME("lg_medium_max"),		CTL(opt_lg_medium_max)},
 	{NAME("lg_dirty_mult"),		CTL(opt_lg_dirty_mult)},
 	{NAME("lg_chunk"),		CTL(opt_lg_chunk)}
 #ifdef JEMALLOC_SWAP
@@ -295,7 +294,6 @@ static const ctl_node_t arenas_node[] = {
 	{NAME("cacheline"),		CTL(arenas_cacheline)},
 	{NAME("subpage"),		CTL(arenas_subpage)},
 	{NAME("pagesize"),		CTL(arenas_pagesize)},
-	{NAME("medium"),		CTL(arenas_medium)},
 	{NAME("chunksize"),		CTL(arenas_chunksize)},
 #ifdef JEMALLOC_TINY
 	{NAME("tspace_min"),		CTL(arenas_tspace_min)},
@@ -307,14 +305,17 @@ static const ctl_node_t arenas_node[] = {
 	{NAME("cspace_max"),		CTL(arenas_cspace_max)},
 	{NAME("sspace_min"),		CTL(arenas_sspace_min)},
 	{NAME("sspace_max"),		CTL(arenas_sspace_max)},
-	{NAME("medium_min"),		CTL(arenas_medium_min)},
-	{NAME("medium_max"),		CTL(arenas_medium_max)},
+#ifdef JEMALLOC_TCACHE
+	{NAME("tcache_max"),		CTL(arenas_tcache_max)},
+#endif
 	{NAME("ntbins"),		CTL(arenas_ntbins)},
 	{NAME("nqbins"),		CTL(arenas_nqbins)},
 	{NAME("ncbins"),		CTL(arenas_ncbins)},
 	{NAME("nsbins"),		CTL(arenas_nsbins)},
-	{NAME("nmbins"),		CTL(arenas_nmbins)},
 	{NAME("nbins"),			CTL(arenas_nbins)},
+#ifdef JEMALLOC_TCACHE
+	{NAME("nhbins"),		CTL(arenas_nhbins)},
+#endif
 	{NAME("bin"),			CHILD(arenas_bin)},
 	{NAME("nlruns"),		CTL(arenas_nlruns)},
 	{NAME("lrun"),			CHILD(arenas_lrun)}
@@ -347,17 +348,11 @@ static const ctl_node_t stats_arenas_i_small_node[] = {
 	{NAME("nrequests"),		CTL(stats_arenas_i_small_nrequests)}
 };
 
-static const ctl_node_t stats_arenas_i_medium_node[] = {
-	{NAME("allocated"),		CTL(stats_arenas_i_medium_allocated)},
-	{NAME("nmalloc"),		CTL(stats_arenas_i_medium_nmalloc)},
-	{NAME("ndalloc"),		CTL(stats_arenas_i_medium_ndalloc)},
-	{NAME("nrequests"),		CTL(stats_arenas_i_medium_nrequests)}
-};
-
 static const ctl_node_t stats_arenas_i_large_node[] = {
 	{NAME("allocated"),		CTL(stats_arenas_i_large_allocated)},
 	{NAME("nmalloc"),		CTL(stats_arenas_i_large_nmalloc)},
-	{NAME("ndalloc"),		CTL(stats_arenas_i_large_ndalloc)}
+	{NAME("ndalloc"),		CTL(stats_arenas_i_large_ndalloc)},
+	{NAME("nrequests"),		CTL(stats_arenas_i_large_nrequests)}
 };
 
 static const ctl_node_t stats_arenas_i_bins_j_node[] = {
@@ -383,6 +378,8 @@ static const ctl_node_t stats_arenas_i_bins_node[] = {
 };
 
 static const ctl_node_t stats_arenas_i_lruns_j_node[] = {
+	{NAME("nmalloc"),		CTL(stats_arenas_i_lruns_j_nmalloc)},
+	{NAME("ndalloc"),		CTL(stats_arenas_i_lruns_j_ndalloc)},
 	{NAME("nrequests"),		CTL(stats_arenas_i_lruns_j_nrequests)},
 	{NAME("highruns"),		CTL(stats_arenas_i_lruns_j_highruns)},
 	{NAME("curruns"),		CTL(stats_arenas_i_lruns_j_curruns)}
@@ -406,7 +403,6 @@ static const ctl_node_t stats_arenas_i_node[] = {
 	{NAME("nmadvise"),		CTL(stats_arenas_i_nmadvise)},
 	{NAME("purged"),		CTL(stats_arenas_i_purged)},
 	{NAME("small"),			CHILD(stats_arenas_i_small)},
-	{NAME("medium"),		CHILD(stats_arenas_i_medium)},
 	{NAME("large"),			CHILD(stats_arenas_i_large)},
 	{NAME("bins"),			CHILD(stats_arenas_i_bins)},
 	{NAME("lruns"),		CHILD(stats_arenas_i_lruns)}
@@ -505,10 +501,6 @@ ctl_arena_clear(ctl_arena_stats_t *astats)
 	astats->nmalloc_small = 0;
 	astats->ndalloc_small = 0;
 	astats->nrequests_small = 0;
-	astats->allocated_medium = 0;
-	astats->nmalloc_medium = 0;
-	astats->ndalloc_medium = 0;
-	astats->nrequests_medium = 0;
 	memset(astats->bstats, 0, nbins * sizeof(malloc_bin_stats_t));
 	memset(astats->lstats, 0, nlclasses * sizeof(malloc_large_stats_t));
 #endif
@@ -523,18 +515,11 @@ ctl_arena_stats_amerge(ctl_arena_stats_t *cstats, arena_t *arena)
 	arena_stats_merge(arena, &cstats->pactive, &cstats->pdirty,
 	    &cstats->astats, cstats->bstats, cstats->lstats);
 
-	for (i = 0; i < mbin0; i++) {
+	for (i = 0; i < nbins; i++) {
 		cstats->allocated_small += cstats->bstats[i].allocated;
 		cstats->nmalloc_small += cstats->bstats[i].nmalloc;
 		cstats->ndalloc_small += cstats->bstats[i].ndalloc;
 		cstats->nrequests_small += cstats->bstats[i].nrequests;
-	}
-
-	for (; i < nbins; i++) {
-		cstats->allocated_medium += cstats->bstats[i].allocated;
-		cstats->nmalloc_medium += cstats->bstats[i].nmalloc;
-		cstats->ndalloc_medium += cstats->bstats[i].ndalloc;
-		cstats->nrequests_medium += cstats->bstats[i].nrequests;
 	}
 }
 
@@ -556,16 +541,14 @@ ctl_arena_stats_smerge(ctl_arena_stats_t *sstats, ctl_arena_stats_t *astats)
 	sstats->ndalloc_small += astats->ndalloc_small;
 	sstats->nrequests_small += astats->nrequests_small;
 
-	sstats->allocated_medium += astats->allocated_medium;
-	sstats->nmalloc_medium += astats->nmalloc_medium;
-	sstats->ndalloc_medium += astats->ndalloc_medium;
-	sstats->nrequests_medium += astats->nrequests_medium;
-
 	sstats->astats.allocated_large += astats->astats.allocated_large;
 	sstats->astats.nmalloc_large += astats->astats.nmalloc_large;
 	sstats->astats.ndalloc_large += astats->astats.ndalloc_large;
+	sstats->astats.nrequests_large += astats->astats.nrequests_large;
 
 	for (i = 0; i < nlclasses; i++) {
+		sstats->lstats[i].nmalloc += astats->lstats[i].nmalloc;
+		sstats->lstats[i].ndalloc += astats->lstats[i].ndalloc;
 		sstats->lstats[i].nrequests += astats->lstats[i].nrequests;
 		sstats->lstats[i].highruns += astats->lstats[i].highruns;
 		sstats->lstats[i].curruns += astats->lstats[i].curruns;
@@ -648,7 +631,6 @@ ctl_refresh(void)
 
 #ifdef JEMALLOC_STATS
 	ctl_stats.allocated = ctl_stats.arenas[narenas].allocated_small
-	    + ctl_stats.arenas[narenas].allocated_medium
 	    + ctl_stats.arenas[narenas].astats.allocated_large
 	    + ctl_stats.huge.allocated;
 	ctl_stats.active = (ctl_stats.arenas[narenas].pactive << PAGE_SHIFT)
@@ -1178,7 +1160,6 @@ CTL_RO_GEN(opt_prof_leak, opt_prof_leak, bool)
 CTL_RO_GEN(opt_stats_print, opt_stats_print, bool)
 CTL_RO_GEN(opt_lg_qspace_max, opt_lg_qspace_max, size_t)
 CTL_RO_GEN(opt_lg_cspace_max, opt_lg_cspace_max, size_t)
-CTL_RO_GEN(opt_lg_medium_max, opt_lg_medium_max, size_t)
 CTL_RO_GEN(opt_lg_dirty_mult, opt_lg_dirty_mult, ssize_t)
 CTL_RO_GEN(opt_lg_chunk, opt_lg_chunk, size_t)
 #ifdef JEMALLOC_SWAP
@@ -1239,7 +1220,6 @@ CTL_RO_GEN(arenas_quantum, QUANTUM, size_t)
 CTL_RO_GEN(arenas_cacheline, CACHELINE, size_t)
 CTL_RO_GEN(arenas_subpage, SUBPAGE, size_t)
 CTL_RO_GEN(arenas_pagesize, PAGE_SIZE, size_t)
-CTL_RO_GEN(arenas_medium, (1U << lg_mspace), size_t)
 CTL_RO_GEN(arenas_chunksize, chunksize, size_t)
 #ifdef JEMALLOC_TINY
 CTL_RO_GEN(arenas_tspace_min, (1U << LG_TINY_MIN), size_t)
@@ -1251,14 +1231,17 @@ CTL_RO_GEN(arenas_cspace_min, cspace_min, size_t)
 CTL_RO_GEN(arenas_cspace_max, cspace_max, size_t)
 CTL_RO_GEN(arenas_sspace_min, sspace_min, size_t)
 CTL_RO_GEN(arenas_sspace_max, sspace_max, size_t)
-CTL_RO_GEN(arenas_medium_min, medium_min, size_t)
-CTL_RO_GEN(arenas_medium_max, medium_max, size_t)
+#ifdef JEMALLOC_TCACHE
+CTL_RO_GEN(arenas_tcache_max, tcache_maxclass, size_t)
+#endif
 CTL_RO_GEN(arenas_ntbins, ntbins, unsigned)
 CTL_RO_GEN(arenas_nqbins, nqbins, unsigned)
 CTL_RO_GEN(arenas_ncbins, ncbins, unsigned)
 CTL_RO_GEN(arenas_nsbins, nsbins, unsigned)
-CTL_RO_GEN(arenas_nmbins, nmbins, unsigned)
 CTL_RO_GEN(arenas_nbins, nbins, unsigned)
+#ifdef JEMALLOC_TCACHE
+CTL_RO_GEN(arenas_nhbins, nhbins, unsigned)
+#endif
 CTL_RO_GEN(arenas_nlruns, nlclasses, size_t)
 
 /******************************************************************************/
@@ -1304,20 +1287,14 @@ CTL_RO_GEN(stats_arenas_i_small_ndalloc,
     ctl_stats.arenas[mib[2]].ndalloc_small, uint64_t)
 CTL_RO_GEN(stats_arenas_i_small_nrequests,
     ctl_stats.arenas[mib[2]].nrequests_small, uint64_t)
-CTL_RO_GEN(stats_arenas_i_medium_allocated,
-    ctl_stats.arenas[mib[2]].allocated_medium, size_t)
-CTL_RO_GEN(stats_arenas_i_medium_nmalloc,
-    ctl_stats.arenas[mib[2]].nmalloc_medium, uint64_t)
-CTL_RO_GEN(stats_arenas_i_medium_ndalloc,
-    ctl_stats.arenas[mib[2]].ndalloc_medium, uint64_t)
-CTL_RO_GEN(stats_arenas_i_medium_nrequests,
-    ctl_stats.arenas[mib[2]].nrequests_medium, uint64_t)
 CTL_RO_GEN(stats_arenas_i_large_allocated,
     ctl_stats.arenas[mib[2]].astats.allocated_large, size_t)
 CTL_RO_GEN(stats_arenas_i_large_nmalloc,
     ctl_stats.arenas[mib[2]].astats.nmalloc_large, uint64_t)
 CTL_RO_GEN(stats_arenas_i_large_ndalloc,
     ctl_stats.arenas[mib[2]].astats.ndalloc_large, uint64_t)
+CTL_RO_GEN(stats_arenas_i_large_nrequests,
+    ctl_stats.arenas[mib[2]].astats.nrequests_large, uint64_t)
 
 CTL_RO_GEN(stats_arenas_i_bins_j_allocated,
     ctl_stats.arenas[mib[2]].bstats[mib[4]].allocated, size_t)
@@ -1351,6 +1328,10 @@ stats_arenas_i_bins_j_index(const size_t *mib, size_t miblen, size_t j)
 	return (super_stats_arenas_i_bins_j_node);
 }
 
+CTL_RO_GEN(stats_arenas_i_lruns_j_nmalloc,
+    ctl_stats.arenas[mib[2]].lstats[mib[4]].nmalloc, uint64_t)
+CTL_RO_GEN(stats_arenas_i_lruns_j_ndalloc,
+    ctl_stats.arenas[mib[2]].lstats[mib[4]].ndalloc, uint64_t)
 CTL_RO_GEN(stats_arenas_i_lruns_j_nrequests,
     ctl_stats.arenas[mib[2]].lstats[mib[4]].nrequests, uint64_t)
 CTL_RO_GEN(stats_arenas_i_lruns_j_curruns,

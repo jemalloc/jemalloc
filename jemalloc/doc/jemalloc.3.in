@@ -38,7 +38,7 @@
 .\"     @(#)malloc.3	8.1 (Berkeley) 6/4/93
 .\" $FreeBSD: head/lib/libc/stdlib/malloc.3 182225 2008-08-27 02:00:53Z jasone $
 .\"
-.Dd March 14, 2010
+.Dd March 17, 2010
 .Dt JEMALLOC 3
 .Os
 .Sh NAME
@@ -378,13 +378,15 @@ will disable dirty page purging.
 @roff_tcache@.It H
 @roff_tcache@Enable/disable thread-specific caching.
 @roff_tcache@When there are multiple threads, each thread uses a
-@roff_tcache@thread-specific cache for small and medium objects.
+@roff_tcache@thread-specific cache for objects up to a certain size.
 @roff_tcache@Thread-specific caching allows many allocations to be satisfied
 @roff_tcache@without performing any thread synchronization, at the cost of
 @roff_tcache@increased memory use.
 @roff_tcache@See the
 @roff_tcache@.Dq G
-@roff_tcache@option for related tuning information.
+@roff_tcache@and
+@roff_tcache@.Dq M
+@roff_tcache@options for related tuning information.
 @roff_tcache@This option is enabled by default.
 @roff_prof@.It I
 @roff_prof@Double/halve the average interval between memory profile dumps, as
@@ -426,16 +428,15 @@ The default chunk size is 4 MiB.
 @roff_prof@See the
 @roff_prof@.Dq F option for information on analyzing heap profile output.
 @roff_prof@This option is disabled by default.
-.It M
-Double/halve the size of the maximum medium size class.
-The valid range is from one page to one half chunk.
-The default value is 32 KiB.
+@roff_tcache@.It M
+@roff_tcache@Double/halve the maximum size class to cache.
+@roff_tcache@At a minimum, all small size classes are cached, and at a maximum
+@roff_tcache@all large size classes are cached.
+@roff_tcache@The default maximum is 32 KiB.
 .It N
 Double/halve the number of arenas.
-The default number of arenas is
-@roff_tcache@two
-@roff_no_tcache@four
-times the number of CPUs, or one if there is a single CPU.
+The default number of arenas is four times the number of CPUs, or one if there
+is a single CPU.
 @roff_swap@.It O
 @roff_swap@Over-commit memory as a side effect of using anonymous
 @roff_swap@.Xr mmap 2
@@ -550,9 +551,9 @@ However, it may make sense to reduce the number of arenas if an application
 does not make much use of the allocation functions.
 .Pp
 @roff_tcache@In addition to multiple arenas, this allocator supports
-@roff_tcache@thread-specific caching for small and medium objects, in order to
-@roff_tcache@make it possible to completely avoid synchronization for most small
-@roff_tcache@and medium allocation requests.
+@roff_tcache@thread-specific caching for small objects, in order to make it
+@roff_tcache@possible to completely avoid synchronization for most small
+@roff_tcache@allocation requests.
 @roff_tcache@Such caching allows very fast allocation in the common case, but it
 @roff_tcache@increases memory usage and fragmentation, since a bounded number of
 @roff_tcache@objects can remain allocated in each thread cache.
@@ -563,27 +564,23 @@ Chunks are always aligned to multiples of the chunk size.
 This alignment makes it possible to find metadata for user objects very
 quickly.
 .Pp
-User objects are broken into four categories according to size: small, medium,
-large, and huge.
+User objects are broken into three categories according to size: small, large,
+and huge.
 Small objects are smaller than one page.
-Medium objects range from one page to an upper limit determined at run time (see
-the
-.Dq M
-option).
 Large objects are smaller than the chunk size.
 Huge objects are a multiple of the chunk size.
-Small, medium, and large objects are managed by arenas; huge objects are managed
+Small and large objects are managed by arenas; huge objects are managed
 separately in a single data structure that is shared by all threads.
 Huge objects are used by applications infrequently enough that this single
 data structure is not a scalability issue.
 .Pp
 Each chunk that is managed by an arena tracks its contents as runs of
-contiguous pages (unused, backing a set of small or medium objects, or backing
-one large object).
+contiguous pages (unused, backing a set of small objects, or backing one large
+object).
 The combination of chunk alignment and chunk page maps makes it possible to
 determine all metadata regarding small and large allocations in constant time.
 .Pp
-Small and medium objects are managed in groups by page runs.
+Small objects are managed in groups by page runs.
 Each run maintains a bitmap that tracks which regions are in use.
 @roff_tiny@Allocation requests that are no more than half the quantum (8 or 16,
 @roff_tiny@depending on architecture) are rounded up to the nearest power of
@@ -603,13 +600,7 @@ Allocation requests that are more than the minimum subpage-multiple size class,
 but no more than the maximum subpage-multiple size class are rounded up to the
 nearest multiple of the subpage size (256).
 Allocation requests that are more than the maximum subpage-multiple size class,
-but no more than the maximum medium size class (see the
-.Dq M
-option) are rounded up to the nearest medium size class; spacing is an
-automatically determined power of two and ranges from the subpage size to the
-page size.
-Allocation requests that are more than the maximum medium size class, but small
-enough to fit in an arena-managed chunk (see the
+but small enough to fit in an arena-managed chunk (see the
 .Dq K
 option), are rounded up to the nearest run size.
 Allocation requests that are too large to fit in an arena-managed chunk are
@@ -838,13 +829,6 @@ See the
 option.
 .Ed
 .\"-----------------------------------------------------------------------------
-.It Sy "opt.lg_medium_max (size_t) r-"
-.Bd -ragged -offset indent -compact
-See the
-.Dq M
-option.
-.Ed
-.\"-----------------------------------------------------------------------------
 .It Sy "opt.lg_dirty_mult (ssize_t) r-"
 .Bd -ragged -offset indent -compact
 See the
@@ -900,11 +884,6 @@ Subpage size class interval.
 Page size.
 .Ed
 .\"-----------------------------------------------------------------------------
-.It Sy "arenas.medium (size_t) r-"
-.Bd -ragged -offset indent -compact
-Medium size class interval.
-.Ed
-.\"-----------------------------------------------------------------------------
 .It Sy "arenas.chunksize (size_t) r-"
 .Bd -ragged -offset indent -compact
 Chunk size.
@@ -952,15 +931,10 @@ Minimum subpage-spaced size class.
 Maximum subpage-spaced size class.
 .Ed
 .\"-----------------------------------------------------------------------------
-.It Sy "arenas.medium_min (size_t) r-"
-.Bd -ragged -offset indent -compact
-Minimum medium-spaced size class.
-.Ed
-.\"-----------------------------------------------------------------------------
-.It Sy "arenas.medium_max (size_t) r-"
-.Bd -ragged -offset indent -compact
-Maximum medium-spaced size class.
-.Ed
+@roff_tcache@.It Sy "arenas.tcache_max (size_t) r-"
+@roff_tcache@.Bd -ragged -offset indent -compact
+@roff_tcache@Maximum thread-cached size class.
+@roff_tcache@.Ed
 .\"-----------------------------------------------------------------------------
 .It Sy "arenas.ntbins (unsigned) r-"
 .Bd -ragged -offset indent -compact
@@ -982,15 +956,15 @@ Number of cacheline-spaced bin size classes.
 Number of subpage-spaced bin size classes.
 .Ed
 .\"-----------------------------------------------------------------------------
-.It Sy "arenas.nmbins (unsigned) r-"
-.Bd -ragged -offset indent -compact
-Number of medium-spaced bin size classes.
-.Ed
-.\"-----------------------------------------------------------------------------
 .It Sy "arenas.nbins (unsigned) r-"
 .Bd -ragged -offset indent -compact
 Total number of bin size classes.
 .Ed
+.\"-----------------------------------------------------------------------------
+@roff_tcache@.It Sy "arenas.nhbins (unsigned) r-"
+@roff_tcache@.Bd -ragged -offset indent -compact
+@roff_tcache@Total number of thread cache bin size classes.
+@roff_tcache@.Ed
 .\"-----------------------------------------------------------------------------
 .It Sy "arenas.bin.<i>.size (size_t) r-"
 .Bd -ragged -offset indent -compact
@@ -1147,26 +1121,6 @@ has not been called.
 @roff_stats@Cumulative number of small allocation requests.
 @roff_stats@.Ed
 .\"-----------------------------------------------------------------------------
-@roff_stats@.It Sy "stats.arenas.<i>.medium.allocated (size_t) r-"
-@roff_stats@.Bd -ragged -offset indent -compact
-@roff_stats@Number of bytes currently allocated by medium objects.
-@roff_stats@.Ed
-.\"-----------------------------------------------------------------------------
-@roff_stats@.It Sy "stats.arenas.<i>.medium.nmalloc (uint64_t) r-"
-@roff_stats@.Bd -ragged -offset indent -compact
-@roff_stats@Cumulative number of allocation requests served by medium bins.
-@roff_stats@.Ed
-.\"-----------------------------------------------------------------------------
-@roff_stats@.It Sy "stats.arenas.<i>.medium.ndalloc (uint64_t) r-"
-@roff_stats@.Bd -ragged -offset indent -compact
-@roff_stats@Cumulative number of medium objects returned to bins.
-@roff_stats@.Ed
-.\"-----------------------------------------------------------------------------
-@roff_stats@.It Sy "stats.arenas.<i>.medium.nrequests (uint64_t) r-"
-@roff_stats@.Bd -ragged -offset indent -compact
-@roff_stats@Cumulative number of medium allocation requests.
-@roff_stats@.Ed
-.\"-----------------------------------------------------------------------------
 @roff_stats@.It Sy "stats.arenas.<i>.large.allocated (size_t) r-"
 @roff_stats@.Bd -ragged -offset indent -compact
 @roff_stats@Number of bytes currently allocated by large objects.
@@ -1174,12 +1128,19 @@ has not been called.
 .\"-----------------------------------------------------------------------------
 @roff_stats@.It Sy "stats.arenas.<i>.large.nmalloc (uint64_t) r-"
 @roff_stats@.Bd -ragged -offset indent -compact
-@roff_stats@Cumulative number of large allocation requests.
+@roff_stats@Cumulative number of large allocation requests served directly by
+@roff_stats@the arena.
 @roff_stats@.Ed
 .\"-----------------------------------------------------------------------------
 @roff_stats@.It Sy "stats.arenas.<i>.large.ndalloc (uint64_t) r-"
 @roff_stats@.Bd -ragged -offset indent -compact
-@roff_stats@Cumulative number of large deallocation requests.
+@roff_stats@Cumulative number of large deallocation requests served directly by
+@roff_stats@the arena.
+@roff_stats@.Ed
+.\"-----------------------------------------------------------------------------
+@roff_stats@.It Sy "stats.arenas.<i>.large.nrequests (uint64_t) r-"
+@roff_stats@.Bd -ragged -offset indent -compact
+@roff_stats@Cumulative number of large allocation requests.
 @roff_stats@.Ed
 .\"-----------------------------------------------------------------------------
 @roff_stats@.It Sy "stats.arenas.<i>.bins.<j>.allocated (size_t) r-"
@@ -1231,6 +1192,18 @@ has not been called.
 @roff_stats@.It Sy "stats.arenas.<i>.bins.<j>.curruns (size_t) r-"
 @roff_stats@.Bd -ragged -offset indent -compact
 @roff_stats@Current number of runs.
+@roff_stats@.Ed
+.\"-----------------------------------------------------------------------------
+@roff_stats@.It Sy "stats.arenas.<i>.lruns.<j>.nmalloc (uint64_t) r-"
+@roff_stats@.Bd -ragged -offset indent -compact
+@roff_stats@Cumulative number of allocation requests for this size class served
+@roff_stats@directly by the arena.
+@roff_stats@.Ed
+.\"-----------------------------------------------------------------------------
+@roff_stats@.It Sy "stats.arenas.<i>.lruns.<j>.ndalloc (uint64_t) r-"
+@roff_stats@.Bd -ragged -offset indent -compact
+@roff_stats@Cumulative number of deallocation requests for this size class
+@roff_stats@served directly by the arena.
 @roff_stats@.Ed
 .\"-----------------------------------------------------------------------------
 @roff_stats@.It Sy "stats.arenas.<i>.lruns.<j>.nrequests (uint64_t) r-"

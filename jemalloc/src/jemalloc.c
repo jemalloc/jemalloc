@@ -52,17 +52,9 @@
  *   |          |                  |     3584 |
  *   |          |                  |     3840 |
  *   |========================================|
- *   | Medium                      |    4 KiB |
- *   |                             |    6 KiB |
+ *   | Large                       |    4 KiB |
  *   |                             |    8 KiB |
- *   |                             |      ... |
- *   |                             |   28 KiB |
- *   |                             |   30 KiB |
- *   |                             |   32 KiB |
- *   |========================================|
- *   | Large                       |   36 KiB |
- *   |                             |   40 KiB |
- *   |                             |   44 KiB |
+ *   |                             |   12 KiB |
  *   |                             |      ... |
  *   |                             | 1012 KiB |
  *   |                             | 1016 KiB |
@@ -76,9 +68,8 @@
  *
  * Different mechanisms are used accoding to category:
  *
- *   Small/medium : Each size class is segregated into its own set of runs.
- *                  Each run maintains a bitmap of which regions are
- *                  free/allocated.
+ *   Small: Each size class is segregated into its own set of runs.  Each run
+ *          maintains a bitmap of which regions are free/allocated.
  *
  *   Large : Each allocation is backed by a dedicated run.  Metadata are stored
  *           in the associated arena chunk header maps.
@@ -252,6 +243,11 @@ stats_print_atexit(void)
 		if (arena != NULL) {
 			tcache_t *tcache;
 
+			/*
+			 * tcache_stats_merge() locks bins, so if any code is
+			 * introduced that acquires both arena and bin locks in
+			 * the opposite order, deadlocks may result.
+			 */
 			malloc_mutex_lock(&arena->lock);
 			ql_foreach(tcache, &arena->tcache_ql, link) {
 				tcache_stats_merge(tcache, arena);
@@ -510,14 +506,10 @@ MALLOC_OUT:
 				case 'k':
 					/*
 					 * Chunks always require at least one
-					 * header page, plus enough room to
-					 * hold a run for the largest medium
-					 * size class (one page more than the
-					 * size).
+					 * header page, plus one data page.
 					 */
 					if ((1U << (opt_lg_chunk - 1)) >=
-					    (2U << PAGE_SHIFT) + (1U <<
-					    opt_lg_medium_max))
+					    (2U << PAGE_SHIFT))
 						opt_lg_chunk--;
 					break;
 				case 'K':
@@ -533,15 +525,17 @@ MALLOC_OUT:
 					opt_prof_leak = true;
 					break;
 #endif
+#ifdef JEMALLOC_TCACHE
 				case 'm':
-					if (opt_lg_medium_max > PAGE_SHIFT)
-						opt_lg_medium_max--;
+					if (opt_lg_tcache_maxclass >= 0)
+						opt_lg_tcache_maxclass--;
 					break;
 				case 'M':
-					if (opt_lg_medium_max + 1 <
-					    opt_lg_chunk)
-						opt_lg_medium_max++;
+					if (opt_lg_tcache_maxclass + 1 <
+					    (sizeof(size_t) << 3))
+						opt_lg_tcache_maxclass++;
 					break;
+#endif
 				case 'n':
 					opt_narenas_lshift--;
 					break;
@@ -725,33 +719,7 @@ MALLOC_OUT:
 		 * For SMP systems, create more than one arena per CPU by
 		 * default.
 		 */
-#ifdef JEMALLOC_TCACHE
-		if (opt_tcache
-#  ifdef JEMALLOC_PROF
-		    /*
-		     * Profile data storage concurrency is directly linked to
-		     * the number of arenas, so only drop the number of arenas
-		     * on behalf of enabled tcache if profiling is disabled.
-		     */
-		    && opt_prof == false
-#  endif
-		    ) {
-			/*
-			 * Only large object allocation/deallocation is
-			 * guaranteed to acquire an arena mutex, so we can get
-			 * away with fewer arenas than without thread caching.
-			 */
-			opt_narenas_lshift += 1;
-		} else {
-#endif
-			/*
-			 * All allocations must acquire an arena mutex, so use
-			 * plenty of arenas.
-			 */
-			opt_narenas_lshift += 2;
-#ifdef JEMALLOC_TCACHE
-		}
-#endif
+		opt_narenas_lshift += 2;
 	}
 
 	/* Determine how many arenas to use. */
