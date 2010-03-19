@@ -314,8 +314,8 @@ tcache_destroy(tcache_t *tcache)
 		    PAGE_SHIFT);
 		arena_chunk_map_t *mapelm = &chunk->map[pageind];
 		arena_run_t *run = (arena_run_t *)((uintptr_t)chunk +
-		    (uintptr_t)((pageind - ((mapelm->bits & CHUNK_MAP_PG_MASK)
-		    >> CHUNK_MAP_PG_SHIFT)) << PAGE_SHIFT));
+		    (uintptr_t)((pageind - (mapelm->bits >> PAGE_SHIFT)) <<
+		    PAGE_SHIFT));
 		arena_bin_t *bin = run->bin;
 
 		malloc_mutex_lock(&bin->lock);

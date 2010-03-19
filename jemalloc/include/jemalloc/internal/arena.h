@@ -82,7 +82,7 @@ struct arena_chunk_map_s {
 		/*
 		 * Linkage for run trees.  There are two disjoint uses:
 		 *
-		 * 1) arena_t's runs_avail tree.
+		 * 1) arena_t's runs_avail_{clean,dirty} trees.
 		 * 2) arena_run_t conceptually uses this linkage for in-use
 		 *    non-full runs, rather than directly embedding linkage.
 		 */
@@ -105,11 +105,11 @@ struct arena_chunk_map_s {
 	 * Run address (or size) and various flags are stored together.  The bit
 	 * layout looks like (assuming 32-bit system):
 	 *
-	 *   ???????? ???????? ????cccc ccccdzla
+	 *   ???????? ???????? ????---- ----dzla
 	 *
 	 * ? : Unallocated: Run address for first/last pages, unset for internal
 	 *                  pages.
-	 *     Small: Don't care.
+	 *     Small: Run page offset.
 	 *     Large: Run size for first page, unset for trailing pages.
 	 * - : Unused.
 	 * d : dirty?
@@ -123,34 +123,36 @@ struct arena_chunk_map_s {
 	 * s : run size
 	 * x : don't care
 	 * - : 0
-	 * [dzla] : bit set
+	 * [DZLA] : bit set
+	 * [dzla] : bit unset
 	 *
-	 *   Unallocated:
-	 *     ssssssss ssssssss ssss---- --------
-	 *     xxxxxxxx xxxxxxxx xxxx---- ----d---
-	 *     ssssssss ssssssss ssss---- -----z--
+	 *   Unallocated (clean):
+	 *     ssssssss ssssssss ssss---- ----dz--
+	 *     xxxxxxxx xxxxxxxx xxxx---- -----Zxx
+	 *     ssssssss ssssssss ssss---- ----dZ--
+	 *
+	 *   Unallocated (dirty):
+	 *     ssssssss ssssssss ssss---- ----D---
+	 *     xxxxxxxx xxxxxxxx xxxx---- ----xxxx
+	 *     ssssssss ssssssss ssss---- ----D---
 	 *
 	 *   Small:
+	 *     pppppppp pppppppp pppp---- ----d--a
 	 *     pppppppp pppppppp pppp---- -------a
-	 *     pppppppp pppppppp pppp---- -------a
-	 *     pppppppp pppppppp pppp---- -------a
+	 *     pppppppp pppppppp pppp---- ----d--a
 	 *
 	 *   Large:
-	 *     ssssssss ssssssss ssss---- ------la
-	 *     -------- -------- -------- ------la
-	 *     -------- -------- -------- ------la
+	 *     ssssssss ssssssss ssss---- ----D-la
+	 *     xxxxxxxx xxxxxxxx xxxx---- ----xxxx
+	 *     -------- -------- -------- ----D-la
 	 */
 	size_t				bits;
-#define	CHUNK_MAP_PG_MASK	((size_t)0xfffff000U)
-#define	CHUNK_MAP_PG_SHIFT	12
-#define	CHUNK_MAP_LG_PG_RANGE	20
-
-#define	CHUNK_MAP_FLAGS_MASK	((size_t)0xfU)
-#define	CHUNK_MAP_DIRTY		((size_t)0x8U)
-#define	CHUNK_MAP_ZEROED	((size_t)0x4U)
-#define	CHUNK_MAP_LARGE		((size_t)0x2U)
-#define	CHUNK_MAP_ALLOCATED	((size_t)0x1U)
-#define	CHUNK_MAP_KEY		(CHUNK_MAP_DIRTY | CHUNK_MAP_ALLOCATED)
+#define	CHUNK_MAP_FLAGS_MASK	((size_t)0x1fU)
+#define	CHUNK_MAP_KEY		((size_t)0x10U)
+#define	CHUNK_MAP_DIRTY		((size_t)0x08U)
+#define	CHUNK_MAP_ZEROED	((size_t)0x04U)
+#define	CHUNK_MAP_LARGE		((size_t)0x02U)
+#define	CHUNK_MAP_ALLOCATED	((size_t)0x01U)
 };
 typedef rb_tree(arena_chunk_map_t) arena_avail_tree_t;
 typedef rb_tree(arena_chunk_map_t) arena_run_tree_t;
@@ -312,10 +314,19 @@ struct arena_s {
 	size_t			npurgatory;
 
 	/*
-	 * Size/address-ordered tree of this arena's available runs.  This tree
-	 * is used for first-best-fit run allocation.
+	 * Size/address-ordered trees of this arena's available runs.  The trees
+	 * are used for first-best-fit run allocation.  The dirty tree contains
+	 * runs with dirty pages (i.e. very likely to have been touched and
+	 * therefore have associated physical pages), whereas the clean tree
+	 * contains runs with pages that either have no associated physical
+	 * pages, or have pages that the kernel may recycle at any time due to
+	 * previous madvise(2) calls.  The dirty tree is used in preference to
+	 * the clean tree for allocations, because using dirty pages reduces
+	 * the amount of dirty purging necessary to keep the active:dirty page
+	 * ratio below the purge threshold.
 	 */
-	arena_avail_tree_t	runs_avail;
+	arena_avail_tree_t	runs_avail_clean;
+	arena_avail_tree_t	runs_avail_dirty;
 
 	/*
 	 * bins is used to store trees of free regions of the following sizes,
@@ -465,9 +476,8 @@ arena_dalloc(arena_t *arena, arena_chunk_t *chunk, void *ptr)
 			arena_bin_t *bin;
 
 			run = (arena_run_t *)((uintptr_t)chunk +
-			    (uintptr_t)((pageind - ((mapelm->bits &
-			    CHUNK_MAP_PG_MASK) >> CHUNK_MAP_PG_SHIFT)) <<
-			    PAGE_SHIFT));
+			    (uintptr_t)((pageind - (mapelm->bits >>
+			    PAGE_SHIFT)) << PAGE_SHIFT));
 			assert(run->magic == ARENA_RUN_MAGIC);
 			assert(((uintptr_t)ptr - ((uintptr_t)run +
 			    (uintptr_t)run->bin->reg0_offset)) %
