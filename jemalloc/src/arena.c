@@ -593,7 +593,7 @@ arena_chunk_purge(arena_t *arena, arena_chunk_t *chunk)
 {
 	ql_head(arena_chunk_map_t) mapelms;
 	arena_chunk_map_t *mapelm;
-	size_t pageind;
+	size_t pageind, flag_zeroed;
 #ifdef JEMALLOC_DEBUG
 	size_t ndirty;
 #endif
@@ -602,6 +602,12 @@ arena_chunk_purge(arena_t *arena, arena_chunk_t *chunk)
 #endif
 
 	ql_new(&mapelms);
+
+	flag_zeroed =
+#ifdef JEMALLOC_SWAP
+	    swap_enabled ? 0 :
+#endif
+	    CHUNK_MAP_ZEROED;
 
 	/*
 	 * If chunk is the spare, temporarily re-allocate it, 1) so that its
@@ -633,17 +639,32 @@ arena_chunk_purge(arena_t *arena, arena_chunk_t *chunk)
 			npages = mapelm->bits >> PAGE_SHIFT;
 			assert(pageind + npages <= chunk_npages);
 			if (mapelm->bits & CHUNK_MAP_DIRTY) {
-				/*
-				 * Dirty run; temporarily allocate it.  Set the
-				 * last map element first, in case this is a
-				 * one-page run.
-				 */
+				size_t i;
+
 				arena_avail_tree_remove(
 				    &arena->runs_avail_dirty, mapelm);
-				chunk->map[pageind + npages - 1].bits =
-				    (CHUNK_MAP_LARGE | CHUNK_MAP_ALLOCATED);
+
+				/*
+				 * Update internal elements in the page map, so
+				 * that CHUNK_MAP_ZEROED is properly set.
+				 * madvise(..., MADV_DONTNEED) results in
+				 * zero-filled pages for anonymous mappings,
+				 * but not for file-backed mappings.
+				 */
 				mapelm->bits = (npages << PAGE_SHIFT) |
-				    CHUNK_MAP_LARGE | CHUNK_MAP_ALLOCATED;
+				    CHUNK_MAP_LARGE | CHUNK_MAP_ALLOCATED |
+				    flag_zeroed;
+				for (i = 1; i < npages - 1; i++) {
+					chunk->map[pageind + i].bits =
+					    flag_zeroed;
+				}
+				if (npages > 1) {
+					chunk->map[pageind + npages - 1].bits =
+					(npages << PAGE_SHIFT) |
+					CHUNK_MAP_LARGE | CHUNK_MAP_ALLOCATED |
+					flag_zeroed;
+				}
+
 				arena->nactive += npages;
 				/* Append to list for later processing. */
 				ql_elm_new(mapelm, u.ql_link);
@@ -653,9 +674,9 @@ arena_chunk_purge(arena_t *arena, arena_chunk_t *chunk)
 			pageind += npages;
 		} else {
 			/* Skip allocated run. */
-			if (mapelm->bits & CHUNK_MAP_LARGE) {
+			if (mapelm->bits & CHUNK_MAP_LARGE)
 				pageind += mapelm->bits >> PAGE_SHIFT;
-			} else {
+			else {
 				arena_run_t *run = (arena_run_t *)((uintptr_t)
 				    chunk + (uintptr_t)(pageind << PAGE_SHIFT));
 
