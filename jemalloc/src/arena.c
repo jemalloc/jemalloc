@@ -23,6 +23,9 @@ size_t		sspace_max;
 size_t		lg_mspace;
 size_t		mspace_mask;
 
+/* Used to prevent threads from concurrently calling madvise(2). */
+static malloc_mutex_t  purge_lock;
+
 /*
  * const_small_size2bin is a static constant lookup table that in the common
  * case can be used as-is for small_size2bin.  For dynamically linked programs,
@@ -581,10 +584,9 @@ arena_maybe_purge(arena_t *arena)
 {
 
 	/* Enforce opt_lg_dirty_mult. */
-	if (opt_lg_dirty_mult >= 0 && arena->ndirty > arena->npurgatory &&
-	    (arena->ndirty - arena->npurgatory) > chunk_npages &&
-	    (arena->nactive >> opt_lg_dirty_mult) < (arena->ndirty -
-	    arena->npurgatory))
+	if (opt_lg_dirty_mult >= 0 && arena->purgatory == false &&
+	    arena->ndirty > chunk_npages && (arena->nactive >>
+	    opt_lg_dirty_mult) < arena->ndirty)
 		arena_purge(arena);
 }
 
@@ -754,9 +756,21 @@ arena_purge(arena_t *arena)
 	}
 	assert(ndirty == arena->ndirty);
 #endif
-	assert(arena->ndirty > arena->npurgatory);
 	assert(arena->ndirty > chunk_npages);
 	assert((arena->nactive >> opt_lg_dirty_mult) < arena->ndirty);
+
+	/*
+	 * Only allow one thread at a time to purge dirty pages.  madvise(2)
+	 * causes the kernel to modify virtual memory data structures that are
+	 * typically protected by a lock, and purging isn't important enough to
+	 * suffer lock contention in the kernel.  The result of failing to
+	 * acquire purge_lock here is that this arena will operate with ndirty
+	 * above the threshold until some dirty pages are re-used, or the
+	 * creation of more dirty pages causes this function to be called
+	 * again.
+	 */
+	if (malloc_mutex_trylock(&purge_lock))
+		return;
 
 #ifdef JEMALLOC_STATS
 	arena->stats.npurge++;
@@ -764,13 +778,10 @@ arena_purge(arena_t *arena)
 
 	/*
 	 * Compute the minimum number of pages that this thread should try to
-	 * purge, and add the result to arena->npurgatory.  This will keep
-	 * multiple threads from racing to reduce ndirty below the threshold.
+	 * purge.
 	 */
-	npurgatory = (arena->ndirty - arena->npurgatory) - (arena->nactive >>
-	    opt_lg_dirty_mult);
-	arena->npurgatory += npurgatory;
-
+	npurgatory = arena->ndirty - (arena->nactive >> opt_lg_dirty_mult);
+	arena->purgatory = true;
 	while (npurgatory > 0) {
 		/* Get next chunk with dirty pages. */
 		chunk = ql_first(&arena->chunks_dirty);
@@ -778,11 +789,9 @@ arena_purge(arena_t *arena)
 			/*
 			 * This thread was unable to purge as many pages as
 			 * originally intended, due to races with other threads
-			 * that either did some of the purging work, or re-used
-			 * dirty pages.
+			 * that re-used dirty pages.
 			 */
-			arena->npurgatory -= npurgatory;
-			return;
+			goto RETURN;
 		}
 		while (chunk->ndirty == 0) {
 			ql_remove(&arena->chunks_dirty, chunk, link_dirty);
@@ -790,38 +799,20 @@ arena_purge(arena_t *arena)
 			chunk = ql_first(&arena->chunks_dirty);
 			if (chunk == NULL) {
 				/* Same logic as for above. */
-				arena->npurgatory -= npurgatory;
-				return;
+				goto RETURN;
 			}
 		}
 
-		if (chunk->ndirty > npurgatory) {
-			/*
-			 * This thread will, at a minimum, purge all the dirty
-			 * pages in chunk, so set npurgatory to reflect this
-			 * thread's commitment to purge the pages.  This tends
-			 * to reduce the chances of the following scenario:
-			 *
-			 * 1) This thread sets arena->npurgatory such that
-			 *    (arena->ndirty - arena->npurgatory) is at the
-			 *    threshold.
-			 * 2) This thread drops arena->lock.
-			 * 3) Another thread causes one or more pages to be
-			 *    dirtied, and immediately determines that it must
-			 *    purge dirty pages.
-			 *
-			 * If this scenario *does* play out, that's okay,
-			 * because all of the purging work being done really
-			 * needs to happen.
-			 */
-			arena->npurgatory += chunk->ndirty - npurgatory;
-			npurgatory = chunk->ndirty;
-		}
-
-		arena->npurgatory -= chunk->ndirty;
-		npurgatory -= chunk->ndirty;
+		if (chunk->ndirty >= npurgatory) {
+			/* This thread will purge all the pages in chunk. */
+			npurgatory = 0;
+		} else
+			npurgatory -= chunk->ndirty;
 		arena_chunk_purge(arena, chunk);
 	}
+RETURN:
+	arena->purgatory = false;
+	malloc_mutex_unlock(&purge_lock);
 }
 
 static void
@@ -2080,7 +2071,7 @@ arena_new(arena_t *arena, unsigned ind)
 
 	arena->nactive = 0;
 	arena->ndirty = 0;
-	arena->npurgatory = 0;
+	arena->purgatory = false;
 
 	arena_avail_tree_new(&arena->runs_avail_clean);
 	arena_avail_tree_new(&arena->runs_avail_dirty);
@@ -2360,6 +2351,9 @@ arena_boot(void)
 	arena_chunk_header_npages = (header_size >> PAGE_SHIFT) +
 	    ((header_size & PAGE_MASK) != 0);
 	arena_maxclass = chunksize - (arena_chunk_header_npages << PAGE_SHIFT);
+
+	if (malloc_mutex_init(&purge_lock))
+		return (true);
 
 	return (false);
 }
