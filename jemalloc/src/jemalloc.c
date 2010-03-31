@@ -835,13 +835,21 @@ JEMALLOC_P(malloc)(size_t size)
 	}
 
 #ifdef JEMALLOC_PROF
-	if (opt_prof && (cnt = prof_alloc_prep(size)) == NULL) {
-		ret = NULL;
-		goto OOM;
-	}
+	if (opt_prof) {
+		if ((cnt = prof_alloc_prep(size)) == NULL) {
+			ret = NULL;
+			goto OOM;
+		}
+		if (prof_promote && (uintptr_t)cnt != (uintptr_t)1U && size <=
+		    small_maxclass) {
+			ret = imalloc(small_maxclass+1);
+			if (ret != NULL)
+				arena_prof_promoted(ret, size);
+		} else
+			ret = imalloc(size);
+	} else
 #endif
-
-	ret = imalloc(size);
+		ret = imalloc(size);
 
 OOM:
 	if (ret == NULL) {
@@ -918,12 +926,24 @@ JEMALLOC_P(posix_memalign)(void **memptr, size_t alignment, size_t size)
 		}
 
 #ifdef JEMALLOC_PROF
-		if (opt_prof && (cnt = prof_alloc_prep(size)) == NULL) {
-			result = NULL;
-			ret = EINVAL;
+		if (opt_prof) {
+			if ((cnt = prof_alloc_prep(size)) == NULL) {
+				result = NULL;
+				ret = EINVAL;
+			} else {
+				if (prof_promote && (uintptr_t)cnt !=
+				    (uintptr_t)1U && size <= small_maxclass) {
+					result = ipalloc(alignment,
+					    small_maxclass+1);
+					if (result != NULL) {
+						arena_prof_promoted(result,
+						    size);
+					}
+				} else
+					result = ipalloc(alignment, size);
+			}
 		} else
 #endif
-
 			result = ipalloc(alignment, size);
 	}
 
@@ -992,13 +1012,21 @@ JEMALLOC_P(calloc)(size_t num, size_t size)
 	}
 
 #ifdef JEMALLOC_PROF
-	if (opt_prof && (cnt = prof_alloc_prep(num_size)) == NULL) {
-		ret = NULL;
-		goto RETURN;
-	}
+	if (opt_prof) {
+		if ((cnt = prof_alloc_prep(num_size)) == NULL) {
+			ret = NULL;
+			goto RETURN;
+		}
+		if (prof_promote && (uintptr_t)cnt != (uintptr_t)1U && num_size
+		    <= small_maxclass) {
+			ret = icalloc(small_maxclass+1);
+			if (ret != NULL)
+				arena_prof_promoted(ret, num_size);
+		} else
+			ret = icalloc(num_size);
+	} else
 #endif
-
-	ret = icalloc(num_size);
+		ret = icalloc(num_size);
 
 RETURN:
 	if (ret == NULL) {
@@ -1071,10 +1099,16 @@ JEMALLOC_P(realloc)(void *ptr, size_t size)
 				ret = NULL;
 				goto OOM;
 			}
-		}
+			if (prof_promote && (uintptr_t)cnt != (uintptr_t)1U &&
+			    size <= small_maxclass) {
+				ret = iralloc(ptr, small_maxclass+1);
+				if (ret != NULL)
+					arena_prof_promoted(ret, size);
+			} else
+				ret = iralloc(ptr, size);
+		} else
 #endif
-
-		ret = iralloc(ptr, size);
+			ret = iralloc(ptr, size);
 
 #ifdef JEMALLOC_PROF
 OOM:
@@ -1104,8 +1138,21 @@ OOM:
 			ret = NULL;
 		} else {
 #ifdef JEMALLOC_PROF
-			if (opt_prof && (cnt = prof_alloc_prep(size)) == NULL) {
-				ret = NULL;
+			if (opt_prof) {
+				if ((cnt = prof_alloc_prep(size)) == NULL)
+					ret = NULL;
+				else {
+					if (prof_promote && (uintptr_t)cnt !=
+					    (uintptr_t)1U && size <=
+					    small_maxclass) {
+						ret = imalloc(small_maxclass+1);
+						if (ret != NULL) {
+							arena_prof_promoted(ret,
+							    size);
+						}
+					} else
+						ret = imalloc(size);
+				}
 			} else
 #endif
 				ret = imalloc(size);

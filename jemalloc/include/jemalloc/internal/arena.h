@@ -121,8 +121,10 @@ struct arena_chunk_map_s {
 	 *
 	 * p : run page offset
 	 * s : run size
+	 * c : size class (used only if prof_promote is true)
 	 * x : don't care
 	 * - : 0
+	 * + : 1
 	 * [DZLA] : bit set
 	 * [dzla] : bit unset
 	 *
@@ -142,17 +144,27 @@ struct arena_chunk_map_s {
 	 *     pppppppp pppppppp pppp---- ----d--a
 	 *
 	 *   Large:
-	 *     ssssssss ssssssss ssss---- ----D-la
+	 *     ssssssss ssssssss ssss++++ ++++D-la
 	 *     xxxxxxxx xxxxxxxx xxxx---- ----xxxx
 	 *     -------- -------- -------- ----D-la
+	 *
+	 *   Large (sampled, size <= PAGE_SIZE):
+	 *     ssssssss ssssssss sssscccc ccccD-la
+	 *
+	 *   Large (not sampled, size == PAGE_SIZE):
+	 *     ssssssss ssssssss ssss++++ ++++D-la
 	 */
 	size_t				bits;
-#define	CHUNK_MAP_FLAGS_MASK	((size_t)0x1fU)
-#define	CHUNK_MAP_KEY		((size_t)0x10U)
-#define	CHUNK_MAP_DIRTY		((size_t)0x08U)
-#define	CHUNK_MAP_ZEROED	((size_t)0x04U)
-#define	CHUNK_MAP_LARGE		((size_t)0x02U)
-#define	CHUNK_MAP_ALLOCATED	((size_t)0x01U)
+#ifdef JEMALLOC_PROF
+#define	CHUNK_MAP_CLASS_SHIFT	4
+#define	CHUNK_MAP_CLASS_MASK	((size_t)0xff0U)
+#endif
+#define	CHUNK_MAP_FLAGS_MASK	((size_t)0xfU)
+#define	CHUNK_MAP_DIRTY		((size_t)0x8U)
+#define	CHUNK_MAP_ZEROED	((size_t)0x4U)
+#define	CHUNK_MAP_LARGE		((size_t)0x2U)
+#define	CHUNK_MAP_ALLOCATED	((size_t)0x1U)
+#define	CHUNK_MAP_KEY		CHUNK_MAP_ALLOCATED
 };
 typedef rb_tree(arena_chunk_map_t) arena_avail_tree_t;
 typedef rb_tree(arena_chunk_map_t) arena_run_tree_t;
@@ -421,6 +433,8 @@ void	*arena_palloc(arena_t *arena, size_t alignment, size_t size,
     size_t alloc_size);
 size_t	arena_salloc(const void *ptr);
 #ifdef JEMALLOC_PROF
+void	arena_prof_promoted(const void *ptr, size_t size);
+size_t	arena_salloc_demote(const void *ptr);
 prof_thr_cnt_t	*arena_prof_cnt_get(const void *ptr);
 void	arena_prof_cnt_set(const void *ptr, prof_thr_cnt_t *cnt);
 #endif

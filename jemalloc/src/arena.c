@@ -218,8 +218,8 @@ arena_avail_comp(arena_chunk_map_t *a, arena_chunk_map_t *b)
 	size_t a_size = a->bits & ~PAGE_MASK;
 	size_t b_size = b->bits & ~PAGE_MASK;
 
-	assert(a->bits & CHUNK_MAP_KEY || (a->bits & CHUNK_MAP_DIRTY) ==
-	    (b->bits & CHUNK_MAP_DIRTY));
+	assert((a->bits & CHUNK_MAP_KEY) == CHUNK_MAP_KEY || (a->bits &
+	    CHUNK_MAP_DIRTY) == (b->bits & CHUNK_MAP_DIRTY));
 
 	ret = (a_size > b_size) - (a_size < b_size);
 	if (ret == 0) {
@@ -382,6 +382,9 @@ arena_run_split(arena_t *arena, arena_run_t *run, size_t size, bool large,
 		chunk->map[run_ind+need_pages-1].bits = CHUNK_MAP_LARGE |
 		    CHUNK_MAP_ALLOCATED | flag_dirty;
 		chunk->map[run_ind].bits = size | CHUNK_MAP_LARGE |
+#ifdef JEMALLOC_PROF
+		    CHUNK_MAP_CLASS_MASK |
+#endif
 		    CHUNK_MAP_ALLOCATED | flag_dirty;
 	} else {
 		assert(zero == false);
@@ -1210,7 +1213,7 @@ arena_bin_run_size_calc(arena_bin_t *bin, size_t min_run_size)
 		try_nregs--;
 		try_hdr_size = sizeof(arena_run_t);
 #ifdef JEMALLOC_PROF
-		if (opt_prof) {
+		if (opt_prof && prof_promote == false) {
 			/* Pad to a quantum boundary. */
 			try_hdr_size = QUANTUM_CEILING(try_hdr_size);
 			try_cnt0_offset = try_hdr_size;
@@ -1243,7 +1246,7 @@ arena_bin_run_size_calc(arena_bin_t *bin, size_t min_run_size)
 			try_nregs--;
 			try_hdr_size = sizeof(arena_run_t);
 #ifdef JEMALLOC_PROF
-			if (opt_prof) {
+			if (opt_prof && prof_promote == false) {
 				/* Pad to a quantum boundary. */
 				try_hdr_size = QUANTUM_CEILING(try_hdr_size);
 				try_cnt0_offset = try_hdr_size;
@@ -1507,6 +1510,63 @@ arena_salloc(const void *ptr)
 }
 
 #ifdef JEMALLOC_PROF
+void
+arena_prof_promoted(const void *ptr, size_t size)
+{
+	arena_chunk_t *chunk;
+	size_t pageind, binind;
+
+	assert(ptr != NULL);
+	assert(CHUNK_ADDR2BASE(ptr) != ptr);
+	assert(isalloc(ptr) == PAGE_SIZE);
+
+	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
+	pageind = (((uintptr_t)ptr - (uintptr_t)chunk) >> PAGE_SHIFT);
+	binind = small_size2bin[size];
+	assert(binind < nbins);
+	chunk->map[pageind].bits = (chunk->map[pageind].bits &
+	    ~CHUNK_MAP_CLASS_MASK) | (binind << CHUNK_MAP_CLASS_SHIFT);
+}
+
+size_t
+arena_salloc_demote(const void *ptr)
+{
+	size_t ret;
+	arena_chunk_t *chunk;
+	size_t pageind, mapbits;
+
+	assert(ptr != NULL);
+	assert(CHUNK_ADDR2BASE(ptr) != ptr);
+
+	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
+	pageind = (((uintptr_t)ptr - (uintptr_t)chunk) >> PAGE_SHIFT);
+	mapbits = chunk->map[pageind].bits;
+	assert((mapbits & CHUNK_MAP_ALLOCATED) != 0);
+	if ((mapbits & CHUNK_MAP_LARGE) == 0) {
+		arena_run_t *run = (arena_run_t *)((uintptr_t)chunk +
+		    (uintptr_t)((pageind - (mapbits >> PAGE_SHIFT)) <<
+		    PAGE_SHIFT));
+		assert(run->magic == ARENA_RUN_MAGIC);
+		assert(((uintptr_t)ptr - ((uintptr_t)run +
+		    (uintptr_t)run->bin->reg0_offset)) % run->bin->reg_size ==
+		    0);
+		ret = run->bin->reg_size;
+	} else {
+		assert(((uintptr_t)ptr & PAGE_MASK) == 0);
+		ret = mapbits & ~PAGE_MASK;
+		if (prof_promote && ret == PAGE_SIZE && (mapbits &
+		    CHUNK_MAP_CLASS_MASK) != CHUNK_MAP_CLASS_MASK) {
+			size_t binind = ((mapbits & CHUNK_MAP_CLASS_MASK) >>
+			    CHUNK_MAP_CLASS_SHIFT);
+			assert(binind < nbins);
+			ret = chunk->arena->bins[binind].reg_size;
+		}
+		assert(ret != 0);
+	}
+
+	return (ret);
+}
+
 static inline unsigned
 arena_run_regind(arena_run_t *run, arena_bin_t *bin, const void *ptr,
     size_t size)
@@ -1585,19 +1645,23 @@ arena_prof_cnt_get(const void *ptr)
 	mapbits = chunk->map[pageind].bits;
 	assert((mapbits & CHUNK_MAP_ALLOCATED) != 0);
 	if ((mapbits & CHUNK_MAP_LARGE) == 0) {
-		arena_run_t *run = (arena_run_t *)((uintptr_t)chunk +
-		    (uintptr_t)((pageind - (mapbits >> PAGE_SHIFT)) <<
-		    PAGE_SHIFT));
-		arena_bin_t *bin = run->bin;
-		unsigned regind;
+		if (prof_promote)
+			ret = (prof_thr_cnt_t *)(uintptr_t)1U;
+		else {
+			arena_run_t *run = (arena_run_t *)((uintptr_t)chunk +
+			    (uintptr_t)((pageind - (mapbits >> PAGE_SHIFT)) <<
+			    PAGE_SHIFT));
+			arena_bin_t *bin = run->bin;
+			unsigned regind;
 
-		assert(run->magic == ARENA_RUN_MAGIC);
-		regind = arena_run_regind(run, bin, ptr, bin->reg_size);
-		ret = *(prof_thr_cnt_t **)((uintptr_t)run + bin->cnt0_offset +
-		    (regind * sizeof(prof_thr_cnt_t *)));
-	} else {
+			assert(run->magic == ARENA_RUN_MAGIC);
+			regind = arena_run_regind(run, bin, ptr, bin->reg_size);
+			ret = *(prof_thr_cnt_t **)((uintptr_t)run +
+			    bin->cnt0_offset + (regind *
+			    sizeof(prof_thr_cnt_t *)));
+		}
+	} else
 		ret = chunk->map[pageind].prof_cnt;
-	}
 
 	return (ret);
 }
@@ -1616,20 +1680,22 @@ arena_prof_cnt_set(const void *ptr, prof_thr_cnt_t *cnt)
 	mapbits = chunk->map[pageind].bits;
 	assert((mapbits & CHUNK_MAP_ALLOCATED) != 0);
 	if ((mapbits & CHUNK_MAP_LARGE) == 0) {
-		arena_run_t *run = (arena_run_t *)((uintptr_t)chunk +
-		    (uintptr_t)((pageind - (mapbits & >> PAGE_SHIFT)) <<
-		    PAGE_SHIFT));
-		arena_bin_t *bin = run->bin;
-		unsigned regind;
+		if (prof_promote == false) {
+			arena_run_t *run = (arena_run_t *)((uintptr_t)chunk +
+			    (uintptr_t)((pageind - (mapbits >> PAGE_SHIFT)) <<
+			    PAGE_SHIFT));
+			arena_bin_t *bin = run->bin;
+			unsigned regind;
 
-		assert(run->magic == ARENA_RUN_MAGIC);
-		regind = arena_run_regind(run, bin, ptr, bin->reg_size);
+			assert(run->magic == ARENA_RUN_MAGIC);
+			regind = arena_run_regind(run, bin, ptr, bin->reg_size);
 
-		*((prof_thr_cnt_t **)((uintptr_t)run + bin->cnt0_offset +
-		    (regind * sizeof(prof_thr_cnt_t *)))) = cnt;
-	} else {
+			*((prof_thr_cnt_t **)((uintptr_t)run + bin->cnt0_offset
+			    + (regind * sizeof(prof_thr_cnt_t *)))) = cnt;
+		} else
+			assert((uintptr_t)cnt == (uintptr_t)1U);
+	} else
 		chunk->map[pageind].prof_cnt = cnt;
-	}
 }
 #endif
 
@@ -2330,7 +2396,22 @@ arena_boot(void)
 	 * 4KiB pages), and such configurations are impractical, but
 	 * nonetheless we need to protect against this case in order to avoid
 	 * undefined behavior.
+	 *
+	 * Further constrain nbins to 255 if prof_promote is true, since all
+	 * small size classes, plus a "not small" size class must be stored in
+	 * 8 bits of arena_chunk_map_t's bits field.
 	 */
+#ifdef JEMALLOC_PROF
+	if (opt_prof && prof_promote) {
+		if (nbins > 255) {
+		    char line_buf[UMAX2S_BUFSIZE];
+		    malloc_write("<jemalloc>: Too many small size classes (");
+		    malloc_write(umax2s(nbins, 10, line_buf));
+		    malloc_write(" > max 255)\n");
+		    abort();
+		}
+	} else
+#endif
 	if (nbins > 256) {
 	    char line_buf[UMAX2S_BUFSIZE];
 	    malloc_write("<jemalloc>: Too many small size classes (");

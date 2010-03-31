@@ -515,7 +515,11 @@ isalloc(const void *ptr)
 		/* Region. */
 		assert(chunk->arena->magic == ARENA_MAGIC);
 
+#ifdef JEMALLOC_PROF
+		ret = arena_salloc_demote(ptr);
+#else
 		ret = arena_salloc(ptr);
+#endif
 	} else
 		ret = huge_salloc(ptr);
 

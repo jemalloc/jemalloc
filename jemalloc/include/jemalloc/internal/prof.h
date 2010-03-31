@@ -134,6 +134,12 @@ extern bool	opt_prof_leak; /* Dump leak summary at exit. */
  */
 extern uint64_t	prof_interval;
 
+/*
+ * If true, promote small sampled objects to large objects, since small run
+ * headers do not have embedded profile context pointers.
+ */
+extern bool	prof_promote;
+
 bool	prof_init(prof_t *prof, bool master);
 void	prof_destroy(prof_t *prof);
 

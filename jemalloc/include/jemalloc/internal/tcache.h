@@ -256,6 +256,12 @@ tcache_alloc_large(tcache_t *tcache, size_t size, bool zero)
 		if (ret == NULL)
 			return (NULL);
 	} else {
+#ifdef JEMALLOC_PROF
+		arena_chunk_t *chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ret);
+		size_t pageind = (unsigned)(((uintptr_t)ret - (uintptr_t)chunk)
+		    >> PAGE_SHIFT);
+		chunk->map[pageind].bits |= CHUNK_MAP_CLASS_MASK;
+#endif
 		if (zero == false) {
 #ifdef JEMALLOC_FILL
 			if (opt_junk)
@@ -288,6 +294,8 @@ tcache_dalloc_small(tcache_t *tcache, void *ptr)
 	tcache_bin_t *tbin;
 	size_t pageind, binind;
 	arena_chunk_map_t *mapelm;
+
+	assert(arena_salloc(ptr) <= small_maxclass);
 
 	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
 	arena = chunk->arena;
@@ -334,6 +342,8 @@ tcache_dalloc_large(tcache_t *tcache, void *ptr, size_t size)
 	arena_chunk_map_t *mapelm;
 
 	assert((size & PAGE_MASK) == 0);
+	assert(arena_salloc(ptr) > small_maxclass);
+	assert(arena_salloc(ptr) <= tcache_maxclass);
 
 	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
 	arena = chunk->arena;

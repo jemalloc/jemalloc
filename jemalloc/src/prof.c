@@ -25,6 +25,7 @@ bool		opt_prof_udump = false;
 bool		opt_prof_leak = false;
 
 uint64_t	prof_interval;
+bool		prof_promote;
 
 /*
  * Global hash of (prof_bt_t *)-->(prof_ctx_t *).  This is the master data
@@ -1250,8 +1251,8 @@ prof_boot0(void)
 {
 
 	/*
-	 * opt_prof must be in its final state before any arenas are
-	 * initialized, so this function must be executed early.
+	 * opt_prof and prof_promote must be in their final state before any
+	 * arenas are initialized, so this function must be executed early.
 	 */
 
 	if (opt_lg_prof_sample > 0) {
@@ -1272,6 +1273,8 @@ prof_boot0(void)
 		prof_interval = 0;
 	} else if (opt_prof)
 		prof_interval = (((uint64_t)1U) << opt_lg_prof_interval);
+
+	prof_promote = (opt_prof && opt_lg_prof_sample > PAGE_SHIFT);
 }
 
 bool
