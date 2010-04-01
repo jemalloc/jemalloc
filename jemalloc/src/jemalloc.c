@@ -460,6 +460,12 @@ MALLOC_OUT:
 						opt_lg_dirty_mult--;
 					break;
 #ifdef JEMALLOC_PROF
+				case 'e':
+					opt_prof_active = false;
+					break;
+				case 'E':
+					opt_prof_active = true;
+					break;
 				case 'f':
 					opt_prof = false;
 					break;

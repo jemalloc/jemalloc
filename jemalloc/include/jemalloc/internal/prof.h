@@ -119,6 +119,13 @@ struct prof_ctx_s {
 #ifdef JEMALLOC_H_EXTERNS
 
 extern bool	opt_prof;
+/*
+ * Even if opt_prof is true, sampling can be temporarily disabled by setting
+ * opt_prof_active to false.  No locking is used when updating opt_prof_active,
+ * so there are no guarantees regarding how long it will take for all threads
+ * to notice state changes.
+ */
+extern bool	opt_prof_active;
 extern size_t	opt_lg_prof_bt_max; /* Maximum backtrace depth. */
 extern size_t	opt_lg_prof_sample; /* Mean bytes between samples. */
 extern ssize_t	opt_lg_prof_interval; /* lg(prof_interval). */

@@ -75,6 +75,7 @@ CTL_PROTO(opt_lg_tcache_gc_sweep)
 #endif
 #ifdef JEMALLOC_PROF
 CTL_PROTO(opt_prof)
+CTL_PROTO(opt_prof_active)
 CTL_PROTO(opt_lg_prof_bt_max)
 CTL_PROTO(opt_lg_prof_sample)
 CTL_PROTO(opt_lg_prof_interval)
@@ -125,6 +126,7 @@ CTL_PROTO(arenas_nhbins)
 #endif
 CTL_PROTO(arenas_nlruns)
 #ifdef JEMALLOC_PROF
+CTL_PROTO(prof_active)
 CTL_PROTO(prof_dump)
 CTL_PROTO(prof_interval)
 #endif
@@ -246,6 +248,7 @@ static const ctl_node_t opt_node[] = {
 #endif
 #ifdef JEMALLOC_PROF
 	{NAME("prof"),			CTL(opt_prof)},
+	{NAME("prof_active"),		CTL(opt_prof_active)},
 	{NAME("lg_prof_bt_max"),	CTL(opt_lg_prof_bt_max)},
 	{NAME("lg_prof_sample"),	CTL(opt_lg_prof_sample)},
 	{NAME("lg_prof_interval"),	CTL(opt_lg_prof_interval)},
@@ -323,6 +326,7 @@ static const ctl_node_t arenas_node[] = {
 
 #ifdef JEMALLOC_PROF
 static const ctl_node_t	prof_node[] = {
+	{NAME("active"),	CTL(prof_active)},
 	{NAME("dump"),		CTL(prof_dump)},
 	{NAME("interval"),	CTL(prof_interval)}
 };
@@ -1151,6 +1155,7 @@ CTL_RO_GEN(opt_lg_tcache_gc_sweep, opt_lg_tcache_gc_sweep, ssize_t)
 #endif
 #ifdef JEMALLOC_PROF
 CTL_RO_GEN(opt_prof, opt_prof, bool)
+CTL_RO_GEN(opt_prof_active, opt_prof_active, bool)
 CTL_RO_GEN(opt_lg_prof_bt_max, opt_lg_prof_bt_max, size_t)
 CTL_RO_GEN(opt_lg_prof_sample, opt_lg_prof_sample, size_t)
 CTL_RO_GEN(opt_lg_prof_interval, opt_lg_prof_interval, ssize_t)
@@ -1247,6 +1252,30 @@ CTL_RO_GEN(arenas_nlruns, nlclasses, size_t)
 /******************************************************************************/
 
 #ifdef JEMALLOC_PROF
+static int
+prof_active_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
+    void *newp, size_t newlen)
+{
+	int ret;
+	bool oldval;
+
+	oldval = opt_prof_active;
+	if (newp != NULL) {
+		/*
+		 * The memory barriers will tend to make opt_prof_active
+		 * propagate faster on systems with weak memory ordering.
+		 */
+		mb_write();
+		WRITE(opt_prof_active, bool);
+		mb_write();
+	}
+	READ(oldval, bool);
+
+	ret = 0;
+RETURN:
+	return (ret);
+}
+
 static int
 prof_dump_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
     void *newp, size_t newlen)

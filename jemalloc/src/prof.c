@@ -18,6 +18,7 @@
 /* Data. */
 
 bool		opt_prof = false;
+bool		opt_prof_active = true;
 size_t		opt_lg_prof_bt_max = LG_PROF_BT_MAX_DEFAULT;
 size_t		opt_lg_prof_sample = LG_PROF_SAMPLE_DEFAULT;
 ssize_t		opt_lg_prof_interval = LG_PROF_INTERVAL_DEFAULT;
@@ -537,7 +538,10 @@ prof_alloc_prep(size_t size)
 	void *vec[prof_bt_max];
 	prof_bt_t bt;
 
-	if (opt_lg_prof_sample == 0) {
+	if (opt_prof_active == false) {
+		/* Sampling is currently inactive, so avoid sampling. */
+		ret = (prof_thr_cnt_t *)(uintptr_t)1U;
+	} else if (opt_lg_prof_sample == 0) {
 		/*
 		 * Don't bother with sampling logic, since sampling interval is
 		 * 1.

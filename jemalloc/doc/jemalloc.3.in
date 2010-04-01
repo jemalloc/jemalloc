@@ -341,6 +341,16 @@ physical memory becomes scarce and the pages remain unused.
 The default minimum ratio is 32:1;
 .Ev JEMALLOC_OPTIONS=6D
 will disable dirty page purging.
+@roff_prof@.It E
+@roff_prof@Activate/deactivate profiling.
+@roff_prof@This is a secondary control mechanism that makes it possible to
+@roff_prof@start the application with profiling enabled (see the
+@roff_prof@.Dq F
+@roff_prof@option) but inactive, then toggle profiling at any time during
+@roff_prof@program execution with the
+@roff_prof@.Dq prof.active
+@roff_prof@mallctl.
+@roff_prof@This option is enabled by default.
 @roff_prof@.It F
 @roff_prof@Profile memory allocation activity, and use an
 @roff_prof@.Xr atexit 3
@@ -355,6 +365,9 @@ will disable dirty page purging.
 @roff_prof@See the
 @roff_prof@.Dq B
 @roff_prof@option for backtrace depth control.
+@roff_prof@See the
+@roff_prof@.Dq E
+@roff_prof@option for on-the-fly activation/deactivation.
 @roff_prof@See the
 @roff_prof@.Dq S
 @roff_prof@option for probabilistic sampling control.
@@ -992,6 +1005,14 @@ Total number of large size classes.
 .Bd -ragged -offset indent -compact
 Maximum size supported by this large size class.
 .Ed
+.\"-----------------------------------------------------------------------------
+@roff_prof@.It Sy "prof.active (bool) rw"
+@roff_prof@.Bd -ragged -offset indent -compact
+@roff_prof@Control whether sampling is currently active.
+@roff_prof@See the
+@roff_prof@.Dq E
+@roff_prof@option for additional information.
+@roff_prof@.Ed
 .\"-----------------------------------------------------------------------------
 @roff_prof@.It Sy "prof.dump (const char *) -w"
 @roff_prof@.Bd -ragged -offset indent -compact
