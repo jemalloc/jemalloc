@@ -38,7 +38,7 @@
 .\"     @(#)malloc.3	8.1 (Berkeley) 6/4/93
 .\" $FreeBSD: head/lib/libc/stdlib/malloc.3 182225 2008-08-27 02:00:53Z jasone $
 .\"
-.Dd March 17, 2010
+.Dd March 31, 2010
 .Dt JEMALLOC 3
 .Os
 .Sh NAME
@@ -401,7 +401,9 @@ will disable dirty page purging.
 @roff_prof@is controlled by the
 @roff_prof@JEMALLOC_PROF_PREFIX
 @roff_prof@environment variable.
-@roff_prof@The default average interval is 1 GiB.
+@roff_prof@The default average interval is 1 GiB;
+@roff_prof@.Ev JEMALLOC_OPTIONS=31i
+@roff_prof@will disable interval-triggered profile dumping.
 @roff_fill@.It J
 @roff_fill@Each byte of new memory allocated by
 @roff_fill@.Fn @jemalloc_prefix@malloc
@@ -794,7 +796,7 @@ option.
 @roff_prof@option.
 @roff_prof@.Ed
 .\"-----------------------------------------------------------------------------
-@roff_prof@.It Sy "opt.lg_prof_interval (size_t) r-"
+@roff_prof@.It Sy "opt.lg_prof_interval (ssize_t) r-"
 @roff_prof@.Bd -ragged -offset indent -compact
 @roff_prof@See the
 @roff_prof@.Dq I

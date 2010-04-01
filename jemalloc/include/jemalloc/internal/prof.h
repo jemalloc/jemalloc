@@ -121,7 +121,7 @@ struct prof_ctx_s {
 extern bool	opt_prof;
 extern size_t	opt_lg_prof_bt_max; /* Maximum backtrace depth. */
 extern size_t	opt_lg_prof_sample; /* Mean bytes between samples. */
-extern size_t	opt_lg_prof_interval; /* lg(prof_interval). */
+extern ssize_t	opt_lg_prof_interval; /* lg(prof_interval). */
 extern bool	opt_prof_udump; /* High-water memory dumping. */
 extern bool	opt_prof_leak; /* Dump leak summary at exit. */
 

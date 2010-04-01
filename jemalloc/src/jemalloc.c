@@ -486,7 +486,7 @@ MALLOC_OUT:
 #endif
 #ifdef JEMALLOC_PROF
 				case 'i':
-					if (opt_lg_prof_interval > 0)
+					if (opt_lg_prof_interval >= 0)
 						opt_lg_prof_interval--;
 					break;
 				case 'I':

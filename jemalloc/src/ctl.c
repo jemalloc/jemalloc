@@ -1153,7 +1153,7 @@ CTL_RO_GEN(opt_lg_tcache_gc_sweep, opt_lg_tcache_gc_sweep, ssize_t)
 CTL_RO_GEN(opt_prof, opt_prof, bool)
 CTL_RO_GEN(opt_lg_prof_bt_max, opt_lg_prof_bt_max, size_t)
 CTL_RO_GEN(opt_lg_prof_sample, opt_lg_prof_sample, size_t)
-CTL_RO_GEN(opt_lg_prof_interval, opt_lg_prof_interval, size_t)
+CTL_RO_GEN(opt_lg_prof_interval, opt_lg_prof_interval, ssize_t)
 CTL_RO_GEN(opt_prof_udump, opt_prof_udump, bool)
 CTL_RO_GEN(opt_prof_leak, opt_prof_leak, bool)
 #endif

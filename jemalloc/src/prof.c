@@ -20,7 +20,7 @@
 bool		opt_prof = false;
 size_t		opt_lg_prof_bt_max = LG_PROF_BT_MAX_DEFAULT;
 size_t		opt_lg_prof_sample = LG_PROF_SAMPLE_DEFAULT;
-size_t		opt_lg_prof_interval = LG_PROF_INTERVAL_DEFAULT;
+ssize_t		opt_lg_prof_interval = LG_PROF_INTERVAL_DEFAULT;
 bool		opt_prof_udump = false;
 bool		opt_prof_leak = false;
 
@@ -1271,8 +1271,13 @@ prof_boot0(void)
 		opt_prof = true;
 		opt_prof_udump = false;
 		prof_interval = 0;
-	} else if (opt_prof)
-		prof_interval = (((uint64_t)1U) << opt_lg_prof_interval);
+	} else if (opt_prof) {
+		if (opt_lg_prof_interval >= 0) {
+			prof_interval = (((uint64_t)1U) <<
+			    opt_lg_prof_interval);
+		} else
+			prof_interval = 0;
+	}
 
 	prof_promote = (opt_prof && opt_lg_prof_sample > PAGE_SHIFT);
 }
