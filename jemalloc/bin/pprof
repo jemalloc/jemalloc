@@ -3725,7 +3725,8 @@ sub MapToSymbols {
 
   # If "addr2line" isn't installed on the system at all, just use
   # nm to get what info we can (function names, but not line numbers).
-  if (system("$addr2line --help >/dev/null 2>&1") != 0) {
+  if ($main::opt_lines == 0 || system("$addr2line --help >/dev/null 2>&1")
+      != 0) {
     MapSymbolsWithNM($image, $offset, $pclist, $symbols);
     return;
   }
