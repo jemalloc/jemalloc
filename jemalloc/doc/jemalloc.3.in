@@ -376,8 +376,8 @@ will disable dirty page purging.
 @roff_prof@option for information on interval-triggered profile dumping, and the
 @roff_prof@.Dq U
 @roff_prof@option for information on high-water-triggered profile dumping.
-@roff_prof@Profile output is compatible with the pprof Perl script, which is
-@roff_prof@part of the google-perftools package
+@roff_prof@Profile output is compatible with the included pprof Perl script,
+@roff_prof@which originates from the google-perftools package
 @roff_prof@(http://code.google.com/p/google-perftools/).
 @roff_tcache@.It G
 @roff_tcache@Double/halve the approximate interval (counted in terms of

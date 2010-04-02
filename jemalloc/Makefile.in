@@ -12,6 +12,7 @@ CC := @CC@
 
 # Configuration parameters.
 DESTDIR =
+BINDIR := $(DESTDIR)@BINDIR@
 INCLUDEDIR := $(DESTDIR)@INCLUDEDIR@
 LIBDIR := $(DESTDIR)@LIBDIR@
 MANDIR := $(DESTDIR)@MANDIR@
@@ -33,6 +34,7 @@ endif
 REV := 0
 
 # Lists of files.
+BINS := @srcroot@bin/pprof
 CHDRS := @objroot@include/jemalloc/jemalloc@install_suffix@.h \
 	@objroot@include/jemalloc/jemalloc_defs@install_suffix@.h
 CSRCS := @srcroot@src/jemalloc.c @srcroot@src/arena.c @srcroot@src/base.c \
@@ -67,6 +69,13 @@ $(DSOS): $(CSRCS:@srcroot@%.c=@objroot@%.o)
 	ln -sf libjemalloc@install_suffix@.so.$(REV) lib/libjemalloc@install_suffix@.so
 	ar crus @objroot@lib/libjemalloc@install_suffix@_pic.a $+
 
+install_bin:
+	install -d $(BINDIR)
+	@for b in $(BINS); do \
+	echo "install -m 755 $$b $(BINDIR)"; \
+	install -m 755 $$b $(BINDIR); \
+done
+
 install_include:
 	install -d $(INCLUDEDIR)/jemalloc
 	@for h in $(CHDRS); do \
@@ -87,7 +96,7 @@ install_man:
 	install -m 644 $$m $(MANDIR)/man3; \
 done
 
-install: install_include install_lib install_man
+install: install_bin install_include install_lib install_man
 
 check:
 
