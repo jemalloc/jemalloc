@@ -38,7 +38,7 @@
 .\"     @(#)malloc.3	8.1 (Berkeley) 6/4/93
 .\" $FreeBSD: head/lib/libc/stdlib/malloc.3 182225 2008-08-27 02:00:53Z jasone $
 .\"
-.Dd March 31, 2010
+.Dd April 2, 2010
 .Dt JEMALLOC 3
 .Os
 .Sh NAME
@@ -486,8 +486,6 @@ The default value is 128 bytes.
 @roff_prof@also decreases the computational overhead.
 @roff_prof@The default sample interval is one (i.e. all allocations are
 @roff_prof@sampled).
-@roff_prof@A sample interval greater than one implicitly disables leak
-@roff_prof@reporting.
 @roff_prof@.It U
 @roff_prof@Trigger a memory profile dump every time the total virtual memory
 @roff_prof@exceeds the previous maximum.

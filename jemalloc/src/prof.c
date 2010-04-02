@@ -1259,14 +1259,6 @@ prof_boot0(void)
 	 * arenas are initialized, so this function must be executed early.
 	 */
 
-	if (opt_lg_prof_sample > 0) {
-		/*
-		 * Disable leak checking, since not all allocations will be
-		 * sampled.
-		 */
-		opt_prof_leak = false;
-	}
-
 	if (opt_prof_leak && opt_prof == false) {
 		/*
 		 * Enable opt_prof, but in such a way that profiles are never
