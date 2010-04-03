@@ -3681,8 +3681,17 @@ sub ExtractSymbols {
   my $symbols = {};
 
   # Map each PC value to the containing library
-  my %seen = ();
-  foreach my $lib (@{$libs}) {
+  my @pcs = (sort { $a cmp $b } keys(%{$pcset}));
+  my @slibs = (sort {$a->[1] cmp $b->[1]} @{$libs});
+  my $bin = shift(@slibs);
+  if ($bin->[1] == 0) {
+    # Move binary to end (starts at address 0).
+    push(@slibs, $bin);
+  } else {
+    unshift(@slibs, $bin);
+  }
+  my $pc = shift(@pcs);
+  foreach my $lib (@slibs) {
     my $libname = $lib->[0];
     my $start = $lib->[1];
     my $finish = $lib->[2];
@@ -3690,14 +3699,18 @@ sub ExtractSymbols {
 
     # Get list of pcs that belong in this library.
     my $contained = [];
-    foreach my $pc (keys(%{$pcset})) {
-      if (!$seen{$pc} && ($pc ge $start) && ($pc le $finish)) {
-        $seen{$pc} = 1;
-        push(@{$contained}, $pc);
+    while (($pc ge $start) && ($pc le $finish)) {
+      push(@{$contained}, $pc);
+      $pc = shift(@pcs);
+      if (!defined $pc) {
+        last;
       }
     }
     # Map to symbols
     MapToSymbols($libname, AddressSub($start, $offset), $contained, $symbols);
+    if (!defined $pc) {
+      last;
+    }
   }
 
   return $symbols;
