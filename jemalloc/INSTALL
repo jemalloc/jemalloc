@@ -45,8 +45,8 @@ any of the following arguments (not a definitive list) to 'configure':
     detailed allocation statistics at exit.
 
 --enable-prof
-    Enable heap profiling and leak detection functionality.  Use the 'B', 'F',
-    'I', 'L', and 'U' options to control these features.
+    Enable heap profiling and leak detection functionality.  Use the 'B', 'E',
+    'F', 'I', 'L', and 'U' options to control these features.
 
 --disable-prof-libgcc
     Disable the use of libgcc's backtracing functionality.  Ordinarily, libgcc's

@@ -448,8 +448,11 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		if ((err = JEMALLOC_P(mallctl)("opt.abort", &bv, &bsz, NULL, 0))
 		    == 0)
 			write_cb(cbopaque, bv ? "A" : "a");
+		if ((err = JEMALLOC_P(mallctl)("prof.active", &bv, &bsz,
+		    NULL, 0)) == 0)
+			write_cb(cbopaque, bv ? "E" : "e");
 		if ((err = JEMALLOC_P(mallctl)("opt.prof", &bv, &bsz, NULL, 0))
-		   == 0)
+		    == 0)
 			write_cb(cbopaque, bv ? "F" : "f");
 		if ((err = JEMALLOC_P(mallctl)("opt.tcache", &bv, &bsz, NULL,
 		    0)) == 0)
