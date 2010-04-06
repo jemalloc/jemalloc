@@ -934,7 +934,6 @@ prof_dump(const char *filename, bool leakcheck, bool propagate_err)
 			if (opt_abort)
 				abort();
 		}
-		prof_leave();
 		goto ERROR;
 	}
 
