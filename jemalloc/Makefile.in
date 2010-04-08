@@ -63,11 +63,17 @@ all: $(DSOS)
 	$(CC) $(CFLAGS) -c $(CPPFLAGS) -o $@ $<
 	@$(SHELL) -ec "$(CC) -MM $(CPPFLAGS) $< | sed \"s/\($(subst /,\/,$(notdir $(basename $@)))\)\.o\([ :]*\)/$(subst /,\/,$(strip $(dir $@)))\1.o \2/g\" > $(@:%.o=%.d)"
 
-$(DSOS): $(CSRCS:@srcroot@%.c=@objroot@%.o)
+%.so : %.so.$(REV)
 	@mkdir -p $(@D)
-	$(CC) -shared -Wl,-soname,libjemalloc@install_suffix@.so.$(REV) -o $@ $+ $(LDFLAGS) $(LIBS)
-	ln -sf libjemalloc@install_suffix@.so.$(REV) lib/libjemalloc@install_suffix@.so
-	ar crus @objroot@lib/libjemalloc@install_suffix@_pic.a $+
+	ln -sf $(<F) $@
+
+@objroot@lib/libjemalloc@install_suffix@.so.$(REV) : $(CSRCS:@srcroot@%.c=@objroot@%.o)
+	@mkdir -p $(@D)
+	$(CC) -shared -Wl,-soname,$(@F) -o $@ $+ $(LDFLAGS) $(LIBS)
+
+@objroot@lib/libjemalloc@install_suffix@_pic.a : $(CSRCS:@srcroot@%.c=@objroot@%.o)
+	@mkdir -p $(@D)
+	ar crus $@ $+
 
 install_bin:
 	install -d $(BINDIR)
@@ -128,26 +134,15 @@ ifeq (@enable_autogen@, 1)
 @objroot@config.status : @srcroot@configure
 	./@objroot@config.status --recheck
 
-# cfghdrs rules.
-@srcroot@cfghdrs.stamp.in : @srcroot@configure.ac
-	echo stamp > @srcroot@cfghdrs.stamp.in
+@srcroot@config.stamp.in : @srcroot@configure.ac
+	echo stamp > @srcroot@config.stamp.in
 
-@objroot@cfghdrs.stamp : @cfghdrs_in@ @srcroot@configure
-	./@objroot@config.status
-	@touch $@
-
-@cfghdrs@ : @objroot@cfghdrs.stamp
-
-# cfgoutputs rules.
-@srcroot@cfgoutputs.stamp.in : @srcroot@configure.ac
-	echo stamp > @srcroot@cfgoutputs.stamp.in
-
-@objroot@cfgoutputs.stamp : @cfgoutputs_in@ @srcroot@configure
+@objroot@config.stamp : @cfgoutputs_in@ @cfghdrs_in@ @srcroot@configure
 	./@objroot@config.status
 	@touch $@
 
 # There must be some action in order for make to re-read Makefile when it is
 # out of date.
-@cfgoutputs@ : @objroot@cfgoutputs.stamp
+@cfgoutputs_out@ @cfghdrs_out@ : @objroot@config.stamp
 	@true
 endif

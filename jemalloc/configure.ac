@@ -263,9 +263,9 @@ AC_ARG_WITH([install_suffix],
 install_suffix="$INSTALL_SUFFIX"
 AC_SUBST([install_suffix])
 
-cfgoutputs_in="Makefile doc/jemalloc.3.in"
-cfgoutputs_in="${cfgoutputs_in} include/jemalloc/jemalloc.h.in"
-cfgoutputs_in="${cfgoutputs_in} include/jemalloc/internal/jemalloc_internal.h.in"
+cfgoutputs_in="${srcroot}Makefile.in ${srcroot}doc/jemalloc.3.in"
+cfgoutputs_in="${cfgoutputs_in} ${srcroot}include/jemalloc/jemalloc.h.in"
+cfgoutputs_in="${cfgoutputs_in} ${srcroot}include/jemalloc/internal/jemalloc_internal.h.in"
 
 cfgoutputs_out="Makefile doc/jemalloc${install_suffix}.3"
 cfgoutputs_out="${cfgoutputs_out} include/jemalloc/jemalloc${install_suffix}.h"
@@ -275,7 +275,7 @@ cfgoutputs_tup="Makefile doc/jemalloc${install_suffix}.3:doc/jemalloc.3.in"
 cfgoutputs_tup="${cfgoutputs_tup} include/jemalloc/jemalloc${install_suffix}.h:include/jemalloc/jemalloc.h.in"
 cfgoutputs_tup="${cfgoutputs_tup} include/jemalloc/internal/jemalloc_internal.h"
 
-cfghdrs_in="include/jemalloc/jemalloc_defs.h.in"
+cfghdrs_in="${srcroot}include/jemalloc/jemalloc_defs.h.in"
 
 cfghdrs_out="include/jemalloc/jemalloc_defs${install_suffix}.h"
 
@@ -720,11 +720,11 @@ AC_HEADER_STDBOOL
 dnl Process .in files.
 AC_SUBST([cfghdrs_in])
 AC_SUBST([cfghdrs_out])
-AC_CONFIG_HEADERS([$cfghdrs_tup cfghdrs.stamp])
+AC_CONFIG_HEADERS([$cfghdrs_tup])
 
 dnl ============================================================================
 dnl Generate outputs.
-AC_CONFIG_FILES([$cfgoutputs_tup cfgoutputs.stamp])
+AC_CONFIG_FILES([$cfgoutputs_tup config.stamp])
 AC_SUBST([cfgoutputs_in])
 AC_SUBST([cfgoutputs_out])
 AC_OUTPUT

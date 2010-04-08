@@ -2,11 +2,6 @@
 #define	JEMALLOC_DEFS_H_
 
 /*
- * jemalloc version string.
- */
-#undef JEMALLOC_VERSION
-
-/*
  * If JEMALLOC_PREFIX is defined, it will cause all public APIs to be prefixed.
  * This makes it possible, with some care, to use multiple allocators
  * simultaneously.

@@ -1,6 +1,5 @@
 /jemalloc/autom4te.cache/
-/jemalloc/cfghdrs.stamp
-/jemalloc/cfgoutputs.stamp
+/jemalloc/config.stamp
 /jemalloc/config.log
 /jemalloc/config.status
 /jemalloc/configure
