@@ -306,7 +306,6 @@ if test "x$enable_debug" = "x0" -a "x$no_CFLAGS" = "xyes" ; then
     if test "x$GCC" = "xyes" ; then
       JE_CFLAGS_APPEND([-O3])
       JE_CFLAGS_APPEND([-funroll-loops])
-      JE_CFLAGS_APPEND([-march=native])
     else
       JE_CFLAGS_APPEND([-O])
     fi
