@@ -466,7 +466,9 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		if ((err = JEMALLOC_P(mallctl)("opt.overcommit", &bv, &bsz,
 		    NULL, 0)) == 0)
 			write_cb(cbopaque, bv ? "O" : "o");
-		write_cb(cbopaque, "P");
+		if ((err = JEMALLOC_P(mallctl)("opt.stats_print", &bv, &bsz,
+		    NULL, 0)) == 0)
+			write_cb(cbopaque, bv ? "P" : "p");
 		if ((err = JEMALLOC_P(mallctl)("opt.prof_udump", &bv, &bsz,
 		    NULL, 0)) == 0)
 			write_cb(cbopaque, bv ? "U" : "u");
