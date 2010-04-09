@@ -3114,22 +3114,18 @@ sub ReadHeapProfile {
           # The sampling frequency is the rate of a Poisson process.
           # This means that the probability of sampling an allocation of
           # size X with sampling rate Y is 1 - exp(-X/Y)
+          my $ratio;
+          my $scale_factor;
           if ($n1 != 0) {
-            my $ratio;
             $ratio = (($s1*1.0)/$n1)/($sample_adjustment);
-            my $scale_factor;
             $scale_factor = 1/(1 - exp(-$ratio));
             $n1 *= $scale_factor;
             $s1 *= $scale_factor;
           }
-          if ($n2 != 0) {
-            my $ratio;
-            $ratio = (($s2*1.0)/$n2)/($sample_adjustment);
-            my $scale_factor;
-            $scale_factor = 1/(1 - exp(-$ratio));
-            $n2 *= $scale_factor;
-            $s2 *= $scale_factor;
-          }
+          $ratio = (($s2*1.0)/$n2)/($sample_adjustment);
+          $scale_factor = 1/(1 - exp(-$ratio));
+          $n2 *= $scale_factor;
+          $s2 *= $scale_factor;
         } else {
           # Remote-heap version 1
           my $ratio;
@@ -3682,8 +3678,6 @@ sub ExtractSymbols {
 
   # Map each PC value to the containing library
   my @pcs = (sort { $a cmp $b } keys(%{$pcset}));
-  my $pc = pop(@pcs);
-
   foreach my $lib (reverse sort {$a->[1] cmp $b->[1]} @{$libs}) {
     my $libname = $lib->[0];
     my $start = $lib->[1];
@@ -3691,17 +3685,24 @@ sub ExtractSymbols {
     my $offset = $lib->[3];
 
     # Get list of pcs that belong in this library.
+    my $pc = pop(@pcs);
+    my @pcs2 = ();
     my $contained = [];
-    while (($pc ge $start) && ($pc le $finish)) {
+    while (defined $pc && $pc gt $finish) {
+      unshift(@pcs2, $pc);
+      $pc = pop(@pcs);
+    }
+    while (defined $pc && $pc ge $start) {
       push(@{$contained}, $pc);
       $pc = pop(@pcs);
-      if (!defined $pc) {
-        last;
-      }
     }
+    if (defined $pc) {
+      push(@pcs, $pc);
+    }
+    @pcs = (@pcs, @pcs2);
     # Map to symbols
     MapToSymbols($libname, AddressSub($start, $offset), $contained, $symbols);
-    if (!defined $pc) {
+    if (scalar(@pcs) == 0) {
       last;
     }
   }
