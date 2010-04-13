@@ -98,6 +98,9 @@ struct prof_thr_cnt_s {
 };
 
 struct prof_ctx_s {
+	/* Associated backtrace. */
+	prof_bt_t		*bt;
+
 	/* Protects cnt_merged and sets_ql. */
 	malloc_mutex_t		lock;
 
@@ -151,10 +154,10 @@ bool	prof_init(prof_t *prof, bool master);
 void	prof_destroy(prof_t *prof);
 
 prof_thr_cnt_t	*prof_alloc_prep(size_t size);
-prof_thr_cnt_t	*prof_cnt_get(const void *ptr);
+prof_ctx_t	*prof_ctx_get(const void *ptr);
 void	prof_malloc(const void *ptr, prof_thr_cnt_t *cnt);
 void	prof_realloc(const void *ptr, prof_thr_cnt_t *cnt, const void *old_ptr,
-    size_t old_size, prof_thr_cnt_t *old_cnt);
+    size_t old_size, prof_ctx_t *old_ctx);
 void	prof_free(const void *ptr);
 void	prof_idump(void);
 bool	prof_mdump(const char *filename);

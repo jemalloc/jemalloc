@@ -25,8 +25,8 @@ void	*huge_ralloc(void *ptr, size_t size, size_t oldsize);
 void	huge_dalloc(void *ptr);
 size_t	huge_salloc(const void *ptr);
 #ifdef JEMALLOC_PROF
-prof_thr_cnt_t	*huge_prof_cnt_get(const void *ptr);
-void	huge_prof_cnt_set(const void *ptr, prof_thr_cnt_t *cnt);
+prof_ctx_t	*huge_prof_ctx_get(const void *ptr);
+void	huge_prof_ctx_set(const void *ptr, prof_ctx_t *ctx);
 #endif
 bool	huge_boot(void);
 

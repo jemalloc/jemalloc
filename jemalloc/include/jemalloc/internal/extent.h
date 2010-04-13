@@ -19,7 +19,7 @@ struct extent_node_s {
 
 #ifdef JEMALLOC_PROF
 	/* Profile counters, used for huge objects. */
-	prof_thr_cnt_t		*prof_cnt;
+	prof_ctx_t		*prof_ctx;
 #endif
 
 	/* Pointer to the extent that this tree node is responsible for. */

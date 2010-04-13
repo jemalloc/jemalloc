@@ -1198,7 +1198,7 @@ arena_bin_run_size_calc(arena_bin_t *bin, size_t min_run_size)
 	uint32_t try_nregs, good_nregs;
 	uint32_t try_hdr_size, good_hdr_size;
 #ifdef JEMALLOC_PROF
-	uint32_t try_cnt0_offset, good_cnt0_offset;
+	uint32_t try_ctx0_offset, good_ctx0_offset;
 #endif
 	uint32_t try_reg0_offset, good_reg0_offset;
 
@@ -1225,11 +1225,11 @@ arena_bin_run_size_calc(arena_bin_t *bin, size_t min_run_size)
 		if (opt_prof && prof_promote == false) {
 			/* Pad to a quantum boundary. */
 			try_hdr_size = QUANTUM_CEILING(try_hdr_size);
-			try_cnt0_offset = try_hdr_size;
-			/* Add space for one (prof_thr_cnt_t *) per region. */
-			try_hdr_size += try_nregs * sizeof(prof_thr_cnt_t *);
+			try_ctx0_offset = try_hdr_size;
+			/* Add space for one (prof_ctx_t *) per region. */
+			try_hdr_size += try_nregs * sizeof(prof_ctx_t *);
 		} else
-			try_cnt0_offset = 0;
+			try_ctx0_offset = 0;
 #endif
 		try_reg0_offset = try_run_size - (try_nregs * bin->reg_size);
 	} while (try_hdr_size > try_reg0_offset);
@@ -1243,7 +1243,7 @@ arena_bin_run_size_calc(arena_bin_t *bin, size_t min_run_size)
 		good_nregs = try_nregs;
 		good_hdr_size = try_hdr_size;
 #ifdef JEMALLOC_PROF
-		good_cnt0_offset = try_cnt0_offset;
+		good_ctx0_offset = try_ctx0_offset;
 #endif
 		good_reg0_offset = try_reg0_offset;
 
@@ -1258,13 +1258,12 @@ arena_bin_run_size_calc(arena_bin_t *bin, size_t min_run_size)
 			if (opt_prof && prof_promote == false) {
 				/* Pad to a quantum boundary. */
 				try_hdr_size = QUANTUM_CEILING(try_hdr_size);
-				try_cnt0_offset = try_hdr_size;
+				try_ctx0_offset = try_hdr_size;
 				/*
-				 * Add space for one (prof_thr_cnt_t *) per
-				 * region.
+				 * Add space for one (prof_ctx_t *) per region.
 				 */
 				try_hdr_size += try_nregs *
-				    sizeof(prof_thr_cnt_t *);
+				    sizeof(prof_ctx_t *);
 			}
 #endif
 			try_reg0_offset = try_run_size - (try_nregs *
@@ -1282,7 +1281,7 @@ arena_bin_run_size_calc(arena_bin_t *bin, size_t min_run_size)
 	bin->run_size = good_run_size;
 	bin->nregs = good_nregs;
 #ifdef JEMALLOC_PROF
-	bin->cnt0_offset = good_cnt0_offset;
+	bin->ctx0_offset = good_ctx0_offset;
 #endif
 	bin->reg0_offset = good_reg0_offset;
 
@@ -1639,10 +1638,10 @@ arena_run_regind(arena_run_t *run, arena_bin_t *bin, const void *ptr,
 	return (regind);
 }
 
-prof_thr_cnt_t *
-arena_prof_cnt_get(const void *ptr)
+prof_ctx_t *
+arena_prof_ctx_get(const void *ptr)
 {
-	prof_thr_cnt_t *ret;
+	prof_ctx_t *ret;
 	arena_chunk_t *chunk;
 	size_t pageind, mapbits;
 
@@ -1655,7 +1654,7 @@ arena_prof_cnt_get(const void *ptr)
 	assert((mapbits & CHUNK_MAP_ALLOCATED) != 0);
 	if ((mapbits & CHUNK_MAP_LARGE) == 0) {
 		if (prof_promote)
-			ret = (prof_thr_cnt_t *)(uintptr_t)1U;
+			ret = (prof_ctx_t *)(uintptr_t)1U;
 		else {
 			arena_run_t *run = (arena_run_t *)((uintptr_t)chunk +
 			    (uintptr_t)((pageind - (mapbits >> PAGE_SHIFT)) <<
@@ -1665,18 +1664,18 @@ arena_prof_cnt_get(const void *ptr)
 
 			assert(run->magic == ARENA_RUN_MAGIC);
 			regind = arena_run_regind(run, bin, ptr, bin->reg_size);
-			ret = *(prof_thr_cnt_t **)((uintptr_t)run +
-			    bin->cnt0_offset + (regind *
-			    sizeof(prof_thr_cnt_t *)));
+			ret = *(prof_ctx_t **)((uintptr_t)run +
+			    bin->ctx0_offset + (regind *
+			    sizeof(prof_ctx_t *)));
 		}
 	} else
-		ret = chunk->map[pageind].prof_cnt;
+		ret = chunk->map[pageind].prof_ctx;
 
 	return (ret);
 }
 
 void
-arena_prof_cnt_set(const void *ptr, prof_thr_cnt_t *cnt)
+arena_prof_ctx_set(const void *ptr, prof_ctx_t *ctx)
 {
 	arena_chunk_t *chunk;
 	size_t pageind, mapbits;
@@ -1699,12 +1698,12 @@ arena_prof_cnt_set(const void *ptr, prof_thr_cnt_t *cnt)
 			assert(run->magic == ARENA_RUN_MAGIC);
 			regind = arena_run_regind(run, bin, ptr, bin->reg_size);
 
-			*((prof_thr_cnt_t **)((uintptr_t)run + bin->cnt0_offset
-			    + (regind * sizeof(prof_thr_cnt_t *)))) = cnt;
+			*((prof_ctx_t **)((uintptr_t)run + bin->ctx0_offset
+			    + (regind * sizeof(prof_ctx_t *)))) = ctx;
 		} else
-			assert((uintptr_t)cnt == (uintptr_t)1U);
+			assert((uintptr_t)ctx == (uintptr_t)1U);
 	} else
-		chunk->map[pageind].prof_cnt = cnt;
+		chunk->map[pageind].prof_ctx = ctx;
 }
 #endif
 

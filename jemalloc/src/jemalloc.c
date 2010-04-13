@@ -1060,7 +1060,8 @@ JEMALLOC_P(realloc)(void *ptr, size_t size)
 	void *ret;
 #ifdef JEMALLOC_PROF
 	size_t old_size;
-	prof_thr_cnt_t *cnt, *old_cnt;
+	prof_thr_cnt_t *cnt;
+	prof_ctx_t *old_ctx;
 #endif
 
 	if (size == 0) {
@@ -1074,7 +1075,7 @@ JEMALLOC_P(realloc)(void *ptr, size_t size)
 #ifdef JEMALLOC_PROF
 				if (opt_prof) {
 					old_size = isalloc(ptr);
-					old_cnt = prof_cnt_get(ptr);
+					old_ctx = prof_ctx_get(ptr);
 					cnt = NULL;
 				}
 #endif
@@ -1083,7 +1084,7 @@ JEMALLOC_P(realloc)(void *ptr, size_t size)
 #ifdef JEMALLOC_PROF
 			else if (opt_prof) {
 				old_size = 0;
-				old_cnt = NULL;
+				old_ctx = NULL;
 				cnt = NULL;
 			}
 #endif
@@ -1100,7 +1101,7 @@ JEMALLOC_P(realloc)(void *ptr, size_t size)
 #ifdef JEMALLOC_PROF
 		if (opt_prof) {
 			old_size = isalloc(ptr);
-			old_cnt = prof_cnt_get(ptr);
+			old_ctx = prof_ctx_get(ptr);
 			if ((cnt = prof_alloc_prep(size)) == NULL) {
 				ret = NULL;
 				goto OOM;
@@ -1133,7 +1134,7 @@ OOM:
 #ifdef JEMALLOC_PROF
 		if (opt_prof) {
 			old_size = 0;
-			old_cnt = NULL;
+			old_ctx = NULL;
 		}
 #endif
 		if (malloc_init()) {
@@ -1181,7 +1182,7 @@ RETURN:
 #endif
 #ifdef JEMALLOC_PROF
 	if (opt_prof)
-		prof_realloc(ret, cnt, ptr, old_size, old_cnt);
+		prof_realloc(ret, cnt, ptr, old_size, old_ctx);
 #endif
 	return (ret);
 }

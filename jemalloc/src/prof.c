@@ -48,7 +48,7 @@ static malloc_mutex_t	bt2ctx_mtx;
 static __thread ckh_t	*bt2cnt_tls JEMALLOC_ATTR(tls_model("initial-exec"));
 
 /*
- * Same contents as b2cnt, but initialized such that the TSD destructor is
+ * Same contents as b2cnt_tls, but initialized such that the TSD destructor is
  * called when a thread exits, so that bt2cnt_tls contents can be merged,
  * unlinked, and deallocated.
  */
@@ -100,7 +100,7 @@ static _Unwind_Reason_Code	prof_unwind_callback(
 #endif
 static void	prof_backtrace(prof_bt_t *bt, unsigned nignore, unsigned max);
 static prof_thr_cnt_t	*prof_lookup(prof_bt_t *bt);
-static void	prof_cnt_set(const void *ptr, prof_thr_cnt_t *cnt);
+static void	prof_ctx_set(const void *ptr, prof_ctx_t *ctx);
 static bool	prof_flush(bool propagate_err);
 static bool	prof_write(const char *s, bool propagate_err);
 static void	prof_ctx_merge(prof_ctx_t *ctx, prof_cnt_t *cnt_all,
@@ -450,6 +450,7 @@ prof_lookup(prof_bt_t *bt)
 			return (NULL);
 		}
 		bt2cnt_tls = bt2cnt;
+		pthread_setspecific(bt2cnt_tsd, bt2cnt);
 	}
 
 	if (ckh_search(bt2cnt, bt, NULL, (void **)&ret)) {
@@ -475,6 +476,7 @@ prof_lookup(prof_bt_t *bt)
 				idalloc(ctx);
 				return (NULL);
 			}
+			ctx->bt = btkey;
 			if (malloc_mutex_init(&ctx->lock)) {
 				prof_leave();
 				idalloc(btkey);
@@ -580,10 +582,10 @@ prof_alloc_prep(size_t size)
 	return (ret);
 }
 
-prof_thr_cnt_t *
-prof_cnt_get(const void *ptr)
+prof_ctx_t *
+prof_ctx_get(const void *ptr)
 {
-	prof_thr_cnt_t *ret;
+	prof_ctx_t *ret;
 	arena_chunk_t *chunk;
 
 	assert(ptr != NULL);
@@ -593,15 +595,15 @@ prof_cnt_get(const void *ptr)
 		/* Region. */
 		assert(chunk->arena->magic == ARENA_MAGIC);
 
-		ret = arena_prof_cnt_get(ptr);
+		ret = arena_prof_ctx_get(ptr);
 	} else
-		ret = huge_prof_cnt_get(ptr);
+		ret = huge_prof_ctx_get(ptr);
 
 	return (ret);
 }
 
 static void
-prof_cnt_set(const void *ptr, prof_thr_cnt_t *cnt)
+prof_ctx_set(const void *ptr, prof_ctx_t *ctx)
 {
 	arena_chunk_t *chunk;
 
@@ -612,9 +614,9 @@ prof_cnt_set(const void *ptr, prof_thr_cnt_t *cnt)
 		/* Region. */
 		assert(chunk->arena->magic == ARENA_MAGIC);
 
-		arena_prof_cnt_set(ptr, cnt);
+		arena_prof_ctx_set(ptr, ctx);
 	} else
-		huge_prof_cnt_set(ptr, cnt);
+		huge_prof_ctx_set(ptr, ctx);
 }
 
 static inline void
@@ -649,7 +651,7 @@ prof_malloc(const void *ptr, prof_thr_cnt_t *cnt)
 
 	assert(ptr != NULL);
 
-	prof_cnt_set(ptr, cnt);
+	prof_ctx_set(ptr, cnt->ctx);
 	prof_sample_accum_update(size);
 
 	if ((uintptr_t)cnt > (uintptr_t)1U) {
@@ -673,25 +675,43 @@ prof_malloc(const void *ptr, prof_thr_cnt_t *cnt)
 
 void
 prof_realloc(const void *ptr, prof_thr_cnt_t *cnt, const void *old_ptr,
-    size_t old_size, prof_thr_cnt_t *old_cnt)
+    size_t old_size, prof_ctx_t *old_ctx)
 {
 	size_t size = isalloc(ptr);
+	prof_thr_cnt_t *told_cnt;
 
 	if (ptr != NULL) {
-		prof_cnt_set(ptr, cnt);
+		prof_ctx_set(ptr, cnt->ctx);
 		prof_sample_accum_update(size);
 	}
 
-	if ((uintptr_t)old_cnt > (uintptr_t)1U)
-		old_cnt->epoch++;
+	if ((uintptr_t)old_ctx > (uintptr_t)1U) {
+		told_cnt = prof_lookup(old_ctx->bt);
+		if (told_cnt == NULL) {
+			/*
+			 * It's too late to propagate OOM for this realloc(),
+			 * so operate directly on old_cnt->ctx->cnt_merged.
+			 */
+			malloc_printf("XXX BANG A\n");
+			malloc_mutex_lock(&old_ctx->lock);
+			old_ctx->cnt_merged.curobjs--;
+			old_ctx->cnt_merged.curbytes -= old_size;
+			malloc_mutex_unlock(&old_ctx->lock);
+			told_cnt = (prof_thr_cnt_t *)(uintptr_t)1U;
+		}
+	} else
+		told_cnt = (prof_thr_cnt_t *)(uintptr_t)1U;
+
+	if ((uintptr_t)told_cnt > (uintptr_t)1U)
+		told_cnt->epoch++;
 	if ((uintptr_t)cnt > (uintptr_t)1U)
 		cnt->epoch++;
 	/*********/
 	mb_write();
 	/*********/
-	if ((uintptr_t)old_cnt > (uintptr_t)1U) {
-		old_cnt->cnts.curobjs--;
-		old_cnt->cnts.curbytes -= old_size;
+	if ((uintptr_t)told_cnt > (uintptr_t)1U) {
+		told_cnt->cnts.curobjs--;
+		told_cnt->cnts.curbytes -= old_size;
 	}
 	if ((uintptr_t)cnt > (uintptr_t)1U) {
 		cnt->cnts.curobjs++;
@@ -702,8 +722,8 @@ prof_realloc(const void *ptr, prof_thr_cnt_t *cnt, const void *old_ptr,
 	/*********/
 	mb_write();
 	/*********/
-	if ((uintptr_t)old_cnt > (uintptr_t)1U)
-		old_cnt->epoch++;
+	if ((uintptr_t)told_cnt > (uintptr_t)1U)
+		told_cnt->epoch++;
 	if ((uintptr_t)cnt > (uintptr_t)1U)
 		cnt->epoch++;
 	/*********/
@@ -713,24 +733,37 @@ prof_realloc(const void *ptr, prof_thr_cnt_t *cnt, const void *old_ptr,
 void
 prof_free(const void *ptr)
 {
-	prof_thr_cnt_t *cnt = prof_cnt_get(ptr);
+	prof_ctx_t *ctx = prof_ctx_get(ptr);
 
-	if ((uintptr_t)cnt > (uintptr_t)1) {
+	if ((uintptr_t)ctx > (uintptr_t)1) {
 		size_t size = isalloc(ptr);
+		prof_thr_cnt_t *tcnt = prof_lookup(ctx->bt);
 
-		cnt->epoch++;
-		/*********/
-		mb_write();
-		/*********/
-		cnt->cnts.curobjs--;
-		cnt->cnts.curbytes -= size;
-		/*********/
-		mb_write();
-		/*********/
-		cnt->epoch++;
-		/*********/
-		mb_write();
-		/*********/
+		if (tcnt != NULL) {
+			tcnt->epoch++;
+			/*********/
+			mb_write();
+			/*********/
+			tcnt->cnts.curobjs--;
+			tcnt->cnts.curbytes -= size;
+			/*********/
+			mb_write();
+			/*********/
+			tcnt->epoch++;
+			/*********/
+			mb_write();
+			/*********/
+		} else {
+			/*
+			 * OOM during free() cannot be propagated, so operate
+			 * directly on cnt->ctx->cnt_merged.
+			 */
+			malloc_printf("XXX BANG B\n");
+			malloc_mutex_lock(&ctx->lock);
+			ctx->cnt_merged.curobjs--;
+			ctx->cnt_merged.curbytes -= size;
+			malloc_mutex_unlock(&ctx->lock);
+		}
 	}
 }
 
