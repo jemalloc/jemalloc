@@ -470,23 +470,6 @@ arena_chunk_dealloc(arena_t *arena, arena_chunk_t *chunk)
 {
 	arena_avail_tree_t *runs_avail;
 
-	while (arena->spare != NULL) {
-		arena_chunk_t *spare = arena->spare;
-
-		arena->spare = NULL;
-		if (spare->dirtied) {
-			ql_remove(&chunk->arena->chunks_dirty, spare,
-			    link_dirty);
-			arena->ndirty -= spare->ndirty;
-		}
-		malloc_mutex_unlock(&arena->lock);
-		chunk_dealloc((void *)spare, chunksize);
-		malloc_mutex_lock(&arena->lock);
-#ifdef JEMALLOC_STATS
-		arena->stats.mapped -= chunksize;
-#endif
-	}
-
 	/*
 	 * Remove run from the appropriate runs_avail_* tree, so that the arena
 	 * does not use it.
@@ -499,7 +482,23 @@ arena_chunk_dealloc(arena_t *arena, arena_chunk_t *chunk)
 	arena_avail_tree_remove(runs_avail,
 	    &chunk->map[arena_chunk_header_npages]);
 
-	arena->spare = chunk;
+	if (arena->spare != NULL) {
+		arena_chunk_t *spare = arena->spare;
+
+		arena->spare = chunk;
+		if (spare->dirtied) {
+			ql_remove(&chunk->arena->chunks_dirty, spare,
+			    link_dirty);
+			arena->ndirty -= spare->ndirty;
+		}
+		malloc_mutex_unlock(&arena->lock);
+		chunk_dealloc((void *)spare, chunksize);
+		malloc_mutex_lock(&arena->lock);
+#ifdef JEMALLOC_STATS
+		arena->stats.mapped -= chunksize;
+#endif
+	} else
+		arena->spare = chunk;
 }
 
 static arena_run_t *
@@ -925,6 +924,18 @@ arena_run_dalloc(arena_t *arena, arena_run_t *run, bool dirty)
 	/* Insert into runs_avail, now that coalescing is complete. */
 	arena_avail_tree_insert(runs_avail, &chunk->map[run_ind]);
 
+	if (dirty) {
+		/*
+		 * Insert into chunks_dirty before potentially calling
+		 * arena_chunk_dealloc(), so that chunks_dirty and
+		 * arena->ndirty are consistent.
+		 */
+		if (chunk->dirtied == false) {
+			ql_tail_insert(&arena->chunks_dirty, chunk, link_dirty);
+			chunk->dirtied = true;
+		}
+	}
+
 	/*
 	 * Deallocate chunk if it is now completely unused.  The bit
 	 * manipulation checks whether the first run is unallocated and extends
@@ -935,19 +946,14 @@ arena_run_dalloc(arena_t *arena, arena_run_t *run, bool dirty)
 		arena_chunk_dealloc(arena, chunk);
 
 	/*
-	 * It is okay to do dirty page processing even if the chunk was
+	 * It is okay to do dirty page processing here even if the chunk was
 	 * deallocated above, since in that case it is the spare.  Waiting
 	 * until after possible chunk deallocation to do dirty processing
 	 * allows for an old spare to be fully deallocated, thus decreasing the
 	 * chances of spuriously crossing the dirty page purging threshold.
 	 */
-	if (dirty) {
-		if (chunk->dirtied == false) {
-			ql_tail_insert(&arena->chunks_dirty, chunk, link_dirty);
-			chunk->dirtied = true;
-		}
+	if (dirty)
 		arena_maybe_purge(arena);
-	}
 }
 
 static void
@@ -1198,7 +1204,7 @@ arena_bin_run_size_calc(arena_bin_t *bin, size_t min_run_size)
 	uint32_t try_nregs, good_nregs;
 	uint32_t try_hdr_size, good_hdr_size;
 #ifdef JEMALLOC_PROF
-	uint32_t try_cnt0_offset, good_cnt0_offset;
+	uint32_t try_ctx0_offset, good_ctx0_offset;
 #endif
 	uint32_t try_reg0_offset, good_reg0_offset;
 
@@ -1225,11 +1231,11 @@ arena_bin_run_size_calc(arena_bin_t *bin, size_t min_run_size)
 		if (opt_prof && prof_promote == false) {
 			/* Pad to a quantum boundary. */
 			try_hdr_size = QUANTUM_CEILING(try_hdr_size);
-			try_cnt0_offset = try_hdr_size;
-			/* Add space for one (prof_thr_cnt_t *) per region. */
-			try_hdr_size += try_nregs * sizeof(prof_thr_cnt_t *);
+			try_ctx0_offset = try_hdr_size;
+			/* Add space for one (prof_ctx_t *) per region. */
+			try_hdr_size += try_nregs * sizeof(prof_ctx_t *);
 		} else
-			try_cnt0_offset = 0;
+			try_ctx0_offset = 0;
 #endif
 		try_reg0_offset = try_run_size - (try_nregs * bin->reg_size);
 	} while (try_hdr_size > try_reg0_offset);
@@ -1243,7 +1249,7 @@ arena_bin_run_size_calc(arena_bin_t *bin, size_t min_run_size)
 		good_nregs = try_nregs;
 		good_hdr_size = try_hdr_size;
 #ifdef JEMALLOC_PROF
-		good_cnt0_offset = try_cnt0_offset;
+		good_ctx0_offset = try_ctx0_offset;
 #endif
 		good_reg0_offset = try_reg0_offset;
 
@@ -1258,13 +1264,12 @@ arena_bin_run_size_calc(arena_bin_t *bin, size_t min_run_size)
 			if (opt_prof && prof_promote == false) {
 				/* Pad to a quantum boundary. */
 				try_hdr_size = QUANTUM_CEILING(try_hdr_size);
-				try_cnt0_offset = try_hdr_size;
+				try_ctx0_offset = try_hdr_size;
 				/*
-				 * Add space for one (prof_thr_cnt_t *) per
-				 * region.
+				 * Add space for one (prof_ctx_t *) per region.
 				 */
 				try_hdr_size += try_nregs *
-				    sizeof(prof_thr_cnt_t *);
+				    sizeof(prof_ctx_t *);
 			}
 #endif
 			try_reg0_offset = try_run_size - (try_nregs *
@@ -1282,7 +1287,7 @@ arena_bin_run_size_calc(arena_bin_t *bin, size_t min_run_size)
 	bin->run_size = good_run_size;
 	bin->nregs = good_nregs;
 #ifdef JEMALLOC_PROF
-	bin->cnt0_offset = good_cnt0_offset;
+	bin->ctx0_offset = good_ctx0_offset;
 #endif
 	bin->reg0_offset = good_reg0_offset;
 
@@ -1639,10 +1644,10 @@ arena_run_regind(arena_run_t *run, arena_bin_t *bin, const void *ptr,
 	return (regind);
 }
 
-prof_thr_cnt_t *
-arena_prof_cnt_get(const void *ptr)
+prof_ctx_t *
+arena_prof_ctx_get(const void *ptr)
 {
-	prof_thr_cnt_t *ret;
+	prof_ctx_t *ret;
 	arena_chunk_t *chunk;
 	size_t pageind, mapbits;
 
@@ -1655,7 +1660,7 @@ arena_prof_cnt_get(const void *ptr)
 	assert((mapbits & CHUNK_MAP_ALLOCATED) != 0);
 	if ((mapbits & CHUNK_MAP_LARGE) == 0) {
 		if (prof_promote)
-			ret = (prof_thr_cnt_t *)(uintptr_t)1U;
+			ret = (prof_ctx_t *)(uintptr_t)1U;
 		else {
 			arena_run_t *run = (arena_run_t *)((uintptr_t)chunk +
 			    (uintptr_t)((pageind - (mapbits >> PAGE_SHIFT)) <<
@@ -1665,18 +1670,18 @@ arena_prof_cnt_get(const void *ptr)
 
 			assert(run->magic == ARENA_RUN_MAGIC);
 			regind = arena_run_regind(run, bin, ptr, bin->reg_size);
-			ret = *(prof_thr_cnt_t **)((uintptr_t)run +
-			    bin->cnt0_offset + (regind *
-			    sizeof(prof_thr_cnt_t *)));
+			ret = *(prof_ctx_t **)((uintptr_t)run +
+			    bin->ctx0_offset + (regind *
+			    sizeof(prof_ctx_t *)));
 		}
 	} else
-		ret = chunk->map[pageind].prof_cnt;
+		ret = chunk->map[pageind].prof_ctx;
 
 	return (ret);
 }
 
 void
-arena_prof_cnt_set(const void *ptr, prof_thr_cnt_t *cnt)
+arena_prof_ctx_set(const void *ptr, prof_ctx_t *ctx)
 {
 	arena_chunk_t *chunk;
 	size_t pageind, mapbits;
@@ -1699,12 +1704,12 @@ arena_prof_cnt_set(const void *ptr, prof_thr_cnt_t *cnt)
 			assert(run->magic == ARENA_RUN_MAGIC);
 			regind = arena_run_regind(run, bin, ptr, bin->reg_size);
 
-			*((prof_thr_cnt_t **)((uintptr_t)run + bin->cnt0_offset
-			    + (regind * sizeof(prof_thr_cnt_t *)))) = cnt;
+			*((prof_ctx_t **)((uintptr_t)run + bin->ctx0_offset
+			    + (regind * sizeof(prof_ctx_t *)))) = ctx;
 		} else
-			assert((uintptr_t)cnt == (uintptr_t)1U);
+			assert((uintptr_t)ctx == (uintptr_t)1U);
 	} else
-		chunk->map[pageind].prof_cnt = cnt;
+		chunk->map[pageind].prof_ctx = ctx;
 }
 #endif
 

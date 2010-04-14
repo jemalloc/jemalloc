@@ -98,7 +98,7 @@ struct arena_chunk_map_s {
 
 #ifdef JEMALLOC_PROF
 	/* Profile counters, used for large object runs. */
-	prof_thr_cnt_t			*prof_cnt;
+	prof_ctx_t			*prof_ctx;
 #endif
 
 	/*
@@ -246,10 +246,10 @@ struct arena_bin_s {
 
 #ifdef JEMALLOC_PROF
 	/*
-	 * Offset of first (prof_cnt_t *) in a run header for this bin's size
+	 * Offset of first (prof_ctx_t *) in a run header for this bin's size
 	 * class, or 0 if (opt_prof == false).
 	 */
-	uint32_t	cnt0_offset;
+	uint32_t	ctx0_offset;
 #endif
 
 	/* Offset of first region in a run for this bin's size class. */
@@ -438,8 +438,8 @@ size_t	arena_salloc(const void *ptr);
 #ifdef JEMALLOC_PROF
 void	arena_prof_promoted(const void *ptr, size_t size);
 size_t	arena_salloc_demote(const void *ptr);
-prof_thr_cnt_t	*arena_prof_cnt_get(const void *ptr);
-void	arena_prof_cnt_set(const void *ptr, prof_thr_cnt_t *cnt);
+prof_ctx_t	*arena_prof_ctx_get(const void *ptr);
+void	arena_prof_ctx_set(const void *ptr, prof_ctx_t *ctx);
 #endif
 void	arena_dalloc_bin(arena_t *arena, arena_chunk_t *chunk, void *ptr,
     arena_chunk_map_t *mapelm);

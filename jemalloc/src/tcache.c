@@ -55,12 +55,14 @@ tcache_bin_flush_small(tcache_bin_t *tbin, size_t binind, unsigned rem
 {
 	void *flush, *deferred, *ptr;
 	unsigned i, nflush, ndeferred;
+	bool first_pass;
 
 	assert(binind < nbins);
 	assert(rem <= tbin->ncached);
+	assert(tbin->ncached > 0 || tbin->avail == NULL);
 
-	for (flush = tbin->avail, nflush = tbin->ncached - rem; flush != NULL;
-	    flush = deferred, nflush = ndeferred) {
+	for (flush = tbin->avail, nflush = tbin->ncached - rem, first_pass =
+	    true; flush != NULL; flush = deferred, nflush = ndeferred) {
 		/* Lock the arena bin associated with the first object. */
 		arena_chunk_t *chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(flush);
 		arena_t *arena = chunk->arena;
@@ -110,12 +112,9 @@ tcache_bin_flush_small(tcache_bin_t *tbin, size_t binind, unsigned rem
 		}
 		malloc_mutex_unlock(&bin->lock);
 
-		if (flush != NULL) {
-			/*
-			 * This was the first pass, and rem cached objects
-			 * remain.
-			 */
+		if (first_pass) {
 			tbin->avail = flush;
+			first_pass = false;
 		}
 	}
 
@@ -133,12 +132,14 @@ tcache_bin_flush_large(tcache_bin_t *tbin, size_t binind, unsigned rem
 {
 	void *flush, *deferred, *ptr;
 	unsigned i, nflush, ndeferred;
+	bool first_pass;
 
 	assert(binind < nhbins);
 	assert(rem <= tbin->ncached);
+	assert(tbin->ncached > 0 || tbin->avail == NULL);
 
-	for (flush = tbin->avail, nflush = tbin->ncached - rem; flush != NULL;
-	    flush = deferred, nflush = ndeferred) {
+	for (flush = tbin->avail, nflush = tbin->ncached - rem, first_pass =
+	    true; flush != NULL; flush = deferred, nflush = ndeferred) {
 		/* Lock the arena associated with the first object. */
 		arena_chunk_t *chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(flush);
 		arena_t *arena = chunk->arena;
@@ -183,12 +184,9 @@ tcache_bin_flush_large(tcache_bin_t *tbin, size_t binind, unsigned rem
 		}
 		malloc_mutex_unlock(&arena->lock);
 
-		if (flush != NULL) {
-			/*
-			 * This was the first pass, and rem cached objects
-			 * remain.
-			 */
+		if (first_pass) {
 			tbin->avail = flush;
+			first_pass = false;
 		}
 	}
 

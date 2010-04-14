@@ -241,10 +241,10 @@ huge_salloc(const void *ptr)
 }
 
 #ifdef JEMALLOC_PROF
-prof_thr_cnt_t *
-huge_prof_cnt_get(const void *ptr)
+prof_ctx_t *
+huge_prof_ctx_get(const void *ptr)
 {
-	prof_thr_cnt_t *ret;
+	prof_ctx_t *ret;
 	extent_node_t *node, key;
 
 	malloc_mutex_lock(&huge_mtx);
@@ -254,7 +254,7 @@ huge_prof_cnt_get(const void *ptr)
 	node = extent_tree_ad_search(&huge, &key);
 	assert(node != NULL);
 
-	ret = node->prof_cnt;
+	ret = node->prof_ctx;
 
 	malloc_mutex_unlock(&huge_mtx);
 
@@ -262,7 +262,7 @@ huge_prof_cnt_get(const void *ptr)
 }
 
 void
-huge_prof_cnt_set(const void *ptr, prof_thr_cnt_t *cnt)
+huge_prof_ctx_set(const void *ptr, prof_ctx_t *ctx)
 {
 	extent_node_t *node, key;
 
@@ -273,7 +273,7 @@ huge_prof_cnt_set(const void *ptr, prof_thr_cnt_t *cnt)
 	node = extent_tree_ad_search(&huge, &key);
 	assert(node != NULL);
 
-	node->prof_cnt = cnt;
+	node->prof_ctx = ctx;
 
 	malloc_mutex_unlock(&huge_mtx);
 }

@@ -112,6 +112,7 @@ clean:
 	rm -f $(DSOS)
 
 distclean: clean
+	rm -rf @objroot@autom4te.cache
 	rm -f @objroot@config.log
 	rm -f @objroot@config.status
 	rm -f @objroot@cfghdrs.stamp
@@ -120,7 +121,6 @@ distclean: clean
 	rm -f @cfgoutputs_out@
 
 relclean: distclean
-	rm -rf @objroot@autom4te.cache
 	rm -f @objroot@configure
 	rm -f @srcroot@VERSION
 
