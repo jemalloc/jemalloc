@@ -651,10 +651,11 @@ prof_malloc(const void *ptr, prof_thr_cnt_t *cnt)
 
 	assert(ptr != NULL);
 
-	prof_ctx_set(ptr, cnt->ctx);
 	prof_sample_accum_update(size);
 
 	if ((uintptr_t)cnt > (uintptr_t)1U) {
+		prof_ctx_set(ptr, cnt->ctx);
+
 		cnt->epoch++;
 		/*********/
 		mb_write();
@@ -670,7 +671,8 @@ prof_malloc(const void *ptr, prof_thr_cnt_t *cnt)
 		/*********/
 		mb_write();
 		/*********/
-	}
+	} else
+		prof_ctx_set(ptr, (prof_ctx_t *)(uintptr_t)1U);
 }
 
 void
@@ -680,10 +682,8 @@ prof_realloc(const void *ptr, prof_thr_cnt_t *cnt, const void *old_ptr,
 	size_t size = isalloc(ptr);
 	prof_thr_cnt_t *told_cnt;
 
-	if (ptr != NULL) {
-		prof_ctx_set(ptr, cnt->ctx);
+	if (ptr != NULL)
 		prof_sample_accum_update(size);
-	}
 
 	if ((uintptr_t)old_ctx > (uintptr_t)1U) {
 		told_cnt = prof_lookup(old_ctx->bt);
@@ -692,7 +692,6 @@ prof_realloc(const void *ptr, prof_thr_cnt_t *cnt, const void *old_ptr,
 			 * It's too late to propagate OOM for this realloc(),
 			 * so operate directly on old_cnt->ctx->cnt_merged.
 			 */
-			malloc_printf("XXX BANG A\n");
 			malloc_mutex_lock(&old_ctx->lock);
 			old_ctx->cnt_merged.curobjs--;
 			old_ctx->cnt_merged.curbytes -= old_size;
@@ -704,8 +703,11 @@ prof_realloc(const void *ptr, prof_thr_cnt_t *cnt, const void *old_ptr,
 
 	if ((uintptr_t)told_cnt > (uintptr_t)1U)
 		told_cnt->epoch++;
-	if ((uintptr_t)cnt > (uintptr_t)1U)
+	if ((uintptr_t)cnt > (uintptr_t)1U) {
+		prof_ctx_set(ptr, cnt->ctx);
 		cnt->epoch++;
+	} else
+		prof_ctx_set(ptr, (prof_ctx_t *)(uintptr_t)1U);
 	/*********/
 	mb_write();
 	/*********/
@@ -758,7 +760,6 @@ prof_free(const void *ptr)
 			 * OOM during free() cannot be propagated, so operate
 			 * directly on cnt->ctx->cnt_merged.
 			 */
-			malloc_printf("XXX BANG B\n");
 			malloc_mutex_lock(&ctx->lock);
 			ctx->cnt_merged.curobjs--;
 			ctx->cnt_merged.curbytes -= size;
