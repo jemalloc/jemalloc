@@ -470,23 +470,6 @@ arena_chunk_dealloc(arena_t *arena, arena_chunk_t *chunk)
 {
 	arena_avail_tree_t *runs_avail;
 
-	while (arena->spare != NULL) {
-		arena_chunk_t *spare = arena->spare;
-
-		arena->spare = NULL;
-		if (spare->dirtied) {
-			ql_remove(&chunk->arena->chunks_dirty, spare,
-			    link_dirty);
-			arena->ndirty -= spare->ndirty;
-		}
-		malloc_mutex_unlock(&arena->lock);
-		chunk_dealloc((void *)spare, chunksize);
-		malloc_mutex_lock(&arena->lock);
-#ifdef JEMALLOC_STATS
-		arena->stats.mapped -= chunksize;
-#endif
-	}
-
 	/*
 	 * Remove run from the appropriate runs_avail_* tree, so that the arena
 	 * does not use it.
@@ -499,7 +482,23 @@ arena_chunk_dealloc(arena_t *arena, arena_chunk_t *chunk)
 	arena_avail_tree_remove(runs_avail,
 	    &chunk->map[arena_chunk_header_npages]);
 
-	arena->spare = chunk;
+	if (arena->spare != NULL) {
+		arena_chunk_t *spare = arena->spare;
+
+		arena->spare = chunk;
+		if (spare->dirtied) {
+			ql_remove(&chunk->arena->chunks_dirty, spare,
+			    link_dirty);
+			arena->ndirty -= spare->ndirty;
+		}
+		malloc_mutex_unlock(&arena->lock);
+		chunk_dealloc((void *)spare, chunksize);
+		malloc_mutex_lock(&arena->lock);
+#ifdef JEMALLOC_STATS
+		arena->stats.mapped -= chunksize;
+#endif
+	} else
+		arena->spare = chunk;
 }
 
 static arena_run_t *
@@ -925,6 +924,18 @@ arena_run_dalloc(arena_t *arena, arena_run_t *run, bool dirty)
 	/* Insert into runs_avail, now that coalescing is complete. */
 	arena_avail_tree_insert(runs_avail, &chunk->map[run_ind]);
 
+	if (dirty) {
+		/*
+		 * Insert into chunks_dirty before potentially calling
+		 * arena_chunk_dealloc(), so that chunks_dirty and
+		 * arena->ndirty are consistent.
+		 */
+		if (chunk->dirtied == false) {
+			ql_tail_insert(&arena->chunks_dirty, chunk, link_dirty);
+			chunk->dirtied = true;
+		}
+	}
+
 	/*
 	 * Deallocate chunk if it is now completely unused.  The bit
 	 * manipulation checks whether the first run is unallocated and extends
@@ -935,19 +946,14 @@ arena_run_dalloc(arena_t *arena, arena_run_t *run, bool dirty)
 		arena_chunk_dealloc(arena, chunk);
 
 	/*
-	 * It is okay to do dirty page processing even if the chunk was
+	 * It is okay to do dirty page processing here even if the chunk was
 	 * deallocated above, since in that case it is the spare.  Waiting
 	 * until after possible chunk deallocation to do dirty processing
 	 * allows for an old spare to be fully deallocated, thus decreasing the
 	 * chances of spuriously crossing the dirty page purging threshold.
 	 */
-	if (dirty) {
-		if (chunk->dirtied == false) {
-			ql_tail_insert(&arena->chunks_dirty, chunk, link_dirty);
-			chunk->dirtied = true;
-		}
+	if (dirty)
 		arena_maybe_purge(arena);
-	}
 }
 
 static void
