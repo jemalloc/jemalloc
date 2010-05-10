@@ -283,7 +283,7 @@ chunk_swap_enable(const int *fds, unsigned nfds, bool prezeroed)
 	 * Allocate a chunk-aligned region of anonymous memory, which will
 	 * be the final location for the memory-mapped files.
 	 */
-	vaddr = chunk_alloc_mmap(cumsize);
+	vaddr = chunk_alloc_mmap_noreserve(cumsize);
 	if (vaddr == NULL) {
 		ret = true;
 		goto RETURN;
