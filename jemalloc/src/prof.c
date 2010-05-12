@@ -623,13 +623,8 @@ static inline void
 prof_sample_accum_update(size_t size)
 {
 
-	if (opt_lg_prof_sample == 0) {
-		/*
-		 * Don't bother with sampling logic, since sampling interval is
-		 * 1.
-		 */
-		return;
-	}
+	/* Sampling logic is unnecessary if the interval is 1. */
+	assert(opt_lg_prof_sample != 0);
 
 	/* Take care to avoid integer overflow. */
 	if (size >= prof_sample_threshold - prof_sample_accum) {
@@ -647,11 +642,15 @@ prof_sample_accum_update(size_t size)
 void
 prof_malloc(const void *ptr, prof_thr_cnt_t *cnt)
 {
-	size_t size = isalloc(ptr);
+	size_t size;
 
 	assert(ptr != NULL);
 
-	prof_sample_accum_update(size);
+	if (opt_lg_prof_sample != 0) {
+		size = isalloc(ptr);
+		prof_sample_accum_update(size);
+	} else if ((uintptr_t)cnt > (uintptr_t)1U)
+		size = isalloc(ptr);
 
 	if ((uintptr_t)cnt > (uintptr_t)1U) {
 		prof_ctx_set(ptr, cnt->ctx);
@@ -679,11 +678,18 @@ void
 prof_realloc(const void *ptr, prof_thr_cnt_t *cnt, const void *old_ptr,
     size_t old_size, prof_ctx_t *old_ctx)
 {
-	size_t size = isalloc(ptr);
+	size_t size;
 	prof_thr_cnt_t *told_cnt;
 
-	if (ptr != NULL)
-		prof_sample_accum_update(size);
+	assert(ptr != NULL || (uintptr_t)cnt <= (uintptr_t)1U);
+
+	if (ptr != NULL) {
+		if (opt_lg_prof_sample != 0) {
+			size = isalloc(ptr);
+			prof_sample_accum_update(size);
+		} else if ((uintptr_t)cnt > (uintptr_t)1U)
+			size = isalloc(ptr);
+	}
 
 	if ((uintptr_t)old_ctx > (uintptr_t)1U) {
 		told_cnt = prof_lookup(old_ctx->bt);

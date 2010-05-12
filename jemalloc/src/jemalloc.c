@@ -775,7 +775,7 @@ MALLOC_OUT:
 #endif
 
 #ifndef NO_TLS
-	next_arena = 0;
+	next_arena = (narenas > 0) ? 1 : 0;
 #endif
 
 	/* Allocate and initialize arenas. */

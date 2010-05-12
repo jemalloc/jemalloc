@@ -353,7 +353,7 @@ tcache_dalloc_large(tcache_t *tcache, void *ptr, size_t size)
 
 #ifdef JEMALLOC_FILL
 	if (opt_junk)
-		memset(ptr, 0x5a, arena->bins[binind].reg_size);
+		memset(ptr, 0x5a, size);
 #endif
 
 	tbin = &tcache->tbins[binind];

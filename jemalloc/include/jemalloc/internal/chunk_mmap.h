@@ -10,6 +10,7 @@
 #ifdef JEMALLOC_H_EXTERNS
 
 void	*chunk_alloc_mmap(size_t size);
+void	*chunk_alloc_mmap_noreserve(size_t size);
 void	chunk_dealloc_mmap(void *chunk, size_t size);
 
 #endif /* JEMALLOC_H_EXTERNS */
