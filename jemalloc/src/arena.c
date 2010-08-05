@@ -254,7 +254,6 @@ arena_run_reg_alloc(arena_run_t *run, arena_bin_t *bin)
 	run->nfree--;
 	ret = run->avail;
 	if (ret != NULL) {
-		run->avail = *(void **)ret;
 		/* Double free can cause assertion failure.*/
 		assert(ret != NULL);
 		/* Write-after free can cause assertion failure. */
@@ -264,6 +263,7 @@ arena_run_reg_alloc(arena_run_t *run, arena_bin_t *bin)
 		assert(((uintptr_t)ret - ((uintptr_t)run +
 		    (uintptr_t)bin->reg0_offset)) % (uintptr_t)bin->reg_size ==
 		    0);
+		run->avail = *(void **)ret;
 		return (ret);
 	}
 	ret = run->next;
