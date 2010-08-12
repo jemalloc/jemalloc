@@ -239,16 +239,15 @@ prof_backtrace(prof_bt_t *bt, unsigned nignore, unsigned max)
 	}
 
 	/*
-	 * Iterate over stack frames until there are no more.  Heap-allocate
-	 * and iteratively grow a larger bt if necessary.
+	 * Iterate over stack frames until there are no more, or until no space
+	 * remains in bt.
 	 */
 	for (i = 0; i < max; i++) {
 		unw_get_reg(&cursor, UNW_REG_IP, (unw_word_t *)&bt->vec[i]);
+		bt->len++;
 		err = unw_step(&cursor);
-		if (err <= 0) {
-			bt->len = i;
+		if (err <= 0)
 			break;
-		}
 	}
 }
 #else

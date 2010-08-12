@@ -324,6 +324,7 @@ malloc_init_hard(void)
 			CPU_SPINWAIT;
 			malloc_mutex_lock(&init_lock);
 		} while (malloc_initialized == false);
+		malloc_mutex_unlock(&init_lock);
 		return (false);
 	}
 
