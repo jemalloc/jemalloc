@@ -47,6 +47,10 @@ DSOS := @objroot@lib/libjemalloc@install_suffix@.so.$(REV) \
 	@objroot@lib/libjemalloc@install_suffix@.so \
 	@objroot@lib/libjemalloc@install_suffix@_pic.a
 MAN3 := @objroot@doc/jemalloc@install_suffix@.3
+CTESTS :=
+ifeq (1, @enable_tls@)
+CTESTS += @srcroot@test/thread_arena.c
+endif
 
 .PHONY: all dist install check clean distclean relclean
 
@@ -69,11 +73,21 @@ all: $(DSOS)
 
 @objroot@lib/libjemalloc@install_suffix@.so.$(REV) : $(CSRCS:@srcroot@%.c=@objroot@%.o)
 	@mkdir -p $(@D)
-	$(CC) -shared -Wl,-soname,$(@F) -o $@ $+ $(LDFLAGS) $(LIBS)
+	$(CC) -shared -Wl,-soname,$(@F) $(RPATH_EXTRA:%=@RPATH@%) -o $@ $+ $(LDFLAGS) $(LIBS)
 
 @objroot@lib/libjemalloc@install_suffix@_pic.a : $(CSRCS:@srcroot@%.c=@objroot@%.o)
 	@mkdir -p $(@D)
 	ar crus $@ $+
+
+@objroot@test/%.o: @srcroot@test/%.c
+	@mkdir -p $(@D)
+	$(CC) $(CFLAGS) -c $(CPPFLAGS) -o $@ $<
+	@$(SHELL) -ec "$(CC) -MM $(CPPFLAGS) $< | sed \"s/\($(subst /,\/,$(notdir $(basename $@)))\)\.o\([ :]*\)/$(subst /,\/,$(strip $(dir $@)))\1.o \2/g\" > $(@:%.o=%.d)"
+
+@objroot@test/%: @objroot@test/%.o \
+		 @objroot@lib/libjemalloc@install_suffix@.so
+	@mkdir -p $(@D)
+	$(CC) -o $@ $< @RPATH@@objroot@lib -L@objroot@lib -ljemalloc
 
 install_bin:
 	install -d $(BINDIR)
@@ -104,11 +118,43 @@ done
 
 install: install_bin install_include install_lib install_man
 
-check:
+tests: $(CTESTS:@srcroot@%.c=@objroot@%)
+
+check: tests
+	@mkdir -p @objroot@test
+	@$(SHELL) -c 'total=0; \
+		failures=0; \
+		echo "========================================="; \
+		for t in $(CTESTS:@srcroot@%.c=@objroot@%); do \
+			total=`expr $$total + 1`; \
+			/bin/echo -n "$${t} ... "; \
+			$${t} @abs_srcroot@ @abs_objroot@ \
+			  > @objroot@$${t}.out 2>&1; \
+			if test -e "@srcroot@$${t}.exp"; then \
+				diff -u @srcroot@$${t}.exp \
+				  @objroot@$${t}.out >/dev/null 2>&1; \
+				fail=$$?; \
+				if test "$${fail}" -eq "1" ; then \
+					failures=`expr $${failures} + 1`; \
+					echo "*** FAIL ***"; \
+				else \
+					echo "pass"; \
+				fi; \
+			else \
+				echo "*** FAIL *** (.exp file is missing)"; \
+				failures=`expr $${failures} + 1`; \
+			fi; \
+		done; \
+		echo "========================================="; \
+		echo "Failures: $${failures}/$${total}"'
 
 clean:
 	rm -f $(CSRCS:@srcroot@%.c=@objroot@%.o)
 	rm -f $(CSRCS:@srcroot@%.c=@objroot@%.d)
+	rm -f $(CTESTS:@srcroot@%.c=@objroot@%)
+	rm -f $(CTESTS:@srcroot@%.c=@objroot@%.o)
+	rm -f $(CTESTS:@srcroot@%.c=@objroot@%.d)
+	rm -f $(CTESTS:@srcroot@%.c=@objroot@%.out)
 	rm -f $(DSOS)
 
 distclean: clean

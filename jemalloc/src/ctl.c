@@ -41,6 +41,9 @@ CTL_PROTO(epoch)
 #ifdef JEMALLOC_TCACHE
 CTL_PROTO(tcache_flush)
 #endif
+#ifndef NO_TLS
+CTL_PROTO(thread_arena)
+#endif
 CTL_PROTO(config_debug)
 CTL_PROTO(config_dss)
 CTL_PROTO(config_dynamic_page_shift)
@@ -207,6 +210,12 @@ CTL_PROTO(swap_fds)
 #ifdef JEMALLOC_TCACHE
 static const ctl_node_t	tcache_node[] = {
 	{NAME("flush"),		CTL(tcache_flush)}
+};
+#endif
+
+#ifndef NO_TLS
+static const ctl_node_t	thread_node[] = {
+	{NAME("arena"),		CTL(thread_arena)}
 };
 #endif
 
@@ -447,6 +456,9 @@ static const ctl_node_t	root_node[] = {
 	{NAME("epoch"),		CTL(epoch)},
 #ifdef JEMALLOC_TCACHE
 	{NAME("tcache"),	CHILD(tcache)},
+#endif
+#ifndef NO_TLS
+	{NAME("thread"),	CHILD(thread)},
 #endif
 	{NAME("config"),	CHILD(config)},
 	{NAME("opt"),		CHILD(opt)},
@@ -1035,6 +1047,46 @@ tcache_flush_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
 	}
 	tcache_destroy(tcache);
 	tcache_tls = NULL;
+
+	ret = 0;
+RETURN:
+	return (ret);
+}
+#endif
+
+#ifndef NO_TLS
+static int
+thread_arena_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
+    void *newp, size_t newlen)
+{
+	int ret;
+	unsigned newind, oldind;
+
+	newind = oldind = choose_arena()->ind;
+	WRITE(oldind, unsigned);
+	READ(newind, unsigned);
+	if (newind != oldind) {
+		arena_t *arena;
+
+		if (newind >= narenas) {
+			/* New arena index is out of range. */
+			ret = EFAULT;
+			goto RETURN;
+		}
+
+		/* Initialize arena if necessary. */
+		malloc_mutex_lock(&arenas_lock);
+		if ((arena = arenas[newind]) == NULL)
+			arena = arenas_extend(newind);
+		malloc_mutex_unlock(&arenas_lock);
+		if (arena == NULL) {
+			ret = EAGAIN;
+			goto RETURN;
+		}
+
+		/* Set new arena association. */
+		arenas_map = arena;
+	}
 
 	ret = 0;
 RETURN:

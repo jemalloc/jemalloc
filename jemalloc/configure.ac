@@ -647,9 +647,14 @@ AC_RUN_IFELSE([AC_LANG_PROGRAM(
               AC_MSG_RESULT([no])
               enable_tls="0")
 fi
+AC_SUBST([enable_tls])
 if test "x${enable_tls}" = "x0" ; then
   AC_DEFINE_UNQUOTED([NO_TLS], [ ])
+  roff_tls=".\\\" "
+else
+  roff_tls=""
 fi
+AC_SUBST([roff_tls])
 
 dnl Finish tcache-related definitions, now that TLS configuration is done.
 if test "x$enable_tls" = "x0" ; then

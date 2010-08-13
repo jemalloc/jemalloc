@@ -669,6 +669,19 @@ This is useful for detecting whether another thread caused a refresh.
 @roff_tcache@find manual flushing useful.
 .Ed
 .\"-----------------------------------------------------------------------------
+@roff_tls@.It Sy "thread.arena (unsigned) rw"
+@roff_tls@.Bd -ragged -offset indent -compact
+@roff_tls@Get or set the arena associated with the calling thread.
+@roff_tls@The arena index must be less than the maximum number of arenas (see
+@roff_tls@the
+@roff_tls@.Dq arenas.narenas
+@roff_tls@mallctl).
+@roff_tls@If the specified arena was not initialized beforehand (see the
+@roff_tls@.Dq arenas.initialized
+@roff_tls@mallctl), it will be automatically initialized as a side effect of
+@roff_tls@calling this interface.
+@roff_tls@.Ed
+.\"-----------------------------------------------------------------------------
 .It Sy "config.debug (bool) r-"
 .Bd -ragged -offset indent -compact
 --enable-debug was specified during build configuration.
