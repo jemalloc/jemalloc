@@ -92,6 +92,34 @@
 /* TLS is used to map arenas and magazine caches to threads. */
 #undef NO_TLS
 
+/*
+ * JEMALLOC_IVSALLOC enables ivsalloc(), which verifies that pointers reside
+ * within jemalloc-owned chunks before dereferencing them.
+ */
+#undef JEMALLOC_IVSALLOC
+
+/*
+ * Darwin (OS X) uses zones to work around Mach-O symbol override shortcomings.
+ */
+#undef JEMALLOC_ZONE
+#undef JEMALLOC_ZONE_VERSION
+
+/*
+ * Methods for purging unused pages differ between operating systems.
+ *
+ *   madvise(..., MADV_DONTNEED) : On Linux, this immediately discards pages,
+ *                                 such that new pages will be demand-zeroed if
+ *                                 the address region is later touched.
+ *   madvise(..., MADV_FREE) : On FreeBSD, this marks pages as being unused,
+ *                             such that they will be discarded rather than
+ *                             swapped out.
+ *   msync(..., MS_KILLPAGES) : On Darwin, this behaves similarly to
+ *                              madvise(..., MADV_FREE) on FreeBSD.
+ */
+#undef JEMALLOC_PURGE_MADVISE_DONTNEED
+#undef JEMALLOC_PURGE_MADVISE_FREE
+#undef JEMALLOC_PURGE_MSYNC_KILLPAGES
+
 /* sizeof(void *) == 2^LG_SIZEOF_PTR. */
 #undef LG_SIZEOF_PTR
 

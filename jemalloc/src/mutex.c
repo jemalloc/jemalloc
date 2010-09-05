@@ -59,7 +59,11 @@ malloc_mutex_init(malloc_mutex_t *mutex)
 
 	if (pthread_mutexattr_init(&attr) != 0)
 		return (true);
+#ifdef PTHREAD_MUTEX_ADAPTIVE_NP
 	pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_ADAPTIVE_NP);
+#else
+	pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_DEFAULT);
+#endif
 	if (pthread_mutex_init(mutex, &attr) != 0) {
 		pthread_mutexattr_destroy(&attr);
 		return (true);

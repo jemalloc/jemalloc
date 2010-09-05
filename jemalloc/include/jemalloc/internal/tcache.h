@@ -65,8 +65,21 @@ extern ssize_t	opt_lg_tcache_maxclass;
 extern ssize_t	opt_lg_tcache_gc_sweep;
 
 /* Map of thread-specific caches. */
+#ifndef NO_TLS
 extern __thread tcache_t	*tcache_tls
     JEMALLOC_ATTR(tls_model("initial-exec"));
+#  define TCACHE_GET()	tcache_tls
+#  define TCACHE_SET(v)	do {						\
+	tcache_tls = (v);						\
+	pthread_setspecific(tcache_tsd, (void *)(v));			\
+} while (0)
+#else
+extern pthread_key_t		tcache_tsd;
+#  define TCACHE_GET()	((tcache_t *)pthread_getspecific(tcache_tsd))
+#  define TCACHE_SET(v)	do {						\
+	pthread_setspecific(tcache_tsd, (void *)(v));			\
+} while (0)
+#endif
 
 /*
  * Number of tcache bins.  There are nbins small-object bins, plus 0 or more
@@ -122,14 +135,23 @@ tcache_get(void)
 	if ((isthreaded & opt_tcache) == false)
 		return (NULL);
 
-	tcache = tcache_tls;
-	if ((uintptr_t)tcache <= (uintptr_t)1) {
+	tcache = TCACHE_GET();
+	if ((uintptr_t)tcache <= (uintptr_t)2) {
 		if (tcache == NULL) {
 			tcache = tcache_create(choose_arena());
 			if (tcache == NULL)
 				return (NULL);
-		} else
+		} else {
+			if (tcache == (void *)(uintptr_t)1) {
+				/*
+				 * Make a note that an allocator function was
+				 * called after the tcache_thread_cleanup() was
+				 * called.
+				 */
+				TCACHE_SET((uintptr_t)2);
+			}
 			return (NULL);
+		}
 	}
 
 	return (tcache);

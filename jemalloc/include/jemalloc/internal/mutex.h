@@ -3,6 +3,12 @@
 
 typedef pthread_mutex_t malloc_mutex_t;
 
+#ifdef PTHREAD_ADAPTIVE_MUTEX_INITIALIZER_NP
+#  define MALLOC_MUTEX_INITIALIZER PTHREAD_ADAPTIVE_MUTEX_INITIALIZER_NP
+#else
+#  define MALLOC_MUTEX_INITIALIZER PTHREAD_MUTEX_INITIALIZER
+#endif
+
 #endif /* JEMALLOC_H_TYPES */
 /******************************************************************************/
 #ifdef JEMALLOC_H_STRUCTS

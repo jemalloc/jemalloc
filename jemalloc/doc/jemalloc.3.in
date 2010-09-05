@@ -464,7 +464,7 @@ is a single CPU.
 @roff_swap@This option is enabled by default.
 .It P
 The
-.Fn malloc_stats_print
+.Fn @jemalloc_prefix@malloc_stats_print
 function is called at program exit via an
 .Xr atexit 3
 function.
@@ -626,7 +626,7 @@ round your allocation requests up to the nearest multiple of the cacheline
 size.
 .Sh MALLCTL NAMESPACE
 The following names are defined in the namespace accessible via the
-.Fn mallctl*
+.Fn @jemalloc_prefix@mallctl*
 functions.
 Value types are specified in parentheses, and their readable/writable statuses
 are encoded as rw, r-, -w, or --.
@@ -648,7 +648,7 @@ Return the jemalloc version string.
 .It Sy "epoch (uint64_t) rw"
 .Bd -ragged -offset indent -compact
 If a value is passed in, refresh the data from which the
-.Fn mallctl*
+.Fn @jemalloc_prefix@mallctl*
 functions report values, and increment the epoch.
 Return the current epoch.
 This is useful for detecting whether another thread caused a refresh.
@@ -669,18 +669,17 @@ This is useful for detecting whether another thread caused a refresh.
 @roff_tcache@find manual flushing useful.
 .Ed
 .\"-----------------------------------------------------------------------------
-@roff_tls@.It Sy "thread.arena (unsigned) rw"
-@roff_tls@.Bd -ragged -offset indent -compact
-@roff_tls@Get or set the arena associated with the calling thread.
-@roff_tls@The arena index must be less than the maximum number of arenas (see
-@roff_tls@the
-@roff_tls@.Dq arenas.narenas
-@roff_tls@mallctl).
-@roff_tls@If the specified arena was not initialized beforehand (see the
-@roff_tls@.Dq arenas.initialized
-@roff_tls@mallctl), it will be automatically initialized as a side effect of
-@roff_tls@calling this interface.
-@roff_tls@.Ed
+.It Sy "thread.arena (unsigned) rw"
+.Bd -ragged -offset indent -compact
+Get or set the arena associated with the calling thread.
+The arena index must be less than the maximum number of arenas (see the
+.Dq arenas.narenas
+mallctl).
+If the specified arena was not initialized beforehand (see the
+.Dq arenas.initialized
+mallctl), it will be automatically initialized as a side effect of calling this
+interface.
+.Ed
 .\"-----------------------------------------------------------------------------
 .It Sy "config.debug (bool) r-"
 .Bd -ragged -offset indent -compact
@@ -1442,7 +1441,7 @@ Attempt to read or write void value, or attempt to write read-only value.
 A memory allocation failure occurred.
 .It Bq Er EFAULT
 An interface with side effects failed in some way not directly related to
-.Fn mallctl*
+.Fn @jemalloc_prefix@mallctl*
 read/write processing.
 .El
 .Sh ENVIRONMENT

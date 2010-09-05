@@ -28,10 +28,17 @@ LIBS := @LIBS@
 RPATH_EXTRA := @RPATH_EXTRA@
 ifeq (macho, @abi@)
 SO := dylib
+WL_SONAME := dylib_install_name
 else
 SO := so
+WL_SONAME := soname
 endif
 REV := 0
+ifeq (macho, @abi@)
+TEST_LIBRARY_PATH := DYLD_FALLBACK_LIBRARY_PATH=@objroot@lib
+else
+TEST_LIBRARY_PATH :=
+endif
 
 # Lists of files.
 BINS := @srcroot@bin/pprof
@@ -42,15 +49,16 @@ CSRCS := @srcroot@src/jemalloc.c @srcroot@src/arena.c @srcroot@src/base.c \
 	@srcroot@src/chunk_mmap.c @srcroot@src/chunk_swap.c @srcroot@src/ckh.c \
 	@srcroot@src/ctl.c @srcroot@src/extent.c @srcroot@src/hash.c \
 	@srcroot@src/huge.c @srcroot@src/mb.c @srcroot@src/mutex.c \
-	@srcroot@src/prof.c @srcroot@src/stats.c @srcroot@src/tcache.c
-DSOS := @objroot@lib/libjemalloc@install_suffix@.so.$(REV) \
-	@objroot@lib/libjemalloc@install_suffix@.so \
+	@srcroot@src/prof.c @srcroot@src/rtree.c \
+	@srcroot@src/stats.c @srcroot@src/tcache.c
+ifeq (macho, @abi@)
+CSRCS += @srcroot@src/zone.c
+endif
+DSOS := @objroot@lib/libjemalloc@install_suffix@.$(SO).$(REV) \
+	@objroot@lib/libjemalloc@install_suffix@.$(SO) \
 	@objroot@lib/libjemalloc@install_suffix@_pic.a
 MAN3 := @objroot@doc/jemalloc@install_suffix@.3
-CTESTS :=
-ifeq (1, @enable_tls@)
-CTESTS += @srcroot@test/thread_arena.c
-endif
+CTESTS := @srcroot@test/thread_arena.c
 
 .PHONY: all dist install check clean distclean relclean
 
@@ -67,13 +75,13 @@ all: $(DSOS)
 	$(CC) $(CFLAGS) -c $(CPPFLAGS) -o $@ $<
 	@$(SHELL) -ec "$(CC) -MM $(CPPFLAGS) $< | sed \"s/\($(subst /,\/,$(notdir $(basename $@)))\)\.o\([ :]*\)/$(subst /,\/,$(strip $(dir $@)))\1.o \2/g\" > $(@:%.o=%.d)"
 
-%.so : %.so.$(REV)
+%.$(SO) : %.$(SO).$(REV)
 	@mkdir -p $(@D)
 	ln -sf $(<F) $@
 
-@objroot@lib/libjemalloc@install_suffix@.so.$(REV) : $(CSRCS:@srcroot@%.c=@objroot@%.o)
+@objroot@lib/libjemalloc@install_suffix@.$(SO).$(REV) : $(CSRCS:@srcroot@%.c=@objroot@%.o)
 	@mkdir -p $(@D)
-	$(CC) -shared -Wl,-soname,$(@F) $(RPATH_EXTRA:%=@RPATH@%) -o $@ $+ $(LDFLAGS) $(LIBS)
+	$(CC) -shared -Wl,-$(WL_SONAME),$(@F) $(RPATH_EXTRA:%=@RPATH@%) -o $@ $+ $(LDFLAGS) $(LIBS)
 
 @objroot@lib/libjemalloc@install_suffix@_pic.a : $(CSRCS:@srcroot@%.c=@objroot@%.o)
 	@mkdir -p $(@D)
@@ -85,9 +93,13 @@ all: $(DSOS)
 	@$(SHELL) -ec "$(CC) -MM $(CPPFLAGS) $< | sed \"s/\($(subst /,\/,$(notdir $(basename $@)))\)\.o\([ :]*\)/$(subst /,\/,$(strip $(dir $@)))\1.o \2/g\" > $(@:%.o=%.d)"
 
 @objroot@test/%: @objroot@test/%.o \
-		 @objroot@lib/libjemalloc@install_suffix@.so
+		 @objroot@lib/libjemalloc@install_suffix@.$(SO)
 	@mkdir -p $(@D)
-	$(CC) -o $@ $< @RPATH@@objroot@lib -L@objroot@lib -ljemalloc
+ifneq (@RPATH@, )
+	$(CC) -o $@ $< @RPATH@@objroot@lib -L@objroot@lib -ljemalloc@install_suffix@
+else
+	$(CC) -o $@ $< -L@objroot@lib -ljemalloc@install_suffix@
+endif
 
 install_bin:
 	install -d $(BINDIR)
@@ -105,8 +117,8 @@ done
 
 install_lib: $(DSOS)
 	install -d $(LIBDIR)
-	install -m 755 @objroot@lib/libjemalloc@install_suffix@.so.$(REV) $(LIBDIR)
-	ln -sf libjemalloc@install_suffix@.so.$(REV) $(LIBDIR)/libjemalloc@install_suffix@.so
+	install -m 755 @objroot@lib/libjemalloc@install_suffix@.$(SO).$(REV) $(LIBDIR)
+	ln -sf libjemalloc@install_suffix@.$(SO).$(REV) $(LIBDIR)/libjemalloc@install_suffix@.$(SO)
 	install -m 755 @objroot@lib/libjemalloc@install_suffix@_pic.a $(LIBDIR)
 
 install_man:
@@ -128,7 +140,7 @@ check: tests
 		for t in $(CTESTS:@srcroot@%.c=@objroot@%); do \
 			total=`expr $$total + 1`; \
 			/bin/echo -n "$${t} ... "; \
-			$${t} @abs_srcroot@ @abs_objroot@ \
+			$(TEST_LIBRARY_PATH) $${t} @abs_srcroot@ @abs_objroot@ \
 			  > @objroot@$${t}.out 2>&1; \
 			if test -e "@srcroot@$${t}.exp"; then \
 				diff -u @srcroot@$${t}.exp \
@@ -161,8 +173,7 @@ distclean: clean
 	rm -rf @objroot@autom4te.cache
 	rm -f @objroot@config.log
 	rm -f @objroot@config.status
-	rm -f @objroot@cfghdrs.stamp
-	rm -f @objroot@cfgoutputs.stamp
+	rm -f @objroot@config.stamp
 	rm -f @cfghdrs_out@
 	rm -f @cfgoutputs_out@
 

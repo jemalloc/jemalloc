@@ -181,9 +181,6 @@ static void	arena_ralloc_large_shrink(arena_t *arena, arena_chunk_t *chunk,
 static bool	arena_ralloc_large_grow(arena_t *arena, arena_chunk_t *chunk,
     void *ptr, size_t size, size_t oldsize);
 static bool	arena_ralloc_large(void *ptr, size_t size, size_t oldsize);
-#ifdef JEMALLOC_TINY
-static size_t	pow2_ceil(size_t x);
-#endif
 static bool	small_size2bin_init(void);
 #ifdef JEMALLOC_DEBUG
 static void	small_size2bin_validate(void);
@@ -426,7 +423,7 @@ arena_chunk_alloc(arena_t *arena)
 
 		zero = false;
 		malloc_mutex_unlock(&arena->lock);
-		chunk = (arena_chunk_t *)chunk_alloc(chunksize, &zero);
+		chunk = (arena_chunk_t *)chunk_alloc(chunksize, false, &zero);
 		malloc_mutex_lock(&arena->lock);
 		if (chunk == NULL)
 			return (NULL);
@@ -606,10 +603,18 @@ arena_chunk_purge(arena_t *arena, arena_chunk_t *chunk)
 	ql_new(&mapelms);
 
 	flag_zeroed =
-#ifdef JEMALLOC_SWAP
+#ifdef JEMALLOC_PURGE_MADVISE_DONTNEED
+   /*
+    * madvise(..., MADV_DONTNEED) results in zero-filled pages for anonymous
+    * mappings, but not for file-backed mappings.
+    */
+#  ifdef JEMALLOC_SWAP
 	    swap_enabled ? 0 :
-#endif
+#  endif
 	    CHUNK_MAP_ZEROED;
+#else
+	    0;
+#endif
 
 	/*
 	 * If chunk is the spare, temporarily re-allocate it, 1) so that its
@@ -649,9 +654,6 @@ arena_chunk_purge(arena_t *arena, arena_chunk_t *chunk)
 				/*
 				 * Update internal elements in the page map, so
 				 * that CHUNK_MAP_ZEROED is properly set.
-				 * madvise(..., MADV_DONTNEED) results in
-				 * zero-filled pages for anonymous mappings,
-				 * but not for file-backed mappings.
 				 */
 				mapelm->bits = (npages << PAGE_SHIFT) |
 				    CHUNK_MAP_LARGE | CHUNK_MAP_ALLOCATED |
@@ -715,8 +717,20 @@ arena_chunk_purge(arena_t *arena, arena_chunk_t *chunk)
 		assert(ndirty >= npages);
 		ndirty -= npages;
 #endif
+
+#ifdef JEMALLOC_PURGE_MADVISE_DONTNEED
 		madvise((void *)((uintptr_t)chunk + (pageind << PAGE_SHIFT)),
 		    (npages << PAGE_SHIFT), MADV_DONTNEED);
+#elif defined(JEMALLOC_PURGE_MADVISE_FREE)
+		madvise((void *)((uintptr_t)chunk + (pageind << PAGE_SHIFT)),
+		    (npages << PAGE_SHIFT), MADV_FREE);
+#elif defined(JEMALLOC_PURGE_MSYNC_KILLPAGES)
+		msync((void *)((uintptr_t)chunk + (pageind << PAGE_SHIFT)),
+		    (npages << PAGE_SHIFT), MS_KILLPAGES);
+#else
+#  error "No method defined for purging unused dirty pages."
+#endif
+
 #ifdef JEMALLOC_STATS
 		nmadvise++;
 #endif
@@ -2238,26 +2252,6 @@ arena_new(arena_t *arena, unsigned ind)
 
 	return (false);
 }
-
-#ifdef JEMALLOC_TINY
-/* Compute the smallest power of 2 that is >= x. */
-static size_t
-pow2_ceil(size_t x)
-{
-
-	x--;
-	x |= x >> 1;
-	x |= x >> 2;
-	x |= x >> 4;
-	x |= x >> 8;
-	x |= x >> 16;
-#if (SIZEOF_PTR == 8)
-	x |= x >> 32;
-#endif
-	x++;
-	return (x);
-}
-#endif
 
 #ifdef JEMALLOC_DEBUG
 static void

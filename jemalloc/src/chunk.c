@@ -14,6 +14,10 @@ malloc_mutex_t	chunks_mtx;
 chunk_stats_t	stats_chunks;
 #endif
 
+#ifdef JEMALLOC_IVSALLOC
+rtree_t		*chunks_rtree;
+#endif
+
 /* Various chunk-related settings. */
 size_t		chunksize;
 size_t		chunksize_mask; /* (chunksize - 1). */
@@ -30,7 +34,7 @@ size_t		arena_maxclass; /* Max size class for arenas. */
  * advantage of them if they are returned.
  */
 void *
-chunk_alloc(size_t size, bool *zero)
+chunk_alloc(size_t size, bool base, bool *zero)
 {
 	void *ret;
 
@@ -63,6 +67,14 @@ chunk_alloc(size_t size, bool *zero)
 	/* All strategies for allocation failed. */
 	ret = NULL;
 RETURN:
+#ifdef JEMALLOC_IVSALLOC
+	if (base == false && ret != NULL) {
+		if (rtree_set(chunks_rtree, (uintptr_t)ret, ret)) {
+			chunk_dealloc(ret, size);
+			return (NULL);
+		}
+	}
+#endif
 #if (defined(JEMALLOC_STATS) || defined(JEMALLOC_PROF))
 	if (ret != NULL) {
 #  ifdef JEMALLOC_PROF
@@ -104,6 +116,9 @@ chunk_dealloc(void *chunk, size_t size)
 	assert(size != 0);
 	assert((size & chunksize_mask) == 0);
 
+#ifdef JEMALLOC_IVSALLOC
+	rtree_set(chunks_rtree, (uintptr_t)chunk, NULL);
+#endif
 #if (defined(JEMALLOC_STATS) || defined(JEMALLOC_PROF))
 	malloc_mutex_lock(&chunks_mtx);
 	stats_chunks.curchunks -= (size / chunksize);
@@ -126,21 +141,27 @@ chunk_boot(void)
 {
 
 	/* Set variables according to the value of opt_lg_chunk. */
-	chunksize = (1LU << opt_lg_chunk);
+	chunksize = (ZU(1) << opt_lg_chunk);
 	assert(chunksize >= PAGE_SIZE);
 	chunksize_mask = chunksize - 1;
 	chunk_npages = (chunksize >> PAGE_SHIFT);
 
+#ifdef JEMALLOC_IVSALLOC
+	chunks_rtree = rtree_new((ZU(1) << (LG_SIZEOF_PTR+3)) - opt_lg_chunk);
+	if (chunks_rtree == NULL)
+		return (true);
+#endif
 #if (defined(JEMALLOC_STATS) || defined(JEMALLOC_PROF))
 	if (malloc_mutex_init(&chunks_mtx))
 		return (true);
 	memset(&stats_chunks, 0, sizeof(chunk_stats_t));
 #endif
-
 #ifdef JEMALLOC_SWAP
 	if (chunk_swap_boot())
 		return (true);
 #endif
+	if (chunk_mmap_boot())
+		return (true);
 #ifdef JEMALLOC_DSS
 	if (chunk_dss_boot())
 		return (true);

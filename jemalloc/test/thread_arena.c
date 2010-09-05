@@ -3,6 +3,7 @@
 #include <pthread.h>
 #include <string.h>
 
+#define	JEMALLOC_MANGLE
 #include "jemalloc/jemalloc.h"
 
 void *
@@ -13,10 +14,10 @@ thread_start(void *arg)
 	size_t size;
 	int err;
 
-	malloc(1);
+	JEMALLOC_P(malloc)(1);
 
 	size = sizeof(arena_ind);
-	if ((err = mallctl("thread.arena", &arena_ind, &size,
+	if ((err = JEMALLOC_P(mallctl)("thread.arena", &arena_ind, &size,
 	    &main_arena_ind, sizeof(main_arena_ind)))) {
 		fprintf(stderr, "%s(): Error in mallctl(): %s\n", __func__,
 		    strerror(err));
@@ -37,10 +38,11 @@ main(void)
 
 	fprintf(stderr, "Test begin\n");
 
-	malloc(1);
+	JEMALLOC_P(malloc)(1);
 
 	size = sizeof(arena_ind);
-	if ((err = mallctl("thread.arena", &arena_ind, &size, NULL, 0))) {
+	if ((err = JEMALLOC_P(mallctl)("thread.arena", &arena_ind, &size, NULL,
+	    0))) {
 		fprintf(stderr, "%s(): Error in mallctl(): %s\n", __func__,
 		    strerror(err));
 		ret = 1;

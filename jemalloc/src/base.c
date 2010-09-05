@@ -32,7 +32,7 @@ base_pages_alloc(size_t minsize)
 	assert(minsize != 0);
 	csize = CHUNK_CEILING(minsize);
 	zero = false;
-	base_pages = chunk_alloc(csize, &zero);
+	base_pages = chunk_alloc(csize, true, &zero);
 	if (base_pages == NULL)
 		return (true);
 	base_next_addr = base_pages;

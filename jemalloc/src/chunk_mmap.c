@@ -6,19 +6,22 @@
 
 /*
  * Used by chunk_alloc_mmap() to decide whether to attempt the fast path and
- * potentially avoid some system calls.  We can get away without TLS here,
- * since the state of mmap_unaligned only affects performance, rather than
- * correct function.
+ * potentially avoid some system calls.
  */
-static
 #ifndef NO_TLS
-       __thread
+static __thread bool	mmap_unaligned_tls
+    JEMALLOC_ATTR(tls_model("initial-exec"));
+#define	MMAP_UNALIGNED_GET()	mmap_unaligned_tls
+#define	MMAP_UNALIGNED_SET(v)	do {					\
+	mmap_unaligned_tls = (v);					\
+} while (0)
+#else
+static pthread_key_t	mmap_unaligned_tsd;
+#define	MMAP_UNALIGNED_GET()	((bool)pthread_getspecific(mmap_unaligned_tsd))
+#define	MMAP_UNALIGNED_SET(v)	do {					\
+	pthread_setspecific(mmap_unaligned_tsd, (void *)(v));		\
+} while (0)
 #endif
-                bool	mmap_unaligned
-#ifndef NO_TLS
-                                       JEMALLOC_ATTR(tls_model("initial-exec"))
-#endif
-                                                                               ;
 
 /******************************************************************************/
 /* Function prototypes for non-inline static functions. */
@@ -128,7 +131,7 @@ chunk_alloc_mmap_slow(size_t size, bool unaligned, bool noreserve)
 	 * method.
 	 */
 	if (unaligned == false)
-		mmap_unaligned = false;
+		MMAP_UNALIGNED_SET(false);
 
 	return (ret);
 }
@@ -166,7 +169,7 @@ chunk_alloc_mmap_internal(size_t size, bool noreserve)
 	 * fast method next time.
 	 */
 
-	if (mmap_unaligned == false) {
+	if (MMAP_UNALIGNED_GET() == false) {
 		size_t offset;
 
 		ret = pages_map(NULL, size, noreserve);
@@ -175,7 +178,7 @@ chunk_alloc_mmap_internal(size_t size, bool noreserve)
 
 		offset = CHUNK_ADDR2OFFSET(ret);
 		if (offset != 0) {
-			mmap_unaligned = true;
+			MMAP_UNALIGNED_SET(true);
 			/* Try to extend chunk boundary. */
 			if (pages_map((void *)((uintptr_t)ret + size),
 			    chunksize - offset, noreserve) == NULL) {
@@ -184,7 +187,8 @@ chunk_alloc_mmap_internal(size_t size, bool noreserve)
 				 * the reliable-but-expensive method.
 				 */
 				pages_unmap(ret, size);
-				ret = chunk_alloc_mmap_slow(size, true, noreserve);
+				ret = chunk_alloc_mmap_slow(size, true,
+				    noreserve);
 			} else {
 				/* Clean up unneeded leading space. */
 				pages_unmap(ret, chunksize - offset);
@@ -215,4 +219,18 @@ chunk_dealloc_mmap(void *chunk, size_t size)
 {
 
 	pages_unmap(chunk, size);
+}
+
+bool
+chunk_mmap_boot(void)
+{
+
+#ifdef NO_TLS
+	if (pthread_key_create(&mmap_unaligned_tsd, NULL) != 0) {
+		malloc_write("<jemalloc>: Error in pthread_key_create()\n");
+		return (true);
+	}
+#endif
+
+	return (false);
 }

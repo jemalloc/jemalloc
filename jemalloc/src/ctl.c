@@ -41,9 +41,7 @@ CTL_PROTO(epoch)
 #ifdef JEMALLOC_TCACHE
 CTL_PROTO(tcache_flush)
 #endif
-#ifndef NO_TLS
 CTL_PROTO(thread_arena)
-#endif
 CTL_PROTO(config_debug)
 CTL_PROTO(config_dss)
 CTL_PROTO(config_dynamic_page_shift)
@@ -213,11 +211,9 @@ static const ctl_node_t	tcache_node[] = {
 };
 #endif
 
-#ifndef NO_TLS
 static const ctl_node_t	thread_node[] = {
 	{NAME("arena"),		CTL(thread_arena)}
 };
-#endif
 
 static const ctl_node_t	config_node[] = {
 	{NAME("debug"),			CTL(config_debug)},
@@ -457,9 +453,7 @@ static const ctl_node_t	root_node[] = {
 #ifdef JEMALLOC_TCACHE
 	{NAME("tcache"),	CHILD(tcache)},
 #endif
-#ifndef NO_TLS
 	{NAME("thread"),	CHILD(thread)},
-#endif
 	{NAME("config"),	CHILD(config)},
 	{NAME("opt"),		CHILD(opt)},
 	{NAME("arenas"),	CHILD(arenas)},
@@ -1040,13 +1034,13 @@ tcache_flush_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
 
 	VOID();
 
-	tcache = tcache_tls;
+	tcache = TCACHE_GET();
 	if (tcache == NULL) {
 		ret = 0;
 		goto RETURN;
 	}
 	tcache_destroy(tcache);
-	tcache_tls = NULL;
+	TCACHE_SET(NULL);
 
 	ret = 0;
 RETURN:
@@ -1054,7 +1048,6 @@ RETURN:
 }
 #endif
 
-#ifndef NO_TLS
 static int
 thread_arena_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
     void *newp, size_t newlen)
@@ -1085,14 +1078,13 @@ thread_arena_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
 		}
 
 		/* Set new arena association. */
-		arenas_map = arena;
+		ARENA_SET(arena);
 	}
 
 	ret = 0;
 RETURN:
 	return (ret);
 }
-#endif
 
 /******************************************************************************/
 

@@ -9,13 +9,15 @@ ssize_t	opt_lg_tcache_maxclass = LG_TCACHE_MAXCLASS_DEFAULT;
 ssize_t	opt_lg_tcache_gc_sweep = LG_TCACHE_GC_SWEEP_DEFAULT;
 
 /* Map of thread-specific caches. */
+#ifndef NO_TLS
 __thread tcache_t	*tcache_tls JEMALLOC_ATTR(tls_model("initial-exec"));
+#endif
 
 /*
  * Same contents as tcache, but initialized such that the TSD destructor is
  * called when a thread exits, so that the cache can be cleaned up.
  */
-static pthread_key_t		tcache_tsd;
+pthread_key_t		tcache_tsd;
 
 size_t				nhbins;
 size_t				tcache_maxclass;
@@ -239,8 +241,7 @@ tcache_create(arena_t *arena)
 	for (; i < nhbins; i++)
 		tcache->tbins[i].ncached_max = TCACHE_NSLOTS_LARGE;
 
-	tcache_tls = tcache;
-	pthread_setspecific(tcache_tsd, tcache);
+	TCACHE_SET(tcache);
 
 	return (tcache);
 }
@@ -328,11 +329,24 @@ tcache_thread_cleanup(void *arg)
 {
 	tcache_t *tcache = (tcache_t *)arg;
 
-	assert(tcache == tcache_tls);
-	if (tcache != NULL) {
+	if (tcache == (void *)(uintptr_t)1) {
+		/*
+		 * The previous time this destructor was called, we set the key
+		 * to 1 so that other destructors wouldn't cause re-creation of
+		 * the tcache.  This time, do nothing, so that the destructor
+		 * will not be called again.
+		 */
+	} else if (tcache == (void *)(uintptr_t)2) {
+		/*
+		 * Another destructor called an allocator function after this
+		 * destructor was called.  Reset tcache to 1 in order to
+		 * receive another callback.
+		 */
+		TCACHE_SET((uintptr_t)1);
+	} else if (tcache != NULL) {
 		assert(tcache != (void *)(uintptr_t)1);
 		tcache_destroy(tcache);
-		tcache_tls = (void *)(uintptr_t)1;
+		TCACHE_SET((uintptr_t)1);
 	}
 }
 

@@ -89,12 +89,12 @@
 malloc_mutex_t		arenas_lock;
 arena_t			**arenas;
 unsigned		narenas;
-#ifndef NO_TLS
 static unsigned		next_arena;
-#endif
 
 #ifndef NO_TLS
-__thread arena_t	*arenas_map JEMALLOC_ATTR(tls_model("initial-exec"));
+__thread arena_t	*arenas_tls JEMALLOC_ATTR(tls_model("initial-exec"));
+#else
+pthread_key_t		arenas_tsd;
 #endif
 
 /* Set to true once the allocator has been initialized. */
@@ -104,7 +104,7 @@ static bool malloc_initialized = false;
 static pthread_t malloc_initializer = (unsigned long)0;
 
 /* Used to avoid initialization races. */
-static malloc_mutex_t init_lock = PTHREAD_ADAPTIVE_MUTEX_INITIALIZER_NP;
+static malloc_mutex_t init_lock = MALLOC_MUTEX_INITIALIZER;
 
 #ifdef DYNAMIC_PAGE_SHIFT
 size_t		pagesize;
@@ -146,8 +146,6 @@ static void	wrtmessage(void *cbopaque, const char *s);
 static void	stats_print_atexit(void);
 static unsigned	malloc_ncpus(void);
 static bool	malloc_init_hard(void);
-static void	jemalloc_prefork(void);
-static void	jemalloc_postfork(void);
 
 /******************************************************************************/
 /* malloc_message() setup. */
@@ -200,7 +198,6 @@ arenas_extend(unsigned ind)
 	return (arenas[0]);
 }
 
-#ifndef NO_TLS
 /*
  * Choose an arena based on a per-thread value (slow-path code only, called
  * only by choose_arena()).
@@ -219,11 +216,10 @@ choose_arena_hard(void)
 	} else
 		ret = arenas[0];
 
-	arenas_map = ret;
+	ARENA_SET(ret);
 
 	return (ret);
 }
-#endif
 
 static void
 stats_print_atexit(void)
@@ -697,14 +693,12 @@ MALLOC_OUT:
 		return (true);
 	}
 
-#ifndef NO_TLS
 	/*
 	 * Assign the initial arena to the initial thread, in order to avoid
 	 * spurious creation of an extra arena if the application switches to
 	 * threaded mode.
 	 */
-	arenas_map = arenas[0];
-#endif
+	ARENA_SET(arenas[0]);
 
 	malloc_mutex_init(&arenas_lock);
 
@@ -748,35 +742,13 @@ MALLOC_OUT:
 			narenas = 1;
 	}
 
-#ifdef NO_TLS
-	if (narenas > 1) {
-		static const unsigned primes[] = {1, 3, 5, 7, 11, 13, 17, 19,
-		    23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83,
-		    89, 97, 101, 103, 107, 109, 113, 127, 131, 137, 139, 149,
-		    151, 157, 163, 167, 173, 179, 181, 191, 193, 197, 199, 211,
-		    223, 227, 229, 233, 239, 241, 251, 257, 263};
-		unsigned nprimes, parenas;
-
-		/*
-		 * Pick a prime number of hash arenas that is more than narenas
-		 * so that direct hashing of pthread_self() pointers tends to
-		 * spread allocations evenly among the arenas.
-		 */
-		assert((narenas & 1) == 0); /* narenas must be even. */
-		nprimes = (sizeof(primes) >> LG_SIZEOF_INT);
-		parenas = primes[nprimes - 1]; /* In case not enough primes. */
-		for (i = 1; i < nprimes; i++) {
-			if (primes[i] > narenas) {
-				parenas = primes[i];
-				break;
-			}
-		}
-		narenas = parenas;
-	}
-#endif
-
-#ifndef NO_TLS
 	next_arena = (narenas > 0) ? 1 : 0;
+
+#ifdef NO_TLS
+	if (pthread_key_create(&arenas_tsd, NULL) != 0) {
+		malloc_mutex_unlock(&init_lock);
+		return (true);
+	}
 #endif
 
 	/* Allocate and initialize arenas. */
@@ -793,10 +765,34 @@ MALLOC_OUT:
 	/* Copy the pointer to the one arena that was already initialized. */
 	arenas[0] = init_arenas[0];
 
+#ifdef JEMALLOC_ZONE
+	/* Register the custom zone. */
+	malloc_zone_register(create_zone());
+
+	/*
+	 * Convert the default szone to an "overlay zone" that is capable of
+	 * deallocating szone-allocated objects, but allocating new objects
+	 * from jemalloc.
+	 */
+	szone2ozone(malloc_default_zone());
+#endif
+
 	malloc_initialized = true;
 	malloc_mutex_unlock(&init_lock);
 	return (false);
 }
+
+
+#ifdef JEMALLOC_ZONE
+JEMALLOC_ATTR(constructor)
+void
+jemalloc_darwin_init(void)
+{
+
+	if (malloc_init_hard())
+		abort();
+}
+#endif
 
 /*
  * End initialization functions.
@@ -1219,8 +1215,12 @@ JEMALLOC_P(malloc_usable_size)(const void *ptr)
 {
 	size_t ret;
 
+#ifdef JEMALLOC_IVSALLOC
+	ret = ivsalloc(ptr);
+#else
 	assert(ptr != NULL);
 	ret = isalloc(ptr);
+#endif
 
 	return (ret);
 }
@@ -1298,10 +1298,12 @@ JEMALLOC_P(mallctlbymib)(const size_t *mib, size_t miblen, void *oldp,
  * is threaded here.
  */
 
-static void
+void
 jemalloc_prefork(void)
 {
 	unsigned i;
+
+	assert(isthreaded);
 
 	/* Acquire all mutexes in a safe order. */
 
@@ -1324,10 +1326,12 @@ jemalloc_prefork(void)
 #endif
 }
 
-static void
+void
 jemalloc_postfork(void)
 {
 	unsigned i;
+
+	assert(isthreaded);
 
 	/* Release all mutexes, now that fork() has completed. */
 
@@ -1349,3 +1353,5 @@ jemalloc_postfork(void)
 	}
 	malloc_mutex_unlock(&arenas_lock);
 }
+
+/******************************************************************************/

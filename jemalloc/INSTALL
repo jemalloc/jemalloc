@@ -31,6 +31,10 @@ any of the following arguments (not a definitive list) to 'configure':
     becomes <prefix>malloc().  This makes it possible to use jemalloc at the
     same time as the system allocator.
 
+    By default, the prefix is "", except on OS X, where it is "je_".  On OS X,
+    jemalloc overlays the default malloc zone, but makes no attempt to actually
+    replace the "malloc", "calloc", etc. symbols.
+
 --with-install-suffix=<suffix>
     Append <suffix> to the base name of all installed files, such that multiple
     versions of jemalloc can coexist in the same installation directory.  For

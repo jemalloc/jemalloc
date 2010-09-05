@@ -45,7 +45,19 @@ static malloc_mutex_t	bt2ctx_mtx;
  * into the associated prof_ctx_t objects, and unlink/free the prof_thr_cnt_t
  * objects.
  */
+#ifndef NO_TLS
 static __thread ckh_t	*bt2cnt_tls JEMALLOC_ATTR(tls_model("initial-exec"));
+#  define BT2CNT_GET()	bt2cnt_tls
+#  define BT2CNT_SET(v)	do {						\
+	bt2cnt_tls = (v);						\
+	pthread_setspecific(bt2cnt_tsd, (void *)(v));			\
+} while (0)
+#else
+#  define BT2CNT_GET()	((ckh_t *)pthread_getspecific(bt2cnt_tsd))
+#  define BT2CNT_SET(v)	do {						\
+	pthread_setspecific(bt2cnt_tsd, (void *)(v));			\
+} while (0)
+#endif
 
 /*
  * Same contents as b2cnt_tls, but initialized such that the TSD destructor is
@@ -57,12 +69,45 @@ static pthread_key_t	bt2cnt_tsd;
 /* (1U << opt_lg_prof_bt_max). */
 static unsigned		prof_bt_max;
 
-static __thread uint64_t prof_sample_prn_state
+typedef struct prof_sample_state_s prof_sample_state_t;
+struct prof_sample_state_s {
+	uint64_t	prn_state;
+	uint64_t	threshold;
+	uint64_t	accum;
+};
+
+#ifndef NO_TLS
+static __thread prof_sample_state_t prof_sample_state_tls
     JEMALLOC_ATTR(tls_model("initial-exec"));
-static __thread uint64_t prof_sample_threshold
-    JEMALLOC_ATTR(tls_model("initial-exec"));
-static __thread uint64_t prof_sample_accum
-    JEMALLOC_ATTR(tls_model("initial-exec"));
+#  define PROF_SAMPLE_STATE_GET(r)	do {				\
+	r = &prof_sample_state_tls;					\
+} while (0)
+#else
+static pthread_key_t	prof_sample_state_tsd;
+/* Used only if an OOM error occurs in PROF_SAMPLE_STATE_GET(). */
+prof_sample_state_t prof_sample_state_oom;
+#  define PROF_SAMPLE_STATE_GET(r)	do {				\
+	r = (prof_sample_state_t *)pthread_getspecific(			\
+	    prof_sample_state_tsd);					\
+	if (r == NULL) {						\
+		r = ipalloc(CACHELINE, sizeof(prof_sample_state_t));	\
+		if (r == NULL) {					\
+			malloc_write("<jemalloc>: Error in heap "	\
+			    "profiler: out of memory; subsequent heap "	\
+			    "profiles may be inaccurate\n");		\
+			if (opt_abort)					\
+				abort();				\
+			/* Failure is not an option... */		\
+			r = &prof_sample_state_oom;			\
+		}							\
+		pthread_setspecific(prof_sample_state_tsd, (void *)r);	\
+	}								\
+} while (0)
+#  define ARENA_GET()	((arena_t *)pthread_getspecific(arenas_tsd))
+#  define ARENA_SET(v)	do {						\
+	pthread_setspecific(arenas_tsd, (void *)(v));			\
+} while (0)
+#endif
 
 static malloc_mutex_t	prof_dump_seq_mtx;
 static uint64_t		prof_dump_seq;
@@ -116,6 +161,9 @@ static void	prof_bt_hash(const void *key, unsigned minbits, size_t *hash1,
     size_t *hash2);
 static bool	prof_bt_keycomp(const void *k1, const void *k2);
 static void	bt2cnt_thread_cleanup(void *arg);
+#ifdef NO_TLS
+static void	prof_sample_state_thread_cleanup(void *arg);
+#endif
 
 /******************************************************************************/
 
@@ -436,7 +484,7 @@ static prof_thr_cnt_t *
 prof_lookup(prof_bt_t *bt)
 {
 	prof_thr_cnt_t *ret;
-	ckh_t *bt2cnt = bt2cnt_tls;
+	ckh_t *bt2cnt = BT2CNT_GET();
 
 	if (bt2cnt == NULL) {
 		/* Initialize an empty cache for this thread. */
@@ -448,8 +496,8 @@ prof_lookup(prof_bt_t *bt)
 			idalloc(bt2cnt);
 			return (NULL);
 		}
-		bt2cnt_tls = bt2cnt;
-		pthread_setspecific(bt2cnt_tsd, bt2cnt);
+
+		BT2CNT_SET(bt2cnt);
 	}
 
 	if (ckh_search(bt2cnt, bt, NULL, (void **)&ret)) {
@@ -519,15 +567,17 @@ prof_sample_threshold_update(void)
 {
 	uint64_t r;
 	double u;
+	prof_sample_state_t *prof_sample_state;
 
 	/*
 	 * Compute prof_sample_threshold as a geometrically distributed random
 	 * variable with mean (2^opt_lg_prof_sample).
 	 */
-	prn64(r, 53, prof_sample_prn_state, (uint64_t)1125899906842625LLU,
-	    1058392653243283975);
+	PROF_SAMPLE_STATE_GET(prof_sample_state);
+	prn64(r, 53, prof_sample_state->prn_state,
+	    (uint64_t)1125899906842625LLU, 1058392653243283975);
 	u = (double)r * (1.0/9007199254740992.0L);
-	prof_sample_threshold = (uint64_t)(log(u) /
+	prof_sample_state->threshold = (uint64_t)(log(u) /
 	    log(1.0 - (1.0 / (double)((uint64_t)1U << opt_lg_prof_sample))))
 	    + (uint64_t)1U;
 }
@@ -551,26 +601,31 @@ prof_alloc_prep(size_t size)
 		prof_backtrace(&bt, 2, prof_bt_max);
 		ret = prof_lookup(&bt);
 	} else {
-		if (prof_sample_threshold == 0) {
+		prof_sample_state_t *prof_sample_state;
+
+		PROF_SAMPLE_STATE_GET(prof_sample_state);
+		if (prof_sample_state->threshold == 0) {
 			/*
 			 * Initialize.  Seed the prng differently for each
 			 * thread.
 			 */
-			prof_sample_prn_state = (uint64_t)(uintptr_t)&size;
+			prof_sample_state->prn_state =
+			    (uint64_t)(uintptr_t)&size;
 			prof_sample_threshold_update();
 		}
 
 		/*
 		 * Determine whether to capture a backtrace based on whether
 		 * size is enough for prof_accum to reach
-		 * prof_sample_threshold.  However, delay updating these
+		 * prof_sample_state->threshold.  However, delay updating these
 		 * variables until prof_{m,re}alloc(), because we don't know
 		 * for sure that the allocation will succeed.
 		 *
 		 * Use subtraction rather than addition to avoid potential
 		 * integer overflow.
 		 */
-		if (size >= prof_sample_threshold - prof_sample_accum) {
+		if (size >= prof_sample_state->threshold -
+		    prof_sample_state->accum) {
 			bt_init(&bt, vec);
 			prof_backtrace(&bt, 2, prof_bt_max);
 			ret = prof_lookup(&bt);
@@ -621,21 +676,26 @@ prof_ctx_set(const void *ptr, prof_ctx_t *ctx)
 static inline void
 prof_sample_accum_update(size_t size)
 {
+	prof_sample_state_t *prof_sample_state;
 
 	/* Sampling logic is unnecessary if the interval is 1. */
 	assert(opt_lg_prof_sample != 0);
 
 	/* Take care to avoid integer overflow. */
-	if (size >= prof_sample_threshold - prof_sample_accum) {
-		prof_sample_accum -= (prof_sample_threshold - size);
+	PROF_SAMPLE_STATE_GET(prof_sample_state);
+	if (size >= prof_sample_state->threshold - prof_sample_state->accum) {
+		prof_sample_state->accum -= (prof_sample_state->threshold -
+		    size);
 		/* Compute new prof_sample_threshold. */
 		prof_sample_threshold_update();
-		while (prof_sample_accum >= prof_sample_threshold) {
-			prof_sample_accum -= prof_sample_threshold;
+		while (prof_sample_state->accum >=
+		    prof_sample_state->threshold) {
+			prof_sample_state->accum -=
+			    prof_sample_state->threshold;
 			prof_sample_threshold_update();
 		}
 	} else
-		prof_sample_accum += size;
+		prof_sample_state->accum += size;
 }
 
 void
@@ -1244,7 +1304,7 @@ bt2cnt_thread_cleanup(void *arg)
 {
 	ckh_t *bt2cnt;
 
-	bt2cnt = bt2cnt_tls;
+	bt2cnt = BT2CNT_GET();
 	if (bt2cnt != NULL) {
 		ql_head(prof_thr_cnt_t) cnts_ql;
 		size_t tabind;
@@ -1278,7 +1338,7 @@ bt2cnt_thread_cleanup(void *arg)
 		 */
 		ckh_delete(bt2cnt);
 		idalloc(bt2cnt);
-		bt2cnt_tls = NULL;
+		BT2CNT_SET(NULL);
 
 		/* Delete cnt's. */
 		while ((cnt = ql_last(&cnts_ql, link)) != NULL) {
@@ -1287,6 +1347,17 @@ bt2cnt_thread_cleanup(void *arg)
 		}
 	}
 }
+
+#ifdef NO_TLS
+static void
+prof_sample_state_thread_cleanup(void *arg)
+{
+	prof_sample_state_t *prof_sample_state = (prof_sample_state_t *)arg;
+
+	if (prof_sample_state != &prof_sample_state_oom)
+		idalloc(prof_sample_state);
+}
+#endif
 
 void
 prof_boot0(void)
@@ -1332,6 +1403,14 @@ prof_boot1(void)
 			    "<jemalloc>: Error in pthread_key_create()\n");
 			abort();
 		}
+#ifdef NO_TLS
+		if (pthread_key_create(&prof_sample_state_tsd,
+		    prof_sample_state_thread_cleanup) != 0) {
+			malloc_write(
+			    "<jemalloc>: Error in pthread_key_create()\n");
+			abort();
+		}
+#endif
 
 		prof_bt_max = (1U << opt_lg_prof_bt_max);
 		if (malloc_mutex_init(&prof_dump_seq_mtx))

@@ -150,7 +150,7 @@ JE_COMPILABLE([__attribute__ syntax],
               [attribute])
 if test "x${attribute}" = "xyes" ; then
   AC_DEFINE([JEMALLOC_HAVE_ATTR], [ ])
-  if test "x$GCC" = "xyes" ; then
+  if test "x$GCC" = "xyes" -a "${abi}" = "xelf"; then
     JE_CFLAGS_APPEND([-fvisibility=internal])
   fi
 fi
@@ -166,17 +166,20 @@ case "${host}" in
   *-*-darwin*)
 	CFLAGS="$CFLAGS -fno-common -no-cpp-precomp"
 	abi="macho"
+	AC_DEFINE([JEMALLOC_PURGE_MSYNC_KILLPAGES])
 	RPATH=""
 	;;
   *-*-freebsd*)
 	CFLAGS="$CFLAGS"
 	abi="elf"
+	AC_DEFINE([JEMALLOC_PURGE_MADVISE_FREE])
 	RPATH="-Wl,-rpath,"
 	;;
   *-*-linux*)
 	CFLAGS="$CFLAGS"
 	CPPFLAGS="$CPPFLAGS -D_GNU_SOURCE"
 	abi="elf"
+	AC_DEFINE([JEMALLOC_PURGE_MADVISE_DONTNEED])
 	RPATH="-Wl,-rpath,"
 	;;
   *-*-netbsd*)
@@ -191,6 +194,7 @@ case "${host}" in
                           [CFLAGS="$CFLAGS"; abi="elf"],
                           [abi="aout"])
 	AC_MSG_RESULT([$abi])
+	AC_DEFINE([JEMALLOC_PURGE_MADVISE_FREE])
 	RPATH="-Wl,-rpath,"
 	;;
   *-*-solaris2*)
@@ -245,7 +249,11 @@ dnl Do not prefix public APIs by default.
 AC_ARG_WITH([jemalloc_prefix],
   [AS_HELP_STRING([--with-jemalloc-prefix=<prefix>], [Prefix to prepend to all public APIs])],
   [JEMALLOC_PREFIX="$with_jemalloc_prefix"],
-  [JEMALLOC_PREFIX=]
+  [if test "x$abi" != "xmacho" ; then
+  JEMALLOC_PREFIX=""
+else
+  JEMALLOC_PREFIX="je_"
+fi]
 )
 if test "x$JEMALLOC_PREFIX" != "x" ; then
   AC_DEFINE([JEMALLOC_PREFIX], [ ])
@@ -294,6 +302,7 @@ fi
 )
 if test "x$enable_debug" = "x1" ; then
   AC_DEFINE([JEMALLOC_DEBUG], [ ])
+  AC_DEFINE([JEMALLOC_IVSALLOC], [ ])
 fi
 AC_SUBST([enable_debug])
 
@@ -379,7 +388,44 @@ else
 fi,
   LUNWIND="-lunwind"
 )
-dnl Finish prof-related definitions below, once TLS configuration is done.
+if test "x$enable_prof" = "x1" ; then
+  LIBS="$LIBS -lm"
+  AC_DEFINE([JEMALLOC_PROF], [ ])
+  if test "x$enable_prof_libunwind" = "x1" ; then
+    AC_CHECK_HEADERS([libunwind.h], , [enable_prof_libunwind="0"])
+    if test "x$LUNWIND" = "x-lunwind" ; then
+      AC_CHECK_LIB([unwind], [backtrace], [LIBS="$LIBS $LUNWIND"],
+                   [enable_prof_libunwind="0"])
+    else
+      LIBS="$LIBS $LUNWIND"
+    fi
+    if test "x${enable_prof_libunwind}" = "x1" ; then
+      AC_DEFINE([JEMALLOC_PROF_LIBUNWIND], [ ])
+    fi
+  fi
+fi
+AC_SUBST([enable_prof])
+if test "x$enable_prof" = "x0" ; then
+  roff_prof=".\\\" "
+  roff_no_prof=""
+else
+  roff_prof=""
+  roff_no_prof=".\\\" "
+fi
+AC_SUBST([roff_prof])
+AC_SUBST([roff_no_prof])
+
+dnl If libunwind isn't enabled, try to use libgcc rather than gcc intrinsics
+dnl for backtracing.
+if test "x$enable_prof" = "x1" -a "x$enable_prof_libunwind" = "x0" \
+ -a "x$GCC" = "xyes" -a "x$enable_prof_libgcc" = "x1" ; then
+  enable_prof_libgcc="1"
+  AC_CHECK_HEADERS([unwind.h], , [enable_prof_libgcc="0"])
+  AC_CHECK_LIB([gcc], [_Unwind_Backtrace], [LIBS="$LIBS -lgcc"], [enable_prof_libgcc="0"])
+  if test "x${enable_prof_libgcc}" = "x1" ; then
+    AC_DEFINE([JEMALLOC_PROF_LIBGCC], [ ])
+  fi
+fi
 
 dnl Enable tiny allocations by default.
 AC_ARG_ENABLE([tiny],
@@ -417,7 +463,19 @@ fi
 ],
 [enable_tcache="1"]
 )
-dnl Finish tcache-related definitions below, once TLS configuration is done.
+if test "x$enable_tcache" = "x1" ; then
+  AC_DEFINE([JEMALLOC_TCACHE], [ ])
+fi
+AC_SUBST([enable_tcache])
+if test "x$enable_tcache" = "x0" ; then
+  roff_tcache=".\\\" "
+  roff_no_tcache=""
+else
+  roff_tcache=""
+  roff_no_tcache=".\\\" "
+fi
+AC_SUBST([roff_tcache])
+AC_SUBST([roff_no_tcache])
 
 dnl Do not enable mmap()ped swap files by default.
 AC_ARG_ENABLE([swap],
@@ -650,71 +708,52 @@ fi
 AC_SUBST([enable_tls])
 if test "x${enable_tls}" = "x0" ; then
   AC_DEFINE_UNQUOTED([NO_TLS], [ ])
-  roff_tls=".\\\" "
-else
-  roff_tls=""
 fi
-AC_SUBST([roff_tls])
 
-dnl Finish tcache-related definitions, now that TLS configuration is done.
-if test "x$enable_tls" = "x0" ; then
-  enable_tcache="0"
-fi
-if test "x$enable_tcache" = "x1" ; then
-  AC_DEFINE([JEMALLOC_TCACHE], [ ])
-fi
-AC_SUBST([enable_tcache])
-if test "x$enable_tcache" = "x0" ; then
-  roff_tcache=".\\\" "
-  roff_no_tcache=""
-else
-  roff_tcache=""
-  roff_no_tcache=".\\\" "
-fi
-AC_SUBST([roff_tcache])
-AC_SUBST([roff_no_tcache])
+dnl ============================================================================
+dnl Darwin-related configuration.
 
-dnl Finish prof-related definitions, now that TLS configuration is done.
-if test "x$enable_tls" = "x0" ; then
-  enable_prof="0"
-fi
-if test "x$enable_prof" = "x1" ; then
-  LIBS="$LIBS -lm"
-  AC_DEFINE([JEMALLOC_PROF], [ ])
-  if test "x$enable_prof_libunwind" = "x1" ; then
-    AC_CHECK_HEADERS([libunwind.h], , [enable_prof_libunwind="0"])
-    if test "x$LUNWIND" = "x-lunwind" ; then
-      AC_CHECK_LIB([unwind], [backtrace], [LIBS="$LIBS $LUNWIND"],
-                   [enable_prof_libunwind="0"])
-    else
-      LIBS="$LIBS $LUNWIND"
-    fi
-    if test "x${enable_prof_libunwind}" = "x1" ; then
-      AC_DEFINE([JEMALLOC_PROF_LIBUNWIND], [ ])
-    fi
-  fi
-fi
-AC_SUBST([enable_prof])
-if test "x$enable_prof" = "x0" ; then
-  roff_prof=".\\\" "
-  roff_no_prof=""
-else
-  roff_prof=""
-  roff_no_prof=".\\\" "
-fi
-AC_SUBST([roff_prof])
-AC_SUBST([roff_no_prof])
+if test "x${abi}" = "xmacho" ; then
+  AC_DEFINE([JEMALLOC_IVSALLOC])
+  AC_DEFINE([JEMALLOC_ZONE])
 
-dnl If libunwind isn't enabled, try to use libgcc rather than gcc intrinsics
-dnl for backtracing.
-if test "x$enable_prof" = "x1" -a "x$enable_prof_libunwind" = "x0" \
- -a "x$GCC" = "xyes" -a "x$enable_prof_libgcc" = "x1" ; then
-  enable_prof_libgcc="1"
-  AC_CHECK_HEADERS([unwind.h], , [enable_prof_libgcc="0"])
-  AC_CHECK_LIB([gcc], [_Unwind_Backtrace], [LIBS="$LIBS -lgcc"], [enable_prof_libgcc="0"])
-  if test "x${enable_prof_libgcc}" = "x1" ; then
-    AC_DEFINE([JEMALLOC_PROF_LIBGCC], [ ])
-  fi
+  dnl The szone version jumped from 3 to 6 between the OS X 10.5.x and 10.6
+  dnl releases.  malloc_zone_t and malloc_introspection_t have new fields in
+  dnl 10.6, which is the only source-level indication of the change.
+  AC_MSG_CHECKING([malloc zone version])
+  AC_TRY_COMPILE([#include <stdlib.h>
+#include <malloc/malloc.h>], [
+	static malloc_zone_t zone;
+	static struct malloc_introspection_t zone_introspect;
+
+	zone.size = NULL;
+	zone.malloc = NULL;
+	zone.calloc = NULL;
+	zone.valloc = NULL;
+	zone.free = NULL;
+	zone.realloc = NULL;
+	zone.destroy = NULL;
+	zone.zone_name = "jemalloc_zone";
+	zone.batch_malloc = NULL;
+	zone.batch_free = NULL;
+	zone.introspect = &zone_introspect;
+	zone.version = 6;
+	zone.memalign = NULL;
+	zone.free_definite_size = NULL;
+
+	zone_introspect.enumerator = NULL;
+	zone_introspect.good_size = NULL;
+	zone_introspect.check = NULL;
+	zone_introspect.print = NULL;
+	zone_introspect.log = NULL;
+	zone_introspect.force_lock = NULL;
+	zone_introspect.force_unlock = NULL;
+	zone_introspect.statistics = NULL;
+	zone_introspect.zone_locked = NULL;
+], [AC_DEFINE_UNQUOTED([JEMALLOC_ZONE_VERSION], [6])
+    AC_MSG_RESULT([6])],
+   [AC_DEFINE_UNQUOTED([JEMALLOC_ZONE_VERSION], [3])
+   AC_MSG_RESULT([3])])
 fi
 
 dnl ============================================================================
@@ -773,4 +812,5 @@ AC_MSG_RESULT([swap               : ${enable_swap}])
 AC_MSG_RESULT([dss                : ${enable_dss}])
 AC_MSG_RESULT([dynamic_page_shift : ${enable_dynamic_page_shift}])
 AC_MSG_RESULT([lazy_lock          : ${enable_lazy_lock}])
+AC_MSG_RESULT([tls                : ${enable_tls}])
 AC_MSG_RESULT([===============================================================================])
