@@ -38,7 +38,7 @@
 .\"     @(#)malloc.3	8.1 (Berkeley) 6/4/93
 .\" $FreeBSD: head/lib/libc/stdlib/malloc.3 182225 2008-08-27 02:00:53Z jasone $
 .\"
-.Dd April 2, 2010
+.Dd September 11, 2010
 .Dt JEMALLOC 3
 .Os
 .Sh NAME
