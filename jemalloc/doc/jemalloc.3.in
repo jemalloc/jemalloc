@@ -564,8 +564,8 @@ However, it may make sense to reduce the number of arenas if an application
 does not make much use of the allocation functions.
 .Pp
 @roff_tcache@In addition to multiple arenas, this allocator supports
-@roff_tcache@thread-specific caching for small objects, in order to make it
-@roff_tcache@possible to completely avoid synchronization for most small
+@roff_tcache@thread-specific caching for small and large objects, in order to
+@roff_tcache@make it possible to completely avoid synchronization for most small
 @roff_tcache@allocation requests.
 @roff_tcache@Such caching allows very fast allocation in the common case, but it
 @roff_tcache@increases memory usage and fragmentation, since a bounded number of
@@ -618,6 +618,64 @@ but small enough to fit in an arena-managed chunk (see the
 option), are rounded up to the nearest run size.
 Allocation requests that are too large to fit in an arena-managed chunk are
 rounded up to the nearest multiple of the chunk size.
+.Pp
+Assuming 4 MiB chunks, 4 KiB pages, and a 16 byte quantum on a 64-bit system,
+the size classes in each category are as follows:
+.TS
+expand allbox tab(;);
+LLR
+LLR
+^LR
+^^R
+^^R
+^^R
+^^R
+^LR
+^^R
+^^R
+^^R
+^^R
+^LR
+^^R
+^^R
+^^R
+^^R
+LsR
+^^R
+^^R
+^^R
+^^R
+LsR
+^^R
+^^R
+^^R.
+Category;Subcategory;Size
+Small;Tiny;8
+;Quantum-spaced;16
+;;32
+;;48
+;;...
+;;128
+;Cacheline-spaced;192
+;;256
+;;320
+;;...
+;;512
+;Sub-page;760
+;;1024
+;;1280
+;;...
+;;3840
+Large;4 KiB
+;;8 KiB
+;;12 KiB
+;;...
+;;4084 KiB
+Huge;4 MiB
+;;8 MiB
+;;12 MiB
+;;...
+.TE
 .Pp
 Allocations are packed tightly together, which can be an issue for
 multi-threaded applications.

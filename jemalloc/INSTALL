@@ -217,3 +217,10 @@ directory, issue configuration and build commands:
     cd obj
     ../configure --enable-autogen
     make
+
+=== Documentation ==============================================================
+
+The manual page that the configure script generates can be manually formatted
+prior to installation via the following command:
+
+    nroff -man -t doc/jemalloc.3
