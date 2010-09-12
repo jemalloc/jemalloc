@@ -22,9 +22,4 @@ Alignment: 4194304
 Alignment: 8388608
 Alignment: 16777216
 Alignment: 33554432
-Alignment: 67108864
-Alignment: 134217728
-Alignment: 268435456
-Alignment: 536870912
-Alignment: 1073741824
 Test end

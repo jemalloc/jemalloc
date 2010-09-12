@@ -70,16 +70,16 @@ extern __thread tcache_t	*tcache_tls
     JEMALLOC_ATTR(tls_model("initial-exec"));
 #  define TCACHE_GET()	tcache_tls
 #  define TCACHE_SET(v)	do {						\
-	tcache_tls = (v);						\
+	tcache_tls = (tcache_t *)(v);					\
 	pthread_setspecific(tcache_tsd, (void *)(v));			\
 } while (0)
 #else
-extern pthread_key_t		tcache_tsd;
 #  define TCACHE_GET()	((tcache_t *)pthread_getspecific(tcache_tsd))
 #  define TCACHE_SET(v)	do {						\
 	pthread_setspecific(tcache_tsd, (void *)(v));			\
 } while (0)
 #endif
+extern pthread_key_t		tcache_tsd;
 
 /*
  * Number of tcache bins.  There are nbins small-object bins, plus 0 or more
