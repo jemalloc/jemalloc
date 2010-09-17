@@ -432,8 +432,8 @@ void	arena_prof_accum(arena_t *arena, uint64_t accumbytes);
 void	*arena_malloc_small(arena_t *arena, size_t size, bool zero);
 void	*arena_malloc_large(arena_t *arena, size_t size, bool zero);
 void	*arena_malloc(size_t size, bool zero);
-void	*arena_palloc(arena_t *arena, size_t alignment, size_t size,
-    size_t alloc_size);
+void	*arena_palloc(arena_t *arena, size_t size, size_t alloc_size,
+    size_t alignment, bool zero);
 size_t	arena_salloc(const void *ptr);
 #ifdef JEMALLOC_PROF
 void	arena_prof_promoted(const void *ptr, size_t size);
@@ -449,7 +449,10 @@ void	arena_stats_merge(arena_t *arena, size_t *nactive, size_t *ndirty,
     arena_stats_t *astats, malloc_bin_stats_t *bstats,
     malloc_large_stats_t *lstats);
 #endif
-void	*arena_ralloc(void *ptr, size_t size, size_t oldsize);
+void	*arena_ralloc_no_move(void *ptr, size_t oldsize, size_t size,
+    size_t extra, bool zero);
+void	*arena_ralloc(void *ptr, size_t oldsize, size_t size, size_t extra,
+    size_t alignment, bool zero);
 bool	arena_new(arena_t *arena, unsigned ind);
 bool	arena_boot(void);
 

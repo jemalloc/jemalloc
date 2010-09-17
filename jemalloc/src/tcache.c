@@ -209,7 +209,9 @@ tcache_create(arena_t *arena)
 	 * Round up to the nearest multiple of the cacheline size, in order to
 	 * avoid the possibility of false cacheline sharing.
 	 *
-	 * That this works relies on the same logic as in ipalloc().
+	 * That this works relies on the same logic as in ipalloc(), but we
+	 * cannot directly call ipalloc() here due to tcache bootstrapping
+	 * issues.
 	 */
 	size = (size + CACHELINE_MASK) & (-CACHELINE);
 

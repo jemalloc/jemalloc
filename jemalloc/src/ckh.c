@@ -263,13 +263,12 @@ ckh_grow(ckh_t *ckh)
 	lg_curcells = ckh->lg_curbuckets + LG_CKH_BUCKET_CELLS;
 	while (true) {
 		lg_curcells++;
-		tab = (ckhc_t *) ipalloc((ZU(1) << LG_CACHELINE),
-		    sizeof(ckhc_t) << lg_curcells);
+		tab = (ckhc_t *)ipalloc(sizeof(ckhc_t) << lg_curcells,
+		    ZU(1) << LG_CACHELINE, true);
 		if (tab == NULL) {
 			ret = true;
 			goto RETURN;
 		}
-		memset(tab, 0, sizeof(ckhc_t) << lg_curcells);
 		/* Swap in new table. */
 		ttab = ckh->tab;
 		ckh->tab = tab;
@@ -305,8 +304,8 @@ ckh_shrink(ckh_t *ckh)
 	 */
 	lg_prevbuckets = ckh->lg_curbuckets;
 	lg_curcells = ckh->lg_curbuckets + LG_CKH_BUCKET_CELLS - 1;
-	tab = (ckhc_t *)ipalloc((ZU(1) << LG_CACHELINE),
-	    sizeof(ckhc_t) << lg_curcells);
+	tab = (ckhc_t *)ipalloc(sizeof(ckhc_t) << lg_curcells,
+	    ZU(1) << LG_CACHELINE, true);
 	if (tab == NULL) {
 		/*
 		 * An OOM error isn't worth propagating, since it doesn't
@@ -314,7 +313,6 @@ ckh_shrink(ckh_t *ckh)
 		 */
 		return;
 	}
-	memset(tab, 0, sizeof(ckhc_t) << lg_curcells);
 	/* Swap in new table. */
 	ttab = ckh->tab;
 	ckh->tab = tab;
@@ -377,13 +375,12 @@ ckh_new(ckh_t *ckh, size_t minitems, ckh_hash_t *hash, ckh_keycomp_t *keycomp)
 	ckh->hash = hash;
 	ckh->keycomp = keycomp;
 
-	ckh->tab = (ckhc_t *)ipalloc((ZU(1) << LG_CACHELINE),
-	    sizeof(ckhc_t) << lg_mincells);
+	ckh->tab = (ckhc_t *)ipalloc(sizeof(ckhc_t) << lg_mincells,
+	    (ZU(1) << LG_CACHELINE), true);
 	if (ckh->tab == NULL) {
 		ret = true;
 		goto RETURN;
 	}
-	memset(ckh->tab, 0, sizeof(ckhc_t) << lg_mincells);
 
 #ifdef JEMALLOC_DEBUG
 	ckh->magic = CKH_MAGIG;

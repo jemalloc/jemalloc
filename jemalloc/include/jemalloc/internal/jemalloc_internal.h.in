@@ -84,6 +84,8 @@ extern void	(*JEMALLOC_P(malloc_message))(void *wcbopaque, const char *s);
 /******************************************************************************/
 #define JEMALLOC_H_TYPES
 
+#define	ALLOCM_LG_ALIGN_MASK	((int)0x3f)
+
 #define	ZU(z)	((size_t)z)
 
 #ifndef __DECONST
@@ -391,12 +393,13 @@ choose_arena(void)
 #ifndef JEMALLOC_ENABLE_INLINE
 void	*imalloc(size_t size);
 void	*icalloc(size_t size);
-void	*ipalloc(size_t alignment, size_t size);
+void	*ipalloc(size_t size, size_t alignment, bool zero);
 size_t	isalloc(const void *ptr);
 #  ifdef JEMALLOC_IVSALLOC
 size_t	ivsalloc(const void *ptr);
 #  endif
-void	*iralloc(void *ptr, size_t size);
+void	*iralloc(void *ptr, size_t size, size_t extra, size_t alignment,
+    bool zero, bool no_move);
 void	idalloc(void *ptr);
 #endif
 
@@ -424,7 +427,7 @@ icalloc(size_t size)
 }
 
 JEMALLOC_INLINE void *
-ipalloc(size_t alignment, size_t size)
+ipalloc(size_t size, size_t alignment, bool zero)
 {
 	void *ret;
 	size_t ceil_size;
@@ -459,7 +462,7 @@ ipalloc(size_t alignment, size_t size)
 
 	if (ceil_size <= PAGE_SIZE || (alignment <= PAGE_SIZE
 	    && ceil_size <= arena_maxclass))
-		ret = arena_malloc(ceil_size, false);
+		ret = arena_malloc(ceil_size, zero);
 	else {
 		size_t run_size;
 
@@ -506,12 +509,12 @@ ipalloc(size_t alignment, size_t size)
 		}
 
 		if (run_size <= arena_maxclass) {
-			ret = arena_palloc(choose_arena(), alignment, ceil_size,
-			    run_size);
+			ret = arena_palloc(choose_arena(), ceil_size, run_size,
+			    alignment, zero);
 		} else if (alignment <= chunksize)
-			ret = huge_malloc(ceil_size, false);
+			ret = huge_malloc(ceil_size, zero);
 		else
-			ret = huge_palloc(alignment, ceil_size);
+			ret = huge_palloc(ceil_size, alignment, zero);
 	}
 
 	assert(((uintptr_t)ret & (alignment - 1)) == 0);
@@ -556,8 +559,10 @@ ivsalloc(const void *ptr)
 #endif
 
 JEMALLOC_INLINE void *
-iralloc(void *ptr, size_t size)
+iralloc(void *ptr, size_t size, size_t extra, size_t alignment, bool zero,
+    bool no_move)
 {
+	void *ret;
 	size_t oldsize;
 
 	assert(ptr != NULL);
@@ -565,10 +570,53 @@ iralloc(void *ptr, size_t size)
 
 	oldsize = isalloc(ptr);
 
-	if (size <= arena_maxclass)
-		return (arena_ralloc(ptr, size, oldsize));
-	else
-		return (huge_ralloc(ptr, size, oldsize));
+	if (alignment != 0 && ((uintptr_t)ptr & ((uintptr_t)alignment-1))
+	    != 0) {
+		size_t copysize;
+
+		/*
+		 * Existing object alignment is inadquate; allocate new space
+		 * and copy.
+		 */
+		if (no_move)
+			return (NULL);
+		ret = ipalloc(size + extra, alignment, zero);
+		if (ret == NULL) {
+			if (extra == 0)
+				return (NULL);
+			/* Try again, without extra this time. */
+			ret = ipalloc(size, alignment, zero);
+			if (ret == NULL)
+				return (NULL);
+		}
+		/*
+		 * Copy at most size bytes (not size+extra), since the caller
+		 * has no expectation that the extra bytes will be reliably
+		 * preserved.
+		 */
+		copysize = (size < oldsize) ? size : oldsize;
+		memcpy(ret, ptr, copysize);
+		idalloc(ptr);
+		return (ret);
+	}
+
+	if (no_move) {
+		if (size <= arena_maxclass) {
+			return (arena_ralloc_no_move(ptr, oldsize, size,
+			    extra, zero));
+		} else {
+			return (huge_ralloc_no_move(ptr, oldsize, size,
+			    extra));
+		}
+	} else {
+		if (size + extra <= arena_maxclass) {
+			return (arena_ralloc(ptr, oldsize, size, extra,
+			    alignment, zero));
+		} else {
+			return (huge_ralloc(ptr, oldsize, size, extra,
+			    alignment, zero));
+		}
+	}
 }
 
 JEMALLOC_INLINE void

@@ -177,10 +177,11 @@ static size_t	arena_bin_run_size_calc(arena_bin_t *bin, size_t min_run_size);
 static void	arena_dalloc_bin_run(arena_t *arena, arena_chunk_t *chunk,
     arena_run_t *run, arena_bin_t *bin);
 static void	arena_ralloc_large_shrink(arena_t *arena, arena_chunk_t *chunk,
-    void *ptr, size_t size, size_t oldsize);
+    void *ptr, size_t oldsize, size_t size);
 static bool	arena_ralloc_large_grow(arena_t *arena, arena_chunk_t *chunk,
-    void *ptr, size_t size, size_t oldsize);
-static bool	arena_ralloc_large(void *ptr, size_t size, size_t oldsize);
+    void *ptr, size_t oldsize, size_t size, size_t extra, bool zero);
+static bool	arena_ralloc_large(void *ptr, size_t oldsize, size_t size,
+    size_t extra, bool zero);
 static bool	small_size2bin_init(void);
 #ifdef JEMALLOC_DEBUG
 static void	small_size2bin_validate(void);
@@ -1438,7 +1439,8 @@ arena_malloc(size_t size, bool zero)
 
 /* Only handles large allocations that require more than page alignment. */
 void *
-arena_palloc(arena_t *arena, size_t alignment, size_t size, size_t alloc_size)
+arena_palloc(arena_t *arena, size_t size, size_t alloc_size, size_t alignment,
+    bool zero)
 {
 	void *ret;
 	size_t offset;
@@ -1448,7 +1450,7 @@ arena_palloc(arena_t *arena, size_t alignment, size_t size, size_t alloc_size)
 	assert((alignment & PAGE_MASK) == 0);
 
 	malloc_mutex_lock(&arena->lock);
-	ret = (void *)arena_run_alloc(arena, alloc_size, true, false);
+	ret = (void *)arena_run_alloc(arena, alloc_size, true, zero);
 	if (ret == NULL) {
 		malloc_mutex_unlock(&arena->lock);
 		return (NULL);
@@ -1496,10 +1498,12 @@ arena_palloc(arena_t *arena, size_t alignment, size_t size, size_t alloc_size)
 	malloc_mutex_unlock(&arena->lock);
 
 #ifdef JEMALLOC_FILL
-	if (opt_junk)
-		memset(ret, 0xa5, size);
-	else if (opt_zero)
-		memset(ret, 0, size);
+	if (zero == false) {
+		if (opt_junk)
+			memset(ret, 0xa5, size);
+		else if (opt_zero)
+			memset(ret, 0, size);
+	}
 #endif
 	return (ret);
 }
@@ -1944,7 +1948,7 @@ arena_dalloc_large(arena_t *arena, arena_chunk_t *chunk, void *ptr)
 
 static void
 arena_ralloc_large_shrink(arena_t *arena, arena_chunk_t *chunk, void *ptr,
-    size_t size, size_t oldsize)
+    size_t oldsize, size_t size)
 {
 
 	assert(size < oldsize);
@@ -1979,27 +1983,29 @@ arena_ralloc_large_shrink(arena_t *arena, arena_chunk_t *chunk, void *ptr,
 
 static bool
 arena_ralloc_large_grow(arena_t *arena, arena_chunk_t *chunk, void *ptr,
-    size_t size, size_t oldsize)
+    size_t oldsize, size_t size, size_t extra, bool zero)
 {
 	size_t pageind = ((uintptr_t)ptr - (uintptr_t)chunk) >> PAGE_SHIFT;
 	size_t npages = oldsize >> PAGE_SHIFT;
+	size_t followsize;
 
 	assert(oldsize == (chunk->map[pageind].bits & ~PAGE_MASK));
 
 	/* Try to extend the run. */
-	assert(size > oldsize);
+	assert(size + extra > oldsize);
 	malloc_mutex_lock(&arena->lock);
 	if (pageind + npages < chunk_npages && (chunk->map[pageind+npages].bits
-	    & CHUNK_MAP_ALLOCATED) == 0 && (chunk->map[pageind+npages].bits &
-	    ~PAGE_MASK) >= size - oldsize) {
+	    & CHUNK_MAP_ALLOCATED) == 0 && (followsize =
+	    chunk->map[pageind+npages].bits & ~PAGE_MASK) >= size - oldsize) {
 		/*
 		 * The next run is available and sufficiently large.  Split the
 		 * following run, then merge the first part with the existing
 		 * allocation.
 		 */
+		size_t splitsize = (oldsize + followsize <= size + extra)
+		    ? followsize : size + extra - oldsize;
 		arena_run_split(arena, (arena_run_t *)((uintptr_t)chunk +
-		    ((pageind+npages) << PAGE_SHIFT)), size - oldsize, true,
-		    false);
+		    ((pageind+npages) << PAGE_SHIFT)), splitsize, true, zero);
 
 		chunk->map[pageind].bits = size | CHUNK_MAP_LARGE |
 		    CHUNK_MAP_ALLOCATED;
@@ -2037,11 +2043,12 @@ arena_ralloc_large_grow(arena_t *arena, arena_chunk_t *chunk, void *ptr,
  * always fail if growing an object, and the following run is already in use.
  */
 static bool
-arena_ralloc_large(void *ptr, size_t size, size_t oldsize)
+arena_ralloc_large(void *ptr, size_t oldsize, size_t size, size_t extra,
+    bool zero)
 {
 	size_t psize;
 
-	psize = PAGE_CEILING(size);
+	psize = PAGE_CEILING(size + extra);
 	if (psize == oldsize) {
 		/* Same size class. */
 #ifdef JEMALLOC_FILL
@@ -2067,14 +2074,15 @@ arena_ralloc_large(void *ptr, size_t size, size_t oldsize)
 				    oldsize - size);
 			}
 #endif
-			arena_ralloc_large_shrink(arena, chunk, ptr, psize,
-			    oldsize);
+			arena_ralloc_large_shrink(arena, chunk, ptr, oldsize,
+			    psize);
 			return (false);
 		} else {
 			bool ret = arena_ralloc_large_grow(arena, chunk, ptr,
-			    psize, oldsize);
+			    oldsize, PAGE_CEILING(size),
+			    psize - PAGE_CEILING(size), zero);
 #ifdef JEMALLOC_FILL
-			if (ret == false && opt_zero) {
+			if (ret == false && zero == false && opt_zero) {
 				memset((void *)((uintptr_t)ptr + oldsize), 0,
 				    size - oldsize);
 			}
@@ -2085,49 +2093,89 @@ arena_ralloc_large(void *ptr, size_t size, size_t oldsize)
 }
 
 void *
-arena_ralloc(void *ptr, size_t size, size_t oldsize)
+arena_ralloc_no_move(void *ptr, size_t oldsize, size_t size, size_t extra,
+    bool zero)
 {
-	void *ret;
-	size_t copysize;
 
-	/* Try to avoid moving the allocation. */
+	/*
+	 * Avoid moving the allocation if the size class can be left the same.
+	 */
 	if (oldsize <= arena_maxclass) {
 		if (oldsize <= small_maxclass) {
-			if (size <= small_maxclass && small_size2bin[size] ==
-			    small_size2bin[oldsize])
-				goto IN_PLACE;
+			assert(choose_arena()->bins[small_size2bin[
+			    oldsize]].reg_size == oldsize);
+			if ((size + extra <= small_maxclass &&
+			    small_size2bin[size + extra] ==
+			    small_size2bin[oldsize]) || (size <= oldsize &&
+			    size + extra >= oldsize)) {
+#ifdef JEMALLOC_FILL
+				if (opt_junk && size < oldsize) {
+					memset((void *)((uintptr_t)ptr + size),
+					    0x5a, oldsize - size);
+				}
+#endif
+				return (ptr);
+			}
 		} else {
 			assert(size <= arena_maxclass);
-			if (size > small_maxclass) {
-				if (arena_ralloc_large(ptr, size, oldsize) ==
-				    false)
+			if (size + extra > small_maxclass) {
+				if (arena_ralloc_large(ptr, oldsize, size,
+				    extra, zero) == false)
 					return (ptr);
 			}
 		}
 	}
 
-	/*
-	 * If we get here, then size and oldsize are different enough that we
-	 * need to move the object.  In that case, fall back to allocating new
-	 * space and copying.
-	 */
-	ret = arena_malloc(size, false);
-	if (ret == NULL)
-		return (NULL);
+	/* Reallocation would require a move. */
+	return (NULL);
+}
 
-	/* Junk/zero-filling were already done by arena_malloc(). */
+void *
+arena_ralloc(void *ptr, size_t oldsize, size_t size, size_t extra,
+    size_t alignment, bool zero)
+{
+	void *ret;
+	size_t copysize;
+
+	/* Try to avoid moving the allocation. */
+	ret = arena_ralloc_no_move(ptr, oldsize, size, extra, zero);
+	if (ret != NULL)
+		return (ret);
+
+
+	/*
+	 * size and oldsize are different enough that we need to move the
+	 * object.  In that case, fall back to allocating new space and
+	 * copying.
+	 */
+	if (alignment != 0)
+		ret = ipalloc(size + extra, alignment, zero);
+	else
+		ret = arena_malloc(size + extra, zero);
+
+	if (ret == NULL) {
+		if (extra == 0)
+			return (NULL);
+		/* Try again, this time without extra. */
+		if (alignment != 0)
+			ret = ipalloc(size, alignment, zero);
+		else
+			ret = arena_malloc(size, zero);
+
+		if (ret == NULL)
+			return (NULL);
+	}
+
+	/* Junk/zero-filling were already done by ipalloc()/arena_malloc(). */
+
+	/*
+	 * Copy at most size bytes (not size+extra), since the caller has no
+	 * expectation that the extra bytes will be reliably preserved.
+	 */
 	copysize = (size < oldsize) ? size : oldsize;
 	memcpy(ret, ptr, copysize);
 	idalloc(ptr);
 	return (ret);
-IN_PLACE:
-#ifdef JEMALLOC_FILL
-	if (opt_junk && size < oldsize)
-		memset((void *)((uintptr_t)ptr + size), 0x5a, oldsize - size);
-	else if (opt_zero && size > oldsize)
-		memset((void *)((uintptr_t)ptr + oldsize), 0, size - oldsize);
-#endif
-	return (ptr);
 }
 
 bool

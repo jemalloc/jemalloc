@@ -854,18 +854,20 @@ JEMALLOC_P(posix_memalign)(void **memptr, size_t alignment, size_t size)
 			} else {
 				if (prof_promote && (uintptr_t)cnt !=
 				    (uintptr_t)1U && size <= small_maxclass) {
-					result = ipalloc(alignment,
-					    small_maxclass+1);
+					result = ipalloc(small_maxclass+1,
+					    alignment, false);
 					if (result != NULL) {
 						arena_prof_promoted(result,
 						    size);
 					}
-				} else
-					result = ipalloc(alignment, size);
+				} else {
+					result = ipalloc(size, alignment,
+					    false);
+				}
 			}
 		} else
 #endif
-			result = ipalloc(alignment, size);
+			result = ipalloc(size, alignment, false);
 	}
 
 	if (result == NULL) {
@@ -1023,14 +1025,15 @@ JEMALLOC_P(realloc)(void *ptr, size_t size)
 			}
 			if (prof_promote && (uintptr_t)cnt != (uintptr_t)1U &&
 			    size <= small_maxclass) {
-				ret = iralloc(ptr, small_maxclass+1);
+				ret = iralloc(ptr, small_maxclass+1, 0, 0,
+				    false, false);
 				if (ret != NULL)
 					arena_prof_promoted(ret, size);
 			} else
-				ret = iralloc(ptr, size);
+				ret = iralloc(ptr, size, 0, 0, false, false);
 		} else
 #endif
-			ret = iralloc(ptr, size);
+			ret = iralloc(ptr, size, 0, 0, false, false);
 
 #ifdef JEMALLOC_PROF
 OOM:
@@ -1133,6 +1136,8 @@ JEMALLOC_P(malloc_usable_size)(const void *ptr)
 {
 	size_t ret;
 
+	assert(malloc_initialized || malloc_initializer == pthread_self());
+
 #ifdef JEMALLOC_IVSALLOC
 	ret = ivsalloc(ptr);
 #else
@@ -1202,6 +1207,184 @@ JEMALLOC_P(mallctlbymib)(const size_t *mib, size_t miblen, void *oldp,
 		return (EAGAIN);
 
 	return (ctl_bymib(mib, miblen, oldp, oldlenp, newp, newlen));
+}
+
+JEMALLOC_INLINE void *
+iallocm(size_t size, size_t alignment, bool zero)
+{
+
+	if (alignment != 0)
+		return (ipalloc(size, alignment, zero));
+	else if (zero)
+		return (icalloc(size));
+	else
+		return (imalloc(size));
+}
+
+JEMALLOC_ATTR(visibility("default"))
+int
+JEMALLOC_P(allocm)(void **ptr, size_t *rsize, size_t size, int flags)
+{
+	void *p;
+	size_t alignment = (ZU(1) << (flags & ALLOCM_LG_ALIGN_MASK)
+	    & (SIZE_T_MAX-1));
+	bool zero = flags & ALLOCM_ZERO;
+#ifdef JEMALLOC_PROF
+	prof_thr_cnt_t *cnt;
+#endif
+
+	assert(ptr != NULL);
+	assert(size != 0);
+
+	if (malloc_init())
+		goto OOM;
+
+#ifdef JEMALLOC_PROF
+	if (opt_prof) {
+		if ((cnt = prof_alloc_prep(size)) == NULL)
+			goto OOM;
+		if (prof_promote && (uintptr_t)cnt != (uintptr_t)1U && size <=
+		    small_maxclass) {
+			p = iallocm(small_maxclass+1, alignment, zero);
+			if (p == NULL)
+				goto OOM;
+			arena_prof_promoted(p, size);
+		} else {
+			p = iallocm(size, alignment, zero);
+			if (p == NULL)
+				goto OOM;
+		}
+	} else
+#endif
+	{
+		p = iallocm(size, alignment, zero);
+		if (p == NULL)
+			goto OOM;
+	}
+
+	*ptr = p;
+	if (rsize != NULL)
+		*rsize = isalloc(p);
+	return (ALLOCM_SUCCESS);
+OOM:
+#ifdef JEMALLOC_XMALLOC
+	if (opt_xmalloc) {
+		malloc_write("<jemalloc>: Error in allocm(): "
+		    "out of memory\n");
+		abort();
+	}
+#endif
+	*ptr = NULL;
+	return (ALLOCM_ERR_OOM);
+}
+
+JEMALLOC_ATTR(visibility("default"))
+int
+JEMALLOC_P(rallocm)(void **ptr, size_t *rsize, size_t size, size_t extra,
+    int flags)
+{
+	void *p, *q;
+	size_t alignment = (ZU(1) << (flags & ALLOCM_LG_ALIGN_MASK)
+	    & (SIZE_T_MAX-1));
+	bool zero = flags & ALLOCM_ZERO;
+	bool no_move = flags & ALLOCM_NO_MOVE;
+#ifdef JEMALLOC_PROF
+	size_t old_size;
+	prof_thr_cnt_t *cnt;
+	prof_ctx_t *old_ctx;
+#endif
+
+	assert(ptr != NULL);
+	assert(*ptr != NULL);
+	assert(size != 0);
+	assert(SIZE_T_MAX - size >= extra);
+	assert(malloc_initialized || malloc_initializer == pthread_self());
+
+	p = *ptr;
+#ifdef JEMALLOC_PROF
+	if (opt_prof) {
+		old_size = isalloc(p);
+		old_ctx = prof_ctx_get(p);
+		if ((cnt = prof_alloc_prep(size)) == NULL)
+			goto OOM;
+		if (prof_promote && (uintptr_t)cnt != (uintptr_t)1U && size <=
+		    small_maxclass) {
+			q = iralloc(p, small_maxclass+1, (small_maxclass+1 >=
+			    size+extra) ? 0 : size+extra - (small_maxclass+1),
+			    alignment, zero, no_move);
+			if (q == NULL)
+				goto ERR;
+			arena_prof_promoted(q, size);
+		} else {
+			q = iralloc(p, size, extra, alignment, zero, no_move);
+			if (q == NULL)
+				goto ERR;
+		}
+		prof_realloc(q, cnt, p, old_size, old_ctx);
+	} else
+#endif
+	{
+		q = iralloc(p, size, extra, alignment, zero, no_move);
+		if (q == NULL)
+			goto ERR;
+	}
+
+	*ptr = q;
+	if (rsize != NULL)
+		*rsize = isalloc(q);
+
+	return (ALLOCM_SUCCESS);
+ERR:
+	if (no_move)
+		return (ALLOCM_ERR_NOT_MOVED);
+#ifdef JEMALLOC_PROF
+OOM:
+#endif
+#ifdef JEMALLOC_XMALLOC
+	if (opt_xmalloc) {
+		malloc_write("<jemalloc>: Error in rallocm(): "
+		    "out of memory\n");
+		abort();
+	}
+#endif
+	return (ALLOCM_ERR_OOM);
+}
+
+JEMALLOC_ATTR(visibility("default"))
+int
+JEMALLOC_P(sallocm)(const void *ptr, size_t *rsize, int flags)
+{
+	size_t sz;
+
+	assert(malloc_initialized || malloc_initializer == pthread_self());
+
+#ifdef JEMALLOC_IVSALLOC
+	sz = ivsalloc(ptr);
+#else
+	assert(ptr != NULL);
+	sz = isalloc(ptr);
+#endif
+	assert(rsize != NULL);
+	*rsize = sz;
+
+	return (ALLOCM_SUCCESS);
+}
+
+JEMALLOC_ATTR(visibility("default"))
+int
+JEMALLOC_P(dallocm)(void *ptr, int flags)
+{
+
+	assert(ptr != NULL);
+	assert(malloc_initialized || malloc_initializer == pthread_self());
+
+#ifdef JEMALLOC_PROF
+	if (opt_prof)
+		prof_free(ptr);
+#endif
+	idalloc(ptr);
+
+	return (ALLOCM_SUCCESS);
 }
 
 /*

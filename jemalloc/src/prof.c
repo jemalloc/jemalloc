@@ -90,7 +90,7 @@ prof_sample_state_t prof_sample_state_oom;
 	r = (prof_sample_state_t *)pthread_getspecific(			\
 	    prof_sample_state_tsd);					\
 	if (r == NULL) {						\
-		r = ipalloc(CACHELINE, sizeof(prof_sample_state_t));	\
+		r = ipalloc(sizeof(prof_sample_state_t), CACHELINE);	\
 		if (r == NULL) {					\
 			malloc_write("<jemalloc>: Error in heap "	\
 			    "profiler: out of memory; subsequent heap "	\

@@ -69,12 +69,11 @@ huge_malloc(size_t size, bool zero)
 
 /* Only handles large allocations that require more than chunk alignment. */
 void *
-huge_palloc(size_t alignment, size_t size)
+huge_palloc(size_t size, size_t alignment, bool zero)
 {
 	void *ret;
 	size_t alloc_size, chunk_size, offset;
 	extent_node_t *node;
-	bool zero;
 
 	/*
 	 * This allocation requires alignment that is even larger than chunk
@@ -98,7 +97,6 @@ huge_palloc(size_t alignment, size_t size)
 	if (node == NULL)
 		return (NULL);
 
-	zero = false;
 	ret = chunk_alloc(alloc_size, false, &zero);
 	if (ret == NULL) {
 		base_node_dealloc(node);
@@ -142,45 +140,80 @@ huge_palloc(size_t alignment, size_t size)
 	malloc_mutex_unlock(&huge_mtx);
 
 #ifdef JEMALLOC_FILL
-	if (opt_junk)
-		memset(ret, 0xa5, chunk_size);
-	else if (opt_zero)
-		memset(ret, 0, chunk_size);
+	if (zero == false) {
+		if (opt_junk)
+			memset(ret, 0xa5, chunk_size);
+		else if (opt_zero)
+			memset(ret, 0, chunk_size);
+	}
 #endif
 
 	return (ret);
 }
 
 void *
-huge_ralloc(void *ptr, size_t size, size_t oldsize)
+huge_ralloc_no_move(void *ptr, size_t oldsize, size_t size, size_t extra)
 {
-	void *ret;
-	size_t copysize;
 
-	/* Avoid moving the allocation if the size class would not change. */
-	if (oldsize > arena_maxclass &&
-	    CHUNK_CEILING(size) == CHUNK_CEILING(oldsize)) {
+	/*
+	 * Avoid moving the allocation if the size class can be left the same.
+	 */
+	if (oldsize > arena_maxclass
+	    && CHUNK_CEILING(oldsize) >= CHUNK_CEILING(size)
+	    && CHUNK_CEILING(oldsize) <= CHUNK_CEILING(size+extra)) {
+		assert(CHUNK_CEILING(oldsize) == oldsize);
 #ifdef JEMALLOC_FILL
 		if (opt_junk && size < oldsize) {
-			memset((void *)((uintptr_t)ptr + size), 0x5a, oldsize
-			    - size);
-		} else if (opt_zero && size > oldsize) {
-			memset((void *)((uintptr_t)ptr + oldsize), 0, size
-			    - oldsize);
+			memset((void *)((uintptr_t)ptr + size), 0x5a,
+			    oldsize - size);
 		}
 #endif
 		return (ptr);
 	}
 
-	/*
-	 * If we get here, then size and oldsize are different enough that we
-	 * need to use a different size class.  In that case, fall back to
-	 * allocating new space and copying.
-	 */
-	ret = huge_malloc(size, false);
-	if (ret == NULL)
-		return (NULL);
+	/* Reallocation would require a move. */
+	return (NULL);
+}
 
+void *
+huge_ralloc(void *ptr, size_t oldsize, size_t size, size_t extra,
+    size_t alignment, bool zero)
+{
+	void *ret;
+	size_t copysize;
+
+	/* Try to avoid moving the allocation. */
+	ret = huge_ralloc_no_move(ptr, oldsize, size, extra);
+	if (ret != NULL)
+		return (ret);
+
+	/*
+	 * size and oldsize are different enough that we need to use a
+	 * different size class.  In that case, fall back to allocating new
+	 * space and copying.
+	 */
+	if (alignment != 0)
+		ret = huge_palloc(size + extra, alignment, zero);
+	else
+		ret = huge_malloc(size + extra, zero);
+
+	if (ret == NULL) {
+		if (extra == 0)
+			return (NULL);
+		/* Try again, this time without extra. */
+		if (alignment != 0)
+			ret = huge_palloc(size, alignment, zero);
+		else
+			ret = huge_malloc(size, zero);
+
+		if (ret == NULL)
+			return (NULL);
+	}
+
+	/*
+	 * Copy at most size bytes (not size+extra), since the caller has no
+	 * expectation that the extra bytes will be reliably preserved.
+	 */
 	copysize = (size < oldsize) ? size : oldsize;
 	memcpy(ret, ptr, copysize);
 	idalloc(ptr);

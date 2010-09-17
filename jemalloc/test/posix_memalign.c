@@ -7,7 +7,7 @@
 #define	JEMALLOC_MANGLE
 #include "jemalloc/jemalloc.h"
 
-#define CHUNK 0x100000
+#define CHUNK 0x400000
 /* #define MAXALIGN ((size_t)0x80000000000LLU) */
 #define MAXALIGN ((size_t)0x2000000LLU)
 #define NITER 4
@@ -117,6 +117,5 @@ main(void)
 	}
 
 	fprintf(stderr, "Test end\n");
-
-	return 0;
+	return (0);
 }

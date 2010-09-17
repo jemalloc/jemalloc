@@ -58,7 +58,8 @@ DSOS := @objroot@lib/libjemalloc@install_suffix@.$(SO).$(REV) \
 	@objroot@lib/libjemalloc@install_suffix@.$(SO) \
 	@objroot@lib/libjemalloc@install_suffix@_pic.a
 MAN3 := @objroot@doc/jemalloc@install_suffix@.3
-CTESTS := @srcroot@test/posix_memalign.c @srcroot@test/thread_arena.c
+CTESTS := @srcroot@test/allocm.c @srcroot@test/posix_memalign.c \
+	@srcroot@test/rallocm.c @srcroot@test/thread_arena.c
 
 .PHONY: all dist install check clean distclean relclean
 
