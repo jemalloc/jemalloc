@@ -51,11 +51,13 @@ int	JEMALLOC_P(mallctlnametomib)(const char *name, size_t *mibp,
 int	JEMALLOC_P(mallctlbymib)(const size_t *mib, size_t miblen, void *oldp,
     size_t *oldlenp, void *newp, size_t newlen);
 
-int	JEMALLOC_P(allocm)(void **ptr, size_t *rsize, size_t size, int flags);
+int	JEMALLOC_P(allocm)(void **ptr, size_t *rsize, size_t size, int flags)
+    JEMALLOC_ATTR(nonnull(1));
 int	JEMALLOC_P(rallocm)(void **ptr, size_t *rsize, size_t size,
-    size_t extra, int flags);
-int	JEMALLOC_P(sallocm)(const void *ptr, size_t *rsize, int flags);
-int	JEMALLOC_P(dallocm)(void *ptr, int flags);
+    size_t extra, int flags) JEMALLOC_ATTR(nonnull(1));
+int	JEMALLOC_P(sallocm)(const void *ptr, size_t *rsize, int flags)
+    JEMALLOC_ATTR(nonnull(1));
+int	JEMALLOC_P(dallocm)(void *ptr, int flags) JEMALLOC_ATTR(nonnull(1));
 
 #ifdef __cplusplus
 };
