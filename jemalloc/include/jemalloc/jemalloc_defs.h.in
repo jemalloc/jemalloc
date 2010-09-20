@@ -99,6 +99,13 @@
 #undef JEMALLOC_IVSALLOC
 
 /*
+ * Define overrides for non-standard allocator-related functions if they
+ * are present on the system.
+ */
+#undef JEMALLOC_OVERRIDE_MEMALIGN
+#undef JEMALLOC_OVERRIDE_VALLOC
+
+/*
  * Darwin (OS X) uses zones to work around Mach-O symbol override shortcomings.
  */
 #undef JEMALLOC_ZONE

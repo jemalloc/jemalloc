@@ -711,6 +711,14 @@ if test "x${enable_tls}" = "x0" ; then
 fi
 
 dnl ============================================================================
+dnl Check for allocator-related functions that should be wrapped.
+
+AC_CHECK_FUNC([memalign],
+	      [AC_DEFINE([JEMALLOC_OVERRIDE_MEMALIGN])])
+AC_CHECK_FUNC([valloc],
+	      [AC_DEFINE([JEMALLOC_OVERRIDE_VALLOC])])
+
+dnl ============================================================================
 dnl Darwin-related configuration.
 
 if test "x${abi}" = "xmacho" ; then

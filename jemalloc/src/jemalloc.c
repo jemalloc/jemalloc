@@ -1146,6 +1146,45 @@ JEMALLOC_P(free)(void *ptr)
  */
 /******************************************************************************/
 /*
+ * Begin non-standard override functions.
+ *
+ * These overrides are omitted if the JEMALLOC_PREFIX is defined, since the
+ * entire point is to avoid accidental mixed allocator usage.
+ */
+#ifndef JEMALLOC_PREFIX
+
+#ifdef JEMALLOC_OVERRIDE_MEMALIGN
+JEMALLOC_ATTR(malloc)
+JEMALLOC_ATTR(visibility("default"))
+void *
+JEMALLOC_P(memalign)(size_t alignment, size_t size)
+{
+	void *ret;
+
+	posix_memalign(&ret, alignment, size);
+	return (ret);
+}
+#endif
+
+#ifdef JEMALLOC_OVERRIDE_VALLOC
+JEMALLOC_ATTR(malloc)
+JEMALLOC_ATTR(visibility("default"))
+void *
+JEMALLOC_P(valloc)(size_t size)
+{
+	void *ret;
+
+	posix_memalign(&ret, PAGE_SIZE, size);
+	return (ret);
+}
+#endif
+
+#endif /* JEMALLOC_PREFIX */
+/*
+ * End non-standard override functions.
+ */
+/******************************************************************************/
+/*
  * Begin non-standard functions.
  */
 
@@ -1240,6 +1279,7 @@ iallocm(size_t size, size_t alignment, bool zero)
 		return (imalloc(size));
 }
 
+JEMALLOC_ATTR(nonnull(1))
 JEMALLOC_ATTR(visibility("default"))
 int
 JEMALLOC_P(allocm)(void **ptr, size_t *rsize, size_t size, int flags)
@@ -1297,6 +1337,7 @@ OOM:
 	return (ALLOCM_ERR_OOM);
 }
 
+JEMALLOC_ATTR(nonnull(1))
 JEMALLOC_ATTR(visibility("default"))
 int
 JEMALLOC_P(rallocm)(void **ptr, size_t *rsize, size_t size, size_t extra,
@@ -1369,6 +1410,7 @@ OOM:
 	return (ALLOCM_ERR_OOM);
 }
 
+JEMALLOC_ATTR(nonnull(1))
 JEMALLOC_ATTR(visibility("default"))
 int
 JEMALLOC_P(sallocm)(const void *ptr, size_t *rsize, int flags)
@@ -1389,6 +1431,7 @@ JEMALLOC_P(sallocm)(const void *ptr, size_t *rsize, int flags)
 	return (ALLOCM_SUCCESS);
 }
 
+JEMALLOC_ATTR(nonnull(1))
 JEMALLOC_ATTR(visibility("default"))
 int
 JEMALLOC_P(dallocm)(void *ptr, int flags)
