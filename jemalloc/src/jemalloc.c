@@ -1394,17 +1394,13 @@ JEMALLOC_P(dallocm)(void *ptr, int flags)
 
 /*
  * The following functions are used by threading libraries for protection of
- * malloc during fork().  These functions are only called if the program is
- * running in threaded mode, so there is no need to check whether the program
- * is threaded here.
+ * malloc during fork().
  */
 
 void
 jemalloc_prefork(void)
 {
 	unsigned i;
-
-	assert(isthreaded);
 
 	/* Acquire all mutexes in a safe order. */
 
@@ -1431,8 +1427,6 @@ void
 jemalloc_postfork(void)
 {
 	unsigned i;
-
-	assert(isthreaded);
 
 	/* Release all mutexes, now that fork() has completed. */
 
