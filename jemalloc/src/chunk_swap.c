@@ -294,9 +294,10 @@ chunk_swap_enable(const int *fds, unsigned nfds, bool prezeroed)
 		void *addr = mmap((void *)((uintptr_t)vaddr + voff), sizes[i],
 		    PROT_READ | PROT_WRITE, MAP_SHARED | MAP_FIXED, fds[i], 0);
 		if (addr == MAP_FAILED) {
-			char buf[STRERROR_BUF];
+			char buf[BUFERROR_BUF];
 
-			strerror_r(errno, buf, sizeof(buf));
+
+			buferror(errno, buf, sizeof(buf));
 			malloc_write(
 			    "<jemalloc>: Error in mmap(..., MAP_FIXED, ...): ");
 			malloc_write(buf);
@@ -304,7 +305,7 @@ chunk_swap_enable(const int *fds, unsigned nfds, bool prezeroed)
 			if (opt_abort)
 				abort();
 			if (munmap(vaddr, voff) == -1) {
-				strerror_r(errno, buf, sizeof(buf));
+				buferror(errno, buf, sizeof(buf));
 				malloc_write("<jemalloc>: Error in munmap(): ");
 				malloc_write(buf);
 				malloc_write("\n");

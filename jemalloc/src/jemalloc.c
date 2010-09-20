@@ -139,6 +139,25 @@ choose_arena_hard(void)
 	return (ret);
 }
 
+/*
+ * glibc provides a non-standard strerror_r() when _GNU_SOURCE is defined, so
+ * provide a wrapper.
+ */
+int
+buferror(int errnum, char *buf, size_t buflen)
+{
+#ifdef _GNU_SOURCE
+	char *b = strerror_r(errno, buf, buflen);
+	if (b != buf) {
+		strncpy(buf, b, buflen);
+		buf[buflen-1] = '\0';
+	}
+	return (0);
+#else
+	return (strerror_r(errno, buf, buflen));
+#endif
+}
+
 static void
 stats_print_atexit(void)
 {

@@ -28,7 +28,8 @@ static pthread_key_t	mmap_unaligned_tsd;
 
 static void	*pages_map(void *addr, size_t size, bool noreserve);
 static void	pages_unmap(void *addr, size_t size);
-static void	*chunk_alloc_mmap_slow(size_t size, bool unaligned, bool noreserve);
+static void	*chunk_alloc_mmap_slow(size_t size, bool unaligned,
+    bool noreserve);
 static void	*chunk_alloc_mmap_internal(size_t size, bool noreserve);
 
 /******************************************************************************/
@@ -57,9 +58,9 @@ pages_map(void *addr, size_t size, bool noreserve)
 		 * We succeeded in mapping memory, but not in the right place.
 		 */
 		if (munmap(ret, size) == -1) {
-			char buf[STRERROR_BUF];
+			char buf[BUFERROR_BUF];
 
-			strerror_r(errno, buf, sizeof(buf));
+			buferror(errno, buf, sizeof(buf));
 			malloc_write("<jemalloc>: Error in munmap(): ");
 			malloc_write(buf);
 			malloc_write("\n");
@@ -79,9 +80,9 @@ pages_unmap(void *addr, size_t size)
 {
 
 	if (munmap(addr, size) == -1) {
-		char buf[STRERROR_BUF];
+		char buf[BUFERROR_BUF];
 
-		strerror_r(errno, buf, sizeof(buf));
+		buferror(errno, buf, sizeof(buf));
 		malloc_write("<jemalloc>: Error in munmap(): ");
 		malloc_write(buf);
 		malloc_write("\n");

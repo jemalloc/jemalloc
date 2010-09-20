@@ -101,8 +101,8 @@ extern void	(*JEMALLOC_P(malloc_message))(void *wcbopaque, const char *s);
 #  define JEMALLOC_INLINE static inline
 #endif
 
-/* Size of stack-allocated buffer passed to strerror_r(). */
-#define	STRERROR_BUF		64
+/* Size of stack-allocated buffer passed to buferror(). */
+#define	BUFERROR_BUF		64
 
 /* Minimum alignment of allocations is 2^LG_QUANTUM bytes. */
 #ifdef __i386__
@@ -289,6 +289,7 @@ extern unsigned		narenas;
 
 arena_t	*arenas_extend(unsigned ind);
 arena_t	*choose_arena_hard(void);
+int	buferror(int errnum, char *buf, size_t buflen);
 void	jemalloc_prefork(void);
 void	jemalloc_postfork(void);
 
