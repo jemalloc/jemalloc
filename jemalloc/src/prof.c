@@ -737,7 +737,11 @@ void
 prof_realloc(const void *ptr, prof_thr_cnt_t *cnt, const void *old_ptr,
     size_t old_size, prof_ctx_t *old_ctx)
 {
-	size_t size;
+	size_t size
+#ifdef JEMALLOC_CC_SILENCE
+	    = 0
+#endif
+	    ;
 	prof_thr_cnt_t *told_cnt;
 
 	assert(ptr != NULL || (uintptr_t)cnt <= (uintptr_t)1U);

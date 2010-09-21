@@ -76,8 +76,14 @@ static
 void
 wrtmessage(void *cbopaque, const char *s)
 {
-
-	write(STDERR_FILENO, s, strlen(s));
+#ifdef JEMALLOC_CC_SILENCE
+	int result =
+#endif
+	    write(STDERR_FILENO, s, strlen(s));
+#ifdef JEMALLOC_CC_SILENCE
+	if (result < 0)
+		result = errno;
+#endif
 }
 
 void	(*JEMALLOC_P(malloc_message))(void *, const char *s)
@@ -746,7 +752,11 @@ JEMALLOC_P(malloc)(size_t size)
 {
 	void *ret;
 #ifdef JEMALLOC_PROF
-	prof_thr_cnt_t *cnt;
+	prof_thr_cnt_t *cnt
+#  ifdef JEMALLOC_CC_SILENCE
+	    = NULL
+#  endif
+	    ;
 #endif
 
 	if (malloc_init()) {
@@ -821,7 +831,11 @@ JEMALLOC_P(posix_memalign)(void **memptr, size_t alignment, size_t size)
 	int ret;
 	void *result;
 #ifdef JEMALLOC_PROF
-	prof_thr_cnt_t *cnt;
+	prof_thr_cnt_t *cnt
+#  ifdef JEMALLOC_CC_SILENCE
+	    = NULL
+#  endif
+	    ;
 #endif
 
 	if (malloc_init())
@@ -920,7 +934,11 @@ JEMALLOC_P(calloc)(size_t num, size_t size)
 	void *ret;
 	size_t num_size;
 #ifdef JEMALLOC_PROF
-	prof_thr_cnt_t *cnt;
+	prof_thr_cnt_t *cnt
+#  ifdef JEMALLOC_CC_SILENCE
+	    = NULL
+#  endif
+	    ;
 #endif
 
 	if (malloc_init()) {
@@ -995,9 +1013,21 @@ JEMALLOC_P(realloc)(void *ptr, size_t size)
 {
 	void *ret;
 #ifdef JEMALLOC_PROF
-	size_t old_size;
-	prof_thr_cnt_t *cnt;
-	prof_ctx_t *old_ctx;
+	size_t old_size
+#  ifdef JEMALLOC_CC_SILENCE
+	    = 0
+#  endif
+	    ;
+	prof_thr_cnt_t *cnt
+#  ifdef JEMALLOC_CC_SILENCE
+	    = NULL
+#  endif
+	    ;
+	prof_ctx_t *old_ctx
+#  ifdef JEMALLOC_CC_SILENCE
+	    = NULL
+#  endif
+	    ;
 #endif
 
 	if (size == 0) {
@@ -1160,8 +1190,14 @@ void *
 JEMALLOC_P(memalign)(size_t alignment, size_t size)
 {
 	void *ret;
-
-	posix_memalign(&ret, alignment, size);
+#ifdef JEMALLOC_CC_SILENCE
+	int result =
+#endif
+	    JEMALLOC_P(posix_memalign)(&ret, alignment, size);
+#ifdef JEMALLOC_CC_SILENCE
+	if (result != 0)
+		return (NULL);
+#endif
 	return (ret);
 }
 #endif
@@ -1173,8 +1209,14 @@ void *
 JEMALLOC_P(valloc)(size_t size)
 {
 	void *ret;
-
-	posix_memalign(&ret, PAGE_SIZE, size);
+#ifdef JEMALLOC_CC_SILENCE
+	int result =
+#endif
+	    JEMALLOC_P(posix_memalign)(&ret, PAGE_SIZE, size);
+#ifdef JEMALLOC_CC_SILENCE
+	if (result != 0)
+		return (NULL);
+#endif
 	return (ret);
 }
 #endif

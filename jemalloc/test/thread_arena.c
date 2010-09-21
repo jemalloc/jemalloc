@@ -10,11 +10,16 @@ void *
 thread_start(void *arg)
 {
 	unsigned main_arena_ind = *(unsigned *)arg;
+	void *p;
 	unsigned arena_ind;
 	size_t size;
 	int err;
 
-	JEMALLOC_P(malloc)(1);
+	p = JEMALLOC_P(malloc)(1);
+	if (p == NULL) {
+		fprintf(stderr, "%s(): Error in malloc()\n", __func__);
+		return (void *)1;
+	}
 
 	size = sizeof(arena_ind);
 	if ((err = JEMALLOC_P(mallctl)("thread.arena", &arena_ind, &size,
@@ -31,6 +36,7 @@ int
 main(void)
 {
 	int ret = 0;
+	void *p;
 	unsigned arena_ind;
 	size_t size;
 	int err;
@@ -38,7 +44,12 @@ main(void)
 
 	fprintf(stderr, "Test begin\n");
 
-	JEMALLOC_P(malloc)(1);
+	p = JEMALLOC_P(malloc)(1);
+	if (p == NULL) {
+		fprintf(stderr, "%s(): Error in malloc()\n", __func__);
+		ret = 1;
+		goto RETURN;
+	}
 
 	size = sizeof(arena_ind);
 	if ((err = JEMALLOC_P(mallctl)("thread.arena", &arena_ind, &size, NULL,

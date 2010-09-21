@@ -31,6 +31,9 @@
 #  define JEMALLOC_ATTR(s)
 #endif
 
+/* JEMALLOC_CC_SILENCE enables code that silences unuseful compiler warnings. */
+#undef JEMALLOC_CC_SILENCE
+
 /*
  * JEMALLOC_DEBUG enables assertions and other sanity checks, and disables
  * inline functions.

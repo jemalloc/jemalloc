@@ -289,6 +289,23 @@ cfghdrs_out="include/jemalloc/jemalloc_defs${install_suffix}.h"
 
 cfghdrs_tup="include/jemalloc/jemalloc_defs${install_suffix}.h:include/jemalloc/jemalloc_defs.h.in"
 
+dnl Do not silence irrelevant compiler warnings by default, since enabling this
+dnl option incurs a performance penalty.
+AC_ARG_ENABLE([cc-silence],
+  [AS_HELP_STRING([--enable-cc-silence],
+                  [Silence irrelevant compiler warnings])],
+[if test "x$enable_cc_silence" = "xno" ; then
+  enable_cc_silence="0"
+else
+  enable_cc_silence="1"
+fi
+],
+[enable_cc_silence="0"]
+)
+if test "x$enable_cc_silence" = "x1" ; then
+  AC_DEFINE([JEMALLOC_CC_SILENCE])
+fi
+
 dnl Do not compile with debugging by default.
 AC_ARG_ENABLE([debug],
   [AS_HELP_STRING([--enable-debug], [Build debugging code])],
@@ -807,6 +824,7 @@ AC_MSG_RESULT([])
 AC_MSG_RESULT([JEMALLOC_PREFIX    : ${JEMALLOC_PREFIX}])
 AC_MSG_RESULT([install_suffix     : ${install_suffix}])
 AC_MSG_RESULT([autogen            : ${enable_autogen}])
+AC_MSG_RESULT([cc-silence         : ${enable_cc_silence}])
 AC_MSG_RESULT([debug              : ${enable_debug}])
 AC_MSG_RESULT([stats              : ${enable_stats}])
 AC_MSG_RESULT([prof               : ${enable_prof}])

@@ -399,9 +399,9 @@ size_t	isalloc(const void *ptr);
 #  ifdef JEMALLOC_IVSALLOC
 size_t	ivsalloc(const void *ptr);
 #  endif
+void	idalloc(void *ptr);
 void	*iralloc(void *ptr, size_t size, size_t extra, size_t alignment,
     bool zero, bool no_move);
-void	idalloc(void *ptr);
 #endif
 
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_C_))
@@ -559,6 +559,20 @@ ivsalloc(const void *ptr)
 }
 #endif
 
+JEMALLOC_INLINE void
+idalloc(void *ptr)
+{
+	arena_chunk_t *chunk;
+
+	assert(ptr != NULL);
+
+	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
+	if (chunk != ptr)
+		arena_dalloc(chunk->arena, chunk, ptr);
+	else
+		huge_dalloc(ptr);
+}
+
 JEMALLOC_INLINE void *
 iralloc(void *ptr, size_t size, size_t extra, size_t alignment, bool zero,
     bool no_move)
@@ -618,20 +632,6 @@ iralloc(void *ptr, size_t size, size_t extra, size_t alignment, bool zero,
 			    alignment, zero));
 		}
 	}
-}
-
-JEMALLOC_INLINE void
-idalloc(void *ptr)
-{
-	arena_chunk_t *chunk;
-
-	assert(ptr != NULL);
-
-	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
-	if (chunk != ptr)
-		arena_dalloc(chunk->arena, chunk, ptr);
-	else
-		huge_dalloc(ptr);
 }
 #endif
 

@@ -567,12 +567,21 @@ ckh_pointer_hash(const void *key, unsigned minbits, size_t *hash1,
 {
 	size_t ret1, ret2;
 	uint64_t h;
+	union {
+		const void	*v;
+		uint64_t	i;
+	} u;
 
 	assert(minbits <= 32 || (SIZEOF_PTR == 8 && minbits <= 64));
 	assert(hash1 != NULL);
 	assert(hash2 != NULL);
 
-	h = hash(&key, sizeof(void *), 0xd983396e68886082LLU);
+	assert(sizeof(u.v) == sizeof(u.i));
+#if (LG_SIZEOF_PTR != LG_SIZEOF_INT)
+	u.i = 0;
+#endif
+	u.v = key;
+	h = hash(&u.i, sizeof(u.i), 0xd983396e68886082LLU);
 	if (minbits <= 32) {
 		/*
 		 * Avoid doing multiple hashes, since a single hash provides
@@ -583,7 +592,7 @@ ckh_pointer_hash(const void *key, unsigned minbits, size_t *hash1,
 	} else {
 		assert(SIZEOF_PTR == 8);
 		ret1 = h;
-		ret2 = hash(&key, sizeof(void *), 0x5e2be9aff8709a5dLLU);
+		ret2 = hash(&u.i, sizeof(u.i), 0x5e2be9aff8709a5dLLU);
 	}
 
 	*hash1 = ret1;
