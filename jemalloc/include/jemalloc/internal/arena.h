@@ -418,6 +418,10 @@ extern size_t		sspace_max;
 
 #define			nlclasses (chunk_npages - arena_chunk_header_npages)
 
+void	arena_purge_all(arena_t *arena);
+#ifdef JEMALLOC_PROF
+void	arena_prof_accum(arena_t *arena, uint64_t accumbytes);
+#endif
 #ifdef JEMALLOC_TCACHE
 void	arena_tcache_fill_small(arena_t *arena, tcache_bin_t *tbin,
     size_t binind
@@ -425,9 +429,6 @@ void	arena_tcache_fill_small(arena_t *arena, tcache_bin_t *tbin,
     , uint64_t prof_accumbytes
 #  endif
     );
-#endif
-#ifdef JEMALLOC_PROF
-void	arena_prof_accum(arena_t *arena, uint64_t accumbytes);
 #endif
 void	*arena_malloc_small(arena_t *arena, size_t size, bool zero);
 void	*arena_malloc_large(arena_t *arena, size_t size, bool zero);

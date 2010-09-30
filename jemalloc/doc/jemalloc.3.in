@@ -38,7 +38,7 @@
 .\"     @(#)malloc.3	8.1 (Berkeley) 6/4/93
 .\" $FreeBSD: head/lib/libc/stdlib/malloc.3 182225 2008-08-27 02:00:53Z jasone $
 .\"
-.Dd September 17, 2010
+.Dd September 30, 2010
 .Dt JEMALLOC 3
 .Os
 .Sh NAME
@@ -1183,6 +1183,12 @@ Total number of large size classes.
 .It Sy "arenas.lrun.<i>.size (size_t) r-"
 .Bd -ragged -offset indent -compact
 Maximum size supported by this large size class.
+.Ed
+.\"-----------------------------------------------------------------------------
+.It Sy "arenas.purge (unsigned) -w"
+.Bd -ragged -offset indent -compact
+Purge unused dirty pages for the specified arena, or for all arenas if none is
+specified.
 .Ed
 .\"-----------------------------------------------------------------------------
 @roff_prof@.It Sy "prof.active (bool) rw"

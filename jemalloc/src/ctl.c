@@ -126,6 +126,7 @@ CTL_PROTO(arenas_nbins)
 CTL_PROTO(arenas_nhbins)
 #endif
 CTL_PROTO(arenas_nlruns)
+CTL_PROTO(arenas_purge)
 #ifdef JEMALLOC_PROF
 CTL_PROTO(prof_active)
 CTL_PROTO(prof_dump)
@@ -326,7 +327,8 @@ static const ctl_node_t arenas_node[] = {
 #endif
 	{NAME("bin"),			CHILD(arenas_bin)},
 	{NAME("nlruns"),		CTL(arenas_nlruns)},
-	{NAME("lrun"),			CHILD(arenas_lrun)}
+	{NAME("lrun"),			CHILD(arenas_lrun)},
+	{NAME("purge"),			CTL(arenas_purge)}
 };
 
 #ifdef JEMALLOC_PROF
@@ -1292,6 +1294,43 @@ CTL_RO_GEN(arenas_nbins, nbins, unsigned)
 CTL_RO_GEN(arenas_nhbins, nhbins, unsigned)
 #endif
 CTL_RO_GEN(arenas_nlruns, nlclasses, size_t)
+
+static int
+arenas_purge_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
+    void *newp, size_t newlen)
+{
+	int ret;
+	unsigned arena;
+
+	WRITEONLY();
+	arena = UINT_MAX;
+	WRITE(arena, unsigned);
+	if (newp != NULL && arena >= narenas) {
+		ret = EFAULT;
+		goto RETURN;
+	} else {
+		arena_t *tarenas[narenas];
+
+		malloc_mutex_lock(&arenas_lock);
+		memcpy(tarenas, arenas, sizeof(arena_t *) * narenas);
+		malloc_mutex_unlock(&arenas_lock);
+
+		if (arena == UINT_MAX) {
+			for (unsigned i = 0; i < narenas; i++) {
+				if (tarenas[i] != NULL)
+					arena_purge_all(tarenas[i]);
+			}
+		} else {
+			assert(arena < narenas);
+			if (tarenas[arena] != NULL)
+				arena_purge_all(tarenas[arena]);
+		}
+	}
+
+	ret = 0;
+RETURN:
+	return (ret);
+}
 
 /******************************************************************************/
 

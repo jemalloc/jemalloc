@@ -165,7 +165,7 @@ static arena_chunk_t *arena_chunk_alloc(arena_t *arena);
 static void	arena_chunk_dealloc(arena_t *arena, arena_chunk_t *chunk);
 static arena_run_t *arena_run_alloc(arena_t *arena, size_t size, bool large,
     bool zero);
-static void	arena_purge(arena_t *arena);
+static void	arena_purge(arena_t *arena, bool all);
 static void	arena_run_dalloc(arena_t *arena, arena_run_t *run, bool dirty);
 static void	arena_run_trim_head(arena_t *arena, arena_chunk_t *chunk,
     arena_run_t *run, size_t oldsize, size_t newsize);
@@ -585,7 +585,7 @@ arena_maybe_purge(arena_t *arena)
 	    (arena->ndirty - arena->npurgatory) > chunk_npages &&
 	    (arena->nactive >> opt_lg_dirty_mult) < (arena->ndirty -
 	    arena->npurgatory))
-		arena_purge(arena);
+		arena_purge(arena, false);
 }
 
 static inline void
@@ -758,7 +758,7 @@ arena_chunk_purge(arena_t *arena, arena_chunk_t *chunk)
 }
 
 static void
-arena_purge(arena_t *arena)
+arena_purge(arena_t *arena, bool all)
 {
 	arena_chunk_t *chunk;
 	size_t npurgatory;
@@ -772,8 +772,8 @@ arena_purge(arena_t *arena)
 	assert(ndirty == arena->ndirty);
 #endif
 	assert(arena->ndirty > arena->npurgatory);
-	assert(arena->ndirty > chunk_npages);
-	assert((arena->nactive >> opt_lg_dirty_mult) < arena->ndirty);
+	assert(arena->ndirty > chunk_npages || all);
+	assert((arena->nactive >> opt_lg_dirty_mult) < arena->ndirty || all);
 
 #ifdef JEMALLOC_STATS
 	arena->stats.npurge++;
@@ -784,8 +784,9 @@ arena_purge(arena_t *arena)
 	 * purge, and add the result to arena->npurgatory.  This will keep
 	 * multiple threads from racing to reduce ndirty below the threshold.
 	 */
-	npurgatory = (arena->ndirty - arena->npurgatory) - (arena->nactive >>
-	    opt_lg_dirty_mult);
+	npurgatory = arena->ndirty - arena->npurgatory;
+	if (all == false)
+		npurgatory -= arena->nactive >> opt_lg_dirty_mult;
 	arena->npurgatory += npurgatory;
 
 	while (npurgatory > 0) {
@@ -839,6 +840,15 @@ arena_purge(arena_t *arena)
 		npurgatory -= chunk->ndirty;
 		arena_chunk_purge(arena, chunk);
 	}
+}
+
+void
+arena_purge_all(arena_t *arena)
+{
+
+	malloc_mutex_lock(&arena->lock);
+	arena_purge(arena, true);
+	malloc_mutex_unlock(&arena->lock);
 }
 
 static void
