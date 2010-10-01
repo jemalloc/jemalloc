@@ -11,7 +11,7 @@ typedef struct prof_s prof_t;
 /* Option defaults. */
 #define	LG_PROF_BT_MAX_DEFAULT		2
 #define	LG_PROF_SAMPLE_DEFAULT		0
-#define	LG_PROF_INTERVAL_DEFAULT	30
+#define	LG_PROF_INTERVAL_DEFAULT	-1
 
 /*
  * Hard limit on stack backtrace depth.  Note that the version of

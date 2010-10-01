@@ -526,9 +526,13 @@ will disable dirty page purging.
 @roff_prof@is controlled by the
 @roff_prof@JEMALLOC_PROF_PREFIX
 @roff_prof@environment variable.
-@roff_prof@The default average interval is 1 GiB;
-@roff_prof@.Ev JEMALLOC_OPTIONS=31i
-@roff_prof@will disable interval-triggered profile dumping.
+@roff_prof@By default, interval-triggered profile dumping is disabled.
+@roff_prof@This is internally encoded as (1 << -1), and each
+@roff_prof@.Dq I
+@roff_prof@that is specified increments the shift amount.
+@roff_prof@Therefore, e.g.
+@roff_prof@.Ev JEMALLOC_OPTIONS=31I
+@roff_prof@specifies a dump interval of 1 GiB.
 @roff_fill@.It J
 @roff_fill@Each byte of new memory allocated by
 @roff_fill@.Fn @jemalloc_prefix@malloc
