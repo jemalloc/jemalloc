@@ -1248,23 +1248,6 @@ JEMALLOC_P(malloc_usable_size)(const void *ptr)
 	return (ret);
 }
 
-#ifdef JEMALLOC_SWAP
-JEMALLOC_ATTR(visibility("default"))
-int
-JEMALLOC_P(malloc_swap_enable)(const int *fds, unsigned nfds, int prezeroed)
-{
-
-	/*
-	 * Make sure malloc is initialized, because we need page size, chunk
-	 * size, etc.
-	 */
-	if (malloc_init())
-		return (-1);
-
-	return (chunk_swap_enable(fds, nfds, (prezeroed != 0)) ? -1 : 0);
-}
-#endif
-
 JEMALLOC_ATTR(visibility("default"))
 void
 JEMALLOC_P(malloc_stats_print)(void (*write_cb)(void *, const char *),
