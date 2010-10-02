@@ -204,7 +204,7 @@ tcache_create(arena_t *arena)
 	size_t size;
 	unsigned i;
 
-	size = sizeof(tcache_t) + (sizeof(tcache_bin_t) * (nhbins - 1));
+	size = offsetof(tcache_t, tbins) + (sizeof(tcache_bin_t) * nhbins);
 	/*
 	 * Round up to the nearest multiple of the cacheline size, in order to
 	 * avoid the possibility of false cacheline sharing.

@@ -101,8 +101,8 @@ arenas_extend(unsigned ind)
 	arena_t *ret;
 
 	/* Allocate enough space for trailing bins. */
-	ret = (arena_t *)base_alloc(sizeof(arena_t)
-	    + (sizeof(arena_bin_t) * (nbins - 1)));
+	ret = (arena_t *)base_alloc(offsetof(arena_t, bins)
+	    + (sizeof(arena_bin_t) * nbins));
 	if (ret != NULL && arena_new(ret, ind) == false) {
 		arenas[ind] = ret;
 		return (ret);

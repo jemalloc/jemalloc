@@ -13,11 +13,12 @@ rtree_new(unsigned bits)
 		height++;
 	assert(height * bits_per_level >= bits);
 
-	ret = (rtree_t*)base_alloc(sizeof(rtree_t) + (sizeof(unsigned) *
-	    (height - 1)));
+	ret = (rtree_t*)base_alloc(offsetof(rtree_t, level2bits) +
+	    (sizeof(unsigned) * height));
 	if (ret == NULL)
 		return (NULL);
-	memset(ret, 0, sizeof(rtree_t) + (sizeof(unsigned) * (height - 1)));
+	memset(ret, 0, offsetof(rtree_t, level2bits) + (sizeof(unsigned) *
+	    height));
 
 	malloc_mutex_init(&ret->mutex);
 	ret->height = height;
