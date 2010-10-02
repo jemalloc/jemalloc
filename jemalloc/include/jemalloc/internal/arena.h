@@ -187,7 +187,12 @@ struct arena_chunk_s {
 	/* Number of dirty pages. */
 	size_t		ndirty;
 
-	/* Map of pages within chunk that keeps track of free/large/small. */
+	/*
+	 * Map of pages within chunk that keeps track of free/large/small.  The
+	 * first map_bias entries are omitted, since the chunk header does not
+	 * need to be tracked in the map.  This omission saves a header page
+	 * for common chunk sizes (e.g. 4 MiB).
+	 */
 	arena_chunk_map_t map[1]; /* Dynamically sized. */
 };
 typedef rb_tree(arena_chunk_t) arena_chunk_tree_t;
@@ -416,7 +421,7 @@ extern size_t		sspace_min;
 extern size_t		sspace_max;
 #define			small_maxclass	sspace_max
 
-#define			nlclasses (chunk_npages - arena_chunk_header_npages)
+#define			nlclasses (chunk_npages - map_bias)
 
 void	arena_purge_all(arena_t *arena);
 #ifdef JEMALLOC_PROF
@@ -478,8 +483,8 @@ arena_dalloc(arena_t *arena, arena_chunk_t *chunk, void *ptr)
 	assert(ptr != NULL);
 	assert(CHUNK_ADDR2BASE(ptr) != ptr);
 
-	pageind = (((uintptr_t)ptr - (uintptr_t)chunk) >> PAGE_SHIFT);
-	mapelm = &chunk->map[pageind];
+	pageind = ((uintptr_t)ptr - (uintptr_t)chunk) >> PAGE_SHIFT;
+	mapelm = &chunk->map[pageind-map_bias];
 	assert((mapelm->bits & CHUNK_MAP_ALLOCATED) != 0);
 	if ((mapelm->bits & CHUNK_MAP_LARGE) == 0) {
 		/* Small allocation. */

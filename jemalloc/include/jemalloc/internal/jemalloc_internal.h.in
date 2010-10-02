@@ -17,6 +17,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <stddef.h>
+#ifndef offsetof
+#  define offsetof(type, member)	((size_t)&(((type *)NULL)->member))
+#endif
 #include <inttypes.h>
 #include <string.h>
 #include <strings.h>

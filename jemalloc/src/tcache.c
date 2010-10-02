@@ -95,10 +95,10 @@ tcache_bin_flush_small(tcache_bin_t *tbin, size_t binind, unsigned rem
 			flush = *(void **)ptr;
 			chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
 			if (chunk->arena == arena) {
-				size_t pageind = (((uintptr_t)ptr -
-				    (uintptr_t)chunk) >> PAGE_SHIFT);
+				size_t pageind = ((uintptr_t)ptr -
+				    (uintptr_t)chunk) >> PAGE_SHIFT;
 				arena_chunk_map_t *mapelm =
-				    &chunk->map[pageind];
+				    &chunk->map[pageind-map_bias];
 				arena_dalloc_bin(arena, chunk, ptr, mapelm);
 			} else {
 				/*
@@ -311,9 +311,9 @@ tcache_destroy(tcache_t *tcache)
 	if (arena_salloc(tcache) <= small_maxclass) {
 		arena_chunk_t *chunk = CHUNK_ADDR2BASE(tcache);
 		arena_t *arena = chunk->arena;
-		size_t pageind = (((uintptr_t)tcache - (uintptr_t)chunk) >>
-		    PAGE_SHIFT);
-		arena_chunk_map_t *mapelm = &chunk->map[pageind];
+		size_t pageind = ((uintptr_t)tcache - (uintptr_t)chunk) >>
+		    PAGE_SHIFT;
+		arena_chunk_map_t *mapelm = &chunk->map[pageind-map_bias];
 		arena_run_t *run = (arena_run_t *)((uintptr_t)chunk +
 		    (uintptr_t)((pageind - (mapelm->bits >> PAGE_SHIFT)) <<
 		    PAGE_SHIFT));

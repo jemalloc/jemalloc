@@ -46,7 +46,7 @@ extern rtree_t		*chunks_rtree;
 extern size_t		chunksize;
 extern size_t		chunksize_mask; /* (chunksize - 1). */
 extern size_t		chunk_npages;
-extern size_t		arena_chunk_header_npages;
+extern size_t		map_bias; /* Number of arena chunk header pages. */
 extern size_t		arena_maxclass; /* Max size class for arenas. */
 
 void	*chunk_alloc(size_t size, bool base, bool *zero);

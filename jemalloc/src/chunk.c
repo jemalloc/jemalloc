@@ -22,7 +22,7 @@ rtree_t		*chunks_rtree;
 size_t		chunksize;
 size_t		chunksize_mask; /* (chunksize - 1). */
 size_t		chunk_npages;
-size_t		arena_chunk_header_npages;
+size_t		map_bias;
 size_t		arena_maxclass; /* Max size class for arenas. */
 
 /******************************************************************************/
