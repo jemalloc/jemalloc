@@ -82,6 +82,8 @@ CTL_PROTO(opt_lg_prof_sample)
 CTL_PROTO(opt_lg_prof_interval)
 CTL_PROTO(opt_prof_udump)
 CTL_PROTO(opt_prof_leak)
+CTL_PROTO(opt_prof_accum)
+CTL_PROTO(opt_lg_prof_tcmax)
 #endif
 CTL_PROTO(opt_stats_print)
 CTL_PROTO(opt_lg_qspace_max)
@@ -260,6 +262,8 @@ static const ctl_node_t opt_node[] = {
 	{NAME("lg_prof_interval"),	CTL(opt_lg_prof_interval)},
 	{NAME("prof_udump"),		CTL(opt_prof_udump)},
 	{NAME("prof_leak"),		CTL(opt_prof_leak)},
+	{NAME("prof_accum"),		CTL(opt_prof_accum)},
+	{NAME("lg_prof_tcmax"),		CTL(opt_lg_prof_tcmax)},
 #endif
 	{NAME("stats_print"),		CTL(opt_stats_print)},
 	{NAME("lg_qspace_max"),		CTL(opt_lg_qspace_max)},
@@ -1207,6 +1211,8 @@ CTL_RO_GEN(opt_lg_prof_sample, opt_lg_prof_sample, size_t)
 CTL_RO_GEN(opt_lg_prof_interval, opt_lg_prof_interval, ssize_t)
 CTL_RO_GEN(opt_prof_udump, opt_prof_udump, bool)
 CTL_RO_GEN(opt_prof_leak, opt_prof_leak, bool)
+CTL_RO_GEN(opt_prof_accum, opt_prof_accum, bool)
+CTL_RO_GEN(opt_lg_prof_tcmax, opt_lg_prof_tcmax, ssize_t)
 #endif
 CTL_RO_GEN(opt_stats_print, opt_stats_print, bool)
 CTL_RO_GEN(opt_lg_qspace_max, opt_lg_qspace_max, size_t)

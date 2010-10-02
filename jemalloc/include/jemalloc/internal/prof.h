@@ -6,12 +6,13 @@ typedef struct prof_bt_s prof_bt_t;
 typedef struct prof_cnt_s prof_cnt_t;
 typedef struct prof_thr_cnt_s prof_thr_cnt_t;
 typedef struct prof_ctx_s prof_ctx_t;
-typedef struct prof_s prof_t;
+typedef struct prof_tcache_s prof_tcache_t;
 
 /* Option defaults. */
 #define	LG_PROF_BT_MAX_DEFAULT		2
 #define	LG_PROF_SAMPLE_DEFAULT		0
 #define	LG_PROF_INTERVAL_DEFAULT	-1
+#define	LG_PROF_TCMAX_DEFAULT		-1
 
 /*
  * Hard limit on stack backtrace depth.  Note that the version of
@@ -41,9 +42,9 @@ struct prof_bt_s {
 #ifdef JEMALLOC_PROF_LIBGCC
 /* Data structure passed to libgcc _Unwind_Backtrace() callback functions. */
 typedef struct {
-	prof_bt_t *bt;
-	unsigned nignore;
-	unsigned max;
+	prof_bt_t	*bt;
+	unsigned	nignore;
+	unsigned	max;
 } prof_unwind_data_t;
 #endif
 
@@ -51,11 +52,11 @@ struct prof_cnt_s {
 	/*
 	 * Profiling counters.  An allocation/deallocation pair can operate on
 	 * different prof_thr_cnt_t objects that are linked into the same
-	 * prof_ctx_t sets_ql, so it is possible for the cur* counters to go
+	 * prof_ctx_t cnts_ql, so it is possible for the cur* counters to go
 	 * negative.  In principle it is possible for the *bytes counters to
-	 * overflow/underflow, but a general solution would require some form
-	 * of 128-bit counter solution; this implementation doesn't bother to
-	 * solve that problem.
+	 * overflow/underflow, but a general solution would require something
+	 * like 128-bit counters; this implementation doesn't bother to solve
+	 * that problem.
 	 */
 	int64_t		curobjs;
 	int64_t		curbytes;
@@ -64,15 +65,18 @@ struct prof_cnt_s {
 };
 
 struct prof_thr_cnt_s {
-	/* Linkage into prof_ctx_t's sets_ql. */
-	ql_elm(prof_thr_cnt_t)	link;
+	/* Linkage into prof_ctx_t's cnts_ql. */
+	ql_elm(prof_thr_cnt_t)	cnts_link;
+
+	/* Linkage into thread's LRU. */
+	ql_elm(prof_thr_cnt_t)	lru_link;
 
 	/*
 	 * Associated context.  If a thread frees an object that it did not
 	 * allocate, it is possible that the context is not cached in the
 	 * thread's hash table, in which case it must be able to look up the
 	 * context, insert a new prof_thr_cnt_t into the thread's hash table,
-	 * and link it into the prof_ctx_t's sets_ql.
+	 * and link it into the prof_ctx_t's cnts_ql.
 	 */
 	prof_ctx_t		*ctx;
 
@@ -101,11 +105,11 @@ struct prof_ctx_s {
 	/* Associated backtrace. */
 	prof_bt_t		*bt;
 
-	/* Protects cnt_merged and sets_ql. */
+	/* Protects cnt_merged and cnts_ql. */
 	malloc_mutex_t		lock;
 
-	/* Temporary storage for aggregation during dump. */
-	prof_cnt_t		cnt_dump;
+	/* Temporary storage for summation during dump. */
+	prof_cnt_t		cnt_summed;
 
 	/* When threads exit, they merge their stats into cnt_merged. */
 	prof_cnt_t		cnt_merged;
@@ -115,6 +119,24 @@ struct prof_ctx_s {
 	 * this context.
 	 */
 	ql_head(prof_thr_cnt_t)	cnts_ql;
+};
+
+/*
+ * Thread-specific hash of (prof_bt_t *)-->(prof_thr_cnt_t *).  Each thread
+ * keeps a cache of backtraces, with associated thread-specific prof_thr_cnt_t
+ * objects.  Other threads may read the prof_thr_cnt_t contents, but no others
+ * will ever write them.
+ *
+ * Upon thread exit, the thread must merge all the prof_thr_cnt_t counter data
+ * into the associated prof_ctx_t objects, and unlink/free the prof_thr_cnt_t
+ * objects.
+ */
+struct prof_tcache_s {
+	/* (prof_bt_t *)-->(prof_thr_cnt_t *). */
+	ckh_t			bt2cnt;
+
+	/* LRU for contents of bt2cnt. */
+	ql_head(prof_thr_cnt_t)	lru_ql;
 };
 
 #endif /* JEMALLOC_H_STRUCTS */
@@ -129,11 +151,13 @@ extern bool	opt_prof;
  * to notice state changes.
  */
 extern bool	opt_prof_active;
-extern size_t	opt_lg_prof_bt_max; /* Maximum backtrace depth. */
-extern size_t	opt_lg_prof_sample; /* Mean bytes between samples. */
+extern size_t	opt_lg_prof_bt_max;   /* Maximum backtrace depth. */
+extern size_t	opt_lg_prof_sample;   /* Mean bytes between samples. */
 extern ssize_t	opt_lg_prof_interval; /* lg(prof_interval). */
-extern bool	opt_prof_udump; /* High-water memory dumping. */
-extern bool	opt_prof_leak; /* Dump leak summary at exit. */
+extern bool	opt_prof_udump;       /* High-water memory dumping. */
+extern bool	opt_prof_leak;        /* Dump leak summary at exit. */
+extern bool	opt_prof_accum;       /* Report cumulative bytes. */
+extern ssize_t	opt_lg_prof_tcmax;    /* lg(max per thread bactrace cache) */
 
 /*
  * Profile dump interval, measured in bytes allocated.  Each arena triggers a
@@ -149,9 +173,6 @@ extern uint64_t	prof_interval;
  * headers do not have embedded profile context pointers.
  */
 extern bool	prof_promote;
-
-bool	prof_init(prof_t *prof, bool master);
-void	prof_destroy(prof_t *prof);
 
 prof_thr_cnt_t	*prof_alloc_prep(size_t size);
 prof_ctx_t	*prof_ctx_get(const void *ptr);

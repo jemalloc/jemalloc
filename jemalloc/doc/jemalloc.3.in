@@ -484,6 +484,12 @@ will disable dirty page purging.
 @roff_prof@.Dq S
 @roff_prof@option for probabilistic sampling control.
 @roff_prof@See the
+@roff_prof@.Dq R
+@roff_prof@option for control of cumulative sample reporting.
+@roff_prof@See the
+@roff_prof@.Dq T
+@roff_prof@option for control of per thread backtrace caching.
+@roff_prof@See the
 @roff_prof@.Dq I
 @roff_prof@option for information on interval-triggered profile dumping, and the
 @roff_prof@.Dq U
@@ -595,6 +601,18 @@ Double/halve the size of the maximum size class that is a multiple of the
 quantum (8 or 16 bytes, depending on architecture).
 Above this size, cacheline spacing is used for size classes.
 The default value is 128 bytes.
+@roff_prof@.It R
+@roff_prof@Enable/disable reporting of cumulative object/byte counts in profile
+@roff_prof@dumps.
+@roff_prof@If this option is enabled, every unique backtrace must be stored for
+@roff_prof@the duration of execution.
+@roff_prof@Depending on the application, this can impose a large memory
+@roff_prof@overhead, and the cumulative counts are not always of interest.
+@roff_prof@See the
+@roff_prof@.Dq T
+@roff_prof@option for control of per thread backtrace caching, which has
+@roff_prof@important interactions.
+@roff_prof@This option is enabled by default.
 @roff_prof@.It S
 @roff_prof@Double/halve the average interval between allocation samples, as
 @roff_prof@measured in bytes of allocation activity.
@@ -602,6 +620,22 @@ The default value is 128 bytes.
 @roff_prof@also decreases the computational overhead.
 @roff_prof@The default sample interval is one (i.e. all allocations are
 @roff_prof@sampled).
+@roff_prof@.It T
+@roff_prof@Double/halve the maximum per thread backtrace cache used for heap
+@roff_prof@profiling.
+@roff_prof@A backtrace can only be discarded if the
+@roff_prof@.Dq R
+@roff_prof@option is disabled, and no thread caches currently refer to the
+@roff_prof@backtrace.
+@roff_prof@Therefore, a backtrace cache limit should be imposed if the
+@roff_prof@intention is to limit how much memory is used by backtraces.
+@roff_prof@By default, no limit is imposed.
+@roff_prof@This is internally encoded as (1 << -1), and each
+@roff_prof@.Dq T
+@roff_prof@that is specified increments the shift amount.
+@roff_prof@Therefore, e.g.
+@roff_prof@.Ev JEMALLOC_OPTIONS=11T
+@roff_prof@specifies a backtrace cache limit of 1024 backtraces.
 @roff_prof@.It U
 @roff_prof@Trigger a memory profile dump every time the total virtual memory
 @roff_prof@exceeds the previous maximum.
@@ -989,6 +1023,27 @@ option.
 @roff_prof@.Bd -ragged -offset indent -compact
 @roff_prof@See the
 @roff_prof@.Dq B
+@roff_prof@option.
+@roff_prof@.Ed
+.\"-----------------------------------------------------------------------------
+@roff_prof@.It Sy "opt.prof_accum (bool) r-"
+@roff_prof@.Bd -ragged -offset indent -compact
+@roff_prof@See the
+@roff_prof@.Dq R
+@roff_prof@option.
+@roff_prof@.Ed
+.\"-----------------------------------------------------------------------------
+@roff_prof@.It Sy "opt.lg_prof_tcmax (ssize_t) r-"
+@roff_prof@.Bd -ragged -offset indent -compact
+@roff_prof@See the
+@roff_prof@.Dq T
+@roff_prof@option.
+@roff_prof@.Ed
+.\"-----------------------------------------------------------------------------
+@roff_prof@.It Sy "opt.lg_prof_sample (ssize_t) r-"
+@roff_prof@.Bd -ragged -offset indent -compact
+@roff_prof@See the
+@roff_prof@.Dq S
 @roff_prof@option.
 @roff_prof@.Ed
 .\"-----------------------------------------------------------------------------

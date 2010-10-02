@@ -512,6 +512,12 @@ MALLOC_OUT:
 						opt_lg_qspace_max++;
 					break;
 #ifdef JEMALLOC_PROF
+				case 'r':
+					opt_prof_accum = false;
+					break;
+				case 'R':
+					opt_prof_accum = true;
+					break;
 				case 's':
 					if (opt_lg_prof_sample > 0)
 						opt_lg_prof_sample--;
@@ -520,6 +526,15 @@ MALLOC_OUT:
 					if (opt_lg_prof_sample + 1 <
 					    (sizeof(uint64_t) << 3))
 						opt_lg_prof_sample++;
+					break;
+				case 't':
+					if (opt_lg_prof_tcmax >= 0)
+						opt_lg_prof_tcmax--;
+					break;
+				case 'T':
+					if (opt_lg_prof_tcmax + 1 <
+					    (sizeof(size_t) << 3))
+						opt_lg_prof_tcmax++;
 					break;
 				case 'u':
 					opt_prof_udump = false;

@@ -24,6 +24,7 @@ extern bool isthreaded;
 #endif
 
 bool	malloc_mutex_init(malloc_mutex_t *mutex);
+void	malloc_mutex_destroy(malloc_mutex_t *mutex);
 
 #endif /* JEMALLOC_H_EXTERNS */
 /******************************************************************************/

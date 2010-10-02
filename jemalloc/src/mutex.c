@@ -72,3 +72,13 @@ malloc_mutex_init(malloc_mutex_t *mutex)
 
 	return (false);
 }
+
+void
+malloc_mutex_destroy(malloc_mutex_t *mutex)
+{
+
+	if (pthread_mutex_destroy(mutex) != 0) {
+		malloc_write("<jemalloc>: Error in pthread_mutex_destroy()\n");
+		abort();
+	}
+}
