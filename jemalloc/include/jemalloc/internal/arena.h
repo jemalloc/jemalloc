@@ -125,13 +125,13 @@ struct arena_chunk_map_s {
 	 * x : don't care
 	 * - : 0
 	 * + : 1
-	 * [DZLA] : bit set
-	 * [dzla] : bit unset
+	 * [DULA] : bit set
+	 * [dula] : bit unset
 	 *
 	 *   Unallocated (clean):
-	 *     ssssssss ssssssss ssss---- ----dz--
-	 *     xxxxxxxx xxxxxxxx xxxx---- -----Zxx
-	 *     ssssssss ssssssss ssss---- ----dZ--
+	 *     ssssssss ssssssss ssss---- ----du--
+	 *     xxxxxxxx xxxxxxxx xxxx---- -----Uxx
+	 *     ssssssss ssssssss ssss---- ----dU--
 	 *
 	 *   Unallocated (dirty):
 	 *     ssssssss ssssssss ssss---- ----D---
@@ -161,7 +161,7 @@ struct arena_chunk_map_s {
 #endif
 #define	CHUNK_MAP_FLAGS_MASK	((size_t)0xfU)
 #define	CHUNK_MAP_DIRTY		((size_t)0x8U)
-#define	CHUNK_MAP_ZEROED	((size_t)0x4U)
+#define	CHUNK_MAP_UNZEROED	((size_t)0x4U)
 #define	CHUNK_MAP_LARGE		((size_t)0x2U)
 #define	CHUNK_MAP_ALLOCATED	((size_t)0x1U)
 #define	CHUNK_MAP_KEY		CHUNK_MAP_ALLOCATED

@@ -324,11 +324,11 @@ arena_run_split(arena_t *arena, arena_run_t *run, size_t size, bool large,
 			chunk->map[run_ind+need_pages-map_bias].bits =
 			    (rem_pages << PAGE_SHIFT) |
 			    (chunk->map[run_ind+need_pages-map_bias].bits &
-			    CHUNK_MAP_ZEROED);
+			    CHUNK_MAP_UNZEROED);
 			chunk->map[run_ind+total_pages-1-map_bias].bits =
 			    (rem_pages << PAGE_SHIFT) |
 			    (chunk->map[run_ind+total_pages-1-map_bias].bits &
-			    CHUNK_MAP_ZEROED);
+			    CHUNK_MAP_UNZEROED);
 		}
 		arena_avail_tree_insert(runs_avail,
 		    &chunk->map[run_ind+need_pages-map_bias]);
@@ -353,7 +353,7 @@ arena_run_split(arena_t *arena, arena_run_t *run, size_t size, bool large,
 				 */
 				for (i = 0; i < need_pages; i++) {
 					if ((chunk->map[run_ind+i-map_bias].bits
-					    & CHUNK_MAP_ZEROED) == 0) {
+					    & CHUNK_MAP_UNZEROED) != 0) {
 						memset((void *)((uintptr_t)
 						    chunk + ((run_ind + i) <<
 						    PAGE_SHIFT)), 0,
@@ -420,7 +420,7 @@ arena_chunk_alloc(arena_t *arena)
 		arena_avail_tree_insert(runs_avail, &chunk->map[0]);
 	} else {
 		bool zero;
-		size_t zeroed;
+		size_t unzeroed;
 
 		zero = false;
 		malloc_mutex_unlock(&arena->lock);
@@ -447,11 +447,17 @@ arena_chunk_alloc(arena_t *arena)
 		 * Mark the pages as zeroed iff chunk_alloc() returned a zeroed
 		 * chunk.
 		 */
-		zeroed = zero ? CHUNK_MAP_ZEROED : 0;
-		chunk->map[0].bits = arena_maxclass | zeroed;
-		for (i = map_bias+1; i < chunk_npages-1; i++)
-			chunk->map[i-map_bias].bits = zeroed;
-		chunk->map[i-map_bias].bits = arena_maxclass | zeroed;
+		unzeroed = zero ? 0 : CHUNK_MAP_UNZEROED;
+		chunk->map[0].bits = arena_maxclass | unzeroed;
+		/*
+		 * There is no need to initialize the internal page map entries
+		 * unless the chunk is not zeroed.
+		 */
+		if (zero == false) {
+			for (i = map_bias+1; i < chunk_npages-1; i++)
+				chunk->map[i-map_bias].bits = unzeroed;
+		}
+		chunk->map[chunk_npages-1].bits = arena_maxclass | unzeroed;
 
 		/* Insert the run into the runs_avail_clean tree. */
 		arena_avail_tree_insert(&arena->runs_avail_clean,
@@ -593,7 +599,7 @@ arena_chunk_purge(arena_t *arena, arena_chunk_t *chunk)
 {
 	ql_head(arena_chunk_map_t) mapelms;
 	arena_chunk_map_t *mapelm;
-	size_t pageind, flag_zeroed;
+	size_t pageind, flag_unzeroed;
 #ifdef JEMALLOC_DEBUG
 	size_t ndirty;
 #endif
@@ -603,18 +609,18 @@ arena_chunk_purge(arena_t *arena, arena_chunk_t *chunk)
 
 	ql_new(&mapelms);
 
-	flag_zeroed =
+	flag_unzeroed =
 #ifdef JEMALLOC_PURGE_MADVISE_DONTNEED
    /*
     * madvise(..., MADV_DONTNEED) results in zero-filled pages for anonymous
     * mappings, but not for file-backed mappings.
     */
 #  ifdef JEMALLOC_SWAP
-	    swap_enabled ? 0 :
+	    swap_enabled ? CHUNK_MAP_UNZEROED :
 #  endif
-	    CHUNK_MAP_ZEROED;
-#else
 	    0;
+#else
+	    CHUNK_MAP_UNZEROED;
 #endif
 
 	/*
@@ -653,21 +659,21 @@ arena_chunk_purge(arena_t *arena, arena_chunk_t *chunk)
 
 				/*
 				 * Update internal elements in the page map, so
-				 * that CHUNK_MAP_ZEROED is properly set.
+				 * that CHUNK_MAP_UNZEROED is properly set.
 				 */
 				mapelm->bits = (npages << PAGE_SHIFT) |
 				    CHUNK_MAP_LARGE | CHUNK_MAP_ALLOCATED |
-				    flag_zeroed;
+				    flag_unzeroed;
 				for (i = 1; i < npages - 1; i++) {
 					chunk->map[pageind+i-map_bias].bits =
-					    flag_zeroed;
+					    flag_unzeroed;
 				}
 				if (npages > 1) {
 					chunk->map[
 					    pageind+npages-1-map_bias].bits =
 					    (npages << PAGE_SHIFT) |
 					    CHUNK_MAP_LARGE |
-					    CHUNK_MAP_ALLOCATED | flag_zeroed;
+					    CHUNK_MAP_ALLOCATED | flag_unzeroed;
 				}
 
 				arena->nactive += npages;
@@ -890,10 +896,10 @@ arena_run_dalloc(arena_t *arena, arena_run_t *run, bool dirty)
 		arena->ndirty += run_pages;
 	} else {
 		chunk->map[run_ind-map_bias].bits = size |
-		    (chunk->map[run_ind-map_bias].bits & CHUNK_MAP_ZEROED);
+		    (chunk->map[run_ind-map_bias].bits & CHUNK_MAP_UNZEROED);
 		chunk->map[run_ind+run_pages-1-map_bias].bits = size |
 		    (chunk->map[run_ind+run_pages-1-map_bias].bits &
-		    CHUNK_MAP_ZEROED);
+		    CHUNK_MAP_UNZEROED);
 	}
 
 	/* Try to coalesce forward. */
