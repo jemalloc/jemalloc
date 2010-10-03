@@ -999,10 +999,10 @@ prof_ctx_sum(prof_ctx_t *ctx, prof_cnt_t *cnt_all, size_t *leak_nctx)
 			ctx->cnt_summed.accumobjs += tcnt.accumobjs;
 			ctx->cnt_summed.accumbytes += tcnt.accumbytes;
 		}
-
-		if (tcnt.curobjs != 0)
-			(*leak_nctx)++;
 	}
+
+	if (ctx->cnt_summed.curobjs != 0)
+		(*leak_nctx)++;
 
 	/* Add to cnt_all. */
 	cnt_all->curobjs += ctx->cnt_summed.curobjs;
