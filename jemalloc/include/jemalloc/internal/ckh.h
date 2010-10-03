@@ -45,7 +45,7 @@ struct ckh_s {
 #endif
 
 	/* Used for pseudo-random number generation. */
-#define	CKH_A		12345
+#define	CKH_A		1103515241
 #define	CKH_C		12347
 	uint32_t	prn_state;
 

@@ -644,7 +644,7 @@ prof_sample_threshold_update(void)
 	 */
 	PROF_SAMPLE_STATE_GET(prof_sample_state);
 	prn64(r, 53, prof_sample_state->prn_state,
-	    (uint64_t)1125899906842625LLU, 1058392653243283975);
+	    (uint64_t)6364136223846793005LLU, (uint64_t)1442695040888963407LLU);
 	u = (double)r * (1.0/9007199254740992.0L);
 	prof_sample_state->threshold = (uint64_t)(log(u) /
 	    log(1.0 - (1.0 / (double)((uint64_t)1U << opt_lg_prof_sample))))
