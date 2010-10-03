@@ -52,13 +52,35 @@ static __thread prof_tcache_t	*prof_tcache_tls
 	pthread_setspecific(prof_tcache_tsd, (void *)(v));		\
 } while (0)
 #endif
-
 /*
  * Same contents as b2cnt_tls, but initialized such that the TSD destructor is
  * called when a thread exits, so that prof_tcache_tls contents can be merged,
  * unlinked, and deallocated.
  */
 static pthread_key_t	prof_tcache_tsd;
+
+/* Thread-specific backtrace vector, used for calls to prof_backtrace(). */
+#ifndef NO_TLS
+static __thread void	**vec_tls
+    JEMALLOC_ATTR(tls_model("initial-exec"));
+#  define VEC_GET()	vec_tls
+#  define VEC_SET(v)	do {					\
+	vec_tls = (v);						\
+	pthread_setspecific(vec_tsd, (void *)(v));		\
+} while (0)
+#else
+#  define VEC_GET()	((ckh_t *)pthread_getspecific(vec_tsd))
+#  define VEC_SET(v)	do {					\
+	pthread_setspecific(vec_tsd, (void *)(v));		\
+} while (0)
+#endif
+/*
+ * Same contents as vec_tls, but initialized such that the TSD destructor is
+ * called when a thread exits, so that vec_tls contents can be merged,
+ * unlinked, and deallocated.
+ */
+static pthread_key_t	vec_tsd;
+
 
 /* (1U << opt_lg_prof_bt_max). */
 static unsigned		prof_bt_max;
@@ -158,6 +180,7 @@ static void	prof_bt_hash(const void *key, unsigned minbits, size_t *hash1,
     size_t *hash2);
 static bool	prof_bt_keycomp(const void *k1, const void *k2);
 static void	prof_tcache_cleanup(void *arg);
+static void	vec_cleanup(void *arg);
 #ifdef NO_TLS
 static void	prof_sample_state_thread_cleanup(void *arg);
 #endif
@@ -632,8 +655,16 @@ prof_thr_cnt_t *
 prof_alloc_prep(size_t size)
 {
 	prof_thr_cnt_t *ret;
-	void *vec[prof_bt_max];
+	void **vec;
 	prof_bt_t bt;
+
+	vec = VEC_GET();
+	if (vec == NULL) {
+		vec = imalloc(sizeof(void *) * prof_bt_max);
+		if (vec == NULL)
+			return (NULL);
+		VEC_SET(vec);
+	}
 
 	if (opt_prof_active == false) {
 		/* Sampling is currently inactive, so avoid sampling. */
@@ -1161,10 +1192,8 @@ prof_dump(const char *filename, bool leakcheck, bool propagate_err)
 	/* Merge per thread profile stats, and sum them in cnt_all. */
 	memset(&cnt_all, 0, sizeof(prof_cnt_t));
 	leak_nctx = 0;
-	for (tabind = 0; ckh_iter(&bt2ctx, &tabind, NULL, &ctx.v)
-	    == false;) {
+	for (tabind = 0; ckh_iter(&bt2ctx, &tabind, NULL, &ctx.v) == false;)
 		prof_ctx_sum(ctx.p, &cnt_all, &leak_nctx);
-	}
 
 	/* Dump profile header. */
 	if (prof_write("heap profile: ", propagate_err)
@@ -1452,6 +1481,18 @@ prof_tcache_cleanup(void *arg)
 	}
 }
 
+static void
+vec_cleanup(void *arg)
+{
+	void **vec;
+
+	vec = VEC_GET();
+	if (vec != NULL) {
+		idalloc(vec);
+		VEC_SET(NULL);
+	}
+}
+
 #ifdef NO_TLS
 static void
 prof_sample_state_thread_cleanup(void *arg)
@@ -1503,6 +1544,11 @@ prof_boot1(void)
 			return (true);
 		if (pthread_key_create(&prof_tcache_tsd, prof_tcache_cleanup)
 		    != 0) {
+			malloc_write(
+			    "<jemalloc>: Error in pthread_key_create()\n");
+			abort();
+		}
+		if (pthread_key_create(&vec_tsd, vec_cleanup) != 0) {
 			malloc_write(
 			    "<jemalloc>: Error in pthread_key_create()\n");
 			abort();

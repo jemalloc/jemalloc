@@ -9,7 +9,7 @@ typedef struct prof_ctx_s prof_ctx_t;
 typedef struct prof_tcache_s prof_tcache_t;
 
 /* Option defaults. */
-#define	LG_PROF_BT_MAX_DEFAULT		2
+#define	LG_PROF_BT_MAX_DEFAULT		7
 #define	LG_PROF_SAMPLE_DEFAULT		0
 #define	LG_PROF_INTERVAL_DEFAULT	-1
 #define	LG_PROF_TCMAX_DEFAULT		-1
@@ -17,10 +17,13 @@ typedef struct prof_tcache_s prof_tcache_t;
 /*
  * Hard limit on stack backtrace depth.  Note that the version of
  * prof_backtrace() that is based on __builtin_return_address() necessarily has
- * a hard-coded number of backtrace frame handlers, so increasing
- * LG_PROF_BT_MAX requires changing prof_backtrace().
+ * a hard-coded number of backtrace frame handlers.
  */
-#define	LG_PROF_BT_MAX		7 /* >= LG_PROF_BT_MAX_DEFAULT */
+#if (defined(JEMALLOC_PROF_LIBGCC) || defined(JEMALLOC_PROF_LIBUNWIND))
+#  define LG_PROF_BT_MAX	((ZU(1) << (LG_SIZEOF_PTR+3)) - 1)
+#else
+#  define LG_PROF_BT_MAX	7 /* >= LG_PROF_BT_MAX_DEFAULT */
+#endif
 #define	PROF_BT_MAX		(1U << LG_PROF_BT_MAX)
 
 /* Initial hash table size. */

@@ -436,7 +436,7 @@ in these cases.
 @roff_prof@.It B
 @roff_prof@Double/halve the maximum backtrace depth when profiling memory
 @roff_prof@allocation activity.
-@roff_prof@The default is 4.
+@roff_prof@The default is 128.
 .It C
 Double/halve the size of the maximum size class that is a multiple of the
 cacheline size (64).
