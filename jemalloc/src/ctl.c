@@ -1322,7 +1322,8 @@ arenas_purge_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
 		malloc_mutex_unlock(&arenas_lock);
 
 		if (arena == UINT_MAX) {
-			for (unsigned i = 0; i < narenas; i++) {
+			unsigned i;
+			for (i = 0; i < narenas; i++) {
 				if (tarenas[i] != NULL)
 					arena_purge_all(tarenas[i]);
 			}
