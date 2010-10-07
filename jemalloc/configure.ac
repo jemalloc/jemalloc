@@ -437,13 +437,16 @@ AC_SUBST([roff_no_prof])
 
 dnl If libunwind isn't enabled, try to use libgcc rather than gcc intrinsics
 dnl for backtracing.
-if test "x$enable_prof" = "x1" -a "x$enable_prof_libunwind" = "x0" \
- -a "x$GCC" = "xyes" -a "x$enable_prof_libgcc" = "x1" ; then
-  enable_prof_libgcc="1"
-  AC_CHECK_HEADERS([unwind.h], , [enable_prof_libgcc="0"])
-  AC_CHECK_LIB([gcc], [_Unwind_Backtrace], [LIBS="$LIBS -lgcc"], [enable_prof_libgcc="0"])
-  if test "x${enable_prof_libgcc}" = "x1" ; then
-    AC_DEFINE([JEMALLOC_PROF_LIBGCC], [ ])
+if test "x$enable_prof" = "x1" -a "x$enable_prof_libgcc" = "x1" ; then
+  if test "x$enable_prof_libunwind" = "x0" -a "x$GCC" = "xyes" ; then
+    enable_prof_libgcc="1"
+    AC_CHECK_HEADERS([unwind.h], , [enable_prof_libgcc="0"])
+    AC_CHECK_LIB([gcc], [_Unwind_Backtrace], [LIBS="$LIBS -lgcc"], [enable_prof_libgcc="0"])
+    if test "x${enable_prof_libgcc}" = "x1" ; then
+      AC_DEFINE([JEMALLOC_PROF_LIBGCC], [ ])
+    fi
+  else
+    enable_prof_libgcc="0"
   fi
 fi
 
