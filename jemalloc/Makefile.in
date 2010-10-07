@@ -90,8 +90,8 @@ all: $(DSOS)
 
 @objroot@test/%.o: @srcroot@test/%.c
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) -c $(CPPFLAGS) -o $@ $<
-	@$(SHELL) -ec "$(CC) -MM $(CPPFLAGS) $< | sed \"s/\($(subst /,\/,$(notdir $(basename $@)))\)\.o\([ :]*\)/$(subst /,\/,$(strip $(dir $@)))\1.o \2/g\" > $(@:%.o=%.d)"
+	$(CC) $(CFLAGS) -c $(CPPFLAGS) -I@objroot@test -o $@ $<
+	@$(SHELL) -ec "$(CC) -MM $(CPPFLAGS) -I@objroot@test $< | sed \"s/\($(subst /,\/,$(notdir $(basename $@)))\)\.o\([ :]*\)/$(subst /,\/,$(strip $(dir $@)))\1.o \2/g\" > $(@:%.o=%.d)"
 
 @objroot@test/%: @objroot@test/%.o \
 		 @objroot@lib/libjemalloc@install_suffix@.$(SO)

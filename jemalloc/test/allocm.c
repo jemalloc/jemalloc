@@ -3,7 +3,7 @@
 #include <stdint.h>
 
 #define	JEMALLOC_MANGLE
-#include "jemalloc/jemalloc.h"
+#include "jemalloc_test.h"
 
 #define CHUNK 0x400000
 /* #define MAXALIGN ((size_t)0x80000000000LLU) */

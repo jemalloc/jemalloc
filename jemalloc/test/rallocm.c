@@ -3,7 +3,7 @@
 #include <string.h>
 
 #define	JEMALLOC_MANGLE
-#include "jemalloc/jemalloc.h"
+#include "jemalloc_test.h"
 
 int
 main(void)
