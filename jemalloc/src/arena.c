@@ -395,7 +395,7 @@ arena_run_split(arena_t *arena, arena_run_t *run, size_t size, bool large,
 			chunk->map[run_ind+i-map_bias].bits = (i << PAGE_SHIFT)
 			    | CHUNK_MAP_ALLOCATED;
 		}
-		chunk->map[run_ind + need_pages-1-map_bias].bits = ((need_pages
+		chunk->map[run_ind+need_pages-1-map_bias].bits = ((need_pages
 		    - 1) << PAGE_SHIFT) | CHUNK_MAP_ALLOCATED | flag_dirty;
 	}
 }
@@ -457,7 +457,8 @@ arena_chunk_alloc(arena_t *arena)
 			for (i = map_bias+1; i < chunk_npages-1; i++)
 				chunk->map[i-map_bias].bits = unzeroed;
 		}
-		chunk->map[chunk_npages-1].bits = arena_maxclass | unzeroed;
+		chunk->map[chunk_npages-1-map_bias].bits = arena_maxclass |
+		    unzeroed;
 
 		/* Insert the run into the runs_avail_clean tree. */
 		arena_avail_tree_insert(&arena->runs_avail_clean,
