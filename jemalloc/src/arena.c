@@ -389,14 +389,18 @@ arena_run_split(arena_t *arena, arena_run_t *run, size_t size, bool large,
 		 * arena_dalloc_bin_run() has the ability to conditionally trim
 		 * clean pages.
 		 */
-		chunk->map[run_ind-map_bias].bits = CHUNK_MAP_ALLOCATED |
-		    flag_dirty;
+		chunk->map[run_ind-map_bias].bits =
+		    (chunk->map[run_ind-map_bias].bits & CHUNK_MAP_UNZEROED) |
+		    CHUNK_MAP_ALLOCATED | flag_dirty;
 		for (i = 1; i < need_pages - 1; i++) {
 			chunk->map[run_ind+i-map_bias].bits = (i << PAGE_SHIFT)
-			    | CHUNK_MAP_ALLOCATED;
+			    | (chunk->map[run_ind+i-map_bias].bits &
+			    CHUNK_MAP_UNZEROED) | CHUNK_MAP_ALLOCATED;
 		}
 		chunk->map[run_ind+need_pages-1-map_bias].bits = ((need_pages
-		    - 1) << PAGE_SHIFT) | CHUNK_MAP_ALLOCATED | flag_dirty;
+		    - 1) << PAGE_SHIFT) |
+		    (chunk->map[run_ind+need_pages-1-map_bias].bits &
+		    CHUNK_MAP_UNZEROED) | CHUNK_MAP_ALLOCATED | flag_dirty;
 	}
 }
 
