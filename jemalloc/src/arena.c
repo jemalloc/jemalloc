@@ -174,6 +174,8 @@ static void	arena_run_trim_tail(arena_t *arena, arena_chunk_t *chunk,
 static arena_run_t *arena_bin_nonfull_run_get(arena_t *arena, arena_bin_t *bin);
 static void	*arena_bin_malloc_hard(arena_t *arena, arena_bin_t *bin);
 static size_t	arena_bin_run_size_calc(arena_bin_t *bin, size_t min_run_size);
+static void	arena_dissociate_bin_run(arena_chunk_t *chunk, arena_run_t *run,
+    arena_bin_t *bin);
 static void	arena_dalloc_bin_run(arena_t *arena, arena_chunk_t *chunk,
     arena_run_t *run, arena_bin_t *bin);
 static void	arena_bin_lower_run(arena_t *arena, arena_chunk_t *chunk,
@@ -1856,10 +1858,9 @@ arena_prof_ctx_set(const void *ptr, prof_ctx_t *ctx)
 #endif
 
 static void
-arena_dalloc_bin_run(arena_t *arena, arena_chunk_t *chunk, arena_run_t *run,
+arena_dissociate_bin_run(arena_chunk_t *chunk, arena_run_t *run,
     arena_bin_t *bin)
 {
-	size_t npages, run_ind, past;
 
 	/* Dissociate run from bin. */
 	if (run == bin->runcur)
@@ -1876,6 +1877,17 @@ arena_dalloc_bin_run(arena_t *arena, arena_chunk_t *chunk, arena_run_t *run,
 		 */
 		arena_run_tree_remove(&bin->runs, run_mapelm);
 	}
+}
+
+static void
+arena_dalloc_bin_run(arena_t *arena, arena_chunk_t *chunk, arena_run_t *run,
+    arena_bin_t *bin)
+{
+	size_t npages, run_ind, past;
+
+	assert(run != bin->runcur);
+	assert(arena_run_tree_search(&bin->runs, &chunk->map[
+	    (((uintptr_t)run-(uintptr_t)chunk)>>PAGE_SHIFT)-map_bias]) == NULL);
 
 	malloc_mutex_unlock(&bin->lock);
 	/******************************/
@@ -1980,9 +1992,10 @@ arena_dalloc_bin(arena_t *arena, arena_chunk_t *chunk, void *ptr,
 #endif
 
 	arena_run_reg_dalloc(run, ptr);
-	if (run->nfree == bin->nregs)
+	if (run->nfree == bin->nregs) {
+		arena_dissociate_bin_run(chunk, run, bin);
 		arena_dalloc_bin_run(arena, chunk, run, bin);
-	else if (run->nfree == 1 && run != bin->runcur)
+	} else if (run->nfree == 1 && run != bin->runcur)
 		arena_bin_lower_run(arena, chunk, run, bin);
 
 #ifdef JEMALLOC_STATS
@@ -2140,8 +2153,8 @@ arena_ralloc_large_grow(arena_t *arena, arena_chunk_t *chunk, void *ptr,
 		arena_run_split(arena, (arena_run_t *)((uintptr_t)chunk +
 		    ((pageind+npages) << PAGE_SHIFT)), splitsize, true, zero);
 
-		size += splitsize;
-		npages = (size >> PAGE_SHIFT);
+		size = oldsize + splitsize;
+		npages = size >> PAGE_SHIFT;
 
 		/*
 		 * Mark the extended run as dirty if either portion of the run
