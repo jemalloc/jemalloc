@@ -934,19 +934,24 @@ arena_run_dalloc(arena_t *arena, arena_run_t *run, bool dirty)
 	    CHUNK_MAP_DIRTY) == flag_dirty) {
 		size_t nrun_size = chunk->map[run_ind+run_pages-map_bias].bits &
 		    ~PAGE_MASK;
+		size_t nrun_pages = nrun_size >> PAGE_SHIFT;
 
 		/*
 		 * Remove successor from runs_avail; the coalesced run is
 		 * inserted later.
 		 */
+		assert((chunk->map[run_ind+run_pages+nrun_pages-1-map_bias].bits
+		    & ~PAGE_MASK) == nrun_size);
+		assert((chunk->map[run_ind+run_pages+nrun_pages-1-map_bias].bits
+		    & CHUNK_MAP_ALLOCATED) == 0);
+		assert((chunk->map[run_ind+run_pages+nrun_pages-1-map_bias].bits
+		    & CHUNK_MAP_DIRTY) == flag_dirty);
 		arena_avail_tree_remove(runs_avail,
 		    &chunk->map[run_ind+run_pages-map_bias]);
 
 		size += nrun_size;
-		run_pages = size >> PAGE_SHIFT;
+		run_pages += nrun_pages;
 
-		assert((chunk->map[run_ind+run_pages-1-map_bias].bits &
-		    ~PAGE_MASK) == nrun_size);
 		chunk->map[run_ind-map_bias].bits = size |
 		    (chunk->map[run_ind-map_bias].bits & CHUNK_MAP_FLAGS_MASK);
 		chunk->map[run_ind+run_pages-1-map_bias].bits = size |
@@ -960,21 +965,26 @@ arena_run_dalloc(arena_t *arena, arena_run_t *run, bool dirty)
 	    CHUNK_MAP_DIRTY) == flag_dirty) {
 		size_t prun_size = chunk->map[run_ind-1-map_bias].bits &
 		    ~PAGE_MASK;
+		size_t prun_pages = prun_size >> PAGE_SHIFT;
 
-		run_ind -= prun_size >> PAGE_SHIFT;
+		run_ind -= prun_pages;
 
 		/*
 		 * Remove predecessor from runs_avail; the coalesced run is
 		 * inserted later.
 		 */
+		assert((chunk->map[run_ind-map_bias].bits & ~PAGE_MASK)
+		    == prun_size);
+		assert((chunk->map[run_ind-map_bias].bits & CHUNK_MAP_ALLOCATED)
+		    == 0);
+		assert((chunk->map[run_ind-map_bias].bits & CHUNK_MAP_DIRTY)
+		    == flag_dirty);
 		arena_avail_tree_remove(runs_avail,
 		    &chunk->map[run_ind-map_bias]);
 
 		size += prun_size;
-		run_pages = size >> PAGE_SHIFT;
+		run_pages += prun_pages;
 
-		assert((chunk->map[run_ind-map_bias].bits & ~PAGE_MASK) ==
-		    prun_size);
 		chunk->map[run_ind-map_bias].bits = size |
 		    (chunk->map[run_ind-map_bias].bits & CHUNK_MAP_FLAGS_MASK);
 		chunk->map[run_ind+run_pages-1-map_bias].bits = size |
