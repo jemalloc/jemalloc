@@ -283,11 +283,32 @@ arena_run_reg_dalloc(arena_run_t *run, void *ptr)
 	assert(((uintptr_t)ptr - ((uintptr_t)run +
 	    (uintptr_t)run->bin->reg0_offset)) % (uintptr_t)run->bin->reg_size
 	    == 0);
+	/*
+	 * Freeing a pointer lower than region zero can cause assertion
+	 * failure.
+	 */
+	assert((uintptr_t)ptr >= (uintptr_t)run +
+	    (uintptr_t)run->bin->reg0_offset);
+	/*
+	 * Freeing a pointer in the run's wilderness can cause assertion
+	 * failure.
+	 */
+	assert((uintptr_t)ptr < (uintptr_t)run->next);
 
 	*(void **)ptr = run->avail;
 	run->avail = ptr;
 	run->nfree++;
 }
+
+#ifdef JEMALLOC_DEBUG
+static inline void
+arena_chunk_validate_zeroed(arena_chunk_t *chunk, size_t run_ind)
+{
+	size_t *p = (size_t *)((uintptr_t)chunk + (run_ind << PAGE_SHIFT));
+	for (size_t i = 0; i < PAGE_SIZE / sizeof(size_t); i++)
+		assert(p[i] == 0);
+}
+#endif
 
 static void
 arena_run_split(arena_t *arena, arena_run_t *run, size_t size, bool large,
@@ -359,20 +380,14 @@ arena_run_split(arena_t *arena, arena_run_t *run, size_t size, bool large,
 					if ((chunk->map[run_ind+i-map_bias].bits
 					    & CHUNK_MAP_UNZEROED) != 0) {
 						memset((void *)((uintptr_t)
-						    chunk + ((run_ind + i) <<
+						    chunk + ((run_ind+i) <<
 						    PAGE_SHIFT)), 0,
 						    PAGE_SIZE);
 					}
 #ifdef JEMALLOC_DEBUG
 					else {
-						size_t *p = (size_t *)
-						    ((uintptr_t)chunk +
-						    ((run_ind + i) <<
-						    PAGE_SHIFT));
-						for (size_t j = 0; j <
-						    PAGE_SIZE / sizeof(size_t);
-						    j++)
-							assert(p[j] == 0);
+						arena_chunk_validate_zeroed(
+						    chunk, run_ind+i);
 					}
 #endif
 				}
@@ -408,15 +423,40 @@ arena_run_split(arena_t *arena, arena_run_t *run, size_t size, bool large,
 		chunk->map[run_ind-map_bias].bits =
 		    (chunk->map[run_ind-map_bias].bits & CHUNK_MAP_UNZEROED) |
 		    CHUNK_MAP_ALLOCATED | flag_dirty;
+#ifdef JEMALLOC_DEBUG
+		/*
+		 * The first page will always be dirtied during small run
+		 * initialization, so a validation failure here would not
+		 * actually cause an observable failure.
+		 */
+		if (flag_dirty == 0 &&
+		    (chunk->map[run_ind-map_bias].bits & CHUNK_MAP_UNZEROED)
+		    == 0)
+			arena_chunk_validate_zeroed(chunk, run_ind);
+#endif
 		for (i = 1; i < need_pages - 1; i++) {
 			chunk->map[run_ind+i-map_bias].bits = (i << PAGE_SHIFT)
 			    | (chunk->map[run_ind+i-map_bias].bits &
 			    CHUNK_MAP_UNZEROED) | CHUNK_MAP_ALLOCATED;
+#ifdef JEMALLOC_DEBUG
+			if (flag_dirty == 0 &&
+			    (chunk->map[run_ind+i-map_bias].bits &
+			    CHUNK_MAP_UNZEROED) == 0)
+				arena_chunk_validate_zeroed(chunk, run_ind+i);
+#endif
 		}
 		chunk->map[run_ind+need_pages-1-map_bias].bits = ((need_pages
 		    - 1) << PAGE_SHIFT) |
 		    (chunk->map[run_ind+need_pages-1-map_bias].bits &
 		    CHUNK_MAP_UNZEROED) | CHUNK_MAP_ALLOCATED | flag_dirty;
+#ifdef JEMALLOC_DEBUG
+		if (flag_dirty == 0 &&
+		    (chunk->map[run_ind+need_pages-1-map_bias].bits &
+		    CHUNK_MAP_UNZEROED) == 0) {
+			arena_chunk_validate_zeroed(chunk,
+			    run_ind+need_pages-1);
+		}
+#endif
 	}
 }
 
@@ -1170,7 +1210,7 @@ arena_bin_nonfull_run_get(arena_t *arena, arena_bin_t *bin)
 		/* Initialize run internals. */
 		run->bin = bin;
 		run->avail = NULL;
-		run->next = (void *)(((uintptr_t)run) +
+		run->next = (void *)((uintptr_t)run +
 		    (uintptr_t)bin->reg0_offset);
 		run->nfree = bin->nregs;
 #ifdef JEMALLOC_DEBUG
@@ -1893,8 +1933,8 @@ arena_dalloc_bin_run(arena_t *arena, arena_chunk_t *chunk, arena_run_t *run,
 	/******************************/
 	npages = bin->run_size >> PAGE_SHIFT;
 	run_ind = (size_t)(((uintptr_t)run - (uintptr_t)chunk) >> PAGE_SHIFT);
-	past = (size_t)(((uintptr_t)run->next - (uintptr_t)1U -
-	    (uintptr_t)chunk) >> PAGE_SHIFT) + ZU(1);
+	past = (size_t)((PAGE_CEILING((uintptr_t)run->next) - (uintptr_t)chunk)
+	    >> PAGE_SHIFT);
 	malloc_mutex_lock(&arena->lock);
 
 	/*
@@ -1915,7 +1955,7 @@ arena_dalloc_bin_run(arena_t *arena, arena_chunk_t *chunk, arena_run_t *run,
 		    CHUNK_MAP_LARGE | (chunk->map[run_ind-map_bias].bits &
 		    CHUNK_MAP_FLAGS_MASK);
 		arena_run_trim_tail(arena, chunk, run, (npages << PAGE_SHIFT),
-		    ((npages - (past - run_ind)) << PAGE_SHIFT), false);
+		    ((past - run_ind) << PAGE_SHIFT), false);
 		/* npages = past - run_ind; */
 	}
 #ifdef JEMALLOC_DEBUG
