@@ -888,6 +888,21 @@ mallctl), it will be automatically initialized as a side effect of calling this
 interface.
 .Ed
 .\"-----------------------------------------------------------------------------
+@roff_stats@.It Sy "thread.allocated (uint64_t) r-"
+@roff_stats@.Bd -ragged -offset indent -compact
+@roff_stats@Get the total number of bytes ever allocated by the calling thread.
+@roff_stats@This counter has the potential to wrap around; it is up to the
+@roff_stats@application to appropriately interpret the counter in such cases.
+@roff_stats@.Ed
+.\"-----------------------------------------------------------------------------
+@roff_stats@.It Sy "thread.deallocated (uint64_t) r-"
+@roff_stats@.Bd -ragged -offset indent -compact
+@roff_stats@Get the total number of bytes ever deallocated by the calling
+@roff_stats@thread.
+@roff_stats@This counter has the potential to wrap around; it is up to the
+@roff_stats@application to appropriately interpret the counter in such cases.
+@roff_stats@.Ed
+.\"-----------------------------------------------------------------------------
 .It Sy "config.debug (bool) r-"
 .Bd -ragged -offset indent -compact
 --enable-debug was specified during build configuration.

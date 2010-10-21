@@ -291,6 +291,50 @@ extern pthread_key_t	arenas_tsd;
 extern arena_t		**arenas;
 extern unsigned		narenas;
 
+#ifdef JEMALLOC_STATS
+typedef struct {
+	uint64_t	allocated;
+	uint64_t	deallocated;
+} thread_allocated_t;
+#  ifndef NO_TLS
+extern __thread thread_allocated_t	thread_allocated_tls;
+#    define ALLOCATED_GET() thread_allocated_tls.allocated
+#    define DEALLOCATED_GET() thread_allocated_tls.deallocated
+#    define ALLOCATED_ADD(a, d) do {					\
+	thread_allocated_tls.allocated += a;				\
+	thread_allocated_tls.deallocated += d;				\
+} while (0)
+#  else
+extern pthread_key_t	thread_allocated_tsd;
+#    define ALLOCATED_GET()						\
+	(uint64_t)((pthread_getspecific(thread_allocated_tsd) != NULL)	\
+	    ? ((thread_allocated_t *)					\
+	    pthread_getspecific(thread_allocated_tsd))->allocated : 0)
+#    define DEALLOCATED_GET()						\
+	(uint64_t)((pthread_getspecific(thread_allocated_tsd) != NULL)	\
+	    ? ((thread_allocated_t					\
+	    *)pthread_getspecific(thread_allocated_tsd))->deallocated :	\
+	    0)
+#    define ALLOCATED_ADD(a, d) do {					\
+	thread_allocated_t *thread_allocated = (thread_allocated_t *)	\
+	    pthread_getspecific(thread_allocated_tsd);			\
+	if (thread_allocated != NULL) {					\
+		thread_allocated->allocated += (a);			\
+		thread_allocated->deallocated += (d);			\
+	} else {							\
+		thread_allocated = (thread_allocated_t *)		\
+		    imalloc(sizeof(thread_allocated_t));		\
+		if (thread_allocated != NULL) {				\
+			pthread_setspecific(thread_allocated_tsd,	\
+			    thread_allocated);				\
+			thread_allocated->allocated = (a);		\
+			thread_allocated->deallocated = (d);		\
+		}							\
+	}								\
+} while (0)
+#  endif
+#endif
+
 arena_t	*arenas_extend(unsigned ind);
 arena_t	*choose_arena_hard(void);
 int	buferror(int errnum, char *buf, size_t buflen);
@@ -333,6 +377,8 @@ void	jemalloc_postfork(void);
 
 #ifndef JEMALLOC_ENABLE_INLINE
 size_t	pow2_ceil(size_t x);
+size_t	s2u(size_t size);
+size_t	sa2u(size_t size, size_t alignment, size_t *run_size_p);
 void	malloc_write(const char *s);
 arena_t	*choose_arena(void);
 #endif
@@ -354,6 +400,117 @@ pow2_ceil(size_t x)
 #endif
 	x++;
 	return (x);
+}
+
+/*
+ * Compute usable size that would result from allocating an object with the
+ * specified size.
+ */
+JEMALLOC_INLINE size_t
+s2u(size_t size)
+{
+
+	if (size <= small_maxclass)
+		return arenas[0]->bins[small_size2bin[size]].reg_size;
+	if (size <= arena_maxclass)
+		return PAGE_CEILING(size);
+	return CHUNK_CEILING(size);
+}
+
+/*
+ * Compute usable size that would result from allocating an object with the
+ * specified size and alignment.
+ */
+JEMALLOC_INLINE size_t
+sa2u(size_t size, size_t alignment, size_t *run_size_p)
+{
+	size_t usize;
+
+	/*
+	 * Round size up to the nearest multiple of alignment.
+	 *
+	 * This done, we can take advantage of the fact that for each small
+	 * size class, every object is aligned at the smallest power of two
+	 * that is non-zero in the base two representation of the size.  For
+	 * example:
+	 *
+	 *   Size |   Base 2 | Minimum alignment
+	 *   -----+----------+------------------
+	 *     96 |  1100000 |  32
+	 *    144 | 10100000 |  32
+	 *    192 | 11000000 |  64
+	 *
+	 * Depending on runtime settings, it is possible that arena_malloc()
+	 * will further round up to a power of two, but that never causes
+	 * correctness issues.
+	 */
+	usize = (size + (alignment - 1)) & (-alignment);
+	/*
+	 * (usize < size) protects against the combination of maximal
+	 * alignment and size greater than maximal alignment.
+	 */
+	if (usize < size) {
+		/* size_t overflow. */
+		return (0);
+	}
+
+	if (usize <= arena_maxclass && alignment <= PAGE_SIZE) {
+		if (usize <= small_maxclass) {
+			return
+			    (arenas[0]->bins[small_size2bin[usize]].reg_size);
+		}
+		return (PAGE_CEILING(usize));
+	} else {
+		size_t run_size;
+
+		/*
+		 * We can't achieve subpage alignment, so round up alignment
+		 * permanently; it makes later calculations simpler.
+		 */
+		alignment = PAGE_CEILING(alignment);
+		usize = PAGE_CEILING(size);
+		/*
+		 * (usize < size) protects against very large sizes within
+		 * PAGE_SIZE of SIZE_T_MAX.
+		 *
+		 * (usize + alignment < usize) protects against the
+		 * combination of maximal alignment and usize large enough
+		 * to cause overflow.  This is similar to the first overflow
+		 * check above, but it needs to be repeated due to the new
+		 * usize value, which may now be *equal* to maximal
+		 * alignment, whereas before we only detected overflow if the
+		 * original size was *greater* than maximal alignment.
+		 */
+		if (usize < size || usize + alignment < usize) {
+			/* size_t overflow. */
+			return (0);
+		}
+
+		/*
+		 * Calculate the size of the over-size run that arena_palloc()
+		 * would need to allocate in order to guarantee the alignment.
+		 */
+		if (usize >= alignment)
+			run_size = usize + alignment - PAGE_SIZE;
+		else {
+			/*
+			 * It is possible that (alignment << 1) will cause
+			 * overflow, but it doesn't matter because we also
+			 * subtract PAGE_SIZE, which in the case of overflow
+			 * leaves us with a very large run_size.  That causes
+			 * the first conditional below to fail, which means
+			 * that the bogus run_size value never gets used for
+			 * anything important.
+			 */
+			run_size = (alignment << 1) - PAGE_SIZE;
+		}
+		if (run_size_p != NULL)
+			*run_size_p = run_size;
+
+		if (run_size <= arena_maxclass)
+			return (PAGE_CEILING(usize));
+		return (CHUNK_CEILING(usize));
+	}
 }
 
 /*
@@ -435,92 +592,25 @@ JEMALLOC_INLINE void *
 ipalloc(size_t size, size_t alignment, bool zero)
 {
 	void *ret;
-	size_t ceil_size;
+	size_t usize;
+	size_t run_size
+#  ifdef JEMALLOC_CC_SILENCE
+	    = 0
+#  endif
+	    ;
 
-	/*
-	 * Round size up to the nearest multiple of alignment.
-	 *
-	 * This done, we can take advantage of the fact that for each small
-	 * size class, every object is aligned at the smallest power of two
-	 * that is non-zero in the base two representation of the size.  For
-	 * example:
-	 *
-	 *   Size |   Base 2 | Minimum alignment
-	 *   -----+----------+------------------
-	 *     96 |  1100000 |  32
-	 *    144 | 10100000 |  32
-	 *    192 | 11000000 |  64
-	 *
-	 * Depending on runtime settings, it is possible that arena_malloc()
-	 * will further round up to a power of two, but that never causes
-	 * correctness issues.
-	 */
-	ceil_size = (size + (alignment - 1)) & (-alignment);
-	/*
-	 * (ceil_size < size) protects against the combination of maximal
-	 * alignment and size greater than maximal alignment.
-	 */
-	if (ceil_size < size) {
-		/* size_t overflow. */
+	usize = sa2u(size, alignment, &run_size);
+	if (usize == 0)
 		return (NULL);
-	}
-
-	if (ceil_size <= PAGE_SIZE || (alignment <= PAGE_SIZE
-	    && ceil_size <= arena_maxclass))
-		ret = arena_malloc(ceil_size, zero);
-	else {
-		size_t run_size;
-
-		/*
-		 * We can't achieve subpage alignment, so round up alignment
-		 * permanently; it makes later calculations simpler.
-		 */
-		alignment = PAGE_CEILING(alignment);
-		ceil_size = PAGE_CEILING(size);
-		/*
-		 * (ceil_size < size) protects against very large sizes within
-		 * PAGE_SIZE of SIZE_T_MAX.
-		 *
-		 * (ceil_size + alignment < ceil_size) protects against the
-		 * combination of maximal alignment and ceil_size large enough
-		 * to cause overflow.  This is similar to the first overflow
-		 * check above, but it needs to be repeated due to the new
-		 * ceil_size value, which may now be *equal* to maximal
-		 * alignment, whereas before we only detected overflow if the
-		 * original size was *greater* than maximal alignment.
-		 */
-		if (ceil_size < size || ceil_size + alignment < ceil_size) {
-			/* size_t overflow. */
-			return (NULL);
-		}
-
-		/*
-		 * Calculate the size of the over-size run that arena_palloc()
-		 * would need to allocate in order to guarantee the alignment.
-		 */
-		if (ceil_size >= alignment)
-			run_size = ceil_size + alignment - PAGE_SIZE;
-		else {
-			/*
-			 * It is possible that (alignment << 1) will cause
-			 * overflow, but it doesn't matter because we also
-			 * subtract PAGE_SIZE, which in the case of overflow
-			 * leaves us with a very large run_size.  That causes
-			 * the first conditional below to fail, which means
-			 * that the bogus run_size value never gets used for
-			 * anything important.
-			 */
-			run_size = (alignment << 1) - PAGE_SIZE;
-		}
-
-		if (run_size <= arena_maxclass) {
-			ret = arena_palloc(choose_arena(), ceil_size, run_size,
-			    alignment, zero);
-		} else if (alignment <= chunksize)
-			ret = huge_malloc(ceil_size, zero);
-		else
-			ret = huge_palloc(ceil_size, alignment, zero);
-	}
+	if (usize <= arena_maxclass && alignment <= PAGE_SIZE)
+		ret = arena_malloc(usize, zero);
+	else if (run_size <= arena_maxclass) {
+		ret = arena_palloc(choose_arena(), usize, run_size, alignment,
+		    zero);
+	} else if (alignment <= chunksize)
+		ret = huge_malloc(usize, zero);
+	else
+		ret = huge_palloc(usize, alignment, zero);
 
 	assert(((uintptr_t)ret & (alignment - 1)) == 0);
 	return (ret);

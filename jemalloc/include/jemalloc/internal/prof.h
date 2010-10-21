@@ -179,9 +179,9 @@ extern bool	prof_promote;
 
 prof_thr_cnt_t	*prof_alloc_prep(size_t size);
 prof_ctx_t	*prof_ctx_get(const void *ptr);
-void	prof_malloc(const void *ptr, prof_thr_cnt_t *cnt);
-void	prof_realloc(const void *ptr, prof_thr_cnt_t *cnt, const void *old_ptr,
-    size_t old_size, prof_ctx_t *old_ctx);
+void	prof_malloc(const void *ptr, size_t size, prof_thr_cnt_t *cnt);
+void	prof_realloc(const void *ptr, size_t size, prof_thr_cnt_t *cnt,
+    const void *old_ptr, size_t old_size, prof_ctx_t *old_ctx);
 void	prof_free(const void *ptr);
 void	prof_idump(void);
 bool	prof_mdump(const char *filename);

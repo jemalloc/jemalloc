@@ -1613,7 +1613,8 @@ arena_palloc(arena_t *arena, size_t size, size_t alloc_size, size_t alignment,
 	arena_chunk_t *chunk;
 
 	assert((size & PAGE_MASK) == 0);
-	assert((alignment & PAGE_MASK) == 0);
+
+	alignment = PAGE_CEILING(alignment);
 
 	malloc_mutex_lock(&arena->lock);
 	ret = (void *)arena_run_alloc(arena, alloc_size, true, zero);

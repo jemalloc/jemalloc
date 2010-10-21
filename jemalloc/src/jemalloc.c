@@ -15,14 +15,22 @@ __thread arena_t	*arenas_tls JEMALLOC_ATTR(tls_model("initial-exec"));
 pthread_key_t		arenas_tsd;
 #endif
 
+#ifdef JEMALLOC_STATS
+#  ifndef NO_TLS
+__thread thread_allocated_t	thread_allocated_tls;
+#  else
+pthread_key_t		thread_allocated_tsd;
+#  endif
+#endif
+
 /* Set to true once the allocator has been initialized. */
-static bool malloc_initialized = false;
+static bool		malloc_initialized = false;
 
 /* Used to let the initializing thread recursively allocate. */
-static pthread_t malloc_initializer = (unsigned long)0;
+static pthread_t	malloc_initializer = (unsigned long)0;
 
 /* Used to avoid initialization races. */
-static malloc_mutex_t init_lock = MALLOC_MUTEX_INITIALIZER;
+static malloc_mutex_t	init_lock = MALLOC_MUTEX_INITIALIZER;
 
 #ifdef DYNAMIC_PAGE_SHIFT
 size_t		pagesize;
@@ -63,6 +71,9 @@ static int	opt_narenas_lshift = 0;
 static void	wrtmessage(void *cbopaque, const char *s);
 static void	stats_print_atexit(void);
 static unsigned	malloc_ncpus(void);
+#if (defined(JEMALLOC_STATS) && defined(NO_TLS))
+static void	thread_allocated_cleanup(void *arg);
+#endif
 static bool	malloc_init_hard(void);
 
 /******************************************************************************/
@@ -221,6 +232,17 @@ malloc_ncpus(void)
 
 	return (ret);
 }
+
+#if (defined(JEMALLOC_STATS) && defined(NO_TLS))
+static void
+thread_allocated_cleanup(void *arg)
+{
+	uint64_t *allocated = (uint64_t *)arg;
+
+	if (allocated != NULL)
+		idalloc(allocated);
+}
+#endif
 
 /*
  * FreeBSD's pthreads implementation calls malloc(3), so the malloc
@@ -633,6 +655,15 @@ MALLOC_OUT:
 		return (true);
 	}
 
+#if (defined(JEMALLOC_STATS) && defined(NO_TLS))
+	/* Initialize allocation counters before any allocations can occur. */
+	if (pthread_key_create(&thread_allocated_tsd, thread_allocated_cleanup)
+	    != 0) {
+		malloc_mutex_unlock(&init_lock);
+		return (true);
+	}
+#endif
+
 	/*
 	 * Create enough scaffolding to allow recursive allocation in
 	 * malloc_ncpus().
@@ -766,6 +797,13 @@ void *
 JEMALLOC_P(malloc)(size_t size)
 {
 	void *ret;
+#if (defined(JEMALLOC_PROF) || defined(JEMALLOC_STATS))
+	size_t usize
+#  ifdef JEMALLOC_CC_SILENCE
+	    = 0
+#  endif
+	    ;
+#endif
 #ifdef JEMALLOC_PROF
 	prof_thr_cnt_t *cnt
 #  ifdef JEMALLOC_CC_SILENCE
@@ -801,20 +839,26 @@ JEMALLOC_P(malloc)(size_t size)
 
 #ifdef JEMALLOC_PROF
 	if (opt_prof) {
-		if ((cnt = prof_alloc_prep(size)) == NULL) {
+		usize = s2u(size);
+		if ((cnt = prof_alloc_prep(usize)) == NULL) {
 			ret = NULL;
 			goto OOM;
 		}
-		if (prof_promote && (uintptr_t)cnt != (uintptr_t)1U && size <=
+		if (prof_promote && (uintptr_t)cnt != (uintptr_t)1U && usize <=
 		    small_maxclass) {
 			ret = imalloc(small_maxclass+1);
 			if (ret != NULL)
-				arena_prof_promoted(ret, size);
+				arena_prof_promoted(ret, usize);
 		} else
 			ret = imalloc(size);
 	} else
 #endif
+	{
+#ifdef JEMALLOC_STATS
+		usize = s2u(size);
+#endif
 		ret = imalloc(size);
+	}
 
 OOM:
 	if (ret == NULL) {
@@ -833,7 +877,13 @@ RETURN:
 #endif
 #ifdef JEMALLOC_PROF
 	if (opt_prof && ret != NULL)
-		prof_malloc(ret, cnt);
+		prof_malloc(ret, usize, cnt);
+#endif
+#ifdef JEMALLOC_STATS
+	if (ret != NULL) {
+		assert(usize == isalloc(ret));
+		ALLOCATED_ADD(usize, 0);
+	}
 #endif
 	return (ret);
 }
@@ -845,6 +895,13 @@ JEMALLOC_P(posix_memalign)(void **memptr, size_t alignment, size_t size)
 {
 	int ret;
 	void *result;
+#if (defined(JEMALLOC_PROF) || defined(JEMALLOC_STATS))
+	size_t usize
+#  ifdef JEMALLOC_CC_SILENCE
+	    = 0
+#  endif
+	    ;
+#endif
 #ifdef JEMALLOC_PROF
 	prof_thr_cnt_t *cnt
 #  ifdef JEMALLOC_CC_SILENCE
@@ -896,17 +953,18 @@ JEMALLOC_P(posix_memalign)(void **memptr, size_t alignment, size_t size)
 
 #ifdef JEMALLOC_PROF
 		if (opt_prof) {
-			if ((cnt = prof_alloc_prep(size)) == NULL) {
+			usize = sa2u(size, alignment, NULL);
+			if ((cnt = prof_alloc_prep(usize)) == NULL) {
 				result = NULL;
 				ret = EINVAL;
 			} else {
 				if (prof_promote && (uintptr_t)cnt !=
-				    (uintptr_t)1U && size <= small_maxclass) {
+				    (uintptr_t)1U && usize <= small_maxclass) {
 					result = ipalloc(small_maxclass+1,
 					    alignment, false);
 					if (result != NULL) {
 						arena_prof_promoted(result,
-						    size);
+						    usize);
 					}
 				} else {
 					result = ipalloc(size, alignment,
@@ -915,7 +973,12 @@ JEMALLOC_P(posix_memalign)(void **memptr, size_t alignment, size_t size)
 			}
 		} else
 #endif
+		{
+#ifdef JEMALLOC_STATS
+			usize = sa2u(size, alignment, NULL);
+#endif
 			result = ipalloc(size, alignment, false);
+		}
 	}
 
 	if (result == NULL) {
@@ -934,9 +997,15 @@ JEMALLOC_P(posix_memalign)(void **memptr, size_t alignment, size_t size)
 	ret = 0;
 
 RETURN:
+#ifdef JEMALLOC_STATS
+	if (result != NULL) {
+		assert(usize == isalloc(result));
+		ALLOCATED_ADD(usize, 0);
+	}
+#endif
 #ifdef JEMALLOC_PROF
 	if (opt_prof && result != NULL)
-		prof_malloc(result, cnt);
+		prof_malloc(result, usize, cnt);
 #endif
 	return (ret);
 }
@@ -948,6 +1017,13 @@ JEMALLOC_P(calloc)(size_t num, size_t size)
 {
 	void *ret;
 	size_t num_size;
+#if (defined(JEMALLOC_PROF) || defined(JEMALLOC_STATS))
+	size_t usize
+#  ifdef JEMALLOC_CC_SILENCE
+	    = 0
+#  endif
+	    ;
+#endif
 #ifdef JEMALLOC_PROF
 	prof_thr_cnt_t *cnt
 #  ifdef JEMALLOC_CC_SILENCE
@@ -988,20 +1064,26 @@ JEMALLOC_P(calloc)(size_t num, size_t size)
 
 #ifdef JEMALLOC_PROF
 	if (opt_prof) {
-		if ((cnt = prof_alloc_prep(num_size)) == NULL) {
+		usize = s2u(num_size);
+		if ((cnt = prof_alloc_prep(usize)) == NULL) {
 			ret = NULL;
 			goto RETURN;
 		}
-		if (prof_promote && (uintptr_t)cnt != (uintptr_t)1U && num_size
+		if (prof_promote && (uintptr_t)cnt != (uintptr_t)1U && usize
 		    <= small_maxclass) {
 			ret = icalloc(small_maxclass+1);
 			if (ret != NULL)
-				arena_prof_promoted(ret, num_size);
+				arena_prof_promoted(ret, usize);
 		} else
 			ret = icalloc(num_size);
 	} else
 #endif
+	{
+#ifdef JEMALLOC_STATS
+		usize = s2u(num_size);
+#endif
 		ret = icalloc(num_size);
+	}
 
 RETURN:
 	if (ret == NULL) {
@@ -1017,7 +1099,13 @@ RETURN:
 
 #ifdef JEMALLOC_PROF
 	if (opt_prof && ret != NULL)
-		prof_malloc(ret, cnt);
+		prof_malloc(ret, usize, cnt);
+#endif
+#ifdef JEMALLOC_STATS
+	if (ret != NULL) {
+		assert(usize == isalloc(ret));
+		ALLOCATED_ADD(usize, 0);
+	}
 #endif
 	return (ret);
 }
@@ -1027,12 +1115,15 @@ void *
 JEMALLOC_P(realloc)(void *ptr, size_t size)
 {
 	void *ret;
-#ifdef JEMALLOC_PROF
-	size_t old_size
+#if (defined(JEMALLOC_PROF) || defined(JEMALLOC_STATS))
+	size_t usize
 #  ifdef JEMALLOC_CC_SILENCE
 	    = 0
 #  endif
 	    ;
+	size_t old_size = 0;
+#endif
+#ifdef JEMALLOC_PROF
 	prof_thr_cnt_t *cnt
 #  ifdef JEMALLOC_CC_SILENCE
 	    = NULL
@@ -1053,9 +1144,11 @@ JEMALLOC_P(realloc)(void *ptr, size_t size)
 #ifdef JEMALLOC_SYSV
 		else {
 			if (ptr != NULL) {
+#if (defined(JEMALLOC_PROF) || defined(JEMALLOC_STATS))
+				old_size = isalloc(ptr);
+#endif
 #ifdef JEMALLOC_PROF
 				if (opt_prof) {
-					old_size = isalloc(ptr);
 					old_ctx = prof_ctx_get(ptr);
 					cnt = NULL;
 				}
@@ -1064,7 +1157,6 @@ JEMALLOC_P(realloc)(void *ptr, size_t size)
 			}
 #ifdef JEMALLOC_PROF
 			else if (opt_prof) {
-				old_size = 0;
 				old_ctx = NULL;
 				cnt = NULL;
 			}
@@ -1079,25 +1171,33 @@ JEMALLOC_P(realloc)(void *ptr, size_t size)
 		assert(malloc_initialized || malloc_initializer ==
 		    pthread_self());
 
+#if (defined(JEMALLOC_PROF) || defined(JEMALLOC_STATS))
+		old_size = isalloc(ptr);
+#endif
 #ifdef JEMALLOC_PROF
 		if (opt_prof) {
-			old_size = isalloc(ptr);
+			usize = s2u(size);
 			old_ctx = prof_ctx_get(ptr);
-			if ((cnt = prof_alloc_prep(size)) == NULL) {
+			if ((cnt = prof_alloc_prep(usize)) == NULL) {
 				ret = NULL;
 				goto OOM;
 			}
 			if (prof_promote && (uintptr_t)cnt != (uintptr_t)1U &&
-			    size <= small_maxclass) {
+			    usize <= small_maxclass) {
 				ret = iralloc(ptr, small_maxclass+1, 0, 0,
 				    false, false);
 				if (ret != NULL)
-					arena_prof_promoted(ret, size);
+					arena_prof_promoted(ret, usize);
 			} else
 				ret = iralloc(ptr, size, 0, 0, false, false);
 		} else
 #endif
+		{
+#ifdef JEMALLOC_STATS
+			usize = s2u(size);
+#endif
 			ret = iralloc(ptr, size, 0, 0, false, false);
+		}
 
 #ifdef JEMALLOC_PROF
 OOM:
@@ -1114,10 +1214,8 @@ OOM:
 		}
 	} else {
 #ifdef JEMALLOC_PROF
-		if (opt_prof) {
-			old_size = 0;
+		if (opt_prof)
 			old_ctx = NULL;
-		}
 #endif
 		if (malloc_init()) {
 #ifdef JEMALLOC_PROF
@@ -1128,23 +1226,29 @@ OOM:
 		} else {
 #ifdef JEMALLOC_PROF
 			if (opt_prof) {
-				if ((cnt = prof_alloc_prep(size)) == NULL)
+				usize = s2u(size);
+				if ((cnt = prof_alloc_prep(usize)) == NULL)
 					ret = NULL;
 				else {
 					if (prof_promote && (uintptr_t)cnt !=
-					    (uintptr_t)1U && size <=
+					    (uintptr_t)1U && usize <=
 					    small_maxclass) {
 						ret = imalloc(small_maxclass+1);
 						if (ret != NULL) {
 							arena_prof_promoted(ret,
-							    size);
+							    usize);
 						}
 					} else
 						ret = imalloc(size);
 				}
 			} else
 #endif
+			{
+#ifdef JEMALLOC_STATS
+				usize = s2u(size);
+#endif
 				ret = imalloc(size);
+			}
 		}
 
 		if (ret == NULL) {
@@ -1164,7 +1268,13 @@ RETURN:
 #endif
 #ifdef JEMALLOC_PROF
 	if (opt_prof)
-		prof_realloc(ret, cnt, ptr, old_size, old_ctx);
+		prof_realloc(ret, usize, cnt, ptr, old_size, old_ctx);
+#endif
+#ifdef JEMALLOC_STATS
+	if (ret != NULL) {
+		assert(usize == isalloc(ret));
+		ALLOCATED_ADD(usize, old_size);
+	}
 #endif
 	return (ret);
 }
@@ -1181,6 +1291,9 @@ JEMALLOC_P(free)(void *ptr)
 #ifdef JEMALLOC_PROF
 		if (opt_prof)
 			prof_free(ptr);
+#endif
+#ifdef JEMALLOC_STATS
+		ALLOCATED_ADD(0, isalloc(ptr));
 #endif
 		idalloc(ptr);
 	}
@@ -1325,6 +1438,7 @@ int
 JEMALLOC_P(allocm)(void **ptr, size_t *rsize, size_t size, int flags)
 {
 	void *p;
+	size_t usize;
 	size_t alignment = (ZU(1) << (flags & ALLOCM_LG_ALIGN_MASK)
 	    & (SIZE_T_MAX-1));
 	bool zero = flags & ALLOCM_ZERO;
@@ -1340,30 +1454,48 @@ JEMALLOC_P(allocm)(void **ptr, size_t *rsize, size_t size, int flags)
 
 #ifdef JEMALLOC_PROF
 	if (opt_prof) {
-		if ((cnt = prof_alloc_prep(size)) == NULL)
+		usize = (alignment == 0) ? s2u(size) : sa2u(size, alignment,
+		    NULL);
+		if ((cnt = prof_alloc_prep(usize)) == NULL)
 			goto OOM;
-		if (prof_promote && (uintptr_t)cnt != (uintptr_t)1U && size <=
+		if (prof_promote && (uintptr_t)cnt != (uintptr_t)1U && usize <=
 		    small_maxclass) {
 			p = iallocm(small_maxclass+1, alignment, zero);
 			if (p == NULL)
 				goto OOM;
-			arena_prof_promoted(p, size);
+			arena_prof_promoted(p, usize);
 		} else {
 			p = iallocm(size, alignment, zero);
 			if (p == NULL)
 				goto OOM;
 		}
+
+		if (rsize != NULL)
+			*rsize = usize;
 	} else
 #endif
 	{
 		p = iallocm(size, alignment, zero);
 		if (p == NULL)
 			goto OOM;
+#ifndef JEMALLOC_STATS
+		if (rsize != NULL)
+#endif
+		{
+			usize = (alignment == 0) ? s2u(size) : sa2u(size,
+			    alignment, NULL);
+#ifdef JEMALLOC_STATS
+			if (rsize != NULL)
+#endif
+				*rsize = usize;
+		}
 	}
 
 	*ptr = p;
-	if (rsize != NULL)
-		*rsize = isalloc(p);
+#ifdef JEMALLOC_STATS
+	assert(usize == isalloc(p));
+	ALLOCATED_ADD(usize, 0);
+#endif
 	return (ALLOCM_SUCCESS);
 OOM:
 #ifdef JEMALLOC_XMALLOC
@@ -1384,12 +1516,15 @@ JEMALLOC_P(rallocm)(void **ptr, size_t *rsize, size_t size, size_t extra,
     int flags)
 {
 	void *p, *q;
+	size_t usize;
+#if (defined(JEMALLOC_PROF) || defined(JEMALLOC_STATS))
+	size_t old_size;
+#endif
 	size_t alignment = (ZU(1) << (flags & ALLOCM_LG_ALIGN_MASK)
 	    & (SIZE_T_MAX-1));
 	bool zero = flags & ALLOCM_ZERO;
 	bool no_move = flags & ALLOCM_NO_MOVE;
 #ifdef JEMALLOC_PROF
-	size_t old_size;
 	prof_thr_cnt_t *cnt;
 	prof_ctx_t *old_ctx;
 #endif
@@ -1403,36 +1538,60 @@ JEMALLOC_P(rallocm)(void **ptr, size_t *rsize, size_t size, size_t extra,
 	p = *ptr;
 #ifdef JEMALLOC_PROF
 	if (opt_prof) {
+		/*
+		 * usize isn't knowable before iralloc() returns when extra is
+		 * non-zero.  Therefore, compute its maximum possible value and
+		 * use that in prof_alloc_prep() to decide whether to capture a
+		 * backtrace.  prof_realloc() will use the actual usize to
+		 * decide whether to sample.
+		 */
+		size_t max_usize = (alignment == 0) ? s2u(size+extra) :
+		    sa2u(size+extra, alignment, NULL);
 		old_size = isalloc(p);
 		old_ctx = prof_ctx_get(p);
-		if ((cnt = prof_alloc_prep(size)) == NULL)
+		if ((cnt = prof_alloc_prep(max_usize)) == NULL)
 			goto OOM;
-		if (prof_promote && (uintptr_t)cnt != (uintptr_t)1U && size <=
-		    small_maxclass) {
+		if (prof_promote && (uintptr_t)cnt != (uintptr_t)1U && max_usize
+		    <= small_maxclass) {
 			q = iralloc(p, small_maxclass+1, (small_maxclass+1 >=
 			    size+extra) ? 0 : size+extra - (small_maxclass+1),
 			    alignment, zero, no_move);
 			if (q == NULL)
 				goto ERR;
-			arena_prof_promoted(q, size);
+			usize = isalloc(q);
+			arena_prof_promoted(q, usize);
 		} else {
 			q = iralloc(p, size, extra, alignment, zero, no_move);
 			if (q == NULL)
 				goto ERR;
+			usize = isalloc(q);
 		}
-		prof_realloc(q, cnt, p, old_size, old_ctx);
+		prof_realloc(q, usize, cnt, p, old_size, old_ctx);
 	} else
 #endif
 	{
+#ifdef JEMALLOC_STATS
+		old_size = isalloc(p);
+#endif
 		q = iralloc(p, size, extra, alignment, zero, no_move);
 		if (q == NULL)
 			goto ERR;
+#ifndef JEMALLOC_STATS
+		if (rsize != NULL)
+#endif
+		{
+			usize = isalloc(q);
+#ifdef JEMALLOC_STATS
+			if (rsize != NULL)
+#endif
+				*rsize = usize;
+		}
 	}
 
 	*ptr = q;
-	if (rsize != NULL)
-		*rsize = isalloc(q);
-
+#ifdef JEMALLOC_STATS
+	ALLOCATED_ADD(usize, old_size);
+#endif
 	return (ALLOCM_SUCCESS);
 ERR:
 	if (no_move)
@@ -1483,6 +1642,9 @@ JEMALLOC_P(dallocm)(void *ptr, int flags)
 #ifdef JEMALLOC_PROF
 	if (opt_prof)
 		prof_free(ptr);
+#endif
+#ifdef JEMALLOC_STATS
+	ALLOCATED_ADD(0, isalloc(ptr));
 #endif
 	idalloc(ptr);
 

@@ -47,7 +47,8 @@ static __thread prof_tcache_t	*prof_tcache_tls
 	pthread_setspecific(prof_tcache_tsd, (void *)(v));		\
 } while (0)
 #else
-#  define PROF_TCACHE_GET()	((ckh_t *)pthread_getspecific(prof_tcache_tsd))
+#  define PROF_TCACHE_GET()						\
+	((prof_tcache_t *)pthread_getspecific(prof_tcache_tsd))
 #  define PROF_TCACHE_SET(v)	do {					\
 	pthread_setspecific(prof_tcache_tsd, (void *)(v));		\
 } while (0)
@@ -69,7 +70,7 @@ static __thread void	**vec_tls
 	pthread_setspecific(vec_tsd, (void *)(v));		\
 } while (0)
 #else
-#  define VEC_GET()	((ckh_t *)pthread_getspecific(vec_tsd))
+#  define VEC_GET()	((void **)pthread_getspecific(vec_tsd))
 #  define VEC_SET(v)	do {					\
 	pthread_setspecific(vec_tsd, (void *)(v));		\
 } while (0)
@@ -106,7 +107,8 @@ prof_sample_state_t prof_sample_state_oom;
 	r = (prof_sample_state_t *)pthread_getspecific(			\
 	    prof_sample_state_tsd);					\
 	if (r == NULL) {						\
-		r = ipalloc(sizeof(prof_sample_state_t), CACHELINE);	\
+		r = ipalloc(sizeof(prof_sample_state_t), CACHELINE,	\
+		    false);						\
 		if (r == NULL) {					\
 			malloc_write("<jemalloc>: Error in heap "	\
 			    "profiler: out of memory; subsequent heap "	\
@@ -658,6 +660,8 @@ prof_alloc_prep(size_t size)
 	void **vec;
 	prof_bt_t bt;
 
+	assert(size == s2u(size));
+
 	vec = VEC_GET();
 	if (vec == NULL) {
 		vec = imalloc(sizeof(void *) * prof_bt_max);
@@ -750,7 +754,7 @@ prof_ctx_set(const void *ptr, prof_ctx_t *ctx)
 		huge_prof_ctx_set(ptr, ctx);
 }
 
-static inline void
+static inline bool
 prof_sample_accum_update(size_t size)
 {
 	prof_sample_state_t *prof_sample_state;
@@ -771,22 +775,33 @@ prof_sample_accum_update(size_t size)
 			    prof_sample_state->threshold;
 			prof_sample_threshold_update();
 		}
-	} else
+		return (false);
+	} else {
 		prof_sample_state->accum += size;
+		return (true);
+	}
 }
 
 void
-prof_malloc(const void *ptr, prof_thr_cnt_t *cnt)
+prof_malloc(const void *ptr, size_t size, prof_thr_cnt_t *cnt)
 {
-	size_t size;
 
 	assert(ptr != NULL);
+	assert(size == s2u(size));
 
 	if (opt_lg_prof_sample != 0) {
-		size = isalloc(ptr);
-		prof_sample_accum_update(size);
-	} else if ((uintptr_t)cnt > (uintptr_t)1U)
-		size = isalloc(ptr);
+		if (prof_sample_accum_update(size)) {
+			/*
+			 * Don't sample.  For malloc()-like allocation, it is
+			 * always possible to tell in advance how large an
+			 * object's usable size will be, so there should never
+			 * be a difference between the size passed to
+			 * prof_alloc_prep() and prof_malloc().
+			 */
+			assert(false);
+			return;
+		}
+	}
 
 	if ((uintptr_t)cnt > (uintptr_t)1U) {
 		prof_ctx_set(ptr, cnt->ctx);
@@ -813,24 +828,27 @@ prof_malloc(const void *ptr, prof_thr_cnt_t *cnt)
 }
 
 void
-prof_realloc(const void *ptr, prof_thr_cnt_t *cnt, const void *old_ptr,
-    size_t old_size, prof_ctx_t *old_ctx)
+prof_realloc(const void *ptr, size_t size, prof_thr_cnt_t *cnt,
+    const void *old_ptr, size_t old_size, prof_ctx_t *old_ctx)
 {
-	size_t size
-#ifdef JEMALLOC_CC_SILENCE
-	    = 0
-#endif
-	    ;
 	prof_thr_cnt_t *told_cnt;
 
 	assert(ptr != NULL || (uintptr_t)cnt <= (uintptr_t)1U);
 
 	if (ptr != NULL) {
 		if (opt_lg_prof_sample != 0) {
-			size = isalloc(ptr);
-			prof_sample_accum_update(size);
-		} else if ((uintptr_t)cnt > (uintptr_t)1U)
-			size = isalloc(ptr);
+			if (prof_sample_accum_update(size)) {
+				/*
+				 * Don't sample.  The size passed to
+				 * prof_alloc_prep() was larger than what
+				 * actually got allocated., so a backtrace was
+				 * captured for this allocation, even though
+				 * its actual size was insufficient to cross
+				 * the sample threshold.
+				 */
+				return;
+			}
+		}
 	}
 
 	if ((uintptr_t)old_ctx > (uintptr_t)1U) {

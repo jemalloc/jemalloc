@@ -42,6 +42,10 @@ CTL_PROTO(epoch)
 CTL_PROTO(tcache_flush)
 #endif
 CTL_PROTO(thread_arena)
+#ifdef JEMALLOC_STATS
+CTL_PROTO(thread_allocated)
+CTL_PROTO(thread_deallocated)
+#endif
 CTL_PROTO(config_debug)
 CTL_PROTO(config_dss)
 CTL_PROTO(config_dynamic_page_shift)
@@ -216,6 +220,11 @@ static const ctl_node_t	tcache_node[] = {
 
 static const ctl_node_t	thread_node[] = {
 	{NAME("arena"),		CTL(thread_arena)}
+#ifdef JEMALLOC_STATS
+	,
+	{NAME("allocated"),	CTL(thread_allocated)},
+	{NAME("deallocated"),	CTL(thread_deallocated)}
+#endif
 };
 
 static const ctl_node_t	config_node[] = {
@@ -1091,6 +1100,11 @@ thread_arena_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
 RETURN:
 	return (ret);
 }
+
+#ifdef JEMALLOC_STATS
+CTL_RO_GEN(thread_allocated, ALLOCATED_GET(), uint64_t);
+CTL_RO_GEN(thread_deallocated, DEALLOCATED_GET(), uint64_t);
+#endif
 
 /******************************************************************************/
 
