@@ -444,7 +444,6 @@ size_t	arena_salloc(const void *ptr);
 #ifdef JEMALLOC_PROF
 void	arena_prof_promoted(const void *ptr, size_t size);
 size_t	arena_salloc_demote(const void *ptr);
-prof_ctx_t	*arena_prof_ctx_get(const void *ptr);
 void	arena_prof_ctx_set(const void *ptr, prof_ctx_t *ctx);
 #endif
 void	arena_dalloc_bin(arena_t *arena, arena_chunk_t *chunk, void *ptr,
@@ -467,10 +466,116 @@ bool	arena_boot(void);
 #ifdef JEMALLOC_H_INLINES
 
 #ifndef JEMALLOC_ENABLE_INLINE
+unsigned	arena_run_regind(arena_run_t *run, arena_bin_t *bin,
+    const void *ptr, size_t size);
+#  ifdef JEMALLOC_PROF
+prof_ctx_t	*arena_prof_ctx_get(const void *ptr);
+#  endif
 void	arena_dalloc(arena_t *arena, arena_chunk_t *chunk, void *ptr);
 #endif
 
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_ARENA_C_))
+JEMALLOC_INLINE unsigned
+arena_run_regind(arena_run_t *run, arena_bin_t *bin, const void *ptr,
+    size_t size)
+{
+	unsigned shift, diff, regind;
+
+	assert(run->magic == ARENA_RUN_MAGIC);
+
+	/*
+	 * Avoid doing division with a variable divisor if possible.  Using
+	 * actual division here can reduce allocator throughput by over 20%!
+	 */
+	diff = (unsigned)((uintptr_t)ptr - (uintptr_t)run - bin->reg0_offset);
+
+	/* Rescale (factor powers of 2 out of the numerator and denominator). */
+	shift = ffs(size) - 1;
+	diff >>= shift;
+	size >>= shift;
+
+	if (size == 1) {
+		/* The divisor was a power of 2. */
+		regind = diff;
+	} else {
+		/*
+		 * To divide by a number D that is not a power of two we
+		 * multiply by (2^21 / D) and then right shift by 21 positions.
+		 *
+		 *   X / D
+		 *
+		 * becomes
+		 *
+		 *   (X * size_invs[D - 3]) >> SIZE_INV_SHIFT
+		 *
+		 * We can omit the first three elements, because we never
+		 * divide by 0, and 1 and 2 are both powers of two, which are
+		 * handled above.
+		 */
+#define	SIZE_INV_SHIFT 21
+#define	SIZE_INV(s) (((1U << SIZE_INV_SHIFT) / (s)) + 1)
+		static const unsigned size_invs[] = {
+		    SIZE_INV(3),
+		    SIZE_INV(4), SIZE_INV(5), SIZE_INV(6), SIZE_INV(7),
+		    SIZE_INV(8), SIZE_INV(9), SIZE_INV(10), SIZE_INV(11),
+		    SIZE_INV(12), SIZE_INV(13), SIZE_INV(14), SIZE_INV(15),
+		    SIZE_INV(16), SIZE_INV(17), SIZE_INV(18), SIZE_INV(19),
+		    SIZE_INV(20), SIZE_INV(21), SIZE_INV(22), SIZE_INV(23),
+		    SIZE_INV(24), SIZE_INV(25), SIZE_INV(26), SIZE_INV(27),
+		    SIZE_INV(28), SIZE_INV(29), SIZE_INV(30), SIZE_INV(31)
+		};
+
+		if (size <= ((sizeof(size_invs) / sizeof(unsigned)) + 2))
+			regind = (diff * size_invs[size - 3]) >> SIZE_INV_SHIFT;
+		else
+			regind = diff / size;
+#undef SIZE_INV
+#undef SIZE_INV_SHIFT
+	}
+	assert(diff == regind * size);
+	assert(regind < bin->nregs);
+
+	return (regind);
+}
+
+#ifdef JEMALLOC_PROF
+JEMALLOC_INLINE prof_ctx_t *
+arena_prof_ctx_get(const void *ptr)
+{
+	prof_ctx_t *ret;
+	arena_chunk_t *chunk;
+	size_t pageind, mapbits;
+
+	assert(ptr != NULL);
+	assert(CHUNK_ADDR2BASE(ptr) != ptr);
+
+	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
+	pageind = ((uintptr_t)ptr - (uintptr_t)chunk) >> PAGE_SHIFT;
+	mapbits = chunk->map[pageind-map_bias].bits;
+	assert((mapbits & CHUNK_MAP_ALLOCATED) != 0);
+	if ((mapbits & CHUNK_MAP_LARGE) == 0) {
+		if (prof_promote)
+			ret = (prof_ctx_t *)(uintptr_t)1U;
+		else {
+			arena_run_t *run = (arena_run_t *)((uintptr_t)chunk +
+			    (uintptr_t)((pageind - (mapbits >> PAGE_SHIFT)) <<
+			    PAGE_SHIFT));
+			arena_bin_t *bin = run->bin;
+			unsigned regind;
+
+			assert(run->magic == ARENA_RUN_MAGIC);
+			regind = arena_run_regind(run, bin, ptr, bin->reg_size);
+			ret = *(prof_ctx_t **)((uintptr_t)run +
+			    bin->ctx0_offset + (regind *
+			    sizeof(prof_ctx_t *)));
+		}
+	} else
+		ret = chunk->map[pageind-map_bias].prof_ctx;
+
+	return (ret);
+}
+#endif
+
 JEMALLOC_INLINE void
 arena_dalloc(arena_t *arena, arena_chunk_t *chunk, void *ptr)
 {

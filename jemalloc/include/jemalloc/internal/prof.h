@@ -389,7 +389,7 @@ prof_malloc(const void *ptr, size_t size, prof_thr_cnt_t *cnt)
 {
 
 	assert(ptr != NULL);
-	assert(size == s2u(size));
+	assert(size == isalloc(ptr));
 
 	if (opt_lg_prof_sample != 0) {
 		if (prof_sample_accum_update(size)) {
@@ -401,6 +401,7 @@ prof_malloc(const void *ptr, size_t size, prof_thr_cnt_t *cnt)
 			 * prof_alloc_prep() and prof_malloc().
 			 */
 			assert(false);
+			prof_ctx_set(ptr, (prof_ctx_t *)(uintptr_t)1U);
 			return;
 		}
 	}
@@ -438,6 +439,7 @@ prof_realloc(const void *ptr, size_t size, prof_thr_cnt_t *cnt,
 	assert(ptr != NULL || (uintptr_t)cnt <= (uintptr_t)1U);
 
 	if (ptr != NULL) {
+		assert(size == isalloc(ptr));
 		if (opt_lg_prof_sample != 0) {
 			if (prof_sample_accum_update(size)) {
 				/*
@@ -448,6 +450,7 @@ prof_realloc(const void *ptr, size_t size, prof_thr_cnt_t *cnt,
 				 * its actual size was insufficient to cross
 				 * the sample threshold.
 				 */
+				prof_ctx_set(ptr, (prof_ctx_t *)(uintptr_t)1U);
 				return;
 			}
 		}
