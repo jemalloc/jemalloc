@@ -27,6 +27,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <pthread.h>
+#include <math.h>
 
 #define	JEMALLOC_MANGLE
 #include "../jemalloc@install_suffix@.h"
@@ -210,10 +211,10 @@ extern void	(*JEMALLOC_P(malloc_message))(void *wcbopaque, const char *s);
 #include "jemalloc/internal/rtree.h"
 #include "jemalloc/internal/tcache.h"
 #include "jemalloc/internal/hash.h"
-#include "jemalloc/internal/prof.h"
 #ifdef JEMALLOC_ZONE
 #include "jemalloc/internal/zone.h"
 #endif
+#include "jemalloc/internal/prof.h"
 
 #undef JEMALLOC_H_TYPES
 /******************************************************************************/
@@ -233,10 +234,10 @@ extern void	(*JEMALLOC_P(malloc_message))(void *wcbopaque, const char *s);
 #include "jemalloc/internal/rtree.h"
 #include "jemalloc/internal/tcache.h"
 #include "jemalloc/internal/hash.h"
-#include "jemalloc/internal/prof.h"
 #ifdef JEMALLOC_ZONE
 #include "jemalloc/internal/zone.h"
 #endif
+#include "jemalloc/internal/prof.h"
 
 #undef JEMALLOC_H_STRUCTS
 /******************************************************************************/
@@ -355,10 +356,10 @@ void	jemalloc_postfork(void);
 #include "jemalloc/internal/rtree.h"
 #include "jemalloc/internal/tcache.h"
 #include "jemalloc/internal/hash.h"
-#include "jemalloc/internal/prof.h"
 #ifdef JEMALLOC_ZONE
 #include "jemalloc/internal/zone.h"
 #endif
+#include "jemalloc/internal/prof.h"
 
 #undef JEMALLOC_H_EXTERNS
 /******************************************************************************/
@@ -547,7 +548,6 @@ choose_arena(void)
 #include "jemalloc/internal/tcache.h"
 #include "jemalloc/internal/arena.h"
 #include "jemalloc/internal/hash.h"
-#include "jemalloc/internal/prof.h"
 #ifdef JEMALLOC_ZONE
 #include "jemalloc/internal/zone.h"
 #endif
@@ -728,6 +728,8 @@ iralloc(void *ptr, size_t size, size_t extra, size_t alignment, bool zero,
 	}
 }
 #endif
+
+#include "jemalloc/internal/prof.h"
 
 #undef JEMALLOC_H_INLINES
 /******************************************************************************/
