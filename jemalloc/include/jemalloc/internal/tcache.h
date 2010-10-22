@@ -282,8 +282,7 @@ tcache_alloc_large(tcache_t *tcache, size_t size, bool zero)
 		arena_chunk_t *chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ret);
 		size_t pageind = (((uintptr_t)ret - (uintptr_t)chunk) >>
 		    PAGE_SHIFT);
-		chunk->map[pageind-map_bias].bits |=
-		    CHUNK_MAP_CLASS_MASK;
+		chunk->map[pageind-map_bias].bits &= ~CHUNK_MAP_CLASS_MASK;
 #endif
 		if (zero == false) {
 #ifdef JEMALLOC_FILL

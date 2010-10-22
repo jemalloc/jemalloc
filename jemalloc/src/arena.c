@@ -408,11 +408,8 @@ arena_run_split(arena_t *arena, arena_run_t *run, size_t size, bool large,
 		 */
 		chunk->map[run_ind+need_pages-1-map_bias].bits =
 		    CHUNK_MAP_LARGE | CHUNK_MAP_ALLOCATED | flag_dirty;
-		chunk->map[run_ind-map_bias].bits = size | CHUNK_MAP_LARGE |
-#ifdef JEMALLOC_PROF
-		    CHUNK_MAP_CLASS_MASK |
-#endif
-		    CHUNK_MAP_ALLOCATED | flag_dirty;
+		chunk->map[run_ind-map_bias].bits = size | flag_dirty |
+		    CHUNK_MAP_LARGE | CHUNK_MAP_ALLOCATED;
 	} else {
 		assert(zero == false);
 		/*
@@ -1724,7 +1721,7 @@ arena_prof_promoted(const void *ptr, size_t size)
 	binind = small_size2bin[size];
 	assert(binind < nbins);
 	chunk->map[pageind-map_bias].bits = (chunk->map[pageind-map_bias].bits &
-	    ~CHUNK_MAP_CLASS_MASK) | (binind << CHUNK_MAP_CLASS_SHIFT);
+	    ~CHUNK_MAP_CLASS_MASK) | ((binind+1) << CHUNK_MAP_CLASS_SHIFT);
 }
 
 size_t
@@ -1754,9 +1751,9 @@ arena_salloc_demote(const void *ptr)
 		assert(((uintptr_t)ptr & PAGE_MASK) == 0);
 		ret = mapbits & ~PAGE_MASK;
 		if (prof_promote && ret == PAGE_SIZE && (mapbits &
-		    CHUNK_MAP_CLASS_MASK) != CHUNK_MAP_CLASS_MASK) {
+		    CHUNK_MAP_CLASS_MASK) != 0) {
 			size_t binind = ((mapbits & CHUNK_MAP_CLASS_MASK) >>
-			    CHUNK_MAP_CLASS_SHIFT);
+			    CHUNK_MAP_CLASS_SHIFT) - 1;
 			assert(binind < nbins);
 			ret = chunk->arena->bins[binind].reg_size;
 		}
@@ -1764,38 +1761,6 @@ arena_salloc_demote(const void *ptr)
 	}
 
 	return (ret);
-}
-
-void
-arena_prof_ctx_set(const void *ptr, prof_ctx_t *ctx)
-{
-	arena_chunk_t *chunk;
-	size_t pageind, mapbits;
-
-	assert(ptr != NULL);
-	assert(CHUNK_ADDR2BASE(ptr) != ptr);
-
-	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
-	pageind = ((uintptr_t)ptr - (uintptr_t)chunk) >> PAGE_SHIFT;
-	mapbits = chunk->map[pageind-map_bias].bits;
-	assert((mapbits & CHUNK_MAP_ALLOCATED) != 0);
-	if ((mapbits & CHUNK_MAP_LARGE) == 0) {
-		if (prof_promote == false) {
-			arena_run_t *run = (arena_run_t *)((uintptr_t)chunk +
-			    (uintptr_t)((pageind - (mapbits >> PAGE_SHIFT)) <<
-			    PAGE_SHIFT));
-			arena_bin_t *bin = run->bin;
-			unsigned regind;
-
-			assert(run->magic == ARENA_RUN_MAGIC);
-			regind = arena_run_regind(run, bin, ptr, bin->reg_size);
-
-			*((prof_ctx_t **)((uintptr_t)run + bin->ctx0_offset
-			    + (regind * sizeof(prof_ctx_t *)))) = ctx;
-		} else
-			assert((uintptr_t)ctx == (uintptr_t)1U);
-	} else
-		chunk->map[pageind-map_bias].prof_ctx = ctx;
 }
 #endif
 

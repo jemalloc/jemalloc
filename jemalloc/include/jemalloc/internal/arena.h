@@ -121,7 +121,7 @@ struct arena_chunk_map_s {
 	 *
 	 * p : run page offset
 	 * s : run size
-	 * c : size class (used only if prof_promote is true)
+	 * c : (binind+1) for size class (used only if prof_promote is true)
 	 * x : don't care
 	 * - : 0
 	 * + : 1
@@ -144,7 +144,7 @@ struct arena_chunk_map_s {
 	 *     pppppppp pppppppp pppp---- ----d--a
 	 *
 	 *   Large:
-	 *     ssssssss ssssssss ssss++++ ++++D-la
+	 *     ssssssss ssssssss ssss---- ----D-la
 	 *     xxxxxxxx xxxxxxxx xxxx---- ----xxxx
 	 *     -------- -------- -------- ----D-la
 	 *
@@ -152,7 +152,7 @@ struct arena_chunk_map_s {
 	 *     ssssssss ssssssss sssscccc ccccD-la
 	 *
 	 *   Large (not sampled, size == PAGE_SIZE):
-	 *     ssssssss ssssssss ssss++++ ++++D-la
+	 *     ssssssss ssssssss ssss---- ----D-la
 	 */
 	size_t				bits;
 #ifdef JEMALLOC_PROF
@@ -444,7 +444,6 @@ size_t	arena_salloc(const void *ptr);
 #ifdef JEMALLOC_PROF
 void	arena_prof_promoted(const void *ptr, size_t size);
 size_t	arena_salloc_demote(const void *ptr);
-void	arena_prof_ctx_set(const void *ptr, prof_ctx_t *ctx);
 #endif
 void	arena_dalloc_bin(arena_t *arena, arena_chunk_t *chunk, void *ptr,
     arena_chunk_map_t *mapelm);
@@ -470,6 +469,7 @@ unsigned	arena_run_regind(arena_run_t *run, arena_bin_t *bin,
     const void *ptr, size_t size);
 #  ifdef JEMALLOC_PROF
 prof_ctx_t	*arena_prof_ctx_get(const void *ptr);
+void	arena_prof_ctx_set(const void *ptr, prof_ctx_t *ctx);
 #  endif
 void	arena_dalloc(arena_t *arena, arena_chunk_t *chunk, void *ptr);
 #endif
@@ -573,6 +573,38 @@ arena_prof_ctx_get(const void *ptr)
 		ret = chunk->map[pageind-map_bias].prof_ctx;
 
 	return (ret);
+}
+
+JEMALLOC_INLINE void
+arena_prof_ctx_set(const void *ptr, prof_ctx_t *ctx)
+{
+	arena_chunk_t *chunk;
+	size_t pageind, mapbits;
+
+	assert(ptr != NULL);
+	assert(CHUNK_ADDR2BASE(ptr) != ptr);
+
+	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
+	pageind = ((uintptr_t)ptr - (uintptr_t)chunk) >> PAGE_SHIFT;
+	mapbits = chunk->map[pageind-map_bias].bits;
+	assert((mapbits & CHUNK_MAP_ALLOCATED) != 0);
+	if ((mapbits & CHUNK_MAP_LARGE) == 0) {
+		if (prof_promote == false) {
+			arena_run_t *run = (arena_run_t *)((uintptr_t)chunk +
+			    (uintptr_t)((pageind - (mapbits >> PAGE_SHIFT)) <<
+			    PAGE_SHIFT));
+			arena_bin_t *bin = run->bin;
+			unsigned regind;
+
+			assert(run->magic == ARENA_RUN_MAGIC);
+			regind = arena_run_regind(run, bin, ptr, bin->reg_size);
+
+			*((prof_ctx_t **)((uintptr_t)run + bin->ctx0_offset
+			    + (regind * sizeof(prof_ctx_t *)))) = ctx;
+		} else
+			assert((uintptr_t)ctx == (uintptr_t)1U);
+	} else
+		chunk->map[pageind-map_bias].prof_ctx = ctx;
 }
 #endif
 

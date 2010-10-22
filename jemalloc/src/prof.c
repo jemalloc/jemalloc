@@ -239,38 +239,26 @@ prof_backtrace(prof_bt_t *bt, unsigned nignore, unsigned max)
 void
 prof_backtrace(prof_bt_t *bt, unsigned nignore, unsigned max)
 {
-#define	NIGNORE	3
 #define	BT_FRAME(i)							\
-	if ((i) < NIGNORE + max) {					\
+	if ((i) < nignore + max) {					\
 		void *p;						\
 		if (__builtin_frame_address(i) == 0)			\
 			return;						\
 		p = __builtin_return_address(i);			\
 		if (p == NULL)						\
 			return;						\
-		if (i >= NIGNORE) {					\
-			bt->vec[(i) - NIGNORE] = p;			\
-			bt->len = (i) - NIGNORE + 1;			\
+		if (i >= nignore) {					\
+			bt->vec[(i) - nignore] = p;			\
+			bt->len = (i) - nignore + 1;			\
 		}							\
 	} else								\
 		return;
 
 	assert(max <= (1U << opt_lg_prof_bt_max));
 
-	/*
-	 * Ignore the first three frames, since they are:
-	 *
-	 *   0: prof_backtrace()
-	 *   1: prof_alloc_prep()
-	 *   2: malloc(), calloc(), etc.
-	 */
-#if 1
-	assert(nignore + 1 == NIGNORE);
-#else
 	BT_FRAME(0)
 	BT_FRAME(1)
 	BT_FRAME(2)
-#endif
 	BT_FRAME(3)
 	BT_FRAME(4)
 	BT_FRAME(5)
@@ -491,8 +479,8 @@ prof_lookup(prof_bt_t *bt)
 		    == (ZU(1) << opt_lg_prof_tcmax)) {
 			assert(ckh_count(&prof_tdata->bt2cnt) > 0);
 			/*
-			 * Flush the least least recently used cnt in order to
-			 * keep bt2cnt from becoming too large.
+			 * Flush the least recently used cnt in order to keep
+			 * bt2cnt from becoming too large.
 			 */
 			ret.p = ql_last(&prof_tdata->lru_ql, lru_link);
 			assert(ret.v != NULL);

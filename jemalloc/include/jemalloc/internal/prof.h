@@ -232,8 +232,8 @@ void	prof_ctx_set(const void *ptr, prof_ctx_t *ctx);
 bool	prof_sample_accum_update(size_t size);
 void	prof_malloc(const void *ptr, size_t size, prof_thr_cnt_t *cnt);
 void	prof_realloc(const void *ptr, size_t size, prof_thr_cnt_t *cnt,
-    const void *old_ptr, size_t old_size, prof_ctx_t *old_ctx);
-void	prof_free(const void *ptr);
+    size_t old_size, prof_ctx_t *old_ctx);
+void	prof_free(const void *ptr, size_t size);
 #endif
 
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_PROF_C_))
@@ -400,9 +400,7 @@ prof_malloc(const void *ptr, size_t size, prof_thr_cnt_t *cnt)
 			 * be a difference between the size passed to
 			 * prof_alloc_prep() and prof_malloc().
 			 */
-			assert(false);
-			prof_ctx_set(ptr, (prof_ctx_t *)(uintptr_t)1U);
-			return;
+			assert((uintptr_t)cnt == (uintptr_t)1U);
 		}
 	}
 
@@ -432,7 +430,7 @@ prof_malloc(const void *ptr, size_t size, prof_thr_cnt_t *cnt)
 
 JEMALLOC_INLINE void
 prof_realloc(const void *ptr, size_t size, prof_thr_cnt_t *cnt,
-    const void *old_ptr, size_t old_size, prof_ctx_t *old_ctx)
+    size_t old_size, prof_ctx_t *old_ctx)
 {
 	prof_thr_cnt_t *told_cnt;
 
@@ -445,13 +443,12 @@ prof_realloc(const void *ptr, size_t size, prof_thr_cnt_t *cnt,
 				/*
 				 * Don't sample.  The size passed to
 				 * prof_alloc_prep() was larger than what
-				 * actually got allocated., so a backtrace was
+				 * actually got allocated, so a backtrace was
 				 * captured for this allocation, even though
 				 * its actual size was insufficient to cross
 				 * the sample threshold.
 				 */
-				prof_ctx_set(ptr, (prof_ctx_t *)(uintptr_t)1U);
-				return;
+				cnt = (prof_thr_cnt_t *)(uintptr_t)1U;
 			}
 		}
 	}
@@ -506,12 +503,12 @@ prof_realloc(const void *ptr, size_t size, prof_thr_cnt_t *cnt,
 }
 
 JEMALLOC_INLINE void
-prof_free(const void *ptr)
+prof_free(const void *ptr, size_t size)
 {
 	prof_ctx_t *ctx = prof_ctx_get(ptr);
 
 	if ((uintptr_t)ctx > (uintptr_t)1) {
-		size_t size = isalloc(ptr);
+		assert(size == isalloc(ptr));
 		prof_thr_cnt_t *tcnt = prof_lookup(ctx->bt);
 
 		if (tcnt != NULL) {

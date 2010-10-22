@@ -1268,7 +1268,7 @@ RETURN:
 #endif
 #ifdef JEMALLOC_PROF
 	if (opt_prof)
-		prof_realloc(ret, usize, cnt, ptr, old_size, old_ctx);
+		prof_realloc(ret, usize, cnt, old_size, old_ctx);
 #endif
 #ifdef JEMALLOC_STATS
 	if (ret != NULL) {
@@ -1285,15 +1285,26 @@ JEMALLOC_P(free)(void *ptr)
 {
 
 	if (ptr != NULL) {
+#if (defined(JEMALLOC_PROF) || defined(JEMALLOC_STATS))
+		size_t usize;
+#endif
+
 		assert(malloc_initialized || malloc_initializer ==
 		    pthread_self());
 
+#ifdef JEMALLOC_STATS
+		usize = isalloc(ptr);
+#endif
 #ifdef JEMALLOC_PROF
-		if (opt_prof)
-			prof_free(ptr);
+		if (opt_prof) {
+#  ifndef JEMALLOC_STATS
+			usize = isalloc(ptr);
+#  endif
+			prof_free(ptr, usize);
+		}
 #endif
 #ifdef JEMALLOC_STATS
-		ALLOCATED_ADD(0, isalloc(ptr));
+		ALLOCATED_ADD(0, usize);
 #endif
 		idalloc(ptr);
 	}
@@ -1566,7 +1577,7 @@ JEMALLOC_P(rallocm)(void **ptr, size_t *rsize, size_t size, size_t extra,
 				goto ERR;
 			usize = isalloc(q);
 		}
-		prof_realloc(q, usize, cnt, p, old_size, old_ctx);
+		prof_realloc(q, usize, cnt, old_size, old_ctx);
 	} else
 #endif
 	{
@@ -1635,16 +1646,26 @@ JEMALLOC_ATTR(visibility("default"))
 int
 JEMALLOC_P(dallocm)(void *ptr, int flags)
 {
+#if (defined(JEMALLOC_PROF) || defined(JEMALLOC_STATS))
+	size_t usize;
+#endif
 
 	assert(ptr != NULL);
 	assert(malloc_initialized || malloc_initializer == pthread_self());
 
+#ifdef JEMALLOC_STATS
+	usize = isalloc(ptr);
+#endif
 #ifdef JEMALLOC_PROF
-	if (opt_prof)
-		prof_free(ptr);
+	if (opt_prof) {
+#  ifndef JEMALLOC_STATS
+		usize = isalloc(ptr);
+#  endif
+		prof_free(ptr, usize);
+	}
 #endif
 #ifdef JEMALLOC_STATS
-	ALLOCATED_ADD(0, isalloc(ptr));
+	ALLOCATED_ADD(0, usize);
 #endif
 	idalloc(ptr);
 
