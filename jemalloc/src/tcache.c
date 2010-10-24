@@ -5,17 +5,19 @@
 /* Data. */
 
 bool	opt_tcache = true;
-ssize_t	opt_lg_tcache_maxclass = LG_TCACHE_MAXCLASS_DEFAULT;
+ssize_t	opt_lg_tcache_max = LG_TCACHE_MAXCLASS_DEFAULT;
 ssize_t	opt_lg_tcache_gc_sweep = LG_TCACHE_GC_SWEEP_DEFAULT;
 
 /* Map of thread-specific caches. */
+#ifndef NO_TLS
 __thread tcache_t	*tcache_tls JEMALLOC_ATTR(tls_model("initial-exec"));
+#endif
 
 /*
  * Same contents as tcache, but initialized such that the TSD destructor is
  * called when a thread exits, so that the cache can be cleaned up.
  */
-static pthread_key_t		tcache_tsd;
+pthread_key_t		tcache_tsd;
 
 size_t				nhbins;
 size_t				tcache_maxclass;
@@ -93,10 +95,10 @@ tcache_bin_flush_small(tcache_bin_t *tbin, size_t binind, unsigned rem
 			flush = *(void **)ptr;
 			chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
 			if (chunk->arena == arena) {
-				size_t pageind = (((uintptr_t)ptr -
-				    (uintptr_t)chunk) >> PAGE_SHIFT);
+				size_t pageind = ((uintptr_t)ptr -
+				    (uintptr_t)chunk) >> PAGE_SHIFT;
 				arena_chunk_map_t *mapelm =
-				    &chunk->map[pageind];
+				    &chunk->map[pageind-map_bias];
 				arena_dalloc_bin(arena, chunk, ptr, mapelm);
 			} else {
 				/*
@@ -202,12 +204,14 @@ tcache_create(arena_t *arena)
 	size_t size;
 	unsigned i;
 
-	size = sizeof(tcache_t) + (sizeof(tcache_bin_t) * (nhbins - 1));
+	size = offsetof(tcache_t, tbins) + (sizeof(tcache_bin_t) * nhbins);
 	/*
 	 * Round up to the nearest multiple of the cacheline size, in order to
 	 * avoid the possibility of false cacheline sharing.
 	 *
-	 * That this works relies on the same logic as in ipalloc().
+	 * That this works relies on the same logic as in ipalloc(), but we
+	 * cannot directly call ipalloc() here due to tcache bootstrapping
+	 * issues.
 	 */
 	size = (size + CACHELINE_MASK) & (-CACHELINE);
 
@@ -239,8 +243,7 @@ tcache_create(arena_t *arena)
 	for (; i < nhbins; i++)
 		tcache->tbins[i].ncached_max = TCACHE_NSLOTS_LARGE;
 
-	tcache_tls = tcache;
-	pthread_setspecific(tcache_tsd, tcache);
+	TCACHE_SET(tcache);
 
 	return (tcache);
 }
@@ -308,9 +311,9 @@ tcache_destroy(tcache_t *tcache)
 	if (arena_salloc(tcache) <= small_maxclass) {
 		arena_chunk_t *chunk = CHUNK_ADDR2BASE(tcache);
 		arena_t *arena = chunk->arena;
-		size_t pageind = (((uintptr_t)tcache - (uintptr_t)chunk) >>
-		    PAGE_SHIFT);
-		arena_chunk_map_t *mapelm = &chunk->map[pageind];
+		size_t pageind = ((uintptr_t)tcache - (uintptr_t)chunk) >>
+		    PAGE_SHIFT;
+		arena_chunk_map_t *mapelm = &chunk->map[pageind-map_bias];
 		arena_run_t *run = (arena_run_t *)((uintptr_t)chunk +
 		    (uintptr_t)((pageind - (mapelm->bits >> PAGE_SHIFT)) <<
 		    PAGE_SHIFT));
@@ -328,11 +331,24 @@ tcache_thread_cleanup(void *arg)
 {
 	tcache_t *tcache = (tcache_t *)arg;
 
-	assert(tcache == tcache_tls);
-	if (tcache != NULL) {
+	if (tcache == (void *)(uintptr_t)1) {
+		/*
+		 * The previous time this destructor was called, we set the key
+		 * to 1 so that other destructors wouldn't cause re-creation of
+		 * the tcache.  This time, do nothing, so that the destructor
+		 * will not be called again.
+		 */
+	} else if (tcache == (void *)(uintptr_t)2) {
+		/*
+		 * Another destructor called an allocator function after this
+		 * destructor was called.  Reset tcache to 1 in order to
+		 * receive another callback.
+		 */
+		TCACHE_SET((uintptr_t)1);
+	} else if (tcache != NULL) {
 		assert(tcache != (void *)(uintptr_t)1);
 		tcache_destroy(tcache);
-		tcache_tls = (void *)(uintptr_t)1;
+		TCACHE_SET((uintptr_t)1);
 	}
 }
 
@@ -368,16 +384,16 @@ tcache_boot(void)
 
 	if (opt_tcache) {
 		/*
-		 * If necessary, clamp opt_lg_tcache_maxclass, now that
+		 * If necessary, clamp opt_lg_tcache_max, now that
 		 * small_maxclass and arena_maxclass are known.
 		 */
-		if (opt_lg_tcache_maxclass < 0 || (1U <<
-		    opt_lg_tcache_maxclass) < small_maxclass)
+		if (opt_lg_tcache_max < 0 || (1U <<
+		    opt_lg_tcache_max) < small_maxclass)
 			tcache_maxclass = small_maxclass;
-		else if ((1U << opt_lg_tcache_maxclass) > arena_maxclass)
+		else if ((1U << opt_lg_tcache_max) > arena_maxclass)
 			tcache_maxclass = arena_maxclass;
 		else
-			tcache_maxclass = (1U << opt_lg_tcache_maxclass);
+			tcache_maxclass = (1U << opt_lg_tcache_max);
 
 		nhbins = nbins + (tcache_maxclass >> PAGE_SHIFT);
 

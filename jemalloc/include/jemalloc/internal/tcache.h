@@ -17,7 +17,7 @@ typedef struct tcache_s tcache_t;
 /* Number of cache slots for large size classes. */
 #define	TCACHE_NSLOTS_LARGE		20
 
-/* (1U << opt_lg_tcache_maxclass) is used to compute tcache_maxclass. */
+/* (1U << opt_lg_tcache_max) is used to compute tcache_maxclass. */
 #define	LG_TCACHE_MAXCLASS_DEFAULT	15
 
 /*
@@ -61,12 +61,25 @@ struct tcache_s {
 #ifdef JEMALLOC_H_EXTERNS
 
 extern bool	opt_tcache;
-extern ssize_t	opt_lg_tcache_maxclass;
+extern ssize_t	opt_lg_tcache_max;
 extern ssize_t	opt_lg_tcache_gc_sweep;
 
 /* Map of thread-specific caches. */
+#ifndef NO_TLS
 extern __thread tcache_t	*tcache_tls
     JEMALLOC_ATTR(tls_model("initial-exec"));
+#  define TCACHE_GET()	tcache_tls
+#  define TCACHE_SET(v)	do {						\
+	tcache_tls = (tcache_t *)(v);					\
+	pthread_setspecific(tcache_tsd, (void *)(v));			\
+} while (0)
+#else
+#  define TCACHE_GET()	((tcache_t *)pthread_getspecific(tcache_tsd))
+#  define TCACHE_SET(v)	do {						\
+	pthread_setspecific(tcache_tsd, (void *)(v));			\
+} while (0)
+#endif
+extern pthread_key_t		tcache_tsd;
 
 /*
  * Number of tcache bins.  There are nbins small-object bins, plus 0 or more
@@ -122,14 +135,23 @@ tcache_get(void)
 	if ((isthreaded & opt_tcache) == false)
 		return (NULL);
 
-	tcache = tcache_tls;
-	if ((uintptr_t)tcache <= (uintptr_t)1) {
+	tcache = TCACHE_GET();
+	if ((uintptr_t)tcache <= (uintptr_t)2) {
 		if (tcache == NULL) {
 			tcache = tcache_create(choose_arena());
 			if (tcache == NULL)
 				return (NULL);
-		} else
+		} else {
+			if (tcache == (void *)(uintptr_t)1) {
+				/*
+				 * Make a note that an allocator function was
+				 * called after the tcache_thread_cleanup() was
+				 * called.
+				 */
+				TCACHE_SET((uintptr_t)2);
+			}
 			return (NULL);
+		}
 	}
 
 	return (tcache);
@@ -258,9 +280,9 @@ tcache_alloc_large(tcache_t *tcache, size_t size, bool zero)
 	} else {
 #ifdef JEMALLOC_PROF
 		arena_chunk_t *chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ret);
-		size_t pageind = (unsigned)(((uintptr_t)ret - (uintptr_t)chunk)
-		    >> PAGE_SHIFT);
-		chunk->map[pageind].bits |= CHUNK_MAP_CLASS_MASK;
+		size_t pageind = (((uintptr_t)ret - (uintptr_t)chunk) >>
+		    PAGE_SHIFT);
+		chunk->map[pageind-map_bias].bits &= ~CHUNK_MAP_CLASS_MASK;
 #endif
 		if (zero == false) {
 #ifdef JEMALLOC_FILL
@@ -299,8 +321,8 @@ tcache_dalloc_small(tcache_t *tcache, void *ptr)
 
 	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
 	arena = chunk->arena;
-	pageind = (((uintptr_t)ptr - (uintptr_t)chunk) >> PAGE_SHIFT);
-	mapelm = &chunk->map[pageind];
+	pageind = ((uintptr_t)ptr - (uintptr_t)chunk) >> PAGE_SHIFT;
+	mapelm = &chunk->map[pageind-map_bias];
 	run = (arena_run_t *)((uintptr_t)chunk + (uintptr_t)((pageind -
 	    (mapelm->bits >> PAGE_SHIFT)) << PAGE_SHIFT));
 	assert(run->magic == ARENA_RUN_MAGIC);
@@ -339,7 +361,6 @@ tcache_dalloc_large(tcache_t *tcache, void *ptr, size_t size)
 	arena_chunk_t *chunk;
 	size_t pageind, binind;
 	tcache_bin_t *tbin;
-	arena_chunk_map_t *mapelm;
 
 	assert((size & PAGE_MASK) == 0);
 	assert(arena_salloc(ptr) > small_maxclass);
@@ -347,8 +368,7 @@ tcache_dalloc_large(tcache_t *tcache, void *ptr, size_t size)
 
 	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
 	arena = chunk->arena;
-	pageind = (((uintptr_t)ptr - (uintptr_t)chunk) >> PAGE_SHIFT);
-	mapelm = &chunk->map[pageind];
+	pageind = ((uintptr_t)ptr - (uintptr_t)chunk) >> PAGE_SHIFT;
 	binind = nbins + (size >> PAGE_SHIFT) - 1;
 
 #ifdef JEMALLOC_FILL

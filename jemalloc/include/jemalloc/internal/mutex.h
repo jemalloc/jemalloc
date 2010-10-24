@@ -3,6 +3,12 @@
 
 typedef pthread_mutex_t malloc_mutex_t;
 
+#ifdef PTHREAD_ADAPTIVE_MUTEX_INITIALIZER_NP
+#  define MALLOC_MUTEX_INITIALIZER PTHREAD_ADAPTIVE_MUTEX_INITIALIZER_NP
+#else
+#  define MALLOC_MUTEX_INITIALIZER PTHREAD_MUTEX_INITIALIZER
+#endif
+
 #endif /* JEMALLOC_H_TYPES */
 /******************************************************************************/
 #ifdef JEMALLOC_H_STRUCTS
@@ -18,6 +24,7 @@ extern bool isthreaded;
 #endif
 
 bool	malloc_mutex_init(malloc_mutex_t *mutex);
+void	malloc_mutex_destroy(malloc_mutex_t *mutex);
 
 #endif /* JEMALLOC_H_EXTERNS */
 /******************************************************************************/

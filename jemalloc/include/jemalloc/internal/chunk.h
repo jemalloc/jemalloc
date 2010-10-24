@@ -39,13 +39,17 @@ extern malloc_mutex_t	chunks_mtx;
 extern chunk_stats_t	stats_chunks;
 #endif
 
+#ifdef JEMALLOC_IVSALLOC
+extern rtree_t		*chunks_rtree;
+#endif
+
 extern size_t		chunksize;
 extern size_t		chunksize_mask; /* (chunksize - 1). */
 extern size_t		chunk_npages;
-extern size_t		arena_chunk_header_npages;
+extern size_t		map_bias; /* Number of arena chunk header pages. */
 extern size_t		arena_maxclass; /* Max size class for arenas. */
 
-void	*chunk_alloc(size_t size, bool *zero);
+void	*chunk_alloc(size_t size, bool base, bool *zero);
 void	chunk_dealloc(void *chunk, size_t size);
 bool	chunk_boot(void);
 

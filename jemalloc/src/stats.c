@@ -57,12 +57,12 @@ static void	stats_arena_print(void (*write_cb)(void *, const char *),
 
 /*
  * We don't want to depend on vsnprintf() for production builds, since that can
- * cause unnecessary bloat for static binaries.  umax2s() provides minimal
- * integer printing functionality, so that malloc_printf() use can be limited to
+ * cause unnecessary bloat for static binaries.  u2s() provides minimal integer
+ * printing functionality, so that malloc_printf() use can be limited to
  * JEMALLOC_STATS code.
  */
 char *
-umax2s(uintmax_t x, unsigned base, char *s)
+u2s(uint64_t x, unsigned base, char *s)
 {
 	unsigned i;
 
@@ -72,8 +72,8 @@ umax2s(uintmax_t x, unsigned base, char *s)
 	case 10:
 		do {
 			i--;
-			s[i] = "0123456789"[x % 10];
-			x /= 10;
+			s[i] = "0123456789"[x % (uint64_t)10];
+			x /= (uint64_t)10;
 		} while (x > 0);
 		break;
 	case 16:
@@ -86,8 +86,9 @@ umax2s(uintmax_t x, unsigned base, char *s)
 	default:
 		do {
 			i--;
-			s[i] = "0123456789abcdefghijklmnopqrstuvwxyz"[x % base];
-			x /= base;
+			s[i] = "0123456789abcdefghijklmnopqrstuvwxyz"[x %
+			    (uint64_t)base];
+			x /= (uint64_t)base;
 		} while (x > 0);
 	}
 
@@ -374,6 +375,7 @@ void
 stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
     const char *opts)
 {
+	int err;
 	uint64_t epoch;
 	size_t u64sz;
 	char s[UMAX2S_BUFSIZE];
@@ -383,10 +385,27 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 	bool bins = true;
 	bool large = true;
 
-	/* Refresh stats, in case mallctl() was called by the application. */
+	/*
+	 * Refresh stats, in case mallctl() was called by the application.
+	 *
+	 * Check for OOM here, since refreshing the ctl cache can trigger
+	 * allocation.  In practice, none of the subsequent mallctl()-related
+	 * calls in this function will cause OOM if this one succeeds.
+	 * */
 	epoch = 1;
 	u64sz = sizeof(uint64_t);
-	xmallctl("epoch", &epoch, &u64sz, &epoch, sizeof(uint64_t));
+	err = JEMALLOC_P(mallctl)("epoch", &epoch, &u64sz, &epoch,
+	    sizeof(uint64_t));
+	if (err != 0) {
+		if (err == EAGAIN) {
+			malloc_write("<jemalloc>: Memory allocation failure in "
+			    "mallctl(\"epoch\", ...)\n");
+			return;
+		}
+		malloc_write("<jemalloc>: Failure in mallctl(\"epoch\", "
+		    "...)\n");
+		abort();
+	}
 
 	if (write_cb == NULL) {
 		/*
@@ -430,10 +449,12 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		bool bv;
 		unsigned uv;
 		ssize_t ssv;
-		size_t sv, bsz, ssz;
+		size_t sv, bsz, ssz, sssz, cpsz;
 
 		bsz = sizeof(bool);
 		ssz = sizeof(size_t);
+		sssz = sizeof(ssize_t);
+		cpsz = sizeof(const char *);
 
 		CTL_GET("version", &cpv, const char *);
 		write_cb(cbopaque, "Version: ");
@@ -444,113 +465,140 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		write_cb(cbopaque, bv ? "enabled" : "disabled");
 		write_cb(cbopaque, "\n");
 
-		write_cb(cbopaque, "Boolean JEMALLOC_OPTIONS: ");
-		if ((err = JEMALLOC_P(mallctl)("opt.abort", &bv, &bsz, NULL, 0))
-		    == 0)
-			write_cb(cbopaque, bv ? "A" : "a");
-		if ((err = JEMALLOC_P(mallctl)("prof.active", &bv, &bsz,
-		    NULL, 0)) == 0)
-			write_cb(cbopaque, bv ? "E" : "e");
-		if ((err = JEMALLOC_P(mallctl)("opt.prof", &bv, &bsz, NULL, 0))
-		    == 0)
-			write_cb(cbopaque, bv ? "F" : "f");
-		if ((err = JEMALLOC_P(mallctl)("opt.tcache", &bv, &bsz, NULL,
-		    0)) == 0)
-			write_cb(cbopaque, bv ? "H" : "h");
-		if ((err = JEMALLOC_P(mallctl)("opt.junk", &bv, &bsz, NULL, 0))
-		    == 0)
-			write_cb(cbopaque, bv ? "J" : "j");
-		if ((err = JEMALLOC_P(mallctl)("opt.prof_leak", &bv, &bsz, NULL,
-		    0)) == 0)
-			write_cb(cbopaque, bv ? "L" : "l");
-		if ((err = JEMALLOC_P(mallctl)("opt.overcommit", &bv, &bsz,
-		    NULL, 0)) == 0)
-			write_cb(cbopaque, bv ? "O" : "o");
-		if ((err = JEMALLOC_P(mallctl)("opt.stats_print", &bv, &bsz,
-		    NULL, 0)) == 0)
-			write_cb(cbopaque, bv ? "P" : "p");
-		if ((err = JEMALLOC_P(mallctl)("opt.prof_udump", &bv, &bsz,
-		    NULL, 0)) == 0)
-			write_cb(cbopaque, bv ? "U" : "u");
-		if ((err = JEMALLOC_P(mallctl)("opt.sysv", &bv, &bsz, NULL, 0))
-		    == 0)
-			write_cb(cbopaque, bv ? "V" : "v");
-		if ((err = JEMALLOC_P(mallctl)("opt.xmalloc", &bv, &bsz, NULL,
-		    0)) == 0)
-			write_cb(cbopaque, bv ? "X" : "x");
-		if ((err = JEMALLOC_P(mallctl)("opt.zero", &bv, &bsz, NULL, 0))
-		    == 0)
-			write_cb(cbopaque, bv ? "Z" : "z");
-		write_cb(cbopaque, "\n");
+#define OPT_WRITE_BOOL(n)						\
+		if ((err = JEMALLOC_P(mallctl)("opt."#n, &bv, &bsz,	\
+		    NULL, 0)) == 0) {					\
+			write_cb(cbopaque, "  opt."#n": ");		\
+			write_cb(cbopaque, bv ? "true" : "false");	\
+			write_cb(cbopaque, "\n");			\
+		}
+#define OPT_WRITE_SIZE_T(n)						\
+		if ((err = JEMALLOC_P(mallctl)("opt."#n, &sv, &ssz,	\
+		    NULL, 0)) == 0) {					\
+			write_cb(cbopaque, "  opt."#n": ");		\
+			write_cb(cbopaque, u2s(sv, 10, s));		\
+			write_cb(cbopaque, "\n");			\
+		}
+#define OPT_WRITE_SSIZE_T(n)						\
+		if ((err = JEMALLOC_P(mallctl)("opt."#n, &ssv, &sssz,	\
+		    NULL, 0)) == 0) {					\
+			if (ssv >= 0) {					\
+				write_cb(cbopaque, "  opt."#n": ");	\
+				write_cb(cbopaque, u2s(ssv, 10, s));	\
+			} else {					\
+				write_cb(cbopaque, "  opt."#n": -");	\
+				write_cb(cbopaque, u2s(-ssv, 10, s));	\
+			}						\
+			write_cb(cbopaque, "\n");			\
+		}
+#define OPT_WRITE_CHAR_P(n)						\
+		if ((err = JEMALLOC_P(mallctl)("opt."#n, &cpv, &cpsz,	\
+		    NULL, 0)) == 0) {					\
+			write_cb(cbopaque, "  opt."#n": \"");		\
+			write_cb(cbopaque, cpv);			\
+			write_cb(cbopaque, "\"\n");			\
+		}
+
+		write_cb(cbopaque, "Run-time option settings:\n");
+		OPT_WRITE_BOOL(abort)
+		OPT_WRITE_SIZE_T(lg_qspace_max)
+		OPT_WRITE_SIZE_T(lg_cspace_max)
+		OPT_WRITE_SIZE_T(lg_chunk)
+		OPT_WRITE_SIZE_T(narenas)
+		OPT_WRITE_SSIZE_T(lg_dirty_mult)
+		OPT_WRITE_BOOL(stats_print)
+		OPT_WRITE_BOOL(junk)
+		OPT_WRITE_BOOL(zero)
+		OPT_WRITE_BOOL(sysv)
+		OPT_WRITE_BOOL(xmalloc)
+		OPT_WRITE_BOOL(tcache)
+		OPT_WRITE_SSIZE_T(lg_tcache_gc_sweep)
+		OPT_WRITE_SSIZE_T(lg_tcache_max)
+		OPT_WRITE_BOOL(prof)
+		OPT_WRITE_CHAR_P(prof_prefix)
+		OPT_WRITE_SIZE_T(lg_prof_bt_max)
+		OPT_WRITE_BOOL(prof_active)
+		OPT_WRITE_SSIZE_T(lg_prof_sample)
+		OPT_WRITE_BOOL(prof_accum)
+		OPT_WRITE_SSIZE_T(lg_prof_tcmax)
+		OPT_WRITE_SSIZE_T(lg_prof_interval)
+		OPT_WRITE_BOOL(prof_gdump)
+		OPT_WRITE_BOOL(prof_leak)
+		OPT_WRITE_BOOL(overcommit)
+
+#undef OPT_WRITE_BOOL
+#undef OPT_WRITE_SIZE_T
+#undef OPT_WRITE_SSIZE_T
+#undef OPT_WRITE_CHAR_P
 
 		write_cb(cbopaque, "CPUs: ");
-		write_cb(cbopaque, umax2s(ncpus, 10, s));
+		write_cb(cbopaque, u2s(ncpus, 10, s));
 		write_cb(cbopaque, "\n");
 
 		CTL_GET("arenas.narenas", &uv, unsigned);
 		write_cb(cbopaque, "Max arenas: ");
-		write_cb(cbopaque, umax2s(uv, 10, s));
+		write_cb(cbopaque, u2s(uv, 10, s));
 		write_cb(cbopaque, "\n");
 
 		write_cb(cbopaque, "Pointer size: ");
-		write_cb(cbopaque, umax2s(sizeof(void *), 10, s));
+		write_cb(cbopaque, u2s(sizeof(void *), 10, s));
 		write_cb(cbopaque, "\n");
 
 		CTL_GET("arenas.quantum", &sv, size_t);
 		write_cb(cbopaque, "Quantum size: ");
-		write_cb(cbopaque, umax2s(sv, 10, s));
+		write_cb(cbopaque, u2s(sv, 10, s));
 		write_cb(cbopaque, "\n");
 
 		CTL_GET("arenas.cacheline", &sv, size_t);
 		write_cb(cbopaque, "Cacheline size (assumed): ");
-		write_cb(cbopaque, umax2s(sv, 10, s));
+		write_cb(cbopaque, u2s(sv, 10, s));
 		write_cb(cbopaque, "\n");
 
 		CTL_GET("arenas.subpage", &sv, size_t);
 		write_cb(cbopaque, "Subpage spacing: ");
-		write_cb(cbopaque, umax2s(sv, 10, s));
+		write_cb(cbopaque, u2s(sv, 10, s));
 		write_cb(cbopaque, "\n");
 
 		if ((err = JEMALLOC_P(mallctl)("arenas.tspace_min", &sv, &ssz,
 		    NULL, 0)) == 0) {
 			write_cb(cbopaque, "Tiny 2^n-spaced sizes: [");
-			write_cb(cbopaque, umax2s(sv, 10, s));
+			write_cb(cbopaque, u2s(sv, 10, s));
 			write_cb(cbopaque, "..");
 
 			CTL_GET("arenas.tspace_max", &sv, size_t);
-			write_cb(cbopaque, umax2s(sv, 10, s));
+			write_cb(cbopaque, u2s(sv, 10, s));
 			write_cb(cbopaque, "]\n");
 		}
 
 		CTL_GET("arenas.qspace_min", &sv, size_t);
 		write_cb(cbopaque, "Quantum-spaced sizes: [");
-		write_cb(cbopaque, umax2s(sv, 10, s));
+		write_cb(cbopaque, u2s(sv, 10, s));
 		write_cb(cbopaque, "..");
 		CTL_GET("arenas.qspace_max", &sv, size_t);
-		write_cb(cbopaque, umax2s(sv, 10, s));
+		write_cb(cbopaque, u2s(sv, 10, s));
 		write_cb(cbopaque, "]\n");
 
 		CTL_GET("arenas.cspace_min", &sv, size_t);
 		write_cb(cbopaque, "Cacheline-spaced sizes: [");
-		write_cb(cbopaque, umax2s(sv, 10, s));
+		write_cb(cbopaque, u2s(sv, 10, s));
 		write_cb(cbopaque, "..");
 		CTL_GET("arenas.cspace_max", &sv, size_t);
-		write_cb(cbopaque, umax2s(sv, 10, s));
+		write_cb(cbopaque, u2s(sv, 10, s));
 		write_cb(cbopaque, "]\n");
 
 		CTL_GET("arenas.sspace_min", &sv, size_t);
 		write_cb(cbopaque, "Subpage-spaced sizes: [");
-		write_cb(cbopaque, umax2s(sv, 10, s));
+		write_cb(cbopaque, u2s(sv, 10, s));
 		write_cb(cbopaque, "..");
 		CTL_GET("arenas.sspace_max", &sv, size_t);
-		write_cb(cbopaque, umax2s(sv, 10, s));
+		write_cb(cbopaque, u2s(sv, 10, s));
 		write_cb(cbopaque, "]\n");
 
 		CTL_GET("opt.lg_dirty_mult", &ssv, ssize_t);
 		if (ssv >= 0) {
 			write_cb(cbopaque,
 			    "Min active:dirty page ratio per arena: ");
-			write_cb(cbopaque, umax2s((1U << ssv), 10, s));
+			write_cb(cbopaque, u2s((1U << ssv), 10, s));
 			write_cb(cbopaque, ":1\n");
 		} else {
 			write_cb(cbopaque,
@@ -560,7 +608,7 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		    &ssz, NULL, 0)) == 0) {
 			write_cb(cbopaque,
 			    "Maximum thread-cached size class: ");
-			write_cb(cbopaque, umax2s(sv, 10, s));
+			write_cb(cbopaque, u2s(sv, 10, s));
 			write_cb(cbopaque, "\n");
 		}
 		if ((err = JEMALLOC_P(mallctl)("opt.lg_tcache_gc_sweep", &ssv,
@@ -570,39 +618,51 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 			CTL_GET("opt.tcache", &tcache_enabled, bool);
 			write_cb(cbopaque, "Thread cache GC sweep interval: ");
 			write_cb(cbopaque, tcache_enabled && ssv >= 0 ?
-			    umax2s(tcache_gc_sweep, 10, s) : "N/A");
+			    u2s(tcache_gc_sweep, 10, s) : "N/A");
 			write_cb(cbopaque, "\n");
 		}
 		if ((err = JEMALLOC_P(mallctl)("opt.prof", &bv, &bsz, NULL, 0))
 		   == 0 && bv) {
 			CTL_GET("opt.lg_prof_bt_max", &sv, size_t);
 			write_cb(cbopaque, "Maximum profile backtrace depth: ");
-			write_cb(cbopaque, umax2s((1U << sv), 10, s));
+			write_cb(cbopaque, u2s((1U << sv), 10, s));
 			write_cb(cbopaque, "\n");
+
+			CTL_GET("opt.lg_prof_tcmax", &ssv, ssize_t);
+			write_cb(cbopaque,
+			    "Maximum per thread backtrace cache: ");
+			if (ssv >= 0) {
+				write_cb(cbopaque, u2s((1U << ssv), 10, s));
+				write_cb(cbopaque, " (2^");
+				write_cb(cbopaque, u2s(ssv, 10, s));
+				write_cb(cbopaque, ")\n");
+			} else
+				write_cb(cbopaque, "N/A\n");
 
 			CTL_GET("opt.lg_prof_sample", &sv, size_t);
 			write_cb(cbopaque, "Average profile sample interval: ");
-			write_cb(cbopaque, umax2s((1U << sv), 10, s));
+			write_cb(cbopaque, u2s((((uint64_t)1U) << sv), 10, s));
 			write_cb(cbopaque, " (2^");
-			write_cb(cbopaque, umax2s(sv, 10, s));
+			write_cb(cbopaque, u2s(sv, 10, s));
 			write_cb(cbopaque, ")\n");
 
 			CTL_GET("opt.lg_prof_interval", &ssv, ssize_t);
 			write_cb(cbopaque, "Average profile dump interval: ");
 			if (ssv >= 0) {
-				write_cb(cbopaque, umax2s((1U << ssv), 10, s));
+				write_cb(cbopaque, u2s((((uint64_t)1U) << ssv),
+				    10, s));
 				write_cb(cbopaque, " (2^");
-				write_cb(cbopaque, umax2s(ssv, 10, s));
+				write_cb(cbopaque, u2s(ssv, 10, s));
 				write_cb(cbopaque, ")\n");
 			} else
 				write_cb(cbopaque, "N/A\n");
 		}
 		CTL_GET("arenas.chunksize", &sv, size_t);
 		write_cb(cbopaque, "Chunk size: ");
-		write_cb(cbopaque, umax2s(sv, 10, s));
+		write_cb(cbopaque, u2s(sv, 10, s));
 		CTL_GET("opt.lg_chunk", &sv, size_t);
 		write_cb(cbopaque, " (2^");
-		write_cb(cbopaque, umax2s(sv, 10, s));
+		write_cb(cbopaque, u2s(sv, 10, s));
 		write_cb(cbopaque, ")\n");
 	}
 

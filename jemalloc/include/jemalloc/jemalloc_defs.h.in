@@ -13,6 +13,7 @@
  * the API prefixing.
  */
 #undef JEMALLOC_PREFIX
+#undef JEMALLOC_CPREFIX
 #if (defined(JEMALLOC_PREFIX) && defined(JEMALLOC_MANGLE))
 #undef JEMALLOC_P
 #endif
@@ -30,6 +31,9 @@
 #else
 #  define JEMALLOC_ATTR(s)
 #endif
+
+/* JEMALLOC_CC_SILENCE enables code that silences unuseful compiler warnings. */
+#undef JEMALLOC_CC_SILENCE
 
 /*
  * JEMALLOC_DEBUG enables assertions and other sanity checks, and disables
@@ -91,6 +95,38 @@
 
 /* TLS is used to map arenas and magazine caches to threads. */
 #undef NO_TLS
+
+/*
+ * JEMALLOC_IVSALLOC enables ivsalloc(), which verifies that pointers reside
+ * within jemalloc-owned chunks before dereferencing them.
+ */
+#undef JEMALLOC_IVSALLOC
+
+/*
+ * Define overrides for non-standard allocator-related functions if they
+ * are present on the system.
+ */
+#undef JEMALLOC_OVERRIDE_MEMALIGN
+#undef JEMALLOC_OVERRIDE_VALLOC
+
+/*
+ * Darwin (OS X) uses zones to work around Mach-O symbol override shortcomings.
+ */
+#undef JEMALLOC_ZONE
+#undef JEMALLOC_ZONE_VERSION
+
+/*
+ * Methods for purging unused pages differ between operating systems.
+ *
+ *   madvise(..., MADV_DONTNEED) : On Linux, this immediately discards pages,
+ *                                 such that new pages will be demand-zeroed if
+ *                                 the address region is later touched.
+ *   madvise(..., MADV_FREE) : On FreeBSD and Darwin, this marks pages as being
+ *                             unused, such that they will be discarded rather
+ *                             than swapped out.
+ */
+#undef JEMALLOC_PURGE_MADVISE_DONTNEED
+#undef JEMALLOC_PURGE_MADVISE_FREE
 
 /* sizeof(void *) == 2^LG_SIZEOF_PTR. */
 #undef LG_SIZEOF_PTR

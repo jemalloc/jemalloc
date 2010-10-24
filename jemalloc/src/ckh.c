@@ -263,13 +263,12 @@ ckh_grow(ckh_t *ckh)
 	lg_curcells = ckh->lg_curbuckets + LG_CKH_BUCKET_CELLS;
 	while (true) {
 		lg_curcells++;
-		tab = (ckhc_t *) ipalloc((ZU(1) << LG_CACHELINE),
-		    sizeof(ckhc_t) << lg_curcells);
+		tab = (ckhc_t *)ipalloc(sizeof(ckhc_t) << lg_curcells,
+		    ZU(1) << LG_CACHELINE, true);
 		if (tab == NULL) {
 			ret = true;
 			goto RETURN;
 		}
-		memset(tab, 0, sizeof(ckhc_t) << lg_curcells);
 		/* Swap in new table. */
 		ttab = ckh->tab;
 		ckh->tab = tab;
@@ -305,8 +304,8 @@ ckh_shrink(ckh_t *ckh)
 	 */
 	lg_prevbuckets = ckh->lg_curbuckets;
 	lg_curcells = ckh->lg_curbuckets + LG_CKH_BUCKET_CELLS - 1;
-	tab = (ckhc_t *)ipalloc((ZU(1) << LG_CACHELINE),
-	    sizeof(ckhc_t) << lg_curcells);
+	tab = (ckhc_t *)ipalloc(sizeof(ckhc_t) << lg_curcells,
+	    ZU(1) << LG_CACHELINE, true);
 	if (tab == NULL) {
 		/*
 		 * An OOM error isn't worth propagating, since it doesn't
@@ -314,7 +313,6 @@ ckh_shrink(ckh_t *ckh)
 		 */
 		return;
 	}
-	memset(tab, 0, sizeof(ckhc_t) << lg_curcells);
 	/* Swap in new table. */
 	ttab = ckh->tab;
 	ckh->tab = tab;
@@ -377,13 +375,12 @@ ckh_new(ckh_t *ckh, size_t minitems, ckh_hash_t *hash, ckh_keycomp_t *keycomp)
 	ckh->hash = hash;
 	ckh->keycomp = keycomp;
 
-	ckh->tab = (ckhc_t *)ipalloc((ZU(1) << LG_CACHELINE),
-	    sizeof(ckhc_t) << lg_mincells);
+	ckh->tab = (ckhc_t *)ipalloc(sizeof(ckhc_t) << lg_mincells,
+	    (ZU(1) << LG_CACHELINE), true);
 	if (ckh->tab == NULL) {
 		ret = true;
 		goto RETURN;
 	}
-	memset(ckh->tab, 0, sizeof(ckhc_t) << lg_mincells);
 
 #ifdef JEMALLOC_DEBUG
 	ckh->magic = CKH_MAGIG;
@@ -570,12 +567,21 @@ ckh_pointer_hash(const void *key, unsigned minbits, size_t *hash1,
 {
 	size_t ret1, ret2;
 	uint64_t h;
+	union {
+		const void	*v;
+		uint64_t	i;
+	} u;
 
 	assert(minbits <= 32 || (SIZEOF_PTR == 8 && minbits <= 64));
 	assert(hash1 != NULL);
 	assert(hash2 != NULL);
 
-	h = hash(&key, sizeof(void *), 0xd983396e68886082LLU);
+	assert(sizeof(u.v) == sizeof(u.i));
+#if (LG_SIZEOF_PTR != LG_SIZEOF_INT)
+	u.i = 0;
+#endif
+	u.v = key;
+	h = hash(&u.i, sizeof(u.i), 0xd983396e68886082LLU);
 	if (minbits <= 32) {
 		/*
 		 * Avoid doing multiple hashes, since a single hash provides
@@ -586,7 +592,7 @@ ckh_pointer_hash(const void *key, unsigned minbits, size_t *hash1,
 	} else {
 		assert(SIZEOF_PTR == 8);
 		ret1 = h;
-		ret2 = hash(&key, sizeof(void *), 0x5e2be9aff8709a5dLLU);
+		ret2 = hash(&u.i, sizeof(u.i), 0x5e2be9aff8709a5dLLU);
 	}
 
 	*hash1 = ret1;

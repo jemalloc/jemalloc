@@ -38,8 +38,8 @@
 .\"     @(#)malloc.3	8.1 (Berkeley) 6/4/93
 .\" $FreeBSD: head/lib/libc/stdlib/malloc.3 182225 2008-08-27 02:00:53Z jasone $
 .\"
-.Dd April 2, 2010
-.Dt JEMALLOC 3
+.Dd October 24, 2010
+.Dt jemalloc 3
 .Os
 .Sh NAME
 .Nm @jemalloc_prefix@malloc ,
@@ -51,13 +51,24 @@
 .Nm @jemalloc_prefix@malloc_stats_print ,
 .Nm @jemalloc_prefix@mallctl ,
 .Nm @jemalloc_prefix@mallctlnametomib ,
-.Nm @jemalloc_prefix@mallctlbymib
+.Nm @jemalloc_prefix@mallctlbymib ,
+.Nm @jemalloc_prefix@allocm ,
+.Nm @jemalloc_prefix@rallocm ,
+.Nm @jemalloc_prefix@sallocm ,
+.Nm @jemalloc_prefix@dallocm
 .Nd general purpose memory allocation functions
 .Sh LIBRARY
 .Sy libjemalloc@install_suffix@
+.Pp
+This manual describes jemalloc @jemalloc_version@.
+More information can be found at the
+.UR http://\:www.canonware.com/\:jemalloc/
+jemalloc website
+.UE .
 .Sh SYNOPSIS
 .In stdlib.h
 .In jemalloc/jemalloc@install_suffix@.h
+.Ss Standard API
 .Ft void *
 .Fn @jemalloc_prefix@malloc "size_t size"
 .Ft void *
@@ -68,6 +79,7 @@
 .Fn @jemalloc_prefix@realloc "void *ptr" "size_t size"
 .Ft void
 .Fn @jemalloc_prefix@free "void *ptr"
+.Ss Non-standard API
 .Ft size_t
 .Fn @jemalloc_prefix@malloc_usable_size "const void *ptr"
 .Ft void
@@ -79,10 +91,20 @@
 .Ft int
 .Fn @jemalloc_prefix@mallctlbymib "const size_t *mib" "size_t miblen" "void *oldp" "size_t *oldlenp" "void *newp" "size_t newlen"
 .Ft const char *
-.Va @jemalloc_prefix@malloc_options ;
+.Va @jemalloc_prefix@malloc_conf ;
 .Ft void
 .Fn \*(lp*@jemalloc_prefix@malloc_message\*(rp "void *cbopaque" "const char *s"
+.Ss Experimental API
+.Ft int
+.Fn @jemalloc_prefix@allocm "void **ptr" "size_t *rsize" "size_t size" "int flags"
+.Ft int
+.Fn @jemalloc_prefix@rallocm "void **ptr" "size_t *rsize" "size_t size" "size_t extra" "int flags"
+.Ft int
+.Fn @jemalloc_prefix@sallocm "const void *ptr" "size_t *rsize" "int flags"
+.Ft int
+.Fn @jemalloc_prefix@dallocm "void *ptr" "int flags"
 .Sh DESCRIPTION
+.Ss Standard API
 The
 .Fn @jemalloc_prefix@malloc
 function allocates
@@ -158,7 +180,7 @@ If
 is
 .Dv NULL ,
 no action occurs.
-.Pp
+.Ss Non-standard API
 The
 .Fn @jemalloc_prefix@malloc_usable_size
 function returns the usable size of the allocation pointed to by
@@ -289,255 +311,130 @@ for (i = 0; i < nbins; i++) {
 	/* Do something with bin_size... */
 }
 .Ed
-.Sh TUNING
-Once, when the first call is made to one of these memory allocation
-routines, various flags will be set or reset, which affects the
-workings of this allocator implementation.
+.Ss Experimental API
+The experimental API is subject to change or removal without regard for
+backward compatibility.
 .Pp
 The
-.Dq name
-of the file referenced by the symbolic link named
-.Pa /etc/jemalloc.conf ,
-the value of the environment variable
-.Ev JEMALLOC_OPTIONS ,
-and the string pointed to by the global variable
-.Va @jemalloc_prefix@malloc_options
-will be interpreted, in that order, from left to right as flags.
-.Pp
-Each flag is a single letter, optionally prefixed by a non-negative base 10
-integer repetition count.
-For example,
-.Dq 3N
-is equivalent to
-.Dq NNN .
-Some flags control parameter magnitudes, where uppercase increases the
-magnitude, and lowercase decreases the magnitude.
-Other flags control boolean parameters, where uppercase indicates that a
-behavior is set, or on, and lowercase means that a behavior is not set, or off.
-.Bl -tag -width indent
-.It A
-All warnings (except for the warning about unknown
-flags being set) become fatal.
-The process will call
-.Xr abort 3
-in these cases.
-@roff_prof@.It B
-@roff_prof@Double/halve the maximum backtrace depth when profiling memory
-@roff_prof@allocation activity.
-@roff_prof@The default is 4.
-.It C
-Double/halve the size of the maximum size class that is a multiple of the
-cacheline size (64).
-Above this size, subpage spacing (256 bytes) is used for size classes.
-The default value is 512 bytes.
-.It D
-Halve/double the per-arena minimum ratio of active to dirty pages.
-Some dirty unused pages may be allowed to accumulate, within the limit set by
-the ratio (or one chunk worth of dirty pages, whichever is greater), before
-informing the kernel about some of those pages via
-.Xr madvise 2 .
-This provides the kernel with sufficient information to recycle dirty pages if
-physical memory becomes scarce and the pages remain unused.
-The default minimum ratio is 32:1;
-.Ev JEMALLOC_OPTIONS=6D
-will disable dirty page purging.
-@roff_prof@.It E
-@roff_prof@Activate/deactivate profiling.
-@roff_prof@This is a secondary control mechanism that makes it possible to
-@roff_prof@start the application with profiling enabled (see the
-@roff_prof@.Dq F
-@roff_prof@option) but inactive, then toggle profiling at any time during
-@roff_prof@program execution with the
-@roff_prof@.Dq prof.active
-@roff_prof@mallctl.
-@roff_prof@This option is enabled by default.
-@roff_prof@.It F
-@roff_prof@Profile memory allocation activity, and use an
-@roff_prof@.Xr atexit 3
-@roff_prof@function to dump final memory usage to a file named according to
-@roff_prof@the pattern
-@roff_prof@.Pa <prefix>.<pid>.<seq>.f.heap ,
-@roff_prof@where
-@roff_prof@.Pa <prefix>
-@roff_prof@is controlled by the
-@roff_prof@JEMALLOC_PROF_PREFIX
-@roff_prof@environment variable.
-@roff_prof@See the
-@roff_prof@.Dq B
-@roff_prof@option for backtrace depth control.
-@roff_prof@See the
-@roff_prof@.Dq E
-@roff_prof@option for on-the-fly activation/deactivation.
-@roff_prof@See the
-@roff_prof@.Dq S
-@roff_prof@option for probabilistic sampling control.
-@roff_prof@See the
-@roff_prof@.Dq I
-@roff_prof@option for information on interval-triggered profile dumping, and the
-@roff_prof@.Dq U
-@roff_prof@option for information on high-water-triggered profile dumping.
-@roff_prof@Profile output is compatible with the included pprof Perl script,
-@roff_prof@which originates from the google-perftools package
-@roff_prof@(http://code.google.com/p/google-perftools/).
-@roff_tcache@.It G
-@roff_tcache@Double/halve the approximate interval (counted in terms of
-@roff_tcache@thread-specific cache allocation/deallocation events) between full
-@roff_tcache@thread-specific cache garbage collection sweeps.
-@roff_tcache@Garbage collection is actually performed incrementally, one size
-@roff_tcache@class at a time, in order to avoid large collection pauses.
-@roff_tcache@The default sweep interval is 8192;
-@roff_tcache@.Ev JEMALLOC_OPTIONS=14g
-@roff_tcache@will disable garbage collection.
-@roff_tcache@.It H
-@roff_tcache@Enable/disable thread-specific caching.
-@roff_tcache@When there are multiple threads, each thread uses a
-@roff_tcache@thread-specific cache for objects up to a certain size.
-@roff_tcache@Thread-specific caching allows many allocations to be satisfied
-@roff_tcache@without performing any thread synchronization, at the cost of
-@roff_tcache@increased memory use.
-@roff_tcache@See the
-@roff_tcache@.Dq G
-@roff_tcache@and
-@roff_tcache@.Dq M
-@roff_tcache@options for related tuning information.
-@roff_tcache@This option is enabled by default.
-@roff_prof@.It I
-@roff_prof@Double/halve the average interval between memory profile dumps, as
-@roff_prof@measured in bytes of allocation activity.
-@roff_prof@The actual interval between dumps may be sporadic because
-@roff_prof@decentralized allocation counters are used to avoid synchronization
-@roff_prof@bottlenecks.
-@roff_prof@Profiles are dumped to files named according to the pattern
-@roff_prof@.Pa <prefix>.<pid>.<seq>.i<iseq>.heap ,
-@roff_prof@where
-@roff_prof@.Pa <prefix>
-@roff_prof@is controlled by the
-@roff_prof@JEMALLOC_PROF_PREFIX
-@roff_prof@environment variable.
-@roff_prof@The default average interval is 1 GiB;
-@roff_prof@.Ev JEMALLOC_OPTIONS=31i
-@roff_prof@will disable interval-triggered profile dumping.
-@roff_fill@.It J
-@roff_fill@Each byte of new memory allocated by
-@roff_fill@.Fn @jemalloc_prefix@malloc
-@roff_fill@or
-@roff_fill@.Fn @jemalloc_prefix@realloc
-@roff_fill@will be initialized to 0xa5.
-@roff_fill@All memory returned by
-@roff_fill@.Fn @jemalloc_prefix@free
-@roff_fill@or
-@roff_fill@.Fn @jemalloc_prefix@realloc
-@roff_fill@will be initialized to 0x5a.
-@roff_fill@This is intended for debugging and will impact performance
-@roff_fill@negatively.
-.It K
-Double/halve the virtual memory chunk size.
-The default chunk size is 4 MiB.
-@roff_prof@.It L
-@roff_prof@Use an
-@roff_prof@.Xr atexit 3
-@roff_prof@function to report memory leaks.
-@roff_prof@See the
-@roff_prof@.Dq B
-@roff_prof@option for backtrace depth control.
-@roff_prof@See the
-@roff_prof@.Dq F option for information on analyzing heap profile output.
-@roff_prof@This option is disabled by default.
-@roff_tcache@.It M
-@roff_tcache@Double/halve the maximum size class to cache.
-@roff_tcache@At a minimum, all small size classes are cached, and at a maximum
-@roff_tcache@all large size classes are cached.
-@roff_tcache@The default maximum is 32 KiB.
-.It N
-Double/halve the number of arenas.
-The default number of arenas is four times the number of CPUs, or one if there
-is a single CPU.
-@roff_swap@.It O
-@roff_swap@Over-commit memory as a side effect of using anonymous
-@roff_swap@.Xr mmap 2
-@roff_swap@@roff_dss@ and
-@roff_swap@@roff_dss@.Xr sbrk 2
-@roff_swap@for virtual memory allocation.
-@roff_swap@In order for overcommit to be disabled, the
-@roff_swap@.Dq swap.fds
-@roff_swap@mallctl must have been successfully written to.
-@roff_swap@This option is enabled by default.
-.It P
-The
-.Fn malloc_stats_print
-function is called at program exit via an
-.Xr atexit 3
-function.
-@roff_stats@This has the potential to cause deadlock for a multi-threaded
-@roff_stats@process that exits while one or more threads are executing in the
-@roff_stats@memory allocation functions.
-@roff_stats@Therefore, this option should only be used with care; it is
-@roff_stats@primarily intended as a performance tuning aid during application
-@roff_stats@development.
-.It Q
-Double/halve the size of the maximum size class that is a multiple of the
-quantum (8 or 16 bytes, depending on architecture).
-Above this size, cacheline spacing is used for size classes.
-The default value is 128 bytes.
-@roff_prof@.It S
-@roff_prof@Double/halve the average interval between allocation samples, as
-@roff_prof@measured in bytes of allocation activity.
-@roff_prof@Increasing the sampling interval decreases profile fidelity, but
-@roff_prof@also decreases the computational overhead.
-@roff_prof@The default sample interval is one (i.e. all allocations are
-@roff_prof@sampled).
-@roff_prof@.It U
-@roff_prof@Trigger a memory profile dump every time the total virtual memory
-@roff_prof@exceeds the previous maximum.
-@roff_prof@Profiles are dumped to files named according to the pattern
-@roff_prof@.Pa <prefix>.<pid>.<seq>.u<useq>.heap ,
-@roff_prof@where
-@roff_prof@.Pa <prefix>
-@roff_prof@is controlled by the
-@roff_prof@JEMALLOC_PROF_PREFIX
-@roff_prof@environment variable.
-@roff_prof@This option is disabled by default.
-@roff_sysv@.It V
-@roff_sysv@Attempting to allocate zero bytes will return a
-@roff_sysv@.Dv NULL
-@roff_sysv@pointer instead of a valid pointer.
-@roff_sysv@(The default behavior is to make a minimal allocation and return a
-@roff_sysv@pointer to it.)
-@roff_sysv@This option is provided for System V compatibility.
-@roff_sysv@@roff_xmalloc@This option is incompatible with the
-@roff_sysv@@roff_xmalloc@.Dq X
-@roff_sysv@@roff_xmalloc@option.
-@roff_xmalloc@.It X
-@roff_xmalloc@Rather than return failure for any allocation function, display a
-@roff_xmalloc@diagnostic message on
-@roff_xmalloc@.Dv STDERR_FILENO
-@roff_xmalloc@and cause the program to drop core (using
-@roff_xmalloc@.Xr abort 3 ) .
-@roff_xmalloc@This option should be set at compile time by including the
-@roff_xmalloc@following in the source code:
-@roff_xmalloc@.Bd -literal -offset indent
-@roff_xmalloc@@jemalloc_prefix@malloc_options = "X";
-@roff_xmalloc@.Ed
-@roff_fill@.It Z
-@roff_fill@Each byte of new memory allocated by
-@roff_fill@.Fn @jemalloc_prefix@malloc
-@roff_fill@or
-@roff_fill@.Fn @jemalloc_prefix@realloc
-@roff_fill@will be initialized to 0.
-@roff_fill@Note that this initialization only happens once for each byte, so
-@roff_fill@.Fn @jemalloc_prefix@realloc
-@roff_fill@calls do not zero memory that was previously allocated.
-@roff_fill@This is intended for debugging and will impact performance
-@roff_fill@negatively.
+.Fn @jemalloc_prefix@allocm ,
+.Fn @jemalloc_prefix@rallocm ,
+.Fn @jemalloc_prefix@sallocm ,
+and
+.Fn @jemalloc_prefix@dallocm
+functions all have a
+.Fa flags
+argument that can be used to specify options.
+The functions only check the options that are contextually relevant.
+Use bitwise or (|) operations to specify one or more of the following:
+.Bl -tag -width ".Dv ALLOCM_LG_ALIGN(la)"
+.It ALLOCM_LG_ALIGN(la)
+Align the memory allocation to start at an address that is a multiple of
+(1 <<
+.Fa la ) .
+This macro does not validate that
+.Fa la
+is within the valid range.
+.It ALLOCM_ALIGN(a)
+Align the memory allocation to start at an address that is a multiple of
+.Fa a ,
+where
+.Fa a
+is a power of two.
+This macro does not validate that
+.Fa a
+is a power of 2.
+.It ALLOCM_ZERO
+Initialize newly allocated memory to contain zero bytes.
+In the growing reallocation case, the real size prior to reallocation defines
+the boundary between untouched bytes and those that are initialized to contain
+zero bytes.
+If this option is absent, newly allocated memory is uninitialized.
+.It ALLOCM_NO_MOVE
+For reallocation, fail rather than moving the object.
+This constraint can apply to both growth and shrinkage.
 .El
 .Pp
-@roff_fill@The
-@roff_fill@.Dq J
-@roff_fill@and
-@roff_fill@.Dq Z
-@roff_fill@options are intended for testing and debugging.
-@roff_fill@An application which changes its behavior when these options are used
-@roff_fill@is flawed.
+The
+.Fn @jemalloc_prefix@allocm
+function allocates at least
+.Fa size
+bytes of memory, sets
+.Fa *ptr
+to the base address of the allocation, and sets
+.Fa *rsize
+to the real size of the allocation if
+.Fa rsize
+is not
+.Dv NULL .
+.Pp
+The
+.Fn @jemalloc_prefix@rallocm
+function resizes the allocation at
+.Fa *ptr
+to be at least
+.Fa size
+bytes, sets
+.Fa *ptr
+to the base address of the allocation if it moved, and sets
+.Fa *rsize
+to the real size of the allocation if
+.Fa rsize
+is not
+.Dv NULL .
+If
+.Fa extra
+is non-zero, an attempt is made to resize the allocation to be at least
+.Fa ( size
++
+.Fa extra )
+bytes, though inability to allocate the extra byte(s) will not by itself result
+in failure.
+Behavior is undefined if
+.Fa ( size
++
+.Fa extra
+>
+.Dv SIZE_T_MAX ) .
+.Pp
+The
+.Fn @jemalloc_prefix@sallocm
+function sets
+.Fa *rsize
+to the real size of the allocation.
+.Pp
+The
+.Fn @jemalloc_prefix@dallocm
+function causes the memory referenced by
+.Fa ptr
+to be made available for future allocations.
+.Sh TUNING
+Once, when the first call is made to one of the memory allocation routines, the
+allocator initializes its internals based in part on various options that can
+be specified at compile- or run-time.
+.Pp
+The string pointed to by the global variable
+.Va @jemalloc_prefix@malloc_conf ,
+the
+.Dq name
+of the file referenced by the symbolic link named
+.Pa /etc/@jemalloc_prefix@malloc.conf ,
+and the value of the environment variable
+.Ev @jemalloc_cprefix@MALLOC_CONF ,
+will be interpreted, in that order, from left to right as options.
+.Pp
+An options string is a comma-separated list of option:value pairs.
+There is one key corresponding to each
+.Dq opt.*
+mallctl.
+For example,
+.Dq abort:true,narenas:1
+sets the
+.Dq opt.abort
+and
+.Dq opt.narenas
+options.
+Some options have boolean values (true/false), others have integer values (base
+8, 10, or 16, depending on prefix), and yet others have raw string values.
 .Sh IMPLEMENTATION NOTES
 @roff_dss@Traditionally, allocators have used
 @roff_dss@.Xr sbrk 2
@@ -564,8 +461,8 @@ However, it may make sense to reduce the number of arenas if an application
 does not make much use of the allocation functions.
 .Pp
 @roff_tcache@In addition to multiple arenas, this allocator supports
-@roff_tcache@thread-specific caching for small objects, in order to make it
-@roff_tcache@possible to completely avoid synchronization for most small
+@roff_tcache@thread-specific caching for small and large objects, in order to
+@roff_tcache@make it possible to completely avoid synchronization for most
 @roff_tcache@allocation requests.
 @roff_tcache@Such caching allows very fast allocation in the common case, but it
 @roff_tcache@increases memory usage and fragmentation, since a bounded number of
@@ -594,27 +491,27 @@ The combination of chunk alignment and chunk page maps makes it possible to
 determine all metadata regarding small and large allocations in constant time.
 .Pp
 Small objects are managed in groups by page runs.
-Each run maintains a bitmap that tracks which regions are in use.
+Each run maintains a frontier and free list to track which regions are in use.
 @roff_tiny@Allocation requests that are no more than half the quantum (8 or 16,
 @roff_tiny@depending on architecture) are rounded up to the nearest power of
 @roff_tiny@two.
 Allocation requests that are
 @roff_tiny@more than half the quantum, but
 no more than the minimum cacheline-multiple size class (see the
-.Dq Q
+.Dq opt.lg_qspace_max
 option) are rounded up to the nearest multiple of the
 @roff_tiny@quantum.
 @roff_no_tiny@quantum (8 or 16, depending on architecture).
 Allocation requests that are more than the minimum cacheline-multiple size
 class, but no more than the minimum subpage-multiple size class (see the
-.Dq C
+.Dq opt.lg_cspace_max
 option) are rounded up to the nearest multiple of the cacheline size (64).
 Allocation requests that are more than the minimum subpage-multiple size class,
 but no more than the maximum subpage-multiple size class are rounded up to the
 nearest multiple of the subpage size (256).
 Allocation requests that are more than the maximum subpage-multiple size class,
 but small enough to fit in an arena-managed chunk (see the
-.Dq K
+.Dq opt.lg_chunk
 option), are rounded up to the nearest run size.
 Allocation requests that are too large to fit in an arena-managed chunk are
 rounded up to the nearest multiple of the chunk size.
@@ -623,10 +520,33 @@ Allocations are packed tightly together, which can be an issue for
 multi-threaded applications.
 If you need to assure that allocations do not suffer from cacheline sharing,
 round your allocation requests up to the nearest multiple of the cacheline
-size.
+size, or specify cacheline alignment when allocating.
+.Pp
+Assuming 4 MiB chunks, 4 KiB pages, and a 16-byte quantum on a 64-bit system,
+the size classes in each category are as follows:
+.\"-----------------------------------------------------------------------------
+.TS
+allbox tab(;);
+LLL
+LLL
+^LL
+^LL
+^LL
+LsL
+LsL.
+Category;Subcategory;Size
+@roff_tiny@Small;Tiny;[8]
+@roff_no_tiny@Small;Tiny;[disabled]
+;Quantum-spaced;[16, 32, 48, ..., 128]
+;Cacheline-spaced;[192, 256, 320, ..., 512]
+;Sub-page-spaced;[768, 1024, 1280, ..., 3840]
+Large;[4 KiB, 8 KiB, 12 KiB, ..., 4072 KiB]
+Huge;[4 MiB, 8 MiB, 12 MiB, ...]
+.TE
+.\"-----------------------------------------------------------------------------
 .Sh MALLCTL NAMESPACE
 The following names are defined in the namespace accessible via the
-.Fn mallctl*
+.Fn @jemalloc_prefix@mallctl*
 functions.
 Value types are specified in parentheses, and their readable/writable statuses
 are encoded as rw, r-, -w, or --.
@@ -638,6 +558,10 @@ introspection.
 @roff_stats@<i> equal to
 @roff_stats@.Dq arenas.narenas
 @roff_stats@can be used to access the summation of statistics from all arenas.
+.Pp
+Take special note of the
+.Dq epoch
+mallctl, which controls refreshing of cached dynamic statistics.
 .Bl -ohang
 .\"-----------------------------------------------------------------------------
 .It Sy "version (const char *) r-"
@@ -648,25 +572,10 @@ Return the jemalloc version string.
 .It Sy "epoch (uint64_t) rw"
 .Bd -ragged -offset indent -compact
 If a value is passed in, refresh the data from which the
-.Fn mallctl*
+.Fn @jemalloc_prefix@mallctl*
 functions report values, and increment the epoch.
 Return the current epoch.
 This is useful for detecting whether another thread caused a refresh.
-.Ed
-.\"-----------------------------------------------------------------------------
-@roff_tcache@.It Sy "tcache.flush (void) --"
-@roff_tcache@.Bd -ragged -offset indent -compact
-@roff_tcache@Flush calling thread's tcache.
-@roff_tcache@This interface releases all cached objects and internal data
-@roff_tcache@structures associated with the calling thread's thread-specific
-@roff_tcache@cache.
-@roff_tcache@Ordinarily, this interface need not be called, since automatic
-@roff_tcache@periodic incremental garbage collection occurs, and the thread
-@roff_tcache@cache is automatically discarded when a thread exits.
-@roff_tcache@However, garbage collection is triggered by allocation activity,
-@roff_tcache@so it is possible for a thread that stops allocating/deallocating
-@roff_tcache@to retain its cache indefinitely, in which case the developer may
-@roff_tcache@find manual flushing useful.
 .Ed
 .\"-----------------------------------------------------------------------------
 .It Sy "config.debug (bool) r-"
@@ -746,129 +655,386 @@ This is useful for detecting whether another thread caused a refresh.
 .\"-----------------------------------------------------------------------------
 .It Sy "opt.abort (bool) r-"
 .Bd -ragged -offset indent -compact
-See the
-.Dq A
-option.
+Abort-on-warning enabled/disabled.
+If true, most warnings are fatal.
+The process will call
+.Xr abort 3
+in these cases.
+This option is
+@roff_debug@enabled
+@roff_no_debug@disabled
+by default.
 .Ed
-.\"-----------------------------------------------------------------------------
-@roff_fill@.It Sy "opt.junk (bool) r-"
-@roff_fill@.Bd -ragged -offset indent -compact
-@roff_fill@See the
-@roff_fill@.Dq J
-@roff_fill@option.
-@roff_fill@.Ed
-.\"-----------------------------------------------------------------------------
-@roff_fill@.It Sy "opt.zero (bool) r-"
-@roff_fill@.Bd -ragged -offset indent -compact
-@roff_fill@See the
-@roff_fill@.Dq Z
-@roff_fill@option.
-@roff_fill@.Ed
-.\"-----------------------------------------------------------------------------
-@roff_xmalloc@.It Sy "opt.xmalloc (bool) r-"
-@roff_xmalloc@.Bd -ragged -offset indent -compact
-@roff_xmalloc@See the
-@roff_xmalloc@.Dq X
-@roff_xmalloc@option.
-@roff_xmalloc@.Ed
-.\"-----------------------------------------------------------------------------
-@roff_tcache@.It Sy "opt.tcache (bool) r-"
-@roff_tcache@.Bd -ragged -offset indent -compact
-@roff_tcache@See the
-@roff_tcache@.Dq H
-@roff_tcache@option.
-@roff_tcache@.Ed
-.\"-----------------------------------------------------------------------------
-@roff_tcache@.It Sy "opt.lg_tcache_gc_sweep (ssize_t) r-"
-@roff_tcache@.Bd -ragged -offset indent -compact
-@roff_tcache@See the
-@roff_tcache@.Dq G
-@roff_tcache@option.
-@roff_tcache@.Ed
-.\"-----------------------------------------------------------------------------
-.It Sy "opt.stats_print (bool) r-"
-.Bd -ragged -offset indent -compact
-See the
-.Dq P
-option.
-.Ed
-.\"-----------------------------------------------------------------------------
-@roff_prof@.It Sy "opt.prof (bool) r-"
-@roff_prof@.Bd -ragged -offset indent -compact
-@roff_prof@See the
-@roff_prof@.Dq F
-@roff_prof@option.
-@roff_prof@.Ed
-.\"-----------------------------------------------------------------------------
-@roff_prof@.It Sy "opt.lg_prof_bt_max (size_t) r-"
-@roff_prof@.Bd -ragged -offset indent -compact
-@roff_prof@See the
-@roff_prof@.Dq B
-@roff_prof@option.
-@roff_prof@.Ed
-.\"-----------------------------------------------------------------------------
-@roff_prof@.It Sy "opt.lg_prof_interval (ssize_t) r-"
-@roff_prof@.Bd -ragged -offset indent -compact
-@roff_prof@See the
-@roff_prof@.Dq I
-@roff_prof@option.
-@roff_prof@.Ed
-.\"-----------------------------------------------------------------------------
-@roff_prof@.It Sy "opt.prof_udump (bool) r-"
-@roff_prof@.Bd -ragged -offset indent -compact
-@roff_prof@See the
-@roff_prof@.Dq U
-@roff_prof@option.
-@roff_prof@.Ed
-.\"-----------------------------------------------------------------------------
-@roff_prof@.It Sy "opt.prof_leak (bool) r-"
-@roff_prof@.Bd -ragged -offset indent -compact
-@roff_prof@See the
-@roff_prof@.Dq L
-@roff_prof@option.
-@roff_prof@.Ed
 .\"-----------------------------------------------------------------------------
 .It Sy "opt.lg_qspace_max (size_t) r-"
 .Bd -ragged -offset indent -compact
-See the
-.Dq Q
-option.
+Size (log base 2) of the maximum size class that is a multiple of the quantum
+(8 or 16 bytes, depending on architecture).
+Above this size, cacheline spacing is used for size classes.
+The default value is 128 bytes (2^7).
 .Ed
 .\"-----------------------------------------------------------------------------
 .It Sy "opt.lg_cspace_max (size_t) r-"
 .Bd -ragged -offset indent -compact
-See the
-.Dq C
-option.
-.Ed
-.\"-----------------------------------------------------------------------------
-.It Sy "opt.lg_dirty_mult (ssize_t) r-"
-.Bd -ragged -offset indent -compact
-See the
-.Dq D
-option.
+Size (log base 2) of the maximum size class that is a multiple of the cacheline
+size (64).
+Above this size, subpage spacing (256 bytes) is used for size classes.
+The default value is 512 bytes (2^9).
 .Ed
 .\"-----------------------------------------------------------------------------
 .It Sy "opt.lg_chunk (size_t) r-"
 .Bd -ragged -offset indent -compact
-See the
-.Dq K
-option.
+Virtual memory chunk size (log base 2).
+The default chunk size is 4 MiB (2^22).
 .Ed
+.\"-----------------------------------------------------------------------------
+.It Sy "opt.narenas (size_t) r-"
+.Bd -ragged -offset indent -compact
+Maximum number of arenas to use.
+The default maximum number of arenas is four times the number of CPUs, or one
+if there is a single CPU.
+.Ed
+.\"-----------------------------------------------------------------------------
+.It Sy "opt.lg_dirty_mult (ssize_t) r-"
+.Bd -ragged -offset indent -compact
+Per-arena minimum ratio (log base 2) of active to dirty pages.
+Some dirty unused pages may be allowed to accumulate, within the limit set by
+the ratio (or one chunk worth of dirty pages, whichever is greater), before
+informing the kernel about some of those pages via
+.Xr madvise 2
+or a similar system call.
+This provides the kernel with sufficient information to recycle dirty pages if
+physical memory becomes scarce and the pages remain unused.
+The default minimum ratio is 32:1 (2^5:1); an option value of -1 will disable
+dirty page purging.
+.Ed
+.\"-----------------------------------------------------------------------------
+.It Sy "opt.stats_print (bool) r-"
+.Bd -ragged -offset indent -compact
+Enable/disable statistics printing at exit.
+If enabled, the
+.Fn @jemalloc_prefix@malloc_stats_print
+function is called at program exit via an
+.Xr atexit 3
+function.
+@roff_stats@This has the potential to cause deadlock for a multi-threaded
+@roff_stats@process that exits while one or more threads are executing in the
+@roff_stats@memory allocation functions.
+@roff_stats@Therefore, this option should only be used with care; it is
+@roff_stats@primarily intended as a performance tuning aid during application
+@roff_stats@development.
+This option is disabled by default.
+.Ed
+.\"-----------------------------------------------------------------------------
+@roff_fill@.It Sy "opt.junk (bool) r-"
+@roff_fill@.Bd -ragged -offset indent -compact
+@roff_fill@Junk filling enabled/disabled.
+@roff_fill@If enabled, each byte of uninitialized allocated memory will be
+@roff_fill@initialized to 0xa5.
+@roff_fill@All deallocated memory will be initialized to 0x5a.
+@roff_fill@This is intended for debugging and will impact performance
+@roff_fill@negatively.
+@roff_fill@This option is
+@roff_fill@@roff_debug@enabled
+@roff_fill@@roff_no_debug@disabled
+@roff_fill@by default.
+@roff_fill@.Ed
+.\"-----------------------------------------------------------------------------
+@roff_fill@.It Sy "opt.zero (bool) r-"
+@roff_fill@.Bd -ragged -offset indent -compact
+@roff_fill@Zero filling enabled/disabled.
+@roff_fill@If enabled, each byte of uninitialized allocated memory will be
+@roff_fill@initialized to 0.
+@roff_fill@Note that this initialization only happens once for each byte, so
+@roff_fill@.Fn @jemalloc_prefix@realloc
+@roff_fill@calls do not zero memory that was previously allocated.
+@roff_fill@This is intended for debugging and will impact performance
+@roff_fill@negatively.
+@roff_fill@This option is disabled by default.
+@roff_fill@.Ed
+.\"-----------------------------------------------------------------------------
+@roff_sysv@.It Sy "opt.sysv (bool) r-"
+@roff_sysv@.Bd -ragged -offset indent -compact
+@roff_sysv@If enabled, attempting to allocate zero bytes will return a
+@roff_sysv@.Dv NULL
+@roff_sysv@pointer instead of a valid pointer.
+@roff_sysv@(The default behavior is to make a minimal allocation and return a
+@roff_sysv@pointer to it.)
+@roff_sysv@This option is provided for System V compatibility.
+@roff_sysv@@roff_xmalloc@This option is incompatible with the
+@roff_sysv@@roff_xmalloc@.Dq opt.xmalloc
+@roff_sysv@@roff_xmalloc@option.
+@roff_sysv@This option is disabled by default.
+@roff_sysv@.Ed
+.\"-----------------------------------------------------------------------------
+@roff_xmalloc@.It Sy "opt.xmalloc (bool) r-"
+@roff_xmalloc@.Bd -ragged -offset indent -compact
+@roff_xmalloc@Abort-on-out-of-memory enabled/disabled.
+@roff_xmalloc@If enabled, rather than returning failure for any allocation
+@roff_xmalloc@function, display a diagnostic message on
+@roff_xmalloc@.Dv STDERR_FILENO
+@roff_xmalloc@and cause the program to drop core (using
+@roff_xmalloc@.Xr abort 3 ) .
+@roff_xmalloc@If an application is designed to depend on this behavior, set the
+@roff_xmalloc@option at compile time by including the following in the source
+@roff_xmalloc@code:
+@roff_xmalloc@.Bd -literal -offset indent
+@roff_xmalloc@@jemalloc_prefix@malloc_conf = "xmalloc:true";
+@roff_xmalloc@.Ed
+@roff_xmalloc@.Pp
+@roff_xmalloc@This option is disabled by default.
+@roff_xmalloc@.Ed
+.\"-----------------------------------------------------------------------------
+@roff_tcache@.It Sy "opt.tcache (bool) r-"
+@roff_tcache@.Bd -ragged -offset indent -compact
+@roff_tcache@Thread-specific caching enabled/disabled.
+@roff_tcache@When there are multiple threads, each thread uses a
+@roff_tcache@thread-specific cache for objects up to a certain size.
+@roff_tcache@Thread-specific caching allows many allocations to be satisfied
+@roff_tcache@without performing any thread synchronization, at the cost of
+@roff_tcache@increased memory use.
+@roff_tcache@See the
+@roff_tcache@.Dq opt.lg_tcache_gc_sweep
+@roff_tcache@and
+@roff_tcache@.Dq opt.tcache_max
+@roff_tcache@options for related tuning information.
+@roff_tcache@This option is enabled by default.
+@roff_tcache@.Ed
+.\"-----------------------------------------------------------------------------
+@roff_tcache@.It Sy "opt.lg_tcache_gc_sweep (ssize_t) r-"
+@roff_tcache@.Bd -ragged -offset indent -compact
+@roff_tcache@Approximate interval (log base 2) between full thread-specific
+@roff_tcache@cache garbage collection sweeps, counted in terms of
+@roff_tcache@thread-specific cache allocation/deallocation events.
+@roff_tcache@Garbage collection is actually performed incrementally, one size
+@roff_tcache@class at a time, in order to avoid large collection pauses.
+@roff_tcache@The default sweep interval is 8192 (2^13); setting this option to
+@roff_tcache@-1 will disable garbage collection.
+@roff_tcache@.Ed
+.\"-----------------------------------------------------------------------------
+@roff_tcache@.It Sy "opt.lg_tcache_max (size_t) r-"
+@roff_tcache@.Bd -ragged -offset indent -compact
+@roff_tcache@Maximum size class (log base 2) to cache in the thread-specific
+@roff_tcache@cache.
+@roff_tcache@At a minimum, all small size classes are cached, and at a maximum
+@roff_tcache@all large size classes are cached.
+@roff_tcache@The default maximum is 32 KiB (2^15).
+@roff_tcache@.Ed
+.\"-----------------------------------------------------------------------------
+@roff_prof@.It Sy "opt.prof (bool) r-"
+@roff_prof@.Bd -ragged -offset indent -compact
+@roff_prof@Memory profiling enabled/disabled.
+@roff_prof@If enabled, profile memory allocation activity, and use an
+@roff_prof@.Xr atexit 3
+@roff_prof@function to dump final memory usage to a file named according to
+@roff_prof@the pattern
+@roff_prof@.Pa <prefix>.<pid>.<seq>.f.heap ,
+@roff_prof@where
+@roff_prof@.Pa <prefix>
+@roff_prof@is controlled by the
+@roff_prof@.Dq opt.prof_prefix
+@roff_prof@option.
+@roff_prof@See the
+@roff_prof@.Dq opt.lg_prof_bt_max
+@roff_prof@option for backtrace depth control.
+@roff_prof@See the
+@roff_prof@.Dq opt.prof_active
+@roff_prof@option for on-the-fly activation/deactivation.
+@roff_prof@See the
+@roff_prof@.Dq opt.lg_prof_sample
+@roff_prof@option for probabilistic sampling control.
+@roff_prof@See the
+@roff_prof@.Dq opt.prof_accum
+@roff_prof@option for control of cumulative sample reporting.
+@roff_prof@See the
+@roff_prof@.Dq opt.lg_prof_tcmax
+@roff_prof@option for control of per thread backtrace caching.
+@roff_prof@See the
+@roff_prof@.Dq opt.lg_prof_interval
+@roff_prof@option for information on interval-triggered profile dumping, and the
+@roff_prof@.Dq opt.prof_gdump
+@roff_prof@option for information on high-water-triggered profile dumping.
+@roff_prof@Profile output is compatible with the included pprof Perl script,
+@roff_prof@which originates from the
+@roff_prof@.UR http://\:code.google.com/\:p/\:google-perftools/
+@roff_prof@google-perftools package
+@roff_prof@.UE .
+@roff_prof@.Ed
+.\"-----------------------------------------------------------------------------
+@roff_prof@.It Sy "opt.prof_prefix (const char *) r-"
+@roff_prof@.Bd -ragged -offset indent -compact
+@roff_prof@Filename prefix for profile dumps.
+@roff_prof@If the prefix is set to the empty string, no automatic dumps will
+@roff_prof@occur; this is primarily useful for disabling the automatic final
+@roff_prof@heap dump (which also disables leak reporting, if enabled).
+@roff_prof@The default prefix is
+@roff_prof@.Pa jeprof .
+@roff_prof@.Ed
+.\"-----------------------------------------------------------------------------
+@roff_prof@.It Sy "opt.lg_prof_bt_max (size_t) r-"
+@roff_prof@.Bd -ragged -offset indent -compact
+@roff_prof@Maximum backtrace depth (log base 2) when profiling memory
+@roff_prof@allocation activity.
+@roff_prof@The default is 128 (2^7).
+@roff_prof@.Ed
+.\"-----------------------------------------------------------------------------
+@roff_prof@.It Sy "opt.prof_active (bool) r-"
+@roff_prof@.Bd -ragged -offset indent -compact
+@roff_prof@Profiling activated/deactivated.
+@roff_prof@This is a secondary control mechanism that makes it possible to
+@roff_prof@start the application with profiling enabled (see the
+@roff_prof@.Dq opt.prof
+@roff_prof@option) but inactive, then toggle profiling at any time during
+@roff_prof@program execution with the
+@roff_prof@.Dq prof.active
+@roff_prof@mallctl.
+@roff_prof@This option is enabled by default.
+@roff_prof@.Ed
+.\"-----------------------------------------------------------------------------
+@roff_prof@.It Sy "opt.lg_prof_sample (ssize_t) r-"
+@roff_prof@.Bd -ragged -offset indent -compact
+@roff_prof@Average interval (log base 2) between allocation samples, as
+@roff_prof@measured in bytes of allocation activity.
+@roff_prof@Increasing the sampling interval decreases profile fidelity, but
+@roff_prof@also decreases the computational overhead.
+@roff_prof@The default sample interval is 1 (2^0) (i.e. all allocations are
+@roff_prof@sampled).
+@roff_prof@.Ed
+.\"-----------------------------------------------------------------------------
+@roff_prof@.It Sy "opt.prof_accum (bool) r-"
+@roff_prof@.Bd -ragged -offset indent -compact
+@roff_prof@Reporting of cumulative object/byte counts in profile dumps
+@roff_prof@enabled/disabled.
+@roff_prof@If this option is enabled, every unique backtrace must be stored for
+@roff_prof@the duration of execution.
+@roff_prof@Depending on the application, this can impose a large memory
+@roff_prof@overhead, and the cumulative counts are not always of interest.
+@roff_prof@See the
+@roff_prof@.Dq opt.lg_prof_tcmax
+@roff_prof@option for control of per thread backtrace caching, which has
+@roff_prof@important interactions.
+@roff_prof@This option is enabled by default.
+@roff_prof@.Ed
+.\"-----------------------------------------------------------------------------
+@roff_prof@.It Sy "opt.lg_prof_tcmax (ssize_t) r-"
+@roff_prof@.Bd -ragged -offset indent -compact
+@roff_prof@Maximum per thread backtrace cache (log base 2) used for heap
+@roff_prof@profiling.
+@roff_prof@A backtrace can only be discarded if the
+@roff_prof@.Dq opt.prof_accum
+@roff_prof@option is disabled, and no thread caches currently refer to the
+@roff_prof@backtrace.
+@roff_prof@Therefore, a backtrace cache limit should be imposed if the
+@roff_prof@intention is to limit how much memory is used by backtraces.
+@roff_prof@By default, no limit is imposed (encoded as -1).
+@roff_prof@.Ed
+.\"-----------------------------------------------------------------------------
+@roff_prof@.It Sy "opt.lg_prof_interval (ssize_t) r-"
+@roff_prof@.Bd -ragged -offset indent -compact
+@roff_prof@Average interval (log base 2) between memory profile dumps, as
+@roff_prof@measured in bytes of allocation activity.
+@roff_prof@The actual interval between dumps may be sporadic because
+@roff_prof@decentralized allocation counters are used to avoid synchronization
+@roff_prof@bottlenecks.
+@roff_prof@Profiles are dumped to files named according to the pattern
+@roff_prof@.Pa <prefix>.<pid>.<seq>.i<iseq>.heap ,
+@roff_prof@where
+@roff_prof@.Pa <prefix>
+@roff_prof@is controlled by the
+@roff_prof@.Dq opt.prof_prefix
+@roff_prof@option.
+@roff_prof@By default, interval-triggered profile dumping is disabled (encoded
+@roff_prof@as -1).
+@roff_prof@.Ed
+.\"-----------------------------------------------------------------------------
+@roff_prof@.It Sy "opt.prof_gdump (bool) r-"
+@roff_prof@.Bd -ragged -offset indent -compact
+@roff_prof@Trigger a memory profile dump every time the total virtual memory
+@roff_prof@exceeds the previous maximum.
+@roff_prof@Profiles are dumped to files named according to the pattern
+@roff_prof@.Pa <prefix>.<pid>.<seq>.u<useq>.heap ,
+@roff_prof@where
+@roff_prof@.Pa <prefix>
+@roff_prof@is controlled by the
+@roff_prof@.Dq opt.prof_prefix
+@roff_prof@option.
+@roff_prof@This option is disabled by default.
+@roff_prof@.Ed
+.\"-----------------------------------------------------------------------------
+@roff_prof@.It Sy "opt.prof_leak (bool) r-"
+@roff_prof@.Bd -ragged -offset indent -compact
+@roff_prof@Leak reporting enabled/disabled.
+@roff_prof@If enabled, use an
+@roff_prof@.Xr atexit 3
+@roff_prof@function to report memory leaks detected by allocation sampling.
+@roff_prof@See the
+@roff_prof@.Dq opt.lg_prof_bt_max
+@roff_prof@option for backtrace depth control.
+@roff_prof@See the
+@roff_prof@.Dq opt.prof
+@roff_prof@option for information on analyzing heap profile output.
+@roff_prof@This option is disabled by default.
+@roff_prof@.Ed
 .\"-----------------------------------------------------------------------------
 .It Sy "opt.overcommit (bool) r-"
 .Bd -ragged -offset indent -compact
-See the
-.Dq O
-option.
+@roff_swap@Over-commit enabled/disabled.
+@roff_swap@If enabled, over-commit memory as a side effect of using anonymous
+@roff_swap@.Xr mmap 2
+@roff_swap@@roff_dss@ and
+@roff_swap@@roff_dss@.Xr sbrk 2
+@roff_swap@for virtual memory allocation.
+@roff_swap@In order for overcommit to be disabled, the
+@roff_swap@.Dq swap.fds
+@roff_swap@mallctl must have been successfully written to.
+@roff_swap@This option is enabled by default.
 .Ed
+.\"-----------------------------------------------------------------------------
+@roff_tcache@.It Sy "tcache.flush (void) --"
+@roff_tcache@.Bd -ragged -offset indent -compact
+@roff_tcache@Flush calling thread's tcache.
+@roff_tcache@This interface releases all cached objects and internal data
+@roff_tcache@structures associated with the calling thread's thread-specific
+@roff_tcache@cache.
+@roff_tcache@Ordinarily, this interface need not be called, since automatic
+@roff_tcache@periodic incremental garbage collection occurs, and the thread
+@roff_tcache@cache is automatically discarded when a thread exits.
+@roff_tcache@However, garbage collection is triggered by allocation activity,
+@roff_tcache@so it is possible for a thread that stops allocating/deallocating
+@roff_tcache@to retain its cache indefinitely, in which case the developer may
+@roff_tcache@find manual flushing useful.
+.Ed
+.\"-----------------------------------------------------------------------------
+.It Sy "thread.arena (unsigned) rw"
+.Bd -ragged -offset indent -compact
+Get or set the arena associated with the calling thread.
+The arena index must be less than the maximum number of arenas (see the
+.Dq arenas.narenas
+mallctl).
+If the specified arena was not initialized beforehand (see the
+.Dq arenas.initialized
+mallctl), it will be automatically initialized as a side effect of calling this
+interface.
+.Ed
+.\"-----------------------------------------------------------------------------
+@roff_stats@.It Sy "thread.allocated (uint64_t) r-"
+@roff_stats@.Bd -ragged -offset indent -compact
+@roff_stats@Get the total number of bytes ever allocated by the calling thread.
+@roff_stats@This counter has the potential to wrap around; it is up to the
+@roff_stats@application to appropriately interpret the counter in such cases.
+@roff_stats@.Ed
+.\"-----------------------------------------------------------------------------
+@roff_stats@.It Sy "thread.deallocated (uint64_t) r-"
+@roff_stats@.Bd -ragged -offset indent -compact
+@roff_stats@Get the total number of bytes ever deallocated by the calling
+@roff_stats@thread.
+@roff_stats@This counter has the potential to wrap around; it is up to the
+@roff_stats@application to appropriately interpret the counter in such cases.
+@roff_stats@.Ed
 .\"-----------------------------------------------------------------------------
 .It Sy "arenas.narenas (unsigned) r-"
 .Bd -ragged -offset indent -compact
 Maximum number of arenas.
-See the
-.Dq N
-option.
 .Ed
 .\"-----------------------------------------------------------------------------
 .It Sy "arenas.initialized (bool *) r-"
@@ -1004,11 +1170,17 @@ Total number of large size classes.
 Maximum size supported by this large size class.
 .Ed
 .\"-----------------------------------------------------------------------------
+.It Sy "arenas.purge (unsigned) -w"
+.Bd -ragged -offset indent -compact
+Purge unused dirty pages for the specified arena, or for all arenas if none is
+specified.
+.Ed
+.\"-----------------------------------------------------------------------------
 @roff_prof@.It Sy "prof.active (bool) rw"
 @roff_prof@.Bd -ragged -offset indent -compact
 @roff_prof@Control whether sampling is currently active.
 @roff_prof@See the
-@roff_prof@.Dq E
+@roff_prof@.Dq opt.prof_active
 @roff_prof@option for additional information.
 @roff_prof@.Ed
 .\"-----------------------------------------------------------------------------
@@ -1020,8 +1192,8 @@ Maximum size supported by this large size class.
 @roff_prof@where
 @roff_prof@.Pa <prefix>
 @roff_prof@is controlled by the
-@roff_prof@JEMALLOC_PROF_PREFIX
-@roff_prof@environment variable.
+@roff_prof@.Dq opt.prof_prefix
+@roff_prof@option.
 @roff_prof@.Ed
 .\"-----------------------------------------------------------------------------
 @roff_prof@.It Sy "prof.interval (uint64_t) r-"
@@ -1029,7 +1201,7 @@ Maximum size supported by this large size class.
 @roff_prof@Average number of bytes allocated between inverval-based profile
 @roff_prof@dumps.
 @roff_prof@See the
-@roff_prof@.Dq I
+@roff_prof@.Dq opt.lg_prof_interval
 @roff_prof@option for additional information.
 @roff_prof@.Ed
 .\"-----------------------------------------------------------------------------
@@ -1283,10 +1455,9 @@ has not been called.
 .\"-----------------------------------------------------------------------------
 .El
 .Sh DEBUGGING MALLOC PROBLEMS
-The first thing to do is to set the
-.Dq A
-option.
-This option forces a coredump (if possible) at the first sign of trouble,
+Start by setting the
+.Dq opt.abort
+option, which forces a coredump (if possible) at the first sign of trouble,
 rather than the normal policy of trying to continue if at all possible.
 .Pp
 It is probably also a good idea to recompile the program with suitable
@@ -1294,22 +1465,22 @@ options and symbols for debugger support.
 .Pp
 @roff_fill@If the program starts to give unusual results, coredump or generally
 @roff_fill@behave differently without emitting any of the messages mentioned in
-@roff_fill@the next section, it is likely because it depends on the storage
-@roff_fill@being filled with zero bytes.
+@roff_fill@the next section, it is likely because the program depends on the
+@roff_fill@storage being filled with zero bytes.
 @roff_fill@Try running it with the
-@roff_fill@.Dq Z
+@roff_fill@.Dq opt.zero
 @roff_fill@option set;
 @roff_fill@if that improves the situation, this diagnosis has been confirmed.
 @roff_fill@If the program still misbehaves,
 @roff_fill@the likely problem is accessing memory outside the allocated area.
 @roff_fill@.Pp
 @roff_fill@Alternatively, if the symptoms are not easy to reproduce, setting the
-@roff_fill@.Dq J
+@roff_fill@.Dq opt.junk
 @roff_fill@option may help provoke the problem.
 @roff_fill@.Pp
-Unfortunately this implementation does not provide much detail about
-the problems it detects; the performance impact for storing such information
-would be prohibitive.
+This implementation does not provide much detail about the problems it detects,
+because the performance impact for storing such information would be
+prohibitive.
 There are a number of allocator implementations available on the Internet
 which focus on detecting and pinpointing problems by trading performance for
 extra sanity checks and detailed diagnostics.
@@ -1319,8 +1490,8 @@ warning condition, a message will be printed to file descriptor
 .Dv STDERR_FILENO .
 Errors will result in the process dumping core.
 If the
-.Dq A
-option is set, all warnings are treated as errors.
+.Dq opt.abort
+option is set, most warnings are treated as errors.
 .Pp
 The
 .Va @jemalloc_prefix@malloc_message
@@ -1342,6 +1513,7 @@ is likely to result in a crash or deadlock.
 All messages are prefixed by
 .Dq <jemalloc>: .
 .Sh RETURN VALUES
+.Ss Standard API
 The
 .Fn @jemalloc_prefix@malloc
 and
@@ -1390,7 +1562,7 @@ when an error occurs.
 The
 .Fn @jemalloc_prefix@free
 function returns no value.
-.Pp
+.Ss Non-standard API
 The
 .Fn @jemalloc_prefix@malloc_usable_size
 function returns the usable size of the allocation pointed to by
@@ -1429,37 +1601,69 @@ Attempt to read or write void value, or attempt to write read-only value.
 A memory allocation failure occurred.
 .It Bq Er EFAULT
 An interface with side effects failed in some way not directly related to
-.Fn mallctl*
+.Fn @jemalloc_prefix@mallctl*
 read/write processing.
 .El
+.Ss Experimental API
+The
+.Fn @jemalloc_prefix@allocm ,
+.Fn @jemalloc_prefix@rallocm ,
+.Fn @jemalloc_prefix@sallocm ,
+and
+.Fn @jemalloc_prefix@dallocm
+functions return
+.Dv ALLOCM_SUCCESS
+on success; otherwise they return an error value.
+The
+.Fn @jemalloc_prefix@allocm
+and
+.Fn @jemalloc_prefix@rallocm
+functions will fail if:
+.Bl -tag -width ".Bq Er ALLOCM_ERR_OOM"
+.It Bq Er ALLOCM_ERR_OOM
+Out of memory.
+Insufficient contiguous memory was available to service the allocation request.
+The
+.Fn @jemalloc_prefix@allocm
+function additionally sets
+.Fa *ptr
+to
+.Dv NULL ,
+whereas the
+.Fn @jemalloc_prefix@rallocm
+function leaves
+.Fa *ptr
+unmodified.
+.El
+.Pp
+The
+.Fn @jemalloc_prefix@rallocm
+function will also fail if:
+.Bl -tag -width ".Bq Er ALLOCM_ERR_NOT_MOVED"
+.It Bq Er ALLOCM_ERR_NOT_MOVED
+.Dv ALLOCM_NO_MOVE
+was specified, but the reallocation request could not be serviced without
+moving the object.
+.El
 .Sh ENVIRONMENT
-The following environment variables affect the execution of the allocation
+The following environment variable affects the execution of the allocation
 functions:
-@roff_prof@.Bl -tag -width ".Ev JEMALLOC_PROF_PREFIX"
-@roff_no_prof@.Bl -tag -width ".Ev JEMALLOC_OPTIONS"
-.It Ev JEMALLOC_OPTIONS
+.Bl -tag -width ".Ev @jemalloc_cprefix@MALLOC_CONF"
+.It Ev @jemalloc_cprefix@MALLOC_CONF
 If the environment variable
-.Ev JEMALLOC_OPTIONS
-is set, the characters it contains will be interpreted as flags to the
-allocation functions.
-@roff_prof@.It Ev JEMALLOC_PROF_PREFIX
-@roff_prof@If the environment variable
-@roff_prof@.Ev JEMALLOC_PROF_PREFIX
-@roff_prof@is set, use it as the filename prefix for profile dumps; otherwise
-@roff_prof@use
-@roff_prof@.Pa jeprof
-@roff_prof@as the prefix.
+.Ev @jemalloc_cprefix@MALLOC_CONF
+is set, the characters it contains will be interpreted as options.
 .El
 .Sh EXAMPLES
 To dump core whenever a problem occurs:
 .Pp
 .Bd -literal -offset indent
-ln -s 'A' /etc/jemalloc.conf
+ln -s 'abort:true' /etc/@jemalloc_prefix@malloc.conf
 .Ed
 .Pp
-To specify in the source a chunk size that is twice the default:
+To specify in the source a chunk size that is 16 MiB:
 .Bd -literal -offset indent
-@jemalloc_prefix@malloc_options = "K";
+@jemalloc_prefix@malloc_conf = "lg_chunk:24";
 .Ed
 .Sh SEE ALSO
 .Xr madvise 2 ,

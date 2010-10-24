@@ -154,7 +154,7 @@ struct chunk_stats_s {
 
 extern bool	opt_stats_print;
 
-char	*umax2s(uintmax_t x, unsigned base, char *s);
+char	*u2s(uint64_t x, unsigned base, char *s);
 #ifdef JEMALLOC_STATS
 void malloc_cprintf(void (*write)(void *, const char *), void *cbopaque,
     const char *format, ...) JEMALLOC_ATTR(format(printf, 3, 4));

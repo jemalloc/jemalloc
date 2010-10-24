@@ -6,10 +6,11 @@
 /jemalloc/doc/jemalloc.3
 /jemalloc/lib/
 /jemalloc/Makefile
-/jemalloc/src/internal/jemalloc_internal\.h
-/jemalloc/src/internal/mtrgraph_defs\.h
-/jemalloc/src/internal/mtrplay_defs\.h
-/jemalloc/src/jemalloc\.h
-/jemalloc/src/jemalloc_defs\.h
+/jemalloc/include/jemalloc/internal/jemalloc_internal\.h
+/jemalloc/include/jemalloc/jemalloc\.h
+/jemalloc/include/jemalloc/jemalloc_defs\.h
+/jemalloc/test/jemalloc_test\.h
 /jemalloc/src/*.[od]
+/jemalloc/test/*.[od]
+/jemalloc/test/*.out
 /jemalloc/VERSION
