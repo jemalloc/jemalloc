@@ -38,8 +38,8 @@
 .\"     @(#)malloc.3	8.1 (Berkeley) 6/4/93
 .\" $FreeBSD: head/lib/libc/stdlib/malloc.3 182225 2008-08-27 02:00:53Z jasone $
 .\"
-.Dd October 23, 2010
-.Dt JEMALLOC 3
+.Dd October 24, 2010
+.Dt jemalloc 3
 .Os
 .Sh NAME
 .Nm @jemalloc_prefix@malloc ,
@@ -59,6 +59,12 @@
 .Nd general purpose memory allocation functions
 .Sh LIBRARY
 .Sy libjemalloc@install_suffix@
+.Pp
+This manual describes jemalloc @jemalloc_version@.
+More information can be found at the
+.UR http://\:www.canonware.com/\:jemalloc/
+jemalloc website
+.UE .
 .Sh SYNOPSIS
 .In stdlib.h
 .In jemalloc/jemalloc@install_suffix@.h
@@ -849,8 +855,10 @@ This option is disabled by default.
 @roff_prof@.Dq opt.prof_gdump
 @roff_prof@option for information on high-water-triggered profile dumping.
 @roff_prof@Profile output is compatible with the included pprof Perl script,
-@roff_prof@which originates from the google-perftools package
-@roff_prof@(http://code.google.com/p/google-perftools/).
+@roff_prof@which originates from the
+@roff_prof@.UR http://\:code.google.com/\:p/\:google-perftools/
+@roff_prof@google-perftools package
+@roff_prof@.UE .
 @roff_prof@.Ed
 .\"-----------------------------------------------------------------------------
 @roff_prof@.It Sy "opt.prof_prefix (const char *) r-"
@@ -1457,8 +1465,8 @@ options and symbols for debugger support.
 .Pp
 @roff_fill@If the program starts to give unusual results, coredump or generally
 @roff_fill@behave differently without emitting any of the messages mentioned in
-@roff_fill@the next section, it is likely because it depends on the storage
-@roff_fill@being filled with zero bytes.
+@roff_fill@the next section, it is likely because the program depends on the
+@roff_fill@storage being filled with zero bytes.
 @roff_fill@Try running it with the
 @roff_fill@.Dq opt.zero
 @roff_fill@option set;
@@ -1483,7 +1491,7 @@ warning condition, a message will be printed to file descriptor
 Errors will result in the process dumping core.
 If the
 .Dq opt.abort
-option is set, all warnings are treated as errors.
+option is set, most warnings are treated as errors.
 .Pp
 The
 .Va @jemalloc_prefix@malloc_message
@@ -1611,8 +1619,8 @@ The
 and
 .Fn @jemalloc_prefix@rallocm
 functions will fail if:
-.Bl -tag -width ".Dv ALLOCM_ERR_OOM"
-.It ALLOCM_ERR_OOM
+.Bl -tag -width ".Bq Er ALLOCM_ERR_OOM"
+.It Bq Er ALLOCM_ERR_OOM
 Out of memory.
 Insufficient contiguous memory was available to service the allocation request.
 The
@@ -1631,8 +1639,8 @@ unmodified.
 The
 .Fn @jemalloc_prefix@rallocm
 function will also fail if:
-.Bl -tag -width ".Dv ALLOCM_ERR_NOT_MOVED"
-.It ALLOCM_ERR_NOT_MOVED
+.Bl -tag -width ".Bq Er ALLOCM_ERR_NOT_MOVED"
+.It Bq Er ALLOCM_ERR_NOT_MOVED
 .Dv ALLOCM_NO_MOVE
 was specified, but the reallocation request could not be serviced without
 moving the object.
