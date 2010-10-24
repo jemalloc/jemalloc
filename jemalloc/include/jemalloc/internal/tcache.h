@@ -17,7 +17,7 @@ typedef struct tcache_s tcache_t;
 /* Number of cache slots for large size classes. */
 #define	TCACHE_NSLOTS_LARGE		20
 
-/* (1U << opt_lg_tcache_maxclass) is used to compute tcache_maxclass. */
+/* (1U << opt_lg_tcache_max) is used to compute tcache_maxclass. */
 #define	LG_TCACHE_MAXCLASS_DEFAULT	15
 
 /*
@@ -61,7 +61,7 @@ struct tcache_s {
 #ifdef JEMALLOC_H_EXTERNS
 
 extern bool	opt_tcache;
-extern ssize_t	opt_lg_tcache_maxclass;
+extern ssize_t	opt_lg_tcache_max;
 extern ssize_t	opt_lg_tcache_gc_sweep;
 
 /* Map of thread-specific caches. */

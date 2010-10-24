@@ -41,8 +41,7 @@ size_t		lg_pagesize;
 unsigned	ncpus;
 
 /* Runtime configuration options. */
-const char	*JEMALLOC_P(malloc_options)
-    JEMALLOC_ATTR(visibility("default"));
+const char	*JEMALLOC_P(malloc_conf) JEMALLOC_ATTR(visibility("default"));
 #ifdef JEMALLOC_DEBUG
 bool	opt_abort = true;
 #  ifdef JEMALLOC_FILL
@@ -63,7 +62,7 @@ bool	opt_xmalloc = false;
 #ifdef JEMALLOC_FILL
 bool	opt_zero = false;
 #endif
-static int	opt_narenas_lshift = 0;
+size_t	opt_narenas = 0;
 
 /******************************************************************************/
 /* Function prototypes for non-inline static functions. */
@@ -74,6 +73,11 @@ static unsigned	malloc_ncpus(void);
 #if (defined(JEMALLOC_STATS) && defined(NO_TLS))
 static void	thread_allocated_cleanup(void *arg);
 #endif
+static bool	malloc_conf_next(char const **opts_p, char const **k_p,
+    size_t *klen_p, char const **v_p, size_t *vlen_p);
+static void	malloc_conf_error(const char *msg, const char *k, size_t klen,
+    const char *v, size_t vlen);
+static void	malloc_conf_init(void);
 static bool	malloc_init_hard(void);
 
 /******************************************************************************/
@@ -260,12 +264,323 @@ malloc_init(void)
 }
 
 static bool
-malloc_init_hard(void)
+malloc_conf_next(char const **opts_p, char const **k_p, size_t *klen_p,
+    char const **v_p, size_t *vlen_p)
+{
+	bool accept;
+	const char *opts = *opts_p;
+
+	*k_p = opts;
+
+	for (accept = false; accept == false;) {
+		switch (*opts) {
+			case 'A': case 'B': case 'C': case 'D': case 'E':
+			case 'F': case 'G': case 'H': case 'I': case 'J':
+			case 'K': case 'L': case 'M': case 'N': case 'O':
+			case 'P': case 'Q': case 'R': case 'S': case 'T':
+			case 'U': case 'V': case 'W': case 'X': case 'Y':
+			case 'Z':
+			case 'a': case 'b': case 'c': case 'd': case 'e':
+			case 'f': case 'g': case 'h': case 'i': case 'j':
+			case 'k': case 'l': case 'm': case 'n': case 'o':
+			case 'p': case 'q': case 'r': case 's': case 't':
+			case 'u': case 'v': case 'w': case 'x': case 'y':
+			case 'z':
+			case '0': case '1': case '2': case '3': case '4':
+			case '5': case '6': case '7': case '8': case '9':
+			case '_':
+				opts++;
+				break;
+			case ':':
+				opts++;
+				*klen_p = (uintptr_t)opts - 1 - (uintptr_t)*k_p;
+				*v_p = opts;
+				accept = true;
+				break;
+			case '\0':
+				if (opts != *opts_p) {
+					malloc_write("<jemalloc>: Conf string "
+					    "ends with key\n");
+				}
+				return (true);
+			default:
+				malloc_write("<jemalloc>: Malformed conf "
+				    "string\n");
+				return (true);
+		}
+	}
+
+	for (accept = false; accept == false;) {
+		switch (*opts) {
+			case ',':
+				opts++;
+				/*
+				 * Look ahead one character here, because the
+				 * next time this function is called, it will
+				 * assume that end of input has been cleanly
+				 * reached if no input remains, but we have
+				 * optimistically already consumed the comma if
+				 * one exists.
+				 */
+				if (*opts == '\0') {
+					malloc_write("<jemalloc>: Conf string "
+					    "ends with comma\n");
+				}
+				*vlen_p = (uintptr_t)opts - 1 - (uintptr_t)*v_p;
+				accept = true;
+				break;
+			case '\0':
+				*vlen_p = (uintptr_t)opts - (uintptr_t)*v_p;
+				accept = true;
+				break;
+			default:
+				opts++;
+				break;
+		}
+	}
+
+	*opts_p = opts;
+	return (false);
+}
+
+static void
+malloc_conf_error(const char *msg, const char *k, size_t klen, const char *v,
+    size_t vlen)
+{
+	char buf[PATH_MAX + 1];
+
+	malloc_write("<jemalloc>: ");
+	malloc_write(msg);
+	malloc_write(": ");
+	memcpy(buf, k, klen);
+	memcpy(&buf[klen], ":", 1);
+	memcpy(&buf[klen+1], v, vlen);
+	buf[klen+1+vlen] = '\0';
+	malloc_write(buf);
+	malloc_write("\n");
+}
+
+static void
+malloc_conf_init(void)
 {
 	unsigned i;
-	int linklen;
 	char buf[PATH_MAX + 1];
-	const char *opts;
+	const char *opts, *k, *v;
+	size_t klen, vlen;
+
+	for (i = 0; i < 3; i++) {
+		/* Get runtime configuration. */
+		switch (i) {
+		case 0:
+			if (JEMALLOC_P(malloc_conf) != NULL) {
+				/*
+				 * Use options that were compiled into the
+				 * program.
+				 */
+				opts = JEMALLOC_P(malloc_conf);
+			} else {
+				/* No configuration specified. */
+				buf[0] = '\0';
+				opts = buf;
+			}
+			break;
+		case 1: {
+			int linklen;
+			const char *linkname =
+#ifdef JEMALLOC_PREFIX
+			    "/etc/"JEMALLOC_PREFIX"malloc.conf"
+#else
+			    "/etc/malloc.conf"
+#endif
+			    ;
+
+			if ((linklen = readlink(linkname, buf,
+			    sizeof(buf) - 1)) != -1) {
+				/*
+				 * Use the contents of the "/etc/malloc.conf"
+				 * symbolic link's name.
+				 */
+				buf[linklen] = '\0';
+				opts = buf;
+			} else {
+				/* No configuration specified. */
+				buf[0] = '\0';
+				opts = buf;
+			}
+			break;
+		}
+		case 2: {
+			const char *envname =
+#ifdef JEMALLOC_PREFIX
+			    JEMALLOC_CPREFIX"MALLOC_CONF"
+#else
+			    "MALLOC_CONF"
+#endif
+			    ;
+
+			if ((opts = getenv(envname)) != NULL) {
+				/*
+				 * Do nothing; opts is already initialized to
+				 * the value of the JEMALLOC_OPTIONS
+				 * environment variable.
+				 */
+			} else {
+				/* No configuration specified. */
+				buf[0] = '\0';
+				opts = buf;
+			}
+			break;
+		}
+		default:
+			/* NOTREACHED */
+			assert(false);
+			buf[0] = '\0';
+			opts = buf;
+		}
+
+		while (*opts != '\0' && malloc_conf_next(&opts, &k, &klen, &v,
+		    &vlen) == false) {
+#define	CONF_HANDLE_BOOL(n)						\
+			if (sizeof(#n)-1 == klen && strncmp(#n, k,	\
+			    klen) == 0) {				\
+				if (strncmp("true", v, vlen) == 0 &&	\
+				    vlen == sizeof("true")-1)		\
+					opt_##n = true;			\
+				else if (strncmp("false", v, vlen) ==	\
+				    0 && vlen == sizeof("false")-1)	\
+					opt_##n = false;		\
+				else {					\
+					malloc_conf_error(		\
+					    "Invalid conf value",	\
+					    k, klen, v, vlen);		\
+				}					\
+				continue;				\
+			}
+#define	CONF_HANDLE_SIZE_T(n, min, max)					\
+			if (sizeof(#n)-1 == klen && strncmp(#n, k,	\
+			    klen) == 0) {				\
+				unsigned long ul;			\
+				char *end;				\
+									\
+				errno = 0;				\
+				ul = strtoul(v, &end, 0);		\
+				if (errno != 0 || (uintptr_t)end -	\
+				    (uintptr_t)v != vlen) {		\
+					malloc_conf_error(		\
+					    "Invalid conf value",	\
+					    k, klen, v, vlen);		\
+				} else if (ul < min || ul > max) {	\
+					malloc_conf_error(		\
+					    "Out-of-range conf value",	\
+					    k, klen, v, vlen);		\
+				} else					\
+					opt_##n = ul;			\
+				continue;				\
+			}
+#define	CONF_HANDLE_SSIZE_T(n, min, max)				\
+			if (sizeof(#n)-1 == klen && strncmp(#n, k,	\
+			    klen) == 0) {				\
+				long l;					\
+				char *end;				\
+									\
+				errno = 0;				\
+				l = strtol(v, &end, 0);			\
+				if (errno != 0 || (uintptr_t)end -	\
+				    (uintptr_t)v != vlen) {		\
+					malloc_conf_error(		\
+					    "Invalid conf value",	\
+					    k, klen, v, vlen);		\
+				} else if (l < (ssize_t)min || l >	\
+				    (ssize_t)max) {			\
+					malloc_conf_error(		\
+					    "Out-of-range conf value",	\
+					    k, klen, v, vlen);		\
+				} else					\
+					opt_##n = l;			\
+				continue;				\
+			}
+#define	CONF_HANDLE_CHAR_P(n, d)					\
+			if (sizeof(#n)-1 == klen && strncmp(#n, k,	\
+			    klen) == 0) {				\
+				size_t cpylen = (vlen <=		\
+				    sizeof(opt_##n)-1) ? vlen :		\
+				    sizeof(opt_##n)-1;			\
+				strncpy(opt_##n, v, cpylen);		\
+				opt_##n[cpylen] = '\0';			\
+				continue;				\
+			}
+
+			CONF_HANDLE_BOOL(abort)
+			CONF_HANDLE_SIZE_T(lg_qspace_max, LG_QUANTUM,
+			    PAGE_SHIFT-1)
+			CONF_HANDLE_SIZE_T(lg_cspace_max, LG_QUANTUM,
+			    PAGE_SHIFT-1)
+			/*
+			 * Chunks always require at least one * header page,
+			 * plus one data page.
+			 */
+			CONF_HANDLE_SIZE_T(lg_chunk, PAGE_SHIFT+1,
+			    (sizeof(size_t) << 3) - 1)
+			CONF_HANDLE_SIZE_T(narenas, 1, SIZE_T_MAX)
+			CONF_HANDLE_SSIZE_T(lg_dirty_mult, -1,
+			    (sizeof(size_t) << 3) - 1)
+			CONF_HANDLE_BOOL(stats_print)
+#ifdef JEMALLOC_FILL
+			CONF_HANDLE_BOOL(junk)
+			CONF_HANDLE_BOOL(zero)
+#endif
+#ifdef JEMALLOC_SYSV
+			CONF_HANDLE_BOOL(sysv)
+#endif
+#ifdef JEMALLOC_XMALLOC
+			CONF_HANDLE_BOOL(xmalloc)
+#endif
+#ifdef JEMALLOC_TCACHE
+			CONF_HANDLE_BOOL(tcache)
+			CONF_HANDLE_SSIZE_T(lg_tcache_gc_sweep, -1,
+			    (sizeof(size_t) << 3) - 1)
+			CONF_HANDLE_SSIZE_T(lg_tcache_max, -1,
+			    (sizeof(size_t) << 3) - 1)
+#endif
+#ifdef JEMALLOC_PROF
+			CONF_HANDLE_BOOL(prof)
+			CONF_HANDLE_CHAR_P(prof_prefix, "jeprof")
+			CONF_HANDLE_SIZE_T(lg_prof_bt_max, 0, LG_PROF_BT_MAX)
+			CONF_HANDLE_BOOL(prof_active)
+			CONF_HANDLE_SSIZE_T(lg_prof_sample, 0,
+			    (sizeof(uint64_t) << 3) - 1)
+			CONF_HANDLE_BOOL(prof_accum)
+			CONF_HANDLE_SSIZE_T(lg_prof_tcmax, -1,
+			    (sizeof(size_t) << 3) - 1)
+			CONF_HANDLE_SSIZE_T(lg_prof_interval, -1,
+			    (sizeof(uint64_t) << 3) - 1)
+			CONF_HANDLE_BOOL(prof_gdump)
+			CONF_HANDLE_BOOL(prof_leak)
+#endif
+#ifdef JEMALLOC_SWAP
+			CONF_HANDLE_BOOL(overcommit)
+#endif
+			malloc_conf_error("Invalid conf pair", k, klen, v,
+			    vlen);
+#undef CONF_HANDLE_BOOL
+#undef CONF_HANDLE_SIZE_T
+#undef CONF_HANDLE_SSIZE_T
+#undef CONF_HANDLE_CHAR_P
+		}
+
+		/* Validate configuration of options that are inter-related. */
+		if (opt_lg_qspace_max+1 >= opt_lg_cspace_max) {
+			malloc_write("<jemalloc>: Invalid lg_[qc]space_max "
+			    "relationship; restoring defaults\n");
+			opt_lg_qspace_max = LG_QSPACE_MAX_DEFAULT;
+			opt_lg_cspace_max = LG_CSPACE_MAX_DEFAULT;
+		}
+	}
+}
+
+static bool
+malloc_init_hard(void)
+{
 	arena_t *init_arenas[1];
 
 	malloc_mutex_lock(&init_lock);
@@ -308,302 +623,9 @@ malloc_init_hard(void)
 	}
 #endif
 
-	for (i = 0; i < 3; i++) {
-		unsigned j;
+	prof_boot0();
 
-		/* Get runtime configuration. */
-		switch (i) {
-		case 0:
-			if ((linklen = readlink("/etc/jemalloc.conf", buf,
-						sizeof(buf) - 1)) != -1) {
-				/*
-				 * Use the contents of the "/etc/jemalloc.conf"
-				 * symbolic link's name.
-				 */
-				buf[linklen] = '\0';
-				opts = buf;
-			} else {
-				/* No configuration specified. */
-				buf[0] = '\0';
-				opts = buf;
-			}
-			break;
-		case 1:
-			if ((opts = getenv("JEMALLOC_OPTIONS")) != NULL) {
-				/*
-				 * Do nothing; opts is already initialized to
-				 * the value of the JEMALLOC_OPTIONS
-				 * environment variable.
-				 */
-			} else {
-				/* No configuration specified. */
-				buf[0] = '\0';
-				opts = buf;
-			}
-			break;
-		case 2:
-			if (JEMALLOC_P(malloc_options) != NULL) {
-				/*
-				 * Use options that were compiled into the
-				 * program.
-				 */
-				opts = JEMALLOC_P(malloc_options);
-			} else {
-				/* No configuration specified. */
-				buf[0] = '\0';
-				opts = buf;
-			}
-			break;
-		default:
-			/* NOTREACHED */
-			assert(false);
-			buf[0] = '\0';
-			opts = buf;
-		}
-
-		for (j = 0; opts[j] != '\0'; j++) {
-			unsigned k, nreps;
-			bool nseen;
-
-			/* Parse repetition count, if any. */
-			for (nreps = 0, nseen = false;; j++, nseen = true) {
-				switch (opts[j]) {
-					case '0': case '1': case '2': case '3':
-					case '4': case '5': case '6': case '7':
-					case '8': case '9':
-						nreps *= 10;
-						nreps += opts[j] - '0';
-						break;
-					default:
-						goto MALLOC_OUT;
-				}
-			}
-MALLOC_OUT:
-			if (nseen == false)
-				nreps = 1;
-
-			for (k = 0; k < nreps; k++) {
-				switch (opts[j]) {
-				case 'a':
-					opt_abort = false;
-					break;
-				case 'A':
-					opt_abort = true;
-					break;
-#ifdef JEMALLOC_PROF
-				case 'b':
-					if (opt_lg_prof_bt_max > 0)
-						opt_lg_prof_bt_max--;
-					break;
-				case 'B':
-					if (opt_lg_prof_bt_max < LG_PROF_BT_MAX)
-						opt_lg_prof_bt_max++;
-					break;
-#endif
-				case 'c':
-					if (opt_lg_cspace_max - 1 >
-					    opt_lg_qspace_max &&
-					    opt_lg_cspace_max >
-					    LG_CACHELINE)
-						opt_lg_cspace_max--;
-					break;
-				case 'C':
-					if (opt_lg_cspace_max < PAGE_SHIFT
-					    - 1)
-						opt_lg_cspace_max++;
-					break;
-				case 'd':
-					if (opt_lg_dirty_mult + 1 <
-					    (sizeof(size_t) << 3))
-						opt_lg_dirty_mult++;
-					break;
-				case 'D':
-					if (opt_lg_dirty_mult >= 0)
-						opt_lg_dirty_mult--;
-					break;
-#ifdef JEMALLOC_PROF
-				case 'e':
-					opt_prof_active = false;
-					break;
-				case 'E':
-					opt_prof_active = true;
-					break;
-				case 'f':
-					opt_prof = false;
-					break;
-				case 'F':
-					opt_prof = true;
-					break;
-#endif
-#ifdef JEMALLOC_TCACHE
-				case 'g':
-					if (opt_lg_tcache_gc_sweep >= 0)
-						opt_lg_tcache_gc_sweep--;
-					break;
-				case 'G':
-					if (opt_lg_tcache_gc_sweep + 1 <
-					    (sizeof(size_t) << 3))
-						opt_lg_tcache_gc_sweep++;
-					break;
-				case 'h':
-					opt_tcache = false;
-					break;
-				case 'H':
-					opt_tcache = true;
-					break;
-#endif
-#ifdef JEMALLOC_PROF
-				case 'i':
-					if (opt_lg_prof_interval >= 0)
-						opt_lg_prof_interval--;
-					break;
-				case 'I':
-					if (opt_lg_prof_interval + 1 <
-					    (sizeof(uint64_t) << 3))
-						opt_lg_prof_interval++;
-					break;
-#endif
-#ifdef JEMALLOC_FILL
-				case 'j':
-					opt_junk = false;
-					break;
-				case 'J':
-					opt_junk = true;
-					break;
-#endif
-				case 'k':
-					/*
-					 * Chunks always require at least one
-					 * header page, plus one data page.
-					 */
-					if ((1U << (opt_lg_chunk - 1)) >=
-					    (2U << PAGE_SHIFT))
-						opt_lg_chunk--;
-					break;
-				case 'K':
-					if (opt_lg_chunk + 1 <
-					    (sizeof(size_t) << 3))
-						opt_lg_chunk++;
-					break;
-#ifdef JEMALLOC_PROF
-				case 'l':
-					opt_prof_leak = false;
-					break;
-				case 'L':
-					opt_prof_leak = true;
-					break;
-#endif
-#ifdef JEMALLOC_TCACHE
-				case 'm':
-					if (opt_lg_tcache_maxclass >= 0)
-						opt_lg_tcache_maxclass--;
-					break;
-				case 'M':
-					if (opt_lg_tcache_maxclass + 1 <
-					    (sizeof(size_t) << 3))
-						opt_lg_tcache_maxclass++;
-					break;
-#endif
-				case 'n':
-					opt_narenas_lshift--;
-					break;
-				case 'N':
-					opt_narenas_lshift++;
-					break;
-#ifdef JEMALLOC_SWAP
-				case 'o':
-					opt_overcommit = false;
-					break;
-				case 'O':
-					opt_overcommit = true;
-					break;
-#endif
-				case 'p':
-					opt_stats_print = false;
-					break;
-				case 'P':
-					opt_stats_print = true;
-					break;
-				case 'q':
-					if (opt_lg_qspace_max > LG_QUANTUM)
-						opt_lg_qspace_max--;
-					break;
-				case 'Q':
-					if (opt_lg_qspace_max + 1 <
-					    opt_lg_cspace_max)
-						opt_lg_qspace_max++;
-					break;
-#ifdef JEMALLOC_PROF
-				case 'r':
-					opt_prof_accum = false;
-					break;
-				case 'R':
-					opt_prof_accum = true;
-					break;
-				case 's':
-					if (opt_lg_prof_sample > 0)
-						opt_lg_prof_sample--;
-					break;
-				case 'S':
-					if (opt_lg_prof_sample + 1 <
-					    (sizeof(uint64_t) << 3))
-						opt_lg_prof_sample++;
-					break;
-				case 't':
-					if (opt_lg_prof_tcmax >= 0)
-						opt_lg_prof_tcmax--;
-					break;
-				case 'T':
-					if (opt_lg_prof_tcmax + 1 <
-					    (sizeof(size_t) << 3))
-						opt_lg_prof_tcmax++;
-					break;
-				case 'u':
-					opt_prof_udump = false;
-					break;
-				case 'U':
-					opt_prof_udump = true;
-					break;
-#endif
-#ifdef JEMALLOC_SYSV
-				case 'v':
-					opt_sysv = false;
-					break;
-				case 'V':
-					opt_sysv = true;
-					break;
-#endif
-#ifdef JEMALLOC_XMALLOC
-				case 'x':
-					opt_xmalloc = false;
-					break;
-				case 'X':
-					opt_xmalloc = true;
-					break;
-#endif
-#ifdef JEMALLOC_FILL
-				case 'z':
-					opt_zero = false;
-					break;
-				case 'Z':
-					opt_zero = true;
-					break;
-#endif
-				default: {
-					char cbuf[2];
-
-					cbuf[0] = opts[j];
-					cbuf[1] = '\0';
-					malloc_write(
-					    "<jemalloc>: Unsupported character "
-					    "in malloc options: '");
-					malloc_write(cbuf);
-					malloc_write("'\n");
-				}
-				}
-			}
-		}
-	}
+	malloc_conf_init();
 
 	/* Register fork handlers. */
 	if (pthread_atfork(jemalloc_prefork, jemalloc_postfork,
@@ -638,7 +660,7 @@ MALLOC_OUT:
 	}
 
 #ifdef JEMALLOC_PROF
-	prof_boot0();
+	prof_boot1();
 #endif
 
 	if (arena_boot()) {
@@ -692,7 +714,7 @@ MALLOC_OUT:
 	malloc_mutex_init(&arenas_lock);
 
 #ifdef JEMALLOC_PROF
-	if (prof_boot1()) {
+	if (prof_boot2()) {
 		malloc_mutex_unlock(&init_lock);
 		return (true);
 	}
@@ -704,31 +726,29 @@ MALLOC_OUT:
 	ncpus = malloc_ncpus();
 	malloc_mutex_lock(&init_lock);
 
-	if (ncpus > 1) {
+	if (opt_narenas == 0) {
 		/*
 		 * For SMP systems, create more than one arena per CPU by
 		 * default.
 		 */
-		opt_narenas_lshift += 2;
+		if (ncpus > 1)
+			opt_narenas = ncpus << 2;
+		else
+			opt_narenas = 1;
 	}
+	narenas = opt_narenas;
+	/*
+	 * Make sure that the arenas array can be allocated.  In practice, this
+	 * limit is enough to allow the allocator to function, but the ctl
+	 * machinery will fail to allocate memory at far lower limits.
+	 */
+	if (narenas > chunksize / sizeof(arena_t *)) {
+		char buf[UMAX2S_BUFSIZE];
 
-	/* Determine how many arenas to use. */
-	narenas = ncpus;
-	if (opt_narenas_lshift > 0) {
-		if ((narenas << opt_narenas_lshift) > narenas)
-			narenas <<= opt_narenas_lshift;
-		/*
-		 * Make sure not to exceed the limits of what base_alloc() can
-		 * handle.
-		 */
-		if (narenas * sizeof(arena_t *) > chunksize)
-			narenas = chunksize / sizeof(arena_t *);
-	} else if (opt_narenas_lshift < 0) {
-		if ((narenas >> -opt_narenas_lshift) < narenas)
-			narenas >>= -opt_narenas_lshift;
-		/* Make sure there is at least one arena. */
-		if (narenas == 0)
-			narenas = 1;
+		narenas = chunksize / sizeof(arena_t *);
+		malloc_write("<jemalloc>: Reducing narenas to limit (");
+		malloc_write(u2s(narenas, 10, buf));
+		malloc_write(")\n");
 	}
 
 	next_arena = (narenas > 0) ? 1 : 0;

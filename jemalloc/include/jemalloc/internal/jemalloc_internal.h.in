@@ -24,6 +24,7 @@
 #include <inttypes.h>
 #include <string.h>
 #include <strings.h>
+#include <ctype.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <pthread.h>
@@ -61,7 +62,7 @@ extern void	(*JEMALLOC_P(malloc_message))(void *wcbopaque, const char *s);
 		malloc_write("<jemalloc>: ");				\
 		malloc_write(__FILE__);					\
 		malloc_write(":");					\
-		malloc_write(umax2s(__LINE__, 10, line_buf));		\
+		malloc_write(u2s(__LINE__, 10, line_buf));		\
 		malloc_write(": Failed assertion: ");			\
 		malloc_write("\"");					\
 		malloc_write(#e);					\
@@ -256,6 +257,7 @@ extern bool	opt_xmalloc;
 #ifdef JEMALLOC_FILL
 extern bool	opt_zero;
 #endif
+extern size_t	opt_narenas;
 
 #ifdef DYNAMIC_PAGE_SHIFT
 extern size_t		pagesize;

@@ -32,7 +32,7 @@ extern "C" {
 #define	ALLOCM_ERR_OOM		1
 #define	ALLOCM_ERR_NOT_MOVED	2
 
-extern const char	*JEMALLOC_P(malloc_options);
+extern const char	*JEMALLOC_P(malloc_conf);
 extern void		(*JEMALLOC_P(malloc_message))(void *, const char *);
 
 void	*JEMALLOC_P(malloc)(size_t size) JEMALLOC_ATTR(malloc);

@@ -290,7 +290,7 @@ arena_run_reg_dalloc(arena_run_t *run, void *ptr)
 	assert((uintptr_t)ptr >= (uintptr_t)run +
 	    (uintptr_t)run->bin->reg0_offset);
 	/*
-	 * Freeing a pointer in the run's wilderness can cause assertion
+	 * Freeing a pointer past in the run's frontier can cause assertion
 	 * failure.
 	 */
 	assert((uintptr_t)ptr < (uintptr_t)run->next);
@@ -2532,7 +2532,7 @@ arena_boot(void)
 		if (nbins > 255) {
 		    char line_buf[UMAX2S_BUFSIZE];
 		    malloc_write("<jemalloc>: Too many small size classes (");
-		    malloc_write(umax2s(nbins, 10, line_buf));
+		    malloc_write(u2s(nbins, 10, line_buf));
 		    malloc_write(" > max 255)\n");
 		    abort();
 		}
@@ -2541,7 +2541,7 @@ arena_boot(void)
 	if (nbins > 256) {
 	    char line_buf[UMAX2S_BUFSIZE];
 	    malloc_write("<jemalloc>: Too many small size classes (");
-	    malloc_write(umax2s(nbins, 10, line_buf));
+	    malloc_write(u2s(nbins, 10, line_buf));
 	    malloc_write(" > max 256)\n");
 	    abort();
 	}

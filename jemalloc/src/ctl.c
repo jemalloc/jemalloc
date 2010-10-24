@@ -62,8 +62,15 @@ CTL_PROTO(config_tiny)
 CTL_PROTO(config_tls)
 CTL_PROTO(config_xmalloc)
 CTL_PROTO(opt_abort)
+CTL_PROTO(opt_lg_qspace_max)
+CTL_PROTO(opt_lg_cspace_max)
+CTL_PROTO(opt_lg_chunk)
+CTL_PROTO(opt_narenas)
+CTL_PROTO(opt_lg_dirty_mult)
+CTL_PROTO(opt_stats_print)
 #ifdef JEMALLOC_FILL
 CTL_PROTO(opt_junk)
+CTL_PROTO(opt_zero)
 #endif
 #ifdef JEMALLOC_SYSV
 CTL_PROTO(opt_sysv)
@@ -71,29 +78,22 @@ CTL_PROTO(opt_sysv)
 #ifdef JEMALLOC_XMALLOC
 CTL_PROTO(opt_xmalloc)
 #endif
-#ifdef JEMALLOC_ZERO
-CTL_PROTO(opt_zero)
-#endif
 #ifdef JEMALLOC_TCACHE
 CTL_PROTO(opt_tcache)
 CTL_PROTO(opt_lg_tcache_gc_sweep)
 #endif
 #ifdef JEMALLOC_PROF
 CTL_PROTO(opt_prof)
+CTL_PROTO(opt_prof_prefix)
 CTL_PROTO(opt_prof_active)
 CTL_PROTO(opt_lg_prof_bt_max)
 CTL_PROTO(opt_lg_prof_sample)
 CTL_PROTO(opt_lg_prof_interval)
-CTL_PROTO(opt_prof_udump)
+CTL_PROTO(opt_prof_gdump)
 CTL_PROTO(opt_prof_leak)
 CTL_PROTO(opt_prof_accum)
 CTL_PROTO(opt_lg_prof_tcmax)
 #endif
-CTL_PROTO(opt_stats_print)
-CTL_PROTO(opt_lg_qspace_max)
-CTL_PROTO(opt_lg_cspace_max)
-CTL_PROTO(opt_lg_dirty_mult)
-CTL_PROTO(opt_lg_chunk)
 #ifdef JEMALLOC_SWAP
 CTL_PROTO(opt_overcommit)
 #endif
@@ -247,38 +247,43 @@ static const ctl_node_t	config_node[] = {
 
 static const ctl_node_t opt_node[] = {
 	{NAME("abort"),			CTL(opt_abort)},
+	{NAME("lg_qspace_max"),		CTL(opt_lg_qspace_max)},
+	{NAME("lg_cspace_max"),		CTL(opt_lg_cspace_max)},
+	{NAME("lg_chunk"),		CTL(opt_lg_chunk)},
+	{NAME("narenas"),		CTL(opt_narenas)},
+	{NAME("lg_dirty_mult"),		CTL(opt_lg_dirty_mult)},
+	{NAME("stats_print"),		CTL(opt_stats_print)}
 #ifdef JEMALLOC_FILL
+	,
 	{NAME("junk"),			CTL(opt_junk)},
+	{NAME("zero"),			CTL(opt_zero)}
 #endif
 #ifdef JEMALLOC_SYSV
-	{NAME("sysv"),			CTL(opt_sysv)},
+	,
+	{NAME("sysv"),			CTL(opt_sysv)}
 #endif
 #ifdef JEMALLOC_XMALLOC
-	{NAME("xmalloc"),		CTL(opt_xmalloc)},
-#endif
-#ifdef JEMALLOC_ZERO
-	{NAME("zero"),			CTL(opt_zero)},
+	,
+	{NAME("xmalloc"),		CTL(opt_xmalloc)}
 #endif
 #ifdef JEMALLOC_TCACHE
+	,
 	{NAME("tcache"),		CTL(opt_tcache)},
-	{NAME("lg_tcache_gc_sweep"),	CTL(opt_lg_tcache_gc_sweep)},
+	{NAME("lg_tcache_gc_sweep"),	CTL(opt_lg_tcache_gc_sweep)}
 #endif
 #ifdef JEMALLOC_PROF
+	,
 	{NAME("prof"),			CTL(opt_prof)},
+	{NAME("prof_prefix"),		CTL(opt_prof_prefix)},
 	{NAME("prof_active"),		CTL(opt_prof_active)},
 	{NAME("lg_prof_bt_max"),	CTL(opt_lg_prof_bt_max)},
 	{NAME("lg_prof_sample"),	CTL(opt_lg_prof_sample)},
 	{NAME("lg_prof_interval"),	CTL(opt_lg_prof_interval)},
-	{NAME("prof_udump"),		CTL(opt_prof_udump)},
+	{NAME("prof_gdump"),		CTL(opt_prof_gdump)},
 	{NAME("prof_leak"),		CTL(opt_prof_leak)},
 	{NAME("prof_accum"),		CTL(opt_prof_accum)},
-	{NAME("lg_prof_tcmax"),		CTL(opt_lg_prof_tcmax)},
+	{NAME("lg_prof_tcmax"),		CTL(opt_lg_prof_tcmax)}
 #endif
-	{NAME("stats_print"),		CTL(opt_stats_print)},
-	{NAME("lg_qspace_max"),		CTL(opt_lg_qspace_max)},
-	{NAME("lg_cspace_max"),		CTL(opt_lg_cspace_max)},
-	{NAME("lg_dirty_mult"),		CTL(opt_lg_dirty_mult)},
-	{NAME("lg_chunk"),		CTL(opt_lg_chunk)}
 #ifdef JEMALLOC_SWAP
 	,
 	{NAME("overcommit"),		CTL(opt_overcommit)}
@@ -1201,8 +1206,15 @@ CTL_RO_FALSE_GEN(config_xmalloc)
 /******************************************************************************/
 
 CTL_RO_GEN(opt_abort, opt_abort, bool)
+CTL_RO_GEN(opt_lg_qspace_max, opt_lg_qspace_max, size_t)
+CTL_RO_GEN(opt_lg_cspace_max, opt_lg_cspace_max, size_t)
+CTL_RO_GEN(opt_lg_chunk, opt_lg_chunk, size_t)
+CTL_RO_GEN(opt_narenas, opt_narenas, size_t)
+CTL_RO_GEN(opt_lg_dirty_mult, opt_lg_dirty_mult, ssize_t)
+CTL_RO_GEN(opt_stats_print, opt_stats_print, bool)
 #ifdef JEMALLOC_FILL
 CTL_RO_GEN(opt_junk, opt_junk, bool)
+CTL_RO_GEN(opt_zero, opt_zero, bool)
 #endif
 #ifdef JEMALLOC_SYSV
 CTL_RO_GEN(opt_sysv, opt_sysv, bool)
@@ -1210,29 +1222,22 @@ CTL_RO_GEN(opt_sysv, opt_sysv, bool)
 #ifdef JEMALLOC_XMALLOC
 CTL_RO_GEN(opt_xmalloc, opt_xmalloc, bool)
 #endif
-#ifdef JEMALLOC_ZERO
-CTL_RO_GEN(opt_zero, opt_zero, bool)
-#endif
 #ifdef JEMALLOC_TCACHE
 CTL_RO_GEN(opt_tcache, opt_tcache, bool)
 CTL_RO_GEN(opt_lg_tcache_gc_sweep, opt_lg_tcache_gc_sweep, ssize_t)
 #endif
 #ifdef JEMALLOC_PROF
 CTL_RO_GEN(opt_prof, opt_prof, bool)
+CTL_RO_GEN(opt_prof_prefix, opt_prof_prefix, const char *)
 CTL_RO_GEN(opt_prof_active, opt_prof_active, bool)
 CTL_RO_GEN(opt_lg_prof_bt_max, opt_lg_prof_bt_max, size_t)
 CTL_RO_GEN(opt_lg_prof_sample, opt_lg_prof_sample, size_t)
 CTL_RO_GEN(opt_lg_prof_interval, opt_lg_prof_interval, ssize_t)
-CTL_RO_GEN(opt_prof_udump, opt_prof_udump, bool)
+CTL_RO_GEN(opt_prof_gdump, opt_prof_gdump, bool)
 CTL_RO_GEN(opt_prof_leak, opt_prof_leak, bool)
 CTL_RO_GEN(opt_prof_accum, opt_prof_accum, bool)
 CTL_RO_GEN(opt_lg_prof_tcmax, opt_lg_prof_tcmax, ssize_t)
 #endif
-CTL_RO_GEN(opt_stats_print, opt_stats_print, bool)
-CTL_RO_GEN(opt_lg_qspace_max, opt_lg_qspace_max, size_t)
-CTL_RO_GEN(opt_lg_cspace_max, opt_lg_cspace_max, size_t)
-CTL_RO_GEN(opt_lg_dirty_mult, opt_lg_dirty_mult, ssize_t)
-CTL_RO_GEN(opt_lg_chunk, opt_lg_chunk, size_t)
 #ifdef JEMALLOC_SWAP
 CTL_RO_GEN(opt_overcommit, opt_overcommit, bool)
 #endif

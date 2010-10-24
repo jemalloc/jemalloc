@@ -256,9 +256,13 @@ else
 fi]
 )
 if test "x$JEMALLOC_PREFIX" != "x" ; then
-  AC_DEFINE([JEMALLOC_PREFIX], [ ])
+  JEMALLOC_CPREFIX=`echo ${JEMALLOC_PREFIX} | tr "a-z" "A-Z"`
+  AC_DEFINE_UNQUOTED([JEMALLOC_PREFIX], ["$JEMALLOC_PREFIX"])
+  AC_DEFINE_UNQUOTED([JEMALLOC_CPREFIX], ["$JEMALLOC_CPREFIX"])
   jemalloc_prefix="$JEMALLOC_PREFIX"
+  jemalloc_cprefix="$JEMALLOC_CPREFIX"
   AC_SUBST([jemalloc_prefix])
+  AC_SUBST([jemalloc_cprefix])
   AC_DEFINE_UNQUOTED([JEMALLOC_P(string_that_no_one_should_want_to_use_as_a_jemalloc_API_prefix)], [${JEMALLOC_PREFIX}##string_that_no_one_should_want_to_use_as_a_jemalloc_API_prefix])
 fi
 
@@ -325,6 +329,15 @@ if test "x$enable_debug" = "x1" ; then
   AC_DEFINE([JEMALLOC_IVSALLOC], [ ])
 fi
 AC_SUBST([enable_debug])
+if test "x$enable_debug" = "x0" ; then
+  roff_debug=".\\\" "
+  roff_no_debug=""
+else
+  roff_debug=""
+  roff_no_debug=".\\\" "
+fi
+AC_SUBST([roff_debug])
+AC_SUBST([roff_no_debug])
 
 dnl Only optimize if not debugging.
 if test "x$enable_debug" = "x0" -a "x$no_CFLAGS" = "xyes" ; then

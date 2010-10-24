@@ -78,7 +78,7 @@ RETURN:
 #if (defined(JEMALLOC_STATS) || defined(JEMALLOC_PROF))
 	if (ret != NULL) {
 #  ifdef JEMALLOC_PROF
-		bool udump;
+		bool gdump;
 #  endif
 		malloc_mutex_lock(&chunks_mtx);
 #  ifdef JEMALLOC_STATS
@@ -88,17 +88,17 @@ RETURN:
 		if (stats_chunks.curchunks > stats_chunks.highchunks) {
 			stats_chunks.highchunks = stats_chunks.curchunks;
 #  ifdef JEMALLOC_PROF
-			udump = true;
+			gdump = true;
 #  endif
 		}
 #  ifdef JEMALLOC_PROF
 		else
-			udump = false;
+			gdump = false;
 #  endif
 		malloc_mutex_unlock(&chunks_mtx);
 #  ifdef JEMALLOC_PROF
-		if (opt_prof && opt_prof_udump && udump)
-			prof_udump();
+		if (opt_prof && opt_prof_gdump && gdump)
+			prof_gdump();
 #  endif
 	}
 #endif

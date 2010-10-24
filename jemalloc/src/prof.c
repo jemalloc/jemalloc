@@ -20,10 +20,11 @@ bool		opt_prof_active = true;
 size_t		opt_lg_prof_bt_max = LG_PROF_BT_MAX_DEFAULT;
 size_t		opt_lg_prof_sample = LG_PROF_SAMPLE_DEFAULT;
 ssize_t		opt_lg_prof_interval = LG_PROF_INTERVAL_DEFAULT;
-bool		opt_prof_udump = false;
+bool		opt_prof_gdump = false;
 bool		opt_prof_leak = false;
 bool		opt_prof_accum = true;
 ssize_t		opt_lg_prof_tcmax = LG_PROF_TCMAX_DEFAULT;
+char		opt_prof_prefix[PATH_MAX + 1];
 
 uint64_t	prof_interval;
 bool		prof_promote;
@@ -64,7 +65,7 @@ static bool		prof_booted = false;
 static malloc_mutex_t	enq_mtx;
 static bool		enq;
 static bool		enq_idump;
-static bool		enq_udump;
+static bool		enq_gdump;
 
 /******************************************************************************/
 /* Function prototypes for non-inline static functions. */
@@ -150,7 +151,7 @@ prof_enter(void)
 static inline void
 prof_leave(void)
 {
-	bool idump, udump;
+	bool idump, gdump;
 
 	malloc_mutex_unlock(&bt2ctx_mtx);
 
@@ -158,14 +159,14 @@ prof_leave(void)
 	enq = false;
 	idump = enq_idump;
 	enq_idump = false;
-	udump = enq_udump;
-	enq_udump = false;
+	gdump = enq_gdump;
+	enq_gdump = false;
 	malloc_mutex_unlock(&enq_mtx);
 
 	if (idump)
 		prof_idump();
-	if (udump)
-		prof_udump();
+	if (gdump)
+		prof_gdump();
 }
 
 #ifdef JEMALLOC_PROF_LIBGCC
@@ -681,22 +682,22 @@ prof_dump_ctx(prof_ctx_t *ctx, prof_bt_t *bt, bool propagate_err)
 		return (false);
 	}
 
-	if (prof_write(umax2s(ctx->cnt_summed.curobjs, 10, buf), propagate_err)
+	if (prof_write(u2s(ctx->cnt_summed.curobjs, 10, buf), propagate_err)
 	    || prof_write(": ", propagate_err)
-	    || prof_write(umax2s(ctx->cnt_summed.curbytes, 10, buf),
+	    || prof_write(u2s(ctx->cnt_summed.curbytes, 10, buf),
 	    propagate_err)
 	    || prof_write(" [", propagate_err)
-	    || prof_write(umax2s(ctx->cnt_summed.accumobjs, 10, buf),
+	    || prof_write(u2s(ctx->cnt_summed.accumobjs, 10, buf),
 	    propagate_err)
 	    || prof_write(": ", propagate_err)
-	    || prof_write(umax2s(ctx->cnt_summed.accumbytes, 10, buf),
+	    || prof_write(u2s(ctx->cnt_summed.accumbytes, 10, buf),
 	    propagate_err)
 	    || prof_write("] @", propagate_err))
 		return (true);
 
 	for (i = 0; i < bt->len; i++) {
 		if (prof_write(" 0x", propagate_err)
-		    || prof_write(umax2s((uintptr_t)bt->vec[i], 16, buf),
+		    || prof_write(u2s((uintptr_t)bt->vec[i], 16, buf),
 		    propagate_err))
 			return (true);
 	}
@@ -725,7 +726,7 @@ prof_dump_maps(bool propagate_err)
 	memcpy(&mpath[i], s, slen);
 	i += slen;
 
-	s = umax2s(getpid(), 10, buf);
+	s = u2s(getpid(), 10, buf);
 	slen = strlen(s);
 	memcpy(&mpath[i], s, slen);
 	i += slen;
@@ -799,13 +800,13 @@ prof_dump(const char *filename, bool leakcheck, bool propagate_err)
 
 	/* Dump profile header. */
 	if (prof_write("heap profile: ", propagate_err)
-	    || prof_write(umax2s(cnt_all.curobjs, 10, buf), propagate_err)
+	    || prof_write(u2s(cnt_all.curobjs, 10, buf), propagate_err)
 	    || prof_write(": ", propagate_err)
-	    || prof_write(umax2s(cnt_all.curbytes, 10, buf), propagate_err)
+	    || prof_write(u2s(cnt_all.curbytes, 10, buf), propagate_err)
 	    || prof_write(" [", propagate_err)
-	    || prof_write(umax2s(cnt_all.accumobjs, 10, buf), propagate_err)
+	    || prof_write(u2s(cnt_all.accumobjs, 10, buf), propagate_err)
 	    || prof_write(": ", propagate_err)
-	    || prof_write(umax2s(cnt_all.accumbytes, 10, buf), propagate_err))
+	    || prof_write(u2s(cnt_all.accumbytes, 10, buf), propagate_err))
 		goto ERROR;
 
 	if (opt_lg_prof_sample == 0) {
@@ -813,7 +814,7 @@ prof_dump(const char *filename, bool leakcheck, bool propagate_err)
 			goto ERROR;
 	} else {
 		if (prof_write("] @ heap_v2/", propagate_err)
-		    || prof_write(umax2s((uint64_t)1U << opt_lg_prof_sample, 10,
+		    || prof_write(u2s((uint64_t)1U << opt_lg_prof_sample, 10,
 		    buf), propagate_err)
 		    || prof_write("\n", propagate_err))
 			goto ERROR;
@@ -837,12 +838,12 @@ prof_dump(const char *filename, bool leakcheck, bool propagate_err)
 
 	if (leakcheck && cnt_all.curbytes != 0) {
 		malloc_write("<jemalloc>: Leak summary: ");
-		malloc_write(umax2s(cnt_all.curbytes, 10, buf));
+		malloc_write(u2s(cnt_all.curbytes, 10, buf));
 		malloc_write((cnt_all.curbytes != 1) ? " bytes, " : " byte, ");
-		malloc_write(umax2s(cnt_all.curobjs, 10, buf));
+		malloc_write(u2s(cnt_all.curobjs, 10, buf));
 		malloc_write((cnt_all.curobjs != 1) ? " objects, " :
 		    " object, ");
-		malloc_write(umax2s(leak_nctx, 10, buf));
+		malloc_write(u2s(leak_nctx, 10, buf));
 		malloc_write((leak_nctx != 1) ? " contexts\n" : " context\n");
 		malloc_write("<jemalloc>: Run pprof on \"");
 		malloc_write(filename);
@@ -872,31 +873,11 @@ prof_dump_filename(char *filename, char v, int64_t vseq)
 	 * Construct a filename of the form:
 	 *
 	 *   <prefix>.<pid>.<seq>.v<vseq>.heap\0
-	 * or
-	 *   jeprof.<pid>.<seq>.v<vseq>.heap\0
 	 */
 
 	i = 0;
 
-	/*
-	 * Use JEMALLOC_PROF_PREFIX if it's set, and if it is short enough to
-	 * avoid overflowing DUMP_FILENAME_BUFSIZE.  The result may exceed
-	 * PATH_MAX, but creat(2) will catch that problem.
-	 */
-	if ((s = getenv("JEMALLOC_PROF_PREFIX")) != NULL
-	    && strlen(s) + (DUMP_FILENAME_BUFSIZE - PATH_MAX) <= PATH_MAX) {
-		slen = strlen(s);
-		memcpy(&filename[i], s, slen);
-		i += slen;
-
-		s = ".";
-	} else
-		s = "jeprof.";
-	slen = strlen(s);
-	memcpy(&filename[i], s, slen);
-	i += slen;
-
-	s = umax2s(getpid(), 10, buf);
+	s = opt_prof_prefix;
 	slen = strlen(s);
 	memcpy(&filename[i], s, slen);
 	i += slen;
@@ -906,7 +887,17 @@ prof_dump_filename(char *filename, char v, int64_t vseq)
 	memcpy(&filename[i], s, slen);
 	i += slen;
 
-	s = umax2s(prof_dump_seq, 10, buf);
+	s = u2s(getpid(), 10, buf);
+	slen = strlen(s);
+	memcpy(&filename[i], s, slen);
+	i += slen;
+
+	s = ".";
+	slen = strlen(s);
+	memcpy(&filename[i], s, slen);
+	i += slen;
+
+	s = u2s(prof_dump_seq, 10, buf);
 	prof_dump_seq++;
 	slen = strlen(s);
 	memcpy(&filename[i], s, slen);
@@ -921,7 +912,7 @@ prof_dump_filename(char *filename, char v, int64_t vseq)
 	i++;
 
 	if (vseq != 0xffffffffffffffffLLU) {
-		s = umax2s(vseq, 10, buf);
+		s = u2s(vseq, 10, buf);
 		slen = strlen(s);
 		memcpy(&filename[i], s, slen);
 		i += slen;
@@ -943,10 +934,12 @@ prof_fdump(void)
 	if (prof_booted == false)
 		return;
 
-	malloc_mutex_lock(&prof_dump_seq_mtx);
-	prof_dump_filename(filename, 'f', 0xffffffffffffffffLLU);
-	malloc_mutex_unlock(&prof_dump_seq_mtx);
-	prof_dump(filename, opt_prof_leak, false);
+	if (opt_prof_prefix[0] != '\0') {
+		malloc_mutex_lock(&prof_dump_seq_mtx);
+		prof_dump_filename(filename, 'f', 0xffffffffffffffffLLU);
+		malloc_mutex_unlock(&prof_dump_seq_mtx);
+		prof_dump(filename, opt_prof_leak, false);
+	}
 }
 
 void
@@ -964,11 +957,13 @@ prof_idump(void)
 	}
 	malloc_mutex_unlock(&enq_mtx);
 
-	malloc_mutex_lock(&prof_dump_seq_mtx);
-	prof_dump_filename(filename, 'i', prof_dump_iseq);
-	prof_dump_iseq++;
-	malloc_mutex_unlock(&prof_dump_seq_mtx);
-	prof_dump(filename, false, false);
+	if (opt_prof_prefix[0] != '\0') {
+		malloc_mutex_lock(&prof_dump_seq_mtx);
+		prof_dump_filename(filename, 'i', prof_dump_iseq);
+		prof_dump_iseq++;
+		malloc_mutex_unlock(&prof_dump_seq_mtx);
+		prof_dump(filename, false, false);
+	}
 }
 
 bool
@@ -981,6 +976,8 @@ prof_mdump(const char *filename)
 
 	if (filename == NULL) {
 		/* No filename specified, so automatically generate one. */
+		if (opt_prof_prefix[0] == '\0')
+			return (true);
 		malloc_mutex_lock(&prof_dump_seq_mtx);
 		prof_dump_filename(filename_buf, 'm', prof_dump_mseq);
 		prof_dump_mseq++;
@@ -991,7 +988,7 @@ prof_mdump(const char *filename)
 }
 
 void
-prof_udump(void)
+prof_gdump(void)
 {
 	char filename[DUMP_FILENAME_BUFSIZE];
 
@@ -999,17 +996,19 @@ prof_udump(void)
 		return;
 	malloc_mutex_lock(&enq_mtx);
 	if (enq) {
-		enq_udump = true;
+		enq_gdump = true;
 		malloc_mutex_unlock(&enq_mtx);
 		return;
 	}
 	malloc_mutex_unlock(&enq_mtx);
 
-	malloc_mutex_lock(&prof_dump_seq_mtx);
-	prof_dump_filename(filename, 'u', prof_dump_useq);
-	prof_dump_useq++;
-	malloc_mutex_unlock(&prof_dump_seq_mtx);
-	prof_dump(filename, false, false);
+	if (opt_prof_prefix[0] != '\0') {
+		malloc_mutex_lock(&prof_dump_seq_mtx);
+		prof_dump_filename(filename, 'u', prof_dump_useq);
+		prof_dump_useq++;
+		malloc_mutex_unlock(&prof_dump_seq_mtx);
+		prof_dump(filename, false, false);
+	}
 }
 
 static void
@@ -1122,6 +1121,14 @@ void
 prof_boot0(void)
 {
 
+	memcpy(opt_prof_prefix, PROF_PREFIX_DEFAULT,
+	    sizeof(PROF_PREFIX_DEFAULT));
+}
+
+void
+prof_boot1(void)
+{
+
 	/*
 	 * opt_prof and prof_promote must be in their final state before any
 	 * arenas are initialized, so this function must be executed early.
@@ -1133,7 +1140,7 @@ prof_boot0(void)
 		 * automatically dumped.
 		 */
 		opt_prof = true;
-		opt_prof_udump = false;
+		opt_prof_gdump = false;
 		prof_interval = 0;
 	} else if (opt_prof) {
 		if (opt_lg_prof_interval >= 0) {
@@ -1147,7 +1154,7 @@ prof_boot0(void)
 }
 
 bool
-prof_boot1(void)
+prof_boot2(void)
 {
 
 	if (opt_prof) {
@@ -1171,7 +1178,7 @@ prof_boot1(void)
 			return (true);
 		enq = false;
 		enq_idump = false;
-		enq_udump = false;
+		enq_gdump = false;
 
 		if (atexit(prof_fdump) != 0) {
 			malloc_write("<jemalloc>: Error in atexit()\n");

@@ -13,6 +13,7 @@
  * the API prefixing.
  */
 #undef JEMALLOC_PREFIX
+#undef JEMALLOC_CPREFIX
 #if (defined(JEMALLOC_PREFIX) && defined(JEMALLOC_MANGLE))
 #undef JEMALLOC_P
 #endif

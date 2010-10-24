@@ -9,6 +9,7 @@ typedef struct prof_ctx_s prof_ctx_t;
 typedef struct prof_tdata_s prof_tdata_t;
 
 /* Option defaults. */
+#define	PROF_PREFIX_DEFAULT		"jeprof"
 #define	LG_PROF_BT_MAX_DEFAULT		7
 #define	LG_PROF_SAMPLE_DEFAULT		0
 #define	LG_PROF_INTERVAL_DEFAULT	-1
@@ -164,10 +165,11 @@ extern bool	opt_prof_active;
 extern size_t	opt_lg_prof_bt_max;   /* Maximum backtrace depth. */
 extern size_t	opt_lg_prof_sample;   /* Mean bytes between samples. */
 extern ssize_t	opt_lg_prof_interval; /* lg(prof_interval). */
-extern bool	opt_prof_udump;       /* High-water memory dumping. */
+extern bool	opt_prof_gdump;       /* High-water memory dumping. */
 extern bool	opt_prof_leak;        /* Dump leak summary at exit. */
 extern bool	opt_prof_accum;       /* Report cumulative bytes. */
 extern ssize_t	opt_lg_prof_tcmax;    /* lg(max per thread bactrace cache) */
+extern char	opt_prof_prefix[PATH_MAX + 1];
 
 /*
  * Profile dump interval, measured in bytes allocated.  Each arena triggers a
@@ -215,10 +217,11 @@ void	prof_backtrace(prof_bt_t *bt, unsigned nignore, unsigned max);
 prof_thr_cnt_t	*prof_lookup(prof_bt_t *bt);
 void	prof_idump(void);
 bool	prof_mdump(const char *filename);
-void	prof_udump(void);
+void	prof_gdump(void);
 prof_tdata_t	*prof_tdata_init(void);
 void	prof_boot0(void);
-bool	prof_boot1(void);
+void	prof_boot1(void);
+bool	prof_boot2(void);
 
 #endif /* JEMALLOC_H_EXTERNS */
 /******************************************************************************/

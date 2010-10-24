@@ -14,14 +14,14 @@ main(void)
 
 	fprintf(stderr, "Test begin\n");
 
-	r = allocm(&p, &sz, 42, 0);
+	r = JEMALLOC_P(allocm)(&p, &sz, 42, 0);
 	if (r != ALLOCM_SUCCESS) {
 		fprintf(stderr, "Unexpected allocm() error\n");
 		abort();
 	}
 
 	q = p;
-	r = rallocm(&q, &tsz, sz, 0, ALLOCM_NO_MOVE);
+	r = JEMALLOC_P(rallocm)(&q, &tsz, sz, 0, ALLOCM_NO_MOVE);
 	if (r != ALLOCM_SUCCESS)
 		fprintf(stderr, "Unexpected rallocm() error\n");
 	if (q != p)
@@ -32,7 +32,7 @@ main(void)
 	}
 
 	q = p;
-	r = rallocm(&q, &tsz, sz, 5, ALLOCM_NO_MOVE);
+	r = JEMALLOC_P(rallocm)(&q, &tsz, sz, 5, ALLOCM_NO_MOVE);
 	if (r != ALLOCM_SUCCESS)
 		fprintf(stderr, "Unexpected rallocm() error\n");
 	if (q != p)
@@ -43,7 +43,7 @@ main(void)
 	}
 
 	q = p;
-	r = rallocm(&q, &tsz, sz + 5, 0, ALLOCM_NO_MOVE);
+	r = JEMALLOC_P(rallocm)(&q, &tsz, sz + 5, 0, ALLOCM_NO_MOVE);
 	if (r != ALLOCM_ERR_NOT_MOVED)
 		fprintf(stderr, "Unexpected rallocm() result\n");
 	if (q != p)
@@ -54,7 +54,7 @@ main(void)
 	}
 
 	q = p;
-	r = rallocm(&q, &tsz, sz + 5, 0, 0);
+	r = JEMALLOC_P(rallocm)(&q, &tsz, sz + 5, 0, 0);
 	if (r != ALLOCM_SUCCESS)
 		fprintf(stderr, "Unexpected rallocm() error\n");
 	if (q == p)
@@ -66,7 +66,7 @@ main(void)
 	p = q;
 	sz = tsz;
 
-	r = rallocm(&q, &tsz, 8192, 0, 0);
+	r = JEMALLOC_P(rallocm)(&q, &tsz, 8192, 0, 0);
 	if (r != ALLOCM_SUCCESS)
 		fprintf(stderr, "Unexpected rallocm() error\n");
 	if (q == p)
@@ -78,7 +78,7 @@ main(void)
 	p = q;
 	sz = tsz;
 
-	r = rallocm(&q, &tsz, 16384, 0, 0);
+	r = JEMALLOC_P(rallocm)(&q, &tsz, 16384, 0, 0);
 	if (r != ALLOCM_SUCCESS)
 		fprintf(stderr, "Unexpected rallocm() error\n");
 	if (tsz == sz) {
@@ -88,7 +88,7 @@ main(void)
 	p = q;
 	sz = tsz;
 
-	r = rallocm(&q, &tsz, 8192, 0, ALLOCM_NO_MOVE);
+	r = JEMALLOC_P(rallocm)(&q, &tsz, 8192, 0, ALLOCM_NO_MOVE);
 	if (r != ALLOCM_SUCCESS)
 		fprintf(stderr, "Unexpected rallocm() error\n");
 	if (q != p)
@@ -99,7 +99,7 @@ main(void)
 	}
 	sz = tsz;
 
-	r = rallocm(&q, &tsz, 16384, 0, ALLOCM_NO_MOVE);
+	r = JEMALLOC_P(rallocm)(&q, &tsz, 16384, 0, ALLOCM_NO_MOVE);
 	if (r != ALLOCM_SUCCESS)
 		fprintf(stderr, "Unexpected rallocm() error\n");
 	if (q != p)
@@ -110,7 +110,7 @@ main(void)
 	}
 	sz = tsz;
 
-	dallocm(p, 0);
+	JEMALLOC_P(dallocm)(p, 0);
 
 	fprintf(stderr, "Test end\n");
 	return (0);

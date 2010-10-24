@@ -27,9 +27,17 @@ any of the following arguments (not a definitive list) to 'configure':
     it is linked to.  This works only on ELF-based systems.
 
 --with-jemalloc-prefix=<prefix>
-    Prefix all public APIs with <prefix>, so that, for example, malloc()
-    becomes <prefix>malloc().  This makes it possible to use jemalloc at the
-    same time as the system allocator.
+    Prefix all public APIs with <prefix>.  For example, if <prefix> is
+    "prefix_", the API changes like the following occur:
+
+      malloc()         --> prefix_malloc()
+      malloc_conf      --> prefix_malloc_conf
+      /etc/malloc.conf --> /etc/prefix_malloc.conf
+      MALLOC_CONF      --> PREFIX_MALLOC_CONF
+
+    This makes it possible to use jemalloc at the same time as the
+    system allocator, or even to use multiple copies of jemalloc
+    simultaneously.
 
     By default, the prefix is "", except on OS X, where it is "je_".  On OS X,
     jemalloc overlays the default malloc zone, but makes no attempt to actually

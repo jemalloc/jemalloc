@@ -5,7 +5,7 @@
 /* Data. */
 
 bool	opt_tcache = true;
-ssize_t	opt_lg_tcache_maxclass = LG_TCACHE_MAXCLASS_DEFAULT;
+ssize_t	opt_lg_tcache_max = LG_TCACHE_MAXCLASS_DEFAULT;
 ssize_t	opt_lg_tcache_gc_sweep = LG_TCACHE_GC_SWEEP_DEFAULT;
 
 /* Map of thread-specific caches. */
@@ -384,16 +384,16 @@ tcache_boot(void)
 
 	if (opt_tcache) {
 		/*
-		 * If necessary, clamp opt_lg_tcache_maxclass, now that
+		 * If necessary, clamp opt_lg_tcache_max, now that
 		 * small_maxclass and arena_maxclass are known.
 		 */
-		if (opt_lg_tcache_maxclass < 0 || (1U <<
-		    opt_lg_tcache_maxclass) < small_maxclass)
+		if (opt_lg_tcache_max < 0 || (1U <<
+		    opt_lg_tcache_max) < small_maxclass)
 			tcache_maxclass = small_maxclass;
-		else if ((1U << opt_lg_tcache_maxclass) > arena_maxclass)
+		else if ((1U << opt_lg_tcache_max) > arena_maxclass)
 			tcache_maxclass = arena_maxclass;
 		else
-			tcache_maxclass = (1U << opt_lg_tcache_maxclass);
+			tcache_maxclass = (1U << opt_lg_tcache_max);
 
 		nhbins = nbins + (tcache_maxclass >> PAGE_SHIFT);
 
