@@ -233,6 +233,10 @@ directory, issue configuration and build commands:
 === Documentation ==============================================================
 
 The manual page that the configure script generates can be manually formatted
-prior to installation via the following command:
+prior to installation via any of the following commands:
 
-    nroff -man -t doc/jemalloc.3
+    nroff -man -man-ext -t doc/jemalloc.3
+
+    groff -man -man-ext -t -Tps doc/jemalloc.3 | ps2pdf - doc/jemalloc.3.pdf
+
+    (cd doc; groff -man -man-ext -t -Thtml jemalloc.3 > jemalloc.3.html)
