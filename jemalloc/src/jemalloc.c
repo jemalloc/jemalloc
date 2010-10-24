@@ -623,7 +623,9 @@ malloc_init_hard(void)
 	}
 #endif
 
+#ifdef JEMALLOC_PROF
 	prof_boot0();
+#endif
 
 	malloc_conf_init();
 
