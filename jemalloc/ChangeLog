@@ -13,35 +13,34 @@ found in the git revision history:
   improvements are also included.
 
   New features:
-    - Implement the experimental {,r,s,d}allocm() API, which provides a superset
-      of the functionality available via malloc(), calloc(), posix_memalign(),
-      realloc(), malloc_usable_size(), and free().  These functions can be used
-      to allocate/reallocate aligned zeroed memory, ask for optional extra
-      memory during reallocation, prevent object movement during reallocation,
-      etc.
-    - Replace JEMALLOC_OPTIONS/JEMALLOC_PROF_PREFIX with MALLOC_CONF, which is
-      more human-readable, and more flexible.  For example:
-        JEMALLOC_OPTIONS=AJP
-      is now:
-        MALLOC_CONF=abort:true,fill:true,stats_print:true
-    - Port to Apple OS X.  Sponsored by Mozilla.
-    - Make it possible for the application to control thread-->arena mappings
-      via the "thread.arena" mallctl.
-    - Add compile-time support for all TLS-related functionality via pthreads
-      TSD.  This is mainly of interest for OS X, which does not support TLS, but
-      has a TSD implementation with similar performance.
-    - Override memalign() and valloc() if they are provided by the system.
-    - Add the "arenas.purge" mallctl, which can be used to synchronously purge
-      all dirty unused pages.
-    - Make cumulative heap profiling data optional, so that it is possible to
-      limit the amount of memory consumed by heap profiling data structures.
-    - Add per thread allocation counters that can be accessed via the
-      "thread.allocated" and "thread.deallocated" mallctls.
+  - Implement the experimental {,r,s,d}allocm() API, which provides a superset
+    of the functionality available via malloc(), calloc(), posix_memalign(),
+    realloc(), malloc_usable_size(), and free().  These functions can be used to
+    allocate/reallocate aligned zeroed memory, ask for optional extra memory
+    during reallocation, prevent object movement during reallocation, etc.
+  - Replace JEMALLOC_OPTIONS/JEMALLOC_PROF_PREFIX with MALLOC_CONF, which is
+    more human-readable, and more flexible.  For example:
+      JEMALLOC_OPTIONS=AJP
+    is now:
+      MALLOC_CONF=abort:true,fill:true,stats_print:true
+  - Port to Apple OS X.  Sponsored by Mozilla.
+  - Make it possible for the application to control thread-->arena mappings via
+    the "thread.arena" mallctl.
+  - Add compile-time support for all TLS-related functionality via pthreads TSD.
+    This is mainly of interest for OS X, which does not support TLS, but has a
+    TSD implementation with similar performance.
+  - Override memalign() and valloc() if they are provided by the system.
+  - Add the "arenas.purge" mallctl, which can be used to synchronously purge all
+    dirty unused pages.
+  - Make cumulative heap profiling data optional, so that it is possible to
+    limit the amount of memory consumed by heap profiling data structures.
+  - Add per thread allocation counters that can be accessed via the
+    "thread.allocated" and "thread.deallocated" mallctls.
 
   Incompatible changes:
-    - Remove JEMALLOC_OPTIONS and malloc_options (see MALLOC_CONF above).
-    - Increase default backtrace depth from 4 to 128 for heap profiling.
-    - Disable interval-based profile dumps by default.
+  - Remove JEMALLOC_OPTIONS and malloc_options (see MALLOC_CONF above).
+  - Increase default backtrace depth from 4 to 128 for heap profiling.
+  - Disable interval-based profile dumps by default.
 
   Bug fixes:
   - Remove bad assertions in fork handler functions.  These assertions could
