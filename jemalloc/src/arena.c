@@ -800,9 +800,6 @@ arena_chunk_purge(arena_t *arena, arena_chunk_t *chunk)
 #elif defined(JEMALLOC_PURGE_MADVISE_FREE)
 		madvise((void *)((uintptr_t)chunk + (pageind << PAGE_SHIFT)),
 		    (npages << PAGE_SHIFT), MADV_FREE);
-#elif defined(JEMALLOC_PURGE_MSYNC_KILLPAGES)
-		msync((void *)((uintptr_t)chunk + (pageind << PAGE_SHIFT)),
-		    (npages << PAGE_SHIFT), MS_KILLPAGES);
 #else
 #  error "No method defined for purging unused dirty pages."
 #endif

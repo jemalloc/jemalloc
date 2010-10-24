@@ -166,7 +166,7 @@ case "${host}" in
   *-*-darwin*)
 	CFLAGS="$CFLAGS -fno-common -no-cpp-precomp"
 	abi="macho"
-	AC_DEFINE([JEMALLOC_PURGE_MSYNC_KILLPAGES])
+	AC_DEFINE([JEMALLOC_PURGE_MADVISE_FREE])
 	RPATH=""
 	;;
   *-*-freebsd*)
