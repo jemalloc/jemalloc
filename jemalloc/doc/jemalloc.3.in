@@ -516,62 +516,28 @@ If you need to assure that allocations do not suffer from cacheline sharing,
 round your allocation requests up to the nearest multiple of the cacheline
 size, or specify cacheline alignment when allocating.
 .Pp
-Assuming 4 MiB chunks, 4 KiB pages, and a 16 byte quantum on a 64-bit system,
+Assuming 4 MiB chunks, 4 KiB pages, and a 16-byte quantum on a 64-bit system,
 the size classes in each category are as follows:
+.\"-----------------------------------------------------------------------------
 .TS
-expand allbox tab(;);
-LLR
-LLR
-^LR
-^^R
-^^R
-^^R
-^^R
-^LR
-^^R
-^^R
-^^R
-^^R
-^LR
-^^R
-^^R
-^^R
-^^R
-LsR
-^^R
-^^R
-^^R
-^^R
-LsR
-^^R.
+allbox tab(;);
+LLL
+LLL
+^LL
+^LL
+^LL
+LsL
+LsL.
 Category;Subcategory;Size
-@roff_tiny@Small;Tiny;8
+@roff_tiny@Small;Tiny;[8]
 @roff_no_tiny@Small;Tiny;[disabled]
-;Quantum-spaced;16
-;;32
-;;48
-;;...
-;;128
-;Cacheline-spaced;192
-;;256
-;;320
-;;...
-;;512
-;Sub-page;760
-;;1024
-;;1280
-;;...
-;;3840
-Large;4 KiB
-;;8 KiB
-;;12 KiB
-;;...
-;;4084 KiB
-Huge;4 MiB
-;;8 MiB
-;;12 MiB
-;;...
+;Quantum-spaced;[16, 32, 48, ..., 128]
+;Cacheline-spaced;[192, 256, 320, ..., 512]
+;Sub-page-spaced;[768, 1024, 1280, ..., 3840]
+Large;[4 KiB, 8 KiB, 12 KiB, ..., 4072 KiB]
+Huge;[4 MiB, 8 MiB, 12 MiB, ...]
 .TE
+.\"-----------------------------------------------------------------------------
 .Sh MALLCTL NAMESPACE
 The following names are defined in the namespace accessible via the
 .Fn @jemalloc_prefix@mallctl*
