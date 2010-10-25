@@ -304,8 +304,10 @@ arena_run_reg_dalloc(arena_run_t *run, void *ptr)
 static inline void
 arena_chunk_validate_zeroed(arena_chunk_t *chunk, size_t run_ind)
 {
+	size_t i;
 	size_t *p = (size_t *)((uintptr_t)chunk + (run_ind << PAGE_SHIFT));
-	for (size_t i = 0; i < PAGE_SIZE / sizeof(size_t); i++)
+
+	for (i = 0; i < PAGE_SIZE / sizeof(size_t); i++)
 		assert(p[i] == 0);
 }
 #endif
