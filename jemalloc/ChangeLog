@@ -6,6 +6,15 @@ found in the git revision history:
     http://www.canonware.com/cgi-bin/gitweb.cgi?p=jemalloc.git
     git://canonware.com/jemalloc.git
 
+* 2.0.1
+
+  Bug fixes:
+  - Fix a race condition in heap profiling that could cause undefined behavior
+    if opt.prof_accum were disabled.
+  - Add missing mutex unlocks for some OOM error paths in the heap profiling
+    code.
+  - Fix a compilation error for non-C99 builds.
+
 * 2.0.0
 
   This version focuses on the experimental *allocm() API, and on improved
