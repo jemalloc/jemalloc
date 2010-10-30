@@ -255,6 +255,7 @@ prof_backtrace(prof_bt_t *bt, unsigned nignore, unsigned max)
 	} else								\
 		return;
 
+	assert(nignore <= 3);
 	assert(max <= (1U << opt_lg_prof_bt_max));
 
 	BT_FRAME(0)
@@ -398,7 +399,7 @@ prof_backtrace(prof_bt_t *bt, unsigned nignore, unsigned max)
 	BT_FRAME(126)
 	BT_FRAME(127)
 
-	/* Extras to compensate for NIGNORE. */
+	/* Extras to compensate for nignore. */
 	BT_FRAME(128)
 	BT_FRAME(129)
 	BT_FRAME(130)
@@ -496,8 +497,10 @@ prof_lookup(prof_bt_t *bt)
 			    opt_lg_prof_tcmax));
 			/* Allocate and partially initialize a new cnt. */
 			ret.v = imalloc(sizeof(prof_thr_cnt_t));
-			if (ret.p == NULL)
+			if (ret.p == NULL) {
+				malloc_mutex_unlock(&ctx.p->lock);
 				return (NULL);
+			}
 			ql_elm_new(ret.p, cnts_link);
 			ql_elm_new(ret.p, lru_link);
 		}
@@ -506,6 +509,7 @@ prof_lookup(prof_bt_t *bt)
 		ret.p->epoch = 0;
 		memset(&ret.p->cnts, 0, sizeof(prof_cnt_t));
 		if (ckh_insert(&prof_tdata->bt2cnt, btkey.v, ret.v)) {
+			malloc_mutex_unlock(&ctx.p->lock);
 			idalloc(ret.v);
 			return (NULL);
 		}
@@ -625,11 +629,14 @@ prof_ctx_destroy(prof_ctx_t *ctx)
 	/*
 	 * Check that ctx is still unused by any thread cache before destroying
 	 * it.  prof_lookup() interlocks bt2ctx_mtx and ctx->lock in order to
-	 * avoid a race condition with this function.
+	 * avoid a race condition with this function, and prof_ctx_merge()
+	 * artificially raises ctx->cnt_merged.curobjs in order to avoid a race
+	 * between the main body of prof_ctx_merge() and entry into this
+	 * function.
 	 */
 	prof_enter();
 	malloc_mutex_lock(&ctx->lock);
-	if (ql_first(&ctx->cnts_ql) == NULL && ctx->cnt_merged.curobjs == 0) {
+	if (ql_first(&ctx->cnts_ql) == NULL && ctx->cnt_merged.curobjs == 1) {
 		assert(ctx->cnt_merged.curbytes == 0);
 		assert(ctx->cnt_merged.accumobjs == 0);
 		assert(ctx->cnt_merged.accumbytes == 0);
@@ -642,6 +649,8 @@ prof_ctx_destroy(prof_ctx_t *ctx)
 		malloc_mutex_destroy(&ctx->lock);
 		idalloc(ctx);
 	} else {
+		/* Compensate for increment in prof_ctx_merge(). */
+		ctx->cnt_merged.curobjs--;
 		malloc_mutex_unlock(&ctx->lock);
 		prof_leave();
 	}
@@ -660,9 +669,23 @@ prof_ctx_merge(prof_ctx_t *ctx, prof_thr_cnt_t *cnt)
 	ctx->cnt_merged.accumbytes += cnt->cnts.accumbytes;
 	ql_remove(&ctx->cnts_ql, cnt, cnts_link);
 	if (opt_prof_accum == false && ql_first(&ctx->cnts_ql) == NULL &&
-	    ctx->cnt_merged.curobjs == 0)
+	    ctx->cnt_merged.curobjs == 0) {
+		/*
+		 * Artificially raise ctx->cnt_merged.curobjs in order to keep
+		 * another thread from winning the race to destroy ctx while
+		 * this one has ctx->lock dropped.  Without this, it would be
+		 * possible for another thread to:
+		 *
+		 * 1) Sample an allocation associated with ctx.
+		 * 2) Deallocate the sampled object.
+		 * 3) Successfully prof_ctx_destroy(ctx).
+		 *
+		 * The result would be that ctx no longer exists by the time
+		 * this thread accesses it in prof_ctx_destroy().
+		 */
+		ctx->cnt_merged.curobjs++;
 		destroy = true;
-	else
+	} else
 		destroy = false;
 	malloc_mutex_unlock(&ctx->lock);
 	if (destroy)
