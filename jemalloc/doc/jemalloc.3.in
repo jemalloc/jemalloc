@@ -38,7 +38,7 @@
 .\"     @(#)malloc.3	8.1 (Berkeley) 6/4/93
 .\" $FreeBSD: head/lib/libc/stdlib/malloc.3 182225 2008-08-27 02:00:53Z jasone $
 .\"
-.Dd October 24, 2010
+.Dd November 5, 2010
 .Dt jemalloc 3
 .Os
 .Sh NAME
@@ -87,7 +87,7 @@ jemalloc website
 .Ft int
 .Fn @jemalloc_prefix@mallctl "const char *name" "void *oldp" "size_t *oldlenp" "void *newp" "size_t newlen"
 .Ft int
-.Fn @jemalloc_prefix@mallctlnametomib "const char *name" "int *mibp" "size_t *miblenp"
+.Fn @jemalloc_prefix@mallctlnametomib "const char *name" "size_t *mibp" "size_t *miblenp"
 .Ft int
 .Fn @jemalloc_prefix@mallctlbymib "const size_t *mib" "size_t miblen" "void *oldp" "size_t *oldlenp" "void *newp" "size_t newlen"
 .Ft const char *
