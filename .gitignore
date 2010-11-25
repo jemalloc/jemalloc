@@ -3,6 +3,10 @@
 /jemalloc/config.log
 /jemalloc/config.status
 /jemalloc/configure
+/jemalloc/doc/html.xsl
+/jemalloc/doc/manpages.xsl
+/jemalloc/doc/jemalloc.xml
+/jemalloc/doc/jemalloc.html
 /jemalloc/doc/jemalloc.3
 /jemalloc/lib/
 /jemalloc/Makefile
@@ -13,4 +17,5 @@
 /jemalloc/src/*.[od]
 /jemalloc/test/*.[od]
 /jemalloc/test/*.out
+/jemalloc/test/[a-z]*
 /jemalloc/VERSION

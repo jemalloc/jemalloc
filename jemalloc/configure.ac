@@ -80,6 +80,19 @@ MANDIR=`eval echo $mandir`
 MANDIR=`eval echo $MANDIR`
 AC_SUBST([MANDIR])
 
+dnl Support for building documentation.
+AC_PATH_PROG([XSLTPROC], [xsltproc], , [$PATH])
+AC_ARG_WITH([xslroot],
+  [AS_HELP_STRING([--with-xslroot=<path>], [XSL stylesheet root path])],
+if test "x$with_xslroot" = "xno" ; then
+  XSLROOT="/usr/share/xml/docbook/stylesheet/docbook-xsl"
+else
+  XSLROOT="${with_xslroot}"
+fi,
+  XSLROOT="/usr/share/xml/docbook/stylesheet/docbook-xsl"
+)
+AC_SUBST([XSLROOT])
+
 dnl If CFLAGS isn't defined, set CFLAGS to something reasonable.  Otherwise,
 dnl just prevent autoconf from molesting CFLAGS.
 CFLAGS=$CFLAGS
@@ -275,17 +288,26 @@ AC_ARG_WITH([install_suffix],
 install_suffix="$INSTALL_SUFFIX"
 AC_SUBST([install_suffix])
 
-cfgoutputs_in="${srcroot}Makefile.in ${srcroot}doc/jemalloc.3.in"
+cfgoutputs_in="${srcroot}Makefile.in"
+cfgoutputs_in="${cfgoutputs_in} ${srcroot}doc/html.xsl.in"
+cfgoutputs_in="${cfgoutputs_in} ${srcroot}doc/manpages.xsl.in"
+cfgoutputs_in="${cfgoutputs_in} ${srcroot}doc/jemalloc.xml.in"
 cfgoutputs_in="${cfgoutputs_in} ${srcroot}include/jemalloc/jemalloc.h.in"
 cfgoutputs_in="${cfgoutputs_in} ${srcroot}include/jemalloc/internal/jemalloc_internal.h.in"
 cfgoutputs_in="${cfgoutputs_in} ${srcroot}test/jemalloc_test.h.in"
 
-cfgoutputs_out="Makefile doc/jemalloc${install_suffix}.3"
+cfgoutputs_out="Makefile"
+cfgoutputs_out="${cfgoutputs_out} doc/html.xsl"
+cfgoutputs_out="${cfgoutputs_out} doc/manpages.xsl"
+cfgoutputs_out="${cfgoutputs_out} doc/jemalloc${install_suffix}.xml"
 cfgoutputs_out="${cfgoutputs_out} include/jemalloc/jemalloc${install_suffix}.h"
 cfgoutputs_out="${cfgoutputs_out} include/jemalloc/internal/jemalloc_internal.h"
 cfgoutputs_out="${cfgoutputs_out} test/jemalloc_test.h"
 
-cfgoutputs_tup="Makefile doc/jemalloc${install_suffix}.3:doc/jemalloc.3.in"
+cfgoutputs_tup="Makefile"
+cfgoutputs_tup="${cfgoutputs_tup} doc/html.xsl:doc/html.xsl.in"
+cfgoutputs_tup="${cfgoutputs_tup} doc/manpages.xsl:doc/manpages.xsl.in"
+cfgoutputs_tup="${cfgoutputs_tup} doc/jemalloc${install_suffix}.xml:doc/jemalloc.xml.in"
 cfgoutputs_tup="${cfgoutputs_tup} include/jemalloc/jemalloc${install_suffix}.h:include/jemalloc/jemalloc.h.in"
 cfgoutputs_tup="${cfgoutputs_tup} include/jemalloc/internal/jemalloc_internal.h"
 cfgoutputs_tup="${cfgoutputs_tup} test/jemalloc_test.h:test/jemalloc_test.h.in"
@@ -329,15 +351,6 @@ if test "x$enable_debug" = "x1" ; then
   AC_DEFINE([JEMALLOC_IVSALLOC], [ ])
 fi
 AC_SUBST([enable_debug])
-if test "x$enable_debug" = "x0" ; then
-  roff_debug=".\\\" "
-  roff_no_debug=""
-else
-  roff_debug=""
-  roff_no_debug=".\\\" "
-fi
-AC_SUBST([roff_debug])
-AC_SUBST([roff_no_debug])
 
 dnl Only optimize if not debugging.
 if test "x$enable_debug" = "x0" -a "x$no_CFLAGS" = "xyes" ; then
@@ -369,12 +382,6 @@ if test "x$enable_stats" = "x1" ; then
   AC_DEFINE([JEMALLOC_STATS], [ ])
 fi
 AC_SUBST([enable_stats])
-if test "x$enable_stats" = "x0" ; then
-  roff_stats=".\\\" "
-else
-  roff_stats=""
-fi
-AC_SUBST([roff_stats])
 
 dnl Do not enable profiling by default.
 AC_ARG_ENABLE([prof],
@@ -438,15 +445,6 @@ if test "x$enable_prof" = "x1" ; then
   fi
 fi
 AC_SUBST([enable_prof])
-if test "x$enable_prof" = "x0" ; then
-  roff_prof=".\\\" "
-  roff_no_prof=""
-else
-  roff_prof=""
-  roff_no_prof=".\\\" "
-fi
-AC_SUBST([roff_prof])
-AC_SUBST([roff_no_prof])
 
 dnl If libunwind isn't enabled, try to use libgcc rather than gcc intrinsics
 dnl for backtracing.
@@ -478,15 +476,6 @@ if test "x$enable_tiny" = "x1" ; then
   AC_DEFINE([JEMALLOC_TINY], [ ])
 fi
 AC_SUBST([enable_tiny])
-if test "x$enable_tiny" = "x0" ; then
-  roff_tiny=".\\\" "
-  roff_no_tiny=""
-else
-  roff_tiny=""
-  roff_no_tiny=".\\\" "
-fi
-AC_SUBST([roff_tiny])
-AC_SUBST([roff_no_tiny])
 
 dnl Enable thread-specific caching by default.
 AC_ARG_ENABLE([tcache],
@@ -503,15 +492,6 @@ if test "x$enable_tcache" = "x1" ; then
   AC_DEFINE([JEMALLOC_TCACHE], [ ])
 fi
 AC_SUBST([enable_tcache])
-if test "x$enable_tcache" = "x0" ; then
-  roff_tcache=".\\\" "
-  roff_no_tcache=""
-else
-  roff_tcache=""
-  roff_no_tcache=".\\\" "
-fi
-AC_SUBST([roff_tcache])
-AC_SUBST([roff_no_tcache])
 
 dnl Do not enable mmap()ped swap files by default.
 AC_ARG_ENABLE([swap],
@@ -528,12 +508,6 @@ if test "x$enable_swap" = "x1" ; then
   AC_DEFINE([JEMALLOC_SWAP], [ ])
 fi
 AC_SUBST([enable_swap])
-if test "x$enable_swap" = "x0" ; then
-  roff_swap=".\\\" "
-else
-  roff_swap=""
-fi
-AC_SUBST([roff_swap])
 
 dnl Do not enable allocation from DSS by default.
 AC_ARG_ENABLE([dss],
@@ -550,12 +524,6 @@ if test "x$enable_dss" = "x1" ; then
   AC_DEFINE([JEMALLOC_DSS], [ ])
 fi
 AC_SUBST([enable_dss])
-if test "x$enable_dss" = "x0" ; then
-  roff_dss=".\\\" "
-else
-  roff_dss=""
-fi
-AC_SUBST([roff_dss])
 
 dnl Do not support the junk/zero filling option by default.
 AC_ARG_ENABLE([fill],
@@ -572,12 +540,6 @@ if test "x$enable_fill" = "x1" ; then
   AC_DEFINE([JEMALLOC_FILL], [ ])
 fi
 AC_SUBST([enable_fill])
-if test "x$enable_fill" = "x0" ; then
-  roff_fill=".\\\" "
-else
-  roff_fill=""
-fi
-AC_SUBST([roff_fill])
 
 dnl Do not support the xmalloc option by default.
 AC_ARG_ENABLE([xmalloc],
@@ -594,12 +556,6 @@ if test "x$enable_xmalloc" = "x1" ; then
   AC_DEFINE([JEMALLOC_XMALLOC], [ ])
 fi
 AC_SUBST([enable_xmalloc])
-if test "x$enable_xmalloc" = "x0" ; then
-  roff_xmalloc=".\\\" "
-else
-  roff_xmalloc=""
-fi
-AC_SUBST([roff_xmalloc])
 
 dnl Do not support the SYSV option by default.
 AC_ARG_ENABLE([sysv],
@@ -616,12 +572,6 @@ if test "x$enable_sysv" = "x1" ; then
   AC_DEFINE([JEMALLOC_SYSV], [ ])
 fi
 AC_SUBST([enable_sysv])
-if test "x$enable_sysv" = "x0" ; then
-  roff_sysv=".\\\" "
-else
-  roff_sysv=""
-fi
-AC_SUBST([roff_sysv])
 
 dnl Do not determine page shift at run time by default.
 AC_ARG_ENABLE([dynamic_page_shift],
@@ -827,6 +777,9 @@ AC_MSG_RESULT([CFLAGS             : ${CFLAGS}])
 AC_MSG_RESULT([LDFLAGS            : ${LDFLAGS}])
 AC_MSG_RESULT([LIBS               : ${LIBS}])
 AC_MSG_RESULT([RPATH_EXTRA        : ${RPATH_EXTRA}])
+AC_MSG_RESULT([])
+AC_MSG_RESULT([XSLTPROC           : ${XSLTPROC}])
+AC_MSG_RESULT([XSLROOT            : ${XSLROOT}])
 AC_MSG_RESULT([])
 AC_MSG_RESULT([PREFIX             : ${PREFIX}])
 AC_MSG_RESULT([BINDIR             : ${BINDIR}])

@@ -15,6 +15,7 @@ DESTDIR =
 BINDIR := $(DESTDIR)@BINDIR@
 INCLUDEDIR := $(DESTDIR)@INCLUDEDIR@
 LIBDIR := $(DESTDIR)@LIBDIR@
+DATADIR := $(DESTDIR)@DATADIR@
 MANDIR := $(DESTDIR)@MANDIR@
 
 # Build parameters.
@@ -58,14 +59,33 @@ DSOS := @objroot@lib/libjemalloc@install_suffix@.$(SO).$(REV) \
 	@objroot@lib/libjemalloc@install_suffix@.$(SO) \
 	@objroot@lib/libjemalloc@install_suffix@_pic.a
 MAN3 := @objroot@doc/jemalloc@install_suffix@.3
+DOCS_XML := @objroot@doc/jemalloc@install_suffix@.xml
+DOCS_HTML := $(DOCS_XML:@objroot@%.xml=@srcroot@%.html)
+DOCS_MAN3 := $(DOCS_XML:@objroot@%.xml=@srcroot@%.3)
+DOCS := $(DOCS_HTML) $(DOCS_MAN3)
 CTESTS := @srcroot@test/allocated.c @srcroot@test/allocm.c \
 	@srcroot@test/posix_memalign.c \
 	@srcroot@test/rallocm.c @srcroot@test/thread_arena.c
 
-.PHONY: all dist install check clean distclean relclean
+.PHONY: all dist doc_html doc_man doc
+.PHONY: install_bin install_include install_lib
+.PHONY: install_html install_man install_doc install
+.PHONY: tests check clean distclean relclean
 
 # Default target.
 all: $(DSOS)
+
+dist: doc
+
+@srcroot@doc/%.html : @objroot@doc/%.xml @srcroot@doc/stylesheet.xsl @objroot@doc/html.xsl
+	@XSLTPROC@ -o $@ @objroot@doc/html.xsl $<
+
+@srcroot@doc/%.3 : @objroot@doc/%.xml @srcroot@doc/stylesheet.xsl @objroot@doc/manpages.xsl
+	@XSLTPROC@ -o $@ @objroot@doc/manpages.xsl $<
+
+doc_html: $(DOCS_HTML)
+doc_man: $(DOCS_MAN3)
+doc: $(DOCS)
 
 #
 # Include generated dependency files.
@@ -123,14 +143,23 @@ install_lib: $(DSOS)
 	ln -sf libjemalloc@install_suffix@.$(SO).$(REV) $(LIBDIR)/libjemalloc@install_suffix@.$(SO)
 	install -m 755 @objroot@lib/libjemalloc@install_suffix@_pic.a $(LIBDIR)
 
-install_man:
-	install -d $(MANDIR)/man3
-	@for m in $(MAN3); do \
-	echo "install -m 644 $$m $(MANDIR)/man3"; \
-	install -m 644 $$m $(MANDIR)/man3; \
+install_html:
+	install -d $(DATADIR)/doc/jemalloc@install_suffix@
+	@for d in $(DOCS_HTML); do \
+	echo "install -m 644 $$d $(DATADIR)/doc/jemalloc@install_suffix@"; \
+	install -m 644 $$d $(DATADIR)/doc/jemalloc@install_suffix@; \
 done
 
-install: install_bin install_include install_lib install_man
+install_man:
+	install -d $(MANDIR)/man3
+	@for d in $(DOCS_MAN3); do \
+	echo "install -m 644 $$d $(MANDIR)/man3"; \
+	install -m 644 $$d $(MANDIR)/man3; \
+done
+
+install_doc: install_html install_man
+
+install: install_bin install_include install_lib install_doc
 
 tests: $(CTESTS:@srcroot@%.c=@objroot@%)
 
@@ -182,6 +211,8 @@ distclean: clean
 relclean: distclean
 	rm -f @objroot@configure
 	rm -f @srcroot@VERSION
+	rm -f $(DOCS_HTML)
+	rm -f $(DOCS_MAN3)
 
 #===============================================================================
 # Re-configuration rules.

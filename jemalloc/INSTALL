@@ -132,8 +132,11 @@ any of the following arguments (not a definitive list) to 'configure':
 --disable-tls
     Disable thread-local storage (TLS), which allows for fast access to
     thread-local variables via the __thread keyword.  If TLS is available,
-    jemalloc uses it for several purposes.  Note that disabling TLS implies
-    --disable-tcache.
+    jemalloc uses it for several purposes.
+
+--with-xslroot=<path>
+    Specify where to find DocBook XSL stylesheets when building the
+    documentation.
 
 The following environment variables (not a definitive list) impact configure's
 behavior:
@@ -172,7 +175,7 @@ To install only parts of jemalloc, use the following targets:
     install_bin
     install_include
     install_lib
-    install_man
+    install_doc
 
 To clean up build results to varying degrees, use the following make targets:
 
@@ -232,11 +235,12 @@ directory, issue configuration and build commands:
 
 === Documentation ==============================================================
 
-The manual page that the configure script generates can be manually formatted
+The manual page is generated in both html and roff formats.  Any web browser
+can be used to view the html manual.  The roff manual page can be formatted
 prior to installation via any of the following commands:
 
-    nroff -man -man-ext -t doc/jemalloc.3
+    nroff -man -t doc/jemalloc.3
 
-    groff -man -man-ext -t -Tps doc/jemalloc.3 | ps2pdf - doc/jemalloc.3.pdf
+    groff -man -t -Tps doc/jemalloc.3 | ps2pdf - doc/jemalloc.3.pdf
 
     (cd doc; groff -man -man-ext -t -Thtml jemalloc.3 > jemalloc.3.html)
