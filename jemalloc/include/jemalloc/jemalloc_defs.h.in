@@ -115,6 +115,9 @@
 #undef JEMALLOC_ZONE
 #undef JEMALLOC_ZONE_VERSION
 
+/* If defined, use mremap(...MREMAP_FIXED...) for huge realloc(). */
+#undef JEMALLOC_MREMAP_FIXED
+
 /*
  * Methods for purging unused pages differ between operating systems.
  *

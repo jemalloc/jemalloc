@@ -666,7 +666,7 @@ idalloc(void *ptr)
 	if (chunk != ptr)
 		arena_dalloc(chunk->arena, chunk, ptr);
 	else
-		huge_dalloc(ptr);
+		huge_dalloc(ptr, true);
 }
 
 JEMALLOC_INLINE void *

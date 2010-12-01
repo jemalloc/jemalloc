@@ -146,11 +146,6 @@ chunk_boot(void)
 	chunksize_mask = chunksize - 1;
 	chunk_npages = (chunksize >> PAGE_SHIFT);
 
-#ifdef JEMALLOC_IVSALLOC
-	chunks_rtree = rtree_new((ZU(1) << (LG_SIZEOF_PTR+3)) - opt_lg_chunk);
-	if (chunks_rtree == NULL)
-		return (true);
-#endif
 #if (defined(JEMALLOC_STATS) || defined(JEMALLOC_PROF))
 	if (malloc_mutex_init(&chunks_mtx))
 		return (true);
@@ -164,6 +159,11 @@ chunk_boot(void)
 		return (true);
 #ifdef JEMALLOC_DSS
 	if (chunk_dss_boot())
+		return (true);
+#endif
+#ifdef JEMALLOC_IVSALLOC
+	chunks_rtree = rtree_new((ZU(1) << (LG_SIZEOF_PTR+3)) - opt_lg_chunk);
+	if (chunks_rtree == NULL)
 		return (true);
 #endif
 

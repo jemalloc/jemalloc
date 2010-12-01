@@ -227,6 +227,16 @@ esac
 AC_SUBST([abi])
 AC_SUBST([RPATH])
 
+JE_COMPILABLE([mremap(...MREMAP_FIXED...)], [
+#define _GNU_SOURCE
+#include <sys/mman.h>
+], [
+void *p = mremap((void *)0, 0, 0, MREMAP_MAYMOVE|MREMAP_FIXED, (void *)0);
+], [mremap_fixed])
+if test "x${mremap_fixed}" = "xyes" ; then
+  AC_DEFINE([JEMALLOC_MREMAP_FIXED])
+fi
+
 dnl Support optional additions to rpath.
 AC_ARG_WITH([rpath],
   [AS_HELP_STRING([--with-rpath=<rpath>], [Colon-separated rpath (ELF systems only)])],

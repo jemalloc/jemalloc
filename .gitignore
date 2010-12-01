@@ -18,4 +18,6 @@
 /jemalloc/test/*.[od]
 /jemalloc/test/*.out
 /jemalloc/test/[a-z]*
+!/jemalloc/test/*.c
+!/jemalloc/test/*.exp
 /jemalloc/VERSION

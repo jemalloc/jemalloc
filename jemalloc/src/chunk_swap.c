@@ -185,6 +185,24 @@ chunk_dealloc_swap_record(void *chunk, size_t size)
 }
 
 bool
+chunk_in_swap(void *chunk)
+{
+	bool ret;
+
+	assert(swap_enabled);
+
+	malloc_mutex_lock(&swap_mtx);
+	if ((uintptr_t)chunk >= (uintptr_t)swap_base
+	    && (uintptr_t)chunk < (uintptr_t)swap_max)
+		ret = true;
+	else
+		ret = false;
+	malloc_mutex_unlock(&swap_mtx);
+
+	return (ret);
+}
+
+bool
 chunk_dealloc_swap(void *chunk, size_t size)
 {
 	bool ret;
@@ -219,15 +237,15 @@ chunk_dealloc_swap(void *chunk, size_t size)
 		} else
 			madvise(chunk, size, MADV_DONTNEED);
 
+#ifdef JEMALLOC_STATS
+		swap_avail += size;
+#endif
 		ret = false;
 		goto RETURN;
 	}
 
 	ret = true;
 RETURN:
-#ifdef JEMALLOC_STATS
-	swap_avail += size;
-#endif
 	malloc_mutex_unlock(&swap_mtx);
 	return (ret);
 }

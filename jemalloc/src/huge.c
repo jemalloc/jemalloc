@@ -215,13 +215,56 @@ huge_ralloc(void *ptr, size_t oldsize, size_t size, size_t extra,
 	 * expectation that the extra bytes will be reliably preserved.
 	 */
 	copysize = (size < oldsize) ? size : oldsize;
-	memcpy(ret, ptr, copysize);
-	idalloc(ptr);
+
+	/*
+	 * Use mremap(2) if this is a huge-->huge reallocation, and neither the
+	 * source nor the destination are in swap or dss.
+	 */
+#ifdef JEMALLOC_MREMAP_FIXED
+	if (oldsize >= chunksize
+#  ifdef JEMALLOC_SWAP
+	    && (swap_enabled == false || (chunk_in_swap(ptr) == false &&
+	    chunk_in_swap(ret) == false))
+#  endif
+#  ifdef JEMALLOC_DSS
+	    && chunk_in_dss(ptr) == false && chunk_in_dss(ret) == false
+#  endif
+	    ) {
+		size_t newsize = huge_salloc(ret);
+
+		if (mremap(ptr, oldsize, newsize, MREMAP_MAYMOVE|MREMAP_FIXED,
+		    ret) == MAP_FAILED) {
+			/*
+			 * Assuming no chunk management bugs in the allocator,
+			 * the only documented way an error can occur here is
+			 * if the application changed the map type for a
+			 * portion of the old allocation.  This is firmly in
+			 * undefined behavior territory, so write a diagnostic
+			 * message, and optionally abort.
+			 */
+			char buf[BUFERROR_BUF];
+
+			buferror(errno, buf, sizeof(buf));
+			malloc_write("<jemalloc>: Error in mremap(): ");
+			malloc_write(buf);
+			malloc_write("\n");
+			if (opt_abort)
+				abort();
+			memcpy(ret, ptr, copysize);
+			idalloc(ptr);
+		} else
+			huge_dalloc(ptr, false);
+	} else
+#endif
+	{
+		memcpy(ret, ptr, copysize);
+		idalloc(ptr);
+	}
 	return (ret);
 }
 
 void
-huge_dalloc(void *ptr)
+huge_dalloc(void *ptr, bool unmap)
 {
 	extent_node_t *node, key;
 
@@ -241,14 +284,16 @@ huge_dalloc(void *ptr)
 
 	malloc_mutex_unlock(&huge_mtx);
 
+	if (unmap) {
 	/* Unmap chunk. */
 #ifdef JEMALLOC_FILL
 #if (defined(JEMALLOC_SWAP) || defined(JEMALLOC_DSS))
-	if (opt_junk)
-		memset(node->addr, 0x5a, node->size);
+		if (opt_junk)
+			memset(node->addr, 0x5a, node->size);
 #endif
 #endif
-	chunk_dealloc(node->addr, node->size);
+		chunk_dealloc(node->addr, node->size);
+	}
 
 	base_node_dealloc(node);
 }

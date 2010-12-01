@@ -200,6 +200,22 @@ chunk_dealloc_dss_record(void *chunk, size_t size)
 }
 
 bool
+chunk_in_dss(void *chunk)
+{
+	bool ret;
+
+	malloc_mutex_lock(&dss_mtx);
+	if ((uintptr_t)chunk >= (uintptr_t)dss_base
+	    && (uintptr_t)chunk < (uintptr_t)dss_max)
+		ret = true;
+	else
+		ret = false;
+	malloc_mutex_unlock(&dss_mtx);
+
+	return (ret);
+}
+
+bool
 chunk_dealloc_dss(void *chunk, size_t size)
 {
 	bool ret;
