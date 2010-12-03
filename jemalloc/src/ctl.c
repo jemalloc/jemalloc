@@ -51,7 +51,9 @@ CTL_PROTO(tcache_flush)
 CTL_PROTO(thread_arena)
 #ifdef JEMALLOC_STATS
 CTL_PROTO(thread_allocated)
+CTL_PROTO(thread_allocatedp)
 CTL_PROTO(thread_deallocated)
+CTL_PROTO(thread_deallocatedp)
 #endif
 CTL_PROTO(config_debug)
 CTL_PROTO(config_dss)
@@ -230,7 +232,9 @@ static const ctl_node_t	thread_node[] = {
 #ifdef JEMALLOC_STATS
 	,
 	{NAME("allocated"),	CTL(thread_allocated)},
-	{NAME("deallocated"),	CTL(thread_deallocated)}
+	{NAME("allocatedp"),	CTL(thread_allocatedp)},
+	{NAME("deallocated"),	CTL(thread_deallocated)},
+	{NAME("deallocatedp"),	CTL(thread_deallocatedp)}
 #endif
 };
 
@@ -1142,7 +1146,9 @@ RETURN:
 
 #ifdef JEMALLOC_STATS
 CTL_RO_NL_GEN(thread_allocated, ALLOCATED_GET(), uint64_t);
+CTL_RO_NL_GEN(thread_allocatedp, &ALLOCATED_GET(), uint64_t *);
 CTL_RO_NL_GEN(thread_deallocated, DEALLOCATED_GET(), uint64_t);
+CTL_RO_NL_GEN(thread_deallocatedp, &DEALLOCATED_GET(), uint64_t *);
 #endif
 
 /******************************************************************************/

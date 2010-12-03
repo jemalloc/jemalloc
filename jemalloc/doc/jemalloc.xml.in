@@ -1172,7 +1172,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         calling this interface.</para></listitem>
       </varlistentry>
 
-      <varlistentry>
+      <varlistentry id="thread.allocated">
         <term>
           <mallctl>thread.allocated</mallctl>
           (<type>uint64_t</type>)
@@ -1187,6 +1187,20 @@ malloc_conf = "xmalloc:true";]]></programlisting>
 
       <varlistentry>
         <term>
+          <mallctl>thread.allocatedp</mallctl>
+          (<type>uint64_t *</type>)
+          <literal>r-</literal>
+          [<option>--enable-stats</option>]
+        </term>
+        <listitem><para>Get a pointer to the the value that is returned by the
+        <link
+        linkend="thread.allocated"><mallctl>thread.allocated</mallctl></link>
+        mallctl.  This is useful for avoiding the overhead of repeated
+        <function>mallctl*<parameter/></function> calls.</para></listitem>
+      </varlistentry>
+
+      <varlistentry id="thread.deallocated">
+        <term>
           <mallctl>thread.deallocated</mallctl>
           (<type>uint64_t</type>)
           <literal>r-</literal>
@@ -1196,6 +1210,20 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         calling thread.  This counter has the potential to wrap around; it is
         up to the application to appropriately interpret the counter in such
         cases.</para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term>
+          <mallctl>thread.deallocatedp</mallctl>
+          (<type>uint64_t *</type>)
+          <literal>r-</literal>
+          [<option>--enable-stats</option>]
+        </term>
+        <listitem><para>Get a pointer to the the value that is returned by the
+        <link
+        linkend="thread.deallocated"><mallctl>thread.deallocated</mallctl></link>
+        mallctl.  This is useful for avoiding the overhead of repeated
+        <function>mallctl*<parameter/></function> calls.</para></listitem>
       </varlistentry>
 
       <varlistentry id="arenas.narenas">
