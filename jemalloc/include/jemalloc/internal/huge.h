@@ -25,7 +25,7 @@ void	*huge_ralloc_no_move(void *ptr, size_t oldsize, size_t size,
     size_t extra);
 void	*huge_ralloc(void *ptr, size_t oldsize, size_t size, size_t extra,
     size_t alignment, bool zero);
-void	huge_dalloc(void *ptr);
+void	huge_dalloc(void *ptr, bool unmap);
 size_t	huge_salloc(const void *ptr);
 #ifdef JEMALLOC_PROF
 prof_ctx_t	*huge_prof_ctx_get(const void *ptr);
