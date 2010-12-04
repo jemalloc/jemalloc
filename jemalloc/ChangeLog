@@ -6,6 +6,23 @@ found in the git revision history:
     http://www.canonware.com/cgi-bin/gitweb.cgi?p=jemalloc.git
     git://canonware.com/jemalloc.git
 
+* 2.1.0
+
+  This version incorporates some optimizations that can't quite be considered
+  bug fixes.
+
+  New features:
+  - Use Linux's mremap(2) for huge object reallocation when possible.
+  - Avoid locking in mallctl*() when possible.
+  - Add the "thread.[de]allocatedp" mallctl's.
+  - Convert the manual page source from roff to DocBook, and generate both roff
+    and HTML manuals.
+
+  Bug fixes:
+  - Fix a crash due to incorrect bootstrap ordering.  This only impacted
+    --enable-debug --enable-dss configurations.
+  - Fix a minor statistics bug for mallctl("swap.avail", ...).
+
 * 2.0.1
 
   Bug fixes:
