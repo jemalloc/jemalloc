@@ -1358,8 +1358,6 @@ arena_tcache_fill_small(arena_t *arena, tcache_bin_t *tbin, size_t binind
 #endif
 	malloc_mutex_unlock(&bin->lock);
 	tbin->ncached = i;
-	if (tbin->ncached > tbin->high_water)
-		tbin->high_water = tbin->ncached;
 }
 #endif
 
