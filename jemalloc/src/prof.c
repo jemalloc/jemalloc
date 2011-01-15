@@ -432,6 +432,7 @@ prof_lookup(prof_bt_t *bt)
 			prof_ctx_t	*p;
 			void		*v;
 		} ctx;
+		bool new_ctx;
 
 		/*
 		 * This thread's cache lacks bt.  Look for it in the global
@@ -468,12 +469,14 @@ prof_lookup(prof_bt_t *bt)
 				idalloc(ctx.v);
 				return (NULL);
 			}
-		}
-		/*
-		 * Acquire ctx's lock before releasing bt2ctx_mtx, in order to
-		 * avoid a race condition with prof_ctx_destroy().
-		 */
-		malloc_mutex_lock(&ctx.p->lock);
+			/*
+			 * Artificially raise curobjs, in order to avoid a race
+			 * condition with prof_ctx_merge()/prof_ctx_destroy().
+			 */
+			ctx.p->cnt_merged.curobjs++;
+			new_ctx = true;
+		} else
+			new_ctx = false;
 		prof_leave();
 
 		/* Link a prof_thd_cnt_t into ctx for this thread. */
@@ -498,7 +501,11 @@ prof_lookup(prof_bt_t *bt)
 			/* Allocate and partially initialize a new cnt. */
 			ret.v = imalloc(sizeof(prof_thr_cnt_t));
 			if (ret.p == NULL) {
-				malloc_mutex_unlock(&ctx.p->lock);
+				if (new_ctx) {
+					malloc_mutex_lock(&ctx.p->lock);
+					ctx.p->cnt_merged.curobjs--;
+					malloc_mutex_unlock(&ctx.p->lock);
+				}
 				return (NULL);
 			}
 			ql_elm_new(ret.p, cnts_link);
@@ -509,12 +516,19 @@ prof_lookup(prof_bt_t *bt)
 		ret.p->epoch = 0;
 		memset(&ret.p->cnts, 0, sizeof(prof_cnt_t));
 		if (ckh_insert(&prof_tdata->bt2cnt, btkey.v, ret.v)) {
-			malloc_mutex_unlock(&ctx.p->lock);
+			if (new_ctx) {
+				malloc_mutex_lock(&ctx.p->lock);
+				ctx.p->cnt_merged.curobjs--;
+				malloc_mutex_unlock(&ctx.p->lock);
+			}
 			idalloc(ret.v);
 			return (NULL);
 		}
 		ql_head_insert(&prof_tdata->lru_ql, ret.p, lru_link);
+		malloc_mutex_lock(&ctx.p->lock);
 		ql_tail_insert(&ctx.p->cnts_ql, ret.p, cnts_link);
+		if (new_ctx)
+			ctx.p->cnt_merged.curobjs--;
 		malloc_mutex_unlock(&ctx.p->lock);
 	} else {
 		/* Move ret to the front of the LRU. */
