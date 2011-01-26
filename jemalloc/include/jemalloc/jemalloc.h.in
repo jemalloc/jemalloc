@@ -19,7 +19,7 @@ extern "C" {
 #  define JEMALLOC_P(s) s
 #endif
 
-#define	ALLOCM_LG_ALIGN	((int)0x3f)
+#define	ALLOCM_LG_ALIGN(la)	(la)
 #if LG_SIZEOF_PTR == 2
 #define	ALLOCM_ALIGN(a)	(ffs(a)-1)
 #else
