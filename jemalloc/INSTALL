@@ -28,7 +28,7 @@ any of the following arguments (not a definitive list) to 'configure':
 
 --with-jemalloc-prefix=<prefix>
     Prefix all public APIs with <prefix>.  For example, if <prefix> is
-    "prefix_", the API changes like the following occur:
+    "prefix_", API changes like the following occur:
 
       malloc()         --> prefix_malloc()
       malloc_conf      --> prefix_malloc_conf
@@ -48,9 +48,9 @@ any of the following arguments (not a definitive list) to 'configure':
     example, libjemalloc.so.0 becomes libjemalloc<suffix>.so.0.
 
 --enable-cc-silence
-    Enable code that silences unuseful compiler warnings.  This is helpful when
-    trying to tell serious warnings from those due to compiler limitations, but
-    it potentially incurs a performance penalty.
+    Enable code that silences non-useful compiler warnings.  This is helpful
+    when trying to tell serious warnings from those due to compiler
+    limitations, but it potentially incurs a performance penalty.
 
 --enable-debug
     Enable assertions and validation code.  This incurs a substantial
@@ -62,7 +62,7 @@ any of the following arguments (not a definitive list) to 'configure':
 
 --enable-prof
     Enable heap profiling and leak detection functionality.  See the "opt.prof"
-    option documention for usage details.
+    option documentation for usage details.
 
 --disable-prof-libgcc
     Disable the use of libgcc's backtracing functionality.  Ordinarily, libgcc's
@@ -89,7 +89,7 @@ any of the following arguments (not a definitive list) to 'configure':
 --disable-tcache
     Disable thread-specific caches for small objects.  Objects are cached and
     released in bulk, thus reducing the total number of mutex operations.  See
-    the "opt.tcache" option for suage details.
+    the "opt.tcache" option for usage details.
 
 --enable-swap
     Enable mmap()ed swap file support.  When this feature is built in, it is
@@ -198,8 +198,8 @@ MANDIR="?"
     Use this as the installation prefix for man pages.
 
 DESTDIR="?"
-    Prepend DESTDIR to INCLUDEDIR, LIBDIR, and MANDIR.  This is useful when
-    installing to a different path than was specified via --prefix.
+    Prepend DESTDIR to INCLUDEDIR, LIBDIR, DATADIR, and MANDIR.  This is useful
+    when installing to a different path than was specified via --prefix.
 
 CC="?"
     Use this to invoke the C compiler.

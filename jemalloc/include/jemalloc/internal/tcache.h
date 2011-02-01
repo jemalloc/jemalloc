@@ -37,7 +37,6 @@ struct tcache_bin_s {
 	tcache_bin_stats_t tstats;
 #  endif
 	unsigned	low_water;	/* Min # cached since last GC. */
-	unsigned	high_water;	/* Max # cached since last GC. */
 	unsigned	ncached;	/* # of cached objects. */
 	unsigned	ncached_max;	/* Upper limit on ncached. */
 	void		*avail;		/* Chain of available objects. */
@@ -194,7 +193,6 @@ tcache_event(tcache_t *tcache)
 			}
 		}
 		tbin->low_water = tbin->ncached;
-		tbin->high_water = tbin->ncached;
 
 		tcache->next_gc_bin++;
 		if (tcache->next_gc_bin == nhbins)
@@ -348,8 +346,6 @@ tcache_dalloc_small(tcache_t *tcache, void *ptr)
 	*(void **)ptr = tbin->avail;
 	tbin->avail = ptr;
 	tbin->ncached++;
-	if (tbin->ncached > tbin->high_water)
-		tbin->high_water = tbin->ncached;
 
 	tcache_event(tcache);
 }
@@ -388,8 +384,6 @@ tcache_dalloc_large(tcache_t *tcache, void *ptr, size_t size)
 	*(void **)ptr = tbin->avail;
 	tbin->avail = ptr;
 	tbin->ncached++;
-	if (tbin->ncached > tbin->high_water)
-		tbin->high_water = tbin->ncached;
 
 	tcache_event(tcache);
 }

@@ -1358,8 +1358,6 @@ arena_tcache_fill_small(arena_t *arena, tcache_bin_t *tbin, size_t binind
 #endif
 	malloc_mutex_unlock(&bin->lock);
 	tbin->ncached = i;
-	if (tbin->ncached > tbin->high_water)
-		tbin->high_water = tbin->ncached;
 }
 #endif
 
@@ -1369,7 +1367,6 @@ arena_tcache_fill_small(arena_t *arena, tcache_bin_t *tbin, size_t binind
  *   *) bin->run_size >= min_run_size
  *   *) bin->run_size <= arena_maxclass
  *   *) run header overhead <= RUN_MAX_OVRHD (or header overhead relaxed).
- *   *) run header size < PAGE_SIZE
  *
  * bin->nregs and bin->reg0_offset are also calculated here, since these
  * settings are all interdependent.
@@ -1455,8 +1452,7 @@ arena_bin_run_size_calc(arena_bin_t *bin, size_t min_run_size)
 	} while (try_run_size <= arena_maxclass
 	    && try_run_size <= arena_maxclass
 	    && RUN_MAX_OVRHD * (bin->reg_size << 3) > RUN_MAX_OVRHD_RELAX
-	    && (try_reg0_offset << RUN_BFP) > RUN_MAX_OVRHD * try_run_size
-	    && try_hdr_size < PAGE_SIZE);
+	    && (try_reg0_offset << RUN_BFP) > RUN_MAX_OVRHD * try_run_size);
 
 	assert(good_hdr_size <= good_reg0_offset);
 

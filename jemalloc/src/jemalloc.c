@@ -421,8 +421,8 @@ malloc_conf_init(void)
 			if ((opts = getenv(envname)) != NULL) {
 				/*
 				 * Do nothing; opts is already initialized to
-				 * the value of the JEMALLOC_OPTIONS
-				 * environment variable.
+				 * the value of the MALLOC_CONF environment
+				 * variable.
 				 */
 			} else {
 				/* No configuration specified. */

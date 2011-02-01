@@ -45,9 +45,10 @@
  * point is implicitly RUN_BFP bits to the left.
  *
  * Note that it is possible to set RUN_MAX_OVRHD low enough that it cannot be
- * honored for some/all object sizes, since there is one bit of header overhead
- * per object (plus a constant).  This constraint is relaxed (ignored) for runs
- * that are so small that the per-region overhead is greater than:
+ * honored for some/all object sizes, since when heap profiling is enabled
+ * there is one pointer of header overhead per object (plus a constant).  This
+ * constraint is relaxed (ignored) for runs that are so small that the
+ * per-region overhead is greater than:
  *
  *   (RUN_MAX_OVRHD / (reg_size << (3+RUN_BFP))
  */
@@ -105,7 +106,7 @@ struct arena_chunk_map_s {
 	 * Run address (or size) and various flags are stored together.  The bit
 	 * layout looks like (assuming 32-bit system):
 	 *
-	 *   ???????? ???????? ????---- ----dzla
+	 *   ???????? ???????? ????---- ----dula
 	 *
 	 * ? : Unallocated: Run address for first/last pages, unset for internal
 	 *                  pages.
@@ -113,7 +114,7 @@ struct arena_chunk_map_s {
 	 *     Large: Run size for first page, unset for trailing pages.
 	 * - : Unused.
 	 * d : dirty?
-	 * z : zeroed?
+	 * u : unzeroed?
 	 * l : large?
 	 * a : allocated?
 	 *
@@ -129,30 +130,30 @@ struct arena_chunk_map_s {
 	 * [dula] : bit unset
 	 *
 	 *   Unallocated (clean):
-	 *     ssssssss ssssssss ssss---- ----du--
+	 *     ssssssss ssssssss ssss---- ----du-a
 	 *     xxxxxxxx xxxxxxxx xxxx---- -----Uxx
-	 *     ssssssss ssssssss ssss---- ----dU--
+	 *     ssssssss ssssssss ssss---- ----dU-a
 	 *
 	 *   Unallocated (dirty):
-	 *     ssssssss ssssssss ssss---- ----D---
+	 *     ssssssss ssssssss ssss---- ----D--a
 	 *     xxxxxxxx xxxxxxxx xxxx---- ----xxxx
-	 *     ssssssss ssssssss ssss---- ----D---
+	 *     ssssssss ssssssss ssss---- ----D--a
 	 *
 	 *   Small:
-	 *     pppppppp pppppppp pppp---- ----d--a
-	 *     pppppppp pppppppp pppp---- -------a
-	 *     pppppppp pppppppp pppp---- ----d--a
+	 *     pppppppp pppppppp pppp---- ----d--A
+	 *     pppppppp pppppppp pppp---- -------A
+	 *     pppppppp pppppppp pppp---- ----d--A
 	 *
 	 *   Large:
-	 *     ssssssss ssssssss ssss---- ----D-la
+	 *     ssssssss ssssssss ssss---- ----D-LA
 	 *     xxxxxxxx xxxxxxxx xxxx---- ----xxxx
-	 *     -------- -------- -------- ----D-la
+	 *     -------- -------- -------- ----D-LA
 	 *
 	 *   Large (sampled, size <= PAGE_SIZE):
-	 *     ssssssss ssssssss sssscccc ccccD-la
+	 *     ssssssss ssssssss sssscccc ccccD-LA
 	 *
 	 *   Large (not sampled, size == PAGE_SIZE):
-	 *     ssssssss ssssssss ssss---- ----D-la
+	 *     ssssssss ssssssss ssss---- ----D-LA
 	 */
 	size_t				bits;
 #ifdef JEMALLOC_PROF
@@ -347,45 +348,35 @@ struct arena_s {
 
 	/*
 	 * bins is used to store trees of free regions of the following sizes,
-	 * assuming a 16-byte quantum, 4 KiB page size, and default
-	 * JEMALLOC_OPTIONS.
+	 * assuming a 64-bit system with 16-byte quantum, 4 KiB page size, and
+	 * default MALLOC_CONF.
 	 *
 	 *   bins[i] |   size |
 	 *   --------+--------+
-	 *        0  |      2 |
-	 *        1  |      4 |
-	 *        2  |      8 |
+	 *        0  |      8 |
 	 *   --------+--------+
-	 *        3  |     16 |
-	 *        4  |     32 |
-	 *        5  |     48 |
+	 *        1  |     16 |
+	 *        2  |     32 |
+	 *        3  |     48 |
 	 *           :        :
-	 *        8  |     96 |
-	 *        9  |    112 |
-	 *       10  |    128 |
+	 *        6  |     96 |
+	 *        7  |    112 |
+	 *        8  |    128 |
 	 *   --------+--------+
-	 *       11  |    192 |
-	 *       12  |    256 |
-	 *       13  |    320 |
-	 *       14  |    384 |
-	 *       15  |    448 |
-	 *       16  |    512 |
+	 *        9  |    192 |
+	 *       10  |    256 |
+	 *       11  |    320 |
+	 *       12  |    384 |
+	 *       13  |    448 |
+	 *       14  |    512 |
 	 *   --------+--------+
-	 *       17  |    768 |
-	 *       18  |   1024 |
-	 *       19  |   1280 |
+	 *       15  |    768 |
+	 *       16  |   1024 |
+	 *       17  |   1280 |
 	 *           :        :
-	 *       27  |   3328 |
-	 *       28  |   3584 |
-	 *       29  |   3840 |
-	 *   --------+--------+
-	 *       30  |  4 KiB |
-	 *       31  |  6 KiB |
-	 *       33  |  8 KiB |
-	 *           :        :
-	 *       43  | 28 KiB |
-	 *       44  | 30 KiB |
-	 *       45  | 32 KiB |
+	 *       25  |   3328 |
+	 *       26  |   3584 |
+	 *       27  |   3840 |
 	 *   --------+--------+
 	 */
 	arena_bin_t		bins[1]; /* Dynamically sized. */
