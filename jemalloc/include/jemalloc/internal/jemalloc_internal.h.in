@@ -240,6 +240,13 @@ extern void	(*JEMALLOC_P(malloc_message))(void *wcbopaque, const char *s);
 #endif
 #include "jemalloc/internal/prof.h"
 
+#ifdef JEMALLOC_STATS
+typedef struct {
+	uint64_t	allocated;
+	uint64_t	deallocated;
+} thread_allocated_t;
+#endif
+
 #undef JEMALLOC_H_STRUCTS
 /******************************************************************************/
 #define JEMALLOC_H_EXTERNS
@@ -295,45 +302,28 @@ extern arena_t		**arenas;
 extern unsigned		narenas;
 
 #ifdef JEMALLOC_STATS
-typedef struct {
-	uint64_t	allocated;
-	uint64_t	deallocated;
-} thread_allocated_t;
 #  ifndef NO_TLS
 extern __thread thread_allocated_t	thread_allocated_tls;
-#    define ALLOCATED_GET() thread_allocated_tls.allocated
-#    define DEALLOCATED_GET() thread_allocated_tls.deallocated
+#    define ALLOCATED_GET() (thread_allocated_tls.allocated)
+#    define ALLOCATEDP_GET() (&thread_allocated_tls.allocated)
+#    define DEALLOCATED_GET() (thread_allocated_tls.deallocated)
+#    define DEALLOCATEDP_GET() (&thread_allocated_tls.deallocated)
 #    define ALLOCATED_ADD(a, d) do {					\
 	thread_allocated_tls.allocated += a;				\
 	thread_allocated_tls.deallocated += d;				\
 } while (0)
 #  else
 extern pthread_key_t	thread_allocated_tsd;
-#    define ALLOCATED_GET()						\
-	(uint64_t)((pthread_getspecific(thread_allocated_tsd) != NULL)	\
-	    ? ((thread_allocated_t *)					\
-	    pthread_getspecific(thread_allocated_tsd))->allocated : 0)
-#    define DEALLOCATED_GET()						\
-	(uint64_t)((pthread_getspecific(thread_allocated_tsd) != NULL)	\
-	    ? ((thread_allocated_t					\
-	    *)pthread_getspecific(thread_allocated_tsd))->deallocated :	\
-	    0)
+thread_allocated_t	*thread_allocated_get_hard(void);
+
+#    define ALLOCATED_GET() (thread_allocated_get()->allocated)
+#    define ALLOCATEDP_GET() (&thread_allocated_get()->allocated)
+#    define DEALLOCATED_GET() (thread_allocated_get()->deallocated)
+#    define DEALLOCATEDP_GET() (&thread_allocated_get()->deallocated)
 #    define ALLOCATED_ADD(a, d) do {					\
-	thread_allocated_t *thread_allocated = (thread_allocated_t *)	\
-	    pthread_getspecific(thread_allocated_tsd);			\
-	if (thread_allocated != NULL) {					\
-		thread_allocated->allocated += (a);			\
-		thread_allocated->deallocated += (d);			\
-	} else {							\
-		thread_allocated = (thread_allocated_t *)		\
-		    imalloc(sizeof(thread_allocated_t));		\
-		if (thread_allocated != NULL) {				\
-			pthread_setspecific(thread_allocated_tsd,	\
-			    thread_allocated);				\
-			thread_allocated->allocated = (a);		\
-			thread_allocated->deallocated = (d);		\
-		}							\
-	}								\
+	thread_allocated_t *thread_allocated = thread_allocated_get();	\
+	thread_allocated->allocated += (a);				\
+	thread_allocated->deallocated += (d);				\
 } while (0)
 #  endif
 #endif
@@ -384,6 +374,9 @@ size_t	s2u(size_t size);
 size_t	sa2u(size_t size, size_t alignment, size_t *run_size_p);
 void	malloc_write(const char *s);
 arena_t	*choose_arena(void);
+#  ifdef NO_TLS
+thread_allocated_t	*thread_allocated_get(void);
+#  endif
 #endif
 
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_C_))
@@ -544,6 +537,19 @@ choose_arena(void)
 
 	return (ret);
 }
+
+#ifdef NO_TLS
+JEMALLOC_INLINE thread_allocated_t *
+thread_allocated_get(void)
+{
+	thread_allocated_t *thread_allocated = (thread_allocated_t *)
+	    pthread_getspecific(thread_allocated_tsd);
+
+	if (thread_allocated == NULL)
+		return (thread_allocated_get_hard());
+	return (thread_allocated);
+}
+#endif
 #endif
 
 #include "jemalloc/internal/rtree.h"

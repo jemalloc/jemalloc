@@ -72,6 +72,8 @@ CTESTS := @srcroot@test/allocated.c @srcroot@test/allocm.c \
 .PHONY: install_html install_man install_doc install
 .PHONY: tests check clean distclean relclean
 
+.SECONDARY : $(CTESTS:@srcroot@%.c=@objroot@%.o)
+
 # Default target.
 all: $(DSOS)
 
