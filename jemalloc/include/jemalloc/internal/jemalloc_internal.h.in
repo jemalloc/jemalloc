@@ -407,10 +407,10 @@ s2u(size_t size)
 {
 
 	if (size <= small_maxclass)
-		return arenas[0]->bins[small_size2bin[size]].reg_size;
+		return (arenas[0]->bins[small_size2bin[size]].reg_size);
 	if (size <= arena_maxclass)
-		return PAGE_CEILING(size);
-	return CHUNK_CEILING(size);
+		return (PAGE_CEILING(size));
+	return (CHUNK_CEILING(size));
 }
 
 /*

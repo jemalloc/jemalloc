@@ -206,13 +206,15 @@ chunk_alloc_mmap_internal(size_t size, bool noreserve)
 void *
 chunk_alloc_mmap(size_t size)
 {
-	return chunk_alloc_mmap_internal(size, false);
+
+	return (chunk_alloc_mmap_internal(size, false));
 }
 
 void *
 chunk_alloc_mmap_noreserve(size_t size)
 {
-	return chunk_alloc_mmap_internal(size, true);
+
+	return (chunk_alloc_mmap_internal(size, true));
 }
 
 void
