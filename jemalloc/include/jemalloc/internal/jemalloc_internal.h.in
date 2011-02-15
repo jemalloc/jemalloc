@@ -148,11 +148,6 @@ extern void	(*JEMALLOC_P(malloc_message))(void *wcbopaque, const char *s);
 
 #define	SIZEOF_PTR		(1U << LG_SIZEOF_PTR)
 
-/* We can't use TLS in non-PIC programs, since TLS relies on loader magic. */
-#if (!defined(PIC) && !defined(NO_TLS))
-#  define NO_TLS
-#endif
-
 /*
  * Maximum size of L1 cache line.  This is used to avoid cache line aliasing.
  * In addition, this controls the spacing of cacheline-spaced size classes.
