@@ -20,7 +20,7 @@ MANDIR := $(DESTDIR)@MANDIR@
 
 # Build parameters.
 CPPFLAGS := @CPPFLAGS@ -I@srcroot@include -I@objroot@include
-CFLAGS := @CFLAGS@ -fPIC -DPIC
+CFLAGS := @CFLAGS@
 ifeq (macho, @abi@)
 CFLAGS += -dynamic
 endif
@@ -55,6 +55,7 @@ CSRCS := @srcroot@src/jemalloc.c @srcroot@src/arena.c @srcroot@src/base.c \
 ifeq (macho, @abi@)
 CSRCS += @srcroot@src/zone.c
 endif
+STATIC_LIBS :=	@objroot@lib/libjemalloc@install_suffix@.a
 DSOS := @objroot@lib/libjemalloc@install_suffix@.$(SO).$(REV) \
 	@objroot@lib/libjemalloc@install_suffix@.$(SO) \
 	@objroot@lib/libjemalloc@install_suffix@_pic.a
@@ -72,8 +73,10 @@ CTESTS := @srcroot@test/allocated.c @srcroot@test/allocm.c \
 .PHONY: install_html install_man install_doc install
 .PHONY: tests check clean distclean relclean
 
+.SECONDARY : $(CTESTS:@srcroot@%.c=@objroot@%.o)
+
 # Default target.
-all: $(DSOS)
+all: $(DSOS) $(STATIC_LIBS)
 
 dist: doc
 
@@ -97,15 +100,24 @@ doc: $(DOCS)
 	$(CC) $(CFLAGS) -c $(CPPFLAGS) -o $@ $<
 	@$(SHELL) -ec "$(CC) -MM $(CPPFLAGS) $< | sed \"s/\($(subst /,\/,$(notdir $(basename $@)))\)\.o\([ :]*\)/$(subst /,\/,$(strip $(dir $@)))\1.o \2/g\" > $(@:%.o=%.d)"
 
+@objroot@src/%.pic.o: @srcroot@src/%.c
+	@mkdir -p $(@D)
+	$(CC) $(CFLAGS) -fPIC -DPIC -c $(CPPFLAGS) -o $@ $<
+	@$(SHELL) -ec "$(CC) -MM $(CPPFLAGS) $< | sed \"s/\($(subst /,\/,$(notdir $(basename $@)))\)\.o\([ :]*\)/$(subst /,\/,$(strip $(dir $@)))\1.o \2/g\" > $(@:%.o=%.d)"
+
 %.$(SO) : %.$(SO).$(REV)
 	@mkdir -p $(@D)
 	ln -sf $(<F) $@
 
-@objroot@lib/libjemalloc@install_suffix@.$(SO).$(REV) : $(CSRCS:@srcroot@%.c=@objroot@%.o)
+@objroot@lib/libjemalloc@install_suffix@.$(SO).$(REV) : $(CSRCS:@srcroot@%.c=@objroot@%.pic.o)
 	@mkdir -p $(@D)
 	$(CC) -shared -Wl,-$(WL_SONAME),$(@F) $(RPATH_EXTRA:%=@RPATH@%) -o $@ $+ $(LDFLAGS) $(LIBS)
 
-@objroot@lib/libjemalloc@install_suffix@_pic.a : $(CSRCS:@srcroot@%.c=@objroot@%.o)
+@objroot@lib/libjemalloc@install_suffix@_pic.a : $(CSRCS:@srcroot@%.c=@objroot@%.pic.o)
+	@mkdir -p $(@D)
+	ar crus $@ $+
+
+@objroot@lib/libjemalloc@install_suffix@.a : $(CSRCS:@srcroot@%.c=@objroot@%.o)
 	@mkdir -p $(@D)
 	ar crus $@ $+
 
@@ -137,11 +149,12 @@ install_include:
 	install -m 644 $$h $(INCLUDEDIR)/jemalloc; \
 done
 
-install_lib: $(DSOS)
+install_lib: $(DSOS) $(STATIC_LIBS)
 	install -d $(LIBDIR)
 	install -m 755 @objroot@lib/libjemalloc@install_suffix@.$(SO).$(REV) $(LIBDIR)
 	ln -sf libjemalloc@install_suffix@.$(SO).$(REV) $(LIBDIR)/libjemalloc@install_suffix@.$(SO)
 	install -m 755 @objroot@lib/libjemalloc@install_suffix@_pic.a $(LIBDIR)
+	install -m 755 @objroot@lib/libjemalloc@install_suffix@.a $(LIBDIR)
 
 install_html:
 	install -d $(DATADIR)/doc/jemalloc@install_suffix@
@@ -193,12 +206,14 @@ check: tests
 
 clean:
 	rm -f $(CSRCS:@srcroot@%.c=@objroot@%.o)
+	rm -f $(CSRCS:@srcroot@%.c=@objroot@%.pic.o)
 	rm -f $(CSRCS:@srcroot@%.c=@objroot@%.d)
+	rm -f $(CSRCS:@srcroot@%.c=@objroot@%.pic.d)
 	rm -f $(CTESTS:@srcroot@%.c=@objroot@%)
 	rm -f $(CTESTS:@srcroot@%.c=@objroot@%.o)
 	rm -f $(CTESTS:@srcroot@%.c=@objroot@%.d)
 	rm -f $(CTESTS:@srcroot@%.c=@objroot@%.out)
-	rm -f $(DSOS)
+	rm -f $(DSOS) $(STATIC_LIBS)
 
 distclean: clean
 	rm -rf @objroot@autom4te.cache

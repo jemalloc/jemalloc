@@ -62,7 +62,7 @@ hash(const void *key, size_t len, uint64_t seed)
 	h *= m;
 	h ^= h >> r;
 
-	return h;
+	return (h);
 }
 #endif
 

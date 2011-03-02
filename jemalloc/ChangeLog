@@ -6,15 +6,21 @@ found in the git revision history:
     http://www.canonware.com/cgi-bin/gitweb.cgi?p=jemalloc.git
     git://canonware.com/jemalloc.git
 
-* 2.1.1
+* 2.1.2 (March 2, 2011)
 
-  Bug Fixes:
+  Bug fixes:
+  - Fix "thread.{de,}allocatedp" mallctl for OS X.
+  - Add missing jemalloc.a to build system.
+
+* 2.1.1 (January 31, 2011)
+
+  Bug fixes:
   - Fix aligned huge reallocation (affected allocm()).
   - Fix the ALLOCM_LG_ALIGN macro definition.
   - Fix a heap dumping deadlock.
   - Fix a "thread.arena" mallctl bug.
 
-* 2.1.0
+* 2.1.0 (December 3, 2010)
 
   This version incorporates some optimizations that can't quite be considered
   bug fixes.
@@ -31,7 +37,7 @@ found in the git revision history:
     --enable-debug --enable-dss configurations.
   - Fix a minor statistics bug for mallctl("swap.avail", ...).
 
-* 2.0.1
+* 2.0.1 (October 29, 2010)
 
   Bug fixes:
   - Fix a race condition in heap profiling that could cause undefined behavior
@@ -40,7 +46,7 @@ found in the git revision history:
     code.
   - Fix a compilation error for non-C99 builds.
 
-* 2.0.0
+* 2.0.0 (October 24, 2010)
 
   This version focuses on the experimental *allocm() API, and on improved
   run-time configuration/introspection.  Nonetheless, numerous performance
@@ -92,7 +98,7 @@ found in the git revision history:
   - Fix a heap profiling bug due to sometimes losing track of requested object
     size for sampled objects.
 
-* 1.0.3
+* 1.0.3 (August 12, 2010)
 
   Bug fixes:
   - Fix the libunwind-based implementation of stack backtracing (used for heap
@@ -101,7 +107,7 @@ found in the git revision history:
     threads raced to initialize malloc, some of them could end up permanently
     blocked.
 
-* 1.0.2
+* 1.0.2 (May 11, 2010)
 
   Bug fixes:
   - Fix junk filling of large objects, which could cause memory corruption.
@@ -109,7 +115,7 @@ found in the git revision history:
     memory limits could cause swap file configuration to fail.  Contributed by
     Jordan DeLong.
 
-* 1.0.1
+* 1.0.1 (April 14, 2010)
 
   Bug fixes:
   - Fix compilation when --enable-fill is specified.
@@ -118,7 +124,7 @@ found in the git revision history:
   - Fix dirty page purging race conditions that could cause crashes.
   - Fix crash in tcache flushing code during thread destruction.
 
-* 1.0.0
+* 1.0.0 (April 11, 2010)
 
   This release focuses on speed and run-time introspection.  Numerous
   algorithmic improvements make this release substantially faster than its
@@ -154,7 +160,7 @@ found in the git revision history:
   - Fix a chunk leak.  The leaked chunks were never touched, so this impacted
     virtual memory usage, but not physical memory usage.
 
-* linux_20080828a, linux_20080827a
+* linux_2008082[78]a (August 27/28, 2008)
 
   These snapshot releases are the simple result of incorporating Linux-specific
   support into the FreeBSD malloc sources.

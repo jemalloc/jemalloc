@@ -1151,9 +1151,9 @@ RETURN:
 
 #ifdef JEMALLOC_STATS
 CTL_RO_NL_GEN(thread_allocated, ALLOCATED_GET(), uint64_t);
-CTL_RO_NL_GEN(thread_allocatedp, &ALLOCATED_GET(), uint64_t *);
+CTL_RO_NL_GEN(thread_allocatedp, ALLOCATEDP_GET(), uint64_t *);
 CTL_RO_NL_GEN(thread_deallocated, DEALLOCATED_GET(), uint64_t);
-CTL_RO_NL_GEN(thread_deallocatedp, &DEALLOCATED_GET(), uint64_t *);
+CTL_RO_NL_GEN(thread_deallocatedp, DEALLOCATEDP_GET(), uint64_t *);
 #endif
 
 /******************************************************************************/

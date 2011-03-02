@@ -213,6 +213,28 @@ stats_print_atexit(void)
 	JEMALLOC_P(malloc_stats_print)(NULL, NULL, NULL);
 }
 
+#if (defined(JEMALLOC_STATS) && defined(NO_TLS))
+thread_allocated_t *
+thread_allocated_get_hard(void)
+{
+	thread_allocated_t *thread_allocated = (thread_allocated_t *)
+	    imalloc(sizeof(thread_allocated_t));
+	if (thread_allocated == NULL) {
+		static thread_allocated_t static_thread_allocated = {0, 0};
+		malloc_write("<jemalloc>: Error allocating TSD;"
+		    " mallctl(\"thread.{de,}allocated[p]\", ...)"
+		    " will be inaccurate\n");
+		if (opt_abort)
+			abort();
+		return (&static_thread_allocated);
+	}
+	pthread_setspecific(thread_allocated_tsd, thread_allocated);
+	thread_allocated->allocated = 0;
+	thread_allocated->deallocated = 0;
+	return (thread_allocated);
+}
+#endif
+
 /*
  * End miscellaneous support functions.
  */
