@@ -6,6 +6,12 @@ found in the git revision history:
     http://www.canonware.com/cgi-bin/gitweb.cgi?p=jemalloc.git
     git://canonware.com/jemalloc.git
 
+* 2.1.2 (March 2, 2011)
+
+  Bug fixes:
+  - Fix "thread.{de,}allocatedp" mallctl for OS X.
+  - Add missing jemalloc.a to build system.
+
 * 2.1.1 (January 31, 2011)
 
   Bug fixes:
