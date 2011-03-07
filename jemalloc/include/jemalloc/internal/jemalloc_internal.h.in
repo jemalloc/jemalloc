@@ -369,7 +369,7 @@ size_t	s2u(size_t size);
 size_t	sa2u(size_t size, size_t alignment, size_t *run_size_p);
 void	malloc_write(const char *s);
 arena_t	*choose_arena(void);
-#  ifdef NO_TLS
+#  if (defined(JEMALLOC_STATS) && defined(NO_TLS))
 thread_allocated_t	*thread_allocated_get(void);
 #  endif
 #endif
@@ -533,7 +533,7 @@ choose_arena(void)
 	return (ret);
 }
 
-#ifdef NO_TLS
+#if (defined(JEMALLOC_STATS) && defined(NO_TLS))
 JEMALLOC_INLINE thread_allocated_t *
 thread_allocated_get(void)
 {
