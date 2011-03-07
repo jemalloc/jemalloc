@@ -25,26 +25,27 @@ size_t		mspace_mask;
 
 /*
  * const_small_size2bin is a static constant lookup table that in the common
- * case can be used as-is for small_size2bin.  For dynamically linked programs,
- * this avoids a page of memory overhead per process.
+ * case can be used as-is for small_size2bin.
  */
-#define	S2B_1(i)	i,
-#define	S2B_2(i)	S2B_1(i) S2B_1(i)
-#define	S2B_4(i)	S2B_2(i) S2B_2(i)
+#if (LG_TINY_MIN == 2)
+#define	S2B_4(i)	i,
 #define	S2B_8(i)	S2B_4(i) S2B_4(i)
+#elif (LG_TINY_MIN == 3)
+#define	S2B_8(i)	i,
+#else
+#  error "Unsupported LG_TINY_MIN"
+#endif
 #define	S2B_16(i)	S2B_8(i) S2B_8(i)
 #define	S2B_32(i)	S2B_16(i) S2B_16(i)
 #define	S2B_64(i)	S2B_32(i) S2B_32(i)
 #define	S2B_128(i)	S2B_64(i) S2B_64(i)
 #define	S2B_256(i)	S2B_128(i) S2B_128(i)
 /*
- * The number of elements in const_small_size2bin is dependent on page size
- * and on the definition for SUBPAGE.  If SUBPAGE changes, the '- 255' must also
- * change, along with the addition/removal of static lookup table element
- * definitions.
+ * The number of elements in const_small_size2bin is dependent on the
+ * definition for SUBPAGE.
  */
-static const uint8_t	const_small_size2bin[STATIC_PAGE_SIZE - 255] = {
-	S2B_1(0xffU)		/*    0 */
+static JEMALLOC_ATTR(aligned(CACHELINE))
+    const uint8_t	const_small_size2bin[] = {
 #if (LG_QUANTUM == 4)
 /* 16-byte quantum **********************/
 #  ifdef JEMALLOC_TINY
@@ -1475,7 +1476,7 @@ arena_malloc_small(arena_t *arena, size_t size, bool zero)
 	arena_run_t *run;
 	size_t binind;
 
-	binind = small_size2bin[size];
+	binind = SMALL_SIZE2BIN(size);
 	assert(binind < nbins);
 	bin = &arena->bins[binind];
 	size = bin->reg_size;
@@ -1713,7 +1714,7 @@ arena_prof_promoted(const void *ptr, size_t size)
 
 	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
 	pageind = ((uintptr_t)ptr - (uintptr_t)chunk) >> PAGE_SHIFT;
-	binind = small_size2bin[size];
+	binind = SMALL_SIZE2BIN(size);
 	assert(binind < nbins);
 	chunk->map[pageind-map_bias].bits = (chunk->map[pageind-map_bias].bits &
 	    ~CHUNK_MAP_CLASS_MASK) | ((binind+1) << CHUNK_MAP_CLASS_SHIFT);
@@ -2166,11 +2167,11 @@ arena_ralloc_no_move(void *ptr, size_t oldsize, size_t size, size_t extra,
 	 */
 	if (oldsize <= arena_maxclass) {
 		if (oldsize <= small_maxclass) {
-			assert(choose_arena()->bins[small_size2bin[
-			    oldsize]].reg_size == oldsize);
+			assert(choose_arena()->bins[SMALL_SIZE2BIN(
+			    oldsize)].reg_size == oldsize);
 			if ((size + extra <= small_maxclass &&
-			    small_size2bin[size + extra] ==
-			    small_size2bin[oldsize]) || (size <= oldsize &&
+			    SMALL_SIZE2BIN(size + extra) ==
+			    SMALL_SIZE2BIN(oldsize)) || (size <= oldsize &&
 			    size + extra >= oldsize)) {
 #ifdef JEMALLOC_FILL
 				if (opt_junk && size < oldsize) {
@@ -2371,40 +2372,39 @@ small_size2bin_validate(void)
 {
 	size_t i, size, binind;
 
-	assert(small_size2bin[0] == 0xffU);
 	i = 1;
 #  ifdef JEMALLOC_TINY
 	/* Tiny. */
 	for (; i < (1U << LG_TINY_MIN); i++) {
 		size = pow2_ceil(1U << LG_TINY_MIN);
 		binind = ffs((int)(size >> (LG_TINY_MIN + 1)));
-		assert(small_size2bin[i] == binind);
+		assert(SMALL_SIZE2BIN(i) == binind);
 	}
 	for (; i < qspace_min; i++) {
 		size = pow2_ceil(i);
 		binind = ffs((int)(size >> (LG_TINY_MIN + 1)));
-		assert(small_size2bin[i] == binind);
+		assert(SMALL_SIZE2BIN(i) == binind);
 	}
 #  endif
 	/* Quantum-spaced. */
 	for (; i <= qspace_max; i++) {
 		size = QUANTUM_CEILING(i);
 		binind = ntbins + (size >> LG_QUANTUM) - 1;
-		assert(small_size2bin[i] == binind);
+		assert(SMALL_SIZE2BIN(i) == binind);
 	}
 	/* Cacheline-spaced. */
 	for (; i <= cspace_max; i++) {
 		size = CACHELINE_CEILING(i);
 		binind = ntbins + nqbins + ((size - cspace_min) >>
 		    LG_CACHELINE);
-		assert(small_size2bin[i] == binind);
+		assert(SMALL_SIZE2BIN(i) == binind);
 	}
 	/* Sub-page. */
 	for (; i <= sspace_max; i++) {
 		size = SUBPAGE_CEILING(i);
 		binind = ntbins + nqbins + ncbins + ((size - sspace_min)
 		    >> LG_SUBPAGE);
-		assert(small_size2bin[i] == binind);
+		assert(SMALL_SIZE2BIN(i) == binind);
 	}
 }
 #endif
@@ -2415,12 +2415,12 @@ small_size2bin_init(void)
 
 	if (opt_lg_qspace_max != LG_QSPACE_MAX_DEFAULT
 	    || opt_lg_cspace_max != LG_CSPACE_MAX_DEFAULT
-	    || sizeof(const_small_size2bin) != small_maxclass + 1)
+	    || (sizeof(const_small_size2bin) != ((small_maxclass-1) >>
+	    LG_TINY_MIN) + 1))
 		return (small_size2bin_init_hard());
 
 	small_size2bin = const_small_size2bin;
 #ifdef JEMALLOC_DEBUG
-	assert(sizeof(const_small_size2bin) == small_maxclass + 1);
 	small_size2bin_validate();
 #endif
 	return (false);
@@ -2431,49 +2431,52 @@ small_size2bin_init_hard(void)
 {
 	size_t i, size, binind;
 	uint8_t *custom_small_size2bin;
+#define	CUSTOM_SMALL_SIZE2BIN(s)					\
+    custom_small_size2bin[(s-1) >> LG_TINY_MIN]
 
 	assert(opt_lg_qspace_max != LG_QSPACE_MAX_DEFAULT
 	    || opt_lg_cspace_max != LG_CSPACE_MAX_DEFAULT
-	    || sizeof(const_small_size2bin) != small_maxclass + 1);
+	    || (sizeof(const_small_size2bin) != ((small_maxclass-1) >>
+	    LG_TINY_MIN) + 1));
 
-	custom_small_size2bin = (uint8_t *)base_alloc(small_maxclass + 1);
+	custom_small_size2bin = (uint8_t *)
+	    base_alloc(small_maxclass >> LG_TINY_MIN);
 	if (custom_small_size2bin == NULL)
 		return (true);
 
-	custom_small_size2bin[0] = 0xffU;
 	i = 1;
 #ifdef JEMALLOC_TINY
 	/* Tiny. */
-	for (; i < (1U << LG_TINY_MIN); i++) {
+	for (; i < (1U << LG_TINY_MIN); i += TINY_MIN) {
 		size = pow2_ceil(1U << LG_TINY_MIN);
 		binind = ffs((int)(size >> (LG_TINY_MIN + 1)));
-		custom_small_size2bin[i] = binind;
+		CUSTOM_SMALL_SIZE2BIN(i) = binind;
 	}
-	for (; i < qspace_min; i++) {
+	for (; i < qspace_min; i += TINY_MIN) {
 		size = pow2_ceil(i);
 		binind = ffs((int)(size >> (LG_TINY_MIN + 1)));
-		custom_small_size2bin[i] = binind;
+		CUSTOM_SMALL_SIZE2BIN(i) = binind;
 	}
 #endif
 	/* Quantum-spaced. */
-	for (; i <= qspace_max; i++) {
+	for (; i <= qspace_max; i += TINY_MIN) {
 		size = QUANTUM_CEILING(i);
 		binind = ntbins + (size >> LG_QUANTUM) - 1;
-		custom_small_size2bin[i] = binind;
+		CUSTOM_SMALL_SIZE2BIN(i) = binind;
 	}
 	/* Cacheline-spaced. */
-	for (; i <= cspace_max; i++) {
+	for (; i <= cspace_max; i += TINY_MIN) {
 		size = CACHELINE_CEILING(i);
 		binind = ntbins + nqbins + ((size - cspace_min) >>
 		    LG_CACHELINE);
-		custom_small_size2bin[i] = binind;
+		CUSTOM_SMALL_SIZE2BIN(i) = binind;
 	}
 	/* Sub-page. */
-	for (; i <= sspace_max; i++) {
+	for (; i <= sspace_max; i += TINY_MIN) {
 		size = SUBPAGE_CEILING(i);
 		binind = ntbins + nqbins + ncbins + ((size - sspace_min) >>
 		    LG_SUBPAGE);
-		custom_small_size2bin[i] = binind;
+		CUSTOM_SMALL_SIZE2BIN(i) = binind;
 	}
 
 	small_size2bin = custom_small_size2bin;
@@ -2481,6 +2484,7 @@ small_size2bin_init_hard(void)
 	small_size2bin_validate();
 #endif
 	return (false);
+#undef CUSTOM_SMALL_SIZE2BIN
 }
 
 bool

@@ -19,6 +19,7 @@
 #ifdef JEMALLOC_TINY
    /* Smallest size class to support. */
 #  define LG_TINY_MIN		LG_SIZEOF_PTR
+#  define TINY_MIN		(1U << LG_TINY_MIN)
 #endif
 
 /*
@@ -389,7 +390,13 @@ struct arena_s {
 extern size_t	opt_lg_qspace_max;
 extern size_t	opt_lg_cspace_max;
 extern ssize_t		opt_lg_dirty_mult;
+/*
+ * small_size2bin is a compact lookup table that rounds request sizes up to
+ * size classes.  In order to reduce cache footprint, the table is compressed,
+ * and all accesses are via the SMALL_SIZE2BIN macro.
+ */
 extern uint8_t const	*small_size2bin;
+#define	SMALL_SIZE2BIN(s)	(small_size2bin[(s-1) >> LG_TINY_MIN])
 
 /* Various bin-related settings. */
 #ifdef JEMALLOC_TINY		/* Number of (2^n)-spaced tiny bins. */

@@ -402,7 +402,7 @@ s2u(size_t size)
 {
 
 	if (size <= small_maxclass)
-		return (arenas[0]->bins[small_size2bin[size]].reg_size);
+		return (arenas[0]->bins[SMALL_SIZE2BIN(size)].reg_size);
 	if (size <= arena_maxclass)
 		return (PAGE_CEILING(size));
 	return (CHUNK_CEILING(size));
@@ -448,7 +448,7 @@ sa2u(size_t size, size_t alignment, size_t *run_size_p)
 	if (usize <= arena_maxclass && alignment <= PAGE_SIZE) {
 		if (usize <= small_maxclass) {
 			return
-			    (arenas[0]->bins[small_size2bin[usize]].reg_size);
+			    (arenas[0]->bins[SMALL_SIZE2BIN(usize)].reg_size);
 		}
 		return (PAGE_CEILING(usize));
 	} else {
