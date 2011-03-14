@@ -58,6 +58,9 @@ tcache_bin_flush_small(tcache_bin_t *tbin, size_t binind, unsigned rem
 	void *flush, *deferred, *ptr;
 	unsigned i, nflush, ndeferred;
 	bool first_pass;
+#ifdef JEMALLOC_STATS
+	bool merged_stats = false;
+#endif
 
 	assert(binind < nbins);
 	assert(rem <= tbin->ncached);
@@ -82,6 +85,8 @@ tcache_bin_flush_small(tcache_bin_t *tbin, size_t binind, unsigned rem
 		malloc_mutex_lock(&bin->lock);
 #ifdef JEMALLOC_STATS
 		if (arena == tcache->arena) {
+			assert(merged_stats == false);
+			merged_stats = true;
 			bin->stats.nflushes++;
 			bin->stats.nrequests += tbin->tstats.nrequests;
 			tbin->tstats.nrequests = 0;
@@ -119,6 +124,20 @@ tcache_bin_flush_small(tcache_bin_t *tbin, size_t binind, unsigned rem
 			first_pass = false;
 		}
 	}
+#ifdef JEMALLOC_STATS
+	if (merged_stats == false) {
+		/*
+		 * The flush loop didn't happen to flush to this thread's
+		 * arena, so the stats didn't get merged.  Manually do so now.
+		 */
+		arena_bin_t *bin = &tcache->arena->bins[binind];
+		malloc_mutex_lock(&bin->lock);
+		bin->stats.nflushes++;
+		bin->stats.nrequests += tbin->tstats.nrequests;
+		tbin->tstats.nrequests = 0;
+		malloc_mutex_unlock(&bin->lock);
+	}
+#endif
 
 	tbin->ncached = rem;
 	if (tbin->ncached < tbin->low_water)

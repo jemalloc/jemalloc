@@ -6,6 +6,14 @@ found in the git revision history:
     http://www.canonware.com/cgi-bin/gitweb.cgi?p=jemalloc.git
     git://canonware.com/jemalloc.git
 
+* 2.1.3 (March 14, 2011)
+
+  Bug fixes:
+  - Fix a cpp logic regression (due to the "thread.{de,}allocatedp" mallctl fix
+    for OS X in 2.1.2).
+  - Fix a "thread.arena" mallctl bug.
+  - Fix a thread cache stats merging bug.
+
 * 2.1.2 (March 2, 2011)
 
   Bug fixes:
