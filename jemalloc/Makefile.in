@@ -94,6 +94,7 @@ doc: $(DOCS)
 # Include generated dependency files.
 #
 -include $(CSRCS:@srcroot@%.c=@objroot@%.d)
+-include $(CSRCS:@srcroot@%.c=@objroot@%.pic.d)
 
 @objroot@src/%.o: @srcroot@src/%.c
 	@mkdir -p $(@D)
@@ -103,7 +104,7 @@ doc: $(DOCS)
 @objroot@src/%.pic.o: @srcroot@src/%.c
 	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) -fPIC -DPIC -c $(CPPFLAGS) -o $@ $<
-	@$(SHELL) -ec "$(CC) -MM $(CPPFLAGS) $< | sed \"s/\($(subst /,\/,$(notdir $(basename $@)))\)\.o\([ :]*\)/$(subst /,\/,$(strip $(dir $@)))\1.o \2/g\" > $(@:%.o=%.d)"
+	@$(SHELL) -ec "$(CC) -MM $(CPPFLAGS) $< | sed \"s/\($(subst /,\/,$(notdir $(basename $(basename $@))))\)\.o\([ :]*\)/$(subst /,\/,$(strip $(dir $@)))\1.pic.o \2/g\" > $(@:%.o=%.d)"
 
 %.$(SO) : %.$(SO).$(REV)
 	@mkdir -p $(@D)
