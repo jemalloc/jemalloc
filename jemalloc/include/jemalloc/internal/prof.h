@@ -247,8 +247,22 @@ prof_sample_threshold_update(prof_tdata_t *prof_tdata)
 	double u;
 
 	/*
-	 * Compute prof_sample_threshold as a geometrically distributed random
+	 * Compute sample threshold as a geometrically distributed random
 	 * variable with mean (2^opt_lg_prof_sample).
+	 *
+	 *                         __        __
+	 *                         |  log(u)  |                     1
+	 * prof_tdata->threshold = | -------- |, where p = -------------------
+	 *                         | log(1-p) |             opt_lg_prof_sample
+	 *                                                 2
+	 *
+	 * For more information on the math, see:
+	 *
+	 *   Non-Uniform Random Variate Generation
+	 *   Luc Devroye
+	 *   Springer-Verlag, New York, 1986
+	 *   pp 500
+	 *   (http://cg.scs.carleton.ca/~luc/rnbookindex.html)
 	 */
 	prn64(r, 53, prof_tdata->prn_state,
 	    (uint64_t)6364136223846793005LLU, (uint64_t)1442695040888963407LLU);
@@ -374,7 +388,7 @@ prof_sample_accum_update(size_t size)
 	/* Take care to avoid integer overflow. */
 	if (size >= prof_tdata->threshold - prof_tdata->accum) {
 		prof_tdata->accum -= (prof_tdata->threshold - size);
-		/* Compute new prof_sample_threshold. */
+		/* Compute new sample threshold. */
 		prof_sample_threshold_update(prof_tdata);
 		while (prof_tdata->accum >= prof_tdata->threshold) {
 			prof_tdata->accum -= prof_tdata->threshold;
