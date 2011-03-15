@@ -157,17 +157,6 @@ case "${host_cpu}" in
 esac
 AC_DEFINE_UNQUOTED([CPU_SPINWAIT], [$CPU_SPINWAIT])
 
-JE_COMPILABLE([__attribute__ syntax],
-              [static __attribute__((unused)) void foo(void){}],
-              [],
-              [attribute])
-if test "x${attribute}" = "xyes" ; then
-  AC_DEFINE([JEMALLOC_HAVE_ATTR], [ ])
-  if test "x$GCC" = "xyes" -a "${abi}" = "xelf"; then
-    JE_CFLAGS_APPEND([-fvisibility=internal])
-  fi
-fi
-
 dnl Platform-specific settings.  abi and RPATH can probably be determined
 dnl programmatically, but doing so is error-prone, which makes it generally
 dnl not worth the trouble.
@@ -226,6 +215,17 @@ case "${host}" in
 esac
 AC_SUBST([abi])
 AC_SUBST([RPATH])
+
+JE_COMPILABLE([__attribute__ syntax],
+              [static __attribute__((unused)) void foo(void){}],
+              [],
+              [attribute])
+if test "x${attribute}" = "xyes" ; then
+  AC_DEFINE([JEMALLOC_HAVE_ATTR], [ ])
+  if test "x${GCC}" = "xyes" -a "x${abi}" = "xelf"; then
+    JE_CFLAGS_APPEND([-fvisibility=hidden])
+  fi
+fi
 
 JE_COMPILABLE([mremap(...MREMAP_FIXED...)], [
 #define _GNU_SOURCE
