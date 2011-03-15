@@ -735,7 +735,8 @@ malloc_init_hard(void)
 	 */
 	ARENA_SET(arenas[0]);
 
-	malloc_mutex_init(&arenas_lock);
+	if (malloc_mutex_init(&arenas_lock))
+		return (true);
 
 #ifdef JEMALLOC_PROF
 	if (prof_boot2()) {
