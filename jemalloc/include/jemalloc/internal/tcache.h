@@ -232,7 +232,7 @@ tcache_alloc_small(tcache_t *tcache, size_t size, bool zero)
 		if (ret == NULL)
 			return (NULL);
 	}
-	assert(arena_salloc(ret) == tcache->arena->bins[binind].reg_size);
+	assert(arena_salloc(ret) == arena_bin_info[binind].reg_size);
 
 	if (zero == false) {
 #ifdef JEMALLOC_FILL
@@ -248,7 +248,7 @@ tcache_alloc_small(tcache_t *tcache, size_t size, bool zero)
 	tbin->tstats.nrequests++;
 #endif
 #ifdef JEMALLOC_PROF
-	tcache->prof_accumbytes += tcache->arena->bins[binind].reg_size;
+	tcache->prof_accumbytes += arena_bin_info[binind].reg_size;
 #endif
 	tcache_event(tcache);
 	return (ret);
@@ -331,7 +331,7 @@ tcache_dalloc_small(tcache_t *tcache, void *ptr)
 
 #ifdef JEMALLOC_FILL
 	if (opt_junk)
-		memset(ptr, 0x5a, bin->reg_size);
+		memset(ptr, 0x5a, arena_bin_info[binind].reg_size);
 #endif
 
 	tbin = &tcache->tbins[binind];

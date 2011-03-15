@@ -1289,9 +1289,9 @@ CTL_RO_NL_GEN(opt_overcommit, opt_overcommit, bool)
 
 /******************************************************************************/
 
-CTL_RO_NL_GEN(arenas_bin_i_size, arenas[0]->bins[mib[2]].reg_size, size_t)
-CTL_RO_NL_GEN(arenas_bin_i_nregs, arenas[0]->bins[mib[2]].nregs, uint32_t)
-CTL_RO_NL_GEN(arenas_bin_i_run_size, arenas[0]->bins[mib[2]].run_size, size_t)
+CTL_RO_NL_GEN(arenas_bin_i_size, arena_bin_info[mib[2]].reg_size, size_t)
+CTL_RO_NL_GEN(arenas_bin_i_nregs, arena_bin_info[mib[2]].nregs, uint32_t)
+CTL_RO_NL_GEN(arenas_bin_i_run_size, arena_bin_info[mib[2]].run_size, size_t)
 const ctl_node_t *
 arenas_bin_i_index(const size_t *mib, size_t miblen, size_t i)
 {

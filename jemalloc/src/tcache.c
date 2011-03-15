@@ -253,9 +253,9 @@ tcache_create(arena_t *arena)
 	tcache->arena = arena;
 	assert((TCACHE_NSLOTS_SMALL_MAX & 1U) == 0);
 	for (i = 0; i < nbins; i++) {
-		if ((arena->bins[i].nregs << 1) <= TCACHE_NSLOTS_SMALL_MAX) {
-			tcache->tbins[i].ncached_max = (arena->bins[i].nregs <<
-			    1);
+		if ((arena_bin_info[i].nregs << 1) <= TCACHE_NSLOTS_SMALL_MAX) {
+			tcache->tbins[i].ncached_max = (arena_bin_info[i].nregs
+			    << 1);
 		} else
 			tcache->tbins[i].ncached_max = TCACHE_NSLOTS_SMALL_MAX;
 	}
