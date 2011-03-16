@@ -3,13 +3,13 @@
 #ifdef JEMALLOC_PROF
 /******************************************************************************/
 
-#ifdef JEMALLOC_PROF_LIBGCC
-#include <unwind.h>
-#endif
-
 #ifdef JEMALLOC_PROF_LIBUNWIND
 #define	UNW_LOCAL_ONLY
 #include <libunwind.h>
+#endif
+
+#ifdef JEMALLOC_PROF_LIBGCC
+#include <unwind.h>
 #endif
 
 /******************************************************************************/
@@ -169,39 +169,7 @@ prof_leave(void)
 		prof_gdump();
 }
 
-#ifdef JEMALLOC_PROF_LIBGCC
-static _Unwind_Reason_Code
-prof_unwind_init_callback(struct _Unwind_Context *context, void *arg)
-{
-
-	return (_URC_NO_REASON);
-}
-
-static _Unwind_Reason_Code
-prof_unwind_callback(struct _Unwind_Context *context, void *arg)
-{
-	prof_unwind_data_t *data = (prof_unwind_data_t *)arg;
-
-	if (data->nignore > 0)
-		data->nignore--;
-	else {
-		data->bt->vec[data->bt->len] = (void *)_Unwind_GetIP(context);
-		data->bt->len++;
-		if (data->bt->len == data->max)
-			return (_URC_END_OF_STACK);
-	}
-
-	return (_URC_NO_REASON);
-}
-
-void
-prof_backtrace(prof_bt_t *bt, unsigned nignore, unsigned max)
-{
-	prof_unwind_data_t data = {bt, nignore, max};
-
-	_Unwind_Backtrace(prof_unwind_callback, &data);
-}
-#elif defined(JEMALLOC_PROF_LIBUNWIND)
+#ifdef JEMALLOC_PROF_LIBUNWIND
 void
 prof_backtrace(prof_bt_t *bt, unsigned nignore, unsigned max)
 {
@@ -236,7 +204,41 @@ prof_backtrace(prof_bt_t *bt, unsigned nignore, unsigned max)
 			break;
 	}
 }
-#else
+#endif
+#ifdef JEMALLOC_PROF_LIBGCC
+static _Unwind_Reason_Code
+prof_unwind_init_callback(struct _Unwind_Context *context, void *arg)
+{
+
+	return (_URC_NO_REASON);
+}
+
+static _Unwind_Reason_Code
+prof_unwind_callback(struct _Unwind_Context *context, void *arg)
+{
+	prof_unwind_data_t *data = (prof_unwind_data_t *)arg;
+
+	if (data->nignore > 0)
+		data->nignore--;
+	else {
+		data->bt->vec[data->bt->len] = (void *)_Unwind_GetIP(context);
+		data->bt->len++;
+		if (data->bt->len == data->max)
+			return (_URC_END_OF_STACK);
+	}
+
+	return (_URC_NO_REASON);
+}
+
+void
+prof_backtrace(prof_bt_t *bt, unsigned nignore, unsigned max)
+{
+	prof_unwind_data_t data = {bt, nignore, max};
+
+	_Unwind_Backtrace(prof_unwind_callback, &data);
+}
+#endif
+#ifdef JEMALLOC_PROF_GCC
 void
 prof_backtrace(prof_bt_t *bt, unsigned nignore, unsigned max)
 {

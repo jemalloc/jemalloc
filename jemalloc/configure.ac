@@ -404,17 +404,12 @@ fi
 ],
 [enable_prof="0"]
 )
-AC_ARG_ENABLE([prof-libgcc],
-  [AS_HELP_STRING([--disable-prof-libgcc],
-  [Do not use libgcc for backtracing])],
-[if test "x$enable_prof_libgcc" = "xno" ; then
-  enable_prof_libgcc="0"
+if test "x$enable_prof" = "x1" ; then
+  backtrace_method=""
 else
-  enable_prof_libgcc="1"
+  backtrace_method="N/A"
 fi
-],
-[enable_prof_libgcc="1"]
-)
+
 AC_ARG_ENABLE([prof-libunwind],
   [AS_HELP_STRING([--enable-prof-libunwind], [Use libunwind for backtracing])],
 [if test "x$enable_prof_libunwind" = "xno" ; then
@@ -438,38 +433,89 @@ else
 fi,
   LUNWIND="-lunwind"
 )
+if test "x$backtrace_method" = "x" -a "x$enable_prof_libunwind" = "x1" ; then
+  AC_CHECK_HEADERS([libunwind.h], , [enable_prof_libunwind="0"])
+  if test "x$LUNWIND" = "x-lunwind" ; then
+    AC_CHECK_LIB([unwind], [backtrace], [LIBS="$LIBS $LUNWIND"],
+                 [enable_prof_libunwind="0"])
+  else
+    LIBS="$LIBS $LUNWIND"
+  fi
+  if test "x${enable_prof_libunwind}" = "x1" ; then
+    backtrace_method="libunwind"
+    AC_DEFINE([JEMALLOC_PROF_LIBUNWIND], [ ])
+  fi
+fi
+
+AC_ARG_ENABLE([prof-libgcc],
+  [AS_HELP_STRING([--disable-prof-libgcc],
+  [Do not use libgcc for backtracing])],
+[if test "x$enable_prof_libgcc" = "xno" ; then
+  enable_prof_libgcc="0"
+else
+  enable_prof_libgcc="1"
+fi
+],
+[enable_prof_libgcc="1"]
+)
+if test "x$backtrace_method" = "x" -a "x$enable_prof_libgcc" = "x1" \
+     -a "x$GCC" = "xyes" ; then
+  AC_CHECK_HEADERS([unwind.h], , [enable_prof_libgcc="0"])
+  AC_CHECK_LIB([gcc], [_Unwind_Backtrace], [LIBS="$LIBS -lgcc"], [enable_prof_libgcc="0"])
+  dnl The following is conservative, in that it only has entries for CPUs on
+  dnl which jemalloc has been tested.
+  AC_MSG_CHECKING([libgcc-based backtracing reliability on ${host_cpu}])
+  case "${host_cpu}" in
+    i[[3456]]86)
+      AC_MSG_RESULT([unreliable])
+      enable_prof_libgcc="0";
+      ;;
+    x86_64)
+      AC_MSG_RESULT([reliable])
+      ;;
+    *)
+      AC_MSG_RESULT([unreliable])
+      enable_prof_libgcc="0";
+      ;;
+  esac
+  if test "x${enable_prof_libgcc}" = "x1" ; then
+    backtrace_method="libgcc"
+    AC_DEFINE([JEMALLOC_PROF_LIBGCC], [ ])
+  fi
+else
+  enable_prof_libgcc="0"
+fi
+
+AC_ARG_ENABLE([prof-gcc],
+  [AS_HELP_STRING([--disable-prof-gcc],
+  [Do not use gcc intrinsics for backtracing])],
+[if test "x$enable_prof_gcc" = "xno" ; then
+  enable_prof_gcc="0"
+else
+  enable_prof_gcc="1"
+fi
+],
+[enable_prof_gcc="1"]
+)
+if test "x$backtrace_method" = "x" -a "x$enable_prof_gcc" = "x1" \
+     -a "x$GCC" = "xyes" ; then
+  backtrace_method="gcc intrinsics"
+  AC_DEFINE([JEMALLOC_PROF_GCC], [ ])
+else
+  enable_prof_gcc="0"
+fi
+
+if test "x$backtrace_method" = "x" ; then
+  backtrace_method="none (disabling profiling)"
+  enable_prof="0"
+fi
+AC_MSG_CHECKING([configured backtracing method])
+AC_MSG_RESULT([$backtrace_method])
 if test "x$enable_prof" = "x1" ; then
   LIBS="$LIBS -lm"
   AC_DEFINE([JEMALLOC_PROF], [ ])
-  if test "x$enable_prof_libunwind" = "x1" ; then
-    AC_CHECK_HEADERS([libunwind.h], , [enable_prof_libunwind="0"])
-    if test "x$LUNWIND" = "x-lunwind" ; then
-      AC_CHECK_LIB([unwind], [backtrace], [LIBS="$LIBS $LUNWIND"],
-                   [enable_prof_libunwind="0"])
-    else
-      LIBS="$LIBS $LUNWIND"
-    fi
-    if test "x${enable_prof_libunwind}" = "x1" ; then
-      AC_DEFINE([JEMALLOC_PROF_LIBUNWIND], [ ])
-    fi
-  fi
 fi
 AC_SUBST([enable_prof])
-
-dnl If libunwind isn't enabled, try to use libgcc rather than gcc intrinsics
-dnl for backtracing.
-if test "x$enable_prof" = "x1" -a "x$enable_prof_libgcc" = "x1" ; then
-  if test "x$enable_prof_libunwind" = "x0" -a "x$GCC" = "xyes" ; then
-    enable_prof_libgcc="1"
-    AC_CHECK_HEADERS([unwind.h], , [enable_prof_libgcc="0"])
-    AC_CHECK_LIB([gcc], [_Unwind_Backtrace], [LIBS="$LIBS -lgcc"], [enable_prof_libgcc="0"])
-    if test "x${enable_prof_libgcc}" = "x1" ; then
-      AC_DEFINE([JEMALLOC_PROF_LIBGCC], [ ])
-    fi
-  else
-    enable_prof_libgcc="0"
-  fi
-fi
 
 dnl Enable tiny allocations by default.
 AC_ARG_ENABLE([tiny],
@@ -810,8 +856,9 @@ AC_MSG_RESULT([cc-silence         : ${enable_cc_silence}])
 AC_MSG_RESULT([debug              : ${enable_debug}])
 AC_MSG_RESULT([stats              : ${enable_stats}])
 AC_MSG_RESULT([prof               : ${enable_prof}])
-AC_MSG_RESULT([prof-libgcc        : ${enable_prof_libgcc}])
 AC_MSG_RESULT([prof-libunwind     : ${enable_prof_libunwind}])
+AC_MSG_RESULT([prof-libgcc        : ${enable_prof_libgcc}])
+AC_MSG_RESULT([prof-gcc           : ${enable_prof_gcc}])
 AC_MSG_RESULT([tiny               : ${enable_tiny}])
 AC_MSG_RESULT([tcache             : ${enable_tcache}])
 AC_MSG_RESULT([fill               : ${enable_fill}])

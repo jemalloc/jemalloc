@@ -62,18 +62,23 @@ any of the following arguments (not a definitive list) to 'configure':
 
 --enable-prof
     Enable heap profiling and leak detection functionality.  See the "opt.prof"
-    option documentation for usage details.
+    option documentation for usage details.  When enabled, there are several
+    approaches to backtracing, and the configure script chooses the first one
+    in the following list that appears to function correctly:
 
---disable-prof-libgcc
-    Disable the use of libgcc's backtracing functionality.  Ordinarily, libgcc's
-    backtracing functionality is superior to the alternatives, but it may fail
-    to capture backtraces on some systems.
+    + libunwind      (requires --enable-prof-libunwind)
+    + libgcc         (unless --disable-prof-libgcc)
+    + gcc intrinsics (unless --disable-prof-gcc)
 
 --enable-prof-libunwind
     Use the libunwind library (http://www.nongnu.org/libunwind/) for stack
-    backtracing.  libunwind is quite slow, but it tends to work across a wider
-    variety of system configurations than the default backtracing code, which is
-    based on libgcc functionality or gcc intrinsics.
+    backtracing.
+
+--disable-prof-libgcc
+    Disable the use of libgcc's backtracing functionality.
+
+--disable-prof-gcc
+    Disable the use of gcc intrinsics for backtracing.
 
 --with-static-libunwind=<libunwind.a>
     Statically link against the specified libunwind.a rather than dynamically
