@@ -475,7 +475,7 @@ bool	arena_boot(void);
 #ifndef JEMALLOC_ENABLE_INLINE
 size_t	arena_bin_index(arena_t *arena, arena_bin_t *bin);
 unsigned	arena_run_regind(arena_run_t *run, arena_bin_info_t *bin_info,
-    const void *ptr, size_t size);
+    const void *ptr);
 #  ifdef JEMALLOC_PROF
 prof_ctx_t	*arena_prof_ctx_get(const void *ptr);
 void	arena_prof_ctx_set(const void *ptr, prof_ctx_t *ctx);
@@ -493,10 +493,10 @@ arena_bin_index(arena_t *arena, arena_bin_t *bin)
 }
 
 JEMALLOC_INLINE unsigned
-arena_run_regind(arena_run_t *run, arena_bin_info_t *bin_info, const void *ptr,
-    size_t size)
+arena_run_regind(arena_run_t *run, arena_bin_info_t *bin_info, const void *ptr)
 {
 	unsigned shift, diff, regind;
+	size_t size;
 
 	assert(run->magic == ARENA_RUN_MAGIC);
 
@@ -508,6 +508,7 @@ arena_run_regind(arena_run_t *run, arena_bin_info_t *bin_info, const void *ptr,
 	    bin_info->reg0_offset);
 
 	/* Rescale (factor powers of 2 out of the numerator and denominator). */
+	size = bin_info->reg_size;
 	shift = ffs(size) - 1;
 	diff >>= shift;
 	size >>= shift;
@@ -583,8 +584,7 @@ arena_prof_ctx_get(const void *ptr)
 			unsigned regind;
 
 			assert(run->magic == ARENA_RUN_MAGIC);
-			regind = arena_run_regind(run, bin_info, ptr,
-			    bin_info->reg_size);
+			regind = arena_run_regind(run, bin_info, ptr);
 			ret = *(prof_ctx_t **)((uintptr_t)run +
 			    bin_info->ctx0_offset + (regind *
 			    sizeof(prof_ctx_t *)));
@@ -614,14 +614,14 @@ arena_prof_ctx_set(const void *ptr, prof_ctx_t *ctx)
 			    (uintptr_t)((pageind - (mapbits >> PAGE_SHIFT)) <<
 			    PAGE_SHIFT));
 			arena_bin_t *bin = run->bin;
-			unsigned regind;
 			size_t binind;
 			arena_bin_info_t *bin_info;
+			unsigned regind;
 
 			assert(run->magic == ARENA_RUN_MAGIC);
-			regind = arena_run_regind(run, bin, ptr, bin->reg_size);
 			binind = arena_bin_index(chunk->arena, bin);
 			bin_info = &arena_bin_info[binind];
+			regind = arena_run_regind(run, bin_info, ptr);
 
 			*((prof_ctx_t **)((uintptr_t)run + bin_info->ctx0_offset
 			    + (regind * sizeof(prof_ctx_t *)))) = ctx;
