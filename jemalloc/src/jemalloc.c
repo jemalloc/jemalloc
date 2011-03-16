@@ -693,7 +693,10 @@ malloc_init_hard(void)
 	}
 
 #ifdef JEMALLOC_TCACHE
-	tcache_boot();
+	if (tcache_boot()) {
+		malloc_mutex_unlock(&init_lock);
+		return (true);
+	}
 #endif
 
 	if (huge_boot()) {

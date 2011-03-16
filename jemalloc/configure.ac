@@ -132,6 +132,16 @@ else
 fi
 AC_DEFINE_UNQUOTED([LG_SIZEOF_INT], [$LG_SIZEOF_INT])
 
+AC_CHECK_SIZEOF([long])
+if test "x${ac_cv_sizeof_long}" = "x8" ; then
+  LG_SIZEOF_LONG=3
+elif test "x${ac_cv_sizeof_long}" = "x4" ; then
+  LG_SIZEOF_LONG=2
+else
+  AC_MSG_ERROR([Unsupported long size: ${ac_cv_sizeof_long}])
+fi
+AC_DEFINE_UNQUOTED([LG_SIZEOF_LONG], [$LG_SIZEOF_LONG])
+
 AC_CANONICAL_HOST
 dnl CPU-specific settings.
 CPU_SPINWAIT=""
@@ -751,6 +761,14 @@ AC_SUBST([enable_tls])
 if test "x${enable_tls}" = "x0" ; then
   AC_DEFINE_UNQUOTED([NO_TLS], [ ])
 fi
+
+dnl ============================================================================
+dnl Check for ffsl(3), and fail if not found.  This function exists on all
+dnl platforms that jemalloc currently has a chance of functioning on without
+dnl modification.
+
+AC_CHECK_FUNC([ffsl], [],
+	      [AC_MSG_ERROR([Cannot build without ffsl(3)])])
 
 dnl ============================================================================
 dnl Check for allocator-related functions that should be wrapped.

@@ -55,8 +55,9 @@ extern void	(*JEMALLOC_P(malloc_message))(void *wcbopaque, const char *s);
  * Define a custom assert() in order to reduce the chances of deadlock during
  * assertion failure.
  */
-#ifdef JEMALLOC_DEBUG
-#  define assert(e) do {						\
+#ifndef assert
+#  ifdef JEMALLOC_DEBUG
+#    define assert(e) do {						\
 	if (!(e)) {							\
 		char line_buf[UMAX2S_BUFSIZE];				\
 		malloc_write("<jemalloc>: ");				\
@@ -70,8 +71,15 @@ extern void	(*JEMALLOC_P(malloc_message))(void *wcbopaque, const char *s);
 		abort();						\
 	}								\
 } while (0)
+#  else
+#    define assert(e)
+#  endif
+#endif
+
+#ifdef JEMALLOC_DEBUG
+#  define dassert(e) assert(e)
 #else
-#define assert(e)
+#  define dassert(e)
 #endif
 
 /*
@@ -146,7 +154,19 @@ extern void	(*JEMALLOC_P(malloc_message))(void *wcbopaque, const char *s);
 #define	QUANTUM_CEILING(a)						\
 	(((a) + QUANTUM_MASK) & ~QUANTUM_MASK)
 
+#define	LONG			((size_t)(1U << LG_SIZEOF_LONG))
+#define	LONG_MASK		(LONG - 1)
+
+/* Return the smallest long multiple that is >= a. */
+#define	LONG_CEILING(a)						\
+	(((a) + LONG_MASK) & ~LONG_MASK)
+
 #define	SIZEOF_PTR		(1U << LG_SIZEOF_PTR)
+#define	PTR_MASK		(SIZEOF_PTR - 1)
+
+/* Return the smallest (void *) multiple that is >= a. */
+#define	PTR_CEILING(a)						\
+	(((a) + PTR_MASK) & ~PTR_MASK)
 
 /*
  * Maximum size of L1 cache line.  This is used to avoid cache line aliasing.
@@ -199,6 +219,7 @@ extern void	(*JEMALLOC_P(malloc_message))(void *wcbopaque, const char *s);
 #include "jemalloc/internal/ctl.h"
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/mb.h"
+#include "jemalloc/internal/bitmap.h"
 #include "jemalloc/internal/extent.h"
 #include "jemalloc/internal/arena.h"
 #include "jemalloc/internal/base.h"
@@ -222,6 +243,7 @@ extern void	(*JEMALLOC_P(malloc_message))(void *wcbopaque, const char *s);
 #include "jemalloc/internal/ctl.h"
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/mb.h"
+#include "jemalloc/internal/bitmap.h"
 #include "jemalloc/internal/extent.h"
 #include "jemalloc/internal/arena.h"
 #include "jemalloc/internal/base.h"
@@ -335,6 +357,7 @@ void	jemalloc_postfork(void);
 #include "jemalloc/internal/ctl.h"
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/mb.h"
+#include "jemalloc/internal/bitmap.h"
 #include "jemalloc/internal/extent.h"
 #include "jemalloc/internal/arena.h"
 #include "jemalloc/internal/base.h"
@@ -545,6 +568,7 @@ thread_allocated_get(void)
 #endif
 #endif
 
+#include "jemalloc/internal/bitmap.h"
 #include "jemalloc/internal/rtree.h"
 #include "jemalloc/internal/tcache.h"
 #include "jemalloc/internal/arena.h"
@@ -628,7 +652,7 @@ isalloc(const void *ptr)
 	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
 	if (chunk != ptr) {
 		/* Region. */
-		assert(chunk->arena->magic == ARENA_MAGIC);
+		dassert(chunk->arena->magic == ARENA_MAGIC);
 
 #ifdef JEMALLOC_PROF
 		ret = arena_salloc_demote(ptr);

@@ -140,4 +140,7 @@
 /* sizeof(int) == 2^LG_SIZEOF_INT. */
 #undef LG_SIZEOF_INT
 
+/* sizeof(long) == 2^LG_SIZEOF_LONG. */
+#undef LG_SIZEOF_LONG
+
 #endif /* JEMALLOC_DEFS_H_ */

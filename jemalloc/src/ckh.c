@@ -73,7 +73,7 @@ ckh_isearch(ckh_t *ckh, const void *key)
 	size_t hash1, hash2, bucket, cell;
 
 	assert(ckh != NULL);
-	assert(ckh->magic == CKH_MAGIC);
+	dassert(ckh->magic == CKH_MAGIC);
 
 	ckh->hash(key, ckh->lg_curbuckets, &hash1, &hash2);
 
@@ -396,7 +396,7 @@ ckh_delete(ckh_t *ckh)
 {
 
 	assert(ckh != NULL);
-	assert(ckh->magic == CKH_MAGIC);
+	dassert(ckh->magic == CKH_MAGIC);
 
 #ifdef CKH_VERBOSE
 	malloc_printf(
@@ -421,7 +421,7 @@ ckh_count(ckh_t *ckh)
 {
 
 	assert(ckh != NULL);
-	assert(ckh->magic == CKH_MAGIC);
+	dassert(ckh->magic == CKH_MAGIC);
 
 	return (ckh->count);
 }
@@ -452,7 +452,7 @@ ckh_insert(ckh_t *ckh, const void *key, const void *data)
 	bool ret;
 
 	assert(ckh != NULL);
-	assert(ckh->magic == CKH_MAGIC);
+	dassert(ckh->magic == CKH_MAGIC);
 	assert(ckh_search(ckh, key, NULL, NULL));
 
 #ifdef CKH_COUNT
@@ -477,7 +477,7 @@ ckh_remove(ckh_t *ckh, const void *searchkey, void **key, void **data)
 	size_t cell;
 
 	assert(ckh != NULL);
-	assert(ckh->magic == CKH_MAGIC);
+	dassert(ckh->magic == CKH_MAGIC);
 
 	cell = ckh_isearch(ckh, searchkey);
 	if (cell != SIZE_T_MAX) {
@@ -509,7 +509,7 @@ ckh_search(ckh_t *ckh, const void *searchkey, void **key, void **data)
 	size_t cell;
 
 	assert(ckh != NULL);
-	assert(ckh->magic == CKH_MAGIC);
+	dassert(ckh->magic == CKH_MAGIC);
 
 	cell = ckh_isearch(ckh, searchkey);
 	if (cell != SIZE_T_MAX) {
