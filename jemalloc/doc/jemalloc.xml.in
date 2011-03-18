@@ -1644,6 +1644,16 @@ malloc_conf = "xmalloc:true";]]></programlisting>
 
       <varlistentry>
         <term>
+          <mallctl>stats.arenas.&lt;i&gt;.nthreads</mallctl>
+          (<type>unsigned</type>)
+          <literal>r-</literal>
+        </term>
+        <listitem><para>Number of threads currently assigned to
+        arena.</para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term>
           <mallctl>stats.arenas.&lt;i&gt;.pactive</mallctl>
           (<type>size_t</type>)
           <literal>r-</literal>

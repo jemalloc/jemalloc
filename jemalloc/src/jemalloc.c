@@ -7,12 +7,10 @@
 malloc_mutex_t		arenas_lock;
 arena_t			**arenas;
 unsigned		narenas;
-static unsigned		next_arena;
 
+pthread_key_t		arenas_tsd;
 #ifndef NO_TLS
 __thread arena_t	*arenas_tls JEMALLOC_ATTR(tls_model("initial-exec"));
-#else
-pthread_key_t		arenas_tsd;
 #endif
 
 #ifdef JEMALLOC_STATS
@@ -70,6 +68,7 @@ size_t	opt_narenas = 0;
 static void	wrtmessage(void *cbopaque, const char *s);
 static void	stats_print_atexit(void);
 static unsigned	malloc_ncpus(void);
+static void	arenas_cleanup(void *arg);
 #if (defined(JEMALLOC_STATS) && defined(NO_TLS))
 static void	thread_allocated_cleanup(void *arg);
 #endif
@@ -147,13 +146,53 @@ choose_arena_hard(void)
 	arena_t *ret;
 
 	if (narenas > 1) {
+		unsigned i, choose, first_null;
+
+		choose = 0;
+		first_null = narenas;
 		malloc_mutex_lock(&arenas_lock);
-		if ((ret = arenas[next_arena]) == NULL)
-			ret = arenas_extend(next_arena);
-		next_arena = (next_arena + 1) % narenas;
+		assert(arenas[i] != NULL);
+		for (i = 1; i < narenas; i++) {
+			if (arenas[i] != NULL) {
+				/*
+				 * Choose the first arena that has the lowest
+				 * number of threads assigned to it.
+				 */
+				if (arenas[i]->nthreads <
+				    arenas[choose]->nthreads)
+					choose = i;
+			} else if (first_null == narenas) {
+				/*
+				 * Record the index of the first uninitialized
+				 * arena, in case all extant arenas are in use.
+				 *
+				 * NB: It is possible for there to be
+				 * discontinuities in terms of initialized
+				 * versus uninitialized arenas, due to the
+				 * "thread.arena" mallctl.
+				 */
+				first_null = i;
+			}
+		}
+
+		if (arenas[choose] == 0 || first_null == narenas) {
+			/*
+			 * Use an unloaded arena, or the least loaded arena if
+			 * all arenas are already initialized.
+			 */
+			ret = arenas[choose];
+		} else {
+			/* Initialize a new arena. */
+			ret = arenas_extend(first_null);
+		}
+		ret->nthreads++;
 		malloc_mutex_unlock(&arenas_lock);
-	} else
+	} else {
 		ret = arenas[0];
+		malloc_mutex_lock(&arenas_lock);
+		ret->nthreads++;
+		malloc_mutex_unlock(&arenas_lock);
+	}
 
 	ARENA_SET(ret);
 
@@ -257,6 +296,16 @@ malloc_ncpus(void)
 	ret = (unsigned)result;
 
 	return (ret);
+}
+
+static void
+arenas_cleanup(void *arg)
+{
+	arena_t *arena = (arena_t *)arg;
+
+	malloc_mutex_lock(&arenas_lock);
+	arena->nthreads--;
+	malloc_mutex_unlock(&arenas_lock);
 }
 
 #if (defined(JEMALLOC_STATS) && defined(NO_TLS))
@@ -737,6 +786,7 @@ malloc_init_hard(void)
 	 * threaded mode.
 	 */
 	ARENA_SET(arenas[0]);
+	arenas[0]->nthreads++;
 
 	if (malloc_mutex_init(&arenas_lock))
 		return (true);
@@ -779,14 +829,10 @@ malloc_init_hard(void)
 		malloc_write(")\n");
 	}
 
-	next_arena = (narenas > 0) ? 1 : 0;
-
-#ifdef NO_TLS
-	if (pthread_key_create(&arenas_tsd, NULL) != 0) {
+	if (pthread_key_create(&arenas_tsd, arenas_cleanup) != 0) {
 		malloc_mutex_unlock(&init_lock);
 		return (true);
 	}
-#endif
 
 	/* Allocate and initialize arenas. */
 	arenas = (arena_t **)base_alloc(sizeof(arena_t *) * narenas);
@@ -818,7 +864,6 @@ malloc_init_hard(void)
 	malloc_mutex_unlock(&init_lock);
 	return (false);
 }
-
 
 #ifdef JEMALLOC_ZONE
 JEMALLOC_ATTR(constructor)

@@ -293,6 +293,7 @@ extern size_t		lg_pagesize;
 extern unsigned		ncpus;
 
 extern malloc_mutex_t	arenas_lock; /* Protects arenas initialization. */
+extern pthread_key_t	arenas_tsd;
 #ifndef NO_TLS
 /*
  * Map of pthread_self() --> arenas[???], used for selecting an arena to use
@@ -302,9 +303,9 @@ extern __thread arena_t	*arenas_tls JEMALLOC_ATTR(tls_model("initial-exec"));
 #  define ARENA_GET()	arenas_tls
 #  define ARENA_SET(v)	do {						\
 	arenas_tls = (v);						\
+	pthread_setspecific(arenas_tsd, (void *)(v));			\
 } while (0)
 #else
-extern pthread_key_t	arenas_tsd;
 #  define ARENA_GET()	((arena_t *)pthread_getspecific(arenas_tsd))
 #  define ARENA_SET(v)	do {						\
 	pthread_setspecific(arenas_tsd, (void *)(v));			\

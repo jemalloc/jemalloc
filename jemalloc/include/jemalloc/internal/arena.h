@@ -295,8 +295,18 @@ struct arena_s {
 	unsigned		ind;
 
 	/*
-	 * All non-bin-related operations on this arena require that lock be
-	 * locked.
+	 * Number of threads currently assigned to this arena.  This field is
+	 * protected by arenas_lock.
+	 */
+	unsigned		nthreads;
+
+	/*
+	 * There are three classes of arena operations from a locking
+	 * perspective:
+	 * 1) Thread asssignment (modifies nthreads) is protected by
+	 *    arenas_lock.
+	 * 2) Bin-related operations are protected by bin locks.
+	 * 3) Chunk- and run-related operations are protected by this mutex.
 	 */
 	malloc_mutex_t		lock;
 

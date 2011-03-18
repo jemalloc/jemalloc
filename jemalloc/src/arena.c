@@ -2175,6 +2175,7 @@ arena_new(arena_t *arena, unsigned ind)
 	arena_bin_t *bin;
 
 	arena->ind = ind;
+	arena->nthreads = 0;
 
 	if (malloc_mutex_init(&arena->lock))
 		return (true);

@@ -319,6 +319,7 @@ static void
 stats_arena_print(void (*write_cb)(void *, const char *), void *cbopaque,
     unsigned i)
 {
+	unsigned nthreads;
 	size_t pagesize, pactive, pdirty, mapped;
 	uint64_t npurge, nmadvise, purged;
 	size_t small_allocated;
@@ -328,6 +329,9 @@ stats_arena_print(void (*write_cb)(void *, const char *), void *cbopaque,
 
 	CTL_GET("arenas.pagesize", &pagesize, size_t);
 
+	CTL_I_GET("stats.arenas.0.nthreads", &nthreads, unsigned);
+	malloc_cprintf(write_cb, cbopaque,
+	    "assigned threads: %u\n", nthreads);
 	CTL_I_GET("stats.arenas.0.pactive", &pactive, size_t);
 	CTL_I_GET("stats.arenas.0.pdirty", &pdirty, size_t);
 	CTL_I_GET("stats.arenas.0.npurge", &npurge, uint64_t);
