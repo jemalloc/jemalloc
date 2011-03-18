@@ -1360,7 +1360,8 @@ arena_tcache_fill_small(arena_t *arena, tcache_bin_t *tbin, size_t binind
 			ptr = arena_bin_malloc_hard(arena, bin);
 		if (ptr == NULL)
 			break;
-		tbin->avail[i] = ptr;
+		/* Insert such that low regions get used first. */
+		tbin->avail[nfill - 1 - i] = ptr;
 	}
 #ifdef JEMALLOC_STATS
 	bin->stats.allocated += (i - tbin->ncached) *
