@@ -1,4 +1,4 @@
-#define	RTREE_C_
+#define	JEMALLOC_RTREE_C_
 #include "jemalloc/internal/jemalloc_internal.h"
 
 rtree_t *

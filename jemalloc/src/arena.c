@@ -315,6 +315,9 @@ arena_run_split(arena_t *arena, arena_run_t *run, size_t size, bool large,
 	size_t old_ndirty, run_ind, total_pages, need_pages, rem_pages, i;
 	size_t flag_dirty;
 	arena_avail_tree_t *runs_avail;
+#ifdef JEMALLOC_STATS
+	size_t cactive_diff;
+#endif
 
 	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(run);
 	old_ndirty = chunk->ndirty;
@@ -333,6 +336,13 @@ arena_run_split(arena_t *arena, arena_run_t *run, size_t size, bool large,
 	rem_pages = total_pages - need_pages;
 
 	arena_avail_tree_remove(runs_avail, &chunk->map[run_ind-map_bias]);
+#ifdef JEMALLOC_STATS
+	/* Update stats_cactive if nactive is crossing a chunk multiple. */
+	cactive_diff = CHUNK_CEILING((arena->nactive + need_pages) <<
+	    PAGE_SHIFT) - CHUNK_CEILING(arena->nactive << PAGE_SHIFT);
+	if (cactive_diff != 0)
+		stats_cactive_add(cactive_diff);
+#endif
 	arena->nactive += need_pages;
 
 	/* Keep track of trailing unused pages for later use. */
@@ -720,6 +730,9 @@ arena_chunk_purge(arena_t *arena, arena_chunk_t *chunk)
 			assert(pageind + npages <= chunk_npages);
 			if (mapelm->bits & CHUNK_MAP_DIRTY) {
 				size_t i;
+#ifdef JEMALLOC_STATS
+				size_t cactive_diff;
+#endif
 
 				arena_avail_tree_remove(
 				    &arena->runs_avail_dirty, mapelm);
@@ -742,6 +755,17 @@ arena_chunk_purge(arena_t *arena, arena_chunk_t *chunk)
 					    CHUNK_MAP_ALLOCATED;
 				}
 
+#ifdef JEMALLOC_STATS
+				/*
+				 * Update stats_cactive if nactive is crossing a
+				 * chunk multiple.
+				 */
+				cactive_diff = CHUNK_CEILING((arena->nactive +
+				    npages) << PAGE_SHIFT) -
+				    CHUNK_CEILING(arena->nactive << PAGE_SHIFT);
+				if (cactive_diff != 0)
+					stats_cactive_add(cactive_diff);
+#endif
 				arena->nactive += npages;
 				/* Append to list for later processing. */
 				ql_elm_new(mapelm, u.ql_link);
@@ -930,6 +954,9 @@ arena_run_dalloc(arena_t *arena, arena_run_t *run, bool dirty)
 	arena_chunk_t *chunk;
 	size_t size, run_ind, run_pages, flag_dirty;
 	arena_avail_tree_t *runs_avail;
+#ifdef JEMALLOC_STATS
+	size_t cactive_diff;
+#endif
 
 	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(run);
 	run_ind = (size_t)(((uintptr_t)run - (uintptr_t)chunk)
@@ -951,6 +978,13 @@ arena_run_dalloc(arena_t *arena, arena_run_t *run, bool dirty)
 		size = bin_info->run_size;
 	}
 	run_pages = (size >> PAGE_SHIFT);
+#ifdef JEMALLOC_STATS
+	/* Update stats_cactive if nactive is crossing a chunk multiple. */
+	cactive_diff = CHUNK_CEILING(arena->nactive << PAGE_SHIFT) -
+	    CHUNK_CEILING((arena->nactive - run_pages) << PAGE_SHIFT);
+	if (cactive_diff != 0)
+		stats_cactive_sub(cactive_diff);
+#endif
 	arena->nactive -= run_pages;
 
 	/*

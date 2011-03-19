@@ -193,6 +193,7 @@ CTL_PROTO(stats_arenas_i_purged)
 #endif
 INDEX_PROTO(stats_arenas_i)
 #ifdef JEMALLOC_STATS
+CTL_PROTO(stats_cactive)
 CTL_PROTO(stats_allocated)
 CTL_PROTO(stats_active)
 CTL_PROTO(stats_mapped)
@@ -460,6 +461,7 @@ static const ctl_node_t stats_arenas_node[] = {
 
 static const ctl_node_t stats_node[] = {
 #ifdef JEMALLOC_STATS
+	{NAME("cactive"),		CTL(stats_cactive)},
 	{NAME("allocated"),		CTL(stats_allocated)},
 	{NAME("active"),		CTL(stats_active)},
 	{NAME("mapped"),		CTL(stats_mapped)},
@@ -1580,6 +1582,7 @@ RETURN:
 }
 
 #ifdef JEMALLOC_STATS
+CTL_RO_GEN(stats_cactive, &stats_cactive, size_t *)
 CTL_RO_GEN(stats_allocated, ctl_stats.allocated, size_t)
 CTL_RO_GEN(stats_active, ctl_stats.active, size_t)
 CTL_RO_GEN(stats_mapped, ctl_stats.mapped, size_t)

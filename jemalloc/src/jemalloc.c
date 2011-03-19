@@ -151,7 +151,7 @@ choose_arena_hard(void)
 		choose = 0;
 		first_null = narenas;
 		malloc_mutex_lock(&arenas_lock);
-		assert(arenas[i] != NULL);
+		assert(arenas[0] != NULL);
 		for (i = 1; i < narenas; i++) {
 			if (arenas[i] != NULL) {
 				/*

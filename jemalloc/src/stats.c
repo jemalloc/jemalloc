@@ -39,6 +39,10 @@
 
 bool	opt_stats_print = false;
 
+#ifdef JEMALLOC_STATS
+size_t	stats_cactive = 0;
+#endif
+
 /******************************************************************************/
 /* Function prototypes for non-inline static functions. */
 
@@ -673,21 +677,26 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 #ifdef JEMALLOC_STATS
 	{
 		int err;
-		size_t ssz;
+		size_t sszp, ssz;
+		size_t *cactive;
 		size_t allocated, active, mapped;
 		size_t chunks_current, chunks_high, swap_avail;
 		uint64_t chunks_total;
 		size_t huge_allocated;
 		uint64_t huge_nmalloc, huge_ndalloc;
 
+		sszp = sizeof(size_t *);
 		ssz = sizeof(size_t);
 
+		CTL_GET("stats.cactive", &cactive, size_t *);
 		CTL_GET("stats.allocated", &allocated, size_t);
 		CTL_GET("stats.active", &active, size_t);
 		CTL_GET("stats.mapped", &mapped, size_t);
 		malloc_cprintf(write_cb, cbopaque,
-		    "Allocated: %zu, active: %zu, mapped: %zu\n", allocated,
-		    active, mapped);
+		    "Allocated: %zu, active: %zu, mapped: %zu\n",
+		    allocated, active, mapped);
+		malloc_cprintf(write_cb, cbopaque,
+		    "Current active ceiling: %zu\n", atomic_read_z(cactive));
 
 		/* Print chunk stats. */
 		CTL_GET("stats.chunks.total", &chunks_total, uint64_t);
