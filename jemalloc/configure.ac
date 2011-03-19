@@ -793,6 +793,21 @@ if test "x${osatomic}" = "xyes" ; then
 fi
 
 dnl ============================================================================
+dnl Check for spinlock(3) operations as provided on Darwin.
+
+JE_COMPILABLE([Darwin OSSpin*()], [
+#include <libkern/OSAtomic.h>
+#include <inttypes.h>
+], [
+	OSSpinLock lock = 0;
+	OSSpinLockLock(&lock);
+	OSSpinLockUnlock(&lock);
+], [osspin])
+if test "x${osspin}" = "xyes" ; then
+  AC_DEFINE([JEMALLOC_OSSPIN])
+fi
+
+dnl ============================================================================
 dnl Check for allocator-related functions that should be wrapped.
 
 AC_CHECK_FUNC([memalign],

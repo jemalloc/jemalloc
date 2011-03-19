@@ -1,7 +1,11 @@
 /******************************************************************************/
 #ifdef JEMALLOC_H_TYPES
 
+#ifdef JEMALLOC_OSSPIN
+typedef OSSpinLock malloc_mutex_t;
+#else
 typedef pthread_mutex_t malloc_mutex_t;
+#endif
 
 #ifdef PTHREAD_ADAPTIVE_MUTEX_INITIALIZER_NP
 #  define MALLOC_MUTEX_INITIALIZER PTHREAD_ADAPTIVE_MUTEX_INITIALIZER_NP
@@ -41,17 +45,26 @@ JEMALLOC_INLINE void
 malloc_mutex_lock(malloc_mutex_t *mutex)
 {
 
-	if (isthreaded)
+	if (isthreaded) {
+#ifdef JEMALLOC_OSSPIN
+		OSSpinLockLock(mutex);
+#else
 		pthread_mutex_lock(mutex);
+#endif
+	}
 }
 
 JEMALLOC_INLINE bool
 malloc_mutex_trylock(malloc_mutex_t *mutex)
 {
 
-	if (isthreaded)
+	if (isthreaded) {
+#ifdef JEMALLOC_OSSPIN
+		return (OSSpinLockTry(mutex) == false);
+#else
 		return (pthread_mutex_trylock(mutex) != 0);
-	else
+#endif
+	} else
 		return (false);
 }
 
@@ -59,8 +72,13 @@ JEMALLOC_INLINE void
 malloc_mutex_unlock(malloc_mutex_t *mutex)
 {
 
-	if (isthreaded)
+	if (isthreaded) {
+#ifdef JEMALLOC_OSSPIN
+		OSSpinLockUnlock(mutex);
+#else
 		pthread_mutex_unlock(mutex);
+#endif
+	}
 }
 #endif
 

@@ -28,7 +28,13 @@ static bool		malloc_initialized = false;
 static pthread_t	malloc_initializer = (unsigned long)0;
 
 /* Used to avoid initialization races. */
-static malloc_mutex_t	init_lock = MALLOC_MUTEX_INITIALIZER;
+static malloc_mutex_t	init_lock =
+#ifdef JEMALLOC_OSSPIN
+    0
+#else
+    MALLOC_MUTEX_INITIALIZER
+#endif
+    ;
 
 #ifdef DYNAMIC_PAGE_SHIFT
 size_t		pagesize;

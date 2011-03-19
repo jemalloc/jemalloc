@@ -30,6 +30,12 @@
  */
 #undef JEMALLOC_OSATOMIC
 
+/*
+ * Defined if OSSpin*() functions are available, as provided by Darwin, and
+ * documented in the spinlock(3) manual page.
+ */
+#undef JEMALLOC_OSSPIN
+
 /* Defined if __attribute__((...)) syntax is supported. */
 #undef JEMALLOC_HAVE_ATTR
 #ifdef JEMALLOC_HAVE_ATTR
