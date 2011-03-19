@@ -771,6 +771,28 @@ AC_CHECK_FUNC([ffsl], [],
 	      [AC_MSG_ERROR([Cannot build without ffsl(3)])])
 
 dnl ============================================================================
+dnl Check for atomic(3) operations as provided on Darwin.
+
+JE_COMPILABLE([Darwin OSAtomic*()], [
+#include <libkern/OSAtomic.h>
+#include <inttypes.h>
+], [
+	{
+		int32_t x32 = 0;
+		volatile int32_t *x32p = &x32;
+		OSAtomicAdd32(1, x32p);
+	}
+	{
+		int64_t x64 = 0;
+		volatile int64_t *x64p = &x64;
+		OSAtomicAdd64(1, x64p);
+	}
+], [osatomic])
+if test "x${osatomic}" = "xyes" ; then
+  AC_DEFINE([JEMALLOC_OSATOMIC])
+fi
+
+dnl ============================================================================
 dnl Check for allocator-related functions that should be wrapped.
 
 AC_CHECK_FUNC([memalign],

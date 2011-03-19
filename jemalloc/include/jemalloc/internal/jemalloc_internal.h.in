@@ -33,6 +33,10 @@
 #define	JEMALLOC_MANGLE
 #include "../jemalloc@install_suffix@.h"
 
+#ifdef JEMALLOC_OSATOMIC
+#include <libkern/OSAtomic.h>
+#endif
+
 #ifdef JEMALLOC_ZONE
 #include <mach/mach_error.h>
 #include <mach/mach_init.h>

@@ -49,6 +49,20 @@ atomic_sub_uint64(uint64_t *p, uint64_t x)
 
 	return (__sync_sub_and_fetch(p, x));
 }
+#elif (defined(JEMALLOC_OSATOMIC))
+JEMALLOC_INLINE uint64_t
+atomic_add_uint64(uint64_t *p, uint64_t x)
+{
+
+	return (OSAtomicAdd64((int64_t)x, (int64_t *)p));
+}
+
+JEMALLOC_INLINE uint64_t
+atomic_sub_uint64(uint64_t *p, uint64_t x)
+{
+
+	return (OSAtomicAdd64(-((int64_t)x), (int64_t *)p));
+}
 #else
 #  error "Missing implementation for 64-bit atomic operations"
 #endif
@@ -67,6 +81,20 @@ atomic_sub_uint32(uint32_t *p, uint32_t x)
 {
 
 	return (__sync_sub_and_fetch(p, x));
+}
+#elif (defined(JEMALLOC_OSATOMIC))
+JEMALLOC_INLINE uint32_t
+atomic_add_uint32(uint32_t *p, uint32_t x)
+{
+
+	return (OSAtomicAdd32((int32_t)x, (int32_t *)p));
+}
+
+JEMALLOC_INLINE uint32_t
+atomic_sub_uint32(uint32_t *p, uint32_t x)
+{
+
+	return (OSAtomicAdd32(-((int32_t)x), (int32_t *)p));
 }
 #else
 #  error "Missing implementation for 32-bit atomic operations"

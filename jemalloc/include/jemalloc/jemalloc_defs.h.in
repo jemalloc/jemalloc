@@ -24,6 +24,12 @@
  */
 #undef CPU_SPINWAIT
 
+/*
+ * Defined if OSAtomic*() functions are available, as provided by Darwin, and
+ * documented in the atomic(3) manual page.
+ */
+#undef JEMALLOC_OSATOMIC
+
 /* Defined if __attribute__((...)) syntax is supported. */
 #undef JEMALLOC_HAVE_ATTR
 #ifdef JEMALLOC_HAVE_ATTR
