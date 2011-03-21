@@ -45,7 +45,8 @@ struct tcache_bin_s {
 #  ifdef JEMALLOC_STATS
 	tcache_bin_stats_t tstats;
 #  endif
-	unsigned	low_water;	/* Min # cached since last GC. */
+	int		low_water;	/* Min # cached since last GC. */
+	unsigned	lg_fill_div;	/* Fill (ncached_max >> lg_fill_div). */
 	unsigned	ncached;	/* # of cached objects. */
 	void		**avail;	/* Stack of available objects. */
 };
@@ -184,6 +185,7 @@ tcache_event(tcache_t *tcache)
 	if (tcache->ev_cnt == tcache_gc_incr) {
 		size_t binind = tcache->next_gc_bin;
 		tcache_bin_t *tbin = &tcache->tbins[binind];
+		tcache_bin_info_t *tbin_info = &tcache_bin_info[binind];
 
 		if (tbin->low_water > 0) {
 			/*
@@ -207,6 +209,20 @@ tcache_event(tcache_t *tcache)
 #endif
 				    );
 			}
+			/*
+			 * Reduce fill count by 2X.  Limit lg_fill_div such that
+			 * the fill count is always at least 1.
+			 */
+			if ((tbin_info->ncached_max >> (tbin->lg_fill_div+1))
+			    >= 1)
+				tbin->lg_fill_div++;
+		} else if (tbin->low_water < 0) {
+			/*
+			 * Increase fill count by 2X.  Make sure lg_fill_div
+			 * stays greater than 0.
+			 */
+			if (tbin->lg_fill_div > 1)
+				tbin->lg_fill_div--;
 		}
 		tbin->low_water = tbin->ncached;
 
@@ -222,10 +238,12 @@ tcache_alloc_easy(tcache_bin_t *tbin)
 {
 	void *ret;
 
-	if (tbin->ncached == 0)
+	if (tbin->ncached == 0) {
+		tbin->low_water = -1;
 		return (NULL);
+	}
 	tbin->ncached--;
-	if (tbin->ncached < tbin->low_water)
+	if ((int)tbin->ncached < tbin->low_water)
 		tbin->low_water = tbin->ncached;
 	ret = tbin->avail[tbin->ncached];
 	return (ret);

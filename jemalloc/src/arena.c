@@ -1386,8 +1386,8 @@ arena_tcache_fill_small(arena_t *arena, tcache_bin_t *tbin, size_t binind
 #endif
 	bin = &arena->bins[binind];
 	malloc_mutex_lock(&bin->lock);
-	for (i = 0, nfill = (tcache_bin_info[binind].ncached_max >> 1);
-	    i < nfill; i++) {
+	for (i = 0, nfill = (tcache_bin_info[binind].ncached_max >>
+	    tbin->lg_fill_div); i < nfill; i++) {
 		if ((run = bin->runcur) != NULL && run->nfree > 0)
 			ptr = arena_run_reg_alloc(run, &arena_bin_info[binind]);
 		else
@@ -1398,8 +1398,7 @@ arena_tcache_fill_small(arena_t *arena, tcache_bin_t *tbin, size_t binind
 		tbin->avail[nfill - 1 - i] = ptr;
 	}
 #ifdef JEMALLOC_STATS
-	bin->stats.allocated += (i - tbin->ncached) *
-	    arena_bin_info[binind].reg_size;
+	bin->stats.allocated += i * arena_bin_info[binind].reg_size;
 	bin->stats.nmalloc += i;
 	bin->stats.nrequests += tbin->tstats.nrequests;
 	bin->stats.nfills++;

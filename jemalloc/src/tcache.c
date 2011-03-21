@@ -135,7 +135,7 @@ tcache_bin_flush_small(tcache_bin_t *tbin, size_t binind, unsigned rem
 	memmove(tbin->avail, &tbin->avail[tbin->ncached - rem],
 	    rem * sizeof(void *));
 	tbin->ncached = rem;
-	if (tbin->ncached < tbin->low_water)
+	if ((int)tbin->ncached < tbin->low_water)
 		tbin->low_water = tbin->ncached;
 }
 
@@ -218,7 +218,7 @@ tcache_bin_flush_large(tcache_bin_t *tbin, size_t binind, unsigned rem
 	memmove(tbin->avail, &tbin->avail[tbin->ncached - rem],
 	    rem * sizeof(void *));
 	tbin->ncached = rem;
-	if (tbin->ncached < tbin->low_water)
+	if ((int)tbin->ncached < tbin->low_water)
 		tbin->low_water = tbin->ncached;
 }
 
@@ -265,6 +265,7 @@ tcache_create(arena_t *arena)
 	tcache->arena = arena;
 	assert((TCACHE_NSLOTS_SMALL_MAX & 1U) == 0);
 	for (i = 0; i < nhbins; i++) {
+		tcache->tbins[i].lg_fill_div = 1;
 		tcache->tbins[i].avail = (void **)((uintptr_t)tcache +
 		    (uintptr_t)stack_offset);
 		stack_offset += tcache_bin_info[i].ncached_max * sizeof(void *);
