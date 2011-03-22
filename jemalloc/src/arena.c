@@ -2427,6 +2427,7 @@ small_size2bin_init_hard(void)
  *   *) bin_info->run_size >= min_run_size
  *   *) bin_info->run_size <= arena_maxclass
  *   *) run header overhead <= RUN_MAX_OVRHD (or header overhead relaxed).
+ *   *) bin_info->nregs <= RUN_MAXREGS
  *
  * bin_info->nregs, bin_info->bitmap_offset, and bin_info->reg0_offset are also
  * calculated here, since these settings are all interdependent.
@@ -2459,6 +2460,10 @@ bin_info_run_size_calc(arena_bin_info_t *bin_info, size_t min_run_size)
 	try_run_size = min_run_size;
 	try_nregs = ((try_run_size - sizeof(arena_run_t)) / bin_info->reg_size)
 	    + 1; /* Counter-act try_nregs-- in loop. */
+	if (try_nregs > RUN_MAXREGS) {
+		try_nregs = RUN_MAXREGS
+		    + 1; /* Counter-act try_nregs-- in loop. */
+	}
 	do {
 		try_nregs--;
 		try_hdr_size = sizeof(arena_run_t);
@@ -2500,6 +2505,10 @@ bin_info_run_size_calc(arena_bin_info_t *bin_info, size_t min_run_size)
 		try_nregs = ((try_run_size - sizeof(arena_run_t)) /
 		    bin_info->reg_size)
 		    + 1; /* Counter-act try_nregs-- in loop. */
+		if (try_nregs > RUN_MAXREGS) {
+			try_nregs = RUN_MAXREGS
+			    + 1; /* Counter-act try_nregs-- in loop. */
+		}
 		do {
 			try_nregs--;
 			try_hdr_size = sizeof(arena_run_t);
@@ -2526,7 +2535,8 @@ bin_info_run_size_calc(arena_bin_info_t *bin_info, size_t min_run_size)
 	} while (try_run_size <= arena_maxclass
 	    && try_run_size <= arena_maxclass
 	    && RUN_MAX_OVRHD * (bin_info->reg_size << 3) > RUN_MAX_OVRHD_RELAX
-	    && (try_reg0_offset << RUN_BFP) > RUN_MAX_OVRHD * try_run_size);
+	    && (try_reg0_offset << RUN_BFP) > RUN_MAX_OVRHD * try_run_size
+	    && try_nregs < RUN_MAXREGS);
 
 	assert(good_hdr_size <= good_reg0_offset);
 

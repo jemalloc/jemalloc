@@ -58,6 +58,10 @@
 #define	RUN_MAX_OVRHD		0x0000003dU
 #define	RUN_MAX_OVRHD_RELAX	0x00001800U
 
+/* Maximum number of regions in one run. */
+#define	LG_RUN_MAXREGS		11
+#define	RUN_MAXREGS		(1U << LG_RUN_MAXREGS)
+
 /*
  * The minimum ratio of active:dirty pages per arena is computed as:
  *
@@ -556,8 +560,8 @@ arena_run_regind(arena_run_t *run, arena_bin_info_t *bin_info, const void *ptr)
 		 * divide by 0, and 1 and 2 are both powers of two, which are
 		 * handled above.
 		 */
-#define	SIZE_INV_SHIFT 21
-#define	SIZE_INV(s) (((1U << SIZE_INV_SHIFT) / (s)) + 1)
+#define	SIZE_INV_SHIFT	((sizeof(unsigned) << 3) - LG_RUN_MAXREGS)
+#define	SIZE_INV(s)	(((1U << SIZE_INV_SHIFT) / (s)) + 1)
 		static const unsigned size_invs[] = {
 		    SIZE_INV(3),
 		    SIZE_INV(4), SIZE_INV(5), SIZE_INV(6), SIZE_INV(7),

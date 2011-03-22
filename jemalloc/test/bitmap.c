@@ -13,7 +13,11 @@
  */
 #include "../src/bitmap.c"
 
-#define	MAXBITS	4500
+#if (LG_BITMAP_MAXBITS > 12)
+#  define MAXBITS	4500
+#else
+#  define MAXBITS	(1U << LG_BITMAP_MAXBITS)
+#endif
 
 static void
 test_bitmap_size(void)

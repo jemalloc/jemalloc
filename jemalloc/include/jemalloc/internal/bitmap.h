@@ -2,7 +2,7 @@
 #ifdef JEMALLOC_H_TYPES
 
 /* Maximum bitmap bit count is 2^LG_BITMAP_MAXBITS. */
-#define	LG_BITMAP_MAXBITS	18
+#define	LG_BITMAP_MAXBITS	LG_RUN_MAXREGS
 
 typedef struct bitmap_level_s bitmap_level_t;
 typedef struct bitmap_info_s bitmap_info_t;

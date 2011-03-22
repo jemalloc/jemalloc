@@ -70,7 +70,9 @@ atomic_sub_uint64(uint64_t *p, uint64_t x)
 	return (OSAtomicAdd64(-((int64_t)x), (int64_t *)p));
 }
 #else
-#  error "Missing implementation for 64-bit atomic operations"
+#  if (LG_SIZEOF_PTR == 3)
+#    error "Missing implementation for 64-bit atomic operations"
+#  endif
 #endif
 
 /* 32-bit operations. */
