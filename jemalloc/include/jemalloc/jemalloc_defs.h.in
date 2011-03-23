@@ -62,9 +62,6 @@
 /* Use libunwind for profile backtracing if defined. */
 #undef JEMALLOC_PROF_LIBUNWIND
 
-/* Use libunwind's backtrace caching for profile backtracing if defined. */
-#undef JEMALLOC_PROF_LIBUNWIND_CACHE
-
 /* Use libgcc for profile backtracing if defined. */
 #undef JEMALLOC_PROF_LIBGCC
 

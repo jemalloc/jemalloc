@@ -44,12 +44,6 @@ pthread_key_t	prof_tdata_tsd;
 static ckh_t		bt2ctx;
 static malloc_mutex_t	bt2ctx_mtx;
 
-#ifdef JEMALLOC_PROF_LIBUNWIND_CACHE
-static __thread unw_tdep_cache_t	*libunwind_cache_tls
-    JEMALLOC_ATTR(tls_model("initial-exec"));
-static pthread_key_t	libunwind_cache_tsd;
-#endif
-
 static malloc_mutex_t	prof_dump_seq_mtx;
 static uint64_t		prof_dump_seq;
 static uint64_t		prof_dump_iseq;
@@ -101,9 +95,6 @@ static void	prof_bt_hash(const void *key, unsigned minbits, size_t *hash1,
     size_t *hash2);
 static bool	prof_bt_keycomp(const void *k1, const void *k2);
 static void	prof_tdata_cleanup(void *arg);
-#ifdef JEMALLOC_PROF_LIBUNWIND_CACHE
-static void	libunwind_cache_thread_cleanup(void *arg);
-#endif
 
 /******************************************************************************/
 
@@ -186,11 +177,6 @@ prof_backtrace(prof_bt_t *bt, unsigned nignore, unsigned max)
 	unw_cursor_t cursor;
 	unsigned i;
 	int err;
-#ifdef JEMALLOC_PROF_LIBUNWIND_CACHE
-	unw_tdep_cache_t *cache;
-	int len = nignore + 1 + max;
-	void* vec[len];
-#endif
 
 	assert(bt->len == 0);
 	assert(bt->vec != NULL);
@@ -199,53 +185,24 @@ prof_backtrace(prof_bt_t *bt, unsigned nignore, unsigned max)
 	unw_getcontext(&uc);
 	unw_init_local(&cursor, &uc);
 
-#ifdef JEMALLOC_PROF_LIBUNWIND_CACHE
-	cache = libunwind_cache_tls;
-	if (cache == NULL) {
-		cache = unw_tdep_make_frame_cache(imalloc, idalloc);
-		if (cache != NULL) {
-			libunwind_cache_tls = cache;
-			pthread_setspecific(libunwind_cache_tsd, cache);
-		}
+	/* Throw away (nignore+1) stack frames, if that many exist. */
+	for (i = 0; i < nignore + 1; i++) {
+		err = unw_step(&cursor);
+		if (err <= 0)
+			return;
 	}
-	if (cache != NULL && unw_tdep_trace(&cursor, vec, &len, cache) >= 0) {
-		/*
-		 * The trace cache successfully looked up the backtrace.
-		 * Discard the first (nignore+1) elements when copying the
-		 * result, since there was no way to tell unw_tdep_trace() to
-		 * skip those frames.
-		 */
-		assert(len >= nignore + 1);
-		len -= nignore + 1;
-		if (len > 0) {
-			memcpy(bt->vec, &vec[nignore + 1], sizeof(void *) *
-			    len);
-			bt->len = len;
-		}
-	} else {
-#endif
-		/* Throw away (nignore+1) stack frames, if that many exist. */
-		for (i = 0; i < nignore + 1; i++) {
-			err = unw_step(&cursor);
-			if (err <= 0)
-				return;
-		}
 
-		/*
-		 * Iterate over stack frames until there are no more, or until
-		 * no space remains in bt.
-		 */
-		for (i = 0; i < max; i++) {
-			unw_get_reg(&cursor, UNW_REG_IP,
-			    (unw_word_t *)&bt->vec[i]);
-			bt->len++;
-			err = unw_step(&cursor);
-			if (err <= 0)
-				break;
-		}
-#ifdef JEMALLOC_PROF_LIBUNWIND_CACHE
+	/*
+	 * Iterate over stack frames until there are no more, or until no space
+	 * remains in bt.
+	 */
+	for (i = 0; i < max; i++) {
+		unw_get_reg(&cursor, UNW_REG_IP, (unw_word_t *)&bt->vec[i]);
+		bt->len++;
+		err = unw_step(&cursor);
+		if (err <= 0)
+			break;
 	}
-#endif
 }
 #endif
 #ifdef JEMALLOC_PROF_LIBGCC
@@ -1199,19 +1156,6 @@ prof_tdata_cleanup(void *arg)
 	}
 }
 
-#ifdef JEMALLOC_PROF_LIBUNWIND_CACHE
-static void
-libunwind_cache_thread_cleanup(void *arg)
-{
-	unw_tdep_cache_t *cache = libunwind_cache_tls;
-
-	if (cache != NULL) {
-		unw_tdep_free_frame_cache(cache);
-		libunwind_cache_tls = NULL;
-	}
-}
-#endif
-
 void
 prof_boot0(void)
 {
@@ -1264,14 +1208,6 @@ prof_boot2(void)
 			    "<jemalloc>: Error in pthread_key_create()\n");
 			abort();
 		}
-#ifdef JEMALLOC_PROF_LIBUNWIND_CACHE
-		if (pthread_key_create(&libunwind_cache_tsd,
-		    libunwind_cache_thread_cleanup) != 0) {
-			malloc_write(
-			    "<jemalloc>: Error in pthread_key_create()\n");
-			abort();
-		}
-#endif
 
 		prof_bt_max = (1U << opt_lg_prof_bt_max);
 		if (malloc_mutex_init(&prof_dump_seq_mtx))

@@ -29,7 +29,7 @@ dnl JE_COMPILABLE(label, hcode, mcode, rvar)
 AC_DEFUN([JE_COMPILABLE],
 [
 AC_MSG_CHECKING([whether $1 is compilable])
-AC_COMPILE_IFELSE([AC_LANG_PROGRAM(
+AC_RUN_IFELSE([AC_LANG_PROGRAM(
 [$2], [$3])],
               AC_MSG_RESULT([yes])
               [$4="yes"],
@@ -454,17 +454,6 @@ if test "x$backtrace_method" = "x" -a "x$enable_prof_libunwind" = "x1" ; then
   if test "x${enable_prof_libunwind}" = "x1" ; then
     backtrace_method="libunwind"
     AC_DEFINE([JEMALLOC_PROF_LIBUNWIND], [ ])
-    JE_COMPILABLE([libunwind frame cache], [
-#define UNW_LOCAL_ONLY
-#include <libunwind.h>
-], [
-unw_tdep_make_frame_cache(0, 0);
-unw_tdep_free_frame_cache(0);
-unw_tdep_trace(0, 0, 0, 0);
-], [libunwind_cache])
-    if test "x${libunwind_cache}" = "xyes" ; then
-      AC_DEFINE([JEMALLOC_PROF_LIBUNWIND_CACHE], [ ])
-    fi
   fi
 fi
 
