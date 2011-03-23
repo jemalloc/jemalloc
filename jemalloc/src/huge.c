@@ -50,6 +50,7 @@ huge_malloc(size_t size, bool zero)
 	malloc_mutex_lock(&huge_mtx);
 	extent_tree_ad_insert(&huge, node);
 #ifdef JEMALLOC_STATS
+	stats_cactive_add(csize);
 	huge_nmalloc++;
 	huge_allocated += csize;
 #endif
@@ -134,6 +135,7 @@ huge_palloc(size_t size, size_t alignment, bool zero)
 	malloc_mutex_lock(&huge_mtx);
 	extent_tree_ad_insert(&huge, node);
 #ifdef JEMALLOC_STATS
+	stats_cactive_add(chunk_size);
 	huge_nmalloc++;
 	huge_allocated += chunk_size;
 #endif
@@ -278,6 +280,7 @@ huge_dalloc(void *ptr, bool unmap)
 	extent_tree_ad_remove(&huge, node);
 
 #ifdef JEMALLOC_STATS
+	stats_cactive_sub(node->size);
 	huge_ndalloc++;
 	huge_allocated -= node->size;
 #endif

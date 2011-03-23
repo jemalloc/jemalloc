@@ -1535,6 +1535,25 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         option for additional information.</para></listitem>
       </varlistentry>
 
+      <varlistentry id="stats.cactive">
+        <term>
+          <mallctl>stats.cactive</mallctl>
+          (<type>size_t *</type>)
+          <literal>r-</literal>
+          [<option>--enable-stats</option>]
+        </term>
+        <listitem><para>Pointer to a counter that contains an approximate count
+        of the current number of bytes in active pages.  The estimate may be
+        high, but never low, because each arena rounds up to the nearest
+        multiple of the chunk size when computing its contribution to the
+        counter.  Note that the <link
+        linkend="epoch"><mallctl>epoch</mallctl></link> mallctl has no bearing
+        on this counter.  Furthermore, counter consistency is maintained via
+        atomic operations, so it is necessary to use an atomic operation in
+        order to guarantee a consistent read when dereferencing the pointer.
+        </para></listitem>
+      </varlistentry>
+
       <varlistentry id="stats.allocated">
         <term>
           <mallctl>stats.allocated</mallctl>
@@ -1640,6 +1659,16 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         </term>
         <listitem><para>Cumulative number of huge deallocation requests.
         </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term>
+          <mallctl>stats.arenas.&lt;i&gt;.nthreads</mallctl>
+          (<type>unsigned</type>)
+          <literal>r-</literal>
+        </term>
+        <listitem><para>Number of threads currently assigned to
+        arena.</para></listitem>
       </varlistentry>
 
       <varlistentry>

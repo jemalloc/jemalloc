@@ -17,7 +17,7 @@
 void	mb_write(void);
 #endif
 
-#if (defined(JEMALLOC_ENABLE_INLINE) || defined(MB_C_))
+#if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_MB_C_))
 #ifdef __i386__
 /*
  * According to the Intel Architecture Software Developer's Manual, current

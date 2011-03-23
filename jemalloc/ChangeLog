@@ -6,6 +6,35 @@ found in the git revision history:
     http://www.canonware.com/cgi-bin/gitweb.cgi?p=jemalloc.git
     git://canonware.com/jemalloc.git
 
+* 2.2.0 (March 22, 2011)
+
+  This version incorporates several improvements to algorithms and data
+  structures that tend to reduce fragmentation and increase speed.
+
+  New features:
+  - Add the "stats.cactive" mallctl.
+  - Update pprof (from google-perftools 1.7).
+  - Improve backtracing-related configuration logic, and add the
+    --disable-prof-libgcc option.
+
+  Bug fixes:
+  - Change default symbol visibility from "internal", to "hidden", which
+    decreases the overhead of library-internal function calls.
+  - Fix symbol visibility so that it is also set on OS X.
+  - Fix a build dependency regression caused by the introduction of the .pic.o
+    suffix for PIC object files.
+  - Add missing checks for mutex initialization failures.
+  - Don't use libgcc-based backtracing except on x64, where it is known to work.
+  - Fix deadlocks on OS X that were due to memory allocation in
+    pthread_mutex_lock().
+  - Heap profiling-specific fixes:
+    + Fix memory corruption due to integer overflow in small region index
+      computation, when using a small enough sample interval that profiling
+      context pointers are stored in small run headers.
+    + Fix a bootstrap ordering bug that only occurred with TLS disabled.
+    + Fix a rallocm() rsize bug.
+    + Fix error detection bugs for aligned memory allocation.
+
 * 2.1.3 (March 14, 2011)
 
   Bug fixes:

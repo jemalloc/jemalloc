@@ -19,6 +19,7 @@
 #ifdef JEMALLOC_TINY
    /* Smallest size class to support. */
 #  define LG_TINY_MIN		LG_SIZEOF_PTR
+#  define TINY_MIN		(1U << LG_TINY_MIN)
 #endif
 
 /*
@@ -57,6 +58,10 @@
 #define	RUN_MAX_OVRHD		0x0000003dU
 #define	RUN_MAX_OVRHD_RELAX	0x00001800U
 
+/* Maximum number of regions in one run. */
+#define	LG_RUN_MAXREGS		11
+#define	RUN_MAXREGS		(1U << LG_RUN_MAXREGS)
+
 /*
  * The minimum ratio of active:dirty pages per arena is computed as:
  *
@@ -70,6 +75,7 @@
 typedef struct arena_chunk_map_s arena_chunk_map_t;
 typedef struct arena_chunk_s arena_chunk_t;
 typedef struct arena_run_s arena_run_t;
+typedef struct arena_bin_info_s arena_bin_info_t;
 typedef struct arena_bin_s arena_bin_t;
 typedef struct arena_s arena_t;
 
@@ -207,14 +213,50 @@ struct arena_run_s {
 	/* Bin this run is associated with. */
 	arena_bin_t	*bin;
 
-	/* Stack of available freed regions, or NULL. */
-	void		*avail;
-
-	/* Next region that has never been allocated, or run boundary. */
-	void		*next;
+	/* Index of next region that has never been allocated, or nregs. */
+	uint32_t	nextind;
 
 	/* Number of free regions in run. */
 	unsigned	nfree;
+};
+
+/*
+ * Read-only information associated with each element of arena_t's bins array
+ * is stored separately, partly to reduce memory usage (only one copy, rather
+ * than one per arena), but mainly to avoid false cacheline sharing.
+ */
+struct arena_bin_info_s {
+	/* Size of regions in a run for this bin's size class. */
+	size_t		reg_size;
+
+	/* Total size of a run for this bin's size class. */
+	size_t		run_size;
+
+	/* Total number of regions in a run for this bin's size class. */
+	uint32_t	nregs;
+
+	/*
+	 * Offset of first bitmap_t element in a run header for this bin's size
+	 * class.
+	 */
+	uint32_t	bitmap_offset;
+
+	/*
+	 * Metadata used to manipulate bitmaps for runs associated with this
+	 * bin.
+	 */
+	bitmap_info_t	bitmap_info;
+
+#ifdef JEMALLOC_PROF
+	/*
+	 * Offset of first (prof_ctx_t *) in a run header for this bin's size
+	 * class, or 0 if (opt_prof == false).
+	 */
+	uint32_t	ctx0_offset;
+#endif
+
+	/* Offset of first region in a run for this bin's size class. */
+	uint32_t	reg0_offset;
 };
 
 struct arena_bin_s {
@@ -241,26 +283,6 @@ struct arena_bin_s {
 	 */
 	arena_run_tree_t runs;
 
-	/* Size of regions in a run for this bin's size class. */
-	size_t		reg_size;
-
-	/* Total size of a run for this bin's size class. */
-	size_t		run_size;
-
-	/* Total number of regions in a run for this bin's size class. */
-	uint32_t	nregs;
-
-#ifdef JEMALLOC_PROF
-	/*
-	 * Offset of first (prof_ctx_t *) in a run header for this bin's size
-	 * class, or 0 if (opt_prof == false).
-	 */
-	uint32_t	ctx0_offset;
-#endif
-
-	/* Offset of first region in a run for this bin's size class. */
-	uint32_t	reg0_offset;
-
 #ifdef JEMALLOC_STATS
 	/* Bin statistics. */
 	malloc_bin_stats_t stats;
@@ -277,8 +299,18 @@ struct arena_s {
 	unsigned		ind;
 
 	/*
-	 * All non-bin-related operations on this arena require that lock be
-	 * locked.
+	 * Number of threads currently assigned to this arena.  This field is
+	 * protected by arenas_lock.
+	 */
+	unsigned		nthreads;
+
+	/*
+	 * There are three classes of arena operations from a locking
+	 * perspective:
+	 * 1) Thread asssignment (modifies nthreads) is protected by
+	 *    arenas_lock.
+	 * 2) Bin-related operations are protected by bin locks.
+	 * 3) Chunk- and run-related operations are protected by this mutex.
 	 */
 	malloc_mutex_t		lock;
 
@@ -388,8 +420,16 @@ struct arena_s {
 
 extern size_t	opt_lg_qspace_max;
 extern size_t	opt_lg_cspace_max;
-extern ssize_t		opt_lg_dirty_mult;
+extern ssize_t	opt_lg_dirty_mult;
+/*
+ * small_size2bin is a compact lookup table that rounds request sizes up to
+ * size classes.  In order to reduce cache footprint, the table is compressed,
+ * and all accesses are via the SMALL_SIZE2BIN macro.
+ */
 extern uint8_t const	*small_size2bin;
+#define	SMALL_SIZE2BIN(s)	(small_size2bin[(s-1) >> LG_TINY_MIN])
+
+extern arena_bin_info_t	*arena_bin_info;
 
 /* Various bin-related settings. */
 #ifdef JEMALLOC_TINY		/* Number of (2^n)-spaced tiny bins. */
@@ -456,8 +496,9 @@ bool	arena_boot(void);
 #ifdef JEMALLOC_H_INLINES
 
 #ifndef JEMALLOC_ENABLE_INLINE
-unsigned	arena_run_regind(arena_run_t *run, arena_bin_t *bin,
-    const void *ptr, size_t size);
+size_t	arena_bin_index(arena_t *arena, arena_bin_t *bin);
+unsigned	arena_run_regind(arena_run_t *run, arena_bin_info_t *bin_info,
+    const void *ptr);
 #  ifdef JEMALLOC_PROF
 prof_ctx_t	*arena_prof_ctx_get(const void *ptr);
 void	arena_prof_ctx_set(const void *ptr, prof_ctx_t *ctx);
@@ -466,21 +507,37 @@ void	arena_dalloc(arena_t *arena, arena_chunk_t *chunk, void *ptr);
 #endif
 
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_ARENA_C_))
+JEMALLOC_INLINE size_t
+arena_bin_index(arena_t *arena, arena_bin_t *bin)
+{
+	size_t binind = bin - arena->bins;
+	assert(binind < nbins);
+	return (binind);
+}
+
 JEMALLOC_INLINE unsigned
-arena_run_regind(arena_run_t *run, arena_bin_t *bin, const void *ptr,
-    size_t size)
+arena_run_regind(arena_run_t *run, arena_bin_info_t *bin_info, const void *ptr)
 {
 	unsigned shift, diff, regind;
+	size_t size;
 
-	assert(run->magic == ARENA_RUN_MAGIC);
+	dassert(run->magic == ARENA_RUN_MAGIC);
+	/*
+	 * Freeing a pointer lower than region zero can cause assertion
+	 * failure.
+	 */
+	assert((uintptr_t)ptr >= (uintptr_t)run +
+	    (uintptr_t)bin_info->reg0_offset);
 
 	/*
 	 * Avoid doing division with a variable divisor if possible.  Using
 	 * actual division here can reduce allocator throughput by over 20%!
 	 */
-	diff = (unsigned)((uintptr_t)ptr - (uintptr_t)run - bin->reg0_offset);
+	diff = (unsigned)((uintptr_t)ptr - (uintptr_t)run -
+	    bin_info->reg0_offset);
 
 	/* Rescale (factor powers of 2 out of the numerator and denominator). */
+	size = bin_info->reg_size;
 	shift = ffs(size) - 1;
 	diff >>= shift;
 	size >>= shift;
@@ -503,8 +560,8 @@ arena_run_regind(arena_run_t *run, arena_bin_t *bin, const void *ptr,
 		 * divide by 0, and 1 and 2 are both powers of two, which are
 		 * handled above.
 		 */
-#define	SIZE_INV_SHIFT 21
-#define	SIZE_INV(s) (((1U << SIZE_INV_SHIFT) / (s)) + 1)
+#define	SIZE_INV_SHIFT	((sizeof(unsigned) << 3) - LG_RUN_MAXREGS)
+#define	SIZE_INV(s)	(((1U << SIZE_INV_SHIFT) / (s)) + 1)
 		static const unsigned size_invs[] = {
 		    SIZE_INV(3),
 		    SIZE_INV(4), SIZE_INV(5), SIZE_INV(6), SIZE_INV(7),
@@ -524,7 +581,7 @@ arena_run_regind(arena_run_t *run, arena_bin_t *bin, const void *ptr,
 #undef SIZE_INV_SHIFT
 	}
 	assert(diff == regind * size);
-	assert(regind < bin->nregs);
+	assert(regind < bin_info->nregs);
 
 	return (regind);
 }
@@ -551,13 +608,14 @@ arena_prof_ctx_get(const void *ptr)
 			arena_run_t *run = (arena_run_t *)((uintptr_t)chunk +
 			    (uintptr_t)((pageind - (mapbits >> PAGE_SHIFT)) <<
 			    PAGE_SHIFT));
-			arena_bin_t *bin = run->bin;
+			size_t binind = arena_bin_index(chunk->arena, run->bin);
+			arena_bin_info_t *bin_info = &arena_bin_info[binind];
 			unsigned regind;
 
-			assert(run->magic == ARENA_RUN_MAGIC);
-			regind = arena_run_regind(run, bin, ptr, bin->reg_size);
+			dassert(run->magic == ARENA_RUN_MAGIC);
+			regind = arena_run_regind(run, bin_info, ptr);
 			ret = *(prof_ctx_t **)((uintptr_t)run +
-			    bin->ctx0_offset + (regind *
+			    bin_info->ctx0_offset + (regind *
 			    sizeof(prof_ctx_t *)));
 		}
 	} else
@@ -585,12 +643,16 @@ arena_prof_ctx_set(const void *ptr, prof_ctx_t *ctx)
 			    (uintptr_t)((pageind - (mapbits >> PAGE_SHIFT)) <<
 			    PAGE_SHIFT));
 			arena_bin_t *bin = run->bin;
+			size_t binind;
+			arena_bin_info_t *bin_info;
 			unsigned regind;
 
-			assert(run->magic == ARENA_RUN_MAGIC);
-			regind = arena_run_regind(run, bin, ptr, bin->reg_size);
+			dassert(run->magic == ARENA_RUN_MAGIC);
+			binind = arena_bin_index(chunk->arena, bin);
+			bin_info = &arena_bin_info[binind];
+			regind = arena_run_regind(run, bin_info, ptr);
 
-			*((prof_ctx_t **)((uintptr_t)run + bin->ctx0_offset
+			*((prof_ctx_t **)((uintptr_t)run + bin_info->ctx0_offset
 			    + (regind * sizeof(prof_ctx_t *)))) = ctx;
 		} else
 			assert((uintptr_t)ctx == (uintptr_t)1U);
@@ -606,7 +668,7 @@ arena_dalloc(arena_t *arena, arena_chunk_t *chunk, void *ptr)
 	arena_chunk_map_t *mapelm;
 
 	assert(arena != NULL);
-	assert(arena->magic == ARENA_MAGIC);
+	dassert(arena->magic == ARENA_MAGIC);
 	assert(chunk->arena == arena);
 	assert(ptr != NULL);
 	assert(CHUNK_ADDR2BASE(ptr) != ptr);
@@ -629,11 +691,18 @@ arena_dalloc(arena_t *arena, arena_chunk_t *chunk, void *ptr)
 			run = (arena_run_t *)((uintptr_t)chunk +
 			    (uintptr_t)((pageind - (mapelm->bits >>
 			    PAGE_SHIFT)) << PAGE_SHIFT));
-			assert(run->magic == ARENA_RUN_MAGIC);
-			assert(((uintptr_t)ptr - ((uintptr_t)run +
-			    (uintptr_t)run->bin->reg0_offset)) %
-			    run->bin->reg_size == 0);
+			dassert(run->magic == ARENA_RUN_MAGIC);
 			bin = run->bin;
+#ifdef JEMALLOC_DEBUG
+			{
+				size_t binind = arena_bin_index(arena, bin);
+				arena_bin_info_t *bin_info =
+				    &arena_bin_info[binind];
+				assert(((uintptr_t)ptr - ((uintptr_t)run +
+				    (uintptr_t)bin_info->reg0_offset)) %
+				    bin_info->reg_size == 0);
+			}
+#endif
 			malloc_mutex_lock(&bin->lock);
 			arena_dalloc_bin(arena, chunk, ptr, mapelm);
 			malloc_mutex_unlock(&bin->lock);

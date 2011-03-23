@@ -29,6 +29,7 @@ struct ctl_node_s {
 
 struct ctl_arena_stats_s {
 	bool			initialized;
+	unsigned		nthreads;
 	size_t			pactive;
 	size_t			pdirty;
 #ifdef JEMALLOC_STATS

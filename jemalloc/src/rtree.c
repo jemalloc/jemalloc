@@ -1,4 +1,4 @@
-#define	RTREE_C_
+#define	JEMALLOC_RTREE_C_
 #include "jemalloc/internal/jemalloc_internal.h"
 
 rtree_t *
@@ -20,7 +20,10 @@ rtree_new(unsigned bits)
 	memset(ret, 0, offsetof(rtree_t, level2bits) + (sizeof(unsigned) *
 	    height));
 
-	malloc_mutex_init(&ret->mutex);
+	if (malloc_mutex_init(&ret->mutex)) {
+		/* Leak the rtree. */
+		return (NULL);
+	}
 	ret->height = height;
 	if (bits_per_level * height > bits)
 		ret->level2bits[0] = bits % bits_per_level;

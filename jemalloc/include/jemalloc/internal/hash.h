@@ -17,7 +17,7 @@
 uint64_t	hash(const void *key, size_t len, uint64_t seed);
 #endif
 
-#if (defined(JEMALLOC_ENABLE_INLINE) || defined(HASH_C_))
+#if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_HASH_C_))
 /*
  * The following hash function is based on MurmurHash64A(), placed into the
  * public domain by Austin Appleby.  See http://murmurhash.googlepages.com/ for

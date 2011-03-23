@@ -132,6 +132,16 @@ else
 fi
 AC_DEFINE_UNQUOTED([LG_SIZEOF_INT], [$LG_SIZEOF_INT])
 
+AC_CHECK_SIZEOF([long])
+if test "x${ac_cv_sizeof_long}" = "x8" ; then
+  LG_SIZEOF_LONG=3
+elif test "x${ac_cv_sizeof_long}" = "x4" ; then
+  LG_SIZEOF_LONG=2
+else
+  AC_MSG_ERROR([Unsupported long size: ${ac_cv_sizeof_long}])
+fi
+AC_DEFINE_UNQUOTED([LG_SIZEOF_LONG], [$LG_SIZEOF_LONG])
+
 AC_CANONICAL_HOST
 dnl CPU-specific settings.
 CPU_SPINWAIT=""
@@ -156,17 +166,6 @@ case "${host_cpu}" in
 	;;
 esac
 AC_DEFINE_UNQUOTED([CPU_SPINWAIT], [$CPU_SPINWAIT])
-
-JE_COMPILABLE([__attribute__ syntax],
-              [static __attribute__((unused)) void foo(void){}],
-              [],
-              [attribute])
-if test "x${attribute}" = "xyes" ; then
-  AC_DEFINE([JEMALLOC_HAVE_ATTR], [ ])
-  if test "x$GCC" = "xyes" -a "${abi}" = "xelf"; then
-    JE_CFLAGS_APPEND([-fvisibility=internal])
-  fi
-fi
 
 dnl Platform-specific settings.  abi and RPATH can probably be determined
 dnl programmatically, but doing so is error-prone, which makes it generally
@@ -226,6 +225,17 @@ case "${host}" in
 esac
 AC_SUBST([abi])
 AC_SUBST([RPATH])
+
+JE_COMPILABLE([__attribute__ syntax],
+              [static __attribute__((unused)) void foo(void){}],
+              [],
+              [attribute])
+if test "x${attribute}" = "xyes" ; then
+  AC_DEFINE([JEMALLOC_HAVE_ATTR], [ ])
+  if test "x${GCC}" = "xyes" -a "x${abi}" = "xelf"; then
+    JE_CFLAGS_APPEND([-fvisibility=hidden])
+  fi
+fi
 
 JE_COMPILABLE([mremap(...MREMAP_FIXED...)], [
 #define _GNU_SOURCE
@@ -404,17 +414,12 @@ fi
 ],
 [enable_prof="0"]
 )
-AC_ARG_ENABLE([prof-libgcc],
-  [AS_HELP_STRING([--disable-prof-libgcc],
-  [Do not use libgcc for backtracing])],
-[if test "x$enable_prof_libgcc" = "xno" ; then
-  enable_prof_libgcc="0"
+if test "x$enable_prof" = "x1" ; then
+  backtrace_method=""
 else
-  enable_prof_libgcc="1"
+  backtrace_method="N/A"
 fi
-],
-[enable_prof_libgcc="1"]
-)
+
 AC_ARG_ENABLE([prof-libunwind],
   [AS_HELP_STRING([--enable-prof-libunwind], [Use libunwind for backtracing])],
 [if test "x$enable_prof_libunwind" = "xno" ; then
@@ -438,38 +443,89 @@ else
 fi,
   LUNWIND="-lunwind"
 )
+if test "x$backtrace_method" = "x" -a "x$enable_prof_libunwind" = "x1" ; then
+  AC_CHECK_HEADERS([libunwind.h], , [enable_prof_libunwind="0"])
+  if test "x$LUNWIND" = "x-lunwind" ; then
+    AC_CHECK_LIB([unwind], [backtrace], [LIBS="$LIBS $LUNWIND"],
+                 [enable_prof_libunwind="0"])
+  else
+    LIBS="$LIBS $LUNWIND"
+  fi
+  if test "x${enable_prof_libunwind}" = "x1" ; then
+    backtrace_method="libunwind"
+    AC_DEFINE([JEMALLOC_PROF_LIBUNWIND], [ ])
+  fi
+fi
+
+AC_ARG_ENABLE([prof-libgcc],
+  [AS_HELP_STRING([--disable-prof-libgcc],
+  [Do not use libgcc for backtracing])],
+[if test "x$enable_prof_libgcc" = "xno" ; then
+  enable_prof_libgcc="0"
+else
+  enable_prof_libgcc="1"
+fi
+],
+[enable_prof_libgcc="1"]
+)
+if test "x$backtrace_method" = "x" -a "x$enable_prof_libgcc" = "x1" \
+     -a "x$GCC" = "xyes" ; then
+  AC_CHECK_HEADERS([unwind.h], , [enable_prof_libgcc="0"])
+  AC_CHECK_LIB([gcc], [_Unwind_Backtrace], [LIBS="$LIBS -lgcc"], [enable_prof_libgcc="0"])
+  dnl The following is conservative, in that it only has entries for CPUs on
+  dnl which jemalloc has been tested.
+  AC_MSG_CHECKING([libgcc-based backtracing reliability on ${host_cpu}])
+  case "${host_cpu}" in
+    i[[3456]]86)
+      AC_MSG_RESULT([unreliable])
+      enable_prof_libgcc="0";
+      ;;
+    x86_64)
+      AC_MSG_RESULT([reliable])
+      ;;
+    *)
+      AC_MSG_RESULT([unreliable])
+      enable_prof_libgcc="0";
+      ;;
+  esac
+  if test "x${enable_prof_libgcc}" = "x1" ; then
+    backtrace_method="libgcc"
+    AC_DEFINE([JEMALLOC_PROF_LIBGCC], [ ])
+  fi
+else
+  enable_prof_libgcc="0"
+fi
+
+AC_ARG_ENABLE([prof-gcc],
+  [AS_HELP_STRING([--disable-prof-gcc],
+  [Do not use gcc intrinsics for backtracing])],
+[if test "x$enable_prof_gcc" = "xno" ; then
+  enable_prof_gcc="0"
+else
+  enable_prof_gcc="1"
+fi
+],
+[enable_prof_gcc="1"]
+)
+if test "x$backtrace_method" = "x" -a "x$enable_prof_gcc" = "x1" \
+     -a "x$GCC" = "xyes" ; then
+  backtrace_method="gcc intrinsics"
+  AC_DEFINE([JEMALLOC_PROF_GCC], [ ])
+else
+  enable_prof_gcc="0"
+fi
+
+if test "x$backtrace_method" = "x" ; then
+  backtrace_method="none (disabling profiling)"
+  enable_prof="0"
+fi
+AC_MSG_CHECKING([configured backtracing method])
+AC_MSG_RESULT([$backtrace_method])
 if test "x$enable_prof" = "x1" ; then
   LIBS="$LIBS -lm"
   AC_DEFINE([JEMALLOC_PROF], [ ])
-  if test "x$enable_prof_libunwind" = "x1" ; then
-    AC_CHECK_HEADERS([libunwind.h], , [enable_prof_libunwind="0"])
-    if test "x$LUNWIND" = "x-lunwind" ; then
-      AC_CHECK_LIB([unwind], [backtrace], [LIBS="$LIBS $LUNWIND"],
-                   [enable_prof_libunwind="0"])
-    else
-      LIBS="$LIBS $LUNWIND"
-    fi
-    if test "x${enable_prof_libunwind}" = "x1" ; then
-      AC_DEFINE([JEMALLOC_PROF_LIBUNWIND], [ ])
-    fi
-  fi
 fi
 AC_SUBST([enable_prof])
-
-dnl If libunwind isn't enabled, try to use libgcc rather than gcc intrinsics
-dnl for backtracing.
-if test "x$enable_prof" = "x1" -a "x$enable_prof_libgcc" = "x1" ; then
-  if test "x$enable_prof_libunwind" = "x0" -a "x$GCC" = "xyes" ; then
-    enable_prof_libgcc="1"
-    AC_CHECK_HEADERS([unwind.h], , [enable_prof_libgcc="0"])
-    AC_CHECK_LIB([gcc], [_Unwind_Backtrace], [LIBS="$LIBS -lgcc"], [enable_prof_libgcc="0"])
-    if test "x${enable_prof_libgcc}" = "x1" ; then
-      AC_DEFINE([JEMALLOC_PROF_LIBGCC], [ ])
-    fi
-  else
-    enable_prof_libgcc="0"
-  fi
-fi
 
 dnl Enable tiny allocations by default.
 AC_ARG_ENABLE([tiny],
@@ -707,6 +763,51 @@ if test "x${enable_tls}" = "x0" ; then
 fi
 
 dnl ============================================================================
+dnl Check for ffsl(3), and fail if not found.  This function exists on all
+dnl platforms that jemalloc currently has a chance of functioning on without
+dnl modification.
+
+AC_CHECK_FUNC([ffsl], [],
+	      [AC_MSG_ERROR([Cannot build without ffsl(3)])])
+
+dnl ============================================================================
+dnl Check for atomic(3) operations as provided on Darwin.
+
+JE_COMPILABLE([Darwin OSAtomic*()], [
+#include <libkern/OSAtomic.h>
+#include <inttypes.h>
+], [
+	{
+		int32_t x32 = 0;
+		volatile int32_t *x32p = &x32;
+		OSAtomicAdd32(1, x32p);
+	}
+	{
+		int64_t x64 = 0;
+		volatile int64_t *x64p = &x64;
+		OSAtomicAdd64(1, x64p);
+	}
+], [osatomic])
+if test "x${osatomic}" = "xyes" ; then
+  AC_DEFINE([JEMALLOC_OSATOMIC])
+fi
+
+dnl ============================================================================
+dnl Check for spinlock(3) operations as provided on Darwin.
+
+JE_COMPILABLE([Darwin OSSpin*()], [
+#include <libkern/OSAtomic.h>
+#include <inttypes.h>
+], [
+	OSSpinLock lock = 0;
+	OSSpinLockLock(&lock);
+	OSSpinLockUnlock(&lock);
+], [osspin])
+if test "x${osspin}" = "xyes" ; then
+  AC_DEFINE([JEMALLOC_OSSPIN])
+fi
+
+dnl ============================================================================
 dnl Check for allocator-related functions that should be wrapped.
 
 AC_CHECK_FUNC([memalign],
@@ -810,8 +911,9 @@ AC_MSG_RESULT([cc-silence         : ${enable_cc_silence}])
 AC_MSG_RESULT([debug              : ${enable_debug}])
 AC_MSG_RESULT([stats              : ${enable_stats}])
 AC_MSG_RESULT([prof               : ${enable_prof}])
-AC_MSG_RESULT([prof-libgcc        : ${enable_prof_libgcc}])
 AC_MSG_RESULT([prof-libunwind     : ${enable_prof_libunwind}])
+AC_MSG_RESULT([prof-libgcc        : ${enable_prof_libgcc}])
+AC_MSG_RESULT([prof-gcc           : ${enable_prof_gcc}])
 AC_MSG_RESULT([tiny               : ${enable_tiny}])
 AC_MSG_RESULT([tcache             : ${enable_tcache}])
 AC_MSG_RESULT([fill               : ${enable_fill}])

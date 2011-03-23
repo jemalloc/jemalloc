@@ -182,6 +182,7 @@ CTL_PROTO(stats_arenas_i_lruns_j_highruns)
 CTL_PROTO(stats_arenas_i_lruns_j_curruns)
 INDEX_PROTO(stats_arenas_i_lruns_j)
 #endif
+CTL_PROTO(stats_arenas_i_nthreads)
 CTL_PROTO(stats_arenas_i_pactive)
 CTL_PROTO(stats_arenas_i_pdirty)
 #ifdef JEMALLOC_STATS
@@ -192,6 +193,7 @@ CTL_PROTO(stats_arenas_i_purged)
 #endif
 INDEX_PROTO(stats_arenas_i)
 #ifdef JEMALLOC_STATS
+CTL_PROTO(stats_cactive)
 CTL_PROTO(stats_allocated)
 CTL_PROTO(stats_active)
 CTL_PROTO(stats_mapped)
@@ -434,6 +436,7 @@ static const ctl_node_t stats_arenas_i_lruns_node[] = {
 #endif
 
 static const ctl_node_t stats_arenas_i_node[] = {
+	{NAME("nthreads"),		CTL(stats_arenas_i_nthreads)},
 	{NAME("pactive"),		CTL(stats_arenas_i_pactive)},
 	{NAME("pdirty"),		CTL(stats_arenas_i_pdirty)}
 #ifdef JEMALLOC_STATS
@@ -458,6 +461,7 @@ static const ctl_node_t stats_arenas_node[] = {
 
 static const ctl_node_t stats_node[] = {
 #ifdef JEMALLOC_STATS
+	{NAME("cactive"),		CTL(stats_cactive)},
 	{NAME("allocated"),		CTL(stats_allocated)},
 	{NAME("active"),		CTL(stats_active)},
 	{NAME("mapped"),		CTL(stats_mapped)},
@@ -620,6 +624,7 @@ ctl_arena_refresh(arena_t *arena, unsigned i)
 
 	ctl_arena_clear(astats);
 
+	sstats->nthreads += astats->nthreads;
 #ifdef JEMALLOC_STATS
 	ctl_arena_stats_amerge(astats, arena);
 	/* Merge into sum stats as well. */
@@ -657,10 +662,17 @@ ctl_refresh(void)
 	 * Clear sum stats, since they will be merged into by
 	 * ctl_arena_refresh().
 	 */
+	ctl_stats.arenas[narenas].nthreads = 0;
 	ctl_arena_clear(&ctl_stats.arenas[narenas]);
 
 	malloc_mutex_lock(&arenas_lock);
 	memcpy(tarenas, arenas, sizeof(arena_t *) * narenas);
+	for (i = 0; i < narenas; i++) {
+		if (arenas[i] != NULL)
+			ctl_stats.arenas[i].nthreads = arenas[i]->nthreads;
+		else
+			ctl_stats.arenas[i].nthreads = 0;
+	}
 	malloc_mutex_unlock(&arenas_lock);
 	for (i = 0; i < narenas; i++) {
 		bool initialized = (tarenas[i] != NULL);
@@ -1129,6 +1141,8 @@ thread_arena_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
 		malloc_mutex_lock(&arenas_lock);
 		if ((arena = arenas[newind]) == NULL)
 			arena = arenas_extend(newind);
+		arenas[oldind]->nthreads--;
+		arenas[newind]->nthreads++;
 		malloc_mutex_unlock(&arenas_lock);
 		if (arena == NULL) {
 			ret = EAGAIN;
@@ -1289,9 +1303,9 @@ CTL_RO_NL_GEN(opt_overcommit, opt_overcommit, bool)
 
 /******************************************************************************/
 
-CTL_RO_NL_GEN(arenas_bin_i_size, arenas[0]->bins[mib[2]].reg_size, size_t)
-CTL_RO_NL_GEN(arenas_bin_i_nregs, arenas[0]->bins[mib[2]].nregs, uint32_t)
-CTL_RO_NL_GEN(arenas_bin_i_run_size, arenas[0]->bins[mib[2]].run_size, size_t)
+CTL_RO_NL_GEN(arenas_bin_i_size, arena_bin_info[mib[2]].reg_size, size_t)
+CTL_RO_NL_GEN(arenas_bin_i_nregs, arena_bin_info[mib[2]].nregs, uint32_t)
+CTL_RO_NL_GEN(arenas_bin_i_run_size, arena_bin_info[mib[2]].run_size, size_t)
 const ctl_node_t *
 arenas_bin_i_index(const size_t *mib, size_t miblen, size_t i)
 {
@@ -1536,6 +1550,7 @@ stats_arenas_i_lruns_j_index(const size_t *mib, size_t miblen, size_t j)
 }
 
 #endif
+CTL_RO_GEN(stats_arenas_i_nthreads, ctl_stats.arenas[mib[2]].nthreads, unsigned)
 CTL_RO_GEN(stats_arenas_i_pactive, ctl_stats.arenas[mib[2]].pactive, size_t)
 CTL_RO_GEN(stats_arenas_i_pdirty, ctl_stats.arenas[mib[2]].pdirty, size_t)
 #ifdef JEMALLOC_STATS
@@ -1567,6 +1582,7 @@ RETURN:
 }
 
 #ifdef JEMALLOC_STATS
+CTL_RO_GEN(stats_cactive, &stats_cactive, size_t *)
 CTL_RO_GEN(stats_allocated, ctl_stats.allocated, size_t)
 CTL_RO_GEN(stats_active, ctl_stats.active, size_t)
 CTL_RO_GEN(stats_mapped, ctl_stats.mapped, size_t)

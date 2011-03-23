@@ -24,6 +24,18 @@
  */
 #undef CPU_SPINWAIT
 
+/*
+ * Defined if OSAtomic*() functions are available, as provided by Darwin, and
+ * documented in the atomic(3) manual page.
+ */
+#undef JEMALLOC_OSATOMIC
+
+/*
+ * Defined if OSSpin*() functions are available, as provided by Darwin, and
+ * documented in the spinlock(3) manual page.
+ */
+#undef JEMALLOC_OSSPIN
+
 /* Defined if __attribute__((...)) syntax is supported. */
 #undef JEMALLOC_HAVE_ATTR
 #ifdef JEMALLOC_HAVE_ATTR
@@ -52,6 +64,9 @@
 
 /* Use libgcc for profile backtracing if defined. */
 #undef JEMALLOC_PROF_LIBGCC
+
+/* Use gcc intrinsics for profile backtracing if defined. */
+#undef JEMALLOC_PROF_GCC
 
 /*
  * JEMALLOC_TINY enables support for tiny objects, which are smaller than one
@@ -136,5 +151,8 @@
 
 /* sizeof(int) == 2^LG_SIZEOF_INT. */
 #undef LG_SIZEOF_INT
+
+/* sizeof(long) == 2^LG_SIZEOF_LONG. */
+#undef LG_SIZEOF_LONG
 
 #endif /* JEMALLOC_DEFS_H_ */
