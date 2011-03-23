@@ -797,6 +797,11 @@ malloc_init_hard(void)
 	if (malloc_mutex_init(&arenas_lock))
 		return (true);
 
+	if (pthread_key_create(&arenas_tsd, arenas_cleanup) != 0) {
+		malloc_mutex_unlock(&init_lock);
+		return (true);
+	}
+
 #ifdef JEMALLOC_PROF
 	if (prof_boot2()) {
 		malloc_mutex_unlock(&init_lock);
@@ -833,11 +838,6 @@ malloc_init_hard(void)
 		malloc_write("<jemalloc>: Reducing narenas to limit (");
 		malloc_write(u2s(narenas, 10, buf));
 		malloc_write(")\n");
-	}
-
-	if (pthread_key_create(&arenas_tsd, arenas_cleanup) != 0) {
-		malloc_mutex_unlock(&init_lock);
-		return (true);
 	}
 
 	/* Allocate and initialize arenas. */
