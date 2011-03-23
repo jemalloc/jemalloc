@@ -262,9 +262,15 @@ ckh_grow(ckh_t *ckh)
 	lg_prevbuckets = ckh->lg_curbuckets;
 	lg_curcells = ckh->lg_curbuckets + LG_CKH_BUCKET_CELLS;
 	while (true) {
+		size_t usize;
+
 		lg_curcells++;
-		tab = (ckhc_t *)ipalloc(sizeof(ckhc_t) << lg_curcells,
-		    ZU(1) << LG_CACHELINE, true);
+		usize = sa2u(sizeof(ckhc_t) << lg_curcells, CACHELINE, NULL);
+		if (usize == 0) {
+			ret = true;
+			goto RETURN;
+		}
+		tab = (ckhc_t *)ipalloc(usize, CACHELINE, true);
 		if (tab == NULL) {
 			ret = true;
 			goto RETURN;
@@ -295,7 +301,7 @@ static void
 ckh_shrink(ckh_t *ckh)
 {
 	ckhc_t *tab, *ttab;
-	size_t lg_curcells;
+	size_t lg_curcells, usize;
 	unsigned lg_prevbuckets;
 
 	/*
@@ -304,8 +310,10 @@ ckh_shrink(ckh_t *ckh)
 	 */
 	lg_prevbuckets = ckh->lg_curbuckets;
 	lg_curcells = ckh->lg_curbuckets + LG_CKH_BUCKET_CELLS - 1;
-	tab = (ckhc_t *)ipalloc(sizeof(ckhc_t) << lg_curcells,
-	    ZU(1) << LG_CACHELINE, true);
+	usize = sa2u(sizeof(ckhc_t) << lg_curcells, CACHELINE, NULL);
+	if (usize == 0)
+		return;
+	tab = (ckhc_t *)ipalloc(usize, CACHELINE, true);
 	if (tab == NULL) {
 		/*
 		 * An OOM error isn't worth propagating, since it doesn't
@@ -340,7 +348,7 @@ bool
 ckh_new(ckh_t *ckh, size_t minitems, ckh_hash_t *hash, ckh_keycomp_t *keycomp)
 {
 	bool ret;
-	size_t mincells;
+	size_t mincells, usize;
 	unsigned lg_mincells;
 
 	assert(minitems > 0);
@@ -375,8 +383,12 @@ ckh_new(ckh_t *ckh, size_t minitems, ckh_hash_t *hash, ckh_keycomp_t *keycomp)
 	ckh->hash = hash;
 	ckh->keycomp = keycomp;
 
-	ckh->tab = (ckhc_t *)ipalloc(sizeof(ckhc_t) << lg_mincells,
-	    (ZU(1) << LG_CACHELINE), true);
+	usize = sa2u(sizeof(ckhc_t) << lg_mincells, CACHELINE, NULL);
+	if (usize == 0) {
+		ret = true;
+		goto RETURN;
+	}
+	ckh->tab = (ckhc_t *)ipalloc(usize, CACHELINE, true);
 	if (ckh->tab == NULL) {
 		ret = true;
 		goto RETURN;

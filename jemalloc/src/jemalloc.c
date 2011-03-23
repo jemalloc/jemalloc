@@ -993,14 +993,12 @@ int
 JEMALLOC_P(posix_memalign)(void **memptr, size_t alignment, size_t size)
 {
 	int ret;
-	void *result;
-#if (defined(JEMALLOC_PROF) || defined(JEMALLOC_STATS))
 	size_t usize
-#  ifdef JEMALLOC_CC_SILENCE
+#ifdef JEMALLOC_CC_SILENCE
 	    = 0
-#  endif
-	    ;
 #endif
+	    ;
+	void *result;
 #ifdef JEMALLOC_PROF
 	prof_thr_cnt_t *cnt
 #  ifdef JEMALLOC_CC_SILENCE
@@ -1050,34 +1048,37 @@ JEMALLOC_P(posix_memalign)(void **memptr, size_t alignment, size_t size)
 			goto RETURN;
 		}
 
+		usize = sa2u(size, alignment, NULL);
+		if (usize == 0) {
+			result = NULL;
+			ret = ENOMEM;
+			goto RETURN;
+		}
+
 #ifdef JEMALLOC_PROF
 		if (opt_prof) {
-			usize = sa2u(size, alignment, NULL);
 			if ((cnt = prof_alloc_prep(usize)) == NULL) {
 				result = NULL;
 				ret = EINVAL;
 			} else {
 				if (prof_promote && (uintptr_t)cnt !=
 				    (uintptr_t)1U && usize <= small_maxclass) {
-					result = ipalloc(small_maxclass+1,
-					    alignment, false);
+					assert(sa2u(small_maxclass+1,
+					    alignment, NULL) != 0);
+					result = ipalloc(sa2u(small_maxclass+1,
+					    alignment, NULL), alignment, false);
 					if (result != NULL) {
 						arena_prof_promoted(result,
 						    usize);
 					}
 				} else {
-					result = ipalloc(size, alignment,
+					result = ipalloc(usize, alignment,
 					    false);
 				}
 			}
 		} else
 #endif
-		{
-#ifdef JEMALLOC_STATS
-			usize = sa2u(size, alignment, NULL);
-#endif
-			result = ipalloc(size, alignment, false);
-		}
+			result = ipalloc(usize, alignment, false);
 	}
 
 	if (result == NULL) {
@@ -1531,15 +1532,18 @@ JEMALLOC_P(mallctlbymib)(const size_t *mib, size_t miblen, void *oldp,
 }
 
 JEMALLOC_INLINE void *
-iallocm(size_t size, size_t alignment, bool zero)
+iallocm(size_t usize, size_t alignment, bool zero)
 {
 
+	assert(usize == ((alignment == 0) ? s2u(usize) : sa2u(usize, alignment,
+	    NULL)));
+
 	if (alignment != 0)
-		return (ipalloc(size, alignment, zero));
+		return (ipalloc(usize, alignment, zero));
 	else if (zero)
-		return (icalloc(size));
+		return (icalloc(usize));
 	else
-		return (imalloc(size));
+		return (imalloc(usize));
 }
 
 JEMALLOC_ATTR(nonnull(1))
@@ -1562,20 +1566,27 @@ JEMALLOC_P(allocm)(void **ptr, size_t *rsize, size_t size, int flags)
 	if (malloc_init())
 		goto OOM;
 
+	usize = (alignment == 0) ? s2u(size) : sa2u(size, alignment,
+	    NULL);
+	if (usize == 0)
+		goto OOM;
+
 #ifdef JEMALLOC_PROF
 	if (opt_prof) {
-		usize = (alignment == 0) ? s2u(size) : sa2u(size, alignment,
-		    NULL);
 		if ((cnt = prof_alloc_prep(usize)) == NULL)
 			goto OOM;
 		if (prof_promote && (uintptr_t)cnt != (uintptr_t)1U && usize <=
 		    small_maxclass) {
-			p = iallocm(small_maxclass+1, alignment, zero);
+			size_t usize_promoted = (alignment == 0) ?
+			    s2u(small_maxclass+1) : sa2u(small_maxclass+1,
+			    alignment, NULL);
+			assert(usize_promoted != 0);
+			p = iallocm(usize_promoted, alignment, zero);
 			if (p == NULL)
 				goto OOM;
 			arena_prof_promoted(p, usize);
 		} else {
-			p = iallocm(size, alignment, zero);
+			p = iallocm(usize, alignment, zero);
 			if (p == NULL)
 				goto OOM;
 		}
@@ -1585,15 +1596,13 @@ JEMALLOC_P(allocm)(void **ptr, size_t *rsize, size_t size, int flags)
 	} else
 #endif
 	{
-		p = iallocm(size, alignment, zero);
+		p = iallocm(usize, alignment, zero);
 		if (p == NULL)
 			goto OOM;
 #ifndef JEMALLOC_STATS
 		if (rsize != NULL)
 #endif
 		{
-			usize = (alignment == 0) ? s2u(size) : sa2u(size,
-			    alignment, NULL);
 #ifdef JEMALLOC_STATS
 			if (rsize != NULL)
 #endif

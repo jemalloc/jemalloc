@@ -2165,24 +2165,29 @@ arena_ralloc(void *ptr, size_t oldsize, size_t size, size_t extra,
 	if (ret != NULL)
 		return (ret);
 
-
 	/*
 	 * size and oldsize are different enough that we need to move the
 	 * object.  In that case, fall back to allocating new space and
 	 * copying.
 	 */
-	if (alignment != 0)
-		ret = ipalloc(size + extra, alignment, zero);
-	else
+	if (alignment != 0) {
+		size_t usize = sa2u(size + extra, alignment, NULL);
+		if (usize == 0)
+			return (NULL);
+		ret = ipalloc(usize, alignment, zero);
+	} else
 		ret = arena_malloc(size + extra, zero);
 
 	if (ret == NULL) {
 		if (extra == 0)
 			return (NULL);
 		/* Try again, this time without extra. */
-		if (alignment != 0)
-			ret = ipalloc(size, alignment, zero);
-		else
+		if (alignment != 0) {
+			size_t usize = sa2u(size, alignment, NULL);
+			if (usize == 0)
+				return (NULL);
+			ret = ipalloc(usize, alignment, zero);
+		} else
 			ret = arena_malloc(size, zero);
 
 		if (ret == NULL)
