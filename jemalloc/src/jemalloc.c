@@ -1677,6 +1677,8 @@ JEMALLOC_P(rallocm)(void **ptr, size_t *rsize, size_t size, size_t extra,
 			usize = isalloc(q);
 		}
 		prof_realloc(q, usize, cnt, old_size, old_ctx);
+		if (rsize != NULL)
+			*rsize = usize;
 	} else
 #endif
 	{
