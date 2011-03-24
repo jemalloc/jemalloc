@@ -40,6 +40,7 @@ uint32_t	atomic_sub_uint32(uint32_t *p, uint32_t x);
 #endif
 
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_ATOMIC_C_))
+/******************************************************************************/
 /* 64-bit operations. */
 #ifdef __GCC_HAVE_SYNC_COMPARE_AND_SWAP_8
 JEMALLOC_INLINE uint64_t
@@ -69,12 +70,40 @@ atomic_sub_uint64(uint64_t *p, uint64_t x)
 
 	return (OSAtomicAdd64(-((int64_t)x), (int64_t *)p));
 }
+#elif (defined(__amd64_) || defined(__x86_64__))
+JEMALLOC_INLINE uint64_t
+atomic_add_uint64(uint64_t *p, uint64_t x)
+{
+
+	asm volatile (
+	    "lock; xaddq %0, %1;"
+	    : "+r" (x), "=m" (*p) /* Outputs. */
+	    : "m" (*p) /* Inputs. */
+	    );
+
+	return (x);
+}
+
+JEMALLOC_INLINE uint64_t
+atomic_sub_uint64(uint64_t *p, uint64_t x)
+{
+
+	x = (uint64_t)(-(int64_t)x);
+	asm volatile (
+	    "lock; xaddq %0, %1;"
+	    : "+r" (x), "=m" (*p) /* Outputs. */
+	    : "m" (*p) /* Inputs. */
+	    );
+
+	return (x);
+}
 #else
 #  if (LG_SIZEOF_PTR == 3)
 #    error "Missing implementation for 64-bit atomic operations"
 #  endif
 #endif
 
+/******************************************************************************/
 /* 32-bit operations. */
 #ifdef __GCC_HAVE_SYNC_COMPARE_AND_SWAP_4
 JEMALLOC_INLINE uint32_t
@@ -103,6 +132,33 @@ atomic_sub_uint32(uint32_t *p, uint32_t x)
 {
 
 	return (OSAtomicAdd32(-((int32_t)x), (int32_t *)p));
+}
+#elif (defined(__i386__) || defined(__amd64_) || defined(__x86_64__))
+JEMALLOC_INLINE uint32_t
+atomic_add_uint32(uint32_t *p, uint32_t x)
+{
+
+	asm volatile (
+	    "lock; xaddl %0, %1;"
+	    : "+r" (x), "=m" (*p) /* Outputs. */
+	    : "m" (*p) /* Inputs. */
+	    );
+
+	return (x);
+}
+
+JEMALLOC_INLINE uint32_t
+atomic_sub_uint32(uint32_t *p, uint32_t x)
+{
+
+	x = (uint32_t)(-(int32_t)x);
+	asm volatile (
+	    "lock; xaddl %0, %1;"
+	    : "+r" (x), "=m" (*p) /* Outputs. */
+	    : "m" (*p) /* Inputs. */
+	    );
+
+	return (x);
 }
 #else
 #  error "Missing implementation for 32-bit atomic operations"
