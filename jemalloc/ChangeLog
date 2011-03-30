@@ -6,6 +6,13 @@ found in the git revision history:
     http://www.canonware.com/cgi-bin/gitweb.cgi?p=jemalloc.git
     git://canonware.com/jemalloc.git
 
+* 2.2.1 (March 30, 2011)
+
+  Bug fixes:
+  - Implement atomic operations for x86/x64.  This fixes compilation failures
+    for versions of gcc that are still in wide use.
+  - Fix an assertion in arena_purge().
+
 * 2.2.0 (March 22, 2011)
 
   This version incorporates several improvements to algorithms and data
