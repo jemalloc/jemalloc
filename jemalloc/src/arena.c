@@ -868,9 +868,10 @@ arena_purge(arena_t *arena, bool all)
 	}
 	assert(ndirty == arena->ndirty);
 #endif
-	assert(arena->ndirty > arena->npurgatory);
+	assert(arena->ndirty > arena->npurgatory || all);
 	assert(arena->ndirty > chunk_npages || all);
-	assert((arena->nactive >> opt_lg_dirty_mult) < arena->ndirty || all);
+	assert((arena->nactive >> opt_lg_dirty_mult) < (arena->ndirty -
+	    npurgatory) || all);
 
 #ifdef JEMALLOC_STATS
 	arena->stats.npurge++;
@@ -882,8 +883,10 @@ arena_purge(arena_t *arena, bool all)
 	 * multiple threads from racing to reduce ndirty below the threshold.
 	 */
 	npurgatory = arena->ndirty - arena->npurgatory;
-	if (all == false)
+	if (all == false) {
+		assert(npurgatory >= arena->nactive >> opt_lg_dirty_mult);
 		npurgatory -= arena->nactive >> opt_lg_dirty_mult;
+	}
 	arena->npurgatory += npurgatory;
 
 	while (npurgatory > 0) {
