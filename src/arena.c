@@ -869,9 +869,9 @@ arena_purge(arena_t *arena, bool all)
 	assert(ndirty == arena->ndirty);
 #endif
 	assert(arena->ndirty > arena->npurgatory || all);
-	assert(arena->ndirty > chunk_npages || all);
+	assert(arena->ndirty - arena->npurgatory > chunk_npages || all);
 	assert((arena->nactive >> opt_lg_dirty_mult) < (arena->ndirty -
-	    npurgatory) || all);
+	    arena->npurgatory) || all);
 
 #ifdef JEMALLOC_STATS
 	arena->stats.npurge++;
