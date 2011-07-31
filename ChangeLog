@@ -6,6 +6,14 @@ found in the git revision history:
     http://www.canonware.com/cgi-bin/gitweb.cgi?p=jemalloc.git
     git://canonware.com/jemalloc.git
 
+* 2.2.2 (July 30, 2011)
+
+  Bug fixes:
+  - Fix a build error for --disable-tcache.
+  - Fix assertions in arena_purge() (for real this time).
+  - Add the --with-private-namespace option.  This is a workaround for symbol
+    conflicts that can inadvertently arise when using static libraries.
+
 * 2.2.1 (March 30, 2011)
 
   Bug fixes:
