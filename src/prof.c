@@ -1109,7 +1109,6 @@ prof_tdata_init(void)
 
 	prof_tdata->vec = imalloc(sizeof(void *) * prof_bt_max);
 	if (prof_tdata->vec == NULL) {
-
 		ckh_delete(&prof_tdata->bt2cnt);
 		idalloc(prof_tdata);
 		return (NULL);
@@ -1127,33 +1126,29 @@ prof_tdata_init(void)
 static void
 prof_tdata_cleanup(void *arg)
 {
-	prof_tdata_t *prof_tdata;
+	prof_thr_cnt_t *cnt;
+	prof_tdata_t *prof_tdata = (prof_tdata_t *)arg;
 
-	prof_tdata = PROF_TCACHE_GET();
-	if (prof_tdata != NULL) {
-		prof_thr_cnt_t *cnt;
+	/*
+	 * Delete the hash table.  All of its contents can still be
+	 * iterated over via the LRU.
+	 */
+	ckh_delete(&prof_tdata->bt2cnt);
 
-		/*
-		 * Delete the hash table.  All of its contents can still be
-		 * iterated over via the LRU.
-		 */
-		ckh_delete(&prof_tdata->bt2cnt);
-
-		/*
-		 * Iteratively merge cnt's into the global stats and delete
-		 * them.
-		 */
-		while ((cnt = ql_last(&prof_tdata->lru_ql, lru_link)) != NULL) {
-			prof_ctx_merge(cnt->ctx, cnt);
-			ql_remove(&prof_tdata->lru_ql, cnt, lru_link);
-			idalloc(cnt);
-		}
-
-		idalloc(prof_tdata->vec);
-
-		idalloc(prof_tdata);
-		PROF_TCACHE_SET(NULL);
+	/*
+	 * Iteratively merge cnt's into the global stats and delete
+	 * them.
+	 */
+	while ((cnt = ql_last(&prof_tdata->lru_ql, lru_link)) != NULL) {
+		prof_ctx_merge(cnt->ctx, cnt);
+		ql_remove(&prof_tdata->lru_ql, cnt, lru_link);
+		idalloc(cnt);
 	}
+
+	idalloc(prof_tdata->vec);
+
+	idalloc(prof_tdata);
+	PROF_TCACHE_SET(NULL);
 }
 
 void
