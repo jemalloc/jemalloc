@@ -503,11 +503,8 @@ prof_lookup(prof_bt_t *bt)
 			/* Allocate and partially initialize a new cnt. */
 			ret.v = imalloc(sizeof(prof_thr_cnt_t));
 			if (ret.p == NULL) {
-				if (new_ctx) {
-					malloc_mutex_lock(&ctx.p->lock);
-					ctx.p->cnt_merged.curobjs--;
-					malloc_mutex_unlock(&ctx.p->lock);
-				}
+				if (new_ctx)
+					prof_ctx_destroy(ctx.p);
 				return (NULL);
 			}
 			ql_elm_new(ret.p, cnts_link);
@@ -518,11 +515,8 @@ prof_lookup(prof_bt_t *bt)
 		ret.p->epoch = 0;
 		memset(&ret.p->cnts, 0, sizeof(prof_cnt_t));
 		if (ckh_insert(&prof_tdata->bt2cnt, btkey.v, ret.v)) {
-			if (new_ctx) {
-				malloc_mutex_lock(&ctx.p->lock);
-				ctx.p->cnt_merged.curobjs--;
-				malloc_mutex_unlock(&ctx.p->lock);
-			}
+			if (new_ctx)
+				prof_ctx_destroy(ctx.p);
 			idalloc(ret.v);
 			return (NULL);
 		}
@@ -644,11 +638,10 @@ prof_ctx_destroy(prof_ctx_t *ctx)
 
 	/*
 	 * Check that ctx is still unused by any thread cache before destroying
-	 * it.  prof_lookup() interlocks bt2ctx_mtx and ctx->lock in order to
-	 * avoid a race condition with this function, and prof_ctx_merge()
-	 * artificially raises ctx->cnt_merged.curobjs in order to avoid a race
-	 * between the main body of prof_ctx_merge() and entry into this
-	 * function.
+	 * it.  prof_lookup() artificially raises ctx->cnt_merge.curobjs in
+	 * order to avoid a race condition with this function, as does
+	 * prof_ctx_merge() in order to avoid a race between the main body of
+	 * prof_ctx_merge() and entry into this function.
 	 */
 	prof_enter();
 	malloc_mutex_lock(&ctx->lock);
@@ -665,7 +658,10 @@ prof_ctx_destroy(prof_ctx_t *ctx)
 		malloc_mutex_destroy(&ctx->lock);
 		idalloc(ctx);
 	} else {
-		/* Compensate for increment in prof_ctx_merge(). */
+		/*
+		 * Compensate for increment in prof_ctx_merge() or
+		 * prof_lookup().
+		 */
 		ctx->cnt_merged.curobjs--;
 		malloc_mutex_unlock(&ctx->lock);
 		prof_leave();
@@ -1130,18 +1126,15 @@ prof_tdata_cleanup(void *arg)
 	prof_tdata_t *prof_tdata = (prof_tdata_t *)arg;
 
 	/*
-	 * Delete the hash table.  All of its contents can still be
-	 * iterated over via the LRU.
+	 * Delete the hash table.  All of its contents can still be iterated
+	 * over via the LRU.
 	 */
 	ckh_delete(&prof_tdata->bt2cnt);
 
-	/*
-	 * Iteratively merge cnt's into the global stats and delete
-	 * them.
-	 */
+	/* Iteratively merge cnt's into the global stats and delete them. */
 	while ((cnt = ql_last(&prof_tdata->lru_ql, lru_link)) != NULL) {
-		prof_ctx_merge(cnt->ctx, cnt);
 		ql_remove(&prof_tdata->lru_ql, cnt, lru_link);
+		prof_ctx_merge(cnt->ctx, cnt);
 		idalloc(cnt);
 	}
 
