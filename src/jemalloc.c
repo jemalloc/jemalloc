@@ -84,6 +84,7 @@ static void	malloc_conf_error(const char *msg, const char *k, size_t klen,
     const char *v, size_t vlen);
 static void	malloc_conf_init(void);
 static bool	malloc_init_hard(void);
+static int	imemalign(void **memptr, size_t alignment, size_t size);
 
 /******************************************************************************/
 /* malloc_message() setup. */
@@ -939,7 +940,8 @@ JEMALLOC_P(malloc)(size_t size)
 #ifdef JEMALLOC_PROF
 	if (opt_prof) {
 		usize = s2u(size);
-		if ((cnt = prof_alloc_prep(usize)) == NULL) {
+		PROF_ALLOC_PREP(1, usize, cnt);
+		if (cnt == NULL) {
 			ret = NULL;
 			goto OOM;
 		}
@@ -988,9 +990,15 @@ RETURN:
 }
 
 JEMALLOC_ATTR(nonnull(1))
-JEMALLOC_ATTR(visibility("default"))
-int
-JEMALLOC_P(posix_memalign)(void **memptr, size_t alignment, size_t size)
+#ifdef JEMALLOC_PROF
+/*
+ * Avoid any uncertainty as to how many backtrace frames to ignore in 
+ * PROF_ALLOC_PREP().
+ */
+JEMALLOC_ATTR(noinline)
+#endif
+static int
+imemalign(void **memptr, size_t alignment, size_t size)
 {
 	int ret;
 	size_t usize
@@ -1057,7 +1065,8 @@ JEMALLOC_P(posix_memalign)(void **memptr, size_t alignment, size_t size)
 
 #ifdef JEMALLOC_PROF
 		if (opt_prof) {
-			if ((cnt = prof_alloc_prep(usize)) == NULL) {
+			PROF_ALLOC_PREP(2, usize, cnt);
+			if (cnt == NULL) {
 				result = NULL;
 				ret = EINVAL;
 			} else {
@@ -1108,6 +1117,15 @@ RETURN:
 		prof_malloc(result, usize, cnt);
 #endif
 	return (ret);
+}
+
+JEMALLOC_ATTR(nonnull(1))
+JEMALLOC_ATTR(visibility("default"))
+int
+JEMALLOC_P(posix_memalign)(void **memptr, size_t alignment, size_t size)
+{
+
+	return imemalign(memptr, alignment, size);
 }
 
 JEMALLOC_ATTR(malloc)
@@ -1165,7 +1183,8 @@ JEMALLOC_P(calloc)(size_t num, size_t size)
 #ifdef JEMALLOC_PROF
 	if (opt_prof) {
 		usize = s2u(num_size);
-		if ((cnt = prof_alloc_prep(usize)) == NULL) {
+		PROF_ALLOC_PREP(1, usize, cnt);
+		if (cnt == NULL) {
 			ret = NULL;
 			goto RETURN;
 		}
@@ -1278,7 +1297,8 @@ JEMALLOC_P(realloc)(void *ptr, size_t size)
 		if (opt_prof) {
 			usize = s2u(size);
 			old_ctx = prof_ctx_get(ptr);
-			if ((cnt = prof_alloc_prep(usize)) == NULL) {
+			PROF_ALLOC_PREP(1, usize, cnt);
+			if (cnt == NULL) {
 				ret = NULL;
 				goto OOM;
 			}
@@ -1327,7 +1347,8 @@ OOM:
 #ifdef JEMALLOC_PROF
 			if (opt_prof) {
 				usize = s2u(size);
-				if ((cnt = prof_alloc_prep(usize)) == NULL)
+				PROF_ALLOC_PREP(1, usize, cnt);
+				if (cnt == NULL)
 					ret = NULL;
 				else {
 					if (prof_promote && (uintptr_t)cnt !=
@@ -1432,7 +1453,7 @@ JEMALLOC_P(memalign)(size_t alignment, size_t size)
 #ifdef JEMALLOC_CC_SILENCE
 	int result =
 #endif
-	    JEMALLOC_P(posix_memalign)(&ret, alignment, size);
+	    imemalign(&ret, alignment, size);
 #ifdef JEMALLOC_CC_SILENCE
 	if (result != 0)
 		return (NULL);
@@ -1451,7 +1472,7 @@ JEMALLOC_P(valloc)(size_t size)
 #ifdef JEMALLOC_CC_SILENCE
 	int result =
 #endif
-	    JEMALLOC_P(posix_memalign)(&ret, PAGE_SIZE, size);
+	    imemalign(&ret, PAGE_SIZE, size);
 #ifdef JEMALLOC_CC_SILENCE
 	if (result != 0)
 		return (NULL);
@@ -1573,7 +1594,8 @@ JEMALLOC_P(allocm)(void **ptr, size_t *rsize, size_t size, int flags)
 
 #ifdef JEMALLOC_PROF
 	if (opt_prof) {
-		if ((cnt = prof_alloc_prep(usize)) == NULL)
+		PROF_ALLOC_PREP(1, usize, cnt);
+		if (cnt == NULL)
 			goto OOM;
 		if (prof_promote && (uintptr_t)cnt != (uintptr_t)1U && usize <=
 		    small_maxclass) {
@@ -1660,7 +1682,7 @@ JEMALLOC_P(rallocm)(void **ptr, size_t *rsize, size_t size, size_t extra,
 		/*
 		 * usize isn't knowable before iralloc() returns when extra is
 		 * non-zero.  Therefore, compute its maximum possible value and
-		 * use that in prof_alloc_prep() to decide whether to capture a
+		 * use that in PROF_ALLOC_PREP() to decide whether to capture a
 		 * backtrace.  prof_realloc() will use the actual usize to
 		 * decide whether to sample.
 		 */
@@ -1668,7 +1690,8 @@ JEMALLOC_P(rallocm)(void **ptr, size_t *rsize, size_t size, size_t extra,
 		    sa2u(size+extra, alignment, NULL);
 		old_size = isalloc(p);
 		old_ctx = prof_ctx_get(p);
-		if ((cnt = prof_alloc_prep(max_usize)) == NULL)
+		PROF_ALLOC_PREP(1, max_usize, cnt);
+		if (cnt == NULL)
 			goto OOM;
 		/*
 		 * Use minimum usize to determine whether promotion may happen.

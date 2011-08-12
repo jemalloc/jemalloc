@@ -145,7 +145,6 @@
 #define	malloc_write JEMALLOC_N(malloc_write)
 #define	mb_write JEMALLOC_N(mb_write)
 #define	pow2_ceil JEMALLOC_N(pow2_ceil)
-#define	prof_alloc_prep JEMALLOC_N(prof_alloc_prep)
 #define	prof_backtrace JEMALLOC_N(prof_backtrace)
 #define	prof_boot0 JEMALLOC_N(prof_boot0)
 #define	prof_boot1 JEMALLOC_N(prof_boot1)
