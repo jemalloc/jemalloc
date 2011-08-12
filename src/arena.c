@@ -1657,6 +1657,7 @@ arena_prof_promoted(const void *ptr, size_t size)
 	assert(ptr != NULL);
 	assert(CHUNK_ADDR2BASE(ptr) != ptr);
 	assert(isalloc(ptr) == PAGE_SIZE);
+	assert(size <= small_maxclass);
 
 	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
 	pageind = ((uintptr_t)ptr - (uintptr_t)chunk) >> PAGE_SHIFT;

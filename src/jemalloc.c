@@ -1670,15 +1670,22 @@ JEMALLOC_P(rallocm)(void **ptr, size_t *rsize, size_t size, size_t extra,
 		old_ctx = prof_ctx_get(p);
 		if ((cnt = prof_alloc_prep(max_usize)) == NULL)
 			goto OOM;
-		if (prof_promote && (uintptr_t)cnt != (uintptr_t)1U && max_usize
-		    <= small_maxclass) {
+		/*
+		 * Use minimum usize to determine whether promotion may happen.
+		 */
+		if (prof_promote && (uintptr_t)cnt != (uintptr_t)1U
+		    && ((alignment == 0) ? s2u(size) : sa2u(size,
+		    alignment, NULL)) <= small_maxclass) {
 			q = iralloc(p, small_maxclass+1, (small_maxclass+1 >=
 			    size+extra) ? 0 : size+extra - (small_maxclass+1),
 			    alignment, zero, no_move);
 			if (q == NULL)
 				goto ERR;
 			usize = isalloc(q);
-			arena_prof_promoted(q, usize);
+			if (max_usize < PAGE_SIZE) {
+				usize = max_usize;
+				arena_prof_promoted(q, usize);
+			}
 		} else {
 			q = iralloc(p, size, extra, alignment, zero, no_move);
 			if (q == NULL)
