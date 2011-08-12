@@ -1681,11 +1681,11 @@ JEMALLOC_P(rallocm)(void **ptr, size_t *rsize, size_t size, size_t extra,
 			    alignment, zero, no_move);
 			if (q == NULL)
 				goto ERR;
-			usize = isalloc(q);
 			if (max_usize < PAGE_SIZE) {
 				usize = max_usize;
 				arena_prof_promoted(q, usize);
-			}
+			} else
+				usize = isalloc(q);
 		} else {
 			q = iralloc(p, size, extra, alignment, zero, no_move);
 			if (q == NULL)
