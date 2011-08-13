@@ -1587,8 +1587,7 @@ JEMALLOC_P(allocm)(void **ptr, size_t *rsize, size_t size, int flags)
 	if (malloc_init())
 		goto OOM;
 
-	usize = (alignment == 0) ? s2u(size) : sa2u(size, alignment,
-	    NULL);
+	usize = (alignment == 0) ? s2u(size) : sa2u(size, alignment, NULL);
 	if (usize == 0)
 		goto OOM;
 
@@ -1612,7 +1611,7 @@ JEMALLOC_P(allocm)(void **ptr, size_t *rsize, size_t size, int flags)
 			if (p == NULL)
 				goto OOM;
 		}
-
+		prof_malloc(p, usize, cnt);
 		if (rsize != NULL)
 			*rsize = usize;
 	} else
