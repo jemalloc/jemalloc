@@ -1299,6 +1299,7 @@ JEMALLOC_P(realloc)(void *ptr, size_t size)
 			old_ctx = prof_ctx_get(ptr);
 			PROF_ALLOC_PREP(1, usize, cnt);
 			if (cnt == NULL) {
+				old_ctx = NULL;
 				ret = NULL;
 				goto OOM;
 			}
@@ -1308,8 +1309,13 @@ JEMALLOC_P(realloc)(void *ptr, size_t size)
 				    false, false);
 				if (ret != NULL)
 					arena_prof_promoted(ret, usize);
-			} else
+				else
+					old_ctx = NULL;
+			} else {
 				ret = iralloc(ptr, size, 0, 0, false, false);
+				if (ret == NULL)
+					old_ctx = NULL;
+			}
 		} else
 #endif
 		{
@@ -1666,7 +1672,6 @@ JEMALLOC_P(rallocm)(void **ptr, size_t *rsize, size_t size, size_t extra,
 	bool no_move = flags & ALLOCM_NO_MOVE;
 #ifdef JEMALLOC_PROF
 	prof_thr_cnt_t *cnt;
-	prof_ctx_t *old_ctx;
 #endif
 
 	assert(ptr != NULL);
@@ -1687,8 +1692,8 @@ JEMALLOC_P(rallocm)(void **ptr, size_t *rsize, size_t size, size_t extra,
 		 */
 		size_t max_usize = (alignment == 0) ? s2u(size+extra) :
 		    sa2u(size+extra, alignment, NULL);
+		prof_ctx_t *old_ctx = prof_ctx_get(p);
 		old_size = isalloc(p);
-		old_ctx = prof_ctx_get(p);
 		PROF_ALLOC_PREP(1, max_usize, cnt);
 		if (cnt == NULL)
 			goto OOM;
