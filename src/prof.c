@@ -474,11 +474,23 @@ prof_lookup(prof_bt_t *bt)
 			/*
 			 * Artificially raise curobjs, in order to avoid a race
 			 * condition with prof_ctx_merge()/prof_ctx_destroy().
+			 *
+			 * No locking is necessary for ctx here because no other
+			 * threads have had the opportunity to fetch it from
+			 * bt2ctx yet.
 			 */
 			ctx.p->cnt_merged.curobjs++;
 			new_ctx = true;
-		} else
+		} else {
+			/*
+			 * Artificially raise curobjs, in order to avoid a race
+			 * condition with prof_ctx_merge()/prof_ctx_destroy().
+			 */
+			malloc_mutex_lock(&ctx.p->lock);
+			ctx.p->cnt_merged.curobjs++;
+			malloc_mutex_unlock(&ctx.p->lock);
 			new_ctx = false;
+		}
 		prof_leave();
 
 		/* Link a prof_thd_cnt_t into ctx for this thread. */
@@ -491,8 +503,9 @@ prof_lookup(prof_bt_t *bt)
 			 */
 			ret.p = ql_last(&prof_tdata->lru_ql, lru_link);
 			assert(ret.v != NULL);
-			ckh_remove(&prof_tdata->bt2cnt, ret.p->ctx->bt, NULL,
-			    NULL);
+			if (ckh_remove(&prof_tdata->bt2cnt, ret.p->ctx->bt,
+			    NULL, NULL))
+				assert(false);
 			ql_remove(&prof_tdata->lru_ql, ret.p, lru_link);
 			prof_ctx_merge(ret.p->ctx, ret.p);
 			/* ret can now be re-used. */
@@ -523,8 +536,7 @@ prof_lookup(prof_bt_t *bt)
 		ql_head_insert(&prof_tdata->lru_ql, ret.p, lru_link);
 		malloc_mutex_lock(&ctx.p->lock);
 		ql_tail_insert(&ctx.p->cnts_ql, ret.p, cnts_link);
-		if (new_ctx)
-			ctx.p->cnt_merged.curobjs--;
+		ctx.p->cnt_merged.curobjs--;
 		malloc_mutex_unlock(&ctx.p->lock);
 	} else {
 		/* Move ret to the front of the LRU. */
@@ -650,7 +662,8 @@ prof_ctx_destroy(prof_ctx_t *ctx)
 		assert(ctx->cnt_merged.accumobjs == 0);
 		assert(ctx->cnt_merged.accumbytes == 0);
 		/* Remove ctx from bt2ctx. */
-		ckh_remove(&bt2ctx, ctx->bt, NULL, NULL);
+		if (ckh_remove(&bt2ctx, ctx->bt, NULL, NULL))
+			assert(false);
 		prof_leave();
 		/* Destroy ctx. */
 		malloc_mutex_unlock(&ctx->lock);
