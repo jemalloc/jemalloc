@@ -33,7 +33,7 @@
 #define	JEMALLOC_MANGLE
 #include "../jemalloc@install_suffix@.h"
 
-#include "private_namespace.h"
+#include "jemalloc/internal/private_namespace.h"
 
 #if (defined(JEMALLOC_OSATOMIC) || defined(JEMALLOC_OSSPIN))
 #include <libkern/OSAtomic.h>
