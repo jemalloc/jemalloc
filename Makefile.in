@@ -42,7 +42,7 @@ TEST_LIBRARY_PATH :=
 endif
 
 # Lists of files.
-BINS := @srcroot@bin/pprof
+BINS := @srcroot@bin/pprof @objroot@bin/jemalloc.sh
 CHDRS := @objroot@include/jemalloc/jemalloc@install_suffix@.h \
 	@objroot@include/jemalloc/jemalloc_defs@install_suffix@.h
 CSRCS := @srcroot@src/jemalloc.c @srcroot@src/arena.c @srcroot@src/atomic.c \

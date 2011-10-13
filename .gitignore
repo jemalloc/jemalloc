@@ -21,3 +21,4 @@
 !test/*.c
 !test/*.exp
 /VERSION
+/bin/jemalloc.sh

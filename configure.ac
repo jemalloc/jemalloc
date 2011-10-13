@@ -167,6 +167,9 @@ case "${host_cpu}" in
 esac
 AC_DEFINE_UNQUOTED([CPU_SPINWAIT], [$CPU_SPINWAIT])
 
+LD_PRELOAD_VAR="LD_PRELOAD"
+SHLIB_SUFFIX_NAME="so"
+
 dnl Platform-specific settings.  abi and RPATH can probably be determined
 dnl programmatically, but doing so is error-prone, which makes it generally
 dnl not worth the trouble.
@@ -180,6 +183,8 @@ case "${host}" in
 	abi="macho"
 	AC_DEFINE([JEMALLOC_PURGE_MADVISE_FREE])
 	RPATH=""
+	LD_PRELOAD_VAR="DYLD_INSERT_LIBRARIES"
+	SHLIB_SUFFIX_NAME="dylib"
 	;;
   *-*-freebsd*)
 	CFLAGS="$CFLAGS"
@@ -217,6 +222,17 @@ case "${host}" in
 	CPPFLAGS="$CPPFLAGS -D_POSIX_PTHREAD_SEMANTICS"
 	LIBS="$LIBS -lposix4 -lsocket -lnsl"
 	;;
+  *-ibm-aix*)
+	if "$LG_SIZEOF_PTR" = "8"; then
+	  dnl 64bit AIX
+	  LD_PRELOAD_VAR="LDR_PRELOAD64"
+	else
+	  dnl 32bit AIX
+	  LD_PRELOAD_VAR="LDR_PRELOAD"
+	fi
+	abi="xcoff"
+	RPATH="-Wl,-rpath,"
+	;;
   *)
 	AC_MSG_RESULT([Unsupported operating system: ${host}])
 	abi="elf"
@@ -225,6 +241,8 @@ case "${host}" in
 esac
 AC_SUBST([abi])
 AC_SUBST([RPATH])
+AC_SUBST([LD_PRELOAD_VAR])
+AC_SUBST([SHLIB_SUFFIX_NAME])
 
 JE_COMPILABLE([__attribute__ syntax],
               [static __attribute__((unused)) void foo(void){}],
@@ -881,7 +899,7 @@ AC_CONFIG_HEADERS([$cfghdrs_tup])
 
 dnl ============================================================================
 dnl Generate outputs.
-AC_CONFIG_FILES([$cfgoutputs_tup config.stamp])
+AC_CONFIG_FILES([$cfgoutputs_tup config.stamp bin/jemalloc.sh])
 AC_SUBST([cfgoutputs_in])
 AC_SUBST([cfgoutputs_out])
 AC_OUTPUT
