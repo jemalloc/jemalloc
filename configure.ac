@@ -40,6 +40,10 @@ AC_RUN_IFELSE([AC_LANG_PROGRAM(
 
 dnl ============================================================================
 
+dnl Library revision.
+rev=1
+AC_SUBST([rev])
+
 srcroot=$srcdir
 if test "x${srcroot}" = "x." ; then
   srcroot=""
@@ -168,7 +172,7 @@ esac
 AC_DEFINE_UNQUOTED([CPU_SPINWAIT], [$CPU_SPINWAIT])
 
 LD_PRELOAD_VAR="LD_PRELOAD"
-SHLIB_SUFFIX_NAME="so"
+so="so"
 
 dnl Platform-specific settings.  abi and RPATH can probably be determined
 dnl programmatically, but doing so is error-prone, which makes it generally
@@ -184,7 +188,7 @@ case "${host}" in
 	AC_DEFINE([JEMALLOC_PURGE_MADVISE_FREE])
 	RPATH=""
 	LD_PRELOAD_VAR="DYLD_INSERT_LIBRARIES"
-	SHLIB_SUFFIX_NAME="dylib"
+	so="dylib"
 	;;
   *-*-freebsd*)
 	CFLAGS="$CFLAGS"
@@ -242,7 +246,7 @@ esac
 AC_SUBST([abi])
 AC_SUBST([RPATH])
 AC_SUBST([LD_PRELOAD_VAR])
-AC_SUBST([SHLIB_SUFFIX_NAME])
+AC_SUBST([so])
 
 JE_COMPILABLE([__attribute__ syntax],
               [static __attribute__((unused)) void foo(void){}],
@@ -907,7 +911,8 @@ AC_OUTPUT
 dnl ============================================================================
 dnl Print out the results of configuration.
 AC_MSG_RESULT([===============================================================================])
-AC_MSG_RESULT([jemalloc version   : $jemalloc_version])
+AC_MSG_RESULT([jemalloc version   : ${jemalloc_version}])
+AC_MSG_RESULT([library revision   : ${rev}])
 AC_MSG_RESULT([])
 AC_MSG_RESULT([CC                 : ${CC}])
 AC_MSG_RESULT([CPPFLAGS           : ${CPPFLAGS}])

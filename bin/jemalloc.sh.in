@@ -4,6 +4,6 @@ prefix=@prefix@
 exec_prefix=@exec_prefix@
 libdir=@libdir@
 
-@LD_PRELOAD_VAR@=${libdir}/libjemalloc.@SHLIB_SUFFIX_NAME@.1
+@LD_PRELOAD_VAR@=${libdir}/libjemalloc.@so@.@rev@
 export @LD_PRELOAD_VAR@
 exec "$@"

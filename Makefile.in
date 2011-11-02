@@ -27,14 +27,13 @@ endif
 LDFLAGS := @LDFLAGS@
 LIBS := @LIBS@
 RPATH_EXTRA := @RPATH_EXTRA@
+SO := @so@
 ifeq (macho, @abi@)
-SO := dylib
 WL_SONAME := dylib_install_name
 else
-SO := so
 WL_SONAME := soname
 endif
-REV := 1
+REV := @rev@
 ifeq (macho, @abi@)
 TEST_LIBRARY_PATH := DYLD_FALLBACK_LIBRARY_PATH=@objroot@lib
 else
