@@ -769,6 +769,14 @@ malloc_init_hard(void)
 	}
 #endif
 
+	if (malloc_mutex_init(&arenas_lock))
+		return (true);
+
+	if (pthread_key_create(&arenas_tsd, arenas_cleanup) != 0) {
+		malloc_mutex_unlock(&init_lock);
+		return (true);
+	}
+
 	/*
 	 * Create enough scaffolding to allow recursive allocation in
 	 * malloc_ncpus().
@@ -794,14 +802,6 @@ malloc_init_hard(void)
 	 */
 	ARENA_SET(arenas[0]);
 	arenas[0]->nthreads++;
-
-	if (malloc_mutex_init(&arenas_lock))
-		return (true);
-
-	if (pthread_key_create(&arenas_tsd, arenas_cleanup) != 0) {
-		malloc_mutex_unlock(&init_lock);
-		return (true);
-	}
 
 #ifdef JEMALLOC_PROF
 	if (prof_boot2()) {
