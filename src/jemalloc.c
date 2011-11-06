@@ -689,7 +689,7 @@ malloc_init_hard(void)
 
 		result = sysconf(_SC_PAGESIZE);
 		assert(result != -1);
-		pagesize = (unsigned)result;
+		pagesize = (size_t)result;
 
 		/*
 		 * We assume that pagesize is a power of 2 when calculating
