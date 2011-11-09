@@ -234,6 +234,13 @@ huge_ralloc(void *ptr, size_t oldsize, size_t size, size_t extra,
 	    ) {
 		size_t newsize = huge_salloc(ret);
 
+		/*
+		 * Remove ptr from the tree of huge allocations before
+		 * performing the remap operation, in order to avoid the
+		 * possibility of another thread acquiring that mapping before
+		 * this one removes it from the tree.
+		 */
+		huge_dalloc(ptr, false);
 		if (mremap(ptr, oldsize, newsize, MREMAP_MAYMOVE|MREMAP_FIXED,
 		    ret) == MAP_FAILED) {
 			/*
@@ -253,9 +260,8 @@ huge_ralloc(void *ptr, size_t oldsize, size_t size, size_t extra,
 			if (opt_abort)
 				abort();
 			memcpy(ret, ptr, copysize);
-			idalloc(ptr);
-		} else
-			huge_dalloc(ptr, false);
+			chunk_dealloc(ptr, oldsize);
+		}
 	} else
 #endif
 	{
