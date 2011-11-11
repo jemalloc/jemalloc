@@ -569,7 +569,7 @@ arena_chunk_dealloc(arena_t *arena, arena_chunk_t *chunk)
 			arena->ndirty -= spare->ndirty;
 		}
 		malloc_mutex_unlock(&arena->lock);
-		chunk_dealloc((void *)spare, chunksize);
+		chunk_dealloc((void *)spare, chunksize, true);
 		malloc_mutex_lock(&arena->lock);
 #ifdef JEMALLOC_STATS
 		arena->stats.mapped -= chunksize;
