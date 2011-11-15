@@ -6,6 +6,14 @@ found in the git revision history:
     http://www.canonware.com/cgi-bin/gitweb.cgi?p=jemalloc.git
     git://canonware.com/jemalloc.git
 
+* 2.2.5 (November 14, 2011)
+
+  Bug fixes:
+  - Fix huge_ralloc() race when using mremap(2).  This is a serious bug that
+    could cause memory corruption and/or crashes.
+  - Fix huge_ralloc() to maintain chunk statistics.
+  - Fix malloc_stats_print(..., "a") output.
+
 * 2.2.4 (November 5, 2011)
 
   Bug fixes:
