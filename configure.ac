@@ -777,6 +777,17 @@ if test "x$have__malloc_thread_cleanup" = "x1" ; then
   force_tls="1"
 fi
 
+dnl Check whether the BSD-specific _pthread_mutex_init_calloc_cb() exists.  If
+dnl so, mutex initialization causes allocation, and we need to implement this
+dnl callback function in order to prevent recursive allocation.
+AC_CHECK_FUNC([_pthread_mutex_init_calloc_cb],
+              [have__pthread_mutex_init_calloc_cb="1"],
+              [have__pthread_mutex_init_calloc_cb="0"]
+             )
+if test "x$have__pthread_mutex_init_calloc_cb" = "x1" ; then
+  AC_DEFINE([JEMALLOC_MUTEX_INIT_CB])
+fi
+
 dnl Disable lazy locking by default.
 AC_ARG_ENABLE([lazy_lock],
   [AS_HELP_STRING([--enable-lazy-lock],

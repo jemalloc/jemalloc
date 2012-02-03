@@ -38,10 +38,18 @@ arena_t			**arenas;
 unsigned		narenas;
 
 /* Set to true once the allocator has been initialized. */
-static bool		malloc_initialized = false;
+bool			malloc_initialized = false;
 
+#ifdef JEMALLOC_THREADED_INIT
 /* Used to let the initializing thread recursively allocate. */
 static pthread_t	malloc_initializer = (unsigned long)0;
+#  define INITIALIZER		pthread_self()
+#  define IS_INITIALIZER	(malloc_initializer == pthread_self())
+#else
+static bool		malloc_initializer = false;
+#  define INITIALIZER		true
+#  define IS_INITIALIZER	malloc_initializer
+#endif
 
 /* Used to avoid initialization races. */
 static malloc_mutex_t	init_lock = MALLOC_MUTEX_INITIALIZER;
@@ -127,7 +135,7 @@ choose_arena_hard(void)
 			}
 		}
 
-		if (arenas[choose] == 0 || first_null == narenas) {
+		if (arenas[choose]->nthreads == 0 || first_null == narenas) {
 			/*
 			 * Use an unloaded arena, or the least loaded arena if
 			 * all arenas are already initialized.
@@ -413,22 +421,22 @@ malloc_conf_init(void)
 #define	CONF_HANDLE_SIZE_T(o, n, min, max)				\
 			if (sizeof(#n)-1 == klen && strncmp(#n, k,	\
 			    klen) == 0) {				\
-				unsigned long ul;			\
+				uintmax_t um;			\
 				char *end;				\
 									\
 				errno = 0;				\
-				ul = strtoul(v, &end, 0);		\
+				um = malloc_strtoumax(v, &end, 0);	\
 				if (errno != 0 || (uintptr_t)end -	\
 				    (uintptr_t)v != vlen) {		\
 					malloc_conf_error(		\
 					    "Invalid conf value",	\
 					    k, klen, v, vlen);		\
-				} else if (ul < min || ul > max) {	\
+				} else if (um < min || um > max) {	\
 					malloc_conf_error(		\
 					    "Out-of-range conf value",	\
 					    k, klen, v, vlen);		\
 				} else					\
-					o = ul;				\
+					o = um;				\
 				continue;				\
 			}
 #define	CONF_HANDLE_SSIZE_T(o, n, min, max)				\
@@ -519,7 +527,7 @@ malloc_init_hard(void)
 	arena_t *init_arenas[1];
 
 	malloc_mutex_lock(&init_lock);
-	if (malloc_initialized || malloc_initializer == pthread_self()) {
+	if (malloc_initialized || IS_INITIALIZER) {
 		/*
 		 * Another thread initialized the allocator before this one
 		 * acquired init_lock, or this thread is the initializing
@@ -528,7 +536,8 @@ malloc_init_hard(void)
 		malloc_mutex_unlock(&init_lock);
 		return (false);
 	}
-	if (malloc_initializer != (unsigned long)0) {
+#ifdef JEMALLOC_THREADED_INIT
+	if (IS_INITIALIZER == false) {
 		/* Busy-wait until the initializing thread completes. */
 		do {
 			malloc_mutex_unlock(&init_lock);
@@ -538,6 +547,8 @@ malloc_init_hard(void)
 		malloc_mutex_unlock(&init_lock);
 		return (false);
 	}
+#endif
+	malloc_initializer = INITIALIZER;
 
 #ifdef DYNAMIC_PAGE_SHIFT
 	/* Get page size. */
@@ -564,6 +575,7 @@ malloc_init_hard(void)
 
 	malloc_conf_init();
 
+#ifndef JEMALLOC_MUTEX_INIT_CB
 	/* Register fork handlers. */
 	if (pthread_atfork(jemalloc_prefork, jemalloc_postfork_parent,
 	    jemalloc_postfork_child) != 0) {
@@ -571,11 +583,7 @@ malloc_init_hard(void)
 		if (opt_abort)
 			abort();
 	}
-
-	if (ctl_boot()) {
-		malloc_mutex_unlock(&init_lock);
-		return (true);
-	}
+#endif
 
 	if (opt_stats_print) {
 		/* Print statistics at exit. */
@@ -592,6 +600,11 @@ malloc_init_hard(void)
 	}
 
 	if (base_boot()) {
+		malloc_mutex_unlock(&init_lock);
+		return (true);
+	}
+
+	if (ctl_boot()) {
 		malloc_mutex_unlock(&init_lock);
 		return (true);
 	}
@@ -654,7 +667,6 @@ malloc_init_hard(void)
 	}
 
 	/* Get number of CPUs. */
-	malloc_initializer = pthread_self();
 	malloc_mutex_unlock(&init_lock);
 	ncpus = malloc_ncpus();
 	malloc_mutex_lock(&init_lock);
@@ -1018,8 +1030,7 @@ je_realloc(void *ptr, size_t size)
 	}
 
 	if (ptr != NULL) {
-		assert(malloc_initialized || malloc_initializer ==
-		    pthread_self());
+		assert(malloc_initialized || IS_INITIALIZER);
 
 		if (config_prof || config_stats)
 			old_size = isalloc(ptr);
@@ -1124,8 +1135,7 @@ je_free(void *ptr)
 	if (ptr != NULL) {
 		size_t usize;
 
-		assert(malloc_initialized || malloc_initializer ==
-		    pthread_self());
+		assert(malloc_initialized || IS_INITIALIZER);
 
 		if (config_prof && opt_prof) {
 			usize = isalloc(ptr);
@@ -1208,7 +1218,7 @@ je_malloc_usable_size(const void *ptr)
 {
 	size_t ret;
 
-	assert(malloc_initialized || malloc_initializer == pthread_self());
+	assert(malloc_initialized || IS_INITIALIZER);
 
 	if (config_ivsalloc)
 		ret = ivsalloc(ptr);
@@ -1372,7 +1382,7 @@ je_rallocm(void **ptr, size_t *rsize, size_t size, size_t extra, int flags)
 	assert(*ptr != NULL);
 	assert(size != 0);
 	assert(SIZE_T_MAX - size >= extra);
-	assert(malloc_initialized || malloc_initializer == pthread_self());
+	assert(malloc_initialized || IS_INITIALIZER);
 
 	p = *ptr;
 	if (config_prof && opt_prof) {
@@ -1457,7 +1467,7 @@ je_sallocm(const void *ptr, size_t *rsize, int flags)
 {
 	size_t sz;
 
-	assert(malloc_initialized || malloc_initializer == pthread_self());
+	assert(malloc_initialized || IS_INITIALIZER);
 
 	if (config_ivsalloc)
 		sz = ivsalloc(ptr);
@@ -1479,7 +1489,7 @@ je_dallocm(void *ptr, int flags)
 	size_t usize;
 
 	assert(ptr != NULL);
-	assert(malloc_initialized || malloc_initializer == pthread_self());
+	assert(malloc_initialized || IS_INITIALIZER);
 
 	if (config_stats)
 		usize = isalloc(ptr);
@@ -1528,8 +1538,13 @@ je_nallocm(size_t *rsize, size_t size, int flags)
  * malloc during fork().
  */
 
+#ifndef JEMALLOC_MUTEX_INIT_CB
 void
 jemalloc_prefork(void)
+#else
+void
+_malloc_prefork(void)
+#endif
 {
 	unsigned i;
 
@@ -1544,8 +1559,13 @@ jemalloc_prefork(void)
 	chunk_dss_prefork();
 }
 
+#ifndef JEMALLOC_MUTEX_INIT_CB
 void
 jemalloc_postfork_parent(void)
+#else
+void
+_malloc_postfork(void)
+#endif
 {
 	unsigned i;
 

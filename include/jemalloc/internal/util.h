@@ -85,6 +85,7 @@
 extern void	(*je_malloc_message)(void *wcbopaque, const char *s);
 
 int	buferror(int errnum, char *buf, size_t buflen);
+uintmax_t	malloc_strtoumax(const char *nptr, char **endptr, int base);
 
 /*
  * malloc_vsnprintf() supports a subset of snprintf(3) that avoids floating

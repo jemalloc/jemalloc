@@ -66,6 +66,17 @@ base_alloc(size_t size)
 	return (ret);
 }
 
+void *
+base_calloc(size_t number, size_t size)
+{
+	void *ret = base_alloc(number * size);
+
+	if (ret != NULL)
+		memset(ret, 0, number * size);
+
+	return (ret);
+}
+
 extent_node_t *
 base_node_alloc(void)
 {

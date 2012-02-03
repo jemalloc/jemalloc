@@ -1,5 +1,6 @@
 #include <sys/mman.h>
 #include <sys/param.h>
+#include <sys/syscall.h>
 #include <sys/time.h>
 #include <sys/types.h>
 #include <sys/uio.h>
@@ -369,6 +370,8 @@ extern malloc_mutex_t	arenas_lock; /* Protects arenas initialization. */
  */
 extern arena_t		**arenas;
 extern unsigned		narenas;
+
+extern bool		malloc_initialized;
 
 arena_t	*arenas_extend(unsigned ind);
 void	arenas_cleanup(void *arg);

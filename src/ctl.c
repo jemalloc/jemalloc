@@ -615,19 +615,19 @@ ctl_lookup(const char *name, ctl_node_t const **nodesp, size_t *mibp,
 				goto RETURN;
 			}
 		} else {
-			unsigned long index;
+			uintmax_t index;
 			const ctl_node_t *inode;
 
 			/* Children are indexed. */
-			index = strtoul(elm, NULL, 10);
-			if (index == ULONG_MAX) {
+			index = malloc_strtoumax(elm, NULL, 10);
+			if (index == UINTMAX_MAX || index > SIZE_T_MAX) {
 				ret = ENOENT;
 				goto RETURN;
 			}
 
 			inode = &node->u.named.children[0];
 			node = inode->u.indexed.index(mibp, *depthp,
-			    index);
+			    (size_t)index);
 			if (node == NULL) {
 				ret = ENOENT;
 				goto RETURN;

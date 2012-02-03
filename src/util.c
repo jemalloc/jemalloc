@@ -44,7 +44,7 @@ JEMALLOC_CATTR(visibility("hidden"), static)
 void
 wrtmessage(void *cbopaque, const char *s)
 {
-	UNUSED int result = write(STDERR_FILENO, s, strlen(s));
+	UNUSED int result = syscall(SYS_write, STDERR_FILENO, s, strlen(s));
 }
 
 void	(*je_malloc_message)(void *, const char *s)
@@ -67,6 +67,123 @@ buferror(int errnum, char *buf, size_t buflen)
 #else
 	return (strerror_r(errno, buf, buflen));
 #endif
+}
+
+uintmax_t
+malloc_strtoumax(const char *nptr, char **endptr, int base)
+{
+	uintmax_t ret, digit;
+	int b;
+	bool neg;
+	const char *p, *ns;
+
+	if (base < 0 || base == 1 || base > 36) {
+		errno = EINVAL;
+		return (UINTMAX_MAX);
+	}
+	b = base;
+
+	/* Swallow leading whitespace and get sign, if any. */
+	neg = false;
+	p = nptr;
+	while (true) {
+		switch (*p) {
+		case '\t': case '\n': case '\v': case '\f': case '\r': case ' ':
+			p++;
+			break;
+		case '-':
+			neg = true;
+			/* Fall through. */
+		case '+':
+			p++;
+			/* Fall through. */
+		default:
+			goto PREFIX;
+		}
+	}
+
+	/* Get prefix, if any. */
+	PREFIX:
+	/*
+	 * Note where the first non-whitespace/sign character is so that it is
+	 * possible to tell whether any digits are consumed (e.g., "  0" vs.
+	 * "  -x").
+	 */
+	ns = p;
+	if (*p == '0') {
+		switch (p[1]) {
+		case '0': case '1': case '2': case '3': case '4': case '5':
+		case '6': case '7':
+			if (b == 0)
+				b = 8;
+			if (b == 8)
+				p++;
+			break;
+		case 'x':
+			switch (p[2]) {
+			case '0': case '1': case '2': case '3': case '4':
+			case '5': case '6': case '7': case '8': case '9':
+			case 'A': case 'B': case 'C': case 'D': case 'E':
+			case 'F':
+			case 'a': case 'b': case 'c': case 'd': case 'e':
+			case 'f':
+				if (b == 0)
+					b = 16;
+				if (b == 16)
+					p += 2;
+				break;
+			default:
+				break;
+			}
+			break;
+		default:
+			break;
+		}
+	}
+	if (b == 0)
+		b = 10;
+
+	/* Convert. */
+	ret = 0;
+	while ((*p >= '0' && *p <= '9' && (digit = *p - '0') < b)
+	    || (*p >= 'A' && *p <= 'Z' && (digit = 10 + *p - 'A') < b)
+	    || (*p >= 'a' && *p <= 'z' && (digit = 10 + *p - 'a') < b)) {
+		uintmax_t pret = ret;
+		ret *= b;
+		ret += digit;
+		if (ret < pret) {
+			/* Overflow. */
+			errno = ERANGE;
+			return (UINTMAX_MAX);
+		}
+		p++;
+	}
+	if (neg)
+		ret = -ret;
+
+	if (endptr != NULL) {
+		if (p == ns) {
+			/* No characters were converted. */
+			*endptr = (char *)nptr;
+		} else
+			*endptr = (char *)p;
+	}
+
+	if (config_debug && malloc_initialized) {
+		uintmax_t tret;
+		int perrno;
+		char *pend;
+
+		perrno = errno;
+		if (endptr != NULL)
+			pend = *endptr;
+		tret = strtoumax(nptr, endptr, base);
+		assert(tret == ret);
+		assert(errno == perrno);
+		assert(endptr == NULL || *endptr == pend);
+	}
+
+	return (ret);
 }
 
 static char *
@@ -220,7 +337,7 @@ malloc_vsnprintf(char *str, size_t size, const char *format, va_list ap)
 		val = va_arg(ap, ptrdiff_t);				\
 		break;							\
 	case 'z':							\
-		val = va_arg(ap, size_t);				\
+		val = va_arg(ap, ssize_t);				\
 		break;							\
 	case 'p': /* Synthetic; used for %p. */				\
 		val = va_arg(ap, uintptr_t);				\
@@ -289,10 +406,11 @@ malloc_vsnprintf(char *str, size_t size, const char *format, va_list ap)
 				break;
 			case '0': case '1': case '2': case '3': case '4':
 			case '5': case '6': case '7': case '8': case '9': {
-				unsigned long uwidth;
+				uintmax_t uwidth;
 				errno = 0;
-				uwidth = strtoul(f, (char **)&f, 10);
-				assert(uwidth != ULONG_MAX || errno != ERANGE);
+				uwidth = malloc_strtoumax(f, (char **)&f, 10);
+				assert(uwidth != UINTMAX_MAX || errno !=
+				    ERANGE);
 				width = (int)uwidth;
 				if (*f == '.') {
 					f++;
@@ -314,10 +432,10 @@ malloc_vsnprintf(char *str, size_t size, const char *format, va_list ap)
 				break;
 			case '0': case '1': case '2': case '3': case '4':
 			case '5': case '6': case '7': case '8': case '9': {
-				unsigned long uprec;
+				uintmax_t uprec;
 				errno = 0;
-				uprec = strtoul(f, (char **)&f, 10);
-				assert(uprec != ULONG_MAX || errno != ERANGE);
+				uprec = malloc_strtoumax(f, (char **)&f, 10);
+				assert(uprec != UINTMAX_MAX || errno != ERANGE);
 				prec = (int)uprec;
 				break;
 			}
@@ -435,7 +553,7 @@ malloc_vsnprintf(char *str, size_t size, const char *format, va_list ap)
 		str[size - 1] = '\0';
 	ret = i;
 
-	if (config_debug) {
+	if (config_debug && malloc_initialized) {
 		char buf[MALLOC_PRINTF_BUFSIZE];
 		int tret;
 

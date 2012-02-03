@@ -71,7 +71,7 @@ a_name##_tsd_set(a_type *val);
 #ifdef JEMALLOC_MALLOC_THREAD_CLEANUP
 #define	malloc_tsd_externs(a_name, a_type)				\
 extern __thread a_type	a_name##_tls;					\
-extern __thread bool	*a_name##_initialized;				\
+extern __thread bool	a_name##_initialized;				\
 extern bool		a_name##_booted;
 #elif (defined(JEMALLOC_TLS))
 #define	malloc_tsd_externs(a_name, a_type)				\
