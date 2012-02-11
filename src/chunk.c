@@ -5,18 +5,12 @@
 /* Data. */
 
 size_t	opt_lg_chunk = LG_CHUNK_DEFAULT;
-#ifdef JEMALLOC_SWAP
 bool	opt_overcommit = true;
-#endif
 
-#if (defined(JEMALLOC_STATS) || defined(JEMALLOC_PROF))
 malloc_mutex_t	chunks_mtx;
 chunk_stats_t	stats_chunks;
-#endif
 
-#ifdef JEMALLOC_IVSALLOC
 rtree_t		*chunks_rtree;
-#endif
 
 /* Various chunk-related settings. */
 size_t		chunksize;
@@ -41,67 +35,50 @@ chunk_alloc(size_t size, bool base, bool *zero)
 	assert(size != 0);
 	assert((size & chunksize_mask) == 0);
 
-#ifdef JEMALLOC_SWAP
-	if (swap_enabled) {
+	if (config_swap && swap_enabled) {
 		ret = chunk_alloc_swap(size, zero);
 		if (ret != NULL)
 			goto RETURN;
 	}
 
 	if (swap_enabled == false || opt_overcommit) {
-#endif
-#ifdef JEMALLOC_DSS
-		ret = chunk_alloc_dss(size, zero);
-		if (ret != NULL)
-			goto RETURN;
-#endif
+		if (config_dss) {
+			ret = chunk_alloc_dss(size, zero);
+			if (ret != NULL)
+				goto RETURN;
+		}
 		ret = chunk_alloc_mmap(size);
 		if (ret != NULL) {
 			*zero = true;
 			goto RETURN;
 		}
-#ifdef JEMALLOC_SWAP
 	}
-#endif
 
 	/* All strategies for allocation failed. */
 	ret = NULL;
 RETURN:
-#ifdef JEMALLOC_IVSALLOC
-	if (base == false && ret != NULL) {
+	if (config_ivsalloc && base == false && ret != NULL) {
 		if (rtree_set(chunks_rtree, (uintptr_t)ret, ret)) {
 			chunk_dealloc(ret, size, true);
 			return (NULL);
 		}
 	}
-#endif
-#if (defined(JEMALLOC_STATS) || defined(JEMALLOC_PROF))
-	if (ret != NULL) {
-#  ifdef JEMALLOC_PROF
+	if ((config_stats || config_prof) && ret != NULL) {
 		bool gdump;
-#  endif
 		malloc_mutex_lock(&chunks_mtx);
-#  ifdef JEMALLOC_STATS
-		stats_chunks.nchunks += (size / chunksize);
-#  endif
+		if (config_stats)
+			stats_chunks.nchunks += (size / chunksize);
 		stats_chunks.curchunks += (size / chunksize);
 		if (stats_chunks.curchunks > stats_chunks.highchunks) {
 			stats_chunks.highchunks = stats_chunks.curchunks;
-#  ifdef JEMALLOC_PROF
-			gdump = true;
-#  endif
-		}
-#  ifdef JEMALLOC_PROF
-		else
+			if (config_prof)
+				gdump = true;
+		} else if (config_prof)
 			gdump = false;
-#  endif
 		malloc_mutex_unlock(&chunks_mtx);
-#  ifdef JEMALLOC_PROF
-		if (opt_prof && opt_prof_gdump && gdump)
+		if (config_prof && opt_prof && opt_prof_gdump && gdump)
 			prof_gdump();
-#  endif
 	}
-#endif
 
 	assert(CHUNK_ADDR2BASE(ret) == ret);
 	return (ret);
@@ -116,24 +93,20 @@ chunk_dealloc(void *chunk, size_t size, bool unmap)
 	assert(size != 0);
 	assert((size & chunksize_mask) == 0);
 
-#ifdef JEMALLOC_IVSALLOC
-	rtree_set(chunks_rtree, (uintptr_t)chunk, NULL);
-#endif
-#if (defined(JEMALLOC_STATS) || defined(JEMALLOC_PROF))
-	malloc_mutex_lock(&chunks_mtx);
-	stats_chunks.curchunks -= (size / chunksize);
-	malloc_mutex_unlock(&chunks_mtx);
-#endif
+	if (config_ivsalloc)
+		rtree_set(chunks_rtree, (uintptr_t)chunk, NULL);
+	if (config_stats || config_prof) {
+		malloc_mutex_lock(&chunks_mtx);
+		stats_chunks.curchunks -= (size / chunksize);
+		malloc_mutex_unlock(&chunks_mtx);
+	}
 
 	if (unmap) {
-#ifdef JEMALLOC_SWAP
-		if (swap_enabled && chunk_dealloc_swap(chunk, size) == false)
+		if (config_swap && swap_enabled && chunk_dealloc_swap(chunk,
+		    size) == false)
 			return;
-#endif
-#ifdef JEMALLOC_DSS
-		if (chunk_dealloc_dss(chunk, size) == false)
+		if (config_dss && chunk_dealloc_dss(chunk, size) == false)
 			return;
-#endif
 		chunk_dealloc_mmap(chunk, size);
 	}
 }
@@ -148,26 +121,23 @@ chunk_boot(void)
 	chunksize_mask = chunksize - 1;
 	chunk_npages = (chunksize >> PAGE_SHIFT);
 
-#if (defined(JEMALLOC_STATS) || defined(JEMALLOC_PROF))
-	if (malloc_mutex_init(&chunks_mtx))
+	if (config_stats || config_prof) {
+		if (malloc_mutex_init(&chunks_mtx))
+			return (true);
+		memset(&stats_chunks, 0, sizeof(chunk_stats_t));
+	}
+	if (config_swap && chunk_swap_boot())
 		return (true);
-	memset(&stats_chunks, 0, sizeof(chunk_stats_t));
-#endif
-#ifdef JEMALLOC_SWAP
-	if (chunk_swap_boot())
-		return (true);
-#endif
 	if (chunk_mmap_boot())
 		return (true);
-#ifdef JEMALLOC_DSS
-	if (chunk_dss_boot())
+	if (config_dss && chunk_dss_boot())
 		return (true);
-#endif
-#ifdef JEMALLOC_IVSALLOC
-	chunks_rtree = rtree_new((ZU(1) << (LG_SIZEOF_PTR+3)) - opt_lg_chunk);
-	if (chunks_rtree == NULL)
-		return (true);
-#endif
+	if (config_ivsalloc) {
+		chunks_rtree = rtree_new((ZU(1) << (LG_SIZEOF_PTR+3)) -
+		    opt_lg_chunk);
+		if (chunks_rtree == NULL)
+			return (true);
+	}
 
 	return (false);
 }

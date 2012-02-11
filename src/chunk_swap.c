@@ -1,6 +1,6 @@
 #define	JEMALLOC_CHUNK_SWAP_C_
 #include "jemalloc/internal/jemalloc_internal.h"
-#ifdef JEMALLOC_SWAP
+
 /******************************************************************************/
 /* Data. */
 
@@ -9,9 +9,7 @@ bool		swap_enabled;
 bool		swap_prezeroed;
 size_t		swap_nfds;
 int		*swap_fds;
-#ifdef JEMALLOC_STATS
 size_t		swap_avail;
-#endif
 
 /* Base address of the mmap()ed file(s). */
 static void	*swap_base;
@@ -42,6 +40,8 @@ chunk_recycle_swap(size_t size, bool *zero)
 {
 	extent_node_t *node, key;
 
+	cassert(config_swap);
+
 	key.addr = NULL;
 	key.size = size;
 	malloc_mutex_lock(&swap_mtx);
@@ -65,9 +65,8 @@ chunk_recycle_swap(size_t size, bool *zero)
 			node->size -= size;
 			extent_tree_szad_insert(&swap_chunks_szad, node);
 		}
-#ifdef JEMALLOC_STATS
-		swap_avail -= size;
-#endif
+		if (config_stats)
+			swap_avail -= size;
 		malloc_mutex_unlock(&swap_mtx);
 
 		if (*zero)
@@ -84,6 +83,7 @@ chunk_alloc_swap(size_t size, bool *zero)
 {
 	void *ret;
 
+	cassert(config_swap);
 	assert(swap_enabled);
 
 	ret = chunk_recycle_swap(size, zero);
@@ -94,9 +94,8 @@ chunk_alloc_swap(size_t size, bool *zero)
 	if ((uintptr_t)swap_end + size <= (uintptr_t)swap_max) {
 		ret = swap_end;
 		swap_end = (void *)((uintptr_t)swap_end + size);
-#ifdef JEMALLOC_STATS
-		swap_avail -= size;
-#endif
+		if (config_stats)
+			swap_avail -= size;
 		malloc_mutex_unlock(&swap_mtx);
 
 		if (swap_prezeroed)
@@ -115,6 +114,8 @@ static extent_node_t *
 chunk_dealloc_swap_record(void *chunk, size_t size)
 {
 	extent_node_t *xnode, *node, *prev, key;
+
+	cassert(config_swap);
 
 	xnode = NULL;
 	while (true) {
@@ -189,6 +190,7 @@ chunk_in_swap(void *chunk)
 {
 	bool ret;
 
+	cassert(config_swap);
 	assert(swap_enabled);
 
 	malloc_mutex_lock(&swap_mtx);
@@ -207,6 +209,7 @@ chunk_dealloc_swap(void *chunk, size_t size)
 {
 	bool ret;
 
+	cassert(config_swap);
 	assert(swap_enabled);
 
 	malloc_mutex_lock(&swap_mtx);
@@ -237,9 +240,8 @@ chunk_dealloc_swap(void *chunk, size_t size)
 		} else
 			madvise(chunk, size, MADV_DONTNEED);
 
-#ifdef JEMALLOC_STATS
-		swap_avail += size;
-#endif
+		if (config_stats)
+			swap_avail += size;
 		ret = false;
 		goto RETURN;
 	}
@@ -259,6 +261,8 @@ chunk_swap_enable(const int *fds, unsigned nfds, bool prezeroed)
 	void *vaddr;
 	size_t cumsize, voff;
 	size_t sizes[nfds];
+
+	cassert(config_swap);
 
 	malloc_mutex_lock(&swap_mtx);
 
@@ -362,9 +366,8 @@ chunk_swap_enable(const int *fds, unsigned nfds, bool prezeroed)
 	memcpy(swap_fds, fds, nfds * sizeof(int));
 	swap_nfds = nfds;
 
-#ifdef JEMALLOC_STATS
-	swap_avail = cumsize;
-#endif
+	if (config_stats)
+		swap_avail = cumsize;
 
 	swap_enabled = true;
 
@@ -378,6 +381,8 @@ bool
 chunk_swap_boot(void)
 {
 
+	cassert(config_swap);
+
 	if (malloc_mutex_init(&swap_mtx))
 		return (true);
 
@@ -385,9 +390,8 @@ chunk_swap_boot(void)
 	swap_prezeroed = false; /* swap.* mallctl's depend on this. */
 	swap_nfds = 0;
 	swap_fds = NULL;
-#ifdef JEMALLOC_STATS
-	swap_avail = 0;
-#endif
+	if (config_stats)
+		swap_avail = 0;
 	swap_base = NULL;
 	swap_end = NULL;
 	swap_max = NULL;
@@ -397,6 +401,3 @@ chunk_swap_boot(void)
 
 	return (false);
 }
-
-/******************************************************************************/
-#endif /* JEMALLOC_SWAP */

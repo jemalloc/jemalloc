@@ -13,13 +13,10 @@ pthread_key_t		arenas_tsd;
 __thread arena_t	*arenas_tls JEMALLOC_ATTR(tls_model("initial-exec"));
 #endif
 
-#ifdef JEMALLOC_STATS
-#  ifndef NO_TLS
+#ifndef NO_TLS
 __thread thread_allocated_t	thread_allocated_tls;
-#  else
-pthread_key_t		thread_allocated_tsd;
-#  endif
 #endif
+pthread_key_t		thread_allocated_tsd;
 
 /* Set to true once the allocator has been initialized. */
 static bool		malloc_initialized = false;
@@ -28,13 +25,7 @@ static bool		malloc_initialized = false;
 static pthread_t	malloc_initializer = (unsigned long)0;
 
 /* Used to avoid initialization races. */
-static malloc_mutex_t	init_lock =
-#ifdef JEMALLOC_OSSPIN
-    0
-#else
-    MALLOC_MUTEX_INITIALIZER
-#endif
-    ;
+static malloc_mutex_t	init_lock = MALLOC_MUTEX_INITIALIZER;
 
 #ifdef DYNAMIC_PAGE_SHIFT
 size_t		pagesize;
@@ -50,22 +41,16 @@ const char	*JEMALLOC_P(malloc_conf) JEMALLOC_ATTR(visibility("default"));
 bool	opt_abort = true;
 #  ifdef JEMALLOC_FILL
 bool	opt_junk = true;
+#  else
+bool	opt_junk = false;
 #  endif
 #else
 bool	opt_abort = false;
-#  ifdef JEMALLOC_FILL
 bool	opt_junk = false;
-#  endif
 #endif
-#ifdef JEMALLOC_SYSV
 bool	opt_sysv = false;
-#endif
-#ifdef JEMALLOC_XMALLOC
 bool	opt_xmalloc = false;
-#endif
-#ifdef JEMALLOC_FILL
 bool	opt_zero = false;
-#endif
 size_t	opt_narenas = 0;
 
 /******************************************************************************/
@@ -75,7 +60,7 @@ static void	wrtmessage(void *cbopaque, const char *s);
 static void	stats_print_atexit(void);
 static unsigned	malloc_ncpus(void);
 static void	arenas_cleanup(void *arg);
-#if (defined(JEMALLOC_STATS) && defined(NO_TLS))
+#ifdef NO_TLS
 static void	thread_allocated_cleanup(void *arg);
 #endif
 static bool	malloc_conf_next(char const **opts_p, char const **k_p,
@@ -89,22 +74,11 @@ static int	imemalign(void **memptr, size_t alignment, size_t size);
 /******************************************************************************/
 /* malloc_message() setup. */
 
-#ifdef JEMALLOC_HAVE_ATTR
-JEMALLOC_ATTR(visibility("hidden"))
-#else
-static
-#endif
+JEMALLOC_CATTR(visibility("hidden"), static)
 void
 wrtmessage(void *cbopaque, const char *s)
 {
-#ifdef JEMALLOC_CC_SILENCE
-	int result =
-#endif
-	    write(STDERR_FILENO, s, strlen(s));
-#ifdef JEMALLOC_CC_SILENCE
-	if (result < 0)
-		result = errno;
-#endif
+	UNUSED int result = write(STDERR_FILENO, s, strlen(s));
 }
 
 void	(*JEMALLOC_P(malloc_message))(void *, const char *s)
@@ -229,37 +203,38 @@ static void
 stats_print_atexit(void)
 {
 
-#if (defined(JEMALLOC_TCACHE) && defined(JEMALLOC_STATS))
-	unsigned i;
+	if (config_tcache && config_stats) {
+		unsigned i;
 
-	/*
-	 * Merge stats from extant threads.  This is racy, since individual
-	 * threads do not lock when recording tcache stats events.  As a
-	 * consequence, the final stats may be slightly out of date by the time
-	 * they are reported, if other threads continue to allocate.
-	 */
-	for (i = 0; i < narenas; i++) {
-		arena_t *arena = arenas[i];
-		if (arena != NULL) {
-			tcache_t *tcache;
+		/*
+		 * Merge stats from extant threads.  This is racy, since
+		 * individual threads do not lock when recording tcache stats
+		 * events.  As a consequence, the final stats may be slightly
+		 * out of date by the time they are reported, if other threads
+		 * continue to allocate.
+		 */
+		for (i = 0; i < narenas; i++) {
+			arena_t *arena = arenas[i];
+			if (arena != NULL) {
+				tcache_t *tcache;
 
-			/*
-			 * tcache_stats_merge() locks bins, so if any code is
-			 * introduced that acquires both arena and bin locks in
-			 * the opposite order, deadlocks may result.
-			 */
-			malloc_mutex_lock(&arena->lock);
-			ql_foreach(tcache, &arena->tcache_ql, link) {
-				tcache_stats_merge(tcache, arena);
+				/*
+				 * tcache_stats_merge() locks bins, so if any
+				 * code is introduced that acquires both arena
+				 * and bin locks in the opposite order,
+				 * deadlocks may result.
+				 */
+				malloc_mutex_lock(&arena->lock);
+				ql_foreach(tcache, &arena->tcache_ql, link) {
+					tcache_stats_merge(tcache, arena);
+				}
+				malloc_mutex_unlock(&arena->lock);
 			}
-			malloc_mutex_unlock(&arena->lock);
 		}
 	}
-#endif
 	JEMALLOC_P(malloc_stats_print)(NULL, NULL, NULL);
 }
 
-#if (defined(JEMALLOC_STATS) && defined(NO_TLS))
 thread_allocated_t *
 thread_allocated_get_hard(void)
 {
@@ -279,7 +254,6 @@ thread_allocated_get_hard(void)
 	thread_allocated->deallocated = 0;
 	return (thread_allocated);
 }
-#endif
 
 /*
  * End miscellaneous support functions.
@@ -315,7 +289,7 @@ arenas_cleanup(void *arg)
 	malloc_mutex_unlock(&arenas_lock);
 }
 
-#if (defined(JEMALLOC_STATS) && defined(NO_TLS))
+#ifdef NO_TLS
 static void
 thread_allocated_cleanup(void *arg)
 {
@@ -603,41 +577,42 @@ malloc_conf_init(void)
 			CONF_HANDLE_SSIZE_T(lg_dirty_mult, -1,
 			    (sizeof(size_t) << 3) - 1)
 			CONF_HANDLE_BOOL(stats_print)
-#ifdef JEMALLOC_FILL
-			CONF_HANDLE_BOOL(junk)
-			CONF_HANDLE_BOOL(zero)
-#endif
-#ifdef JEMALLOC_SYSV
-			CONF_HANDLE_BOOL(sysv)
-#endif
-#ifdef JEMALLOC_XMALLOC
-			CONF_HANDLE_BOOL(xmalloc)
-#endif
-#ifdef JEMALLOC_TCACHE
-			CONF_HANDLE_BOOL(tcache)
-			CONF_HANDLE_SSIZE_T(lg_tcache_gc_sweep, -1,
-			    (sizeof(size_t) << 3) - 1)
-			CONF_HANDLE_SSIZE_T(lg_tcache_max, -1,
-			    (sizeof(size_t) << 3) - 1)
-#endif
-#ifdef JEMALLOC_PROF
-			CONF_HANDLE_BOOL(prof)
-			CONF_HANDLE_CHAR_P(prof_prefix, "jeprof")
-			CONF_HANDLE_SIZE_T(lg_prof_bt_max, 0, LG_PROF_BT_MAX)
-			CONF_HANDLE_BOOL(prof_active)
-			CONF_HANDLE_SSIZE_T(lg_prof_sample, 0,
-			    (sizeof(uint64_t) << 3) - 1)
-			CONF_HANDLE_BOOL(prof_accum)
-			CONF_HANDLE_SSIZE_T(lg_prof_tcmax, -1,
-			    (sizeof(size_t) << 3) - 1)
-			CONF_HANDLE_SSIZE_T(lg_prof_interval, -1,
-			    (sizeof(uint64_t) << 3) - 1)
-			CONF_HANDLE_BOOL(prof_gdump)
-			CONF_HANDLE_BOOL(prof_leak)
-#endif
-#ifdef JEMALLOC_SWAP
-			CONF_HANDLE_BOOL(overcommit)
-#endif
+			if (config_fill) {
+				CONF_HANDLE_BOOL(junk)
+				CONF_HANDLE_BOOL(zero)
+			}
+			if (config_sysv) {
+				CONF_HANDLE_BOOL(sysv)
+			}
+			if (config_xmalloc) {
+				CONF_HANDLE_BOOL(xmalloc)
+			}
+			if (config_tcache) {
+				CONF_HANDLE_BOOL(tcache)
+				CONF_HANDLE_SSIZE_T(lg_tcache_gc_sweep, -1,
+				    (sizeof(size_t) << 3) - 1)
+				CONF_HANDLE_SSIZE_T(lg_tcache_max, -1,
+				    (sizeof(size_t) << 3) - 1)
+			}
+			if (config_prof) {
+				CONF_HANDLE_BOOL(prof)
+				CONF_HANDLE_CHAR_P(prof_prefix, "jeprof")
+				CONF_HANDLE_SIZE_T(lg_prof_bt_max, 0,
+				    LG_PROF_BT_MAX)
+				CONF_HANDLE_BOOL(prof_active)
+				CONF_HANDLE_SSIZE_T(lg_prof_sample, 0,
+				    (sizeof(uint64_t) << 3) - 1)
+				CONF_HANDLE_BOOL(prof_accum)
+				CONF_HANDLE_SSIZE_T(lg_prof_tcmax, -1,
+				    (sizeof(size_t) << 3) - 1)
+				CONF_HANDLE_SSIZE_T(lg_prof_interval, -1,
+				    (sizeof(uint64_t) << 3) - 1)
+				CONF_HANDLE_BOOL(prof_gdump)
+				CONF_HANDLE_BOOL(prof_leak)
+			}
+			if (config_swap) {
+				CONF_HANDLE_BOOL(overcommit)
+			}
 			malloc_conf_error("Invalid conf pair", k, klen, v,
 			    vlen);
 #undef CONF_HANDLE_BOOL
@@ -701,9 +676,8 @@ malloc_init_hard(void)
 	}
 #endif
 
-#ifdef JEMALLOC_PROF
-	prof_boot0();
-#endif
+	if (config_prof)
+		prof_boot0();
 
 	malloc_conf_init();
 
@@ -739,31 +713,28 @@ malloc_init_hard(void)
 		return (true);
 	}
 
-#ifdef JEMALLOC_PROF
-	prof_boot1();
-#endif
+	if (config_prof)
+		prof_boot1();
 
 	if (arena_boot()) {
 		malloc_mutex_unlock(&init_lock);
 		return (true);
 	}
 
-#ifdef JEMALLOC_TCACHE
-	if (tcache_boot()) {
+	if (config_tcache && tcache_boot()) {
 		malloc_mutex_unlock(&init_lock);
 		return (true);
 	}
-#endif
 
 	if (huge_boot()) {
 		malloc_mutex_unlock(&init_lock);
 		return (true);
 	}
 
-#if (defined(JEMALLOC_STATS) && defined(NO_TLS))
+#ifdef NO_TLS
 	/* Initialize allocation counters before any allocations can occur. */
-	if (pthread_key_create(&thread_allocated_tsd, thread_allocated_cleanup)
-	    != 0) {
+	if (config_stats && pthread_key_create(&thread_allocated_tsd,
+	    thread_allocated_cleanup) != 0) {
 		malloc_mutex_unlock(&init_lock);
 		return (true);
 	}
@@ -803,12 +774,10 @@ malloc_init_hard(void)
 	ARENA_SET(arenas[0]);
 	arenas[0]->nthreads++;
 
-#ifdef JEMALLOC_PROF
-	if (prof_boot2()) {
+	if (config_prof && prof_boot2()) {
 		malloc_mutex_unlock(&init_lock);
 		return (true);
 	}
-#endif
 
 	/* Get number of CPUs. */
 	malloc_initializer = pthread_self();
@@ -897,20 +866,8 @@ void *
 JEMALLOC_P(malloc)(size_t size)
 {
 	void *ret;
-#if (defined(JEMALLOC_PROF) || defined(JEMALLOC_STATS))
-	size_t usize
-#  ifdef JEMALLOC_CC_SILENCE
-	    = 0
-#  endif
-	    ;
-#endif
-#ifdef JEMALLOC_PROF
-	prof_thr_cnt_t *cnt
-#  ifdef JEMALLOC_CC_SILENCE
-	    = NULL
-#  endif
-	    ;
-#endif
+	size_t usize;
+	prof_thr_cnt_t *cnt;
 
 	if (malloc_init()) {
 		ret = NULL;
@@ -918,27 +875,20 @@ JEMALLOC_P(malloc)(size_t size)
 	}
 
 	if (size == 0) {
-#ifdef JEMALLOC_SYSV
-		if (opt_sysv == false)
-#endif
+		if (config_sysv == false || opt_sysv == false)
 			size = 1;
-#ifdef JEMALLOC_SYSV
 		else {
-#  ifdef JEMALLOC_XMALLOC
-			if (opt_xmalloc) {
+			if (config_xmalloc && opt_xmalloc) {
 				malloc_write("<jemalloc>: Error in malloc(): "
 				    "invalid size 0\n");
 				abort();
 			}
-#  endif
 			ret = NULL;
 			goto RETURN;
 		}
-#endif
 	}
 
-#ifdef JEMALLOC_PROF
-	if (opt_prof) {
+	if (config_prof && opt_prof) {
 		usize = s2u(size);
 		PROF_ALLOC_PREP(1, usize, cnt);
 		if (cnt == NULL) {
@@ -952,47 +902,36 @@ JEMALLOC_P(malloc)(size_t size)
 				arena_prof_promoted(ret, usize);
 		} else
 			ret = imalloc(size);
-	} else
-#endif
-	{
-#ifdef JEMALLOC_STATS
-		usize = s2u(size);
-#endif
+	} else {
+		if (config_stats)
+			usize = s2u(size);
 		ret = imalloc(size);
 	}
 
 OOM:
 	if (ret == NULL) {
-#ifdef JEMALLOC_XMALLOC
-		if (opt_xmalloc) {
+		if (config_xmalloc && opt_xmalloc) {
 			malloc_write("<jemalloc>: Error in malloc(): "
 			    "out of memory\n");
 			abort();
 		}
-#endif
 		errno = ENOMEM;
 	}
 
-#ifdef JEMALLOC_SYSV
 RETURN:
-#endif
-#ifdef JEMALLOC_PROF
-	if (opt_prof && ret != NULL)
+	if (config_prof && opt_prof && ret != NULL)
 		prof_malloc(ret, usize, cnt);
-#endif
-#ifdef JEMALLOC_STATS
-	if (ret != NULL) {
+	if (config_stats && ret != NULL) {
 		assert(usize == isalloc(ret));
 		ALLOCATED_ADD(usize, 0);
 	}
-#endif
 	return (ret);
 }
 
 JEMALLOC_ATTR(nonnull(1))
 #ifdef JEMALLOC_PROF
 /*
- * Avoid any uncertainty as to how many backtrace frames to ignore in 
+ * Avoid any uncertainty as to how many backtrace frames to ignore in
  * PROF_ALLOC_PREP().
  */
 JEMALLOC_ATTR(noinline)
@@ -1001,56 +940,38 @@ static int
 imemalign(void **memptr, size_t alignment, size_t size)
 {
 	int ret;
-	size_t usize
-#ifdef JEMALLOC_CC_SILENCE
-	    = 0
-#endif
-	    ;
+	size_t usize;
 	void *result;
-#ifdef JEMALLOC_PROF
-	prof_thr_cnt_t *cnt
-#  ifdef JEMALLOC_CC_SILENCE
-	    = NULL
-#  endif
-	    ;
-#endif
+	prof_thr_cnt_t *cnt;
 
 	if (malloc_init())
 		result = NULL;
 	else {
 		if (size == 0) {
-#ifdef JEMALLOC_SYSV
-			if (opt_sysv == false)
-#endif
+			if (config_sysv == false || opt_sysv == false)
 				size = 1;
-#ifdef JEMALLOC_SYSV
 			else {
-#  ifdef JEMALLOC_XMALLOC
-				if (opt_xmalloc) {
+				if (config_xmalloc && opt_xmalloc) {
 					malloc_write("<jemalloc>: Error in "
 					    "posix_memalign(): invalid size "
 					    "0\n");
 					abort();
 				}
-#  endif
 				result = NULL;
 				*memptr = NULL;
 				ret = 0;
 				goto RETURN;
 			}
-#endif
 		}
 
 		/* Make sure that alignment is a large enough power of 2. */
 		if (((alignment - 1) & alignment) != 0
 		    || alignment < sizeof(void *)) {
-#ifdef JEMALLOC_XMALLOC
-			if (opt_xmalloc) {
+			if (config_xmalloc && opt_xmalloc) {
 				malloc_write("<jemalloc>: Error in "
 				    "posix_memalign(): invalid alignment\n");
 				abort();
 			}
-#endif
 			result = NULL;
 			ret = EINVAL;
 			goto RETURN;
@@ -1063,8 +984,7 @@ imemalign(void **memptr, size_t alignment, size_t size)
 			goto RETURN;
 		}
 
-#ifdef JEMALLOC_PROF
-		if (opt_prof) {
+		if (config_prof && opt_prof) {
 			PROF_ALLOC_PREP(2, usize, cnt);
 			if (cnt == NULL) {
 				result = NULL;
@@ -1086,18 +1006,15 @@ imemalign(void **memptr, size_t alignment, size_t size)
 				}
 			}
 		} else
-#endif
 			result = ipalloc(usize, alignment, false);
 	}
 
 	if (result == NULL) {
-#ifdef JEMALLOC_XMALLOC
-		if (opt_xmalloc) {
+		if (config_xmalloc && opt_xmalloc) {
 			malloc_write("<jemalloc>: Error in posix_memalign(): "
 			    "out of memory\n");
 			abort();
 		}
-#endif
 		ret = ENOMEM;
 		goto RETURN;
 	}
@@ -1106,16 +1023,12 @@ imemalign(void **memptr, size_t alignment, size_t size)
 	ret = 0;
 
 RETURN:
-#ifdef JEMALLOC_STATS
-	if (result != NULL) {
+	if (config_stats && result != NULL) {
 		assert(usize == isalloc(result));
 		ALLOCATED_ADD(usize, 0);
 	}
-#endif
-#ifdef JEMALLOC_PROF
-	if (opt_prof && result != NULL)
+	if (config_prof && opt_prof && result != NULL)
 		prof_malloc(result, usize, cnt);
-#endif
 	return (ret);
 }
 
@@ -1135,20 +1048,8 @@ JEMALLOC_P(calloc)(size_t num, size_t size)
 {
 	void *ret;
 	size_t num_size;
-#if (defined(JEMALLOC_PROF) || defined(JEMALLOC_STATS))
-	size_t usize
-#  ifdef JEMALLOC_CC_SILENCE
-	    = 0
-#  endif
-	    ;
-#endif
-#ifdef JEMALLOC_PROF
-	prof_thr_cnt_t *cnt
-#  ifdef JEMALLOC_CC_SILENCE
-	    = NULL
-#  endif
-	    ;
-#endif
+	size_t usize;
+	prof_thr_cnt_t *cnt;
 
 	if (malloc_init()) {
 		num_size = 0;
@@ -1158,16 +1059,13 @@ JEMALLOC_P(calloc)(size_t num, size_t size)
 
 	num_size = num * size;
 	if (num_size == 0) {
-#ifdef JEMALLOC_SYSV
-		if ((opt_sysv == false) && ((num == 0) || (size == 0)))
-#endif
+		if ((config_sysv == false || opt_sysv == false)
+		    && ((num == 0) || (size == 0)))
 			num_size = 1;
-#ifdef JEMALLOC_SYSV
 		else {
 			ret = NULL;
 			goto RETURN;
 		}
-#endif
 	/*
 	 * Try to avoid division here.  We know that it isn't possible to
 	 * overflow during multiplication if neither operand uses any of the
@@ -1180,8 +1078,7 @@ JEMALLOC_P(calloc)(size_t num, size_t size)
 		goto RETURN;
 	}
 
-#ifdef JEMALLOC_PROF
-	if (opt_prof) {
+	if (config_prof && opt_prof) {
 		usize = s2u(num_size);
 		PROF_ALLOC_PREP(1, usize, cnt);
 		if (cnt == NULL) {
@@ -1195,37 +1092,28 @@ JEMALLOC_P(calloc)(size_t num, size_t size)
 				arena_prof_promoted(ret, usize);
 		} else
 			ret = icalloc(num_size);
-	} else
-#endif
-	{
-#ifdef JEMALLOC_STATS
-		usize = s2u(num_size);
-#endif
+	} else {
+		if (config_stats)
+			usize = s2u(num_size);
 		ret = icalloc(num_size);
 	}
 
 RETURN:
 	if (ret == NULL) {
-#ifdef JEMALLOC_XMALLOC
-		if (opt_xmalloc) {
+		if (config_xmalloc && opt_xmalloc) {
 			malloc_write("<jemalloc>: Error in calloc(): out of "
 			    "memory\n");
 			abort();
 		}
-#endif
 		errno = ENOMEM;
 	}
 
-#ifdef JEMALLOC_PROF
-	if (opt_prof && ret != NULL)
+	if (config_prof && opt_prof && ret != NULL)
 		prof_malloc(ret, usize, cnt);
-#endif
-#ifdef JEMALLOC_STATS
-	if (ret != NULL) {
+	if (config_stats && ret != NULL) {
 		assert(usize == isalloc(ret));
 		ALLOCATED_ADD(usize, 0);
 	}
-#endif
 	return (ret);
 }
 
@@ -1234,67 +1122,39 @@ void *
 JEMALLOC_P(realloc)(void *ptr, size_t size)
 {
 	void *ret;
-#if (defined(JEMALLOC_PROF) || defined(JEMALLOC_STATS))
-	size_t usize
-#  ifdef JEMALLOC_CC_SILENCE
-	    = 0
-#  endif
-	    ;
+	size_t usize;
 	size_t old_size = 0;
-#endif
-#ifdef JEMALLOC_PROF
-	prof_thr_cnt_t *cnt
-#  ifdef JEMALLOC_CC_SILENCE
-	    = NULL
-#  endif
-	    ;
-	prof_ctx_t *old_ctx
-#  ifdef JEMALLOC_CC_SILENCE
-	    = NULL
-#  endif
-	    ;
-#endif
+	prof_thr_cnt_t *cnt;
+	prof_ctx_t *old_ctx;
 
 	if (size == 0) {
-#ifdef JEMALLOC_SYSV
-		if (opt_sysv == false)
-#endif
+		if (config_sysv == false || opt_sysv == false)
 			size = 1;
-#ifdef JEMALLOC_SYSV
 		else {
 			if (ptr != NULL) {
-#if (defined(JEMALLOC_PROF) || defined(JEMALLOC_STATS))
-				old_size = isalloc(ptr);
-#endif
-#ifdef JEMALLOC_PROF
-				if (opt_prof) {
+				if (config_prof || config_stats)
+					old_size = isalloc(ptr);
+				if (config_prof && opt_prof) {
 					old_ctx = prof_ctx_get(ptr);
 					cnt = NULL;
 				}
-#endif
 				idalloc(ptr);
-			}
-#ifdef JEMALLOC_PROF
-			else if (opt_prof) {
+			} else if (config_prof && opt_prof) {
 				old_ctx = NULL;
 				cnt = NULL;
 			}
-#endif
 			ret = NULL;
 			goto RETURN;
 		}
-#endif
 	}
 
 	if (ptr != NULL) {
 		assert(malloc_initialized || malloc_initializer ==
 		    pthread_self());
 
-#if (defined(JEMALLOC_PROF) || defined(JEMALLOC_STATS))
-		old_size = isalloc(ptr);
-#endif
-#ifdef JEMALLOC_PROF
-		if (opt_prof) {
+		if (config_prof || config_stats)
+			old_size = isalloc(ptr);
+		if (config_prof && opt_prof) {
 			usize = s2u(size);
 			old_ctx = prof_ctx_get(ptr);
 			PROF_ALLOC_PREP(1, usize, cnt);
@@ -1316,42 +1176,30 @@ JEMALLOC_P(realloc)(void *ptr, size_t size)
 				if (ret == NULL)
 					old_ctx = NULL;
 			}
-		} else
-#endif
-		{
-#ifdef JEMALLOC_STATS
-			usize = s2u(size);
-#endif
+		} else {
+			if (config_stats)
+				usize = s2u(size);
 			ret = iralloc(ptr, size, 0, 0, false, false);
 		}
 
-#ifdef JEMALLOC_PROF
 OOM:
-#endif
 		if (ret == NULL) {
-#ifdef JEMALLOC_XMALLOC
-			if (opt_xmalloc) {
+			if (config_xmalloc && opt_xmalloc) {
 				malloc_write("<jemalloc>: Error in realloc(): "
 				    "out of memory\n");
 				abort();
 			}
-#endif
 			errno = ENOMEM;
 		}
 	} else {
-#ifdef JEMALLOC_PROF
-		if (opt_prof)
+		if (config_prof && opt_prof)
 			old_ctx = NULL;
-#endif
 		if (malloc_init()) {
-#ifdef JEMALLOC_PROF
-			if (opt_prof)
+			if (config_prof && opt_prof)
 				cnt = NULL;
-#endif
 			ret = NULL;
 		} else {
-#ifdef JEMALLOC_PROF
-			if (opt_prof) {
+			if (config_prof && opt_prof) {
 				usize = s2u(size);
 				PROF_ALLOC_PREP(1, usize, cnt);
 				if (cnt == NULL)
@@ -1368,41 +1216,30 @@ OOM:
 					} else
 						ret = imalloc(size);
 				}
-			} else
-#endif
-			{
-#ifdef JEMALLOC_STATS
-				usize = s2u(size);
-#endif
+			} else {
+				if (config_stats)
+					usize = s2u(size);
 				ret = imalloc(size);
 			}
 		}
 
 		if (ret == NULL) {
-#ifdef JEMALLOC_XMALLOC
-			if (opt_xmalloc) {
+			if (config_xmalloc && opt_xmalloc) {
 				malloc_write("<jemalloc>: Error in realloc(): "
 				    "out of memory\n");
 				abort();
 			}
-#endif
 			errno = ENOMEM;
 		}
 	}
 
-#ifdef JEMALLOC_SYSV
 RETURN:
-#endif
-#ifdef JEMALLOC_PROF
-	if (opt_prof)
+	if (config_prof && opt_prof)
 		prof_realloc(ret, usize, cnt, old_size, old_ctx);
-#endif
-#ifdef JEMALLOC_STATS
-	if (ret != NULL) {
+	if (config_stats && ret != NULL) {
 		assert(usize == isalloc(ret));
 		ALLOCATED_ADD(usize, old_size);
 	}
-#endif
 	return (ret);
 }
 
@@ -1412,27 +1249,19 @@ JEMALLOC_P(free)(void *ptr)
 {
 
 	if (ptr != NULL) {
-#if (defined(JEMALLOC_PROF) || defined(JEMALLOC_STATS))
 		size_t usize;
-#endif
 
 		assert(malloc_initialized || malloc_initializer ==
 		    pthread_self());
 
-#ifdef JEMALLOC_STATS
-		usize = isalloc(ptr);
-#endif
-#ifdef JEMALLOC_PROF
-		if (opt_prof) {
-#  ifndef JEMALLOC_STATS
+		if (config_prof && opt_prof) {
 			usize = isalloc(ptr);
-#  endif
 			prof_free(ptr, usize);
+		} else if (config_stats) {
+			usize = isalloc(ptr);
 		}
-#endif
-#ifdef JEMALLOC_STATS
-		ALLOCATED_ADD(0, usize);
-#endif
+		if (config_stats)
+			ALLOCATED_ADD(0, usize);
 		idalloc(ptr);
 	}
 }
@@ -1455,15 +1284,12 @@ JEMALLOC_ATTR(visibility("default"))
 void *
 JEMALLOC_P(memalign)(size_t alignment, size_t size)
 {
-	void *ret;
+	void *ret
 #ifdef JEMALLOC_CC_SILENCE
-	int result =
+	    = NULL
 #endif
-	    imemalign(&ret, alignment, size);
-#ifdef JEMALLOC_CC_SILENCE
-	if (result != 0)
-		return (NULL);
-#endif
+	    ;
+	imemalign(&ret, alignment, size);
 	return (ret);
 }
 #endif
@@ -1474,15 +1300,12 @@ JEMALLOC_ATTR(visibility("default"))
 void *
 JEMALLOC_P(valloc)(size_t size)
 {
-	void *ret;
+	void *ret
 #ifdef JEMALLOC_CC_SILENCE
-	int result =
+	    = NULL
 #endif
-	    imemalign(&ret, PAGE_SIZE, size);
-#ifdef JEMALLOC_CC_SILENCE
-	if (result != 0)
-		return (NULL);
-#endif
+	    ;
+	imemalign(&ret, PAGE_SIZE, size);
 	return (ret);
 }
 #endif
@@ -1504,12 +1327,12 @@ JEMALLOC_P(malloc_usable_size)(const void *ptr)
 
 	assert(malloc_initialized || malloc_initializer == pthread_self());
 
-#ifdef JEMALLOC_IVSALLOC
-	ret = ivsalloc(ptr);
-#else
-	assert(ptr != NULL);
-	ret = isalloc(ptr);
-#endif
+	if (config_ivsalloc)
+		ret = ivsalloc(ptr);
+	else {
+		assert(ptr != NULL);
+		ret = isalloc(ptr);
+	}
 
 	return (ret);
 }
@@ -1583,9 +1406,7 @@ JEMALLOC_P(allocm)(void **ptr, size_t *rsize, size_t size, int flags)
 	size_t alignment = (ZU(1) << (flags & ALLOCM_LG_ALIGN_MASK)
 	    & (SIZE_T_MAX-1));
 	bool zero = flags & ALLOCM_ZERO;
-#ifdef JEMALLOC_PROF
 	prof_thr_cnt_t *cnt;
-#endif
 
 	assert(ptr != NULL);
 	assert(size != 0);
@@ -1597,8 +1418,7 @@ JEMALLOC_P(allocm)(void **ptr, size_t *rsize, size_t size, int flags)
 	if (usize == 0)
 		goto OOM;
 
-#ifdef JEMALLOC_PROF
-	if (opt_prof) {
+	if (config_prof && opt_prof) {
 		PROF_ALLOC_PREP(1, usize, cnt);
 		if (cnt == NULL)
 			goto OOM;
@@ -1618,39 +1438,26 @@ JEMALLOC_P(allocm)(void **ptr, size_t *rsize, size_t size, int flags)
 				goto OOM;
 		}
 		prof_malloc(p, usize, cnt);
-		if (rsize != NULL)
-			*rsize = usize;
-	} else
-#endif
-	{
+	} else {
 		p = iallocm(usize, alignment, zero);
 		if (p == NULL)
 			goto OOM;
-#ifndef JEMALLOC_STATS
-		if (rsize != NULL)
-#endif
-		{
-#ifdef JEMALLOC_STATS
-			if (rsize != NULL)
-#endif
-				*rsize = usize;
-		}
 	}
+	if (rsize != NULL)
+		*rsize = usize;
 
 	*ptr = p;
-#ifdef JEMALLOC_STATS
-	assert(usize == isalloc(p));
-	ALLOCATED_ADD(usize, 0);
-#endif
+	if (config_stats) {
+		assert(usize == isalloc(p));
+		ALLOCATED_ADD(usize, 0);
+	}
 	return (ALLOCM_SUCCESS);
 OOM:
-#ifdef JEMALLOC_XMALLOC
-	if (opt_xmalloc) {
+	if (config_xmalloc && opt_xmalloc) {
 		malloc_write("<jemalloc>: Error in allocm(): "
 		    "out of memory\n");
 		abort();
 	}
-#endif
 	*ptr = NULL;
 	return (ALLOCM_ERR_OOM);
 }
@@ -1663,16 +1470,12 @@ JEMALLOC_P(rallocm)(void **ptr, size_t *rsize, size_t size, size_t extra,
 {
 	void *p, *q;
 	size_t usize;
-#if (defined(JEMALLOC_PROF) || defined(JEMALLOC_STATS))
 	size_t old_size;
-#endif
 	size_t alignment = (ZU(1) << (flags & ALLOCM_LG_ALIGN_MASK)
 	    & (SIZE_T_MAX-1));
 	bool zero = flags & ALLOCM_ZERO;
 	bool no_move = flags & ALLOCM_NO_MOVE;
-#ifdef JEMALLOC_PROF
 	prof_thr_cnt_t *cnt;
-#endif
 
 	assert(ptr != NULL);
 	assert(*ptr != NULL);
@@ -1681,8 +1484,7 @@ JEMALLOC_P(rallocm)(void **ptr, size_t *rsize, size_t size, size_t extra,
 	assert(malloc_initialized || malloc_initializer == pthread_self());
 
 	p = *ptr;
-#ifdef JEMALLOC_PROF
-	if (opt_prof) {
+	if (config_prof && opt_prof) {
 		/*
 		 * usize isn't knowable before iralloc() returns when extra is
 		 * non-zero.  Therefore, compute its maximum possible value and
@@ -1722,45 +1524,34 @@ JEMALLOC_P(rallocm)(void **ptr, size_t *rsize, size_t size, size_t extra,
 		prof_realloc(q, usize, cnt, old_size, old_ctx);
 		if (rsize != NULL)
 			*rsize = usize;
-	} else
-#endif
-	{
-#ifdef JEMALLOC_STATS
-		old_size = isalloc(p);
-#endif
+	} else {
+		if (config_stats)
+			old_size = isalloc(p);
 		q = iralloc(p, size, extra, alignment, zero, no_move);
 		if (q == NULL)
 			goto ERR;
-#ifndef JEMALLOC_STATS
-		if (rsize != NULL)
-#endif
-		{
+		if (config_stats)
 			usize = isalloc(q);
-#ifdef JEMALLOC_STATS
-			if (rsize != NULL)
-#endif
-				*rsize = usize;
+		if (rsize != NULL) {
+			if (config_stats == false)
+				usize = isalloc(q);
+			*rsize = usize;
 		}
 	}
 
 	*ptr = q;
-#ifdef JEMALLOC_STATS
-	ALLOCATED_ADD(usize, old_size);
-#endif
+	if (config_stats)
+		ALLOCATED_ADD(usize, old_size);
 	return (ALLOCM_SUCCESS);
 ERR:
 	if (no_move)
 		return (ALLOCM_ERR_NOT_MOVED);
-#ifdef JEMALLOC_PROF
 OOM:
-#endif
-#ifdef JEMALLOC_XMALLOC
-	if (opt_xmalloc) {
+	if (config_xmalloc && opt_xmalloc) {
 		malloc_write("<jemalloc>: Error in rallocm(): "
 		    "out of memory\n");
 		abort();
 	}
-#endif
 	return (ALLOCM_ERR_OOM);
 }
 
@@ -1773,12 +1564,12 @@ JEMALLOC_P(sallocm)(const void *ptr, size_t *rsize, int flags)
 
 	assert(malloc_initialized || malloc_initializer == pthread_self());
 
-#ifdef JEMALLOC_IVSALLOC
-	sz = ivsalloc(ptr);
-#else
-	assert(ptr != NULL);
-	sz = isalloc(ptr);
-#endif
+	if (config_ivsalloc)
+		sz = ivsalloc(ptr);
+	else {
+		assert(ptr != NULL);
+		sz = isalloc(ptr);
+	}
 	assert(rsize != NULL);
 	*rsize = sz;
 
@@ -1790,27 +1581,20 @@ JEMALLOC_ATTR(visibility("default"))
 int
 JEMALLOC_P(dallocm)(void *ptr, int flags)
 {
-#if (defined(JEMALLOC_PROF) || defined(JEMALLOC_STATS))
 	size_t usize;
-#endif
 
 	assert(ptr != NULL);
 	assert(malloc_initialized || malloc_initializer == pthread_self());
 
-#ifdef JEMALLOC_STATS
-	usize = isalloc(ptr);
-#endif
-#ifdef JEMALLOC_PROF
-	if (opt_prof) {
-#  ifndef JEMALLOC_STATS
+	if (config_stats)
 		usize = isalloc(ptr);
-#  endif
+	if (config_prof && opt_prof) {
+		if (config_stats == false)
+			usize = isalloc(ptr);
 		prof_free(ptr, usize);
 	}
-#endif
-#ifdef JEMALLOC_STATS
-	ALLOCATED_ADD(0, usize);
-#endif
+	if (config_stats)
+		ALLOCATED_ADD(0, usize);
 	idalloc(ptr);
 
 	return (ALLOCM_SUCCESS);
@@ -1843,13 +1627,11 @@ jemalloc_prefork(void)
 
 	malloc_mutex_lock(&huge_mtx);
 
-#ifdef JEMALLOC_DSS
-	malloc_mutex_lock(&dss_mtx);
-#endif
+	if (config_dss)
+		malloc_mutex_lock(&dss_mtx);
 
-#ifdef JEMALLOC_SWAP
-	malloc_mutex_lock(&swap_mtx);
-#endif
+	if (config_swap)
+		malloc_mutex_lock(&swap_mtx);
 }
 
 void
@@ -1859,13 +1641,11 @@ jemalloc_postfork(void)
 
 	/* Release all mutexes, now that fork() has completed. */
 
-#ifdef JEMALLOC_SWAP
-	malloc_mutex_unlock(&swap_mtx);
-#endif
+	if (config_swap)
+		malloc_mutex_unlock(&swap_mtx);
 
-#ifdef JEMALLOC_DSS
-	malloc_mutex_unlock(&dss_mtx);
-#endif
+	if (config_dss)
+		malloc_mutex_unlock(&dss_mtx);
 
 	malloc_mutex_unlock(&huge_mtx);
 

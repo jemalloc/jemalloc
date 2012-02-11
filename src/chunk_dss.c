@@ -1,6 +1,5 @@
 #define	JEMALLOC_CHUNK_DSS_C_
 #include "jemalloc/internal/jemalloc_internal.h"
-#ifdef JEMALLOC_DSS
 /******************************************************************************/
 /* Data. */
 
@@ -34,6 +33,8 @@ static void *
 chunk_recycle_dss(size_t size, bool *zero)
 {
 	extent_node_t *node, key;
+
+	cassert(config_dss);
 
 	key.addr = NULL;
 	key.size = size;
@@ -73,6 +74,8 @@ void *
 chunk_alloc_dss(size_t size, bool *zero)
 {
 	void *ret;
+
+	cassert(config_dss);
 
 	ret = chunk_recycle_dss(size, zero);
 	if (ret != NULL)
@@ -130,6 +133,8 @@ static extent_node_t *
 chunk_dealloc_dss_record(void *chunk, size_t size)
 {
 	extent_node_t *xnode, *node, *prev, key;
+
+	cassert(config_dss);
 
 	xnode = NULL;
 	while (true) {
@@ -204,6 +209,8 @@ chunk_in_dss(void *chunk)
 {
 	bool ret;
 
+	cassert(config_dss);
+
 	malloc_mutex_lock(&dss_mtx);
 	if ((uintptr_t)chunk >= (uintptr_t)dss_base
 	    && (uintptr_t)chunk < (uintptr_t)dss_max)
@@ -219,6 +226,8 @@ bool
 chunk_dealloc_dss(void *chunk, size_t size)
 {
 	bool ret;
+
+	cassert(config_dss);
 
 	malloc_mutex_lock(&dss_mtx);
 	if ((uintptr_t)chunk >= (uintptr_t)dss_base
@@ -269,6 +278,8 @@ bool
 chunk_dss_boot(void)
 {
 
+	cassert(config_dss);
+
 	if (malloc_mutex_init(&dss_mtx))
 		return (true);
 	dss_base = sbrk(0);
@@ -281,4 +292,3 @@ chunk_dss_boot(void)
 }
 
 /******************************************************************************/
-#endif /* JEMALLOC_DSS */

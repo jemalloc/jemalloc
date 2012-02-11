@@ -174,6 +174,9 @@ AC_DEFINE_UNQUOTED([CPU_SPINWAIT], [$CPU_SPINWAIT])
 LD_PRELOAD_VAR="LD_PRELOAD"
 so="so"
 
+dnl Heap profiling uses the log(3) function.
+LIBS="$LIBS -lm"
+
 dnl Platform-specific settings.  abi and RPATH can probably be determined
 dnl programmatically, but doing so is error-prone, which makes it generally
 dnl not worth the trouble.
@@ -553,7 +556,6 @@ fi
 AC_MSG_CHECKING([configured backtracing method])
 AC_MSG_RESULT([$backtrace_method])
 if test "x$enable_prof" = "x1" ; then
-  LIBS="$LIBS -lm"
   AC_DEFINE([JEMALLOC_PROF], [ ])
 fi
 AC_SUBST([enable_prof])

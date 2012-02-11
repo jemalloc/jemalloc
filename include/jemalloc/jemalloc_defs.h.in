@@ -48,9 +48,11 @@
 /* Defined if __attribute__((...)) syntax is supported. */
 #undef JEMALLOC_HAVE_ATTR
 #ifdef JEMALLOC_HAVE_ATTR
-#  define JEMALLOC_ATTR(s) __attribute__((s))
+#  define JEMALLOC_CATTR(s, a) __attribute__((s))
+#  define JEMALLOC_ATTR(s) JEMALLOC_CATTR(s,)
 #else
-#  define JEMALLOC_ATTR(s)
+#  define JEMALLOC_CATTR(s, a) a
+#  define JEMALLOC_ATTR(s) JEMALLOC_CATTR(s,)
 #endif
 
 /* JEMALLOC_CC_SILENCE enables code that silences unuseful compiler warnings. */

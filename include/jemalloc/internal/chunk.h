@@ -28,20 +28,14 @@
 #ifdef JEMALLOC_H_EXTERNS
 
 extern size_t		opt_lg_chunk;
-#ifdef JEMALLOC_SWAP
 extern bool		opt_overcommit;
-#endif
 
-#if (defined(JEMALLOC_STATS) || defined(JEMALLOC_PROF))
 /* Protects stats_chunks; currently not used for any other purpose. */
 extern malloc_mutex_t	chunks_mtx;
 /* Chunk statistics. */
 extern chunk_stats_t	stats_chunks;
-#endif
 
-#ifdef JEMALLOC_IVSALLOC
 extern rtree_t		*chunks_rtree;
-#endif
 
 extern size_t		chunksize;
 extern size_t		chunksize_mask; /* (chunksize - 1). */

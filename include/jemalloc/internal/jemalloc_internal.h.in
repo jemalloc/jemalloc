@@ -35,6 +35,125 @@
 
 #include "jemalloc/internal/private_namespace.h"
 
+#ifdef JEMALLOC_CC_SILENCE
+#define	UNUSED JEMALLOC_ATTR(unused)
+#else
+#define	UNUSED
+#endif
+
+static const bool config_debug =
+#ifdef JEMALLOC_DEBUG
+    true
+#else
+    false
+#endif
+    ;
+static const bool config_dss =
+#ifdef JEMALLOC_DSS
+    true
+#else
+    false
+#endif
+    ;
+static const bool config_dynamic_page_shift =
+#ifdef JEMALLOC_DYNAMIC_PAGE_SHIFT
+    true
+#else
+    false
+#endif
+    ;
+static const bool config_fill =
+#ifdef JEMALLOC_FILL
+    true
+#else
+    false
+#endif
+    ;
+static const bool config_lazy_lock =
+#ifdef JEMALLOC_LAZY_LOCK
+    true
+#else
+    false
+#endif
+    ;
+static const bool config_prof =
+#ifdef JEMALLOC_PROF
+    true
+#else
+    false
+#endif
+    ;
+static const bool config_prof_libgcc =
+#ifdef JEMALLOC_PROF_LIBGCC
+    true
+#else
+    false
+#endif
+    ;
+static const bool config_prof_libunwind =
+#ifdef JEMALLOC_PROF_LIBUNWIND
+    true
+#else
+    false
+#endif
+    ;
+static const bool config_stats =
+#ifdef JEMALLOC_STATS
+    true
+#else
+    false
+#endif
+    ;
+static const bool config_swap =
+#ifdef JEMALLOC_SWAP
+    true
+#else
+    false
+#endif
+    ;
+static const bool config_sysv =
+#ifdef JEMALLOC_SYSV
+    true
+#else
+    false
+#endif
+    ;
+static const bool config_tcache =
+#ifdef JEMALLOC_TCACHE
+    true
+#else
+    false
+#endif
+    ;
+static const bool config_tiny =
+#ifdef JEMALLOC_TINY
+    true
+#else
+    false
+#endif
+    ;
+static const bool config_tls =
+#ifdef JEMALLOC_TLS
+    true
+#else
+    false
+#endif
+    ;
+static const bool config_xmalloc =
+#ifdef JEMALLOC_XMALLOC
+    true
+#else
+    false
+#endif
+    ;
+static const bool config_ivsalloc =
+#ifdef JEMALLOC_IVSALLOC
+    true
+#else
+    false
+#endif
+    ;
+
 #if (defined(JEMALLOC_OSATOMIC) || defined(JEMALLOC_OSSPIN))
 #include <libkern/OSAtomic.h>
 #endif
@@ -82,11 +201,11 @@ extern void	(*JEMALLOC_P(malloc_message))(void *wcbopaque, const char *s);
 #  endif
 #endif
 
-#ifdef JEMALLOC_DEBUG
-#  define dassert(e) assert(e)
-#else
-#  define dassert(e)
-#endif
+/* Use to assert a particular configuration, e.g., cassert(config_debug). */
+#define	cassert(c) do {							\
+	if ((c) == false)						\
+		assert(false);						\
+} while (0)
 
 /*
  * jemalloc can conceptually be broken into components (arena, tcache, etc.),
@@ -265,30 +384,20 @@ extern void	(*JEMALLOC_P(malloc_message))(void *wcbopaque, const char *s);
 #endif
 #include "jemalloc/internal/prof.h"
 
-#ifdef JEMALLOC_STATS
 typedef struct {
 	uint64_t	allocated;
 	uint64_t	deallocated;
 } thread_allocated_t;
-#endif
 
 #undef JEMALLOC_H_STRUCTS
 /******************************************************************************/
 #define JEMALLOC_H_EXTERNS
 
 extern bool	opt_abort;
-#ifdef JEMALLOC_FILL
 extern bool	opt_junk;
-#endif
-#ifdef JEMALLOC_SYSV
 extern bool	opt_sysv;
-#endif
-#ifdef JEMALLOC_XMALLOC
 extern bool	opt_xmalloc;
-#endif
-#ifdef JEMALLOC_FILL
 extern bool	opt_zero;
-#endif
 extern size_t	opt_narenas;
 
 #ifdef DYNAMIC_PAGE_SHIFT
@@ -327,8 +436,7 @@ extern __thread arena_t	*arenas_tls JEMALLOC_ATTR(tls_model("initial-exec"));
 extern arena_t		**arenas;
 extern unsigned		narenas;
 
-#ifdef JEMALLOC_STATS
-#  ifndef NO_TLS
+#ifndef NO_TLS
 extern __thread thread_allocated_t	thread_allocated_tls;
 #    define ALLOCATED_GET() (thread_allocated_tls.allocated)
 #    define ALLOCATEDP_GET() (&thread_allocated_tls.allocated)
@@ -338,10 +446,7 @@ extern __thread thread_allocated_t	thread_allocated_tls;
 	thread_allocated_tls.allocated += a;				\
 	thread_allocated_tls.deallocated += d;				\
 } while (0)
-#  else
-extern pthread_key_t	thread_allocated_tsd;
-thread_allocated_t	*thread_allocated_get_hard(void);
-
+#else
 #    define ALLOCATED_GET() (thread_allocated_get()->allocated)
 #    define ALLOCATEDP_GET() (&thread_allocated_get()->allocated)
 #    define DEALLOCATED_GET() (thread_allocated_get()->deallocated)
@@ -351,8 +456,9 @@ thread_allocated_t	*thread_allocated_get_hard(void);
 	thread_allocated->allocated += (a);				\
 	thread_allocated->deallocated += (d);				\
 } while (0)
-#  endif
 #endif
+extern pthread_key_t	thread_allocated_tsd;
+thread_allocated_t	*thread_allocated_get_hard(void);
 
 arena_t	*arenas_extend(unsigned ind);
 arena_t	*choose_arena_hard(void);
@@ -403,9 +509,7 @@ size_t	s2u(size_t size);
 size_t	sa2u(size_t size, size_t alignment, size_t *run_size_p);
 void	malloc_write(const char *s);
 arena_t	*choose_arena(void);
-#  if (defined(JEMALLOC_STATS) && defined(NO_TLS))
 thread_allocated_t	*thread_allocated_get(void);
-#  endif
 #endif
 
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_C_))
@@ -565,7 +669,6 @@ choose_arena(void)
 	return (ret);
 }
 
-#if (defined(JEMALLOC_STATS) && defined(NO_TLS))
 JEMALLOC_INLINE thread_allocated_t *
 thread_allocated_get(void)
 {
@@ -576,7 +679,6 @@ thread_allocated_get(void)
 		return (thread_allocated_get_hard());
 	return (thread_allocated);
 }
-#endif
 #endif
 
 #include "jemalloc/internal/bitmap.h"
@@ -593,9 +695,7 @@ void	*imalloc(size_t size);
 void	*icalloc(size_t size);
 void	*ipalloc(size_t usize, size_t alignment, bool zero);
 size_t	isalloc(const void *ptr);
-#  ifdef JEMALLOC_IVSALLOC
 size_t	ivsalloc(const void *ptr);
-#  endif
 void	idalloc(void *ptr);
 void	*iralloc(void *ptr, size_t size, size_t extra, size_t alignment,
     bool zero, bool no_move);
@@ -674,20 +774,18 @@ isalloc(const void *ptr)
 	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
 	if (chunk != ptr) {
 		/* Region. */
-		dassert(chunk->arena->magic == ARENA_MAGIC);
+		assert(chunk->arena->magic == ARENA_MAGIC);
 
-#ifdef JEMALLOC_PROF
-		ret = arena_salloc_demote(ptr);
-#else
-		ret = arena_salloc(ptr);
-#endif
+		if (config_prof)
+			ret = arena_salloc_demote(ptr);
+		else
+			ret = arena_salloc(ptr);
 	} else
 		ret = huge_salloc(ptr);
 
 	return (ret);
 }
 
-#ifdef JEMALLOC_IVSALLOC
 JEMALLOC_INLINE size_t
 ivsalloc(const void *ptr)
 {
@@ -698,7 +796,6 @@ ivsalloc(const void *ptr)
 
 	return (isalloc(ptr));
 }
-#endif
 
 JEMALLOC_INLINE void
 idalloc(void *ptr)

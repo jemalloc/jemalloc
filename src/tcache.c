@@ -38,31 +38,22 @@ tcache_alloc_small_hard(tcache_t *tcache, tcache_bin_t *tbin, size_t binind)
 {
 	void *ret;
 
-	arena_tcache_fill_small(tcache->arena, tbin, binind
-#ifdef JEMALLOC_PROF
-	    , tcache->prof_accumbytes
-#endif
-	    );
-#ifdef JEMALLOC_PROF
-	tcache->prof_accumbytes = 0;
-#endif
+	arena_tcache_fill_small(tcache->arena, tbin, binind,
+	    config_prof ? tcache->prof_accumbytes : 0);
+	if (config_prof)
+		tcache->prof_accumbytes = 0;
 	ret = tcache_alloc_easy(tbin);
 
 	return (ret);
 }
 
 void
-tcache_bin_flush_small(tcache_bin_t *tbin, size_t binind, unsigned rem
-#if (defined(JEMALLOC_STATS) || defined(JEMALLOC_PROF))
-    , tcache_t *tcache
-#endif
-    )
+tcache_bin_flush_small(tcache_bin_t *tbin, size_t binind, unsigned rem,
+    tcache_t *tcache)
 {
 	void *ptr;
 	unsigned i, nflush, ndeferred;
-#ifdef JEMALLOC_STATS
 	bool merged_stats = false;
-#endif
 
 	assert(binind < nbins);
 	assert(rem <= tbin->ncached);
@@ -74,25 +65,21 @@ tcache_bin_flush_small(tcache_bin_t *tbin, size_t binind, unsigned rem
 		arena_t *arena = chunk->arena;
 		arena_bin_t *bin = &arena->bins[binind];
 
-#ifdef JEMALLOC_PROF
-		if (arena == tcache->arena) {
+		if (config_prof && arena == tcache->arena) {
 			malloc_mutex_lock(&arena->lock);
 			arena_prof_accum(arena, tcache->prof_accumbytes);
 			malloc_mutex_unlock(&arena->lock);
 			tcache->prof_accumbytes = 0;
 		}
-#endif
 
 		malloc_mutex_lock(&bin->lock);
-#ifdef JEMALLOC_STATS
-		if (arena == tcache->arena) {
+		if (config_stats && arena == tcache->arena) {
 			assert(merged_stats == false);
 			merged_stats = true;
 			bin->stats.nflushes++;
 			bin->stats.nrequests += tbin->tstats.nrequests;
 			tbin->tstats.nrequests = 0;
 		}
-#endif
 		ndeferred = 0;
 		for (i = 0; i < nflush; i++) {
 			ptr = tbin->avail[i];
@@ -117,8 +104,7 @@ tcache_bin_flush_small(tcache_bin_t *tbin, size_t binind, unsigned rem
 		}
 		malloc_mutex_unlock(&bin->lock);
 	}
-#ifdef JEMALLOC_STATS
-	if (merged_stats == false) {
+	if (config_stats && merged_stats == false) {
 		/*
 		 * The flush loop didn't happen to flush to this thread's
 		 * arena, so the stats didn't get merged.  Manually do so now.
@@ -130,7 +116,6 @@ tcache_bin_flush_small(tcache_bin_t *tbin, size_t binind, unsigned rem
 		tbin->tstats.nrequests = 0;
 		malloc_mutex_unlock(&bin->lock);
 	}
-#endif
 
 	memmove(tbin->avail, &tbin->avail[tbin->ncached - rem],
 	    rem * sizeof(void *));
@@ -140,17 +125,12 @@ tcache_bin_flush_small(tcache_bin_t *tbin, size_t binind, unsigned rem
 }
 
 void
-tcache_bin_flush_large(tcache_bin_t *tbin, size_t binind, unsigned rem
-#if (defined(JEMALLOC_STATS) || defined(JEMALLOC_PROF))
-    , tcache_t *tcache
-#endif
-    )
+tcache_bin_flush_large(tcache_bin_t *tbin, size_t binind, unsigned rem,
+    tcache_t *tcache)
 {
 	void *ptr;
 	unsigned i, nflush, ndeferred;
-#ifdef JEMALLOC_STATS
 	bool merged_stats = false;
-#endif
 
 	assert(binind < nhbins);
 	assert(rem <= tbin->ncached);
@@ -162,23 +142,21 @@ tcache_bin_flush_large(tcache_bin_t *tbin, size_t binind, unsigned rem
 		arena_t *arena = chunk->arena;
 
 		malloc_mutex_lock(&arena->lock);
-#if (defined(JEMALLOC_PROF) || defined(JEMALLOC_STATS))
-		if (arena == tcache->arena) {
-#endif
-#ifdef JEMALLOC_PROF
-			arena_prof_accum(arena, tcache->prof_accumbytes);
-			tcache->prof_accumbytes = 0;
-#endif
-#ifdef JEMALLOC_STATS
-			merged_stats = true;
-			arena->stats.nrequests_large += tbin->tstats.nrequests;
-			arena->stats.lstats[binind - nbins].nrequests +=
-			    tbin->tstats.nrequests;
-			tbin->tstats.nrequests = 0;
-#endif
-#if (defined(JEMALLOC_PROF) || defined(JEMALLOC_STATS))
+		if ((config_prof || config_stats) && arena == tcache->arena) {
+			if (config_prof) {
+				arena_prof_accum(arena,
+				    tcache->prof_accumbytes);
+				tcache->prof_accumbytes = 0;
+			}
+			if (config_stats) {
+				merged_stats = true;
+				arena->stats.nrequests_large +=
+				    tbin->tstats.nrequests;
+				arena->stats.lstats[binind - nbins].nrequests +=
+				    tbin->tstats.nrequests;
+				tbin->tstats.nrequests = 0;
+			}
 		}
-#endif
 		ndeferred = 0;
 		for (i = 0; i < nflush; i++) {
 			ptr = tbin->avail[i];
@@ -199,8 +177,7 @@ tcache_bin_flush_large(tcache_bin_t *tbin, size_t binind, unsigned rem
 		}
 		malloc_mutex_unlock(&arena->lock);
 	}
-#ifdef JEMALLOC_STATS
-	if (merged_stats == false) {
+	if (config_stats && merged_stats == false) {
 		/*
 		 * The flush loop didn't happen to flush to this thread's
 		 * arena, so the stats didn't get merged.  Manually do so now.
@@ -213,7 +190,6 @@ tcache_bin_flush_large(tcache_bin_t *tbin, size_t binind, unsigned rem
 		tbin->tstats.nrequests = 0;
 		malloc_mutex_unlock(&arena->lock);
 	}
-#endif
 
 	memmove(tbin->avail, &tbin->avail[tbin->ncached - rem],
 	    rem * sizeof(void *));
@@ -254,13 +230,13 @@ tcache_create(arena_t *arena)
 	if (tcache == NULL)
 		return (NULL);
 
-#ifdef JEMALLOC_STATS
-	/* Link into list of extant tcaches. */
-	malloc_mutex_lock(&arena->lock);
-	ql_elm_new(tcache, link);
-	ql_tail_insert(&arena->tcache_ql, tcache, link);
-	malloc_mutex_unlock(&arena->lock);
-#endif
+	if (config_stats) {
+		/* Link into list of extant tcaches. */
+		malloc_mutex_lock(&arena->lock);
+		ql_elm_new(tcache, link);
+		ql_tail_insert(&arena->tcache_ql, tcache, link);
+		malloc_mutex_unlock(&arena->lock);
+	}
 
 	tcache->arena = arena;
 	assert((TCACHE_NSLOTS_SMALL_MAX & 1U) == 0);
@@ -282,43 +258,32 @@ tcache_destroy(tcache_t *tcache)
 	unsigned i;
 	size_t tcache_size;
 
-#ifdef JEMALLOC_STATS
-	/* Unlink from list of extant tcaches. */
-	malloc_mutex_lock(&tcache->arena->lock);
-	ql_remove(&tcache->arena->tcache_ql, tcache, link);
-	malloc_mutex_unlock(&tcache->arena->lock);
-	tcache_stats_merge(tcache, tcache->arena);
-#endif
+	if (config_stats) {
+		/* Unlink from list of extant tcaches. */
+		malloc_mutex_lock(&tcache->arena->lock);
+		ql_remove(&tcache->arena->tcache_ql, tcache, link);
+		malloc_mutex_unlock(&tcache->arena->lock);
+		tcache_stats_merge(tcache, tcache->arena);
+	}
 
 	for (i = 0; i < nbins; i++) {
 		tcache_bin_t *tbin = &tcache->tbins[i];
-		tcache_bin_flush_small(tbin, i, 0
-#if (defined(JEMALLOC_STATS) || defined(JEMALLOC_PROF))
-		    , tcache
-#endif
-		    );
+		tcache_bin_flush_small(tbin, i, 0, tcache);
 
-#ifdef JEMALLOC_STATS
-		if (tbin->tstats.nrequests != 0) {
+		if (config_stats && tbin->tstats.nrequests != 0) {
 			arena_t *arena = tcache->arena;
 			arena_bin_t *bin = &arena->bins[i];
 			malloc_mutex_lock(&bin->lock);
 			bin->stats.nrequests += tbin->tstats.nrequests;
 			malloc_mutex_unlock(&bin->lock);
 		}
-#endif
 	}
 
 	for (; i < nhbins; i++) {
 		tcache_bin_t *tbin = &tcache->tbins[i];
-		tcache_bin_flush_large(tbin, i, 0
-#if (defined(JEMALLOC_STATS) || defined(JEMALLOC_PROF))
-		    , tcache
-#endif
-		    );
+		tcache_bin_flush_large(tbin, i, 0, tcache);
 
-#ifdef JEMALLOC_STATS
-		if (tbin->tstats.nrequests != 0) {
+		if (config_stats && tbin->tstats.nrequests != 0) {
 			arena_t *arena = tcache->arena;
 			malloc_mutex_lock(&arena->lock);
 			arena->stats.nrequests_large += tbin->tstats.nrequests;
@@ -326,16 +291,13 @@ tcache_destroy(tcache_t *tcache)
 			    tbin->tstats.nrequests;
 			malloc_mutex_unlock(&arena->lock);
 		}
-#endif
 	}
 
-#ifdef JEMALLOC_PROF
-	if (tcache->prof_accumbytes > 0) {
+	if (config_prof && tcache->prof_accumbytes > 0) {
 		malloc_mutex_lock(&tcache->arena->lock);
 		arena_prof_accum(tcache->arena, tcache->prof_accumbytes);
 		malloc_mutex_unlock(&tcache->arena->lock);
 	}
-#endif
 
 	tcache_size = arena_salloc(tcache);
 	if (tcache_size <= small_maxclass) {
@@ -389,7 +351,6 @@ tcache_thread_cleanup(void *arg)
 	}
 }
 
-#ifdef JEMALLOC_STATS
 void
 tcache_stats_merge(tcache_t *tcache, arena_t *arena)
 {
@@ -413,7 +374,6 @@ tcache_stats_merge(tcache_t *tcache, arena_t *arena)
 		tbin->tstats.nrequests = 0;
 	}
 }
-#endif
 
 bool
 tcache_boot(void)

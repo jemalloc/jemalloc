@@ -1,6 +1,5 @@
 #define	JEMALLOC_PROF_C_
 #include "jemalloc/internal/jemalloc_internal.h"
-#ifdef JEMALLOC_PROF
 /******************************************************************************/
 
 #ifdef JEMALLOC_PROF_LIBUNWIND
@@ -102,6 +101,8 @@ void
 bt_init(prof_bt_t *bt, void **vec)
 {
 
+	cassert(config_prof);
+
 	bt->vec = vec;
 	bt->len = 0;
 }
@@ -110,6 +111,8 @@ static void
 bt_destroy(prof_bt_t *bt)
 {
 
+	cassert(config_prof);
+
 	idalloc(bt);
 }
 
@@ -117,6 +120,8 @@ static prof_bt_t *
 bt_dup(prof_bt_t *bt)
 {
 	prof_bt_t *ret;
+
+	cassert(config_prof);
 
 	/*
 	 * Create a single allocation that has space for vec immediately
@@ -141,6 +146,8 @@ static inline void
 prof_enter(void)
 {
 
+	cassert(config_prof);
+
 	malloc_mutex_lock(&enq_mtx);
 	enq = true;
 	malloc_mutex_unlock(&enq_mtx);
@@ -152,6 +159,8 @@ static inline void
 prof_leave(void)
 {
 	bool idump, gdump;
+
+	cassert(config_prof);
 
 	malloc_mutex_unlock(&bt2ctx_mtx);
 
@@ -178,6 +187,7 @@ prof_backtrace(prof_bt_t *bt, unsigned nignore, unsigned max)
 	unsigned i;
 	int err;
 
+	cassert(config_prof);
 	assert(bt->len == 0);
 	assert(bt->vec != NULL);
 	assert(max <= (1U << opt_lg_prof_bt_max));
@@ -204,11 +214,12 @@ prof_backtrace(prof_bt_t *bt, unsigned nignore, unsigned max)
 			break;
 	}
 }
-#endif
-#ifdef JEMALLOC_PROF_LIBGCC
+#elif (defined(JEMALLOC_PROF_LIBGCC))
 static _Unwind_Reason_Code
 prof_unwind_init_callback(struct _Unwind_Context *context, void *arg)
 {
+
+	cassert(config_prof);
 
 	return (_URC_NO_REASON);
 }
@@ -217,6 +228,8 @@ static _Unwind_Reason_Code
 prof_unwind_callback(struct _Unwind_Context *context, void *arg)
 {
 	prof_unwind_data_t *data = (prof_unwind_data_t *)arg;
+
+	cassert(config_prof);
 
 	if (data->nignore > 0)
 		data->nignore--;
@@ -235,10 +248,11 @@ prof_backtrace(prof_bt_t *bt, unsigned nignore, unsigned max)
 {
 	prof_unwind_data_t data = {bt, nignore, max};
 
+	cassert(config_prof);
+
 	_Unwind_Backtrace(prof_unwind_callback, &data);
 }
-#endif
-#ifdef JEMALLOC_PROF_GCC
+#elif (defined(JEMALLOC_PROF_GCC))
 void
 prof_backtrace(prof_bt_t *bt, unsigned nignore, unsigned max)
 {
@@ -257,6 +271,7 @@ prof_backtrace(prof_bt_t *bt, unsigned nignore, unsigned max)
 	} else								\
 		return;
 
+	cassert(config_prof);
 	assert(nignore <= 3);
 	assert(max <= (1U << opt_lg_prof_bt_max));
 
@@ -407,6 +422,14 @@ prof_backtrace(prof_bt_t *bt, unsigned nignore, unsigned max)
 	BT_FRAME(130)
 #undef BT_FRAME
 }
+#else
+void
+prof_backtrace(prof_bt_t *bt, unsigned nignore, unsigned max)
+{
+
+	cassert(config_prof);
+	assert(false);
+}
 #endif
 
 prof_thr_cnt_t *
@@ -417,6 +440,8 @@ prof_lookup(prof_bt_t *bt)
 		void		*v;
 	} ret;
 	prof_tdata_t *prof_tdata;
+
+	cassert(config_prof);
 
 	prof_tdata = PROF_TCACHE_GET();
 	if (prof_tdata == NULL) {
@@ -553,6 +578,8 @@ prof_flush(bool propagate_err)
 	bool ret = false;
 	ssize_t err;
 
+	cassert(config_prof);
+
 	err = write(prof_dump_fd, prof_dump_buf, prof_dump_buf_end);
 	if (err == -1) {
 		if (propagate_err == false) {
@@ -572,6 +599,8 @@ static bool
 prof_write(const char *s, bool propagate_err)
 {
 	unsigned i, slen, n;
+
+	cassert(config_prof);
 
 	i = 0;
 	slen = strlen(s);
@@ -601,6 +630,8 @@ prof_ctx_sum(prof_ctx_t *ctx, prof_cnt_t *cnt_all, size_t *leak_nctx)
 {
 	prof_thr_cnt_t *thr_cnt;
 	prof_cnt_t tcnt;
+
+	cassert(config_prof);
 
 	malloc_mutex_lock(&ctx->lock);
 
@@ -648,6 +679,8 @@ static void
 prof_ctx_destroy(prof_ctx_t *ctx)
 {
 
+	cassert(config_prof);
+
 	/*
 	 * Check that ctx is still unused by any thread cache before destroying
 	 * it.  prof_lookup() artificially raises ctx->cnt_merge.curobjs in
@@ -686,6 +719,8 @@ prof_ctx_merge(prof_ctx_t *ctx, prof_thr_cnt_t *cnt)
 {
 	bool destroy;
 
+	cassert(config_prof);
+
 	/* Merge cnt stats and detach from ctx. */
 	malloc_mutex_lock(&ctx->lock);
 	ctx->cnt_merged.curobjs += cnt->cnts.curobjs;
@@ -722,6 +757,8 @@ prof_dump_ctx(prof_ctx_t *ctx, prof_bt_t *bt, bool propagate_err)
 {
 	char buf[UMAX2S_BUFSIZE];
 	unsigned i;
+
+	cassert(config_prof);
 
 	if (opt_prof_accum == false && ctx->cnt_summed.curobjs == 0) {
 		assert(ctx->cnt_summed.curbytes == 0);
@@ -766,6 +803,8 @@ prof_dump_maps(bool propagate_err)
 	/*         /proc/<pid>/maps\0 */
 	char mpath[6     + UMAX2S_BUFSIZE
 			      + 5  + 1];
+
+	cassert(config_prof);
 
 	i = 0;
 
@@ -826,6 +865,8 @@ prof_dump(const char *filename, bool leakcheck, bool propagate_err)
 	} ctx;
 	char buf[UMAX2S_BUFSIZE];
 	size_t leak_nctx;
+
+	cassert(config_prof);
 
 	prof_enter();
 	prof_dump_fd = creat(filename, 0644);
@@ -917,6 +958,8 @@ prof_dump_filename(char *filename, char v, int64_t vseq)
 	char *s;
 	unsigned i, slen;
 
+	cassert(config_prof);
+
 	/*
 	 * Construct a filename of the form:
 	 *
@@ -979,6 +1022,8 @@ prof_fdump(void)
 {
 	char filename[DUMP_FILENAME_BUFSIZE];
 
+	cassert(config_prof);
+
 	if (prof_booted == false)
 		return;
 
@@ -994,6 +1039,8 @@ void
 prof_idump(void)
 {
 	char filename[DUMP_FILENAME_BUFSIZE];
+
+	cassert(config_prof);
 
 	if (prof_booted == false)
 		return;
@@ -1019,6 +1066,8 @@ prof_mdump(const char *filename)
 {
 	char filename_buf[DUMP_FILENAME_BUFSIZE];
 
+	cassert(config_prof);
+
 	if (opt_prof == false || prof_booted == false)
 		return (true);
 
@@ -1039,6 +1088,8 @@ void
 prof_gdump(void)
 {
 	char filename[DUMP_FILENAME_BUFSIZE];
+
+	cassert(config_prof);
 
 	if (prof_booted == false)
 		return;
@@ -1066,6 +1117,7 @@ prof_bt_hash(const void *key, unsigned minbits, size_t *hash1, size_t *hash2)
 	uint64_t h;
 	prof_bt_t *bt = (prof_bt_t *)key;
 
+	cassert(config_prof);
 	assert(minbits <= 32 || (SIZEOF_PTR == 8 && minbits <= 64));
 	assert(hash1 != NULL);
 	assert(hash2 != NULL);
@@ -1094,6 +1146,8 @@ prof_bt_keycomp(const void *k1, const void *k2)
 	const prof_bt_t *bt1 = (prof_bt_t *)k1;
 	const prof_bt_t *bt2 = (prof_bt_t *)k2;
 
+	cassert(config_prof);
+
 	if (bt1->len != bt2->len)
 		return (false);
 	return (memcmp(bt1->vec, bt2->vec, bt1->len * sizeof(void *)) == 0);
@@ -1103,6 +1157,8 @@ prof_tdata_t *
 prof_tdata_init(void)
 {
 	prof_tdata_t *prof_tdata;
+
+	cassert(config_prof);
 
 	/* Initialize an empty cache for this thread. */
 	prof_tdata = (prof_tdata_t *)imalloc(sizeof(prof_tdata_t));
@@ -1138,6 +1194,8 @@ prof_tdata_cleanup(void *arg)
 	prof_thr_cnt_t *cnt;
 	prof_tdata_t *prof_tdata = (prof_tdata_t *)arg;
 
+	cassert(config_prof);
+
 	/*
 	 * Delete the hash table.  All of its contents can still be iterated
 	 * over via the LRU.
@@ -1161,6 +1219,8 @@ void
 prof_boot0(void)
 {
 
+	cassert(config_prof);
+
 	memcpy(opt_prof_prefix, PROF_PREFIX_DEFAULT,
 	    sizeof(PROF_PREFIX_DEFAULT));
 }
@@ -1168,6 +1228,8 @@ prof_boot0(void)
 void
 prof_boot1(void)
 {
+
+	cassert(config_prof);
 
 	/*
 	 * opt_prof and prof_promote must be in their final state before any
@@ -1196,6 +1258,8 @@ prof_boot1(void)
 bool
 prof_boot2(void)
 {
+
+	cassert(config_prof);
 
 	if (opt_prof) {
 		if (ckh_new(&bt2ctx, PROF_CKH_MINITEMS, prof_bt_hash,
@@ -1241,4 +1305,3 @@ prof_boot2(void)
 }
 
 /******************************************************************************/
-#endif /* JEMALLOC_PROF */

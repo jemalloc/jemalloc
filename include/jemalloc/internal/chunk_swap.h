@@ -1,4 +1,3 @@
-#ifdef JEMALLOC_SWAP
 /******************************************************************************/
 #ifdef JEMALLOC_H_TYPES
 
@@ -15,9 +14,7 @@ extern bool		swap_enabled;
 extern bool		swap_prezeroed;
 extern size_t		swap_nfds;
 extern int		*swap_fds;
-#ifdef JEMALLOC_STATS
 extern size_t		swap_avail;
-#endif
 
 void	*chunk_alloc_swap(size_t size, bool *zero);
 bool	chunk_in_swap(void *chunk);
@@ -31,4 +28,3 @@ bool	chunk_swap_boot(void);
 
 #endif /* JEMALLOC_H_INLINES */
 /******************************************************************************/
-#endif /* JEMALLOC_SWAP */

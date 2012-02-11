@@ -39,14 +39,11 @@
 
 bool	opt_stats_print = false;
 
-#ifdef JEMALLOC_STATS
 size_t	stats_cactive = 0;
-#endif
 
 /******************************************************************************/
 /* Function prototypes for non-inline static functions. */
 
-#ifdef JEMALLOC_STATS
 static void	malloc_vcprintf(void (*write_cb)(void *, const char *),
     void *cbopaque, const char *format, va_list ap);
 static void	stats_arena_bins_print(void (*write_cb)(void *, const char *),
@@ -55,10 +52,10 @@ static void	stats_arena_lruns_print(void (*write_cb)(void *, const char *),
     void *cbopaque, unsigned i);
 static void	stats_arena_print(void (*write_cb)(void *, const char *),
     void *cbopaque, unsigned i);
-#endif
 
 /******************************************************************************/
 
+/* XXX Refactor by adding malloc_vsnprintf(). */
 /*
  * We don't want to depend on vsnprintf() for production builds, since that can
  * cause unnecessary bloat for static binaries.  u2s() provides minimal integer
@@ -99,7 +96,6 @@ u2s(uint64_t x, unsigned base, char *s)
 	return (&s[i]);
 }
 
-#ifdef JEMALLOC_STATS
 static void
 malloc_vcprintf(void (*write_cb)(void *, const char *), void *cbopaque,
     const char *format, va_list ap)
@@ -149,9 +145,7 @@ malloc_printf(const char *format, ...)
 	malloc_vcprintf(NULL, NULL, format, ap);
 	va_end(ap);
 }
-#endif
 
-#ifdef JEMALLOC_STATS
 static void
 stats_arena_bins_print(void (*write_cb)(void *, const char *), void *cbopaque,
     unsigned i)
@@ -377,7 +371,6 @@ stats_arena_print(void (*write_cb)(void *, const char *), void *cbopaque,
 	stats_arena_bins_print(write_cb, cbopaque, i);
 	stats_arena_lruns_print(write_cb, cbopaque, i);
 }
-#endif
 
 void
 stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
@@ -674,8 +667,7 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		write_cb(cbopaque, ")\n");
 	}
 
-#ifdef JEMALLOC_STATS
-	{
+	if (config_stats) {
 		int err;
 		size_t sszp, ssz;
 		size_t *cactive;
@@ -785,6 +777,5 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 			}
 		}
 	}
-#endif /* #ifdef JEMALLOC_STATS */
 	write_cb(cbopaque, "--- End jemalloc statistics ---\n");
 }

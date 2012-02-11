@@ -32,7 +32,6 @@ struct ctl_arena_stats_s {
 	unsigned		nthreads;
 	size_t			pactive;
 	size_t			pdirty;
-#ifdef JEMALLOC_STATS
 	arena_stats_t		astats;
 
 	/* Aggregate stats for small size classes, based on bin stats. */
@@ -43,11 +42,9 @@ struct ctl_arena_stats_s {
 
 	malloc_bin_stats_t	*bstats;	/* nbins elements. */
 	malloc_large_stats_t	*lstats;	/* nlclasses elements. */
-#endif
 };
 
 struct ctl_stats_s {
-#ifdef JEMALLOC_STATS
 	size_t			allocated;
 	size_t			active;
 	size_t			mapped;
@@ -61,11 +58,8 @@ struct ctl_stats_s {
 		uint64_t	nmalloc;	/* huge_nmalloc */
 		uint64_t	ndalloc;	/* huge_ndalloc */
 	} huge;
-#endif
 	ctl_arena_stats_t	*arenas;	/* (narenas + 1) elements. */
-#ifdef JEMALLOC_SWAP
 	size_t			swap_avail;
-#endif
 };
 
 #endif /* JEMALLOC_H_STRUCTS */

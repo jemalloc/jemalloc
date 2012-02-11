@@ -4,11 +4,9 @@
 /******************************************************************************/
 /* Data. */
 
-#ifdef JEMALLOC_STATS
 uint64_t	huge_nmalloc;
 uint64_t	huge_ndalloc;
 size_t		huge_allocated;
-#endif
 
 malloc_mutex_t	huge_mtx;
 
@@ -49,21 +47,19 @@ huge_malloc(size_t size, bool zero)
 
 	malloc_mutex_lock(&huge_mtx);
 	extent_tree_ad_insert(&huge, node);
-#ifdef JEMALLOC_STATS
-	stats_cactive_add(csize);
-	huge_nmalloc++;
-	huge_allocated += csize;
-#endif
+	if (config_stats) {
+		stats_cactive_add(csize);
+		huge_nmalloc++;
+		huge_allocated += csize;
+	}
 	malloc_mutex_unlock(&huge_mtx);
 
-#ifdef JEMALLOC_FILL
-	if (zero == false) {
+	if (config_fill && zero == false) {
 		if (opt_junk)
 			memset(ret, 0xa5, csize);
 		else if (opt_zero)
 			memset(ret, 0, csize);
 	}
-#endif
 
 	return (ret);
 }
@@ -134,21 +130,19 @@ huge_palloc(size_t size, size_t alignment, bool zero)
 
 	malloc_mutex_lock(&huge_mtx);
 	extent_tree_ad_insert(&huge, node);
-#ifdef JEMALLOC_STATS
-	stats_cactive_add(chunk_size);
-	huge_nmalloc++;
-	huge_allocated += chunk_size;
-#endif
+	if (config_stats) {
+		stats_cactive_add(chunk_size);
+		huge_nmalloc++;
+		huge_allocated += chunk_size;
+	}
 	malloc_mutex_unlock(&huge_mtx);
 
-#ifdef JEMALLOC_FILL
-	if (zero == false) {
+	if (config_fill && zero == false) {
 		if (opt_junk)
 			memset(ret, 0xa5, chunk_size);
 		else if (opt_zero)
 			memset(ret, 0, chunk_size);
 	}
-#endif
 
 	return (ret);
 }
@@ -164,12 +158,10 @@ huge_ralloc_no_move(void *ptr, size_t oldsize, size_t size, size_t extra)
 	    && CHUNK_CEILING(oldsize) >= CHUNK_CEILING(size)
 	    && CHUNK_CEILING(oldsize) <= CHUNK_CEILING(size+extra)) {
 		assert(CHUNK_CEILING(oldsize) == oldsize);
-#ifdef JEMALLOC_FILL
-		if (opt_junk && size < oldsize) {
+		if (config_fill && opt_junk && size < oldsize) {
 			memset((void *)((uintptr_t)ptr + size), 0x5a,
 			    oldsize - size);
 		}
-#endif
 		return (ptr);
 	}
 
@@ -223,15 +215,10 @@ huge_ralloc(void *ptr, size_t oldsize, size_t size, size_t extra,
 	 * source nor the destination are in swap or dss.
 	 */
 #ifdef JEMALLOC_MREMAP_FIXED
-	if (oldsize >= chunksize
-#  ifdef JEMALLOC_SWAP
-	    && (swap_enabled == false || (chunk_in_swap(ptr) == false &&
-	    chunk_in_swap(ret) == false))
-#  endif
-#  ifdef JEMALLOC_DSS
-	    && chunk_in_dss(ptr) == false && chunk_in_dss(ret) == false
-#  endif
-	    ) {
+	if (oldsize >= chunksize && (config_swap == false || swap_enabled ==
+	    false || (chunk_in_swap(ptr) == false && chunk_in_swap(ret) ==
+	    false)) && (config_dss == false || (chunk_in_dss(ptr) == false &&
+	    chunk_in_dss(ret) == false))) {
 		size_t newsize = huge_salloc(ret);
 
 		/*
@@ -285,23 +272,16 @@ huge_dalloc(void *ptr, bool unmap)
 	assert(node->addr == ptr);
 	extent_tree_ad_remove(&huge, node);
 
-#ifdef JEMALLOC_STATS
-	stats_cactive_sub(node->size);
-	huge_ndalloc++;
-	huge_allocated -= node->size;
-#endif
+	if (config_stats) {
+		stats_cactive_sub(node->size);
+		huge_ndalloc++;
+		huge_allocated -= node->size;
+	}
 
 	malloc_mutex_unlock(&huge_mtx);
 
-	if (unmap) {
-	/* Unmap chunk. */
-#ifdef JEMALLOC_FILL
-#if (defined(JEMALLOC_SWAP) || defined(JEMALLOC_DSS))
-		if (opt_junk)
-			memset(node->addr, 0x5a, node->size);
-#endif
-#endif
-	}
+	if (unmap && config_fill && (config_swap || config_dss) && opt_junk)
+		memset(node->addr, 0x5a, node->size);
 
 	chunk_dealloc(node->addr, node->size, unmap);
 
@@ -328,7 +308,6 @@ huge_salloc(const void *ptr)
 	return (ret);
 }
 
-#ifdef JEMALLOC_PROF
 prof_ctx_t *
 huge_prof_ctx_get(const void *ptr)
 {
@@ -365,7 +344,6 @@ huge_prof_ctx_set(const void *ptr, prof_ctx_t *ctx)
 
 	malloc_mutex_unlock(&huge_mtx);
 }
-#endif
 
 bool
 huge_boot(void)
@@ -376,11 +354,11 @@ huge_boot(void)
 		return (true);
 	extent_tree_ad_new(&huge);
 
-#ifdef JEMALLOC_STATS
-	huge_nmalloc = 0;
-	huge_ndalloc = 0;
-	huge_allocated = 0;
-#endif
+	if (config_stats) {
+		huge_nmalloc = 0;
+		huge_ndalloc = 0;
+		huge_allocated = 0;
+	}
 
 	return (false);
 }

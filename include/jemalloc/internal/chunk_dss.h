@@ -1,4 +1,3 @@
-#ifdef JEMALLOC_DSS
 /******************************************************************************/
 #ifdef JEMALLOC_H_TYPES
 
@@ -27,4 +26,3 @@ bool	chunk_dss_boot(void);
 
 #endif /* JEMALLOC_H_INLINES */
 /******************************************************************************/
-#endif /* JEMALLOC_DSS */

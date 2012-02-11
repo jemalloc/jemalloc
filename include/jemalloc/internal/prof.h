@@ -1,4 +1,3 @@
-#ifdef JEMALLOC_PROF
 /******************************************************************************/
 #ifdef JEMALLOC_H_TYPES
 
@@ -297,6 +296,8 @@ prof_sample_threshold_update(prof_tdata_t *prof_tdata)
 	uint64_t r;
 	double u;
 
+	cassert(config_prof);
+
 	/*
 	 * Compute sample threshold as a geometrically distributed random
 	 * variable with mean (2^opt_lg_prof_sample).
@@ -329,12 +330,13 @@ prof_ctx_get(const void *ptr)
 	prof_ctx_t *ret;
 	arena_chunk_t *chunk;
 
+	cassert(config_prof);
 	assert(ptr != NULL);
 
 	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
 	if (chunk != ptr) {
 		/* Region. */
-		dassert(chunk->arena->magic == ARENA_MAGIC);
+		assert(chunk->arena->magic == ARENA_MAGIC);
 
 		ret = arena_prof_ctx_get(ptr);
 	} else
@@ -348,12 +350,13 @@ prof_ctx_set(const void *ptr, prof_ctx_t *ctx)
 {
 	arena_chunk_t *chunk;
 
+	cassert(config_prof);
 	assert(ptr != NULL);
 
 	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
 	if (chunk != ptr) {
 		/* Region. */
-		dassert(chunk->arena->magic == ARENA_MAGIC);
+		assert(chunk->arena->magic == ARENA_MAGIC);
 
 		arena_prof_ctx_set(ptr, ctx);
 	} else
@@ -365,6 +368,7 @@ prof_sample_accum_update(size_t size)
 {
 	prof_tdata_t *prof_tdata;
 
+	cassert(config_prof);
 	/* Sampling logic is unnecessary if the interval is 1. */
 	assert(opt_lg_prof_sample != 0);
 
@@ -391,6 +395,7 @@ JEMALLOC_INLINE void
 prof_malloc(const void *ptr, size_t size, prof_thr_cnt_t *cnt)
 {
 
+	cassert(config_prof);
 	assert(ptr != NULL);
 	assert(size == isalloc(ptr));
 
@@ -437,6 +442,7 @@ prof_realloc(const void *ptr, size_t size, prof_thr_cnt_t *cnt,
 {
 	prof_thr_cnt_t *told_cnt;
 
+	cassert(config_prof);
 	assert(ptr != NULL || (uintptr_t)cnt <= (uintptr_t)1U);
 
 	if (ptr != NULL) {
@@ -510,6 +516,8 @@ prof_free(const void *ptr, size_t size)
 {
 	prof_ctx_t *ctx = prof_ctx_get(ptr);
 
+	cassert(config_prof);
+
 	if ((uintptr_t)ctx > (uintptr_t)1) {
 		assert(size == isalloc(ptr));
 		prof_thr_cnt_t *tcnt = prof_lookup(ctx->bt);
@@ -544,4 +552,3 @@ prof_free(const void *ptr, size_t size)
 
 #endif /* JEMALLOC_H_INLINES */
 /******************************************************************************/
-#endif /* JEMALLOC_PROF */

@@ -30,10 +30,8 @@ struct ckhc_s {
 };
 
 struct ckh_s {
-#ifdef JEMALLOC_DEBUG
 #define	CKH_MAGIC	0x3af2489d
 	uint32_t	magic;
-#endif
 
 #ifdef CKH_COUNT
 	/* Counters used to get an idea of performance. */
