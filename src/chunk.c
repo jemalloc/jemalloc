@@ -5,7 +5,6 @@
 /* Data. */
 
 size_t	opt_lg_chunk = LG_CHUNK_DEFAULT;
-bool	opt_overcommit = true;
 
 malloc_mutex_t	chunks_mtx;
 chunk_stats_t	stats_chunks;
@@ -35,23 +34,15 @@ chunk_alloc(size_t size, bool base, bool *zero)
 	assert(size != 0);
 	assert((size & chunksize_mask) == 0);
 
-	if (config_swap && swap_enabled) {
-		ret = chunk_alloc_swap(size, zero);
+	if (config_dss) {
+		ret = chunk_alloc_dss(size, zero);
 		if (ret != NULL)
 			goto RETURN;
 	}
-
-	if (swap_enabled == false || opt_overcommit) {
-		if (config_dss) {
-			ret = chunk_alloc_dss(size, zero);
-			if (ret != NULL)
-				goto RETURN;
-		}
-		ret = chunk_alloc_mmap(size);
-		if (ret != NULL) {
-			*zero = true;
-			goto RETURN;
-		}
+	ret = chunk_alloc_mmap(size);
+	if (ret != NULL) {
+		*zero = true;
+		goto RETURN;
 	}
 
 	/* All strategies for allocation failed. */
@@ -102,9 +93,6 @@ chunk_dealloc(void *chunk, size_t size, bool unmap)
 	}
 
 	if (unmap) {
-		if (config_swap && swap_enabled && chunk_dealloc_swap(chunk,
-		    size) == false)
-			return;
 		if (config_dss && chunk_dealloc_dss(chunk, size) == false)
 			return;
 		chunk_dealloc_mmap(chunk, size);
@@ -126,8 +114,6 @@ chunk_boot(void)
 			return (true);
 		memset(&stats_chunks, 0, sizeof(chunk_stats_t));
 	}
-	if (config_swap && chunk_swap_boot())
-		return (true);
 	if (chunk_mmap_boot())
 		return (true);
 	if (config_dss && chunk_dss_boot())

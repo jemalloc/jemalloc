@@ -525,7 +525,6 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		OPT_WRITE_SSIZE_T(lg_prof_interval)
 		OPT_WRITE_BOOL(prof_gdump)
 		OPT_WRITE_BOOL(prof_leak)
-		OPT_WRITE_BOOL(overcommit)
 
 #undef OPT_WRITE_BOOL
 #undef OPT_WRITE_SIZE_T
@@ -668,11 +667,10 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 	}
 
 	if (config_stats) {
-		int err;
 		size_t sszp, ssz;
 		size_t *cactive;
 		size_t allocated, active, mapped;
-		size_t chunks_current, chunks_high, swap_avail;
+		size_t chunks_current, chunks_high;
 		uint64_t chunks_total;
 		size_t huge_allocated;
 		uint64_t huge_nmalloc, huge_ndalloc;
@@ -694,24 +692,10 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		CTL_GET("stats.chunks.total", &chunks_total, uint64_t);
 		CTL_GET("stats.chunks.high", &chunks_high, size_t);
 		CTL_GET("stats.chunks.current", &chunks_current, size_t);
-		if ((err = JEMALLOC_P(mallctl)("swap.avail", &swap_avail, &ssz,
-		    NULL, 0)) == 0) {
-			size_t lg_chunk;
-
-			malloc_cprintf(write_cb, cbopaque, "chunks: nchunks   "
-			    "highchunks    curchunks   swap_avail\n");
-			CTL_GET("opt.lg_chunk", &lg_chunk, size_t);
-			malloc_cprintf(write_cb, cbopaque,
-			    "  %13"PRIu64"%13zu%13zu%13zu\n",
-			    chunks_total, chunks_high, chunks_current,
-			    swap_avail << lg_chunk);
-		} else {
-			malloc_cprintf(write_cb, cbopaque, "chunks: nchunks   "
-			    "highchunks    curchunks\n");
-			malloc_cprintf(write_cb, cbopaque,
-			    "  %13"PRIu64"%13zu%13zu\n",
-			    chunks_total, chunks_high, chunks_current);
-		}
+		malloc_cprintf(write_cb, cbopaque, "chunks: nchunks   "
+		    "highchunks    curchunks\n");
+		malloc_cprintf(write_cb, cbopaque, "  %13"PRIu64"%13zu%13zu\n",
+		    chunks_total, chunks_high, chunks_current);
 
 		/* Print huge stats. */
 		CTL_GET("stats.huge.nmalloc", &huge_nmalloc, uint64_t);

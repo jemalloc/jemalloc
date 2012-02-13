@@ -662,16 +662,6 @@ for (i = 0; i < nbins; i++) {
 
       <varlistentry>
         <term>
-          <mallctl>config.swap</mallctl>
-          (<type>bool</type>)
-          <literal>r-</literal>
-        </term>
-        <listitem><para><option>--enable-swap</option> was specified during
-        build configuration.</para></listitem>
-      </varlistentry>
-
-      <varlistentry>
-        <term>
           <mallctl>config.sysv</mallctl>
           (<type>bool</type>)
           <literal>r-</literal>
@@ -1116,25 +1106,6 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         <link linkend="opt.prof"><mallctl>opt.prof</mallctl></link> option for
         information on analyzing heap profile output.  This option is disabled
         by default.</para></listitem>
-      </varlistentry>
-
-      <varlistentry id="opt.overcommit">
-        <term>
-          <mallctl>opt.overcommit</mallctl>
-          (<type>bool</type>)
-          <literal>r-</literal>
-          [<option>--enable-swap</option>]
-        </term>
-        <listitem><para>Over-commit enabled/disabled.  If enabled, over-commit
-        memory as a side effect of using anonymous
-        <citerefentry><refentrytitle>mmap</refentrytitle>
-        <manvolnum>2</manvolnum></citerefentry> or
-        <citerefentry><refentrytitle>sbrk</refentrytitle>
-        <manvolnum>2</manvolnum></citerefentry> for virtual memory allocation.
-        In order for overcommit to be disabled, the <link
-        linkend="swap.fds"><mallctl>swap.fds</mallctl></link> mallctl must have
-        been successfully written to.  This option is enabled by
-        default.</para></listitem>
       </varlistentry>
 
       <varlistentry>
@@ -1590,8 +1561,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         application.  This is a multiple of the chunk size, and is at least as
         large as <link
         linkend="stats.active"><mallctl>stats.active</mallctl></link>.  This
-        does not include inactive chunks backed by swap files.  his does not
-        include inactive chunks embedded in the DSS.</para></listitem>
+        does not include inactive chunks embedded in the DSS.</para></listitem>
       </varlistentry>
 
       <varlistentry>
@@ -1602,8 +1572,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
           [<option>--enable-stats</option>]
         </term>
         <listitem><para>Total number of chunks actively mapped on behalf of the
-        application.  This does not include inactive chunks backed by swap
-        files.  This does not include inactive chunks embedded in the DSS.
+        application.  This does not include inactive chunks embedded in the DSS.
         </para></listitem>
       </varlistentry>
 
@@ -1982,65 +1951,6 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         </term>
         <listitem><para>Current number of runs for this size class.
         </para></listitem>
-      </varlistentry>
-
-      <varlistentry>
-        <term>
-          <mallctl>swap.avail</mallctl>
-          (<type>size_t</type>)
-          <literal>r-</literal>
-          [<option>--enable-stats --enable-swap</option>]
-        </term>
-        <listitem><para>Number of swap file bytes that are currently not
-        associated with any chunk (i.e. mapped, but otherwise completely
-        unmanaged).</para></listitem>
-      </varlistentry>
-
-      <varlistentry id="swap.prezeroed">
-        <term>
-          <mallctl>swap.prezeroed</mallctl>
-          (<type>bool</type>)
-          <literal>rw</literal>
-          [<option>--enable-swap</option>]
-        </term>
-        <listitem><para>If true, the allocator assumes that the swap file(s)
-        contain nothing but nil bytes.  If this assumption is violated,
-        allocator behavior is undefined.  This value becomes read-only after
-        <link linkend="swap.fds"><mallctl>swap.fds</mallctl></link> is
-        successfully written to.</para></listitem>
-      </varlistentry>
-
-      <varlistentry>
-        <term>
-          <mallctl>swap.nfds</mallctl>
-          (<type>size_t</type>)
-          <literal>r-</literal>
-          [<option>--enable-swap</option>]
-        </term>
-        <listitem><para>Number of file descriptors in use for swap.
-        </para></listitem>
-      </varlistentry>
-
-      <varlistentry id="swap.fds">
-        <term>
-          <mallctl>swap.fds</mallctl>
-          (<type>int *</type>)
-          <literal>rw</literal>
-          [<option>--enable-swap</option>]
-        </term>
-        <listitem><para>When written to, the files associated with the
-        specified file descriptors are contiguously mapped via
-        <citerefentry><refentrytitle>mmap</refentrytitle>
-        <manvolnum>2</manvolnum></citerefentry>.  The resulting virtual memory
-        region is preferred over anonymous
-        <citerefentry><refentrytitle>mmap</refentrytitle>
-        <manvolnum>2</manvolnum></citerefentry> and
-        <citerefentry><refentrytitle>sbrk</refentrytitle>
-        <manvolnum>2</manvolnum></citerefentry> memory.  Note that if a file's
-        size is not a multiple of the page size, it is automatically truncated
-        to the nearest page size multiple.  See the
-        <link linkend="swap.prezeroed"><mallctl>swap.prezeroed</mallctl></link>
-        mallctl for specifying that the files are pre-zeroed.</para></listitem>
       </varlistentry>
     </variablelist>
   </refsect1>

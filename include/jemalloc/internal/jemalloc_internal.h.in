@@ -104,13 +104,6 @@ static const bool config_stats =
     false
 #endif
     ;
-static const bool config_swap =
-#ifdef JEMALLOC_SWAP
-    true
-#else
-    false
-#endif
-    ;
 static const bool config_sysv =
 #ifdef JEMALLOC_SYSV
     true

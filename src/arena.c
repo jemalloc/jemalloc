@@ -671,10 +671,11 @@ arena_chunk_purge(arena_t *arena, arena_chunk_t *chunk)
     * madvise(..., MADV_DONTNEED) results in zero-filled pages for anonymous
     * mappings, but not for file-backed mappings.
     */
-	    (config_swap && swap_enabled) ? CHUNK_MAP_UNZEROED : 0;
+	    0
 #else
-	    CHUNK_MAP_UNZEROED;
+	    CHUNK_MAP_UNZEROED
 #endif
+	    ;
 
 	/*
 	 * If chunk is the spare, temporarily re-allocate it, 1) so that its

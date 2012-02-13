@@ -28,7 +28,6 @@
 #ifdef JEMALLOC_H_EXTERNS
 
 extern size_t		opt_lg_chunk;
-extern bool		opt_overcommit;
 
 /* Protects stats_chunks; currently not used for any other purpose. */
 extern malloc_mutex_t	chunks_mtx;
@@ -54,6 +53,5 @@ bool	chunk_boot(void);
 #endif /* JEMALLOC_H_INLINES */
 /******************************************************************************/
 
-#include "jemalloc/internal/chunk_swap.h"
 #include "jemalloc/internal/chunk_dss.h"
 #include "jemalloc/internal/chunk_mmap.h"

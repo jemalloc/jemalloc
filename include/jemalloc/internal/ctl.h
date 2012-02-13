@@ -59,7 +59,6 @@ struct ctl_stats_s {
 		uint64_t	ndalloc;	/* huge_ndalloc */
 	} huge;
 	ctl_arena_stats_t	*arenas;	/* (narenas + 1) elements. */
-	size_t			swap_avail;
 };
 
 #endif /* JEMALLOC_H_STRUCTS */

@@ -610,9 +610,6 @@ malloc_conf_init(void)
 				CONF_HANDLE_BOOL(prof_gdump)
 				CONF_HANDLE_BOOL(prof_leak)
 			}
-			if (config_swap) {
-				CONF_HANDLE_BOOL(overcommit)
-			}
 			malloc_conf_error("Invalid conf pair", k, klen, v,
 			    vlen);
 #undef CONF_HANDLE_BOOL
@@ -1629,9 +1626,6 @@ jemalloc_prefork(void)
 
 	if (config_dss)
 		malloc_mutex_lock(&dss_mtx);
-
-	if (config_swap)
-		malloc_mutex_lock(&swap_mtx);
 }
 
 void
@@ -1640,9 +1634,6 @@ jemalloc_postfork(void)
 	unsigned i;
 
 	/* Release all mutexes, now that fork() has completed. */
-
-	if (config_swap)
-		malloc_mutex_unlock(&swap_mtx);
 
 	if (config_dss)
 		malloc_mutex_unlock(&dss_mtx);

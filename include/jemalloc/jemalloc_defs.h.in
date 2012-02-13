@@ -98,9 +98,6 @@
  */
 #undef JEMALLOC_DSS
 
-/* JEMALLOC_SWAP enables mmap()ed swap file support. */
-#undef JEMALLOC_SWAP
-
 /* Support memory filling (junk/zero). */
 #undef JEMALLOC_FILL
 

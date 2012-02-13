@@ -592,22 +592,6 @@ if test "x$enable_tcache" = "x1" ; then
 fi
 AC_SUBST([enable_tcache])
 
-dnl Do not enable mmap()ped swap files by default.
-AC_ARG_ENABLE([swap],
-  [AS_HELP_STRING([--enable-swap], [Enable mmap()ped swap files])],
-[if test "x$enable_swap" = "xno" ; then
-  enable_swap="0"
-else
-  enable_swap="1"
-fi
-],
-[enable_swap="0"]
-)
-if test "x$enable_swap" = "x1" ; then
-  AC_DEFINE([JEMALLOC_SWAP], [ ])
-fi
-AC_SUBST([enable_swap])
-
 dnl Do not enable allocation from DSS by default.
 AC_ARG_ENABLE([dss],
   [AS_HELP_STRING([--enable-dss], [Enable allocation from DSS])],
@@ -955,7 +939,6 @@ AC_MSG_RESULT([tcache             : ${enable_tcache}])
 AC_MSG_RESULT([fill               : ${enable_fill}])
 AC_MSG_RESULT([xmalloc            : ${enable_xmalloc}])
 AC_MSG_RESULT([sysv               : ${enable_sysv}])
-AC_MSG_RESULT([swap               : ${enable_swap}])
 AC_MSG_RESULT([dss                : ${enable_dss}])
 AC_MSG_RESULT([dynamic_page_shift : ${enable_dynamic_page_shift}])
 AC_MSG_RESULT([lazy_lock          : ${enable_lazy_lock}])

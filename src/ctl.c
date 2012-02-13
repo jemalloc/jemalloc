@@ -8,8 +8,6 @@
  * ctl_mtx protects the following:
  * - ctl_stats.*
  * - opt_prof_active
- * - swap_enabled
- * - swap_prezeroed
  */
 static malloc_mutex_t	ctl_mtx;
 static bool		ctl_initialized;
@@ -56,7 +54,6 @@ CTL_PROTO(config_prof)
 CTL_PROTO(config_prof_libgcc)
 CTL_PROTO(config_prof_libunwind)
 CTL_PROTO(config_stats)
-CTL_PROTO(config_swap)
 CTL_PROTO(config_sysv)
 CTL_PROTO(config_tcache)
 CTL_PROTO(config_tiny)
@@ -85,7 +82,6 @@ CTL_PROTO(opt_prof_gdump)
 CTL_PROTO(opt_prof_leak)
 CTL_PROTO(opt_prof_accum)
 CTL_PROTO(opt_lg_prof_tcmax)
-CTL_PROTO(opt_overcommit)
 CTL_PROTO(arenas_bin_i_size)
 CTL_PROTO(arenas_bin_i_nregs)
 CTL_PROTO(arenas_bin_i_run_size)
@@ -162,10 +158,6 @@ CTL_PROTO(stats_cactive)
 CTL_PROTO(stats_allocated)
 CTL_PROTO(stats_active)
 CTL_PROTO(stats_mapped)
-CTL_PROTO(swap_avail)
-CTL_PROTO(swap_prezeroed)
-CTL_PROTO(swap_nfds)
-CTL_PROTO(swap_fds)
 
 /******************************************************************************/
 /* mallctl tree. */
@@ -205,7 +197,6 @@ static const ctl_node_t	config_node[] = {
 	{NAME("prof_libgcc"),		CTL(config_prof_libgcc)},
 	{NAME("prof_libunwind"),	CTL(config_prof_libunwind)},
 	{NAME("stats"),			CTL(config_stats)},
-	{NAME("swap"),			CTL(config_swap)},
 	{NAME("sysv"),			CTL(config_sysv)},
 	{NAME("tcache"),		CTL(config_tcache)},
 	{NAME("tiny"),			CTL(config_tiny)},
@@ -236,8 +227,7 @@ static const ctl_node_t opt_node[] = {
 	{NAME("prof_gdump"),		CTL(opt_prof_gdump)},
 	{NAME("prof_leak"),		CTL(opt_prof_leak)},
 	{NAME("prof_accum"),		CTL(opt_prof_accum)},
-	{NAME("lg_prof_tcmax"),		CTL(opt_lg_prof_tcmax)},
-	{NAME("overcommit"),		CTL(opt_overcommit)}
+	{NAME("lg_prof_tcmax"),		CTL(opt_lg_prof_tcmax)}
 };
 
 static const ctl_node_t arenas_bin_i_node[] = {
@@ -391,13 +381,6 @@ static const ctl_node_t stats_node[] = {
 	{NAME("arenas"),		CHILD(stats_arenas)}
 };
 
-static const ctl_node_t swap_node[] = {
-	{NAME("avail"),			CTL(swap_avail)},
-	{NAME("prezeroed"),		CTL(swap_prezeroed)},
-	{NAME("nfds"),			CTL(swap_nfds)},
-	{NAME("fds"),			CTL(swap_fds)}
-};
-
 static const ctl_node_t	root_node[] = {
 	{NAME("version"),	CTL(version)},
 	{NAME("epoch"),		CTL(epoch)},
@@ -408,8 +391,6 @@ static const ctl_node_t	root_node[] = {
 	{NAME("arenas"),	CHILD(arenas)},
 	{NAME("prof"),		CHILD(prof)},
 	{NAME("stats"),		CHILD(stats)}
-	,
-	{NAME("swap"),		CHILD(swap)}
 };
 static const ctl_node_t super_root_node[] = {
 	{NAME(""),		CHILD(root)}
@@ -597,12 +578,6 @@ ctl_refresh(void)
 		ctl_stats.active = (ctl_stats.arenas[narenas].pactive <<
 		    PAGE_SHIFT) + ctl_stats.huge.allocated;
 		ctl_stats.mapped = (ctl_stats.chunks.current << opt_lg_chunk);
-
-		if (config_swap) {
-			malloc_mutex_lock(&swap_mtx);
-			ctl_stats.swap_avail = swap_avail;
-			malloc_mutex_unlock(&swap_mtx);
-		}
 	}
 
 	ctl_epoch++;
@@ -1138,7 +1113,6 @@ CTL_RO_BOOL_CONFIG_GEN(config_prof)
 CTL_RO_BOOL_CONFIG_GEN(config_prof_libgcc)
 CTL_RO_BOOL_CONFIG_GEN(config_prof_libunwind)
 CTL_RO_BOOL_CONFIG_GEN(config_stats)
-CTL_RO_BOOL_CONFIG_GEN(config_swap)
 CTL_RO_BOOL_CONFIG_GEN(config_sysv)
 CTL_RO_BOOL_CONFIG_GEN(config_tcache)
 CTL_RO_BOOL_CONFIG_GEN(config_tiny)
@@ -1171,7 +1145,6 @@ CTL_RO_NL_CGEN(config_prof, opt_prof_gdump, opt_prof_gdump, bool)
 CTL_RO_NL_CGEN(config_prof, opt_prof_leak, opt_prof_leak, bool)
 CTL_RO_NL_CGEN(config_prof, opt_prof_accum, opt_prof_accum, bool)
 CTL_RO_NL_CGEN(config_prof, opt_lg_prof_tcmax, opt_lg_prof_tcmax, ssize_t)
-CTL_RO_NL_CGEN(config_swap, opt_overcommit, opt_overcommit, bool)
 
 /******************************************************************************/
 
@@ -1450,85 +1423,3 @@ CTL_RO_CGEN(config_stats, stats_cactive, &stats_cactive, size_t *)
 CTL_RO_CGEN(config_stats, stats_allocated, ctl_stats.allocated, size_t)
 CTL_RO_CGEN(config_stats, stats_active, ctl_stats.active, size_t)
 CTL_RO_CGEN(config_stats, stats_mapped, ctl_stats.mapped, size_t)
-
-/******************************************************************************/
-
-CTL_RO_CGEN(config_swap && config_stats, swap_avail, ctl_stats.swap_avail,
-    size_t)
-
-static int
-swap_prezeroed_ctl(const size_t *mib, size_t miblen, void *oldp,
-    size_t *oldlenp, void *newp, size_t newlen)
-{
-	int ret;
-
-	if (config_swap == false)
-		return (ENOENT);
-
-	malloc_mutex_lock(&ctl_mtx);
-	if (swap_enabled) {
-		READONLY();
-	} else {
-		/*
-		 * swap_prezeroed isn't actually used by the swap code until it
-		 * is set during a successful chunk_swap_enabled() call.  We
-		 * use it here to store the value that we'll pass to
-		 * chunk_swap_enable() in a swap.fds mallctl().  This is not
-		 * very clean, but the obvious alternatives are even worse.
-		 */
-		WRITE(swap_prezeroed, bool);
-	}
-
-	READ(swap_prezeroed, bool);
-
-	ret = 0;
-RETURN:
-	malloc_mutex_unlock(&ctl_mtx);
-	return (ret);
-}
-
-CTL_RO_CGEN(config_swap, swap_nfds, swap_nfds, size_t)
-
-static int
-swap_fds_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
-    void *newp, size_t newlen)
-{
-	int ret;
-
-	if (config_swap == false)
-		return (ENOENT);
-
-	malloc_mutex_lock(&ctl_mtx);
-	if (swap_enabled) {
-		READONLY();
-	} else if (newp != NULL) {
-		size_t nfds = newlen / sizeof(int);
-
-		{
-			int fds[nfds];
-
-			memcpy(fds, newp, nfds * sizeof(int));
-			if (chunk_swap_enable(fds, nfds, swap_prezeroed)) {
-				ret = EFAULT;
-				goto RETURN;
-			}
-		}
-	}
-
-	if (oldp != NULL && oldlenp != NULL) {
-		if (*oldlenp != swap_nfds * sizeof(int)) {
-			size_t copylen = (swap_nfds * sizeof(int) <= *oldlenp)
-			    ? swap_nfds * sizeof(int) : *oldlenp;
-
-			memcpy(oldp, swap_fds, copylen);
-			ret = EINVAL;
-			goto RETURN;
-		} else
-			memcpy(oldp, swap_fds, *oldlenp);
-	}
-
-	ret = 0;
-RETURN:
-	malloc_mutex_unlock(&ctl_mtx);
-	return (ret);
-}

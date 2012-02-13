@@ -212,13 +212,11 @@ huge_ralloc(void *ptr, size_t oldsize, size_t size, size_t extra,
 
 	/*
 	 * Use mremap(2) if this is a huge-->huge reallocation, and neither the
-	 * source nor the destination are in swap or dss.
+	 * source nor the destination are in dss.
 	 */
 #ifdef JEMALLOC_MREMAP_FIXED
-	if (oldsize >= chunksize && (config_swap == false || swap_enabled ==
-	    false || (chunk_in_swap(ptr) == false && chunk_in_swap(ret) ==
-	    false)) && (config_dss == false || (chunk_in_dss(ptr) == false &&
-	    chunk_in_dss(ret) == false))) {
+	if (oldsize >= chunksize && (config_dss == false || (chunk_in_dss(ptr)
+	    == false && chunk_in_dss(ret) == false))) {
 		size_t newsize = huge_salloc(ret);
 
 		/*
@@ -280,7 +278,7 @@ huge_dalloc(void *ptr, bool unmap)
 
 	malloc_mutex_unlock(&huge_mtx);
 
-	if (unmap && config_fill && (config_swap || config_dss) && opt_junk)
+	if (unmap && config_fill && config_dss && opt_junk)
 		memset(node->addr, 0x5a, node->size);
 
 	chunk_dealloc(node->addr, node->size, unmap);
