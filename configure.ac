@@ -730,17 +730,17 @@ AC_CHECK_LIB([pthread], [pthread_create], [LIBS="$LIBS -lpthread"],
 
 CPPFLAGS="$CPPFLAGS -D_REENTRANT"
 
-dnl Enable lazy locking by default.
+dnl Disable lazy locking by default.
 AC_ARG_ENABLE([lazy_lock],
-  [AS_HELP_STRING([--disable-lazy-lock],
-  [Disable lazy locking (always lock, even when single-threaded)])],
+  [AS_HELP_STRING([--enable-lazy-lock],
+  [Enable lazy locking (only lock when multi-threaded)])],
 [if test "x$enable_lazy_lock" = "xno" ; then
   enable_lazy_lock="0"
 else
   enable_lazy_lock="1"
 fi
 ],
-[enable_lazy_lock="1"]
+[enable_lazy_lock="0"]
 )
 if test "x$enable_lazy_lock" = "x1" ; then
   AC_CHECK_HEADERS([dlfcn.h], , [AC_MSG_ERROR([dlfcn.h is missing])])

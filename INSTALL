@@ -128,8 +128,8 @@ any of the following arguments (not a definitive list) to 'configure':
     a measurable impact on performance, since the compiler is forced to load
     the page size from memory rather than embedding immediate values.
 
---disable-lazy-lock
-    Disable code that wraps pthread_create() to detect when an application
+--enable-lazy-lock
+    Enable code that wraps pthread_create() to detect when an application
     switches from single-threaded to multi-threaded mode, so that it can avoid
     mutex locking/unlocking operations while in single-threaded mode.  In
     practice, this feature usually has little impact on performance unless
