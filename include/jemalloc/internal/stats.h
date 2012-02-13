@@ -59,9 +59,6 @@ struct malloc_bin_stats_s {
 	 */
 	uint64_t	reruns;
 
-	/* High-water mark for this bin. */
-	size_t		highruns;
-
 	/* Current number of runs in this bin. */
 	size_t		curruns;
 };
@@ -82,9 +79,6 @@ struct malloc_large_stats_s {
 	 * periodically merges into this counter.
 	 */
 	uint64_t	nrequests;
-
-	/* High-water mark for this size class. */
-	size_t		highruns;
 
 	/* Current number of runs of this size class. */
 	size_t		curruns;

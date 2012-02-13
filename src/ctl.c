@@ -136,13 +136,11 @@ CTL_PROTO(stats_arenas_i_bins_j_nfills)
 CTL_PROTO(stats_arenas_i_bins_j_nflushes)
 CTL_PROTO(stats_arenas_i_bins_j_nruns)
 CTL_PROTO(stats_arenas_i_bins_j_nreruns)
-CTL_PROTO(stats_arenas_i_bins_j_highruns)
 CTL_PROTO(stats_arenas_i_bins_j_curruns)
 INDEX_PROTO(stats_arenas_i_bins_j)
 CTL_PROTO(stats_arenas_i_lruns_j_nmalloc)
 CTL_PROTO(stats_arenas_i_lruns_j_ndalloc)
 CTL_PROTO(stats_arenas_i_lruns_j_nrequests)
-CTL_PROTO(stats_arenas_i_lruns_j_highruns)
 CTL_PROTO(stats_arenas_i_lruns_j_curruns)
 INDEX_PROTO(stats_arenas_i_lruns_j)
 CTL_PROTO(stats_arenas_i_nthreads)
@@ -322,7 +320,6 @@ static const ctl_node_t stats_arenas_i_bins_j_node[] = {
 	{NAME("nflushes"),		CTL(stats_arenas_i_bins_j_nflushes)},
 	{NAME("nruns"),			CTL(stats_arenas_i_bins_j_nruns)},
 	{NAME("nreruns"),		CTL(stats_arenas_i_bins_j_nreruns)},
-	{NAME("highruns"),		CTL(stats_arenas_i_bins_j_highruns)},
 	{NAME("curruns"),		CTL(stats_arenas_i_bins_j_curruns)}
 };
 static const ctl_node_t super_stats_arenas_i_bins_j_node[] = {
@@ -337,7 +334,6 @@ static const ctl_node_t stats_arenas_i_lruns_j_node[] = {
 	{NAME("nmalloc"),		CTL(stats_arenas_i_lruns_j_nmalloc)},
 	{NAME("ndalloc"),		CTL(stats_arenas_i_lruns_j_ndalloc)},
 	{NAME("nrequests"),		CTL(stats_arenas_i_lruns_j_nrequests)},
-	{NAME("highruns"),		CTL(stats_arenas_i_lruns_j_highruns)},
 	{NAME("curruns"),		CTL(stats_arenas_i_lruns_j_curruns)}
 };
 static const ctl_node_t super_stats_arenas_i_lruns_j_node[] = {
@@ -482,7 +478,6 @@ ctl_arena_stats_smerge(ctl_arena_stats_t *sstats, ctl_arena_stats_t *astats)
 		sstats->lstats[i].nmalloc += astats->lstats[i].nmalloc;
 		sstats->lstats[i].ndalloc += astats->lstats[i].ndalloc;
 		sstats->lstats[i].nrequests += astats->lstats[i].nrequests;
-		sstats->lstats[i].highruns += astats->lstats[i].highruns;
 		sstats->lstats[i].curruns += astats->lstats[i].curruns;
 	}
 
@@ -498,7 +493,6 @@ ctl_arena_stats_smerge(ctl_arena_stats_t *sstats, ctl_arena_stats_t *astats)
 		}
 		sstats->bstats[i].nruns += astats->bstats[i].nruns;
 		sstats->bstats[i].reruns += astats->bstats[i].reruns;
-		sstats->bstats[i].highruns += astats->bstats[i].highruns;
 		sstats->bstats[i].curruns += astats->bstats[i].curruns;
 	}
 }
@@ -1351,8 +1345,6 @@ CTL_RO_CGEN(config_stats, stats_arenas_i_bins_j_nruns,
     ctl_stats.arenas[mib[2]].bstats[mib[4]].nruns, uint64_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_bins_j_nreruns,
     ctl_stats.arenas[mib[2]].bstats[mib[4]].reruns, uint64_t)
-CTL_RO_CGEN(config_stats, stats_arenas_i_bins_j_highruns,
-    ctl_stats.arenas[mib[2]].bstats[mib[4]].highruns, size_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_bins_j_curruns,
     ctl_stats.arenas[mib[2]].bstats[mib[4]].curruns, size_t)
 
@@ -1373,8 +1365,6 @@ CTL_RO_CGEN(config_stats, stats_arenas_i_lruns_j_nrequests,
     ctl_stats.arenas[mib[2]].lstats[mib[4]].nrequests, uint64_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_lruns_j_curruns,
     ctl_stats.arenas[mib[2]].lstats[mib[4]].curruns, size_t)
-CTL_RO_CGEN(config_stats, stats_arenas_i_lruns_j_highruns,
-    ctl_stats.arenas[mib[2]].lstats[mib[4]].highruns, size_t)
 
 const ctl_node_t *
 stats_arenas_i_lruns_j_index(const size_t *mib, size_t miblen, size_t j)

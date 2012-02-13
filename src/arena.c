@@ -1196,8 +1196,6 @@ arena_bin_nonfull_run_get(arena_t *arena, arena_bin_t *bin)
 		if (config_stats) {
 			bin->stats.nruns++;
 			bin->stats.curruns++;
-			if (bin->stats.curruns > bin->stats.highruns)
-				bin->stats.highruns = bin->stats.curruns;
 		}
 		return (run);
 	}
@@ -1401,12 +1399,6 @@ arena_malloc_large(arena_t *arena, size_t size, bool zero)
 		arena->stats.lstats[(size >> PAGE_SHIFT) - 1].nmalloc++;
 		arena->stats.lstats[(size >> PAGE_SHIFT) - 1].nrequests++;
 		arena->stats.lstats[(size >> PAGE_SHIFT) - 1].curruns++;
-		if (arena->stats.lstats[(size >> PAGE_SHIFT) - 1].curruns >
-		    arena->stats.lstats[(size >> PAGE_SHIFT) - 1].highruns) {
-			arena->stats.lstats[(size >> PAGE_SHIFT) - 1].highruns =
-			    arena->stats.lstats[(size >> PAGE_SHIFT)
-			    - 1].curruns;
-		}
 	}
 	if (config_prof)
 		arena_prof_accum(arena, size);
@@ -1477,12 +1469,6 @@ arena_palloc(arena_t *arena, size_t size, size_t alloc_size, size_t alignment,
 		arena->stats.lstats[(size >> PAGE_SHIFT) - 1].nmalloc++;
 		arena->stats.lstats[(size >> PAGE_SHIFT) - 1].nrequests++;
 		arena->stats.lstats[(size >> PAGE_SHIFT) - 1].curruns++;
-		if (arena->stats.lstats[(size >> PAGE_SHIFT) - 1].curruns >
-		    arena->stats.lstats[(size >> PAGE_SHIFT) - 1].highruns) {
-			arena->stats.lstats[(size >> PAGE_SHIFT) - 1].highruns =
-			    arena->stats.lstats[(size >> PAGE_SHIFT)
-			    - 1].curruns;
-		}
 	}
 	malloc_mutex_unlock(&arena->lock);
 
@@ -1762,7 +1748,6 @@ arena_stats_merge(arena_t *arena, size_t *nactive, size_t *ndirty,
 		lstats[i].nmalloc += arena->stats.lstats[i].nmalloc;
 		lstats[i].ndalloc += arena->stats.lstats[i].ndalloc;
 		lstats[i].nrequests += arena->stats.lstats[i].nrequests;
-		lstats[i].highruns += arena->stats.lstats[i].highruns;
 		lstats[i].curruns += arena->stats.lstats[i].curruns;
 	}
 	malloc_mutex_unlock(&arena->lock);
@@ -1781,7 +1766,6 @@ arena_stats_merge(arena_t *arena, size_t *nactive, size_t *ndirty,
 		}
 		bstats[i].nruns += bin->stats.nruns;
 		bstats[i].reruns += bin->stats.reruns;
-		bstats[i].highruns += bin->stats.highruns;
 		bstats[i].curruns += bin->stats.curruns;
 		malloc_mutex_unlock(&bin->lock);
 	}
@@ -1835,12 +1819,6 @@ arena_ralloc_large_shrink(arena_t *arena, arena_chunk_t *chunk, void *ptr,
 		arena->stats.lstats[(size >> PAGE_SHIFT) - 1].nmalloc++;
 		arena->stats.lstats[(size >> PAGE_SHIFT) - 1].nrequests++;
 		arena->stats.lstats[(size >> PAGE_SHIFT) - 1].curruns++;
-		if (arena->stats.lstats[(size >> PAGE_SHIFT) - 1].curruns >
-		    arena->stats.lstats[(size >> PAGE_SHIFT) - 1].highruns) {
-			arena->stats.lstats[(size >> PAGE_SHIFT) - 1].highruns =
-			    arena->stats.lstats[(size >> PAGE_SHIFT)
-			    - 1].curruns;
-		}
 	}
 	malloc_mutex_unlock(&arena->lock);
 }
@@ -1909,13 +1887,6 @@ arena_ralloc_large_grow(arena_t *arena, arena_chunk_t *chunk, void *ptr,
 			arena->stats.lstats[(size >> PAGE_SHIFT)
 			    - 1].nrequests++;
 			arena->stats.lstats[(size >> PAGE_SHIFT) - 1].curruns++;
-			if (arena->stats.lstats[(size >> PAGE_SHIFT)
-			    - 1].curruns > arena->stats.lstats[(size >>
-			    PAGE_SHIFT) - 1].highruns) {
-				arena->stats.lstats[(size >> PAGE_SHIFT)
-				    - 1].highruns = arena->stats.lstats[(size >>
-				    PAGE_SHIFT) - 1].curruns;
-			}
 		}
 		malloc_mutex_unlock(&arena->lock);
 		return (false);

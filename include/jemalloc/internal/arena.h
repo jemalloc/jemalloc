@@ -639,6 +639,10 @@ arena_malloc(size_t size, bool zero)
 		else
 			return (arena_malloc_small(choose_arena(), size, zero));
 	} else {
+		/*
+		 * Initialize tcache after checking size in order to avoid
+		 * infinite recursion during tcache initialization.
+		 */
 		if (size <= tcache_maxclass && (tcache = tcache_get()) != NULL)
 			return (tcache_alloc_large(tcache, size, zero));
 		else

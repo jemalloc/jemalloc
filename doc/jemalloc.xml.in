@@ -1868,17 +1868,6 @@ malloc_conf = "xmalloc:true";]]></programlisting>
 
       <varlistentry>
         <term>
-          <mallctl>stats.arenas.&lt;i&gt;.bins.&lt;j&gt;.highruns</mallctl>
-          (<type>size_t</type>)
-          <literal>r-</literal>
-          [<option>--enable-stats</option>]
-        </term>
-        <listitem><para>Maximum number of runs at any time thus far.
-        </para></listitem>
-      </varlistentry>
-
-      <varlistentry>
-        <term>
           <mallctl>stats.arenas.&lt;i&gt;.bins.&lt;j&gt;.curruns</mallctl>
           (<type>size_t</type>)
           <literal>r-</literal>
@@ -1918,17 +1907,6 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         </term>
         <listitem><para>Cumulative number of allocation requests for this size
         class.</para></listitem>
-      </varlistentry>
-
-      <varlistentry>
-        <term>
-          <mallctl>stats.arenas.&lt;i&gt;.lruns.&lt;j&gt;.highruns</mallctl>
-          (<type>size_t</type>)
-          <literal>r-</literal>
-          [<option>--enable-stats</option>]
-        </term>
-        <listitem><para>Maximum number of runs at any time thus far for this
-        size class.</para></listitem>
       </varlistentry>
 
       <varlistentry>

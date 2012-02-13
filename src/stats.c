@@ -161,12 +161,11 @@ stats_arena_bins_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		malloc_cprintf(write_cb, cbopaque,
 		    "bins:     bin    size regs pgs    allocated      nmalloc"
 		    "      ndalloc    nrequests       nfills     nflushes"
-		    "      newruns       reruns      maxruns      curruns\n");
+		    "      newruns       reruns      curruns\n");
 	} else {
 		malloc_cprintf(write_cb, cbopaque,
 		    "bins:     bin    size regs pgs    allocated      nmalloc"
-		    "      ndalloc      newruns       reruns      maxruns"
-		    "      curruns\n");
+		    "      ndalloc      newruns       reruns      curruns\n");
 	}
 	CTL_GET("arenas.nbins", &nbins, unsigned);
 	for (j = 0, gap_start = UINT_MAX; j < nbins; j++) {
@@ -182,7 +181,7 @@ stats_arena_bins_print(void (*write_cb)(void *, const char *), void *cbopaque,
 			uint32_t nregs;
 			uint64_t nmalloc, ndalloc, nrequests, nfills, nflushes;
 			uint64_t reruns;
-			size_t highruns, curruns;
+			size_t curruns;
 
 			if (gap_start != UINT_MAX) {
 				if (j > gap_start + 1) {
@@ -220,8 +219,6 @@ stats_arena_bins_print(void (*write_cb)(void *, const char *), void *cbopaque,
 			}
 			CTL_IJ_GET("stats.arenas.0.bins.0.nreruns", &reruns,
 			    uint64_t);
-			CTL_IJ_GET("stats.arenas.0.bins.0.highruns", &highruns,
-			    size_t);
 			CTL_IJ_GET("stats.arenas.0.bins.0.curruns", &curruns,
 			    size_t);
 			if (config_tcache) {
@@ -229,27 +226,26 @@ stats_arena_bins_print(void (*write_cb)(void *, const char *), void *cbopaque,
 				    "%13u %1s %5zu %4u %3zu %12zu %12"PRIu64
 				    " %12"PRIu64" %12"PRIu64" %12"PRIu64
 				    " %12"PRIu64" %12"PRIu64" %12"PRIu64
-				    " %12zu %12zu\n",
+				    " %12zu\n",
 				    j,
 				    j < ntbins_ ? "T" : j < ntbins_ + nqbins ?
 				    "Q" : j < ntbins_ + nqbins + ncbins ? "C" :
 				    "S",
 				    reg_size, nregs, run_size / pagesize,
 				    allocated, nmalloc, ndalloc, nrequests,
-				    nfills, nflushes, nruns, reruns, highruns,
-				    curruns);
+				    nfills, nflushes, nruns, reruns, curruns);
 			} else {
 				malloc_cprintf(write_cb, cbopaque,
 				    "%13u %1s %5zu %4u %3zu %12zu %12"PRIu64
 				    " %12"PRIu64" %12"PRIu64" %12"PRIu64
-				    " %12zu %12zu\n",
+				    " %12zu\n",
 				    j,
 				    j < ntbins_ ? "T" : j < ntbins_ + nqbins ?
 				    "Q" : j < ntbins_ + nqbins + ncbins ? "C" :
 				    "S",
 				    reg_size, nregs, run_size / pagesize,
 				    allocated, nmalloc, ndalloc, nruns, reruns,
-				    highruns, curruns);
+				    curruns);
 			}
 		}
 	}
@@ -276,11 +272,11 @@ stats_arena_lruns_print(void (*write_cb)(void *, const char *), void *cbopaque,
 
 	malloc_cprintf(write_cb, cbopaque,
 	    "large:   size pages      nmalloc      ndalloc    nrequests"
-	    "      maxruns      curruns\n");
+	    "      curruns\n");
 	CTL_GET("arenas.nlruns", &nlruns, size_t);
 	for (j = 0, gap_start = -1; j < nlruns; j++) {
 		uint64_t nmalloc, ndalloc, nrequests;
-		size_t run_size, highruns, curruns;
+		size_t run_size, curruns;
 
 		CTL_IJ_GET("stats.arenas.0.lruns.0.nmalloc", &nmalloc,
 		    uint64_t);
@@ -293,8 +289,6 @@ stats_arena_lruns_print(void (*write_cb)(void *, const char *), void *cbopaque,
 				gap_start = j;
 		} else {
 			CTL_J_GET("arenas.lrun.0.size", &run_size, size_t);
-			CTL_IJ_GET("stats.arenas.0.lruns.0.highruns", &highruns,
-			    size_t);
 			CTL_IJ_GET("stats.arenas.0.lruns.0.curruns", &curruns,
 			    size_t);
 			if (gap_start != -1) {
@@ -304,9 +298,9 @@ stats_arena_lruns_print(void (*write_cb)(void *, const char *), void *cbopaque,
 			}
 			malloc_cprintf(write_cb, cbopaque,
 			    "%13zu %5zu %12"PRIu64" %12"PRIu64" %12"PRIu64
-			    " %12zu %12zu\n",
+			    " %12zu\n",
 			    run_size, run_size / pagesize, nmalloc, ndalloc,
-			    nrequests, highruns, curruns);
+			    nrequests, curruns);
 		}
 	}
 	if (gap_start != -1)
