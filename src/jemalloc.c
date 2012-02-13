@@ -864,7 +864,11 @@ JEMALLOC_P(malloc)(size_t size)
 {
 	void *ret;
 	size_t usize;
-	prof_thr_cnt_t *cnt;
+	prof_thr_cnt_t *cnt
+#ifdef JEMALLOC_CC_SILENCE
+	    = NULL
+#endif
+	    ;
 
 	if (malloc_init()) {
 		ret = NULL;
@@ -939,7 +943,11 @@ imemalign(void **memptr, size_t alignment, size_t size)
 	int ret;
 	size_t usize;
 	void *result;
-	prof_thr_cnt_t *cnt;
+	prof_thr_cnt_t *cnt
+#ifdef JEMALLOC_CC_SILENCE
+	    = NULL
+#endif
+	    ;
 
 	if (malloc_init())
 		result = NULL;
@@ -1046,7 +1054,11 @@ JEMALLOC_P(calloc)(size_t num, size_t size)
 	void *ret;
 	size_t num_size;
 	size_t usize;
-	prof_thr_cnt_t *cnt;
+	prof_thr_cnt_t *cnt
+#ifdef JEMALLOC_CC_SILENCE
+	    = NULL
+#endif
+	    ;
 
 	if (malloc_init()) {
 		num_size = 0;
@@ -1121,8 +1133,16 @@ JEMALLOC_P(realloc)(void *ptr, size_t size)
 	void *ret;
 	size_t usize;
 	size_t old_size = 0;
-	prof_thr_cnt_t *cnt;
-	prof_ctx_t *old_ctx;
+	prof_thr_cnt_t *cnt
+#ifdef JEMALLOC_CC_SILENCE
+	    = NULL
+#endif
+	    ;
+	prof_ctx_t *old_ctx
+#ifdef JEMALLOC_CC_SILENCE
+	    = NULL
+#endif
+	    ;
 
 	if (size == 0) {
 		if (config_sysv == false || opt_sysv == false)
