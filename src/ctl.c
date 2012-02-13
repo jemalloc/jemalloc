@@ -56,7 +56,6 @@ CTL_PROTO(config_prof_libunwind)
 CTL_PROTO(config_stats)
 CTL_PROTO(config_sysv)
 CTL_PROTO(config_tcache)
-CTL_PROTO(config_tiny)
 CTL_PROTO(config_tls)
 CTL_PROTO(config_xmalloc)
 CTL_PROTO(opt_abort)
@@ -199,7 +198,6 @@ static const ctl_node_t	config_node[] = {
 	{NAME("stats"),			CTL(config_stats)},
 	{NAME("sysv"),			CTL(config_sysv)},
 	{NAME("tcache"),		CTL(config_tcache)},
-	{NAME("tiny"),			CTL(config_tiny)},
 	{NAME("tls"),			CTL(config_tls)},
 	{NAME("xmalloc"),		CTL(config_xmalloc)}
 };
@@ -993,8 +991,6 @@ n##_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,	\
 	int ret;							\
 	bool oldval;							\
 									\
-	if (n == false)							\
-		return (ENOENT);					\
 	READONLY();							\
 	oldval = n;							\
 	READ(oldval, bool);						\
@@ -1115,7 +1111,6 @@ CTL_RO_BOOL_CONFIG_GEN(config_prof_libunwind)
 CTL_RO_BOOL_CONFIG_GEN(config_stats)
 CTL_RO_BOOL_CONFIG_GEN(config_sysv)
 CTL_RO_BOOL_CONFIG_GEN(config_tcache)
-CTL_RO_BOOL_CONFIG_GEN(config_tiny)
 CTL_RO_BOOL_CONFIG_GEN(config_tls)
 CTL_RO_BOOL_CONFIG_GEN(config_xmalloc)
 
@@ -1203,8 +1198,8 @@ CTL_RO_NL_GEN(arenas_cacheline, CACHELINE, size_t)
 CTL_RO_NL_GEN(arenas_subpage, SUBPAGE, size_t)
 CTL_RO_NL_GEN(arenas_pagesize, PAGE_SIZE, size_t)
 CTL_RO_NL_GEN(arenas_chunksize, chunksize, size_t)
-CTL_RO_NL_CGEN(config_tiny, arenas_tspace_min, (1U << LG_TINY_MIN), size_t)
-CTL_RO_NL_CGEN(config_tiny, arenas_tspace_max, (qspace_min >> 1), size_t)
+CTL_RO_NL_GEN(arenas_tspace_min, TINY_MIN, size_t)
+CTL_RO_NL_GEN(arenas_tspace_max, (qspace_min >> 1), size_t)
 CTL_RO_NL_GEN(arenas_qspace_min, qspace_min, size_t)
 CTL_RO_NL_GEN(arenas_qspace_max, qspace_max, size_t)
 CTL_RO_NL_GEN(arenas_cspace_min, cspace_min, size_t)

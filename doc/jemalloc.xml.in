@@ -455,13 +455,12 @@ for (i = 0; i < nbins; i++) {
     allocations in constant time.</para>
 
     <para>Small objects are managed in groups by page runs.  Each run maintains
-    a frontier and free list to track which regions are in use.  Unless
-    <option>--disable-tiny</option> is specified during configuration,
-    allocation requests that are no more than half the quantum (8 or 16,
-    depending on architecture) are rounded up to the nearest power of two that
-    is at least <code language="C">sizeof(<type>void *</type>)</code>.
-    Allocation requests that are more than half the quantum, but no more than
-    the minimum cacheline-multiple size class (see the <link
+    a frontier and free list to track which regions are in use.  Allocation
+    requests that are no more than half the quantum (8 or 16, depending on
+    architecture) are rounded up to the nearest power of two that is at least
+    <code language="C">sizeof(<type>void *</type>)</code>.  Allocation requests
+    that are more than half the quantum, but no more than the minimum
+    cacheline-multiple size class (see the <link
     linkend="opt.lg_qspace_max"><mallctl>opt.lg_qspace_max</mallctl></link>
     option) are rounded up to the nearest multiple of the quantum.  Allocation
     requests that are more than the minimum cacheline-multiple size class, but
@@ -677,16 +676,6 @@ for (i = 0; i < nbins; i++) {
           <literal>r-</literal>
         </term>
         <listitem><para><option>--disable-tcache</option> was not specified
-        during build configuration.</para></listitem>
-      </varlistentry>
-
-      <varlistentry>
-        <term>
-          <mallctl>config.tiny</mallctl>
-          (<type>bool</type>)
-          <literal>r-</literal>
-        </term>
-        <listitem><para><option>--disable-tiny</option> was not specified
         during build configuration.</para></listitem>
       </varlistentry>
 

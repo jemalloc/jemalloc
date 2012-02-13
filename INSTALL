@@ -90,13 +90,6 @@ any of the following arguments (not a definitive list) to 'configure':
     Statically link against the specified libunwind.a rather than dynamically
     linking with -lunwind.
 
---disable-tiny
-    Disable tiny (sub-quantum-sized) object support.  Technically it is not
-    legal for a malloc implementation to allocate objects with less than
-    quantum alignment (8 or 16 bytes, depending on architecture), but in
-    practice it never causes any problems if, for example, 4-byte allocations
-    are 4-byte-aligned.
-
 --disable-tcache
     Disable thread-specific caches for small objects.  Objects are cached and
     released in bulk, thus reducing the total number of mutex operations.  See

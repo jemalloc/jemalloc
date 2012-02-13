@@ -118,13 +118,6 @@ static const bool config_tcache =
     false
 #endif
     ;
-static const bool config_tiny =
-#ifdef JEMALLOC_TINY
-    true
-#else
-    false
-#endif
-    ;
 static const bool config_tls =
 #ifdef JEMALLOC_TLS
     true

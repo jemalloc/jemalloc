@@ -17,7 +17,7 @@
 	(((s) + SUBPAGE_MASK) & ~SUBPAGE_MASK)
 
 /* Smallest size class to support. */
-#define	LG_TINY_MIN		LG_SIZEOF_PTR
+#define	LG_TINY_MIN		3
 #define	TINY_MIN		(1U << LG_TINY_MIN)
 
 /*
@@ -418,18 +418,13 @@ extern uint8_t const	*small_size2bin;
 extern arena_bin_info_t	*arena_bin_info;
 
 /* Various bin-related settings. */
-#ifdef JEMALLOC_TINY		/* Number of (2^n)-spaced tiny bins. */
-#  define		ntbins	((unsigned)(LG_QUANTUM - LG_TINY_MIN))
-#else
-#  define		ntbins	0
-#endif
+				/* Number of (2^n)-spaced tiny bins. */
+#define			ntbins	((unsigned)(LG_QUANTUM - LG_TINY_MIN))
 extern unsigned		nqbins; /* Number of quantum-spaced bins. */
 extern unsigned		ncbins; /* Number of cacheline-spaced bins. */
 extern unsigned		nsbins; /* Number of subpage-spaced bins. */
 extern unsigned		nbins;
-#ifdef JEMALLOC_TINY
-#  define		tspace_max	((size_t)(QUANTUM >> 1))
-#endif
+#define			tspace_max	((size_t)(QUANTUM >> 1))
 #define			qspace_min	QUANTUM
 extern size_t		qspace_max;
 extern size_t		cspace_min;
@@ -633,18 +628,18 @@ arena_prof_ctx_set(const void *ptr, prof_ctx_t *ctx)
 JEMALLOC_INLINE void *
 arena_malloc(size_t size, bool zero)
 {
-	tcache_t *tcache = tcache_get();
+	tcache_t *tcache;
 
 	assert(size != 0);
 	assert(QUANTUM_CEILING(size) <= arena_maxclass);
 
 	if (size <= small_maxclass) {
-		if (tcache != NULL)
+		if ((tcache = tcache_get()) != NULL)
 			return (tcache_alloc_small(tcache, size, zero));
 		else
 			return (arena_malloc_small(choose_arena(), size, zero));
 	} else {
-		if (tcache != NULL && size <= tcache_maxclass)
+		if (size <= tcache_maxclass && (tcache = tcache_get()) != NULL)
 			return (tcache_alloc_large(tcache, size, zero));
 		else
 			return (arena_malloc_large(choose_arena(), size, zero));

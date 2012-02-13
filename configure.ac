@@ -560,22 +560,6 @@ if test "x$enable_prof" = "x1" ; then
 fi
 AC_SUBST([enable_prof])
 
-dnl Enable tiny allocations by default.
-AC_ARG_ENABLE([tiny],
-  [AS_HELP_STRING([--disable-tiny], [Disable tiny (sub-quantum) allocations])],
-[if test "x$enable_tiny" = "xno" ; then
-  enable_tiny="0"
-else
-  enable_tiny="1"
-fi
-],
-[enable_tiny="1"]
-)
-if test "x$enable_tiny" = "x1" ; then
-  AC_DEFINE([JEMALLOC_TINY], [ ])
-fi
-AC_SUBST([enable_tiny])
-
 dnl Enable thread-specific caching by default.
 AC_ARG_ENABLE([tcache],
   [AS_HELP_STRING([--disable-tcache], [Disable per thread caches])],
@@ -934,7 +918,6 @@ AC_MSG_RESULT([prof               : ${enable_prof}])
 AC_MSG_RESULT([prof-libunwind     : ${enable_prof_libunwind}])
 AC_MSG_RESULT([prof-libgcc        : ${enable_prof_libgcc}])
 AC_MSG_RESULT([prof-gcc           : ${enable_prof_gcc}])
-AC_MSG_RESULT([tiny               : ${enable_tiny}])
 AC_MSG_RESULT([tcache             : ${enable_tcache}])
 AC_MSG_RESULT([fill               : ${enable_fill}])
 AC_MSG_RESULT([xmalloc            : ${enable_xmalloc}])
