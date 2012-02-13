@@ -255,7 +255,6 @@ arena_run_reg_alloc(arena_run_t *run, arena_bin_info_t *bin_info)
 	bitmap_t *bitmap = (bitmap_t *)((uintptr_t)run +
 	    (uintptr_t)bin_info->bitmap_offset);
 
-	assert(run->magic == ARENA_RUN_MAGIC);
 	assert(run->nfree > 0);
 	assert(bitmap_full(bitmap, &bin_info->bitmap_info) == false);
 
@@ -758,7 +757,6 @@ arena_chunk_purge(arena_t *arena, arena_chunk_t *chunk)
 				    chunk + (uintptr_t)(pageind << PAGE_SHIFT));
 
 				assert((mapelm->bits >> PAGE_SHIFT) == 0);
-				assert(run->magic == ARENA_RUN_MAGIC);
 				size_t binind = arena_bin_index(arena,
 				    run->bin);
 				arena_bin_info_t *bin_info =
@@ -1220,8 +1218,6 @@ arena_bin_nonfull_run_get(arena_t *arena, arena_bin_t *bin)
 		run->nextind = 0;
 		run->nfree = bin_info->nregs;
 		bitmap_init(bitmap, &bin_info->bitmap_info);
-		if (config_debug)
-			run->magic = ARENA_RUN_MAGIC;
 	}
 	malloc_mutex_unlock(&arena->lock);
 	/********************************/
@@ -1281,7 +1277,6 @@ arena_bin_malloc_hard(arena_t *arena, arena_bin_t *bin)
 		 * Another thread updated runcur while this one ran without the
 		 * bin lock in arena_bin_nonfull_run_get().
 		 */
-		assert(bin->runcur->magic == ARENA_RUN_MAGIC);
 		assert(bin->runcur->nfree > 0);
 		ret = arena_run_reg_alloc(bin->runcur, bin_info);
 		if (run != NULL) {
@@ -1309,7 +1304,6 @@ arena_bin_malloc_hard(arena_t *arena, arena_bin_t *bin)
 
 	bin->runcur = run;
 
-	assert(bin->runcur->magic == ARENA_RUN_MAGIC);
 	assert(bin->runcur->nfree > 0);
 
 	return (arena_run_reg_alloc(bin->runcur, bin_info));
@@ -1579,7 +1573,6 @@ arena_salloc(const void *ptr)
 		arena_run_t *run = (arena_run_t *)((uintptr_t)chunk +
 		    (uintptr_t)((pageind - (mapbits >> PAGE_SHIFT)) <<
 		    PAGE_SHIFT));
-		assert(run->magic == ARENA_RUN_MAGIC);
 		size_t binind = arena_bin_index(chunk->arena, run->bin);
 		arena_bin_info_t *bin_info = &arena_bin_info[binind];
 		assert(((uintptr_t)ptr - ((uintptr_t)run +
@@ -1632,7 +1625,6 @@ arena_salloc_demote(const void *ptr)
 		arena_run_t *run = (arena_run_t *)((uintptr_t)chunk +
 		    (uintptr_t)((pageind - (mapbits >> PAGE_SHIFT)) <<
 		    PAGE_SHIFT));
-		assert(run->magic == ARENA_RUN_MAGIC);
 		size_t binind = arena_bin_index(chunk->arena, run->bin);
 		arena_bin_info_t *bin_info = &arena_bin_info[binind];
 		assert(((uintptr_t)ptr - ((uintptr_t)run +
@@ -1727,8 +1719,6 @@ arena_dalloc_bin_run(arena_t *arena, arena_chunk_t *chunk, arena_run_t *run,
 		    ((past - run_ind) << PAGE_SHIFT), false);
 		/* npages = past - run_ind; */
 	}
-	if (config_debug)
-		run->magic = 0;
 	arena_run_dalloc(arena, run, true);
 	malloc_mutex_unlock(&arena->lock);
 	/****************************/
@@ -1785,7 +1775,6 @@ arena_dalloc_bin(arena_t *arena, arena_chunk_t *chunk, void *ptr,
 	pageind = ((uintptr_t)ptr - (uintptr_t)chunk) >> PAGE_SHIFT;
 	run = (arena_run_t *)((uintptr_t)chunk + (uintptr_t)((pageind -
 	    (mapelm->bits >> PAGE_SHIFT)) << PAGE_SHIFT));
-	assert(run->magic == ARENA_RUN_MAGIC);
 	bin = run->bin;
 	size_t binind = arena_bin_index(arena, bin);
 	arena_bin_info_t *bin_info = &arena_bin_info[binind];
@@ -2019,7 +2008,6 @@ arena_ralloc_large(void *ptr, size_t oldsize, size_t size, size_t extra,
 
 		chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
 		arena = chunk->arena;
-		assert(arena->magic == ARENA_MAGIC);
 
 		if (psize < oldsize) {
 			/* Fill before shrinking in order avoid a race. */
@@ -2182,9 +2170,6 @@ arena_new(arena_t *arena, unsigned ind)
 		if (config_stats)
 			memset(&bin->stats, 0, sizeof(malloc_bin_stats_t));
 	}
-
-	if (config_debug)
-		arena->magic = ARENA_MAGIC;
 
 	return (false);
 }

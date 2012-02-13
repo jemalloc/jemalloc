@@ -30,9 +30,6 @@ struct ckhc_s {
 };
 
 struct ckh_s {
-#define	CKH_MAGIC	0x3af2489d
-	uint32_t	magic;
-
 #ifdef CKH_COUNT
 	/* Counters used to get an idea of performance. */
 	uint64_t	ngrows;

@@ -774,8 +774,6 @@ isalloc(const void *ptr)
 	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
 	if (chunk != ptr) {
 		/* Region. */
-		assert(chunk->arena->magic == ARENA_MAGIC);
-
 		if (config_prof)
 			ret = arena_salloc_demote(ptr);
 		else

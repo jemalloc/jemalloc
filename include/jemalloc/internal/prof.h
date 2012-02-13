@@ -336,8 +336,6 @@ prof_ctx_get(const void *ptr)
 	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
 	if (chunk != ptr) {
 		/* Region. */
-		assert(chunk->arena->magic == ARENA_MAGIC);
-
 		ret = arena_prof_ctx_get(ptr);
 	} else
 		ret = huge_prof_ctx_get(ptr);
@@ -356,8 +354,6 @@ prof_ctx_set(const void *ptr, prof_ctx_t *ctx)
 	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
 	if (chunk != ptr) {
 		/* Region. */
-		assert(chunk->arena->magic == ARENA_MAGIC);
-
 		arena_prof_ctx_set(ptr, ctx);
 	} else
 		huge_prof_ctx_set(ptr, ctx);

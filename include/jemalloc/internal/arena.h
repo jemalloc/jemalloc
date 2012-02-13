@@ -211,9 +211,6 @@ struct arena_chunk_s {
 typedef rb_tree(arena_chunk_t) arena_chunk_tree_t;
 
 struct arena_run_s {
-	uint32_t	magic;
-#  define ARENA_RUN_MAGIC 0x384adf93
-
 	/* Bin this run is associated with. */
 	arena_bin_t	*bin;
 
@@ -290,9 +287,6 @@ struct arena_bin_s {
 };
 
 struct arena_s {
-	uint32_t		magic;
-#  define ARENA_MAGIC 0x947d3d24
-
 	/* This arena's index within the arenas array. */
 	unsigned		ind;
 
@@ -499,7 +493,6 @@ arena_run_regind(arena_run_t *run, arena_bin_info_t *bin_info, const void *ptr)
 	unsigned shift, diff, regind;
 	size_t size;
 
-	assert(run->magic == ARENA_RUN_MAGIC);
 	/*
 	 * Freeing a pointer lower than region zero can cause assertion
 	 * failure.
@@ -590,7 +583,6 @@ arena_prof_ctx_get(const void *ptr)
 			arena_bin_info_t *bin_info = &arena_bin_info[binind];
 			unsigned regind;
 
-			assert(run->magic == ARENA_RUN_MAGIC);
 			regind = arena_run_regind(run, bin_info, ptr);
 			ret = *(prof_ctx_t **)((uintptr_t)run +
 			    bin_info->ctx0_offset + (regind *
@@ -626,7 +618,6 @@ arena_prof_ctx_set(const void *ptr, prof_ctx_t *ctx)
 			arena_bin_info_t *bin_info;
 			unsigned regind;
 
-			assert(run->magic == ARENA_RUN_MAGIC);
 			binind = arena_bin_index(chunk->arena, bin);
 			bin_info = &arena_bin_info[binind];
 			regind = arena_run_regind(run, bin_info, ptr);
@@ -646,7 +637,6 @@ arena_dalloc(arena_t *arena, arena_chunk_t *chunk, void *ptr)
 	arena_chunk_map_t *mapelm;
 
 	assert(arena != NULL);
-	assert(arena->magic == ARENA_MAGIC);
 	assert(chunk->arena == arena);
 	assert(ptr != NULL);
 	assert(CHUNK_ADDR2BASE(ptr) != ptr);
@@ -667,7 +657,6 @@ arena_dalloc(arena_t *arena, arena_chunk_t *chunk, void *ptr)
 			run = (arena_run_t *)((uintptr_t)chunk +
 			    (uintptr_t)((pageind - (mapelm->bits >>
 			    PAGE_SHIFT)) << PAGE_SHIFT));
-			assert(run->magic == ARENA_RUN_MAGIC);
 			bin = run->bin;
 			if (config_debug) {
 				size_t binind = arena_bin_index(arena, bin);

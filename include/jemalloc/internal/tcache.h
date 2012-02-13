@@ -333,7 +333,6 @@ tcache_dalloc_small(tcache_t *tcache, void *ptr)
 	mapelm = &chunk->map[pageind-map_bias];
 	run = (arena_run_t *)((uintptr_t)chunk + (uintptr_t)((pageind -
 	    (mapelm->bits >> PAGE_SHIFT)) << PAGE_SHIFT));
-	assert(run->magic == ARENA_RUN_MAGIC);
 	bin = run->bin;
 	binind = ((uintptr_t)bin - (uintptr_t)&arena->bins) /
 	    sizeof(arena_bin_t);
