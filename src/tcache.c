@@ -1,6 +1,6 @@
 #define	JEMALLOC_TCACHE_C_
 #include "jemalloc/internal/jemalloc_internal.h"
-#ifdef JEMALLOC_TCACHE
+
 /******************************************************************************/
 /* Data. */
 
@@ -436,5 +436,3 @@ tcache_boot(void)
 
 	return (false);
 }
-/******************************************************************************/
-#endif /* JEMALLOC_TCACHE */

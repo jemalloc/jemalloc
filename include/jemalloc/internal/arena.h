@@ -446,7 +446,6 @@ void	arena_tcache_fill_small(arena_t *arena, tcache_bin_t *tbin,
     size_t binind, uint64_t prof_accumbytes);
 void	*arena_malloc_small(arena_t *arena, size_t size, bool zero);
 void	*arena_malloc_large(arena_t *arena, size_t size, bool zero);
-void	*arena_malloc(size_t size, bool zero);
 void	*arena_palloc(arena_t *arena, size_t size, size_t alloc_size,
     size_t alignment, bool zero);
 size_t	arena_salloc(const void *ptr);
@@ -475,6 +474,7 @@ unsigned	arena_run_regind(arena_run_t *run, arena_bin_info_t *bin_info,
     const void *ptr);
 prof_ctx_t	*arena_prof_ctx_get(const void *ptr);
 void	arena_prof_ctx_set(const void *ptr, prof_ctx_t *ctx);
+void	*arena_malloc(size_t size, bool zero);
 void	arena_dalloc(arena_t *arena, arena_chunk_t *chunk, void *ptr);
 #endif
 
@@ -630,11 +630,33 @@ arena_prof_ctx_set(const void *ptr, prof_ctx_t *ctx)
 		chunk->map[pageind-map_bias].prof_ctx = ctx;
 }
 
+JEMALLOC_INLINE void *
+arena_malloc(size_t size, bool zero)
+{
+	tcache_t *tcache = tcache_get();
+
+	assert(size != 0);
+	assert(QUANTUM_CEILING(size) <= arena_maxclass);
+
+	if (size <= small_maxclass) {
+		if (tcache != NULL)
+			return (tcache_alloc_small(tcache, size, zero));
+		else
+			return (arena_malloc_small(choose_arena(), size, zero));
+	} else {
+		if (tcache != NULL && size <= tcache_maxclass)
+			return (tcache_alloc_large(tcache, size, zero));
+		else
+			return (arena_malloc_large(choose_arena(), size, zero));
+	}
+}
+
 JEMALLOC_INLINE void
 arena_dalloc(arena_t *arena, arena_chunk_t *chunk, void *ptr)
 {
 	size_t pageind;
 	arena_chunk_map_t *mapelm;
+	tcache_t *tcache = tcache_get();
 
 	assert(arena != NULL);
 	assert(chunk->arena == arena);
@@ -646,9 +668,7 @@ arena_dalloc(arena_t *arena, arena_chunk_t *chunk, void *ptr)
 	assert((mapelm->bits & CHUNK_MAP_ALLOCATED) != 0);
 	if ((mapelm->bits & CHUNK_MAP_LARGE) == 0) {
 		/* Small allocation. */
-		tcache_t *tcache;
-
-		if (config_tcache && (tcache = tcache_get()) != NULL)
+		if (tcache != NULL)
 			tcache_dalloc_small(tcache, ptr);
 		else {
 			arena_run_t *run;
@@ -671,27 +691,13 @@ arena_dalloc(arena_t *arena, arena_chunk_t *chunk, void *ptr)
 			malloc_mutex_unlock(&bin->lock);
 		}
 	} else {
-		if (config_tcache) {
-			size_t size = mapelm->bits & ~PAGE_MASK;
+		size_t size = mapelm->bits & ~PAGE_MASK;
 
-			assert(((uintptr_t)ptr & PAGE_MASK) == 0);
-			if (size <= tcache_maxclass) {
-				tcache_t *tcache;
+		assert(((uintptr_t)ptr & PAGE_MASK) == 0);
 
-				if ((tcache = tcache_get()) != NULL)
-					tcache_dalloc_large(tcache, ptr, size);
-				else {
-					malloc_mutex_lock(&arena->lock);
-					arena_dalloc_large(arena, chunk, ptr);
-					malloc_mutex_unlock(&arena->lock);
-				}
-			} else {
-				malloc_mutex_lock(&arena->lock);
-				arena_dalloc_large(arena, chunk, ptr);
-				malloc_mutex_unlock(&arena->lock);
-			}
+		if (size <= tcache_maxclass && tcache != NULL) {
+			tcache_dalloc_large(tcache, ptr, size);
 		} else {
-			assert(((uintptr_t)ptr & PAGE_MASK) == 0);
 			malloc_mutex_lock(&arena->lock);
 			arena_dalloc_large(arena, chunk, ptr);
 			malloc_mutex_unlock(&arena->lock);

@@ -1455,35 +1455,6 @@ arena_malloc_large(arena_t *arena, size_t size, bool zero)
 	return (ret);
 }
 
-void *
-arena_malloc(size_t size, bool zero)
-{
-
-	assert(size != 0);
-	assert(QUANTUM_CEILING(size) <= arena_maxclass);
-
-	if (size <= small_maxclass) {
-		tcache_t *tcache;
-
-		if (config_tcache && (tcache = tcache_get()) != NULL)
-			return (tcache_alloc_small(tcache, size, zero));
-		else
-			return (arena_malloc_small(choose_arena(), size, zero));
-	} else {
-		if (config_tcache && size <= tcache_maxclass) {
-			tcache_t *tcache;
-
-			if ((tcache = tcache_get()) != NULL)
-				return (tcache_alloc_large(tcache, size, zero));
-			else {
-				return (arena_malloc_large(choose_arena(),
-				    size, zero));
-			}
-		} else
-			return (arena_malloc_large(choose_arena(), size, zero));
-	}
-}
-
 /* Only handles large allocations that require more than page alignment. */
 void *
 arena_palloc(arena_t *arena, size_t size, size_t alloc_size, size_t alignment,

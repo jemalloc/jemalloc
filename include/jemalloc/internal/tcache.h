@@ -1,4 +1,3 @@
-#ifdef JEMALLOC_TCACHE
 /******************************************************************************/
 #ifdef JEMALLOC_H_TYPES
 
@@ -134,7 +133,11 @@ tcache_get(void)
 {
 	tcache_t *tcache;
 
-	if ((isthreaded & opt_tcache) == false)
+	if (config_tcache == false)
+		return (NULL);
+	if (config_lazy_lock && (isthreaded & opt_tcache) == false)
+		return (NULL);
+	else if (opt_tcache == false)
 		return (NULL);
 
 	tcache = TCACHE_GET();
@@ -391,4 +394,3 @@ tcache_dalloc_large(tcache_t *tcache, void *ptr, size_t size)
 
 #endif /* JEMALLOC_H_INLINES */
 /******************************************************************************/
-#endif /* JEMALLOC_TCACHE */
