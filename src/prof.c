@@ -22,7 +22,6 @@ ssize_t		opt_lg_prof_interval = LG_PROF_INTERVAL_DEFAULT;
 bool		opt_prof_gdump = false;
 bool		opt_prof_leak = false;
 bool		opt_prof_accum = true;
-ssize_t		opt_lg_prof_tcmax = LG_PROF_TCMAX_DEFAULT;
 char		opt_prof_prefix[PATH_MAX + 1];
 
 uint64_t	prof_interval;
@@ -519,8 +518,7 @@ prof_lookup(prof_bt_t *bt)
 		prof_leave();
 
 		/* Link a prof_thd_cnt_t into ctx for this thread. */
-		if (opt_lg_prof_tcmax >= 0 && ckh_count(&prof_tdata->bt2cnt)
-		    == (ZU(1) << opt_lg_prof_tcmax)) {
+		if (ckh_count(&prof_tdata->bt2cnt) == PROF_TCMAX) {
 			assert(ckh_count(&prof_tdata->bt2cnt) > 0);
 			/*
 			 * Flush the least recently used cnt in order to keep
@@ -535,9 +533,7 @@ prof_lookup(prof_bt_t *bt)
 			prof_ctx_merge(ret.p->ctx, ret.p);
 			/* ret can now be re-used. */
 		} else {
-			assert(opt_lg_prof_tcmax < 0 ||
-			    ckh_count(&prof_tdata->bt2cnt) < (ZU(1) <<
-			    opt_lg_prof_tcmax));
+			assert(ckh_count(&prof_tdata->bt2cnt) < PROF_TCMAX);
 			/* Allocate and partially initialize a new cnt. */
 			ret.v = imalloc(sizeof(prof_thr_cnt_t));
 			if (ret.p == NULL) {

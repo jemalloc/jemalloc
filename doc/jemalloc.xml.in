@@ -938,8 +938,6 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         option for probabilistic sampling control.  See the <link
         linkend="opt.prof_accum"><mallctl>opt.prof_accum</mallctl></link>
         option for control of cumulative sample reporting.  See the <link
-        linkend="opt.lg_prof_tcmax"><mallctl>opt.lg_prof_tcmax</mallctl></link>
-        option for control of per thread backtrace caching.  See the <link
         linkend="opt.lg_prof_interval"><mallctl>opt.lg_prof_interval</mallctl></link>
         option for information on interval-triggered profile dumping, and the
         <link linkend="opt.prof_gdump"><mallctl>opt.prof_gdump</mallctl></link>
@@ -1017,28 +1015,8 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         dumps enabled/disabled.  If this option is enabled, every unique
         backtrace must be stored for the duration of execution.  Depending on
         the application, this can impose a large memory overhead, and the
-        cumulative counts are not always of interest.  See the
-        <link
-        linkend="opt.lg_prof_tcmax"><mallctl>opt.lg_prof_tcmax</mallctl></link>
-        option for control of per thread backtrace caching, which has important
-        interactions.  This option is enabled by default.</para></listitem>
-      </varlistentry>
-
-      <varlistentry id="opt.lg_prof_tcmax">
-        <term>
-          <mallctl>opt.lg_prof_tcmax</mallctl>
-          (<type>ssize_t</type>)
-          <literal>r-</literal>
-          [<option>--enable-prof</option>]
-        </term>
-        <listitem><para>Maximum per thread backtrace cache (log base 2) used
-        for heap profiling.  A backtrace can only be discarded if the
-        <link linkend="opt.prof_accum"><mallctl>opt.prof_accum</mallctl></link>
-        option is disabled, and no thread caches currently refer to the
-        backtrace.  Therefore, a backtrace cache limit should be imposed if the
-        intention is to limit how much memory is used by backtraces.  By
-        default, no limit is imposed (encoded as -1).
-        </para></listitem>
+        cumulative counts are not always of interest.  This option is enabled
+        by default.</para></listitem>
       </varlistentry>
 
       <varlistentry id="opt.lg_prof_interval">

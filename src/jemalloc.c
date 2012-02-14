@@ -603,8 +603,6 @@ malloc_conf_init(void)
 				CONF_HANDLE_SSIZE_T(lg_prof_sample, 0,
 				    (sizeof(uint64_t) << 3) - 1)
 				CONF_HANDLE_BOOL(prof_accum)
-				CONF_HANDLE_SSIZE_T(lg_prof_tcmax, -1,
-				    (sizeof(size_t) << 3) - 1)
 				CONF_HANDLE_SSIZE_T(lg_prof_interval, -1,
 				    (sizeof(uint64_t) << 3) - 1)
 				CONF_HANDLE_BOOL(prof_gdump)

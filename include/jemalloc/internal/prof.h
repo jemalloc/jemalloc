@@ -12,7 +12,9 @@ typedef struct prof_tdata_s prof_tdata_t;
 #define	LG_PROF_BT_MAX_DEFAULT		7
 #define	LG_PROF_SAMPLE_DEFAULT		0
 #define	LG_PROF_INTERVAL_DEFAULT	-1
-#define	LG_PROF_TCMAX_DEFAULT		-1
+
+/* Maximum number of backtraces to store in each per thread LRU cache. */
+#define	PROF_TCMAX			1024
 
 /*
  * Hard limit on stack backtrace depth.  Note that the version of
@@ -167,7 +169,6 @@ extern ssize_t	opt_lg_prof_interval; /* lg(prof_interval). */
 extern bool	opt_prof_gdump;       /* High-water memory dumping. */
 extern bool	opt_prof_leak;        /* Dump leak summary at exit. */
 extern bool	opt_prof_accum;       /* Report cumulative bytes. */
-extern ssize_t	opt_lg_prof_tcmax;    /* lg(max per thread bactrace cache) */
 extern char	opt_prof_prefix[PATH_MAX + 1];
 
 /*

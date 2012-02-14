@@ -515,7 +515,6 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		OPT_WRITE_BOOL(prof_active)
 		OPT_WRITE_SSIZE_T(lg_prof_sample)
 		OPT_WRITE_BOOL(prof_accum)
-		OPT_WRITE_SSIZE_T(lg_prof_tcmax)
 		OPT_WRITE_SSIZE_T(lg_prof_interval)
 		OPT_WRITE_BOOL(prof_gdump)
 		OPT_WRITE_BOOL(prof_leak)
@@ -621,17 +620,6 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 			write_cb(cbopaque, "Maximum profile backtrace depth: ");
 			write_cb(cbopaque, u2s((1U << sv), 10, s));
 			write_cb(cbopaque, "\n");
-
-			CTL_GET("opt.lg_prof_tcmax", &ssv, ssize_t);
-			write_cb(cbopaque,
-			    "Maximum per thread backtrace cache: ");
-			if (ssv >= 0) {
-				write_cb(cbopaque, u2s((1U << ssv), 10, s));
-				write_cb(cbopaque, " (2^");
-				write_cb(cbopaque, u2s(ssv, 10, s));
-				write_cb(cbopaque, ")\n");
-			} else
-				write_cb(cbopaque, "N/A\n");
 
 			CTL_GET("opt.lg_prof_sample", &sv, size_t);
 			write_cb(cbopaque, "Average profile sample interval: ");
