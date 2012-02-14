@@ -142,6 +142,10 @@ static void	arena_run_trim_head(arena_t *arena, arena_chunk_t *chunk,
     arena_run_t *run, size_t oldsize, size_t newsize);
 static void	arena_run_trim_tail(arena_t *arena, arena_chunk_t *chunk,
     arena_run_t *run, size_t oldsize, size_t newsize, bool dirty);
+static arena_run_t	*arena_bin_runs_first(arena_bin_t *bin);
+static void	arena_bin_runs_insert(arena_bin_t *bin, arena_run_t *run);
+static void	arena_bin_runs_remove(arena_bin_t *bin, arena_run_t *run);
+static arena_run_t *arena_bin_nonfull_run_tryget(arena_bin_t *bin);
 static arena_run_t *arena_bin_nonfull_run_get(arena_t *arena, arena_bin_t *bin);
 static void	*arena_bin_malloc_hard(arena_t *arena, arena_bin_t *bin);
 static void	arena_dissociate_bin_run(arena_chunk_t *chunk, arena_run_t *run,
@@ -1143,32 +1147,72 @@ arena_run_trim_tail(arena_t *arena, arena_chunk_t *chunk, arena_run_t *run,
 }
 
 static arena_run_t *
+arena_bin_runs_first(arena_bin_t *bin)
+{
+	arena_chunk_map_t *mapelm = arena_run_tree_first(&bin->runs);
+	if (mapelm != NULL) {
+		arena_chunk_t *chunk;
+		size_t pageind;
+
+		chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(mapelm);
+		pageind = ((((uintptr_t)mapelm - (uintptr_t)chunk->map) /
+		    sizeof(arena_chunk_map_t))) + map_bias;
+		arena_run_t *run = (arena_run_t *)((uintptr_t)chunk +
+		    (uintptr_t)((pageind - (mapelm->bits >> PAGE_SHIFT)) <<
+		    PAGE_SHIFT));
+		return (run);
+	}
+
+	return (NULL);
+}
+
+static void
+arena_bin_runs_insert(arena_bin_t *bin, arena_run_t *run)
+{
+	arena_chunk_t *chunk = CHUNK_ADDR2BASE(run);
+	size_t pageind = ((uintptr_t)run - (uintptr_t)chunk) >> PAGE_SHIFT;
+	arena_chunk_map_t *mapelm = &chunk->map[pageind-map_bias];
+
+	assert(arena_run_tree_search(&bin->runs, mapelm) == NULL);
+
+	arena_run_tree_insert(&bin->runs, mapelm);
+}
+
+static void
+arena_bin_runs_remove(arena_bin_t *bin, arena_run_t *run)
+{
+	arena_chunk_t *chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(run);
+	size_t pageind = ((uintptr_t)run - (uintptr_t)chunk) >> PAGE_SHIFT;
+	arena_chunk_map_t *mapelm = &chunk->map[pageind-map_bias];
+
+	assert(arena_run_tree_search(&bin->runs, mapelm) != NULL);
+
+	arena_run_tree_remove(&bin->runs, mapelm);
+}
+
+static arena_run_t *
+arena_bin_nonfull_run_tryget(arena_bin_t *bin)
+{
+	arena_run_t *run = arena_bin_runs_first(bin);
+	if (run != NULL) {
+		arena_bin_runs_remove(bin, run);
+		if (config_stats)
+			bin->stats.reruns++;
+	}
+	return (run);
+}
+
+static arena_run_t *
 arena_bin_nonfull_run_get(arena_t *arena, arena_bin_t *bin)
 {
-	arena_chunk_map_t *mapelm;
 	arena_run_t *run;
 	size_t binind;
 	arena_bin_info_t *bin_info;
 
 	/* Look for a usable run. */
-	mapelm = arena_run_tree_first(&bin->runs);
-	if (mapelm != NULL) {
-		arena_chunk_t *chunk;
-		size_t pageind;
-
-		/* run is guaranteed to have available space. */
-		arena_run_tree_remove(&bin->runs, mapelm);
-
-		chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(mapelm);
-		pageind = ((((uintptr_t)mapelm - (uintptr_t)chunk->map) /
-		    sizeof(arena_chunk_map_t))) + map_bias;
-		run = (arena_run_t *)((uintptr_t)chunk + (uintptr_t)((pageind -
-		    (mapelm->bits >> PAGE_SHIFT))
-		    << PAGE_SHIFT));
-		if (config_stats)
-			bin->stats.reruns++;
+	run = arena_bin_nonfull_run_tryget(bin);
+	if (run != NULL)
 		return (run);
-	}
 	/* No existing runs have any space available. */
 
 	binind = arena_bin_index(arena, bin);
@@ -1205,24 +1249,9 @@ arena_bin_nonfull_run_get(arena_t *arena, arena_bin_t *bin)
 	 * sufficient memory available while this one dropped bin->lock above,
 	 * so search one more time.
 	 */
-	mapelm = arena_run_tree_first(&bin->runs);
-	if (mapelm != NULL) {
-		arena_chunk_t *chunk;
-		size_t pageind;
-
-		/* run is guaranteed to have available space. */
-		arena_run_tree_remove(&bin->runs, mapelm);
-
-		chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(mapelm);
-		pageind = ((((uintptr_t)mapelm - (uintptr_t)chunk->map) /
-		    sizeof(arena_chunk_map_t))) + map_bias;
-		run = (arena_run_t *)((uintptr_t)chunk + (uintptr_t)((pageind -
-		    (mapelm->bits >> PAGE_SHIFT))
-		    << PAGE_SHIFT));
-		if (config_stats)
-			bin->stats.reruns++;
+	run = arena_bin_nonfull_run_tryget(bin);
+	if (run != NULL)
 		return (run);
-	}
 
 	return (NULL);
 }
@@ -1587,16 +1616,12 @@ arena_dissociate_bin_run(arena_chunk_t *chunk, arena_run_t *run,
 		arena_bin_info_t *bin_info = &arena_bin_info[binind];
 
 		if (bin_info->nregs != 1) {
-			size_t run_pageind = (((uintptr_t)run -
-			    (uintptr_t)chunk)) >> PAGE_SHIFT;
-			arena_chunk_map_t *run_mapelm =
-			    &chunk->map[run_pageind-map_bias];
 			/*
 			 * This block's conditional is necessary because if the
 			 * run only contains one region, then it never gets
 			 * inserted into the non-full runs tree.
 			 */
-			arena_run_tree_remove(&bin->runs, run_mapelm);
+			arena_bin_runs_remove(bin, run);
 		}
 	}
 }
@@ -1660,34 +1685,19 @@ arena_bin_lower_run(arena_t *arena, arena_chunk_t *chunk, arena_run_t *run,
 {
 
 	/*
-	 * Make sure that bin->runcur always refers to the lowest non-full run,
-	 * if one exists.
+	 * Make sure that if bin->runcur is non-NULL, it refers to the lowest
+	 * non-full run.  It is okay to NULL runcur out rather than proactively
+	 * keeping it pointing at the lowest non-full run.
 	 */
-	if (bin->runcur == NULL)
-		bin->runcur = run;
-	else if ((uintptr_t)run < (uintptr_t)bin->runcur) {
+	if ((uintptr_t)run < (uintptr_t)bin->runcur) {
 		/* Switch runcur. */
-		if (bin->runcur->nfree > 0) {
-			arena_chunk_t *runcur_chunk =
-			    CHUNK_ADDR2BASE(bin->runcur);
-			size_t runcur_pageind = (((uintptr_t)bin->runcur -
-			    (uintptr_t)runcur_chunk)) >> PAGE_SHIFT;
-			arena_chunk_map_t *runcur_mapelm =
-			    &runcur_chunk->map[runcur_pageind-map_bias];
-
-			/* Insert runcur. */
-			arena_run_tree_insert(&bin->runs, runcur_mapelm);
-		}
+		if (bin->runcur->nfree > 0)
+			arena_bin_runs_insert(bin, bin->runcur);
 		bin->runcur = run;
-	} else {
-		size_t run_pageind = (((uintptr_t)run -
-		    (uintptr_t)chunk)) >> PAGE_SHIFT;
-		arena_chunk_map_t *run_mapelm =
-		    &chunk->map[run_pageind-map_bias];
-
-		assert(arena_run_tree_search(&bin->runs, run_mapelm) == NULL);
-		arena_run_tree_insert(&bin->runs, run_mapelm);
-	}
+		if (config_stats)
+			bin->stats.reruns++;
+	} else
+		arena_bin_runs_insert(bin, run);
 }
 
 void
