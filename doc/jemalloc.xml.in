@@ -930,8 +930,6 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         where <literal>&lt;prefix&gt;</literal> is controlled by the <link
         linkend="opt.prof_prefix"><mallctl>opt.prof_prefix</mallctl></link>
         option.  See the <link
-        linkend="opt.lg_prof_bt_max"><mallctl>opt.lg_prof_bt_max</mallctl></link>
-        option for backtrace depth control.  See the <link
         linkend="opt.prof_active"><mallctl>opt.prof_active</mallctl></link>
         option for on-the-fly activation/deactivation.  See the <link
         linkend="opt.lg_prof_sample"><mallctl>opt.lg_prof_sample</mallctl></link>
@@ -960,17 +958,6 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         primarily useful for disabling the automatic final heap dump (which
         also disables leak reporting, if enabled).  The default prefix is
         <filename>jeprof</filename>.</para></listitem>
-      </varlistentry>
-
-      <varlistentry id="opt.lg_prof_bt_max">
-        <term>
-          <mallctl>opt.lg_prof_bt_max</mallctl>
-          (<type>size_t</type>)
-          <literal>r-</literal>
-          [<option>--enable-prof</option>]
-        </term>
-        <listitem><para>Maximum backtrace depth (log base 2) when profiling
-        memory allocation activity.  The default is 128 (2^7).</para></listitem>
       </varlistentry>
 
       <varlistentry id="opt.prof_active">
@@ -1067,9 +1054,6 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         <citerefentry><refentrytitle>atexit</refentrytitle>
         <manvolnum>3</manvolnum></citerefentry> function to report memory leaks
         detected by allocation sampling.  See the
-        <link
-        linkend="opt.lg_prof_bt_max"><mallctl>opt.lg_prof_bt_max</mallctl></link>
-        option for backtrace depth control.  See the
         <link linkend="opt.prof"><mallctl>opt.prof</mallctl></link> option for
         information on analyzing heap profile output.  This option is disabled
         by default.</para></listitem>

@@ -9,24 +9,18 @@ typedef struct prof_tdata_s prof_tdata_t;
 
 /* Option defaults. */
 #define	PROF_PREFIX_DEFAULT		"jeprof"
-#define	LG_PROF_BT_MAX_DEFAULT		7
 #define	LG_PROF_SAMPLE_DEFAULT		0
 #define	LG_PROF_INTERVAL_DEFAULT	-1
 
+/*
+ * Hard limit on stack backtrace depth.  The version of prof_backtrace() that
+ * is based on __builtin_return_address() necessarily has a hard-coded number
+ * of backtrace frame handlers, and should be kept in sync with this setting.
+ */
+#define	PROF_BT_MAX			128
+
 /* Maximum number of backtraces to store in each per thread LRU cache. */
 #define	PROF_TCMAX			1024
-
-/*
- * Hard limit on stack backtrace depth.  Note that the version of
- * prof_backtrace() that is based on __builtin_return_address() necessarily has
- * a hard-coded number of backtrace frame handlers.
- */
-#if (defined(JEMALLOC_PROF_LIBGCC) || defined(JEMALLOC_PROF_LIBUNWIND))
-#  define LG_PROF_BT_MAX	((ZU(1) << (LG_SIZEOF_PTR+3)) - 1)
-#else
-#  define LG_PROF_BT_MAX	7 /* >= LG_PROF_BT_MAX_DEFAULT */
-#endif
-#define	PROF_BT_MAX		(1U << LG_PROF_BT_MAX)
 
 /* Initial hash table size. */
 #define	PROF_CKH_MINITEMS	64
@@ -163,7 +157,6 @@ extern bool	opt_prof;
  * to notice state changes.
  */
 extern bool	opt_prof_active;
-extern size_t	opt_lg_prof_bt_max;   /* Maximum backtrace depth. */
 extern size_t	opt_lg_prof_sample;   /* Mean bytes between samples. */
 extern ssize_t	opt_lg_prof_interval; /* lg(prof_interval). */
 extern bool	opt_prof_gdump;       /* High-water memory dumping. */
@@ -185,9 +178,6 @@ extern uint64_t	prof_interval;
  * headers do not have embedded profile context pointers.
  */
 extern bool	prof_promote;
-
-/* (1U << opt_lg_prof_bt_max). */
-extern unsigned	prof_bt_max;
 
 /* Thread-specific backtrace cache, used to reduce bt2ctx contention. */
 #ifndef NO_TLS
@@ -213,7 +203,7 @@ extern __thread prof_tdata_t	*prof_tdata_tls
 extern pthread_key_t	prof_tdata_tsd;
 
 void	bt_init(prof_bt_t *bt, void **vec);
-void	prof_backtrace(prof_bt_t *bt, unsigned nignore, unsigned max);
+void	prof_backtrace(prof_bt_t *bt, unsigned nignore);
 prof_thr_cnt_t	*prof_lookup(prof_bt_t *bt);
 void	prof_idump(void);
 bool	prof_mdump(const char *filename);
@@ -249,7 +239,7 @@ bool	prof_boot2(void);
 		/* Don't bother with sampling logic, since sampling   */\
 		/* interval is 1.                                     */\
 		bt_init(&bt, prof_tdata->vec);				\
-		prof_backtrace(&bt, nignore, prof_bt_max);		\
+		prof_backtrace(&bt, nignore);				\
 		ret = prof_lookup(&bt);					\
 	} else {							\
 		if (prof_tdata->threshold == 0) {			\
@@ -272,7 +262,7 @@ bool	prof_boot2(void);
 		if (size >= prof_tdata->threshold -			\
 		    prof_tdata->accum) {				\
 			bt_init(&bt, prof_tdata->vec);			\
-			prof_backtrace(&bt, nignore, prof_bt_max);	\
+			prof_backtrace(&bt, nignore);			\
 			ret = prof_lookup(&bt);				\
 		} else							\
 			ret = (prof_thr_cnt_t *)(uintptr_t)1U;		\

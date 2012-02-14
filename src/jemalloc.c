@@ -597,8 +597,6 @@ malloc_conf_init(void)
 			if (config_prof) {
 				CONF_HANDLE_BOOL(prof)
 				CONF_HANDLE_CHAR_P(prof_prefix, "jeprof")
-				CONF_HANDLE_SIZE_T(lg_prof_bt_max, 0,
-				    LG_PROF_BT_MAX)
 				CONF_HANDLE_BOOL(prof_active)
 				CONF_HANDLE_SSIZE_T(lg_prof_sample, 0,
 				    (sizeof(uint64_t) << 3) - 1)

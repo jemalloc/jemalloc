@@ -16,7 +16,6 @@
 
 bool		opt_prof = false;
 bool		opt_prof_active = true;
-size_t		opt_lg_prof_bt_max = LG_PROF_BT_MAX_DEFAULT;
 size_t		opt_lg_prof_sample = LG_PROF_SAMPLE_DEFAULT;
 ssize_t		opt_lg_prof_interval = LG_PROF_INTERVAL_DEFAULT;
 bool		opt_prof_gdump = false;
@@ -26,8 +25,6 @@ char		opt_prof_prefix[PATH_MAX + 1];
 
 uint64_t	prof_interval;
 bool		prof_promote;
-
-unsigned	prof_bt_max;
 
 #ifndef NO_TLS
 __thread prof_tdata_t	*prof_tdata_tls
@@ -179,7 +176,7 @@ prof_leave(void)
 
 #ifdef JEMALLOC_PROF_LIBUNWIND
 void
-prof_backtrace(prof_bt_t *bt, unsigned nignore, unsigned max)
+prof_backtrace(prof_bt_t *bt, unsigned nignore)
 {
 	unw_context_t uc;
 	unw_cursor_t cursor;
@@ -189,7 +186,6 @@ prof_backtrace(prof_bt_t *bt, unsigned nignore, unsigned max)
 	cassert(config_prof);
 	assert(bt->len == 0);
 	assert(bt->vec != NULL);
-	assert(max <= (1U << opt_lg_prof_bt_max));
 
 	unw_getcontext(&uc);
 	unw_init_local(&cursor, &uc);
@@ -205,7 +201,7 @@ prof_backtrace(prof_bt_t *bt, unsigned nignore, unsigned max)
 	 * Iterate over stack frames until there are no more, or until no space
 	 * remains in bt.
 	 */
-	for (i = 0; i < max; i++) {
+	for (i = 0; i < PROF_BT_MAX; i++) {
 		unw_get_reg(&cursor, UNW_REG_IP, (unw_word_t *)&bt->vec[i]);
 		bt->len++;
 		err = unw_step(&cursor);
@@ -243,9 +239,9 @@ prof_unwind_callback(struct _Unwind_Context *context, void *arg)
 }
 
 void
-prof_backtrace(prof_bt_t *bt, unsigned nignore, unsigned max)
+prof_backtrace(prof_bt_t *bt, unsigned nignore)
 {
-	prof_unwind_data_t data = {bt, nignore, max};
+	prof_unwind_data_t data = {bt, nignore, PROF_BT_MAX};
 
 	cassert(config_prof);
 
@@ -253,10 +249,10 @@ prof_backtrace(prof_bt_t *bt, unsigned nignore, unsigned max)
 }
 #elif (defined(JEMALLOC_PROF_GCC))
 void
-prof_backtrace(prof_bt_t *bt, unsigned nignore, unsigned max)
+prof_backtrace(prof_bt_t *bt, unsigned nignore)
 {
 #define	BT_FRAME(i)							\
-	if ((i) < nignore + max) {					\
+	if ((i) < nignore + PROF_BT_MAX) {				\
 		void *p;						\
 		if (__builtin_frame_address(i) == 0)			\
 			return;						\
@@ -272,7 +268,6 @@ prof_backtrace(prof_bt_t *bt, unsigned nignore, unsigned max)
 
 	cassert(config_prof);
 	assert(nignore <= 3);
-	assert(max <= (1U << opt_lg_prof_bt_max));
 
 	BT_FRAME(0)
 	BT_FRAME(1)
@@ -423,7 +418,7 @@ prof_backtrace(prof_bt_t *bt, unsigned nignore, unsigned max)
 }
 #else
 void
-prof_backtrace(prof_bt_t *bt, unsigned nignore, unsigned max)
+prof_backtrace(prof_bt_t *bt, unsigned nignore)
 {
 
 	cassert(config_prof);
@@ -1168,7 +1163,7 @@ prof_tdata_init(void)
 	}
 	ql_new(&prof_tdata->lru_ql);
 
-	prof_tdata->vec = imalloc(sizeof(void *) * prof_bt_max);
+	prof_tdata->vec = imalloc(sizeof(void *) * PROF_BT_MAX);
 	if (prof_tdata->vec == NULL) {
 		ckh_delete(&prof_tdata->bt2cnt);
 		idalloc(prof_tdata);
@@ -1270,7 +1265,6 @@ prof_boot2(void)
 			abort();
 		}
 
-		prof_bt_max = (1U << opt_lg_prof_bt_max);
 		if (malloc_mutex_init(&prof_dump_seq_mtx))
 			return (true);
 
