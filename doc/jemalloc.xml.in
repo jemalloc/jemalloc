@@ -41,6 +41,7 @@
     <refname>rallocm</refname>
     <refname>sallocm</refname>
     <refname>dallocm</refname>
+    <refname>nallocm</refname>
     -->
     <refpurpose>general purpose memory allocation functions</refpurpose>
   </refnamediv>
@@ -152,6 +153,12 @@
         <funcprototype>
           <funcdef>int <function>dallocm</function></funcdef>
           <paramdef>void *<parameter>ptr</parameter></paramdef>
+          <paramdef>int <parameter>flags</parameter></paramdef>
+        </funcprototype>
+        <funcprototype>
+          <funcdef>int <function>nallocm</function></funcdef>
+          <paramdef>size_t *<parameter>rsize</parameter></paramdef>
+          <paramdef>size_t <parameter>size</parameter></paramdef>
           <paramdef>int <parameter>flags</parameter></paramdef>
         </funcprototype>
       </refsect2>
@@ -301,8 +308,9 @@ for (i = 0; i < nbins; i++) {
 
       <para>The <function>allocm<parameter/></function>,
       <function>rallocm<parameter/></function>,
-      <function>sallocm<parameter/></function>, and
-      <function>dallocm<parameter/></function> functions all have a
+      <function>sallocm<parameter/></function>,
+      <function>dallocm<parameter/></function>, and
+      <function>nallocm<parameter/></function> functions all have a
       <parameter>flags</parameter> argument that can be used to specify
       options.  The functions only check the options that are contextually
       relevant.  Use bitwise or (<code language="C">|</code>) operations to
@@ -351,7 +359,9 @@ for (i = 0; i < nbins; i++) {
       least <parameter>size</parameter> bytes of memory, sets
       <parameter>*ptr</parameter> to the base address of the allocation, and
       sets <parameter>*rsize</parameter> to the real size of the allocation if
-      <parameter>rsize</parameter> is not <constant>NULL</constant>.</para>
+      <parameter>rsize</parameter> is not <constant>NULL</constant>.  Behavior
+      is undefined if <parameter>size</parameter> is
+      <constant>0<constant>.</para>
 
       <para>The <function>rallocm<parameter/></function> function resizes the
       allocation at <parameter>*ptr</parameter> to be at least
@@ -364,7 +374,8 @@ for (i = 0; i < nbins; i++) {
       language="C"><parameter>size</parameter> +
       <parameter>extra</parameter>)</code> bytes, though inability to allocate
       the extra byte(s) will not by itself result in failure.  Behavior is
-      undefined if <code language="C">(<parameter>size</parameter> +
+      undefined if <parameter>size</parameter> is <constant>0<constant>, or if
+      <code language="C">(<parameter>size</parameter> +
       <parameter>extra</parameter> &gt;
       <constant>SIZE_T_MAX</constant>)</code>.</para>
 
@@ -374,6 +385,15 @@ for (i = 0; i < nbins; i++) {
       <para>The <function>dallocm<parameter/></function> function causes the
       memory referenced by <parameter>ptr</parameter> to be made available for
       future allocations.</para>
+
+      <para>The <function>nallocm<parameter/></function> function allocates no
+      memory, but it performs the same size computation as the
+      <function>allocm<parameter/></function> function, and if
+      <parameter>rsize</parameter> is not <constant>NULL</constant> it sets
+      <parameter>*rsize</parameter> to the real size of the allocation that
+      would result from the equivalent <function>allocm<parameter/></function>
+      function call.  Behavior is undefined if
+      <parameter>size</parameter> is <constant>0<constant>.</para>
     </refsect2>
   </refsect1>
   <refsect1 id="tuning">
@@ -1857,11 +1877,13 @@ malloc_conf = "xmalloc:true";]]></programlisting>
       <title>Experimental API</title>
       <para>The <function>allocm<parameter/></function>,
       <function>rallocm<parameter/></function>,
-      <function>sallocm<parameter/></function>, and
-      <function>dallocm<parameter/></function> functions return
+      <function>sallocm<parameter/></function>,
+      <function>dallocm<parameter/></function>, and
+      <function>nallocm<parameter/></function> functions return
       <constant>ALLOCM_SUCCESS</constant> on success; otherwise they return an
-      error value.  The <function>allocm<parameter/></function> and
-      <function>rallocm<parameter/></function> functions will fail if:
+      error value.  The <function>allocm<parameter/></function>,
+      <function>rallocm<parameter/></function>, and
+      <function>nallocm<parameter/></function> functions will fail if:
         <variablelist>
           <varlistentry>
             <term><errorname>ALLOCM_ERR_OOM</errorname></term>

@@ -1586,6 +1586,28 @@ JEMALLOC_P(dallocm)(void *ptr, int flags)
 	return (ALLOCM_SUCCESS);
 }
 
+JEMALLOC_ATTR(visibility("default"))
+int
+JEMALLOC_P(nallocm)(size_t *rsize, size_t size, int flags)
+{
+	size_t usize;
+	size_t alignment = (ZU(1) << (flags & ALLOCM_LG_ALIGN_MASK)
+	    & (SIZE_T_MAX-1));
+
+	assert(size != 0);
+
+	if (malloc_init())
+		return (ALLOCM_ERR_OOM);
+
+	usize = (alignment == 0) ? s2u(size) : sa2u(size, alignment, NULL);
+	if (usize == 0)
+		return (ALLOCM_ERR_OOM);
+
+	if (rsize != NULL)
+		*rsize = usize;
+	return (ALLOCM_SUCCESS);
+}
+
 /*
  * End non-standard functions.
  */

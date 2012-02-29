@@ -59,6 +59,7 @@ int	JEMALLOC_P(rallocm)(void **ptr, size_t *rsize, size_t size,
 int	JEMALLOC_P(sallocm)(const void *ptr, size_t *rsize, int flags)
     JEMALLOC_ATTR(nonnull(1));
 int	JEMALLOC_P(dallocm)(void *ptr, int flags) JEMALLOC_ATTR(nonnull(1));
+int	JEMALLOC_P(nallocm)(size_t *rsize, size_t size, int flags);
 
 #ifdef __cplusplus
 };

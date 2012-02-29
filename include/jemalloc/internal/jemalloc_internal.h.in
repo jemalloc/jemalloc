@@ -548,10 +548,6 @@ sa2u(size_t size, size_t alignment, size_t *run_size_p)
 	 *     96 |  1100000 |  32
 	 *    144 | 10100000 |  32
 	 *    192 | 11000000 |  64
-	 *
-	 * Depending on runtime settings, it is possible that arena_malloc()
-	 * will further round up to a power of two, but that never causes
-	 * correctness issues.
 	 */
 	usize = (size + (alignment - 1)) & (-alignment);
 	/*

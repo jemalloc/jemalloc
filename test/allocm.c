@@ -15,24 +15,33 @@ main(void)
 {
 	int r;
 	void *p;
-	size_t sz, alignment, total, tsz;
+	size_t nsz, rsz, sz, alignment, total;
 	unsigned i;
 	void *ps[NITER];
 
 	fprintf(stderr, "Test begin\n");
 
-	sz = 0;
-	r = JEMALLOC_P(allocm)(&p, &sz, 42, 0);
+	sz = 42;
+	nsz = 0;
+	r = JEMALLOC_P(nallocm)(&nsz, sz, 0);
+	if (r != ALLOCM_SUCCESS) {
+		fprintf(stderr, "Unexpected nallocm() error\n");
+		abort();
+	}
+	rsz = 0;
+	r = JEMALLOC_P(allocm)(&p, &rsz, sz, 0);
 	if (r != ALLOCM_SUCCESS) {
 		fprintf(stderr, "Unexpected allocm() error\n");
 		abort();
 	}
-	if (sz < 42)
+	if (rsz < sz)
 		fprintf(stderr, "Real size smaller than expected\n");
+	if (nsz != rsz)
+		fprintf(stderr, "nallocm()/allocm() rsize mismatch\n");
 	if (JEMALLOC_P(dallocm)(p, 0) != ALLOCM_SUCCESS)
 		fprintf(stderr, "Unexpected dallocm() error\n");
 
-	r = JEMALLOC_P(allocm)(&p, NULL, 42, 0);
+	r = JEMALLOC_P(allocm)(&p, NULL, sz, 0);
 	if (r != ALLOCM_SUCCESS) {
 		fprintf(stderr, "Unexpected allocm() error\n");
 		abort();
@@ -40,11 +49,20 @@ main(void)
 	if (JEMALLOC_P(dallocm)(p, 0) != ALLOCM_SUCCESS)
 		fprintf(stderr, "Unexpected dallocm() error\n");
 
-	r = JEMALLOC_P(allocm)(&p, NULL, 42, ALLOCM_ZERO);
+	nsz = 0;
+	r = JEMALLOC_P(nallocm)(&nsz, sz, ALLOCM_ZERO);
+	if (r != ALLOCM_SUCCESS) {
+		fprintf(stderr, "Unexpected nallocm() error\n");
+		abort();
+	}
+	rsz = 0;
+	r = JEMALLOC_P(allocm)(&p, &rsz, sz, ALLOCM_ZERO);
 	if (r != ALLOCM_SUCCESS) {
 		fprintf(stderr, "Unexpected allocm() error\n");
 		abort();
 	}
+	if (nsz != rsz)
+		fprintf(stderr, "nallocm()/allocm() rsize mismatch\n");
 	if (JEMALLOC_P(dallocm)(p, 0) != ALLOCM_SUCCESS)
 		fprintf(stderr, "Unexpected dallocm() error\n");
 
@@ -55,12 +73,22 @@ main(void)
 	alignment = 0x80000000LU;
 	sz        = 0x80000000LU;
 #endif
-	r = JEMALLOC_P(allocm)(&p, NULL, sz, ALLOCM_ALIGN(alignment));
+	nsz = 0;
+	r = JEMALLOC_P(nallocm)(&nsz, sz, ALLOCM_ALIGN(alignment));
+	if (r == ALLOCM_SUCCESS) {
+		fprintf(stderr,
+		    "Expected error for nallocm(&nsz, %zu, 0x%x)\n",
+		    sz, ALLOCM_ALIGN(alignment));
+	}
+	rsz = 0;
+	r = JEMALLOC_P(allocm)(&p, &rsz, sz, ALLOCM_ALIGN(alignment));
 	if (r == ALLOCM_SUCCESS) {
 		fprintf(stderr,
 		    "Expected error for allocm(&p, %zu, 0x%x)\n",
 		    sz, ALLOCM_ALIGN(alignment));
 	}
+	if (nsz != rsz)
+		fprintf(stderr, "nallocm()/allocm() rsize mismatch\n");
 
 #if LG_SIZEOF_PTR == 3
 	alignment = 0x4000000000000000LLU;
@@ -69,7 +97,12 @@ main(void)
 	alignment = 0x40000000LU;
 	sz        = 0x84000001LU;
 #endif
-	r = JEMALLOC_P(allocm)(&p, NULL, sz, ALLOCM_ALIGN(alignment));
+	nsz = 0;
+	r = JEMALLOC_P(nallocm)(&nsz, sz, ALLOCM_ALIGN(alignment));
+	if (r != ALLOCM_SUCCESS)
+		fprintf(stderr, "Unexpected nallocm() error\n");
+	rsz = 0;
+	r = JEMALLOC_P(allocm)(&p, &rsz, sz, ALLOCM_ALIGN(alignment));
 	if (r == ALLOCM_SUCCESS) {
 		fprintf(stderr,
 		    "Expected error for allocm(&p, %zu, 0x%x)\n",
@@ -82,12 +115,22 @@ main(void)
 #else
 	sz   = 0xfffffff0LU;
 #endif
-	r = JEMALLOC_P(allocm)(&p, NULL, sz, ALLOCM_ALIGN(alignment));
+	nsz = 0;
+	r = JEMALLOC_P(nallocm)(&nsz, sz, ALLOCM_ALIGN(alignment));
+	if (r == ALLOCM_SUCCESS) {
+		fprintf(stderr,
+		    "Expected error for nallocm(&nsz, %zu, 0x%x)\n",
+		    sz, ALLOCM_ALIGN(alignment));
+	}
+	rsz = 0;
+	r = JEMALLOC_P(allocm)(&p, &rsz, sz, ALLOCM_ALIGN(alignment));
 	if (r == ALLOCM_SUCCESS) {
 		fprintf(stderr,
 		    "Expected error for allocm(&p, %zu, 0x%x)\n",
 		    sz, ALLOCM_ALIGN(alignment));
 	}
+	if (nsz != rsz)
+		fprintf(stderr, "nallocm()/allocm() rsize mismatch\n");
 
 	for (i = 0; i < NITER; i++)
 		ps[i] = NULL;
@@ -101,21 +144,43 @@ main(void)
 		    sz < 3 * alignment && sz < (1U << 31);
 		    sz += (alignment >> (LG_SIZEOF_PTR-1)) - 1) {
 			for (i = 0; i < NITER; i++) {
-				r = JEMALLOC_P(allocm)(&ps[i], NULL, sz,
+				nsz = 0;
+				r = JEMALLOC_P(nallocm)(&nsz, sz,
 				    ALLOCM_ALIGN(alignment) | ALLOCM_ZERO);
 				if (r != ALLOCM_SUCCESS) {
 					fprintf(stderr,
-					    "Error for size %zu (0x%zx): %d\n",
+					    "nallocm() error for size %zu"
+					    " (0x%zx): %d\n",
 					    sz, sz, r);
 					exit(1);
+				}
+				rsz = 0;
+				r = JEMALLOC_P(allocm)(&ps[i], &rsz, sz,
+				    ALLOCM_ALIGN(alignment) | ALLOCM_ZERO);
+				if (r != ALLOCM_SUCCESS) {
+					fprintf(stderr,
+					    "allocm() error for size %zu"
+					    " (0x%zx): %d\n",
+					    sz, sz, r);
+					exit(1);
+				}
+				if (rsz < sz) {
+					fprintf(stderr,
+					    "Real size smaller than"
+					    " expected\n");
+				}
+				if (nsz != rsz) {
+					fprintf(stderr,
+					    "nallocm()/allocm() rsize"
+					    " mismatch\n");
 				}
 				if ((uintptr_t)p & (alignment-1)) {
 					fprintf(stderr,
 					    "%p inadequately aligned for"
 					    " alignment: %zu\n", p, alignment);
 				}
-				JEMALLOC_P(sallocm)(ps[i], &tsz, 0);
-				total += tsz;
+				JEMALLOC_P(sallocm)(ps[i], &rsz, 0);
+				total += rsz;
 				if (total >= (MAXALIGN << 1))
 					break;
 			}
