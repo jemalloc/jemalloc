@@ -1124,23 +1124,28 @@ JEMALLOC_P(realloc)(void *ptr, size_t size)
 	    ;
 
 	if (size == 0) {
-		if (config_sysv == false || opt_sysv == false)
-			size = 1;
-		else {
-			if (ptr != NULL) {
-				if (config_prof || config_stats)
-					old_size = isalloc(ptr);
-				if (config_prof && opt_prof) {
-					old_ctx = prof_ctx_get(ptr);
-					cnt = NULL;
-				}
-				idalloc(ptr);
-			} else if (config_prof && opt_prof) {
-				old_ctx = NULL;
+		if (ptr != NULL) {
+			/* realloc(ptr, 0) is equivalent to free(p). */
+			if (config_prof || config_stats)
+				old_size = isalloc(ptr);
+			if (config_prof && opt_prof) {
+				old_ctx = prof_ctx_get(ptr);
 				cnt = NULL;
 			}
+			idalloc(ptr);
 			ret = NULL;
 			goto RETURN;
+		} else {
+			if (config_sysv == false || opt_sysv == false)
+				size = 1;
+			else {
+				if (config_prof && opt_prof) {
+					old_ctx = NULL;
+					cnt = NULL;
+				}
+				ret = NULL;
+				goto RETURN;
+			}
 		}
 	}
 
@@ -1188,6 +1193,7 @@ OOM:
 			errno = ENOMEM;
 		}
 	} else {
+		/* realloc(NULL, size) is equivalent to malloc(size). */
 		if (config_prof && opt_prof)
 			old_ctx = NULL;
 		if (malloc_init()) {
