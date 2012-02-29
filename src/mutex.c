@@ -1,6 +1,10 @@
 #define	JEMALLOC_MUTEX_C_
 #include "jemalloc/internal/jemalloc_internal.h"
 
+#ifdef JEMALLOC_LAZY_LOCK
+#include <dlfcn.h>
+#endif
+
 /******************************************************************************/
 /* Data. */
 

@@ -144,10 +144,6 @@ static const bool config_ivsalloc =
 #include <malloc/malloc.h>
 #endif
 
-#ifdef JEMALLOC_LAZY_LOCK
-#include <dlfcn.h>
-#endif
-
 #define	RB_COMPACT
 #include "jemalloc/internal/rb.h"
 #include "jemalloc/internal/qr.h"

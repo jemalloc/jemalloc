@@ -1272,6 +1272,30 @@ JEMALLOC_P(valloc)(size_t size)
 }
 #endif
 
+#if defined(__GLIBC__) && !defined(__UCLIBC__)
+/*
+ * glibc provides the RTLD_DEEPBIND flag for dlopen which can make it possible
+ * to inconsistently reference libc's malloc(3)-compatible functions
+ * (https://bugzilla.mozilla.org/show_bug.cgi?id=493541).
+ *
+ * These definitions interpose hooks in glibc.  The functions are actually
+ * passed an extra argument for the caller return address, which will be
+ * ignored.
+ */
+JEMALLOC_ATTR(visibility("default"))
+void (* const __free_hook)(void *ptr) = JEMALLOC_P(free);
+
+JEMALLOC_ATTR(visibility("default"))
+void *(* const __malloc_hook)(size_t size) = JEMALLOC_P(malloc);
+
+JEMALLOC_ATTR(visibility("default"))
+void *(* const __realloc_hook)(void *ptr, size_t size) = JEMALLOC_P(realloc);
+
+JEMALLOC_ATTR(visibility("default"))
+void *(* const __memalign_hook)(size_t alignment, size_t size) =
+    JEMALLOC_P(memalign);
+#endif
+
 #endif /* JEMALLOC_PREFIX */
 /*
  * End non-standard override functions.
