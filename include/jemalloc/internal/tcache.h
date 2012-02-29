@@ -360,9 +360,7 @@ tcache_dalloc_small(tcache_t *tcache, void *ptr)
 JEMALLOC_INLINE void
 tcache_dalloc_large(tcache_t *tcache, void *ptr, size_t size)
 {
-	arena_t *arena;
-	arena_chunk_t *chunk;
-	size_t pageind, binind;
+	size_t binind;
 	tcache_bin_t *tbin;
 	tcache_bin_info_t *tbin_info;
 
@@ -370,9 +368,6 @@ tcache_dalloc_large(tcache_t *tcache, void *ptr, size_t size)
 	assert(arena_salloc(ptr) > SMALL_MAXCLASS);
 	assert(arena_salloc(ptr) <= tcache_maxclass);
 
-	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
-	arena = chunk->arena;
-	pageind = ((uintptr_t)ptr - (uintptr_t)chunk) >> PAGE_SHIFT;
 	binind = NBINS + (size >> PAGE_SHIFT) - 1;
 
 	if (config_fill && opt_junk)
