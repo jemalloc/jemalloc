@@ -882,8 +882,6 @@ OOM:
 		}
 		errno = ENOMEM;
 	}
-
-RETURN:
 	if (config_prof && opt_prof && ret != NULL)
 		prof_malloc(ret, usize, cnt);
 	if (config_stats && ret != NULL) {

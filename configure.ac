@@ -423,7 +423,7 @@ if test "x$enable_debug" = "x0" -a "x$no_CFLAGS" = "xyes" ; then
   fi
 fi
 
-dnl Do not enable statistics calculation by default.
+dnl Enable statistics calculation by default.
 AC_ARG_ENABLE([stats],
   [AS_HELP_STRING([--enable-stats], [Enable statistics calculation/reporting])],
 [if test "x$enable_stats" = "xno" ; then
@@ -432,7 +432,7 @@ else
   enable_stats="1"
 fi
 ],
-[enable_stats="0"]
+[enable_stats="1"]
 )
 if test "x$enable_stats" = "x1" ; then
   AC_DEFINE([JEMALLOC_STATS], [ ])
@@ -896,7 +896,6 @@ AC_MSG_RESULT([tcache             : ${enable_tcache}])
 AC_MSG_RESULT([fill               : ${enable_fill}])
 AC_MSG_RESULT([xmalloc            : ${enable_xmalloc}])
 AC_MSG_RESULT([dss                : ${enable_dss}])
-AC_MSG_RESULT([dynamic_page_shift : ${enable_dynamic_page_shift}])
 AC_MSG_RESULT([lazy_lock          : ${enable_lazy_lock}])
 AC_MSG_RESULT([tls                : ${enable_tls}])
 AC_MSG_RESULT([===============================================================================])
