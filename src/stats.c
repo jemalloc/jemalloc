@@ -582,16 +582,12 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 	}
 
 	if (config_stats) {
-		size_t sszp, ssz;
 		size_t *cactive;
 		size_t allocated, active, mapped;
 		size_t chunks_current, chunks_high;
 		uint64_t chunks_total;
 		size_t huge_allocated;
 		uint64_t huge_nmalloc, huge_ndalloc;
-
-		sszp = sizeof(size_t *);
-		ssz = sizeof(size_t);
 
 		CTL_GET("stats.cactive", &cactive, size_t *);
 		CTL_GET("stats.allocated", &allocated, size_t);
