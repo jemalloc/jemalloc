@@ -91,7 +91,7 @@ extern __thread tcache_t	*tcache_tls
 extern pthread_key_t		tcache_tsd;
 
 /*
- * Number of tcache bins.  There are nbins small-object bins, plus 0 or more
+ * Number of tcache bins.  There are NBINS small-object bins, plus 0 or more
  * large-object bins.
  */
 extern size_t			nhbins;
@@ -181,7 +181,7 @@ tcache_event(tcache_t *tcache)
 			 * Flush (ceiling) 3/4 of the objects below the low
 			 * water mark.
 			 */
-			if (binind < nbins) {
+			if (binind < NBINS) {
 				tcache_bin_flush_small(tbin, binind,
 				    tbin->ncached - tbin->low_water +
 				    (tbin->low_water >> 2), tcache);
@@ -238,7 +238,7 @@ tcache_alloc_small(tcache_t *tcache, size_t size, bool zero)
 	tcache_bin_t *tbin;
 
 	binind = SMALL_SIZE2BIN(size);
-	assert(binind < nbins);
+	assert(binind < NBINS);
 	tbin = &tcache->tbins[binind];
 	ret = tcache_alloc_easy(tbin);
 	if (ret == NULL) {
@@ -275,7 +275,7 @@ tcache_alloc_large(tcache_t *tcache, size_t size, bool zero)
 
 	size = PAGE_CEILING(size);
 	assert(size <= tcache_maxclass);
-	binind = nbins + (size >> PAGE_SHIFT) - 1;
+	binind = NBINS + (size >> PAGE_SHIFT) - 1;
 	assert(binind < nhbins);
 	tbin = &tcache->tbins[binind];
 	ret = tcache_alloc_easy(tbin);
@@ -328,7 +328,7 @@ tcache_dalloc_small(tcache_t *tcache, void *ptr)
 	size_t pageind, binind;
 	arena_chunk_map_t *mapelm;
 
-	assert(arena_salloc(ptr) <= small_maxclass);
+	assert(arena_salloc(ptr) <= SMALL_MAXCLASS);
 
 	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
 	arena = chunk->arena;
@@ -339,7 +339,7 @@ tcache_dalloc_small(tcache_t *tcache, void *ptr)
 	bin = run->bin;
 	binind = ((uintptr_t)bin - (uintptr_t)&arena->bins) /
 	    sizeof(arena_bin_t);
-	assert(binind < nbins);
+	assert(binind < NBINS);
 
 	if (config_fill && opt_junk)
 		memset(ptr, 0x5a, arena_bin_info[binind].reg_size);
@@ -367,13 +367,13 @@ tcache_dalloc_large(tcache_t *tcache, void *ptr, size_t size)
 	tcache_bin_info_t *tbin_info;
 
 	assert((size & PAGE_MASK) == 0);
-	assert(arena_salloc(ptr) > small_maxclass);
+	assert(arena_salloc(ptr) > SMALL_MAXCLASS);
 	assert(arena_salloc(ptr) <= tcache_maxclass);
 
 	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
 	arena = chunk->arena;
 	pageind = ((uintptr_t)ptr - (uintptr_t)chunk) >> PAGE_SHIFT;
-	binind = nbins + (size >> PAGE_SHIFT) - 1;
+	binind = NBINS + (size >> PAGE_SHIFT) - 1;
 
 	if (config_fill && opt_junk)
 		memset(ptr, 0x5a, size);

@@ -2,39 +2,6 @@
 #ifdef JEMALLOC_H_TYPES
 
 /*
- * Subpages are an artificially designated partitioning of pages.  Their only
- * purpose is to support subpage-spaced size classes.
- *
- * There must be at least 4 subpages per page, due to the way size classes are
- * handled.
- */
-#define	LG_SUBPAGE		8
-#define	SUBPAGE			((size_t)(1U << LG_SUBPAGE))
-#define	SUBPAGE_MASK		(SUBPAGE - 1)
-
-/* Return the smallest subpage multiple that is >= s. */
-#define	SUBPAGE_CEILING(s)						\
-	(((s) + SUBPAGE_MASK) & ~SUBPAGE_MASK)
-
-/* Smallest size class to support. */
-#define	LG_TINY_MIN		3
-#define	TINY_MIN		(1U << LG_TINY_MIN)
-
-/*
- * Maximum size class that is a multiple of the quantum, but not (necessarily)
- * a power of 2.  Above this size, allocations are rounded up to the nearest
- * power of 2.
- */
-#define	LG_QSPACE_MAX_DEFAULT	7
-
-/*
- * Maximum size class that is a multiple of the cacheline, but not (necessarily)
- * a power of 2.  Above this size, allocations are rounded up to the nearest
- * power of 2.
- */
-#define	LG_CSPACE_MAX_DEFAULT	9
-
-/*
  * RUN_MAX_OVRHD indicates maximum desired run header overhead.  Runs are sized
  * as small as possible such that this setting is still honored, without
  * violating other constraints.  The goal is to make runs as small as possible
@@ -364,75 +331,26 @@ struct arena_s {
 	arena_avail_tree_t	runs_avail_clean;
 	arena_avail_tree_t	runs_avail_dirty;
 
-	/*
-	 * bins is used to store trees of free regions of the following sizes,
-	 * assuming a 64-bit system with 16-byte quantum, 4 KiB page size, and
-	 * default MALLOC_CONF.
-	 *
-	 *   bins[i] |   size |
-	 *   --------+--------+
-	 *        0  |      8 |
-	 *   --------+--------+
-	 *        1  |     16 |
-	 *        2  |     32 |
-	 *        3  |     48 |
-	 *           :        :
-	 *        6  |     96 |
-	 *        7  |    112 |
-	 *        8  |    128 |
-	 *   --------+--------+
-	 *        9  |    192 |
-	 *       10  |    256 |
-	 *       11  |    320 |
-	 *       12  |    384 |
-	 *       13  |    448 |
-	 *       14  |    512 |
-	 *   --------+--------+
-	 *       15  |    768 |
-	 *       16  |   1024 |
-	 *       17  |   1280 |
-	 *           :        :
-	 *       25  |   3328 |
-	 *       26  |   3584 |
-	 *       27  |   3840 |
-	 *   --------+--------+
-	 */
-	arena_bin_t		bins[1]; /* Dynamically sized. */
+	/* bins is used to store trees of free regions. */
+	arena_bin_t		bins[NBINS];
 };
 
 #endif /* JEMALLOC_H_STRUCTS */
 /******************************************************************************/
 #ifdef JEMALLOC_H_EXTERNS
 
-extern size_t	opt_lg_qspace_max;
-extern size_t	opt_lg_cspace_max;
 extern ssize_t	opt_lg_dirty_mult;
 /*
  * small_size2bin is a compact lookup table that rounds request sizes up to
  * size classes.  In order to reduce cache footprint, the table is compressed,
  * and all accesses are via the SMALL_SIZE2BIN macro.
  */
-extern uint8_t const	*small_size2bin;
+extern uint8_t const	small_size2bin[];
 #define	SMALL_SIZE2BIN(s)	(small_size2bin[(s-1) >> LG_TINY_MIN])
 
-extern arena_bin_info_t	*arena_bin_info;
+extern arena_bin_info_t	arena_bin_info[NBINS];
 
-/* Various bin-related settings. */
-				/* Number of (2^n)-spaced tiny bins. */
-#define			ntbins	((unsigned)(LG_QUANTUM - LG_TINY_MIN))
-extern unsigned		nqbins; /* Number of quantum-spaced bins. */
-extern unsigned		ncbins; /* Number of cacheline-spaced bins. */
-extern unsigned		nsbins; /* Number of subpage-spaced bins. */
-extern unsigned		nbins;
-#define			tspace_max	((size_t)(QUANTUM >> 1))
-#define			qspace_min	QUANTUM
-extern size_t		qspace_max;
-extern size_t		cspace_min;
-extern size_t		cspace_max;
-extern size_t		sspace_min;
-extern size_t		sspace_max;
-#define			small_maxclass	sspace_max
-
+/* Number of large size classes. */
 #define			nlclasses (chunk_npages - map_bias)
 
 void	arena_purge_all(arena_t *arena);
@@ -457,7 +375,7 @@ void	*arena_ralloc_no_move(void *ptr, size_t oldsize, size_t size,
 void	*arena_ralloc(void *ptr, size_t oldsize, size_t size, size_t extra,
     size_t alignment, bool zero);
 bool	arena_new(arena_t *arena, unsigned ind);
-bool	arena_boot(void);
+void	arena_boot(void);
 
 #endif /* JEMALLOC_H_EXTERNS */
 /******************************************************************************/
@@ -478,7 +396,7 @@ JEMALLOC_INLINE size_t
 arena_bin_index(arena_t *arena, arena_bin_t *bin)
 {
 	size_t binind = bin - arena->bins;
-	assert(binind < nbins);
+	assert(binind < NBINS);
 	return (binind);
 }
 
@@ -633,7 +551,7 @@ arena_malloc(size_t size, bool zero)
 	assert(size != 0);
 	assert(QUANTUM_CEILING(size) <= arena_maxclass);
 
-	if (size <= small_maxclass) {
+	if (size <= SMALL_MAXCLASS) {
 		if ((tcache = tcache_get()) != NULL)
 			return (tcache_alloc_small(tcache, size, zero));
 		else

@@ -458,20 +458,11 @@ for (i = 0; i < nbins; i++) {
     a frontier and free list to track which regions are in use.  Allocation
     requests that are no more than half the quantum (8 or 16, depending on
     architecture) are rounded up to the nearest power of two that is at least
-    <code language="C">sizeof(<type>void *</type>)</code>.  Allocation requests
-    that are more than half the quantum, but no more than the minimum
-    cacheline-multiple size class (see the <link
-    linkend="opt.lg_qspace_max"><mallctl>opt.lg_qspace_max</mallctl></link>
-    option) are rounded up to the nearest multiple of the quantum.  Allocation
-    requests that are more than the minimum cacheline-multiple size class, but
-    no more than the minimum subpage-multiple size class (see the <link
-    linkend="opt.lg_cspace_max"><mallctl>opt.lg_cspace_max</mallctl></link>
-    option) are rounded up to the nearest multiple of the cacheline size (64).
-    Allocation requests that are more than the minimum subpage-multiple size
-    class, but no more than the maximum subpage-multiple size class are rounded
-    up to the nearest multiple of the subpage size (256).  Allocation requests
-    that are more than the maximum subpage-multiple size class, but small
-    enough to fit in an arena-managed chunk (see the <link
+    <code language="C">sizeof(<type>double</type>)</code>.  All other small
+    object size classes are multiples of the quantum, spaced such that internal
+    fragmentation is limited to approximately 25% for all but the smallest size
+    classes.  Allocation requests that are larger than the maximum small size
+    class, but small enough to fit in an arena-managed chunk (see the <link
     linkend="opt.lg_chunk"><mallctl>opt.lg_chunk</mallctl></link> option), are
     rounded up to the nearest run size.  Allocation requests that are too large
     to fit in an arena-managed chunk are rounded up to the nearest multiple of
@@ -507,16 +498,28 @@ for (i = 0; i < nbins; i++) {
           <entry>[8]</entry>
         </row>
         <row>
-          <entry>Quantum-spaced</entry>
+          <entry>16-spaced</entry>
           <entry>[16, 32, 48, ..., 128]</entry>
         </row>
         <row>
-          <entry>Cacheline-spaced</entry>
-          <entry>[192, 256, 320, ..., 512]</entry>
+          <entry>32-spaced</entry>
+          <entry>[160, 192, 224, 256]</entry>
         </row>
         <row>
-          <entry>Subpage-spaced</entry>
-          <entry>[768, 1024, 1280, ..., 3840]</entry>
+          <entry>64-spaced</entry>
+          <entry>[320, 384, 448, 512]</entry>
+        </row>
+        <row>
+          <entry>128-spaced</entry>
+          <entry>[640, 768, 896, 1024]</entry>
+        </row>
+        <row>
+          <entry>256-spaced</entry>
+          <entry>[1280, 1536, 1792, 2048]</entry>
+        </row>
+        <row>
+          <entry>512-spaced</entry>
+          <entry>[2560, 3072, 3584]</entry>
         </row>
         <row>
           <entry namest="c1" nameend="c2">Large</entry>
@@ -712,30 +715,6 @@ for (i = 0; i < nbins; i++) {
         disabled by default unless <option>--enable-debug</option> is
         specified during configuration, in which case it is enabled by default.
         </para></listitem>
-      </varlistentry>
-
-      <varlistentry id="opt.lg_qspace_max">
-        <term>
-          <mallctl>opt.lg_qspace_max</mallctl>
-          (<type>size_t</type>)
-          <literal>r-</literal>
-        </term>
-        <listitem><para>Size (log base 2) of the maximum size class that is a
-        multiple of the quantum (8 or 16 bytes, depending on architecture).
-        Above this size, cacheline spacing is used for size classes.  The
-        default value is 128 bytes (2^7).</para></listitem>
-      </varlistentry>
-
-      <varlistentry id="opt.lg_cspace_max">
-        <term>
-          <mallctl>opt.lg_cspace_max</mallctl>
-          (<type>size_t</type>)
-          <literal>r-</literal>
-        </term>
-        <listitem><para>Size (log base 2) of the maximum size class that is a
-        multiple of the cacheline size (64).  Above this size, subpage spacing
-        (256 bytes) is used for size classes.  The default value is 512 bytes
-        (2^9).</para></listitem>
       </varlistentry>
 
       <varlistentry id="opt.lg_chunk">
@@ -1180,24 +1159,6 @@ malloc_conf = "xmalloc:true";]]></programlisting>
 
       <varlistentry>
         <term>
-          <mallctl>arenas.cacheline</mallctl>
-          (<type>size_t</type>)
-          <literal>r-</literal>
-        </term>
-        <listitem><para>Assumed cacheline size.</para></listitem>
-      </varlistentry>
-
-      <varlistentry>
-        <term>
-          <mallctl>arenas.subpage</mallctl>
-          (<type>size_t</type>)
-          <literal>r-</literal>
-        </term>
-        <listitem><para>Subpage size class interval.</para></listitem>
-      </varlistentry>
-
-      <varlistentry>
-        <term>
           <mallctl>arenas.pagesize</mallctl>
           (<type>size_t</type>)
           <literal>r-</literal>
@@ -1216,80 +1177,6 @@ malloc_conf = "xmalloc:true";]]></programlisting>
 
       <varlistentry>
         <term>
-          <mallctl>arenas.tspace_min</mallctl>
-          (<type>size_t</type>)
-          <literal>r-</literal>
-        </term>
-        <listitem><para>Minimum tiny size class.  Tiny size classes are powers
-        of two.</para></listitem>
-      </varlistentry>
-
-      <varlistentry>
-        <term>
-          <mallctl>arenas.tspace_max</mallctl>
-          (<type>size_t</type>)
-          <literal>r-</literal>
-        </term>
-        <listitem><para>Maximum tiny size class.  Tiny size classes are powers
-        of two.</para></listitem>
-      </varlistentry>
-
-      <varlistentry>
-        <term>
-          <mallctl>arenas.qspace_min</mallctl>
-          (<type>size_t</type>)
-          <literal>r-</literal>
-        </term>
-        <listitem><para>Minimum quantum-spaced size class.</para></listitem>
-      </varlistentry>
-
-      <varlistentry>
-        <term>
-          <mallctl>arenas.qspace_max</mallctl>
-          (<type>size_t</type>)
-          <literal>r-</literal>
-        </term>
-        <listitem><para>Maximum quantum-spaced size class.</para></listitem>
-      </varlistentry>
-
-      <varlistentry>
-        <term>
-          <mallctl>arenas.cspace_min</mallctl>
-          (<type>size_t</type>)
-          <literal>r-</literal>
-        </term>
-        <listitem><para>Minimum cacheline-spaced size class.</para></listitem>
-      </varlistentry>
-
-      <varlistentry>
-        <term>
-          <mallctl>arenas.cspace_max</mallctl>
-          (<type>size_t</type>)
-          <literal>r-</literal>
-        </term>
-        <listitem><para>Maximum cacheline-spaced size class.</para></listitem>
-      </varlistentry>
-
-      <varlistentry>
-        <term>
-          <mallctl>arenas.sspace_min</mallctl>
-          (<type>size_t</type>)
-          <literal>r-</literal>
-        </term>
-        <listitem><para>Minimum subpage-spaced size class.</para></listitem>
-      </varlistentry>
-
-      <varlistentry>
-        <term>
-          <mallctl>arenas.sspace_max</mallctl>
-          (<type>size_t</type>)
-          <literal>r-</literal>
-        </term>
-        <listitem><para>Maximum subpage-spaced size class.</para></listitem>
-      </varlistentry>
-
-      <varlistentry>
-        <term>
           <mallctl>arenas.tcache_max</mallctl>
           (<type>size_t</type>)
           <literal>r-</literal>
@@ -1300,50 +1187,11 @@ malloc_conf = "xmalloc:true";]]></programlisting>
 
       <varlistentry>
         <term>
-          <mallctl>arenas.ntbins</mallctl>
-          (<type>unsigned</type>)
-          <literal>r-</literal>
-        </term>
-        <listitem><para>Number of tiny bin size classes.</para></listitem>
-      </varlistentry>
-
-      <varlistentry>
-        <term>
-          <mallctl>arenas.nqbins</mallctl>
-          (<type>unsigned</type>)
-          <literal>r-</literal>
-        </term>
-        <listitem><para>Number of quantum-spaced bin size
-        classes.</para></listitem>
-      </varlistentry>
-
-      <varlistentry>
-        <term>
-          <mallctl>arenas.ncbins</mallctl>
-          (<type>unsigned</type>)
-          <literal>r-</literal>
-        </term>
-        <listitem><para>Number of cacheline-spaced bin size
-        classes.</para></listitem>
-      </varlistentry>
-
-      <varlistentry>
-        <term>
-          <mallctl>arenas.nsbins</mallctl>
-          (<type>unsigned</type>)
-          <literal>r-</literal>
-        </term>
-        <listitem><para>Number of subpage-spaced bin size
-        classes.</para></listitem>
-      </varlistentry>
-
-      <varlistentry>
-        <term>
           <mallctl>arenas.nbins</mallctl>
           (<type>unsigned</type>)
           <literal>r-</literal>
         </term>
-        <listitem><para>Total number of bin size classes.</para></listitem>
+        <listitem><para>Number of bin size classes.</para></listitem>
       </varlistentry>
 
       <varlistentry>

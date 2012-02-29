@@ -229,33 +229,48 @@ extern void	(*JEMALLOC_P(malloc_message))(void *wcbopaque, const char *s);
 /* Size of stack-allocated buffer passed to buferror(). */
 #define	BUFERROR_BUF		64
 
-/* Minimum alignment of allocations is 2^LG_QUANTUM bytes. */
-#ifdef __i386__
-#  define LG_QUANTUM		4
-#endif
-#ifdef __ia64__
-#  define LG_QUANTUM		4
-#endif
-#ifdef __alpha__
-#  define LG_QUANTUM		4
-#endif
-#ifdef __sparc64__
-#  define LG_QUANTUM		4
-#endif
-#if (defined(__amd64__) || defined(__x86_64__))
-#  define LG_QUANTUM		4
-#endif
-#ifdef __arm__
-#  define LG_QUANTUM		3
-#endif
-#ifdef __mips__
-#  define LG_QUANTUM		3
-#endif
-#ifdef __powerpc__
-#  define LG_QUANTUM		4
-#endif
-#ifdef __s390x__
-#  define LG_QUANTUM		4
+/* Smallest size class to support. */
+#define	LG_TINY_MIN		3
+#define	TINY_MIN		(1U << LG_TINY_MIN)
+
+/*
+ * Minimum alignment of allocations is 2^LG_QUANTUM bytes (ignoring tiny size
+ * classes).
+ */
+#ifndef LG_QUANTUM
+#  ifdef __i386__
+#    define LG_QUANTUM		4
+#  endif
+#  ifdef __ia64__
+#    define LG_QUANTUM		4
+#  endif
+#  ifdef __alpha__
+#    define LG_QUANTUM		4
+#  endif
+#  ifdef __sparc64__
+#    define LG_QUANTUM		4
+#  endif
+#  if (defined(__amd64__) || defined(__x86_64__))
+#    define LG_QUANTUM		4
+#  endif
+#  ifdef __arm__
+#    define LG_QUANTUM		3
+#  endif
+#  ifdef __mips__
+#    define LG_QUANTUM		3
+#  endif
+#  ifdef __powerpc__
+#    define LG_QUANTUM		4
+#  endif
+#  ifdef __s390x__
+#    define LG_QUANTUM		4
+#  endif
+#  ifdef __tile__
+#    define LG_QUANTUM		4
+#  endif
+#  ifndef LG_QUANTUM
+#    error "No LG_QUANTUM definition for architecture; specify via CPPFLAGS"
+#  endif
 #endif
 
 #define	QUANTUM			((size_t)(1U << LG_QUANTUM))
@@ -291,15 +306,9 @@ extern void	(*JEMALLOC_P(malloc_message))(void *wcbopaque, const char *s);
 #define	CACHELINE_CEILING(s)						\
 	(((s) + CACHELINE_MASK) & ~CACHELINE_MASK)
 
-/*
- * Page size.  STATIC_PAGE_SHIFT is determined by the configure script.  If
- * DYNAMIC_PAGE_SHIFT is enabled, only use the STATIC_PAGE_* macros where
- * compile-time values are required for the purposes of defining data
- * structures.
- */
+/* Page size.  STATIC_PAGE_SHIFT is determined by the configure script. */
 #define	STATIC_PAGE_SIZE ((size_t)(1U << STATIC_PAGE_SHIFT))
 #define	STATIC_PAGE_MASK ((size_t)(STATIC_PAGE_SIZE - 1))
-
 #ifdef PAGE_SHIFT
 #  undef PAGE_SHIFT
 #endif
@@ -309,16 +318,9 @@ extern void	(*JEMALLOC_P(malloc_message))(void *wcbopaque, const char *s);
 #ifdef PAGE_MASK
 #  undef PAGE_MASK
 #endif
-
-#ifdef DYNAMIC_PAGE_SHIFT
-#  define PAGE_SHIFT	lg_pagesize
-#  define PAGE_SIZE	pagesize
-#  define PAGE_MASK	pagesize_mask
-#else
-#  define PAGE_SHIFT	STATIC_PAGE_SHIFT
-#  define PAGE_SIZE	STATIC_PAGE_SIZE
-#  define PAGE_MASK	STATIC_PAGE_MASK
-#endif
+#define	PAGE_SHIFT	STATIC_PAGE_SHIFT
+#define	PAGE_SIZE	STATIC_PAGE_SIZE
+#define	PAGE_MASK	STATIC_PAGE_MASK
 
 /* Return the smallest pagesize multiple that is >= s. */
 #define	PAGE_CEILING(s)							\
@@ -327,6 +329,7 @@ extern void	(*JEMALLOC_P(malloc_message))(void *wcbopaque, const char *s);
 #include "jemalloc/internal/atomic.h"
 #include "jemalloc/internal/prn.h"
 #include "jemalloc/internal/ckh.h"
+#include "jemalloc/internal/size_classes.h"
 #include "jemalloc/internal/stats.h"
 #include "jemalloc/internal/ctl.h"
 #include "jemalloc/internal/mutex.h"
@@ -352,6 +355,7 @@ extern void	(*JEMALLOC_P(malloc_message))(void *wcbopaque, const char *s);
 #include "jemalloc/internal/atomic.h"
 #include "jemalloc/internal/prn.h"
 #include "jemalloc/internal/ckh.h"
+#include "jemalloc/internal/size_classes.h"
 #include "jemalloc/internal/stats.h"
 #include "jemalloc/internal/ctl.h"
 #include "jemalloc/internal/mutex.h"
@@ -455,6 +459,7 @@ void	jemalloc_postfork(void);
 #include "jemalloc/internal/atomic.h"
 #include "jemalloc/internal/prn.h"
 #include "jemalloc/internal/ckh.h"
+#include "jemalloc/internal/size_classes.h"
 #include "jemalloc/internal/stats.h"
 #include "jemalloc/internal/ctl.h"
 #include "jemalloc/internal/mutex.h"
@@ -480,6 +485,7 @@ void	jemalloc_postfork(void);
 #include "jemalloc/internal/atomic.h"
 #include "jemalloc/internal/prn.h"
 #include "jemalloc/internal/ckh.h"
+#include "jemalloc/internal/size_classes.h"
 #include "jemalloc/internal/stats.h"
 #include "jemalloc/internal/ctl.h"
 #include "jemalloc/internal/mutex.h"
@@ -525,7 +531,7 @@ JEMALLOC_INLINE size_t
 s2u(size_t size)
 {
 
-	if (size <= small_maxclass)
+	if (size <= SMALL_MAXCLASS)
 		return (arena_bin_info[SMALL_SIZE2BIN(size)].reg_size);
 	if (size <= arena_maxclass)
 		return (PAGE_CEILING(size));
@@ -570,7 +576,7 @@ sa2u(size_t size, size_t alignment, size_t *run_size_p)
 	}
 
 	if (usize <= arena_maxclass && alignment <= PAGE_SIZE) {
-		if (usize <= small_maxclass)
+		if (usize <= SMALL_MAXCLASS)
 			return (arena_bin_info[SMALL_SIZE2BIN(usize)].reg_size);
 		return (PAGE_CEILING(usize));
 	} else {

@@ -113,14 +113,6 @@ any of the following arguments (not a definitive list) to 'configure':
     rather than a minimal allocation.  See the "opt.sysv" option documentation
     for usage details.
 
---enable-dynamic-page-shift
-    Under most conditions, the system page size never changes (usually 4KiB or
-    8KiB, depending on architecture and configuration), and unless this option
-    is enabled, jemalloc assumes that page size can safely be determined during
-    configuration and hard-coded.  Enabling dynamic page size determination has
-    a measurable impact on performance, since the compiler is forced to load
-    the page size from memory rather than embedding immediate values.
-
 --enable-lazy-lock
     Enable code that wraps pthread_create() to detect when an application
     switches from single-threaded to multi-threaded mode, so that it can avoid

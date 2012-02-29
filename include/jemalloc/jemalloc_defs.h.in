@@ -104,9 +104,6 @@
 /* Support lazy locking (avoid locking unless a second thread is launched). */
 #undef JEMALLOC_LAZY_LOCK
 
-/* Determine page size at run time if defined. */
-#undef DYNAMIC_PAGE_SHIFT
-
 /* One page is 2^STATIC_PAGE_SHIFT bytes. */
 #undef STATIC_PAGE_SHIFT
 

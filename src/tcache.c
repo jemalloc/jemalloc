@@ -55,7 +55,7 @@ tcache_bin_flush_small(tcache_bin_t *tbin, size_t binind, unsigned rem,
 	unsigned i, nflush, ndeferred;
 	bool merged_stats = false;
 
-	assert(binind < nbins);
+	assert(binind < NBINS);
 	assert(rem <= tbin->ncached);
 
 	for (nflush = tbin->ncached - rem; nflush > 0; nflush = ndeferred) {
@@ -152,7 +152,7 @@ tcache_bin_flush_large(tcache_bin_t *tbin, size_t binind, unsigned rem,
 				merged_stats = true;
 				arena->stats.nrequests_large +=
 				    tbin->tstats.nrequests;
-				arena->stats.lstats[binind - nbins].nrequests +=
+				arena->stats.lstats[binind - NBINS].nrequests +=
 				    tbin->tstats.nrequests;
 				tbin->tstats.nrequests = 0;
 			}
@@ -185,7 +185,7 @@ tcache_bin_flush_large(tcache_bin_t *tbin, size_t binind, unsigned rem,
 		arena_t *arena = tcache->arena;
 		malloc_mutex_lock(&arena->lock);
 		arena->stats.nrequests_large += tbin->tstats.nrequests;
-		arena->stats.lstats[binind - nbins].nrequests +=
+		arena->stats.lstats[binind - NBINS].nrequests +=
 		    tbin->tstats.nrequests;
 		tbin->tstats.nrequests = 0;
 		malloc_mutex_unlock(&arena->lock);
@@ -220,7 +220,7 @@ tcache_create(arena_t *arena)
 	 */
 	size = (size + CACHELINE_MASK) & (-CACHELINE);
 
-	if (size <= small_maxclass)
+	if (size <= SMALL_MAXCLASS)
 		tcache = (tcache_t *)arena_malloc_small(arena, size, true);
 	else if (size <= tcache_maxclass)
 		tcache = (tcache_t *)arena_malloc_large(arena, size, true);
@@ -266,7 +266,7 @@ tcache_destroy(tcache_t *tcache)
 		tcache_stats_merge(tcache, tcache->arena);
 	}
 
-	for (i = 0; i < nbins; i++) {
+	for (i = 0; i < NBINS; i++) {
 		tcache_bin_t *tbin = &tcache->tbins[i];
 		tcache_bin_flush_small(tbin, i, 0, tcache);
 
@@ -287,7 +287,7 @@ tcache_destroy(tcache_t *tcache)
 			arena_t *arena = tcache->arena;
 			malloc_mutex_lock(&arena->lock);
 			arena->stats.nrequests_large += tbin->tstats.nrequests;
-			arena->stats.lstats[i - nbins].nrequests +=
+			arena->stats.lstats[i - NBINS].nrequests +=
 			    tbin->tstats.nrequests;
 			malloc_mutex_unlock(&arena->lock);
 		}
@@ -300,7 +300,7 @@ tcache_destroy(tcache_t *tcache)
 	}
 
 	tcache_size = arena_salloc(tcache);
-	if (tcache_size <= small_maxclass) {
+	if (tcache_size <= SMALL_MAXCLASS) {
 		arena_chunk_t *chunk = CHUNK_ADDR2BASE(tcache);
 		arena_t *arena = chunk->arena;
 		size_t pageind = ((uintptr_t)tcache - (uintptr_t)chunk) >>
@@ -357,7 +357,7 @@ tcache_stats_merge(tcache_t *tcache, arena_t *arena)
 	unsigned i;
 
 	/* Merge and reset tcache stats. */
-	for (i = 0; i < nbins; i++) {
+	for (i = 0; i < NBINS; i++) {
 		arena_bin_t *bin = &arena->bins[i];
 		tcache_bin_t *tbin = &tcache->tbins[i];
 		malloc_mutex_lock(&bin->lock);
@@ -367,7 +367,7 @@ tcache_stats_merge(tcache_t *tcache, arena_t *arena)
 	}
 
 	for (; i < nhbins; i++) {
-		malloc_large_stats_t *lstats = &arena->stats.lstats[i - nbins];
+		malloc_large_stats_t *lstats = &arena->stats.lstats[i - NBINS];
 		tcache_bin_t *tbin = &tcache->tbins[i];
 		arena->stats.nrequests_large += tbin->tstats.nrequests;
 		lstats->nrequests += tbin->tstats.nrequests;
@@ -384,17 +384,18 @@ tcache_boot(void)
 
 		/*
 		 * If necessary, clamp opt_lg_tcache_max, now that
-		 * small_maxclass and arena_maxclass are known.
+		 * SMALL_MAXCLASS and arena_maxclass are known.
+		 * XXX Can this be done earlier?
 		 */
 		if (opt_lg_tcache_max < 0 || (1U <<
-		    opt_lg_tcache_max) < small_maxclass)
-			tcache_maxclass = small_maxclass;
+		    opt_lg_tcache_max) < SMALL_MAXCLASS)
+			tcache_maxclass = SMALL_MAXCLASS;
 		else if ((1U << opt_lg_tcache_max) > arena_maxclass)
 			tcache_maxclass = arena_maxclass;
 		else
 			tcache_maxclass = (1U << opt_lg_tcache_max);
 
-		nhbins = nbins + (tcache_maxclass >> PAGE_SHIFT);
+		nhbins = NBINS + (tcache_maxclass >> PAGE_SHIFT);
 
 		/* Initialize tcache_bin_info. */
 		tcache_bin_info = (tcache_bin_info_t *)base_alloc(nhbins *
@@ -402,7 +403,7 @@ tcache_boot(void)
 		if (tcache_bin_info == NULL)
 			return (true);
 		stack_nelms = 0;
-		for (i = 0; i < nbins; i++) {
+		for (i = 0; i < NBINS; i++) {
 			if ((arena_bin_info[i].nregs << 1) <=
 			    TCACHE_NSLOTS_SMALL_MAX) {
 				tcache_bin_info[i].ncached_max =
@@ -421,7 +422,7 @@ tcache_boot(void)
 		/* Compute incremental GC event threshold. */
 		if (opt_lg_tcache_gc_sweep >= 0) {
 			tcache_gc_incr = ((1U << opt_lg_tcache_gc_sweep) /
-			    nbins) + (((1U << opt_lg_tcache_gc_sweep) % nbins ==
+			    NBINS) + (((1U << opt_lg_tcache_gc_sweep) % NBINS ==
 			    0) ? 0 : 1);
 		} else
 			tcache_gc_incr = 0;

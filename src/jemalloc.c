@@ -95,9 +95,7 @@ arenas_extend(unsigned ind)
 {
 	arena_t *ret;
 
-	/* Allocate enough space for trailing bins. */
-	ret = (arena_t *)base_alloc(offsetof(arena_t, bins)
-	    + (sizeof(arena_bin_t) * nbins));
+	ret = (arena_t *)base_alloc(sizeof(arena_t));
 	if (ret != NULL && arena_new(ret, ind) == false) {
 		arenas[ind] = ret;
 		return (ret);
@@ -563,10 +561,6 @@ malloc_conf_init(void)
 			}
 
 			CONF_HANDLE_BOOL(abort)
-			CONF_HANDLE_SIZE_T(lg_qspace_max, LG_QUANTUM,
-			    PAGE_SHIFT-1)
-			CONF_HANDLE_SIZE_T(lg_cspace_max, LG_QUANTUM,
-			    PAGE_SHIFT-1)
 			/*
 			 * Chunks always require at least one * header page,
 			 * plus one data page.
@@ -612,14 +606,6 @@ malloc_conf_init(void)
 #undef CONF_HANDLE_SIZE_T
 #undef CONF_HANDLE_SSIZE_T
 #undef CONF_HANDLE_CHAR_P
-		}
-
-		/* Validate configuration of options that are inter-related. */
-		if (opt_lg_qspace_max+1 >= opt_lg_cspace_max) {
-			malloc_write("<jemalloc>: Invalid lg_[qc]space_max "
-			    "relationship; restoring defaults\n");
-			opt_lg_qspace_max = LG_QSPACE_MAX_DEFAULT;
-			opt_lg_cspace_max = LG_CSPACE_MAX_DEFAULT;
 		}
 	}
 }
@@ -709,10 +695,7 @@ malloc_init_hard(void)
 	if (config_prof)
 		prof_boot1();
 
-	if (arena_boot()) {
-		malloc_mutex_unlock(&init_lock);
-		return (true);
-	}
+	arena_boot();
 
 	if (config_tcache && tcache_boot()) {
 		malloc_mutex_unlock(&init_lock);
@@ -893,8 +876,8 @@ JEMALLOC_P(malloc)(size_t size)
 			goto OOM;
 		}
 		if (prof_promote && (uintptr_t)cnt != (uintptr_t)1U && usize <=
-		    small_maxclass) {
-			ret = imalloc(small_maxclass+1);
+		    SMALL_MAXCLASS) {
+			ret = imalloc(SMALL_MAXCLASS+1);
 			if (ret != NULL)
 				arena_prof_promoted(ret, usize);
 		} else
@@ -992,10 +975,10 @@ imemalign(void **memptr, size_t alignment, size_t size)
 				ret = EINVAL;
 			} else {
 				if (prof_promote && (uintptr_t)cnt !=
-				    (uintptr_t)1U && usize <= small_maxclass) {
-					assert(sa2u(small_maxclass+1,
+				    (uintptr_t)1U && usize <= SMALL_MAXCLASS) {
+					assert(sa2u(SMALL_MAXCLASS+1,
 					    alignment, NULL) != 0);
-					result = ipalloc(sa2u(small_maxclass+1,
+					result = ipalloc(sa2u(SMALL_MAXCLASS+1,
 					    alignment, NULL), alignment, false);
 					if (result != NULL) {
 						arena_prof_promoted(result,
@@ -1091,8 +1074,8 @@ JEMALLOC_P(calloc)(size_t num, size_t size)
 			goto RETURN;
 		}
 		if (prof_promote && (uintptr_t)cnt != (uintptr_t)1U && usize
-		    <= small_maxclass) {
-			ret = icalloc(small_maxclass+1);
+		    <= SMALL_MAXCLASS) {
+			ret = icalloc(SMALL_MAXCLASS+1);
 			if (ret != NULL)
 				arena_prof_promoted(ret, usize);
 		} else
@@ -1177,8 +1160,8 @@ JEMALLOC_P(realloc)(void *ptr, size_t size)
 				goto OOM;
 			}
 			if (prof_promote && (uintptr_t)cnt != (uintptr_t)1U &&
-			    usize <= small_maxclass) {
-				ret = iralloc(ptr, small_maxclass+1, 0, 0,
+			    usize <= SMALL_MAXCLASS) {
+				ret = iralloc(ptr, SMALL_MAXCLASS+1, 0, 0,
 				    false, false);
 				if (ret != NULL)
 					arena_prof_promoted(ret, usize);
@@ -1220,8 +1203,8 @@ OOM:
 				else {
 					if (prof_promote && (uintptr_t)cnt !=
 					    (uintptr_t)1U && usize <=
-					    small_maxclass) {
-						ret = imalloc(small_maxclass+1);
+					    SMALL_MAXCLASS) {
+						ret = imalloc(SMALL_MAXCLASS+1);
 						if (ret != NULL) {
 							arena_prof_promoted(ret,
 							    usize);
@@ -1436,9 +1419,9 @@ JEMALLOC_P(allocm)(void **ptr, size_t *rsize, size_t size, int flags)
 		if (cnt == NULL)
 			goto OOM;
 		if (prof_promote && (uintptr_t)cnt != (uintptr_t)1U && usize <=
-		    small_maxclass) {
+		    SMALL_MAXCLASS) {
 			size_t usize_promoted = (alignment == 0) ?
-			    s2u(small_maxclass+1) : sa2u(small_maxclass+1,
+			    s2u(SMALL_MAXCLASS+1) : sa2u(SMALL_MAXCLASS+1,
 			    alignment, NULL);
 			assert(usize_promoted != 0);
 			p = iallocm(usize_promoted, alignment, zero);
@@ -1517,9 +1500,9 @@ JEMALLOC_P(rallocm)(void **ptr, size_t *rsize, size_t size, size_t extra,
 		 */
 		if (prof_promote && (uintptr_t)cnt != (uintptr_t)1U
 		    && ((alignment == 0) ? s2u(size) : sa2u(size,
-		    alignment, NULL)) <= small_maxclass) {
-			q = iralloc(p, small_maxclass+1, (small_maxclass+1 >=
-			    size+extra) ? 0 : size+extra - (small_maxclass+1),
+		    alignment, NULL)) <= SMALL_MAXCLASS) {
+			q = iralloc(p, SMALL_MAXCLASS+1, (SMALL_MAXCLASS+1 >=
+			    size+extra) ? 0 : size+extra - (SMALL_MAXCLASS+1),
 			    alignment, zero, no_move);
 			if (q == NULL)
 				goto ERR;

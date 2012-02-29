@@ -367,8 +367,10 @@ cfgoutputs_tup="${cfgoutputs_tup} include/jemalloc/internal/jemalloc_internal.h"
 cfgoutputs_tup="${cfgoutputs_tup} test/jemalloc_test.h:test/jemalloc_test.h.in"
 
 cfghdrs_in="${srcroot}include/jemalloc/jemalloc_defs.h.in"
+cfghdrs_in="${cfghdrs_in} ${srcroot}include/jemalloc/internal/size_classes.sh"
 
 cfghdrs_out="include/jemalloc/jemalloc_defs${install_suffix}.h"
+cfghdrs_out="${cfghdrs_out} include/jemalloc/internal/size_classes.h"
 
 cfghdrs_tup="include/jemalloc/jemalloc_defs${install_suffix}.h:include/jemalloc/jemalloc_defs.h.in"
 
@@ -640,23 +642,6 @@ if test "x$enable_sysv" = "x1" ; then
 fi
 AC_SUBST([enable_sysv])
 
-dnl Do not determine page shift at run time by default.
-AC_ARG_ENABLE([dynamic_page_shift],
-  [AS_HELP_STRING([--enable-dynamic-page-shift],
-  [Determine page size at run time (don't trust configure result)])],
-[if test "x$enable_dynamic_page_shift" = "xno" ; then
-  enable_dynamic_page_shift="0"
-else
-  enable_dynamic_page_shift="1"
-fi
-],
-[enable_dynamic_page_shift="0"]
-)
-if test "x$enable_dynamic_page_shift" = "x1" ; then
-  AC_DEFINE([DYNAMIC_PAGE_SHIFT], [ ])
-fi
-AC_SUBST([enable_dynamic_page_shift])
-
 AC_MSG_CHECKING([STATIC_PAGE_SHIFT])
 AC_RUN_IFELSE([AC_LANG_PROGRAM(
 [[#include <stdio.h>
@@ -865,6 +850,11 @@ fi
 dnl ============================================================================
 dnl Check for typedefs, structures, and compiler characteristics.
 AC_HEADER_STDBOOL
+
+AC_CONFIG_COMMANDS([include/jemalloc/internal/size_classes.h], [
+  mkdir -p "include/jemalloc/internal"
+  "${srcdir}/include/jemalloc/internal/size_classes.sh" > "${objroot}include/jemalloc/internal/size_classes.h"
+])
 
 dnl Process .in files.
 AC_SUBST([cfghdrs_in])

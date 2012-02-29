@@ -70,7 +70,7 @@ atomic_sub_uint64(uint64_t *p, uint64_t x)
 
 	return (OSAtomicAdd64(-((int64_t)x), (int64_t *)p));
 }
-#elif (defined(__amd64_) || defined(__x86_64__))
+#elif (defined(__amd64__) || defined(__x86_64__))
 JEMALLOC_INLINE uint64_t
 atomic_add_uint64(uint64_t *p, uint64_t x)
 {
@@ -133,7 +133,7 @@ atomic_sub_uint32(uint32_t *p, uint32_t x)
 
 	return (OSAtomicAdd32(-((int32_t)x), (int32_t *)p));
 }
-#elif (defined(__i386__) || defined(__amd64_) || defined(__x86_64__))
+#elif (defined(__i386__) || defined(__amd64__) || defined(__x86_64__))
 JEMALLOC_INLINE uint32_t
 atomic_add_uint32(uint32_t *p, uint32_t x)
 {
