@@ -98,9 +98,6 @@
 /* Support optional abort() on OOM. */
 #undef JEMALLOC_XMALLOC
 
-/* Support SYSV semantics. */
-#undef JEMALLOC_SYSV
-
 /* Support lazy locking (avoid locking unless a second thread is launched). */
 #undef JEMALLOC_LAZY_LOCK
 

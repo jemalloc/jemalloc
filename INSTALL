@@ -108,11 +108,6 @@ any of the following arguments (not a definitive list) to 'configure':
     errors, as is commonly implemented by "xmalloc" wrapper function for malloc.
     See the "opt.xmalloc" option documentation for usage details.
 
---enable-sysv
-    Enable support for System V semantics, wherein malloc(0) returns NULL
-    rather than a minimal allocation.  See the "opt.sysv" option documentation
-    for usage details.
-
 --enable-lazy-lock
     Enable code that wraps pthread_create() to detect when an application
     switches from single-threaded to multi-threaded mode, so that it can avoid

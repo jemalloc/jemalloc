@@ -626,22 +626,6 @@ if test "x$enable_xmalloc" = "x1" ; then
 fi
 AC_SUBST([enable_xmalloc])
 
-dnl Do not support the SYSV option by default.
-AC_ARG_ENABLE([sysv],
-  [AS_HELP_STRING([--enable-sysv], [Support SYSV semantics option])],
-[if test "x$enable_sysv" = "xno" ; then
-  enable_sysv="0"
-else
-  enable_sysv="1"
-fi
-],
-[enable_sysv="0"]
-)
-if test "x$enable_sysv" = "x1" ; then
-  AC_DEFINE([JEMALLOC_SYSV], [ ])
-fi
-AC_SUBST([enable_sysv])
-
 AC_MSG_CHECKING([STATIC_PAGE_SHIFT])
 AC_RUN_IFELSE([AC_LANG_PROGRAM(
 [[#include <stdio.h>
@@ -911,7 +895,6 @@ AC_MSG_RESULT([prof-gcc           : ${enable_prof_gcc}])
 AC_MSG_RESULT([tcache             : ${enable_tcache}])
 AC_MSG_RESULT([fill               : ${enable_fill}])
 AC_MSG_RESULT([xmalloc            : ${enable_xmalloc}])
-AC_MSG_RESULT([sysv               : ${enable_sysv}])
 AC_MSG_RESULT([dss                : ${enable_dss}])
 AC_MSG_RESULT([dynamic_page_shift : ${enable_dynamic_page_shift}])
 AC_MSG_RESULT([lazy_lock          : ${enable_lazy_lock}])

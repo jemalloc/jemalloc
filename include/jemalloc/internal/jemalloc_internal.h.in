@@ -104,13 +104,6 @@ static const bool config_stats =
     false
 #endif
     ;
-static const bool config_sysv =
-#ifdef JEMALLOC_SYSV
-    true
-#else
-    false
-#endif
-    ;
 static const bool config_tcache =
 #ifdef JEMALLOC_TCACHE
     true
@@ -385,7 +378,6 @@ typedef struct {
 
 extern bool	opt_abort;
 extern bool	opt_junk;
-extern bool	opt_sysv;
 extern bool	opt_xmalloc;
 extern bool	opt_zero;
 extern size_t	opt_narenas;

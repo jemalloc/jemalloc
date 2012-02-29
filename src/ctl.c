@@ -53,7 +53,6 @@ CTL_PROTO(config_prof)
 CTL_PROTO(config_prof_libgcc)
 CTL_PROTO(config_prof_libunwind)
 CTL_PROTO(config_stats)
-CTL_PROTO(config_sysv)
 CTL_PROTO(config_tcache)
 CTL_PROTO(config_tls)
 CTL_PROTO(config_xmalloc)
@@ -64,7 +63,6 @@ CTL_PROTO(opt_lg_dirty_mult)
 CTL_PROTO(opt_stats_print)
 CTL_PROTO(opt_junk)
 CTL_PROTO(opt_zero)
-CTL_PROTO(opt_sysv)
 CTL_PROTO(opt_xmalloc)
 CTL_PROTO(opt_tcache)
 CTL_PROTO(opt_lg_tcache_gc_sweep)
@@ -174,7 +172,6 @@ static const ctl_node_t	config_node[] = {
 	{NAME("prof_libgcc"),		CTL(config_prof_libgcc)},
 	{NAME("prof_libunwind"),	CTL(config_prof_libunwind)},
 	{NAME("stats"),			CTL(config_stats)},
-	{NAME("sysv"),			CTL(config_sysv)},
 	{NAME("tcache"),		CTL(config_tcache)},
 	{NAME("tls"),			CTL(config_tls)},
 	{NAME("xmalloc"),		CTL(config_xmalloc)}
@@ -188,7 +185,6 @@ static const ctl_node_t opt_node[] = {
 	{NAME("stats_print"),		CTL(opt_stats_print)},
 	{NAME("junk"),			CTL(opt_junk)},
 	{NAME("zero"),			CTL(opt_zero)},
-	{NAME("sysv"),			CTL(opt_sysv)},
 	{NAME("xmalloc"),		CTL(opt_xmalloc)},
 	{NAME("tcache"),		CTL(opt_tcache)},
 	{NAME("lg_tcache_gc_sweep"),	CTL(opt_lg_tcache_gc_sweep)},
@@ -1058,7 +1054,6 @@ CTL_RO_BOOL_CONFIG_GEN(config_prof)
 CTL_RO_BOOL_CONFIG_GEN(config_prof_libgcc)
 CTL_RO_BOOL_CONFIG_GEN(config_prof_libunwind)
 CTL_RO_BOOL_CONFIG_GEN(config_stats)
-CTL_RO_BOOL_CONFIG_GEN(config_sysv)
 CTL_RO_BOOL_CONFIG_GEN(config_tcache)
 CTL_RO_BOOL_CONFIG_GEN(config_tls)
 CTL_RO_BOOL_CONFIG_GEN(config_xmalloc)
@@ -1072,7 +1067,6 @@ CTL_RO_NL_GEN(opt_lg_dirty_mult, opt_lg_dirty_mult, ssize_t)
 CTL_RO_NL_GEN(opt_stats_print, opt_stats_print, bool)
 CTL_RO_NL_CGEN(config_fill, opt_junk, opt_junk, bool)
 CTL_RO_NL_CGEN(config_fill, opt_zero, opt_zero, bool)
-CTL_RO_NL_CGEN(config_sysv, opt_sysv, opt_sysv, bool)
 CTL_RO_NL_CGEN(config_xmalloc, opt_xmalloc, opt_xmalloc, bool)
 CTL_RO_NL_CGEN(config_tcache, opt_tcache, opt_tcache, bool)
 CTL_RO_NL_CGEN(config_tcache, opt_lg_tcache_gc_sweep, opt_lg_tcache_gc_sweep,

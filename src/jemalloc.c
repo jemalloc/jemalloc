@@ -48,7 +48,6 @@ bool	opt_junk = false;
 bool	opt_abort = false;
 bool	opt_junk = false;
 #endif
-bool	opt_sysv = false;
 bool	opt_xmalloc = false;
 bool	opt_zero = false;
 size_t	opt_narenas = 0;
@@ -575,9 +574,6 @@ malloc_conf_init(void)
 				CONF_HANDLE_BOOL(junk)
 				CONF_HANDLE_BOOL(zero)
 			}
-			if (config_sysv) {
-				CONF_HANDLE_BOOL(sysv)
-			}
 			if (config_xmalloc) {
 				CONF_HANDLE_BOOL(xmalloc)
 			}
@@ -854,19 +850,8 @@ JEMALLOC_P(malloc)(size_t size)
 		goto OOM;
 	}
 
-	if (size == 0) {
-		if (config_sysv == false || opt_sysv == false)
-			size = 1;
-		else {
-			if (config_xmalloc && opt_xmalloc) {
-				malloc_write("<jemalloc>: Error in malloc(): "
-				    "invalid size 0\n");
-				abort();
-			}
-			ret = NULL;
-			goto RETURN;
-		}
-	}
+	if (size == 0)
+		size = 1;
 
 	if (config_prof && opt_prof) {
 		usize = s2u(size);
@@ -931,22 +916,8 @@ imemalign(void **memptr, size_t alignment, size_t size)
 	if (malloc_init())
 		result = NULL;
 	else {
-		if (size == 0) {
-			if (config_sysv == false || opt_sysv == false)
-				size = 1;
-			else {
-				if (config_xmalloc && opt_xmalloc) {
-					malloc_write("<jemalloc>: Error in "
-					    "posix_memalign(): invalid size "
-					    "0\n");
-					abort();
-				}
-				result = NULL;
-				*memptr = NULL;
-				ret = 0;
-				goto RETURN;
-			}
-		}
+		if (size == 0)
+			size = 1;
 
 		/* Make sure that alignment is a large enough power of 2. */
 		if (((alignment - 1) & alignment) != 0
@@ -1047,8 +1018,7 @@ JEMALLOC_P(calloc)(size_t num, size_t size)
 
 	num_size = num * size;
 	if (num_size == 0) {
-		if ((config_sysv == false || opt_sysv == false)
-		    && ((num == 0) || (size == 0)))
+		if (num == 0 || size == 0)
 			num_size = 1;
 		else {
 			ret = NULL;
@@ -1135,18 +1105,8 @@ JEMALLOC_P(realloc)(void *ptr, size_t size)
 			idalloc(ptr);
 			ret = NULL;
 			goto RETURN;
-		} else {
-			if (config_sysv == false || opt_sysv == false)
-				size = 1;
-			else {
-				if (config_prof && opt_prof) {
-					old_ctx = NULL;
-					cnt = NULL;
-				}
-				ret = NULL;
-				goto RETURN;
-			}
-		}
+		} else
+			size = 1;
 	}
 
 	if (ptr != NULL) {

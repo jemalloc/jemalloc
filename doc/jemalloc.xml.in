@@ -664,16 +664,6 @@ for (i = 0; i < nbins; i++) {
 
       <varlistentry>
         <term>
-          <mallctl>config.sysv</mallctl>
-          (<type>bool</type>)
-          <literal>r-</literal>
-        </term>
-        <listitem><para><option>--enable-sysv</option> was specified during
-        build configuration.</para></listitem>
-      </varlistentry>
-
-      <varlistentry>
-        <term>
           <mallctl>config.tcache</mallctl>
           (<type>bool</type>)
           <literal>r-</literal>
@@ -806,22 +796,6 @@ for (i = 0; i < nbins; i++) {
         was previously allocated.  This is intended for debugging and will
         impact performance negatively.  This option is disabled by default.
         </para></listitem>
-      </varlistentry>
-
-      <varlistentry id="opt.sysv">
-        <term>
-          <mallctl>opt.sysv</mallctl>
-          (<type>bool</type>)
-          <literal>r-</literal>
-          [<option>--enable-sysv</option>]
-        </term>
-        <listitem><para>If enabled, attempting to allocate zero bytes will
-        return a <constant>NULL</constant> pointer instead of a valid pointer.
-        (The default behavior is to make a minimal allocation and return a
-        pointer to it.) This option is provided for System V compatibility.
-        This option is incompatible with the <link
-        linkend="opt.xmalloc"><mallctl>opt.xmalloc</mallctl></link> option.
-        This option is disabled by default.</para></listitem>
       </varlistentry>
 
       <varlistentry id="opt.xmalloc">
