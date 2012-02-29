@@ -68,7 +68,8 @@ static void	malloc_conf_error(const char *msg, const char *k, size_t klen,
     const char *v, size_t vlen);
 static void	malloc_conf_init(void);
 static bool	malloc_init_hard(void);
-static int	imemalign(void **memptr, size_t alignment, size_t size);
+static int	imemalign(void **memptr, size_t alignment, size_t size,
+    bool enforce_min_alignment);
 
 /******************************************************************************/
 /* malloc_message() setup. */
@@ -900,7 +901,8 @@ JEMALLOC_ATTR(nonnull(1))
 JEMALLOC_ATTR(noinline)
 #endif
 static int
-imemalign(void **memptr, size_t alignment, size_t size)
+imemalign(void **memptr, size_t alignment, size_t size,
+    bool enforce_min_alignment)
 {
 	int ret;
 	size_t usize;
@@ -919,7 +921,7 @@ imemalign(void **memptr, size_t alignment, size_t size)
 
 		/* Make sure that alignment is a large enough power of 2. */
 		if (((alignment - 1) & alignment) != 0
-		    || alignment < sizeof(void *)) {
+		    || (enforce_min_alignment && alignment < sizeof(void *))) {
 			if (config_xmalloc && opt_xmalloc) {
 				malloc_write("<jemalloc>: Error in "
 				    "posix_memalign(): invalid alignment\n");
@@ -991,7 +993,7 @@ int
 JEMALLOC_P(posix_memalign)(void **memptr, size_t alignment, size_t size)
 {
 
-	return imemalign(memptr, alignment, size);
+	return imemalign(memptr, alignment, size, true);
 }
 
 JEMALLOC_ATTR(malloc)
@@ -1249,7 +1251,7 @@ JEMALLOC_P(memalign)(size_t alignment, size_t size)
 	    = NULL
 #endif
 	    ;
-	imemalign(&ret, alignment, size);
+	imemalign(&ret, alignment, size, false);
 	return (ret);
 }
 #endif
@@ -1265,7 +1267,7 @@ JEMALLOC_P(valloc)(size_t size)
 	    = NULL
 #endif
 	    ;
-	imemalign(&ret, PAGE_SIZE, size);
+	imemalign(&ret, PAGE_SIZE, size, false);
 	return (ret);
 }
 #endif
