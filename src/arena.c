@@ -188,12 +188,11 @@ arena_run_split(arena_t *arena, arena_run_t *run, size_t size, bool large,
     bool zero)
 {
 	arena_chunk_t *chunk;
-	size_t old_ndirty, run_ind, total_pages, need_pages, rem_pages, i;
+	size_t run_ind, total_pages, need_pages, rem_pages, i;
 	size_t flag_dirty;
 	arena_avail_tree_t *runs_avail;
 
 	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(run);
-	old_ndirty = chunk->ndirty;
 	run_ind = (unsigned)(((uintptr_t)run - (uintptr_t)chunk)
 	    >> PAGE_SHIFT);
 	flag_dirty = chunk->map[run_ind-map_bias].bits & CHUNK_MAP_DIRTY;
