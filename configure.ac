@@ -425,7 +425,8 @@ fi
 
 dnl Enable statistics calculation by default.
 AC_ARG_ENABLE([stats],
-  [AS_HELP_STRING([--enable-stats], [Enable statistics calculation/reporting])],
+  [AS_HELP_STRING([--disable-stats],
+                  [Disable statistics calculation/reporting])],
 [if test "x$enable_stats" = "xno" ; then
   enable_stats="0"
 else
@@ -594,16 +595,16 @@ if test "x$enable_dss" = "x1" ; then
 fi
 AC_SUBST([enable_dss])
 
-dnl Do not support the junk/zero filling option by default.
+dnl Support the junk/zero filling option by default.
 AC_ARG_ENABLE([fill],
-  [AS_HELP_STRING([--enable-fill], [Support junk/zero filling option])],
+  [AS_HELP_STRING([--disable-fill], [Disable support for junk/zero filling])],
 [if test "x$enable_fill" = "xno" ; then
   enable_fill="0"
 else
   enable_fill="1"
 fi
 ],
-[enable_fill="0"]
+[enable_fill="1"]
 )
 if test "x$enable_fill" = "x1" ; then
   AC_DEFINE([JEMALLOC_FILL], [ ])
