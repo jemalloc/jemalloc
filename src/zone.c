@@ -133,22 +133,10 @@ zone_destroy(malloc_zone_t *zone)
 static size_t
 zone_good_size(malloc_zone_t *zone, size_t size)
 {
-	size_t ret;
-	void *p;
 
-	/*
-	 * Actually create an object of the appropriate size, then find out
-	 * how large it could have been without moving up to the next size
-	 * class.
-	 */
-	p = JEMALLOC_P(malloc)(size);
-	if (p != NULL) {
-		ret = isalloc(p);
-		JEMALLOC_P(free)(p);
-	} else
-		ret = size;
-
-	return (ret);
+	if (size == 0)
+		size = 1;
+	return (s2u(size));
 }
 
 static void
