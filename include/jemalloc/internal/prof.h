@@ -140,7 +140,7 @@ struct prof_tdata_s {
 	void			**vec;
 
 	/* Sampling state. */
-	uint64_t		prn_state;
+	uint64_t		prng_state;
 	uint64_t		threshold;
 	uint64_t		accum;
 };
@@ -245,7 +245,7 @@ bool	prof_boot2(void);
 		if (prof_tdata->threshold == 0) {			\
 			/* Initialize.  Seed the prng differently for */\
 			/* each thread.                               */\
-			prof_tdata->prn_state =				\
+			prof_tdata->prng_state =			\
 			    (uint64_t)(uintptr_t)&size;			\
 			prof_sample_threshold_update(prof_tdata);	\
 		}							\
@@ -307,7 +307,7 @@ prof_sample_threshold_update(prof_tdata_t *prof_tdata)
 	 *   pp 500
 	 *   (http://cg.scs.carleton.ca/~luc/rnbookindex.html)
 	 */
-	prn64(r, 53, prof_tdata->prn_state,
+	prng64(r, 53, prof_tdata->prng_state,
 	    (uint64_t)6364136223846793005LLU, (uint64_t)1442695040888963407LLU);
 	u = (double)r * (1.0/9007199254740992.0L);
 	prof_tdata->threshold = (uint64_t)(log(u) /

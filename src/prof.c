@@ -1170,7 +1170,7 @@ prof_tdata_init(void)
 		return (NULL);
 	}
 
-	prof_tdata->prn_state = 0;
+	prof_tdata->prng_state = 0;
 	prof_tdata->threshold = 0;
 	prof_tdata->accum = 0;
 

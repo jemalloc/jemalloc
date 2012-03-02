@@ -316,7 +316,7 @@ extern void	(*je_malloc_message)(void *wcbopaque, const char *s);
 	(((s) + PAGE_MASK) & ~PAGE_MASK)
 
 #include "jemalloc/internal/atomic.h"
-#include "jemalloc/internal/prn.h"
+#include "jemalloc/internal/prng.h"
 #include "jemalloc/internal/ckh.h"
 #include "jemalloc/internal/size_classes.h"
 #include "jemalloc/internal/stats.h"
@@ -342,7 +342,7 @@ extern void	(*je_malloc_message)(void *wcbopaque, const char *s);
 #define JEMALLOC_H_STRUCTS
 
 #include "jemalloc/internal/atomic.h"
-#include "jemalloc/internal/prn.h"
+#include "jemalloc/internal/prng.h"
 #include "jemalloc/internal/ckh.h"
 #include "jemalloc/internal/size_classes.h"
 #include "jemalloc/internal/stats.h"
@@ -445,7 +445,7 @@ void	jemalloc_prefork(void);
 void	jemalloc_postfork(void);
 
 #include "jemalloc/internal/atomic.h"
-#include "jemalloc/internal/prn.h"
+#include "jemalloc/internal/prng.h"
 #include "jemalloc/internal/ckh.h"
 #include "jemalloc/internal/size_classes.h"
 #include "jemalloc/internal/stats.h"
@@ -471,7 +471,7 @@ void	jemalloc_postfork(void);
 #define JEMALLOC_H_INLINES
 
 #include "jemalloc/internal/atomic.h"
-#include "jemalloc/internal/prn.h"
+#include "jemalloc/internal/prng.h"
 #include "jemalloc/internal/ckh.h"
 #include "jemalloc/internal/size_classes.h"
 #include "jemalloc/internal/stats.h"
