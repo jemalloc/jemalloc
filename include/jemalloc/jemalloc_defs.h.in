@@ -26,10 +26,10 @@
 #undef je_memalign
 #undef je_valloc
 #undef je_allocm
-#undef je_dallocm
-#undef je_nallocm
 #undef je_rallocm
 #undef je_sallocm
+#undef je_dallocm
+#undef je_nallocm
 
 /*
  * JEMALLOC_PRIVATE_NAMESPACE is used as a prefix for all library-private APIs.

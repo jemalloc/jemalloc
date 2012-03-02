@@ -88,10 +88,10 @@ int	je_nallocm(size_t *rsize, size_t size, int flags);
 #define	memalign je_memalign
 #define	valloc je_valloc
 #define	allocm je_allocm
-#define	dallocm je_dallocm
-#define	nallocm je_nallocm
 #define	rallocm je_rallocm
 #define	sallocm je_sallocm
+#define	dallocm je_dallocm
+#define	nallocm je_nallocm
 #endif
 
 /*
@@ -117,10 +117,10 @@ int	je_nallocm(size_t *rsize, size_t size, int flags);
 #undef je_memalign
 #undef je_valloc
 #undef je_allocm
-#undef je_dallocm
-#undef je_nallocm
 #undef je_rallocm
 #undef je_sallocm
+#undef je_dallocm
+#undef je_nallocm
 #endif
 
 #ifdef __cplusplus
