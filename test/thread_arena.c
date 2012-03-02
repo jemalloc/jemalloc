@@ -18,22 +18,22 @@ thread_start(void *arg)
 	size_t size;
 	int err;
 
-	p = JEMALLOC_P(malloc)(1);
+	p = malloc(1);
 	if (p == NULL) {
 		fprintf(stderr, "%s(): Error in malloc()\n", __func__);
 		return (void *)1;
 	}
 
 	size = sizeof(arena_ind);
-	if ((err = JEMALLOC_P(mallctl)("thread.arena", &arena_ind, &size,
-	    &main_arena_ind, sizeof(main_arena_ind)))) {
+	if ((err = mallctl("thread.arena", &arena_ind, &size, &main_arena_ind,
+	    sizeof(main_arena_ind)))) {
 		fprintf(stderr, "%s(): Error in mallctl(): %s\n", __func__,
 		    strerror(err));
 		return (void *)1;
 	}
 
 	size = sizeof(arena_ind);
-	if ((err = JEMALLOC_P(mallctl)("thread.arena", &arena_ind, &size, NULL,
+	if ((err = mallctl("thread.arena", &arena_ind, &size, NULL,
 	    0))) {
 		fprintf(stderr, "%s(): Error in mallctl(): %s\n", __func__,
 		    strerror(err));
@@ -57,7 +57,7 @@ main(void)
 
 	fprintf(stderr, "Test begin\n");
 
-	p = JEMALLOC_P(malloc)(1);
+	p = malloc(1);
 	if (p == NULL) {
 		fprintf(stderr, "%s(): Error in malloc()\n", __func__);
 		ret = 1;
@@ -65,8 +65,7 @@ main(void)
 	}
 
 	size = sizeof(arena_ind);
-	if ((err = JEMALLOC_P(mallctl)("thread.arena", &arena_ind, &size, NULL,
-	    0))) {
+	if ((err = mallctl("thread.arena", &arena_ind, &size, NULL, 0))) {
 		fprintf(stderr, "%s(): Error in mallctl(): %s\n", __func__,
 		    strerror(err));
 		ret = 1;

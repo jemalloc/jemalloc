@@ -36,7 +36,7 @@ size_t		lg_pagesize;
 unsigned	ncpus;
 
 /* Runtime configuration options. */
-const char	*JEMALLOC_P(malloc_conf) JEMALLOC_ATTR(visibility("default"));
+const char	*je_malloc_conf JEMALLOC_ATTR(visibility("default"));
 #ifdef JEMALLOC_DEBUG
 bool	opt_abort = true;
 #  ifdef JEMALLOC_FILL
@@ -81,7 +81,7 @@ wrtmessage(void *cbopaque, const char *s)
 	UNUSED int result = write(STDERR_FILENO, s, strlen(s));
 }
 
-void	(*JEMALLOC_P(malloc_message))(void *, const char *s)
+void	(*je_malloc_message)(void *, const char *s)
     JEMALLOC_ATTR(visibility("default")) = wrtmessage;
 
 /******************************************************************************/
@@ -230,7 +230,7 @@ stats_print_atexit(void)
 			}
 		}
 	}
-	JEMALLOC_P(malloc_stats_print)(NULL, NULL, NULL);
+	je_malloc_stats_print(NULL, NULL, NULL);
 }
 
 thread_allocated_t *
@@ -422,12 +422,12 @@ malloc_conf_init(void)
 		/* Get runtime configuration. */
 		switch (i) {
 		case 0:
-			if (JEMALLOC_P(malloc_conf) != NULL) {
+			if (je_malloc_conf != NULL) {
 				/*
 				 * Use options that were compiled into the
 				 * program.
 				 */
-				opts = JEMALLOC_P(malloc_conf);
+				opts = je_malloc_conf;
 			} else {
 				/* No configuration specified. */
 				buf[0] = '\0';
@@ -836,7 +836,7 @@ jemalloc_darwin_init(void)
 JEMALLOC_ATTR(malloc)
 JEMALLOC_ATTR(visibility("default"))
 void *
-JEMALLOC_P(malloc)(size_t size)
+je_malloc(size_t size)
 {
 	void *ret;
 	size_t usize;
@@ -990,7 +990,7 @@ RETURN:
 JEMALLOC_ATTR(nonnull(1))
 JEMALLOC_ATTR(visibility("default"))
 int
-JEMALLOC_P(posix_memalign)(void **memptr, size_t alignment, size_t size)
+je_posix_memalign(void **memptr, size_t alignment, size_t size)
 {
 
 	return imemalign(memptr, alignment, size, true);
@@ -999,7 +999,7 @@ JEMALLOC_P(posix_memalign)(void **memptr, size_t alignment, size_t size)
 JEMALLOC_ATTR(malloc)
 JEMALLOC_ATTR(visibility("default"))
 void *
-JEMALLOC_P(calloc)(size_t num, size_t size)
+je_calloc(size_t num, size_t size)
 {
 	void *ret;
 	size_t num_size;
@@ -1077,7 +1077,7 @@ RETURN:
 
 JEMALLOC_ATTR(visibility("default"))
 void *
-JEMALLOC_P(realloc)(void *ptr, size_t size)
+je_realloc(void *ptr, size_t size)
 {
 	void *ret;
 	size_t usize;
@@ -1207,7 +1207,7 @@ RETURN:
 
 JEMALLOC_ATTR(visibility("default"))
 void
-JEMALLOC_P(free)(void *ptr)
+je_free(void *ptr)
 {
 
 	if (ptr != NULL) {
@@ -1234,17 +1234,13 @@ JEMALLOC_P(free)(void *ptr)
 /******************************************************************************/
 /*
  * Begin non-standard override functions.
- *
- * These overrides are omitted if the JEMALLOC_PREFIX is defined, since the
- * entire point is to avoid accidental mixed allocator usage.
  */
-#ifndef JEMALLOC_PREFIX
 
 #ifdef JEMALLOC_OVERRIDE_MEMALIGN
 JEMALLOC_ATTR(malloc)
 JEMALLOC_ATTR(visibility("default"))
 void *
-JEMALLOC_P(memalign)(size_t alignment, size_t size)
+je_memalign(size_t alignment, size_t size)
 {
 	void *ret
 #ifdef JEMALLOC_CC_SILENCE
@@ -1260,7 +1256,7 @@ JEMALLOC_P(memalign)(size_t alignment, size_t size)
 JEMALLOC_ATTR(malloc)
 JEMALLOC_ATTR(visibility("default"))
 void *
-JEMALLOC_P(valloc)(size_t size)
+je_valloc(size_t size)
 {
 	void *ret
 #ifdef JEMALLOC_CC_SILENCE
@@ -1272,7 +1268,7 @@ JEMALLOC_P(valloc)(size_t size)
 }
 #endif
 
-#if defined(__GLIBC__) && !defined(__UCLIBC__)
+#if (!defined(JEMALLOC_PREFIX) && defined(__GLIBC__) && !defined(__UCLIBC__))
 /*
  * glibc provides the RTLD_DEEPBIND flag for dlopen which can make it possible
  * to inconsistently reference libc's malloc(3)-compatible functions
@@ -1283,20 +1279,18 @@ JEMALLOC_P(valloc)(size_t size)
  * ignored.
  */
 JEMALLOC_ATTR(visibility("default"))
-void (* const __free_hook)(void *ptr) = JEMALLOC_P(free);
+void (* const __free_hook)(void *ptr) = je_free;
 
 JEMALLOC_ATTR(visibility("default"))
-void *(* const __malloc_hook)(size_t size) = JEMALLOC_P(malloc);
+void *(* const __malloc_hook)(size_t size) = je_malloc;
 
 JEMALLOC_ATTR(visibility("default"))
-void *(* const __realloc_hook)(void *ptr, size_t size) = JEMALLOC_P(realloc);
+void *(* const __realloc_hook)(void *ptr, size_t size) = je_realloc;
 
 JEMALLOC_ATTR(visibility("default"))
-void *(* const __memalign_hook)(size_t alignment, size_t size) =
-    JEMALLOC_P(memalign);
+void *(* const __memalign_hook)(size_t alignment, size_t size) = je_memalign;
 #endif
 
-#endif /* JEMALLOC_PREFIX */
 /*
  * End non-standard override functions.
  */
@@ -1307,7 +1301,7 @@ void *(* const __memalign_hook)(size_t alignment, size_t size) =
 
 JEMALLOC_ATTR(visibility("default"))
 size_t
-JEMALLOC_P(malloc_usable_size)(const void *ptr)
+je_malloc_usable_size(const void *ptr)
 {
 	size_t ret;
 
@@ -1325,8 +1319,8 @@ JEMALLOC_P(malloc_usable_size)(const void *ptr)
 
 JEMALLOC_ATTR(visibility("default"))
 void
-JEMALLOC_P(malloc_stats_print)(void (*write_cb)(void *, const char *),
-    void *cbopaque, const char *opts)
+je_malloc_stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
+    const char *opts)
 {
 
 	stats_print(write_cb, cbopaque, opts);
@@ -1334,7 +1328,7 @@ JEMALLOC_P(malloc_stats_print)(void (*write_cb)(void *, const char *),
 
 JEMALLOC_ATTR(visibility("default"))
 int
-JEMALLOC_P(mallctl)(const char *name, void *oldp, size_t *oldlenp, void *newp,
+je_mallctl(const char *name, void *oldp, size_t *oldlenp, void *newp,
     size_t newlen)
 {
 
@@ -1346,7 +1340,7 @@ JEMALLOC_P(mallctl)(const char *name, void *oldp, size_t *oldlenp, void *newp,
 
 JEMALLOC_ATTR(visibility("default"))
 int
-JEMALLOC_P(mallctlnametomib)(const char *name, size_t *mibp, size_t *miblenp)
+je_mallctlnametomib(const char *name, size_t *mibp, size_t *miblenp)
 {
 
 	if (malloc_init())
@@ -1357,8 +1351,8 @@ JEMALLOC_P(mallctlnametomib)(const char *name, size_t *mibp, size_t *miblenp)
 
 JEMALLOC_ATTR(visibility("default"))
 int
-JEMALLOC_P(mallctlbymib)(const size_t *mib, size_t miblen, void *oldp,
-    size_t *oldlenp, void *newp, size_t newlen)
+je_mallctlbymib(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
+  void *newp, size_t newlen)
 {
 
 	if (malloc_init())
@@ -1385,7 +1379,7 @@ iallocm(size_t usize, size_t alignment, bool zero)
 JEMALLOC_ATTR(nonnull(1))
 JEMALLOC_ATTR(visibility("default"))
 int
-JEMALLOC_P(allocm)(void **ptr, size_t *rsize, size_t size, int flags)
+je_allocm(void **ptr, size_t *rsize, size_t size, int flags)
 {
 	void *p;
 	size_t usize;
@@ -1451,8 +1445,7 @@ OOM:
 JEMALLOC_ATTR(nonnull(1))
 JEMALLOC_ATTR(visibility("default"))
 int
-JEMALLOC_P(rallocm)(void **ptr, size_t *rsize, size_t size, size_t extra,
-    int flags)
+je_rallocm(void **ptr, size_t *rsize, size_t size, size_t extra, int flags)
 {
 	void *p, *q;
 	size_t usize;
@@ -1544,7 +1537,7 @@ OOM:
 JEMALLOC_ATTR(nonnull(1))
 JEMALLOC_ATTR(visibility("default"))
 int
-JEMALLOC_P(sallocm)(const void *ptr, size_t *rsize, int flags)
+je_sallocm(const void *ptr, size_t *rsize, int flags)
 {
 	size_t sz;
 
@@ -1565,7 +1558,7 @@ JEMALLOC_P(sallocm)(const void *ptr, size_t *rsize, int flags)
 JEMALLOC_ATTR(nonnull(1))
 JEMALLOC_ATTR(visibility("default"))
 int
-JEMALLOC_P(dallocm)(void *ptr, int flags)
+je_dallocm(void *ptr, int flags)
 {
 	size_t usize;
 
@@ -1588,7 +1581,7 @@ JEMALLOC_P(dallocm)(void *ptr, int flags)
 
 JEMALLOC_ATTR(visibility("default"))
 int
-JEMALLOC_P(nallocm)(size_t *rsize, size_t size, int flags)
+je_nallocm(size_t *rsize, size_t size, int flags)
 {
 	size_t usize;
 	size_t alignment = (ZU(1) << (flags & ALLOCM_LG_ALIGN_MASK)

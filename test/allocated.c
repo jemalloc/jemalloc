@@ -20,8 +20,7 @@ thread_start(void *arg)
 	size_t sz, usize;
 
 	sz = sizeof(a0);
-	if ((err = JEMALLOC_P(mallctl)("thread.allocated", &a0, &sz, NULL,
-	    0))) {
+	if ((err = mallctl("thread.allocated", &a0, &sz, NULL, 0))) {
 		if (err == ENOENT) {
 #ifdef JEMALLOC_STATS
 			assert(false);
@@ -33,8 +32,7 @@ thread_start(void *arg)
 		exit(1);
 	}
 	sz = sizeof(ap0);
-	if ((err = JEMALLOC_P(mallctl)("thread.allocatedp", &ap0, &sz, NULL,
-	    0))) {
+	if ((err = mallctl("thread.allocatedp", &ap0, &sz, NULL, 0))) {
 		if (err == ENOENT) {
 #ifdef JEMALLOC_STATS
 			assert(false);
@@ -48,8 +46,7 @@ thread_start(void *arg)
 	assert(*ap0 == a0);
 
 	sz = sizeof(d0);
-	if ((err = JEMALLOC_P(mallctl)("thread.deallocated", &d0, &sz, NULL,
-	    0))) {
+	if ((err = mallctl("thread.deallocated", &d0, &sz, NULL, 0))) {
 		if (err == ENOENT) {
 #ifdef JEMALLOC_STATS
 			assert(false);
@@ -61,8 +58,7 @@ thread_start(void *arg)
 		exit(1);
 	}
 	sz = sizeof(dp0);
-	if ((err = JEMALLOC_P(mallctl)("thread.deallocatedp", &dp0, &sz, NULL,
-	    0))) {
+	if ((err = mallctl("thread.deallocatedp", &dp0, &sz, NULL, 0))) {
 		if (err == ENOENT) {
 #ifdef JEMALLOC_STATS
 			assert(false);
@@ -75,28 +71,28 @@ thread_start(void *arg)
 	}
 	assert(*dp0 == d0);
 
-	p = JEMALLOC_P(malloc)(1);
+	p = malloc(1);
 	if (p == NULL) {
 		fprintf(stderr, "%s(): Error in malloc()\n", __func__);
 		exit(1);
 	}
 
 	sz = sizeof(a1);
-	JEMALLOC_P(mallctl)("thread.allocated", &a1, &sz, NULL, 0);
+	mallctl("thread.allocated", &a1, &sz, NULL, 0);
 	sz = sizeof(ap1);
-	JEMALLOC_P(mallctl)("thread.allocatedp", &ap1, &sz, NULL, 0);
+	mallctl("thread.allocatedp", &ap1, &sz, NULL, 0);
 	assert(*ap1 == a1);
 	assert(ap0 == ap1);
 
-	usize = JEMALLOC_P(malloc_usable_size)(p);
+	usize = malloc_usable_size(p);
 	assert(a0 + usize <= a1);
 
-	JEMALLOC_P(free)(p);
+	free(p);
 
 	sz = sizeof(d1);
-	JEMALLOC_P(mallctl)("thread.deallocated", &d1, &sz, NULL, 0);
+	mallctl("thread.deallocated", &d1, &sz, NULL, 0);
 	sz = sizeof(dp1);
-	JEMALLOC_P(mallctl)("thread.deallocatedp", &dp1, &sz, NULL, 0);
+	mallctl("thread.deallocatedp", &dp1, &sz, NULL, 0);
 	assert(*dp1 == d1);
 	assert(dp0 == dp1);
 

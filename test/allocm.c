@@ -23,13 +23,13 @@ main(void)
 
 	sz = 42;
 	nsz = 0;
-	r = JEMALLOC_P(nallocm)(&nsz, sz, 0);
+	r = nallocm(&nsz, sz, 0);
 	if (r != ALLOCM_SUCCESS) {
 		fprintf(stderr, "Unexpected nallocm() error\n");
 		abort();
 	}
 	rsz = 0;
-	r = JEMALLOC_P(allocm)(&p, &rsz, sz, 0);
+	r = allocm(&p, &rsz, sz, 0);
 	if (r != ALLOCM_SUCCESS) {
 		fprintf(stderr, "Unexpected allocm() error\n");
 		abort();
@@ -38,32 +38,32 @@ main(void)
 		fprintf(stderr, "Real size smaller than expected\n");
 	if (nsz != rsz)
 		fprintf(stderr, "nallocm()/allocm() rsize mismatch\n");
-	if (JEMALLOC_P(dallocm)(p, 0) != ALLOCM_SUCCESS)
+	if (dallocm(p, 0) != ALLOCM_SUCCESS)
 		fprintf(stderr, "Unexpected dallocm() error\n");
 
-	r = JEMALLOC_P(allocm)(&p, NULL, sz, 0);
+	r = allocm(&p, NULL, sz, 0);
 	if (r != ALLOCM_SUCCESS) {
 		fprintf(stderr, "Unexpected allocm() error\n");
 		abort();
 	}
-	if (JEMALLOC_P(dallocm)(p, 0) != ALLOCM_SUCCESS)
+	if (dallocm(p, 0) != ALLOCM_SUCCESS)
 		fprintf(stderr, "Unexpected dallocm() error\n");
 
 	nsz = 0;
-	r = JEMALLOC_P(nallocm)(&nsz, sz, ALLOCM_ZERO);
+	r = nallocm(&nsz, sz, ALLOCM_ZERO);
 	if (r != ALLOCM_SUCCESS) {
 		fprintf(stderr, "Unexpected nallocm() error\n");
 		abort();
 	}
 	rsz = 0;
-	r = JEMALLOC_P(allocm)(&p, &rsz, sz, ALLOCM_ZERO);
+	r = allocm(&p, &rsz, sz, ALLOCM_ZERO);
 	if (r != ALLOCM_SUCCESS) {
 		fprintf(stderr, "Unexpected allocm() error\n");
 		abort();
 	}
 	if (nsz != rsz)
 		fprintf(stderr, "nallocm()/allocm() rsize mismatch\n");
-	if (JEMALLOC_P(dallocm)(p, 0) != ALLOCM_SUCCESS)
+	if (dallocm(p, 0) != ALLOCM_SUCCESS)
 		fprintf(stderr, "Unexpected dallocm() error\n");
 
 #if LG_SIZEOF_PTR == 3
@@ -74,14 +74,14 @@ main(void)
 	sz        = 0x80000000LU;
 #endif
 	nsz = 0;
-	r = JEMALLOC_P(nallocm)(&nsz, sz, ALLOCM_ALIGN(alignment));
+	r = nallocm(&nsz, sz, ALLOCM_ALIGN(alignment));
 	if (r == ALLOCM_SUCCESS) {
 		fprintf(stderr,
 		    "Expected error for nallocm(&nsz, %zu, 0x%x)\n",
 		    sz, ALLOCM_ALIGN(alignment));
 	}
 	rsz = 0;
-	r = JEMALLOC_P(allocm)(&p, &rsz, sz, ALLOCM_ALIGN(alignment));
+	r = allocm(&p, &rsz, sz, ALLOCM_ALIGN(alignment));
 	if (r == ALLOCM_SUCCESS) {
 		fprintf(stderr,
 		    "Expected error for allocm(&p, %zu, 0x%x)\n",
@@ -98,11 +98,11 @@ main(void)
 	sz        = 0x84000001LU;
 #endif
 	nsz = 0;
-	r = JEMALLOC_P(nallocm)(&nsz, sz, ALLOCM_ALIGN(alignment));
+	r = nallocm(&nsz, sz, ALLOCM_ALIGN(alignment));
 	if (r != ALLOCM_SUCCESS)
 		fprintf(stderr, "Unexpected nallocm() error\n");
 	rsz = 0;
-	r = JEMALLOC_P(allocm)(&p, &rsz, sz, ALLOCM_ALIGN(alignment));
+	r = allocm(&p, &rsz, sz, ALLOCM_ALIGN(alignment));
 	if (r == ALLOCM_SUCCESS) {
 		fprintf(stderr,
 		    "Expected error for allocm(&p, %zu, 0x%x)\n",
@@ -116,14 +116,14 @@ main(void)
 	sz   = 0xfffffff0LU;
 #endif
 	nsz = 0;
-	r = JEMALLOC_P(nallocm)(&nsz, sz, ALLOCM_ALIGN(alignment));
+	r = nallocm(&nsz, sz, ALLOCM_ALIGN(alignment));
 	if (r == ALLOCM_SUCCESS) {
 		fprintf(stderr,
 		    "Expected error for nallocm(&nsz, %zu, 0x%x)\n",
 		    sz, ALLOCM_ALIGN(alignment));
 	}
 	rsz = 0;
-	r = JEMALLOC_P(allocm)(&p, &rsz, sz, ALLOCM_ALIGN(alignment));
+	r = allocm(&p, &rsz, sz, ALLOCM_ALIGN(alignment));
 	if (r == ALLOCM_SUCCESS) {
 		fprintf(stderr,
 		    "Expected error for allocm(&p, %zu, 0x%x)\n",
@@ -145,7 +145,7 @@ main(void)
 		    sz += (alignment >> (LG_SIZEOF_PTR-1)) - 1) {
 			for (i = 0; i < NITER; i++) {
 				nsz = 0;
-				r = JEMALLOC_P(nallocm)(&nsz, sz,
+				r = nallocm(&nsz, sz,
 				    ALLOCM_ALIGN(alignment) | ALLOCM_ZERO);
 				if (r != ALLOCM_SUCCESS) {
 					fprintf(stderr,
@@ -155,7 +155,7 @@ main(void)
 					exit(1);
 				}
 				rsz = 0;
-				r = JEMALLOC_P(allocm)(&ps[i], &rsz, sz,
+				r = allocm(&ps[i], &rsz, sz,
 				    ALLOCM_ALIGN(alignment) | ALLOCM_ZERO);
 				if (r != ALLOCM_SUCCESS) {
 					fprintf(stderr,
@@ -179,14 +179,14 @@ main(void)
 					    "%p inadequately aligned for"
 					    " alignment: %zu\n", p, alignment);
 				}
-				JEMALLOC_P(sallocm)(ps[i], &rsz, 0);
+				sallocm(ps[i], &rsz, 0);
 				total += rsz;
 				if (total >= (MAXALIGN << 1))
 					break;
 			}
 			for (i = 0; i < NITER; i++) {
 				if (ps[i] != NULL) {
-					JEMALLOC_P(dallocm)(ps[i], 0);
+					dallocm(ps[i], 0);
 					ps[i] = NULL;
 				}
 			}

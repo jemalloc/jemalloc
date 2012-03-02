@@ -67,14 +67,14 @@ static void *
 zone_malloc(malloc_zone_t *zone, size_t size)
 {
 
-	return (JEMALLOC_P(malloc)(size));
+	return (je_malloc(size));
 }
 
 static void *
 zone_calloc(malloc_zone_t *zone, size_t num, size_t size)
 {
 
-	return (JEMALLOC_P(calloc)(num, size));
+	return (je_calloc(num, size));
 }
 
 static void *
@@ -82,7 +82,7 @@ zone_valloc(malloc_zone_t *zone, size_t size)
 {
 	void *ret = NULL; /* Assignment avoids useless compiler warning. */
 
-	JEMALLOC_P(posix_memalign)(&ret, PAGE_SIZE, size);
+	je_posix_memalign(&ret, PAGE_SIZE, size);
 
 	return (ret);
 }
@@ -91,14 +91,14 @@ static void
 zone_free(malloc_zone_t *zone, void *ptr)
 {
 
-	JEMALLOC_P(free)(ptr);
+	je_free(ptr);
 }
 
 static void *
 zone_realloc(malloc_zone_t *zone, void *ptr, size_t size)
 {
 
-	return (JEMALLOC_P(realloc)(ptr, size));
+	return (je_realloc(ptr, size));
 }
 
 #if (JEMALLOC_ZONE_VERSION >= 6)
@@ -107,7 +107,7 @@ zone_memalign(malloc_zone_t *zone, size_t alignment, size_t size)
 {
 	void *ret = NULL; /* Assignment avoids useless compiler warning. */
 
-	JEMALLOC_P(posix_memalign)(&ret, alignment, size);
+	je_posix_memalign(&ret, alignment, size);
 
 	return (ret);
 }
@@ -117,7 +117,7 @@ zone_free_definite_size(malloc_zone_t *zone, void *ptr, size_t size)
 {
 
 	assert(ivsalloc(ptr) == size);
-	JEMALLOC_P(free)(ptr);
+	je_free(ptr);
 }
 #endif
 
@@ -208,7 +208,7 @@ ozone_free(malloc_zone_t *zone, void *ptr)
 {
 
 	if (ivsalloc(ptr) != 0)
-		JEMALLOC_P(free)(ptr);
+		je_free(ptr);
 	else {
 		size_t size = szone.size(zone, ptr);
 		if (size != 0)
@@ -222,17 +222,17 @@ ozone_realloc(malloc_zone_t *zone, void *ptr, size_t size)
 	size_t oldsize;
 
 	if (ptr == NULL)
-		return (JEMALLOC_P(malloc)(size));
+		return (je_malloc(size));
 
 	oldsize = ivsalloc(ptr);
 	if (oldsize != 0)
-		return (JEMALLOC_P(realloc)(ptr, size));
+		return (je_realloc(ptr, size));
 	else {
 		oldsize = szone.size(zone, ptr);
 		if (oldsize == 0)
-			return (JEMALLOC_P(malloc)(size));
+			return (je_malloc(size));
 		else {
-			void *ret = JEMALLOC_P(malloc)(size);
+			void *ret = je_malloc(size);
 			if (ret != NULL) {
 				memcpy(ret, ptr, (oldsize < size) ? oldsize :
 				    size);
@@ -268,7 +268,7 @@ ozone_free_definite_size(malloc_zone_t *zone, void *ptr, size_t size)
 
 	if (ivsalloc(ptr) != 0) {
 		assert(ivsalloc(ptr) == size);
-		JEMALLOC_P(free)(ptr);
+		je_free(ptr);
 	} else {
 		assert(size == szone.size(zone, ptr));
 		szone.free_definite_size(zone, ptr, size);

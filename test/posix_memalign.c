@@ -24,7 +24,7 @@ main(void)
 
 	/* Test error conditions. */
 	for (alignment = 0; alignment < sizeof(void *); alignment++) {
-		err = JEMALLOC_P(posix_memalign)(&p, alignment, 1);
+		err = posix_memalign(&p, alignment, 1);
 		if (err != EINVAL) {
 			fprintf(stderr,
 			    "Expected error for invalid alignment %zu\n",
@@ -34,7 +34,7 @@ main(void)
 
 	for (alignment = sizeof(size_t); alignment < MAXALIGN;
 	    alignment <<= 1) {
-		err = JEMALLOC_P(posix_memalign)(&p, alignment + 1, 1);
+		err = posix_memalign(&p, alignment + 1, 1);
 		if (err == 0) {
 			fprintf(stderr,
 			    "Expected error for invalid alignment %zu\n",
@@ -49,7 +49,7 @@ main(void)
 	alignment = 0x80000000LU;
 	size      = 0x80000000LU;
 #endif
-	err = JEMALLOC_P(posix_memalign)(&p, alignment, size);
+	err = posix_memalign(&p, alignment, size);
 	if (err == 0) {
 		fprintf(stderr,
 		    "Expected error for posix_memalign(&p, %zu, %zu)\n",
@@ -63,7 +63,7 @@ main(void)
 	alignment = 0x40000000LU;
 	size      = 0x84000001LU;
 #endif
-	err = JEMALLOC_P(posix_memalign)(&p, alignment, size);
+	err = posix_memalign(&p, alignment, size);
 	if (err == 0) {
 		fprintf(stderr,
 		    "Expected error for posix_memalign(&p, %zu, %zu)\n",
@@ -76,7 +76,7 @@ main(void)
 #else
 	size = 0xfffffff0LU;
 #endif
-	err = JEMALLOC_P(posix_memalign)(&p, alignment, size);
+	err = posix_memalign(&p, alignment, size);
 	if (err == 0) {
 		fprintf(stderr,
 		    "Expected error for posix_memalign(&p, %zu, %zu)\n",
@@ -95,7 +95,7 @@ main(void)
 		    size < 3 * alignment && size < (1U << 31);
 		    size += (alignment >> (LG_SIZEOF_PTR-1)) - 1) {
 			for (i = 0; i < NITER; i++) {
-				err = JEMALLOC_P(posix_memalign)(&ps[i],
+				err = posix_memalign(&ps[i],
 				    alignment, size);
 				if (err) {
 					fprintf(stderr,
@@ -103,13 +103,13 @@ main(void)
 					    size, size, strerror(err));
 					exit(1);
 				}
-				total += JEMALLOC_P(malloc_usable_size)(ps[i]);
+				total += malloc_usable_size(ps[i]);
 				if (total >= (MAXALIGN << 1))
 					break;
 			}
 			for (i = 0; i < NITER; i++) {
 				if (ps[i] != NULL) {
-					JEMALLOC_P(free)(ps[i]);
+					free(ps[i]);
 					ps[i] = NULL;
 				}
 			}

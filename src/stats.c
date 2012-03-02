@@ -108,7 +108,7 @@ malloc_vcprintf(void (*write_cb)(void *, const char *), void *cbopaque,
 		 * function, so use the default one.  malloc_write() is an
 		 * inline function, so use malloc_message() directly here.
 		 */
-		write_cb = JEMALLOC_P(malloc_message);
+		write_cb = je_malloc_message;
 		cbopaque = NULL;
 	}
 
@@ -376,8 +376,7 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 	 * */
 	epoch = 1;
 	u64sz = sizeof(uint64_t);
-	err = JEMALLOC_P(mallctl)("epoch", &epoch, &u64sz, &epoch,
-	    sizeof(uint64_t));
+	err = je_mallctl("epoch", &epoch, &u64sz, &epoch, sizeof(uint64_t));
 	if (err != 0) {
 		if (err == EAGAIN) {
 			malloc_write("<jemalloc>: Memory allocation failure in "
@@ -395,7 +394,7 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		 * function, so use the default one.  malloc_write() is an
 		 * inline function, so use malloc_message() directly here.
 		 */
-		write_cb = JEMALLOC_P(malloc_message);
+		write_cb = je_malloc_message;
 		cbopaque = NULL;
 	}
 
@@ -448,22 +447,22 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		write_cb(cbopaque, "\n");
 
 #define OPT_WRITE_BOOL(n)						\
-		if ((err = JEMALLOC_P(mallctl)("opt."#n, &bv, &bsz,	\
-		    NULL, 0)) == 0) {					\
+		if ((err = je_mallctl("opt."#n, &bv, &bsz, NULL, 0))	\
+		    == 0) {						\
 			write_cb(cbopaque, "  opt."#n": ");		\
 			write_cb(cbopaque, bv ? "true" : "false");	\
 			write_cb(cbopaque, "\n");			\
 		}
 #define OPT_WRITE_SIZE_T(n)						\
-		if ((err = JEMALLOC_P(mallctl)("opt."#n, &sv, &ssz,	\
-		    NULL, 0)) == 0) {					\
+		if ((err = je_mallctl("opt."#n, &sv, &ssz, NULL, 0))	\
+		    == 0) {						\
 			write_cb(cbopaque, "  opt."#n": ");		\
 			write_cb(cbopaque, u2s(sv, 10, s));		\
 			write_cb(cbopaque, "\n");			\
 		}
 #define OPT_WRITE_SSIZE_T(n)						\
-		if ((err = JEMALLOC_P(mallctl)("opt."#n, &ssv, &sssz,	\
-		    NULL, 0)) == 0) {					\
+		if ((err = je_mallctl("opt."#n, &ssv, &sssz, NULL, 0))	\
+		    == 0) {						\
 			if (ssv >= 0) {					\
 				write_cb(cbopaque, "  opt."#n": ");	\
 				write_cb(cbopaque, u2s(ssv, 10, s));	\
@@ -474,8 +473,8 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 			write_cb(cbopaque, "\n");			\
 		}
 #define OPT_WRITE_CHAR_P(n)						\
-		if ((err = JEMALLOC_P(mallctl)("opt."#n, &cpv, &cpsz,	\
-		    NULL, 0)) == 0) {					\
+		if ((err = je_mallctl("opt."#n, &cpv, &cpsz, NULL, 0))	\
+		    == 0) {						\
 			write_cb(cbopaque, "  opt."#n": \"");		\
 			write_cb(cbopaque, cpv);			\
 			write_cb(cbopaque, "\"\n");			\
@@ -535,15 +534,15 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 			write_cb(cbopaque,
 			    "Min active:dirty page ratio per arena: N/A\n");
 		}
-		if ((err = JEMALLOC_P(mallctl)("arenas.tcache_max", &sv,
-		    &ssz, NULL, 0)) == 0) {
+		if ((err = je_mallctl("arenas.tcache_max", &sv, &ssz, NULL, 0))
+		    == 0) {
 			write_cb(cbopaque,
 			    "Maximum thread-cached size class: ");
 			write_cb(cbopaque, u2s(sv, 10, s));
 			write_cb(cbopaque, "\n");
 		}
-		if ((err = JEMALLOC_P(mallctl)("opt.lg_tcache_gc_sweep", &ssv,
-		    &ssz, NULL, 0)) == 0) {
+		if ((err = je_mallctl("opt.lg_tcache_gc_sweep", &ssv, &ssz,
+		    NULL, 0)) == 0) {
 			size_t tcache_gc_sweep = (1U << ssv);
 			bool tcache_enabled;
 			CTL_GET("opt.tcache", &tcache_enabled, bool);
@@ -552,8 +551,8 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 			    u2s(tcache_gc_sweep, 10, s) : "N/A");
 			write_cb(cbopaque, "\n");
 		}
-		if ((err = JEMALLOC_P(mallctl)("opt.prof", &bv, &bsz, NULL, 0))
-		   == 0 && bv) {
+		if ((err = je_mallctl("opt.prof", &bv, &bsz, NULL, 0)) == 0 &&
+		    bv) {
 			CTL_GET("opt.lg_prof_sample", &sv, size_t);
 			write_cb(cbopaque, "Average profile sample interval: ");
 			write_cb(cbopaque, u2s((((uint64_t)1U) << sv), 10, s));

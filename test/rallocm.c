@@ -24,14 +24,14 @@ main(void)
 		pagesize = (size_t)result;
 	}
 
-	r = JEMALLOC_P(allocm)(&p, &sz, 42, 0);
+	r = allocm(&p, &sz, 42, 0);
 	if (r != ALLOCM_SUCCESS) {
 		fprintf(stderr, "Unexpected allocm() error\n");
 		abort();
 	}
 
 	q = p;
-	r = JEMALLOC_P(rallocm)(&q, &tsz, sz, 0, ALLOCM_NO_MOVE);
+	r = rallocm(&q, &tsz, sz, 0, ALLOCM_NO_MOVE);
 	if (r != ALLOCM_SUCCESS)
 		fprintf(stderr, "Unexpected rallocm() error\n");
 	if (q != p)
@@ -42,7 +42,7 @@ main(void)
 	}
 
 	q = p;
-	r = JEMALLOC_P(rallocm)(&q, &tsz, sz, 5, ALLOCM_NO_MOVE);
+	r = rallocm(&q, &tsz, sz, 5, ALLOCM_NO_MOVE);
 	if (r != ALLOCM_SUCCESS)
 		fprintf(stderr, "Unexpected rallocm() error\n");
 	if (q != p)
@@ -53,7 +53,7 @@ main(void)
 	}
 
 	q = p;
-	r = JEMALLOC_P(rallocm)(&q, &tsz, sz + 5, 0, ALLOCM_NO_MOVE);
+	r = rallocm(&q, &tsz, sz + 5, 0, ALLOCM_NO_MOVE);
 	if (r != ALLOCM_ERR_NOT_MOVED)
 		fprintf(stderr, "Unexpected rallocm() result\n");
 	if (q != p)
@@ -64,7 +64,7 @@ main(void)
 	}
 
 	q = p;
-	r = JEMALLOC_P(rallocm)(&q, &tsz, sz + 5, 0, 0);
+	r = rallocm(&q, &tsz, sz + 5, 0, 0);
 	if (r != ALLOCM_SUCCESS)
 		fprintf(stderr, "Unexpected rallocm() error\n");
 	if (q == p)
@@ -76,7 +76,7 @@ main(void)
 	p = q;
 	sz = tsz;
 
-	r = JEMALLOC_P(rallocm)(&q, &tsz, pagesize*2, 0, 0);
+	r = rallocm(&q, &tsz, pagesize*2, 0, 0);
 	if (r != ALLOCM_SUCCESS)
 		fprintf(stderr, "Unexpected rallocm() error\n");
 	if (q == p)
@@ -88,7 +88,7 @@ main(void)
 	p = q;
 	sz = tsz;
 
-	r = JEMALLOC_P(rallocm)(&q, &tsz, pagesize*4, 0, 0);
+	r = rallocm(&q, &tsz, pagesize*4, 0, 0);
 	if (r != ALLOCM_SUCCESS)
 		fprintf(stderr, "Unexpected rallocm() error\n");
 	if (tsz == sz) {
@@ -98,7 +98,7 @@ main(void)
 	p = q;
 	sz = tsz;
 
-	r = JEMALLOC_P(rallocm)(&q, &tsz, pagesize*2, 0, ALLOCM_NO_MOVE);
+	r = rallocm(&q, &tsz, pagesize*2, 0, ALLOCM_NO_MOVE);
 	if (r != ALLOCM_SUCCESS)
 		fprintf(stderr, "Unexpected rallocm() error\n");
 	if (q != p)
@@ -109,7 +109,7 @@ main(void)
 	}
 	sz = tsz;
 
-	r = JEMALLOC_P(rallocm)(&q, &tsz, pagesize*4, 0, ALLOCM_NO_MOVE);
+	r = rallocm(&q, &tsz, pagesize*4, 0, ALLOCM_NO_MOVE);
 	if (r != ALLOCM_SUCCESS)
 		fprintf(stderr, "Unexpected rallocm() error\n");
 	if (q != p)
@@ -120,7 +120,7 @@ main(void)
 	}
 	sz = tsz;
 
-	JEMALLOC_P(dallocm)(p, 0);
+	dallocm(p, 0);
 
 	fprintf(stderr, "Test end\n");
 	return (0);

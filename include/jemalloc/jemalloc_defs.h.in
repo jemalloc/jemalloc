@@ -1,22 +1,35 @@
-#ifndef JEMALLOC_DEFS_H_
-#define	JEMALLOC_DEFS_H_
-
 /*
- * If JEMALLOC_PREFIX is defined, it will cause all public APIs to be prefixed.
- * This makes it possible, with some care, to use multiple allocators
- * simultaneously.
- *
- * In many cases it is more convenient to manually prefix allocator function
- * calls than to let macros do it automatically, particularly when using
- * multiple allocators simultaneously.  Define JEMALLOC_MANGLE before
- * #include'ing jemalloc.h in order to cause name mangling that corresponds to
- * the API prefixing.
+ * If JEMALLOC_PREFIX is defined via --with-jemalloc-prefix, it will cause all
+ * public APIs to be prefixed.  This makes it possible, with some care, to use
+ * multiple allocators simultaneously.
  */
 #undef JEMALLOC_PREFIX
 #undef JEMALLOC_CPREFIX
-#if (defined(JEMALLOC_PREFIX) && defined(JEMALLOC_MANGLE))
-#undef JEMALLOC_P
-#endif
+
+/*
+ * Name mangling for public symbols is controlled by --with-mangling and
+ * --with-jemalloc-prefix.  With default settings the je_ prefix is stripped by
+ * these macro definitions.
+ */
+#undef je_malloc_conf
+#undef je_malloc_message
+#undef je_malloc
+#undef je_calloc
+#undef je_posix_memalign
+#undef je_realloc
+#undef je_free
+#undef je_malloc_usable_size
+#undef je_malloc_stats_print
+#undef je_mallctl
+#undef je_mallctlnametomib
+#undef je_mallctlbymib
+#undef je_memalign
+#undef je_valloc
+#undef je_allocm
+#undef je_dallocm
+#undef je_nallocm
+#undef je_rallocm
+#undef je_sallocm
 
 /*
  * JEMALLOC_PRIVATE_NAMESPACE is used as a prefix for all library-private APIs.
@@ -150,5 +163,3 @@
 
 /* sizeof(long) == 2^LG_SIZEOF_LONG. */
 #undef LG_SIZEOF_LONG
-
-#endif /* JEMALLOC_DEFS_H_ */

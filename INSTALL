@@ -26,6 +26,19 @@ any of the following arguments (not a definitive list) to 'configure':
     Embed one or more library paths, so that libjemalloc can find the libraries
     it is linked to.  This works only on ELF-based systems.
 
+--with-mangling=<map>
+    Mangle public symbols specified in <map> which is a comma-separated list of
+    name:mangled pairs.
+
+    For example, to use ld's --wrap option as an alternative method for
+    overriding libc's malloc implementation, specify something like:
+
+      --with-mangling=malloc:__wrap_malloc,free:__wrap_free[...]
+
+    Note that mangling happens prior to application of the prefix specified by
+    --with-jemalloc-prefix, and mangled symbols are then ignored when applying
+    the prefix.
+
 --with-jemalloc-prefix=<prefix>
     Prefix all public APIs with <prefix>.  For example, if <prefix> is
     "prefix_", API changes like the following occur:

@@ -74,7 +74,7 @@ int	ctl_bymib(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
 bool	ctl_boot(void);
 
 #define	xmallctl(name, oldp, oldlenp, newp, newlen) do {		\
-	if (JEMALLOC_P(mallctl)(name, oldp, oldlenp, newp, newlen)	\
+	if (je_mallctl(name, oldp, oldlenp, newp, newlen)		\
 	    != 0) {							\
 		malloc_write("<jemalloc>: Failure in xmallctl(\"");	\
 		malloc_write(name);					\
@@ -84,7 +84,7 @@ bool	ctl_boot(void);
 } while (0)
 
 #define	xmallctlnametomib(name, mibp, miblenp) do {			\
-	if (JEMALLOC_P(mallctlnametomib)(name, mibp, miblenp) != 0) {	\
+	if (je_mallctlnametomib(name, mibp, miblenp) != 0) {		\
 		malloc_write(						\
 		    "<jemalloc>: Failure in xmallctlnametomib(\"");	\
 		malloc_write(name);					\
@@ -94,7 +94,7 @@ bool	ctl_boot(void);
 } while (0)
 
 #define	xmallctlbymib(mib, miblen, oldp, oldlenp, newp, newlen) do {	\
-	if (JEMALLOC_P(mallctlbymib)(mib, miblen, oldp, oldlenp, newp,	\
+	if (je_mallctlbymib(mib, miblen, oldp, oldlenp, newp,		\
 	    newlen) != 0) {						\
 		malloc_write(						\
 		    "<jemalloc>: Failure in xmallctlbymib()\n");	\

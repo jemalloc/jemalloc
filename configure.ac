@@ -303,6 +303,16 @@ AC_PATH_PROG([AR], [ar], , [$PATH])
 AC_PATH_PROG([LD], [ld], , [$PATH])
 AC_PATH_PROG([AUTOCONF], [autoconf], , [$PATH])
 
+dnl Perform no name mangling by default.
+AC_ARG_WITH([mangling],
+  [AS_HELP_STRING([--with-mangling=<map>], [Mangle symbols in <map>])],
+  [mangling_map="$with_mangling"], [mangling_map=""])
+for nm in `echo ${mangling_map} |tr ',' ' '` ; do
+  n="je_`echo ${nm} |tr ':' ' ' |awk '{print $1}'`"
+  m=`echo ${nm} |tr ':' ' ' |awk '{print $2}'`
+  AC_DEFINE_UNQUOTED([${n}], [${m}])
+done
+
 dnl Do not prefix public APIs by default.
 AC_ARG_WITH([jemalloc_prefix],
   [AS_HELP_STRING([--with-jemalloc-prefix=<prefix>], [Prefix to prepend to all public APIs])],
@@ -317,8 +327,15 @@ if test "x$JEMALLOC_PREFIX" != "x" ; then
   JEMALLOC_CPREFIX=`echo ${JEMALLOC_PREFIX} | tr "a-z" "A-Z"`
   AC_DEFINE_UNQUOTED([JEMALLOC_PREFIX], ["$JEMALLOC_PREFIX"])
   AC_DEFINE_UNQUOTED([JEMALLOC_CPREFIX], ["$JEMALLOC_CPREFIX"])
-  AC_DEFINE_UNQUOTED([JEMALLOC_P(string_that_no_one_should_want_to_use_as_a_jemalloc_API_prefix)], [${JEMALLOC_PREFIX}##string_that_no_one_should_want_to_use_as_a_jemalloc_API_prefix])
 fi
+dnl Generate macros to rename public symbols.  All public symbols are prefixed
+dnl with je_ in the source code, so these macro definitions are needed even if
+dnl --with-jemalloc-prefix wasn't specified.
+for stem in malloc_conf malloc_message malloc calloc posix_memalign realloc free malloc_usable_size malloc_stats_print mallctl mallctlnametomib mallctlbymib memalign valloc allocm dallocm nallocm rallocm sallocm; do
+  n="je_${stem}"
+  m="${JEMALLOC_PREFIX}${stem}"
+  AC_DEFINE_UNQUOTED([${n}], [${m}])
+done
 
 dnl Do not mangle library-private APIs by default.
 AC_ARG_WITH([private_namespace],

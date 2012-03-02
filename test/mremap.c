@@ -17,8 +17,7 @@ main(void)
 	fprintf(stderr, "Test begin\n");
 
 	sz = sizeof(lg_chunk);
-	if ((err = JEMALLOC_P(mallctl)("opt.lg_chunk", &lg_chunk, &sz, NULL,
-	    0))) {
+	if ((err = mallctl("opt.lg_chunk", &lg_chunk, &sz, NULL, 0))) {
 		assert(err != ENOENT);
 		fprintf(stderr, "%s(): Error in mallctl(): %s\n", __func__,
 		    strerror(err));

@@ -30,7 +30,7 @@
 #include <pthread.h>
 #include <math.h>
 
-#define	JEMALLOC_MANGLE
+#define	JEMALLOC_NO_DEMANGLE
 #include "../jemalloc@install_suffix@.h"
 
 #include "jemalloc/internal/private_namespace.h"
@@ -149,7 +149,7 @@ static const bool config_ivsalloc =
 #include "jemalloc/internal/qr.h"
 #include "jemalloc/internal/ql.h"
 
-extern void	(*JEMALLOC_P(malloc_message))(void *wcbopaque, const char *s);
+extern void	(*je_malloc_message)(void *wcbopaque, const char *s);
 
 /*
  * Define a custom assert() in order to reduce the chances of deadlock during
@@ -618,13 +618,13 @@ sa2u(size_t size, size_t alignment, size_t *run_size_p)
 
 /*
  * Wrapper around malloc_message() that avoids the need for
- * JEMALLOC_P(malloc_message)(...) throughout the code.
+ * je_malloc_message(...) throughout the code.
  */
 JEMALLOC_INLINE void
 malloc_write(const char *s)
 {
 
-	JEMALLOC_P(malloc_message)(NULL, s);
+	je_malloc_message(NULL, s);
 }
 
 /*
