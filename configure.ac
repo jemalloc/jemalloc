@@ -303,6 +303,34 @@ AC_PATH_PROG([AR], [ar], , [$PATH])
 AC_PATH_PROG([LD], [ld], , [$PATH])
 AC_PATH_PROG([AUTOCONF], [autoconf], , [$PATH])
 
+public_syms="malloc_conf malloc_message malloc calloc posix_memalign realloc free malloc_usable_size malloc_stats_print mallctl mallctlnametomib mallctlbymib"
+
+dnl Check for allocator-related functions that should be wrapped.
+AC_CHECK_FUNC([memalign],
+	      [AC_DEFINE([JEMALLOC_OVERRIDE_MEMALIGN])
+	       public_syms="${public_syms} memalign"])
+AC_CHECK_FUNC([valloc],
+	      [AC_DEFINE([JEMALLOC_OVERRIDE_VALLOC])
+	       public_syms="${public_syms} valloc"])
+
+dnl Support the experimental API by default.
+AC_ARG_ENABLE([experimental],
+  [AS_HELP_STRING([--disable-experimental],
+   [Disable support for the experimental API])],
+[if test "x$enable_experimental" = "xno" ; then
+  enable_experimental="0"
+else
+  enable_experimental="1"
+fi
+],
+[enable_experimental="1"]
+)
+if test "x$enable_experimental" = "x1" ; then
+  AC_DEFINE([JEMALLOC_EXPERIMENTAL], [ ])
+  public_syms="${public_syms} allocm dallocm nallocm rallocm sallocm"
+fi
+AC_SUBST([enable_experimental])
+
 dnl Perform no name mangling by default.
 AC_ARG_WITH([mangling],
   [AS_HELP_STRING([--with-mangling=<map>], [Mangle symbols in <map>])],
@@ -331,7 +359,7 @@ fi
 dnl Generate macros to rename public symbols.  All public symbols are prefixed
 dnl with je_ in the source code, so these macro definitions are needed even if
 dnl --with-jemalloc-prefix wasn't specified.
-for stem in malloc_conf malloc_message malloc calloc posix_memalign realloc free malloc_usable_size malloc_stats_print mallctl mallctlnametomib mallctlbymib memalign valloc allocm dallocm nallocm rallocm sallocm; do
+for stem in ${public_syms}; do
   n="je_${stem}"
   m="${JEMALLOC_PREFIX}${stem}"
   AC_DEFINE_UNQUOTED([${n}], [${m}])
@@ -796,14 +824,6 @@ if test "x${osspin}" = "xyes" ; then
 fi
 
 dnl ============================================================================
-dnl Check for allocator-related functions that should be wrapped.
-
-AC_CHECK_FUNC([memalign],
-	      [AC_DEFINE([JEMALLOC_OVERRIDE_MEMALIGN])])
-AC_CHECK_FUNC([valloc],
-	      [AC_DEFINE([JEMALLOC_OVERRIDE_VALLOC])])
-
-dnl ============================================================================
 dnl Darwin-related configuration.
 
 if test "x${abi}" = "xmacho" ; then
@@ -903,6 +923,7 @@ AC_MSG_RESULT([JEMALLOC_PRIVATE_NAMESPACE])
 AC_MSG_RESULT([                   : ${JEMALLOC_PRIVATE_NAMESPACE}])
 AC_MSG_RESULT([install_suffix     : ${install_suffix}])
 AC_MSG_RESULT([autogen            : ${enable_autogen}])
+AC_MSG_RESULT([experimental       : ${enable_experimental}])
 AC_MSG_RESULT([cc-silence         : ${enable_cc_silence}])
 AC_MSG_RESULT([debug              : ${enable_debug}])
 AC_MSG_RESULT([stats              : ${enable_stats}])

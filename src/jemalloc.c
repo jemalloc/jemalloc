@@ -1361,6 +1361,15 @@ je_mallctlbymib(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
 	return (ctl_bymib(mib, miblen, oldp, oldlenp, newp, newlen));
 }
 
+/*
+ * End non-standard functions.
+ */
+/******************************************************************************/
+/*
+ * Begin experimental functions.
+ */
+#ifdef JEMALLOC_EXPERIMENTAL
+
 JEMALLOC_INLINE void *
 iallocm(size_t usize, size_t alignment, bool zero)
 {
@@ -1601,8 +1610,9 @@ je_nallocm(size_t *rsize, size_t size, int flags)
 	return (ALLOCM_SUCCESS);
 }
 
+#endif
 /*
- * End non-standard functions.
+ * End experimental functions.
  */
 /******************************************************************************/
 

@@ -16,6 +16,7 @@ extern "C" {
 
 #include "jemalloc_defs@install_suffix@.h"
 
+#ifdef JEMALLOC_EXPERIMENTAL
 #define	ALLOCM_LG_ALIGN(la)	(la)
 #if LG_SIZEOF_PTR == 2
 #define	ALLOCM_ALIGN(a)	(ffs(a)-1)
@@ -28,6 +29,7 @@ extern "C" {
 #define	ALLOCM_SUCCESS		0
 #define	ALLOCM_ERR_OOM		1
 #define	ALLOCM_ERR_NOT_MOVED	2
+#endif
 
 /*
  * The je_ prefix on the following public symbol declarations is an artifact of
@@ -53,6 +55,7 @@ int	je_mallctlnametomib(const char *name, size_t *mibp, size_t *miblenp);
 int	je_mallctlbymib(const size_t *mib, size_t miblen, void *oldp,
     size_t *oldlenp, void *newp, size_t newlen);
 
+#ifdef JEMALLOC_EXPERIMENTAL
 int	je_allocm(void **ptr, size_t *rsize, size_t size, int flags)
     JEMALLOC_ATTR(nonnull(1));
 int	je_rallocm(void **ptr, size_t *rsize, size_t size, size_t extra,
@@ -61,6 +64,7 @@ int	je_sallocm(const void *ptr, size_t *rsize, int flags)
     JEMALLOC_ATTR(nonnull(1));
 int	je_dallocm(void *ptr, int flags) JEMALLOC_ATTR(nonnull(1));
 int	je_nallocm(size_t *rsize, size_t size, int flags);
+#endif
 
 /*
  * By default application code must explicitly refer to mangled symbol names,
@@ -87,11 +91,13 @@ int	je_nallocm(size_t *rsize, size_t size, int flags);
 #define	mallctlbymib je_mallctlbymib
 #define	memalign je_memalign
 #define	valloc je_valloc
+#ifdef JEMALLOC_EXPERIMENTAL
 #define	allocm je_allocm
 #define	rallocm je_rallocm
 #define	sallocm je_sallocm
 #define	dallocm je_dallocm
 #define	nallocm je_nallocm
+#endif
 #endif
 
 /*
@@ -116,11 +122,13 @@ int	je_nallocm(size_t *rsize, size_t size, int flags);
 #undef je_mallctlbymib
 #undef je_memalign
 #undef je_valloc
+#ifdef JEMALLOC_EXPERIMENTAL
 #undef je_allocm
 #undef je_rallocm
 #undef je_sallocm
 #undef je_dallocm
 #undef je_nallocm
+#endif
 #endif
 
 #ifdef __cplusplus

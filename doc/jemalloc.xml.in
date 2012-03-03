@@ -304,7 +304,9 @@ for (i = 0; i < nbins; i++) {
     <refsect2>
       <title>Experimental API</title>
       <para>The experimental API is subject to change or removal without regard
-      for backward compatibility.</para>
+      for backward compatibility.  If <option>--disable-experimental</option>
+      is specified during configuration, the experimental API is
+      omitted.</para>
 
       <para>The <function>allocm<parameter/></function>,
       <function>rallocm<parameter/></function>,

@@ -108,6 +108,9 @@
 /* Support memory filling (junk/zero). */
 #undef JEMALLOC_FILL
 
+/* Support the experimental API. */
+#undef JEMALLOC_EXPERIMENTAL
+
 /* Support optional abort() on OOM. */
 #undef JEMALLOC_XMALLOC
 
