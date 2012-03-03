@@ -169,11 +169,24 @@ PATH="?"
 
 === Advanced compilation =======================================================
 
+To build only parts of jemalloc, use the following targets:
+
+    build_lib_shared
+    build_lib_static
+    build_lib
+    build_doc_html
+    build_doc_man
+    build_doc
+
 To install only parts of jemalloc, use the following targets:
 
     install_bin
     install_include
+    install_lib_shared
+    install_lib_static
     install_lib
+    install_doc_html
+    install_doc_man
     install_doc
 
 To clean up build results to varying degrees, use the following make targets:

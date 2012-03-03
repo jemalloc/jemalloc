@@ -76,9 +76,9 @@ CTESTS := @srcroot@test/allocated.c @srcroot@test/allocm.c \
 .SECONDARY : $(CTESTS:@srcroot@%.c=@objroot@%.o)
 
 # Default target.
-all: $(DSOS) $(STATIC_LIBS)
+all: build
 
-dist: doc
+dist: build_doc
 
 @srcroot@doc/%.html : @objroot@doc/%.xml @srcroot@doc/stylesheet.xsl @objroot@doc/html.xsl
 	@XSLTPROC@ -o $@ @objroot@doc/html.xsl $<
@@ -86,9 +86,9 @@ dist: doc
 @srcroot@doc/%.3 : @objroot@doc/%.xml @srcroot@doc/stylesheet.xsl @objroot@doc/manpages.xsl
 	@XSLTPROC@ -o $@ @objroot@doc/manpages.xsl $<
 
-doc_html: $(DOCS_HTML)
-doc_man: $(DOCS_MAN3)
-doc: $(DOCS)
+build_doc_html: $(DOCS_HTML)
+build_doc_man: $(DOCS_MAN3)
+build_doc: $(DOCS)
 
 #
 # Include generated dependency files.
@@ -140,6 +140,10 @@ else
 	$(CC) -o $@ $< -L@objroot@lib -ljemalloc@install_suffix@ -lpthread
 endif
 
+build_lib_shared: $(DSOS)
+build_lib_static: $(STATIC_LIBS)
+build: build_lib_shared build_lib_static
+
 install_bin:
 	install -d $(BINDIR)
 	@for b in $(BINS); do \
@@ -154,28 +158,33 @@ install_include:
 	install -m 644 $$h $(INCLUDEDIR)/jemalloc; \
 done
 
-install_lib: $(DSOS) $(STATIC_LIBS)
+install_lib_shared: $(DSOS)
 	install -d $(LIBDIR)
 	install -m 755 @objroot@lib/libjemalloc@install_suffix@.$(SO).$(REV) $(LIBDIR)
 	ln -sf libjemalloc@install_suffix@.$(SO).$(REV) $(LIBDIR)/libjemalloc@install_suffix@.$(SO)
+
+install_lib_static: $(DSOS) $(STATIC_LIBS)
+	install -d $(LIBDIR)
 	install -m 755 @objroot@lib/libjemalloc@install_suffix@_pic.a $(LIBDIR)
 	install -m 755 @objroot@lib/libjemalloc@install_suffix@.a $(LIBDIR)
 
-install_html:
+install_lib: install_lib_shared install_lib_static
+
+install_doc_html:
 	install -d $(DATADIR)/doc/jemalloc@install_suffix@
 	@for d in $(DOCS_HTML); do \
 	echo "install -m 644 $$d $(DATADIR)/doc/jemalloc@install_suffix@"; \
 	install -m 644 $$d $(DATADIR)/doc/jemalloc@install_suffix@; \
 done
 
-install_man:
+install_doc_man:
 	install -d $(MANDIR)/man3
 	@for d in $(DOCS_MAN3); do \
 	echo "install -m 644 $$d $(MANDIR)/man3"; \
 	install -m 644 $$d $(MANDIR)/man3; \
 done
 
-install_doc: install_html install_man
+install_doc: install_doc_html install_doc_man
 
 install: install_bin install_include install_lib install_doc
 
