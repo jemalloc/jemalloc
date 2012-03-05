@@ -14,7 +14,7 @@ if test "x${CFLAGS}" = "x" ; then
 else
   CFLAGS="${CFLAGS} $1"
 fi
-AC_RUN_IFELSE([AC_LANG_PROGRAM(
+AC_COMPILE_IFELSE([AC_LANG_PROGRAM(
 [[
 ]], [[
     return 0;
@@ -28,14 +28,12 @@ AC_RUN_IFELSE([AC_LANG_PROGRAM(
 dnl JE_COMPILABLE(label, hcode, mcode, rvar)
 AC_DEFUN([JE_COMPILABLE],
 [
-AC_MSG_CHECKING([whether $1 is compilable])
-AC_RUN_IFELSE([AC_LANG_PROGRAM(
-[$2], [$3])],
-              AC_MSG_RESULT([yes])
-              [$4="yes"],
-              AC_MSG_RESULT([no])
-              [$4="no"]
-)
+AC_CACHE_CHECK([whether $1 is compilable],
+               [$4],
+               [AC_COMPILE_IFELSE([AC_LANG_PROGRAM([$2],
+                                                   [$3])],
+                                  [$4=yes],
+                                  [$4=no])])
 ])
 
 dnl ============================================================================
@@ -154,15 +152,15 @@ case "${host_cpu}" in
 	;;
   i686)
 	JE_COMPILABLE([__asm__], [], [[__asm__ volatile("pause"); return 0;]],
-	              [asm])
-	if test "x${asm}" = "xyes" ; then
+	              [je_cv_asm])
+	if test "x${je_cv_asm}" = "xyes" ; then
 	    CPU_SPINWAIT='__asm__ volatile("pause")'
 	fi
 	;;
   x86_64)
 	JE_COMPILABLE([__asm__ syntax], [],
-	              [[__asm__ volatile("pause"); return 0;]], [asm])
-	if test "x${asm}" = "xyes" ; then
+	              [[__asm__ volatile("pause"); return 0;]], [je_cv_asm])
+	if test "x${je_cv_asm}" = "xyes" ; then
 	    CPU_SPINWAIT='__asm__ volatile("pause")'
 	fi
 	;;
@@ -254,8 +252,8 @@ AC_SUBST([so])
 JE_COMPILABLE([__attribute__ syntax],
               [static __attribute__((unused)) void foo(void){}],
               [],
-              [attribute])
-if test "x${attribute}" = "xyes" ; then
+              [je_cv_attribute])
+if test "x${je_cv_attribute}" = "xyes" ; then
   AC_DEFINE([JEMALLOC_HAVE_ATTR], [ ])
   if test "x${GCC}" = "xyes" -a "x${abi}" = "xelf"; then
     JE_CFLAGS_APPEND([-fvisibility=hidden])
@@ -267,8 +265,8 @@ JE_COMPILABLE([mremap(...MREMAP_FIXED...)], [
 #include <sys/mman.h>
 ], [
 void *p = mremap((void *)0, 0, 0, MREMAP_MAYMOVE|MREMAP_FIXED, (void *)0);
-], [mremap_fixed])
-if test "x${mremap_fixed}" = "xyes" ; then
+], [je_cv_mremap_fixed])
+if test "x${je_cv_mremap_fixed}" = "xyes" ; then
   AC_DEFINE([JEMALLOC_MREMAP_FIXED])
 fi
 
@@ -672,12 +670,14 @@ if test "x$enable_xmalloc" = "x1" ; then
 fi
 AC_SUBST([enable_xmalloc])
 
-AC_MSG_CHECKING([STATIC_PAGE_SHIFT])
-AC_RUN_IFELSE([AC_LANG_PROGRAM(
+AC_CACHE_CHECK([STATIC_PAGE_SHIFT],
+               [je_cv_static_page_shift],
+               AC_RUN_IFELSE([AC_LANG_PROGRAM(
 [[#include <stdio.h>
 #include <unistd.h>
 #include <strings.h>
-]], [[
+]],
+[[
     long result;
     FILE *f;
 
@@ -694,10 +694,14 @@ AC_RUN_IFELSE([AC_LANG_PROGRAM(
 
     return 0;
 ]])],
-              [STATIC_PAGE_SHIFT=`cat conftest.out`]
-              AC_MSG_RESULT([$STATIC_PAGE_SHIFT])
-              AC_DEFINE_UNQUOTED([STATIC_PAGE_SHIFT], [$STATIC_PAGE_SHIFT]),
-              AC_MSG_RESULT([error]))
+                             [je_cv_static_page_shift=`cat conftest.out`],
+                             [je_cv_static_page_shift=undefined]))
+
+if test "x$je_cv_static_page_shift" != "xundefined"; then
+   AC_DEFINE_UNQUOTED([STATIC_PAGE_SHIFT], [$je_cv_static_page_shift])
+else
+   AC_MSG_ERROR([cannot determine value for STATIC_PAGE_SHIFT])
+fi
 
 dnl ============================================================================
 dnl jemalloc configuration.
@@ -761,7 +765,7 @@ enable_tls="1"
 )
 if test "x${enable_tls}" = "x1" ; then
 AC_MSG_CHECKING([for TLS])
-AC_RUN_IFELSE([AC_LANG_PROGRAM(
+AC_COMPILE_IFELSE([AC_LANG_PROGRAM(
 [[
     __thread int x;
 ]], [[
@@ -782,9 +786,19 @@ dnl ============================================================================
 dnl Check for ffsl(3), and fail if not found.  This function exists on all
 dnl platforms that jemalloc currently has a chance of functioning on without
 dnl modification.
-
-AC_CHECK_FUNC([ffsl], [],
-	      [AC_MSG_ERROR([Cannot build without ffsl(3)])])
+JE_COMPILABLE([a program using ffsl],
+              [
+              #include <string.h>
+              ],
+              [
+                {
+                        int rv = ffsl(0x08);
+                }
+              ],
+              [je_cv_function_ffsl])
+if test "x${je_cv_function_ffsl}" != "xyes" ; then
+   AC_MSG_ERROR([Cannot build without ffsl(3)])
+fi
 
 dnl ============================================================================
 dnl Check for atomic(3) operations as provided on Darwin.
@@ -803,8 +817,8 @@ JE_COMPILABLE([Darwin OSAtomic*()], [
 		volatile int64_t *x64p = &x64;
 		OSAtomicAdd64(1, x64p);
 	}
-], [osatomic])
-if test "x${osatomic}" = "xyes" ; then
+], [je_cv_osatomic])
+if test "x${je_cv_osatomic}" = "xyes" ; then
   AC_DEFINE([JEMALLOC_OSATOMIC])
 fi
 
@@ -818,8 +832,8 @@ JE_COMPILABLE([Darwin OSSpin*()], [
 	OSSpinLock lock = 0;
 	OSSpinLockLock(&lock);
 	OSSpinLockUnlock(&lock);
-], [osspin])
-if test "x${osspin}" = "xyes" ; then
+], [je_cv_osspin])
+if test "x${je_cv_osspin}" = "xyes" ; then
   AC_DEFINE([JEMALLOC_OSSPIN])
 fi
 
