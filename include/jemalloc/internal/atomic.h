@@ -160,6 +160,22 @@ atomic_sub_uint32(uint32_t *p, uint32_t x)
 
 	return (x);
 }
+#elif (defined __SH4__ || defined __mips__) && (__GNUC__ > 4 ||		\
+    (__GNUC__ == 4 && (__GNUC_MINOR__ > 1 || (__GNUC_MINOR__ == 1 &&	\
+    __GNUC_PATCHLEVEL__ > 1))))
+JEMALLOC_INLINE uint32_t
+atomic_add_uint32(uint32_t *p, uint32_t x)
+{
+
+	return (__sync_add_and_fetch(p, x));
+}
+
+JEMALLOC_INLINE uint32_t
+atomic_sub_uint32(uint32_t *p, uint32_t x)
+{
+
+	return (__sync_sub_and_fetch(p, x));
+}
 #else
 #  error "Missing implementation for 32-bit atomic operations"
 #endif

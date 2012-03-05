@@ -254,6 +254,9 @@ extern void	(*je_malloc_message)(void *wcbopaque, const char *s);
 #  ifdef __s390x__
 #    define LG_QUANTUM		4
 #  endif
+#  ifdef __SH4__
+#    define LG_QUANTUM		4
+#  endif
 #  ifdef __tile__
 #    define LG_QUANTUM		4
 #  endif
