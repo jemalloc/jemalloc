@@ -993,7 +993,7 @@ prof_dump_filename(char *filename, char v, int64_t vseq)
 	filename[i] = v;
 	i++;
 
-	if (vseq != 0xffffffffffffffffLLU) {
+	if (vseq != UINT64_C(0xffffffffffffffff)) {
 		s = u2s(vseq, 10, buf);
 		slen = strlen(s);
 		memcpy(&filename[i], s, slen);
@@ -1020,7 +1020,7 @@ prof_fdump(void)
 
 	if (opt_prof_prefix[0] != '\0') {
 		malloc_mutex_lock(&prof_dump_seq_mtx);
-		prof_dump_filename(filename, 'f', 0xffffffffffffffffLLU);
+		prof_dump_filename(filename, 'f', UINT64_C(0xffffffffffffffff));
 		malloc_mutex_unlock(&prof_dump_seq_mtx);
 		prof_dump(filename, opt_prof_leak, false);
 	}
@@ -1113,7 +1113,8 @@ prof_bt_hash(const void *key, unsigned minbits, size_t *hash1, size_t *hash2)
 	assert(hash1 != NULL);
 	assert(hash2 != NULL);
 
-	h = hash(bt->vec, bt->len * sizeof(void *), 0x94122f335b332aeaLLU);
+	h = hash(bt->vec, bt->len * sizeof(void *),
+	    UINT64_C(0x94122f335b332aea));
 	if (minbits <= 32) {
 		/*
 		 * Avoid doing multiple hashes, since a single hash provides
@@ -1124,7 +1125,7 @@ prof_bt_hash(const void *key, unsigned minbits, size_t *hash1, size_t *hash2)
 	} else {
 		ret1 = h;
 		ret2 = hash(bt->vec, bt->len * sizeof(void *),
-		    0x8432a476666bbc13LLU);
+		    UINT64_C(0x8432a476666bbc13));
 	}
 
 	*hash1 = ret1;

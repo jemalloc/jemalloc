@@ -535,7 +535,7 @@ ckh_string_hash(const void *key, unsigned minbits, size_t *hash1, size_t *hash2)
 	assert(hash1 != NULL);
 	assert(hash2 != NULL);
 
-	h = hash(key, strlen((const char *)key), 0x94122f335b332aeaLLU);
+	h = hash(key, strlen((const char *)key), UINT64_C(0x94122f335b332aea));
 	if (minbits <= 32) {
 		/*
 		 * Avoid doing multiple hashes, since a single hash provides
@@ -546,7 +546,7 @@ ckh_string_hash(const void *key, unsigned minbits, size_t *hash1, size_t *hash2)
 	} else {
 		ret1 = h;
 		ret2 = hash(key, strlen((const char *)key),
-		    0x8432a476666bbc13LLU);
+		    UINT64_C(0x8432a476666bbc13));
 	}
 
 	*hash1 = ret1;
@@ -583,7 +583,7 @@ ckh_pointer_hash(const void *key, unsigned minbits, size_t *hash1,
 	u.i = 0;
 #endif
 	u.v = key;
-	h = hash(&u.i, sizeof(u.i), 0xd983396e68886082LLU);
+	h = hash(&u.i, sizeof(u.i), UINT64_C(0xd983396e68886082));
 	if (minbits <= 32) {
 		/*
 		 * Avoid doing multiple hashes, since a single hash provides
@@ -594,7 +594,7 @@ ckh_pointer_hash(const void *key, unsigned minbits, size_t *hash1,
 	} else {
 		assert(SIZEOF_PTR == 8);
 		ret1 = h;
-		ret2 = hash(&u.i, sizeof(u.i), 0x5e2be9aff8709a5dLLU);
+		ret2 = hash(&u.i, sizeof(u.i), UINT64_C(0x5e2be9aff8709a5d));
 	}
 
 	*hash1 = ret1;

@@ -308,7 +308,7 @@ prof_sample_threshold_update(prof_tdata_t *prof_tdata)
 	 *   (http://cg.scs.carleton.ca/~luc/rnbookindex.html)
 	 */
 	prng64(r, 53, prof_tdata->prng_state,
-	    (uint64_t)6364136223846793005LLU, (uint64_t)1442695040888963407LLU);
+	    UINT64_C(6364136223846793005), UINT64_C(1442695040888963407));
 	u = (double)r * (1.0/9007199254740992.0L);
 	prof_tdata->threshold = (uint64_t)(log(u) /
 	    log(1.0 - (1.0 / (double)((uint64_t)1U << opt_lg_prof_sample))))

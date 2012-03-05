@@ -26,7 +26,7 @@ uint64_t	hash(const void *key, size_t len, uint64_t seed);
 JEMALLOC_INLINE uint64_t
 hash(const void *key, size_t len, uint64_t seed)
 {
-	const uint64_t m = 0xc6a4a7935bd1e995LLU;
+	const uint64_t m = UINT64_C(0xc6a4a7935bd1e995);
 	const int r = 47;
 	uint64_t h = seed ^ (len * m);
 	const uint64_t *data = (const uint64_t *)key;

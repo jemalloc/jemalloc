@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <unistd.h>
 #include <errno.h>
 #include <string.h>
@@ -8,8 +9,8 @@
 #include "jemalloc_test.h"
 
 #define CHUNK 0x400000
-/* #define MAXALIGN ((size_t)0x80000000000LLU) */
-#define MAXALIGN ((size_t)0x2000000LLU)
+/* #define MAXALIGN ((size_t)UINT64_C(0x80000000000)) */
+#define MAXALIGN ((size_t)0x2000000LU)
 #define NITER 4
 
 int
@@ -43,8 +44,8 @@ main(void)
 	}
 
 #if LG_SIZEOF_PTR == 3
-	alignment = 0x8000000000000000LLU;
-	size      = 0x8000000000000000LLU;
+	alignment = UINT64_C(0x8000000000000000);
+	size      = UINT64_C(0x8000000000000000);
 #else
 	alignment = 0x80000000LU;
 	size      = 0x80000000LU;
@@ -57,8 +58,8 @@ main(void)
 	}
 
 #if LG_SIZEOF_PTR == 3
-	alignment = 0x4000000000000000LLU;
-	size      = 0x8400000000000001LLU;
+	alignment = UINT64_C(0x4000000000000000);
+	size      = UINT64_C(0x8400000000000001);
 #else
 	alignment = 0x40000000LU;
 	size      = 0x84000001LU;
@@ -70,9 +71,9 @@ main(void)
 		    alignment, size);
 	}
 
-	alignment = 0x10LLU;
+	alignment = 0x10LU;
 #if LG_SIZEOF_PTR == 3
-	size = 0xfffffffffffffff0LLU;
+	size = UINT64_C(0xfffffffffffffff0);
 #else
 	size = 0xfffffff0LU;
 #endif
