@@ -580,8 +580,6 @@ malloc_conf_init(void)
 			}
 			if (config_tcache) {
 				CONF_HANDLE_BOOL(tcache)
-				CONF_HANDLE_SSIZE_T(lg_tcache_gc_sweep, -1,
-				    (sizeof(size_t) << 3) - 1)
 				CONF_HANDLE_SSIZE_T(lg_tcache_max, -1,
 				    (sizeof(size_t) << 3) - 1)
 			}

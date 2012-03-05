@@ -21,12 +21,15 @@ typedef struct tcache_s tcache_t;
 #define	LG_TCACHE_MAXCLASS_DEFAULT	15
 
 /*
- * (1U << opt_lg_tcache_gc_sweep) is the approximate number of allocation
- * events between full GC sweeps (-1: disabled).  Integer rounding may cause
- * the actual number to be slightly higher, since GC is performed
- * incrementally.
+ * TCACHE_GC_SWEEP is the approximate number of allocation events between
+ * full GC sweeps.  Integer rounding may cause the actual number to be
+ * slightly higher, since GC is performed incrementally.
  */
-#define	LG_TCACHE_GC_SWEEP_DEFAULT	13
+#define	TCACHE_GC_SWEEP			8192
+
+/* Number of tcache allocation/deallocation events between incremental GCs. */
+#define	TCACHE_GC_INCR							\
+    ((TCACHE_GC_SWEEP / NBINS) + ((TCACHE_GC_SWEEP / NBINS == 0) ? 0 : 1))
 
 #endif /* JEMALLOC_H_TYPES */
 /******************************************************************************/
@@ -69,7 +72,6 @@ struct tcache_s {
 
 extern bool	opt_tcache;
 extern ssize_t	opt_lg_tcache_max;
-extern ssize_t	opt_lg_tcache_gc_sweep;
 
 extern tcache_bin_info_t	*tcache_bin_info;
 
@@ -98,9 +100,6 @@ extern size_t			nhbins;
 
 /* Maximum cached size class. */
 extern size_t			tcache_maxclass;
-
-/* Number of tcache allocation/deallocation events between incremental GCs. */
-extern unsigned			tcache_gc_incr;
 
 void	tcache_bin_flush_small(tcache_bin_t *tbin, size_t binind, unsigned rem,
     tcache_t *tcache);
@@ -166,12 +165,12 @@ JEMALLOC_INLINE void
 tcache_event(tcache_t *tcache)
 {
 
-	if (tcache_gc_incr == 0)
+	if (TCACHE_GC_INCR == 0)
 		return;
 
 	tcache->ev_cnt++;
-	assert(tcache->ev_cnt <= tcache_gc_incr);
-	if (tcache->ev_cnt == tcache_gc_incr) {
+	assert(tcache->ev_cnt <= TCACHE_GC_INCR);
+	if (tcache->ev_cnt == TCACHE_GC_INCR) {
 		size_t binind = tcache->next_gc_bin;
 		tcache_bin_t *tbin = &tcache->tbins[binind];
 		tcache_bin_info_t *tbin_info = &tcache_bin_info[binind];

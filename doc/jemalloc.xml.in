@@ -853,27 +853,9 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         allocations to be satisfied without performing any thread
         synchronization, at the cost of increased memory use.  See the
         <link
-        linkend="opt.lg_tcache_gc_sweep"><mallctl>opt.lg_tcache_gc_sweep</mallctl></link>
-        and <link
         linkend="opt.lg_tcache_max"><mallctl>opt.lg_tcache_max</mallctl></link>
-        options for related tuning information.  This option is enabled by
+        option for related tuning information.  This option is enabled by
         default.</para></listitem>
-      </varlistentry>
-
-      <varlistentry id="opt.lg_tcache_gc_sweep">
-        <term>
-          <mallctl>opt.lg_tcache_gc_sweep</mallctl>
-          (<type>ssize_t</type>)
-          <literal>r-</literal>
-          [<option>--enable-tcache</option>]
-        </term>
-        <listitem><para>Approximate interval (log base 2) between full
-        thread-specific cache garbage collection sweeps, counted in terms of
-        thread-specific cache allocation/deallocation events.  Garbage
-        collection is actually performed incrementally, one size class at a
-        time, in order to avoid large collection pauses.  The default sweep
-        interval is 8192 (2^13); setting this option to -1 will disable garbage
-        collection.</para></listitem>
       </varlistentry>
 
       <varlistentry id="opt.lg_tcache_max">

@@ -65,7 +65,6 @@ CTL_PROTO(opt_junk)
 CTL_PROTO(opt_zero)
 CTL_PROTO(opt_xmalloc)
 CTL_PROTO(opt_tcache)
-CTL_PROTO(opt_lg_tcache_gc_sweep)
 CTL_PROTO(opt_prof)
 CTL_PROTO(opt_prof_prefix)
 CTL_PROTO(opt_prof_active)
@@ -187,7 +186,6 @@ static const ctl_node_t opt_node[] = {
 	{NAME("zero"),			CTL(opt_zero)},
 	{NAME("xmalloc"),		CTL(opt_xmalloc)},
 	{NAME("tcache"),		CTL(opt_tcache)},
-	{NAME("lg_tcache_gc_sweep"),	CTL(opt_lg_tcache_gc_sweep)},
 	{NAME("prof"),			CTL(opt_prof)},
 	{NAME("prof_prefix"),		CTL(opt_prof_prefix)},
 	{NAME("prof_active"),		CTL(opt_prof_active)},
@@ -1069,8 +1067,6 @@ CTL_RO_NL_CGEN(config_fill, opt_junk, opt_junk, bool)
 CTL_RO_NL_CGEN(config_fill, opt_zero, opt_zero, bool)
 CTL_RO_NL_CGEN(config_xmalloc, opt_xmalloc, opt_xmalloc, bool)
 CTL_RO_NL_CGEN(config_tcache, opt_tcache, opt_tcache, bool)
-CTL_RO_NL_CGEN(config_tcache, opt_lg_tcache_gc_sweep, opt_lg_tcache_gc_sweep,
-    ssize_t)
 CTL_RO_NL_CGEN(config_prof, opt_prof, opt_prof, bool)
 CTL_RO_NL_CGEN(config_prof, opt_prof_prefix, opt_prof_prefix, const char *)
 CTL_RO_CGEN(config_prof, opt_prof_active, opt_prof_active, bool) /* Mutable. */

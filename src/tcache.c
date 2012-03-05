@@ -6,7 +6,6 @@
 
 bool	opt_tcache = true;
 ssize_t	opt_lg_tcache_max = LG_TCACHE_MAXCLASS_DEFAULT;
-ssize_t	opt_lg_tcache_gc_sweep = LG_TCACHE_GC_SWEEP_DEFAULT;
 
 tcache_bin_info_t	*tcache_bin_info;
 static unsigned		stack_nelms; /* Total stack elms per tcache. */
@@ -24,7 +23,6 @@ pthread_key_t		tcache_tsd;
 
 size_t				nhbins;
 size_t				tcache_maxclass;
-unsigned			tcache_gc_incr;
 
 /******************************************************************************/
 /* Function prototypes for non-inline static functions. */
@@ -418,14 +416,6 @@ tcache_boot(void)
 			tcache_bin_info[i].ncached_max = TCACHE_NSLOTS_LARGE;
 			stack_nelms += tcache_bin_info[i].ncached_max;
 		}
-
-		/* Compute incremental GC event threshold. */
-		if (opt_lg_tcache_gc_sweep >= 0) {
-			tcache_gc_incr = ((1U << opt_lg_tcache_gc_sweep) /
-			    NBINS) + (((1U << opt_lg_tcache_gc_sweep) % NBINS ==
-			    0) ? 0 : 1);
-		} else
-			tcache_gc_incr = 0;
 
 		if (pthread_key_create(&tcache_tsd, tcache_thread_cleanup) !=
 		    0) {
