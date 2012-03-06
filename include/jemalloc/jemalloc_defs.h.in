@@ -166,3 +166,6 @@
 
 /* sizeof(long) == 2^LG_SIZEOF_LONG. */
 #undef LG_SIZEOF_LONG
+
+/* sizeof(intmax_t) == 2^LG_SIZEOF_INTMAX_T. */
+#undef LG_SIZEOF_INTMAX_T

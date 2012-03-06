@@ -44,8 +44,6 @@ size_t	stats_cactive = 0;
 /******************************************************************************/
 /* Function prototypes for non-inline static functions. */
 
-static void	malloc_vcprintf(void (*write_cb)(void *, const char *),
-    void *cbopaque, const char *format, va_list ap);
 static void	stats_arena_bins_print(void (*write_cb)(void *, const char *),
     void *cbopaque, unsigned i);
 static void	stats_arena_lruns_print(void (*write_cb)(void *, const char *),
@@ -54,97 +52,6 @@ static void	stats_arena_print(void (*write_cb)(void *, const char *),
     void *cbopaque, unsigned i);
 
 /******************************************************************************/
-
-/* XXX Refactor by adding malloc_vsnprintf(). */
-/*
- * We don't want to depend on vsnprintf() for production builds, since that can
- * cause unnecessary bloat for static binaries.  u2s() provides minimal integer
- * printing functionality, so that malloc_printf() use can be limited to
- * JEMALLOC_STATS code.
- */
-char *
-u2s(uint64_t x, unsigned base, char *s)
-{
-	unsigned i;
-
-	i = UMAX2S_BUFSIZE - 1;
-	s[i] = '\0';
-	switch (base) {
-	case 10:
-		do {
-			i--;
-			s[i] = "0123456789"[x % (uint64_t)10];
-			x /= (uint64_t)10;
-		} while (x > 0);
-		break;
-	case 16:
-		do {
-			i--;
-			s[i] = "0123456789abcdef"[x & 0xf];
-			x >>= 4;
-		} while (x > 0);
-		break;
-	default:
-		do {
-			i--;
-			s[i] = "0123456789abcdefghijklmnopqrstuvwxyz"[x %
-			    (uint64_t)base];
-			x /= (uint64_t)base;
-		} while (x > 0);
-	}
-
-	return (&s[i]);
-}
-
-static void
-malloc_vcprintf(void (*write_cb)(void *, const char *), void *cbopaque,
-    const char *format, va_list ap)
-{
-	char buf[4096];
-
-	if (write_cb == NULL) {
-		/*
-		 * The caller did not provide an alternate write_cb callback
-		 * function, so use the default one.  malloc_write() is an
-		 * inline function, so use malloc_message() directly here.
-		 */
-		write_cb = je_malloc_message;
-		cbopaque = NULL;
-	}
-
-	vsnprintf(buf, sizeof(buf), format, ap);
-	write_cb(cbopaque, buf);
-}
-
-/*
- * Print to a callback function in such a way as to (hopefully) avoid memory
- * allocation.
- */
-JEMALLOC_ATTR(format(printf, 3, 4))
-void
-malloc_cprintf(void (*write_cb)(void *, const char *), void *cbopaque,
-    const char *format, ...)
-{
-	va_list ap;
-
-	va_start(ap, format);
-	malloc_vcprintf(write_cb, cbopaque, format, ap);
-	va_end(ap);
-}
-
-/*
- * Print to stderr in such a way as to (hopefully) avoid memory allocation.
- */
-JEMALLOC_ATTR(format(printf, 1, 2))
-void
-malloc_printf(const char *format, ...)
-{
-	va_list ap;
-
-	va_start(ap, format);
-	malloc_vcprintf(NULL, NULL, format, ap);
-	va_end(ap);
-}
 
 static void
 stats_arena_bins_print(void (*write_cb)(void *, const char *), void *cbopaque,
@@ -360,7 +267,6 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 	int err;
 	uint64_t epoch;
 	size_t u64sz;
-	char s[UMAX2S_BUFSIZE];
 	bool general = true;
 	bool merged = true;
 	bool unmerged = true;
@@ -403,22 +309,22 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 
 		for (i = 0; opts[i] != '\0'; i++) {
 			switch (opts[i]) {
-				case 'g':
-					general = false;
-					break;
-				case 'm':
-					merged = false;
-					break;
-				case 'a':
-					unmerged = false;
-					break;
-				case 'b':
-					bins = false;
-					break;
-				case 'l':
-					large = false;
-					break;
-				default:;
+			case 'g':
+				general = false;
+				break;
+			case 'm':
+				merged = false;
+				break;
+			case 'a':
+				unmerged = false;
+				break;
+			case 'b':
+				bins = false;
+				break;
+			case 'l':
+				large = false;
+				break;
+			default:;
 			}
 		}
 	}
@@ -438,46 +344,34 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		cpsz = sizeof(const char *);
 
 		CTL_GET("version", &cpv, const char *);
-		write_cb(cbopaque, "Version: ");
-		write_cb(cbopaque, cpv);
-		write_cb(cbopaque, "\n");
+		malloc_cprintf(write_cb, cbopaque, "Version: %s\n", cpv);
 		CTL_GET("config.debug", &bv, bool);
-		write_cb(cbopaque, "Assertions ");
-		write_cb(cbopaque, bv ? "enabled" : "disabled");
-		write_cb(cbopaque, "\n");
+		malloc_cprintf(write_cb, cbopaque, "Assertions %s\n",
+		    bv ? "enabled" : "disabled");
 
 #define OPT_WRITE_BOOL(n)						\
 		if ((err = je_mallctl("opt."#n, &bv, &bsz, NULL, 0))	\
 		    == 0) {						\
-			write_cb(cbopaque, "  opt."#n": ");		\
-			write_cb(cbopaque, bv ? "true" : "false");	\
-			write_cb(cbopaque, "\n");			\
+			malloc_cprintf(write_cb, cbopaque,		\
+			    "  opt."#n": %s\n", bv ? "true" : "false");	\
 		}
 #define OPT_WRITE_SIZE_T(n)						\
 		if ((err = je_mallctl("opt."#n, &sv, &ssz, NULL, 0))	\
 		    == 0) {						\
-			write_cb(cbopaque, "  opt."#n": ");		\
-			write_cb(cbopaque, u2s(sv, 10, s));		\
-			write_cb(cbopaque, "\n");			\
+			malloc_cprintf(write_cb, cbopaque,		\
+			"  opt."#n": %zu\n", sv);			\
 		}
 #define OPT_WRITE_SSIZE_T(n)						\
 		if ((err = je_mallctl("opt."#n, &ssv, &sssz, NULL, 0))	\
 		    == 0) {						\
-			if (ssv >= 0) {					\
-				write_cb(cbopaque, "  opt."#n": ");	\
-				write_cb(cbopaque, u2s(ssv, 10, s));	\
-			} else {					\
-				write_cb(cbopaque, "  opt."#n": -");	\
-				write_cb(cbopaque, u2s(-ssv, 10, s));	\
-			}						\
-			write_cb(cbopaque, "\n");			\
+			malloc_cprintf(write_cb, cbopaque,		\
+			    "  opt."#n": %zd\n", ssv);			\
 		}
 #define OPT_WRITE_CHAR_P(n)						\
 		if ((err = je_mallctl("opt."#n, &cpv, &cpsz, NULL, 0))	\
 		    == 0) {						\
-			write_cb(cbopaque, "  opt."#n": \"");		\
-			write_cb(cbopaque, cpv);			\
-			write_cb(cbopaque, "\"\n");			\
+			malloc_cprintf(write_cb, cbopaque,		\
+			    "  opt."#n": \"%s\"\n", cpv);		\
 		}
 
 		write_cb(cbopaque, "Run-time option settings:\n");
@@ -505,68 +399,52 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 #undef OPT_WRITE_SSIZE_T
 #undef OPT_WRITE_CHAR_P
 
-		write_cb(cbopaque, "CPUs: ");
-		write_cb(cbopaque, u2s(ncpus, 10, s));
-		write_cb(cbopaque, "\n");
+		malloc_cprintf(write_cb, cbopaque, "CPUs: %u\n", ncpus);
 
 		CTL_GET("arenas.narenas", &uv, unsigned);
-		write_cb(cbopaque, "Max arenas: ");
-		write_cb(cbopaque, u2s(uv, 10, s));
-		write_cb(cbopaque, "\n");
+		malloc_cprintf(write_cb, cbopaque, "Max arenas: %u\n", uv);
 
-		write_cb(cbopaque, "Pointer size: ");
-		write_cb(cbopaque, u2s(sizeof(void *), 10, s));
-		write_cb(cbopaque, "\n");
+		malloc_cprintf(write_cb, cbopaque, "Pointer size: %zu\n",
+		    sizeof(void *));
 
 		CTL_GET("arenas.quantum", &sv, size_t);
-		write_cb(cbopaque, "Quantum size: ");
-		write_cb(cbopaque, u2s(sv, 10, s));
-		write_cb(cbopaque, "\n");
+		malloc_cprintf(write_cb, cbopaque, "Quantum size: %zu\n", sv);
 
 		CTL_GET("opt.lg_dirty_mult", &ssv, ssize_t);
 		if (ssv >= 0) {
-			write_cb(cbopaque,
-			    "Min active:dirty page ratio per arena: ");
-			write_cb(cbopaque, u2s((1U << ssv), 10, s));
-			write_cb(cbopaque, ":1\n");
+			malloc_cprintf(write_cb, cbopaque,
+			    "Min active:dirty page ratio per arena: %u:1\n",
+			    (1U << ssv));
 		} else {
 			write_cb(cbopaque,
 			    "Min active:dirty page ratio per arena: N/A\n");
 		}
 		if ((err = je_mallctl("arenas.tcache_max", &sv, &ssz, NULL, 0))
 		    == 0) {
-			write_cb(cbopaque,
-			    "Maximum thread-cached size class: ");
-			write_cb(cbopaque, u2s(sv, 10, s));
-			write_cb(cbopaque, "\n");
+			malloc_cprintf(write_cb, cbopaque,
+			    "Maximum thread-cached size class: %zu\n", sv);
 		}
 		if ((err = je_mallctl("opt.prof", &bv, &bsz, NULL, 0)) == 0 &&
 		    bv) {
 			CTL_GET("opt.lg_prof_sample", &sv, size_t);
-			write_cb(cbopaque, "Average profile sample interval: ");
-			write_cb(cbopaque, u2s((((uint64_t)1U) << sv), 10, s));
-			write_cb(cbopaque, " (2^");
-			write_cb(cbopaque, u2s(sv, 10, s));
-			write_cb(cbopaque, ")\n");
+			malloc_cprintf(write_cb, cbopaque,
+			    "Average profile sample interval: %"PRIu64
+			    " (2^%zu)\n", (((uint64_t)1U) << sv), sv);
 
 			CTL_GET("opt.lg_prof_interval", &ssv, ssize_t);
-			write_cb(cbopaque, "Average profile dump interval: ");
 			if (ssv >= 0) {
-				write_cb(cbopaque, u2s((((uint64_t)1U) << ssv),
-				    10, s));
-				write_cb(cbopaque, " (2^");
-				write_cb(cbopaque, u2s(ssv, 10, s));
-				write_cb(cbopaque, ")\n");
-			} else
-				write_cb(cbopaque, "N/A\n");
+				malloc_cprintf(write_cb, cbopaque,
+				    "Average profile dump interval: %"PRIu64
+				    " (2^%zd)\n",
+				    (((uint64_t)1U) << ssv), ssv);
+			} else {
+				write_cb(cbopaque,
+				    "Average profile dump interval: N/A\n");
+			}
 		}
-		CTL_GET("arenas.chunksize", &sv, size_t);
-		write_cb(cbopaque, "Chunk size: ");
-		write_cb(cbopaque, u2s(sv, 10, s));
 		CTL_GET("opt.lg_chunk", &sv, size_t);
-		write_cb(cbopaque, " (2^");
-		write_cb(cbopaque, u2s(sv, 10, s));
-		write_cb(cbopaque, ")\n");
+		malloc_cprintf(write_cb, cbopaque, "Chunk size: %zu (2^%zu)\n",
+		    (ZU(1) << sv), sv);
 	}
 
 	if (config_stats) {

@@ -1,8 +1,6 @@
 /******************************************************************************/
 #ifdef JEMALLOC_H_TYPES
 
-#define	UMAX2S_BUFSIZE	65
-
 typedef struct tcache_bin_stats_s tcache_bin_stats_t;
 typedef struct malloc_bin_stats_s malloc_bin_stats_t;
 typedef struct malloc_large_stats_s malloc_large_stats_t;
@@ -135,11 +133,6 @@ extern bool	opt_stats_print;
 
 extern size_t	stats_cactive;
 
-char	*u2s(uint64_t x, unsigned base, char *s);
-void malloc_cprintf(void (*write)(void *, const char *), void *cbopaque,
-    const char *format, ...) JEMALLOC_ATTR(format(printf, 3, 4));
-void	malloc_printf(const char *format, ...)
-    JEMALLOC_ATTR(format(printf, 1, 2));
 void	stats_print(void (*write)(void *, const char *), void *cbopaque,
     const char *opts);
 

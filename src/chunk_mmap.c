@@ -61,9 +61,8 @@ pages_map(void *addr, size_t size, bool noreserve)
 			char buf[BUFERROR_BUF];
 
 			buferror(errno, buf, sizeof(buf));
-			malloc_write("<jemalloc>: Error in munmap(): ");
-			malloc_write(buf);
-			malloc_write("\n");
+			malloc_printf("<jemalloc: Error in munmap(): %s\n",
+			    buf);
 			if (opt_abort)
 				abort();
 		}
@@ -83,9 +82,7 @@ pages_unmap(void *addr, size_t size)
 		char buf[BUFERROR_BUF];
 
 		buferror(errno, buf, sizeof(buf));
-		malloc_write("<jemalloc>: Error in munmap(): ");
-		malloc_write(buf);
-		malloc_write("\n");
+		malloc_printf("<jemalloc>: Error in munmap(): %s\n", buf);
 		if (opt_abort)
 			abort();
 	}

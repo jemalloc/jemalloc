@@ -239,9 +239,8 @@ huge_ralloc(void *ptr, size_t oldsize, size_t size, size_t extra,
 			char buf[BUFERROR_BUF];
 
 			buferror(errno, buf, sizeof(buf));
-			malloc_write("<jemalloc>: Error in mremap(): ");
-			malloc_write(buf);
-			malloc_write("\n");
+			malloc_printf("<jemalloc>: Error in mremap(): %s\n",
+			    buf);
 			if (opt_abort)
 				abort();
 			memcpy(ret, ptr, copysize);

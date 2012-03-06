@@ -149,39 +149,6 @@ static const bool config_ivsalloc =
 #include "jemalloc/internal/qr.h"
 #include "jemalloc/internal/ql.h"
 
-extern void	(*je_malloc_message)(void *wcbopaque, const char *s);
-
-/*
- * Define a custom assert() in order to reduce the chances of deadlock during
- * assertion failure.
- */
-#ifndef assert
-#  ifdef JEMALLOC_DEBUG
-#    define assert(e) do {						\
-	if (!(e)) {							\
-		char line_buf[UMAX2S_BUFSIZE];				\
-		malloc_write("<jemalloc>: ");				\
-		malloc_write(__FILE__);					\
-		malloc_write(":");					\
-		malloc_write(u2s(__LINE__, 10, line_buf));		\
-		malloc_write(": Failed assertion: ");			\
-		malloc_write("\"");					\
-		malloc_write(#e);					\
-		malloc_write("\"\n");					\
-		abort();						\
-	}								\
-} while (0)
-#  else
-#    define assert(e)
-#  endif
-#endif
-
-/* Use to assert a particular configuration, e.g., cassert(config_debug). */
-#define	cassert(c) do {							\
-	if ((c) == false)						\
-		assert(false);						\
-} while (0)
-
 /*
  * jemalloc can conceptually be broken into components (arena, tcache, etc.),
  * but there are circular dependencies that cannot be broken without
@@ -214,9 +181,6 @@ extern void	(*je_malloc_message)(void *wcbopaque, const char *s);
 #  define JEMALLOC_ENABLE_INLINE
 #  define JEMALLOC_INLINE static inline
 #endif
-
-/* Size of stack-allocated buffer passed to buferror(). */
-#define	BUFERROR_BUF		64
 
 /* Smallest size class to support. */
 #define	LG_TINY_MIN		3
@@ -318,6 +282,7 @@ extern void	(*je_malloc_message)(void *wcbopaque, const char *s);
 #define	PAGE_CEILING(s)							\
 	(((s) + PAGE_MASK) & ~PAGE_MASK)
 
+#include "jemalloc/internal/util.h"
 #include "jemalloc/internal/atomic.h"
 #include "jemalloc/internal/prng.h"
 #include "jemalloc/internal/ckh.h"
@@ -344,6 +309,7 @@ extern void	(*je_malloc_message)(void *wcbopaque, const char *s);
 /******************************************************************************/
 #define JEMALLOC_H_STRUCTS
 
+#include "jemalloc/internal/util.h"
 #include "jemalloc/internal/atomic.h"
 #include "jemalloc/internal/prng.h"
 #include "jemalloc/internal/ckh.h"
@@ -443,10 +409,10 @@ thread_allocated_t	*thread_allocated_get_hard(void);
 
 arena_t	*arenas_extend(unsigned ind);
 arena_t	*choose_arena_hard(void);
-int	buferror(int errnum, char *buf, size_t buflen);
 void	jemalloc_prefork(void);
 void	jemalloc_postfork(void);
 
+#include "jemalloc/internal/util.h"
 #include "jemalloc/internal/atomic.h"
 #include "jemalloc/internal/prng.h"
 #include "jemalloc/internal/ckh.h"
@@ -473,6 +439,7 @@ void	jemalloc_postfork(void);
 /******************************************************************************/
 #define JEMALLOC_H_INLINES
 
+#include "jemalloc/internal/util.h"
 #include "jemalloc/internal/atomic.h"
 #include "jemalloc/internal/prng.h"
 #include "jemalloc/internal/ckh.h"
@@ -487,33 +454,13 @@ void	jemalloc_postfork(void);
 #include "jemalloc/internal/huge.h"
 
 #ifndef JEMALLOC_ENABLE_INLINE
-size_t	pow2_ceil(size_t x);
 size_t	s2u(size_t size);
 size_t	sa2u(size_t size, size_t alignment, size_t *run_size_p);
-void	malloc_write(const char *s);
 arena_t	*choose_arena(void);
 thread_allocated_t	*thread_allocated_get(void);
 #endif
 
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_C_))
-/* Compute the smallest power of 2 that is >= x. */
-JEMALLOC_INLINE size_t
-pow2_ceil(size_t x)
-{
-
-	x--;
-	x |= x >> 1;
-	x |= x >> 2;
-	x |= x >> 4;
-	x |= x >> 8;
-	x |= x >> 16;
-#if (LG_SIZEOF_PTR == 3)
-	x |= x >> 32;
-#endif
-	x++;
-	return (x);
-}
-
 /*
  * Compute usable size that would result from allocating an object with the
  * specified size.
@@ -617,17 +564,6 @@ sa2u(size_t size, size_t alignment, size_t *run_size_p)
 			return (PAGE_CEILING(usize));
 		return (CHUNK_CEILING(usize));
 	}
-}
-
-/*
- * Wrapper around malloc_message() that avoids the need for
- * je_malloc_message(...) throughout the code.
- */
-JEMALLOC_INLINE void
-malloc_write(const char *s)
-{
-
-	je_malloc_message(NULL, s);
 }
 
 /*

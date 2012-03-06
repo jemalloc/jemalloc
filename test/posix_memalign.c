@@ -100,7 +100,7 @@ main(void)
 				    alignment, size);
 				if (err) {
 					fprintf(stderr,
-					    "Error for size %zu (0x%zx): %s\n",
+					    "Error for size %zu (%#zx): %s\n",
 					    size, size, strerror(err));
 					exit(1);
 				}

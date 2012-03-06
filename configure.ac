@@ -144,6 +144,18 @@ else
 fi
 AC_DEFINE_UNQUOTED([LG_SIZEOF_LONG], [$LG_SIZEOF_LONG])
 
+AC_CHECK_SIZEOF([intmax_t])
+if test "x${ac_cv_sizeof_intmax_t}" = "x16" ; then
+  LG_SIZEOF_INTMAX_T=4
+elif test "x${ac_cv_sizeof_intmax_t}" = "x8" ; then
+  LG_SIZEOF_INTMAX_T=3
+elif test "x${ac_cv_sizeof_intmax_t}" = "x4" ; then
+  LG_SIZEOF_INTMAX_T=2
+else
+  AC_MSG_ERROR([Unsupported intmax_t size: ${ac_cv_sizeof_long}])
+fi
+AC_DEFINE_UNQUOTED([LG_SIZEOF_INTMAX_T], [$LG_SIZEOF_INTMAX_T])
+
 AC_CANONICAL_HOST
 dnl CPU-specific settings.
 CPU_SPINWAIT=""

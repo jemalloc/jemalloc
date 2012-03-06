@@ -77,14 +77,14 @@ main(void)
 	r = nallocm(&nsz, sz, ALLOCM_ALIGN(alignment));
 	if (r == ALLOCM_SUCCESS) {
 		fprintf(stderr,
-		    "Expected error for nallocm(&nsz, %zu, 0x%x)\n",
+		    "Expected error for nallocm(&nsz, %zu, %#x)\n",
 		    sz, ALLOCM_ALIGN(alignment));
 	}
 	rsz = 0;
 	r = allocm(&p, &rsz, sz, ALLOCM_ALIGN(alignment));
 	if (r == ALLOCM_SUCCESS) {
 		fprintf(stderr,
-		    "Expected error for allocm(&p, %zu, 0x%x)\n",
+		    "Expected error for allocm(&p, %zu, %#x)\n",
 		    sz, ALLOCM_ALIGN(alignment));
 	}
 	if (nsz != rsz)
@@ -105,7 +105,7 @@ main(void)
 	r = allocm(&p, &rsz, sz, ALLOCM_ALIGN(alignment));
 	if (r == ALLOCM_SUCCESS) {
 		fprintf(stderr,
-		    "Expected error for allocm(&p, %zu, 0x%x)\n",
+		    "Expected error for allocm(&p, %zu, %#x)\n",
 		    sz, ALLOCM_ALIGN(alignment));
 	}
 
@@ -119,14 +119,14 @@ main(void)
 	r = nallocm(&nsz, sz, ALLOCM_ALIGN(alignment));
 	if (r == ALLOCM_SUCCESS) {
 		fprintf(stderr,
-		    "Expected error for nallocm(&nsz, %zu, 0x%x)\n",
+		    "Expected error for nallocm(&nsz, %zu, %#x)\n",
 		    sz, ALLOCM_ALIGN(alignment));
 	}
 	rsz = 0;
 	r = allocm(&p, &rsz, sz, ALLOCM_ALIGN(alignment));
 	if (r == ALLOCM_SUCCESS) {
 		fprintf(stderr,
-		    "Expected error for allocm(&p, %zu, 0x%x)\n",
+		    "Expected error for allocm(&p, %zu, %#x)\n",
 		    sz, ALLOCM_ALIGN(alignment));
 	}
 	if (nsz != rsz)
@@ -150,7 +150,7 @@ main(void)
 				if (r != ALLOCM_SUCCESS) {
 					fprintf(stderr,
 					    "nallocm() error for size %zu"
-					    " (0x%zx): %d\n",
+					    " (%#zx): %d\n",
 					    sz, sz, r);
 					exit(1);
 				}
@@ -160,7 +160,7 @@ main(void)
 				if (r != ALLOCM_SUCCESS) {
 					fprintf(stderr,
 					    "allocm() error for size %zu"
-					    " (0x%zx): %d\n",
+					    " (%#zx): %d\n",
 					    sz, sz, r);
 					exit(1);
 				}

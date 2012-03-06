@@ -76,19 +76,17 @@ bool	ctl_boot(void);
 #define	xmallctl(name, oldp, oldlenp, newp, newlen) do {		\
 	if (je_mallctl(name, oldp, oldlenp, newp, newlen)		\
 	    != 0) {							\
-		malloc_write("<jemalloc>: Failure in xmallctl(\"");	\
-		malloc_write(name);					\
-		malloc_write("\", ...)\n");				\
+		malloc_printf(						\
+		    "<jemalloc>: Failure in xmallctl(\"%s\", ...)\n",	\
+		    name);						\
 		abort();						\
 	}								\
 } while (0)
 
 #define	xmallctlnametomib(name, mibp, miblenp) do {			\
 	if (je_mallctlnametomib(name, mibp, miblenp) != 0) {		\
-		malloc_write(						\
-		    "<jemalloc>: Failure in xmallctlnametomib(\"");	\
-		malloc_write(name);					\
-		malloc_write("\", ...)\n");				\
+		malloc_printf("<jemalloc>: Failure in "			\
+		    "xmallctlnametomib(\"%s\", ...)\n", name);		\
 		abort();						\
 	}								\
 } while (0)

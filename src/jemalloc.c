@@ -55,7 +55,6 @@ size_t	opt_narenas = 0;
 /******************************************************************************/
 /* Function prototypes for non-inline static functions. */
 
-static void	wrtmessage(void *cbopaque, const char *s);
 static void	stats_print_atexit(void);
 static unsigned	malloc_ncpus(void);
 static void	arenas_cleanup(void *arg);
@@ -70,19 +69,6 @@ static void	malloc_conf_init(void);
 static bool	malloc_init_hard(void);
 static int	imemalign(void **memptr, size_t alignment, size_t size,
     bool enforce_min_alignment);
-
-/******************************************************************************/
-/* malloc_message() setup. */
-
-JEMALLOC_CATTR(visibility("hidden"), static)
-void
-wrtmessage(void *cbopaque, const char *s)
-{
-	UNUSED int result = write(STDERR_FILENO, s, strlen(s));
-}
-
-void	(*je_malloc_message)(void *, const char *s)
-    JEMALLOC_ATTR(visibility("default")) = wrtmessage;
 
 /******************************************************************************/
 /*
@@ -176,25 +162,6 @@ choose_arena_hard(void)
 	ARENA_SET(ret);
 
 	return (ret);
-}
-
-/*
- * glibc provides a non-standard strerror_r() when _GNU_SOURCE is defined, so
- * provide a wrapper.
- */
-int
-buferror(int errnum, char *buf, size_t buflen)
-{
-#ifdef _GNU_SOURCE
-	char *b = strerror_r(errno, buf, buflen);
-	if (b != buf) {
-		strncpy(buf, b, buflen);
-		buf[buflen-1] = '\0';
-	}
-	return (0);
-#else
-	return (strerror_r(errno, buf, buflen));
-#endif
 }
 
 static void
@@ -324,68 +291,64 @@ malloc_conf_next(char const **opts_p, char const **k_p, size_t *klen_p,
 
 	for (accept = false; accept == false;) {
 		switch (*opts) {
-			case 'A': case 'B': case 'C': case 'D': case 'E':
-			case 'F': case 'G': case 'H': case 'I': case 'J':
-			case 'K': case 'L': case 'M': case 'N': case 'O':
-			case 'P': case 'Q': case 'R': case 'S': case 'T':
-			case 'U': case 'V': case 'W': case 'X': case 'Y':
-			case 'Z':
-			case 'a': case 'b': case 'c': case 'd': case 'e':
-			case 'f': case 'g': case 'h': case 'i': case 'j':
-			case 'k': case 'l': case 'm': case 'n': case 'o':
-			case 'p': case 'q': case 'r': case 's': case 't':
-			case 'u': case 'v': case 'w': case 'x': case 'y':
-			case 'z':
-			case '0': case '1': case '2': case '3': case '4':
-			case '5': case '6': case '7': case '8': case '9':
-			case '_':
-				opts++;
-				break;
-			case ':':
-				opts++;
-				*klen_p = (uintptr_t)opts - 1 - (uintptr_t)*k_p;
-				*v_p = opts;
-				accept = true;
-				break;
-			case '\0':
-				if (opts != *opts_p) {
-					malloc_write("<jemalloc>: Conf string "
-					    "ends with key\n");
-				}
-				return (true);
-			default:
-				malloc_write("<jemalloc>: Malformed conf "
-				    "string\n");
-				return (true);
+		case 'A': case 'B': case 'C': case 'D': case 'E': case 'F':
+		case 'G': case 'H': case 'I': case 'J': case 'K': case 'L':
+		case 'M': case 'N': case 'O': case 'P': case 'Q': case 'R':
+		case 'S': case 'T': case 'U': case 'V': case 'W': case 'X':
+		case 'Y': case 'Z':
+		case 'a': case 'b': case 'c': case 'd': case 'e': case 'f':
+		case 'g': case 'h': case 'i': case 'j': case 'k': case 'l':
+		case 'm': case 'n': case 'o': case 'p': case 'q': case 'r':
+		case 's': case 't': case 'u': case 'v': case 'w': case 'x':
+		case 'y': case 'z':
+		case '0': case '1': case '2': case '3': case '4': case '5':
+		case '6': case '7': case '8': case '9':
+		case '_':
+			opts++;
+			break;
+		case ':':
+			opts++;
+			*klen_p = (uintptr_t)opts - 1 - (uintptr_t)*k_p;
+			*v_p = opts;
+			accept = true;
+			break;
+		case '\0':
+			if (opts != *opts_p) {
+				malloc_write("<jemalloc>: Conf string ends "
+				    "with key\n");
+			}
+			return (true);
+		default:
+			malloc_write("<jemalloc>: Malformed conf string\n");
+			return (true);
 		}
 	}
 
 	for (accept = false; accept == false;) {
 		switch (*opts) {
-			case ',':
-				opts++;
-				/*
-				 * Look ahead one character here, because the
-				 * next time this function is called, it will
-				 * assume that end of input has been cleanly
-				 * reached if no input remains, but we have
-				 * optimistically already consumed the comma if
-				 * one exists.
-				 */
-				if (*opts == '\0') {
-					malloc_write("<jemalloc>: Conf string "
-					    "ends with comma\n");
-				}
-				*vlen_p = (uintptr_t)opts - 1 - (uintptr_t)*v_p;
-				accept = true;
-				break;
-			case '\0':
-				*vlen_p = (uintptr_t)opts - (uintptr_t)*v_p;
-				accept = true;
-				break;
-			default:
-				opts++;
-				break;
+		case ',':
+			opts++;
+			/*
+			 * Look ahead one character here, because the next time
+			 * this function is called, it will assume that end of
+			 * input has been cleanly reached if no input remains,
+			 * but we have optimistically already consumed the
+			 * comma if one exists.
+			 */
+			if (*opts == '\0') {
+				malloc_write("<jemalloc>: Conf string ends "
+				    "with comma\n");
+			}
+			*vlen_p = (uintptr_t)opts - 1 - (uintptr_t)*v_p;
+			accept = true;
+			break;
+		case '\0':
+			*vlen_p = (uintptr_t)opts - (uintptr_t)*v_p;
+			accept = true;
+			break;
+		default:
+			opts++;
+			break;
 		}
 	}
 
@@ -397,17 +360,9 @@ static void
 malloc_conf_error(const char *msg, const char *k, size_t klen, const char *v,
     size_t vlen)
 {
-	char buf[PATH_MAX + 1];
 
-	malloc_write("<jemalloc>: ");
-	malloc_write(msg);
-	malloc_write(": ");
-	memcpy(buf, k, klen);
-	memcpy(&buf[klen], ":", 1);
-	memcpy(&buf[klen+1], v, vlen);
-	buf[klen+1+vlen] = '\0';
-	malloc_write(buf);
-	malloc_write("\n");
+	malloc_printf("<jemalloc>: %s: %.*s:%.*s\n", msg, (int)klen, k,
+	    (int)vlen, v);
 }
 
 static void
@@ -458,8 +413,7 @@ malloc_conf_init(void)
 				opts = buf;
 			}
 			break;
-		}
-		case 2: {
+		} case 2: {
 			const char *envname =
 #ifdef JEMALLOC_PREFIX
 			    JEMALLOC_CPREFIX"MALLOC_CONF"
@@ -480,8 +434,7 @@ malloc_conf_init(void)
 				opts = buf;
 			}
 			break;
-		}
-		default:
+		} default:
 			/* NOTREACHED */
 			assert(false);
 			buf[0] = '\0';
@@ -490,15 +443,15 @@ malloc_conf_init(void)
 
 		while (*opts != '\0' && malloc_conf_next(&opts, &k, &klen, &v,
 		    &vlen) == false) {
-#define	CONF_HANDLE_BOOL(n)						\
+#define	CONF_HANDLE_BOOL(o, n)						\
 			if (sizeof(#n)-1 == klen && strncmp(#n, k,	\
 			    klen) == 0) {				\
 				if (strncmp("true", v, vlen) == 0 &&	\
 				    vlen == sizeof("true")-1)		\
-					opt_##n = true;			\
+					o = true;			\
 				else if (strncmp("false", v, vlen) ==	\
 				    0 && vlen == sizeof("false")-1)	\
-					opt_##n = false;		\
+					o = false;			\
 				else {					\
 					malloc_conf_error(		\
 					    "Invalid conf value",	\
@@ -506,7 +459,7 @@ malloc_conf_init(void)
 				}					\
 				continue;				\
 			}
-#define	CONF_HANDLE_SIZE_T(n, min, max)					\
+#define	CONF_HANDLE_SIZE_T(o, n, min, max)				\
 			if (sizeof(#n)-1 == klen && strncmp(#n, k,	\
 			    klen) == 0) {				\
 				unsigned long ul;			\
@@ -524,10 +477,10 @@ malloc_conf_init(void)
 					    "Out-of-range conf value",	\
 					    k, klen, v, vlen);		\
 				} else					\
-					opt_##n = ul;			\
+					o = ul;				\
 				continue;				\
 			}
-#define	CONF_HANDLE_SSIZE_T(n, min, max)				\
+#define	CONF_HANDLE_SSIZE_T(o, n, min, max)				\
 			if (sizeof(#n)-1 == klen && strncmp(#n, k,	\
 			    klen) == 0) {				\
 				long l;					\
@@ -546,54 +499,58 @@ malloc_conf_init(void)
 					    "Out-of-range conf value",	\
 					    k, klen, v, vlen);		\
 				} else					\
-					opt_##n = l;			\
+					o = l;				\
 				continue;				\
 			}
-#define	CONF_HANDLE_CHAR_P(n, d)					\
+#define	CONF_HANDLE_CHAR_P(o, n, d)					\
 			if (sizeof(#n)-1 == klen && strncmp(#n, k,	\
 			    klen) == 0) {				\
 				size_t cpylen = (vlen <=		\
-				    sizeof(opt_##n)-1) ? vlen :		\
-				    sizeof(opt_##n)-1;			\
-				strncpy(opt_##n, v, cpylen);		\
-				opt_##n[cpylen] = '\0';			\
+				    sizeof(o)-1) ? vlen :		\
+				    sizeof(o)-1;			\
+				strncpy(o, v, cpylen);			\
+				o[cpylen] = '\0';			\
 				continue;				\
 			}
 
-			CONF_HANDLE_BOOL(abort)
+			CONF_HANDLE_BOOL(opt_abort, abort)
 			/*
 			 * Chunks always require at least one * header page,
 			 * plus one data page.
 			 */
-			CONF_HANDLE_SIZE_T(lg_chunk, PAGE_SHIFT+1,
+			CONF_HANDLE_SIZE_T(opt_lg_chunk, lg_chunk, PAGE_SHIFT+1,
 			    (sizeof(size_t) << 3) - 1)
-			CONF_HANDLE_SIZE_T(narenas, 1, SIZE_T_MAX)
-			CONF_HANDLE_SSIZE_T(lg_dirty_mult, -1,
-			    (sizeof(size_t) << 3) - 1)
-			CONF_HANDLE_BOOL(stats_print)
+			CONF_HANDLE_SIZE_T(opt_narenas, narenas, 1, SIZE_T_MAX)
+			CONF_HANDLE_SSIZE_T(opt_lg_dirty_mult, lg_dirty_mult,
+			    -1, (sizeof(size_t) << 3) - 1)
+			CONF_HANDLE_BOOL(opt_stats_print, stats_print)
 			if (config_fill) {
-				CONF_HANDLE_BOOL(junk)
-				CONF_HANDLE_BOOL(zero)
+				CONF_HANDLE_BOOL(opt_junk, junk)
+				CONF_HANDLE_BOOL(opt_zero, zero)
 			}
 			if (config_xmalloc) {
-				CONF_HANDLE_BOOL(xmalloc)
+				CONF_HANDLE_BOOL(opt_xmalloc, xmalloc)
 			}
 			if (config_tcache) {
-				CONF_HANDLE_BOOL(tcache)
-				CONF_HANDLE_SSIZE_T(lg_tcache_max, -1,
+				CONF_HANDLE_BOOL(opt_tcache, tcache)
+				CONF_HANDLE_SSIZE_T(opt_lg_tcache_max,
+				    lg_tcache_max, -1,
 				    (sizeof(size_t) << 3) - 1)
 			}
 			if (config_prof) {
-				CONF_HANDLE_BOOL(prof)
-				CONF_HANDLE_CHAR_P(prof_prefix, "jeprof")
-				CONF_HANDLE_BOOL(prof_active)
-				CONF_HANDLE_SSIZE_T(lg_prof_sample, 0,
+				CONF_HANDLE_BOOL(opt_prof, prof)
+				CONF_HANDLE_CHAR_P(opt_prof_prefix, prof_prefix,
+				    "jeprof")
+				CONF_HANDLE_BOOL(opt_prof_active, prof_active)
+				CONF_HANDLE_SSIZE_T(opt_lg_prof_sample,
+				    lg_prof_sample, 0,
 				    (sizeof(uint64_t) << 3) - 1)
-				CONF_HANDLE_BOOL(prof_accum)
-				CONF_HANDLE_SSIZE_T(lg_prof_interval, -1,
+				CONF_HANDLE_BOOL(opt_prof_accum, prof_accum)
+				CONF_HANDLE_SSIZE_T(opt_lg_prof_interval,
+				    lg_prof_interval, -1,
 				    (sizeof(uint64_t) << 3) - 1)
-				CONF_HANDLE_BOOL(prof_gdump)
-				CONF_HANDLE_BOOL(prof_leak)
+				CONF_HANDLE_BOOL(opt_prof_gdump, prof_gdump)
+				CONF_HANDLE_BOOL(opt_prof_leak, prof_leak)
 			}
 			malloc_conf_error("Invalid conf pair", k, klen, v,
 			    vlen);
@@ -773,12 +730,9 @@ malloc_init_hard(void)
 	 * machinery will fail to allocate memory at far lower limits.
 	 */
 	if (narenas > chunksize / sizeof(arena_t *)) {
-		char buf[UMAX2S_BUFSIZE];
-
 		narenas = chunksize / sizeof(arena_t *);
-		malloc_write("<jemalloc>: Reducing narenas to limit (");
-		malloc_write(u2s(narenas, 10, buf));
-		malloc_write(")\n");
+		malloc_printf("<jemalloc>: Reducing narenas to limit (%d)\n",
+		    narenas);
 	}
 
 	/* Allocate and initialize arenas. */
