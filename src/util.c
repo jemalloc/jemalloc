@@ -443,7 +443,6 @@ malloc_vsnprintf(char *str, size_t size, const char *format, va_list ap)
 		tret = vsnprintf(buf, sizeof(buf), format, tap);
 		assert(tret == ret);
 		assert(memcmp(str, buf, ret + 1) == 0);
-		}
 	}
 
 #undef APPEND_C
