@@ -346,9 +346,12 @@ AC_ARG_WITH([mangling],
   [AS_HELP_STRING([--with-mangling=<map>], [Mangle symbols in <map>])],
   [mangling_map="$with_mangling"], [mangling_map=""])
 for nm in `echo ${mangling_map} |tr ',' ' '` ; do
-  n="je_`echo ${nm} |tr ':' ' ' |awk '{print $1}'`"
+  k="`echo ${nm} |tr ':' ' ' |awk '{print $1}'`"
+  n="je_${k}"
   m=`echo ${nm} |tr ':' ' ' |awk '{print $2}'`
   AC_DEFINE_UNQUOTED([${n}], [${m}])
+  dnl Remove key from public_syms so that it isn't redefined later.
+  public_syms=`for sym in ${public_syms}; do echo "${sym}"; done |grep -v "^${k}\$" |tr '\n' ' '`
 done
 
 dnl Do not prefix public APIs by default.
