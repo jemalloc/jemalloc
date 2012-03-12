@@ -13,7 +13,7 @@ lg_tmin=3
 lg_pmin=12
 lg_pmax=16
 
-function pow2() {
+pow2() {
   e=$1
   pow2_result=1
   while [ ${e} -gt 0 ] ; do
