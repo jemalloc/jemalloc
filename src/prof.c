@@ -780,7 +780,7 @@ prof_dump_ctx(bool propagate_err, prof_ctx_t *ctx, prof_bt_t *bt)
 		return (true);
 
 	for (i = 0; i < bt->len; i++) {
-		if (prof_printf(propagate_err, " %#"PRIx64,
+		if (prof_printf(propagate_err, " %#"PRIxPTR,
 		    (uintptr_t)bt->vec[i]))
 			return (true);
 	}
