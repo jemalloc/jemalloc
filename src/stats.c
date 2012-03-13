@@ -49,7 +49,7 @@ static void	stats_arena_bins_print(void (*write_cb)(void *, const char *),
 static void	stats_arena_lruns_print(void (*write_cb)(void *, const char *),
     void *cbopaque, unsigned i);
 static void	stats_arena_print(void (*write_cb)(void *, const char *),
-    void *cbopaque, unsigned i);
+    void *cbopaque, unsigned i, bool bins, bool large);
 
 /******************************************************************************/
 
@@ -203,7 +203,7 @@ stats_arena_lruns_print(void (*write_cb)(void *, const char *), void *cbopaque,
 
 static void
 stats_arena_print(void (*write_cb)(void *, const char *), void *cbopaque,
-    unsigned i)
+    unsigned i, bool bins, bool large)
 {
 	unsigned nthreads;
 	size_t pagesize, pactive, pdirty, mapped;
@@ -256,8 +256,10 @@ stats_arena_print(void (*write_cb)(void *, const char *), void *cbopaque,
 	CTL_I_GET("stats.arenas.0.mapped", &mapped, size_t);
 	malloc_cprintf(write_cb, cbopaque, "mapped:  %12zu\n", mapped);
 
-	stats_arena_bins_print(write_cb, cbopaque, i);
-	stats_arena_lruns_print(write_cb, cbopaque, i);
+	if (bins)
+		stats_arena_bins_print(write_cb, cbopaque, i);
+	if (large)
+		stats_arena_lruns_print(write_cb, cbopaque, i);
 }
 
 void
@@ -506,7 +508,7 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 					malloc_cprintf(write_cb, cbopaque,
 					    "\nMerged arenas stats:\n");
 					stats_arena_print(write_cb, cbopaque,
-					    narenas);
+					    narenas, bins, large);
 				}
 			}
 		}
@@ -532,7 +534,7 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 						    cbopaque,
 						    "\narenas[%u]:\n", i);
 						stats_arena_print(write_cb,
-						    cbopaque, i);
+						    cbopaque, i, bins, large);
 					}
 				}
 			}
