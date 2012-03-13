@@ -68,7 +68,7 @@ static void	malloc_conf_error(const char *msg, const char *k, size_t klen,
 static void	malloc_conf_init(void);
 static bool	malloc_init_hard(void);
 static int	imemalign(void **memptr, size_t alignment, size_t size,
-    bool enforce_min_alignment);
+    size_t min_alignment);
 
 /******************************************************************************/
 /*
@@ -851,7 +851,7 @@ JEMALLOC_ATTR(noinline)
 #endif
 static int
 imemalign(void **memptr, size_t alignment, size_t size,
-    bool enforce_min_alignment)
+    size_t min_alignment)
 {
 	int ret;
 	size_t usize;
@@ -862,6 +862,8 @@ imemalign(void **memptr, size_t alignment, size_t size,
 #endif
 	    ;
 
+	assert(min_alignment != 0);
+
 	if (malloc_init())
 		result = NULL;
 	else {
@@ -870,10 +872,10 @@ imemalign(void **memptr, size_t alignment, size_t size,
 
 		/* Make sure that alignment is a large enough power of 2. */
 		if (((alignment - 1) & alignment) != 0
-		    || (enforce_min_alignment && alignment < sizeof(void *))) {
+		    || (alignment < min_alignment)) {
 			if (config_xmalloc && opt_xmalloc) {
-				malloc_write("<jemalloc>: Error in "
-				    "posix_memalign(): invalid alignment\n");
+				malloc_write("<jemalloc>: Error allocating "
+				    "aligned memory: invalid alignment\n");
 				abort();
 			}
 			result = NULL;
@@ -915,8 +917,8 @@ imemalign(void **memptr, size_t alignment, size_t size,
 
 	if (result == NULL) {
 		if (config_xmalloc && opt_xmalloc) {
-			malloc_write("<jemalloc>: Error in posix_memalign(): "
-			    "out of memory\n");
+			malloc_write("<jemalloc>: Error allocating aligned "
+			    "memory: out of memory\n");
 			abort();
 		}
 		ret = ENOMEM;
@@ -942,7 +944,22 @@ int
 je_posix_memalign(void **memptr, size_t alignment, size_t size)
 {
 
-	return imemalign(memptr, alignment, size, true);
+	return imemalign(memptr, alignment, size, sizeof(void *));
+}
+
+JEMALLOC_ATTR(malloc)
+JEMALLOC_ATTR(visibility("default"))
+void *
+je_aligned_alloc(size_t alignment, size_t size)
+{
+	void *ret;
+	int err;
+
+	if ((err = imemalign(&ret, alignment, size, 1)) != 0) {
+		ret = NULL;
+		errno = err;
+	}
+	return (ret);
 }
 
 JEMALLOC_ATTR(malloc)
@@ -1196,7 +1213,7 @@ je_memalign(size_t alignment, size_t size)
 	    = NULL
 #endif
 	    ;
-	imemalign(&ret, alignment, size, false);
+	imemalign(&ret, alignment, size, 1);
 	return (ret);
 }
 #endif
@@ -1212,7 +1229,7 @@ je_valloc(size_t size)
 	    = NULL
 #endif
 	    ;
-	imemalign(&ret, PAGE_SIZE, size, false);
+	imemalign(&ret, PAGE_SIZE, size, 1);
 	return (ret);
 }
 #endif

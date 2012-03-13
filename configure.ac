@@ -316,7 +316,7 @@ AC_PATH_PROG([AR], [ar], , [$PATH])
 AC_PATH_PROG([LD], [ld], , [$PATH])
 AC_PATH_PROG([AUTOCONF], [autoconf], , [$PATH])
 
-public_syms="malloc_conf malloc_message malloc calloc posix_memalign realloc free malloc_usable_size malloc_stats_print mallctl mallctlnametomib mallctlbymib"
+public_syms="malloc_conf malloc_message malloc calloc posix_memalign aligned_alloc realloc free malloc_usable_size malloc_stats_print mallctl mallctlnametomib mallctlbymib"
 
 dnl Check for allocator-related functions that should be wrapped.
 AC_CHECK_FUNC([memalign],

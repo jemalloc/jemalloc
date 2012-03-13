@@ -30,6 +30,7 @@
     <refname>malloc</refname>
     <refname>calloc</refname>
     <refname>posix_memalign</refname>
+    <refname>aligned_alloc</refname>
     <refname>realloc</refname>
     <refname>free</refname>
     <refname>malloc_usable_size</refname>
@@ -70,6 +71,11 @@
         <funcprototype>
           <funcdef>int <function>posix_memalign</function></funcdef>
           <paramdef>void **<parameter>ptr</parameter></paramdef>
+          <paramdef>size_t <parameter>alignment</parameter></paramdef>
+          <paramdef>size_t <parameter>size</parameter></paramdef>
+        </funcprototype>
+        <funcprototype>
+          <funcdef>void *<function>aligned_alloc</function></funcdef>
           <paramdef>size_t <parameter>alignment</parameter></paramdef>
           <paramdef>size_t <parameter>size</parameter></paramdef>
         </funcprototype>
@@ -189,6 +195,14 @@
       pointed to by <parameter>ptr</parameter>.  The requested
       <parameter>alignment</parameter> must be a power of 2 at least as large
       as <code language="C">sizeof(<type>void *</type>)</code>.</para>
+
+      <para>The <function>aligned_alloc<parameter/></function> function
+      allocates <parameter>size</parameter> bytes of memory such that the
+      allocation's base address is an even multiple of
+      <parameter>alignment</parameter>.  The requested
+      <parameter>alignment</parameter> must be a power of 2.  Behavior is
+      undefined if <parameter>size</parameter> is not an integral multiple of
+      <parameter>alignment</parameter>.</para>
 
       <para>The <function>realloc<parameter/></function> function changes the
       size of the previously allocated memory referenced by
@@ -1779,6 +1793,27 @@ malloc_conf = "xmalloc:true";]]></programlisting>
             <listitem><para>The <parameter>alignment</parameter> parameter is
             not a power of 2 at least as large as
             <code language="C">sizeof(<type>void *</type>)</code>.
+            </para></listitem>
+          </varlistentry>
+          <varlistentry>
+            <term><errorname>ENOMEM</errorname></term>
+
+            <listitem><para>Memory allocation error.</para></listitem>
+          </varlistentry>
+        </variablelist>
+      </para>
+
+      <para>The <function>aligned_alloc<parameter/></function> function returns
+      a pointer to the allocated memory if successful; otherwise a
+      <constant>NULL</constant> pointer is returned and
+      <varname>errno</varname> is set.  The
+      <function>aligned_alloc<parameter/></function> function will fail if:
+        <variablelist>
+          <varlistentry>
+            <term><errorname>EINVAL</errorname></term>
+
+            <listitem><para>The <parameter>alignment</parameter> parameter is
+            not a power of 2.
             </para></listitem>
           </varlistentry>
           <varlistentry>

@@ -16,6 +16,7 @@
 #undef je_malloc
 #undef je_calloc
 #undef je_posix_memalign
+#undef je_aligned_alloc
 #undef je_realloc
 #undef je_free
 #undef je_malloc_usable_size

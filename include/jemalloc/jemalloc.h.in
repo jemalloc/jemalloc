@@ -43,6 +43,7 @@ void	*je_malloc(size_t size) JEMALLOC_ATTR(malloc);
 void	*je_calloc(size_t num, size_t size) JEMALLOC_ATTR(malloc);
 int	je_posix_memalign(void **memptr, size_t alignment, size_t size)
     JEMALLOC_ATTR(nonnull(1));
+void	*je_aligned_alloc(size_t alignment, size_t size) JEMALLOC_ATTR(malloc);
 void	*je_realloc(void *ptr, size_t size);
 void	je_free(void *ptr);
 
@@ -82,6 +83,7 @@ int	je_nallocm(size_t *rsize, size_t size, int flags);
 #define	malloc je_malloc
 #define	calloc je_calloc
 #define	posix_memalign je_posix_memalign
+#define	aligned_alloc je_aligned_alloc
 #define	realloc je_realloc
 #define	free je_free
 #define	malloc_usable_size je_malloc_usable_size
@@ -113,6 +115,7 @@ int	je_nallocm(size_t *rsize, size_t size, int flags);
 #undef je_malloc
 #undef je_calloc
 #undef je_posix_memalign
+#undef je_aligned_alloc
 #undef je_realloc
 #undef je_free
 #undef je_malloc_usable_size
