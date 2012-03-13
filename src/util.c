@@ -433,7 +433,7 @@ malloc_vsnprintf(char *str, size_t size, const char *format, va_list ap)
 	ret = i;
 
 	if (config_debug) {
-		char buf[ret + 2];
+		char buf[MALLOC_PRINTF_BUFSIZE];
 		int tret;
 
 		/*
@@ -442,7 +442,7 @@ malloc_vsnprintf(char *str, size_t size, const char *format, va_list ap)
 		 */
 		tret = vsnprintf(buf, sizeof(buf), format, tap);
 		assert(tret == ret);
-		assert(memcmp(str, buf, ret + 1) == 0);
+		assert(strcmp(buf, str) == 0);
 	}
 
 #undef APPEND_C
@@ -469,8 +469,7 @@ malloc_snprintf(char *str, size_t size, const char *format, ...)
 const char *
 malloc_vtprintf(const char *format, va_list ap)
 {
-	/* buf must be large enough for all possible uses within jemalloc. */
-	static __thread char buf[4096];
+	static __thread char buf[MALLOC_PRINTF_BUFSIZE];
 
 	malloc_vsnprintf(buf, sizeof(buf), format, ap);
 

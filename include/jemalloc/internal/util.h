@@ -5,6 +5,12 @@
 #define	BUFERROR_BUF		64
 
 /*
+ * Size of static buffer used by malloc_[v]{,c,t}printf().  This must be large
+ * enough for all possible uses within jemalloc.
+ */
+#define	MALLOC_PRINTF_BUFSIZE	4096
+
+/*
  * Define a custom assert() in order to reduce the chances of deadlock during
  * assertion failure.
  */
