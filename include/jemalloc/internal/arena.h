@@ -376,6 +376,9 @@ void	*arena_ralloc(void *ptr, size_t oldsize, size_t size, size_t extra,
     size_t alignment, bool zero);
 bool	arena_new(arena_t *arena, unsigned ind);
 void	arena_boot(void);
+void	arena_prefork(arena_t *arena);
+void	arena_postfork_parent(arena_t *arena);
+void	arena_postfork_child(arena_t *arena);
 
 #endif /* JEMALLOC_H_EXTERNS */
 /******************************************************************************/

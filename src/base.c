@@ -4,7 +4,7 @@
 /******************************************************************************/
 /* Data. */
 
-malloc_mutex_t	base_mtx;
+static malloc_mutex_t	base_mtx;
 
 /*
  * Current pages that are being used for internal memory allocations.  These
@@ -103,4 +103,25 @@ base_boot(void)
 		return (true);
 
 	return (false);
+}
+
+void
+base_prefork(void)
+{
+
+	malloc_mutex_prefork(&base_mtx);
+}
+
+void
+base_postfork_parent(void)
+{
+
+	malloc_mutex_postfork_parent(&base_mtx);
+}
+
+void
+base_postfork_child(void)
+{
+
+	malloc_mutex_postfork_child(&base_mtx);
 }

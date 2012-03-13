@@ -2169,3 +2169,33 @@ arena_boot(void)
 
 	bin_info_init();
 }
+
+void
+arena_prefork(arena_t *arena)
+{
+	unsigned i;
+
+	malloc_mutex_prefork(&arena->lock);
+	for (i = 0; i < NBINS; i++)
+		malloc_mutex_prefork(&arena->bins[i].lock);
+}
+
+void
+arena_postfork_parent(arena_t *arena)
+{
+	unsigned i;
+
+	for (i = 0; i < NBINS; i++)
+		malloc_mutex_postfork_parent(&arena->bins[i].lock);
+	malloc_mutex_postfork_parent(&arena->lock);
+}
+
+void
+arena_postfork_child(arena_t *arena)
+{
+	unsigned i;
+
+	for (i = 0; i < NBINS; i++)
+		malloc_mutex_postfork_child(&arena->bins[i].lock);
+	malloc_mutex_postfork_child(&arena->lock);
+}

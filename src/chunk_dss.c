@@ -3,14 +3,18 @@
 /******************************************************************************/
 /* Data. */
 
-malloc_mutex_t	dss_mtx;
+/*
+ * Protects sbrk() calls.  This avoids malloc races among threads, though it
+ * does not protect against races with threads that call sbrk() directly.
+ */
+static malloc_mutex_t	dss_mtx;
 
 /* Base address of the DSS. */
-static void	*dss_base;
+static void		*dss_base;
 /* Current end of the DSS, or ((void *)-1) if the DSS is exhausted. */
-static void	*dss_prev;
+static void		*dss_prev;
 /* Current upper limit on DSS addresses. */
-static void	*dss_max;
+static void		*dss_max;
 
 /*
  * Trees of chunks that were previously allocated (trees differ only in node
@@ -289,6 +293,30 @@ chunk_dss_boot(void)
 	extent_tree_ad_new(&dss_chunks_ad);
 
 	return (false);
+}
+
+void
+chunk_dss_prefork(void)
+{
+
+	if (config_dss)
+		malloc_mutex_prefork(&dss_mtx);
+}
+
+void
+chunk_dss_postfork_parent(void)
+{
+
+	if (config_dss)
+		malloc_mutex_postfork_parent(&dss_mtx);
+}
+
+void
+chunk_dss_postfork_child(void)
+{
+
+	if (config_dss)
+		malloc_mutex_postfork_child(&dss_mtx);
 }
 
 /******************************************************************************/

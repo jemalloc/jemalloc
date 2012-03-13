@@ -610,8 +610,8 @@ malloc_init_hard(void)
 	malloc_conf_init();
 
 	/* Register fork handlers. */
-	if (pthread_atfork(jemalloc_prefork, jemalloc_postfork,
-	    jemalloc_postfork) != 0) {
+	if (pthread_atfork(jemalloc_prefork, jemalloc_postfork_parent,
+	    jemalloc_postfork_child) != 0) {
 		malloc_write("<jemalloc>: Error in pthread_atfork()\n");
 		if (opt_abort)
 			abort();
@@ -1593,40 +1593,46 @@ jemalloc_prefork(void)
 	unsigned i;
 
 	/* Acquire all mutexes in a safe order. */
-
-	malloc_mutex_lock(&arenas_lock);
+	malloc_mutex_prefork(&arenas_lock);
 	for (i = 0; i < narenas; i++) {
 		if (arenas[i] != NULL)
-			malloc_mutex_lock(&arenas[i]->lock);
+			arena_prefork(arenas[i]);
 	}
-
-	malloc_mutex_lock(&base_mtx);
-
-	malloc_mutex_lock(&huge_mtx);
-
-	if (config_dss)
-		malloc_mutex_lock(&dss_mtx);
+	base_prefork();
+	huge_prefork();
+	chunk_dss_prefork();
 }
 
 void
-jemalloc_postfork(void)
+jemalloc_postfork_parent(void)
 {
 	unsigned i;
 
 	/* Release all mutexes, now that fork() has completed. */
-
-	if (config_dss)
-		malloc_mutex_unlock(&dss_mtx);
-
-	malloc_mutex_unlock(&huge_mtx);
-
-	malloc_mutex_unlock(&base_mtx);
-
+	chunk_dss_postfork_parent();
+	huge_postfork_parent();
+	base_postfork_parent();
 	for (i = 0; i < narenas; i++) {
 		if (arenas[i] != NULL)
-			malloc_mutex_unlock(&arenas[i]->lock);
+			arena_postfork_parent(arenas[i]);
 	}
-	malloc_mutex_unlock(&arenas_lock);
+	malloc_mutex_postfork_parent(&arenas_lock);
+}
+
+void
+jemalloc_postfork_child(void)
+{
+	unsigned i;
+
+	/* Release all mutexes, now that fork() has completed. */
+	chunk_dss_postfork_child();
+	huge_postfork_child();
+	base_postfork_child();
+	for (i = 0; i < narenas; i++) {
+		if (arenas[i] != NULL)
+			arena_postfork_child(arenas[i]);
+	}
+	malloc_mutex_postfork_child(&arenas_lock);
 }
 
 /******************************************************************************/

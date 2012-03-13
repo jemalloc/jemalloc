@@ -359,3 +359,24 @@ huge_boot(void)
 
 	return (false);
 }
+
+void
+huge_prefork(void)
+{
+
+	malloc_mutex_prefork(&huge_mtx);
+}
+
+void
+huge_postfork_parent(void)
+{
+
+	malloc_mutex_postfork_parent(&huge_mtx);
+}
+
+void
+huge_postfork_child(void)
+{
+
+	malloc_mutex_postfork_child(&huge_mtx);
+}

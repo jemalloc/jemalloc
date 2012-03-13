@@ -410,7 +410,8 @@ thread_allocated_t	*thread_allocated_get_hard(void);
 arena_t	*arenas_extend(unsigned ind);
 arena_t	*choose_arena_hard(void);
 void	jemalloc_prefork(void);
-void	jemalloc_postfork(void);
+void	jemalloc_postfork_parent(void);
+void	jemalloc_postfork_child(void);
 
 #include "jemalloc/internal/util.h"
 #include "jemalloc/internal/atomic.h"

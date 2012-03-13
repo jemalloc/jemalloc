@@ -28,6 +28,9 @@ size_t	huge_salloc(const void *ptr);
 prof_ctx_t	*huge_prof_ctx_get(const void *ptr);
 void	huge_prof_ctx_set(const void *ptr, prof_ctx_t *ctx);
 bool	huge_boot(void);
+void	huge_prefork(void);
+void	huge_postfork_parent(void);
+void	huge_postfork_child(void);
 
 #endif /* JEMALLOC_H_EXTERNS */
 /******************************************************************************/

@@ -92,3 +92,29 @@ malloc_mutex_destroy(malloc_mutex_t *mutex)
 	}
 #endif
 }
+
+void
+malloc_mutex_prefork(malloc_mutex_t *mutex)
+{
+
+	malloc_mutex_lock(mutex);
+}
+
+void
+malloc_mutex_postfork_parent(malloc_mutex_t *mutex)
+{
+
+	malloc_mutex_unlock(mutex);
+}
+
+void
+malloc_mutex_postfork_child(malloc_mutex_t *mutex)
+{
+
+	if (malloc_mutex_init(mutex)) {
+		malloc_printf("<jemalloc>: Error re-initializing mutex in "
+		    "child\n");
+		if (opt_abort)
+			abort();
+	}
+}
