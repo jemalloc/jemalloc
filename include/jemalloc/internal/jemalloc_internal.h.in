@@ -240,14 +240,14 @@ static const bool config_ivsalloc =
 #define	LONG_MASK		(LONG - 1)
 
 /* Return the smallest long multiple that is >= a. */
-#define	LONG_CEILING(a)						\
+#define	LONG_CEILING(a)							\
 	(((a) + LONG_MASK) & ~LONG_MASK)
 
 #define	SIZEOF_PTR		(1U << LG_SIZEOF_PTR)
 #define	PTR_MASK		(SIZEOF_PTR - 1)
 
 /* Return the smallest (void *) multiple that is >= a. */
-#define	PTR_CEILING(a)						\
+#define	PTR_CEILING(a)							\
 	(((a) + PTR_MASK) & ~PTR_MASK)
 
 /*
@@ -566,10 +566,7 @@ sa2u(size_t size, size_t alignment, size_t *run_size_p)
 	}
 }
 
-/*
- * Choose an arena based on a per-thread value (fast-path code, calls slow-path
- * code if necessary).
- */
+/* Choose an arena based on a per-thread value. */
 JEMALLOC_INLINE arena_t *
 choose_arena(void)
 {

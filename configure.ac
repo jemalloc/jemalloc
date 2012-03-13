@@ -26,14 +26,17 @@ AC_COMPILE_IFELSE([AC_LANG_PROGRAM(
 ])
 
 dnl JE_COMPILABLE(label, hcode, mcode, rvar)
+dnl 
+dnl Use AC_RUN_IFELSE() rather than AC_COMPILE_IFELSE() so that linker errors
+dnl cause failure.
 AC_DEFUN([JE_COMPILABLE],
 [
 AC_CACHE_CHECK([whether $1 is compilable],
                [$4],
-               [AC_COMPILE_IFELSE([AC_LANG_PROGRAM([$2],
-                                                   [$3])],
-                                  [$4=yes],
-                                  [$4=no])])
+               [AC_RUN_IFELSE([AC_LANG_PROGRAM([$2],
+                                               [$3])],
+                              [$4=yes],
+                              [$4=no])])
 ])
 
 dnl ============================================================================
@@ -801,16 +804,13 @@ dnl ============================================================================
 dnl Check for ffsl(3), and fail if not found.  This function exists on all
 dnl platforms that jemalloc currently has a chance of functioning on without
 dnl modification.
-JE_COMPILABLE([a program using ffsl],
-              [
-              #include <string.h>
-              ],
-              [
-                {
-                        int rv = ffsl(0x08);
-                }
-              ],
-              [je_cv_function_ffsl])
+JE_COMPILABLE([a program using ffsl], [
+#include <string.h>
+], [
+	{
+		int rv = ffsl(0x08);
+	}
+], [je_cv_function_ffsl])
 if test "x${je_cv_function_ffsl}" != "xyes" ; then
    AC_MSG_ERROR([Cannot build without ffsl(3)])
 fi

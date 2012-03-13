@@ -101,10 +101,7 @@ arenas_extend(unsigned ind)
 	return (arenas[0]);
 }
 
-/*
- * Choose an arena based on a per-thread value (slow-path code only, called
- * only by choose_arena()).
- */
+/* Slow path, called only by choose_arena(). */
 arena_t *
 choose_arena_hard(void)
 {
