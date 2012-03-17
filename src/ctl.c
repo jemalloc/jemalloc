@@ -39,7 +39,7 @@ static int	ctl_lookup(const char *name, ctl_node_t const **nodesp,
 
 CTL_PROTO(version)
 CTL_PROTO(epoch)
-CTL_PROTO(tcache_flush)
+CTL_PROTO(thread_tcache_flush)
 CTL_PROTO(thread_arena)
 CTL_PROTO(thread_allocated)
 CTL_PROTO(thread_allocatedp)
@@ -151,7 +151,7 @@ CTL_PROTO(stats_mapped)
 #define	INDEX(i)	false,	{.indexed = {i##_index}},		NULL
 
 static const ctl_node_t	tcache_node[] = {
-	{NAME("flush"),		CTL(tcache_flush)}
+	{NAME("flush"),		CTL(thread_tcache_flush)}
 };
 
 static const ctl_node_t	thread_node[] = {
@@ -159,7 +159,8 @@ static const ctl_node_t	thread_node[] = {
 	{NAME("allocated"),	CTL(thread_allocated)},
 	{NAME("allocatedp"),	CTL(thread_allocatedp)},
 	{NAME("deallocated"),	CTL(thread_deallocated)},
-	{NAME("deallocatedp"),	CTL(thread_deallocatedp)}
+	{NAME("deallocatedp"),	CTL(thread_deallocatedp)},
+	{NAME("tcache"),	CHILD(tcache)}
 };
 
 static const ctl_node_t	config_node[] = {
@@ -334,7 +335,6 @@ static const ctl_node_t stats_node[] = {
 static const ctl_node_t	root_node[] = {
 	{NAME("version"),	CTL(version)},
 	{NAME("epoch"),		CTL(epoch)},
-	{NAME("tcache"),	CHILD(tcache)},
 	{NAME("thread"),	CHILD(thread)},
 	{NAME("config"),	CHILD(config)},
 	{NAME("opt"),		CHILD(opt)},
@@ -967,8 +967,8 @@ RETURN:
 }
 
 static int
-tcache_flush_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
-    void *newp, size_t newlen)
+thread_tcache_flush_ctl(const size_t *mib, size_t miblen, void *oldp,
+    size_t *oldlenp, void *newp, size_t newlen)
 {
 	int ret;
 	tcache_t *tcache;

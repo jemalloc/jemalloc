@@ -1032,24 +1032,6 @@ malloc_conf = "xmalloc:true";]]></programlisting>
 
       <varlistentry>
         <term>
-          <mallctl>tcache.flush</mallctl>
-          (<type>void</type>)
-          <literal>--</literal>
-          [<option>--enable-tcache</option>]
-        </term>
-        <listitem><para>Flush calling thread's tcache.  This interface releases
-        all cached objects and internal data structures associated with the
-        calling thread's thread-specific cache.  Ordinarily, this interface
-        need not be called, since automatic periodic incremental garbage
-        collection occurs, and the thread cache is automatically discarded when
-        a thread exits.  However, garbage collection is triggered by allocation
-        activity, so it is possible for a thread that stops
-        allocating/deallocating to retain its cache indefinitely, in which case
-        the developer may find manual flushing useful.</para></listitem>
-      </varlistentry>
-
-      <varlistentry>
-        <term>
           <mallctl>thread.arena</mallctl>
           (<type>unsigned</type>)
           <literal>rw</literal>
@@ -1117,6 +1099,24 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         linkend="thread.deallocated"><mallctl>thread.deallocated</mallctl></link>
         mallctl.  This is useful for avoiding the overhead of repeated
         <function>mallctl*<parameter/></function> calls.</para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term>
+          <mallctl>thread.tcache.flush</mallctl>
+          (<type>void</type>)
+          <literal>--</literal>
+          [<option>--enable-tcache</option>]
+        </term>
+        <listitem><para>Flush calling thread's tcache.  This interface releases
+        all cached objects and internal data structures associated with the
+        calling thread's thread-specific cache.  Ordinarily, this interface
+        need not be called, since automatic periodic incremental garbage
+        collection occurs, and the thread cache is automatically discarded when
+        a thread exits.  However, garbage collection is triggered by allocation
+        activity, so it is possible for a thread that stops
+        allocating/deallocating to retain its cache indefinitely, in which case
+        the developer may find manual flushing useful.</para></listitem>
       </varlistentry>
 
       <varlistentry id="arenas.narenas">
