@@ -357,7 +357,7 @@ extern unsigned		ncpus;
 
 extern malloc_mutex_t	arenas_lock; /* Protects arenas initialization. */
 extern pthread_key_t	arenas_tsd;
-#ifndef NO_TLS
+#ifdef JEMALLOC_TLS
 /*
  * Map of pthread_self() --> arenas[???], used for selecting an arena to use
  * for allocations.
@@ -382,7 +382,7 @@ extern __thread arena_t	*arenas_tls JEMALLOC_ATTR(tls_model("initial-exec"));
 extern arena_t		**arenas;
 extern unsigned		narenas;
 
-#ifndef NO_TLS
+#ifdef JEMALLOC_TLS
 extern __thread thread_allocated_t	thread_allocated_tls;
 #    define ALLOCATED_GET() (thread_allocated_tls.allocated)
 #    define ALLOCATEDP_GET() (&thread_allocated_tls.allocated)

@@ -11,7 +11,7 @@ tcache_bin_info_t	*tcache_bin_info;
 static unsigned		stack_nelms; /* Total stack elms per tcache. */
 
 /* Map of thread-specific caches. */
-#ifndef NO_TLS
+#ifdef JEMALLOC_TLS
 __thread tcache_t	*tcache_tls JEMALLOC_ATTR(tls_model("initial-exec"));
 #endif
 

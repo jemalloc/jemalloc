@@ -180,7 +180,7 @@ extern uint64_t	prof_interval;
 extern bool	prof_promote;
 
 /* Thread-specific backtrace cache, used to reduce bt2ctx contention. */
-#ifndef NO_TLS
+#ifdef JEMALLOC_TLS
 extern __thread prof_tdata_t	*prof_tdata_tls
     JEMALLOC_ATTR(tls_model("initial-exec"));
 #  define PROF_TCACHE_GET()	prof_tdata_tls

@@ -122,7 +122,7 @@
 #undef STATIC_PAGE_SHIFT
 
 /* TLS is used to map arenas and magazine caches to threads. */
-#undef NO_TLS
+#undef JEMALLOC_TLS
 
 /*
  * JEMALLOC_IVSALLOC enables ivsalloc(), which verifies that pointers reside

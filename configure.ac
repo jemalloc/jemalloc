@@ -210,7 +210,7 @@ case "${host}" in
   *-*-darwin*)
 	CFLAGS="$CFLAGS -fno-common -no-cpp-precomp"
 	abi="macho"
-	AC_DEFINE([JEMALLOC_PURGE_MADVISE_FREE])
+	AC_DEFINE([JEMALLOC_PURGE_MADVISE_FREE], [ ])
 	RPATH=""
 	LD_PRELOAD_VAR="DYLD_INSERT_LIBRARIES"
 	so="dylib"
@@ -218,14 +218,14 @@ case "${host}" in
   *-*-freebsd*)
 	CFLAGS="$CFLAGS"
 	abi="elf"
-	AC_DEFINE([JEMALLOC_PURGE_MADVISE_FREE])
+	AC_DEFINE([JEMALLOC_PURGE_MADVISE_FREE], [ ])
 	RPATH="-Wl,-rpath,"
 	;;
   *-*-linux*)
 	CFLAGS="$CFLAGS"
 	CPPFLAGS="$CPPFLAGS -D_GNU_SOURCE"
 	abi="elf"
-	AC_DEFINE([JEMALLOC_PURGE_MADVISE_DONTNEED])
+	AC_DEFINE([JEMALLOC_PURGE_MADVISE_DONTNEED], [ ])
 	RPATH="-Wl,-rpath,"
 	;;
   *-*-netbsd*)
@@ -240,7 +240,7 @@ case "${host}" in
                           [CFLAGS="$CFLAGS"; abi="elf"],
                           [abi="aout"])
 	AC_MSG_RESULT([$abi])
-	AC_DEFINE([JEMALLOC_PURGE_MADVISE_FREE])
+	AC_DEFINE([JEMALLOC_PURGE_MADVISE_FREE], [ ])
 	RPATH="-Wl,-rpath,"
 	;;
   *-*-solaris2*)
@@ -291,7 +291,7 @@ JE_COMPILABLE([mremap(...MREMAP_FIXED...)], [
 void *p = mremap((void *)0, 0, 0, MREMAP_MAYMOVE|MREMAP_FIXED, (void *)0);
 ], [je_cv_mremap_fixed])
 if test "x${je_cv_mremap_fixed}" = "xyes" ; then
-  AC_DEFINE([JEMALLOC_MREMAP_FIXED])
+  AC_DEFINE([JEMALLOC_MREMAP_FIXED], [ ])
 fi
 
 dnl Support optional additions to rpath.
@@ -329,10 +329,10 @@ public_syms="malloc_conf malloc_message malloc calloc posix_memalign aligned_all
 
 dnl Check for allocator-related functions that should be wrapped.
 AC_CHECK_FUNC([memalign],
-	      [AC_DEFINE([JEMALLOC_OVERRIDE_MEMALIGN])
+	      [AC_DEFINE([JEMALLOC_OVERRIDE_MEMALIGN], [ ])
 	       public_syms="${public_syms} memalign"])
 AC_CHECK_FUNC([valloc],
-	      [AC_DEFINE([JEMALLOC_OVERRIDE_VALLOC])
+	      [AC_DEFINE([JEMALLOC_OVERRIDE_VALLOC], [ ])
 	       public_syms="${public_syms} valloc"])
 
 dnl Support the experimental API by default.
@@ -458,7 +458,7 @@ fi
 [enable_cc_silence="0"]
 )
 if test "x$enable_cc_silence" = "x1" ; then
-  AC_DEFINE([JEMALLOC_CC_SILENCE])
+  AC_DEFINE([JEMALLOC_CC_SILENCE], [ ])
 fi
 
 dnl Do not compile with debugging by default.
@@ -808,8 +808,8 @@ AC_COMPILE_IFELSE([AC_LANG_PROGRAM(
               enable_tls="0")
 fi
 AC_SUBST([enable_tls])
-if test "x${enable_tls}" = "x0" ; then
-  AC_DEFINE_UNQUOTED([NO_TLS], [ ])
+if test "x${enable_tls}" = "x1" ; then
+  AC_DEFINE_UNQUOTED([JEMALLOC_TLS], [ ])
 fi
 
 dnl ============================================================================
@@ -846,7 +846,7 @@ JE_COMPILABLE([Darwin OSAtomic*()], [
 	}
 ], [je_cv_osatomic])
 if test "x${je_cv_osatomic}" = "xyes" ; then
-  AC_DEFINE([JEMALLOC_OSATOMIC])
+  AC_DEFINE([JEMALLOC_OSATOMIC], [ ])
 fi
 
 dnl ============================================================================
@@ -861,15 +861,15 @@ JE_COMPILABLE([Darwin OSSpin*()], [
 	OSSpinLockUnlock(&lock);
 ], [je_cv_osspin])
 if test "x${je_cv_osspin}" = "xyes" ; then
-  AC_DEFINE([JEMALLOC_OSSPIN])
+  AC_DEFINE([JEMALLOC_OSSPIN], [ ])
 fi
 
 dnl ============================================================================
 dnl Darwin-related configuration.
 
 if test "x${abi}" = "xmacho" ; then
-  AC_DEFINE([JEMALLOC_IVSALLOC])
-  AC_DEFINE([JEMALLOC_ZONE])
+  AC_DEFINE([JEMALLOC_IVSALLOC], [ ])
+  AC_DEFINE([JEMALLOC_ZONE], [ ])
 
   dnl The szone version jumped from 3 to 6 between the OS X 10.5.x and 10.6
   dnl releases.  malloc_zone_t and malloc_introspection_t have new fields in

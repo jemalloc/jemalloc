@@ -76,7 +76,7 @@ extern ssize_t	opt_lg_tcache_max;
 extern tcache_bin_info_t	*tcache_bin_info;
 
 /* Map of thread-specific caches. */
-#ifndef NO_TLS
+#ifdef JEMALLOC_TLS
 extern __thread tcache_t	*tcache_tls
     JEMALLOC_ATTR(tls_model("initial-exec"));
 #  define TCACHE_GET()	tcache_tls

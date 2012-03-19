@@ -8,7 +8,7 @@
  * Used by chunk_alloc_mmap() to decide whether to attempt the fast path and
  * potentially avoid some system calls.
  */
-#ifndef NO_TLS
+#ifdef JEMALLOC_TLS
 static __thread bool	mmap_unaligned_tls
     JEMALLOC_ATTR(tls_model("initial-exec"));
 #define	MMAP_UNALIGNED_GET()	mmap_unaligned_tls
@@ -225,7 +225,7 @@ bool
 chunk_mmap_boot(void)
 {
 
-#ifdef NO_TLS
+#ifndef JEMALLOC_TLS
 	if (pthread_key_create(&mmap_unaligned_tsd, NULL) != 0) {
 		malloc_write("<jemalloc>: Error in pthread_key_create()\n");
 		return (true);

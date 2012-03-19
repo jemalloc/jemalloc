@@ -9,11 +9,11 @@ arena_t			**arenas;
 unsigned		narenas;
 
 pthread_key_t		arenas_tsd;
-#ifndef NO_TLS
+#ifdef JEMALLOC_TLS
 __thread arena_t	*arenas_tls JEMALLOC_ATTR(tls_model("initial-exec"));
 #endif
 
-#ifndef NO_TLS
+#ifdef JEMALLOC_TLS
 __thread thread_allocated_t	thread_allocated_tls;
 #endif
 pthread_key_t		thread_allocated_tsd;
@@ -58,7 +58,7 @@ size_t	opt_narenas = 0;
 static void	stats_print_atexit(void);
 static unsigned	malloc_ncpus(void);
 static void	arenas_cleanup(void *arg);
-#ifdef NO_TLS
+#ifndef JEMALLOC_TLS
 static void	thread_allocated_cleanup(void *arg);
 #endif
 static bool	malloc_conf_next(char const **opts_p, char const **k_p,
@@ -251,7 +251,7 @@ arenas_cleanup(void *arg)
 	malloc_mutex_unlock(&arenas_lock);
 }
 
-#ifdef NO_TLS
+#ifndef JEMALLOC_TLS
 static void
 thread_allocated_cleanup(void *arg)
 {
@@ -656,7 +656,7 @@ malloc_init_hard(void)
 		return (true);
 	}
 
-#ifdef NO_TLS
+#ifndef JEMALLOC_TLS
 	/* Initialize allocation counters before any allocations can occur. */
 	if (config_stats && pthread_key_create(&thread_allocated_tsd,
 	    thread_allocated_cleanup) != 0) {

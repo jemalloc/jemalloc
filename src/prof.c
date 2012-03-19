@@ -26,7 +26,7 @@ char		opt_prof_prefix[PATH_MAX + 1];
 uint64_t	prof_interval;
 bool		prof_promote;
 
-#ifndef NO_TLS
+#ifdef JEMALLOC_TLS
 __thread prof_tdata_t	*prof_tdata_tls
     JEMALLOC_ATTR(tls_model("initial-exec"));
 #endif
