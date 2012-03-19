@@ -777,8 +777,10 @@ fi
 )
 if test "x$enable_lazy_lock" = "x1" ; then
   AC_CHECK_HEADERS([dlfcn.h], , [AC_MSG_ERROR([dlfcn.h is missing])])
-  AC_CHECK_LIB([dl], [dlopen], [LIBS="$LIBS -ldl"],
-               [AC_MSG_ERROR([libdl is missing])])
+  AC_CHECK_FUNC([dlsym], [],
+    [AC_CHECK_LIB([dl], [dlsym], [LIBS="$LIBS -ldl"],
+                  [AC_MSG_ERROR([libdl is missing])])
+    ])
   AC_DEFINE([JEMALLOC_LAZY_LOCK], [ ])
 fi
 AC_SUBST([enable_lazy_lock])
