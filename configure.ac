@@ -27,16 +27,16 @@ AC_COMPILE_IFELSE([AC_LANG_PROGRAM(
 
 dnl JE_COMPILABLE(label, hcode, mcode, rvar)
 dnl 
-dnl Use AC_RUN_IFELSE() rather than AC_COMPILE_IFELSE() so that linker errors
+dnl Use AC_LINK_IFELSE() rather than AC_COMPILE_IFELSE() so that linker errors
 dnl cause failure.
 AC_DEFUN([JE_COMPILABLE],
 [
 AC_CACHE_CHECK([whether $1 is compilable],
                [$4],
-               [AC_RUN_IFELSE([AC_LANG_PROGRAM([$2],
-                                               [$3])],
-                              [$4=yes],
-                              [$4=no])])
+               [AC_LINK_IFELSE([AC_LANG_PROGRAM([$2],
+                                                [$3])],
+                               [$4=yes],
+                               [$4=no])])
 ])
 
 dnl ============================================================================
