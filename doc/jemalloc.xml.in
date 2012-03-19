@@ -377,7 +377,7 @@ for (i = 0; i < nbins; i++) {
       sets <parameter>*rsize</parameter> to the real size of the allocation if
       <parameter>rsize</parameter> is not <constant>NULL</constant>.  Behavior
       is undefined if <parameter>size</parameter> is
-      <constant>0<constant>.</para>
+      <constant>0</constant>.</para>
 
       <para>The <function>rallocm<parameter/></function> function resizes the
       allocation at <parameter>*ptr</parameter> to be at least
@@ -390,7 +390,7 @@ for (i = 0; i < nbins; i++) {
       language="C"><parameter>size</parameter> +
       <parameter>extra</parameter>)</code> bytes, though inability to allocate
       the extra byte(s) will not by itself result in failure.  Behavior is
-      undefined if <parameter>size</parameter> is <constant>0<constant>, or if
+      undefined if <parameter>size</parameter> is <constant>0</constant>, or if
       <code language="C">(<parameter>size</parameter> +
       <parameter>extra</parameter> &gt;
       <constant>SIZE_T_MAX</constant>)</code>.</para>
@@ -409,7 +409,7 @@ for (i = 0; i < nbins; i++) {
       <parameter>*rsize</parameter> to the real size of the allocation that
       would result from the equivalent <function>allocm<parameter/></function>
       function call.  Behavior is undefined if
-      <parameter>size</parameter> is <constant>0<constant>.</para>
+      <parameter>size</parameter> is <constant>0</constant>.</para>
     </refsect2>
   </refsect1>
   <refsect1 id="tuning">
@@ -516,53 +516,55 @@ for (i = 0; i < nbins; i++) {
 
     <table xml:id="size_classes" frame="all">
       <title>Size classes</title>
-      <tgroup cols="3" align="left" colsep="1" rowsep="1">
-      <colspec colname="c1"/>
-      <colspec colname="c2"/>
-      <colspec colname="c3"/>
+      <tgroup cols="3" colsep="1" rowsep="1">
+      <colspec colname="c1" align="left"/>
+      <colspec colname="c2" align="right"/>
+      <colspec colname="c3" align="left"/>
       <thead>
         <row>
           <entry>Category</entry>
-          <entry>Subcategory</entry>
+          <entry>Spacing</entry>
           <entry>Size</entry>
         </row>
       </thead>
       <tbody>
         <row>
-          <entry morerows="3">Small</entry>
-          <entry>Tiny</entry>
+          <entry morerows="6">Small</entry>
+          <entry>lg</entry>
           <entry>[8]</entry>
         </row>
         <row>
-          <entry>16-spaced</entry>
+          <entry>16</entry>
           <entry>[16, 32, 48, ..., 128]</entry>
         </row>
         <row>
-          <entry>32-spaced</entry>
+          <entry>32</entry>
           <entry>[160, 192, 224, 256]</entry>
         </row>
         <row>
-          <entry>64-spaced</entry>
+          <entry>64</entry>
           <entry>[320, 384, 448, 512]</entry>
         </row>
         <row>
-          <entry>128-spaced</entry>
+          <entry>128</entry>
           <entry>[640, 768, 896, 1024]</entry>
         </row>
         <row>
-          <entry>256-spaced</entry>
+          <entry>256</entry>
           <entry>[1280, 1536, 1792, 2048]</entry>
         </row>
         <row>
-          <entry>512-spaced</entry>
+          <entry>512</entry>
           <entry>[2560, 3072, 3584]</entry>
         </row>
         <row>
-          <entry namest="c1" nameend="c2">Large</entry>
+          <entry>Large</entry>
+          <entry>4 KiB</entry>
           <entry>[4 KiB, 8 KiB, 12 KiB, ..., 4072 KiB]</entry>
         </row>
         <row>
-          <entry namest="c1" nameend="c2">Huge</entry>
+          <entry>Huge</entry>
+          <entry>4 MiB</entry>
           <entry>[4 MiB, 8 MiB, 12 MiB, ...]</entry>
         </row>
       </tbody>

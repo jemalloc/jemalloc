@@ -87,14 +87,23 @@ AC_SUBST([MANDIR])
 
 dnl Support for building documentation.
 AC_PATH_PROG([XSLTPROC], [xsltproc], , [$PATH])
+if test -d "/usr/share/xml/docbook/stylesheet/docbook-xsl" ; then
+  DEFAULT_XSLROOT="/usr/share/xml/docbook/stylesheet/docbook-xsl"
+elif test -d "/usr/share/sgml/docbook/xsl-stylesheets" ; then
+  DEFAULT_XSLROOT="/usr/share/sgml/docbook/xsl-stylesheets"
+else
+  dnl Documentation building will fail if this default gets used.
+  DEFAULT_XSLROOT=""
+fi
 AC_ARG_WITH([xslroot],
-  [AS_HELP_STRING([--with-xslroot=<path>], [XSL stylesheet root path])],
+  [AS_HELP_STRING([--with-xslroot=<path>], [XSL stylesheet root path])], [
 if test "x$with_xslroot" = "xno" ; then
-  XSLROOT="/usr/share/xml/docbook/stylesheet/docbook-xsl"
+  XSLROOT="${DEFAULT_XSLROOT}"
 else
   XSLROOT="${with_xslroot}"
-fi,
-  XSLROOT="/usr/share/xml/docbook/stylesheet/docbook-xsl"
+fi
+],
+  XSLROOT="${DEFAULT_XSLROOT}"
 )
 AC_SUBST([XSLROOT])
 
