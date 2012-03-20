@@ -747,15 +747,23 @@ malloc_init_hard(void)
 	arenas[0] = init_arenas[0];
 
 #ifdef JEMALLOC_ZONE
-	/* Register the custom zone. */
-	malloc_zone_register(create_zone());
+	/* Register the custom zone. At this point it won't be the default. */
+	malloc_zone_t *jemalloc_zone = create_zone();
+	malloc_zone_register(jemalloc_zone);
 
 	/*
-	 * Convert the default szone to an "overlay zone" that is capable of
-	 * deallocating szone-allocated objects, but allocating new objects
-	 * from jemalloc.
+	 * Unregister and reregister the default zone. On OSX >= 10.6,
+	 * unregistering takes the last registered zone and places it at the
+	 * location of the specified zone. Unregistering the default zone thus
+	 * makes the last registered one the default. On OSX < 10.6,
+	 * unregistering shifts all registered zones. The first registered zone
+	 * then becomes the default.
 	 */
-	szone2ozone(malloc_default_zone());
+	do {
+		malloc_zone_t *default_zone = malloc_default_zone();
+		malloc_zone_unregister(default_zone);
+		malloc_zone_register(default_zone);
+	} while (malloc_default_zone() != jemalloc_zone);
 #endif
 
 	malloc_initialized = true;
