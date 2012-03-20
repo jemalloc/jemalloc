@@ -152,7 +152,7 @@ zone_force_unlock(malloc_zone_t *zone)
 {
 
 	if (isthreaded)
-		jemalloc_postfork();
+		jemalloc_postfork_parent();
 }
 
 malloc_zone_t *
