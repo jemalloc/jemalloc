@@ -4,36 +4,9 @@
 /******************************************************************************/
 /* Data. */
 
-malloc_mutex_t		arenas_lock;
-arena_t			**arenas;
-unsigned		narenas;
-
-pthread_key_t		arenas_tsd;
-#ifdef JEMALLOC_TLS
-__thread arena_t	*arenas_tls JEMALLOC_ATTR(tls_model("initial-exec"));
-#endif
-
-#ifdef JEMALLOC_TLS
-__thread thread_allocated_t	thread_allocated_tls;
-#endif
-pthread_key_t		thread_allocated_tsd;
-
-/* Set to true once the allocator has been initialized. */
-static bool		malloc_initialized = false;
-
-/* Used to let the initializing thread recursively allocate. */
-static pthread_t	malloc_initializer = (unsigned long)0;
-
-/* Used to avoid initialization races. */
-static malloc_mutex_t	init_lock = MALLOC_MUTEX_INITIALIZER;
-
-#ifdef DYNAMIC_PAGE_SHIFT
-size_t		pagesize;
-size_t		pagesize_mask;
-size_t		lg_pagesize;
-#endif
-
-unsigned	ncpus;
+malloc_tsd_data(, arenas, arena_t *, NULL)
+malloc_tsd_data(, thread_allocated, thread_allocated_t,
+    THREAD_ALLOCATED_INITIALIZER)
 
 /* Runtime configuration options. */
 const char	*je_malloc_conf JEMALLOC_ATTR(visibility("default"));
@@ -52,15 +25,32 @@ bool	opt_xmalloc = false;
 bool	opt_zero = false;
 size_t	opt_narenas = 0;
 
+#ifdef DYNAMIC_PAGE_SHIFT
+size_t		pagesize;
+size_t		pagesize_mask;
+size_t		lg_pagesize;
+#endif
+
+unsigned	ncpus;
+
+malloc_mutex_t		arenas_lock;
+arena_t			**arenas;
+unsigned		narenas;
+
+/* Set to true once the allocator has been initialized. */
+static bool		malloc_initialized = false;
+
+/* Used to let the initializing thread recursively allocate. */
+static pthread_t	malloc_initializer = (unsigned long)0;
+
+/* Used to avoid initialization races. */
+static malloc_mutex_t	init_lock = MALLOC_MUTEX_INITIALIZER;
+
 /******************************************************************************/
 /* Function prototypes for non-inline static functions. */
 
 static void	stats_print_atexit(void);
 static unsigned	malloc_ncpus(void);
-static void	arenas_cleanup(void *arg);
-#ifndef JEMALLOC_TLS
-static void	thread_allocated_cleanup(void *arg);
-#endif
 static bool	malloc_conf_next(char const **opts_p, char const **k_p,
     size_t *klen_p, char const **v_p, size_t *vlen_p);
 static void	malloc_conf_error(const char *msg, const char *k, size_t klen,
@@ -156,7 +146,7 @@ choose_arena_hard(void)
 		malloc_mutex_unlock(&arenas_lock);
 	}
 
-	ARENA_SET(ret);
+	arenas_tsd_set(&ret);
 
 	return (ret);
 }
@@ -197,26 +187,6 @@ stats_print_atexit(void)
 	je_malloc_stats_print(NULL, NULL, NULL);
 }
 
-thread_allocated_t *
-thread_allocated_get_hard(void)
-{
-	thread_allocated_t *thread_allocated = (thread_allocated_t *)
-	    imalloc(sizeof(thread_allocated_t));
-	if (thread_allocated == NULL) {
-		static thread_allocated_t static_thread_allocated = {0, 0};
-		malloc_write("<jemalloc>: Error allocating TSD;"
-		    " mallctl(\"thread.{de,}allocated[p]\", ...)"
-		    " will be inaccurate\n");
-		if (opt_abort)
-			abort();
-		return (&static_thread_allocated);
-	}
-	pthread_setspecific(thread_allocated_tsd, thread_allocated);
-	thread_allocated->allocated = 0;
-	thread_allocated->deallocated = 0;
-	return (thread_allocated);
-}
-
 /*
  * End miscellaneous support functions.
  */
@@ -241,32 +211,16 @@ malloc_ncpus(void)
 	return (ret);
 }
 
-static void
+void
 arenas_cleanup(void *arg)
 {
-	arena_t *arena = (arena_t *)arg;
+	arena_t *arena = *(arena_t **)arg;
 
 	malloc_mutex_lock(&arenas_lock);
 	arena->nthreads--;
 	malloc_mutex_unlock(&arenas_lock);
 }
 
-#ifndef JEMALLOC_TLS
-static void
-thread_allocated_cleanup(void *arg)
-{
-	uint64_t *allocated = (uint64_t *)arg;
-
-	if (allocated != NULL)
-		idalloc(allocated);
-}
-#endif
-
-/*
- * FreeBSD's pthreads implementation calls malloc(3), so the malloc
- * implementation has to take pains to avoid infinite recursion during
- * initialization.
- */
 static inline bool
 malloc_init(void)
 {
@@ -604,6 +558,7 @@ malloc_init_hard(void)
 	}
 #endif
 
+	malloc_tsd_boot();
 	if (config_prof)
 		prof_boot0();
 
@@ -631,7 +586,7 @@ malloc_init_hard(void)
 		}
 	}
 
-	if (chunk_boot()) {
+	if (chunk_boot0()) {
 		malloc_mutex_unlock(&init_lock);
 		return (true);
 	}
@@ -646,7 +601,7 @@ malloc_init_hard(void)
 
 	arena_boot();
 
-	if (config_tcache && tcache_boot()) {
+	if (config_tcache && tcache_boot0()) {
 		malloc_mutex_unlock(&init_lock);
 		return (true);
 	}
@@ -656,22 +611,8 @@ malloc_init_hard(void)
 		return (true);
 	}
 
-#ifndef JEMALLOC_TLS
-	/* Initialize allocation counters before any allocations can occur. */
-	if (config_stats && pthread_key_create(&thread_allocated_tsd,
-	    thread_allocated_cleanup) != 0) {
-		malloc_mutex_unlock(&init_lock);
-		return (true);
-	}
-#endif
-
 	if (malloc_mutex_init(&arenas_lock))
 		return (true);
-
-	if (pthread_key_create(&arenas_tsd, arenas_cleanup) != 0) {
-		malloc_mutex_unlock(&init_lock);
-		return (true);
-	}
 
 	/*
 	 * Create enough scaffolding to allow recursive allocation in
@@ -691,15 +632,23 @@ malloc_init_hard(void)
 		return (true);
 	}
 
-	/*
-	 * Assign the initial arena to the initial thread, in order to avoid
-	 * spurious creation of an extra arena if the application switches to
-	 * threaded mode.
-	 */
-	ARENA_SET(arenas[0]);
-	arenas[0]->nthreads++;
+	/* Initialize allocation counters before any allocations can occur. */
+	if (config_stats && thread_allocated_tsd_boot()) {
+		malloc_mutex_unlock(&init_lock);
+		return (true);
+	}
 
 	if (config_prof && prof_boot2()) {
+		malloc_mutex_unlock(&init_lock);
+		return (true);
+	}
+
+	if (arenas_tsd_boot()) {
+		malloc_mutex_unlock(&init_lock);
+		return (true);
+	}
+
+	if (config_tcache && tcache_boot1()) {
 		malloc_mutex_unlock(&init_lock);
 		return (true);
 	}
@@ -709,6 +658,11 @@ malloc_init_hard(void)
 	malloc_mutex_unlock(&init_lock);
 	ncpus = malloc_ncpus();
 	malloc_mutex_lock(&init_lock);
+
+	if (chunk_boot1()) {
+		malloc_mutex_unlock(&init_lock);
+		return (true);
+	}
 
 	if (opt_narenas == 0) {
 		/*
@@ -844,7 +798,7 @@ OOM:
 		prof_malloc(ret, usize, cnt);
 	if (config_stats && ret != NULL) {
 		assert(usize == isalloc(ret));
-		ALLOCATED_ADD(usize, 0);
+		thread_allocated_tsd_get()->allocated += usize;
 	}
 	return (ret);
 }
@@ -939,7 +893,7 @@ imemalign(void **memptr, size_t alignment, size_t size,
 RETURN:
 	if (config_stats && result != NULL) {
 		assert(usize == isalloc(result));
-		ALLOCATED_ADD(usize, 0);
+		thread_allocated_tsd_get()->allocated += usize;
 	}
 	if (config_prof && opt_prof && result != NULL)
 		prof_malloc(result, usize, cnt);
@@ -1044,7 +998,7 @@ RETURN:
 		prof_malloc(ret, usize, cnt);
 	if (config_stats && ret != NULL) {
 		assert(usize == isalloc(ret));
-		ALLOCATED_ADD(usize, 0);
+		thread_allocated_tsd_get()->allocated += usize;
 	}
 	return (ret);
 }
@@ -1173,8 +1127,11 @@ RETURN:
 	if (config_prof && opt_prof)
 		prof_realloc(ret, usize, cnt, old_size, old_ctx);
 	if (config_stats && ret != NULL) {
+		thread_allocated_t *ta;
 		assert(usize == isalloc(ret));
-		ALLOCATED_ADD(usize, old_size);
+		ta = thread_allocated_tsd_get();
+		ta->allocated += usize;
+		ta->deallocated += old_size;
 	}
 	return (ret);
 }
@@ -1197,7 +1154,7 @@ je_free(void *ptr)
 			usize = isalloc(ptr);
 		}
 		if (config_stats)
-			ALLOCATED_ADD(0, usize);
+			thread_allocated_tsd_get()->deallocated += usize;
 		idalloc(ptr);
 	}
 }
@@ -1412,7 +1369,7 @@ je_allocm(void **ptr, size_t *rsize, size_t size, int flags)
 	*ptr = p;
 	if (config_stats) {
 		assert(usize == isalloc(p));
-		ALLOCATED_ADD(usize, 0);
+		thread_allocated_tsd_get()->allocated += usize;
 	}
 	return (ALLOCM_SUCCESS);
 OOM:
@@ -1502,8 +1459,12 @@ je_rallocm(void **ptr, size_t *rsize, size_t size, size_t extra, int flags)
 	}
 
 	*ptr = q;
-	if (config_stats)
-		ALLOCATED_ADD(usize, old_size);
+	if (config_stats) {
+		thread_allocated_t *ta;
+		ta = thread_allocated_tsd_get();
+		ta->allocated += usize;
+		ta->deallocated += old_size;
+	}
 	return (ALLOCM_SUCCESS);
 ERR:
 	if (no_move)
@@ -1556,7 +1517,7 @@ je_dallocm(void *ptr, int flags)
 		prof_free(ptr, usize);
 	}
 	if (config_stats)
-		ALLOCATED_ADD(0, usize);
+		thread_allocated_tsd_get()->deallocated += usize;
 	idalloc(ptr);
 
 	return (ALLOCM_SUCCESS);

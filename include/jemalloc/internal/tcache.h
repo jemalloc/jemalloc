@@ -75,23 +75,6 @@ extern ssize_t	opt_lg_tcache_max;
 
 extern tcache_bin_info_t	*tcache_bin_info;
 
-/* Map of thread-specific caches. */
-#ifdef JEMALLOC_TLS
-extern __thread tcache_t	*tcache_tls
-    JEMALLOC_ATTR(tls_model("initial-exec"));
-#  define TCACHE_GET()	tcache_tls
-#  define TCACHE_SET(v)	do {						\
-	tcache_tls = (tcache_t *)(v);					\
-	pthread_setspecific(tcache_tsd, (void *)(v));			\
-} while (0)
-#else
-#  define TCACHE_GET()	((tcache_t *)pthread_getspecific(tcache_tsd))
-#  define TCACHE_SET(v)	do {						\
-	pthread_setspecific(tcache_tsd, (void *)(v));			\
-} while (0)
-#endif
-extern pthread_key_t		tcache_tsd;
-
 /*
  * Number of tcache bins.  There are NBINS small-object bins, plus 0 or more
  * large-object bins.
@@ -105,18 +88,24 @@ void	tcache_bin_flush_small(tcache_bin_t *tbin, size_t binind, unsigned rem,
     tcache_t *tcache);
 void	tcache_bin_flush_large(tcache_bin_t *tbin, size_t binind, unsigned rem,
     tcache_t *tcache);
+void	tcache_arena_associate(tcache_t *tcache, arena_t *arena);
+void	tcache_arena_dissociate(tcache_t *tcache);
 tcache_t *tcache_create(arena_t *arena);
 void	*tcache_alloc_small_hard(tcache_t *tcache, tcache_bin_t *tbin,
     size_t binind);
 void	tcache_destroy(tcache_t *tcache);
+void	tcache_thread_cleanup(void *arg);
 void	tcache_stats_merge(tcache_t *tcache, arena_t *arena);
-bool	tcache_boot(void);
+bool	tcache_boot0(void);
+bool	tcache_boot1(void);
 
 #endif /* JEMALLOC_H_EXTERNS */
 /******************************************************************************/
 #ifdef JEMALLOC_H_INLINES
 
 #ifndef JEMALLOC_ENABLE_INLINE
+malloc_tsd_protos(JEMALLOC_ATTR(unused), tcache, tcache_t *)
+
 void	tcache_event(tcache_t *tcache);
 tcache_t *tcache_get(void);
 void	*tcache_alloc_easy(tcache_bin_t *tbin);
@@ -127,6 +116,11 @@ void	tcache_dalloc_large(tcache_t *tcache, void *ptr, size_t size);
 #endif
 
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_TCACHE_C_))
+/* Map of thread-specific caches. */
+malloc_tsd_externs(tcache, tcache_t *)
+malloc_tsd_funcs(JEMALLOC_INLINE, tcache, tcache_t *, NULL,
+    tcache_thread_cleanup)
+
 JEMALLOC_INLINE tcache_t *
 tcache_get(void)
 {
@@ -139,7 +133,7 @@ tcache_get(void)
 	else if (opt_tcache == false)
 		return (NULL);
 
-	tcache = TCACHE_GET();
+	tcache = *tcache_tsd_get();
 	if ((uintptr_t)tcache <= (uintptr_t)2) {
 		if (tcache == NULL) {
 			tcache = tcache_create(choose_arena());
@@ -152,7 +146,8 @@ tcache_get(void)
 				 * called after the tcache_thread_cleanup() was
 				 * called.
 				 */
-				TCACHE_SET((uintptr_t)2);
+				tcache = (tcache_t *)(uintptr_t)2;
+				tcache_tsd_set(&tcache);
 			}
 			return (NULL);
 		}

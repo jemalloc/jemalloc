@@ -100,7 +100,7 @@ chunk_dealloc(void *chunk, size_t size, bool unmap)
 }
 
 bool
-chunk_boot(void)
+chunk_boot0(void)
 {
 
 	/* Set variables according to the value of opt_lg_chunk. */
@@ -114,8 +114,6 @@ chunk_boot(void)
 			return (true);
 		memset(&stats_chunks, 0, sizeof(chunk_stats_t));
 	}
-	if (chunk_mmap_boot())
-		return (true);
 	if (config_dss && chunk_dss_boot())
 		return (true);
 	if (config_ivsalloc) {
@@ -124,6 +122,16 @@ chunk_boot(void)
 		if (chunks_rtree == NULL)
 			return (true);
 	}
+
+	return (false);
+}
+
+bool
+chunk_boot1(void)
+{
+
+	if (chunk_mmap_boot())
+		return (true);
 
 	return (false);
 }

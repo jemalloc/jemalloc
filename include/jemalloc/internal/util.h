@@ -5,10 +5,16 @@
 #define	BUFERROR_BUF		64
 
 /*
- * Size of static buffer used by malloc_[v]{,c,t}printf().  This must be large
- * enough for all possible uses within jemalloc.
+ * Size of stack-allocated buffer used by malloc_{,v,vc}printf().  This must be
+ * large enough for all possible uses within jemalloc.
  */
 #define	MALLOC_PRINTF_BUFSIZE	4096
+
+/*
+ * Wrap a cpp argument that contains commas such that it isn't broken up into
+ * multiple arguments.
+ */
+#define JEMALLOC_CONCAT(...) __VA_ARGS__
 
 /*
  * Define a custom assert() in order to reduce the chances of deadlock during
@@ -77,13 +83,6 @@ int	malloc_vsnprintf(char *str, size_t size, const char *format,
     va_list ap);
 int	malloc_snprintf(char *str, size_t size, const char *format, ...)
     JEMALLOC_ATTR(format(printf, 3, 4));
-/*
- * malloc_[v]tprintf() prints to a thread-local string buffer, so the result is
- * overwritten by the next call to malloc_[v]{,c,t}printf().
- */
-const char *	malloc_vtprintf(const char *format, va_list ap);
-const char *	malloc_tprintf(const char *format, ...)
-    JEMALLOC_ATTR(format(printf, 1, 2));
 void	malloc_vcprintf(void (*write_cb)(void *, const char *), void *cbopaque,
     const char *format, va_list ap);
 void malloc_cprintf(void (*write)(void *, const char *), void *cbopaque,

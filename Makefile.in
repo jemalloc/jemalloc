@@ -50,7 +50,8 @@ CSRCS := @srcroot@src/jemalloc.c @srcroot@src/arena.c @srcroot@src/atomic.c \
 	@srcroot@src/ckh.c @srcroot@src/ctl.c @srcroot@src/extent.c \
 	@srcroot@src/hash.c @srcroot@src/huge.c @srcroot@src/mb.c \
 	@srcroot@src/mutex.c @srcroot@src/prof.c @srcroot@src/rtree.c \
-	@srcroot@src/stats.c @srcroot@src/tcache.c @srcroot@src/util.c
+	@srcroot@src/stats.c @srcroot@src/tcache.c @srcroot@src/util.c \
+	@srcroot@src/tsd.c
 ifeq (macho, @abi@)
 CSRCS += @srcroot@src/zone.c
 endif

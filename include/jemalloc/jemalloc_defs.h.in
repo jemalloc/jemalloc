@@ -59,6 +59,15 @@
  */
 #undef JEMALLOC_OSSPIN
 
+/*
+ * Defined if _malloc_thread_cleanup() exists.  At least in the case of
+ * FreeBSD, pthread_key_create() allocates, which if used during malloc
+ * bootstrapping will cause recursion into the pthreads library.  Therefore, if
+ * _malloc_thread_cleanup() exists, use it as the basis for thread cleanup in
+ * malloc_tsd.
+ */
+#undef JEMALLOC_MALLOC_THREAD_CLEANUP
+
 /* Defined if __attribute__((...)) syntax is supported. */
 #undef JEMALLOC_HAVE_ATTR
 #ifdef JEMALLOC_HAVE_ATTR

@@ -8,20 +8,9 @@
  * Used by chunk_alloc_mmap() to decide whether to attempt the fast path and
  * potentially avoid some system calls.
  */
-#ifdef JEMALLOC_TLS
-static __thread bool	mmap_unaligned_tls
-    JEMALLOC_ATTR(tls_model("initial-exec"));
-#define	MMAP_UNALIGNED_GET()	mmap_unaligned_tls
-#define	MMAP_UNALIGNED_SET(v)	do {					\
-	mmap_unaligned_tls = (v);					\
-} while (0)
-#else
-static pthread_key_t	mmap_unaligned_tsd;
-#define	MMAP_UNALIGNED_GET()	((bool)pthread_getspecific(mmap_unaligned_tsd))
-#define	MMAP_UNALIGNED_SET(v)	do {					\
-	pthread_setspecific(mmap_unaligned_tsd, (void *)(v));		\
-} while (0)
-#endif
+malloc_tsd_data(static, mmap_unaligned, bool, false)
+malloc_tsd_funcs(JEMALLOC_INLINE, mmap_unaligned, bool, false,
+    malloc_tsd_no_cleanup)
 
 /******************************************************************************/
 /* Function prototypes for non-inline static functions. */
@@ -128,8 +117,10 @@ chunk_alloc_mmap_slow(size_t size, bool unaligned, bool noreserve)
 	 * the next chunk_alloc_mmap() execution tries the fast allocation
 	 * method.
 	 */
-	if (unaligned == false)
-		MMAP_UNALIGNED_SET(false);
+	if (unaligned == false && mmap_unaligned_booted) {
+		bool mu = false;
+		mmap_unaligned_tsd_set(&mu);
+	}
 
 	return (ret);
 }
@@ -167,7 +158,7 @@ chunk_alloc_mmap_internal(size_t size, bool noreserve)
 	 * fast method next time.
 	 */
 
-	if (MMAP_UNALIGNED_GET() == false) {
+	if (mmap_unaligned_booted && *mmap_unaligned_tsd_get() == false) {
 		size_t offset;
 
 		ret = pages_map(NULL, size, noreserve);
@@ -176,7 +167,8 @@ chunk_alloc_mmap_internal(size_t size, bool noreserve)
 
 		offset = CHUNK_ADDR2OFFSET(ret);
 		if (offset != 0) {
-			MMAP_UNALIGNED_SET(true);
+			bool mu = true;
+			mmap_unaligned_tsd_set(&mu);
 			/* Try to extend chunk boundary. */
 			if (pages_map((void *)((uintptr_t)ret + size),
 			    chunksize - offset, noreserve) == NULL) {
@@ -225,11 +217,15 @@ bool
 chunk_mmap_boot(void)
 {
 
-#ifndef JEMALLOC_TLS
-	if (pthread_key_create(&mmap_unaligned_tsd, NULL) != 0) {
-		malloc_write("<jemalloc>: Error in pthread_key_create()\n");
+	/*
+	 * XXX For the non-TLS implementation of tsd, the first access from
+	 * each thread causes memory allocation.  The result is a bootstrapping
+	 * problem for this particular use case, so for now just disable it by
+	 * leaving it in an unbooted state.
+	 */
+#ifdef JEMALLOC_TLS
+	if (mmap_unaligned_tsd_boot())
 		return (true);
-	}
 #endif
 
 	return (false);

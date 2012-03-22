@@ -763,6 +763,20 @@ AC_CHECK_LIB([pthread], [pthread_create], [LIBS="$LIBS -lpthread"],
 
 CPPFLAGS="$CPPFLAGS -D_REENTRANT"
 
+dnl Check whether the BSD-specific _malloc_thread_cleanup() exists.  If so, use
+dnl it rather than pthreads TSD cleanup functions to support cleanup during
+dnl thread exit, in order to avoid pthreads library recursion during
+dnl bootstrapping.
+force_tls="0"
+AC_CHECK_FUNC([_malloc_thread_cleanup],
+              [have__malloc_thread_cleanup="1"],
+              [have__malloc_thread_cleanup="0"]
+             )
+if test "x$have__malloc_thread_cleanup" = "x1" ; then
+  AC_DEFINE([JEMALLOC_MALLOC_THREAD_CLEANUP], [ ])
+  force_tls="1"
+fi
+
 dnl Disable lazy locking by default.
 AC_ARG_ENABLE([lazy_lock],
   [AS_HELP_STRING([--enable-lazy-lock],
@@ -795,6 +809,10 @@ fi
 ,
 enable_tls="1"
 )
+if test "x${enable_tls}" = "x0" -a "x${force_tls}" = "x1" ; then
+  AC_MSG_RESULT([Forcing TLS to avoid allocator/threading bootstrap issues])
+  enable_tls="1"
+fi
 if test "x${enable_tls}" = "x1" ; then
 AC_MSG_CHECKING([for TLS])
 AC_COMPILE_IFELSE([AC_LANG_PROGRAM(
@@ -812,6 +830,8 @@ fi
 AC_SUBST([enable_tls])
 if test "x${enable_tls}" = "x1" ; then
   AC_DEFINE_UNQUOTED([JEMALLOC_TLS], [ ])
+elif test "x${force_tls}" = "x1" ; then
+  AC_MSG_ERROR([Failed to configure TLS, which is mandatory for correct function])
 fi
 
 dnl ============================================================================

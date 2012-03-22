@@ -978,13 +978,13 @@ thread_tcache_flush_ctl(const size_t *mib, size_t miblen, void *oldp,
 
 	VOID();
 
-	tcache = TCACHE_GET();
-	if (tcache == NULL) {
+	if ((tcache = *tcache_tsd_get()) == NULL) {
 		ret = 0;
 		goto RETURN;
 	}
 	tcache_destroy(tcache);
-	TCACHE_SET(NULL);
+	tcache = NULL;
+	tcache_tsd_set(&tcache);
 
 	ret = 0;
 RETURN:
@@ -1012,23 +1012,26 @@ thread_arena_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
 
 		/* Initialize arena if necessary. */
 		malloc_mutex_lock(&arenas_lock);
-		if ((arena = arenas[newind]) == NULL)
-			arena = arenas_extend(newind);
-		arenas[oldind]->nthreads--;
-		arenas[newind]->nthreads++;
-		malloc_mutex_unlock(&arenas_lock);
-		if (arena == NULL) {
+		if ((arena = arenas[newind]) == NULL && (arena =
+		    arenas_extend(newind)) == NULL) {
+			malloc_mutex_unlock(&arenas_lock);
 			ret = EAGAIN;
 			goto RETURN;
 		}
+		assert(arena == arenas[newind]);
+		arenas[oldind]->nthreads--;
+		arenas[newind]->nthreads++;
+		malloc_mutex_unlock(&arenas_lock);
 
 		/* Set new arena association. */
-		ARENA_SET(arena);
 		if (config_tcache) {
-			tcache_t *tcache = TCACHE_GET();
-			if (tcache != NULL)
-				tcache->arena = arena;
+			tcache_t *tcache;
+			if ((tcache = *tcache_tsd_get()) != NULL) {
+				tcache_arena_dissociate(tcache);
+				tcache_arena_associate(tcache, arena);
+			}
 		}
+		arenas_tsd_set(&arena);
 	}
 
 	ret = 0;
@@ -1036,11 +1039,14 @@ RETURN:
 	return (ret);
 }
 
-CTL_RO_NL_CGEN(config_stats, thread_allocated, ALLOCATED_GET(), uint64_t)
-CTL_RO_NL_CGEN(config_stats, thread_allocatedp, ALLOCATEDP_GET(), uint64_t *)
-CTL_RO_NL_CGEN(config_stats, thread_deallocated, DEALLOCATED_GET(), uint64_t)
-CTL_RO_NL_CGEN(config_stats, thread_deallocatedp, DEALLOCATEDP_GET(),
-    uint64_t *)
+CTL_RO_NL_CGEN(config_stats, thread_allocated,
+    thread_allocated_tsd_get()->allocated, uint64_t)
+CTL_RO_NL_CGEN(config_stats, thread_allocatedp,
+    &thread_allocated_tsd_get()->allocated, uint64_t *)
+CTL_RO_NL_CGEN(config_stats, thread_deallocated,
+    thread_allocated_tsd_get()->deallocated, uint64_t)
+CTL_RO_NL_CGEN(config_stats, thread_deallocatedp,
+    &thread_allocated_tsd_get()->deallocated, uint64_t *)
 
 /******************************************************************************/
 

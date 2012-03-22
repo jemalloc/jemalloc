@@ -4,30 +4,16 @@
 /******************************************************************************/
 /* Data. */
 
+malloc_tsd_data(, tcache, tcache_t *, NULL)
+
 bool	opt_tcache = true;
 ssize_t	opt_lg_tcache_max = LG_TCACHE_MAXCLASS_DEFAULT;
 
 tcache_bin_info_t	*tcache_bin_info;
 static unsigned		stack_nelms; /* Total stack elms per tcache. */
 
-/* Map of thread-specific caches. */
-#ifdef JEMALLOC_TLS
-__thread tcache_t	*tcache_tls JEMALLOC_ATTR(tls_model("initial-exec"));
-#endif
-
-/*
- * Same contents as tcache, but initialized such that the TSD destructor is
- * called when a thread exits, so that the cache can be cleaned up.
- */
-pthread_key_t		tcache_tsd;
-
-size_t				nhbins;
-size_t				tcache_maxclass;
-
-/******************************************************************************/
-/* Function prototypes for non-inline static functions. */
-
-static void	tcache_thread_cleanup(void *arg);
+size_t			nhbins;
+size_t			tcache_maxclass;
 
 /******************************************************************************/
 
@@ -196,6 +182,33 @@ tcache_bin_flush_large(tcache_bin_t *tbin, size_t binind, unsigned rem,
 		tbin->low_water = tbin->ncached;
 }
 
+void
+tcache_arena_associate(tcache_t *tcache, arena_t *arena)
+{
+
+	if (config_stats) {
+		/* Link into list of extant tcaches. */
+		malloc_mutex_lock(&arena->lock);
+		ql_elm_new(tcache, link);
+		ql_tail_insert(&arena->tcache_ql, tcache, link);
+		malloc_mutex_unlock(&arena->lock);
+	}
+	tcache->arena = arena;
+}
+
+void
+tcache_arena_dissociate(tcache_t *tcache)
+{
+
+	if (config_stats) {
+		/* Unlink from list of extant tcaches. */
+		malloc_mutex_lock(&tcache->arena->lock);
+		ql_remove(&tcache->arena->tcache_ql, tcache, link);
+		malloc_mutex_unlock(&tcache->arena->lock);
+		tcache_stats_merge(tcache, tcache->arena);
+	}
+}
+
 tcache_t *
 tcache_create(arena_t *arena)
 {
@@ -228,15 +241,8 @@ tcache_create(arena_t *arena)
 	if (tcache == NULL)
 		return (NULL);
 
-	if (config_stats) {
-		/* Link into list of extant tcaches. */
-		malloc_mutex_lock(&arena->lock);
-		ql_elm_new(tcache, link);
-		ql_tail_insert(&arena->tcache_ql, tcache, link);
-		malloc_mutex_unlock(&arena->lock);
-	}
+	tcache_arena_associate(tcache, arena);
 
-	tcache->arena = arena;
 	assert((TCACHE_NSLOTS_SMALL_MAX & 1U) == 0);
 	for (i = 0; i < nhbins; i++) {
 		tcache->tbins[i].lg_fill_div = 1;
@@ -245,7 +251,7 @@ tcache_create(arena_t *arena)
 		stack_offset += tcache_bin_info[i].ncached_max * sizeof(void *);
 	}
 
-	TCACHE_SET(tcache);
+	tcache_tsd_set(&tcache);
 
 	return (tcache);
 }
@@ -256,13 +262,7 @@ tcache_destroy(tcache_t *tcache)
 	unsigned i;
 	size_t tcache_size;
 
-	if (config_stats) {
-		/* Unlink from list of extant tcaches. */
-		malloc_mutex_lock(&tcache->arena->lock);
-		ql_remove(&tcache->arena->tcache_ql, tcache, link);
-		malloc_mutex_unlock(&tcache->arena->lock);
-		tcache_stats_merge(tcache, tcache->arena);
-	}
+	tcache_arena_dissociate(tcache);
 
 	for (i = 0; i < NBINS; i++) {
 		tcache_bin_t *tbin = &tcache->tbins[i];
@@ -323,10 +323,10 @@ tcache_destroy(tcache_t *tcache)
 		idalloc(tcache);
 }
 
-static void
+void
 tcache_thread_cleanup(void *arg)
 {
-	tcache_t *tcache = (tcache_t *)arg;
+	tcache_t *tcache = *(tcache_t **)arg;
 
 	if (tcache == (void *)(uintptr_t)1) {
 		/*
@@ -341,11 +341,13 @@ tcache_thread_cleanup(void *arg)
 		 * destructor was called.  Reset tcache to 1 in order to
 		 * receive another callback.
 		 */
-		TCACHE_SET((uintptr_t)1);
+		tcache = (tcache_t *)(uintptr_t)1;
+		tcache_tsd_set(&tcache);
 	} else if (tcache != NULL) {
 		assert(tcache != (void *)(uintptr_t)1);
 		tcache_destroy(tcache);
-		TCACHE_SET((uintptr_t)1);
+		tcache = (tcache_t *)(uintptr_t)1;
+		tcache_tsd_set(&tcache);
 	}
 }
 
@@ -374,7 +376,7 @@ tcache_stats_merge(tcache_t *tcache, arena_t *arena)
 }
 
 bool
-tcache_boot(void)
+tcache_boot0(void)
 {
 
 	if (opt_tcache) {
@@ -385,8 +387,8 @@ tcache_boot(void)
 		 * SMALL_MAXCLASS and arena_maxclass are known.
 		 * XXX Can this be done earlier?
 		 */
-		if (opt_lg_tcache_max < 0 || (1U <<
-		    opt_lg_tcache_max) < SMALL_MAXCLASS)
+		if (opt_lg_tcache_max < 0 || (1U << opt_lg_tcache_max) <
+		    SMALL_MAXCLASS)
 			tcache_maxclass = SMALL_MAXCLASS;
 		else if ((1U << opt_lg_tcache_max) > arena_maxclass)
 			tcache_maxclass = arena_maxclass;
@@ -416,13 +418,18 @@ tcache_boot(void)
 			tcache_bin_info[i].ncached_max = TCACHE_NSLOTS_LARGE;
 			stack_nelms += tcache_bin_info[i].ncached_max;
 		}
+	}
 
-		if (pthread_key_create(&tcache_tsd, tcache_thread_cleanup) !=
-		    0) {
-			malloc_write(
-			    "<jemalloc>: Error in pthread_key_create()\n");
-			abort();
-		}
+	return (false);
+}
+
+bool
+tcache_boot1(void)
+{
+
+	if (opt_tcache) {
+		if (tcache_tsd_boot())
+			return (true);
 	}
 
 	return (false);

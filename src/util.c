@@ -222,6 +222,9 @@ malloc_vsnprintf(char *str, size_t size, const char *format, va_list ap)
 	case 'z':							\
 		val = va_arg(ap, size_t);				\
 		break;							\
+	case 'p': /* Synthetic; used for %p. */				\
+		val = va_arg(ap, uintptr_t);				\
+		break;							\
 	default: not_reached();						\
 	}								\
 } while (0)
@@ -410,7 +413,7 @@ malloc_vsnprintf(char *str, size_t size, const char *format, va_list ap)
 				uintmax_t val;
 				char buf[X2S_BUFSIZE];
 
-				GET_ARG_NUMERIC(val, len);
+				GET_ARG_NUMERIC(val, 'p');
 				s = x2s(val, true, false, buf, &slen);
 				APPEND_PADDED_S(s, slen, width, left_justify);
 				f++;
@@ -466,34 +469,11 @@ malloc_snprintf(char *str, size_t size, const char *format, ...)
 	return (ret);
 }
 
-const char *
-malloc_vtprintf(const char *format, va_list ap)
-{
-	static __thread char buf[MALLOC_PRINTF_BUFSIZE];
-
-	malloc_vsnprintf(buf, sizeof(buf), format, ap);
-
-	return (buf);
-}
-
-JEMALLOC_ATTR(format(printf, 1, 2))
-const char *
-malloc_tprintf(const char *format, ...)
-{
-	const char *ret;
-	va_list ap;
-
-	va_start(ap, format);
-	ret = malloc_vtprintf(format, ap);
-	va_end(ap);
-
-	return (ret);
-}
-
 void
 malloc_vcprintf(void (*write_cb)(void *, const char *), void *cbopaque,
     const char *format, va_list ap)
 {
+	char buf[MALLOC_PRINTF_BUFSIZE];
 
 	if (write_cb == NULL) {
 		/*
@@ -505,7 +485,8 @@ malloc_vcprintf(void (*write_cb)(void *, const char *), void *cbopaque,
 		cbopaque = NULL;
 	}
 
-	write_cb(cbopaque, malloc_vtprintf(format, ap));
+	malloc_vsnprintf(buf, sizeof(buf), format, ap);
+	write_cb(cbopaque, buf);
 }
 
 /*

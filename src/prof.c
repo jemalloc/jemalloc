@@ -14,6 +14,8 @@
 /******************************************************************************/
 /* Data. */
 
+malloc_tsd_data(, prof_tdata, prof_tdata_t *, NULL)
+
 bool		opt_prof = false;
 bool		opt_prof_active = true;
 size_t		opt_lg_prof_sample = LG_PROF_SAMPLE_DEFAULT;
@@ -25,12 +27,6 @@ char		opt_prof_prefix[PATH_MAX + 1];
 
 uint64_t	prof_interval;
 bool		prof_promote;
-
-#ifdef JEMALLOC_TLS
-__thread prof_tdata_t	*prof_tdata_tls
-    JEMALLOC_ATTR(tls_model("initial-exec"));
-#endif
-pthread_key_t	prof_tdata_tsd;
 
 /*
  * Global hash of (prof_bt_t *)-->(prof_ctx_t *).  This is the master data
@@ -50,7 +46,7 @@ static uint64_t		prof_dump_useq;
  * all profile dumps.  The buffer is implicitly protected by bt2ctx_mtx, since
  * it must be locked anyway during dumping.
  */
-static char		prof_dump_buf[PROF_DUMP_BUF_SIZE];
+static char		prof_dump_buf[PROF_DUMP_BUFSIZE];
 static unsigned		prof_dump_buf_end;
 static int		prof_dump_fd;
 
@@ -91,7 +87,6 @@ static void	prof_fdump(void);
 static void	prof_bt_hash(const void *key, unsigned minbits, size_t *hash1,
     size_t *hash2);
 static bool	prof_bt_keycomp(const void *k1, const void *k2);
-static void	prof_tdata_cleanup(void *arg);
 
 /******************************************************************************/
 
@@ -439,7 +434,7 @@ prof_lookup(prof_bt_t *bt)
 
 	cassert(config_prof);
 
-	prof_tdata = PROF_TCACHE_GET();
+	prof_tdata = *prof_tdata_tsd_get();
 	if (prof_tdata == NULL) {
 		prof_tdata = prof_tdata_init();
 		if (prof_tdata == NULL)
@@ -599,16 +594,16 @@ prof_write(bool propagate_err, const char *s)
 	slen = strlen(s);
 	while (i < slen) {
 		/* Flush the buffer if it is full. */
-		if (prof_dump_buf_end == PROF_DUMP_BUF_SIZE)
+		if (prof_dump_buf_end == PROF_DUMP_BUFSIZE)
 			if (prof_flush(propagate_err) && propagate_err)
 				return (true);
 
-		if (prof_dump_buf_end + slen <= PROF_DUMP_BUF_SIZE) {
+		if (prof_dump_buf_end + slen <= PROF_DUMP_BUFSIZE) {
 			/* Finish writing. */
 			n = slen - i;
 		} else {
 			/* Write as much of s as will fit. */
-			n = PROF_DUMP_BUF_SIZE - prof_dump_buf_end;
+			n = PROF_DUMP_BUFSIZE - prof_dump_buf_end;
 		}
 		memcpy(&prof_dump_buf[prof_dump_buf_end], &s[i], n);
 		prof_dump_buf_end += n;
@@ -624,10 +619,12 @@ prof_printf(bool propagate_err, const char *format, ...)
 {
 	bool ret;
 	va_list ap;
+	char buf[PROF_PRINTF_BUFSIZE];
 
 	va_start(ap, format);
-	ret = prof_write(propagate_err, malloc_vtprintf(format, ap));
+	malloc_snprintf(buf, sizeof(buf), format, ap);
 	va_end(ap);
+	ret = prof_write(propagate_err, buf);
 
 	return (ret);
 }
@@ -795,11 +792,13 @@ static bool
 prof_dump_maps(bool propagate_err)
 {
 	int mfd;
+	char filename[PATH_MAX + 1];
 
 	cassert(config_prof);
 
-	mfd = open(malloc_tprintf("/proc/%d/maps", (int)getpid()),
-	    O_RDONLY);
+	malloc_snprintf(filename, sizeof(filename), "/proc/%d/maps",
+	    (int)getpid());
+	mfd = open(filename, O_RDONLY);
 	if (mfd != -1) {
 		ssize_t nread;
 
@@ -809,13 +808,13 @@ prof_dump_maps(bool propagate_err)
 		nread = 0;
 		do {
 			prof_dump_buf_end += nread;
-			if (prof_dump_buf_end == PROF_DUMP_BUF_SIZE) {
+			if (prof_dump_buf_end == PROF_DUMP_BUFSIZE) {
 				/* Make space in prof_dump_buf before read(). */
 				if (prof_flush(propagate_err) && propagate_err)
 					return (true);
 			}
 			nread = read(mfd, &prof_dump_buf[prof_dump_buf_end],
-			    PROF_DUMP_BUF_SIZE - prof_dump_buf_end);
+			    PROF_DUMP_BUFSIZE - prof_dump_buf_end);
 		} while (nread > 0);
 		close(mfd);
 	} else
@@ -1098,16 +1097,16 @@ prof_tdata_init(void)
 	prof_tdata->threshold = 0;
 	prof_tdata->accum = 0;
 
-	PROF_TCACHE_SET(prof_tdata);
+	prof_tdata_tsd_set(&prof_tdata);
 
 	return (prof_tdata);
 }
 
-static void
+void
 prof_tdata_cleanup(void *arg)
 {
 	prof_thr_cnt_t *cnt;
-	prof_tdata_t *prof_tdata = (prof_tdata_t *)arg;
+	prof_tdata_t *prof_tdata = *(prof_tdata_t **)arg;
 
 	cassert(config_prof);
 
@@ -1127,7 +1126,8 @@ prof_tdata_cleanup(void *arg)
 	idalloc(prof_tdata->vec);
 
 	idalloc(prof_tdata);
-	PROF_TCACHE_SET(NULL);
+	prof_tdata = NULL;
+	prof_tdata_tsd_set(&prof_tdata);
 }
 
 void
@@ -1182,8 +1182,7 @@ prof_boot2(void)
 			return (true);
 		if (malloc_mutex_init(&bt2ctx_mtx))
 			return (true);
-		if (pthread_key_create(&prof_tdata_tsd, prof_tdata_cleanup)
-		    != 0) {
+		if (prof_tdata_tsd_boot()) {
 			malloc_write(
 			    "<jemalloc>: Error in pthread_key_create()\n");
 			abort();

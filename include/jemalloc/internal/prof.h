@@ -23,10 +23,13 @@ typedef struct prof_tdata_s prof_tdata_t;
 #define	PROF_TCMAX			1024
 
 /* Initial hash table size. */
-#define	PROF_CKH_MINITEMS	64
+#define	PROF_CKH_MINITEMS		64
 
 /* Size of memory buffer to use when writing dump files. */
-#define	PROF_DUMP_BUF_SIZE	65536
+#define	PROF_DUMP_BUFSIZE		65536
+
+/* Size of stack-allocated buffer used by prof_printf(). */
+#define	PROF_PRINTF_BUFSIZE		128
 
 #endif /* JEMALLOC_H_TYPES */
 /******************************************************************************/
@@ -179,29 +182,6 @@ extern uint64_t	prof_interval;
  */
 extern bool	prof_promote;
 
-/* Thread-specific backtrace cache, used to reduce bt2ctx contention. */
-#ifdef JEMALLOC_TLS
-extern __thread prof_tdata_t	*prof_tdata_tls
-    JEMALLOC_ATTR(tls_model("initial-exec"));
-#  define PROF_TCACHE_GET()	prof_tdata_tls
-#  define PROF_TCACHE_SET(v)	do {					\
-	prof_tdata_tls = (v);						\
-	pthread_setspecific(prof_tdata_tsd, (void *)(v));		\
-} while (0)
-#else
-#  define PROF_TCACHE_GET()						\
-	((prof_tdata_t *)pthread_getspecific(prof_tdata_tsd))
-#  define PROF_TCACHE_SET(v)	do {					\
-	pthread_setspecific(prof_tdata_tsd, (void *)(v));		\
-} while (0)
-#endif
-/*
- * Same contents as b2cnt_tls, but initialized such that the TSD destructor is
- * called when a thread exits, so that prof_tdata_tls contents can be merged,
- * unlinked, and deallocated.
- */
-extern pthread_key_t	prof_tdata_tsd;
-
 void	bt_init(prof_bt_t *bt, void **vec);
 void	prof_backtrace(prof_bt_t *bt, unsigned nignore);
 prof_thr_cnt_t	*prof_lookup(prof_bt_t *bt);
@@ -209,6 +189,7 @@ void	prof_idump(void);
 bool	prof_mdump(const char *filename);
 void	prof_gdump(void);
 prof_tdata_t	*prof_tdata_init(void);
+void	prof_tdata_cleanup(void *arg);
 void	prof_boot0(void);
 void	prof_boot1(void);
 bool	prof_boot2(void);
@@ -223,7 +204,7 @@ bool	prof_boot2(void);
 									\
 	assert(size == s2u(size));					\
 									\
-	prof_tdata = PROF_TCACHE_GET();					\
+	prof_tdata = *prof_tdata_tsd_get();				\
 	if (prof_tdata == NULL) {					\
 		prof_tdata = prof_tdata_init();				\
 		if (prof_tdata == NULL) {				\
@@ -270,6 +251,8 @@ bool	prof_boot2(void);
 } while (0)
 
 #ifndef JEMALLOC_ENABLE_INLINE
+malloc_tsd_protos(JEMALLOC_ATTR(unused), prof_tdata, prof_tdata_t *)
+
 void	prof_sample_threshold_update(prof_tdata_t *prof_tdata);
 prof_ctx_t	*prof_ctx_get(const void *ptr);
 void	prof_ctx_set(const void *ptr, prof_ctx_t *ctx);
@@ -281,6 +264,11 @@ void	prof_free(const void *ptr, size_t size);
 #endif
 
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_PROF_C_))
+/* Thread-specific backtrace cache, used to reduce bt2ctx contention. */
+malloc_tsd_externs(prof_tdata, prof_tdata_t *)
+malloc_tsd_funcs(JEMALLOC_INLINE, prof_tdata, prof_tdata_t *, NULL,
+    prof_tdata_cleanup)
+
 JEMALLOC_INLINE void
 prof_sample_threshold_update(prof_tdata_t *prof_tdata)
 {
@@ -359,7 +347,7 @@ prof_sample_accum_update(size_t size)
 	/* Sampling logic is unnecessary if the interval is 1. */
 	assert(opt_lg_prof_sample != 0);
 
-	prof_tdata = PROF_TCACHE_GET();
+	prof_tdata = *prof_tdata_tsd_get();
 	assert(prof_tdata != NULL);
 
 	/* Take care to avoid integer overflow. */
