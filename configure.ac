@@ -208,7 +208,7 @@ dnl definitions need to be seen before any headers are included, which is a pain
 dnl to make happen otherwise.
 case "${host}" in
   *-*-darwin*)
-	CFLAGS="$CFLAGS -fno-common -no-cpp-precomp"
+	CFLAGS="$CFLAGS -fno-common"
 	abi="macho"
 	AC_DEFINE([JEMALLOC_PURGE_MADVISE_FREE], [ ])
 	RPATH=""
