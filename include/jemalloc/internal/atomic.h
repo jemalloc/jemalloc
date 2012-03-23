@@ -11,22 +11,7 @@
 
 #define	atomic_read_uint64(p)	atomic_add_uint64(p, 0)
 #define	atomic_read_uint32(p)	atomic_add_uint32(p, 0)
-
-#if (LG_SIZEOF_PTR == 3)
-#  define atomic_read_z(p)						\
-    (size_t)atomic_add_uint64((uint64_t *)p, (uint64_t)0)
-#  define atomic_add_z(p, x)						\
-    (size_t)atomic_add_uint64((uint64_t *)p, (uint64_t)x)
-#  define atomic_sub_z(p, x)						\
-    (size_t)atomic_sub_uint64((uint64_t *)p, (uint64_t)x)
-#elif (LG_SIZEOF_PTR == 2)
-#  define atomic_read_z(p)						\
-    (size_t)atomic_add_uint32((uint32_t *)p, (uint32_t)0)
-#  define atomic_add_z(p, x)						\
-    (size_t)atomic_add_uint32((uint32_t *)p, (uint32_t)x)
-#  define atomic_sub_z(p, x)						\
-    (size_t)atomic_sub_uint32((uint32_t *)p, (uint32_t)x)
-#endif
+#define	atomic_read_z(p)	atomic_add_z(p, 0)
 
 #endif /* JEMALLOC_H_EXTERNS */
 /******************************************************************************/
@@ -37,6 +22,8 @@ uint64_t	atomic_add_uint64(uint64_t *p, uint64_t x);
 uint64_t	atomic_sub_uint64(uint64_t *p, uint64_t x);
 uint32_t	atomic_add_uint32(uint32_t *p, uint32_t x);
 uint32_t	atomic_sub_uint32(uint32_t *p, uint32_t x);
+size_t	atomic_add_z(size_t *p, size_t x);
+size_t	atomic_sub_z(size_t *p, size_t x);
 #endif
 
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_ATOMIC_C_))
@@ -179,6 +166,32 @@ atomic_sub_uint32(uint32_t *p, uint32_t x)
 #else
 #  error "Missing implementation for 32-bit atomic operations"
 #endif
+
+/******************************************************************************/
+/* size_t operations. */
+JEMALLOC_INLINE size_t
+atomic_add_z(size_t *p, size_t x)
+{
+
+#if (LG_SIZEOF_PTR == 3)
+	return ((size_t)atomic_add_uint64((uint64_t *)p, (uint64_t)x));
+#elif (LG_SIZEOF_PTR == 2)
+	return ((size_t)atomic_add_uint32((uint32_t *)p, (uint32_t)x));
+#endif
+}
+
+JEMALLOC_INLINE size_t
+atomic_sub_z(size_t *p, size_t x)
+{
+
+#if (LG_SIZEOF_PTR == 3)
+	return ((size_t)atomic_add_uint64((uint64_t *)p,
+	    (uint64_t)-((int64_t)x)));
+#elif (LG_SIZEOF_PTR == 2)
+	return ((size_t)atomic_add_uint32((uint32_t *)p,
+	    (uint32_t)-((int32_t)x)));
+#endif
+}
 #endif
 
 #endif /* JEMALLOC_H_INLINES */
