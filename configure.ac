@@ -214,6 +214,7 @@ case "${host}" in
 	RPATH=""
 	LD_PRELOAD_VAR="DYLD_INSERT_LIBRARIES"
 	so="dylib"
+	force_tls="0"
 	;;
   *-*-freebsd*)
 	CFLAGS="$CFLAGS"
@@ -767,7 +768,6 @@ dnl Check whether the BSD-specific _malloc_thread_cleanup() exists.  If so, use
 dnl it rather than pthreads TSD cleanup functions to support cleanup during
 dnl thread exit, in order to avoid pthreads library recursion during
 dnl bootstrapping.
-force_tls="0"
 AC_CHECK_FUNC([_malloc_thread_cleanup],
               [have__malloc_thread_cleanup="1"],
               [have__malloc_thread_cleanup="0"]
@@ -812,6 +812,10 @@ enable_tls="1"
 if test "x${enable_tls}" = "x0" -a "x${force_tls}" = "x1" ; then
   AC_MSG_RESULT([Forcing TLS to avoid allocator/threading bootstrap issues])
   enable_tls="1"
+fi
+if test "x${enable_tls}" = "x1" -a "x${force_tls}" = "x0" ; then
+  AC_MSG_RESULT([Forcing no TLS to avoid allocator/threading bootstrap issues])
+  enable_tls="0"
 fi
 if test "x${enable_tls}" = "x1" ; then
 AC_MSG_CHECKING([for TLS])
