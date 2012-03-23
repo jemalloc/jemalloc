@@ -17,6 +17,17 @@
 #define JEMALLOC_CONCAT(...) __VA_ARGS__
 
 /*
+ * Silence compiler warnings due to uninitialized values.  This is used
+ * wherever the compiler fails to recognize that the variable is never used
+ * uninitialized.
+ */
+#ifdef JEMALLOC_CC_SILENCE
+#  define JEMALLOC_CC_SILENCE_INIT(v) = v
+#else
+#  define JEMALLOC_CC_SILENCE_INIT(v)
+#endif
+
+/*
  * Define a custom assert() in order to reduce the chances of deadlock during
  * assertion failure.
  */

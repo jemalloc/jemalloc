@@ -751,11 +751,7 @@ je_malloc(size_t size)
 {
 	void *ret;
 	size_t usize;
-	prof_thr_cnt_t *cnt
-#ifdef JEMALLOC_CC_SILENCE
-	    = NULL
-#endif
-	    ;
+	prof_thr_cnt_t *cnt JEMALLOC_CC_SILENCE_INIT(NULL);
 
 	if (malloc_init()) {
 		ret = NULL;
@@ -818,11 +814,7 @@ imemalign(void **memptr, size_t alignment, size_t size,
 	int ret;
 	size_t usize;
 	void *result;
-	prof_thr_cnt_t *cnt
-#ifdef JEMALLOC_CC_SILENCE
-	    = NULL
-#endif
-	    ;
+	prof_thr_cnt_t *cnt JEMALLOC_CC_SILENCE_INIT(NULL);
 
 	assert(min_alignment != 0);
 
@@ -932,11 +924,7 @@ je_calloc(size_t num, size_t size)
 	void *ret;
 	size_t num_size;
 	size_t usize;
-	prof_thr_cnt_t *cnt
-#ifdef JEMALLOC_CC_SILENCE
-	    = NULL
-#endif
-	    ;
+	prof_thr_cnt_t *cnt JEMALLOC_CC_SILENCE_INIT(NULL);
 
 	if (malloc_init()) {
 		num_size = 0;
@@ -1010,16 +998,8 @@ je_realloc(void *ptr, size_t size)
 	void *ret;
 	size_t usize;
 	size_t old_size = 0;
-	prof_thr_cnt_t *cnt
-#ifdef JEMALLOC_CC_SILENCE
-	    = NULL
-#endif
-	    ;
-	prof_ctx_t *old_ctx
-#ifdef JEMALLOC_CC_SILENCE
-	    = NULL
-#endif
-	    ;
+	prof_thr_cnt_t *cnt JEMALLOC_CC_SILENCE_INIT(NULL);
+	prof_ctx_t *old_ctx JEMALLOC_CC_SILENCE_INIT(NULL);
 
 	if (size == 0) {
 		if (ptr != NULL) {
@@ -1173,11 +1153,7 @@ JEMALLOC_ATTR(visibility("default"))
 void *
 je_memalign(size_t alignment, size_t size)
 {
-	void *ret
-#ifdef JEMALLOC_CC_SILENCE
-	    = NULL
-#endif
-	    ;
+	void *ret JEMALLOC_CC_SILENCE_INIT(NULL);
 	imemalign(&ret, alignment, size, 1);
 	return (ret);
 }
@@ -1189,11 +1165,7 @@ JEMALLOC_ATTR(visibility("default"))
 void *
 je_valloc(size_t size)
 {
-	void *ret
-#ifdef JEMALLOC_CC_SILENCE
-	    = NULL
-#endif
-	    ;
+	void *ret JEMALLOC_CC_SILENCE_INIT(NULL);
 	imemalign(&ret, PAGE_SIZE, size, 1);
 	return (ret);
 }

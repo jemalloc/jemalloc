@@ -353,7 +353,7 @@ malloc_vsnprintf(char *str, size_t size, const char *format, va_list ap)
 				char *s;
 				size_t slen;
 			case 'd': case 'i': {
-				intmax_t val;
+				intmax_t val JEMALLOC_CC_SILENCE_INIT(0);
 				char buf[D2S_BUFSIZE];
 
 				GET_ARG_NUMERIC(val, len);
@@ -363,7 +363,7 @@ malloc_vsnprintf(char *str, size_t size, const char *format, va_list ap)
 				f++;
 				break;
 			} case 'o': {
-				uintmax_t val;
+				uintmax_t val JEMALLOC_CC_SILENCE_INIT(0);
 				char buf[O2S_BUFSIZE];
 
 				GET_ARG_NUMERIC(val, len);
@@ -372,7 +372,7 @@ malloc_vsnprintf(char *str, size_t size, const char *format, va_list ap)
 				f++;
 				break;
 			} case 'u': {
-				uintmax_t val;
+				uintmax_t val JEMALLOC_CC_SILENCE_INIT(0);
 				char buf[U2S_BUFSIZE];
 
 				GET_ARG_NUMERIC(val, len);
@@ -381,7 +381,7 @@ malloc_vsnprintf(char *str, size_t size, const char *format, va_list ap)
 				f++;
 				break;
 			} case 'x': case 'X': {
-				uintmax_t val;
+				uintmax_t val JEMALLOC_CC_SILENCE_INIT(0);
 				char buf[X2S_BUFSIZE];
 
 				GET_ARG_NUMERIC(val, len);

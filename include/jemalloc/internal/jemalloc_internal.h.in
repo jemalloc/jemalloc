@@ -611,11 +611,7 @@ ipalloc(size_t usize, size_t alignment, bool zero)
 	if (usize <= arena_maxclass && alignment <= PAGE_SIZE)
 		ret = arena_malloc(usize, zero);
 	else {
-		size_t run_size
-#ifdef JEMALLOC_CC_SILENCE
-		    = 0
-#endif
-		    ;
+		size_t run_size JEMALLOC_CC_SILENCE_INIT(0);
 
 		/*
 		 * Ideally we would only ever call sa2u() once per aligned
