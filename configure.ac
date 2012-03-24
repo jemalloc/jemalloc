@@ -221,6 +221,7 @@ case "${host}" in
 	abi="elf"
 	AC_DEFINE([JEMALLOC_PURGE_MADVISE_FREE], [ ])
 	RPATH="-Wl,-rpath,"
+	force_lazy_lock="1"
 	;;
   *-*-linux*)
 	CFLAGS="$CFLAGS"
@@ -800,6 +801,10 @@ fi
 ],
 [enable_lazy_lock="0"]
 )
+if test "x$enable_lazy_lock" = "x0" -a "x${force_lazy_lock}" = "x1" ; then
+  AC_MSG_RESULT([Forcing lazy-lock to avoid allocator/threading bootstrap issues])
+  enable_lazy_lock="1"
+fi
 if test "x$enable_lazy_lock" = "x1" ; then
   AC_CHECK_HEADERS([dlfcn.h], , [AC_MSG_ERROR([dlfcn.h is missing])])
   AC_CHECK_FUNC([dlsym], [],
