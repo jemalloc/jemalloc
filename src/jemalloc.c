@@ -638,17 +638,17 @@ malloc_init_hard(void)
 		return (true);
 	}
 
-	if (config_prof && prof_boot2()) {
-		malloc_mutex_unlock(&init_lock);
-		return (true);
-	}
-
 	if (arenas_tsd_boot()) {
 		malloc_mutex_unlock(&init_lock);
 		return (true);
 	}
 
 	if (config_tcache && tcache_boot1()) {
+		malloc_mutex_unlock(&init_lock);
+		return (true);
+	}
+
+	if (config_prof && prof_boot2()) {
 		malloc_mutex_unlock(&init_lock);
 		return (true);
 	}

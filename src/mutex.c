@@ -82,18 +82,6 @@ malloc_mutex_init(malloc_mutex_t *mutex)
 }
 
 void
-malloc_mutex_destroy(malloc_mutex_t *mutex)
-{
-
-#ifndef JEMALLOC_OSSPIN
-	if (pthread_mutex_destroy(mutex) != 0) {
-		malloc_write("<jemalloc>: Error in pthread_mutex_destroy()\n");
-		abort();
-	}
-#endif
-}
-
-void
 malloc_mutex_prefork(malloc_mutex_t *mutex)
 {
 

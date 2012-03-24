@@ -31,6 +31,12 @@ typedef struct prof_tdata_s prof_tdata_t;
 /* Size of stack-allocated buffer used by prof_printf(). */
 #define	PROF_PRINTF_BUFSIZE		128
 
+/*
+ * Number of mutexes shared among all ctx's.  No space is allocated for these
+ * unless profiling is enabled, so it's okay to over-provision.
+ */
+#define	PROF_NCTX_LOCKS			1024
+
 #endif /* JEMALLOC_H_TYPES */
 /******************************************************************************/
 #ifdef JEMALLOC_H_STRUCTS
@@ -108,7 +114,7 @@ struct prof_ctx_s {
 	prof_bt_t		*bt;
 
 	/* Protects cnt_merged and cnts_ql. */
-	malloc_mutex_t		lock;
+	malloc_mutex_t		*lock;
 
 	/* Temporary storage for summation during dump. */
 	prof_cnt_t		cnt_summed;
@@ -444,10 +450,10 @@ prof_realloc(const void *ptr, size_t size, prof_thr_cnt_t *cnt,
 			 * It's too late to propagate OOM for this realloc(),
 			 * so operate directly on old_cnt->ctx->cnt_merged.
 			 */
-			malloc_mutex_lock(&old_ctx->lock);
+			malloc_mutex_lock(old_ctx->lock);
 			old_ctx->cnt_merged.curobjs--;
 			old_ctx->cnt_merged.curbytes -= old_size;
-			malloc_mutex_unlock(&old_ctx->lock);
+			malloc_mutex_unlock(old_ctx->lock);
 			told_cnt = (prof_thr_cnt_t *)(uintptr_t)1U;
 		}
 	} else
@@ -516,10 +522,10 @@ prof_free(const void *ptr, size_t size)
 			 * OOM during free() cannot be propagated, so operate
 			 * directly on cnt->ctx->cnt_merged.
 			 */
-			malloc_mutex_lock(&ctx->lock);
+			malloc_mutex_lock(ctx->lock);
 			ctx->cnt_merged.curobjs--;
 			ctx->cnt_merged.curbytes -= size;
-			malloc_mutex_unlock(&ctx->lock);
+			malloc_mutex_unlock(ctx->lock);
 		}
 	}
 }

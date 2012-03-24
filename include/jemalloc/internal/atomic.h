@@ -12,6 +12,7 @@
 #define	atomic_read_uint64(p)	atomic_add_uint64(p, 0)
 #define	atomic_read_uint32(p)	atomic_add_uint32(p, 0)
 #define	atomic_read_z(p)	atomic_add_z(p, 0)
+#define	atomic_read_u(p)	atomic_add_u(p, 0)
 
 #endif /* JEMALLOC_H_EXTERNS */
 /******************************************************************************/
@@ -24,6 +25,8 @@ uint32_t	atomic_add_uint32(uint32_t *p, uint32_t x);
 uint32_t	atomic_sub_uint32(uint32_t *p, uint32_t x);
 size_t	atomic_add_z(size_t *p, size_t x);
 size_t	atomic_sub_z(size_t *p, size_t x);
+unsigned	atomic_add_u(unsigned *p, unsigned x);
+unsigned	atomic_sub_u(unsigned *p, unsigned x);
 #endif
 
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_ATOMIC_C_))
@@ -192,6 +195,33 @@ atomic_sub_z(size_t *p, size_t x)
 	    (uint32_t)-((int32_t)x)));
 #endif
 }
+
+/******************************************************************************/
+/* unsigned operations. */
+JEMALLOC_INLINE unsigned
+atomic_add_u(unsigned *p, unsigned x)
+{
+
+#if (LG_SIZEOF_INT == 3)
+	return ((unsigned)atomic_add_uint64((uint64_t *)p, (uint64_t)x));
+#elif (LG_SIZEOF_INT == 2)
+	return ((unsigned)atomic_add_uint32((uint32_t *)p, (uint32_t)x));
+#endif
+}
+
+JEMALLOC_INLINE unsigned
+atomic_sub_u(unsigned *p, unsigned x)
+{
+
+#if (LG_SIZEOF_INT == 3)
+	return ((unsigned)atomic_add_uint64((uint64_t *)p,
+	    (uint64_t)-((int64_t)x)));
+#elif (LG_SIZEOF_INT == 2)
+	return ((unsigned)atomic_add_uint32((uint32_t *)p,
+	    (uint32_t)-((int32_t)x)));
+#endif
+}
+/******************************************************************************/
 #endif
 
 #endif /* JEMALLOC_H_INLINES */

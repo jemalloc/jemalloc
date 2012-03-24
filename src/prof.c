@@ -29,6 +29,16 @@ uint64_t	prof_interval;
 bool		prof_promote;
 
 /*
+ * Table of mutexes that are shared among ctx's.  These are leaf locks, so
+ * there is no problem with using them for more than one ctx at the same time.
+ * The primary motivation for this sharing though is that ctx's are ephemeral,
+ * and destroying mutexes causes complications for systems that allocate when
+ * creating/destroying mutexes.
+ */
+static malloc_mutex_t	*ctx_locks;
+static unsigned		cum_ctxs; /* Atomic counter. */
+
+/*
  * Global hash of (prof_bt_t *)-->(prof_ctx_t *).  This is the master data
  * structure that knows about all backtraces currently captured.
  */
@@ -87,6 +97,7 @@ static void	prof_fdump(void);
 static void	prof_bt_hash(const void *key, unsigned minbits, size_t *hash1,
     size_t *hash2);
 static bool	prof_bt_keycomp(const void *k1, const void *k2);
+static malloc_mutex_t	*prof_ctx_mutex_choose(void);
 
 /******************************************************************************/
 
@@ -471,18 +482,12 @@ prof_lookup(prof_bt_t *bt)
 				return (NULL);
 			}
 			ctx.p->bt = btkey.p;
-			if (malloc_mutex_init(&ctx.p->lock)) {
-				prof_leave();
-				idalloc(btkey.v);
-				idalloc(ctx.v);
-				return (NULL);
-			}
+			ctx.p->lock = prof_ctx_mutex_choose();
 			memset(&ctx.p->cnt_merged, 0, sizeof(prof_cnt_t));
 			ql_new(&ctx.p->cnts_ql);
 			if (ckh_insert(&bt2ctx, btkey.v, ctx.v)) {
 				/* OOM. */
 				prof_leave();
-				malloc_mutex_destroy(&ctx.p->lock);
 				idalloc(btkey.v);
 				idalloc(ctx.v);
 				return (NULL);
@@ -502,9 +507,9 @@ prof_lookup(prof_bt_t *bt)
 			 * Artificially raise curobjs, in order to avoid a race
 			 * condition with prof_ctx_merge()/prof_ctx_destroy().
 			 */
-			malloc_mutex_lock(&ctx.p->lock);
+			malloc_mutex_lock(ctx.p->lock);
 			ctx.p->cnt_merged.curobjs++;
-			malloc_mutex_unlock(&ctx.p->lock);
+			malloc_mutex_unlock(ctx.p->lock);
 			new_ctx = false;
 		}
 		prof_leave();
@@ -547,10 +552,10 @@ prof_lookup(prof_bt_t *bt)
 			return (NULL);
 		}
 		ql_head_insert(&prof_tdata->lru_ql, ret.p, lru_link);
-		malloc_mutex_lock(&ctx.p->lock);
+		malloc_mutex_lock(ctx.p->lock);
 		ql_tail_insert(&ctx.p->cnts_ql, ret.p, cnts_link);
 		ctx.p->cnt_merged.curobjs--;
-		malloc_mutex_unlock(&ctx.p->lock);
+		malloc_mutex_unlock(ctx.p->lock);
 	} else {
 		/* Move ret to the front of the LRU. */
 		ql_remove(&prof_tdata->lru_ql, ret.p, lru_link);
@@ -622,7 +627,7 @@ prof_printf(bool propagate_err, const char *format, ...)
 	char buf[PROF_PRINTF_BUFSIZE];
 
 	va_start(ap, format);
-	malloc_snprintf(buf, sizeof(buf), format, ap);
+	malloc_vsnprintf(buf, sizeof(buf), format, ap);
 	va_end(ap);
 	ret = prof_write(propagate_err, buf);
 
@@ -637,7 +642,7 @@ prof_ctx_sum(prof_ctx_t *ctx, prof_cnt_t *cnt_all, size_t *leak_nctx)
 
 	cassert(config_prof);
 
-	malloc_mutex_lock(&ctx->lock);
+	malloc_mutex_lock(ctx->lock);
 
 	memcpy(&ctx->cnt_summed, &ctx->cnt_merged, sizeof(prof_cnt_t));
 	ql_foreach(thr_cnt, &ctx->cnts_ql, cnts_link) {
@@ -676,7 +681,7 @@ prof_ctx_sum(prof_ctx_t *ctx, prof_cnt_t *cnt_all, size_t *leak_nctx)
 		cnt_all->accumbytes += ctx->cnt_summed.accumbytes;
 	}
 
-	malloc_mutex_unlock(&ctx->lock);
+	malloc_mutex_unlock(ctx->lock);
 }
 
 static void
@@ -693,7 +698,7 @@ prof_ctx_destroy(prof_ctx_t *ctx)
 	 * prof_ctx_merge() and entry into this function.
 	 */
 	prof_enter();
-	malloc_mutex_lock(&ctx->lock);
+	malloc_mutex_lock(ctx->lock);
 	if (ql_first(&ctx->cnts_ql) == NULL && ctx->cnt_merged.curobjs == 1) {
 		assert(ctx->cnt_merged.curbytes == 0);
 		assert(ctx->cnt_merged.accumobjs == 0);
@@ -703,9 +708,8 @@ prof_ctx_destroy(prof_ctx_t *ctx)
 			assert(false);
 		prof_leave();
 		/* Destroy ctx. */
-		malloc_mutex_unlock(&ctx->lock);
+		malloc_mutex_unlock(ctx->lock);
 		bt_destroy(ctx->bt);
-		malloc_mutex_destroy(&ctx->lock);
 		idalloc(ctx);
 	} else {
 		/*
@@ -713,7 +717,7 @@ prof_ctx_destroy(prof_ctx_t *ctx)
 		 * prof_lookup().
 		 */
 		ctx->cnt_merged.curobjs--;
-		malloc_mutex_unlock(&ctx->lock);
+		malloc_mutex_unlock(ctx->lock);
 		prof_leave();
 	}
 }
@@ -726,7 +730,7 @@ prof_ctx_merge(prof_ctx_t *ctx, prof_thr_cnt_t *cnt)
 	cassert(config_prof);
 
 	/* Merge cnt stats and detach from ctx. */
-	malloc_mutex_lock(&ctx->lock);
+	malloc_mutex_lock(ctx->lock);
 	ctx->cnt_merged.curobjs += cnt->cnts.curobjs;
 	ctx->cnt_merged.curbytes += cnt->cnts.curbytes;
 	ctx->cnt_merged.accumobjs += cnt->cnts.accumobjs;
@@ -751,7 +755,7 @@ prof_ctx_merge(prof_ctx_t *ctx, prof_thr_cnt_t *cnt)
 		destroy = true;
 	} else
 		destroy = false;
-	malloc_mutex_unlock(&ctx->lock);
+	malloc_mutex_unlock(ctx->lock);
 	if (destroy)
 		prof_ctx_destroy(ctx);
 }
@@ -1067,6 +1071,14 @@ prof_bt_keycomp(const void *k1, const void *k2)
 	return (memcmp(bt1->vec, bt2->vec, bt1->len * sizeof(void *)) == 0);
 }
 
+static malloc_mutex_t *
+prof_ctx_mutex_choose(void)
+{
+	unsigned nctxs = atomic_add_u(&cum_ctxs, 1);
+
+	return (&ctx_locks[(nctxs - 1) % PROF_NCTX_LOCKS]);
+}
+
 prof_tdata_t *
 prof_tdata_init(void)
 {
@@ -1177,6 +1189,8 @@ prof_boot2(void)
 	cassert(config_prof);
 
 	if (opt_prof) {
+		unsigned i;
+
 		if (ckh_new(&bt2ctx, PROF_CKH_MINITEMS, prof_bt_hash,
 		    prof_bt_keycomp))
 			return (true);
@@ -1201,6 +1215,15 @@ prof_boot2(void)
 			malloc_write("<jemalloc>: Error in atexit()\n");
 			if (opt_abort)
 				abort();
+		}
+
+		ctx_locks = (malloc_mutex_t *)base_alloc(PROF_NCTX_LOCKS *
+		    sizeof(malloc_mutex_t));
+		if (ctx_locks == NULL)
+			return (true);
+		for (i = 0; i < PROF_NCTX_LOCKS; i++) {
+			if (malloc_mutex_init(&ctx_locks[i]))
+				return (true);
 		}
 	}
 
