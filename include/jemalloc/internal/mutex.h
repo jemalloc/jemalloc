@@ -41,7 +41,6 @@ void	malloc_mutex_postfork_child(malloc_mutex_t *mutex);
 
 #ifndef JEMALLOC_ENABLE_INLINE
 void	malloc_mutex_lock(malloc_mutex_t *mutex);
-bool	malloc_mutex_trylock(malloc_mutex_t *mutex);
 void	malloc_mutex_unlock(malloc_mutex_t *mutex);
 #endif
 
@@ -57,20 +56,6 @@ malloc_mutex_lock(malloc_mutex_t *mutex)
 		pthread_mutex_lock(mutex);
 #endif
 	}
-}
-
-JEMALLOC_INLINE bool
-malloc_mutex_trylock(malloc_mutex_t *mutex)
-{
-
-	if (isthreaded) {
-#ifdef JEMALLOC_OSSPIN
-		return (OSSpinLockTry(mutex) == false);
-#else
-		return (pthread_mutex_trylock(mutex) != 0);
-#endif
-	} else
-		return (false);
 }
 
 JEMALLOC_INLINE void
