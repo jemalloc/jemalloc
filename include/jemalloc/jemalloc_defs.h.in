@@ -54,6 +54,22 @@
 #undef JEMALLOC_OSATOMIC
 
 /*
+ * Defined if __sync_add_and_fetch(uint32_t *, uint32_t) and
+ * __sync_sub_and_fetch(uint32_t *, uint32_t) are available, despite
+ * __GCC_HAVE_SYNC_COMPARE_AND_SWAP_4 not being defined (which means the
+ * functions are defined in libgcc instead of being inlines)
+ */
+#undef JE_FORCE_SYNC_COMPARE_AND_SWAP_4
+
+/*
+ * Defined if __sync_add_and_fetch(uint64_t *, uint64_t) and
+ * __sync_sub_and_fetch(uint64_t *, uint64_t) are available, despite
+ * __GCC_HAVE_SYNC_COMPARE_AND_SWAP_8 not being defined (which means the
+ * functions are defined in libgcc instead of being inlines)
+ */
+#undef JE_FORCE_SYNC_COMPARE_AND_SWAP_8
+
+/*
  * Defined if OSSpin*() functions are available, as provided by Darwin, and
  * documented in the spinlock(3) manual page.
  */
