@@ -1230,10 +1230,8 @@ je_malloc_usable_size(const void *ptr)
 
 	if (config_ivsalloc)
 		ret = ivsalloc(ptr);
-	else {
-		assert(ptr != NULL);
-		ret = isalloc(ptr);
-	}
+	else
+		ret = (ptr != NULL) ? isalloc(ptr) : 0;
 
 	return (ret);
 }
