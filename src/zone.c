@@ -80,14 +80,22 @@ static void
 zone_free(malloc_zone_t *zone, void *ptr)
 {
 
-	je_free(ptr);
+	if (ivsalloc(ptr) != 0) {
+		je_free(ptr);
+		return;
+	}
+
+	free(ptr);
 }
 
 static void *
 zone_realloc(malloc_zone_t *zone, void *ptr, size_t size)
 {
 
-	return (je_realloc(ptr, size));
+	if (ivsalloc(ptr) != 0)
+		return (je_realloc(ptr, size));
+
+	return (realloc(ptr, size));
 }
 
 #if (JEMALLOC_ZONE_VERSION >= 5)
@@ -107,8 +115,13 @@ static void
 zone_free_definite_size(malloc_zone_t *zone, void *ptr, size_t size)
 {
 
-	assert(ivsalloc(ptr) == size);
-	je_free(ptr);
+	if (ivsalloc(ptr) != 0) {
+		assert(ivsalloc(ptr) == size);
+		je_free(ptr);
+		return;
+	}
+
+	free(ptr);
 }
 #endif
 
