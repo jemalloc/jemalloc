@@ -712,26 +712,6 @@ malloc_init_hard(void)
 	/* Copy the pointer to the one arena that was already initialized. */
 	arenas[0] = init_arenas[0];
 
-#ifdef JEMALLOC_ZONE
-	/* Register the custom zone. At this point it won't be the default. */
-	malloc_zone_t *jemalloc_zone = create_zone();
-	malloc_zone_register(jemalloc_zone);
-
-	/*
-	 * Unregister and reregister the default zone. On OSX >= 10.6,
-	 * unregistering takes the last registered zone and places it at the
-	 * location of the specified zone. Unregistering the default zone thus
-	 * makes the last registered one the default. On OSX < 10.6,
-	 * unregistering shifts all registered zones. The first registered zone
-	 * then becomes the default.
-	 */
-	do {
-		malloc_zone_t *default_zone = malloc_default_zone();
-		malloc_zone_unregister(default_zone);
-		malloc_zone_register(default_zone);
-	} while (malloc_default_zone() != jemalloc_zone);
-#endif
-
 	malloc_initialized = true;
 	malloc_mutex_unlock(&init_lock);
 	return (false);
@@ -743,8 +723,8 @@ void
 jemalloc_darwin_init(void)
 {
 
-	if (malloc_init_hard())
-		abort();
+	if (malloc_init_hard() == false)
+		register_zone();
 }
 #endif
 
