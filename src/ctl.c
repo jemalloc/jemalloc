@@ -39,6 +39,7 @@ static int	ctl_lookup(const char *name, ctl_node_t const **nodesp,
 
 CTL_PROTO(version)
 CTL_PROTO(epoch)
+CTL_PROTO(thread_tcache_enabled)
 CTL_PROTO(thread_tcache_flush)
 CTL_PROTO(thread_arena)
 CTL_PROTO(thread_allocated)
@@ -151,6 +152,7 @@ CTL_PROTO(stats_mapped)
 #define	INDEX(i)	false,	{.indexed = {i##_index}},		NULL
 
 static const ctl_node_t	tcache_node[] = {
+	{NAME("enabled"),	CTL(thread_tcache_enabled)},
 	{NAME("flush"),		CTL(thread_tcache_flush)}
 };
 
@@ -967,24 +969,42 @@ RETURN:
 }
 
 static int
+thread_tcache_enabled_ctl(const size_t *mib, size_t miblen, void *oldp,
+    size_t *oldlenp, void *newp, size_t newlen)
+{
+	int ret;
+	bool oldval;
+
+	if (config_tcache == false)
+		return (ENOENT);
+
+	oldval = tcache_enabled_get();
+	if (newp != NULL) {
+		if (newlen != sizeof(bool)) {
+			ret = EINVAL;
+			goto RETURN;
+		}
+		tcache_enabled_set(*(bool *)newp);
+	}
+	READ(oldval, bool);
+
+RETURN:
+	ret = 0;
+	return (ret);
+}
+
+static int
 thread_tcache_flush_ctl(const size_t *mib, size_t miblen, void *oldp,
     size_t *oldlenp, void *newp, size_t newlen)
 {
 	int ret;
-	tcache_t *tcache;
 
 	if (config_tcache == false)
 		return (ENOENT);
 
 	VOID();
 
-	if ((tcache = *tcache_tsd_get()) == NULL) {
-		ret = 0;
-		goto RETURN;
-	}
-	tcache_destroy(tcache);
-	tcache = NULL;
-	tcache_tsd_set(&tcache);
+	tcache_flush();
 
 	ret = 0;
 RETURN:

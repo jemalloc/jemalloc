@@ -5,6 +5,7 @@
 /* Data. */
 
 malloc_tsd_data(, tcache, tcache_t *, NULL)
+malloc_tsd_data(, tcache_enabled, tcache_enabled_t, tcache_enabled_default)
 
 bool	opt_tcache = true;
 ssize_t	opt_lg_tcache_max = LG_TCACHE_MAXCLASS_DEFAULT;
@@ -328,25 +329,27 @@ tcache_thread_cleanup(void *arg)
 {
 	tcache_t *tcache = *(tcache_t **)arg;
 
-	if (tcache == (void *)(uintptr_t)1) {
+	if (tcache == TCACHE_STATE_DISABLED) {
+		/* Do nothing. */
+	} else if (tcache == TCACHE_STATE_REINCARNATED) {
+		/*
+		 * Another destructor called an allocator function after this
+		 * destructor was called.  Reset tcache to 1 in order to
+		 * receive another callback.
+		 */
+		tcache = TCACHE_STATE_PURGATORY;
+		tcache_tsd_set(&tcache);
+	} else if (tcache == TCACHE_STATE_PURGATORY) {
 		/*
 		 * The previous time this destructor was called, we set the key
 		 * to 1 so that other destructors wouldn't cause re-creation of
 		 * the tcache.  This time, do nothing, so that the destructor
 		 * will not be called again.
 		 */
-	} else if (tcache == (void *)(uintptr_t)2) {
-		/*
-		 * Another destructor called an allocator function after this
-		 * destructor was called.  Reset tcache to 1 in order to
-		 * receive another callback.
-		 */
-		tcache = (tcache_t *)(uintptr_t)1;
-		tcache_tsd_set(&tcache);
 	} else if (tcache != NULL) {
-		assert(tcache != (void *)(uintptr_t)1);
+		assert(tcache != TCACHE_STATE_PURGATORY);
 		tcache_destroy(tcache);
-		tcache = (tcache_t *)(uintptr_t)1;
+		tcache = TCACHE_STATE_PURGATORY;
 		tcache_tsd_set(&tcache);
 	}
 }
@@ -428,7 +431,7 @@ tcache_boot1(void)
 {
 
 	if (opt_tcache) {
-		if (tcache_tsd_boot())
+		if (tcache_tsd_boot() || tcache_enabled_tsd_boot())
 			return (true);
 	}
 

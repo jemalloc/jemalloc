@@ -6,6 +6,16 @@ typedef struct tcache_bin_s tcache_bin_t;
 typedef struct tcache_s tcache_t;
 
 /*
+ * tcache pointers close to NULL are used to encode state information that is
+ * used for two purposes: preventing thread caching on a per thread basis and
+ * cleaning up during thread shutdown.
+ */
+#define	TCACHE_STATE_DISABLED		((tcache_t *)(uintptr_t)1)
+#define	TCACHE_STATE_REINCARNATED	((tcache_t *)(uintptr_t)2)
+#define	TCACHE_STATE_PURGATORY		((tcache_t *)(uintptr_t)3)
+#define	TCACHE_STATE_MAX		TCACHE_STATE_PURGATORY
+
+/*
  * Absolute maximum number of cache slots for each small bin in the thread
  * cache.  This is an additional constraint beyond that imposed as: twice the
  * number of regions per run for this size class.
@@ -34,6 +44,12 @@ typedef struct tcache_s tcache_t;
 #endif /* JEMALLOC_H_TYPES */
 /******************************************************************************/
 #ifdef JEMALLOC_H_STRUCTS
+
+typedef enum {
+	tcache_enabled_false   = 0, /* Enable cast to/from bool. */
+	tcache_enabled_true    = 1,
+	tcache_enabled_default = 2
+} tcache_enabled_t;
 
 /*
  * Read-only information associated with each element of tcache_t's tbins array
@@ -105,9 +121,13 @@ bool	tcache_boot1(void);
 
 #ifndef JEMALLOC_ENABLE_INLINE
 malloc_tsd_protos(JEMALLOC_ATTR(unused), tcache, tcache_t *)
+malloc_tsd_protos(JEMALLOC_ATTR(unused), tcache_enabled, tcache_enabled_t)
 
 void	tcache_event(tcache_t *tcache);
+void	tcache_flush(void);
+bool	tcache_enabled_get(void);
 tcache_t *tcache_get(void);
+void	tcache_enabled_set(bool enabled);
 void	*tcache_alloc_easy(tcache_bin_t *tbin);
 void	*tcache_alloc_small(tcache_t *tcache, size_t size, bool zero);
 void	*tcache_alloc_large(tcache_t *tcache, size_t size, bool zero);
@@ -120,6 +140,69 @@ void	tcache_dalloc_large(tcache_t *tcache, void *ptr, size_t size);
 malloc_tsd_externs(tcache, tcache_t *)
 malloc_tsd_funcs(JEMALLOC_INLINE, tcache, tcache_t *, NULL,
     tcache_thread_cleanup)
+/* Per thread flag that allows thread caches to be disabled. */
+malloc_tsd_externs(tcache_enabled, tcache_enabled_t)
+malloc_tsd_funcs(JEMALLOC_INLINE, tcache_enabled, tcache_enabled_t,
+    tcache_enabled_default, malloc_tsd_no_cleanup)
+
+JEMALLOC_INLINE void
+tcache_flush(void)
+{
+	tcache_t *tcache;
+
+	cassert(config_tcache);
+
+	tcache = *tcache_tsd_get();
+	if ((uintptr_t)tcache <= (uintptr_t)TCACHE_STATE_MAX)
+		return;
+	tcache_destroy(tcache);
+	tcache = NULL;
+	tcache_tsd_set(&tcache);
+}
+
+JEMALLOC_INLINE bool
+tcache_enabled_get(void)
+{
+	tcache_enabled_t tcache_enabled;
+
+	cassert(config_tcache);
+
+	tcache_enabled = *tcache_enabled_tsd_get();
+	if (tcache_enabled == tcache_enabled_default) {
+		tcache_enabled = (tcache_enabled_t)opt_tcache;
+		tcache_enabled_tsd_set(&tcache_enabled);
+	}
+
+	return ((bool)tcache_enabled);
+}
+
+JEMALLOC_INLINE void
+tcache_enabled_set(bool enabled)
+{
+	tcache_enabled_t tcache_enabled;
+	tcache_t *tcache;
+
+	cassert(config_tcache);
+
+	tcache_enabled = (tcache_enabled_t)enabled;
+	tcache_enabled_tsd_set(&tcache_enabled);
+	tcache = *tcache_tsd_get();
+	if (enabled) {
+		if (tcache == TCACHE_STATE_DISABLED) {
+			tcache = NULL;
+			tcache_tsd_set(&tcache);
+		}
+	} else /* disabled */ {
+		if (tcache > TCACHE_STATE_MAX) {
+			tcache_destroy(tcache);
+			tcache = NULL;
+		}
+		if (tcache == NULL) {
+			tcache = TCACHE_STATE_DISABLED;
+			tcache_tsd_set(&tcache);
+		}
+	}
+}
 
 JEMALLOC_INLINE tcache_t *
 tcache_get(void)
@@ -128,29 +211,32 @@ tcache_get(void)
 
 	if (config_tcache == false)
 		return (NULL);
-	if (config_lazy_lock && (isthreaded & opt_tcache) == false)
-		return (NULL);
-	else if (opt_tcache == false)
+	if (config_lazy_lock && isthreaded == false)
 		return (NULL);
 
 	tcache = *tcache_tsd_get();
-	if ((uintptr_t)tcache <= (uintptr_t)2) {
+	if ((uintptr_t)tcache <= (uintptr_t)TCACHE_STATE_MAX) {
+		if (tcache == TCACHE_STATE_DISABLED)
+			return (NULL);
 		if (tcache == NULL) {
-			tcache = tcache_create(choose_arena());
-			if (tcache == NULL)
+			if (tcache_enabled_get() == false) {
+				tcache_enabled_set(false); /* Memoize. */
 				return (NULL);
-		} else {
-			if (tcache == (void *)(uintptr_t)1) {
-				/*
-				 * Make a note that an allocator function was
-				 * called after the tcache_thread_cleanup() was
-				 * called.
-				 */
-				tcache = (tcache_t *)(uintptr_t)2;
-				tcache_tsd_set(&tcache);
 			}
+			return (tcache_create(choose_arena()));
+		}
+		if (tcache == TCACHE_STATE_PURGATORY) {
+			/*
+			 * Make a note that an allocator function was called
+			 * after tcache_thread_cleanup() was called.
+			 */
+			tcache = TCACHE_STATE_REINCARNATED;
+			tcache_tsd_set(&tcache);
 			return (NULL);
 		}
+		if (tcache == TCACHE_STATE_REINCARNATED)
+			return (NULL);
+		not_reached();
 	}
 
 	return (tcache);

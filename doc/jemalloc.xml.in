@@ -1105,6 +1105,20 @@ malloc_conf = "xmalloc:true";]]></programlisting>
 
       <varlistentry>
         <term>
+          <mallctl>thread.tcache.enabled</mallctl>
+          (<type>bool</type>)
+          <literal>rw</literal>
+          [<option>--enable-tcache</option>]
+        </term>
+        <listitem><para>Enable/disable calling thread's tcache.  The tcache is
+        implicitly flushed as a side effect of becoming
+        disabled (see <link
+        lenkend="thread.tcache.flush"><mallctl>thread.tcache.flush</mallctl></link>).
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term>
           <mallctl>thread.tcache.flush</mallctl>
           (<type>void</type>)
           <literal>--</literal>
