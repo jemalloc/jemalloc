@@ -3,6 +3,13 @@
 #  error "This source file is for zones on Darwin (OS X)."
 #endif
 
+/*
+ * The malloc_default_purgeable_zone function is only available on >= 10.6.
+ * We need to check whether it is present at runtime, thus the weak_import.
+ */
+extern malloc_zone_t *malloc_default_purgeable_zone(void)
+JEMALLOC_ATTR(weak_import);
+
 /******************************************************************************/
 /* Data. */
 
@@ -207,15 +214,29 @@ register_zone(void)
 #endif
 #endif
 
-	/* Register the custom zone. At this point it won't be the default. */
+	/*
+	 * The default purgeable zone is created lazily by OSX's libc.  It uses
+	 * the default zone when it is created for "small" allocations
+	 * (< 15 KiB), but assumes the default zone is a scalable_zone.  This
+	 * obviously fails when the default zone is the jemalloc zone, so
+	 * malloc_default_purgeable_zone is called beforehand so that the
+	 * default purgeable zone is created when the default zone is still
+	 * a scalable_zone.  As purgeable zones only exist on >= 10.6, we need
+	 * to check for the existence of malloc_default_purgeable_zone() at
+	 * run time.
+	 */
+	if (malloc_default_purgeable_zone != NULL)
+		malloc_default_purgeable_zone();
+
+	/* Register the custom zone.  At this point it won't be the default. */
 	malloc_zone_register(&zone);
 
 	/*
-	 * Unregister and reregister the default zone. On OSX >= 10.6,
+	 * Unregister and reregister the default zone.  On OSX >= 10.6,
 	 * unregistering takes the last registered zone and places it at the
-	 * location of the specified zone. Unregistering the default zone thus
-	 * makes the last registered one the default. On OSX < 10.6,
-	 * unregistering shifts all registered zones. The first registered zone
+	 * location of the specified zone.  Unregistering the default zone thus
+	 * makes the last registered one the default.  On OSX < 10.6,
+	 * unregistering shifts all registered zones.  The first registered zone
 	 * then becomes the default.
 	 */
 	do {

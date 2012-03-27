@@ -1175,7 +1175,7 @@ je_valloc(size_t size)
  * to inconsistently reference libc's malloc(3)-compatible functions
  * (https://bugzilla.mozilla.org/show_bug.cgi?id=493541).
  *
- * These definitions interpose hooks in glibc.  The functions are actually
+ * These definitions interpose hooks in glibc.  The functions are actually
  * passed an extra argument for the caller return address, which will be
  * ignored.
  */
