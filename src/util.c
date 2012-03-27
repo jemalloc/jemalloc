@@ -44,7 +44,17 @@ JEMALLOC_CATTR(visibility("hidden"), static)
 void
 wrtmessage(void *cbopaque, const char *s)
 {
+
+#ifdef SYS_write
+	/*
+	 * Use syscall(2) rather than write(2) when possible in order to avoid
+	 * the possibility of memory allocation within libc.  This is necessary
+	 * on FreeBSD; most operating systems do not have this problem though.
+	 */
 	UNUSED int result = syscall(SYS_write, STDERR_FILENO, s, strlen(s));
+#else
+	UNUSED int result = write(STDERR_FILENO, s, strlen(s));
+#endif
 }
 
 void	(*je_malloc_message)(void *, const char *s)
