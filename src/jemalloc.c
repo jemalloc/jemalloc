@@ -575,7 +575,7 @@ malloc_init_hard(void)
 
 	malloc_conf_init();
 
-#ifndef JEMALLOC_MUTEX_INIT_CB
+#if (!defined(JEMALLOC_MUTEX_INIT_CB) && !defined(JEMALLOC_ZONE))
 	/* Register fork handlers. */
 	if (pthread_atfork(jemalloc_prefork, jemalloc_postfork_parent,
 	    jemalloc_postfork_child) != 0) {
