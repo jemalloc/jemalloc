@@ -109,13 +109,8 @@ a_attr bool		a_name##_booted = false;
 #define	malloc_tsd_funcs(a_attr, a_name, a_type, a_initializer,		\
     a_cleanup)								\
 /* Initialization/cleanup. */						\
-a_attr void								\
+a_attr bool								\
 a_name##_tsd_cleanup_wrapper(void *arg)					\
-{									\
-									\
-}									\
-bool									\
-a_name##_tsd_cleanup_pending(void *arg)					\
 {									\
 	bool (*cleanup)(void *) = arg;					\
 									\
@@ -131,7 +126,7 @@ a_name##_tsd_boot(void)							\
 									\
 	if (a_cleanup != malloc_tsd_no_cleanup) {			\
 		malloc_tsd_cleanup_register(				\
-		    &a_name##_tsd_cleanup_pending, a_cleanup);		\
+		    &a_name##_tsd_cleanup_wrapper, a_cleanup);		\
 	}								\
 	a_name##_booted = true;						\
 	return (false);							\
@@ -157,11 +152,6 @@ a_name##_tsd_set(a_type *val)						\
 #define	malloc_tsd_funcs(a_attr, a_name, a_type, a_initializer,		\
     a_cleanup)								\
 /* Initialization/cleanup. */						\
-a_attr void								\
-a_name##_tsd_cleanup_wrapper(void *arg)					\
-{									\
-									\
-}									\
 a_attr bool								\
 a_name##_tsd_boot(void)							\
 {									\

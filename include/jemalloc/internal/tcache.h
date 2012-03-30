@@ -227,7 +227,9 @@ tcache_get(bool create)
 				 * tcache_create() failure is a soft failure
 				 * that doesn't propagate.  However, if TLS
 				 * data are freed via free() as in glibc,
-				 * subtle TLS corruption could result.
+				 * subtle corruption could result from setting
+				 * a TLS variable after its backing memory is
+				 * freed.
 				 */
 				return (NULL);
 			}
