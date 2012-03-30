@@ -556,7 +556,7 @@ arena_malloc(size_t size, bool zero)
 	assert(size <= arena_maxclass);
 
 	if (size <= SMALL_MAXCLASS) {
-		if ((tcache = tcache_get()) != NULL)
+		if ((tcache = tcache_get(true)) != NULL)
 			return (tcache_alloc_small(tcache, size, zero));
 		else
 			return (arena_malloc_small(choose_arena(), size, zero));
@@ -565,7 +565,8 @@ arena_malloc(size_t size, bool zero)
 		 * Initialize tcache after checking size in order to avoid
 		 * infinite recursion during tcache initialization.
 		 */
-		if (size <= tcache_maxclass && (tcache = tcache_get()) != NULL)
+		if (size <= tcache_maxclass && (tcache = tcache_get(true)) !=
+		    NULL)
 			return (tcache_alloc_large(tcache, size, zero));
 		else
 			return (arena_malloc_large(choose_arena(), size, zero));
@@ -590,7 +591,7 @@ arena_dalloc(arena_t *arena, arena_chunk_t *chunk, void *ptr)
 {
 	size_t pageind;
 	arena_chunk_map_t *mapelm;
-	tcache_t *tcache = tcache_get();
+	tcache_t *tcache = tcache_get(false);
 
 	assert(arena != NULL);
 	assert(chunk->arena == arena);

@@ -126,7 +126,7 @@ malloc_tsd_protos(JEMALLOC_ATTR(unused), tcache_enabled, tcache_enabled_t)
 void	tcache_event(tcache_t *tcache);
 void	tcache_flush(void);
 bool	tcache_enabled_get(void);
-tcache_t *tcache_get(void);
+tcache_t *tcache_get(bool create);
 void	tcache_enabled_set(bool enabled);
 void	*tcache_alloc_easy(tcache_bin_t *tbin);
 void	*tcache_alloc_small(tcache_t *tcache, size_t size, bool zero);
@@ -205,7 +205,7 @@ tcache_enabled_set(bool enabled)
 }
 
 JEMALLOC_INLINE tcache_t *
-tcache_get(void)
+tcache_get(bool create)
 {
 	tcache_t *tcache;
 
@@ -219,6 +219,18 @@ tcache_get(void)
 		if (tcache == TCACHE_STATE_DISABLED)
 			return (NULL);
 		if (tcache == NULL) {
+			if (create == false) {
+				/*
+				 * Creating a tcache here would cause
+				 * allocation as a side effect of free().
+				 * Ordinarily that would be okay since
+				 * tcache_create() failure is a soft failure
+				 * that doesn't propagate.  However, if TLS
+				 * data are freed via free() as in glibc,
+				 * subtle TLS corruption could result.
+				 */
+				return (NULL);
+			}
 			if (tcache_enabled_get() == false) {
 				tcache_enabled_set(false); /* Memoize. */
 				return (NULL);
