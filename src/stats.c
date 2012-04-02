@@ -57,11 +57,11 @@ static void
 stats_arena_bins_print(void (*write_cb)(void *, const char *), void *cbopaque,
     unsigned i)
 {
-	size_t pagesize;
+	size_t page;
 	bool config_tcache;
 	unsigned nbins, j, gap_start;
 
-	CTL_GET("arenas.pagesize", &pagesize, size_t);
+	CTL_GET("arenas.page", &page, size_t);
 
 	CTL_GET("config.tcache", &config_tcache, bool);
 	if (config_tcache) {
@@ -129,7 +129,7 @@ stats_arena_bins_print(void (*write_cb)(void *, const char *), void *cbopaque,
 				    " %12"PRIu64" %12"PRIu64" %12"PRIu64
 				    " %12"PRIu64" %12"PRIu64" %12"PRIu64
 				    " %12zu\n",
-				    j, reg_size, nregs, run_size / pagesize,
+				    j, reg_size, nregs, run_size / page,
 				    allocated, nmalloc, ndalloc, nrequests,
 				    nfills, nflushes, nruns, reruns, curruns);
 			} else {
@@ -137,7 +137,7 @@ stats_arena_bins_print(void (*write_cb)(void *, const char *), void *cbopaque,
 				    "%13u %5zu %4u %3zu %12zu %12"PRIu64
 				    " %12"PRIu64" %12"PRIu64" %12"PRIu64
 				    " %12zu\n",
-				    j, reg_size, nregs, run_size / pagesize,
+				    j, reg_size, nregs, run_size / page,
 				    allocated, nmalloc, ndalloc, nruns, reruns,
 				    curruns);
 			}
@@ -159,10 +159,10 @@ static void
 stats_arena_lruns_print(void (*write_cb)(void *, const char *), void *cbopaque,
     unsigned i)
 {
-	size_t pagesize, nlruns, j;
+	size_t page, nlruns, j;
 	ssize_t gap_start;
 
-	CTL_GET("arenas.pagesize", &pagesize, size_t);
+	CTL_GET("arenas.page", &page, size_t);
 
 	malloc_cprintf(write_cb, cbopaque,
 	    "large:   size pages      nmalloc      ndalloc    nrequests"
@@ -193,7 +193,7 @@ stats_arena_lruns_print(void (*write_cb)(void *, const char *), void *cbopaque,
 			malloc_cprintf(write_cb, cbopaque,
 			    "%13zu %5zu %12"PRIu64" %12"PRIu64" %12"PRIu64
 			    " %12zu\n",
-			    run_size, run_size / pagesize, nmalloc, ndalloc,
+			    run_size, run_size / page, nmalloc, ndalloc,
 			    nrequests, curruns);
 		}
 	}
@@ -206,14 +206,14 @@ stats_arena_print(void (*write_cb)(void *, const char *), void *cbopaque,
     unsigned i, bool bins, bool large)
 {
 	unsigned nthreads;
-	size_t pagesize, pactive, pdirty, mapped;
+	size_t page, pactive, pdirty, mapped;
 	uint64_t npurge, nmadvise, purged;
 	size_t small_allocated;
 	uint64_t small_nmalloc, small_ndalloc, small_nrequests;
 	size_t large_allocated;
 	uint64_t large_nmalloc, large_ndalloc, large_nrequests;
 
-	CTL_GET("arenas.pagesize", &pagesize, size_t);
+	CTL_GET("arenas.page", &page, size_t);
 
 	CTL_I_GET("stats.arenas.0.nthreads", &nthreads, unsigned);
 	malloc_cprintf(write_cb, cbopaque,
@@ -251,8 +251,7 @@ stats_arena_print(void (*write_cb)(void *, const char *), void *cbopaque,
 	    small_nmalloc + large_nmalloc,
 	    small_ndalloc + large_ndalloc,
 	    small_nrequests + large_nrequests);
-	malloc_cprintf(write_cb, cbopaque, "active:  %12zu\n",
-	    pactive * pagesize );
+	malloc_cprintf(write_cb, cbopaque, "active:  %12zu\n", pactive * page);
 	CTL_I_GET("stats.arenas.0.mapped", &mapped, size_t);
 	malloc_cprintf(write_cb, cbopaque, "mapped:  %12zu\n", mapped);
 
