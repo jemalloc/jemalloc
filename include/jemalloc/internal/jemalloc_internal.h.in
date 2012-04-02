@@ -633,6 +633,8 @@ isalloc(const void *ptr)
 	size_t ret;
 	arena_chunk_t *chunk;
 
+	assert(ptr != NULL);
+
 	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
 	if (chunk != ptr) {
 		/* Region. */
@@ -640,10 +642,8 @@ isalloc(const void *ptr)
 			ret = arena_salloc_demote(ptr);
 		else
 			ret = arena_salloc(ptr);
-	} else if (ptr != NULL)
+	} else
 		ret = huge_salloc(ptr);
-	else
-		ret = 0;
 
 	return (ret);
 }
@@ -664,10 +664,12 @@ idalloc(void *ptr)
 {
 	arena_chunk_t *chunk;
 
+	assert(ptr != NULL);
+
 	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
 	if (chunk != ptr)
 		arena_dalloc(chunk->arena, chunk, ptr);
-	else if (ptr != NULL)
+	else
 		huge_dalloc(ptr, true);
 }
 

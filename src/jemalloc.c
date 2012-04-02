@@ -1100,18 +1100,22 @@ JEMALLOC_ATTR(visibility("default"))
 void
 je_free(void *ptr)
 {
-	size_t usize;
 
-	assert(malloc_initialized || IS_INITIALIZER);
+	if (ptr != NULL) {
+		size_t usize;
 
-	if (config_prof && opt_prof) {
-		usize = isalloc(ptr);
-		prof_free(ptr, usize);
-	} else if (config_stats)
-		usize = isalloc(ptr);
-	if (config_stats)
-		thread_allocated_tsd_get()->deallocated += usize;
-	idalloc(ptr);
+		assert(malloc_initialized || IS_INITIALIZER);
+
+		if (config_prof && opt_prof) {
+			usize = isalloc(ptr);
+			prof_free(ptr, usize);
+		} else if (config_stats) {
+			usize = isalloc(ptr);
+		}
+		if (config_stats)
+			thread_allocated_tsd_get()->deallocated += usize;
+		idalloc(ptr);
+	}
 }
 
 /*
@@ -1196,7 +1200,7 @@ je_malloc_usable_size(const void *ptr)
 	if (config_ivsalloc)
 		ret = ivsalloc(ptr);
 	else
-		ret = isalloc(ptr);
+		ret = (ptr != NULL) ? isalloc(ptr) : 0;
 
 	return (ret);
 }
