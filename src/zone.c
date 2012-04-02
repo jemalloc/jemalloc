@@ -166,6 +166,7 @@ zone_force_unlock(malloc_zone_t *zone)
 		jemalloc_postfork_parent();
 }
 
+JEMALLOC_ATTR(constructor)
 void
 register_zone(void)
 {

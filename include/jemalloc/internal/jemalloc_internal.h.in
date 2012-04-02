@@ -304,9 +304,6 @@ static const bool config_ivsalloc =
 #include "jemalloc/internal/rtree.h"
 #include "jemalloc/internal/tcache.h"
 #include "jemalloc/internal/hash.h"
-#ifdef JEMALLOC_ZONE
-#include "jemalloc/internal/zone.h"
-#endif
 #include "jemalloc/internal/prof.h"
 
 #undef JEMALLOC_H_TYPES
@@ -332,9 +329,6 @@ static const bool config_ivsalloc =
 #include "jemalloc/internal/rtree.h"
 #include "jemalloc/internal/tcache.h"
 #include "jemalloc/internal/hash.h"
-#ifdef JEMALLOC_ZONE
-#include "jemalloc/internal/zone.h"
-#endif
 #include "jemalloc/internal/prof.h"
 
 typedef struct {
@@ -400,9 +394,6 @@ void	jemalloc_postfork_child(void);
 #include "jemalloc/internal/rtree.h"
 #include "jemalloc/internal/tcache.h"
 #include "jemalloc/internal/hash.h"
-#ifdef JEMALLOC_ZONE
-#include "jemalloc/internal/zone.h"
-#endif
 #include "jemalloc/internal/prof.h"
 
 #undef JEMALLOC_H_EXTERNS
@@ -565,9 +556,6 @@ choose_arena(void)
 #include "jemalloc/internal/tcache.h"
 #include "jemalloc/internal/arena.h"
 #include "jemalloc/internal/hash.h"
-#ifdef JEMALLOC_ZONE
-#include "jemalloc/internal/zone.h"
-#endif
 
 #ifndef JEMALLOC_ENABLE_INLINE
 void	*imalloc(size_t size);

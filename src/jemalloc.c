@@ -717,17 +717,6 @@ malloc_init_hard(void)
 	return (false);
 }
 
-#ifdef JEMALLOC_ZONE
-JEMALLOC_ATTR(constructor)
-void
-jemalloc_darwin_init(void)
-{
-
-	if (malloc_init_hard() == false)
-		register_zone();
-}
-#endif
-
 /*
  * End initialization functions.
  */
