@@ -36,7 +36,7 @@ while [ ${lg_q} -le ${lg_qmax} ] ; do
     lg_p=${lg_pmin}
     while [ ${lg_p} -le ${lg_pmax} ] ; do
       cat <<EOF
-#if (LG_TINY_MIN == ${lg_t} && LG_QUANTUM == ${lg_q} && PAGE_SHIFT == ${lg_p})
+#if (LG_TINY_MIN == ${lg_t} && LG_QUANTUM == ${lg_q} && LG_PAGE == ${lg_p})
 #define	SIZE_CLASSES_DEFINED
 EOF
       pow2 ${lg_q}; q=${pow2_result}

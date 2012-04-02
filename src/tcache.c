@@ -72,7 +72,7 @@ tcache_bin_flush_small(tcache_bin_t *tbin, size_t binind, unsigned rem,
 			chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
 			if (chunk->arena == arena) {
 				size_t pageind = ((uintptr_t)ptr -
-				    (uintptr_t)chunk) >> PAGE_SHIFT;
+				    (uintptr_t)chunk) >> LG_PAGE;
 				arena_chunk_map_t *mapelm =
 				    &chunk->map[pageind-map_bias];
 				arena_dalloc_bin(arena, chunk, ptr, mapelm);
@@ -303,11 +303,11 @@ tcache_destroy(tcache_t *tcache)
 		arena_chunk_t *chunk = CHUNK_ADDR2BASE(tcache);
 		arena_t *arena = chunk->arena;
 		size_t pageind = ((uintptr_t)tcache - (uintptr_t)chunk) >>
-		    PAGE_SHIFT;
+		    LG_PAGE;
 		arena_chunk_map_t *mapelm = &chunk->map[pageind-map_bias];
 		arena_run_t *run = (arena_run_t *)((uintptr_t)chunk +
-		    (uintptr_t)((pageind - (mapelm->bits >> PAGE_SHIFT)) <<
-		    PAGE_SHIFT));
+		    (uintptr_t)((pageind - (mapelm->bits >> LG_PAGE)) <<
+		    LG_PAGE));
 		arena_bin_t *bin = run->bin;
 
 		malloc_mutex_lock(&bin->lock);
@@ -398,7 +398,7 @@ tcache_boot0(void)
 		else
 			tcache_maxclass = (1U << opt_lg_tcache_max);
 
-		nhbins = NBINS + (tcache_maxclass >> PAGE_SHIFT);
+		nhbins = NBINS + (tcache_maxclass >> LG_PAGE);
 
 		/* Initialize tcache_bin_info. */
 		tcache_bin_info = (tcache_bin_info_t *)base_alloc(nhbins *

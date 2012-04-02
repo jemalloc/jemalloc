@@ -412,6 +412,9 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		CTL_GET("arenas.quantum", &sv, size_t);
 		malloc_cprintf(write_cb, cbopaque, "Quantum size: %zu\n", sv);
 
+		CTL_GET("arenas.page", &sv, size_t);
+		malloc_cprintf(write_cb, cbopaque, "Page size: %zu\n", sv);
+
 		CTL_GET("opt.lg_dirty_mult", &ssv, ssize_t);
 		if (ssv >= 0) {
 			malloc_cprintf(write_cb, cbopaque,

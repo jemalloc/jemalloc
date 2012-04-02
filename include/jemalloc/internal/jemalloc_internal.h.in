@@ -58,13 +58,6 @@ static const bool config_dss =
     false
 #endif
     ;
-static const bool config_dynamic_page_shift =
-#ifdef JEMALLOC_DYNAMIC_PAGE_SHIFT
-    true
-#else
-    false
-#endif
-    ;
 static const bool config_fill =
 #ifdef JEMALLOC_FILL
     true
@@ -266,20 +259,12 @@ static const bool config_ivsalloc =
 	(((s) + CACHELINE_MASK) & ~CACHELINE_MASK)
 
 /* Page size.  STATIC_PAGE_SHIFT is determined by the configure script. */
-#define	STATIC_PAGE_SIZE ((size_t)(1U << STATIC_PAGE_SHIFT))
-#define	STATIC_PAGE_MASK ((size_t)(STATIC_PAGE_SIZE - 1))
-#ifdef PAGE_SHIFT
-#  undef PAGE_SHIFT
-#endif
-#ifdef PAGE_SIZE
-#  undef PAGE_SIZE
-#endif
 #ifdef PAGE_MASK
 #  undef PAGE_MASK
 #endif
-#define	PAGE_SHIFT	STATIC_PAGE_SHIFT
-#define	PAGE_SIZE	STATIC_PAGE_SIZE
-#define	PAGE_MASK	STATIC_PAGE_MASK
+#define	LG_PAGE		STATIC_PAGE_SHIFT
+#define	PAGE		((size_t)(1U << STATIC_PAGE_SHIFT))
+#define	PAGE_MASK	((size_t)(PAGE - 1))
 
 /* Return the smallest pagesize multiple that is >= s. */
 #define	PAGE_CEILING(s)							\
@@ -350,12 +335,6 @@ extern bool	opt_junk;
 extern bool	opt_xmalloc;
 extern bool	opt_zero;
 extern size_t	opt_narenas;
-
-#ifdef DYNAMIC_PAGE_SHIFT
-extern size_t		pagesize;
-extern size_t		pagesize_mask;
-extern size_t		lg_pagesize;
-#endif
 
 /* Number of CPUs. */
 extern unsigned		ncpus;
@@ -479,7 +458,7 @@ sa2u(size_t size, size_t alignment, size_t *run_size_p)
 		return (0);
 	}
 
-	if (usize <= arena_maxclass && alignment <= PAGE_SIZE) {
+	if (usize <= arena_maxclass && alignment <= PAGE) {
 		if (usize <= SMALL_MAXCLASS)
 			return (arena_bin_info[SMALL_SIZE2BIN(usize)].reg_size);
 		return (PAGE_CEILING(usize));
@@ -494,7 +473,7 @@ sa2u(size_t size, size_t alignment, size_t *run_size_p)
 		usize = PAGE_CEILING(size);
 		/*
 		 * (usize < size) protects against very large sizes within
-		 * PAGE_SIZE of SIZE_T_MAX.
+		 * PAGE of SIZE_T_MAX.
 		 *
 		 * (usize + alignment < usize) protects against the
 		 * combination of maximal alignment and usize large enough
@@ -514,18 +493,18 @@ sa2u(size_t size, size_t alignment, size_t *run_size_p)
 		 * would need to allocate in order to guarantee the alignment.
 		 */
 		if (usize >= alignment)
-			run_size = usize + alignment - PAGE_SIZE;
+			run_size = usize + alignment - PAGE;
 		else {
 			/*
 			 * It is possible that (alignment << 1) will cause
 			 * overflow, but it doesn't matter because we also
-			 * subtract PAGE_SIZE, which in the case of overflow
-			 * leaves us with a very large run_size.  That causes
-			 * the first conditional below to fail, which means
-			 * that the bogus run_size value never gets used for
+			 * subtract PAGE, which in the case of overflow leaves
+			 * us with a very large run_size.  That causes the
+			 * first conditional below to fail, which means that
+			 * the bogus run_size value never gets used for
 			 * anything important.
 			 */
-			run_size = (alignment << 1) - PAGE_SIZE;
+			run_size = (alignment << 1) - PAGE;
 		}
 		if (run_size_p != NULL)
 			*run_size_p = run_size;
@@ -600,7 +579,7 @@ ipalloc(size_t usize, size_t alignment, bool zero)
 	assert(usize != 0);
 	assert(usize == sa2u(usize, alignment, NULL));
 
-	if (usize <= arena_maxclass && alignment <= PAGE_SIZE)
+	if (usize <= arena_maxclass && alignment <= PAGE)
 		ret = arena_malloc(usize, zero);
 	else {
 		size_t run_size JEMALLOC_CC_SILENCE_INIT(0);

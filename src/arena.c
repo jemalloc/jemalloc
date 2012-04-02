@@ -176,10 +176,9 @@ static inline void
 arena_chunk_validate_zeroed(arena_chunk_t *chunk, size_t run_ind)
 {
 	size_t i;
-	UNUSED size_t *p = (size_t *)((uintptr_t)chunk + (run_ind <<
-	    PAGE_SHIFT));
+	UNUSED size_t *p = (size_t *)((uintptr_t)chunk + (run_ind << LG_PAGE));
 
-	for (i = 0; i < PAGE_SIZE / sizeof(size_t); i++)
+	for (i = 0; i < PAGE / sizeof(size_t); i++)
 		assert(p[i] == 0);
 }
 
@@ -193,16 +192,15 @@ arena_run_split(arena_t *arena, arena_run_t *run, size_t size, bool large,
 	arena_avail_tree_t *runs_avail;
 
 	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(run);
-	run_ind = (unsigned)(((uintptr_t)run - (uintptr_t)chunk)
-	    >> PAGE_SHIFT);
+	run_ind = (unsigned)(((uintptr_t)run - (uintptr_t)chunk) >> LG_PAGE);
 	flag_dirty = chunk->map[run_ind-map_bias].bits & CHUNK_MAP_DIRTY;
 	runs_avail = (flag_dirty != 0) ? &arena->runs_avail_dirty :
 	    &arena->runs_avail_clean;
 	total_pages = (chunk->map[run_ind-map_bias].bits & ~PAGE_MASK) >>
-	    PAGE_SHIFT;
+	    LG_PAGE;
 	assert((chunk->map[run_ind+total_pages-1-map_bias].bits &
 	    CHUNK_MAP_DIRTY) == flag_dirty);
-	need_pages = (size >> PAGE_SHIFT);
+	need_pages = (size >> LG_PAGE);
 	assert(need_pages > 0);
 	assert(need_pages <= total_pages);
 	rem_pages = total_pages - need_pages;
@@ -214,8 +212,8 @@ arena_run_split(arena_t *arena, arena_run_t *run, size_t size, bool large,
 		 * multiple.
 		 */
 		size_t cactive_diff = CHUNK_CEILING((arena->nactive +
-		    need_pages) << PAGE_SHIFT) - CHUNK_CEILING(arena->nactive <<
-		    PAGE_SHIFT);
+		    need_pages) << LG_PAGE) - CHUNK_CEILING(arena->nactive <<
+		    LG_PAGE);
 		if (cactive_diff != 0)
 			stats_cactive_add(cactive_diff);
 	}
@@ -225,16 +223,16 @@ arena_run_split(arena_t *arena, arena_run_t *run, size_t size, bool large,
 	if (rem_pages > 0) {
 		if (flag_dirty != 0) {
 			chunk->map[run_ind+need_pages-map_bias].bits =
-			    (rem_pages << PAGE_SHIFT) | CHUNK_MAP_DIRTY;
+			    (rem_pages << LG_PAGE) | CHUNK_MAP_DIRTY;
 			chunk->map[run_ind+total_pages-1-map_bias].bits =
-			    (rem_pages << PAGE_SHIFT) | CHUNK_MAP_DIRTY;
+			    (rem_pages << LG_PAGE) | CHUNK_MAP_DIRTY;
 		} else {
 			chunk->map[run_ind+need_pages-map_bias].bits =
-			    (rem_pages << PAGE_SHIFT) |
+			    (rem_pages << LG_PAGE) |
 			    (chunk->map[run_ind+need_pages-map_bias].bits &
 			    CHUNK_MAP_UNZEROED);
 			chunk->map[run_ind+total_pages-1-map_bias].bits =
-			    (rem_pages << PAGE_SHIFT) |
+			    (rem_pages << LG_PAGE) |
 			    (chunk->map[run_ind+total_pages-1-map_bias].bits &
 			    CHUNK_MAP_UNZEROED);
 		}
@@ -264,8 +262,7 @@ arena_run_split(arena_t *arena, arena_run_t *run, size_t size, bool large,
 					    & CHUNK_MAP_UNZEROED) != 0) {
 						memset((void *)((uintptr_t)
 						    chunk + ((run_ind+i) <<
-						    PAGE_SHIFT)), 0,
-						    PAGE_SIZE);
+						    LG_PAGE)), 0, PAGE);
 					} else if (config_debug) {
 						arena_chunk_validate_zeroed(
 						    chunk, run_ind+i);
@@ -277,8 +274,7 @@ arena_run_split(arena_t *arena, arena_run_t *run, size_t size, bool large,
 				 * zeroed.
 				 */
 				memset((void *)((uintptr_t)chunk + (run_ind <<
-				    PAGE_SHIFT)), 0, (need_pages <<
-				    PAGE_SHIFT));
+				    LG_PAGE)), 0, (need_pages << LG_PAGE));
 			}
 		}
 
@@ -310,7 +306,7 @@ arena_run_split(arena_t *arena, arena_run_t *run, size_t size, bool large,
 		    == 0)
 			arena_chunk_validate_zeroed(chunk, run_ind);
 		for (i = 1; i < need_pages - 1; i++) {
-			chunk->map[run_ind+i-map_bias].bits = (i << PAGE_SHIFT)
+			chunk->map[run_ind+i-map_bias].bits = (i << LG_PAGE)
 			    | (chunk->map[run_ind+i-map_bias].bits &
 			    CHUNK_MAP_UNZEROED) | CHUNK_MAP_ALLOCATED;
 			if (config_debug && flag_dirty == 0 &&
@@ -319,7 +315,7 @@ arena_run_split(arena_t *arena, arena_run_t *run, size_t size, bool large,
 				arena_chunk_validate_zeroed(chunk, run_ind+i);
 		}
 		chunk->map[run_ind+need_pages-1-map_bias].bits = ((need_pages
-		    - 1) << PAGE_SHIFT) |
+		    - 1) << LG_PAGE) |
 		    (chunk->map[run_ind+need_pages-1-map_bias].bits &
 		    CHUNK_MAP_UNZEROED) | CHUNK_MAP_ALLOCATED | flag_dirty;
 		if (config_debug && flag_dirty == 0 &&
@@ -460,7 +456,7 @@ arena_run_alloc(arena_t *arena, size_t size, bool large, bool zero)
 		    + map_bias;
 
 		run = (arena_run_t *)((uintptr_t)run_chunk + (pageind <<
-		    PAGE_SHIFT));
+		    LG_PAGE));
 		arena_run_split(arena, run, size, large, zero);
 		return (run);
 	}
@@ -472,7 +468,7 @@ arena_run_alloc(arena_t *arena, size_t size, bool large, bool zero)
 		    + map_bias;
 
 		run = (arena_run_t *)((uintptr_t)run_chunk + (pageind <<
-		    PAGE_SHIFT));
+		    LG_PAGE));
 		arena_run_split(arena, run, size, large, zero);
 		return (run);
 	}
@@ -482,8 +478,7 @@ arena_run_alloc(arena_t *arena, size_t size, bool large, bool zero)
 	 */
 	chunk = arena_chunk_alloc(arena);
 	if (chunk != NULL) {
-		run = (arena_run_t *)((uintptr_t)chunk + (map_bias <<
-		    PAGE_SHIFT));
+		run = (arena_run_t *)((uintptr_t)chunk + (map_bias << LG_PAGE));
 		arena_run_split(arena, run, size, large, zero);
 		return (run);
 	}
@@ -501,7 +496,7 @@ arena_run_alloc(arena_t *arena, size_t size, bool large, bool zero)
 		    + map_bias;
 
 		run = (arena_run_t *)((uintptr_t)run_chunk + (pageind <<
-		    PAGE_SHIFT));
+		    LG_PAGE));
 		arena_run_split(arena, run, size, large, zero);
 		return (run);
 	}
@@ -513,7 +508,7 @@ arena_run_alloc(arena_t *arena, size_t size, bool large, bool zero)
 		    + map_bias;
 
 		run = (arena_run_t *)((uintptr_t)run_chunk + (pageind <<
-		    PAGE_SHIFT));
+		    LG_PAGE));
 		arena_run_split(arena, run, size, large, zero);
 		return (run);
 	}
@@ -582,7 +577,7 @@ arena_chunk_purge(arena_t *arena, arena_chunk_t *chunk)
 		if ((mapelm->bits & CHUNK_MAP_ALLOCATED) == 0) {
 			size_t npages;
 
-			npages = mapelm->bits >> PAGE_SHIFT;
+			npages = mapelm->bits >> LG_PAGE;
 			assert(pageind + npages <= chunk_npages);
 			if (mapelm->bits & CHUNK_MAP_DIRTY) {
 				size_t i;
@@ -590,7 +585,7 @@ arena_chunk_purge(arena_t *arena, arena_chunk_t *chunk)
 				arena_avail_tree_remove(
 				    &arena->runs_avail_dirty, mapelm);
 
-				mapelm->bits = (npages << PAGE_SHIFT) |
+				mapelm->bits = (npages << LG_PAGE) |
 				    flag_unzeroed | CHUNK_MAP_LARGE |
 				    CHUNK_MAP_ALLOCATED;
 				/*
@@ -615,9 +610,9 @@ arena_chunk_purge(arena_t *arena, arena_chunk_t *chunk)
 					 */
 					size_t cactive_diff =
 					    CHUNK_CEILING((arena->nactive +
-					    npages) << PAGE_SHIFT) -
+					    npages) << LG_PAGE) -
 					    CHUNK_CEILING(arena->nactive <<
-					    PAGE_SHIFT);
+					    LG_PAGE);
 					if (cactive_diff != 0)
 						stats_cactive_add(cactive_diff);
 				}
@@ -631,17 +626,17 @@ arena_chunk_purge(arena_t *arena, arena_chunk_t *chunk)
 		} else {
 			/* Skip allocated run. */
 			if (mapelm->bits & CHUNK_MAP_LARGE)
-				pageind += mapelm->bits >> PAGE_SHIFT;
+				pageind += mapelm->bits >> LG_PAGE;
 			else {
 				arena_run_t *run = (arena_run_t *)((uintptr_t)
-				    chunk + (uintptr_t)(pageind << PAGE_SHIFT));
+				    chunk + (uintptr_t)(pageind << LG_PAGE));
 
-				assert((mapelm->bits >> PAGE_SHIFT) == 0);
+				assert((mapelm->bits >> LG_PAGE) == 0);
 				size_t binind = arena_bin_index(arena,
 				    run->bin);
 				arena_bin_info_t *bin_info =
 				    &arena_bin_info[binind];
-				pageind += bin_info->run_size >> PAGE_SHIFT;
+				pageind += bin_info->run_size >> LG_PAGE;
 			}
 		}
 	}
@@ -662,7 +657,7 @@ arena_chunk_purge(arena_t *arena, arena_chunk_t *chunk)
 	ql_foreach(mapelm, &mapelms, u.ql_link) {
 		size_t pageind = (((uintptr_t)mapelm - (uintptr_t)chunk->map) /
 		    sizeof(arena_chunk_map_t)) + map_bias;
-		size_t npages = mapelm->bits >> PAGE_SHIFT;
+		size_t npages = mapelm->bits >> LG_PAGE;
 
 		assert(pageind + npages <= chunk_npages);
 		assert(ndirty >= npages);
@@ -676,8 +671,8 @@ arena_chunk_purge(arena_t *arena, arena_chunk_t *chunk)
 #else
 #  error "No method defined for purging unused dirty pages."
 #endif
-		madvise((void *)((uintptr_t)chunk + (pageind << PAGE_SHIFT)),
-		    (npages << PAGE_SHIFT), MADV_PURGE);
+		madvise((void *)((uintptr_t)chunk + (pageind << LG_PAGE)),
+		    (npages << LG_PAGE), MADV_PURGE);
 #undef MADV_PURGE
 		if (config_stats)
 			nmadvise++;
@@ -693,7 +688,7 @@ arena_chunk_purge(arena_t *arena, arena_chunk_t *chunk)
 		size_t pageind = (((uintptr_t)mapelm - (uintptr_t)chunk->map) /
 		    sizeof(arena_chunk_map_t)) + map_bias;
 		arena_run_t *run = (arena_run_t *)((uintptr_t)chunk +
-		    (uintptr_t)(pageind << PAGE_SHIFT));
+		    (uintptr_t)(pageind << LG_PAGE));
 
 		ql_remove(&mapelms, mapelm, u.ql_link);
 		arena_run_dalloc(arena, run, false);
@@ -804,33 +799,31 @@ arena_run_dalloc(arena_t *arena, arena_run_t *run, bool dirty)
 	arena_avail_tree_t *runs_avail;
 
 	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(run);
-	run_ind = (size_t)(((uintptr_t)run - (uintptr_t)chunk)
-	    >> PAGE_SHIFT);
+	run_ind = (size_t)(((uintptr_t)run - (uintptr_t)chunk) >> LG_PAGE);
 	assert(run_ind >= map_bias);
 	assert(run_ind < chunk_npages);
 	if ((chunk->map[run_ind-map_bias].bits & CHUNK_MAP_LARGE) != 0) {
 		size = chunk->map[run_ind-map_bias].bits & ~PAGE_MASK;
-		assert(size == PAGE_SIZE ||
-		    (chunk->map[run_ind+(size>>PAGE_SHIFT)-1-map_bias].bits &
+		assert(size == PAGE ||
+		    (chunk->map[run_ind+(size>>LG_PAGE)-1-map_bias].bits &
 		    ~PAGE_MASK) == 0);
-		assert((chunk->map[run_ind+(size>>PAGE_SHIFT)-1-map_bias].bits &
+		assert((chunk->map[run_ind+(size>>LG_PAGE)-1-map_bias].bits &
 		    CHUNK_MAP_LARGE) != 0);
-		assert((chunk->map[run_ind+(size>>PAGE_SHIFT)-1-map_bias].bits &
+		assert((chunk->map[run_ind+(size>>LG_PAGE)-1-map_bias].bits &
 		    CHUNK_MAP_ALLOCATED) != 0);
 	} else {
 		size_t binind = arena_bin_index(arena, run->bin);
 		arena_bin_info_t *bin_info = &arena_bin_info[binind];
 		size = bin_info->run_size;
 	}
-	run_pages = (size >> PAGE_SHIFT);
+	run_pages = (size >> LG_PAGE);
 	if (config_stats) {
 		/*
 		 * Update stats_cactive if nactive is crossing a chunk
 		 * multiple.
 		 */
-		size_t cactive_diff = CHUNK_CEILING(arena->nactive <<
-		    PAGE_SHIFT) - CHUNK_CEILING((arena->nactive - run_pages) <<
-		    PAGE_SHIFT);
+		size_t cactive_diff = CHUNK_CEILING(arena->nactive << LG_PAGE) -
+		    CHUNK_CEILING((arena->nactive - run_pages) << LG_PAGE);
 		if (cactive_diff != 0)
 			stats_cactive_sub(cactive_diff);
 	}
@@ -869,7 +862,7 @@ arena_run_dalloc(arena_t *arena, arena_run_t *run, bool dirty)
 	    CHUNK_MAP_DIRTY) == flag_dirty) {
 		size_t nrun_size = chunk->map[run_ind+run_pages-map_bias].bits &
 		    ~PAGE_MASK;
-		size_t nrun_pages = nrun_size >> PAGE_SHIFT;
+		size_t nrun_pages = nrun_size >> LG_PAGE;
 
 		/*
 		 * Remove successor from runs_avail; the coalesced run is
@@ -900,7 +893,7 @@ arena_run_dalloc(arena_t *arena, arena_run_t *run, bool dirty)
 	    CHUNK_MAP_DIRTY) == flag_dirty) {
 		size_t prun_size = chunk->map[run_ind-1-map_bias].bits &
 		    ~PAGE_MASK;
-		size_t prun_pages = prun_size >> PAGE_SHIFT;
+		size_t prun_pages = prun_size >> LG_PAGE;
 
 		run_ind -= prun_pages;
 
@@ -970,8 +963,8 @@ static void
 arena_run_trim_head(arena_t *arena, arena_chunk_t *chunk, arena_run_t *run,
     size_t oldsize, size_t newsize)
 {
-	size_t pageind = ((uintptr_t)run - (uintptr_t)chunk) >> PAGE_SHIFT;
-	size_t head_npages = (oldsize - newsize) >> PAGE_SHIFT;
+	size_t pageind = ((uintptr_t)run - (uintptr_t)chunk) >> LG_PAGE;
+	size_t head_npages = (oldsize - newsize) >> LG_PAGE;
 	size_t flag_dirty = chunk->map[pageind-map_bias].bits & CHUNK_MAP_DIRTY;
 
 	assert(oldsize > newsize);
@@ -991,7 +984,7 @@ arena_run_trim_head(arena_t *arena, arena_chunk_t *chunk, arena_run_t *run,
 	    CHUNK_MAP_UNZEROED) | CHUNK_MAP_LARGE | CHUNK_MAP_ALLOCATED;
 
 	if (config_debug) {
-		UNUSED size_t tail_npages = newsize >> PAGE_SHIFT;
+		UNUSED size_t tail_npages = newsize >> LG_PAGE;
 		assert((chunk->map[pageind+head_npages+tail_npages-1-map_bias]
 		    .bits & ~PAGE_MASK) == 0);
 		assert((chunk->map[pageind+head_npages+tail_npages-1-map_bias]
@@ -1012,9 +1005,9 @@ static void
 arena_run_trim_tail(arena_t *arena, arena_chunk_t *chunk, arena_run_t *run,
     size_t oldsize, size_t newsize, bool dirty)
 {
-	size_t pageind = ((uintptr_t)run - (uintptr_t)chunk) >> PAGE_SHIFT;
-	size_t head_npages = newsize >> PAGE_SHIFT;
-	size_t tail_npages = (oldsize - newsize) >> PAGE_SHIFT;
+	size_t pageind = ((uintptr_t)run - (uintptr_t)chunk) >> LG_PAGE;
+	size_t head_npages = newsize >> LG_PAGE;
+	size_t tail_npages = (oldsize - newsize) >> LG_PAGE;
 	size_t flag_dirty = chunk->map[pageind-map_bias].bits &
 	    CHUNK_MAP_DIRTY;
 
@@ -1064,8 +1057,8 @@ arena_bin_runs_first(arena_bin_t *bin)
 		pageind = ((((uintptr_t)mapelm - (uintptr_t)chunk->map) /
 		    sizeof(arena_chunk_map_t))) + map_bias;
 		arena_run_t *run = (arena_run_t *)((uintptr_t)chunk +
-		    (uintptr_t)((pageind - (mapelm->bits >> PAGE_SHIFT)) <<
-		    PAGE_SHIFT));
+		    (uintptr_t)((pageind - (mapelm->bits >> LG_PAGE)) <<
+		    LG_PAGE));
 		return (run);
 	}
 
@@ -1076,7 +1069,7 @@ static void
 arena_bin_runs_insert(arena_bin_t *bin, arena_run_t *run)
 {
 	arena_chunk_t *chunk = CHUNK_ADDR2BASE(run);
-	size_t pageind = ((uintptr_t)run - (uintptr_t)chunk) >> PAGE_SHIFT;
+	size_t pageind = ((uintptr_t)run - (uintptr_t)chunk) >> LG_PAGE;
 	arena_chunk_map_t *mapelm = &chunk->map[pageind-map_bias];
 
 	assert(arena_run_tree_search(&bin->runs, mapelm) == NULL);
@@ -1088,7 +1081,7 @@ static void
 arena_bin_runs_remove(arena_bin_t *bin, arena_run_t *run)
 {
 	arena_chunk_t *chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(run);
-	size_t pageind = ((uintptr_t)run - (uintptr_t)chunk) >> PAGE_SHIFT;
+	size_t pageind = ((uintptr_t)run - (uintptr_t)chunk) >> LG_PAGE;
 	arena_chunk_map_t *mapelm = &chunk->map[pageind-map_bias];
 
 	assert(arena_run_tree_search(&bin->runs, mapelm) != NULL);
@@ -1331,9 +1324,9 @@ arena_malloc_large(arena_t *arena, size_t size, bool zero)
 		arena->stats.nmalloc_large++;
 		arena->stats.nrequests_large++;
 		arena->stats.allocated_large += size;
-		arena->stats.lstats[(size >> PAGE_SHIFT) - 1].nmalloc++;
-		arena->stats.lstats[(size >> PAGE_SHIFT) - 1].nrequests++;
-		arena->stats.lstats[(size >> PAGE_SHIFT) - 1].curruns++;
+		arena->stats.lstats[(size >> LG_PAGE) - 1].nmalloc++;
+		arena->stats.lstats[(size >> LG_PAGE) - 1].nrequests++;
+		arena->stats.lstats[(size >> LG_PAGE) - 1].curruns++;
 	}
 	if (config_prof)
 		arena_prof_accum(arena, size);
@@ -1401,9 +1394,9 @@ arena_palloc(arena_t *arena, size_t size, size_t alloc_size, size_t alignment,
 		arena->stats.nmalloc_large++;
 		arena->stats.nrequests_large++;
 		arena->stats.allocated_large += size;
-		arena->stats.lstats[(size >> PAGE_SHIFT) - 1].nmalloc++;
-		arena->stats.lstats[(size >> PAGE_SHIFT) - 1].nrequests++;
-		arena->stats.lstats[(size >> PAGE_SHIFT) - 1].curruns++;
+		arena->stats.lstats[(size >> LG_PAGE) - 1].nmalloc++;
+		arena->stats.lstats[(size >> LG_PAGE) - 1].nrequests++;
+		arena->stats.lstats[(size >> LG_PAGE) - 1].curruns++;
 	}
 	malloc_mutex_unlock(&arena->lock);
 
@@ -1428,13 +1421,12 @@ arena_salloc(const void *ptr)
 	assert(CHUNK_ADDR2BASE(ptr) != ptr);
 
 	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
-	pageind = ((uintptr_t)ptr - (uintptr_t)chunk) >> PAGE_SHIFT;
+	pageind = ((uintptr_t)ptr - (uintptr_t)chunk) >> LG_PAGE;
 	mapbits = chunk->map[pageind-map_bias].bits;
 	assert((mapbits & CHUNK_MAP_ALLOCATED) != 0);
 	if ((mapbits & CHUNK_MAP_LARGE) == 0) {
 		arena_run_t *run = (arena_run_t *)((uintptr_t)chunk +
-		    (uintptr_t)((pageind - (mapbits >> PAGE_SHIFT)) <<
-		    PAGE_SHIFT));
+		    (uintptr_t)((pageind - (mapbits >> LG_PAGE)) << LG_PAGE));
 		size_t binind = arena_bin_index(chunk->arena, run->bin);
 		arena_bin_info_t *bin_info = &arena_bin_info[binind];
 		assert(((uintptr_t)ptr - ((uintptr_t)run +
@@ -1458,11 +1450,11 @@ arena_prof_promoted(const void *ptr, size_t size)
 
 	assert(ptr != NULL);
 	assert(CHUNK_ADDR2BASE(ptr) != ptr);
-	assert(isalloc(ptr) == PAGE_SIZE);
+	assert(isalloc(ptr) == PAGE);
 	assert(size <= SMALL_MAXCLASS);
 
 	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
-	pageind = ((uintptr_t)ptr - (uintptr_t)chunk) >> PAGE_SHIFT;
+	pageind = ((uintptr_t)ptr - (uintptr_t)chunk) >> LG_PAGE;
 	binind = SMALL_SIZE2BIN(size);
 	assert(binind < NBINS);
 	chunk->map[pageind-map_bias].bits = (chunk->map[pageind-map_bias].bits &
@@ -1480,13 +1472,12 @@ arena_salloc_demote(const void *ptr)
 	assert(CHUNK_ADDR2BASE(ptr) != ptr);
 
 	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
-	pageind = ((uintptr_t)ptr - (uintptr_t)chunk) >> PAGE_SHIFT;
+	pageind = ((uintptr_t)ptr - (uintptr_t)chunk) >> LG_PAGE;
 	mapbits = chunk->map[pageind-map_bias].bits;
 	assert((mapbits & CHUNK_MAP_ALLOCATED) != 0);
 	if ((mapbits & CHUNK_MAP_LARGE) == 0) {
 		arena_run_t *run = (arena_run_t *)((uintptr_t)chunk +
-		    (uintptr_t)((pageind - (mapbits >> PAGE_SHIFT)) <<
-		    PAGE_SHIFT));
+		    (uintptr_t)((pageind - (mapbits >> LG_PAGE)) << LG_PAGE));
 		size_t binind = arena_bin_index(chunk->arena, run->bin);
 		arena_bin_info_t *bin_info = &arena_bin_info[binind];
 		assert(((uintptr_t)ptr - ((uintptr_t)run +
@@ -1496,7 +1487,7 @@ arena_salloc_demote(const void *ptr)
 	} else {
 		assert(((uintptr_t)ptr & PAGE_MASK) == 0);
 		ret = mapbits & ~PAGE_MASK;
-		if (prof_promote && ret == PAGE_SIZE && (mapbits &
+		if (prof_promote && ret == PAGE && (mapbits &
 		    CHUNK_MAP_CLASS_MASK) != 0) {
 			size_t binind = ((mapbits & CHUNK_MAP_CLASS_MASK) >>
 			    CHUNK_MAP_CLASS_SHIFT) - 1;
@@ -1542,18 +1533,18 @@ arena_dalloc_bin_run(arena_t *arena, arena_chunk_t *chunk, arena_run_t *run,
 
 	assert(run != bin->runcur);
 	assert(arena_run_tree_search(&bin->runs, &chunk->map[
-	    (((uintptr_t)run-(uintptr_t)chunk)>>PAGE_SHIFT)-map_bias]) == NULL);
+	    (((uintptr_t)run-(uintptr_t)chunk)>>LG_PAGE)-map_bias]) == NULL);
 
 	binind = arena_bin_index(chunk->arena, run->bin);
 	bin_info = &arena_bin_info[binind];
 
 	malloc_mutex_unlock(&bin->lock);
 	/******************************/
-	npages = bin_info->run_size >> PAGE_SHIFT;
-	run_ind = (size_t)(((uintptr_t)run - (uintptr_t)chunk) >> PAGE_SHIFT);
+	npages = bin_info->run_size >> LG_PAGE;
+	run_ind = (size_t)(((uintptr_t)run - (uintptr_t)chunk) >> LG_PAGE);
 	past = (size_t)(PAGE_CEILING((uintptr_t)run +
 	    (uintptr_t)bin_info->reg0_offset + (uintptr_t)(run->nextind *
-	    bin_info->reg_size) - (uintptr_t)chunk) >> PAGE_SHIFT);
+	    bin_info->reg_size) - (uintptr_t)chunk) >> LG_PAGE);
 	malloc_mutex_lock(&arena->lock);
 
 	/*
@@ -1573,8 +1564,8 @@ arena_dalloc_bin_run(arena_t *arena, arena_chunk_t *chunk, arena_run_t *run,
 		chunk->map[run_ind-map_bias].bits = bin_info->run_size |
 		    CHUNK_MAP_LARGE | (chunk->map[run_ind-map_bias].bits &
 		    CHUNK_MAP_FLAGS_MASK);
-		arena_run_trim_tail(arena, chunk, run, (npages << PAGE_SHIFT),
-		    ((past - run_ind) << PAGE_SHIFT), false);
+		arena_run_trim_tail(arena, chunk, run, (npages << LG_PAGE),
+		    ((past - run_ind) << LG_PAGE), false);
 		/* npages = past - run_ind; */
 	}
 	arena_run_dalloc(arena, run, true);
@@ -1615,9 +1606,9 @@ arena_dalloc_bin(arena_t *arena, arena_chunk_t *chunk, void *ptr,
 	arena_bin_t *bin;
 	size_t size;
 
-	pageind = ((uintptr_t)ptr - (uintptr_t)chunk) >> PAGE_SHIFT;
+	pageind = ((uintptr_t)ptr - (uintptr_t)chunk) >> LG_PAGE;
 	run = (arena_run_t *)((uintptr_t)chunk + (uintptr_t)((pageind -
-	    (mapelm->bits >> PAGE_SHIFT)) << PAGE_SHIFT));
+	    (mapelm->bits >> LG_PAGE)) << LG_PAGE));
 	bin = run->bin;
 	size_t binind = arena_bin_index(arena, bin);
 	arena_bin_info_t *bin_info = &arena_bin_info[binind];
@@ -1692,8 +1683,7 @@ arena_dalloc_large(arena_t *arena, arena_chunk_t *chunk, void *ptr)
 {
 
 	if (config_fill || config_stats) {
-		size_t pageind = ((uintptr_t)ptr - (uintptr_t)chunk) >>
-		    PAGE_SHIFT;
+		size_t pageind = ((uintptr_t)ptr - (uintptr_t)chunk) >> LG_PAGE;
 		size_t size = chunk->map[pageind-map_bias].bits & ~PAGE_MASK;
 
 		if (config_fill && config_stats && opt_junk)
@@ -1701,8 +1691,8 @@ arena_dalloc_large(arena_t *arena, arena_chunk_t *chunk, void *ptr)
 		if (config_stats) {
 			arena->stats.ndalloc_large++;
 			arena->stats.allocated_large -= size;
-			arena->stats.lstats[(size >> PAGE_SHIFT) - 1].ndalloc++;
-			arena->stats.lstats[(size >> PAGE_SHIFT) - 1].curruns--;
+			arena->stats.lstats[(size >> LG_PAGE) - 1].ndalloc++;
+			arena->stats.lstats[(size >> LG_PAGE) - 1].curruns--;
 		}
 	}
 
@@ -1726,15 +1716,15 @@ arena_ralloc_large_shrink(arena_t *arena, arena_chunk_t *chunk, void *ptr,
 	if (config_stats) {
 		arena->stats.ndalloc_large++;
 		arena->stats.allocated_large -= oldsize;
-		arena->stats.lstats[(oldsize >> PAGE_SHIFT) - 1].ndalloc++;
-		arena->stats.lstats[(oldsize >> PAGE_SHIFT) - 1].curruns--;
+		arena->stats.lstats[(oldsize >> LG_PAGE) - 1].ndalloc++;
+		arena->stats.lstats[(oldsize >> LG_PAGE) - 1].curruns--;
 
 		arena->stats.nmalloc_large++;
 		arena->stats.nrequests_large++;
 		arena->stats.allocated_large += size;
-		arena->stats.lstats[(size >> PAGE_SHIFT) - 1].nmalloc++;
-		arena->stats.lstats[(size >> PAGE_SHIFT) - 1].nrequests++;
-		arena->stats.lstats[(size >> PAGE_SHIFT) - 1].curruns++;
+		arena->stats.lstats[(size >> LG_PAGE) - 1].nmalloc++;
+		arena->stats.lstats[(size >> LG_PAGE) - 1].nrequests++;
+		arena->stats.lstats[(size >> LG_PAGE) - 1].curruns++;
 	}
 	malloc_mutex_unlock(&arena->lock);
 }
@@ -1743,8 +1733,8 @@ static bool
 arena_ralloc_large_grow(arena_t *arena, arena_chunk_t *chunk, void *ptr,
     size_t oldsize, size_t size, size_t extra, bool zero)
 {
-	size_t pageind = ((uintptr_t)ptr - (uintptr_t)chunk) >> PAGE_SHIFT;
-	size_t npages = oldsize >> PAGE_SHIFT;
+	size_t pageind = ((uintptr_t)ptr - (uintptr_t)chunk) >> LG_PAGE;
+	size_t npages = oldsize >> LG_PAGE;
 	size_t followsize;
 
 	assert(oldsize == (chunk->map[pageind-map_bias].bits & ~PAGE_MASK));
@@ -1766,10 +1756,10 @@ arena_ralloc_large_grow(arena_t *arena, arena_chunk_t *chunk, void *ptr,
 		size_t splitsize = (oldsize + followsize <= size + extra)
 		    ? followsize : size + extra - oldsize;
 		arena_run_split(arena, (arena_run_t *)((uintptr_t)chunk +
-		    ((pageind+npages) << PAGE_SHIFT)), splitsize, true, zero);
+		    ((pageind+npages) << LG_PAGE)), splitsize, true, zero);
 
 		size = oldsize + splitsize;
-		npages = size >> PAGE_SHIFT;
+		npages = size >> LG_PAGE;
 
 		/*
 		 * Mark the extended run as dirty if either portion of the run
@@ -1791,18 +1781,18 @@ arena_ralloc_large_grow(arena_t *arena, arena_chunk_t *chunk, void *ptr,
 		if (config_stats) {
 			arena->stats.ndalloc_large++;
 			arena->stats.allocated_large -= oldsize;
-			arena->stats.lstats[(oldsize >> PAGE_SHIFT)
+			arena->stats.lstats[(oldsize >> LG_PAGE)
 			    - 1].ndalloc++;
-			arena->stats.lstats[(oldsize >> PAGE_SHIFT)
+			arena->stats.lstats[(oldsize >> LG_PAGE)
 			    - 1].curruns--;
 
 			arena->stats.nmalloc_large++;
 			arena->stats.nrequests_large++;
 			arena->stats.allocated_large += size;
-			arena->stats.lstats[(size >> PAGE_SHIFT) - 1].nmalloc++;
-			arena->stats.lstats[(size >> PAGE_SHIFT)
+			arena->stats.lstats[(size >> LG_PAGE) - 1].nmalloc++;
+			arena->stats.lstats[(size >> LG_PAGE)
 			    - 1].nrequests++;
-			arena->stats.lstats[(size >> PAGE_SHIFT) - 1].curruns++;
+			arena->stats.lstats[(size >> LG_PAGE) - 1].curruns++;
 		}
 		malloc_mutex_unlock(&arena->lock);
 		return (false);
@@ -2023,7 +2013,7 @@ bin_info_run_size_calc(arena_bin_info_t *bin_info, size_t min_run_size)
 	uint32_t try_ctx0_offset, good_ctx0_offset;
 	uint32_t try_reg0_offset, good_reg0_offset;
 
-	assert(min_run_size >= PAGE_SIZE);
+	assert(min_run_size >= PAGE);
 	assert(min_run_size <= arena_maxclass);
 
 	/*
@@ -2076,7 +2066,7 @@ bin_info_run_size_calc(arena_bin_info_t *bin_info, size_t min_run_size)
 		good_reg0_offset = try_reg0_offset;
 
 		/* Try more aggressive settings. */
-		try_run_size += PAGE_SIZE;
+		try_run_size += PAGE;
 		try_nregs = ((try_run_size - sizeof(arena_run_t)) /
 		    bin_info->reg_size)
 		    + 1; /* Counter-act try_nregs-- in loop. */
@@ -2127,7 +2117,7 @@ static void
 bin_info_init(void)
 {
 	arena_bin_info_t *bin_info;
-	size_t prev_run_size = PAGE_SIZE;
+	size_t prev_run_size = PAGE;
 
 #define	SIZE_CLASS(bin, delta, size)					\
 	bin_info = &arena_bin_info[bin];				\
@@ -2158,14 +2148,14 @@ arena_boot(void)
 	 */
 	map_bias = 0;
 	for (i = 0; i < 3; i++) {
-		header_size = offsetof(arena_chunk_t, map)
-			+ (sizeof(arena_chunk_map_t) * (chunk_npages-map_bias));
-		map_bias = (header_size >> PAGE_SHIFT) + ((header_size &
-		    PAGE_MASK) != 0);
+		header_size = offsetof(arena_chunk_t, map) +
+		    (sizeof(arena_chunk_map_t) * (chunk_npages-map_bias));
+		map_bias = (header_size >> LG_PAGE) + ((header_size & PAGE_MASK)
+		    != 0);
 	}
 	assert(map_bias > 0);
 
-	arena_maxclass = chunksize - (map_bias << PAGE_SHIFT);
+	arena_maxclass = chunksize - (map_bias << LG_PAGE);
 
 	bin_info_init();
 }

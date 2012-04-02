@@ -25,12 +25,6 @@ bool	opt_xmalloc = false;
 bool	opt_zero = false;
 size_t	opt_narenas = 0;
 
-#ifdef DYNAMIC_PAGE_SHIFT
-size_t		pagesize;
-size_t		pagesize_mask;
-size_t		lg_pagesize;
-#endif
-
 unsigned	ncpus;
 
 malloc_mutex_t		arenas_lock;
@@ -477,7 +471,7 @@ malloc_conf_init(void)
 			 * Chunks always require at least one * header page,
 			 * plus one data page.
 			 */
-			CONF_HANDLE_SIZE_T(opt_lg_chunk, lg_chunk, PAGE_SHIFT+1,
+			CONF_HANDLE_SIZE_T(opt_lg_chunk, lg_chunk, LG_PAGE+1,
 			    (sizeof(size_t) << 3) - 1)
 			CONF_HANDLE_SIZE_T(opt_narenas, narenas, 1, SIZE_T_MAX)
 			CONF_HANDLE_SSIZE_T(opt_lg_dirty_mult, lg_dirty_mult,
@@ -549,25 +543,6 @@ malloc_init_hard(void)
 	}
 #endif
 	malloc_initializer = INITIALIZER;
-
-#ifdef DYNAMIC_PAGE_SHIFT
-	/* Get page size. */
-	{
-		long result;
-
-		result = sysconf(_SC_PAGESIZE);
-		assert(result != -1);
-		pagesize = (size_t)result;
-
-		/*
-		 * We assume that pagesize is a power of 2 when calculating
-		 * pagesize_mask and lg_pagesize.
-		 */
-		assert(((result - 1) & result) == 0);
-		pagesize_mask = result - 1;
-		lg_pagesize = ffs((int)result) - 1;
-	}
-#endif
 
 	malloc_tsd_boot();
 	if (config_prof)
@@ -1145,7 +1120,7 @@ void *
 je_valloc(size_t size)
 {
 	void *ret JEMALLOC_CC_SILENCE_INIT(NULL);
-	imemalign(&ret, PAGE_SIZE, size, 1);
+	imemalign(&ret, PAGE, size, 1);
 	return (ret);
 }
 #endif
@@ -1386,7 +1361,7 @@ je_rallocm(void **ptr, size_t *rsize, size_t size, size_t extra, int flags)
 			    alignment, zero, no_move);
 			if (q == NULL)
 				goto ERR;
-			if (max_usize < PAGE_SIZE) {
+			if (max_usize < PAGE) {
 				usize = max_usize;
 				arena_prof_promoted(q, usize);
 			} else

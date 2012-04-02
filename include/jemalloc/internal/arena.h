@@ -130,10 +130,10 @@ struct arena_chunk_map_s {
 	 *     xxxxxxxx xxxxxxxx xxxx---- ----xxxx
 	 *     -------- -------- -------- ----D-LA
 	 *
-	 *   Large (sampled, size <= PAGE_SIZE):
+	 *   Large (sampled, size <= PAGE):
 	 *     ssssssss ssssssss sssscccc ccccD-LA
 	 *
-	 *   Large (not sampled, size == PAGE_SIZE):
+	 *   Large (not sampled, size == PAGE):
 	 *     ssssssss ssssssss ssss---- ----D-LA
 	 */
 	size_t				bits;
@@ -486,7 +486,7 @@ arena_prof_ctx_get(const void *ptr)
 	assert(CHUNK_ADDR2BASE(ptr) != ptr);
 
 	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
-	pageind = ((uintptr_t)ptr - (uintptr_t)chunk) >> PAGE_SHIFT;
+	pageind = ((uintptr_t)ptr - (uintptr_t)chunk) >> LG_PAGE;
 	mapbits = chunk->map[pageind-map_bias].bits;
 	assert((mapbits & CHUNK_MAP_ALLOCATED) != 0);
 	if ((mapbits & CHUNK_MAP_LARGE) == 0) {
@@ -494,8 +494,8 @@ arena_prof_ctx_get(const void *ptr)
 			ret = (prof_ctx_t *)(uintptr_t)1U;
 		else {
 			arena_run_t *run = (arena_run_t *)((uintptr_t)chunk +
-			    (uintptr_t)((pageind - (mapbits >> PAGE_SHIFT)) <<
-			    PAGE_SHIFT));
+			    (uintptr_t)((pageind - (mapbits >> LG_PAGE)) <<
+			    LG_PAGE));
 			size_t binind = arena_bin_index(chunk->arena, run->bin);
 			arena_bin_info_t *bin_info = &arena_bin_info[binind];
 			unsigned regind;
@@ -522,14 +522,14 @@ arena_prof_ctx_set(const void *ptr, prof_ctx_t *ctx)
 	assert(CHUNK_ADDR2BASE(ptr) != ptr);
 
 	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
-	pageind = ((uintptr_t)ptr - (uintptr_t)chunk) >> PAGE_SHIFT;
+	pageind = ((uintptr_t)ptr - (uintptr_t)chunk) >> LG_PAGE;
 	mapbits = chunk->map[pageind-map_bias].bits;
 	assert((mapbits & CHUNK_MAP_ALLOCATED) != 0);
 	if ((mapbits & CHUNK_MAP_LARGE) == 0) {
 		if (prof_promote == false) {
 			arena_run_t *run = (arena_run_t *)((uintptr_t)chunk +
-			    (uintptr_t)((pageind - (mapbits >> PAGE_SHIFT)) <<
-			    PAGE_SHIFT));
+			    (uintptr_t)((pageind - (mapbits >> LG_PAGE)) <<
+			    LG_PAGE));
 			arena_bin_t *bin = run->bin;
 			size_t binind;
 			arena_bin_info_t *bin_info;
@@ -598,7 +598,7 @@ arena_dalloc(arena_t *arena, arena_chunk_t *chunk, void *ptr)
 	assert(ptr != NULL);
 	assert(CHUNK_ADDR2BASE(ptr) != ptr);
 
-	pageind = ((uintptr_t)ptr - (uintptr_t)chunk) >> PAGE_SHIFT;
+	pageind = ((uintptr_t)ptr - (uintptr_t)chunk) >> LG_PAGE;
 	mapelm = &chunk->map[pageind-map_bias];
 	assert((mapelm->bits & CHUNK_MAP_ALLOCATED) != 0);
 	if ((mapelm->bits & CHUNK_MAP_LARGE) == 0) {
@@ -610,8 +610,8 @@ arena_dalloc(arena_t *arena, arena_chunk_t *chunk, void *ptr)
 			arena_bin_t *bin;
 
 			run = (arena_run_t *)((uintptr_t)chunk +
-			    (uintptr_t)((pageind - (mapelm->bits >>
-			    PAGE_SHIFT)) << PAGE_SHIFT));
+			    (uintptr_t)((pageind - (mapelm->bits >> LG_PAGE)) <<
+			    LG_PAGE));
 			bin = run->bin;
 			if (config_debug) {
 				size_t binind = arena_bin_index(arena, bin);

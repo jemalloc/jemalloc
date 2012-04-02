@@ -1179,7 +1179,7 @@ prof_boot1(void)
 			prof_interval = 0;
 	}
 
-	prof_promote = (opt_prof && opt_lg_prof_sample > PAGE_SHIFT);
+	prof_promote = (opt_prof && opt_lg_prof_sample > LG_PAGE);
 }
 
 bool

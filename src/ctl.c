@@ -83,8 +83,7 @@ INDEX_PROTO(arenas_lrun_i)
 CTL_PROTO(arenas_narenas)
 CTL_PROTO(arenas_initialized)
 CTL_PROTO(arenas_quantum)
-CTL_PROTO(arenas_pagesize)
-CTL_PROTO(arenas_chunksize)
+CTL_PROTO(arenas_page)
 CTL_PROTO(arenas_tcache_max)
 CTL_PROTO(arenas_nbins)
 CTL_PROTO(arenas_nhbins)
@@ -227,8 +226,7 @@ static const ctl_node_t arenas_node[] = {
 	{NAME("narenas"),		CTL(arenas_narenas)},
 	{NAME("initialized"),		CTL(arenas_initialized)},
 	{NAME("quantum"),		CTL(arenas_quantum)},
-	{NAME("pagesize"),		CTL(arenas_pagesize)},
-	{NAME("chunksize"),		CTL(arenas_chunksize)},
+	{NAME("page"),			CTL(arenas_page)},
 	{NAME("tcache_max"),		CTL(arenas_tcache_max)},
 	{NAME("nbins"),			CTL(arenas_nbins)},
 	{NAME("nhbins"),		CTL(arenas_nhbins)},
@@ -520,7 +518,7 @@ ctl_refresh(void)
 		    + ctl_stats.arenas[narenas].astats.allocated_large
 		    + ctl_stats.huge.allocated;
 		ctl_stats.active = (ctl_stats.arenas[narenas].pactive <<
-		    PAGE_SHIFT) + ctl_stats.huge.allocated;
+		    LG_PAGE) + ctl_stats.huge.allocated;
 		ctl_stats.mapped = (ctl_stats.chunks.current << opt_lg_chunk);
 	}
 
@@ -1116,7 +1114,7 @@ arenas_bin_i_index(const size_t *mib, size_t miblen, size_t i)
 	return (super_arenas_bin_i_node);
 }
 
-CTL_RO_NL_GEN(arenas_lrun_i_size, ((mib[2]+1) << PAGE_SHIFT), size_t)
+CTL_RO_NL_GEN(arenas_lrun_i_size, ((mib[2]+1) << LG_PAGE), size_t)
 const ctl_node_t *
 arenas_lrun_i_index(const size_t *mib, size_t miblen, size_t i)
 {
@@ -1155,8 +1153,7 @@ RETURN:
 }
 
 CTL_RO_NL_GEN(arenas_quantum, QUANTUM, size_t)
-CTL_RO_NL_GEN(arenas_pagesize, PAGE_SIZE, size_t)
-CTL_RO_NL_GEN(arenas_chunksize, chunksize, size_t)
+CTL_RO_NL_GEN(arenas_page, PAGE, size_t)
 CTL_RO_NL_CGEN(config_tcache, arenas_tcache_max, tcache_maxclass, size_t)
 CTL_RO_NL_GEN(arenas_nbins, NBINS, unsigned)
 CTL_RO_NL_CGEN(config_tcache, arenas_nhbins, nhbins, unsigned)

@@ -369,7 +369,7 @@ tcache_alloc_large(tcache_t *tcache, size_t size, bool zero)
 
 	size = PAGE_CEILING(size);
 	assert(size <= tcache_maxclass);
-	binind = NBINS + (size >> PAGE_SHIFT) - 1;
+	binind = NBINS + (size >> LG_PAGE) - 1;
 	assert(binind < nhbins);
 	tbin = &tcache->tbins[binind];
 	ret = tcache_alloc_easy(tbin);
@@ -386,7 +386,7 @@ tcache_alloc_large(tcache_t *tcache, size_t size, bool zero)
 			arena_chunk_t *chunk =
 			    (arena_chunk_t *)CHUNK_ADDR2BASE(ret);
 			size_t pageind = (((uintptr_t)ret - (uintptr_t)chunk) >>
-			    PAGE_SHIFT);
+			    LG_PAGE);
 			chunk->map[pageind-map_bias].bits &=
 			    ~CHUNK_MAP_CLASS_MASK;
 		}
@@ -426,10 +426,10 @@ tcache_dalloc_small(tcache_t *tcache, void *ptr)
 
 	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
 	arena = chunk->arena;
-	pageind = ((uintptr_t)ptr - (uintptr_t)chunk) >> PAGE_SHIFT;
+	pageind = ((uintptr_t)ptr - (uintptr_t)chunk) >> LG_PAGE;
 	mapelm = &chunk->map[pageind-map_bias];
 	run = (arena_run_t *)((uintptr_t)chunk + (uintptr_t)((pageind -
-	    (mapelm->bits >> PAGE_SHIFT)) << PAGE_SHIFT));
+	    (mapelm->bits >> LG_PAGE)) << LG_PAGE));
 	bin = run->bin;
 	binind = ((uintptr_t)bin - (uintptr_t)&arena->bins) /
 	    sizeof(arena_bin_t);
@@ -462,7 +462,7 @@ tcache_dalloc_large(tcache_t *tcache, void *ptr, size_t size)
 	assert(arena_salloc(ptr) > SMALL_MAXCLASS);
 	assert(arena_salloc(ptr) <= tcache_maxclass);
 
-	binind = NBINS + (size >> PAGE_SHIFT) - 1;
+	binind = NBINS + (size >> LG_PAGE) - 1;
 
 	if (config_fill && opt_junk)
 		memset(ptr, 0x5a, size);

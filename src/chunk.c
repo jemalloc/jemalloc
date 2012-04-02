@@ -105,9 +105,9 @@ chunk_boot0(void)
 
 	/* Set variables according to the value of opt_lg_chunk. */
 	chunksize = (ZU(1) << opt_lg_chunk);
-	assert(chunksize >= PAGE_SIZE);
+	assert(chunksize >= PAGE);
 	chunksize_mask = chunksize - 1;
-	chunk_npages = (chunksize >> PAGE_SHIFT);
+	chunk_npages = (chunksize >> LG_PAGE);
 
 	if (config_stats || config_prof) {
 		if (malloc_mutex_init(&chunks_mtx))

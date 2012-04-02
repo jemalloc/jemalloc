@@ -1167,20 +1167,11 @@ malloc_conf = "xmalloc:true";]]></programlisting>
 
       <varlistentry>
         <term>
-          <mallctl>arenas.pagesize</mallctl>
+          <mallctl>arenas.page</mallctl>
           (<type>size_t</type>)
           <literal>r-</literal>
         </term>
         <listitem><para>Page size.</para></listitem>
-      </varlistentry>
-
-      <varlistentry>
-        <term>
-          <mallctl>arenas.chunksize</mallctl>
-          (<type>size_t</type>)
-          <literal>r-</literal>
-        </term>
-        <listitem><para>Chunk size.</para></listitem>
       </varlistentry>
 
       <varlistentry>
