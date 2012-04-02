@@ -374,8 +374,6 @@ extern malloc_mutex_t	arenas_lock; /* Protects arenas initialization. */
 extern arena_t		**arenas;
 extern unsigned		narenas;
 
-extern bool		malloc_initialized;
-
 arena_t	*arenas_extend(unsigned ind);
 void	arenas_cleanup(void *arg);
 arena_t	*choose_arena_hard(void);

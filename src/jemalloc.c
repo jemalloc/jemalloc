@@ -38,7 +38,7 @@ arena_t			**arenas;
 unsigned		narenas;
 
 /* Set to true once the allocator has been initialized. */
-bool			malloc_initialized = false;
+static bool		malloc_initialized = false;
 
 #ifdef JEMALLOC_THREADED_INIT
 /* Used to let the initializing thread recursively allocate. */

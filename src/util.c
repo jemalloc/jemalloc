@@ -179,20 +179,6 @@ malloc_strtoumax(const char *nptr, char **endptr, int base)
 			*endptr = (char *)p;
 	}
 
-	if (config_debug && malloc_initialized) {
-		uintmax_t tret;
-		int perrno;
-		char *pend;
-
-		perrno = errno;
-		if (endptr != NULL)
-			pend = *endptr;
-		tret = strtoumax(nptr, endptr, base);
-		assert(tret == ret);
-		assert(errno == perrno);
-		assert(endptr == NULL || *endptr == pend);
-	}
-
 	return (ret);
 }
 
@@ -562,19 +548,6 @@ malloc_vsnprintf(char *str, size_t size, const char *format, va_list ap)
 	else
 		str[size - 1] = '\0';
 	ret = i;
-
-	if (config_debug && malloc_initialized) {
-		char buf[MALLOC_PRINTF_BUFSIZE];
-		int tret;
-
-		/*
-		 * Verify that the resulting string matches what vsnprintf()
-		 * would have created.
-		 */
-		tret = vsnprintf(buf, sizeof(buf), format, tap);
-		assert(tret == ret);
-		assert(strcmp(buf, str) == 0);
-	}
 
 #undef APPEND_C
 #undef APPEND_S
