@@ -11,6 +11,10 @@
 #ifdef JEMALLOC_LAZY_LOCK
 bool isthreaded = false;
 #endif
+#ifdef JEMALLOC_MUTEX_INIT_CB
+static bool		postpone_init = true;
+static malloc_mutex_t	*postponed_mutexes = NULL;
+#endif
 
 #ifdef JEMALLOC_LAZY_LOCK
 static void	pthread_create_once(void);
@@ -65,17 +69,23 @@ bool
 malloc_mutex_init(malloc_mutex_t *mutex)
 {
 #ifdef JEMALLOC_OSSPIN
-	*mutex = 0;
+	mutex->lock = 0;
 #elif (defined(JEMALLOC_MUTEX_INIT_CB))
-	if (_pthread_mutex_init_calloc_cb(mutex, base_calloc) != 0)
-		return (true);
+	if (postpone_init) {
+		mutex->postponed_next = postponed_mutexes;
+		postponed_mutexes = mutex;
+	} else {
+		if (_pthread_mutex_init_calloc_cb(&mutex->lock, base_calloc) !=
+		    0)
+			return (true);
+	}
 #else
 	pthread_mutexattr_t attr;
 
 	if (pthread_mutexattr_init(&attr) != 0)
 		return (true);
 	pthread_mutexattr_settype(&attr, MALLOC_MUTEX_TYPE);
-	if (pthread_mutex_init(mutex, &attr) != 0) {
+	if (pthread_mutex_init(&mutex->lock, &attr) != 0) {
 		pthread_mutexattr_destroy(&attr);
 		return (true);
 	}
@@ -113,4 +123,20 @@ malloc_mutex_postfork_child(malloc_mutex_t *mutex)
 			abort();
 	}
 #endif
+}
+
+bool
+mutex_boot(void)
+{
+
+#ifdef JEMALLOC_MUTEX_INIT_CB
+	postpone_init = false;
+	while (postponed_mutexes != NULL) {
+		if (_pthread_mutex_init_calloc_cb(&postponed_mutexes->lock,
+		    base_calloc) != 0)
+			return (true);
+		postponed_mutexes = postponed_mutexes->postponed_next;
+	}
+#endif
+	return (false);
 }

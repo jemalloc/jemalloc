@@ -1,24 +1,37 @@
 /******************************************************************************/
 #ifdef JEMALLOC_H_TYPES
 
+typedef struct malloc_mutex_s malloc_mutex_t;
+
 #ifdef JEMALLOC_OSSPIN
-typedef OSSpinLock malloc_mutex_t;
-#define	MALLOC_MUTEX_INITIALIZER 0
+#define	MALLOC_MUTEX_INITIALIZER {0}
+#elif (defined(JEMALLOC_MUTEX_INIT_CB))
+#define	MALLOC_MUTEX_INITIALIZER {PTHREAD_MUTEX_INITIALIZER, NULL}
 #else
-typedef pthread_mutex_t malloc_mutex_t;
 #  if (defined(PTHREAD_MUTEX_ADAPTIVE_NP) &&				\
        defined(PTHREAD_ADAPTIVE_MUTEX_INITIALIZER_NP))
 #    define MALLOC_MUTEX_TYPE PTHREAD_MUTEX_ADAPTIVE_NP
-#    define MALLOC_MUTEX_INITIALIZER PTHREAD_ADAPTIVE_MUTEX_INITIALIZER_NP
+#    define MALLOC_MUTEX_INITIALIZER {PTHREAD_ADAPTIVE_MUTEX_INITIALIZER_NP}
 #  else
 #    define MALLOC_MUTEX_TYPE PTHREAD_MUTEX_DEFAULT
-#    define MALLOC_MUTEX_INITIALIZER PTHREAD_MUTEX_INITIALIZER
+#    define MALLOC_MUTEX_INITIALIZER {PTHREAD_MUTEX_INITIALIZER}
 #  endif
 #endif
 
 #endif /* JEMALLOC_H_TYPES */
 /******************************************************************************/
 #ifdef JEMALLOC_H_STRUCTS
+
+struct malloc_mutex_s {
+#ifdef JEMALLOC_OSSPIN
+	OSSpinLock		lock;
+#elif (defined(JEMALLOC_MUTEX_INIT_CB))
+	pthread_mutex_t		lock;
+	malloc_mutex_t		*postponed_next;
+#else
+	pthread_mutex_t		lock;
+#endif
+};
 
 #endif /* JEMALLOC_H_STRUCTS */
 /******************************************************************************/
@@ -34,6 +47,7 @@ bool	malloc_mutex_init(malloc_mutex_t *mutex);
 void	malloc_mutex_prefork(malloc_mutex_t *mutex);
 void	malloc_mutex_postfork_parent(malloc_mutex_t *mutex);
 void	malloc_mutex_postfork_child(malloc_mutex_t *mutex);
+bool	mutex_boot(void);
 
 #endif /* JEMALLOC_H_EXTERNS */
 /******************************************************************************/
@@ -51,9 +65,9 @@ malloc_mutex_lock(malloc_mutex_t *mutex)
 
 	if (isthreaded) {
 #ifdef JEMALLOC_OSSPIN
-		OSSpinLockLock(mutex);
+		OSSpinLockLock(&mutex->lock);
 #else
-		pthread_mutex_lock(mutex);
+		pthread_mutex_lock(&mutex->lock);
 #endif
 	}
 }
@@ -64,9 +78,9 @@ malloc_mutex_unlock(malloc_mutex_t *mutex)
 
 	if (isthreaded) {
 #ifdef JEMALLOC_OSSPIN
-		OSSpinLockUnlock(mutex);
+		OSSpinLockUnlock(&mutex->lock);
 #else
-		pthread_mutex_unlock(mutex);
+		pthread_mutex_unlock(&mutex->lock);
 #endif
 	}
 }

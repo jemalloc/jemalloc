@@ -651,6 +651,11 @@ malloc_init_hard(void)
 		return (true);
 	}
 
+	if (mutex_boot()) {
+		malloc_mutex_unlock(&init_lock);
+		return (true);
+	}
+
 	if (opt_narenas == 0) {
 		/*
 		 * For SMP systems, create more than one arena per CPU by
