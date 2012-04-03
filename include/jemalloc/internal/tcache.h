@@ -237,7 +237,7 @@ tcache_get(bool create)
 				tcache_enabled_set(false); /* Memoize. */
 				return (NULL);
 			}
-			return (tcache_create(choose_arena()));
+			return (tcache_create(choose_arena(NULL)));
 		}
 		if (tcache == TCACHE_STATE_PURGATORY) {
 			/*

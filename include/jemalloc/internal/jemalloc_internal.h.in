@@ -399,7 +399,7 @@ malloc_tsd_protos(JEMALLOC_ATTR(unused), arenas, arena_t *)
 
 size_t	s2u(size_t size);
 size_t	sa2u(size_t size, size_t alignment, size_t *run_size_p);
-arena_t	*choose_arena(void);
+arena_t	*choose_arena(arena_t *arena);
 #endif
 
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_C_))
@@ -517,9 +517,12 @@ sa2u(size_t size, size_t alignment, size_t *run_size_p)
 
 /* Choose an arena based on a per-thread value. */
 JEMALLOC_INLINE arena_t *
-choose_arena(void)
+choose_arena(arena_t *arena)
 {
 	arena_t *ret;
+
+	if (arena != NULL)
+		return (arena);
 
 	if ((ret = *arenas_tsd_get()) == NULL) {
 		ret = choose_arena_hard();
@@ -556,7 +559,7 @@ imalloc(size_t size)
 	assert(size != 0);
 
 	if (size <= arena_maxclass)
-		return (arena_malloc(size, false));
+		return (arena_malloc(NULL, size, false, true));
 	else
 		return (huge_malloc(size, false));
 }
@@ -566,7 +569,7 @@ icalloc(size_t size)
 {
 
 	if (size <= arena_maxclass)
-		return (arena_malloc(size, true));
+		return (arena_malloc(NULL, size, true, true));
 	else
 		return (huge_malloc(size, true));
 }
@@ -580,7 +583,7 @@ ipalloc(size_t usize, size_t alignment, bool zero)
 	assert(usize == sa2u(usize, alignment, NULL));
 
 	if (usize <= arena_maxclass && alignment <= PAGE)
-		ret = arena_malloc(usize, zero);
+		ret = arena_malloc(NULL, usize, zero, true);
 	else {
 		size_t run_size JEMALLOC_CC_SILENCE_INIT(0);
 
@@ -594,7 +597,7 @@ ipalloc(size_t usize, size_t alignment, bool zero)
 		 */
 		sa2u(usize, alignment, &run_size);
 		if (run_size <= arena_maxclass) {
-			ret = arena_palloc(choose_arena(), usize, run_size,
+			ret = arena_palloc(choose_arena(NULL), usize, run_size,
 			    alignment, zero);
 		} else if (alignment <= chunksize)
 			ret = huge_malloc(usize, zero);
@@ -647,7 +650,7 @@ idalloc(void *ptr)
 
 	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
 	if (chunk != ptr)
-		arena_dalloc(chunk->arena, chunk, ptr);
+		arena_dalloc(chunk->arena, chunk, ptr, true);
 	else
 		huge_dalloc(ptr, true);
 }
@@ -711,7 +714,7 @@ iralloc(void *ptr, size_t size, size_t extra, size_t alignment, bool zero,
 	} else {
 		if (size + extra <= arena_maxclass) {
 			return (arena_ralloc(ptr, oldsize, size, extra,
-			    alignment, zero));
+			    alignment, zero, true));
 		} else {
 			return (huge_ralloc(ptr, oldsize, size, extra,
 			    alignment, zero));

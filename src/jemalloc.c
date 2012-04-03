@@ -1487,7 +1487,6 @@ je_nallocm(size_t *rsize, size_t size, int flags)
  * End experimental functions.
  */
 /******************************************************************************/
-
 /*
  * The following functions are used by threading libraries for protection of
  * malloc during fork().
@@ -1549,6 +1548,58 @@ jemalloc_postfork_child(void)
 			arena_postfork_child(arenas[i]);
 	}
 	malloc_mutex_postfork_child(&arenas_lock);
+}
+
+/******************************************************************************/
+/*
+ * The following functions are used for TLS allocation/deallocation in static
+ * binaries on FreeBSD.  The primary difference between these and i[mcd]alloc()
+ * is that these avoid accessing TLS variables.
+ */
+
+static void *
+a0alloc(size_t size, bool zero)
+{
+
+	if (malloc_init())
+		return (NULL);
+
+	if (size == 0)
+		size = 1;
+
+	if (size <= arena_maxclass)
+		return (arena_malloc(arenas[0], size, zero, false));
+	else
+		return (huge_malloc(size, zero));
+}
+
+void *
+a0malloc(size_t size)
+{
+
+	return (a0alloc(size, false));
+}
+
+void *
+a0calloc(size_t num, size_t size)
+{
+
+	return (a0alloc(num * size, true));
+}
+
+void
+a0free(void *ptr)
+{
+	arena_chunk_t *chunk;
+
+	if (ptr == NULL)
+		return;
+
+	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
+	if (chunk != ptr)
+		arena_dalloc(chunk->arena, chunk, ptr, false);
+	else
+		huge_dalloc(ptr, true);
 }
 
 /******************************************************************************/

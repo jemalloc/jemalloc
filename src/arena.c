@@ -1888,7 +1888,7 @@ arena_ralloc_no_move(void *ptr, size_t oldsize, size_t size, size_t extra,
 
 void *
 arena_ralloc(void *ptr, size_t oldsize, size_t size, size_t extra,
-    size_t alignment, bool zero)
+    size_t alignment, bool zero, bool try_tcache)
 {
 	void *ret;
 	size_t copysize;
@@ -1909,7 +1909,7 @@ arena_ralloc(void *ptr, size_t oldsize, size_t size, size_t extra,
 			return (NULL);
 		ret = ipalloc(usize, alignment, zero);
 	} else
-		ret = arena_malloc(size + extra, zero);
+		ret = arena_malloc(NULL, size + extra, zero, try_tcache);
 
 	if (ret == NULL) {
 		if (extra == 0)
@@ -1921,7 +1921,7 @@ arena_ralloc(void *ptr, size_t oldsize, size_t size, size_t extra,
 				return (NULL);
 			ret = ipalloc(usize, alignment, zero);
 		} else
-			ret = arena_malloc(size, zero);
+			ret = arena_malloc(NULL, size, zero, try_tcache);
 
 		if (ret == NULL)
 			return (NULL);

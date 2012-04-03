@@ -1016,7 +1016,7 @@ thread_arena_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
 	int ret;
 	unsigned newind, oldind;
 
-	newind = oldind = choose_arena()->ind;
+	newind = oldind = choose_arena(NULL)->ind;
 	WRITE(newind, unsigned);
 	READ(oldind, unsigned);
 	if (newind != oldind) {
