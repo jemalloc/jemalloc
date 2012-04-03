@@ -632,16 +632,6 @@ for (i = 0; i < nbins; i++) {
 
       <varlistentry>
         <term>
-          <mallctl>config.dynamic_page_shift</mallctl>
-          (<type>bool</type>)
-          <literal>r-</literal>
-        </term>
-        <listitem><para><option>--enable-dynamic-page-shift</option> was
-        specified during build configuration.</para></listitem>
-      </varlistentry>
-
-      <varlistentry>
-        <term>
           <mallctl>config.fill</mallctl>
           (<type>bool</type>)
           <literal>r-</literal>
