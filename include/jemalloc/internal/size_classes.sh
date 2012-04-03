@@ -17,8 +17,8 @@ pow2() {
   e=$1
   pow2_result=1
   while [ ${e} -gt 0 ] ; do
-    pow2_result=`expr ${pow2_result} + ${pow2_result}`
-    e=`expr ${e} - 1`
+    pow2_result=$((${pow2_result} + ${pow2_result}))
+    e=$((${e} - 1))
   done
 }
 
@@ -45,7 +45,7 @@ EOF
       bin=0
       psz=0
       sz=${t}
-      delta=`expr ${sz} - ${psz}`
+      delta=$((${sz} - ${psz}))
 cat <<EOF
 /*  SIZE_CLASS(bin,	delta,	sz) */
 #define	SIZE_CLASSES							\\
@@ -56,30 +56,30 @@ EOF
         cat <<EOF
     SIZE_CLASS(${bin},	${delta},	${sz})					\\
 EOF
-        bin=`expr ${bin} + 1`
+        bin=$((${bin} + 1))
         psz=${sz}
-        sz=`expr ${sz} + ${sz}`
-        delta=`expr ${sz} - ${psz}`
+        sz=$((${sz} + ${sz}))
+        delta=$((${sz} - ${psz}))
       done
       # Quantum-multiple size classes.  For each doubling of sz, as many as 4
       # size classes exist.  Their spacing is the greater of:
       # - q
       # - sz/4, where sz is a power of 2
       while [ ${sz} -lt ${p} ] ; do
-        if [ ${sz} -ge `expr ${q} \* 4` ] ; then
-          i=`expr ${sz} / 4`
+        if [ ${sz} -ge $((${q} * 4)) ] ; then
+          i=$((${sz} / 4))
         else
           i=${q}
         fi
-        next_2pow=`expr ${sz} \* 2`
+        next_2pow=$((${sz} * 2))
         while [ ${sz} -lt $next_2pow ] ; do
           cat <<EOF
     SIZE_CLASS(${bin},	${delta},	${sz})					\\
 EOF
-          bin=`expr ${bin} + 1`
+          bin=$((${bin} + 1))
           psz=${sz}
-          sz=`expr ${sz} + ${i}`
-          delta=`expr ${sz} - ${psz}`
+          sz=$((${sz} + ${i}))
+          delta=$((${sz} - ${psz}))
         done
       done
       cat <<EOF
@@ -89,11 +89,11 @@ EOF
 #endif
 
 EOF
-      lg_p=`expr ${lg_p} + 1`
+      lg_p=$((${lg_p} + 1))
     done
-    lg_t=`expr ${lg_t} + 1`
+    lg_t=$((${lg_t} + 1))
   done
-  lg_q=`expr ${lg_q} + 1`
+  lg_q=$((${lg_q} + 1))
 done
 
 cat <<EOF
