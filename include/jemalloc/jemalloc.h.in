@@ -4,6 +4,7 @@
 extern "C" {
 #endif
 
+#include <limits.h>
 #include <strings.h>
 
 #define	JEMALLOC_VERSION "@jemalloc_version@"
@@ -17,7 +18,11 @@ extern "C" {
 
 #ifdef JEMALLOC_EXPERIMENTAL
 #define	ALLOCM_LG_ALIGN(la)	(la)
-#define	ALLOCM_ALIGN(a)	(ffsl(a)-1)
+#if LG_SIZEOF_PTR == 2
+#define	ALLOCM_ALIGN(a)	(ffs(a)-1)
+#else
+#define	ALLOCM_ALIGN(a)	((a < (size_t)INT_MAX) ? ffs(a)-1 : ffs(a>>32)+31)
+#endif
 #define	ALLOCM_ZERO	((int)0x40)
 #define	ALLOCM_NO_MOVE	((int)0x80)
 
