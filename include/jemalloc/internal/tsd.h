@@ -87,14 +87,14 @@ extern bool		a_name##_booted;
 /* malloc_tsd_data(). */
 #ifdef JEMALLOC_MALLOC_THREAD_CLEANUP
 #define	malloc_tsd_data(a_attr, a_name, a_type, a_initializer)		\
-a_attr __thread a_type JEMALLOC_ATTR(tls_model("initial-exec"))		\
+a_attr __thread a_type JEMALLOC_TLS_MODEL				\
     a_name##_tls = a_initializer;					\
-a_attr __thread bool JEMALLOC_ATTR(tls_model("initial-exec"))		\
+a_attr __thread bool JEMALLOC_TLS_MODEL					\
     a_name##_initialized = false;					\
 a_attr bool		a_name##_booted = false;
 #elif (defined(JEMALLOC_TLS))
 #define	malloc_tsd_data(a_attr, a_name, a_type, a_initializer)		\
-a_attr __thread a_type JEMALLOC_ATTR(tls_model("initial-exec"))		\
+a_attr __thread a_type JEMALLOC_TLS_MODEL				\
     a_name##_tls = a_initializer;					\
 a_attr pthread_key_t	a_name##_tsd;					\
 a_attr bool		a_name##_booted = false;

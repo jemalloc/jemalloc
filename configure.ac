@@ -285,6 +285,21 @@ if test "x${je_cv_attribute}" = "xyes" ; then
     JE_CFLAGS_APPEND([-fvisibility=hidden])
   fi
 fi
+dnl Check for tls_model attribute support (clang 3.0 still lacks support).
+SAVED_CFLAGS="${CFLAGS}"
+JE_CFLAGS_APPEND([-Werror])
+JE_COMPILABLE([tls_model attribute], [],
+              [static __thread int
+               __attribute__((tls_model("initial-exec"))) foo;
+               foo = 0;],
+              [je_cv_tls_model])
+CFLAGS="${SAVED_CFLAGS}"
+if test "x${je_cv_tls_model}" = "xyes" ; then
+  AC_DEFINE([JEMALLOC_TLS_MODEL],
+            [__attribute__((tls_model("initial-exec")))])
+else
+  AC_DEFINE([JEMALLOC_TLS_MODEL], [ ])
+fi
 
 JE_COMPILABLE([mremap(...MREMAP_FIXED...)], [
 #define _GNU_SOURCE
@@ -719,7 +734,7 @@ AC_CACHE_CHECK([STATIC_PAGE_SHIFT],
 	return 1;
     }
     fprintf(f, "%u\n", ffs((int)result) - 1);
-    close(f);
+    fclose(f);
 
     return 0;
 ]])],

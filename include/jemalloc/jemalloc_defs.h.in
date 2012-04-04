@@ -108,6 +108,9 @@
 #  define JEMALLOC_ATTR(s) JEMALLOC_CATTR(s,)
 #endif
 
+/* Non-empty if the tls_model attribute is supported. */
+#undef JEMALLOC_TLS_MODEL
+
 /* JEMALLOC_CC_SILENCE enables code that silences unuseful compiler warnings. */
 #undef JEMALLOC_CC_SILENCE
 
