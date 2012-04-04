@@ -874,6 +874,7 @@ dnl Check for ffsl(3), and fail if not found.  This function exists on all
 dnl platforms that jemalloc currently has a chance of functioning on without
 dnl modification.
 JE_COMPILABLE([a program using ffsl], [
+#include <strings.h>
 #include <string.h>
 ], [
 	{
