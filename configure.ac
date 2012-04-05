@@ -228,6 +228,7 @@ case "${host}" in
 	CPPFLAGS="$CPPFLAGS -D_GNU_SOURCE"
 	abi="elf"
 	AC_DEFINE([JEMALLOC_PURGE_MADVISE_DONTNEED], [ ])
+	AC_DEFINE([JEMALLOC_THREADED_INIT], [ ])
 	RPATH="-Wl,-rpath,"
 	;;
   *-*-netbsd*)

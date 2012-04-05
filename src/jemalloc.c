@@ -36,13 +36,15 @@ static bool		malloc_initialized = false;
 
 #ifdef JEMALLOC_THREADED_INIT
 /* Used to let the initializing thread recursively allocate. */
-static pthread_t	malloc_initializer = (unsigned long)0;
+#  define NO_INITIALIZER	((unsigned long)0)
 #  define INITIALIZER		pthread_self()
 #  define IS_INITIALIZER	(malloc_initializer == pthread_self())
+static pthread_t		malloc_initializer = NO_INITIALIZER;
 #else
-static bool		malloc_initializer = false;
+#  define NO_INITIALIZER	false
 #  define INITIALIZER		true
 #  define IS_INITIALIZER	malloc_initializer
+static bool			malloc_initializer = NO_INITIALIZER;
 #endif
 
 /* Used to avoid initialization races. */
@@ -531,7 +533,7 @@ malloc_init_hard(void)
 		return (false);
 	}
 #ifdef JEMALLOC_THREADED_INIT
-	if (IS_INITIALIZER == false) {
+	if (malloc_initializer != NO_INITIALIZER && IS_INITIALIZER == false) {
 		/* Busy-wait until the initializing thread completes. */
 		do {
 			malloc_mutex_unlock(&init_lock);
