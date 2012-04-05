@@ -119,6 +119,10 @@ any of the following arguments (not a definitive list) to 'configure':
 --disable-experimental
     Disable support for the experimental API (*allocm()).
 
+--enable-utrace
+    Enable utrace(2)-based allocation tracing.  This feature is not broadly
+    portable (FreeBSD has it, but Linux and OS X do not).
+
 --enable-xmalloc
     Enable support for optional immediate termination due to out-of-memory
     errors, as is commonly implemented by "xmalloc" wrapper function for malloc.

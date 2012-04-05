@@ -21,6 +21,7 @@ bool	opt_junk = false;
 bool	opt_abort = false;
 bool	opt_junk = false;
 #endif
+bool	opt_utrace = false;
 bool	opt_xmalloc = false;
 bool	opt_zero = false;
 size_t	opt_narenas = 0;
@@ -49,6 +50,26 @@ static bool			malloc_initializer = NO_INITIALIZER;
 
 /* Used to avoid initialization races. */
 static malloc_mutex_t	init_lock = MALLOC_MUTEX_INITIALIZER;
+
+typedef struct {
+	void	*p;	/* Input pointer (as in realloc(p, s)). */
+	size_t	s;	/* Request size. */
+	void	*r;	/* Result pointer. */
+} malloc_utrace_t;
+
+#ifdef JEMALLOC_UTRACE
+#  define UTRACE(a, b, c) do {						\
+	if (opt_utrace) {						\
+		malloc_utrace_t ut;					\
+		ut.p = (a);						\
+		ut.s = (b);						\
+		ut.r = (c);						\
+		utrace(&ut, sizeof(ut));				\
+	}								\
+} while (0)
+#else
+#  define UTRACE(a, b, c)
+#endif
 
 /******************************************************************************/
 /* Function prototypes for non-inline static functions. */
@@ -483,6 +504,9 @@ malloc_conf_init(void)
 				CONF_HANDLE_BOOL(opt_junk, junk)
 				CONF_HANDLE_BOOL(opt_zero, zero)
 			}
+			if (config_utrace) {
+				CONF_HANDLE_BOOL(opt_utrace, utrace)
+			}
 			if (config_xmalloc) {
 				CONF_HANDLE_BOOL(opt_xmalloc, xmalloc)
 			}
@@ -759,6 +783,7 @@ OOM:
 		assert(usize == isalloc(ret));
 		thread_allocated_tsd_get()->allocated += usize;
 	}
+	UTRACE(0, size, ret);
 	return (ret);
 }
 
@@ -852,6 +877,7 @@ RETURN:
 	}
 	if (config_prof && opt_prof && result != NULL)
 		prof_malloc(result, usize, cnt);
+	UTRACE(0, size, result);
 	return (ret);
 }
 
@@ -951,6 +977,7 @@ RETURN:
 		assert(usize == isalloc(ret));
 		thread_allocated_tsd_get()->allocated += usize;
 	}
+	UTRACE(0, num_size, ret);
 	return (ret);
 }
 
@@ -1075,6 +1102,7 @@ RETURN:
 		ta->allocated += usize;
 		ta->deallocated += old_size;
 	}
+	UTRACE(ptr, size, ret);
 	return (ret);
 }
 
@@ -1083,6 +1111,7 @@ void
 je_free(void *ptr)
 {
 
+	UTRACE(ptr, 0, 0);
 	if (ptr != NULL) {
 		size_t usize;
 
@@ -1310,6 +1339,7 @@ je_allocm(void **ptr, size_t *rsize, size_t size, int flags)
 		assert(usize == isalloc(p));
 		thread_allocated_tsd_get()->allocated += usize;
 	}
+	UTRACE(0, size, p);
 	return (ALLOCM_SUCCESS);
 OOM:
 	if (config_xmalloc && opt_xmalloc) {
@@ -1318,6 +1348,7 @@ OOM:
 		abort();
 	}
 	*ptr = NULL;
+	UTRACE(0, size, 0);
 	return (ALLOCM_ERR_OOM);
 }
 
@@ -1404,16 +1435,20 @@ je_rallocm(void **ptr, size_t *rsize, size_t size, size_t extra, int flags)
 		ta->allocated += usize;
 		ta->deallocated += old_size;
 	}
+	UTRACE(p, size, q);
 	return (ALLOCM_SUCCESS);
 ERR:
-	if (no_move)
+	if (no_move) {
+		UTRACE(p, size, q);
 		return (ALLOCM_ERR_NOT_MOVED);
+	}
 OOM:
 	if (config_xmalloc && opt_xmalloc) {
 		malloc_write("<jemalloc>: Error in rallocm(): "
 		    "out of memory\n");
 		abort();
 	}
+	UTRACE(p, size, 0);
 	return (ALLOCM_ERR_OOM);
 }
 
@@ -1448,6 +1483,7 @@ je_dallocm(void *ptr, int flags)
 	assert(ptr != NULL);
 	assert(malloc_initialized || IS_INITIALIZER);
 
+	UTRACE(ptr, 0, 0);
 	if (config_stats)
 		usize = isalloc(ptr);
 	if (config_prof && opt_prof) {

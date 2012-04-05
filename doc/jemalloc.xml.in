@@ -712,6 +712,16 @@ for (i = 0; i < nbins; i++) {
 
       <varlistentry>
         <term>
+          <mallctl>config.utrace</mallctl>
+          (<type>bool</type>)
+          <literal>r-</literal>
+        </term>
+        <listitem><para><option>--enable-utrace</option> was specified during
+        build configuration.</para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term>
           <mallctl>config.xmalloc</mallctl>
           (<type>bool</type>)
           <literal>r-</literal>
@@ -824,6 +834,19 @@ for (i = 0; i < nbins; i++) {
         was previously allocated.  This is intended for debugging and will
         impact performance negatively.  This option is disabled by default.
         </para></listitem>
+      </varlistentry>
+
+      <varlistentry id="opt.utrace">
+        <term>
+          <mallctl>opt.utrace</mallctl>
+          (<type>bool</type>)
+          <literal>r-</literal>
+          [<option>--enable-utrace</option>]
+        </term>
+        <listitem><para>Allocation tracing based on
+        <citerefentry><refentrytitle>utrace</refentrytitle>
+        <manvolnum>2</manvolnum></citerefentry> enabled/disabled.  This option
+        is disabled by default.</para></listitem>
       </varlistentry>
 
       <varlistentry id="opt.xmalloc">
@@ -1957,6 +1980,8 @@ malloc_conf = "lg_chunk:24";]]></programlisting></para>
     <citerefentry><refentrytitle>mmap</refentrytitle>
     <manvolnum>2</manvolnum></citerefentry>,
     <citerefentry><refentrytitle>sbrk</refentrytitle>
+    <manvolnum>2</manvolnum></citerefentry>,
+    <citerefentry><refentrytitle>utrace</refentrytitle>
     <manvolnum>2</manvolnum></citerefentry>,
     <citerefentry><refentrytitle>alloca</refentrytitle>
     <manvolnum>3</manvolnum></citerefentry>,

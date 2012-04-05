@@ -699,6 +699,34 @@ if test "x$enable_fill" = "x1" ; then
 fi
 AC_SUBST([enable_fill])
 
+dnl Disable utrace(2)-based tracing by default.
+AC_ARG_ENABLE([utrace],
+  [AS_HELP_STRING([--enable-utrace], [Enable utrace(2)-based tracing])],
+[if test "x$enable_utrace" = "xno" ; then
+  enable_utrace="0"
+else
+  enable_utrace="1"
+fi
+],
+[enable_utrace="0"]
+)
+JE_COMPILABLE([utrace(2)], [
+#include <sys/types.h>
+#include <sys/param.h>
+#include <sys/time.h>
+#include <sys/uio.h>
+#include <sys/ktrace.h>
+], [
+	utrace((void *)0, 0);
+], [je_cv_utrace])
+if test "x${je_cv_utrace}" = "xno" ; then
+  enable_utrace="0"
+fi
+if test "x$enable_utrace" = "x1" ; then
+  AC_DEFINE([JEMALLOC_UTRACE], [ ])
+fi
+AC_SUBST([enable_utrace])
+
 dnl Do not support the xmalloc option by default.
 AC_ARG_ENABLE([xmalloc],
   [AS_HELP_STRING([--enable-xmalloc], [Support xmalloc option])],
@@ -1061,6 +1089,7 @@ AC_MSG_RESULT([prof-gcc           : ${enable_prof_gcc}])
 AC_MSG_RESULT([tcache             : ${enable_tcache}])
 AC_MSG_RESULT([fill               : ${enable_fill}])
 AC_MSG_RESULT([xmalloc            : ${enable_xmalloc}])
+AC_MSG_RESULT([utrace             : ${enable_utrace}])
 AC_MSG_RESULT([dss                : ${enable_dss}])
 AC_MSG_RESULT([lazy_lock          : ${enable_lazy_lock}])
 AC_MSG_RESULT([tls                : ${enable_tls}])

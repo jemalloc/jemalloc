@@ -173,6 +173,7 @@
 #define	opt_prof_leak JEMALLOC_N(opt_prof_leak)
 #define	opt_stats_print JEMALLOC_N(opt_stats_print)
 #define	opt_tcache JEMALLOC_N(opt_tcache)
+#define	opt_utrace JEMALLOC_N(opt_utrace)
 #define	opt_xmalloc JEMALLOC_N(opt_xmalloc)
 #define	opt_zero JEMALLOC_N(opt_zero)
 #define	pow2_ceil JEMALLOC_N(pow2_ceil)

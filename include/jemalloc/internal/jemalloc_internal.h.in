@@ -36,6 +36,10 @@
 #define	JEMALLOC_NO_DEMANGLE
 #include "../jemalloc@install_suffix@.h"
 
+#ifdef JEMALLOC_UTRACE
+#include <sys/ktrace.h>
+#endif
+
 #include "jemalloc/internal/private_namespace.h"
 
 #ifdef JEMALLOC_CC_SILENCE
@@ -109,6 +113,13 @@ static const bool config_tcache =
     ;
 static const bool config_tls =
 #ifdef JEMALLOC_TLS
+    true
+#else
+    false
+#endif
+    ;
+static const bool config_utrace =
+#ifdef JEMALLOC_UTRACE
     true
 #else
     false
@@ -332,6 +343,7 @@ typedef struct {
 
 extern bool	opt_abort;
 extern bool	opt_junk;
+extern bool	opt_utrace;
 extern bool	opt_xmalloc;
 extern bool	opt_zero;
 extern size_t	opt_narenas;
