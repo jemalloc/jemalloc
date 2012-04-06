@@ -334,17 +334,17 @@ tcache_thread_cleanup(void *arg)
 	} else if (tcache == TCACHE_STATE_REINCARNATED) {
 		/*
 		 * Another destructor called an allocator function after this
-		 * destructor was called.  Reset tcache to 1 in order to
-		 * receive another callback.
+		 * destructor was called.  Reset tcache to
+		 * TCACHE_STATE_PURGATORY in order to receive another callback.
 		 */
 		tcache = TCACHE_STATE_PURGATORY;
 		tcache_tsd_set(&tcache);
 	} else if (tcache == TCACHE_STATE_PURGATORY) {
 		/*
 		 * The previous time this destructor was called, we set the key
-		 * to 1 so that other destructors wouldn't cause re-creation of
-		 * the tcache.  This time, do nothing, so that the destructor
-		 * will not be called again.
+		 * to TCACHE_STATE_PURGATORY so that other destructors wouldn't
+		 * cause re-creation of the tcache.  This time, do nothing, so
+		 * that the destructor will not be called again.
 		 */
 	} else if (tcache != NULL) {
 		assert(tcache != TCACHE_STATE_PURGATORY);
@@ -381,46 +381,40 @@ tcache_stats_merge(tcache_t *tcache, arena_t *arena)
 bool
 tcache_boot0(void)
 {
+	unsigned i;
 
-	if (opt_tcache) {
-		unsigned i;
+	/*
+	 * If necessary, clamp opt_lg_tcache_max, now that arena_maxclass is
+	 * known.
+	 */
+	if (opt_lg_tcache_max < 0 || (1U << opt_lg_tcache_max) < SMALL_MAXCLASS)
+		tcache_maxclass = SMALL_MAXCLASS;
+	else if ((1U << opt_lg_tcache_max) > arena_maxclass)
+		tcache_maxclass = arena_maxclass;
+	else
+		tcache_maxclass = (1U << opt_lg_tcache_max);
 
-		/*
-		 * If necessary, clamp opt_lg_tcache_max, now that
-		 * SMALL_MAXCLASS and arena_maxclass are known.
-		 * XXX Can this be done earlier?
-		 */
-		if (opt_lg_tcache_max < 0 || (1U << opt_lg_tcache_max) <
-		    SMALL_MAXCLASS)
-			tcache_maxclass = SMALL_MAXCLASS;
-		else if ((1U << opt_lg_tcache_max) > arena_maxclass)
-			tcache_maxclass = arena_maxclass;
-		else
-			tcache_maxclass = (1U << opt_lg_tcache_max);
+	nhbins = NBINS + (tcache_maxclass >> LG_PAGE);
 
-		nhbins = NBINS + (tcache_maxclass >> LG_PAGE);
-
-		/* Initialize tcache_bin_info. */
-		tcache_bin_info = (tcache_bin_info_t *)base_alloc(nhbins *
-		    sizeof(tcache_bin_info_t));
-		if (tcache_bin_info == NULL)
-			return (true);
-		stack_nelms = 0;
-		for (i = 0; i < NBINS; i++) {
-			if ((arena_bin_info[i].nregs << 1) <=
-			    TCACHE_NSLOTS_SMALL_MAX) {
-				tcache_bin_info[i].ncached_max =
-				    (arena_bin_info[i].nregs << 1);
-			} else {
-				tcache_bin_info[i].ncached_max =
-				    TCACHE_NSLOTS_SMALL_MAX;
-			}
-			stack_nelms += tcache_bin_info[i].ncached_max;
+	/* Initialize tcache_bin_info. */
+	tcache_bin_info = (tcache_bin_info_t *)base_alloc(nhbins *
+	    sizeof(tcache_bin_info_t));
+	if (tcache_bin_info == NULL)
+		return (true);
+	stack_nelms = 0;
+	for (i = 0; i < NBINS; i++) {
+		if ((arena_bin_info[i].nregs << 1) <= TCACHE_NSLOTS_SMALL_MAX) {
+			tcache_bin_info[i].ncached_max =
+			    (arena_bin_info[i].nregs << 1);
+		} else {
+			tcache_bin_info[i].ncached_max =
+			    TCACHE_NSLOTS_SMALL_MAX;
 		}
-		for (; i < nhbins; i++) {
-			tcache_bin_info[i].ncached_max = TCACHE_NSLOTS_LARGE;
-			stack_nelms += tcache_bin_info[i].ncached_max;
-		}
+		stack_nelms += tcache_bin_info[i].ncached_max;
+	}
+	for (; i < nhbins; i++) {
+		tcache_bin_info[i].ncached_max = TCACHE_NSLOTS_LARGE;
+		stack_nelms += tcache_bin_info[i].ncached_max;
 	}
 
 	return (false);
@@ -430,10 +424,8 @@ bool
 tcache_boot1(void)
 {
 
-	if (opt_tcache) {
-		if (tcache_tsd_boot() || tcache_enabled_tsd_boot())
-			return (true);
-	}
+	if (tcache_tsd_boot() || tcache_enabled_tsd_boot())
+		return (true);
 
 	return (false);
 }
