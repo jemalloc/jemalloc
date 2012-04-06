@@ -391,7 +391,6 @@ unsigned	arena_run_regind(arena_run_t *run, arena_bin_info_t *bin_info,
 prof_ctx_t	*arena_prof_ctx_get(const void *ptr);
 void	arena_prof_ctx_set(const void *ptr, prof_ctx_t *ctx);
 void	*arena_malloc(arena_t *arena, size_t size, bool zero, bool try_tcache);
-void	*arena_malloc_prechosen(arena_t *arena, size_t size, bool zero);
 void	arena_dalloc(arena_t *arena, arena_chunk_t *chunk, void *ptr,
     bool try_tcache);
 #endif
@@ -576,19 +575,6 @@ arena_malloc(arena_t *arena, size_t size, bool zero, bool try_tcache)
 			    zero));
 		}
 	}
-}
-
-JEMALLOC_INLINE void *
-arena_malloc_prechosen(arena_t *arena, size_t size, bool zero)
-{
-
-	assert(size != 0);
-	assert(size <= arena_maxclass);
-
-	if (size <= SMALL_MAXCLASS)
-		return (arena_malloc_small(arena, size, zero));
-	else
-		return (arena_malloc_large(arena, size, zero));
 }
 
 JEMALLOC_INLINE void
