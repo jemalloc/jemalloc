@@ -148,7 +148,7 @@
  */
 #undef JEMALLOC_DSS
 
-/* Support memory filling (junk/zero). */
+/* Support memory filling (junk/zero/quarantine/redzone). */
 #undef JEMALLOC_FILL
 
 /* Support the experimental API. */
@@ -156,6 +156,9 @@
 
 /* Support utrace(2)-based tracing. */
 #undef JEMALLOC_UTRACE
+
+/* Support Valgrind. */
+#undef JEMALLOC_VALGRIND
 
 /* Support optional abort() on OOM. */
 #undef JEMALLOC_XMALLOC

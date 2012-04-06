@@ -378,7 +378,7 @@ prof_malloc(const void *ptr, size_t size, prof_thr_cnt_t *cnt)
 
 	cassert(config_prof);
 	assert(ptr != NULL);
-	assert(size == isalloc(ptr));
+	assert(size == isalloc(ptr, true));
 
 	if (opt_lg_prof_sample != 0) {
 		if (prof_sample_accum_update(size)) {
@@ -427,7 +427,7 @@ prof_realloc(const void *ptr, size_t size, prof_thr_cnt_t *cnt,
 	assert(ptr != NULL || (uintptr_t)cnt <= (uintptr_t)1U);
 
 	if (ptr != NULL) {
-		assert(size == isalloc(ptr));
+		assert(size == isalloc(ptr, true));
 		if (opt_lg_prof_sample != 0) {
 			if (prof_sample_accum_update(size)) {
 				/*
@@ -500,7 +500,7 @@ prof_free(const void *ptr, size_t size)
 	cassert(config_prof);
 
 	if ((uintptr_t)ctx > (uintptr_t)1) {
-		assert(size == isalloc(ptr));
+		assert(size == isalloc(ptr, true));
 		prof_thr_cnt_t *tcnt = prof_lookup(ctx->bt);
 
 		if (tcnt != NULL) {

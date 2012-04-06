@@ -75,6 +75,10 @@ tcache_bin_flush_small(tcache_bin_t *tbin, size_t binind, unsigned rem,
 				    (uintptr_t)chunk) >> LG_PAGE;
 				arena_chunk_map_t *mapelm =
 				    &chunk->map[pageind-map_bias];
+				if (config_fill && opt_junk) {
+					arena_alloc_junk_small(ptr,
+					    &arena_bin_info[binind], true);
+				}
 				arena_dalloc_bin(arena, chunk, ptr, mapelm);
 			} else {
 				/*
@@ -298,7 +302,7 @@ tcache_destroy(tcache_t *tcache)
 		malloc_mutex_unlock(&tcache->arena->lock);
 	}
 
-	tcache_size = arena_salloc(tcache);
+	tcache_size = arena_salloc(tcache, false);
 	if (tcache_size <= SMALL_MAXCLASS) {
 		arena_chunk_t *chunk = CHUNK_ADDR2BASE(tcache);
 		arena_t *arena = chunk->arena;

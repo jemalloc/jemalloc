@@ -40,6 +40,11 @@
 #include <sys/ktrace.h>
 #endif
 
+#ifdef JEMALLOC_VALGRIND
+#include <valgrind/valgrind.h>
+#include <valgrind/memcheck.h>
+#endif
+
 #include "jemalloc/internal/private_namespace.h"
 
 #ifdef JEMALLOC_CC_SILENCE
@@ -120,6 +125,13 @@ static const bool config_tls =
     ;
 static const bool config_utrace =
 #ifdef JEMALLOC_UTRACE
+    true
+#else
+    false
+#endif
+    ;
+static const bool config_valgrind =
+#ifdef JEMALLOC_VALGRIND
     true
 #else
     false
@@ -281,6 +293,77 @@ static const bool config_ivsalloc =
 #define	PAGE_CEILING(s)							\
 	(((s) + PAGE_MASK) & ~PAGE_MASK)
 
+#ifdef JEMALLOC_VALGRIND
+/*
+ * The JEMALLOC_VALGRIND_*() macros must be macros rather than functions
+ * so that when Valgrind reports errors, there are no extra stack frames
+ * in the backtraces.
+ *
+ * The size that is reported to valgrind must be consistent through a chain of
+ * malloc..realloc..realloc calls.  Request size isn't recorded anywhere in
+ * jemalloc, so it is critical that all callers of these macros provide usize
+ * rather than request size.  As a result, buffer overflow detection is
+ * technically weakened for the standard API, though it is generally accepted
+ * practice to consider any extra bytes reported by malloc_usable_size() as
+ * usable space.
+ */
+#define	JEMALLOC_VALGRIND_MALLOC(cond, ptr, usize, zero) do {		\
+	if (config_valgrind && opt_valgrind && cond)			\
+		VALGRIND_MALLOCLIKE_BLOCK(ptr, usize, p2rz(ptr), zero);	\
+} while (0)
+#define	JEMALLOC_VALGRIND_REALLOC(ptr, usize, old_ptr, old_usize,	\
+    old_rzsize, zero)  do {						\
+	if (config_valgrind && opt_valgrind) {				\
+		size_t rzsize = p2rz(ptr);				\
+									\
+		if (ptr == old_ptr) {					\
+			VALGRIND_RESIZEINPLACE_BLOCK(ptr, old_usize,	\
+			    usize, rzsize);				\
+			if (zero && old_usize < usize) {		\
+				VALGRIND_MAKE_MEM_DEFINED(		\
+				    (void *)((uintptr_t)ptr +		\
+				    old_usize), usize - old_usize);	\
+			}						\
+		} else {						\
+			if (old_ptr != NULL) {				\
+				VALGRIND_FREELIKE_BLOCK(old_ptr,	\
+				    old_rzsize);			\
+			}						\
+			if (ptr != NULL) {				\
+				size_t copy_size = (old_usize < usize)	\
+				    ?  old_usize : usize;		\
+				size_t tail_size = usize - copy_size;	\
+				VALGRIND_MALLOCLIKE_BLOCK(ptr, usize,	\
+				    rzsize, false);			\
+				if (copy_size > 0) {			\
+					VALGRIND_MAKE_MEM_DEFINED(ptr,	\
+					    copy_size);			\
+				}					\
+				if (zero && tail_size > 0) {		\
+					VALGRIND_MAKE_MEM_DEFINED(	\
+					    (void *)((uintptr_t)ptr +	\
+					    copy_size), tail_size);	\
+				}					\
+			}						\
+		}							\
+	}								\
+} while (0)
+#define	JEMALLOC_VALGRIND_FREE(ptr, rzsize) do {			\
+	if (config_valgrind && opt_valgrind)				\
+		VALGRIND_FREELIKE_BLOCK(ptr, rzsize);			\
+} while (0)
+#else
+#define	VALGRIND_MALLOCLIKE_BLOCK(addr, sizeB, rzB, is_zeroed)
+#define	VALGRIND_RESIZEINPLACE_BLOCK(addr, oldSizeB, newSizeB, rzB)
+#define	VALGRIND_FREELIKE_BLOCK(addr, rzB)
+#define	VALGRIND_MAKE_MEM_UNDEFINED(_qzz_addr, _qzz_len)
+#define	VALGRIND_MAKE_MEM_DEFINED(_qzz_addr, _qzz_len)
+#define	JEMALLOC_VALGRIND_MALLOC(cond, ptr, usize, zero)
+#define	JEMALLOC_VALGRIND_REALLOC(ptr, usize, old_ptr, old_usize,	\
+    old_rzsize, zero)
+#define	JEMALLOC_VALGRIND_FREE(ptr, rzsize)
+#endif
+
 #include "jemalloc/internal/util.h"
 #include "jemalloc/internal/atomic.h"
 #include "jemalloc/internal/prng.h"
@@ -300,6 +383,7 @@ static const bool config_ivsalloc =
 #include "jemalloc/internal/rtree.h"
 #include "jemalloc/internal/tcache.h"
 #include "jemalloc/internal/hash.h"
+#include "jemalloc/internal/quarantine.h"
 #include "jemalloc/internal/prof.h"
 
 #undef JEMALLOC_H_TYPES
@@ -325,6 +409,7 @@ static const bool config_ivsalloc =
 #include "jemalloc/internal/rtree.h"
 #include "jemalloc/internal/tcache.h"
 #include "jemalloc/internal/hash.h"
+#include "jemalloc/internal/quarantine.h"
 #include "jemalloc/internal/prof.h"
 
 typedef struct {
@@ -343,7 +428,10 @@ typedef struct {
 
 extern bool	opt_abort;
 extern bool	opt_junk;
+extern size_t	opt_quarantine;
+extern bool	opt_redzone;
 extern bool	opt_utrace;
+extern bool	opt_valgrind;
 extern bool	opt_xmalloc;
 extern bool	opt_zero;
 extern size_t	opt_narenas;
@@ -385,6 +473,7 @@ void	jemalloc_postfork_child(void);
 #include "jemalloc/internal/rtree.h"
 #include "jemalloc/internal/tcache.h"
 #include "jemalloc/internal/hash.h"
+#include "jemalloc/internal/quarantine.h"
 #include "jemalloc/internal/prof.h"
 
 #undef JEMALLOC_H_EXTERNS
@@ -550,14 +639,18 @@ choose_arena(arena_t *arena)
 #include "jemalloc/internal/tcache.h"
 #include "jemalloc/internal/arena.h"
 #include "jemalloc/internal/hash.h"
+#include "jemalloc/internal/quarantine.h"
 
 #ifndef JEMALLOC_ENABLE_INLINE
 void	*imalloc(size_t size);
 void	*icalloc(size_t size);
 void	*ipalloc(size_t usize, size_t alignment, bool zero);
-size_t	isalloc(const void *ptr);
-size_t	ivsalloc(const void *ptr);
+size_t	isalloc(const void *ptr, bool demote);
+size_t	ivsalloc(const void *ptr, bool demote);
+size_t	u2rz(size_t usize);
+size_t	p2rz(const void *ptr);
 void	idalloc(void *ptr);
+void	iqalloc(void *ptr);
 void	*iralloc(void *ptr, size_t size, size_t extra, size_t alignment,
     bool zero, bool no_move);
 malloc_tsd_protos(JEMALLOC_ATTR(unused), thread_allocated, thread_allocated_t)
@@ -621,21 +714,25 @@ ipalloc(size_t usize, size_t alignment, bool zero)
 	return (ret);
 }
 
+/*
+ * Typical usage:
+ *   void *ptr = [...]
+ *   size_t sz = isalloc(ptr, config_prof);
+ */
 JEMALLOC_INLINE size_t
-isalloc(const void *ptr)
+isalloc(const void *ptr, bool demote)
 {
 	size_t ret;
 	arena_chunk_t *chunk;
 
 	assert(ptr != NULL);
+	/* Demotion only makes sense if config_prof is true. */
+	assert(config_prof || demote == false);
 
 	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
 	if (chunk != ptr) {
 		/* Region. */
-		if (config_prof)
-			ret = arena_salloc_demote(ptr);
-		else
-			ret = arena_salloc(ptr);
+		ret = arena_salloc(ptr, demote);
 	} else
 		ret = huge_salloc(ptr);
 
@@ -643,14 +740,36 @@ isalloc(const void *ptr)
 }
 
 JEMALLOC_INLINE size_t
-ivsalloc(const void *ptr)
+ivsalloc(const void *ptr, bool demote)
 {
 
 	/* Return 0 if ptr is not within a chunk managed by jemalloc. */
 	if (rtree_get(chunks_rtree, (uintptr_t)CHUNK_ADDR2BASE(ptr)) == NULL)
 		return (0);
 
-	return (isalloc(ptr));
+	return (isalloc(ptr, demote));
+}
+
+JEMALLOC_INLINE size_t
+u2rz(size_t usize)
+{
+	size_t ret;
+
+	if (usize <= SMALL_MAXCLASS) {
+		size_t binind = SMALL_SIZE2BIN(usize);
+		ret = arena_bin_info[binind].redzone_size;
+	} else
+		ret = 0;
+
+	return (ret);
+}
+
+JEMALLOC_INLINE size_t
+p2rz(const void *ptr)
+{
+	size_t usize = isalloc(ptr, false);
+
+	return (u2rz(usize));
 }
 
 JEMALLOC_INLINE void
@@ -667,6 +786,16 @@ idalloc(void *ptr)
 		huge_dalloc(ptr, true);
 }
 
+JEMALLOC_INLINE void
+iqalloc(void *ptr)
+{
+
+	if (config_fill && opt_quarantine)
+		quarantine(ptr);
+	else
+		idalloc(ptr);
+}
+
 JEMALLOC_INLINE void *
 iralloc(void *ptr, size_t size, size_t extra, size_t alignment, bool zero,
     bool no_move)
@@ -677,14 +806,14 @@ iralloc(void *ptr, size_t size, size_t extra, size_t alignment, bool zero,
 	assert(ptr != NULL);
 	assert(size != 0);
 
-	oldsize = isalloc(ptr);
+	oldsize = isalloc(ptr, config_prof);
 
 	if (alignment != 0 && ((uintptr_t)ptr & ((uintptr_t)alignment-1))
 	    != 0) {
 		size_t usize, copysize;
 
 		/*
-		 * Existing object alignment is inadquate; allocate new space
+		 * Existing object alignment is inadequate; allocate new space
 		 * and copy.
 		 */
 		if (no_move)
@@ -711,7 +840,7 @@ iralloc(void *ptr, size_t size, size_t extra, size_t alignment, bool zero,
 		 */
 		copysize = (size < oldsize) ? size : oldsize;
 		memcpy(ret, ptr, copysize);
-		idalloc(ptr);
+		iqalloc(ptr);
 		return (ret);
 	}
 

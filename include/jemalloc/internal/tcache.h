@@ -340,17 +340,24 @@ tcache_alloc_small(tcache_t *tcache, size_t size, bool zero)
 		if (ret == NULL)
 			return (NULL);
 	}
-	assert(arena_salloc(ret) == arena_bin_info[binind].reg_size);
+	assert(arena_salloc(ret, false) == arena_bin_info[binind].reg_size);
 
 	if (zero == false) {
 		if (config_fill) {
-			if (opt_junk)
-				memset(ret, 0xa5, size);
-			else if (opt_zero)
+			if (opt_junk) {
+				arena_alloc_junk_small(ret,
+				    &arena_bin_info[binind], false);
+			} else if (opt_zero)
 				memset(ret, 0, size);
 		}
-	} else
+	} else {
+		if (config_fill && opt_junk) {
+			arena_alloc_junk_small(ret, &arena_bin_info[binind],
+			    true);
+		}
+		VALGRIND_MAKE_MEM_UNDEFINED(ret, size);
 		memset(ret, 0, size);
+	}
 
 	if (config_stats)
 		tbin->tstats.nrequests++;
@@ -397,8 +404,10 @@ tcache_alloc_large(tcache_t *tcache, size_t size, bool zero)
 				else if (opt_zero)
 					memset(ret, 0, size);
 			}
-		} else
+		} else {
+			VALGRIND_MAKE_MEM_UNDEFINED(ret, size);
 			memset(ret, 0, size);
+		}
 
 		if (config_stats)
 			tbin->tstats.nrequests++;
@@ -422,7 +431,7 @@ tcache_dalloc_small(tcache_t *tcache, void *ptr)
 	size_t pageind, binind;
 	arena_chunk_map_t *mapelm;
 
-	assert(arena_salloc(ptr) <= SMALL_MAXCLASS);
+	assert(arena_salloc(ptr, false) <= SMALL_MAXCLASS);
 
 	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
 	arena = chunk->arena;
@@ -436,7 +445,7 @@ tcache_dalloc_small(tcache_t *tcache, void *ptr)
 	assert(binind < NBINS);
 
 	if (config_fill && opt_junk)
-		memset(ptr, 0x5a, arena_bin_info[binind].reg_size);
+		arena_dalloc_junk_small(ptr, &arena_bin_info[binind]);
 
 	tbin = &tcache->tbins[binind];
 	tbin_info = &tcache_bin_info[binind];
@@ -459,8 +468,8 @@ tcache_dalloc_large(tcache_t *tcache, void *ptr, size_t size)
 	tcache_bin_info_t *tbin_info;
 
 	assert((size & PAGE_MASK) == 0);
-	assert(arena_salloc(ptr) > SMALL_MAXCLASS);
-	assert(arena_salloc(ptr) <= tcache_maxclass);
+	assert(arena_salloc(ptr, false) > SMALL_MAXCLASS);
+	assert(arena_salloc(ptr, false) <= tcache_maxclass);
 
 	binind = NBINS + (size >> LG_PAGE) - 1;
 

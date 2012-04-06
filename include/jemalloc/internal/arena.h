@@ -16,7 +16,7 @@
  * constraint is relaxed (ignored) for runs that are so small that the
  * per-region overhead is greater than:
  *
- *   (RUN_MAX_OVRHD / (reg_size << (3+RUN_BFP))
+ *   (RUN_MAX_OVRHD / (reg_interval << (3+RUN_BFP))
  */
 #define	RUN_BFP			12
 /*                                    \/   Implicit binary fixed point. */
@@ -26,6 +26,12 @@
 /* Maximum number of regions in one run. */
 #define	LG_RUN_MAXREGS		11
 #define	RUN_MAXREGS		(1U << LG_RUN_MAXREGS)
+
+/*
+ * Minimum redzone size.  Redzones may be larger than this if necessary to
+ * preserve region alignment.
+ */
+#define	REDZONE_MINSIZE		16
 
 /*
  * The minimum ratio of active:dirty pages per arena is computed as:
@@ -192,10 +198,49 @@ struct arena_run_s {
  * Read-only information associated with each element of arena_t's bins array
  * is stored separately, partly to reduce memory usage (only one copy, rather
  * than one per arena), but mainly to avoid false cacheline sharing.
+ *
+ * Each run has the following layout:
+ *
+ *               /--------------------\
+ *               | arena_run_t header |
+ *               | ...                |
+ * bitmap_offset | bitmap             |
+ *               | ...                |
+ *   ctx0_offset | ctx map            |
+ *               | ...                |
+ *               |--------------------|
+ *               | redzone            |
+ *   reg0_offset | region 0           |
+ *               | redzone            |
+ *               |--------------------| \
+ *               | redzone            | |
+ *               | region 1           |  > reg_interval
+ *               | redzone            | /
+ *               |--------------------|
+ *               | ...                |
+ *               | ...                |
+ *               | ...                |
+ *               |--------------------|
+ *               | redzone            |
+ *               | region nregs-1     |
+ *               | redzone            |
+ *               |--------------------|
+ *               | alignment pad?     |
+ *               \--------------------/
+ *
+ * reg_interval has at least the same minimum alignment as reg_size; this
+ * preserves the alignment constraint that sa2u() depends on.  Alignment pad is
+ * either 0 or redzone_size; it is present only if needed to align reg0_offset.
  */
 struct arena_bin_info_s {
 	/* Size of regions in a run for this bin's size class. */
 	size_t		reg_size;
+
+	/* Redzone size. */
+	size_t		redzone_size;
+
+	/* Interval between regions (reg_size + (redzone_size << 1)). */
+	size_t		reg_interval;
 
 	/* Total size of a run for this bin's size class. */
 	size_t		run_size;
@@ -357,13 +402,15 @@ void	arena_purge_all(arena_t *arena);
 void	arena_prof_accum(arena_t *arena, uint64_t accumbytes);
 void	arena_tcache_fill_small(arena_t *arena, tcache_bin_t *tbin,
     size_t binind, uint64_t prof_accumbytes);
+void	arena_alloc_junk_small(void *ptr, arena_bin_info_t *bin_info,
+    bool zero);
+void	arena_dalloc_junk_small(void *ptr, arena_bin_info_t *bin_info);
 void	*arena_malloc_small(arena_t *arena, size_t size, bool zero);
 void	*arena_malloc_large(arena_t *arena, size_t size, bool zero);
 void	*arena_palloc(arena_t *arena, size_t size, size_t alloc_size,
     size_t alignment, bool zero);
-size_t	arena_salloc(const void *ptr);
+size_t	arena_salloc(const void *ptr, bool demote);
 void	arena_prof_promoted(const void *ptr, size_t size);
-size_t	arena_salloc_demote(const void *ptr);
 void	arena_dalloc_bin(arena_t *arena, arena_chunk_t *chunk, void *ptr,
     arena_chunk_map_t *mapelm);
 void	arena_dalloc_large(arena_t *arena, arena_chunk_t *chunk, void *ptr);
@@ -408,7 +455,7 @@ JEMALLOC_INLINE unsigned
 arena_run_regind(arena_run_t *run, arena_bin_info_t *bin_info, const void *ptr)
 {
 	unsigned shift, diff, regind;
-	size_t size;
+	size_t interval;
 
 	/*
 	 * Freeing a pointer lower than region zero can cause assertion
@@ -425,12 +472,12 @@ arena_run_regind(arena_run_t *run, arena_bin_info_t *bin_info, const void *ptr)
 	    bin_info->reg0_offset);
 
 	/* Rescale (factor powers of 2 out of the numerator and denominator). */
-	size = bin_info->reg_size;
-	shift = ffs(size) - 1;
+	interval = bin_info->reg_interval;
+	shift = ffs(interval) - 1;
 	diff >>= shift;
-	size >>= shift;
+	interval >>= shift;
 
-	if (size == 1) {
+	if (interval == 1) {
 		/* The divisor was a power of 2. */
 		regind = diff;
 	} else {
@@ -442,7 +489,7 @@ arena_run_regind(arena_run_t *run, arena_bin_info_t *bin_info, const void *ptr)
 		 *
 		 * becomes
 		 *
-		 *   (X * size_invs[D - 3]) >> SIZE_INV_SHIFT
+		 *   (X * interval_invs[D - 3]) >> SIZE_INV_SHIFT
 		 *
 		 * We can omit the first three elements, because we never
 		 * divide by 0, and 1 and 2 are both powers of two, which are
@@ -450,7 +497,7 @@ arena_run_regind(arena_run_t *run, arena_bin_info_t *bin_info, const void *ptr)
 		 */
 #define	SIZE_INV_SHIFT	((sizeof(unsigned) << 3) - LG_RUN_MAXREGS)
 #define	SIZE_INV(s)	(((1U << SIZE_INV_SHIFT) / (s)) + 1)
-		static const unsigned size_invs[] = {
+		static const unsigned interval_invs[] = {
 		    SIZE_INV(3),
 		    SIZE_INV(4), SIZE_INV(5), SIZE_INV(6), SIZE_INV(7),
 		    SIZE_INV(8), SIZE_INV(9), SIZE_INV(10), SIZE_INV(11),
@@ -461,14 +508,16 @@ arena_run_regind(arena_run_t *run, arena_bin_info_t *bin_info, const void *ptr)
 		    SIZE_INV(28), SIZE_INV(29), SIZE_INV(30), SIZE_INV(31)
 		};
 
-		if (size <= ((sizeof(size_invs) / sizeof(unsigned)) + 2))
-			regind = (diff * size_invs[size - 3]) >> SIZE_INV_SHIFT;
-		else
-			regind = diff / size;
+		if (interval <= ((sizeof(interval_invs) / sizeof(unsigned)) +
+		    2)) {
+			regind = (diff * interval_invs[interval - 3]) >>
+			    SIZE_INV_SHIFT;
+		} else
+			regind = diff / interval;
 #undef SIZE_INV
 #undef SIZE_INV_SHIFT
 	}
-	assert(diff == regind * size);
+	assert(diff == regind * interval);
 	assert(regind < bin_info->nregs);
 
 	return (regind);
@@ -610,7 +659,7 @@ arena_dalloc(arena_t *arena, arena_chunk_t *chunk, void *ptr, bool try_tcache)
 				    &arena_bin_info[binind];
 				assert(((uintptr_t)ptr - ((uintptr_t)run +
 				    (uintptr_t)bin_info->reg0_offset)) %
-				    bin_info->reg_size == 0);
+				    bin_info->reg_interval == 0);
 			}
 			malloc_mutex_lock(&bin->lock);
 			arena_dalloc_bin(arena, chunk, ptr, mapelm);

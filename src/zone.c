@@ -56,7 +56,7 @@ zone_size(malloc_zone_t *zone, void *ptr)
 	 * not work in practice, we must check all pointers to assure that they
 	 * reside within a mapped chunk before determining size.
 	 */
-	return (ivsalloc(ptr));
+	return (ivsalloc(ptr, config_prof));
 }
 
 static void *
@@ -87,7 +87,7 @@ static void
 zone_free(malloc_zone_t *zone, void *ptr)
 {
 
-	if (ivsalloc(ptr) != 0) {
+	if (ivsalloc(ptr, config_prof) != 0) {
 		je_free(ptr);
 		return;
 	}
@@ -99,7 +99,7 @@ static void *
 zone_realloc(malloc_zone_t *zone, void *ptr, size_t size)
 {
 
-	if (ivsalloc(ptr) != 0)
+	if (ivsalloc(ptr, config_prof) != 0)
 		return (je_realloc(ptr, size));
 
 	return (realloc(ptr, size));
@@ -122,8 +122,8 @@ static void
 zone_free_definite_size(malloc_zone_t *zone, void *ptr, size_t size)
 {
 
-	if (ivsalloc(ptr) != 0) {
-		assert(ivsalloc(ptr) == size);
+	if (ivsalloc(ptr, config_prof) != 0) {
+		assert(ivsalloc(ptr, config_prof) == size);
 		je_free(ptr);
 		return;
 	}

@@ -685,7 +685,8 @@ AC_SUBST([enable_dss])
 
 dnl Support the junk/zero filling option by default.
 AC_ARG_ENABLE([fill],
-  [AS_HELP_STRING([--disable-fill], [Disable support for junk/zero filling])],
+  [AS_HELP_STRING([--disable-fill],
+                  [Disable support for junk/zero filling, quarantine, and redzones])],
 [if test "x$enable_fill" = "xno" ; then
   enable_fill="0"
 else
@@ -726,6 +727,38 @@ if test "x$enable_utrace" = "x1" ; then
   AC_DEFINE([JEMALLOC_UTRACE], [ ])
 fi
 AC_SUBST([enable_utrace])
+
+dnl Support Valgrind by default.
+AC_ARG_ENABLE([valgrind],
+  [AS_HELP_STRING([--disable-valgrind], [Disable support for Valgrind])],
+[if test "x$enable_valgrind" = "xno" ; then
+  enable_valgrind="0"
+else
+  enable_valgrind="1"
+fi
+],
+[enable_valgrind="1"]
+)
+if test "x$enable_valgrind" = "x1" ; then
+  JE_COMPILABLE([valgrind], [
+#include <valgrind/valgrind.h>
+#include <valgrind/memcheck.h>
+
+#if defined(__VALGRIND_MAJOR__) && defined(__VALGRIND_MINOR__)		\
+    && (__VALGRIND_MAJOR__ > 3 || (__VALGRIND_MAJOR__ == 3 &&		\
+    __VALGRIND_MINOR__ >= 6))
+#else
+#  error "Incompatible Valgrind version"
+#endif
+], [], [je_cv_valgrind])
+  if test "x${je_cv_valgrind}" = "xno" ; then
+    enable_valgrind="0"
+  fi
+  if test "x$enable_valgrind" = "x1" ; then
+    AC_DEFINE([JEMALLOC_VALGRIND], [ ])
+  fi
+fi
+AC_SUBST([enable_valgrind])
 
 dnl Do not support the xmalloc option by default.
 AC_ARG_ENABLE([xmalloc],
@@ -1088,8 +1121,9 @@ AC_MSG_RESULT([prof-libgcc        : ${enable_prof_libgcc}])
 AC_MSG_RESULT([prof-gcc           : ${enable_prof_gcc}])
 AC_MSG_RESULT([tcache             : ${enable_tcache}])
 AC_MSG_RESULT([fill               : ${enable_fill}])
-AC_MSG_RESULT([xmalloc            : ${enable_xmalloc}])
 AC_MSG_RESULT([utrace             : ${enable_utrace}])
+AC_MSG_RESULT([valgrind           : ${enable_valgrind}])
+AC_MSG_RESULT([xmalloc            : ${enable_xmalloc}])
 AC_MSG_RESULT([dss                : ${enable_dss}])
 AC_MSG_RESULT([lazy_lock          : ${enable_lazy_lock}])
 AC_MSG_RESULT([tls                : ${enable_tls}])

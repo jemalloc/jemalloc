@@ -57,6 +57,7 @@ CTL_PROTO(config_stats)
 CTL_PROTO(config_tcache)
 CTL_PROTO(config_tls)
 CTL_PROTO(config_utrace)
+CTL_PROTO(config_valgrind)
 CTL_PROTO(config_xmalloc)
 CTL_PROTO(opt_abort)
 CTL_PROTO(opt_lg_chunk)
@@ -65,7 +66,10 @@ CTL_PROTO(opt_lg_dirty_mult)
 CTL_PROTO(opt_stats_print)
 CTL_PROTO(opt_junk)
 CTL_PROTO(opt_zero)
+CTL_PROTO(opt_quarantine)
+CTL_PROTO(opt_redzone)
 CTL_PROTO(opt_utrace)
+CTL_PROTO(opt_valgrind)
 CTL_PROTO(opt_xmalloc)
 CTL_PROTO(opt_tcache)
 CTL_PROTO(opt_lg_tcache_max)
@@ -179,6 +183,7 @@ static const ctl_node_t	config_node[] = {
 	{NAME("tcache"),		CTL(config_tcache)},
 	{NAME("tls"),			CTL(config_tls)},
 	{NAME("utrace"),		CTL(config_utrace)},
+	{NAME("valgrind"),		CTL(config_valgrind)},
 	{NAME("xmalloc"),		CTL(config_xmalloc)}
 };
 
@@ -190,7 +195,10 @@ static const ctl_node_t opt_node[] = {
 	{NAME("stats_print"),		CTL(opt_stats_print)},
 	{NAME("junk"),			CTL(opt_junk)},
 	{NAME("zero"),			CTL(opt_zero)},
+	{NAME("quarantine"),		CTL(opt_quarantine)},
+	{NAME("redzone"),		CTL(opt_redzone)},
 	{NAME("utrace"),		CTL(opt_utrace)},
+	{NAME("valgrind"),		CTL(opt_valgrind)},
 	{NAME("xmalloc"),		CTL(opt_xmalloc)},
 	{NAME("tcache"),		CTL(opt_tcache)},
 	{NAME("lg_tcache_max"),		CTL(opt_lg_tcache_max)},
@@ -1050,7 +1058,8 @@ thread_arena_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
 		/* Set new arena association. */
 		if (config_tcache) {
 			tcache_t *tcache;
-			if ((tcache = *tcache_tsd_get()) != NULL) {
+			if ((uintptr_t)(tcache = *tcache_tsd_get()) >
+			    (uintptr_t)TCACHE_STATE_MAX) {
 				tcache_arena_dissociate(tcache);
 				tcache_arena_associate(tcache, arena);
 			}
@@ -1085,6 +1094,7 @@ CTL_RO_BOOL_CONFIG_GEN(config_stats)
 CTL_RO_BOOL_CONFIG_GEN(config_tcache)
 CTL_RO_BOOL_CONFIG_GEN(config_tls)
 CTL_RO_BOOL_CONFIG_GEN(config_utrace)
+CTL_RO_BOOL_CONFIG_GEN(config_valgrind)
 CTL_RO_BOOL_CONFIG_GEN(config_xmalloc)
 
 /******************************************************************************/
@@ -1096,7 +1106,10 @@ CTL_RO_NL_GEN(opt_lg_dirty_mult, opt_lg_dirty_mult, ssize_t)
 CTL_RO_NL_GEN(opt_stats_print, opt_stats_print, bool)
 CTL_RO_NL_CGEN(config_fill, opt_junk, opt_junk, bool)
 CTL_RO_NL_CGEN(config_fill, opt_zero, opt_zero, bool)
+CTL_RO_NL_CGEN(config_fill, opt_quarantine, opt_quarantine, size_t)
+CTL_RO_NL_CGEN(config_fill, opt_redzone, opt_redzone, bool)
 CTL_RO_NL_CGEN(config_utrace, opt_utrace, opt_utrace, bool)
+CTL_RO_NL_CGEN(config_valgrind, opt_valgrind, opt_valgrind, bool)
 CTL_RO_NL_CGEN(config_xmalloc, opt_xmalloc, opt_xmalloc, bool)
 CTL_RO_NL_CGEN(config_tcache, opt_tcache, opt_tcache, bool)
 CTL_RO_NL_CGEN(config_tcache, opt_lg_tcache_max, opt_lg_tcache_max, ssize_t)

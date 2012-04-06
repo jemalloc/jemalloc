@@ -140,7 +140,6 @@ malloc_write(const char *s)
 
 	je_malloc_message(NULL, s);
 }
-
 #endif
 
 #endif /* JEMALLOC_H_INLINES */
