@@ -27,19 +27,20 @@ size_t		arena_maxclass; /* Max size class for arenas. */
  * advantage of them if they are returned.
  */
 void *
-chunk_alloc(size_t size, bool base, bool *zero)
+chunk_alloc(size_t size, size_t alignment, bool base, bool *zero)
 {
 	void *ret;
 
 	assert(size != 0);
 	assert((size & chunksize_mask) == 0);
+	assert((alignment & chunksize_mask) == 0);
 
 	if (config_dss) {
-		ret = chunk_alloc_dss(size, zero);
+		ret = chunk_alloc_dss(size, alignment, zero);
 		if (ret != NULL)
 			goto RETURN;
 	}
-	ret = chunk_alloc_mmap(size);
+	ret = chunk_alloc_mmap(size, alignment);
 	if (ret != NULL) {
 		*zero = true;
 		goto RETURN;

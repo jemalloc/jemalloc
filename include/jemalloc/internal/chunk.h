@@ -42,7 +42,7 @@ extern size_t		chunk_npages;
 extern size_t		map_bias; /* Number of arena chunk header pages. */
 extern size_t		arena_maxclass; /* Max size class for arenas. */
 
-void	*chunk_alloc(size_t size, bool base, bool *zero);
+void	*chunk_alloc(size_t size, size_t alignment, bool base, bool *zero);
 void	chunk_dealloc(void *chunk, size_t size, bool unmap);
 bool	chunk_boot0(void);
 bool	chunk_boot1(void);

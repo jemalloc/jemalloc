@@ -18,6 +18,13 @@ static extent_tree_t	huge;
 void *
 huge_malloc(size_t size, bool zero)
 {
+
+	return (huge_palloc(size, chunksize, zero));
+}
+
+void *
+huge_palloc(size_t size, size_t alignment, bool zero)
+{
 	void *ret;
 	size_t csize;
 	extent_node_t *node;
@@ -35,7 +42,7 @@ huge_malloc(size_t size, bool zero)
 	if (node == NULL)
 		return (NULL);
 
-	ret = chunk_alloc(csize, false, &zero);
+	ret = chunk_alloc(csize, alignment, false, &zero);
 	if (ret == NULL) {
 		base_node_dealloc(node);
 		return (NULL);
@@ -59,89 +66,6 @@ huge_malloc(size_t size, bool zero)
 			memset(ret, 0xa5, csize);
 		else if (opt_zero)
 			memset(ret, 0, csize);
-	}
-
-	return (ret);
-}
-
-/* Only handles large allocations that require more than chunk alignment. */
-void *
-huge_palloc(size_t size, size_t alignment, bool zero)
-{
-	void *ret;
-	size_t alloc_size, chunk_size, offset;
-	extent_node_t *node;
-
-	/*
-	 * This allocation requires alignment that is even larger than chunk
-	 * alignment.  This means that huge_malloc() isn't good enough.
-	 *
-	 * Allocate almost twice as many chunks as are demanded by the size or
-	 * alignment, in order to assure the alignment can be achieved, then
-	 * unmap leading and trailing chunks.
-	 */
-	assert(alignment > chunksize);
-
-	chunk_size = CHUNK_CEILING(size);
-
-	if (size >= alignment)
-		alloc_size = chunk_size + alignment - chunksize;
-	else
-		alloc_size = (alignment << 1) - chunksize;
-
-	/* Allocate an extent node with which to track the chunk. */
-	node = base_node_alloc();
-	if (node == NULL)
-		return (NULL);
-
-	ret = chunk_alloc(alloc_size, false, &zero);
-	if (ret == NULL) {
-		base_node_dealloc(node);
-		return (NULL);
-	}
-
-	offset = (uintptr_t)ret & (alignment - 1);
-	assert((offset & chunksize_mask) == 0);
-	assert(offset < alloc_size);
-	if (offset == 0) {
-		/* Trim trailing space. */
-		chunk_dealloc((void *)((uintptr_t)ret + chunk_size), alloc_size
-		    - chunk_size, true);
-	} else {
-		size_t trailsize;
-
-		/* Trim leading space. */
-		chunk_dealloc(ret, alignment - offset, true);
-
-		ret = (void *)((uintptr_t)ret + (alignment - offset));
-
-		trailsize = alloc_size - (alignment - offset) - chunk_size;
-		if (trailsize != 0) {
-		    /* Trim trailing space. */
-		    assert(trailsize < alloc_size);
-		    chunk_dealloc((void *)((uintptr_t)ret + chunk_size),
-			trailsize, true);
-		}
-	}
-
-	/* Insert node into huge. */
-	node->addr = ret;
-	node->size = chunk_size;
-
-	malloc_mutex_lock(&huge_mtx);
-	extent_tree_ad_insert(&huge, node);
-	if (config_stats) {
-		stats_cactive_add(chunk_size);
-		huge_nmalloc++;
-		huge_allocated += chunk_size;
-	}
-	malloc_mutex_unlock(&huge_mtx);
-
-	if (config_fill && zero == false) {
-		if (opt_junk)
-			memset(ret, 0xa5, chunk_size);
-		else if (opt_zero)
-			memset(ret, 0, chunk_size);
 	}
 
 	return (ret);

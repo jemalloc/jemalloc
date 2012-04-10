@@ -28,41 +28,50 @@ static extent_tree_t	dss_chunks_ad;
 /******************************************************************************/
 /* Function prototypes for non-inline static functions. */
 
-static void	*chunk_recycle_dss(size_t size, bool *zero);
+static void	*chunk_recycle_dss(size_t size, size_t alignment, bool *zero);
 static extent_node_t *chunk_dealloc_dss_record(void *chunk, size_t size);
 
 /******************************************************************************/
 
 static void *
-chunk_recycle_dss(size_t size, bool *zero)
+chunk_recycle_dss(size_t size, size_t alignment, bool *zero)
 {
 	extent_node_t *node, key;
 
 	cassert(config_dss);
 
 	key.addr = NULL;
-	key.size = size;
+	key.size = size + alignment - chunksize;
 	malloc_mutex_lock(&dss_mtx);
 	node = extent_tree_szad_nsearch(&dss_chunks_szad, &key);
 	if (node != NULL) {
-		void *ret = node->addr;
+		size_t offset = (size_t)((uintptr_t)(node->addr) & (alignment -
+		    1));
+		void *ret;
+		if (offset > 0)
+			offset = alignment - offset;
+		ret = (void *)((uintptr_t)(node->addr) + offset);
 
 		/* Remove node from the tree. */
 		extent_tree_szad_remove(&dss_chunks_szad, node);
-		if (node->size == size) {
-			extent_tree_ad_remove(&dss_chunks_ad, node);
-			base_node_dealloc(node);
-		} else {
-			/*
-			 * Insert the remainder of node's address range as a
-			 * smaller chunk.  Its position within dss_chunks_ad
-			 * does not change.
-			 */
-			assert(node->size > size);
-			node->addr = (void *)((uintptr_t)node->addr + size);
-			node->size -= size;
+		extent_tree_ad_remove(&dss_chunks_ad, node);
+		if (offset > 0) {
+			/* Insert the leading space as a smaller chunk. */
+			node->size = offset;
 			extent_tree_szad_insert(&dss_chunks_szad, node);
+			extent_tree_ad_insert(&dss_chunks_ad, node);
 		}
+		if (alignment - chunksize > offset) {
+			if (offset > 0)
+				node = base_node_alloc();
+			/* Insert the trailing space as a smaller chunk. */
+			node->addr = (void *)((uintptr_t)(ret) + size);
+			node->size = alignment - chunksize - offset;
+			extent_tree_szad_insert(&dss_chunks_szad, node);
+			extent_tree_ad_insert(&dss_chunks_ad, node);
+		} else if (offset == 0)
+			base_node_dealloc(node);
+
 		malloc_mutex_unlock(&dss_mtx);
 
 		if (*zero)
@@ -75,13 +84,15 @@ chunk_recycle_dss(size_t size, bool *zero)
 }
 
 void *
-chunk_alloc_dss(size_t size, bool *zero)
+chunk_alloc_dss(size_t size, size_t alignment, bool *zero)
 {
 	void *ret;
 
 	cassert(config_dss);
+	assert(size > 0 && (size & chunksize_mask) == 0);
+	assert(alignment > 0 && (alignment & chunksize_mask) == 0);
 
-	ret = chunk_recycle_dss(size, zero);
+	ret = chunk_recycle_dss(size, alignment, zero);
 	if (ret != NULL)
 		return (ret);
 
@@ -94,6 +105,8 @@ chunk_alloc_dss(size_t size, bool *zero)
 
 	malloc_mutex_lock(&dss_mtx);
 	if (dss_prev != (void *)-1) {
+		size_t gap_size, cpad_size;
+		void *cpad, *dss_next;
 		intptr_t incr;
 
 		/*
@@ -104,25 +117,36 @@ chunk_alloc_dss(size_t size, bool *zero)
 		do {
 			/* Get the current end of the DSS. */
 			dss_max = sbrk(0);
-
 			/*
 			 * Calculate how much padding is necessary to
 			 * chunk-align the end of the DSS.
 			 */
-			incr = (intptr_t)size
-			    - (intptr_t)CHUNK_ADDR2OFFSET(dss_max);
-			if (incr == (intptr_t)size)
-				ret = dss_max;
-			else {
-				ret = (void *)((intptr_t)dss_max + incr);
-				incr += size;
+			gap_size = (chunksize - CHUNK_ADDR2OFFSET(dss_max)) &
+			    chunksize_mask;
+			/*
+			 * Compute how much chunk-aligned pad space (if any) is
+			 * necessary to satisfy alignment.  This space can be
+			 * recycled for later use.
+			 */
+			cpad = (void *)((uintptr_t)dss_max + gap_size);
+			ret = (void *)(((uintptr_t)dss_max + (alignment - 1)) &
+			    ~(alignment - 1));
+			cpad_size = (uintptr_t)ret - (uintptr_t)cpad;
+			dss_next = (void *)((uintptr_t)ret + size);
+			if ((uintptr_t)ret < (uintptr_t)dss_max ||
+			    (uintptr_t)dss_next < (uintptr_t)dss_max) {
+				/* Wrap-around. */
+				malloc_mutex_unlock(&dss_mtx);
+				return (NULL);
 			}
-
+			incr = gap_size + cpad_size + size;
 			dss_prev = sbrk(incr);
 			if (dss_prev == dss_max) {
 				/* Success. */
-				dss_max = (void *)((intptr_t)dss_prev + incr);
+				dss_max = dss_next;
 				malloc_mutex_unlock(&dss_mtx);
+				if (cpad_size != 0)
+					chunk_dealloc_dss(cpad, cpad_size);
 				*zero = true;
 				return (ret);
 			}

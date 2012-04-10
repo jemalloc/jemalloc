@@ -357,7 +357,8 @@ arena_chunk_alloc(arena_t *arena)
 
 		zero = false;
 		malloc_mutex_unlock(&arena->lock);
-		chunk = (arena_chunk_t *)chunk_alloc(chunksize, false, &zero);
+		chunk = (arena_chunk_t *)chunk_alloc(chunksize, chunksize,
+		    false, &zero);
 		malloc_mutex_lock(&arena->lock);
 		if (chunk == NULL)
 			return (NULL);
