@@ -22,7 +22,7 @@ main(void)
 		fprintf(stderr, "%s(): Error in mallctl(): %s\n", __func__,
 		    strerror(err));
 		ret = 1;
-		goto RETURN;
+		goto label_return;
 	}
 	chunksize = ((size_t)1U) << lg_chunk;
 
@@ -30,7 +30,7 @@ main(void)
 	if (p == NULL) {
 		fprintf(stderr, "malloc(%zu) --> %p\n", chunksize, p);
 		ret = 1;
-		goto RETURN;
+		goto label_return;
 	}
 	memset(p, 'a', chunksize);
 
@@ -39,7 +39,7 @@ main(void)
 		fprintf(stderr, "realloc(%p, %zu) --> %p\n", p, chunksize * 2,
 		    q);
 		ret = 1;
-		goto RETURN;
+		goto label_return;
 	}
 	for (i = 0; i < chunksize; i++) {
 		assert(q[i] == 'a');
@@ -51,7 +51,7 @@ main(void)
 	if (q == NULL) {
 		fprintf(stderr, "realloc(%p, %zu) --> %p\n", p, chunksize, q);
 		ret = 1;
-		goto RETURN;
+		goto label_return;
 	}
 	for (i = 0; i < chunksize; i++) {
 		assert(q[i] == 'a');
@@ -60,7 +60,7 @@ main(void)
 	free(q);
 
 	ret = 0;
-RETURN:
+label_return:
 	fprintf(stderr, "Test end\n");
 	return (ret);
 }

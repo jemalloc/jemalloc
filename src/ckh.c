@@ -267,12 +267,12 @@ ckh_grow(ckh_t *ckh)
 		usize = sa2u(sizeof(ckhc_t) << lg_curcells, CACHELINE, NULL);
 		if (usize == 0) {
 			ret = true;
-			goto RETURN;
+			goto label_return;
 		}
 		tab = (ckhc_t *)ipalloc(usize, CACHELINE, true);
 		if (tab == NULL) {
 			ret = true;
-			goto RETURN;
+			goto label_return;
 		}
 		/* Swap in new table. */
 		ttab = ckh->tab;
@@ -292,7 +292,7 @@ ckh_grow(ckh_t *ckh)
 	}
 
 	ret = false;
-RETURN:
+label_return:
 	return (ret);
 }
 
@@ -385,16 +385,16 @@ ckh_new(ckh_t *ckh, size_t minitems, ckh_hash_t *hash, ckh_keycomp_t *keycomp)
 	usize = sa2u(sizeof(ckhc_t) << lg_mincells, CACHELINE, NULL);
 	if (usize == 0) {
 		ret = true;
-		goto RETURN;
+		goto label_return;
 	}
 	ckh->tab = (ckhc_t *)ipalloc(usize, CACHELINE, true);
 	if (ckh->tab == NULL) {
 		ret = true;
-		goto RETURN;
+		goto label_return;
 	}
 
 	ret = false;
-RETURN:
+label_return:
 	return (ret);
 }
 
@@ -466,12 +466,12 @@ ckh_insert(ckh_t *ckh, const void *key, const void *data)
 	while (ckh_try_insert(ckh, &key, &data)) {
 		if (ckh_grow(ckh)) {
 			ret = true;
-			goto RETURN;
+			goto label_return;
 		}
 	}
 
 	ret = false;
-RETURN:
+label_return:
 	return (ret);
 }
 

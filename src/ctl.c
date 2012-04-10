@@ -546,7 +546,7 @@ ctl_init(void)
 		    (narenas + 1) * sizeof(ctl_arena_stats_t));
 		if (ctl_stats.arenas == NULL) {
 			ret = true;
-			goto RETURN;
+			goto label_return;
 		}
 		memset(ctl_stats.arenas, 0, (narenas + 1) *
 		    sizeof(ctl_arena_stats_t));
@@ -561,7 +561,7 @@ ctl_init(void)
 			for (i = 0; i <= narenas; i++) {
 				if (ctl_arena_init(&ctl_stats.arenas[i])) {
 					ret = true;
-					goto RETURN;
+					goto label_return;
 				}
 			}
 		}
@@ -573,7 +573,7 @@ ctl_init(void)
 	}
 
 	ret = false;
-RETURN:
+label_return:
 	malloc_mutex_unlock(&ctl_mtx);
 	return (ret);
 }
@@ -593,7 +593,7 @@ ctl_lookup(const char *name, ctl_node_t const **nodesp, size_t *mibp,
 	elen = (size_t)((uintptr_t)dot - (uintptr_t)elm);
 	if (elen == 0) {
 		ret = ENOENT;
-		goto RETURN;
+		goto label_return;
 	}
 	node = super_root_node;
 	for (i = 0; i < *depthp; i++) {
@@ -618,7 +618,7 @@ ctl_lookup(const char *name, ctl_node_t const **nodesp, size_t *mibp,
 			}
 			if (node == pnode) {
 				ret = ENOENT;
-				goto RETURN;
+				goto label_return;
 			}
 		} else {
 			uintmax_t index;
@@ -628,7 +628,7 @@ ctl_lookup(const char *name, ctl_node_t const **nodesp, size_t *mibp,
 			index = malloc_strtoumax(elm, NULL, 10);
 			if (index == UINTMAX_MAX || index > SIZE_T_MAX) {
 				ret = ENOENT;
-				goto RETURN;
+				goto label_return;
 			}
 
 			inode = &node->u.named.children[0];
@@ -636,7 +636,7 @@ ctl_lookup(const char *name, ctl_node_t const **nodesp, size_t *mibp,
 			    (size_t)index);
 			if (node == NULL) {
 				ret = ENOENT;
-				goto RETURN;
+				goto label_return;
 			}
 
 			if (nodesp != NULL)
@@ -652,7 +652,7 @@ ctl_lookup(const char *name, ctl_node_t const **nodesp, size_t *mibp,
 				 * in this path through the tree.
 				 */
 				ret = ENOENT;
-				goto RETURN;
+				goto label_return;
 			}
 			/* Complete lookup successful. */
 			*depthp = i + 1;
@@ -663,7 +663,7 @@ ctl_lookup(const char *name, ctl_node_t const **nodesp, size_t *mibp,
 		if (*dot == '\0') {
 			/* No more elements. */
 			ret = ENOENT;
-			goto RETURN;
+			goto label_return;
 		}
 		elm = &dot[1];
 		dot = ((tdot = strchr(elm, '.')) != NULL) ? tdot :
@@ -672,7 +672,7 @@ ctl_lookup(const char *name, ctl_node_t const **nodesp, size_t *mibp,
 	}
 
 	ret = 0;
-RETURN:
+label_return:
 	return (ret);
 }
 
@@ -687,22 +687,22 @@ ctl_byname(const char *name, void *oldp, size_t *oldlenp, void *newp,
 
 	if (ctl_initialized == false && ctl_init()) {
 		ret = EAGAIN;
-		goto RETURN;
+		goto label_return;
 	}
 
 	depth = CTL_MAX_DEPTH;
 	ret = ctl_lookup(name, nodes, mib, &depth);
 	if (ret != 0)
-		goto RETURN;
+		goto label_return;
 
 	if (nodes[depth-1]->ctl == NULL) {
 		/* The name refers to a partial path through the ctl tree. */
 		ret = ENOENT;
-		goto RETURN;
+		goto label_return;
 	}
 
 	ret = nodes[depth-1]->ctl(mib, depth, oldp, oldlenp, newp, newlen);
-RETURN:
+label_return:
 	return(ret);
 }
 
@@ -713,11 +713,11 @@ ctl_nametomib(const char *name, size_t *mibp, size_t *miblenp)
 
 	if (ctl_initialized == false && ctl_init()) {
 		ret = EAGAIN;
-		goto RETURN;
+		goto label_return;
 	}
 
 	ret = ctl_lookup(name, NULL, mibp, miblenp);
-RETURN:
+label_return:
 	return(ret);
 }
 
@@ -731,7 +731,7 @@ ctl_bymib(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
 
 	if (ctl_initialized == false && ctl_init()) {
 		ret = EAGAIN;
-		goto RETURN;
+		goto label_return;
 	}
 
 	/* Iterate down the tree. */
@@ -741,7 +741,7 @@ ctl_bymib(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
 			/* Children are named. */
 			if (node->u.named.nchildren <= mib[i]) {
 				ret = ENOENT;
-				goto RETURN;
+				goto label_return;
 			}
 			node = &node->u.named.children[mib[i]];
 		} else {
@@ -752,7 +752,7 @@ ctl_bymib(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
 			node = inode->u.indexed.index(mib, miblen, mib[i]);
 			if (node == NULL) {
 				ret = ENOENT;
-				goto RETURN;
+				goto label_return;
 			}
 		}
 	}
@@ -761,11 +761,11 @@ ctl_bymib(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
 	if (node->ctl == NULL) {
 		/* Partial MIB. */
 		ret = ENOENT;
-		goto RETURN;
+		goto label_return;
 	}
 	ret = node->ctl(mib, miblen, oldp, oldlenp, newp, newlen);
 
-RETURN:
+label_return:
 	return(ret);
 }
 
@@ -787,14 +787,14 @@ ctl_boot(void)
 #define	READONLY()	do {						\
 	if (newp != NULL || newlen != 0) {				\
 		ret = EPERM;						\
-		goto RETURN;						\
+		goto label_return;						\
 	}								\
 } while (0)
 
 #define	WRITEONLY()	do {						\
 	if (oldp != NULL || oldlenp != NULL) {				\
 		ret = EPERM;						\
-		goto RETURN;						\
+		goto label_return;						\
 	}								\
 } while (0)
 
@@ -810,7 +810,7 @@ ctl_boot(void)
 			    ? sizeof(t) : *oldlenp;			\
 			memcpy(oldp, (void *)&v, copylen);		\
 			ret = EINVAL;					\
-			goto RETURN;					\
+			goto label_return;					\
 		} else							\
 			*(t *)oldp = v;					\
 	}								\
@@ -820,7 +820,7 @@ ctl_boot(void)
 	if (newp != NULL) {						\
 		if (newlen != sizeof(t)) {				\
 			ret = EINVAL;					\
-			goto RETURN;					\
+			goto label_return;					\
 		}							\
 		v = *(t *)newp;						\
 	}								\
@@ -847,7 +847,7 @@ n##_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,	\
 	READ(oldval, t);						\
 									\
 	ret = 0;							\
-RETURN:									\
+label_return:									\
 	if (l)								\
 		malloc_mutex_unlock(&ctl_mtx);				\
 	return (ret);							\
@@ -869,7 +869,7 @@ n##_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,	\
 	READ(oldval, t);						\
 									\
 	ret = 0;							\
-RETURN:									\
+label_return:									\
 	malloc_mutex_unlock(&ctl_mtx);					\
 	return (ret);							\
 }
@@ -888,7 +888,7 @@ n##_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,	\
 	READ(oldval, t);						\
 									\
 	ret = 0;							\
-RETURN:									\
+label_return:									\
 	malloc_mutex_unlock(&ctl_mtx);					\
 	return (ret);							\
 }
@@ -912,7 +912,7 @@ n##_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,	\
 	READ(oldval, t);						\
 									\
 	ret = 0;							\
-RETURN:									\
+label_return:									\
 	return (ret);							\
 }
 
@@ -929,7 +929,7 @@ n##_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,	\
 	READ(oldval, t);						\
 									\
 	ret = 0;							\
-RETURN:									\
+label_return:									\
 	return (ret);							\
 }
 
@@ -946,7 +946,7 @@ n##_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,	\
 	READ(oldval, bool);						\
 									\
 	ret = 0;							\
-RETURN:									\
+label_return:									\
 	return (ret);							\
 }
 
@@ -967,7 +967,7 @@ epoch_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
 	READ(ctl_epoch, uint64_t);
 
 	ret = 0;
-RETURN:
+label_return:
 	malloc_mutex_unlock(&ctl_mtx);
 	return (ret);
 }
@@ -986,13 +986,13 @@ thread_tcache_enabled_ctl(const size_t *mib, size_t miblen, void *oldp,
 	if (newp != NULL) {
 		if (newlen != sizeof(bool)) {
 			ret = EINVAL;
-			goto RETURN;
+			goto label_return;
 		}
 		tcache_enabled_set(*(bool *)newp);
 	}
 	READ(oldval, bool);
 
-RETURN:
+label_return:
 	ret = 0;
 	return (ret);
 }
@@ -1011,7 +1011,7 @@ thread_tcache_flush_ctl(const size_t *mib, size_t miblen, void *oldp,
 	tcache_flush();
 
 	ret = 0;
-RETURN:
+label_return:
 	return (ret);
 }
 
@@ -1031,7 +1031,7 @@ thread_arena_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
 		if (newind >= narenas) {
 			/* New arena index is out of range. */
 			ret = EFAULT;
-			goto RETURN;
+			goto label_return;
 		}
 
 		/* Initialize arena if necessary. */
@@ -1040,7 +1040,7 @@ thread_arena_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
 		    arenas_extend(newind)) == NULL) {
 			malloc_mutex_unlock(&arenas_lock);
 			ret = EAGAIN;
-			goto RETURN;
+			goto label_return;
 		}
 		assert(arena == arenas[newind]);
 		arenas[oldind]->nthreads--;
@@ -1059,7 +1059,7 @@ thread_arena_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
 	}
 
 	ret = 0;
-RETURN:
+label_return:
 	return (ret);
 }
 
@@ -1156,7 +1156,7 @@ arenas_initialized_ctl(const size_t *mib, size_t miblen, void *oldp,
 	for (i = 0; i < nread; i++)
 		((bool *)oldp)[i] = ctl_stats.arenas[i].initialized;
 
-RETURN:
+label_return:
 	malloc_mutex_unlock(&ctl_mtx);
 	return (ret);
 }
@@ -1180,7 +1180,7 @@ arenas_purge_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
 	WRITE(arena, unsigned);
 	if (newp != NULL && arena >= narenas) {
 		ret = EFAULT;
-		goto RETURN;
+		goto label_return;
 	} else {
 		arena_t *tarenas[narenas];
 
@@ -1202,7 +1202,7 @@ arenas_purge_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
 	}
 
 	ret = 0;
-RETURN:
+label_return:
 	return (ret);
 }
 
@@ -1232,7 +1232,7 @@ prof_active_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
 	READ(oldval, bool);
 
 	ret = 0;
-RETURN:
+label_return:
 	malloc_mutex_unlock(&ctl_mtx);
 	return (ret);
 }
@@ -1252,11 +1252,11 @@ prof_dump_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
 
 	if (prof_mdump(filename)) {
 		ret = EFAULT;
-		goto RETURN;
+		goto label_return;
 	}
 
 	ret = 0;
-RETURN:
+label_return:
 	return (ret);
 }
 
@@ -1354,11 +1354,11 @@ stats_arenas_i_index(const size_t *mib, size_t miblen, size_t i)
 	malloc_mutex_lock(&ctl_mtx);
 	if (ctl_stats.arenas[i].initialized == false) {
 		ret = NULL;
-		goto RETURN;
+		goto label_return;
 	}
 
 	ret = super_stats_arenas_i_node;
-RETURN:
+label_return:
 	malloc_mutex_unlock(&ctl_mtx);
 	return (ret);
 }

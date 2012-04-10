@@ -25,7 +25,7 @@ thread_start(void *arg)
 #ifdef JEMALLOC_STATS
 			assert(false);
 #endif
-			goto RETURN;
+			goto label_return;
 		}
 		fprintf(stderr, "%s(): Error in mallctl(): %s\n", __func__,
 		    strerror(err));
@@ -37,7 +37,7 @@ thread_start(void *arg)
 #ifdef JEMALLOC_STATS
 			assert(false);
 #endif
-			goto RETURN;
+			goto label_return;
 		}
 		fprintf(stderr, "%s(): Error in mallctl(): %s\n", __func__,
 		    strerror(err));
@@ -51,7 +51,7 @@ thread_start(void *arg)
 #ifdef JEMALLOC_STATS
 			assert(false);
 #endif
-			goto RETURN;
+			goto label_return;
 		}
 		fprintf(stderr, "%s(): Error in mallctl(): %s\n", __func__,
 		    strerror(err));
@@ -63,7 +63,7 @@ thread_start(void *arg)
 #ifdef JEMALLOC_STATS
 			assert(false);
 #endif
-			goto RETURN;
+			goto label_return;
 		}
 		fprintf(stderr, "%s(): Error in mallctl(): %s\n", __func__,
 		    strerror(err));
@@ -98,7 +98,7 @@ thread_start(void *arg)
 
 	assert(d0 + usize <= d1);
 
-RETURN:
+label_return:
 	return (NULL);
 }
 
@@ -116,7 +116,7 @@ main(void)
 	    != 0) {
 		fprintf(stderr, "%s(): Error in pthread_create()\n", __func__);
 		ret = 1;
-		goto RETURN;
+		goto label_return;
 	}
 	pthread_join(thread, (void *)&ret);
 
@@ -126,13 +126,13 @@ main(void)
 	    != 0) {
 		fprintf(stderr, "%s(): Error in pthread_create()\n", __func__);
 		ret = 1;
-		goto RETURN;
+		goto label_return;
 	}
 	pthread_join(thread, (void *)&ret);
 
 	thread_start(NULL);
 
-RETURN:
+label_return:
 	fprintf(stderr, "Test end\n");
 	return (ret);
 }

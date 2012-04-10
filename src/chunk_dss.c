@@ -293,11 +293,11 @@ chunk_dealloc_dss(void *chunk, size_t size)
 			madvise(chunk, size, MADV_DONTNEED);
 
 		ret = false;
-		goto RETURN;
+		goto label_return;
 	}
 
 	ret = true;
-RETURN:
+label_return:
 	malloc_mutex_unlock(&dss_mtx);
 	return (ret);
 }

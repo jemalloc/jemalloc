@@ -61,7 +61,7 @@ main(void)
 	if (p == NULL) {
 		fprintf(stderr, "%s(): Error in malloc()\n", __func__);
 		ret = 1;
-		goto RETURN;
+		goto label_return;
 	}
 
 	size = sizeof(arena_ind);
@@ -69,7 +69,7 @@ main(void)
 		fprintf(stderr, "%s(): Error in mallctl(): %s\n", __func__,
 		    strerror(err));
 		ret = 1;
-		goto RETURN;
+		goto label_return;
 	}
 
 	for (i = 0; i < NTHREADS; i++) {
@@ -78,14 +78,14 @@ main(void)
 			fprintf(stderr, "%s(): Error in pthread_create()\n",
 			    __func__);
 			ret = 1;
-			goto RETURN;
+			goto label_return;
 		}
 	}
 
 	for (i = 0; i < NTHREADS; i++)
 		pthread_join(threads[i], (void *)&ret);
 
-RETURN:
+label_return:
 	fprintf(stderr, "Test end\n");
 	return (ret);
 }

@@ -742,7 +742,7 @@ je_malloc(size_t size)
 
 	if (malloc_init()) {
 		ret = NULL;
-		goto OOM;
+		goto label_oom;
 	}
 
 	if (size == 0)
@@ -753,7 +753,7 @@ je_malloc(size_t size)
 		PROF_ALLOC_PREP(1, usize, cnt);
 		if (cnt == NULL) {
 			ret = NULL;
-			goto OOM;
+			goto label_oom;
 		}
 		if (prof_promote && (uintptr_t)cnt != (uintptr_t)1U && usize <=
 		    SMALL_MAXCLASS) {
@@ -768,7 +768,7 @@ je_malloc(size_t size)
 		ret = imalloc(size);
 	}
 
-OOM:
+label_oom:
 	if (ret == NULL) {
 		if (config_xmalloc && opt_xmalloc) {
 			malloc_write("<jemalloc>: Error in malloc(): "
@@ -822,14 +822,14 @@ imemalign(void **memptr, size_t alignment, size_t size,
 			}
 			result = NULL;
 			ret = EINVAL;
-			goto RETURN;
+			goto label_return;
 		}
 
 		usize = sa2u(size, alignment, NULL);
 		if (usize == 0) {
 			result = NULL;
 			ret = ENOMEM;
-			goto RETURN;
+			goto label_return;
 		}
 
 		if (config_prof && opt_prof) {
@@ -864,13 +864,13 @@ imemalign(void **memptr, size_t alignment, size_t size,
 			abort();
 		}
 		ret = ENOMEM;
-		goto RETURN;
+		goto label_return;
 	}
 
 	*memptr = result;
 	ret = 0;
 
-RETURN:
+label_return:
 	if (config_stats && result != NULL) {
 		assert(usize == isalloc(result));
 		thread_allocated_tsd_get()->allocated += usize;
@@ -918,7 +918,7 @@ je_calloc(size_t num, size_t size)
 	if (malloc_init()) {
 		num_size = 0;
 		ret = NULL;
-		goto RETURN;
+		goto label_return;
 	}
 
 	num_size = num * size;
@@ -927,7 +927,7 @@ je_calloc(size_t num, size_t size)
 			num_size = 1;
 		else {
 			ret = NULL;
-			goto RETURN;
+			goto label_return;
 		}
 	/*
 	 * Try to avoid division here.  We know that it isn't possible to
@@ -938,7 +938,7 @@ je_calloc(size_t num, size_t size)
 	    && (num_size / size != num)) {
 		/* size_t overflow. */
 		ret = NULL;
-		goto RETURN;
+		goto label_return;
 	}
 
 	if (config_prof && opt_prof) {
@@ -946,7 +946,7 @@ je_calloc(size_t num, size_t size)
 		PROF_ALLOC_PREP(1, usize, cnt);
 		if (cnt == NULL) {
 			ret = NULL;
-			goto RETURN;
+			goto label_return;
 		}
 		if (prof_promote && (uintptr_t)cnt != (uintptr_t)1U && usize
 		    <= SMALL_MAXCLASS) {
@@ -961,7 +961,7 @@ je_calloc(size_t num, size_t size)
 		ret = icalloc(num_size);
 	}
 
-RETURN:
+label_return:
 	if (ret == NULL) {
 		if (config_xmalloc && opt_xmalloc) {
 			malloc_write("<jemalloc>: Error in calloc(): out of "
@@ -1002,7 +1002,7 @@ je_realloc(void *ptr, size_t size)
 			}
 			idalloc(ptr);
 			ret = NULL;
-			goto RETURN;
+			goto label_return;
 		} else
 			size = 1;
 	}
@@ -1019,7 +1019,7 @@ je_realloc(void *ptr, size_t size)
 			if (cnt == NULL) {
 				old_ctx = NULL;
 				ret = NULL;
-				goto OOM;
+				goto label_oom;
 			}
 			if (prof_promote && (uintptr_t)cnt != (uintptr_t)1U &&
 			    usize <= SMALL_MAXCLASS) {
@@ -1040,7 +1040,7 @@ je_realloc(void *ptr, size_t size)
 			ret = iralloc(ptr, size, 0, 0, false, false);
 		}
 
-OOM:
+label_oom:
 		if (ret == NULL) {
 			if (config_xmalloc && opt_xmalloc) {
 				malloc_write("<jemalloc>: Error in realloc(): "
@@ -1092,7 +1092,7 @@ OOM:
 		}
 	}
 
-RETURN:
+label_return:
 	if (config_prof && opt_prof)
 		prof_realloc(ret, usize, cnt, old_size, old_ctx);
 	if (config_stats && ret != NULL) {
@@ -1300,16 +1300,16 @@ je_allocm(void **ptr, size_t *rsize, size_t size, int flags)
 	assert(size != 0);
 
 	if (malloc_init())
-		goto OOM;
+		goto label_oom;
 
 	usize = (alignment == 0) ? s2u(size) : sa2u(size, alignment, NULL);
 	if (usize == 0)
-		goto OOM;
+		goto label_oom;
 
 	if (config_prof && opt_prof) {
 		PROF_ALLOC_PREP(1, usize, cnt);
 		if (cnt == NULL)
-			goto OOM;
+			goto label_oom;
 		if (prof_promote && (uintptr_t)cnt != (uintptr_t)1U && usize <=
 		    SMALL_MAXCLASS) {
 			size_t usize_promoted = (alignment == 0) ?
@@ -1318,18 +1318,18 @@ je_allocm(void **ptr, size_t *rsize, size_t size, int flags)
 			assert(usize_promoted != 0);
 			p = iallocm(usize_promoted, alignment, zero);
 			if (p == NULL)
-				goto OOM;
+				goto label_oom;
 			arena_prof_promoted(p, usize);
 		} else {
 			p = iallocm(usize, alignment, zero);
 			if (p == NULL)
-				goto OOM;
+				goto label_oom;
 		}
 		prof_malloc(p, usize, cnt);
 	} else {
 		p = iallocm(usize, alignment, zero);
 		if (p == NULL)
-			goto OOM;
+			goto label_oom;
 	}
 	if (rsize != NULL)
 		*rsize = usize;
@@ -1341,7 +1341,7 @@ je_allocm(void **ptr, size_t *rsize, size_t size, int flags)
 	}
 	UTRACE(0, size, p);
 	return (ALLOCM_SUCCESS);
-OOM:
+label_oom:
 	if (config_xmalloc && opt_xmalloc) {
 		malloc_write("<jemalloc>: Error in allocm(): "
 		    "out of memory\n");
@@ -1387,7 +1387,7 @@ je_rallocm(void **ptr, size_t *rsize, size_t size, size_t extra, int flags)
 		old_size = isalloc(p);
 		PROF_ALLOC_PREP(1, max_usize, cnt);
 		if (cnt == NULL)
-			goto OOM;
+			goto label_oom;
 		/*
 		 * Use minimum usize to determine whether promotion may happen.
 		 */
@@ -1398,7 +1398,7 @@ je_rallocm(void **ptr, size_t *rsize, size_t size, size_t extra, int flags)
 			    size+extra) ? 0 : size+extra - (SMALL_MAXCLASS+1),
 			    alignment, zero, no_move);
 			if (q == NULL)
-				goto ERR;
+				goto label_err;
 			if (max_usize < PAGE) {
 				usize = max_usize;
 				arena_prof_promoted(q, usize);
@@ -1407,7 +1407,7 @@ je_rallocm(void **ptr, size_t *rsize, size_t size, size_t extra, int flags)
 		} else {
 			q = iralloc(p, size, extra, alignment, zero, no_move);
 			if (q == NULL)
-				goto ERR;
+				goto label_err;
 			usize = isalloc(q);
 		}
 		prof_realloc(q, usize, cnt, old_size, old_ctx);
@@ -1418,7 +1418,7 @@ je_rallocm(void **ptr, size_t *rsize, size_t size, size_t extra, int flags)
 			old_size = isalloc(p);
 		q = iralloc(p, size, extra, alignment, zero, no_move);
 		if (q == NULL)
-			goto ERR;
+			goto label_err;
 		if (config_stats)
 			usize = isalloc(q);
 		if (rsize != NULL) {
@@ -1437,12 +1437,12 @@ je_rallocm(void **ptr, size_t *rsize, size_t size, size_t extra, int flags)
 	}
 	UTRACE(p, size, q);
 	return (ALLOCM_SUCCESS);
-ERR:
+label_err:
 	if (no_move) {
 		UTRACE(p, size, q);
 		return (ALLOCM_ERR_NOT_MOVED);
 	}
-OOM:
+label_oom:
 	if (config_xmalloc && opt_xmalloc) {
 		malloc_write("<jemalloc>: Error in rallocm(): "
 		    "out of memory\n");

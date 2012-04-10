@@ -108,12 +108,12 @@ malloc_strtoumax(const char *nptr, char **endptr, int base)
 			p++;
 			/* Fall through. */
 		default:
-			goto PREFIX;
+			goto label_prefix;
 		}
 	}
 
 	/* Get prefix, if any. */
-	PREFIX:
+	label_prefix:
 	/*
 	 * Note where the first non-whitespace/sign character is so that it is
 	 * possible to tell whether any digits are consumed (e.g., "  0" vs.
@@ -349,7 +349,7 @@ malloc_vsnprintf(char *str, size_t size, const char *format, va_list ap)
 	f = format;
 	while (true) {
 		switch (*f) {
-		case '\0': goto OUT;
+		case '\0': goto label_out;
 		case '%': {
 			bool alt_form = false;
 			bool zero_pad = false;
@@ -389,12 +389,12 @@ malloc_vsnprintf(char *str, size_t size, const char *format, va_list ap)
 					assert(plus_plus == false);
 					plus_plus = true;
 					break;
-				default: goto WIDTH;
+				default: goto label_width;
 				}
 				f++;
 			}
 			/* Width. */
-			WIDTH:
+			label_width:
 			switch (*f) {
 			case '*':
 				width = va_arg(ap, int);
@@ -410,17 +410,17 @@ malloc_vsnprintf(char *str, size_t size, const char *format, va_list ap)
 				width = (int)uwidth;
 				if (*f == '.') {
 					f++;
-					goto PRECISION;
+					goto label_precision;
 				} else
-					goto LENGTH;
+					goto label_length;
 				break;
 			} case '.':
 				f++;
-				goto PRECISION;
-			default: goto LENGTH;
+				goto label_precision;
+			default: goto label_length;
 			}
 			/* Precision. */
-			PRECISION:
+			label_precision:
 			switch (*f) {
 			case '*':
 				prec = va_arg(ap, int);
@@ -438,7 +438,7 @@ malloc_vsnprintf(char *str, size_t size, const char *format, va_list ap)
 			default: break;
 			}
 			/* Length. */
-			LENGTH:
+			label_length:
 			switch (*f) {
 			case 'l':
 				f++;
@@ -542,7 +542,7 @@ malloc_vsnprintf(char *str, size_t size, const char *format, va_list ap)
 			break;
 		}}
 	}
-	OUT:
+	label_out:
 	if (i < size)
 		str[i] = '\0';
 	else

@@ -38,17 +38,17 @@ chunk_alloc(size_t size, size_t alignment, bool base, bool *zero)
 	if (config_dss) {
 		ret = chunk_alloc_dss(size, alignment, zero);
 		if (ret != NULL)
-			goto RETURN;
+			goto label_return;
 	}
 	ret = chunk_alloc_mmap(size, alignment);
 	if (ret != NULL) {
 		*zero = true;
-		goto RETURN;
+		goto label_return;
 	}
 
 	/* All strategies for allocation failed. */
 	ret = NULL;
-RETURN:
+label_return:
 	if (config_ivsalloc && base == false && ret != NULL) {
 		if (rtree_set(chunks_rtree, (uintptr_t)ret, ret)) {
 			chunk_dealloc(ret, size, true);

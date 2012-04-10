@@ -854,7 +854,7 @@ prof_dump(bool propagate_err, const char *filename, bool leakcheck)
 			if (opt_abort)
 				abort();
 		}
-		goto ERROR;
+		goto label_error;
 	}
 
 	/* Merge per thread profile stats, and sum them in cnt_all. */
@@ -870,7 +870,7 @@ prof_dump(bool propagate_err, const char *filename, bool leakcheck)
 		    " [%"PRIu64": %"PRIu64"] @ heapprofile\n",
 		    cnt_all.curobjs, cnt_all.curbytes,
 		    cnt_all.accumobjs, cnt_all.accumbytes))
-			goto ERROR;
+			goto label_error;
 	} else {
 		if (prof_printf(propagate_err,
 		    "heap profile: %"PRId64": %"PRId64
@@ -878,22 +878,22 @@ prof_dump(bool propagate_err, const char *filename, bool leakcheck)
 		    cnt_all.curobjs, cnt_all.curbytes,
 		    cnt_all.accumobjs, cnt_all.accumbytes,
 		    ((uint64_t)1U << opt_lg_prof_sample)))
-			goto ERROR;
+			goto label_error;
 	}
 
 	/* Dump  per ctx profile stats. */
 	for (tabind = 0; ckh_iter(&bt2ctx, &tabind, &bt.v, &ctx.v)
 	    == false;) {
 		if (prof_dump_ctx(propagate_err, ctx.p, bt.p))
-			goto ERROR;
+			goto label_error;
 	}
 
 	/* Dump /proc/<pid>/maps if possible. */
 	if (prof_dump_maps(propagate_err))
-		goto ERROR;
+		goto label_error;
 
 	if (prof_flush(propagate_err))
-		goto ERROR;
+		goto label_error;
 	close(prof_dump_fd);
 	prof_leave();
 
@@ -909,7 +909,7 @@ prof_dump(bool propagate_err, const char *filename, bool leakcheck)
 	}
 
 	return (false);
-ERROR:
+label_error:
 	prof_leave();
 	return (true);
 }
