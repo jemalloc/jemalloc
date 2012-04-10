@@ -15,16 +15,15 @@ malloc_tsd_funcs(JEMALLOC_INLINE, mmap_unaligned, bool, false,
 /******************************************************************************/
 /* Function prototypes for non-inline static functions. */
 
-static void	*pages_map(void *addr, size_t size, bool noreserve);
+static void	*pages_map(void *addr, size_t size);
 static void	pages_unmap(void *addr, size_t size);
-static void	*chunk_alloc_mmap_slow(size_t size, bool unaligned,
-    bool noreserve);
-static void	*chunk_alloc_mmap_internal(size_t size, bool noreserve);
+static void	*chunk_alloc_mmap_slow(size_t size, bool unaligned);
+static void	*chunk_alloc_mmap_internal(size_t size);
 
 /******************************************************************************/
 
 static void *
-pages_map(void *addr, size_t size, bool noreserve)
+pages_map(void *addr, size_t size)
 {
 	void *ret;
 
@@ -32,12 +31,8 @@ pages_map(void *addr, size_t size, bool noreserve)
 	 * We don't use MAP_FIXED here, because it can cause the *replacement*
 	 * of existing mappings, and we only want to create new mappings.
 	 */
-	int flags = MAP_PRIVATE | MAP_ANON;
-#ifdef MAP_NORESERVE
-	if (noreserve)
-		flags |= MAP_NORESERVE;
-#endif
-	ret = mmap(addr, size, PROT_READ | PROT_WRITE, flags, -1, 0);
+	ret = mmap(addr, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON,
+	    -1, 0);
 	assert(ret != NULL);
 
 	if (ret == MAP_FAILED)
@@ -78,7 +73,7 @@ pages_unmap(void *addr, size_t size)
 }
 
 static void *
-chunk_alloc_mmap_slow(size_t size, bool unaligned, bool noreserve)
+chunk_alloc_mmap_slow(size_t size, bool unaligned)
 {
 	void *ret;
 	size_t offset;
@@ -87,7 +82,7 @@ chunk_alloc_mmap_slow(size_t size, bool unaligned, bool noreserve)
 	if (size + chunksize <= size)
 		return (NULL);
 
-	ret = pages_map(NULL, size + chunksize, noreserve);
+	ret = pages_map(NULL, size + chunksize);
 	if (ret == NULL)
 		return (NULL);
 
@@ -126,7 +121,7 @@ chunk_alloc_mmap_slow(size_t size, bool unaligned, bool noreserve)
 }
 
 static void *
-chunk_alloc_mmap_internal(size_t size, bool noreserve)
+chunk_alloc_mmap_internal(size_t size)
 {
 	void *ret;
 
@@ -161,7 +156,7 @@ chunk_alloc_mmap_internal(size_t size, bool noreserve)
 	if (mmap_unaligned_booted && *mmap_unaligned_tsd_get() == false) {
 		size_t offset;
 
-		ret = pages_map(NULL, size, noreserve);
+		ret = pages_map(NULL, size);
 		if (ret == NULL)
 			return (NULL);
 
@@ -171,14 +166,13 @@ chunk_alloc_mmap_internal(size_t size, bool noreserve)
 			mmap_unaligned_tsd_set(&mu);
 			/* Try to extend chunk boundary. */
 			if (pages_map((void *)((uintptr_t)ret + size),
-			    chunksize - offset, noreserve) == NULL) {
+			    chunksize - offset) == NULL) {
 				/*
 				 * Extension failed.  Clean up, then revert to
 				 * the reliable-but-expensive method.
 				 */
 				pages_unmap(ret, size);
-				ret = chunk_alloc_mmap_slow(size, true,
-				    noreserve);
+				ret = chunk_alloc_mmap_slow(size, true);
 			} else {
 				/* Clean up unneeded leading space. */
 				pages_unmap(ret, chunksize - offset);
@@ -187,7 +181,7 @@ chunk_alloc_mmap_internal(size_t size, bool noreserve)
 			}
 		}
 	} else
-		ret = chunk_alloc_mmap_slow(size, false, noreserve);
+		ret = chunk_alloc_mmap_slow(size, false);
 
 	return (ret);
 }
@@ -196,14 +190,7 @@ void *
 chunk_alloc_mmap(size_t size)
 {
 
-	return (chunk_alloc_mmap_internal(size, false));
-}
-
-void *
-chunk_alloc_mmap_noreserve(size_t size)
-{
-
-	return (chunk_alloc_mmap_internal(size, true));
+	return (chunk_alloc_mmap_internal(size));
 }
 
 void
