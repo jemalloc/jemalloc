@@ -205,7 +205,7 @@ check: tests
 			$(TEST_LIBRARY_PATH) $${t} @abs_srcroot@ @abs_objroot@ \
 			  > @objroot@$${t}.out 2>&1; \
 			if test -e "@srcroot@$${t}.exp"; then \
-				diff -u @srcroot@$${t}.exp \
+				diff -w -u @srcroot@$${t}.exp \
 				  @objroot@$${t}.out >/dev/null 2>&1; \
 				fail=$$?; \
 				if test "$${fail}" -eq "1" ; then \
