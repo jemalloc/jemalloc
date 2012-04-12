@@ -626,12 +626,12 @@ malloc_init_hard(void)
 		}
 	}
 
-	if (chunk_boot0()) {
+	if (base_boot()) {
 		malloc_mutex_unlock(&init_lock);
 		return (true);
 	}
 
-	if (base_boot()) {
+	if (chunk_boot0()) {
 		malloc_mutex_unlock(&init_lock);
 		return (true);
 	}
