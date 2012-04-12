@@ -19,7 +19,6 @@ static void	*pages_map(void *addr, size_t size);
 static void	pages_unmap(void *addr, size_t size);
 static void	*chunk_alloc_mmap_slow(size_t size, size_t alignment,
     bool unaligned);
-static void	*chunk_alloc_mmap_internal(size_t size, size_t alignment);
 
 /******************************************************************************/
 
@@ -76,34 +75,28 @@ pages_unmap(void *addr, size_t size)
 static void *
 chunk_alloc_mmap_slow(size_t size, size_t alignment, bool unaligned)
 {
-	void *ret;
-	size_t offset;
+	void *ret, *pages;
+	size_t alloc_size, leadsize, trailsize;
 
+	alloc_size = size + alignment - PAGE;
 	/* Beware size_t wrap-around. */
-	if (size + chunksize <= size)
+	if (alloc_size < size)
 		return (NULL);
-
-	ret = pages_map(NULL, size + alignment);
-	if (ret == NULL)
+	pages = pages_map(NULL, alloc_size);
+	if (pages == NULL)
 		return (NULL);
-
-	/* Clean up unneeded leading/trailing space. */
-	offset = (size_t)((uintptr_t)(ret) & (alignment - 1));
-	if (offset != 0) {
+	leadsize = ALIGNMENT_CEILING((uintptr_t)pages, alignment) -
+	    (uintptr_t)pages;
+	assert(alloc_size >= leadsize + size);
+	trailsize = alloc_size - leadsize - size;
+	ret = (void *)((uintptr_t)pages + leadsize);
+	if (leadsize != 0) {
 		/* Note that mmap() returned an unaligned mapping. */
 		unaligned = true;
-
-		/* Leading space. */
-		pages_unmap(ret, alignment - offset);
-
-		ret = (void *)((uintptr_t)ret + (alignment - offset));
-
-		/* Trailing space. */
-		pages_unmap((void *)((uintptr_t)ret + size), offset);
-	} else {
-		/* Trailing space only. */
-		pages_unmap((void *)((uintptr_t)ret + size), alignment);
+		pages_unmap(pages, leadsize);
 	}
+	if (trailsize != 0)
+		pages_unmap((void *)((uintptr_t)ret + size), trailsize);
 
 	/*
 	 * If mmap() returned an aligned mapping, reset mmap_unaligned so that
@@ -118,8 +111,8 @@ chunk_alloc_mmap_slow(size_t size, size_t alignment, bool unaligned)
 	return (ret);
 }
 
-static void *
-chunk_alloc_mmap_internal(size_t size, size_t alignment)
+void *
+chunk_alloc_mmap(size_t size, size_t alignment)
 {
 	void *ret;
 
@@ -158,7 +151,7 @@ chunk_alloc_mmap_internal(size_t size, size_t alignment)
 		if (ret == NULL)
 			return (NULL);
 
-		offset = (size_t)((uintptr_t)(ret) & (alignment - 1));
+		offset = ALIGNMENT_ADDR2OFFSET(ret, alignment);
 		if (offset != 0) {
 			bool mu = true;
 			mmap_unaligned_tsd_set(&mu);
@@ -183,13 +176,6 @@ chunk_alloc_mmap_internal(size_t size, size_t alignment)
 		ret = chunk_alloc_mmap_slow(size, alignment, false);
 
 	return (ret);
-}
-
-void *
-chunk_alloc_mmap(size_t size, size_t alignment)
-{
-
-	return (chunk_alloc_mmap_internal(size, alignment));
 }
 
 void

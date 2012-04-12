@@ -1418,48 +1418,38 @@ arena_malloc_large(arena_t *arena, size_t size, bool zero)
 
 /* Only handles large allocations that require more than page alignment. */
 void *
-arena_palloc(arena_t *arena, size_t size, size_t alloc_size, size_t alignment,
-    bool zero)
+arena_palloc(arena_t *arena, size_t size, size_t alignment, bool zero)
 {
 	void *ret;
-	size_t offset;
+	size_t alloc_size, leadsize, trailsize;
+	arena_run_t *run;
 	arena_chunk_t *chunk;
 
 	assert((size & PAGE_MASK) == 0);
 
 	alignment = PAGE_CEILING(alignment);
+	alloc_size = size + alignment - PAGE;
 
 	malloc_mutex_lock(&arena->lock);
-	ret = (void *)arena_run_alloc(arena, alloc_size, true, zero);
-	if (ret == NULL) {
+	run = arena_run_alloc(arena, alloc_size, true, zero);
+	if (run == NULL) {
 		malloc_mutex_unlock(&arena->lock);
 		return (NULL);
 	}
+	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(run);
 
-	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ret);
-
-	offset = (uintptr_t)ret & (alignment - 1);
-	assert((offset & PAGE_MASK) == 0);
-	assert(offset < alloc_size);
-	if (offset == 0)
-		arena_run_trim_tail(arena, chunk, ret, alloc_size, size, false);
-	else {
-		size_t leadsize, trailsize;
-
-		leadsize = alignment - offset;
-		if (leadsize > 0) {
-			arena_run_trim_head(arena, chunk, ret, alloc_size,
-			    alloc_size - leadsize);
-			ret = (void *)((uintptr_t)ret + leadsize);
-		}
-
-		trailsize = alloc_size - leadsize - size;
-		if (trailsize != 0) {
-			/* Trim trailing space. */
-			assert(trailsize < alloc_size);
-			arena_run_trim_tail(arena, chunk, ret, size + trailsize,
-			    size, false);
-		}
+	leadsize = ALIGNMENT_CEILING((uintptr_t)run, alignment) -
+	    (uintptr_t)run;
+	assert(alloc_size >= leadsize + size);
+	trailsize = alloc_size - leadsize - size;
+	ret = (void *)((uintptr_t)run + leadsize);
+	if (leadsize != 0) {
+		arena_run_trim_head(arena, chunk, run, alloc_size, alloc_size -
+		    leadsize);
+	}
+	if (trailsize != 0) {
+		arena_run_trim_tail(arena, chunk, ret, size + trailsize, size,
+		    false);
 	}
 
 	if (config_stats) {
@@ -1950,7 +1940,7 @@ arena_ralloc(void *ptr, size_t oldsize, size_t size, size_t extra,
 	 * copying.
 	 */
 	if (alignment != 0) {
-		size_t usize = sa2u(size + extra, alignment, NULL);
+		size_t usize = sa2u(size + extra, alignment);
 		if (usize == 0)
 			return (NULL);
 		ret = ipalloc(usize, alignment, zero);
@@ -1962,7 +1952,7 @@ arena_ralloc(void *ptr, size_t oldsize, size_t size, size_t extra,
 			return (NULL);
 		/* Try again, this time without extra. */
 		if (alignment != 0) {
-			size_t usize = sa2u(size, alignment, NULL);
+			size_t usize = sa2u(size, alignment);
 			if (usize == 0)
 				return (NULL);
 			ret = ipalloc(usize, alignment, zero);

@@ -55,7 +55,6 @@
 #define	chunk_alloc JEMALLOC_N(chunk_alloc)
 #define	chunk_alloc_dss JEMALLOC_N(chunk_alloc_dss)
 #define	chunk_alloc_mmap JEMALLOC_N(chunk_alloc_mmap)
-#define	chunk_alloc_mmap_noreserve JEMALLOC_N(chunk_alloc_mmap_noreserve)
 #define	chunk_boot JEMALLOC_N(chunk_boot)
 #define	chunk_dealloc JEMALLOC_N(chunk_dealloc)
 #define	chunk_dealloc_dss JEMALLOC_N(chunk_dealloc_dss)

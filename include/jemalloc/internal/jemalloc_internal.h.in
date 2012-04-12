@@ -293,6 +293,18 @@ static const bool config_ivsalloc =
 #define	PAGE_CEILING(s)							\
 	(((s) + PAGE_MASK) & ~PAGE_MASK)
 
+/* Return the nearest aligned address at or below a. */
+#define	ALIGNMENT_ADDR2BASE(a, alignment)				\
+	((void *)((uintptr_t)(a) & (-(alignment))))
+
+/* Return the offset between a and the nearest aligned address at or below a. */
+#define	ALIGNMENT_ADDR2OFFSET(a, alignment)				\
+	((size_t)((uintptr_t)(a) & (alignment - 1)))
+
+/* Return the smallest alignment multiple that is >= s. */
+#define	ALIGNMENT_CEILING(s, alignment)					\
+	(((s) + (alignment - 1)) & (-(alignment)))
+
 #ifdef JEMALLOC_VALGRIND
 /*
  * The JEMALLOC_VALGRIND_*() macros must be macros rather than functions
@@ -499,7 +511,7 @@ void	jemalloc_postfork_child(void);
 malloc_tsd_protos(JEMALLOC_ATTR(unused), arenas, arena_t *)
 
 size_t	s2u(size_t size);
-size_t	sa2u(size_t size, size_t alignment, size_t *run_size_p);
+size_t	sa2u(size_t size, size_t alignment);
 arena_t	*choose_arena(arena_t *arena);
 #endif
 
@@ -531,9 +543,11 @@ s2u(size_t size)
  * specified size and alignment.
  */
 JEMALLOC_INLINE size_t
-sa2u(size_t size, size_t alignment, size_t *run_size_p)
+sa2u(size_t size, size_t alignment)
 {
 	size_t usize;
+
+	assert(alignment != 0 && ((alignment - 1) & alignment) == 0);
 
 	/*
 	 * Round size up to the nearest multiple of alignment.
@@ -549,7 +563,7 @@ sa2u(size_t size, size_t alignment, size_t *run_size_p)
 	 *    144 | 10100000 |  32
 	 *    192 | 11000000 |  64
 	 */
-	usize = (size + (alignment - 1)) & (-alignment);
+	usize = ALIGNMENT_CEILING(size, alignment);
 	/*
 	 * (usize < size) protects against the combination of maximal
 	 * alignment and size greater than maximal alignment.
@@ -592,24 +606,10 @@ sa2u(size_t size, size_t alignment, size_t *run_size_p)
 		/*
 		 * Calculate the size of the over-size run that arena_palloc()
 		 * would need to allocate in order to guarantee the alignment.
+		 * If the run wouldn't fit within a chunk, round up to a huge
+		 * allocation size.
 		 */
-		if (usize >= alignment)
-			run_size = usize + alignment - PAGE;
-		else {
-			/*
-			 * It is possible that (alignment << 1) will cause
-			 * overflow, but it doesn't matter because we also
-			 * subtract PAGE, which in the case of overflow leaves
-			 * us with a very large run_size.  That causes the
-			 * first conditional below to fail, which means that
-			 * the bogus run_size value never gets used for
-			 * anything important.
-			 */
-			run_size = (alignment << 1) - PAGE;
-		}
-		if (run_size_p != NULL)
-			*run_size_p = run_size;
-
+		run_size = usize + alignment - PAGE;
 		if (run_size <= arena_maxclass)
 			return (PAGE_CEILING(usize));
 		return (CHUNK_CEILING(usize));
@@ -685,32 +685,21 @@ ipalloc(size_t usize, size_t alignment, bool zero)
 	void *ret;
 
 	assert(usize != 0);
-	assert(usize == sa2u(usize, alignment, NULL));
+	assert(usize == sa2u(usize, alignment));
 
 	if (usize <= arena_maxclass && alignment <= PAGE)
 		ret = arena_malloc(NULL, usize, zero, true);
 	else {
-		size_t run_size JEMALLOC_CC_SILENCE_INIT(0);
-
-		/*
-		 * Ideally we would only ever call sa2u() once per aligned
-		 * allocation request, and the caller of this function has
-		 * already done so once.  However, it's rather burdensome to
-		 * require every caller to pass in run_size, especially given
-		 * that it's only relevant to large allocations.  Therefore,
-		 * just call it again here in order to get run_size.
-		 */
-		sa2u(usize, alignment, &run_size);
-		if (run_size <= arena_maxclass) {
-			ret = arena_palloc(choose_arena(NULL), usize, run_size,
-			    alignment, zero);
+		if (usize <= arena_maxclass) {
+			ret = arena_palloc(choose_arena(NULL), usize, alignment,
+			    zero);
 		} else if (alignment <= chunksize)
 			ret = huge_malloc(usize, zero);
 		else
 			ret = huge_palloc(usize, alignment, zero);
 	}
 
-	assert(((uintptr_t)ret & (alignment - 1)) == 0);
+	assert(ALIGNMENT_ADDR2BASE(ret, alignment) == ret);
 	return (ret);
 }
 
@@ -818,7 +807,7 @@ iralloc(void *ptr, size_t size, size_t extra, size_t alignment, bool zero,
 		 */
 		if (no_move)
 			return (NULL);
-		usize = sa2u(size + extra, alignment, NULL);
+		usize = sa2u(size + extra, alignment);
 		if (usize == 0)
 			return (NULL);
 		ret = ipalloc(usize, alignment, zero);
@@ -826,7 +815,7 @@ iralloc(void *ptr, size_t size, size_t extra, size_t alignment, bool zero,
 			if (extra == 0)
 				return (NULL);
 			/* Try again, without extra this time. */
-			usize = sa2u(size, alignment, NULL);
+			usize = sa2u(size, alignment);
 			if (usize == 0)
 				return (NULL);
 			ret = ipalloc(usize, alignment, zero);

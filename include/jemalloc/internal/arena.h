@@ -407,8 +407,7 @@ void	arena_alloc_junk_small(void *ptr, arena_bin_info_t *bin_info,
 void	arena_dalloc_junk_small(void *ptr, arena_bin_info_t *bin_info);
 void	*arena_malloc_small(arena_t *arena, size_t size, bool zero);
 void	*arena_malloc_large(arena_t *arena, size_t size, bool zero);
-void	*arena_palloc(arena_t *arena, size_t size, size_t alloc_size,
-    size_t alignment, bool zero);
+void	*arena_palloc(arena_t *arena, size_t size, size_t alignment, bool zero);
 size_t	arena_salloc(const void *ptr, bool demote);
 void	arena_prof_promoted(const void *ptr, size_t size);
 void	arena_dalloc_bin(arena_t *arena, arena_chunk_t *chunk, void *ptr,

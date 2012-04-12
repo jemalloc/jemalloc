@@ -862,7 +862,7 @@ imemalign(void **memptr, size_t alignment, size_t size,
 			goto label_return;
 		}
 
-		usize = sa2u(size, alignment, NULL);
+		usize = sa2u(size, alignment);
 		if (usize == 0) {
 			result = NULL;
 			ret = ENOMEM;
@@ -878,9 +878,9 @@ imemalign(void **memptr, size_t alignment, size_t size,
 				if (prof_promote && (uintptr_t)cnt !=
 				    (uintptr_t)1U && usize <= SMALL_MAXCLASS) {
 					assert(sa2u(SMALL_MAXCLASS+1,
-					    alignment, NULL) != 0);
+					    alignment) != 0);
 					result = ipalloc(sa2u(SMALL_MAXCLASS+1,
-					    alignment, NULL), alignment, false);
+					    alignment), alignment, false);
 					if (result != NULL) {
 						arena_prof_promoted(result,
 						    usize);
@@ -1343,8 +1343,8 @@ JEMALLOC_INLINE void *
 iallocm(size_t usize, size_t alignment, bool zero)
 {
 
-	assert(usize == ((alignment == 0) ? s2u(usize) : sa2u(usize, alignment,
-	    NULL)));
+	assert(usize == ((alignment == 0) ? s2u(usize) : sa2u(usize,
+	    alignment)));
 
 	if (alignment != 0)
 		return (ipalloc(usize, alignment, zero));
@@ -1372,7 +1372,7 @@ je_allocm(void **ptr, size_t *rsize, size_t size, int flags)
 	if (malloc_init())
 		goto label_oom;
 
-	usize = (alignment == 0) ? s2u(size) : sa2u(size, alignment, NULL);
+	usize = (alignment == 0) ? s2u(size) : sa2u(size, alignment);
 	if (usize == 0)
 		goto label_oom;
 
@@ -1384,7 +1384,7 @@ je_allocm(void **ptr, size_t *rsize, size_t size, int flags)
 		    SMALL_MAXCLASS) {
 			size_t usize_promoted = (alignment == 0) ?
 			    s2u(SMALL_MAXCLASS+1) : sa2u(SMALL_MAXCLASS+1,
-			    alignment, NULL);
+			    alignment);
 			assert(usize_promoted != 0);
 			p = iallocm(usize_promoted, alignment, zero);
 			if (p == NULL)
@@ -1454,7 +1454,7 @@ je_rallocm(void **ptr, size_t *rsize, size_t size, size_t extra, int flags)
 		 * decide whether to sample.
 		 */
 		size_t max_usize = (alignment == 0) ? s2u(size+extra) :
-		    sa2u(size+extra, alignment, NULL);
+		    sa2u(size+extra, alignment);
 		prof_ctx_t *old_ctx = prof_ctx_get(p);
 		old_size = isalloc(p, true);
 		if (config_valgrind && opt_valgrind)
@@ -1466,8 +1466,8 @@ je_rallocm(void **ptr, size_t *rsize, size_t size, size_t extra, int flags)
 		 * Use minimum usize to determine whether promotion may happen.
 		 */
 		if (prof_promote && (uintptr_t)cnt != (uintptr_t)1U
-		    && ((alignment == 0) ? s2u(size) : sa2u(size,
-		    alignment, NULL)) <= SMALL_MAXCLASS) {
+		    && ((alignment == 0) ? s2u(size) : sa2u(size, alignment))
+		    <= SMALL_MAXCLASS) {
 			q = iralloc(p, SMALL_MAXCLASS+1, (SMALL_MAXCLASS+1 >=
 			    size+extra) ? 0 : size+extra - (SMALL_MAXCLASS+1),
 			    alignment, zero, no_move);
@@ -1596,7 +1596,7 @@ je_nallocm(size_t *rsize, size_t size, int flags)
 	if (malloc_init())
 		return (ALLOCM_ERR_OOM);
 
-	usize = (alignment == 0) ? s2u(size) : sa2u(size, alignment, NULL);
+	usize = (alignment == 0) ? s2u(size) : sa2u(size, alignment);
 	if (usize == 0)
 		return (ALLOCM_ERR_OOM);
 

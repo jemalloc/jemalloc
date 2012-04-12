@@ -36,51 +36,71 @@ static extent_node_t *chunk_dealloc_dss_record(void *chunk, size_t size);
 static void *
 chunk_recycle_dss(size_t size, size_t alignment, bool *zero)
 {
-	extent_node_t *node, key;
+	void *ret;
+	extent_node_t *node;
+	extent_node_t key;
+	size_t alloc_size, leadsize, trailsize;
 
 	cassert(config_dss);
 
+	alloc_size = size + alignment - chunksize;
+	/* Beware size_t wrap-around. */
+	if (alloc_size < size)
+		return (NULL);
 	key.addr = NULL;
-	key.size = size + alignment - chunksize;
+	key.size = alloc_size;
 	malloc_mutex_lock(&dss_mtx);
 	node = extent_tree_szad_nsearch(&dss_chunks_szad, &key);
-	if (node != NULL) {
-		size_t offset = (size_t)((uintptr_t)(node->addr) & (alignment -
-		    1));
-		void *ret;
-		if (offset > 0)
-			offset = alignment - offset;
-		ret = (void *)((uintptr_t)(node->addr) + offset);
-
-		/* Remove node from the tree. */
-		extent_tree_szad_remove(&dss_chunks_szad, node);
-		extent_tree_ad_remove(&dss_chunks_ad, node);
-		if (offset > 0) {
-			/* Insert the leading space as a smaller chunk. */
-			node->size = offset;
-			extent_tree_szad_insert(&dss_chunks_szad, node);
-			extent_tree_ad_insert(&dss_chunks_ad, node);
-		}
-		if (alignment - chunksize > offset) {
-			if (offset > 0)
-				node = base_node_alloc();
-			/* Insert the trailing space as a smaller chunk. */
-			node->addr = (void *)((uintptr_t)(ret) + size);
-			node->size = alignment - chunksize - offset;
-			extent_tree_szad_insert(&dss_chunks_szad, node);
-			extent_tree_ad_insert(&dss_chunks_ad, node);
-		} else if (offset == 0)
-			base_node_dealloc(node);
-
+	if (node == NULL) {
 		malloc_mutex_unlock(&dss_mtx);
-
-		if (*zero)
-			memset(ret, 0, size);
-		return (ret);
+		return (NULL);
+	}
+	leadsize = ALIGNMENT_CEILING((uintptr_t)node->addr, alignment) -
+	    (uintptr_t)node->addr;
+	assert(alloc_size >= leadsize + size);
+	trailsize = alloc_size - leadsize - size;
+	ret = (void *)((uintptr_t)node->addr + leadsize);
+	/* Remove node from the tree. */
+	extent_tree_szad_remove(&dss_chunks_szad, node);
+	extent_tree_ad_remove(&dss_chunks_ad, node);
+	if (leadsize != 0) {
+		/* Insert the leading space as a smaller chunk. */
+		node->size = leadsize;
+		extent_tree_szad_insert(&dss_chunks_szad, node);
+		extent_tree_ad_insert(&dss_chunks_ad, node);
+		node = NULL;
+	}
+	if (trailsize != 0) {
+		/* Insert the trailing space as a smaller chunk. */
+		if (node == NULL) {
+			/*
+			 * An additional node is required, but
+			 * base_node_alloc() can cause a new base chunk to be
+			 * allocated.  Drop dss_mtx in order to avoid deadlock,
+			 * and if node allocation fails, deallocate the result
+			 * before returning an error.
+			 */
+			malloc_mutex_unlock(&dss_mtx);
+			node = base_node_alloc();
+			if (node == NULL) {
+				chunk_dealloc_dss(ret, size);
+				return (NULL);
+			}
+			malloc_mutex_lock(&dss_mtx);
+		}
+		node->addr = (void *)((uintptr_t)(ret) + size);
+		node->size = trailsize;
+		extent_tree_szad_insert(&dss_chunks_szad, node);
+		extent_tree_ad_insert(&dss_chunks_ad, node);
+		node = NULL;
 	}
 	malloc_mutex_unlock(&dss_mtx);
 
-	return (NULL);
+	if (node != NULL)
+		base_node_dealloc(node);
+	if (*zero)
+		memset(ret, 0, size);
+	return (ret);
 }
 
 void *
@@ -129,8 +149,8 @@ chunk_alloc_dss(size_t size, size_t alignment, bool *zero)
 			 * recycled for later use.
 			 */
 			cpad = (void *)((uintptr_t)dss_max + gap_size);
-			ret = (void *)(((uintptr_t)dss_max + (alignment - 1)) &
-			    ~(alignment - 1));
+			ret = (void *)ALIGNMENT_CEILING((uintptr_t)dss_max,
+			    alignment);
 			cpad_size = (uintptr_t)ret - (uintptr_t)cpad;
 			dss_next = (void *)((uintptr_t)ret + size);
 			if ((uintptr_t)ret < (uintptr_t)dss_max ||
