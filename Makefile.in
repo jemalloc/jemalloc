@@ -132,9 +132,6 @@ build_doc: $(DOCS)
 	$(CC) $(CFLAGS) -c $(CPPFLAGS) -I@objroot@test -o $@ $<
 	@$(SHELL) -ec "$(CC) -MM $(CPPFLAGS) -I@objroot@test $< | sed \"s/\($(subst /,\/,$(notdir $(basename $@)))\)\.o\([ :]*\)/$(subst /,\/,$(strip $(dir $@)))\1.o \2/g\" > $(@:%.o=%.d)"
 
-# Automatic dependency generation misses #include "*.c".
-@objroot@test/bitmap.o : @objroot@src/bitmap.o
-
 @objroot@test/%: @objroot@test/%.o \
 		 @objroot@lib/libjemalloc@install_suffix@.$(SO)
 	@mkdir -p $(@D)
