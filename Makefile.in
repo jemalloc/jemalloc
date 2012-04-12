@@ -104,12 +104,12 @@ build_doc: $(DOCS)
 @objroot@src/%.o: @srcroot@src/%.c
 	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) -c $(CPPFLAGS) -o $@ $<
-	@$(SHELL) -ec "$(CC) -MM $(CPPFLAGS) $< | sed \"s/\($(subst /,\/,$(notdir $(basename $@)))\)\.o\([ :]*\)/$(subst /,\/,$(strip $(dir $@)))\1.o \2/g\" > $(@:%.o=%.d)"
+	$(CC) -MM $(CPPFLAGS) -MT $@ -o $(@:%.o=%.d) $<
 
 @objroot@src/%.pic.o: @srcroot@src/%.c
 	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) -fPIC -DPIC -c $(CPPFLAGS) -o $@ $<
-	@$(SHELL) -ec "$(CC) -MM $(CPPFLAGS) $< | sed \"s/\($(subst /,\/,$(notdir $(basename $(basename $@))))\)\.o\([ :]*\)/$(subst /,\/,$(strip $(dir $@)))\1.pic.o \2/g\" > $(@:%.o=%.d)"
+	$(CC) -MM $(CPPFLAGS) -MT $@ -o $(@:%.o=%.d) $<
 
 %.$(SO) : %.$(SO).$(REV)
 	@mkdir -p $(@D)
@@ -130,7 +130,7 @@ build_doc: $(DOCS)
 @objroot@test/%.o: @srcroot@test/%.c
 	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) -c $(CPPFLAGS) -I@objroot@test -o $@ $<
-	@$(SHELL) -ec "$(CC) -MM $(CPPFLAGS) -I@objroot@test $< | sed \"s/\($(subst /,\/,$(notdir $(basename $@)))\)\.o\([ :]*\)/$(subst /,\/,$(strip $(dir $@)))\1.o \2/g\" > $(@:%.o=%.d)"
+	$(CC) -MM $(CPPFLAGS) -I@objroot@test -MT $@ -o $(@:%.o=%.d) $<
 
 @objroot@test/%: @objroot@test/%.o \
 		 @objroot@lib/libjemalloc@install_suffix@.$(SO)
