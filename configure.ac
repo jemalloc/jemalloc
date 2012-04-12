@@ -678,6 +678,14 @@ fi
 ],
 [enable_dss="0"]
 )
+dnl Check whether the BSD/SUSv1 sbrk() exists.  If not, disable DSS support.
+AC_CHECK_FUNC([sbrk], [have_sbrk="1"], [have_sbrk="0"])
+if test "x$have_sbrk" = "x1" ; then
+  AC_DEFINE([JEMALLOC_HAVE_SBRK], [ ])
+else
+  enable_dss="0"
+fi
+
 if test "x$enable_dss" = "x1" ; then
   AC_DEFINE([JEMALLOC_DSS], [ ])
 fi

@@ -3,6 +3,17 @@
 /******************************************************************************/
 /* Data. */
 
+#ifndef JEMALLOC_HAVE_SBRK
+void *
+sbrk(intptr_t increment)
+{
+
+	not_implemented();
+
+	return (NULL);
+}
+#endif
+
 /*
  * Protects sbrk() calls.  This avoids malloc races among threads, though it
  * does not protect against races with threads that call sbrk() directly.

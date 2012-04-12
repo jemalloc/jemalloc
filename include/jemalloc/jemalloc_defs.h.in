@@ -108,6 +108,9 @@
 #  define JEMALLOC_ATTR(s) JEMALLOC_CATTR(s,)
 #endif
 
+/* Defined if sbrk() is supported. */
+#undef JEMALLOC_HAVE_SBRK
+
 /* Non-empty if the tls_model attribute is supported. */
 #undef JEMALLOC_TLS_MODEL
 
