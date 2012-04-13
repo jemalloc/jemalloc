@@ -865,9 +865,7 @@ for (i = 0; i < nbins; i++) {
         url="http://http://valgrind.org/">Valgrind</ulink>, which needs
         redzones in order to do effective buffer overflow/underflow detection.
         This option is intended for debugging and will impact performance
-        negatively.  This option is disabled by default unless
-        <option>--enable-debug</option> is specified during configuration, in
-        which case it is enabled by default.</para></listitem>
+        negatively.  This option is disabled by default.</para></listitem>
       </varlistentry>
 
       <varlistentry id="opt.zero">

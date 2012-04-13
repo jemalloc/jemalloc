@@ -14,17 +14,15 @@ const char	*je_malloc_conf JEMALLOC_ATTR(visibility("default"));
 bool	opt_abort = true;
 #  ifdef JEMALLOC_FILL
 bool	opt_junk = true;
-bool	opt_redzone = true;
 #  else
 bool	opt_junk = false;
-bool	opt_redzone = false;
 #  endif
 #else
 bool	opt_abort = false;
 bool	opt_junk = false;
-bool	opt_redzone = false;
 #endif
 size_t	opt_quarantine = ZU(0);
+bool	opt_redzone = false;
 bool	opt_utrace = false;
 bool	opt_valgrind = false;
 bool	opt_xmalloc = false;
