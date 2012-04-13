@@ -104,12 +104,12 @@ build_doc: $(DOCS)
 @objroot@src/%.o: @srcroot@src/%.c
 	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) -c $(CPPFLAGS) -o $@ $<
-	$(CC) -MM $(CPPFLAGS) -MT $@ -o $(@:%.o=%.d) $<
+	@$(CC) -MM $(CPPFLAGS) -MT $@ -o $(@:%.o=%.d) $<
 
 @objroot@src/%.pic.o: @srcroot@src/%.c
 	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) -fPIC -DPIC -c $(CPPFLAGS) -o $@ $<
-	$(CC) -MM $(CPPFLAGS) -MT $@ -o $(@:%.o=%.d) $<
+	@$(CC) -MM $(CPPFLAGS) -MT $@ -o $(@:%.o=%.d) $<
 
 %.$(SO) : %.$(SO).$(REV)
 	@mkdir -p $(@D)
@@ -130,7 +130,7 @@ build_doc: $(DOCS)
 @objroot@test/%.o: @srcroot@test/%.c
 	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) -c $(CPPFLAGS) -I@objroot@test -o $@ $<
-	$(CC) -MM $(CPPFLAGS) -I@objroot@test -MT $@ -o $(@:%.o=%.d) $<
+	@$(CC) -MM $(CPPFLAGS) -I@objroot@test -MT $@ -o $(@:%.o=%.d) $<
 
 @objroot@test/%: @objroot@test/%.o \
 		 @objroot@lib/libjemalloc@install_suffix@.$(SO)
