@@ -178,11 +178,14 @@ chunk_alloc_mmap(size_t size, size_t alignment)
 	return (ret);
 }
 
-void
+bool
 chunk_dealloc_mmap(void *chunk, size_t size)
 {
 
-	pages_unmap(chunk, size);
+	if (config_munmap)
+		pages_unmap(chunk, size);
+
+	return (config_munmap == false);
 }
 
 bool

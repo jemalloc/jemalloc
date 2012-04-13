@@ -676,16 +676,8 @@ arena_chunk_purge(arena_t *arena, arena_chunk_t *chunk)
 		if (config_debug)
 			ndirty -= npages;
 
-#ifdef JEMALLOC_PURGE_MADVISE_DONTNEED
-#  define MADV_PURGE MADV_DONTNEED
-#elif defined(JEMALLOC_PURGE_MADVISE_FREE)
-#  define MADV_PURGE MADV_FREE
-#else
-#  error "No method defined for purging unused dirty pages."
-#endif
 		madvise((void *)((uintptr_t)chunk + (pageind << LG_PAGE)),
-		    (npages << LG_PAGE), MADV_PURGE);
-#undef MADV_PURGE
+		    (npages << LG_PAGE), JEMALLOC_MADV_PURGE);
 		if (config_stats)
 			nmadvise++;
 	}

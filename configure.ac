@@ -817,6 +817,73 @@ else
    AC_MSG_ERROR([cannot determine value for STATIC_PAGE_SHIFT])
 fi
 
+dnl Determine whether common sequences of mmap()/munmap() calls will leave
+dnl semi-permanent VM map holes.  If so, disable munmap.
+AC_CACHE_CHECK([whether munmap() leaves semi-permanent VM map holes],
+               [je_cv_vmmap_hole],
+               AC_RUN_IFELSE([AC_LANG_PROGRAM(
+[[#include <stdio.h>
+#include <stdlib.h>
+#include <sys/mman.h>
+
+#define	NPTRS		11
+#define	MMAP_SIZE	((size_t)(1U << 22))
+
+static void *
+do_mmap(size_t size)
+{
+	void *ret;
+
+	ret = mmap(NULL, size, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANON, -1,
+	    0);
+	if (ret == MAP_FAILED) {
+		fprintf(stderr, "mmap() error\n");
+		exit(1);
+	}
+
+	return (ret);
+}
+
+static void
+do_munmap(void *ptr, size_t size)
+{
+	if (munmap(ptr, size) == -1) {
+		fprintf(stderr, "munmap() error\n");
+		exit(1);
+	}
+}
+]],
+[[
+	void *p0, *p1, *p2, *p3, *p4;
+	FILE *f;
+
+	f = fopen("conftest.out", "w");
+	if (f == NULL)
+		exit(1);
+
+	p0 = do_mmap(MMAP_SIZE);
+	p1 = do_mmap(MMAP_SIZE);
+	p2 = do_mmap(MMAP_SIZE);
+	do_munmap(p1, MMAP_SIZE);
+	p3 = do_mmap(MMAP_SIZE * 2);
+	do_munmap(p3, MMAP_SIZE * 2);
+	p4 = do_mmap(MMAP_SIZE);
+	if (p4 != p1) {
+		fprintf(stderr, "Hoped for %p, got %p\n", p1, p4);
+		fprintf(stderr, "%p..%p..%p..%p..%p\n", p0, p1, p2, p3, p4);
+		fprintf(f, "yes\n");
+	} else
+		fprintf(f, "no\n");
+
+	fclose(f);
+	return (0);
+]])],
+                             [je_cv_vmmap_hole=`cat conftest.out`],
+                             [je_cv_vmmap_hole=unknown]))
+if test "x$je_cv_vmmap_hole" = "xno" ; then
+  AC_DEFINE([JEMALLOC_MUNMAP], [ ])
+fi
+
 dnl ============================================================================
 dnl jemalloc configuration.
 dnl 

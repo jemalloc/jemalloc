@@ -11,7 +11,6 @@
 
 void	*chunk_alloc_dss(size_t size, size_t alignment, bool *zero);
 bool	chunk_in_dss(void *chunk);
-bool	chunk_dealloc_dss(void *chunk, size_t size);
 bool	chunk_dss_boot(void);
 void	chunk_dss_prefork(void);
 void	chunk_dss_postfork_parent(void);
