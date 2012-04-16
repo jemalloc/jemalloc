@@ -35,10 +35,8 @@ while [ ${lg_q} -le ${lg_qmax} ] ; do
   while [ ${lg_t} -le ${lg_q} ] ; do
     lg_p=${lg_pmin}
     while [ ${lg_p} -le ${lg_pmax} ] ; do
-      cat <<EOF
-#if (LG_TINY_MIN == ${lg_t} && LG_QUANTUM == ${lg_q} && LG_PAGE == ${lg_p})
-#define	SIZE_CLASSES_DEFINED
-EOF
+      echo "#if (LG_TINY_MIN == ${lg_t} && LG_QUANTUM == ${lg_q} && LG_PAGE == ${lg_p})"
+      echo "#define	SIZE_CLASSES_DEFINED"
       pow2 ${lg_q}; q=${pow2_result}
       pow2 ${lg_t}; t=${pow2_result}
       pow2 ${lg_p}; p=${pow2_result}
@@ -46,16 +44,12 @@ EOF
       psz=0
       sz=${t}
       delta=$((${sz} - ${psz}))
-cat <<EOF
-/*  SIZE_CLASS(bin,	delta,	sz) */
-#define	SIZE_CLASSES							\\
-EOF
+      echo "/*  SIZE_CLASS(bin,	delta,	sz) */"
+      echo "#define	SIZE_CLASSES							\\"
 
       # Tiny size classes.
       while [ ${sz} -lt ${q} ] ; do
-        cat <<EOF
-    SIZE_CLASS(${bin},	${delta},	${sz})					\\
-EOF
+        echo "    SIZE_CLASS(${bin},	${delta},	${sz})					\\"
         bin=$((${bin} + 1))
         psz=${sz}
         sz=$((${sz} + ${sz}))
@@ -73,22 +67,18 @@ EOF
         fi
         next_2pow=$((${sz} * 2))
         while [ ${sz} -lt $next_2pow ] ; do
-          cat <<EOF
-    SIZE_CLASS(${bin},	${delta},	${sz})					\\
-EOF
+          echo "    SIZE_CLASS(${bin},	${delta},	${sz})					\\"
           bin=$((${bin} + 1))
           psz=${sz}
           sz=$((${sz} + ${i}))
           delta=$((${sz} - ${psz}))
         done
       done
-      cat <<EOF
-
-#define	NBINS		${bin}
-#define	SMALL_MAXCLASS	${psz}
-#endif
-
-EOF
+      echo
+      echo "#define	NBINS		${bin}"
+      echo "#define	SMALL_MAXCLASS	${psz}"
+      echo "#endif"
+      echo
       lg_p=$((${lg_p} + 1))
     done
     lg_t=$((${lg_t} + 1))
