@@ -133,9 +133,9 @@ build_doc: $(DOCS)
 		 @objroot@lib/libjemalloc@install_suffix@.$(SO)
 	@mkdir -p $(@D)
 ifneq (@RPATH@, )
-	$(CC) -o $@ $< @RPATH@@objroot@lib -L@objroot@lib -ljemalloc@install_suffix@ -lpthread
+	$(CC) -o $@ $< @RPATH@@objroot@lib -L@objroot@lib -ljemalloc@install_suffix@ $(LIBS)
 else
-	$(CC) -o $@ $< -L@objroot@lib -ljemalloc@install_suffix@ -lpthread
+	$(CC) -o $@ $< -L@objroot@lib -ljemalloc@install_suffix@ $(LIBS)
 endif
 
 build_lib_shared: $(DSOS)
