@@ -79,13 +79,13 @@ main(void)
 	int ret = 0;
 	pthread_t thread;
 
-	fprintf(stderr, "Test begin\n");
+	malloc_printf("Test begin\n");
 
 	thread_start(NULL);
 
 	if (pthread_create(&thread, NULL, thread_start, NULL)
 	    != 0) {
-		fprintf(stderr, "%s(): Error in pthread_create()\n", __func__);
+		malloc_printf("%s(): Error in pthread_create()\n", __func__);
 		ret = 1;
 		goto label_return;
 	}
@@ -95,7 +95,7 @@ main(void)
 
 	if (pthread_create(&thread, NULL, thread_start, NULL)
 	    != 0) {
-		fprintf(stderr, "%s(): Error in pthread_create()\n", __func__);
+		malloc_printf("%s(): Error in pthread_create()\n", __func__);
 		ret = 1;
 		goto label_return;
 	}
@@ -104,6 +104,6 @@ main(void)
 	thread_start(NULL);
 
 label_return:
-	fprintf(stderr, "Test end\n");
+	malloc_printf("Test end\n");
 	return (ret);
 }

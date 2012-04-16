@@ -27,7 +27,7 @@ thread_start(void *arg)
 #endif
 			goto label_return;
 		}
-		fprintf(stderr, "%s(): Error in mallctl(): %s\n", __func__,
+		malloc_printf("%s(): Error in mallctl(): %s\n", __func__,
 		    strerror(err));
 		exit(1);
 	}
@@ -39,7 +39,7 @@ thread_start(void *arg)
 #endif
 			goto label_return;
 		}
-		fprintf(stderr, "%s(): Error in mallctl(): %s\n", __func__,
+		malloc_printf("%s(): Error in mallctl(): %s\n", __func__,
 		    strerror(err));
 		exit(1);
 	}
@@ -53,7 +53,7 @@ thread_start(void *arg)
 #endif
 			goto label_return;
 		}
-		fprintf(stderr, "%s(): Error in mallctl(): %s\n", __func__,
+		malloc_printf("%s(): Error in mallctl(): %s\n", __func__,
 		    strerror(err));
 		exit(1);
 	}
@@ -65,7 +65,7 @@ thread_start(void *arg)
 #endif
 			goto label_return;
 		}
-		fprintf(stderr, "%s(): Error in mallctl(): %s\n", __func__,
+		malloc_printf("%s(): Error in mallctl(): %s\n", __func__,
 		    strerror(err));
 		exit(1);
 	}
@@ -73,7 +73,7 @@ thread_start(void *arg)
 
 	p = malloc(1);
 	if (p == NULL) {
-		fprintf(stderr, "%s(): Error in malloc()\n", __func__);
+		malloc_printf("%s(): Error in malloc()\n", __func__);
 		exit(1);
 	}
 
@@ -108,13 +108,13 @@ main(void)
 	int ret = 0;
 	pthread_t thread;
 
-	fprintf(stderr, "Test begin\n");
+	malloc_printf("Test begin\n");
 
 	thread_start(NULL);
 
 	if (pthread_create(&thread, NULL, thread_start, NULL)
 	    != 0) {
-		fprintf(stderr, "%s(): Error in pthread_create()\n", __func__);
+		malloc_printf("%s(): Error in pthread_create()\n", __func__);
 		ret = 1;
 		goto label_return;
 	}
@@ -124,7 +124,7 @@ main(void)
 
 	if (pthread_create(&thread, NULL, thread_start, NULL)
 	    != 0) {
-		fprintf(stderr, "%s(): Error in pthread_create()\n", __func__);
+		malloc_printf("%s(): Error in pthread_create()\n", __func__);
 		ret = 1;
 		goto label_return;
 	}
@@ -133,6 +133,6 @@ main(void)
 	thread_start(NULL);
 
 label_return:
-	fprintf(stderr, "Test end\n");
+	malloc_printf("Test end\n");
 	return (ret);
 }

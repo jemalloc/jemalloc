@@ -7,12 +7,6 @@
  * */
 #include <assert.h>
 
-/*
- * Directly include the bitmap code, since it isn't exposed outside
- * libjemalloc.
- */
-#include "../src/bitmap.c"
-
 #if (LG_BITMAP_MAXBITS > 12)
 #  define MAXBITS	4500
 #else
@@ -144,7 +138,7 @@ test_bitmap_sfu(void)
 int
 main(void)
 {
-	fprintf(stderr, "Test begin\n");
+	malloc_printf("Test begin\n");
 
 	test_bitmap_size();
 	test_bitmap_init();
@@ -152,6 +146,6 @@ main(void)
 	test_bitmap_unset();
 	test_bitmap_sfu();
 
-	fprintf(stderr, "Test end\n");
+	malloc_printf("Test end\n");
 	return (0);
 }

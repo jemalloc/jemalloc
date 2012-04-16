@@ -14,12 +14,12 @@ main(void)
 	size_t sz, lg_chunk, chunksize, i;
 	char *p, *q;
 
-	fprintf(stderr, "Test begin\n");
+	malloc_printf("Test begin\n");
 
 	sz = sizeof(lg_chunk);
 	if ((err = mallctl("opt.lg_chunk", &lg_chunk, &sz, NULL, 0))) {
 		assert(err != ENOENT);
-		fprintf(stderr, "%s(): Error in mallctl(): %s\n", __func__,
+		malloc_printf("%s(): Error in mallctl(): %s\n", __func__,
 		    strerror(err));
 		ret = 1;
 		goto label_return;
@@ -28,7 +28,7 @@ main(void)
 
 	p = (char *)malloc(chunksize);
 	if (p == NULL) {
-		fprintf(stderr, "malloc(%zu) --> %p\n", chunksize, p);
+		malloc_printf("malloc(%zu) --> %p\n", chunksize, p);
 		ret = 1;
 		goto label_return;
 	}
@@ -36,7 +36,7 @@ main(void)
 
 	q = (char *)realloc(p, chunksize * 2);
 	if (q == NULL) {
-		fprintf(stderr, "realloc(%p, %zu) --> %p\n", p, chunksize * 2,
+		malloc_printf("realloc(%p, %zu) --> %p\n", p, chunksize * 2,
 		    q);
 		ret = 1;
 		goto label_return;
@@ -49,7 +49,7 @@ main(void)
 
 	q = (char *)realloc(p, chunksize);
 	if (q == NULL) {
-		fprintf(stderr, "realloc(%p, %zu) --> %p\n", p, chunksize, q);
+		malloc_printf("realloc(%p, %zu) --> %p\n", p, chunksize, q);
 		ret = 1;
 		goto label_return;
 	}
@@ -61,6 +61,6 @@ main(void)
 
 	ret = 0;
 label_return:
-	fprintf(stderr, "Test end\n");
+	malloc_printf("Test end\n");
 	return (ret);
 }

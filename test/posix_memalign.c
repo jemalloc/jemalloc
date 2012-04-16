@@ -21,13 +21,13 @@ main(void)
 	int err;
 	void *p, *ps[NITER];
 
-	fprintf(stderr, "Test begin\n");
+	malloc_printf("Test begin\n");
 
 	/* Test error conditions. */
 	for (alignment = 0; alignment < sizeof(void *); alignment++) {
 		err = posix_memalign(&p, alignment, 1);
 		if (err != EINVAL) {
-			fprintf(stderr,
+			malloc_printf(
 			    "Expected error for invalid alignment %zu\n",
 			    alignment);
 		}
@@ -37,7 +37,7 @@ main(void)
 	    alignment <<= 1) {
 		err = posix_memalign(&p, alignment + 1, 1);
 		if (err == 0) {
-			fprintf(stderr,
+			malloc_printf(
 			    "Expected error for invalid alignment %zu\n",
 			    alignment + 1);
 		}
@@ -52,7 +52,7 @@ main(void)
 #endif
 	err = posix_memalign(&p, alignment, size);
 	if (err == 0) {
-		fprintf(stderr,
+		malloc_printf(
 		    "Expected error for posix_memalign(&p, %zu, %zu)\n",
 		    alignment, size);
 	}
@@ -66,7 +66,7 @@ main(void)
 #endif
 	err = posix_memalign(&p, alignment, size);
 	if (err == 0) {
-		fprintf(stderr,
+		malloc_printf(
 		    "Expected error for posix_memalign(&p, %zu, %zu)\n",
 		    alignment, size);
 	}
@@ -79,7 +79,7 @@ main(void)
 #endif
 	err = posix_memalign(&p, alignment, size);
 	if (err == 0) {
-		fprintf(stderr,
+		malloc_printf(
 		    "Expected error for posix_memalign(&p, %zu, %zu)\n",
 		    alignment, size);
 	}
@@ -91,7 +91,7 @@ main(void)
 	    alignment <= MAXALIGN;
 	    alignment <<= 1) {
 		total = 0;
-		fprintf(stderr, "Alignment: %zu\n", alignment);
+		malloc_printf("Alignment: %zu\n", alignment);
 		for (size = 1;
 		    size < 3 * alignment && size < (1U << 31);
 		    size += (alignment >> (LG_SIZEOF_PTR-1)) - 1) {
@@ -99,7 +99,7 @@ main(void)
 				err = posix_memalign(&ps[i],
 				    alignment, size);
 				if (err) {
-					fprintf(stderr,
+					malloc_printf(
 					    "Error for size %zu (%#zx): %s\n",
 					    size, size, strerror(err));
 					exit(1);
@@ -117,6 +117,6 @@ main(void)
 		}
 	}
 
-	fprintf(stderr, "Test end\n");
+	malloc_printf("Test end\n");
 	return (0);
 }

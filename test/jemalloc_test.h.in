@@ -4,3 +4,4 @@
  * have a different name.
  */
 #include "jemalloc/jemalloc@install_suffix@.h"
+#include "jemalloc/internal/jemalloc_internal.h"

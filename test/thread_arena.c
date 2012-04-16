@@ -20,14 +20,14 @@ thread_start(void *arg)
 
 	p = malloc(1);
 	if (p == NULL) {
-		fprintf(stderr, "%s(): Error in malloc()\n", __func__);
+		malloc_printf("%s(): Error in malloc()\n", __func__);
 		return (void *)1;
 	}
 
 	size = sizeof(arena_ind);
 	if ((err = mallctl("thread.arena", &arena_ind, &size, &main_arena_ind,
 	    sizeof(main_arena_ind)))) {
-		fprintf(stderr, "%s(): Error in mallctl(): %s\n", __func__,
+		malloc_printf("%s(): Error in mallctl(): %s\n", __func__,
 		    strerror(err));
 		return (void *)1;
 	}
@@ -35,7 +35,7 @@ thread_start(void *arg)
 	size = sizeof(arena_ind);
 	if ((err = mallctl("thread.arena", &arena_ind, &size, NULL,
 	    0))) {
-		fprintf(stderr, "%s(): Error in mallctl(): %s\n", __func__,
+		malloc_printf("%s(): Error in mallctl(): %s\n", __func__,
 		    strerror(err));
 		return (void *)1;
 	}
@@ -55,18 +55,18 @@ main(void)
 	pthread_t threads[NTHREADS];
 	unsigned i;
 
-	fprintf(stderr, "Test begin\n");
+	malloc_printf("Test begin\n");
 
 	p = malloc(1);
 	if (p == NULL) {
-		fprintf(stderr, "%s(): Error in malloc()\n", __func__);
+		malloc_printf("%s(): Error in malloc()\n", __func__);
 		ret = 1;
 		goto label_return;
 	}
 
 	size = sizeof(arena_ind);
 	if ((err = mallctl("thread.arena", &arena_ind, &size, NULL, 0))) {
-		fprintf(stderr, "%s(): Error in mallctl(): %s\n", __func__,
+		malloc_printf("%s(): Error in mallctl(): %s\n", __func__,
 		    strerror(err));
 		ret = 1;
 		goto label_return;
@@ -75,7 +75,7 @@ main(void)
 	for (i = 0; i < NTHREADS; i++) {
 		if (pthread_create(&threads[i], NULL, thread_start,
 		    (void *)&arena_ind) != 0) {
-			fprintf(stderr, "%s(): Error in pthread_create()\n",
+			malloc_printf("%s(): Error in pthread_create()\n",
 			    __func__);
 			ret = 1;
 			goto label_return;
@@ -86,6 +86,6 @@ main(void)
 		pthread_join(threads[i], (void *)&ret);
 
 label_return:
-	fprintf(stderr, "Test end\n");
+	malloc_printf("Test end\n");
 	return (ret);
 }

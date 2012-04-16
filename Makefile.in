@@ -148,10 +148,12 @@ $(objroot)test/%.$(O): $(srcroot)test/%.c
 	$(CC) $(CFLAGS) -c $(CPPFLAGS) -I$(objroot)test -o $@ $<
 	@$(CC) -MM $(CPPFLAGS) -I$(objroot)test -MT $@ -o $(@:%.$(O)=%.d) $<
 
-$(objroot)test/%$(EXE): $(objroot)test/%.$(O) \
+$(objroot)test/bitmap$(EXE): $(objroot)src/bitmap.$(O)
+
+$(objroot)test/%$(EXE): $(objroot)test/%.$(O) $(objroot)src/util.$(O) \
 		 $(objroot)lib/$(LIBJEMALLOC).$(SO)
 	@mkdir -p $(@D)
-	$(CC) -o $@ $< $(call RPATH,$(objroot)lib) -L$(objroot)lib -ljemalloc$(install_suffix) $(LIBS)
+	$(CC) -o $@ $(filter %.$(O),$^) $(call RPATH,$(objroot)lib) -L$(objroot)lib -ljemalloc$(install_suffix) $(LIBS)
 
 build_lib_shared: $(DSOS)
 build_lib_static: $(STATIC_LIBS)
