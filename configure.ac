@@ -195,6 +195,10 @@ AC_DEFINE_UNQUOTED([CPU_SPINWAIT], [$CPU_SPINWAIT])
 
 LD_PRELOAD_VAR="LD_PRELOAD"
 so="so"
+o="o"
+a="a"
+exe=
+lib="lib"
 
 dnl Heap profiling uses the log(3) function.
 LIBS="$LIBS -lm"
@@ -277,6 +281,10 @@ AC_SUBST([abi])
 AC_SUBST([RPATH])
 AC_SUBST([LD_PRELOAD_VAR])
 AC_SUBST([so])
+AC_SUBST([o])
+AC_SUBST([a])
+AC_SUBST([exe])
+AC_SUBST([lib])
 
 JE_COMPILABLE([__attribute__ syntax],
               [static __attribute__((unused)) void foo(void){}],

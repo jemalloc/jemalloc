@@ -29,6 +29,10 @@ LDFLAGS := @LDFLAGS@
 LIBS := @LIBS@
 RPATH_EXTRA := @RPATH_EXTRA@
 SO := @so@
+O := @o@
+A := @a@
+EXE := @exe@
+LIB := @lib@
 ifeq (macho, @abi@)
 WL_SONAME := dylib_install_name
 else
@@ -53,6 +57,8 @@ else
 TEST_LIBRARY_PATH :=
 endif
 
+LIBJEMALLOC := $(LIB)jemalloc$(install_suffix)
+
 # Lists of files.
 BINS := $(srcroot)bin/pprof $(objroot)bin/jemalloc.sh
 CHDRS := $(objroot)include/jemalloc/jemalloc$(install_suffix).h \
@@ -68,10 +74,10 @@ CSRCS := $(srcroot)src/jemalloc.c $(srcroot)src/arena.c $(srcroot)src/atomic.c \
 ifeq (macho, $(ABI))
 CSRCS += $(srcroot)src/zone.c
 endif
-STATIC_LIBS := $(objroot)lib/libjemalloc$(install_suffix).a
-DSOS := $(objroot)lib/libjemalloc$(install_suffix).$(SO).$(REV) \
-	$(objroot)lib/libjemalloc$(install_suffix).$(SO) \
-	$(objroot)lib/libjemalloc$(install_suffix)_pic.a
+STATIC_LIBS := $(objroot)lib/$(LIBJEMALLOC).$(A)
+DSOS := $(objroot)lib/$(LIBJEMALLOC).$(SO).$(REV) \
+	$(objroot)lib/$(LIBJEMALLOC).$(SO) \
+	$(objroot)lib/$(LIBJEMALLOC)_pic.$(A)
 MAN3 := $(objroot)doc/jemalloc$(install_suffix).3
 DOCS_XML := $(objroot)doc/jemalloc$(install_suffix).xml
 DOCS_HTML := $(DOCS_XML:$(objroot)%.xml=$(srcroot)%.html)
@@ -90,7 +96,7 @@ endif
 .PHONY: install_html install_man install_doc install
 .PHONY: tests check clean distclean relclean
 
-.SECONDARY : $(CTESTS:$(srcroot)%.c=$(objroot)%.o)
+.SECONDARY : $(CTESTS:$(srcroot)%.c=$(objroot)%.$(O))
 
 # Default target.
 all: build
@@ -114,39 +120,39 @@ build_doc: $(DOCS)
 -include $(CSRCS:$(srcroot)%.c=$(objroot)%.pic.d)
 -include $(CTESTS:$(srcroot)%.c=$(objroot)%.d)
 
-$(objroot)src/%.o: $(srcroot)src/%.c
+$(objroot)src/%.$(O): $(srcroot)src/%.c
 	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) -c $(CPPFLAGS) -o $@ $<
-	@$(CC) -MM $(CPPFLAGS) -MT $@ -o $(@:%.o=%.d) $<
+	@$(CC) -MM $(CPPFLAGS) -MT $@ -o $(@:%.$(O)=%.d) $<
 
-$(objroot)src/%.pic.o: $(srcroot)src/%.c
+$(objroot)src/%.pic.$(O): $(srcroot)src/%.c
 	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) -fPIC -DPIC -c $(CPPFLAGS) -o $@ $<
-	@$(CC) -MM $(CPPFLAGS) -MT $@ -o $(@:%.o=%.d) $<
+	@$(CC) -MM $(CPPFLAGS) -MT $@ -o $(@:%.$(O)=%.d) $<
 
 %.$(SO) : %.$(SO).$(REV)
 	@mkdir -p $(@D)
 	ln -sf $(<F) $@
 
-$(objroot)lib/libjemalloc$(install_suffix).$(SO).$(REV) : $(CSRCS:$(srcroot)%.c=$(objroot)%.pic.o)
+$(objroot)lib/$(LIBJEMALLOC).$(SO).$(REV) : $(CSRCS:$(srcroot)%.c=$(objroot)%.pic.$(O))
 	@mkdir -p $(@D)
 	$(CC) -shared -Wl,-$(WL_SONAME),$(@F) $(RPATH_EXTRA:%=$(RPATH)%) -o $@ $+ $(LDFLAGS) $(LIBS)
 
-$(objroot)lib/libjemalloc$(install_suffix)_pic.a : $(CSRCS:$(srcroot)%.c=$(objroot)%.pic.o)
+$(objroot)lib/$(LIBJEMALLOC)_pic.$(A) : $(CSRCS:$(srcroot)%.c=$(objroot)%.pic.$(O))
 	@mkdir -p $(@D)
 	ar crus $@ $+
 
-$(objroot)lib/libjemalloc$(install_suffix).a : $(CSRCS:$(srcroot)%.c=$(objroot)%.o)
+$(objroot)lib/$(LIBJEMALLOC).$(A) : $(CSRCS:$(srcroot)%.c=$(objroot)%.$(O))
 	@mkdir -p $(@D)
 	ar crus $@ $+
 
-$(objroot)test/%.o: $(srcroot)test/%.c
+$(objroot)test/%.$(O): $(srcroot)test/%.c
 	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) -c $(CPPFLAGS) -I$(objroot)test -o $@ $<
-	@$(CC) -MM $(CPPFLAGS) -I$(objroot)test -MT $@ -o $(@:%.o=%.d) $<
+	@$(CC) -MM $(CPPFLAGS) -I$(objroot)test -MT $@ -o $(@:%.$(O)=%.d) $<
 
-$(objroot)test/%: $(objroot)test/%.o \
-		 $(objroot)lib/libjemalloc$(install_suffix).$(SO)
+$(objroot)test/%$(EXE): $(objroot)test/%.$(O) \
+		 $(objroot)lib/$(LIBJEMALLOC).$(SO)
 	@mkdir -p $(@D)
 ifneq ($(RPATH), )
 	$(CC) -o $@ $< $(RPATH)$(objroot)lib -L$(objroot)lib -ljemalloc$(install_suffix) $(LIBS)
@@ -174,13 +180,13 @@ done
 
 install_lib_shared: $(DSOS)
 	install -d $(LIBDIR)
-	install -m 755 $(objroot)lib/libjemalloc$(install_suffix).$(SO).$(REV) $(LIBDIR)
-	ln -sf libjemalloc$(install_suffix).$(SO).$(REV) $(LIBDIR)/libjemalloc$(install_suffix).$(SO)
+	install -m 755 $(objroot)lib/$(LIBJEMALLOC).$(SO).$(REV) $(LIBDIR)
+	ln -sf $(LIBJEMALLOC).$(SO).$(REV) $(LIBDIR)/$(LIBJEMALLOC).$(SO)
 
 install_lib_static: $(DSOS) $(STATIC_LIBS)
 	install -d $(LIBDIR)
-	install -m 755 $(objroot)lib/libjemalloc$(install_suffix)_pic.a $(LIBDIR)
-	install -m 755 $(objroot)lib/libjemalloc$(install_suffix).a $(LIBDIR)
+	install -m 755 $(objroot)lib/$(LIBJEMALLOC)_pic.$(A) $(LIBDIR)
+	install -m 755 $(objroot)lib/$(LIBJEMALLOC).$(A) $(LIBDIR)
 
 install_lib: install_lib_shared install_lib_static
 
@@ -202,7 +208,7 @@ install_doc: install_doc_html install_doc_man
 
 install: install_bin install_include install_lib install_doc
 
-tests: $(CTESTS:$(srcroot)%.c=$(objroot)%)
+tests: $(CTESTS:$(srcroot)%.c=$(objroot)%$(EXE))
 
 check: tests
 	@mkdir -p $(objroot)test
@@ -212,7 +218,7 @@ check: tests
 		for t in $(CTESTS:$(srcroot)%.c=$(objroot)%); do \
 			total=`expr $$total + 1`; \
 			/bin/echo -n "$${t} ... "; \
-			$(TEST_LIBRARY_PATH) $${t} $(abs_srcroot) $(abs_objroot) \
+			$(TEST_LIBRARY_PATH) $${t}$(EXE) $(abs_srcroot) $(abs_objroot) \
 			  > $(objroot)$${t}.out 2>&1; \
 			if test -e "$(srcroot)$${t}.exp"; then \
 				diff -w -u $(srcroot)$${t}.exp \
@@ -233,12 +239,12 @@ check: tests
 		echo "Failures: $${failures}/$${total}"'
 
 clean:
-	rm -f $(CSRCS:$(srcroot)%.c=$(objroot)%.o)
-	rm -f $(CSRCS:$(srcroot)%.c=$(objroot)%.pic.o)
+	rm -f $(CSRCS:$(srcroot)%.c=$(objroot)%.$(O))
+	rm -f $(CSRCS:$(srcroot)%.c=$(objroot)%.pic.$(O))
 	rm -f $(CSRCS:$(srcroot)%.c=$(objroot)%.d)
 	rm -f $(CSRCS:$(srcroot)%.c=$(objroot)%.pic.d)
-	rm -f $(CTESTS:$(srcroot)%.c=$(objroot)%)
-	rm -f $(CTESTS:$(srcroot)%.c=$(objroot)%.o)
+	rm -f $(CTESTS:$(srcroot)%.c=$(objroot)%$(EXE))
+	rm -f $(CTESTS:$(srcroot)%.c=$(objroot)%.$(O))
 	rm -f $(CTESTS:$(srcroot)%.c=$(objroot)%.d)
 	rm -f $(CTESTS:$(srcroot)%.c=$(objroot)%.out)
 	rm -f $(DSOS) $(STATIC_LIBS)
