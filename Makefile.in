@@ -33,23 +33,20 @@ O := @o@
 A := @a@
 EXE := @exe@
 LIB := @lib@
-ifeq (macho, @abi@)
-WL_SONAME := dylib_install_name
-else
-WL_SONAME := soname
-endif
 REV := @rev@
 install_suffix := @install_suffix@
 ABI := @abi@
 XSLTPROC := @XSLTPROC@
 AUTOCONF := @AUTOCONF@
-RPATH := @RPATH@
+_RPATH = @RPATH@
+RPATH = $(if $(1),$(call _RPATH,$(1)))
 cfghdrs_in := @cfghdrs_in@
 cfghdrs_out := @cfghdrs_out@
 cfgoutputs_in := @cfgoutputs_in@
 cfgoutputs_out := @cfgoutputs_out@
 enable_autogen := @enable_autogen@
 enable_experimental := @enable_experimental@
+DSO_LDFLAGS = @DSO_LDFLAGS@
 
 ifeq (macho, $(ABI))
 TEST_LIBRARY_PATH := DYLD_FALLBACK_LIBRARY_PATH=$(objroot)lib
@@ -136,7 +133,7 @@ $(objroot)src/%.pic.$(O): $(srcroot)src/%.c
 
 $(objroot)lib/$(LIBJEMALLOC).$(SO).$(REV) : $(CSRCS:$(srcroot)%.c=$(objroot)%.pic.$(O))
 	@mkdir -p $(@D)
-	$(CC) -shared -Wl,-$(WL_SONAME),$(@F) $(RPATH_EXTRA:%=$(RPATH)%) -o $@ $+ $(LDFLAGS) $(LIBS)
+	$(CC) $(DSO_LDFLAGS) $(call RPATH,$(RPATH_EXTRA)) -o $@ $+ $(LDFLAGS) $(LIBS)
 
 $(objroot)lib/$(LIBJEMALLOC)_pic.$(A) : $(CSRCS:$(srcroot)%.c=$(objroot)%.pic.$(O))
 	@mkdir -p $(@D)
@@ -154,11 +151,7 @@ $(objroot)test/%.$(O): $(srcroot)test/%.c
 $(objroot)test/%$(EXE): $(objroot)test/%.$(O) \
 		 $(objroot)lib/$(LIBJEMALLOC).$(SO)
 	@mkdir -p $(@D)
-ifneq ($(RPATH), )
-	$(CC) -o $@ $< $(RPATH)$(objroot)lib -L$(objroot)lib -ljemalloc$(install_suffix) $(LIBS)
-else
-	$(CC) -o $@ $< -L$(objroot)lib -ljemalloc$(install_suffix) $(LIBS)
-endif
+	$(CC) -o $@ $< $(call RPATH,$(objroot)lib) -L$(objroot)lib -ljemalloc$(install_suffix) $(LIBS)
 
 build_lib_shared: $(DSOS)
 build_lib_static: $(STATIC_LIBS)

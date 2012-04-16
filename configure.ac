@@ -199,6 +199,8 @@ o="o"
 a="a"
 exe=
 lib="lib"
+DSO_LDFLAGS='-shared -Wl,-soname,$(@F)'
+RPATH='-Wl,-rpath,$(1)'
 
 dnl Heap profiling uses the log(3) function.
 LIBS="$LIBS -lm"
@@ -220,12 +222,12 @@ case "${host}" in
 	LD_PRELOAD_VAR="DYLD_INSERT_LIBRARIES"
 	so="dylib"
 	force_tls="0"
+	DSO_LDFLAGS='-shared -Wl,-dylib_install_name,$(@F)'
 	;;
   *-*-freebsd*)
 	CFLAGS="$CFLAGS"
 	abi="elf"
 	AC_DEFINE([JEMALLOC_PURGE_MADVISE_FREE], [ ])
-	RPATH="-Wl,-rpath,"
 	force_lazy_lock="1"
 	;;
   *-*-linux*)
@@ -234,7 +236,6 @@ case "${host}" in
 	abi="elf"
 	AC_DEFINE([JEMALLOC_PURGE_MADVISE_DONTNEED], [ ])
 	AC_DEFINE([JEMALLOC_THREADED_INIT], [ ])
-	RPATH="-Wl,-rpath,"
 	default_munmap="0"
 	;;
   *-*-netbsd*)
@@ -250,12 +251,11 @@ case "${host}" in
                           [abi="aout"])
 	AC_MSG_RESULT([$abi])
 	AC_DEFINE([JEMALLOC_PURGE_MADVISE_FREE], [ ])
-	RPATH="-Wl,-rpath,"
 	;;
   *-*-solaris2*)
 	CFLAGS="$CFLAGS"
 	abi="elf"
-	RPATH="-Wl,-R,"
+	RPATH='-Wl,-R,$(1)'
 	dnl Solaris needs this for sigwait().
 	CPPFLAGS="$CPPFLAGS -D_POSIX_PTHREAD_SEMANTICS"
 	LIBS="$LIBS -lposix4 -lsocket -lnsl"
@@ -269,12 +269,10 @@ case "${host}" in
 	  LD_PRELOAD_VAR="LDR_PRELOAD"
 	fi
 	abi="xcoff"
-	RPATH="-Wl,-rpath,"
 	;;
   *)
 	AC_MSG_RESULT([Unsupported operating system: ${host}])
 	abi="elf"
-	RPATH="-Wl,-rpath,"
 	;;
 esac
 AC_SUBST([abi])
@@ -285,6 +283,7 @@ AC_SUBST([o])
 AC_SUBST([a])
 AC_SUBST([exe])
 AC_SUBST([lib])
+AC_SUBST([DSO_LDFLAGS])
 
 JE_COMPILABLE([__attribute__ syntax],
               [static __attribute__((unused)) void foo(void){}],
