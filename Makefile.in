@@ -21,9 +21,6 @@ MANDIR := $(DESTDIR)@MANDIR@
 # Build parameters.
 CPPFLAGS := @CPPFLAGS@ -I@srcroot@include -I@objroot@include
 CFLAGS := @CFLAGS@
-ifeq (macho, @abi@)
-CFLAGS += -dynamic
-endif
 LDFLAGS := @LDFLAGS@
 LIBS := @LIBS@
 RPATH_EXTRA := @RPATH_EXTRA@
