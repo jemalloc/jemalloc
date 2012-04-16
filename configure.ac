@@ -826,7 +826,6 @@ AC_CACHE_CHECK([whether munmap() leaves semi-permanent VM map holes],
 #include <stdlib.h>
 #include <sys/mman.h>
 
-#define	NPTRS		11
 #define	MMAP_SIZE	((size_t)(1U << 22))
 
 static void *
