@@ -1006,7 +1006,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         option for information on high-water-triggered profile dumping.
         Profile output is compatible with the included <command>pprof</command>
         Perl script, which originates from the <ulink
-        url="http://code.google.com/p/google-perftools/">google-perftools
+        url="http://code.google.com/p/gperftools/">gperftools
         package</ulink>.</para></listitem>
       </varlistentry>
 

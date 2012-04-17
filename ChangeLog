@@ -34,6 +34,7 @@ found in the git revision history:
   - Add the --with-mangling option.
   - Add the --disable-experimental option.
   - Add the "thread.tcache.enabled" mallctl.
+  - Update pprof (from gperftools 2.0).
 
   Incompatible changes:
   - Enable stats by default.
