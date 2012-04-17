@@ -981,6 +981,29 @@ if test "x${je_cv_function_ffsl}" != "xyes" ; then
 fi
 
 dnl ============================================================================
+dnl Check for atomic(9) operations as provided on FreeBSD.
+
+JE_COMPILABLE([atomic(9)], [
+#include <sys/types.h>
+#include <machine/atomic.h>
+#include <inttypes.h>
+], [
+	{
+		uint32_t x32 = 0;
+		volatile uint32_t *x32p = &x32;
+		atomic_fetchadd_32(x32p, 1);
+	}
+	{
+		unsigned long xlong = 0;
+		volatile unsigned long *xlongp = &xlong;
+		atomic_fetchadd_long(xlongp, 1);
+	}
+], [je_cv_atomic9])
+if test "x${je_cv_atomic9}" = "xyes" ; then
+  AC_DEFINE([JEMALLOC_ATOMIC9])
+fi
+
+dnl ============================================================================
 dnl Check for atomic(3) operations as provided on Darwin.
 
 JE_COMPILABLE([Darwin OSAtomic*()], [
@@ -1031,7 +1054,7 @@ AC_DEFUN([JE_SYNC_COMPARE_AND_SWAP_CHECK],[
   fi
 ])
 
-if test "x${je_cv_osatomic}" != "xyes" ; then
+if test "x${je_cv_atomic9}" != "xyes" -a "x${je_cv_osatomic}" != "xyes" ; then
   JE_SYNC_COMPARE_AND_SWAP_CHECK(32, 4)
   JE_SYNC_COMPARE_AND_SWAP_CHECK(64, 8)
 fi

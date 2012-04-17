@@ -161,6 +161,10 @@ static const bool config_ivsalloc =
 #endif
     ;
 
+#ifdef JEMALLOC_ATOMIC9
+#include <machine/atomic.h>
+#endif
+
 #if (defined(JEMALLOC_OSATOMIC) || defined(JEMALLOC_OSSPIN))
 #include <libkern/OSAtomic.h>
 #endif

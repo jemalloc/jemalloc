@@ -47,6 +47,9 @@
  */
 #undef CPU_SPINWAIT
 
+/* Defined if the equivalent of FreeBSD's atomic(9) functions are available. */
+#undef JEMALLOC_ATOMIC9
+
 /*
  * Defined if OSAtomic*() functions are available, as provided by Darwin, and
  * documented in the atomic(3) manual page.
