@@ -34,6 +34,7 @@ found in the git revision history:
   - Add the --with-mangling option.
   - Add the --disable-experimental option.
   - Add the "thread.tcache.enabled" mallctl.
+  - Add the "opt.prof_final" mallctl.
   - Update pprof (from gperftools 2.0).
 
   Incompatible changes:
@@ -42,6 +43,8 @@ found in the git revision history:
   - Disable lazy locking by default.
   - Rename the "tcache.flush" mallctl to "thread.tcache.flush".
   - Rename the "arenas.pagesize" mallctl to "arenas.page".
+  - Change the "opt.lg_prof_sample" default from 0 to 19 (1 B to 512 KiB).
+  - Change the "opt.prof_accum" default from true to false.
 
   Removed features:
   - Remove the swap feature, including the "config.swap", "swap.avail",

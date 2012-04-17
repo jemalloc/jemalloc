@@ -397,6 +397,7 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		OPT_WRITE_BOOL(prof_accum)
 		OPT_WRITE_SSIZE_T(lg_prof_interval)
 		OPT_WRITE_BOOL(prof_gdump)
+		OPT_WRITE_BOOL(prof_final)
 		OPT_WRITE_BOOL(prof_leak)
 
 #undef OPT_WRITE_BOOL

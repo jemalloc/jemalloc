@@ -21,8 +21,9 @@ bool		opt_prof_active = true;
 size_t		opt_lg_prof_sample = LG_PROF_SAMPLE_DEFAULT;
 ssize_t		opt_lg_prof_interval = LG_PROF_INTERVAL_DEFAULT;
 bool		opt_prof_gdump = false;
+bool		opt_prof_final = true;
 bool		opt_prof_leak = false;
-bool		opt_prof_accum = true;
+bool		opt_prof_accum = false;
 char		opt_prof_prefix[PATH_MAX + 1];
 
 uint64_t	prof_interval;
@@ -944,7 +945,7 @@ prof_fdump(void)
 	if (prof_booted == false)
 		return;
 
-	if (opt_prof_prefix[0] != '\0') {
+	if (opt_prof_final && opt_prof_prefix[0] != '\0') {
 		malloc_mutex_lock(&prof_dump_seq_mtx);
 		prof_dump_filename(filename, 'f', UINT64_C(0xffffffffffffffff));
 		malloc_mutex_unlock(&prof_dump_seq_mtx);

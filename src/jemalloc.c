@@ -561,6 +561,7 @@ malloc_conf_init(void)
 				    lg_prof_interval, -1,
 				    (sizeof(uint64_t) << 3) - 1)
 				CONF_HANDLE_BOOL(opt_prof_gdump, prof_gdump)
+				CONF_HANDLE_BOOL(opt_prof_final, prof_final)
 				CONF_HANDLE_BOOL(opt_prof_leak, prof_leak)
 			}
 			malloc_conf_error("Invalid conf pair", k, klen, v,

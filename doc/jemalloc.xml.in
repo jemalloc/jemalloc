@@ -986,14 +986,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
           [<option>--enable-prof</option>]
         </term>
         <listitem><para>Memory profiling enabled/disabled.  If enabled, profile
-        memory allocation activity, and use an
-        <citerefentry><refentrytitle>atexit</refentrytitle>
-        <manvolnum>3</manvolnum></citerefentry> function to dump final memory
-        usage to a file named according to the pattern
-        <filename>&lt;prefix&gt;.&lt;pid&gt;.&lt;seq&gt;.f.heap</filename>,
-        where <literal>&lt;prefix&gt;</literal> is controlled by the <link
-        linkend="opt.prof_prefix"><mallctl>opt.prof_prefix</mallctl></link>
-        option.  See the <link
+        memory allocation activity.  See the <link
         linkend="opt.prof_active"><mallctl>opt.prof_active</mallctl></link>
         option for on-the-fly activation/deactivation.  See the <link
         linkend="opt.lg_prof_sample"><mallctl>opt.lg_prof_sample</mallctl></link>
@@ -1001,12 +994,13 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         linkend="opt.prof_accum"><mallctl>opt.prof_accum</mallctl></link>
         option for control of cumulative sample reporting.  See the <link
         linkend="opt.lg_prof_interval"><mallctl>opt.lg_prof_interval</mallctl></link>
-        option for information on interval-triggered profile dumping, and the
-        <link linkend="opt.prof_gdump"><mallctl>opt.prof_gdump</mallctl></link>
-        option for information on high-water-triggered profile dumping.
-        Profile output is compatible with the included <command>pprof</command>
-        Perl script, which originates from the <ulink
-        url="http://code.google.com/p/gperftools/">gperftools
+        option for information on interval-triggered profile dumping, the <link
+        linkend="opt.prof_gdump"><mallctl>opt.prof_gdump</mallctl></link>
+        option for information on high-water-triggered profile dumping, and the
+        <link linkend="opt.prof_final"><mallctl>opt.prof_final</mallctl></link>
+        option for final profile dumping.  Profile output is compatible with
+        the included <command>pprof</command> Perl script, which originates
+        from the <ulink url="http://code.google.com/p/gperftools/">gperftools
         package</ulink>.</para></listitem>
       </varlistentry>
 
@@ -1051,8 +1045,8 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         <listitem><para>Average interval (log base 2) between allocation
         samples, as measured in bytes of allocation activity.  Increasing the
         sampling interval decreases profile fidelity, but also decreases the
-        computational overhead.  The default sample interval is 1 (2^0) (i.e.
-        all allocations are sampled).</para></listitem>
+        computational overhead.  The default sample interval is 512 KiB (2^19
+        B).</para></listitem>
       </varlistentry>
 
       <varlistentry id="opt.prof_accum">
@@ -1066,7 +1060,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         dumps enabled/disabled.  If this option is enabled, every unique
         backtrace must be stored for the duration of execution.  Depending on
         the application, this can impose a large memory overhead, and the
-        cumulative counts are not always of interest.  This option is enabled
+        cumulative counts are not always of interest.  This option is disabled
         by default.</para></listitem>
       </varlistentry>
 
@@ -1105,6 +1099,23 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         where <literal>&lt;prefix&gt;</literal> is controlled by the <link
         linkend="opt.prof_prefix"><mallctl>opt.prof_prefix</mallctl></link>
         option.  This option is disabled by default.</para></listitem>
+      </varlistentry>
+
+      <varlistentry id="opt.prof_final">
+        <term>
+          <mallctl>opt.prof_final</mallctl>
+          (<type>bool</type>)
+          <literal>r-</literal>
+          [<option>--enable-prof</option>]
+        </term>
+        <listitem><para>Use an
+        <citerefentry><refentrytitle>atexit</refentrytitle>
+        <manvolnum>3</manvolnum></citerefentry> function to dump final memory
+        usage to a file named according to the pattern
+        <filename>&lt;prefix&gt;.&lt;pid&gt;.&lt;seq&gt;.f.heap</filename>,
+        where <literal>&lt;prefix&gt;</literal> is controlled by the <link
+        linkend="opt.prof_prefix"><mallctl>opt.prof_prefix</mallctl></link>
+        option.  This option is enabled by default.</para></listitem>
       </varlistentry>
 
       <varlistentry id="opt.prof_leak">

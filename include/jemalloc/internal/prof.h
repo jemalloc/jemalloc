@@ -9,7 +9,7 @@ typedef struct prof_tdata_s prof_tdata_t;
 
 /* Option defaults. */
 #define	PROF_PREFIX_DEFAULT		"jeprof"
-#define	LG_PROF_SAMPLE_DEFAULT		0
+#define	LG_PROF_SAMPLE_DEFAULT		19
 #define	LG_PROF_INTERVAL_DEFAULT	-1
 
 /*
@@ -169,6 +169,7 @@ extern bool	opt_prof_active;
 extern size_t	opt_lg_prof_sample;   /* Mean bytes between samples. */
 extern ssize_t	opt_lg_prof_interval; /* lg(prof_interval). */
 extern bool	opt_prof_gdump;       /* High-water memory dumping. */
+extern bool	opt_prof_final;       /* Final profile dumping. */
 extern bool	opt_prof_leak;        /* Dump leak summary at exit. */
 extern bool	opt_prof_accum;       /* Report cumulative bytes. */
 extern char	opt_prof_prefix[PATH_MAX + 1];
