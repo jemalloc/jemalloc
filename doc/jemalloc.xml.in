@@ -652,6 +652,16 @@ for (i = 0; i < nbins; i++) {
 
       <varlistentry>
         <term>
+          <mallctl>config.munmap</mallctl>
+          (<type>bool</type>)
+          <literal>r-</literal>
+        </term>
+        <listitem><para><option>--enable-munmap</option> was specified during
+        build configuration.</para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term>
           <mallctl>config.prof</mallctl>
           (<type>bool</type>)
           <literal>r-</literal>

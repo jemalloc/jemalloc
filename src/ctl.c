@@ -50,6 +50,7 @@ CTL_PROTO(config_debug)
 CTL_PROTO(config_dss)
 CTL_PROTO(config_fill)
 CTL_PROTO(config_lazy_lock)
+CTL_PROTO(config_munmap)
 CTL_PROTO(config_prof)
 CTL_PROTO(config_prof_libgcc)
 CTL_PROTO(config_prof_libunwind)
@@ -176,6 +177,7 @@ static const ctl_node_t	config_node[] = {
 	{NAME("dss"),			CTL(config_dss)},
 	{NAME("fill"),			CTL(config_fill)},
 	{NAME("lazy_lock"),		CTL(config_lazy_lock)},
+	{NAME("munmap"),		CTL(config_munmap)},
 	{NAME("prof"),			CTL(config_prof)},
 	{NAME("prof_libgcc"),		CTL(config_prof_libgcc)},
 	{NAME("prof_libunwind"),	CTL(config_prof_libunwind)},
@@ -1087,6 +1089,7 @@ CTL_RO_BOOL_CONFIG_GEN(config_debug)
 CTL_RO_BOOL_CONFIG_GEN(config_dss)
 CTL_RO_BOOL_CONFIG_GEN(config_fill)
 CTL_RO_BOOL_CONFIG_GEN(config_lazy_lock)
+CTL_RO_BOOL_CONFIG_GEN(config_munmap)
 CTL_RO_BOOL_CONFIG_GEN(config_prof)
 CTL_RO_BOOL_CONFIG_GEN(config_prof_libgcc)
 CTL_RO_BOOL_CONFIG_GEN(config_prof_libunwind)

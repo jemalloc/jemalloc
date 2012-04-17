@@ -108,6 +108,13 @@ any of the following arguments (not a definitive list) to 'configure':
     released in bulk, thus reducing the total number of mutex operations.  See
     the "opt.tcache" option for usage details.
 
+--disable-munmap
+    Disable virtual memory deallocation via munmap(2); instead keep track of
+    the virtual memory for later use.  munmap() is disabled by default (i.e.
+    --disable-munmap is implied) on Linux, which has a quirk in its virtual
+    memory allocation algorithm that causes semi-permanent VM map holes under
+    normal jemalloc operation.
+
 --enable-dss
     Enable support for page allocation/deallocation via sbrk(2), in addition to
     mmap(2).
