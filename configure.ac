@@ -202,6 +202,7 @@ lib="lib"
 DSO_LDFLAGS='-shared -Wl,-soname,$(@F)'
 RPATH='-Wl,-rpath,$(1)'
 SOREV='$(SO).$(REV)'
+PIC_CFLAGS='-fPIC -DPIC'
 
 dnl Heap profiling uses the log(3) function.
 LIBS="$LIBS -lm"
@@ -287,6 +288,7 @@ AC_SUBST([exe])
 AC_SUBST([lib])
 AC_SUBST([DSO_LDFLAGS])
 AC_SUBST([SOREV])
+AC_SUBST([PIC_CFLAGS])
 
 JE_COMPILABLE([__attribute__ syntax],
               [static __attribute__((unused)) void foo(void){}],

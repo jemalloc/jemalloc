@@ -48,6 +48,7 @@ enable_autogen := @enable_autogen@
 enable_experimental := @enable_experimental@
 DSO_LDFLAGS = @DSO_LDFLAGS@
 SOREV = @SOREV@
+PIC_CFLAGS = @PIC_CFLAGS@
 
 ifeq (macho, $(ABI))
 TEST_LIBRARY_PATH := DYLD_FALLBACK_LIBRARY_PATH=$(objroot)lib
@@ -73,8 +74,10 @@ ifeq (macho, $(ABI))
 CSRCS += $(srcroot)src/zone.c
 endif
 STATIC_LIBS := $(objroot)lib/$(LIBJEMALLOC).$(A)
-DSOS := $(objroot)lib/$(LIBJEMALLOC)_pic.$(A) \
-	$(objroot)lib/$(LIBJEMALLOC).$(SOREV)
+ifdef PIC_CFLAGS
+STATIC_LIBS += $(objroot)lib/$(LIBJEMALLOC)_pic.$(A)
+endif
+DSOS := $(objroot)lib/$(LIBJEMALLOC).$(SOREV)
 ifneq ($(SOREV),$(SO))
 DSOS += $(objroot)lib/$(LIBJEMALLOC).$(SO)
 endif
@@ -91,12 +94,16 @@ ifeq ($(enable_experimental), 1)
 CTESTS += $(srcroot)test/allocm.c $(srcroot)test/rallocm.c
 endif
 
+COBJS := $(CSRCS:$(srcroot)%.c=$(objroot)%.$(O))
+CPICOBJS := $(CSRCS:$(srcroot)%.c=$(objroot)%.pic.$(O))
+CTESTOBJS := $(CTESTS:$(srcroot)%.c=$(objroot)%.$(O))
+
 .PHONY: all dist doc_html doc_man doc
 .PHONY: install_bin install_include install_lib
 .PHONY: install_html install_man install_doc install
 .PHONY: tests check clean distclean relclean
 
-.SECONDARY : $(CTESTS:$(srcroot)%.c=$(objroot)%.$(O))
+.SECONDARY : $(CTESTOBJS)
 
 # Default target.
 all: build
@@ -116,18 +123,19 @@ build_doc: $(DOCS)
 #
 # Include generated dependency files.
 #
--include $(CSRCS:$(srcroot)%.c=$(objroot)%.d)
--include $(CSRCS:$(srcroot)%.c=$(objroot)%.pic.d)
--include $(CTESTS:$(srcroot)%.c=$(objroot)%.d)
+-include $(COBJS:%.$(O)=%.d)
+-include $(CPICOBJS:%.$(O)=%.d)
+-include $(CTESTOBJS:%.$(O)=%.d)
 
-$(objroot)src/%.$(O): $(srcroot)src/%.c
+$(COBJS): $(objroot)src/%.$(O): $(srcroot)src/%.c
+$(CPICOBJS): $(objroot)src/%.pic.$(O): $(srcroot)src/%.c
+$(CPICOBJS): CFLAGS += $(PIC_CFLAGS)
+$(CTESTOBJS): $(objroot)test/%.$(O): $(srcroot)test/%.c
+$(CTESTOBJS): CPPFLAGS += -I$(objroot)test
+
+$(COBJS) $(CPICOBJS) $(CTESTOBJS): %.$(O):
 	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) -c $(CPPFLAGS) -o $@ $<
-	@$(CC) -MM $(CPPFLAGS) -MT $@ -o $(@:%.$(O)=%.d) $<
-
-$(objroot)src/%.pic.$(O): $(srcroot)src/%.c
-	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) -fPIC -DPIC -c $(CPPFLAGS) -o $@ $<
 	@$(CC) -MM $(CPPFLAGS) -MT $@ -o $(@:%.$(O)=%.d) $<
 
 ifneq ($(SOREV),$(SO))
@@ -136,27 +144,20 @@ ifneq ($(SOREV),$(SO))
 	ln -sf $(<F) $@
 endif
 
-$(objroot)lib/$(LIBJEMALLOC).$(SOREV) : $(CSRCS:$(srcroot)%.c=$(objroot)%.pic.$(O))
+$(objroot)lib/$(LIBJEMALLOC).$(SOREV) : $(if $(PIC_CFLAGS),$(CPICOBJS),$(COBJS))
 	@mkdir -p $(@D)
 	$(CC) $(DSO_LDFLAGS) $(call RPATH,$(RPATH_EXTRA)) -o $@ $+ $(LDFLAGS) $(LIBS)
 
-$(objroot)lib/$(LIBJEMALLOC)_pic.$(A) : $(CSRCS:$(srcroot)%.c=$(objroot)%.pic.$(O))
+$(objroot)lib/$(LIBJEMALLOC)_pic.$(A) : $(CPICOBJS)
+$(objroot)lib/$(LIBJEMALLOC).$(A) : $(COBJS)
+
+$(STATIC_LIBS):
 	@mkdir -p $(@D)
 	ar crus $@ $+
-
-$(objroot)lib/$(LIBJEMALLOC).$(A) : $(CSRCS:$(srcroot)%.c=$(objroot)%.$(O))
-	@mkdir -p $(@D)
-	ar crus $@ $+
-
-$(objroot)test/%.$(O): $(srcroot)test/%.c
-	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) -c $(CPPFLAGS) -I$(objroot)test -o $@ $<
-	@$(CC) -MM $(CPPFLAGS) -I$(objroot)test -MT $@ -o $(@:%.$(O)=%.d) $<
 
 $(objroot)test/bitmap$(EXE): $(objroot)src/bitmap.$(O)
 
-$(objroot)test/%$(EXE): $(objroot)test/%.$(O) $(objroot)src/util.$(O) \
-		 $(objroot)lib/$(LIBJEMALLOC).$(SO)
+$(objroot)test/%$(EXE): $(objroot)test/%.$(O) $(objroot)src/util.$(O) $(DSOS)
 	@mkdir -p $(@D)
 	$(CC) -o $@ $(filter %.$(O),$^) $(call RPATH,$(objroot)lib) -L$(objroot)lib -ljemalloc$(install_suffix) $(LIBS)
 
@@ -185,10 +186,12 @@ ifneq ($(SOREV),$(SO))
 	ln -sf $(LIBJEMALLOC).$(SOREV) $(LIBDIR)/$(LIBJEMALLOC).$(SO)
 endif
 
-install_lib_static: $(DSOS) $(STATIC_LIBS)
+install_lib_static: $(STATIC_LIBS)
 	install -d $(LIBDIR)
-	install -m 755 $(objroot)lib/$(LIBJEMALLOC)_pic.$(A) $(LIBDIR)
-	install -m 755 $(objroot)lib/$(LIBJEMALLOC).$(A) $(LIBDIR)
+	@for l in $(STATIC_LIBS); do \
+	echo "install -m 755 $$l $(LIBDIR)"; \
+	install -m 755 $$l $(LIBDIR); \
+done
 
 install_lib: install_lib_shared install_lib_static
 
@@ -241,14 +244,14 @@ check: tests
 		echo "Failures: $${failures}/$${total}"'
 
 clean:
-	rm -f $(CSRCS:$(srcroot)%.c=$(objroot)%.$(O))
-	rm -f $(CSRCS:$(srcroot)%.c=$(objroot)%.pic.$(O))
-	rm -f $(CSRCS:$(srcroot)%.c=$(objroot)%.d)
-	rm -f $(CSRCS:$(srcroot)%.c=$(objroot)%.pic.d)
-	rm -f $(CTESTS:$(srcroot)%.c=$(objroot)%$(EXE))
-	rm -f $(CTESTS:$(srcroot)%.c=$(objroot)%.$(O))
-	rm -f $(CTESTS:$(srcroot)%.c=$(objroot)%.d)
-	rm -f $(CTESTS:$(srcroot)%.c=$(objroot)%.out)
+	rm -f $(COBJS)
+	rm -f $(CPICOBJS)
+	rm -f $(COBJS:%.$(O)=%.d)
+	rm -f $(CPICOBJS:%.$(O)=%.d)
+	rm -f $(CTESTOBJS:%.$(O)=%$(EXE))
+	rm -f $(CTESTOBJS)
+	rm -f $(CTESTOBJS:%.$(O)=%.d)
+	rm -f $(CTESTOBJS:%.$(O)=%.out)
 	rm -f $(DSOS) $(STATIC_LIBS)
 
 distclean: clean
