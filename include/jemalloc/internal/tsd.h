@@ -253,6 +253,7 @@ a_name##_tsd_get_wrapper(void)						\
 		} else {						\
 			static a_type tsd_static_data = a_initializer;	\
 			wrapper->isstatic = false;			\
+			wrapper->initialized = false;			\
 			wrapper->val = tsd_static_data;			\
 		}							\
 		if (pthread_setspecific(a_name##_tsd,			\
