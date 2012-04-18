@@ -4,11 +4,7 @@
 /* Maximum number of malloc_tsd users with cleanup functions. */
 #define	MALLOC_TSD_CLEANUPS_MAX	8
 
-typedef struct malloc_tsd_cleanup_s malloc_tsd_cleanup_t;
-struct malloc_tsd_cleanup_s {
-	bool	(*f)(void *);
-	void	*arg;
-};
+typedef bool (*malloc_tsd_cleanup_t)(void);
 
 /*
  * TLS/TSD-agnostic macro-based implementation of thread-specific data.  There
@@ -110,13 +106,12 @@ a_attr bool		a_name##_booted = false;
     a_cleanup)								\
 /* Initialization/cleanup. */						\
 a_attr bool								\
-a_name##_tsd_cleanup_wrapper(void *arg)					\
+a_name##_tsd_cleanup_wrapper(void)					\
 {									\
-	bool (*cleanup)(void *) = arg;					\
 									\
 	if (a_name##_initialized) {					\
 		a_name##_initialized = false;				\
-		cleanup(&a_name##_tls);					\
+		a_cleanup(&a_name##_tls);					\
 	}								\
 	return (a_name##_initialized);					\
 }									\
@@ -126,7 +121,7 @@ a_name##_tsd_boot(void)							\
 									\
 	if (a_cleanup != malloc_tsd_no_cleanup) {			\
 		malloc_tsd_cleanup_register(				\
-		    &a_name##_tsd_cleanup_wrapper, a_cleanup);		\
+		    &a_name##_tsd_cleanup_wrapper);			\
 	}								\
 	a_name##_booted = true;						\
 	return (false);							\
@@ -290,7 +285,7 @@ a_name##_tsd_set(a_type *val)						\
 void	*malloc_tsd_malloc(size_t size);
 void	malloc_tsd_dalloc(void *wrapper);
 void	malloc_tsd_no_cleanup(void *);
-void	malloc_tsd_cleanup_register(bool (*f)(void *), void *arg);
+void	malloc_tsd_cleanup_register(bool (*f)(void));
 void	malloc_tsd_boot(void);
 
 #endif /* JEMALLOC_H_EXTERNS */
