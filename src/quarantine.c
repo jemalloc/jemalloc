@@ -101,7 +101,7 @@ quarantine(void *ptr)
 	quarantine_t *quarantine;
 	size_t usize = isalloc(ptr, config_prof);
 
-	assert(config_fill);
+	cassert(config_fill);
 	assert(opt_quarantine);
 
 	quarantine = *quarantine_tsd_get();
@@ -154,7 +154,7 @@ bool
 quarantine_boot(void)
 {
 
-	assert(config_fill);
+	cassert(config_fill);
 
 	if (quarantine_tsd_boot())
 		return (true);

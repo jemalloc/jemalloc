@@ -1213,7 +1213,9 @@ void
 arena_prof_accum(arena_t *arena, uint64_t accumbytes)
 {
 
-	if (prof_interval != 0) {
+	cassert(config_prof);
+
+	if (config_prof && prof_interval != 0) {
 		arena->prof_accumbytes += accumbytes;
 		if (arena->prof_accumbytes >= prof_interval) {
 			prof_idump();
@@ -1490,8 +1492,8 @@ arena_salloc(const void *ptr, bool demote)
 	} else {
 		assert(((uintptr_t)ptr & PAGE_MASK) == 0);
 		ret = mapbits & ~PAGE_MASK;
-		if (demote && prof_promote && ret == PAGE && (mapbits &
-		    CHUNK_MAP_CLASS_MASK) != 0) {
+		if (config_prof && demote && prof_promote && ret == PAGE &&
+		    (mapbits & CHUNK_MAP_CLASS_MASK) != 0) {
 			size_t binind = ((mapbits & CHUNK_MAP_CLASS_MASK) >>
 			    CHUNK_MAP_CLASS_SHIFT) - 1;
 			assert(binind < NBINS);
@@ -1509,7 +1511,7 @@ arena_prof_promoted(const void *ptr, size_t size)
 	arena_chunk_t *chunk;
 	size_t pageind, binind;
 
-	assert(config_prof);
+	cassert(config_prof);
 	assert(ptr != NULL);
 	assert(CHUNK_ADDR2BASE(ptr) != ptr);
 	assert(isalloc(ptr, false) == PAGE);
