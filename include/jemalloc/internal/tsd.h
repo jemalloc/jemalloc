@@ -192,7 +192,6 @@ a_name##_tsd_set(a_type *val)						\
     a_cleanup)								\
 /* Data structure. */							\
 typedef struct {							\
-	bool	isstatic;						\
 	bool	initialized;						\
 	a_type	val;							\
 } a_name##_tsd_wrapper_t;						\
@@ -218,8 +217,7 @@ a_name##_tsd_cleanup_wrapper(void *arg)					\
 			return;						\
 		}							\
 	}								\
-	if (wrapper->isstatic == false)					\
-		malloc_tsd_dalloc(wrapper);				\
+	malloc_tsd_dalloc(wrapper);					\
 }									\
 a_attr bool								\
 a_name##_tsd_boot(void)							\
@@ -242,17 +240,11 @@ a_name##_tsd_get_wrapper(void)						\
 		wrapper = (a_name##_tsd_wrapper_t *)			\
 		    malloc_tsd_malloc(sizeof(a_name##_tsd_wrapper_t));	\
 		if (wrapper == NULL) {					\
-			static a_name##_tsd_wrapper_t			\
-			    a_name##_tsd_static_data =			\
-			    {true, false, a_initializer};		\
 			malloc_write("<jemalloc>: Error allocating"	\
 			    " TSD for "#a_name"\n");			\
-			if (opt_abort)					\
-				abort();				\
-			wrapper = &a_name##_tsd_static_data;		\
+			abort();					\
 		} else {						\
 			static a_type tsd_static_data = a_initializer;	\
-			wrapper->isstatic = false;			\
 			wrapper->initialized = false;			\
 			wrapper->val = tsd_static_data;			\
 		}							\
@@ -260,8 +252,7 @@ a_name##_tsd_get_wrapper(void)						\
 		    (void *)wrapper)) {					\
 			malloc_write("<jemalloc>: Error setting"	\
 			    " TSD for "#a_name"\n");			\
-			if (opt_abort)					\
-				abort();				\
+			abort();					\
 		}							\
 	}								\
 	return (wrapper);						\
