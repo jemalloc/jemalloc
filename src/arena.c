@@ -676,8 +676,8 @@ arena_chunk_purge(arena_t *arena, arena_chunk_t *chunk)
 		if (config_debug)
 			ndirty -= npages;
 
-		madvise((void *)((uintptr_t)chunk + (pageind << LG_PAGE)),
-		    (npages << LG_PAGE), JEMALLOC_MADV_PURGE);
+		pages_purge((void *)((uintptr_t)chunk + (pageind << LG_PAGE)),
+		    (npages << LG_PAGE));
 		if (config_stats)
 			nmadvise++;
 	}

@@ -72,6 +72,20 @@ pages_unmap(void *addr, size_t size)
 	}
 }
 
+void
+pages_purge(void *addr, size_t length)
+{
+
+#ifdef JEMALLOC_PURGE_MADVISE_DONTNEED
+#  define JEMALLOC_MADV_PURGE MADV_DONTNEED
+#elif defined(JEMALLOC_PURGE_MADVISE_FREE)
+#  define JEMALLOC_MADV_PURGE MADV_FREE
+#else
+#  error "No method defined for purging unused dirty pages."
+#endif
+	madvise(addr, length, JEMALLOC_MADV_PURGE);
+}
+
 static void *
 chunk_alloc_mmap_slow(size_t size, size_t alignment, bool unaligned)
 {

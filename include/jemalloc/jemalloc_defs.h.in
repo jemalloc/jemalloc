@@ -220,13 +220,6 @@
  */
 #undef JEMALLOC_PURGE_MADVISE_DONTNEED
 #undef JEMALLOC_PURGE_MADVISE_FREE
-#ifdef JEMALLOC_PURGE_MADVISE_DONTNEED
-#  define JEMALLOC_MADV_PURGE MADV_DONTNEED
-#elif defined(JEMALLOC_PURGE_MADVISE_FREE)
-#  define JEMALLOC_MADV_PURGE MADV_FREE
-#else
-#  error "No method defined for purging unused dirty pages."
-#endif
 
 /* sizeof(void *) == 2^LG_SIZEOF_PTR. */
 #undef LG_SIZEOF_PTR

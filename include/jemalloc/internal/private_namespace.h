@@ -196,6 +196,7 @@
 #define	opt_xmalloc JEMALLOC_N(opt_xmalloc)
 #define	opt_zero JEMALLOC_N(opt_zero)
 #define	p2rz JEMALLOC_N(p2rz)
+#define	pages_purge JEMALLOC_N(pages_purge)
 #define	pow2_ceil JEMALLOC_N(pow2_ceil)
 #define	prof_backtrace JEMALLOC_N(prof_backtrace)
 #define	prof_boot0 JEMALLOC_N(prof_boot0)

@@ -171,7 +171,7 @@ chunk_record(void *chunk, size_t size)
 {
 	extent_node_t *xnode, *node, *prev, key;
 
-	madvise(chunk, size, JEMALLOC_MADV_PURGE);
+	pages_purge(chunk, size);
 
 	xnode = NULL;
 	malloc_mutex_lock(&chunks_mtx);
