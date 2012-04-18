@@ -47,6 +47,7 @@ cfgoutputs_out := @cfgoutputs_out@
 enable_autogen := @enable_autogen@
 enable_experimental := @enable_experimental@
 DSO_LDFLAGS = @DSO_LDFLAGS@
+SOREV = @SOREV@
 
 ifeq (macho, $(ABI))
 TEST_LIBRARY_PATH := DYLD_FALLBACK_LIBRARY_PATH=$(objroot)lib
@@ -72,9 +73,11 @@ ifeq (macho, $(ABI))
 CSRCS += $(srcroot)src/zone.c
 endif
 STATIC_LIBS := $(objroot)lib/$(LIBJEMALLOC).$(A)
-DSOS := $(objroot)lib/$(LIBJEMALLOC).$(SO).$(REV) \
-	$(objroot)lib/$(LIBJEMALLOC).$(SO) \
-	$(objroot)lib/$(LIBJEMALLOC)_pic.$(A)
+DSOS := $(objroot)lib/$(LIBJEMALLOC)_pic.$(A) \
+	$(objroot)lib/$(LIBJEMALLOC).$(SOREV)
+ifneq ($(SOREV),$(SO))
+DSOS += $(objroot)lib/$(LIBJEMALLOC).$(SO)
+endif
 MAN3 := $(objroot)doc/jemalloc$(install_suffix).3
 DOCS_XML := $(objroot)doc/jemalloc$(install_suffix).xml
 DOCS_HTML := $(DOCS_XML:$(objroot)%.xml=$(srcroot)%.html)
@@ -127,11 +130,13 @@ $(objroot)src/%.pic.$(O): $(srcroot)src/%.c
 	$(CC) $(CFLAGS) -fPIC -DPIC -c $(CPPFLAGS) -o $@ $<
 	@$(CC) -MM $(CPPFLAGS) -MT $@ -o $(@:%.$(O)=%.d) $<
 
-%.$(SO) : %.$(SO).$(REV)
+ifneq ($(SOREV),$(SO))
+%.$(SO) : %.$(SOREV)
 	@mkdir -p $(@D)
 	ln -sf $(<F) $@
+endif
 
-$(objroot)lib/$(LIBJEMALLOC).$(SO).$(REV) : $(CSRCS:$(srcroot)%.c=$(objroot)%.pic.$(O))
+$(objroot)lib/$(LIBJEMALLOC).$(SOREV) : $(CSRCS:$(srcroot)%.c=$(objroot)%.pic.$(O))
 	@mkdir -p $(@D)
 	$(CC) $(DSO_LDFLAGS) $(call RPATH,$(RPATH_EXTRA)) -o $@ $+ $(LDFLAGS) $(LIBS)
 
@@ -175,8 +180,10 @@ done
 
 install_lib_shared: $(DSOS)
 	install -d $(LIBDIR)
-	install -m 755 $(objroot)lib/$(LIBJEMALLOC).$(SO).$(REV) $(LIBDIR)
-	ln -sf $(LIBJEMALLOC).$(SO).$(REV) $(LIBDIR)/$(LIBJEMALLOC).$(SO)
+	install -m 755 $(objroot)lib/$(LIBJEMALLOC).$(SOREV) $(LIBDIR)
+ifneq ($(SOREV),$(SO))
+	ln -sf $(LIBJEMALLOC).$(SOREV) $(LIBDIR)/$(LIBJEMALLOC).$(SO)
+endif
 
 install_lib_static: $(DSOS) $(STATIC_LIBS)
 	install -d $(LIBDIR)
