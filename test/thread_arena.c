@@ -1,6 +1,5 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <pthread.h>
 #include <string.h>
 #include <assert.h>
 
@@ -10,7 +9,7 @@
 #define NTHREADS 10
 
 void *
-thread_start(void *arg)
+je_thread_start(void *arg)
 {
 	unsigned main_arena_ind = *(unsigned *)arg;
 	void *p;
@@ -52,7 +51,7 @@ main(void)
 	unsigned arena_ind;
 	size_t size;
 	int err;
-	pthread_t threads[NTHREADS];
+	je_thread_t threads[NTHREADS];
 	unsigned i;
 
 	malloc_printf("Test begin\n");
@@ -72,18 +71,11 @@ main(void)
 		goto label_return;
 	}
 
-	for (i = 0; i < NTHREADS; i++) {
-		if (pthread_create(&threads[i], NULL, thread_start,
-		    (void *)&arena_ind) != 0) {
-			malloc_printf("%s(): Error in pthread_create()\n",
-			    __func__);
-			ret = 1;
-			goto label_return;
-		}
-	}
+	for (i = 0; i < NTHREADS; i++)
+		je_thread_create(&threads[i], je_thread_start, (void *)&arena_ind);
 
 	for (i = 0; i < NTHREADS; i++)
-		pthread_join(threads[i], (void *)&ret);
+		je_thread_join(threads[i], (void *)&ret);
 
 label_return:
 	malloc_printf("Test end\n");

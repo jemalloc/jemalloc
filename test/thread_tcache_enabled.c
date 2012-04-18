@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
-#include <pthread.h>
 #include <assert.h>
 #include <errno.h>
 
@@ -9,7 +8,7 @@
 #include "jemalloc_test.h"
 
 void *
-thread_start(void *arg)
+je_thread_start(void *arg)
 {
 	int err;
 	size_t sz;
@@ -77,33 +76,22 @@ int
 main(void)
 {
 	int ret = 0;
-	pthread_t thread;
+	je_thread_t thread;
 
 	malloc_printf("Test begin\n");
 
-	thread_start(NULL);
+	je_thread_start(NULL);
 
-	if (pthread_create(&thread, NULL, thread_start, NULL)
-	    != 0) {
-		malloc_printf("%s(): Error in pthread_create()\n", __func__);
-		ret = 1;
-		goto label_return;
-	}
-	pthread_join(thread, (void *)&ret);
+	je_thread_create(&thread, je_thread_start, NULL);
+	je_thread_join(thread, (void *)&ret);
 
-	thread_start(NULL);
+	je_thread_start(NULL);
 
-	if (pthread_create(&thread, NULL, thread_start, NULL)
-	    != 0) {
-		malloc_printf("%s(): Error in pthread_create()\n", __func__);
-		ret = 1;
-		goto label_return;
-	}
-	pthread_join(thread, (void *)&ret);
+	je_thread_create(&thread, je_thread_start, NULL);
+	je_thread_join(thread, (void *)&ret);
 
-	thread_start(NULL);
+	je_thread_start(NULL);
 
-label_return:
 	malloc_printf("Test end\n");
 	return (ret);
 }
