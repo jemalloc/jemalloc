@@ -1621,6 +1621,7 @@ je_nallocm(size_t *rsize, size_t size, int flags)
 void
 jemalloc_prefork(void)
 #else
+JEMALLOC_ATTR(visibility("default"))
 void
 _malloc_prefork(void)
 #endif
@@ -1642,6 +1643,7 @@ _malloc_prefork(void)
 void
 jemalloc_postfork_parent(void)
 #else
+JEMALLOC_ATTR(visibility("default"))
 void
 _malloc_postfork(void)
 #endif

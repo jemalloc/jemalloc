@@ -1,3 +1,6 @@
+#define	a0calloc JEMALLOC_N(a0calloc)
+#define	a0free JEMALLOC_N(a0free)
+#define	a0malloc JEMALLOC_N(a0malloc)
 #define	arena_alloc_junk_small JEMALLOC_N(arena_alloc_junk_small)
 #define	arena_bin_index JEMALLOC_N(arena_bin_index)
 #define	arena_boot JEMALLOC_N(arena_boot)

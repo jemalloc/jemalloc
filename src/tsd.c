@@ -32,6 +32,7 @@ malloc_tsd_no_cleanup(void *arg)
 }
 
 #ifdef JEMALLOC_MALLOC_THREAD_CLEANUP
+JEMALLOC_ATTR(visibility("default"))
 void
 _malloc_thread_cleanup(void)
 {
