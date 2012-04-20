@@ -288,7 +288,6 @@ malloc_vsnprintf(char *str, size_t size, const char *format, va_list ap)
 	int ret;
 	size_t i;
 	const char *f;
-	va_list tap;
 
 #define	APPEND_C(c) do {						\
 	if (i < size)							\
@@ -358,9 +357,6 @@ malloc_vsnprintf(char *str, size_t size, const char *format, va_list ap)
 	default: not_reached();						\
 	}								\
 } while (0)
-
-	if (config_debug)
-		va_copy(tap, ap);
 
 	i = 0;
 	f = format;
