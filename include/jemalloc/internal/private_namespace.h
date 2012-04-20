@@ -221,7 +221,6 @@
 #define	prof_tdata_tsd_cleanup_wrapper JEMALLOC_N(prof_tdata_tsd_cleanup_wrapper)
 #define	prof_tdata_tsd_get JEMALLOC_N(prof_tdata_tsd_get)
 #define	prof_tdata_tsd_set JEMALLOC_N(prof_tdata_tsd_set)
-#define	pthread_create JEMALLOC_N(pthread_create)
 #define	quarantine JEMALLOC_N(quarantine)
 #define	quarantine_boot JEMALLOC_N(quarantine_boot)
 #define	quarantine_tsd_boot JEMALLOC_N(quarantine_tsd_boot)
