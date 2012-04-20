@@ -12,7 +12,6 @@
 #  include <sys/uio.h>
 #  include <pthread.h>
 #endif
-#include <sys/time.h>
 #include <sys/types.h>
 
 #include <errno.h>
@@ -20,7 +19,6 @@
 #ifndef SIZE_T_MAX
 #  define SIZE_T_MAX	SIZE_MAX
 #endif
-#include <sched.h>
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stdio.h>
