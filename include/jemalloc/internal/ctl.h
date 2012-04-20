@@ -2,6 +2,8 @@
 #ifdef JEMALLOC_H_TYPES
 
 typedef struct ctl_node_s ctl_node_t;
+typedef struct ctl_named_node_s ctl_named_node_t;
+typedef struct ctl_indexed_node_s ctl_indexed_node_t;
 typedef struct ctl_arena_stats_s ctl_arena_stats_t;
 typedef struct ctl_stats_s ctl_stats_t;
 
@@ -11,20 +13,21 @@ typedef struct ctl_stats_s ctl_stats_t;
 
 struct ctl_node_s {
 	bool			named;
-	union {
-		struct {
-			const char	*name;
-			/* If (nchildren == 0), this is a terminal node. */
-			unsigned	nchildren;
-			const	ctl_node_t *children;
-		} named;
-		struct {
-			const ctl_node_t *(*index)(const size_t *, size_t,
-			    size_t);
-		} indexed;
-	} u;
+};
+
+struct ctl_named_node_s {
+	struct ctl_node_s	node;
+	const char	*name;
+	/* If (nchildren == 0), this is a terminal node. */
+	unsigned	nchildren;
+	const	ctl_node_t *children;
 	int	(*ctl)(const size_t *, size_t, void *, size_t *, void *,
 	    size_t);
+};
+
+struct ctl_indexed_node_s {
+	struct ctl_node_s	node;
+	const ctl_named_node_t *(*index)(const size_t *, size_t, size_t);
 };
 
 struct ctl_arena_stats_s {
