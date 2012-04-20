@@ -408,7 +408,6 @@ void	arena_dalloc_junk_small(void *ptr, arena_bin_info_t *bin_info);
 void	*arena_malloc_small(arena_t *arena, size_t size, bool zero);
 void	*arena_malloc_large(arena_t *arena, size_t size, bool zero);
 void	*arena_palloc(arena_t *arena, size_t size, size_t alignment, bool zero);
-size_t	arena_salloc(const void *ptr, bool demote);
 void	arena_prof_promoted(const void *ptr, size_t size);
 void	arena_dalloc_bin(arena_t *arena, arena_chunk_t *chunk, void *ptr,
     arena_chunk_map_t *mapelm);
@@ -437,6 +436,7 @@ unsigned	arena_run_regind(arena_run_t *run, arena_bin_info_t *bin_info,
 prof_ctx_t	*arena_prof_ctx_get(const void *ptr);
 void	arena_prof_ctx_set(const void *ptr, prof_ctx_t *ctx);
 void	*arena_malloc(arena_t *arena, size_t size, bool zero, bool try_tcache);
+size_t	arena_salloc(const void *ptr, bool demote);
 void	arena_dalloc(arena_t *arena, arena_chunk_t *chunk, void *ptr,
     bool try_tcache);
 #endif
@@ -623,6 +623,46 @@ arena_malloc(arena_t *arena, size_t size, bool zero, bool try_tcache)
 			    zero));
 		}
 	}
+}
+
+/* Return the size of the allocation pointed to by ptr. */
+JEMALLOC_INLINE size_t
+arena_salloc(const void *ptr, bool demote)
+{
+	size_t ret;
+	arena_chunk_t *chunk;
+	size_t pageind, mapbits;
+
+	assert(ptr != NULL);
+	assert(CHUNK_ADDR2BASE(ptr) != ptr);
+
+	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
+	pageind = ((uintptr_t)ptr - (uintptr_t)chunk) >> LG_PAGE;
+	mapbits = chunk->map[pageind-map_bias].bits;
+	assert((mapbits & CHUNK_MAP_ALLOCATED) != 0);
+	if ((mapbits & CHUNK_MAP_LARGE) == 0) {
+		arena_run_t *run = (arena_run_t *)((uintptr_t)chunk +
+		    (uintptr_t)((pageind - (mapbits >> LG_PAGE)) << LG_PAGE));
+		size_t binind = arena_bin_index(chunk->arena, run->bin);
+		arena_bin_info_t *bin_info = &arena_bin_info[binind];
+		assert(((uintptr_t)ptr - ((uintptr_t)run +
+		    (uintptr_t)bin_info->reg0_offset)) % bin_info->reg_interval
+		    == 0);
+		ret = bin_info->reg_size;
+	} else {
+		assert(((uintptr_t)ptr & PAGE_MASK) == 0);
+		ret = mapbits & ~PAGE_MASK;
+		if (config_prof && demote && prof_promote && ret == PAGE &&
+		    (mapbits & CHUNK_MAP_CLASS_MASK) != 0) {
+			size_t binind = ((mapbits & CHUNK_MAP_CLASS_MASK) >>
+			    CHUNK_MAP_CLASS_SHIFT) - 1;
+			assert(binind < NBINS);
+			ret = arena_bin_info[binind].reg_size;
+		}
+		assert(ret != 0);
+	}
+
+	return (ret);
 }
 
 JEMALLOC_INLINE void

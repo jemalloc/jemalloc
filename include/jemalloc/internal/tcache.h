@@ -100,6 +100,9 @@ extern size_t			nhbins;
 /* Maximum cached size class. */
 extern size_t			tcache_maxclass;
 
+size_t	tcache_salloc(const void *ptr);
+void	*tcache_alloc_small_hard(tcache_t *tcache, tcache_bin_t *tbin,
+    size_t binind);
 void	tcache_bin_flush_small(tcache_bin_t *tbin, size_t binind, unsigned rem,
     tcache_t *tcache);
 void	tcache_bin_flush_large(tcache_bin_t *tbin, size_t binind, unsigned rem,
@@ -107,8 +110,6 @@ void	tcache_bin_flush_large(tcache_bin_t *tbin, size_t binind, unsigned rem,
 void	tcache_arena_associate(tcache_t *tcache, arena_t *arena);
 void	tcache_arena_dissociate(tcache_t *tcache);
 tcache_t *tcache_create(arena_t *arena);
-void	*tcache_alloc_small_hard(tcache_t *tcache, tcache_bin_t *tbin,
-    size_t binind);
 void	tcache_destroy(tcache_t *tcache);
 void	tcache_thread_cleanup(void *arg);
 void	tcache_stats_merge(tcache_t *tcache, arena_t *arena);
@@ -340,7 +341,7 @@ tcache_alloc_small(tcache_t *tcache, size_t size, bool zero)
 		if (ret == NULL)
 			return (NULL);
 	}
-	assert(arena_salloc(ret, false) == arena_bin_info[binind].reg_size);
+	assert(tcache_salloc(ret) == arena_bin_info[binind].reg_size);
 
 	if (zero == false) {
 		if (config_fill) {
@@ -431,7 +432,7 @@ tcache_dalloc_small(tcache_t *tcache, void *ptr)
 	size_t pageind, binind;
 	arena_chunk_map_t *mapelm;
 
-	assert(arena_salloc(ptr, false) <= SMALL_MAXCLASS);
+	assert(tcache_salloc(ptr) <= SMALL_MAXCLASS);
 
 	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
 	arena = chunk->arena;
@@ -468,8 +469,8 @@ tcache_dalloc_large(tcache_t *tcache, void *ptr, size_t size)
 	tcache_bin_info_t *tbin_info;
 
 	assert((size & PAGE_MASK) == 0);
-	assert(arena_salloc(ptr, false) > SMALL_MAXCLASS);
-	assert(arena_salloc(ptr, false) <= tcache_maxclass);
+	assert(tcache_salloc(ptr) > SMALL_MAXCLASS);
+	assert(tcache_salloc(ptr) <= tcache_maxclass);
 
 	binind = NBINS + (size >> LG_PAGE) - 1;
 

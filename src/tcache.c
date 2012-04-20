@@ -18,6 +18,12 @@ size_t			tcache_maxclass;
 
 /******************************************************************************/
 
+size_t	tcache_salloc(const void *ptr)
+{
+
+	return (arena_salloc(ptr, false));
+}
+
 void *
 tcache_alloc_small_hard(tcache_t *tcache, tcache_bin_t *tbin, size_t binind)
 {

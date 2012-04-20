@@ -732,10 +732,9 @@ isalloc(const void *ptr, bool demote)
 	assert(config_prof || demote == false);
 
 	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
-	if (chunk != ptr) {
-		/* Region. */
+	if (chunk != ptr)
 		ret = arena_salloc(ptr, demote);
-	} else
+	else
 		ret = huge_salloc(ptr);
 
 	return (ret);
