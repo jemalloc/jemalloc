@@ -40,6 +40,7 @@ struct malloc_mutex_s {
 #ifdef JEMALLOC_LAZY_LOCK
 extern bool isthreaded;
 #else
+#  undef isthreaded /* Undo private_namespace.h definition. */
 #  define isthreaded true
 #endif
 
