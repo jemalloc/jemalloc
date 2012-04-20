@@ -1,7 +1,3 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdint.h>
-
 #define	JEMALLOC_MANGLE
 #include "jemalloc_test.h"
 

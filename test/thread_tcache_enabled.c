@@ -1,9 +1,3 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdbool.h>
-#include <assert.h>
-#include <errno.h>
-
 #define	JEMALLOC_MANGLE
 #include "jemalloc_test.h"
 

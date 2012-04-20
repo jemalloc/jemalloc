@@ -1,12 +1,6 @@
 #define	JEMALLOC_MANGLE
 #include "jemalloc_test.h"
 
-/*
- * Avoid using the assert() from jemalloc_internal.h, since it requires
- * internal libjemalloc functionality.
- * */
-#include <assert.h>
-
 #if (LG_BITMAP_MAXBITS > 12)
 #  define MAXBITS	4500
 #else
