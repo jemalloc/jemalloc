@@ -81,6 +81,7 @@ found in the git revision history:
   - Add missing "opt.lg_tcache_max" mallctl implementation.
   - Use glibc allocator hooks to make mixed allocator usage less likely.
   - Fix build issues for --disable-tcache.
+  - Don't mangle pthread_create() when --with-private-namespace is specified.
 
 * 2.2.5 (November 14, 2011)
 
