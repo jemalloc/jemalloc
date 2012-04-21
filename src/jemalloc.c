@@ -423,7 +423,7 @@ malloc_conf_init(void)
 		while (*opts != '\0' && malloc_conf_next(&opts, &k, &klen, &v,
 		    &vlen) == false) {
 #define	CONF_HANDLE_BOOL_HIT(o, n, hit)					\
-			if (sizeof(#n)-1 == klen && strncmp(#n, k,	\
+			if (sizeof(n)-1 == klen && strncmp(n, k,	\
 			    klen) == 0) {				\
 				if (strncmp("true", v, vlen) == 0 &&	\
 				    vlen == sizeof("true")-1)		\
@@ -446,7 +446,7 @@ malloc_conf_init(void)
 				continue;				\
 }
 #define	CONF_HANDLE_SIZE_T(o, n, min, max)				\
-			if (sizeof(#n)-1 == klen && strncmp(#n, k,	\
+			if (sizeof(n)-1 == klen && strncmp(n, k,	\
 			    klen) == 0) {				\
 				uintmax_t um;				\
 				char *end;				\
@@ -467,7 +467,7 @@ malloc_conf_init(void)
 				continue;				\
 			}
 #define	CONF_HANDLE_SSIZE_T(o, n, min, max)				\
-			if (sizeof(#n)-1 == klen && strncmp(#n, k,	\
+			if (sizeof(n)-1 == klen && strncmp(n, k,	\
 			    klen) == 0) {				\
 				long l;					\
 				char *end;				\
@@ -489,7 +489,7 @@ malloc_conf_init(void)
 				continue;				\
 			}
 #define	CONF_HANDLE_CHAR_P(o, n, d)					\
-			if (sizeof(#n)-1 == klen && strncmp(#n, k,	\
+			if (sizeof(n)-1 == klen && strncmp(n, k,	\
 			    klen) == 0) {				\
 				size_t cpylen = (vlen <=		\
 				    sizeof(o)-1) ? vlen :		\
@@ -499,7 +499,7 @@ malloc_conf_init(void)
 				continue;				\
 			}
 
-			CONF_HANDLE_BOOL(opt_abort, abort)
+			CONF_HANDLE_BOOL(opt_abort, "abort")
 			/*
 			 * Chunks always require at least one header page, plus
 			 * one data page in the absence of redzones, or three
@@ -507,26 +507,27 @@ malloc_conf_init(void)
 			 * simplify options processing, fix the limit based on
 			 * config_fill.
 			 */
-			CONF_HANDLE_SIZE_T(opt_lg_chunk, lg_chunk, LG_PAGE +
+			CONF_HANDLE_SIZE_T(opt_lg_chunk, "lg_chunk", LG_PAGE +
 			    (config_fill ? 2 : 1), (sizeof(size_t) << 3) - 1)
-			CONF_HANDLE_SIZE_T(opt_narenas, narenas, 1, SIZE_T_MAX)
-			CONF_HANDLE_SSIZE_T(opt_lg_dirty_mult, lg_dirty_mult,
+			CONF_HANDLE_SIZE_T(opt_narenas, "narenas", 1,
+			    SIZE_T_MAX)
+			CONF_HANDLE_SSIZE_T(opt_lg_dirty_mult, "lg_dirty_mult",
 			    -1, (sizeof(size_t) << 3) - 1)
-			CONF_HANDLE_BOOL(opt_stats_print, stats_print)
+			CONF_HANDLE_BOOL(opt_stats_print, "stats_print")
 			if (config_fill) {
-				CONF_HANDLE_BOOL(opt_junk, junk)
-				CONF_HANDLE_SIZE_T(opt_quarantine, quarantine,
+				CONF_HANDLE_BOOL(opt_junk, "junk")
+				CONF_HANDLE_SIZE_T(opt_quarantine, "quarantine",
 				    0, SIZE_T_MAX)
-				CONF_HANDLE_BOOL(opt_redzone, redzone)
-				CONF_HANDLE_BOOL(opt_zero, zero)
+				CONF_HANDLE_BOOL(opt_redzone, "redzone")
+				CONF_HANDLE_BOOL(opt_zero, "zero")
 			}
 			if (config_utrace) {
-				CONF_HANDLE_BOOL(opt_utrace, utrace)
+				CONF_HANDLE_BOOL(opt_utrace, "utrace")
 			}
 			if (config_valgrind) {
 				bool hit;
 				CONF_HANDLE_BOOL_HIT(opt_valgrind,
-				    valgrind, hit)
+				    "valgrind", hit)
 				if (config_fill && opt_valgrind && hit) {
 					opt_junk = false;
 					opt_zero = false;
@@ -540,29 +541,29 @@ malloc_conf_init(void)
 					continue;
 			}
 			if (config_xmalloc) {
-				CONF_HANDLE_BOOL(opt_xmalloc, xmalloc)
+				CONF_HANDLE_BOOL(opt_xmalloc, "xmalloc")
 			}
 			if (config_tcache) {
-				CONF_HANDLE_BOOL(opt_tcache, tcache)
+				CONF_HANDLE_BOOL(opt_tcache, "tcache")
 				CONF_HANDLE_SSIZE_T(opt_lg_tcache_max,
-				    lg_tcache_max, -1,
+				    "lg_tcache_max", -1,
 				    (sizeof(size_t) << 3) - 1)
 			}
 			if (config_prof) {
-				CONF_HANDLE_BOOL(opt_prof, prof)
-				CONF_HANDLE_CHAR_P(opt_prof_prefix, prof_prefix,
-				    "jeprof")
-				CONF_HANDLE_BOOL(opt_prof_active, prof_active)
+				CONF_HANDLE_BOOL(opt_prof, "prof")
+				CONF_HANDLE_CHAR_P(opt_prof_prefix,
+				    "prof_prefix", "jeprof")
+				CONF_HANDLE_BOOL(opt_prof_active, "prof_active")
 				CONF_HANDLE_SSIZE_T(opt_lg_prof_sample,
-				    lg_prof_sample, 0,
+				    "lg_prof_sample", 0,
 				    (sizeof(uint64_t) << 3) - 1)
-				CONF_HANDLE_BOOL(opt_prof_accum, prof_accum)
+				CONF_HANDLE_BOOL(opt_prof_accum, "prof_accum")
 				CONF_HANDLE_SSIZE_T(opt_lg_prof_interval,
-				    lg_prof_interval, -1,
+				    "lg_prof_interval", -1,
 				    (sizeof(uint64_t) << 3) - 1)
-				CONF_HANDLE_BOOL(opt_prof_gdump, prof_gdump)
-				CONF_HANDLE_BOOL(opt_prof_final, prof_final)
-				CONF_HANDLE_BOOL(opt_prof_leak, prof_leak)
+				CONF_HANDLE_BOOL(opt_prof_gdump, "prof_gdump")
+				CONF_HANDLE_BOOL(opt_prof_final, "prof_final")
+				CONF_HANDLE_BOOL(opt_prof_leak, "prof_leak")
 			}
 			malloc_conf_error("Invalid conf pair", k, klen, v,
 			    vlen);
