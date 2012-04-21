@@ -89,7 +89,6 @@ chunk_alloc_dss(size_t size, size_t alignment, bool *zero)
 				malloc_mutex_unlock(&dss_mtx);
 				if (cpad_size != 0)
 					chunk_dealloc(cpad, cpad_size, true);
-				*zero = true;
 				return (ret);
 			}
 		} while (dss_prev != (void *)-1);

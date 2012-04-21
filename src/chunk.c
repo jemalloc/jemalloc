@@ -125,15 +125,15 @@ chunk_alloc(size_t size, size_t alignment, bool base, bool *zero)
 	ret = chunk_recycle(size, alignment, zero);
 	if (ret != NULL)
 		goto label_return;
+
+	ret = chunk_alloc_mmap(size, alignment, zero);
+	if (ret != NULL)
+		goto label_return;
+
 	if (config_dss) {
 		ret = chunk_alloc_dss(size, alignment, zero);
 		if (ret != NULL)
 			goto label_return;
-	}
-	ret = chunk_alloc_mmap(size, alignment);
-	if (ret != NULL) {
-		*zero = true;
-		goto label_return;
 	}
 
 	/* All strategies for allocation failed. */

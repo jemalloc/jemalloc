@@ -18,7 +18,7 @@ malloc_tsd_funcs(JEMALLOC_INLINE, mmap_unaligned, bool, false,
 static void	*pages_map(void *addr, size_t size);
 static void	pages_unmap(void *addr, size_t size);
 static void	*chunk_alloc_mmap_slow(size_t size, size_t alignment,
-    bool unaligned);
+    bool unaligned, bool *zero);
 
 /******************************************************************************/
 
@@ -87,7 +87,7 @@ pages_purge(void *addr, size_t length)
 }
 
 static void *
-chunk_alloc_mmap_slow(size_t size, size_t alignment, bool unaligned)
+chunk_alloc_mmap_slow(size_t size, size_t alignment, bool unaligned, bool *zero)
 {
 	void *ret, *pages;
 	size_t alloc_size, leadsize, trailsize;
@@ -122,11 +122,13 @@ chunk_alloc_mmap_slow(size_t size, size_t alignment, bool unaligned)
 		mmap_unaligned_tsd_set(&mu);
 	}
 
+	assert(ret != NULL);
+	*zero = true;
 	return (ret);
 }
 
 void *
-chunk_alloc_mmap(size_t size, size_t alignment)
+chunk_alloc_mmap(size_t size, size_t alignment, bool *zero)
 {
 	void *ret;
 
@@ -177,8 +179,8 @@ chunk_alloc_mmap(size_t size, size_t alignment)
 				 * the reliable-but-expensive method.
 				 */
 				pages_unmap(ret, size);
-				ret = chunk_alloc_mmap_slow(size, alignment,
-				    true);
+				return (chunk_alloc_mmap_slow(size, alignment,
+				    true, zero));
 			} else {
 				/* Clean up unneeded leading space. */
 				pages_unmap(ret, chunksize - offset);
@@ -187,8 +189,10 @@ chunk_alloc_mmap(size_t size, size_t alignment)
 			}
 		}
 	} else
-		ret = chunk_alloc_mmap_slow(size, alignment, false);
+		return (chunk_alloc_mmap_slow(size, alignment, false, zero));
 
+	assert(ret != NULL);
+	*zero = true;
 	return (ret);
 }
 

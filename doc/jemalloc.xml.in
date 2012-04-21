@@ -444,9 +444,9 @@ for (i = 0; i < nbins; i++) {
     suboptimal for several reasons, including race conditions, increased
     fragmentation, and artificial limitations on maximum usable memory.  If
     <option>--enable-dss</option> is specified during configuration, this
-    allocator uses both <citerefentry><refentrytitle>sbrk</refentrytitle>
+    allocator uses both <citerefentry><refentrytitle>mmap</refentrytitle>
     <manvolnum>2</manvolnum></citerefentry> and
-    <citerefentry><refentrytitle>mmap</refentrytitle>
+    <citerefentry><refentrytitle>sbrk</refentrytitle>
     <manvolnum>2</manvolnum></citerefentry>, in that order of preference;
     otherwise only <citerefentry><refentrytitle>mmap</refentrytitle>
     <manvolnum>2</manvolnum></citerefentry> is used.</para>

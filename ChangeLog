@@ -70,6 +70,8 @@ found in the git revision history:
     invalid statistics and crashes.
   - Work around TLS dallocation via free() on Linux.  This bug could cause
     write-after-free memory corruption.
+  - Fix chunk_alloc_dss() to stop claiming memory is zeroed.  This bug could
+    cause memory corruption and crashes with --enable-dss specified.
   - Fix malloc_stats_print() to honor 'b' and 'l' in the opts parameter.
   - Fix realloc(p, 0) to act like free(p).
   - Do not enforce minimum alignment in memalign().

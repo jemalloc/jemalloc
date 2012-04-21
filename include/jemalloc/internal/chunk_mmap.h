@@ -11,7 +11,7 @@
 
 void	pages_purge(void *addr, size_t length);
 
-void	*chunk_alloc_mmap(size_t size, size_t alignment);
+void	*chunk_alloc_mmap(size_t size, size_t alignment, bool *zero);
 bool	chunk_dealloc_mmap(void *chunk, size_t size);
 
 bool	chunk_mmap_boot(void);
