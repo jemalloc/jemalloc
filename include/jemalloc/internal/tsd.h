@@ -111,7 +111,7 @@ a_name##_tsd_cleanup_wrapper(void)					\
 									\
 	if (a_name##_initialized) {					\
 		a_name##_initialized = false;				\
-		a_cleanup(&a_name##_tls);					\
+		a_cleanup(&a_name##_tls);				\
 	}								\
 	return (a_name##_initialized);					\
 }									\

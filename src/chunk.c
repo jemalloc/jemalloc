@@ -98,7 +98,10 @@ chunk_recycle(size_t size, size_t alignment, bool *zero)
 
 	if (node != NULL)
 		base_node_dealloc(node);
-#ifdef JEMALLOC_PURGE_MADVISE_FREE
+#ifdef JEMALLOC_PURGE_MADVISE_DONTNEED
+	/* Pages are zeroed as a side effect of pages_purge(). */
+	*zero = true;
+#else
 	if (*zero) {
 		VALGRIND_MAKE_MEM_UNDEFINED(ret, size);
 		memset(ret, 0, size);
@@ -161,7 +164,13 @@ label_return:
 		if (config_prof && opt_prof && opt_prof_gdump && gdump)
 			prof_gdump();
 	}
+	if (config_debug && *zero && ret != NULL) {
+		size_t i;
+		size_t *p = (size_t *)(uintptr_t)ret;
 
+		for (i = 0; i < size / sizeof(size_t); i++)
+			assert(p[i] == 0);
+	}
 	assert(CHUNK_ADDR2BASE(ret) == ret);
 	return (ret);
 }
@@ -258,9 +267,9 @@ chunk_dealloc(void *chunk, size_t size, bool unmap)
 	}
 
 	if (unmap) {
-		if (chunk_dealloc_mmap(chunk, size) == false)
-			return;
-		chunk_record(chunk, size);
+		if ((config_dss && chunk_in_dss(chunk)) ||
+		    chunk_dealloc_mmap(chunk, size))
+			chunk_record(chunk, size);
 	}
 }
 
