@@ -22,6 +22,7 @@ found in the git revision history:
   - Add support for additional operating systems:
     + FreeBSD
     + Mac OS X Lion
+    + MinGW
   - Add support for additional architectures:
     + MIPS
     + SH4
