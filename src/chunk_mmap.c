@@ -2,17 +2,6 @@
 #include "jemalloc/internal/jemalloc_internal.h"
 
 /******************************************************************************/
-/* Data. */
-
-/*
- * Used by chunk_alloc_mmap() to decide whether to attempt the fast path and
- * potentially avoid some system calls.
- */
-malloc_tsd_data(static, mmap_unaligned, bool, false)
-malloc_tsd_funcs(JEMALLOC_INLINE, mmap_unaligned, bool, false,
-    malloc_tsd_no_cleanup)
-
-/******************************************************************************/
 /* Function prototypes for non-inline static functions. */
 
 static void	*pages_map(void *addr, size_t size);
@@ -112,16 +101,6 @@ chunk_alloc_mmap_slow(size_t size, size_t alignment, bool unaligned, bool *zero)
 	if (trailsize != 0)
 		pages_unmap((void *)((uintptr_t)ret + size), trailsize);
 
-	/*
-	 * If mmap() returned an aligned mapping, reset mmap_unaligned so that
-	 * the next chunk_alloc_mmap() execution tries the fast allocation
-	 * method.
-	 */
-	if (unaligned == false && mmap_unaligned_booted) {
-		bool mu = false;
-		mmap_unaligned_tsd_set(&mu);
-	}
-
 	assert(ret != NULL);
 	*zero = true;
 	return (ret);
@@ -131,6 +110,7 @@ void *
 chunk_alloc_mmap(size_t size, size_t alignment, bool *zero)
 {
 	void *ret;
+	size_t offset;
 
 	/*
 	 * Ideally, there would be a way to specify alignment to mmap() (like
@@ -152,44 +132,34 @@ chunk_alloc_mmap(size_t size, size_t alignment, bool *zero)
 	 *
 	 * Another possible confounding factor is address space layout
 	 * randomization (ASLR), which causes mmap(2) to disregard the
-	 * requested address.  mmap_unaligned tracks whether the previous
-	 * chunk_alloc_mmap() execution received any unaligned or relocated
-	 * mappings, and if so, the current execution will immediately fall
-	 * back to the slow method.  However, we keep track of whether the fast
-	 * method would have succeeded, and if so, we make a note to try the
-	 * fast method next time.
+	 * requested address.  As such, repeatedly trying to extend unaligned
+	 * mappings could result in an infinite loop, so if extension fails,
+	 * immediately fall back to the reliable method of over-allocation
+	 * followed by trimming.
 	 */
 
-	if (mmap_unaligned_booted && *mmap_unaligned_tsd_get() == false) {
-		size_t offset;
+	ret = pages_map(NULL, size);
+	if (ret == NULL)
+		return (NULL);
 
-		ret = pages_map(NULL, size);
-		if (ret == NULL)
-			return (NULL);
-
-		offset = ALIGNMENT_ADDR2OFFSET(ret, alignment);
-		if (offset != 0) {
-			bool mu = true;
-			mmap_unaligned_tsd_set(&mu);
-			/* Try to extend chunk boundary. */
-			if (pages_map((void *)((uintptr_t)ret + size),
-			    chunksize - offset) == NULL) {
-				/*
-				 * Extension failed.  Clean up, then revert to
-				 * the reliable-but-expensive method.
-				 */
-				pages_unmap(ret, size);
-				return (chunk_alloc_mmap_slow(size, alignment,
-				    true, zero));
-			} else {
-				/* Clean up unneeded leading space. */
-				pages_unmap(ret, chunksize - offset);
-				ret = (void *)((uintptr_t)ret + (chunksize -
-				    offset));
-			}
+	offset = ALIGNMENT_ADDR2OFFSET(ret, alignment);
+	if (offset != 0) {
+		/* Try to extend chunk boundary. */
+		if (pages_map((void *)((uintptr_t)ret + size), chunksize -
+		    offset) == NULL) {
+			/*
+			 * Extension failed.  Clean up, then fall back to the
+			 * reliable-but-expensive method.
+			 */
+			pages_unmap(ret, size);
+			return (chunk_alloc_mmap_slow(size, alignment, true,
+			    zero));
+		} else {
+			/* Clean up unneeded leading space. */
+			pages_unmap(ret, chunksize - offset);
+			ret = (void *)((uintptr_t)ret + (chunksize - offset));
 		}
-	} else
-		return (chunk_alloc_mmap_slow(size, alignment, false, zero));
+	}
 
 	assert(ret != NULL);
 	*zero = true;
@@ -204,22 +174,4 @@ chunk_dealloc_mmap(void *chunk, size_t size)
 		pages_unmap(chunk, size);
 
 	return (config_munmap == false);
-}
-
-bool
-chunk_mmap_boot(void)
-{
-
-	/*
-	 * XXX For the non-TLS implementation of tsd, the first access from
-	 * each thread causes memory allocation.  The result is a bootstrapping
-	 * problem for this particular use case, so for now just disable it by
-	 * leaving it in an unbooted state.
-	 */
-#ifdef JEMALLOC_TLS
-	if (mmap_unaligned_tsd_boot())
-		return (true);
-#endif
-
-	return (false);
 }

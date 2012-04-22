@@ -274,7 +274,7 @@ chunk_dealloc(void *chunk, size_t size, bool unmap)
 }
 
 bool
-chunk_boot0(void)
+chunk_boot(void)
 {
 
 	/* Set variables according to the value of opt_lg_chunk. */
@@ -298,16 +298,6 @@ chunk_boot0(void)
 		if (chunks_rtree == NULL)
 			return (true);
 	}
-
-	return (false);
-}
-
-bool
-chunk_boot1(void)
-{
-
-	if (chunk_mmap_boot())
-		return (true);
 
 	return (false);
 }
