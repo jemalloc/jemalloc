@@ -240,6 +240,7 @@
 #define	prof_sample_threshold_update JEMALLOC_N(prof_sample_threshold_update)
 #define	prof_tdata_booted JEMALLOC_N(prof_tdata_booted)
 #define	prof_tdata_cleanup JEMALLOC_N(prof_tdata_cleanup)
+#define	prof_tdata_get JEMALLOC_N(prof_tdata_get)
 #define	prof_tdata_init JEMALLOC_N(prof_tdata_init)
 #define	prof_tdata_initialized JEMALLOC_N(prof_tdata_initialized)
 #define	prof_tdata_tls JEMALLOC_N(prof_tdata_tls)

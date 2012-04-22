@@ -64,18 +64,22 @@ found in the git revision history:
   - Remove the --enable-sysv configure option.
 
   Bug fixes:
-  - Fix fork-related bugs that could cause deadlock in children between fork
-    and exec.
   - Fix a statistics-related bug in the "thread.arena" mallctl that could cause
     invalid statistics and crashes.
   - Work around TLS dallocation via free() on Linux.  This bug could cause
     write-after-free memory corruption.
+  - Fix a potential deadlock that could occur during interval- and
+    growth-triggered heap profile dumps.
   - Fix chunk_alloc_dss() to stop claiming memory is zeroed.  This bug could
     cause memory corruption and crashes with --enable-dss specified.
+  - Fix fork-related bugs that could cause deadlock in children between fork
+    and exec.
   - Fix malloc_stats_print() to honor 'b' and 'l' in the opts parameter.
   - Fix realloc(p, 0) to act like free(p).
   - Do not enforce minimum alignment in memalign().
   - Check for NULL pointer in malloc_usable_size().
+  - Fix an off-by-one heap profile statistics bug that could be observed in
+    interval- and growth-triggered heap profiles.
   - Fix bin->runcur management to fix a layout policy bug.  This bug did not
     affect correctness.
   - Fix a bug in choose_arena_hard() that potentially caused more arenas to be

@@ -64,11 +64,6 @@ static int		prof_dump_fd;
 /* Do not dump any profiles until bootstrapping is complete. */
 static bool		prof_booted = false;
 
-static malloc_mutex_t	enq_mtx;
-static bool		enq;
-static bool		enq_idump;
-static bool		enq_gdump;
-
 /******************************************************************************/
 /* Function prototypes for non-inline static functions. */
 
@@ -148,20 +143,19 @@ bt_dup(prof_bt_t *bt)
 }
 
 static inline void
-prof_enter(void)
+prof_enter(prof_tdata_t *prof_tdata)
 {
 
 	cassert(config_prof);
 
-	malloc_mutex_lock(&enq_mtx);
-	enq = true;
-	malloc_mutex_unlock(&enq_mtx);
+	assert(prof_tdata->enq == false);
+	prof_tdata->enq = true;
 
 	malloc_mutex_lock(&bt2ctx_mtx);
 }
 
 static inline void
-prof_leave(void)
+prof_leave(prof_tdata_t *prof_tdata)
 {
 	bool idump, gdump;
 
@@ -169,13 +163,12 @@ prof_leave(void)
 
 	malloc_mutex_unlock(&bt2ctx_mtx);
 
-	malloc_mutex_lock(&enq_mtx);
-	enq = false;
-	idump = enq_idump;
-	enq_idump = false;
-	gdump = enq_gdump;
-	enq_gdump = false;
-	malloc_mutex_unlock(&enq_mtx);
+	assert(prof_tdata->enq);
+	prof_tdata->enq = false;
+	idump = prof_tdata->enq_idump;
+	prof_tdata->enq_idump = false;
+	gdump = prof_tdata->enq_gdump;
+	prof_tdata->enq_gdump = false;
 
 	if (idump)
 		prof_idump();
@@ -446,12 +439,9 @@ prof_lookup(prof_bt_t *bt)
 
 	cassert(config_prof);
 
-	prof_tdata = *prof_tdata_tsd_get();
-	if (prof_tdata == NULL) {
-		prof_tdata = prof_tdata_init();
-		if (prof_tdata == NULL)
-			return (NULL);
-	}
+	prof_tdata = prof_tdata_get();
+	if (prof_tdata == NULL)
+		return (NULL);
 
 	if (ckh_search(&prof_tdata->bt2cnt, bt, NULL, &ret.v)) {
 		union {
@@ -468,52 +458,48 @@ prof_lookup(prof_bt_t *bt)
 		 * This thread's cache lacks bt.  Look for it in the global
 		 * cache.
 		 */
-		prof_enter();
+		prof_enter(prof_tdata);
 		if (ckh_search(&bt2ctx, bt, &btkey.v, &ctx.v)) {
 			/* bt has never been seen before.  Insert it. */
 			ctx.v = imalloc(sizeof(prof_ctx_t));
 			if (ctx.v == NULL) {
-				prof_leave();
+				prof_leave(prof_tdata);
 				return (NULL);
 			}
 			btkey.p = bt_dup(bt);
 			if (btkey.v == NULL) {
-				prof_leave();
+				prof_leave(prof_tdata);
 				idalloc(ctx.v);
 				return (NULL);
 			}
 			ctx.p->bt = btkey.p;
 			ctx.p->lock = prof_ctx_mutex_choose();
+			/*
+			 * Set nlimbo to 1, in order to avoid a race condition
+			 * with prof_ctx_merge()/prof_ctx_destroy().
+			 */
+			ctx.p->nlimbo = 1;
 			memset(&ctx.p->cnt_merged, 0, sizeof(prof_cnt_t));
 			ql_new(&ctx.p->cnts_ql);
 			if (ckh_insert(&bt2ctx, btkey.v, ctx.v)) {
 				/* OOM. */
-				prof_leave();
+				prof_leave(prof_tdata);
 				idalloc(btkey.v);
 				idalloc(ctx.v);
 				return (NULL);
 			}
-			/*
-			 * Artificially raise curobjs, in order to avoid a race
-			 * condition with prof_ctx_merge()/prof_ctx_destroy().
-			 *
-			 * No locking is necessary for ctx here because no other
-			 * threads have had the opportunity to fetch it from
-			 * bt2ctx yet.
-			 */
-			ctx.p->cnt_merged.curobjs++;
 			new_ctx = true;
 		} else {
 			/*
-			 * Artificially raise curobjs, in order to avoid a race
-			 * condition with prof_ctx_merge()/prof_ctx_destroy().
+			 * Increment nlimbo, in order to avoid a race condition
+			 * with prof_ctx_merge()/prof_ctx_destroy().
 			 */
 			malloc_mutex_lock(ctx.p->lock);
-			ctx.p->cnt_merged.curobjs++;
+			ctx.p->nlimbo++;
 			malloc_mutex_unlock(ctx.p->lock);
 			new_ctx = false;
 		}
-		prof_leave();
+		prof_leave(prof_tdata);
 
 		/* Link a prof_thd_cnt_t into ctx for this thread. */
 		if (ckh_count(&prof_tdata->bt2cnt) == PROF_TCMAX) {
@@ -555,7 +541,7 @@ prof_lookup(prof_bt_t *bt)
 		ql_head_insert(&prof_tdata->lru_ql, ret.p, lru_link);
 		malloc_mutex_lock(ctx.p->lock);
 		ql_tail_insert(&ctx.p->cnts_ql, ret.p, cnts_link);
-		ctx.p->cnt_merged.curobjs--;
+		ctx.p->nlimbo--;
 		malloc_mutex_unlock(ctx.p->lock);
 	} else {
 		/* Move ret to the front of the LRU. */
@@ -688,26 +674,30 @@ prof_ctx_sum(prof_ctx_t *ctx, prof_cnt_t *cnt_all, size_t *leak_nctx)
 static void
 prof_ctx_destroy(prof_ctx_t *ctx)
 {
+	prof_tdata_t *prof_tdata;
 
 	cassert(config_prof);
 
 	/*
 	 * Check that ctx is still unused by any thread cache before destroying
-	 * it.  prof_lookup() artificially raises ctx->cnt_merge.curobjs in
-	 * order to avoid a race condition with this function, as does
-	 * prof_ctx_merge() in order to avoid a race between the main body of
-	 * prof_ctx_merge() and entry into this function.
+	 * it.  prof_lookup() increments ctx->nlimbo in order to avoid a race
+	 * condition with this function, as does prof_ctx_merge() in order to
+	 * avoid a race between the main body of prof_ctx_merge() and entry
+	 * into this function.
 	 */
-	prof_enter();
+	prof_tdata = *prof_tdata_tsd_get();
+	assert(prof_tdata != NULL);
+	prof_enter(prof_tdata);
 	malloc_mutex_lock(ctx->lock);
-	if (ql_first(&ctx->cnts_ql) == NULL && ctx->cnt_merged.curobjs == 1) {
+	if (ql_first(&ctx->cnts_ql) == NULL && ctx->cnt_merged.curobjs == 0 &&
+	    ctx->nlimbo == 1) {
 		assert(ctx->cnt_merged.curbytes == 0);
 		assert(ctx->cnt_merged.accumobjs == 0);
 		assert(ctx->cnt_merged.accumbytes == 0);
 		/* Remove ctx from bt2ctx. */
 		if (ckh_remove(&bt2ctx, ctx->bt, NULL, NULL))
 			assert(false);
-		prof_leave();
+		prof_leave(prof_tdata);
 		/* Destroy ctx. */
 		malloc_mutex_unlock(ctx->lock);
 		bt_destroy(ctx->bt);
@@ -717,9 +707,9 @@ prof_ctx_destroy(prof_ctx_t *ctx)
 		 * Compensate for increment in prof_ctx_merge() or
 		 * prof_lookup().
 		 */
-		ctx->cnt_merged.curobjs--;
+		ctx->nlimbo--;
 		malloc_mutex_unlock(ctx->lock);
-		prof_leave();
+		prof_leave(prof_tdata);
 	}
 }
 
@@ -738,12 +728,12 @@ prof_ctx_merge(prof_ctx_t *ctx, prof_thr_cnt_t *cnt)
 	ctx->cnt_merged.accumbytes += cnt->cnts.accumbytes;
 	ql_remove(&ctx->cnts_ql, cnt, cnts_link);
 	if (opt_prof_accum == false && ql_first(&ctx->cnts_ql) == NULL &&
-	    ctx->cnt_merged.curobjs == 0) {
+	    ctx->cnt_merged.curobjs == 0 && ctx->nlimbo == 0) {
 		/*
-		 * Artificially raise ctx->cnt_merged.curobjs in order to keep
-		 * another thread from winning the race to destroy ctx while
-		 * this one has ctx->lock dropped.  Without this, it would be
-		 * possible for another thread to:
+		 * Increment ctx->nlimbo in order to keep another thread from
+		 * winning the race to destroy ctx while this one has ctx->lock
+		 * dropped.  Without this, it would be possible for another
+		 * thread to:
 		 *
 		 * 1) Sample an allocation associated with ctx.
 		 * 2) Deallocate the sampled object.
@@ -752,7 +742,7 @@ prof_ctx_merge(prof_ctx_t *ctx, prof_thr_cnt_t *cnt)
 		 * The result would be that ctx no longer exists by the time
 		 * this thread accesses it in prof_ctx_destroy().
 		 */
-		ctx->cnt_merged.curobjs++;
+		ctx->nlimbo++;
 		destroy = true;
 	} else
 		destroy = false;
@@ -768,7 +758,16 @@ prof_dump_ctx(bool propagate_err, prof_ctx_t *ctx, prof_bt_t *bt)
 
 	cassert(config_prof);
 
-	if (opt_prof_accum == false && ctx->cnt_summed.curobjs == 0) {
+	/*
+	 * Current statistics can sum to 0 as a result of unmerged per thread
+	 * statistics.  Additionally, interval- and growth-triggered dumps can
+	 * occur between the time a ctx is created and when its statistics are
+	 * filled in.  Avoid dumping any ctx that is an artifact of either
+	 * implementation detail.
+	 */
+	if ((opt_prof_accum == false && ctx->cnt_summed.curobjs == 0) ||
+	    (opt_prof_accum && ctx->cnt_summed.accumobjs == 0)) {
+		assert(ctx->cnt_summed.curobjs == 0);
 		assert(ctx->cnt_summed.curbytes == 0);
 		assert(ctx->cnt_summed.accumobjs == 0);
 		assert(ctx->cnt_summed.accumbytes == 0);
@@ -831,6 +830,7 @@ prof_dump_maps(bool propagate_err)
 static bool
 prof_dump(bool propagate_err, const char *filename, bool leakcheck)
 {
+	prof_tdata_t *prof_tdata;
 	prof_cnt_t cnt_all;
 	size_t tabind;
 	union {
@@ -845,7 +845,10 @@ prof_dump(bool propagate_err, const char *filename, bool leakcheck)
 
 	cassert(config_prof);
 
-	prof_enter();
+	prof_tdata = prof_tdata_get();
+	if (prof_tdata == NULL)
+		return (true);
+	prof_enter(prof_tdata);
 	prof_dump_fd = creat(filename, 0644);
 	if (prof_dump_fd == -1) {
 		if (propagate_err == false) {
@@ -896,7 +899,7 @@ prof_dump(bool propagate_err, const char *filename, bool leakcheck)
 	if (prof_flush(propagate_err))
 		goto label_error;
 	close(prof_dump_fd);
-	prof_leave();
+	prof_leave(prof_tdata);
 
 	if (leakcheck && cnt_all.curbytes != 0) {
 		malloc_printf("<jemalloc>: Leak summary: %"PRId64" byte%s, %"
@@ -911,7 +914,7 @@ prof_dump(bool propagate_err, const char *filename, bool leakcheck)
 
 	return (false);
 label_error:
-	prof_leave();
+	prof_leave(prof_tdata);
 	return (true);
 }
 
@@ -933,6 +936,7 @@ prof_dump_filename(char *filename, char v, int64_t vseq)
 		    "%s.%d.%"PRIu64".%c.heap",
 		    opt_prof_prefix, (int)getpid(), prof_dump_seq, v);
 	}
+	prof_dump_seq++;
 }
 
 static void
@@ -956,19 +960,24 @@ prof_fdump(void)
 void
 prof_idump(void)
 {
+	prof_tdata_t *prof_tdata;
 	char filename[PATH_MAX + 1];
 
 	cassert(config_prof);
 
 	if (prof_booted == false)
 		return;
-	malloc_mutex_lock(&enq_mtx);
-	if (enq) {
-		enq_idump = true;
-		malloc_mutex_unlock(&enq_mtx);
+	/*
+	 * Don't call prof_tdata_get() here, because it could cause recursive
+	 * allocation.
+	 */
+	prof_tdata = *prof_tdata_tsd_get();
+	if (prof_tdata == NULL)
+		return;
+	if (prof_tdata->enq) {
+		prof_tdata->enq_idump = true;
 		return;
 	}
-	malloc_mutex_unlock(&enq_mtx);
 
 	if (opt_prof_prefix[0] != '\0') {
 		malloc_mutex_lock(&prof_dump_seq_mtx);
@@ -1005,19 +1014,24 @@ prof_mdump(const char *filename)
 void
 prof_gdump(void)
 {
+	prof_tdata_t *prof_tdata;
 	char filename[DUMP_FILENAME_BUFSIZE];
 
 	cassert(config_prof);
 
 	if (prof_booted == false)
 		return;
-	malloc_mutex_lock(&enq_mtx);
-	if (enq) {
-		enq_gdump = true;
-		malloc_mutex_unlock(&enq_mtx);
+	/*
+	 * Don't call prof_tdata_get() here, because it could cause recursive
+	 * allocation.
+	 */
+	prof_tdata = *prof_tdata_tsd_get();
+	if (prof_tdata == NULL)
+		return;
+	if (prof_tdata->enq) {
+		prof_tdata->enq_gdump = true;
 		return;
 	}
-	malloc_mutex_unlock(&enq_mtx);
 
 	if (opt_prof_prefix[0] != '\0') {
 		malloc_mutex_lock(&prof_dump_seq_mtx);
@@ -1109,6 +1123,10 @@ prof_tdata_init(void)
 	prof_tdata->prng_state = 0;
 	prof_tdata->threshold = 0;
 	prof_tdata->accum = 0;
+
+	prof_tdata->enq = false;
+	prof_tdata->enq_idump = false;
+	prof_tdata->enq_gdump = false;
 
 	prof_tdata_tsd_set(&prof_tdata);
 
@@ -1205,12 +1223,6 @@ prof_boot2(void)
 
 		if (malloc_mutex_init(&prof_dump_seq_mtx))
 			return (true);
-
-		if (malloc_mutex_init(&enq_mtx))
-			return (true);
-		enq = false;
-		enq_idump = false;
-		enq_gdump = false;
 
 		if (atexit(prof_fdump) != 0) {
 			malloc_write("<jemalloc>: Error in atexit()\n");
