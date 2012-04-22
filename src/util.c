@@ -67,7 +67,12 @@ void	(*je_malloc_message)(void *, const char *s)
 int
 buferror(int errnum, char *buf, size_t buflen)
 {
-#ifdef _GNU_SOURCE
+
+#ifdef _WIN32
+	FormatMessageA(FORMAT_MESSAGE_FROM_SYSTEM, NULL, GetLastError(), 0,
+	    (LPSTR)buf, buflen, NULL);
+	return (0);
+#elif defined(_GNU_SOURCE)
 	char *b = strerror_r(errno, buf, buflen);
 	if (b != buf) {
 		strncpy(buf, b, buflen);

@@ -52,7 +52,19 @@ static bool			malloc_initializer = NO_INITIALIZER;
 #endif
 
 /* Used to avoid initialization races. */
+#ifdef _WIN32
+static malloc_mutex_t	init_lock;
+
+JEMALLOC_ATTR(constructor)
+static void
+init_init_lock()
+{
+
+	malloc_mutex_init(&init_lock);
+}
+#else
 static malloc_mutex_t	init_lock = MALLOC_MUTEX_INITIALIZER;
+#endif
 
 typedef struct {
 	void	*p;	/* Input pointer (as in realloc(p, s)). */
@@ -229,11 +241,17 @@ malloc_ncpus(void)
 	unsigned ret;
 	long result;
 
+#ifdef _WIN32
+	SYSTEM_INFO si;
+	GetSystemInfo(&si);
+	result = si.dwNumberOfProcessors;
+#else
 	result = sysconf(_SC_NPROCESSORS_ONLN);
 	if (result == -1) {
 		/* Error. */
 		ret = 1;
 	}
+#endif
 	ret = (unsigned)result;
 
 	return (ret);
@@ -369,13 +387,14 @@ malloc_conf_init(void)
 			}
 			break;
 		case 1: {
+#ifndef _WIN32
 			int linklen;
 			const char *linkname =
-#ifdef JEMALLOC_PREFIX
+#  ifdef JEMALLOC_PREFIX
 			    "/etc/"JEMALLOC_PREFIX"malloc.conf"
-#else
+#  else
 			    "/etc/malloc.conf"
-#endif
+#  endif
 			    ;
 
 			if ((linklen = readlink(linkname, buf,
@@ -386,7 +405,9 @@ malloc_conf_init(void)
 				 */
 				buf[linklen] = '\0';
 				opts = buf;
-			} else {
+			} else
+#endif
+			{
 				/* No configuration specified. */
 				buf[0] = '\0';
 				opts = buf;
@@ -610,7 +631,8 @@ malloc_init_hard(void)
 
 	malloc_conf_init();
 
-#if (!defined(JEMALLOC_MUTEX_INIT_CB) && !defined(JEMALLOC_ZONE))
+#if (!defined(JEMALLOC_MUTEX_INIT_CB) && !defined(JEMALLOC_ZONE) \
+    && !defined(_WIN32))
 	/* Register fork handlers. */
 	if (pthread_atfork(jemalloc_prefork, jemalloc_postfork_parent,
 	    jemalloc_postfork_child) != 0) {

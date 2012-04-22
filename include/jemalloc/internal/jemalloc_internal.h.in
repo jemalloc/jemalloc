@@ -1,21 +1,25 @@
 #ifndef JEMALLOC_INTERNAL_H
 #define JEMALLOC_INTERNAL_H
-#include <sys/mman.h>
 #include <sys/param.h>
-#include <sys/syscall.h>
-#if !defined(SYS_write) && defined(__NR_write)
-#define	SYS_write __NR_write
+#ifdef _WIN32
+#  include <windows.h>
+#else
+#  include <sys/mman.h>
+#  include <sys/syscall.h>
+#  if !defined(SYS_write) && defined(__NR_write)
+#    define SYS_write __NR_write
+#  endif
+#  include <sys/uio.h>
+#  include <pthread.h>
 #endif
 #include <sys/time.h>
 #include <sys/types.h>
-#include <sys/uio.h>
 
 #include <errno.h>
 #include <limits.h>
 #ifndef SIZE_T_MAX
 #  define SIZE_T_MAX	SIZE_MAX
 #endif
-#include <pthread.h>
 #include <sched.h>
 #include <stdarg.h>
 #include <stdbool.h>
@@ -32,7 +36,6 @@
 #include <ctype.h>
 #include <unistd.h>
 #include <fcntl.h>
-#include <pthread.h>
 #include <math.h>
 
 #define	JEMALLOC_NO_DEMANGLE

@@ -32,7 +32,7 @@ SO := @so@
 O := @o@
 A := @a@
 EXE := @exe@
-LIB := @lib@
+LIBPREFIX := @libprefix@
 REV := @rev@
 install_suffix := @install_suffix@
 ABI := @abi@
@@ -51,12 +51,16 @@ SOREV = @SOREV@
 PIC_CFLAGS = @PIC_CFLAGS@
 
 ifeq (macho, $(ABI))
-TEST_LIBRARY_PATH := DYLD_FALLBACK_LIBRARY_PATH=$(objroot)lib
+TEST_LIBRARY_PATH := DYLD_FALLBACK_LIBRARY_PATH="$(objroot)lib"
+else
+ifeq (pecoff, $(ABI))
+TEST_LIBRARY_PATH := PATH="$(PATH):$(objroot)lib"
 else
 TEST_LIBRARY_PATH :=
 endif
+endif
 
-LIBJEMALLOC := $(LIB)jemalloc$(install_suffix)
+LIBJEMALLOC := $(LIBPREFIX)jemalloc$(install_suffix)
 
 # Lists of files.
 BINS := $(srcroot)bin/pprof $(objroot)bin/jemalloc.sh

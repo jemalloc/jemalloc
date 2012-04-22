@@ -7,7 +7,7 @@
 static void	*pages_map(void *addr, size_t size);
 static void	pages_unmap(void *addr, size_t size);
 static void	*chunk_alloc_mmap_slow(size_t size, size_t alignment,
-    bool unaligned, bool *zero);
+    bool *zero);
 
 /******************************************************************************/
 
@@ -16,6 +16,14 @@ pages_map(void *addr, size_t size)
 {
 	void *ret;
 
+#ifdef _WIN32
+	/*
+	 * If VirtualAlloc can't allocate at the given address when one is
+	 * given, it fails and returns NULL.
+	 */
+	ret = VirtualAlloc(addr, size, MEM_COMMIT | MEM_RESERVE,
+	    PAGE_READWRITE);
+#else
 	/*
 	 * We don't use MAP_FIXED here, because it can cause the *replacement*
 	 * of existing mappings, and we only want to create new mappings.
@@ -41,7 +49,7 @@ pages_map(void *addr, size_t size)
 		}
 		ret = NULL;
 	}
-
+#endif
 	assert(ret == NULL || (addr == NULL && ret != addr)
 	    || (addr != NULL && ret == addr));
 	return (ret);
@@ -51,55 +59,94 @@ static void
 pages_unmap(void *addr, size_t size)
 {
 
-	if (munmap(addr, size) == -1) {
+#ifdef _WIN32
+	if (VirtualFree(addr, 0, MEM_RELEASE) == 0)
+#else
+	if (munmap(addr, size) == -1)
+#endif
+	{
 		char buf[BUFERROR_BUF];
 
 		buferror(errno, buf, sizeof(buf));
-		malloc_printf("<jemalloc>: Error in munmap(): %s\n", buf);
+		malloc_printf("<jemalloc>: Error in "
+#ifdef _WIN32
+		              "VirtualFree"
+#else
+		              "munmap"
+#endif
+		              "(): %s\n", buf);
 		if (opt_abort)
 			abort();
 	}
+}
+
+static void *
+pages_trim(void *addr, size_t alloc_size, size_t leadsize, size_t size)
+{
+	void *ret = (void *)((uintptr_t)addr + leadsize);
+
+	assert(alloc_size >= leadsize + size);
+#ifdef _WIN32
+	{
+		void *new_addr;
+
+		pages_unmap(addr, alloc_size);
+		new_addr = pages_map(ret, size);
+		if (new_addr == ret)
+			return (ret);
+		if (new_addr)
+			pages_unmap(new_addr, size);
+		return (NULL);
+	}
+#else
+	{
+		size_t trailsize = alloc_size - leadsize - size;
+
+		if (leadsize != 0)
+			pages_unmap(addr, leadsize);
+		if (trailsize != 0)
+			pages_unmap((void *)((uintptr_t)ret + size), trailsize);
+		return (ret);
+	}
+#endif
 }
 
 void
 pages_purge(void *addr, size_t length)
 {
 
-#ifdef JEMALLOC_PURGE_MADVISE_DONTNEED
-#  define JEMALLOC_MADV_PURGE MADV_DONTNEED
-#elif defined(JEMALLOC_PURGE_MADVISE_FREE)
-#  define JEMALLOC_MADV_PURGE MADV_FREE
+#ifdef _WIN32
+	VirtualAlloc(addr, length, MEM_RESET, PAGE_READWRITE);
 #else
-#  error "No method defined for purging unused dirty pages."
-#endif
+#  ifdef JEMALLOC_PURGE_MADVISE_DONTNEED
+#    define JEMALLOC_MADV_PURGE MADV_DONTNEED
+#  elif defined(JEMALLOC_PURGE_MADVISE_FREE)
+#    define JEMALLOC_MADV_PURGE MADV_FREE
+#  else
+#    error "No method defined for purging unused dirty pages."
+#  endif
 	madvise(addr, length, JEMALLOC_MADV_PURGE);
+#endif
 }
 
 static void *
-chunk_alloc_mmap_slow(size_t size, size_t alignment, bool unaligned, bool *zero)
+chunk_alloc_mmap_slow(size_t size, size_t alignment, bool *zero)
 {
 	void *ret, *pages;
-	size_t alloc_size, leadsize, trailsize;
+	size_t alloc_size, leadsize;
 
 	alloc_size = size + alignment - PAGE;
 	/* Beware size_t wrap-around. */
 	if (alloc_size < size)
 		return (NULL);
-	pages = pages_map(NULL, alloc_size);
-	if (pages == NULL)
-		return (NULL);
-	leadsize = ALIGNMENT_CEILING((uintptr_t)pages, alignment) -
-	    (uintptr_t)pages;
-	assert(alloc_size >= leadsize + size);
-	trailsize = alloc_size - leadsize - size;
-	ret = (void *)((uintptr_t)pages + leadsize);
-	if (leadsize != 0) {
-		/* Note that mmap() returned an unaligned mapping. */
-		unaligned = true;
-		pages_unmap(pages, leadsize);
-	}
-	if (trailsize != 0)
-		pages_unmap((void *)((uintptr_t)ret + size), trailsize);
+	do {
+		pages = pages_map(NULL, alloc_size);
+		if (pages == NULL)
+			return (NULL);
+		leadsize = ALIGNMENT_CEILING((uintptr_t)pages, alignment) -
+		    (uintptr_t)pages;
+		ret = pages_trim(pages, alloc_size, leadsize, size);
+	} while (ret == NULL);
 
 	assert(ret != NULL);
 	*zero = true;
@@ -144,6 +191,9 @@ chunk_alloc_mmap(size_t size, size_t alignment, bool *zero)
 
 	offset = ALIGNMENT_ADDR2OFFSET(ret, alignment);
 	if (offset != 0) {
+#ifdef _WIN32
+		return (chunk_alloc_mmap_slow(size, alignment, zero));
+#else
 		/* Try to extend chunk boundary. */
 		if (pages_map((void *)((uintptr_t)ret + size), chunksize -
 		    offset) == NULL) {
@@ -152,13 +202,13 @@ chunk_alloc_mmap(size_t size, size_t alignment, bool *zero)
 			 * reliable-but-expensive method.
 			 */
 			pages_unmap(ret, size);
-			return (chunk_alloc_mmap_slow(size, alignment, true,
-			    zero));
+			return (chunk_alloc_mmap_slow(size, alignment, zero));
 		} else {
 			/* Clean up unneeded leading space. */
 			pages_unmap(ret, chunksize - offset);
 			ret = (void *)((uintptr_t)ret + (chunksize - offset));
 		}
+#endif
 	}
 
 	assert(ret != NULL);

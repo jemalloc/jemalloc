@@ -1,8 +1,12 @@
 #define	JEMALLOC_MUTEX_C_
 #include "jemalloc/internal/jemalloc_internal.h"
 
-#ifdef JEMALLOC_LAZY_LOCK
+#if defined(JEMALLOC_LAZY_LOCK) && !defined(_WIN32)
 #include <dlfcn.h>
+#endif
+
+#ifndef _CRT_SPINCOUNT
+#define _CRT_SPINCOUNT 4000
 #endif
 
 /******************************************************************************/
@@ -16,7 +20,7 @@ static bool		postpone_init = true;
 static malloc_mutex_t	*postponed_mutexes = NULL;
 #endif
 
-#ifdef JEMALLOC_LAZY_LOCK
+#if defined(JEMALLOC_LAZY_LOCK) && !defined(_WIN32)
 static void	pthread_create_once(void);
 #endif
 
@@ -26,7 +30,7 @@ static void	pthread_create_once(void);
  * process goes multi-threaded.
  */
 
-#ifdef JEMALLOC_LAZY_LOCK
+#if defined(JEMALLOC_LAZY_LOCK) && !defined(_WIN32)
 static int (*pthread_create_fptr)(pthread_t *__restrict, const pthread_attr_t *,
     void *(*)(void *), void *__restrict);
 
@@ -68,7 +72,11 @@ int	_pthread_mutex_init_calloc_cb(pthread_mutex_t *mutex,
 bool
 malloc_mutex_init(malloc_mutex_t *mutex)
 {
-#ifdef JEMALLOC_OSSPIN
+#ifdef _WIN32
+	if (!InitializeCriticalSectionAndSpinCount(&mutex->lock,
+	    _CRT_SPINCOUNT))
+		return (true);
+#elif (defined(JEMALLOC_OSSPIN))
 	mutex->lock = 0;
 #elif (defined(JEMALLOC_MUTEX_INIT_CB))
 	if (postpone_init) {

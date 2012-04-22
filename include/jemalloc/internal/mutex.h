@@ -3,10 +3,12 @@
 
 typedef struct malloc_mutex_s malloc_mutex_t;
 
-#ifdef JEMALLOC_OSSPIN
-#define	MALLOC_MUTEX_INITIALIZER {0}
+#ifdef _WIN32
+#  define MALLOC_MUTEX_INITIALIZER
+#elif (defined(JEMALLOC_OSSPIN))
+#  define MALLOC_MUTEX_INITIALIZER {0}
 #elif (defined(JEMALLOC_MUTEX_INIT_CB))
-#define	MALLOC_MUTEX_INITIALIZER {PTHREAD_MUTEX_INITIALIZER, NULL}
+#  define MALLOC_MUTEX_INITIALIZER {PTHREAD_MUTEX_INITIALIZER, NULL}
 #else
 #  if (defined(PTHREAD_MUTEX_ADAPTIVE_NP) &&				\
        defined(PTHREAD_ADAPTIVE_MUTEX_INITIALIZER_NP))
@@ -23,7 +25,9 @@ typedef struct malloc_mutex_s malloc_mutex_t;
 #ifdef JEMALLOC_H_STRUCTS
 
 struct malloc_mutex_s {
-#ifdef JEMALLOC_OSSPIN
+#ifdef _WIN32
+	CRITICAL_SECTION	lock;
+#elif (defined(JEMALLOC_OSSPIN))
 	OSSpinLock		lock;
 #elif (defined(JEMALLOC_MUTEX_INIT_CB))
 	pthread_mutex_t		lock;
@@ -65,7 +69,9 @@ malloc_mutex_lock(malloc_mutex_t *mutex)
 {
 
 	if (isthreaded) {
-#ifdef JEMALLOC_OSSPIN
+#ifdef _WIN32
+		EnterCriticalSection(&mutex->lock);
+#elif (defined(JEMALLOC_OSSPIN))
 		OSSpinLockLock(&mutex->lock);
 #else
 		pthread_mutex_lock(&mutex->lock);
@@ -78,7 +84,9 @@ malloc_mutex_unlock(malloc_mutex_t *mutex)
 {
 
 	if (isthreaded) {
-#ifdef JEMALLOC_OSSPIN
+#ifdef _WIN32
+		LeaveCriticalSection(&mutex->lock);
+#elif (defined(JEMALLOC_OSSPIN))
 		OSSpinLockUnlock(&mutex->lock);
 #else
 		pthread_mutex_unlock(&mutex->lock);

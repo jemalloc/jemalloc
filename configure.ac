@@ -198,7 +198,7 @@ so="so"
 o="o"
 a="a"
 exe=
-lib="lib"
+libprefix="lib"
 DSO_LDFLAGS='-shared -Wl,-soname,$(@F)'
 RPATH='-Wl,-rpath,$(1)'
 SOREV='$(SO).$(REV)'
@@ -273,6 +273,19 @@ case "${host}" in
 	fi
 	abi="xcoff"
 	;;
+  *-*-mingw*)
+	abi="pecoff"
+	force_tls="0"
+	RPATH=""
+	so="dll"
+	DSO_LDFLAGS="-shared"
+	o="obj"
+	a="lib"
+	libprefix=""
+	exe=".exe"
+	SOREV='$(SO)'
+	PIC_CFLAGS=""
+	;;
   *)
 	AC_MSG_RESULT([Unsupported operating system: ${host}])
 	abi="elf"
@@ -285,7 +298,7 @@ AC_SUBST([so])
 AC_SUBST([o])
 AC_SUBST([a])
 AC_SUBST([exe])
-AC_SUBST([lib])
+AC_SUBST([libprefix])
 AC_SUBST([DSO_LDFLAGS])
 AC_SUBST([SOREV])
 AC_SUBST([PIC_CFLAGS])
@@ -817,23 +830,36 @@ AC_SUBST([enable_xmalloc])
 AC_CACHE_CHECK([STATIC_PAGE_SHIFT],
                [je_cv_static_page_shift],
                AC_RUN_IFELSE([AC_LANG_PROGRAM(
-[[#include <stdio.h>
+[[
+#ifdef _WIN32
+#include <windows.h>
+#else
 #include <unistd.h>
 #include <strings.h>
+#endif
+#include <stdio.h>
 ]],
 [[
     long result;
     FILE *f;
 
+#ifdef _WIN32
+    SYSTEM_INFO si;
+    GetSystemInfo(&si);
+    result = si.dwPageSize;
+#else
     result = sysconf(_SC_PAGESIZE);
+#endif
     if (result == -1) {
 	return 1;
     }
+    result = ffsl(result) - 1;
+
     f = fopen("conftest.out", "w");
     if (f == NULL) {
 	return 1;
     }
-    fprintf(f, "%u\n", ffs((int)result) - 1);
+    fprintf(f, "%u\n", result);
     fclose(f);
 
     return 0;
@@ -871,12 +897,14 @@ AC_SUBST([jemalloc_version_gid])
 dnl ============================================================================
 dnl Configure pthreads.
 
-AC_CHECK_HEADERS([pthread.h], , [AC_MSG_ERROR([pthread.h is missing])])
-dnl Some systems may embed pthreads functionality in libc; check for libpthread
-dnl first, but try libc too before failing.
-AC_CHECK_LIB([pthread], [pthread_create], [LIBS="$LIBS -lpthread"],
-             [AC_SEARCH_LIBS([pthread_create], , ,
-                             AC_MSG_ERROR([libpthread is missing]))])
+if test "x$abi" != "xpecoff" ; then
+  AC_CHECK_HEADERS([pthread.h], , [AC_MSG_ERROR([pthread.h is missing])])
+  dnl Some systems may embed pthreads functionality in libc; check for libpthread
+  dnl first, but try libc too before failing.
+  AC_CHECK_LIB([pthread], [pthread_create], [LIBS="$LIBS -lpthread"],
+               [AC_SEARCH_LIBS([pthread_create], , ,
+                               AC_MSG_ERROR([libpthread is missing]))])
+fi
 
 CPPFLAGS="$CPPFLAGS -D_REENTRANT"
 
@@ -921,11 +949,13 @@ if test "x$enable_lazy_lock" = "x0" -a "x${force_lazy_lock}" = "x1" ; then
   enable_lazy_lock="1"
 fi
 if test "x$enable_lazy_lock" = "x1" ; then
-  AC_CHECK_HEADERS([dlfcn.h], , [AC_MSG_ERROR([dlfcn.h is missing])])
-  AC_CHECK_FUNC([dlsym], [],
-    [AC_CHECK_LIB([dl], [dlsym], [LIBS="$LIBS -ldl"],
-                  [AC_MSG_ERROR([libdl is missing])])
-    ])
+  if test "x$abi" != "xpecoff" ; then
+    AC_CHECK_HEADERS([dlfcn.h], , [AC_MSG_ERROR([dlfcn.h is missing])])
+    AC_CHECK_FUNC([dlsym], [],
+      [AC_CHECK_LIB([dl], [dlsym], [LIBS="$LIBS -ldl"],
+                    [AC_MSG_ERROR([libdl is missing])])
+      ])
+  fi
   AC_DEFINE([JEMALLOC_LAZY_LOCK], [ ])
 fi
 AC_SUBST([enable_lazy_lock])

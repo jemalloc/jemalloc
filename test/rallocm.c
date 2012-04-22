@@ -19,9 +19,15 @@ main(void)
 
 	/* Get page size. */
 	{
+#ifdef _WIN32
+		SYSTEM_INFO si;
+		GetSystemInfo(&si);
+		pagesize = (size_t)si.dwPageSize;
+#else
 		long result = sysconf(_SC_PAGESIZE);
 		assert(result != -1);
 		pagesize = (size_t)result;
+#endif
 	}
 
 	r = allocm(&p, &sz, 42, 0);
