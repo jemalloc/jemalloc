@@ -202,6 +202,7 @@ libprefix="lib"
 DSO_LDFLAGS='-shared -Wl,-soname,$(@F)'
 RPATH='-Wl,-rpath,$(1)'
 SOREV='$(SO).$(REV)'
+sorev="${so}.${rev}"
 PIC_CFLAGS='-fPIC -DPIC'
 
 dnl Heap profiling uses the log(3) function.
@@ -226,6 +227,7 @@ case "${host}" in
 	force_tls="0"
 	DSO_LDFLAGS='-shared -Wl,-dylib_install_name,$(@F)'
 	SOREV='$(REV).$(SO)'
+	sorev="${rev}.${so}"
 	;;
   *-*-freebsd*)
 	CFLAGS="$CFLAGS"
@@ -284,6 +286,7 @@ case "${host}" in
 	libprefix=""
 	exe=".exe"
 	SOREV='$(SO)'
+	sorev="${so}"
 	PIC_CFLAGS=""
 	;;
   *)
@@ -301,6 +304,7 @@ AC_SUBST([exe])
 AC_SUBST([libprefix])
 AC_SUBST([DSO_LDFLAGS])
 AC_SUBST([SOREV])
+AC_SUBST([sorev])
 AC_SUBST([PIC_CFLAGS])
 
 JE_COMPILABLE([__attribute__ syntax],
