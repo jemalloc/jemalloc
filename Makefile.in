@@ -227,8 +227,8 @@ check: tests
 		for t in $(CTESTS:$(srcroot)%.c=$(objroot)%); do \
 			total=`expr $$total + 1`; \
 			/bin/echo -n "$${t} ... "; \
-			$(TEST_LIBRARY_PATH) $${t}$(EXE) $(abs_srcroot) $(abs_objroot) \
-			  > $(objroot)$${t}.out 2>&1; \
+			$(TEST_LIBRARY_PATH) $${t}$(EXE) $(abs_srcroot) \
+			  $(abs_objroot) > $(objroot)$${t}.out 2>&1; \
 			if test -e "$(srcroot)$${t}.exp"; then \
 				diff -w -u $(srcroot)$${t}.exp \
 				  $(objroot)$${t}.out >/dev/null 2>&1; \

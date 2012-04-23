@@ -19,7 +19,7 @@ found in the git revision history:
 
   New features:
   - Implement Valgrind support, redzones, and quarantine.
-  - Add support for additional operating systems:
+  - Add support for additional platforms:
     + FreeBSD
     + Mac OS X Lion
     + MinGW
@@ -67,7 +67,7 @@ found in the git revision history:
   Bug fixes:
   - Fix a statistics-related bug in the "thread.arena" mallctl that could cause
     invalid statistics and crashes.
-  - Work around TLS dallocation via free() on Linux.  This bug could cause
+  - Work around TLS deallocation via free() on Linux.  This bug could cause
     write-after-free memory corruption.
   - Fix a potential deadlock that could occur during interval- and
     growth-triggered heap profile dumps.

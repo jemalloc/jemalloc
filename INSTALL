@@ -267,10 +267,6 @@ directory, issue configuration and build commands:
 
 The manual page is generated in both html and roff formats.  Any web browser
 can be used to view the html manual.  The roff manual page can be formatted
-prior to installation via any of the following commands:
+prior to installation via the following command:
 
     nroff -man -t doc/jemalloc.3
-
-    groff -man -t -Tps doc/jemalloc.3 | ps2pdf - doc/jemalloc.3.pdf
-
-    (cd doc; groff -man -man-ext -t -Thtml jemalloc.3 > jemalloc.3.html)
