@@ -678,6 +678,10 @@ fi
 AC_MSG_CHECKING([configured backtracing method])
 AC_MSG_RESULT([$backtrace_method])
 if test "x$enable_prof" = "x1" ; then
+  if test "x${force_tls}" = "x0" ; then
+    AC_MSG_ERROR([Heap profiling requires TLS]);
+  fi
+  force_tls="1"
   AC_DEFINE([JEMALLOC_PROF], [ ])
 fi
 AC_SUBST([enable_prof])
