@@ -793,7 +793,7 @@ void *
 je_malloc(size_t size)
 {
 	void *ret;
-	size_t usize;
+	size_t usize JEMALLOC_CC_SILENCE_INIT(0);
 	prof_thr_cnt_t *cnt JEMALLOC_CC_SILENCE_INIT(NULL);
 
 	if (malloc_init()) {
@@ -973,7 +973,7 @@ je_calloc(size_t num, size_t size)
 {
 	void *ret;
 	size_t num_size;
-	size_t usize;
+	size_t usize JEMALLOC_CC_SILENCE_INIT(0);
 	prof_thr_cnt_t *cnt JEMALLOC_CC_SILENCE_INIT(NULL);
 
 	if (malloc_init()) {
@@ -1048,7 +1048,7 @@ void *
 je_realloc(void *ptr, size_t size)
 {
 	void *ret;
-	size_t usize;
+	size_t usize JEMALLOC_CC_SILENCE_INIT(0);
 	size_t old_size = 0;
 	size_t old_rzsize JEMALLOC_CC_SILENCE_INIT(0);
 	prof_thr_cnt_t *cnt JEMALLOC_CC_SILENCE_INIT(NULL);
