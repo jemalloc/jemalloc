@@ -1,5 +1,13 @@
 #include "jemalloc/internal/jemalloc_internal.h"
 
+/*
+ * quarantine pointers close to NULL are used to encode state information that
+ * is used for cleaning up during thread shutdown.
+ */
+#define	QUARANTINE_STATE_REINCARNATED	((quarantine_t *)(uintptr_t)1)
+#define	QUARANTINE_STATE_PURGATORY	((quarantine_t *)(uintptr_t)2)
+#define	QUARANTINE_STATE_MAX		QUARANTINE_STATE_PURGATORY
+
 /******************************************************************************/
 /* Data. */
 
@@ -105,10 +113,25 @@ quarantine(void *ptr)
 	assert(opt_quarantine);
 
 	quarantine = *quarantine_tsd_get();
-	if (quarantine == NULL && (quarantine =
-	    quarantine_init(LG_MAXOBJS_INIT)) == NULL) {
-		idalloc(ptr);
-		return;
+	if ((uintptr_t)quarantine <= (uintptr_t)QUARANTINE_STATE_MAX) {
+		if (quarantine == NULL) {
+			if ((quarantine = quarantine_init(LG_MAXOBJS_INIT)) ==
+			    NULL) {
+				idalloc(ptr);
+				return;
+			}
+		} else {
+			if (quarantine == QUARANTINE_STATE_PURGATORY) {
+				/*
+				 * Make a note that quarantine() was called
+				 * after quarantine_cleanup() was called.
+				 */
+				quarantine = QUARANTINE_STATE_REINCARNATED;
+				quarantine_tsd_set(&quarantine);
+			}
+			idalloc(ptr);
+			return;
+		}
 	}
 	/*
 	 * Drain one or more objects if the quarantine size limit would be
@@ -144,9 +167,26 @@ quarantine_cleanup(void *arg)
 {
 	quarantine_t *quarantine = *(quarantine_t **)arg;
 
-	if (quarantine != NULL) {
+	if (quarantine == QUARANTINE_STATE_REINCARNATED) {
+		/*
+		 * Another destructor deallocated memory after this destructor
+		 * was called.  Reset quarantine to QUARANTINE_STATE_PURGATORY
+		 * in order to receive another callback.
+		 */
+		quarantine = QUARANTINE_STATE_PURGATORY;
+		quarantine_tsd_set(&quarantine);
+	} else if (quarantine == QUARANTINE_STATE_PURGATORY) {
+		/*
+		 * The previous time this destructor was called, we set the key
+		 * to QUARANTINE_STATE_PURGATORY so that other destructors
+		 * wouldn't cause re-creation of the quarantine.  This time, do
+		 * nothing, so that the destructor will not be called again.
+		 */
+	} else if (quarantine != NULL) {
 		quarantine_drain(quarantine, 0);
 		idalloc(quarantine);
+		quarantine = QUARANTINE_STATE_PURGATORY;
+		quarantine_tsd_set(&quarantine);
 	}
 }
 
