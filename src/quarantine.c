@@ -11,15 +11,21 @@
 /******************************************************************************/
 /* Data. */
 
+typedef struct quarantine_obj_s quarantine_obj_t;
 typedef struct quarantine_s quarantine_t;
 
+struct quarantine_obj_s {
+	void	*ptr;
+	size_t	usize;
+};
+
 struct quarantine_s {
-	size_t	curbytes;
-	size_t	curobjs;
-	size_t	first;
+	size_t			curbytes;
+	size_t			curobjs;
+	size_t			first;
 #define	LG_MAXOBJS_INIT 10
-	size_t	lg_maxobjs;
-	void	*objs[1]; /* Dynamically sized ring buffer. */
+	size_t			lg_maxobjs;
+	quarantine_obj_t	objs[1]; /* Dynamically sized ring buffer. */
 };
 
 static void	quarantine_cleanup(void *arg);
@@ -43,7 +49,7 @@ quarantine_init(size_t lg_maxobjs)
 	quarantine_t *quarantine;
 
 	quarantine = (quarantine_t *)imalloc(offsetof(quarantine_t, objs) +
-	    ((ZU(1) << lg_maxobjs) * sizeof(void *)));
+	    ((ZU(1) << lg_maxobjs) * sizeof(quarantine_obj_t)));
 	if (quarantine == NULL)
 		return (NULL);
 	quarantine->curbytes = 0;
@@ -70,14 +76,14 @@ quarantine_grow(quarantine_t *quarantine)
 	    quarantine->lg_maxobjs)) {
 		/* objs ring buffer data are contiguous. */
 		memcpy(ret->objs, &quarantine->objs[quarantine->first],
-		    quarantine->curobjs * sizeof(void *));
+		    quarantine->curobjs * sizeof(quarantine_obj_t));
 		ret->curobjs = quarantine->curobjs;
 	} else {
 		/* objs ring buffer data wrap around. */
 		size_t ncopy = (ZU(1) << quarantine->lg_maxobjs) -
 		    quarantine->first;
 		memcpy(ret->objs, &quarantine->objs[quarantine->first], ncopy *
-		    sizeof(void *));
+		    sizeof(quarantine_obj_t));
 		ret->curobjs = ncopy;
 		if (quarantine->curobjs != 0) {
 			memcpy(&ret->objs[ret->curobjs], quarantine->objs,
@@ -93,10 +99,10 @@ quarantine_drain(quarantine_t *quarantine, size_t upper_bound)
 {
 
 	while (quarantine->curbytes > upper_bound && quarantine->curobjs > 0) {
-		void *ptr = quarantine->objs[quarantine->first];
-		size_t usize = isalloc(ptr, config_prof);
-		idalloc(ptr);
-		quarantine->curbytes -= usize;
+		quarantine_obj_t *obj = &quarantine->objs[quarantine->first];
+		assert(obj->usize == isalloc(obj->ptr, config_prof));
+		idalloc(obj->ptr);
+		quarantine->curbytes -= obj->usize;
 		quarantine->curobjs--;
 		quarantine->first = (quarantine->first + 1) & ((ZU(1) <<
 		    quarantine->lg_maxobjs) - 1);
@@ -151,7 +157,9 @@ quarantine(void *ptr)
 	if (quarantine->curbytes + usize <= opt_quarantine) {
 		size_t offset = (quarantine->first + quarantine->curobjs) &
 		    ((ZU(1) << quarantine->lg_maxobjs) - 1);
-		quarantine->objs[offset] = ptr;
+		quarantine_obj_t *obj = &quarantine->objs[offset];
+		obj->ptr = ptr;
+		obj->usize = usize;
 		quarantine->curbytes += usize;
 		quarantine->curobjs++;
 		if (opt_junk)
