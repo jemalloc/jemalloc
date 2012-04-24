@@ -176,8 +176,10 @@ CTL_PROTO(stats_mapped)
 #define	CTL_MAX_DEPTH	6
 
 #define	NAME(n)	{true},	n
-#define	CHILD(c)							\
-	sizeof(c##_node) / sizeof(ctl_node_t), (ctl_node_t *)c##_node, NULL
+#define	CHILD(t, c)							\
+	sizeof(c##_node) / sizeof(ctl_##t##_node_t),			\
+	(ctl_node_t *)c##_node,						\
+	NULL
 #define	CTL(c)	0, NULL, c##_ctl
 
 /*
@@ -197,7 +199,7 @@ static const ctl_named_node_t	thread_node[] = {
 	{NAME("allocatedp"),	CTL(thread_allocatedp)},
 	{NAME("deallocated"),	CTL(thread_deallocated)},
 	{NAME("deallocatedp"),	CTL(thread_deallocatedp)},
-	{NAME("tcache"),	CHILD(tcache)}
+	{NAME("tcache"),	CHILD(named, tcache)}
 };
 
 static const ctl_named_node_t	config_node[] = {
@@ -249,7 +251,7 @@ static const ctl_named_node_t arenas_bin_i_node[] = {
 	{NAME("run_size"),		CTL(arenas_bin_i_run_size)}
 };
 static const ctl_named_node_t super_arenas_bin_i_node[] = {
-	{NAME(""),			CHILD(arenas_bin_i)}
+	{NAME(""),			CHILD(named, arenas_bin_i)}
 };
 
 static const ctl_indexed_node_t arenas_bin_node[] = {
@@ -260,7 +262,7 @@ static const ctl_named_node_t arenas_lrun_i_node[] = {
 	{NAME("size"),			CTL(arenas_lrun_i_size)}
 };
 static const ctl_named_node_t super_arenas_lrun_i_node[] = {
-	{NAME(""),			CHILD(arenas_lrun_i)}
+	{NAME(""),			CHILD(named, arenas_lrun_i)}
 };
 
 static const ctl_indexed_node_t arenas_lrun_node[] = {
@@ -275,9 +277,9 @@ static const ctl_named_node_t arenas_node[] = {
 	{NAME("tcache_max"),		CTL(arenas_tcache_max)},
 	{NAME("nbins"),			CTL(arenas_nbins)},
 	{NAME("nhbins"),		CTL(arenas_nhbins)},
-	{NAME("bin"),			CHILD(arenas_bin)},
+	{NAME("bin"),			CHILD(indexed, arenas_bin)},
 	{NAME("nlruns"),		CTL(arenas_nlruns)},
-	{NAME("lrun"),			CHILD(arenas_lrun)},
+	{NAME("lrun"),			CHILD(indexed, arenas_lrun)},
 	{NAME("purge"),			CTL(arenas_purge)}
 };
 
@@ -325,7 +327,7 @@ static const ctl_named_node_t stats_arenas_i_bins_j_node[] = {
 	{NAME("curruns"),		CTL(stats_arenas_i_bins_j_curruns)}
 };
 static const ctl_named_node_t super_stats_arenas_i_bins_j_node[] = {
-	{NAME(""),			CHILD(stats_arenas_i_bins_j)}
+	{NAME(""),			CHILD(named, stats_arenas_i_bins_j)}
 };
 
 static const ctl_indexed_node_t stats_arenas_i_bins_node[] = {
@@ -339,7 +341,7 @@ static const ctl_named_node_t stats_arenas_i_lruns_j_node[] = {
 	{NAME("curruns"),		CTL(stats_arenas_i_lruns_j_curruns)}
 };
 static const ctl_named_node_t super_stats_arenas_i_lruns_j_node[] = {
-	{NAME(""),			CHILD(stats_arenas_i_lruns_j)}
+	{NAME(""),			CHILD(named, stats_arenas_i_lruns_j)}
 };
 
 static const ctl_indexed_node_t stats_arenas_i_lruns_node[] = {
@@ -354,13 +356,13 @@ static const ctl_named_node_t stats_arenas_i_node[] = {
 	{NAME("npurge"),		CTL(stats_arenas_i_npurge)},
 	{NAME("nmadvise"),		CTL(stats_arenas_i_nmadvise)},
 	{NAME("purged"),		CTL(stats_arenas_i_purged)},
-	{NAME("small"),			CHILD(stats_arenas_i_small)},
-	{NAME("large"),			CHILD(stats_arenas_i_large)},
-	{NAME("bins"),			CHILD(stats_arenas_i_bins)},
-	{NAME("lruns"),		CHILD(stats_arenas_i_lruns)}
+	{NAME("small"),			CHILD(named, stats_arenas_i_small)},
+	{NAME("large"),			CHILD(named, stats_arenas_i_large)},
+	{NAME("bins"),			CHILD(named, stats_arenas_i_bins)},
+	{NAME("lruns"),			CHILD(named, stats_arenas_i_lruns)}
 };
 static const ctl_named_node_t super_stats_arenas_i_node[] = {
-	{NAME(""),			CHILD(stats_arenas_i)}
+	{NAME(""),			CHILD(named, stats_arenas_i)}
 };
 
 static const ctl_indexed_node_t stats_arenas_node[] = {
@@ -372,23 +374,23 @@ static const ctl_named_node_t stats_node[] = {
 	{NAME("allocated"),		CTL(stats_allocated)},
 	{NAME("active"),		CTL(stats_active)},
 	{NAME("mapped"),		CTL(stats_mapped)},
-	{NAME("chunks"),		CHILD(stats_chunks)},
-	{NAME("huge"),			CHILD(stats_huge)},
-	{NAME("arenas"),		CHILD(stats_arenas)}
+	{NAME("chunks"),		CHILD(named, stats_chunks)},
+	{NAME("huge"),			CHILD(named, stats_huge)},
+	{NAME("arenas"),		CHILD(indexed, stats_arenas)}
 };
 
 static const ctl_named_node_t	root_node[] = {
 	{NAME("version"),	CTL(version)},
 	{NAME("epoch"),		CTL(epoch)},
-	{NAME("thread"),	CHILD(thread)},
-	{NAME("config"),	CHILD(config)},
-	{NAME("opt"),		CHILD(opt)},
-	{NAME("arenas"),	CHILD(arenas)},
-	{NAME("prof"),		CHILD(prof)},
-	{NAME("stats"),		CHILD(stats)}
+	{NAME("thread"),	CHILD(named, thread)},
+	{NAME("config"),	CHILD(named, config)},
+	{NAME("opt"),		CHILD(named, opt)},
+	{NAME("arenas"),	CHILD(named, arenas)},
+	{NAME("prof"),		CHILD(named, prof)},
+	{NAME("stats"),		CHILD(named, stats)}
 };
 static const ctl_named_node_t super_root_node[] = {
-	{NAME(""),		CHILD(root)}
+	{NAME(""),		CHILD(named, root)}
 };
 
 #undef NAME
