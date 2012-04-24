@@ -542,8 +542,9 @@ prof_free(const void *ptr, size_t size)
 	cassert(config_prof);
 
 	if ((uintptr_t)ctx > (uintptr_t)1) {
+		prof_thr_cnt_t *tcnt;
 		assert(size == isalloc(ptr, true));
-		prof_thr_cnt_t *tcnt = prof_lookup(ctx->bt);
+		tcnt = prof_lookup(ctx->bt);
 
 		if (tcnt != NULL) {
 			tcnt->epoch++;

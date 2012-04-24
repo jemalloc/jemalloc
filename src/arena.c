@@ -640,14 +640,14 @@ arena_chunk_purge(arena_t *arena, arena_chunk_t *chunk)
 			if (mapelm->bits & CHUNK_MAP_LARGE)
 				pageind += mapelm->bits >> LG_PAGE;
 			else {
+				size_t binind;
+				arena_bin_info_t *bin_info;
 				arena_run_t *run = (arena_run_t *)((uintptr_t)
 				    chunk + (uintptr_t)(pageind << LG_PAGE));
 
 				assert((mapelm->bits >> LG_PAGE) == 0);
-				size_t binind = arena_bin_index(arena,
-				    run->bin);
-				arena_bin_info_t *bin_info =
-				    &arena_bin_info[binind];
+				binind = arena_bin_index(arena, run->bin);
+				bin_info = &arena_bin_info[binind];
 				pageind += bin_info->run_size >> LG_PAGE;
 			}
 		}
@@ -1056,11 +1056,12 @@ arena_bin_runs_first(arena_bin_t *bin)
 	if (mapelm != NULL) {
 		arena_chunk_t *chunk;
 		size_t pageind;
+		arena_run_t *run;
 
 		chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(mapelm);
 		pageind = ((((uintptr_t)mapelm - (uintptr_t)chunk->map) /
 		    sizeof(arena_chunk_map_t))) + map_bias;
-		arena_run_t *run = (arena_run_t *)((uintptr_t)chunk +
+		run = (arena_run_t *)((uintptr_t)chunk +
 		    (uintptr_t)((pageind - (mapelm->bits >> LG_PAGE)) <<
 		    LG_PAGE));
 		return (run);
@@ -1596,14 +1597,15 @@ arena_dalloc_bin(arena_t *arena, arena_chunk_t *chunk, void *ptr,
 	size_t pageind;
 	arena_run_t *run;
 	arena_bin_t *bin;
-	size_t size;
+	arena_bin_info_t *bin_info;
+	size_t size, binind;
 
 	pageind = ((uintptr_t)ptr - (uintptr_t)chunk) >> LG_PAGE;
 	run = (arena_run_t *)((uintptr_t)chunk + (uintptr_t)((pageind -
 	    (mapelm->bits >> LG_PAGE)) << LG_PAGE));
 	bin = run->bin;
-	size_t binind = arena_bin_index(arena, bin);
-	arena_bin_info_t *bin_info = &arena_bin_info[binind];
+	binind = arena_bin_index(arena, bin);
+	bin_info = &arena_bin_info[binind];
 	if (config_fill || config_stats)
 		size = bin_info->reg_size;
 

@@ -319,6 +319,20 @@ static const bool config_ivsalloc =
 #define	ALIGNMENT_CEILING(s, alignment)					\
 	(((s) + (alignment - 1)) & (-(alignment)))
 
+/* Declare a variable length array */
+#if __STDC_VERSION__ < 199901L
+#  ifdef _MSC_VER
+#    include <malloc.h>
+#    define alloca _alloca
+#  else
+#    include <alloca.h>
+#  endif
+#  define VARIABLE_ARRAY(type, name, count) \
+	type *name = alloca(sizeof(type) * count)
+#else
+#  define VARIABLE_ARRAY(type, name, count) type name[count]
+#endif
+
 #ifdef JEMALLOC_VALGRIND
 /*
  * The JEMALLOC_VALGRIND_*() macros must be macros rather than functions

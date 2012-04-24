@@ -30,11 +30,13 @@ test_bitmap_init(void)
 		bitmap_info_init(&binfo, i);
 		{
 			size_t j;
-			bitmap_t bitmap[bitmap_info_ngroups(&binfo)];
+			bitmap_t *bitmap = malloc(sizeof(bitmap_t) *
+				bitmap_info_ngroups(&binfo));
 			bitmap_init(bitmap, &binfo);
 
 			for (j = 0; j < i; j++)
 				assert(bitmap_get(bitmap, &binfo, j) == false);
+			free(bitmap);
 
 		}
 	}
@@ -50,12 +52,14 @@ test_bitmap_set(void)
 		bitmap_info_init(&binfo, i);
 		{
 			size_t j;
-			bitmap_t bitmap[bitmap_info_ngroups(&binfo)];
+			bitmap_t *bitmap = malloc(sizeof(bitmap_t) *
+				bitmap_info_ngroups(&binfo));
 			bitmap_init(bitmap, &binfo);
 
 			for (j = 0; j < i; j++)
 				bitmap_set(bitmap, &binfo, j);
 			assert(bitmap_full(bitmap, &binfo));
+			free(bitmap);
 		}
 	}
 }
@@ -70,7 +74,8 @@ test_bitmap_unset(void)
 		bitmap_info_init(&binfo, i);
 		{
 			size_t j;
-			bitmap_t bitmap[bitmap_info_ngroups(&binfo)];
+			bitmap_t *bitmap = malloc(sizeof(bitmap_t) *
+				bitmap_info_ngroups(&binfo));
 			bitmap_init(bitmap, &binfo);
 
 			for (j = 0; j < i; j++)
@@ -81,6 +86,7 @@ test_bitmap_unset(void)
 			for (j = 0; j < i; j++)
 				bitmap_set(bitmap, &binfo, j);
 			assert(bitmap_full(bitmap, &binfo));
+			free(bitmap);
 		}
 	}
 }
@@ -95,7 +101,8 @@ test_bitmap_sfu(void)
 		bitmap_info_init(&binfo, i);
 		{
 			ssize_t j;
-			bitmap_t bitmap[bitmap_info_ngroups(&binfo)];
+			bitmap_t *bitmap = malloc(sizeof(bitmap_t) *
+				bitmap_info_ngroups(&binfo));
 			bitmap_init(bitmap, &binfo);
 
 			/* Iteratively set bits starting at the beginning. */
@@ -125,6 +132,7 @@ test_bitmap_sfu(void)
 			}
 			assert(bitmap_sfu(bitmap, &binfo) == i - 1);
 			assert(bitmap_full(bitmap, &binfo));
+			free(bitmap);
 		}
 	}
 }

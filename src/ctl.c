@@ -520,7 +520,7 @@ static void
 ctl_refresh(void)
 {
 	unsigned i;
-	arena_t *tarenas[narenas];
+	VARIABLE_ARRAY(arena_t *, tarenas, narenas);
 
 	if (config_stats) {
 		malloc_mutex_lock(&chunks_mtx);
@@ -1232,7 +1232,7 @@ arenas_purge_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
 		ret = EFAULT;
 		goto label_return;
 	} else {
-		arena_t *tarenas[narenas];
+		VARIABLE_ARRAY(arena_t *, tarenas, narenas);
 
 		malloc_mutex_lock(&arenas_lock);
 		memcpy(tarenas, arenas, sizeof(arena_t *) * narenas);

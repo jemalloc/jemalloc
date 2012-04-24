@@ -498,7 +498,7 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 
 			CTL_GET("arenas.narenas", &narenas, unsigned);
 			{
-				bool initialized[narenas];
+				VARIABLE_ARRAY(bool, initialized, narenas);
 				size_t isz;
 				unsigned i, ninitialized;
 
@@ -527,7 +527,7 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 
 			CTL_GET("arenas.narenas", &narenas, unsigned);
 			{
-				bool initialized[narenas];
+				VARIABLE_ARRAY(bool, initialized, narenas);
 				size_t isz;
 				unsigned i;
 

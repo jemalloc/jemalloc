@@ -36,7 +36,7 @@ JEMALLOC_ATTR(visibility("default"))
 void
 _malloc_thread_cleanup(void)
 {
-	bool pending[ncleanups], again;
+	bool pending[MALLOC_TSD_CLEANUPS_MAX], again;
 	unsigned i;
 
 	for (i = 0; i < ncleanups; i++)
