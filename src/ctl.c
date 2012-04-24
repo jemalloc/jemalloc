@@ -358,8 +358,8 @@ static const ctl_named_node_t stats_arenas_i_node[] = {
 	{NAME("purged"),		CTL(stats_arenas_i_purged)},
 	{NAME("small"),			CHILD(named, stats_arenas_i_small)},
 	{NAME("large"),			CHILD(named, stats_arenas_i_large)},
-	{NAME("bins"),			CHILD(named, stats_arenas_i_bins)},
-	{NAME("lruns"),			CHILD(named, stats_arenas_i_lruns)}
+	{NAME("bins"),			CHILD(indexed, stats_arenas_i_bins)},
+	{NAME("lruns"),			CHILD(indexed, stats_arenas_i_lruns)}
 };
 static const ctl_named_node_t super_stats_arenas_i_node[] = {
 	{NAME(""),			CHILD(named, stats_arenas_i)}
