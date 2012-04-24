@@ -163,7 +163,7 @@ $(objroot)test/bitmap$(EXE): $(objroot)src/bitmap.$(O)
 
 $(objroot)test/%$(EXE): $(objroot)test/%.$(O) $(objroot)src/util.$(O) $(DSOS)
 	@mkdir -p $(@D)
-	$(CC) -o $@ $(filter %.$(O),$^) $(call RPATH,$(objroot)lib) -L$(objroot)lib -ljemalloc$(install_suffix) $(LIBS)
+	$(CC) -o $@ $(filter %.$(O),$^) $(call RPATH,$(objroot)lib) -L$(objroot)lib -ljemalloc$(install_suffix) $(filter -lpthread,$(LIBS))
 
 build_lib_shared: $(DSOS)
 build_lib_static: $(STATIC_LIBS)
