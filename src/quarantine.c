@@ -72,23 +72,22 @@ quarantine_grow(quarantine_t *quarantine)
 		return (quarantine);
 
 	ret->curbytes = quarantine->curbytes;
-	if (quarantine->first + quarantine->curobjs < (ZU(1) <<
+	ret->curobjs = quarantine->curobjs;
+	if (quarantine->first + quarantine->curobjs <= (ZU(1) <<
 	    quarantine->lg_maxobjs)) {
 		/* objs ring buffer data are contiguous. */
 		memcpy(ret->objs, &quarantine->objs[quarantine->first],
 		    quarantine->curobjs * sizeof(quarantine_obj_t));
-		ret->curobjs = quarantine->curobjs;
 	} else {
 		/* objs ring buffer data wrap around. */
-		size_t ncopy = (ZU(1) << quarantine->lg_maxobjs) -
+		size_t ncopy_a = (ZU(1) << quarantine->lg_maxobjs) -
 		    quarantine->first;
-		memcpy(ret->objs, &quarantine->objs[quarantine->first], ncopy *
+		size_t ncopy_b = quarantine->curobjs - ncopy_a;
+
+		memcpy(ret->objs, &quarantine->objs[quarantine->first], ncopy_a
+		    * sizeof(quarantine_obj_t));
+		memcpy(&ret->objs[ncopy_a], quarantine->objs, ncopy_b *
 		    sizeof(quarantine_obj_t));
-		ret->curobjs = ncopy;
-		if (quarantine->curobjs != 0) {
-			memcpy(&ret->objs[ret->curobjs], quarantine->objs,
-			    quarantine->curobjs - ncopy);
-		}
 	}
 
 	return (ret);
