@@ -168,6 +168,7 @@ label_return:
 		size_t i;
 		size_t *p = (size_t *)(uintptr_t)ret;
 
+		VALGRIND_MAKE_MEM_DEFINED(ret, size);
 		for (i = 0; i < size / sizeof(size_t); i++)
 			assert(p[i] == 0);
 	}

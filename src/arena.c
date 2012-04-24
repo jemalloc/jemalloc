@@ -1131,6 +1131,8 @@ arena_bin_nonfull_run_get(arena_t *arena, arena_bin_t *bin)
 		    (uintptr_t)bin_info->bitmap_offset);
 
 		/* Initialize run internals. */
+		VALGRIND_MAKE_MEM_UNDEFINED(run, bin_info->reg0_offset -
+		    bin_info->redzone_size);
 		run->bin = bin;
 		run->nextind = 0;
 		run->nfree = bin_info->nregs;
@@ -1924,6 +1926,7 @@ arena_ralloc(void *ptr, size_t oldsize, size_t size, size_t extra,
 	 * expectation that the extra bytes will be reliably preserved.
 	 */
 	copysize = (size < oldsize) ? size : oldsize;
+	VALGRIND_MAKE_MEM_UNDEFINED(ret, copysize);
 	memcpy(ret, ptr, copysize);
 	iqalloc(ptr);
 	return (ret);
