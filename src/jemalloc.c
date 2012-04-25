@@ -1384,7 +1384,6 @@ je_allocm(void **ptr, size_t *rsize, size_t size, int flags)
 	size_t alignment = (ZU(1) << (flags & ALLOCM_LG_ALIGN_MASK)
 	    & (SIZE_T_MAX-1));
 	bool zero = flags & ALLOCM_ZERO;
-	prof_thr_cnt_t *cnt;
 
 	assert(ptr != NULL);
 	assert(size != 0);
@@ -1397,6 +1396,8 @@ je_allocm(void **ptr, size_t *rsize, size_t size, int flags)
 		goto label_oom;
 
 	if (config_prof && opt_prof) {
+		prof_thr_cnt_t *cnt;
+
 		PROF_ALLOC_PREP(1, usize, cnt);
 		if (cnt == NULL)
 			goto label_oom;
@@ -1456,7 +1457,6 @@ je_rallocm(void **ptr, size_t *rsize, size_t size, size_t extra, int flags)
 	    & (SIZE_T_MAX-1));
 	bool zero = flags & ALLOCM_ZERO;
 	bool no_move = flags & ALLOCM_NO_MOVE;
-	prof_thr_cnt_t *cnt;
 
 	assert(ptr != NULL);
 	assert(*ptr != NULL);
@@ -1466,6 +1466,8 @@ je_rallocm(void **ptr, size_t *rsize, size_t size, size_t extra, int flags)
 
 	p = *ptr;
 	if (config_prof && opt_prof) {
+		prof_thr_cnt_t *cnt;
+
 		/*
 		 * usize isn't knowable before iralloc() returns when extra is
 		 * non-zero.  Therefore, compute its maximum possible value and

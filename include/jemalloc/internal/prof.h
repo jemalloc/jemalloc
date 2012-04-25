@@ -227,8 +227,10 @@ bool	prof_boot2(void);
 	assert(size == s2u(size));					\
 									\
 	prof_tdata = prof_tdata_get();					\
-	if (prof_tdata == NULL)						\
+	if (prof_tdata == NULL) {					\
+		ret = NULL;						\
 		break;							\
+	}								\
 									\
 	if (opt_prof_active == false) {					\
 		/* Sampling is currently inactive, so avoid sampling. */\
