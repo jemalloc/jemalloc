@@ -831,14 +831,14 @@ ctl_boot(void)
 #define	READONLY()	do {						\
 	if (newp != NULL || newlen != 0) {				\
 		ret = EPERM;						\
-		goto label_return;						\
+		goto label_return;					\
 	}								\
 } while (0)
 
 #define	WRITEONLY()	do {						\
 	if (oldp != NULL || oldlenp != NULL) {				\
 		ret = EPERM;						\
-		goto label_return;						\
+		goto label_return;					\
 	}								\
 } while (0)
 
@@ -854,7 +854,7 @@ ctl_boot(void)
 			    ? sizeof(t) : *oldlenp;			\
 			memcpy(oldp, (void *)&v, copylen);		\
 			ret = EINVAL;					\
-			goto label_return;					\
+			goto label_return;				\
 		} else							\
 			*(t *)oldp = v;					\
 	}								\
@@ -864,7 +864,7 @@ ctl_boot(void)
 	if (newp != NULL) {						\
 		if (newlen != sizeof(t)) {				\
 			ret = EINVAL;					\
-			goto label_return;					\
+			goto label_return;				\
 		}							\
 		v = *(t *)newp;						\
 	}								\
@@ -891,7 +891,7 @@ n##_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,	\
 	READ(oldval, t);						\
 									\
 	ret = 0;							\
-label_return:									\
+label_return:								\
 	if (l)								\
 		malloc_mutex_unlock(&ctl_mtx);				\
 	return (ret);							\
@@ -913,7 +913,7 @@ n##_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,	\
 	READ(oldval, t);						\
 									\
 	ret = 0;							\
-label_return:									\
+label_return:								\
 	malloc_mutex_unlock(&ctl_mtx);					\
 	return (ret);							\
 }
@@ -932,7 +932,7 @@ n##_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,	\
 	READ(oldval, t);						\
 									\
 	ret = 0;							\
-label_return:									\
+label_return:								\
 	malloc_mutex_unlock(&ctl_mtx);					\
 	return (ret);							\
 }
@@ -956,7 +956,7 @@ n##_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,	\
 	READ(oldval, t);						\
 									\
 	ret = 0;							\
-label_return:									\
+label_return:								\
 	return (ret);							\
 }
 
@@ -973,7 +973,7 @@ n##_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,	\
 	READ(oldval, t);						\
 									\
 	ret = 0;							\
-label_return:									\
+label_return:								\
 	return (ret);							\
 }
 
@@ -990,7 +990,7 @@ n##_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,	\
 	READ(oldval, bool);						\
 									\
 	ret = 0;							\
-label_return:									\
+label_return:								\
 	return (ret);							\
 }
 
@@ -1004,9 +1004,8 @@ epoch_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
 	uint64_t newval;
 
 	malloc_mutex_lock(&ctl_mtx);
-	newval = 0;
 	WRITE(newval, uint64_t);
-	if (newval != 0)
+	if (newp != NULL)
 		ctl_refresh();
 	READ(ctl_epoch, uint64_t);
 

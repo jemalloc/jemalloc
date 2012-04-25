@@ -81,6 +81,8 @@ found in the git revision history:
   - Check for NULL pointer in malloc_usable_size().
   - Fix an off-by-one heap profile statistics bug that could be observed in
     interval- and growth-triggered heap profiles.
+  - Fix the "epoch" mallctl to update cached stats even if the passed in epoch
+    is 0.
   - Fix bin->runcur management to fix a layout policy bug.  This bug did not
     affect correctness.
   - Fix a bug in choose_arena_hard() that potentially caused more arenas to be
