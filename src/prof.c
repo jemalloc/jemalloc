@@ -1155,10 +1155,7 @@ prof_tdata_cleanup(void *arg)
 	}
 
 	idalloc(prof_tdata->vec);
-
 	idalloc(prof_tdata);
-	prof_tdata = NULL;
-	prof_tdata_tsd_set(&prof_tdata);
 }
 
 void
