@@ -37,6 +37,14 @@ typedef struct prof_tdata_s prof_tdata_t;
  */
 #define	PROF_NCTX_LOCKS			1024
 
+/*
+ * prof_tdata pointers close to NULL are used to encode state information that
+ * is used for cleaning up during thread shutdown.
+ */
+#define	PROF_TDATA_STATE_REINCARNATED	((prof_tdata_t *)(uintptr_t)1)
+#define	PROF_TDATA_STATE_PURGATORY	((prof_tdata_t *)(uintptr_t)2)
+#define	PROF_TDATA_STATE_MAX		PROF_TDATA_STATE_PURGATORY
+
 #endif /* JEMALLOC_H_TYPES */
 /******************************************************************************/
 #ifdef JEMALLOC_H_STRUCTS
@@ -297,8 +305,12 @@ prof_tdata_get(void)
 	cassert(config_prof);
 
 	prof_tdata = *prof_tdata_tsd_get();
-	if (prof_tdata == NULL)
-		prof_tdata = prof_tdata_init();
+	if ((uintptr_t)prof_tdata <= (uintptr_t)PROF_TDATA_STATE_MAX) {
+		if (prof_tdata == NULL)
+			prof_tdata = prof_tdata_init();
+		else
+			prof_tdata = NULL;
+	}
 
 	return (prof_tdata);
 }
@@ -382,7 +394,7 @@ prof_sample_accum_update(size_t size)
 	assert(opt_lg_prof_sample != 0);
 
 	prof_tdata = *prof_tdata_tsd_get();
-	assert(prof_tdata != NULL);
+	assert((uintptr_t)prof_tdata > (uintptr_t)PROF_TDATA_STATE_MAX);
 
 	/* Take care to avoid integer overflow. */
 	if (size >= prof_tdata->threshold - prof_tdata->accum) {

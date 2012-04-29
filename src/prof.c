@@ -686,7 +686,7 @@ prof_ctx_destroy(prof_ctx_t *ctx)
 	 * into this function.
 	 */
 	prof_tdata = *prof_tdata_tsd_get();
-	assert(prof_tdata != NULL);
+	assert((uintptr_t)prof_tdata > (uintptr_t)PROF_TDATA_STATE_MAX);
 	prof_enter(prof_tdata);
 	malloc_mutex_lock(ctx->lock);
 	if (ql_first(&ctx->cnts_ql) == NULL && ctx->cnt_merged.curobjs == 0 &&
@@ -972,7 +972,7 @@ prof_idump(void)
 	 * allocation.
 	 */
 	prof_tdata = *prof_tdata_tsd_get();
-	if (prof_tdata == NULL)
+	if ((uintptr_t)prof_tdata <= (uintptr_t)PROF_TDATA_STATE_MAX)
 		return;
 	if (prof_tdata->enq) {
 		prof_tdata->enq_idump = true;
@@ -1026,7 +1026,7 @@ prof_gdump(void)
 	 * allocation.
 	 */
 	prof_tdata = *prof_tdata_tsd_get();
-	if (prof_tdata == NULL)
+	if ((uintptr_t)prof_tdata <= (uintptr_t)PROF_TDATA_STATE_MAX)
 		return;
 	if (prof_tdata->enq) {
 		prof_tdata->enq_gdump = true;
@@ -1141,21 +1141,41 @@ prof_tdata_cleanup(void *arg)
 
 	cassert(config_prof);
 
-	/*
-	 * Delete the hash table.  All of its contents can still be iterated
-	 * over via the LRU.
-	 */
-	ckh_delete(&prof_tdata->bt2cnt);
-
-	/* Iteratively merge cnt's into the global stats and delete them. */
-	while ((cnt = ql_last(&prof_tdata->lru_ql, lru_link)) != NULL) {
-		ql_remove(&prof_tdata->lru_ql, cnt, lru_link);
-		prof_ctx_merge(cnt->ctx, cnt);
-		idalloc(cnt);
+	if (prof_tdata == PROF_TDATA_STATE_REINCARNATED) {
+		/*
+		 * Another destructor deallocated memory after this destructor
+		 * was called.  Reset prof_tdata to PROF_TDATA_STATE_PURGATORY
+		 * in order to receive another callback.
+		 */
+		prof_tdata = PROF_TDATA_STATE_PURGATORY;
+		prof_tdata_tsd_set(&prof_tdata);
+	} else if (prof_tdata == PROF_TDATA_STATE_PURGATORY) {
+		/*
+		 * The previous time this destructor was called, we set the key
+		 * to PROF_TDATA_STATE_PURGATORY so that other destructors
+		 * wouldn't cause re-creation of the prof_tdata.  This time, do
+		 * nothing, so that the destructor will not be called again.
+		 */
+	} else if (prof_tdata != NULL) {
+		/*
+		 * Delete the hash table.  All of its contents can still be
+		 * iterated over via the LRU.
+		 */
+		ckh_delete(&prof_tdata->bt2cnt);
+		/*
+		 * Iteratively merge cnt's into the global stats and delete
+		 * them.
+		 */
+		while ((cnt = ql_last(&prof_tdata->lru_ql, lru_link)) != NULL) {
+			ql_remove(&prof_tdata->lru_ql, cnt, lru_link);
+			prof_ctx_merge(cnt->ctx, cnt);
+			idalloc(cnt);
+		}
+		idalloc(prof_tdata->vec);
+		idalloc(prof_tdata);
+		prof_tdata = PROF_TDATA_STATE_PURGATORY;
+		prof_tdata_tsd_set(&prof_tdata);
 	}
-
-	idalloc(prof_tdata->vec);
-	idalloc(prof_tdata);
 }
 
 void
