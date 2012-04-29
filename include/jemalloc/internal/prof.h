@@ -235,8 +235,11 @@ bool	prof_boot2(void);
 	assert(size == s2u(size));					\
 									\
 	prof_tdata = prof_tdata_get();					\
-	if (prof_tdata == NULL) {					\
-		ret = NULL;						\
+	if ((uintptr_t)prof_tdata <= (uintptr_t)PROF_TDATA_STATE_MAX) {	\
+		if (prof_tdata != NULL)					\
+			ret = (prof_thr_cnt_t *)(uintptr_t)1U;		\
+		else							\
+			ret = NULL;					\
 		break;							\
 	}								\
 									\
@@ -308,8 +311,6 @@ prof_tdata_get(void)
 	if ((uintptr_t)prof_tdata <= (uintptr_t)PROF_TDATA_STATE_MAX) {
 		if (prof_tdata == NULL)
 			prof_tdata = prof_tdata_init();
-		else
-			prof_tdata = NULL;
 	}
 
 	return (prof_tdata);
@@ -394,7 +395,8 @@ prof_sample_accum_update(size_t size)
 	assert(opt_lg_prof_sample != 0);
 
 	prof_tdata = *prof_tdata_tsd_get();
-	assert((uintptr_t)prof_tdata > (uintptr_t)PROF_TDATA_STATE_MAX);
+	if ((uintptr_t)prof_tdata <= (uintptr_t)PROF_TDATA_STATE_MAX)
+		return (true);
 
 	/* Take care to avoid integer overflow. */
 	if (size >= prof_tdata->threshold - prof_tdata->accum) {

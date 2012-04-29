@@ -440,7 +440,7 @@ prof_lookup(prof_bt_t *bt)
 	cassert(config_prof);
 
 	prof_tdata = prof_tdata_get();
-	if (prof_tdata == NULL)
+	if ((uintptr_t)prof_tdata <= (uintptr_t)PROF_TDATA_STATE_MAX)
 		return (NULL);
 
 	if (ckh_search(&prof_tdata->bt2cnt, bt, NULL, &ret.v)) {
@@ -846,7 +846,7 @@ prof_dump(bool propagate_err, const char *filename, bool leakcheck)
 	cassert(config_prof);
 
 	prof_tdata = prof_tdata_get();
-	if (prof_tdata == NULL)
+	if ((uintptr_t)prof_tdata <= (uintptr_t)PROF_TDATA_STATE_MAX)
 		return (true);
 	prof_enter(prof_tdata);
 	prof_dump_fd = creat(filename, 0644);
