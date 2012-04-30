@@ -32,7 +32,9 @@ malloc_tsd_no_cleanup(void *arg)
 }
 
 #if defined(JEMALLOC_MALLOC_THREAD_CLEANUP) || defined(_WIN32)
-JEMALLOC_ATTR(visibility("default"))
+#ifndef _WIN32
+JEMALLOC_EXPORT
+#endif
 void
 _malloc_thread_cleanup(void)
 {
@@ -91,7 +93,7 @@ _tls_callback(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 	return (true);
 }
 
-JEMALLOC_ATTR(section(".CRT$XLY")) JEMALLOC_ATTR(used)
+JEMALLOC_SECTION(".CRT$XLY") JEMALLOC_ATTR(used)
 static const BOOL	(WINAPI *tls_callback)(HINSTANCE hinstDLL,
     DWORD fdwReason, LPVOID lpvReserved) = _tls_callback;
 #endif

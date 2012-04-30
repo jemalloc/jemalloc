@@ -40,8 +40,7 @@ static char	*x2s(uintmax_t x, bool alt_form, bool uppercase, char *s,
 /******************************************************************************/
 
 /* malloc_message() setup. */
-JEMALLOC_CATTR(visibility("hidden"), static)
-void
+static void
 wrtmessage(void *cbopaque, const char *s)
 {
 
@@ -57,8 +56,8 @@ wrtmessage(void *cbopaque, const char *s)
 #endif
 }
 
-void	(*je_malloc_message)(void *, const char *s)
-    JEMALLOC_ATTR(visibility("default")) = wrtmessage;
+JEMALLOC_EXPORT void	(*je_malloc_message)(void *, const char *s) =
+    wrtmessage;
 
 /*
  * glibc provides a non-standard strerror_r() when _GNU_SOURCE is defined, so

@@ -7,7 +7,7 @@
 ssize_t		opt_lg_dirty_mult = LG_DIRTY_MULT_DEFAULT;
 arena_bin_info_t	arena_bin_info[NBINS];
 
-JEMALLOC_ATTR(aligned(CACHELINE))
+JEMALLOC_ALIGNED(CACHELINE)
 const uint8_t	small_size2bin[] = {
 #define	S2B_8(i)	i,
 #define	S2B_16(i)	S2B_8(i) S2B_8(i)

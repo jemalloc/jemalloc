@@ -48,8 +48,7 @@ pthread_create_once(void)
 	isthreaded = true;
 }
 
-JEMALLOC_ATTR(visibility("default"))
-int
+JEMALLOC_EXPORT int
 pthread_create(pthread_t *__restrict thread,
     const pthread_attr_t *__restrict attr, void *(*start_routine)(void *),
     void *__restrict arg)
@@ -72,6 +71,7 @@ int	_pthread_mutex_init_calloc_cb(pthread_mutex_t *mutex,
 bool
 malloc_mutex_init(malloc_mutex_t *mutex)
 {
+
 #ifdef _WIN32
 	if (!InitializeCriticalSectionAndSpinCount(&mutex->lock,
 	    _CRT_SPINCOUNT))
@@ -98,7 +98,6 @@ malloc_mutex_init(malloc_mutex_t *mutex)
 		return (true);
 	}
 	pthread_mutexattr_destroy(&attr);
-
 #endif
 	return (false);
 }

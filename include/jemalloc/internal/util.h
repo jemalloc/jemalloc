@@ -82,8 +82,6 @@
 /******************************************************************************/
 #ifdef JEMALLOC_H_EXTERNS
 
-extern void	(*je_malloc_message)(void *wcbopaque, const char *s);
-
 int	buferror(char *buf, size_t buflen);
 uintmax_t	malloc_strtoumax(const char *nptr, char **endptr, int base);
 
