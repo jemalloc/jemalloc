@@ -56,12 +56,19 @@ static bool			malloc_initializer = NO_INITIALIZER;
 static malloc_mutex_t	init_lock;
 
 JEMALLOC_ATTR(constructor)
-static void
-init_init_lock()
+static void WINAPI
+_init_init_lock(void)
 {
 
 	malloc_mutex_init(&init_lock);
 }
+
+#ifdef _MSC_VER
+#  pragma section(".CRT$XCU", read)
+JEMALLOC_SECTION(".CRT$XCU") JEMALLOC_ATTR(used)
+static const void (WINAPI *init_init_lock)(void) = _init_init_lock;
+#endif
+
 #else
 static malloc_mutex_t	init_lock = MALLOC_MUTEX_INITIALIZER;
 #endif

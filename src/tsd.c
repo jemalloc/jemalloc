@@ -93,6 +93,14 @@ _tls_callback(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 	return (true);
 }
 
+#ifdef _MSC_VER
+#  ifdef _M_IX86
+#    pragma comment(linker, "/INCLUDE:__tls_used")
+#  else
+#    pragma comment(linker, "/INCLUDE:_tls_used")
+#  endif
+#  pragma section(".CRT$XLY",long,read)
+#endif
 JEMALLOC_SECTION(".CRT$XLY") JEMALLOC_ATTR(used)
 static const BOOL	(WINAPI *tls_callback)(HINSTANCE hinstDLL,
     DWORD fdwReason, LPVOID lpvReserved) = _tls_callback;

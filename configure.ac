@@ -111,6 +111,19 @@ dnl If CFLAGS isn't defined, set CFLAGS to something reasonable.  Otherwise,
 dnl just prevent autoconf from molesting CFLAGS.
 CFLAGS=$CFLAGS
 AC_PROG_CC
+if test "x$GCC" != "xyes" ; then
+  AC_CACHE_CHECK([whether compiler is MSVC],
+                 [je_cv_msvc],
+                 [AC_COMPILE_IFELSE([AC_LANG_PROGRAM([],
+                                                     [
+#ifndef _MSC_VER
+  int fail[-1];
+#endif
+])],
+                               [je_cv_msvc=yes],
+                               [je_cv_msvc=no])])
+fi
+
 if test "x$CFLAGS" = "x" ; then
   no_CFLAGS="yes"
   if test "x$GCC" = "xyes" ; then
@@ -118,6 +131,12 @@ if test "x$CFLAGS" = "x" ; then
     JE_CFLAGS_APPEND([-Wall])
     JE_CFLAGS_APPEND([-pipe])
     JE_CFLAGS_APPEND([-g3])
+  elif test "x$je_cv_msvc" = "xyes" ; then
+    CC="$CC -nologo"
+    JE_CFLAGS_APPEND([-Zi])
+    JE_CFLAGS_APPEND([-MT])
+    JE_CFLAGS_APPEND([-W3])
+    CPPFLAGS="$CPPFLAGS -I${srcroot}/include/msvc_compat"
   fi
 fi
 dnl Append EXTRA_CFLAGS to CFLAGS, if defined.
@@ -195,6 +214,7 @@ AC_DEFINE_UNQUOTED([CPU_SPINWAIT], [$CPU_SPINWAIT])
 
 LD_PRELOAD_VAR="LD_PRELOAD"
 so="so"
+importlib="${so}"
 o="$ac_objext"
 a="a"
 exe="$ac_exeext"
@@ -203,9 +223,10 @@ DSO_LDFLAGS='-shared -Wl,-soname,$(@F)'
 RPATH='-Wl,-rpath,$(1)'
 SOREV="${so}.${rev}"
 PIC_CFLAGS='-fPIC -DPIC'
-
-dnl Heap profiling uses the log(3) function.
-LIBS="$LIBS -lm"
+CTARGET='-o $@'
+LDTARGET='-o $@'
+EXTRA_LDFLAGS=
+MKLIB='ar crus $@'
 
 dnl Platform-specific settings.  abi and RPATH can probably be determined
 dnl programmatically, but doing so is error-prone, which makes it generally
@@ -223,6 +244,7 @@ case "${host}" in
 	RPATH=""
 	LD_PRELOAD_VAR="DYLD_INSERT_LIBRARIES"
 	so="dylib"
+	importlib="${so}"
 	force_tls="0"
 	DSO_LDFLAGS='-shared -Wl,-dylib_install_name,$(@F)'
 	SOREV="${rev}.${so}"
@@ -278,7 +300,17 @@ case "${host}" in
 	force_tls="0"
 	RPATH=""
 	so="dll"
-	DSO_LDFLAGS="-shared"
+	if test "x$je_cv_msvc" = "xyes" ; then
+	  importlib="lib"
+	  DSO_LDFLAGS="-LD"
+	  EXTRA_LDFLAGS="-link -DEBUG"
+	  CTARGET='-Fo$@'
+	  LDTARGET='-Fe$@'
+	  MKLIB='lib -nologo -out:$@'
+        else
+	  importlib="${so}"
+	  DSO_LDFLAGS="-shared"
+	fi
 	a="lib"
 	libprefix=""
 	SOREV="${so}"
@@ -293,13 +325,23 @@ AC_SUBST([abi])
 AC_SUBST([RPATH])
 AC_SUBST([LD_PRELOAD_VAR])
 AC_SUBST([so])
+AC_SUBST([importlib])
 AC_SUBST([o])
 AC_SUBST([a])
 AC_SUBST([exe])
 AC_SUBST([libprefix])
 AC_SUBST([DSO_LDFLAGS])
+AC_SUBST([EXTRA_LDFLAGS])
 AC_SUBST([SOREV])
 AC_SUBST([PIC_CFLAGS])
+AC_SUBST([CTARGET])
+AC_SUBST([LDTARGET])
+AC_SUBST([MKLIB])
+
+if test "x$abi" != "xpecoff"; then
+  dnl Heap profiling uses the log(3) function.
+  LIBS="$LIBS -lm"
+fi
 
 JE_COMPILABLE([__attribute__ syntax],
               [static __attribute__((unused)) void foo(void){}],
@@ -530,6 +572,8 @@ if test "x$enable_debug" = "x0" -a "x$no_CFLAGS" = "xyes" ; then
     if test "x$GCC" = "xyes" ; then
       JE_CFLAGS_APPEND([-O3])
       JE_CFLAGS_APPEND([-funroll-loops])
+    elif test "x$je_cv_msvc" = "xyes" ; then
+      JE_CFLAGS_APPEND([-O2])
     else
       JE_CFLAGS_APPEND([-O])
     fi
@@ -833,11 +877,11 @@ AC_CACHE_CHECK([STATIC_PAGE_SHIFT],
                [je_cv_static_page_shift],
                AC_RUN_IFELSE([AC_LANG_PROGRAM(
 [[
+#include <strings.h>
 #ifdef _WIN32
 #include <windows.h>
 #else
 #include <unistd.h>
-#include <strings.h>
 #endif
 #include <stdio.h>
 ]],

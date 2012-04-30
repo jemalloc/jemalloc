@@ -26,9 +26,11 @@ abs_objroot := @abs_objroot@
 CPPFLAGS := @CPPFLAGS@ -I$(srcroot)include -I$(objroot)include
 CFLAGS := @CFLAGS@
 LDFLAGS := @LDFLAGS@
+EXTRA_LDFLAGS := @EXTRA_LDFLAGS@
 LIBS := @LIBS@
 RPATH_EXTRA := @RPATH_EXTRA@
 SO := @so@
+IMPORTLIB := @importlib@
 O := @o@
 A := @a@
 EXE := @exe@
@@ -49,6 +51,9 @@ enable_experimental := @enable_experimental@
 DSO_LDFLAGS = @DSO_LDFLAGS@
 SOREV = @SOREV@
 PIC_CFLAGS = @PIC_CFLAGS@
+CTARGET = @CTARGET@
+LDTARGET = @LDTARGET@
+MKLIB = @MKLIB@
 
 ifeq (macho, $(ABI))
 TEST_LIBRARY_PATH := DYLD_FALLBACK_LIBRARY_PATH="$(objroot)lib"
@@ -77,9 +82,13 @@ CSRCS := $(srcroot)src/jemalloc.c $(srcroot)src/arena.c $(srcroot)src/atomic.c \
 ifeq (macho, $(ABI))
 CSRCS += $(srcroot)src/zone.c
 endif
+ifeq ($(IMPORTLIB),$(SO))
 STATIC_LIBS := $(objroot)lib/$(LIBJEMALLOC).$(A)
+endif
 ifdef PIC_CFLAGS
 STATIC_LIBS += $(objroot)lib/$(LIBJEMALLOC)_pic.$(A)
+else
+STATIC_LIBS += $(objroot)lib/$(LIBJEMALLOC)_s.$(A)
 endif
 DSOS := $(objroot)lib/$(LIBJEMALLOC).$(SOREV)
 ifneq ($(SOREV),$(SO))
@@ -136,10 +145,13 @@ $(CPICOBJS): $(objroot)src/%.pic.$(O): $(srcroot)src/%.c
 $(CPICOBJS): CFLAGS += $(PIC_CFLAGS)
 $(CTESTOBJS): $(objroot)test/%.$(O): $(srcroot)test/%.c
 $(CTESTOBJS): CPPFLAGS += -I$(objroot)test
+ifneq ($(IMPORTLIB),$(SO))
+$(COBJS): CPPFLAGS += -DDLLEXPORT
+endif
 
 $(COBJS) $(CPICOBJS) $(CTESTOBJS): %.$(O):
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) -c $(CPPFLAGS) -o $@ $<
+	$(CC) $(CFLAGS) -c $(CPPFLAGS) $(CTARGET) $<
 	@$(CC) -MM $(CPPFLAGS) -MT $@ -o $(@:%.$(O)=%.d) $<
 
 ifneq ($(SOREV),$(SO))
@@ -150,20 +162,21 @@ endif
 
 $(objroot)lib/$(LIBJEMALLOC).$(SOREV) : $(if $(PIC_CFLAGS),$(CPICOBJS),$(COBJS))
 	@mkdir -p $(@D)
-	$(CC) $(DSO_LDFLAGS) $(call RPATH,$(RPATH_EXTRA)) -o $@ $+ $(LDFLAGS) $(LIBS)
+	$(CC) $(DSO_LDFLAGS) $(call RPATH,$(RPATH_EXTRA)) $(LDTARGET) $+ $(LDFLAGS) $(LIBS) $(EXTRA_LDFLAGS)
 
 $(objroot)lib/$(LIBJEMALLOC)_pic.$(A) : $(CPICOBJS)
 $(objroot)lib/$(LIBJEMALLOC).$(A) : $(COBJS)
+$(objroot)lib/$(LIBJEMALLOC)_s.$(A) : $(COBJS)
 
 $(STATIC_LIBS):
 	@mkdir -p $(@D)
-	ar crus $@ $+
+	$(MKLIB) $+
 
 $(objroot)test/bitmap$(EXE): $(objroot)src/bitmap.$(O)
 
 $(objroot)test/%$(EXE): $(objroot)test/%.$(O) $(objroot)src/util.$(O) $(DSOS)
 	@mkdir -p $(@D)
-	$(CC) -o $@ $(filter %.$(O),$^) $(call RPATH,$(objroot)lib) -L$(objroot)lib -ljemalloc$(install_suffix) $(filter -lpthread,$(LIBS))
+	$(CC) $(LDTARGET) $(filter %.$(O),$^) $(call RPATH,$(objroot)lib) $(objroot)lib/$(LIBJEMALLOC).$(IMPORTLIB) $(filter -lpthread,$(LIBS)) $(EXTRA_LDFLAGS)
 
 build_lib_shared: $(DSOS)
 build_lib_static: $(STATIC_LIBS)

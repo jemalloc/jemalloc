@@ -1,6 +1,5 @@
 #ifndef JEMALLOC_INTERNAL_H
 #define JEMALLOC_INTERNAL_H
-#include <sys/param.h>
 #include <math.h>
 #ifdef _WIN32
 #  include <windows.h>
@@ -13,6 +12,7 @@
 #  undef ERANGE
 #  define ERANGE ERROR_INVALID_DATA
 #else
+#  include <sys/param.h>
 #  include <sys/mman.h>
 #  include <sys/syscall.h>
 #  if !defined(SYS_write) && defined(__NR_write)
@@ -41,7 +41,17 @@
 #include <string.h>
 #include <strings.h>
 #include <ctype.h>
-#include <unistd.h>
+#ifdef _MSC_VER
+#  include <io.h>
+typedef intptr_t ssize_t;
+#  define PATH_MAX 1024
+#  define STDERR_FILENO 2
+#  define __func__ __FUNCTION__
+/* Disable warnings about deprecated system functions */
+#  pragma warning(disable: 4996)
+#else
+#  include <unistd.h>
+#endif
 #include <fcntl.h>
 
 #define	JEMALLOC_NO_DEMANGLE
@@ -221,6 +231,9 @@ static const bool config_ivsalloc =
 #else
 #  define JEMALLOC_ENABLE_INLINE
 #  define JEMALLOC_INLINE static inline
+#  ifdef _MSC_VER
+#    define inline _inline
+#  endif
 #endif
 
 /* Smallest size class to support. */
@@ -232,7 +245,7 @@ static const bool config_ivsalloc =
  * classes).
  */
 #ifndef LG_QUANTUM
-#  ifdef __i386__
+#  if (defined(__i386__) || defined(_M_IX86))
 #    define LG_QUANTUM		4
 #  endif
 #  ifdef __ia64__
@@ -244,7 +257,7 @@ static const bool config_ivsalloc =
 #  ifdef __sparc64__
 #    define LG_QUANTUM		4
 #  endif
-#  if (defined(__amd64__) || defined(__x86_64__))
+#  if (defined(__amd64__) || defined(__x86_64__) || defined(_M_X64))
 #    define LG_QUANTUM		4
 #  endif
 #  ifdef __arm__
