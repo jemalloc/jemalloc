@@ -841,10 +841,7 @@ if test "x$enable_valgrind" = "x1" ; then
 #include <valgrind/valgrind.h>
 #include <valgrind/memcheck.h>
 
-#if defined(__VALGRIND_MAJOR__) && defined(__VALGRIND_MINOR__)		\
-    && (__VALGRIND_MAJOR__ > 3 || (__VALGRIND_MAJOR__ == 3 &&		\
-    __VALGRIND_MINOR__ >= 6))
-#else
+#if !defined(VALGRIND_RESIZEINPLACE_BLOCK)
 #  error "Incompatible Valgrind version"
 #endif
 ], [], [je_cv_valgrind])
