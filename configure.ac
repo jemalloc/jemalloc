@@ -195,14 +195,13 @@ AC_DEFINE_UNQUOTED([CPU_SPINWAIT], [$CPU_SPINWAIT])
 
 LD_PRELOAD_VAR="LD_PRELOAD"
 so="so"
-o="o"
+o="$ac_objext"
 a="a"
-exe=
+exe="$ac_exeext"
 libprefix="lib"
 DSO_LDFLAGS='-shared -Wl,-soname,$(@F)'
 RPATH='-Wl,-rpath,$(1)'
-SOREV='$(SO).$(REV)'
-sorev="${so}.${rev}"
+SOREV="${so}.${rev}"
 PIC_CFLAGS='-fPIC -DPIC'
 
 dnl Heap profiling uses the log(3) function.
@@ -226,8 +225,7 @@ case "${host}" in
 	so="dylib"
 	force_tls="0"
 	DSO_LDFLAGS='-shared -Wl,-dylib_install_name,$(@F)'
-	SOREV='$(REV).$(SO)'
-	sorev="${rev}.${so}"
+	SOREV="${rev}.${so}"
 	;;
   *-*-freebsd*)
 	CFLAGS="$CFLAGS"
@@ -281,12 +279,9 @@ case "${host}" in
 	RPATH=""
 	so="dll"
 	DSO_LDFLAGS="-shared"
-	o="obj"
 	a="lib"
 	libprefix=""
-	exe=".exe"
-	SOREV='$(SO)'
-	sorev="${so}"
+	SOREV="${so}"
 	PIC_CFLAGS=""
 	;;
   *)
@@ -304,7 +299,6 @@ AC_SUBST([exe])
 AC_SUBST([libprefix])
 AC_SUBST([DSO_LDFLAGS])
 AC_SUBST([SOREV])
-AC_SUBST([sorev])
 AC_SUBST([PIC_CFLAGS])
 
 JE_COMPILABLE([__attribute__ syntax],
@@ -419,7 +413,7 @@ dnl Do not prefix public APIs by default.
 AC_ARG_WITH([jemalloc_prefix],
   [AS_HELP_STRING([--with-jemalloc-prefix=<prefix>], [Prefix to prepend to all public APIs])],
   [JEMALLOC_PREFIX="$with_jemalloc_prefix"],
-  [if test "x$abi" != "xmacho" ; then
+  [if test "x$abi" != "xmacho" -a "x$abi" != "xpecoff"; then
   JEMALLOC_PREFIX=""
 else
   JEMALLOC_PREFIX="je_"

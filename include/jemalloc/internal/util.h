@@ -161,9 +161,9 @@ get_errno(void)
 {
 
 #ifdef _WIN32
-	return GetLastError();
+	return (GetLastError());
 #else
-	return errno;
+	return (errno);
 #endif
 }
 #endif
