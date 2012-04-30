@@ -1,8 +1,17 @@
 #ifndef JEMALLOC_INTERNAL_H
 #define JEMALLOC_INTERNAL_H
 #include <sys/param.h>
+#include <math.h>
 #ifdef _WIN32
 #  include <windows.h>
+#  define ENOENT ERROR_PATH_NOT_FOUND
+#  define EINVAL ERROR_BAD_ARGUMENTS
+#  define EAGAIN ERROR_OUTOFMEMORY
+#  define EPERM  ERROR_WRITE_FAULT
+#  define EFAULT ERROR_INVALID_ADDRESS
+#  define ENOMEM ERROR_NOT_ENOUGH_MEMORY
+#  undef ERANGE
+#  define ERANGE ERROR_INVALID_DATA
 #else
 #  include <sys/mman.h>
 #  include <sys/syscall.h>
@@ -11,10 +20,10 @@
 #  endif
 #  include <sys/uio.h>
 #  include <pthread.h>
+#  include <errno.h>
 #endif
 #include <sys/types.h>
 
-#include <errno.h>
 #include <limits.h>
 #ifndef SIZE_T_MAX
 #  define SIZE_T_MAX	SIZE_MAX
@@ -34,7 +43,6 @@
 #include <ctype.h>
 #include <unistd.h>
 #include <fcntl.h>
-#include <math.h>
 
 #define	JEMALLOC_NO_DEMANGLE
 #include "../jemalloc@install_suffix@.h"

@@ -84,7 +84,7 @@
 
 extern void	(*je_malloc_message)(void *wcbopaque, const char *s);
 
-int	buferror(int errnum, char *buf, size_t buflen);
+int	buferror(char *buf, size_t buflen);
 uintmax_t	malloc_strtoumax(const char *nptr, char **endptr, int base);
 
 /*
@@ -109,6 +109,8 @@ void	malloc_printf(const char *format, ...)
 #ifndef JEMALLOC_ENABLE_INLINE
 size_t	pow2_ceil(size_t x);
 void	malloc_write(const char *s);
+void	set_errno(int errnum);
+int	get_errno(void);
 #endif
 
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_UTIL_C_))
@@ -139,6 +141,30 @@ malloc_write(const char *s)
 {
 
 	je_malloc_message(NULL, s);
+}
+
+/* Sets error code */
+JEMALLOC_INLINE void
+set_errno(int errnum)
+{
+
+#ifdef _WIN32
+	SetLastError(errnum);
+#else
+	errno = errnum;
+#endif
+}
+
+/* Get last error code */
+JEMALLOC_INLINE int
+get_errno(void)
+{
+
+#ifdef _WIN32
+	return GetLastError();
+#else
+	return errno;
+#endif
 }
 #endif
 

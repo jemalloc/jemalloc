@@ -472,9 +472,9 @@ malloc_conf_init(void)
 				uintmax_t um;				\
 				char *end;				\
 									\
-				errno = 0;				\
+				set_errno(0);				\
 				um = malloc_strtoumax(v, &end, 0);	\
-				if (errno != 0 || (uintptr_t)end -	\
+				if (get_errno() != 0 || (uintptr_t)end -\
 				    (uintptr_t)v != vlen) {		\
 					malloc_conf_error(		\
 					    "Invalid conf value",	\
@@ -493,9 +493,9 @@ malloc_conf_init(void)
 				long l;					\
 				char *end;				\
 									\
-				errno = 0;				\
+				set_errno(0);				\
 				l = strtol(v, &end, 0);			\
-				if (errno != 0 || (uintptr_t)end -	\
+				if (get_errno() != 0 || (uintptr_t)end -\
 				    (uintptr_t)v != vlen) {		\
 					malloc_conf_error(		\
 					    "Invalid conf value",	\
@@ -831,7 +831,7 @@ label_oom:
 			    "out of memory\n");
 			abort();
 		}
-		errno = ENOMEM;
+		set_errno(ENOMEM);
 	}
 	if (config_prof && opt_prof && ret != NULL)
 		prof_malloc(ret, usize, cnt);
@@ -959,7 +959,7 @@ je_aligned_alloc(size_t alignment, size_t size)
 
 	if ((err = imemalign(&ret, alignment, size, 1)) != 0) {
 		ret = NULL;
-		errno = err;
+		set_errno(err);
 	}
 	JEMALLOC_VALGRIND_MALLOC(err == 0, ret, isalloc(ret, config_prof),
 	    false);
@@ -1029,7 +1029,7 @@ label_return:
 			    "memory\n");
 			abort();
 		}
-		errno = ENOMEM;
+		set_errno(ENOMEM);
 	}
 
 	if (config_prof && opt_prof && ret != NULL)
@@ -1130,7 +1130,7 @@ label_oom:
 				    "out of memory\n");
 				abort();
 			}
-			errno = ENOMEM;
+			set_errno(ENOMEM);
 		}
 	} else {
 		/* realloc(NULL, size) is equivalent to malloc(size). */
@@ -1172,7 +1172,7 @@ label_oom:
 				    "out of memory\n");
 				abort();
 			}
-			errno = ENOMEM;
+			set_errno(ENOMEM);
 		}
 	}
 

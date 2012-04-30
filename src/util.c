@@ -65,7 +65,7 @@ void	(*je_malloc_message)(void *, const char *s)
  * provide a wrapper.
  */
 int
-buferror(int errnum, char *buf, size_t buflen)
+buferror(char *buf, size_t buflen)
 {
 
 #ifdef _WIN32
@@ -93,7 +93,7 @@ malloc_strtoumax(const char *nptr, char **endptr, int base)
 	const char *p, *ns;
 
 	if (base < 0 || base == 1 || base > 36) {
-		errno = EINVAL;
+		set_errno(EINVAL);
 		return (UINTMAX_MAX);
 	}
 	b = base;
@@ -168,7 +168,7 @@ malloc_strtoumax(const char *nptr, char **endptr, int base)
 		ret += digit;
 		if (ret < pret) {
 			/* Overflow. */
-			errno = ERANGE;
+			set_errno(ERANGE);
 			return (UINTMAX_MAX);
 		}
 		p++;
@@ -416,9 +416,9 @@ malloc_vsnprintf(char *str, size_t size, const char *format, va_list ap)
 			case '0': case '1': case '2': case '3': case '4':
 			case '5': case '6': case '7': case '8': case '9': {
 				uintmax_t uwidth;
-				errno = 0;
+				set_errno(0);
 				uwidth = malloc_strtoumax(f, (char **)&f, 10);
-				assert(uwidth != UINTMAX_MAX || errno !=
+				assert(uwidth != UINTMAX_MAX || get_errno() !=
 				    ERANGE);
 				width = (int)uwidth;
 				if (*f == '.') {
@@ -442,9 +442,10 @@ malloc_vsnprintf(char *str, size_t size, const char *format, va_list ap)
 			case '0': case '1': case '2': case '3': case '4':
 			case '5': case '6': case '7': case '8': case '9': {
 				uintmax_t uprec;
-				errno = 0;
+				set_errno(0);
 				uprec = malloc_strtoumax(f, (char **)&f, 10);
-				assert(uprec != UINTMAX_MAX || errno != ERANGE);
+				assert(uprec != UINTMAX_MAX || get_errno() !=
+				    ERANGE);
 				prec = (int)uprec;
 				break;
 			}

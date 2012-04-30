@@ -17,18 +17,18 @@ main(void)
 
 	/* Test error conditions. */
 	alignment = 0;
-	errno = 0;
+	set_errno(0);
 	p = aligned_alloc(alignment, 1);
-	if (p != NULL || errno != EINVAL) {
+	if (p != NULL || get_errno() != EINVAL) {
 		malloc_printf(
 		    "Expected error for invalid alignment %zu\n", alignment);
 	}
 
 	for (alignment = sizeof(size_t); alignment < MAXALIGN;
 	    alignment <<= 1) {
-		errno = 0;
+		set_errno(0);
 		p = aligned_alloc(alignment + 1, 1);
-		if (p != NULL || errno != EINVAL) {
+		if (p != NULL || get_errno() != EINVAL) {
 			malloc_printf(
 			    "Expected error for invalid alignment %zu\n",
 			    alignment + 1);
@@ -42,9 +42,9 @@ main(void)
 	alignment = 0x80000000LU;
 	size      = 0x80000000LU;
 #endif
-	errno = 0;
+	set_errno(0);
 	p = aligned_alloc(alignment, size);
-	if (p != NULL || errno != ENOMEM) {
+	if (p != NULL || get_errno() != ENOMEM) {
 		malloc_printf(
 		    "Expected error for aligned_alloc(%zu, %zu)\n",
 		    alignment, size);
@@ -57,9 +57,9 @@ main(void)
 	alignment = 0x40000000LU;
 	size      = 0x84000001LU;
 #endif
-	errno = 0;
+	set_errno(0);
 	p = aligned_alloc(alignment, size);
-	if (p != NULL || errno != ENOMEM) {
+	if (p != NULL || get_errno() != ENOMEM) {
 		malloc_printf(
 		    "Expected error for aligned_alloc(%zu, %zu)\n",
 		    alignment, size);
@@ -71,9 +71,9 @@ main(void)
 #else
 	size = 0xfffffff0LU;
 #endif
-	errno = 0;
+	set_errno(0);
 	p = aligned_alloc(alignment, size);
-	if (p != NULL || errno != ENOMEM) {
+	if (p != NULL || get_errno() != ENOMEM) {
 		malloc_printf(
 		    "Expected error for aligned_alloc(&p, %zu, %zu)\n",
 		    alignment, size);
@@ -93,9 +93,12 @@ main(void)
 			for (i = 0; i < NITER; i++) {
 				ps[i] = aligned_alloc(alignment, size);
 				if (ps[i] == NULL) {
+					char buf[BUFERROR_BUF];
+
+					buferror(buf, sizeof(buf));
 					malloc_printf(
 					    "Error for size %zu (%#zx): %s\n",
-					    size, size, strerror(errno));
+					    size, size, buf);
 					exit(1);
 				}
 				total += malloc_usable_size(ps[i]);
