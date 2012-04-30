@@ -842,11 +842,6 @@ ctl_boot(void)
 	}								\
 } while (0)
 
-#define	VOID()	do {							\
-	READONLY();							\
-	WRITEONLY();							\
-} while (0)
-
 #define	READ(v, t)	do {						\
 	if (oldp != NULL && oldlenp != NULL) {				\
 		if (*oldlenp != sizeof(t)) {				\
@@ -1049,7 +1044,8 @@ thread_tcache_flush_ctl(const size_t *mib, size_t miblen, void *oldp,
 	if (config_tcache == false)
 		return (ENOENT);
 
-	VOID();
+	READONLY();
+	WRITEONLY();
 
 	tcache_flush();
 
