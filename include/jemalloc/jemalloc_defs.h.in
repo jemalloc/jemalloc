@@ -111,11 +111,11 @@
 #  define JEMALLOC_NOINLINE JEMALLOC_ATTR(noinline)
 #elif _MSC_VER
 #  define JEMALLOC_ATTR(s)
-#ifdef DLLEXPORT
-#  define EXPORT __declspec(dllexport)
-#else
-#  define EXPORT __declspec(dllimport)
-#endif
+#  ifdef DLLEXPORT
+#    define JEMALLOC_EXPORT __declspec(dllexport)
+#  else
+#    define JEMALLOC_EXPORT __declspec(dllimport)
+#  endif
 #  define JEMALLOC_ALIGNED(s) __declspec(align(s))
 #  define JEMALLOC_SECTION(s) __declspec(allocate(s))
 #  define JEMALLOC_NOINLINE __declspec(noinline)
