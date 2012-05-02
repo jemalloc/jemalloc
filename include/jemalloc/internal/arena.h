@@ -447,6 +447,7 @@ size_t	arena_mapbits_unallocated_size_get(arena_chunk_t *chunk,
     size_t pageind);
 size_t	arena_mapbits_large_size_get(arena_chunk_t *chunk, size_t pageind);
 size_t	arena_mapbits_small_runind_get(arena_chunk_t *chunk, size_t pageind);
+size_t	arena_mapbits_binind_get(arena_chunk_t *chunk, size_t pageind);
 size_t	arena_mapbits_dirty_get(arena_chunk_t *chunk, size_t pageind);
 size_t	arena_mapbits_unzeroed_get(arena_chunk_t *chunk, size_t pageind);
 size_t	arena_mapbits_large_get(arena_chunk_t *chunk, size_t pageind);
@@ -463,7 +464,7 @@ void	arena_mapbits_small_set(arena_chunk_t *chunk, size_t pageind,
     size_t runind, size_t binind, size_t flags);
 void	arena_mapbits_unzeroed_set(arena_chunk_t *chunk, size_t pageind,
     size_t unzeroed);
-size_t	arena_ptr_binind(const void *ptr, size_t mapbits);
+size_t	arena_ptr_small_binind_get(const void *ptr, size_t mapbits);
 size_t	arena_bin_index(arena_t *arena, arena_bin_t *bin);
 unsigned	arena_run_regind(arena_run_t *run, arena_bin_info_t *bin_info,
     const void *ptr);
@@ -531,6 +532,18 @@ arena_mapbits_small_runind_get(arena_chunk_t *chunk, size_t pageind)
 	assert((mapbits & (CHUNK_MAP_LARGE|CHUNK_MAP_ALLOCATED)) ==
 	    CHUNK_MAP_ALLOCATED);
 	return (mapbits >> LG_PAGE);
+}
+
+JEMALLOC_INLINE size_t
+arena_mapbits_binind_get(arena_chunk_t *chunk, size_t pageind)
+{
+	size_t mapbits;
+	size_t binind;
+
+	mapbits = arena_mapbits_get(chunk, pageind);
+	binind = (mapbits & CHUNK_MAP_BININD_MASK) >> CHUNK_MAP_BININD_SHIFT;
+	assert(binind < NBINS || binind == BININD_INVALID);
+	return (binind);
 }
 
 JEMALLOC_INLINE size_t
@@ -644,25 +657,37 @@ arena_mapbits_unzeroed_set(arena_chunk_t *chunk, size_t pageind,
 }
 
 JEMALLOC_INLINE size_t
-arena_ptr_binind(const void *ptr, size_t mapbits)
+arena_ptr_small_binind_get(const void *ptr, size_t mapbits)
 {
 	size_t binind;
 
 	binind = (mapbits & CHUNK_MAP_BININD_MASK) >> CHUNK_MAP_BININD_SHIFT;
 
 	if (config_debug) {
-		arena_chunk_t *chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
-		arena_t *arena = chunk->arena;
-		size_t pageind = ((uintptr_t)ptr - (uintptr_t)chunk) >> LG_PAGE;
-		size_t actual_mapbits = arena_mapbits_get(chunk, pageind);
-		arena_run_t *run = (arena_run_t *)((uintptr_t)chunk +
-		    (uintptr_t)((pageind - (actual_mapbits >> LG_PAGE)) <<
-		    LG_PAGE)); arena_bin_t *bin = run->bin;
-		size_t actual_binind = bin - arena->bins;
-		arena_bin_info_t *bin_info = &arena_bin_info[actual_binind];
+		arena_chunk_t *chunk;
+		arena_t *arena;
+		size_t pageind;
+		size_t actual_mapbits;
+		arena_run_t *run;
+		arena_bin_t *bin;
+		size_t actual_binind;
+		arena_bin_info_t *bin_info;
 
+		assert(binind != BININD_INVALID);
+		assert(binind < NBINS);
+		chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
+		arena = chunk->arena;
+		pageind = ((uintptr_t)ptr - (uintptr_t)chunk) >> LG_PAGE;
+		actual_mapbits = arena_mapbits_get(chunk, pageind);
 		assert(mapbits == actual_mapbits);
+		assert(arena_mapbits_large_get(chunk, pageind) == 0);
+		assert(arena_mapbits_allocated_get(chunk, pageind) != 0);
+		run = (arena_run_t *)((uintptr_t)chunk + (uintptr_t)((pageind -
+		    (actual_mapbits >> LG_PAGE)) << LG_PAGE));
+		bin = run->bin;
+		actual_binind = bin - arena->bins;
 		assert(binind == actual_binind);
+		bin_info = &arena_bin_info[actual_binind];
 		assert(((uintptr_t)ptr - ((uintptr_t)run +
 		    (uintptr_t)bin_info->reg0_offset)) % bin_info->reg_interval
 		    == 0);
@@ -775,7 +800,8 @@ arena_prof_ctx_get(const void *ptr)
 			arena_run_t *run = (arena_run_t *)((uintptr_t)chunk +
 			    (uintptr_t)((pageind - (mapbits >> LG_PAGE)) <<
 			    LG_PAGE));
-			size_t binind = arena_ptr_binind(ptr, mapbits);
+			size_t binind = arena_ptr_small_binind_get(ptr,
+			    mapbits);
 			arena_bin_info_t *bin_info = &arena_bin_info[binind];
 			unsigned regind;
 
@@ -813,7 +839,7 @@ arena_prof_ctx_set(const void *ptr, prof_ctx_t *ctx)
 			arena_bin_info_t *bin_info;
 			unsigned regind;
 
-			binind = arena_ptr_binind(ptr, mapbits);
+			binind = arena_ptr_small_binind_get(ptr, mapbits);
 			bin_info = &arena_bin_info[binind];
 			regind = arena_run_regind(run, bin_info, ptr);
 
@@ -861,7 +887,7 @@ arena_salloc(const void *ptr, bool demote)
 {
 	size_t ret;
 	arena_chunk_t *chunk;
-	size_t pageind, mapbits;
+	size_t pageind, binind;
 
 	assert(ptr != NULL);
 	assert(CHUNK_ADDR2BASE(ptr) != ptr);
@@ -869,25 +895,34 @@ arena_salloc(const void *ptr, bool demote)
 	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
 	pageind = ((uintptr_t)ptr - (uintptr_t)chunk) >> LG_PAGE;
 	assert(arena_mapbits_allocated_get(chunk, pageind) != 0);
-	mapbits = arena_mapbits_get(chunk, pageind);
-	if ((mapbits & CHUNK_MAP_LARGE) == 0) {
-		size_t binind = arena_ptr_binind(ptr, mapbits);
-		ret = arena_bin_info[binind].reg_size;
-	} else {
+	binind = arena_mapbits_binind_get(chunk, pageind);
+	if (binind == BININD_INVALID || (config_prof && demote == false &&
+	    prof_promote && arena_mapbits_large_get(chunk, pageind) != 0)) {
+		/*
+		 * Large allocation.  In the common case (demote == true), and
+		 * as this is an inline function, most callers will only end up
+		 * looking at binind to determine that ptr is a small
+		 * allocation.
+		 */
 		assert(((uintptr_t)ptr & PAGE_MASK) == 0);
 		ret = arena_mapbits_large_size_get(chunk, pageind);
-		if (config_prof && demote && prof_promote && ret == PAGE &&
-		    (mapbits & CHUNK_MAP_BININD_MASK) !=
-		    CHUNK_MAP_BININD_MASK) {
-			size_t binind = ((mapbits & CHUNK_MAP_BININD_MASK) >>
-			    CHUNK_MAP_BININD_SHIFT);
-			assert(binind < NBINS);
-			ret = arena_bin_info[binind].reg_size;
-		} else {
-			assert(demote == false || (mapbits &
-			    CHUNK_MAP_BININD_MASK) == CHUNK_MAP_BININD_MASK);
-		}
 		assert(ret != 0);
+		assert(pageind + (ret>>LG_PAGE) <= chunk_npages);
+		assert(ret == PAGE || arena_mapbits_large_size_get(chunk,
+		    pageind+(ret>>LG_PAGE)-1) == 0);
+		assert(binind == arena_mapbits_binind_get(chunk,
+		    pageind+(ret>>LG_PAGE)-1));
+		assert(arena_mapbits_dirty_get(chunk, pageind) ==
+		    arena_mapbits_dirty_get(chunk, pageind+(ret>>LG_PAGE)-1));
+	} else {
+		/*
+		 * Small allocation (possibly promoted to a large object due to
+		 * prof_promote).
+		 */
+		assert(arena_mapbits_large_get(chunk, pageind) != 0 ||
+		    arena_ptr_small_binind_get(ptr, arena_mapbits_get(chunk,
+		    pageind)) == binind);
+		ret = arena_bin_info[binind].reg_size;
 	}
 
 	return (ret);
@@ -912,8 +947,7 @@ arena_dalloc(arena_t *arena, arena_chunk_t *chunk, void *ptr, bool try_tcache)
 		if (try_tcache && (tcache = tcache_get(false)) != NULL) {
 			size_t binind;
 
-			binind = arena_ptr_binind(ptr, mapbits);
-			assert(binind < NBINS);
+			binind = arena_ptr_small_binind_get(ptr, mapbits);
 			tcache_dalloc_small(tcache, ptr, binind);
 		} else
 			arena_dalloc_small(arena, chunk, ptr, pageind);

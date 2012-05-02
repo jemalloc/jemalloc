@@ -154,7 +154,7 @@ arena_run_reg_dalloc(arena_run_t *run, void *ptr)
 	arena_chunk_t *chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(run);
 	size_t pageind = ((uintptr_t)ptr - (uintptr_t)chunk) >> LG_PAGE;
 	size_t mapbits = arena_mapbits_get(chunk, pageind);
-	size_t binind = arena_ptr_binind(ptr, mapbits);
+	size_t binind = arena_ptr_small_binind_get(ptr, mapbits);
 	arena_bin_info_t *bin_info = &arena_bin_info[binind];
 	unsigned regind = arena_run_regind(run, bin_info, ptr);
 	bitmap_t *bitmap = (bitmap_t *)((uintptr_t)run +
@@ -1581,7 +1581,7 @@ arena_dalloc_bin_locked(arena_t *arena, arena_chunk_t *chunk, void *ptr,
 	run = (arena_run_t *)((uintptr_t)chunk + (uintptr_t)((pageind -
 	    arena_mapbits_small_runind_get(chunk, pageind)) << LG_PAGE));
 	bin = run->bin;
-	binind = arena_ptr_binind(ptr, mapelm->bits);
+	binind = arena_ptr_small_binind_get(ptr, mapelm->bits);
 	bin_info = &arena_bin_info[binind];
 	if (config_fill || config_stats)
 		size = bin_info->reg_size;
@@ -1624,8 +1624,9 @@ arena_dalloc_small(arena_t *arena, arena_chunk_t *chunk, void *ptr,
 	arena_chunk_map_t *mapelm;
 
 	if (config_debug) {
-		assert(arena_ptr_binind(ptr, arena_mapbits_get(chunk, pageind))
-		    != BININD_INVALID);
+		/* arena_ptr_small_binind_get() does extra sanity checking. */
+		assert(arena_ptr_small_binind_get(ptr, arena_mapbits_get(chunk,
+		    pageind)) != BININD_INVALID);
 	}
 	mapelm = arena_mapp_get(chunk, pageind);
 	arena_dalloc_bin(arena, chunk, ptr, pageind, mapelm);
