@@ -60,6 +60,17 @@ JEMALLOC_EXPORT void	(*je_malloc_message)(void *, const char *s) =
     wrtmessage;
 
 /*
+ * Wrapper around malloc_message() that avoids the need for
+ * je_malloc_message(...) throughout the code.
+ */
+void
+malloc_write(const char *s)
+{
+
+	je_malloc_message(NULL, s);
+}
+
+/*
  * glibc provides a non-standard strerror_r() when _GNU_SOURCE is defined, so
  * provide a wrapper.
  */

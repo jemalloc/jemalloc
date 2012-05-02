@@ -84,6 +84,7 @@
 
 int	buferror(char *buf, size_t buflen);
 uintmax_t	malloc_strtoumax(const char *nptr, char **endptr, int base);
+void	malloc_write(const char *s);
 
 /*
  * malloc_vsnprintf() supports a subset of snprintf(3) that avoids floating
@@ -128,17 +129,6 @@ pow2_ceil(size_t x)
 #endif
 	x++;
 	return (x);
-}
-
-/*
- * Wrapper around malloc_message() that avoids the need for
- * je_malloc_message(...) throughout the code.
- */
-JEMALLOC_INLINE void
-malloc_write(const char *s)
-{
-
-	je_malloc_message(NULL, s);
 }
 
 /* Sets error code */
