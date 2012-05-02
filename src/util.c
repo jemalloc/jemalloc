@@ -56,8 +56,7 @@ wrtmessage(void *cbopaque, const char *s)
 #endif
 }
 
-JEMALLOC_EXPORT void	(*je_malloc_message)(void *, const char *s) =
-    wrtmessage;
+JEMALLOC_EXPORT void	(*je_malloc_message)(void *, const char *s);
 
 /*
  * Wrapper around malloc_message() that avoids the need for
@@ -67,7 +66,10 @@ void
 malloc_write(const char *s)
 {
 
-	je_malloc_message(NULL, s);
+	if (je_malloc_message != NULL)
+		je_malloc_message(NULL, s);
+	else
+		wrtmessage(NULL, s);
 }
 
 /*
@@ -606,7 +608,8 @@ malloc_vcprintf(void (*write_cb)(void *, const char *), void *cbopaque,
 		 * function, so use the default one.  malloc_write() is an
 		 * inline function, so use malloc_message() directly here.
 		 */
-		write_cb = je_malloc_message;
+		write_cb = (je_malloc_message != NULL) ? je_malloc_message :
+		    wrtmessage;
 		cbopaque = NULL;
 	}
 
