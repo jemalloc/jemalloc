@@ -101,6 +101,7 @@ extern size_t			nhbins;
 extern size_t			tcache_maxclass;
 
 size_t	tcache_salloc(const void *ptr);
+void	tcache_event_hard(tcache_t *tcache);
 void	*tcache_alloc_small_hard(tcache_t *tcache, tcache_bin_t *tbin,
     size_t binind);
 void	tcache_bin_flush_small(tcache_bin_t *tbin, size_t binind, unsigned rem,
@@ -132,7 +133,7 @@ void	tcache_enabled_set(bool enabled);
 void	*tcache_alloc_easy(tcache_bin_t *tbin);
 void	*tcache_alloc_small(tcache_t *tcache, size_t size, bool zero);
 void	*tcache_alloc_large(tcache_t *tcache, size_t size, bool zero);
-void	tcache_dalloc_small(tcache_t *tcache, void *ptr);
+void	tcache_dalloc_small(tcache_t *tcache, void *ptr, size_t binind);
 void	tcache_dalloc_large(tcache_t *tcache, void *ptr, size_t size);
 #endif
 
@@ -266,47 +267,8 @@ tcache_event(tcache_t *tcache)
 
 	tcache->ev_cnt++;
 	assert(tcache->ev_cnt <= TCACHE_GC_INCR);
-	if (tcache->ev_cnt == TCACHE_GC_INCR) {
-		size_t binind = tcache->next_gc_bin;
-		tcache_bin_t *tbin = &tcache->tbins[binind];
-		tcache_bin_info_t *tbin_info = &tcache_bin_info[binind];
-
-		if (tbin->low_water > 0) {
-			/*
-			 * Flush (ceiling) 3/4 of the objects below the low
-			 * water mark.
-			 */
-			if (binind < NBINS) {
-				tcache_bin_flush_small(tbin, binind,
-				    tbin->ncached - tbin->low_water +
-				    (tbin->low_water >> 2), tcache);
-			} else {
-				tcache_bin_flush_large(tbin, binind,
-				    tbin->ncached - tbin->low_water +
-				    (tbin->low_water >> 2), tcache);
-			}
-			/*
-			 * Reduce fill count by 2X.  Limit lg_fill_div such that
-			 * the fill count is always at least 1.
-			 */
-			if ((tbin_info->ncached_max >> (tbin->lg_fill_div+1))
-			    >= 1)
-				tbin->lg_fill_div++;
-		} else if (tbin->low_water < 0) {
-			/*
-			 * Increase fill count by 2X.  Make sure lg_fill_div
-			 * stays greater than 0.
-			 */
-			if (tbin->lg_fill_div > 1)
-				tbin->lg_fill_div--;
-		}
-		tbin->low_water = tbin->ncached;
-
-		tcache->next_gc_bin++;
-		if (tcache->next_gc_bin == nhbins)
-			tcache->next_gc_bin = 0;
-		tcache->ev_cnt = 0;
-	}
+	if (tcache->ev_cnt == TCACHE_GC_INCR)
+		tcache_event_hard(tcache);
 }
 
 JEMALLOC_INLINE void *
@@ -390,13 +352,13 @@ tcache_alloc_large(tcache_t *tcache, size_t size, bool zero)
 		if (ret == NULL)
 			return (NULL);
 	} else {
-		if (config_prof) {
+		if (config_prof && prof_promote && size == PAGE) {
 			arena_chunk_t *chunk =
 			    (arena_chunk_t *)CHUNK_ADDR2BASE(ret);
 			size_t pageind = (((uintptr_t)ret - (uintptr_t)chunk) >>
 			    LG_PAGE);
-			chunk->map[pageind-map_bias].bits &=
-			    ~CHUNK_MAP_CLASS_MASK;
+			arena_mapbits_large_binind_set(chunk, pageind,
+			    BININD_INVALID);
 		}
 		if (zero == false) {
 			if (config_fill) {
@@ -421,29 +383,12 @@ tcache_alloc_large(tcache_t *tcache, size_t size, bool zero)
 }
 
 JEMALLOC_INLINE void
-tcache_dalloc_small(tcache_t *tcache, void *ptr)
+tcache_dalloc_small(tcache_t *tcache, void *ptr, size_t binind)
 {
-	arena_t *arena;
-	arena_chunk_t *chunk;
-	arena_run_t *run;
-	arena_bin_t *bin;
 	tcache_bin_t *tbin;
 	tcache_bin_info_t *tbin_info;
-	size_t pageind, binind;
-	arena_chunk_map_t *mapelm;
 
 	assert(tcache_salloc(ptr) <= SMALL_MAXCLASS);
-
-	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
-	arena = chunk->arena;
-	pageind = ((uintptr_t)ptr - (uintptr_t)chunk) >> LG_PAGE;
-	mapelm = &chunk->map[pageind-map_bias];
-	run = (arena_run_t *)((uintptr_t)chunk + (uintptr_t)((pageind -
-	    (mapelm->bits >> LG_PAGE)) << LG_PAGE));
-	bin = run->bin;
-	binind = ((uintptr_t)bin - (uintptr_t)&arena->bins) /
-	    sizeof(arena_bin_t);
-	assert(binind < NBINS);
 
 	if (config_fill && opt_junk)
 		arena_dalloc_junk_small(ptr, &arena_bin_info[binind]);

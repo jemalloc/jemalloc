@@ -24,6 +24,46 @@ size_t	tcache_salloc(const void *ptr)
 	return (arena_salloc(ptr, false));
 }
 
+void
+tcache_event_hard(tcache_t *tcache)
+{
+	size_t binind = tcache->next_gc_bin;
+	tcache_bin_t *tbin = &tcache->tbins[binind];
+	tcache_bin_info_t *tbin_info = &tcache_bin_info[binind];
+
+	if (tbin->low_water > 0) {
+		/*
+		 * Flush (ceiling) 3/4 of the objects below the low water mark.
+		 */
+		if (binind < NBINS) {
+			tcache_bin_flush_small(tbin, binind, tbin->ncached -
+			    tbin->low_water + (tbin->low_water >> 2), tcache);
+		} else {
+			tcache_bin_flush_large(tbin, binind, tbin->ncached -
+			    tbin->low_water + (tbin->low_water >> 2), tcache);
+		}
+		/*
+		 * Reduce fill count by 2X.  Limit lg_fill_div such that the
+		 * fill count is always at least 1.
+		 */
+		if ((tbin_info->ncached_max >> (tbin->lg_fill_div+1)) >= 1)
+			tbin->lg_fill_div++;
+	} else if (tbin->low_water < 0) {
+		/*
+		 * Increase fill count by 2X.  Make sure lg_fill_div stays
+		 * greater than 0.
+		 */
+		if (tbin->lg_fill_div > 1)
+			tbin->lg_fill_div--;
+	}
+	tbin->low_water = tbin->ncached;
+
+	tcache->next_gc_bin++;
+	if (tcache->next_gc_bin == nhbins)
+		tcache->next_gc_bin = 0;
+	tcache->ev_cnt = 0;
+}
+
 void *
 tcache_alloc_small_hard(tcache_t *tcache, tcache_bin_t *tbin, size_t binind)
 {
@@ -80,12 +120,13 @@ tcache_bin_flush_small(tcache_bin_t *tbin, size_t binind, unsigned rem,
 				size_t pageind = ((uintptr_t)ptr -
 				    (uintptr_t)chunk) >> LG_PAGE;
 				arena_chunk_map_t *mapelm =
-				    &chunk->map[pageind-map_bias];
+				    arena_mapp_get(chunk, pageind);
 				if (config_fill && opt_junk) {
 					arena_alloc_junk_small(ptr,
 					    &arena_bin_info[binind], true);
 				}
-				arena_dalloc_bin(arena, chunk, ptr, mapelm);
+				arena_dalloc_bin_locked(arena, chunk, ptr,
+				    mapelm);
 			} else {
 				/*
 				 * This object was allocated via a different
@@ -158,7 +199,7 @@ tcache_bin_flush_large(tcache_bin_t *tbin, size_t binind, unsigned rem,
 			assert(ptr != NULL);
 			chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
 			if (chunk->arena == arena)
-				arena_dalloc_large(arena, chunk, ptr);
+				arena_dalloc_large_locked(arena, chunk, ptr);
 			else {
 				/*
 				 * This object was allocated via a different
@@ -314,22 +355,14 @@ tcache_destroy(tcache_t *tcache)
 		arena_t *arena = chunk->arena;
 		size_t pageind = ((uintptr_t)tcache - (uintptr_t)chunk) >>
 		    LG_PAGE;
-		arena_chunk_map_t *mapelm = &chunk->map[pageind-map_bias];
-		arena_run_t *run = (arena_run_t *)((uintptr_t)chunk +
-		    (uintptr_t)((pageind - (mapelm->bits >> LG_PAGE)) <<
-		    LG_PAGE));
-		arena_bin_t *bin = run->bin;
+		arena_chunk_map_t *mapelm = arena_mapp_get(chunk, pageind);
 
-		malloc_mutex_lock(&bin->lock);
-		arena_dalloc_bin(arena, chunk, tcache, mapelm);
-		malloc_mutex_unlock(&bin->lock);
+		arena_dalloc_bin(arena, chunk, tcache, pageind, mapelm);
 	} else if (tcache_size <= tcache_maxclass) {
 		arena_chunk_t *chunk = CHUNK_ADDR2BASE(tcache);
 		arena_t *arena = chunk->arena;
 
-		malloc_mutex_lock(&arena->lock);
 		arena_dalloc_large(arena, chunk, tcache);
-		malloc_mutex_unlock(&arena->lock);
 	} else
 		idalloc(tcache);
 }

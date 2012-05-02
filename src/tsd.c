@@ -14,7 +14,7 @@ malloc_tsd_malloc(size_t size)
 {
 
 	/* Avoid choose_arena() in order to dodge bootstrapping issues. */
-	return arena_malloc(arenas[0], size, false, false);
+	return (arena_malloc(arenas[0], size, false, false));
 }
 
 void

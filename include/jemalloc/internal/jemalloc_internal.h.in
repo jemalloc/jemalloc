@@ -685,8 +685,17 @@ choose_arena(arena_t *arena)
 
 #include "jemalloc/internal/bitmap.h"
 #include "jemalloc/internal/rtree.h"
-#include "jemalloc/internal/tcache.h"
+/*
+ * Include arena.h twice in order to resolve circular dependencies with
+ * tcache.h.
+ */
+#define	JEMALLOC_ARENA_INLINE_A
 #include "jemalloc/internal/arena.h"
+#undef JEMALLOC_ARENA_INLINE_A
+#include "jemalloc/internal/tcache.h"
+#define	JEMALLOC_ARENA_INLINE_B
+#include "jemalloc/internal/arena.h"
+#undef JEMALLOC_ARENA_INLINE_B
 #include "jemalloc/internal/hash.h"
 #include "jemalloc/internal/quarantine.h"
 
