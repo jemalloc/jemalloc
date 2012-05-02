@@ -494,7 +494,7 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 				size_t isz;
 				unsigned i, ninitialized;
 
-				isz = sizeof(initialized);
+				isz = sizeof(bool) * narenas;
 				xmallctl("arenas.initialized", initialized,
 				    &isz, NULL, 0);
 				for (i = ninitialized = 0; i < narenas; i++) {
@@ -523,7 +523,7 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 				size_t isz;
 				unsigned i;
 
-				isz = sizeof(initialized);
+				isz = sizeof(bool) * narenas;
 				xmallctl("arenas.initialized", initialized,
 				    &isz, NULL, 0);
 
