@@ -227,6 +227,7 @@ CTARGET='-o $@'
 LDTARGET='-o $@'
 EXTRA_LDFLAGS=
 MKLIB='ar crus $@'
+CC_MM=1
 
 dnl Platform-specific settings.  abi and RPATH can probably be determined
 dnl programmatically, but doing so is error-prone, which makes it generally
@@ -307,6 +308,7 @@ case "${host}" in
 	  CTARGET='-Fo$@'
 	  LDTARGET='-Fe$@'
 	  MKLIB='lib -nologo -out:$@'
+	  CC_MM=
         else
 	  importlib="${so}"
 	  DSO_LDFLAGS="-shared"
@@ -337,6 +339,7 @@ AC_SUBST([PIC_CFLAGS])
 AC_SUBST([CTARGET])
 AC_SUBST([LDTARGET])
 AC_SUBST([MKLIB])
+AC_SUBST([CC_MM])
 
 if test "x$abi" != "xpecoff"; then
   dnl Heap profiling uses the log(3) function.
