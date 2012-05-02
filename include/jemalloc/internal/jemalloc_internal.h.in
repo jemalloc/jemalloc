@@ -307,9 +307,12 @@ static const bool config_ivsalloc =
 /*
  * Maximum size of L1 cache line.  This is used to avoid cache line aliasing.
  * In addition, this controls the spacing of cacheline-spaced size classes.
+ *
+ * CACHELINE cannot be based on LG_CACHELINE because __declspec(align()) can
+ * only handle raw constants.
  */
 #define	LG_CACHELINE		6
-#define	CACHELINE		((size_t)(1U << LG_CACHELINE))
+#define	CACHELINE		64
 #define	CACHELINE_MASK		(CACHELINE - 1)
 
 /* Return the smallest cacheline multiple that is >= s. */
