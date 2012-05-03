@@ -30,18 +30,29 @@ size_t		arena_maxclass; /* Max size class for arenas. */
 /******************************************************************************/
 /* Function prototypes for non-inline static functions. */
 
-static void	*chunk_recycle(size_t size, size_t alignment, bool *zero);
+static void	*chunk_recycle(size_t size, size_t alignment, bool base,
+    bool *zero);
 static void	chunk_record(void *chunk, size_t size);
 
 /******************************************************************************/
 
 static void *
-chunk_recycle(size_t size, size_t alignment, bool *zero)
+chunk_recycle(size_t size, size_t alignment, bool base, bool *zero)
 {
 	void *ret;
 	extent_node_t *node;
 	extent_node_t key;
 	size_t alloc_size, leadsize, trailsize;
+
+	if (base) {
+		/*
+		 * This function may need to call base_node_{,de}alloc(), but
+		 * the current chunk allocation request is on behalf of the
+		 * base allocator.  Avoid deadlock (and if that weren't an
+		 * issue, potential for infinite recursion) by returning NULL.
+		 */
+		return (NULL);
+	}
 
 	alloc_size = size + alignment - chunksize;
 	/* Beware size_t wrap-around. */
@@ -125,7 +136,7 @@ chunk_alloc(size_t size, size_t alignment, bool base, bool *zero)
 	assert((size & chunksize_mask) == 0);
 	assert((alignment & chunksize_mask) == 0);
 
-	ret = chunk_recycle(size, alignment, zero);
+	ret = chunk_recycle(size, alignment, base, zero);
 	if (ret != NULL)
 		goto label_return;
 
