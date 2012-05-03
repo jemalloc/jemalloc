@@ -239,7 +239,7 @@ dnl to make happen otherwise.
 default_munmap="1"
 case "${host}" in
   *-*-darwin*)
-	CFLAGS="$CFLAGS -fno-common"
+	CFLAGS="$CFLAGS"
 	abi="macho"
 	AC_DEFINE([JEMALLOC_PURGE_MADVISE_FREE], [ ])
 	RPATH=""
