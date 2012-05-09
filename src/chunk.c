@@ -68,8 +68,8 @@ chunk_recycle(size_t size, size_t alignment, bool base, bool *zero)
 	}
 	leadsize = ALIGNMENT_CEILING((uintptr_t)node->addr, alignment) -
 	    (uintptr_t)node->addr;
-	assert(alloc_size >= leadsize + size);
-	trailsize = alloc_size - leadsize - size;
+	assert(node->size >= leadsize + size);
+	trailsize = node->size - leadsize - size;
 	ret = (void *)((uintptr_t)node->addr + leadsize);
 	/* Remove node from the tree. */
 	extent_tree_szad_remove(&chunks_szad, node);
@@ -195,50 +195,48 @@ chunk_record(void *chunk, size_t size)
 
 	pages_purge(chunk, size);
 
-	xnode = NULL;
+	/*
+	 * Allocate a node before acquiring chunks_mtx even though it might not
+	 * be needed, because base_node_alloc() may cause a new base chunk to
+	 * be allocated, which could cause deadlock if chunks_mtx were already
+	 * held.
+	 */
+	xnode = base_node_alloc();
+
 	malloc_mutex_lock(&chunks_mtx);
-	while (true) {
-		key.addr = (void *)((uintptr_t)chunk + size);
-		node = extent_tree_ad_nsearch(&chunks_ad, &key);
-		/* Try to coalesce forward. */
-		if (node != NULL && node->addr == key.addr) {
+	key.addr = (void *)((uintptr_t)chunk + size);
+	node = extent_tree_ad_nsearch(&chunks_ad, &key);
+	/* Try to coalesce forward. */
+	if (node != NULL && node->addr == key.addr) {
+		/*
+		 * Coalesce chunk with the following address range.  This does
+		 * not change the position within chunks_ad, so only
+		 * remove/insert from/into chunks_szad.
+		 */
+		extent_tree_szad_remove(&chunks_szad, node);
+		node->addr = chunk;
+		node->size += size;
+		extent_tree_szad_insert(&chunks_szad, node);
+		if (xnode != NULL)
+			base_node_dealloc(xnode);
+	} else {
+		/* Coalescing forward failed, so insert a new node. */
+		if (xnode == NULL) {
 			/*
-			 * Coalesce chunk with the following address range.
-			 * This does not change the position within chunks_ad,
-			 * so only remove/insert from/into chunks_szad.
-			 */
-			extent_tree_szad_remove(&chunks_szad, node);
-			node->addr = chunk;
-			node->size += size;
-			extent_tree_szad_insert(&chunks_szad, node);
-			break;
-		} else if (xnode == NULL) {
-			/*
-			 * It is possible that base_node_alloc() will cause a
-			 * new base chunk to be allocated, so take care not to
-			 * deadlock on chunks_mtx, and recover if another thread
-			 * deallocates an adjacent chunk while this one is busy
-			 * allocating xnode.
+			 * base_node_alloc() failed, which is an exceedingly
+			 * unlikely failure.  Leak chunk; its pages have
+			 * already been purged, so this is only a virtual
+			 * memory leak.
 			 */
 			malloc_mutex_unlock(&chunks_mtx);
-			xnode = base_node_alloc();
-			if (xnode == NULL)
-				return;
-			malloc_mutex_lock(&chunks_mtx);
-		} else {
-			/* Coalescing forward failed, so insert a new node. */
-			node = xnode;
-			xnode = NULL;
-			node->addr = chunk;
-			node->size = size;
-			extent_tree_ad_insert(&chunks_ad, node);
-			extent_tree_szad_insert(&chunks_szad, node);
-			break;
+			return;
 		}
+		node = xnode;
+		node->addr = chunk;
+		node->size = size;
+		extent_tree_ad_insert(&chunks_ad, node);
+		extent_tree_szad_insert(&chunks_szad, node);
 	}
-	/* Discard xnode if it ended up unused due to a race. */
-	if (xnode != NULL)
-		base_node_dealloc(xnode);
 
 	/* Try to coalesce backward. */
 	prev = extent_tree_ad_prev(&chunks_ad, node);
