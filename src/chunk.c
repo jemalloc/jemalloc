@@ -134,6 +134,7 @@ chunk_alloc(size_t size, size_t alignment, bool base, bool *zero)
 
 	assert(size != 0);
 	assert((size & chunksize_mask) == 0);
+	assert(alignment != 0);
 	assert((alignment & chunksize_mask) == 0);
 
 	ret = chunk_recycle(size, alignment, base, zero);
