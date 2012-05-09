@@ -123,6 +123,13 @@ static const bool config_prof_libunwind =
     false
 #endif
     ;
+static const bool config_mremap =
+#ifdef JEMALLOC_MREMAP
+    true
+#else
+    false
+#endif
+    ;
 static const bool config_munmap =
 #ifdef JEMALLOC_MUNMAP
     true

@@ -193,11 +193,17 @@
 
 /*
  * If defined, use munmap() to unmap freed chunks, rather than storing them for
- * later reuse.  This is automatically disabled if configuration determines
- * that common sequences of mmap()/munmap() calls will cause virtual memory map
- * holes.
+ * later reuse.  This is disabled by default on Linux because common sequences
+ * of mmap()/munmap() calls will cause virtual memory map holes.
  */
 #undef JEMALLOC_MUNMAP
+
+/*
+ * If defined, use mremap(...MREMAP_FIXED...) for huge realloc().  This is
+ * disabled by default because it is Linux-specific and it will cause virtual
+ * memory map holes, much like munmap(2) does.
+ */
+#undef JEMALLOC_MREMAP
 
 /* TLS is used to map arenas and magazine caches to threads. */
 #undef JEMALLOC_TLS
@@ -220,9 +226,6 @@
  */
 #undef JEMALLOC_ZONE
 #undef JEMALLOC_ZONE_VERSION
-
-/* If defined, use mremap(...MREMAP_FIXED...) for huge realloc(). */
-#undef JEMALLOC_MREMAP_FIXED
 
 /*
  * Methods for purging unused pages differ between operating systems.
