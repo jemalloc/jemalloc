@@ -93,13 +93,13 @@ struct arena_chunk_map_s {
 	 * Run address (or size) and various flags are stored together.  The bit
 	 * layout looks like (assuming 32-bit system):
 	 *
-	 *   ???????? ???????? ????---- ----dula
+	 *   ???????? ???????? ????nnnn nnnndula
 	 *
 	 * ? : Unallocated: Run address for first/last pages, unset for internal
 	 *                  pages.
 	 *     Small: Run page offset.
 	 *     Large: Run size for first page, unset for trailing pages.
-	 * - : Unused.
+	 * n : binind for small size class, BININD_INVALID for large size class.
 	 * d : dirty?
 	 * u : unzeroed?
 	 * l : large?
@@ -118,14 +118,14 @@ struct arena_chunk_map_s {
 	 * [dula] : bit unset
 	 *
 	 *   Unallocated (clean):
-	 *     ssssssss ssssssss ssss1111 1111du-a
+	 *     ssssssss ssssssss ssss++++ ++++du-a
 	 *     xxxxxxxx xxxxxxxx xxxxxxxx xxxx-Uxx
-	 *     ssssssss ssssssss ssss1111 1111dU-a
+	 *     ssssssss ssssssss ssss++++ ++++dU-a
 	 *
 	 *   Unallocated (dirty):
-	 *     ssssssss ssssssss ssss1111 1111D--a
+	 *     ssssssss ssssssss ssss++++ ++++D--a
 	 *     xxxxxxxx xxxxxxxx xxxxxxxx xxxxxxxx
-	 *     ssssssss ssssssss ssss1111 1111D--a
+	 *     ssssssss ssssssss ssss++++ ++++D--a
 	 *
 	 *   Small:
 	 *     pppppppp pppppppp ppppnnnn nnnnd--A
@@ -133,15 +133,15 @@ struct arena_chunk_map_s {
 	 *     pppppppp pppppppp ppppnnnn nnnnd--A
 	 *
 	 *   Large:
-	 *     ssssssss ssssssss ssss1111 1111D-LA
+	 *     ssssssss ssssssss ssss++++ ++++D-LA
 	 *     xxxxxxxx xxxxxxxx xxxxxxxx xxxxxxxx
-	 *     -------- -------- ----1111 1111D-LA
+	 *     -------- -------- ----++++ ++++D-LA
 	 *
 	 *   Large (sampled, size <= PAGE):
 	 *     ssssssss ssssssss ssssnnnn nnnnD-LA
 	 *
 	 *   Large (not sampled, size == PAGE):
-	 *     ssssssss ssssssss ssss1111 1111D-LA
+	 *     ssssssss ssssssss ssss++++ ++++D-LA
 	 */
 	size_t				bits;
 #define	CHUNK_MAP_BININD_SHIFT	4
