@@ -1471,7 +1471,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         application.  This is a multiple of the chunk size, and is at least as
         large as <link
         linkend="stats.active"><mallctl>stats.active</mallctl></link>.  This
-        does not include inactive chunks embedded in the DSS.</para></listitem>
+        does not include inactive chunks.</para></listitem>
       </varlistentry>
 
       <varlistentry>
@@ -1482,7 +1482,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
           [<option>--enable-stats</option>]
         </term>
         <listitem><para>Total number of chunks actively mapped on behalf of the
-        application.  This does not include inactive chunks embedded in the DSS.
+        application.  This does not include inactive chunks.
         </para></listitem>
       </varlistentry>
 
