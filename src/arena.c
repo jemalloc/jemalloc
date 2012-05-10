@@ -44,6 +44,8 @@ static void	arena_run_split(arena_t *arena, arena_run_t *run, size_t size,
     bool large, size_t binind, bool zero);
 static arena_chunk_t *arena_chunk_alloc(arena_t *arena);
 static void	arena_chunk_dealloc(arena_t *arena, arena_chunk_t *chunk);
+static arena_run_t	*arena_run_alloc_helper(arena_t *arena, size_t size,
+    bool large, size_t binind, bool zero);
 static arena_run_t *arena_run_alloc(arena_t *arena, size_t size, bool large,
     size_t binind, bool zero);
 static void	arena_purge(arena_t *arena, bool all);
@@ -454,19 +456,12 @@ arena_chunk_dealloc(arena_t *arena, arena_chunk_t *chunk)
 }
 
 static arena_run_t *
-arena_run_alloc(arena_t *arena, size_t size, bool large, size_t binind,
+arena_run_alloc_helper(arena_t *arena, size_t size, bool large, size_t binind,
     bool zero)
 {
-	arena_chunk_t *chunk;
 	arena_run_t *run;
 	arena_chunk_map_t *mapelm, key;
 
-	assert(size <= arena_maxclass);
-	assert((size & PAGE_MASK) == 0);
-	assert((large && binind == BININD_INVALID) || (large == false && binind
-	    != BININD_INVALID));
-
-	/* Search the arena's chunks for the lowest best fit. */
 	key.bits = size | CHUNK_MAP_KEY;
 	mapelm = arena_avail_tree_nsearch(&arena->runs_avail_dirty, &key);
 	if (mapelm != NULL) {
@@ -493,6 +488,26 @@ arena_run_alloc(arena_t *arena, size_t size, bool large, size_t binind,
 		return (run);
 	}
 
+	return (NULL);
+}
+
+static arena_run_t *
+arena_run_alloc(arena_t *arena, size_t size, bool large, size_t binind,
+    bool zero)
+{
+	arena_chunk_t *chunk;
+	arena_run_t *run;
+
+	assert(size <= arena_maxclass);
+	assert((size & PAGE_MASK) == 0);
+	assert((large && binind == BININD_INVALID) || (large == false && binind
+	    != BININD_INVALID));
+
+	/* Search the arena's chunks for the lowest best fit. */
+	run = arena_run_alloc_helper(arena, size, large, binind, zero);
+	if (run != NULL)
+		return (run);
+
 	/*
 	 * No usable runs.  Create a new chunk from which to allocate the run.
 	 */
@@ -508,32 +523,7 @@ arena_run_alloc(arena_t *arena, size_t size, bool large, size_t binind,
 	 * sufficient memory available while this one dropped arena->lock in
 	 * arena_chunk_alloc(), so search one more time.
 	 */
-	mapelm = arena_avail_tree_nsearch(&arena->runs_avail_dirty, &key);
-	if (mapelm != NULL) {
-		arena_chunk_t *run_chunk = CHUNK_ADDR2BASE(mapelm);
-		size_t pageind = (((uintptr_t)mapelm -
-		    (uintptr_t)run_chunk->map) / sizeof(arena_chunk_map_t))
-		    + map_bias;
-
-		run = (arena_run_t *)((uintptr_t)run_chunk + (pageind <<
-		    LG_PAGE));
-		arena_run_split(arena, run, size, large, binind, zero);
-		return (run);
-	}
-	mapelm = arena_avail_tree_nsearch(&arena->runs_avail_clean, &key);
-	if (mapelm != NULL) {
-		arena_chunk_t *run_chunk = CHUNK_ADDR2BASE(mapelm);
-		size_t pageind = (((uintptr_t)mapelm -
-		    (uintptr_t)run_chunk->map) / sizeof(arena_chunk_map_t))
-		    + map_bias;
-
-		run = (arena_run_t *)((uintptr_t)run_chunk + (pageind <<
-		    LG_PAGE));
-		arena_run_split(arena, run, size, large, binind, zero);
-		return (run);
-	}
-
-	return (NULL);
+	return (arena_run_alloc_helper(arena, size, large, binind, zero));
 }
 
 static inline void
