@@ -71,6 +71,7 @@ found in the git revision history:
     write-after-free memory corruption.
   - Fix a potential deadlock that could occur during interval- and
     growth-triggered heap profile dumps.
+  - Fix large calloc() zeroing bugs due to dropping chunk map unzeroed flags.
   - Fix chunk_alloc_dss() to stop claiming memory is zeroed.  This bug could
     cause memory corruption and crashes with --enable-dss specified.
   - Fix fork-related bugs that could cause deadlock in children between fork
