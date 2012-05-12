@@ -6,7 +6,7 @@ found in the git revision history:
     http://www.canonware.com/cgi-bin/gitweb.cgi?p=jemalloc.git
     git://canonware.com/jemalloc.git
 
-* 3.0.0 (XXX not yet released)
+* 3.0.0 (May 11, 2012)
 
   Although this version adds some major new features, the primary focus is on
   internal code cleanup that facilitates maintainability and portability, most
@@ -23,6 +23,7 @@ found in the git revision history:
     + FreeBSD
     + Mac OS X Lion
     + MinGW
+    + Windows (no support yet for replacing the system malloc)
   - Add support for additional architectures:
     + MIPS
     + SH4
@@ -31,12 +32,13 @@ found in the git revision history:
   - Add nallocm(), which rounds a request size up to the nearest size class
     without actually allocating.
   - Implement aligned_alloc() (blame C11).
-  - Add the --disable-munmap option, and make it the default on Linux.
-  - Add the --with-mangling option.
-  - Add the --disable-experimental option.
   - Add the "thread.tcache.enabled" mallctl.
   - Add the "opt.prof_final" mallctl.
   - Update pprof (from gperftools 2.0).
+  - Add the --with-mangling option.
+  - Add the --disable-experimental option.
+  - Add the --disable-munmap option, and make it the default on Linux.
+  - Add the --enable-mremap option, which disables use of mremap(2) by default.
 
   Incompatible changes:
   - Enable stats by default.
