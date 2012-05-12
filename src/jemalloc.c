@@ -1621,6 +1621,12 @@ _malloc_prefork(void)
 {
 	unsigned i;
 
+#ifdef JEMALLOC_MUTEX_INIT_CB
+	if (malloc_initialized == false)
+		return;
+#endif
+	assert(malloc_initialized);
+
 	/* Acquire all mutexes in a safe order. */
 	malloc_mutex_prefork(&arenas_lock);
 	for (i = 0; i < narenas; i++) {
@@ -1642,6 +1648,12 @@ _malloc_postfork(void)
 {
 	unsigned i;
 
+#ifdef JEMALLOC_MUTEX_INIT_CB
+	if (malloc_initialized == false)
+		return;
+#endif
+	assert(malloc_initialized);
+
 	/* Release all mutexes, now that fork() has completed. */
 	chunk_dss_postfork_parent();
 	huge_postfork_parent();
@@ -1657,6 +1669,8 @@ void
 jemalloc_postfork_child(void)
 {
 	unsigned i;
+
+	assert(malloc_initialized);
 
 	/* Release all mutexes, now that fork() has completed. */
 	chunk_dss_postfork_child();
