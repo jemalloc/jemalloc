@@ -561,7 +561,7 @@ arena_chunk_purge(arena_t *arena, arena_chunk_t *chunk)
 #ifdef JEMALLOC_PURGE_MADVISE_DONTNEED
    /*
     * madvise(..., MADV_DONTNEED) results in zero-filled pages for anonymous
-    * mappings, but not for file-backed mappings.
+    * mappings.
     */
 	    0
 #else
