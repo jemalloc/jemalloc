@@ -506,7 +506,7 @@ prof_realloc(const void *ptr, size_t size, prof_thr_cnt_t *cnt,
 	if ((uintptr_t)cnt > (uintptr_t)1U) {
 		prof_ctx_set(ptr, cnt->ctx);
 		cnt->epoch++;
-	} else
+	} else if (ptr != NULL)
 		prof_ctx_set(ptr, (prof_ctx_t *)(uintptr_t)1U);
 	/*********/
 	mb_write();
