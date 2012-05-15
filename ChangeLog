@@ -8,6 +8,10 @@ found in the git revision history:
 
 * 3.x.x (XXX not yet released)
 
+  New features:
+  - Auto-detect whether running inside Valgrind, thus removing the need to
+    manually specify MALLOC_CONF=valgrind:true.
+
   Bug fixes:
   - Fix heap profiling crash if sampled object is freed via realloc(p, 0).
 

@@ -846,7 +846,9 @@ for (i = 0; i < nbins; i++) {
         <literal>0x5a</literal>.  This is intended for debugging and will
         impact performance negatively.  This option is disabled by default
         unless <option>--enable-debug</option> is specified during
-        configuration, in which case it is enabled by default.</para></listitem>
+        configuration, in which case it is enabled by default unless running
+        inside <ulink
+        url="http://valgrind.org/">Valgrind</ulink>.</para></listitem>
       </varlistentry>
 
       <varlistentry id="opt.quarantine">
@@ -865,8 +867,9 @@ for (i = 0; i < nbins; i++) {
         enabled.  This feature is of particular use in combination with <ulink
         url="http://valgrind.org/">Valgrind</ulink>, which can detect attempts
         to access quarantined objects.  This is intended for debugging and will
-        impact performance negatively.  The default quarantine size is
-        0.</para></listitem>
+        impact performance negatively.  The default quarantine size is 0 unless
+        running inside Valgrind, in which case the default is 16
+        MiB.</para></listitem>
       </varlistentry>
 
       <varlistentry id="opt.redzone">
@@ -885,7 +888,7 @@ for (i = 0; i < nbins; i++) {
         which needs redzones in order to do effective buffer overflow/underflow
         detection.  This option is intended for debugging and will impact
         performance negatively.  This option is disabled by
-        default.</para></listitem>
+        default unless running inside Valgrind.</para></listitem>
       </varlistentry>
 
       <varlistentry id="opt.zero">
@@ -926,15 +929,9 @@ for (i = 0; i < nbins; i++) {
           [<option>--enable-valgrind</option>]
         </term>
         <listitem><para><ulink url="http://valgrind.org/">Valgrind</ulink>
-        support enabled/disabled.  If enabled, several other options are
-        automatically modified during options processing to work well with
-        Valgrind: <link linkend="opt.junk"><mallctl>opt.junk</mallctl></link>
-        and <link linkend="opt.zero"><mallctl>opt.zero</mallctl></link> are set
-        to false, <link
-        linkend="opt.quarantine"><mallctl>opt.quarantine</mallctl></link> is
-        set to 16 MiB, and <link
-        linkend="opt.redzone"><mallctl>opt.redzone</mallctl></link> is set to
-        true.  This option is disabled by default.</para></listitem>
+        support enabled/disabled.  This option is vestigal because jemalloc
+        auto-detects whether it is running inside Valgrind.  This option is
+        disabled by default, unless running inside Valgrind.</para></listitem>
       </varlistentry>
 
       <varlistentry id="opt.xmalloc">
@@ -1865,9 +1862,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
     it detects, because the performance impact for storing such information
     would be prohibitive.  However, jemalloc does integrate with the most
     excellent <ulink url="http://valgrind.org/">Valgrind</ulink> tool if the
-    <option>--enable-valgrind</option> configuration option is enabled and the
-    <link linkend="opt.valgrind"><mallctl>opt.valgrind</mallctl></link> option
-    is enabled.</para>
+    <option>--enable-valgrind</option> configuration option is enabled.</para>
   </refsect1>
   <refsect1 id="diagnostic_messages">
     <title>DIAGNOSTIC MESSAGES</title>

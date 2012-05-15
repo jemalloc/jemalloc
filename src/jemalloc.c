@@ -377,6 +377,20 @@ malloc_conf_init(void)
 	const char *opts, *k, *v;
 	size_t klen, vlen;
 
+	/*
+	 * Automatically configure valgrind before processing options.  The
+	 * valgrind option remains in jemalloc 3.x for compatibility reasons.
+	 */
+	if (config_valgrind) {
+		opt_valgrind = (RUNNING_ON_VALGRIND != 0) ? true : false;
+		if (config_fill && opt_valgrind) {
+			opt_junk = false;
+			assert(opt_zero == false);
+			opt_quarantine = JEMALLOC_VALGRIND_QUARANTINE_DEFAULT;
+			opt_redzone = true;
+		}
+	}
+
 	for (i = 0; i < 3; i++) {
 		/* Get runtime configuration. */
 		switch (i) {
@@ -553,20 +567,7 @@ malloc_conf_init(void)
 				CONF_HANDLE_BOOL(opt_utrace, "utrace")
 			}
 			if (config_valgrind) {
-				bool hit;
-				CONF_HANDLE_BOOL_HIT(opt_valgrind,
-				    "valgrind", hit)
-				if (config_fill && opt_valgrind && hit) {
-					opt_junk = false;
-					opt_zero = false;
-					if (opt_quarantine == 0) {
-						opt_quarantine =
-						    JEMALLOC_VALGRIND_QUARANTINE_DEFAULT;
-					}
-					opt_redzone = true;
-				}
-				if (hit)
-					continue;
+				CONF_HANDLE_BOOL(opt_valgrind, "valgrind")
 			}
 			if (config_xmalloc) {
 				CONF_HANDLE_BOOL(opt_xmalloc, "xmalloc")
