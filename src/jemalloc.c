@@ -389,6 +389,8 @@ malloc_conf_init(void)
 			opt_quarantine = JEMALLOC_VALGRIND_QUARANTINE_DEFAULT;
 			opt_redzone = true;
 		}
+		if (config_tcache && opt_valgrind)
+			opt_tcache = false;
 	}
 
 	for (i = 0; i < 3; i++) {

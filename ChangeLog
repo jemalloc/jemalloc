@@ -12,6 +12,10 @@ found in the git revision history:
   - Auto-detect whether running inside Valgrind, thus removing the need to
     manually specify MALLOC_CONF=valgrind:true.
 
+  Incompatible changes:
+  - Disable tcache by default if running inside Valgrind, in order to avoid
+    making unallocated objects appear reachable to Valgrind.
+
   Bug fixes:
   - Fix heap profiling crash if sampled object is freed via realloc(p, 0).
 
