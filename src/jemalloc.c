@@ -1265,11 +1265,10 @@ je_valloc(size_t size)
  * passed an extra argument for the caller return address, which will be
  * ignored.
  */
-JEMALLOC_EXPORT void (* const __free_hook)(void *ptr) = je_free;
-JEMALLOC_EXPORT void *(* const __malloc_hook)(size_t size) = je_malloc;
-JEMALLOC_EXPORT void *(* const __realloc_hook)(void *ptr, size_t size) =
-    je_realloc;
-JEMALLOC_EXPORT void *(* const __memalign_hook)(size_t alignment, size_t size) =
+JEMALLOC_EXPORT void (* __free_hook)(void *ptr) = je_free;
+JEMALLOC_EXPORT void *(* __malloc_hook)(size_t size) = je_malloc;
+JEMALLOC_EXPORT void *(* __realloc_hook)(void *ptr, size_t size) = je_realloc;
+JEMALLOC_EXPORT void *(* __memalign_hook)(size_t alignment, size_t size) =
     je_memalign;
 #endif
 

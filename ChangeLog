@@ -18,6 +18,8 @@ found in the git revision history:
 
   Bug fixes:
   - Fix heap profiling crash if sampled object is freed via realloc(p, 0).
+  - Remove const from __*_hook variable declarations, so that glibc can modify
+    them during process forking.
 
 * 3.0.0 (May 11, 2012)
 
