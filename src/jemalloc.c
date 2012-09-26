@@ -254,12 +254,13 @@ malloc_ncpus(void)
 	result = si.dwNumberOfProcessors;
 #else
 	result = sysconf(_SC_NPROCESSORS_ONLN);
+#endif
 	if (result == -1) {
 		/* Error. */
 		ret = 1;
-	}
-#endif
-	ret = (unsigned)result;
+	}  else {
+    ret = (unsigned)result;
+  }
 
 	return (ret);
 }
