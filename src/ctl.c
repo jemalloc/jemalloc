@@ -1032,8 +1032,8 @@ thread_tcache_enabled_ctl(const size_t *mib, size_t miblen, void *oldp,
 	}
 	READ(oldval, bool);
 
-label_return:
 	ret = 0;
+label_return:
 	return (ret);
 }
 
