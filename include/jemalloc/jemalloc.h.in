@@ -59,7 +59,8 @@ JEMALLOC_EXPORT void *	je_memalign(size_t alignment, size_t size)
 JEMALLOC_EXPORT void *	je_valloc(size_t size) JEMALLOC_ATTR(malloc);
 #endif
 
-JEMALLOC_EXPORT size_t	je_malloc_usable_size(const void *ptr);
+JEMALLOC_EXPORT size_t	je_malloc_usable_size(
+    JEMALLOC_USABLE_SIZE_CONST void *ptr);
 JEMALLOC_EXPORT void	je_malloc_stats_print(void (*write_cb)(void *,
     const char *), void *je_cbopaque, const char *opts);
 JEMALLOC_EXPORT int	je_mallctl(const char *name, void *oldp,
