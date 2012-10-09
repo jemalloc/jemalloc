@@ -1659,9 +1659,9 @@ _malloc_prefork(void)
 			arena_prefork(arenas[i]);
 	}
 	prof_prefork();
+	chunk_prefork();
 	base_prefork();
 	huge_prefork();
-	chunk_prefork();
 }
 
 #ifndef JEMALLOC_MUTEX_INIT_CB
@@ -1681,9 +1681,9 @@ _malloc_postfork(void)
 	assert(malloc_initialized);
 
 	/* Release all mutexes, now that fork() has completed. */
-	chunk_postfork_parent();
 	huge_postfork_parent();
 	base_postfork_parent();
+	chunk_postfork_parent();
 	prof_postfork_parent();
 	for (i = 0; i < narenas; i++) {
 		if (arenas[i] != NULL)
@@ -1701,9 +1701,9 @@ jemalloc_postfork_child(void)
 	assert(malloc_initialized);
 
 	/* Release all mutexes, now that fork() has completed. */
-	chunk_postfork_child();
 	huge_postfork_child();
 	base_postfork_child();
+	chunk_postfork_child();
 	prof_postfork_child();
 	for (i = 0; i < narenas; i++) {
 		if (arenas[i] != NULL)
