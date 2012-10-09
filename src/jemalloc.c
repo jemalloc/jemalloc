@@ -1282,7 +1282,7 @@ JEMALLOC_EXPORT void *(* __memalign_hook)(size_t alignment, size_t size) =
  */
 
 size_t
-je_malloc_usable_size(const void *ptr)
+je_malloc_usable_size(JEMALLOC_USABLE_SIZE_CONST void *ptr)
 {
 	size_t ret;
 
