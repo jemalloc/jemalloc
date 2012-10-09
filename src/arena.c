@@ -551,23 +551,11 @@ arena_chunk_purge(arena_t *arena, arena_chunk_t *chunk)
 {
 	ql_head(arena_chunk_map_t) mapelms;
 	arena_chunk_map_t *mapelm;
-	size_t pageind, flag_unzeroed;
+	size_t pageind;
 	size_t ndirty;
 	size_t nmadvise;
 
 	ql_new(&mapelms);
-
-	flag_unzeroed =
-#ifdef JEMALLOC_PURGE_MADVISE_DONTNEED
-   /*
-    * madvise(..., MADV_DONTNEED) results in zero-filled pages for anonymous
-    * mappings.
-    */
-	    0
-#else
-	    CHUNK_MAP_UNZEROED
-#endif
-	    ;
 
 	/*
 	 * If chunk is the spare, temporarily re-allocate it, 1) so that its
@@ -603,26 +591,12 @@ arena_chunk_purge(arena_t *arena, arena_chunk_t *chunk)
 			assert(arena_mapbits_dirty_get(chunk, pageind) ==
 			    arena_mapbits_dirty_get(chunk, pageind+npages-1));
 			if (arena_mapbits_dirty_get(chunk, pageind) != 0) {
-				size_t i;
-
 				arena_avail_tree_remove(
 				    &arena->runs_avail_dirty, mapelm);
 
-				arena_mapbits_unzeroed_set(chunk, pageind,
-				    flag_unzeroed);
 				arena_mapbits_large_set(chunk, pageind,
 				    (npages << LG_PAGE), 0);
-				/*
-				 * Update internal elements in the page map, so
-				 * that CHUNK_MAP_UNZEROED is properly set.
-				 */
-				for (i = 1; i < npages - 1; i++) {
-					arena_mapbits_unzeroed_set(chunk,
-					    pageind+i, flag_unzeroed);
-				}
 				if (npages > 1) {
-					arena_mapbits_unzeroed_set(chunk,
-					    pageind+npages-1, flag_unzeroed);
 					arena_mapbits_large_set(chunk,
 					    pageind+npages-1, 0, 0);
 				}
@@ -685,14 +659,30 @@ arena_chunk_purge(arena_t *arena, arena_chunk_t *chunk)
 		    sizeof(arena_chunk_map_t)) + map_bias;
 		size_t npages = arena_mapbits_large_size_get(chunk, pageind) >>
 		    LG_PAGE;
+		bool unzeroed;
+		size_t flag_unzeroed, i;
 
 		assert(pageind + npages <= chunk_npages);
 		assert(ndirty >= npages);
 		if (config_debug)
 			ndirty -= npages;
-
-		pages_purge((void *)((uintptr_t)chunk + (pageind << LG_PAGE)),
-		    (npages << LG_PAGE));
+		unzeroed = pages_purge((void *)((uintptr_t)chunk + (pageind <<
+		    LG_PAGE)), (npages << LG_PAGE));
+		flag_unzeroed = unzeroed ? CHUNK_MAP_UNZEROED : 0;
+		/*
+		 * Set the unzeroed flag for all pages, now that pages_purge()
+		 * has returned whether the pages were zeroed as a side effect
+		 * of purging.  This chunk map modification is safe even though
+		 * the arena mutex isn't currently owned by this thread,
+		 * because the run is marked as allocated, thus protecting it
+		 * from being modified by any other thread.  As long as these
+		 * writes don't perturb the first and last elements'
+		 * CHUNK_MAP_ALLOCATED bits, behavior is well defined.
+		 */
+		for (i = 0; i < npages; i++) {
+			arena_mapbits_unzeroed_set(chunk, pageind+i,
+			    flag_unzeroed);
+		}
 		if (config_stats)
 			nmadvise++;
 	}
