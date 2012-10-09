@@ -318,3 +318,33 @@ chunk_boot(void)
 
 	return (false);
 }
+
+void
+chunk_prefork(void)
+{
+
+	malloc_mutex_lock(&chunks_mtx);
+	if (config_ivsalloc)
+		rtree_prefork(chunks_rtree);
+	chunk_dss_prefork();
+}
+
+void
+chunk_postfork_parent(void)
+{
+
+	chunk_dss_postfork_parent();
+	if (config_ivsalloc)
+		rtree_postfork_parent(chunks_rtree);
+	malloc_mutex_postfork_parent(&chunks_mtx);
+}
+
+void
+chunk_postfork_child(void)
+{
+
+	chunk_dss_postfork_child();
+	if (config_ivsalloc)
+		rtree_postfork_child(chunks_rtree);
+	malloc_mutex_postfork_child(&chunks_mtx);
+}

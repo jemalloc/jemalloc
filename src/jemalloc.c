@@ -1614,6 +1614,27 @@ je_nallocm(size_t *rsize, size_t size, int flags)
  * malloc during fork().
  */
 
+/*
+ * If an application creates a thread before doing any allocation in the main
+ * thread, then calls fork(2) in the main thread followed by memory allocation
+ * in the child process, a race can occur that results in deadlock within the
+ * child: the main thread may have forked while the created thread had
+ * partially initialized the allocator.  Ordinarily jemalloc prevents
+ * fork/malloc races via the following functions it registers during
+ * initialization using pthread_atfork(), but of course that does no good if
+ * the allocator isn't fully initialized at fork time.  The following library
+ * constructor is a partial solution to this problem.  It may still possible to
+ * trigger the deadlock described above, but doing so would involve forking via
+ * a library constructor that runs before jemalloc's runs.
+ */
+JEMALLOC_ATTR(constructor)
+static void
+jemalloc_constructor(void)
+{
+
+	malloc_init();
+}
+
 #ifndef JEMALLOC_MUTEX_INIT_CB
 void
 jemalloc_prefork(void)
@@ -1631,14 +1652,16 @@ _malloc_prefork(void)
 	assert(malloc_initialized);
 
 	/* Acquire all mutexes in a safe order. */
+	ctl_prefork();
 	malloc_mutex_prefork(&arenas_lock);
 	for (i = 0; i < narenas; i++) {
 		if (arenas[i] != NULL)
 			arena_prefork(arenas[i]);
 	}
+	prof_prefork();
 	base_prefork();
 	huge_prefork();
-	chunk_dss_prefork();
+	chunk_prefork();
 }
 
 #ifndef JEMALLOC_MUTEX_INIT_CB
@@ -1658,14 +1681,16 @@ _malloc_postfork(void)
 	assert(malloc_initialized);
 
 	/* Release all mutexes, now that fork() has completed. */
-	chunk_dss_postfork_parent();
+	chunk_postfork_parent();
 	huge_postfork_parent();
 	base_postfork_parent();
+	prof_postfork_parent();
 	for (i = 0; i < narenas; i++) {
 		if (arenas[i] != NULL)
 			arena_postfork_parent(arenas[i]);
 	}
 	malloc_mutex_postfork_parent(&arenas_lock);
+	ctl_postfork_parent();
 }
 
 void
@@ -1676,14 +1701,16 @@ jemalloc_postfork_child(void)
 	assert(malloc_initialized);
 
 	/* Release all mutexes, now that fork() has completed. */
-	chunk_dss_postfork_child();
+	chunk_postfork_child();
 	huge_postfork_child();
 	base_postfork_child();
+	prof_postfork_child();
 	for (i = 0; i < narenas; i++) {
 		if (arenas[i] != NULL)
 			arena_postfork_child(arenas[i]);
 	}
 	malloc_mutex_postfork_child(&arenas_lock);
+	ctl_postfork_child();
 }
 
 /******************************************************************************/

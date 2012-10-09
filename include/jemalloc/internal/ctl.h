@@ -75,6 +75,9 @@ int	ctl_nametomib(const char *name, size_t *mibp, size_t *miblenp);
 int	ctl_bymib(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
     void *newp, size_t newlen);
 bool	ctl_boot(void);
+void	ctl_prefork(void);
+void	ctl_postfork_parent(void);
+void	ctl_postfork_child(void);
 
 #define	xmallctl(name, oldp, oldlenp, newp, newlen) do {		\
 	if (je_mallctl(name, oldp, oldlenp, newp, newlen)		\
