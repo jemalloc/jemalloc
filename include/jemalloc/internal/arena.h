@@ -331,6 +331,8 @@ struct arena_s {
 
 	uint64_t		prof_accumbytes;
 
+	dss_prec_t		dss_prec;
+
 	/* List of dirty-page-containing chunks this arena manages. */
 	ql_head(arena_chunk_t)	chunks_dirty;
 
@@ -422,13 +424,16 @@ void	arena_dalloc_small(arena_t *arena, arena_chunk_t *chunk, void *ptr,
 void	arena_dalloc_large_locked(arena_t *arena, arena_chunk_t *chunk,
     void *ptr);
 void	arena_dalloc_large(arena_t *arena, arena_chunk_t *chunk, void *ptr);
-void	arena_stats_merge(arena_t *arena, size_t *nactive, size_t *ndirty,
-    arena_stats_t *astats, malloc_bin_stats_t *bstats,
-    malloc_large_stats_t *lstats);
 void	*arena_ralloc_no_move(void *ptr, size_t oldsize, size_t size,
     size_t extra, bool zero);
-void	*arena_ralloc(void *ptr, size_t oldsize, size_t size, size_t extra,
-    size_t alignment, bool zero, bool try_tcache);
+void	*arena_ralloc(arena_t *arena, void *ptr, size_t oldsize, size_t size,
+    size_t extra, size_t alignment, bool zero, bool try_tcache_alloc,
+    bool try_tcache_dalloc);
+dss_prec_t	arena_dss_prec_get(arena_t *arena);
+void	arena_dss_prec_set(arena_t *arena, dss_prec_t dss_prec);
+void	arena_stats_merge(arena_t *arena, const char **dss, size_t *nactive,
+    size_t *ndirty, arena_stats_t *astats, malloc_bin_stats_t *bstats,
+    malloc_large_stats_t *lstats);
 bool	arena_new(arena_t *arena, unsigned ind);
 void	arena_boot(void);
 void	arena_prefork(arena_t *arena);

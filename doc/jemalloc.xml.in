@@ -368,6 +368,15 @@ for (i = 0; i < nbins; i++) {
             object.  This constraint can apply to both growth and
             shrinkage.</para></listitem>
           </varlistentry>
+          <varlistentry>
+            <term><constant>ALLOCM_ARENA(<parameter>a</parameter>)
+            </constant></term>
+
+            <listitem><para>Use the arena specified by the index
+            <parameter>a</parameter>.  This macro does not validate that
+            <parameter>a</parameter> specifies an arena in the valid
+            range.</para></listitem>
+          </varlistentry>
         </variablelist>
       </para>
 
@@ -785,15 +794,29 @@ for (i = 0; i < nbins; i++) {
         chunk size is 4 MiB (2^22).</para></listitem>
       </varlistentry>
 
+      <varlistentry id="opt.dss">
+        <term>
+          <mallctl>opt.dss</mallctl>
+          (<type>const char *</type>)
+          <literal>r-</literal>
+        </term>
+        <listitem><para>dss (<citerefentry><refentrytitle>sbrk</refentrytitle>
+        <manvolnum>2</manvolnum></citerefentry>) allocation precedence as
+        related to <citerefentry><refentrytitle>mmap</refentrytitle>
+        <manvolnum>2</manvolnum></citerefentry> allocation.  The following
+        settings are supported: &ldquo;disabled&rdquo;, &ldquo;primary&rdquo;,
+        and &ldquo;secondary&rdquo; (default).</para></listitem>
+      </varlistentry>
+
       <varlistentry id="opt.narenas">
         <term>
           <mallctl>opt.narenas</mallctl>
           (<type>size_t</type>)
           <literal>r-</literal>
         </term>
-        <listitem><para>Maximum number of arenas to use.  The default maximum
-        number of arenas is four times the number of CPUs, or one if there is a
-        single CPU.</para></listitem>
+        <listitem><para>Maximum number of arenas to use for automatic
+        multiplexing of threads and arenas.  The default is four times the
+        number of CPUs, or one if there is a single CPU.</para></listitem>
       </varlistentry>
 
       <varlistentry id="opt.lg_dirty_mult">
@@ -1149,11 +1172,8 @@ malloc_conf = "xmalloc:true";]]></programlisting>
           <literal>rw</literal>
         </term>
         <listitem><para>Get or set the arena associated with the calling
-        thread.  The arena index must be less than the maximum number of arenas
-        (see the <link
-        linkend="arenas.narenas"><mallctl>arenas.narenas</mallctl></link>
-        mallctl).  If the specified arena was not initialized beforehand (see
-        the <link
+        thread.  If the specified arena was not initialized beforehand (see the
+        <link
         linkend="arenas.initialized"><mallctl>arenas.initialized</mallctl></link>
         mallctl), it will be automatically initialized as a side effect of
         calling this interface.</para></listitem>
@@ -1245,13 +1265,40 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         the developer may find manual flushing useful.</para></listitem>
       </varlistentry>
 
+      <varlistentry id="arena.i.purge">
+        <term>
+          <mallctl>arena.&lt;i&gt;.purge</mallctl>
+          (<type>unsigned</type>)
+          <literal>--</literal>
+        </term>
+        <listitem><para>Purge unused dirty pages for arena &lt;i&gt;, or for
+        all arenas if &lt;i&gt; equals <link
+        linkend="arenas.narenas"><mallctl>arenas.narenas</mallctl></link>.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry id="arena.i.dss">
+        <term>
+          <mallctl>arena.&lt;i&gt;.dss</mallctl>
+          (<type>const char *</type>)
+          <literal>rw</literal>
+        </term>
+        <listitem><para>Set the precedence of dss allocation as related to mmap
+        allocation for arena &lt;i&gt;, or for all arenas if &lt;i&gt; equals
+        <link
+        linkend="arenas.narenas"><mallctl>arenas.narenas</mallctl></link>.  See
+        <link linkend="opt.dss"><mallctl>opt.dss</mallctl></link> for supported
+        settings.
+        </para></listitem>
+      </varlistentry>
+
       <varlistentry id="arenas.narenas">
         <term>
           <mallctl>arenas.narenas</mallctl>
           (<type>unsigned</type>)
           <literal>r-</literal>
         </term>
-        <listitem><para>Maximum number of arenas.</para></listitem>
+        <listitem><para>Current limit on number of arenas.</para></listitem>
       </varlistentry>
 
       <varlistentry id="arenas.initialized">
@@ -1368,6 +1415,16 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         </term>
         <listitem><para>Purge unused dirty pages for the specified arena, or
         for all arenas if none is specified.</para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term>
+          <mallctl>arenas.extend</mallctl>
+          (<type>unsigned</type>)
+          <literal>r-</literal>
+        </term>
+        <listitem><para>Extend the array of arenas by appending a new arena,
+        and returning the new arena index.</para></listitem>
       </varlistentry>
 
       <varlistentry id="prof.active">
@@ -1535,6 +1592,20 @@ malloc_conf = "xmalloc:true";]]></programlisting>
           [<option>--enable-stats</option>]
         </term>
         <listitem><para>Cumulative number of huge deallocation requests.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term>
+          <mallctl>stats.arenas.&lt;i&gt;.dss</mallctl>
+          (<type>const char *</type>)
+          <literal>r-</literal>
+        </term>
+        <listitem><para>dss (<citerefentry><refentrytitle>sbrk</refentrytitle>
+        <manvolnum>2</manvolnum></citerefentry>) allocation precedence as
+        related to <citerefentry><refentrytitle>mmap</refentrytitle>
+        <manvolnum>2</manvolnum></citerefentry> allocation.  See <link
+        linkend="opt.dss"><mallctl>opt.dss</mallctl></link> for details.
         </para></listitem>
       </varlistentry>
 

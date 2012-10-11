@@ -33,6 +33,7 @@ struct ctl_indexed_node_s {
 struct ctl_arena_stats_s {
 	bool			initialized;
 	unsigned		nthreads;
+	const char		*dss;
 	size_t			pactive;
 	size_t			pdirty;
 	arena_stats_t		astats;
@@ -61,6 +62,7 @@ struct ctl_stats_s {
 		uint64_t	nmalloc;	/* huge_nmalloc */
 		uint64_t	ndalloc;	/* huge_ndalloc */
 	} huge;
+	unsigned		narenas;
 	ctl_arena_stats_t	*arenas;	/* (narenas + 1) elements. */
 };
 

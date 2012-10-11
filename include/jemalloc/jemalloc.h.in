@@ -25,6 +25,8 @@ extern "C" {
 #endif
 #define	ALLOCM_ZERO	((int)0x40)
 #define	ALLOCM_NO_MOVE	((int)0x80)
+/* Bias arena index bits so that 0 encodes "ALLOCM_ARENA() unspecified". */
+#define	ALLOCM_ARENA(a)	((int)(((a)+1) << 8))
 
 #define	ALLOCM_SUCCESS		0
 #define	ALLOCM_ERR_OOM		1
