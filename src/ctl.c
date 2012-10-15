@@ -1330,6 +1330,7 @@ arena_i_dss_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
 	dss_prec_t dss_prec_old = dss_prec_limit;
 	dss_prec_t dss_prec = dss_prec_limit;
 
+	malloc_mutex_lock(&ctl_mtx);
 	WRITE(dss, const char *);
 	match = false;
 	for (i = 0; i < dss_prec_limit; i++) {
@@ -1365,6 +1366,7 @@ arena_i_dss_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
 
 	ret = 0;
 label_return:
+	malloc_mutex_unlock(&ctl_mtx);
 	return (ret);
 }
 
