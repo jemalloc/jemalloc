@@ -372,7 +372,7 @@ arena_chunk_alloc(arena_t *arena)
 		zero = false;
 		malloc_mutex_unlock(&arena->lock);
 		chunk = (arena_chunk_t *)chunk_alloc(chunksize, chunksize,
-		    false, &zero);
+		    false, &zero, arena->dss_prec);
 		malloc_mutex_lock(&arena->lock);
 		if (chunk == NULL)
 			return (NULL);
@@ -551,23 +551,11 @@ arena_chunk_purge(arena_t *arena, arena_chunk_t *chunk)
 {
 	ql_head(arena_chunk_map_t) mapelms;
 	arena_chunk_map_t *mapelm;
-	size_t pageind, flag_unzeroed;
+	size_t pageind;
 	size_t ndirty;
 	size_t nmadvise;
 
 	ql_new(&mapelms);
-
-	flag_unzeroed =
-#ifdef JEMALLOC_PURGE_MADVISE_DONTNEED
-   /*
-    * madvise(..., MADV_DONTNEED) results in zero-filled pages for anonymous
-    * mappings, but not for file-backed mappings.
-    */
-	    0
-#else
-	    CHUNK_MAP_UNZEROED
-#endif
-	    ;
 
 	/*
 	 * If chunk is the spare, temporarily re-allocate it, 1) so that its
@@ -603,26 +591,12 @@ arena_chunk_purge(arena_t *arena, arena_chunk_t *chunk)
 			assert(arena_mapbits_dirty_get(chunk, pageind) ==
 			    arena_mapbits_dirty_get(chunk, pageind+npages-1));
 			if (arena_mapbits_dirty_get(chunk, pageind) != 0) {
-				size_t i;
-
 				arena_avail_tree_remove(
 				    &arena->runs_avail_dirty, mapelm);
 
-				arena_mapbits_unzeroed_set(chunk, pageind,
-				    flag_unzeroed);
 				arena_mapbits_large_set(chunk, pageind,
 				    (npages << LG_PAGE), 0);
-				/*
-				 * Update internal elements in the page map, so
-				 * that CHUNK_MAP_UNZEROED is properly set.
-				 */
-				for (i = 1; i < npages - 1; i++) {
-					arena_mapbits_unzeroed_set(chunk,
-					    pageind+i, flag_unzeroed);
-				}
 				if (npages > 1) {
-					arena_mapbits_unzeroed_set(chunk,
-					    pageind+npages-1, flag_unzeroed);
 					arena_mapbits_large_set(chunk,
 					    pageind+npages-1, 0, 0);
 				}
@@ -685,14 +659,30 @@ arena_chunk_purge(arena_t *arena, arena_chunk_t *chunk)
 		    sizeof(arena_chunk_map_t)) + map_bias;
 		size_t npages = arena_mapbits_large_size_get(chunk, pageind) >>
 		    LG_PAGE;
+		bool unzeroed;
+		size_t flag_unzeroed, i;
 
 		assert(pageind + npages <= chunk_npages);
 		assert(ndirty >= npages);
 		if (config_debug)
 			ndirty -= npages;
-
-		pages_purge((void *)((uintptr_t)chunk + (pageind << LG_PAGE)),
-		    (npages << LG_PAGE));
+		unzeroed = pages_purge((void *)((uintptr_t)chunk + (pageind <<
+		    LG_PAGE)), (npages << LG_PAGE));
+		flag_unzeroed = unzeroed ? CHUNK_MAP_UNZEROED : 0;
+		/*
+		 * Set the unzeroed flag for all pages, now that pages_purge()
+		 * has returned whether the pages were zeroed as a side effect
+		 * of purging.  This chunk map modification is safe even though
+		 * the arena mutex isn't currently owned by this thread,
+		 * because the run is marked as allocated, thus protecting it
+		 * from being modified by any other thread.  As long as these
+		 * writes don't perturb the first and last elements'
+		 * CHUNK_MAP_ALLOCATED bits, behavior is well defined.
+		 */
+		for (i = 0; i < npages; i++) {
+			arena_mapbits_unzeroed_set(chunk, pageind+i,
+			    flag_unzeroed);
+		}
 		if (config_stats)
 			nmadvise++;
 	}
@@ -1629,52 +1619,6 @@ arena_dalloc_small(arena_t *arena, arena_chunk_t *chunk, void *ptr,
 	mapelm = arena_mapp_get(chunk, pageind);
 	arena_dalloc_bin(arena, chunk, ptr, pageind, mapelm);
 }
-void
-arena_stats_merge(arena_t *arena, size_t *nactive, size_t *ndirty,
-    arena_stats_t *astats, malloc_bin_stats_t *bstats,
-    malloc_large_stats_t *lstats)
-{
-	unsigned i;
-
-	malloc_mutex_lock(&arena->lock);
-	*nactive += arena->nactive;
-	*ndirty += arena->ndirty;
-
-	astats->mapped += arena->stats.mapped;
-	astats->npurge += arena->stats.npurge;
-	astats->nmadvise += arena->stats.nmadvise;
-	astats->purged += arena->stats.purged;
-	astats->allocated_large += arena->stats.allocated_large;
-	astats->nmalloc_large += arena->stats.nmalloc_large;
-	astats->ndalloc_large += arena->stats.ndalloc_large;
-	astats->nrequests_large += arena->stats.nrequests_large;
-
-	for (i = 0; i < nlclasses; i++) {
-		lstats[i].nmalloc += arena->stats.lstats[i].nmalloc;
-		lstats[i].ndalloc += arena->stats.lstats[i].ndalloc;
-		lstats[i].nrequests += arena->stats.lstats[i].nrequests;
-		lstats[i].curruns += arena->stats.lstats[i].curruns;
-	}
-	malloc_mutex_unlock(&arena->lock);
-
-	for (i = 0; i < NBINS; i++) {
-		arena_bin_t *bin = &arena->bins[i];
-
-		malloc_mutex_lock(&bin->lock);
-		bstats[i].allocated += bin->stats.allocated;
-		bstats[i].nmalloc += bin->stats.nmalloc;
-		bstats[i].ndalloc += bin->stats.ndalloc;
-		bstats[i].nrequests += bin->stats.nrequests;
-		if (config_tcache) {
-			bstats[i].nfills += bin->stats.nfills;
-			bstats[i].nflushes += bin->stats.nflushes;
-		}
-		bstats[i].nruns += bin->stats.nruns;
-		bstats[i].reruns += bin->stats.reruns;
-		bstats[i].curruns += bin->stats.curruns;
-		malloc_mutex_unlock(&bin->lock);
-	}
-}
 
 void
 arena_dalloc_large_locked(arena_t *arena, arena_chunk_t *chunk, void *ptr)
@@ -1887,8 +1831,9 @@ arena_ralloc_no_move(void *ptr, size_t oldsize, size_t size, size_t extra,
 }
 
 void *
-arena_ralloc(void *ptr, size_t oldsize, size_t size, size_t extra,
-    size_t alignment, bool zero, bool try_tcache)
+arena_ralloc(arena_t *arena, void *ptr, size_t oldsize, size_t size,
+    size_t extra, size_t alignment, bool zero, bool try_tcache_alloc,
+    bool try_tcache_dalloc)
 {
 	void *ret;
 	size_t copysize;
@@ -1907,9 +1852,9 @@ arena_ralloc(void *ptr, size_t oldsize, size_t size, size_t extra,
 		size_t usize = sa2u(size + extra, alignment);
 		if (usize == 0)
 			return (NULL);
-		ret = ipalloc(usize, alignment, zero);
+		ret = ipallocx(usize, alignment, zero, try_tcache_alloc, arena);
 	} else
-		ret = arena_malloc(NULL, size + extra, zero, try_tcache);
+		ret = arena_malloc(arena, size + extra, zero, try_tcache_alloc);
 
 	if (ret == NULL) {
 		if (extra == 0)
@@ -1919,9 +1864,10 @@ arena_ralloc(void *ptr, size_t oldsize, size_t size, size_t extra,
 			size_t usize = sa2u(size, alignment);
 			if (usize == 0)
 				return (NULL);
-			ret = ipalloc(usize, alignment, zero);
+			ret = ipallocx(usize, alignment, zero, try_tcache_alloc,
+			    arena);
 		} else
-			ret = arena_malloc(NULL, size, zero, try_tcache);
+			ret = arena_malloc(arena, size, zero, try_tcache_alloc);
 
 		if (ret == NULL)
 			return (NULL);
@@ -1936,8 +1882,76 @@ arena_ralloc(void *ptr, size_t oldsize, size_t size, size_t extra,
 	copysize = (size < oldsize) ? size : oldsize;
 	VALGRIND_MAKE_MEM_UNDEFINED(ret, copysize);
 	memcpy(ret, ptr, copysize);
-	iqalloc(ptr);
+	iqallocx(ptr, try_tcache_dalloc);
 	return (ret);
+}
+
+dss_prec_t
+arena_dss_prec_get(arena_t *arena)
+{
+	dss_prec_t ret;
+
+	malloc_mutex_lock(&arena->lock);
+	ret = arena->dss_prec;
+	malloc_mutex_unlock(&arena->lock);
+	return (ret);
+}
+
+void
+arena_dss_prec_set(arena_t *arena, dss_prec_t dss_prec)
+{
+
+	malloc_mutex_lock(&arena->lock);
+	arena->dss_prec = dss_prec;
+	malloc_mutex_unlock(&arena->lock);
+}
+
+void
+arena_stats_merge(arena_t *arena, const char **dss, size_t *nactive,
+    size_t *ndirty, arena_stats_t *astats, malloc_bin_stats_t *bstats,
+    malloc_large_stats_t *lstats)
+{
+	unsigned i;
+
+	malloc_mutex_lock(&arena->lock);
+	*dss = dss_prec_names[arena->dss_prec];
+	*nactive += arena->nactive;
+	*ndirty += arena->ndirty;
+
+	astats->mapped += arena->stats.mapped;
+	astats->npurge += arena->stats.npurge;
+	astats->nmadvise += arena->stats.nmadvise;
+	astats->purged += arena->stats.purged;
+	astats->allocated_large += arena->stats.allocated_large;
+	astats->nmalloc_large += arena->stats.nmalloc_large;
+	astats->ndalloc_large += arena->stats.ndalloc_large;
+	astats->nrequests_large += arena->stats.nrequests_large;
+
+	for (i = 0; i < nlclasses; i++) {
+		lstats[i].nmalloc += arena->stats.lstats[i].nmalloc;
+		lstats[i].ndalloc += arena->stats.lstats[i].ndalloc;
+		lstats[i].nrequests += arena->stats.lstats[i].nrequests;
+		lstats[i].curruns += arena->stats.lstats[i].curruns;
+	}
+	malloc_mutex_unlock(&arena->lock);
+
+	for (i = 0; i < NBINS; i++) {
+		arena_bin_t *bin = &arena->bins[i];
+
+		malloc_mutex_lock(&bin->lock);
+		bstats[i].allocated += bin->stats.allocated;
+		bstats[i].nmalloc += bin->stats.nmalloc;
+		bstats[i].ndalloc += bin->stats.ndalloc;
+		bstats[i].nrequests += bin->stats.nrequests;
+		if (config_tcache) {
+			bstats[i].nfills += bin->stats.nfills;
+			bstats[i].nflushes += bin->stats.nflushes;
+		}
+		bstats[i].nruns += bin->stats.nruns;
+		bstats[i].reruns += bin->stats.reruns;
+		bstats[i].curruns += bin->stats.curruns;
+		malloc_mutex_unlock(&bin->lock);
+	}
 }
 
 bool
@@ -1967,6 +1981,8 @@ arena_new(arena_t *arena, unsigned ind)
 
 	if (config_prof)
 		arena->prof_accumbytes = 0;
+
+	arena->dss_prec = chunk_dss_prec_get();
 
 	/* Initialize chunks. */
 	ql_new(&arena->chunks_dirty);
