@@ -1512,7 +1512,9 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         application.  This is a multiple of the page size, and greater than or
         equal to <link
         linkend="stats.allocated"><mallctl>stats.allocated</mallctl></link>.
-        </para></listitem>
+        This does not include <link linkend="stats.arenas.i.pdirty">
+        <mallctl>stats.arenas.&lt;i&gt;.pdirty</mallctl></link> and pages
+        entirely devoted to allocator metadata.</para></listitem>
       </varlistentry>
 
       <varlistentry>
@@ -1628,7 +1630,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         <listitem><para>Number of pages in active runs.</para></listitem>
       </varlistentry>
 
-      <varlistentry>
+      <varlistentry id="stats.arenas.i.pdirty">
         <term>
           <mallctl>stats.arenas.&lt;i&gt;.pdirty</mallctl>
           (<type>size_t</type>)
