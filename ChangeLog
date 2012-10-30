@@ -8,9 +8,14 @@ found in the git revision history:
 
 * 3.x.x (XXX Not released)
 
+  Incompatible changes:
+  - Change the "opt.lg_dirty_mult" from 5 to 3 (32:1 to 8:1).
+
   Bug fixes:
   - Fix dss/mmap allocation precedence code to use recyclable mmap memory only
     after primary dss allocation fails.
+  - Fix deadlock in the "arenas.purge" mallctl.  This regression was introduced
+    in 3.1.0 by the addition of the "arena.<i>.purge" mallctl.
 
 * 3.1.0 (October 16, 2012)
 

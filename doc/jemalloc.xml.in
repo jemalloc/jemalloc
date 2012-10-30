@@ -833,7 +833,7 @@ for (i = 0; i < nbins; i++) {
         <manvolnum>2</manvolnum></citerefentry> or a similar system call.  This
         provides the kernel with sufficient information to recycle dirty pages
         if physical memory becomes scarce and the pages remain unused.  The
-        default minimum ratio is 32:1 (2^5:1); an option value of -1 will
+        default minimum ratio is 8:1 (2^3:1); an option value of -1 will
         disable dirty page purging.</para></listitem>
       </varlistentry>
 
