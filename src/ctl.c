@@ -113,7 +113,7 @@ CTL_PROTO(opt_prof_final)
 CTL_PROTO(opt_prof_leak)
 CTL_PROTO(opt_prof_accum)
 CTL_PROTO(arena_i_purge)
-static int	arena_purge(unsigned arena_ind);
+static void	arena_purge(unsigned arena_ind);
 CTL_PROTO(arena_i_dss)
 INDEX_PROTO(arena_i)
 CTL_PROTO(arenas_bin_i_size)
@@ -1274,35 +1274,27 @@ CTL_RO_NL_CGEN(config_prof, opt_prof_accum, opt_prof_accum, bool)
 
 /******************************************************************************/
 
-static int
+/* ctl_mutex must be held during execution of this function. */
+static void
 arena_purge(unsigned arena_ind)
 {
-	int ret;
+	VARIABLE_ARRAY(arena_t *, tarenas, ctl_stats.narenas);
 
-	malloc_mutex_lock(&ctl_mtx);
-	{
-		VARIABLE_ARRAY(arena_t *, tarenas, ctl_stats.narenas);
+	malloc_mutex_lock(&arenas_lock);
+	memcpy(tarenas, arenas, sizeof(arena_t *) * ctl_stats.narenas);
+	malloc_mutex_unlock(&arenas_lock);
 
-		malloc_mutex_lock(&arenas_lock);
-		memcpy(tarenas, arenas, sizeof(arena_t *) * ctl_stats.narenas);
-		malloc_mutex_unlock(&arenas_lock);
-
-		if (arena_ind == ctl_stats.narenas) {
-			unsigned i;
-			for (i = 0; i < ctl_stats.narenas; i++) {
-				if (tarenas[i] != NULL)
-					arena_purge_all(tarenas[i]);
-			}
-		} else {
-			assert(arena_ind < ctl_stats.narenas);
-			if (tarenas[arena_ind] != NULL)
-				arena_purge_all(tarenas[arena_ind]);
+	if (arena_ind == ctl_stats.narenas) {
+		unsigned i;
+		for (i = 0; i < ctl_stats.narenas; i++) {
+			if (tarenas[i] != NULL)
+				arena_purge_all(tarenas[i]);
 		}
+	} else {
+		assert(arena_ind < ctl_stats.narenas);
+		if (tarenas[arena_ind] != NULL)
+			arena_purge_all(tarenas[arena_ind]);
 	}
-
-	ret = 0;
-	malloc_mutex_unlock(&ctl_mtx);
-	return (ret);
 }
 
 static int
@@ -1313,8 +1305,11 @@ arena_i_purge_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
 
 	READONLY();
 	WRITEONLY();
-	ret = arena_purge(mib[1]);
+	malloc_mutex_lock(&ctl_mtx);
+	arena_purge(mib[1]);
+	malloc_mutex_unlock(&ctl_mtx);
 
+	ret = 0;
 label_return:
 	return (ret);
 }
@@ -1483,7 +1478,8 @@ arenas_purge_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
 	else {
 		if (arena_ind == UINT_MAX)
 			arena_ind = ctl_stats.narenas;
-		ret = arena_purge(arena_ind);
+		arena_purge(arena_ind);
+		ret = 0;
 	}
 
 label_return:
