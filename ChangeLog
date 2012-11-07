@@ -6,10 +6,14 @@ found in the git revision history:
     http://www.canonware.com/cgi-bin/gitweb.cgi?p=jemalloc.git
     git://canonware.com/jemalloc.git
 
-* 3.x.x (XXX Not released)
+* 3.2.0 (November 9, 2012)
+
+  In addition to a couple of bug fixes, this version modifies page run
+  allocation and dirty page purging algorithms in order to better control
+  page-level virtual memory fragmentation.
 
   Incompatible changes:
-  - Change the "opt.lg_dirty_mult" from 5 to 3 (32:1 to 8:1).
+  - Change the "opt.lg_dirty_mult" default from 5 to 3 (32:1 to 8:1).
 
   Bug fixes:
   - Fix dss/mmap allocation precedence code to use recyclable mmap memory only
