@@ -138,14 +138,22 @@ rb_gen(static UNUSED, arena_avail_tree_, arena_avail_tree_t, arena_chunk_map_t,
 static inline int
 arena_chunk_dirty_comp(arena_chunk_t *a, arena_chunk_t *b)
 {
-	size_t a_val, b_val;
 
 	assert(a != NULL);
 	assert(b != NULL);
 
 	/*
+	 * Short-circuit for self comparison.  The following comparison code
+	 * would come to the same result, but at the cost of executing the slow
+	 * path.
+	 */
+	if (a == b)
+		return (0);
+
+	/*
 	 * Order such that chunks with higher fragmentation are "less than"
-	 * those with lower fragmentation.  Fragmentation is measured as:
+	 * those with lower fragmentation -- purging order is from "least" to
+	 * "greatest".  Fragmentation is measured as:
 	 *
 	 *     mean current avail run size
 	 *   --------------------------------
@@ -163,18 +171,33 @@ arena_chunk_dirty_comp(arena_chunk_t *a, arena_chunk_t *b)
 	 * comparison, in order to avoid division.
 	 *
 	 */
-	a_val = (a->nruns_avail - a->nruns_adjac) * b->nruns_avail;
-	b_val = (b->nruns_avail - b->nruns_adjac) * a->nruns_avail;
-	if (a_val < b_val)
-		return (1);
-	if (a_val > b_val)
-		return (-1);
-	/* Break ties by chunk address. */
+	{
+		size_t a_val = (a->nruns_avail - a->nruns_adjac) *
+		    b->nruns_avail;
+		size_t b_val = (b->nruns_avail - b->nruns_adjac) *
+		    a->nruns_avail;
+
+		if (a_val < b_val)
+			return (1);
+		if (a_val > b_val)
+			return (-1);
+	}
+	/*
+	 * Break ties by chunk address.  For fragmented chunks, report lower
+	 * addresses as "lower", so that fragmentation reduction happens first
+	 * at lower addresses.  However, use the opposite ordering for
+	 * unfragmented chunks, in order to increase the chances of
+	 * re-allocating dirty runs.
+	 */
 	{
 		uintptr_t a_chunk = (uintptr_t)a;
 		uintptr_t b_chunk = (uintptr_t)b;
-
-		return ((a_chunk > b_chunk) - (a_chunk < b_chunk));
+		int ret = ((a_chunk > b_chunk) - (a_chunk < b_chunk));
+		if (a->nruns_adjac == 0) {
+			assert(b->nruns_adjac == 0);
+			ret = -ret;
+		}
+		return (ret);
 	}
 }
 
