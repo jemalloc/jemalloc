@@ -146,40 +146,28 @@ chunk_alloc(size_t size, size_t alignment, bool base, bool *zero,
 	assert(alignment != 0);
 	assert((alignment & chunksize_mask) == 0);
 
-	/*
-	 * Try to recycle an existing mapping.
-	 */
-
 	/* "primary" dss. */
-	if (config_dss && dss_prec == dss_prec_primary && (ret =
-	    chunk_recycle(&chunks_szad_dss, &chunks_ad_dss, size, alignment,
-	    base, zero)) != NULL)
-		goto label_return;
+	if (config_dss && dss_prec == dss_prec_primary) {
+		if ((ret = chunk_recycle(&chunks_szad_dss, &chunks_ad_dss, size,
+		    alignment, base, zero)) != NULL)
+			goto label_return;
+		if ((ret = chunk_alloc_dss(size, alignment, zero)) != NULL)
+			goto label_return;
+	}
 	/* mmap. */
 	if ((ret = chunk_recycle(&chunks_szad_mmap, &chunks_ad_mmap, size,
 	    alignment, base, zero)) != NULL)
 		goto label_return;
-	/* "secondary" dss. */
-	if (config_dss && dss_prec == dss_prec_secondary && (ret =
-	    chunk_recycle(&chunks_szad_dss, &chunks_ad_dss, size, alignment,
-	    base, zero)) != NULL)
-		goto label_return;
-
-	/*
-	 * Try to allocate a new mapping.
-	 */
-
-	/* "primary" dss. */
-	if (config_dss && dss_prec == dss_prec_primary && (ret =
-	    chunk_alloc_dss(size, alignment, zero)) != NULL)
-		goto label_return;
-	/* mmap. */
 	if ((ret = chunk_alloc_mmap(size, alignment, zero)) != NULL)
 		goto label_return;
 	/* "secondary" dss. */
-	if (config_dss && dss_prec == dss_prec_secondary && (ret =
-	    chunk_alloc_dss(size, alignment, zero)) != NULL)
-		goto label_return;
+	if (config_dss && dss_prec == dss_prec_secondary) {
+		if ((ret = chunk_recycle(&chunks_szad_dss, &chunks_ad_dss, size,
+		    alignment, base, zero)) != NULL)
+			goto label_return;
+		if ((ret = chunk_alloc_dss(size, alignment, zero)) != NULL)
+			goto label_return;
+	}
 
 	/* All strategies for allocation failed. */
 	ret = NULL;
