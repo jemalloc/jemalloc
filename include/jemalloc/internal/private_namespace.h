@@ -41,6 +41,8 @@
 #define	arena_postfork_parent JEMALLOC_N(arena_postfork_parent)
 #define	arena_prefork JEMALLOC_N(arena_prefork)
 #define	arena_prof_accum JEMALLOC_N(arena_prof_accum)
+#define	arena_prof_accum_impl JEMALLOC_N(arena_prof_accum_impl)
+#define	arena_prof_accum_locked JEMALLOC_N(arena_prof_accum_locked)
 #define	arena_prof_ctx_get JEMALLOC_N(arena_prof_ctx_get)
 #define	arena_prof_ctx_set JEMALLOC_N(arena_prof_ctx_set)
 #define	arena_prof_promoted JEMALLOC_N(arena_prof_promoted)

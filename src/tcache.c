@@ -97,9 +97,7 @@ tcache_bin_flush_small(tcache_bin_t *tbin, size_t binind, unsigned rem,
 		arena_bin_t *bin = &arena->bins[binind];
 
 		if (config_prof && arena == tcache->arena) {
-			malloc_mutex_lock(&arena->lock);
 			arena_prof_accum(arena, tcache->prof_accumbytes);
-			malloc_mutex_unlock(&arena->lock);
 			tcache->prof_accumbytes = 0;
 		}
 
@@ -180,7 +178,7 @@ tcache_bin_flush_large(tcache_bin_t *tbin, size_t binind, unsigned rem,
 		malloc_mutex_lock(&arena->lock);
 		if ((config_prof || config_stats) && arena == tcache->arena) {
 			if (config_prof) {
-				arena_prof_accum(arena,
+				arena_prof_accum_locked(arena,
 				    tcache->prof_accumbytes);
 				tcache->prof_accumbytes = 0;
 			}
@@ -343,11 +341,8 @@ tcache_destroy(tcache_t *tcache)
 		}
 	}
 
-	if (config_prof && tcache->prof_accumbytes > 0) {
-		malloc_mutex_lock(&tcache->arena->lock);
+	if (config_prof && tcache->prof_accumbytes > 0)
 		arena_prof_accum(tcache->arena, tcache->prof_accumbytes);
-		malloc_mutex_unlock(&tcache->arena->lock);
-	}
 
 	tcache_size = arena_salloc(tcache, false);
 	if (tcache_size <= SMALL_MAXCLASS) {

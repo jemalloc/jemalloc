@@ -400,7 +400,6 @@ extern arena_bin_info_t	arena_bin_info[NBINS];
 #define			nlclasses (chunk_npages - map_bias)
 
 void	arena_purge_all(arena_t *arena);
-void	arena_prof_accum(arena_t *arena, uint64_t accumbytes);
 void	arena_tcache_fill_small(arena_t *arena, tcache_bin_t *tbin,
     size_t binind, uint64_t prof_accumbytes);
 void	arena_alloc_junk_small(void *ptr, arena_bin_info_t *bin_info,
@@ -464,6 +463,9 @@ void	arena_mapbits_small_set(arena_chunk_t *chunk, size_t pageind,
     size_t runind, size_t binind, size_t flags);
 void	arena_mapbits_unzeroed_set(arena_chunk_t *chunk, size_t pageind,
     size_t unzeroed);
+void	arena_prof_accum_impl(arena_t *arena, uint64_t accumbytes);
+void	arena_prof_accum_locked(arena_t *arena, uint64_t accumbytes);
+void	arena_prof_accum(arena_t *arena, uint64_t accumbytes);
 size_t	arena_ptr_small_binind_get(const void *ptr, size_t mapbits);
 size_t	arena_bin_index(arena_t *arena, arena_bin_t *bin);
 unsigned	arena_run_regind(arena_run_t *run, arena_bin_info_t *bin_info,
@@ -659,6 +661,44 @@ arena_mapbits_unzeroed_set(arena_chunk_t *chunk, size_t pageind,
 
 	mapbitsp = arena_mapbitsp_get(chunk, pageind);
 	*mapbitsp = (*mapbitsp & ~CHUNK_MAP_UNZEROED) | unzeroed;
+}
+
+JEMALLOC_INLINE void
+arena_prof_accum_impl(arena_t *arena, uint64_t accumbytes)
+{
+
+	cassert(config_prof);
+	assert(prof_interval != 0);
+
+	arena->prof_accumbytes += accumbytes;
+	if (arena->prof_accumbytes >= prof_interval) {
+		prof_idump();
+		arena->prof_accumbytes -= prof_interval;
+	}
+}
+
+JEMALLOC_INLINE void
+arena_prof_accum_locked(arena_t *arena, uint64_t accumbytes)
+{
+
+	cassert(config_prof);
+
+	if (prof_interval == 0)
+		return;
+	arena_prof_accum_impl(arena, accumbytes);
+}
+
+JEMALLOC_INLINE void
+arena_prof_accum(arena_t *arena, uint64_t accumbytes)
+{
+
+	cassert(config_prof);
+
+	if (prof_interval == 0)
+		return;
+	malloc_mutex_lock(&arena->lock);
+	arena_prof_accum_impl(arena, accumbytes);
+	malloc_mutex_unlock(&arena->lock);
 }
 
 JEMALLOC_INLINE size_t

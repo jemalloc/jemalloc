@@ -1322,21 +1322,6 @@ arena_bin_malloc_hard(arena_t *arena, arena_bin_t *bin)
 }
 
 void
-arena_prof_accum(arena_t *arena, uint64_t accumbytes)
-{
-
-	cassert(config_prof);
-
-	if (config_prof && prof_interval != 0) {
-		arena->prof_accumbytes += accumbytes;
-		if (arena->prof_accumbytes >= prof_interval) {
-			prof_idump();
-			arena->prof_accumbytes -= prof_interval;
-		}
-	}
-}
-
-void
 arena_tcache_fill_small(arena_t *arena, tcache_bin_t *tbin, size_t binind,
     uint64_t prof_accumbytes)
 {
@@ -1347,11 +1332,8 @@ arena_tcache_fill_small(arena_t *arena, tcache_bin_t *tbin, size_t binind,
 
 	assert(tbin->ncached == 0);
 
-	if (config_prof) {
-		malloc_mutex_lock(&arena->lock);
+	if (config_prof)
 		arena_prof_accum(arena, prof_accumbytes);
-		malloc_mutex_unlock(&arena->lock);
-	}
 	bin = &arena->bins[binind];
 	malloc_mutex_lock(&bin->lock);
 	for (i = 0, nfill = (tcache_bin_info[binind].ncached_max >>
@@ -1459,11 +1441,8 @@ arena_malloc_small(arena_t *arena, size_t size, bool zero)
 		bin->stats.nrequests++;
 	}
 	malloc_mutex_unlock(&bin->lock);
-	if (config_prof && isthreaded == false) {
-		malloc_mutex_lock(&arena->lock);
+	if (config_prof && isthreaded == false)
 		arena_prof_accum(arena, size);
-		malloc_mutex_unlock(&arena->lock);
-	}
 
 	if (zero == false) {
 		if (config_fill) {
@@ -1507,7 +1486,7 @@ arena_malloc_large(arena_t *arena, size_t size, bool zero)
 		arena->stats.lstats[(size >> LG_PAGE) - 1].curruns++;
 	}
 	if (config_prof)
-		arena_prof_accum(arena, size);
+		arena_prof_accum_locked(arena, size);
 	malloc_mutex_unlock(&arena->lock);
 
 	if (zero == false) {
