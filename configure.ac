@@ -471,6 +471,13 @@ for stem in ${public_syms}; do
   AC_DEFINE_UNQUOTED([${n}], [${m}])
 done
 
+AC_ARG_WITH([export],
+  [AS_HELP_STRING([--without-export], [disable exporting jemalloc public APIs])],
+  [if test "x$with_export" = "xno"; then
+  AC_DEFINE([JEMALLOC_EXPORT],[])]
+fi]
+)
+
 dnl Do not mangle library-private APIs by default.
 AC_ARG_WITH([private_namespace],
   [AS_HELP_STRING([--with-private-namespace=<prefix>], [Prefix to prepend to all library-private APIs])],

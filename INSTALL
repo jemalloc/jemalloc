@@ -55,6 +55,11 @@ any of the following arguments (not a definitive list) to 'configure':
     jemalloc overlays the default malloc zone, but makes no attempt to actually
     replace the "malloc", "calloc", etc. symbols.
 
+--without-export
+    Don't export public APIs. This can be useful when building jemalloc as a
+    static library, or to avoid exporting public APIs when using the zone
+    allocator on OSX.
+
 --with-private-namespace=<prefix>
     Prefix all library-private APIs with <prefix>.  For shared libraries,
     symbol visibility mechanisms prevent these symbols from being exported, but
