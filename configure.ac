@@ -1185,7 +1185,26 @@ fi
 dnl ============================================================================
 dnl Darwin-related configuration.
 
-if test "x${abi}" = "xmacho" ; then
+AC_ARG_ENABLE([zone-allocator],
+  [AS_HELP_STRING([--disable-zone-allocator],
+                  [Disable zone allocator for Darwin])],
+[if test "x$enable_zone_allocator" = "xno" ; then
+  enable_zone_allocator="0"
+else
+  enable_zone_allocator="1"
+fi
+],
+[if test "x${abi}" = "xmacho"; then
+  enable_zone_allocator="1"
+fi
+]
+)
+AC_SUBST([enable_zone_allocator])
+
+if test "x${enable_zone_allocator}" = "x1" ; then
+  if test "x${abi}" != "xmacho"; then
+    AC_MSG_ERROR([--enable-zone-allocator is only supported on Darwin])
+  fi
   AC_DEFINE([JEMALLOC_IVSALLOC], [ ])
   AC_DEFINE([JEMALLOC_ZONE], [ ])
 

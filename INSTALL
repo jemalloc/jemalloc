@@ -141,6 +141,10 @@ any of the following arguments (not a definitive list) to 'configure':
 --disable-experimental
     Disable support for the experimental API (*allocm()).
 
+--disable-zone-allocator
+    Disable zone allocator for Darwin. This means jemalloc won't be hooked as
+    the default allocator on OSX/iOS.
+
 --enable-utrace
     Enable utrace(2)-based allocation tracing.  This feature is not broadly
     portable (FreeBSD has it, but Linux and OS X do not).

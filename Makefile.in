@@ -48,6 +48,7 @@ cfgoutputs_in := @cfgoutputs_in@
 cfgoutputs_out := @cfgoutputs_out@
 enable_autogen := @enable_autogen@
 enable_experimental := @enable_experimental@
+enable_zone_allocator := @enable_zone_allocator@
 DSO_LDFLAGS = @DSO_LDFLAGS@
 SOREV = @SOREV@
 PIC_CFLAGS = @PIC_CFLAGS@
@@ -80,7 +81,7 @@ CSRCS := $(srcroot)src/jemalloc.c $(srcroot)src/arena.c $(srcroot)src/atomic.c \
 	$(srcroot)src/mutex.c $(srcroot)src/prof.c $(srcroot)src/quarantine.c \
 	$(srcroot)src/rtree.c $(srcroot)src/stats.c $(srcroot)src/tcache.c \
 	$(srcroot)src/util.c $(srcroot)src/tsd.c
-ifeq (macho, $(ABI))
+ifeq ($(enable_zone_allocator), 1)
 CSRCS += $(srcroot)src/zone.c
 endif
 ifeq ($(IMPORTLIB),$(SO))
