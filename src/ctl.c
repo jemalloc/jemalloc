@@ -960,11 +960,11 @@ ctl_postfork_child(void)
 		if (*oldlenp != sizeof(t)) {				\
 			size_t	copylen = (sizeof(t) <= *oldlenp)	\
 			    ? sizeof(t) : *oldlenp;			\
-			memcpy(oldp, (void *)&v, copylen);		\
+			memcpy(oldp, (void *)&(v), copylen);		\
 			ret = EINVAL;					\
 			goto label_return;				\
 		} else							\
-			*(t *)oldp = v;					\
+			*(t *)oldp = (v);				\
 	}								\
 } while (0)
 
@@ -974,7 +974,7 @@ ctl_postfork_child(void)
 			ret = EINVAL;					\
 			goto label_return;				\
 		}							\
-		v = *(t *)newp;						\
+		(v) = *(t *)newp;					\
 	}								\
 } while (0)
 
@@ -995,7 +995,7 @@ n##_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,	\
 	if (l)								\
 		malloc_mutex_lock(&ctl_mtx);				\
 	READONLY();							\
-	oldval = v;							\
+	oldval = (v);							\
 	READ(oldval, t);						\
 									\
 	ret = 0;							\
@@ -1017,7 +1017,7 @@ n##_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,	\
 		return (ENOENT);					\
 	malloc_mutex_lock(&ctl_mtx);					\
 	READONLY();							\
-	oldval = v;							\
+	oldval = (v);							\
 	READ(oldval, t);						\
 									\
 	ret = 0;							\
@@ -1036,7 +1036,7 @@ n##_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,	\
 									\
 	malloc_mutex_lock(&ctl_mtx);					\
 	READONLY();							\
-	oldval = v;							\
+	oldval = (v);							\
 	READ(oldval, t);						\
 									\
 	ret = 0;							\
@@ -1060,7 +1060,7 @@ n##_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,	\
 	if ((c) == false)						\
 		return (ENOENT);					\
 	READONLY();							\
-	oldval = v;							\
+	oldval = (v);							\
 	READ(oldval, t);						\
 									\
 	ret = 0;							\
@@ -1077,7 +1077,7 @@ n##_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,	\
 	t oldval;							\
 									\
 	READONLY();							\
-	oldval = v;							\
+	oldval = (v);							\
 	READ(oldval, t);						\
 									\
 	ret = 0;							\
@@ -1492,6 +1492,7 @@ arenas_extend_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
     void *newp, size_t newlen)
 {
 	int ret;
+	unsigned narenas;
 
 	malloc_mutex_lock(&ctl_mtx);
 	READONLY();
@@ -1499,7 +1500,8 @@ arenas_extend_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
 		ret = EAGAIN;
 		goto label_return;
 	}
-	READ(ctl_stats.narenas - 1, unsigned);
+	narenas = ctl_stats.narenas - 1;
+	READ(narenas, unsigned);
 
 	ret = 0;
 label_return:

@@ -6,6 +6,11 @@ found in the git revision history:
     http://www.canonware.com/cgi-bin/gitweb.cgi?p=jemalloc.git
     git://canonware.com/jemalloc.git
 
+* 3.x.x (Not yet released)
+
+  Bug fixes:
+  - Fix "arenas.extend" mallctl to output the number of arenas.
+
 * 3.2.0 (November 9, 2012)
 
   In addition to a couple of bug fixes, this version modifies page run
