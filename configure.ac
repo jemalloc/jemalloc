@@ -928,7 +928,7 @@ AC_CACHE_CHECK([STATIC_PAGE_SHIFT],
 #include <stdio.h>
 ]],
 [[
-    long result;
+    int result;
     FILE *f;
 
 #ifdef _WIN32
@@ -947,7 +947,7 @@ AC_CACHE_CHECK([STATIC_PAGE_SHIFT],
     if (f == NULL) {
 	return 1;
     }
-    fprintf(f, "%u\n", result);
+    fprintf(f, "%d\n", result);
     fclose(f);
 
     return 0;
@@ -1092,11 +1092,13 @@ dnl Check for ffsl(3), and fail if not found.  This function exists on all
 dnl platforms that jemalloc currently has a chance of functioning on without
 dnl modification.
 JE_COMPILABLE([a program using ffsl], [
+#include <stdio.h>
 #include <strings.h>
 #include <string.h>
 ], [
 	{
 		int rv = ffsl(0x08);
+		printf("%d\n", rv);
 	}
 ], [je_cv_function_ffsl])
 if test "x${je_cv_function_ffsl}" != "xyes" ; then
