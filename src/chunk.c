@@ -122,10 +122,9 @@ chunk_recycle(extent_tree_t *chunks_szad, extent_tree_t *chunks_ad, size_t size,
 		}
 		base_node_dealloc(node);
 	}
-	if (zeroed == false && *zero) {
-		VALGRIND_MAKE_MEM_UNDEFINED(ret, size);
+	VALGRIND_MAKE_MEM_UNDEFINED(ret, size);
+	if (zeroed == false && *zero)
 		memset(ret, 0, size);
-	}
 	return (ret);
 }
 
