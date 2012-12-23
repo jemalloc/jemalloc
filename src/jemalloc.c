@@ -469,7 +469,7 @@ malloc_conf_init(void)
 
 		while (*opts != '\0' && malloc_conf_next(&opts, &k, &klen, &v,
 		    &vlen) == false) {
-#define	CONF_HANDLE_BOOL_HIT(o, n, hit)					\
+#define	CONF_HANDLE_BOOL(o, n)						\
 			if (sizeof(n)-1 == klen && strncmp(n, k,	\
 			    klen) == 0) {				\
 				if (strncmp("true", v, vlen) == 0 &&	\
@@ -483,16 +483,9 @@ malloc_conf_init(void)
 					    "Invalid conf value",	\
 					    k, klen, v, vlen);		\
 				}					\
-				hit = true;				\
-			} else						\
-				hit = false;
-#define	CONF_HANDLE_BOOL(o, n) {					\
-			bool hit;					\
-			CONF_HANDLE_BOOL_HIT(o, n, hit);		\
-			if (hit)					\
 				continue;				\
-}
-#define	CONF_HANDLE_SIZE_T(o, n, min, max)				\
+			}
+#define	CONF_HANDLE_SIZE_T(o, n, min, max, clip)			\
 			if (sizeof(n)-1 == klen && strncmp(n, k,	\
 			    klen) == 0) {				\
 				uintmax_t um;				\
@@ -505,12 +498,22 @@ malloc_conf_init(void)
 					malloc_conf_error(		\
 					    "Invalid conf value",	\
 					    k, klen, v, vlen);		\
-				} else if (um < min || um > max) {	\
-					malloc_conf_error(		\
-					    "Out-of-range conf value",	\
-					    k, klen, v, vlen);		\
-				} else					\
-					o = um;				\
+				} else if (clip) {			\
+					if (um < min)			\
+						o = min;		\
+					else if (um > max)		\
+						o = max;		\
+					else				\
+						o = um;			\
+				} else {				\
+					if (um < min || um > max) {	\
+						malloc_conf_error(	\
+						    "Out-of-range "	\
+						    "conf value",	\
+						    k, klen, v, vlen);	\
+					} else				\
+						o = um;			\
+				}					\
 				continue;				\
 			}
 #define	CONF_HANDLE_SSIZE_T(o, n, min, max)				\
@@ -555,7 +558,8 @@ malloc_conf_init(void)
 			 * config_fill.
 			 */
 			CONF_HANDLE_SIZE_T(opt_lg_chunk, "lg_chunk", LG_PAGE +
-			    (config_fill ? 2 : 1), (sizeof(size_t) << 3) - 1)
+			    (config_fill ? 2 : 1), (sizeof(size_t) << 3) - 1,
+			    true)
 			if (strncmp("dss", k, klen) == 0) {
 				int i;
 				bool match = false;
@@ -581,14 +585,14 @@ malloc_conf_init(void)
 				continue;
 			}
 			CONF_HANDLE_SIZE_T(opt_narenas, "narenas", 1,
-			    SIZE_T_MAX)
+			    SIZE_T_MAX, false)
 			CONF_HANDLE_SSIZE_T(opt_lg_dirty_mult, "lg_dirty_mult",
 			    -1, (sizeof(size_t) << 3) - 1)
 			CONF_HANDLE_BOOL(opt_stats_print, "stats_print")
 			if (config_fill) {
 				CONF_HANDLE_BOOL(opt_junk, "junk")
 				CONF_HANDLE_SIZE_T(opt_quarantine, "quarantine",
-				    0, SIZE_T_MAX)
+				    0, SIZE_T_MAX, false)
 				CONF_HANDLE_BOOL(opt_redzone, "redzone")
 				CONF_HANDLE_BOOL(opt_zero, "zero")
 			}
