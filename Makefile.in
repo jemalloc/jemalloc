@@ -113,9 +113,9 @@ COBJS := $(CSRCS:$(srcroot)%.c=$(objroot)%.$(O))
 CPICOBJS := $(CSRCS:$(srcroot)%.c=$(objroot)%.pic.$(O))
 CTESTOBJS := $(CTESTS:$(srcroot)%.c=$(objroot)%.$(O))
 
-.PHONY: all dist doc_html doc_man doc
+.PHONY: all dist build_doc_html build_doc_man build_doc
 .PHONY: install_bin install_include install_lib
-.PHONY: install_html install_man install_doc install
+.PHONY: install_doc_html install_doc_man install_doc install
 .PHONY: tests check clean distclean relclean
 
 .SECONDARY : $(CTESTOBJS)
