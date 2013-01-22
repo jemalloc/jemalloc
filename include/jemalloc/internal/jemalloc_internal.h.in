@@ -226,6 +226,7 @@ static const bool config_ivsalloc =
 #define	ALLOCM_LG_ALIGN_MASK	((int)0x3f)
 
 #define	ZU(z)	((size_t)z)
+#define	QU(q)	((uint64_t)q)
 
 #ifndef __DECONST
 #  define	__DECONST(type, var)	((type)(uintptr_t)(const void *)(var))
