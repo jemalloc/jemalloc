@@ -86,7 +86,7 @@ MANDIR=`eval echo $MANDIR`
 AC_SUBST([MANDIR])
 
 dnl Support for building documentation.
-AC_PATH_PROG([XSLTPROC], [xsltproc], , [$PATH])
+AC_PATH_PROG([XSLTPROC], [xsltproc], [false], [$PATH])
 if test -d "/usr/share/xml/docbook/stylesheet/docbook-xsl" ; then
   DEFAULT_XSLROOT="/usr/share/xml/docbook/stylesheet/docbook-xsl"
 elif test -d "/usr/share/sgml/docbook/xsl-stylesheets" ; then
@@ -403,9 +403,9 @@ AC_SUBST([enable_autogen])
 
 AC_PROG_INSTALL
 AC_PROG_RANLIB
-AC_PATH_PROG([AR], [ar], , [$PATH])
-AC_PATH_PROG([LD], [ld], , [$PATH])
-AC_PATH_PROG([AUTOCONF], [autoconf], , [$PATH])
+AC_PATH_PROG([AR], [ar], [false], [$PATH])
+AC_PATH_PROG([LD], [ld], [false], [$PATH])
+AC_PATH_PROG([AUTOCONF], [autoconf], [false], [$PATH])
 
 public_syms="malloc_conf malloc_message malloc calloc posix_memalign aligned_alloc realloc free malloc_usable_size malloc_stats_print mallctl mallctlnametomib mallctlbymib"
 
