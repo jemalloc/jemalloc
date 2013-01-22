@@ -320,6 +320,7 @@ tcache_alloc_small(tcache_t *tcache, size_t size, bool zero)
 		}
 		VALGRIND_MAKE_MEM_UNDEFINED(ret, size);
 		memset(ret, 0, size);
+		VALGRIND_MAKE_MEM_UNDEFINED(ret, size);
 	}
 
 	if (config_stats)
@@ -370,6 +371,7 @@ tcache_alloc_large(tcache_t *tcache, size_t size, bool zero)
 		} else {
 			VALGRIND_MAKE_MEM_UNDEFINED(ret, size);
 			memset(ret, 0, size);
+			VALGRIND_MAKE_MEM_UNDEFINED(ret, size);
 		}
 
 		if (config_stats)
