@@ -418,9 +418,8 @@ ckh_delete(ckh_t *ckh)
 #endif
 
 	idalloc(ckh->tab);
-#ifdef JEMALLOC_DEBUG
-	memset(ckh, 0x5a, sizeof(ckh_t));
-#endif
+	if (config_debug)
+		memset(ckh, 0x5a, sizeof(ckh_t));
 }
 
 size_t
