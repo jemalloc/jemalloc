@@ -279,7 +279,7 @@ arenas_cleanup(void *arg)
 	malloc_mutex_unlock(&arenas_lock);
 }
 
-static inline bool
+static JEMALLOC_ATTR(always_inline) bool
 malloc_init(void)
 {
 
@@ -892,7 +892,7 @@ JEMALLOC_ATTR(nonnull(1))
  * Avoid any uncertainty as to how many backtrace frames to ignore in
  * PROF_ALLOC_PREP().
  */
-JEMALLOC_ATTR(noinline)
+JEMALLOC_NOINLINE
 #endif
 static int
 imemalign(void **memptr, size_t alignment, size_t size,
@@ -1378,7 +1378,7 @@ je_mallctlbymib(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
  */
 #ifdef JEMALLOC_EXPERIMENTAL
 
-JEMALLOC_INLINE void *
+static JEMALLOC_ATTR(always_inline) void *
 iallocm(size_t usize, size_t alignment, bool zero, bool try_tcache,
     arena_t *arena)
 {
