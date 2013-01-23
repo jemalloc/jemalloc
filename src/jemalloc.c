@@ -10,8 +10,20 @@ malloc_tsd_data(, thread_allocated, thread_allocated_t,
 
 /* Runtime configuration options. */
 const char	*je_malloc_conf;
-bool	opt_abort = config_debug;
-bool	opt_junk = (config_debug && config_fill);
+bool	opt_abort =
+#ifdef JEMALLOC_DEBUG
+    true
+#else
+    false
+#endif
+    ;
+bool	opt_junk =
+#if (defined(JEMALLOC_DEBUG) && defined(JEMALLOC_FILL))
+    true
+#else
+    false
+#endif
+    ;
 size_t	opt_quarantine = ZU(0);
 bool	opt_redzone = false;
 bool	opt_utrace = false;
