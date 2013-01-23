@@ -475,7 +475,7 @@ done
 AC_ARG_WITH([export],
   [AS_HELP_STRING([--without-export], [disable exporting jemalloc public APIs])],
   [if test "x$with_export" = "xno"; then
-  AC_DEFINE([JEMALLOC_EXPORT],[])]
+  AC_DEFINE([JEMALLOC_EXPORT],[])
 fi]
 )
 
