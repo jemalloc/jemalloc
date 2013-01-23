@@ -359,13 +359,29 @@ arena_run_reg_dalloc(arena_run_t *run, void *ptr)
 }
 
 static inline void
-arena_chunk_validate_zeroed(arena_chunk_t *chunk, size_t run_ind)
+arena_run_zero(arena_chunk_t *chunk, size_t run_ind, size_t npages)
+{
+
+	VALGRIND_MAKE_MEM_UNDEFINED((void *)((uintptr_t)chunk + (run_ind <<
+	    LG_PAGE)), (npages << LG_PAGE));
+	memset((void *)((uintptr_t)chunk + (run_ind << LG_PAGE)), 0,
+	    (npages << LG_PAGE));
+	VALGRIND_MAKE_MEM_UNDEFINED((void *)((uintptr_t)chunk + (run_ind <<
+	    LG_PAGE)), (npages << LG_PAGE));
+}
+
+static inline void
+arena_run_page_validate_zeroed(arena_chunk_t *chunk, size_t run_ind)
 {
 	size_t i;
 	UNUSED size_t *p = (size_t *)((uintptr_t)chunk + (run_ind << LG_PAGE));
 
+	VALGRIND_MAKE_MEM_DEFINED((void *)((uintptr_t)chunk + (run_ind <<
+	    LG_PAGE)), PAGE);
 	for (i = 0; i < PAGE / sizeof(size_t); i++)
 		assert(p[i] == 0);
+	VALGRIND_MAKE_MEM_UNDEFINED((void *)((uintptr_t)chunk + (run_ind <<
+	    LG_PAGE)), PAGE);
 }
 
 static void
@@ -441,19 +457,10 @@ arena_run_split(arena_t *arena, arena_run_t *run, size_t size, bool large,
 				for (i = 0; i < need_pages; i++) {
 					if (arena_mapbits_unzeroed_get(chunk,
 					    run_ind+i) != 0) {
-						VALGRIND_MAKE_MEM_UNDEFINED(
-						    (void *)((uintptr_t)
-						    chunk + ((run_ind+i) <<
-						    LG_PAGE)), PAGE);
-						memset((void *)((uintptr_t)
-						    chunk + ((run_ind+i) <<
-						    LG_PAGE)), 0, PAGE);
+						arena_run_zero(chunk, run_ind+i,
+						    1);
 					} else if (config_debug) {
-						VALGRIND_MAKE_MEM_DEFINED(
-						    (void *)((uintptr_t)
-						    chunk + ((run_ind+i) <<
-						    LG_PAGE)), PAGE);
-						arena_chunk_validate_zeroed(
+						arena_run_page_validate_zeroed(
 						    chunk, run_ind+i);
 					}
 				}
@@ -462,11 +469,7 @@ arena_run_split(arena_t *arena, arena_run_t *run, size_t size, bool large,
 				 * The run is dirty, so all pages must be
 				 * zeroed.
 				 */
-				VALGRIND_MAKE_MEM_UNDEFINED((void
-				    *)((uintptr_t)chunk + (run_ind <<
-				    LG_PAGE)), (need_pages << LG_PAGE));
-				memset((void *)((uintptr_t)chunk + (run_ind <<
-				    LG_PAGE)), 0, (need_pages << LG_PAGE));
+				arena_run_zero(chunk, run_ind, need_pages);
 			}
 		}
 
@@ -492,19 +495,21 @@ arena_run_split(arena_t *arena, arena_run_t *run, size_t size, bool large,
 		 */
 		if (config_debug && flag_dirty == 0 &&
 		    arena_mapbits_unzeroed_get(chunk, run_ind) == 0)
-			arena_chunk_validate_zeroed(chunk, run_ind);
+			arena_run_page_validate_zeroed(chunk, run_ind);
 		for (i = 1; i < need_pages - 1; i++) {
 			arena_mapbits_small_set(chunk, run_ind+i, i, binind, 0);
 			if (config_debug && flag_dirty == 0 &&
-			    arena_mapbits_unzeroed_get(chunk, run_ind+i) == 0)
-				arena_chunk_validate_zeroed(chunk, run_ind+i);
+			    arena_mapbits_unzeroed_get(chunk, run_ind+i) == 0) {
+				arena_run_page_validate_zeroed(chunk,
+				    run_ind+i);
+			}
 		}
 		arena_mapbits_small_set(chunk, run_ind+need_pages-1,
 		    need_pages-1, binind, flag_dirty);
 		if (config_debug && flag_dirty == 0 &&
 		    arena_mapbits_unzeroed_get(chunk, run_ind+need_pages-1) ==
 		    0) {
-			arena_chunk_validate_zeroed(chunk,
+			arena_run_page_validate_zeroed(chunk,
 			    run_ind+need_pages-1);
 		}
 	}
@@ -1322,21 +1327,6 @@ arena_bin_malloc_hard(arena_t *arena, arena_bin_t *bin)
 }
 
 void
-arena_prof_accum(arena_t *arena, uint64_t accumbytes)
-{
-
-	cassert(config_prof);
-
-	if (config_prof && prof_interval != 0) {
-		arena->prof_accumbytes += accumbytes;
-		if (arena->prof_accumbytes >= prof_interval) {
-			prof_idump();
-			arena->prof_accumbytes -= prof_interval;
-		}
-	}
-}
-
-void
 arena_tcache_fill_small(arena_t *arena, tcache_bin_t *tbin, size_t binind,
     uint64_t prof_accumbytes)
 {
@@ -1347,11 +1337,8 @@ arena_tcache_fill_small(arena_t *arena, tcache_bin_t *tbin, size_t binind,
 
 	assert(tbin->ncached == 0);
 
-	if (config_prof) {
-		malloc_mutex_lock(&arena->lock);
+	if (config_prof)
 		arena_prof_accum(arena, prof_accumbytes);
-		malloc_mutex_unlock(&arena->lock);
-	}
 	bin = &arena->bins[binind];
 	malloc_mutex_lock(&bin->lock);
 	for (i = 0, nfill = (tcache_bin_info[binind].ncached_max >>
@@ -1459,11 +1446,8 @@ arena_malloc_small(arena_t *arena, size_t size, bool zero)
 		bin->stats.nrequests++;
 	}
 	malloc_mutex_unlock(&bin->lock);
-	if (config_prof && isthreaded == false) {
-		malloc_mutex_lock(&arena->lock);
+	if (config_prof && isthreaded == false)
 		arena_prof_accum(arena, size);
-		malloc_mutex_unlock(&arena->lock);
-	}
 
 	if (zero == false) {
 		if (config_fill) {
@@ -1480,6 +1464,7 @@ arena_malloc_small(arena_t *arena, size_t size, bool zero)
 		}
 		VALGRIND_MAKE_MEM_UNDEFINED(ret, size);
 		memset(ret, 0, size);
+		VALGRIND_MAKE_MEM_UNDEFINED(ret, size);
 	}
 
 	return (ret);
@@ -1507,7 +1492,7 @@ arena_malloc_large(arena_t *arena, size_t size, bool zero)
 		arena->stats.lstats[(size >> LG_PAGE) - 1].curruns++;
 	}
 	if (config_prof)
-		arena_prof_accum(arena, size);
+		arena_prof_accum_locked(arena, size);
 	malloc_mutex_unlock(&arena->lock);
 
 	if (zero == false) {

@@ -86,7 +86,7 @@ MANDIR=`eval echo $MANDIR`
 AC_SUBST([MANDIR])
 
 dnl Support for building documentation.
-AC_PATH_PROG([XSLTPROC], [xsltproc], , [$PATH])
+AC_PATH_PROG([XSLTPROC], [xsltproc], [false], [$PATH])
 if test -d "/usr/share/xml/docbook/stylesheet/docbook-xsl" ; then
   DEFAULT_XSLROOT="/usr/share/xml/docbook/stylesheet/docbook-xsl"
 elif test -d "/usr/share/sgml/docbook/xsl-stylesheets" ; then
@@ -261,6 +261,7 @@ case "${host}" in
 	CFLAGS="$CFLAGS"
 	CPPFLAGS="$CPPFLAGS -D_GNU_SOURCE"
 	abi="elf"
+	AC_DEFINE([JEMALLOC_HAS_ALLOCA_H])
 	AC_DEFINE([JEMALLOC_PURGE_MADVISE_DONTNEED], [ ])
 	AC_DEFINE([JEMALLOC_THREADED_INIT], [ ])
 	JEMALLOC_USABLE_SIZE_CONST=""
@@ -402,9 +403,9 @@ AC_SUBST([enable_autogen])
 
 AC_PROG_INSTALL
 AC_PROG_RANLIB
-AC_PATH_PROG([AR], [ar], , [$PATH])
-AC_PATH_PROG([LD], [ld], , [$PATH])
-AC_PATH_PROG([AUTOCONF], [autoconf], , [$PATH])
+AC_PATH_PROG([AR], [ar], [false], [$PATH])
+AC_PATH_PROG([LD], [ld], [false], [$PATH])
+AC_PATH_PROG([AUTOCONF], [autoconf], [false], [$PATH])
 
 public_syms="malloc_conf malloc_message malloc calloc posix_memalign aligned_alloc realloc free malloc_usable_size malloc_stats_print mallctl mallctlnametomib mallctlbymib"
 
@@ -470,6 +471,13 @@ for stem in ${public_syms}; do
   m="${JEMALLOC_PREFIX}${stem}"
   AC_DEFINE_UNQUOTED([${n}], [${m}])
 done
+
+AC_ARG_WITH([export],
+  [AS_HELP_STRING([--without-export], [disable exporting jemalloc public APIs])],
+  [if test "x$with_export" = "xno"; then
+  AC_DEFINE([JEMALLOC_EXPORT],[])
+fi]
+)
 
 dnl Do not mangle library-private APIs by default.
 AC_ARG_WITH([private_namespace],
@@ -544,7 +552,7 @@ fi
 
 dnl Do not compile with debugging by default.
 AC_ARG_ENABLE([debug],
-  [AS_HELP_STRING([--enable-debug], [Build debugging code])],
+  [AS_HELP_STRING([--enable-debug], [Build debugging code (implies --enable-ivsalloc)])],
 [if test "x$enable_debug" = "xno" ; then
   enable_debug="0"
 else
@@ -555,9 +563,24 @@ fi
 )
 if test "x$enable_debug" = "x1" ; then
   AC_DEFINE([JEMALLOC_DEBUG], [ ])
-  AC_DEFINE([JEMALLOC_IVSALLOC], [ ])
+  enable_ivsalloc="1"
 fi
 AC_SUBST([enable_debug])
+
+dnl Do not validate pointers by default.
+AC_ARG_ENABLE([ivsalloc],
+  [AS_HELP_STRING([--enable-ivsalloc], [Validate pointers passed through the public API])],
+[if test "x$enable_ivsalloc" = "xno" ; then
+  enable_ivsalloc="0"
+else
+  enable_ivsalloc="1"
+fi
+],
+[enable_ivsalloc="0"]
+)
+if test "x$enable_ivsalloc" = "x1" ; then
+  AC_DEFINE([JEMALLOC_IVSALLOC], [ ])
+fi
 
 dnl Only optimize if not debugging.
 if test "x$enable_debug" = "x0" -a "x$no_CFLAGS" = "xyes" ; then
@@ -906,7 +929,7 @@ AC_CACHE_CHECK([STATIC_PAGE_SHIFT],
 #include <stdio.h>
 ]],
 [[
-    long result;
+    int result;
     FILE *f;
 
 #ifdef _WIN32
@@ -925,7 +948,7 @@ AC_CACHE_CHECK([STATIC_PAGE_SHIFT],
     if (f == NULL) {
 	return 1;
     }
-    fprintf(f, "%u\n", result);
+    fprintf(f, "%d\n", result);
     fclose(f);
 
     return 0;
@@ -1070,11 +1093,13 @@ dnl Check for ffsl(3), and fail if not found.  This function exists on all
 dnl platforms that jemalloc currently has a chance of functioning on without
 dnl modification.
 JE_COMPILABLE([a program using ffsl], [
+#include <stdio.h>
 #include <strings.h>
 #include <string.h>
 ], [
 	{
 		int rv = ffsl(0x08);
+		printf("%d\n", rv);
 	}
 ], [je_cv_function_ffsl])
 if test "x${je_cv_function_ffsl}" != "xyes" ; then
@@ -1178,7 +1203,26 @@ fi
 dnl ============================================================================
 dnl Darwin-related configuration.
 
-if test "x${abi}" = "xmacho" ; then
+AC_ARG_ENABLE([zone-allocator],
+  [AS_HELP_STRING([--disable-zone-allocator],
+                  [Disable zone allocator for Darwin])],
+[if test "x$enable_zone_allocator" = "xno" ; then
+  enable_zone_allocator="0"
+else
+  enable_zone_allocator="1"
+fi
+],
+[if test "x${abi}" = "xmacho"; then
+  enable_zone_allocator="1"
+fi
+]
+)
+AC_SUBST([enable_zone_allocator])
+
+if test "x${enable_zone_allocator}" = "x1" ; then
+  if test "x${abi}" != "xmacho"; then
+    AC_MSG_ERROR([--enable-zone-allocator is only supported on Darwin])
+  fi
   AC_DEFINE([JEMALLOC_IVSALLOC], [ ])
   AC_DEFINE([JEMALLOC_ZONE], [ ])
 

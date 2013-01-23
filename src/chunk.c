@@ -78,6 +78,9 @@ chunk_recycle(extent_tree_t *chunks_szad, extent_tree_t *chunks_ad, size_t size,
 	assert(node->size >= leadsize + size);
 	trailsize = node->size - leadsize - size;
 	ret = (void *)((uintptr_t)node->addr + leadsize);
+	zeroed = node->zeroed;
+	if (zeroed)
+	    *zero = true;
 	/* Remove node from the tree. */
 	extent_tree_szad_remove(chunks_szad, node);
 	extent_tree_ad_remove(chunks_ad, node);
@@ -114,17 +117,21 @@ chunk_recycle(extent_tree_t *chunks_szad, extent_tree_t *chunks_ad, size_t size,
 	}
 	malloc_mutex_unlock(&chunks_mtx);
 
-	zeroed = false;
-	if (node != NULL) {
-		if (node->zeroed) {
-			zeroed = true;
-			*zero = true;
-		}
+	if (node != NULL)
 		base_node_dealloc(node);
-	}
-	if (zeroed == false && *zero) {
-		VALGRIND_MAKE_MEM_UNDEFINED(ret, size);
-		memset(ret, 0, size);
+	VALGRIND_MAKE_MEM_UNDEFINED(ret, size);
+	if (*zero) {
+		if (zeroed == false)
+			memset(ret, 0, size);
+		else if (config_debug) {
+			size_t i;
+			size_t *p = (size_t *)(uintptr_t)ret;
+
+			VALGRIND_MAKE_MEM_DEFINED(ret, size);
+			for (i = 0; i < size / sizeof(size_t); i++)
+				assert(p[i] == 0);
+			VALGRIND_MAKE_MEM_UNDEFINED(ret, size);
+		}
 	}
 	return (ret);
 }
@@ -193,14 +200,6 @@ label_return:
 		malloc_mutex_unlock(&chunks_mtx);
 		if (config_prof && opt_prof && opt_prof_gdump && gdump)
 			prof_gdump();
-	}
-	if (config_debug && *zero && ret != NULL) {
-		size_t i;
-		size_t *p = (size_t *)(uintptr_t)ret;
-
-		VALGRIND_MAKE_MEM_DEFINED(ret, size);
-		for (i = 0; i < size / sizeof(size_t); i++)
-			assert(p[i] == 0);
 	}
 	assert(CHUNK_ADDR2BASE(ret) == ret);
 	return (ret);

@@ -127,6 +127,7 @@ chunk_alloc_dss(size_t size, size_t alignment, bool *zero)
 				if (*zero) {
 					VALGRIND_MAKE_MEM_UNDEFINED(ret, size);
 					memset(ret, 0, size);
+					VALGRIND_MAKE_MEM_UNDEFINED(ret, size);
 				}
 				return (ret);
 			}

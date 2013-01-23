@@ -26,7 +26,7 @@ bool		opt_prof_leak = false;
 bool		opt_prof_accum = false;
 char		opt_prof_prefix[PATH_MAX + 1];
 
-uint64_t	prof_interval;
+uint64_t	prof_interval = 0;
 bool		prof_promote;
 
 /*
@@ -90,8 +90,7 @@ static bool	prof_dump(bool propagate_err, const char *filename,
     bool leakcheck);
 static void	prof_dump_filename(char *filename, char v, int64_t vseq);
 static void	prof_fdump(void);
-static void	prof_bt_hash(const void *key, unsigned minbits, size_t *hash1,
-    size_t *hash2);
+static void	prof_bt_hash(const void *key, size_t r_hash[2]);
 static bool	prof_bt_keycomp(const void *k1, const void *k2);
 static malloc_mutex_t	*prof_ctx_mutex_choose(void);
 
@@ -1043,34 +1042,13 @@ prof_gdump(void)
 }
 
 static void
-prof_bt_hash(const void *key, unsigned minbits, size_t *hash1, size_t *hash2)
+prof_bt_hash(const void *key, size_t r_hash[2])
 {
-	size_t ret1, ret2;
-	uint64_t h;
 	prof_bt_t *bt = (prof_bt_t *)key;
 
 	cassert(config_prof);
-	assert(minbits <= 32 || (SIZEOF_PTR == 8 && minbits <= 64));
-	assert(hash1 != NULL);
-	assert(hash2 != NULL);
 
-	h = hash(bt->vec, bt->len * sizeof(void *),
-	    UINT64_C(0x94122f335b332aea));
-	if (minbits <= 32) {
-		/*
-		 * Avoid doing multiple hashes, since a single hash provides
-		 * enough bits.
-		 */
-		ret1 = h & ZU(0xffffffffU);
-		ret2 = h >> 32;
-	} else {
-		ret1 = h;
-		ret2 = hash(bt->vec, bt->len * sizeof(void *),
-		    UINT64_C(0x8432a476666bbc13));
-	}
-
-	*hash1 = ret1;
-	*hash2 = ret2;
+	hash(bt->vec, bt->len * sizeof(void *), 0x94122f33U, r_hash);
 }
 
 static bool
@@ -1206,13 +1184,11 @@ prof_boot1(void)
 		 */
 		opt_prof = true;
 		opt_prof_gdump = false;
-		prof_interval = 0;
 	} else if (opt_prof) {
 		if (opt_lg_prof_interval >= 0) {
 			prof_interval = (((uint64_t)1U) <<
 			    opt_lg_prof_interval);
-		} else
-			prof_interval = 0;
+		}
 	}
 
 	prof_promote = (opt_prof && opt_lg_prof_sample > LG_PAGE);

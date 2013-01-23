@@ -790,8 +790,11 @@ for (i = 0; i < nbins; i++) {
           (<type>size_t</type>)
           <literal>r-</literal>
         </term>
-        <listitem><para>Virtual memory chunk size (log base 2).  The default
-        chunk size is 4 MiB (2^22).</para></listitem>
+        <listitem><para>Virtual memory chunk size (log base 2).  If a chunk
+        size outside the supported size range is specified, the size is
+        silently clipped to the minimum/maximum supported size.  The default
+        chunk size is 4 MiB (2^22).
+        </para></listitem>
       </varlistentry>
 
       <varlistentry id="opt.dss">
