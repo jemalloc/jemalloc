@@ -237,7 +237,7 @@ void	prof_postfork_child(void);
 									\
 	assert(size == s2u(size));					\
 									\
-	prof_tdata = prof_tdata_get();					\
+	prof_tdata = prof_tdata_get(true);				\
 	if ((uintptr_t)prof_tdata <= (uintptr_t)PROF_TDATA_STATE_MAX) {	\
 		if (prof_tdata != NULL)					\
 			ret = (prof_thr_cnt_t *)(uintptr_t)1U;		\
@@ -286,7 +286,7 @@ void	prof_postfork_child(void);
 #ifndef JEMALLOC_ENABLE_INLINE
 malloc_tsd_protos(JEMALLOC_ATTR(unused), prof_tdata, prof_tdata_t *)
 
-prof_tdata_t	*prof_tdata_get(void);
+prof_tdata_t	*prof_tdata_get(bool create);
 void	prof_sample_threshold_update(prof_tdata_t *prof_tdata);
 prof_ctx_t	*prof_ctx_get(const void *ptr);
 void	prof_ctx_set(const void *ptr, prof_ctx_t *ctx);
@@ -304,17 +304,15 @@ malloc_tsd_funcs(JEMALLOC_INLINE, prof_tdata, prof_tdata_t *, NULL,
     prof_tdata_cleanup)
 
 JEMALLOC_INLINE prof_tdata_t *
-prof_tdata_get(void)
+prof_tdata_get(bool create)
 {
 	prof_tdata_t *prof_tdata;
 
 	cassert(config_prof);
 
 	prof_tdata = *prof_tdata_tsd_get();
-	if ((uintptr_t)prof_tdata <= (uintptr_t)PROF_TDATA_STATE_MAX) {
-		if (prof_tdata == NULL)
-			prof_tdata = prof_tdata_init();
-	}
+	if (create && prof_tdata == NULL)
+		prof_tdata = prof_tdata_init();
 
 	return (prof_tdata);
 }
@@ -397,7 +395,7 @@ prof_sample_accum_update(size_t size)
 	/* Sampling logic is unnecessary if the interval is 1. */
 	assert(opt_lg_prof_sample != 0);
 
-	prof_tdata = *prof_tdata_tsd_get();
+	prof_tdata = prof_tdata_get(false);
 	if ((uintptr_t)prof_tdata <= (uintptr_t)PROF_TDATA_STATE_MAX)
 		return (true);
 

@@ -282,12 +282,30 @@ arenas_cleanup(void *arg)
 	malloc_mutex_unlock(&arenas_lock);
 }
 
+static JEMALLOC_ATTR(always_inline) void
+malloc_thread_init(void)
+{
+
+	/*
+	 * TSD initialization can't be safely done as a side effect of
+	 * deallocation, because it is possible for a thread to do nothing but
+	 * deallocate its TLS data via free(), in which case writing to TLS
+	 * would cause write-after-free memory corruption.  The quarantine
+	 * facility *only* gets used as a side effect of deallocation, so make
+	 * a best effort attempt at initializing its TSD by hooking all
+	 * allocation events.
+	 */
+	if (config_fill && opt_quarantine)
+		quarantine_alloc_hook();
+}
+
 static JEMALLOC_ATTR(always_inline) bool
 malloc_init(void)
 {
 
-	if (malloc_initialized == false)
-		return (malloc_init_hard());
+	if (malloc_initialized == false && malloc_init_hard())
+		return (true);
+	malloc_thread_init();
 
 	return (false);
 }
@@ -1095,6 +1113,7 @@ je_realloc(void *ptr, size_t size)
 	if (size == 0) {
 		if (ptr != NULL) {
 			/* realloc(ptr, 0) is equivalent to free(p). */
+			assert(malloc_initialized || IS_INITIALIZER);
 			if (config_prof) {
 				old_size = isalloc(ptr, true);
 				if (config_valgrind && opt_valgrind)
@@ -1120,6 +1139,7 @@ je_realloc(void *ptr, size_t size)
 
 	if (ptr != NULL) {
 		assert(malloc_initialized || IS_INITIALIZER);
+		malloc_thread_init();
 
 		if (config_prof) {
 			old_size = isalloc(ptr, true);
@@ -1323,6 +1343,7 @@ je_malloc_usable_size(JEMALLOC_USABLE_SIZE_CONST void *ptr)
 	size_t ret;
 
 	assert(malloc_initialized || IS_INITIALIZER);
+	malloc_thread_init();
 
 	if (config_ivsalloc)
 		ret = ivsalloc(ptr, config_prof);
@@ -1497,6 +1518,7 @@ je_rallocm(void **ptr, size_t *rsize, size_t size, size_t extra, int flags)
 	assert(size != 0);
 	assert(SIZE_T_MAX - size >= extra);
 	assert(malloc_initialized || IS_INITIALIZER);
+	malloc_thread_init();
 
 	if (arena_ind != UINT_MAX) {
 		arena_chunk_t *chunk;
@@ -1611,6 +1633,7 @@ je_sallocm(const void *ptr, size_t *rsize, int flags)
 	size_t sz;
 
 	assert(malloc_initialized || IS_INITIALIZER);
+	malloc_thread_init();
 
 	if (config_ivsalloc)
 		sz = ivsalloc(ptr, config_prof);
