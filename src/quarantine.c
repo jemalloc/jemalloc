@@ -18,6 +18,7 @@ malloc_tsd_data(, quarantine, quarantine_t *, NULL)
 /* Function prototypes for non-inline static functions. */
 
 static quarantine_t	*quarantine_grow(quarantine_t *quarantine);
+static void	quarantine_drain_one(quarantine_t *quarantine);
 static void	quarantine_drain(quarantine_t *quarantine, size_t upper_bound);
 
 /******************************************************************************/
@@ -47,8 +48,10 @@ quarantine_grow(quarantine_t *quarantine)
 	quarantine_t *ret;
 
 	ret = quarantine_init(quarantine->lg_maxobjs + 1);
-	if (ret == NULL)
+	if (ret == NULL) {
+		quarantine_drain_one(quarantine);
 		return (quarantine);
+	}
 
 	ret->curbytes = quarantine->curbytes;
 	ret->curobjs = quarantine->curobjs;
@@ -68,23 +71,29 @@ quarantine_grow(quarantine_t *quarantine)
 		memcpy(&ret->objs[ncopy_a], quarantine->objs, ncopy_b *
 		    sizeof(quarantine_obj_t));
 	}
+	idalloc(quarantine);
 
 	return (ret);
+}
+
+static void
+quarantine_drain_one(quarantine_t *quarantine)
+{
+	quarantine_obj_t *obj = &quarantine->objs[quarantine->first];
+	assert(obj->usize == isalloc(obj->ptr, config_prof));
+	idalloc(obj->ptr);
+	quarantine->curbytes -= obj->usize;
+	quarantine->curobjs--;
+	quarantine->first = (quarantine->first + 1) & ((ZU(1) <<
+	    quarantine->lg_maxobjs) - 1);
 }
 
 static void
 quarantine_drain(quarantine_t *quarantine, size_t upper_bound)
 {
 
-	while (quarantine->curbytes > upper_bound && quarantine->curobjs > 0) {
-		quarantine_obj_t *obj = &quarantine->objs[quarantine->first];
-		assert(obj->usize == isalloc(obj->ptr, config_prof));
-		idalloc(obj->ptr);
-		quarantine->curbytes -= obj->usize;
-		quarantine->curobjs--;
-		quarantine->first = (quarantine->first + 1) & ((ZU(1) <<
-		    quarantine->lg_maxobjs) - 1);
-	}
+	while (quarantine->curbytes > upper_bound && quarantine->curobjs > 0)
+		quarantine_drain_one(quarantine);
 }
 
 void
