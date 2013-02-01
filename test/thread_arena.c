@@ -17,6 +17,7 @@ je_thread_start(void *arg)
 		malloc_printf("%s(): Error in malloc()\n", __func__);
 		return (void *)1;
 	}
+	free(p);
 
 	size = sizeof(arena_ind);
 	if ((err = mallctl("thread.arena", &arena_ind, &size, &main_arena_ind,

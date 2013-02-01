@@ -443,6 +443,7 @@ static const bool config_ivsalloc =
 #define	VALGRIND_MALLOCLIKE_BLOCK(addr, sizeB, rzB, is_zeroed)
 #define	VALGRIND_RESIZEINPLACE_BLOCK(addr, oldSizeB, newSizeB, rzB)
 #define	VALGRIND_FREELIKE_BLOCK(addr, rzB)
+#define	VALGRIND_MAKE_MEM_NOACCESS(_qzz_addr, _qzz_len)
 #define	VALGRIND_MAKE_MEM_UNDEFINED(_qzz_addr, _qzz_len)
 #define	VALGRIND_MAKE_MEM_DEFINED(_qzz_addr, _qzz_len)
 #define	JEMALLOC_VALGRIND_MALLOC(cond, ptr, usize, zero)

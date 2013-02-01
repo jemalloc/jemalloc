@@ -25,6 +25,8 @@ found in the git revision history:
       array.
     + Reallocation failure for internal reallocation of the quarantined object
       array (very unlikely) resulted in memory corruption.
+  - Fix Valgrind integration to annotate all internally allocated memory in a
+    way that keeps Valgrind happy about internal data structure access.
 
 * 3.3.0 (January 23, 2013)
 

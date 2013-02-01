@@ -41,6 +41,7 @@ je_thread_start(void *arg)
 		malloc_printf("Unexpected allocm() error\n");
 		abort();
 	}
+	dallocm(p, 0);
 
 	return (NULL);
 }

@@ -366,8 +366,6 @@ arena_run_zero(arena_chunk_t *chunk, size_t run_ind, size_t npages)
 	    LG_PAGE)), (npages << LG_PAGE));
 	memset((void *)((uintptr_t)chunk + (run_ind << LG_PAGE)), 0,
 	    (npages << LG_PAGE));
-	VALGRIND_MAKE_MEM_UNDEFINED((void *)((uintptr_t)chunk + (run_ind <<
-	    LG_PAGE)), (npages << LG_PAGE));
 }
 
 static inline void
@@ -380,8 +378,6 @@ arena_run_page_validate_zeroed(arena_chunk_t *chunk, size_t run_ind)
 	    LG_PAGE)), PAGE);
 	for (i = 0; i < PAGE / sizeof(size_t); i++)
 		assert(p[i] == 0);
-	VALGRIND_MAKE_MEM_UNDEFINED((void *)((uintptr_t)chunk + (run_ind <<
-	    LG_PAGE)), PAGE);
 }
 
 static void
@@ -513,6 +509,8 @@ arena_run_split(arena_t *arena, arena_run_t *run, size_t size, bool large,
 			    run_ind+need_pages-1);
 		}
 	}
+	VALGRIND_MAKE_MEM_UNDEFINED((void *)((uintptr_t)chunk + (run_ind <<
+	    LG_PAGE)), (need_pages << LG_PAGE));
 }
 
 static arena_chunk_t *
@@ -574,6 +572,11 @@ arena_chunk_alloc(arena_t *arena)
 			for (i = map_bias+1; i < chunk_npages-1; i++)
 				arena_mapbits_unzeroed_set(chunk, i, unzeroed);
 		} else if (config_debug) {
+			VALGRIND_MAKE_MEM_DEFINED(
+			    (void *)arena_mapp_get(chunk, map_bias+1),
+			    (void *)((uintptr_t)
+			    arena_mapp_get(chunk, chunk_npages-1)
+			    - (uintptr_t)arena_mapp_get(chunk, map_bias+1)));
 			for (i = map_bias+1; i < chunk_npages-1; i++) {
 				assert(arena_mapbits_unzeroed_get(chunk, i) ==
 				    unzeroed);
@@ -1246,8 +1249,6 @@ arena_bin_nonfull_run_get(arena_t *arena, arena_bin_t *bin)
 		    (uintptr_t)bin_info->bitmap_offset);
 
 		/* Initialize run internals. */
-		VALGRIND_MAKE_MEM_UNDEFINED(run, bin_info->reg0_offset -
-		    bin_info->redzone_size);
 		run->bin = bin;
 		run->nextind = 0;
 		run->nfree = bin_info->nregs;
@@ -1464,8 +1465,8 @@ arena_malloc_small(arena_t *arena, size_t size, bool zero)
 		}
 		VALGRIND_MAKE_MEM_UNDEFINED(ret, size);
 		memset(ret, 0, size);
-		VALGRIND_MAKE_MEM_UNDEFINED(ret, size);
 	}
+	VALGRIND_MAKE_MEM_UNDEFINED(ret, size);
 
 	return (ret);
 }
