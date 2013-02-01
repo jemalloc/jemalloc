@@ -9,6 +9,14 @@ found in the git revision history:
 * 3.x.x (XXX Not yet released)
 
   Bug fixes:
+  - Fix a chunk recycling bug that could cause the allocator to lose track of
+    whether a chunk was zeroed.   On FreeBSD, NetBSD, and OS X, it could cause
+    corruption if allocating via sbrk(2) (unlikely unless running with the
+    "dss:primary" option specified).  This was completely harmless on Linux
+    unless using mlockall(2) (and unlikely even then, unless the
+    --disable-munmap configure option or the "dss:primary" option was
+    specified).  This regression was introduced in 3.1.0 by the
+    mlockall(2)/madvise(2) interaction fix.
   - Fix TLS-related memory corruption that could occur during thread exit if the
     thread never allocated memory.  Only the quarantine and prof facilities were
     susceptible.

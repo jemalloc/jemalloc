@@ -111,6 +111,7 @@ chunk_recycle(extent_tree_t *chunks_szad, extent_tree_t *chunks_ad, size_t size,
 		}
 		node->addr = (void *)((uintptr_t)(ret) + size);
 		node->size = trailsize;
+		node->zeroed = zeroed;
 		extent_tree_szad_insert(chunks_szad, node);
 		extent_tree_ad_insert(chunks_ad, node);
 		node = NULL;
