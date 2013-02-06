@@ -9,6 +9,8 @@ found in the git revision history:
 * 3.x.x (XXX Not yet released)
 
   Bug fixes:
+  - Fix a locking order bug that could cause deadlock during fork if heap
+    profiling were enabled.
   - Fix a chunk recycling bug that could cause the allocator to lose track of
     whether a chunk was zeroed.   On FreeBSD, NetBSD, and OS X, it could cause
     corruption if allocating via sbrk(2) (unlikely unless running with the

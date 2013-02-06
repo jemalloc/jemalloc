@@ -1753,12 +1753,12 @@ _malloc_prefork(void)
 
 	/* Acquire all mutexes in a safe order. */
 	ctl_prefork();
+	prof_prefork();
 	malloc_mutex_prefork(&arenas_lock);
 	for (i = 0; i < narenas_total; i++) {
 		if (arenas[i] != NULL)
 			arena_prefork(arenas[i]);
 	}
-	prof_prefork();
 	chunk_prefork();
 	base_prefork();
 	huge_prefork();
@@ -1784,12 +1784,12 @@ _malloc_postfork(void)
 	huge_postfork_parent();
 	base_postfork_parent();
 	chunk_postfork_parent();
-	prof_postfork_parent();
 	for (i = 0; i < narenas_total; i++) {
 		if (arenas[i] != NULL)
 			arena_postfork_parent(arenas[i]);
 	}
 	malloc_mutex_postfork_parent(&arenas_lock);
+	prof_postfork_parent();
 	ctl_postfork_parent();
 }
 
@@ -1804,12 +1804,12 @@ jemalloc_postfork_child(void)
 	huge_postfork_child();
 	base_postfork_child();
 	chunk_postfork_child();
-	prof_postfork_child();
 	for (i = 0; i < narenas_total; i++) {
 		if (arenas[i] != NULL)
 			arena_postfork_child(arenas[i]);
 	}
 	malloc_mutex_postfork_child(&arenas_lock);
+	prof_postfork_child();
 	ctl_postfork_child();
 }
 

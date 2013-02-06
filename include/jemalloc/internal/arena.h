@@ -463,9 +463,9 @@ void	arena_mapbits_small_set(arena_chunk_t *chunk, size_t pageind,
     size_t runind, size_t binind, size_t flags);
 void	arena_mapbits_unzeroed_set(arena_chunk_t *chunk, size_t pageind,
     size_t unzeroed);
-void	arena_prof_accum_impl(arena_t *arena, uint64_t accumbytes);
-void	arena_prof_accum_locked(arena_t *arena, uint64_t accumbytes);
-void	arena_prof_accum(arena_t *arena, uint64_t accumbytes);
+bool	arena_prof_accum_impl(arena_t *arena, uint64_t accumbytes);
+bool	arena_prof_accum_locked(arena_t *arena, uint64_t accumbytes);
+bool	arena_prof_accum(arena_t *arena, uint64_t accumbytes);
 size_t	arena_ptr_small_binind_get(const void *ptr, size_t mapbits);
 size_t	arena_bin_index(arena_t *arena, arena_bin_t *bin);
 unsigned	arena_run_regind(arena_run_t *run, arena_bin_info_t *bin_info,
@@ -663,7 +663,7 @@ arena_mapbits_unzeroed_set(arena_chunk_t *chunk, size_t pageind,
 	*mapbitsp = (*mapbitsp & ~CHUNK_MAP_UNZEROED) | unzeroed;
 }
 
-JEMALLOC_INLINE void
+JEMALLOC_INLINE bool
 arena_prof_accum_impl(arena_t *arena, uint64_t accumbytes)
 {
 
@@ -672,33 +672,40 @@ arena_prof_accum_impl(arena_t *arena, uint64_t accumbytes)
 
 	arena->prof_accumbytes += accumbytes;
 	if (arena->prof_accumbytes >= prof_interval) {
-		prof_idump();
 		arena->prof_accumbytes -= prof_interval;
+		return (true);
 	}
+	return (false);
 }
 
-JEMALLOC_INLINE void
+JEMALLOC_INLINE bool
 arena_prof_accum_locked(arena_t *arena, uint64_t accumbytes)
 {
 
 	cassert(config_prof);
 
 	if (prof_interval == 0)
-		return;
-	arena_prof_accum_impl(arena, accumbytes);
+		return (false);
+	return (arena_prof_accum_impl(arena, accumbytes));
 }
 
-JEMALLOC_INLINE void
+JEMALLOC_INLINE bool
 arena_prof_accum(arena_t *arena, uint64_t accumbytes)
 {
 
 	cassert(config_prof);
 
 	if (prof_interval == 0)
-		return;
-	malloc_mutex_lock(&arena->lock);
-	arena_prof_accum_impl(arena, accumbytes);
-	malloc_mutex_unlock(&arena->lock);
+		return (false);
+
+	{
+		bool ret;
+
+		malloc_mutex_lock(&arena->lock);
+		ret = arena_prof_accum_impl(arena, accumbytes);
+		malloc_mutex_unlock(&arena->lock);
+		return (ret);
+	}
 }
 
 JEMALLOC_ALWAYS_INLINE size_t

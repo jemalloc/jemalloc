@@ -1338,8 +1338,8 @@ arena_tcache_fill_small(arena_t *arena, tcache_bin_t *tbin, size_t binind,
 
 	assert(tbin->ncached == 0);
 
-	if (config_prof)
-		arena_prof_accum(arena, prof_accumbytes);
+	if (config_prof && arena_prof_accum(arena, prof_accumbytes))
+		prof_idump();
 	bin = &arena->bins[binind];
 	malloc_mutex_lock(&bin->lock);
 	for (i = 0, nfill = (tcache_bin_info[binind].ncached_max >>
@@ -1447,8 +1447,8 @@ arena_malloc_small(arena_t *arena, size_t size, bool zero)
 		bin->stats.nrequests++;
 	}
 	malloc_mutex_unlock(&bin->lock);
-	if (config_prof && isthreaded == false)
-		arena_prof_accum(arena, size);
+	if (config_prof && isthreaded == false && arena_prof_accum(arena, size))
+		prof_idump();
 
 	if (zero == false) {
 		if (config_fill) {
@@ -1475,6 +1475,7 @@ void *
 arena_malloc_large(arena_t *arena, size_t size, bool zero)
 {
 	void *ret;
+	UNUSED bool idump;
 
 	/* Large allocation. */
 	size = PAGE_CEILING(size);
@@ -1493,8 +1494,10 @@ arena_malloc_large(arena_t *arena, size_t size, bool zero)
 		arena->stats.lstats[(size >> LG_PAGE) - 1].curruns++;
 	}
 	if (config_prof)
-		arena_prof_accum_locked(arena, size);
+		idump = arena_prof_accum_locked(arena, size);
 	malloc_mutex_unlock(&arena->lock);
+	if (config_prof && idump)
+		prof_idump();
 
 	if (zero == false) {
 		if (config_fill) {
