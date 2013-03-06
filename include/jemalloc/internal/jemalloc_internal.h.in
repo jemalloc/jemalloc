@@ -440,16 +440,18 @@ static const bool config_ivsalloc =
 } while (0)
 #else
 #define	RUNNING_ON_VALGRIND	((unsigned)0)
-#define	VALGRIND_MALLOCLIKE_BLOCK(addr, sizeB, rzB, is_zeroed)
-#define	VALGRIND_RESIZEINPLACE_BLOCK(addr, oldSizeB, newSizeB, rzB)
-#define	VALGRIND_FREELIKE_BLOCK(addr, rzB)
-#define	VALGRIND_MAKE_MEM_NOACCESS(_qzz_addr, _qzz_len)
-#define	VALGRIND_MAKE_MEM_UNDEFINED(_qzz_addr, _qzz_len)
-#define	VALGRIND_MAKE_MEM_DEFINED(_qzz_addr, _qzz_len)
-#define	JEMALLOC_VALGRIND_MALLOC(cond, ptr, usize, zero)
+#define	VALGRIND_MALLOCLIKE_BLOCK(addr, sizeB, rzB, is_zeroed) \
+    do {} while (0)
+#define	VALGRIND_RESIZEINPLACE_BLOCK(addr, oldSizeB, newSizeB, rzB) \
+    do {} while (0)
+#define	VALGRIND_FREELIKE_BLOCK(addr, rzB) do {} while (0)
+#define	VALGRIND_MAKE_MEM_NOACCESS(_qzz_addr, _qzz_len) do {} while (0)
+#define	VALGRIND_MAKE_MEM_UNDEFINED(_qzz_addr, _qzz_len) do {} while (0)
+#define	VALGRIND_MAKE_MEM_DEFINED(_qzz_addr, _qzz_len) do {} while (0)
+#define	JEMALLOC_VALGRIND_MALLOC(cond, ptr, usize, zero) do {} while (0)
 #define	JEMALLOC_VALGRIND_REALLOC(ptr, usize, old_ptr, old_usize,	\
-    old_rzsize, zero)
-#define	JEMALLOC_VALGRIND_FREE(ptr, rzsize)
+    old_rzsize, zero) do {} while (0)
+#define	JEMALLOC_VALGRIND_FREE(ptr, rzsize) do {} while (0)
 #endif
 
 #include "jemalloc/internal/util.h"
