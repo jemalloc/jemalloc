@@ -438,7 +438,7 @@ prof_lookup(prof_bt_t *bt)
 
 	cassert(config_prof);
 
-	prof_tdata = prof_tdata_get();
+	prof_tdata = prof_tdata_get(false);
 	if ((uintptr_t)prof_tdata <= (uintptr_t)PROF_TDATA_STATE_MAX)
 		return (NULL);
 
@@ -684,7 +684,7 @@ prof_ctx_destroy(prof_ctx_t *ctx)
 	 * avoid a race between the main body of prof_ctx_merge() and entry
 	 * into this function.
 	 */
-	prof_tdata = *prof_tdata_tsd_get();
+	prof_tdata = prof_tdata_get(false);
 	assert((uintptr_t)prof_tdata > (uintptr_t)PROF_TDATA_STATE_MAX);
 	prof_enter(prof_tdata);
 	malloc_mutex_lock(ctx->lock);
@@ -844,7 +844,7 @@ prof_dump(bool propagate_err, const char *filename, bool leakcheck)
 
 	cassert(config_prof);
 
-	prof_tdata = prof_tdata_get();
+	prof_tdata = prof_tdata_get(false);
 	if ((uintptr_t)prof_tdata <= (uintptr_t)PROF_TDATA_STATE_MAX)
 		return (true);
 	prof_enter(prof_tdata);
@@ -966,11 +966,7 @@ prof_idump(void)
 
 	if (prof_booted == false)
 		return;
-	/*
-	 * Don't call prof_tdata_get() here, because it could cause recursive
-	 * allocation.
-	 */
-	prof_tdata = *prof_tdata_tsd_get();
+	prof_tdata = prof_tdata_get(false);
 	if ((uintptr_t)prof_tdata <= (uintptr_t)PROF_TDATA_STATE_MAX)
 		return;
 	if (prof_tdata->enq) {
@@ -1020,11 +1016,7 @@ prof_gdump(void)
 
 	if (prof_booted == false)
 		return;
-	/*
-	 * Don't call prof_tdata_get() here, because it could cause recursive
-	 * allocation.
-	 */
-	prof_tdata = *prof_tdata_tsd_get();
+	prof_tdata = prof_tdata_get(false);
 	if ((uintptr_t)prof_tdata <= (uintptr_t)PROF_TDATA_STATE_MAX)
 		return;
 	if (prof_tdata->enq) {
