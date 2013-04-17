@@ -242,8 +242,6 @@ chunk_record(extent_tree_t *chunks_szad, extent_tree_t *chunks_ad, void *chunk,
 		node->size += size;
 		node->zeroed = (node->zeroed && (unzeroed == false));
 		extent_tree_szad_insert(chunks_szad, node);
-		if (xnode != NULL)
-			base_node_dealloc(xnode);
 	} else {
 		/* Coalescing forward failed, so insert a new node. */
 		if (xnode == NULL) {
@@ -253,10 +251,10 @@ chunk_record(extent_tree_t *chunks_szad, extent_tree_t *chunks_ad, void *chunk,
 			 * already been purged, so this is only a virtual
 			 * memory leak.
 			 */
-			malloc_mutex_unlock(&chunks_mtx);
-			return;
+			goto label_return;
 		}
 		node = xnode;
+		xnode = NULL; /* Prevent deallocation below. */
 		node->addr = chunk;
 		node->size = size;
 		node->zeroed = (unzeroed == false);
@@ -284,7 +282,16 @@ chunk_record(extent_tree_t *chunks_szad, extent_tree_t *chunks_ad, void *chunk,
 
 		base_node_dealloc(prev);
 	}
+
+label_return:
 	malloc_mutex_unlock(&chunks_mtx);
+	if (xnode != NULL) {
+		/*
+		 * Deallocate xnode after unlocking chunks_mtx in order to
+		 * avoid potential deadlock.
+		 */
+		base_node_dealloc(xnode);
+	}
 }
 
 void
