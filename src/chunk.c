@@ -214,7 +214,7 @@ chunk_record(extent_tree_t *chunks_szad, extent_tree_t *chunks_ad, void *chunk,
     size_t size)
 {
 	bool unzeroed;
-	extent_node_t *xnode, *node, *prev, key;
+	extent_node_t *xnode, *node, *prev, *xprev, key;
 
 	unzeroed = pages_purge(chunk, size);
 	VALGRIND_MAKE_MEM_NOACCESS(chunk, size);
@@ -226,6 +226,8 @@ chunk_record(extent_tree_t *chunks_szad, extent_tree_t *chunks_ad, void *chunk,
 	 * held.
 	 */
 	xnode = base_node_alloc();
+	/* Use xprev to implement conditional deferred deallocation of prev. */
+	xprev = NULL;
 
 	malloc_mutex_lock(&chunks_mtx);
 	key.addr = (void *)((uintptr_t)chunk + size);
@@ -280,18 +282,19 @@ chunk_record(extent_tree_t *chunks_szad, extent_tree_t *chunks_ad, void *chunk,
 		node->zeroed = (node->zeroed && prev->zeroed);
 		extent_tree_szad_insert(chunks_szad, node);
 
-		base_node_dealloc(prev);
+		xprev = prev;
 	}
 
 label_return:
 	malloc_mutex_unlock(&chunks_mtx);
-	if (xnode != NULL) {
-		/*
-		 * Deallocate xnode after unlocking chunks_mtx in order to
-		 * avoid potential deadlock.
-		 */
+	/*
+	 * Deallocate xnode and/or xprev after unlocking chunks_mtx in order to
+	 * avoid potential deadlock.
+	 */
+	if (xnode != NULL)
 		base_node_dealloc(xnode);
-	}
+	if (xprev != NULL)
+		base_node_dealloc(prev);
 }
 
 void
