@@ -55,6 +55,8 @@ PIC_CFLAGS = @PIC_CFLAGS@
 CTARGET = @CTARGET@
 LDTARGET = @LDTARGET@
 MKLIB = @MKLIB@
+AR = @AR@
+ARFLAGS = crus
 CC_MM = @CC_MM@
 
 ifeq (macho, $(ABI))
@@ -185,7 +187,7 @@ $(objroot)lib/$(LIBJEMALLOC)_s.$(A) : $(COBJS)
 
 $(STATIC_LIBS):
 	@mkdir -p $(@D)
-	$(MKLIB) $+
+	$(AR) $(ARFLAGS) $@ $+
 
 $(objroot)test/bitmap$(EXE): $(objroot)src/bitmap.$(O)
 
