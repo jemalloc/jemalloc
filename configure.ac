@@ -226,6 +226,8 @@ PIC_CFLAGS='-fPIC -DPIC'
 CTARGET='-o $@'
 LDTARGET='-o $@'
 EXTRA_LDFLAGS=
+ARFLAGS='crus'
+AROUT=' $@'
 CC_MM=1
 
 AN_MAKEVAR([AR], [AC_PROG_AR])
@@ -316,6 +318,7 @@ case "${host}" in
 	  LDTARGET='-Fe$@'
 	  AR='lib'
 	  ARFLAGS='-nologo -out:'
+	  AROUT='$@'
 	  CC_MM=
         else
 	  importlib="${so}"
@@ -348,6 +351,8 @@ AC_SUBST([PIC_CFLAGS])
 AC_SUBST([CTARGET])
 AC_SUBST([LDTARGET])
 AC_SUBST([MKLIB])
+AC_SUBST([ARFLAGS])
+AC_SUBST([AROUT])
 AC_SUBST([CC_MM])
 
 if test "x$abi" != "xpecoff"; then
