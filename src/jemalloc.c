@@ -436,8 +436,9 @@ malloc_conf_init(void)
 			}
 			break;
 		case 1: {
+			int linklen = 0;
 #ifndef _WIN32
-			int linklen;
+			int saved_errno = errno;
 			const char *linkname =
 #  ifdef JEMALLOC_PREFIX
 			    "/etc/"JEMALLOC_PREFIX"malloc.conf"
@@ -446,21 +447,20 @@ malloc_conf_init(void)
 #  endif
 			    ;
 
-			if ((linklen = readlink(linkname, buf,
-			    sizeof(buf) - 1)) != -1) {
-				/*
-				 * Use the contents of the "/etc/malloc.conf"
-				 * symbolic link's name.
-				 */
-				buf[linklen] = '\0';
-				opts = buf;
-			} else
-#endif
-			{
+			/*
+			 * Try to use the contents of the "/etc/malloc.conf"
+			 * symbolic link's name.
+			 */
+			linklen = readlink(linkname, buf, sizeof(buf) - 1);
+			if (linklen == -1) {
 				/* No configuration specified. */
-				buf[0] = '\0';
-				opts = buf;
+				linklen = 0;
+				/* restore errno */
+				set_errno(saved_errno);
 			}
+#endif
+			buf[linklen] = '\0';
+			opts = buf;
 			break;
 		} case 2: {
 			const char *envname =
