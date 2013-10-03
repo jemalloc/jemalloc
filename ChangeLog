@@ -60,7 +60,7 @@ found in the git revision history:
 
   Bug fixes:
   - Fix "arenas.extend" mallctl to output the number of arenas.
-  - Fix chunk_recycyle() to unconditionally inform Valgrind that returned memory
+  - Fix chunk_recycle() to unconditionally inform Valgrind that returned memory
     is undefined.
   - Fix build break on FreeBSD related to alloca.h.
 
