@@ -569,17 +569,24 @@ arena_chunk_alloc(arena_t *arena)
 		 * unless the chunk is not zeroed.
 		 */
 		if (zero == false) {
+			VALGRIND_MAKE_MEM_UNDEFINED(
+			    (void *)arena_mapp_get(chunk, map_bias+1),
+			    (size_t)((uintptr_t) arena_mapp_get(chunk,
+			    chunk_npages-1) - (uintptr_t)arena_mapp_get(chunk,
+			    map_bias+1)));
 			for (i = map_bias+1; i < chunk_npages-1; i++)
 				arena_mapbits_unzeroed_set(chunk, i, unzeroed);
-		} else if (config_debug) {
+		} else {
 			VALGRIND_MAKE_MEM_DEFINED(
 			    (void *)arena_mapp_get(chunk, map_bias+1),
-			    (void *)((uintptr_t)
-			    arena_mapp_get(chunk, chunk_npages-1)
-			    - (uintptr_t)arena_mapp_get(chunk, map_bias+1)));
-			for (i = map_bias+1; i < chunk_npages-1; i++) {
-				assert(arena_mapbits_unzeroed_get(chunk, i) ==
-				    unzeroed);
+			    (size_t)((uintptr_t) arena_mapp_get(chunk,
+			    chunk_npages-1) - (uintptr_t)arena_mapp_get(chunk,
+			    map_bias+1)));
+			if (config_debug) {
+				for (i = map_bias+1; i < chunk_npages-1; i++) {
+					assert(arena_mapbits_unzeroed_get(chunk,
+					    i) == unzeroed);
+				}
 			}
 		}
 		arena_mapbits_unallocated_set(chunk, chunk_npages-1,
