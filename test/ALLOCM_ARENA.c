@@ -23,7 +23,8 @@ je_thread_start(void *arg)
 		size_t mib[3];
 		size_t miblen = sizeof(mib) / sizeof(size_t);
 		const char *dss_precs[] = {"disabled", "primary", "secondary"};
-		const char *dss = dss_precs[thread_ind % 4];
+		const char *dss = dss_precs[thread_ind %
+		    (sizeof(dss_precs)/sizeof(char*))];
 		if (mallctlnametomib("arena.0.dss", mib, &miblen) != 0) {
 			malloc_printf("Error in mallctlnametomib()\n");
 			abort();
