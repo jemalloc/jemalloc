@@ -294,7 +294,7 @@ label_return:
 	if (xnode != NULL)
 		base_node_dealloc(xnode);
 	if (xprev != NULL)
-		base_node_dealloc(prev);
+		base_node_dealloc(xprev);
 }
 
 void
