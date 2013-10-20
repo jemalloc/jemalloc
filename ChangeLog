@@ -6,6 +6,16 @@ found in the git revision history:
     http://www.canonware.com/cgi-bin/gitweb.cgi?p=jemalloc.git
     git://canonware.com/jemalloc.git
 
+* 3.4.1 (XXX)
+
+  Bug fixes:
+  - Fix a Valgrind integration flaw that caused Valgrind warnings about reads of
+    uninitialized memory in arena chunk headers.
+  - Preserve errno during the first allocation.  A readlink(2) call during
+    initialization fails unless /etc/malloc.conf exists, so errno was typically
+    set during the first allocation prior to this fix.
+  - Fix compilation warnings reported by gcc 4.8.1.
+
 * 3.4.0 (June 2, 2013)
 
   This version is essentially a small bugfix release, but the addition of
