@@ -104,12 +104,12 @@ main(void)
 	je_thread_start(NULL);
 
 	je_thread_create(&thread, je_thread_start, NULL);
-	je_thread_join(thread, (void *)&ret);
+	je_thread_join(thread, NULL);
 
 	je_thread_start(NULL);
 
 	je_thread_create(&thread, je_thread_start, NULL);
-	je_thread_join(thread, (void *)&ret);
+	je_thread_join(thread, NULL);
 
 	je_thread_start(NULL);
 
