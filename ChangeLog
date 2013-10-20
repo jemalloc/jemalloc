@@ -9,6 +9,8 @@ found in the git revision history:
 * 3.4.1 (XXX)
 
   Bug fixes:
+  - Fix a race in the "arenas.extend" mallctl that could cause memory corruption
+    of internal data structures and subsequent crashes.
   - Fix Valgrind integration flaws that caused Valgrind warnings about reads of
     uninitialized memory in:
     + arena chunk headers
