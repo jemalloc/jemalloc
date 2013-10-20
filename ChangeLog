@@ -9,8 +9,11 @@ found in the git revision history:
 * 3.4.1 (XXX)
 
   Bug fixes:
-  - Fix a Valgrind integration flaw that caused Valgrind warnings about reads of
-    uninitialized memory in arena chunk headers.
+  - Fix Valgrind integration flaws that caused Valgrind warnings about reads of
+    uninitialized memory in:
+    + arena chunk headers
+    + internal zero-initialized data structures (relevant to tcache and prof
+      code)
   - Preserve errno during the first allocation.  A readlink(2) call during
     initialization fails unless /etc/malloc.conf exists, so errno was typically
     set during the first allocation prior to this fix.
