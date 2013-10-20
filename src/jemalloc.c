@@ -282,7 +282,7 @@ arenas_cleanup(void *arg)
 	malloc_mutex_unlock(&arenas_lock);
 }
 
-static JEMALLOC_ATTR(always_inline) void
+JEMALLOC_ALWAYS_INLINE_C void
 malloc_thread_init(void)
 {
 
@@ -299,7 +299,7 @@ malloc_thread_init(void)
 		quarantine_alloc_hook();
 }
 
-static JEMALLOC_ATTR(always_inline) bool
+JEMALLOC_ALWAYS_INLINE_C bool
 malloc_init(void)
 {
 
@@ -1402,7 +1402,7 @@ je_mallctlbymib(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
  */
 #ifdef JEMALLOC_EXPERIMENTAL
 
-static JEMALLOC_ATTR(always_inline) void *
+JEMALLOC_ALWAYS_INLINE_C void *
 iallocm(size_t usize, size_t alignment, bool zero, bool try_tcache,
     arena_t *arena)
 {
