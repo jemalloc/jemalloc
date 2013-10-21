@@ -521,14 +521,15 @@ malloc_conf_init(void)
 					    "Invalid conf value",	\
 					    k, klen, v, vlen);		\
 				} else if (clip) {			\
-					if (um < min)			\
+					if (min != 0 && um < min)	\
 						o = min;		\
 					else if (um > max)		\
 						o = max;		\
 					else				\
 						o = um;			\
 				} else {				\
-					if (um < min || um > max) {	\
+					if ((min != 0 && um < min) ||	\
+					    um > max) {			\
 						malloc_conf_error(	\
 						    "Out-of-range "	\
 						    "conf value",	\
