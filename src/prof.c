@@ -794,6 +794,7 @@ prof_dump_ctx(bool propagate_err, prof_ctx_t *ctx, prof_bt_t *bt)
 static bool
 prof_dump_maps(bool propagate_err)
 {
+	bool ret;
 	int mfd;
 	char filename[PATH_MAX + 1];
 
@@ -806,24 +807,34 @@ prof_dump_maps(bool propagate_err)
 		ssize_t nread;
 
 		if (prof_write(propagate_err, "\nMAPPED_LIBRARIES:\n") &&
-		    propagate_err)
-			return (true);
+		    propagate_err) {
+			ret = true;
+			goto label_return;
+		}
 		nread = 0;
 		do {
 			prof_dump_buf_end += nread;
 			if (prof_dump_buf_end == PROF_DUMP_BUFSIZE) {
 				/* Make space in prof_dump_buf before read(). */
-				if (prof_flush(propagate_err) && propagate_err)
-					return (true);
+				if (prof_flush(propagate_err) &&
+				    propagate_err) {
+					ret = true;
+					goto label_return;
+				}
 			}
 			nread = read(mfd, &prof_dump_buf[prof_dump_buf_end],
 			    PROF_DUMP_BUFSIZE - prof_dump_buf_end);
 		} while (nread > 0);
-		close(mfd);
-	} else
-		return (true);
+	} else {
+		ret = true;
+		goto label_return;
+	}
 
-	return (false);
+	ret = false;
+label_return:
+	if (mfd != -1)
+		close(mfd);
+	return (ret);
 }
 
 static bool
