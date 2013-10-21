@@ -745,8 +745,10 @@ malloc_init_hard(void)
 		return (true);
 	}
 
-	if (malloc_mutex_init(&arenas_lock))
+	if (malloc_mutex_init(&arenas_lock)) {
+		malloc_mutex_unlock(&init_lock);
 		return (true);
+	}
 
 	/*
 	 * Create enough scaffolding to allow recursive allocation in
