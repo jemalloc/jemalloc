@@ -260,8 +260,8 @@ tcache_arena_dissociate(tcache_t *tcache)
 		/* Unlink from list of extant tcaches. */
 		malloc_mutex_lock(&tcache->arena->lock);
 		ql_remove(&tcache->arena->tcache_ql, tcache, link);
-		malloc_mutex_unlock(&tcache->arena->lock);
 		tcache_stats_merge(tcache, tcache->arena);
+		malloc_mutex_unlock(&tcache->arena->lock);
 	}
 }
 
@@ -399,10 +399,13 @@ tcache_thread_cleanup(void *arg)
 	}
 }
 
+/* Caller must own arena->lock. */
 void
 tcache_stats_merge(tcache_t *tcache, arena_t *arena)
 {
 	unsigned i;
+
+	cassert(config_stats);
 
 	/* Merge and reset tcache stats. */
 	for (i = 0; i < NBINS; i++) {
