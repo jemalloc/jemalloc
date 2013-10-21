@@ -368,7 +368,7 @@ void
 chunk_prefork(void)
 {
 
-	malloc_mutex_lock(&chunks_mtx);
+	malloc_mutex_prefork(&chunks_mtx);
 	if (config_ivsalloc)
 		rtree_prefork(chunks_rtree);
 	chunk_dss_prefork();

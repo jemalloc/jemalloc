@@ -1245,10 +1245,10 @@ prof_prefork(void)
 	if (opt_prof) {
 		unsigned i;
 
-		malloc_mutex_lock(&bt2ctx_mtx);
-		malloc_mutex_lock(&prof_dump_seq_mtx);
+		malloc_mutex_prefork(&bt2ctx_mtx);
+		malloc_mutex_prefork(&prof_dump_seq_mtx);
 		for (i = 0; i < PROF_NCTX_LOCKS; i++)
-			malloc_mutex_lock(&ctx_locks[i]);
+			malloc_mutex_prefork(&ctx_locks[i]);
 	}
 }
 

@@ -929,7 +929,7 @@ void
 ctl_prefork(void)
 {
 
-	malloc_mutex_lock(&ctl_mtx);
+	malloc_mutex_prefork(&ctl_mtx);
 }
 
 void
