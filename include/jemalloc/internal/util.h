@@ -42,12 +42,6 @@
 } while (0)
 #endif
 
-/* Use to assert a particular configuration, e.g., cassert(config_debug). */
-#define	cassert(c) do {							\
-	if ((c) == false)						\
-		assert(false);						\
-} while (0)
-
 #ifndef not_reached
 #define	not_reached() do {						\
 	if (config_debug) {						\
@@ -72,6 +66,12 @@
 #define	assert_not_implemented(e) do {					\
 	if (config_debug && !(e))					\
 		not_implemented();					\
+} while (0)
+
+/* Use to assert a particular configuration, e.g., cassert(config_debug). */
+#define	cassert(c) do {							\
+	if ((c) == false)						\
+		not_reached();						\
 } while (0)
 
 #endif /* JEMALLOC_H_TYPES */

@@ -554,7 +554,7 @@ malloc_vsnprintf(char *str, size_t size, const char *format, va_list ap)
 				f++;
 				break;
 			}
-			default: not_implemented();
+			default: not_reached();
 			}
 			break;
 		} default: {

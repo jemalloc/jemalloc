@@ -484,8 +484,7 @@ malloc_conf_init(void)
 			}
 			break;
 		} default:
-			/* NOTREACHED */
-			assert(false);
+			not_reached();
 			buf[0] = '\0';
 			opts = buf;
 		}

@@ -423,7 +423,7 @@ prof_backtrace(prof_bt_t *bt, unsigned nignore)
 {
 
 	cassert(config_prof);
-	assert(false);
+	not_reached();
 }
 #endif
 
@@ -511,7 +511,7 @@ prof_lookup(prof_bt_t *bt)
 			assert(ret.v != NULL);
 			if (ckh_remove(&prof_tdata->bt2cnt, ret.p->ctx->bt,
 			    NULL, NULL))
-				assert(false);
+				not_reached();
 			ql_remove(&prof_tdata->lru_ql, ret.p, lru_link);
 			prof_ctx_merge(ret.p->ctx, ret.p);
 			/* ret can now be re-used. */
@@ -695,7 +695,7 @@ prof_ctx_destroy(prof_ctx_t *ctx)
 		assert(ctx->cnt_merged.accumbytes == 0);
 		/* Remove ctx from bt2ctx. */
 		if (ckh_remove(&bt2ctx, ctx->bt, NULL, NULL))
-			assert(false);
+			not_reached();
 		prof_leave(prof_tdata);
 		/* Destroy ctx. */
 		malloc_mutex_unlock(ctx->lock);
