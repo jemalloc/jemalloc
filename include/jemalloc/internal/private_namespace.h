@@ -33,6 +33,8 @@
 #define	arena_mapbits_unzeroed_get JEMALLOC_N(arena_mapbits_unzeroed_get)
 #define	arena_mapbits_unzeroed_set JEMALLOC_N(arena_mapbits_unzeroed_set)
 #define	arena_mapbitsp_get JEMALLOC_N(arena_mapbitsp_get)
+#define	arena_mapbitsp_read JEMALLOC_N(arena_mapbitsp_read)
+#define	arena_mapbitsp_write JEMALLOC_N(arena_mapbitsp_write)
 #define	arena_mapp_get JEMALLOC_N(arena_mapp_get)
 #define	arena_maxclass JEMALLOC_N(arena_maxclass)
 #define	arena_new JEMALLOC_N(arena_new)

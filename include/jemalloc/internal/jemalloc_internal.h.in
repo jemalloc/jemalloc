@@ -232,9 +232,18 @@ static const bool config_ivsalloc =
 #  define	__DECONST(type, var)	((type)(uintptr_t)(const void *)(var))
 #endif
 
+/*
+ * JEMALLOC_ALWAYS_INLINE is used within header files for functions that are
+ * static inline functions if inlining is enabled, and single-definition
+ * library-private functions if inlining is disabled.
+ *
+ * JEMALLOC_ALWAYS_INLINE_C is for use in .c files, in which case the denoted
+ * functions are always static, regardless of whether inlining is enabled.
+ */
 #ifdef JEMALLOC_DEBUG
    /* Disable inlining to make debugging easier. */
 #  define JEMALLOC_ALWAYS_INLINE
+#  define JEMALLOC_ALWAYS_INLINE_C static
 #  define JEMALLOC_INLINE
 #  define inline
 #else
@@ -242,8 +251,11 @@ static const bool config_ivsalloc =
 #  ifdef JEMALLOC_HAVE_ATTR
 #    define JEMALLOC_ALWAYS_INLINE \
 	 static inline JEMALLOC_ATTR(unused) JEMALLOC_ATTR(always_inline)
+#    define JEMALLOC_ALWAYS_INLINE_C \
+	 static inline JEMALLOC_ATTR(always_inline)
 #  else
 #    define JEMALLOC_ALWAYS_INLINE static inline
+#    define JEMALLOC_ALWAYS_INLINE_C static inline
 #  endif
 #  define JEMALLOC_INLINE static inline
 #  ifdef _MSC_VER

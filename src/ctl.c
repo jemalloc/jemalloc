@@ -546,43 +546,30 @@ ctl_arena_refresh(arena_t *arena, unsigned i)
 static bool
 ctl_grow(void)
 {
-	size_t astats_size;
 	ctl_arena_stats_t *astats;
 	arena_t **tarenas;
 
-	/* Extend arena stats and arenas arrays. */
-	astats_size = (ctl_stats.narenas + 2) * sizeof(ctl_arena_stats_t);
-	if (ctl_stats.narenas == narenas_auto) {
-		/* ctl_stats.arenas and arenas came from base_alloc(). */
-		astats = (ctl_arena_stats_t *)imalloc(astats_size);
-		if (astats == NULL)
-			return (true);
-		memcpy(astats, ctl_stats.arenas, (ctl_stats.narenas + 1) *
-		    sizeof(ctl_arena_stats_t));
-
-		tarenas = (arena_t **)imalloc((ctl_stats.narenas + 1) *
-		    sizeof(arena_t *));
-		if (tarenas == NULL) {
-			idalloc(astats);
-			return (true);
-		}
-		memcpy(tarenas, arenas, ctl_stats.narenas * sizeof(arena_t *));
-	} else {
-		astats = (ctl_arena_stats_t *)iralloc(ctl_stats.arenas,
-		    astats_size, 0, 0, false, false);
-		if (astats == NULL)
-			return (true);
-
-		tarenas = (arena_t **)iralloc(arenas, (ctl_stats.narenas + 1) *
-		    sizeof(arena_t *), 0, 0, false, false);
-		if (tarenas == NULL)
-			return (true);
-	}
-	/* Initialize the new astats and arenas elements. */
-	memset(&astats[ctl_stats.narenas + 1], 0, sizeof(ctl_arena_stats_t));
-	if (ctl_arena_init(&astats[ctl_stats.narenas + 1]))
+	/* Allocate extended arena stats and arenas arrays. */
+	astats = (ctl_arena_stats_t *)imalloc((ctl_stats.narenas + 2) *
+	    sizeof(ctl_arena_stats_t));
+	if (astats == NULL)
 		return (true);
-	tarenas[ctl_stats.narenas] = NULL;
+	tarenas = (arena_t **)imalloc((ctl_stats.narenas + 1) *
+	    sizeof(arena_t *));
+	if (tarenas == NULL) {
+		idalloc(astats);
+		return (true);
+	}
+
+	/* Initialize the new astats element. */
+	memcpy(astats, ctl_stats.arenas, (ctl_stats.narenas + 1) *
+	    sizeof(ctl_arena_stats_t));
+	memset(&astats[ctl_stats.narenas + 1], 0, sizeof(ctl_arena_stats_t));
+	if (ctl_arena_init(&astats[ctl_stats.narenas + 1])) {
+		idalloc(tarenas);
+		idalloc(astats);
+		return (true);
+	}
 	/* Swap merged stats to their new location. */
 	{
 		ctl_arena_stats_t tstats;
@@ -593,13 +580,34 @@ ctl_grow(void)
 		memcpy(&astats[ctl_stats.narenas + 1], &tstats,
 		    sizeof(ctl_arena_stats_t));
 	}
+	/* Initialize the new arenas element. */
+	tarenas[ctl_stats.narenas] = NULL;
+	{
+		arena_t **arenas_old = arenas;
+		/*
+		 * Swap extended arenas array into place.  Although ctl_mtx
+		 * protects this function from other threads extending the
+		 * array, it does not protect from other threads mutating it
+		 * (i.e. initializing arenas and setting array elements to
+		 * point to them).  Therefore, array copying must happen under
+		 * the protection of arenas_lock.
+		 */
+		malloc_mutex_lock(&arenas_lock);
+		arenas = tarenas;
+		memcpy(arenas, arenas_old, ctl_stats.narenas *
+		    sizeof(arena_t *));
+		narenas_total++;
+		arenas_extend(narenas_total - 1);
+		malloc_mutex_unlock(&arenas_lock);
+		/*
+		 * Deallocate arenas_old only if it came from imalloc() (not
+		 * base_alloc()).
+		 */
+		if (ctl_stats.narenas != narenas_auto)
+			idalloc(arenas_old);
+	}
 	ctl_stats.arenas = astats;
 	ctl_stats.narenas++;
-	malloc_mutex_lock(&arenas_lock);
-	arenas = tarenas;
-	narenas_total++;
-	arenas_extend(narenas_total - 1);
-	malloc_mutex_unlock(&arenas_lock);
 
 	return (false);
 }
@@ -1109,7 +1117,7 @@ epoch_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
     void *newp, size_t newlen)
 {
 	int ret;
-	uint64_t newval;
+	UNUSED uint64_t newval;
 
 	malloc_mutex_lock(&ctl_mtx);
 	WRITE(newval, uint64_t);

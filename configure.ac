@@ -226,8 +226,14 @@ PIC_CFLAGS='-fPIC -DPIC'
 CTARGET='-o $@'
 LDTARGET='-o $@'
 EXTRA_LDFLAGS=
-MKLIB='ar crus $@'
+ARFLAGS='crus'
+AROUT=' $@'
 CC_MM=1
+
+AN_MAKEVAR([AR], [AC_PROG_AR])
+AN_PROGRAM([ar], [AC_PROG_AR])
+AC_DEFUN([AC_PROG_AR], [AC_CHECK_TOOL(AR, ar, :)])
+AC_PROG_AR
 
 dnl Platform-specific settings.  abi and RPATH can probably be determined
 dnl programmatically, but doing so is error-prone, which makes it generally
@@ -310,7 +316,9 @@ case "${host}" in
 	  EXTRA_LDFLAGS="-link -DEBUG"
 	  CTARGET='-Fo$@'
 	  LDTARGET='-Fe$@'
-	  MKLIB='lib -nologo -out:$@'
+	  AR='lib'
+	  ARFLAGS='-nologo -out:'
+	  AROUT='$@'
 	  CC_MM=
         else
 	  importlib="${so}"
@@ -343,6 +351,8 @@ AC_SUBST([PIC_CFLAGS])
 AC_SUBST([CTARGET])
 AC_SUBST([LDTARGET])
 AC_SUBST([MKLIB])
+AC_SUBST([ARFLAGS])
+AC_SUBST([AROUT])
 AC_SUBST([CC_MM])
 
 if test "x$abi" != "xpecoff"; then
@@ -403,7 +413,6 @@ AC_SUBST([enable_autogen])
 
 AC_PROG_INSTALL
 AC_PROG_RANLIB
-AC_PATH_PROG([AR], [ar], [false], [$PATH])
 AC_PATH_PROG([LD], [ld], [false], [$PATH])
 AC_PATH_PROG([AUTOCONF], [autoconf], [false], [$PATH])
 

@@ -72,8 +72,12 @@ main(void)
 		    (void *)&arena_ind);
 	}
 
-	for (i = 0; i < NTHREADS; i++)
-		je_thread_join(threads[i], (void *)&ret);
+	for (i = 0; i < NTHREADS; i++) {
+		intptr_t join_ret;
+		je_thread_join(threads[i], (void *)&join_ret);
+		if (join_ret != 0)
+			ret = 1;
+	}
 
 label_return:
 	malloc_printf("Test end\n");

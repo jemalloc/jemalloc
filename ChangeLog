@@ -6,6 +6,21 @@ found in the git revision history:
     http://www.canonware.com/cgi-bin/gitweb.cgi?p=jemalloc.git
     git://canonware.com/jemalloc.git
 
+* 3.4.1 (October 20, 2013)
+
+  Bug fixes:
+  - Fix a race in the "arenas.extend" mallctl that could cause memory corruption
+    of internal data structures and subsequent crashes.
+  - Fix Valgrind integration flaws that caused Valgrind warnings about reads of
+    uninitialized memory in:
+    + arena chunk headers
+    + internal zero-initialized data structures (relevant to tcache and prof
+      code)
+  - Preserve errno during the first allocation.  A readlink(2) call during
+    initialization fails unless /etc/malloc.conf exists, so errno was typically
+    set during the first allocation prior to this fix.
+  - Fix compilation warnings reported by gcc 4.8.1.
+
 * 3.4.0 (June 2, 2013)
 
   This version is essentially a small bugfix release, but the addition of
@@ -60,7 +75,7 @@ found in the git revision history:
 
   Bug fixes:
   - Fix "arenas.extend" mallctl to output the number of arenas.
-  - Fix chunk_recycyle() to unconditionally inform Valgrind that returned memory
+  - Fix chunk_recycle() to unconditionally inform Valgrind that returned memory
     is undefined.
   - Fix build break on FreeBSD related to alloca.h.
 
