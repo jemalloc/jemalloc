@@ -252,7 +252,6 @@ stats_print_atexit(void)
 static unsigned
 malloc_ncpus(void)
 {
-	unsigned ret;
 	long result;
 
 #ifdef _WIN32
@@ -262,14 +261,7 @@ malloc_ncpus(void)
 #else
 	result = sysconf(_SC_NPROCESSORS_ONLN);
 #endif
-	if (result == -1) {
-		/* Error. */
-		ret = 1;
-	}  else {
-    ret = (unsigned)result;
-  }
-
-	return (ret);
+	return (result < 0) ? 1 : (unsigned)result;
 }
 
 void
