@@ -32,47 +32,44 @@
  * assertion failure.
  */
 #ifndef assert
-#define	assert(e) do {							\
+#define	assert(e)							\
 	if (config_debug && !(e)) {					\
 		malloc_printf(						\
 		    "<jemalloc>: %s:%d: Failed assertion: \"%s\"\n",	\
 		    __FILE__, __LINE__, #e);				\
 		abort();						\
-	}								\
-} while (0)
+	} else /* ; */
 #endif
 
 #ifndef not_reached
-#define	not_reached() do {						\
+#define	not_reached()							\
 	if (config_debug) {						\
 		malloc_printf(						\
 		    "<jemalloc>: %s:%d: Unreachable code reached\n",	\
 		    __FILE__, __LINE__);				\
 		abort();						\
-	}								\
-} while (0)
+	} else /* ; */
 #endif
 
 #ifndef not_implemented
-#define	not_implemented() do {						\
+#define	not_implemented()						\
 	if (config_debug) {						\
 		malloc_printf("<jemalloc>: %s:%d: Not implemented\n",	\
 		    __FILE__, __LINE__);				\
 		abort();						\
-	}								\
-} while (0)
+	} else /* ; */
 #endif
 
-#define	assert_not_implemented(e) do {					\
+#define	assert_not_implemented(e)					\
 	if (config_debug && !(e))					\
 		not_implemented();					\
-} while (0)
+	else /* ; */
 
 /* Use to assert a particular configuration, e.g., cassert(config_debug). */
-#define	cassert(c) do {							\
+#define	cassert(c)							\
 	if ((c) == false)						\
 		not_reached();						\
-} while (0)
+	else /* ; */
 
 #endif /* JEMALLOC_H_TYPES */
 /******************************************************************************/
