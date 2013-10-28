@@ -895,7 +895,7 @@ prof_dump(bool propagate_err, const char *filename, bool leakcheck)
 			goto label_error;
 	}
 
-	/* Dump  per ctx profile stats. */
+	/* Dump per ctx profile stats. */
 	for (tabind = 0; ckh_iter(&bt2ctx, &tabind, &bt.v, &ctx.v)
 	    == false;) {
 		if (prof_dump_ctx(propagate_err, ctx.p, bt.p))
