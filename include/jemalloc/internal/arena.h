@@ -174,11 +174,12 @@ struct arena_chunk_s {
 	size_t			nruns_avail;
 
 	/*
-	 * Number of available run adjacencies.  Clean and dirty available runs
-	 * are not coalesced, which causes virtual memory fragmentation.  The
-	 * ratio of (nruns_avail-nruns_adjac):nruns_adjac is used for tracking
-	 * this fragmentation.
-	 * */
+	 * Number of available run adjacencies that purging could coalesce.
+	 * Clean and dirty available runs are not coalesced, which causes
+	 * virtual memory fragmentation.  The ratio of
+	 * (nruns_avail-nruns_adjac):nruns_adjac is used for tracking this
+	 * fragmentation.
+	 */
 	size_t			nruns_adjac;
 
 	/*
