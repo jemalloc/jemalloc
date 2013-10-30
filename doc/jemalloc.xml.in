@@ -605,7 +605,7 @@ for (i = 0; i < nbins; i++) {
     which controls refreshing of cached dynamic statistics.</para>
 
     <variablelist>
-      <varlistentry>
+      <varlistentry id="version">
         <term>
           <mallctl>version</mallctl>
           (<type>const char *</type>)
@@ -626,7 +626,7 @@ for (i = 0; i < nbins; i++) {
         detecting whether another thread caused a refresh.</para></listitem>
       </varlistentry>
 
-      <varlistentry>
+      <varlistentry id="config.debug">
         <term>
           <mallctl>config.debug</mallctl>
           (<type>bool</type>)
@@ -636,7 +636,7 @@ for (i = 0; i < nbins; i++) {
         build configuration.</para></listitem>
       </varlistentry>
 
-      <varlistentry>
+      <varlistentry id="config.dss">
         <term>
           <mallctl>config.dss</mallctl>
           (<type>bool</type>)
@@ -646,7 +646,7 @@ for (i = 0; i < nbins; i++) {
         build configuration.</para></listitem>
       </varlistentry>
 
-      <varlistentry>
+      <varlistentry id="config.fill">
         <term>
           <mallctl>config.fill</mallctl>
           (<type>bool</type>)
@@ -656,7 +656,7 @@ for (i = 0; i < nbins; i++) {
         build configuration.</para></listitem>
       </varlistentry>
 
-      <varlistentry>
+      <varlistentry id="config.lazy_lock">
         <term>
           <mallctl>config.lazy_lock</mallctl>
           (<type>bool</type>)
@@ -666,7 +666,7 @@ for (i = 0; i < nbins; i++) {
         during build configuration.</para></listitem>
       </varlistentry>
 
-      <varlistentry>
+      <varlistentry id="config.mremap">
         <term>
           <mallctl>config.mremap</mallctl>
           (<type>bool</type>)
@@ -676,7 +676,7 @@ for (i = 0; i < nbins; i++) {
         build configuration.</para></listitem>
       </varlistentry>
 
-      <varlistentry>
+      <varlistentry id="config.munmap">
         <term>
           <mallctl>config.munmap</mallctl>
           (<type>bool</type>)
@@ -686,7 +686,7 @@ for (i = 0; i < nbins; i++) {
         build configuration.</para></listitem>
       </varlistentry>
 
-      <varlistentry>
+      <varlistentry id="config.prof">
         <term>
           <mallctl>config.prof</mallctl>
           (<type>bool</type>)
@@ -696,7 +696,7 @@ for (i = 0; i < nbins; i++) {
         build configuration.</para></listitem>
       </varlistentry>
 
-      <varlistentry>
+      <varlistentry id="config.prof_libgcc">
         <term>
           <mallctl>config.prof_libgcc</mallctl>
           (<type>bool</type>)
@@ -706,7 +706,7 @@ for (i = 0; i < nbins; i++) {
         specified during build configuration.</para></listitem>
       </varlistentry>
 
-      <varlistentry>
+      <varlistentry id="config.prof_libunwind">
         <term>
           <mallctl>config.prof_libunwind</mallctl>
           (<type>bool</type>)
@@ -716,7 +716,7 @@ for (i = 0; i < nbins; i++) {
         during build configuration.</para></listitem>
       </varlistentry>
 
-      <varlistentry>
+      <varlistentry id="config.stats">
         <term>
           <mallctl>config.stats</mallctl>
           (<type>bool</type>)
@@ -726,7 +726,7 @@ for (i = 0; i < nbins; i++) {
         build configuration.</para></listitem>
       </varlistentry>
 
-      <varlistentry>
+      <varlistentry id="config.tcache">
         <term>
           <mallctl>config.tcache</mallctl>
           (<type>bool</type>)
@@ -736,7 +736,7 @@ for (i = 0; i < nbins; i++) {
         during build configuration.</para></listitem>
       </varlistentry>
 
-      <varlistentry>
+      <varlistentry id="config.tls">
         <term>
           <mallctl>config.tls</mallctl>
           (<type>bool</type>)
@@ -746,7 +746,7 @@ for (i = 0; i < nbins; i++) {
         build configuration.</para></listitem>
       </varlistentry>
 
-      <varlistentry>
+      <varlistentry id="config.utrace">
         <term>
           <mallctl>config.utrace</mallctl>
           (<type>bool</type>)
@@ -756,7 +756,7 @@ for (i = 0; i < nbins; i++) {
         build configuration.</para></listitem>
       </varlistentry>
 
-      <varlistentry>
+      <varlistentry id="config.valgrind">
         <term>
           <mallctl>config.valgrind</mallctl>
           (<type>bool</type>)
@@ -766,7 +766,7 @@ for (i = 0; i < nbins; i++) {
         build configuration.</para></listitem>
       </varlistentry>
 
-      <varlistentry>
+      <varlistentry id="config.xmalloc">
         <term>
           <mallctl>config.xmalloc</mallctl>
           (<type>bool</type>)
@@ -1175,7 +1175,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         by default.</para></listitem>
       </varlistentry>
 
-      <varlistentry>
+      <varlistentry id="thread.arena">
         <term>
           <mallctl>thread.arena</mallctl>
           (<type>unsigned</type>)
@@ -1202,7 +1202,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         cases.</para></listitem>
       </varlistentry>
 
-      <varlistentry>
+      <varlistentry id="thread.allocatedp">
         <term>
           <mallctl>thread.allocatedp</mallctl>
           (<type>uint64_t *</type>)
@@ -1229,7 +1229,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         cases.</para></listitem>
       </varlistentry>
 
-      <varlistentry>
+      <varlistentry id="thread.deallocatedp">
         <term>
           <mallctl>thread.deallocatedp</mallctl>
           (<type>uint64_t *</type>)
@@ -1243,7 +1243,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         <function>mallctl*<parameter/></function> calls.</para></listitem>
       </varlistentry>
 
-      <varlistentry>
+      <varlistentry id="thread.tcache.enabled">
         <term>
           <mallctl>thread.tcache.enabled</mallctl>
           (<type>bool</type>)
@@ -1257,7 +1257,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         </para></listitem>
       </varlistentry>
 
-      <varlistentry>
+      <varlistentry id="thread.tcache.flush">
         <term>
           <mallctl>thread.tcache.flush</mallctl>
           (<type>void</type>)
@@ -1323,7 +1323,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         initialized.</para></listitem>
       </varlistentry>
 
-      <varlistentry>
+      <varlistentry id="arenas.quantum">
         <term>
           <mallctl>arenas.quantum</mallctl>
           (<type>size_t</type>)
@@ -1332,7 +1332,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         <listitem><para>Quantum size.</para></listitem>
       </varlistentry>
 
-      <varlistentry>
+      <varlistentry id="arenas.page">
         <term>
           <mallctl>arenas.page</mallctl>
           (<type>size_t</type>)
@@ -1341,7 +1341,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         <listitem><para>Page size.</para></listitem>
       </varlistentry>
 
-      <varlistentry>
+      <varlistentry id="arenas.tcache_max">
         <term>
           <mallctl>arenas.tcache_max</mallctl>
           (<type>size_t</type>)
@@ -1351,7 +1351,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         <listitem><para>Maximum thread-cached size class.</para></listitem>
       </varlistentry>
 
-      <varlistentry>
+      <varlistentry id="arenas.nbins">
         <term>
           <mallctl>arenas.nbins</mallctl>
           (<type>unsigned</type>)
@@ -1360,7 +1360,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         <listitem><para>Number of bin size classes.</para></listitem>
       </varlistentry>
 
-      <varlistentry>
+      <varlistentry id="arenas.nhbins">
         <term>
           <mallctl>arenas.nhbins</mallctl>
           (<type>unsigned</type>)
@@ -1380,7 +1380,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         <listitem><para>Maximum size supported by size class.</para></listitem>
       </varlistentry>
 
-      <varlistentry>
+      <varlistentry id="arenas.bin.i.nregs">
         <term>
           <mallctl>arenas.bin.&lt;i&gt;.nregs</mallctl>
           (<type>uint32_t</type>)
@@ -1389,7 +1389,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         <listitem><para>Number of regions per page run.</para></listitem>
       </varlistentry>
 
-      <varlistentry>
+      <varlistentry id="arenas.bin.i.run_size">
         <term>
           <mallctl>arenas.bin.&lt;i&gt;.run_size</mallctl>
           (<type>size_t</type>)
@@ -1398,7 +1398,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         <listitem><para>Number of bytes per page run.</para></listitem>
       </varlistentry>
 
-      <varlistentry>
+      <varlistentry id="arenas.nlruns">
         <term>
           <mallctl>arenas.nlruns</mallctl>
           (<type>size_t</type>)
@@ -1407,7 +1407,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         <listitem><para>Total number of large size classes.</para></listitem>
       </varlistentry>
 
-      <varlistentry>
+      <varlistentry id="arenas.lrun.i.size">
         <term>
           <mallctl>arenas.lrun.&lt;i&gt;.size</mallctl>
           (<type>size_t</type>)
@@ -1417,7 +1417,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         class.</para></listitem>
       </varlistentry>
 
-      <varlistentry>
+      <varlistentry id="arenas.purge">
         <term>
           <mallctl>arenas.purge</mallctl>
           (<type>unsigned</type>)
@@ -1427,7 +1427,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         for all arenas if none is specified.</para></listitem>
       </varlistentry>
 
-      <varlistentry>
+      <varlistentry id="arenas.extend">
         <term>
           <mallctl>arenas.extend</mallctl>
           (<type>unsigned</type>)
@@ -1451,7 +1451,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         </para></listitem>
       </varlistentry>
 
-      <varlistentry>
+      <varlistentry id="prof.dump">
         <term>
           <mallctl>prof.dump</mallctl>
           (<type>const char *</type>)
@@ -1467,7 +1467,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         option.</para></listitem>
       </varlistentry>
 
-      <varlistentry>
+      <varlistentry id="prof.interval">
         <term>
           <mallctl>prof.interval</mallctl>
           (<type>uint64_t</type>)
@@ -1527,7 +1527,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         entirely devoted to allocator metadata.</para></listitem>
       </varlistentry>
 
-      <varlistentry>
+      <varlistentry id="stats.mapped">
         <term>
           <mallctl>stats.mapped</mallctl>
           (<type>size_t</type>)
@@ -1541,7 +1541,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         does not include inactive chunks.</para></listitem>
       </varlistentry>
 
-      <varlistentry>
+      <varlistentry id="stats.chunks.current">
         <term>
           <mallctl>stats.chunks.current</mallctl>
           (<type>size_t</type>)
@@ -1553,7 +1553,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         </para></listitem>
       </varlistentry>
 
-      <varlistentry>
+      <varlistentry id="stats.chunks.total">
         <term>
           <mallctl>stats.chunks.total</mallctl>
           (<type>uint64_t</type>)
@@ -1563,7 +1563,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         <listitem><para>Cumulative number of chunks allocated.</para></listitem>
       </varlistentry>
 
-      <varlistentry>
+      <varlistentry id="stats.chunks.high">
         <term>
           <mallctl>stats.chunks.high</mallctl>
           (<type>size_t</type>)
@@ -1574,7 +1574,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         </para></listitem>
       </varlistentry>
 
-      <varlistentry>
+      <varlistentry id="stats.huge.allocated">
         <term>
           <mallctl>stats.huge.allocated</mallctl>
           (<type>size_t</type>)
@@ -1585,7 +1585,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         </para></listitem>
       </varlistentry>
 
-      <varlistentry>
+      <varlistentry id="stats.huge.nmalloc">
         <term>
           <mallctl>stats.huge.nmalloc</mallctl>
           (<type>uint64_t</type>)
@@ -1596,7 +1596,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         </para></listitem>
       </varlistentry>
 
-      <varlistentry>
+      <varlistentry id="stats.huge.ndalloc">
         <term>
           <mallctl>stats.huge.ndalloc</mallctl>
           (<type>uint64_t</type>)
@@ -1607,7 +1607,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         </para></listitem>
       </varlistentry>
 
-      <varlistentry>
+      <varlistentry id="stats.arenas.i.dss">
         <term>
           <mallctl>stats.arenas.&lt;i&gt;.dss</mallctl>
           (<type>const char *</type>)
@@ -1621,7 +1621,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         </para></listitem>
       </varlistentry>
 
-      <varlistentry>
+      <varlistentry id="stats.arenas.i.nthreads">
         <term>
           <mallctl>stats.arenas.&lt;i&gt;.nthreads</mallctl>
           (<type>unsigned</type>)
@@ -1631,7 +1631,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         arena.</para></listitem>
       </varlistentry>
 
-      <varlistentry>
+      <varlistentry id="stats.arenas.i.pactive">
         <term>
           <mallctl>stats.arenas.&lt;i&gt;.pactive</mallctl>
           (<type>size_t</type>)
@@ -1652,7 +1652,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         similar has not been called.</para></listitem>
       </varlistentry>
 
-      <varlistentry>
+      <varlistentry id="stats.arenas.i.mapped">
         <term>
           <mallctl>stats.arenas.&lt;i&gt;.mapped</mallctl>
           (<type>size_t</type>)
@@ -1662,7 +1662,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         <listitem><para>Number of mapped bytes.</para></listitem>
       </varlistentry>
 
-      <varlistentry>
+      <varlistentry id="stats.arenas.i.npurge">
         <term>
           <mallctl>stats.arenas.&lt;i&gt;.npurge</mallctl>
           (<type>uint64_t</type>)
@@ -1673,7 +1673,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         </para></listitem>
       </varlistentry>
 
-      <varlistentry>
+      <varlistentry id="stats.arenas.i.nmadvise">
         <term>
           <mallctl>stats.arenas.&lt;i&gt;.nmadvise</mallctl>
           (<type>uint64_t</type>)
@@ -1685,7 +1685,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         similar calls made to purge dirty pages.</para></listitem>
       </varlistentry>
 
-      <varlistentry>
+      <varlistentry id="stats.arenas.i.npurged">
         <term>
           <mallctl>stats.arenas.&lt;i&gt;.npurged</mallctl>
           (<type>uint64_t</type>)
@@ -1695,7 +1695,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         <listitem><para>Number of pages purged.</para></listitem>
       </varlistentry>
 
-      <varlistentry>
+      <varlistentry id="stats.arenas.i.small.allocated">
         <term>
           <mallctl>stats.arenas.&lt;i&gt;.small.allocated</mallctl>
           (<type>size_t</type>)
@@ -1706,7 +1706,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         </para></listitem>
       </varlistentry>
 
-      <varlistentry>
+      <varlistentry id="stats.arenas.i.small.nmalloc">
         <term>
           <mallctl>stats.arenas.&lt;i&gt;.small.nmalloc</mallctl>
           (<type>uint64_t</type>)
@@ -1717,7 +1717,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         small bins.</para></listitem>
       </varlistentry>
 
-      <varlistentry>
+      <varlistentry id="stats.arenas.i.small.ndalloc">
         <term>
           <mallctl>stats.arenas.&lt;i&gt;.small.ndalloc</mallctl>
           (<type>uint64_t</type>)
@@ -1728,7 +1728,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         </para></listitem>
       </varlistentry>
 
-      <varlistentry>
+      <varlistentry id="stats.arenas.i.small.nrequests">
         <term>
           <mallctl>stats.arenas.&lt;i&gt;.small.nrequests</mallctl>
           (<type>uint64_t</type>)
@@ -1739,7 +1739,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         </para></listitem>
       </varlistentry>
 
-      <varlistentry>
+      <varlistentry id="stats.arenas.i.large.allocated">
         <term>
           <mallctl>stats.arenas.&lt;i&gt;.large.allocated</mallctl>
           (<type>size_t</type>)
@@ -1750,7 +1750,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         </para></listitem>
       </varlistentry>
 
-      <varlistentry>
+      <varlistentry id="stats.arenas.i.large.nmalloc">
         <term>
           <mallctl>stats.arenas.&lt;i&gt;.large.nmalloc</mallctl>
           (<type>uint64_t</type>)
@@ -1761,7 +1761,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         directly by the arena.</para></listitem>
       </varlistentry>
 
-      <varlistentry>
+      <varlistentry id="stats.arenas.i.large.ndalloc">
         <term>
           <mallctl>stats.arenas.&lt;i&gt;.large.ndalloc</mallctl>
           (<type>uint64_t</type>)
@@ -1772,7 +1772,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         directly by the arena.</para></listitem>
       </varlistentry>
 
-      <varlistentry>
+      <varlistentry id="stats.arenas.i.large.nrequests">
         <term>
           <mallctl>stats.arenas.&lt;i&gt;.large.nrequests</mallctl>
           (<type>uint64_t</type>)
@@ -1783,7 +1783,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         </para></listitem>
       </varlistentry>
 
-      <varlistentry>
+      <varlistentry id="stats.arenas.i.bins.j.allocated">
         <term>
           <mallctl>stats.arenas.&lt;i&gt;.bins.&lt;j&gt;.allocated</mallctl>
           (<type>size_t</type>)
@@ -1794,7 +1794,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         bin.</para></listitem>
       </varlistentry>
 
-      <varlistentry>
+      <varlistentry id="stats.arenas.i.bins.j.nmalloc">
         <term>
           <mallctl>stats.arenas.&lt;i&gt;.bins.&lt;j&gt;.nmalloc</mallctl>
           (<type>uint64_t</type>)
@@ -1805,7 +1805,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         </para></listitem>
       </varlistentry>
 
-      <varlistentry>
+      <varlistentry id="stats.arenas.i.bins.j.ndalloc">
         <term>
           <mallctl>stats.arenas.&lt;i&gt;.bins.&lt;j&gt;.ndalloc</mallctl>
           (<type>uint64_t</type>)
@@ -1816,7 +1816,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         </para></listitem>
       </varlistentry>
 
-      <varlistentry>
+      <varlistentry id="stats.arenas.i.bins.j.nrequests">
         <term>
           <mallctl>stats.arenas.&lt;i&gt;.bins.&lt;j&gt;.nrequests</mallctl>
           (<type>uint64_t</type>)
@@ -1827,7 +1827,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         requests.</para></listitem>
       </varlistentry>
 
-      <varlistentry>
+      <varlistentry id="stats.arenas.i.bins.j.nfills">
         <term>
           <mallctl>stats.arenas.&lt;i&gt;.bins.&lt;j&gt;.nfills</mallctl>
           (<type>uint64_t</type>)
@@ -1837,7 +1837,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         <listitem><para>Cumulative number of tcache fills.</para></listitem>
       </varlistentry>
 
-      <varlistentry>
+      <varlistentry id="stats.arenas.i.bins.j.nflushes">
         <term>
           <mallctl>stats.arenas.&lt;i&gt;.bins.&lt;j&gt;.nflushes</mallctl>
           (<type>uint64_t</type>)
@@ -1847,7 +1847,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         <listitem><para>Cumulative number of tcache flushes.</para></listitem>
       </varlistentry>
 
-      <varlistentry>
+      <varlistentry id="stats.arenas.i.bins.j.nruns">
         <term>
           <mallctl>stats.arenas.&lt;i&gt;.bins.&lt;j&gt;.nruns</mallctl>
           (<type>uint64_t</type>)
@@ -1857,7 +1857,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         <listitem><para>Cumulative number of runs created.</para></listitem>
       </varlistentry>
 
-      <varlistentry>
+      <varlistentry id="stats.arenas.i.bins.j.nreruns">
         <term>
           <mallctl>stats.arenas.&lt;i&gt;.bins.&lt;j&gt;.nreruns</mallctl>
           (<type>uint64_t</type>)
@@ -1868,7 +1868,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         to allocate changed.</para></listitem>
       </varlistentry>
 
-      <varlistentry>
+      <varlistentry id="stats.arenas.i.bins.j.curruns">
         <term>
           <mallctl>stats.arenas.&lt;i&gt;.bins.&lt;j&gt;.curruns</mallctl>
           (<type>size_t</type>)
@@ -1878,7 +1878,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         <listitem><para>Current number of runs.</para></listitem>
       </varlistentry>
 
-      <varlistentry>
+      <varlistentry id="stats.arenas.i.lruns.j.nmalloc">
         <term>
           <mallctl>stats.arenas.&lt;i&gt;.lruns.&lt;j&gt;.nmalloc</mallctl>
           (<type>uint64_t</type>)
@@ -1889,7 +1889,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         class served directly by the arena.</para></listitem>
       </varlistentry>
 
-      <varlistentry>
+      <varlistentry id="stats.arenas.i.lruns.j.ndalloc">
         <term>
           <mallctl>stats.arenas.&lt;i&gt;.lruns.&lt;j&gt;.ndalloc</mallctl>
           (<type>uint64_t</type>)
@@ -1900,7 +1900,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         size class served directly by the arena.</para></listitem>
       </varlistentry>
 
-      <varlistentry>
+      <varlistentry id="stats.arenas.i.lruns.j.nrequests">
         <term>
           <mallctl>stats.arenas.&lt;i&gt;.lruns.&lt;j&gt;.nrequests</mallctl>
           (<type>uint64_t</type>)
@@ -1911,7 +1911,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         class.</para></listitem>
       </varlistentry>
 
-      <varlistentry>
+      <varlistentry id="stats.arenas.i.lruns.j.curruns">
         <term>
           <mallctl>stats.arenas.&lt;i&gt;.lruns.&lt;j&gt;.curruns</mallctl>
           (<type>size_t</type>)
