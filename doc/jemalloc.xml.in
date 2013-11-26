@@ -358,7 +358,7 @@ for (i = 0; i < nbins; i++) {
             <listitem><para>Initialize newly allocated memory to contain zero
             bytes.  In the growing reallocation case, the real size prior to
             reallocation defines the boundary between untouched bytes and those
-            that are initialized to contain zero bytes.  If this option is
+            that are initialized to contain zero bytes.  If this macro is
             absent, newly allocated memory is uninitialized.</para></listitem>
           </varlistentry>
           <varlistentry>
@@ -373,9 +373,11 @@ for (i = 0; i < nbins; i++) {
             </constant></term>
 
             <listitem><para>Use the arena specified by the index
-            <parameter>a</parameter>.  This macro does not validate that
-            <parameter>a</parameter> specifies an arena in the valid
-            range.</para></listitem>
+            <parameter>a</parameter> (and by necessity bypass the thread
+            cache).  This macro has no effect for huge regions, nor for regions
+            that were allocated via an arena other than the one specified.
+            This macro does not validate that <parameter>a</parameter>
+            specifies an arena index in the valid range.</para></listitem>
           </varlistentry>
         </variablelist>
       </para>

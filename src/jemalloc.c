@@ -1530,7 +1530,7 @@ je_rallocm(void **ptr, size_t *rsize, size_t size, size_t extra, int flags)
 
 	if (arena_ind != UINT_MAX) {
 		arena_chunk_t *chunk;
-		try_tcache_alloc = true;
+		try_tcache_alloc = false;
 		chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(*ptr);
 		try_tcache_dalloc = (chunk == *ptr || chunk->arena !=
 		    arenas[arena_ind]);
