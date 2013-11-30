@@ -262,14 +262,7 @@ malloc_ncpus(void)
 #else
 	result = sysconf(_SC_NPROCESSORS_ONLN);
 #endif
-	if (result == -1) {
-		/* Error. */
-		ret = 1;
-	}  else {
-    ret = (unsigned)result;
-  }
-
-	return (ret);
+	return ((result == -1) ? 1 : (unsigned)result);
 }
 
 void
