@@ -6,6 +6,14 @@ found in the git revision history:
     http://www.canonware.com/cgi-bin/gitweb.cgi?p=jemalloc.git
     git://canonware.com/jemalloc.git
 
+* 3.5.0 (XXX)
+
+  Bug fixes:
+  - Change the default private namespace prefix from empty to je_, and change
+    --with-private-namespace-prefix so that it prepends an additional prefix
+    rather than replacing je_.  This reduces the likelihood of applications
+    which statically link jemalloc experiencing symbol name collisions.
+
 * 3.4.1 (October 20, 2013)
 
   Bug fixes:

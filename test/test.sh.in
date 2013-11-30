@@ -1,0 +1,37 @@
+#!/bin/sh
+
+case @abi@ in
+  macho)
+    export DYLD_FALLBACK_LIBRARY_PATH="@objroot@lib"
+    ;;
+  pecoff)
+    export PATH="${PATH}:@objroot@lib"
+    ;;
+  *)
+    ;;
+esac
+
+total=0
+failures=0
+echo "========================================="
+for t in $@; do
+  total=`expr $total + 1`
+  /bin/echo -n "${t} ... "
+  ${t}@exe@ @abs_srcroot@ @abs_objroot@ > @objroot@${t}.out 2>&1
+  result=$?
+  if [ -e "@srcroot@${t}.exp" ] ; then
+    diff -w -u @srcroot@${t}.exp @objroot@${t}.out >/dev/null 2>&1
+    fail=$?
+    if [ "${fail}" -eq "1" ] ; then
+      failures=`expr ${failures} + 1`
+      echo "*** FAIL ***"
+    else
+      echo "pass"
+    fi
+  else
+    echo "*** FAIL *** (.exp file is missing)"
+    failures=`expr ${failures} + 1`
+  fi
+done
+echo "========================================="
+echo "Failures: ${failures}/${total}"

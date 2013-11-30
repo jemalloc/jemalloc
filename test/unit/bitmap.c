@@ -1,5 +1,4 @@
-#define	JEMALLOC_MANGLE
-#include "jemalloc_test.h"
+#include "test/jemalloc_test.h"
 
 #if (LG_BITMAP_MAXBITS > 12)
 #  define MAXBITS	4500
@@ -37,7 +36,6 @@ test_bitmap_init(void)
 			for (j = 0; j < i; j++)
 				assert(bitmap_get(bitmap, &binfo, j) == false);
 			free(bitmap);
-
 		}
 	}
 }

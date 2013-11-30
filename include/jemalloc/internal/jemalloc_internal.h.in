@@ -54,8 +54,7 @@ typedef intptr_t ssize_t;
 #endif
 #include <fcntl.h>
 
-#define	JEMALLOC_NO_DEMANGLE
-#include "../jemalloc@install_suffix@.h"
+#include "jemalloc_internal_defs.h"
 
 #ifdef JEMALLOC_UTRACE
 #include <sys/ktrace.h>
@@ -66,6 +65,16 @@ typedef intptr_t ssize_t;
 #include <valgrind/memcheck.h>
 #endif
 
+#define	JEMALLOC_NO_DEMANGLE
+#ifdef JEMALLOC_JET
+#  define JEMALLOC_N(n) jet_##n
+#  include "jemalloc/internal/public_namespace.h"
+#  define JEMALLOC_NO_RENAME
+#  include "../jemalloc@install_suffix@.h"
+#else
+#  define JEMALLOC_N(n) @private_namespace@##n
+#  include "../jemalloc@install_suffix@.h"
+#endif
 #include "jemalloc/internal/private_namespace.h"
 
 #ifdef JEMALLOC_CC_SILENCE
@@ -522,10 +531,10 @@ typedef struct {
 	uint64_t	deallocated;
 } thread_allocated_t;
 /*
- * The JEMALLOC_CONCAT() wrapper is necessary to pass {0, 0} via a cpp macro
+ * The JEMALLOC_ARG_CONCAT() wrapper is necessary to pass {0, 0} via a cpp macro
  * argument.
  */
-#define	THREAD_ALLOCATED_INITIALIZER	JEMALLOC_CONCAT({0, 0})
+#define	THREAD_ALLOCATED_INITIALIZER	JEMALLOC_ARG_CONCAT({0, 0})
 
 #undef JEMALLOC_H_STRUCTS
 /******************************************************************************/

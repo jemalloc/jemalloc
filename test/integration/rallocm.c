@@ -1,5 +1,6 @@
-#define	JEMALLOC_MANGLE
-#include "jemalloc_test.h"
+#include <unistd.h>
+
+#include "test/jemalloc_test.h"
 
 int
 main(void)

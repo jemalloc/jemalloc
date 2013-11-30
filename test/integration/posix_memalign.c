@@ -1,5 +1,4 @@
-#define	JEMALLOC_MANGLE
-#include "jemalloc_test.h"
+#include "test/jemalloc_test.h"
 
 #define CHUNK 0x400000
 /* #define MAXALIGN ((size_t)UINT64_C(0x80000000000)) */
@@ -11,24 +10,25 @@ main(void)
 {
 	size_t alignment, size, total;
 	unsigned i;
+	int err;
 	void *p, *ps[NITER];
 
 	malloc_printf("Test begin\n");
 
 	/* Test error conditions. */
-	alignment = 0;
-	set_errno(0);
-	p = aligned_alloc(alignment, 1);
-	if (p != NULL || get_errno() != EINVAL) {
-		malloc_printf(
-		    "Expected error for invalid alignment %zu\n", alignment);
+	for (alignment = 0; alignment < sizeof(void *); alignment++) {
+		err = posix_memalign(&p, alignment, 1);
+		if (err != EINVAL) {
+			malloc_printf(
+			    "Expected error for invalid alignment %zu\n",
+			    alignment);
+		}
 	}
 
 	for (alignment = sizeof(size_t); alignment < MAXALIGN;
 	    alignment <<= 1) {
-		set_errno(0);
-		p = aligned_alloc(alignment + 1, 1);
-		if (p != NULL || get_errno() != EINVAL) {
+		err = posix_memalign(&p, alignment + 1, 1);
+		if (err == 0) {
 			malloc_printf(
 			    "Expected error for invalid alignment %zu\n",
 			    alignment + 1);
@@ -42,11 +42,10 @@ main(void)
 	alignment = 0x80000000LU;
 	size      = 0x80000000LU;
 #endif
-	set_errno(0);
-	p = aligned_alloc(alignment, size);
-	if (p != NULL || get_errno() != ENOMEM) {
+	err = posix_memalign(&p, alignment, size);
+	if (err == 0) {
 		malloc_printf(
-		    "Expected error for aligned_alloc(%zu, %zu)\n",
+		    "Expected error for posix_memalign(&p, %zu, %zu)\n",
 		    alignment, size);
 	}
 
@@ -57,11 +56,10 @@ main(void)
 	alignment = 0x40000000LU;
 	size      = 0x84000001LU;
 #endif
-	set_errno(0);
-	p = aligned_alloc(alignment, size);
-	if (p != NULL || get_errno() != ENOMEM) {
+	err = posix_memalign(&p, alignment, size);
+	if (err == 0) {
 		malloc_printf(
-		    "Expected error for aligned_alloc(%zu, %zu)\n",
+		    "Expected error for posix_memalign(&p, %zu, %zu)\n",
 		    alignment, size);
 	}
 
@@ -71,11 +69,10 @@ main(void)
 #else
 	size = 0xfffffff0LU;
 #endif
-	set_errno(0);
-	p = aligned_alloc(alignment, size);
-	if (p != NULL || get_errno() != ENOMEM) {
+	err = posix_memalign(&p, alignment, size);
+	if (err == 0) {
 		malloc_printf(
-		    "Expected error for aligned_alloc(&p, %zu, %zu)\n",
+		    "Expected error for posix_memalign(&p, %zu, %zu)\n",
 		    alignment, size);
 	}
 
@@ -91,15 +88,12 @@ main(void)
 		    size < 3 * alignment && size < (1U << 31);
 		    size += (alignment >> (LG_SIZEOF_PTR-1)) - 1) {
 			for (i = 0; i < NITER; i++) {
-				ps[i] = aligned_alloc(alignment, size);
-				if (ps[i] == NULL) {
-					char buf[BUFERROR_BUF];
-
-					buferror(buf, sizeof(buf));
-					malloc_printf(
+				err = posix_memalign(&ps[i],
+				    alignment, size);
+				if (err) {
+					test_fail(
 					    "Error for size %zu (%#zx): %s\n",
-					    size, size, buf);
-					exit(1);
+					    size, size, strerror(err));
 				}
 				total += malloc_usable_size(ps[i]);
 				if (total >= (MAXALIGN << 1))

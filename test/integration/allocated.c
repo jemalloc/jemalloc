@@ -1,5 +1,4 @@
-#define	JEMALLOC_MANGLE
-#include "jemalloc_test.h"
+#include "test/jemalloc_test.h"
 
 void *
 je_thread_start(void *arg)
@@ -18,9 +17,8 @@ je_thread_start(void *arg)
 #endif
 			goto label_return;
 		}
-		malloc_printf("%s(): Error in mallctl(): %s\n", __func__,
+		test_fail("%s(): Error in mallctl(): %s\n", __func__,
 		    strerror(err));
-		exit(1);
 	}
 	sz = sizeof(ap0);
 	if ((err = mallctl("thread.allocatedp", &ap0, &sz, NULL, 0))) {
@@ -30,9 +28,8 @@ je_thread_start(void *arg)
 #endif
 			goto label_return;
 		}
-		malloc_printf("%s(): Error in mallctl(): %s\n", __func__,
+		test_fail("%s(): Error in mallctl(): %s\n", __func__,
 		    strerror(err));
-		exit(1);
 	}
 	assert(*ap0 == a0);
 
@@ -44,9 +41,8 @@ je_thread_start(void *arg)
 #endif
 			goto label_return;
 		}
-		malloc_printf("%s(): Error in mallctl(): %s\n", __func__,
+		test_fail("%s(): Error in mallctl(): %s\n", __func__,
 		    strerror(err));
-		exit(1);
 	}
 	sz = sizeof(dp0);
 	if ((err = mallctl("thread.deallocatedp", &dp0, &sz, NULL, 0))) {
@@ -56,17 +52,14 @@ je_thread_start(void *arg)
 #endif
 			goto label_return;
 		}
-		malloc_printf("%s(): Error in mallctl(): %s\n", __func__,
+		test_fail("%s(): Error in mallctl(): %s\n", __func__,
 		    strerror(err));
-		exit(1);
 	}
 	assert(*dp0 == d0);
 
 	p = malloc(1);
-	if (p == NULL) {
-		malloc_printf("%s(): Error in malloc()\n", __func__);
-		exit(1);
-	}
+	if (p == NULL)
+		test_fail("%s(): Error in malloc()\n", __func__);
 
 	sz = sizeof(a1);
 	mallctl("thread.allocated", &a1, &sz, NULL, 0);

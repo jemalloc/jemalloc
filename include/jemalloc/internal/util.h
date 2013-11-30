@@ -14,7 +14,7 @@
  * Wrap a cpp argument that contains commas such that it isn't broken up into
  * multiple arguments.
  */
-#define JEMALLOC_CONCAT(...) __VA_ARGS__
+#define JEMALLOC_ARG_CONCAT(...) __VA_ARGS__
 
 /*
  * Silence compiler warnings due to uninitialized values.  This is used
@@ -63,10 +63,12 @@
 } while (0)
 #endif
 
+#ifndef assert_not_implemented
 #define	assert_not_implemented(e) do {					\
 	if (config_debug && !(e))					\
 		not_implemented();					\
 } while (0)
+#endif
 
 /* Use to assert a particular configuration, e.g., cassert(config_debug). */
 #define	cassert(c) do {							\
@@ -107,7 +109,6 @@ void	malloc_printf(const char *format, ...)
 
 #ifndef JEMALLOC_ENABLE_INLINE
 size_t	pow2_ceil(size_t x);
-void	malloc_write(const char *s);
 void	set_errno(int errnum);
 int	get_errno(void);
 #endif

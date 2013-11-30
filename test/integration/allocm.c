@@ -1,5 +1,4 @@
-#define	JEMALLOC_MANGLE
-#include "jemalloc_test.h"
+#include "test/jemalloc_test.h"
 
 #define CHUNK 0x400000
 /* #define MAXALIGN ((size_t)UINT64_C(0x80000000000)) */
@@ -144,21 +143,19 @@ main(void)
 				r = nallocm(&nsz, sz,
 				    ALLOCM_ALIGN(alignment) | ALLOCM_ZERO);
 				if (r != ALLOCM_SUCCESS) {
-					malloc_printf(
+					test_fail(
 					    "nallocm() error for size %zu"
 					    " (%#zx): %d\n",
 					    sz, sz, r);
-					exit(1);
 				}
 				rsz = 0;
 				r = allocm(&ps[i], &rsz, sz,
 				    ALLOCM_ALIGN(alignment) | ALLOCM_ZERO);
 				if (r != ALLOCM_SUCCESS) {
-					malloc_printf(
+					test_fail(
 					    "allocm() error for size %zu"
 					    " (%#zx): %d\n",
 					    sz, sz, r);
-					exit(1);
 				}
 				if (rsz < sz) {
 					malloc_printf(

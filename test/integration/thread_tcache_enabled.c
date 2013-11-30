@@ -1,5 +1,4 @@
-#define	JEMALLOC_MANGLE
-#include "jemalloc_test.h"
+#include "test/jemalloc_test.h"
 
 void *
 je_thread_start(void *arg)

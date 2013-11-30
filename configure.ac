@@ -489,18 +489,15 @@ AC_ARG_WITH([export],
 fi]
 )
 
-dnl Do not mangle library-private APIs by default.
+dnl Mangle library-private APIs.
 AC_ARG_WITH([private_namespace],
   [AS_HELP_STRING([--with-private-namespace=<prefix>], [Prefix to prepend to all library-private APIs])],
-  [JEMALLOC_PRIVATE_NAMESPACE="$with_private_namespace"],
-  [JEMALLOC_PRIVATE_NAMESPACE=""]
+  [JEMALLOC_PRIVATE_NAMESPACE="${with_private_namespace}je_"],
+  [JEMALLOC_PRIVATE_NAMESPACE="je_"]
 )
-AC_DEFINE_UNQUOTED([JEMALLOC_PRIVATE_NAMESPACE], ["$JEMALLOC_PRIVATE_NAMESPACE"])
-if test "x$JEMALLOC_PRIVATE_NAMESPACE" != "x" ; then
-  AC_DEFINE_UNQUOTED([JEMALLOC_N(string_that_no_one_should_want_to_use_as_a_jemalloc_private_namespace_prefix)], [${JEMALLOC_PRIVATE_NAMESPACE}##string_that_no_one_should_want_to_use_as_a_jemalloc_private_namespace_prefix])
-else
-  AC_DEFINE_UNQUOTED([JEMALLOC_N(string_that_no_one_should_want_to_use_as_a_jemalloc_private_namespace_prefix)], [string_that_no_one_should_want_to_use_as_a_jemalloc_private_namespace_prefix])
-fi
+AC_DEFINE_UNQUOTED([JEMALLOC_PRIVATE_NAMESPACE], [$JEMALLOC_PRIVATE_NAMESPACE])
+private_namespace="$JEMALLOC_PRIVATE_NAMESPACE"
+AC_SUBST([private_namespace])
 
 dnl Do not add suffix to installed files by default.
 AC_ARG_WITH([install_suffix],
@@ -511,37 +508,64 @@ AC_ARG_WITH([install_suffix],
 install_suffix="$INSTALL_SUFFIX"
 AC_SUBST([install_suffix])
 
+dnl Substitute @je_@ in jemalloc_protos.h.in, primarily to make generation of
+dnl jemalloc_protos_jet.h easy.
+je_="je_"
+AC_SUBST([je_])
+
 cfgoutputs_in="${srcroot}Makefile.in"
 cfgoutputs_in="${cfgoutputs_in} ${srcroot}doc/html.xsl.in"
 cfgoutputs_in="${cfgoutputs_in} ${srcroot}doc/manpages.xsl.in"
 cfgoutputs_in="${cfgoutputs_in} ${srcroot}doc/jemalloc.xml.in"
-cfgoutputs_in="${cfgoutputs_in} ${srcroot}include/jemalloc/jemalloc.h.in"
+cfgoutputs_in="${cfgoutputs_in} ${srcroot}include/jemalloc/jemalloc_macros.h.in"
+cfgoutputs_in="${cfgoutputs_in} ${srcroot}include/jemalloc/jemalloc_protos.h.in"
+cfgoutputs_in="${cfgoutputs_in} ${srcroot}include/jemalloc/jemalloc_mangle.h.in"
 cfgoutputs_in="${cfgoutputs_in} ${srcroot}include/jemalloc/internal/jemalloc_internal.h.in"
-cfgoutputs_in="${cfgoutputs_in} ${srcroot}test/jemalloc_test.h.in"
+cfgoutputs_in="${cfgoutputs_in} ${srcroot}test/test.sh.in"
+cfgoutputs_in="${cfgoutputs_in} ${srcroot}test/include/test/jemalloc_test.h.in"
 
 cfgoutputs_out="Makefile"
 cfgoutputs_out="${cfgoutputs_out} doc/html.xsl"
 cfgoutputs_out="${cfgoutputs_out} doc/manpages.xsl"
-cfgoutputs_out="${cfgoutputs_out} doc/jemalloc${install_suffix}.xml"
-cfgoutputs_out="${cfgoutputs_out} include/jemalloc/jemalloc${install_suffix}.h"
+cfgoutputs_out="${cfgoutputs_out} doc/jemalloc.xml"
+cfgoutputs_out="${cfgoutputs_out} include/jemalloc/jemalloc_macros.h"
+cfgoutputs_out="${cfgoutputs_out} include/jemalloc/jemalloc_protos.h"
+cfgoutputs_out="${cfgoutputs_out} include/jemalloc/jemalloc_mangle.h"
 cfgoutputs_out="${cfgoutputs_out} include/jemalloc/internal/jemalloc_internal.h"
-cfgoutputs_out="${cfgoutputs_out} test/jemalloc_test.h"
+cfgoutputs_out="${cfgoutputs_out} test/test.sh"
+cfgoutputs_out="${cfgoutputs_out} test/include/test/jemalloc_test.h"
 
 cfgoutputs_tup="Makefile"
 cfgoutputs_tup="${cfgoutputs_tup} doc/html.xsl:doc/html.xsl.in"
 cfgoutputs_tup="${cfgoutputs_tup} doc/manpages.xsl:doc/manpages.xsl.in"
-cfgoutputs_tup="${cfgoutputs_tup} doc/jemalloc${install_suffix}.xml:doc/jemalloc.xml.in"
-cfgoutputs_tup="${cfgoutputs_tup} include/jemalloc/jemalloc${install_suffix}.h:include/jemalloc/jemalloc.h.in"
+cfgoutputs_tup="${cfgoutputs_tup} doc/jemalloc.xml:doc/jemalloc.xml.in"
+cfgoutputs_tup="${cfgoutputs_tup} include/jemalloc/jemalloc_macros.h:include/jemalloc/jemalloc_macros.h.in"
+cfgoutputs_tup="${cfgoutputs_tup} include/jemalloc/jemalloc_protos.h:include/jemalloc/jemalloc_protos.h.in"
+cfgoutputs_tup="${cfgoutputs_tup} include/jemalloc/jemalloc_mangle.h:include/jemalloc/jemalloc_mangle.h.in"
 cfgoutputs_tup="${cfgoutputs_tup} include/jemalloc/internal/jemalloc_internal.h"
-cfgoutputs_tup="${cfgoutputs_tup} test/jemalloc_test.h:test/jemalloc_test.h.in"
+cfgoutputs_tup="${cfgoutputs_tup} test/test.sh:test/test.sh.in"
+cfgoutputs_tup="${cfgoutputs_tup} test/include/test/jemalloc_test.h:test/include/test/jemalloc_test.h.in"
 
 cfghdrs_in="${srcroot}include/jemalloc/jemalloc_defs.h.in"
+cfghdrs_in="${cfghdrs_in} ${srcroot}include/jemalloc/internal/jemalloc_internal_defs.h.in"
+cfghdrs_in="${cfghdrs_in} ${srcroot}include/jemalloc/internal/private_namespace.sh"
+cfghdrs_in="${cfghdrs_in} ${srcroot}include/jemalloc/internal/private_unnamespace.sh"
+cfghdrs_in="${cfghdrs_in} ${srcroot}include/jemalloc/internal/public_namespace.sh"
+cfghdrs_in="${cfghdrs_in} ${srcroot}include/jemalloc/internal/public_unnamespace.sh"
 cfghdrs_in="${cfghdrs_in} ${srcroot}include/jemalloc/internal/size_classes.sh"
 
-cfghdrs_out="include/jemalloc/jemalloc_defs${install_suffix}.h"
+cfghdrs_out="include/jemalloc/jemalloc_defs.h"
+cfghdrs_out="${cfghdrs_out} include/jemalloc/jemalloc${install_suffix}.h"
+cfghdrs_out="${cfghdrs_out} include/jemalloc/jemalloc_protos_jet.h"
+cfghdrs_out="${cfghdrs_out} include/jemalloc/internal/jemalloc_internal_defs.h"
+cfghdrs_out="${cfghdrs_out} include/jemalloc/internal/private_namespace.h"
+cfghdrs_out="${cfghdrs_out} include/jemalloc/internal/private_unnamespace.h"
+cfghdrs_out="${cfghdrs_out} include/jemalloc/internal/public_namespace.h"
+cfghdrs_out="${cfghdrs_out} include/jemalloc/internal/public_unnamespace.h"
 cfghdrs_out="${cfghdrs_out} include/jemalloc/internal/size_classes.h"
 
-cfghdrs_tup="include/jemalloc/jemalloc_defs${install_suffix}.h:include/jemalloc/jemalloc_defs.h.in"
+cfghdrs_tup="include/jemalloc/jemalloc_defs.h:include/jemalloc/jemalloc_defs.h.in"
+cfghdrs_tup="${cfghdrs_tup} include/jemalloc/internal/jemalloc_internal_defs.h:${srcroot}include/jemalloc/internal/jemalloc_internal_defs.h.in"
 
 dnl Do not silence irrelevant compiler warnings by default, since enabling this
 dnl option incurs a performance penalty.
@@ -1277,9 +1301,33 @@ dnl ============================================================================
 dnl Check for typedefs, structures, and compiler characteristics.
 AC_HEADER_STDBOOL
 
+AC_CONFIG_COMMANDS([include/jemalloc/internal/private_namespace.h], [
+  mkdir -p "${objroot}include/jemalloc/internal"
+  "${srcdir}/include/jemalloc/internal/private_namespace.sh" "${srcdir}/include/jemalloc/internal/private_symbols.txt" > "${objroot}include/jemalloc/internal/private_namespace.h"
+])
+AC_CONFIG_COMMANDS([include/jemalloc/internal/private_unnamespace.h], [
+  mkdir -p "${objroot}include/jemalloc/internal"
+  "${srcdir}/include/jemalloc/internal/private_unnamespace.sh" "${srcdir}/include/jemalloc/internal/private_symbols.txt" > "${objroot}include/jemalloc/internal/private_unnamespace.h"
+])
+AC_CONFIG_COMMANDS([include/jemalloc/internal/public_namespace.h], [
+  mkdir -p "${objroot}include/jemalloc/internal"
+  "${srcdir}/include/jemalloc/internal/public_namespace.sh" "${srcdir}/include/jemalloc/internal/public_symbols.txt" > "${objroot}include/jemalloc/internal/public_namespace.h"
+])
+AC_CONFIG_COMMANDS([include/jemalloc/internal/public_unnamespace.h], [
+  mkdir -p "${objroot}include/jemalloc/internal"
+  "${srcdir}/include/jemalloc/internal/public_unnamespace.sh" "${srcdir}/include/jemalloc/internal/public_symbols.txt" > "${objroot}include/jemalloc/internal/public_unnamespace.h"
+])
 AC_CONFIG_COMMANDS([include/jemalloc/internal/size_classes.h], [
-  mkdir -p "include/jemalloc/internal"
+  mkdir -p "${objroot}include/jemalloc/internal"
   "${srcdir}/include/jemalloc/internal/size_classes.sh" > "${objroot}include/jemalloc/internal/size_classes.h"
+])
+AC_CONFIG_COMMANDS([include/jemalloc/jemalloc_protos_jet.h], [
+  mkdir -p "${objroot}include/jemalloc"
+  cat "${srcdir}/include/jemalloc/jemalloc_protos.h.in" | sed -e 's/@je_@/jet_/g' > "${objroot}include/jemalloc/jemalloc_protos_jet.h"
+])
+AC_CONFIG_COMMANDS([include/jemalloc/jemalloc.h], [
+  mkdir -p "${objroot}include/jemalloc"
+  "${srcdir}/include/jemalloc/jemalloc.sh" "${objroot}" > "${objroot}include/jemalloc/jemalloc${install_suffix}.h"
 ])
 
 dnl Process .in files.
