@@ -252,7 +252,6 @@ stats_print_atexit(void)
 static unsigned
 malloc_ncpus(void)
 {
-	unsigned ret;
 	long result;
 
 #ifdef _WIN32
