@@ -256,6 +256,7 @@ case "${host}" in
 	force_tls="0"
 	DSO_LDFLAGS='-shared -Wl,-dylib_install_name,$(@F)'
 	SOREV="${rev}.${so}"
+	sbrk_deprecated="1"
 	;;
   *-*-freebsd*)
 	CFLAGS="$CFLAGS"
@@ -825,7 +826,12 @@ fi
 dnl Check whether the BSD/SUSv1 sbrk() exists.  If not, disable DSS support.
 AC_CHECK_FUNC([sbrk], [have_sbrk="1"], [have_sbrk="0"])
 if test "x$have_sbrk" = "x1" ; then
-  AC_DEFINE([JEMALLOC_HAVE_SBRK], [ ])
+  if test "x$sbrk_deprecated" == "x1" ; then
+    AC_MSG_RESULT([Disabling dss allocation because sbrk is deprecated])
+    enable_dss="0"
+  else
+    AC_DEFINE([JEMALLOC_HAVE_SBRK], [ ])
+  fi
 else
   enable_dss="0"
 fi
