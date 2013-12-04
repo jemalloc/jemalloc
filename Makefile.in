@@ -141,7 +141,7 @@ TESTS_OBJS := $(TESTS_UNIT_OBJS) $(TESTS_INTEGRATION_OBJS) $(TESTS_STRESS_OBJS)
 .SECONDARY : $(TESTS_OBJS)
 
 # Default target.
-all: build
+all: build_lib
 
 dist: build_doc
 
@@ -235,7 +235,7 @@ $(objroot)test/stress/%$(EXE): $(objroot)test/stress/%.$(O) $(C_JET_OBJS) $(C_TE
 
 build_lib_shared: $(DSOS)
 build_lib_static: $(STATIC_LIBS)
-build: build_lib_shared build_lib_static
+build_lib: build_lib_shared build_lib_static
 
 install_bin:
 	install -d $(BINDIR)
