@@ -1,0 +1,9 @@
+Test begin
+Initial tsd_get returns 12345678. Expected 12345678.
+After tsd_set: a5f3e329. Expected a5f3e329.
+After resetting local data: a5f3e329. Expected a5f3e329.
+Initial tsd_get returns 12345678. Expected 12345678.
+After tsd_set: 72b65c10. Expected 72b65c10.
+After resetting local data: 72b65c10. Expected 72b65c10.
+Cleanup for data 72b65c10.
+Test end

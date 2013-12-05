@@ -37,19 +37,19 @@
 test/include/test/jemalloc_test.h
 
 /test/integration/[A-Za-z]*
-!/test/integration/*.*
+!/test/integration/[A-Za-z]*.*
 /test/integration/*.[od]
 /test/integration/*.out
 
 /test/src/*.[od]
 
 /test/stress/[A-Za-z]*
-!/test/stress/*.*
+!/test/stress/[A-Za-z]*.*
 /test/stress/*.[od]
 /test/stress/*.out
 
 /test/unit/[A-Za-z]*
-!/test/unit/*.*
+!/test/unit/[A-Za-z]*.*
 /test/unit/*.[od]
 /test/unit/*.out
 
