@@ -1,59 +1,15 @@
-/*
- * Name mangling for public symbols is controlled by --with-mangling and
- * --with-jemalloc-prefix.  With default settings the je_ prefix is stripped by
- * these macro definitions.
- */
-#ifndef JEMALLOC_NO_RENAME
-#  undef je_malloc_conf
-#  undef je_malloc_message
-#  undef je_malloc
-#  undef je_calloc
-#  undef je_posix_memalign
-#  undef je_aligned_alloc
-#  undef je_realloc
-#  undef je_free
-#  undef je_malloc_usable_size
-#  undef je_malloc_stats_print
-#  undef je_mallctl
-#  undef je_mallctlnametomib
-#  undef je_mallctlbymib
-#  undef je_memalign
-#  undef je_valloc
-#  undef je_allocm
-#  undef je_rallocm
-#  undef je_sallocm
-#  undef je_dallocm
-#  undef je_nallocm
-#endif
-
 /* Defined if __attribute__((...)) syntax is supported. */
 #undef JEMALLOC_HAVE_ATTR
-#ifdef JEMALLOC_HAVE_ATTR
-#  define JEMALLOC_ATTR(s) __attribute__((s))
-#  define JEMALLOC_EXPORT JEMALLOC_ATTR(visibility("default"))
-#  define JEMALLOC_ALIGNED(s) JEMALLOC_ATTR(aligned(s))
-#  define JEMALLOC_SECTION(s) JEMALLOC_ATTR(section(s))
-#  define JEMALLOC_NOINLINE JEMALLOC_ATTR(noinline)
-#elif _MSC_VER
-#  define JEMALLOC_ATTR(s)
-#  ifdef DLLEXPORT
-#    define JEMALLOC_EXPORT __declspec(dllexport)
-#  else
-#    define JEMALLOC_EXPORT __declspec(dllimport)
-#  endif
-#  define JEMALLOC_ALIGNED(s) __declspec(align(s))
-#  define JEMALLOC_SECTION(s) __declspec(allocate(s))
-#  define JEMALLOC_NOINLINE __declspec(noinline)
-#else
-#  define JEMALLOC_ATTR(s)
-#  define JEMALLOC_EXPORT
-#  define JEMALLOC_ALIGNED(s)
-#  define JEMALLOC_SECTION(s)
-#  define JEMALLOC_NOINLINE
-#endif
 
 /* Support the experimental API. */
 #undef JEMALLOC_EXPERIMENTAL
+
+/*
+ * Define overrides for non-standard allocator-related functions if they
+ * are present on the system.
+ */
+#undef JEMALLOC_OVERRIDE_MEMALIGN
+#undef JEMALLOC_OVERRIDE_VALLOC
 
 /*
  * At least Linux omits the "const" in:
@@ -63,3 +19,6 @@
  * Match the operating system's prototype.
  */
 #undef JEMALLOC_USABLE_SIZE_CONST
+
+/* sizeof(void *) == 2^LG_SIZEOF_PTR. */
+#undef LG_SIZEOF_PTR

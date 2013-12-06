@@ -553,6 +553,7 @@ cfghdrs_in="${cfghdrs_in} ${srcroot}include/jemalloc/internal/private_unnamespac
 cfghdrs_in="${cfghdrs_in} ${srcroot}include/jemalloc/internal/public_namespace.sh"
 cfghdrs_in="${cfghdrs_in} ${srcroot}include/jemalloc/internal/public_unnamespace.sh"
 cfghdrs_in="${cfghdrs_in} ${srcroot}include/jemalloc/internal/size_classes.sh"
+cfghdrs_in="${cfghdrs_in} ${srcroot}include/jemalloc/jemalloc.sh"
 
 cfghdrs_out="include/jemalloc/jemalloc_defs.h"
 cfghdrs_out="${cfghdrs_out} include/jemalloc/jemalloc${install_suffix}.h"

@@ -77,12 +77,6 @@ typedef intptr_t ssize_t;
 #endif
 #include "jemalloc/internal/private_namespace.h"
 
-#ifdef JEMALLOC_CC_SILENCE
-#define	UNUSED JEMALLOC_ATTR(unused)
-#else
-#define	UNUSED
-#endif
-
 static const bool config_debug =
 #ifdef JEMALLOC_DEBUG
     true
@@ -232,14 +226,9 @@ static const bool config_ivsalloc =
 /******************************************************************************/
 #define JEMALLOC_H_TYPES
 
+#include "jemalloc/internal/jemalloc_internal_macros.h"
+
 #define	ALLOCM_LG_ALIGN_MASK	((int)0x3f)
-
-#define	ZU(z)	((size_t)z)
-#define	QU(q)	((uint64_t)q)
-
-#ifndef __DECONST
-#  define	__DECONST(type, var)	((type)(uintptr_t)(const void *)(var))
-#endif
 
 /* Smallest size class to support. */
 #define	LG_TINY_MIN		3

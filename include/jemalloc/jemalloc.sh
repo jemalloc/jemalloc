@@ -11,8 +11,9 @@ extern "C" {
 
 EOF
 
-for hdr in jemalloc_macros.h jemalloc_protos.h jemalloc_mangle.h ; do
-  cat "${objroot}include/jemalloc/${hdr}"
+for hdr in jemalloc_defs.h jemalloc_macros.h jemalloc_protos.h \
+           jemalloc_mangle.h ; do
+  cat "${objroot}include/jemalloc/${hdr}" | grep -v 'Generated from .* by configure\.'
   echo
 done
 
