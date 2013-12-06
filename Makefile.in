@@ -224,7 +224,7 @@ $(STATIC_LIBS):
 
 $(objroot)test/unit/%$(EXE): $(objroot)test/unit/%.$(O) $(C_JET_OBJS) $(C_TESTLIB_UNIT_OBJS)
 	@mkdir -p $(@D)
-	$(CC) $(LDTARGET) $(filter %.$(O),$^) $(call RPATH,$(objroot)lib) $(filter -lpthread,$(LIBS)) $(EXTRA_LDFLAGS)
+	$(CC) $(LDTARGET) $(filter %.$(O),$^) $(call RPATH,$(objroot)lib) $(LIBS) $(EXTRA_LDFLAGS)
 
 $(objroot)test/integration/%$(EXE): $(objroot)test/integration/%.$(O) $(C_TESTLIB_INTEGRATION_OBJS) $(C_UTIL_INTEGRATION_OBJS) $(objroot)lib/$(LIBJEMALLOC).$(IMPORTLIB)
 	@mkdir -p $(@D)
@@ -232,7 +232,7 @@ $(objroot)test/integration/%$(EXE): $(objroot)test/integration/%.$(O) $(C_TESTLI
 
 $(objroot)test/stress/%$(EXE): $(objroot)test/stress/%.$(O) $(C_JET_OBJS) $(C_TESTLIB_STRESS_OBJS) $(objroot)lib/$(LIBJEMALLOC).$(IMPORTLIB)
 	@mkdir -p $(@D)
-	$(CC) $(LDTARGET) $(filter %.$(O),$^) $(call RPATH,$(objroot)lib) $(objroot)lib/$(LIBJEMALLOC).$(IMPORTLIB) $(filter -lpthread,$(LIBS)) $(EXTRA_LDFLAGS)
+	$(CC) $(LDTARGET) $(filter %.$(O),$^) $(call RPATH,$(objroot)lib) $(objroot)lib/$(LIBJEMALLOC).$(IMPORTLIB) $(LIBS) $(EXTRA_LDFLAGS)
 
 build_lib_shared: $(DSOS)
 build_lib_static: $(STATIC_LIBS)

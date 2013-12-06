@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <stdbool.h>
+#include <string.h>
 
 /******************************************************************************/
 /*
@@ -59,7 +60,6 @@
 #  include <inttypes.h>
 #  include <stdarg.h>
 #  include <errno.h>
-#  define JEMALLOC_CC_SILENCE
 #  define JEMALLOC_H_TYPES
 #  define JEMALLOC_H_STRUCTS
 #  define JEMALLOC_H_EXTERNS
@@ -69,7 +69,6 @@
 #  undef JEMALLOC_H_STRUCTS
 #  undef JEMALLOC_H_EXTERNS
 #  undef JEMALLOC_H_INLINES
-#  undef JEMALLOC_CC_SILENCE
 
 /******************************************************************************/
 /*
