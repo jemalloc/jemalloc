@@ -356,11 +356,6 @@ AC_SUBST([ARFLAGS])
 AC_SUBST([AROUT])
 AC_SUBST([CC_MM])
 
-if test "x$abi" != "xpecoff"; then
-  dnl Heap profiling uses the log(3) function.
-  LIBS="$LIBS -lm"
-fi
-
 JE_COMPILABLE([__attribute__ syntax],
               [static __attribute__((unused)) void foo(void){}],
               [],
@@ -774,6 +769,12 @@ if test "x$enable_prof" = "x1" ; then
     AC_MSG_ERROR([Heap profiling requires TLS]);
   fi
   force_tls="1"
+
+  if test "x$abi" != "xpecoff"; then
+    dnl Heap profiling uses the log(3) function.
+    LIBS="$LIBS -lm"
+  fi
+
   AC_DEFINE([JEMALLOC_PROF], [ ])
 fi
 AC_SUBST([enable_prof])

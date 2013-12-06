@@ -9,6 +9,13 @@ found in the git revision history:
 * 3.5.0 (XXX)
 
   Bug fixes:
+  - Unless heap profiling is enabled, disable floating point code and don't link
+    with libm.  This, in combination with e.g. EXTRA_CFLAGS=-mno-sse on x64
+    systems, makes it possible to completely disable floating point register
+    use.  Some versions of glibc neglect to save/restore caller-saved floating
+    point registers during dynamic lazy symbol loading, and the symbol loading
+    code uses whatever malloc the application happens to have linked/loaded
+    with, the result being potential floating point register corruption.
   - Change the default private namespace prefix from empty to je_, and change
     --with-private-namespace-prefix so that it prepends an additional prefix
     rather than replacing je_.  This reduces the likelihood of applications

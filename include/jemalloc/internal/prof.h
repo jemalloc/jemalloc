@@ -320,6 +320,20 @@ prof_tdata_get(bool create)
 JEMALLOC_INLINE void
 prof_sample_threshold_update(prof_tdata_t *prof_tdata)
 {
+	/*
+	 * The body of this function is compiled out unless heap profiling is
+	 * enabled, so that it is possible to compile jemalloc with floating
+	 * point support completely disabled.  Avoiding floating point code is
+	 * important on memory-constrained systems, but it also enables a
+	 * workaround for versions of glibc that don't properly save/restore
+	 * floating point registers during dynamic lazy symbol loading (which
+	 * internally calls into whatever malloc implementation happens to be
+	 * integrated into the application).  Note that some compilers (e.g.
+	 * gcc 4.8) may use floating point registers for fast memory moves, so
+	 * jemalloc must be compiled with such optimizations disabled (e.g.
+	 * -mno-sse) in order for the workaround to be complete.
+	 */
+#ifdef JEMALLOC_PROF
 	uint64_t r;
 	double u;
 
@@ -349,6 +363,7 @@ prof_sample_threshold_update(prof_tdata_t *prof_tdata)
 	prof_tdata->threshold = (uint64_t)(log(u) /
 	    log(1.0 - (1.0 / (double)((uint64_t)1U << opt_lg_prof_sample))))
 	    + (uint64_t)1U;
+#endif
 }
 
 JEMALLOC_INLINE prof_ctx_t *
