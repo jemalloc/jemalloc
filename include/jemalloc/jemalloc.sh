@@ -13,7 +13,10 @@ EOF
 
 for hdr in jemalloc_defs.h jemalloc_macros.h jemalloc_protos.h \
            jemalloc_mangle.h ; do
-  cat "${objroot}include/jemalloc/${hdr}" | grep -v 'Generated from .* by configure\.'
+  cat "${objroot}include/jemalloc/${hdr}" \
+      | grep -v 'Generated from .* by configure\.' \
+      | sed -e 's/^#define /#define	/g' \
+      | sed -e 's/ $//g'
   echo
 done
 

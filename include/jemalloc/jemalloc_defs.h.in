@@ -5,8 +5,8 @@
 #undef JEMALLOC_EXPERIMENTAL
 
 /*
- * Define overrides for non-standard allocator-related functions if they
- * are present on the system.
+ * Define overrides for non-standard allocator-related functions if they are
+ * present on the system.
  */
 #undef JEMALLOC_OVERRIDE_MEMALIGN
 #undef JEMALLOC_OVERRIDE_VALLOC
