@@ -81,6 +81,19 @@ any of the following arguments (not a definitive list) to 'configure':
     performance hit, but is very useful during application development.
     Implies --enable-ivsalloc.
 
+--enable-code-coverage
+    Enable code coverage support, for use during jemalloc test development.
+    Additional testing targets are available if this option is enabled:
+
+      coverage
+      coverage_unit
+      coverage_integration
+      coverage_stress
+
+    These targets do not clear code coverage results from previous runs, and
+    there are interactions between the various coverage targets, so it is
+    usually advisable to run 'make clean' between repeated code coverage runs.
+
 --enable-ivsalloc
     Enable validation code, which verifies that pointers reside within
     jemalloc-owned chunks before dereferencing them. This incurs a substantial

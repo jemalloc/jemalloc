@@ -6,8 +6,8 @@
  * JEMALLOC_ALWAYS_INLINE_C is for use in .c files, in which case the denoted
  * functions are always static, regardless of whether inlining is enabled.
  */
-#ifdef JEMALLOC_DEBUG
-   /* Disable inlining to make debugging easier. */
+#if defined(JEMALLOC_DEBUG) || defined(JEMALLOC_CODE_COVERAGE)
+   /* Disable inlining to make debugging/profiling easier. */
 #  define JEMALLOC_ALWAYS_INLINE
 #  define JEMALLOC_ALWAYS_INLINE_C static
 #  define JEMALLOC_INLINE

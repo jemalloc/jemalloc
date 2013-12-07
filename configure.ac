@@ -440,6 +440,31 @@ if test "x$enable_experimental" = "x1" ; then
 fi
 AC_SUBST([enable_experimental])
 
+dnl Do not compute test code coverage by default.
+GCOV_FLAGS=
+AC_ARG_ENABLE([code-coverage],
+  [AS_HELP_STRING([--enable-code-coverage],
+   [Enable code coverage])],
+[if test "x$enable_code_coverage" = "xno" ; then
+  enable_code_coverage="0"
+else
+  enable_code_coverage="1"
+fi
+],
+[enable_code_coverage="0"]
+)
+if test "x$enable_code_coverage" = "x1" ; then
+  deoptimize="no"
+  echo "$CFLAGS $EXTRA_CFLAGS" | grep '\-O' >/dev/null || deoptimize="yes"
+  if test "x${deoptimize}" = "xyes" ; then
+    JE_CFLAGS_APPEND([-O0])
+  fi
+  JE_CFLAGS_APPEND([-fprofile-arcs -ftest-coverage])
+  EXTRA_LDFLAGS="$EXTRA_LDFLAGS -fprofile-arcs -ftest-coverage"
+  AC_DEFINE([JEMALLOC_CODE_COVERAGE], [ ])
+fi
+AC_SUBST([enable_code_coverage])
+
 dnl Perform no name mangling by default.
 AC_ARG_WITH([mangling],
   [AS_HELP_STRING([--with-mangling=<map>], [Mangle symbols in <map>])],
@@ -616,7 +641,7 @@ dnl Only optimize if not debugging.
 if test "x$enable_debug" = "x0" -a "x$no_CFLAGS" = "xyes" ; then
   dnl Make sure that an optimization flag was not specified in EXTRA_CFLAGS.
   optimize="no"
-  echo "$EXTRA_CFLAGS" | grep "\-O" >/dev/null || optimize="yes"
+  echo "$CFLAGS $EXTRA_CFLAGS" | grep '\-O' >/dev/null || optimize="yes"
   if test "x${optimize}" = "xyes" ; then
     if test "x$GCC" = "xyes" ; then
       JE_CFLAGS_APPEND([-O3])
@@ -1303,6 +1328,9 @@ dnl ============================================================================
 dnl Check for typedefs, structures, and compiler characteristics.
 AC_HEADER_STDBOOL
 
+dnl ============================================================================
+dnl Define commands that generate output files.
+
 AC_CONFIG_COMMANDS([include/jemalloc/internal/private_namespace.h], [
   mkdir -p "${objroot}include/jemalloc/internal"
   "${srcdir}/include/jemalloc/internal/private_namespace.sh" "${srcdir}/include/jemalloc/internal/private_symbols.txt" > "${objroot}include/jemalloc/internal/private_namespace.h"
@@ -1339,6 +1367,7 @@ AC_CONFIG_HEADERS([$cfghdrs_tup])
 
 dnl ============================================================================
 dnl Generate outputs.
+
 AC_CONFIG_FILES([$cfgoutputs_tup config.stamp bin/jemalloc.sh])
 AC_SUBST([cfgoutputs_in])
 AC_SUBST([cfgoutputs_out])
@@ -1354,6 +1383,7 @@ AC_MSG_RESULT([CC                 : ${CC}])
 AC_MSG_RESULT([CPPFLAGS           : ${CPPFLAGS}])
 AC_MSG_RESULT([CFLAGS             : ${CFLAGS}])
 AC_MSG_RESULT([LDFLAGS            : ${LDFLAGS}])
+AC_MSG_RESULT([EXTRA_LDFLAGS      : ${EXTRA_LDFLAGS}])
 AC_MSG_RESULT([LIBS               : ${LIBS}])
 AC_MSG_RESULT([RPATH_EXTRA        : ${RPATH_EXTRA}])
 AC_MSG_RESULT([])
@@ -1380,6 +1410,7 @@ AC_MSG_RESULT([autogen            : ${enable_autogen}])
 AC_MSG_RESULT([experimental       : ${enable_experimental}])
 AC_MSG_RESULT([cc-silence         : ${enable_cc_silence}])
 AC_MSG_RESULT([debug              : ${enable_debug}])
+AC_MSG_RESULT([code-coverage      : ${enable_code_coverage}])
 AC_MSG_RESULT([stats              : ${enable_stats}])
 AC_MSG_RESULT([prof               : ${enable_prof}])
 AC_MSG_RESULT([prof-libunwind     : ${enable_prof_libunwind}])

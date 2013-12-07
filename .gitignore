@@ -1,3 +1,5 @@
+/*.gcov.*
+
 /autom4te.cache/
 
 /bin/jemalloc.sh
@@ -32,6 +34,8 @@
 /include/jemalloc/jemalloc_mangle.h
 
 /src/*.[od]
+/src/*.gcda
+/src/*.gcno
 
 /test/test.sh
 test/include/test/jemalloc_test.h
@@ -39,18 +43,26 @@ test/include/test/jemalloc_test.h
 /test/integration/[A-Za-z]*
 !/test/integration/[A-Za-z]*.*
 /test/integration/*.[od]
+/test/integration/*.gcda
+/test/integration/*.gcno
 /test/integration/*.out
 
 /test/src/*.[od]
+/test/src/*.gcda
+/test/src/*.gcno
 
 /test/stress/[A-Za-z]*
 !/test/stress/[A-Za-z]*.*
 /test/stress/*.[od]
+/test/stress/*.gcda
+/test/stress/*.gcno
 /test/stress/*.out
 
 /test/unit/[A-Za-z]*
 !/test/unit/[A-Za-z]*.*
 /test/unit/*.[od]
+/test/unit/*.gcda
+/test/unit/*.gcno
 /test/unit/*.out
 
 /VERSION

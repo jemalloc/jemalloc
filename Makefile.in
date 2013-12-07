@@ -47,6 +47,7 @@ cfghdrs_out := @cfghdrs_out@
 cfgoutputs_in := @cfgoutputs_in@
 cfgoutputs_out := @cfgoutputs_out@
 enable_autogen := @enable_autogen@
+enable_code_coverage := @enable_code_coverage@
 enable_experimental := @enable_experimental@
 enable_zone_allocator := @enable_zone_allocator@
 DSO_LDFLAGS = @DSO_LDFLAGS@
@@ -224,15 +225,15 @@ $(STATIC_LIBS):
 
 $(objroot)test/unit/%$(EXE): $(objroot)test/unit/%.$(O) $(C_JET_OBJS) $(C_TESTLIB_UNIT_OBJS)
 	@mkdir -p $(@D)
-	$(CC) $(LDTARGET) $(filter %.$(O),$^) $(call RPATH,$(objroot)lib) $(LIBS) $(EXTRA_LDFLAGS)
+	$(CC) $(LDTARGET) $(filter %.$(O),$^) $(call RPATH,$(objroot)lib) $(LDFLAGS) $(LIBS) $(EXTRA_LDFLAGS)
 
 $(objroot)test/integration/%$(EXE): $(objroot)test/integration/%.$(O) $(C_TESTLIB_INTEGRATION_OBJS) $(C_UTIL_INTEGRATION_OBJS) $(objroot)lib/$(LIBJEMALLOC).$(IMPORTLIB)
 	@mkdir -p $(@D)
-	$(CC) $(LDTARGET) $(filter %.$(O),$^) $(call RPATH,$(objroot)lib) $(objroot)lib/$(LIBJEMALLOC).$(IMPORTLIB) $(filter -lpthread,$(LIBS)) $(EXTRA_LDFLAGS)
+	$(CC) $(LDTARGET) $(filter %.$(O),$^) $(call RPATH,$(objroot)lib) $(objroot)lib/$(LIBJEMALLOC).$(IMPORTLIB) $(LDFLAGS) $(filter -lpthread,$(LIBS)) $(EXTRA_LDFLAGS)
 
 $(objroot)test/stress/%$(EXE): $(objroot)test/stress/%.$(O) $(C_JET_OBJS) $(C_TESTLIB_STRESS_OBJS) $(objroot)lib/$(LIBJEMALLOC).$(IMPORTLIB)
 	@mkdir -p $(@D)
-	$(CC) $(LDTARGET) $(filter %.$(O),$^) $(call RPATH,$(objroot)lib) $(objroot)lib/$(LIBJEMALLOC).$(IMPORTLIB) $(LIBS) $(EXTRA_LDFLAGS)
+	$(CC) $(LDTARGET) $(filter %.$(O),$^) $(call RPATH,$(objroot)lib) $(objroot)lib/$(LIBJEMALLOC).$(IMPORTLIB) $(LDFLAGS) $(LIBS) $(EXTRA_LDFLAGS)
 
 build_lib_shared: $(DSOS)
 build_lib_static: $(STATIC_LIBS)
@@ -300,13 +301,43 @@ check_stress_dir:
 check_dir: check_unit_dir check_integration_dir check_stress_dir
 
 check_unit: tests_unit check_unit_dir
-	@$(SHELL) $(objroot)test/test.sh $(TESTS_UNIT:$(srcroot)%.c=$(objroot)%)
+	$(SHELL) $(objroot)test/test.sh $(TESTS_UNIT:$(srcroot)%.c=$(objroot)%)
 check_integration: tests_integration check_integration_dir
-	@$(SHELL) $(objroot)test/test.sh $(TESTS_INTEGRATION:$(srcroot)%.c=$(objroot)%)
+	$(SHELL) $(objroot)test/test.sh $(TESTS_INTEGRATION:$(srcroot)%.c=$(objroot)%)
 check_stress: tests_stress check_stress_dir
-	@$(SHELL) $(objroot)test/test.sh $(TESTS_STRESS:$(srcroot)%.c=$(objroot)%)
+	$(SHELL) $(objroot)test/test.sh $(TESTS_STRESS:$(srcroot)%.c=$(objroot)%)
 check: tests check_dir
-	@$(SHELL) $(objroot)test/test.sh $(TESTS:$(srcroot)%.c=$(objroot)%)
+	$(SHELL) $(objroot)test/test.sh $(TESTS:$(srcroot)%.c=$(objroot)%)
+
+ifeq ($(enable_code_coverage), 1)
+coverage_unit: check_unit
+	$(SHELL) $(srcroot)coverage.sh $(srcroot)src jet $(C_JET_OBJS)
+	$(SHELL) $(srcroot)coverage.sh $(srcroot)test/src unit $(C_TESTLIB_UNIT_OBJS)
+	$(SHELL) $(srcroot)coverage.sh $(srcroot)test/unit unit $(TESTS_UNIT_OBJS)
+
+coverage_integration: check_integration
+	$(SHELL) $(srcroot)coverage.sh $(srcroot)src pic $(C_PIC_OBJS)
+	$(SHELL) $(srcroot)coverage.sh $(srcroot)src integration $(C_UTIL_INTEGRATION_OBJS)
+	$(SHELL) $(srcroot)coverage.sh $(srcroot)test/src integration $(C_TESTLIB_INTEGRATION_OBJS)
+	$(SHELL) $(srcroot)coverage.sh $(srcroot)test/integration integration $(TESTS_INTEGRATION_OBJS)
+
+coverage_stress: check_stress
+	$(SHELL) $(srcroot)coverage.sh $(srcroot)src pic $(C_PIC_OBJS)
+	$(SHELL) $(srcroot)coverage.sh $(srcroot)src jet $(C_JET_OBJS)
+	$(SHELL) $(srcroot)coverage.sh $(srcroot)test/src stress $(C_TESTLIB_STRESS_OBJS)
+	$(SHELL) $(srcroot)coverage.sh $(srcroot)test/stress stress $(TESTS_STRESS_OBJS)
+
+coverage: check
+	$(SHELL) $(srcroot)coverage.sh $(srcroot)src pic $(C_PIC_OBJS)
+	$(SHELL) $(srcroot)coverage.sh $(srcroot)src jet $(C_JET_OBJS)
+	$(SHELL) $(srcroot)coverage.sh $(srcroot)src integration $(C_UTIL_INTEGRATION_OBJS)
+	$(SHELL) $(srcroot)coverage.sh $(srcroot)test/src unit $(C_TESTLIB_UNIT_OBJS)
+	$(SHELL) $(srcroot)coverage.sh $(srcroot)test/src integration $(C_TESTLIB_INTEGRATION_OBJS)
+	$(SHELL) $(srcroot)coverage.sh $(srcroot)test/src stress $(C_TESTLIB_STRESS_OBJS)
+	$(SHELL) $(srcroot)coverage.sh $(srcroot)test/unit unit $(TESTS_UNIT_OBJS)
+	$(SHELL) $(srcroot)coverage.sh $(srcroot)test/integration integration $(TESTS_INTEGRATION_OBJS)
+	$(SHELL) $(srcroot)coverage.sh $(srcroot)test/stress integration $(TESTS_STRESS_OBJS)
+endif
 
 clean:
 	rm -f $(C_OBJS)
@@ -314,14 +345,25 @@ clean:
 	rm -f $(C_JET_OBJS)
 	rm -f $(C_TESTLIB_OBJS)
 	rm -f $(C_OBJS:%.$(O)=%.d)
+	rm -f $(C_OBJS:%.$(O)=%.gcda)
+	rm -f $(C_OBJS:%.$(O)=%.gcno)
 	rm -f $(C_PIC_OBJS:%.$(O)=%.d)
+	rm -f $(C_PIC_OBJS:%.$(O)=%.gcda)
+	rm -f $(C_PIC_OBJS:%.$(O)=%.gcno)
 	rm -f $(C_JET_OBJS:%.$(O)=%.d)
+	rm -f $(C_JET_OBJS:%.$(O)=%.gcda)
+	rm -f $(C_JET_OBJS:%.$(O)=%.gcno)
 	rm -f $(C_TESTLIB_OBJS:%.$(O)=%.d)
+	rm -f $(C_TESTLIB_OBJS:%.$(O)=%.gcda)
+	rm -f $(C_TESTLIB_OBJS:%.$(O)=%.gcno)
 	rm -f $(TESTS_OBJS:%.$(O)=%$(EXE))
 	rm -f $(TESTS_OBJS)
 	rm -f $(TESTS_OBJS:%.$(O)=%.d)
+	rm -f $(TESTS_OBJS:%.$(O)=%.gcda)
+	rm -f $(TESTS_OBJS:%.$(O)=%.gcno)
 	rm -f $(TESTS_OBJS:%.$(O)=%.out)
 	rm -f $(DSOS) $(STATIC_LIBS)
+	rm -f $(objroot)*.gcov.*
 
 distclean: clean
 	rm -rf $(objroot)autom4te.cache

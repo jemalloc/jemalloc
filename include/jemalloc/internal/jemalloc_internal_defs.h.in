@@ -83,6 +83,9 @@
 /* JEMALLOC_CC_SILENCE enables code that silences unuseful compiler warnings. */
 #undef JEMALLOC_CC_SILENCE
 
+/* JEMALLOC_CODE_COVERAGE enables test code coverage analysis. */
+#undef JEMALLOC_CODE_COVERAGE
+
 /*
  * JEMALLOC_DEBUG enables assertions and other sanity checks, and disables
  * inline functions.
