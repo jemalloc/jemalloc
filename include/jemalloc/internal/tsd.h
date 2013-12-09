@@ -81,7 +81,7 @@ extern __thread a_type	a_name##_tls;					\
 extern pthread_key_t	a_name##_tsd;					\
 extern bool		a_name##_booted;
 #elif (defined(_WIN32))
-#define malloc_tsd_externs(a_name, a_type)				\
+#define	malloc_tsd_externs(a_name, a_type)				\
 extern DWORD		a_name##_tsd;					\
 extern bool		a_name##_booted;
 #else

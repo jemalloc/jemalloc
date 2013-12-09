@@ -1,6 +1,6 @@
 #include "test/jemalloc_test.h"
 
-#define THREAD_DATA 0x72b65c10
+#define	THREAD_DATA 0x72b65c10
 
 typedef unsigned int data_t;
 
@@ -18,7 +18,7 @@ data_cleanup(void *arg)
 
 malloc_tsd_protos(, data, data_t)
 malloc_tsd_externs(data, data_t)
-#define DATA_INIT 0x12345678
+#define	DATA_INIT 0x12345678
 malloc_tsd_data(, data, data_t, DATA_INIT)
 malloc_tsd_funcs(, data, data_t, DATA_INIT, data_cleanup)
 

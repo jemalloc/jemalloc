@@ -833,7 +833,7 @@ fi
 )
 if test "x$enable_mremap" = "x1" ; then
   JE_COMPILABLE([mremap(...MREMAP_FIXED...)], [
-#define _GNU_SOURCE
+#define	_GNU_SOURCE
 #include <sys/mman.h>
 ], [
 void *p = mremap((void *)0, 0, 0, MREMAP_MAYMOVE|MREMAP_FIXED, (void *)0);

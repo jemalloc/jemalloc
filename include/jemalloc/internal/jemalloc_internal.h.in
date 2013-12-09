@@ -1,5 +1,5 @@
 #ifndef JEMALLOC_INTERNAL_H
-#define JEMALLOC_INTERNAL_H
+#define	JEMALLOC_INTERNAL_H
 #include <math.h>
 #ifdef _WIN32
 #  include <windows.h>
@@ -224,7 +224,7 @@ static const bool config_ivsalloc =
  *   JEMALLOC_H_INLINES : Inline functions.
  */
 /******************************************************************************/
-#define JEMALLOC_H_TYPES
+#define	JEMALLOC_H_TYPES
 
 #include "jemalloc/internal/jemalloc_internal_macros.h"
 
@@ -460,7 +460,7 @@ static const bool config_ivsalloc =
 
 #undef JEMALLOC_H_TYPES
 /******************************************************************************/
-#define JEMALLOC_H_STRUCTS
+#define	JEMALLOC_H_STRUCTS
 
 #include "jemalloc/internal/util.h"
 #include "jemalloc/internal/atomic.h"
@@ -496,7 +496,7 @@ typedef struct {
 
 #undef JEMALLOC_H_STRUCTS
 /******************************************************************************/
-#define JEMALLOC_H_EXTERNS
+#define	JEMALLOC_H_EXTERNS
 
 extern bool	opt_abort;
 extern bool	opt_junk;
@@ -556,7 +556,7 @@ void	jemalloc_postfork_child(void);
 
 #undef JEMALLOC_H_EXTERNS
 /******************************************************************************/
-#define JEMALLOC_H_INLINES
+#define	JEMALLOC_H_INLINES
 
 #include "jemalloc/internal/util.h"
 #include "jemalloc/internal/atomic.h"

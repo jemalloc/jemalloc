@@ -14,7 +14,7 @@
  * Wrap a cpp argument that contains commas such that it isn't broken up into
  * multiple arguments.
  */
-#define JEMALLOC_ARG_CONCAT(...) __VA_ARGS__
+#define	JEMALLOC_ARG_CONCAT(...) __VA_ARGS__
 
 /*
  * Silence compiler warnings due to uninitialized values.  This is used
