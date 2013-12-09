@@ -74,6 +74,32 @@
 #define	assert_zu_gt(a, b, fmt...)	assert_cmp(size_t, a, b, >,	\
     <=, "zu", fmt)
 
+#define	assert_d32_eq(a, b, fmt...)	assert_cmp(int32_t, a, b, ==,	\
+    !=, PRId32, fmt)
+#define	assert_d32_ne(a, b, fmt...)	assert_cmp(int32_t, a, b, !=,	\
+    ==, PRId32, fmt)
+#define	assert_d32_lt(a, b, fmt...)	assert_cmp(int32_t, a, b, <,	\
+    >=, PRId32, fmt)
+#define	assert_d32_le(a, b, fmt...)	assert_cmp(int32_t, a, b, <=,	\
+    >, PRId32, fmt)
+#define	assert_d32_ge(a, b, fmt...)	assert_cmp(int32_t, a, b, >=,	\
+    <, PRId32, fmt)
+#define	assert_d32_gt(a, b, fmt...)	assert_cmp(int32_t, a, b, >,	\
+    <=, PRId32, fmt)
+
+#define	assert_u32_eq(a, b, fmt...)	assert_cmp(uint32_t, a, b, ==,	\
+    !=, PRIu32, fmt)
+#define	assert_u32_ne(a, b, fmt...)	assert_cmp(uint32_t, a, b, !=,	\
+    ==, PRIu32, fmt)
+#define	assert_u32_lt(a, b, fmt...)	assert_cmp(uint32_t, a, b, <,	\
+    >=, PRIu32, fmt)
+#define	assert_u32_le(a, b, fmt...)	assert_cmp(uint32_t, a, b, <=,	\
+    >, PRIu32, fmt)
+#define	assert_u32_ge(a, b, fmt...)	assert_cmp(uint32_t, a, b, >=,	\
+    <, PRIu32, fmt)
+#define	assert_u32_gt(a, b, fmt...)	assert_cmp(uint32_t, a, b, >,	\
+    <=, PRIu32, fmt)
+
 #define	assert_d64_eq(a, b, fmt...)	assert_cmp(int64_t, a, b, ==,	\
     !=, PRId64, fmt)
 #define	assert_d64_ne(a, b, fmt...)	assert_cmp(int64_t, a, b, !=,	\

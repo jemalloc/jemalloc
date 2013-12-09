@@ -39,6 +39,7 @@
 
 /test/test.sh
 test/include/test/jemalloc_test.h
+test/include/test/jemalloc_test_defs.h
 
 /test/integration/[A-Za-z]*
 !/test/integration/[A-Za-z]*.*

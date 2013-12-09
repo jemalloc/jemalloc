@@ -199,6 +199,7 @@ case "${host_cpu}" in
 	if test "x${je_cv_asm}" = "xyes" ; then
 	    CPU_SPINWAIT='__asm__ volatile("pause")'
 	fi
+	AC_DEFINE_UNQUOTED([HAVE_SSE2], [ ])
 	;;
   x86_64)
 	JE_COMPILABLE([__asm__ syntax], [],
@@ -206,6 +207,10 @@ case "${host_cpu}" in
 	if test "x${je_cv_asm}" = "xyes" ; then
 	    CPU_SPINWAIT='__asm__ volatile("pause")'
 	fi
+	AC_DEFINE_UNQUOTED([HAVE_SSE2], [ ])
+	;;
+  powerpc)
+	AC_DEFINE_UNQUOTED([HAVE_ALTIVEC], [ ])
 	;;
   *)
 	;;
@@ -574,6 +579,7 @@ cfghdrs_in="${cfghdrs_in} ${srcroot}include/jemalloc/internal/public_namespace.s
 cfghdrs_in="${cfghdrs_in} ${srcroot}include/jemalloc/internal/public_unnamespace.sh"
 cfghdrs_in="${cfghdrs_in} ${srcroot}include/jemalloc/internal/size_classes.sh"
 cfghdrs_in="${cfghdrs_in} ${srcroot}include/jemalloc/jemalloc.sh"
+cfghdrs_in="${cfghdrs_in} ${srcroot}test/include/test/jemalloc_test_defs.h.in"
 
 cfghdrs_out="include/jemalloc/jemalloc_defs.h"
 cfghdrs_out="${cfghdrs_out} include/jemalloc/jemalloc${install_suffix}.h"
@@ -584,9 +590,11 @@ cfghdrs_out="${cfghdrs_out} include/jemalloc/internal/private_unnamespace.h"
 cfghdrs_out="${cfghdrs_out} include/jemalloc/internal/public_namespace.h"
 cfghdrs_out="${cfghdrs_out} include/jemalloc/internal/public_unnamespace.h"
 cfghdrs_out="${cfghdrs_out} include/jemalloc/internal/size_classes.h"
+cfghdrs_out="${cfghdrs_out} test/include/test/jemalloc_test_defs.h"
 
 cfghdrs_tup="include/jemalloc/jemalloc_defs.h:include/jemalloc/jemalloc_defs.h.in"
 cfghdrs_tup="${cfghdrs_tup} include/jemalloc/internal/jemalloc_internal_defs.h:${srcroot}include/jemalloc/internal/jemalloc_internal_defs.h.in"
+cfghdrs_tup="${cfghdrs_tup} test/include/test/jemalloc_test_defs.h:${srcroot}test/include/test/jemalloc_test_defs.h.in"
 
 dnl Do not silence irrelevant compiler warnings by default, since enabling this
 dnl option incurs a performance penalty.

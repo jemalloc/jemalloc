@@ -35,6 +35,8 @@
 		not_implemented();					\
 } while (0)
 
+#include "test/jemalloc_test_defs.h"
+
 /******************************************************************************/
 /*
  * For unit tests, expose all public and private interfaces.
@@ -109,3 +111,5 @@
  */
 #include "test/test.h"
 #include "test/thread.h"
+#define	MEXP 19937
+#include "test/SFMT.h"
