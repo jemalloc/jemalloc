@@ -1,5 +1,13 @@
 #include "test/jemalloc_test.h"
 
+static const bool config_tcache =
+#ifdef JEMALLOC_TCACHE
+    true
+#else
+    false
+#endif
+    ;
+
 void *
 je_thread_start(void *arg)
 {
@@ -10,81 +18,96 @@ je_thread_start(void *arg)
 	sz = sizeof(bool);
 	if ((err = mallctl("thread.tcache.enabled", &e0, &sz, NULL, 0))) {
 		if (err == ENOENT) {
-#ifdef JEMALLOC_TCACHE
-			assert(false);
-#endif
+			assert_false(config_tcache,
+			    "ENOENT should only be returned if tcache is "
+			    "disabled");
 		}
-		goto label_return;
+		goto label_ENOENT;
 	}
 
 	if (e0) {
 		e1 = false;
-		assert(mallctl("thread.tcache.enabled", &e0, &sz, &e1, sz)
-		    == 0);
-		assert(e0);
+		assert_d_eq(mallctl("thread.tcache.enabled", &e0, &sz, &e1, sz),
+		    0, "Unexpected mallctl() error");
+		assert_true(e0, "tcache should be enabled");
 	}
 
 	e1 = true;
-	assert(mallctl("thread.tcache.enabled", &e0, &sz, &e1, sz) == 0);
-	assert(e0 == false);
+	assert_d_eq(mallctl("thread.tcache.enabled", &e0, &sz, &e1, sz), 0,
+	    "Unexpected mallctl() error");
+	assert_false(e0, "tcache should be disabled");
 
 	e1 = true;
-	assert(mallctl("thread.tcache.enabled", &e0, &sz, &e1, sz) == 0);
-	assert(e0);
+	assert_d_eq(mallctl("thread.tcache.enabled", &e0, &sz, &e1, sz), 0,
+	    "Unexpected mallctl() error");
+	assert_true(e0, "tcache should be enabled");
 
 	e1 = false;
-	assert(mallctl("thread.tcache.enabled", &e0, &sz, &e1, sz) == 0);
-	assert(e0);
+	assert_d_eq(mallctl("thread.tcache.enabled", &e0, &sz, &e1, sz), 0,
+	    "Unexpected mallctl() error");
+	assert_true(e0, "tcache should be enabled");
 
 	e1 = false;
-	assert(mallctl("thread.tcache.enabled", &e0, &sz, &e1, sz) == 0);
-	assert(e0 == false);
+	assert_d_eq(mallctl("thread.tcache.enabled", &e0, &sz, &e1, sz), 0,
+	    "Unexpected mallctl() error");
+	assert_false(e0, "tcache should be disabled");
 
 	free(malloc(1));
 	e1 = true;
-	assert(mallctl("thread.tcache.enabled", &e0, &sz, &e1, sz) == 0);
-	assert(e0 == false);
+	assert_d_eq(mallctl("thread.tcache.enabled", &e0, &sz, &e1, sz), 0,
+	    "Unexpected mallctl() error");
+	assert_false(e0, "tcache should be disabled");
 
 	free(malloc(1));
 	e1 = true;
-	assert(mallctl("thread.tcache.enabled", &e0, &sz, &e1, sz) == 0);
-	assert(e0);
+	assert_d_eq(mallctl("thread.tcache.enabled", &e0, &sz, &e1, sz), 0,
+	    "Unexpected mallctl() error");
+	assert_true(e0, "tcache should be enabled");
 
 	free(malloc(1));
 	e1 = false;
-	assert(mallctl("thread.tcache.enabled", &e0, &sz, &e1, sz) == 0);
-	assert(e0);
+	assert_d_eq(mallctl("thread.tcache.enabled", &e0, &sz, &e1, sz), 0,
+	    "Unexpected mallctl() error");
+	assert_true(e0, "tcache should be enabled");
 
 	free(malloc(1));
 	e1 = false;
-	assert(mallctl("thread.tcache.enabled", &e0, &sz, &e1, sz) == 0);
-	assert(e0 == false);
+	assert_d_eq(mallctl("thread.tcache.enabled", &e0, &sz, &e1, sz), 0,
+	    "Unexpected mallctl() error");
+	assert_false(e0, "tcache should be disabled");
 
 	free(malloc(1));
-label_return:
+	return (NULL);
+label_ENOENT:
+	test_skip("\"thread.tcache.enabled\" mallctl not available");
 	return (NULL);
 }
+
+TEST_BEGIN(test_main_thread)
+{
+
+	je_thread_start(NULL);
+}
+TEST_END
+
+TEST_BEGIN(test_subthread)
+{
+	je_thread_t thread;
+
+	je_thread_create(&thread, je_thread_start, NULL);
+	je_thread_join(thread, NULL);
+}
+TEST_END
 
 int
 main(void)
 {
-	int ret = 0;
-	je_thread_t thread;
 
-	malloc_printf("Test begin\n");
-
-	je_thread_start(NULL);
-
-	je_thread_create(&thread, je_thread_start, NULL);
-	je_thread_join(thread, NULL);
-
-	je_thread_start(NULL);
-
-	je_thread_create(&thread, je_thread_start, NULL);
-	je_thread_join(thread, NULL);
-
-	je_thread_start(NULL);
-
-	malloc_printf("Test end\n");
-	return (ret);
+	/* Run tests multiple times to check for bad interactions. */
+	return (test(
+	    test_main_thread,
+	    test_subthread,
+	    test_main_thread,
+	    test_subthread,
+	    test_main_thread));
 }

@@ -1,19 +1,9 @@
 #include "test/jemalloc_test.h"
 
-#define	JEMALLOC_TEST_EXIT_FAIL	1
-#define	JEMALLOC_TEST_EXIT_SKIP	2
-
-JEMALLOC_ATTR(format(printf, 1, 2))
-void
-test_fail(const char *format, ...)
-{
-	va_list ap;
-
-	va_start(ap, format);
-	malloc_vcprintf(NULL, NULL, format, ap);
-	va_end(ap);
-	exit(JEMALLOC_TEST_EXIT_FAIL);
-}
+static unsigned		test_count = 0;
+static test_status_t	test_counts[test_status_count] = {0, 0, 0};
+static test_status_t	test_status = test_status_pass;
+static const char *	test_name = "";
 
 JEMALLOC_ATTR(format(printf, 1, 2))
 void
@@ -24,5 +14,83 @@ test_skip(const char *format, ...)
 	va_start(ap, format);
 	malloc_vcprintf(NULL, NULL, format, ap);
 	va_end(ap);
-	exit(JEMALLOC_TEST_EXIT_SKIP);
+	test_status = test_status_skip;
+}
+
+JEMALLOC_ATTR(format(printf, 1, 2))
+void
+test_fail(const char *format, ...)
+{
+	va_list ap;
+
+	va_start(ap, format);
+	malloc_vcprintf(NULL, NULL, format, ap);
+	va_end(ap);
+	test_status = test_status_fail;
+}
+
+static const char *
+test_status_string(test_status_t test_status)
+{
+
+	switch (test_status) {
+	case test_status_pass: return "pass";
+	case test_status_skip: return "skip";
+	case test_status_fail: return "fail";
+	default: not_reached();
+	}
+}
+
+void
+p_test_init(const char *name)
+{
+
+	test_count++;
+	test_status = test_status_pass;
+	test_name = name;
+}
+
+void
+p_test_fini(void)
+{
+
+	test_counts[test_status]++;
+	malloc_printf("%s: %s\n", test_name, test_status_string(test_status));
+}
+
+test_status_t
+p_test(test_t* t, ...)
+{
+	test_status_t ret = test_status_pass;
+	va_list ap;
+
+	va_start(ap, t);
+	for (; t != NULL; t = va_arg(ap, test_t*)) {
+		t();
+		if (test_status > ret)
+			ret = test_status;
+	}
+	va_end(ap);
+
+	malloc_printf("tests: %u, pass: %u, skip: %u, fail: %u\n",
+	    test_count,
+	    test_counts[test_status_pass],
+	    test_counts[test_status_skip],
+	    test_counts[test_status_fail]);
+
+	return (ret);
+}
+
+void
+p_test_fail(const char *format, ...)
+{
+	va_list ap;
+
+	va_start(ap, format);
+	malloc_vcprintf(NULL, NULL, format, ap);
+	format = va_arg(ap, const char *);
+	malloc_vcprintf(NULL, NULL, format, ap);
+	va_end(ap);
+	malloc_printf("\n");
+	test_status = test_status_fail;
 }

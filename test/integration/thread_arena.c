@@ -12,36 +12,33 @@ je_thread_start(void *arg)
 	int err;
 
 	p = malloc(1);
-	if (p == NULL) {
-		malloc_printf("%s(): Error in malloc()\n", __func__);
-		return (void *)1;
-	}
+	assert_ptr_not_null(p, "Error in malloc()");
 	free(p);
 
 	size = sizeof(arena_ind);
 	if ((err = mallctl("thread.arena", &arena_ind, &size, &main_arena_ind,
 	    sizeof(main_arena_ind)))) {
-		malloc_printf("%s(): Error in mallctl(): %s\n", __func__,
-		    strerror(err));
-		return (void *)1;
+		char buf[BUFERROR_BUF];
+
+		buferror(err, buf, sizeof(buf));
+		test_fail("Error in mallctl(): %s", buf);
 	}
 
 	size = sizeof(arena_ind);
-	if ((err = mallctl("thread.arena", &arena_ind, &size, NULL,
-	    0))) {
-		malloc_printf("%s(): Error in mallctl(): %s\n", __func__,
-		    strerror(err));
-		return (void *)1;
+	if ((err = mallctl("thread.arena", &arena_ind, &size, NULL, 0))) {
+		char buf[BUFERROR_BUF];
+
+		buferror(err, buf, sizeof(buf));
+		test_fail("Error in mallctl(): %s", buf);
 	}
-	assert(arena_ind == main_arena_ind);
+	assert_u_eq(arena_ind, main_arena_ind,
+	    "Arena index should be same as for main thread");
 
 	return (NULL);
 }
 
-int
-main(void)
+TEST_BEGIN(test_thread_arena)
 {
-	int ret = 0;
 	void *p;
 	unsigned arena_ind;
 	size_t size;
@@ -49,21 +46,15 @@ main(void)
 	je_thread_t threads[NTHREADS];
 	unsigned i;
 
-	malloc_printf("Test begin\n");
-
 	p = malloc(1);
-	if (p == NULL) {
-		malloc_printf("%s(): Error in malloc()\n", __func__);
-		ret = 1;
-		goto label_return;
-	}
+	assert_ptr_not_null(p, "Error in malloc()");
 
 	size = sizeof(arena_ind);
 	if ((err = mallctl("thread.arena", &arena_ind, &size, NULL, 0))) {
-		malloc_printf("%s(): Error in mallctl(): %s\n", __func__,
-		    strerror(err));
-		ret = 1;
-		goto label_return;
+		char buf[BUFERROR_BUF];
+
+		buferror(err, buf, sizeof(buf));
+		test_fail("Error in mallctl(): %s", buf);
 	}
 
 	for (i = 0; i < NTHREADS; i++) {
@@ -74,11 +65,15 @@ main(void)
 	for (i = 0; i < NTHREADS; i++) {
 		intptr_t join_ret;
 		je_thread_join(threads[i], (void *)&join_ret);
-		if (join_ret != 0)
-			ret = 1;
+		assert_zd_eq(join_ret, 0, "Unexpected thread join error");
 	}
+}
+TEST_END
 
-label_return:
-	malloc_printf("Test end\n");
-	return (ret);
+int
+main(void)
+{
+
+	return (test(
+	    test_thread_arena));
 }

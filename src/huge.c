@@ -169,7 +169,7 @@ huge_ralloc(void *ptr, size_t oldsize, size_t size, size_t extra,
 			 */
 			char buf[BUFERROR_BUF];
 
-			buferror(buf, sizeof(buf));
+			buferror(get_errno(), buf, sizeof(buf));
 			malloc_printf("<jemalloc>: Error in mremap(): %s\n",
 			    buf);
 			if (opt_abort)

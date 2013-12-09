@@ -7,16 +7,12 @@ je_thread_start(void *arg)
 {
 	unsigned thread_ind = (unsigned)(uintptr_t)arg;
 	unsigned arena_ind;
-	int r;
 	void *p;
 	size_t rsz, sz;
 
 	sz = sizeof(arena_ind);
-	if (mallctl("arenas.extend", &arena_ind, &sz, NULL, 0)
-	    != 0) {
-		malloc_printf("Error in arenas.extend\n");
-		abort();
-	}
+	assert_d_eq(mallctl("arenas.extend", &arena_ind, &sz, NULL, 0), 0,
+	    "Error in arenas.extend");
 
 	if (thread_ind % 4 != 3) {
 		size_t mib[3];
@@ -24,35 +20,24 @@ je_thread_start(void *arg)
 		const char *dss_precs[] = {"disabled", "primary", "secondary"};
 		const char *dss = dss_precs[thread_ind %
 		    (sizeof(dss_precs)/sizeof(char*))];
-		if (mallctlnametomib("arena.0.dss", mib, &miblen) != 0) {
-			malloc_printf("Error in mallctlnametomib()\n");
-			abort();
-		}
+		assert_d_eq(mallctlnametomib("arena.0.dss", mib, &miblen), 0,
+		    "Error in mallctlnametomib()");
 		mib[1] = arena_ind;
-		if (mallctlbymib(mib, miblen, NULL, NULL, (void *)&dss,
-		    sizeof(const char *))) {
-			malloc_printf("Error in mallctlbymib()\n");
-			abort();
-		}
+		assert_d_eq(mallctlbymib(mib, miblen, NULL, NULL, (void *)&dss,
+		    sizeof(const char *)), 0, "Error in mallctlbymib()");
 	}
 
-	r = allocm(&p, &rsz, 1, ALLOCM_ARENA(arena_ind));
-	if (r != ALLOCM_SUCCESS) {
-		malloc_printf("Unexpected allocm() error\n");
-		abort();
-	}
+	assert_d_eq(allocm(&p, &rsz, 1, ALLOCM_ARENA(arena_ind)),
+	    ALLOCM_SUCCESS, "Unexpected allocm() error");
 	dallocm(p, 0);
 
 	return (NULL);
 }
 
-int
-main(void)
+TEST_BEGIN(test_ALLOCM_ARENA)
 {
 	je_thread_t threads[NTHREADS];
 	unsigned i;
-
-	malloc_printf("Test begin\n");
 
 	for (i = 0; i < NTHREADS; i++) {
 		je_thread_create(&threads[i], je_thread_start,
@@ -61,7 +46,13 @@ main(void)
 
 	for (i = 0; i < NTHREADS; i++)
 		je_thread_join(threads[i], NULL);
+}
+TEST_END
 
-	malloc_printf("Test end\n");
-	return (0);
+int
+main(void)
+{
+
+	return (test(
+	    test_ALLOCM_ARENA));
 }

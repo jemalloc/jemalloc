@@ -5,61 +5,44 @@
 #define MAXALIGN ((size_t)0x2000000LU)
 #define NITER 4
 
-int
-main(void)
+TEST_BEGIN(test_basic)
 {
-	int r;
+	size_t nsz, rsz, sz;
 	void *p;
-	size_t nsz, rsz, sz, alignment, total;
-	unsigned i;
-	void *ps[NITER];
-
-	malloc_printf("Test begin\n");
 
 	sz = 42;
 	nsz = 0;
-	r = nallocm(&nsz, sz, 0);
-	if (r != ALLOCM_SUCCESS) {
-		malloc_printf("Unexpected nallocm() error\n");
-		abort();
-	}
+	assert_d_eq(nallocm(&nsz, sz, 0), ALLOCM_SUCCESS,
+	    "Unexpected nallocm() error");
 	rsz = 0;
-	r = allocm(&p, &rsz, sz, 0);
-	if (r != ALLOCM_SUCCESS) {
-		malloc_printf("Unexpected allocm() error\n");
-		abort();
-	}
-	if (rsz < sz)
-		malloc_printf("Real size smaller than expected\n");
-	if (nsz != rsz)
-		malloc_printf("nallocm()/allocm() rsize mismatch\n");
-	if (dallocm(p, 0) != ALLOCM_SUCCESS)
-		malloc_printf("Unexpected dallocm() error\n");
+	assert_d_eq(allocm(&p, &rsz, sz, 0), ALLOCM_SUCCESS,
+	    "Unexpected allocm() error");
+	assert_zu_ge(rsz, sz, "Real size smaller than expected");
+	assert_zu_eq(nsz, rsz, "nallocm()/allocm() rsize mismatch");
+	assert_d_eq(dallocm(p, 0), ALLOCM_SUCCESS,
+	    "Unexpected dallocm() error");
 
-	r = allocm(&p, NULL, sz, 0);
-	if (r != ALLOCM_SUCCESS) {
-		malloc_printf("Unexpected allocm() error\n");
-		abort();
-	}
-	if (dallocm(p, 0) != ALLOCM_SUCCESS)
-		malloc_printf("Unexpected dallocm() error\n");
+	assert_d_eq(allocm(&p, NULL, sz, 0), ALLOCM_SUCCESS,
+	    "Unexpected allocm() error");
+	assert_d_eq(dallocm(p, 0), ALLOCM_SUCCESS,
+	    "Unexpected dallocm() error");
 
 	nsz = 0;
-	r = nallocm(&nsz, sz, ALLOCM_ZERO);
-	if (r != ALLOCM_SUCCESS) {
-		malloc_printf("Unexpected nallocm() error\n");
-		abort();
-	}
+	assert_d_eq(nallocm(&nsz, sz, ALLOCM_ZERO), ALLOCM_SUCCESS,
+	    "Unexpected nallocm() error");
 	rsz = 0;
-	r = allocm(&p, &rsz, sz, ALLOCM_ZERO);
-	if (r != ALLOCM_SUCCESS) {
-		malloc_printf("Unexpected allocm() error\n");
-		abort();
-	}
-	if (nsz != rsz)
-		malloc_printf("nallocm()/allocm() rsize mismatch\n");
-	if (dallocm(p, 0) != ALLOCM_SUCCESS)
-		malloc_printf("Unexpected dallocm() error\n");
+	assert_d_eq(allocm(&p, &rsz, sz, ALLOCM_ZERO), ALLOCM_SUCCESS,
+	    "Unexpected allocm() error");
+	assert_zu_eq(nsz, rsz, "nallocm()/allocm() rsize mismatch");
+	assert_d_eq(dallocm(p, 0), ALLOCM_SUCCESS,
+	    "Unexpected dallocm() error");
+}
+TEST_END
+
+TEST_BEGIN(test_alignment_errors)
+{
+	void *p;
+	size_t nsz, rsz, sz, alignment;
 
 #if LG_SIZEOF_PTR == 3
 	alignment = UINT64_C(0x8000000000000000);
@@ -69,21 +52,14 @@ main(void)
 	sz        = 0x80000000LU;
 #endif
 	nsz = 0;
-	r = nallocm(&nsz, sz, ALLOCM_ALIGN(alignment));
-	if (r == ALLOCM_SUCCESS) {
-		malloc_printf(
-		    "Expected error for nallocm(&nsz, %zu, %#x)\n",
-		    sz, ALLOCM_ALIGN(alignment));
-	}
+	assert_d_ne(nallocm(&nsz, sz, ALLOCM_ALIGN(alignment)), ALLOCM_SUCCESS,
+	    "Expected error for nallocm(&nsz, %zu, %#x)",
+	    sz, ALLOCM_ALIGN(alignment));
 	rsz = 0;
-	r = allocm(&p, &rsz, sz, ALLOCM_ALIGN(alignment));
-	if (r == ALLOCM_SUCCESS) {
-		malloc_printf(
-		    "Expected error for allocm(&p, %zu, %#x)\n",
-		    sz, ALLOCM_ALIGN(alignment));
-	}
-	if (nsz != rsz)
-		malloc_printf("nallocm()/allocm() rsize mismatch\n");
+	assert_d_ne(allocm(&p, &rsz, sz, ALLOCM_ALIGN(alignment)),
+	    ALLOCM_SUCCESS, "Expected error for allocm(&p, %zu, %#x)",
+	    sz, ALLOCM_ALIGN(alignment));
+	assert_zu_eq(nsz, rsz, "nallocm()/allocm() rsize mismatch");
 
 #if LG_SIZEOF_PTR == 3
 	alignment = UINT64_C(0x4000000000000000);
@@ -93,16 +69,12 @@ main(void)
 	sz        = 0x84000001LU;
 #endif
 	nsz = 0;
-	r = nallocm(&nsz, sz, ALLOCM_ALIGN(alignment));
-	if (r != ALLOCM_SUCCESS)
-		malloc_printf("Unexpected nallocm() error\n");
+	assert_d_eq(nallocm(&nsz, sz, ALLOCM_ALIGN(alignment)), ALLOCM_SUCCESS,
+	    "Unexpected nallocm() error");
 	rsz = 0;
-	r = allocm(&p, &rsz, sz, ALLOCM_ALIGN(alignment));
-	if (r == ALLOCM_SUCCESS) {
-		malloc_printf(
-		    "Expected error for allocm(&p, %zu, %#x)\n",
-		    sz, ALLOCM_ALIGN(alignment));
-	}
+	assert_d_ne(allocm(&p, &rsz, sz, ALLOCM_ALIGN(alignment)),
+	    ALLOCM_SUCCESS, "Expected error for allocm(&p, %zu, %#x)",
+	    sz, ALLOCM_ALIGN(alignment));
 
 	alignment = 0x10LU;
 #if LG_SIZEOF_PTR == 3
@@ -111,21 +83,23 @@ main(void)
 	sz = 0xfffffff0LU;
 #endif
 	nsz = 0;
-	r = nallocm(&nsz, sz, ALLOCM_ALIGN(alignment));
-	if (r == ALLOCM_SUCCESS) {
-		malloc_printf(
-		    "Expected error for nallocm(&nsz, %zu, %#x)\n",
-		    sz, ALLOCM_ALIGN(alignment));
-	}
+	assert_d_ne(nallocm(&nsz, sz, ALLOCM_ALIGN(alignment)), ALLOCM_SUCCESS,
+	    "Expected error for nallocm(&nsz, %zu, %#x)",
+	    sz, ALLOCM_ALIGN(alignment));
 	rsz = 0;
-	r = allocm(&p, &rsz, sz, ALLOCM_ALIGN(alignment));
-	if (r == ALLOCM_SUCCESS) {
-		malloc_printf(
-		    "Expected error for allocm(&p, %zu, %#x)\n",
-		    sz, ALLOCM_ALIGN(alignment));
-	}
-	if (nsz != rsz)
-		malloc_printf("nallocm()/allocm() rsize mismatch\n");
+	assert_d_ne(allocm(&p, &rsz, sz, ALLOCM_ALIGN(alignment)),
+	    ALLOCM_SUCCESS, "Expected error for allocm(&p, %zu, %#x)",
+	    sz, ALLOCM_ALIGN(alignment));
+	assert_zu_eq(nsz, rsz, "nallocm()/allocm() rsize mismatch");
+}
+TEST_END
+
+TEST_BEGIN(test_alignment_and_size)
+{
+	int r;
+	size_t nsz, rsz, sz, alignment, total;
+	unsigned i;
+	void *ps[NITER];
 
 	for (i = 0; i < NITER; i++)
 		ps[i] = NULL;
@@ -134,44 +108,35 @@ main(void)
 	    alignment <= MAXALIGN;
 	    alignment <<= 1) {
 		total = 0;
-		malloc_printf("Alignment: %zu\n", alignment);
 		for (sz = 1;
 		    sz < 3 * alignment && sz < (1U << 31);
 		    sz += (alignment >> (LG_SIZEOF_PTR-1)) - 1) {
 			for (i = 0; i < NITER; i++) {
 				nsz = 0;
-				r = nallocm(&nsz, sz,
-				    ALLOCM_ALIGN(alignment) | ALLOCM_ZERO);
-				if (r != ALLOCM_SUCCESS) {
-					test_fail(
-					    "nallocm() error for size %zu"
-					    " (%#zx): %d\n",
-					    sz, sz, r);
-				}
+				r = nallocm(&nsz, sz, ALLOCM_ALIGN(alignment) |
+				    ALLOCM_ZERO);
+				assert_d_eq(r, ALLOCM_SUCCESS,
+				    "nallocm() error for alignment=%zu, "
+				    "size=%zu (%#zx): %d",
+				    alignment, sz, sz, r);
 				rsz = 0;
 				r = allocm(&ps[i], &rsz, sz,
 				    ALLOCM_ALIGN(alignment) | ALLOCM_ZERO);
-				if (r != ALLOCM_SUCCESS) {
-					test_fail(
-					    "allocm() error for size %zu"
-					    " (%#zx): %d\n",
-					    sz, sz, r);
-				}
-				if (rsz < sz) {
-					malloc_printf(
-					    "Real size smaller than"
-					    " expected\n");
-				}
-				if (nsz != rsz) {
-					malloc_printf(
-					    "nallocm()/allocm() rsize"
-					    " mismatch\n");
-				}
-				if ((uintptr_t)p & (alignment-1)) {
-					malloc_printf(
-					    "%p inadequately aligned for"
-					    " alignment: %zu\n", p, alignment);
-				}
+				assert_d_eq(r, ALLOCM_SUCCESS,
+				    "allocm() error for alignment=%zu, "
+				    "size=%zu (%#zx): %d",
+				    alignment, sz, sz, r);
+				assert_zu_ge(rsz, sz,
+				    "Real size smaller than expected for "
+				    "alignment=%zu, size=%zu", alignment, sz);
+				assert_zu_eq(nsz, rsz,
+				    "nallocm()/allocm() rsize mismatch for "
+				    "alignment=%zu, size=%zu", alignment, sz);
+				assert_ptr_null(
+				    (void *)((uintptr_t)ps[i] & (alignment-1)),
+				    "%p inadequately aligned for"
+				    " alignment=%zu, size=%zu", ps[i],
+				    alignment, sz);
 				sallocm(ps[i], &rsz, 0);
 				total += rsz;
 				if (total >= (MAXALIGN << 1))
@@ -185,7 +150,15 @@ main(void)
 			}
 		}
 	}
+}
+TEST_END
 
-	malloc_printf("Test end\n");
-	return (0);
+int
+main(void)
+{
+
+	return (test(
+	    test_basic,
+	    test_alignment_errors,
+	    test_alignment_and_size));
 }

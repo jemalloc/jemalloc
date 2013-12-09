@@ -5,34 +5,32 @@
 #define MAXALIGN ((size_t)0x2000000LU)
 #define NITER 4
 
-int
-main(void)
+TEST_BEGIN(test_alignment_errors)
 {
-	size_t alignment, size, total;
-	unsigned i;
-	void *p, *ps[NITER];
+	size_t alignment;
+	void *p;
 
-	malloc_printf("Test begin\n");
-
-	/* Test error conditions. */
 	alignment = 0;
 	set_errno(0);
 	p = aligned_alloc(alignment, 1);
-	if (p != NULL || get_errno() != EINVAL) {
-		malloc_printf(
-		    "Expected error for invalid alignment %zu\n", alignment);
-	}
+	assert_false(p != NULL || get_errno() != EINVAL,
+	    "Expected error for invalid alignment %zu", alignment);
 
 	for (alignment = sizeof(size_t); alignment < MAXALIGN;
 	    alignment <<= 1) {
 		set_errno(0);
 		p = aligned_alloc(alignment + 1, 1);
-		if (p != NULL || get_errno() != EINVAL) {
-			malloc_printf(
-			    "Expected error for invalid alignment %zu\n",
-			    alignment + 1);
-		}
+		assert_false(p != NULL || get_errno() != EINVAL,
+		    "Expected error for invalid alignment %zu",
+		    alignment + 1);
 	}
+}
+TEST_END
+
+TEST_BEGIN(test_oom_errors)
+{
+	size_t alignment, size;
+	void *p;
 
 #if LG_SIZEOF_PTR == 3
 	alignment = UINT64_C(0x8000000000000000);
@@ -43,11 +41,9 @@ main(void)
 #endif
 	set_errno(0);
 	p = aligned_alloc(alignment, size);
-	if (p != NULL || get_errno() != ENOMEM) {
-		malloc_printf(
-		    "Expected error for aligned_alloc(%zu, %zu)\n",
-		    alignment, size);
-	}
+	assert_false(p != NULL || get_errno() != ENOMEM,
+	    "Expected error for aligned_alloc(%zu, %zu)",
+	    alignment, size);
 
 #if LG_SIZEOF_PTR == 3
 	alignment = UINT64_C(0x4000000000000000);
@@ -58,11 +54,9 @@ main(void)
 #endif
 	set_errno(0);
 	p = aligned_alloc(alignment, size);
-	if (p != NULL || get_errno() != ENOMEM) {
-		malloc_printf(
-		    "Expected error for aligned_alloc(%zu, %zu)\n",
-		    alignment, size);
-	}
+	assert_false(p != NULL || get_errno() != ENOMEM,
+	    "Expected error for aligned_alloc(%zu, %zu)",
+	    alignment, size);
 
 	alignment = 0x10LU;
 #if LG_SIZEOF_PTR == 3
@@ -72,11 +66,17 @@ main(void)
 #endif
 	set_errno(0);
 	p = aligned_alloc(alignment, size);
-	if (p != NULL || get_errno() != ENOMEM) {
-		malloc_printf(
-		    "Expected error for aligned_alloc(&p, %zu, %zu)\n",
-		    alignment, size);
-	}
+	assert_false(p != NULL || get_errno() != ENOMEM,
+	    "Expected error for aligned_alloc(&p, %zu, %zu)",
+	    alignment, size);
+}
+TEST_END
+
+TEST_BEGIN(test_alignment_and_size)
+{
+	size_t alignment, size, total;
+	unsigned i;
+	void *ps[NITER];
 
 	for (i = 0; i < NITER; i++)
 		ps[i] = NULL;
@@ -85,7 +85,6 @@ main(void)
 	    alignment <= MAXALIGN;
 	    alignment <<= 1) {
 		total = 0;
-		malloc_printf("Alignment: %zu\n", alignment);
 		for (size = 1;
 		    size < 3 * alignment && size < (1U << 31);
 		    size += (alignment >> (LG_SIZEOF_PTR-1)) - 1) {
@@ -94,10 +93,11 @@ main(void)
 				if (ps[i] == NULL) {
 					char buf[BUFERROR_BUF];
 
-					buferror(buf, sizeof(buf));
+					buferror(get_errno(), buf, sizeof(buf));
 					test_fail(
-					    "Error for size %zu (%#zx): %s\n",
-					    size, size, buf);
+					    "Error for alignment=%zu, "
+					    "size=%zu (%#zx): %s",
+					    alignment, size, size, buf);
 				}
 				total += malloc_usable_size(ps[i]);
 				if (total >= (MAXALIGN << 1))
@@ -111,7 +111,15 @@ main(void)
 			}
 		}
 	}
+}
+TEST_END
 
-	malloc_printf("Test end\n");
-	return (0);
+int
+main(void)
+{
+
+	return (test(
+	    test_alignment_errors,
+	    test_oom_errors,
+	    test_alignment_and_size));
 }

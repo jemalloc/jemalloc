@@ -1,5 +1,13 @@
 #include "test/jemalloc_test.h"
 
+static const bool config_stats =
+#ifdef JEMALLOC_STATS
+    true
+#else
+    false
+#endif
+    ;
+
 void *
 je_thread_start(void *arg)
 {
@@ -11,65 +19,57 @@ je_thread_start(void *arg)
 
 	sz = sizeof(a0);
 	if ((err = mallctl("thread.allocated", &a0, &sz, NULL, 0))) {
-		if (err == ENOENT) {
-#ifdef JEMALLOC_STATS
-			assert(false);
-#endif
-			goto label_return;
-		}
-		test_fail("%s(): Error in mallctl(): %s\n", __func__,
+		if (err == ENOENT)
+			goto label_ENOENT;
+		test_fail("%s(): Error in mallctl(): %s", __func__,
 		    strerror(err));
 	}
 	sz = sizeof(ap0);
 	if ((err = mallctl("thread.allocatedp", &ap0, &sz, NULL, 0))) {
-		if (err == ENOENT) {
-#ifdef JEMALLOC_STATS
-			assert(false);
-#endif
-			goto label_return;
-		}
-		test_fail("%s(): Error in mallctl(): %s\n", __func__,
+		if (err == ENOENT)
+			goto label_ENOENT;
+		test_fail("%s(): Error in mallctl(): %s", __func__,
 		    strerror(err));
 	}
-	assert(*ap0 == a0);
+	assert_u64_eq(*ap0, a0,
+	    "\"thread.allocatedp\" should provide a pointer to internal "
+	    "storage");
 
 	sz = sizeof(d0);
 	if ((err = mallctl("thread.deallocated", &d0, &sz, NULL, 0))) {
-		if (err == ENOENT) {
-#ifdef JEMALLOC_STATS
-			assert(false);
-#endif
-			goto label_return;
-		}
-		test_fail("%s(): Error in mallctl(): %s\n", __func__,
+		if (err == ENOENT)
+			goto label_ENOENT;
+		test_fail("%s(): Error in mallctl(): %s", __func__,
 		    strerror(err));
 	}
 	sz = sizeof(dp0);
 	if ((err = mallctl("thread.deallocatedp", &dp0, &sz, NULL, 0))) {
-		if (err == ENOENT) {
-#ifdef JEMALLOC_STATS
-			assert(false);
-#endif
-			goto label_return;
-		}
-		test_fail("%s(): Error in mallctl(): %s\n", __func__,
+		if (err == ENOENT)
+			goto label_ENOENT;
+		test_fail("%s(): Error in mallctl(): %s", __func__,
 		    strerror(err));
 	}
-	assert(*dp0 == d0);
+	assert_u64_eq(*dp0, d0,
+	    "\"thread.deallocatedp\" should provide a pointer to internal "
+	    "storage");
 
 	p = malloc(1);
-	if (p == NULL)
-		test_fail("%s(): Error in malloc()\n", __func__);
+	assert_ptr_not_null(p, "Unexpected malloc() error");
 
 	sz = sizeof(a1);
 	mallctl("thread.allocated", &a1, &sz, NULL, 0);
 	sz = sizeof(ap1);
 	mallctl("thread.allocatedp", &ap1, &sz, NULL, 0);
-	assert(*ap1 == a1);
-	assert(ap0 == ap1);
+	assert_u64_eq(*ap1, a1,
+	    "Dereferenced \"thread.allocatedp\" value should equal "
+	    "\"thread.allocated\" value");
+	assert_ptr_eq(ap0, ap1,
+	    "Pointer returned by \"thread.allocatedp\" should not change");
 
 	usize = malloc_usable_size(p);
-	assert(a0 + usize <= a1);
+	assert_u64_le(a0 + usize, a1,
+	    "Allocated memory counter should increase by at least the amount "
+	    "explicitly allocated");
 
 	free(p);
 
@@ -77,35 +77,49 @@ je_thread_start(void *arg)
 	mallctl("thread.deallocated", &d1, &sz, NULL, 0);
 	sz = sizeof(dp1);
 	mallctl("thread.deallocatedp", &dp1, &sz, NULL, 0);
-	assert(*dp1 == d1);
-	assert(dp0 == dp1);
+	assert_u64_eq(*dp1, d1,
+	    "Dereferenced \"thread.deallocatedp\" value should equal "
+	    "\"thread.deallocated\" value");
+	assert_ptr_eq(dp0, dp1,
+	    "Pointer returned by \"thread.deallocatedp\" should not change");
 
-	assert(d0 + usize <= d1);
+	assert_u64_le(d0 + usize, d1,
+	    "Deallocated memory counter should increase by at least the amount "
+	    "explicitly deallocated");
 
-label_return:
+	return (NULL);
+label_ENOENT:
+	assert_false(config_stats,
+	    "ENOENT should only be returned if stats are disabled");
+	test_skip("\"thread.allocated\" mallctl not available");
 	return (NULL);
 }
+
+TEST_BEGIN(test_main_thread)
+{
+
+	je_thread_start(NULL);
+}
+TEST_END
+
+TEST_BEGIN(test_subthread)
+{
+	je_thread_t thread;
+
+	je_thread_create(&thread, je_thread_start, NULL);
+	je_thread_join(thread, NULL);
+}
+TEST_END
 
 int
 main(void)
 {
-	int ret = 0;
-	je_thread_t thread;
 
-	malloc_printf("Test begin\n");
-
-	je_thread_start(NULL);
-
-	je_thread_create(&thread, je_thread_start, NULL);
-	je_thread_join(thread, NULL);
-
-	je_thread_start(NULL);
-
-	je_thread_create(&thread, je_thread_start, NULL);
-	je_thread_join(thread, NULL);
-
-	je_thread_start(NULL);
-
-	malloc_printf("Test end\n");
-	return (ret);
+	/* Run tests multiple times to check for bad interactions. */
+	return (test(
+	    test_main_thread,
+	    test_subthread,
+	    test_main_thread,
+	    test_subthread,
+	    test_main_thread));
 }

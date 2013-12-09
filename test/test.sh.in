@@ -11,27 +11,42 @@ case @abi@ in
     ;;
 esac
 
-total=0
-failures=0
-echo "========================================="
+# Corresponds to test_status_t.
+pass_code=0
+skip_code=1
+fail_code=2
+
+echo "================================================================================"
+pass_count=0
+skip_count=0
+fail_count=0
 for t in $@; do
-  total=`expr $total + 1`
-  /bin/echo -n "${t} ... "
+  echo "${t}:"
   ${t}@exe@ @abs_srcroot@ @abs_objroot@ > @objroot@${t}.out 2>&1
-  result=$?
-  if [ -e "@srcroot@${t}.exp" ] ; then
-    diff -w -u @srcroot@${t}.exp @objroot@${t}.out >/dev/null 2>&1
-    fail=$?
-    if [ "${fail}" -eq "1" ] ; then
-      failures=`expr ${failures} + 1`
-      echo "*** FAIL ***"
-    else
-      echo "pass"
-    fi
-  else
-    echo "*** FAIL *** (.exp file is missing)"
-    failures=`expr ${failures} + 1`
-  fi
+  result_code=$?
+  /bin/echo -n "  "
+  tail -n 1 @objroot@${t}.out
+  case ${result_code} in
+    ${pass_code})
+      pass_count=$((pass_count+1))
+      ;;
+    ${skip_code})
+      skip_count=$((skip_count+1))
+      ;;
+    ${fail_code})
+      fail_count=$((fail_count+1))
+      echo "  *** ${t} failure; see @objroot@${t}.out for full output ***" 1>&2
+      ;;
+    *)
+      echo "Test harness error" 1>&2
+      exit 1
+  esac
 done
-echo "========================================="
-echo "Failures: ${failures}/${total}"
+echo "================================================================================"
+echo "Test suite summary: pass: ${pass_count}, skip: ${skip_count}, fail: ${fail_count}"
+
+if [ ${fail_count} -eq 0 ] ; then
+  exit 0
+else
+  exit 1
+fi
