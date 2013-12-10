@@ -66,22 +66,6 @@
 #ifndef SFMT_H
 #define SFMT_H
 
-#if defined(__GNUC__)
-#define ALWAYSINLINE __attribute__((always_inline))
-#else
-#define ALWAYSINLINE
-#endif
-
-#if defined(_MSC_VER)
-  #if _MSC_VER >= 1200
-    #define PRE_ALWAYS __forceinline
-  #else
-    #define PRE_ALWAYS inline
-  #endif
-#else
-  #define PRE_ALWAYS inline
-#endif
-
 typedef struct sfmt_s sfmt_t;
 
 uint32_t gen_rand32(sfmt_t *ctx);

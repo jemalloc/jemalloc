@@ -114,18 +114,18 @@ static uint32_t parity[4] = {PARITY1, PARITY2, PARITY3, PARITY4};
 /*----------------
   STATIC FUNCTIONS
   ----------------*/
-inline static int idxof(int i);
+JEMALLOC_INLINE_C int idxof(int i);
 #if (!defined(HAVE_ALTIVEC)) && (!defined(HAVE_SSE2))
-inline static void rshift128(w128_t *out,  w128_t const *in, int shift);
-inline static void lshift128(w128_t *out,  w128_t const *in, int shift);
+JEMALLOC_INLINE_C void rshift128(w128_t *out,  w128_t const *in, int shift);
+JEMALLOC_INLINE_C void lshift128(w128_t *out,  w128_t const *in, int shift);
 #endif
-inline static void gen_rand_all(sfmt_t *ctx);
-inline static void gen_rand_array(sfmt_t *ctx, w128_t *array, int size);
-inline static uint32_t func1(uint32_t x);
-inline static uint32_t func2(uint32_t x);
+JEMALLOC_INLINE_C void gen_rand_all(sfmt_t *ctx);
+JEMALLOC_INLINE_C void gen_rand_array(sfmt_t *ctx, w128_t *array, int size);
+JEMALLOC_INLINE_C uint32_t func1(uint32_t x);
+JEMALLOC_INLINE_C uint32_t func2(uint32_t x);
 static void period_certification(sfmt_t *ctx);
 #if defined(BIG_ENDIAN64) && !defined(ONLY64)
-inline static void swap(w128_t *array, int size);
+JEMALLOC_INLINE_C void swap(w128_t *array, int size);
 #endif
 
 #if defined(HAVE_ALTIVEC)
@@ -139,11 +139,11 @@ inline static void swap(w128_t *array, int size);
  * in BIG ENDIAN machine.
  */
 #ifdef ONLY64
-inline static int idxof(int i) {
+JEMALLOC_INLINE_C int idxof(int i) {
     return i ^ 1;
 }
 #else
-inline static int idxof(int i) {
+JEMALLOC_INLINE_C int idxof(int i) {
     return i;
 }
 #endif
@@ -157,7 +157,7 @@ inline static int idxof(int i) {
  */
 #if (!defined(HAVE_ALTIVEC)) && (!defined(HAVE_SSE2))
 #ifdef ONLY64
-inline static void rshift128(w128_t *out, w128_t const *in, int shift) {
+JEMALLOC_INLINE_C void rshift128(w128_t *out, w128_t const *in, int shift) {
     uint64_t th, tl, oh, ol;
 
     th = ((uint64_t)in->u[2] << 32) | ((uint64_t)in->u[3]);
@@ -172,7 +172,7 @@ inline static void rshift128(w128_t *out, w128_t const *in, int shift) {
     out->u[3] = (uint32_t)oh;
 }
 #else
-inline static void rshift128(w128_t *out, w128_t const *in, int shift) {
+JEMALLOC_INLINE_C void rshift128(w128_t *out, w128_t const *in, int shift) {
     uint64_t th, tl, oh, ol;
 
     th = ((uint64_t)in->u[3] << 32) | ((uint64_t)in->u[2]);
@@ -196,7 +196,7 @@ inline static void rshift128(w128_t *out, w128_t const *in, int shift) {
  * @param shift the shift value
  */
 #ifdef ONLY64
-inline static void lshift128(w128_t *out, w128_t const *in, int shift) {
+JEMALLOC_INLINE_C void lshift128(w128_t *out, w128_t const *in, int shift) {
     uint64_t th, tl, oh, ol;
 
     th = ((uint64_t)in->u[2] << 32) | ((uint64_t)in->u[3]);
@@ -211,7 +211,7 @@ inline static void lshift128(w128_t *out, w128_t const *in, int shift) {
     out->u[3] = (uint32_t)oh;
 }
 #else
-inline static void lshift128(w128_t *out, w128_t const *in, int shift) {
+JEMALLOC_INLINE_C void lshift128(w128_t *out, w128_t const *in, int shift) {
     uint64_t th, tl, oh, ol;
 
     th = ((uint64_t)in->u[3] << 32) | ((uint64_t)in->u[2]);
@@ -238,7 +238,7 @@ inline static void lshift128(w128_t *out, w128_t const *in, int shift) {
  */
 #if (!defined(HAVE_ALTIVEC)) && (!defined(HAVE_SSE2))
 #ifdef ONLY64
-inline static void do_recursion(w128_t *r, w128_t *a, w128_t *b, w128_t *c,
+JEMALLOC_INLINE_C void do_recursion(w128_t *r, w128_t *a, w128_t *b, w128_t *c,
 				w128_t *d) {
     w128_t x;
     w128_t y;
@@ -255,7 +255,7 @@ inline static void do_recursion(w128_t *r, w128_t *a, w128_t *b, w128_t *c,
 	^ (d->u[3] << SL1);
 }
 #else
-inline static void do_recursion(w128_t *r, w128_t *a, w128_t *b, w128_t *c,
+JEMALLOC_INLINE_C void do_recursion(w128_t *r, w128_t *a, w128_t *b, w128_t *c,
 				w128_t *d) {
     w128_t x;
     w128_t y;
@@ -279,7 +279,7 @@ inline static void do_recursion(w128_t *r, w128_t *a, w128_t *b, w128_t *c,
  * This function fills the internal state array with pseudorandom
  * integers.
  */
-inline static void gen_rand_all(sfmt_t *ctx) {
+JEMALLOC_INLINE_C void gen_rand_all(sfmt_t *ctx) {
     int i;
     w128_t *r1, *r2;
 
@@ -306,7 +306,7 @@ inline static void gen_rand_all(sfmt_t *ctx) {
  * @param array an 128-bit array to be filled by pseudorandom numbers.  
  * @param size number of 128-bit pseudorandom numbers to be generated.
  */
-inline static void gen_rand_array(sfmt_t *ctx, w128_t *array, int size) {
+JEMALLOC_INLINE_C void gen_rand_array(sfmt_t *ctx, w128_t *array, int size) {
     int i, j;
     w128_t *r1, *r2;
 
@@ -340,7 +340,7 @@ inline static void gen_rand_array(sfmt_t *ctx, w128_t *array, int size) {
 #endif
 
 #if defined(BIG_ENDIAN64) && !defined(ONLY64) && !defined(HAVE_ALTIVEC)
-inline static void swap(w128_t *array, int size) {
+JEMALLOC_INLINE_C void swap(w128_t *array, int size) {
     int i;
     uint32_t x, y;
 

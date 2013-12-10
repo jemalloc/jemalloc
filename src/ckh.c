@@ -49,7 +49,7 @@ static void	ckh_shrink(ckh_t *ckh);
  * Search bucket for key and return the cell number if found; SIZE_T_MAX
  * otherwise.
  */
-JEMALLOC_INLINE size_t
+JEMALLOC_INLINE_C size_t
 ckh_bucket_search(ckh_t *ckh, size_t bucket, const void *key)
 {
 	ckhc_t *cell;
@@ -67,7 +67,7 @@ ckh_bucket_search(ckh_t *ckh, size_t bucket, const void *key)
 /*
  * Search table for key and return cell number if found; SIZE_T_MAX otherwise.
  */
-JEMALLOC_INLINE size_t
+JEMALLOC_INLINE_C size_t
 ckh_isearch(ckh_t *ckh, const void *key)
 {
 	size_t hashes[2], bucket, cell;
@@ -88,7 +88,7 @@ ckh_isearch(ckh_t *ckh, const void *key)
 	return (cell);
 }
 
-JEMALLOC_INLINE bool
+JEMALLOC_INLINE_C bool
 ckh_try_bucket_insert(ckh_t *ckh, size_t bucket, const void *key,
     const void *data)
 {
@@ -120,7 +120,7 @@ ckh_try_bucket_insert(ckh_t *ckh, size_t bucket, const void *key,
  * eviction/relocation procedure until either success or detection of an
  * eviction/relocation bucket cycle.
  */
-JEMALLOC_INLINE bool
+JEMALLOC_INLINE_C bool
 ckh_evict_reloc_insert(ckh_t *ckh, size_t argbucket, void const **argkey,
     void const **argdata)
 {
@@ -190,7 +190,7 @@ ckh_evict_reloc_insert(ckh_t *ckh, size_t argbucket, void const **argkey,
 	}
 }
 
-JEMALLOC_INLINE bool
+JEMALLOC_INLINE_C bool
 ckh_try_insert(ckh_t *ckh, void const**argkey, void const**argdata)
 {
 	size_t hashes[2], bucket;
@@ -219,7 +219,7 @@ ckh_try_insert(ckh_t *ckh, void const**argkey, void const**argdata)
  * Try to rebuild the hash table from scratch by inserting all items from the
  * old table into the new.
  */
-JEMALLOC_INLINE bool
+JEMALLOC_INLINE_C bool
 ckh_rebuild(ckh_t *ckh, ckhc_t *aTab)
 {
 	size_t count, i, nins;

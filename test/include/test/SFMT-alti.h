@@ -52,12 +52,6 @@
 #ifndef SFMT_ALTI_H
 #define SFMT_ALTI_H
 
-inline static vector unsigned int vec_recursion(vector unsigned int a,
-						vector unsigned int b,
-						vector unsigned int c,
-						vector unsigned int d)
-    ALWAYSINLINE;
-
 /**
  * This function represents the recursion formula in AltiVec and BIG ENDIAN.
  * @param a a 128-bit part of the interal state array
@@ -66,7 +60,8 @@ inline static vector unsigned int vec_recursion(vector unsigned int a,
  * @param d a 128-bit part of the interal state array
  * @return output
  */
-inline static vector unsigned int vec_recursion(vector unsigned int a,
+JEMALLOC_ALWAYS_INLINE
+static vector unsigned int vec_recursion(vector unsigned int a,
 						vector unsigned int b,
 						vector unsigned int c,
 						vector unsigned int d) {
@@ -100,7 +95,7 @@ inline static vector unsigned int vec_recursion(vector unsigned int a,
  * This function fills the internal state array with pseudorandom
  * integers.
  */
-inline static void gen_rand_all(sfmt_t *ctx) {
+JEMALLOC_INLINE void gen_rand_all(sfmt_t *ctx) {
     int i;
     vector unsigned int r, r1, r2;
 
@@ -127,7 +122,7 @@ inline static void gen_rand_all(sfmt_t *ctx) {
  * @param array an 128-bit array to be filled by pseudorandom numbers.  
  * @param size number of 128-bit pesudorandom numbers to be generated.
  */
-inline static void gen_rand_array(sfmt_t *ctx, w128_t *array, int size) {
+JEMALLOC_INLINE void gen_rand_array(sfmt_t *ctx, w128_t *array, int size) {
     int i, j;
     vector unsigned int r, r1, r2;
 
@@ -178,7 +173,7 @@ inline static void gen_rand_array(sfmt_t *ctx, w128_t *array, int size) {
  * @param array an 128-bit array to be swaped.
  * @param size size of 128-bit array.
  */
-inline static void swap(w128_t *array, int size) {
+JEMALLOC_INLINE void swap(w128_t *array, int size) {
     int i;
     const vector unsigned char perm = ALTI_SWAP;
 
