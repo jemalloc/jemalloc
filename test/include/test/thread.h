@@ -1,10 +1,7 @@
-
 /* Abstraction layer for threading in tests */
 #ifdef _WIN32
-#include <windows.h>
 typedef HANDLE je_thread_t;
 #else
-#include <pthread.h>
 typedef pthread_t je_thread_t;
 #endif
 

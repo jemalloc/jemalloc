@@ -131,7 +131,7 @@
 	if (!(a_ == true)) {						\
 		p_test_fail(						\
 		    "%s:%s:%d: Failed assertion: "			\
-		    "(%s) == true --> %s != true: %s\n",		\
+		    "(%s) == true --> %s != true: ",			\
 		    __func__, __FILE__, __LINE__,			\
 		    #a, a_ ? "true" : "false", fmt);			\
 	}								\
@@ -141,7 +141,7 @@
 	if (!(a_ == false)) {						\
 		p_test_fail(						\
 		    "%s:%s:%d: Failed assertion: "			\
-		    "(%s) == false --> %s != false: %s\n",		\
+		    "(%s) == false --> %s != false: ",			\
 		    __func__, __FILE__, __LINE__,			\
 		    #a, a_ ? "true" : "false", fmt);			\
 	}								\
@@ -152,7 +152,7 @@
 		p_test_fail(						\
 		    "%s:%s:%d: Failed assertion: "			\
 		    "(%s) same as (%s) --> "				\
-		    "\"%s\" differs from \"%s\": %s\n",			\
+		    "\"%s\" differs from \"%s\": ",			\
 		    __func__, __FILE__, __LINE__, #a, #b, a, b, fmt);	\
 	}								\
 } while (0)
@@ -161,7 +161,7 @@
 		p_test_fail(						\
 		    "%s:%s:%d: Failed assertion: "			\
 		    "(%s) differs from (%s) --> "			\
-		    "\"%s\" same as \"%s\": %s\n",			\
+		    "\"%s\" same as \"%s\": ",				\
 		    __func__, __FILE__, __LINE__, #a, #b, a, b, fmt);	\
 	}								\
 } while (0)

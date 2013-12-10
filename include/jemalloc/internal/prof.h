@@ -355,7 +355,7 @@ prof_sample_threshold_update(prof_tdata_t *prof_tdata)
 	 *   Luc Devroye
 	 *   Springer-Verlag, New York, 1986
 	 *   pp 500
-	 *   (http://cg.scs.carleton.ca/~luc/rnbookindex.html)
+	 *   (http://luc.devroye.org/rnbookindex.html)
 	 */
 	prng64(r, 53, prof_tdata->prng_state,
 	    UINT64_C(6364136223846793005), UINT64_C(1442695040888963407));

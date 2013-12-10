@@ -65,9 +65,6 @@
   128-bit SIMD data type for Altivec, SSE2 or standard C
   ------------------------------------------------------*/
 #if defined(HAVE_ALTIVEC)
-  #if !defined(__APPLE__)
-    #include <altivec.h>
-  #endif
 /** 128-bit data structure */
 union W128_T {
     vector unsigned int s;
@@ -77,8 +74,6 @@ union W128_T {
 typedef union W128_T w128_t;
 
 #elif defined(HAVE_SSE2)
-  #include <emmintrin.h>
-
 /** 128-bit data structure */
 union W128_T {
     __m128i si;

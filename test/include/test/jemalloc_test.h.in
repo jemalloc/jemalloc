@@ -1,6 +1,14 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
+#include <inttypes.h>
+#include <math.h>
+
+#ifdef _WIN32
+#  include <windows.h>
+#else
+#  include <pthread.h>
+#endif
 
 /******************************************************************************/
 /*
@@ -37,6 +45,13 @@
 
 #include "test/jemalloc_test_defs.h"
 
+#if defined(HAVE_ALTIVEC) && !defined(__APPLE__)
+#  include <altivec.h>
+#endif
+#ifdef HAVE_SSE2
+#  include <emmintrin.h>
+#endif
+
 /******************************************************************************/
 /*
  * For unit tests, expose all public and private interfaces.
@@ -60,7 +75,6 @@
 #  define JEMALLOC_N(n) @private_namespace@##n
 #  include "jemalloc/internal/private_namespace.h"
 
-#  include <inttypes.h>
 #  include <stdarg.h>
 #  include <errno.h>
 #  define JEMALLOC_H_TYPES
@@ -109,6 +123,7 @@
 /*
  * Common test utilities.
  */
+#include "test/math.h"
 #include "test/test.h"
 #include "test/thread.h"
 #define	MEXP 19937

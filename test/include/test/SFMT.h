@@ -66,32 +66,6 @@
 #ifndef SFMT_H
 #define SFMT_H
 
-#include <stdio.h>
-#include <stdlib.h>
-
-#if defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 199901L)
-  #include <inttypes.h>
-#elif defined(_MSC_VER) || defined(__BORLANDC__)
-  typedef unsigned int uint32_t;
-  typedef unsigned __int64 uint64_t;
-  #define inline __inline
-#else
-  #include <inttypes.h>
-  #if defined(__GNUC__)
-    #define inline __inline__
-  #endif
-#endif
-
-#ifndef PRIu64
-  #if defined(_MSC_VER) || defined(__BORLANDC__)
-    #define PRIu64 "I64u"
-    #define PRIx64 "I64x"
-  #else
-    #define PRIu64 "llu"
-    #define PRIx64 "llx"
-  #endif
-#endif
-
 #if defined(__GNUC__)
 #define ALWAYSINLINE __attribute__((always_inline))
 #else
