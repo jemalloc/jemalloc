@@ -1106,7 +1106,7 @@ je_realloc(void *ptr, size_t size)
 	void *ret;
 	size_t usize JEMALLOC_CC_SILENCE_INIT(0);
 	size_t old_size = 0;
-	size_t old_rzsize JEMALLOC_CC_SILENCE_INIT(0);
+	UNUSED size_t old_rzsize JEMALLOC_CC_SILENCE_INIT(0);
 	prof_thr_cnt_t *cnt JEMALLOC_CC_SILENCE_INIT(NULL);
 	prof_ctx_t *old_ctx JEMALLOC_CC_SILENCE_INIT(NULL);
 
@@ -1256,7 +1256,7 @@ je_free(void *ptr)
 	UTRACE(ptr, 0, 0);
 	if (ptr != NULL) {
 		size_t usize;
-		size_t rzsize JEMALLOC_CC_SILENCE_INIT(0);
+		UNUSED size_t rzsize JEMALLOC_CC_SILENCE_INIT(0);
 
 		assert(malloc_initialized || IS_INITIALIZER);
 
@@ -1504,7 +1504,7 @@ je_rallocm(void **ptr, size_t *rsize, size_t size, size_t extra, int flags)
 	void *p, *q;
 	size_t usize;
 	size_t old_size;
-	size_t old_rzsize JEMALLOC_CC_SILENCE_INIT(0);
+	UNUSED size_t old_rzsize JEMALLOC_CC_SILENCE_INIT(0);
 	size_t alignment = (ZU(1) << (flags & ALLOCM_LG_ALIGN_MASK)
 	    & (SIZE_T_MAX-1));
 	bool zero = flags & ALLOCM_ZERO;
@@ -1651,7 +1651,7 @@ int
 je_dallocm(void *ptr, int flags)
 {
 	size_t usize;
-	size_t rzsize JEMALLOC_CC_SILENCE_INIT(0);
+	UNUSED size_t rzsize JEMALLOC_CC_SILENCE_INIT(0);
 	unsigned arena_ind = ((unsigned)(flags >> 8)) - 1;
 	bool try_tcache;
 
