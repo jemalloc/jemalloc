@@ -22,8 +22,8 @@ malloc_tsd_externs(data, data_t)
 malloc_tsd_data(, data, data_t, DATA_INIT)
 malloc_tsd_funcs(, data, data_t, DATA_INIT, data_cleanup)
 
-void *
-je_thread_start(void *arg)
+static void *
+thd_start(void *arg)
 {
 	data_t d = (data_t)(uintptr_t)arg;
 	assert_x_eq(*data_tsd_get(), DATA_INIT,
@@ -37,23 +37,23 @@ je_thread_start(void *arg)
 	assert_x_eq(*data_tsd_get(), (data_t)(uintptr_t)arg,
 	    "Resetting local data should have no effect on tsd");
 
-	return NULL;
+	return (NULL);
 }
 
 TEST_BEGIN(test_tsd_main_thread)
 {
 
-	je_thread_start((void *) 0xa5f3e329);
+	thd_start((void *) 0xa5f3e329);
 }
 TEST_END
 
 TEST_BEGIN(test_tsd_sub_thread)
 {
-	je_thread_t thread;
+	thd_t thd;
 
 	data_cleanup_executed = false;
-	je_thread_create(&thread, je_thread_start, (void *) THREAD_DATA);
-	je_thread_join(thread, NULL);
+	thd_create(&thd, thd_start, (void *)THREAD_DATA);
+	thd_join(thd, NULL);
 	assert_true(data_cleanup_executed,
 	    "Cleanup function should have executed");
 }

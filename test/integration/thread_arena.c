@@ -3,7 +3,7 @@
 #define	NTHREADS 10
 
 void *
-je_thread_start(void *arg)
+thd_start(void *arg)
 {
 	unsigned main_arena_ind = *(unsigned *)arg;
 	void *p;
@@ -43,7 +43,7 @@ TEST_BEGIN(test_thread_arena)
 	unsigned arena_ind;
 	size_t size;
 	int err;
-	je_thread_t threads[NTHREADS];
+	thd_t thds[NTHREADS];
 	unsigned i;
 
 	p = malloc(1);
@@ -58,13 +58,13 @@ TEST_BEGIN(test_thread_arena)
 	}
 
 	for (i = 0; i < NTHREADS; i++) {
-		je_thread_create(&threads[i], je_thread_start,
+		thd_create(&thds[i], thd_start,
 		    (void *)&arena_ind);
 	}
 
 	for (i = 0; i < NTHREADS; i++) {
 		intptr_t join_ret;
-		je_thread_join(threads[i], (void *)&join_ret);
+		thd_join(thds[i], (void *)&join_ret);
 		assert_zd_eq(join_ret, 0, "Unexpected thread join error");
 	}
 }

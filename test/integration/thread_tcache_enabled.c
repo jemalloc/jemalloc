@@ -9,7 +9,7 @@ static const bool config_tcache =
     ;
 
 void *
-je_thread_start(void *arg)
+thd_start(void *arg)
 {
 	int err;
 	size_t sz;
@@ -86,16 +86,16 @@ label_ENOENT:
 TEST_BEGIN(test_main_thread)
 {
 
-	je_thread_start(NULL);
+	thd_start(NULL);
 }
 TEST_END
 
 TEST_BEGIN(test_subthread)
 {
-	je_thread_t thread;
+	thd_t thd;
 
-	je_thread_create(&thread, je_thread_start, NULL);
-	je_thread_join(thread, NULL);
+	thd_create(&thd, thd_start, NULL);
+	thd_join(thd, NULL);
 }
 TEST_END
 

@@ -3,7 +3,7 @@
 #define	NTHREADS 10
 
 void *
-je_thread_start(void *arg)
+thd_start(void *arg)
 {
 	unsigned thread_ind = (unsigned)(uintptr_t)arg;
 	unsigned arena_ind;
@@ -36,16 +36,16 @@ je_thread_start(void *arg)
 
 TEST_BEGIN(test_ALLOCM_ARENA)
 {
-	je_thread_t threads[NTHREADS];
+	thd_t thds[NTHREADS];
 	unsigned i;
 
 	for (i = 0; i < NTHREADS; i++) {
-		je_thread_create(&threads[i], je_thread_start,
+		thd_create(&thds[i], thd_start,
 		    (void *)(uintptr_t)i);
 	}
 
 	for (i = 0; i < NTHREADS; i++)
-		je_thread_join(threads[i], NULL);
+		thd_join(thds[i], NULL);
 }
 TEST_END
 
