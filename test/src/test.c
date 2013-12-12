@@ -72,11 +72,13 @@ p_test(test_t* t, ...)
 	}
 	va_end(ap);
 
-	malloc_printf("tests: %u, pass: %u, skip: %u, fail: %u\n",
-	    test_count,
-	    test_counts[test_status_pass],
-	    test_counts[test_status_skip],
-	    test_counts[test_status_fail]);
+	malloc_printf("--- %s: %u/%u, %s: %u/%u, %s: %u/%u ---\n",
+	    test_status_string(test_status_pass),
+	    test_counts[test_status_pass], test_count,
+	    test_status_string(test_status_skip),
+	    test_counts[test_status_skip], test_count,
+	    test_status_string(test_status_fail),
+	    test_counts[test_status_fail], test_count);
 
 	return (ret);
 }
