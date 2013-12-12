@@ -602,13 +602,15 @@ void fill_array64(sfmt_t *ctx, uint64_t *array, int size) {
  * @param seed a 32-bit integer used as the seed.
  */
 sfmt_t *init_gen_rand(uint32_t seed) {
+    void *p;
     sfmt_t *ctx;
     int i;
     uint32_t *psfmt32;
 
-    if (posix_memalign((void **)&ctx, sizeof(w128_t), sizeof(sfmt_t)) != 0) {
+    if (posix_memalign(&p, sizeof(w128_t), sizeof(sfmt_t)) != 0) {
 	return NULL;
     }
+    ctx = (sfmt_t *)p;
     psfmt32 = &ctx->sfmt[0].u[0];
 
     psfmt32[idxof(0)] = seed;
@@ -631,6 +633,7 @@ sfmt_t *init_gen_rand(uint32_t seed) {
  * @param key_length the length of init_key.
  */
 sfmt_t *init_by_array(uint32_t *init_key, int key_length) {
+    void *p;
     sfmt_t *ctx;
     int i, j, count;
     uint32_t r;
@@ -639,9 +642,10 @@ sfmt_t *init_by_array(uint32_t *init_key, int key_length) {
     int size = N * 4;
     uint32_t *psfmt32;
 
-    if (posix_memalign((void **)&ctx, sizeof(w128_t), sizeof(sfmt_t)) != 0) {
+    if (posix_memalign(&p, sizeof(w128_t), sizeof(sfmt_t)) != 0) {
 	return NULL;
     }
+    ctx = (sfmt_t *)p;
     psfmt32 = &ctx->sfmt[0].u[0];
 
     if (size >= 623) {
