@@ -53,8 +53,10 @@ thd_sender_start(void *arg)
 
 	for (i = 0; i < NMSGS; i++) {
 		mq_msg_t *msg;
-		assert_d_eq(jet_allocm((void **)&msg, NULL, sizeof(mq_msg_t),
-		    0), ALLOCM_SUCCESS, "Unexpected allocm() failure");
+		void *p;
+		assert_d_eq(jet_allocm(&p, NULL, sizeof(mq_msg_t), 0),
+		    ALLOCM_SUCCESS, "Unexpected allocm() failure");
+		msg = (mq_msg_t *)p;
 		mq_put(mq, msg);
 	}
 	return (NULL);
