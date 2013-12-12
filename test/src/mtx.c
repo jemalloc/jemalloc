@@ -14,7 +14,7 @@ mtx_init(mtx_t *mtx)
 
 	if (pthread_mutexattr_init(&attr) != 0)
 		return (true);
-	pthread_mutexattr_settype(&attr, MALLOC_MUTEX_TYPE);
+	pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_DEFAULT);
 	if (pthread_mutex_init(&mtx->lock, &attr) != 0) {
 		pthread_mutexattr_destroy(&attr);
 		return (true);
