@@ -21,7 +21,7 @@ void
 malloc_tsd_dalloc(void *wrapper)
 {
 
-	idallocx(wrapper, false);
+	idalloct(wrapper, false);
 }
 
 void

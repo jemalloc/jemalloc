@@ -228,6 +228,7 @@ static const bool config_ivsalloc =
 
 #include "jemalloc/internal/jemalloc_internal_macros.h"
 
+#define	MALLOCX_LG_ALIGN_MASK	((int)0x3f)
 #define	ALLOCM_LG_ALIGN_MASK	((int)0x3f)
 
 /* Smallest size class to support. */
@@ -731,22 +732,22 @@ choose_arena(arena_t *arena)
 #include "jemalloc/internal/quarantine.h"
 
 #ifndef JEMALLOC_ENABLE_INLINE
-void	*imallocx(size_t size, bool try_tcache, arena_t *arena);
+void	*imalloct(size_t size, bool try_tcache, arena_t *arena);
 void	*imalloc(size_t size);
-void	*icallocx(size_t size, bool try_tcache, arena_t *arena);
+void	*icalloct(size_t size, bool try_tcache, arena_t *arena);
 void	*icalloc(size_t size);
-void	*ipallocx(size_t usize, size_t alignment, bool zero, bool try_tcache,
+void	*ipalloct(size_t usize, size_t alignment, bool zero, bool try_tcache,
     arena_t *arena);
 void	*ipalloc(size_t usize, size_t alignment, bool zero);
 size_t	isalloc(const void *ptr, bool demote);
 size_t	ivsalloc(const void *ptr, bool demote);
 size_t	u2rz(size_t usize);
 size_t	p2rz(const void *ptr);
-void	idallocx(void *ptr, bool try_tcache);
+void	idalloct(void *ptr, bool try_tcache);
 void	idalloc(void *ptr);
-void	iqallocx(void *ptr, bool try_tcache);
+void	iqalloct(void *ptr, bool try_tcache);
 void	iqalloc(void *ptr);
-void	*irallocx(void *ptr, size_t size, size_t extra, size_t alignment,
+void	*iralloct(void *ptr, size_t size, size_t extra, size_t alignment,
     bool zero, bool no_move, bool try_tcache_alloc, bool try_tcache_dalloc,
     arena_t *arena);
 void	*iralloc(void *ptr, size_t size, size_t extra, size_t alignment,
@@ -756,7 +757,7 @@ malloc_tsd_protos(JEMALLOC_ATTR(unused), thread_allocated, thread_allocated_t)
 
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_C_))
 JEMALLOC_ALWAYS_INLINE void *
-imallocx(size_t size, bool try_tcache, arena_t *arena)
+imalloct(size_t size, bool try_tcache, arena_t *arena)
 {
 
 	assert(size != 0);
@@ -771,11 +772,11 @@ JEMALLOC_ALWAYS_INLINE void *
 imalloc(size_t size)
 {
 
-	return (imallocx(size, true, NULL));
+	return (imalloct(size, true, NULL));
 }
 
 JEMALLOC_ALWAYS_INLINE void *
-icallocx(size_t size, bool try_tcache, arena_t *arena)
+icalloct(size_t size, bool try_tcache, arena_t *arena)
 {
 
 	if (size <= arena_maxclass)
@@ -788,11 +789,11 @@ JEMALLOC_ALWAYS_INLINE void *
 icalloc(size_t size)
 {
 
-	return (icallocx(size, true, NULL));
+	return (icalloct(size, true, NULL));
 }
 
 JEMALLOC_ALWAYS_INLINE void *
-ipallocx(size_t usize, size_t alignment, bool zero, bool try_tcache,
+ipalloct(size_t usize, size_t alignment, bool zero, bool try_tcache,
     arena_t *arena)
 {
 	void *ret;
@@ -820,7 +821,7 @@ JEMALLOC_ALWAYS_INLINE void *
 ipalloc(size_t usize, size_t alignment, bool zero)
 {
 
-	return (ipallocx(usize, alignment, zero, true, NULL));
+	return (ipalloct(usize, alignment, zero, true, NULL));
 }
 
 /*
@@ -881,7 +882,7 @@ p2rz(const void *ptr)
 }
 
 JEMALLOC_ALWAYS_INLINE void
-idallocx(void *ptr, bool try_tcache)
+idalloct(void *ptr, bool try_tcache)
 {
 	arena_chunk_t *chunk;
 
@@ -898,28 +899,28 @@ JEMALLOC_ALWAYS_INLINE void
 idalloc(void *ptr)
 {
 
-	idallocx(ptr, true);
+	idalloct(ptr, true);
 }
 
 JEMALLOC_ALWAYS_INLINE void
-iqallocx(void *ptr, bool try_tcache)
+iqalloct(void *ptr, bool try_tcache)
 {
 
 	if (config_fill && opt_quarantine)
 		quarantine(ptr);
 	else
-		idallocx(ptr, try_tcache);
+		idalloct(ptr, try_tcache);
 }
 
 JEMALLOC_ALWAYS_INLINE void
 iqalloc(void *ptr)
 {
 
-	iqallocx(ptr, true);
+	iqalloct(ptr, true);
 }
 
 JEMALLOC_ALWAYS_INLINE void *
-irallocx(void *ptr, size_t size, size_t extra, size_t alignment, bool zero,
+iralloct(void *ptr, size_t size, size_t extra, size_t alignment, bool zero,
     bool no_move, bool try_tcache_alloc, bool try_tcache_dalloc, arena_t *arena)
 {
 	void *ret;
@@ -943,7 +944,7 @@ irallocx(void *ptr, size_t size, size_t extra, size_t alignment, bool zero,
 		usize = sa2u(size + extra, alignment);
 		if (usize == 0)
 			return (NULL);
-		ret = ipallocx(usize, alignment, zero, try_tcache_alloc, arena);
+		ret = ipalloct(usize, alignment, zero, try_tcache_alloc, arena);
 		if (ret == NULL) {
 			if (extra == 0)
 				return (NULL);
@@ -951,7 +952,7 @@ irallocx(void *ptr, size_t size, size_t extra, size_t alignment, bool zero,
 			usize = sa2u(size, alignment);
 			if (usize == 0)
 				return (NULL);
-			ret = ipallocx(usize, alignment, zero, try_tcache_alloc,
+			ret = ipalloct(usize, alignment, zero, try_tcache_alloc,
 			    arena);
 			if (ret == NULL)
 				return (NULL);
@@ -963,7 +964,7 @@ irallocx(void *ptr, size_t size, size_t extra, size_t alignment, bool zero,
 		 */
 		copysize = (size < oldsize) ? size : oldsize;
 		memcpy(ret, ptr, copysize);
-		iqallocx(ptr, try_tcache_dalloc);
+		iqalloct(ptr, try_tcache_dalloc);
 		return (ret);
 	}
 
@@ -992,7 +993,7 @@ iralloc(void *ptr, size_t size, size_t extra, size_t alignment, bool zero,
     bool no_move)
 {
 
-	return (irallocx(ptr, size, extra, alignment, zero, no_move, true, true,
+	return (iralloct(ptr, size, extra, alignment, zero, no_move, true, true,
 	    NULL));
 }
 

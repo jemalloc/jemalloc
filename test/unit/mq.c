@@ -39,8 +39,7 @@ thd_receiver_start(void *arg)
 	for (i = 0; i < (NSENDERS * NMSGS); i++) {
 		mq_msg_t *msg = mq_get(mq);
 		assert_ptr_not_null(msg, "mq_get() should never return NULL");
-		assert_d_eq(jet_dallocm(msg, 0), ALLOCM_SUCCESS,
-		    "Unexpected dallocm() failure");
+		jet_dallocx(msg, 0);
 	}
 	return (NULL);
 }
@@ -54,8 +53,8 @@ thd_sender_start(void *arg)
 	for (i = 0; i < NMSGS; i++) {
 		mq_msg_t *msg;
 		void *p;
-		assert_d_eq(jet_allocm(&p, NULL, sizeof(mq_msg_t), 0),
-		    ALLOCM_SUCCESS, "Unexpected allocm() failure");
+		p = jet_mallocx(sizeof(mq_msg_t), 0);
+		assert_ptr_not_null(p, "Unexpected allocm() failure");
 		msg = (mq_msg_t *)p;
 		mq_put(mq, msg);
 	}

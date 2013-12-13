@@ -8,6 +8,17 @@
 #define	JEMALLOC_VERSION_NREV @jemalloc_version_nrev@
 #define	JEMALLOC_VERSION_GID "@jemalloc_version_gid@"
 
+#  define MALLOCX_LG_ALIGN(la)	(la)
+#  if LG_SIZEOF_PTR == 2
+#    define MALLOCX_ALIGN(a)	(ffs(a)-1)
+#  else
+#    define MALLOCX_ALIGN(a)						\
+	 ((a < (size_t)INT_MAX) ? ffs(a)-1 : ffs(a>>32)+31)
+#  endif
+#  define MALLOCX_ZERO	((int)0x40)
+/* Bias arena index bits so that 0 encodes "MALLOCX_ARENA() unspecified". */
+#  define MALLOCX_ARENA(a)	((int)(((a)+1) << 8))
+
 #ifdef JEMALLOC_EXPERIMENTAL
 #  define ALLOCM_LG_ALIGN(la)	(la)
 #  if LG_SIZEOF_PTR == 2
@@ -39,11 +50,17 @@
 #  undef je_aligned_alloc
 #  undef je_realloc
 #  undef je_free
-#  undef je_malloc_usable_size
-#  undef je_malloc_stats_print
+#  undef je_mallocx
+#  undef je_rallocx
+#  undef je_xallocx
+#  undef je_sallocx
+#  undef je_dallocx
+#  undef je_nallocx
 #  undef je_mallctl
 #  undef je_mallctlnametomib
 #  undef je_mallctlbymib
+#  undef je_malloc_stats_print
+#  undef je_malloc_usable_size
 #  undef je_memalign
 #  undef je_valloc
 #  undef je_allocm

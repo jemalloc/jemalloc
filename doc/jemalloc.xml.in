@@ -33,11 +33,17 @@
     <refname>aligned_alloc</refname>
     <refname>realloc</refname>
     <refname>free</refname>
-    <refname>malloc_usable_size</refname>
-    <refname>malloc_stats_print</refname>
+    <refname>mallocx</refname>
+    <refname>rallocx</refname>
+    <refname>xallocx</refname>
+    <refname>sallocx</refname>
+    <refname>dallocx</refname>
+    <refname>nallocx</refname>
     <refname>mallctl</refname>
     <refname>mallctlnametomib</refname>
     <refname>mallctlbymib</refname>
+    <refname>malloc_stats_print</refname>
+    <refname>malloc_usable_size</refname>
     <refname>allocm</refname>
     <refname>rallocm</refname>
     <refname>sallocm</refname>
@@ -92,16 +98,37 @@
       <refsect2>
         <title>Non-standard API</title>
         <funcprototype>
-          <funcdef>size_t <function>malloc_usable_size</function></funcdef>
-          <paramdef>const void *<parameter>ptr</parameter></paramdef>
+          <funcdef>void *<function>mallocx</function></funcdef>
+          <paramdef>size_t <parameter>size</parameter></paramdef>
+          <paramdef>int <parameter>flags</parameter></paramdef>
         </funcprototype>
         <funcprototype>
-          <funcdef>void <function>malloc_stats_print</function></funcdef>
-          <paramdef>void <parameter>(*write_cb)</parameter>
-            <funcparams>void *, const char *</funcparams>
-          </paramdef>
-          <paramdef>void *<parameter>cbopaque</parameter></paramdef>
-          <paramdef>const char *<parameter>opts</parameter></paramdef>
+          <funcdef>void *<function>rallocx</function></funcdef>
+          <paramdef>void *<parameter>ptr</parameter></paramdef>
+          <paramdef>size_t <parameter>size</parameter></paramdef>
+          <paramdef>int <parameter>flags</parameter></paramdef>
+        </funcprototype>
+        <funcprototype>
+          <funcdef>size_t <function>xallocx</function></funcdef>
+          <paramdef>void *<parameter>ptr</parameter></paramdef>
+          <paramdef>size_t <parameter>size</parameter></paramdef>
+          <paramdef>size_t <parameter>extra</parameter></paramdef>
+          <paramdef>int <parameter>flags</parameter></paramdef>
+        </funcprototype>
+        <funcprototype>
+          <funcdef>size_t <function>sallocx</function></funcdef>
+          <paramdef>void *<parameter>ptr</parameter></paramdef>
+          <paramdef>int <parameter>flags</parameter></paramdef>
+        </funcprototype>
+        <funcprototype>
+          <funcdef>void <function>dallocx</function></funcdef>
+          <paramdef>void *<parameter>ptr</parameter></paramdef>
+          <paramdef>int <parameter>flags</parameter></paramdef>
+        </funcprototype>
+        <funcprototype>
+          <funcdef>size_t <function>nallocx</function></funcdef>
+          <paramdef>size_t <parameter>size</parameter></paramdef>
+          <paramdef>int <parameter>flags</parameter></paramdef>
         </funcprototype>
         <funcprototype>
           <funcdef>int <function>mallctl</function></funcdef>
@@ -125,6 +152,18 @@
           <paramdef>size_t *<parameter>oldlenp</parameter></paramdef>
           <paramdef>void *<parameter>newp</parameter></paramdef>
           <paramdef>size_t <parameter>newlen</parameter></paramdef>
+        </funcprototype>
+        <funcprototype>
+          <funcdef>void <function>malloc_stats_print</function></funcdef>
+          <paramdef>void <parameter>(*write_cb)</parameter>
+            <funcparams>void *, const char *</funcparams>
+          </paramdef>
+          <paramdef>void *<parameter>cbopaque</parameter></paramdef>
+          <paramdef>const char *<parameter>opts</parameter></paramdef>
+        </funcprototype>
+        <funcprototype>
+          <funcdef>size_t <function>malloc_usable_size</function></funcdef>
+          <paramdef>const void *<parameter>ptr</parameter></paramdef>
         </funcprototype>
         <funcprototype>
           <funcdef>void <function>(*malloc_message)</function></funcdef>
@@ -225,41 +264,99 @@
     </refsect2>
     <refsect2>
       <title>Non-standard API</title>
+      <para>The <function>mallocx<parameter/></function>,
+      <function>rallocx<parameter/></function>,
+      <function>xallocx<parameter/></function>,
+      <function>sallocx<parameter/></function>,
+      <function>dallocx<parameter/></function>, and
+      <function>nallocx<parameter/></function> functions all have a
+      <parameter>flags</parameter> argument that can be used to specify
+      options.  The functions only check the options that are contextually
+      relevant.  Use bitwise or (<code language="C">|</code>) operations to
+      specify one or more of the following:
+        <variablelist>
+          <varlistentry>
+            <term><constant>MALLOCX_LG_ALIGN(<parameter>la</parameter>)
+            </constant></term>
 
-      <para>The <function>malloc_usable_size<parameter/></function> function
-      returns the usable size of the allocation pointed to by
-      <parameter>ptr</parameter>.  The return value may be larger than the size
-      that was requested during allocation.  The
-      <function>malloc_usable_size<parameter/></function> function is not a
-      mechanism for in-place <function>realloc<parameter/></function>; rather
-      it is provided solely as a tool for introspection purposes.  Any
-      discrepancy between the requested allocation size and the size reported
-      by <function>malloc_usable_size<parameter/></function> should not be
-      depended on, since such behavior is entirely implementation-dependent.
+            <listitem><para>Align the memory allocation to start at an address
+            that is a multiple of <code language="C">(1 &lt;&lt;
+            <parameter>la</parameter>)</code>.  This macro does not validate
+            that <parameter>la</parameter> is within the valid
+            range.</para></listitem>
+          </varlistentry>
+          <varlistentry>
+            <term><constant>MALLOCX_ALIGN(<parameter>a</parameter>)
+            </constant></term>
+
+            <listitem><para>Align the memory allocation to start at an address
+            that is a multiple of <parameter>a</parameter>, where
+            <parameter>a</parameter> is a power of two.  This macro does not
+            validate that <parameter>a</parameter> is a power of 2.
+            </para></listitem>
+          </varlistentry>
+          <varlistentry>
+            <term><constant>MALLOCX_ZERO</constant></term>
+
+            <listitem><para>Initialize newly allocated memory to contain zero
+            bytes.  In the growing reallocation case, the real size prior to
+            reallocation defines the boundary between untouched bytes and those
+            that are initialized to contain zero bytes.  If this macro is
+            absent, newly allocated memory is uninitialized.</para></listitem>
+          </varlistentry>
+          <varlistentry>
+            <term><constant>MALLOCX_ARENA(<parameter>a</parameter>)
+            </constant></term>
+
+            <listitem><para>Use the arena specified by the index
+            <parameter>a</parameter> (and by necessity bypass the thread
+            cache).  This macro has no effect for huge regions, nor for regions
+            that were allocated via an arena other than the one specified.
+            This macro does not validate that <parameter>a</parameter>
+            specifies an arena index in the valid range.</para></listitem>
+          </varlistentry>
+        </variablelist>
       </para>
 
-      <para>The <function>malloc_stats_print<parameter/></function> function
-      writes human-readable summary statistics via the
-      <parameter>write_cb</parameter> callback function pointer and
-      <parameter>cbopaque</parameter> data passed to
-      <parameter>write_cb</parameter>, or
-      <function>malloc_message<parameter/></function> if
-      <parameter>write_cb</parameter> is <constant>NULL</constant>.  This
-      function can be called repeatedly.  General information that never
-      changes during execution can be omitted by specifying "g" as a character
-      within the <parameter>opts</parameter> string.  Note that
-      <function>malloc_message<parameter/></function> uses the
-      <function>mallctl*<parameter/></function> functions internally, so
-      inconsistent statistics can be reported if multiple threads use these
-      functions simultaneously.  If <option>--enable-stats</option> is
-      specified during configuration, &ldquo;m&rdquo; and &ldquo;a&rdquo; can
-      be specified to omit merged arena and per arena statistics, respectively;
-      &ldquo;b&rdquo; and &ldquo;l&rdquo; can be specified to omit per size
-      class statistics for bins and large objects, respectively.  Unrecognized
-      characters are silently ignored.  Note that thread caching may prevent
-      some statistics from being completely up to date, since extra locking
-      would be required to merge counters that track thread cache operations.
-      </para>
+      <para>The <function>mallocx<parameter/></function> function allocates at
+      least <parameter>size</parameter> bytes of memory, and returns a pointer
+      to the base address of the allocation.  Behavior is undefined if
+      <parameter>size</parameter> is <constant>0</constant>.</para>
+
+      <para>The <function>rallocx<parameter/></function> function resizes the
+      allocation at <parameter>ptr</parameter> to be at least
+      <parameter>size</parameter> bytes, and returns a pointer to the base
+      address of the resulting allocation, which may or may not have moved from
+      its original location.  Behavior is undefined if
+      <parameter>size</parameter> is <constant>0</constant>.</para>
+
+      <para>The <function>xallocx<parameter/></function> function resizes the
+      allocation at <parameter>ptr</parameter> in place to be at least
+      <parameter>size</parameter> bytes, and returns the real size of the
+      allocation.  If <parameter>extra</parameter> is non-zero, an attempt is
+      made to resize the allocation to be at least <code
+      language="C">(<parameter>size</parameter> +
+      <parameter>extra</parameter>)</code> bytes, though inability to allocate
+      the extra byte(s) will not by itself result in failure to resize.
+      Behavior is undefined if <parameter>size</parameter> is
+      <constant>0</constant>, or if <code
+      language="C">(<parameter>size</parameter> + <parameter>extra</parameter>
+      &gt; <constant>SIZE_T_MAX</constant>)</code>.</para>
+
+      <para>The <function>sallocx<parameter/></function> function returns the
+      real size of the allocation at <parameter>ptr</parameter>.</para>
+
+      <para>The <function>dallocx<parameter/></function> function causes the
+      memory referenced by <parameter>ptr</parameter> to be made available for
+      future allocations.</para>
+
+      <para>The <function>nallocx<parameter/></function> function allocates no
+      memory, but it performs the same size computation as the
+      <function>mallocx<parameter/></function> function, and returns the real
+      size of the allocation that would result from the equivalent
+      <function>mallocx<parameter/></function> function call.  Behavior is
+      undefined if <parameter>size</parameter> is
+      <constant>0</constant>.</para>
 
       <para>The <function>mallctl<parameter/></function> function provides a
       general interface for introspecting the memory allocator, as well as
@@ -314,6 +411,41 @@ for (i = 0; i < nbins; i++) {
 	mallctlbymib(mib, miblen, &bin_size, &len, NULL, 0);
 	/* Do something with bin_size... */
 }]]></programlisting></para>
+
+      <para>The <function>malloc_stats_print<parameter/></function> function
+      writes human-readable summary statistics via the
+      <parameter>write_cb</parameter> callback function pointer and
+      <parameter>cbopaque</parameter> data passed to
+      <parameter>write_cb</parameter>, or
+      <function>malloc_message<parameter/></function> if
+      <parameter>write_cb</parameter> is <constant>NULL</constant>.  This
+      function can be called repeatedly.  General information that never
+      changes during execution can be omitted by specifying "g" as a character
+      within the <parameter>opts</parameter> string.  Note that
+      <function>malloc_message<parameter/></function> uses the
+      <function>mallctl*<parameter/></function> functions internally, so
+      inconsistent statistics can be reported if multiple threads use these
+      functions simultaneously.  If <option>--enable-stats</option> is
+      specified during configuration, &ldquo;m&rdquo; and &ldquo;a&rdquo; can
+      be specified to omit merged arena and per arena statistics, respectively;
+      &ldquo;b&rdquo; and &ldquo;l&rdquo; can be specified to omit per size
+      class statistics for bins and large objects, respectively.  Unrecognized
+      characters are silently ignored.  Note that thread caching may prevent
+      some statistics from being completely up to date, since extra locking
+      would be required to merge counters that track thread cache operations.
+      </para>
+
+      <para>The <function>malloc_usable_size<parameter/></function> function
+      returns the usable size of the allocation pointed to by
+      <parameter>ptr</parameter>.  The return value may be larger than the size
+      that was requested during allocation.  The
+      <function>malloc_usable_size<parameter/></function> function is not a
+      mechanism for in-place <function>realloc<parameter/></function>; rather
+      it is provided solely as a tool for introspection purposes.  Any
+      discrepancy between the requested allocation size and the size reported
+      by <function>malloc_usable_size<parameter/></function> should not be
+      depended on, since such behavior is entirely implementation-dependent.
+      </para>
     </refsect2>
     <refsect2>
       <title>Experimental API</title>
@@ -398,7 +530,7 @@ for (i = 0; i < nbins; i++) {
       <parameter>rsize</parameter> is not <constant>NULL</constant>.  If
       <parameter>extra</parameter> is non-zero, an attempt is made to resize
       the allocation to be at least <code
-      language="C"><parameter>size</parameter> +
+      language="C">(<parameter>size</parameter> +
       <parameter>extra</parameter>)</code> bytes, though inability to allocate
       the extra byte(s) will not by itself result in failure.  Behavior is
       undefined if <parameter>size</parameter> is <constant>0</constant>, or if
@@ -936,7 +1068,8 @@ for (i = 0; i < nbins; i++) {
         <listitem><para>Zero filling enabled/disabled.  If enabled, each byte
         of uninitialized allocated memory will be initialized to 0.  Note that
         this initialization only happens once for each byte, so
-        <function>realloc<parameter/></function> and
+        <function>realloc<parameter/></function>,
+        <function>rallocx<parameter/></function> and
         <function>rallocm<parameter/></function> calls do not zero memory that
         was previously allocated.  This is intended for debugging and will
         impact performance negatively.  This option is disabled by default.
@@ -2039,9 +2172,26 @@ malloc_conf = "xmalloc:true";]]></programlisting>
     </refsect2>
     <refsect2>
       <title>Non-standard API</title>
-      <para>The <function>malloc_usable_size<parameter/></function> function
-      returns the usable size of the allocation pointed to by
-      <parameter>ptr</parameter>.  </para>
+      <para>The <function>mallocx<parameter/></function> and
+      <function>rallocx<parameter/></function> functions return a pointer to
+      the allocated memory if successful; otherwise a <constant>NULL</constant>
+      pointer is returned to indicate insufficient contiguous memory was
+      available to service the allocation request.  </para>
+
+      <para>The <function>xallocx<parameter/></function> function returns the
+      real size of the resulting resized allocation pointed to by
+      <parameter>ptr</parameter>, which is a value less than
+      <parameter>size</parameter> if the allocation could not be adequately
+      grown in place.  </para>
+
+      <para>The <function>sallocx<parameter/></function> function returns the
+      real size of the allocation pointed to by <parameter>ptr</parameter>.
+      </para>
+
+      <para>The <function>nallocx<parameter/></function> returns the real size
+      that would result from a successful equivalent
+      <function>mallocx<parameter/></function> function call, or zero if
+      insufficient memory is available to perform the size computation.  </para>
 
       <para>The <function>mallctl<parameter/></function>,
       <function>mallctlnametomib<parameter/></function>, and
@@ -2092,6 +2242,10 @@ malloc_conf = "xmalloc:true";]]></programlisting>
           </varlistentry>
         </variablelist>
       </para>
+
+      <para>The <function>malloc_usable_size<parameter/></function> function
+      returns the usable size of the allocation pointed to by
+      <parameter>ptr</parameter>.  </para>
     </refsect2>
     <refsect2>
       <title>Experimental API</title>

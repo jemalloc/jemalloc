@@ -2031,7 +2031,7 @@ arena_ralloc(arena_t *arena, void *ptr, size_t oldsize, size_t size,
 		size_t usize = sa2u(size + extra, alignment);
 		if (usize == 0)
 			return (NULL);
-		ret = ipallocx(usize, alignment, zero, try_tcache_alloc, arena);
+		ret = ipalloct(usize, alignment, zero, try_tcache_alloc, arena);
 	} else
 		ret = arena_malloc(arena, size + extra, zero, try_tcache_alloc);
 
@@ -2043,7 +2043,7 @@ arena_ralloc(arena_t *arena, void *ptr, size_t oldsize, size_t size,
 			size_t usize = sa2u(size, alignment);
 			if (usize == 0)
 				return (NULL);
-			ret = ipallocx(usize, alignment, zero, try_tcache_alloc,
+			ret = ipalloct(usize, alignment, zero, try_tcache_alloc,
 			    arena);
 		} else
 			ret = arena_malloc(arena, size, zero, try_tcache_alloc);
@@ -2061,7 +2061,7 @@ arena_ralloc(arena_t *arena, void *ptr, size_t oldsize, size_t size,
 	copysize = (size < oldsize) ? size : oldsize;
 	VALGRIND_MAKE_MEM_UNDEFINED(ret, copysize);
 	memcpy(ret, ptr, copysize);
-	iqallocx(ptr, try_tcache_dalloc);
+	iqalloct(ptr, try_tcache_dalloc);
 	return (ret);
 }
 

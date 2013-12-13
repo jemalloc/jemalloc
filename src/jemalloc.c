@@ -1337,28 +1337,363 @@ JEMALLOC_EXPORT void *(* __memalign_hook)(size_t alignment, size_t size) =
  * Begin non-standard functions.
  */
 
-size_t
-je_malloc_usable_size(JEMALLOC_USABLE_SIZE_CONST void *ptr)
+JEMALLOC_ALWAYS_INLINE_C void *
+imallocx(size_t usize, size_t alignment, bool zero, bool try_tcache,
+    arena_t *arena)
 {
-	size_t ret;
+
+	assert(usize == ((alignment == 0) ? s2u(usize) : sa2u(usize,
+	    alignment)));
+
+	if (alignment != 0)
+		return (ipalloct(usize, alignment, zero, try_tcache, arena));
+	else if (zero)
+		return (icalloct(usize, try_tcache, arena));
+	else
+		return (imalloct(usize, try_tcache, arena));
+}
+
+void *
+je_mallocx(size_t size, int flags)
+{
+	void *p;
+	size_t usize;
+	size_t alignment = (ZU(1) << (flags & MALLOCX_LG_ALIGN_MASK)
+	    & (SIZE_T_MAX-1));
+	bool zero = flags & MALLOCX_ZERO;
+	unsigned arena_ind = ((unsigned)(flags >> 8)) - 1;
+	arena_t *arena;
+	bool try_tcache;
+
+	assert(size != 0);
+
+	if (malloc_init())
+		goto label_oom;
+
+	if (arena_ind != UINT_MAX) {
+		arena = arenas[arena_ind];
+		try_tcache = false;
+	} else {
+		arena = NULL;
+		try_tcache = true;
+	}
+
+	usize = (alignment == 0) ? s2u(size) : sa2u(size, alignment);
+	if (usize == 0)
+		goto label_oom;
+
+	if (config_prof && opt_prof) {
+		prof_thr_cnt_t *cnt;
+
+		PROF_ALLOC_PREP(1, usize, cnt);
+		if (cnt == NULL)
+			goto label_oom;
+		if (prof_promote && (uintptr_t)cnt != (uintptr_t)1U && usize <=
+		    SMALL_MAXCLASS) {
+			size_t usize_promoted = (alignment == 0) ?
+			    s2u(SMALL_MAXCLASS+1) : sa2u(SMALL_MAXCLASS+1,
+			    alignment);
+			assert(usize_promoted != 0);
+			p = imallocx(usize_promoted, alignment, zero,
+			    try_tcache, arena);
+			if (p == NULL)
+				goto label_oom;
+			arena_prof_promoted(p, usize);
+		} else {
+			p = imallocx(usize, alignment, zero, try_tcache, arena);
+			if (p == NULL)
+				goto label_oom;
+		}
+		prof_malloc(p, usize, cnt);
+	} else {
+		p = imallocx(usize, alignment, zero, try_tcache, arena);
+		if (p == NULL)
+			goto label_oom;
+	}
+
+	if (config_stats) {
+		assert(usize == isalloc(p, config_prof));
+		thread_allocated_tsd_get()->allocated += usize;
+	}
+	UTRACE(0, size, p);
+	JEMALLOC_VALGRIND_MALLOC(true, p, usize, zero);
+	return (p);
+label_oom:
+	if (config_xmalloc && opt_xmalloc) {
+		malloc_write("<jemalloc>: Error in mallocx(): out of memory\n");
+		abort();
+	}
+	UTRACE(0, size, 0);
+	return (NULL);
+}
+
+void *
+je_rallocx(void *ptr, size_t size, int flags)
+{
+	void *p;
+	size_t usize;
+	size_t old_size;
+	UNUSED size_t old_rzsize JEMALLOC_CC_SILENCE_INIT(0);
+	size_t alignment = (ZU(1) << (flags & MALLOCX_LG_ALIGN_MASK)
+	    & (SIZE_T_MAX-1));
+	bool zero = flags & MALLOCX_ZERO;
+	unsigned arena_ind = ((unsigned)(flags >> 8)) - 1;
+	bool try_tcache_alloc, try_tcache_dalloc;
+	arena_t *arena;
+
+	assert(ptr != NULL);
+	assert(size != 0);
+	assert(malloc_initialized || IS_INITIALIZER);
+	malloc_thread_init();
+
+	if (arena_ind != UINT_MAX) {
+		arena_chunk_t *chunk;
+		try_tcache_alloc = false;
+		chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
+		try_tcache_dalloc = (chunk == ptr || chunk->arena !=
+		    arenas[arena_ind]);
+		arena = arenas[arena_ind];
+	} else {
+		try_tcache_alloc = true;
+		try_tcache_dalloc = true;
+		arena = NULL;
+	}
+
+	if (config_prof && opt_prof) {
+		prof_thr_cnt_t *cnt;
+
+		usize = (alignment == 0) ? s2u(size) : sa2u(size,
+		    alignment);
+		prof_ctx_t *old_ctx = prof_ctx_get(ptr);
+		old_size = isalloc(ptr, true);
+		if (config_valgrind && opt_valgrind)
+			old_rzsize = p2rz(ptr);
+		PROF_ALLOC_PREP(1, usize, cnt);
+		if (cnt == NULL)
+			goto label_oom;
+		if (prof_promote && (uintptr_t)cnt != (uintptr_t)1U && usize <=
+		    SMALL_MAXCLASS) {
+			p = iralloct(ptr, SMALL_MAXCLASS+1, (SMALL_MAXCLASS+1 >=
+			    size) ? 0 : size - (SMALL_MAXCLASS+1), alignment,
+			    zero, false, try_tcache_alloc, try_tcache_dalloc,
+			    arena);
+			if (p == NULL)
+				goto label_oom;
+			if (usize < PAGE)
+				arena_prof_promoted(p, usize);
+		} else {
+			p = iralloct(ptr, size, 0, alignment, zero, false,
+			    try_tcache_alloc, try_tcache_dalloc, arena);
+			if (p == NULL)
+				goto label_oom;
+		}
+		prof_realloc(p, usize, cnt, old_size, old_ctx);
+	} else {
+		if (config_stats) {
+			old_size = isalloc(ptr, false);
+			if (config_valgrind && opt_valgrind)
+				old_rzsize = u2rz(old_size);
+		} else if (config_valgrind && opt_valgrind) {
+			old_size = isalloc(ptr, false);
+			old_rzsize = u2rz(old_size);
+		}
+		p = iralloct(ptr, size, 0, alignment, zero, false,
+		    try_tcache_alloc, try_tcache_dalloc, arena);
+		if (p == NULL)
+			goto label_oom;
+		if (config_stats || (config_valgrind && opt_valgrind))
+			usize = isalloc(p, config_prof);
+	}
+
+	if (config_stats) {
+		thread_allocated_t *ta;
+		ta = thread_allocated_tsd_get();
+		ta->allocated += usize;
+		ta->deallocated += old_size;
+	}
+	UTRACE(ptr, size, p);
+	JEMALLOC_VALGRIND_REALLOC(p, usize, ptr, old_size, old_rzsize, zero);
+	return (p);
+label_oom:
+	if (config_xmalloc && opt_xmalloc) {
+		malloc_write("<jemalloc>: Error in rallocx(): out of memory\n");
+		abort();
+	}
+	UTRACE(ptr, size, 0);
+	return (NULL);
+}
+
+size_t
+je_xallocx(void *ptr, size_t size, size_t extra, int flags)
+{
+	size_t usize;
+	size_t old_size;
+	UNUSED size_t old_rzsize JEMALLOC_CC_SILENCE_INIT(0);
+	size_t alignment = (ZU(1) << (flags & MALLOCX_LG_ALIGN_MASK)
+	    & (SIZE_T_MAX-1));
+	bool zero = flags & MALLOCX_ZERO;
+	unsigned arena_ind = ((unsigned)(flags >> 8)) - 1;
+	bool try_tcache_alloc, try_tcache_dalloc;
+	arena_t *arena;
+
+	assert(ptr != NULL);
+	assert(size != 0);
+	assert(SIZE_T_MAX - size >= extra);
+	assert(malloc_initialized || IS_INITIALIZER);
+	malloc_thread_init();
+
+	if (arena_ind != UINT_MAX) {
+		arena_chunk_t *chunk;
+		try_tcache_alloc = false;
+		chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
+		try_tcache_dalloc = (chunk == ptr || chunk->arena !=
+		    arenas[arena_ind]);
+		arena = arenas[arena_ind];
+	} else {
+		try_tcache_alloc = true;
+		try_tcache_dalloc = true;
+		arena = NULL;
+	}
+
+	if (config_prof && opt_prof) {
+		prof_thr_cnt_t *cnt;
+
+		/*
+		 * usize isn't knowable before iralloc() returns when extra is
+		 * non-zero.  Therefore, compute its maximum possible value and
+		 * use that in PROF_ALLOC_PREP() to decide whether to capture a
+		 * backtrace.  prof_realloc() will use the actual usize to
+		 * decide whether to sample.
+		 */
+		size_t max_usize = (alignment == 0) ? s2u(size+extra) :
+		    sa2u(size+extra, alignment);
+		prof_ctx_t *old_ctx = prof_ctx_get(ptr);
+		old_size = isalloc(ptr, true);
+		if (config_valgrind && opt_valgrind)
+			old_rzsize = p2rz(ptr);
+		PROF_ALLOC_PREP(1, max_usize, cnt);
+		if (cnt == NULL) {
+			usize = isalloc(ptr, config_prof);
+			goto label_not_moved;
+		}
+		/*
+		 * Use minimum usize to determine whether promotion may happen.
+		 */
+		if (prof_promote && (uintptr_t)cnt != (uintptr_t)1U
+		    && ((alignment == 0) ? s2u(size) : sa2u(size, alignment))
+		    <= SMALL_MAXCLASS) {
+			if (iralloct(ptr, SMALL_MAXCLASS+1, (SMALL_MAXCLASS+1 >=
+			    size+extra) ? 0 : size+extra - (SMALL_MAXCLASS+1),
+			    alignment, zero, true, try_tcache_alloc,
+			    try_tcache_dalloc, arena) == NULL)
+				goto label_not_moved;
+			if (max_usize < PAGE) {
+				usize = max_usize;
+				arena_prof_promoted(ptr, usize);
+			} else
+				usize = isalloc(ptr, config_prof);
+		} else {
+			if (iralloct(ptr, size, extra, alignment, zero, true,
+			    try_tcache_alloc, try_tcache_dalloc, arena) == NULL)
+				goto label_not_moved;
+			usize = isalloc(ptr, config_prof);
+		}
+		prof_realloc(ptr, usize, cnt, old_size, old_ctx);
+	} else {
+		if (config_stats) {
+			old_size = isalloc(ptr, false);
+			if (config_valgrind && opt_valgrind)
+				old_rzsize = u2rz(old_size);
+		} else if (config_valgrind && opt_valgrind) {
+			old_size = isalloc(ptr, false);
+			old_rzsize = u2rz(old_size);
+		}
+		if (iralloct(ptr, size, extra, alignment, zero, true,
+		    try_tcache_alloc, try_tcache_dalloc, arena) == NULL) {
+			usize = isalloc(ptr, config_prof);
+			goto label_not_moved;
+		}
+		usize = isalloc(ptr, config_prof);
+	}
+
+	if (config_stats) {
+		thread_allocated_t *ta;
+		ta = thread_allocated_tsd_get();
+		ta->allocated += usize;
+		ta->deallocated += old_size;
+	}
+	JEMALLOC_VALGRIND_REALLOC(ptr, usize, ptr, old_size, old_rzsize, zero);
+label_not_moved:
+	UTRACE(ptr, size, ptr);
+	return (usize);
+}
+
+size_t
+je_sallocx(const void *ptr, int flags)
+{
+	size_t usize;
 
 	assert(malloc_initialized || IS_INITIALIZER);
 	malloc_thread_init();
 
 	if (config_ivsalloc)
-		ret = ivsalloc(ptr, config_prof);
-	else
-		ret = (ptr != NULL) ? isalloc(ptr, config_prof) : 0;
+		usize = ivsalloc(ptr, config_prof);
+	else {
+		assert(ptr != NULL);
+		usize = isalloc(ptr, config_prof);
+	}
 
-	return (ret);
+	return (usize);
 }
 
 void
-je_malloc_stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
-    const char *opts)
+je_dallocx(void *ptr, int flags)
 {
+	size_t usize;
+	UNUSED size_t rzsize JEMALLOC_CC_SILENCE_INIT(0);
+	unsigned arena_ind = ((unsigned)(flags >> 8)) - 1;
+	bool try_tcache;
 
-	stats_print(write_cb, cbopaque, opts);
+	assert(ptr != NULL);
+	assert(malloc_initialized || IS_INITIALIZER);
+
+	if (arena_ind != UINT_MAX) {
+		arena_chunk_t *chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
+		try_tcache = (chunk == ptr || chunk->arena !=
+		    arenas[arena_ind]);
+	} else
+		try_tcache = true;
+
+	UTRACE(ptr, 0, 0);
+	if (config_stats || config_valgrind)
+		usize = isalloc(ptr, config_prof);
+	if (config_prof && opt_prof) {
+		if (config_stats == false && config_valgrind == false)
+			usize = isalloc(ptr, config_prof);
+		prof_free(ptr, usize);
+	}
+	if (config_stats)
+		thread_allocated_tsd_get()->deallocated += usize;
+	if (config_valgrind && opt_valgrind)
+		rzsize = p2rz(ptr);
+	iqalloct(ptr, try_tcache);
+	JEMALLOC_VALGRIND_FREE(ptr, rzsize);
+}
+
+size_t
+je_nallocx(size_t size, int flags)
+{
+	size_t usize;
+	size_t alignment = (ZU(1) << (flags & MALLOCX_LG_ALIGN_MASK)
+	    & (SIZE_T_MAX-1));
+
+	assert(size != 0);
+
+	if (malloc_init())
+		return (0);
+
+	usize = (alignment == 0) ? s2u(size) : sa2u(size, alignment);
+	return (usize);
 }
 
 int
@@ -1393,6 +1728,30 @@ je_mallctlbymib(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
 	return (ctl_bymib(mib, miblen, oldp, oldlenp, newp, newlen));
 }
 
+void
+je_malloc_stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
+    const char *opts)
+{
+
+	stats_print(write_cb, cbopaque, opts);
+}
+
+size_t
+je_malloc_usable_size(JEMALLOC_USABLE_SIZE_CONST void *ptr)
+{
+	size_t ret;
+
+	assert(malloc_initialized || IS_INITIALIZER);
+	malloc_thread_init();
+
+	if (config_ivsalloc)
+		ret = ivsalloc(ptr, config_prof);
+	else
+		ret = (ptr != NULL) ? isalloc(ptr, config_prof) : 0;
+
+	return (ret);
+}
+
 /*
  * End non-standard functions.
  */
@@ -1402,284 +1761,65 @@ je_mallctlbymib(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
  */
 #ifdef JEMALLOC_EXPERIMENTAL
 
-JEMALLOC_ALWAYS_INLINE_C void *
-iallocm(size_t usize, size_t alignment, bool zero, bool try_tcache,
-    arena_t *arena)
-{
-
-	assert(usize == ((alignment == 0) ? s2u(usize) : sa2u(usize,
-	    alignment)));
-
-	if (alignment != 0)
-		return (ipallocx(usize, alignment, zero, try_tcache, arena));
-	else if (zero)
-		return (icallocx(usize, try_tcache, arena));
-	else
-		return (imallocx(usize, try_tcache, arena));
-}
-
 int
 je_allocm(void **ptr, size_t *rsize, size_t size, int flags)
 {
 	void *p;
-	size_t usize;
-	size_t alignment = (ZU(1) << (flags & ALLOCM_LG_ALIGN_MASK)
-	    & (SIZE_T_MAX-1));
-	bool zero = flags & ALLOCM_ZERO;
-	unsigned arena_ind = ((unsigned)(flags >> 8)) - 1;
-	arena_t *arena;
-	bool try_tcache;
 
 	assert(ptr != NULL);
-	assert(size != 0);
 
-	if (malloc_init())
-		goto label_oom;
-
-	if (arena_ind != UINT_MAX) {
-		arena = arenas[arena_ind];
-		try_tcache = false;
-	} else {
-		arena = NULL;
-		try_tcache = true;
-	}
-
-	usize = (alignment == 0) ? s2u(size) : sa2u(size, alignment);
-	if (usize == 0)
-		goto label_oom;
-
-	if (config_prof && opt_prof) {
-		prof_thr_cnt_t *cnt;
-
-		PROF_ALLOC_PREP(1, usize, cnt);
-		if (cnt == NULL)
-			goto label_oom;
-		if (prof_promote && (uintptr_t)cnt != (uintptr_t)1U && usize <=
-		    SMALL_MAXCLASS) {
-			size_t usize_promoted = (alignment == 0) ?
-			    s2u(SMALL_MAXCLASS+1) : sa2u(SMALL_MAXCLASS+1,
-			    alignment);
-			assert(usize_promoted != 0);
-			p = iallocm(usize_promoted, alignment, zero,
-			    try_tcache, arena);
-			if (p == NULL)
-				goto label_oom;
-			arena_prof_promoted(p, usize);
-		} else {
-			p = iallocm(usize, alignment, zero, try_tcache, arena);
-			if (p == NULL)
-				goto label_oom;
-		}
-		prof_malloc(p, usize, cnt);
-	} else {
-		p = iallocm(usize, alignment, zero, try_tcache, arena);
-		if (p == NULL)
-			goto label_oom;
-	}
+	p = je_mallocx(size, flags);
+	if (p == NULL)
+		return (ALLOCM_ERR_OOM);
 	if (rsize != NULL)
-		*rsize = usize;
-
+		*rsize = isalloc(p, config_prof);
 	*ptr = p;
-	if (config_stats) {
-		assert(usize == isalloc(p, config_prof));
-		thread_allocated_tsd_get()->allocated += usize;
-	}
-	UTRACE(0, size, p);
-	JEMALLOC_VALGRIND_MALLOC(true, p, usize, zero);
 	return (ALLOCM_SUCCESS);
-label_oom:
-	if (config_xmalloc && opt_xmalloc) {
-		malloc_write("<jemalloc>: Error in allocm(): "
-		    "out of memory\n");
-		abort();
-	}
-	*ptr = NULL;
-	UTRACE(0, size, 0);
-	return (ALLOCM_ERR_OOM);
 }
 
 int
 je_rallocm(void **ptr, size_t *rsize, size_t size, size_t extra, int flags)
 {
-	void *p, *q;
-	size_t usize;
-	size_t old_size;
-	UNUSED size_t old_rzsize JEMALLOC_CC_SILENCE_INIT(0);
-	size_t alignment = (ZU(1) << (flags & ALLOCM_LG_ALIGN_MASK)
-	    & (SIZE_T_MAX-1));
-	bool zero = flags & ALLOCM_ZERO;
+	int ret;
 	bool no_move = flags & ALLOCM_NO_MOVE;
-	unsigned arena_ind = ((unsigned)(flags >> 8)) - 1;
-	bool try_tcache_alloc, try_tcache_dalloc;
-	arena_t *arena;
 
 	assert(ptr != NULL);
 	assert(*ptr != NULL);
 	assert(size != 0);
 	assert(SIZE_T_MAX - size >= extra);
-	assert(malloc_initialized || IS_INITIALIZER);
-	malloc_thread_init();
 
-	if (arena_ind != UINT_MAX) {
-		arena_chunk_t *chunk;
-		try_tcache_alloc = false;
-		chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(*ptr);
-		try_tcache_dalloc = (chunk == *ptr || chunk->arena !=
-		    arenas[arena_ind]);
-		arena = arenas[arena_ind];
-	} else {
-		try_tcache_alloc = true;
-		try_tcache_dalloc = true;
-		arena = NULL;
-	}
-
-	p = *ptr;
-	if (config_prof && opt_prof) {
-		prof_thr_cnt_t *cnt;
-
-		/*
-		 * usize isn't knowable before iralloc() returns when extra is
-		 * non-zero.  Therefore, compute its maximum possible value and
-		 * use that in PROF_ALLOC_PREP() to decide whether to capture a
-		 * backtrace.  prof_realloc() will use the actual usize to
-		 * decide whether to sample.
-		 */
-		size_t max_usize = (alignment == 0) ? s2u(size+extra) :
-		    sa2u(size+extra, alignment);
-		prof_ctx_t *old_ctx = prof_ctx_get(p);
-		old_size = isalloc(p, true);
-		if (config_valgrind && opt_valgrind)
-			old_rzsize = p2rz(p);
-		PROF_ALLOC_PREP(1, max_usize, cnt);
-		if (cnt == NULL)
-			goto label_oom;
-		/*
-		 * Use minimum usize to determine whether promotion may happen.
-		 */
-		if (prof_promote && (uintptr_t)cnt != (uintptr_t)1U
-		    && ((alignment == 0) ? s2u(size) : sa2u(size, alignment))
-		    <= SMALL_MAXCLASS) {
-			q = irallocx(p, SMALL_MAXCLASS+1, (SMALL_MAXCLASS+1 >=
-			    size+extra) ? 0 : size+extra - (SMALL_MAXCLASS+1),
-			    alignment, zero, no_move, try_tcache_alloc,
-			    try_tcache_dalloc, arena);
-			if (q == NULL)
-				goto label_err;
-			if (max_usize < PAGE) {
-				usize = max_usize;
-				arena_prof_promoted(q, usize);
-			} else
-				usize = isalloc(q, config_prof);
-		} else {
-			q = irallocx(p, size, extra, alignment, zero, no_move,
-			    try_tcache_alloc, try_tcache_dalloc, arena);
-			if (q == NULL)
-				goto label_err;
-			usize = isalloc(q, config_prof);
-		}
-		prof_realloc(q, usize, cnt, old_size, old_ctx);
+	if (no_move) {
+		size_t usize = je_xallocx(*ptr, size, extra, flags);
+		ret = (usize >= size) ? ALLOCM_SUCCESS : ALLOCM_ERR_NOT_MOVED;
 		if (rsize != NULL)
 			*rsize = usize;
 	} else {
-		if (config_stats) {
-			old_size = isalloc(p, false);
-			if (config_valgrind && opt_valgrind)
-				old_rzsize = u2rz(old_size);
-		} else if (config_valgrind && opt_valgrind) {
-			old_size = isalloc(p, false);
-			old_rzsize = u2rz(old_size);
-		}
-		q = irallocx(p, size, extra, alignment, zero, no_move,
-		    try_tcache_alloc, try_tcache_dalloc, arena);
-		if (q == NULL)
-			goto label_err;
-		if (config_stats)
-			usize = isalloc(q, config_prof);
-		if (rsize != NULL) {
-			if (config_stats == false)
-				usize = isalloc(q, config_prof);
-			*rsize = usize;
-		}
+		void *p = je_rallocx(*ptr, size+extra, flags);
+		if (p != NULL) {
+			*ptr = p;
+			ret = ALLOCM_SUCCESS;
+		} else
+			ret = ALLOCM_ERR_OOM;
+		if (rsize != NULL)
+			*rsize = isalloc(*ptr, config_prof);
 	}
-
-	*ptr = q;
-	if (config_stats) {
-		thread_allocated_t *ta;
-		ta = thread_allocated_tsd_get();
-		ta->allocated += usize;
-		ta->deallocated += old_size;
-	}
-	UTRACE(p, size, q);
-	JEMALLOC_VALGRIND_REALLOC(q, usize, p, old_size, old_rzsize, zero);
-	return (ALLOCM_SUCCESS);
-label_err:
-	if (no_move) {
-		UTRACE(p, size, q);
-		return (ALLOCM_ERR_NOT_MOVED);
-	}
-label_oom:
-	if (config_xmalloc && opt_xmalloc) {
-		malloc_write("<jemalloc>: Error in rallocm(): "
-		    "out of memory\n");
-		abort();
-	}
-	UTRACE(p, size, 0);
-	return (ALLOCM_ERR_OOM);
+	return (ret);
 }
 
 int
 je_sallocm(const void *ptr, size_t *rsize, int flags)
 {
-	size_t sz;
 
-	assert(malloc_initialized || IS_INITIALIZER);
-	malloc_thread_init();
-
-	if (config_ivsalloc)
-		sz = ivsalloc(ptr, config_prof);
-	else {
-		assert(ptr != NULL);
-		sz = isalloc(ptr, config_prof);
-	}
 	assert(rsize != NULL);
-	*rsize = sz;
-
+	*rsize = je_sallocx(ptr, flags);
 	return (ALLOCM_SUCCESS);
 }
 
 int
 je_dallocm(void *ptr, int flags)
 {
-	size_t usize;
-	UNUSED size_t rzsize JEMALLOC_CC_SILENCE_INIT(0);
-	unsigned arena_ind = ((unsigned)(flags >> 8)) - 1;
-	bool try_tcache;
 
-	assert(ptr != NULL);
-	assert(malloc_initialized || IS_INITIALIZER);
-
-	if (arena_ind != UINT_MAX) {
-		arena_chunk_t *chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
-		try_tcache = (chunk == ptr || chunk->arena !=
-		    arenas[arena_ind]);
-	} else
-		try_tcache = true;
-
-	UTRACE(ptr, 0, 0);
-	if (config_stats || config_valgrind)
-		usize = isalloc(ptr, config_prof);
-	if (config_prof && opt_prof) {
-		if (config_stats == false && config_valgrind == false)
-			usize = isalloc(ptr, config_prof);
-		prof_free(ptr, usize);
-	}
-	if (config_stats)
-		thread_allocated_tsd_get()->deallocated += usize;
-	if (config_valgrind && opt_valgrind)
-		rzsize = p2rz(ptr);
-	iqallocx(ptr, try_tcache);
-	JEMALLOC_VALGRIND_FREE(ptr, rzsize);
-
+	je_dallocx(ptr, flags);
 	return (ALLOCM_SUCCESS);
 }
 
@@ -1687,18 +1827,10 @@ int
 je_nallocm(size_t *rsize, size_t size, int flags)
 {
 	size_t usize;
-	size_t alignment = (ZU(1) << (flags & ALLOCM_LG_ALIGN_MASK)
-	    & (SIZE_T_MAX-1));
 
-	assert(size != 0);
-
-	if (malloc_init())
-		return (ALLOCM_ERR_OOM);
-
-	usize = (alignment == 0) ? s2u(size) : sa2u(size, alignment);
+	usize = je_nallocx(size, flags);
 	if (usize == 0)
 		return (ALLOCM_ERR_OOM);
-
 	if (rsize != NULL)
 		*rsize = usize;
 	return (ALLOCM_SUCCESS);

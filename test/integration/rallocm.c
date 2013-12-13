@@ -1,5 +1,3 @@
-#include <unistd.h>
-
 #include "test/jemalloc_test.h"
 
 TEST_BEGIN(test_same_size)

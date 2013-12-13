@@ -181,7 +181,7 @@ huge_ralloc(void *ptr, size_t oldsize, size_t size, size_t extra,
 #endif
 	{
 		memcpy(ret, ptr, copysize);
-		iqallocx(ptr, try_tcache_dalloc);
+		iqalloct(ptr, try_tcache_dalloc);
 	}
 	return (ret);
 }

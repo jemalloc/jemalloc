@@ -17,11 +17,17 @@
 #  define aligned_alloc je_aligned_alloc
 #  define realloc je_realloc
 #  define free je_free
-#  define malloc_usable_size je_malloc_usable_size
-#  define malloc_stats_print je_malloc_stats_print
+#  define mallocx je_mallocx
+#  define rallocx je_rallocx
+#  define xallocx je_xallocx
+#  define sallocx je_sallocx
+#  define dallocx je_dallocx
+#  define nallocx je_nallocx
 #  define mallctl je_mallctl
 #  define mallctlnametomib je_mallctlnametomib
 #  define mallctlbymib je_mallctlbymib
+#  define malloc_stats_print je_malloc_stats_print
+#  define malloc_usable_size je_malloc_usable_size
 #  define memalign je_memalign
 #  define valloc je_valloc
 #  ifdef JEMALLOC_EXPERIMENTAL
@@ -56,6 +62,12 @@
 #  undef je_mallctlbymib
 #  undef je_memalign
 #  undef je_valloc
+#  undef je_mallocx
+#  undef je_rallocx
+#  undef je_xallocx
+#  undef je_sallocx
+#  undef je_dallocx
+#  undef je_nallocx
 #  ifdef JEMALLOC_EXPERIMENTAL
 #    undef je_allocm
 #    undef je_rallocm
