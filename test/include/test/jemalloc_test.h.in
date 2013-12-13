@@ -64,6 +64,7 @@
  */
 #ifdef JEMALLOC_UNIT_TEST
 #  define JEMALLOC_JET
+#  define JEMALLOC_MANGLE
 #  include "jemalloc/internal/jemalloc_internal.h"
 
 /******************************************************************************/

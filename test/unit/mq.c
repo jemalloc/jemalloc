@@ -39,7 +39,7 @@ thd_receiver_start(void *arg)
 	for (i = 0; i < (NSENDERS * NMSGS); i++) {
 		mq_msg_t *msg = mq_get(mq);
 		assert_ptr_not_null(msg, "mq_get() should never return NULL");
-		jet_dallocx(msg, 0);
+		dallocx(msg, 0);
 	}
 	return (NULL);
 }
@@ -53,7 +53,7 @@ thd_sender_start(void *arg)
 	for (i = 0; i < NMSGS; i++) {
 		mq_msg_t *msg;
 		void *p;
-		p = jet_mallocx(sizeof(mq_msg_t), 0);
+		p = mallocx(sizeof(mq_msg_t), 0);
 		assert_ptr_not_null(p, "Unexpected allocm() failure");
 		msg = (mq_msg_t *)p;
 		mq_put(mq, msg);

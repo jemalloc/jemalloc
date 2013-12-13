@@ -22,3 +22,37 @@
 
 /* sizeof(void *) == 2^LG_SIZEOF_PTR. */
 #undef LG_SIZEOF_PTR
+
+/*
+ * Name mangling for public symbols is controlled by --with-mangling and
+ * --with-jemalloc-prefix.  With default settings the je_ prefix is stripped by
+ * these macro definitions.
+ */
+#ifndef JEMALLOC_NO_RENAME
+#  undef je_malloc_conf
+#  undef je_malloc_message
+#  undef je_malloc
+#  undef je_calloc
+#  undef je_posix_memalign
+#  undef je_aligned_alloc
+#  undef je_realloc
+#  undef je_free
+#  undef je_mallocx
+#  undef je_rallocx
+#  undef je_xallocx
+#  undef je_sallocx
+#  undef je_dallocx
+#  undef je_nallocx
+#  undef je_mallctl
+#  undef je_mallctlnametomib
+#  undef je_mallctlbymib
+#  undef je_malloc_stats_print
+#  undef je_malloc_usable_size
+#  undef je_memalign
+#  undef je_valloc
+#  undef je_allocm
+#  undef je_rallocm
+#  undef je_sallocm
+#  undef je_dallocm
+#  undef je_nallocm
+#endif
