@@ -289,11 +289,11 @@ malloc_tsd_protos(JEMALLOC_ATTR(unused), prof_tdata, prof_tdata_t *)
 prof_tdata_t	*prof_tdata_get(bool create);
 void	prof_sample_threshold_update(prof_tdata_t *prof_tdata);
 prof_ctx_t	*prof_ctx_get(const void *ptr);
-void	prof_ctx_set(const void *ptr, prof_ctx_t *ctx);
+void	prof_ctx_set(const void *ptr, size_t usize, prof_ctx_t *ctx);
 bool	prof_sample_accum_update(size_t size);
-void	prof_malloc(const void *ptr, size_t size, prof_thr_cnt_t *cnt);
-void	prof_realloc(const void *ptr, size_t size, prof_thr_cnt_t *cnt,
-    size_t old_size, prof_ctx_t *old_ctx);
+void	prof_malloc(const void *ptr, size_t usize, prof_thr_cnt_t *cnt);
+void	prof_realloc(const void *ptr, size_t usize, prof_thr_cnt_t *cnt,
+    size_t old_usize, prof_ctx_t *old_ctx);
 void	prof_free(const void *ptr, size_t size);
 #endif
 
@@ -386,7 +386,7 @@ prof_ctx_get(const void *ptr)
 }
 
 JEMALLOC_INLINE void
-prof_ctx_set(const void *ptr, prof_ctx_t *ctx)
+prof_ctx_set(const void *ptr, size_t usize, prof_ctx_t *ctx)
 {
 	arena_chunk_t *chunk;
 
@@ -396,7 +396,7 @@ prof_ctx_set(const void *ptr, prof_ctx_t *ctx)
 	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
 	if (chunk != ptr) {
 		/* Region. */
-		arena_prof_ctx_set(ptr, ctx);
+		arena_prof_ctx_set(ptr, usize, ctx);
 	} else
 		huge_prof_ctx_set(ptr, ctx);
 }
@@ -431,20 +431,20 @@ prof_sample_accum_update(size_t size)
 }
 
 JEMALLOC_INLINE void
-prof_malloc(const void *ptr, size_t size, prof_thr_cnt_t *cnt)
+prof_malloc(const void *ptr, size_t usize, prof_thr_cnt_t *cnt)
 {
 
 	cassert(config_prof);
 	assert(ptr != NULL);
-	assert(size == isalloc(ptr, true));
+	assert(usize == isalloc(ptr, true));
 
 	if (opt_lg_prof_sample != 0) {
-		if (prof_sample_accum_update(size)) {
+		if (prof_sample_accum_update(usize)) {
 			/*
 			 * Don't sample.  For malloc()-like allocation, it is
 			 * always possible to tell in advance how large an
 			 * object's usable size will be, so there should never
-			 * be a difference between the size passed to
+			 * be a difference between the usize passed to
 			 * PROF_ALLOC_PREP() and prof_malloc().
 			 */
 			assert((uintptr_t)cnt == (uintptr_t)1U);
@@ -452,17 +452,17 @@ prof_malloc(const void *ptr, size_t size, prof_thr_cnt_t *cnt)
 	}
 
 	if ((uintptr_t)cnt > (uintptr_t)1U) {
-		prof_ctx_set(ptr, cnt->ctx);
+		prof_ctx_set(ptr, usize, cnt->ctx);
 
 		cnt->epoch++;
 		/*********/
 		mb_write();
 		/*********/
 		cnt->cnts.curobjs++;
-		cnt->cnts.curbytes += size;
+		cnt->cnts.curbytes += usize;
 		if (opt_prof_accum) {
 			cnt->cnts.accumobjs++;
-			cnt->cnts.accumbytes += size;
+			cnt->cnts.accumbytes += usize;
 		}
 		/*********/
 		mb_write();
@@ -472,12 +472,12 @@ prof_malloc(const void *ptr, size_t size, prof_thr_cnt_t *cnt)
 		mb_write();
 		/*********/
 	} else
-		prof_ctx_set(ptr, (prof_ctx_t *)(uintptr_t)1U);
+		prof_ctx_set(ptr, usize, (prof_ctx_t *)(uintptr_t)1U);
 }
 
 JEMALLOC_INLINE void
-prof_realloc(const void *ptr, size_t size, prof_thr_cnt_t *cnt,
-    size_t old_size, prof_ctx_t *old_ctx)
+prof_realloc(const void *ptr, size_t usize, prof_thr_cnt_t *cnt,
+    size_t old_usize, prof_ctx_t *old_ctx)
 {
 	prof_thr_cnt_t *told_cnt;
 
@@ -485,15 +485,15 @@ prof_realloc(const void *ptr, size_t size, prof_thr_cnt_t *cnt,
 	assert(ptr != NULL || (uintptr_t)cnt <= (uintptr_t)1U);
 
 	if (ptr != NULL) {
-		assert(size == isalloc(ptr, true));
+		assert(usize == isalloc(ptr, true));
 		if (opt_lg_prof_sample != 0) {
-			if (prof_sample_accum_update(size)) {
+			if (prof_sample_accum_update(usize)) {
 				/*
-				 * Don't sample.  The size passed to
+				 * Don't sample.  The usize passed to
 				 * PROF_ALLOC_PREP() was larger than what
 				 * actually got allocated, so a backtrace was
 				 * captured for this allocation, even though
-				 * its actual size was insufficient to cross
+				 * its actual usize was insufficient to cross
 				 * the sample threshold.
 				 */
 				cnt = (prof_thr_cnt_t *)(uintptr_t)1U;
@@ -510,7 +510,7 @@ prof_realloc(const void *ptr, size_t size, prof_thr_cnt_t *cnt,
 			 */
 			malloc_mutex_lock(old_ctx->lock);
 			old_ctx->cnt_merged.curobjs--;
-			old_ctx->cnt_merged.curbytes -= old_size;
+			old_ctx->cnt_merged.curbytes -= old_usize;
 			malloc_mutex_unlock(old_ctx->lock);
 			told_cnt = (prof_thr_cnt_t *)(uintptr_t)1U;
 		}
@@ -520,23 +520,23 @@ prof_realloc(const void *ptr, size_t size, prof_thr_cnt_t *cnt,
 	if ((uintptr_t)told_cnt > (uintptr_t)1U)
 		told_cnt->epoch++;
 	if ((uintptr_t)cnt > (uintptr_t)1U) {
-		prof_ctx_set(ptr, cnt->ctx);
+		prof_ctx_set(ptr, usize, cnt->ctx);
 		cnt->epoch++;
 	} else if (ptr != NULL)
-		prof_ctx_set(ptr, (prof_ctx_t *)(uintptr_t)1U);
+		prof_ctx_set(ptr, usize, (prof_ctx_t *)(uintptr_t)1U);
 	/*********/
 	mb_write();
 	/*********/
 	if ((uintptr_t)told_cnt > (uintptr_t)1U) {
 		told_cnt->cnts.curobjs--;
-		told_cnt->cnts.curbytes -= old_size;
+		told_cnt->cnts.curbytes -= old_usize;
 	}
 	if ((uintptr_t)cnt > (uintptr_t)1U) {
 		cnt->cnts.curobjs++;
-		cnt->cnts.curbytes += size;
+		cnt->cnts.curbytes += usize;
 		if (opt_prof_accum) {
 			cnt->cnts.accumobjs++;
-			cnt->cnts.accumbytes += size;
+			cnt->cnts.accumbytes += usize;
 		}
 	}
 	/*********/

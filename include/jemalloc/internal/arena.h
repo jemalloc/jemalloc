@@ -474,7 +474,7 @@ size_t	arena_bin_index(arena_t *arena, arena_bin_t *bin);
 unsigned	arena_run_regind(arena_run_t *run, arena_bin_info_t *bin_info,
     const void *ptr);
 prof_ctx_t	*arena_prof_ctx_get(const void *ptr);
-void	arena_prof_ctx_set(const void *ptr, prof_ctx_t *ctx);
+void	arena_prof_ctx_set(const void *ptr, size_t usize, prof_ctx_t *ctx);
 void	*arena_malloc(arena_t *arena, size_t size, bool zero, bool try_tcache);
 size_t	arena_salloc(const void *ptr, bool demote);
 void	arena_dalloc(arena_t *arena, arena_chunk_t *chunk, void *ptr,
@@ -886,7 +886,7 @@ arena_prof_ctx_get(const void *ptr)
 }
 
 JEMALLOC_INLINE void
-arena_prof_ctx_set(const void *ptr, prof_ctx_t *ctx)
+arena_prof_ctx_set(const void *ptr, size_t usize, prof_ctx_t *ctx)
 {
 	arena_chunk_t *chunk;
 	size_t pageind, mapbits;
@@ -899,7 +899,14 @@ arena_prof_ctx_set(const void *ptr, prof_ctx_t *ctx)
 	pageind = ((uintptr_t)ptr - (uintptr_t)chunk) >> LG_PAGE;
 	mapbits = arena_mapbits_get(chunk, pageind);
 	assert((mapbits & CHUNK_MAP_ALLOCATED) != 0);
-	if ((mapbits & CHUNK_MAP_LARGE) == 0) {
+
+	if (usize > SMALL_MAXCLASS || (prof_promote &&
+	    ((uintptr_t)ctx != (uintptr_t)1U || ((mapbits & CHUNK_MAP_LARGE) !=
+	    0)))) {
+		assert((mapbits & CHUNK_MAP_LARGE) != 0);
+		arena_mapp_get(chunk, pageind)->prof_ctx = ctx;
+	} else {
+		assert((mapbits & CHUNK_MAP_LARGE) == 0);
 		if (prof_promote == false) {
 			arena_run_t *run = (arena_run_t *)((uintptr_t)chunk +
 			    (uintptr_t)((pageind - (mapbits >> LG_PAGE)) <<
@@ -912,12 +919,11 @@ arena_prof_ctx_set(const void *ptr, prof_ctx_t *ctx)
 			bin_info = &arena_bin_info[binind];
 			regind = arena_run_regind(run, bin_info, ptr);
 
-			*((prof_ctx_t **)((uintptr_t)run + bin_info->ctx0_offset
-			    + (regind * sizeof(prof_ctx_t *)))) = ctx;
-		} else
-			assert((uintptr_t)ctx == (uintptr_t)1U);
-	} else
-		arena_mapp_get(chunk, pageind)->prof_ctx = ctx;
+			*((prof_ctx_t **)((uintptr_t)run +
+			    bin_info->ctx0_offset + (regind * sizeof(prof_ctx_t
+			    *)))) = ctx;
+		}
+	}
 }
 
 JEMALLOC_ALWAYS_INLINE void *

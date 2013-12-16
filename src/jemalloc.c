@@ -1105,7 +1105,7 @@ je_realloc(void *ptr, size_t size)
 {
 	void *ret;
 	size_t usize JEMALLOC_CC_SILENCE_INIT(0);
-	size_t old_size = 0;
+	size_t old_usize = 0;
 	UNUSED size_t old_rzsize JEMALLOC_CC_SILENCE_INIT(0);
 	prof_thr_cnt_t *cnt JEMALLOC_CC_SILENCE_INIT(NULL);
 	prof_ctx_t *old_ctx JEMALLOC_CC_SILENCE_INIT(NULL);
@@ -1115,16 +1115,16 @@ je_realloc(void *ptr, size_t size)
 			/* realloc(ptr, 0) is equivalent to free(p). */
 			assert(malloc_initialized || IS_INITIALIZER);
 			if (config_prof) {
-				old_size = isalloc(ptr, true);
+				old_usize = isalloc(ptr, true);
 				if (config_valgrind && opt_valgrind)
 					old_rzsize = p2rz(ptr);
 			} else if (config_stats) {
-				old_size = isalloc(ptr, false);
+				old_usize = isalloc(ptr, false);
 				if (config_valgrind && opt_valgrind)
-					old_rzsize = u2rz(old_size);
+					old_rzsize = u2rz(old_usize);
 			} else if (config_valgrind && opt_valgrind) {
-				old_size = isalloc(ptr, false);
-				old_rzsize = u2rz(old_size);
+				old_usize = isalloc(ptr, false);
+				old_rzsize = u2rz(old_usize);
 			}
 			if (config_prof && opt_prof) {
 				old_ctx = prof_ctx_get(ptr);
@@ -1142,16 +1142,16 @@ je_realloc(void *ptr, size_t size)
 		malloc_thread_init();
 
 		if (config_prof) {
-			old_size = isalloc(ptr, true);
+			old_usize = isalloc(ptr, true);
 			if (config_valgrind && opt_valgrind)
 				old_rzsize = p2rz(ptr);
 		} else if (config_stats) {
-			old_size = isalloc(ptr, false);
+			old_usize = isalloc(ptr, false);
 			if (config_valgrind && opt_valgrind)
-				old_rzsize = u2rz(old_size);
+				old_rzsize = u2rz(old_usize);
 		} else if (config_valgrind && opt_valgrind) {
-			old_size = isalloc(ptr, false);
-			old_rzsize = u2rz(old_size);
+			old_usize = isalloc(ptr, false);
+			old_rzsize = u2rz(old_usize);
 		}
 		if (config_prof && opt_prof) {
 			usize = s2u(size);
@@ -1236,16 +1236,17 @@ label_oom:
 
 label_return:
 	if (config_prof && opt_prof)
-		prof_realloc(ret, usize, cnt, old_size, old_ctx);
+		prof_realloc(ret, usize, cnt, old_usize, old_ctx);
 	if (config_stats && ret != NULL) {
 		thread_allocated_t *ta;
 		assert(usize == isalloc(ret, config_prof));
 		ta = thread_allocated_tsd_get();
 		ta->allocated += usize;
-		ta->deallocated += old_size;
+		ta->deallocated += old_usize;
 	}
 	UTRACE(ptr, size, ret);
-	JEMALLOC_VALGRIND_REALLOC(ret, usize, ptr, old_size, old_rzsize, false);
+	JEMALLOC_VALGRIND_REALLOC(ret, usize, ptr, old_usize, old_rzsize,
+	    false);
 	return (ret);
 }
 
@@ -1431,8 +1432,7 @@ void *
 je_rallocx(void *ptr, size_t size, int flags)
 {
 	void *p;
-	size_t usize;
-	size_t old_size;
+	size_t usize, old_usize;
 	UNUSED size_t old_rzsize JEMALLOC_CC_SILENCE_INIT(0);
 	size_t alignment = (ZU(1) << (flags & MALLOCX_LG_ALIGN_MASK)
 	    & (SIZE_T_MAX-1));
@@ -1465,7 +1465,7 @@ je_rallocx(void *ptr, size_t size, int flags)
 		usize = (alignment == 0) ? s2u(size) : sa2u(size,
 		    alignment);
 		prof_ctx_t *old_ctx = prof_ctx_get(ptr);
-		old_size = isalloc(ptr, true);
+		old_usize = isalloc(ptr, true);
 		if (config_valgrind && opt_valgrind)
 			old_rzsize = p2rz(ptr);
 		PROF_ALLOC_PREP(1, usize, cnt);
@@ -1487,15 +1487,28 @@ je_rallocx(void *ptr, size_t size, int flags)
 			if (p == NULL)
 				goto label_oom;
 		}
-		prof_realloc(p, usize, cnt, old_size, old_ctx);
+		if (p == ptr && alignment != 0) {
+			/*
+			 * The allocation did not move, so it is possible that
+			 * the size class is smaller than would guarantee the
+			 * requested alignment, and that the alignment
+			 * constraint was serendipitously satisfied.
+			 * Additionally, old_usize may not be the same as the
+			 * current usize because of in-place large
+			 * reallocation.  Therefore, query the actual value of
+			 * usize.
+			 */
+			usize = isalloc(p, true);
+		}
+		prof_realloc(p, usize, cnt, old_usize, old_ctx);
 	} else {
 		if (config_stats) {
-			old_size = isalloc(ptr, false);
+			old_usize = isalloc(ptr, false);
 			if (config_valgrind && opt_valgrind)
-				old_rzsize = u2rz(old_size);
+				old_rzsize = u2rz(old_usize);
 		} else if (config_valgrind && opt_valgrind) {
-			old_size = isalloc(ptr, false);
-			old_rzsize = u2rz(old_size);
+			old_usize = isalloc(ptr, false);
+			old_rzsize = u2rz(old_usize);
 		}
 		p = iralloct(ptr, size, 0, alignment, zero, false,
 		    try_tcache_alloc, try_tcache_dalloc, arena);
@@ -1509,10 +1522,10 @@ je_rallocx(void *ptr, size_t size, int flags)
 		thread_allocated_t *ta;
 		ta = thread_allocated_tsd_get();
 		ta->allocated += usize;
-		ta->deallocated += old_size;
+		ta->deallocated += old_usize;
 	}
 	UTRACE(ptr, size, p);
-	JEMALLOC_VALGRIND_REALLOC(p, usize, ptr, old_size, old_rzsize, zero);
+	JEMALLOC_VALGRIND_REALLOC(p, usize, ptr, old_usize, old_rzsize, zero);
 	return (p);
 label_oom:
 	if (config_xmalloc && opt_xmalloc) {
@@ -1526,8 +1539,7 @@ label_oom:
 size_t
 je_xallocx(void *ptr, size_t size, size_t extra, int flags)
 {
-	size_t usize;
-	size_t old_size;
+	size_t usize, old_usize;
 	UNUSED size_t old_rzsize JEMALLOC_CC_SILENCE_INIT(0);
 	size_t alignment = (ZU(1) << (flags & MALLOCX_LG_ALIGN_MASK)
 	    & (SIZE_T_MAX-1));
@@ -1568,12 +1580,12 @@ je_xallocx(void *ptr, size_t size, size_t extra, int flags)
 		size_t max_usize = (alignment == 0) ? s2u(size+extra) :
 		    sa2u(size+extra, alignment);
 		prof_ctx_t *old_ctx = prof_ctx_get(ptr);
-		old_size = isalloc(ptr, true);
+		old_usize = isalloc(ptr, true);
 		if (config_valgrind && opt_valgrind)
 			old_rzsize = p2rz(ptr);
 		PROF_ALLOC_PREP(1, max_usize, cnt);
 		if (cnt == NULL) {
-			usize = isalloc(ptr, config_prof);
+			usize = old_usize;
 			goto label_not_moved;
 		}
 		/*
@@ -1585,32 +1597,35 @@ je_xallocx(void *ptr, size_t size, size_t extra, int flags)
 			if (iralloct(ptr, SMALL_MAXCLASS+1, (SMALL_MAXCLASS+1 >=
 			    size+extra) ? 0 : size+extra - (SMALL_MAXCLASS+1),
 			    alignment, zero, true, try_tcache_alloc,
-			    try_tcache_dalloc, arena) == NULL)
+			    try_tcache_dalloc, arena) == NULL) {
+				usize = old_usize;
 				goto label_not_moved;
-			if (max_usize < PAGE) {
-				usize = max_usize;
+			}
+			usize = isalloc(ptr, true);
+			if (max_usize < PAGE)
 				arena_prof_promoted(ptr, usize);
-			} else
-				usize = isalloc(ptr, config_prof);
 		} else {
 			if (iralloct(ptr, size, extra, alignment, zero, true,
-			    try_tcache_alloc, try_tcache_dalloc, arena) == NULL)
+			    try_tcache_alloc, try_tcache_dalloc, arena) ==
+			    NULL) {
+				usize = old_usize;
 				goto label_not_moved;
-			usize = isalloc(ptr, config_prof);
+			}
+			usize = isalloc(ptr, true);
 		}
-		prof_realloc(ptr, usize, cnt, old_size, old_ctx);
+		prof_realloc(ptr, usize, cnt, old_usize, old_ctx);
 	} else {
 		if (config_stats) {
-			old_size = isalloc(ptr, false);
+			old_usize = isalloc(ptr, false);
 			if (config_valgrind && opt_valgrind)
-				old_rzsize = u2rz(old_size);
+				old_rzsize = u2rz(old_usize);
 		} else if (config_valgrind && opt_valgrind) {
-			old_size = isalloc(ptr, false);
-			old_rzsize = u2rz(old_size);
+			old_usize = isalloc(ptr, false);
+			old_rzsize = u2rz(old_usize);
 		}
 		if (iralloct(ptr, size, extra, alignment, zero, true,
 		    try_tcache_alloc, try_tcache_dalloc, arena) == NULL) {
-			usize = isalloc(ptr, config_prof);
+			usize = old_usize;
 			goto label_not_moved;
 		}
 		usize = isalloc(ptr, config_prof);
@@ -1620,9 +1635,9 @@ je_xallocx(void *ptr, size_t size, size_t extra, int flags)
 		thread_allocated_t *ta;
 		ta = thread_allocated_tsd_get();
 		ta->allocated += usize;
-		ta->deallocated += old_size;
+		ta->deallocated += old_usize;
 	}
-	JEMALLOC_VALGRIND_REALLOC(ptr, usize, ptr, old_size, old_rzsize, zero);
+	JEMALLOC_VALGRIND_REALLOC(ptr, usize, ptr, old_usize, old_rzsize, zero);
 label_not_moved:
 	UTRACE(ptr, size, ptr);
 	return (usize);
