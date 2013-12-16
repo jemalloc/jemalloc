@@ -889,7 +889,7 @@ JEMALLOC_INLINE void
 arena_prof_ctx_set(const void *ptr, size_t usize, prof_ctx_t *ctx)
 {
 	arena_chunk_t *chunk;
-	size_t pageind, mapbits;
+	size_t pageind;
 
 	cassert(config_prof);
 	assert(ptr != NULL);
@@ -897,17 +897,17 @@ arena_prof_ctx_set(const void *ptr, size_t usize, prof_ctx_t *ctx)
 
 	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
 	pageind = ((uintptr_t)ptr - (uintptr_t)chunk) >> LG_PAGE;
-	mapbits = arena_mapbits_get(chunk, pageind);
-	assert((mapbits & CHUNK_MAP_ALLOCATED) != 0);
+	assert(arena_mapbits_allocated_get(chunk, pageind) != 0);
 
 	if (usize > SMALL_MAXCLASS || (prof_promote &&
-	    ((uintptr_t)ctx != (uintptr_t)1U || ((mapbits & CHUNK_MAP_LARGE) !=
-	    0)))) {
-		assert((mapbits & CHUNK_MAP_LARGE) != 0);
+	    ((uintptr_t)ctx != (uintptr_t)1U || arena_mapbits_large_get(chunk,
+	    pageind) != 0))) {
+		assert(arena_mapbits_large_get(chunk, pageind) != 0);
 		arena_mapp_get(chunk, pageind)->prof_ctx = ctx;
 	} else {
-		assert((mapbits & CHUNK_MAP_LARGE) == 0);
+		assert(arena_mapbits_large_get(chunk, pageind) == 0);
 		if (prof_promote == false) {
+			size_t mapbits = arena_mapbits_get(chunk, pageind);
 			arena_run_t *run = (arena_run_t *)((uintptr_t)chunk +
 			    (uintptr_t)((pageind - (mapbits >> LG_PAGE)) <<
 			    LG_PAGE));
