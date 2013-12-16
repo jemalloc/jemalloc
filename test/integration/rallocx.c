@@ -133,27 +133,39 @@ TEST_BEGIN(test_align)
 }
 TEST_END
 
-TEST_BEGIN(test_lg_align)
+TEST_BEGIN(test_lg_align_and_zero)
 {
 	void *p, *q;
-	size_t lg_align;
+	size_t lg_align, sz;
 #define	MAX_LG_ALIGN 29
+#define	MAX_VALIDATE (ZU(1) << 22)
 
 	lg_align = ZU(0);
-	p = mallocx(1, MALLOCX_LG_ALIGN(lg_align));
+	p = mallocx(1, MALLOCX_LG_ALIGN(lg_align)|MALLOCX_ZERO);
 	assert_ptr_not_null(p, "Unexpected mallocx() error");
 
 	for (lg_align++; lg_align <= MAX_LG_ALIGN; lg_align++) {
-		q = rallocx(p, 1, MALLOCX_LG_ALIGN(lg_align));
+		q = rallocx(p, 1, MALLOCX_LG_ALIGN(lg_align)|MALLOCX_ZERO);
 		assert_ptr_not_null(q,
 		    "Unexpected rallocx() error for lg_align=%zu", lg_align);
 		assert_ptr_null(
 		    (void *)((uintptr_t)q & ((ZU(1) << lg_align)-1)),
 		    "%p inadequately aligned for lg_align=%zu",
 		    q, lg_align);
+		sz = sallocx(q, 0);
+		if ((sz << 1) <= MAX_VALIDATE) {
+			assert_false(validate_fill(q, 0, 0, sz),
+			    "Expected zeroed memory");
+		} else {
+			assert_false(validate_fill(q, 0, 0, MAX_VALIDATE),
+			    "Expected zeroed memory");
+			assert_false(validate_fill(q+sz-MAX_VALIDATE, 0, 0,
+			    MAX_VALIDATE), "Expected zeroed memory");
+		}
 		p = q;
 	}
 	dallocx(p, 0);
+#undef MAX_VALIDATE
 #undef MAX_LG_ALIGN
 }
 TEST_END
@@ -166,5 +178,5 @@ main(void)
 	    test_grow_and_shrink,
 	    test_zero,
 	    test_align,
-	    test_lg_align));
+	    test_lg_align_and_zero));
 }
