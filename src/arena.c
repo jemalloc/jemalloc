@@ -1938,10 +1938,6 @@ arena_ralloc_large(void *ptr, size_t oldsize, size_t size, size_t extra,
 	psize = PAGE_CEILING(size + extra);
 	if (psize == oldsize) {
 		/* Same size class. */
-		if (config_fill && opt_junk && size < oldsize) {
-			memset((void *)((uintptr_t)ptr + size), 0x5a, oldsize -
-			    size);
-		}
 		return (false);
 	} else {
 		arena_chunk_t *chunk;
@@ -1953,8 +1949,8 @@ arena_ralloc_large(void *ptr, size_t oldsize, size_t size, size_t extra,
 		if (psize < oldsize) {
 			/* Fill before shrinking in order avoid a race. */
 			if (config_fill && opt_junk) {
-				memset((void *)((uintptr_t)ptr + size), 0x5a,
-				    oldsize - size);
+				memset((void *)((uintptr_t)ptr + psize), 0x5a,
+				    oldsize - psize);
 			}
 			arena_ralloc_large_shrink(arena, chunk, ptr, oldsize,
 			    psize);
@@ -1988,13 +1984,8 @@ arena_ralloc_no_move(void *ptr, size_t oldsize, size_t size, size_t extra,
 			if ((size + extra <= SMALL_MAXCLASS &&
 			    SMALL_SIZE2BIN(size + extra) ==
 			    SMALL_SIZE2BIN(oldsize)) || (size <= oldsize &&
-			    size + extra >= oldsize)) {
-				if (config_fill && opt_junk && size < oldsize) {
-					memset((void *)((uintptr_t)ptr + size),
-					    0x5a, oldsize - size);
-				}
+			    size + extra >= oldsize))
 				return (ptr);
-			}
 		} else {
 			assert(size <= arena_maxclass);
 			if (size + extra > SMALL_MAXCLASS) {

@@ -297,6 +297,7 @@ tcache_alloc_small(tcache_t *tcache, size_t size, bool zero)
 	binind = SMALL_SIZE2BIN(size);
 	assert(binind < NBINS);
 	tbin = &tcache->tbins[binind];
+	size = arena_bin_info[binind].reg_size;
 	ret = tcache_alloc_easy(tbin);
 	if (ret == NULL) {
 		ret = tcache_alloc_small_hard(tcache, tbin, binind);

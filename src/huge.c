@@ -89,10 +89,6 @@ huge_ralloc_no_move(void *ptr, size_t oldsize, size_t size, size_t extra)
 	    && CHUNK_CEILING(oldsize) >= CHUNK_CEILING(size)
 	    && CHUNK_CEILING(oldsize) <= CHUNK_CEILING(size+extra)) {
 		assert(CHUNK_CEILING(oldsize) == oldsize);
-		if (config_fill && opt_junk && size < oldsize) {
-			memset((void *)((uintptr_t)ptr + size), 0x5a,
-			    oldsize - size);
-		}
 		return (ptr);
 	}
 
