@@ -310,7 +310,6 @@ hash_x64_128(const void *key, const int len, const uint32_t seed,
 	r_out[1] = h2;
 }
 
-
 /******************************************************************************/
 /* API. */
 JEMALLOC_INLINE void
