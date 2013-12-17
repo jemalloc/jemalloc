@@ -405,7 +405,13 @@ void	arena_tcache_fill_small(arena_t *arena, tcache_bin_t *tbin,
     size_t binind, uint64_t prof_accumbytes);
 void	arena_alloc_junk_small(void *ptr, arena_bin_info_t *bin_info,
     bool zero);
+#ifdef JEMALLOC_JET
+typedef void (arena_redzone_corruption_t)(void *, size_t, bool, size_t,
+    uint8_t);
+extern arena_redzone_corruption_t *arena_redzone_corruption_fptr;
+#endif
 void	arena_dalloc_junk_small(void *ptr, arena_bin_info_t *bin_info);
+void	arena_quarantine_junk_small(void *ptr, size_t usize);
 void	*arena_malloc_small(arena_t *arena, size_t size, bool zero);
 void	*arena_malloc_large(arena_t *arena, size_t size, bool zero);
 void	*arena_palloc(arena_t *arena, size_t size, size_t alignment, bool zero);

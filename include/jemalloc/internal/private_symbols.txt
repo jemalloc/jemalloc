@@ -50,8 +50,10 @@ arena_prof_ctx_set
 arena_prof_promoted
 arena_ptr_small_binind_get
 arena_purge_all
+arena_quarantine_junk_small
 arena_ralloc
 arena_ralloc_no_move
+arena_redzone_corruption
 arena_run_regind
 arena_salloc
 arena_stats_merge

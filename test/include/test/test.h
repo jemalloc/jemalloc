@@ -187,11 +187,21 @@ f(void)									\
 	p_test_init(#f);
 
 #define	TEST_END							\
+	goto label_test_end;						\
+label_test_end:								\
 	p_test_fini();							\
 }
 
 #define	test(tests...)							\
 	p_test(tests, NULL)
+
+#define	test_skip_if(e) do {						\
+	if (e) {							\
+		test_skip("%s:%s:%d: Test skipped: (%s)",		\
+		    __func__, __FILE__, __LINE__, #e);			\
+		goto label_test_end;					\
+	}								\
+} while (0)
 
 void	test_skip(const char *format, ...) JEMALLOC_ATTR(format(printf, 1, 2));
 void	test_fail(const char *format, ...) JEMALLOC_ATTR(format(printf, 1, 2));
