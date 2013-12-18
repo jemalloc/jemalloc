@@ -2209,12 +2209,6 @@ malloc_conf = "xmalloc:true";]]></programlisting>
             are read despite the error.</para></listitem>
           </varlistentry>
           <varlistentry>
-            <term><errorname>ENOMEM</errorname></term>
-
-            <listitem><para><parameter>*oldlenp</parameter> is too short to
-            hold the requested value.</para></listitem>
-          </varlistentry>
-          <varlistentry>
             <term><errorname>ENOENT</errorname></term>
 
             <listitem><para><parameter>name</parameter> or
