@@ -394,15 +394,14 @@
       it is legitimate to construct code like the following: <programlisting
       language="C"><![CDATA[
 unsigned nbins, i;
-
-int mib[4];
+size_t mib[4];
 size_t len, miblen;
 
 len = sizeof(nbins);
 mallctl("arenas.nbins", &nbins, &len, NULL, 0);
 
 miblen = 4;
-mallnametomib("arenas.bin.0.size", mib, &miblen);
+mallctlnametomib("arenas.bin.0.size", mib, &miblen);
 for (i = 0; i < nbins; i++) {
 	size_t bin_size;
 

@@ -126,26 +126,32 @@
 #define	assert_u64_gt(a, b, fmt...)	assert_cmp(uint64_t, a, b, >,	\
     <=, PRIu64, fmt)
 
-#define	assert_true(a, fmt...) do {					\
+#define	assert_b_eq(a, b, fmt...) do {					\
 	bool a_ = (a);							\
-	if (!(a_ == true)) {						\
+	bool b_ = (b);							\
+	if (!(a_ == b_)) {						\
 		p_test_fail(						\
 		    "%s:%s:%d: Failed assertion: "			\
-		    "(%s) == true --> %s != true: ",			\
+		    "(%s) == (%s) --> %s != %s: ",			\
 		    __func__, __FILE__, __LINE__,			\
-		    #a, a_ ? "true" : "false", fmt);			\
+		    #a, #b, a_ ? "true" : "false",			\
+		    b_ ? "true" : "false", fmt);			\
 	}								\
 } while (0)
-#define	assert_false(a, fmt...) do {					\
+#define	assert_b_ne(a, b, fmt...) do {					\
 	bool a_ = (a);							\
-	if (!(a_ == false)) {						\
+	bool b_ = (b);							\
+	if (!(a_ != b_)) {						\
 		p_test_fail(						\
 		    "%s:%s:%d: Failed assertion: "			\
-		    "(%s) == false --> %s != false: ",			\
+		    "(%s) != (%s) --> %s == %s: ",			\
 		    __func__, __FILE__, __LINE__,			\
-		    #a, a_ ? "true" : "false", fmt);			\
+		    #a, #b, a_ ? "true" : "false",			\
+		    b_ ? "true" : "false", fmt);			\
 	}								\
 } while (0)
+#define	assert_true(a, fmt...)	assert_b_eq(a, true, fmt)
+#define	assert_false(a, fmt...)	assert_b_eq(a, false, fmt)
 
 #define	assert_str_eq(a, b, fmt...) do {				\
 	if (strcmp((a), (b))) {						\
