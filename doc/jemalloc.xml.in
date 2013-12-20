@@ -924,19 +924,6 @@ for (i = 0; i < nbins; i++) {
         </para></listitem>
       </varlistentry>
 
-      <varlistentry id="opt.lg_chunk">
-        <term>
-          <mallctl>opt.lg_chunk</mallctl>
-          (<type>size_t</type>)
-          <literal>r-</literal>
-        </term>
-        <listitem><para>Virtual memory chunk size (log base 2).  If a chunk
-        size outside the supported size range is specified, the size is
-        silently clipped to the minimum/maximum supported size.  The default
-        chunk size is 4 MiB (2^22).
-        </para></listitem>
-      </varlistentry>
-
       <varlistentry id="opt.dss">
         <term>
           <mallctl>opt.dss</mallctl>
@@ -948,7 +935,23 @@ for (i = 0; i < nbins; i++) {
         related to <citerefentry><refentrytitle>mmap</refentrytitle>
         <manvolnum>2</manvolnum></citerefentry> allocation.  The following
         settings are supported: &ldquo;disabled&rdquo;, &ldquo;primary&rdquo;,
-        and &ldquo;secondary&rdquo; (default).</para></listitem>
+        and &ldquo;secondary&rdquo;.  The default is &ldquo;secondary&rdquo; if
+        <link linkend="config.dss"><mallctl>config.dss</mallctl></link> is
+        true, &ldquo;disabled&rdquo; otherwise.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry id="opt.lg_chunk">
+        <term>
+          <mallctl>opt.lg_chunk</mallctl>
+          (<type>size_t</type>)
+          <literal>r-</literal>
+        </term>
+        <listitem><para>Virtual memory chunk size (log base 2).  If a chunk
+        size outside the supported size range is specified, the size is
+        silently clipped to the minimum/maximum supported size.  The default
+        chunk size is 4 MiB (2^22).
+        </para></listitem>
       </varlistentry>
 
       <varlistentry id="opt.narenas">
@@ -1197,7 +1200,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         <term>
           <mallctl>opt.prof_active</mallctl>
           (<type>bool</type>)
-          <literal>r-</literal>
+          <literal>rw</literal>
           [<option>--enable-prof</option>]
         </term>
         <listitem><para>Profiling activated/deactivated.  This is a secondary
@@ -1819,9 +1822,9 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         similar calls made to purge dirty pages.</para></listitem>
       </varlistentry>
 
-      <varlistentry id="stats.arenas.i.npurged">
+      <varlistentry id="stats.arenas.i.purged">
         <term>
-          <mallctl>stats.arenas.&lt;i&gt;.npurged</mallctl>
+          <mallctl>stats.arenas.&lt;i&gt;.purged</mallctl>
           (<type>uint64_t</type>)
           <literal>r-</literal>
           [<option>--enable-stats</option>]
