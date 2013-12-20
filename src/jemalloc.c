@@ -1625,6 +1625,9 @@ je_xallocx(void *ptr, size_t size, size_t extra, int flags)
 		}
 		if (iralloct(ptr, size, extra, alignment, zero, true,
 		    try_tcache_alloc, try_tcache_dalloc, arena) == NULL) {
+			if (config_stats == false && (config_valgrind == false
+			    || opt_valgrind == false))
+				old_usize = isalloc(ptr, false);
 			usize = old_usize;
 			goto label_not_moved;
 		}
