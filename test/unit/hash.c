@@ -90,14 +90,12 @@ hash_variant_verify(hash_variant_t variant)
 			hash_x86_128(key, i, 256-i, out);
 			memcpy(&hashes[i*hashbytes], out, hashbytes);
 			break;
-		}
-		case hash_variant_x64_128: {
+		} case hash_variant_x64_128: {
 			uint64_t out[2];
 			hash_x64_128(key, i, 256-i, out);
 			memcpy(&hashes[i*hashbytes], out, hashbytes);
 			break;
-		}
-		default: not_reached();
+		} default: not_reached();
 		}
 	}
 
