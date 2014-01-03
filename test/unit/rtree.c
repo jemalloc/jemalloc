@@ -6,7 +6,7 @@ TEST_BEGIN(test_rtree_get_empty)
 
 	for (i = 1; i <= (sizeof(uintptr_t) << 3); i++) {
 		rtree_t *rtree = rtree_new(i, imalloc, idalloc);
-		assert_ptr_null(rtree_get(rtree, 0),
+		assert_u_eq(rtree_get(rtree, 0), 0,
 		    "rtree_get() should return NULL for empty tree");
 		rtree_delete(rtree);
 	}
@@ -20,12 +20,12 @@ TEST_BEGIN(test_rtree_extrema)
 	for (i = 1; i <= (sizeof(uintptr_t) << 3); i++) {
 		rtree_t *rtree = rtree_new(i, imalloc, idalloc);
 
-		rtree_set(rtree, 0, (void *)1);
-		assert_ptr_eq(rtree_get(rtree, 0), (void *)1,
+		rtree_set(rtree, 0, 1);
+		assert_u_eq(rtree_get(rtree, 0), 1,
 		    "rtree_get() should return previously set value");
 
-		rtree_set(rtree, ~((uintptr_t)0), (void *)1);
-		assert_ptr_eq(rtree_get(rtree, ~((uintptr_t)0)), (void *)1,
+		rtree_set(rtree, ~((uintptr_t)0), 1);
+		assert_u_eq(rtree_get(rtree, ~((uintptr_t)0)), 1,
 		    "rtree_get() should return previously set value");
 
 		rtree_delete(rtree);
@@ -43,21 +43,19 @@ TEST_BEGIN(test_rtree_bits)
 		rtree_t *rtree = rtree_new(i, imalloc, idalloc);
 
 		for (j = 0; j < sizeof(keys)/sizeof(uintptr_t); j++) {
-			rtree_set(rtree, keys[j], (void *)1);
+			rtree_set(rtree, keys[j], 1);
 			for (k = 0; k < sizeof(keys)/sizeof(uintptr_t); k++) {
-				assert_ptr_eq(rtree_get(rtree, keys[k]),
-				    (void *)1,
+				assert_u_eq(rtree_get(rtree, keys[k]), 1,
 				    "rtree_get() should return previously set "
 				    "value and ignore insignificant key bits; "
 				    "i=%u, j=%u, k=%u, set key=%#x, "
 				    "get key=%#x", i, j, k, keys[j], keys[k]);
 			}
-			assert_ptr_eq(rtree_get(rtree,
-			    (((uintptr_t)1) << (sizeof(uintptr_t)*8-i))),
-			    (void *)0,
+			assert_u_eq(rtree_get(rtree,
+			    (((uintptr_t)1) << (sizeof(uintptr_t)*8-i))), 0,
 			    "Only leftmost rtree leaf should be set; "
 			    "i=%u, j=%u", i, j);
-			rtree_set(rtree, keys[j], (void *)0);
+			rtree_set(rtree, keys[j], 0);
 		}
 
 		rtree_delete(rtree);
@@ -80,22 +78,22 @@ TEST_BEGIN(test_rtree_random)
 
 		for (j = 0; j < NSET; j++) {
 			keys[j] = (uintptr_t)gen_rand64(sfmt);
-			rtree_set(rtree, keys[j], (void *)1);
-			assert_ptr_eq(rtree_get(rtree, keys[j]), (void *)1,
+			rtree_set(rtree, keys[j], 1);
+			assert_u_eq(rtree_get(rtree, keys[j]), 1,
 			    "rtree_get() should return previously set value");
 		}
 		for (j = 0; j < NSET; j++) {
-			assert_ptr_eq(rtree_get(rtree, keys[j]), (void *)1,
+			assert_u_eq(rtree_get(rtree, keys[j]), 1,
 			    "rtree_get() should return previously set value");
 		}
 
 		for (j = 0; j < NSET; j++) {
-			rtree_set(rtree, keys[j], (void *)0);
-			assert_ptr_eq(rtree_get(rtree, keys[j]), (void *)0,
+			rtree_set(rtree, keys[j], 0);
+			assert_u_eq(rtree_get(rtree, keys[j]), 0,
 			    "rtree_get() should return previously set value");
 		}
 		for (j = 0; j < NSET; j++) {
-			assert_ptr_eq(rtree_get(rtree, keys[j]), (void *)0,
+			assert_u_eq(rtree_get(rtree, keys[j]), 0,
 			    "rtree_get() should return previously set value");
 		}
 
