@@ -20,11 +20,16 @@ typedef struct rtree_s rtree_t;
 #  define RTREE_NODESIZE CACHELINE
 #endif
 
+typedef void *(rtree_alloc_t)(size_t);
+typedef void (rtree_dalloc_t)(void *);
+
 #endif /* JEMALLOC_H_TYPES */
 /******************************************************************************/
 #ifdef JEMALLOC_H_STRUCTS
 
 struct rtree_s {
+	rtree_alloc_t	*alloc;
+	rtree_dalloc_t	*dalloc;
 	malloc_mutex_t	mutex;
 	void		**root;
 	unsigned	height;
@@ -35,7 +40,8 @@ struct rtree_s {
 /******************************************************************************/
 #ifdef JEMALLOC_H_EXTERNS
 
-rtree_t	*rtree_new(unsigned bits);
+rtree_t	*rtree_new(unsigned bits, rtree_alloc_t *alloc, rtree_dalloc_t *dalloc);
+void	rtree_delete(rtree_t *rtree);
 void	rtree_prefork(rtree_t *rtree);
 void	rtree_postfork_parent(rtree_t *rtree);
 void	rtree_postfork_child(rtree_t *rtree);
@@ -45,7 +51,7 @@ void	rtree_postfork_child(rtree_t *rtree);
 #ifdef JEMALLOC_H_INLINES
 
 #ifndef JEMALLOC_ENABLE_INLINE
-#ifndef JEMALLOC_DEBUG
+#ifdef JEMALLOC_DEBUG
 void	*rtree_get_locked(rtree_t *rtree, uintptr_t key);
 #endif
 void	*rtree_get(rtree_t *rtree, uintptr_t key);
@@ -68,7 +74,7 @@ f(rtree_t *rtree, uintptr_t key)					\
 	    i < height - 1;						\
 	    i++, lshift += bits, node = child) {			\
 		bits = rtree->level2bits[i];				\
-		subkey = (key << lshift) >> ((ZU(1) << (LG_SIZEOF_PTR + \
+		subkey = (key << lshift) >> ((ZU(1) << (LG_SIZEOF_PTR +	\
 		    3)) - bits);					\
 		child = (void**)node[subkey];				\
 		if (child == NULL) {					\
@@ -138,7 +144,7 @@ rtree_set(rtree_t *rtree, uintptr_t key, void *val)
 		    bits);
 		child = (void**)node[subkey];
 		if (child == NULL) {
-			child = (void**)base_alloc(sizeof(void *) <<
+			child = (void**)rtree->alloc(sizeof(void *) <<
 			    rtree->level2bits[i+1]);
 			if (child == NULL) {
 				malloc_mutex_unlock(&rtree->mutex);

@@ -327,6 +327,7 @@ quarantine_tsd_get_wrapper
 quarantine_tsd_init_head
 quarantine_tsd_set
 register_zone
+rtree_delete
 rtree_get
 rtree_get_locked
 rtree_new

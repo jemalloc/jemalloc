@@ -356,7 +356,7 @@ chunk_boot(void)
 	extent_tree_ad_new(&chunks_ad_dss);
 	if (config_ivsalloc) {
 		chunks_rtree = rtree_new((ZU(1) << (LG_SIZEOF_PTR+3)) -
-		    opt_lg_chunk);
+		    opt_lg_chunk, base_alloc, NULL);
 		if (chunks_rtree == NULL)
 			return (true);
 	}
