@@ -167,11 +167,17 @@ node_remove(tree_t *tree, node_t *node, unsigned nnodes)
 
 	/* Test rb_nsearch(). */
 	search_node = tree_nsearch(tree, node);
-	assert(search_node == NULL || search_node->key >= node->key);
+	if (search_node != NULL) {
+		assert_u64_ge(search_node->key, node->key,
+		    "Key ordering error");
+	}
 
 	/* Test rb_psearch(). */
 	search_node = tree_psearch(tree, node);
-	assert(search_node == NULL || search_node->key <= node->key);
+	if (search_node != NULL) {
+		assert_u64_le(search_node->key, node->key,
+		    "Key ordering error");
+	}
 
 	node->magic = 0;
 
@@ -179,8 +185,10 @@ node_remove(tree_t *tree, node_t *node, unsigned nnodes)
 	imbalances = tree_recurse(tree->rbt_root, black_height, 0,
 	    &(tree->rbt_nil));
 	assert_u_eq(imbalances, 0, "Tree is unbalanced");
-	assert(nnodes - 1 == tree_iterate(tree));
-	assert(nnodes - 1 == tree_iterate_reverse(tree));
+	assert_u_eq(tree_iterate(tree), nnodes-1,
+	    "Unexpected node iteration count");
+	assert_u_eq(tree_iterate_reverse(tree), nnodes-1,
+	    "Unexpected node iteration count");
 }
 
 static node_t *
