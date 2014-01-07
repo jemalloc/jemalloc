@@ -48,6 +48,84 @@
 #define	assert_u_ge(a, b, fmt...)	assert_cmp(int, a, b, >=, <, "u", fmt)
 #define	assert_u_gt(a, b, fmt...)	assert_cmp(int, a, b, >, <=, "u", fmt)
 
+#define	assert_ld_eq(a, b, fmt...)	assert_cmp(long, a, b, ==,	\
+    !=, "ld", fmt)
+#define	assert_ld_ne(a, b, fmt...)	assert_cmp(long, a, b, !=,	\
+    ==, "ld", fmt)
+#define	assert_ld_lt(a, b, fmt...)	assert_cmp(long, a, b, <,	\
+    >=, "ld", fmt)
+#define	assert_ld_le(a, b, fmt...)	assert_cmp(long, a, b, <=,	\
+    >, "ld", fmt)
+#define	assert_ld_ge(a, b, fmt...)	assert_cmp(long, a, b, >=,	\
+    <, "ld", fmt)
+#define	assert_ld_gt(a, b, fmt...)	assert_cmp(long, a, b, >,	\
+    <=, "ld", fmt)
+
+#define	assert_lu_eq(a, b, fmt...)	assert_cmp(unsigned long,	\
+    a, b, ==, !=, "lu", fmt)
+#define	assert_lu_ne(a, b, fmt...)	assert_cmp(unsigned long,	\
+    a, b, !=, ==, "lu", fmt)
+#define	assert_lu_lt(a, b, fmt...)	assert_cmp(unsigned long,	\
+    a, b, <, >=, "lu", fmt)
+#define	assert_lu_le(a, b, fmt...)	assert_cmp(unsigned long,	\
+    a, b, <=, >, "lu", fmt)
+#define	assert_lu_ge(a, b, fmt...)	assert_cmp(unsigned long,	\
+    a, b, >=, <, "lu", fmt)
+#define	assert_lu_gt(a, b, fmt...)	assert_cmp(unsigned long,	\
+    a, b, >, <=, "lu", fmt)
+
+#define	assert_qd_eq(a, b, fmt...)	assert_cmp(long long, a, b, ==,	\
+    !=, "qd", fmt)
+#define	assert_qd_ne(a, b, fmt...)	assert_cmp(long long, a, b, !=,	\
+    ==, "qd", fmt)
+#define	assert_qd_lt(a, b, fmt...)	assert_cmp(long long, a, b, <,	\
+    >=, "qd", fmt)
+#define	assert_qd_le(a, b, fmt...)	assert_cmp(long long, a, b, <=,	\
+    >, "qd", fmt)
+#define	assert_qd_ge(a, b, fmt...)	assert_cmp(long long, a, b, >=,	\
+    <, "qd", fmt)
+#define	assert_qd_gt(a, b, fmt...)	assert_cmp(long long, a, b, >,	\
+    <=, "qd", fmt)
+
+#define	assert_qu_eq(a, b, fmt...)	assert_cmp(unsigned long long,	\
+    a, b, ==, !=, "qu", fmt)
+#define	assert_qu_ne(a, b, fmt...)	assert_cmp(unsigned long long,	\
+    a, b, !=, ==, "qu", fmt)
+#define	assert_qu_lt(a, b, fmt...)	assert_cmp(unsigned long long,	\
+    a, b, <, >=, "qu", fmt)
+#define	assert_qu_le(a, b, fmt...)	assert_cmp(unsigned long long,	\
+    a, b, <=, >, "qu", fmt)
+#define	assert_qu_ge(a, b, fmt...)	assert_cmp(unsigned long long,	\
+    a, b, >=, <, "qu", fmt)
+#define	assert_qu_gt(a, b, fmt...)	assert_cmp(unsigned long long,	\
+    a, b, >, <=, "qu", fmt)
+
+#define	assert_jd_eq(a, b, fmt...)	assert_cmp(intmax_t, a, b, ==,	\
+    !=, "jd", fmt)
+#define	assert_jd_ne(a, b, fmt...)	assert_cmp(intmax_t, a, b, !=,	\
+    ==, "jd", fmt)
+#define	assert_jd_lt(a, b, fmt...)	assert_cmp(intmax_t, a, b, <,	\
+    >=, "jd", fmt)
+#define	assert_jd_le(a, b, fmt...)	assert_cmp(intmax_t, a, b, <=,	\
+    >, "jd", fmt)
+#define	assert_jd_ge(a, b, fmt...)	assert_cmp(intmax_t, a, b, >=,	\
+    <, "jd", fmt)
+#define	assert_jd_gt(a, b, fmt...)	assert_cmp(intmax_t, a, b, >,	\
+    <=, "jd", fmt)
+
+#define	assert_ju_eq(a, b, fmt...)	assert_cmp(uintmax_t, a, b, ==,	\
+    !=, "ju", fmt)
+#define	assert_ju_ne(a, b, fmt...)	assert_cmp(uintmax_t, a, b, !=,	\
+    ==, "ju", fmt)
+#define	assert_ju_lt(a, b, fmt...)	assert_cmp(uintmax_t, a, b, <,	\
+    >=, "ju", fmt)
+#define	assert_ju_le(a, b, fmt...)	assert_cmp(uintmax_t, a, b, <=,	\
+    >, "ju", fmt)
+#define	assert_ju_ge(a, b, fmt...)	assert_cmp(uintmax_t, a, b, >=,	\
+    <, "ju", fmt)
+#define	assert_ju_gt(a, b, fmt...)	assert_cmp(uintmax_t, a, b, >,	\
+    <=, "ju", fmt)
+
 #define	assert_zd_eq(a, b, fmt...)	assert_cmp(ssize_t, a, b, ==,	\
     !=, "zd", fmt)
 #define	assert_zd_ne(a, b, fmt...)	assert_cmp(ssize_t, a, b, !=,	\
@@ -170,6 +248,11 @@
 		    "\"%s\" same as \"%s\": ",				\
 		    __func__, __FILE__, __LINE__, #a, #b, a, b, fmt);	\
 	}								\
+} while (0)
+
+#define	assert_not_reached(fmt...) do {					\
+	p_test_fail("%s:%s:%d: Unreachable code reached: ",		\
+	    __func__, __FILE__, __LINE__, fmt);				\
 } while (0)
 
 /*
