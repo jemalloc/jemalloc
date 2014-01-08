@@ -408,9 +408,12 @@ void	arena_alloc_junk_small(void *ptr, arena_bin_info_t *bin_info,
 #ifdef JEMALLOC_JET
 typedef void (arena_redzone_corruption_t)(void *, size_t, bool, size_t,
     uint8_t);
-extern arena_redzone_corruption_t *arena_redzone_corruption_fptr;
-#endif
+extern arena_redzone_corruption_t *arena_redzone_corruption;
+typedef void (arena_dalloc_junk_small_t)(void *, arena_bin_info_t *);
+extern arena_dalloc_junk_small_t *arena_dalloc_junk_small;
+#else
 void	arena_dalloc_junk_small(void *ptr, arena_bin_info_t *bin_info);
+#endif
 void	arena_quarantine_junk_small(void *ptr, size_t usize);
 void	*arena_malloc_small(arena_t *arena, size_t size, bool zero);
 void	*arena_malloc_large(arena_t *arena, size_t size, bool zero);
@@ -422,9 +425,17 @@ void	arena_dalloc_bin(arena_t *arena, arena_chunk_t *chunk, void *ptr,
     size_t pageind, arena_chunk_map_t *mapelm);
 void	arena_dalloc_small(arena_t *arena, arena_chunk_t *chunk, void *ptr,
     size_t pageind);
+#ifdef JEMALLOC_JET
+typedef void (arena_dalloc_junk_large_t)(void *, size_t);
+extern arena_dalloc_junk_large_t *arena_dalloc_junk_large;
+#endif
 void	arena_dalloc_large_locked(arena_t *arena, arena_chunk_t *chunk,
     void *ptr);
 void	arena_dalloc_large(arena_t *arena, arena_chunk_t *chunk, void *ptr);
+#ifdef JEMALLOC_JET
+typedef void (arena_ralloc_junk_large_t)(void *, size_t, size_t);
+extern arena_ralloc_junk_large_t *arena_ralloc_junk_large;
+#endif
 void	*arena_ralloc_no_move(void *ptr, size_t oldsize, size_t size,
     size_t extra, bool zero);
 void	*arena_ralloc(arena_t *arena, void *ptr, size_t oldsize, size_t size,

@@ -1446,10 +1446,10 @@ arena_redzone_corruption(void *ptr, size_t usize, bool after,
 	    after ? "after" : "before", ptr, usize, byte);
 }
 #ifdef JEMALLOC_JET
-arena_redzone_corruption_t *arena_redzone_corruption_fptr =
-    arena_redzone_corruption;
 #undef arena_redzone_corruption
-#define	arena_redzone_corruption arena_redzone_corruption_fptr
+#define	arena_redzone_corruption JEMALLOC_N(arena_redzone_corruption)
+arena_redzone_corruption_t *arena_redzone_corruption =
+    JEMALLOC_N(arena_redzone_corruption_impl);
 #endif
 
 static void
@@ -1482,6 +1482,10 @@ arena_redzones_validate(void *ptr, arena_bin_info_t *bin_info, bool reset)
 		abort();
 }
 
+#ifdef JEMALLOC_JET
+#undef arena_dalloc_junk_small
+#define	arena_dalloc_junk_small JEMALLOC_N(arena_dalloc_junk_small_impl)
+#endif
 void
 arena_dalloc_junk_small(void *ptr, arena_bin_info_t *bin_info)
 {
@@ -1491,6 +1495,12 @@ arena_dalloc_junk_small(void *ptr, arena_bin_info_t *bin_info)
 	memset((void *)((uintptr_t)ptr - redzone_size), 0x5a,
 	    bin_info->reg_interval);
 }
+#ifdef JEMALLOC_JET
+#undef arena_dalloc_junk_small
+#define	arena_dalloc_junk_small JEMALLOC_N(arena_dalloc_junk_small)
+arena_dalloc_junk_small_t *arena_dalloc_junk_small =
+    JEMALLOC_N(arena_dalloc_junk_small_impl);
+#endif
 
 void
 arena_quarantine_junk_small(void *ptr, size_t usize)
@@ -1841,21 +1851,38 @@ arena_dalloc_small(arena_t *arena, arena_chunk_t *chunk, void *ptr,
 	arena_dalloc_bin(arena, chunk, ptr, pageind, mapelm);
 }
 
+#ifdef JEMALLOC_JET
+#undef arena_dalloc_junk_large
+#define	arena_dalloc_junk_large JEMALLOC_N(arena_dalloc_junk_large_impl)
+#endif
+static void
+arena_dalloc_junk_large(void *ptr, size_t usize)
+{
+
+	if (config_fill && opt_junk)
+		memset(ptr, 0x5a, usize);
+}
+#ifdef JEMALLOC_JET
+#undef arena_dalloc_junk_large
+#define	arena_dalloc_junk_large JEMALLOC_N(arena_dalloc_junk_large)
+arena_dalloc_junk_large_t *arena_dalloc_junk_large =
+    JEMALLOC_N(arena_dalloc_junk_large_impl);
+#endif
+
 void
 arena_dalloc_large_locked(arena_t *arena, arena_chunk_t *chunk, void *ptr)
 {
 
 	if (config_fill || config_stats) {
 		size_t pageind = ((uintptr_t)ptr - (uintptr_t)chunk) >> LG_PAGE;
-		size_t size = arena_mapbits_large_size_get(chunk, pageind);
+		size_t usize = arena_mapbits_large_size_get(chunk, pageind);
 
-		if (config_fill && config_stats && opt_junk)
-			memset(ptr, 0x5a, size);
+		arena_dalloc_junk_large(ptr, usize);
 		if (config_stats) {
 			arena->stats.ndalloc_large++;
-			arena->stats.allocated_large -= size;
-			arena->stats.lstats[(size >> LG_PAGE) - 1].ndalloc++;
-			arena->stats.lstats[(size >> LG_PAGE) - 1].curruns--;
+			arena->stats.allocated_large -= usize;
+			arena->stats.lstats[(usize >> LG_PAGE) - 1].ndalloc++;
+			arena->stats.lstats[(usize >> LG_PAGE) - 1].curruns--;
 		}
 	}
 
@@ -1967,6 +1994,26 @@ arena_ralloc_large_grow(arena_t *arena, arena_chunk_t *chunk, void *ptr,
 	return (true);
 }
 
+#ifdef JEMALLOC_JET
+#undef arena_ralloc_junk_large
+#define	arena_ralloc_junk_large JEMALLOC_N(arena_ralloc_junk_large_impl)
+#endif
+static void
+arena_ralloc_junk_large(void *ptr, size_t old_usize, size_t usize)
+{
+
+	if (config_fill && opt_junk) {
+		memset((void *)((uintptr_t)ptr + usize), 0x5a,
+		    old_usize - usize);
+	}
+}
+#ifdef JEMALLOC_JET
+#undef arena_ralloc_junk_large
+#define	arena_ralloc_junk_large JEMALLOC_N(arena_ralloc_junk_large)
+arena_ralloc_junk_large_t *arena_ralloc_junk_large =
+    JEMALLOC_N(arena_ralloc_junk_large_impl);
+#endif
+
 /*
  * Try to resize a large allocation, in order to avoid copying.  This will
  * always fail if growing an object, and the following run is already in use.
@@ -1990,10 +2037,7 @@ arena_ralloc_large(void *ptr, size_t oldsize, size_t size, size_t extra,
 
 		if (psize < oldsize) {
 			/* Fill before shrinking in order avoid a race. */
-			if (config_fill && opt_junk) {
-				memset((void *)((uintptr_t)ptr + psize), 0x5a,
-				    oldsize - psize);
-			}
+			arena_ralloc_junk_large(ptr, oldsize, psize);
 			arena_ralloc_large_shrink(arena, chunk, ptr, oldsize,
 			    psize);
 			return (false);
@@ -2001,10 +2045,16 @@ arena_ralloc_large(void *ptr, size_t oldsize, size_t size, size_t extra,
 			bool ret = arena_ralloc_large_grow(arena, chunk, ptr,
 			    oldsize, PAGE_CEILING(size),
 			    psize - PAGE_CEILING(size), zero);
-			if (config_fill && ret == false && zero == false &&
-			    opt_zero) {
-				memset((void *)((uintptr_t)ptr + oldsize), 0,
-				    size - oldsize);
+			if (config_fill && ret == false && zero == false) {
+				if (opt_junk) {
+					memset((void *)((uintptr_t)ptr +
+					    oldsize), 0xa5, isalloc(ptr,
+					    config_prof) - oldsize);
+				} else if (opt_zero) {
+					memset((void *)((uintptr_t)ptr +
+					    oldsize), 0, isalloc(ptr,
+					    config_prof) - oldsize);
+				}
 			}
 			return (ret);
 		}

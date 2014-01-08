@@ -8,6 +8,7 @@ arena_boot
 arena_dalloc
 arena_dalloc_bin
 arena_dalloc_bin_locked
+arena_dalloc_junk_large
 arena_dalloc_junk_small
 arena_dalloc_large
 arena_dalloc_large_locked
@@ -52,6 +53,7 @@ arena_ptr_small_binind_get
 arena_purge_all
 arena_quarantine_junk_small
 arena_ralloc
+arena_ralloc_junk_large
 arena_ralloc_no_move
 arena_redzone_corruption
 arena_run_regind
@@ -194,6 +196,7 @@ hash_x86_32
 huge_allocated
 huge_boot
 huge_dalloc
+huge_dalloc_junk
 huge_malloc
 huge_mtx
 huge_ndalloc

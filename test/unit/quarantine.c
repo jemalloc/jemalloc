@@ -73,8 +73,8 @@ TEST_BEGIN(test_quarantine_redzone)
 
 	test_skip_if(!config_fill);
 
-	arena_redzone_corruption_orig = arena_redzone_corruption_fptr;
-	arena_redzone_corruption_fptr = arena_redzone_corruption_replacement;
+	arena_redzone_corruption_orig = arena_redzone_corruption;
+	arena_redzone_corruption = arena_redzone_corruption_replacement;
 
 	/* Test underflow. */
 	detected_redzone_corruption = false;
@@ -94,7 +94,7 @@ TEST_BEGIN(test_quarantine_redzone)
 	assert_true(detected_redzone_corruption,
 	    "Did not detect redzone corruption");
 
-	arena_redzone_corruption_fptr = arena_redzone_corruption_orig;
+	arena_redzone_corruption = arena_redzone_corruption_orig;
 }
 TEST_END
 

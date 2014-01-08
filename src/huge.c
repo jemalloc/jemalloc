@@ -182,6 +182,29 @@ huge_ralloc(void *ptr, size_t oldsize, size_t size, size_t extra,
 	return (ret);
 }
 
+#ifdef JEMALLOC_JET
+#undef huge_dalloc_junk
+#define	huge_dalloc_junk JEMALLOC_N(huge_dalloc_junk_impl)
+#endif
+static void
+huge_dalloc_junk(void *ptr, size_t usize)
+{
+
+	if (config_fill && config_dss && opt_junk) {
+		/*
+		 * Only bother junk filling if the chunk isn't about to be
+		 * unmapped.
+		 */
+		if (config_munmap == false || (config_dss && chunk_in_dss(ptr)))
+			memset(ptr, 0x5a, usize);
+	}
+}
+#ifdef JEMALLOC_JET
+#undef huge_dalloc_junk
+#define	huge_dalloc_junk JEMALLOC_N(huge_dalloc_junk)
+huge_dalloc_junk_t *huge_dalloc_junk = JEMALLOC_N(huge_dalloc_junk_impl);
+#endif
+
 void
 huge_dalloc(void *ptr, bool unmap)
 {
@@ -204,8 +227,8 @@ huge_dalloc(void *ptr, bool unmap)
 
 	malloc_mutex_unlock(&huge_mtx);
 
-	if (unmap && config_fill && config_dss && opt_junk)
-		memset(node->addr, 0x5a, node->size);
+	if (unmap)
+		huge_dalloc_junk(node->addr, node->size);
 
 	chunk_dealloc(node->addr, node->size, unmap);
 
