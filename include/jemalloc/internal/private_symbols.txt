@@ -223,9 +223,11 @@ iqalloc
 iqalloct
 iralloc
 iralloct
+iralloct_realign
 isalloc
 isthreaded
 ivsalloc
+ixalloc
 jemalloc_postfork_child
 jemalloc_postfork_parent
 jemalloc_prefork

@@ -40,20 +40,6 @@ TEST_BEGIN(test_alignment_errors)
 	size_t nsz, sz, alignment;
 
 #if LG_SIZEOF_PTR == 3
-	alignment = UINT64_C(0x8000000000000000);
-	sz        = UINT64_C(0x8000000000000000);
-#else
-	alignment = 0x80000000LU;
-	sz        = 0x80000000LU;
-#endif
-	nsz = nallocx(sz, MALLOCX_ALIGN(alignment));
-	assert_zu_eq(nsz, 0, "Expected error for nallocx(%zu, %#x)", sz,
-	    MALLOCX_ALIGN(alignment));
-	p = mallocx(sz, MALLOCX_ALIGN(alignment));
-	assert_ptr_null(p, "Expected error for mallocx(%zu, %#x)", sz,
-	    MALLOCX_ALIGN(alignment));
-
-#if LG_SIZEOF_PTR == 3
 	alignment = UINT64_C(0x4000000000000000);
 	sz        = UINT64_C(0x8400000000000001);
 #else
@@ -62,22 +48,6 @@ TEST_BEGIN(test_alignment_errors)
 #endif
 	nsz = nallocx(sz, MALLOCX_ALIGN(alignment));
 	assert_zu_ne(nsz, 0, "Unexpected nallocx() error");
-	p = mallocx(sz, MALLOCX_ALIGN(alignment));
-	assert_ptr_null(p, "Expected error for mallocx(%zu, %#x)", sz,
-	    MALLOCX_ALIGN(alignment));
-
-	alignment = 0x10LU;
-#if LG_SIZEOF_PTR == 3
-	sz = UINT64_C(0xfffffffffffffff0);
-#else
-	sz = 0xfffffff0LU;
-#endif
-	nsz = nallocx(sz, MALLOCX_ALIGN(alignment));
-	assert_zu_eq(nsz, 0, "Expected error for nallocx(%zu, %#x)", sz,
-	    MALLOCX_ALIGN(alignment));
-	nsz = nallocx(sz, MALLOCX_ALIGN(alignment));
-	assert_zu_eq(nsz, 0, "Expected error for nallocx(%zu, %#x)", sz,
-	    MALLOCX_ALIGN(alignment));
 	p = mallocx(sz, MALLOCX_ALIGN(alignment));
 	assert_ptr_null(p, "Expected error for mallocx(%zu, %#x)", sz,
 	    MALLOCX_ALIGN(alignment));

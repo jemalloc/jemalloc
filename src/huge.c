@@ -78,7 +78,7 @@ huge_palloc(size_t size, size_t alignment, bool zero)
 	return (ret);
 }
 
-void *
+bool
 huge_ralloc_no_move(void *ptr, size_t oldsize, size_t size, size_t extra)
 {
 
@@ -89,11 +89,11 @@ huge_ralloc_no_move(void *ptr, size_t oldsize, size_t size, size_t extra)
 	    && CHUNK_CEILING(oldsize) >= CHUNK_CEILING(size)
 	    && CHUNK_CEILING(oldsize) <= CHUNK_CEILING(size+extra)) {
 		assert(CHUNK_CEILING(oldsize) == oldsize);
-		return (ptr);
+		return (false);
 	}
 
 	/* Reallocation would require a move. */
-	return (NULL);
+	return (true);
 }
 
 void *
@@ -104,9 +104,8 @@ huge_ralloc(void *ptr, size_t oldsize, size_t size, size_t extra,
 	size_t copysize;
 
 	/* Try to avoid moving the allocation. */
-	ret = huge_ralloc_no_move(ptr, oldsize, size, extra);
-	if (ret != NULL)
-		return (ret);
+	if (huge_ralloc_no_move(ptr, oldsize, size, extra) == false)
+		return (ptr);
 
 	/*
 	 * size and oldsize are different enough that we need to use a

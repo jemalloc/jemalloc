@@ -100,18 +100,12 @@ typedef struct {
 #endif
 
 /******************************************************************************/
-/* Function prototypes for non-inline static functions. */
+/*
+ * Function prototypes for static functions that are referenced prior to
+ * definition.
+ */
 
-static void	stats_print_atexit(void);
-static unsigned	malloc_ncpus(void);
-static bool	malloc_conf_next(char const **opts_p, char const **k_p,
-    size_t *klen_p, char const **v_p, size_t *vlen_p);
-static void	malloc_conf_error(const char *msg, const char *k, size_t klen,
-    const char *v, size_t vlen);
-static void	malloc_conf_init(void);
 static bool	malloc_init_hard(void);
-static int	imemalign(void **memptr, size_t alignment, size_t size,
-    size_t min_alignment);
 
 /******************************************************************************/
 /*
@@ -852,42 +846,88 @@ malloc_init_hard(void)
  * Begin malloc(3)-compatible functions.
  */
 
+static void *
+imalloc_prof_sample(size_t usize, prof_thr_cnt_t *cnt)
+{
+	void *p;
+
+	if (cnt == NULL)
+		return (NULL);
+	if (prof_promote && usize <= SMALL_MAXCLASS) {
+		p = imalloc(SMALL_MAXCLASS+1);
+		if (p == NULL)
+			return (NULL);
+		arena_prof_promoted(p, usize);
+	} else
+		p = imalloc(usize);
+
+	return (p);
+}
+
+JEMALLOC_ALWAYS_INLINE_C void *
+imalloc_prof(size_t usize, prof_thr_cnt_t *cnt)
+{
+	void *p;
+
+	if ((uintptr_t)cnt != (uintptr_t)1U)
+		p = imalloc_prof_sample(usize, cnt);
+	else
+		p = imalloc(usize);
+	if (p == NULL)
+		return (NULL);
+	prof_malloc(p, usize, cnt);
+
+	return (p);
+}
+
+/*
+ * MALLOC_BODY() is a macro rather than a function because its contents are in
+ * the fast path, but inlining would cause reliability issues when determining
+ * how many frames to discard from heap profiling backtraces.
+ */
+#define	MALLOC_BODY(ret, size, usize) do {				\
+	if (malloc_init())						\
+		ret = NULL;						\
+	else {								\
+		if (config_prof && opt_prof) {				\
+			prof_thr_cnt_t *cnt;				\
+									\
+			usize = s2u(size);				\
+			/*						\
+			 * Call PROF_ALLOC_PREP() here rather than in	\
+			 * imalloc_prof() so that imalloc_prof() can be	\
+			 * inlined without introducing uncertainty	\
+			 * about the number of backtrace frames to	\
+			 * ignore.  imalloc_prof() is in the fast path	\
+			 * when heap profiling is enabled, so inlining	\
+			 * is critical to performance.  (For		\
+			 * consistency all callers of PROF_ALLOC_PREP()	\
+			 * are structured similarly, even though e.g.	\
+			 * realloc() isn't called enough for inlining	\
+			 * to be critical.)				\
+			 */						\
+			PROF_ALLOC_PREP(1, usize, cnt);			\
+			ret = imalloc_prof(usize, cnt);			\
+		} else {						\
+			if (config_stats || (config_valgrind &&		\
+			    opt_valgrind))				\
+				usize = s2u(size);			\
+			ret = imalloc(size);				\
+		}							\
+	}								\
+} while (0)
+
 void *
 je_malloc(size_t size)
 {
 	void *ret;
 	size_t usize JEMALLOC_CC_SILENCE_INIT(0);
-	prof_thr_cnt_t *cnt JEMALLOC_CC_SILENCE_INIT(NULL);
-
-	if (malloc_init()) {
-		ret = NULL;
-		goto label_oom;
-	}
 
 	if (size == 0)
 		size = 1;
 
-	if (config_prof && opt_prof) {
-		usize = s2u(size);
-		PROF_ALLOC_PREP(1, usize, cnt);
-		if (cnt == NULL) {
-			ret = NULL;
-			goto label_oom;
-		}
-		if (prof_promote && (uintptr_t)cnt != (uintptr_t)1U && usize <=
-		    SMALL_MAXCLASS) {
-			ret = imalloc(SMALL_MAXCLASS+1);
-			if (ret != NULL)
-				arena_prof_promoted(ret, usize);
-		} else
-			ret = imalloc(size);
-	} else {
-		if (config_stats || (config_valgrind && opt_valgrind))
-			usize = s2u(size);
-		ret = imalloc(size);
-	}
+	MALLOC_BODY(ret, size, usize);
 
-label_oom:
 	if (ret == NULL) {
 		if (config_xmalloc && opt_xmalloc) {
 			malloc_write("<jemalloc>: Error in malloc(): "
@@ -896,8 +936,6 @@ label_oom:
 		}
 		set_errno(ENOMEM);
 	}
-	if (config_prof && opt_prof && ret != NULL)
-		prof_malloc(ret, usize, cnt);
 	if (config_stats && ret != NULL) {
 		assert(usize == isalloc(ret, config_prof));
 		thread_allocated_tsd_get()->allocated += usize;
@@ -905,6 +943,42 @@ label_oom:
 	UTRACE(0, size, ret);
 	JEMALLOC_VALGRIND_MALLOC(ret != NULL, ret, usize, false);
 	return (ret);
+}
+
+static void *
+imemalign_prof_sample(size_t alignment, size_t usize, prof_thr_cnt_t *cnt)
+{
+	void *p;
+
+	if (cnt == NULL)
+		return (NULL);
+	if (prof_promote && usize <= SMALL_MAXCLASS) {
+		assert(sa2u(SMALL_MAXCLASS+1, alignment) != 0);
+		p = ipalloc(sa2u(SMALL_MAXCLASS+1, alignment), alignment,
+		    false);
+		if (p == NULL)
+			return (NULL);
+		arena_prof_promoted(p, usize);
+	} else
+		p = ipalloc(usize, alignment, false);
+
+	return (p);
+}
+
+JEMALLOC_ALWAYS_INLINE_C void *
+imemalign_prof(size_t alignment, size_t usize, prof_thr_cnt_t *cnt)
+{
+	void *p;
+
+	if ((uintptr_t)cnt != (uintptr_t)1U)
+		p = imemalign_prof_sample(alignment, usize, cnt);
+	else
+		p = ipalloc(usize, alignment, false);
+	if (p == NULL)
+		return (NULL);
+	prof_malloc(p, usize, cnt);
+
+	return (p);
 }
 
 JEMALLOC_ATTR(nonnull(1))
@@ -916,19 +990,18 @@ JEMALLOC_ATTR(nonnull(1))
 JEMALLOC_NOINLINE
 #endif
 static int
-imemalign(void **memptr, size_t alignment, size_t size,
-    size_t min_alignment)
+imemalign(void **memptr, size_t alignment, size_t size, size_t min_alignment)
 {
 	int ret;
 	size_t usize;
 	void *result;
-	prof_thr_cnt_t *cnt JEMALLOC_CC_SILENCE_INIT(NULL);
 
 	assert(min_alignment != 0);
 
-	if (malloc_init())
+	if (malloc_init()) {
 		result = NULL;
-	else {
+		goto label_oom;
+	} else {
 		if (size == 0)
 			size = 1;
 
@@ -948,57 +1021,38 @@ imemalign(void **memptr, size_t alignment, size_t size,
 		usize = sa2u(size, alignment);
 		if (usize == 0) {
 			result = NULL;
-			ret = ENOMEM;
-			goto label_return;
+			goto label_oom;
 		}
 
 		if (config_prof && opt_prof) {
+			prof_thr_cnt_t *cnt;
+
 			PROF_ALLOC_PREP(2, usize, cnt);
-			if (cnt == NULL) {
-				result = NULL;
-				ret = EINVAL;
-			} else {
-				if (prof_promote && (uintptr_t)cnt !=
-				    (uintptr_t)1U && usize <= SMALL_MAXCLASS) {
-					assert(sa2u(SMALL_MAXCLASS+1,
-					    alignment) != 0);
-					result = ipalloc(sa2u(SMALL_MAXCLASS+1,
-					    alignment), alignment, false);
-					if (result != NULL) {
-						arena_prof_promoted(result,
-						    usize);
-					}
-				} else {
-					result = ipalloc(usize, alignment,
-					    false);
-				}
-			}
+			result = imemalign_prof(alignment, usize, cnt);
 		} else
 			result = ipalloc(usize, alignment, false);
-	}
-
-	if (result == NULL) {
-		if (config_xmalloc && opt_xmalloc) {
-			malloc_write("<jemalloc>: Error allocating aligned "
-			    "memory: out of memory\n");
-			abort();
-		}
-		ret = ENOMEM;
-		goto label_return;
+		if (result == NULL)
+			goto label_oom;
 	}
 
 	*memptr = result;
 	ret = 0;
-
 label_return:
 	if (config_stats && result != NULL) {
 		assert(usize == isalloc(result, config_prof));
 		thread_allocated_tsd_get()->allocated += usize;
 	}
-	if (config_prof && opt_prof && result != NULL)
-		prof_malloc(result, usize, cnt);
 	UTRACE(0, size, result);
 	return (ret);
+label_oom:
+	assert(result == NULL);
+	if (config_xmalloc && opt_xmalloc) {
+		malloc_write("<jemalloc>: Error allocating aligned memory: "
+		    "out of memory\n");
+		abort();
+	}
+	ret = ENOMEM;
+	goto label_return;
 }
 
 int
@@ -1025,13 +1079,46 @@ je_aligned_alloc(size_t alignment, size_t size)
 	return (ret);
 }
 
+static void *
+icalloc_prof_sample(size_t usize, prof_thr_cnt_t *cnt)
+{
+	void *p;
+
+	if (cnt == NULL)
+		return (NULL);
+	if (prof_promote && usize <= SMALL_MAXCLASS) {
+		p = icalloc(SMALL_MAXCLASS+1);
+		if (p == NULL)
+			return (NULL);
+		arena_prof_promoted(p, usize);
+	} else
+		p = icalloc(usize);
+
+	return (p);
+}
+
+JEMALLOC_ALWAYS_INLINE_C void *
+icalloc_prof(size_t usize, prof_thr_cnt_t *cnt)
+{
+	void *p;
+
+	if ((uintptr_t)cnt != (uintptr_t)1U)
+		p = icalloc_prof_sample(usize, cnt);
+	else
+		p = icalloc(usize);
+	if (p == NULL)
+		return (NULL);
+	prof_malloc(p, usize, cnt);
+
+	return (p);
+}
+
 void *
 je_calloc(size_t num, size_t size)
 {
 	void *ret;
 	size_t num_size;
 	size_t usize JEMALLOC_CC_SILENCE_INIT(0);
-	prof_thr_cnt_t *cnt JEMALLOC_CC_SILENCE_INIT(NULL);
 
 	if (malloc_init()) {
 		num_size = 0;
@@ -1060,19 +1147,11 @@ je_calloc(size_t num, size_t size)
 	}
 
 	if (config_prof && opt_prof) {
+		prof_thr_cnt_t *cnt;
+
 		usize = s2u(num_size);
 		PROF_ALLOC_PREP(1, usize, cnt);
-		if (cnt == NULL) {
-			ret = NULL;
-			goto label_return;
-		}
-		if (prof_promote && (uintptr_t)cnt != (uintptr_t)1U && usize
-		    <= SMALL_MAXCLASS) {
-			ret = icalloc(SMALL_MAXCLASS+1);
-			if (ret != NULL)
-				arena_prof_promoted(ret, usize);
-		} else
-			ret = icalloc(num_size);
+		ret = icalloc_prof(usize, cnt);
 	} else {
 		if (config_stats || (config_valgrind && opt_valgrind))
 			usize = s2u(num_size);
@@ -1088,9 +1167,6 @@ label_return:
 		}
 		set_errno(ENOMEM);
 	}
-
-	if (config_prof && opt_prof && ret != NULL)
-		prof_malloc(ret, usize, cnt);
 	if (config_stats && ret != NULL) {
 		assert(usize == isalloc(ret, config_prof));
 		thread_allocated_tsd_get()->allocated += usize;
@@ -1100,6 +1176,64 @@ label_return:
 	return (ret);
 }
 
+static void *
+irealloc_prof_sample(void *oldptr, size_t usize, prof_thr_cnt_t *cnt)
+{
+	void *p;
+
+	if (cnt == NULL)
+		return (NULL);
+	if (prof_promote && usize <= SMALL_MAXCLASS) {
+		p = iralloc(oldptr, SMALL_MAXCLASS+1, 0, 0, false);
+		if (p == NULL)
+			return (NULL);
+		arena_prof_promoted(p, usize);
+	} else
+		p = iralloc(oldptr, usize, 0, 0, false);
+
+	return (p);
+}
+
+JEMALLOC_ALWAYS_INLINE_C void *
+irealloc_prof(void *oldptr, size_t old_usize, size_t usize, prof_thr_cnt_t *cnt)
+{
+	void *p;
+	prof_ctx_t *old_ctx;
+
+	old_ctx = prof_ctx_get(oldptr);
+	if ((uintptr_t)cnt != (uintptr_t)1U)
+		p = irealloc_prof_sample(oldptr, usize, cnt);
+	else
+		p = iralloc(oldptr, usize, 0, 0, false);
+	if (p == NULL)
+		return (NULL);
+	prof_realloc(p, usize, cnt, old_usize, old_ctx);
+
+	return (p);
+}
+
+JEMALLOC_INLINE_C void
+ifree(void *ptr)
+{
+	size_t usize;
+	UNUSED size_t rzsize JEMALLOC_CC_SILENCE_INIT(0);
+
+	assert(ptr != NULL);
+	assert(malloc_initialized || IS_INITIALIZER);
+
+	if (config_prof && opt_prof) {
+		usize = isalloc(ptr, config_prof);
+		prof_free(ptr, usize);
+	} else if (config_stats || config_valgrind)
+		usize = isalloc(ptr, config_prof);
+	if (config_stats)
+		thread_allocated_tsd_get()->deallocated += usize;
+	if (config_valgrind && opt_valgrind)
+		rzsize = p2rz(ptr);
+	iqalloc(ptr);
+	JEMALLOC_VALGRIND_FREE(ptr, rzsize);
+}
+
 void *
 je_realloc(void *ptr, size_t size)
 {
@@ -1107,136 +1241,51 @@ je_realloc(void *ptr, size_t size)
 	size_t usize JEMALLOC_CC_SILENCE_INIT(0);
 	size_t old_usize = 0;
 	UNUSED size_t old_rzsize JEMALLOC_CC_SILENCE_INIT(0);
-	prof_thr_cnt_t *cnt JEMALLOC_CC_SILENCE_INIT(NULL);
-	prof_ctx_t *old_ctx JEMALLOC_CC_SILENCE_INIT(NULL);
 
 	if (size == 0) {
 		if (ptr != NULL) {
-			/* realloc(ptr, 0) is equivalent to free(p). */
-			assert(malloc_initialized || IS_INITIALIZER);
-			if (config_prof) {
-				old_usize = isalloc(ptr, true);
-				if (config_valgrind && opt_valgrind)
-					old_rzsize = p2rz(ptr);
-			} else if (config_stats) {
-				old_usize = isalloc(ptr, false);
-				if (config_valgrind && opt_valgrind)
-					old_rzsize = u2rz(old_usize);
-			} else if (config_valgrind && opt_valgrind) {
-				old_usize = isalloc(ptr, false);
-				old_rzsize = u2rz(old_usize);
-			}
-			if (config_prof && opt_prof) {
-				old_ctx = prof_ctx_get(ptr);
-				cnt = NULL;
-			}
-			iqalloc(ptr);
-			ret = NULL;
-			goto label_return;
-		} else
-			size = 1;
+			/* realloc(ptr, 0) is equivalent to free(ptr). */
+			UTRACE(ptr, 0, 0);
+			ifree(ptr);
+			return (NULL);
+		}
+		size = 1;
 	}
 
 	if (ptr != NULL) {
 		assert(malloc_initialized || IS_INITIALIZER);
 		malloc_thread_init();
 
-		if (config_prof) {
-			old_usize = isalloc(ptr, true);
-			if (config_valgrind && opt_valgrind)
-				old_rzsize = p2rz(ptr);
-		} else if (config_stats) {
-			old_usize = isalloc(ptr, false);
-			if (config_valgrind && opt_valgrind)
-				old_rzsize = u2rz(old_usize);
-		} else if (config_valgrind && opt_valgrind) {
-			old_usize = isalloc(ptr, false);
-			old_rzsize = u2rz(old_usize);
-		}
+		if ((config_prof && opt_prof) || config_stats ||
+		    (config_valgrind && opt_valgrind))
+			old_usize = isalloc(ptr, config_prof);
+		if (config_valgrind && opt_valgrind)
+			old_rzsize = config_prof ? p2rz(ptr) : u2rz(old_usize);
+
 		if (config_prof && opt_prof) {
+			prof_thr_cnt_t *cnt;
+
 			usize = s2u(size);
-			old_ctx = prof_ctx_get(ptr);
 			PROF_ALLOC_PREP(1, usize, cnt);
-			if (cnt == NULL) {
-				old_ctx = NULL;
-				ret = NULL;
-				goto label_oom;
-			}
-			if (prof_promote && (uintptr_t)cnt != (uintptr_t)1U &&
-			    usize <= SMALL_MAXCLASS) {
-				ret = iralloc(ptr, SMALL_MAXCLASS+1, 0, 0,
-				    false, false);
-				if (ret != NULL)
-					arena_prof_promoted(ret, usize);
-				else
-					old_ctx = NULL;
-			} else {
-				ret = iralloc(ptr, size, 0, 0, false, false);
-				if (ret == NULL)
-					old_ctx = NULL;
-			}
+			ret = irealloc_prof(ptr, old_usize, usize, cnt);
 		} else {
 			if (config_stats || (config_valgrind && opt_valgrind))
 				usize = s2u(size);
-			ret = iralloc(ptr, size, 0, 0, false, false);
-		}
-
-label_oom:
-		if (ret == NULL) {
-			if (config_xmalloc && opt_xmalloc) {
-				malloc_write("<jemalloc>: Error in realloc(): "
-				    "out of memory\n");
-				abort();
-			}
-			set_errno(ENOMEM);
+			ret = iralloc(ptr, size, 0, 0, false);
 		}
 	} else {
 		/* realloc(NULL, size) is equivalent to malloc(size). */
-		if (config_prof && opt_prof)
-			old_ctx = NULL;
-		if (malloc_init()) {
-			if (config_prof && opt_prof)
-				cnt = NULL;
-			ret = NULL;
-		} else {
-			if (config_prof && opt_prof) {
-				usize = s2u(size);
-				PROF_ALLOC_PREP(1, usize, cnt);
-				if (cnt == NULL)
-					ret = NULL;
-				else {
-					if (prof_promote && (uintptr_t)cnt !=
-					    (uintptr_t)1U && usize <=
-					    SMALL_MAXCLASS) {
-						ret = imalloc(SMALL_MAXCLASS+1);
-						if (ret != NULL) {
-							arena_prof_promoted(ret,
-							    usize);
-						}
-					} else
-						ret = imalloc(size);
-				}
-			} else {
-				if (config_stats || (config_valgrind &&
-				    opt_valgrind))
-					usize = s2u(size);
-				ret = imalloc(size);
-			}
-		}
-
-		if (ret == NULL) {
-			if (config_xmalloc && opt_xmalloc) {
-				malloc_write("<jemalloc>: Error in realloc(): "
-				    "out of memory\n");
-				abort();
-			}
-			set_errno(ENOMEM);
-		}
+		MALLOC_BODY(ret, size, usize);
 	}
 
-label_return:
-	if (config_prof && opt_prof)
-		prof_realloc(ret, usize, cnt, old_usize, old_ctx);
+	if (ret == NULL) {
+		if (config_xmalloc && opt_xmalloc) {
+			malloc_write("<jemalloc>: Error in realloc(): "
+			    "out of memory\n");
+			abort();
+		}
+		set_errno(ENOMEM);
+	}
 	if (config_stats && ret != NULL) {
 		thread_allocated_t *ta;
 		assert(usize == isalloc(ret, config_prof));
@@ -1255,24 +1304,8 @@ je_free(void *ptr)
 {
 
 	UTRACE(ptr, 0, 0);
-	if (ptr != NULL) {
-		size_t usize;
-		UNUSED size_t rzsize JEMALLOC_CC_SILENCE_INIT(0);
-
-		assert(malloc_initialized || IS_INITIALIZER);
-
-		if (config_prof && opt_prof) {
-			usize = isalloc(ptr, config_prof);
-			prof_free(ptr, usize);
-		} else if (config_stats || config_valgrind)
-			usize = isalloc(ptr, config_prof);
-		if (config_stats)
-			thread_allocated_tsd_get()->deallocated += usize;
-		if (config_valgrind && opt_valgrind)
-			rzsize = p2rz(ptr);
-		iqalloc(ptr);
-		JEMALLOC_VALGRIND_FREE(ptr, rzsize);
-	}
+	if (ptr != NULL)
+		ifree(ptr);
 }
 
 /*
@@ -1354,6 +1387,47 @@ imallocx(size_t usize, size_t alignment, bool zero, bool try_tcache,
 		return (imalloct(usize, try_tcache, arena));
 }
 
+static void *
+imallocx_prof_sample(size_t usize, size_t alignment, bool zero, bool try_tcache,
+    arena_t *arena, prof_thr_cnt_t *cnt)
+{
+	void *p;
+
+	if (cnt == NULL)
+		return (NULL);
+	if (prof_promote && usize <= SMALL_MAXCLASS) {
+		size_t usize_promoted = (alignment == 0) ?
+		    s2u(SMALL_MAXCLASS+1) : sa2u(SMALL_MAXCLASS+1, alignment);
+		assert(usize_promoted != 0);
+		p = imallocx(usize_promoted, alignment, zero, try_tcache,
+		    arena);
+		if (p == NULL)
+			return (NULL);
+		arena_prof_promoted(p, usize);
+	} else
+		p = imallocx(usize, alignment, zero, try_tcache, arena);
+
+	return (p);
+}
+
+JEMALLOC_ALWAYS_INLINE_C void *
+imallocx_prof(size_t usize, size_t alignment, bool zero, bool try_tcache,
+    arena_t *arena, prof_thr_cnt_t *cnt)
+{
+	void *p;
+
+	if ((uintptr_t)cnt != (uintptr_t)1U) {
+		p = imallocx_prof_sample(usize, alignment, zero, try_tcache,
+		    arena, cnt);
+	} else
+		p = imallocx(usize, alignment, zero, try_tcache, arena);
+	if (p == NULL)
+		return (NULL);
+	prof_malloc(p, usize, cnt);
+
+	return (p);
+}
+
 void *
 je_mallocx(size_t size, int flags)
 {
@@ -1380,37 +1454,18 @@ je_mallocx(size_t size, int flags)
 	}
 
 	usize = (alignment == 0) ? s2u(size) : sa2u(size, alignment);
-	if (usize == 0)
-		goto label_oom;
+	assert(usize != 0);
 
 	if (config_prof && opt_prof) {
 		prof_thr_cnt_t *cnt;
 
 		PROF_ALLOC_PREP(1, usize, cnt);
-		if (cnt == NULL)
-			goto label_oom;
-		if (prof_promote && (uintptr_t)cnt != (uintptr_t)1U && usize <=
-		    SMALL_MAXCLASS) {
-			size_t usize_promoted = (alignment == 0) ?
-			    s2u(SMALL_MAXCLASS+1) : sa2u(SMALL_MAXCLASS+1,
-			    alignment);
-			assert(usize_promoted != 0);
-			p = imallocx(usize_promoted, alignment, zero,
-			    try_tcache, arena);
-			if (p == NULL)
-				goto label_oom;
-			arena_prof_promoted(p, usize);
-		} else {
-			p = imallocx(usize, alignment, zero, try_tcache, arena);
-			if (p == NULL)
-				goto label_oom;
-		}
-		prof_malloc(p, usize, cnt);
-	} else {
+		p = imallocx_prof(usize, alignment, zero, try_tcache, arena,
+		    cnt);
+	} else
 		p = imallocx(usize, alignment, zero, try_tcache, arena);
-		if (p == NULL)
-			goto label_oom;
-	}
+	if (p == NULL)
+		goto label_oom;
 
 	if (config_stats) {
 		assert(usize == isalloc(p, config_prof));
@@ -1426,6 +1481,65 @@ label_oom:
 	}
 	UTRACE(0, size, 0);
 	return (NULL);
+}
+
+static void *
+irallocx_prof_sample(void *oldptr, size_t size, size_t alignment, size_t usize,
+    bool zero, bool try_tcache_alloc, bool try_tcache_dalloc, arena_t *arena,
+    prof_thr_cnt_t *cnt)
+{
+	void *p;
+
+	if (cnt == NULL)
+		return (NULL);
+	if (prof_promote && usize <= SMALL_MAXCLASS) {
+		p = iralloct(oldptr, SMALL_MAXCLASS+1, (SMALL_MAXCLASS+1 >=
+		    size) ? 0 : size - (SMALL_MAXCLASS+1), alignment, zero,
+		    try_tcache_alloc, try_tcache_dalloc, arena);
+		if (p == NULL)
+			return (NULL);
+		arena_prof_promoted(p, usize);
+	} else {
+		p = iralloct(oldptr, size, 0, alignment, zero,
+		    try_tcache_alloc, try_tcache_dalloc, arena);
+	}
+
+	return (p);
+}
+
+JEMALLOC_ALWAYS_INLINE_C void *
+irallocx_prof(void *oldptr, size_t old_usize, size_t size, size_t alignment,
+    size_t *usize, bool zero, bool try_tcache_alloc, bool try_tcache_dalloc,
+    arena_t *arena, prof_thr_cnt_t *cnt)
+{
+	void *p;
+	prof_ctx_t *old_ctx;
+
+	old_ctx = prof_ctx_get(oldptr);
+	if ((uintptr_t)cnt != (uintptr_t)1U)
+		p = irallocx_prof_sample(oldptr, size, alignment, *usize, zero,
+		    try_tcache_alloc, try_tcache_dalloc, arena, cnt);
+	else {
+		p = iralloct(oldptr, size, 0, alignment, zero,
+		    try_tcache_alloc, try_tcache_dalloc, arena);
+	}
+	if (p == NULL)
+		return (NULL);
+
+	if (p == oldptr && alignment != 0) {
+		/*
+		 * The allocation did not move, so it is possible that the size
+		 * class is smaller than would guarantee the requested
+		 * alignment, and that the alignment constraint was
+		 * serendipitously satisfied.  Additionally, old_usize may not
+		 * be the same as the current usize because of in-place large
+		 * reallocation.  Therefore, query the actual value of usize.
+		 */
+		*usize = isalloc(p, config_prof);
+	}
+	prof_realloc(p, *usize, cnt, old_usize, old_ctx);
+
+	return (p);
 }
 
 void *
@@ -1459,59 +1573,25 @@ je_rallocx(void *ptr, size_t size, int flags)
 		arena = NULL;
 	}
 
+	if ((config_prof && opt_prof) || config_stats ||
+	    (config_valgrind && opt_valgrind))
+		old_usize = isalloc(ptr, config_prof);
+	if (config_valgrind && opt_valgrind)
+		old_rzsize = u2rz(old_usize);
+
 	if (config_prof && opt_prof) {
 		prof_thr_cnt_t *cnt;
 
-		usize = (alignment == 0) ? s2u(size) : sa2u(size,
-		    alignment);
-		prof_ctx_t *old_ctx = prof_ctx_get(ptr);
-		old_usize = isalloc(ptr, true);
-		if (config_valgrind && opt_valgrind)
-			old_rzsize = p2rz(ptr);
+		usize = (alignment == 0) ? s2u(size) : sa2u(size, alignment);
+		assert(usize != 0);
 		PROF_ALLOC_PREP(1, usize, cnt);
-		if (cnt == NULL)
+		p = irallocx_prof(ptr, old_usize, size, alignment, &usize, zero,
+		    try_tcache_alloc, try_tcache_dalloc, arena, cnt);
+		if (p == NULL)
 			goto label_oom;
-		if (prof_promote && (uintptr_t)cnt != (uintptr_t)1U && usize <=
-		    SMALL_MAXCLASS) {
-			p = iralloct(ptr, SMALL_MAXCLASS+1, (SMALL_MAXCLASS+1 >=
-			    size) ? 0 : size - (SMALL_MAXCLASS+1), alignment,
-			    zero, false, try_tcache_alloc, try_tcache_dalloc,
-			    arena);
-			if (p == NULL)
-				goto label_oom;
-			if (usize < PAGE)
-				arena_prof_promoted(p, usize);
-		} else {
-			p = iralloct(ptr, size, 0, alignment, zero, false,
-			    try_tcache_alloc, try_tcache_dalloc, arena);
-			if (p == NULL)
-				goto label_oom;
-		}
-		if (p == ptr && alignment != 0) {
-			/*
-			 * The allocation did not move, so it is possible that
-			 * the size class is smaller than would guarantee the
-			 * requested alignment, and that the alignment
-			 * constraint was serendipitously satisfied.
-			 * Additionally, old_usize may not be the same as the
-			 * current usize because of in-place large
-			 * reallocation.  Therefore, query the actual value of
-			 * usize.
-			 */
-			usize = isalloc(p, true);
-		}
-		prof_realloc(p, usize, cnt, old_usize, old_ctx);
 	} else {
-		if (config_stats) {
-			old_usize = isalloc(ptr, false);
-			if (config_valgrind && opt_valgrind)
-				old_rzsize = u2rz(old_usize);
-		} else if (config_valgrind && opt_valgrind) {
-			old_usize = isalloc(ptr, false);
-			old_rzsize = u2rz(old_usize);
-		}
-		p = iralloct(ptr, size, 0, alignment, zero, false,
-		    try_tcache_alloc, try_tcache_dalloc, arena);
+		p = iralloct(ptr, size, 0, alignment, zero, try_tcache_alloc,
+		    try_tcache_dalloc, arena);
 		if (p == NULL)
 			goto label_oom;
 		if (config_stats || (config_valgrind && opt_valgrind))
@@ -1536,6 +1616,69 @@ label_oom:
 	return (NULL);
 }
 
+JEMALLOC_ALWAYS_INLINE_C size_t
+ixallocx_helper(void *ptr, size_t old_usize, size_t size, size_t extra,
+    size_t alignment, bool zero, arena_t *arena)
+{
+	size_t usize;
+
+	if (ixalloc(ptr, size, extra, alignment, zero))
+		return (old_usize);
+	usize = isalloc(ptr, config_prof);
+
+	return (usize);
+}
+
+static size_t
+ixallocx_prof_sample(void *ptr, size_t old_usize, size_t size, size_t extra,
+    size_t alignment, size_t max_usize, bool zero, arena_t *arena,
+    prof_thr_cnt_t *cnt)
+{
+	size_t usize;
+
+	if (cnt == NULL)
+		return (old_usize);
+	/* Use minimum usize to determine whether promotion may happen. */
+	if (prof_promote && ((alignment == 0) ? s2u(size) : sa2u(size,
+	    alignment)) <= SMALL_MAXCLASS) {
+		if (ixalloc(ptr, SMALL_MAXCLASS+1, (SMALL_MAXCLASS+1 >=
+		    size+extra) ? 0 : size+extra - (SMALL_MAXCLASS+1),
+		    alignment, zero))
+			return (old_usize);
+		usize = isalloc(ptr, config_prof);
+		if (max_usize < PAGE)
+			arena_prof_promoted(ptr, usize);
+	} else {
+		usize = ixallocx_helper(ptr, old_usize, size, extra, alignment,
+		    zero, arena);
+	}
+
+	return (usize);
+}
+
+JEMALLOC_ALWAYS_INLINE_C size_t
+ixallocx_prof(void *ptr, size_t old_usize, size_t size, size_t extra,
+    size_t alignment, size_t max_usize, bool zero, arena_t *arena,
+    prof_thr_cnt_t *cnt)
+{
+	size_t usize;
+	prof_ctx_t *old_ctx;
+
+	old_ctx = prof_ctx_get(ptr);
+	if ((uintptr_t)cnt != (uintptr_t)1U) {
+		usize = ixallocx_prof_sample(ptr, old_usize, size, extra,
+		    alignment, zero, max_usize, arena, cnt);
+	} else {
+		usize = ixallocx_helper(ptr, old_usize, size, extra, alignment,
+		    zero, arena);
+	}
+	if (usize == old_usize)
+		return (usize);
+	prof_realloc(ptr, usize, cnt, old_usize, old_ctx);
+
+	return (usize);
+}
+
 size_t
 je_xallocx(void *ptr, size_t size, size_t extra, int flags)
 {
@@ -1545,7 +1688,6 @@ je_xallocx(void *ptr, size_t size, size_t extra, int flags)
 	    & (SIZE_T_MAX-1));
 	bool zero = flags & MALLOCX_ZERO;
 	unsigned arena_ind = ((unsigned)(flags >> 8)) - 1;
-	bool try_tcache_alloc, try_tcache_dalloc;
 	arena_t *arena;
 
 	assert(ptr != NULL);
@@ -1556,22 +1698,19 @@ je_xallocx(void *ptr, size_t size, size_t extra, int flags)
 
 	if (arena_ind != UINT_MAX) {
 		arena_chunk_t *chunk;
-		try_tcache_alloc = false;
 		chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
-		try_tcache_dalloc = (chunk == ptr || chunk->arena !=
-		    arenas[arena_ind]);
 		arena = arenas[arena_ind];
-	} else {
-		try_tcache_alloc = true;
-		try_tcache_dalloc = true;
+	} else
 		arena = NULL;
-	}
+
+	old_usize = isalloc(ptr, config_prof);
+	if (config_valgrind && opt_valgrind)
+		old_rzsize = u2rz(old_usize);
 
 	if (config_prof && opt_prof) {
 		prof_thr_cnt_t *cnt;
-
 		/*
-		 * usize isn't knowable before iralloc() returns when extra is
+		 * usize isn't knowable before ixalloc() returns when extra is
 		 * non-zero.  Therefore, compute its maximum possible value and
 		 * use that in PROF_ALLOC_PREP() to decide whether to capture a
 		 * backtrace.  prof_realloc() will use the actual usize to
@@ -1579,60 +1718,15 @@ je_xallocx(void *ptr, size_t size, size_t extra, int flags)
 		 */
 		size_t max_usize = (alignment == 0) ? s2u(size+extra) :
 		    sa2u(size+extra, alignment);
-		prof_ctx_t *old_ctx = prof_ctx_get(ptr);
-		old_usize = isalloc(ptr, true);
-		if (config_valgrind && opt_valgrind)
-			old_rzsize = p2rz(ptr);
 		PROF_ALLOC_PREP(1, max_usize, cnt);
-		if (cnt == NULL) {
-			usize = old_usize;
-			goto label_not_moved;
-		}
-		/*
-		 * Use minimum usize to determine whether promotion may happen.
-		 */
-		if (prof_promote && (uintptr_t)cnt != (uintptr_t)1U
-		    && ((alignment == 0) ? s2u(size) : sa2u(size, alignment))
-		    <= SMALL_MAXCLASS) {
-			if (iralloct(ptr, SMALL_MAXCLASS+1, (SMALL_MAXCLASS+1 >=
-			    size+extra) ? 0 : size+extra - (SMALL_MAXCLASS+1),
-			    alignment, zero, true, try_tcache_alloc,
-			    try_tcache_dalloc, arena) == NULL) {
-				usize = old_usize;
-				goto label_not_moved;
-			}
-			usize = isalloc(ptr, true);
-			if (max_usize < PAGE)
-				arena_prof_promoted(ptr, usize);
-		} else {
-			if (iralloct(ptr, size, extra, alignment, zero, true,
-			    try_tcache_alloc, try_tcache_dalloc, arena) ==
-			    NULL) {
-				usize = old_usize;
-				goto label_not_moved;
-			}
-			usize = isalloc(ptr, true);
-		}
-		prof_realloc(ptr, usize, cnt, old_usize, old_ctx);
+		usize = ixallocx_prof(ptr, old_usize, size, extra, alignment,
+		    max_usize, zero, arena, cnt);
 	} else {
-		if (config_stats) {
-			old_usize = isalloc(ptr, false);
-			if (config_valgrind && opt_valgrind)
-				old_rzsize = u2rz(old_usize);
-		} else if (config_valgrind && opt_valgrind) {
-			old_usize = isalloc(ptr, false);
-			old_rzsize = u2rz(old_usize);
-		}
-		if (iralloct(ptr, size, extra, alignment, zero, true,
-		    try_tcache_alloc, try_tcache_dalloc, arena) == NULL) {
-			if (config_stats == false && (config_valgrind == false
-			    || opt_valgrind == false))
-				old_usize = isalloc(ptr, false);
-			usize = old_usize;
-			goto label_not_moved;
-		}
-		usize = isalloc(ptr, config_prof);
+		usize = ixallocx_helper(ptr, old_usize, size, extra, alignment,
+		    zero, arena);
 	}
+	if (usize == old_usize)
+		goto label_not_resized;
 
 	if (config_stats) {
 		thread_allocated_t *ta;
@@ -1641,7 +1735,7 @@ je_xallocx(void *ptr, size_t size, size_t extra, int flags)
 		ta->deallocated += old_usize;
 	}
 	JEMALLOC_VALGRIND_REALLOC(ptr, usize, ptr, old_usize, old_rzsize, zero);
-label_not_moved:
+label_not_resized:
 	UTRACE(ptr, size, ptr);
 	return (usize);
 }
@@ -1711,6 +1805,7 @@ je_nallocx(size_t size, int flags)
 		return (0);
 
 	usize = (alignment == 0) ? s2u(size) : sa2u(size, alignment);
+	assert(usize != 0);
 	return (usize);
 }
 

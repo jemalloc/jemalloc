@@ -19,7 +19,7 @@ extern malloc_mutex_t	huge_mtx;
 
 void	*huge_malloc(size_t size, bool zero);
 void	*huge_palloc(size_t size, size_t alignment, bool zero);
-void	*huge_ralloc_no_move(void *ptr, size_t oldsize, size_t size,
+bool	huge_ralloc_no_move(void *ptr, size_t oldsize, size_t size,
     size_t extra);
 void	*huge_ralloc(void *ptr, size_t oldsize, size_t size, size_t extra,
     size_t alignment, bool zero, bool try_tcache_dalloc);

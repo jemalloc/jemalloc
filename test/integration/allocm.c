@@ -45,23 +45,6 @@ TEST_BEGIN(test_alignment_errors)
 	size_t nsz, rsz, sz, alignment;
 
 #if LG_SIZEOF_PTR == 3
-	alignment = UINT64_C(0x8000000000000000);
-	sz        = UINT64_C(0x8000000000000000);
-#else
-	alignment = 0x80000000LU;
-	sz        = 0x80000000LU;
-#endif
-	nsz = 0;
-	assert_d_ne(nallocm(&nsz, sz, ALLOCM_ALIGN(alignment)), ALLOCM_SUCCESS,
-	    "Expected error for nallocm(&nsz, %zu, %#x)",
-	    sz, ALLOCM_ALIGN(alignment));
-	rsz = 0;
-	assert_d_ne(allocm(&p, &rsz, sz, ALLOCM_ALIGN(alignment)),
-	    ALLOCM_SUCCESS, "Expected error for allocm(&p, %zu, %#x)",
-	    sz, ALLOCM_ALIGN(alignment));
-	assert_zu_eq(nsz, rsz, "nallocm()/allocm() rsize mismatch");
-
-#if LG_SIZEOF_PTR == 3
 	alignment = UINT64_C(0x4000000000000000);
 	sz        = UINT64_C(0x8400000000000001);
 #else
@@ -75,22 +58,6 @@ TEST_BEGIN(test_alignment_errors)
 	assert_d_ne(allocm(&p, &rsz, sz, ALLOCM_ALIGN(alignment)),
 	    ALLOCM_SUCCESS, "Expected error for allocm(&p, %zu, %#x)",
 	    sz, ALLOCM_ALIGN(alignment));
-
-	alignment = 0x10LU;
-#if LG_SIZEOF_PTR == 3
-	sz = UINT64_C(0xfffffffffffffff0);
-#else
-	sz = 0xfffffff0LU;
-#endif
-	nsz = 0;
-	assert_d_ne(nallocm(&nsz, sz, ALLOCM_ALIGN(alignment)), ALLOCM_SUCCESS,
-	    "Expected error for nallocm(&nsz, %zu, %#x)",
-	    sz, ALLOCM_ALIGN(alignment));
-	rsz = 0;
-	assert_d_ne(allocm(&p, &rsz, sz, ALLOCM_ALIGN(alignment)),
-	    ALLOCM_SUCCESS, "Expected error for allocm(&p, %zu, %#x)",
-	    sz, ALLOCM_ALIGN(alignment));
-	assert_zu_eq(nsz, rsz, "nallocm()/allocm() rsize mismatch");
 }
 TEST_END
 

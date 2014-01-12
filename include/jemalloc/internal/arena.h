@@ -436,7 +436,7 @@ void	arena_dalloc_large(arena_t *arena, arena_chunk_t *chunk, void *ptr);
 typedef void (arena_ralloc_junk_large_t)(void *, size_t, size_t);
 extern arena_ralloc_junk_large_t *arena_ralloc_junk_large;
 #endif
-void	*arena_ralloc_no_move(void *ptr, size_t oldsize, size_t size,
+bool	arena_ralloc_no_move(void *ptr, size_t oldsize, size_t size,
     size_t extra, bool zero);
 void	*arena_ralloc(arena_t *arena, void *ptr, size_t oldsize, size_t size,
     size_t extra, size_t alignment, bool zero, bool try_tcache_alloc,

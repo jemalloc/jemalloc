@@ -2061,7 +2061,7 @@ arena_ralloc_large(void *ptr, size_t oldsize, size_t size, size_t extra,
 	}
 }
 
-void *
+bool
 arena_ralloc_no_move(void *ptr, size_t oldsize, size_t size, size_t extra,
     bool zero)
 {
@@ -2077,19 +2077,19 @@ arena_ralloc_no_move(void *ptr, size_t oldsize, size_t size, size_t extra,
 			    SMALL_SIZE2BIN(size + extra) ==
 			    SMALL_SIZE2BIN(oldsize)) || (size <= oldsize &&
 			    size + extra >= oldsize))
-				return (ptr);
+				return (false);
 		} else {
 			assert(size <= arena_maxclass);
 			if (size + extra > SMALL_MAXCLASS) {
 				if (arena_ralloc_large(ptr, oldsize, size,
 				    extra, zero) == false)
-					return (ptr);
+					return (false);
 			}
 		}
 	}
 
 	/* Reallocation would require a move. */
-	return (NULL);
+	return (true);
 }
 
 void *
@@ -2101,9 +2101,8 @@ arena_ralloc(arena_t *arena, void *ptr, size_t oldsize, size_t size,
 	size_t copysize;
 
 	/* Try to avoid moving the allocation. */
-	ret = arena_ralloc_no_move(ptr, oldsize, size, extra, zero);
-	if (ret != NULL)
-		return (ret);
+	if (arena_ralloc_no_move(ptr, oldsize, size, extra, zero) == false)
+		return (ptr);
 
 	/*
 	 * size and oldsize are different enough that we need to move the

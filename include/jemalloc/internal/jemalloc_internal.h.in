@@ -747,11 +747,15 @@ void	idalloct(void *ptr, bool try_tcache);
 void	idalloc(void *ptr);
 void	iqalloct(void *ptr, bool try_tcache);
 void	iqalloc(void *ptr);
-void	*iralloct(void *ptr, size_t size, size_t extra, size_t alignment,
-    bool zero, bool no_move, bool try_tcache_alloc, bool try_tcache_dalloc,
+void	*iralloct_realign(void *ptr, size_t oldsize, size_t size, size_t extra,
+    size_t alignment, bool zero, bool try_tcache_alloc, bool try_tcache_dalloc,
     arena_t *arena);
+void	*iralloct(void *ptr, size_t size, size_t extra, size_t alignment,
+    bool zero, bool try_tcache_alloc, bool try_tcache_dalloc, arena_t *arena);
 void	*iralloc(void *ptr, size_t size, size_t extra, size_t alignment,
-    bool zero, bool no_move);
+    bool zero);
+bool	ixalloc(void *ptr, size_t size, size_t extra, size_t alignment,
+    bool zero);
 malloc_tsd_protos(JEMALLOC_ATTR(unused), thread_allocated, thread_allocated_t)
 #endif
 
@@ -920,10 +924,42 @@ iqalloc(void *ptr)
 }
 
 JEMALLOC_ALWAYS_INLINE void *
-iralloct(void *ptr, size_t size, size_t extra, size_t alignment, bool zero,
-    bool no_move, bool try_tcache_alloc, bool try_tcache_dalloc, arena_t *arena)
+iralloct_realign(void *ptr, size_t oldsize, size_t size, size_t extra,
+    size_t alignment, bool zero, bool try_tcache_alloc, bool try_tcache_dalloc,
+    arena_t *arena)
 {
-	void *ret;
+	void *p;
+	size_t usize, copysize;
+
+	usize = sa2u(size + extra, alignment);
+	if (usize == 0)
+		return (NULL);
+	p = ipalloct(usize, alignment, zero, try_tcache_alloc, arena);
+	if (p == NULL) {
+		if (extra == 0)
+			return (NULL);
+		/* Try again, without extra this time. */
+		usize = sa2u(size, alignment);
+		if (usize == 0)
+			return (NULL);
+		p = ipalloct(usize, alignment, zero, try_tcache_alloc, arena);
+		if (p == NULL)
+			return (NULL);
+	}
+	/*
+	 * Copy at most size bytes (not size+extra), since the caller has no
+	 * expectation that the extra bytes will be reliably preserved.
+	 */
+	copysize = (size < oldsize) ? size : oldsize;
+	memcpy(p, ptr, copysize);
+	iqalloct(ptr, try_tcache_dalloc);
+	return (p);
+}
+
+JEMALLOC_ALWAYS_INLINE void *
+iralloct(void *ptr, size_t size, size_t extra, size_t alignment, bool zero,
+    bool try_tcache_alloc, bool try_tcache_dalloc, arena_t *arena)
+{
 	size_t oldsize;
 
 	assert(ptr != NULL);
@@ -933,68 +969,50 @@ iralloct(void *ptr, size_t size, size_t extra, size_t alignment, bool zero,
 
 	if (alignment != 0 && ((uintptr_t)ptr & ((uintptr_t)alignment-1))
 	    != 0) {
-		size_t usize, copysize;
-
 		/*
 		 * Existing object alignment is inadequate; allocate new space
 		 * and copy.
 		 */
-		if (no_move)
-			return (NULL);
-		usize = sa2u(size + extra, alignment);
-		if (usize == 0)
-			return (NULL);
-		ret = ipalloct(usize, alignment, zero, try_tcache_alloc, arena);
-		if (ret == NULL) {
-			if (extra == 0)
-				return (NULL);
-			/* Try again, without extra this time. */
-			usize = sa2u(size, alignment);
-			if (usize == 0)
-				return (NULL);
-			ret = ipalloct(usize, alignment, zero, try_tcache_alloc,
-			    arena);
-			if (ret == NULL)
-				return (NULL);
-		}
-		/*
-		 * Copy at most size bytes (not size+extra), since the caller
-		 * has no expectation that the extra bytes will be reliably
-		 * preserved.
-		 */
-		copysize = (size < oldsize) ? size : oldsize;
-		memcpy(ret, ptr, copysize);
-		iqalloct(ptr, try_tcache_dalloc);
-		return (ret);
+		return (iralloct_realign(ptr, oldsize, size, extra, alignment,
+		    zero, try_tcache_alloc, try_tcache_dalloc, arena));
 	}
 
-	if (no_move) {
-		if (size <= arena_maxclass) {
-			return (arena_ralloc_no_move(ptr, oldsize, size,
-			    extra, zero));
-		} else {
-			return (huge_ralloc_no_move(ptr, oldsize, size,
-			    extra));
-		}
+	if (size + extra <= arena_maxclass) {
+		return (arena_ralloc(arena, ptr, oldsize, size, extra,
+		    alignment, zero, try_tcache_alloc,
+		    try_tcache_dalloc));
 	} else {
-		if (size + extra <= arena_maxclass) {
-			return (arena_ralloc(arena, ptr, oldsize, size, extra,
-			    alignment, zero, try_tcache_alloc,
-			    try_tcache_dalloc));
-		} else {
-			return (huge_ralloc(ptr, oldsize, size, extra,
-			    alignment, zero, try_tcache_dalloc));
-		}
+		return (huge_ralloc(ptr, oldsize, size, extra,
+		    alignment, zero, try_tcache_dalloc));
 	}
 }
 
 JEMALLOC_ALWAYS_INLINE void *
-iralloc(void *ptr, size_t size, size_t extra, size_t alignment, bool zero,
-    bool no_move)
+iralloc(void *ptr, size_t size, size_t extra, size_t alignment, bool zero)
 {
 
-	return (iralloct(ptr, size, extra, alignment, zero, no_move, true, true,
-	    NULL));
+	return (iralloct(ptr, size, extra, alignment, zero, true, true, NULL));
+}
+
+JEMALLOC_ALWAYS_INLINE bool
+ixalloc(void *ptr, size_t size, size_t extra, size_t alignment, bool zero)
+{
+	size_t oldsize;
+
+	assert(ptr != NULL);
+	assert(size != 0);
+
+	oldsize = isalloc(ptr, config_prof);
+	if (alignment != 0 && ((uintptr_t)ptr & ((uintptr_t)alignment-1))
+	    != 0) {
+		/* Existing object alignment is inadequate. */
+		return (true);
+	}
+
+	if (size <= arena_maxclass)
+		return (arena_ralloc_no_move(ptr, oldsize, size, extra, zero));
+	else
+		return (huge_ralloc_no_move(ptr, oldsize, size, extra));
 }
 
 malloc_tsd_externs(thread_allocated, thread_allocated_t)

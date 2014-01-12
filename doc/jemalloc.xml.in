@@ -321,14 +321,16 @@
       <para>The <function>mallocx<parameter/></function> function allocates at
       least <parameter>size</parameter> bytes of memory, and returns a pointer
       to the base address of the allocation.  Behavior is undefined if
-      <parameter>size</parameter> is <constant>0</constant>.</para>
+      <parameter>size</parameter> is <constant>0</constant>, or if request size
+      overflows due to size class and/or alignment constraints.</para>
 
       <para>The <function>rallocx<parameter/></function> function resizes the
       allocation at <parameter>ptr</parameter> to be at least
       <parameter>size</parameter> bytes, and returns a pointer to the base
       address of the resulting allocation, which may or may not have moved from
       its original location.  Behavior is undefined if
-      <parameter>size</parameter> is <constant>0</constant>.</para>
+      <parameter>size</parameter> is <constant>0</constant>, or if request size
+      overflows due to size class and/or alignment constraints.</para>
 
       <para>The <function>xallocx<parameter/></function> function resizes the
       allocation at <parameter>ptr</parameter> in place to be at least
@@ -355,8 +357,9 @@
       <function>mallocx<parameter/></function> function, and returns the real
       size of the allocation that would result from the equivalent
       <function>mallocx<parameter/></function> function call.  Behavior is
-      undefined if <parameter>size</parameter> is
-      <constant>0</constant>.</para>
+      undefined if <parameter>size</parameter> is <constant>0</constant>, or if
+      request size overflows due to size class and/or alignment
+      constraints.</para>
 
       <para>The <function>mallctl<parameter/></function> function provides a
       general interface for introspecting the memory allocator, as well as
@@ -518,8 +521,9 @@ for (i = 0; i < nbins; i++) {
       <parameter>*ptr</parameter> to the base address of the allocation, and
       sets <parameter>*rsize</parameter> to the real size of the allocation if
       <parameter>rsize</parameter> is not <constant>NULL</constant>.  Behavior
-      is undefined if <parameter>size</parameter> is
-      <constant>0</constant>.</para>
+      is undefined if <parameter>size</parameter> is <constant>0</constant>, or
+      if request size overflows due to size class and/or alignment
+      constraints.</para>
 
       <para>The <function>rallocm<parameter/></function> function resizes the
       allocation at <parameter>*ptr</parameter> to be at least
@@ -532,8 +536,9 @@ for (i = 0; i < nbins; i++) {
       language="C">(<parameter>size</parameter> +
       <parameter>extra</parameter>)</code> bytes, though inability to allocate
       the extra byte(s) will not by itself result in failure.  Behavior is
-      undefined if <parameter>size</parameter> is <constant>0</constant>, or if
-      <code language="C">(<parameter>size</parameter> +
+      undefined if <parameter>size</parameter> is <constant>0</constant>, if
+      request size overflows due to size class and/or alignment constraints, or
+      if <code language="C">(<parameter>size</parameter> +
       <parameter>extra</parameter> &gt;
       <constant>SIZE_T_MAX</constant>)</code>.</para>
 
@@ -550,8 +555,9 @@ for (i = 0; i < nbins; i++) {
       <parameter>rsize</parameter> is not <constant>NULL</constant> it sets
       <parameter>*rsize</parameter> to the real size of the allocation that
       would result from the equivalent <function>allocm<parameter/></function>
-      function call.  Behavior is undefined if
-      <parameter>size</parameter> is <constant>0</constant>.</para>
+      function call.  Behavior is undefined if <parameter>size</parameter> is
+      <constant>0</constant>, or if request size overflows due to size class
+      and/or alignment constraints.</para>
     </refsect2>
   </refsect1>
   <refsect1 id="tuning">
