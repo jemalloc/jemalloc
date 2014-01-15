@@ -158,6 +158,7 @@ struct arena_chunk_map_s {
 };
 typedef rb_tree(arena_chunk_map_t) arena_avail_tree_t;
 typedef rb_tree(arena_chunk_map_t) arena_run_tree_t;
+typedef ql_head(arena_chunk_map_t) arena_chunk_mapelms_t;
 
 /* Arena chunk header. */
 struct arena_chunk_s {

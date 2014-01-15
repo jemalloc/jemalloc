@@ -38,56 +38,18 @@ const uint8_t	small_size2bin[] = {
 };
 
 /******************************************************************************/
-/* Function prototypes for non-inline static functions. */
+/*
+ * Function prototypes for static functions that are referenced prior to
+ * definition.
+ */
 
-static void	arena_avail_insert(arena_t *arena, arena_chunk_t *chunk,
-    size_t pageind, size_t npages, bool maybe_adjac_pred,
-    bool maybe_adjac_succ);
-static void	arena_avail_remove(arena_t *arena, arena_chunk_t *chunk,
-    size_t pageind, size_t npages, bool maybe_adjac_pred,
-    bool maybe_adjac_succ);
-static void	arena_run_split_helper(arena_t *arena, arena_run_t *run,
-    size_t size, bool large, size_t binind, bool remove, bool zero);
-static void	arena_run_split(arena_t *arena, arena_run_t *run, size_t size,
-    bool large, size_t binind, bool zero);
-static void	arena_run_init(arena_t *arena, arena_run_t *run, size_t size,
-    bool large, size_t binind, bool zero);
-static arena_chunk_t *arena_chunk_alloc(arena_t *arena);
-static void	arena_chunk_dealloc(arena_t *arena, arena_chunk_t *chunk);
-static arena_run_t	*arena_run_alloc_helper(arena_t *arena, size_t size,
-    bool large, size_t binind, bool zero);
-static arena_run_t *arena_run_alloc(arena_t *arena, size_t size, bool large,
-    size_t binind, bool zero);
-static arena_chunk_t	*chunks_dirty_iter_cb(arena_chunk_tree_t *tree,
-    arena_chunk_t *chunk, void *arg);
 static void	arena_purge(arena_t *arena, bool all);
 static void	arena_run_dalloc(arena_t *arena, arena_run_t *run, bool dirty,
     bool cleaned);
-static void	arena_run_trim_head(arena_t *arena, arena_chunk_t *chunk,
-    arena_run_t *run, size_t oldsize, size_t newsize);
-static void	arena_run_trim_tail(arena_t *arena, arena_chunk_t *chunk,
-    arena_run_t *run, size_t oldsize, size_t newsize, bool dirty);
-static arena_run_t	*arena_bin_runs_first(arena_bin_t *bin);
-static void	arena_bin_runs_insert(arena_bin_t *bin, arena_run_t *run);
-static void	arena_bin_runs_remove(arena_bin_t *bin, arena_run_t *run);
-static arena_run_t *arena_bin_nonfull_run_tryget(arena_bin_t *bin);
-static arena_run_t *arena_bin_nonfull_run_get(arena_t *arena, arena_bin_t *bin);
-static void	*arena_bin_malloc_hard(arena_t *arena, arena_bin_t *bin);
-static void	arena_dissociate_bin_run(arena_chunk_t *chunk, arena_run_t *run,
-    arena_bin_t *bin);
 static void	arena_dalloc_bin_run(arena_t *arena, arena_chunk_t *chunk,
     arena_run_t *run, arena_bin_t *bin);
 static void	arena_bin_lower_run(arena_t *arena, arena_chunk_t *chunk,
     arena_run_t *run, arena_bin_t *bin);
-static void	arena_ralloc_large_shrink(arena_t *arena, arena_chunk_t *chunk,
-    void *ptr, size_t oldsize, size_t size);
-static bool	arena_ralloc_large_grow(arena_t *arena, arena_chunk_t *chunk,
-    void *ptr, size_t oldsize, size_t size, size_t extra, bool zero);
-static bool	arena_ralloc_large(void *ptr, size_t oldsize, size_t size,
-    size_t extra, bool zero);
-static size_t	bin_info_run_size_calc(arena_bin_info_t *bin_info,
-    size_t min_run_size);
-static void	bin_info_init(void);
 
 /******************************************************************************/
 
@@ -392,16 +354,65 @@ arena_run_page_validate_zeroed(arena_chunk_t *chunk, size_t run_ind)
 }
 
 static void
-arena_run_split_helper(arena_t *arena, arena_run_t *run, size_t size,
-    bool large, size_t binind, bool remove, bool zero)
+arena_cactive_update(arena_t *arena, size_t add_pages, size_t sub_pages)
+{
+
+	if (config_stats) {
+		ssize_t cactive_diff = CHUNK_CEILING((arena->nactive +
+		    add_pages) << LG_PAGE) - CHUNK_CEILING((arena->nactive -
+		    sub_pages) << LG_PAGE);
+		if (cactive_diff != 0)
+			stats_cactive_add(cactive_diff);
+	}
+}
+
+static void
+arena_run_split_remove(arena_t *arena, arena_chunk_t *chunk, size_t run_ind,
+    size_t flag_dirty, size_t need_pages)
+{
+	size_t total_pages, rem_pages;
+
+	total_pages = arena_mapbits_unallocated_size_get(chunk, run_ind) >>
+	    LG_PAGE;
+	assert(arena_mapbits_dirty_get(chunk, run_ind+total_pages-1) ==
+	    flag_dirty);
+	assert(need_pages <= total_pages);
+	rem_pages = total_pages - need_pages;
+
+	arena_avail_remove(arena, chunk, run_ind, total_pages, true, true);
+	arena_cactive_update(arena, need_pages, 0);
+	arena->nactive += need_pages;
+
+	/* Keep track of trailing unused pages for later use. */
+	if (rem_pages > 0) {
+		if (flag_dirty != 0) {
+			arena_mapbits_unallocated_set(chunk,
+			    run_ind+need_pages, (rem_pages << LG_PAGE),
+			    flag_dirty);
+			arena_mapbits_unallocated_set(chunk,
+			    run_ind+total_pages-1, (rem_pages << LG_PAGE),
+			    flag_dirty);
+		} else {
+			arena_mapbits_unallocated_set(chunk, run_ind+need_pages,
+			    (rem_pages << LG_PAGE),
+			    arena_mapbits_unzeroed_get(chunk,
+			    run_ind+need_pages));
+			arena_mapbits_unallocated_set(chunk,
+			    run_ind+total_pages-1, (rem_pages << LG_PAGE),
+			    arena_mapbits_unzeroed_get(chunk,
+			    run_ind+total_pages-1));
+		}
+		arena_avail_insert(arena, chunk, run_ind+need_pages, rem_pages,
+		    false, true);
+	}
+}
+
+static void
+arena_run_split_large_helper(arena_t *arena, arena_run_t *run, size_t size,
+    bool remove, bool zero)
 {
 	arena_chunk_t *chunk;
-	size_t run_ind, need_pages, i;
-	size_t flag_dirty;
-
-	assert(large || remove);
-	assert((large && binind == BININD_INVALID) || (large == false && binind
-	    != BININD_INVALID));
+	size_t flag_dirty, run_ind, need_pages, i;
 
 	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(run);
 	run_ind = (unsigned)(((uintptr_t)run - (uintptr_t)chunk) >> LG_PAGE);
@@ -410,229 +421,201 @@ arena_run_split_helper(arena_t *arena, arena_run_t *run, size_t size,
 	assert(need_pages > 0);
 
 	if (remove) {
-		size_t total_pages, rem_pages;
-
-		total_pages = arena_mapbits_unallocated_size_get(chunk,
-		    run_ind) >> LG_PAGE;
-		assert(arena_mapbits_dirty_get(chunk, run_ind+total_pages-1) ==
-		    flag_dirty);
-		assert(need_pages <= total_pages);
-		rem_pages = total_pages - need_pages;
-
-		arena_avail_remove(arena, chunk, run_ind, total_pages, true,
-		    true);
-		if (config_stats) {
-			/*
-			 * Update stats_cactive if nactive is crossing a chunk
-			 * multiple.
-			 */
-			size_t cactive_diff = CHUNK_CEILING((arena->nactive +
-			    need_pages) << LG_PAGE) -
-			    CHUNK_CEILING(arena->nactive << LG_PAGE);
-			if (cactive_diff != 0)
-				stats_cactive_add(cactive_diff);
-		}
-		arena->nactive += need_pages;
-
-		/* Keep track of trailing unused pages for later use. */
-		if (rem_pages > 0) {
-			if (flag_dirty != 0) {
-				arena_mapbits_unallocated_set(chunk,
-				    run_ind+need_pages, (rem_pages << LG_PAGE),
-				    flag_dirty);
-				arena_mapbits_unallocated_set(chunk,
-				    run_ind+total_pages-1, (rem_pages <<
-				    LG_PAGE), flag_dirty);
-			} else {
-				arena_mapbits_unallocated_set(chunk,
-				    run_ind+need_pages, (rem_pages << LG_PAGE),
-				    arena_mapbits_unzeroed_get(chunk,
-				    run_ind+need_pages));
-				arena_mapbits_unallocated_set(chunk,
-				    run_ind+total_pages-1, (rem_pages <<
-				    LG_PAGE), arena_mapbits_unzeroed_get(chunk,
-				    run_ind+total_pages-1));
-			}
-			arena_avail_insert(arena, chunk, run_ind+need_pages,
-			    rem_pages, false, true);
-		}
+		arena_run_split_remove(arena, chunk, run_ind, flag_dirty,
+		    need_pages);
 	}
 
-	/*
-	 * Update the page map separately for large vs. small runs, since it is
-	 * possible to avoid iteration for large mallocs.
-	 */
-	if (large) {
-		if (zero) {
-			if (flag_dirty == 0) {
-				/*
-				 * The run is clean, so some pages may be
-				 * zeroed (i.e. never before touched).
-				 */
-				for (i = 0; i < need_pages; i++) {
-					if (arena_mapbits_unzeroed_get(chunk,
-					    run_ind+i) != 0) {
-						arena_run_zero(chunk, run_ind+i,
-						    1);
-					} else if (config_debug) {
-						arena_run_page_validate_zeroed(
-						    chunk, run_ind+i);
-					} else {
-						arena_run_page_mark_zeroed(
-						    chunk, run_ind+i);
-					}
+	if (zero) {
+		if (flag_dirty == 0) {
+			/*
+			 * The run is clean, so some pages may be zeroed (i.e.
+			 * never before touched).
+			 */
+			for (i = 0; i < need_pages; i++) {
+				if (arena_mapbits_unzeroed_get(chunk, run_ind+i)
+				    != 0)
+					arena_run_zero(chunk, run_ind+i, 1);
+				else if (config_debug) {
+					arena_run_page_validate_zeroed(chunk,
+					    run_ind+i);
+				} else {
+					arena_run_page_mark_zeroed(chunk,
+					    run_ind+i);
 				}
-			} else {
-				/*
-				 * The run is dirty, so all pages must be
-				 * zeroed.
-				 */
-				arena_run_zero(chunk, run_ind, need_pages);
 			}
 		} else {
-			VALGRIND_MAKE_MEM_UNDEFINED((void *)((uintptr_t)chunk +
-			    (run_ind << LG_PAGE)), (need_pages << LG_PAGE));
+			/* The run is dirty, so all pages must be zeroed. */
+			arena_run_zero(chunk, run_ind, need_pages);
 		}
-
-		/*
-		 * Set the last element first, in case the run only contains one
-		 * page (i.e. both statements set the same element).
-		 */
-		arena_mapbits_large_set(chunk, run_ind+need_pages-1, 0,
-		    flag_dirty);
-		arena_mapbits_large_set(chunk, run_ind, size, flag_dirty);
 	} else {
-		assert(zero == false);
-		/*
-		 * Propagate the dirty and unzeroed flags to the allocated
-		 * small run, so that arena_dalloc_bin_run() has the ability to
-		 * conditionally trim clean pages.
-		 */
-		arena_mapbits_small_set(chunk, run_ind, 0, binind, flag_dirty);
-		/*
-		 * The first page will always be dirtied during small run
-		 * initialization, so a validation failure here would not
-		 * actually cause an observable failure.
-		 */
-		if (config_debug && flag_dirty == 0 &&
-		    arena_mapbits_unzeroed_get(chunk, run_ind) == 0)
-			arena_run_page_validate_zeroed(chunk, run_ind);
-		for (i = 1; i < need_pages - 1; i++) {
-			arena_mapbits_small_set(chunk, run_ind+i, i, binind, 0);
-			if (config_debug && flag_dirty == 0 &&
-			    arena_mapbits_unzeroed_get(chunk, run_ind+i) == 0) {
-				arena_run_page_validate_zeroed(chunk,
-				    run_ind+i);
-			}
-		}
-		arena_mapbits_small_set(chunk, run_ind+need_pages-1,
-		    need_pages-1, binind, flag_dirty);
-		if (config_debug && flag_dirty == 0 &&
-		    arena_mapbits_unzeroed_get(chunk, run_ind+need_pages-1) ==
-		    0) {
-			arena_run_page_validate_zeroed(chunk,
-			    run_ind+need_pages-1);
-		}
 		VALGRIND_MAKE_MEM_UNDEFINED((void *)((uintptr_t)chunk +
 		    (run_ind << LG_PAGE)), (need_pages << LG_PAGE));
 	}
+
+	/*
+	 * Set the last element first, in case the run only contains one page
+	 * (i.e. both statements set the same element).
+	 */
+	arena_mapbits_large_set(chunk, run_ind+need_pages-1, 0, flag_dirty);
+	arena_mapbits_large_set(chunk, run_ind, size, flag_dirty);
 }
 
 static void
-arena_run_split(arena_t *arena, arena_run_t *run, size_t size, bool large,
-    size_t binind, bool zero)
+arena_run_split_large(arena_t *arena, arena_run_t *run, size_t size, bool zero)
 {
 
-	arena_run_split_helper(arena, run, size, large, binind, true, zero);
+	arena_run_split_large_helper(arena, run, size, true, zero);
 }
 
 static void
-arena_run_init(arena_t *arena, arena_run_t *run, size_t size, bool large,
-    size_t binind, bool zero)
+arena_run_init_large(arena_t *arena, arena_run_t *run, size_t size, bool zero)
 {
 
-	arena_run_split_helper(arena, run, size, large, binind, false, zero);
+	arena_run_split_large_helper(arena, run, size, false, zero);
+}
+
+static void
+arena_run_split_small(arena_t *arena, arena_run_t *run, size_t size,
+    size_t binind)
+{
+	arena_chunk_t *chunk;
+	size_t flag_dirty, run_ind, need_pages, i;
+
+	assert(binind != BININD_INVALID);
+
+	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(run);
+	run_ind = (unsigned)(((uintptr_t)run - (uintptr_t)chunk) >> LG_PAGE);
+	flag_dirty = arena_mapbits_dirty_get(chunk, run_ind);
+	need_pages = (size >> LG_PAGE);
+	assert(need_pages > 0);
+
+	arena_run_split_remove(arena, chunk, run_ind, flag_dirty, need_pages);
+
+	/*
+	 * Propagate the dirty and unzeroed flags to the allocated small run,
+	 * so that arena_dalloc_bin_run() has the ability to conditionally trim
+	 * clean pages.
+	 */
+	arena_mapbits_small_set(chunk, run_ind, 0, binind, flag_dirty);
+	/*
+	 * The first page will always be dirtied during small run
+	 * initialization, so a validation failure here would not actually
+	 * cause an observable failure.
+	 */
+	if (config_debug && flag_dirty == 0 && arena_mapbits_unzeroed_get(chunk,
+	    run_ind) == 0)
+		arena_run_page_validate_zeroed(chunk, run_ind);
+	for (i = 1; i < need_pages - 1; i++) {
+		arena_mapbits_small_set(chunk, run_ind+i, i, binind, 0);
+		if (config_debug && flag_dirty == 0 &&
+		    arena_mapbits_unzeroed_get(chunk, run_ind+i) == 0)
+			arena_run_page_validate_zeroed(chunk, run_ind+i);
+	}
+	arena_mapbits_small_set(chunk, run_ind+need_pages-1, need_pages-1,
+	    binind, flag_dirty);
+	if (config_debug && flag_dirty == 0 && arena_mapbits_unzeroed_get(chunk,
+	    run_ind+need_pages-1) == 0)
+		arena_run_page_validate_zeroed(chunk, run_ind+need_pages-1);
+	VALGRIND_MAKE_MEM_UNDEFINED((void *)((uintptr_t)chunk +
+	    (run_ind << LG_PAGE)), (need_pages << LG_PAGE));
+}
+
+static arena_chunk_t *
+arena_chunk_init_spare(arena_t *arena)
+{
+	arena_chunk_t *chunk;
+
+	assert(arena->spare != NULL);
+
+	chunk = arena->spare;
+	arena->spare = NULL;
+
+	assert(arena_mapbits_allocated_get(chunk, map_bias) == 0);
+	assert(arena_mapbits_allocated_get(chunk, chunk_npages-1) == 0);
+	assert(arena_mapbits_unallocated_size_get(chunk, map_bias) ==
+	    arena_maxclass);
+	assert(arena_mapbits_unallocated_size_get(chunk, chunk_npages-1) ==
+	    arena_maxclass);
+	assert(arena_mapbits_dirty_get(chunk, map_bias) ==
+	    arena_mapbits_dirty_get(chunk, chunk_npages-1));
+
+	return (chunk);
+}
+
+static arena_chunk_t *
+arena_chunk_init_hard(arena_t *arena)
+{
+	arena_chunk_t *chunk;
+	bool zero;
+	size_t unzeroed, i;
+
+	assert(arena->spare == NULL);
+
+	zero = false;
+	malloc_mutex_unlock(&arena->lock);
+	chunk = (arena_chunk_t *)chunk_alloc(chunksize, chunksize, false,
+	    &zero, arena->dss_prec);
+	malloc_mutex_lock(&arena->lock);
+	if (chunk == NULL)
+		return (NULL);
+	if (config_stats)
+		arena->stats.mapped += chunksize;
+
+	chunk->arena = arena;
+
+	/*
+	 * Claim that no pages are in use, since the header is merely overhead.
+	 */
+	chunk->ndirty = 0;
+
+	chunk->nruns_avail = 0;
+	chunk->nruns_adjac = 0;
+
+	/*
+	 * Initialize the map to contain one maximal free untouched run.  Mark
+	 * the pages as zeroed iff chunk_alloc() returned a zeroed chunk.
+	 */
+	unzeroed = zero ? 0 : CHUNK_MAP_UNZEROED;
+	arena_mapbits_unallocated_set(chunk, map_bias, arena_maxclass,
+	    unzeroed);
+	/*
+	 * There is no need to initialize the internal page map entries unless
+	 * the chunk is not zeroed.
+	 */
+	if (zero == false) {
+		VALGRIND_MAKE_MEM_UNDEFINED((void *)arena_mapp_get(chunk,
+		    map_bias+1), (size_t)((uintptr_t) arena_mapp_get(chunk,
+		    chunk_npages-1) - (uintptr_t)arena_mapp_get(chunk,
+		    map_bias+1)));
+		for (i = map_bias+1; i < chunk_npages-1; i++)
+			arena_mapbits_unzeroed_set(chunk, i, unzeroed);
+	} else {
+		VALGRIND_MAKE_MEM_DEFINED((void *)arena_mapp_get(chunk,
+		    map_bias+1), (size_t)((uintptr_t) arena_mapp_get(chunk,
+		    chunk_npages-1) - (uintptr_t)arena_mapp_get(chunk,
+		    map_bias+1)));
+		if (config_debug) {
+			for (i = map_bias+1; i < chunk_npages-1; i++) {
+				assert(arena_mapbits_unzeroed_get(chunk, i) ==
+				    unzeroed);
+			}
+		}
+	}
+	arena_mapbits_unallocated_set(chunk, chunk_npages-1, arena_maxclass,
+	    unzeroed);
+
+	return (chunk);
 }
 
 static arena_chunk_t *
 arena_chunk_alloc(arena_t *arena)
 {
 	arena_chunk_t *chunk;
-	size_t i;
 
-	if (arena->spare != NULL) {
-		chunk = arena->spare;
-		arena->spare = NULL;
-
-		assert(arena_mapbits_allocated_get(chunk, map_bias) == 0);
-		assert(arena_mapbits_allocated_get(chunk, chunk_npages-1) == 0);
-		assert(arena_mapbits_unallocated_size_get(chunk, map_bias) ==
-		    arena_maxclass);
-		assert(arena_mapbits_unallocated_size_get(chunk,
-		    chunk_npages-1) == arena_maxclass);
-		assert(arena_mapbits_dirty_get(chunk, map_bias) ==
-		    arena_mapbits_dirty_get(chunk, chunk_npages-1));
-	} else {
-		bool zero;
-		size_t unzeroed;
-
-		zero = false;
-		malloc_mutex_unlock(&arena->lock);
-		chunk = (arena_chunk_t *)chunk_alloc(chunksize, chunksize,
-		    false, &zero, arena->dss_prec);
-		malloc_mutex_lock(&arena->lock);
-		if (chunk == NULL)
-			return (NULL);
-		if (config_stats)
-			arena->stats.mapped += chunksize;
-
-		chunk->arena = arena;
-
-		/*
-		 * Claim that no pages are in use, since the header is merely
-		 * overhead.
-		 */
-		chunk->ndirty = 0;
-
-		chunk->nruns_avail = 0;
-		chunk->nruns_adjac = 0;
-
-		/*
-		 * Initialize the map to contain one maximal free untouched run.
-		 * Mark the pages as zeroed iff chunk_alloc() returned a zeroed
-		 * chunk.
-		 */
-		unzeroed = zero ? 0 : CHUNK_MAP_UNZEROED;
-		arena_mapbits_unallocated_set(chunk, map_bias, arena_maxclass,
-		    unzeroed);
-		/*
-		 * There is no need to initialize the internal page map entries
-		 * unless the chunk is not zeroed.
-		 */
-		if (zero == false) {
-			VALGRIND_MAKE_MEM_UNDEFINED(
-			    (void *)arena_mapp_get(chunk, map_bias+1),
-			    (size_t)((uintptr_t) arena_mapp_get(chunk,
-			    chunk_npages-1) - (uintptr_t)arena_mapp_get(chunk,
-			    map_bias+1)));
-			for (i = map_bias+1; i < chunk_npages-1; i++)
-				arena_mapbits_unzeroed_set(chunk, i, unzeroed);
-		} else {
-			VALGRIND_MAKE_MEM_DEFINED(
-			    (void *)arena_mapp_get(chunk, map_bias+1),
-			    (size_t)((uintptr_t) arena_mapp_get(chunk,
-			    chunk_npages-1) - (uintptr_t)arena_mapp_get(chunk,
-			    map_bias+1)));
-			if (config_debug) {
-				for (i = map_bias+1; i < chunk_npages-1; i++) {
-					assert(arena_mapbits_unzeroed_get(chunk,
-					    i) == unzeroed);
-				}
-			}
-		}
-		arena_mapbits_unallocated_set(chunk, chunk_npages-1,
-		    arena_maxclass, unzeroed);
-	}
+	if (arena->spare != NULL)
+		chunk = arena_chunk_init_spare(arena);
+	else
+		chunk = arena_chunk_init_hard(arena);
 
 	/* Insert the run into the runs_avail tree. */
 	arena_avail_insert(arena, chunk, map_bias, chunk_npages-map_bias,
@@ -674,8 +657,7 @@ arena_chunk_dealloc(arena_t *arena, arena_chunk_t *chunk)
 }
 
 static arena_run_t *
-arena_run_alloc_helper(arena_t *arena, size_t size, bool large, size_t binind,
-    bool zero)
+arena_run_alloc_large_helper(arena_t *arena, size_t size, bool zero)
 {
 	arena_run_t *run;
 	arena_chunk_map_t *mapelm, key;
@@ -690,7 +672,7 @@ arena_run_alloc_helper(arena_t *arena, size_t size, bool large, size_t binind,
 
 		run = (arena_run_t *)((uintptr_t)run_chunk + (pageind <<
 		    LG_PAGE));
-		arena_run_split(arena, run, size, large, binind, zero);
+		arena_run_split_large(arena, run, size, zero);
 		return (run);
 	}
 
@@ -698,19 +680,16 @@ arena_run_alloc_helper(arena_t *arena, size_t size, bool large, size_t binind,
 }
 
 static arena_run_t *
-arena_run_alloc(arena_t *arena, size_t size, bool large, size_t binind,
-    bool zero)
+arena_run_alloc_large(arena_t *arena, size_t size, bool zero)
 {
 	arena_chunk_t *chunk;
 	arena_run_t *run;
 
 	assert(size <= arena_maxclass);
 	assert((size & PAGE_MASK) == 0);
-	assert((large && binind == BININD_INVALID) || (large == false && binind
-	    != BININD_INVALID));
 
 	/* Search the arena's chunks for the lowest best fit. */
-	run = arena_run_alloc_helper(arena, size, large, binind, zero);
+	run = arena_run_alloc_large_helper(arena, size, zero);
 	if (run != NULL)
 		return (run);
 
@@ -720,7 +699,7 @@ arena_run_alloc(arena_t *arena, size_t size, bool large, size_t binind,
 	chunk = arena_chunk_alloc(arena);
 	if (chunk != NULL) {
 		run = (arena_run_t *)((uintptr_t)chunk + (map_bias << LG_PAGE));
-		arena_run_split(arena, run, size, large, binind, zero);
+		arena_run_split_large(arena, run, size, zero);
 		return (run);
 	}
 
@@ -729,7 +708,63 @@ arena_run_alloc(arena_t *arena, size_t size, bool large, size_t binind,
 	 * sufficient memory available while this one dropped arena->lock in
 	 * arena_chunk_alloc(), so search one more time.
 	 */
-	return (arena_run_alloc_helper(arena, size, large, binind, zero));
+	return (arena_run_alloc_large_helper(arena, size, zero));
+}
+
+static arena_run_t *
+arena_run_alloc_small_helper(arena_t *arena, size_t size, size_t binind)
+{
+	arena_run_t *run;
+	arena_chunk_map_t *mapelm, key;
+
+	key.bits = size | CHUNK_MAP_KEY;
+	mapelm = arena_avail_tree_nsearch(&arena->runs_avail, &key);
+	if (mapelm != NULL) {
+		arena_chunk_t *run_chunk = CHUNK_ADDR2BASE(mapelm);
+		size_t pageind = (((uintptr_t)mapelm -
+		    (uintptr_t)run_chunk->map) / sizeof(arena_chunk_map_t))
+		    + map_bias;
+
+		run = (arena_run_t *)((uintptr_t)run_chunk + (pageind <<
+		    LG_PAGE));
+		arena_run_split_small(arena, run, size, binind);
+		return (run);
+	}
+
+	return (NULL);
+}
+
+static arena_run_t *
+arena_run_alloc_small(arena_t *arena, size_t size, size_t binind)
+{
+	arena_chunk_t *chunk;
+	arena_run_t *run;
+
+	assert(size <= arena_maxclass);
+	assert((size & PAGE_MASK) == 0);
+	assert(binind != BININD_INVALID);
+
+	/* Search the arena's chunks for the lowest best fit. */
+	run = arena_run_alloc_small_helper(arena, size, binind);
+	if (run != NULL)
+		return (run);
+
+	/*
+	 * No usable runs.  Create a new chunk from which to allocate the run.
+	 */
+	chunk = arena_chunk_alloc(arena);
+	if (chunk != NULL) {
+		run = (arena_run_t *)((uintptr_t)chunk + (map_bias << LG_PAGE));
+		arena_run_split_small(arena, run, size, binind);
+		return (run);
+	}
+
+	/*
+	 * arena_chunk_alloc() failed, but another thread may have made
+	 * sufficient memory available while this one dropped arena->lock in
+	 * arena_chunk_alloc(), so search one more time.
+	 */
+	return (arena_run_alloc_small_helper(arena, size, binind));
 }
 
 static inline void
@@ -755,14 +790,169 @@ arena_maybe_purge(arena_t *arena)
 	arena_purge(arena, false);
 }
 
+static arena_chunk_t *
+chunks_dirty_iter_cb(arena_chunk_tree_t *tree, arena_chunk_t *chunk, void *arg)
+{
+       size_t *ndirty = (size_t *)arg;
+
+       assert(chunk->ndirty != 0);
+       *ndirty += chunk->ndirty;
+       return (NULL);
+}
+
+static size_t
+arena_compute_npurgatory(arena_t *arena, bool all)
+{
+	size_t npurgatory, npurgeable;
+
+	/*
+	 * Compute the minimum number of pages that this thread should try to
+	 * purge.
+	 */
+	npurgeable = arena->ndirty - arena->npurgatory;
+
+	if (all == false) {
+		size_t threshold = (arena->nactive >> opt_lg_dirty_mult);
+
+		npurgatory = npurgeable - threshold;
+	} else
+		npurgatory = npurgeable;
+
+	return (npurgatory);
+}
+
+static void
+arena_chunk_stash_dirty(arena_t *arena, arena_chunk_t *chunk, bool all,
+    arena_chunk_mapelms_t *mapelms)
+{
+	size_t pageind, npages;
+
+	/*
+	 * Temporarily allocate free dirty runs within chunk.  If all is false,
+	 * only operate on dirty runs that are fragments; otherwise operate on
+	 * all dirty runs.
+	 */
+	for (pageind = map_bias; pageind < chunk_npages; pageind += npages) {
+		arena_chunk_map_t *mapelm = arena_mapp_get(chunk, pageind);
+		if (arena_mapbits_allocated_get(chunk, pageind) == 0) {
+			size_t run_size =
+			    arena_mapbits_unallocated_size_get(chunk, pageind);
+
+			npages = run_size >> LG_PAGE;
+			assert(pageind + npages <= chunk_npages);
+			assert(arena_mapbits_dirty_get(chunk, pageind) ==
+			    arena_mapbits_dirty_get(chunk, pageind+npages-1));
+
+			if (arena_mapbits_dirty_get(chunk, pageind) != 0 &&
+			    (all || arena_avail_adjac(chunk, pageind,
+			    npages))) {
+				arena_run_t *run = (arena_run_t *)((uintptr_t)
+				    chunk + (uintptr_t)(pageind << LG_PAGE));
+
+				arena_run_split_large(arena, run, run_size,
+				    false);
+				/* Append to list for later processing. */
+				ql_elm_new(mapelm, u.ql_link);
+				ql_tail_insert(mapelms, mapelm, u.ql_link);
+			}
+		} else {
+			/* Skip run. */
+			if (arena_mapbits_large_get(chunk, pageind) != 0) {
+				npages = arena_mapbits_large_size_get(chunk,
+				    pageind) >> LG_PAGE;
+			} else {
+				size_t binind;
+				arena_bin_info_t *bin_info;
+				arena_run_t *run = (arena_run_t *)((uintptr_t)
+				    chunk + (uintptr_t)(pageind << LG_PAGE));
+
+				assert(arena_mapbits_small_runind_get(chunk,
+				    pageind) == 0);
+				binind = arena_bin_index(arena, run->bin);
+				bin_info = &arena_bin_info[binind];
+				npages = bin_info->run_size >> LG_PAGE;
+			}
+		}
+	}
+	assert(pageind == chunk_npages);
+	assert(chunk->ndirty == 0 || all == false);
+	assert(chunk->nruns_adjac == 0);
+}
+
+static size_t
+arena_chunk_purge_stashed(arena_t *arena, arena_chunk_t *chunk,
+    arena_chunk_mapelms_t *mapelms)
+{
+	size_t npurged, pageind, npages, nmadvise;
+	arena_chunk_map_t *mapelm;
+
+	malloc_mutex_unlock(&arena->lock);
+	if (config_stats)
+		nmadvise = 0;
+	npurged = 0;
+	ql_foreach(mapelm, mapelms, u.ql_link) {
+		bool unzeroed;
+		size_t flag_unzeroed, i;
+
+		pageind = (((uintptr_t)mapelm - (uintptr_t)chunk->map) /
+		    sizeof(arena_chunk_map_t)) + map_bias;
+		npages = arena_mapbits_large_size_get(chunk, pageind) >>
+		    LG_PAGE;
+		assert(pageind + npages <= chunk_npages);
+		unzeroed = pages_purge((void *)((uintptr_t)chunk + (pageind <<
+		    LG_PAGE)), (npages << LG_PAGE));
+		flag_unzeroed = unzeroed ? CHUNK_MAP_UNZEROED : 0;
+		/*
+		 * Set the unzeroed flag for all pages, now that pages_purge()
+		 * has returned whether the pages were zeroed as a side effect
+		 * of purging.  This chunk map modification is safe even though
+		 * the arena mutex isn't currently owned by this thread,
+		 * because the run is marked as allocated, thus protecting it
+		 * from being modified by any other thread.  As long as these
+		 * writes don't perturb the first and last elements'
+		 * CHUNK_MAP_ALLOCATED bits, behavior is well defined.
+		 */
+		for (i = 0; i < npages; i++) {
+			arena_mapbits_unzeroed_set(chunk, pageind+i,
+			    flag_unzeroed);
+		}
+		npurged += npages;
+		if (config_stats)
+			nmadvise++;
+	}
+	malloc_mutex_lock(&arena->lock);
+	if (config_stats)
+		arena->stats.nmadvise += nmadvise;
+
+	return (npurged);
+}
+
+static void
+arena_chunk_unstash_purged(arena_t *arena, arena_chunk_t *chunk,
+    arena_chunk_mapelms_t *mapelms)
+{
+	arena_chunk_map_t *mapelm;
+	size_t pageind;
+
+	/* Deallocate runs. */
+	for (mapelm = ql_first(mapelms); mapelm != NULL;
+	    mapelm = ql_first(mapelms)) {
+		arena_run_t *run;
+
+		pageind = (((uintptr_t)mapelm - (uintptr_t)chunk->map) /
+		    sizeof(arena_chunk_map_t)) + map_bias;
+		run = (arena_run_t *)((uintptr_t)chunk + (uintptr_t)(pageind <<
+		    LG_PAGE));
+		ql_remove(mapelms, mapelm, u.ql_link);
+		arena_run_dalloc(arena, run, false, true);
+	}
+}
+
 static inline size_t
 arena_chunk_purge(arena_t *arena, arena_chunk_t *chunk, bool all)
 {
 	size_t npurged;
-	ql_head(arena_chunk_map_t) mapelms;
-	arena_chunk_map_t *mapelm;
-	size_t pageind, npages;
-	size_t nmadvise;
+	arena_chunk_mapelms_t mapelms;
 
 	ql_new(&mapelms);
 
@@ -798,119 +988,11 @@ arena_chunk_purge(arena_t *arena, arena_chunk_t *chunk, bool all)
 	if (chunk->nruns_adjac == 0)
 		all = true;
 
-	/*
-	 * Temporarily allocate free dirty runs within chunk.  If all is false,
-	 * only operate on dirty runs that are fragments; otherwise operate on
-	 * all dirty runs.
-	 */
-	for (pageind = map_bias; pageind < chunk_npages; pageind += npages) {
-		mapelm = arena_mapp_get(chunk, pageind);
-		if (arena_mapbits_allocated_get(chunk, pageind) == 0) {
-			size_t run_size =
-			    arena_mapbits_unallocated_size_get(chunk, pageind);
-
-			npages = run_size >> LG_PAGE;
-			assert(pageind + npages <= chunk_npages);
-			assert(arena_mapbits_dirty_get(chunk, pageind) ==
-			    arena_mapbits_dirty_get(chunk, pageind+npages-1));
-
-			if (arena_mapbits_dirty_get(chunk, pageind) != 0 &&
-			    (all || arena_avail_adjac(chunk, pageind,
-			    npages))) {
-				arena_run_t *run = (arena_run_t *)((uintptr_t)
-				    chunk + (uintptr_t)(pageind << LG_PAGE));
-
-				arena_run_split(arena, run, run_size, true,
-				    BININD_INVALID, false);
-				/* Append to list for later processing. */
-				ql_elm_new(mapelm, u.ql_link);
-				ql_tail_insert(&mapelms, mapelm, u.ql_link);
-			}
-		} else {
-			/* Skip run. */
-			if (arena_mapbits_large_get(chunk, pageind) != 0) {
-				npages = arena_mapbits_large_size_get(chunk,
-				    pageind) >> LG_PAGE;
-			} else {
-				size_t binind;
-				arena_bin_info_t *bin_info;
-				arena_run_t *run = (arena_run_t *)((uintptr_t)
-				    chunk + (uintptr_t)(pageind << LG_PAGE));
-
-				assert(arena_mapbits_small_runind_get(chunk,
-				    pageind) == 0);
-				binind = arena_bin_index(arena, run->bin);
-				bin_info = &arena_bin_info[binind];
-				npages = bin_info->run_size >> LG_PAGE;
-			}
-		}
-	}
-	assert(pageind == chunk_npages);
-	assert(chunk->ndirty == 0 || all == false);
-	assert(chunk->nruns_adjac == 0);
-
-	malloc_mutex_unlock(&arena->lock);
-	if (config_stats)
-		nmadvise = 0;
-	npurged = 0;
-	ql_foreach(mapelm, &mapelms, u.ql_link) {
-		bool unzeroed;
-		size_t flag_unzeroed, i;
-
-		pageind = (((uintptr_t)mapelm - (uintptr_t)chunk->map) /
-		    sizeof(arena_chunk_map_t)) + map_bias;
-		npages = arena_mapbits_large_size_get(chunk, pageind) >>
-		    LG_PAGE;
-		assert(pageind + npages <= chunk_npages);
-		unzeroed = pages_purge((void *)((uintptr_t)chunk + (pageind <<
-		    LG_PAGE)), (npages << LG_PAGE));
-		flag_unzeroed = unzeroed ? CHUNK_MAP_UNZEROED : 0;
-		/*
-		 * Set the unzeroed flag for all pages, now that pages_purge()
-		 * has returned whether the pages were zeroed as a side effect
-		 * of purging.  This chunk map modification is safe even though
-		 * the arena mutex isn't currently owned by this thread,
-		 * because the run is marked as allocated, thus protecting it
-		 * from being modified by any other thread.  As long as these
-		 * writes don't perturb the first and last elements'
-		 * CHUNK_MAP_ALLOCATED bits, behavior is well defined.
-		 */
-		for (i = 0; i < npages; i++) {
-			arena_mapbits_unzeroed_set(chunk, pageind+i,
-			    flag_unzeroed);
-		}
-		npurged += npages;
-		if (config_stats)
-			nmadvise++;
-	}
-	malloc_mutex_lock(&arena->lock);
-	if (config_stats)
-		arena->stats.nmadvise += nmadvise;
-
-	/* Deallocate runs. */
-	for (mapelm = ql_first(&mapelms); mapelm != NULL;
-	    mapelm = ql_first(&mapelms)) {
-		arena_run_t *run;
-
-		pageind = (((uintptr_t)mapelm - (uintptr_t)chunk->map) /
-		    sizeof(arena_chunk_map_t)) + map_bias;
-		run = (arena_run_t *)((uintptr_t)chunk + (uintptr_t)(pageind <<
-		    LG_PAGE));
-		ql_remove(&mapelms, mapelm, u.ql_link);
-		arena_run_dalloc(arena, run, false, true);
-	}
+	arena_chunk_stash_dirty(arena, chunk, all, &mapelms);
+	npurged = arena_chunk_purge_stashed(arena, chunk, &mapelms);
+	arena_chunk_unstash_purged(arena, chunk, &mapelms);
 
 	return (npurged);
-}
-
-static arena_chunk_t *
-chunks_dirty_iter_cb(arena_chunk_tree_t *tree, arena_chunk_t *chunk, void *arg)
-{
-       size_t *ndirty = (size_t *)arg;
-
-       assert(chunk->ndirty != 0);
-       *ndirty += chunk->ndirty;
-       return (NULL);
 }
 
 static void
@@ -933,21 +1015,11 @@ arena_purge(arena_t *arena, bool all)
 		arena->stats.npurge++;
 
 	/*
-	 * Compute the minimum number of pages that this thread should try to
-	 * purge, and add the result to arena->npurgatory.  This will keep
-	 * multiple threads from racing to reduce ndirty below the threshold.
+	 * Add the minimum number of pages this thread should try to purge to
+	 * arena->npurgatory.  This will keep multiple threads from racing to
+	 * reduce ndirty below the threshold.
 	 */
-	{
-		size_t npurgeable = arena->ndirty - arena->npurgatory;
-
-		if (all == false) {
-			size_t threshold = (arena->nactive >>
-			    opt_lg_dirty_mult);
-
-			npurgatory = npurgeable - threshold;
-		} else
-			npurgatory = npurgeable;
-	}
+	npurgatory = arena_compute_npurgatory(arena, all);
 	arena->npurgatory += npurgatory;
 
 	while (npurgatory > 0) {
@@ -1014,61 +1086,12 @@ arena_purge_all(arena_t *arena)
 }
 
 static void
-arena_run_dalloc(arena_t *arena, arena_run_t *run, bool dirty, bool cleaned)
+arena_run_coalesce(arena_t *arena, arena_chunk_t *chunk, size_t *p_size,
+    size_t *p_run_ind, size_t *p_run_pages, size_t flag_dirty)
 {
-	arena_chunk_t *chunk;
-	size_t size, run_ind, run_pages, flag_dirty;
-
-	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(run);
-	run_ind = (size_t)(((uintptr_t)run - (uintptr_t)chunk) >> LG_PAGE);
-	assert(run_ind >= map_bias);
-	assert(run_ind < chunk_npages);
-	if (arena_mapbits_large_get(chunk, run_ind) != 0) {
-		size = arena_mapbits_large_size_get(chunk, run_ind);
-		assert(size == PAGE ||
-		    arena_mapbits_large_size_get(chunk,
-		    run_ind+(size>>LG_PAGE)-1) == 0);
-	} else {
-		size_t binind = arena_bin_index(arena, run->bin);
-		arena_bin_info_t *bin_info = &arena_bin_info[binind];
-		size = bin_info->run_size;
-	}
-	run_pages = (size >> LG_PAGE);
-	if (config_stats) {
-		/*
-		 * Update stats_cactive if nactive is crossing a chunk
-		 * multiple.
-		 */
-		size_t cactive_diff = CHUNK_CEILING(arena->nactive << LG_PAGE) -
-		    CHUNK_CEILING((arena->nactive - run_pages) << LG_PAGE);
-		if (cactive_diff != 0)
-			stats_cactive_sub(cactive_diff);
-	}
-	arena->nactive -= run_pages;
-
-	/*
-	 * The run is dirty if the caller claims to have dirtied it, as well as
-	 * if it was already dirty before being allocated and the caller
-	 * doesn't claim to have cleaned it.
-	 */
-	assert(arena_mapbits_dirty_get(chunk, run_ind) ==
-	    arena_mapbits_dirty_get(chunk, run_ind+run_pages-1));
-	if (cleaned == false && arena_mapbits_dirty_get(chunk, run_ind) != 0)
-		dirty = true;
-	flag_dirty = dirty ? CHUNK_MAP_DIRTY : 0;
-
-	/* Mark pages as unallocated in the chunk map. */
-	if (dirty) {
-		arena_mapbits_unallocated_set(chunk, run_ind, size,
-		    CHUNK_MAP_DIRTY);
-		arena_mapbits_unallocated_set(chunk, run_ind+run_pages-1, size,
-		    CHUNK_MAP_DIRTY);
-	} else {
-		arena_mapbits_unallocated_set(chunk, run_ind, size,
-		    arena_mapbits_unzeroed_get(chunk, run_ind));
-		arena_mapbits_unallocated_set(chunk, run_ind+run_pages-1, size,
-		    arena_mapbits_unzeroed_get(chunk, run_ind+run_pages-1));
-	}
+	size_t size = *p_size;
+	size_t run_ind = *p_run_ind;
+	size_t run_pages = *p_run_pages;
 
 	/* Try to coalesce forward. */
 	if (run_ind + run_pages < chunk_npages &&
@@ -1098,8 +1121,9 @@ arena_run_dalloc(arena_t *arena, arena_run_t *run, bool dirty, bool cleaned)
 	}
 
 	/* Try to coalesce backward. */
-	if (run_ind > map_bias && arena_mapbits_allocated_get(chunk, run_ind-1)
-	    == 0 && arena_mapbits_dirty_get(chunk, run_ind-1) == flag_dirty) {
+	if (run_ind > map_bias && arena_mapbits_allocated_get(chunk,
+	    run_ind-1) == 0 && arena_mapbits_dirty_get(chunk, run_ind-1) ==
+	    flag_dirty) {
 		size_t prun_size = arena_mapbits_unallocated_size_get(chunk,
 		    run_ind-1);
 		size_t prun_pages = prun_size >> LG_PAGE;
@@ -1123,6 +1147,62 @@ arena_run_dalloc(arena_t *arena, arena_run_t *run, bool dirty, bool cleaned)
 		arena_mapbits_unallocated_size_set(chunk, run_ind+run_pages-1,
 		    size);
 	}
+
+	*p_size = size;
+	*p_run_ind = run_ind;
+	*p_run_pages = run_pages;
+}
+
+static void
+arena_run_dalloc(arena_t *arena, arena_run_t *run, bool dirty, bool cleaned)
+{
+	arena_chunk_t *chunk;
+	size_t size, run_ind, run_pages, flag_dirty;
+
+	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(run);
+	run_ind = (size_t)(((uintptr_t)run - (uintptr_t)chunk) >> LG_PAGE);
+	assert(run_ind >= map_bias);
+	assert(run_ind < chunk_npages);
+	if (arena_mapbits_large_get(chunk, run_ind) != 0) {
+		size = arena_mapbits_large_size_get(chunk, run_ind);
+		assert(size == PAGE ||
+		    arena_mapbits_large_size_get(chunk,
+		    run_ind+(size>>LG_PAGE)-1) == 0);
+	} else {
+		size_t binind = arena_bin_index(arena, run->bin);
+		arena_bin_info_t *bin_info = &arena_bin_info[binind];
+		size = bin_info->run_size;
+	}
+	run_pages = (size >> LG_PAGE);
+	arena_cactive_update(arena, 0, run_pages);
+	arena->nactive -= run_pages;
+
+	/*
+	 * The run is dirty if the caller claims to have dirtied it, as well as
+	 * if it was already dirty before being allocated and the caller
+	 * doesn't claim to have cleaned it.
+	 */
+	assert(arena_mapbits_dirty_get(chunk, run_ind) ==
+	    arena_mapbits_dirty_get(chunk, run_ind+run_pages-1));
+	if (cleaned == false && arena_mapbits_dirty_get(chunk, run_ind) != 0)
+		dirty = true;
+	flag_dirty = dirty ? CHUNK_MAP_DIRTY : 0;
+
+	/* Mark pages as unallocated in the chunk map. */
+	if (dirty) {
+		arena_mapbits_unallocated_set(chunk, run_ind, size,
+		    CHUNK_MAP_DIRTY);
+		arena_mapbits_unallocated_set(chunk, run_ind+run_pages-1, size,
+		    CHUNK_MAP_DIRTY);
+	} else {
+		arena_mapbits_unallocated_set(chunk, run_ind, size,
+		    arena_mapbits_unzeroed_get(chunk, run_ind));
+		arena_mapbits_unallocated_set(chunk, run_ind+run_pages-1, size,
+		    arena_mapbits_unzeroed_get(chunk, run_ind+run_pages-1));
+	}
+
+	arena_run_coalesce(arena, chunk, &size, &run_ind, &run_pages,
+	    flag_dirty);
 
 	/* Insert into runs_avail, now that coalescing is complete. */
 	assert(arena_mapbits_unallocated_size_get(chunk, run_ind) ==
@@ -1291,7 +1371,7 @@ arena_bin_nonfull_run_get(arena_t *arena, arena_bin_t *bin)
 	malloc_mutex_unlock(&bin->lock);
 	/******************************/
 	malloc_mutex_lock(&arena->lock);
-	run = arena_run_alloc(arena, bin_info->run_size, false, binind, false);
+	run = arena_run_alloc_small(arena, bin_info->run_size, binind);
 	if (run != NULL) {
 		bitmap_t *bitmap = (bitmap_t *)((uintptr_t)run +
 		    (uintptr_t)bin_info->bitmap_offset);
@@ -1314,7 +1394,7 @@ arena_bin_nonfull_run_get(arena_t *arena, arena_bin_t *bin)
 	}
 
 	/*
-	 * arena_run_alloc() failed, but another thread may have made
+	 * arena_run_alloc_small() failed, but another thread may have made
 	 * sufficient memory available while this one dropped bin->lock above,
 	 * so search one more time.
 	 */
@@ -1349,12 +1429,12 @@ arena_bin_malloc_hard(arena_t *arena, arena_bin_t *bin)
 			arena_chunk_t *chunk;
 
 			/*
-			 * arena_run_alloc() may have allocated run, or it may
-			 * have pulled run from the bin's run tree.  Therefore
-			 * it is unsafe to make any assumptions about how run
-			 * has previously been used, and arena_bin_lower_run()
-			 * must be called, as if a region were just deallocated
-			 * from the run.
+			 * arena_run_alloc_small() may have allocated run, or
+			 * it may have pulled run from the bin's run tree.
+			 * Therefore it is unsafe to make any assumptions about
+			 * how run has previously been used, and
+			 * arena_bin_lower_run() must be called, as if a region
+			 * were just deallocated from the run.
 			 */
 			chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(run);
 			if (run->nfree == bin_info->nregs)
@@ -1580,7 +1660,7 @@ arena_malloc_large(arena_t *arena, size_t size, bool zero)
 	/* Large allocation. */
 	size = PAGE_CEILING(size);
 	malloc_mutex_lock(&arena->lock);
-	ret = (void *)arena_run_alloc(arena, size, true, BININD_INVALID, zero);
+	ret = (void *)arena_run_alloc_large(arena, size, zero);
 	if (ret == NULL) {
 		malloc_mutex_unlock(&arena->lock);
 		return (NULL);
@@ -1626,7 +1706,7 @@ arena_palloc(arena_t *arena, size_t size, size_t alignment, bool zero)
 	alloc_size = size + alignment - PAGE;
 
 	malloc_mutex_lock(&arena->lock);
-	run = arena_run_alloc(arena, alloc_size, true, BININD_INVALID, false);
+	run = arena_run_alloc_large(arena, alloc_size, false);
 	if (run == NULL) {
 		malloc_mutex_unlock(&arena->lock);
 		return (NULL);
@@ -1646,8 +1726,7 @@ arena_palloc(arena_t *arena, size_t size, size_t alignment, bool zero)
 		arena_run_trim_tail(arena, chunk, ret, size + trailsize, size,
 		    false);
 	}
-	arena_run_init(arena, (arena_run_t *)ret, size, true, BININD_INVALID,
-	    zero);
+	arena_run_init_large(arena, (arena_run_t *)ret, size, zero);
 
 	if (config_stats) {
 		arena->stats.nmalloc_large++;
@@ -1953,9 +2032,8 @@ arena_ralloc_large_grow(arena_t *arena, arena_chunk_t *chunk, void *ptr,
 		size_t flag_dirty;
 		size_t splitsize = (oldsize + followsize <= size + extra)
 		    ? followsize : size + extra - oldsize;
-		arena_run_split(arena, (arena_run_t *)((uintptr_t)chunk +
-		    ((pageind+npages) << LG_PAGE)), splitsize, true,
-		    BININD_INVALID, zero);
+		arena_run_split_large(arena, (arena_run_t *)((uintptr_t)chunk +
+		    ((pageind+npages) << LG_PAGE)), splitsize, zero);
 
 		size = oldsize + splitsize;
 		npages = size >> LG_PAGE;
