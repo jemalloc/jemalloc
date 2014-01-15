@@ -148,6 +148,9 @@ TEST_BEGIN(test_stats_arenas_small)
 	p = mallocx(SMALL_MAXCLASS, 0);
 	assert_ptr_not_null(p, "Unexpected mallocx() failure");
 
+	assert_d_eq(mallctl("thread.tcache.flush", NULL, NULL, NULL, 0),
+	    config_tcache ? 0 : ENOENT, "Unexpected mallctl() result");
+
 	assert_d_eq(mallctl("epoch", NULL, NULL, &epoch, sizeof(epoch)), 0,
 	    "Unexpected mallctl() failure");
 
@@ -164,13 +167,13 @@ TEST_BEGIN(test_stats_arenas_small)
 
 	if (config_stats) {
 		assert_zu_gt(allocated, 0,
-		    "allocated should be greated than zero");
+		    "allocated should be greater than zero");
 		assert_u64_gt(nmalloc, 0,
 		    "nmalloc should be no greater than zero");
 		assert_u64_ge(nmalloc, ndalloc,
 		    "nmalloc should be at least as large as ndalloc");
 		assert_u64_gt(nrequests, 0,
-		    "nrequests should be no greater than zero");
+		    "nrequests should be greater than zero");
 	}
 
 	dallocx(p, 0);

@@ -151,7 +151,6 @@ TEST_BEGIN(test_malloc_snprintf_truncated)
 } while (0)
 
 	for (len = 1; len < BUFLEN; len++) {
-		TEST("",		"");
 		TEST("012346789",	"012346789");
 		TEST("a0123b",		"a%sb", "0123");
 		TEST("a01234567",	"a%s%s", "0123", "4567");
@@ -180,7 +179,6 @@ TEST_BEGIN(test_malloc_snprintf)
 	assert_d_eq(result, strlen(expected_str), "Unexpected result");	\
 } while (0)
 
-	TEST("", "");
 	TEST("hello", "hello");
 
 	TEST("a0123b", "a%sb", "0123");
