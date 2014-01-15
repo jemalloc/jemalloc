@@ -65,33 +65,13 @@ static int		prof_dump_fd;
 static bool		prof_booted = false;
 
 /******************************************************************************/
-/* Function prototypes for non-inline static functions. */
+/*
+ * Function prototypes for static functions that are referenced prior to
+ * definition.
+ */
 
-static prof_bt_t	*bt_dup(prof_bt_t *bt);
-static void	bt_destroy(prof_bt_t *bt);
-#ifdef JEMALLOC_PROF_LIBGCC
-static _Unwind_Reason_Code	prof_unwind_init_callback(
-    struct _Unwind_Context *context, void *arg);
-static _Unwind_Reason_Code	prof_unwind_callback(
-    struct _Unwind_Context *context, void *arg);
-#endif
-static bool	prof_flush(bool propagate_err);
-static bool	prof_write(bool propagate_err, const char *s);
-static bool	prof_printf(bool propagate_err, const char *format, ...)
-    JEMALLOC_ATTR(format(printf, 2, 3));
-static void	prof_ctx_sum(prof_ctx_t *ctx, prof_cnt_t *cnt_all,
-    size_t *leak_nctx);
 static void	prof_ctx_destroy(prof_ctx_t *ctx);
 static void	prof_ctx_merge(prof_ctx_t *ctx, prof_thr_cnt_t *cnt);
-static bool	prof_dump_ctx(bool propagate_err, prof_ctx_t *ctx,
-    prof_bt_t *bt);
-static bool	prof_dump_maps(bool propagate_err);
-static bool	prof_dump(bool propagate_err, const char *filename,
-    bool leakcheck);
-static void	prof_dump_filename(char *filename, char v, int64_t vseq);
-static void	prof_fdump(void);
-static void	prof_bt_hash(const void *key, size_t r_hash[2]);
-static bool	prof_bt_keycomp(const void *k1, const void *k2);
 static malloc_mutex_t	*prof_ctx_mutex_choose(void);
 
 /******************************************************************************/
@@ -427,6 +407,69 @@ prof_backtrace(prof_bt_t *bt, unsigned nignore)
 }
 #endif
 
+static bool
+prof_lookup_global(prof_bt_t *bt, prof_tdata_t *prof_tdata, void **p_btkey,
+    prof_ctx_t **p_ctx, bool *p_new_ctx)
+{
+	union {
+		prof_ctx_t	*p;
+		void		*v;
+	} ctx;
+	union {
+		prof_bt_t	*p;
+		void		*v;
+	} btkey;
+	bool new_ctx;
+
+	prof_enter(prof_tdata);
+	if (ckh_search(&bt2ctx, bt, &btkey.v, &ctx.v)) {
+		/* bt has never been seen before.  Insert it. */
+		ctx.v = imalloc(sizeof(prof_ctx_t));
+		if (ctx.v == NULL) {
+			prof_leave(prof_tdata);
+			return (true);
+		}
+		btkey.p = bt_dup(bt);
+		if (btkey.v == NULL) {
+			prof_leave(prof_tdata);
+			idalloc(ctx.v);
+			return (true);
+		}
+		ctx.p->bt = btkey.p;
+		ctx.p->lock = prof_ctx_mutex_choose();
+		/*
+		 * Set nlimbo to 1, in order to avoid a race condition with
+		 * prof_ctx_merge()/prof_ctx_destroy().
+		 */
+		ctx.p->nlimbo = 1;
+		memset(&ctx.p->cnt_merged, 0, sizeof(prof_cnt_t));
+		ql_new(&ctx.p->cnts_ql);
+		if (ckh_insert(&bt2ctx, btkey.v, ctx.v)) {
+			/* OOM. */
+			prof_leave(prof_tdata);
+			idalloc(btkey.v);
+			idalloc(ctx.v);
+			return (true);
+		}
+		new_ctx = true;
+	} else {
+		/*
+		 * Increment nlimbo, in order to avoid a race condition with
+		 * prof_ctx_merge()/prof_ctx_destroy().
+		 */
+		malloc_mutex_lock(ctx.p->lock);
+		ctx.p->nlimbo++;
+		malloc_mutex_unlock(ctx.p->lock);
+		new_ctx = false;
+	}
+	prof_leave(prof_tdata);
+
+	*p_btkey = btkey.v;
+	*p_ctx = ctx.p;
+	*p_new_ctx = new_ctx;
+	return (false);
+}
+
 prof_thr_cnt_t *
 prof_lookup(prof_bt_t *bt)
 {
@@ -443,62 +486,16 @@ prof_lookup(prof_bt_t *bt)
 		return (NULL);
 
 	if (ckh_search(&prof_tdata->bt2cnt, bt, NULL, &ret.v)) {
-		union {
-			prof_bt_t	*p;
-			void		*v;
-		} btkey;
-		union {
-			prof_ctx_t	*p;
-			void		*v;
-		} ctx;
+		void *btkey;
+		prof_ctx_t *ctx;
 		bool new_ctx;
 
 		/*
 		 * This thread's cache lacks bt.  Look for it in the global
 		 * cache.
 		 */
-		prof_enter(prof_tdata);
-		if (ckh_search(&bt2ctx, bt, &btkey.v, &ctx.v)) {
-			/* bt has never been seen before.  Insert it. */
-			ctx.v = imalloc(sizeof(prof_ctx_t));
-			if (ctx.v == NULL) {
-				prof_leave(prof_tdata);
-				return (NULL);
-			}
-			btkey.p = bt_dup(bt);
-			if (btkey.v == NULL) {
-				prof_leave(prof_tdata);
-				idalloc(ctx.v);
-				return (NULL);
-			}
-			ctx.p->bt = btkey.p;
-			ctx.p->lock = prof_ctx_mutex_choose();
-			/*
-			 * Set nlimbo to 1, in order to avoid a race condition
-			 * with prof_ctx_merge()/prof_ctx_destroy().
-			 */
-			ctx.p->nlimbo = 1;
-			memset(&ctx.p->cnt_merged, 0, sizeof(prof_cnt_t));
-			ql_new(&ctx.p->cnts_ql);
-			if (ckh_insert(&bt2ctx, btkey.v, ctx.v)) {
-				/* OOM. */
-				prof_leave(prof_tdata);
-				idalloc(btkey.v);
-				idalloc(ctx.v);
-				return (NULL);
-			}
-			new_ctx = true;
-		} else {
-			/*
-			 * Increment nlimbo, in order to avoid a race condition
-			 * with prof_ctx_merge()/prof_ctx_destroy().
-			 */
-			malloc_mutex_lock(ctx.p->lock);
-			ctx.p->nlimbo++;
-			malloc_mutex_unlock(ctx.p->lock);
-			new_ctx = false;
-		}
-		prof_leave(prof_tdata);
+		if (prof_lookup_global(bt, prof_tdata, &btkey, &ctx, &new_ctx))
+			return (NULL);
 
 		/* Link a prof_thd_cnt_t into ctx for this thread. */
 		if (ckh_count(&prof_tdata->bt2cnt) == PROF_TCMAX) {
@@ -521,27 +518,27 @@ prof_lookup(prof_bt_t *bt)
 			ret.v = imalloc(sizeof(prof_thr_cnt_t));
 			if (ret.p == NULL) {
 				if (new_ctx)
-					prof_ctx_destroy(ctx.p);
+					prof_ctx_destroy(ctx);
 				return (NULL);
 			}
 			ql_elm_new(ret.p, cnts_link);
 			ql_elm_new(ret.p, lru_link);
 		}
 		/* Finish initializing ret. */
-		ret.p->ctx = ctx.p;
+		ret.p->ctx = ctx;
 		ret.p->epoch = 0;
 		memset(&ret.p->cnts, 0, sizeof(prof_cnt_t));
-		if (ckh_insert(&prof_tdata->bt2cnt, btkey.v, ret.v)) {
+		if (ckh_insert(&prof_tdata->bt2cnt, btkey, ret.v)) {
 			if (new_ctx)
-				prof_ctx_destroy(ctx.p);
+				prof_ctx_destroy(ctx);
 			idalloc(ret.v);
 			return (NULL);
 		}
 		ql_head_insert(&prof_tdata->lru_ql, ret.p, lru_link);
-		malloc_mutex_lock(ctx.p->lock);
-		ql_tail_insert(&ctx.p->cnts_ql, ret.p, cnts_link);
-		ctx.p->nlimbo--;
-		malloc_mutex_unlock(ctx.p->lock);
+		malloc_mutex_lock(ctx->lock);
+		ql_tail_insert(&ctx->cnts_ql, ret.p, cnts_link);
+		ctx->nlimbo--;
+		malloc_mutex_unlock(ctx->lock);
 	} else {
 		/* Move ret to the front of the LRU. */
 		ql_remove(&prof_tdata->lru_ql, ret.p, lru_link);
