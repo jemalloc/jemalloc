@@ -129,6 +129,7 @@ struct prof_ctx_s {
 	 * limbo due to one of:
 	 *   - Initializing per thread counters associated with this ctx.
 	 *   - Preparing to destroy this ctx.
+	 *   - Dumping a heap profile that includes this ctx.
 	 * nlimbo must be 1 (single destroyer) in order to safely destroy the
 	 * ctx.
 	 */
@@ -145,7 +146,11 @@ struct prof_ctx_s {
 	 * this context.
 	 */
 	ql_head(prof_thr_cnt_t)	cnts_ql;
+
+	/* Linkage for list of contexts to be dumped. */
+	ql_elm(prof_ctx_t)	dump_link;
 };
+typedef ql_head(prof_ctx_t) prof_ctx_list_t;
 
 struct prof_tdata_s {
 	/*
