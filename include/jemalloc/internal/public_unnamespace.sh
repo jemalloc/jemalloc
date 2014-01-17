@@ -1,5 +1,6 @@
 #!/bin/sh
 
-for symbol in `cat $1` ; do
-  echo "#undef je_${symbol}"
+for nm in `cat $1` ; do
+  n=`echo ${nm} |tr ':' ' ' |awk '{print $1}'`
+  echo "#undef je_${n}"
 done

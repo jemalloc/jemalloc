@@ -102,10 +102,7 @@
  * a separate allocator for their internal data structures.
  */
 #elif defined(JEMALLOC_STRESS_TEST)
-#  define JEMALLOC_NO_DEMANGLE
 #  include "jemalloc/jemalloc@install_suffix@.h"
-#  include "jemalloc/internal/public_unnamespace.h"
-#  undef JEMALLOC_NO_DEMANGLE
 
 #  include "jemalloc/jemalloc_protos_jet.h"
 
@@ -114,8 +111,13 @@
 #  include "jemalloc/internal/public_unnamespace.h"
 #  undef JEMALLOC_JET
 
+#  include "jemalloc/jemalloc_rename.h"
 #  define JEMALLOC_MANGLE
-#  include "jemalloc/jemalloc_mangle@install_suffix@.h"
+#  ifdef JEMALLOC_STRESS_TESTLIB
+#    include "jemalloc/jemalloc_mangle_jet.h"
+#  else
+#    include "jemalloc/jemalloc_mangle.h"
+#  endif
 
 /******************************************************************************/
 /*

@@ -1,5 +1,6 @@
 #!/bin/sh
 
-for symbol in `cat $1` ; do
-  echo "#define	je_${symbol} JEMALLOC_N(${symbol})"
+for nm in `cat $1` ; do
+  n=`echo ${nm} |tr ':' ' ' |awk '{print $1}'`
+  echo "#define	je_${n} JEMALLOC_N(${n})"
 done
