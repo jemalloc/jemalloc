@@ -29,8 +29,7 @@ char		opt_prof_prefix[
 #ifdef JEMALLOC_PROF
     PATH_MAX +
 #endif
-    1
-];
+    1];
 
 uint64_t	prof_interval = 0;
 bool		prof_promote;
