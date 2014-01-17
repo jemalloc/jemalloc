@@ -288,8 +288,10 @@ prof_backtrace
 prof_boot0
 prof_boot1
 prof_boot2
+prof_bt_count
 prof_ctx_get
 prof_ctx_set
+prof_dump_open
 prof_free
 prof_gdump
 prof_idump

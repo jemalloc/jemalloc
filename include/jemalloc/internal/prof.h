@@ -225,6 +225,11 @@ extern bool	prof_promote;
 void	bt_init(prof_bt_t *bt, void **vec);
 void	prof_backtrace(prof_bt_t *bt, unsigned nignore);
 prof_thr_cnt_t	*prof_lookup(prof_bt_t *bt);
+#ifdef JEMALLOC_JET
+size_t	prof_bt_count(void);
+typedef int (prof_dump_open_t)(bool, const char *);
+extern prof_dump_open_t *prof_dump_open;
+#endif
 void	prof_idump(void);
 bool	prof_mdump(const char *filename);
 void	prof_gdump(void);
