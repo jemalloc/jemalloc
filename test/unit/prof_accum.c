@@ -28,18 +28,24 @@ static void	*alloc_##n(unsigned bits);
 static void *								\
 alloc_##n(unsigned bits)						\
 {									\
+	void *p;							\
 									\
-	if (bits == 0) {						\
-		void *p = mallocx(1, 0);				\
-		assert_ptr_not_null(p, "Unexpected mallocx() failure");	\
-		return (p);						\
+	if (bits == 0)							\
+		p = mallocx(1, 0);					\
+	else {								\
+		switch (bits & 0x1U) {					\
+		case 0:							\
+			p = alloc_0(bits >> 1);				\
+			break;						\
+		case 1:							\
+			p = alloc_1(bits >> 1);				\
+			break;						\
+		default: not_reached();					\
+		}							\
 	}								\
-									\
-	switch (bits & 0x1U) {						\
-	case 0: return (alloc_0(bits >> 1));				\
-	case 1: return (alloc_1(bits >> 1));				\
-	default: not_reached();						\
-	}								\
+	/* Intentionally sabotage tail call optimization. */		\
+	assert_ptr_not_null(p, "Unexpected mallocx() failure");		\
+	return (p);							\
 }
 alloc_n_proto(0)
 alloc_n_proto(1)
@@ -74,7 +80,7 @@ thd_start(void *varg)
 		    i+1 == NALLOCS_PER_THREAD) {
 			bt_count = prof_bt_count();
 			assert_zu_le(bt_count_prev+(i-i_prev), bt_count,
-			    "Expected larger bactrace count increase");
+			    "Expected larger backtrace count increase");
 			i_prev = i;
 			bt_count_prev = bt_count;
 		}
