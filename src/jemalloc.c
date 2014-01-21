@@ -1696,11 +1696,9 @@ je_xallocx(void *ptr, size_t size, size_t extra, int flags)
 	assert(malloc_initialized || IS_INITIALIZER);
 	malloc_thread_init();
 
-	if (arena_ind != UINT_MAX) {
-		arena_chunk_t *chunk;
-		chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
+	if (arena_ind != UINT_MAX)
 		arena = arenas[arena_ind];
-	} else
+	else
 		arena = NULL;
 
 	old_usize = isalloc(ptr, config_prof);

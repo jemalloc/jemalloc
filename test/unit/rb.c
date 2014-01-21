@@ -79,11 +79,9 @@ tree_recurse(node_t *node, unsigned black_height, unsigned black_depth,
 
 	/* Red nodes must be interleaved with black nodes. */
 	if (rbtn_red_get(node_t, link, node)) {
-		node_t *t_node = rbtn_left_get(node_t, link, left_node);
 		assert_false(rbtn_red_get(node_t, link, left_node),
 		    "Node should be black");
-		t_node = rbtn_right_get(node_t, link, left_node);
-		assert_false(rbtn_red_get(node_t, link, left_node),
+		assert_false(rbtn_red_get(node_t, link, right_node),
 		    "Node should be black");
 	}
 
