@@ -123,7 +123,8 @@ TEST_BEGIN(test_stats_arenas_summary)
 	    expected, "Unexepected mallctl() result");
 
 	if (config_stats) {
-		assert_u64_gt(npurge, 0, "At least one purge occurred");
+		assert_u64_gt(npurge, 0,
+		    "At least one purge should have occurred");
 		assert_u64_le(nmadvise, purged,
 		    "nmadvise should be no greater than purged");
 	}
@@ -133,6 +134,22 @@ TEST_BEGIN(test_stats_arenas_summary)
 }
 TEST_END
 
+void *
+thd_start(void *arg)
+{
+
+	return (NULL);
+}
+
+static void
+no_lazy_lock(void)
+{
+	thd_t thd;
+
+	thd_create(&thd, thd_start, NULL);
+	thd_join(thd, NULL);
+}
+
 TEST_BEGIN(test_stats_arenas_small)
 {
 	unsigned arena;
@@ -140,6 +157,8 @@ TEST_BEGIN(test_stats_arenas_small)
 	size_t sz, allocated;
 	uint64_t epoch, nmalloc, ndalloc, nrequests;
 	int expected = config_stats ? 0 : ENOENT;
+
+	no_lazy_lock(); /* Lazy locking would dodge tcache testing. */
 
 	arena = 0;
 	assert_d_eq(mallctl("thread.arena", NULL, NULL, &arena, sizeof(arena)),
@@ -211,13 +230,13 @@ TEST_BEGIN(test_stats_arenas_large)
 
 	if (config_stats) {
 		assert_zu_gt(allocated, 0,
-		    "allocated should be greated than zero");
+		    "allocated should be greater than zero");
 		assert_zu_gt(nmalloc, 0,
-		    "nmalloc should be no greater than zero");
+		    "nmalloc should be greater than zero");
 		assert_zu_ge(nmalloc, ndalloc,
 		    "nmalloc should be at least as large as ndalloc");
 		assert_zu_gt(nrequests, 0,
-		    "nrequests should be no greater than zero");
+		    "nrequests should be greater than zero");
 	}
 
 	dallocx(p, 0);
@@ -273,22 +292,23 @@ TEST_BEGIN(test_stats_arenas_bins)
 
 	if (config_stats) {
 		assert_zu_gt(allocated, 0,
-		    "allocated should be greated than zero");
+		    "allocated should be greater than zero");
 		assert_u64_gt(nmalloc, 0,
-		    "nmalloc should be no greater than zero");
+		    "nmalloc should be greater than zero");
 		assert_u64_ge(nmalloc, ndalloc,
 		    "nmalloc should be at least as large as ndalloc");
 		assert_u64_gt(nrequests, 0,
-		    "nrequests should be no greater than zero");
+		    "nrequests should be greater than zero");
 		if (config_tcache) {
 			assert_u64_gt(nfills, 0,
-			    "At least one fill has occurred");
+			    "At least one fill should have occurred");
 			assert_u64_gt(nflushes, 0,
-			    "At least one flush has occurred");
+			    "At least one flush should have occurred");
 		}
-		assert_u64_gt(nruns, 0, "At least one run has been allocated");
+		assert_u64_gt(nruns, 0,
+		    "At least one run should have been allocated");
 		assert_u64_gt(curruns, 0,
-		    "At least one run is currently allocated");
+		    "At least one run should be currently allocated");
 	}
 
 	dallocx(p, 0);
@@ -324,13 +344,13 @@ TEST_BEGIN(test_stats_arenas_lruns)
 
 	if (config_stats) {
 		assert_u64_gt(nmalloc, 0,
-		    "nmalloc should be no greater than zero");
+		    "nmalloc should be greater than zero");
 		assert_u64_ge(nmalloc, ndalloc,
 		    "nmalloc should be at least as large as ndalloc");
 		assert_u64_gt(nrequests, 0,
-		    "nrequests should be no greater than zero");
+		    "nrequests should be greater than zero");
 		assert_u64_gt(curruns, 0,
-		    "At least one run is currently allocated");
+		    "At least one run should be currently allocated");
 	}
 
 	dallocx(p, 0);
