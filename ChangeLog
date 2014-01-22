@@ -16,7 +16,7 @@ found in the git revision history:
     API.  The *allocx() functions are slightly simpler to use because they have
     fewer parameters, they directly return the results of primary interest, and
     mallocx()/rallocx() avoid the strict aliasing pitfall that
-    allocm()/rallocx() share with posix_memalign().  Note that *allocm() is
+    allocm()/rallocm() share with posix_memalign().  Note that *allocm() is
     slated for removal in the next non-bugfix release.
   - Add support for LinuxThreads.
 
