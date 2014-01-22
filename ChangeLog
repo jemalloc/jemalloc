@@ -6,6 +6,59 @@ found in the git revision history:
     http://www.canonware.com/cgi-bin/gitweb.cgi?p=jemalloc.git
     git://canonware.com/jemalloc.git
 
+* 3.5.0 (January 22, 2014)
+
+  This version focuses on refactoring and automated testing, though it also
+  includes some non-trivial heap profiling optimizations not mentioned below.
+
+  New features:
+  - Add the *allocx() API, which is a successor to the experimental *allocm()
+    API.  The *allocx() functions are slightly simpler to use because they have
+    fewer parameters, they directly return the results of primary interest, and
+    mallocx()/rallocx() avoid the strict aliasing pitfall that
+    allocm()/rallocx() share with posix_memalign().  Note that *allocm() is
+    slated for removal in the next non-bugfix release.
+  - Add support for LinuxThreads.
+
+  Bug fixes:
+  - Unless heap profiling is enabled, disable floating point code and don't link
+    with libm.  This, in combination with e.g. EXTRA_CFLAGS=-mno-sse on x64
+    systems, makes it possible to completely disable floating point register
+    use.  Some versions of glibc neglect to save/restore caller-saved floating
+    point registers during dynamic lazy symbol loading, and the symbol loading
+    code uses whatever malloc the application happens to have linked/loaded
+    with, the result being potential floating point register corruption.
+  - Report ENOMEM rather than EINVAL if an OOM occurs during heap profiling
+    backtrace creation in imemalign().  This bug impacted posix_memalign() and
+    aligned_alloc().
+  - Fix a file descriptor leak in a prof_dump_maps() error path.
+  - Fix prof_dump() to close the dump file descriptor for all relevant error
+    paths.
+  - Fix rallocm() to use the arena specified by the ALLOCM_ARENA(s) flag for
+    allocation, not just deallocation.
+  - Fix a data race for large allocation stats counters.
+  - Fix a potential infinite loop during thread exit.  This bug occurred on
+    Solaris, and could affect other platforms with similar pthreads TSD
+    implementations.
+  - Don't junk-fill reallocations unless usable size changes.  This fixes a
+    violation of the *allocx()/*allocm() semantics.
+  - Fix growing large reallocation to junk fill new space.
+  - Fix huge deallocation to junk fill when munmap is disabled.
+  - Change the default private namespace prefix from empty to je_, and change
+    --with-private-namespace-prefix so that it prepends an additional prefix
+    rather than replacing je_.  This reduces the likelihood of applications
+    which statically link jemalloc experiencing symbol name collisions.
+  - Add missing private namespace mangling (relevant when
+    --with-private-namespace is specified).
+  - Add and use JEMALLOC_INLINE_C so that static inline functions are marked as
+    static even for debug builds.
+  - Add a missing mutex unlock in a malloc_init_hard() error path.  In practice
+    this error path is never executed.
+  - Fix numerous bugs in malloc_strotumax() error handling/reporting.  These
+    bugs had no impact except for malformed inputs.
+  - Fix numerous bugs in malloc_snprintf().  These bugs were not exercised by
+    existing calls, so they had no impact.
+
 * 3.4.1 (October 20, 2013)
 
   Bug fixes:

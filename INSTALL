@@ -61,10 +61,10 @@ any of the following arguments (not a definitive list) to 'configure':
     allocator on OSX.
 
 --with-private-namespace=<prefix>
-    Prefix all library-private APIs with <prefix>.  For shared libraries,
+    Prefix all library-private APIs with <prefix>je_.  For shared libraries,
     symbol visibility mechanisms prevent these symbols from being exported, but
     for static libraries, naming collisions are a real possibility.  By
-    default, the prefix is "" (empty string).
+    default, <prefix> is empty, which results in a symbol prefix of je_ .
 
 --with-install-suffix=<suffix>
     Append <suffix> to the base name of all installed files, such that multiple
@@ -80,6 +80,19 @@ any of the following arguments (not a definitive list) to 'configure':
     Enable assertions and validation code.  This incurs a substantial
     performance hit, but is very useful during application development.
     Implies --enable-ivsalloc.
+
+--enable-code-coverage
+    Enable code coverage support, for use during jemalloc test development.
+    Additional testing targets are available if this option is enabled:
+
+      coverage
+      coverage_unit
+      coverage_integration
+      coverage_stress
+
+    These targets do not clear code coverage results from previous runs, and
+    there are interactions between the various coverage targets, so it is
+    usually advisable to run 'make clean' between repeated code coverage runs.
 
 --enable-ivsalloc
     Enable validation code, which verifies that pointers reside within

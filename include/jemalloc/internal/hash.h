@@ -19,6 +19,11 @@
 #ifdef JEMALLOC_H_INLINES
 
 #ifndef JEMALLOC_ENABLE_INLINE
+uint32_t	hash_x86_32(const void *key, int len, uint32_t seed);
+void	hash_x86_128(const void *key, const int len, uint32_t seed,
+    uint64_t r_out[2]);
+void	hash_x64_128(const void *key, const int len, const uint32_t seed,
+    uint64_t r_out[2]);
 void	hash(const void *key, size_t len, const uint32_t seed,
     size_t r_hash[2]);
 #endif
@@ -43,14 +48,14 @@ JEMALLOC_INLINE uint32_t
 hash_get_block_32(const uint32_t *p, int i)
 {
 
-	return p[i];
+	return (p[i]);
 }
 
 JEMALLOC_INLINE uint64_t
 hash_get_block_64(const uint64_t *p, int i)
 {
 
-	return p[i];
+	return (p[i]);
 }
 
 JEMALLOC_INLINE uint32_t
@@ -63,7 +68,7 @@ hash_fmix_32(uint32_t h)
 	h *= 0xc2b2ae35;
 	h ^= h >> 16;
 
-	return h;
+	return (h);
 }
 
 JEMALLOC_INLINE uint64_t
@@ -76,7 +81,7 @@ hash_fmix_64(uint64_t k)
 	k *= QU(0xc4ceb9fe1a85ec53LLU);
 	k ^= k >> 33;
 
-	return k;
+	return (k);
 }
 
 JEMALLOC_INLINE uint32_t
@@ -127,12 +132,12 @@ hash_x86_32(const void *key, int len, uint32_t seed)
 
 	h1 = hash_fmix_32(h1);
 
-	return h1;
+	return (h1);
 }
 
 UNUSED JEMALLOC_INLINE void
 hash_x86_128(const void *key, const int len, uint32_t seed,
-  uint64_t r_out[2])
+    uint64_t r_out[2])
 {
 	const uint8_t * data = (const uint8_t *) key;
 	const int nblocks = len / 16;
@@ -234,7 +239,7 @@ hash_x86_128(const void *key, const int len, uint32_t seed,
 
 UNUSED JEMALLOC_INLINE void
 hash_x64_128(const void *key, const int len, const uint32_t seed,
-  uint64_t r_out[2])
+    uint64_t r_out[2])
 {
 	const uint8_t *data = (const uint8_t *) key;
 	const int nblocks = len / 16;
@@ -309,7 +314,6 @@ hash_x64_128(const void *key, const int len, const uint32_t seed,
 	r_out[0] = h1;
 	r_out[1] = h2;
 }
-
 
 /******************************************************************************/
 /* API. */

@@ -929,7 +929,7 @@ void
 ctl_prefork(void)
 {
 
-	malloc_mutex_lock(&ctl_mtx);
+	malloc_mutex_prefork(&ctl_mtx);
 }
 
 void
@@ -1110,6 +1110,8 @@ label_return:								\
 	return (ret);							\
 }
 
+/******************************************************************************/
+
 CTL_RO_NL_GEN(version, JEMALLOC_VERSION, const char *)
 
 static int
@@ -1131,49 +1133,52 @@ label_return:
 	return (ret);
 }
 
-static int
-thread_tcache_enabled_ctl(const size_t *mib, size_t miblen, void *oldp,
-    size_t *oldlenp, void *newp, size_t newlen)
-{
-	int ret;
-	bool oldval;
+/******************************************************************************/
 
-	if (config_tcache == false)
-		return (ENOENT);
+CTL_RO_BOOL_CONFIG_GEN(config_debug)
+CTL_RO_BOOL_CONFIG_GEN(config_dss)
+CTL_RO_BOOL_CONFIG_GEN(config_fill)
+CTL_RO_BOOL_CONFIG_GEN(config_lazy_lock)
+CTL_RO_BOOL_CONFIG_GEN(config_mremap)
+CTL_RO_BOOL_CONFIG_GEN(config_munmap)
+CTL_RO_BOOL_CONFIG_GEN(config_prof)
+CTL_RO_BOOL_CONFIG_GEN(config_prof_libgcc)
+CTL_RO_BOOL_CONFIG_GEN(config_prof_libunwind)
+CTL_RO_BOOL_CONFIG_GEN(config_stats)
+CTL_RO_BOOL_CONFIG_GEN(config_tcache)
+CTL_RO_BOOL_CONFIG_GEN(config_tls)
+CTL_RO_BOOL_CONFIG_GEN(config_utrace)
+CTL_RO_BOOL_CONFIG_GEN(config_valgrind)
+CTL_RO_BOOL_CONFIG_GEN(config_xmalloc)
 
-	oldval = tcache_enabled_get();
-	if (newp != NULL) {
-		if (newlen != sizeof(bool)) {
-			ret = EINVAL;
-			goto label_return;
-		}
-		tcache_enabled_set(*(bool *)newp);
-	}
-	READ(oldval, bool);
+/******************************************************************************/
 
-	ret = 0;
-label_return:
-	return (ret);
-}
+CTL_RO_NL_GEN(opt_abort, opt_abort, bool)
+CTL_RO_NL_GEN(opt_dss, opt_dss, const char *)
+CTL_RO_NL_GEN(opt_lg_chunk, opt_lg_chunk, size_t)
+CTL_RO_NL_GEN(opt_narenas, opt_narenas, size_t)
+CTL_RO_NL_GEN(opt_lg_dirty_mult, opt_lg_dirty_mult, ssize_t)
+CTL_RO_NL_GEN(opt_stats_print, opt_stats_print, bool)
+CTL_RO_NL_CGEN(config_fill, opt_junk, opt_junk, bool)
+CTL_RO_NL_CGEN(config_fill, opt_quarantine, opt_quarantine, size_t)
+CTL_RO_NL_CGEN(config_fill, opt_redzone, opt_redzone, bool)
+CTL_RO_NL_CGEN(config_fill, opt_zero, opt_zero, bool)
+CTL_RO_NL_CGEN(config_utrace, opt_utrace, opt_utrace, bool)
+CTL_RO_NL_CGEN(config_valgrind, opt_valgrind, opt_valgrind, bool)
+CTL_RO_NL_CGEN(config_xmalloc, opt_xmalloc, opt_xmalloc, bool)
+CTL_RO_NL_CGEN(config_tcache, opt_tcache, opt_tcache, bool)
+CTL_RO_NL_CGEN(config_tcache, opt_lg_tcache_max, opt_lg_tcache_max, ssize_t)
+CTL_RO_NL_CGEN(config_prof, opt_prof, opt_prof, bool)
+CTL_RO_NL_CGEN(config_prof, opt_prof_prefix, opt_prof_prefix, const char *)
+CTL_RO_CGEN(config_prof, opt_prof_active, opt_prof_active, bool) /* Mutable. */
+CTL_RO_NL_CGEN(config_prof, opt_lg_prof_sample, opt_lg_prof_sample, size_t)
+CTL_RO_NL_CGEN(config_prof, opt_prof_accum, opt_prof_accum, bool)
+CTL_RO_NL_CGEN(config_prof, opt_lg_prof_interval, opt_lg_prof_interval, ssize_t)
+CTL_RO_NL_CGEN(config_prof, opt_prof_gdump, opt_prof_gdump, bool)
+CTL_RO_NL_CGEN(config_prof, opt_prof_final, opt_prof_final, bool)
+CTL_RO_NL_CGEN(config_prof, opt_prof_leak, opt_prof_leak, bool)
 
-static int
-thread_tcache_flush_ctl(const size_t *mib, size_t miblen, void *oldp,
-    size_t *oldlenp, void *newp, size_t newlen)
-{
-	int ret;
-
-	if (config_tcache == false)
-		return (ENOENT);
-
-	READONLY();
-	WRITEONLY();
-
-	tcache_flush();
-
-	ret = 0;
-label_return:
-	return (ret);
-}
+/******************************************************************************/
 
 static int
 thread_arena_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
@@ -1235,50 +1240,49 @@ CTL_RO_NL_CGEN(config_stats, thread_deallocated,
 CTL_RO_NL_CGEN(config_stats, thread_deallocatedp,
     &thread_allocated_tsd_get()->deallocated, uint64_t *)
 
-/******************************************************************************/
+static int
+thread_tcache_enabled_ctl(const size_t *mib, size_t miblen, void *oldp,
+    size_t *oldlenp, void *newp, size_t newlen)
+{
+	int ret;
+	bool oldval;
 
-CTL_RO_BOOL_CONFIG_GEN(config_debug)
-CTL_RO_BOOL_CONFIG_GEN(config_dss)
-CTL_RO_BOOL_CONFIG_GEN(config_fill)
-CTL_RO_BOOL_CONFIG_GEN(config_lazy_lock)
-CTL_RO_BOOL_CONFIG_GEN(config_mremap)
-CTL_RO_BOOL_CONFIG_GEN(config_munmap)
-CTL_RO_BOOL_CONFIG_GEN(config_prof)
-CTL_RO_BOOL_CONFIG_GEN(config_prof_libgcc)
-CTL_RO_BOOL_CONFIG_GEN(config_prof_libunwind)
-CTL_RO_BOOL_CONFIG_GEN(config_stats)
-CTL_RO_BOOL_CONFIG_GEN(config_tcache)
-CTL_RO_BOOL_CONFIG_GEN(config_tls)
-CTL_RO_BOOL_CONFIG_GEN(config_utrace)
-CTL_RO_BOOL_CONFIG_GEN(config_valgrind)
-CTL_RO_BOOL_CONFIG_GEN(config_xmalloc)
+	if (config_tcache == false)
+		return (ENOENT);
 
-/******************************************************************************/
+	oldval = tcache_enabled_get();
+	if (newp != NULL) {
+		if (newlen != sizeof(bool)) {
+			ret = EINVAL;
+			goto label_return;
+		}
+		tcache_enabled_set(*(bool *)newp);
+	}
+	READ(oldval, bool);
 
-CTL_RO_NL_GEN(opt_abort, opt_abort, bool)
-CTL_RO_NL_GEN(opt_dss, opt_dss, const char *)
-CTL_RO_NL_GEN(opt_lg_chunk, opt_lg_chunk, size_t)
-CTL_RO_NL_GEN(opt_narenas, opt_narenas, size_t)
-CTL_RO_NL_GEN(opt_lg_dirty_mult, opt_lg_dirty_mult, ssize_t)
-CTL_RO_NL_GEN(opt_stats_print, opt_stats_print, bool)
-CTL_RO_NL_CGEN(config_fill, opt_junk, opt_junk, bool)
-CTL_RO_NL_CGEN(config_fill, opt_zero, opt_zero, bool)
-CTL_RO_NL_CGEN(config_fill, opt_quarantine, opt_quarantine, size_t)
-CTL_RO_NL_CGEN(config_fill, opt_redzone, opt_redzone, bool)
-CTL_RO_NL_CGEN(config_utrace, opt_utrace, opt_utrace, bool)
-CTL_RO_NL_CGEN(config_valgrind, opt_valgrind, opt_valgrind, bool)
-CTL_RO_NL_CGEN(config_xmalloc, opt_xmalloc, opt_xmalloc, bool)
-CTL_RO_NL_CGEN(config_tcache, opt_tcache, opt_tcache, bool)
-CTL_RO_NL_CGEN(config_tcache, opt_lg_tcache_max, opt_lg_tcache_max, ssize_t)
-CTL_RO_NL_CGEN(config_prof, opt_prof, opt_prof, bool)
-CTL_RO_NL_CGEN(config_prof, opt_prof_prefix, opt_prof_prefix, const char *)
-CTL_RO_CGEN(config_prof, opt_prof_active, opt_prof_active, bool) /* Mutable. */
-CTL_RO_NL_CGEN(config_prof, opt_lg_prof_sample, opt_lg_prof_sample, size_t)
-CTL_RO_NL_CGEN(config_prof, opt_lg_prof_interval, opt_lg_prof_interval, ssize_t)
-CTL_RO_NL_CGEN(config_prof, opt_prof_gdump, opt_prof_gdump, bool)
-CTL_RO_NL_CGEN(config_prof, opt_prof_final, opt_prof_final, bool)
-CTL_RO_NL_CGEN(config_prof, opt_prof_leak, opt_prof_leak, bool)
-CTL_RO_NL_CGEN(config_prof, opt_prof_accum, opt_prof_accum, bool)
+	ret = 0;
+label_return:
+	return (ret);
+}
+
+static int
+thread_tcache_flush_ctl(const size_t *mib, size_t miblen, void *oldp,
+    size_t *oldlenp, void *newp, size_t newlen)
+{
+	int ret;
+
+	if (config_tcache == false)
+		return (ENOENT);
+
+	READONLY();
+	WRITEONLY();
+
+	tcache_flush();
+
+	ret = 0;
+label_return:
+	return (ret);
+}
 
 /******************************************************************************/
 
@@ -1390,30 +1394,7 @@ label_return:
 	return (ret);
 }
 
-
 /******************************************************************************/
-
-CTL_RO_NL_GEN(arenas_bin_i_size, arena_bin_info[mib[2]].reg_size, size_t)
-CTL_RO_NL_GEN(arenas_bin_i_nregs, arena_bin_info[mib[2]].nregs, uint32_t)
-CTL_RO_NL_GEN(arenas_bin_i_run_size, arena_bin_info[mib[2]].run_size, size_t)
-static const ctl_named_node_t *
-arenas_bin_i_index(const size_t *mib, size_t miblen, size_t i)
-{
-
-	if (i > NBINS)
-		return (NULL);
-	return (super_arenas_bin_i_node);
-}
-
-CTL_RO_NL_GEN(arenas_lrun_i_size, ((mib[2]+1) << LG_PAGE), size_t)
-static const ctl_named_node_t *
-arenas_lrun_i_index(const size_t *mib, size_t miblen, size_t i)
-{
-
-	if (i > nlclasses)
-		return (NULL);
-	return (super_arenas_lrun_i_node);
-}
 
 static int
 arenas_narenas_ctl(const size_t *mib, size_t miblen, void *oldp,
@@ -1468,7 +1449,28 @@ CTL_RO_NL_GEN(arenas_page, PAGE, size_t)
 CTL_RO_NL_CGEN(config_tcache, arenas_tcache_max, tcache_maxclass, size_t)
 CTL_RO_NL_GEN(arenas_nbins, NBINS, unsigned)
 CTL_RO_NL_CGEN(config_tcache, arenas_nhbins, nhbins, unsigned)
+CTL_RO_NL_GEN(arenas_bin_i_size, arena_bin_info[mib[2]].reg_size, size_t)
+CTL_RO_NL_GEN(arenas_bin_i_nregs, arena_bin_info[mib[2]].nregs, uint32_t)
+CTL_RO_NL_GEN(arenas_bin_i_run_size, arena_bin_info[mib[2]].run_size, size_t)
+static const ctl_named_node_t *
+arenas_bin_i_index(const size_t *mib, size_t miblen, size_t i)
+{
+
+	if (i > NBINS)
+		return (NULL);
+	return (super_arenas_bin_i_node);
+}
+
 CTL_RO_NL_GEN(arenas_nlruns, nlclasses, size_t)
+CTL_RO_NL_GEN(arenas_lrun_i_size, ((mib[2]+1) << LG_PAGE), size_t)
+static const ctl_named_node_t *
+arenas_lrun_i_index(const size_t *mib, size_t miblen, size_t i)
+{
+
+	if (i > nlclasses)
+		return (NULL);
+	return (super_arenas_lrun_i_node);
+}
 
 static int
 arenas_purge_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
@@ -1575,6 +1577,11 @@ CTL_RO_NL_CGEN(config_prof, prof_interval, prof_interval, uint64_t)
 
 /******************************************************************************/
 
+CTL_RO_CGEN(config_stats, stats_cactive, &stats_cactive, size_t *)
+CTL_RO_CGEN(config_stats, stats_allocated, ctl_stats.allocated, size_t)
+CTL_RO_CGEN(config_stats, stats_active, ctl_stats.active, size_t)
+CTL_RO_CGEN(config_stats, stats_mapped, ctl_stats.mapped, size_t)
+
 CTL_RO_CGEN(config_stats, stats_chunks_current, ctl_stats.chunks.current,
     size_t)
 CTL_RO_CGEN(config_stats, stats_chunks_total, ctl_stats.chunks.total, uint64_t)
@@ -1582,6 +1589,20 @@ CTL_RO_CGEN(config_stats, stats_chunks_high, ctl_stats.chunks.high, size_t)
 CTL_RO_CGEN(config_stats, stats_huge_allocated, huge_allocated, size_t)
 CTL_RO_CGEN(config_stats, stats_huge_nmalloc, huge_nmalloc, uint64_t)
 CTL_RO_CGEN(config_stats, stats_huge_ndalloc, huge_ndalloc, uint64_t)
+
+CTL_RO_GEN(stats_arenas_i_dss, ctl_stats.arenas[mib[2]].dss, const char *)
+CTL_RO_GEN(stats_arenas_i_nthreads, ctl_stats.arenas[mib[2]].nthreads, unsigned)
+CTL_RO_GEN(stats_arenas_i_pactive, ctl_stats.arenas[mib[2]].pactive, size_t)
+CTL_RO_GEN(stats_arenas_i_pdirty, ctl_stats.arenas[mib[2]].pdirty, size_t)
+CTL_RO_CGEN(config_stats, stats_arenas_i_mapped,
+    ctl_stats.arenas[mib[2]].astats.mapped, size_t)
+CTL_RO_CGEN(config_stats, stats_arenas_i_npurge,
+    ctl_stats.arenas[mib[2]].astats.npurge, uint64_t)
+CTL_RO_CGEN(config_stats, stats_arenas_i_nmadvise,
+    ctl_stats.arenas[mib[2]].astats.nmadvise, uint64_t)
+CTL_RO_CGEN(config_stats, stats_arenas_i_purged,
+    ctl_stats.arenas[mib[2]].astats.purged, uint64_t)
+
 CTL_RO_CGEN(config_stats, stats_arenas_i_small_allocated,
     ctl_stats.arenas[mib[2]].allocated_small, size_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_small_nmalloc,
@@ -1645,19 +1666,6 @@ stats_arenas_i_lruns_j_index(const size_t *mib, size_t miblen, size_t j)
 	return (super_stats_arenas_i_lruns_j_node);
 }
 
-CTL_RO_GEN(stats_arenas_i_nthreads, ctl_stats.arenas[mib[2]].nthreads, unsigned)
-CTL_RO_GEN(stats_arenas_i_dss, ctl_stats.arenas[mib[2]].dss, const char *)
-CTL_RO_GEN(stats_arenas_i_pactive, ctl_stats.arenas[mib[2]].pactive, size_t)
-CTL_RO_GEN(stats_arenas_i_pdirty, ctl_stats.arenas[mib[2]].pdirty, size_t)
-CTL_RO_CGEN(config_stats, stats_arenas_i_mapped,
-    ctl_stats.arenas[mib[2]].astats.mapped, size_t)
-CTL_RO_CGEN(config_stats, stats_arenas_i_npurge,
-    ctl_stats.arenas[mib[2]].astats.npurge, uint64_t)
-CTL_RO_CGEN(config_stats, stats_arenas_i_nmadvise,
-    ctl_stats.arenas[mib[2]].astats.nmadvise, uint64_t)
-CTL_RO_CGEN(config_stats, stats_arenas_i_purged,
-    ctl_stats.arenas[mib[2]].astats.purged, uint64_t)
-
 static const ctl_named_node_t *
 stats_arenas_i_index(const size_t *mib, size_t miblen, size_t i)
 {
@@ -1674,8 +1682,3 @@ label_return:
 	malloc_mutex_unlock(&ctl_mtx);
 	return (ret);
 }
-
-CTL_RO_CGEN(config_stats, stats_cactive, &stats_cactive, size_t *)
-CTL_RO_CGEN(config_stats, stats_allocated, ctl_stats.allocated, size_t)
-CTL_RO_CGEN(config_stats, stats_active, ctl_stats.active, size_t)
-CTL_RO_CGEN(config_stats, stats_mapped, ctl_stats.mapped, size_t)

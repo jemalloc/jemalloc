@@ -260,8 +260,8 @@ tcache_arena_dissociate(tcache_t *tcache)
 		/* Unlink from list of extant tcaches. */
 		malloc_mutex_lock(&tcache->arena->lock);
 		ql_remove(&tcache->arena->tcache_ql, tcache, link);
-		malloc_mutex_unlock(&tcache->arena->lock);
 		tcache_stats_merge(tcache, tcache->arena);
+		malloc_mutex_unlock(&tcache->arena->lock);
 	}
 }
 
@@ -292,7 +292,7 @@ tcache_create(arena_t *arena)
 	else if (size <= tcache_maxclass)
 		tcache = (tcache_t *)arena_malloc_large(arena, size, true);
 	else
-		tcache = (tcache_t *)icallocx(size, false, arena);
+		tcache = (tcache_t *)icalloct(size, false, arena);
 
 	if (tcache == NULL)
 		return (NULL);
@@ -366,7 +366,7 @@ tcache_destroy(tcache_t *tcache)
 
 		arena_dalloc_large(arena, chunk, tcache);
 	} else
-		idallocx(tcache, false);
+		idalloct(tcache, false);
 }
 
 void
@@ -399,10 +399,13 @@ tcache_thread_cleanup(void *arg)
 	}
 }
 
+/* Caller must own arena->lock. */
 void
 tcache_stats_merge(tcache_t *tcache, arena_t *arena)
 {
 	unsigned i;
+
+	cassert(config_stats);
 
 	/* Merge and reset tcache stats. */
 	for (i = 0; i < NBINS; i++) {

@@ -141,8 +141,17 @@ quarantine(void *ptr)
 		obj->usize = usize;
 		quarantine->curbytes += usize;
 		quarantine->curobjs++;
-		if (opt_junk)
-			memset(ptr, 0x5a, usize);
+		if (config_fill && opt_junk) {
+			/*
+			 * Only do redzone validation if Valgrind isn't in
+			 * operation.
+			 */
+			if ((config_valgrind == false || opt_valgrind == false)
+			    && usize <= SMALL_MAXCLASS)
+				arena_quarantine_junk_small(ptr, usize);
+			else
+				memset(ptr, 0x5a, usize);
+		}
 	} else {
 		assert(quarantine->curbytes == 0);
 		idalloc(ptr);

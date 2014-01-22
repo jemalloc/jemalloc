@@ -17,7 +17,7 @@ typedef bool ckh_keycomp_t (const void *, const void *);
  * There are 2^LG_CKH_BUCKET_CELLS cells in each hash table bucket.  Try to fit
  * one bucket per L1 cache line.
  */
-#define LG_CKH_BUCKET_CELLS (LG_CACHELINE - LG_SIZEOF_PTR - 1)
+#define	LG_CKH_BUCKET_CELLS (LG_CACHELINE - LG_SIZEOF_PTR - 1)
 
 #endif /* JEMALLOC_H_TYPES */
 /******************************************************************************/

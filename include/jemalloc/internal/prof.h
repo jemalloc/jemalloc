@@ -129,6 +129,7 @@ struct prof_ctx_s {
 	 * limbo due to one of:
 	 *   - Initializing per thread counters associated with this ctx.
 	 *   - Preparing to destroy this ctx.
+	 *   - Dumping a heap profile that includes this ctx.
 	 * nlimbo must be 1 (single destroyer) in order to safely destroy the
 	 * ctx.
 	 */
@@ -145,7 +146,11 @@ struct prof_ctx_s {
 	 * this context.
 	 */
 	ql_head(prof_thr_cnt_t)	cnts_ql;
+
+	/* Linkage for list of contexts to be dumped. */
+	ql_elm(prof_ctx_t)	dump_link;
 };
+typedef ql_head(prof_ctx_t) prof_ctx_list_t;
 
 struct prof_tdata_s {
 	/*
@@ -195,7 +200,12 @@ extern bool	opt_prof_gdump;       /* High-water memory dumping. */
 extern bool	opt_prof_final;       /* Final profile dumping. */
 extern bool	opt_prof_leak;        /* Dump leak summary at exit. */
 extern bool	opt_prof_accum;       /* Report cumulative bytes. */
-extern char	opt_prof_prefix[PATH_MAX + 1];
+extern char	opt_prof_prefix[
+    /* Minimize memory bloat for non-prof builds. */
+#ifdef JEMALLOC_PROF
+    PATH_MAX +
+#endif
+    1];
 
 /*
  * Profile dump interval, measured in bytes allocated.  Each arena triggers a
@@ -215,6 +225,11 @@ extern bool	prof_promote;
 void	bt_init(prof_bt_t *bt, void **vec);
 void	prof_backtrace(prof_bt_t *bt, unsigned nignore);
 prof_thr_cnt_t	*prof_lookup(prof_bt_t *bt);
+#ifdef JEMALLOC_JET
+size_t	prof_bt_count(void);
+typedef int (prof_dump_open_t)(bool, const char *);
+extern prof_dump_open_t *prof_dump_open;
+#endif
 void	prof_idump(void);
 bool	prof_mdump(const char *filename);
 void	prof_gdump(void);
@@ -289,11 +304,11 @@ malloc_tsd_protos(JEMALLOC_ATTR(unused), prof_tdata, prof_tdata_t *)
 prof_tdata_t	*prof_tdata_get(bool create);
 void	prof_sample_threshold_update(prof_tdata_t *prof_tdata);
 prof_ctx_t	*prof_ctx_get(const void *ptr);
-void	prof_ctx_set(const void *ptr, prof_ctx_t *ctx);
+void	prof_ctx_set(const void *ptr, size_t usize, prof_ctx_t *ctx);
 bool	prof_sample_accum_update(size_t size);
-void	prof_malloc(const void *ptr, size_t size, prof_thr_cnt_t *cnt);
-void	prof_realloc(const void *ptr, size_t size, prof_thr_cnt_t *cnt,
-    size_t old_size, prof_ctx_t *old_ctx);
+void	prof_malloc(const void *ptr, size_t usize, prof_thr_cnt_t *cnt);
+void	prof_realloc(const void *ptr, size_t usize, prof_thr_cnt_t *cnt,
+    size_t old_usize, prof_ctx_t *old_ctx);
 void	prof_free(const void *ptr, size_t size);
 #endif
 
@@ -320,6 +335,20 @@ prof_tdata_get(bool create)
 JEMALLOC_INLINE void
 prof_sample_threshold_update(prof_tdata_t *prof_tdata)
 {
+	/*
+	 * The body of this function is compiled out unless heap profiling is
+	 * enabled, so that it is possible to compile jemalloc with floating
+	 * point support completely disabled.  Avoiding floating point code is
+	 * important on memory-constrained systems, but it also enables a
+	 * workaround for versions of glibc that don't properly save/restore
+	 * floating point registers during dynamic lazy symbol loading (which
+	 * internally calls into whatever malloc implementation happens to be
+	 * integrated into the application).  Note that some compilers (e.g.
+	 * gcc 4.8) may use floating point registers for fast memory moves, so
+	 * jemalloc must be compiled with such optimizations disabled (e.g.
+	 * -mno-sse) in order for the workaround to be complete.
+	 */
+#ifdef JEMALLOC_PROF
 	uint64_t r;
 	double u;
 
@@ -341,7 +370,7 @@ prof_sample_threshold_update(prof_tdata_t *prof_tdata)
 	 *   Luc Devroye
 	 *   Springer-Verlag, New York, 1986
 	 *   pp 500
-	 *   (http://cg.scs.carleton.ca/~luc/rnbookindex.html)
+	 *   (http://luc.devroye.org/rnbookindex.html)
 	 */
 	prng64(r, 53, prof_tdata->prng_state,
 	    UINT64_C(6364136223846793005), UINT64_C(1442695040888963407));
@@ -349,6 +378,7 @@ prof_sample_threshold_update(prof_tdata_t *prof_tdata)
 	prof_tdata->threshold = (uint64_t)(log(u) /
 	    log(1.0 - (1.0 / (double)((uint64_t)1U << opt_lg_prof_sample))))
 	    + (uint64_t)1U;
+#endif
 }
 
 JEMALLOC_INLINE prof_ctx_t *
@@ -371,7 +401,7 @@ prof_ctx_get(const void *ptr)
 }
 
 JEMALLOC_INLINE void
-prof_ctx_set(const void *ptr, prof_ctx_t *ctx)
+prof_ctx_set(const void *ptr, size_t usize, prof_ctx_t *ctx)
 {
 	arena_chunk_t *chunk;
 
@@ -381,7 +411,7 @@ prof_ctx_set(const void *ptr, prof_ctx_t *ctx)
 	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
 	if (chunk != ptr) {
 		/* Region. */
-		arena_prof_ctx_set(ptr, ctx);
+		arena_prof_ctx_set(ptr, usize, ctx);
 	} else
 		huge_prof_ctx_set(ptr, ctx);
 }
@@ -416,20 +446,20 @@ prof_sample_accum_update(size_t size)
 }
 
 JEMALLOC_INLINE void
-prof_malloc(const void *ptr, size_t size, prof_thr_cnt_t *cnt)
+prof_malloc(const void *ptr, size_t usize, prof_thr_cnt_t *cnt)
 {
 
 	cassert(config_prof);
 	assert(ptr != NULL);
-	assert(size == isalloc(ptr, true));
+	assert(usize == isalloc(ptr, true));
 
 	if (opt_lg_prof_sample != 0) {
-		if (prof_sample_accum_update(size)) {
+		if (prof_sample_accum_update(usize)) {
 			/*
 			 * Don't sample.  For malloc()-like allocation, it is
 			 * always possible to tell in advance how large an
 			 * object's usable size will be, so there should never
-			 * be a difference between the size passed to
+			 * be a difference between the usize passed to
 			 * PROF_ALLOC_PREP() and prof_malloc().
 			 */
 			assert((uintptr_t)cnt == (uintptr_t)1U);
@@ -437,17 +467,17 @@ prof_malloc(const void *ptr, size_t size, prof_thr_cnt_t *cnt)
 	}
 
 	if ((uintptr_t)cnt > (uintptr_t)1U) {
-		prof_ctx_set(ptr, cnt->ctx);
+		prof_ctx_set(ptr, usize, cnt->ctx);
 
 		cnt->epoch++;
 		/*********/
 		mb_write();
 		/*********/
 		cnt->cnts.curobjs++;
-		cnt->cnts.curbytes += size;
+		cnt->cnts.curbytes += usize;
 		if (opt_prof_accum) {
 			cnt->cnts.accumobjs++;
-			cnt->cnts.accumbytes += size;
+			cnt->cnts.accumbytes += usize;
 		}
 		/*********/
 		mb_write();
@@ -457,12 +487,12 @@ prof_malloc(const void *ptr, size_t size, prof_thr_cnt_t *cnt)
 		mb_write();
 		/*********/
 	} else
-		prof_ctx_set(ptr, (prof_ctx_t *)(uintptr_t)1U);
+		prof_ctx_set(ptr, usize, (prof_ctx_t *)(uintptr_t)1U);
 }
 
 JEMALLOC_INLINE void
-prof_realloc(const void *ptr, size_t size, prof_thr_cnt_t *cnt,
-    size_t old_size, prof_ctx_t *old_ctx)
+prof_realloc(const void *ptr, size_t usize, prof_thr_cnt_t *cnt,
+    size_t old_usize, prof_ctx_t *old_ctx)
 {
 	prof_thr_cnt_t *told_cnt;
 
@@ -470,15 +500,15 @@ prof_realloc(const void *ptr, size_t size, prof_thr_cnt_t *cnt,
 	assert(ptr != NULL || (uintptr_t)cnt <= (uintptr_t)1U);
 
 	if (ptr != NULL) {
-		assert(size == isalloc(ptr, true));
+		assert(usize == isalloc(ptr, true));
 		if (opt_lg_prof_sample != 0) {
-			if (prof_sample_accum_update(size)) {
+			if (prof_sample_accum_update(usize)) {
 				/*
-				 * Don't sample.  The size passed to
+				 * Don't sample.  The usize passed to
 				 * PROF_ALLOC_PREP() was larger than what
 				 * actually got allocated, so a backtrace was
 				 * captured for this allocation, even though
-				 * its actual size was insufficient to cross
+				 * its actual usize was insufficient to cross
 				 * the sample threshold.
 				 */
 				cnt = (prof_thr_cnt_t *)(uintptr_t)1U;
@@ -495,7 +525,7 @@ prof_realloc(const void *ptr, size_t size, prof_thr_cnt_t *cnt,
 			 */
 			malloc_mutex_lock(old_ctx->lock);
 			old_ctx->cnt_merged.curobjs--;
-			old_ctx->cnt_merged.curbytes -= old_size;
+			old_ctx->cnt_merged.curbytes -= old_usize;
 			malloc_mutex_unlock(old_ctx->lock);
 			told_cnt = (prof_thr_cnt_t *)(uintptr_t)1U;
 		}
@@ -505,23 +535,23 @@ prof_realloc(const void *ptr, size_t size, prof_thr_cnt_t *cnt,
 	if ((uintptr_t)told_cnt > (uintptr_t)1U)
 		told_cnt->epoch++;
 	if ((uintptr_t)cnt > (uintptr_t)1U) {
-		prof_ctx_set(ptr, cnt->ctx);
+		prof_ctx_set(ptr, usize, cnt->ctx);
 		cnt->epoch++;
 	} else if (ptr != NULL)
-		prof_ctx_set(ptr, (prof_ctx_t *)(uintptr_t)1U);
+		prof_ctx_set(ptr, usize, (prof_ctx_t *)(uintptr_t)1U);
 	/*********/
 	mb_write();
 	/*********/
 	if ((uintptr_t)told_cnt > (uintptr_t)1U) {
 		told_cnt->cnts.curobjs--;
-		told_cnt->cnts.curbytes -= old_size;
+		told_cnt->cnts.curbytes -= old_usize;
 	}
 	if ((uintptr_t)cnt > (uintptr_t)1U) {
 		cnt->cnts.curobjs++;
-		cnt->cnts.curbytes += size;
+		cnt->cnts.curbytes += usize;
 		if (opt_prof_accum) {
 			cnt->cnts.accumobjs++;
-			cnt->cnts.accumbytes += size;
+			cnt->cnts.accumbytes += usize;
 		}
 	}
 	/*********/

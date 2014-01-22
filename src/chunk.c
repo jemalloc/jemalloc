@@ -180,7 +180,7 @@ chunk_alloc(size_t size, size_t alignment, bool base, bool *zero,
 label_return:
 	if (ret != NULL) {
 		if (config_ivsalloc && base == false) {
-			if (rtree_set(chunks_rtree, (uintptr_t)ret, ret)) {
+			if (rtree_set(chunks_rtree, (uintptr_t)ret, 1)) {
 				chunk_dealloc(ret, size, true);
 				return (NULL);
 			}
@@ -321,7 +321,7 @@ chunk_dealloc(void *chunk, size_t size, bool unmap)
 	assert((size & chunksize_mask) == 0);
 
 	if (config_ivsalloc)
-		rtree_set(chunks_rtree, (uintptr_t)chunk, NULL);
+		rtree_set(chunks_rtree, (uintptr_t)chunk, 0);
 	if (config_stats || config_prof) {
 		malloc_mutex_lock(&chunks_mtx);
 		assert(stats_chunks.curchunks >= (size / chunksize));
@@ -356,7 +356,7 @@ chunk_boot(void)
 	extent_tree_ad_new(&chunks_ad_dss);
 	if (config_ivsalloc) {
 		chunks_rtree = rtree_new((ZU(1) << (LG_SIZEOF_PTR+3)) -
-		    opt_lg_chunk);
+		    opt_lg_chunk, base_alloc, NULL);
 		if (chunks_rtree == NULL)
 			return (true);
 	}
@@ -368,7 +368,7 @@ void
 chunk_prefork(void)
 {
 
-	malloc_mutex_lock(&chunks_mtx);
+	malloc_mutex_prefork(&chunks_mtx);
 	if (config_ivsalloc)
 		rtree_prefork(chunks_rtree);
 	chunk_dss_prefork();
