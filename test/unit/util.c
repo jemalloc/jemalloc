@@ -181,6 +181,8 @@ TEST_BEGIN(test_malloc_snprintf)
 
 	TEST("hello", "hello");
 
+	TEST("50%, 100%", "50%%, %d%%", 100);
+
 	TEST("a0123b", "a%sb", "0123");
 
 	TEST("a 0123b", "a%5sb", "0123");

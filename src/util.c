@@ -400,11 +400,6 @@ malloc_vsnprintf(char *str, size_t size, const char *format, va_list ap)
 			unsigned char len = '?';
 
 			f++;
-			if (*f == '%') {
-				/* %% */
-				APPEND_C(*f);
-				break;
-			}
 			/* Flags. */
 			while (true) {
 				switch (*f) {
@@ -495,6 +490,11 @@ malloc_vsnprintf(char *str, size_t size, const char *format, va_list ap)
 			switch (*f) {
 				char *s;
 				size_t slen;
+			case '%':
+				/* %% */
+				APPEND_C(*f);
+				f++;
+				break;
 			case 'd': case 'i': {
 				intmax_t val JEMALLOC_CC_SILENCE_INIT(0);
 				char buf[D2S_BUFSIZE];
@@ -561,8 +561,7 @@ malloc_vsnprintf(char *str, size_t size, const char *format, va_list ap)
 				APPEND_PADDED_S(s, slen, width, left_justify);
 				f++;
 				break;
-			}
-			default: not_reached();
+			} default: not_reached();
 			}
 			break;
 		} default: {
