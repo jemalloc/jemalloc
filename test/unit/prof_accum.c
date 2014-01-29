@@ -22,10 +22,10 @@ prof_dump_open_intercept(bool propagate_err, const char *filename)
 }
 
 #define	alloc_n_proto(n)						\
-static void	*alloc_##n(unsigned bits);
+JEMALLOC_NOINLINE static void	*alloc_##n(unsigned bits);
 
 #define	alloc_n_gen(n)							\
-static void *								\
+JEMALLOC_NOINLINE static void *						\
 alloc_##n(unsigned bits)						\
 {									\
 	void *p;							\
