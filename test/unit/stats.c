@@ -31,21 +31,25 @@ TEST_END
 
 TEST_BEGIN(test_stats_chunks)
 {
-	size_t current, total, high;
-	size_t sz = sizeof(size_t);
+	size_t current, high;
+	uint64_t total;
+	size_t sz;
 	int expected = config_stats ? 0 : ENOENT;
 
+	sz = sizeof(size_t);
 	assert_d_eq(mallctl("stats.chunks.current", &current, &sz, NULL, 0),
 	    expected, "Unexpected mallctl() result");
+	sz = sizeof(uint64_t);
 	assert_d_eq(mallctl("stats.chunks.total", &total, &sz, NULL, 0),
 	    expected, "Unexpected mallctl() result");
+	sz = sizeof(size_t);
 	assert_d_eq(mallctl("stats.chunks.high", &high, &sz, NULL, 0), expected,
 	    "Unexpected mallctl() result");
 
 	if (config_stats) {
 		assert_zu_le(current, high,
 		    "current should be no larger than high");
-		assert_zu_le(high, total,
+		assert_u64_le((uint64_t)high, total,
 		    "high should be no larger than total");
 	}
 }
@@ -247,9 +251,9 @@ TEST_BEGIN(test_stats_arenas_bins)
 {
 	unsigned arena;
 	void *p;
-	size_t sz, allocated;
+	size_t sz, allocated, curruns;
 	uint64_t epoch, nmalloc, ndalloc, nrequests, nfills, nflushes;
-	uint64_t nruns, nreruns, curruns;
+	uint64_t nruns, nreruns;
 	int expected = config_stats ? 0 : ENOENT;
 
 	arena = 0;
@@ -287,6 +291,7 @@ TEST_BEGIN(test_stats_arenas_bins)
 	    NULL, 0), expected, "Unexpected mallctl() result");
 	assert_d_eq(mallctl("stats.arenas.0.bins.0.nreruns", &nreruns, &sz,
 	    NULL, 0), expected, "Unexpected mallctl() result");
+	sz = sizeof(size_t);
 	assert_d_eq(mallctl("stats.arenas.0.bins.0.curruns", &curruns, &sz,
 	    NULL, 0), expected, "Unexpected mallctl() result");
 
@@ -307,7 +312,7 @@ TEST_BEGIN(test_stats_arenas_bins)
 		}
 		assert_u64_gt(nruns, 0,
 		    "At least one run should have been allocated");
-		assert_u64_gt(curruns, 0,
+		assert_zu_gt(curruns, 0,
 		    "At least one run should be currently allocated");
 	}
 
@@ -319,8 +324,8 @@ TEST_BEGIN(test_stats_arenas_lruns)
 {
 	unsigned arena;
 	void *p;
-	uint64_t epoch, nmalloc, ndalloc, nrequests, curruns;
-	size_t sz = sizeof(uint64_t);
+	uint64_t epoch, nmalloc, ndalloc, nrequests;
+	size_t curruns, sz;
 	int expected = config_stats ? 0 : ENOENT;
 
 	arena = 0;
@@ -333,12 +338,14 @@ TEST_BEGIN(test_stats_arenas_lruns)
 	assert_d_eq(mallctl("epoch", NULL, NULL, &epoch, sizeof(epoch)), 0,
 	    "Unexpected mallctl() failure");
 
+	sz = sizeof(uint64_t);
 	assert_d_eq(mallctl("stats.arenas.0.lruns.0.nmalloc", &nmalloc, &sz,
 	    NULL, 0), expected, "Unexpected mallctl() result");
 	assert_d_eq(mallctl("stats.arenas.0.lruns.0.ndalloc", &ndalloc, &sz,
 	    NULL, 0), expected, "Unexpected mallctl() result");
 	assert_d_eq(mallctl("stats.arenas.0.lruns.0.nrequests", &nrequests, &sz,
 	    NULL, 0), expected, "Unexpected mallctl() result");
+	sz = sizeof(size_t);
 	assert_d_eq(mallctl("stats.arenas.0.lruns.0.curruns", &curruns, &sz,
 	    NULL, 0), expected, "Unexpected mallctl() result");
 
