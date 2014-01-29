@@ -8,7 +8,11 @@ typedef struct prof_ctx_s prof_ctx_t;
 typedef struct prof_tdata_s prof_tdata_t;
 
 /* Option defaults. */
-#define	PROF_PREFIX_DEFAULT		"jeprof"
+#ifdef JEMALLOC_PROF
+#  define PROF_PREFIX_DEFAULT		"jeprof"
+#else
+#  define PROF_PREFIX_DEFAULT		""
+#endif
 #define	LG_PROF_SAMPLE_DEFAULT		19
 #define	LG_PROF_INTERVAL_DEFAULT	-1
 
