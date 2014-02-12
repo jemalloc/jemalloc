@@ -296,6 +296,7 @@ case "${host}" in
   *-*-solaris2*)
 	CFLAGS="$CFLAGS"
 	abi="elf"
+	AC_DEFINE([JEMALLOC_PURGE_MADVISE_FREE], [ ])
 	RPATH='-Wl,-R,$(1)'
 	dnl Solaris needs this for sigwait().
 	CPPFLAGS="$CPPFLAGS -D_POSIX_PTHREAD_SEMANTICS"
