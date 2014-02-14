@@ -2476,7 +2476,6 @@ bin_info_run_size_calc(arena_bin_info_t *bin_info, size_t min_run_size)
 			    bin_info->reg_interval) - pad_size;
 		} while (try_hdr_size > try_redzone0_offset);
 	} while (try_run_size <= arena_maxclass
-	    && try_run_size <= arena_maxclass
 	    && RUN_MAX_OVRHD * (bin_info->reg_interval << 3) >
 	    RUN_MAX_OVRHD_RELAX
 	    && (try_redzone0_offset << RUN_BFP) > RUN_MAX_OVRHD * try_run_size
