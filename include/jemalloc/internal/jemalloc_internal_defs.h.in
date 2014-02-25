@@ -187,6 +187,9 @@
  */
 #undef JEMALLOC_HAS_ALLOCA_H
 
+/* C99 restrict keyword supported. */
+#undef JEMALLOC_HAS_RESTRICT
+
 /* sizeof(int) == 2^LG_SIZEOF_INT. */
 #undef LG_SIZEOF_INT
 
