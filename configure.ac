@@ -198,21 +198,21 @@ CPU_SPINWAIT=""
 case "${host_cpu}" in
   i[[345]]86)
 	;;
-  i686)
-	JE_COMPILABLE([__asm__], [], [[__asm__ volatile("pause"); return 0;]],
-	              [je_cv_asm])
-	if test "x${je_cv_asm}" = "xyes" ; then
+  i686|x86_64)
+	JE_COMPILABLE([pause instruction], [],
+	              [[__asm__ volatile("pause"); return 0;]],
+	              [je_cv_pause])
+	if test "x${je_cv_pause}" = "xyes" ; then
 	    CPU_SPINWAIT='__asm__ volatile("pause")'
 	fi
-	AC_DEFINE_UNQUOTED([HAVE_SSE2], [ ])
-	;;
-  x86_64)
-	JE_COMPILABLE([__asm__ syntax], [],
-	              [[__asm__ volatile("pause"); return 0;]], [je_cv_asm])
-	if test "x${je_cv_asm}" = "xyes" ; then
-	    CPU_SPINWAIT='__asm__ volatile("pause")'
+	dnl emmintrin.h fails to compile unless MMX, SSE, and SSE2 are
+	dnl supported.
+	JE_COMPILABLE([SSE2 intrinsics], [
+#include <emmintrin.h>
+], [], [je_cv_sse2])
+	if test "x${je_cv_sse2}" = "xyes" ; then
+	  AC_DEFINE_UNQUOTED([HAVE_SSE2], [ ])
 	fi
-	AC_DEFINE_UNQUOTED([HAVE_SSE2], [ ])
 	;;
   powerpc)
 	AC_DEFINE_UNQUOTED([HAVE_ALTIVEC], [ ])
