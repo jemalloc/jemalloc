@@ -61,7 +61,7 @@
  * @return output
  */
 JEMALLOC_ALWAYS_INLINE
-static vector unsigned int vec_recursion(vector unsigned int a,
+vector unsigned int vec_recursion(vector unsigned int a,
 						vector unsigned int b,
 						vector unsigned int c,
 						vector unsigned int d) {
