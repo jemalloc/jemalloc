@@ -3,8 +3,26 @@ bug fixes are all mentioned, but internal enhancements are omitted here for
 brevity (even though they are more fun to write about).  Much more detail can be
 found in the git revision history:
 
-    http://www.canonware.com/cgi-bin/gitweb.cgi?p=jemalloc.git
-    git://canonware.com/jemalloc.git
+    https://github.com/jemalloc/jemalloc
+
+* 3.5.1 (February 25, 2014)
+
+  This version primarily addresses minor bugs in test code.
+
+  Bug fixes:
+  - Configure Solaris/Illumos to use MADV_FREE.
+  - Fix junk filling for mremap(2)-based huge reallocation.  This is only
+    relevant if configuring with the --enable-mremap option specified.
+  - Avoid compilation failure if 'restrict' C99 keyword is not supported by the
+    compiler.
+  - Add a configure test for SSE2 rather than assuming it is usable on i686
+    systems.  This fixes test compilation errors, especially on 32-bit Linux
+    systems.
+  - Fix mallctl argument size mismatches (size_t vs. uint64_t) in the stats unit
+    test.
+  - Fix/remove flawed alignment-related overflow tests.
+  - Prevent compiler optimizations that could change backtraces in the
+    prof_accum unit test.
 
 * 3.5.0 (January 22, 2014)
 
@@ -16,7 +34,7 @@ found in the git revision history:
     API.  The *allocx() functions are slightly simpler to use because they have
     fewer parameters, they directly return the results of primary interest, and
     mallocx()/rallocx() avoid the strict aliasing pitfall that
-    allocm()/rallocx() share with posix_memalign().  Note that *allocm() is
+    allocm()/rallocm() share with posix_memalign().  Note that *allocm() is
     slated for removal in the next non-bugfix release.
   - Add support for LinuxThreads.
 

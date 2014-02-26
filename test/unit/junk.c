@@ -92,9 +92,12 @@ test_junk(size_t sz_min, size_t sz_max)
 			s = (char *)rallocx(s, sz+1, 0);
 			assert_ptr_not_null((void *)s,
 			    "Unexpected rallocx() failure");
-			assert_ptr_eq(most_recently_junked, junked,
-			    "Expected region of size %zu to be junk-filled",
-			    sz);
+			if (!config_mremap || sz+1 <= arena_maxclass) {
+				assert_ptr_eq(most_recently_junked, junked,
+				    "Expected region of size %zu to be "
+				    "junk-filled",
+				    sz);
+			}
 		}
 	}
 

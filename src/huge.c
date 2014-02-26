@@ -171,6 +171,16 @@ huge_ralloc(void *ptr, size_t oldsize, size_t size, size_t extra,
 				abort();
 			memcpy(ret, ptr, copysize);
 			chunk_dealloc_mmap(ptr, oldsize);
+		} else if (config_fill && zero == false && opt_junk && oldsize
+		    < newsize) {
+			/*
+			 * mremap(2) clobbers the original mapping, so
+			 * junk/zero filling is not preserved.  There is no
+			 * need to zero fill here, since any trailing
+			 * uninititialized memory is demand-zeroed by the
+			 * kernel, but junk filling must be redone.
+			 */
+			memset(ret + oldsize, 0xa5, newsize - oldsize);
 		}
 	} else
 #endif

@@ -19,7 +19,9 @@ AC_COMPILE_IFELSE([AC_LANG_PROGRAM(
 ]], [[
     return 0;
 ]])],
+              [je_cv_cflags_appended=$1]
               AC_MSG_RESULT([yes]),
+              [je_cv_cflags_appended=]
               AC_MSG_RESULT([no])
               [CFLAGS="${TCFLAGS}"]
 )
@@ -128,6 +130,9 @@ if test "x$CFLAGS" = "x" ; then
   no_CFLAGS="yes"
   if test "x$GCC" = "xyes" ; then
     JE_CFLAGS_APPEND([-std=gnu99])
+    if test "x$je_cv_cflags_appended" = "x-std=gnu99" ; then
+      AC_DEFINE_UNQUOTED([JEMALLOC_HAS_RESTRICT])
+    fi
     JE_CFLAGS_APPEND([-Wall])
     JE_CFLAGS_APPEND([-pipe])
     JE_CFLAGS_APPEND([-g3])
@@ -193,21 +198,21 @@ CPU_SPINWAIT=""
 case "${host_cpu}" in
   i[[345]]86)
 	;;
-  i686)
-	JE_COMPILABLE([__asm__], [], [[__asm__ volatile("pause"); return 0;]],
-	              [je_cv_asm])
-	if test "x${je_cv_asm}" = "xyes" ; then
+  i686|x86_64)
+	JE_COMPILABLE([pause instruction], [],
+	              [[__asm__ volatile("pause"); return 0;]],
+	              [je_cv_pause])
+	if test "x${je_cv_pause}" = "xyes" ; then
 	    CPU_SPINWAIT='__asm__ volatile("pause")'
 	fi
-	AC_DEFINE_UNQUOTED([HAVE_SSE2], [ ])
-	;;
-  x86_64)
-	JE_COMPILABLE([__asm__ syntax], [],
-	              [[__asm__ volatile("pause"); return 0;]], [je_cv_asm])
-	if test "x${je_cv_asm}" = "xyes" ; then
-	    CPU_SPINWAIT='__asm__ volatile("pause")'
+	dnl emmintrin.h fails to compile unless MMX, SSE, and SSE2 are
+	dnl supported.
+	JE_COMPILABLE([SSE2 intrinsics], [
+#include <emmintrin.h>
+], [], [je_cv_sse2])
+	if test "x${je_cv_sse2}" = "xyes" ; then
+	  AC_DEFINE_UNQUOTED([HAVE_SSE2], [ ])
 	fi
-	AC_DEFINE_UNQUOTED([HAVE_SSE2], [ ])
 	;;
   powerpc)
 	AC_DEFINE_UNQUOTED([HAVE_ALTIVEC], [ ])
@@ -296,6 +301,7 @@ case "${host}" in
   *-*-solaris2*)
 	CFLAGS="$CFLAGS"
 	abi="elf"
+	AC_DEFINE([JEMALLOC_PURGE_MADVISE_FREE], [ ])
 	RPATH='-Wl,-R,$(1)'
 	dnl Solaris needs this for sigwait().
 	CPPFLAGS="$CPPFLAGS -D_POSIX_PTHREAD_SEMANTICS"

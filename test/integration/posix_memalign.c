@@ -43,10 +43,10 @@ TEST_BEGIN(test_oom_errors)
 
 #if LG_SIZEOF_PTR == 3
 	alignment = UINT64_C(0x4000000000000000);
-	size      = UINT64_C(0x8400000000000001);
+	size      = UINT64_C(0xc000000000000001);
 #else
 	alignment = 0x40000000LU;
-	size      = 0x84000001LU;
+	size      = 0xc0000001LU;
 #endif
 	assert_d_ne(posix_memalign(&p, alignment, size), 0,
 	    "Expected error for posix_memalign(&p, %zu, %zu)",

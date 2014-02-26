@@ -34,26 +34,6 @@ TEST_BEGIN(test_basic)
 }
 TEST_END
 
-TEST_BEGIN(test_alignment_errors)
-{
-	void *p;
-	size_t nsz, sz, alignment;
-
-#if LG_SIZEOF_PTR == 3
-	alignment = UINT64_C(0x4000000000000000);
-	sz        = UINT64_C(0x8400000000000001);
-#else
-	alignment = 0x40000000LU;
-	sz        = 0x84000001LU;
-#endif
-	nsz = nallocx(sz, MALLOCX_ALIGN(alignment));
-	assert_zu_ne(nsz, 0, "Unexpected nallocx() error");
-	p = mallocx(sz, MALLOCX_ALIGN(alignment));
-	assert_ptr_null(p, "Expected error for mallocx(%zu, %#x)", sz,
-	    MALLOCX_ALIGN(alignment));
-}
-TEST_END
-
 TEST_BEGIN(test_alignment_and_size)
 {
 	size_t nsz, rsz, sz, alignment, total;
@@ -114,6 +94,5 @@ main(void)
 
 	return (test(
 	    test_basic,
-	    test_alignment_errors,
 	    test_alignment_and_size));
 }
