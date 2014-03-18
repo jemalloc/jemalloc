@@ -4607,6 +4607,12 @@ sub ExtractSymbols {
     my $finish = $lib->[2];
     my $offset = $lib->[3];
 
+    # Use debug library if it exists
+    my $debug_libname = DebuggingLibrary($libname);
+    if ($debug_libname) {
+        $libname = $debug_libname;
+    }
+
     # Get list of pcs that belong in this library.
     my $contained = [];
     my ($start_pc_index, $finish_pc_index);
@@ -5037,7 +5043,7 @@ sub GetProcedureBoundariesViaNm {
 
       # Tag this routine with the starting address in case the image
       # has multiple occurrences of this routine.  We use a syntax
-      # that resembles template paramters that are automatically
+      # that resembles template parameters that are automatically
       # stripped out by ShortFunctionName()
       $this_routine .= "<$start_val>";
 
