@@ -11,12 +11,6 @@
 #include <unwind.h>
 #endif
 
-#ifdef __FreeBSD__
-#define PROCESS_VMEM_MAP "/proc/curproc/map"
-#else
-#define PROCESS_VMEM_MAP "/proc/%d/maps"
-#endif
-
 /******************************************************************************/
 /* Data. */
 
@@ -941,9 +935,12 @@ prof_dump_maps(bool propagate_err)
 	char filename[PATH_MAX + 1];
 
 	cassert(config_prof);
-
-	malloc_snprintf(filename, sizeof(filename), PROCESS_VMEM_MAP,
+#ifdef __FreeBSD__
+	malloc_snprintf(filename, sizeof(filename), "/proc/curproc/map");
+#else
+	malloc_snprintf(filename, sizeof(filename), "/proc/%d/maps",
 	    (int)getpid());
+#endif
 	mfd = open(filename, O_RDONLY);
 	if (mfd != -1) {
 		ssize_t nread;
