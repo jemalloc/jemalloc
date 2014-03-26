@@ -614,8 +614,11 @@ arena_chunk_alloc(arena_t *arena)
 
 	if (arena->spare != NULL)
 		chunk = arena_chunk_init_spare(arena);
-	else
+	else {
 		chunk = arena_chunk_init_hard(arena);
+		if (chunk == NULL)
+			return (NULL);
+	}
 
 	/* Insert the run into the runs_avail tree. */
 	arena_avail_insert(arena, chunk, map_bias, chunk_npages-map_bias,
