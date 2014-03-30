@@ -150,6 +150,11 @@ if test "x$EXTRA_CFLAGS" != "x" ; then
 fi
 AC_PROG_CPP
 
+AC_C_BIGENDIAN([ac_cv_big_endian=1], [ac_cv_big_endian=0])
+if test "x${ac_cv_big_endian}" = "x1" ; then
+  AC_DEFINE_UNQUOTED([JEMALLOC_BIG_ENDIAN], [ ])
+fi
+
 AC_CHECK_SIZEOF([void *])
 if test "x${ac_cv_sizeof_void_p}" = "x8" ; then
   LG_SIZEOF_PTR=3
