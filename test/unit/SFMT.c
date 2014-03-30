@@ -1576,7 +1576,7 @@ TEST_BEGIN(test_by_array_64)
 	for (i = 0; i < BLOCK_SIZE64; i++) {
 		if (i < COUNT_1) {
 			assert_u64_eq(array64[i], init_by_array_64_expected[i],
-			    "Output mismatch for i=%d");
+			    "Output mismatch for i=%d", i);
 		}
 		r = gen_rand64(ctx);
 		assert_u64_eq(r, array64[i],

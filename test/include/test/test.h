@@ -1,13 +1,19 @@
+#define	ASSERT_BUFSIZE	256
+
 #define	assert_cmp(t, a, b, cmp, neg_cmp, pri, fmt...) do {		\
 	t a_ = (a);							\
 	t b_ = (b);							\
 	if (!(a_ cmp b_)) {						\
-		p_test_fail(						\
+		char prefix[ASSERT_BUFSIZE];				\
+		char message[ASSERT_BUFSIZE];				\
+		malloc_snprintf(prefix, sizeof(prefix),			\
 		    "%s:%s:%d: Failed assertion: "			\
 		    "(%s) "#cmp" (%s) --> "				\
 		    "%"pri" "#neg_cmp" %"pri": ",			\
 		    __func__, __FILE__, __LINE__,			\
-		    #a, #b, a_, b_, fmt);				\
+		    #a, #b, a_, b_);					\
+		malloc_snprintf(message, sizeof(message), fmt);		\
+		p_test_fail(prefix, message);				\
 	}								\
 } while (0)
 
@@ -208,24 +214,32 @@
 	bool a_ = (a);							\
 	bool b_ = (b);							\
 	if (!(a_ == b_)) {						\
-		p_test_fail(						\
+		char prefix[ASSERT_BUFSIZE];				\
+		char message[ASSERT_BUFSIZE];				\
+		malloc_snprintf(prefix, sizeof(prefix),			\
 		    "%s:%s:%d: Failed assertion: "			\
 		    "(%s) == (%s) --> %s != %s: ",			\
 		    __func__, __FILE__, __LINE__,			\
 		    #a, #b, a_ ? "true" : "false",			\
-		    b_ ? "true" : "false", fmt);			\
+		    b_ ? "true" : "false");				\
+		malloc_snprintf(message, sizeof(message), fmt);		\
+		p_test_fail(prefix, message);				\
 	}								\
 } while (0)
 #define	assert_b_ne(a, b, fmt...) do {					\
 	bool a_ = (a);							\
 	bool b_ = (b);							\
 	if (!(a_ != b_)) {						\
-		p_test_fail(						\
+		char prefix[ASSERT_BUFSIZE];				\
+		char message[ASSERT_BUFSIZE];				\
+		malloc_snprintf(prefix, sizeof(prefix),			\
 		    "%s:%s:%d: Failed assertion: "			\
 		    "(%s) != (%s) --> %s == %s: ",			\
 		    __func__, __FILE__, __LINE__,			\
 		    #a, #b, a_ ? "true" : "false",			\
-		    b_ ? "true" : "false", fmt);			\
+		    b_ ? "true" : "false");				\
+		malloc_snprintf(message, sizeof(message), fmt);		\
+		p_test_fail(prefix, message);				\
 	}								\
 } while (0)
 #define	assert_true(a, fmt...)	assert_b_eq(a, true, fmt)
@@ -233,26 +247,39 @@
 
 #define	assert_str_eq(a, b, fmt...) do {				\
 	if (strcmp((a), (b))) {						\
-		p_test_fail(						\
+		char prefix[ASSERT_BUFSIZE];				\
+		char message[ASSERT_BUFSIZE];				\
+		malloc_snprintf(prefix, sizeof(prefix),			\
 		    "%s:%s:%d: Failed assertion: "			\
 		    "(%s) same as (%s) --> "				\
 		    "\"%s\" differs from \"%s\": ",			\
-		    __func__, __FILE__, __LINE__, #a, #b, a, b, fmt);	\
+		    __func__, __FILE__, __LINE__, #a, #b, a, b);	\
+		malloc_snprintf(message, sizeof(message), fmt);		\
+		p_test_fail(prefix, message);				\
 	}								\
 } while (0)
 #define	assert_str_ne(a, b, fmt...) do {				\
 	if (!strcmp((a), (b))) {					\
-		p_test_fail(						\
+		char prefix[ASSERT_BUFSIZE];				\
+		char message[ASSERT_BUFSIZE];				\
+		malloc_snprintf(prefix, sizeof(prefix),			\
 		    "%s:%s:%d: Failed assertion: "			\
 		    "(%s) differs from (%s) --> "			\
 		    "\"%s\" same as \"%s\": ",				\
-		    __func__, __FILE__, __LINE__, #a, #b, a, b, fmt);	\
+		    __func__, __FILE__, __LINE__, #a, #b, a, b);	\
+		malloc_snprintf(message, sizeof(message), fmt);		\
+		p_test_fail(prefix, message);				\
 	}								\
 } while (0)
 
 #define	assert_not_reached(fmt...) do {					\
-	p_test_fail("%s:%s:%d: Unreachable code reached: ",		\
-	    __func__, __FILE__, __LINE__, fmt);				\
+	char prefix[ASSERT_BUFSIZE];					\
+	char message[ASSERT_BUFSIZE];					\
+	malloc_snprintf(prefix, sizeof(prefix),				\
+	    "%s:%s:%d: Unreachable code reached: ",			\
+	    __func__, __FILE__, __LINE__);				\
+	malloc_snprintf(message, sizeof(message), fmt);			\
+	p_test_fail(prefix, message);					\
 } while (0)
 
 /*
@@ -299,4 +326,4 @@ void	test_fail(const char *format, ...) JEMALLOC_ATTR(format(printf, 1, 2));
 test_status_t	p_test(test_t* t, ...);
 void	p_test_init(const char *name);
 void	p_test_fini(void);
-void	p_test_fail(const char *format, ...);
+void	p_test_fail(const char *prefix, const char *message);
