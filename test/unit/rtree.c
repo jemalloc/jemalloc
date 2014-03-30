@@ -48,8 +48,9 @@ TEST_BEGIN(test_rtree_bits)
 				assert_u_eq(rtree_get(rtree, keys[k]), 1,
 				    "rtree_get() should return previously set "
 				    "value and ignore insignificant key bits; "
-				    "i=%u, j=%u, k=%u, set key=%#x, "
-				    "get key=%#x", i, j, k, keys[j], keys[k]);
+				    "i=%u, j=%u, k=%u, set key=%#"PRIxPTR", "
+				    "get key=%#"PRIxPTR, i, j, k, keys[j],
+				    keys[k]);
 			}
 			assert_u_eq(rtree_get(rtree,
 			    (((uintptr_t)1) << (sizeof(uintptr_t)*8-i))), 0,

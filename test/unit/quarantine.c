@@ -21,7 +21,7 @@ quarantine_clear(void)
 
 TEST_BEGIN(test_quarantine)
 {
-#define	SZ		256
+#define	SZ		ZU(256)
 #define	NQUARANTINED	(QUARANTINE_SIZE/SZ)
 	void *quarantined[NQUARANTINED+1];
 	size_t i, j;

@@ -29,7 +29,7 @@ TEST_BEGIN(test_count_insert_search_remove)
 	assert_false(ckh_new(&ckh, 2, ckh_string_hash, ckh_string_keycomp),
 	    "Unexpected ckh_new() error");
 	assert_zu_eq(ckh_count(&ckh), 0,
-	    "ckh_count() should return %zu, but it returned %zu", 0,
+	    "ckh_count() should return %zu, but it returned %zu", ZU(0),
 	    ckh_count(&ckh));
 
 	/* Insert. */
@@ -101,11 +101,11 @@ TEST_END
 
 TEST_BEGIN(test_insert_iter_remove)
 {
-#define	NITEMS 1000
+#define	NITEMS ZU(1000)
 	ckh_t ckh;
 	void **p[NITEMS];
 	void *q, *r;
-	unsigned i;
+	size_t i;
 
 	assert_false(ckh_new(&ckh, 2, ckh_pointer_hash, ckh_pointer_keycomp),
 	    "Unexpected ckh_new() error");
@@ -116,7 +116,7 @@ TEST_BEGIN(test_insert_iter_remove)
 	}
 
 	for (i = 0; i < NITEMS; i++) {
-		unsigned j;
+		size_t j;
 
 		for (j = i; j < NITEMS; j++) {
 			assert_false(ckh_insert(&ckh, p[j], p[j]),
@@ -152,7 +152,7 @@ TEST_BEGIN(test_insert_iter_remove)
 
 			for (tabind = 0; ckh_iter(&ckh, &tabind, &q, &r) ==
 			    false;) {
-				unsigned k;
+				size_t k;
 
 				assert_ptr_eq(q, r, "Key and val not equal");
 
@@ -188,7 +188,7 @@ TEST_BEGIN(test_insert_iter_remove)
 	}
 
 	assert_zu_eq(ckh_count(&ckh), 0,
-	    "ckh_count() should return %zu, but it returned %zu", 0,
+	    "ckh_count() should return %zu, but it returned %zu", ZU(0),
 	    ckh_count(&ckh));
 	ckh_delete(&ckh);
 #undef NITEMS
