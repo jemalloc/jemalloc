@@ -112,7 +112,7 @@ TEST_BEGIN(test_align)
 {
 	void *p, *q;
 	size_t align;
-#define	MAX_ALIGN (ZU(1) << 29)
+#define	MAX_ALIGN (ZU(1) << 25)
 
 	align = ZU(1);
 	p = mallocx(1, MALLOCX_ALIGN(align));
@@ -137,7 +137,7 @@ TEST_BEGIN(test_lg_align_and_zero)
 {
 	void *p, *q;
 	size_t lg_align, sz;
-#define	MAX_LG_ALIGN 29
+#define	MAX_LG_ALIGN 25
 #define	MAX_VALIDATE (ZU(1) << 22)
 
 	lg_align = ZU(0);
