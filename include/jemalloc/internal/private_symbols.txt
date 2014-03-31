@@ -197,6 +197,7 @@ huge_allocated
 huge_boot
 huge_dalloc
 huge_dalloc_junk
+huge_dss_prec_get
 huge_malloc
 huge_mtx
 huge_ndalloc
