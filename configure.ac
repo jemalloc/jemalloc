@@ -784,6 +784,7 @@ fi
 )
 if test "x$backtrace_method" = "x" -a "x$enable_prof_gcc" = "x1" \
      -a "x$GCC" = "xyes" ; then
+  JE_CFLAGS_APPEND([-fno-omit-frame-pointer])
   backtrace_method="gcc intrinsics"
   AC_DEFINE([JEMALLOC_PROF_GCC], [ ])
 else
