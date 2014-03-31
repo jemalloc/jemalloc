@@ -747,22 +747,6 @@ if test "x$backtrace_method" = "x" -a "x$enable_prof_libgcc" = "x1" \
      -a "x$GCC" = "xyes" ; then
   AC_CHECK_HEADERS([unwind.h], , [enable_prof_libgcc="0"])
   AC_CHECK_LIB([gcc], [_Unwind_Backtrace], [LIBS="$LIBS -lgcc"], [enable_prof_libgcc="0"])
-  dnl The following is conservative, in that it only has entries for CPUs on
-  dnl which jemalloc has been tested.
-  AC_MSG_CHECKING([libgcc-based backtracing reliability on ${host_cpu}])
-  case "${host_cpu}" in
-    i[[3456]]86)
-      AC_MSG_RESULT([unreliable])
-      enable_prof_libgcc="0";
-      ;;
-    x86_64)
-      AC_MSG_RESULT([reliable])
-      ;;
-    *)
-      AC_MSG_RESULT([unreliable])
-      enable_prof_libgcc="0";
-      ;;
-  esac
   if test "x${enable_prof_libgcc}" = "x1" ; then
     backtrace_method="libgcc"
     AC_DEFINE([JEMALLOC_PROF_LIBGCC], [ ])
