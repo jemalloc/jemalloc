@@ -20,7 +20,7 @@ test_zero(size_t sz_min, size_t sz_max)
 		if (sz_prev > 0) {
 			assert_c_eq(s[0], 'a',
 			    "Previously allocated byte %zu/%zu is corrupted",
-			    0, sz_prev);
+			    ZU(0), sz_prev);
 			assert_c_eq(s[sz_prev-1], 'a',
 			    "Previously allocated byte %zu/%zu is corrupted",
 			    sz_prev-1, sz_prev);

@@ -8,7 +8,7 @@ thd_start(void *arg)
 	unsigned thread_ind = (unsigned)(uintptr_t)arg;
 	unsigned arena_ind;
 	void *p;
-	size_t rsz, sz;
+	size_t sz;
 
 	sz = sizeof(arena_ind);
 	assert_d_eq(mallctl("arenas.extend", &arena_ind, &sz, NULL, 0), 0,
@@ -27,9 +27,9 @@ thd_start(void *arg)
 		    sizeof(const char *)), 0, "Error in mallctlbymib()");
 	}
 
-	assert_d_eq(allocm(&p, &rsz, 1, ALLOCM_ARENA(arena_ind)),
-	    ALLOCM_SUCCESS, "Unexpected allocm() error");
-	dallocm(p, 0);
+	p = mallocx(1, MALLOCX_ARENA(arena_ind));
+	assert_ptr_not_null(p, "Unexpected mallocx() error");
+	dallocx(p, 0);
 
 	return (NULL);
 }

@@ -150,6 +150,11 @@ if test "x$EXTRA_CFLAGS" != "x" ; then
 fi
 AC_PROG_CPP
 
+AC_C_BIGENDIAN([ac_cv_big_endian=1], [ac_cv_big_endian=0])
+if test "x${ac_cv_big_endian}" = "x1" ; then
+  AC_DEFINE_UNQUOTED([JEMALLOC_BIG_ENDIAN], [ ])
+fi
+
 AC_CHECK_SIZEOF([void *])
 if test "x${ac_cv_sizeof_void_p}" = "x8" ; then
   LG_SIZEOF_PTR=3
@@ -742,22 +747,6 @@ if test "x$backtrace_method" = "x" -a "x$enable_prof_libgcc" = "x1" \
      -a "x$GCC" = "xyes" ; then
   AC_CHECK_HEADERS([unwind.h], , [enable_prof_libgcc="0"])
   AC_CHECK_LIB([gcc], [_Unwind_Backtrace], [LIBS="$LIBS -lgcc"], [enable_prof_libgcc="0"])
-  dnl The following is conservative, in that it only has entries for CPUs on
-  dnl which jemalloc has been tested.
-  AC_MSG_CHECKING([libgcc-based backtracing reliability on ${host_cpu}])
-  case "${host_cpu}" in
-    i[[3456]]86)
-      AC_MSG_RESULT([unreliable])
-      enable_prof_libgcc="0";
-      ;;
-    x86_64)
-      AC_MSG_RESULT([reliable])
-      ;;
-    *)
-      AC_MSG_RESULT([unreliable])
-      enable_prof_libgcc="0";
-      ;;
-  esac
   if test "x${enable_prof_libgcc}" = "x1" ; then
     backtrace_method="libgcc"
     AC_DEFINE([JEMALLOC_PROF_LIBGCC], [ ])
@@ -779,6 +768,7 @@ fi
 )
 if test "x$backtrace_method" = "x" -a "x$enable_prof_gcc" = "x1" \
      -a "x$GCC" = "xyes" ; then
+  JE_CFLAGS_APPEND([-fno-omit-frame-pointer])
   backtrace_method="gcc intrinsics"
   AC_DEFINE([JEMALLOC_PROF_GCC], [ ])
 else

@@ -86,15 +86,9 @@ p_test(test_t* t, ...)
 }
 
 void
-p_test_fail(const char *format, ...)
+p_test_fail(const char *prefix, const char *message)
 {
-	va_list ap;
 
-	va_start(ap, format);
-	malloc_vcprintf(NULL, NULL, format, ap);
-	format = va_arg(ap, const char *);
-	malloc_vcprintf(NULL, NULL, format, ap);
-	va_end(ap);
-	malloc_printf("\n");
+	malloc_cprintf(NULL, NULL, "%s%s\n", prefix, message);
 	test_status = test_status_fail;
 }

@@ -1439,8 +1439,12 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         <listitem><para>Set the precedence of dss allocation as related to mmap
         allocation for arena &lt;i&gt;, or for all arenas if &lt;i&gt; equals
         <link
-        linkend="arenas.narenas"><mallctl>arenas.narenas</mallctl></link>.  See
-        <link linkend="opt.dss"><mallctl>opt.dss</mallctl></link> for supported
+        linkend="arenas.narenas"><mallctl>arenas.narenas</mallctl></link>.  Note
+        that even during huge allocation this setting is read from the arena
+        that would be chosen for small or large allocation so that applications
+        can depend on consistent dss versus mmap allocation regardless of
+        allocation size.  See <link
+        linkend="opt.dss"><mallctl>opt.dss</mallctl></link> for supported
         settings.
         </para></listitem>
       </varlistentry>

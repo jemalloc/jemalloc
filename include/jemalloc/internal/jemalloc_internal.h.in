@@ -770,7 +770,7 @@ imalloct(size_t size, bool try_tcache, arena_t *arena)
 	if (size <= arena_maxclass)
 		return (arena_malloc(arena, size, false, try_tcache));
 	else
-		return (huge_malloc(size, false));
+		return (huge_malloc(size, false, huge_dss_prec_get(arena)));
 }
 
 JEMALLOC_ALWAYS_INLINE void *
@@ -787,7 +787,7 @@ icalloct(size_t size, bool try_tcache, arena_t *arena)
 	if (size <= arena_maxclass)
 		return (arena_malloc(arena, size, true, try_tcache));
 	else
-		return (huge_malloc(size, true));
+		return (huge_malloc(size, true, huge_dss_prec_get(arena)));
 }
 
 JEMALLOC_ALWAYS_INLINE void *
@@ -813,9 +813,9 @@ ipalloct(size_t usize, size_t alignment, bool zero, bool try_tcache,
 			ret = arena_palloc(choose_arena(arena), usize,
 			    alignment, zero);
 		} else if (alignment <= chunksize)
-			ret = huge_malloc(usize, zero);
+			ret = huge_malloc(usize, zero, huge_dss_prec_get(arena));
 		else
-			ret = huge_palloc(usize, alignment, zero);
+			ret = huge_palloc(usize, alignment, zero, huge_dss_prec_get(arena));
 	}
 
 	assert(ALIGNMENT_ADDR2BASE(ret, alignment) == ret);
@@ -984,7 +984,7 @@ iralloct(void *ptr, size_t size, size_t extra, size_t alignment, bool zero,
 		    try_tcache_dalloc));
 	} else {
 		return (huge_ralloc(ptr, oldsize, size, extra,
-		    alignment, zero, try_tcache_dalloc));
+		    alignment, zero, try_tcache_dalloc, huge_dss_prec_get(arena)));
 	}
 }
 

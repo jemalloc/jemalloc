@@ -5,6 +5,30 @@ found in the git revision history:
 
     https://github.com/jemalloc/jemalloc
 
+* 3.6.0 (March 31, 2014)
+
+  This version contains a critical bug fix for a regression present in 3.5.0 and
+  3.5.1.
+
+  Bug fixes:
+  - Fix a regression in arena_chunk_alloc() that caused crashes during
+    small/large allocation if chunk allocation failed.  In the absence of this
+    bug, chunk allocation failure would result in allocation failure, e.g.  NULL
+    return from malloc().  This regression was introduced in 3.5.0.
+  - Fix backtracing for gcc intrinsics-based backtracing by specifying
+    -fno-omit-frame-pointer to gcc.  Note that the application (and all the
+    libraries it links to) must also be compiled with this option for
+    backtracing to be reliable.
+  - Use dss allocation precedence for huge allocations as well as small/large
+    allocations.
+  - Fix test assertion failure message formatting.  This bug did not manifect on
+    x86_64 systems because of implementation subtleties in va_list.
+  - Fix inconsequential test failures for hash and SFMT code.
+
+  New features:
+  - Support heap profiling on FreeBSD.  This feature depends on the proc
+    filesystem being mounted during heap profile dumping.
+
 * 3.5.1 (February 25, 2014)
 
   This version primarily addresses minor bugs in test code.

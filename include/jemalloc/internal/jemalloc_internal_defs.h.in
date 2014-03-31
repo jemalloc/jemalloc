@@ -190,6 +190,9 @@
 /* C99 restrict keyword supported. */
 #undef JEMALLOC_HAS_RESTRICT
 
+/* For use by hash code. */
+#undef JEMALLOC_BIG_ENDIAN
+
 /* sizeof(int) == 2^LG_SIZEOF_INT. */
 #undef LG_SIZEOF_INT
 

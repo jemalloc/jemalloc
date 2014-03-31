@@ -320,7 +320,7 @@ hash_x64_128(const void *key, const int len, const uint32_t seed,
 JEMALLOC_INLINE void
 hash(const void *key, size_t len, const uint32_t seed, size_t r_hash[2])
 {
-#if (LG_SIZEOF_PTR == 3)
+#if (LG_SIZEOF_PTR == 3 && !defined(JEMALLOC_BIG_ENDIAN))
 	hash_x64_128(key, len, seed, (uint64_t *)r_hash);
 #else
 	uint64_t hashes[2];

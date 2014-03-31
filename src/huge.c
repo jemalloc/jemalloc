@@ -16,14 +16,14 @@ malloc_mutex_t	huge_mtx;
 static extent_tree_t	huge;
 
 void *
-huge_malloc(size_t size, bool zero)
+huge_malloc(size_t size, bool zero, dss_prec_t dss_prec)
 {
 
-	return (huge_palloc(size, chunksize, zero));
+	return (huge_palloc(size, chunksize, zero, dss_prec));
 }
 
 void *
-huge_palloc(size_t size, size_t alignment, bool zero)
+huge_palloc(size_t size, size_t alignment, bool zero, dss_prec_t dss_prec)
 {
 	void *ret;
 	size_t csize;
@@ -48,8 +48,7 @@ huge_palloc(size_t size, size_t alignment, bool zero)
 	 * it is possible to make correct junk/zero fill decisions below.
 	 */
 	is_zeroed = zero;
-	ret = chunk_alloc(csize, alignment, false, &is_zeroed,
-	    chunk_dss_prec_get());
+	ret = chunk_alloc(csize, alignment, false, &is_zeroed, dss_prec);
 	if (ret == NULL) {
 		base_node_dealloc(node);
 		return (NULL);
@@ -98,7 +97,7 @@ huge_ralloc_no_move(void *ptr, size_t oldsize, size_t size, size_t extra)
 
 void *
 huge_ralloc(void *ptr, size_t oldsize, size_t size, size_t extra,
-    size_t alignment, bool zero, bool try_tcache_dalloc)
+    size_t alignment, bool zero, bool try_tcache_dalloc, dss_prec_t dss_prec)
 {
 	void *ret;
 	size_t copysize;
@@ -113,18 +112,18 @@ huge_ralloc(void *ptr, size_t oldsize, size_t size, size_t extra,
 	 * space and copying.
 	 */
 	if (alignment > chunksize)
-		ret = huge_palloc(size + extra, alignment, zero);
+		ret = huge_palloc(size + extra, alignment, zero, dss_prec);
 	else
-		ret = huge_malloc(size + extra, zero);
+		ret = huge_malloc(size + extra, zero, dss_prec);
 
 	if (ret == NULL) {
 		if (extra == 0)
 			return (NULL);
 		/* Try again, this time without extra. */
 		if (alignment > chunksize)
-			ret = huge_palloc(size, alignment, zero);
+			ret = huge_palloc(size, alignment, zero, dss_prec);
 		else
-			ret = huge_malloc(size, zero);
+			ret = huge_malloc(size, zero, dss_prec);
 
 		if (ret == NULL)
 			return (NULL);
@@ -262,6 +261,13 @@ huge_salloc(const void *ptr)
 	malloc_mutex_unlock(&huge_mtx);
 
 	return (ret);
+}
+
+dss_prec_t
+huge_dss_prec_get(arena_t *arena)
+{
+
+	return (arena_dss_prec_get(choose_arena(arena)));
 }
 
 prof_ctx_t *
