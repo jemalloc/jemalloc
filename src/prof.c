@@ -1225,9 +1225,9 @@ prof_tdata_init(void)
 		return (NULL);
 	}
 
-	prof_tdata->prng_state = 0;
-	prof_tdata->threshold = 0;
-	prof_tdata->accum = 0;
+        /* initalize each thread to a different seed */
+	prof_tdata->prng_state = (uint64_t)(uintptr_t)prof_tdata;
+	prof_sample_threshold_update(prof_tdata);
 
 	prof_tdata->enq = false;
 	prof_tdata->enq_idump = false;
