@@ -177,8 +177,7 @@ struct prof_tdata_s {
 
 	/* Sampling state. */
 	uint64_t		prng_state;
-	uint64_t		threshold;
-	uint64_t		accum;
+	uint64_t		bytes_until_sample;
 
 	/* State used to avoid dumping while operating on prof internals. */
 	bool			enq;
@@ -268,37 +267,14 @@ void	prof_postfork_child(void);
 	if (opt_prof_active == false) {					\
 		/* Sampling is currently inactive, so avoid sampling. */\
 		ret = (prof_thr_cnt_t *)(uintptr_t)1U;			\
-	} else if (opt_lg_prof_sample == 0) {				\
-		/* Don't bother with sampling logic, since sampling   */\
-		/* interval is 1.                                     */\
+	} else if (prof_tdata->bytes_until_sample >= size) {		\
+		ret = (prof_thr_cnt_t *)(uintptr_t)1U;			\
+                prof_tdata->bytes_until_sample -= size;                 \
+	} else {							\
+		prof_sample_threshold_update(prof_tdata);		\
 		bt_init(&bt, prof_tdata->vec);				\
 		prof_backtrace(&bt, nignore);				\
 		ret = prof_lookup(&bt);					\
-	} else {							\
-		if (prof_tdata->threshold == 0) {			\
-			/* Initialize.  Seed the prng differently for */\
-			/* each thread.                               */\
-			prof_tdata->prng_state =			\
-			    (uint64_t)(uintptr_t)&size;			\
-			prof_sample_threshold_update(prof_tdata);	\
-		}							\
-									\
-		/* Determine whether to capture a backtrace based on  */\
-		/* whether size is enough for prof_accum to reach     */\
-		/* prof_tdata->threshold.  However, delay updating    */\
-		/* these variables until prof_{m,re}alloc(), because  */\
-		/* we don't know for sure that the allocation will    */\
-		/* succeed.                                           */\
-		/*                                                    */\
-		/* Use subtraction rather than addition to avoid      */\
-		/* potential integer overflow.                        */\
-		if (size >= prof_tdata->threshold -			\
-		    prof_tdata->accum) {				\
-			bt_init(&bt, prof_tdata->vec);			\
-			prof_backtrace(&bt, nignore);			\
-			ret = prof_lookup(&bt);				\
-		} else							\
-			ret = (prof_thr_cnt_t *)(uintptr_t)1U;		\
 	}								\
 } while (0)
 
@@ -309,7 +285,6 @@ prof_tdata_t	*prof_tdata_get(bool create);
 void	prof_sample_threshold_update(prof_tdata_t *prof_tdata);
 prof_ctx_t	*prof_ctx_get(const void *ptr);
 void	prof_ctx_set(const void *ptr, size_t usize, prof_ctx_t *ctx);
-bool	prof_sample_accum_update(size_t size);
 void	prof_malloc(const void *ptr, size_t usize, prof_thr_cnt_t *cnt);
 void	prof_realloc(const void *ptr, size_t usize, prof_thr_cnt_t *cnt,
     size_t old_usize, prof_ctx_t *old_ctx);
@@ -358,6 +333,11 @@ prof_sample_threshold_update(prof_tdata_t *prof_tdata)
 
 	cassert(config_prof);
 
+        if (opt_lg_prof_sample == 0) {
+		prof_tdata->bytes_until_sample = 0;
+		return;
+        }
+
 	/*
 	 * Compute sample threshold as a geometrically distributed random
 	 * variable with mean (2^opt_lg_prof_sample).
@@ -379,10 +359,35 @@ prof_sample_threshold_update(prof_tdata_t *prof_tdata)
 	prng64(r, 53, prof_tdata->prng_state,
 	    UINT64_C(6364136223846793005), UINT64_C(1442695040888963407));
 	u = (double)r * (1.0/9007199254740992.0L);
-	prof_tdata->threshold = (uint64_t)(log(u) /
+	prof_tdata->bytes_until_sample = (uint64_t)(log(u) /
 	    log(1.0 - (1.0 / (double)((uint64_t)1U << opt_lg_prof_sample))))
 	    + (uint64_t)1U;
 #endif
+}
+
+/*
+ * Reset the time to next sample for this thread. For example, if you
+ * subtracted bytes for an allocation you were about to make but the
+ * allocation OOMs, you can simply reset the distribution so you don't
+ * have to account for it in other places in the code.
+ *
+ * Mathematically this works because the geometric distribution is
+ * memoryless.
+ */
+JEMALLOC_INLINE void
+prof_sample_reset_threshold() {
+	prof_tdata_t *prof_tdata;
+
+	if (!(config_prof && opt_prof)) {
+		return;
+	}
+
+	prof_tdata = prof_tdata_get(false);
+	if ((uintptr_t)prof_tdata <= (uintptr_t)PROF_TDATA_STATE_MAX) {
+		return;
+	}
+
+	prof_sample_threshold_update(prof_tdata);
 }
 
 JEMALLOC_INLINE prof_ctx_t *
@@ -420,35 +425,6 @@ prof_ctx_set(const void *ptr, size_t usize, prof_ctx_t *ctx)
 		huge_prof_ctx_set(ptr, ctx);
 }
 
-JEMALLOC_INLINE bool
-prof_sample_accum_update(size_t size)
-{
-	prof_tdata_t *prof_tdata;
-
-	cassert(config_prof);
-	/* Sampling logic is unnecessary if the interval is 1. */
-	assert(opt_lg_prof_sample != 0);
-
-	prof_tdata = prof_tdata_get(false);
-	if ((uintptr_t)prof_tdata <= (uintptr_t)PROF_TDATA_STATE_MAX)
-		return (true);
-
-	/* Take care to avoid integer overflow. */
-	if (size >= prof_tdata->threshold - prof_tdata->accum) {
-		prof_tdata->accum -= (prof_tdata->threshold - size);
-		/* Compute new sample threshold. */
-		prof_sample_threshold_update(prof_tdata);
-		while (prof_tdata->accum >= prof_tdata->threshold) {
-			prof_tdata->accum -= prof_tdata->threshold;
-			prof_sample_threshold_update(prof_tdata);
-		}
-		return (false);
-	} else {
-		prof_tdata->accum += size;
-		return (true);
-	}
-}
-
 JEMALLOC_INLINE void
 prof_malloc(const void *ptr, size_t usize, prof_thr_cnt_t *cnt)
 {
@@ -456,19 +432,6 @@ prof_malloc(const void *ptr, size_t usize, prof_thr_cnt_t *cnt)
 	cassert(config_prof);
 	assert(ptr != NULL);
 	assert(usize == isalloc(ptr, true));
-
-	if (opt_lg_prof_sample != 0) {
-		if (prof_sample_accum_update(usize)) {
-			/*
-			 * Don't sample.  For malloc()-like allocation, it is
-			 * always possible to tell in advance how large an
-			 * object's usable size will be, so there should never
-			 * be a difference between the usize passed to
-			 * PROF_ALLOC_PREP() and prof_malloc().
-			 */
-			assert((uintptr_t)cnt == (uintptr_t)1U);
-		}
-	}
 
 	if ((uintptr_t)cnt > (uintptr_t)1U) {
 		prof_ctx_set(ptr, usize, cnt->ctx);
@@ -502,23 +465,6 @@ prof_realloc(const void *ptr, size_t usize, prof_thr_cnt_t *cnt,
 
 	cassert(config_prof);
 	assert(ptr != NULL || (uintptr_t)cnt <= (uintptr_t)1U);
-
-	if (ptr != NULL) {
-		assert(usize == isalloc(ptr, true));
-		if (opt_lg_prof_sample != 0) {
-			if (prof_sample_accum_update(usize)) {
-				/*
-				 * Don't sample.  The usize passed to
-				 * PROF_ALLOC_PREP() was larger than what
-				 * actually got allocated, so a backtrace was
-				 * captured for this allocation, even though
-				 * its actual usize was insufficient to cross
-				 * the sample threshold.
-				 */
-				cnt = (prof_thr_cnt_t *)(uintptr_t)1U;
-			}
-		}
-	}
 
 	if ((uintptr_t)old_ctx > (uintptr_t)1U) {
 		told_cnt = prof_lookup(old_ctx->bt);

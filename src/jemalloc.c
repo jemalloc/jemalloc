@@ -1051,6 +1051,7 @@ label_oom:
 		    "out of memory\n");
 		abort();
 	}
+	prof_sample_reset_threshold();
 	ret = ENOMEM;
 	goto label_return;
 }
@@ -1165,6 +1166,7 @@ label_return:
 			    "memory\n");
 			abort();
 		}
+		prof_sample_reset_threshold();
 		set_errno(ENOMEM);
 	}
 	if (config_stats && ret != NULL) {
@@ -1284,6 +1286,7 @@ je_realloc(void *ptr, size_t size)
 			    "out of memory\n");
 			abort();
 		}
+		prof_sample_reset_threshold();
 		set_errno(ENOMEM);
 	}
 	if (config_stats && ret != NULL) {
@@ -1479,6 +1482,7 @@ label_oom:
 		malloc_write("<jemalloc>: Error in mallocx(): out of memory\n");
 		abort();
 	}
+	prof_sample_reset_threshold();
 	UTRACE(0, size, 0);
 	return (NULL);
 }
@@ -1534,6 +1538,9 @@ irallocx_prof(void *oldptr, size_t old_usize, size_t size, size_t alignment,
 		 * serendipitously satisfied.  Additionally, old_usize may not
 		 * be the same as the current usize because of in-place large
 		 * reallocation.  Therefore, query the actual value of usize.
+		 *
+		 * FIXME: check if the old bytes_until_sample is < usize. reset
+		 * sampling rate.
 		 */
 		*usize = isalloc(p, config_prof);
 	}
@@ -1612,6 +1619,7 @@ label_oom:
 		malloc_write("<jemalloc>: Error in rallocx(): out of memory\n");
 		abort();
 	}
+	prof_sample_reset_threshold();
 	UTRACE(ptr, size, 0);
 	return (NULL);
 }
