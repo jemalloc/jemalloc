@@ -895,7 +895,7 @@ idalloct(void *ptr, bool try_tcache)
 
 	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
 	if (chunk != ptr)
-		arena_dalloc(chunk->arena, chunk, ptr, try_tcache);
+		arena_dalloc(chunk, ptr, try_tcache);
 	else
 		huge_dalloc(ptr, true);
 }
