@@ -90,6 +90,11 @@ struct arena_chunk_map_s {
 #endif
 
 	/*
+	 * A bitmap is used to describe the state of the pages in this run.
+	 * this is logically part of this structure but physically stored in
+	 * arena_chunk_t.bits_map so that caches are not polluted with the
+	 * rarely used parts of this structure.
+	 *
 	 * Run address (or size) and various flags are stored together.  The bit
 	 * layout looks like (assuming 32-bit system):
 	 *
@@ -143,7 +148,6 @@ struct arena_chunk_map_s {
 	 *   Large (not sampled, size == PAGE):
 	 *     ssssssss ssssssss ssss++++ ++++D-LA
 	 */
-	size_t				bits;
 #define	CHUNK_MAP_BININD_SHIFT	4
 #define	BININD_INVALID		((size_t)0xffU)
 /*     CHUNK_MAP_BININD_MASK == (BININD_INVALID << CHUNK_MAP_BININD_SHIFT) */
@@ -189,7 +193,12 @@ struct arena_chunk_s {
 	 * need to be tracked in the map.  This omission saves a header page
 	 * for common chunk sizes (e.g. 4 MiB).
 	 */
-	arena_chunk_map_t	map[1]; /* Dynamically sized. */
+	size_t			bits_map[1]; /* Dynamically sized. */
+	/*
+	 * There is an arena_chunk_map_t[] located at chunk_map_offset
+	 * bytes from the start of this structure. Like bits_map this
+	 * map is biased by map_bias entries.
+	 */
 };
 typedef rb_tree(arena_chunk_t) arena_chunk_tree_t;
 
@@ -508,14 +517,15 @@ arena_mapp_get(arena_chunk_t *chunk, size_t pageind)
 	assert(pageind >= map_bias);
 	assert(pageind < chunk_npages);
 
-	return (&chunk->map[pageind-map_bias]);
+	uintptr_t ptr = (uintptr_t) chunk;
+	return &((arena_chunk_map_t*) (ptr + chunk_map_offset))[pageind-map_bias];
 }
 
 JEMALLOC_ALWAYS_INLINE size_t *
 arena_mapbitsp_get(arena_chunk_t *chunk, size_t pageind)
 {
 
-	return (&arena_mapp_get(chunk, pageind)->bits);
+	return (&chunk->bits_map[pageind-map_bias]);
 }
 
 JEMALLOC_ALWAYS_INLINE size_t

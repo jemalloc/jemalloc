@@ -53,6 +53,19 @@ static void	arena_bin_lower_run(arena_t *arena, arena_chunk_t *chunk,
 
 /******************************************************************************/
 
+static inline size_t
+arena_mapelm_to_pageind(arena_chunk_t* chunk, arena_chunk_map_t* mapelm) {
+	uintptr_t mapelm_offset = CHUNK_ADDR2OFFSET(mapelm) - chunk_map_offset;
+	return mapelm_offset / sizeof(arena_chunk_map_t) + map_bias;
+}
+
+static inline size_t
+arena_mapelm_to_bits(arena_chunk_map_t* mapelm) {
+	arena_chunk_t *chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(mapelm);
+	return arena_mapbits_get(chunk,
+				 arena_mapelm_to_pageind(chunk, mapelm));
+}
+
 static inline int
 arena_run_comp(arena_chunk_map_t *a, arena_chunk_map_t *b)
 {
@@ -73,24 +86,18 @@ static inline int
 arena_avail_comp(arena_chunk_map_t *a, arena_chunk_map_t *b)
 {
 	int ret;
-	size_t a_size = a->bits & ~PAGE_MASK;
-	size_t b_size = b->bits & ~PAGE_MASK;
+	size_t a_size;
+	size_t b_size = arena_mapelm_to_bits(b) & ~PAGE_MASK;
+        uintptr_t a_mapelm = (uintptr_t)a, b_mapelm = (uintptr_t)b;
+
+        if (a_mapelm & CHUNK_MAP_KEY) {
+		a_size = a_mapelm & ~PAGE_MASK;
+        } else {
+		a_size = arena_mapelm_to_bits(a) & ~PAGE_MASK;
+        }
 
 	ret = (a_size > b_size) - (a_size < b_size);
-	if (ret == 0) {
-		uintptr_t a_mapelm, b_mapelm;
-
-		if ((a->bits & CHUNK_MAP_KEY) != CHUNK_MAP_KEY)
-			a_mapelm = (uintptr_t)a;
-		else {
-			/*
-			 * Treat keys as though they are lower than anything
-			 * else.
-			 */
-			a_mapelm = 0;
-		}
-		b_mapelm = (uintptr_t)b;
-
+	if (ret == 0 && (!(a_mapelm & CHUNK_MAP_KEY)) ) {
 		ret = (a_mapelm > b_mapelm) - (a_mapelm < b_mapelm);
 	}
 
@@ -663,15 +670,14 @@ static arena_run_t *
 arena_run_alloc_large_helper(arena_t *arena, size_t size, bool zero)
 {
 	arena_run_t *run;
-	arena_chunk_map_t *mapelm, key;
+	arena_chunk_map_t *mapelm;
+	arena_chunk_map_t *key;
 
-	key.bits = size | CHUNK_MAP_KEY;
-	mapelm = arena_avail_tree_nsearch(&arena->runs_avail, &key);
+	key = (arena_chunk_map_t*) (size | CHUNK_MAP_KEY);
+	mapelm = arena_avail_tree_nsearch(&arena->runs_avail, key);
 	if (mapelm != NULL) {
 		arena_chunk_t *run_chunk = CHUNK_ADDR2BASE(mapelm);
-		size_t pageind = (((uintptr_t)mapelm -
-		    (uintptr_t)run_chunk->map) / sizeof(arena_chunk_map_t))
-		    + map_bias;
+		size_t pageind = arena_mapelm_to_pageind(run_chunk, mapelm);
 
 		run = (arena_run_t *)((uintptr_t)run_chunk + (pageind <<
 		    LG_PAGE));
@@ -718,15 +724,14 @@ static arena_run_t *
 arena_run_alloc_small_helper(arena_t *arena, size_t size, size_t binind)
 {
 	arena_run_t *run;
-	arena_chunk_map_t *mapelm, key;
+	arena_chunk_map_t *mapelm;
+	arena_chunk_map_t *key;
 
-	key.bits = size | CHUNK_MAP_KEY;
-	mapelm = arena_avail_tree_nsearch(&arena->runs_avail, &key);
+	key = (arena_chunk_map_t*) (size | CHUNK_MAP_KEY);
+	mapelm = arena_avail_tree_nsearch(&arena->runs_avail, key);
 	if (mapelm != NULL) {
 		arena_chunk_t *run_chunk = CHUNK_ADDR2BASE(mapelm);
-		size_t pageind = (((uintptr_t)mapelm -
-		    (uintptr_t)run_chunk->map) / sizeof(arena_chunk_map_t))
-		    + map_bias;
+		size_t pageind = arena_mapelm_to_pageind(run_chunk, mapelm);
 
 		run = (arena_run_t *)((uintptr_t)run_chunk + (pageind <<
 		    LG_PAGE));
@@ -897,8 +902,7 @@ arena_chunk_purge_stashed(arena_t *arena, arena_chunk_t *chunk,
 		bool unzeroed;
 		size_t flag_unzeroed, i;
 
-		pageind = (((uintptr_t)mapelm - (uintptr_t)chunk->map) /
-		    sizeof(arena_chunk_map_t)) + map_bias;
+		pageind = arena_mapelm_to_pageind(chunk, mapelm);
 		npages = arena_mapbits_large_size_get(chunk, pageind) >>
 		    LG_PAGE;
 		assert(pageind + npages <= chunk_npages);
@@ -942,8 +946,7 @@ arena_chunk_unstash_purged(arena_t *arena, arena_chunk_t *chunk,
 	    mapelm = ql_first(mapelms)) {
 		arena_run_t *run;
 
-		pageind = (((uintptr_t)mapelm - (uintptr_t)chunk->map) /
-		    sizeof(arena_chunk_map_t)) + map_bias;
+		pageind = arena_mapelm_to_pageind(chunk, mapelm);
 		run = (arena_run_t *)((uintptr_t)chunk + (uintptr_t)(pageind <<
 		    LG_PAGE));
 		ql_remove(mapelms, mapelm, u.ql_link);
@@ -1307,8 +1310,7 @@ arena_bin_runs_first(arena_bin_t *bin)
 		arena_run_t *run;
 
 		chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(mapelm);
-		pageind = ((((uintptr_t)mapelm - (uintptr_t)chunk->map) /
-		    sizeof(arena_chunk_map_t))) + map_bias;
+		pageind = arena_mapelm_to_pageind(chunk, mapelm);
 		run = (arena_run_t *)((uintptr_t)chunk + (uintptr_t)((pageind -
 		    arena_mapbits_small_runind_get(chunk, pageind)) <<
 		    LG_PAGE));
@@ -1882,7 +1884,7 @@ arena_dalloc_bin_locked(arena_t *arena, arena_chunk_t *chunk, void *ptr,
 	run = (arena_run_t *)((uintptr_t)chunk + (uintptr_t)((pageind -
 	    arena_mapbits_small_runind_get(chunk, pageind)) << LG_PAGE));
 	bin = run->bin;
-	binind = arena_ptr_small_binind_get(ptr, mapelm->bits);
+	binind = arena_ptr_small_binind_get(ptr, arena_mapbits_get(chunk, pageind));
 	bin_info = &arena_bin_info[binind];
 	if (config_fill || config_stats)
 		size = bin_info->reg_size;
@@ -2534,8 +2536,13 @@ arena_boot(void)
 	 */
 	map_bias = 0;
 	for (i = 0; i < 3; i++) {
-		header_size = offsetof(arena_chunk_t, map) +
-		    (sizeof(arena_chunk_map_t) * (chunk_npages-map_bias));
+		header_size = offsetof(arena_chunk_t, bits_map) +
+		    (sizeof(size_t) * (chunk_npages-map_bias));
+		header_size = ALIGNMENT_CEILING(header_size, sizeof(void*));
+		chunk_map_offset = header_size;
+		header_size += (sizeof(arena_chunk_map_t) *
+				(chunk_npages-map_bias));
+
 		map_bias = (header_size >> LG_PAGE) + ((header_size & PAGE_MASK)
 		    != 0);
 	}
