@@ -55,14 +55,15 @@ static void	arena_bin_lower_run(arena_t *arena, arena_chunk_t *chunk,
 
 static inline size_t
 arena_mapelm_to_pageind(arena_chunk_t* chunk, arena_chunk_map_t* mapelm) {
-	return (((uintptr_t)mapelm -
-		 (uintptr_t)chunk->map) / sizeof(arena_chunk_map_t))
-		+ map_bias;
+	uintptr_t mapelm_offset = CHUNK_ADDR2OFFSET(mapelm) - chunk_map_offset;
+	return mapelm_offset / sizeof(arena_chunk_map_t) + map_bias;
 }
 
 static inline size_t
 arena_mapelm_to_bits(arena_chunk_map_t* mapelm) {
-	return mapelm->bits;
+	arena_chunk_t *chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(mapelm);
+	return arena_mapbits_get(chunk,
+				 arena_mapelm_to_pageind(chunk, mapelm));
 }
 
 static inline int
@@ -2535,8 +2536,13 @@ arena_boot(void)
 	 */
 	map_bias = 0;
 	for (i = 0; i < 3; i++) {
-		header_size = offsetof(arena_chunk_t, map) +
-		    (sizeof(arena_chunk_map_t) * (chunk_npages-map_bias));
+		header_size = offsetof(arena_chunk_t, bits_map) +
+		    (sizeof(size_t) * (chunk_npages-map_bias));
+		header_size = ALIGNMENT_CEILING(header_size, sizeof(void*));
+		chunk_map_offset = header_size;
+		header_size += (sizeof(arena_chunk_map_t) *
+				(chunk_npages-map_bias));
+
 		map_bias = (header_size >> LG_PAGE) + ((header_size & PAGE_MASK)
 		    != 0);
 	}
