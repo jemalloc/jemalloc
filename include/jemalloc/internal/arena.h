@@ -495,8 +495,7 @@ prof_ctx_t	*arena_prof_ctx_get(const void *ptr);
 void	arena_prof_ctx_set(const void *ptr, size_t usize, prof_ctx_t *ctx);
 void	*arena_malloc(arena_t *arena, size_t size, bool zero, bool try_tcache);
 size_t	arena_salloc(const void *ptr, bool demote);
-void	arena_dalloc(arena_t *arena, arena_chunk_t *chunk, void *ptr,
-    bool try_tcache);
+void	arena_dalloc(arena_chunk_t *chunk, void *ptr, bool try_tcache);
 #endif
 
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_ARENA_C_))
@@ -1022,13 +1021,11 @@ arena_salloc(const void *ptr, bool demote)
 }
 
 JEMALLOC_ALWAYS_INLINE void
-arena_dalloc(arena_t *arena, arena_chunk_t *chunk, void *ptr, bool try_tcache)
+arena_dalloc(arena_chunk_t *chunk, void *ptr, bool try_tcache)
 {
 	size_t pageind, mapbits;
 	tcache_t *tcache;
 
-	assert(arena != NULL);
-	assert(chunk->arena == arena);
 	assert(ptr != NULL);
 	assert(CHUNK_ADDR2BASE(ptr) != ptr);
 
@@ -1043,7 +1040,7 @@ arena_dalloc(arena_t *arena, arena_chunk_t *chunk, void *ptr, bool try_tcache)
 			binind = arena_ptr_small_binind_get(ptr, mapbits);
 			tcache_dalloc_small(tcache, ptr, binind);
 		} else
-			arena_dalloc_small(arena, chunk, ptr, pageind);
+			arena_dalloc_small(chunk->arena, chunk, ptr, pageind);
 	} else {
 		size_t size = arena_mapbits_large_size_get(chunk, pageind);
 
@@ -1053,7 +1050,7 @@ arena_dalloc(arena_t *arena, arena_chunk_t *chunk, void *ptr, bool try_tcache)
 		    tcache_get(false)) != NULL) {
 			tcache_dalloc_large(tcache, ptr, size);
 		} else
-			arena_dalloc_large(arena, chunk, ptr);
+			arena_dalloc_large(chunk->arena, chunk, ptr);
 	}
 }
 #  endif /* JEMALLOC_ARENA_INLINE_B */

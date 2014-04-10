@@ -2103,7 +2103,7 @@ a0free(void *ptr)
 
 	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
 	if (chunk != ptr)
-		arena_dalloc(chunk->arena, chunk, ptr, false);
+		arena_dalloc(chunk, ptr, false);
 	else
 		huge_dalloc(ptr, true);
 }
