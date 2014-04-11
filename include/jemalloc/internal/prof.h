@@ -220,12 +220,6 @@ extern char	opt_prof_prefix[
  */
 extern uint64_t	prof_interval;
 
-/*
- * If true, promote small sampled objects to large objects, since small run
- * headers do not have embedded profile context pointers.
- */
-extern bool	prof_promote;
-
 void	bt_init(prof_bt_t *bt, void **vec);
 void	prof_backtrace(prof_bt_t *bt, unsigned nignore);
 prof_thr_cnt_t	*prof_lookup(prof_bt_t *bt);
@@ -308,7 +302,7 @@ malloc_tsd_protos(JEMALLOC_ATTR(unused), prof_tdata, prof_tdata_t *)
 prof_tdata_t	*prof_tdata_get(bool create);
 void	prof_sample_threshold_update(prof_tdata_t *prof_tdata);
 prof_ctx_t	*prof_ctx_get(const void *ptr);
-void	prof_ctx_set(const void *ptr, size_t usize, prof_ctx_t *ctx);
+void	prof_ctx_set(const void *ptr, prof_ctx_t *ctx);
 bool	prof_sample_accum_update(size_t size);
 void	prof_malloc(const void *ptr, size_t usize, prof_thr_cnt_t *cnt);
 void	prof_realloc(const void *ptr, size_t usize, prof_thr_cnt_t *cnt,
@@ -405,7 +399,7 @@ prof_ctx_get(const void *ptr)
 }
 
 JEMALLOC_INLINE void
-prof_ctx_set(const void *ptr, size_t usize, prof_ctx_t *ctx)
+prof_ctx_set(const void *ptr, prof_ctx_t *ctx)
 {
 	arena_chunk_t *chunk;
 
@@ -415,7 +409,7 @@ prof_ctx_set(const void *ptr, size_t usize, prof_ctx_t *ctx)
 	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
 	if (chunk != ptr) {
 		/* Region. */
-		arena_prof_ctx_set(ptr, usize, ctx);
+		arena_prof_ctx_set(ptr, ctx);
 	} else
 		huge_prof_ctx_set(ptr, ctx);
 }
@@ -471,7 +465,7 @@ prof_malloc(const void *ptr, size_t usize, prof_thr_cnt_t *cnt)
 	}
 
 	if ((uintptr_t)cnt > (uintptr_t)1U) {
-		prof_ctx_set(ptr, usize, cnt->ctx);
+		prof_ctx_set(ptr, cnt->ctx);
 
 		cnt->epoch++;
 		/*********/
@@ -491,7 +485,7 @@ prof_malloc(const void *ptr, size_t usize, prof_thr_cnt_t *cnt)
 		mb_write();
 		/*********/
 	} else
-		prof_ctx_set(ptr, usize, (prof_ctx_t *)(uintptr_t)1U);
+		prof_ctx_set(ptr, (prof_ctx_t *)(uintptr_t)1U);
 }
 
 JEMALLOC_INLINE void
@@ -539,10 +533,10 @@ prof_realloc(const void *ptr, size_t usize, prof_thr_cnt_t *cnt,
 	if ((uintptr_t)told_cnt > (uintptr_t)1U)
 		told_cnt->epoch++;
 	if ((uintptr_t)cnt > (uintptr_t)1U) {
-		prof_ctx_set(ptr, usize, cnt->ctx);
+		prof_ctx_set(ptr, cnt->ctx);
 		cnt->epoch++;
 	} else if (ptr != NULL)
-		prof_ctx_set(ptr, usize, (prof_ctx_t *)(uintptr_t)1U);
+		prof_ctx_set(ptr, (prof_ctx_t *)(uintptr_t)1U);
 	/*********/
 	mb_write();
 	/*********/

@@ -853,7 +853,7 @@ imalloc_prof_sample(size_t usize, prof_thr_cnt_t *cnt)
 
 	if (cnt == NULL)
 		return (NULL);
-	if (prof_promote && usize <= SMALL_MAXCLASS) {
+	if (usize <= SMALL_MAXCLASS) {
 		p = imalloc(SMALL_MAXCLASS+1);
 		if (p == NULL)
 			return (NULL);
@@ -952,7 +952,7 @@ imemalign_prof_sample(size_t alignment, size_t usize, prof_thr_cnt_t *cnt)
 
 	if (cnt == NULL)
 		return (NULL);
-	if (prof_promote && usize <= SMALL_MAXCLASS) {
+	if (usize <= SMALL_MAXCLASS) {
 		assert(sa2u(SMALL_MAXCLASS+1, alignment) != 0);
 		p = ipalloc(sa2u(SMALL_MAXCLASS+1, alignment), alignment,
 		    false);
@@ -1086,7 +1086,7 @@ icalloc_prof_sample(size_t usize, prof_thr_cnt_t *cnt)
 
 	if (cnt == NULL)
 		return (NULL);
-	if (prof_promote && usize <= SMALL_MAXCLASS) {
+	if (usize <= SMALL_MAXCLASS) {
 		p = icalloc(SMALL_MAXCLASS+1);
 		if (p == NULL)
 			return (NULL);
@@ -1183,7 +1183,7 @@ irealloc_prof_sample(void *oldptr, size_t usize, prof_thr_cnt_t *cnt)
 
 	if (cnt == NULL)
 		return (NULL);
-	if (prof_promote && usize <= SMALL_MAXCLASS) {
+	if (usize <= SMALL_MAXCLASS) {
 		p = iralloc(oldptr, SMALL_MAXCLASS+1, 0, 0, false);
 		if (p == NULL)
 			return (NULL);
@@ -1395,7 +1395,7 @@ imallocx_prof_sample(size_t usize, size_t alignment, bool zero, bool try_tcache,
 
 	if (cnt == NULL)
 		return (NULL);
-	if (prof_promote && usize <= SMALL_MAXCLASS) {
+	if (usize <= SMALL_MAXCLASS) {
 		size_t usize_promoted = (alignment == 0) ?
 		    s2u(SMALL_MAXCLASS+1) : sa2u(SMALL_MAXCLASS+1, alignment);
 		assert(usize_promoted != 0);
@@ -1492,7 +1492,7 @@ irallocx_prof_sample(void *oldptr, size_t size, size_t alignment, size_t usize,
 
 	if (cnt == NULL)
 		return (NULL);
-	if (prof_promote && usize <= SMALL_MAXCLASS) {
+	if (usize <= SMALL_MAXCLASS) {
 		p = iralloct(oldptr, SMALL_MAXCLASS+1, (SMALL_MAXCLASS+1 >=
 		    size) ? 0 : size - (SMALL_MAXCLASS+1), alignment, zero,
 		    try_tcache_alloc, try_tcache_dalloc, arena);
@@ -1639,8 +1639,8 @@ ixallocx_prof_sample(void *ptr, size_t old_usize, size_t size, size_t extra,
 	if (cnt == NULL)
 		return (old_usize);
 	/* Use minimum usize to determine whether promotion may happen. */
-	if (prof_promote && ((alignment == 0) ? s2u(size) : sa2u(size,
-	    alignment)) <= SMALL_MAXCLASS) {
+	if (((alignment == 0) ? s2u(size) : sa2u(size, alignment)) <=
+	    SMALL_MAXCLASS) {
 		if (ixalloc(ptr, SMALL_MAXCLASS+1, (SMALL_MAXCLASS+1 >=
 		    size+extra) ? 0 : size+extra - (SMALL_MAXCLASS+1),
 		    alignment, zero))

@@ -94,9 +94,8 @@ cat <<EOF
 /*
  * The small_size2bin lookup table uses uint8_t to encode each bin index, so we
  * cannot support more than 256 small size classes.  Further constrain NBINS to
- * 255 to support prof_promote, since all small size classes, plus a "not
- * small" size class must be stored in 8 bits of arena_chunk_map_t's bits
- * field.
+ * 255 since all small size classes, plus a "not small" size class must be
+ * stored in 8 bits of arena_chunk_map_t's bits field.
  */
 #if (NBINS > 255)
 #  error "Too many small size classes"

@@ -2373,7 +2373,6 @@ bin_info_run_size_calc(arena_bin_info_t *bin_info, size_t min_run_size)
 	uint32_t try_nregs, good_nregs;
 	uint32_t try_hdr_size, good_hdr_size;
 	uint32_t try_bitmap_offset, good_bitmap_offset;
-	uint32_t try_ctx0_offset, good_ctx0_offset;
 	uint32_t try_redzone0_offset, good_redzone0_offset;
 
 	assert(min_run_size >= PAGE);
@@ -2428,14 +2427,6 @@ bin_info_run_size_calc(arena_bin_info_t *bin_info, size_t min_run_size)
 		try_bitmap_offset = try_hdr_size;
 		/* Add space for bitmap. */
 		try_hdr_size += bitmap_size(try_nregs);
-		if (config_prof && opt_prof && prof_promote == false) {
-			/* Pad to a quantum boundary. */
-			try_hdr_size = QUANTUM_CEILING(try_hdr_size);
-			try_ctx0_offset = try_hdr_size;
-			/* Add space for one (prof_ctx_t *) per region. */
-			try_hdr_size += try_nregs * sizeof(prof_ctx_t *);
-		} else
-			try_ctx0_offset = 0;
 		try_redzone0_offset = try_run_size - (try_nregs *
 		    bin_info->reg_interval) - pad_size;
 	} while (try_hdr_size > try_redzone0_offset);
@@ -2449,7 +2440,6 @@ bin_info_run_size_calc(arena_bin_info_t *bin_info, size_t min_run_size)
 		good_nregs = try_nregs;
 		good_hdr_size = try_hdr_size;
 		good_bitmap_offset = try_bitmap_offset;
-		good_ctx0_offset = try_ctx0_offset;
 		good_redzone0_offset = try_redzone0_offset;
 
 		/* Try more aggressive settings. */
@@ -2469,16 +2459,6 @@ bin_info_run_size_calc(arena_bin_info_t *bin_info, size_t min_run_size)
 			try_bitmap_offset = try_hdr_size;
 			/* Add space for bitmap. */
 			try_hdr_size += bitmap_size(try_nregs);
-			if (config_prof && opt_prof && prof_promote == false) {
-				/* Pad to a quantum boundary. */
-				try_hdr_size = QUANTUM_CEILING(try_hdr_size);
-				try_ctx0_offset = try_hdr_size;
-				/*
-				 * Add space for one (prof_ctx_t *) per region.
-				 */
-				try_hdr_size += try_nregs *
-				    sizeof(prof_ctx_t *);
-			}
 			try_redzone0_offset = try_run_size - (try_nregs *
 			    bin_info->reg_interval) - pad_size;
 		} while (try_hdr_size > try_redzone0_offset);
@@ -2494,7 +2474,6 @@ bin_info_run_size_calc(arena_bin_info_t *bin_info, size_t min_run_size)
 	bin_info->run_size = good_run_size;
 	bin_info->nregs = good_nregs;
 	bin_info->bitmap_offset = good_bitmap_offset;
-	bin_info->ctx0_offset = good_ctx0_offset;
 	bin_info->reg0_offset = good_redzone0_offset + bin_info->redzone_size;
 
 	assert(bin_info->reg0_offset - bin_info->redzone_size + (bin_info->nregs

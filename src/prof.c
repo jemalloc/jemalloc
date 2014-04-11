@@ -32,7 +32,6 @@ char		opt_prof_prefix[
     1];
 
 uint64_t	prof_interval = 0;
-bool		prof_promote;
 
 /*
  * Table of mutexes that are shared among ctx's.  These are leaf locks, so
@@ -1300,8 +1299,8 @@ prof_boot1(void)
 	cassert(config_prof);
 
 	/*
-	 * opt_prof and prof_promote must be in their final state before any
-	 * arenas are initialized, so this function must be executed early.
+	 * opt_prof must be in its final state before any arenas are
+	 * initialized, so this function must be executed early.
 	 */
 
 	if (opt_prof_leak && opt_prof == false) {
@@ -1317,8 +1316,6 @@ prof_boot1(void)
 			    opt_lg_prof_interval);
 		}
 	}
-
-	prof_promote = (opt_prof && opt_lg_prof_sample > LG_PAGE);
 }
 
 bool

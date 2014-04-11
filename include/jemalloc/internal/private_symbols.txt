@@ -303,7 +303,6 @@ prof_mdump
 prof_postfork_child
 prof_postfork_parent
 prof_prefork
-prof_promote
 prof_realloc
 prof_sample_accum_update
 prof_sample_threshold_update
