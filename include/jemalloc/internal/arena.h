@@ -434,7 +434,7 @@ void	*arena_ralloc(arena_t *arena, void *ptr, size_t oldsize, size_t size,
     size_t extra, size_t alignment, bool zero, bool try_tcache_alloc,
     bool try_tcache_dalloc);
 dss_prec_t	arena_dss_prec_get(arena_t *arena);
-void	arena_dss_prec_set(arena_t *arena, dss_prec_t dss_prec);
+bool	arena_dss_prec_set(arena_t *arena, dss_prec_t dss_prec);
 void	arena_stats_merge(arena_t *arena, const char **dss, size_t *nactive,
     size_t *ndirty, arena_stats_t *astats, malloc_bin_stats_t *bstats,
     malloc_large_stats_t *lstats);

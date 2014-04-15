@@ -448,8 +448,10 @@ for (i = 0; i < nbins; i++) {
     <manvolnum>2</manvolnum></citerefentry> to obtain memory, which is
     suboptimal for several reasons, including race conditions, increased
     fragmentation, and artificial limitations on maximum usable memory.  If
-    <option>--enable-dss</option> is specified during configuration, this
-    allocator uses both <citerefentry><refentrytitle>mmap</refentrytitle>
+    <citerefentry><refentrytitle>sbrk</refentrytitle>
+    <manvolnum>2</manvolnum></citerefentry> is supported by the operating
+    system, this allocator uses both
+    <citerefentry><refentrytitle>mmap</refentrytitle>
     <manvolnum>2</manvolnum></citerefentry> and
     <citerefentry><refentrytitle>sbrk</refentrytitle>
     <manvolnum>2</manvolnum></citerefentry>, in that order of preference;
@@ -625,16 +627,6 @@ for (i = 0; i < nbins; i++) {
         build configuration.</para></listitem>
       </varlistentry>
 
-      <varlistentry id="config.dss">
-        <term>
-          <mallctl>config.dss</mallctl>
-          (<type>bool</type>)
-          <literal>r-</literal>
-        </term>
-        <listitem><para><option>--enable-dss</option> was specified during
-        build configuration.</para></listitem>
-      </varlistentry>
-
       <varlistentry id="config.fill">
         <term>
           <mallctl>config.fill</mallctl>
@@ -790,10 +782,15 @@ for (i = 0; i < nbins; i++) {
         <manvolnum>2</manvolnum></citerefentry>) allocation precedence as
         related to <citerefentry><refentrytitle>mmap</refentrytitle>
         <manvolnum>2</manvolnum></citerefentry> allocation.  The following
-        settings are supported: &ldquo;disabled&rdquo;, &ldquo;primary&rdquo;,
-        and &ldquo;secondary&rdquo;.  The default is &ldquo;secondary&rdquo; if
-        <link linkend="config.dss"><mallctl>config.dss</mallctl></link> is
-        true, &ldquo;disabled&rdquo; otherwise.
+        settings are supported if
+        <citerefentry><refentrytitle>sbrk</refentrytitle>
+        <manvolnum>2</manvolnum></citerefentry> is supported by the operating
+        system: &ldquo;disabled&rdquo;, &ldquo;primary&rdquo;, and
+        &ldquo;secondary&rdquo;; otherwise only &ldquo;disabled&rdquo; is
+        supported.  The default is &ldquo;secondary&rdquo; if
+        <citerefentry><refentrytitle>sbrk</refentrytitle>
+        <manvolnum>2</manvolnum></citerefentry> is supported by the operating
+        system; &ldquo;disabled&rdquo; otherwise.
         </para></listitem>
       </varlistentry>
 

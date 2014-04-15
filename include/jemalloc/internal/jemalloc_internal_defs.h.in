@@ -76,9 +76,6 @@
  */
 #undef JEMALLOC_MUTEX_INIT_CB
 
-/* Defined if sbrk() is supported. */
-#undef JEMALLOC_HAVE_SBRK
-
 /* Non-empty if the tls_model attribute is supported. */
 #undef JEMALLOC_TLS_MODEL
 

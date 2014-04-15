@@ -140,7 +140,7 @@ huge_ralloc(void *ptr, size_t oldsize, size_t size, size_t extra,
 	 * Use mremap(2) if this is a huge-->huge reallocation, and neither the
 	 * source nor the destination are in dss.
 	 */
-	if (oldsize >= chunksize && (config_dss == false || (chunk_in_dss(ptr)
+	if (oldsize >= chunksize && (have_dss == false || (chunk_in_dss(ptr)
 	    == false && chunk_in_dss(ret) == false))) {
 		size_t newsize = huge_salloc(ret);
 
@@ -198,12 +198,12 @@ static void
 huge_dalloc_junk(void *ptr, size_t usize)
 {
 
-	if (config_fill && config_dss && opt_junk) {
+	if (config_fill && have_dss && opt_junk) {
 		/*
 		 * Only bother junk filling if the chunk isn't about to be
 		 * unmapped.
 		 */
-		if (config_munmap == false || (config_dss && chunk_in_dss(ptr)))
+		if (config_munmap == false || (have_dss && chunk_in_dss(ptr)))
 			memset(ptr, 0x5a, usize);
 	}
 }

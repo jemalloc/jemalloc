@@ -127,7 +127,6 @@ TEST_BEGIN(test_mallctl_config)
 } while (0)
 
 	TEST_MALLCTL_CONFIG(debug);
-	TEST_MALLCTL_CONFIG(dss);
 	TEST_MALLCTL_CONFIG(fill);
 	TEST_MALLCTL_CONFIG(lazy_lock);
 	TEST_MALLCTL_CONFIG(mremap);
@@ -255,15 +254,28 @@ TEST_BEGIN(test_arena_i_dss)
 {
 	const char *dss_prec_old, *dss_prec_new;
 	size_t sz = sizeof(dss_prec_old);
+	size_t mib[3];
+	size_t miblen;
 
-	dss_prec_new = "primary";
-	assert_d_eq(mallctl("arena.0.dss", &dss_prec_old, &sz, &dss_prec_new,
+	miblen = sizeof(mib)/sizeof(size_t);
+	assert_d_eq(mallctlnametomib("arena.0.dss", mib, &miblen), 0,
+	    "Unexpected mallctlnametomib() error");
+
+	dss_prec_new = "disabled";
+	assert_d_eq(mallctlbymib(mib, miblen, &dss_prec_old, &sz, &dss_prec_new,
 	    sizeof(dss_prec_new)), 0, "Unexpected mallctl() failure");
 	assert_str_ne(dss_prec_old, "primary",
 	    "Unexpected default for dss precedence");
 
-	assert_d_eq(mallctl("arena.0.dss", &dss_prec_new, &sz, &dss_prec_old,
+	assert_d_eq(mallctlbymib(mib, miblen, &dss_prec_new, &sz, &dss_prec_old,
 	    sizeof(dss_prec_old)), 0, "Unexpected mallctl() failure");
+
+	mib[1] = narenas_total_get();
+	dss_prec_new = "disabled";
+	assert_d_eq(mallctlbymib(mib, miblen, &dss_prec_old, &sz, &dss_prec_new,
+	    sizeof(dss_prec_new)), 0, "Unexpected mallctl() failure");
+	assert_str_ne(dss_prec_old, "primary",
+	    "Unexpected default for dss precedence");
 }
 TEST_END
 

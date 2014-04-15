@@ -74,7 +74,6 @@ CTL_PROTO(thread_allocatedp)
 CTL_PROTO(thread_deallocated)
 CTL_PROTO(thread_deallocatedp)
 CTL_PROTO(config_debug)
-CTL_PROTO(config_dss)
 CTL_PROTO(config_fill)
 CTL_PROTO(config_lazy_lock)
 CTL_PROTO(config_mremap)
@@ -213,7 +212,6 @@ static const ctl_named_node_t	thread_node[] = {
 
 static const ctl_named_node_t	config_node[] = {
 	{NAME("debug"),			CTL(config_debug)},
-	{NAME("dss"),			CTL(config_dss)},
 	{NAME("fill"),			CTL(config_fill)},
 	{NAME("lazy_lock"),		CTL(config_lazy_lock)},
 	{NAME("mremap"),		CTL(config_mremap)},
@@ -1136,7 +1134,6 @@ label_return:
 /******************************************************************************/
 
 CTL_RO_BOOL_CONFIG_GEN(config_debug)
-CTL_RO_BOOL_CONFIG_GEN(config_dss)
 CTL_RO_BOOL_CONFIG_GEN(config_fill)
 CTL_RO_BOOL_CONFIG_GEN(config_lazy_lock)
 CTL_RO_BOOL_CONFIG_GEN(config_mremap)
@@ -1356,8 +1353,7 @@ arena_i_dss_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
 		arena_t *arena = arenas[arena_ind];
 		if (arena != NULL) {
 			dss_prec_old = arena_dss_prec_get(arena);
-			arena_dss_prec_set(arena, dss_prec);
-			err = false;
+			err = arena_dss_prec_set(arena, dss_prec);
 		} else
 			err = true;
 	} else {

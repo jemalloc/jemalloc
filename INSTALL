@@ -145,10 +145,6 @@ any of the following arguments (not a definitive list) to 'configure':
     memory allocation algorithm that causes semi-permanent VM map holes under
     normal jemalloc operation.
 
---enable-dss
-    Enable support for page allocation/deallocation via sbrk(2), in addition to
-    mmap(2).
-
 --disable-fill
     Disable support for junk/zero filling of memory, quarantine, and redzones.
     See the "opt.junk", "opt.zero", "opt.quarantine", and "opt.redzone" option

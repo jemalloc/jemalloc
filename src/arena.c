@@ -2243,13 +2243,16 @@ arena_dss_prec_get(arena_t *arena)
 	return (ret);
 }
 
-void
+bool
 arena_dss_prec_set(arena_t *arena, dss_prec_t dss_prec)
 {
 
+	if (have_dss == false)
+		return (dss_prec != dss_prec_disabled);
 	malloc_mutex_lock(&arena->lock);
 	arena->dss_prec = dss_prec;
 	malloc_mutex_unlock(&arena->lock);
+	return (false);
 }
 
 void

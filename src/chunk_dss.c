@@ -32,7 +32,7 @@ static void *
 chunk_dss_sbrk(intptr_t increment)
 {
 
-#ifdef JEMALLOC_HAVE_SBRK
+#ifdef JEMALLOC_DSS
 	return (sbrk(increment));
 #else
 	not_implemented();
@@ -45,7 +45,7 @@ chunk_dss_prec_get(void)
 {
 	dss_prec_t ret;
 
-	if (config_dss == false)
+	if (have_dss == false)
 		return (dss_prec_disabled);
 	malloc_mutex_lock(&dss_mtx);
 	ret = dss_prec_default;
@@ -57,8 +57,8 @@ bool
 chunk_dss_prec_set(dss_prec_t dss_prec)
 {
 
-	if (config_dss == false)
-		return (true);
+	if (have_dss == false)
+		return (dss_prec != dss_prec_disabled);
 	malloc_mutex_lock(&dss_mtx);
 	dss_prec_default = dss_prec;
 	malloc_mutex_unlock(&dss_mtx);
@@ -70,7 +70,7 @@ chunk_alloc_dss(size_t size, size_t alignment, bool *zero)
 {
 	void *ret;
 
-	cassert(config_dss);
+	cassert(have_dss);
 	assert(size > 0 && (size & chunksize_mask) == 0);
 	assert(alignment > 0 && (alignment & chunksize_mask) == 0);
 
@@ -143,7 +143,7 @@ chunk_in_dss(void *chunk)
 {
 	bool ret;
 
-	cassert(config_dss);
+	cassert(have_dss);
 
 	malloc_mutex_lock(&dss_mtx);
 	if ((uintptr_t)chunk >= (uintptr_t)dss_base
@@ -160,7 +160,7 @@ bool
 chunk_dss_boot(void)
 {
 
-	cassert(config_dss);
+	cassert(have_dss);
 
 	if (malloc_mutex_init(&dss_mtx))
 		return (true);
@@ -175,7 +175,7 @@ void
 chunk_dss_prefork(void)
 {
 
-	if (config_dss)
+	if (have_dss)
 		malloc_mutex_prefork(&dss_mtx);
 }
 
@@ -183,7 +183,7 @@ void
 chunk_dss_postfork_parent(void)
 {
 
-	if (config_dss)
+	if (have_dss)
 		malloc_mutex_postfork_parent(&dss_mtx);
 }
 
@@ -191,7 +191,7 @@ void
 chunk_dss_postfork_child(void)
 {
 
-	if (config_dss)
+	if (have_dss)
 		malloc_mutex_postfork_child(&dss_mtx);
 }
 

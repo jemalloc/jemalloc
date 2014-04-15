@@ -153,7 +153,7 @@ chunk_alloc(size_t size, size_t alignment, bool base, bool *zero,
 	assert((alignment & chunksize_mask) == 0);
 
 	/* "primary" dss. */
-	if (config_dss && dss_prec == dss_prec_primary) {
+	if (have_dss && dss_prec == dss_prec_primary) {
 		if ((ret = chunk_recycle(&chunks_szad_dss, &chunks_ad_dss, size,
 		    alignment, base, zero)) != NULL)
 			goto label_return;
@@ -167,7 +167,7 @@ chunk_alloc(size_t size, size_t alignment, bool base, bool *zero,
 	if ((ret = chunk_alloc_mmap(size, alignment, zero)) != NULL)
 		goto label_return;
 	/* "secondary" dss. */
-	if (config_dss && dss_prec == dss_prec_secondary) {
+	if (have_dss && dss_prec == dss_prec_secondary) {
 		if ((ret = chunk_recycle(&chunks_szad_dss, &chunks_ad_dss, size,
 		    alignment, base, zero)) != NULL)
 			goto label_return;
@@ -305,7 +305,7 @@ chunk_unmap(void *chunk, size_t size)
 	assert(size != 0);
 	assert((size & chunksize_mask) == 0);
 
-	if (config_dss && chunk_in_dss(chunk))
+	if (have_dss && chunk_in_dss(chunk))
 		chunk_record(&chunks_szad_dss, &chunks_ad_dss, chunk, size);
 	else if (chunk_dealloc_mmap(chunk, size))
 		chunk_record(&chunks_szad_mmap, &chunks_ad_mmap, chunk, size);
@@ -348,7 +348,7 @@ chunk_boot(void)
 			return (true);
 		memset(&stats_chunks, 0, sizeof(chunk_stats_t));
 	}
-	if (config_dss && chunk_dss_boot())
+	if (have_dss && chunk_dss_boot())
 		return (true);
 	extent_tree_szad_new(&chunks_szad_mmap);
 	extent_tree_ad_new(&chunks_ad_mmap);

@@ -836,34 +836,22 @@ if test "x$enable_munmap" = "x1" ; then
 fi
 AC_SUBST([enable_munmap])
 
-dnl Do not enable allocation from DSS by default.
-AC_ARG_ENABLE([dss],
-  [AS_HELP_STRING([--enable-dss], [Enable allocation from DSS])],
-[if test "x$enable_dss" = "xno" ; then
-  enable_dss="0"
-else
-  enable_dss="1"
-fi
-],
-[enable_dss="0"]
-)
+dnl Enable allocation from DSS if supported by the OS.
+have_dss="1"
 dnl Check whether the BSD/SUSv1 sbrk() exists.  If not, disable DSS support.
 AC_CHECK_FUNC([sbrk], [have_sbrk="1"], [have_sbrk="0"])
 if test "x$have_sbrk" = "x1" ; then
   if test "x$sbrk_deprecated" == "x1" ; then
     AC_MSG_RESULT([Disabling dss allocation because sbrk is deprecated])
-    enable_dss="0"
-  else
-    AC_DEFINE([JEMALLOC_HAVE_SBRK], [ ])
+    have_dss="0"
   fi
 else
-  enable_dss="0"
+  have_dss="0"
 fi
 
-if test "x$enable_dss" = "x1" ; then
+if test "x$have_dss" = "x1" ; then
   AC_DEFINE([JEMALLOC_DSS], [ ])
 fi
-AC_SUBST([enable_dss])
 
 dnl Support the junk/zero filling option by default.
 AC_ARG_ENABLE([fill],
@@ -1461,7 +1449,6 @@ AC_MSG_RESULT([valgrind           : ${enable_valgrind}])
 AC_MSG_RESULT([xmalloc            : ${enable_xmalloc}])
 AC_MSG_RESULT([mremap             : ${enable_mremap}])
 AC_MSG_RESULT([munmap             : ${enable_munmap}])
-AC_MSG_RESULT([dss                : ${enable_dss}])
 AC_MSG_RESULT([lazy_lock          : ${enable_lazy_lock}])
 AC_MSG_RESULT([tls                : ${enable_tls}])
 AC_MSG_RESULT([===============================================================================])
