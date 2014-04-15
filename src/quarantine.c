@@ -146,7 +146,7 @@ quarantine(void *ptr)
 			 * Only do redzone validation if Valgrind isn't in
 			 * operation.
 			 */
-			if ((config_valgrind == false || opt_valgrind == false)
+			if ((config_valgrind == false || in_valgrind == false)
 			    && usize <= SMALL_MAXCLASS)
 				arena_quarantine_junk_small(ptr, usize);
 			else

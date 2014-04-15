@@ -377,12 +377,12 @@ static const bool config_ivsalloc =
  * usable space.
  */
 #define	JEMALLOC_VALGRIND_MALLOC(cond, ptr, usize, zero) do {		\
-	if (config_valgrind && opt_valgrind && cond)			\
+	if (config_valgrind && in_valgrind && cond)			\
 		VALGRIND_MALLOCLIKE_BLOCK(ptr, usize, p2rz(ptr), zero);	\
 } while (0)
 #define	JEMALLOC_VALGRIND_REALLOC(ptr, usize, old_ptr, old_usize,	\
     old_rzsize, zero)  do {						\
-	if (config_valgrind && opt_valgrind) {				\
+	if (config_valgrind && in_valgrind) {				\
 		size_t rzsize = p2rz(ptr);				\
 									\
 		if (ptr == old_ptr) {					\
@@ -418,7 +418,7 @@ static const bool config_ivsalloc =
 	}								\
 } while (0)
 #define	JEMALLOC_VALGRIND_FREE(ptr, rzsize) do {			\
-	if (config_valgrind && opt_valgrind)				\
+	if (config_valgrind && in_valgrind)				\
 		VALGRIND_FREELIKE_BLOCK(ptr, rzsize);			\
 } while (0)
 #else
@@ -504,10 +504,11 @@ extern bool	opt_junk;
 extern size_t	opt_quarantine;
 extern bool	opt_redzone;
 extern bool	opt_utrace;
-extern bool	opt_valgrind;
 extern bool	opt_xmalloc;
 extern bool	opt_zero;
 extern size_t	opt_narenas;
+
+extern bool	in_valgrind;
 
 /* Number of CPUs. */
 extern unsigned		ncpus;

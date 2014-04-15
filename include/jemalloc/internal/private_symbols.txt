@@ -217,6 +217,7 @@ idalloc
 idalloct
 imalloc
 imalloct
+in_valgrind
 ipalloc
 ipalloct
 iqalloc
@@ -278,7 +279,6 @@ opt_redzone
 opt_stats_print
 opt_tcache
 opt_utrace
-opt_valgrind
 opt_xmalloc
 opt_zero
 p2rz

@@ -170,7 +170,6 @@ TEST_BEGIN(test_mallctl_opt)
 	TEST_MALLCTL_OPT(bool, redzone, fill);
 	TEST_MALLCTL_OPT(bool, zero, fill);
 	TEST_MALLCTL_OPT(bool, utrace, utrace);
-	TEST_MALLCTL_OPT(bool, valgrind, valgrind);
 	TEST_MALLCTL_OPT(bool, xmalloc, xmalloc);
 	TEST_MALLCTL_OPT(bool, tcache, tcache);
 	TEST_MALLCTL_OPT(size_t, lg_tcache_max, tcache);

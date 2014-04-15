@@ -27,10 +27,12 @@ bool	opt_junk =
 size_t	opt_quarantine = ZU(0);
 bool	opt_redzone = false;
 bool	opt_utrace = false;
-bool	opt_valgrind = false;
 bool	opt_xmalloc = false;
 bool	opt_zero = false;
 size_t	opt_narenas = 0;
+
+/* Initialized to true if the process is running inside Valgrind. */
+bool	in_valgrind;
 
 unsigned	ncpus;
 
@@ -394,14 +396,14 @@ malloc_conf_init(void)
 	 * valgrind option remains in jemalloc 3.x for compatibility reasons.
 	 */
 	if (config_valgrind) {
-		opt_valgrind = (RUNNING_ON_VALGRIND != 0) ? true : false;
-		if (config_fill && opt_valgrind) {
+		in_valgrind = (RUNNING_ON_VALGRIND != 0) ? true : false;
+		if (config_fill && in_valgrind) {
 			opt_junk = false;
 			assert(opt_zero == false);
 			opt_quarantine = JEMALLOC_VALGRIND_QUARANTINE_DEFAULT;
 			opt_redzone = true;
 		}
-		if (config_tcache && opt_valgrind)
+		if (config_tcache && in_valgrind)
 			opt_tcache = false;
 	}
 
@@ -607,9 +609,6 @@ malloc_conf_init(void)
 			}
 			if (config_utrace) {
 				CONF_HANDLE_BOOL(opt_utrace, "utrace")
-			}
-			if (config_valgrind) {
-				CONF_HANDLE_BOOL(opt_valgrind, "valgrind")
 			}
 			if (config_xmalloc) {
 				CONF_HANDLE_BOOL(opt_xmalloc, "xmalloc")
@@ -910,7 +909,7 @@ imalloc_prof(size_t usize, prof_thr_cnt_t *cnt)
 			ret = imalloc_prof(usize, cnt);			\
 		} else {						\
 			if (config_stats || (config_valgrind &&		\
-			    opt_valgrind))				\
+			    in_valgrind))				\
 				usize = s2u(size);			\
 			ret = imalloc(size);				\
 		}							\
@@ -1153,7 +1152,7 @@ je_calloc(size_t num, size_t size)
 		PROF_ALLOC_PREP(1, usize, cnt);
 		ret = icalloc_prof(usize, cnt);
 	} else {
-		if (config_stats || (config_valgrind && opt_valgrind))
+		if (config_stats || (config_valgrind && in_valgrind))
 			usize = s2u(num_size);
 		ret = icalloc(num_size);
 	}
@@ -1228,7 +1227,7 @@ ifree(void *ptr)
 		usize = isalloc(ptr, config_prof);
 	if (config_stats)
 		thread_allocated_tsd_get()->deallocated += usize;
-	if (config_valgrind && opt_valgrind)
+	if (config_valgrind && in_valgrind)
 		rzsize = p2rz(ptr);
 	iqalloc(ptr);
 	JEMALLOC_VALGRIND_FREE(ptr, rzsize);
@@ -1257,9 +1256,9 @@ je_realloc(void *ptr, size_t size)
 		malloc_thread_init();
 
 		if ((config_prof && opt_prof) || config_stats ||
-		    (config_valgrind && opt_valgrind))
+		    (config_valgrind && in_valgrind))
 			old_usize = isalloc(ptr, config_prof);
-		if (config_valgrind && opt_valgrind)
+		if (config_valgrind && in_valgrind)
 			old_rzsize = config_prof ? p2rz(ptr) : u2rz(old_usize);
 
 		if (config_prof && opt_prof) {
@@ -1269,7 +1268,7 @@ je_realloc(void *ptr, size_t size)
 			PROF_ALLOC_PREP(1, usize, cnt);
 			ret = irealloc_prof(ptr, old_usize, usize, cnt);
 		} else {
-			if (config_stats || (config_valgrind && opt_valgrind))
+			if (config_stats || (config_valgrind && in_valgrind))
 				usize = s2u(size);
 			ret = iralloc(ptr, size, 0, 0, false);
 		}
@@ -1574,9 +1573,9 @@ je_rallocx(void *ptr, size_t size, int flags)
 	}
 
 	if ((config_prof && opt_prof) || config_stats ||
-	    (config_valgrind && opt_valgrind))
+	    (config_valgrind && in_valgrind))
 		old_usize = isalloc(ptr, config_prof);
-	if (config_valgrind && opt_valgrind)
+	if (config_valgrind && in_valgrind)
 		old_rzsize = u2rz(old_usize);
 
 	if (config_prof && opt_prof) {
@@ -1594,7 +1593,7 @@ je_rallocx(void *ptr, size_t size, int flags)
 		    try_tcache_dalloc, arena);
 		if (p == NULL)
 			goto label_oom;
-		if (config_stats || (config_valgrind && opt_valgrind))
+		if (config_stats || (config_valgrind && in_valgrind))
 			usize = isalloc(p, config_prof);
 	}
 
@@ -1702,7 +1701,7 @@ je_xallocx(void *ptr, size_t size, size_t extra, int flags)
 		arena = NULL;
 
 	old_usize = isalloc(ptr, config_prof);
-	if (config_valgrind && opt_valgrind)
+	if (config_valgrind && in_valgrind)
 		old_rzsize = u2rz(old_usize);
 
 	if (config_prof && opt_prof) {
@@ -1784,7 +1783,7 @@ je_dallocx(void *ptr, int flags)
 	}
 	if (config_stats)
 		thread_allocated_tsd_get()->deallocated += usize;
-	if (config_valgrind && opt_valgrind)
+	if (config_valgrind && in_valgrind)
 		rzsize = p2rz(ptr);
 	iqalloct(ptr, try_tcache);
 	JEMALLOC_VALGRIND_FREE(ptr, rzsize);

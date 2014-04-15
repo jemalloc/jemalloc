@@ -943,19 +943,6 @@ for (i = 0; i < nbins; i++) {
         is disabled by default.</para></listitem>
       </varlistentry>
 
-      <varlistentry id="opt.valgrind">
-        <term>
-          <mallctl>opt.valgrind</mallctl>
-          (<type>bool</type>)
-          <literal>r-</literal>
-          [<option>--enable-valgrind</option>]
-        </term>
-        <listitem><para><ulink url="http://valgrind.org/">Valgrind</ulink>
-        support enabled/disabled.  This option is vestigal because jemalloc
-        auto-detects whether it is running inside Valgrind.  This option is
-        disabled by default, unless running inside Valgrind.</para></listitem>
-      </varlistentry>
-
       <varlistentry id="opt.xmalloc">
         <term>
           <mallctl>opt.xmalloc</mallctl>

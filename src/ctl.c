@@ -98,7 +98,6 @@ CTL_PROTO(opt_zero)
 CTL_PROTO(opt_quarantine)
 CTL_PROTO(opt_redzone)
 CTL_PROTO(opt_utrace)
-CTL_PROTO(opt_valgrind)
 CTL_PROTO(opt_xmalloc)
 CTL_PROTO(opt_tcache)
 CTL_PROTO(opt_lg_tcache_max)
@@ -238,7 +237,6 @@ static const ctl_named_node_t opt_node[] = {
 	{NAME("quarantine"),		CTL(opt_quarantine)},
 	{NAME("redzone"),		CTL(opt_redzone)},
 	{NAME("utrace"),		CTL(opt_utrace)},
-	{NAME("valgrind"),		CTL(opt_valgrind)},
 	{NAME("xmalloc"),		CTL(opt_xmalloc)},
 	{NAME("tcache"),		CTL(opt_tcache)},
 	{NAME("lg_tcache_max"),		CTL(opt_lg_tcache_max)},
@@ -1159,7 +1157,6 @@ CTL_RO_NL_CGEN(config_fill, opt_quarantine, opt_quarantine, size_t)
 CTL_RO_NL_CGEN(config_fill, opt_redzone, opt_redzone, bool)
 CTL_RO_NL_CGEN(config_fill, opt_zero, opt_zero, bool)
 CTL_RO_NL_CGEN(config_utrace, opt_utrace, opt_utrace, bool)
-CTL_RO_NL_CGEN(config_valgrind, opt_valgrind, opt_valgrind, bool)
 CTL_RO_NL_CGEN(config_xmalloc, opt_xmalloc, opt_xmalloc, bool)
 CTL_RO_NL_CGEN(config_tcache, opt_tcache, opt_tcache, bool)
 CTL_RO_NL_CGEN(config_tcache, opt_lg_tcache_max, opt_lg_tcache_max, ssize_t)
