@@ -384,6 +384,7 @@ tcache_event
 tcache_event_hard
 tcache_flush
 tcache_get
+tcache_get_hard
 tcache_initialized
 tcache_maxclass
 tcache_salloc

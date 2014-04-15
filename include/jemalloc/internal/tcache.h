@@ -110,6 +110,7 @@ void	tcache_bin_flush_large(tcache_bin_t *tbin, size_t binind, unsigned rem,
     tcache_t *tcache);
 void	tcache_arena_associate(tcache_t *tcache, arena_t *arena);
 void	tcache_arena_dissociate(tcache_t *tcache);
+tcache_t *tcache_get_hard(tcache_t *tcache, bool create);
 tcache_t *tcache_create(arena_t *arena);
 void	tcache_destroy(tcache_t *tcache);
 void	tcache_thread_cleanup(void *arg);
@@ -220,39 +221,7 @@ tcache_get(bool create)
 	if ((uintptr_t)tcache <= (uintptr_t)TCACHE_STATE_MAX) {
 		if (tcache == TCACHE_STATE_DISABLED)
 			return (NULL);
-		if (tcache == NULL) {
-			if (create == false) {
-				/*
-				 * Creating a tcache here would cause
-				 * allocation as a side effect of free().
-				 * Ordinarily that would be okay since
-				 * tcache_create() failure is a soft failure
-				 * that doesn't propagate.  However, if TLS
-				 * data are freed via free() as in glibc,
-				 * subtle corruption could result from setting
-				 * a TLS variable after its backing memory is
-				 * freed.
-				 */
-				return (NULL);
-			}
-			if (tcache_enabled_get() == false) {
-				tcache_enabled_set(false); /* Memoize. */
-				return (NULL);
-			}
-			return (tcache_create(choose_arena(NULL)));
-		}
-		if (tcache == TCACHE_STATE_PURGATORY) {
-			/*
-			 * Make a note that an allocator function was called
-			 * after tcache_thread_cleanup() was called.
-			 */
-			tcache = TCACHE_STATE_REINCARNATED;
-			tcache_tsd_set(&tcache);
-			return (NULL);
-		}
-		if (tcache == TCACHE_STATE_REINCARNATED)
-			return (NULL);
-		not_reached();
+		tcache = tcache_get_hard(tcache, create);
 	}
 
 	return (tcache);
