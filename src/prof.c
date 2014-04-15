@@ -645,6 +645,66 @@ prof_lookup(prof_bt_t *bt)
 	return (ret.p);
 }
 
+
+void
+prof_sample_threshold_update(prof_tdata_t *prof_tdata)
+{
+	/*
+	 * The body of this function is compiled out unless heap profiling is
+	 * enabled, so that it is possible to compile jemalloc with floating
+	 * point support completely disabled.  Avoiding floating point code is
+	 * important on memory-constrained systems, but it also enables a
+	 * workaround for versions of glibc that don't properly save/restore
+	 * floating point registers during dynamic lazy symbol loading (which
+	 * internally calls into whatever malloc implementation happens to be
+	 * integrated into the application).  Note that some compilers (e.g.
+	 * gcc 4.8) may use floating point registers for fast memory moves, so
+	 * jemalloc must be compiled with such optimizations disabled (e.g.
+	 * -mno-sse) in order for the workaround to be complete.
+	 */
+#ifdef JEMALLOC_PROF
+	uint64_t r;
+	double u;
+
+	if (!config_prof)
+		return;
+
+	if (prof_tdata == NULL)
+		prof_tdata = prof_tdata_get(false);
+
+	if (opt_lg_prof_sample == 0) {
+		prof_tdata->bytes_until_sample = 0;
+		return;
+	}
+
+	/*
+	 * Compute sample threshold as a geometrically distributed random
+	 * variable with mean (2^opt_lg_prof_sample).
+	 *
+	 *                         __        __
+	 *                         |  log(u)  |                     1
+	 * prof_tdata->threshold = | -------- |, where p = -------------------
+	 *                         | log(1-p) |             opt_lg_prof_sample
+	 *                                                 2
+	 *
+	 * For more information on the math, see:
+	 *
+	 *   Non-Uniform Random Variate Generation
+	 *   Luc Devroye
+	 *   Springer-Verlag, New York, 1986
+	 *   pp 500
+	 *   (http://luc.devroye.org/rnbookindex.html)
+	 */
+	prng64(r, 53, prof_tdata->prng_state,
+	    UINT64_C(6364136223846793005), UINT64_C(1442695040888963407));
+	u = (double)r * (1.0/9007199254740992.0L);
+	prof_tdata->bytes_until_sample = (uint64_t)(log(u) /
+	    log(1.0 - (1.0 / (double)((uint64_t)1U << opt_lg_prof_sample))))
+	    + (uint64_t)1U;
+#endif
+}
+
+
 #ifdef JEMALLOC_JET
 size_t
 prof_bt_count(void)
@@ -1224,9 +1284,8 @@ prof_tdata_init(void)
 		return (NULL);
 	}
 
-	prof_tdata->prng_state = 0;
-	prof_tdata->threshold = 0;
-	prof_tdata->accum = 0;
+	prof_tdata->prng_state = (uint64_t)(uintptr_t)prof_tdata;
+	prof_sample_threshold_update(prof_tdata);
 
 	prof_tdata->enq = false;
 	prof_tdata->enq_idump = false;

@@ -299,6 +299,7 @@ prof_idump
 prof_interval
 prof_lookup
 prof_malloc
+prof_malloc_record_object
 prof_mdump
 prof_postfork_child
 prof_postfork_parent
