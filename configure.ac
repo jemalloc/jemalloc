@@ -44,7 +44,7 @@ AC_CACHE_CHECK([whether $1 is compilable],
 dnl ============================================================================
 
 dnl Library revision.
-rev=1
+rev=2
 AC_SUBST([rev])
 
 srcroot=$srcdir
@@ -437,24 +437,6 @@ AC_CHECK_FUNC([memalign],
 AC_CHECK_FUNC([valloc],
 	      [AC_DEFINE([JEMALLOC_OVERRIDE_VALLOC], [ ])
 	       public_syms="${public_syms} valloc"])
-
-dnl Support the experimental API by default.
-AC_ARG_ENABLE([experimental],
-  [AS_HELP_STRING([--disable-experimental],
-   [Disable support for the experimental API])],
-[if test "x$enable_experimental" = "xno" ; then
-  enable_experimental="0"
-else
-  enable_experimental="1"
-fi
-],
-[enable_experimental="1"]
-)
-if test "x$enable_experimental" = "x1" ; then
-  AC_DEFINE([JEMALLOC_EXPERIMENTAL], [ ])
-  public_syms="${public_syms} allocm dallocm nallocm rallocm sallocm"
-fi
-AC_SUBST([enable_experimental])
 
 dnl Do not compute test code coverage by default.
 GCOV_FLAGS=
@@ -1465,7 +1447,6 @@ AC_MSG_RESULT([JEMALLOC_PRIVATE_NAMESPACE])
 AC_MSG_RESULT([                   : ${JEMALLOC_PRIVATE_NAMESPACE}])
 AC_MSG_RESULT([install_suffix     : ${install_suffix}])
 AC_MSG_RESULT([autogen            : ${enable_autogen}])
-AC_MSG_RESULT([experimental       : ${enable_experimental}])
 AC_MSG_RESULT([cc-silence         : ${enable_cc_silence}])
 AC_MSG_RESULT([debug              : ${enable_debug}])
 AC_MSG_RESULT([code-coverage      : ${enable_code_coverage}])

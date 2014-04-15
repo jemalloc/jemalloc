@@ -44,15 +44,3 @@ JEMALLOC_EXPORT void *	@je_@memalign(size_t alignment, size_t size)
 #ifdef JEMALLOC_OVERRIDE_VALLOC
 JEMALLOC_EXPORT void *	@je_@valloc(size_t size) JEMALLOC_ATTR(malloc);
 #endif
-
-#ifdef JEMALLOC_EXPERIMENTAL
-JEMALLOC_EXPORT int	@je_@allocm(void **ptr, size_t *rsize, size_t size,
-    int flags) JEMALLOC_ATTR(nonnull(1));
-JEMALLOC_EXPORT int	@je_@rallocm(void **ptr, size_t *rsize, size_t size,
-    size_t extra, int flags) JEMALLOC_ATTR(nonnull(1));
-JEMALLOC_EXPORT int	@je_@sallocm(const void *ptr, size_t *rsize, int flags)
-    JEMALLOC_ATTR(nonnull(1));
-JEMALLOC_EXPORT int	@je_@dallocm(void *ptr, int flags)
-    JEMALLOC_ATTR(nonnull(1));
-JEMALLOC_EXPORT int	@je_@nallocm(size_t *rsize, size_t size, int flags);
-#endif

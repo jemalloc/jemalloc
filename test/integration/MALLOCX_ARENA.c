@@ -34,7 +34,7 @@ thd_start(void *arg)
 	return (NULL);
 }
 
-TEST_BEGIN(test_ALLOCM_ARENA)
+TEST_BEGIN(test_MALLOCX_ARENA)
 {
 	thd_t thds[NTHREADS];
 	unsigned i;
@@ -54,5 +54,5 @@ main(void)
 {
 
 	return (test(
-	    test_ALLOCM_ARENA));
+	    test_MALLOCX_ARENA));
 }

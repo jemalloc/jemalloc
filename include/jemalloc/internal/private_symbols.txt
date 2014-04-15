@@ -211,7 +211,6 @@ huge_prof_ctx_set
 huge_ralloc
 huge_ralloc_no_move
 huge_salloc
-iallocm
 icalloc
 icalloct
 idalloc

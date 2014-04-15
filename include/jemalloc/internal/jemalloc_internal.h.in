@@ -230,7 +230,6 @@ static const bool config_ivsalloc =
 #include "jemalloc/internal/jemalloc_internal_macros.h"
 
 #define	MALLOCX_LG_ALIGN_MASK	((int)0x3f)
-#define	ALLOCM_LG_ALIGN_MASK	((int)0x3f)
 
 /* Smallest size class to support. */
 #define	LG_TINY_MIN		3

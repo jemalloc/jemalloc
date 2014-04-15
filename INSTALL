@@ -157,9 +157,6 @@ any of the following arguments (not a definitive list) to 'configure':
 --disable-valgrind
     Disable support for Valgrind.
 
---disable-experimental
-    Disable support for the experimental API (*allocm()).
-
 --disable-zone-allocator
     Disable zone allocator for Darwin. This means jemalloc won't be hooked as
     the default allocator on OSX/iOS.

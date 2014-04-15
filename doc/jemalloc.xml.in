@@ -44,11 +44,6 @@
     <refname>mallctlbymib</refname>
     <refname>malloc_stats_print</refname>
     <refname>malloc_usable_size</refname>
-    <refname>allocm</refname>
-    <refname>rallocm</refname>
-    <refname>sallocm</refname>
-    <refname>dallocm</refname>
-    <refname>nallocm</refname>
     -->
     <refpurpose>general purpose memory allocation functions</refpurpose>
   </refnamediv>
@@ -171,41 +166,6 @@
           <paramdef>const char *<parameter>s</parameter></paramdef>
         </funcprototype>
         <para><type>const char *</type><varname>malloc_conf</varname>;</para>
-      </refsect2>
-      <refsect2>
-      <title>Experimental API</title>
-        <funcprototype>
-          <funcdef>int <function>allocm</function></funcdef>
-          <paramdef>void **<parameter>ptr</parameter></paramdef>
-          <paramdef>size_t *<parameter>rsize</parameter></paramdef>
-          <paramdef>size_t <parameter>size</parameter></paramdef>
-          <paramdef>int <parameter>flags</parameter></paramdef>
-        </funcprototype>
-        <funcprototype>
-          <funcdef>int <function>rallocm</function></funcdef>
-          <paramdef>void **<parameter>ptr</parameter></paramdef>
-          <paramdef>size_t *<parameter>rsize</parameter></paramdef>
-          <paramdef>size_t <parameter>size</parameter></paramdef>
-          <paramdef>size_t <parameter>extra</parameter></paramdef>
-          <paramdef>int <parameter>flags</parameter></paramdef>
-        </funcprototype>
-        <funcprototype>
-          <funcdef>int <function>sallocm</function></funcdef>
-          <paramdef>const void *<parameter>ptr</parameter></paramdef>
-          <paramdef>size_t *<parameter>rsize</parameter></paramdef>
-          <paramdef>int <parameter>flags</parameter></paramdef>
-        </funcprototype>
-        <funcprototype>
-          <funcdef>int <function>dallocm</function></funcdef>
-          <paramdef>void *<parameter>ptr</parameter></paramdef>
-          <paramdef>int <parameter>flags</parameter></paramdef>
-        </funcprototype>
-        <funcprototype>
-          <funcdef>int <function>nallocm</function></funcdef>
-          <paramdef>size_t *<parameter>rsize</parameter></paramdef>
-          <paramdef>size_t <parameter>size</parameter></paramdef>
-          <paramdef>int <parameter>flags</parameter></paramdef>
-        </funcprototype>
       </refsect2>
     </funcsynopsis>
   </refsynopsisdiv>
@@ -448,116 +408,6 @@ for (i = 0; i < nbins; i++) {
       by <function>malloc_usable_size<parameter/></function> should not be
       depended on, since such behavior is entirely implementation-dependent.
       </para>
-    </refsect2>
-    <refsect2>
-      <title>Experimental API</title>
-      <para>The experimental API is subject to change or removal without regard
-      for backward compatibility.  If <option>--disable-experimental</option>
-      is specified during configuration, the experimental API is
-      omitted.</para>
-
-      <para>The <function>allocm<parameter/></function>,
-      <function>rallocm<parameter/></function>,
-      <function>sallocm<parameter/></function>,
-      <function>dallocm<parameter/></function>, and
-      <function>nallocm<parameter/></function> functions all have a
-      <parameter>flags</parameter> argument that can be used to specify
-      options.  The functions only check the options that are contextually
-      relevant.  Use bitwise or (<code language="C">|</code>) operations to
-      specify one or more of the following:
-        <variablelist>
-          <varlistentry>
-            <term><constant>ALLOCM_LG_ALIGN(<parameter>la</parameter>)
-            </constant></term>
-
-            <listitem><para>Align the memory allocation to start at an address
-            that is a multiple of <code language="C">(1 &lt;&lt;
-            <parameter>la</parameter>)</code>.  This macro does not validate
-            that <parameter>la</parameter> is within the valid
-            range.</para></listitem>
-          </varlistentry>
-          <varlistentry>
-            <term><constant>ALLOCM_ALIGN(<parameter>a</parameter>)
-            </constant></term>
-
-            <listitem><para>Align the memory allocation to start at an address
-            that is a multiple of <parameter>a</parameter>, where
-            <parameter>a</parameter> is a power of two.  This macro does not
-            validate that <parameter>a</parameter> is a power of 2.
-            </para></listitem>
-          </varlistentry>
-          <varlistentry>
-            <term><constant>ALLOCM_ZERO</constant></term>
-
-            <listitem><para>Initialize newly allocated memory to contain zero
-            bytes.  In the growing reallocation case, the real size prior to
-            reallocation defines the boundary between untouched bytes and those
-            that are initialized to contain zero bytes.  If this macro is
-            absent, newly allocated memory is uninitialized.</para></listitem>
-          </varlistentry>
-          <varlistentry>
-            <term><constant>ALLOCM_NO_MOVE</constant></term>
-
-            <listitem><para>For reallocation, fail rather than moving the
-            object.  This constraint can apply to both growth and
-            shrinkage.</para></listitem>
-          </varlistentry>
-          <varlistentry>
-            <term><constant>ALLOCM_ARENA(<parameter>a</parameter>)
-            </constant></term>
-
-            <listitem><para>Use the arena specified by the index
-            <parameter>a</parameter> (and by necessity bypass the thread
-            cache).  This macro has no effect for huge regions, nor for regions
-            that were allocated via an arena other than the one specified.
-            This macro does not validate that <parameter>a</parameter>
-            specifies an arena index in the valid range.</para></listitem>
-          </varlistentry>
-        </variablelist>
-      </para>
-
-      <para>The <function>allocm<parameter/></function> function allocates at
-      least <parameter>size</parameter> bytes of memory, sets
-      <parameter>*ptr</parameter> to the base address of the allocation, and
-      sets <parameter>*rsize</parameter> to the real size of the allocation if
-      <parameter>rsize</parameter> is not <constant>NULL</constant>.  Behavior
-      is undefined if <parameter>size</parameter> is <constant>0</constant>, or
-      if request size overflows due to size class and/or alignment
-      constraints.</para>
-
-      <para>The <function>rallocm<parameter/></function> function resizes the
-      allocation at <parameter>*ptr</parameter> to be at least
-      <parameter>size</parameter> bytes, sets <parameter>*ptr</parameter> to
-      the base address of the allocation if it moved, and sets
-      <parameter>*rsize</parameter> to the real size of the allocation if
-      <parameter>rsize</parameter> is not <constant>NULL</constant>.  If
-      <parameter>extra</parameter> is non-zero, an attempt is made to resize
-      the allocation to be at least <code
-      language="C">(<parameter>size</parameter> +
-      <parameter>extra</parameter>)</code> bytes, though inability to allocate
-      the extra byte(s) will not by itself result in failure.  Behavior is
-      undefined if <parameter>size</parameter> is <constant>0</constant>, if
-      request size overflows due to size class and/or alignment constraints, or
-      if <code language="C">(<parameter>size</parameter> +
-      <parameter>extra</parameter> &gt;
-      <constant>SIZE_T_MAX</constant>)</code>.</para>
-
-      <para>The <function>sallocm<parameter/></function> function sets
-      <parameter>*rsize</parameter> to the real size of the allocation.</para>
-
-      <para>The <function>dallocm<parameter/></function> function causes the
-      memory referenced by <parameter>ptr</parameter> to be made available for
-      future allocations.</para>
-
-      <para>The <function>nallocm<parameter/></function> function allocates no
-      memory, but it performs the same size computation as the
-      <function>allocm<parameter/></function> function, and if
-      <parameter>rsize</parameter> is not <constant>NULL</constant> it sets
-      <parameter>*rsize</parameter> to the real size of the allocation that
-      would result from the equivalent <function>allocm<parameter/></function>
-      function call.  Behavior is undefined if <parameter>size</parameter> is
-      <constant>0</constant>, or if request size overflows due to size class
-      and/or alignment constraints.</para>
     </refsect2>
   </refsect1>
   <refsect1 id="tuning">
@@ -1076,9 +926,8 @@ for (i = 0; i < nbins; i++) {
         <listitem><para>Zero filling enabled/disabled.  If enabled, each byte
         of uninitialized allocated memory will be initialized to 0.  Note that
         this initialization only happens once for each byte, so
-        <function>realloc<parameter/></function>,
-        <function>rallocx<parameter/></function> and
-        <function>rallocm<parameter/></function> calls do not zero memory that
+        <function>realloc<parameter/></function> and
+        <function>rallocx<parameter/></function> calls do not zero memory that
         was previously allocated.  This is intended for debugging and will
         impact performance negatively.  This option is disabled by default.
         </para></listitem>
@@ -2252,42 +2101,6 @@ malloc_conf = "xmalloc:true";]]></programlisting>
       <para>The <function>malloc_usable_size<parameter/></function> function
       returns the usable size of the allocation pointed to by
       <parameter>ptr</parameter>.  </para>
-    </refsect2>
-    <refsect2>
-      <title>Experimental API</title>
-      <para>The <function>allocm<parameter/></function>,
-      <function>rallocm<parameter/></function>,
-      <function>sallocm<parameter/></function>,
-      <function>dallocm<parameter/></function>, and
-      <function>nallocm<parameter/></function> functions return
-      <constant>ALLOCM_SUCCESS</constant> on success; otherwise they return an
-      error value.  The <function>allocm<parameter/></function>,
-      <function>rallocm<parameter/></function>, and
-      <function>nallocm<parameter/></function> functions will fail if:
-        <variablelist>
-          <varlistentry>
-            <term><errorname>ALLOCM_ERR_OOM</errorname></term>
-
-            <listitem><para>Out of memory.  Insufficient contiguous memory was
-            available to service the allocation request.  The
-            <function>allocm<parameter/></function> function additionally sets
-            <parameter>*ptr</parameter> to <constant>NULL</constant>, whereas
-            the <function>rallocm<parameter/></function> function leaves
-            <constant>*ptr</constant> unmodified.</para></listitem>
-          </varlistentry>
-        </variablelist>
-      The <function>rallocm<parameter/></function> function will also
-      fail if:
-        <variablelist>
-          <varlistentry>
-            <term><errorname>ALLOCM_ERR_NOT_MOVED</errorname></term>
-
-            <listitem><para><constant>ALLOCM_NO_MOVE</constant> was specified,
-            but the reallocation request could not be serviced without moving
-            the object.</para></listitem>
-          </varlistentry>
-        </variablelist>
-      </para>
     </refsect2>
   </refsect1>
   <refsect1 id="environment">

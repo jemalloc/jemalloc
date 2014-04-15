@@ -48,7 +48,6 @@ cfgoutputs_in := @cfgoutputs_in@
 cfgoutputs_out := @cfgoutputs_out@
 enable_autogen := @enable_autogen@
 enable_code_coverage := @enable_code_coverage@
-enable_experimental := @enable_experimental@
 enable_zone_allocator := @enable_zone_allocator@
 DSO_LDFLAGS = @DSO_LDFLAGS@
 SOREV = @SOREV@
@@ -133,17 +132,13 @@ TESTS_UNIT_AUX := $(srcroot)test/unit/prof_accum_a.c \
 TESTS_INTEGRATION := $(srcroot)test/integration/aligned_alloc.c \
 	$(srcroot)test/integration/allocated.c \
 	$(srcroot)test/integration/mallocx.c \
+	$(srcroot)test/integration/MALLOCX_ARENA.c \
 	$(srcroot)test/integration/mremap.c \
 	$(srcroot)test/integration/posix_memalign.c \
 	$(srcroot)test/integration/rallocx.c \
 	$(srcroot)test/integration/thread_arena.c \
 	$(srcroot)test/integration/thread_tcache_enabled.c \
 	$(srcroot)test/integration/xallocx.c
-ifeq ($(enable_experimental), 1)
-TESTS_INTEGRATION += $(srcroot)test/integration/allocm.c \
-	$(srcroot)test/integration/MALLOCX_ARENA.c \
-	$(srcroot)test/integration/rallocm.c
-endif
 TESTS_STRESS :=
 TESTS := $(TESTS_UNIT) $(TESTS_INTEGRATION) $(TESTS_STRESS)
 
