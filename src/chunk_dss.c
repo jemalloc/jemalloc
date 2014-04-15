@@ -126,7 +126,8 @@ chunk_alloc_dss(size_t size, size_t alignment, bool *zero)
 				if (cpad_size != 0)
 					chunk_unmap(cpad, cpad_size);
 				if (*zero) {
-					VALGRIND_MAKE_MEM_UNDEFINED(ret, size);
+					JEMALLOC_VALGRIND_MAKE_MEM_UNDEFINED(
+					    ret, size);
 					memset(ret, 0, size);
 				}
 				return (ret);

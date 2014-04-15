@@ -337,8 +337,8 @@ static inline void
 arena_run_zero(arena_chunk_t *chunk, size_t run_ind, size_t npages)
 {
 
-	VALGRIND_MAKE_MEM_UNDEFINED((void *)((uintptr_t)chunk + (run_ind <<
-	    LG_PAGE)), (npages << LG_PAGE));
+	JEMALLOC_VALGRIND_MAKE_MEM_UNDEFINED((void *)((uintptr_t)chunk +
+	    (run_ind << LG_PAGE)), (npages << LG_PAGE));
 	memset((void *)((uintptr_t)chunk + (run_ind << LG_PAGE)), 0,
 	    (npages << LG_PAGE));
 }
@@ -347,8 +347,8 @@ static inline void
 arena_run_page_mark_zeroed(arena_chunk_t *chunk, size_t run_ind)
 {
 
-	VALGRIND_MAKE_MEM_DEFINED((void *)((uintptr_t)chunk + (run_ind <<
-	    LG_PAGE)), PAGE);
+	JEMALLOC_VALGRIND_MAKE_MEM_DEFINED((void *)((uintptr_t)chunk + (run_ind
+	    << LG_PAGE)), PAGE);
 }
 
 static inline void
@@ -457,7 +457,7 @@ arena_run_split_large_helper(arena_t *arena, arena_run_t *run, size_t size,
 			arena_run_zero(chunk, run_ind, need_pages);
 		}
 	} else {
-		VALGRIND_MAKE_MEM_UNDEFINED((void *)((uintptr_t)chunk +
+		JEMALLOC_VALGRIND_MAKE_MEM_UNDEFINED((void *)((uintptr_t)chunk +
 		    (run_ind << LG_PAGE)), (need_pages << LG_PAGE));
 	}
 
@@ -525,7 +525,7 @@ arena_run_split_small(arena_t *arena, arena_run_t *run, size_t size,
 	if (config_debug && flag_dirty == 0 && arena_mapbits_unzeroed_get(chunk,
 	    run_ind+need_pages-1) == 0)
 		arena_run_page_validate_zeroed(chunk, run_ind+need_pages-1);
-	VALGRIND_MAKE_MEM_UNDEFINED((void *)((uintptr_t)chunk +
+	JEMALLOC_VALGRIND_MAKE_MEM_UNDEFINED((void *)((uintptr_t)chunk +
 	    (run_ind << LG_PAGE)), (need_pages << LG_PAGE));
 }
 
@@ -592,14 +592,14 @@ arena_chunk_init_hard(arena_t *arena)
 	 * the chunk is not zeroed.
 	 */
 	if (zero == false) {
-		VALGRIND_MAKE_MEM_UNDEFINED((void *)arena_mapp_get(chunk,
-		    map_bias+1), (size_t)((uintptr_t) arena_mapp_get(chunk,
-		    chunk_npages-1) - (uintptr_t)arena_mapp_get(chunk,
-		    map_bias+1)));
+		JEMALLOC_VALGRIND_MAKE_MEM_UNDEFINED(
+		    (void *)arena_mapp_get(chunk, map_bias+1),
+		    (size_t)((uintptr_t) arena_mapp_get(chunk, chunk_npages-1) -
+		    (uintptr_t)arena_mapp_get(chunk, map_bias+1)));
 		for (i = map_bias+1; i < chunk_npages-1; i++)
 			arena_mapbits_unzeroed_set(chunk, i, unzeroed);
 	} else {
-		VALGRIND_MAKE_MEM_DEFINED((void *)arena_mapp_get(chunk,
+		JEMALLOC_VALGRIND_MAKE_MEM_DEFINED((void *)arena_mapp_get(chunk,
 		    map_bias+1), (size_t)((uintptr_t) arena_mapp_get(chunk,
 		    chunk_npages-1) - (uintptr_t)arena_mapp_get(chunk,
 		    map_bias+1)));
@@ -1645,13 +1645,13 @@ arena_malloc_small(arena_t *arena, size_t size, bool zero)
 			} else if (opt_zero)
 				memset(ret, 0, size);
 		}
-		VALGRIND_MAKE_MEM_UNDEFINED(ret, size);
+		JEMALLOC_VALGRIND_MAKE_MEM_UNDEFINED(ret, size);
 	} else {
 		if (config_fill && opt_junk) {
 			arena_alloc_junk_small(ret, &arena_bin_info[binind],
 			    true);
 		}
-		VALGRIND_MAKE_MEM_UNDEFINED(ret, size);
+		JEMALLOC_VALGRIND_MAKE_MEM_UNDEFINED(ret, size);
 		memset(ret, 0, size);
 	}
 
@@ -2226,7 +2226,7 @@ arena_ralloc(arena_t *arena, void *ptr, size_t oldsize, size_t size,
 	 * expectation that the extra bytes will be reliably preserved.
 	 */
 	copysize = (size < oldsize) ? size : oldsize;
-	VALGRIND_MAKE_MEM_UNDEFINED(ret, copysize);
+	JEMALLOC_VALGRIND_MAKE_MEM_UNDEFINED(ret, copysize);
 	memcpy(ret, ptr, copysize);
 	iqalloct(ptr, try_tcache_dalloc);
 	return (ret);

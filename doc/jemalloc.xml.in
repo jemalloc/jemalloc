@@ -979,7 +979,8 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         linkend="opt.lg_tcache_max"><mallctl>opt.lg_tcache_max</mallctl></link>
         option for related tuning information.  This option is enabled by
         default unless running inside <ulink
-        url="http://valgrind.org/">Valgrind</ulink>.</para></listitem>
+        url="http://valgrind.org/">Valgrind</ulink>, in which case it is
+        forcefully disabled.</para></listitem>
       </varlistentry>
 
       <varlistentry id="opt.lg_tcache_max">

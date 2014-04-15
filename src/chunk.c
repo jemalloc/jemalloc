@@ -127,7 +127,7 @@ chunk_recycle(extent_tree_t *chunks_szad, extent_tree_t *chunks_ad, size_t size,
 			size_t i;
 			size_t *p = (size_t *)(uintptr_t)ret;
 
-			VALGRIND_MAKE_MEM_DEFINED(ret, size);
+			JEMALLOC_VALGRIND_MAKE_MEM_DEFINED(ret, size);
 			for (i = 0; i < size / sizeof(size_t); i++)
 				assert(p[i] == 0);
 		}
@@ -203,7 +203,7 @@ label_return:
 				prof_gdump();
 		}
 		if (config_valgrind)
-			VALGRIND_MAKE_MEM_UNDEFINED(ret, size);
+			JEMALLOC_VALGRIND_MAKE_MEM_UNDEFINED(ret, size);
 	}
 	assert(CHUNK_ADDR2BASE(ret) == ret);
 	return (ret);
@@ -217,7 +217,7 @@ chunk_record(extent_tree_t *chunks_szad, extent_tree_t *chunks_ad, void *chunk,
 	extent_node_t *xnode, *node, *prev, *xprev, key;
 
 	unzeroed = pages_purge(chunk, size);
-	VALGRIND_MAKE_MEM_NOACCESS(chunk, size);
+	JEMALLOC_VALGRIND_MAKE_MEM_NOACCESS(chunk, size);
 
 	/*
 	 * Allocate a node before acquiring chunks_mtx even though it might not
