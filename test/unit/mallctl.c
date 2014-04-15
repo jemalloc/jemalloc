@@ -279,18 +279,6 @@ TEST_BEGIN(test_arena_i_dss)
 }
 TEST_END
 
-TEST_BEGIN(test_arenas_purge)
-{
-	unsigned arena = 0;
-
-	assert_d_eq(mallctl("arenas.purge", NULL, NULL, &arena, sizeof(arena)),
-	    0, "Unexpected mallctl() failure");
-
-	assert_d_eq(mallctl("arenas.purge", NULL, NULL, NULL, 0), 0,
-	    "Unexpected mallctl() failure");
-}
-TEST_END
-
 TEST_BEGIN(test_arenas_initialized)
 {
 	unsigned narenas;
@@ -417,7 +405,6 @@ main(void)
 	    test_thread_arena,
 	    test_arena_i_purge,
 	    test_arena_i_dss,
-	    test_arenas_purge,
 	    test_arenas_initialized,
 	    test_arenas_constants,
 	    test_arenas_bin_constants,

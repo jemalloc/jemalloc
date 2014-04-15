@@ -129,7 +129,6 @@ CTL_PROTO(arenas_tcache_max)
 CTL_PROTO(arenas_nbins)
 CTL_PROTO(arenas_nhbins)
 CTL_PROTO(arenas_nlruns)
-CTL_PROTO(arenas_purge)
 CTL_PROTO(arenas_extend)
 CTL_PROTO(prof_active)
 CTL_PROTO(prof_dump)
@@ -301,7 +300,6 @@ static const ctl_named_node_t arenas_node[] = {
 	{NAME("bin"),			CHILD(indexed, arenas_bin)},
 	{NAME("nlruns"),		CTL(arenas_nlruns)},
 	{NAME("lrun"),			CHILD(indexed, arenas_lrun)},
-	{NAME("purge"),			CTL(arenas_purge)},
 	{NAME("extend"),		CTL(arenas_extend)}
 };
 
@@ -1466,31 +1464,6 @@ arenas_lrun_i_index(const size_t *mib, size_t miblen, size_t i)
 	if (i > nlclasses)
 		return (NULL);
 	return (super_arenas_lrun_i_node);
-}
-
-static int
-arenas_purge_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
-    void *newp, size_t newlen)
-{
-	int ret;
-	unsigned arena_ind;
-
-	malloc_mutex_lock(&ctl_mtx);
-	WRITEONLY();
-	arena_ind = UINT_MAX;
-	WRITE(arena_ind, unsigned);
-	if (newp != NULL && arena_ind >= ctl_stats.narenas)
-		ret = EFAULT;
-	else {
-		if (arena_ind == UINT_MAX)
-			arena_ind = ctl_stats.narenas;
-		arena_purge(arena_ind);
-		ret = 0;
-	}
-
-label_return:
-	malloc_mutex_unlock(&ctl_mtx);
-	return (ret);
 }
 
 static int

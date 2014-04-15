@@ -1267,7 +1267,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
       <varlistentry id="arena.i.purge">
         <term>
           <mallctl>arena.&lt;i&gt;.purge</mallctl>
-          (<type>unsigned</type>)
+          (<type>void</type>)
           <literal>--</literal>
         </term>
         <listitem><para>Purge unused dirty pages for arena &lt;i&gt;, or for
@@ -1408,16 +1408,6 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         </term>
         <listitem><para>Maximum size supported by this large size
         class.</para></listitem>
-      </varlistentry>
-
-      <varlistentry id="arenas.purge">
-        <term>
-          <mallctl>arenas.purge</mallctl>
-          (<type>unsigned</type>)
-          <literal>-w</literal>
-        </term>
-        <listitem><para>Purge unused dirty pages for the specified arena, or
-        for all arenas if none is specified.</para></listitem>
       </varlistentry>
 
       <varlistentry id="arenas.extend">
