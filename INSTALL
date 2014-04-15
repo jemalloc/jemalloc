@@ -71,10 +71,10 @@ any of the following arguments (not a definitive list) to 'configure':
     versions of jemalloc can coexist in the same installation directory.  For
     example, libjemalloc.so.0 becomes libjemalloc<suffix>.so.0.
 
---enable-cc-silence
-    Enable code that silences non-useful compiler warnings.  This is helpful
-    when trying to tell serious warnings from those due to compiler
-    limitations, but it potentially incurs a performance penalty.
+--disable-cc-silence
+    Disable code that silences non-useful compiler warnings.  This is mainly
+    useful during development when auditing the set of warnings that are being
+    silenced.
 
 --enable-debug
     Enable assertions and validation code.  This incurs a substantial

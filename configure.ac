@@ -577,18 +577,17 @@ cfghdrs_tup="include/jemalloc/jemalloc_defs.h:include/jemalloc/jemalloc_defs.h.i
 cfghdrs_tup="${cfghdrs_tup} include/jemalloc/internal/jemalloc_internal_defs.h:${srcroot}include/jemalloc/internal/jemalloc_internal_defs.h.in"
 cfghdrs_tup="${cfghdrs_tup} test/include/test/jemalloc_test_defs.h:${srcroot}test/include/test/jemalloc_test_defs.h.in"
 
-dnl Do not silence irrelevant compiler warnings by default, since enabling this
-dnl option incurs a performance penalty.
+dnl Silence irrelevant compiler warnings by default.
 AC_ARG_ENABLE([cc-silence],
-  [AS_HELP_STRING([--enable-cc-silence],
-                  [Silence irrelevant compiler warnings])],
+  [AS_HELP_STRING([--disable-cc-silence],
+                  [Do not silence irrelevant compiler warnings])],
 [if test "x$enable_cc_silence" = "xno" ; then
   enable_cc_silence="0"
 else
   enable_cc_silence="1"
 fi
 ],
-[enable_cc_silence="0"]
+[enable_cc_silence="1"]
 )
 if test "x$enable_cc_silence" = "x1" ; then
   AC_DEFINE([JEMALLOC_CC_SILENCE], [ ])
