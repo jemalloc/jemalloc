@@ -346,6 +346,7 @@ rtree_set
 s2u
 sa2u
 set_errno
+small_bin2size
 small_size2bin
 stats_cactive
 stats_cactive_add

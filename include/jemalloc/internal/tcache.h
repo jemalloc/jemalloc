@@ -266,14 +266,14 @@ tcache_alloc_small(tcache_t *tcache, size_t size, bool zero)
 	binind = SMALL_SIZE2BIN(size);
 	assert(binind < NBINS);
 	tbin = &tcache->tbins[binind];
-	size = arena_bin_info[binind].reg_size;
+	size = small_bin2size[binind];
 	ret = tcache_alloc_easy(tbin);
 	if (ret == NULL) {
 		ret = tcache_alloc_small_hard(tcache, tbin, binind);
 		if (ret == NULL)
 			return (NULL);
 	}
-	assert(tcache_salloc(ret) == arena_bin_info[binind].reg_size);
+	assert(tcache_salloc(ret) == size);
 
 	if (zero == false) {
 		if (config_fill) {
@@ -296,7 +296,7 @@ tcache_alloc_small(tcache_t *tcache, size_t size, bool zero)
 	if (config_stats)
 		tbin->tstats.nrequests++;
 	if (config_prof)
-		tcache->prof_accumbytes += arena_bin_info[binind].reg_size;
+		tcache->prof_accumbytes += size;
 	tcache_event(tcache);
 	return (ret);
 }

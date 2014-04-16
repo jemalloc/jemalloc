@@ -8,6 +8,14 @@ ssize_t		opt_lg_dirty_mult = LG_DIRTY_MULT_DEFAULT;
 arena_bin_info_t	arena_bin_info[NBINS];
 
 JEMALLOC_ALIGNED(CACHELINE)
+const uint32_t	small_bin2size[NBINS] = {
+#define SIZE_CLASS(bin, delta, size)		\
+	size,
+	SIZE_CLASSES
+#undef SIZE_CLASS
+};
+
+JEMALLOC_ALIGNED(CACHELINE)
 const uint8_t	small_size2bin[] = {
 #define	S2B_8(i)	i,
 #define	S2B_16(i)	S2B_8(i) S2B_8(i)
@@ -1615,7 +1623,7 @@ arena_malloc_small(arena_t *arena, size_t size, bool zero)
 	binind = SMALL_SIZE2BIN(size);
 	assert(binind < NBINS);
 	bin = &arena->bins[binind];
-	size = arena_bin_info[binind].reg_size;
+	size = small_bin2size[binind];
 
 	malloc_mutex_lock(&bin->lock);
 	if ((run = bin->runcur) != NULL && run->nfree > 0)
