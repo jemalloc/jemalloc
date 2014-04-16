@@ -264,13 +264,12 @@ void	prof_sample_threshold_update(prof_tdata_t *prof_tdata);
 malloc_tsd_protos(JEMALLOC_ATTR(unused), prof_tdata, prof_tdata_t *)
 
 prof_tdata_t	*prof_tdata_get(bool create);
-void	prof_sample_accum_update(size_t size, bool commit,
+bool	prof_sample_accum_update(size_t size, bool commit,
     prof_tdata_t **prof_tdata_out);
 prof_ctx_t	*prof_ctx_get(const void *ptr);
 void	prof_ctx_set(const void *ptr, prof_ctx_t *ctx);
-bool	prof_sample_accum_update(size_t size);
 void	prof_malloc_record_object(const void *ptr, size_t usize,
-    prof_thr_cnt_t *cnt)
+    prof_thr_cnt_t *cnt);
 void	prof_malloc(const void *ptr, size_t usize, prof_thr_cnt_t *cnt);
 void	prof_realloc(const void *ptr, size_t usize, prof_thr_cnt_t *cnt,
     size_t old_usize, prof_ctx_t *old_ctx);
