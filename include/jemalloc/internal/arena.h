@@ -385,6 +385,7 @@ extern ssize_t	opt_lg_dirty_mult;
  * and all accesses are via the SMALL_SIZE2BIN macro.
  */
 extern uint8_t const	small_size2bin[];
+extern uint32_t const	small_bin2size[];
 #define	SMALL_SIZE2BIN(s)	(small_size2bin[(s-1) >> LG_TINY_MIN])
 
 extern arena_bin_info_t	arena_bin_info[NBINS];
@@ -964,7 +965,7 @@ arena_salloc(const void *ptr, bool demote)
 		assert(arena_mapbits_large_get(chunk, pageind) != 0 ||
 		    arena_ptr_small_binind_get(ptr, arena_mapbits_get(chunk,
 		    pageind)) == binind);
-		ret = arena_bin_info[binind].reg_size;
+		ret = small_bin2size[binind];
 	}
 
 	return (ret);

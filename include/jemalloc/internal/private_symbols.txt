@@ -298,6 +298,7 @@ prof_idump
 prof_interval
 prof_lookup
 prof_malloc
+prof_malloc_record_object
 prof_mdump
 prof_postfork_child
 prof_postfork_parent
@@ -344,6 +345,7 @@ rtree_set
 s2u
 sa2u
 set_errno
+small_bin2size
 small_size2bin
 stats_cactive
 stats_cactive_add
@@ -383,6 +385,7 @@ tcache_event
 tcache_event_hard
 tcache_flush
 tcache_get
+tcache_get_hard
 tcache_initialized
 tcache_maxclass
 tcache_salloc
