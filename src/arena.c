@@ -8,7 +8,7 @@ ssize_t		opt_lg_dirty_mult = LG_DIRTY_MULT_DEFAULT;
 arena_bin_info_t	arena_bin_info[NBINS];
 
 JEMALLOC_ALIGNED(CACHELINE)
-const uint32_t	small_bin2size[NBINS] = {
+const uint32_t	small_bin2size_tab[NBINS] = {
 #define SIZE_CLASS(bin, delta, size)		\
 	size,
 	SIZE_CLASSES
@@ -16,7 +16,7 @@ const uint32_t	small_bin2size[NBINS] = {
 };
 
 JEMALLOC_ALIGNED(CACHELINE)
-const uint8_t	small_size2bin[] = {
+const uint8_t	small_size2bin_tab[] = {
 #define	S2B_8(i)	i,
 #define	S2B_16(i)	S2B_8(i) S2B_8(i)
 #define	S2B_32(i)	S2B_16(i) S2B_16(i)
@@ -1607,7 +1607,7 @@ arena_quarantine_junk_small(void *ptr, size_t usize)
 	assert(opt_quarantine);
 	assert(usize <= SMALL_MAXCLASS);
 
-	binind = SMALL_SIZE2BIN(usize);
+	binind = small_size2bin(usize);
 	bin_info = &arena_bin_info[binind];
 	arena_redzones_validate(ptr, bin_info, true);
 }
@@ -1620,10 +1620,10 @@ arena_malloc_small(arena_t *arena, size_t size, bool zero)
 	arena_run_t *run;
 	size_t binind;
 
-	binind = SMALL_SIZE2BIN(size);
+	binind = small_size2bin(size);
 	assert(binind < NBINS);
 	bin = &arena->bins[binind];
-	size = small_bin2size[binind];
+	size = small_bin2size(binind);
 
 	malloc_mutex_lock(&bin->lock);
 	if ((run = bin->runcur) != NULL && run->nfree > 0)
@@ -1777,7 +1777,7 @@ arena_prof_promoted(const void *ptr, size_t size)
 
 	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
 	pageind = ((uintptr_t)ptr - (uintptr_t)chunk) >> LG_PAGE;
-	binind = SMALL_SIZE2BIN(size);
+	binind = small_size2bin(size);
 	assert(binind < NBINS);
 	arena_mapbits_large_binind_set(chunk, pageind, binind);
 
@@ -2164,11 +2164,11 @@ arena_ralloc_no_move(void *ptr, size_t oldsize, size_t size, size_t extra,
 	 */
 	if (oldsize <= arena_maxclass) {
 		if (oldsize <= SMALL_MAXCLASS) {
-			assert(arena_bin_info[SMALL_SIZE2BIN(oldsize)].reg_size
+			assert(arena_bin_info[small_size2bin(oldsize)].reg_size
 			    == oldsize);
 			if ((size + extra <= SMALL_MAXCLASS &&
-			    SMALL_SIZE2BIN(size + extra) ==
-			    SMALL_SIZE2BIN(oldsize)) || (size <= oldsize &&
+			    small_size2bin(size + extra) ==
+			    small_size2bin(oldsize)) || (size <= oldsize &&
 			    size + extra >= oldsize))
 				return (false);
 		} else {

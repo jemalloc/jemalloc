@@ -499,6 +499,14 @@ void	jemalloc_postfork_child(void);
 #include "jemalloc/internal/chunk.h"
 #include "jemalloc/internal/huge.h"
 
+/*
+ * Include arena.h the first time in order to provide inline functions for this
+ * header's inlines.
+ */
+#define	JEMALLOC_ARENA_INLINE_A
+#include "jemalloc/internal/arena.h"
+#undef JEMALLOC_ARENA_INLINE_A
+
 #ifndef JEMALLOC_ENABLE_INLINE
 malloc_tsd_protos(JEMALLOC_ATTR(unused), arenas, arena_t *)
 
@@ -526,7 +534,7 @@ s2u(size_t size)
 {
 
 	if (size <= SMALL_MAXCLASS)
-		return (small_bin2size[SMALL_SIZE2BIN(size)]);
+		return (small_bin2size(small_size2bin(size)));
 	if (size <= arena_maxclass)
 		return (PAGE_CEILING(size));
 	return (CHUNK_CEILING(size));
@@ -569,7 +577,7 @@ sa2u(size_t size, size_t alignment)
 
 	if (usize <= arena_maxclass && alignment <= PAGE) {
 		if (usize <= SMALL_MAXCLASS)
-			return (small_bin2size[SMALL_SIZE2BIN(usize)]);
+			return (small_bin2size(small_size2bin(usize)));
 		return (PAGE_CEILING(usize));
 	} else {
 		size_t run_size;
@@ -643,16 +651,16 @@ choose_arena(arena_t *arena)
 #include "jemalloc/internal/bitmap.h"
 #include "jemalloc/internal/rtree.h"
 /*
- * Include arena.h twice in order to resolve circular dependencies with
- * tcache.h.
+ * Include arena.h the second and third times in order to resolve circular
+ * dependencies with tcache.h.
  */
-#define	JEMALLOC_ARENA_INLINE_A
-#include "jemalloc/internal/arena.h"
-#undef JEMALLOC_ARENA_INLINE_A
-#include "jemalloc/internal/tcache.h"
 #define	JEMALLOC_ARENA_INLINE_B
 #include "jemalloc/internal/arena.h"
 #undef JEMALLOC_ARENA_INLINE_B
+#include "jemalloc/internal/tcache.h"
+#define	JEMALLOC_ARENA_INLINE_C
+#include "jemalloc/internal/arena.h"
+#undef JEMALLOC_ARENA_INLINE_C
 #include "jemalloc/internal/hash.h"
 #include "jemalloc/internal/quarantine.h"
 
@@ -794,7 +802,7 @@ u2rz(size_t usize)
 	size_t ret;
 
 	if (usize <= SMALL_MAXCLASS) {
-		size_t binind = SMALL_SIZE2BIN(usize);
+		size_t binind = small_size2bin(usize);
 		ret = arena_bin_info[binind].redzone_size;
 	} else
 		ret = 0;

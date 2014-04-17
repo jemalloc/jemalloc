@@ -346,7 +346,9 @@ s2u
 sa2u
 set_errno
 small_bin2size
+small_bin2size_tab
 small_size2bin
+small_size2bin_tab
 stats_cactive
 stats_cactive_add
 stats_cactive_get

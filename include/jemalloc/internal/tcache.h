@@ -263,10 +263,10 @@ tcache_alloc_small(tcache_t *tcache, size_t size, bool zero)
 	size_t binind;
 	tcache_bin_t *tbin;
 
-	binind = SMALL_SIZE2BIN(size);
+	binind = small_size2bin(size);
 	assert(binind < NBINS);
 	tbin = &tcache->tbins[binind];
-	size = small_bin2size[binind];
+	size = small_bin2size(binind);
 	ret = tcache_alloc_easy(tbin);
 	if (ret == NULL) {
 		ret = tcache_alloc_small_hard(tcache, tbin, binind);

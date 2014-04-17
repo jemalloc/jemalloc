@@ -380,13 +380,17 @@ struct arena_s {
 
 extern ssize_t	opt_lg_dirty_mult;
 /*
- * small_size2bin is a compact lookup table that rounds request sizes up to
+ * small_size2bin_tab is a compact lookup table that rounds request sizes up to
  * size classes.  In order to reduce cache footprint, the table is compressed,
- * and all accesses are via the SMALL_SIZE2BIN macro.
+ * and all accesses are via small_size2bin().
  */
-extern uint8_t const	small_size2bin[];
-extern uint32_t const	small_bin2size[];
-#define	SMALL_SIZE2BIN(s)	(small_size2bin[(s-1) >> LG_TINY_MIN])
+extern uint8_t const	small_size2bin_tab[];
+/*
+ * small_bin2size_tab duplicates information in arena_bin_info, but in a const
+ * array, for which it is easier for the compiler to optimize repeated
+ * dereferences.
+ */
+extern uint32_t const	small_bin2size_tab[NBINS];
 
 extern arena_bin_info_t	arena_bin_info[NBINS];
 
@@ -450,6 +454,8 @@ void	arena_postfork_child(arena_t *arena);
 #ifdef JEMALLOC_H_INLINES
 
 #ifndef JEMALLOC_ENABLE_INLINE
+size_t	small_size2bin(size_t size);
+size_t	small_bin2size(size_t binind);
 arena_chunk_map_t	*arena_mapp_get(arena_chunk_t *chunk, size_t pageind);
 size_t	*arena_mapbitsp_get(arena_chunk_t *chunk, size_t pageind);
 size_t	arena_mapbitsp_read(size_t *mapbitsp);
@@ -492,6 +498,22 @@ void	arena_dalloc(arena_chunk_t *chunk, void *ptr, bool try_tcache);
 
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_ARENA_C_))
 #  ifdef JEMALLOC_ARENA_INLINE_A
+JEMALLOC_ALWAYS_INLINE size_t
+small_size2bin(size_t size)
+{
+
+	return ((size_t)(small_size2bin_tab[(size-1) >> LG_TINY_MIN]));
+}
+
+JEMALLOC_ALWAYS_INLINE size_t
+small_bin2size(size_t binind)
+{
+
+	return ((size_t)(small_bin2size_tab[binind]));
+}
+#  endif /* JEMALLOC_ARENA_INLINE_A */
+
+#  ifdef JEMALLOC_ARENA_INLINE_B
 JEMALLOC_ALWAYS_INLINE arena_chunk_map_t *
 arena_mapp_get(arena_chunk_t *chunk, size_t pageind)
 {
@@ -773,9 +795,9 @@ arena_ptr_small_binind_get(const void *ptr, size_t mapbits)
 
 	return (binind);
 }
-#  endif /* JEMALLOC_ARENA_INLINE_A */
+#  endif /* JEMALLOC_ARENA_INLINE_B */
 
-#  ifdef JEMALLOC_ARENA_INLINE_B
+#  ifdef JEMALLOC_ARENA_INLINE_C
 JEMALLOC_INLINE size_t
 arena_bin_index(arena_t *arena, arena_bin_t *bin)
 {
@@ -965,7 +987,7 @@ arena_salloc(const void *ptr, bool demote)
 		assert(arena_mapbits_large_get(chunk, pageind) != 0 ||
 		    arena_ptr_small_binind_get(ptr, arena_mapbits_get(chunk,
 		    pageind)) == binind);
-		ret = small_bin2size[binind];
+		ret = small_bin2size(binind);
 	}
 
 	return (ret);
@@ -1004,7 +1026,7 @@ arena_dalloc(arena_chunk_t *chunk, void *ptr, bool try_tcache)
 			arena_dalloc_large(chunk->arena, chunk, ptr);
 	}
 }
-#  endif /* JEMALLOC_ARENA_INLINE_B */
+#  endif /* JEMALLOC_ARENA_INLINE_C */
 #endif
 
 #endif /* JEMALLOC_H_INLINES */
