@@ -160,36 +160,21 @@ prof_leave(prof_tdata_t *prof_tdata)
 void
 prof_backtrace(prof_bt_t *bt, unsigned nignore)
 {
-	unw_context_t uc;
-	unw_cursor_t cursor;
-	unsigned i;
-	int err;
-
 	cassert(config_prof);
 	assert(bt->len == 0);
 	assert(bt->vec != NULL);
 
-	unw_getcontext(&uc);
-	unw_init_local(&cursor, &uc);
+	VARIABLE_ARRAY(void *, frames, nignore + PROF_BT_MAX);
+	int n = unw_backtrace(frames, nignore + PROF_BT_MAX);
+	if (n <= 0)
+		return;
 
 	/* Throw away (nignore+1) stack frames, if that many exist. */
-	for (i = 0; i < nignore + 1; i++) {
-		err = unw_step(&cursor);
-		if (err <= 0)
-			return;
-	}
-
-	/*
-	 * Iterate over stack frames until there are no more, or until no space
-	 * remains in bt.
-	 */
-	for (i = 0; i < PROF_BT_MAX; i++) {
-		unw_get_reg(&cursor, UNW_REG_IP, (unw_word_t *)&bt->vec[i]);
-		bt->len++;
-		err = unw_step(&cursor);
-		if (err <= 0)
-			break;
-	}
+	nignore++;
+	if (nignore >= n)
+		return;
+	memcpy(bt->vec, &frames[nignore], sizeof(frames[0]) * (n - nignore));
+	bt->len = n - nignore;
 }
 #elif (defined(JEMALLOC_PROF_LIBGCC))
 static _Unwind_Reason_Code
