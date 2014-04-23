@@ -352,9 +352,9 @@ static const bool config_ivsalloc =
 #    endif
 #  endif
 #  define VARIABLE_ARRAY(type, name, count) \
-	type *name = alloca(sizeof(type) * count)
+	type *name = alloca(sizeof(type) * (count))
 #else
-#  define VARIABLE_ARRAY(type, name, count) type name[count]
+#  define VARIABLE_ARRAY(type, name, count) type name[(count)]
 #endif
 
 #include "jemalloc/internal/valgrind.h"
