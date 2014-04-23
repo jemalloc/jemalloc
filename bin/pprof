@@ -2811,9 +2811,14 @@ sub RemoveUninterestingFrames {
                       'free',
                       'memalign',
                       'posix_memalign',
+                      'aligned_alloc',
                       'pvalloc',
                       'valloc',
                       'realloc',
+                      'mallocx', # jemalloc
+                      'rallocx', # jemalloc
+                      'xallocx', # jemalloc
+                      'dallocx', # jemalloc
                       'tc_calloc',
                       'tc_cfree',
                       'tc_malloc',
@@ -2923,6 +2928,10 @@ sub RemoveUninterestingFrames {
       if (exists($symbols->{$a})) {
         my $func = $symbols->{$a}->[0];
         if ($skip{$func} || ($func =~ m/$skip_regexp/)) {
+          # Throw away the portion of the backtrace seen so far, under the
+          # assumption that previous frames were for functions internal to the
+          # allocator.
+          @path = ();
           next;
         }
       }

@@ -881,10 +881,12 @@ imalloc_prof_sample(size_t usize, prof_thr_cnt_t *cnt)
 }
 
 JEMALLOC_ALWAYS_INLINE_C void *
-imalloc_prof(size_t usize, prof_thr_cnt_t *cnt)
+imalloc_prof(size_t usize)
 {
 	void *p;
+	prof_thr_cnt_t *cnt;
 
+	PROF_ALLOC_PREP(usize, cnt);
 	if ((uintptr_t)cnt != (uintptr_t)1U)
 		p = imalloc_prof_sample(usize, cnt);
 	else
@@ -896,42 +898,22 @@ imalloc_prof(size_t usize, prof_thr_cnt_t *cnt)
 	return (p);
 }
 
-/*
- * MALLOC_BODY() is a macro rather than a function because its contents are in
- * the fast path, but inlining would cause reliability issues when determining
- * how many frames to discard from heap profiling backtraces.
- */
-#define	MALLOC_BODY(ret, size, usize) do {				\
-	if (malloc_init())						\
-		ret = NULL;						\
-	else {								\
-		if (config_prof && opt_prof) {				\
-			prof_thr_cnt_t *cnt;				\
-									\
-			usize = s2u(size);				\
-			/*						\
-			 * Call PROF_ALLOC_PREP() here rather than in	\
-			 * imalloc_prof() so that imalloc_prof() can be	\
-			 * inlined without introducing uncertainty	\
-			 * about the number of backtrace frames to	\
-			 * ignore.  imalloc_prof() is in the fast path	\
-			 * when heap profiling is enabled, so inlining	\
-			 * is critical to performance.  (For		\
-			 * consistency all callers of PROF_ALLOC_PREP()	\
-			 * are structured similarly, even though e.g.	\
-			 * realloc() isn't called enough for inlining	\
-			 * to be critical.)				\
-			 */						\
-			PROF_ALLOC_PREP(1, usize, cnt);			\
-			ret = imalloc_prof(usize, cnt);			\
-		} else {						\
-			if (config_stats || (config_valgrind &&		\
-			    in_valgrind))				\
-				usize = s2u(size);			\
-			ret = imalloc(size);				\
-		}							\
-	}								\
-} while (0)
+JEMALLOC_ALWAYS_INLINE_C void *
+imalloc_body(size_t size, size_t *usize)
+{
+
+	if (malloc_init())
+		return (NULL);
+
+	if (config_prof && opt_prof) {
+		*usize = s2u(size);
+		return (imalloc_prof(*usize));
+	}
+
+	if (config_stats || (config_valgrind && in_valgrind))
+		*usize = s2u(size);
+	return (imalloc(size));
+}
 
 void *
 je_malloc(size_t size)
@@ -942,8 +924,7 @@ je_malloc(size_t size)
 	if (size == 0)
 		size = 1;
 
-	MALLOC_BODY(ret, size, usize);
-
+	ret = imalloc_body(size, &usize);
 	if (ret == NULL) {
 		if (config_xmalloc && opt_xmalloc) {
 			malloc_write("<jemalloc>: Error in malloc(): "
@@ -998,13 +979,6 @@ imemalign_prof(size_t alignment, size_t usize, prof_thr_cnt_t *cnt)
 }
 
 JEMALLOC_ATTR(nonnull(1))
-#ifdef JEMALLOC_PROF
-/*
- * Avoid any uncertainty as to how many backtrace frames to ignore in
- * PROF_ALLOC_PREP().
- */
-JEMALLOC_NOINLINE
-#endif
 static int
 imemalign(void **memptr, size_t alignment, size_t size, size_t min_alignment)
 {
@@ -1043,7 +1017,7 @@ imemalign(void **memptr, size_t alignment, size_t size, size_t min_alignment)
 		if (config_prof && opt_prof) {
 			prof_thr_cnt_t *cnt;
 
-			PROF_ALLOC_PREP(2, usize, cnt);
+			PROF_ALLOC_PREP(usize, cnt);
 			result = imemalign_prof(alignment, usize, cnt);
 		} else
 			result = ipalloc(usize, alignment, false);
@@ -1166,7 +1140,7 @@ je_calloc(size_t num, size_t size)
 		prof_thr_cnt_t *cnt;
 
 		usize = s2u(num_size);
-		PROF_ALLOC_PREP(1, usize, cnt);
+		PROF_ALLOC_PREP(usize, cnt);
 		ret = icalloc_prof(usize, cnt);
 	} else {
 		if (config_stats || (config_valgrind && in_valgrind))
@@ -1282,7 +1256,7 @@ je_realloc(void *ptr, size_t size)
 			prof_thr_cnt_t *cnt;
 
 			usize = s2u(size);
-			PROF_ALLOC_PREP(1, usize, cnt);
+			PROF_ALLOC_PREP(usize, cnt);
 			ret = irealloc_prof(ptr, old_usize, usize, cnt);
 		} else {
 			if (config_stats || (config_valgrind && in_valgrind))
@@ -1291,7 +1265,7 @@ je_realloc(void *ptr, size_t size)
 		}
 	} else {
 		/* realloc(NULL, size) is equivalent to malloc(size). */
-		MALLOC_BODY(ret, size, usize);
+		ret = imalloc_body(size, &usize);
 	}
 
 	if (ret == NULL) {
@@ -1475,7 +1449,7 @@ je_mallocx(size_t size, int flags)
 	if (config_prof && opt_prof) {
 		prof_thr_cnt_t *cnt;
 
-		PROF_ALLOC_PREP(1, usize, cnt);
+		PROF_ALLOC_PREP(usize, cnt);
 		p = imallocx_prof(usize, alignment, zero, try_tcache, arena,
 		    cnt);
 	} else
@@ -1600,7 +1574,7 @@ je_rallocx(void *ptr, size_t size, int flags)
 
 		usize = (alignment == 0) ? s2u(size) : sa2u(size, alignment);
 		assert(usize != 0);
-		PROF_ALLOC_PREP(1, usize, cnt);
+		PROF_ALLOC_PREP(usize, cnt);
 		p = irallocx_prof(ptr, old_usize, size, alignment, &usize, zero,
 		    try_tcache_alloc, try_tcache_dalloc, arena, cnt);
 		if (p == NULL)
@@ -1733,7 +1707,7 @@ je_xallocx(void *ptr, size_t size, size_t extra, int flags)
 		 */
 		size_t max_usize = (alignment == 0) ? s2u(size+extra) :
 		    sa2u(size+extra, alignment);
-		PROF_ALLOC_PREP(1, max_usize, cnt);
+		PROF_ALLOC_PREP(max_usize, cnt);
 		usize = ixallocx_prof(ptr, old_usize, size, extra, alignment,
 		    max_usize, zero, arena, cnt);
 	} else {

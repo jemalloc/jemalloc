@@ -158,23 +158,18 @@ prof_leave(prof_tdata_t *prof_tdata)
 
 #ifdef JEMALLOC_PROF_LIBUNWIND
 void
-prof_backtrace(prof_bt_t *bt, unsigned nignore)
+prof_backtrace(prof_bt_t *bt)
 {
+	int nframes;
+
 	cassert(config_prof);
 	assert(bt->len == 0);
 	assert(bt->vec != NULL);
 
-	VARIABLE_ARRAY(void *, frames, nignore + PROF_BT_MAX);
-	int n = unw_backtrace(frames, nignore + PROF_BT_MAX);
-	if (n <= 0)
+	nframes = unw_backtrace(bt->vec, PROF_BT_MAX);
+	if (nframes <= 0)
 		return;
-
-	/* Throw away (nignore+1) stack frames, if that many exist. */
-	nignore++;
-	if (nignore >= n)
-		return;
-	memcpy(bt->vec, &frames[nignore], sizeof(frames[0]) * (n - nignore));
-	bt->len = n - nignore;
+	bt->len = nframes;
 }
 #elif (defined(JEMALLOC_PROF_LIBGCC))
 static _Unwind_Reason_Code
@@ -190,25 +185,25 @@ static _Unwind_Reason_Code
 prof_unwind_callback(struct _Unwind_Context *context, void *arg)
 {
 	prof_unwind_data_t *data = (prof_unwind_data_t *)arg;
+	void *ip;
 
 	cassert(config_prof);
 
-	if (data->nignore > 0)
-		data->nignore--;
-	else {
-		data->bt->vec[data->bt->len] = (void *)_Unwind_GetIP(context);
-		data->bt->len++;
-		if (data->bt->len == data->max)
-			return (_URC_END_OF_STACK);
-	}
+	ip = (void *)_Unwind_GetIP(context);
+	if (ip == NULL)
+		return (_URC_END_OF_STACK);
+	data->bt->vec[data->bt->len] = ip;
+	data->bt->len++;
+	if (data->bt->len == data->max)
+		return (_URC_END_OF_STACK);
 
 	return (_URC_NO_REASON);
 }
 
 void
-prof_backtrace(prof_bt_t *bt, unsigned nignore)
+prof_backtrace(prof_bt_t *bt)
 {
-	prof_unwind_data_t data = {bt, nignore, PROF_BT_MAX};
+	prof_unwind_data_t data = {bt, PROF_BT_MAX};
 
 	cassert(config_prof);
 
@@ -216,25 +211,22 @@ prof_backtrace(prof_bt_t *bt, unsigned nignore)
 }
 #elif (defined(JEMALLOC_PROF_GCC))
 void
-prof_backtrace(prof_bt_t *bt, unsigned nignore)
+prof_backtrace(prof_bt_t *bt)
 {
 #define	BT_FRAME(i)							\
-	if ((i) < nignore + PROF_BT_MAX) {				\
+	if ((i) < PROF_BT_MAX) {					\
 		void *p;						\
 		if (__builtin_frame_address(i) == 0)			\
 			return;						\
 		p = __builtin_return_address(i);			\
 		if (p == NULL)						\
 			return;						\
-		if (i >= nignore) {					\
-			bt->vec[(i) - nignore] = p;			\
-			bt->len = (i) - nignore + 1;			\
-		}							\
+		bt->vec[(i)] = p;					\
+		bt->len = (i) + 1;					\
 	} else								\
 		return;
 
 	cassert(config_prof);
-	assert(nignore <= 3);
 
 	BT_FRAME(0)
 	BT_FRAME(1)
@@ -376,16 +368,11 @@ prof_backtrace(prof_bt_t *bt, unsigned nignore)
 	BT_FRAME(125)
 	BT_FRAME(126)
 	BT_FRAME(127)
-
-	/* Extras to compensate for nignore. */
-	BT_FRAME(128)
-	BT_FRAME(129)
-	BT_FRAME(130)
 #undef BT_FRAME
 }
 #else
 void
-prof_backtrace(prof_bt_t *bt, unsigned nignore)
+prof_backtrace(prof_bt_t *bt)
 {
 
 	cassert(config_prof);

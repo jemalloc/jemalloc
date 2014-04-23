@@ -63,7 +63,6 @@ struct prof_bt_s {
 /* Data structure passed to libgcc _Unwind_Backtrace() callback functions. */
 typedef struct {
 	prof_bt_t	*bt;
-	unsigned	nignore;
 	unsigned	max;
 } prof_unwind_data_t;
 #endif
@@ -220,7 +219,7 @@ extern char	opt_prof_prefix[
 extern uint64_t	prof_interval;
 
 void	bt_init(prof_bt_t *bt, void **vec);
-void	prof_backtrace(prof_bt_t *bt, unsigned nignore);
+void	prof_backtrace(prof_bt_t *bt);
 prof_thr_cnt_t	*prof_lookup(prof_bt_t *bt);
 #ifdef JEMALLOC_JET
 size_t	prof_bt_count(void);
@@ -244,7 +243,7 @@ void	prof_sample_threshold_update(prof_tdata_t *prof_tdata);
 /******************************************************************************/
 #ifdef JEMALLOC_H_INLINES
 
-#define	PROF_ALLOC_PREP(nignore, size, ret) do {			\
+#define	PROF_ALLOC_PREP(size, ret) do {					\
 	prof_tdata_t *prof_tdata;					\
 	prof_bt_t bt;							\
 									\
@@ -255,7 +254,7 @@ void	prof_sample_threshold_update(prof_tdata_t *prof_tdata);
 		ret = (prof_thr_cnt_t *)(uintptr_t)1U;			\
 	} else {							\
 		bt_init(&bt, prof_tdata->vec);				\
-		prof_backtrace(&bt, nignore);				\
+		prof_backtrace(&bt);					\
 		ret = prof_lookup(&bt);					\
 	}								\
 } while (0)
