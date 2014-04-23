@@ -702,7 +702,7 @@ fi,
 if test "x$backtrace_method" = "x" -a "x$enable_prof_libunwind" = "x1" ; then
   AC_CHECK_HEADERS([libunwind.h], , [enable_prof_libunwind="0"])
   if test "x$LUNWIND" = "x-lunwind" ; then
-    AC_CHECK_LIB([unwind], [backtrace], [LIBS="$LIBS $LUNWIND"],
+    AC_CHECK_LIB([unwind], [unw_backtrace], [LIBS="$LIBS $LUNWIND"],
                  [enable_prof_libunwind="0"])
   else
     LIBS="$LIBS $LUNWIND"
