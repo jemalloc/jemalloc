@@ -61,13 +61,13 @@ p_test_fini(void)
 }
 
 test_status_t
-p_test(test_t* t, ...)
+p_test(test_t *t, ...)
 {
 	test_status_t ret = test_status_pass;
 	va_list ap;
 
 	va_start(ap, t);
-	for (; t != NULL; t = va_arg(ap, test_t*)) {
+	for (; t != NULL; t = va_arg(ap, test_t *)) {
 		t();
 		if (test_status > ret)
 			ret = test_status;

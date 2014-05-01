@@ -323,7 +323,7 @@ void	test_skip(const char *format, ...) JEMALLOC_ATTR(format(printf, 1, 2));
 void	test_fail(const char *format, ...) JEMALLOC_ATTR(format(printf, 1, 2));
 
 /* For private use by macros. */
-test_status_t	p_test(test_t* t, ...);
+test_status_t	p_test(test_t *t, ...);
 void	p_test_init(const char *name);
 void	p_test_fini(void);
 void	p_test_fail(const char *prefix, const char *message);
