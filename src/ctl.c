@@ -113,6 +113,8 @@ CTL_PROTO(opt_prof_accum)
 CTL_PROTO(arena_i_purge)
 static void	arena_purge(unsigned arena_ind);
 CTL_PROTO(arena_i_dss)
+CTL_PROTO(arena_i_chunk_alloc)
+CTL_PROTO(arena_i_chunk_dealloc)
 INDEX_PROTO(arena_i)
 CTL_PROTO(arenas_bin_i_size)
 CTL_PROTO(arenas_bin_i_nregs)
@@ -251,9 +253,15 @@ static const ctl_named_node_t opt_node[] = {
 	{NAME("prof_accum"),		CTL(opt_prof_accum)}
 };
 
+static const ctl_named_node_t chunk_node[] = {
+	{NAME("alloc"),			CTL(arena_i_chunk_alloc)},
+	{NAME("dealloc"),		CTL(arena_i_chunk_dealloc)}
+};
+
 static const ctl_named_node_t arena_i_node[] = {
 	{NAME("purge"),			CTL(arena_i_purge)},
-	{NAME("dss"),			CTL(arena_i_dss)}
+	{NAME("dss"),			CTL(arena_i_dss)},
+	{NAME("chunk"),			CHILD(named, chunk)},
 };
 static const ctl_named_node_t super_arena_i_node[] = {
 	{NAME(""),			CHILD(named, arena_i)}
@@ -1364,6 +1372,57 @@ arena_i_dss_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
 
 	ret = 0;
 label_return:
+	malloc_mutex_unlock(&ctl_mtx);
+	return (ret);
+}
+
+static int
+arena_i_chunk_alloc_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
+    void *newp, size_t newlen)
+{
+	int ret;
+	unsigned arena_ind = mib[1];
+	arena_t *arena;
+
+	malloc_mutex_lock(&ctl_mtx);
+	if (arena_ind < narenas_total && (arena = arenas[arena_ind]) != NULL) {
+		malloc_mutex_lock(&arena->lock);
+		READ(arena->chunk_alloc, chunk_alloc_t *);
+		WRITE(arena->chunk_alloc, chunk_alloc_t *);
+	} else {
+		ret = EFAULT;
+		goto label_outer_return;
+	}
+	ret = 0;
+label_return:
+	malloc_mutex_unlock(&arena->lock);
+label_outer_return:
+	malloc_mutex_unlock(&ctl_mtx);
+	return (ret);
+}
+
+static int
+arena_i_chunk_dealloc_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
+    void *newp, size_t newlen)
+{
+
+	int ret;
+	unsigned arena_ind = mib[1];
+	arena_t *arena;
+
+	malloc_mutex_lock(&ctl_mtx);
+	if (arena_ind < narenas_total && (arena = arenas[arena_ind]) != NULL) {
+		malloc_mutex_lock(&arena->lock);
+		READ(arena->chunk_dealloc, chunk_dealloc_t *);
+		WRITE(arena->chunk_dealloc, chunk_dealloc_t *);
+	} else {
+		ret = EFAULT;
+		goto label_outer_return;
+	}
+	ret = 0;
+label_return:
+	malloc_mutex_unlock(&arena->lock);
+label_outer_return:
 	malloc_mutex_unlock(&ctl_mtx);
 	return (ret);
 }

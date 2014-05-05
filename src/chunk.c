@@ -104,7 +104,7 @@ chunk_recycle(extent_tree_t *chunks_szad, extent_tree_t *chunks_ad, size_t size,
 			malloc_mutex_unlock(&chunks_mtx);
 			node = base_node_alloc();
 			if (node == NULL) {
-				chunk_dealloc(ret, size, true);
+				chunk_dealloc(NULL, ret, size, true);
 				return (NULL);
 			}
 			malloc_mutex_lock(&chunks_mtx);
@@ -141,8 +141,8 @@ chunk_recycle(extent_tree_t *chunks_szad, extent_tree_t *chunks_ad, size_t size,
  * takes advantage of this to avoid demanding zeroed chunks, but taking
  * advantage of them if they are returned.
  */
-void *
-chunk_alloc(size_t size, size_t alignment, bool base, bool *zero,
+static void *
+chunk_alloc_core(size_t size, size_t alignment, bool base, bool *zero,
     dss_prec_t dss_prec)
 {
 	void *ret;
@@ -156,32 +156,56 @@ chunk_alloc(size_t size, size_t alignment, bool base, bool *zero,
 	if (have_dss && dss_prec == dss_prec_primary) {
 		if ((ret = chunk_recycle(&chunks_szad_dss, &chunks_ad_dss, size,
 		    alignment, base, zero)) != NULL)
-			goto label_return;
+			return (ret);
 		if ((ret = chunk_alloc_dss(size, alignment, zero)) != NULL)
-			goto label_return;
+			return (ret);
 	}
 	/* mmap. */
 	if ((ret = chunk_recycle(&chunks_szad_mmap, &chunks_ad_mmap, size,
 	    alignment, base, zero)) != NULL)
-		goto label_return;
+		return (ret);
 	if ((ret = chunk_alloc_mmap(size, alignment, zero)) != NULL)
-		goto label_return;
+		return (ret);
 	/* "secondary" dss. */
 	if (have_dss && dss_prec == dss_prec_secondary) {
 		if ((ret = chunk_recycle(&chunks_szad_dss, &chunks_ad_dss, size,
 		    alignment, base, zero)) != NULL)
-			goto label_return;
+			return (ret);
 		if ((ret = chunk_alloc_dss(size, alignment, zero)) != NULL)
-			goto label_return;
+			return (ret);
 	}
 
 	/* All strategies for allocation failed. */
-	ret = NULL;
-label_return:
+	return (NULL);
+}
+
+/*
+ * Default arena chunk allocation routine in the absence of user-override.
+ */
+void *
+chunk_alloc_default(size_t size, size_t alignment, bool *zero,
+    unsigned arena_ind)
+{
+
+	return (chunk_alloc_core(size, alignment, false, zero,
+	    arenas[arena_ind]->dss_prec));
+}
+
+void *
+chunk_alloc(arena_t *arena, size_t size, size_t alignment, bool base,
+    bool *zero, dss_prec_t dss_prec)
+{
+	void *ret;
+
+	if (arena)
+		ret = arena->chunk_alloc(size, alignment, zero, arena->ind);
+	else
+		ret = chunk_alloc_core(size, alignment, base, zero, dss_prec);
+
 	if (ret != NULL) {
 		if (config_ivsalloc && base == false) {
 			if (rtree_set(chunks_rtree, (uintptr_t)ret, 1)) {
-				chunk_dealloc(ret, size, true);
+				chunk_dealloc(arena, ret, size, true);
 				return (NULL);
 			}
 		}
@@ -312,7 +336,7 @@ chunk_unmap(void *chunk, size_t size)
 }
 
 void
-chunk_dealloc(void *chunk, size_t size, bool unmap)
+chunk_dealloc(arena_t *arena, void *chunk, size_t size, bool unmap)
 {
 
 	assert(chunk != NULL);
@@ -329,8 +353,12 @@ chunk_dealloc(void *chunk, size_t size, bool unmap)
 		malloc_mutex_unlock(&chunks_mtx);
 	}
 
-	if (unmap)
-		chunk_unmap(chunk, size);
+	if (unmap) {
+		if (arena)
+			arena->chunk_dealloc(chunk, size, arena->ind);
+		else
+			chunk_unmap(chunk, size);
+	}
 }
 
 bool

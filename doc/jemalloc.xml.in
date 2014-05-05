@@ -1283,6 +1283,69 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         </para></listitem>
       </varlistentry>
 
+      <varlistentry id="arena.i.chunk.alloc">
+        <term>
+          <mallctl>arena.&lt;i&gt;.chunk.alloc</mallctl>
+          (<type>chunk_alloc_t *</type>)
+          <literal>rw</literal>
+        </term>
+        <listitem><para>Get or set the chunk allocation function for arena
+        &lt;i&gt;.  If setting, the chunk deallocation function should
+        also be set via <link linkend="arena.i.chunk.dealloc">
+        <mallctl>arena.&lt;i&gt;.chunk.dealloc</mallctl></link> to a companion
+        function that knows how to deallocate the chunks.
+        <funcprototype>
+          <funcdef>typedef void *<function>(chunk_alloc_t)</function></funcdef>
+          <paramdef>size_t <parameter>size</parameter></paramdef>
+          <paramdef>size_t <parameter>alignment</parameter></paramdef>
+          <paramdef>bool *<parameter>zero</parameter></paramdef>
+          <paramdef>unsigned <parameter>arena_ind</parameter></paramdef>
+        </funcprototype>
+        A chunk allocation function conforms to the <type>chunk_alloc_t</type>
+        type and upon success returns a pointer to <parameter>size</parameter>
+        bytes of memory on behalf of arena <parameter>arena_ind</parameter> such
+        that the chunk's base address is a multiple of
+        <parameter>alignment</parameter>, as well as setting
+        <parameter>*zero</parameter> to indicate whether the chunk is zeroed.
+        Upon error the function returns <constant>NULL</constant> and leaves
+        <parameter>*zero</parameter> unmodified.  The
+        <parameter>size</parameter> parameter is always a multiple of the chunk
+        size.  The <parameter>alignment</parameter> parameter is always a power
+        of two at least as large as the chunk size.  Zeroing is mandatory if
+        <parameter>*zero</parameter> is true upon function
+        entry.</para></listitem>
+      </varlistentry>
+
+      <varlistentry id="arena.i.chunk.dealloc">
+        <term>
+          <mallctl>arena.&lt;i&gt;.chunk.dealloc</mallctl>
+          (<type>chunk_dealloc_t *</type>)
+          <literal>rw</literal>
+        </term>
+        <listitem><para>Get or set the chunk deallocation function for arena
+        &lt;i&gt;.  If setting, the chunk deallocation function must
+        be capable of deallocating all extant chunks associated with arena
+        &lt;i&gt;, usually by passing unknown chunks to the deallocation
+        function that was replaced.  In practice, it is feasible to control
+        allocation for arenas created via <link
+        linkend="arenas.extend"><mallctl>arenas.extend</mallctl></link> such
+        that all chunks originate from an application-supplied chunk allocator
+        (by setting custom chunk allocation/deallocation functions just after
+        arena creation), but the automatically created arenas may have already
+        created chunks prior to the application having an opportunity to take
+        over chunk allocation.
+        <funcprototype>
+          <funcdef>typedef void <function>(chunk_dealloc_t)</function></funcdef>
+          <paramdef>void *<parameter>chunk</parameter></paramdef>
+          <paramdef>size_t <parameter>size</parameter></paramdef>
+          <paramdef>unsigned <parameter>arena_ind</parameter></paramdef>
+        </funcprototype>
+        A chunk deallocation function conforms to the
+        <type>chunk_dealloc_t</type> type and deallocates a
+        <parameter>chunk</parameter> of given <parameter>size</parameter> on
+        behalf of arena <parameter>arena_ind</parameter>.</para></listitem>
+      </varlistentry>
+
       <varlistentry id="arenas.narenas">
         <term>
           <mallctl>arenas.narenas</mallctl>

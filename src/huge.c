@@ -16,14 +16,15 @@ malloc_mutex_t	huge_mtx;
 static extent_tree_t	huge;
 
 void *
-huge_malloc(size_t size, bool zero, dss_prec_t dss_prec)
+huge_malloc(arena_t *arena, size_t size, bool zero, dss_prec_t dss_prec)
 {
 
-	return (huge_palloc(size, chunksize, zero, dss_prec));
+	return (huge_palloc(arena, size, chunksize, zero, dss_prec));
 }
 
 void *
-huge_palloc(size_t size, size_t alignment, bool zero, dss_prec_t dss_prec)
+huge_palloc(arena_t *arena, size_t size, size_t alignment, bool zero,
+    dss_prec_t dss_prec)
 {
 	void *ret;
 	size_t csize;
@@ -48,7 +49,7 @@ huge_palloc(size_t size, size_t alignment, bool zero, dss_prec_t dss_prec)
 	 * it is possible to make correct junk/zero fill decisions below.
 	 */
 	is_zeroed = zero;
-	ret = chunk_alloc(csize, alignment, false, &is_zeroed, dss_prec);
+	ret = chunk_alloc(arena, csize, alignment, false, &is_zeroed, dss_prec);
 	if (ret == NULL) {
 		base_node_dealloc(node);
 		return (NULL);
@@ -57,6 +58,7 @@ huge_palloc(size_t size, size_t alignment, bool zero, dss_prec_t dss_prec)
 	/* Insert node into huge. */
 	node->addr = ret;
 	node->size = csize;
+	node->arena = arena;
 
 	malloc_mutex_lock(&huge_mtx);
 	extent_tree_ad_insert(&huge, node);
@@ -96,8 +98,9 @@ huge_ralloc_no_move(void *ptr, size_t oldsize, size_t size, size_t extra)
 }
 
 void *
-huge_ralloc(void *ptr, size_t oldsize, size_t size, size_t extra,
-    size_t alignment, bool zero, bool try_tcache_dalloc, dss_prec_t dss_prec)
+huge_ralloc(arena_t *arena, void *ptr, size_t oldsize, size_t size,
+    size_t extra, size_t alignment, bool zero, bool try_tcache_dalloc,
+    dss_prec_t dss_prec)
 {
 	void *ret;
 	size_t copysize;
@@ -112,18 +115,18 @@ huge_ralloc(void *ptr, size_t oldsize, size_t size, size_t extra,
 	 * space and copying.
 	 */
 	if (alignment > chunksize)
-		ret = huge_palloc(size + extra, alignment, zero, dss_prec);
+		ret = huge_palloc(arena, size + extra, alignment, zero, dss_prec);
 	else
-		ret = huge_malloc(size + extra, zero, dss_prec);
+		ret = huge_malloc(arena, size + extra, zero, dss_prec);
 
 	if (ret == NULL) {
 		if (extra == 0)
 			return (NULL);
 		/* Try again, this time without extra. */
 		if (alignment > chunksize)
-			ret = huge_palloc(size, alignment, zero, dss_prec);
+			ret = huge_palloc(arena, size, alignment, zero, dss_prec);
 		else
-			ret = huge_malloc(size, zero, dss_prec);
+			ret = huge_malloc(arena, size, zero, dss_prec);
 
 		if (ret == NULL)
 			return (NULL);
@@ -238,7 +241,7 @@ huge_dalloc(void *ptr, bool unmap)
 	if (unmap)
 		huge_dalloc_junk(node->addr, node->size);
 
-	chunk_dealloc(node->addr, node->size, unmap);
+	chunk_dealloc(node->arena, node->addr, node->size, unmap);
 
 	base_node_dealloc(node);
 }
