@@ -24,6 +24,9 @@ struct extent_node_s {
 	/* Total region size. */
 	size_t			size;
 
+	/* Arena from which this extent came, if any */
+	arena_t			*arena;
+
 	/* True if zero-filled; used by chunk recycling code. */
 	bool			zeroed;
 };

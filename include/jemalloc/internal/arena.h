@@ -370,6 +370,12 @@ struct arena_s {
 	 */
 	arena_avail_tree_t	runs_avail;
 
+	/*
+	 * user-configureable chunk allocation and deallocation functions.
+	 */
+	chunk_alloc_t		*chunk_alloc;
+	chunk_dealloc_t		*chunk_dealloc;
+
 	/* bins is used to store trees of free regions. */
 	arena_bin_t		bins[NBINS];
 };

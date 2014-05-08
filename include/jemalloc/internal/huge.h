@@ -17,13 +17,15 @@ extern size_t		huge_allocated;
 /* Protects chunk-related data structures. */
 extern malloc_mutex_t	huge_mtx;
 
-void	*huge_malloc(size_t size, bool zero, dss_prec_t dss_prec);
-void	*huge_palloc(size_t size, size_t alignment, bool zero,
+void	*huge_malloc(arena_t *arena, size_t size, bool zero,
+    dss_prec_t dss_prec);
+void	*huge_palloc(arena_t *arena, size_t size, size_t alignment, bool zero,
     dss_prec_t dss_prec);
 bool	huge_ralloc_no_move(void *ptr, size_t oldsize, size_t size,
     size_t extra);
-void	*huge_ralloc(void *ptr, size_t oldsize, size_t size, size_t extra,
-    size_t alignment, bool zero, bool try_tcache_dalloc, dss_prec_t dss_prec);
+void	*huge_ralloc(arena_t *arena, void *ptr, size_t oldsize, size_t size,
+    size_t extra, size_t alignment, bool zero, bool try_tcache_dalloc,
+    dss_prec_t dss_prec);
 #ifdef JEMALLOC_JET
 typedef void (huge_dalloc_junk_t)(void *, size_t);
 extern huge_dalloc_junk_t *huge_dalloc_junk;

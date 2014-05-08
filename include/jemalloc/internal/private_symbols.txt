@@ -104,6 +104,7 @@ buferror
 choose_arena
 choose_arena_hard
 chunk_alloc
+chunk_alloc_default
 chunk_alloc_dss
 chunk_alloc_mmap
 chunk_boot
