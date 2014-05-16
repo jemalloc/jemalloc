@@ -189,15 +189,15 @@
 
       <para>The <function>posix_memalign<parameter/></function> function
       allocates <parameter>size</parameter> bytes of memory such that the
-      allocation's base address is an even multiple of
+      allocation's base address is a multiple of
       <parameter>alignment</parameter>, and returns the allocation in the value
       pointed to by <parameter>ptr</parameter>.  The requested
-      <parameter>alignment</parameter> must be a power of 2 at least as large
-      as <code language="C">sizeof(<type>void *</type>)</code>.</para>
+      <parameter>alignment</parameter> must be a power of 2 at least as large as
+      <code language="C">sizeof(<type>void *</type>)</code>.</para>
 
       <para>The <function>aligned_alloc<parameter/></function> function
       allocates <parameter>size</parameter> bytes of memory such that the
-      allocation's base address is an even multiple of
+      allocation's base address is a multiple of
       <parameter>alignment</parameter>.  The requested
       <parameter>alignment</parameter> must be a power of 2.  Behavior is
       undefined if <parameter>size</parameter> is not an integral multiple of
