@@ -264,7 +264,7 @@ dnl definitions need to be seen before any headers are included, which is a pain
 dnl to make happen otherwise.
 default_munmap="1"
 case "${host}" in
-  *-*-darwin*)
+  *-*-darwin* | *-*-ios*)
 	CFLAGS="$CFLAGS"
 	abi="macho"
 	AC_DEFINE([JEMALLOC_PURGE_MADVISE_FREE], [ ])
