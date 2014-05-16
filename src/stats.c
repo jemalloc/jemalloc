@@ -213,6 +213,8 @@ stats_arena_print(void (*write_cb)(void *, const char *), void *cbopaque,
 	uint64_t small_nmalloc, small_ndalloc, small_nrequests;
 	size_t large_allocated;
 	uint64_t large_nmalloc, large_ndalloc, large_nrequests;
+	size_t huge_allocated;
+	uint64_t huge_nmalloc, huge_ndalloc, huge_nrequests;
 
 	CTL_GET("arenas.page", &page, size_t);
 
@@ -249,12 +251,19 @@ stats_arena_print(void (*write_cb)(void *, const char *), void *cbopaque,
 	malloc_cprintf(write_cb, cbopaque,
 	    "large:   %12zu %12"PRIu64" %12"PRIu64" %12"PRIu64"\n",
 	    large_allocated, large_nmalloc, large_ndalloc, large_nrequests);
+	CTL_I_GET("stats.arenas.0.huge.allocated", &huge_allocated, size_t);
+	CTL_I_GET("stats.arenas.0.huge.nmalloc", &huge_nmalloc, uint64_t);
+	CTL_I_GET("stats.arenas.0.huge.ndalloc", &huge_ndalloc, uint64_t);
+	CTL_I_GET("stats.arenas.0.huge.nrequests", &huge_nrequests, uint64_t);
+	malloc_cprintf(write_cb, cbopaque,
+	    "huge:    %12zu %12"PRIu64" %12"PRIu64" %12"PRIu64"\n",
+	    huge_allocated, huge_nmalloc, huge_ndalloc, huge_nrequests);
 	malloc_cprintf(write_cb, cbopaque,
 	    "total:   %12zu %12"PRIu64" %12"PRIu64" %12"PRIu64"\n",
-	    small_allocated + large_allocated,
-	    small_nmalloc + large_nmalloc,
-	    small_ndalloc + large_ndalloc,
-	    small_nrequests + large_nrequests);
+	    small_allocated + large_allocated + huge_allocated,
+	    small_nmalloc + large_nmalloc + huge_nmalloc,
+	    small_ndalloc + large_ndalloc + huge_ndalloc,
+	    small_nrequests + large_nrequests + huge_nrequests);
 	malloc_cprintf(write_cb, cbopaque, "active:  %12zu\n", pactive * page);
 	CTL_I_GET("stats.arenas.0.mapped", &mapped, size_t);
 	malloc_cprintf(write_cb, cbopaque, "mapped:  %12zu\n", mapped);
@@ -458,8 +467,6 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		size_t allocated, active, mapped;
 		size_t chunks_current, chunks_high;
 		uint64_t chunks_total;
-		size_t huge_allocated;
-		uint64_t huge_nmalloc, huge_ndalloc;
 
 		CTL_GET("stats.cactive", &cactive, size_t *);
 		CTL_GET("stats.allocated", &allocated, size_t);
@@ -480,16 +487,6 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		malloc_cprintf(write_cb, cbopaque,
 		    "  %13"PRIu64" %12zu %12zu\n",
 		    chunks_total, chunks_high, chunks_current);
-
-		/* Print huge stats. */
-		CTL_GET("stats.huge.nmalloc", &huge_nmalloc, uint64_t);
-		CTL_GET("stats.huge.ndalloc", &huge_ndalloc, uint64_t);
-		CTL_GET("stats.huge.allocated", &huge_allocated, size_t);
-		malloc_cprintf(write_cb, cbopaque,
-		    "huge: nmalloc      ndalloc    allocated\n");
-		malloc_cprintf(write_cb, cbopaque,
-		    " %12"PRIu64" %12"PRIu64" %12zu\n",
-		    huge_nmalloc, huge_ndalloc, huge_allocated);
 
 		if (merged) {
 			unsigned narenas;

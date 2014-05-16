@@ -132,12 +132,6 @@ any of the following arguments (not a definitive list) to 'configure':
     released in bulk, thus reducing the total number of mutex operations.  See
     the "opt.tcache" option for usage details.
 
---enable-mremap
-    Enable huge realloc() via mremap(2).  mremap() is disabled by default
-    because the flavor used is specific to Linux, which has a quirk in its
-    virtual memory allocation algorithm that causes semi-permanent VM map holes
-    under normal jemalloc operation.
-
 --disable-munmap
     Disable virtual memory deallocation via munmap(2); instead keep track of
     the virtual memory for later use.  munmap() is disabled by default (i.e.

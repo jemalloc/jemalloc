@@ -200,7 +200,7 @@ chunk_alloc_mmap(size_t size, size_t alignment, bool *zero)
 }
 
 bool
-chunk_dealloc_mmap(void *chunk, size_t size)
+chunk_dalloc_mmap(void *chunk, size_t size)
 {
 
 	if (config_munmap)

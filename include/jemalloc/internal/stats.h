@@ -101,6 +101,11 @@ struct arena_stats_s {
 	uint64_t	ndalloc_large;
 	uint64_t	nrequests_large;
 
+	size_t		allocated_huge;
+	uint64_t	nmalloc_huge;
+	uint64_t	ndalloc_huge;
+	uint64_t	nrequests_huge;
+
 	/*
 	 * One element for each possible size class, including sizes that
 	 * overlap with bin size classes.  This is necessary because ipalloc()
