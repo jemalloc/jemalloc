@@ -122,13 +122,6 @@ static const bool config_prof_libunwind =
     false
 #endif
     ;
-static const bool config_mremap =
-#ifdef JEMALLOC_MREMAP
-    true
-#else
-    false
-#endif
-    ;
 static const bool config_munmap =
 #ifdef JEMALLOC_MUNMAP
     true
@@ -702,8 +695,7 @@ imalloct(size_t size, bool try_tcache, arena_t *arena)
 	if (size <= arena_maxclass)
 		return (arena_malloc(arena, size, false, try_tcache));
 	else
-		return (huge_malloc(arena, size, false,
-		    huge_dss_prec_get(arena)));
+		return (huge_malloc(arena, size, false));
 }
 
 JEMALLOC_ALWAYS_INLINE void *
@@ -720,8 +712,7 @@ icalloct(size_t size, bool try_tcache, arena_t *arena)
 	if (size <= arena_maxclass)
 		return (arena_malloc(arena, size, true, try_tcache));
 	else
-		return (huge_malloc(arena, size, true,
-		    huge_dss_prec_get(arena)));
+		return (huge_malloc(arena, size, true));
 }
 
 JEMALLOC_ALWAYS_INLINE void *
@@ -747,11 +738,9 @@ ipalloct(size_t usize, size_t alignment, bool zero, bool try_tcache,
 			ret = arena_palloc(choose_arena(arena), usize,
 			    alignment, zero);
 		} else if (alignment <= chunksize)
-			ret = huge_malloc(arena, usize, zero,
-			    huge_dss_prec_get(arena));
+			ret = huge_malloc(arena, usize, zero);
 		else
-			ret = huge_palloc(arena, usize, alignment, zero,
-			    huge_dss_prec_get(arena));
+			ret = huge_palloc(arena, usize, alignment, zero);
 	}
 
 	assert(ALIGNMENT_ADDR2BASE(ret, alignment) == ret);
@@ -833,7 +822,7 @@ idalloct(void *ptr, bool try_tcache)
 	if (chunk != ptr)
 		arena_dalloc(chunk, ptr, try_tcache);
 	else
-		huge_dalloc(ptr, true);
+		huge_dalloc(ptr);
 }
 
 JEMALLOC_ALWAYS_INLINE void
@@ -920,7 +909,7 @@ iralloct(void *ptr, size_t size, size_t extra, size_t alignment, bool zero,
 		    try_tcache_dalloc));
 	} else {
 		return (huge_ralloc(arena, ptr, oldsize, size, extra,
-		    alignment, zero, try_tcache_dalloc, huge_dss_prec_get(arena)));
+		    alignment, zero, try_tcache_dalloc));
 	}
 }
 

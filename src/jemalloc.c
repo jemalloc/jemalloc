@@ -1983,7 +1983,7 @@ a0alloc(size_t size, bool zero)
 	if (size <= arena_maxclass)
 		return (arena_malloc(arenas[0], size, zero, false));
 	else
-		return (huge_malloc(NULL, size, zero, huge_dss_prec_get(arenas[0])));
+		return (huge_malloc(NULL, size, zero));
 }
 
 void *
@@ -2012,7 +2012,7 @@ a0free(void *ptr)
 	if (chunk != ptr)
 		arena_dalloc(chunk, ptr, false);
 	else
-		huge_dalloc(ptr, true);
+		huge_dalloc(ptr);
 }
 
 /******************************************************************************/

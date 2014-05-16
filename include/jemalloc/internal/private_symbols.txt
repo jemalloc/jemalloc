@@ -5,6 +5,8 @@ arena_alloc_junk_small
 arena_bin_index
 arena_bin_info
 arena_boot
+arena_chunk_alloc_huge
+arena_chunk_dalloc_huge
 arena_dalloc
 arena_dalloc_bin
 arena_dalloc_bin_locked
@@ -86,7 +88,7 @@ base_alloc
 base_boot
 base_calloc
 base_node_alloc
-base_node_dealloc
+base_node_dalloc
 base_postfork_child
 base_postfork_parent
 base_prefork
@@ -103,13 +105,14 @@ bt_init
 buferror
 choose_arena
 choose_arena_hard
-chunk_alloc
+chunk_alloc_arena
+chunk_alloc_base
 chunk_alloc_default
 chunk_alloc_dss
 chunk_alloc_mmap
 chunk_boot
-chunk_dealloc
-chunk_dealloc_mmap
+chunk_dalloc_default
+chunk_dalloc_mmap
 chunk_dss_boot
 chunk_dss_postfork_child
 chunk_dss_postfork_parent
@@ -198,9 +201,7 @@ huge_allocated
 huge_boot
 huge_dalloc
 huge_dalloc_junk
-huge_dss_prec_get
 huge_malloc
-huge_mtx
 huge_ndalloc
 huge_nmalloc
 huge_palloc

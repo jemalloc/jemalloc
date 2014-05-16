@@ -144,13 +144,6 @@
  */
 #undef JEMALLOC_MUNMAP
 
-/*
- * If defined, use mremap(...MREMAP_FIXED...) for huge realloc().  This is
- * disabled by default because it is Linux-specific and it will cause virtual
- * memory map holes, much like munmap(2) does.
- */
-#undef JEMALLOC_MREMAP
-
 /* TLS is used to map arenas and magazine caches to threads. */
 #undef JEMALLOC_TLS
 

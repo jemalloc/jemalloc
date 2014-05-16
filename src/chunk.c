@@ -31,13 +31,12 @@ size_t		map_bias;
 size_t		arena_maxclass; /* Max size class for arenas. */
 
 /******************************************************************************/
-/* Function prototypes for non-inline static functions. */
+/*
+ * Function prototypes for static functions that are referenced prior to
+ * definition.
+ */
 
-static void	*chunk_recycle(extent_tree_t *chunks_szad,
-    extent_tree_t *chunks_ad, size_t size, size_t alignment, bool base,
-    bool *zero);
-static void	chunk_record(extent_tree_t *chunks_szad,
-    extent_tree_t *chunks_ad, void *chunk, size_t size);
+static void	chunk_dalloc_core(void *chunk, size_t size);
 
 /******************************************************************************/
 
@@ -104,7 +103,7 @@ chunk_recycle(extent_tree_t *chunks_szad, extent_tree_t *chunks_ad, size_t size,
 			malloc_mutex_unlock(&chunks_mtx);
 			node = base_node_alloc();
 			if (node == NULL) {
-				chunk_dealloc(NULL, ret, size, true);
+				chunk_dalloc_core(ret, size);
 				return (NULL);
 			}
 			malloc_mutex_lock(&chunks_mtx);
@@ -119,7 +118,7 @@ chunk_recycle(extent_tree_t *chunks_szad, extent_tree_t *chunks_ad, size_t size,
 	malloc_mutex_unlock(&chunks_mtx);
 
 	if (node != NULL)
-		base_node_dealloc(node);
+		base_node_dalloc(node);
 	if (*zero) {
 		if (zeroed == false)
 			memset(ret, 0, size);
@@ -179,9 +178,73 @@ chunk_alloc_core(size_t size, size_t alignment, bool base, bool *zero,
 	return (NULL);
 }
 
-/*
- * Default arena chunk allocation routine in the absence of user-override.
- */
+static bool
+chunk_register(void *chunk, size_t size, bool base)
+{
+
+	assert(chunk != NULL);
+	assert(CHUNK_ADDR2BASE(chunk) == chunk);
+
+	if (config_ivsalloc && base == false) {
+		if (rtree_set(chunks_rtree, (uintptr_t)chunk, 1))
+			return (true);
+	}
+	if (config_stats || config_prof) {
+		bool gdump;
+		malloc_mutex_lock(&chunks_mtx);
+		if (config_stats)
+			stats_chunks.nchunks += (size / chunksize);
+		stats_chunks.curchunks += (size / chunksize);
+		if (stats_chunks.curchunks > stats_chunks.highchunks) {
+			stats_chunks.highchunks =
+			    stats_chunks.curchunks;
+			if (config_prof)
+				gdump = true;
+		} else if (config_prof)
+			gdump = false;
+		malloc_mutex_unlock(&chunks_mtx);
+		if (config_prof && opt_prof && opt_prof_gdump && gdump)
+			prof_gdump();
+	}
+	if (config_valgrind)
+		JEMALLOC_VALGRIND_MAKE_MEM_UNDEFINED(chunk, size);
+	return (false);
+}
+
+void *
+chunk_alloc_base(size_t size)
+{
+	void *ret;
+	bool zero;
+
+	zero = false;
+	ret = chunk_alloc_core(size, chunksize, true, &zero,
+	    chunk_dss_prec_get());
+	if (ret == NULL)
+		return (NULL);
+	if (chunk_register(ret, size, true)) {
+		chunk_dalloc_core(ret, size);
+		return (NULL);
+	}
+	return (ret);
+}
+
+void *
+chunk_alloc_arena(chunk_alloc_t *chunk_alloc, chunk_dalloc_t *chunk_dalloc,
+    unsigned arena_ind, size_t size, size_t alignment, bool *zero)
+{
+	void *ret;
+
+	ret = chunk_alloc(size, alignment, zero, arena_ind);
+	if (ret != NULL && chunk_register(ret, size, false)) {
+		chunk_dalloc(ret, size, arena_ind);
+		ret = NULL;
+	}
+
+	return (ret);
+}
+
+/* Default arena chunk allocation routine in the absence of user override. */
 void *
 chunk_alloc_default(size_t size, size_t alignment, bool *zero,
     unsigned arena_ind)
@@ -189,48 +252,6 @@ chunk_alloc_default(size_t size, size_t alignment, bool *zero,
 
 	return (chunk_alloc_core(size, alignment, false, zero,
 	    arenas[arena_ind]->dss_prec));
-}
-
-void *
-chunk_alloc(arena_t *arena, size_t size, size_t alignment, bool base,
-    bool *zero, dss_prec_t dss_prec)
-{
-	void *ret;
-
-	if (arena)
-		ret = arena->chunk_alloc(size, alignment, zero, arena->ind);
-	else
-		ret = chunk_alloc_core(size, alignment, base, zero, dss_prec);
-
-	if (ret != NULL) {
-		if (config_ivsalloc && base == false) {
-			if (rtree_set(chunks_rtree, (uintptr_t)ret, 1)) {
-				chunk_dealloc(arena, ret, size, true);
-				return (NULL);
-			}
-		}
-		if (config_stats || config_prof) {
-			bool gdump;
-			malloc_mutex_lock(&chunks_mtx);
-			if (config_stats)
-				stats_chunks.nchunks += (size / chunksize);
-			stats_chunks.curchunks += (size / chunksize);
-			if (stats_chunks.curchunks > stats_chunks.highchunks) {
-				stats_chunks.highchunks =
-				    stats_chunks.curchunks;
-				if (config_prof)
-					gdump = true;
-			} else if (config_prof)
-				gdump = false;
-			malloc_mutex_unlock(&chunks_mtx);
-			if (config_prof && opt_prof && opt_prof_gdump && gdump)
-				prof_gdump();
-		}
-		if (config_valgrind)
-			JEMALLOC_VALGRIND_MAKE_MEM_UNDEFINED(ret, size);
-	}
-	assert(CHUNK_ADDR2BASE(ret) == ret);
-	return (ret);
 }
 
 static void
@@ -316,9 +337,9 @@ label_return:
 	 * avoid potential deadlock.
 	 */
 	if (xnode != NULL)
-		base_node_dealloc(xnode);
+		base_node_dalloc(xnode);
 	if (xprev != NULL)
-		base_node_dealloc(xprev);
+		base_node_dalloc(xprev);
 }
 
 void
@@ -331,12 +352,12 @@ chunk_unmap(void *chunk, size_t size)
 
 	if (have_dss && chunk_in_dss(chunk))
 		chunk_record(&chunks_szad_dss, &chunks_ad_dss, chunk, size);
-	else if (chunk_dealloc_mmap(chunk, size))
+	else if (chunk_dalloc_mmap(chunk, size))
 		chunk_record(&chunks_szad_mmap, &chunks_ad_mmap, chunk, size);
 }
 
-void
-chunk_dealloc(arena_t *arena, void *chunk, size_t size, bool unmap)
+static void
+chunk_dalloc_core(void *chunk, size_t size)
 {
 
 	assert(chunk != NULL);
@@ -353,12 +374,16 @@ chunk_dealloc(arena_t *arena, void *chunk, size_t size, bool unmap)
 		malloc_mutex_unlock(&chunks_mtx);
 	}
 
-	if (unmap) {
-		if (arena)
-			arena->chunk_dealloc(chunk, size, arena->ind);
-		else
-			chunk_unmap(chunk, size);
-	}
+	chunk_unmap(chunk, size);
+}
+
+/* Default arena chunk deallocation routine in the absence of user override. */
+bool
+chunk_dalloc_default(void *chunk, size_t size, unsigned arena_ind)
+{
+
+	chunk_dalloc_core(chunk, size);
+	return (false);
 }
 
 bool

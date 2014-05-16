@@ -43,12 +43,14 @@ extern size_t		chunk_npages;
 extern size_t		map_bias; /* Number of arena chunk header pages. */
 extern size_t		arena_maxclass; /* Max size class for arenas. */
 
-void	*chunk_alloc(arena_t *arena, size_t size, size_t alignment, bool base,
-    bool *zero, dss_prec_t dss_prec);
+void	*chunk_alloc_base(size_t size);
+void	*chunk_alloc_arena(chunk_alloc_t *chunk_alloc,
+    chunk_dalloc_t *chunk_dalloc, unsigned arena_ind, size_t size,
+    size_t alignment, bool *zero);
 void	*chunk_alloc_default(size_t size, size_t alignment, bool *zero,
     unsigned arena_ind);
 void	chunk_unmap(void *chunk, size_t size);
-void	chunk_dealloc(arena_t *arena, void *chunk, size_t size, bool unmap);
+bool	chunk_dalloc_default(void *chunk, size_t size, unsigned arena_ind);
 bool	chunk_boot(void);
 void	chunk_prefork(void);
 void	chunk_postfork_parent(void);

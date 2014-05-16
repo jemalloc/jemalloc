@@ -793,33 +793,6 @@ if test "x$enable_tcache" = "x1" ; then
 fi
 AC_SUBST([enable_tcache])
 
-dnl Disable mremap() for huge realloc() by default.
-AC_ARG_ENABLE([mremap],
-  [AS_HELP_STRING([--enable-mremap], [Enable mremap(2) for huge realloc()])],
-[if test "x$enable_mremap" = "xno" ; then
-  enable_mremap="0"
-else
-  enable_mremap="1"
-fi
-],
-[enable_mremap="0"]
-)
-if test "x$enable_mremap" = "x1" ; then
-  JE_COMPILABLE([mremap(...MREMAP_FIXED...)], [
-#define	_GNU_SOURCE
-#include <sys/mman.h>
-], [
-void *p = mremap((void *)0, 0, 0, MREMAP_MAYMOVE|MREMAP_FIXED, (void *)0);
-], [je_cv_mremap_fixed])
-  if test "x${je_cv_mremap_fixed}" = "xno" ; then
-    enable_mremap="0"
-  fi
-fi
-if test "x$enable_mremap" = "x1" ; then
-  AC_DEFINE([JEMALLOC_MREMAP], [ ])
-fi
-AC_SUBST([enable_mremap])
-
 dnl Enable VM deallocation via munmap() by default.
 AC_ARG_ENABLE([munmap],
   [AS_HELP_STRING([--disable-munmap], [Disable VM deallocation via munmap(2)])],
@@ -1447,7 +1420,6 @@ AC_MSG_RESULT([fill               : ${enable_fill}])
 AC_MSG_RESULT([utrace             : ${enable_utrace}])
 AC_MSG_RESULT([valgrind           : ${enable_valgrind}])
 AC_MSG_RESULT([xmalloc            : ${enable_xmalloc}])
-AC_MSG_RESULT([mremap             : ${enable_mremap}])
 AC_MSG_RESULT([munmap             : ${enable_munmap}])
 AC_MSG_RESULT([lazy_lock          : ${enable_lazy_lock}])
 AC_MSG_RESULT([tls                : ${enable_tls}])

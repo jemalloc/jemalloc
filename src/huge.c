@@ -4,11 +4,8 @@
 /******************************************************************************/
 /* Data. */
 
-uint64_t	huge_nmalloc;
-uint64_t	huge_ndalloc;
-size_t		huge_allocated;
-
-malloc_mutex_t	huge_mtx;
+/* Protects chunk-related data structures. */
+static malloc_mutex_t	huge_mtx;
 
 /******************************************************************************/
 
@@ -16,15 +13,14 @@ malloc_mutex_t	huge_mtx;
 static extent_tree_t	huge;
 
 void *
-huge_malloc(arena_t *arena, size_t size, bool zero, dss_prec_t dss_prec)
+huge_malloc(arena_t *arena, size_t size, bool zero)
 {
 
-	return (huge_palloc(arena, size, chunksize, zero, dss_prec));
+	return (huge_palloc(arena, size, chunksize, zero));
 }
 
 void *
-huge_palloc(arena_t *arena, size_t size, size_t alignment, bool zero,
-    dss_prec_t dss_prec)
+huge_palloc(arena_t *arena, size_t size, size_t alignment, bool zero)
 {
 	void *ret;
 	size_t csize;
@@ -49,9 +45,10 @@ huge_palloc(arena_t *arena, size_t size, size_t alignment, bool zero,
 	 * it is possible to make correct junk/zero fill decisions below.
 	 */
 	is_zeroed = zero;
-	ret = chunk_alloc(arena, csize, alignment, false, &is_zeroed, dss_prec);
+	arena = choose_arena(arena);
+	ret = arena_chunk_alloc_huge(arena, csize, alignment, &is_zeroed);
 	if (ret == NULL) {
-		base_node_dealloc(node);
+		base_node_dalloc(node);
 		return (NULL);
 	}
 
@@ -62,11 +59,6 @@ huge_palloc(arena_t *arena, size_t size, size_t alignment, bool zero,
 
 	malloc_mutex_lock(&huge_mtx);
 	extent_tree_ad_insert(&huge, node);
-	if (config_stats) {
-		stats_cactive_add(csize);
-		huge_nmalloc++;
-		huge_allocated += csize;
-	}
 	malloc_mutex_unlock(&huge_mtx);
 
 	if (config_fill && zero == false) {
@@ -99,8 +91,7 @@ huge_ralloc_no_move(void *ptr, size_t oldsize, size_t size, size_t extra)
 
 void *
 huge_ralloc(arena_t *arena, void *ptr, size_t oldsize, size_t size,
-    size_t extra, size_t alignment, bool zero, bool try_tcache_dalloc,
-    dss_prec_t dss_prec)
+    size_t extra, size_t alignment, bool zero, bool try_tcache_dalloc)
 {
 	void *ret;
 	size_t copysize;
@@ -115,18 +106,18 @@ huge_ralloc(arena_t *arena, void *ptr, size_t oldsize, size_t size,
 	 * space and copying.
 	 */
 	if (alignment > chunksize)
-		ret = huge_palloc(arena, size + extra, alignment, zero, dss_prec);
+		ret = huge_palloc(arena, size + extra, alignment, zero);
 	else
-		ret = huge_malloc(arena, size + extra, zero, dss_prec);
+		ret = huge_malloc(arena, size + extra, zero);
 
 	if (ret == NULL) {
 		if (extra == 0)
 			return (NULL);
 		/* Try again, this time without extra. */
 		if (alignment > chunksize)
-			ret = huge_palloc(arena, size, alignment, zero, dss_prec);
+			ret = huge_palloc(arena, size, alignment, zero);
 		else
-			ret = huge_malloc(arena, size, zero, dss_prec);
+			ret = huge_malloc(arena, size, zero);
 
 		if (ret == NULL)
 			return (NULL);
@@ -137,59 +128,8 @@ huge_ralloc(arena_t *arena, void *ptr, size_t oldsize, size_t size,
 	 * expectation that the extra bytes will be reliably preserved.
 	 */
 	copysize = (size < oldsize) ? size : oldsize;
-
-#ifdef JEMALLOC_MREMAP
-	/*
-	 * Use mremap(2) if this is a huge-->huge reallocation, and neither the
-	 * source nor the destination are in dss.
-	 */
-	if (oldsize >= chunksize && (have_dss == false || (chunk_in_dss(ptr)
-	    == false && chunk_in_dss(ret) == false))) {
-		size_t newsize = huge_salloc(ret);
-
-		/*
-		 * Remove ptr from the tree of huge allocations before
-		 * performing the remap operation, in order to avoid the
-		 * possibility of another thread acquiring that mapping before
-		 * this one removes it from the tree.
-		 */
-		huge_dalloc(ptr, false);
-		if (mremap(ptr, oldsize, newsize, MREMAP_MAYMOVE|MREMAP_FIXED,
-		    ret) == MAP_FAILED) {
-			/*
-			 * Assuming no chunk management bugs in the allocator,
-			 * the only documented way an error can occur here is
-			 * if the application changed the map type for a
-			 * portion of the old allocation.  This is firmly in
-			 * undefined behavior territory, so write a diagnostic
-			 * message, and optionally abort.
-			 */
-			char buf[BUFERROR_BUF];
-
-			buferror(get_errno(), buf, sizeof(buf));
-			malloc_printf("<jemalloc>: Error in mremap(): %s\n",
-			    buf);
-			if (opt_abort)
-				abort();
-			memcpy(ret, ptr, copysize);
-			chunk_dealloc_mmap(ptr, oldsize);
-		} else if (config_fill && zero == false && opt_junk && oldsize
-		    < newsize) {
-			/*
-			 * mremap(2) clobbers the original mapping, so
-			 * junk/zero filling is not preserved.  There is no
-			 * need to zero fill here, since any trailing
-			 * uninititialized memory is demand-zeroed by the
-			 * kernel, but junk filling must be redone.
-			 */
-			memset(ret + oldsize, 0xa5, newsize - oldsize);
-		}
-	} else
-#endif
-	{
-		memcpy(ret, ptr, copysize);
-		iqalloct(ptr, try_tcache_dalloc);
-	}
+	memcpy(ret, ptr, copysize);
+	iqalloct(ptr, try_tcache_dalloc);
 	return (ret);
 }
 
@@ -217,7 +157,7 @@ huge_dalloc_junk_t *huge_dalloc_junk = JEMALLOC_N(huge_dalloc_junk_impl);
 #endif
 
 void
-huge_dalloc(void *ptr, bool unmap)
+huge_dalloc(void *ptr)
 {
 	extent_node_t *node, key;
 
@@ -230,20 +170,11 @@ huge_dalloc(void *ptr, bool unmap)
 	assert(node->addr == ptr);
 	extent_tree_ad_remove(&huge, node);
 
-	if (config_stats) {
-		stats_cactive_sub(node->size);
-		huge_ndalloc++;
-		huge_allocated -= node->size;
-	}
-
 	malloc_mutex_unlock(&huge_mtx);
 
-	if (unmap)
-		huge_dalloc_junk(node->addr, node->size);
-
-	chunk_dealloc(node->arena, node->addr, node->size, unmap);
-
-	base_node_dealloc(node);
+	huge_dalloc_junk(node->addr, node->size);
+	arena_chunk_dalloc_huge(node->arena, node->addr, node->size);
+	base_node_dalloc(node);
 }
 
 size_t
@@ -264,13 +195,6 @@ huge_salloc(const void *ptr)
 	malloc_mutex_unlock(&huge_mtx);
 
 	return (ret);
-}
-
-dss_prec_t
-huge_dss_prec_get(arena_t *arena)
-{
-
-	return (arena_dss_prec_get(choose_arena(arena)));
 }
 
 prof_ctx_t *
@@ -318,12 +242,6 @@ huge_boot(void)
 	if (malloc_mutex_init(&huge_mtx))
 		return (true);
 	extent_tree_ad_new(&huge);
-
-	if (config_stats) {
-		huge_nmalloc = 0;
-		huge_ndalloc = 0;
-		huge_allocated = 0;
-	}
 
 	return (false);
 }

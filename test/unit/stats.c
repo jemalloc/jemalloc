@@ -60,7 +60,7 @@ TEST_BEGIN(test_stats_huge)
 	void *p;
 	uint64_t epoch;
 	size_t allocated;
-	uint64_t nmalloc, ndalloc;
+	uint64_t nmalloc, ndalloc, nrequests;
 	size_t sz;
 	int expected = config_stats ? 0 : ENOENT;
 
@@ -71,19 +71,23 @@ TEST_BEGIN(test_stats_huge)
 	    "Unexpected mallctl() failure");
 
 	sz = sizeof(size_t);
-	assert_d_eq(mallctl("stats.huge.allocated", &allocated, &sz, NULL, 0),
-	    expected, "Unexpected mallctl() result");
+	assert_d_eq(mallctl("stats.arenas.0.huge.allocated", &allocated, &sz,
+	    NULL, 0), expected, "Unexpected mallctl() result");
 	sz = sizeof(uint64_t);
-	assert_d_eq(mallctl("stats.huge.nmalloc", &nmalloc, &sz, NULL, 0),
-	    expected, "Unexpected mallctl() result");
-	assert_d_eq(mallctl("stats.huge.ndalloc", &ndalloc, &sz, NULL, 0),
-	    expected, "Unexpected mallctl() result");
+	assert_d_eq(mallctl("stats.arenas.0.huge.nmalloc", &nmalloc, &sz, NULL,
+	    0), expected, "Unexpected mallctl() result");
+	assert_d_eq(mallctl("stats.arenas.0.huge.ndalloc", &ndalloc, &sz, NULL,
+	    0), expected, "Unexpected mallctl() result");
+	assert_d_eq(mallctl("stats.arenas.0.huge.nrequests", &nrequests, &sz,
+	    NULL, 0), expected, "Unexpected mallctl() result");
 
 	if (config_stats) {
 		assert_zu_gt(allocated, 0,
 		    "allocated should be greater than zero");
 		assert_u64_ge(nmalloc, ndalloc,
 		    "nmalloc should be at least as large as ndalloc");
+		assert_u64_le(nmalloc, nrequests,
+		    "nmalloc should no larger than nrequests");
 	}
 
 	dallocx(p, 0);

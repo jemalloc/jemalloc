@@ -345,7 +345,7 @@ struct arena_s {
 	 */
 	arena_chunk_t		*spare;
 
-	/* Number of pages in active runs. */
+	/* Number of pages in active runs and huge regions. */
 	size_t			nactive;
 
 	/*
@@ -374,7 +374,7 @@ struct arena_s {
 	 * user-configureable chunk allocation and deallocation functions.
 	 */
 	chunk_alloc_t		*chunk_alloc;
-	chunk_dealloc_t		*chunk_dealloc;
+	chunk_dalloc_t		*chunk_dalloc;
 
 	/* bins is used to store trees of free regions. */
 	arena_bin_t		bins[NBINS];
@@ -403,6 +403,9 @@ extern arena_bin_info_t	arena_bin_info[NBINS];
 /* Number of large size classes. */
 #define			nlclasses (chunk_npages - map_bias)
 
+void	*arena_chunk_alloc_huge(arena_t *arena, size_t size, size_t alignment,
+    bool *zero);
+void	arena_chunk_dalloc_huge(arena_t *arena, void *chunk, size_t size);
 void	arena_purge_all(arena_t *arena);
 void	arena_tcache_fill_small(arena_t *arena, tcache_bin_t *tbin,
     size_t binind, uint64_t prof_accumbytes);

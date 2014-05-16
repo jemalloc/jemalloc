@@ -486,10 +486,11 @@ for (i = 0; i < nbins; i++) {
     <para>User objects are broken into three categories according to size:
     small, large, and huge.  Small objects are smaller than one page.  Large
     objects are smaller than the chunk size.  Huge objects are a multiple of
-    the chunk size.  Small and large objects are managed by arenas; huge
-    objects are managed separately in a single data structure that is shared by
-    all threads.  Huge objects are used by applications infrequently enough
-    that this single data structure is not a scalability issue.</para>
+    the chunk size.  Small and large objects are managed entirely by arenas;
+    huge objects are additionally aggregated in a single data structure that is
+    shared by all threads.  Huge objects are typically used by applications
+    infrequently enough that this single data structure is not a scalability
+    issue.</para>
 
     <para>Each chunk that is managed by an arena tracks its contents as runs of
     contiguous pages (unused, backing a set of small objects, or backing one
@@ -645,16 +646,6 @@ for (i = 0; i < nbins; i++) {
         </term>
         <listitem><para><option>--enable-lazy-lock</option> was specified
         during build configuration.</para></listitem>
-      </varlistentry>
-
-      <varlistentry id="config.mremap">
-        <term>
-          <mallctl>config.mremap</mallctl>
-          (<type>bool</type>)
-          <literal>r-</literal>
-        </term>
-        <listitem><para><option>--enable-mremap</option> was specified during
-        build configuration.</para></listitem>
       </varlistentry>
 
       <varlistentry id="config.munmap">
@@ -1273,14 +1264,9 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         <listitem><para>Set the precedence of dss allocation as related to mmap
         allocation for arena &lt;i&gt;, or for all arenas if &lt;i&gt; equals
         <link
-        linkend="arenas.narenas"><mallctl>arenas.narenas</mallctl></link>.  Note
-        that even during huge allocation this setting is read from the arena
-        that would be chosen for small or large allocation so that applications
-        can depend on consistent dss versus mmap allocation regardless of
-        allocation size.  See <link
-        linkend="opt.dss"><mallctl>opt.dss</mallctl></link> for supported
-        settings.
-        </para></listitem>
+        linkend="arenas.narenas"><mallctl>arenas.narenas</mallctl></link>.  See
+        <link linkend="opt.dss"><mallctl>opt.dss</mallctl></link> for supported
+        settings.</para></listitem>
       </varlistentry>
 
       <varlistentry id="arena.i.chunk.alloc">
@@ -1291,8 +1277,8 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         </term>
         <listitem><para>Get or set the chunk allocation function for arena
         &lt;i&gt;.  If setting, the chunk deallocation function should
-        also be set via <link linkend="arena.i.chunk.dealloc">
-        <mallctl>arena.&lt;i&gt;.chunk.dealloc</mallctl></link> to a companion
+        also be set via <link linkend="arena.i.chunk.dalloc">
+        <mallctl>arena.&lt;i&gt;.chunk.dalloc</mallctl></link> to a companion
         function that knows how to deallocate the chunks.
         <funcprototype>
           <funcdef>typedef void *<function>(chunk_alloc_t)</function></funcdef>
@@ -1313,13 +1299,18 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         size.  The <parameter>alignment</parameter> parameter is always a power
         of two at least as large as the chunk size.  Zeroing is mandatory if
         <parameter>*zero</parameter> is true upon function
-        entry.</para></listitem>
+        entry.</para>
+
+        <para>Note that replacing the default chunk allocation function makes
+        the arena's <link
+        linkend="arena.i.dss"><mallctl>arena.&lt;i&gt;.dss</mallctl></link>
+        setting irrelevant.</para></listitem>
       </varlistentry>
 
-      <varlistentry id="arena.i.chunk.dealloc">
+      <varlistentry id="arena.i.chunk.dalloc">
         <term>
-          <mallctl>arena.&lt;i&gt;.chunk.dealloc</mallctl>
-          (<type>chunk_dealloc_t *</type>)
+          <mallctl>arena.&lt;i&gt;.chunk.dalloc</mallctl>
+          (<type>chunk_dalloc_t *</type>)
           <literal>rw</literal>
         </term>
         <listitem><para>Get or set the chunk deallocation function for arena
@@ -1335,13 +1326,13 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         created chunks prior to the application having an opportunity to take
         over chunk allocation.
         <funcprototype>
-          <funcdef>typedef void <function>(chunk_dealloc_t)</function></funcdef>
+          <funcdef>typedef void <function>(chunk_dalloc_t)</function></funcdef>
           <paramdef>void *<parameter>chunk</parameter></paramdef>
           <paramdef>size_t <parameter>size</parameter></paramdef>
           <paramdef>unsigned <parameter>arena_ind</parameter></paramdef>
         </funcprototype>
         A chunk deallocation function conforms to the
-        <type>chunk_dealloc_t</type> type and deallocates a
+        <type>chunk_dalloc_t</type> type and deallocates a
         <parameter>chunk</parameter> of given <parameter>size</parameter> on
         behalf of arena <parameter>arena_ind</parameter>.</para></listitem>
       </varlistentry>
@@ -1608,39 +1599,6 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         </para></listitem>
       </varlistentry>
 
-      <varlistentry id="stats.huge.allocated">
-        <term>
-          <mallctl>stats.huge.allocated</mallctl>
-          (<type>size_t</type>)
-          <literal>r-</literal>
-          [<option>--enable-stats</option>]
-        </term>
-        <listitem><para>Number of bytes currently allocated by huge objects.
-        </para></listitem>
-      </varlistentry>
-
-      <varlistentry id="stats.huge.nmalloc">
-        <term>
-          <mallctl>stats.huge.nmalloc</mallctl>
-          (<type>uint64_t</type>)
-          <literal>r-</literal>
-          [<option>--enable-stats</option>]
-        </term>
-        <listitem><para>Cumulative number of huge allocation requests.
-        </para></listitem>
-      </varlistentry>
-
-      <varlistentry id="stats.huge.ndalloc">
-        <term>
-          <mallctl>stats.huge.ndalloc</mallctl>
-          (<type>uint64_t</type>)
-          <literal>r-</literal>
-          [<option>--enable-stats</option>]
-        </term>
-        <listitem><para>Cumulative number of huge deallocation requests.
-        </para></listitem>
-      </varlistentry>
-
       <varlistentry id="stats.arenas.i.dss">
         <term>
           <mallctl>stats.arenas.&lt;i&gt;.dss</mallctl>
@@ -1814,6 +1772,50 @@ malloc_conf = "xmalloc:true";]]></programlisting>
           [<option>--enable-stats</option>]
         </term>
         <listitem><para>Cumulative number of large allocation requests.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry id="stats.arenas.i.huge.allocated">
+        <term>
+          <mallctl>stats.arenas.&lt;i&gt;.huge.allocated</mallctl>
+          (<type>size_t</type>)
+          <literal>r-</literal>
+          [<option>--enable-stats</option>]
+        </term>
+        <listitem><para>Number of bytes currently allocated by huge objects.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry id="stats.arenas.i.huge.nmalloc">
+        <term>
+          <mallctl>stats.arenas.&lt;i&gt;.huge.nmalloc</mallctl>
+          (<type>uint64_t</type>)
+          <literal>r-</literal>
+          [<option>--enable-stats</option>]
+        </term>
+        <listitem><para>Cumulative number of huge allocation requests served
+        directly by the arena.</para></listitem>
+      </varlistentry>
+
+      <varlistentry id="stats.arenas.i.huge.ndalloc">
+        <term>
+          <mallctl>stats.arenas.&lt;i&gt;.huge.ndalloc</mallctl>
+          (<type>uint64_t</type>)
+          <literal>r-</literal>
+          [<option>--enable-stats</option>]
+        </term>
+        <listitem><para>Cumulative number of huge deallocation requests served
+        directly by the arena.</para></listitem>
+      </varlistentry>
+
+      <varlistentry id="stats.arenas.i.huge.nrequests">
+        <term>
+          <mallctl>stats.arenas.&lt;i&gt;.huge.nrequests</mallctl>
+          (<type>uint64_t</type>)
+          <literal>r-</literal>
+          [<option>--enable-stats</option>]
+        </term>
+        <listitem><para>Cumulative number of huge allocation requests.
         </para></listitem>
       </varlistentry>
 
