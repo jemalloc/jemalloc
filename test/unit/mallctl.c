@@ -285,7 +285,7 @@ TEST_BEGIN(test_arenas_initialized)
 	assert_d_eq(mallctl("arenas.narenas", &narenas, &sz, NULL, 0), 0,
 	    "Unexpected mallctl() failure");
 	{
-		bool initialized[narenas];
+		VARIABLE_ARRAY(bool, initialized, narenas);
 
 		sz = narenas * sizeof(bool);
 		assert_d_eq(mallctl("arenas.initialized", initialized, &sz,
