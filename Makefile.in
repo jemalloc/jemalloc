@@ -219,7 +219,7 @@ $(TESTS_STRESS_OBJS): CPPFLAGS += -DJEMALLOC_STRESS_TEST
 $(TESTS_OBJS): $(objroot)test/%.$(O): $(srcroot)test/%.c
 $(TESTS_OBJS): CPPFLAGS += -I$(srcroot)test/include -I$(objroot)test/include
 ifneq ($(IMPORTLIB),$(SO))
-$(C_OBJS): CPPFLAGS += -DDLLEXPORT
+$(C_OBJS) $(C_JET_OBJS): CPPFLAGS += -DDLLEXPORT
 endif
 
 ifndef CC_MM
