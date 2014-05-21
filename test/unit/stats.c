@@ -97,7 +97,7 @@ TEST_END
 TEST_BEGIN(test_stats_arenas_summary)
 {
 	unsigned arena;
-	void *small, *large;
+	void *little, *large;
 	uint64_t epoch;
 	size_t sz;
 	int expected = config_stats ? 0 : ENOENT;
@@ -108,8 +108,8 @@ TEST_BEGIN(test_stats_arenas_summary)
 	assert_d_eq(mallctl("thread.arena", NULL, NULL, &arena, sizeof(arena)),
 	    0, "Unexpected mallctl() failure");
 
-	small = mallocx(SMALL_MAXCLASS, 0);
-	assert_ptr_not_null(small, "Unexpected mallocx() failure");
+	little = mallocx(SMALL_MAXCLASS, 0);
+	assert_ptr_not_null(little, "Unexpected mallocx() failure");
 	large = mallocx(arena_maxclass, 0);
 	assert_ptr_not_null(large, "Unexpected mallocx() failure");
 
@@ -137,7 +137,7 @@ TEST_BEGIN(test_stats_arenas_summary)
 		    "nmadvise should be no greater than purged");
 	}
 
-	dallocx(small, 0);
+	dallocx(little, 0);
 	dallocx(large, 0);
 }
 TEST_END
