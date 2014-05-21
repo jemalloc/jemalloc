@@ -213,7 +213,7 @@ define make-unit-link-dep
 $(1): TESTS_UNIT_LINK_OBJS += $(2)
 $(1): $(2)
 endef
-$(foreach test, $(TESTS_UNIT:$(srcroot)test/unit/%.c=$(objroot)test/unit/%$(EXE)), $(eval $(call make-unit-link-dep,$(test),$(filter $(test:%=%_a.$(O)) $(test:%=%_b.$(O)),$(TESTS_UNIT_AUX_OBJS)))))
+$(foreach test, $(TESTS_UNIT:$(srcroot)test/unit/%.c=$(objroot)test/unit/%$(EXE)), $(eval $(call make-unit-link-dep,$(test),$(filter $(test:%$(EXE)=%_a.$(O)) $(test:%$(EXE)=%_b.$(O)),$(TESTS_UNIT_AUX_OBJS)))))
 $(TESTS_INTEGRATION_OBJS): CPPFLAGS += -DJEMALLOC_INTEGRATION_TEST
 $(TESTS_STRESS_OBJS): CPPFLAGS += -DJEMALLOC_STRESS_TEST
 $(TESTS_OBJS): $(objroot)test/%.$(O): $(srcroot)test/%.c
