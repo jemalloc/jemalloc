@@ -228,7 +228,7 @@ HEADER_DIRS = $(srcroot)include/jemalloc/internal \
 	$(objroot)include/jemalloc $(objroot)include/jemalloc/internal
 HEADERS = $(wildcard $(foreach dir,$(HEADER_DIRS),$(dir)/*.h))
 $(C_OBJS) $(C_PIC_OBJS) $(C_JET_OBJS) $(C_TESTLIB_OBJS) $(TESTS_OBJS): $(HEADERS)
-$(TESTS_OBJS): $(objroot)test/unit/jemalloc_test.h
+$(TESTS_OBJS): $(objroot)test/include/test/jemalloc_test.h
 endif
 
 $(C_OBJS) $(C_PIC_OBJS) $(C_JET_OBJS) $(C_TESTLIB_OBJS) $(TESTS_OBJS): %.$(O):
