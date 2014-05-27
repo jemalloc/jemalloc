@@ -258,7 +258,6 @@ dnl Define cpp macros in CPPFLAGS, rather than doing AC_DEFINE(macro), since the
 dnl definitions need to be seen before any headers are included, which is a pain
 dnl to make happen otherwise.
 default_munmap="1"
-JEMALLOC_USABLE_SIZE_CONST="const"
 case "${host}" in
   *-*-darwin*)
 	CFLAGS="$CFLAGS"
@@ -286,7 +285,6 @@ case "${host}" in
 	AC_DEFINE([JEMALLOC_HAS_ALLOCA_H])
 	AC_DEFINE([JEMALLOC_PURGE_MADVISE_DONTNEED], [ ])
 	AC_DEFINE([JEMALLOC_THREADED_INIT], [ ])
-	JEMALLOC_USABLE_SIZE_CONST=""
 	default_munmap="0"
 	;;
   *-*-netbsd*)
@@ -351,6 +349,22 @@ case "${host}" in
 	abi="elf"
 	;;
 esac
+
+JEMALLOC_USABLE_SIZE_CONST=const
+AC_CHECK_HEADERS([malloc.h], [
+  AC_MSG_CHECKING([whether malloc_usable_size definition can use const argument])
+  AC_COMPILE_IFELSE([AC_LANG_PROGRAM(
+    [#include <malloc.h>
+     #include <stddef.h>
+    size_t malloc_usable_size(const void *ptr);
+    ],
+    [])],[
+                AC_MSG_RESULT([yes])
+         ],[
+                JEMALLOC_USABLE_SIZE_CONST=
+                AC_MSG_RESULT([no])
+         ])
+])
 AC_DEFINE_UNQUOTED([JEMALLOC_USABLE_SIZE_CONST], [$JEMALLOC_USABLE_SIZE_CONST])
 AC_SUBST([abi])
 AC_SUBST([RPATH])
