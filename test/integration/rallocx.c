@@ -95,7 +95,7 @@ TEST_BEGIN(test_zero)
 				    "Expected zeroed memory");
 			}
 			if (psz != qsz) {
-				memset((void *)(uintptr_t)q+psz, FILL_BYTE,
+				memset((void *)((uintptr_t)q+psz), FILL_BYTE,
 				    qsz-psz);
 				psz = qsz;
 			}
@@ -161,7 +161,7 @@ TEST_BEGIN(test_lg_align_and_zero)
 			assert_false(validate_fill(q, 0, 0, MAX_VALIDATE),
 			    "Expected zeroed memory");
 			assert_false(validate_fill(
-			    (void *)(uintptr_t)q+sz-MAX_VALIDATE,
+			    (void *)((uintptr_t)q+sz-MAX_VALIDATE),
 			    0, 0, MAX_VALIDATE), "Expected zeroed memory");
 		}
 		p = q;
