@@ -49,7 +49,3 @@
 #ifndef JEMALLOC_HAS_RESTRICT
 #  define restrict
 #endif
-
-#ifdef _MSC_VER
-#  define __func__ __FUNCTION__
-#endif
