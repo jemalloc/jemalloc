@@ -63,9 +63,22 @@ p_test_fini(void)
 test_status_t
 p_test(test_t *t, ...)
 {
-	test_status_t ret = test_status_pass;
+	test_status_t ret;
 	va_list ap;
 
+	/*
+	 * Make sure initialization occurs prior to running tests.  Tests are
+	 * special because they may use internal facilities prior to triggering
+	 * initialization as a side effect of calling into the public API.  This
+	 * is a final safety that works even if jemalloc_constructor() doesn't
+	 * run, as for MSVC builds.
+	 */
+	if (mallctl("version", NULL, NULL, NULL, 0) != 0) {
+		malloc_printf("Initialization error");
+		return (test_status_fail);
+	}
+
+	ret = test_status_pass;
 	va_start(ap, t);
 	for (; t != NULL; t = va_arg(ap, test_t *)) {
 		t();
