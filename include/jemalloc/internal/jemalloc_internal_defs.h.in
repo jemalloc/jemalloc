@@ -48,6 +48,11 @@
 #undef JE_FORCE_SYNC_COMPARE_AND_SWAP_8
 
 /*
+ * Defined if __builtin_clz() and __builtin_clzl() are available.
+ */
+#undef JEMALLOC_HAVE_BUILTIN_CLZ
+
+/*
  * Defined if OSSpin*() functions are available, as provided by Darwin, and
  * documented in the spinlock(3) manual page.
  */

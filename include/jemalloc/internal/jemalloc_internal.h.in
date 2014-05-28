@@ -475,7 +475,7 @@ s2u(size_t size)
 {
 
 	if (size <= SMALL_MAXCLASS)
-		return (small_bin2size(small_size2bin(size)));
+		return (small_s2u(size));
 	if (size <= arena_maxclass)
 		return (PAGE_CEILING(size));
 	return (CHUNK_CEILING(size));
@@ -518,7 +518,7 @@ sa2u(size_t size, size_t alignment)
 
 	if (usize <= arena_maxclass && alignment <= PAGE) {
 		if (usize <= SMALL_MAXCLASS)
-			return (small_bin2size(small_size2bin(usize)));
+			return (small_s2u(usize));
 		return (PAGE_CEILING(usize));
 	} else {
 		size_t run_size;

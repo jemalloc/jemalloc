@@ -9,40 +9,39 @@ arena_bin_info_t	arena_bin_info[NBINS];
 
 JEMALLOC_ALIGNED(CACHELINE)
 const uint32_t	small_bin2size_tab[NBINS] = {
-#define SIZE_CLASS(bin, delta, size)		\
+#define	B2S_bin_yes(size) \
 	size,
+#define	B2S_bin_no(size)
+#define	SC(index, lg_grp, lg_delta, ndelta, bin, lg_delta_lookup) \
+	B2S_bin_##bin((ZU(1)<<lg_grp) + (ZU(ndelta)<<lg_delta))
 	SIZE_CLASSES
-#undef SIZE_CLASS
+#undef B2S_bin_yes
+#undef B2S_bin_no
+#undef SC
 };
 
 JEMALLOC_ALIGNED(CACHELINE)
 const uint8_t	small_size2bin_tab[] = {
-#define	S2B_8(i)	i,
-#define	S2B_16(i)	S2B_8(i) S2B_8(i)
-#define	S2B_32(i)	S2B_16(i) S2B_16(i)
-#define	S2B_64(i)	S2B_32(i) S2B_32(i)
-#define	S2B_128(i)	S2B_64(i) S2B_64(i)
-#define	S2B_256(i)	S2B_128(i) S2B_128(i)
-#define	S2B_512(i)	S2B_256(i) S2B_256(i)
-#define	S2B_1024(i)	S2B_512(i) S2B_512(i)
-#define	S2B_2048(i)	S2B_1024(i) S2B_1024(i)
-#define	S2B_4096(i)	S2B_2048(i) S2B_2048(i)
-#define	S2B_8192(i)	S2B_4096(i) S2B_4096(i)
-#define	SIZE_CLASS(bin, delta, size)					\
-	S2B_##delta(bin)
+#define	S2B_3(i)	i,
+#define	S2B_4(i)	S2B_3(i) S2B_3(i)
+#define	S2B_5(i)	S2B_4(i) S2B_4(i)
+#define	S2B_6(i)	S2B_5(i) S2B_5(i)
+#define	S2B_7(i)	S2B_6(i) S2B_6(i)
+#define	S2B_8(i)	S2B_7(i) S2B_7(i)
+#define	S2B_9(i)	S2B_8(i) S2B_8(i)
+#define	S2B_no(i)
+#define	SC(index, lg_grp, lg_delta, ndelta, bin, lg_delta_lookup) \
+	S2B_##lg_delta_lookup(index)
 	SIZE_CLASSES
+#undef S2B_3
+#undef S2B_4
+#undef S2B_5
+#undef S2B_6
+#undef S2B_7
 #undef S2B_8
-#undef S2B_16
-#undef S2B_32
-#undef S2B_64
-#undef S2B_128
-#undef S2B_256
-#undef S2B_512
-#undef S2B_1024
-#undef S2B_2048
-#undef S2B_4096
-#undef S2B_8192
-#undef SIZE_CLASS
+#undef S2B_9
+#undef S2B_no
+#undef SC
 };
 
 /******************************************************************************/
@@ -2586,13 +2585,18 @@ bin_info_init(void)
 	arena_bin_info_t *bin_info;
 	size_t prev_run_size = PAGE;
 
-#define	SIZE_CLASS(bin, delta, size)					\
-	bin_info = &arena_bin_info[bin];				\
+#define	BIN_INFO_INIT_bin_yes(index, size) \
+	bin_info = &arena_bin_info[index];				\
 	bin_info->reg_size = size;					\
 	prev_run_size = bin_info_run_size_calc(bin_info, prev_run_size);\
 	bitmap_info_init(&bin_info->bitmap_info, bin_info->nregs);
+#define	BIN_INFO_INIT_bin_no(index, size)
+#define	SC(index, lg_grp, lg_delta, ndelta, bin, lg_delta_lookup)	\
+	BIN_INFO_INIT_bin_##bin(index, (ZU(1)<<lg_grp) + (ZU(ndelta)<<lg_delta))
 	SIZE_CLASSES
-#undef SIZE_CLASS
+#undef BIN_INFO_INIT_bin_yes
+#undef BIN_INFO_INIT_bin_no
+#undef SC
 }
 
 void

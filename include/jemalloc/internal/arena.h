@@ -463,8 +463,15 @@ void	arena_postfork_child(arena_t *arena);
 #ifdef JEMALLOC_H_INLINES
 
 #ifndef JEMALLOC_ENABLE_INLINE
+size_t	small_size2bin_compute(size_t size);
+size_t	small_size2bin_lookup(size_t size);
 size_t	small_size2bin(size_t size);
+size_t	small_bin2size_compute(size_t binind);
+size_t	small_bin2size_lookup(size_t binind);
 size_t	small_bin2size(size_t binind);
+size_t	small_s2u_compute(size_t size);
+size_t	small_s2u_lookup(size_t size);
+size_t	small_s2u(size_t size);
 arena_chunk_map_t	*arena_mapp_get(arena_chunk_t *chunk, size_t pageind);
 size_t	*arena_mapbitsp_get(arena_chunk_t *chunk, size_t pageind);
 size_t	arena_mapbitsp_read(size_t *mapbitsp);
@@ -507,18 +514,144 @@ void	arena_dalloc(arena_chunk_t *chunk, void *ptr, bool try_tcache);
 
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_ARENA_C_))
 #  ifdef JEMALLOC_ARENA_INLINE_A
+JEMALLOC_INLINE size_t
+small_size2bin_compute(size_t size)
+{
+#if (NTBINS != 0)
+	if (size <= (ZU(1) << LG_TINY_MAXCLASS)) {
+		size_t lg_tmin = LG_TINY_MAXCLASS - NTBINS + 1;
+		size_t lg_ceil = lg_floor(pow2_ceil(size));
+		return (lg_ceil < lg_tmin ? 0 : lg_ceil - lg_tmin);
+	} else
+#endif
+	{
+		size_t x = lg_floor((size<<1)-1);
+		size_t shift = (x < LG_SIZE_CLASS_GROUP + LG_QUANTUM) ? 0 :
+		    x - (LG_SIZE_CLASS_GROUP + LG_QUANTUM);
+		size_t grp = shift << LG_SIZE_CLASS_GROUP;
+
+		size_t lg_delta = (x < LG_SIZE_CLASS_GROUP + LG_QUANTUM + 1)
+		    ? LG_QUANTUM : x - LG_SIZE_CLASS_GROUP - 1;
+
+		size_t delta_inverse_mask = ZI(-1) << lg_delta;
+		size_t mod = ((((size-1) & delta_inverse_mask) >> lg_delta)) &
+		    ((ZU(1) << LG_SIZE_CLASS_GROUP) - 1);
+
+		size_t bin = NTBINS + grp + mod;
+		return (bin);
+	}
+}
+
+JEMALLOC_ALWAYS_INLINE size_t
+small_size2bin_lookup(size_t size)
+{
+
+	assert(size <= LOOKUP_MAXCLASS);
+	{
+		size_t ret = ((size_t)(small_size2bin_tab[(size-1) >>
+		    LG_TINY_MIN]));
+		assert(ret == small_size2bin_compute(size));
+		return (ret);
+	}
+}
+
 JEMALLOC_ALWAYS_INLINE size_t
 small_size2bin(size_t size)
 {
 
-	return ((size_t)(small_size2bin_tab[(size-1) >> LG_TINY_MIN]));
+	assert(size > 0);
+	if (size <= LOOKUP_MAXCLASS)
+		return (small_size2bin_lookup(size));
+	else
+		return (small_size2bin_compute(size));
+}
+
+JEMALLOC_INLINE size_t
+small_bin2size_compute(size_t binind)
+{
+#if (NTBINS > 0)
+	if (binind < NTBINS)
+		return (ZU(1) << (LG_TINY_MAXCLASS - NTBINS + 1 + binind));
+	else
+#endif
+	{
+		size_t reduced_binind = binind - NTBINS;
+		size_t grp = reduced_binind >> LG_SIZE_CLASS_GROUP;
+		size_t mod = reduced_binind & ((ZU(1) << LG_SIZE_CLASS_GROUP) -
+		    1);
+
+		size_t grp_size_mask = ~((!!grp)-1);
+		size_t grp_size = ((ZU(1) << (LG_QUANTUM +
+		    (LG_SIZE_CLASS_GROUP-1))) << grp) & grp_size_mask;
+
+		size_t shift = (grp == 0) ? 1 : grp;
+		size_t lg_delta = shift + (LG_QUANTUM-1);
+		size_t mod_size = (mod+1) << lg_delta;
+
+		size_t usize = grp_size + mod_size;
+		return (usize);
+	}
+}
+
+JEMALLOC_ALWAYS_INLINE size_t
+small_bin2size_lookup(size_t binind)
+{
+
+	assert(binind < NBINS);
+	{
+		size_t ret = ((size_t)(small_bin2size_tab[binind]));
+		assert(ret == small_bin2size_compute(binind));
+		return (ret);
+	}
 }
 
 JEMALLOC_ALWAYS_INLINE size_t
 small_bin2size(size_t binind)
 {
 
-	return ((size_t)(small_bin2size_tab[binind]));
+	return (small_bin2size_lookup(binind));
+}
+
+JEMALLOC_ALWAYS_INLINE size_t
+small_s2u_compute(size_t size)
+{
+#if (NTBINS > 0)
+	if (size <= (ZU(1) << LG_TINY_MAXCLASS)) {
+		size_t lg_tmin = LG_TINY_MAXCLASS - NTBINS + 1;
+		size_t lg_ceil = lg_floor(pow2_ceil(size));
+		return (lg_ceil < lg_tmin ? (ZU(1) << lg_tmin) :
+		    (ZU(1) << lg_ceil));
+	} else
+#endif
+	{
+		size_t x = lg_floor((size<<1)-1);
+		size_t lg_delta = (x < LG_SIZE_CLASS_GROUP + LG_QUANTUM + 1)
+		    ?  LG_QUANTUM : x - LG_SIZE_CLASS_GROUP - 1;
+		size_t delta = ZU(1) << lg_delta;
+		size_t delta_mask = delta - 1;
+		size_t usize = (size + delta_mask) & ~delta_mask;
+		return (usize);
+	}
+}
+
+JEMALLOC_ALWAYS_INLINE size_t
+small_s2u_lookup(size_t size)
+{
+	size_t ret = (small_bin2size(small_size2bin(size)));
+
+	assert(ret == small_s2u_compute(size));
+	return (ret);
+}
+
+JEMALLOC_ALWAYS_INLINE size_t
+small_s2u(size_t size)
+{
+
+	assert(size > 0);
+	if (size <= LOOKUP_MAXCLASS)
+		return (small_s2u_lookup(size));
+	else
+		return (small_s2u_compute(size));
 }
 #  endif /* JEMALLOC_ARENA_INLINE_A */
 

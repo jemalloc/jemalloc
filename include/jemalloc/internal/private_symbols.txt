@@ -234,6 +234,7 @@ ixalloc
 jemalloc_postfork_child
 jemalloc_postfork_parent
 jemalloc_prefork
+lg_floor
 malloc_cprintf
 malloc_mutex_init
 malloc_mutex_lock
@@ -348,8 +349,15 @@ s2u
 sa2u
 set_errno
 small_bin2size
+small_bin2size_compute
+small_bin2size_lookup
 small_bin2size_tab
+small_s2u
+small_s2u_compute
+small_s2u_lookup
 small_size2bin
+small_size2bin_compute
+small_size2bin_lookup
 small_size2bin_tab
 stats_cactive
 stats_cactive_add

@@ -1201,6 +1201,29 @@ if test "x${je_cv_atomic9}" != "xyes" -a "x${je_cv_osatomic}" != "xyes" ; then
 fi
 
 dnl ============================================================================
+dnl Check for __builtin_clz() and __builtin_clzl().
+
+AC_CACHE_CHECK([for __builtin_clz],
+               [je_cv_builtin_clz],
+               [AC_LINK_IFELSE([AC_LANG_PROGRAM([],
+                                                [
+                                                {
+                                                        unsigned x = 0;
+                                                        int y = __builtin_clz(x);
+                                                }
+                                                {
+                                                        unsigned long x = 0;
+                                                        int y = __builtin_clzl(x);
+                                                }
+                                                ])],
+                               [je_cv_builtin_clz=yes],
+                               [je_cv_builtin_clz=no])])
+
+if test "x${je_cv_builtin_clz}" = "xyes" ; then
+  AC_DEFINE([JEMALLOC_HAVE_BUILTIN_CLZ], [ ])
+fi
+
+dnl ============================================================================
 dnl Check for spinlock(3) operations as provided on Darwin.
 
 JE_COMPILABLE([Darwin OSSpin*()], [

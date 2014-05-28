@@ -110,6 +110,7 @@ void	malloc_printf(const char *format, ...)
 
 #ifndef JEMALLOC_ENABLE_INLINE
 size_t	pow2_ceil(size_t x);
+size_t	lg_floor(size_t x);
 void	set_errno(int errnum);
 int	get_errno(void);
 #endif
@@ -132,6 +133,52 @@ pow2_ceil(size_t x)
 	x++;
 	return (x);
 }
+
+#if (defined(__i386__) || defined(__amd64__) || defined(__x86_64__))
+JEMALLOC_INLINE size_t
+lg_floor(size_t x)
+{
+	size_t ret;
+
+	asm ("bsr %1, %0"
+	    : "=r"(ret) // Outputs.
+	    : "r"(x)    // Inputs.
+	    );
+	return (ret);
+}
+#elif (defined(JEMALLOC_HAVE_BUILTIN_CLZ))
+JEMALLOC_INLINE size_t
+lg_floor(size_t x)
+{
+
+#if (LG_SIZEOF_PTR == LG_SIZEOF_INT)
+	return ((8 << LG_SIZEOF_PTR - 1) - __builtin_clz(x));
+#elif (LG_SIZEOF_PTR == LG_SIZEOF_LONG)
+	return ((8 << LG_SIZEOF_PTR - 1) - __builtin_clzl(x));
+#else
+#  error "Unsupported type sizes for lg_floor()"
+#endif
+}
+#else
+JEMALLOC_INLINE size_t
+lg_floor(size_t x)
+{
+
+        x |= (x >> 1);
+        x |= (x >> 2);
+        x |= (x >> 4);
+        x |= (x >> 8);
+        x |= (x >> 16);
+#if (LG_SIZEOF_PTR == 3 && LG_SIZEOF_PTR == LG_SIZEOF_LONG)
+        x |= (x >> 32);
+        return (65 - ffsl(~x));
+#elif (LG_SIZEOF_PTR == 2)
+        return (33 - ffs(~x));
+#else
+#  error "Unsupported type sizes for lg_floor()"
+#endif
+}
+#endif
 
 /* Sets error code */
 JEMALLOC_INLINE void
