@@ -73,7 +73,7 @@ p_test(test_t *t, ...)
 	 * is a final safety that works even if jemalloc_constructor() doesn't
 	 * run, as for MSVC builds.
 	 */
-	if (mallctl("version", NULL, NULL, NULL, 0) != 0) {
+	if (nallocx(1, 0) == 0) {
 		malloc_printf("Initialization error");
 		return (test_status_fail);
 	}
