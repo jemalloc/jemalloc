@@ -2483,7 +2483,7 @@ bin_info_run_size_calc(arena_bin_info_t *bin_info, size_t min_run_size)
 	 * be twice as large in order to maintain alignment.
 	 */
 	if (config_fill && opt_redzone) {
-		size_t align_min = ZU(1) << (ffs(bin_info->reg_size) - 1);
+		size_t align_min = ZU(1) << (jemalloc_ffs(bin_info->reg_size) - 1);
 		if (align_min <= REDZONE_MINSIZE) {
 			bin_info->redzone_size = REDZONE_MINSIZE;
 			pad_size = 0;

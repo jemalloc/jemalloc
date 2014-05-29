@@ -153,6 +153,13 @@
 #undef JEMALLOC_TLS
 
 /*
+ * ffs()/ffsl() functions to use for bitmapping.  Don't use these directly;
+ * instead, use jemalloc_ffs() or jemalloc_ffsl() from util.h.
+ */
+#undef JEMALLOC_INTERNAL_FFSL
+#undef JEMALLOC_INTERNAL_FFS
+
+/*
  * JEMALLOC_IVSALLOC enables ivsalloc(), which verifies that pointers reside
  * within jemalloc-owned chunks before dereferencing them.
  */

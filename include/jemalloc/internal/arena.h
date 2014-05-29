@@ -970,7 +970,7 @@ arena_run_regind(arena_run_t *run, arena_bin_info_t *bin_info, const void *ptr)
 
 	/* Rescale (factor powers of 2 out of the numerator and denominator). */
 	interval = bin_info->reg_interval;
-	shift = ffs(interval) - 1;
+	shift = jemalloc_ffs(interval) - 1;
 	diff >>= shift;
 	interval >>= shift;
 

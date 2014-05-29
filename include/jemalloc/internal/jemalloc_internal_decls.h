@@ -15,11 +15,13 @@
 #else
 #  include <sys/param.h>
 #  include <sys/mman.h>
-#  include <sys/syscall.h>
-#  if !defined(SYS_write) && defined(__NR_write)
-#    define SYS_write __NR_write
+#  if !defined(__pnacl__) && !defined(__native_client__)
+#    include <sys/syscall.h>
+#    if !defined(SYS_write) && defined(__NR_write)
+#      define SYS_write __NR_write
+#    endif
+#    include <sys/uio.h>
 #  endif
-#  include <sys/uio.h>
 #  include <pthread.h>
 #  include <errno.h>
 #endif
