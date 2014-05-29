@@ -155,6 +155,10 @@ if test "x${ac_cv_big_endian}" = "x1" ; then
   AC_DEFINE_UNQUOTED([JEMALLOC_BIG_ENDIAN], [ ])
 fi
 
+if test "x${je_cv_msvc}" = "xyes" -a "x${ac_cv_header_inttypes_h}" = "xno"; then
+  CPPFLAGS="$CPPFLAGS -I${srcroot}/include/msvc_compat/C99"
+fi
+
 AC_CHECK_SIZEOF([void *])
 if test "x${ac_cv_sizeof_void_p}" = "x8" ; then
   LG_SIZEOF_PTR=3
