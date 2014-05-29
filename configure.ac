@@ -142,7 +142,7 @@ if test "x$CFLAGS" = "x" ; then
     JE_CFLAGS_APPEND([-MT])
     JE_CFLAGS_APPEND([-W3])
     JE_CFLAGS_APPEND([-FS])
-    CPPFLAGS="$CPPFLAGS -I${srcroot}/include/msvc_compat"
+    CPPFLAGS="$CPPFLAGS -I${srcdir}/include/msvc_compat"
   fi
 fi
 dnl Append EXTRA_CFLAGS to CFLAGS, if defined.
@@ -157,7 +157,7 @@ if test "x${ac_cv_big_endian}" = "x1" ; then
 fi
 
 if test "x${je_cv_msvc}" = "xyes" -a "x${ac_cv_header_inttypes_h}" = "xno"; then
-  CPPFLAGS="$CPPFLAGS -I${srcroot}/include/msvc_compat/C99"
+  CPPFLAGS="$CPPFLAGS -I${srcdir}/include/msvc_compat/C99"
 fi
 
 AC_CHECK_SIZEOF([void *])
