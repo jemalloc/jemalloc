@@ -141,6 +141,7 @@ if test "x$CFLAGS" = "x" ; then
     JE_CFLAGS_APPEND([-Zi])
     JE_CFLAGS_APPEND([-MT])
     JE_CFLAGS_APPEND([-W3])
+    JE_CFLAGS_APPEND([-FS])
     CPPFLAGS="$CPPFLAGS -I${srcroot}/include/msvc_compat"
   fi
 fi
