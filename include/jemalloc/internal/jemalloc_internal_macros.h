@@ -44,9 +44,9 @@
 #define	QI(q)	((int64_t)q)
 
 #define	KZU(z)	ZU(z##ULL)
-#define	KZI(z)	ZI(z##ULL)
+#define	KZI(z)	ZI(z##LL)
 #define	KQU(q)	QU(q##ULL)
-#define	KQI(q)	QI(q##ULL)
+#define	KQI(q)	QI(q##LL)
 
 #ifndef __DECONST
 #  define	__DECONST(type, var)	((type)(uintptr_t)(const void *)(var))

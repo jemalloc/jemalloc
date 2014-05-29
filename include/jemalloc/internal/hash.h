@@ -76,9 +76,9 @@ hash_fmix_64(uint64_t k)
 {
 
 	k ^= k >> 33;
-	k *= QU(0xff51afd7ed558ccdULL);
+	k *= KQU(0xff51afd7ed558ccd);
 	k ^= k >> 33;
-	k *= QU(0xc4ceb9fe1a85ec53ULL);
+	k *= KQU(0xc4ceb9fe1a85ec53);
 	k ^= k >> 33;
 
 	return (k);
@@ -247,8 +247,8 @@ hash_x64_128(const void *key, const int len, const uint32_t seed,
 	uint64_t h1 = seed;
 	uint64_t h2 = seed;
 
-	const uint64_t c1 = QU(0x87c37b91114253d5ULL);
-	const uint64_t c2 = QU(0x4cf5ad432745937fULL);
+	const uint64_t c1 = KQU(0x87c37b91114253d5);
+	const uint64_t c2 = KQU(0x4cf5ad432745937f);
 
 	/* body */
 	{
