@@ -260,7 +260,7 @@ dnl to make happen otherwise.
 default_munmap="1"
 JEMALLOC_USABLE_SIZE_CONST="const"
 case "${host}" in
-  *-*-darwin*)
+  *-*-darwin* | *-*-ios*)
 	CFLAGS="$CFLAGS"
 	abi="macho"
 	AC_DEFINE([JEMALLOC_PURGE_MADVISE_FREE], [ ])
@@ -273,19 +273,6 @@ case "${host}" in
 	SOREV="${rev}.${so}"
 	sbrk_deprecated="1"
 	;;
-  *-*-ios*)
-        CFLAGS="$CFLAGS"
-        abi="macho"
-        AC_DEFINE([JEMALLOC_PURGE_MADVISE_FREE], [ ])
-        RPATH=""
-        LD_PRELOAD_VAR="DYLD_INSERT_LIBRARIES"
-        so="dylib"
-        importlib="${so}"
-        force_tls="0"
-        DSO_LDFLAGS='-shared -Wl,-dylib_install_name,$(@F)'
-        SOREV="${rev}.${so}"
-        sbrk_deprecated="1"
-        ;;
   *-*-freebsd*)
 	CFLAGS="$CFLAGS"
 	abi="elf"
