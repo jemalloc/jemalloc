@@ -100,7 +100,7 @@ uintmax_t
 malloc_strtoumax(const char *restrict nptr, char **restrict endptr, int base)
 {
 	uintmax_t ret, digit;
-	int b;
+	unsigned b;
 	bool neg;
 	const char *p, *ns;
 
@@ -548,7 +548,7 @@ malloc_vsnprintf(char *str, size_t size, const char *format, va_list ap)
 				assert(len == '?' || len == 'l');
 				assert_not_implemented(len != 'l');
 				s = va_arg(ap, char *);
-				slen = (prec < 0) ? strlen(s) : prec;
+				slen = (prec < 0) ? strlen(s) : (size_t)prec;
 				APPEND_PADDED_S(s, slen, width, left_justify);
 				f++;
 				break;
