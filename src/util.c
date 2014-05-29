@@ -381,7 +381,9 @@ malloc_vsnprintf(char *str, size_t size, const char *format, va_list ap)
 	case 'p': /* Synthetic; used for %p. */				\
 		val = va_arg(ap, uintptr_t);				\
 		break;							\
-	default: not_reached();						\
+	default:							\
+		not_reached();						\
+		val = 0;						\
 	}								\
 } while (0)
 
