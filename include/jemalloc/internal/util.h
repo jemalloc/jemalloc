@@ -152,9 +152,9 @@ lg_floor(size_t x)
 {
 
 #if (LG_SIZEOF_PTR == LG_SIZEOF_INT)
-	return ((8 << LG_SIZEOF_PTR - 1) - __builtin_clz(x));
+	return (((8 << LG_SIZEOF_PTR) - 1) - __builtin_clz(x));
 #elif (LG_SIZEOF_PTR == LG_SIZEOF_LONG)
-	return ((8 << LG_SIZEOF_PTR - 1) - __builtin_clzl(x));
+	return (((8 << LG_SIZEOF_PTR) - 1) - __builtin_clzl(x));
 #else
 #  error "Unsupported type sizes for lg_floor()"
 #endif
@@ -164,16 +164,22 @@ JEMALLOC_INLINE size_t
 lg_floor(size_t x)
 {
 
-        x |= (x >> 1);
-        x |= (x >> 2);
-        x |= (x >> 4);
-        x |= (x >> 8);
-        x |= (x >> 16);
+	x |= (x >> 1);
+	x |= (x >> 2);
+	x |= (x >> 4);
+	x |= (x >> 8);
+	x |= (x >> 16);
 #if (LG_SIZEOF_PTR == 3 && LG_SIZEOF_PTR == LG_SIZEOF_LONG)
-        x |= (x >> 32);
-        return (65 - ffsl(~x));
+	x |= (x >> 32);
+	if (x == KZU(0xffffffffffffffff))
+		return (63);
+	x++;
+	return (ffsl(x) - 2);
 #elif (LG_SIZEOF_PTR == 2)
-        return (33 - ffs(~x));
+	if (x == KZU(0xffffffff))
+		return (31);
+	x++;
+	return (ffs(x) - 2);
 #else
 #  error "Unsupported type sizes for lg_floor()"
 #endif
