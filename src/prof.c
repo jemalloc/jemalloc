@@ -1093,7 +1093,7 @@ label_open_close_error:
 #define	DUMP_FILENAME_BUFSIZE	(PATH_MAX + 1)
 #define	VSEQ_INVALID		UINT64_C(0xffffffffffffffff)
 static void
-prof_dump_filename(char *filename, char v, int64_t vseq)
+prof_dump_filename(char *filename, char v, uint64_t vseq)
 {
 
 	cassert(config_prof);
@@ -1101,7 +1101,7 @@ prof_dump_filename(char *filename, char v, int64_t vseq)
 	if (vseq != VSEQ_INVALID) {
 	        /* "<prefix>.<pid>.<seq>.v<vseq>.heap" */
 		malloc_snprintf(filename, DUMP_FILENAME_BUFSIZE,
-		    "%s.%d.%"PRIu64".%c%"PRId64".heap",
+		    "%s.%d.%"PRIu64".%c%"PRIu64".heap",
 		    opt_prof_prefix, (int)getpid(), prof_dump_seq, v, vseq);
 	} else {
 	        /* "<prefix>.<pid>.<seq>.<v>.heap" */
