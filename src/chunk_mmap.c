@@ -116,12 +116,12 @@ pages_trim(void *addr, size_t alloc_size, size_t leadsize, size_t size)
 bool
 pages_purge(void *addr, size_t length)
 {
-	bool unzeroed;
+	bool unzeroed = false;
 
 #ifdef _WIN32
 	VirtualAlloc(addr, length, MEM_RESET, PAGE_READWRITE);
 	unzeroed = true;
-#else
+#elifdef JEMALLOC_HAVE_MADVISE
 #  ifdef JEMALLOC_PURGE_MADVISE_DONTNEED
 #    define JEMALLOC_MADV_PURGE MADV_DONTNEED
 #    define JEMALLOC_MADV_ZEROS true
