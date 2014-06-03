@@ -53,6 +53,11 @@
 #undef JEMALLOC_HAVE_BUILTIN_CLZ
 
 /*
+ * Defined if madvise(2) is available.
+ */
+#undef JEMALLOC_HAVE_MADVISE
+
+/*
  * Defined if OSSpin*() functions are available, as provided by Darwin, and
  * documented in the spinlock(3) manual page.
  */

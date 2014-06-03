@@ -1192,6 +1192,20 @@ if test "x${je_cv_osatomic}" = "xyes" ; then
 fi
 
 dnl ============================================================================
+dnl Check for madvise(2).
+
+JE_COMPILABLE([madvise(2)], [
+#include <sys/mman.h>
+], [
+	{
+		madvise((void *)0, 0, 0);
+	}
+], [je_cv_madvise])
+if test "x${je_cv_madvise}" = "xyes" ; then
+  AC_DEFINE([JEMALLOC_HAVE_MADVISE], [ ])
+fi
+
+dnl ============================================================================
 dnl Check whether __sync_{add,sub}_and_fetch() are available despite
 dnl __GCC_HAVE_SYNC_COMPARE_AND_SWAP_n macros being undefined.
 
