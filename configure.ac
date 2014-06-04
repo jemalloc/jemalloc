@@ -935,6 +935,44 @@ if test "x$enable_xmalloc" = "x1" ; then
 fi
 AC_SUBST([enable_xmalloc])
 
+dnl ============================================================================
+dnl Check for  __builtin_ffsl(), then ffsl(3), and fail if neither are found.
+dnl One of those two functions should (theoretically) exist on all platforms
+dnl that jemalloc currently has a chance of functioning on without modification.
+dnl We additionally assume ffs() or __builtin_ffs() are defined if
+dnl ffsl() or __builtin_ffsl() are defined, respectively.
+JE_COMPILABLE([a program using __builtin_ffsl], [
+#include <stdio.h>
+#include <strings.h>
+#include <string.h>
+], [
+	{
+		int rv = __builtin_ffsl(0x08);
+		printf("%d\n", rv);
+	}
+], [je_cv_gcc_builtin_ffsl])
+if test "x${je_cv_gcc_builtin_ffsl}" == "xyes" ; then
+  AC_DEFINE([JEMALLOC_INTERNAL_FFSL], [__builtin_ffsl])
+  AC_DEFINE([JEMALLOC_INTERNAL_FFS], [__builtin_ffs])
+else
+  JE_COMPILABLE([a program using ffsl], [
+  #include <stdio.h>
+  #include <strings.h>
+  #include <string.h>
+  ], [
+	{
+		int rv = ffsl(0x08);
+		printf("%d\n", rv);
+	}
+  ], [je_cv_function_ffsl])
+  if test "x${je_cv_function_ffsl}" == "xyes" ; then
+    AC_DEFINE([JEMALLOC_INTERNAL_FFSL], [ffsl])
+    AC_DEFINE([JEMALLOC_INTERNAL_FFS], [ffs])
+  else
+    AC_MSG_ERROR([Cannot build without ffsl(3) or __builtin_ffsl()])
+  fi
+fi
+
 AC_CACHE_CHECK([STATIC_PAGE_SHIFT],
                [je_cv_static_page_shift],
                AC_RUN_IFELSE([AC_LANG_PROGRAM(
@@ -961,7 +999,7 @@ AC_CACHE_CHECK([STATIC_PAGE_SHIFT],
     if (result == -1) {
 	return 1;
     }
-    result = ffsl(result) - 1;
+    result = JEMALLOC_INTERNAL_FFSL(result) - 1;
 
     f = fopen("conftest.out", "w");
     if (f == NULL) {
@@ -1107,45 +1145,6 @@ if test "x${enable_tls}" = "x1" ; then
 elif test "x${force_tls}" = "x1" ; then
   AC_MSG_ERROR([Failed to configure TLS, which is mandatory for correct function])
 fi
-
-dnl ============================================================================
-dnl Check for  __builtin_ffsl(), then ffsl(3), and fail if neither are found.
-dnl One of those two functions should (theoretically) exist on all platforms
-dnl that jemalloc currently has a chance of functioning on without modification.
-dnl We additionally assume ffs() or __builtin_ffs() are defined if
-dnl ffsl() or __builtin_ffsl() are defined, respectively.
-JE_COMPILABLE([a program using __builtin_ffsl], [
-#include <stdio.h>
-#include <strings.h>
-#include <string.h>
-], [
-	{
-		int rv = __builtin_ffsl(0x08);
-		printf("%d\n", rv);
-	}
-], [je_cv_gcc_builtin_ffsl])
-if test "x${je_cv_gcc_builtin_ffsl}" == "xyes" ; then
-  AC_DEFINE([JEMALLOC_INTERNAL_FFSL], [__builtin_ffsl])
-  AC_DEFINE([JEMALLOC_INTERNAL_FFS], [__builtin_ffs])
-else
-  JE_COMPILABLE([a program using ffsl], [
-  #include <stdio.h>
-  #include <strings.h>
-  #include <string.h>
-  ], [
-	{
-		int rv = ffsl(0x08);
-		printf("%d\n", rv);
-	}
-  ], [je_cv_function_ffsl])
-  if test "x${je_cv_function_ffsl}" == "xyes" ; then
-    AC_DEFINE([JEMALLOC_INTERNAL_FFSL], [ffsl])
-    AC_DEFINE([JEMALLOC_INTERNAL_FFS], [ffs])
-  else
-    AC_MSG_ERROR([Cannot build without ffsl(3) or __builtin_ffsl()])
-  fi
-fi
-
 
 dnl ============================================================================
 dnl Check for atomic(9) operations as provided on FreeBSD.
