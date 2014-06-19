@@ -833,7 +833,7 @@ have_dss="1"
 dnl Check whether the BSD/SUSv1 sbrk() exists.  If not, disable DSS support.
 AC_CHECK_FUNC([sbrk], [have_sbrk="1"], [have_sbrk="0"])
 if test "x$have_sbrk" = "x1" ; then
-  if test "x$sbrk_deprecated" == "x1" ; then
+  if test "x$sbrk_deprecated" = "x1" ; then
     AC_MSG_RESULT([Disabling dss allocation because sbrk is deprecated])
     have_dss="0"
   fi
@@ -951,7 +951,7 @@ JE_COMPILABLE([a program using __builtin_ffsl], [
 		printf("%d\n", rv);
 	}
 ], [je_cv_gcc_builtin_ffsl])
-if test "x${je_cv_gcc_builtin_ffsl}" == "xyes" ; then
+if test "x${je_cv_gcc_builtin_ffsl}" = "xyes" ; then
   AC_DEFINE([JEMALLOC_INTERNAL_FFSL], [__builtin_ffsl])
   AC_DEFINE([JEMALLOC_INTERNAL_FFS], [__builtin_ffs])
 else
@@ -965,7 +965,7 @@ else
 		printf("%d\n", rv);
 	}
   ], [je_cv_function_ffsl])
-  if test "x${je_cv_function_ffsl}" == "xyes" ; then
+  if test "x${je_cv_function_ffsl}" = "xyes" ; then
     AC_DEFINE([JEMALLOC_INTERNAL_FFSL], [ffsl])
     AC_DEFINE([JEMALLOC_INTERNAL_FFS], [ffs])
   else
