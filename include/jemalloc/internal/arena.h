@@ -89,6 +89,9 @@ struct arena_chunk_map_s {
 	}; /* union { ... }; */
 #endif
 
+	/* Linkage for list of dirty runs. */
+	ql_elm(arena_chunk_map_t)	dr_link;
+
 	/*
 	 * Run address (or size) and various flags are stored together.  The bit
 	 * layout looks like (assuming 32-bit system):
@@ -332,6 +335,9 @@ struct arena_s {
 
 	/* Tree of dirty-page-containing chunks this arena manages. */
 	arena_chunk_tree_t	chunks_dirty;
+
+	/* List of dirty runs this arena manages. */
+	arena_chunk_mapelms_t	runs_dirty;
 
 	/*
 	 * In order to avoid rapid chunk allocation/deallocation when an arena

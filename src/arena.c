@@ -394,6 +394,7 @@ static void
 arena_run_split_remove(arena_t *arena, arena_chunk_t *chunk, size_t run_ind,
     size_t flag_dirty, size_t need_pages)
 {
+	arena_chunk_map_t *mapelm;
 	size_t total_pages, rem_pages;
 
 	total_pages = arena_mapbits_unallocated_size_get(chunk, run_ind) >>
@@ -404,6 +405,11 @@ arena_run_split_remove(arena_t *arena, arena_chunk_t *chunk, size_t run_ind,
 	rem_pages = total_pages - need_pages;
 
 	arena_avail_remove(arena, chunk, run_ind, total_pages, true, true);
+	if (flag_dirty != 0) {
+		/* If the run is dirty, it must be in the dirty list. */
+		mapelm = arena_mapp_get(chunk, run_ind);
+		ql_remove(&arena->runs_dirty, mapelm, dr_link);
+	}
 	arena_cactive_update(arena, need_pages, 0);
 	arena->nactive += need_pages;
 
@@ -416,6 +422,14 @@ arena_run_split_remove(arena_t *arena, arena_chunk_t *chunk, size_t run_ind,
 			arena_mapbits_unallocated_set(chunk,
 			    run_ind+total_pages-1, (rem_pages << LG_PAGE),
 			    flag_dirty);
+			mapelm = arena_mapp_get(chunk, run_ind+need_pages);
+			/*
+			 * Append the trailing run at the end of the dirty list.
+			 * We could also insert the run at the original place.
+			 * Let us consider this later.
+			 */
+			ql_elm_new(mapelm, dr_link);
+			ql_tail_insert(&arena->runs_dirty, mapelm, dr_link);
 		} else {
 			arena_mapbits_unallocated_set(chunk, run_ind+need_pages,
 			    (rem_pages << LG_PAGE),
@@ -701,6 +715,11 @@ arena_chunk_alloc(arena_t *arena)
 	/* Insert the run into the runs_avail tree. */
 	arena_avail_insert(arena, chunk, map_bias, chunk_npages-map_bias,
 	    false, false);
+	if (arena_mapbits_dirty_get(chunk, map_bias) != 0) {
+		arena_chunk_map_t *mapelm = arena_mapp_get(chunk, map_bias);
+		ql_elm_new(mapelm, dr_link);
+		ql_tail_insert(&arena->runs_dirty, mapelm, dr_link);
+	}
 
 	return (chunk);
 }
@@ -739,6 +758,7 @@ arena_chunk_dalloc_huge(arena_t *arena, void *chunk, size_t size)
 static void
 arena_chunk_dalloc(arena_t *arena, arena_chunk_t *chunk)
 {
+
 	assert(arena_mapbits_allocated_get(chunk, map_bias) == 0);
 	assert(arena_mapbits_allocated_get(chunk, chunk_npages-1) == 0);
 	assert(arena_mapbits_unallocated_size_get(chunk, map_bias) ==
@@ -754,6 +774,10 @@ arena_chunk_dalloc(arena_t *arena, arena_chunk_t *chunk)
 	 */
 	arena_avail_remove(arena, chunk, map_bias, chunk_npages-map_bias,
 	    false, false);
+	if (arena_mapbits_dirty_get(chunk, map_bias) != 0) {
+		arena_chunk_map_t *mapelm = arena_mapp_get(chunk, map_bias);
+		ql_remove(&arena->runs_dirty, mapelm, dr_link);
+	}
 
 	if (arena->spare != NULL) {
 		arena_chunk_t *spare = arena->spare;
@@ -1216,6 +1240,13 @@ arena_run_coalesce(arena_t *arena, arena_chunk_t *chunk, size_t *p_size,
 		arena_avail_remove(arena, chunk, run_ind+run_pages, nrun_pages,
 		    false, true);
 
+		/* If the successor is dirty, remove it from runs_dirty. */
+		if (flag_dirty != 0) {
+			arena_chunk_map_t *mapelm = arena_mapp_get(chunk,
+			    run_ind+run_pages);
+			ql_remove(&arena->runs_dirty, mapelm, dr_link);
+		}
+
 		size += nrun_size;
 		run_pages += nrun_pages;
 
@@ -1244,6 +1275,13 @@ arena_run_coalesce(arena_t *arena, arena_chunk_t *chunk, size_t *p_size,
 		arena_avail_remove(arena, chunk, run_ind, prun_pages, true,
 		    false);
 
+		/* If the predecessor is dirty, remove it from runs_dirty. */
+		if (flag_dirty != 0) {
+			arena_chunk_map_t *mapelm = arena_mapp_get(chunk,
+			    run_ind);
+			ql_remove(&arena->runs_dirty, mapelm, dr_link);
+		}
+
 		size += prun_size;
 		run_pages += prun_pages;
 
@@ -1261,6 +1299,7 @@ static void
 arena_run_dalloc(arena_t *arena, arena_run_t *run, bool dirty, bool cleaned)
 {
 	arena_chunk_t *chunk;
+	arena_chunk_map_t *mapelm;
 	size_t size, run_ind, run_pages, flag_dirty;
 
 	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(run);
@@ -1314,6 +1353,13 @@ arena_run_dalloc(arena_t *arena, arena_run_t *run, bool dirty, bool cleaned)
 	assert(arena_mapbits_dirty_get(chunk, run_ind) ==
 	    arena_mapbits_dirty_get(chunk, run_ind+run_pages-1));
 	arena_avail_insert(arena, chunk, run_ind, run_pages, true, true);
+
+	if (dirty) {
+		/* Insert into runs_dirty list. */
+		mapelm = arena_mapp_get(chunk, run_ind);
+		ql_elm_new(mapelm, dr_link);
+		ql_tail_insert(&arena->runs_dirty, mapelm, dr_link);
+	}
 
 	/* Deallocate chunk if it is now completely unused. */
 	if (size == arena_maxclass) {
@@ -2437,6 +2483,7 @@ arena_new(arena_t *arena, unsigned ind)
 
 	/* Initialize chunks. */
 	arena_chunk_dirty_new(&arena->chunks_dirty);
+	ql_new(&arena->runs_dirty);
 	arena->spare = NULL;
 
 	arena->nactive = 0;
