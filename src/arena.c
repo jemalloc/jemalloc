@@ -923,11 +923,33 @@ arena_maybe_purge(arena_t *arena)
 static arena_chunk_t *
 chunks_dirty_iter_cb(arena_chunk_tree_t *tree, arena_chunk_t *chunk, void *arg)
 {
-       size_t *ndirty = (size_t *)arg;
+	size_t *ndirty = (size_t *)arg;
 
-       assert(chunk->ndirty != 0);
-       *ndirty += chunk->ndirty;
-       return (NULL);
+	assert(chunk->ndirty != 0);
+	*ndirty += chunk->ndirty;
+	return (NULL);
+}
+
+static size_t
+arena_dirty_count(arena_t *arena)
+{
+	size_t ndirty = 0;
+	arena_chunk_map_t *mapelm;
+	arena_chunk_t *chunk;
+	size_t pageind, npages;
+
+	ql_foreach(mapelm, &arena->runs_dirty, dr_link) {
+		chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(mapelm);
+		pageind = arena_mapelm_to_pageind(mapelm);
+		assert(arena_mapbits_allocated_get(chunk, pageind) == 0);
+		assert(arena_mapbits_large_get(chunk, pageind) == 0);
+		assert(arena_mapbits_dirty_get(chunk, pageind) != 0);
+		npages = arena_mapbits_unallocated_size_get(chunk, pageind) >>
+		    LG_PAGE;
+		ndirty += npages;
+	}
+
+       return (ndirty);
 }
 
 static size_t
@@ -1133,6 +1155,9 @@ arena_purge(arena_t *arena, bool all)
 
 		arena_chunk_dirty_iter(&arena->chunks_dirty, NULL,
 		    chunks_dirty_iter_cb, (void *)&ndirty);
+		assert(ndirty == arena->ndirty);
+
+		ndirty = arena_dirty_count(arena);
 		assert(ndirty == arena->ndirty);
 	}
 	assert(arena->ndirty > arena->npurgatory || all);
