@@ -344,14 +344,6 @@ struct arena_s {
 	size_t			ndirty;
 
 	/*
-	 * Approximate number of pages being purged.  It is possible for
-	 * multiple threads to purge dirty pages concurrently, and they use
-	 * npurgatory to indicate the total number of pages all threads are
-	 * attempting to purge.
-	 */
-	size_t			npurgatory;
-
-	/*
 	 * Size/address-ordered trees of this arena's available runs.  The trees
 	 * are used for first-best-fit run allocation.
 	 */

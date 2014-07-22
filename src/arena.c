@@ -757,10 +757,7 @@ arena_maybe_purge(arena_t *arena)
 	/* Don't purge if the option is disabled. */
 	if (opt_lg_dirty_mult < 0)
 		return;
-	/* Don't purge if all dirty pages are already being purged. */
-	if (arena->ndirty <= arena->npurgatory)
-		return;
-	npurgeable = arena->ndirty - arena->npurgatory;
+	npurgeable = arena->ndirty;
 	threshold = (arena->nactive >> opt_lg_dirty_mult);
 	/*
 	 * Don't purge unless the number of purgeable pages exceeds the
@@ -803,7 +800,7 @@ arena_compute_npurgatory(arena_t *arena, bool all)
 	 * Compute the minimum number of pages that this thread should try to
 	 * purge.
 	 */
-	npurgeable = arena->ndirty - arena->npurgatory;
+	npurgeable = arena->ndirty;
 
 	if (all == false) {
 		size_t threshold = (arena->nactive >> opt_lg_dirty_mult);
@@ -942,9 +939,7 @@ arena_purge(arena_t *arena, bool all)
 		size_t ndirty = arena_dirty_count(arena);
 		assert(ndirty == arena->ndirty);
 	}
-	assert(arena->ndirty > arena->npurgatory || all);
-	assert((arena->nactive >> opt_lg_dirty_mult) < (arena->ndirty -
-	    arena->npurgatory) || all);
+	assert((arena->nactive >> opt_lg_dirty_mult) < arena->ndirty || all);
 
 	if (config_stats)
 		arena->stats.npurge++;
@@ -955,14 +950,11 @@ arena_purge(arena_t *arena, bool all)
 	 * reduce ndirty below the threshold.
 	 */
 	npurgatory = arena_compute_npurgatory(arena, all);
-	arena->npurgatory += npurgatory;
 
 	ql_new(&purge_list);
 
 	npurgeable = arena_stash_dirty(arena, all, npurgatory, &purge_list);
 	assert(npurgeable >= npurgatory);
-	/* Actually we no longer need arena->npurgatory. */
-	arena->npurgatory -= npurgatory;
 
 	npurged = arena_purge_stashed(arena, &purge_list);
 	assert(npurged == npurgeable);
@@ -2251,7 +2243,6 @@ arena_new(arena_t *arena, unsigned ind)
 
 	arena->nactive = 0;
 	arena->ndirty = 0;
-	arena->npurgatory = 0;
 
 	arena_avail_tree_new(&arena->runs_avail);
 
