@@ -167,23 +167,8 @@ struct arena_chunk_s {
 	/* Arena that owns the chunk. */
 	arena_t			*arena;
 
-	/* Linkage for tree of arena chunks that contain dirty runs. */
-	rb_node(arena_chunk_t)	dirty_link;
-
 	/* Number of dirty pages. */
 	size_t			ndirty;
-
-	/* Number of available runs. */
-	size_t			nruns_avail;
-
-	/*
-	 * Number of available run adjacencies that purging could coalesce.
-	 * Clean and dirty available runs are not coalesced, which causes
-	 * virtual memory fragmentation.  The ratio of
-	 * (nruns_avail-nruns_adjac):nruns_adjac is used for tracking this
-	 * fragmentation.
-	 */
-	size_t			nruns_adjac;
 
 	/*
 	 * Map of pages within chunk that keeps track of free/large/small.  The
@@ -193,7 +178,6 @@ struct arena_chunk_s {
 	 */
 	arena_chunk_map_t	map[1]; /* Dynamically sized. */
 };
-typedef rb_tree(arena_chunk_t) arena_chunk_tree_t;
 
 struct arena_run_s {
 	/* Bin this run is associated with. */
@@ -332,9 +316,6 @@ struct arena_s {
 	uint64_t		prof_accumbytes;
 
 	dss_prec_t		dss_prec;
-
-	/* Tree of dirty-page-containing chunks this arena manages. */
-	arena_chunk_tree_t	chunks_dirty;
 
 	/* List of dirty runs this arena manages. */
 	arena_chunk_mapelms_t	runs_dirty;
