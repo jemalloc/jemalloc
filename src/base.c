@@ -11,10 +11,12 @@ static malloc_mutex_t	base_mtx;
  * pages are carved up in cacheline-size quanta, so that there is no chance of
  * false cache line sharing.
  */
-static void		*base_pages;
-static void		*base_next_addr;
-static void		*base_past_addr; /* Addr immediately past base_pages. */
-static extent_node_t	*base_nodes;
+static void			*base_pages;
+static void			*base_next_addr;
+/* Addr immediately past base_pages. */
+static void			*base_past_addr;
+static extent_node_t		*base_nodes;
+static arena_chunk_map_t	*base_mapelms;
 
 /******************************************************************************/
 
@@ -102,11 +104,44 @@ base_node_dalloc(extent_node_t *node)
 	malloc_mutex_unlock(&base_mtx);
 }
 
+arena_chunk_map_t *
+base_mapelm_alloc(void)
+{
+	arena_chunk_map_t *ret;
+
+	malloc_mutex_lock(&base_mtx);
+	if (base_mapelms != NULL) {
+		ret = base_mapelms;
+		base_mapelms = *(arena_chunk_map_t **)ret;
+		malloc_mutex_unlock(&base_mtx);
+		JEMALLOC_VALGRIND_MAKE_MEM_UNDEFINED(ret,
+		    sizeof(arena_chunk_map_t));
+	} else {
+		malloc_mutex_unlock(&base_mtx);
+		ret = (arena_chunk_map_t *)
+		    base_alloc(sizeof(arena_chunk_map_t));
+	}
+
+	return (ret);
+}
+
+void
+base_mapelm_dalloc(arena_chunk_map_t *mapelm)
+{
+
+	JEMALLOC_VALGRIND_MAKE_MEM_UNDEFINED(mapelm, sizeof(arena_chunk_map_t));
+	malloc_mutex_lock(&base_mtx);
+	*(arena_chunk_map_t **)mapelm = base_mapelms;
+	base_mapelms = mapelm;
+	malloc_mutex_unlock(&base_mtx);
+}
+
 bool
 base_boot(void)
 {
 
 	base_nodes = NULL;
+	base_mapelms = NULL;
 	if (malloc_mutex_init(&base_mtx))
 		return (true);
 
