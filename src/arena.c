@@ -973,86 +973,73 @@ arena_compute_npurgatory(arena_t *arena, bool all)
 	return (npurgatory);
 }
 
-static void
-arena_chunk_stash_dirty(arena_t *arena, arena_chunk_t *chunk, bool all,
+static size_t
+arena_stash_dirty(arena_t *arena, bool all, size_t npurgatory,
     arena_chunk_mapelms_t *mapelms)
 {
-	size_t pageind, npages;
+	arena_chunk_map_t *mapelm;
+	size_t nstashed = 0;
+	arena_chunk_t *chunk;
+	size_t pageind, npages, run_size;
+	arena_run_t *run;
 
-	/*
-	 * Temporarily allocate free dirty runs within chunk.  If all is false,
-	 * only operate on dirty runs that are fragments; otherwise operate on
-	 * all dirty runs.
-	 */
-	for (pageind = map_bias; pageind < chunk_npages; pageind += npages) {
-		arena_chunk_map_t *mapelm = arena_mapp_get(chunk, pageind);
-		if (arena_mapbits_allocated_get(chunk, pageind) == 0) {
-			size_t run_size =
-			    arena_mapbits_unallocated_size_get(chunk, pageind);
+	/* Add at least npurgatory pages to purge_list. */
+	for (mapelm = ql_first(&arena->runs_dirty); mapelm != NULL;
+	    mapelm = ql_first(&arena->runs_dirty)) {
+		chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(mapelm);
+		pageind = arena_mapelm_to_pageind(mapelm);
+		run_size = arena_mapbits_unallocated_size_get(chunk, pageind);
+		npages = run_size >> LG_PAGE;
+		run = (arena_run_t *)((uintptr_t)chunk + (uintptr_t)(pageind <<
+		    LG_PAGE));
 
-			npages = run_size >> LG_PAGE;
-			assert(pageind + npages <= chunk_npages);
-			assert(arena_mapbits_dirty_get(chunk, pageind) ==
-			    arena_mapbits_dirty_get(chunk, pageind+npages-1));
+		assert(pageind + npages <= chunk_npages);
+		assert(arena_mapbits_dirty_get(chunk, pageind) ==
+		    arena_mapbits_dirty_get(chunk, pageind+npages-1));
 
-			if (arena_mapbits_dirty_get(chunk, pageind) != 0 &&
-			    (all || arena_avail_adjac(chunk, pageind,
-			    npages))) {
-				arena_run_t *run = (arena_run_t *)((uintptr_t)
-				    chunk + (uintptr_t)(pageind << LG_PAGE));
+		/* Temporarily allocate the free dirty run. */
+		arena_run_split_large(arena, run, run_size, false);
+		/* Append to purge_list for later processing. */
+		ql_elm_new(mapelm, dr_link);
+		ql_tail_insert(mapelms, mapelm, dr_link);
 
-				arena_run_split_large(arena, run, run_size,
-				    false);
-				/* Append to list for later processing. */
-				ql_elm_new(mapelm, u.ql_link);
-				ql_tail_insert(mapelms, mapelm, u.ql_link);
-			}
-		} else {
-			/* Skip run. */
-			if (arena_mapbits_large_get(chunk, pageind) != 0) {
-				npages = arena_mapbits_large_size_get(chunk,
-				    pageind) >> LG_PAGE;
-			} else {
-				size_t binind;
-				arena_bin_info_t *bin_info;
-				arena_run_t *run = (arena_run_t *)((uintptr_t)
-				    chunk + (uintptr_t)(pageind << LG_PAGE));
+		nstashed += npages;
 
-				assert(arena_mapbits_small_runind_get(chunk,
-				    pageind) == 0);
-				binind = arena_bin_index(arena, run->bin);
-				bin_info = &arena_bin_info[binind];
-				npages = bin_info->run_size >> LG_PAGE;
-			}
-		}
+		if (all == false && nstashed >= npurgatory)
+			break;
 	}
-	assert(pageind == chunk_npages);
-	assert(chunk->ndirty == 0 || all == false);
-	assert(chunk->nruns_adjac == 0);
+
+	return (nstashed);
 }
 
 static size_t
-arena_chunk_purge_stashed(arena_t *arena, arena_chunk_t *chunk,
-    arena_chunk_mapelms_t *mapelms)
+arena_purge_stashed(arena_t *arena, arena_chunk_mapelms_t *mapelms)
 {
-	size_t npurged, pageind, npages, nmadvise;
+	size_t npurged, nmadvise;
 	arena_chunk_map_t *mapelm;
+	arena_chunk_t *chunk;
+	size_t pageind, npages, run_size;
 
-	malloc_mutex_unlock(&arena->lock);
 	if (config_stats)
 		nmadvise = 0;
 	npurged = 0;
-	ql_foreach(mapelm, mapelms, u.ql_link) {
+
+	malloc_mutex_unlock(&arena->lock);
+
+	ql_foreach(mapelm, mapelms, dr_link) {
 		bool unzeroed;
 		size_t flag_unzeroed, i;
 
+		chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(mapelm);
 		pageind = arena_mapelm_to_pageind(mapelm);
-		npages = arena_mapbits_large_size_get(chunk, pageind) >>
-		    LG_PAGE;
+		run_size = arena_mapbits_large_size_get(chunk, pageind);
+		npages = run_size >> LG_PAGE;
+
 		assert(pageind + npages <= chunk_npages);
 		unzeroed = pages_purge((void *)((uintptr_t)chunk + (pageind <<
-		    LG_PAGE)), (npages << LG_PAGE));
+		    LG_PAGE)), run_size);
 		flag_unzeroed = unzeroed ? CHUNK_MAP_UNZEROED : 0;
+
 		/*
 		 * Set the unzeroed flag for all pages, now that pages_purge()
 		 * has returned whether the pages were zeroed as a side effect
@@ -1067,89 +1054,48 @@ arena_chunk_purge_stashed(arena_t *arena, arena_chunk_t *chunk,
 			arena_mapbits_unzeroed_set(chunk, pageind+i,
 			    flag_unzeroed);
 		}
+
 		npurged += npages;
 		if (config_stats)
 			nmadvise++;
 	}
+
 	malloc_mutex_lock(&arena->lock);
-	if (config_stats)
+
+	if (config_stats) {
 		arena->stats.nmadvise += nmadvise;
+		arena->stats.purged += npurged;
+	}
 
 	return (npurged);
 }
 
 static void
-arena_chunk_unstash_purged(arena_t *arena, arena_chunk_t *chunk,
-    arena_chunk_mapelms_t *mapelms)
+arena_unstash_purged(arena_t *arena, arena_chunk_mapelms_t *mapelms)
 {
 	arena_chunk_map_t *mapelm;
+	arena_chunk_t *chunk;
+	arena_run_t *run;
 	size_t pageind;
 
 	/* Deallocate runs. */
 	for (mapelm = ql_first(mapelms); mapelm != NULL;
 	    mapelm = ql_first(mapelms)) {
-		arena_run_t *run;
-
+		chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(mapelm);
 		pageind = arena_mapelm_to_pageind(mapelm);
 		run = (arena_run_t *)((uintptr_t)chunk + (uintptr_t)(pageind <<
 		    LG_PAGE));
-		ql_remove(mapelms, mapelm, u.ql_link);
+		ql_remove(mapelms, mapelm, dr_link);
 		arena_run_dalloc(arena, run, false, true);
 	}
 }
 
-static inline size_t
-arena_chunk_purge(arena_t *arena, arena_chunk_t *chunk, bool all)
-{
-	size_t npurged;
-	arena_chunk_mapelms_t mapelms;
-
-	ql_new(&mapelms);
-
-	/*
-	 * If chunk is the spare, temporarily re-allocate it, 1) so that its
-	 * run is reinserted into runs_avail, and 2) so that it cannot be
-	 * completely discarded by another thread while arena->lock is dropped
-	 * by this thread.  Note that the arena_run_dalloc() call will
-	 * implicitly deallocate the chunk, so no explicit action is required
-	 * in this function to deallocate the chunk.
-	 *
-	 * Note that once a chunk contains dirty pages, it cannot again contain
-	 * a single run unless 1) it is a dirty run, or 2) this function purges
-	 * dirty pages and causes the transition to a single clean run.  Thus
-	 * (chunk == arena->spare) is possible, but it is not possible for
-	 * this function to be called on the spare unless it contains a dirty
-	 * run.
-	 */
-	if (chunk == arena->spare) {
-		assert(arena_mapbits_dirty_get(chunk, map_bias) != 0);
-		assert(arena_mapbits_dirty_get(chunk, chunk_npages-1) != 0);
-
-		arena_chunk_alloc(arena);
-	}
-
-	if (config_stats)
-		arena->stats.purged += chunk->ndirty;
-
-	/*
-	 * Operate on all dirty runs if there is no clean/dirty run
-	 * fragmentation.
-	 */
-	if (chunk->nruns_adjac == 0)
-		all = true;
-
-	arena_chunk_stash_dirty(arena, chunk, all, &mapelms);
-	npurged = arena_chunk_purge_stashed(arena, chunk, &mapelms);
-	arena_chunk_unstash_purged(arena, chunk, &mapelms);
-
-	return (npurged);
-}
-
-static void
+void
 arena_purge(arena_t *arena, bool all)
 {
-	arena_chunk_t *chunk;
-	size_t npurgatory;
+	size_t npurgatory, npurgeable, npurged;
+	arena_chunk_mapelms_t purge_list;
+
 	if (config_debug) {
 		size_t ndirty = 0;
 
@@ -1175,58 +1121,17 @@ arena_purge(arena_t *arena, bool all)
 	npurgatory = arena_compute_npurgatory(arena, all);
 	arena->npurgatory += npurgatory;
 
-	while (npurgatory > 0) {
-		size_t npurgeable, npurged, nunpurged;
+	ql_new(&purge_list);
 
-		/* Get next chunk with dirty pages. */
-		chunk = arena_chunk_dirty_first(&arena->chunks_dirty);
-		if (chunk == NULL) {
-			/*
-			 * This thread was unable to purge as many pages as
-			 * originally intended, due to races with other threads
-			 * that either did some of the purging work, or re-used
-			 * dirty pages.
-			 */
-			arena->npurgatory -= npurgatory;
-			return;
-		}
-		npurgeable = chunk->ndirty;
-		assert(npurgeable != 0);
+	npurgeable = arena_stash_dirty(arena, all, npurgatory, &purge_list);
+	assert(npurgeable >= npurgatory);
+	/* Actually we no longer need arena->npurgatory. */
+	arena->npurgatory -= npurgatory;
 
-		if (npurgeable > npurgatory && chunk->nruns_adjac == 0) {
-			/*
-			 * This thread will purge all the dirty pages in chunk,
-			 * so set npurgatory to reflect this thread's intent to
-			 * purge the pages.  This tends to reduce the chances
-			 * of the following scenario:
-			 *
-			 * 1) This thread sets arena->npurgatory such that
-			 *    (arena->ndirty - arena->npurgatory) is at the
-			 *    threshold.
-			 * 2) This thread drops arena->lock.
-			 * 3) Another thread causes one or more pages to be
-			 *    dirtied, and immediately determines that it must
-			 *    purge dirty pages.
-			 *
-			 * If this scenario *does* play out, that's okay,
-			 * because all of the purging work being done really
-			 * needs to happen.
-			 */
-			arena->npurgatory += npurgeable - npurgatory;
-			npurgatory = npurgeable;
-		}
+	npurged = arena_purge_stashed(arena, &purge_list);
+	assert(npurged == npurgeable);
 
-		/*
-		 * Keep track of how many pages are purgeable, versus how many
-		 * actually get purged, and adjust counters accordingly.
-		 */
-		arena->npurgatory -= npurgeable;
-		npurgatory -= npurgeable;
-		npurged = arena_chunk_purge(arena, chunk, all);
-		nunpurged = npurgeable - npurged;
-		arena->npurgatory += nunpurged;
-		npurgatory += nunpurged;
-	}
+	arena_unstash_purged(arena, &purge_list);
 }
 
 void
