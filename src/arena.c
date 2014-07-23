@@ -2205,6 +2205,32 @@ arena_stats_merge(arena_t *arena, const char **dss, size_t *nactive,
 	}
 }
 
+void *
+arena_dirty_list_insert(void *arg)
+{
+	arena_t *arena = (arena_t *)arg;
+
+	while (true) {
+		sleep(1);
+		malloc_printf("arena_dirty_list_insert: %u\n", arena->ind);
+	}
+
+	return (NULL);
+}
+
+void *
+arena_purge_dirty(void *arg)
+{
+	arena_t *arena = (arena_t *)arg;
+
+	while (true) {
+		sleep(1);
+		malloc_printf("arena_purge_dirty: %u\n", arena->ind);
+	}
+
+	return (NULL);
+}
+
 bool
 arena_new(arena_t *arena, unsigned ind)
 {
