@@ -145,6 +145,7 @@ arena_t *
 choose_arena_hard(void)
 {
 	arena_t *ret;
+	int res;
 	bool created = false;
 
 	if (narenas_auto > 1) {
@@ -209,24 +210,19 @@ choose_arena_hard(void)
 	 * If we just initialized a new arena, we need to create corresponding
 	 * threads to do dirty page purging.
 	 */
-	if (created) {
-		ret->thread_initialized = true;
+	if (created && opt_lg_purge_time >= 0) {
+		res = 0;
+		res |= pthread_create(&ret->thread_ins, NULL,
+		    arena_dirty_list_insert, (void *)ret);
+		res |= pthread_create(&ret->thread_purge, NULL,
+		    arena_purge_dirty, (void *)ret);
 
-		if (pthread_create(&ret->thread_ins, NULL,
-		    arena_dirty_list_insert, (void *)ret) != 0) {
+		if (res != 0) {
 			malloc_write("<jemalloc>: Error in pthread_create()\n");
 			if (opt_abort)
 				abort();
-			ret->thread_initialized = false;
-		}
-
-		if (pthread_create(&ret->thread_purge, NULL,
-		    arena_purge_dirty, (void *)ret) != 0) {
-			malloc_write("<jemalloc>: Error in pthread_create()\n");
-			if (opt_abort)
-				abort();
-			ret->thread_initialized = false;
-		}
+		} else
+			ret->thread_initialized = true;
 	}
 
 	return (ret);
@@ -627,8 +623,11 @@ malloc_conf_init(void)
 			}
 			CONF_HANDLE_SIZE_T(opt_narenas, "narenas", 1,
 			    SIZE_T_MAX, false)
-			CONF_HANDLE_SSIZE_T(opt_lg_dirty_mult, "lg_dirty_mult",
-			    -1, (sizeof(size_t) << 3) - 1)
+			CONF_HANDLE_SSIZE_T(opt_lg_purge_time, "lg_purge_time",
+			    -1, 29)
+			CONF_HANDLE_SIZE_T(opt_lg_max_timestamp,
+			    "lg_max_timestamp", 0, (sizeof(size_t) << 3) - 30,
+			    false)
 			CONF_HANDLE_BOOL(opt_stats_print, "stats_print", true)
 			if (config_fill) {
 				CONF_HANDLE_BOOL(opt_junk, "junk", true)
@@ -697,6 +696,7 @@ static bool
 malloc_init_hard(void)
 {
 	arena_t *init_arenas[1];
+	int ret;
 
 	malloc_mutex_lock(&init_lock);
 	if (malloc_initialized || IS_INITIALIZER) {
@@ -833,22 +833,19 @@ malloc_init_hard(void)
 	}
 #endif
 
-	init_arenas[0]->thread_initialized = true;
+	if (opt_lg_purge_time >= 0) {
+		ret = 0;
+		ret |= pthread_create(&arenas[0]->thread_ins, NULL,
+		    arena_dirty_list_insert, (void *)arenas[0]);
+		ret |= pthread_create(&arenas[0]->thread_purge, NULL,
+		    arena_purge_dirty, (void *)arenas[0]);
 
-	if (pthread_create(&init_arenas[0]->thread_ins, NULL,
-	    arena_dirty_list_insert, (void *)init_arenas[0]) != 0) {
-		malloc_write("<jemalloc>: Error in pthread_create()\n");
-		if (opt_abort)
-			abort();
-		init_arenas[0]->thread_initialized = false;
-	}
-
-	if (pthread_create(&init_arenas[0]->thread_purge, NULL,
-	    arena_purge_dirty, (void *)init_arenas[0]) != 0) {
-		malloc_write("<jemalloc>: Error in pthread_create()\n");
-		if (opt_abort)
-			abort();
-		init_arenas[0]->thread_initialized = false;
+		if (ret != 0) {
+			malloc_write("<jemalloc>: Error in pthread_create()\n");
+			if (opt_abort)
+				abort();
+		} else
+			arenas[0]->thread_initialized = true;
 	}
 
 	/* Done recursively allocating. */

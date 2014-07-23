@@ -4,7 +4,8 @@
 /******************************************************************************/
 /* Data. */
 
-ssize_t		opt_lg_dirty_mult = LG_DIRTY_MULT_DEFAULT;
+ssize_t		opt_lg_purge_time = LG_PURGE_TIME_DEFAULT;
+size_t		opt_lg_max_timestamp = LG_MAX_TIMESTAMP_DEFAULT;
 arena_bin_info_t	arena_bin_info[NBINS];
 
 JEMALLOC_ALIGNED(CACHELINE)
@@ -752,18 +753,14 @@ arena_run_alloc_small(arena_t *arena, size_t size, size_t binind)
 static inline void
 arena_maybe_purge(arena_t *arena)
 {
-	size_t npurgeable, threshold;
+	size_t threshold;
 
-	/* Don't purge if the option is disabled. */
-	if (opt_lg_dirty_mult < 0)
-		return;
-	npurgeable = arena->ndirty;
-	threshold = (arena->nactive >> opt_lg_dirty_mult);
-	/*
-	 * Don't purge unless the number of purgeable pages exceeds the
-	 * threshold.
-	 */
-	if (npurgeable <= threshold)
+	assert(opt_lg_purge_time >= 0);
+
+	threshold = (size_t)1U << opt_lg_max_timestamp;
+
+	/* Don't purge unless the number of timestamps exceeds the threshold. */
+	if (arena->ntimestamp <= threshold)
 		return;
 
 	arena_purge(arena, false);
@@ -772,12 +769,18 @@ arena_maybe_purge(arena_t *arena)
 static size_t
 arena_dirty_count(arena_t *arena)
 {
-	size_t ndirty = 0;
-	arena_chunk_map_t *mapelm;
 	arena_chunk_t *chunk;
+	arena_chunk_map_t *mapelm;
 	size_t pageind, npages;
+	size_t ndirty;
+
+	ndirty = 0;
 
 	ql_foreach(mapelm, &arena->runs_dirty, dr_link) {
+		/* Ignore the timestamps. */
+		if (arena_mapbitsp_read(&mapelm->bits) == 0)
+			continue;
+
 		chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(mapelm);
 		pageind = arena_mapelm_to_pageind(mapelm);
 		assert(arena_mapbits_allocated_get(chunk, pageind) == 0);
@@ -792,39 +795,32 @@ arena_dirty_count(arena_t *arena)
 }
 
 static size_t
-arena_compute_npurgatory(arena_t *arena, bool all)
+arena_stash_dirty(arena_t *arena, bool all, arena_chunk_mapelms_t *mapelms)
 {
-	size_t npurgatory, npurgeable;
-
-	/*
-	 * Compute the minimum number of pages that this thread should try to
-	 * purge.
-	 */
-	npurgeable = arena->ndirty;
-
-	if (all == false) {
-		size_t threshold = (arena->nactive >> opt_lg_dirty_mult);
-
-		npurgatory = npurgeable - threshold;
-	} else
-		npurgatory = npurgeable;
-
-	return (npurgatory);
-}
-
-static size_t
-arena_stash_dirty(arena_t *arena, bool all, size_t npurgatory,
-    arena_chunk_mapelms_t *mapelms)
-{
-	arena_chunk_map_t *mapelm;
-	size_t nstashed = 0;
 	arena_chunk_t *chunk;
-	size_t pageind, npages, run_size;
 	arena_run_t *run;
+	arena_chunk_map_t *mapelm;
+	size_t pageind, npages, run_size;
+	size_t nstashed;
+	size_t threshold;
 
-	/* Add at least npurgatory pages to purge_list. */
+	threshold = all ? 0 : ((size_t)1U << opt_lg_max_timestamp);
+
+	nstashed = 0;
+
 	for (mapelm = ql_first(&arena->runs_dirty); mapelm != NULL;
 	    mapelm = ql_first(&arena->runs_dirty)) {
+		if (arena->ntimestamp <= threshold)
+			break;
+
+		/* Remove timestamps. */
+		if (arena_mapbitsp_read(&mapelm->bits) == 0) {
+			ql_remove(&arena->runs_dirty, mapelm, dr_link);
+			base_mapelm_dalloc(mapelm);
+			arena->ntimestamp--;
+			continue;
+		}
+
 		chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(mapelm);
 		pageind = arena_mapelm_to_pageind(mapelm);
 		run_size = arena_mapbits_unallocated_size_get(chunk, pageind);
@@ -843,9 +839,6 @@ arena_stash_dirty(arena_t *arena, bool all, size_t npurgatory,
 		ql_tail_insert(mapelms, mapelm, dr_link);
 
 		nstashed += npages;
-
-		if (all == false && nstashed >= npurgatory)
-			break;
 	}
 
 	return (nstashed);
@@ -932,29 +925,21 @@ arena_unstash_purged(arena_t *arena, arena_chunk_mapelms_t *mapelms)
 void
 arena_purge(arena_t *arena, bool all)
 {
-	size_t npurgatory, npurgeable, npurged;
+	size_t npurgeable, npurged;
 	arena_chunk_mapelms_t purge_list;
 
 	if (config_debug) {
 		size_t ndirty = arena_dirty_count(arena);
 		assert(ndirty == arena->ndirty);
 	}
-	assert((arena->nactive >> opt_lg_dirty_mult) < arena->ndirty || all);
+	assert(arena->ntimestamp > ((size_t)1U << opt_lg_max_timestamp) || all);
 
 	if (config_stats)
 		arena->stats.npurge++;
 
-	/*
-	 * Add the minimum number of pages this thread should try to purge to
-	 * arena->npurgatory.  This will keep multiple threads from racing to
-	 * reduce ndirty below the threshold.
-	 */
-	npurgatory = arena_compute_npurgatory(arena, all);
-
 	ql_new(&purge_list);
 
-	npurgeable = arena_stash_dirty(arena, all, npurgatory, &purge_list);
-	assert(npurgeable >= npurgatory);
+	npurgeable = arena_stash_dirty(arena, all, &purge_list);
 
 	npurged = arena_purge_stashed(arena, &purge_list);
 	assert(npurged == npurgeable);
@@ -1123,16 +1108,6 @@ arena_run_dalloc(arena_t *arena, arena_run_t *run, bool dirty, bool cleaned)
 		assert(run_pages == (arena_maxclass >> LG_PAGE));
 		arena_chunk_dalloc(arena, chunk);
 	}
-
-	/*
-	 * It is okay to do dirty page processing here even if the chunk was
-	 * deallocated above, since in that case it is the spare.  Waiting
-	 * until after possible chunk deallocation to do dirty processing
-	 * allows for an old spare to be fully deallocated, thus decreasing the
-	 * chances of spuriously crossing the dirty page purging threshold.
-	 */
-	if (dirty)
-		arena_maybe_purge(arena);
 }
 
 static void
@@ -2209,10 +2184,46 @@ void *
 arena_dirty_list_insert(void *arg)
 {
 	arena_t *arena = (arena_t *)arg;
+	arena_chunk_map_t *mapelm;
+	struct timespec req, rem;
+	int ret;
+
+	assert(opt_lg_purge_time >= 0);
+
+	memset(&req, 0, sizeof(struct timespec));
+	req.tv_nsec = 1L << opt_lg_purge_time;
+	assert(req.tv_nsec <= 999999999L);
 
 	while (true) {
-		sleep(1);
-		malloc_printf("arena_dirty_list_insert: %u\n", arena->ind);
+		while ((ret = nanosleep(&req, &rem)) == -1) {
+			assert(errno == EINTR);
+			if (errno == EINTR) {
+				assert(req.tv_sec == 0);
+				assert(rem.tv_sec == 0);
+				req.tv_nsec = rem.tv_nsec;
+				continue;
+			}
+		}
+
+		if (arena->thread_initialized == false)
+			continue;
+
+		/* Allocate a node. */
+		mapelm = base_mapelm_alloc();
+
+		/*
+		 * Use a special node to denote timestamp. Since every the node
+		 * in runs_dirty belongs to a dirty run, we use a node with
+		 * CHUNK_MAP_DIRTY unset to denote timestamp node.
+		 */
+		arena_mapbitsp_write(&mapelm->bits, 0);
+
+		/* Insert the new node into runs_dirty. */
+		ql_elm_new(mapelm, dr_link);
+		malloc_mutex_lock(&arena->lock);
+		ql_tail_insert(&arena->runs_dirty, mapelm, dr_link);
+		arena->ntimestamp++;
+		malloc_mutex_unlock(&arena->lock);
 	}
 
 	return (NULL);
@@ -2222,10 +2233,33 @@ void *
 arena_purge_dirty(void *arg)
 {
 	arena_t *arena = (arena_t *)arg;
+	struct timespec req, rem;
+	int ret;
+
+	assert(opt_lg_purge_time >= 0);
+
+	memset(&req, 0, sizeof(struct timespec));
+	req.tv_nsec = 1L << opt_lg_purge_time;
+	assert(req.tv_nsec <= 999999999L);
 
 	while (true) {
-		sleep(1);
-		malloc_printf("arena_purge_dirty: %u\n", arena->ind);
+		while ((ret = nanosleep(&req, &rem)) == -1) {
+			assert(errno == EINTR);
+			if (errno == EINTR) {
+				assert(req.tv_sec == 0);
+				assert(req.tv_sec == 0);
+				req.tv_nsec = rem.tv_nsec;
+				continue;
+			}
+		}
+
+		if (arena->thread_initialized == false)
+			continue;
+
+		/* Purge dirty pages if necessary. */
+		malloc_mutex_lock(&arena->lock);
+		arena_maybe_purge(arena);
+		malloc_mutex_unlock(&arena->lock);
 	}
 
 	return (NULL);
@@ -2263,8 +2297,11 @@ arena_new(arena_t *arena, unsigned ind)
 
 	arena->dss_prec = chunk_dss_prec_get();
 
-	/* Initialize chunks. */
 	ql_new(&arena->runs_dirty);
+	arena->ntimestamp = 0;
+	arena->thread_initialized = false;
+
+	/* Initialize chunks. */
 	arena->spare = NULL;
 
 	arena->nactive = 0;

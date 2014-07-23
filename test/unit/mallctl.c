@@ -162,7 +162,8 @@ TEST_BEGIN(test_mallctl_opt)
 	TEST_MALLCTL_OPT(size_t, lg_chunk, always);
 	TEST_MALLCTL_OPT(const char *, dss, always);
 	TEST_MALLCTL_OPT(size_t, narenas, always);
-	TEST_MALLCTL_OPT(ssize_t, lg_dirty_mult, always);
+	TEST_MALLCTL_OPT(ssize_t, lg_purge_time, always);
+	TEST_MALLCTL_OPT(size_t, lg_max_timestamp, always);
 	TEST_MALLCTL_OPT(bool, stats_print, always);
 	TEST_MALLCTL_OPT(bool, junk, fill);
 	TEST_MALLCTL_OPT(size_t, quarantine, fill);

@@ -34,14 +34,23 @@
 #define	REDZONE_MINSIZE		16
 
 /*
- * The minimum ratio of active:dirty pages per arena is computed as:
+ * The time interval between insertion of two timestamps is computed as:
  *
- *   (nactive >> opt_lg_dirty_mult) >= ndirty
+ *   1 << opt_lg_purge_time
  *
- * So, supposing that opt_lg_dirty_mult is 3, there can be no less than 8 times
- * as many active pages as dirty pages.
+ * So, supposing that opt_lg_purge_time is 27, we insert a timestamp to
+ * runs_dirty list every (1 << 27) nanoseconds, i.e., ~0.13s.
  */
-#define	LG_DIRTY_MULT_DEFAULT	3
+#define LG_PURGE_TIME_DEFAULT	27
+
+/*
+ * The maximum number of timestamps that are allowed to exist in runs_dirty
+ * list. Supposing that this parameter is set to 5 and opt_lg_purge_time is set
+ * to 27, we allow at most 2^5=32 timestamps in runs_dirty list, which means
+ * that every dirty run can live up to approximately (1 << (27+5)) seconds,
+ * i.e., ~4s.
+ */
+#define LG_MAX_TIMESTAMP_DEFAULT	5
 
 typedef struct arena_chunk_map_s arena_chunk_map_t;
 typedef struct arena_chunk_s arena_chunk_t;
@@ -320,6 +329,9 @@ struct arena_s {
 	/* List of dirty runs this arena manages. */
 	arena_chunk_mapelms_t	runs_dirty;
 
+	/* Number of special nodes (timestamps) in runs_dirty list. */
+	size_t			ntimestamp;
+
 	/* Thread that inserts special nodes to runs_dirty periodically. */
 	pthread_t		thread_ins;
 
@@ -372,7 +384,8 @@ struct arena_s {
 /******************************************************************************/
 #ifdef JEMALLOC_H_EXTERNS
 
-extern ssize_t	opt_lg_dirty_mult;
+extern ssize_t	opt_lg_purge_time;
+extern size_t	opt_lg_max_timestamp;
 /*
  * small_size2bin_tab is a compact lookup table that rounds request sizes up to
  * size classes.  In order to reduce cache footprint, the table is compressed,

@@ -265,7 +265,8 @@ opt_abort
 opt_dss
 opt_junk
 opt_lg_chunk
-opt_lg_dirty_mult
+opt_lg_purge_time
+opt_lg_max_timestamp
 opt_lg_prof_interval
 opt_lg_prof_sample
 opt_lg_tcache_max
