@@ -332,14 +332,8 @@ struct arena_s {
 	/* Number of special nodes (timestamps) in runs_dirty list. */
 	size_t			ntimestamp;
 
-	/* Thread that inserts special nodes to runs_dirty periodically. */
-	pthread_t		thread_ins;
-
-	/* Thread that calls arena_purge(). */
-	pthread_t		thread_purge;
-
-	/* Indicate whether the above two threads are created successfully. */
-	bool			thread_initialized;
+	/* The time when we insert the last timestamp into runs_dirty. */
+	struct timespec		time_last;
 
 	/*
 	 * In order to avoid rapid chunk allocation/deallocation when an arena
@@ -453,8 +447,6 @@ bool	arena_dss_prec_set(arena_t *arena, dss_prec_t dss_prec);
 void	arena_stats_merge(arena_t *arena, const char **dss, size_t *nactive,
     size_t *ndirty, arena_stats_t *astats, malloc_bin_stats_t *bstats,
     malloc_large_stats_t *lstats);
-void	*arena_dirty_list_insert(void *arg);
-void	*arena_purge_dirty(void *arg);
 bool	arena_new(arena_t *arena, unsigned ind);
 void	arena_boot(void);
 void	arena_prefork(arena_t *arena);

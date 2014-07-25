@@ -1037,6 +1037,63 @@ arena_run_coalesce(arena_t *arena, arena_chunk_t *chunk, size_t *p_size,
 }
 
 static void
+arena_runs_dirty_insert(arena_t *arena)
+{
+	struct timespec time_curr, time_diff, time_max;
+	arena_chunk_map_t *mapelm;
+	size_t n_new, i;
+
+	time_max.tv_sec = ((size_t)1U << (opt_lg_purge_time +
+	    opt_lg_max_timestamp)) / 1000000000;
+	time_max.tv_nsec = ((size_t)1U << (opt_lg_purge_time +
+	    opt_lg_max_timestamp)) % 1000000000;
+
+	clock_gettime(CLOCK_MONOTONIC, &time_curr);
+	time_diff.tv_sec = time_curr.tv_sec - arena->time_last.tv_sec;
+	time_diff.tv_nsec = time_curr.tv_nsec - arena->time_last.tv_nsec;
+	if (time_diff.tv_nsec < 0) {
+		assert(time_diff.tv_sec > 0);
+		time_diff.tv_sec--;
+		time_diff.tv_nsec += 1000000000;
+	}
+
+	if (arena->ntimestamp == 0) {
+		/* This is the first time we insert a timestamp. */
+		mapelm = base_mapelm_alloc();
+		arena_mapbitsp_write(&mapelm->bits, 0);
+		ql_elm_new(mapelm, dr_link);
+		ql_tail_insert(&arena->runs_dirty, mapelm, dr_link);
+		arena->ntimestamp++;
+	} else {
+		if (time_diff.tv_sec > time_max.tv_sec || (time_diff.tv_sec ==
+		    time_max.tv_sec && time_diff.tv_nsec)) {
+			/*
+			 * If it's been a long time since last event, we only
+			 * need to insert some max number of timestamps to make
+			 * all the dirty runs get purged.
+			 */
+			n_new = ((size_t)1U << opt_lg_max_timestamp) + 1;
+		} else {
+			n_new = (time_diff.tv_sec * 1000000000 +
+			    time_diff.tv_nsec) >> opt_lg_purge_time;
+			assert(n_new <= ((size_t)1U << opt_lg_max_timestamp));
+		}
+
+		for (i = 0; i < n_new; i++) {
+			mapelm = base_mapelm_alloc();
+			arena_mapbitsp_write(&mapelm->bits, 0);
+			ql_elm_new(mapelm, dr_link);
+			ql_tail_insert(&arena->runs_dirty, mapelm, dr_link);
+			arena->ntimestamp++;
+		}
+
+		if (n_new > 0)
+			memcpy(&arena->time_last, &time_curr,
+			    sizeof(struct timespec));
+	}
+}
+
+static void
 arena_run_dalloc(arena_t *arena, arena_run_t *run, bool dirty, bool cleaned)
 {
 	arena_chunk_t *chunk;
@@ -1107,6 +1164,18 @@ arena_run_dalloc(arena_t *arena, arena_run_t *run, bool dirty, bool cleaned)
 		assert(run_ind == map_bias);
 		assert(run_pages == (arena_maxclass >> LG_PAGE));
 		arena_chunk_dalloc(arena, chunk);
+	}
+
+	/*
+	 * It is okay to do dirty page processing here even if the chunk was
+	 * deallocated above, since in that case it is the spare.  Waiting
+	 * until after possible chunk deallocation to do dirty processing
+	 * allows for an old spare to be fully deallocated, thus decreasing the
+	 * chances of spuriously crossing the dirty page purging threshold.
+	 */
+	if (dirty && opt_lg_purge_time >= 0) {
+		arena_runs_dirty_insert(arena);
+		arena_maybe_purge(arena);
 	}
 }
 
@@ -2180,91 +2249,6 @@ arena_stats_merge(arena_t *arena, const char **dss, size_t *nactive,
 	}
 }
 
-void *
-arena_dirty_list_insert(void *arg)
-{
-	arena_t *arena = (arena_t *)arg;
-	arena_chunk_map_t *mapelm;
-	struct timespec req, rem;
-	int ret;
-
-	assert(opt_lg_purge_time >= 0);
-
-	memset(&req, 0, sizeof(struct timespec));
-	req.tv_nsec = 1L << opt_lg_purge_time;
-	assert(req.tv_nsec <= 999999999L);
-
-	while (true) {
-		while ((ret = nanosleep(&req, &rem)) == -1) {
-			assert(errno == EINTR);
-			if (errno == EINTR) {
-				assert(req.tv_sec == 0);
-				assert(rem.tv_sec == 0);
-				req.tv_nsec = rem.tv_nsec;
-				continue;
-			}
-		}
-
-		if (arena->thread_initialized == false)
-			continue;
-
-		/* Allocate a node. */
-		mapelm = base_mapelm_alloc();
-
-		/*
-		 * Use a special node to denote timestamp. Since every the node
-		 * in runs_dirty belongs to a dirty run, we use a node with
-		 * CHUNK_MAP_DIRTY unset to denote timestamp node.
-		 */
-		arena_mapbitsp_write(&mapelm->bits, 0);
-
-		/* Insert the new node into runs_dirty. */
-		ql_elm_new(mapelm, dr_link);
-		malloc_mutex_lock(&arena->lock);
-		ql_tail_insert(&arena->runs_dirty, mapelm, dr_link);
-		arena->ntimestamp++;
-		malloc_mutex_unlock(&arena->lock);
-	}
-
-	return (NULL);
-}
-
-void *
-arena_purge_dirty(void *arg)
-{
-	arena_t *arena = (arena_t *)arg;
-	struct timespec req, rem;
-	int ret;
-
-	assert(opt_lg_purge_time >= 0);
-
-	memset(&req, 0, sizeof(struct timespec));
-	req.tv_nsec = 1L << opt_lg_purge_time;
-	assert(req.tv_nsec <= 999999999L);
-
-	while (true) {
-		while ((ret = nanosleep(&req, &rem)) == -1) {
-			assert(errno == EINTR);
-			if (errno == EINTR) {
-				assert(req.tv_sec == 0);
-				assert(req.tv_sec == 0);
-				req.tv_nsec = rem.tv_nsec;
-				continue;
-			}
-		}
-
-		if (arena->thread_initialized == false)
-			continue;
-
-		/* Purge dirty pages if necessary. */
-		malloc_mutex_lock(&arena->lock);
-		arena_maybe_purge(arena);
-		malloc_mutex_unlock(&arena->lock);
-	}
-
-	return (NULL);
-}
-
 bool
 arena_new(arena_t *arena, unsigned ind)
 {
@@ -2299,7 +2283,7 @@ arena_new(arena_t *arena, unsigned ind)
 
 	ql_new(&arena->runs_dirty);
 	arena->ntimestamp = 0;
-	arena->thread_initialized = false;
+	clock_gettime(CLOCK_MONOTONIC, &arena->time_last);
 
 	/* Initialize chunks. */
 	arena->spare = NULL;
