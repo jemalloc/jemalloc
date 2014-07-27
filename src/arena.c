@@ -6,6 +6,7 @@
 
 ssize_t		opt_lg_purge_time = LG_PURGE_TIME_DEFAULT;
 size_t		opt_lg_max_timestamp = LG_MAX_TIMESTAMP_DEFAULT;
+struct timespec	time_max;
 arena_bin_info_t	arena_bin_info[NBINS];
 
 JEMALLOC_ALIGNED(CACHELINE)
@@ -1039,14 +1040,9 @@ arena_run_coalesce(arena_t *arena, arena_chunk_t *chunk, size_t *p_size,
 static void
 arena_runs_dirty_insert(arena_t *arena)
 {
-	struct timespec time_curr, time_diff, time_max;
+	struct timespec time_curr, time_diff;
 	arena_chunk_map_t *mapelm;
 	size_t n_new, i;
-
-	time_max.tv_sec = ((size_t)1U << (opt_lg_purge_time +
-	    opt_lg_max_timestamp)) / 1000000000;
-	time_max.tv_nsec = ((size_t)1U << (opt_lg_purge_time +
-	    opt_lg_max_timestamp)) % 1000000000;
 
 	clock_gettime(CLOCK_MONOTONIC, &time_curr);
 	time_diff.tv_sec = time_curr.tv_sec - arena->time_last.tv_sec;
@@ -2483,6 +2479,11 @@ arena_boot(void)
 	assert(map_bias > 0);
 
 	arena_maxclass = chunksize - (map_bias << LG_PAGE);
+
+	time_max.tv_sec = (1UL << (opt_lg_purge_time + opt_lg_max_timestamp)) /
+	    1000000000;
+	time_max.tv_nsec = (1L << (opt_lg_purge_time + opt_lg_max_timestamp)) %
+	    1000000000;
 
 	bin_info_init();
 }
