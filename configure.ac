@@ -287,7 +287,6 @@ case "${host}" in
 	CFLAGS="$CFLAGS"
 	abi="elf"
 	AC_DEFINE([JEMALLOC_PURGE_MADVISE_FREE], [ ])
-	force_lazy_lock="1"
 	;;
   *-*-linux*)
 	CFLAGS="$CFLAGS"
