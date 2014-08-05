@@ -283,6 +283,11 @@ case "${host}" in
 	AC_DEFINE([JEMALLOC_PURGE_MADVISE_FREE], [ ])
 	force_lazy_lock="1"
 	;;
+  *-*-dragonfly*)
+	CFLAGS="$CFLAGS"
+	abi="elf"
+	AC_DEFINE([JEMALLOC_PURGE_MADVISE_FREE], [ ])
+	;;
   *-*-linux*)
 	CFLAGS="$CFLAGS"
 	CPPFLAGS="$CPPFLAGS -D_GNU_SOURCE"
