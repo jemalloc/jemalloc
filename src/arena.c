@@ -1076,8 +1076,6 @@ arena_runs_dirty_insert(arena_t *arena)
 		} else {
 			n_new = (time_diff.tv_sec * NANOSECONDS_PER_SECOND +
 			    time_diff.tv_nsec) >> opt_lg_purge_interval;
-			if (n_new > threshold)
-				malloc_printf("n_new: %lu, threshold: %lu\n", n_new, threshold);
 			assert(n_new <= threshold);
 		}
 
