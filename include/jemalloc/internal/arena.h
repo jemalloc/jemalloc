@@ -34,21 +34,21 @@
 #define	REDZONE_MINSIZE		16
 
 /*
- * The time interval between insertion of two timestamps is computed as:
+ * The time interval between insertions of two timestamps is computed as:
  *
- *   1 << opt_lg_purge_time
+ *   1 << opt_lg_purge_interval
  *
- * So, supposing that opt_lg_purge_time is 27, we insert a timestamp to
+ * So, supposing that opt_lg_purge_interval is 27, we insert a timestamp to
  * runs_dirty list every (1 << 27) nanoseconds, i.e., ~0.13s.
  */
-#define LG_PURGE_TIME_DEFAULT	27
+#define LG_PURGE_INTERVAL_DEFAULT	27
 
 /*
  * The maximum number of timestamps that are allowed to exist in runs_dirty
- * list. Supposing that this parameter is set to 5 and opt_lg_purge_time is set
- * to 27, we allow at most 2^5=32 timestamps in runs_dirty list, which means
- * that every dirty run can live up to approximately (1 << (27+5)) seconds,
- * i.e., ~4s.
+ * list. Supposing that this parameter is set to 5 and opt_lg_purge_interval is
+ * set to 27, we allow at most (1 << 5 == 32) timestamps in runs_dirty list,
+ * which means that every dirty run can live up to approximately (1 << (27+5))
+ * seconds, i.e., ~4s.
  */
 #define LG_MAX_TIMESTAMP_DEFAULT	5
 
@@ -378,7 +378,7 @@ struct arena_s {
 /******************************************************************************/
 #ifdef JEMALLOC_H_EXTERNS
 
-extern ssize_t	opt_lg_purge_time;
+extern ssize_t	opt_lg_purge_interval;
 extern size_t	opt_lg_max_timestamp;
 /*
  * small_size2bin_tab is a compact lookup table that rounds request sizes up to

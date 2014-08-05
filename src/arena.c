@@ -4,7 +4,7 @@
 /******************************************************************************/
 /* Data. */
 
-ssize_t		opt_lg_purge_time = LG_PURGE_TIME_DEFAULT;
+ssize_t		opt_lg_purge_interval = LG_PURGE_INTERVAL_DEFAULT;
 size_t		opt_lg_max_timestamp = LG_MAX_TIMESTAMP_DEFAULT;
 struct timespec	time_max;
 arena_bin_info_t	arena_bin_info[NBINS];
@@ -756,7 +756,7 @@ arena_maybe_purge(arena_t *arena)
 {
 	size_t threshold;
 
-	assert(opt_lg_purge_time >= 0);
+	assert(opt_lg_purge_interval >= 0);
 
 	threshold = (size_t)1U << opt_lg_max_timestamp;
 
@@ -806,7 +806,6 @@ arena_stash_dirty(arena_t *arena, bool all, arena_chunk_mapelms_t *mapelms)
 	size_t threshold;
 
 	threshold = all ? 0 : ((size_t)1U << opt_lg_max_timestamp);
-
 	nstashed = 0;
 
 	for (mapelm = ql_first(&arena->runs_dirty); mapelm != NULL;
@@ -1040,9 +1039,11 @@ arena_run_coalesce(arena_t *arena, arena_chunk_t *chunk, size_t *p_size,
 static void
 arena_runs_dirty_insert(arena_t *arena)
 {
+#define NANOSECONDS_PER_SECOND 1000000000
 	struct timespec time_curr, time_diff;
 	arena_chunk_map_t *mapelm;
 	size_t n_new, i;
+	size_t threshold;
 
 	clock_gettime(CLOCK_MONOTONIC, &time_curr);
 	time_diff.tv_sec = time_curr.tv_sec - arena->time_last.tv_sec;
@@ -1050,7 +1051,8 @@ arena_runs_dirty_insert(arena_t *arena)
 	if (time_diff.tv_nsec < 0) {
 		assert(time_diff.tv_sec > 0);
 		time_diff.tv_sec--;
-		time_diff.tv_nsec += 1000000000;
+		time_diff.tv_nsec += NANOSECONDS_PER_SECOND;
+		assert(time_diff.tv_nsec > 0);
 	}
 
 	if (arena->ntimestamp == 0) {
@@ -1061,18 +1063,22 @@ arena_runs_dirty_insert(arena_t *arena)
 		ql_tail_insert(&arena->runs_dirty, mapelm, dr_link);
 		arena->ntimestamp++;
 	} else {
+		threshold = ((size_t)1U << opt_lg_max_timestamp);
+
 		if (time_diff.tv_sec > time_max.tv_sec || (time_diff.tv_sec ==
-		    time_max.tv_sec && time_diff.tv_nsec)) {
+		    time_max.tv_sec && time_diff.tv_nsec > time_max.tv_nsec)) {
 			/*
 			 * If it's been a long time since last event, we only
 			 * need to insert some max number of timestamps to make
 			 * all the dirty runs get purged.
 			 */
-			n_new = ((size_t)1U << opt_lg_max_timestamp) + 1;
+			n_new = threshold + 1;
 		} else {
-			n_new = (time_diff.tv_sec * 1000000000 +
-			    time_diff.tv_nsec) >> opt_lg_purge_time;
-			assert(n_new <= ((size_t)1U << opt_lg_max_timestamp));
+			n_new = (time_diff.tv_sec * NANOSECONDS_PER_SECOND +
+			    time_diff.tv_nsec) >> opt_lg_purge_interval;
+			if (n_new > threshold)
+				malloc_printf("n_new: %lu, threshold: %lu\n", n_new, threshold);
+			assert(n_new <= threshold);
 		}
 
 		for (i = 0; i < n_new; i++) {
@@ -1087,6 +1093,7 @@ arena_runs_dirty_insert(arena_t *arena)
 			memcpy(&arena->time_last, &time_curr,
 			    sizeof(struct timespec));
 	}
+#undef NANOSECONDS_PER_SECOND
 }
 
 static void
@@ -1138,6 +1145,9 @@ arena_run_dalloc(arena_t *arena, arena_run_t *run, bool dirty, bool cleaned)
 		    arena_mapbits_unzeroed_get(chunk, run_ind+run_pages-1));
 	}
 
+	if (dirty && opt_lg_purge_interval >= 0)
+		arena_runs_dirty_insert(arena);
+
 	arena_run_coalesce(arena, chunk, &size, &run_ind, &run_pages,
 	    flag_dirty);
 
@@ -1169,10 +1179,8 @@ arena_run_dalloc(arena_t *arena, arena_run_t *run, bool dirty, bool cleaned)
 	 * allows for an old spare to be fully deallocated, thus decreasing the
 	 * chances of spuriously crossing the dirty page purging threshold.
 	 */
-	if (dirty && opt_lg_purge_time >= 0) {
-		arena_runs_dirty_insert(arena);
+	if (dirty && opt_lg_purge_interval >= 0)
 		arena_maybe_purge(arena);
-	}
 }
 
 static void
@@ -2480,10 +2488,12 @@ arena_boot(void)
 
 	arena_maxclass = chunksize - (map_bias << LG_PAGE);
 
-	time_max.tv_sec = (1UL << (opt_lg_purge_time + opt_lg_max_timestamp)) /
-	    1000000000;
-	time_max.tv_nsec = (1L << (opt_lg_purge_time + opt_lg_max_timestamp)) %
-	    1000000000;
+#define NANOSECONDS_PER_SECOND 1000000000
+	time_max.tv_sec = (1UL << (opt_lg_purge_interval +
+	    opt_lg_max_timestamp)) / NANOSECONDS_PER_SECOND;
+	time_max.tv_nsec = (1L << (opt_lg_purge_interval +
+	    opt_lg_max_timestamp)) % NANOSECONDS_PER_SECOND;
+#undef NANOSECONDS_PER_SECOND
 
 	bin_info_init();
 }

@@ -385,7 +385,7 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		OPT_WRITE_SIZE_T(lg_chunk)
 		OPT_WRITE_CHAR_P(dss)
 		OPT_WRITE_SIZE_T(narenas)
-		OPT_WRITE_SSIZE_T(lg_purge_time)
+		OPT_WRITE_SSIZE_T(lg_purge_interval)
 		OPT_WRITE_SIZE_T(lg_max_timestamp)
 		OPT_WRITE_BOOL(stats_print)
 		OPT_WRITE_BOOL(junk)
@@ -426,7 +426,7 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		CTL_GET("arenas.page", &sv, size_t);
 		malloc_cprintf(write_cb, cbopaque, "Page size: %zu\n", sv);
 
-		CTL_GET("opt.lg_purge_time", &ssv, ssize_t);
+		CTL_GET("opt.lg_purge_interval", &ssv, ssize_t);
 		if (ssv >= 0) {
 			malloc_cprintf(write_cb, cbopaque,
 			    "Time interval between timestamps: %u "
