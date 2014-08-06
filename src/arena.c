@@ -110,8 +110,12 @@ arena_avail_comp(arena_chunk_map_t *a, arena_chunk_map_t *b)
 	if (ret == 0) {
 		if (!(a_mapelm & CHUNK_MAP_KEY))
 			ret = (a_mapelm > b_mapelm) - (a_mapelm < b_mapelm);
-		else
+		else {
+			/*
+			 * Treat keys as if they are lower than anything else.
+			 */
 			ret = -1;
+		}
 	}
 
 	return (ret);
