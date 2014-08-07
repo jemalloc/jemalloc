@@ -110,7 +110,8 @@ C_TESTLIB_SRCS := $(srcroot)test/src/math.c $(srcroot)test/src/mtx.c \
 	$(srcroot)test/src/SFMT.c $(srcroot)test/src/test.c \
 	$(srcroot)test/src/thd.c
 C_UTIL_INTEGRATION_SRCS := $(srcroot)src/util.c
-TESTS_UNIT := $(srcroot)test/unit/bitmap.c \
+TESTS_UNIT := $(srcroot)test/unit/atomic.c \
+	$(srcroot)test/unit/bitmap.c \
 	$(srcroot)test/unit/ckh.c \
 	$(srcroot)test/unit/hash.c \
 	$(srcroot)test/unit/junk.c \

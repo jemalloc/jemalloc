@@ -18,6 +18,17 @@
 /******************************************************************************/
 #ifdef JEMALLOC_H_INLINES
 
+/*
+ * All functions return the arithmetic result of the atomic operation.  Some
+ * atomic operation APIs return the value prior to mutation, in which case the
+ * following functions must redundantly compute the result so that it can be
+ * returned.  These functions are normally inlined, so the extra operations can
+ * be optimized away if the return values aren't used by the callers.
+ *
+ *   <t> atomic_add_<t>(<t> *p, <t> x) { return (*p + x); }
+ *   <t> atomic_sub_<t>(<t> *p, <t> x) { return (*p - x); }
+ */
+
 #ifndef JEMALLOC_ENABLE_INLINE
 uint64_t	atomic_add_uint64(uint64_t *p, uint64_t x);
 uint64_t	atomic_sub_uint64(uint64_t *p, uint64_t x);
@@ -52,14 +63,14 @@ JEMALLOC_INLINE uint64_t
 atomic_add_uint64(uint64_t *p, uint64_t x)
 {
 
-	return (InterlockedExchangeAdd64(p, x));
+	return (InterlockedExchangeAdd64(p, x) + x);
 }
 
 JEMALLOC_INLINE uint64_t
 atomic_sub_uint64(uint64_t *p, uint64_t x)
 {
 
-	return (InterlockedExchangeAdd64(p, -((int64_t)x)));
+	return (InterlockedExchangeAdd64(p, -((int64_t)x)) - x);
 }
 #elif (defined(JEMALLOC_OSATOMIC))
 JEMALLOC_INLINE uint64_t
@@ -79,28 +90,31 @@ atomic_sub_uint64(uint64_t *p, uint64_t x)
 JEMALLOC_INLINE uint64_t
 atomic_add_uint64(uint64_t *p, uint64_t x)
 {
+	uint64_t t = x;
 
 	asm volatile (
 	    "lock; xaddq %0, %1;"
-	    : "+r" (x), "=m" (*p) /* Outputs. */
+	    : "+r" (t), "=m" (*p) /* Outputs. */
 	    : "m" (*p) /* Inputs. */
 	    );
 
-	return (x);
+	return (t + x);
 }
 
 JEMALLOC_INLINE uint64_t
 atomic_sub_uint64(uint64_t *p, uint64_t x)
 {
+	uint64_t t;
 
 	x = (uint64_t)(-(int64_t)x);
+	t = x;
 	asm volatile (
 	    "lock; xaddq %0, %1;"
-	    : "+r" (x), "=m" (*p) /* Outputs. */
+	    : "+r" (t), "=m" (*p) /* Outputs. */
 	    : "m" (*p) /* Inputs. */
 	    );
 
-	return (x);
+	return (t + x);
 }
 #  elif (defined(JEMALLOC_ATOMIC9))
 JEMALLOC_INLINE uint64_t
@@ -164,14 +178,14 @@ JEMALLOC_INLINE uint32_t
 atomic_add_uint32(uint32_t *p, uint32_t x)
 {
 
-	return (InterlockedExchangeAdd(p, x));
+	return (InterlockedExchangeAdd(p, x) + x);
 }
 
 JEMALLOC_INLINE uint32_t
 atomic_sub_uint32(uint32_t *p, uint32_t x)
 {
 
-	return (InterlockedExchangeAdd(p, -((int32_t)x)));
+	return (InterlockedExchangeAdd(p, -((int32_t)x)) - x);
 }
 #elif (defined(JEMALLOC_OSATOMIC))
 JEMALLOC_INLINE uint32_t
@@ -191,28 +205,31 @@ atomic_sub_uint32(uint32_t *p, uint32_t x)
 JEMALLOC_INLINE uint32_t
 atomic_add_uint32(uint32_t *p, uint32_t x)
 {
+	uint32_t t = x;
 
 	asm volatile (
 	    "lock; xaddl %0, %1;"
-	    : "+r" (x), "=m" (*p) /* Outputs. */
+	    : "+r" (t), "=m" (*p) /* Outputs. */
 	    : "m" (*p) /* Inputs. */
 	    );
 
-	return (x);
+	return (t + x);
 }
 
 JEMALLOC_INLINE uint32_t
 atomic_sub_uint32(uint32_t *p, uint32_t x)
 {
+	uint32_t t;
 
 	x = (uint32_t)(-(int32_t)x);
+	t = x;
 	asm volatile (
 	    "lock; xaddl %0, %1;"
-	    : "+r" (x), "=m" (*p) /* Outputs. */
+	    : "+r" (t), "=m" (*p) /* Outputs. */
 	    : "m" (*p) /* Inputs. */
 	    );
 
-	return (x);
+	return (t + x);
 }
 #elif (defined(JEMALLOC_ATOMIC9))
 JEMALLOC_INLINE uint32_t
