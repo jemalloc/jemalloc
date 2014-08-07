@@ -101,14 +101,22 @@ arena_avail_comp(arena_chunk_map_t *a, arena_chunk_map_t *b)
 	uintptr_t a_mapelm = (uintptr_t)a;
 	uintptr_t b_mapelm = (uintptr_t)b;
 
-        if (a_mapelm & CHUNK_MAP_KEY)
+	if (a_mapelm & CHUNK_MAP_KEY)
 		a_size = a_mapelm & ~PAGE_MASK;
         else
 		a_size = arena_mapelm_to_bits(a) & ~PAGE_MASK;
 
 	ret = (a_size > b_size) - (a_size < b_size);
-	if (ret == 0 && (!(a_mapelm & CHUNK_MAP_KEY)))
-		ret = (a_mapelm > b_mapelm) - (a_mapelm < b_mapelm);
+	if (ret == 0) {
+		if (!(a_mapelm & CHUNK_MAP_KEY))
+			ret = (a_mapelm > b_mapelm) - (a_mapelm < b_mapelm);
+		else {
+			/*
+			 * Treat keys as if they are lower than anything else.
+			 */
+			ret = -1;
+		}
+	}
 
 	return (ret);
 }
