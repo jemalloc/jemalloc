@@ -382,9 +382,9 @@ arena_cactive_update(arena_t *arena, size_t add_pages, size_t sub_pages)
 {
 
 	if (config_stats) {
-		ssize_t cactive_diff = CHUNK_CEILING((arena->nactive +
-		    add_pages) << LG_PAGE) - CHUNK_CEILING((arena->nactive -
-		    sub_pages) << LG_PAGE);
+		ssize_t cactive_diff = CHUNK_CEILING((arena->nactive + add_pages
+		    - sub_pages) << LG_PAGE) - CHUNK_CEILING(arena->nactive <<
+		    LG_PAGE);
 		if (cactive_diff != 0)
 			stats_cactive_add(cactive_diff);
 	}
