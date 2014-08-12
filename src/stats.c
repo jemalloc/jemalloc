@@ -385,7 +385,8 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		OPT_WRITE_SIZE_T(lg_chunk)
 		OPT_WRITE_CHAR_P(dss)
 		OPT_WRITE_SIZE_T(narenas)
-		OPT_WRITE_SSIZE_T(lg_dirty_mult)
+		OPT_WRITE_SSIZE_T(lg_purge_interval)
+		OPT_WRITE_SIZE_T(lg_max_timestamp)
 		OPT_WRITE_BOOL(stats_print)
 		OPT_WRITE_BOOL(junk)
 		OPT_WRITE_SIZE_T(quarantine)
@@ -425,15 +426,18 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		CTL_GET("arenas.page", &sv, size_t);
 		malloc_cprintf(write_cb, cbopaque, "Page size: %zu\n", sv);
 
-		CTL_GET("opt.lg_dirty_mult", &ssv, ssize_t);
+		CTL_GET("opt.lg_purge_interval", &ssv, ssize_t);
 		if (ssv >= 0) {
 			malloc_cprintf(write_cb, cbopaque,
-			    "Min active:dirty page ratio per arena: %u:1\n",
-			    (1U << ssv));
+			    "Time interval between timestamps: %u "
+			    "nanoseconds\n", (1U << ssv));
 		} else {
 			malloc_cprintf(write_cb, cbopaque,
-			    "Min active:dirty page ratio per arena: N/A\n");
+			    "Time interval between timestamps: N/A\n");
 		}
+		CTL_GET("opt.lg_max_timestamp", &sv, size_t);
+		malloc_cprintf(write_cb, cbopaque,
+		    "Maximum number of timestamps: %u\n", (1U << sv));
 		if ((err = je_mallctl("arenas.tcache_max", &sv, &ssz, NULL, 0))
 		    == 0) {
 			malloc_cprintf(write_cb, cbopaque,

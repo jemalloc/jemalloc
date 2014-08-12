@@ -596,8 +596,16 @@ malloc_conf_init(void)
 			}
 			CONF_HANDLE_SIZE_T(opt_narenas, "narenas", 1,
 			    SIZE_T_MAX, false)
-			CONF_HANDLE_SSIZE_T(opt_lg_dirty_mult, "lg_dirty_mult",
-			    -1, (sizeof(size_t) << 3) - 1)
+			/* (1 << 29) is less than NANOSECONDS_PER_SECOND. */
+			CONF_HANDLE_SSIZE_T(opt_lg_purge_interval,
+			    "lg_purge_interval", -1, 29)
+			/*
+			 * opt_lg_purge_interval + opt_lg_max_timestamp should
+			 * not be greater than (sizeof(size_t) << 3) - 1.
+			 */
+			CONF_HANDLE_SIZE_T(opt_lg_max_timestamp,
+			    "lg_max_timestamp", 0, (sizeof(size_t) << 3) - 30,
+			    false)
 			CONF_HANDLE_BOOL(opt_stats_print, "stats_print", true)
 			if (config_fill) {
 				CONF_HANDLE_BOOL(opt_junk, "junk", true)

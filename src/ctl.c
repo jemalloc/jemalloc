@@ -90,7 +90,8 @@ CTL_PROTO(opt_abort)
 CTL_PROTO(opt_dss)
 CTL_PROTO(opt_lg_chunk)
 CTL_PROTO(opt_narenas)
-CTL_PROTO(opt_lg_dirty_mult)
+CTL_PROTO(opt_lg_purge_interval)
+CTL_PROTO(opt_lg_max_timestamp)
 CTL_PROTO(opt_stats_print)
 CTL_PROTO(opt_junk)
 CTL_PROTO(opt_zero)
@@ -231,7 +232,8 @@ static const ctl_named_node_t opt_node[] = {
 	{NAME("dss"),			CTL(opt_dss)},
 	{NAME("lg_chunk"),		CTL(opt_lg_chunk)},
 	{NAME("narenas"),		CTL(opt_narenas)},
-	{NAME("lg_dirty_mult"),		CTL(opt_lg_dirty_mult)},
+	{NAME("lg_purge_interval"),	CTL(opt_lg_purge_interval)},
+	{NAME("lg_max_timestamp"),	CTL(opt_lg_max_timestamp)},
 	{NAME("stats_print"),		CTL(opt_stats_print)},
 	{NAME("junk"),			CTL(opt_junk)},
 	{NAME("zero"),			CTL(opt_zero)},
@@ -1155,7 +1157,8 @@ CTL_RO_NL_GEN(opt_abort, opt_abort, bool)
 CTL_RO_NL_GEN(opt_dss, opt_dss, const char *)
 CTL_RO_NL_GEN(opt_lg_chunk, opt_lg_chunk, size_t)
 CTL_RO_NL_GEN(opt_narenas, opt_narenas, size_t)
-CTL_RO_NL_GEN(opt_lg_dirty_mult, opt_lg_dirty_mult, ssize_t)
+CTL_RO_NL_GEN(opt_lg_purge_interval, opt_lg_purge_interval, ssize_t)
+CTL_RO_NL_GEN(opt_lg_max_timestamp, opt_lg_max_timestamp, size_t)
 CTL_RO_NL_GEN(opt_stats_print, opt_stats_print, bool)
 CTL_RO_NL_CGEN(config_fill, opt_junk, opt_junk, bool)
 CTL_RO_NL_CGEN(config_fill, opt_quarantine, opt_quarantine, size_t)
