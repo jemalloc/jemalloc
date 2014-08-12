@@ -1029,8 +1029,8 @@ dnl ============================================================================
 dnl jemalloc configuration.
 dnl 
 
-dnl Set VERSION if source directory has an embedded git repository.
-if test -d "${srcroot}.git" ; then
+dnl Set VERSION if source directory has an embedded git repository or is a git submodule.
+if test -e "${srcroot}.git" ; then
   git describe --long --abbrev=40 > ${srcroot}VERSION
 fi
 jemalloc_version=`cat ${srcroot}VERSION`
