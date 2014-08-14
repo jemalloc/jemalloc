@@ -65,23 +65,14 @@ struct arena_chunk_map_s {
 	 */
 	union {
 #endif
-	union {
-		/*
-		 * Linkage for run trees.  There are two disjoint uses:
-		 *
-		 * 1) arena_t's runs_avail tree.
-		 * 2) arena_run_t conceptually uses this linkage for in-use
-		 *    non-full runs, rather than directly embedding linkage.
-		 */
-		rb_node(arena_chunk_map_t)	rb_link;
-		/*
-		 * List of runs currently in purgatory.  arena_chunk_purge()
-		 * temporarily allocates runs that contain dirty pages while
-		 * purging, so that other threads cannot use the runs while the
-		 * purging thread is operating without the arena lock held.
-		 */
-		ql_elm(arena_chunk_map_t)	ql_link;
-	}				u;
+	/*
+	 * Linkage for run trees.  There are two disjoint uses:
+	 *
+	 * 1) arena_t's runs_avail tree.
+	 * 2) arena_run_t conceptually uses this linkage for in-use non-full
+	 * runs, rather than directly embedding linkage.
+	 */
+	rb_node(arena_chunk_map_t)	rb_link;
 
 	/* Profile counters, used for large object runs. */
 	prof_ctx_t			*prof_ctx;
@@ -166,9 +157,6 @@ typedef ql_head(arena_chunk_map_t) arena_chunk_mapelms_t;
 struct arena_chunk_s {
 	/* Arena that owns the chunk. */
 	arena_t			*arena;
-
-	/* Number of dirty pages. */
-	size_t			ndirty;
 
 	/*
 	 * Map of pages within chunk that keeps track of free/large/small.  The
@@ -317,9 +305,6 @@ struct arena_s {
 
 	dss_prec_t		dss_prec;
 
-	/* List of dirty runs this arena manages. */
-	arena_chunk_mapelms_t	runs_dirty;
-
 	/*
 	 * In order to avoid rapid chunk allocation/deallocation when an arena
 	 * oscillates right on the cusp of needing a new chunk, cache the most
@@ -348,6 +333,9 @@ struct arena_s {
 	 * are used for first-best-fit run allocation.
 	 */
 	arena_avail_tree_t	runs_avail;
+
+	/* List of dirty runs this arena manages. */
+	arena_chunk_mapelms_t	runs_dirty;
 
 	/*
 	 * user-configureable chunk allocation and deallocation functions.
