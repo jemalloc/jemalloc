@@ -65,29 +65,23 @@ struct arena_chunk_map_s {
 	 */
 	union {
 #endif
-	union {
-		/*
-		 * Linkage for run trees.  There are two disjoint uses:
-		 *
-		 * 1) arena_t's runs_avail tree.
-		 * 2) arena_run_t conceptually uses this linkage for in-use
-		 *    non-full runs, rather than directly embedding linkage.
-		 */
-		rb_node(arena_chunk_map_t)	rb_link;
-		/*
-		 * List of runs currently in purgatory.  arena_chunk_purge()
-		 * temporarily allocates runs that contain dirty pages while
-		 * purging, so that other threads cannot use the runs while the
-		 * purging thread is operating without the arena lock held.
-		 */
-		ql_elm(arena_chunk_map_t)	ql_link;
-	}				u;
+	/*
+	 * Linkage for run trees.  There are two disjoint uses:
+	 *
+	 * 1) arena_t's runs_avail tree.
+	 * 2) arena_run_t conceptually uses this linkage for in-use non-full
+	 *    runs, rather than directly embedding linkage.
+	 */
+	rb_node(arena_chunk_map_t)	rb_link;
 
 	/* Profile counters, used for large object runs. */
 	prof_ctx_t			*prof_ctx;
 #ifndef JEMALLOC_PROF
 	}; /* union { ... }; */
 #endif
+
+	/* Linkage for list of dirty runs. */
+	ql_elm(arena_chunk_map_t)	dr_link;
 
 	/*
 	 * Run address (or size) and various flags are stored together.  The bit
@@ -164,23 +158,8 @@ struct arena_chunk_s {
 	/* Arena that owns the chunk. */
 	arena_t			*arena;
 
-	/* Linkage for tree of arena chunks that contain dirty runs. */
-	rb_node(arena_chunk_t)	dirty_link;
-
 	/* Number of dirty pages. */
 	size_t			ndirty;
-
-	/* Number of available runs. */
-	size_t			nruns_avail;
-
-	/*
-	 * Number of available run adjacencies that purging could coalesce.
-	 * Clean and dirty available runs are not coalesced, which causes
-	 * virtual memory fragmentation.  The ratio of
-	 * (nruns_avail-nruns_adjac):nruns_adjac is used for tracking this
-	 * fragmentation.
-	 */
-	size_t			nruns_adjac;
 
 	/*
 	 * Map of pages within chunk that keeps track of free/large/small.  The
@@ -190,7 +169,6 @@ struct arena_chunk_s {
 	 */
 	arena_chunk_map_t	map[1]; /* Dynamically sized. */
 };
-typedef rb_tree(arena_chunk_t) arena_chunk_tree_t;
 
 struct arena_run_s {
 	/* Bin this run is associated with. */
@@ -330,8 +308,8 @@ struct arena_s {
 
 	dss_prec_t		dss_prec;
 
-	/* Tree of dirty-page-containing chunks this arena manages. */
-	arena_chunk_tree_t	chunks_dirty;
+	/* List of dirty runs this arena manages. */
+	arena_chunk_mapelms_t	runs_dirty;
 
 	/*
 	 * In order to avoid rapid chunk allocation/deallocation when an arena
@@ -355,14 +333,6 @@ struct arena_s {
 	 * memory is mapped for each arena.
 	 */
 	size_t			ndirty;
-
-	/*
-	 * Approximate number of pages being purged.  It is possible for
-	 * multiple threads to purge dirty pages concurrently, and they use
-	 * npurgatory to indicate the total number of pages all threads are
-	 * attempting to purge.
-	 */
-	size_t			npurgatory;
 
 	/*
 	 * Size/address-ordered trees of this arena's available runs.  The trees
