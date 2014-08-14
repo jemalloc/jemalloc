@@ -65,23 +65,14 @@ struct arena_chunk_map_s {
 	 */
 	union {
 #endif
-	union {
-		/*
-		 * Linkage for run trees.  There are two disjoint uses:
-		 *
-		 * 1) arena_t's runs_avail tree.
-		 * 2) arena_run_t conceptually uses this linkage for in-use
-		 *    non-full runs, rather than directly embedding linkage.
-		 */
-		rb_node(arena_chunk_map_t)	rb_link;
-		/*
-		 * List of runs currently in purgatory.  arena_chunk_purge()
-		 * temporarily allocates runs that contain dirty pages while
-		 * purging, so that other threads cannot use the runs while the
-		 * purging thread is operating without the arena lock held.
-		 */
-		ql_elm(arena_chunk_map_t)	ql_link;
-	}				u;
+	/*
+	 * Linkage for run trees.  There are two disjoint uses:
+	 *
+	 * 1) arena_t's runs_avail tree.
+	 * 2) arena_run_t conceptually uses this linkage for in-use non-full
+	 *    runs, rather than directly embedding linkage.
+	 */
+	rb_node(arena_chunk_map_t)	rb_link;
 
 	/* Profile counters, used for large object runs. */
 	prof_ctx_t			*prof_ctx;

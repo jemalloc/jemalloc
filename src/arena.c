@@ -90,7 +90,7 @@ arena_run_comp(arena_chunk_map_t *a, arena_chunk_map_t *b)
 
 /* Generate red-black tree functions. */
 rb_gen(static UNUSED, arena_run_tree_, arena_run_tree_t, arena_chunk_map_t,
-    u.rb_link, arena_run_comp)
+    rb_link, arena_run_comp)
 
 static inline int
 arena_avail_comp(arena_chunk_map_t *a, arena_chunk_map_t *b)
@@ -123,7 +123,7 @@ arena_avail_comp(arena_chunk_map_t *a, arena_chunk_map_t *b)
 
 /* Generate red-black tree functions. */
 rb_gen(static UNUSED, arena_avail_tree_, arena_avail_tree_t, arena_chunk_map_t,
-    u.rb_link, arena_avail_comp)
+    rb_link, arena_avail_comp)
 
 static void
 arena_avail_insert(arena_t *arena, arena_chunk_t *chunk, size_t pageind,
@@ -280,12 +280,10 @@ arena_run_split_remove(arena_t *arena, arena_chunk_t *chunk, size_t run_ind,
 			arena_mapbits_unallocated_set(chunk,
 			    run_ind+total_pages-1, (rem_pages << LG_PAGE),
 			    flag_dirty);
-			mapelm = arena_mapp_get(chunk, run_ind+need_pages);
 			/*
 			 * Append the trailing run at the end of the dirty list.
-			 * We could also insert the run at the original place.
-			 * Let us consider this later.
 			 */
+			mapelm = arena_mapp_get(chunk, run_ind+need_pages);
 			ql_elm_new(mapelm, dr_link);
 			ql_tail_insert(&arena->runs_dirty, mapelm, dr_link);
 		} else {
@@ -757,6 +755,7 @@ arena_maybe_purge(arena_t *arena)
 	/* Don't purge if the option is disabled. */
 	if (opt_lg_dirty_mult < 0)
 		return;
+
 	npurgeable = arena->ndirty;
 	threshold = (arena->nactive >> opt_lg_dirty_mult);
 	/*
@@ -772,11 +771,12 @@ arena_maybe_purge(arena_t *arena)
 static size_t
 arena_dirty_count(arena_t *arena)
 {
-	size_t ndirty = 0;
-	arena_chunk_map_t *mapelm;
 	arena_chunk_t *chunk;
+	arena_chunk_map_t *mapelm;
 	size_t pageind, npages;
+	size_t ndirty;
 
+	ndirty = 0;
 	ql_foreach(mapelm, &arena->runs_dirty, dr_link) {
 		chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(mapelm);
 		pageind = arena_mapelm_to_pageind(mapelm);
@@ -816,11 +816,13 @@ static size_t
 arena_stash_dirty(arena_t *arena, bool all, size_t npurgatory,
     arena_chunk_mapelms_t *mapelms)
 {
-	arena_chunk_map_t *mapelm;
-	size_t nstashed = 0;
 	arena_chunk_t *chunk;
-	size_t pageind, npages, run_size;
 	arena_run_t *run;
+	arena_chunk_map_t *mapelm;
+	size_t pageind, npages, run_size;
+	size_t nstashed;
+
+	nstashed = 0;
 
 	/* Add at least npurgatory pages to purge_list. */
 	for (mapelm = ql_first(&arena->runs_dirty); mapelm != NULL;
@@ -854,10 +856,10 @@ arena_stash_dirty(arena_t *arena, bool all, size_t npurgatory,
 static size_t
 arena_purge_stashed(arena_t *arena, arena_chunk_mapelms_t *mapelms)
 {
-	size_t npurged, nmadvise;
-	arena_chunk_map_t *mapelm;
 	arena_chunk_t *chunk;
+	arena_chunk_map_t *mapelm;
 	size_t pageind, npages, run_size;
+	size_t npurged, nmadvise;
 
 	if (config_stats)
 		nmadvise = 0;
@@ -912,9 +914,9 @@ arena_purge_stashed(arena_t *arena, arena_chunk_mapelms_t *mapelms)
 static void
 arena_unstash_purged(arena_t *arena, arena_chunk_mapelms_t *mapelms)
 {
-	arena_chunk_map_t *mapelm;
 	arena_chunk_t *chunk;
 	arena_run_t *run;
+	arena_chunk_map_t *mapelm;
 	size_t pageind;
 
 	/* Deallocate runs. */
@@ -932,8 +934,8 @@ arena_unstash_purged(arena_t *arena, arena_chunk_mapelms_t *mapelms)
 void
 arena_purge(arena_t *arena, bool all)
 {
-	size_t npurgatory, npurgeable, npurged;
 	arena_chunk_mapelms_t purge_list;
+	size_t npurgatory, npurgeable, npurged;
 
 	if (config_debug) {
 		size_t ndirty = arena_dirty_count(arena);
@@ -945,9 +947,7 @@ arena_purge(arena_t *arena, bool all)
 		arena->stats.npurge++;
 
 	/*
-	 * Add the minimum number of pages this thread should try to purge to
-	 * arena->npurgatory.  This will keep multiple threads from racing to
-	 * reduce ndirty below the threshold.
+	 * Compute the minimum number of pages this thread should try to purge.
 	 */
 	npurgatory = arena_compute_npurgatory(arena, all);
 
