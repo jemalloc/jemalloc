@@ -87,41 +87,6 @@ bt_init(prof_bt_t *bt, void **vec)
 	bt->len = 0;
 }
 
-static void
-bt_destroy(prof_bt_t *bt)
-{
-
-	cassert(config_prof);
-
-	idalloc(bt);
-}
-
-static prof_bt_t *
-bt_dup(prof_bt_t *bt)
-{
-	prof_bt_t *ret;
-
-	cassert(config_prof);
-
-	/*
-	 * Create a single allocation that has space for vec immediately
-	 * following the prof_bt_t structure.  The backtraces that get
-	 * stored in the backtrace caches are copied from stack-allocated
-	 * temporary variables, so size is known at creation time.  Making this
-	 * a contiguous object improves cache locality.
-	 */
-	ret = (prof_bt_t *)imalloc(QUANTUM_CEILING(sizeof(prof_bt_t)) +
-	    (bt->len * sizeof(void *)));
-	if (ret == NULL)
-		return (NULL);
-	ret->vec = (void **)((uintptr_t)ret +
-	    QUANTUM_CEILING(sizeof(prof_bt_t)));
-	memcpy(ret->vec, bt->vec, bt->len * sizeof(void *));
-	ret->len = bt->len;
-
-	return (ret);
-}
-
 static inline void
 prof_enter(prof_tdata_t *prof_tdata)
 {
@@ -388,11 +353,16 @@ prof_ctx_mutex_choose(void)
 	return (&ctx_locks[(nctxs - 1) % PROF_NCTX_LOCKS]);
 }
 
-static void
-prof_ctx_init(prof_ctx_t *ctx, prof_bt_t *bt)
+static prof_ctx_t *
+prof_ctx_create(prof_bt_t *bt)
 {
-
-	ctx->bt = bt;
+	/*
+	 * Create a single allocation that has space for vec of length bt->len.
+	 */
+	prof_ctx_t *ctx = (prof_ctx_t *)imalloc(offsetof(prof_ctx_t, vec) +
+	    (bt->len * sizeof(void *)));
+	if (ctx == NULL)
+		return (NULL);
 	ctx->lock = prof_ctx_mutex_choose();
 	/*
 	 * Set nlimbo to 1, in order to avoid a race condition with
@@ -402,6 +372,11 @@ prof_ctx_init(prof_ctx_t *ctx, prof_bt_t *bt)
 	ql_elm_new(ctx, dump_link);
 	memset(&ctx->cnt_merged, 0, sizeof(prof_cnt_t));
 	ql_new(&ctx->cnts_ql);
+	/* Duplicate bt. */
+	memcpy(ctx->vec, bt->vec, bt->len * sizeof(void *));
+	ctx->bt.vec = ctx->vec;
+	ctx->bt.len = bt->len;
+	return (ctx);
 }
 
 static void
@@ -428,12 +403,11 @@ prof_ctx_destroy(prof_ctx_t *ctx)
 		assert(ctx->cnt_merged.accumobjs == 0);
 		assert(ctx->cnt_merged.accumbytes == 0);
 		/* Remove ctx from bt2ctx. */
-		if (ckh_remove(&bt2ctx, ctx->bt, NULL, NULL))
+		if (ckh_remove(&bt2ctx, &ctx->bt, NULL, NULL))
 			not_reached();
 		prof_leave(prof_tdata);
 		/* Destroy ctx. */
 		malloc_mutex_unlock(ctx->lock);
-		bt_destroy(ctx->bt);
 		idalloc(ctx);
 	} else {
 		/*
@@ -501,22 +475,15 @@ prof_lookup_global(prof_bt_t *bt, prof_tdata_t *prof_tdata, void **p_btkey,
 	prof_enter(prof_tdata);
 	if (ckh_search(&bt2ctx, bt, &btkey.v, &ctx.v)) {
 		/* bt has never been seen before.  Insert it. */
-		ctx.v = imalloc(sizeof(prof_ctx_t));
+		ctx.p = prof_ctx_create(bt);
 		if (ctx.v == NULL) {
 			prof_leave(prof_tdata);
 			return (true);
 		}
-		btkey.p = bt_dup(bt);
-		if (btkey.v == NULL) {
-			prof_leave(prof_tdata);
-			idalloc(ctx.v);
-			return (true);
-		}
-		prof_ctx_init(ctx.p, btkey.p);
+		btkey.p = &ctx.p->bt;
 		if (ckh_insert(&bt2ctx, btkey.v, ctx.v)) {
 			/* OOM. */
 			prof_leave(prof_tdata);
-			idalloc(btkey.v);
 			idalloc(ctx.v);
 			return (true);
 		}
@@ -1039,7 +1006,7 @@ prof_dump(bool propagate_err, const char *filename, bool leakcheck)
 
 	/* Dump per ctx profile stats. */
 	while ((ctx.p = ql_first(&ctx_ql)) != NULL) {
-		if (prof_dump_ctx(propagate_err, ctx.p, ctx.p->bt, &ctx_ql))
+		if (prof_dump_ctx(propagate_err, ctx.p, &ctx.p->bt, &ctx_ql))
 			goto label_write_error;
 	}
 

@@ -115,9 +115,6 @@ struct prof_thr_cnt_s {
 };
 
 struct prof_ctx_s {
-	/* Associated backtrace. */
-	prof_bt_t		*bt;
-
 	/* Protects nlimbo, cnt_merged, and cnts_ql. */
 	malloc_mutex_t		*lock;
 
@@ -146,6 +143,12 @@ struct prof_ctx_s {
 
 	/* Linkage for list of contexts to be dumped. */
 	ql_elm(prof_ctx_t)	dump_link;
+
+	/* Associated backtrace. */
+	prof_bt_t		bt;
+
+	/* Backtrace vector, variable size, referred to by bt. */
+	void			*vec[1];
 };
 typedef ql_head(prof_ctx_t) prof_ctx_list_t;
 
@@ -425,7 +428,7 @@ prof_realloc(const void *ptr, size_t usize, prof_thr_cnt_t *cnt,
 	}
 
 	if ((uintptr_t)old_ctx > (uintptr_t)1U) {
-		told_cnt = prof_lookup(old_ctx->bt);
+		told_cnt = prof_lookup(&old_ctx->bt);
 		if (told_cnt == NULL) {
 			/*
 			 * It's too late to propagate OOM for this realloc(),
@@ -483,7 +486,7 @@ prof_free(const void *ptr, size_t size)
 	if ((uintptr_t)ctx > (uintptr_t)1) {
 		prof_thr_cnt_t *tcnt;
 		assert(size == isalloc(ptr, true));
-		tcnt = prof_lookup(ctx->bt);
+		tcnt = prof_lookup(&ctx->bt);
 
 		if (tcnt != NULL) {
 			tcnt->epoch++;
