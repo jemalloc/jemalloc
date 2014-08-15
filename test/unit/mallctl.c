@@ -268,12 +268,25 @@ TEST_BEGIN(test_arena_i_dss)
 	assert_d_eq(mallctlbymib(mib, miblen, &dss_prec_new, &sz, &dss_prec_old,
 	    sizeof(dss_prec_old)), 0, "Unexpected mallctl() failure");
 
+	assert_d_eq(mallctlbymib(mib, miblen, &dss_prec_old, &sz, NULL, 0), 0,
+	    "Unexpected mallctl() failure");
+	assert_str_ne(dss_prec_old, "primary",
+	    "Unexpected value for dss precedence");
+
 	mib[1] = narenas_total_get();
 	dss_prec_new = "disabled";
 	assert_d_eq(mallctlbymib(mib, miblen, &dss_prec_old, &sz, &dss_prec_new,
 	    sizeof(dss_prec_new)), 0, "Unexpected mallctl() failure");
 	assert_str_ne(dss_prec_old, "primary",
 	    "Unexpected default for dss precedence");
+
+	assert_d_eq(mallctlbymib(mib, miblen, &dss_prec_new, &sz, &dss_prec_old,
+	    sizeof(dss_prec_new)), 0, "Unexpected mallctl() failure");
+
+	assert_d_eq(mallctlbymib(mib, miblen, &dss_prec_old, &sz, NULL, 0), 0,
+	    "Unexpected mallctl() failure");
+	assert_str_ne(dss_prec_old, "primary",
+	    "Unexpected value for dss precedence");
 }
 TEST_END
 

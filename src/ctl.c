@@ -1327,45 +1327,51 @@ static int
 arena_i_dss_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
     void *newp, size_t newlen)
 {
-	int ret, i;
-	bool match, err;
-	const char *dss;
+	int ret;
+	const char *dss = NULL;
 	unsigned arena_ind = mib[1];
 	dss_prec_t dss_prec_old = dss_prec_limit;
 	dss_prec_t dss_prec = dss_prec_limit;
 
 	malloc_mutex_lock(&ctl_mtx);
 	WRITE(dss, const char *);
-	match = false;
-	for (i = 0; i < dss_prec_limit; i++) {
-		if (strcmp(dss_prec_names[i], dss) == 0) {
-			dss_prec = i;
-			match = true;
-			break;
+	if (dss != NULL) {
+		int i;
+		bool match = false;
+
+		for (i = 0; i < dss_prec_limit; i++) {
+			if (strcmp(dss_prec_names[i], dss) == 0) {
+				dss_prec = i;
+				match = true;
+				break;
+			}
 		}
-	}
-	if (match == false) {
-		ret = EINVAL;
-		goto label_return;
+
+		if (match == false) {
+			ret = EINVAL;
+			goto label_return;
+		}
 	}
 
 	if (arena_ind < ctl_stats.narenas) {
 		arena_t *arena = arenas[arena_ind];
-		if (arena != NULL) {
-			dss_prec_old = arena_dss_prec_get(arena);
-			err = arena_dss_prec_set(arena, dss_prec);
-		} else
-			err = true;
+		if (arena == NULL || (dss_prec != dss_prec_limit &&
+		    arena_dss_prec_set(arena, dss_prec))) {
+			ret = EFAULT;
+			goto label_return;
+		}
+		dss_prec_old = arena_dss_prec_get(arena);
 	} else {
+		if (dss_prec != dss_prec_limit &&
+		    chunk_dss_prec_set(dss_prec)) {
+			ret = EFAULT;
+			goto label_return;
+		}
 		dss_prec_old = chunk_dss_prec_get();
-		err = chunk_dss_prec_set(dss_prec);
 	}
+
 	dss = dss_prec_names[dss_prec_old];
 	READ(dss, const char *);
-	if (err) {
-		ret = EFAULT;
-		goto label_return;
-	}
 
 	ret = 0;
 label_return:
