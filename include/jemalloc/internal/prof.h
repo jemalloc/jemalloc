@@ -23,9 +23,6 @@ typedef struct prof_tdata_s prof_tdata_t;
  */
 #define	PROF_BT_MAX			128
 
-/* Maximum number of backtraces to store in each per thread LRU cache. */
-#define	PROF_TCMAX			1024
-
 /* Initial hash table size. */
 #define	PROF_CKH_MINITEMS		64
 
@@ -86,9 +83,6 @@ struct prof_cnt_s {
 struct prof_thr_cnt_s {
 	/* Linkage into prof_ctx_t's cnts_ql. */
 	ql_elm(prof_thr_cnt_t)	cnts_link;
-
-	/* Linkage into thread's LRU. */
-	ql_elm(prof_thr_cnt_t)	lru_link;
 
 	/*
 	 * Associated context.  If a thread frees an object that it did not
@@ -157,22 +151,17 @@ typedef ql_head(prof_ctx_t) prof_ctx_list_t;
 
 struct prof_tdata_s {
 	/*
-	 * Hash of (prof_bt_t *)-->(prof_thr_cnt_t *).  Each thread keeps a
-	 * cache of backtraces, with associated thread-specific prof_thr_cnt_t
-	 * objects.  Other threads may read the prof_thr_cnt_t contents, but no
-	 * others will ever write them.
+	 * Hash of (prof_bt_t *)-->(prof_thr_cnt_t *).  Each thread tracks
+	 * backtraces for which it has non-zero allocation/deallocation counters
+	 * associated with thread-specific prof_thr_cnt_t objects.  Other
+	 * threads may read the prof_thr_cnt_t contents, but no others will ever
+	 * write them.
 	 *
 	 * Upon thread exit, the thread must merge all the prof_thr_cnt_t
 	 * counter data into the associated prof_ctx_t objects, and unlink/free
 	 * the prof_thr_cnt_t objects.
 	 */
 	ckh_t			bt2cnt;
-
-	/* LRU for contents of bt2cnt. */
-	ql_head(prof_thr_cnt_t)	lru_ql;
-
-	/* Backtrace vector, used for calls to prof_backtrace(). */
-	void			**vec;
 
 	/* Sampling state. */
 	uint64_t		prng_state;
@@ -182,6 +171,9 @@ struct prof_tdata_s {
 	bool			enq;
 	bool			enq_idump;
 	bool			enq_gdump;
+
+	/* Backtrace vector, used for calls to prof_backtrace(). */
+	void			*vec[PROF_BT_MAX];
 };
 
 #endif /* JEMALLOC_H_STRUCTS */

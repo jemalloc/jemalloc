@@ -567,33 +567,13 @@ prof_lookup(prof_bt_t *bt)
 			return (NULL);
 
 		/* Link a prof_thd_cnt_t into ctx for this thread. */
-		if (ckh_count(&prof_tdata->bt2cnt) == PROF_TCMAX) {
-			assert(ckh_count(&prof_tdata->bt2cnt) > 0);
-			/*
-			 * Flush the least recently used cnt in order to keep
-			 * bt2cnt from becoming too large.
-			 */
-			ret.p = ql_last(&prof_tdata->lru_ql, lru_link);
-			assert(ret.v != NULL);
-			if (ckh_remove(&prof_tdata->bt2cnt, ret.p->ctx->bt,
-			    NULL, NULL))
-				not_reached();
-			ql_remove(&prof_tdata->lru_ql, ret.p, lru_link);
-			prof_ctx_merge(ret.p->ctx, ret.p);
-			/* ret can now be re-used. */
-		} else {
-			assert(ckh_count(&prof_tdata->bt2cnt) < PROF_TCMAX);
-			/* Allocate and partially initialize a new cnt. */
-			ret.v = imalloc(sizeof(prof_thr_cnt_t));
-			if (ret.p == NULL) {
-				if (new_ctx)
-					prof_ctx_destroy(ctx);
-				return (NULL);
-			}
-			ql_elm_new(ret.p, cnts_link);
-			ql_elm_new(ret.p, lru_link);
+		ret.v = imalloc(sizeof(prof_thr_cnt_t));
+		if (ret.p == NULL) {
+			if (new_ctx)
+				prof_ctx_destroy(ctx);
+			return (NULL);
 		}
-		/* Finish initializing ret. */
+		ql_elm_new(ret.p, cnts_link);
 		ret.p->ctx = ctx;
 		ret.p->epoch = 0;
 		memset(&ret.p->cnts, 0, sizeof(prof_cnt_t));
@@ -603,15 +583,10 @@ prof_lookup(prof_bt_t *bt)
 			idalloc(ret.v);
 			return (NULL);
 		}
-		ql_head_insert(&prof_tdata->lru_ql, ret.p, lru_link);
 		malloc_mutex_lock(ctx->lock);
 		ql_tail_insert(&ctx->cnts_ql, ret.p, cnts_link);
 		ctx->nlimbo--;
 		malloc_mutex_unlock(ctx->lock);
-	} else {
-		/* Move ret to the front of the LRU. */
-		ql_remove(&prof_tdata->lru_ql, ret.p, lru_link);
-		ql_head_insert(&prof_tdata->lru_ql, ret.p, lru_link);
 	}
 
 	return (ret.p);
@@ -1247,14 +1222,6 @@ prof_tdata_init(void)
 		idalloc(prof_tdata);
 		return (NULL);
 	}
-	ql_new(&prof_tdata->lru_ql);
-
-	prof_tdata->vec = imalloc(sizeof(void *) * PROF_BT_MAX);
-	if (prof_tdata->vec == NULL) {
-		ckh_delete(&prof_tdata->bt2cnt);
-		idalloc(prof_tdata);
-		return (NULL);
-	}
 
 	prof_tdata->prng_state = (uint64_t)(uintptr_t)prof_tdata;
 	prof_sample_threshold_update(prof_tdata);
@@ -1271,7 +1238,6 @@ prof_tdata_init(void)
 void
 prof_tdata_cleanup(void *arg)
 {
-	prof_thr_cnt_t *cnt;
 	prof_tdata_t *prof_tdata = *(prof_tdata_t **)arg;
 
 	cassert(config_prof);
@@ -1292,21 +1258,22 @@ prof_tdata_cleanup(void *arg)
 		 * nothing, so that the destructor will not be called again.
 		 */
 	} else if (prof_tdata != NULL) {
-		/*
-		 * Delete the hash table.  All of its contents can still be
-		 * iterated over via the LRU.
-		 */
-		ckh_delete(&prof_tdata->bt2cnt);
+		union {
+			prof_thr_cnt_t	*p;
+			void		*v;
+		} cnt;
+		size_t tabind;
+
 		/*
 		 * Iteratively merge cnt's into the global stats and delete
 		 * them.
 		 */
-		while ((cnt = ql_last(&prof_tdata->lru_ql, lru_link)) != NULL) {
-			ql_remove(&prof_tdata->lru_ql, cnt, lru_link);
-			prof_ctx_merge(cnt->ctx, cnt);
-			idalloc(cnt);
+		for (tabind = 0; ckh_iter(&prof_tdata->bt2cnt, &tabind, NULL,
+		    &cnt.v);) {
+			prof_ctx_merge(cnt.p->ctx, cnt.p);
+			idalloc(cnt.v);
 		}
-		idalloc(prof_tdata->vec);
+		ckh_delete(&prof_tdata->bt2cnt);
 		idalloc(prof_tdata);
 		prof_tdata = PROF_TDATA_STATE_PURGATORY;
 		prof_tdata_tsd_set(&prof_tdata);
