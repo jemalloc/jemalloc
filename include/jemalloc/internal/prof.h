@@ -1,6 +1,7 @@
 /******************************************************************************/
 #ifdef JEMALLOC_H_TYPES
 
+typedef uint64_t prof_thr_uid_t;
 typedef struct prof_bt_s prof_bt_t;
 typedef struct prof_cnt_s prof_cnt_t;
 typedef struct prof_thr_cnt_s prof_thr_cnt_t;
@@ -81,15 +82,17 @@ struct prof_cnt_s {
 };
 
 struct prof_thr_cnt_s {
-	/* Linkage into prof_ctx_t's cnts_ql. */
-	ql_elm(prof_thr_cnt_t)	cnts_link;
+	prof_thr_uid_t		thr_uid;
+
+	/* Linkage into prof_ctx_t's thr_cnts. */
+	rb_node(prof_thr_cnt_t)	thr_cnt_link;
 
 	/*
 	 * Associated context.  If a thread frees an object that it did not
-	 * allocate, it is possible that the context is not cached in the
+	 * allocate, it is possible that the context is not present in the
 	 * thread's hash table, in which case it must be able to look up the
 	 * context, insert a new prof_thr_cnt_t into the thread's hash table,
-	 * and link it into the prof_ctx_t's cnts_ql.
+	 * and link it into the prof_ctx_t's thr_cnts.
 	 */
 	prof_ctx_t		*ctx;
 
@@ -113,9 +116,10 @@ struct prof_thr_cnt_s {
 	/* Profiling counters. */
 	prof_cnt_t		cnts;
 };
+typedef rb_tree(prof_thr_cnt_t) prof_thr_cnt_tree_t;
 
 struct prof_ctx_s {
-	/* Protects nlimbo, cnt_merged, and cnts_ql. */
+	/* Protects nlimbo, cnt_merged, and thr_cnts. */
 	malloc_mutex_t		*lock;
 
 	/*
@@ -136,13 +140,13 @@ struct prof_ctx_s {
 	prof_cnt_t		cnt_merged;
 
 	/*
-	 * List of profile counters, one for each thread that has allocated in
+	 * Tree of profile counters, one for each thread that has allocated in
 	 * this context.
 	 */
-	ql_head(prof_thr_cnt_t)	cnts_ql;
+	prof_thr_cnt_tree_t	thr_cnts;
 
-	/* Linkage for list of contexts to be dumped. */
-	ql_elm(prof_ctx_t)	dump_link;
+	/* Linkage for tree of contexts to be dumped. */
+	rb_node(prof_ctx_t)	dump_link;
 
 	/* Associated backtrace. */
 	prof_bt_t		bt;
@@ -150,7 +154,7 @@ struct prof_ctx_s {
 	/* Backtrace vector, variable size, referred to by bt. */
 	void			*vec[1];
 };
-typedef ql_head(prof_ctx_t) prof_ctx_list_t;
+typedef rb_tree(prof_ctx_t) prof_ctx_tree_t;
 
 struct prof_tdata_s {
 	/*

@@ -77,6 +77,33 @@ static bool		prof_booted = false;
 
 /******************************************************************************/
 
+JEMALLOC_INLINE_C int
+prof_thr_cnt_comp(const prof_thr_cnt_t *a, const prof_thr_cnt_t *b)
+{
+	prof_thr_uid_t a_uid = a->thr_uid;
+	prof_thr_uid_t b_uid = b->thr_uid;
+
+	return ((a_uid > b_uid) - (a_uid < b_uid));
+}
+
+rb_gen(static UNUSED, thr_cnt_tree_, prof_thr_cnt_tree_t, prof_thr_cnt_t,
+    thr_cnt_link, prof_thr_cnt_comp)
+
+JEMALLOC_INLINE_C int
+prof_ctx_comp(const prof_ctx_t *a, const prof_ctx_t *b)
+{
+	unsigned a_len = a->bt.len;
+	unsigned b_len = b->bt.len;
+	unsigned comp_len = (a_len < b_len) ? a_len : b_len;
+	int ret = memcmp(a->bt.vec, b->bt.vec, comp_len * sizeof(void *));
+	if (ret == 0)
+		ret = (a_len > b_len) - (a_len < b_len);
+	return (ret);
+}
+
+rb_gen(static UNUSED, ctx_tree_, prof_ctx_tree_t, prof_ctx_t, dump_link,
+    prof_ctx_comp)
+
 void
 bt_init(prof_bt_t *bt, void **vec)
 {
@@ -369,9 +396,8 @@ prof_ctx_create(prof_bt_t *bt)
 	 * prof_ctx_merge()/prof_ctx_destroy().
 	 */
 	ctx->nlimbo = 1;
-	ql_elm_new(ctx, dump_link);
 	memset(&ctx->cnt_merged, 0, sizeof(prof_cnt_t));
-	ql_new(&ctx->cnts_ql);
+	thr_cnt_tree_new(&ctx->thr_cnts);
 	/* Duplicate bt. */
 	memcpy(ctx->vec, bt->vec, bt->len * sizeof(void *));
 	ctx->bt.vec = ctx->vec;
@@ -397,8 +423,8 @@ prof_ctx_destroy(prof_ctx_t *ctx)
 	assert((uintptr_t)prof_tdata > (uintptr_t)PROF_TDATA_STATE_MAX);
 	prof_enter(prof_tdata);
 	malloc_mutex_lock(ctx->lock);
-	if (ql_first(&ctx->cnts_ql) == NULL && ctx->cnt_merged.curobjs == 0 &&
-	    ctx->nlimbo == 1) {
+	if (thr_cnt_tree_first(&ctx->thr_cnts) == NULL &&
+	    ctx->cnt_merged.curobjs == 0 && ctx->nlimbo == 1) {
 		assert(ctx->cnt_merged.curbytes == 0);
 		assert(ctx->cnt_merged.accumobjs == 0);
 		assert(ctx->cnt_merged.accumbytes == 0);
@@ -433,9 +459,9 @@ prof_ctx_merge(prof_ctx_t *ctx, prof_thr_cnt_t *cnt)
 	ctx->cnt_merged.curbytes += cnt->cnts.curbytes;
 	ctx->cnt_merged.accumobjs += cnt->cnts.accumobjs;
 	ctx->cnt_merged.accumbytes += cnt->cnts.accumbytes;
-	ql_remove(&ctx->cnts_ql, cnt, cnts_link);
-	if (opt_prof_accum == false && ql_first(&ctx->cnts_ql) == NULL &&
-	    ctx->cnt_merged.curobjs == 0 && ctx->nlimbo == 0) {
+	thr_cnt_tree_remove(&ctx->thr_cnts, cnt);
+	if (opt_prof_accum == false && thr_cnt_tree_first(&ctx->thr_cnts) ==
+	    NULL && ctx->cnt_merged.curobjs == 0 && ctx->nlimbo == 0) {
 		/*
 		 * Increment ctx->nlimbo in order to keep another thread from
 		 * winning the race to destroy ctx while this one has ctx->lock
@@ -540,7 +566,6 @@ prof_lookup(prof_bt_t *bt)
 				prof_ctx_destroy(ctx);
 			return (NULL);
 		}
-		ql_elm_new(ret.p, cnts_link);
 		ret.p->ctx = ctx;
 		ret.p->epoch = 0;
 		memset(&ret.p->cnts, 0, sizeof(prof_cnt_t));
@@ -551,7 +576,7 @@ prof_lookup(prof_bt_t *bt)
 			return (NULL);
 		}
 		malloc_mutex_lock(ctx->lock);
-		ql_tail_insert(&ctx->cnts_ql, ret.p, cnts_link);
+		thr_cnt_tree_insert(&ctx->thr_cnts, ret.p);
 		ctx->nlimbo--;
 		malloc_mutex_unlock(ctx->lock);
 	}
@@ -745,12 +770,41 @@ prof_dump_printf(bool propagate_err, const char *format, ...)
 	return (ret);
 }
 
+static prof_thr_cnt_t *
+ctx_sum_iter(prof_thr_cnt_tree_t *thr_cnts, prof_thr_cnt_t *thr_cnt, void *arg)
+{
+	prof_ctx_t *ctx = (prof_ctx_t *)arg;
+	volatile unsigned *epoch = &thr_cnt->epoch;
+	prof_cnt_t tcnt;
+
+	while (true) {
+		unsigned epoch0 = *epoch;
+
+		/* Make sure epoch is even. */
+		if (epoch0 & 1U)
+			continue;
+
+		memcpy(&tcnt, &thr_cnt->cnts, sizeof(prof_cnt_t));
+
+		/* Terminate if epoch didn't change while reading. */
+		if (*epoch == epoch0)
+			break;
+	}
+
+	ctx->cnt_summed.curobjs += tcnt.curobjs;
+	ctx->cnt_summed.curbytes += tcnt.curbytes;
+	if (opt_prof_accum) {
+		ctx->cnt_summed.accumobjs += tcnt.accumobjs;
+		ctx->cnt_summed.accumbytes += tcnt.accumbytes;
+	}
+
+	return (NULL);
+}
+
 static void
 prof_dump_ctx_prep(prof_ctx_t *ctx, prof_cnt_t *cnt_all, size_t *leak_nctx,
-    prof_ctx_list_t *ctx_ql)
+    prof_ctx_tree_t *ctxs)
 {
-	prof_thr_cnt_t *thr_cnt;
-	prof_cnt_t tcnt;
 
 	cassert(config_prof);
 
@@ -762,33 +816,10 @@ prof_dump_ctx_prep(prof_ctx_t *ctx, prof_cnt_t *cnt_all, size_t *leak_nctx,
 	 * prof_dump()'s second pass.
 	 */
 	ctx->nlimbo++;
-	ql_tail_insert(ctx_ql, ctx, dump_link);
+	ctx_tree_insert(ctxs, ctx);
 
 	memcpy(&ctx->cnt_summed, &ctx->cnt_merged, sizeof(prof_cnt_t));
-	ql_foreach(thr_cnt, &ctx->cnts_ql, cnts_link) {
-		volatile unsigned *epoch = &thr_cnt->epoch;
-
-		while (true) {
-			unsigned epoch0 = *epoch;
-
-			/* Make sure epoch is even. */
-			if (epoch0 & 1U)
-				continue;
-
-			memcpy(&tcnt, &thr_cnt->cnts, sizeof(prof_cnt_t));
-
-			/* Terminate if epoch didn't change while reading. */
-			if (*epoch == epoch0)
-				break;
-		}
-
-		ctx->cnt_summed.curobjs += tcnt.curobjs;
-		ctx->cnt_summed.curbytes += tcnt.curbytes;
-		if (opt_prof_accum) {
-			ctx->cnt_summed.accumobjs += tcnt.accumobjs;
-			ctx->cnt_summed.accumbytes += tcnt.accumbytes;
-		}
-	}
+	thr_cnt_tree_iter(&ctx->thr_cnts, NULL, ctx_sum_iter, (void *)ctx);
 
 	if (ctx->cnt_summed.curobjs != 0)
 		(*leak_nctx)++;
@@ -829,25 +860,24 @@ prof_dump_header(bool propagate_err, const prof_cnt_t *cnt_all)
 }
 
 static void
-prof_dump_ctx_cleanup_locked(prof_ctx_t *ctx, prof_ctx_list_t *ctx_ql)
+prof_dump_ctx_cleanup_locked(prof_ctx_t *ctx, prof_ctx_tree_t *ctxs)
 {
 
 	ctx->nlimbo--;
-	ql_remove(ctx_ql, ctx, dump_link);
 }
 
 static void
-prof_dump_ctx_cleanup(prof_ctx_t *ctx, prof_ctx_list_t *ctx_ql)
+prof_dump_ctx_cleanup(prof_ctx_t *ctx, prof_ctx_tree_t *ctxs)
 {
 
 	malloc_mutex_lock(ctx->lock);
-	prof_dump_ctx_cleanup_locked(ctx, ctx_ql);
+	prof_dump_ctx_cleanup_locked(ctx, ctxs);
 	malloc_mutex_unlock(ctx->lock);
 }
 
 static bool
 prof_dump_ctx(bool propagate_err, prof_ctx_t *ctx, const prof_bt_t *bt,
-    prof_ctx_list_t *ctx_ql)
+    prof_ctx_tree_t *ctxs)
 {
 	bool ret;
 	unsigned i;
@@ -895,7 +925,7 @@ prof_dump_ctx(bool propagate_err, prof_ctx_t *ctx, const prof_bt_t *bt,
 
 	ret = false;
 label_return:
-	prof_dump_ctx_cleanup_locked(ctx, ctx_ql);
+	prof_dump_ctx_cleanup_locked(ctx, ctxs);
 	malloc_mutex_unlock(ctx->lock);
 	return (ret);
 }
@@ -966,6 +996,26 @@ prof_leakcheck(const prof_cnt_t *cnt_all, size_t leak_nctx,
 	}
 }
 
+static prof_ctx_t *
+prof_ctx_dump_iter(prof_ctx_tree_t *ctxs, prof_ctx_t *ctx, void *arg)
+{
+	bool propagate_err = *(bool *)arg;
+
+	if (prof_dump_ctx(propagate_err, ctx, &ctx->bt, ctxs))
+		return (ctx_tree_next(ctxs, ctx));
+
+	return (NULL);
+}
+
+static prof_ctx_t *
+prof_ctx_cleanup_iter(prof_ctx_tree_t *ctxs, prof_ctx_t *ctx, void *arg)
+{
+
+	prof_dump_ctx_cleanup(ctx, ctxs);
+
+	return (NULL);
+}
+
 static bool
 prof_dump(bool propagate_err, const char *filename, bool leakcheck)
 {
@@ -977,7 +1027,8 @@ prof_dump(bool propagate_err, const char *filename, bool leakcheck)
 		void		*v;
 	} ctx;
 	size_t leak_nctx;
-	prof_ctx_list_t ctx_ql;
+	prof_ctx_tree_t ctxs;
+	prof_ctx_t *cleanup_start = NULL;
 
 	cassert(config_prof);
 
@@ -990,10 +1041,10 @@ prof_dump(bool propagate_err, const char *filename, bool leakcheck)
 	/* Merge per thread profile stats, and sum them in cnt_all. */
 	memset(&cnt_all, 0, sizeof(prof_cnt_t));
 	leak_nctx = 0;
-	ql_new(&ctx_ql);
+	ctx_tree_new(&ctxs);
 	prof_enter(prof_tdata);
 	for (tabind = 0; ckh_iter(&bt2ctx, &tabind, NULL, &ctx.v) == false;)
-		prof_dump_ctx_prep(ctx.p, &cnt_all, &leak_nctx, &ctx_ql);
+		prof_dump_ctx_prep(ctx.p, &cnt_all, &leak_nctx, &ctxs);
 	prof_leave(prof_tdata);
 
 	/* Create dump file. */
@@ -1005,10 +1056,10 @@ prof_dump(bool propagate_err, const char *filename, bool leakcheck)
 		goto label_write_error;
 
 	/* Dump per ctx profile stats. */
-	while ((ctx.p = ql_first(&ctx_ql)) != NULL) {
-		if (prof_dump_ctx(propagate_err, ctx.p, &ctx.p->bt, &ctx_ql))
-			goto label_write_error;
-	}
+	cleanup_start = ctx_tree_iter(&ctxs, NULL, prof_ctx_dump_iter,
+	    (void *)&propagate_err);
+	if (cleanup_start != NULL)
+		goto label_write_error;
 
 	/* Dump /proc/<pid>/maps if possible. */
 	if (prof_dump_maps(propagate_err))
@@ -1026,8 +1077,10 @@ prof_dump(bool propagate_err, const char *filename, bool leakcheck)
 label_write_error:
 	prof_dump_close(propagate_err);
 label_open_close_error:
-	while ((ctx.p = ql_first(&ctx_ql)) != NULL)
-		prof_dump_ctx_cleanup(ctx.p, &ctx_ql);
+	if (cleanup_start != NULL) {
+		ctx_tree_iter(&ctxs, cleanup_start, prof_ctx_cleanup_iter,
+		    NULL);
+	}
 	malloc_mutex_unlock(&prof_dump_mtx);
 	return (true);
 }
