@@ -441,7 +441,7 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		}
 		if ((err = je_mallctl("opt.prof", &bv, &bsz, NULL, 0)) == 0 &&
 		    bv) {
-			CTL_GET("opt.lg_prof_sample", &sv, size_t);
+			CTL_GET("prof.lg_sample", &sv, size_t);
 			malloc_cprintf(write_cb, cbopaque,
 			    "Average profile sample interval: %"PRIu64
 			    " (2^%zu)\n", (((uint64_t)1U) << sv), sv);

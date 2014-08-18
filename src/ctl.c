@@ -68,6 +68,8 @@ CTL_PROTO(version)
 CTL_PROTO(epoch)
 CTL_PROTO(thread_tcache_enabled)
 CTL_PROTO(thread_tcache_flush)
+CTL_PROTO(thread_prof_name)
+CTL_PROTO(thread_prof_active)
 CTL_PROTO(thread_arena)
 CTL_PROTO(thread_allocated)
 CTL_PROTO(thread_allocatedp)
@@ -132,7 +134,9 @@ CTL_PROTO(arenas_nlruns)
 CTL_PROTO(arenas_extend)
 CTL_PROTO(prof_active)
 CTL_PROTO(prof_dump)
+CTL_PROTO(prof_reset)
 CTL_PROTO(prof_interval)
+CTL_PROTO(lg_prof_sample)
 CTL_PROTO(stats_chunks_current)
 CTL_PROTO(stats_chunks_total)
 CTL_PROTO(stats_chunks_high)
@@ -196,9 +200,14 @@ CTL_PROTO(stats_mapped)
  */
 #define	INDEX(i)	{false},	i##_index
 
-static const ctl_named_node_t	tcache_node[] = {
+static const ctl_named_node_t	thread_tcache_node[] = {
 	{NAME("enabled"),	CTL(thread_tcache_enabled)},
 	{NAME("flush"),		CTL(thread_tcache_flush)}
+};
+
+static const ctl_named_node_t	thread_prof_node[] = {
+	{NAME("name"),		CTL(thread_prof_name)},
+	{NAME("active"),	CTL(thread_prof_active)}
 };
 
 static const ctl_named_node_t	thread_node[] = {
@@ -207,7 +216,8 @@ static const ctl_named_node_t	thread_node[] = {
 	{NAME("allocatedp"),	CTL(thread_allocatedp)},
 	{NAME("deallocated"),	CTL(thread_deallocated)},
 	{NAME("deallocatedp"),	CTL(thread_deallocatedp)},
-	{NAME("tcache"),	CHILD(named, tcache)}
+	{NAME("tcache"),	CHILD(named, thread_tcache)},
+	{NAME("prof"),		CHILD(named, thread_prof)}
 };
 
 static const ctl_named_node_t	config_node[] = {
@@ -311,7 +321,9 @@ static const ctl_named_node_t arenas_node[] = {
 static const ctl_named_node_t	prof_node[] = {
 	{NAME("active"),	CTL(prof_active)},
 	{NAME("dump"),		CTL(prof_dump)},
-	{NAME("interval"),	CTL(prof_interval)}
+	{NAME("reset"),		CTL(prof_reset)},
+	{NAME("interval"),	CTL(prof_interval)},
+	{NAME("lg_sample"),	CTL(lg_prof_sample)}
 };
 
 static const ctl_named_node_t stats_chunks_node[] = {
@@ -1281,6 +1293,62 @@ label_return:
 	return (ret);
 }
 
+static int
+thread_prof_name_ctl(const size_t *mib, size_t miblen, void *oldp,
+    size_t *oldlenp, void *newp, size_t newlen)
+{
+	int ret;
+	const char *oldname;
+
+	if (config_prof == false)
+		return (ENOENT);
+
+	oldname = prof_thread_name_get();
+	if (newp != NULL) {
+		if (newlen != sizeof(const char *)) {
+			ret = EINVAL;
+			goto label_return;
+		}
+		if (prof_thread_name_set(*(const char **)newp)) {
+			ret = EAGAIN;
+			goto label_return;
+		}
+	}
+	READ(oldname, const char *);
+
+	ret = 0;
+label_return:
+	return (ret);
+}
+
+static int
+thread_prof_active_ctl(const size_t *mib, size_t miblen, void *oldp,
+    size_t *oldlenp, void *newp, size_t newlen)
+{
+	int ret;
+	bool oldval;
+
+	if (config_prof == false)
+		return (ENOENT);
+
+	oldval = prof_thread_active_get();
+	if (newp != NULL) {
+		if (newlen != sizeof(bool)) {
+			ret = EINVAL;
+			goto label_return;
+		}
+		if (prof_thread_active_set(*(bool *)newp)) {
+			ret = EAGAIN;
+			goto label_return;
+		}
+	}
+	READ(oldval, bool);
+
+	ret = 0;
+label_return:
+	return (ret);
+}
+
 /******************************************************************************/
 
 /* ctl_mutex must be held during execution of this function. */
@@ -1601,7 +1669,30 @@ label_return:
 	return (ret);
 }
 
+static int
+prof_reset_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
+    void *newp, size_t newlen)
+{
+	int ret;
+	size_t lg_sample = lg_prof_sample;
+
+	if (config_prof == false)
+		return (ENOENT);
+
+	WRITEONLY();
+	WRITE(lg_sample, size_t);
+	if (lg_sample >= (sizeof(uint64_t) << 3))
+		lg_sample = (sizeof(uint64_t) << 3) - 1;
+
+	prof_reset(lg_sample);
+
+	ret = 0;
+label_return:
+	return (ret);
+}
+
 CTL_RO_NL_CGEN(config_prof, prof_interval, prof_interval, uint64_t)
+CTL_RO_NL_CGEN(config_prof, lg_prof_sample, lg_prof_sample, size_t)
 
 /******************************************************************************/
 

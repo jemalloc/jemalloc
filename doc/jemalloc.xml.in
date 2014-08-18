@@ -1047,7 +1047,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
       <varlistentry id="opt.lg_prof_sample">
         <term>
           <mallctl>opt.lg_prof_sample</mallctl>
-          (<type>ssize_t</type>)
+          (<type>size_t</type>)
           <literal>r-</literal>
           [<option>--enable-prof</option>]
         </term>
@@ -1241,6 +1241,35 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         activity, so it is possible for a thread that stops
         allocating/deallocating to retain its cache indefinitely, in which case
         the developer may find manual flushing useful.</para></listitem>
+      </varlistentry>
+
+      <varlistentry id="thread.prof.name">
+        <term>
+          <mallctl>thread.prof.name</mallctl>
+          (<type>const char *</type>)
+          <literal>rw</literal>
+          [<option>--enable-prof</option>]
+        </term>
+        <listitem><para>Get/set the descriptive name associated with the calling
+        thread in memory profile dumps.  An internal copy of the name string is
+        created, so the input string need not be maintained after this interface
+        completes execution.  The output string of this interface should be
+        copied for non-ephemeral uses, because multiple implementation details
+        can cause asynchronous string deallocation.</para></listitem>
+      </varlistentry>
+
+      <varlistentry id="thread.prof.active">
+        <term>
+          <mallctl>thread.prof.active</mallctl>
+          (<type>bool</type>)
+          <literal>rw</literal>
+          [<option>--enable-prof</option>]
+        </term>
+        <listitem><para>Control whether sampling is currently active for the
+        calling thread.  This is a deactivation mechanism in addition to <link
+        linkend="prof.active"><mallctl>prof.active</mallctl></link>; both must
+        be active for the calling thread to sample.  This flag is enabled by
+        default.</para></listitem>
       </varlistentry>
 
       <varlistentry id="arena.i.purge">
@@ -1490,6 +1519,31 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         <link
         linkend="opt.prof_prefix"><mallctl>opt.prof_prefix</mallctl></link>
         option.</para></listitem>
+      </varlistentry>
+
+      <varlistentry id="prof.reset">
+        <term>
+          <mallctl>prof.reset</mallctl>
+          (<type>size_t</type>)
+          <literal>-w</literal>
+          [<option>--enable-prof</option>]
+        </term>
+        <listitem><para>Reset all memory profile statistics, and optionally
+        update the sample rate (see <link
+        linkend="opt.lg_prof_sample"><mallctl>opt.lg_prof_sample</mallctl></link>).
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry id="prof.lg_sample">
+        <term>
+          <mallctl>prof.lg_sample</mallctl>
+          (<type>size_t</type>)
+          <literal>r-</literal>
+          [<option>--enable-prof</option>]
+        </term>
+        <listitem><para>Get the sample rate (see <link
+        linkend="opt.lg_prof_sample"><mallctl>opt.lg_prof_sample</mallctl></link>).
+        </para></listitem>
       </varlistentry>
 
       <varlistentry id="prof.interval">

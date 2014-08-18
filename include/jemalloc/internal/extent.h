@@ -16,7 +16,7 @@ struct extent_node_s {
 	rb_node(extent_node_t)	link_ad;
 
 	/* Profile counters, used for huge objects. */
-	prof_ctx_t		*prof_ctx;
+	prof_tctx_t		*prof_tctx;
 
 	/* Pointer to the extent that this tree node is responsible for. */
 	void			*addr;

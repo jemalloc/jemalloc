@@ -58,7 +58,7 @@ typedef struct arena_s arena_t;
 struct arena_chunk_map_s {
 #ifndef JEMALLOC_PROF
 	/*
-	 * Overlay prof_ctx in order to allow it to be referenced by dead code.
+	 * Overlay prof_tctx in order to allow it to be referenced by dead code.
 	 * Such antics aren't warranted for per arena data structures, but
 	 * chunk map overhead accounts for a percentage of memory, rather than
 	 * being just a fixed cost.
@@ -75,7 +75,7 @@ struct arena_chunk_map_s {
 	rb_node(arena_chunk_map_t)	rb_link;
 
 	/* Profile counters, used for large object runs. */
-	prof_ctx_t			*prof_ctx;
+	prof_tctx_t			*prof_tctx;
 #ifndef JEMALLOC_PROF
 	}; /* union { ... }; */
 #endif
@@ -472,8 +472,8 @@ size_t	arena_ptr_small_binind_get(const void *ptr, size_t mapbits);
 size_t	arena_bin_index(arena_t *arena, arena_bin_t *bin);
 unsigned	arena_run_regind(arena_run_t *run, arena_bin_info_t *bin_info,
     const void *ptr);
-prof_ctx_t	*arena_prof_ctx_get(const void *ptr);
-void	arena_prof_ctx_set(const void *ptr, prof_ctx_t *ctx);
+prof_tctx_t	*arena_prof_tctx_get(const void *ptr);
+void	arena_prof_tctx_set(const void *ptr, prof_tctx_t *tctx);
 void	*arena_malloc(arena_t *arena, size_t size, bool zero, bool try_tcache);
 size_t	arena_salloc(const void *ptr, bool demote);
 void	arena_dalloc(arena_chunk_t *chunk, void *ptr, bool try_tcache);
@@ -987,10 +987,10 @@ arena_run_regind(arena_run_t *run, arena_bin_info_t *bin_info, const void *ptr)
 	return (regind);
 }
 
-JEMALLOC_INLINE prof_ctx_t *
-arena_prof_ctx_get(const void *ptr)
+JEMALLOC_INLINE prof_tctx_t *
+arena_prof_tctx_get(const void *ptr)
 {
-	prof_ctx_t *ret;
+	prof_tctx_t *ret;
 	arena_chunk_t *chunk;
 	size_t pageind, mapbits;
 
@@ -1003,15 +1003,15 @@ arena_prof_ctx_get(const void *ptr)
 	mapbits = arena_mapbits_get(chunk, pageind);
 	assert((mapbits & CHUNK_MAP_ALLOCATED) != 0);
 	if ((mapbits & CHUNK_MAP_LARGE) == 0)
-		ret = (prof_ctx_t *)(uintptr_t)1U;
+		ret = (prof_tctx_t *)(uintptr_t)1U;
 	else
-		ret = arena_mapp_get(chunk, pageind)->prof_ctx;
+		ret = arena_mapp_get(chunk, pageind)->prof_tctx;
 
 	return (ret);
 }
 
 JEMALLOC_INLINE void
-arena_prof_ctx_set(const void *ptr, prof_ctx_t *ctx)
+arena_prof_tctx_set(const void *ptr, prof_tctx_t *tctx)
 {
 	arena_chunk_t *chunk;
 	size_t pageind;
@@ -1025,7 +1025,7 @@ arena_prof_ctx_set(const void *ptr, prof_ctx_t *ctx)
 	assert(arena_mapbits_allocated_get(chunk, pageind) != 0);
 
 	if (arena_mapbits_large_get(chunk, pageind) != 0)
-		arena_mapp_get(chunk, pageind)->prof_ctx = ctx;
+		arena_mapp_get(chunk, pageind)->prof_tctx = tctx;
 }
 
 JEMALLOC_ALWAYS_INLINE void *

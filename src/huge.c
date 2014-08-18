@@ -197,10 +197,10 @@ huge_salloc(const void *ptr)
 	return (ret);
 }
 
-prof_ctx_t *
-huge_prof_ctx_get(const void *ptr)
+prof_tctx_t *
+huge_prof_tctx_get(const void *ptr)
 {
-	prof_ctx_t *ret;
+	prof_tctx_t *ret;
 	extent_node_t *node, key;
 
 	malloc_mutex_lock(&huge_mtx);
@@ -210,7 +210,7 @@ huge_prof_ctx_get(const void *ptr)
 	node = extent_tree_ad_search(&huge, &key);
 	assert(node != NULL);
 
-	ret = node->prof_ctx;
+	ret = node->prof_tctx;
 
 	malloc_mutex_unlock(&huge_mtx);
 
@@ -218,7 +218,7 @@ huge_prof_ctx_get(const void *ptr)
 }
 
 void
-huge_prof_ctx_set(const void *ptr, prof_ctx_t *ctx)
+huge_prof_tctx_set(const void *ptr, prof_tctx_t *tctx)
 {
 	extent_node_t *node, key;
 
@@ -229,7 +229,7 @@ huge_prof_ctx_set(const void *ptr, prof_ctx_t *ctx)
 	node = extent_tree_ad_search(&huge, &key);
 	assert(node != NULL);
 
-	node->prof_ctx = ctx;
+	node->prof_tctx = tctx;
 
 	malloc_mutex_unlock(&huge_mtx);
 }
