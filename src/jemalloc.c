@@ -1336,7 +1336,7 @@ je_valloc(size_t size)
 #define	is_malloc_(a) malloc_is_ ## a
 #define	is_malloc(a) is_malloc_(a)
 
-#if ((is_malloc(je_malloc) == 1) && defined(__GLIBC__) && !defined(__UCLIBC__))
+#if ((is_malloc(je_malloc) == 1) && defined(JEMALLOC_GLIBC_MALLOC_HOOK))
 /*
  * glibc provides the RTLD_DEEPBIND flag for dlopen which can make it possible
  * to inconsistently reference libc's malloc(3)-compatible functions
@@ -1349,8 +1349,10 @@ je_valloc(size_t size)
 JEMALLOC_EXPORT void (*__free_hook)(void *ptr) = je_free;
 JEMALLOC_EXPORT void *(*__malloc_hook)(size_t size) = je_malloc;
 JEMALLOC_EXPORT void *(*__realloc_hook)(void *ptr, size_t size) = je_realloc;
+# ifdef JEMALLOC_GLIBC_MEMALIGN_HOOK
 JEMALLOC_EXPORT void *(*__memalign_hook)(size_t alignment, size_t size) =
     je_memalign;
+# endif
 #endif
 
 /*
