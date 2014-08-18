@@ -1341,6 +1341,37 @@ if test "x${enable_zone_allocator}" = "x1" ; then
 fi
 
 dnl ============================================================================
+dnl Check for glibc malloc hooks
+
+JE_COMPILABLE([glibc malloc hook], [
+#include <stddef.h>
+
+extern void (* __free_hook)(void *ptr);
+extern void *(* __malloc_hook)(size_t size);
+extern void *(* __realloc_hook)(void *ptr, size_t size);
+], [
+  void *ptr = 0L;
+  if (__malloc_hook) ptr = __malloc_hook(1);
+  if (__realloc_hook) ptr = __realloc_hook(ptr, 2);
+  if (__free_hook && ptr) __free_hook(ptr);
+], [je_cv_glibc_malloc_hook])
+if test "x${je_cv_glibc_malloc_hook}" = "xyes" ; then
+  AC_DEFINE([JEMALLOC_GLIBC_MALLOC_HOOK], [ ])
+fi
+
+JE_COMPILABLE([glibc memalign hook], [
+#include <stddef.h>
+
+extern void *(* __memalign_hook)(size_t alignment, size_t size);
+], [
+  void *ptr = 0L;
+  if (__memalign_hook) ptr = __memalign_hook(16, 7);
+], [je_cv_glibc_memalign_hook])
+if test "x${je_cv_glibc_memalign_hook}" = "xyes" ; then
+  AC_DEFINE([JEMALLOC_GLIBC_MEMALIGN_HOOK], [ ])
+fi
+
+dnl ============================================================================
 dnl Check for typedefs, structures, and compiler characteristics.
 AC_HEADER_STDBOOL
 

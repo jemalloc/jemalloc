@@ -209,4 +209,10 @@
 /* sizeof(intmax_t) == 2^LG_SIZEOF_INTMAX_T. */
 #undef LG_SIZEOF_INTMAX_T
 
+/* glibc malloc hooks (__malloc_hook, __realloc_hook, __free_hook) */
+#undef JEMALLOC_GLIBC_MALLOC_HOOK
+
+/* glibc memalign hook */
+#undef JEMALLOC_GLIBC_MEMALIGN_HOOK
+
 #endif /* JEMALLOC_INTERNAL_DEFS_H_ */
