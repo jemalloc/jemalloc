@@ -158,6 +158,8 @@ struct {								\
 #define	rb_proto(a_attr, a_prefix, a_rbt_type, a_type)			\
 a_attr void								\
 a_prefix##new(a_rbt_type *rbtree);					\
+a_attr bool								\
+a_prefix##empty(a_rbt_type *rbtree);					\
 a_attr a_type *								\
 a_prefix##first(a_rbt_type *rbtree);					\
 a_attr a_type *								\
@@ -223,6 +225,13 @@ a_prefix##reverse_iter(a_rbt_type *rbtree, a_type *start,		\
  *       Description: Initialize a red-black tree structure.
  *       Args:
  *         tree: Pointer to an uninitialized red-black tree object.
+ *
+ *   static bool
+ *   ex_empty(ex_t *tree);
+ *       Description: Determine whether tree is empty.
+ *       Args:
+ *         tree: Pointer to an initialized red-black tree object.
+ *       Ret: True if tree is empty, false otherwise.
  *
  *   static ex_node_t *
  *   ex_first(ex_t *tree);
@@ -308,6 +317,10 @@ a_prefix##reverse_iter(a_rbt_type *rbtree, a_type *start,		\
 a_attr void								\
 a_prefix##new(a_rbt_type *rbtree) {					\
     rb_new(a_type, a_field, rbtree);					\
+}									\
+a_attr bool								\
+a_prefix##empty(a_rbt_type *rbtree) {					\
+    return (rbtree->rbt_root == &rbtree->rbt_nil);			\
 }									\
 a_attr a_type *								\
 a_prefix##first(a_rbt_type *rbtree) {					\

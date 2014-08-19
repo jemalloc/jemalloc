@@ -49,6 +49,7 @@ TEST_BEGIN(test_rb_empty)
 
 	tree_new(&tree);
 
+	assert_true(tree_empty(&tree), "Tree should be empty");
 	assert_ptr_null(tree_first(&tree), "Unexpected node");
 	assert_ptr_null(tree_last(&tree), "Unexpected node");
 
@@ -265,6 +266,8 @@ TEST_BEGIN(test_rb_random)
 				assert_u_eq(tree_iterate_reverse(&tree), k+1,
 				    "Unexpected node iteration count");
 
+				assert_false(tree_empty(&tree),
+				    "Tree should not be empty");
 				assert_ptr_not_null(tree_first(&tree),
 				    "Tree should not be empty");
 				assert_ptr_not_null(tree_last(&tree),
