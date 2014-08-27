@@ -120,10 +120,6 @@ tcache_bin_flush_small(tcache_bin_t *tbin, size_t binind, unsigned rem,
 				    (uintptr_t)chunk) >> LG_PAGE;
 				arena_chunk_map_t *mapelm =
 				    arena_mapp_get(chunk, pageind);
-				if (config_fill && opt_junk) {
-					arena_alloc_junk_small(ptr,
-					    &arena_bin_info[binind], true);
-				}
 				arena_dalloc_bin_locked(arena, chunk, ptr,
 				    mapelm);
 			} else {
