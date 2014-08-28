@@ -1223,6 +1223,24 @@ ifree(void *ptr, bool try_tcache)
 	JEMALLOC_VALGRIND_FREE(ptr, rzsize);
 }
 
+JEMALLOC_INLINE_C void
+isfree(void *ptr, size_t usize, bool try_tcache)
+{
+	UNUSED size_t rzsize JEMALLOC_CC_SILENCE_INIT(0);
+
+	assert(ptr != NULL);
+	assert(malloc_initialized || IS_INITIALIZER);
+
+	if (config_prof && opt_prof)
+		prof_free(ptr, usize);
+	if (config_stats)
+		thread_allocated_tsd_get()->deallocated += usize;
+	if (config_valgrind && in_valgrind)
+		rzsize = p2rz(ptr);
+	isqalloc(ptr, usize, try_tcache);
+	JEMALLOC_VALGRIND_FREE(ptr, rzsize);
+}
+
 void *
 je_realloc(void *ptr, size_t size)
 {
@@ -1818,6 +1836,32 @@ je_dallocx(void *ptr, int flags)
 
 	UTRACE(ptr, 0, 0);
 	ifree(ptr, try_tcache);
+}
+
+void
+je_sdallocx(void *ptr, size_t size, int flags)
+{
+	bool try_tcache;
+
+	assert(ptr != NULL);
+	assert(malloc_initialized || IS_INITIALIZER);
+	assert(size == isalloc(ptr, config_prof));
+
+	if ((flags & MALLOCX_LG_ALIGN_MASK) == 0)
+		size = s2u(size);
+	else
+		size = sa2u(size, MALLOCX_ALIGN_GET_SPECIFIED(flags));
+
+	if ((flags & MALLOCX_ARENA_MASK) != 0) {
+		unsigned arena_ind = MALLOCX_ARENA_GET(flags);
+		arena_chunk_t *chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
+		try_tcache = (chunk == ptr || chunk->arena !=
+		    arenas[arena_ind]);
+	} else
+		try_tcache = true;
+
+	UTRACE(ptr, 0, 0);
+	isfree(ptr, size, try_tcache);
 }
 
 size_t

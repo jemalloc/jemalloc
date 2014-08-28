@@ -53,24 +53,39 @@ TEST_BEGIN(test_malloc_vs_mallocx)
 TEST_END
 
 static void
-free_vs_dallocx_free(void)
+tiny_free(void)
 {
 
 	free(malloc(1));
 }
 
 static void
-free_vs_dallocx_dallocx(void)
+tiny_dallocx(void)
 {
 
 	dallocx(malloc(1), 0);
 }
 
+static void
+tiny_sdallocx(void)
+{
+
+	sdallocx(malloc(1), 1, 0);
+}
+
 TEST_BEGIN(test_free_vs_dallocx)
 {
 
-	compare_funcs(10*1000*1000, 100*1000*1000, "free", free_vs_dallocx_free,
-	    "dallocx", free_vs_dallocx_dallocx);
+	compare_funcs(10*1000*1000, 100*1000*1000, "free", tiny_free,
+	    "dallocx", tiny_dallocx);
+}
+TEST_END
+
+TEST_BEGIN(test_dallocx_vs_sdallocx)
+{
+
+	compare_funcs(10*1000*1000, 100*1000*1000, "dallocx", tiny_dallocx,
+	    "sdallocx", tiny_sdallocx);
 }
 TEST_END
 
@@ -137,6 +152,7 @@ main(void)
 	return (test(
 	    test_malloc_vs_mallocx,
 	    test_free_vs_dallocx,
+	    test_dallocx_vs_sdallocx,
 	    test_mus_vs_sallocx,
 	    test_sallocx_vs_nallocx));
 }
