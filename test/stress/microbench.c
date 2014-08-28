@@ -72,11 +72,30 @@ malloc_dallocx(void)
 	dallocx(p, 0);
 }
 
+static void
+malloc_sdallocx(void)
+{
+	void *p = malloc(1);
+	if (p == NULL) {
+		test_fail("Unexpected malloc() failure");
+		return;
+	}
+	sdallocx(p, 1, 0);
+}
+
 TEST_BEGIN(test_free_vs_dallocx)
 {
 
 	compare_funcs(10*1000*1000, 100*1000*1000, "free", malloc_free,
 	    "dallocx", malloc_dallocx);
+}
+TEST_END
+
+TEST_BEGIN(test_dallocx_vs_sdallocx)
+{
+
+	compare_funcs(10*1000*1000, 100*1000*1000, "dallocx", malloc_dallocx,
+	    "sdallocx", malloc_sdallocx);
 }
 TEST_END
 
@@ -135,6 +154,7 @@ main(void)
 	return (test(
 	    test_malloc_vs_mallocx,
 	    test_free_vs_dallocx,
+	    test_dallocx_vs_sdallocx,
 	    test_mus_vs_sallocx,
 	    test_sallocx_vs_nallocx));
 }

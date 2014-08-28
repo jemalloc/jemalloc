@@ -38,6 +38,7 @@
     <refname>xallocx</refname>
     <refname>sallocx</refname>
     <refname>dallocx</refname>
+    <refname>sdallocx</refname>
     <refname>nallocx</refname>
     <refname>mallctl</refname>
     <refname>mallctlnametomib</refname>
@@ -118,6 +119,12 @@
         <funcprototype>
           <funcdef>void <function>dallocx</function></funcdef>
           <paramdef>void *<parameter>ptr</parameter></paramdef>
+          <paramdef>int <parameter>flags</parameter></paramdef>
+        </funcprototype>
+        <funcprototype>
+          <funcdef>void <function>sdallocx</function></funcdef>
+          <paramdef>void *<parameter>ptr</parameter></paramdef>
+          <paramdef>size_t <parameter>size</parameter></paramdef>
           <paramdef>int <parameter>flags</parameter></paramdef>
         </funcprototype>
         <funcprototype>
@@ -228,7 +235,8 @@
       <function>rallocx<parameter/></function>,
       <function>xallocx<parameter/></function>,
       <function>sallocx<parameter/></function>,
-      <function>dallocx<parameter/></function>, and
+      <function>dallocx<parameter/></function>,
+      <function>sdallocx<parameter/></function>, and
       <function>nallocx<parameter/></function> functions all have a
       <parameter>flags</parameter> argument that can be used to specify
       options.  The functions only check the options that are contextually
@@ -311,6 +319,15 @@
       <para>The <function>dallocx<parameter/></function> function causes the
       memory referenced by <parameter>ptr</parameter> to be made available for
       future allocations.</para>
+
+      <para>The <function>sdallocx<parameter/></function> function is an
+      extension of <function>dallocx<parameter/></function> with a
+      <parameter>size</parameter> parameter to allow the caller to pass in the
+      allocation size as an optimization.  The minimum valid input size is the
+      original requested size of the allocation, and the maximum valid input
+      size is the corresponding value returned by
+      <function>nallocx<parameter/></function> or
+      <function>sallocx<parameter/></function>.</para>
 
       <para>The <function>nallocx<parameter/></function> function allocates no
       memory, but it performs the same size computation as the
