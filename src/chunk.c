@@ -28,6 +28,7 @@ size_t		chunksize;
 size_t		chunksize_mask; /* (chunksize - 1). */
 size_t		chunk_npages;
 size_t		map_bias;
+size_t		map_misc_offset;
 size_t		arena_maxclass; /* Max size class for arenas. */
 
 /******************************************************************************/

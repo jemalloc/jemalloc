@@ -118,10 +118,10 @@ tcache_bin_flush_small(tcache_bin_t *tbin, size_t binind, unsigned rem,
 			if (chunk->arena == arena) {
 				size_t pageind = ((uintptr_t)ptr -
 				    (uintptr_t)chunk) >> LG_PAGE;
-				arena_chunk_map_t *mapelm =
-				    arena_mapp_get(chunk, pageind);
+				arena_chunk_map_bits_t *bitselm =
+				    arena_bitselm_get(chunk, pageind);
 				arena_dalloc_bin_locked(arena, chunk, ptr,
-				    mapelm);
+				    bitselm);
 			} else {
 				/*
 				 * This object was allocated via a different
@@ -393,9 +393,10 @@ tcache_destroy(tcache_t *tcache)
 		arena_t *arena = chunk->arena;
 		size_t pageind = ((uintptr_t)tcache - (uintptr_t)chunk) >>
 		    LG_PAGE;
-		arena_chunk_map_t *mapelm = arena_mapp_get(chunk, pageind);
+		arena_chunk_map_bits_t *bitselm = arena_bitselm_get(chunk,
+		    pageind);
 
-		arena_dalloc_bin(arena, chunk, tcache, pageind, mapelm);
+		arena_dalloc_bin(arena, chunk, tcache, pageind, bitselm);
 	} else if (tcache_size <= tcache_maxclass) {
 		arena_chunk_t *chunk = CHUNK_ADDR2BASE(tcache);
 		arena_t *arena = chunk->arena;

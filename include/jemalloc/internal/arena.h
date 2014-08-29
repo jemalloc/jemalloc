@@ -43,7 +43,8 @@
  */
 #define	LG_DIRTY_MULT_DEFAULT	3
 
-typedef struct arena_chunk_map_s arena_chunk_map_t;
+typedef struct arena_chunk_map_bits_s arena_chunk_map_bits_t;
+typedef struct arena_chunk_map_misc_s arena_chunk_map_misc_t;
 typedef struct arena_chunk_s arena_chunk_t;
 typedef struct arena_run_s arena_run_t;
 typedef struct arena_bin_info_s arena_bin_info_t;
@@ -55,34 +56,7 @@ typedef struct arena_s arena_t;
 #ifdef JEMALLOC_H_STRUCTS
 
 /* Each element of the chunk map corresponds to one page within the chunk. */
-struct arena_chunk_map_s {
-#ifndef JEMALLOC_PROF
-	/*
-	 * Overlay prof_tctx in order to allow it to be referenced by dead code.
-	 * Such antics aren't warranted for per arena data structures, but
-	 * chunk map overhead accounts for a percentage of memory, rather than
-	 * being just a fixed cost.
-	 */
-	union {
-#endif
-	/*
-	 * Linkage for run trees.  There are two disjoint uses:
-	 *
-	 * 1) arena_t's runs_avail tree.
-	 * 2) arena_run_t conceptually uses this linkage for in-use non-full
-	 * runs, rather than directly embedding linkage.
-	 */
-	rb_node(arena_chunk_map_t)	rb_link;
-
-	/* Profile counters, used for large object runs. */
-	prof_tctx_t			*prof_tctx;
-#ifndef JEMALLOC_PROF
-	}; /* union { ... }; */
-#endif
-
-	/* Linkage for list of dirty runs. */
-	ql_elm(arena_chunk_map_t)	dr_link;
-
+struct arena_chunk_map_bits_s {
 	/*
 	 * Run address (or size) and various flags are stored together.  The bit
 	 * layout looks like (assuming 32-bit system):
@@ -149,9 +123,43 @@ struct arena_chunk_map_s {
 #define	CHUNK_MAP_ALLOCATED	((size_t)0x1U)
 #define	CHUNK_MAP_KEY		CHUNK_MAP_ALLOCATED
 };
-typedef rb_tree(arena_chunk_map_t) arena_avail_tree_t;
-typedef rb_tree(arena_chunk_map_t) arena_run_tree_t;
-typedef ql_head(arena_chunk_map_t) arena_chunk_mapelms_t;
+
+/*
+ * Each arena_chunk_map_misc_t corresponds to one page within the chunk, just
+ * like arena_chunk_map_bits_t.  Two separate arrays are stored within each
+ * chunk header in order to improve cache locality.
+ */
+struct arena_chunk_map_misc_s {
+#ifndef JEMALLOC_PROF
+	/*
+	 * Overlay prof_tctx in order to allow it to be referenced by dead code.
+	 * Such antics aren't warranted for per arena data structures, but
+	 * chunk map overhead accounts for a percentage of memory, rather than
+	 * being just a fixed cost.
+	 */
+	union {
+#endif
+	/*
+	 * Linkage for run trees.  There are two disjoint uses:
+	 *
+	 * 1) arena_t's runs_avail tree.
+	 * 2) arena_run_t conceptually uses this linkage for in-use non-full
+	 * runs, rather than directly embedding linkage.
+	 */
+	rb_node(arena_chunk_map_misc_t)	rb_link;
+
+	/* Profile counters, used for large object runs. */
+	prof_tctx_t			*prof_tctx;
+#ifndef JEMALLOC_PROF
+	}; /* union { ... }; */
+#endif
+
+	/* Linkage for list of dirty runs. */
+	ql_elm(arena_chunk_map_misc_t)	dr_link;
+};
+typedef rb_tree(arena_chunk_map_misc_t) arena_avail_tree_t;
+typedef rb_tree(arena_chunk_map_misc_t) arena_run_tree_t;
+typedef ql_head(arena_chunk_map_misc_t) arena_chunk_miscelms_t;
 
 /* Arena chunk header. */
 struct arena_chunk_s {
@@ -164,7 +172,7 @@ struct arena_chunk_s {
 	 * need to be tracked in the map.  This omission saves a header page
 	 * for common chunk sizes (e.g. 4 MiB).
 	 */
-	arena_chunk_map_t	map[1]; /* Dynamically sized. */
+	arena_chunk_map_bits_t	map_bits[1]; /* Dynamically sized. */
 };
 
 struct arena_run_s {
@@ -335,7 +343,7 @@ struct arena_s {
 	arena_avail_tree_t	runs_avail;
 
 	/* List of dirty runs this arena manages. */
-	arena_chunk_mapelms_t	runs_dirty;
+	arena_chunk_miscelms_t	runs_dirty;
 
 	/*
 	 * user-configureable chunk allocation and deallocation functions.
@@ -393,9 +401,9 @@ void	*arena_malloc_large(arena_t *arena, size_t size, bool zero);
 void	*arena_palloc(arena_t *arena, size_t size, size_t alignment, bool zero);
 void	arena_prof_promoted(const void *ptr, size_t size);
 void	arena_dalloc_bin_locked(arena_t *arena, arena_chunk_t *chunk, void *ptr,
-    arena_chunk_map_t *mapelm);
+    arena_chunk_map_bits_t *bitselm);
 void	arena_dalloc_bin(arena_t *arena, arena_chunk_t *chunk, void *ptr,
-    size_t pageind, arena_chunk_map_t *mapelm);
+    size_t pageind, arena_chunk_map_bits_t *bitselm);
 void	arena_dalloc_small(arena_t *arena, arena_chunk_t *chunk, void *ptr,
     size_t pageind);
 #ifdef JEMALLOC_JET
@@ -439,7 +447,10 @@ size_t	small_bin2size(size_t binind);
 size_t	small_s2u_compute(size_t size);
 size_t	small_s2u_lookup(size_t size);
 size_t	small_s2u(size_t size);
-arena_chunk_map_t	*arena_mapp_get(arena_chunk_t *chunk, size_t pageind);
+arena_chunk_map_bits_t	*arena_bitselm_get(arena_chunk_t *chunk,
+    size_t pageind);
+arena_chunk_map_misc_t	*arena_miscelm_get(arena_chunk_t *chunk,
+    size_t pageind);
 size_t	*arena_mapbitsp_get(arena_chunk_t *chunk, size_t pageind);
 size_t	arena_mapbitsp_read(size_t *mapbitsp);
 size_t	arena_mapbits_get(arena_chunk_t *chunk, size_t pageind);
@@ -623,21 +634,32 @@ small_s2u(size_t size)
 #  endif /* JEMALLOC_ARENA_INLINE_A */
 
 #  ifdef JEMALLOC_ARENA_INLINE_B
-JEMALLOC_ALWAYS_INLINE arena_chunk_map_t *
-arena_mapp_get(arena_chunk_t *chunk, size_t pageind)
+JEMALLOC_ALWAYS_INLINE arena_chunk_map_bits_t *
+arena_bitselm_get(arena_chunk_t *chunk, size_t pageind)
 {
 
 	assert(pageind >= map_bias);
 	assert(pageind < chunk_npages);
 
-	return (&chunk->map[pageind-map_bias]);
+	return (&chunk->map_bits[pageind-map_bias]);
+}
+
+JEMALLOC_ALWAYS_INLINE arena_chunk_map_misc_t *
+arena_miscelm_get(arena_chunk_t *chunk, size_t pageind)
+{
+
+	assert(pageind >= map_bias);
+	assert(pageind < chunk_npages);
+
+	return ((arena_chunk_map_misc_t *)((uintptr_t)chunk +
+	    (uintptr_t)map_misc_offset) + pageind-map_bias);
 }
 
 JEMALLOC_ALWAYS_INLINE size_t *
 arena_mapbitsp_get(arena_chunk_t *chunk, size_t pageind)
 {
 
-	return (&arena_mapp_get(chunk, pageind)->bits);
+	return (&arena_bitselm_get(chunk, pageind)->bits);
 }
 
 JEMALLOC_ALWAYS_INLINE size_t
@@ -1005,7 +1027,7 @@ arena_prof_tctx_get(const void *ptr)
 	if ((mapbits & CHUNK_MAP_LARGE) == 0)
 		ret = (prof_tctx_t *)(uintptr_t)1U;
 	else
-		ret = arena_mapp_get(chunk, pageind)->prof_tctx;
+		ret = arena_miscelm_get(chunk, pageind)->prof_tctx;
 
 	return (ret);
 }
@@ -1025,7 +1047,7 @@ arena_prof_tctx_set(const void *ptr, prof_tctx_t *tctx)
 	assert(arena_mapbits_allocated_get(chunk, pageind) != 0);
 
 	if (arena_mapbits_large_get(chunk, pageind) != 0)
-		arena_mapp_get(chunk, pageind)->prof_tctx = tctx;
+		arena_miscelm_get(chunk, pageind)->prof_tctx = tctx;
 }
 
 JEMALLOC_ALWAYS_INLINE void *
