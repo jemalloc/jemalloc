@@ -1399,6 +1399,18 @@ if test "x${je_cv_glibc_memalign_hook}" = "xyes" ; then
   AC_DEFINE([JEMALLOC_GLIBC_MEMALIGN_HOOK], [ ])
 fi
 
+JE_COMPILABLE([pthreads adaptive mutexes], [
+#include <pthread.h>
+], [
+  pthread_mutexattr_t attr;
+  pthread_mutexattr_init(&attr);
+  pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_ADAPTIVE_NP);
+  pthread_mutexattr_destroy(&attr);
+], [je_cv_pthread_mutex_adaptive_np])
+if test "x${je_cv_pthread_mutex_adaptive_np}" = "xyes" ; then
+  AC_DEFINE([JEMALLOC_HAVE_PTHREAD_MUTEX_ADAPTIVE_NP], [ ])
+fi
+
 dnl ============================================================================
 dnl Check for typedefs, structures, and compiler characteristics.
 AC_HEADER_STDBOOL

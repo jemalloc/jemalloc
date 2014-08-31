@@ -215,4 +215,7 @@
 /* glibc memalign hook */
 #undef JEMALLOC_GLIBC_MEMALIGN_HOOK
 
+/* adaptive mutex support in pthreads */
+#undef JEMALLOC_HAVE_PTHREAD_MUTEX_ADAPTIVE_NP
+
 #endif /* JEMALLOC_INTERNAL_DEFS_H_ */
