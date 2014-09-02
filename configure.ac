@@ -1029,11 +1029,33 @@ dnl ============================================================================
 dnl jemalloc configuration.
 dnl 
 
-dnl Set VERSION if source directory has an embedded git repository or is a git submodule.
-if test -e "${srcroot}.git" ; then
-  git describe --long --abbrev=40 > ${srcroot}VERSION
+dnl Set VERSION if source directory is inside a git repository.
+if test "x`git rev-parse --is-inside-work-tree 2>/dev/null`" = "xtrue" ; then
+  dnl Pattern globs aren't powerful enough to match both single- and
+  dnl double-digit version numbers, so iterate over patterns to support up to
+  dnl version 99.99.99 without any accidental matches.
+  rm -f "${srcroot}VERSION"
+  for pattern in ['[0-9].[0-9].[0-9]' '[0-9].[0-9].[0-9][0-9]' \
+                 '[0-9].[0-9][0-9].[0-9]' '[0-9].[0-9][0-9].[0-9][0-9]' \
+                 '[0-9][0-9].[0-9].[0-9]' '[0-9][0-9].[0-9].[0-9][0-9]' \
+                 '[0-9][0-9].[0-9][0-9].[0-9]' \
+                 '[0-9][0-9].[0-9][0-9].[0-9][0-9]']; do
+    if test ! -e "${srcroot}VERSION" ; then
+      git describe --long --abbrev=40 --match="${pattern}" > "${srcroot}VERSION.tmp" 2>/dev/null
+      if test $? -eq 0 ; then
+        mv "${srcroot}VERSION.tmp" "${srcroot}VERSION"
+        break
+      fi
+    fi
+  done
 fi
-jemalloc_version=`cat ${srcroot}VERSION`
+rm -f "${srcroot}VERSION.tmp"
+if test ! -e "${srcroot}VERSION" ; then
+  AC_MSG_RESULT(
+    [Missing VERSION file, and unable to generate it; creating bogus VERSION])
+  echo "0.0.0-0-g0000000000000000000000000000000000000000" > "${srcroot}VERSION"
+fi
+jemalloc_version=`cat "${srcroot}VERSION"`
 jemalloc_version_major=`echo ${jemalloc_version} | tr ".g-" " " | awk '{print [$]1}'`
 jemalloc_version_minor=`echo ${jemalloc_version} | tr ".g-" " " | awk '{print [$]2}'`
 jemalloc_version_bugfix=`echo ${jemalloc_version} | tr ".g-" " " | awk '{print [$]3}'`
