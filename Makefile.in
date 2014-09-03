@@ -400,7 +400,6 @@ clean:
 	rm -f $(objroot)*.gcov.*
 
 distclean: clean
-	rm -rf $(objroot)autom4te.cache
 	rm -f $(objroot)bin/jemalloc.sh
 	rm -f $(objroot)config.log
 	rm -f $(objroot)config.status

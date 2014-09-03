@@ -1,7 +1,5 @@
 /*.gcov.*
 
-/autom4te.cache/
-
 /bin/jemalloc.sh
 
 /config.stamp
