@@ -56,7 +56,7 @@ any of the following arguments (not a definitive list) to 'configure':
     replace the "malloc", "calloc", etc. symbols.
 
 --without-export
-    Don't export public APIs. This can be useful when building jemalloc as a
+    Don't export public APIs.  This can be useful when building jemalloc as a
     static library, or to avoid exporting public APIs when using the zone
     allocator on OSX.
 
@@ -96,7 +96,7 @@ any of the following arguments (not a definitive list) to 'configure':
 
 --enable-ivsalloc
     Enable validation code, which verifies that pointers reside within
-    jemalloc-owned chunks before dereferencing them. This incurs a substantial
+    jemalloc-owned chunks before dereferencing them.  This incurs a substantial
     performance hit.
 
 --disable-stats
@@ -148,7 +148,7 @@ any of the following arguments (not a definitive list) to 'configure':
     Disable support for Valgrind.
 
 --disable-zone-allocator
-    Disable zone allocator for Darwin. This means jemalloc won't be hooked as
+    Disable zone allocator for Darwin.  This means jemalloc won't be hooked as
     the default allocator on OSX/iOS.
 
 --enable-utrace

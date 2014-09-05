@@ -15,7 +15,7 @@
  * See Knuth's TAOCP 3rd Ed., Vol. 2, pg. 17 for details on these constraints.
  *
  * This choice of m has the disadvantage that the quality of the bits is
- * proportional to bit position.  For example. the lowest bit has a cycle of 2,
+ * proportional to bit position.  For example, the lowest bit has a cycle of 2,
  * the next has a cycle of 4, etc.  For this reason, we prefer to use the upper
  * bits.
  *
