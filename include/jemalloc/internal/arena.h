@@ -577,7 +577,7 @@ small_bin2size_lookup(size_t binind)
 
 	assert(binind < NBINS);
 	{
-		size_t ret = ((size_t)(small_bin2size_tab[binind]));
+		size_t ret = (size_t)small_bin2size_tab[binind];
 		assert(ret == small_bin2size_compute(binind));
 		return (ret);
 	}
@@ -615,7 +615,7 @@ small_s2u_compute(size_t size)
 JEMALLOC_ALWAYS_INLINE size_t
 small_s2u_lookup(size_t size)
 {
-	size_t ret = (small_bin2size(small_size2bin(size)));
+	size_t ret = small_bin2size(small_size2bin(size));
 
 	assert(ret == small_s2u_compute(size));
 	return (ret);

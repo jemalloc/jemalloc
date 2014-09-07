@@ -202,6 +202,7 @@ cat <<EOF
  *   LG_TINY_MAXCLASS: Lg of maximum tiny size class.
  *   LOOKUP_MAXCLASS: Maximum size class included in lookup table.
  *   SMALL_MAXCLASS: Maximum small size class.
+ *   LARGE_MINCLASS: Minimum large size class.
  */
 
 #define	LG_SIZE_CLASS_GROUP	${lg_g}
@@ -245,6 +246,8 @@ cat <<EOF
 #if (NBINS > 255)
 #  error "Too many small size classes"
 #endif
+
+#define	LARGE_MINCLASS (PAGE_CEILING(SMALL_MAXCLASS+1))
 
 #endif /* JEMALLOC_H_TYPES */
 /******************************************************************************/

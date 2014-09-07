@@ -224,7 +224,6 @@ in_valgrind
 ipalloc
 ipalloct
 iqalloc
-iqalloct
 iralloc
 iralloct
 iralloct_realign

@@ -129,7 +129,7 @@ huge_ralloc(arena_t *arena, void *ptr, size_t oldsize, size_t size,
 	 */
 	copysize = (size < oldsize) ? size : oldsize;
 	memcpy(ret, ptr, copysize);
-	iqalloct(ptr, try_tcache_dalloc);
+	iqalloc(ptr, try_tcache_dalloc);
 	return (ret);
 }
 
