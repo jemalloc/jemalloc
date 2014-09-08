@@ -1,21 +1,21 @@
 #include "test/jemalloc_test.h"
 
 void
-timer_start(timer_t *timer)
+timer_start(timedelta_t *timer)
 {
 
 	gettimeofday(&timer->tv0, NULL);
 }
 
 void
-timer_stop(timer_t *timer)
+timer_stop(timedelta_t *timer)
 {
 
 	gettimeofday(&timer->tv1, NULL);
 }
 
 uint64_t
-timer_usec(const timer_t *timer)
+timer_usec(const timedelta_t *timer)
 {
 
 	return (((timer->tv1.tv_sec - timer->tv0.tv_sec) * 1000000) +
@@ -23,7 +23,7 @@ timer_usec(const timer_t *timer)
 }
 
 void
-timer_ratio(timer_t *a, timer_t *b, char *buf, size_t buflen)
+timer_ratio(timedelta_t *a, timedelta_t *b, char *buf, size_t buflen)
 {
 	uint64_t t0 = timer_usec(a);
 	uint64_t t1 = timer_usec(b);
