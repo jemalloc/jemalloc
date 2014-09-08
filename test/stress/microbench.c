@@ -81,7 +81,7 @@ TEST_BEGIN(test_free_vs_dallocx)
 TEST_END
 
 static void
-mus_vs_sallocx_mus(void)
+malloc_mus_free(void)
 {
 	void *p;
 
@@ -91,12 +91,13 @@ mus_vs_sallocx_mus(void)
 }
 
 static void
-mus_vs_sallocx_sallocx(void)
+malloc_sallocx_free(void)
 {
 	void *p;
 
 	p = malloc(1);
-	sallocx(p, 0);
+	if (sallocx(p, 0) < 1)
+		test_fail("Unexpected sallocx() failure");
 	free(p);
 }
 
@@ -104,27 +105,18 @@ TEST_BEGIN(test_mus_vs_sallocx)
 {
 
 	compare_funcs(10*1000*1000, 100*1000*1000, "malloc_usable_size",
-	    mus_vs_sallocx_mus, "sallocx", mus_vs_sallocx_sallocx);
+	    malloc_mus_free, "sallocx", malloc_sallocx_free);
 }
 TEST_END
 
 static void
-sallocx_vs_nallocx_sallocx(void)
+malloc_nallocx_free(void)
 {
 	void *p;
 
 	p = malloc(1);
-	sallocx(p, 0);
-	free(p);
-}
-
-static void
-sallocx_vs_nallocx_nallocx(void)
-{
-	void *p;
-
-	p = malloc(1);
-	nallocx(1, 0);
+	if (nallocx(1, 0) < 1)
+		test_fail("Unexpected nallocx() failure");
 	free(p);
 }
 
@@ -132,7 +124,7 @@ TEST_BEGIN(test_sallocx_vs_nallocx)
 {
 
 	compare_funcs(10*1000*1000, 100*1000*1000, "sallocx",
-	    sallocx_vs_nallocx_sallocx, "nallocx", sallocx_vs_nallocx_nallocx);
+	    malloc_sallocx_free, "nallocx", malloc_nallocx_free);
 }
 TEST_END
 

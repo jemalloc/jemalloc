@@ -17,13 +17,16 @@ JEMALLOC_EXPORT void	*@je_@aligned_alloc(size_t alignment, size_t size)
 JEMALLOC_EXPORT void	*@je_@realloc(void *ptr, size_t size);
 JEMALLOC_EXPORT void	@je_@free(void *ptr);
 
-JEMALLOC_EXPORT void	*@je_@mallocx(size_t size, int flags);
+JEMALLOC_EXPORT void	*@je_@mallocx(size_t size, int flags)
+    JEMALLOC_ATTR(malloc);
 JEMALLOC_EXPORT void	*@je_@rallocx(void *ptr, size_t size, int flags);
 JEMALLOC_EXPORT size_t	@je_@xallocx(void *ptr, size_t size, size_t extra,
     int flags);
-JEMALLOC_EXPORT size_t	@je_@sallocx(const void *ptr, int flags);
+JEMALLOC_EXPORT size_t	@je_@sallocx(const void *ptr, int flags)
+    JEMALLOC_ATTR(pure);
 JEMALLOC_EXPORT void	@je_@dallocx(void *ptr, int flags);
-JEMALLOC_EXPORT size_t	@je_@nallocx(size_t size, int flags);
+JEMALLOC_EXPORT size_t	@je_@nallocx(size_t size, int flags)
+    JEMALLOC_ATTR(pure);
 
 JEMALLOC_EXPORT int	@je_@mallctl(const char *name, void *oldp,
     size_t *oldlenp, void *newp, size_t newlen);
