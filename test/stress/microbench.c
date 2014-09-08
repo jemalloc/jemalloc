@@ -31,46 +31,52 @@ compare_funcs(uint64_t nwarmup, uint64_t niter, const char *name_a,
 }
 
 static void
-malloc_vs_mallocx_malloc(void)
+malloc_free(void)
 {
-
-	free(malloc(1));
+	/* The compiler can optimize away free(malloc(1))! */
+	void *p = malloc(1);
+	if (p == NULL) {
+		test_fail("Unexpected malloc() failure");
+		return;
+	}
+	free(p);
 }
 
 static void
-malloc_vs_mallocx_mallocx(void)
+mallocx_free(void)
 {
-
-	free(mallocx(1, 0));
+	void *p = mallocx(1, 0);
+	if (p == NULL) {
+		test_fail("Unexpected mallocx() failure");
+		return;
+	}
+	free(p);
 }
 
 TEST_BEGIN(test_malloc_vs_mallocx)
 {
 
 	compare_funcs(10*1000*1000, 100*1000*1000, "malloc",
-	    malloc_vs_mallocx_malloc, "mallocx", malloc_vs_mallocx_mallocx);
+	    malloc_free, "mallocx", mallocx_free);
 }
 TEST_END
 
 static void
-free_vs_dallocx_free(void)
+malloc_dallocx(void)
 {
-
-	free(malloc(1));
-}
-
-static void
-free_vs_dallocx_dallocx(void)
-{
-
-	dallocx(malloc(1), 0);
+	void *p = malloc(1);
+	if (p == NULL) {
+		test_fail("Unexpected malloc() failure");
+		return;
+	}
+	dallocx(p, 0);
 }
 
 TEST_BEGIN(test_free_vs_dallocx)
 {
 
-	compare_funcs(10*1000*1000, 100*1000*1000, "free", free_vs_dallocx_free,
-	    "dallocx", free_vs_dallocx_dallocx);
+	compare_funcs(10*1000*1000, 100*1000*1000, "free", malloc_free,
+	    "dallocx", malloc_dallocx);
 }
 TEST_END
 
