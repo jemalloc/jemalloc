@@ -827,7 +827,7 @@ isqalloc(void *ptr, size_t size, bool try_tcache)
 	if (config_fill && opt_quarantine)
 		quarantine(ptr);
 	else
-		idalloct(ptr, try_tcache);
+		isdalloct(ptr, size, try_tcache);
 }
 
 JEMALLOC_ALWAYS_INLINE void *
