@@ -291,7 +291,7 @@ JEMALLOC_ALWAYS_INLINE_C bool
 malloc_init(void)
 {
 
-	if (malloc_initialized == false && malloc_init_hard())
+	if (unlikely(!malloc_initialized) && malloc_init_hard())
 		return (true);
 	malloc_thread_init();
 
@@ -904,7 +904,7 @@ JEMALLOC_ALWAYS_INLINE_C void *
 imalloc_body(size_t size, size_t *usize)
 {
 
-	if (malloc_init())
+	if (unlikely(malloc_init()))
 		return (NULL);
 
 	if (config_prof && opt_prof) {
@@ -912,7 +912,7 @@ imalloc_body(size_t size, size_t *usize)
 		return (imalloc_prof(*usize));
 	}
 
-	if (config_stats || (config_valgrind && in_valgrind))
+	if (config_stats || (unlikely(config_valgrind && in_valgrind)))
 		*usize = s2u(size);
 	return (imalloc(size));
 }
@@ -993,7 +993,7 @@ imemalign(void **memptr, size_t alignment, size_t size, size_t min_alignment)
 
 	assert(min_alignment != 0);
 
-	if (malloc_init()) {
+	if (unlikely(malloc_init())) {
 		result = NULL;
 		goto label_oom;
 	} else {
@@ -1116,7 +1116,7 @@ je_calloc(size_t num, size_t size)
 	size_t num_size;
 	size_t usize JEMALLOC_CC_SILENCE_INIT(0);
 
-	if (malloc_init()) {
+	if (unlikely(malloc_init())) {
 		num_size = 0;
 		ret = NULL;
 		goto label_return;
@@ -1146,7 +1146,7 @@ je_calloc(size_t num, size_t size)
 		usize = s2u(num_size);
 		ret = icalloc_prof(usize);
 	} else {
-		if (config_stats || (config_valgrind && in_valgrind))
+		if (config_stats || unlikely(config_valgrind && in_valgrind))
 			usize = s2u(num_size);
 		ret = icalloc(num_size);
 	}
@@ -1222,7 +1222,7 @@ ifree(void *ptr, bool try_tcache)
 		usize = isalloc(ptr, config_prof);
 	if (config_stats)
 		thread_allocated_tsd_get()->deallocated += usize;
-	if (config_valgrind && in_valgrind)
+	if (unlikely(config_valgrind && in_valgrind))
 		rzsize = p2rz(ptr);
 	iqalloc(ptr, try_tcache);
 	JEMALLOC_VALGRIND_FREE(ptr, rzsize);
@@ -1240,7 +1240,7 @@ isfree(void *ptr, size_t usize, bool try_tcache)
 		prof_free(ptr, usize);
 	if (config_stats)
 		thread_allocated_tsd_get()->deallocated += usize;
-	if (config_valgrind && in_valgrind)
+	if (unlikely(config_valgrind && in_valgrind))
 		rzsize = p2rz(ptr);
 	isqalloc(ptr, usize, try_tcache);
 	JEMALLOC_VALGRIND_FREE(ptr, rzsize);
@@ -1269,16 +1269,16 @@ je_realloc(void *ptr, size_t size)
 		malloc_thread_init();
 
 		if ((config_prof && opt_prof) || config_stats ||
-		    (config_valgrind && in_valgrind))
+		    unlikely(config_valgrind && in_valgrind))
 			old_usize = isalloc(ptr, config_prof);
-		if (config_valgrind && in_valgrind)
+		if (unlikely(config_valgrind && in_valgrind))
 			old_rzsize = config_prof ? p2rz(ptr) : u2rz(old_usize);
 
 		if (config_prof && opt_prof) {
 			usize = s2u(size);
 			ret = irealloc_prof(ptr, old_usize, usize);
 		} else {
-			if (config_stats || (config_valgrind && in_valgrind))
+			if (config_stats || unlikely(config_valgrind && in_valgrind))
 				usize = s2u(size);
 			ret = iralloc(ptr, size, 0, false);
 		}
@@ -1506,7 +1506,7 @@ imallocx_no_prof(size_t size, int flags, size_t *usize)
 	arena_t *arena;
 
 	if (flags == 0) {
-		if (config_stats || (config_valgrind && in_valgrind))
+		if (config_stats || unlikely(config_valgrind && in_valgrind))
 			*usize = s2u(size);
 		return (imalloc(size));
 	}
@@ -1524,7 +1524,7 @@ je_mallocx(size_t size, int flags)
 
 	assert(size != 0);
 
-	if (malloc_init())
+	if (unlikely(malloc_init()))
 		goto label_oom;
 
 	if (config_prof && opt_prof)
@@ -1642,9 +1642,9 @@ je_rallocx(void *ptr, size_t size, int flags)
 	}
 
 	if ((config_prof && opt_prof) || config_stats ||
-	    (config_valgrind && in_valgrind))
+	    (unlikely(config_valgrind && in_valgrind)))
 		old_usize = isalloc(ptr, config_prof);
-	if (config_valgrind && in_valgrind)
+	if (unlikely(config_valgrind && in_valgrind))
 		old_rzsize = u2rz(old_usize);
 
 	if (config_prof && opt_prof) {
@@ -1777,7 +1777,7 @@ je_xallocx(void *ptr, size_t size, size_t extra, int flags)
 		arena = NULL;
 
 	old_usize = isalloc(ptr, config_prof);
-	if (config_valgrind && in_valgrind)
+	if (unlikely(config_valgrind && in_valgrind))
 		old_rzsize = u2rz(old_usize);
 
 	if (config_prof && opt_prof) {
@@ -1883,7 +1883,7 @@ je_nallocx(size_t size, int flags)
 
 	assert(size != 0);
 
-	if (malloc_init())
+	if (unlikely(malloc_init()))
 		return (0);
 
 	return (inallocx(size, flags));
@@ -1894,7 +1894,7 @@ je_mallctl(const char *name, void *oldp, size_t *oldlenp, void *newp,
     size_t newlen)
 {
 
-	if (malloc_init())
+	if (unlikely(malloc_init()))
 		return (EAGAIN);
 
 	return (ctl_byname(name, oldp, oldlenp, newp, newlen));
@@ -1904,7 +1904,7 @@ int
 je_mallctlnametomib(const char *name, size_t *mibp, size_t *miblenp)
 {
 
-	if (malloc_init())
+	if (unlikely(malloc_init()))
 		return (EAGAIN);
 
 	return (ctl_nametomib(name, mibp, miblenp));
@@ -1915,7 +1915,7 @@ je_mallctlbymib(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
   void *newp, size_t newlen)
 {
 
-	if (malloc_init())
+	if (unlikely(malloc_init()))
 		return (EAGAIN);
 
 	return (ctl_bymib(mib, miblen, oldp, oldlenp, newp, newlen));
@@ -2064,7 +2064,7 @@ static void *
 a0alloc(size_t size, bool zero)
 {
 
-	if (malloc_init())
+	if (unlikely(malloc_init()))
 		return (NULL);
 
 	if (size == 0)

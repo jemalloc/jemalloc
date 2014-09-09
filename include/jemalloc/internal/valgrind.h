@@ -14,15 +14,15 @@
  * usable space.
  */
 #define	JEMALLOC_VALGRIND_MAKE_MEM_NOACCESS(ptr, usize) do {		\
-	if (in_valgrind)						\
+	if (unlikely(in_valgrind))					\
 		valgrind_make_mem_noaccess(ptr, usize);			\
 } while (0)
 #define	JEMALLOC_VALGRIND_MAKE_MEM_UNDEFINED(ptr, usize) do {		\
-	if (in_valgrind)						\
+	if (unlikely(in_valgrind))					\
 		valgrind_make_mem_undefined(ptr, usize);		\
 } while (0)
 #define	JEMALLOC_VALGRIND_MAKE_MEM_DEFINED(ptr, usize) do {		\
-	if (in_valgrind)						\
+	if (unlikely(in_valgrind))					\
 		valgrind_make_mem_defined(ptr, usize);			\
 } while (0)
 /*
@@ -31,13 +31,13 @@
  * Valgrind reports errors, there are no extra stack frames in the backtraces.
  */
 #define	JEMALLOC_VALGRIND_MALLOC(cond, ptr, usize, zero) do {		\
-	if (in_valgrind && cond)					\
+	if (unlikely(in_valgrind && cond))				\
 		VALGRIND_MALLOCLIKE_BLOCK(ptr, usize, p2rz(ptr), zero);	\
 } while (0)
 #define	JEMALLOC_VALGRIND_REALLOC(maybe_moved, ptr, usize,		\
     ptr_maybe_null, old_ptr, old_usize, old_rzsize, old_ptr_maybe_null,	\
     zero) do {								\
-	if (in_valgrind) {						\
+	if (unlikely(in_valgrind)) {					\
 		size_t rzsize = p2rz(ptr);				\
 									\
 		if (!maybe_moved || ptr == old_ptr) {			\
@@ -73,7 +73,7 @@
 	}								\
 } while (0)
 #define	JEMALLOC_VALGRIND_FREE(ptr, rzsize) do {			\
-	if (in_valgrind)						\
+	if (unlikely(in_valgrind))					\
 		valgrind_freelike_block(ptr, rzsize);			\
 } while (0)
 #else

@@ -218,7 +218,7 @@ tcache_get(bool create)
 		return (NULL);
 
 	tcache = *tcache_tsd_get();
-	if ((uintptr_t)tcache <= (uintptr_t)TCACHE_STATE_MAX) {
+	if (unlikely((uintptr_t)tcache <= (uintptr_t)TCACHE_STATE_MAX)) {
 		if (tcache == TCACHE_STATE_DISABLED)
 			return (NULL);
 		tcache = tcache_get_hard(tcache, create);
