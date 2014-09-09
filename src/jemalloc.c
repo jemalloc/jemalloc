@@ -1838,19 +1838,29 @@ je_dallocx(void *ptr, int flags)
 	ifree(ptr, try_tcache);
 }
 
+JEMALLOC_ALWAYS_INLINE_C size_t
+inallocx(size_t size, int flags)
+{
+	size_t usize;
+
+	if ((flags & MALLOCX_LG_ALIGN_MASK) == 0)
+		usize = s2u(size);
+	else
+		usize = sa2u(size, MALLOCX_ALIGN_GET_SPECIFIED(flags));
+	assert(usize != 0);
+	return (usize);
+}
+
 void
 je_sdallocx(void *ptr, size_t size, int flags)
 {
 	bool try_tcache;
+	size_t usize;
 
 	assert(ptr != NULL);
 	assert(malloc_initialized || IS_INITIALIZER);
-	assert(size == isalloc(ptr, config_prof));
-
-	if ((flags & MALLOCX_LG_ALIGN_MASK) == 0)
-		size = s2u(size);
-	else
-		size = sa2u(size, MALLOCX_ALIGN_GET_SPECIFIED(flags));
+	usize = inallocx(size, flags);
+	assert(usize == isalloc(ptr, config_prof));
 
 	if ((flags & MALLOCX_ARENA_MASK) != 0) {
 		unsigned arena_ind = MALLOCX_ARENA_GET(flags);
@@ -1861,27 +1871,19 @@ je_sdallocx(void *ptr, size_t size, int flags)
 		try_tcache = true;
 
 	UTRACE(ptr, 0, 0);
-	isfree(ptr, size, try_tcache);
+	isfree(ptr, usize, try_tcache);
 }
 
 size_t
 je_nallocx(size_t size, int flags)
 {
-	size_t usize;
 
 	assert(size != 0);
 
 	if (malloc_init())
 		return (0);
 
-	if ((flags & MALLOCX_LG_ALIGN_MASK) == 0)
-		usize = s2u(size);
-	else {
-		size_t alignment = MALLOCX_ALIGN_GET_SPECIFIED(flags);
-		usize = sa2u(size, alignment);
-	}
-	assert(usize != 0);
-	return (usize);
+	return (inallocx(size, flags));
 }
 
 int
