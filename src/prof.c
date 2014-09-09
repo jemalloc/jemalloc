@@ -487,9 +487,8 @@ prof_gctx_create(prof_bt_t *bt)
 }
 
 static void
-prof_gctx_maybe_destroy(prof_gctx_t *gctx)
+prof_gctx_maybe_destroy(prof_gctx_t *gctx, prof_tdata_t *tdata)
 {
-	prof_tdata_t *tdata;
 
 	cassert(config_prof);
 
@@ -500,8 +499,6 @@ prof_gctx_maybe_destroy(prof_gctx_t *gctx)
 	 * avoid a race between the main body of prof_tctx_destroy() and entry
 	 * into this function.
 	 */
-	tdata = prof_tdata_get(false);
-	assert((uintptr_t)tdata > (uintptr_t)PROF_TDATA_STATE_MAX);
 	prof_enter(tdata);
 	malloc_mutex_lock(gctx->lock);
 	if (tctx_tree_empty(&gctx->tctxs) && gctx->nlimbo == 1) {
@@ -552,8 +549,9 @@ prof_gctx_should_destroy(prof_gctx_t *gctx)
 static void
 prof_tctx_destroy(prof_tctx_t *tctx)
 {
+	prof_tdata_t *tdata = tctx->tdata;
 	prof_gctx_t *gctx = tctx->gctx;
-	bool destroy_gctx;
+	bool destroy_tdata, destroy_gctx;
 
 	assert(tctx->cnts.curobjs == 0);
 	assert(tctx->cnts.curbytes == 0);
@@ -561,16 +559,9 @@ prof_tctx_destroy(prof_tctx_t *tctx)
 	assert(tctx->cnts.accumobjs == 0);
 	assert(tctx->cnts.accumbytes == 0);
 
-	{
-		prof_tdata_t *tdata = tctx->tdata;
-		bool tdata_destroy;
-
-		ckh_remove(&tdata->bt2tctx, &gctx->bt, NULL, NULL);
-		tdata_destroy = prof_tdata_should_destroy(tdata);
-		malloc_mutex_unlock(tdata->lock);
-		if (tdata_destroy)
-			prof_tdata_destroy(tdata);
-	}
+	ckh_remove(&tdata->bt2tctx, &gctx->bt, NULL, NULL);
+	destroy_tdata = prof_tdata_should_destroy(tdata);
+	malloc_mutex_unlock(tdata->lock);
 
 	malloc_mutex_lock(gctx->lock);
 	tctx_tree_remove(&gctx->tctxs, tctx);
@@ -594,7 +585,10 @@ prof_tctx_destroy(prof_tctx_t *tctx)
 		destroy_gctx = false;
 	malloc_mutex_unlock(gctx->lock);
 	if (destroy_gctx)
-		prof_gctx_maybe_destroy(gctx);
+		prof_gctx_maybe_destroy(gctx, tdata);
+
+	if (destroy_tdata)
+		prof_tdata_destroy(tdata);
 
 	idalloc(tctx);
 }
@@ -683,7 +677,7 @@ prof_lookup(prof_bt_t *bt)
 		ret.v = imalloc(sizeof(prof_tctx_t));
 		if (ret.p == NULL) {
 			if (new_gctx)
-				prof_gctx_maybe_destroy(gctx);
+				prof_gctx_maybe_destroy(gctx, tdata);
 			return (NULL);
 		}
 		ret.p->tdata = tdata;
@@ -695,7 +689,7 @@ prof_lookup(prof_bt_t *bt)
 		malloc_mutex_unlock(tdata->lock);
 		if (error) {
 			if (new_gctx)
-				prof_gctx_maybe_destroy(gctx);
+				prof_gctx_maybe_destroy(gctx, tdata);
 			idalloc(ret.v);
 			return (NULL);
 		}
@@ -1019,6 +1013,7 @@ prof_gctx_merge_iter(prof_gctx_tree_t *gctxs, prof_gctx_t *gctx, void *arg)
 static prof_gctx_t *
 prof_gctx_finish_iter(prof_gctx_tree_t *gctxs, prof_gctx_t *gctx, void *arg)
 {
+	prof_tdata_t *tdata = (prof_tdata_t *)arg;
 	prof_tctx_t *next;
 	bool destroy_gctx;
 
@@ -1032,7 +1027,7 @@ prof_gctx_finish_iter(prof_gctx_tree_t *gctxs, prof_gctx_t *gctx, void *arg)
 	destroy_gctx = prof_gctx_should_destroy(gctx);
 	malloc_mutex_unlock(gctx->lock);
 	if (destroy_gctx)
-		prof_gctx_maybe_destroy(gctx);
+		prof_gctx_maybe_destroy(gctx, tdata);
 
 	return (NULL);
 }
@@ -1310,7 +1305,7 @@ prof_dump(bool propagate_err, const char *filename, bool leakcheck)
 	if (prof_dump_close(propagate_err))
 		goto label_open_close_error;
 
-	gctx_tree_iter(&gctxs, NULL, prof_gctx_finish_iter, NULL);
+	gctx_tree_iter(&gctxs, NULL, prof_gctx_finish_iter, tdata);
 	malloc_mutex_unlock(&prof_dump_mtx);
 
 	if (leakcheck)
@@ -1320,7 +1315,7 @@ prof_dump(bool propagate_err, const char *filename, bool leakcheck)
 label_write_error:
 	prof_dump_close(propagate_err);
 label_open_close_error:
-	gctx_tree_iter(&gctxs, NULL, prof_gctx_finish_iter, NULL);
+	gctx_tree_iter(&gctxs, NULL, prof_gctx_finish_iter, tdata);
 	malloc_mutex_unlock(&prof_dump_mtx);
 	return (true);
 }
@@ -1643,7 +1638,7 @@ const char *
 prof_thread_name_get(void)
 {
 	prof_tdata_t *tdata = prof_tdata_get(true);
-	if (tdata == NULL)
+	if ((uintptr_t)tdata <= (uintptr_t)PROF_TDATA_STATE_MAX)
 		return (NULL);
 	return (tdata->thread_name);
 }
@@ -1656,7 +1651,7 @@ prof_thread_name_set(const char *thread_name)
 	char *s;
 
 	tdata = prof_tdata_get(true);
-	if (tdata == NULL)
+	if ((uintptr_t)tdata <= (uintptr_t)PROF_TDATA_STATE_MAX)
 		return (true);
 
 	size = strlen(thread_name) + 1;
@@ -1675,7 +1670,7 @@ bool
 prof_thread_active_get(void)
 {
 	prof_tdata_t *tdata = prof_tdata_get(true);
-	if (tdata == NULL)
+	if ((uintptr_t)tdata <= (uintptr_t)PROF_TDATA_STATE_MAX)
 		return (false);
 	return (tdata->active);
 }
@@ -1686,7 +1681,7 @@ prof_thread_active_set(bool active)
 	prof_tdata_t *tdata;
 
 	tdata = prof_tdata_get(true);
-	if (tdata == NULL)
+	if ((uintptr_t)tdata <= (uintptr_t)PROF_TDATA_STATE_MAX)
 		return (true);
 	tdata->active = active;
 	return (false);

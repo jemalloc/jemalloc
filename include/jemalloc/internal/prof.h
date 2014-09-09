@@ -308,12 +308,13 @@ prof_tdata_get(bool create)
 
 	tdata = *prof_tdata_tsd_get();
 	if (create) {
-		if (tdata == NULL)
-			tdata = prof_tdata_init();
-		else if (tdata->state == prof_tdata_state_expired)
+		if ((uintptr_t)tdata <= (uintptr_t)PROF_TDATA_STATE_MAX) {
+			if (tdata == NULL)
+				tdata = prof_tdata_init();
+		} else if (tdata->state == prof_tdata_state_expired)
 			tdata = prof_tdata_reinit(tdata);
-		assert(tdata == NULL || tdata->state ==
-		    prof_tdata_state_attached);
+		assert((uintptr_t)tdata <= (uintptr_t)PROF_TDATA_STATE_MAX ||
+		    tdata->state == prof_tdata_state_attached);
 	}
 
 	return (tdata);
