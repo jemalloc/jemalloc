@@ -4167,7 +4167,7 @@ sub ReadThreadedHeapProfile {
       my $thread = $2;
       my ($n1, $s1, $n2, $s2) = ($3, $4, $5, $6);
       my @counts = AdjustSamples($sample_adjustment, $sampling_algorithm,
-                                 $n1, $s2, $n2, $s2);
+                                 $n1, $s1, $n2, $s2);
       if ($thread eq "*") {
         AddEntries($profile, $pcs, FixCallerAddresses($stack), $counts[$index]);
       } else {
