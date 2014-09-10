@@ -292,6 +292,7 @@ p2rz
 pages_purge
 pow2_ceil
 prof_alloc_prep
+prof_alloc_rollback
 prof_backtrace
 prof_boot0
 prof_boot1

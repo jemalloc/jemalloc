@@ -97,6 +97,12 @@ struct prof_tctx_s {
 	/* Linkage into gctx's tctxs. */
 	rb_node(prof_tctx_t)	tctx_link;
 
+	/*
+	 * True during prof_alloc_prep()..prof_malloc_sample_object(), prevents
+	 * sample vs destroy race.
+	 */
+	bool			prepared;
+
 	/* Current dump-related state, protected by gctx->lock. */
 	prof_tctx_state_t	state;
 
@@ -242,6 +248,7 @@ extern uint64_t	prof_interval;
  */
 extern size_t	lg_prof_sample;
 
+void	prof_alloc_rollback(prof_tctx_t *tctx, bool updated);
 void	prof_malloc_sample_object(const void *ptr, size_t usize,
     prof_tctx_t *tctx);
 void	prof_free_sampled_object(size_t usize, prof_tctx_t *tctx);
@@ -282,14 +289,14 @@ malloc_tsd_protos(JEMALLOC_ATTR(unused), prof_tdata, prof_tdata_t *)
 prof_tdata_t	*prof_tdata_get(bool create);
 bool	prof_sample_accum_update(size_t usize, bool commit,
     prof_tdata_t **tdata_out);
-prof_tctx_t	*prof_alloc_prep(size_t usize);
+prof_tctx_t	*prof_alloc_prep(size_t usize, bool update);
 prof_tctx_t	*prof_tctx_get(const void *ptr);
 void	prof_tctx_set(const void *ptr, prof_tctx_t *tctx);
 void	prof_malloc_sample_object(const void *ptr, size_t usize,
     prof_tctx_t *tctx);
 void	prof_malloc(const void *ptr, size_t usize, prof_tctx_t *tctx);
 void	prof_realloc(const void *ptr, size_t usize, prof_tctx_t *tctx,
-    size_t old_usize, prof_tctx_t *old_tctx);
+    bool updated, size_t old_usize, prof_tctx_t *old_tctx);
 void	prof_free(const void *ptr, size_t usize);
 #endif
 
@@ -356,7 +363,7 @@ prof_tctx_set(const void *ptr, prof_tctx_t *tctx)
 }
 
 JEMALLOC_INLINE bool
-prof_sample_accum_update(size_t usize, bool commit, prof_tdata_t **tdata_out)
+prof_sample_accum_update(size_t usize, bool update, prof_tdata_t **tdata_out)
 {
 	prof_tdata_t *tdata;
 
@@ -373,19 +380,19 @@ prof_sample_accum_update(size_t usize, bool commit, prof_tdata_t **tdata_out)
 		return (true);
 
 	if (tdata->bytes_until_sample >= usize) {
-		if (commit)
+		if (update)
 			tdata->bytes_until_sample -= usize;
 		return (true);
 	} else {
 		/* Compute new sample threshold. */
-		if (commit)
+		if (update)
 			prof_sample_threshold_update(tdata);
 		return (tdata->active == false);
 	}
 }
 
 JEMALLOC_INLINE prof_tctx_t *
-prof_alloc_prep(size_t usize)
+prof_alloc_prep(size_t usize, bool update)
 {
 	prof_tctx_t *ret;
 	prof_tdata_t *tdata;
@@ -393,7 +400,7 @@ prof_alloc_prep(size_t usize)
 
 	assert(usize == s2u(usize));
 
-	if (!opt_prof_active || prof_sample_accum_update(usize, false, &tdata))
+	if (!opt_prof_active || prof_sample_accum_update(usize, update, &tdata))
 		ret = (prof_tctx_t *)(uintptr_t)1U;
 	else {
 		bt_init(&bt, tdata->vec);
@@ -412,16 +419,6 @@ prof_malloc(const void *ptr, size_t usize, prof_tctx_t *tctx)
 	assert(ptr != NULL);
 	assert(usize == isalloc(ptr, true));
 
-	if (prof_sample_accum_update(usize, true, NULL)) {
-		/*
-		 * Don't sample.  For malloc()-like allocation, it is always
-		 * possible to tell in advance how large an object's usable size
-		 * will be, so there should never be a difference between the
-		 * usize passed to PROF_ALLOC_PREP() and prof_malloc().
-		 */
-		assert((uintptr_t)tctx == (uintptr_t)1U);
-	}
-
 	if ((uintptr_t)tctx > (uintptr_t)1U)
 		prof_malloc_sample_object(ptr, usize, tctx);
 	else
@@ -429,14 +426,14 @@ prof_malloc(const void *ptr, size_t usize, prof_tctx_t *tctx)
 }
 
 JEMALLOC_INLINE void
-prof_realloc(const void *ptr, size_t usize, prof_tctx_t *tctx, size_t old_usize,
-    prof_tctx_t *old_tctx)
+prof_realloc(const void *ptr, size_t usize, prof_tctx_t *tctx, bool updated,
+    size_t old_usize, prof_tctx_t *old_tctx)
 {
 
 	cassert(config_prof);
 	assert(ptr != NULL || (uintptr_t)tctx <= (uintptr_t)1U);
 
-	if (ptr != NULL) {
+	if (!updated && ptr != NULL) {
 		assert(usize == isalloc(ptr, true));
 		if (prof_sample_accum_update(usize, true, NULL)) {
 			/*

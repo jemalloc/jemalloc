@@ -150,6 +150,35 @@ rb_gen(static UNUSED, tdata_tree_, prof_tdata_tree_t, prof_tdata_t, tdata_link,
 /******************************************************************************/
 
 void
+prof_alloc_rollback(prof_tctx_t *tctx, bool updated)
+{
+	prof_tdata_t *tdata;
+
+	cassert(config_prof);
+
+	if (updated) {
+		/*
+		 * Compute a new sample threshold.  This isn't very important in
+		 * practice, because this function is rarely executed, so the
+		 * potential for sample bias is minimal except in contrived
+		 * programs.
+		 */
+		tdata = prof_tdata_get(true);
+		if ((uintptr_t)tdata > (uintptr_t)PROF_TDATA_STATE_MAX)
+			prof_sample_threshold_update(tctx->tdata);
+	}
+
+	if ((uintptr_t)tctx > (uintptr_t)1U) {
+		malloc_mutex_lock(tctx->tdata->lock);
+		tctx->prepared = false;
+		if (prof_tctx_should_destroy(tctx))
+			prof_tctx_destroy(tctx);
+		else
+			malloc_mutex_unlock(tctx->tdata->lock);
+	}
+}
+
+void
 prof_malloc_sample_object(const void *ptr, size_t usize, prof_tctx_t *tctx) {
 	prof_tctx_set(ptr, tctx);
 
@@ -160,6 +189,7 @@ prof_malloc_sample_object(const void *ptr, size_t usize, prof_tctx_t *tctx) {
 		tctx->cnts.accumobjs++;
 		tctx->cnts.accumbytes += usize;
 	}
+	tctx->prepared = false;
 	malloc_mutex_unlock(tctx->tdata->lock);
 }
 
@@ -529,6 +559,8 @@ prof_tctx_should_destroy(prof_tctx_t *tctx)
 		return (false);
 	if (tctx->cnts.curobjs != 0)
 		return (false);
+	if (tctx->prepared)
+		return (false);
 	return (true);
 }
 
@@ -659,6 +691,8 @@ prof_lookup(prof_bt_t *bt)
 
 	malloc_mutex_lock(tdata->lock);
 	not_found = ckh_search(&tdata->bt2tctx, bt, NULL, &ret.v);
+	if (!not_found) /* Note double negative! */
+		ret.p->prepared = true;
 	malloc_mutex_unlock(tdata->lock);
 	if (not_found) {
 		void *btkey;
@@ -683,6 +717,7 @@ prof_lookup(prof_bt_t *bt)
 		ret.p->tdata = tdata;
 		memset(&ret.p->cnts, 0, sizeof(prof_cnt_t));
 		ret.p->gctx = gctx;
+		ret.p->prepared = true;
 		ret.p->state = prof_tctx_state_nominal;
 		malloc_mutex_lock(tdata->lock);
 		error = ckh_insert(&tdata->bt2tctx, btkey, ret.v);

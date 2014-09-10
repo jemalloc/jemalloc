@@ -886,13 +886,15 @@ imalloc_prof(size_t usize)
 	void *p;
 	prof_tctx_t *tctx;
 
-	tctx = prof_alloc_prep(usize);
+	tctx = prof_alloc_prep(usize, true);
 	if ((uintptr_t)tctx != (uintptr_t)1U)
 		p = imalloc_prof_sample(usize, tctx);
 	else
 		p = imalloc(usize);
-	if (p == NULL)
+	if (p == NULL) {
+		prof_alloc_rollback(tctx, true);
 		return (NULL);
+	}
 	prof_malloc(p, usize, tctx);
 
 	return (p);
@@ -962,16 +964,20 @@ imemalign_prof_sample(size_t alignment, size_t usize, prof_tctx_t *tctx)
 }
 
 JEMALLOC_ALWAYS_INLINE_C void *
-imemalign_prof(size_t alignment, size_t usize, prof_tctx_t *tctx)
+imemalign_prof(size_t alignment, size_t usize)
 {
 	void *p;
+	prof_tctx_t *tctx;
 
+	tctx = prof_alloc_prep(usize, true);
 	if ((uintptr_t)tctx != (uintptr_t)1U)
 		p = imemalign_prof_sample(alignment, usize, tctx);
 	else
 		p = ipalloc(usize, alignment, false);
-	if (p == NULL)
+	if (p == NULL) {
+		prof_alloc_rollback(tctx, true);
 		return (NULL);
+	}
 	prof_malloc(p, usize, tctx);
 
 	return (p);
@@ -1013,12 +1019,9 @@ imemalign(void **memptr, size_t alignment, size_t size, size_t min_alignment)
 			goto label_oom;
 		}
 
-		if (config_prof && opt_prof) {
-			prof_tctx_t *tctx;
-
-			tctx = prof_alloc_prep(usize);
-			result = imemalign_prof(alignment, usize, tctx);
-		} else
+		if (config_prof && opt_prof)
+			result = imemalign_prof(alignment, usize);
+		else
 			result = ipalloc(usize, alignment, false);
 		if (result == NULL)
 			goto label_oom;
@@ -1087,16 +1090,20 @@ icalloc_prof_sample(size_t usize, prof_tctx_t *tctx)
 }
 
 JEMALLOC_ALWAYS_INLINE_C void *
-icalloc_prof(size_t usize, prof_tctx_t *tctx)
+icalloc_prof(size_t usize)
 {
 	void *p;
+	prof_tctx_t *tctx;
 
+	tctx = prof_alloc_prep(usize, true);
 	if ((uintptr_t)tctx != (uintptr_t)1U)
 		p = icalloc_prof_sample(usize, tctx);
 	else
 		p = icalloc(usize);
-	if (p == NULL)
+	if (p == NULL) {
+		prof_alloc_rollback(tctx, true);
 		return (NULL);
+	}
 	prof_malloc(p, usize, tctx);
 
 	return (p);
@@ -1136,11 +1143,8 @@ je_calloc(size_t num, size_t size)
 	}
 
 	if (config_prof && opt_prof) {
-		prof_tctx_t *tctx;
-
 		usize = s2u(num_size);
-		tctx = prof_alloc_prep(usize);
-		ret = icalloc_prof(usize, tctx);
+		ret = icalloc_prof(usize);
 	} else {
 		if (config_stats || (config_valgrind && in_valgrind))
 			usize = s2u(num_size);
@@ -1184,19 +1188,20 @@ irealloc_prof_sample(void *oldptr, size_t usize, prof_tctx_t *tctx)
 }
 
 JEMALLOC_ALWAYS_INLINE_C void *
-irealloc_prof(void *oldptr, size_t old_usize, size_t usize, prof_tctx_t *tctx)
+irealloc_prof(void *oldptr, size_t old_usize, size_t usize)
 {
 	void *p;
-	prof_tctx_t *old_tctx;
+	prof_tctx_t *old_tctx, *tctx;
 
 	old_tctx = prof_tctx_get(oldptr);
+	tctx = prof_alloc_prep(usize, true);
 	if ((uintptr_t)tctx != (uintptr_t)1U)
 		p = irealloc_prof_sample(oldptr, usize, tctx);
 	else
 		p = iralloc(oldptr, usize, 0, false);
 	if (p == NULL)
 		return (NULL);
-	prof_realloc(p, usize, tctx, old_usize, old_tctx);
+	prof_realloc(p, usize, tctx, true, old_usize, old_tctx);
 
 	return (p);
 }
@@ -1270,11 +1275,8 @@ je_realloc(void *ptr, size_t size)
 			old_rzsize = config_prof ? p2rz(ptr) : u2rz(old_usize);
 
 		if (config_prof && opt_prof) {
-			prof_tctx_t *tctx;
-
 			usize = s2u(size);
-			tctx = prof_alloc_prep(usize);
-			ret = irealloc_prof(ptr, old_usize, usize, tctx);
+			ret = irealloc_prof(ptr, old_usize, usize);
 		} else {
 			if (config_stats || (config_valgrind && in_valgrind))
 				usize = s2u(size);
@@ -1477,7 +1479,7 @@ imallocx_prof(size_t size, int flags, size_t *usize)
 
 	imallocx_flags_decode(size, flags, usize, &alignment, &zero,
 	    &try_tcache, &arena);
-	tctx = prof_alloc_prep(*usize);
+	tctx = prof_alloc_prep(*usize, true);
 	if ((uintptr_t)tctx == (uintptr_t)1U) {
 		p = imallocx_maybe_flags(size, flags, *usize, alignment, zero,
 		    try_tcache, arena);
@@ -1486,8 +1488,10 @@ imallocx_prof(size_t size, int flags, size_t *usize)
 		    try_tcache, arena);
 	} else
 		p = NULL;
-	if (p == NULL)
+	if (p == NULL) {
+		prof_alloc_rollback(tctx, true);
 		return (NULL);
+	}
 	prof_malloc(p, *usize, tctx);
 
 	return (p);
@@ -1572,21 +1576,24 @@ irallocx_prof_sample(void *oldptr, size_t size, size_t alignment, size_t usize,
 JEMALLOC_ALWAYS_INLINE_C void *
 irallocx_prof(void *oldptr, size_t old_usize, size_t size, size_t alignment,
     size_t *usize, bool zero, bool try_tcache_alloc, bool try_tcache_dalloc,
-    arena_t *arena, prof_tctx_t *tctx)
+    arena_t *arena)
 {
 	void *p;
-	prof_tctx_t *old_tctx;
+	prof_tctx_t *old_tctx, *tctx;
 
 	old_tctx = prof_tctx_get(oldptr);
-	if ((uintptr_t)tctx != (uintptr_t)1U)
+	tctx = prof_alloc_prep(*usize, true);
+	if ((uintptr_t)tctx != (uintptr_t)1U) {
 		p = irallocx_prof_sample(oldptr, size, alignment, *usize, zero,
 		    try_tcache_alloc, try_tcache_dalloc, arena, tctx);
-	else {
+	} else {
 		p = iralloct(oldptr, size, alignment, zero, try_tcache_alloc,
 		    try_tcache_dalloc, arena);
 	}
-	if (p == NULL)
+	if (p == NULL) {
+		prof_alloc_rollback(tctx, true);
 		return (NULL);
+	}
 
 	if (p == oldptr && alignment != 0) {
 		/*
@@ -1599,7 +1606,7 @@ irallocx_prof(void *oldptr, size_t old_usize, size_t size, size_t alignment,
 		 */
 		*usize = isalloc(p, config_prof);
 	}
-	prof_realloc(p, *usize, tctx, old_usize, old_tctx);
+	prof_realloc(p, *usize, tctx, true, old_usize, old_tctx);
 
 	return (p);
 }
@@ -1641,13 +1648,10 @@ je_rallocx(void *ptr, size_t size, int flags)
 		old_rzsize = u2rz(old_usize);
 
 	if (config_prof && opt_prof) {
-		prof_tctx_t *tctx;
-
 		usize = (alignment == 0) ? s2u(size) : sa2u(size, alignment);
 		assert(usize != 0);
-		tctx = prof_alloc_prep(usize);
 		p = irallocx_prof(ptr, old_usize, size, alignment, &usize, zero,
-		    try_tcache_alloc, try_tcache_dalloc, arena, tctx);
+		    try_tcache_alloc, try_tcache_dalloc, arena);
 		if (p == NULL)
 			goto label_oom;
 	} else {
@@ -1720,13 +1724,21 @@ ixallocx_prof_sample(void *ptr, size_t old_usize, size_t size, size_t extra,
 
 JEMALLOC_ALWAYS_INLINE_C size_t
 ixallocx_prof(void *ptr, size_t old_usize, size_t size, size_t extra,
-    size_t alignment, size_t max_usize, bool zero, arena_t *arena,
-    prof_tctx_t *tctx)
+    size_t alignment, bool zero, arena_t *arena)
 {
-	size_t usize;
-	prof_tctx_t *old_tctx;
+	size_t max_usize, usize;
+	prof_tctx_t *old_tctx, *tctx;
 
 	old_tctx = prof_tctx_get(ptr);
+	/*
+	 * usize isn't knowable before ixalloc() returns when extra is non-zero.
+	 * Therefore, compute its maximum possible value and use that in
+	 * prof_alloc_prep() to decide whether to capture a backtrace.
+	 * prof_realloc() will use the actual usize to decide whether to sample.
+	 */
+	max_usize = (alignment == 0) ? s2u(size+extra) : sa2u(size+extra,
+	    alignment);
+	tctx = prof_alloc_prep(max_usize, false);
 	if ((uintptr_t)tctx != (uintptr_t)1U) {
 		usize = ixallocx_prof_sample(ptr, old_usize, size, extra,
 		    alignment, zero, max_usize, arena, tctx);
@@ -1734,9 +1746,11 @@ ixallocx_prof(void *ptr, size_t old_usize, size_t size, size_t extra,
 		usize = ixallocx_helper(ptr, old_usize, size, extra, alignment,
 		    zero, arena);
 	}
-	if (usize == old_usize)
+	if (usize == old_usize) {
+		prof_alloc_rollback(tctx, false);
 		return (usize);
-	prof_realloc(ptr, usize, tctx, old_usize, old_tctx);
+	}
+	prof_realloc(ptr, usize, tctx, false, old_usize, old_tctx);
 
 	return (usize);
 }
@@ -1767,19 +1781,8 @@ je_xallocx(void *ptr, size_t size, size_t extra, int flags)
 		old_rzsize = u2rz(old_usize);
 
 	if (config_prof && opt_prof) {
-		prof_tctx_t *tctx;
-		/*
-		 * usize isn't knowable before ixalloc() returns when extra is
-		 * non-zero.  Therefore, compute its maximum possible value and
-		 * use that in prof_alloc_prep() to decide whether to capture a
-		 * backtrace.  prof_realloc() will use the actual usize to
-		 * decide whether to sample.
-		 */
-		size_t max_usize = (alignment == 0) ? s2u(size+extra) :
-		    sa2u(size+extra, alignment);
-		tctx = prof_alloc_prep(max_usize);
 		usize = ixallocx_prof(ptr, old_usize, size, extra, alignment,
-		    max_usize, zero, arena, tctx);
+		    zero, arena);
 	} else {
 		usize = ixallocx_helper(ptr, old_usize, size, extra, alignment,
 		    zero, arena);
