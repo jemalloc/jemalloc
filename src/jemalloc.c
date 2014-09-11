@@ -1435,7 +1435,6 @@ imallocx_flags(size_t usize, size_t alignment, bool zero, bool try_tcache,
 	return (imalloct(usize, try_tcache, arena));
 }
 
-
 JEMALLOC_ALWAYS_INLINE_C void *
 imallocx_maybe_flags(size_t size, int flags, size_t usize, size_t alignment,
     bool zero, bool try_tcache, arena_t *arena)
@@ -1455,7 +1454,7 @@ imallocx_prof_sample(size_t size, int flags, size_t usize, size_t alignment,
 	if (usize <= SMALL_MAXCLASS) {
 		assert(((alignment == 0) ? s2u(LARGE_MINCLASS) :
 		    sa2u(LARGE_MINCLASS, alignment)) == LARGE_MINCLASS);
-		p = imalloc(LARGE_MINCLASS);
+		p = imalloct(LARGE_MINCLASS, try_tcache, arena);
 		if (p == NULL)
 			return (NULL);
 		arena_prof_promoted(p, usize);
