@@ -62,9 +62,9 @@ huge_palloc(arena_t *arena, size_t size, size_t alignment, bool zero)
 	malloc_mutex_unlock(&huge_mtx);
 
 	if (config_fill && zero == false) {
-		if (opt_junk)
+		if (unlikely(opt_junk))
 			memset(ret, 0xa5, csize);
-		else if (opt_zero && is_zeroed == false)
+		else if (unlikely(opt_zero) && is_zeroed == false)
 			memset(ret, 0, csize);
 	}
 
@@ -141,7 +141,7 @@ static void
 huge_dalloc_junk(void *ptr, size_t usize)
 {
 
-	if (config_fill && have_dss && opt_junk) {
+	if (config_fill && have_dss && unlikely(opt_junk)) {
 		/*
 		 * Only bother junk filling if the chunk isn't about to be
 		 * unmapped.

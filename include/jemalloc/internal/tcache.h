@@ -236,7 +236,7 @@ tcache_event(tcache_t *tcache)
 
 	tcache->ev_cnt++;
 	assert(tcache->ev_cnt <= TCACHE_GC_INCR);
-	if (tcache->ev_cnt == TCACHE_GC_INCR)
+	if (unlikely(tcache->ev_cnt == TCACHE_GC_INCR))
 		tcache_event_hard(tcache);
 }
 
@@ -245,12 +245,12 @@ tcache_alloc_easy(tcache_bin_t *tbin)
 {
 	void *ret;
 
-	if (tbin->ncached == 0) {
+	if (unlikely(tbin->ncached == 0)) {
 		tbin->low_water = -1;
 		return (NULL);
 	}
 	tbin->ncached--;
-	if ((int)tbin->ncached < tbin->low_water)
+	if (unlikely((int)tbin->ncached < tbin->low_water))
 		tbin->low_water = tbin->ncached;
 	ret = tbin->avail[tbin->ncached];
 	return (ret);
@@ -268,23 +268,23 @@ tcache_alloc_small(tcache_t *tcache, size_t size, bool zero)
 	tbin = &tcache->tbins[binind];
 	size = small_bin2size(binind);
 	ret = tcache_alloc_easy(tbin);
-	if (ret == NULL) {
+	if (unlikely(ret == NULL)) {
 		ret = tcache_alloc_small_hard(tcache, tbin, binind);
 		if (ret == NULL)
 			return (NULL);
 	}
 	assert(tcache_salloc(ret) == size);
 
-	if (zero == false) {
+	if (likely(zero == false)) {
 		if (config_fill) {
-			if (opt_junk) {
+			if (unlikely(opt_junk)) {
 				arena_alloc_junk_small(ret,
 				    &arena_bin_info[binind], false);
-			} else if (opt_zero)
+			} else if (unlikely(opt_zero))
 				memset(ret, 0, size);
 		}
 	} else {
-		if (config_fill && opt_junk) {
+		if (config_fill && unlikely(opt_junk)) {
 			arena_alloc_junk_small(ret, &arena_bin_info[binind],
 			    true);
 		}
@@ -312,7 +312,7 @@ tcache_alloc_large(tcache_t *tcache, size_t size, bool zero)
 	assert(binind < nhbins);
 	tbin = &tcache->tbins[binind];
 	ret = tcache_alloc_easy(tbin);
-	if (ret == NULL) {
+	if (unlikely(ret == NULL)) {
 		/*
 		 * Only allocate one large object at a time, because it's quite
 		 * expensive to create one and not use it.
@@ -329,11 +329,11 @@ tcache_alloc_large(tcache_t *tcache, size_t size, bool zero)
 			arena_mapbits_large_binind_set(chunk, pageind,
 			    BININD_INVALID);
 		}
-		if (zero == false) {
+		if (likely(zero == false)) {
 			if (config_fill) {
-				if (opt_junk)
+				if (unlikely(opt_junk))
 					memset(ret, 0xa5, size);
-				else if (opt_zero)
+				else if (unlikely(opt_zero))
 					memset(ret, 0, size);
 			}
 		} else
@@ -357,12 +357,12 @@ tcache_dalloc_small(tcache_t *tcache, void *ptr, size_t binind)
 
 	assert(tcache_salloc(ptr) <= SMALL_MAXCLASS);
 
-	if (config_fill && opt_junk)
+	if (config_fill && unlikely(opt_junk))
 		arena_dalloc_junk_small(ptr, &arena_bin_info[binind]);
 
 	tbin = &tcache->tbins[binind];
 	tbin_info = &tcache_bin_info[binind];
-	if (tbin->ncached == tbin_info->ncached_max) {
+	if (unlikely(tbin->ncached == tbin_info->ncached_max)) {
 		tcache_bin_flush_small(tbin, binind, (tbin_info->ncached_max >>
 		    1), tcache);
 	}
@@ -386,12 +386,12 @@ tcache_dalloc_large(tcache_t *tcache, void *ptr, size_t size)
 
 	binind = NBINS + (size >> LG_PAGE) - 1;
 
-	if (config_fill && opt_junk)
+	if (config_fill && unlikely(opt_junk))
 		memset(ptr, 0x5a, size);
 
 	tbin = &tcache->tbins[binind];
 	tbin_info = &tcache_bin_info[binind];
-	if (tbin->ncached == tbin_info->ncached_max) {
+	if (unlikely(tbin->ncached == tbin_info->ncached_max)) {
 		tcache_bin_flush_large(tbin, binind, (tbin_info->ncached_max >>
 		    1), tcache);
 	}

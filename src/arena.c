@@ -1365,7 +1365,7 @@ arena_tcache_fill_small(arena_t *arena, tcache_bin_t *tbin, size_t binind,
 			ptr = arena_bin_malloc_hard(arena, bin);
 		if (ptr == NULL)
 			break;
-		if (config_fill && opt_junk) {
+		if (config_fill && unlikely(opt_junk)) {
 			arena_alloc_junk_small(ptr, &arena_bin_info[binind],
 			    true);
 		}
@@ -1519,15 +1519,15 @@ arena_malloc_small(arena_t *arena, size_t size, bool zero)
 
 	if (zero == false) {
 		if (config_fill) {
-			if (opt_junk) {
+			if (unlikely(opt_junk)) {
 				arena_alloc_junk_small(ret,
 				    &arena_bin_info[binind], false);
-			} else if (opt_zero)
+			} else if (unlikely(opt_zero))
 				memset(ret, 0, size);
 		}
 		JEMALLOC_VALGRIND_MAKE_MEM_UNDEFINED(ret, size);
 	} else {
-		if (config_fill && opt_junk) {
+		if (config_fill && unlikely(opt_junk)) {
 			arena_alloc_junk_small(ret, &arena_bin_info[binind],
 			    true);
 		}
@@ -1568,9 +1568,9 @@ arena_malloc_large(arena_t *arena, size_t size, bool zero)
 
 	if (zero == false) {
 		if (config_fill) {
-			if (opt_junk)
+			if (unlikely(opt_junk))
 				memset(ret, 0xa5, size);
-			else if (opt_zero)
+			else if (unlikely(opt_zero))
 				memset(ret, 0, size);
 		}
 	}
@@ -1626,9 +1626,9 @@ arena_palloc(arena_t *arena, size_t size, size_t alignment, bool zero)
 	malloc_mutex_unlock(&arena->lock);
 
 	if (config_fill && zero == false) {
-		if (opt_junk)
+		if (unlikely(opt_junk))
 			memset(ret, 0xa5, size);
-		else if (opt_zero)
+		else if (unlikely(opt_zero))
 			memset(ret, 0, size);
 	}
 	return (ret);
@@ -1771,7 +1771,7 @@ arena_dalloc_bin_locked(arena_t *arena, arena_chunk_t *chunk, void *ptr,
 	if (config_fill || config_stats)
 		size = bin_info->reg_size;
 
-	if (config_fill && opt_junk)
+	if (config_fill && unlikely(opt_junk))
 		arena_dalloc_junk_small(ptr, bin_info);
 
 	arena_run_reg_dalloc(run, ptr);
@@ -1825,7 +1825,7 @@ static void
 arena_dalloc_junk_large(void *ptr, size_t usize)
 {
 
-	if (config_fill && opt_junk)
+	if (config_fill && unlikely(opt_junk))
 		memset(ptr, 0x5a, usize);
 }
 #ifdef JEMALLOC_JET
@@ -1967,7 +1967,7 @@ static void
 arena_ralloc_junk_large(void *ptr, size_t old_usize, size_t usize)
 {
 
-	if (config_fill && opt_junk) {
+	if (config_fill && unlikely(opt_junk)) {
 		memset((void *)((uintptr_t)ptr + usize), 0x5a,
 		    old_usize - usize);
 	}
@@ -2011,11 +2011,11 @@ arena_ralloc_large(void *ptr, size_t oldsize, size_t size, size_t extra,
 			    oldsize, PAGE_CEILING(size),
 			    psize - PAGE_CEILING(size), zero);
 			if (config_fill && ret == false && zero == false) {
-				if (opt_junk) {
+				if (unlikely(opt_junk)) {
 					memset((void *)((uintptr_t)ptr +
 					    oldsize), 0xa5, isalloc(ptr,
 					    config_prof) - oldsize);
-				} else if (opt_zero) {
+				} else if (unlikely(opt_zero)) {
 					memset((void *)((uintptr_t)ptr +
 					    oldsize), 0, isalloc(ptr,
 					    config_prof) - oldsize);
@@ -2272,7 +2272,7 @@ bin_info_run_size_calc(arena_bin_info_t *bin_info, size_t min_run_size)
 	 * minimum alignment; without the padding, each redzone would have to
 	 * be twice as large in order to maintain alignment.
 	 */
-	if (config_fill && opt_redzone) {
+	if (config_fill && unlikely(opt_redzone)) {
 		size_t align_min = ZU(1) << (jemalloc_ffs(bin_info->reg_size) -
 		    1);
 		if (align_min <= REDZONE_MINSIZE) {

@@ -141,12 +141,12 @@ quarantine(void *ptr)
 		obj->usize = usize;
 		quarantine->curbytes += usize;
 		quarantine->curobjs++;
-		if (config_fill && opt_junk) {
+		if (config_fill && unlikely(opt_junk)) {
 			/*
 			 * Only do redzone validation if Valgrind isn't in
 			 * operation.
 			 */
-			if ((config_valgrind == false || in_valgrind == false)
+			if ((!config_valgrind || likely(!in_valgrind))
 			    && usize <= SMALL_MAXCLASS)
 				arena_quarantine_junk_small(ptr, usize);
 			else

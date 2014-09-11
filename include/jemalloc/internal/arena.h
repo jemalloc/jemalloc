@@ -488,7 +488,8 @@ void	arena_prof_tctx_set(const void *ptr, prof_tctx_t *tctx);
 void	*arena_malloc(arena_t *arena, size_t size, bool zero, bool try_tcache);
 size_t	arena_salloc(const void *ptr, bool demote);
 void	arena_dalloc(arena_chunk_t *chunk, void *ptr, bool try_tcache);
-void	arena_sdalloc(arena_chunk_t *chunk, void *ptr, size_t size, bool try_tcache);
+void	arena_sdalloc(arena_chunk_t *chunk, void *ptr, size_t size,
+    bool try_tcache);
 #endif
 
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_ARENA_C_))
@@ -539,7 +540,7 @@ small_size2bin(size_t size)
 {
 
 	assert(size > 0);
-	if (size <= LOOKUP_MAXCLASS)
+	if (likely(size <= LOOKUP_MAXCLASS))
 		return (small_size2bin_lookup(size));
 	else
 		return (small_size2bin_compute(size));
@@ -627,7 +628,7 @@ small_s2u(size_t size)
 {
 
 	assert(size > 0);
-	if (size <= LOOKUP_MAXCLASS)
+	if (likely(size <= LOOKUP_MAXCLASS))
 		return (small_s2u_lookup(size));
 	else
 		return (small_s2u_compute(size));
@@ -864,7 +865,7 @@ arena_prof_accum_locked(arena_t *arena, uint64_t accumbytes)
 
 	cassert(config_prof);
 
-	if (prof_interval == 0)
+	if (likely(prof_interval == 0))
 		return (false);
 	return (arena_prof_accum_impl(arena, accumbytes));
 }
@@ -875,7 +876,7 @@ arena_prof_accum(arena_t *arena, uint64_t accumbytes)
 
 	cassert(config_prof);
 
-	if (prof_interval == 0)
+	if (likely(prof_interval == 0))
 		return (false);
 
 	{
@@ -995,8 +996,8 @@ arena_run_regind(arena_run_t *run, arena_bin_info_t *bin_info, const void *ptr)
 		    SIZE_INV(28), SIZE_INV(29), SIZE_INV(30), SIZE_INV(31)
 		};
 
-		if (interval <= ((sizeof(interval_invs) / sizeof(unsigned)) +
-		    2)) {
+		if (likely(interval <= ((sizeof(interval_invs) /
+		    sizeof(unsigned)) + 2))) {
 			regind = (diff * interval_invs[interval - 3]) >>
 			    SIZE_INV_SHIFT;
 		} else
@@ -1025,7 +1026,7 @@ arena_prof_tctx_get(const void *ptr)
 	pageind = ((uintptr_t)ptr - (uintptr_t)chunk) >> LG_PAGE;
 	mapbits = arena_mapbits_get(chunk, pageind);
 	assert((mapbits & CHUNK_MAP_ALLOCATED) != 0);
-	if ((mapbits & CHUNK_MAP_LARGE) == 0)
+	if (likely((mapbits & CHUNK_MAP_LARGE) == 0))
 		ret = (prof_tctx_t *)(uintptr_t)1U;
 	else
 		ret = arena_miscelm_get(chunk, pageind)->prof_tctx;
@@ -1047,7 +1048,7 @@ arena_prof_tctx_set(const void *ptr, prof_tctx_t *tctx)
 	pageind = ((uintptr_t)ptr - (uintptr_t)chunk) >> LG_PAGE;
 	assert(arena_mapbits_allocated_get(chunk, pageind) != 0);
 
-	if (arena_mapbits_large_get(chunk, pageind) != 0)
+	if (unlikely(arena_mapbits_large_get(chunk, pageind) != 0))
 		arena_miscelm_get(chunk, pageind)->prof_tctx = tctx;
 }
 
@@ -1059,8 +1060,9 @@ arena_malloc(arena_t *arena, size_t size, bool zero, bool try_tcache)
 	assert(size != 0);
 	assert(size <= arena_maxclass);
 
-	if (size <= SMALL_MAXCLASS) {
-		if (try_tcache && (tcache = tcache_get(true)) != NULL)
+	if (likely(size <= SMALL_MAXCLASS)) {
+		if (likely(try_tcache) && likely((tcache = tcache_get(true)) !=
+		    NULL))
 			return (tcache_alloc_small(tcache, size, zero));
 		else {
 			return (arena_malloc_small(choose_arena(arena), size,
@@ -1071,8 +1073,8 @@ arena_malloc(arena_t *arena, size_t size, bool zero, bool try_tcache)
 		 * Initialize tcache after checking size in order to avoid
 		 * infinite recursion during tcache initialization.
 		 */
-		if (try_tcache && size <= tcache_maxclass && (tcache =
-		    tcache_get(true)) != NULL)
+		if (try_tcache && size <= tcache_maxclass && likely((tcache =
+		    tcache_get(true)) != NULL))
 			return (tcache_alloc_large(tcache, size, zero));
 		else {
 			return (arena_malloc_large(choose_arena(arena), size,
@@ -1096,8 +1098,8 @@ arena_salloc(const void *ptr, bool demote)
 	pageind = ((uintptr_t)ptr - (uintptr_t)chunk) >> LG_PAGE;
 	assert(arena_mapbits_allocated_get(chunk, pageind) != 0);
 	binind = arena_mapbits_binind_get(chunk, pageind);
-	if (binind == BININD_INVALID || (config_prof && demote == false &&
-	    arena_mapbits_large_get(chunk, pageind) != 0)) {
+	if (unlikely(binind == BININD_INVALID || (config_prof && demote == false
+	    && arena_mapbits_large_get(chunk, pageind) != 0))) {
 		/*
 		 * Large allocation.  In the common case (demote == true), and
 		 * as this is an inline function, most callers will only end up
@@ -1137,10 +1139,12 @@ arena_dalloc(arena_chunk_t *chunk, void *ptr, bool try_tcache)
 	pageind = ((uintptr_t)ptr - (uintptr_t)chunk) >> LG_PAGE;
 	mapbits = arena_mapbits_get(chunk, pageind);
 	assert(arena_mapbits_allocated_get(chunk, pageind) != 0);
-	if ((mapbits & CHUNK_MAP_LARGE) == 0) {
+	if (likely((mapbits & CHUNK_MAP_LARGE) == 0)) {
 		/* Small allocation. */
-		if (try_tcache && (tcache = tcache_get(false)) != NULL) {
-			size_t binind = arena_ptr_small_binind_get(ptr, mapbits);
+		if (likely(try_tcache) && likely((tcache = tcache_get(false)) !=
+		    NULL)) {
+			size_t binind = arena_ptr_small_binind_get(ptr,
+			    mapbits);
 			tcache_dalloc_small(tcache, ptr, binind);
 		} else
 			arena_dalloc_small(chunk->arena, chunk, ptr, pageind);
@@ -1149,8 +1153,8 @@ arena_dalloc(arena_chunk_t *chunk, void *ptr, bool try_tcache)
 
 		assert(((uintptr_t)ptr & PAGE_MASK) == 0);
 
-		if (try_tcache && size <= tcache_maxclass && (tcache =
-		    tcache_get(false)) != NULL) {
+		if (try_tcache && size <= tcache_maxclass && likely((tcache =
+		    tcache_get(false)) != NULL)) {
 			tcache_dalloc_large(tcache, ptr, size);
 		} else
 			arena_dalloc_large(chunk->arena, chunk, ptr);
@@ -1165,13 +1169,15 @@ arena_sdalloc(arena_chunk_t *chunk, void *ptr, size_t size, bool try_tcache)
 	assert(ptr != NULL);
 	assert(CHUNK_ADDR2BASE(ptr) != ptr);
 
-	if (size < PAGE) {
+	if (likely(size <= SMALL_MAXCLASS)) {
 		/* Small allocation. */
-		if (try_tcache && (tcache = tcache_get(false)) != NULL) {
+		if (likely(try_tcache) && likely((tcache = tcache_get(false)) !=
+		    NULL)) {
 			size_t binind = small_size2bin(size);
 			tcache_dalloc_small(tcache, ptr, binind);
 		} else {
-			size_t pageind = ((uintptr_t)ptr - (uintptr_t)chunk) >> LG_PAGE;
+			size_t pageind = ((uintptr_t)ptr - (uintptr_t)chunk) >>
+			    LG_PAGE;
 			arena_dalloc_small(chunk->arena, chunk, ptr, pageind);
 		}
 	} else {
