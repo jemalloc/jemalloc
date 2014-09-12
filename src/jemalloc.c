@@ -1582,7 +1582,7 @@ irallocx_prof(void *oldptr, size_t old_usize, size_t size, size_t alignment,
 	prof_tctx_t *old_tctx, *tctx;
 
 	old_tctx = prof_tctx_get(oldptr);
-	tctx = prof_alloc_prep(*usize, true);
+	tctx = prof_alloc_prep(*usize, false);
 	if (unlikely((uintptr_t)tctx != (uintptr_t)1U)) {
 		p = irallocx_prof_sample(oldptr, size, alignment, *usize, zero,
 		    try_tcache_alloc, try_tcache_dalloc, arena, tctx);
@@ -1591,7 +1591,7 @@ irallocx_prof(void *oldptr, size_t old_usize, size_t size, size_t alignment,
 		    try_tcache_dalloc, arena);
 	}
 	if (unlikely(p == NULL)) {
-		prof_alloc_rollback(tctx, true);
+		prof_alloc_rollback(tctx, false);
 		return (NULL);
 	}
 
@@ -1606,7 +1606,7 @@ irallocx_prof(void *oldptr, size_t old_usize, size_t size, size_t alignment,
 		 */
 		*usize = isalloc(p, config_prof);
 	}
-	prof_realloc(p, *usize, tctx, true, old_usize, old_tctx);
+	prof_realloc(p, *usize, tctx, false, old_usize, old_tctx);
 
 	return (p);
 }
