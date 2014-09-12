@@ -68,6 +68,7 @@ static prof_tdata_tree_t	tdatas;
 static malloc_mutex_t	tdatas_mtx;
 
 static uint64_t		next_thr_uid;
+static malloc_mutex_t	next_thr_uid_mtx;
 
 static malloc_mutex_t	prof_dump_seq_mtx;
 static uint64_t		prof_dump_seq;
@@ -1498,8 +1499,14 @@ prof_bt_keycomp(const void *k1, const void *k2)
 JEMALLOC_INLINE_C uint64_t
 prof_thr_uid_alloc(void)
 {
+	uint64_t thr_uid;
 
-	return (atomic_add_uint64(&next_thr_uid, 1) - 1);
+	malloc_mutex_lock(&next_thr_uid_mtx);
+	thr_uid = next_thr_uid;
+	next_thr_uid++;
+	malloc_mutex_unlock(&next_thr_uid_mtx);
+
+	return (thr_uid);
 }
 
 static prof_tdata_t *
@@ -1785,6 +1792,8 @@ prof_boot2(void)
 			return (true);
 
 		next_thr_uid = 0;
+		if (malloc_mutex_init(&next_thr_uid_mtx))
+			return (true);
 
 		if (malloc_mutex_init(&prof_dump_seq_mtx))
 			return (true);
@@ -1836,10 +1845,14 @@ prof_prefork(void)
 	if (opt_prof) {
 		unsigned i;
 
+		malloc_mutex_prefork(&tdatas_mtx);
 		malloc_mutex_prefork(&bt2gctx_mtx);
+		malloc_mutex_prefork(&next_thr_uid_mtx);
 		malloc_mutex_prefork(&prof_dump_seq_mtx);
 		for (i = 0; i < PROF_NCTX_LOCKS; i++)
 			malloc_mutex_prefork(&gctx_locks[i]);
+		for (i = 0; i < PROF_NTDATA_LOCKS; i++)
+			malloc_mutex_prefork(&tdata_locks[i]);
 	}
 }
 
@@ -1850,10 +1863,14 @@ prof_postfork_parent(void)
 	if (opt_prof) {
 		unsigned i;
 
+		for (i = 0; i < PROF_NTDATA_LOCKS; i++)
+			malloc_mutex_postfork_parent(&tdata_locks[i]);
 		for (i = 0; i < PROF_NCTX_LOCKS; i++)
 			malloc_mutex_postfork_parent(&gctx_locks[i]);
 		malloc_mutex_postfork_parent(&prof_dump_seq_mtx);
+		malloc_mutex_postfork_parent(&next_thr_uid_mtx);
 		malloc_mutex_postfork_parent(&bt2gctx_mtx);
+		malloc_mutex_postfork_parent(&tdatas_mtx);
 	}
 }
 
@@ -1864,10 +1881,14 @@ prof_postfork_child(void)
 	if (opt_prof) {
 		unsigned i;
 
+		for (i = 0; i < PROF_NTDATA_LOCKS; i++)
+			malloc_mutex_postfork_child(&tdata_locks[i]);
 		for (i = 0; i < PROF_NCTX_LOCKS; i++)
 			malloc_mutex_postfork_child(&gctx_locks[i]);
 		malloc_mutex_postfork_child(&prof_dump_seq_mtx);
+		malloc_mutex_postfork_child(&next_thr_uid_mtx);
 		malloc_mutex_postfork_child(&bt2gctx_mtx);
+		malloc_mutex_postfork_child(&tdatas_mtx);
 	}
 }
 
