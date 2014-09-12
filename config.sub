@@ -1404,6 +1404,9 @@ case $os in
 	-mac*)
 		os=`echo $os | sed -e 's|mac|macos|'`
 		;;
+	# Apple iOS
+	-ios*)
+		;;
 	-linux-dietlibc)
 		os=-linux-dietlibc
 		;;
