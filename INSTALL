@@ -94,6 +94,10 @@ any of the following arguments (not a definitive list) to 'configure':
     there are interactions between the various coverage targets, so it is
     usually advisable to run 'make clean' between repeated code coverage runs.
 
+--enable-ksm
+    Enable Kernel SamePage Merging for a recent linux kernel (since Linux 2.6.32).
+    This enables memory compaction and implies exclusive usage of mmap and no swap backing.
+
 --enable-ivsalloc
     Enable validation code, which verifies that pointers reside within
     jemalloc-owned chunks before dereferencing them.  This incurs a substantial

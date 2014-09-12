@@ -30,7 +30,12 @@ pages_map(void *addr, size_t size)
 	 * We don't use MAP_FIXED here, because it can cause the *replacement*
 	 * of existing mappings, and we only want to create new mappings.
 	 */
-	ret = mmap(addr, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON,
+	ret = mmap(addr, size, PROT_READ | PROT_WRITE,
+  #ifdef JEMALLOC_MADV_MERGEABLE
+            /* tell the kernel not to bother backing this map with swap. If we overcommit, and we run out of backing swap, this will suicide */
+            MAP_NORESERVE |
+  #endif
+            MAP_PRIVATE | MAP_ANON,
 	    -1, 0);
 	assert(ret != NULL);
 
@@ -51,6 +56,19 @@ pages_map(void *addr, size_t size)
 		}
 		ret = NULL;
 	}
+  #ifdef JEMALLOC_MADV_MERGEABLE
+        /* if ksm enabled, let's advise to mark the memory as scrapable */
+        if(madvise(ret,size, MADV_MERGEABLE)) {
+                switch (errno) {
+                    case EAGAIN :
+                        malloc_printf("<jemalloc: Kernel too busy to advice to use KSM\n"); break;
+                    case EBADF :
+                        malloc_printf("<jemalloc: Bad file map when trying to use KSM\n"); break;
+                    case EINVAL :
+                        malloc_printf("<jemalloc: One of the many, bad allignment when trying to use KSM\n");break;
+                }
+        }
+  #endif
 #endif
 	assert(ret == NULL || (addr == NULL && ret != addr)
 	    || (addr != NULL && ret == addr));

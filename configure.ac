@@ -838,6 +838,34 @@ AC_SUBST([enable_munmap])
 
 dnl Enable allocation from DSS if supported by the OS.
 have_dss="1"
+
+dnl Do not Enable kernel samepage merger by default.
+AC_ARG_ENABLE([ksm],
+  [AS_HELP_STRING([--enable-ksm], [Enable mmap based KSM on a Linux Kernel])],
+[if test "x$enable_ksm" = "xno" ; then
+  enable_ksm="0"
+else
+  enable_ksm="1"
+fi
+],
+[enable_ksm="0"]
+)
+JE_COMPILABLE([ksm], [
+#include <sys/mman.h>
+#if !defined(MADV_MERGEABLE)
+#  error "Kernel doesn't support page mearging"
+#endif
+], [], [je_cv_ksm])
+if test "x${je_cv_ksm}" = "xno" ; then
+    enable_ksm="0"
+fi
+if test "x$enable_ksm" = "x1" ; then
+    AC_DEFINE([JEMALLOC_MADV_MERGEABLE], [1], [Enable KSM])
+    CPPFLAGS="$CPPFLAGS -DJEMALLOC_MADV_MERGEABLE"
+    have_dss="0"
+fi
+AC_SUBST([enable_ksm])
+
 dnl Check whether the BSD/SUSv1 sbrk() exists.  If not, disable DSS support.
 AC_CHECK_FUNC([sbrk], [have_sbrk="1"], [have_sbrk="0"])
 if test "x$have_sbrk" = "x1" ; then
@@ -1559,6 +1587,7 @@ AC_MSG_RESULT([utrace             : ${enable_utrace}])
 AC_MSG_RESULT([valgrind           : ${enable_valgrind}])
 AC_MSG_RESULT([xmalloc            : ${enable_xmalloc}])
 AC_MSG_RESULT([munmap             : ${enable_munmap}])
+AC_MSG_RESULT([ksm                : ${enable_ksm}])
 AC_MSG_RESULT([lazy_lock          : ${enable_lazy_lock}])
 AC_MSG_RESULT([tls                : ${enable_tls}])
 AC_MSG_RESULT([===============================================================================])
