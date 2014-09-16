@@ -411,7 +411,7 @@ SAVED_CFLAGS="${CFLAGS}"
 JE_CFLAGS_APPEND([-Werror])
 JE_COMPILABLE([tls_model attribute], [],
               [static __thread int
-               __attribute__((tls_model("initial-exec"))) foo;
+               __attribute__((tls_model("initial-exec"), unused)) foo;
                foo = 0;],
               [je_cv_tls_model])
 CFLAGS="${SAVED_CFLAGS}"
