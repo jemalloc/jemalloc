@@ -101,6 +101,7 @@ DSOS := $(objroot)lib/$(LIBJEMALLOC).$(SOREV)
 ifneq ($(SOREV),$(SO))
 DSOS += $(objroot)lib/$(LIBJEMALLOC).$(SO)
 endif
+PC := $(srcroot)jemalloc.pc
 MAN3 := $(objroot)doc/jemalloc$(install_suffix).3
 DOCS_XML := $(objroot)doc/jemalloc$(install_suffix).xml
 DOCS_HTML := $(DOCS_XML:$(objroot)%.xml=$(srcroot)%.html)
@@ -302,7 +303,14 @@ install_lib_static: $(STATIC_LIBS)
 	install -m 755 $$l $(LIBDIR); \
 done
 
-install_lib: install_lib_shared install_lib_static
+install_lib_pc: $(PC)
+	install -d $(LIBDIR)/pkgconfig
+	@for l in $(PC); do \
+	echo "install -m 644 $$l $(LIBDIR)/pkgconfig"; \
+	install -m 644 $$l $(LIBDIR)/pkgconfig; \
+done
+
+install_lib: install_lib_shared install_lib_static install_lib_pc
 
 install_doc_html:
 	install -d $(DATADIR)/doc/jemalloc$(install_suffix)

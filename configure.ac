@@ -540,6 +540,7 @@ je_="je_"
 AC_SUBST([je_])
 
 cfgoutputs_in="Makefile.in"
+cfgoutputs_in="${cfgoutputs_in} jemalloc.pc.in"
 cfgoutputs_in="${cfgoutputs_in} doc/html.xsl.in"
 cfgoutputs_in="${cfgoutputs_in} doc/manpages.xsl.in"
 cfgoutputs_in="${cfgoutputs_in} doc/jemalloc.xml.in"
@@ -551,6 +552,7 @@ cfgoutputs_in="${cfgoutputs_in} test/test.sh.in"
 cfgoutputs_in="${cfgoutputs_in} test/include/test/jemalloc_test.h.in"
 
 cfgoutputs_out="Makefile"
+cfgoutputs_out="${cfgoutputs_out} jemalloc.pc"
 cfgoutputs_out="${cfgoutputs_out} doc/html.xsl"
 cfgoutputs_out="${cfgoutputs_out} doc/manpages.xsl"
 cfgoutputs_out="${cfgoutputs_out} doc/jemalloc.xml"
@@ -562,6 +564,7 @@ cfgoutputs_out="${cfgoutputs_out} test/test.sh"
 cfgoutputs_out="${cfgoutputs_out} test/include/test/jemalloc_test.h"
 
 cfgoutputs_tup="Makefile"
+cfgoutputs_tup="${cfgoutputs_tup} jemalloc.pc:jemalloc.pc.in"
 cfgoutputs_tup="${cfgoutputs_tup} doc/html.xsl:doc/html.xsl.in"
 cfgoutputs_tup="${cfgoutputs_tup} doc/manpages.xsl:doc/manpages.xsl.in"
 cfgoutputs_tup="${cfgoutputs_tup} doc/jemalloc.xml:doc/jemalloc.xml.in"
