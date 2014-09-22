@@ -13,6 +13,8 @@
 /doc/jemalloc.html
 /doc/jemalloc.3
 
+/jemalloc.pc
+
 /lib/
 
 /Makefile
