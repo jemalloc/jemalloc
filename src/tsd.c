@@ -7,6 +7,8 @@
 static unsigned ncleanups;
 static malloc_tsd_cleanup_t cleanups[MALLOC_TSD_CLEANUPS_MAX];
 
+malloc_tsd_data(, , tsd_t, TSD_INITIALIZER)
+
 /******************************************************************************/
 
 void *
@@ -14,14 +16,15 @@ malloc_tsd_malloc(size_t size)
 {
 
 	/* Avoid choose_arena() in order to dodge bootstrapping issues. */
-	return (arena_malloc(arenas[0], size, false, false));
+	return (arena_malloc(NULL, arenas[0], CACHELINE_CEILING(size), false,
+	    false));
 }
 
 void
 malloc_tsd_dalloc(void *wrapper)
 {
 
-	idalloct(wrapper, false);
+	idalloct(NULL, wrapper, false);
 }
 
 void
@@ -67,10 +70,54 @@ malloc_tsd_cleanup_register(bool (*f)(void))
 }
 
 void
+tsd_cleanup(void *arg)
+{
+	tsd_t *tsd = (tsd_t *)arg;
+
+	if (tsd == NULL) {
+		/* OOM during re-initialization. */
+		return;
+	}
+
+	switch (tsd->state) {
+	case tsd_state_nominal:
+#define O(n, t)								\
+		n##_cleanup(tsd);
+MALLOC_TSD
+#undef O
+		tsd->state = tsd_state_purgatory;
+		tsd_set(tsd);
+		break;
+	case tsd_state_purgatory:
+		/*
+		 * The previous time this destructor was called, we set the
+		 * state to tsd_state_purgatory so that other destructors
+		 * wouldn't cause re-creation of the tsd.  This time, do
+		 * nothing, and do not request another callback.
+		 */
+		break;
+	case tsd_state_reincarnated:
+		/*
+		 * Another destructor deallocated memory after this destructor
+		 * was called.  Reset state to tsd_state_purgatory and request
+		 * another callback.
+		 */
+		tsd->state = tsd_state_purgatory;
+		tsd_set(tsd);
+		break;
+	default:
+		not_reached();
+	}
+}
+
+bool
 malloc_tsd_boot(void)
 {
 
 	ncleanups = 0;
+	if (tsd_boot())
+		return (true);
+	return (false);
 }
 
 #ifdef _WIN32

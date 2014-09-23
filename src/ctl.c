@@ -565,18 +565,23 @@ ctl_arena_refresh(arena_t *arena, unsigned i)
 static bool
 ctl_grow(void)
 {
+	tsd_t *tsd;
 	ctl_arena_stats_t *astats;
 	arena_t **tarenas;
 
+	tsd = tsd_tryget();
+	if (tsd == NULL)
+		return (true);
+
 	/* Allocate extended arena stats and arenas arrays. */
-	astats = (ctl_arena_stats_t *)imalloc((ctl_stats.narenas + 2) *
+	astats = (ctl_arena_stats_t *)imalloc(tsd, (ctl_stats.narenas + 2) *
 	    sizeof(ctl_arena_stats_t));
 	if (astats == NULL)
 		return (true);
-	tarenas = (arena_t **)imalloc((ctl_stats.narenas + 1) *
+	tarenas = (arena_t **)imalloc(tsd, (ctl_stats.narenas + 1) *
 	    sizeof(arena_t *));
 	if (tarenas == NULL) {
-		idalloc(astats);
+		idalloc(tsd, astats);
 		return (true);
 	}
 
@@ -585,8 +590,8 @@ ctl_grow(void)
 	    sizeof(ctl_arena_stats_t));
 	memset(&astats[ctl_stats.narenas + 1], 0, sizeof(ctl_arena_stats_t));
 	if (ctl_arena_init(&astats[ctl_stats.narenas + 1])) {
-		idalloc(tarenas);
-		idalloc(astats);
+		idalloc(tsd, tarenas);
+		idalloc(tsd, astats);
 		return (true);
 	}
 	/* Swap merged stats to their new location. */
@@ -623,7 +628,7 @@ ctl_grow(void)
 		 * base_alloc()).
 		 */
 		if (ctl_stats.narenas != narenas_auto)
-			idalloc(arenas_old);
+			idalloc(tsd, arenas_old);
 	}
 	ctl_stats.arenas = astats;
 	ctl_stats.narenas++;
@@ -1105,6 +1110,31 @@ label_return:								\
 	return (ret);							\
 }
 
+#define	CTL_TSD_RO_NL_CGEN(c, n, m, t)					\
+static int								\
+n##_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,	\
+    void *newp, size_t newlen)						\
+{									\
+	int ret;							\
+	t oldval;							\
+	tsd_t *tsd;							\
+									\
+	if ((c) == false)						\
+		return (ENOENT);					\
+	READONLY();							\
+	tsd = tsd_tryget();						\
+	if (tsd == NULL) {						\
+		ret = EAGAIN;						\
+		goto label_return;					\
+	}								\
+	oldval = (m(tsd));						\
+	READ(oldval, t);						\
+									\
+	ret = 0;							\
+label_return:								\
+	return (ret);							\
+}
+
 #define	CTL_RO_BOOL_CONFIG_GEN(n)					\
 static int								\
 n##_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,	\
@@ -1194,10 +1224,15 @@ thread_arena_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
     void *newp, size_t newlen)
 {
 	int ret;
+	tsd_t *tsd;
 	unsigned newind, oldind;
 
+	tsd = tsd_tryget();
+	if (tsd == NULL)
+		return (EAGAIN);
+
 	malloc_mutex_lock(&ctl_mtx);
-	newind = oldind = choose_arena(NULL)->ind;
+	newind = oldind = choose_arena(tsd, NULL)->ind;
 	WRITE(newind, unsigned);
 	READ(oldind, unsigned);
 	if (newind != oldind) {
@@ -1224,14 +1259,14 @@ thread_arena_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
 
 		/* Set new arena association. */
 		if (config_tcache) {
-			tcache_t *tcache;
-			if ((uintptr_t)(tcache = *tcache_tsd_get()) >
-			    (uintptr_t)TCACHE_STATE_MAX) {
+			tcache_t *tcache = tsd_tcache_get(tsd);
+			if (tcache != NULL) {
 				tcache_arena_dissociate(tcache);
 				tcache_arena_associate(tcache, arena);
 			}
 		}
-		arenas_tsd_set(&arena);
+
+		tsd_arena_set(tsd, arena);
 	}
 
 	ret = 0;
@@ -1240,14 +1275,14 @@ label_return:
 	return (ret);
 }
 
-CTL_RO_NL_CGEN(config_stats, thread_allocated,
-    thread_allocated_tsd_get()->allocated, uint64_t)
-CTL_RO_NL_CGEN(config_stats, thread_allocatedp,
-    &thread_allocated_tsd_get()->allocated, uint64_t *)
-CTL_RO_NL_CGEN(config_stats, thread_deallocated,
-    thread_allocated_tsd_get()->deallocated, uint64_t)
-CTL_RO_NL_CGEN(config_stats, thread_deallocatedp,
-    &thread_allocated_tsd_get()->deallocated, uint64_t *)
+CTL_TSD_RO_NL_CGEN(config_stats, thread_allocated, tsd_thread_allocated_get,
+    uint64_t)
+CTL_TSD_RO_NL_CGEN(config_stats, thread_allocatedp, tsd_thread_allocatedp_get,
+    uint64_t *)
+CTL_TSD_RO_NL_CGEN(config_stats, thread_deallocated, tsd_thread_deallocated_get,
+    uint64_t)
+CTL_TSD_RO_NL_CGEN(config_stats, thread_deallocatedp,
+    tsd_thread_deallocatedp_get, uint64_t *)
 
 static int
 thread_tcache_enabled_ctl(const size_t *mib, size_t miblen, void *oldp,
@@ -1305,11 +1340,20 @@ thread_prof_name_ctl(const size_t *mib, size_t miblen, void *oldp,
 
 	oldname = prof_thread_name_get();
 	if (newp != NULL) {
+		tsd_t *tsd;
+
 		if (newlen != sizeof(const char *)) {
 			ret = EINVAL;
 			goto label_return;
 		}
-		if (prof_thread_name_set(*(const char **)newp)) {
+
+		tsd = tsd_tryget();
+		if (tsd == NULL) {
+			ret = EAGAIN;
+			goto label_return;
+		}
+
+		if (prof_thread_name_set(tsd, *(const char **)newp)) {
 			ret = EAGAIN;
 			goto label_return;
 		}
@@ -1675,6 +1719,7 @@ prof_reset_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
 {
 	int ret;
 	size_t lg_sample = lg_prof_sample;
+	tsd_t *tsd;
 
 	if (config_prof == false)
 		return (ENOENT);
@@ -1684,7 +1729,13 @@ prof_reset_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
 	if (lg_sample >= (sizeof(uint64_t) << 3))
 		lg_sample = (sizeof(uint64_t) << 3) - 1;
 
-	prof_reset(lg_sample);
+	tsd = tsd_tryget();
+	if (tsd == NULL) {
+		ret = EAGAIN;
+		goto label_return;
+	}
+
+	prof_reset(tsd, lg_sample);
 
 	ret = 0;
 label_return:

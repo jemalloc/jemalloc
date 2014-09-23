@@ -4,9 +4,6 @@
 /******************************************************************************/
 /* Data. */
 
-malloc_tsd_data(, tcache, tcache_t *, NULL)
-malloc_tsd_data(, tcache_enabled, tcache_enabled_t, tcache_enabled_default)
-
 bool	opt_tcache = true;
 ssize_t	opt_lg_tcache_max = LG_TCACHE_MAXCLASS_DEFAULT;
 
@@ -262,43 +259,14 @@ tcache_arena_dissociate(tcache_t *tcache)
 }
 
 tcache_t *
-tcache_get_hard(tcache_t *tcache, bool create)
+tcache_get_hard(tsd_t *tsd)
 {
 
-	if (tcache == NULL) {
-		if (create == false) {
-			/*
-			 * Creating a tcache here would cause
-			 * allocation as a side effect of free().
-			 * Ordinarily that would be okay since
-			 * tcache_create() failure is a soft failure
-			 * that doesn't propagate.  However, if TLS
-			 * data are freed via free() as in glibc,
-			 * subtle corruption could result from setting
-			 * a TLS variable after its backing memory is
-			 * freed.
-			 */
-			return (NULL);
-		}
-		if (tcache_enabled_get() == false) {
-			tcache_enabled_set(false); /* Memoize. */
-			return (NULL);
-		}
-		return (tcache_create(choose_arena(NULL)));
-	}
-	if (tcache == TCACHE_STATE_PURGATORY) {
-		/*
-		 * Make a note that an allocator function was called
-		 * after tcache_thread_cleanup() was called.
-		 */
-		tcache = TCACHE_STATE_REINCARNATED;
-		tcache_tsd_set(&tcache);
+	if (tcache_enabled_get() == false) {
+		tcache_enabled_set(false); /* Memoize. */
 		return (NULL);
 	}
-	if (tcache == TCACHE_STATE_REINCARNATED)
-		return (NULL);
-	not_reached();
-	return (NULL);
+	return (tcache_create(choose_arena(tsd, NULL)));
 }
 
 tcache_t *
@@ -328,7 +296,7 @@ tcache_create(arena_t *arena)
 	else if (size <= tcache_maxclass)
 		tcache = (tcache_t *)arena_malloc_large(arena, size, true);
 	else
-		tcache = (tcache_t *)icalloct(size, false, arena);
+		tcache = (tcache_t *)icalloct(NULL, size, false, arena);
 
 	if (tcache == NULL)
 		return (NULL);
@@ -343,13 +311,11 @@ tcache_create(arena_t *arena)
 		stack_offset += tcache_bin_info[i].ncached_max * sizeof(void *);
 	}
 
-	tcache_tsd_set(&tcache);
-
 	return (tcache);
 }
 
-void
-tcache_destroy(tcache_t *tcache)
+static void
+tcache_destroy(tsd_t *tsd, tcache_t *tcache)
 {
 	unsigned i;
 	size_t tcache_size;
@@ -403,37 +369,28 @@ tcache_destroy(tcache_t *tcache)
 
 		arena_dalloc_large(arena, chunk, tcache);
 	} else
-		idalloct(tcache, false);
+		idalloct(tsd, tcache, false);
 }
 
 void
-tcache_thread_cleanup(void *arg)
+tcache_cleanup(tsd_t *tsd)
 {
-	tcache_t *tcache = *(tcache_t **)arg;
+	tcache_t *tcache;
 
-	if (tcache == TCACHE_STATE_DISABLED) {
-		/* Do nothing. */
-	} else if (tcache == TCACHE_STATE_REINCARNATED) {
-		/*
-		 * Another destructor called an allocator function after this
-		 * destructor was called.  Reset tcache to
-		 * TCACHE_STATE_PURGATORY in order to receive another callback.
-		 */
-		tcache = TCACHE_STATE_PURGATORY;
-		tcache_tsd_set(&tcache);
-	} else if (tcache == TCACHE_STATE_PURGATORY) {
-		/*
-		 * The previous time this destructor was called, we set the key
-		 * to TCACHE_STATE_PURGATORY so that other destructors wouldn't
-		 * cause re-creation of the tcache.  This time, do nothing, so
-		 * that the destructor will not be called again.
-		 */
-	} else if (tcache != NULL) {
-		assert(tcache != TCACHE_STATE_PURGATORY);
-		tcache_destroy(tcache);
-		tcache = TCACHE_STATE_PURGATORY;
-		tcache_tsd_set(&tcache);
+	if (!config_tcache)
+		return;
+
+	if ((tcache = tsd_tcache_get(tsd)) != NULL) {
+		tcache_destroy(tsd, tcache);
+		tsd_tcache_set(tsd, NULL);
 	}
+}
+
+void
+tcache_enabled_cleanup(tsd_t *tsd)
+{
+
+	/* Do nothing. */
 }
 
 /* Caller must own arena->lock. */
@@ -464,7 +421,7 @@ tcache_stats_merge(tcache_t *tcache, arena_t *arena)
 }
 
 bool
-tcache_boot0(void)
+tcache_boot(void)
 {
 	unsigned i;
 
@@ -501,16 +458,6 @@ tcache_boot0(void)
 		tcache_bin_info[i].ncached_max = TCACHE_NSLOTS_LARGE;
 		stack_nelms += tcache_bin_info[i].ncached_max;
 	}
-
-	return (false);
-}
-
-bool
-tcache_boot1(void)
-{
-
-	if (tcache_tsd_boot() || tcache_enabled_tsd_boot())
-		return (true);
 
 	return (false);
 }

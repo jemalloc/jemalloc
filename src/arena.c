@@ -2058,7 +2058,7 @@ arena_ralloc_no_move(void *ptr, size_t oldsize, size_t size, size_t extra,
 }
 
 void *
-arena_ralloc(arena_t *arena, void *ptr, size_t oldsize, size_t size,
+arena_ralloc(tsd_t *tsd, arena_t *arena, void *ptr, size_t oldsize, size_t size,
     size_t extra, size_t alignment, bool zero, bool try_tcache_alloc,
     bool try_tcache_dalloc)
 {
@@ -2078,9 +2078,12 @@ arena_ralloc(arena_t *arena, void *ptr, size_t oldsize, size_t size,
 		size_t usize = sa2u(size + extra, alignment);
 		if (usize == 0)
 			return (NULL);
-		ret = ipalloct(usize, alignment, zero, try_tcache_alloc, arena);
-	} else
-		ret = arena_malloc(arena, size + extra, zero, try_tcache_alloc);
+		ret = ipalloct(tsd, usize, alignment, zero, try_tcache_alloc,
+		    arena);
+	} else {
+		ret = arena_malloc(tsd, arena, size + extra, zero,
+		    try_tcache_alloc);
+	}
 
 	if (ret == NULL) {
 		if (extra == 0)
@@ -2090,10 +2093,12 @@ arena_ralloc(arena_t *arena, void *ptr, size_t oldsize, size_t size,
 			size_t usize = sa2u(size, alignment);
 			if (usize == 0)
 				return (NULL);
-			ret = ipalloct(usize, alignment, zero, try_tcache_alloc,
-			    arena);
-		} else
-			ret = arena_malloc(arena, size, zero, try_tcache_alloc);
+			ret = ipalloct(tsd, usize, alignment, zero,
+			    try_tcache_alloc, arena);
+		} else {
+			ret = arena_malloc(tsd, arena, size, zero,
+			    try_tcache_alloc);
+		}
 
 		if (ret == NULL)
 			return (NULL);
@@ -2108,7 +2113,7 @@ arena_ralloc(arena_t *arena, void *ptr, size_t oldsize, size_t size,
 	copysize = (size < oldsize) ? size : oldsize;
 	JEMALLOC_VALGRIND_MAKE_MEM_UNDEFINED(ret, copysize);
 	memcpy(ret, ptr, copysize);
-	iqalloc(ptr, try_tcache_dalloc);
+	iqalloc(tsd, ptr, try_tcache_dalloc);
 	return (ret);
 }
 

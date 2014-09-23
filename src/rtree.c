@@ -9,8 +9,10 @@ rtree_new(unsigned bits, rtree_alloc_t *alloc, rtree_dalloc_t *dalloc)
 
 	assert(bits > 0 && bits <= (sizeof(uintptr_t) << 3));
 
-	bits_per_level = jemalloc_ffs(pow2_ceil((RTREE_NODESIZE / sizeof(void *)))) - 1;
-	bits_in_leaf = jemalloc_ffs(pow2_ceil((RTREE_NODESIZE / sizeof(uint8_t)))) - 1;
+	bits_per_level = jemalloc_ffs(pow2_ceil((RTREE_NODESIZE / sizeof(void
+	    *)))) - 1;
+	bits_in_leaf = jemalloc_ffs(pow2_ceil((RTREE_NODESIZE /
+	    sizeof(uint8_t)))) - 1;
 	if (bits > bits_in_leaf) {
 		height = 1 + (bits - bits_in_leaf) / bits_per_level;
 		if ((height-1) * bits_per_level + bits_in_leaf != bits)

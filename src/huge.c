@@ -13,14 +13,15 @@ static malloc_mutex_t	huge_mtx;
 static extent_tree_t	huge;
 
 void *
-huge_malloc(arena_t *arena, size_t size, bool zero)
+huge_malloc(tsd_t *tsd, arena_t *arena, size_t size, bool zero)
 {
 
-	return (huge_palloc(arena, size, chunksize, zero));
+	return (huge_palloc(tsd, arena, size, chunksize, zero));
 }
 
 void *
-huge_palloc(arena_t *arena, size_t size, size_t alignment, bool zero)
+huge_palloc(tsd_t *tsd, arena_t *arena, size_t size, size_t alignment,
+    bool zero)
 {
 	void *ret;
 	size_t csize;
@@ -45,7 +46,7 @@ huge_palloc(arena_t *arena, size_t size, size_t alignment, bool zero)
 	 * it is possible to make correct junk/zero fill decisions below.
 	 */
 	is_zeroed = zero;
-	arena = choose_arena(arena);
+	arena = choose_arena(tsd, arena);
 	ret = arena_chunk_alloc_huge(arena, csize, alignment, &is_zeroed);
 	if (ret == NULL) {
 		base_node_dalloc(node);
@@ -90,7 +91,7 @@ huge_ralloc_no_move(void *ptr, size_t oldsize, size_t size, size_t extra)
 }
 
 void *
-huge_ralloc(arena_t *arena, void *ptr, size_t oldsize, size_t size,
+huge_ralloc(tsd_t *tsd, arena_t *arena, void *ptr, size_t oldsize, size_t size,
     size_t extra, size_t alignment, bool zero, bool try_tcache_dalloc)
 {
 	void *ret;
@@ -106,18 +107,18 @@ huge_ralloc(arena_t *arena, void *ptr, size_t oldsize, size_t size,
 	 * space and copying.
 	 */
 	if (alignment > chunksize)
-		ret = huge_palloc(arena, size + extra, alignment, zero);
+		ret = huge_palloc(tsd, arena, size + extra, alignment, zero);
 	else
-		ret = huge_malloc(arena, size + extra, zero);
+		ret = huge_malloc(tsd, arena, size + extra, zero);
 
 	if (ret == NULL) {
 		if (extra == 0)
 			return (NULL);
 		/* Try again, this time without extra. */
 		if (alignment > chunksize)
-			ret = huge_palloc(arena, size, alignment, zero);
+			ret = huge_palloc(tsd, arena, size, alignment, zero);
 		else
-			ret = huge_malloc(arena, size, zero);
+			ret = huge_malloc(tsd, arena, size, zero);
 
 		if (ret == NULL)
 			return (NULL);
@@ -129,7 +130,7 @@ huge_ralloc(arena_t *arena, void *ptr, size_t oldsize, size_t size,
 	 */
 	copysize = (size < oldsize) ? size : oldsize;
 	memcpy(ret, ptr, copysize);
-	iqalloc(ptr, try_tcache_dalloc);
+	iqalloc(tsd, ptr, try_tcache_dalloc);
 	return (ret);
 }
 

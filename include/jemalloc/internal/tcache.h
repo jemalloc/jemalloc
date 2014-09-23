@@ -110,26 +110,22 @@ void	tcache_bin_flush_large(tcache_bin_t *tbin, size_t binind, unsigned rem,
     tcache_t *tcache);
 void	tcache_arena_associate(tcache_t *tcache, arena_t *arena);
 void	tcache_arena_dissociate(tcache_t *tcache);
-tcache_t *tcache_get_hard(tcache_t *tcache, bool create);
+tcache_t *tcache_get_hard(tsd_t *tsd);
 tcache_t *tcache_create(arena_t *arena);
-void	tcache_destroy(tcache_t *tcache);
-void	tcache_thread_cleanup(void *arg);
+void	tcache_cleanup(tsd_t *tsd);
+void	tcache_enabled_cleanup(tsd_t *tsd);
 void	tcache_stats_merge(tcache_t *tcache, arena_t *arena);
-bool	tcache_boot0(void);
-bool	tcache_boot1(void);
+bool	tcache_boot(void);
 
 #endif /* JEMALLOC_H_EXTERNS */
 /******************************************************************************/
 #ifdef JEMALLOC_H_INLINES
 
 #ifndef JEMALLOC_ENABLE_INLINE
-malloc_tsd_protos(JEMALLOC_ATTR(unused), tcache, tcache_t *)
-malloc_tsd_protos(JEMALLOC_ATTR(unused), tcache_enabled, tcache_enabled_t)
-
 void	tcache_event(tcache_t *tcache);
 void	tcache_flush(void);
 bool	tcache_enabled_get(void);
-tcache_t *tcache_get(bool create);
+tcache_t *tcache_get(tsd_t *tsd, bool create);
 void	tcache_enabled_set(bool enabled);
 void	*tcache_alloc_easy(tcache_bin_t *tbin);
 void	*tcache_alloc_small(tcache_t *tcache, size_t size, bool zero);
@@ -139,41 +135,33 @@ void	tcache_dalloc_large(tcache_t *tcache, void *ptr, size_t size);
 #endif
 
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_TCACHE_C_))
-/* Map of thread-specific caches. */
-malloc_tsd_externs(tcache, tcache_t *)
-malloc_tsd_funcs(JEMALLOC_ALWAYS_INLINE, tcache, tcache_t *, NULL,
-    tcache_thread_cleanup)
-/* Per thread flag that allows thread caches to be disabled. */
-malloc_tsd_externs(tcache_enabled, tcache_enabled_t)
-malloc_tsd_funcs(JEMALLOC_ALWAYS_INLINE, tcache_enabled, tcache_enabled_t,
-    tcache_enabled_default, malloc_tsd_no_cleanup)
-
 JEMALLOC_INLINE void
 tcache_flush(void)
 {
-	tcache_t *tcache;
+	tsd_t *tsd;
 
 	cassert(config_tcache);
 
-	tcache = *tcache_tsd_get();
-	if ((uintptr_t)tcache <= (uintptr_t)TCACHE_STATE_MAX)
-		return;
-	tcache_destroy(tcache);
-	tcache = NULL;
-	tcache_tsd_set(&tcache);
+	tsd = tsd_tryget();
+	if (tsd != NULL)
+		tcache_cleanup(tsd);
 }
 
 JEMALLOC_INLINE bool
 tcache_enabled_get(void)
 {
+	tsd_t *tsd;
 	tcache_enabled_t tcache_enabled;
 
 	cassert(config_tcache);
 
-	tcache_enabled = *tcache_enabled_tsd_get();
+	tsd = tsd_tryget();
+	if (tsd == NULL)
+		return (false);
+	tcache_enabled = tsd_tcache_enabled_get(tsd);
 	if (tcache_enabled == tcache_enabled_default) {
 		tcache_enabled = (tcache_enabled_t)opt_tcache;
-		tcache_enabled_tsd_set(&tcache_enabled);
+		tsd_tcache_enabled_set(tsd, tcache_enabled);
 	}
 
 	return ((bool)tcache_enabled);
@@ -182,33 +170,24 @@ tcache_enabled_get(void)
 JEMALLOC_INLINE void
 tcache_enabled_set(bool enabled)
 {
+	tsd_t *tsd;
 	tcache_enabled_t tcache_enabled;
-	tcache_t *tcache;
 
 	cassert(config_tcache);
 
+	tsd = tsd_tryget();
+	if (tsd == NULL)
+		return;
+
 	tcache_enabled = (tcache_enabled_t)enabled;
-	tcache_enabled_tsd_set(&tcache_enabled);
-	tcache = *tcache_tsd_get();
-	if (enabled) {
-		if (tcache == TCACHE_STATE_DISABLED) {
-			tcache = NULL;
-			tcache_tsd_set(&tcache);
-		}
-	} else /* disabled */ {
-		if (tcache > TCACHE_STATE_MAX) {
-			tcache_destroy(tcache);
-			tcache = NULL;
-		}
-		if (tcache == NULL) {
-			tcache = TCACHE_STATE_DISABLED;
-			tcache_tsd_set(&tcache);
-		}
-	}
+	tsd_tcache_enabled_set(tsd, tcache_enabled);
+
+	if (!enabled)
+		tcache_cleanup(tsd);
 }
 
 JEMALLOC_ALWAYS_INLINE tcache_t *
-tcache_get(bool create)
+tcache_get(tsd_t *tsd, bool create)
 {
 	tcache_t *tcache;
 
@@ -216,12 +195,19 @@ tcache_get(bool create)
 		return (NULL);
 	if (config_lazy_lock && isthreaded == false)
 		return (NULL);
+	/*
+	 * If create is true, the caller has already assured that tsd is
+	 * non-NULL.
+	 */
+	if (!create && unlikely(tsd == NULL))
+		return (NULL);
 
-	tcache = *tcache_tsd_get();
-	if (unlikely((uintptr_t)tcache <= (uintptr_t)TCACHE_STATE_MAX)) {
-		if (tcache == TCACHE_STATE_DISABLED)
-			return (NULL);
-		tcache = tcache_get_hard(tcache, create);
+	tcache = tsd_tcache_get(tsd);
+	if (!create)
+		return (tcache);
+	if (unlikely(tcache == NULL)) {
+		tcache = tcache_get_hard(tsd);
+		tsd_tcache_set(tsd, tcache);
 	}
 
 	return (tcache);
