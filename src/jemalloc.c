@@ -7,7 +7,7 @@
 malloc_tsd_data(, arenas, arena_t *, NULL)
 
 /* Runtime configuration options. */
-const char	*je_malloc_conf;
+const char	*je_malloc_conf JEMALLOC_ATTR(weak);
 bool	opt_abort =
 #ifdef JEMALLOC_DEBUG
     true
