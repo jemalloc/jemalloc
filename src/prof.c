@@ -717,7 +717,7 @@ prof_lookup(tsd_t *tsd, prof_bt_t *bt)
 		memset(&ret.p->cnts, 0, sizeof(prof_cnt_t));
 		ret.p->gctx = gctx;
 		ret.p->prepared = true;
-		ret.p->state = prof_tctx_state_nominal;
+		ret.p->state = prof_tctx_state_initializing;
 		malloc_mutex_lock(tdata->lock);
 		error = ckh_insert(tsd, &tdata->bt2tctx, btkey, ret.v);
 		malloc_mutex_unlock(tdata->lock);
@@ -728,6 +728,7 @@ prof_lookup(tsd_t *tsd, prof_bt_t *bt)
 			return (NULL);
 		}
 		malloc_mutex_lock(gctx->lock);
+		ret.p->state = prof_tctx_state_nominal;
 		tctx_tree_insert(&gctx->tctxs, ret.p);
 		gctx->nlimbo--;
 		malloc_mutex_unlock(gctx->lock);
@@ -925,8 +926,15 @@ static void
 prof_tctx_merge_tdata(prof_tctx_t *tctx, prof_tdata_t *tdata)
 {
 
+	malloc_mutex_lock(tctx->gctx->lock);
+	if (tctx->state == prof_tctx_state_initializing) {
+		malloc_mutex_unlock(tctx->gctx->lock);
+		return;
+	}
 	assert(tctx->state == prof_tctx_state_nominal);
 	tctx->state = prof_tctx_state_dumping;
+	malloc_mutex_unlock(tctx->gctx->lock);
+
 	memcpy(&tctx->dump_cnts, &tctx->cnts, sizeof(prof_cnt_t));
 
 	tdata->cnt_summed.curobjs += tctx->dump_cnts.curobjs;

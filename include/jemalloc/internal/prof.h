@@ -79,6 +79,7 @@ struct prof_cnt_s {
 };
 
 typedef enum {
+	prof_tctx_state_initializing,
 	prof_tctx_state_nominal,
 	prof_tctx_state_dumping,
 	prof_tctx_state_purgatory /* Dumper must finish destroying. */
