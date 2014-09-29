@@ -176,6 +176,21 @@ lg_floor(size_t x)
 	    );
 	return (ret);
 }
+#elif (defined(_MSC_VER))
+JEMALLOC_INLINE size_t
+lg_floor(size_t x)
+{
+    unsigned long ret;
+
+#if (LG_SIZEOF_PTR == 3)
+    _BitScanReverse64(&ret, x);
+#elif (LG_SIZEOF_PTR == 2)
+    _BitScanReverse(&ret, x);
+#else
+#  error "Unsupported type sizes for lg_floor()"
+#endif
+    return (ret);
+}
 #elif (defined(JEMALLOC_HAVE_BUILTIN_CLZ))
 JEMALLOC_INLINE size_t
 lg_floor(size_t x)
