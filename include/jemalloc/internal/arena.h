@@ -1,30 +1,8 @@
 /******************************************************************************/
 #ifdef JEMALLOC_H_TYPES
 
-/*
- * RUN_MAX_OVRHD indicates maximum desired run header overhead.  Runs are sized
- * as small as possible such that this setting is still honored, without
- * violating other constraints.  The goal is to make runs as small as possible
- * without exceeding a per run external fragmentation threshold.
- *
- * We use binary fixed point math for overhead computations, where the binary
- * point is implicitly RUN_BFP bits to the left.
- *
- * Note that it is possible to set RUN_MAX_OVRHD low enough that it cannot be
- * honored for some/all object sizes, since when heap profiling is enabled
- * there is one pointer of header overhead per object (plus a constant).  This
- * constraint is relaxed (ignored) for runs that are so small that the
- * per-region overhead is greater than:
- *
- *   (RUN_MAX_OVRHD / (reg_interval << (3+RUN_BFP))
- */
-#define	RUN_BFP			12
-/*                                    \/   Implicit binary fixed point. */
-#define	RUN_MAX_OVRHD		0x0000003dU
-#define	RUN_MAX_OVRHD_RELAX	0x00001800U
-
 /* Maximum number of regions in one run. */
-#define	LG_RUN_MAXREGS		11
+#define	LG_RUN_MAXREGS		(LG_PAGE - LG_TINY_MIN)
 #define	RUN_MAXREGS		(1U << LG_RUN_MAXREGS)
 
 /*
@@ -43,10 +21,10 @@
  */
 #define	LG_DIRTY_MULT_DEFAULT	3
 
+typedef struct arena_run_s arena_run_t;
 typedef struct arena_chunk_map_bits_s arena_chunk_map_bits_t;
 typedef struct arena_chunk_map_misc_s arena_chunk_map_misc_t;
 typedef struct arena_chunk_s arena_chunk_t;
-typedef struct arena_run_s arena_run_t;
 typedef struct arena_bin_info_s arena_bin_info_t;
 typedef struct arena_bin_s arena_bin_t;
 typedef struct arena_s arena_t;
@@ -54,6 +32,20 @@ typedef struct arena_s arena_t;
 #endif /* JEMALLOC_H_TYPES */
 /******************************************************************************/
 #ifdef JEMALLOC_H_STRUCTS
+
+struct arena_run_s {
+	/* Bin this run is associated with. */
+	arena_bin_t	*bin;
+
+	/* Index of next region that has never been allocated, or nregs. */
+	uint32_t	nextind;
+
+	/* Number of free regions in run. */
+	unsigned	nfree;
+
+	/* Per region allocated/deallocated bitmap. */
+	bitmap_t	bitmap[BITMAP_GROUPS_MAX];
+};
 
 /* Each element of the chunk map corresponds to one page within the chunk. */
 struct arena_chunk_map_bits_s {
@@ -130,15 +122,6 @@ struct arena_chunk_map_bits_s {
  * chunk header in order to improve cache locality.
  */
 struct arena_chunk_map_misc_s {
-#ifndef JEMALLOC_PROF
-	/*
-	 * Overlay prof_tctx in order to allow it to be referenced by dead code.
-	 * Such antics aren't warranted for per arena data structures, but
-	 * chunk map overhead accounts for a percentage of memory, rather than
-	 * being just a fixed cost.
-	 */
-	union {
-#endif
 	/*
 	 * Linkage for run trees.  There are two disjoint uses:
 	 *
@@ -146,16 +129,18 @@ struct arena_chunk_map_misc_s {
 	 * 2) arena_run_t conceptually uses this linkage for in-use non-full
 	 * runs, rather than directly embedding linkage.
 	 */
-	rb_node(arena_chunk_map_misc_t)	rb_link;
+	rb_node(arena_chunk_map_misc_t)		rb_link;
 
-	/* Profile counters, used for large object runs. */
-	prof_tctx_t			*prof_tctx;
-#ifndef JEMALLOC_PROF
-	}; /* union { ... }; */
-#endif
+	union {
+		/* Linkage for list of dirty runs. */
+		ql_elm(arena_chunk_map_misc_t)	dr_link;
 
-	/* Linkage for list of dirty runs. */
-	ql_elm(arena_chunk_map_misc_t)	dr_link;
+		/* Profile counters, used for large object runs. */
+		prof_tctx_t			*prof_tctx;
+
+		/* Small region run metadata. */
+		arena_run_t			run;
+	};
 };
 typedef rb_tree(arena_chunk_map_misc_t) arena_avail_tree_t;
 typedef rb_tree(arena_chunk_map_misc_t) arena_run_tree_t;
@@ -175,17 +160,6 @@ struct arena_chunk_s {
 	arena_chunk_map_bits_t	map_bits[1]; /* Dynamically sized. */
 };
 
-struct arena_run_s {
-	/* Bin this run is associated with. */
-	arena_bin_t	*bin;
-
-	/* Index of next region that has never been allocated, or nregs. */
-	uint32_t	nextind;
-
-	/* Number of free regions in run. */
-	unsigned	nfree;
-};
-
 /*
  * Read-only information associated with each element of arena_t's bins array
  * is stored separately, partly to reduce memory usage (only one copy, rather
@@ -194,10 +168,7 @@ struct arena_run_s {
  * Each run has the following layout:
  *
  *               /--------------------\
- *               | arena_run_t header |
- *               | ...                |
- * bitmap_offset | bitmap             |
- *               | ...                |
+ *               | pad?               |
  *               |--------------------|
  *               | redzone            |
  *   reg0_offset | region 0           |
@@ -237,12 +208,6 @@ struct arena_bin_info_s {
 
 	/* Total number of regions in a run for this bin's size class. */
 	uint32_t	nregs;
-
-	/*
-	 * Offset of first bitmap_t element in a run header for this bin's size
-	 * class.
-	 */
-	uint32_t	bitmap_offset;
 
 	/*
 	 * Metadata used to manipulate bitmaps for runs associated with this
@@ -451,6 +416,9 @@ arena_chunk_map_bits_t	*arena_bitselm_get(arena_chunk_t *chunk,
     size_t pageind);
 arena_chunk_map_misc_t	*arena_miscelm_get(arena_chunk_t *chunk,
     size_t pageind);
+size_t	arena_miscelm_to_pageind(arena_chunk_map_misc_t *miscelm);
+void	*arena_miscelm_to_rpages(arena_chunk_map_misc_t *miscelm);
+arena_chunk_map_misc_t	*arena_run_to_miscelm(arena_run_t *run);
 size_t	*arena_mapbitsp_get(arena_chunk_t *chunk, size_t pageind);
 size_t	arena_mapbitsp_read(size_t *mapbitsp);
 size_t	arena_mapbits_get(arena_chunk_t *chunk, size_t pageind);
@@ -657,6 +625,40 @@ arena_miscelm_get(arena_chunk_t *chunk, size_t pageind)
 
 	return ((arena_chunk_map_misc_t *)((uintptr_t)chunk +
 	    (uintptr_t)map_misc_offset) + pageind-map_bias);
+}
+
+JEMALLOC_ALWAYS_INLINE size_t
+arena_miscelm_to_pageind(arena_chunk_map_misc_t *miscelm)
+{
+	arena_chunk_t *chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(miscelm);
+	size_t pageind = ((uintptr_t)miscelm - ((uintptr_t)chunk +
+	    map_misc_offset)) / sizeof(arena_chunk_map_misc_t) + map_bias;
+
+	assert(pageind >= map_bias);
+	assert(pageind < chunk_npages);
+
+	return (pageind);
+}
+
+JEMALLOC_ALWAYS_INLINE void *
+arena_miscelm_to_rpages(arena_chunk_map_misc_t *miscelm)
+{
+	arena_chunk_t *chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(miscelm);
+	size_t pageind = arena_miscelm_to_pageind(miscelm);
+
+	return ((void *)((uintptr_t)chunk + (pageind << LG_PAGE)));
+}
+
+JEMALLOC_ALWAYS_INLINE arena_chunk_map_misc_t *
+arena_run_to_miscelm(arena_run_t *run)
+{
+	arena_chunk_map_misc_t *miscelm = (arena_chunk_map_misc_t
+	    *)((uintptr_t)run - offsetof(arena_chunk_map_misc_t, run));
+
+	assert(arena_miscelm_to_pageind(miscelm) >= map_bias);
+	assert(arena_miscelm_to_pageind(miscelm) < chunk_npages);
+
+	return (miscelm);
 }
 
 JEMALLOC_ALWAYS_INLINE size_t *
@@ -903,10 +905,13 @@ arena_ptr_small_binind_get(const void *ptr, size_t mapbits)
 		arena_t *arena;
 		size_t pageind;
 		size_t actual_mapbits;
+		size_t rpages_ind;
 		arena_run_t *run;
 		arena_bin_t *bin;
 		size_t actual_binind;
 		arena_bin_info_t *bin_info;
+		arena_chunk_map_misc_t *miscelm;
+		void *rpages;
 
 		assert(binind != BININD_INVALID);
 		assert(binind < NBINS);
@@ -917,13 +922,16 @@ arena_ptr_small_binind_get(const void *ptr, size_t mapbits)
 		assert(mapbits == actual_mapbits);
 		assert(arena_mapbits_large_get(chunk, pageind) == 0);
 		assert(arena_mapbits_allocated_get(chunk, pageind) != 0);
-		run = (arena_run_t *)((uintptr_t)chunk + (uintptr_t)((pageind -
-		    (actual_mapbits >> LG_PAGE)) << LG_PAGE));
+		rpages_ind = pageind - arena_mapbits_small_runind_get(chunk,
+		    pageind);
+		miscelm = arena_miscelm_get(chunk, rpages_ind);
+		run = &miscelm->run;
 		bin = run->bin;
 		actual_binind = bin - arena->bins;
 		assert(binind == actual_binind);
 		bin_info = &arena_bin_info[actual_binind];
-		assert(((uintptr_t)ptr - ((uintptr_t)run +
+		rpages = arena_miscelm_to_rpages(miscelm);
+		assert(((uintptr_t)ptr - ((uintptr_t)rpages +
 		    (uintptr_t)bin_info->reg0_offset)) % bin_info->reg_interval
 		    == 0);
 	}
@@ -946,19 +954,21 @@ arena_run_regind(arena_run_t *run, arena_bin_info_t *bin_info, const void *ptr)
 {
 	unsigned shift, diff, regind;
 	size_t interval;
+	arena_chunk_map_misc_t *miscelm = arena_run_to_miscelm(run);
+	void *rpages = arena_miscelm_to_rpages(miscelm);
 
 	/*
 	 * Freeing a pointer lower than region zero can cause assertion
 	 * failure.
 	 */
-	assert((uintptr_t)ptr >= (uintptr_t)run +
+	assert((uintptr_t)ptr >= (uintptr_t)rpages +
 	    (uintptr_t)bin_info->reg0_offset);
 
 	/*
 	 * Avoid doing division with a variable divisor if possible.  Using
 	 * actual division here can reduce allocator throughput by over 20%!
 	 */
-	diff = (unsigned)((uintptr_t)ptr - (uintptr_t)run -
+	diff = (unsigned)((uintptr_t)ptr - (uintptr_t)rpages -
 	    bin_info->reg0_offset);
 
 	/* Rescale (factor powers of 2 out of the numerator and denominator). */

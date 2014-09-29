@@ -42,6 +42,8 @@ arena_mapbitsp_read
 arena_mapbitsp_write
 arena_maxclass
 arena_miscelm_get
+arena_miscelm_to_pageind
+arena_miscelm_to_rpages
 arena_new
 arena_palloc
 arena_postfork_child
@@ -61,6 +63,7 @@ arena_ralloc_junk_large
 arena_ralloc_no_move
 arena_redzone_corruption
 arena_run_regind
+arena_run_to_miscelm
 arena_salloc
 arena_sdalloc
 arena_stats_merge
