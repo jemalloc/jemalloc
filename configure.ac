@@ -330,7 +330,7 @@ case "${host}" in
 	fi
 	abi="xcoff"
 	;;
-  *-*-mingw*)
+  *-*-mingw* | *-*-cygwin*)
 	abi="pecoff"
 	force_tls="0"
 	RPATH=""
