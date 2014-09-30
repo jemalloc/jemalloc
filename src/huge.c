@@ -72,21 +72,79 @@ huge_palloc(tsd_t *tsd, arena_t *arena, size_t size, size_t alignment,
 	return (ret);
 }
 
+#ifdef JEMALLOC_JET
+#undef huge_dalloc_junk
+#define	huge_dalloc_junk JEMALLOC_N(huge_dalloc_junk_impl)
+#endif
+static void
+huge_dalloc_junk(void *ptr, size_t usize)
+{
+
+	if (config_fill && have_dss && unlikely(opt_junk)) {
+		/*
+		 * Only bother junk filling if the chunk isn't about to be
+		 * unmapped.
+		 */
+		if (config_munmap == false || (have_dss && chunk_in_dss(ptr)))
+			memset(ptr, 0x5a, usize);
+	}
+}
+#ifdef JEMALLOC_JET
+#undef huge_dalloc_junk
+#define	huge_dalloc_junk JEMALLOC_N(huge_dalloc_junk)
+huge_dalloc_junk_t *huge_dalloc_junk = JEMALLOC_N(huge_dalloc_junk_impl);
+#endif
+
 bool
 huge_ralloc_no_move(void *ptr, size_t oldsize, size_t size, size_t extra)
 {
 
+	/* Both allocations must be huge to avoid a move. */
+	if (oldsize <= arena_maxclass)
+		return (true);
+
+	assert(CHUNK_CEILING(oldsize) == oldsize);
+
 	/*
 	 * Avoid moving the allocation if the size class can be left the same.
 	 */
-	if (oldsize > arena_maxclass
-	    && CHUNK_CEILING(oldsize) >= CHUNK_CEILING(size)
+	if (CHUNK_CEILING(oldsize) >= CHUNK_CEILING(size)
 	    && CHUNK_CEILING(oldsize) <= CHUNK_CEILING(size+extra)) {
-		assert(CHUNK_CEILING(oldsize) == oldsize);
 		return (false);
 	}
 
-	/* Reallocation would require a move. */
+	/* Overflow. */
+	if (CHUNK_CEILING(size) == 0)
+		return (true);
+
+	/* Shrink the allocation in-place. */
+	if (CHUNK_CEILING(oldsize) > CHUNK_CEILING(size)) {
+		extent_node_t *node, key;
+		void *excess_addr;
+		size_t excess_size;
+
+		malloc_mutex_lock(&huge_mtx);
+
+		key.addr = ptr;
+		node = extent_tree_ad_search(&huge, &key);
+		assert(node != NULL);
+		assert(node->addr == ptr);
+
+		/* Update the size of the huge allocation. */
+		node->size = CHUNK_CEILING(size);
+
+		malloc_mutex_unlock(&huge_mtx);
+
+		excess_addr = node->addr + CHUNK_CEILING(size);
+		excess_size = CHUNK_CEILING(oldsize) - CHUNK_CEILING(size);
+
+		/* Zap the excess chunks. */
+		huge_dalloc_junk(excess_addr, excess_size);
+		arena_chunk_dalloc_huge(node->arena, excess_addr, excess_size);
+
+		return (false);
+	}
+
 	return (true);
 }
 
@@ -133,29 +191,6 @@ huge_ralloc(tsd_t *tsd, arena_t *arena, void *ptr, size_t oldsize, size_t size,
 	iqalloc(tsd, ptr, try_tcache_dalloc);
 	return (ret);
 }
-
-#ifdef JEMALLOC_JET
-#undef huge_dalloc_junk
-#define	huge_dalloc_junk JEMALLOC_N(huge_dalloc_junk_impl)
-#endif
-static void
-huge_dalloc_junk(void *ptr, size_t usize)
-{
-
-	if (config_fill && have_dss && unlikely(opt_junk)) {
-		/*
-		 * Only bother junk filling if the chunk isn't about to be
-		 * unmapped.
-		 */
-		if (config_munmap == false || (have_dss && chunk_in_dss(ptr)))
-			memset(ptr, 0x5a, usize);
-	}
-}
-#ifdef JEMALLOC_JET
-#undef huge_dalloc_junk
-#define	huge_dalloc_junk JEMALLOC_N(huge_dalloc_junk)
-huge_dalloc_junk_t *huge_dalloc_junk = JEMALLOC_N(huge_dalloc_junk_impl);
-#endif
 
 void
 huge_dalloc(void *ptr)
