@@ -107,9 +107,11 @@ DOCS_XML := $(objroot)doc/jemalloc$(install_suffix).xml
 DOCS_HTML := $(DOCS_XML:$(objroot)%.xml=$(srcroot)%.html)
 DOCS_MAN3 := $(DOCS_XML:$(objroot)%.xml=$(srcroot)%.3)
 DOCS := $(DOCS_HTML) $(DOCS_MAN3)
-C_TESTLIB_SRCS := $(srcroot)test/src/math.c $(srcroot)test/src/mtx.c \
-	$(srcroot)test/src/SFMT.c $(srcroot)test/src/test.c \
-	$(srcroot)test/src/thd.c $(srcroot)test/src/timer.c
+C_TESTLIB_SRCS := $(srcroot)test/src/btalloc.c $(srcroot)test/src/btalloc_0.c \
+	$(srcroot)test/src/btalloc_1.c $(srcroot)test/src/math.c \
+	$(srcroot)test/src/mtx.c $(srcroot)test/src/SFMT.c \
+	$(srcroot)test/src/test.c $(srcroot)test/src/thd.c \
+	$(srcroot)test/src/timer.c
 C_UTIL_INTEGRATION_SRCS := $(srcroot)src/util.c
 TESTS_UNIT := $(srcroot)test/unit/atomic.c \
 	$(srcroot)test/unit/bitmap.c \
@@ -123,6 +125,7 @@ TESTS_UNIT := $(srcroot)test/unit/atomic.c \
 	$(srcroot)test/unit/prof_accum.c \
 	$(srcroot)test/unit/prof_gdump.c \
 	$(srcroot)test/unit/prof_idump.c \
+	$(srcroot)test/unit/prof_reset.c \
 	$(srcroot)test/unit/ql.c \
 	$(srcroot)test/unit/qr.c \
 	$(srcroot)test/unit/quarantine.c \
@@ -133,8 +136,6 @@ TESTS_UNIT := $(srcroot)test/unit/atomic.c \
 	$(srcroot)test/unit/tsd.c \
 	$(srcroot)test/unit/util.c \
 	$(srcroot)test/unit/zero.c
-TESTS_UNIT_AUX := $(srcroot)test/unit/prof_accum_a.c \
-	$(srcroot)test/unit/prof_accum_b.c
 TESTS_INTEGRATION := $(srcroot)test/integration/aligned_alloc.c \
 	$(srcroot)test/integration/allocated.c \
 	$(srcroot)test/integration/sdallocx.c \
@@ -159,10 +160,9 @@ C_TESTLIB_STRESS_OBJS := $(C_TESTLIB_SRCS:$(srcroot)%.c=$(objroot)%.stress.$(O))
 C_TESTLIB_OBJS := $(C_TESTLIB_UNIT_OBJS) $(C_TESTLIB_INTEGRATION_OBJS) $(C_UTIL_INTEGRATION_OBJS) $(C_TESTLIB_STRESS_OBJS)
 
 TESTS_UNIT_OBJS := $(TESTS_UNIT:$(srcroot)%.c=$(objroot)%.$(O))
-TESTS_UNIT_AUX_OBJS := $(TESTS_UNIT_AUX:$(srcroot)%.c=$(objroot)%.$(O))
 TESTS_INTEGRATION_OBJS := $(TESTS_INTEGRATION:$(srcroot)%.c=$(objroot)%.$(O))
 TESTS_STRESS_OBJS := $(TESTS_STRESS:$(srcroot)%.c=$(objroot)%.$(O))
-TESTS_OBJS := $(TESTS_UNIT_OBJS) $(TESTS_UNIT_AUX_OBJS) $(TESTS_INTEGRATION_OBJS) $(TESTS_STRESS_OBJS)
+TESTS_OBJS := $(TESTS_UNIT_OBJS) $(TESTS_INTEGRATION_OBJS) $(TESTS_STRESS_OBJS)
 
 .PHONY: all dist build_doc_html build_doc_man build_doc
 .PHONY: install_bin install_include install_lib
@@ -211,12 +211,6 @@ $(C_TESTLIB_STRESS_OBJS): $(objroot)test/src/%.stress.$(O): $(srcroot)test/src/%
 $(C_TESTLIB_STRESS_OBJS): CPPFLAGS += -DJEMALLOC_STRESS_TEST -DJEMALLOC_STRESS_TESTLIB
 $(C_TESTLIB_OBJS): CPPFLAGS += -I$(srcroot)test/include -I$(objroot)test/include
 $(TESTS_UNIT_OBJS): CPPFLAGS += -DJEMALLOC_UNIT_TEST
-$(TESTS_UNIT_AUX_OBJS): CPPFLAGS += -DJEMALLOC_UNIT_TEST
-define make-unit-link-dep
-$(1): TESTS_UNIT_LINK_OBJS += $(2)
-$(1): $(2)
-endef
-$(foreach test, $(TESTS_UNIT:$(srcroot)test/unit/%.c=$(objroot)test/unit/%$(EXE)), $(eval $(call make-unit-link-dep,$(test),$(filter $(test:%$(EXE)=%_a.$(O)) $(test:%$(EXE)=%_b.$(O)),$(TESTS_UNIT_AUX_OBJS)))))
 $(TESTS_INTEGRATION_OBJS): CPPFLAGS += -DJEMALLOC_INTEGRATION_TEST
 $(TESTS_STRESS_OBJS): CPPFLAGS += -DJEMALLOC_STRESS_TEST
 $(TESTS_OBJS): $(objroot)test/%.$(O): $(srcroot)test/%.c
