@@ -94,12 +94,6 @@ TEST_BEGIN(test_prof_reset_cleanup)
 	assert_d_eq(mallctl("prof.active", NULL, NULL, &active, sizeof(active)),
 	    0, "Unexpected mallctl failure while activating profiling");
 
-	// XXX Verify that reset actually drops backtrace count to 0.  Alloc an
-	// object, reset, check bt count, free.  prof_bt_count() doesn't do the
-	// right thing; we need to iterate during dump and count backtraces.
-	// Or, just intercept prof_dump_header(), which has enough information
-	// for these purposes.
-
 	assert_zu_eq(prof_bt_count(), 0, "Expected 0 backtraces");
 	p = mallocx(1, 0);
 	assert_ptr_not_null(p, "Unexpected mallocx() failure");
