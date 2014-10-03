@@ -45,7 +45,7 @@ chunk_dss_prec_get(void)
 {
 	dss_prec_t ret;
 
-	if (have_dss == false)
+	if (!have_dss)
 		return (dss_prec_disabled);
 	malloc_mutex_lock(&dss_mtx);
 	ret = dss_prec_default;
@@ -57,7 +57,7 @@ bool
 chunk_dss_prec_set(dss_prec_t dss_prec)
 {
 
-	if (have_dss == false)
+	if (!have_dss)
 		return (dss_prec != dss_prec_disabled);
 	malloc_mutex_lock(&dss_mtx);
 	dss_prec_default = dss_prec;

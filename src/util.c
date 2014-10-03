@@ -266,7 +266,7 @@ d2s(intmax_t x, char sign, char *s, size_t *slen_p)
 		sign = '-';
 	switch (sign) {
 	case '-':
-		if (neg == false)
+		if (!neg)
 			break;
 		/* Fall through. */
 	case ' ':
@@ -329,7 +329,7 @@ malloc_vsnprintf(char *str, size_t size, const char *format, va_list ap)
 	/* Left padding. */						\
 	size_t pad_len = (width == -1) ? 0 : ((slen < (size_t)width) ?	\
 	    (size_t)width - slen : 0);					\
-	if (left_justify == false && pad_len != 0) {			\
+	if (!left_justify && pad_len != 0) {				\
 		size_t j;						\
 		for (j = 0; j < pad_len; j++)				\
 			APPEND_C(' ');					\
@@ -406,19 +406,19 @@ malloc_vsnprintf(char *str, size_t size, const char *format, va_list ap)
 			while (true) {
 				switch (*f) {
 				case '#':
-					assert(alt_form == false);
+					assert(!alt_form);
 					alt_form = true;
 					break;
 				case '-':
-					assert(left_justify == false);
+					assert(!left_justify);
 					left_justify = true;
 					break;
 				case ' ':
-					assert(plus_space == false);
+					assert(!plus_space);
 					plus_space = true;
 					break;
 				case '+':
-					assert(plus_plus == false);
+					assert(!plus_plus);
 					plus_plus = true;
 					break;
 				default: goto label_width;

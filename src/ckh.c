@@ -185,7 +185,7 @@ ckh_evict_reloc_insert(ckh_t *ckh, size_t argbucket, void const **argkey,
 		}
 
 		bucket = tbucket;
-		if (ckh_try_bucket_insert(ckh, bucket, key, data) == false)
+		if (!ckh_try_bucket_insert(ckh, bucket, key, data))
 			return (false);
 	}
 }
@@ -201,12 +201,12 @@ ckh_try_insert(ckh_t *ckh, void const**argkey, void const**argdata)
 
 	/* Try to insert in primary bucket. */
 	bucket = hashes[0] & ((ZU(1) << ckh->lg_curbuckets) - 1);
-	if (ckh_try_bucket_insert(ckh, bucket, key, data) == false)
+	if (!ckh_try_bucket_insert(ckh, bucket, key, data))
 		return (false);
 
 	/* Try to insert in secondary bucket. */
 	bucket = hashes[1] & ((ZU(1) << ckh->lg_curbuckets) - 1);
-	if (ckh_try_bucket_insert(ckh, bucket, key, data) == false)
+	if (!ckh_try_bucket_insert(ckh, bucket, key, data))
 		return (false);
 
 	/*
@@ -281,7 +281,7 @@ ckh_grow(tsd_t *tsd, ckh_t *ckh)
 		tab = ttab;
 		ckh->lg_curbuckets = lg_curcells - LG_CKH_BUCKET_CELLS;
 
-		if (ckh_rebuild(ckh, tab) == false) {
+		if (!ckh_rebuild(ckh, tab)) {
 			idalloc(tsd, tab);
 			break;
 		}
@@ -327,7 +327,7 @@ ckh_shrink(tsd_t *tsd, ckh_t *ckh)
 	tab = ttab;
 	ckh->lg_curbuckets = lg_curcells - LG_CKH_BUCKET_CELLS;
 
-	if (ckh_rebuild(ckh, tab) == false) {
+	if (!ckh_rebuild(ckh, tab)) {
 		idalloc(tsd, tab);
 #ifdef CKH_COUNT
 		ckh->nshrinks++;

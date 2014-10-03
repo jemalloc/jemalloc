@@ -121,7 +121,7 @@ chunk_recycle(extent_tree_t *chunks_szad, extent_tree_t *chunks_ad, size_t size,
 	if (node != NULL)
 		base_node_dalloc(node);
 	if (*zero) {
-		if (zeroed == false)
+		if (!zeroed)
 			memset(ret, 0, size);
 		else if (config_debug) {
 			size_t i;
@@ -136,10 +136,10 @@ chunk_recycle(extent_tree_t *chunks_szad, extent_tree_t *chunks_ad, size_t size,
 }
 
 /*
- * If the caller specifies (*zero == false), it is still possible to receive
- * zeroed memory, in which case *zero is toggled to true.  arena_chunk_alloc()
- * takes advantage of this to avoid demanding zeroed chunks, but taking
- * advantage of them if they are returned.
+ * If the caller specifies (!*zero), it is still possible to receive zeroed
+ * memory, in which case *zero is toggled to true.  arena_chunk_alloc() takes
+ * advantage of this to avoid demanding zeroed chunks, but taking advantage of
+ * them if they are returned.
  */
 static void *
 chunk_alloc_core(size_t size, size_t alignment, bool base, bool *zero,
@@ -186,7 +186,7 @@ chunk_register(void *chunk, size_t size, bool base)
 	assert(chunk != NULL);
 	assert(CHUNK_ADDR2BASE(chunk) == chunk);
 
-	if (config_ivsalloc && base == false) {
+	if (config_ivsalloc && !base) {
 		if (rtree_set(chunks_rtree, (uintptr_t)chunk, 1))
 			return (true);
 	}
@@ -288,7 +288,7 @@ chunk_record(extent_tree_t *chunks_szad, extent_tree_t *chunks_ad, void *chunk,
 		extent_tree_szad_remove(chunks_szad, node);
 		node->addr = chunk;
 		node->size += size;
-		node->zeroed = (node->zeroed && (unzeroed == false));
+		node->zeroed = (node->zeroed && !unzeroed);
 		extent_tree_szad_insert(chunks_szad, node);
 	} else {
 		/* Coalescing forward failed, so insert a new node. */
@@ -305,7 +305,7 @@ chunk_record(extent_tree_t *chunks_szad, extent_tree_t *chunks_ad, void *chunk,
 		xnode = NULL; /* Prevent deallocation below. */
 		node->addr = chunk;
 		node->size = size;
-		node->zeroed = (unzeroed == false);
+		node->zeroed = !unzeroed;
 		extent_tree_ad_insert(chunks_ad, node);
 		extent_tree_szad_insert(chunks_szad, node);
 	}

@@ -101,7 +101,7 @@ tcache_bin_flush_small(tcache_bin_t *tbin, size_t binind, unsigned rem,
 
 		malloc_mutex_lock(&bin->lock);
 		if (config_stats && arena == tcache->arena) {
-			assert(merged_stats == false);
+			assert(!merged_stats);
 			merged_stats = true;
 			bin->stats.nflushes++;
 			bin->stats.nrequests += tbin->tstats.nrequests;
@@ -132,7 +132,7 @@ tcache_bin_flush_small(tcache_bin_t *tbin, size_t binind, unsigned rem,
 		}
 		malloc_mutex_unlock(&bin->lock);
 	}
-	if (config_stats && merged_stats == false) {
+	if (config_stats && !merged_stats) {
 		/*
 		 * The flush loop didn't happen to flush to this thread's
 		 * arena, so the stats didn't get merged.  Manually do so now.
@@ -210,7 +210,7 @@ tcache_bin_flush_large(tcache_bin_t *tbin, size_t binind, unsigned rem,
 		if (config_prof && idump)
 			prof_idump();
 	}
-	if (config_stats && merged_stats == false) {
+	if (config_stats && !merged_stats) {
 		/*
 		 * The flush loop didn't happen to flush to this thread's
 		 * arena, so the stats didn't get merged.  Manually do so now.
@@ -262,7 +262,7 @@ tcache_t *
 tcache_get_hard(tsd_t *tsd)
 {
 
-	if (tcache_enabled_get() == false) {
+	if (!tcache_enabled_get()) {
 		tcache_enabled_set(false); /* Memoize. */
 		return (NULL);
 	}

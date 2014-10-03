@@ -132,7 +132,7 @@ pages_purge(void *addr, size_t length)
 #    error "No madvise(2) flag defined for purging unused dirty pages."
 #  endif
 	int err = madvise(addr, length, JEMALLOC_MADV_PURGE);
-	unzeroed = (JEMALLOC_MADV_ZEROS == false || err != 0);
+	unzeroed = (!JEMALLOC_MADV_ZEROS || err != 0);
 #  undef JEMALLOC_MADV_PURGE
 #  undef JEMALLOC_MADV_ZEROS
 #else
@@ -209,5 +209,5 @@ chunk_dalloc_mmap(void *chunk, size_t size)
 	if (config_munmap)
 		pages_unmap(chunk, size);
 
-	return (config_munmap == false);
+	return (!config_munmap);
 }

@@ -119,7 +119,7 @@ arenas_extend(unsigned ind)
 	arena_t *ret;
 
 	ret = (arena_t *)base_alloc(sizeof(arena_t));
-	if (ret != NULL && arena_new(ret, ind) == false) {
+	if (ret != NULL && !arena_new(ret, ind)) {
 		arenas[ind] = ret;
 		return (ret);
 	}
@@ -326,7 +326,7 @@ malloc_conf_next(char const **opts_p, char const **k_p, size_t *klen_p,
 
 	*k_p = opts;
 
-	for (accept = false; accept == false;) {
+	for (accept = false; !accept;) {
 		switch (*opts) {
 		case 'A': case 'B': case 'C': case 'D': case 'E': case 'F':
 		case 'G': case 'H': case 'I': case 'J': case 'K': case 'L':
@@ -361,7 +361,7 @@ malloc_conf_next(char const **opts_p, char const **k_p, size_t *klen_p,
 		}
 	}
 
-	for (accept = false; accept == false;) {
+	for (accept = false; !accept;) {
 		switch (*opts) {
 		case ',':
 			opts++;
@@ -418,7 +418,7 @@ malloc_conf_init(void)
 		in_valgrind = (RUNNING_ON_VALGRIND != 0) ? true : false;
 		if (config_fill && unlikely(in_valgrind)) {
 			opt_junk = false;
-			assert(opt_zero == false);
+			assert(!opt_zero);
 			opt_quarantine = JEMALLOC_VALGRIND_QUARANTINE_DEFAULT;
 			opt_redzone = true;
 		}
@@ -496,8 +496,8 @@ malloc_conf_init(void)
 			opts = buf;
 		}
 
-		while (*opts != '\0' && malloc_conf_next(&opts, &k, &klen, &v,
-		    &vlen) == false) {
+		while (*opts != '\0' && !malloc_conf_next(&opts, &k, &klen, &v,
+		    &vlen)) {
 #define	CONF_MATCH(n)							\
 	(sizeof(n)-1 == klen && strncmp(n, k, klen) == 0)
 #define	CONF_HANDLE_BOOL(o, n, cont)					\
@@ -607,7 +607,7 @@ malloc_conf_init(void)
 						}
 					}
 				}
-				if (match == false) {
+				if (!match) {
 					malloc_conf_error("Invalid conf value",
 					    k, klen, v, vlen);
 				}
@@ -697,13 +697,13 @@ malloc_init_hard(void)
 		return (false);
 	}
 #ifdef JEMALLOC_THREADED_INIT
-	if (malloc_initializer != NO_INITIALIZER && IS_INITIALIZER == false) {
+	if (malloc_initializer != NO_INITIALIZER && !IS_INITIALIZER) {
 		/* Busy-wait until the initializing thread completes. */
 		do {
 			malloc_mutex_unlock(&init_lock);
 			CPU_SPINWAIT;
 			malloc_mutex_lock(&init_lock);
-		} while (malloc_initialized == false);
+		} while (!malloc_initialized);
 		malloc_mutex_unlock(&init_lock);
 		return (false);
 	}
@@ -2011,7 +2011,7 @@ _malloc_prefork(void)
 	unsigned i;
 
 #ifdef JEMALLOC_MUTEX_INIT_CB
-	if (malloc_initialized == false)
+	if (!malloc_initialized)
 		return;
 #endif
 	assert(malloc_initialized);
@@ -2040,7 +2040,7 @@ _malloc_postfork(void)
 	unsigned i;
 
 #ifdef JEMALLOC_MUTEX_INIT_CB
-	if (malloc_initialized == false)
+	if (!malloc_initialized)
 		return;
 #endif
 	assert(malloc_initialized);

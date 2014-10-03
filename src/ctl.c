@@ -36,8 +36,7 @@ static inline const ctl_indexed_node_t *
 ctl_indexed_node(const ctl_node_t *node)
 {
 
-	return ((node->named == false) ? (const ctl_indexed_node_t *)node :
-	    NULL);
+	return (!node->named ? (const ctl_indexed_node_t *)node : NULL);
 }
 
 /******************************************************************************/
@@ -693,7 +692,7 @@ ctl_init(void)
 	bool ret;
 
 	malloc_mutex_lock(&ctl_mtx);
-	if (ctl_initialized == false) {
+	if (!ctl_initialized) {
 		/*
 		 * Allocate space for one extra arena stats element, which
 		 * contains summed stats across all arenas.
@@ -843,7 +842,7 @@ ctl_byname(const char *name, void *oldp, size_t *oldlenp, void *newp,
 	size_t mib[CTL_MAX_DEPTH];
 	const ctl_named_node_t *node;
 
-	if (ctl_initialized == false && ctl_init()) {
+	if (!ctl_initialized && ctl_init()) {
 		ret = EAGAIN;
 		goto label_return;
 	}
@@ -870,7 +869,7 @@ ctl_nametomib(const char *name, size_t *mibp, size_t *miblenp)
 {
 	int ret;
 
-	if (ctl_initialized == false && ctl_init()) {
+	if (!ctl_initialized && ctl_init()) {
 		ret = EAGAIN;
 		goto label_return;
 	}
@@ -888,7 +887,7 @@ ctl_bymib(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
 	const ctl_named_node_t *node;
 	size_t i;
 
-	if (ctl_initialized == false && ctl_init()) {
+	if (!ctl_initialized && ctl_init()) {
 		ret = EAGAIN;
 		goto label_return;
 	}
@@ -1015,7 +1014,7 @@ n##_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,	\
 	int ret;							\
 	t oldval;							\
 									\
-	if ((c) == false)						\
+	if (!(c))							\
 		return (ENOENT);					\
 	if (l)								\
 		malloc_mutex_lock(&ctl_mtx);				\
@@ -1038,7 +1037,7 @@ n##_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,	\
 	int ret;							\
 	t oldval;							\
 									\
-	if ((c) == false)						\
+	if (!(c))							\
 		return (ENOENT);					\
 	malloc_mutex_lock(&ctl_mtx);					\
 	READONLY();							\
@@ -1082,7 +1081,7 @@ n##_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,	\
 	int ret;							\
 	t oldval;							\
 									\
-	if ((c) == false)						\
+	if (!(c))							\
 		return (ENOENT);					\
 	READONLY();							\
 	oldval = (v);							\
@@ -1119,7 +1118,7 @@ n##_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,	\
 	t oldval;							\
 	tsd_t *tsd;							\
 									\
-	if ((c) == false)						\
+	if (!(c))							\
 		return (ENOENT);					\
 	READONLY();							\
 	tsd = tsd_tryget();						\
@@ -1291,7 +1290,7 @@ thread_tcache_enabled_ctl(const size_t *mib, size_t miblen, void *oldp,
 	int ret;
 	bool oldval;
 
-	if (config_tcache == false)
+	if (!config_tcache)
 		return (ENOENT);
 
 	oldval = tcache_enabled_get();
@@ -1315,7 +1314,7 @@ thread_tcache_flush_ctl(const size_t *mib, size_t miblen, void *oldp,
 {
 	int ret;
 
-	if (config_tcache == false)
+	if (!config_tcache)
 		return (ENOENT);
 
 	READONLY();
@@ -1335,7 +1334,7 @@ thread_prof_name_ctl(const size_t *mib, size_t miblen, void *oldp,
 	int ret;
 	const char *oldname;
 
-	if (config_prof == false)
+	if (!config_prof)
 		return (ENOENT);
 
 	oldname = prof_thread_name_get();
@@ -1372,7 +1371,7 @@ thread_prof_active_ctl(const size_t *mib, size_t miblen, void *oldp,
 	int ret;
 	bool oldval;
 
-	if (config_prof == false)
+	if (!config_prof)
 		return (ENOENT);
 
 	oldval = prof_thread_active_get();
@@ -1459,7 +1458,7 @@ arena_i_dss_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
 			}
 		}
 
-		if (match == false) {
+		if (!match) {
 			ret = EINVAL;
 			goto label_return;
 		}
@@ -1668,7 +1667,7 @@ prof_active_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
 	int ret;
 	bool oldval;
 
-	if (config_prof == false)
+	if (!config_prof)
 		return (ENOENT);
 
 	malloc_mutex_lock(&ctl_mtx); /* Protect opt_prof_active. */
@@ -1697,7 +1696,7 @@ prof_dump_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
 	int ret;
 	const char *filename = NULL;
 
-	if (config_prof == false)
+	if (!config_prof)
 		return (ENOENT);
 
 	WRITEONLY();
@@ -1721,7 +1720,7 @@ prof_reset_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
 	size_t lg_sample = lg_prof_sample;
 	tsd_t *tsd;
 
-	if (config_prof == false)
+	if (!config_prof)
 		return (ENOENT);
 
 	WRITEONLY();
@@ -1847,7 +1846,7 @@ stats_arenas_i_index(const size_t *mib, size_t miblen, size_t i)
 	const ctl_named_node_t * ret;
 
 	malloc_mutex_lock(&ctl_mtx);
-	if (i > ctl_stats.narenas || ctl_stats.arenas[i].initialized == false) {
+	if (i > ctl_stats.narenas || !ctl_stats.arenas[i].initialized) {
 		ret = NULL;
 		goto label_return;
 	}

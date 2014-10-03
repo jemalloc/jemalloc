@@ -1111,13 +1111,12 @@ arena_salloc(const void *ptr, bool demote)
 	pageind = ((uintptr_t)ptr - (uintptr_t)chunk) >> LG_PAGE;
 	assert(arena_mapbits_allocated_get(chunk, pageind) != 0);
 	binind = arena_mapbits_binind_get(chunk, pageind);
-	if (unlikely(binind == BININD_INVALID || (config_prof && demote == false
-	    && arena_mapbits_large_get(chunk, pageind) != 0))) {
+	if (unlikely(binind == BININD_INVALID || (config_prof && !demote &&
+	    arena_mapbits_large_get(chunk, pageind) != 0))) {
 		/*
-		 * Large allocation.  In the common case (demote == true), and
-		 * as this is an inline function, most callers will only end up
-		 * looking at binind to determine that ptr is a small
-		 * allocation.
+		 * Large allocation.  In the common case (demote), and as this
+		 * is an inline function, most callers will only end up looking
+		 * at binind to determine that ptr is a small allocation.
 		 */
 		assert(((uintptr_t)ptr & PAGE_MASK) == 0);
 		ret = arena_mapbits_large_size_get(chunk, pageind);

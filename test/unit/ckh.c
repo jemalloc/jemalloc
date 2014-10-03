@@ -162,8 +162,7 @@ TEST_BEGIN(test_insert_iter_remove)
 
 			memset(seen, 0, sizeof(seen));
 
-			for (tabind = 0; ckh_iter(&ckh, &tabind, &q, &r) ==
-			    false;) {
+			for (tabind = 0; !ckh_iter(&ckh, &tabind, &q, &r);) {
 				size_t k;
 
 				assert_ptr_eq(q, r, "Key and val not equal");

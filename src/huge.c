@@ -62,10 +62,10 @@ huge_palloc(tsd_t *tsd, arena_t *arena, size_t size, size_t alignment,
 	extent_tree_ad_insert(&huge, node);
 	malloc_mutex_unlock(&huge_mtx);
 
-	if (config_fill && zero == false) {
+	if (config_fill && !zero) {
 		if (unlikely(opt_junk))
 			memset(ret, 0xa5, csize);
-		else if (unlikely(opt_zero) && is_zeroed == false)
+		else if (unlikely(opt_zero) && !is_zeroed)
 			memset(ret, 0, csize);
 	}
 
@@ -85,7 +85,7 @@ huge_dalloc_junk(void *ptr, size_t usize)
 		 * Only bother junk filling if the chunk isn't about to be
 		 * unmapped.
 		 */
-		if (config_munmap == false || (have_dss && chunk_in_dss(ptr)))
+		if (!config_munmap || (have_dss && chunk_in_dss(ptr)))
 			memset(ptr, 0x5a, usize);
 	}
 }
@@ -156,7 +156,7 @@ huge_ralloc(tsd_t *tsd, arena_t *arena, void *ptr, size_t oldsize, size_t size,
 	size_t copysize;
 
 	/* Try to avoid moving the allocation. */
-	if (huge_ralloc_no_move(ptr, oldsize, size, extra) == false)
+	if (!huge_ralloc_no_move(ptr, oldsize, size, extra))
 		return (ptr);
 
 	/*

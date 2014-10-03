@@ -191,9 +191,9 @@ tcache_get(tsd_t *tsd, bool create)
 {
 	tcache_t *tcache;
 
-	if (config_tcache == false)
+	if (!config_tcache)
 		return (NULL);
-	if (config_lazy_lock && isthreaded == false)
+	if (config_lazy_lock && !isthreaded)
 		return (NULL);
 	/*
 	 * If create is true, the caller has already assured that tsd is
@@ -261,7 +261,7 @@ tcache_alloc_small(tcache_t *tcache, size_t size, bool zero)
 	}
 	assert(tcache_salloc(ret) == size);
 
-	if (likely(zero == false)) {
+	if (likely(!zero)) {
 		if (config_fill) {
 			if (unlikely(opt_junk)) {
 				arena_alloc_junk_small(ret,
@@ -315,7 +315,7 @@ tcache_alloc_large(tcache_t *tcache, size_t size, bool zero)
 			arena_mapbits_large_binind_set(chunk, pageind,
 			    BININD_INVALID);
 		}
-		if (likely(zero == false)) {
+		if (likely(!zero)) {
 			if (config_fill) {
 				if (unlikely(opt_junk))
 					memset(ret, 0xa5, size);

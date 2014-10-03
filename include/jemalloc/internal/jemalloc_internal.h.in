@@ -714,7 +714,7 @@ isalloc(const void *ptr, bool demote)
 
 	assert(ptr != NULL);
 	/* Demotion only makes sense if config_prof is true. */
-	assert(config_prof || demote == false);
+	assert(config_prof || !demote);
 
 	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
 	if (chunk != ptr)

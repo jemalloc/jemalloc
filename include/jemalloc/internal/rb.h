@@ -593,7 +593,7 @@ a_prefix##remove(a_rbt_type *rbtree, a_type *node) {			\
 	if (left != &rbtree->rbt_nil) {					\
 	    /* node has no successor, but it has a left child.        */\
 	    /* Splice node out, without losing the left child.        */\
-	    assert(rbtn_red_get(a_type, a_field, node) == false);	\
+	    assert(!rbtn_red_get(a_type, a_field, node));		\
 	    assert(rbtn_red_get(a_type, a_field, left));		\
 	    rbtn_black_set(a_type, a_field, left);			\
 	    if (pathp == path) {					\
@@ -629,8 +629,7 @@ a_prefix##remove(a_rbt_type *rbtree, a_type *node) {			\
 	if (pathp->cmp < 0) {						\
 	    rbtn_left_set(a_type, a_field, pathp->node,			\
 	      pathp[1].node);						\
-	    assert(rbtn_red_get(a_type, a_field, pathp[1].node)		\
-	      == false);						\
+	    assert(!rbtn_red_get(a_type, a_field, pathp[1].node));	\
 	    if (rbtn_red_get(a_type, a_field, pathp->node)) {		\
 		a_type *right = rbtn_right_get(a_type, a_field,		\
 		  pathp->node);						\
@@ -862,7 +861,7 @@ a_prefix##remove(a_rbt_type *rbtree, a_type *node) {			\
     }									\
     /* Set root. */							\
     rbtree->rbt_root = path->node;					\
-    assert(rbtn_red_get(a_type, a_field, rbtree->rbt_root) == false);	\
+    assert(!rbtn_red_get(a_type, a_field, rbtree->rbt_root));		\
 }									\
 a_attr a_type *								\
 a_prefix##iter_recurse(a_rbt_type *rbtree, a_type *node,		\

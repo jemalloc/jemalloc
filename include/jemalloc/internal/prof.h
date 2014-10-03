@@ -388,7 +388,7 @@ prof_sample_accum_update(tsd_t *tsd, size_t usize, bool update,
 		/* Compute new sample threshold. */
 		if (update)
 			prof_sample_threshold_update(tdata);
-		return (tdata->active == false);
+		return (!tdata->active);
 	}
 }
 

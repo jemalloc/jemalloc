@@ -232,7 +232,7 @@ prof_enter(prof_tdata_t *tdata)
 
 	cassert(config_prof);
 
-	assert(tdata->enq == false);
+	assert(!tdata->enq);
 	tdata->enq = true;
 
 	malloc_mutex_lock(&bt2gctx_mtx);
@@ -578,7 +578,7 @@ prof_gctx_should_destroy(prof_gctx_t *gctx)
 
 	if (opt_prof_accum)
 		return (false);
-	if (tctx_tree_empty(&gctx->tctxs) == false)
+	if (!tctx_tree_empty(&gctx->tctxs))
 		return (false);
 	if (gctx->nlimbo != 0)
 		return (false);
@@ -595,7 +595,7 @@ prof_tctx_destroy(tsd_t *tsd, prof_tctx_t *tctx)
 
 	assert(tctx->cnts.curobjs == 0);
 	assert(tctx->cnts.curbytes == 0);
-	assert(opt_prof_accum == false);
+	assert(!opt_prof_accum);
 	assert(tctx->cnts.accumobjs == 0);
 	assert(tctx->cnts.accumbytes == 0);
 
@@ -858,7 +858,7 @@ prof_dump_open(bool propagate_err, const char *filename)
 	int fd;
 
 	fd = creat(filename, 0644);
-	if (fd == -1 && propagate_err == false) {
+	if (fd == -1 && !propagate_err) {
 		malloc_printf("<jemalloc>: creat(\"%s\"), 0644) failed\n",
 		    filename);
 		if (opt_abort)
@@ -883,7 +883,7 @@ prof_dump_flush(bool propagate_err)
 
 	err = write(prof_dump_fd, prof_dump_buf, prof_dump_buf_end);
 	if (err == -1) {
-		if (propagate_err == false) {
+		if (!propagate_err) {
 			malloc_write("<jemalloc>: write() failed during heap "
 			    "profile flush\n");
 			if (opt_abort)
@@ -1145,8 +1145,8 @@ prof_tdata_merge_iter(prof_tdata_tree_t *tdatas, prof_tdata_t *tdata, void *arg)
 
 		tdata->dumping = true;
 		memset(&tdata->cnt_summed, 0, sizeof(prof_cnt_t));
-		for (tabind = 0; ckh_iter(&tdata->bt2tctx, &tabind, NULL,
-		    &tctx.v) == false;)
+		for (tabind = 0; !ckh_iter(&tdata->bt2tctx, &tabind, NULL,
+		    &tctx.v);)
 			prof_tctx_merge_tdata(tctx.p, tdata);
 
 		cnt_all->curobjs += tdata->cnt_summed.curobjs;
@@ -1167,7 +1167,7 @@ prof_tdata_dump_iter(prof_tdata_tree_t *tdatas, prof_tdata_t *tdata, void *arg)
 {
 	bool propagate_err = *(bool *)arg;
 
-	if (tdata->dumping == false)
+	if (!tdata->dumping)
 		return (NULL);
 
 	if (prof_dump_printf(propagate_err,
@@ -1220,7 +1220,7 @@ prof_dump_gctx(bool propagate_err, prof_gctx_t *gctx, const prof_bt_t *bt,
 	cassert(config_prof);
 
 	/* Avoid dumping such gctx's that have no useful data. */
-	if ((opt_prof_accum == false && gctx->cnt_summed.curobjs == 0) ||
+	if ((!opt_prof_accum && gctx->cnt_summed.curobjs == 0) ||
 	    (opt_prof_accum && gctx->cnt_summed.accumobjs == 0)) {
 		assert(gctx->cnt_summed.curobjs == 0);
 		assert(gctx->cnt_summed.curbytes == 0);
@@ -1374,7 +1374,7 @@ prof_dump(tsd_t *tsd, bool propagate_err, const char *filename, bool leakcheck)
 	 * summing.
 	 */
 	gctx_tree_new(&gctxs);
-	for (tabind = 0; ckh_iter(&bt2gctx, &tabind, NULL, &gctx.v) == false;)
+	for (tabind = 0; !ckh_iter(&bt2gctx, &tabind, NULL, &gctx.v);)
 		prof_dump_gctx_prep(gctx.p, &gctxs);
 
 	/*
@@ -1457,7 +1457,7 @@ prof_fdump(void)
 
 	cassert(config_prof);
 
-	if (prof_booted == false)
+	if (!prof_booted)
 		return;
 	if ((tsd = tsd_tryget()) == NULL)
 		return;
@@ -1479,7 +1479,7 @@ prof_idump(void)
 
 	cassert(config_prof);
 
-	if (prof_booted == false)
+	if (!prof_booted)
 		return;
 	if ((tsd = tsd_tryget()) == NULL)
 		return;
@@ -1508,7 +1508,7 @@ prof_mdump(const char *filename)
 
 	cassert(config_prof);
 
-	if (opt_prof == false || prof_booted == false)
+	if (!opt_prof || !prof_booted)
 		return (true);
 	if ((tsd = tsd_tryget()) == NULL)
 		return (true);
@@ -1535,7 +1535,7 @@ prof_gdump(void)
 
 	cassert(config_prof);
 
-	if (prof_booted == false)
+	if (!prof_booted)
 		return;
 	if ((tsd = tsd_tryget()) == NULL)
 		return;
@@ -1855,7 +1855,7 @@ prof_boot1(void)
 	 * initialized, so this function must be executed early.
 	 */
 
-	if (opt_prof_leak && opt_prof == false) {
+	if (opt_prof_leak && !opt_prof) {
 		/*
 		 * Enable opt_prof, but in such a way that profiles are never
 		 * automatically dumped.

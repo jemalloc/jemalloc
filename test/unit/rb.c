@@ -5,7 +5,7 @@
     for (rbp_bh_t = (a_rbt)->rbt_root, (r_height) = 0;			\
       rbp_bh_t != &(a_rbt)->rbt_nil;					\
       rbp_bh_t = rbtn_left_get(a_type, a_field, rbp_bh_t)) {		\
-	if (rbtn_red_get(a_type, a_field, rbp_bh_t) == false) {		\
+	if (!rbtn_red_get(a_type, a_field, rbp_bh_t)) {			\
 	    (r_height)++;						\
 	}								\
     }									\
@@ -75,7 +75,7 @@ tree_recurse(node_t *node, unsigned black_height, unsigned black_depth,
 	node_t *left_node = rbtn_left_get(node_t, link, node);
 	node_t *right_node = rbtn_right_get(node_t, link, node);
 
-	if (rbtn_red_get(node_t, link, node) == false)
+	if (!rbtn_red_get(node_t, link, node))
 		black_depth++;
 
 	/* Red nodes must be interleaved with black nodes. */

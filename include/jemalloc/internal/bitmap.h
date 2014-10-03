@@ -139,7 +139,7 @@ bitmap_set(bitmap_t *bitmap, const bitmap_info_t *binfo, size_t bit)
 	bitmap_t g;
 
 	assert(bit < binfo->nbits);
-	assert(bitmap_get(bitmap, binfo, bit) == false);
+	assert(!bitmap_get(bitmap, binfo, bit));
 	goff = bit >> LG_BITMAP_GROUP_NBITS;
 	gp = &bitmap[goff];
 	g = *gp;
@@ -172,7 +172,7 @@ bitmap_sfu(bitmap_t *bitmap, const bitmap_info_t *binfo)
 	bitmap_t g;
 	unsigned i;
 
-	assert(bitmap_full(bitmap, binfo) == false);
+	assert(!bitmap_full(bitmap, binfo));
 
 	i = binfo->nlevels - 1;
 	g = bitmap[binfo->levels[i].group_offset];
@@ -204,7 +204,7 @@ bitmap_unset(bitmap_t *bitmap, const bitmap_info_t *binfo, size_t bit)
 	assert((g & (1LU << (bit & BITMAP_GROUP_NBITS_MASK))) == 0);
 	g ^= 1LU << (bit & BITMAP_GROUP_NBITS_MASK);
 	*gp = g;
-	assert(bitmap_get(bitmap, binfo, bit) == false);
+	assert(!bitmap_get(bitmap, binfo, bit));
 	/* Propagate group state transitions up the tree. */
 	if (propagate) {
 		unsigned i;
@@ -218,7 +218,7 @@ bitmap_unset(bitmap_t *bitmap, const bitmap_info_t *binfo, size_t bit)
 			    == 0);
 			g ^= 1LU << (bit & BITMAP_GROUP_NBITS_MASK);
 			*gp = g;
-			if (propagate == false)
+			if (!propagate)
 				break;
 		}
 	}
