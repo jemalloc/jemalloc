@@ -1547,7 +1547,8 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         </term>
         <listitem><para>Reset all memory profile statistics, and optionally
         update the sample rate (see <link
-        linkend="opt.lg_prof_sample"><mallctl>opt.lg_prof_sample</mallctl></link>).
+        linkend="opt.lg_prof_sample"><mallctl>opt.lg_prof_sample</mallctl></link>
+        and <link linkend="prof.lg_sample"><mallctl>prof.lg_sample</mallctl>).
         </para></listitem>
       </varlistentry>
 
@@ -1558,7 +1559,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
           <literal>r-</literal>
           [<option>--enable-prof</option>]
         </term>
-        <listitem><para>Get the sample rate (see <link
+        <listitem><para>Get the current sample rate (see <link
         linkend="opt.lg_prof_sample"><mallctl>opt.lg_prof_sample</mallctl></link>).
         </para></listitem>
       </varlistentry>

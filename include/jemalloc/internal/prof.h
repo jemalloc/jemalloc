@@ -151,22 +151,23 @@ struct prof_gctx_s {
 };
 typedef rb_tree(prof_gctx_t) prof_gctx_tree_t;
 
-typedef enum {
-	prof_tdata_state_attached, /* Active thread attached, data valid. */
-	prof_tdata_state_detached, /* Defunct thread, data remain valid. */
-	prof_tdata_state_expired   /* Predates reset, omit data from dump. */
-} prof_tdata_state_t;
-
 struct prof_tdata_s {
 	malloc_mutex_t		*lock;
 
 	/* Monotonically increasing unique thread identifier. */
 	uint64_t		thr_uid;
 
+	/*
+	 * Monotonically increasing discriminator among tdata structures
+	 * associated with the same thr_uid.
+	 */
+	uint64_t		thr_discrim;
+
 	/* Included in heap profile dumps if non-NULL. */
 	char			*thread_name;
 
-	prof_tdata_state_t	state;
+	bool			attached;
+	bool			expired;
 
 	rb_node(prof_tdata_t)	tdata_link;
 
@@ -257,9 +258,13 @@ void	bt_init(prof_bt_t *bt, void **vec);
 void	prof_backtrace(prof_bt_t *bt);
 prof_tctx_t	*prof_lookup(tsd_t *tsd, prof_bt_t *bt);
 #ifdef JEMALLOC_JET
+size_t	prof_tdata_count(void);
 size_t	prof_bt_count(void);
+const prof_cnt_t *prof_cnt_all(void);
 typedef int (prof_dump_open_t)(bool, const char *);
 extern prof_dump_open_t *prof_dump_open;
+typedef bool (prof_dump_header_t)(bool, const prof_cnt_t *);
+extern prof_dump_header_t *prof_dump_header;
 #endif
 void	prof_idump(void);
 bool	prof_mdump(const char *filename);
@@ -312,12 +317,11 @@ prof_tdata_get(tsd_t *tsd, bool create)
 		if (unlikely(tdata == NULL)) {
 			tdata = prof_tdata_init(tsd);
 			tsd_prof_tdata_set(tsd, tdata);
-		} else if (unlikely(tdata->state == prof_tdata_state_expired)) {
+		} else if (unlikely(tdata->expired)) {
 			tdata = prof_tdata_reinit(tsd, tdata);
 			tsd_prof_tdata_set(tsd, tdata);
 		}
-		assert(tdata == NULL ||
-		    tdata->state == prof_tdata_state_attached);
+		assert(tdata == NULL || tdata->attached);
 	}
 
 	return (tdata);

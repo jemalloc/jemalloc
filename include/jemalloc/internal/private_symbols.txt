@@ -292,6 +292,7 @@ prof_boot0
 prof_boot1
 prof_boot2
 prof_bt_count
+prof_dump_header
 prof_dump_open
 prof_free
 prof_free_sampled_object
