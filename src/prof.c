@@ -116,8 +116,10 @@ static bool		prof_booted = false;
 
 static bool	prof_tctx_should_destroy(prof_tctx_t *tctx);
 static void	prof_tctx_destroy(tsd_t *tsd, prof_tctx_t *tctx);
-static bool	prof_tdata_should_destroy(prof_tdata_t *tdata);
-static void	prof_tdata_destroy(tsd_t *tsd, prof_tdata_t *tdata);
+static bool	prof_tdata_should_destroy(prof_tdata_t *tdata,
+    bool even_if_attached);
+static void	prof_tdata_destroy(tsd_t *tsd, prof_tdata_t *tdata,
+    bool even_if_attached);
 static char	*prof_thread_name_alloc(tsd_t *tsd, const char *thread_name);
 
 /******************************************************************************/
@@ -616,7 +618,7 @@ prof_tctx_destroy(tsd_t *tsd, prof_tctx_t *tctx)
 	assert(tctx->cnts.accumbytes == 0);
 
 	ckh_remove(tsd, &tdata->bt2tctx, &gctx->bt, NULL, NULL);
-	destroy_tdata = prof_tdata_should_destroy(tdata);
+	destroy_tdata = prof_tdata_should_destroy(tdata, false);
 	malloc_mutex_unlock(tdata->lock);
 
 	malloc_mutex_lock(gctx->lock);
@@ -644,7 +646,7 @@ prof_tctx_destroy(tsd_t *tsd, prof_tctx_t *tctx)
 		prof_gctx_try_destroy(tsd, gctx, tdata);
 
 	if (destroy_tdata)
-		prof_tdata_destroy(tsd, tdata);
+		prof_tdata_destroy(tsd, tdata, false);
 
 	idalloc(tsd, tctx);
 }
@@ -1656,10 +1658,10 @@ prof_tdata_init(tsd_t *tsd)
 
 /* tdata->lock must be held. */
 static bool
-prof_tdata_should_destroy(prof_tdata_t *tdata)
+prof_tdata_should_destroy(prof_tdata_t *tdata, bool even_if_attached)
 {
 
-	if (tdata->attached)
+	if (tdata->attached && !even_if_attached)
 		return (false);
 	if (ckh_count(&tdata->bt2tctx) != 0)
 		return (false);
@@ -1668,10 +1670,11 @@ prof_tdata_should_destroy(prof_tdata_t *tdata)
 
 /* tdatas_mtx must be held. */
 static void
-prof_tdata_destroy_locked(tsd_t *tsd, prof_tdata_t *tdata)
+prof_tdata_destroy_locked(tsd_t *tsd, prof_tdata_t *tdata,
+    bool even_if_attached)
 {
 
-	assert(prof_tdata_should_destroy(tdata));
+	assert(prof_tdata_should_destroy(tdata, even_if_attached));
 	assert(tsd_prof_tdata_get(tsd) != tdata);
 
 	tdata_tree_remove(&tdatas, tdata);
@@ -1683,11 +1686,11 @@ prof_tdata_destroy_locked(tsd_t *tsd, prof_tdata_t *tdata)
 }
 
 static void
-prof_tdata_destroy(tsd_t *tsd, prof_tdata_t *tdata)
+prof_tdata_destroy(tsd_t *tsd, prof_tdata_t *tdata, bool even_if_attached)
 {
 
 	malloc_mutex_lock(&tdatas_mtx);
-	prof_tdata_destroy_locked(tsd, tdata);
+	prof_tdata_destroy_locked(tsd, tdata, even_if_attached);
 	malloc_mutex_unlock(&tdatas_mtx);
 }
 
@@ -1698,14 +1701,19 @@ prof_tdata_detach(tsd_t *tsd, prof_tdata_t *tdata)
 
 	malloc_mutex_lock(tdata->lock);
 	if (tdata->attached) {
-		tdata->attached = false;
-		destroy_tdata = prof_tdata_should_destroy(tdata);
+		destroy_tdata = prof_tdata_should_destroy(tdata, true);
+		/*
+		 * Only detach if !destroy_tdata, because detaching would allow
+		 * another thread to win the race to destroy tdata.
+		 */
+		if (!destroy_tdata)
+			tdata->attached = false;
 		tsd_prof_tdata_set(tsd, NULL);
 	} else
 		destroy_tdata = false;
 	malloc_mutex_unlock(tdata->lock);
 	if (destroy_tdata)
-		prof_tdata_destroy(tsd, tdata);
+		prof_tdata_destroy(tsd, tdata, true);
 }
 
 prof_tdata_t *
@@ -1731,7 +1739,7 @@ prof_tdata_expire(prof_tdata_t *tdata)
 	if (!tdata->expired) {
 		tdata->expired = true;
 		destroy_tdata = tdata->attached ? false :
-		    prof_tdata_should_destroy(tdata);
+		    prof_tdata_should_destroy(tdata, false);
 	} else
 		destroy_tdata = false;
 	malloc_mutex_unlock(tdata->lock);
@@ -1764,8 +1772,7 @@ prof_reset(tsd_t *tsd, size_t lg_sample)
 		    prof_tdata_reset_iter, NULL);
 		if (to_destroy != NULL) {
 			next = tdata_tree_next(&tdatas, to_destroy);
-			tdata_tree_remove(&tdatas, to_destroy);
-			prof_tdata_destroy(tsd, to_destroy);
+			prof_tdata_destroy_locked(tsd, to_destroy, false);
 		} else
 			next = NULL;
 	} while (next != NULL);
