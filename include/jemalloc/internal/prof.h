@@ -308,7 +308,7 @@ void	prof_free(tsd_t *tsd, const void *ptr, size_t usize);
 #endif
 
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_PROF_C_))
-JEMALLOC_INLINE bool
+JEMALLOC_ALWAYS_INLINE bool
 prof_active_get_unlocked(void)
 {
 
@@ -321,7 +321,7 @@ prof_active_get_unlocked(void)
 	return (prof_active);
 }
 
-JEMALLOC_INLINE prof_tdata_t *
+JEMALLOC_ALWAYS_INLINE prof_tdata_t *
 prof_tdata_get(tsd_t *tsd, bool create)
 {
 	prof_tdata_t *tdata;
@@ -345,7 +345,7 @@ prof_tdata_get(tsd_t *tsd, bool create)
 	return (tdata);
 }
 
-JEMALLOC_INLINE prof_tctx_t *
+JEMALLOC_ALWAYS_INLINE prof_tctx_t *
 prof_tctx_get(const void *ptr)
 {
 	prof_tctx_t *ret;
@@ -364,7 +364,7 @@ prof_tctx_get(const void *ptr)
 	return (ret);
 }
 
-JEMALLOC_INLINE void
+JEMALLOC_ALWAYS_INLINE void
 prof_tctx_set(const void *ptr, prof_tctx_t *tctx)
 {
 	arena_chunk_t *chunk;
@@ -380,7 +380,7 @@ prof_tctx_set(const void *ptr, prof_tctx_t *tctx)
 		huge_prof_tctx_set(ptr, tctx);
 }
 
-JEMALLOC_INLINE bool
+JEMALLOC_ALWAYS_INLINE bool
 prof_sample_accum_update(tsd_t *tsd, size_t usize, bool update,
     prof_tdata_t **tdata_out)
 {
@@ -410,7 +410,7 @@ prof_sample_accum_update(tsd_t *tsd, size_t usize, bool update,
 	}
 }
 
-JEMALLOC_INLINE prof_tctx_t *
+JEMALLOC_ALWAYS_INLINE prof_tctx_t *
 prof_alloc_prep(tsd_t *tsd, size_t usize, bool update)
 {
 	prof_tctx_t *ret;
@@ -431,7 +431,7 @@ prof_alloc_prep(tsd_t *tsd, size_t usize, bool update)
 	return (ret);
 }
 
-JEMALLOC_INLINE void
+JEMALLOC_ALWAYS_INLINE void
 prof_malloc(const void *ptr, size_t usize, prof_tctx_t *tctx)
 {
 
@@ -445,7 +445,7 @@ prof_malloc(const void *ptr, size_t usize, prof_tctx_t *tctx)
 		prof_tctx_set(ptr, (prof_tctx_t *)(uintptr_t)1U);
 }
 
-JEMALLOC_INLINE void
+JEMALLOC_ALWAYS_INLINE void
 prof_realloc(tsd_t *tsd, const void *ptr, size_t usize, prof_tctx_t *tctx,
     bool updated, size_t old_usize, prof_tctx_t *old_tctx)
 {
@@ -475,7 +475,7 @@ prof_realloc(tsd_t *tsd, const void *ptr, size_t usize, prof_tctx_t *tctx,
 		prof_tctx_set(ptr, (prof_tctx_t *)(uintptr_t)1U);
 }
 
-JEMALLOC_INLINE void
+JEMALLOC_ALWAYS_INLINE void
 prof_free(tsd_t *tsd, const void *ptr, size_t usize)
 {
 	prof_tctx_t *tctx = prof_tctx_get(ptr);
