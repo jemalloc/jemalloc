@@ -49,16 +49,19 @@ typedef enum {
  * Note that all of the functions deal in terms of (a_type *) rather than
  * (a_type)  so that it is possible to support non-pointer types (unlike
  * pthreads TSD).  example_tsd_cleanup() is passed an (a_type *) pointer that is
- * cast to (void *).  This means that the cleanup function needs to cast *and*
- * dereference the function argument, e.g.:
+ * cast to (void *).  This means that the cleanup function needs to cast the
+ * function argument to (a_type *), then dereference the resulting pointer to
+ * access fields, e.g.
  *
- *   bool
+ *   void
  *   example_tsd_cleanup(void *arg)
  *   {
- *           example_t *example = *(example_t **)arg;
+ *           example_t *example = (example_t *)arg;
  *
+ *           example->x = 42;
  *           [...]
- *           return ([want the cleanup function to be called again]);
+ *           if ([want the cleanup function to be called again])
+ *                   example_tsd_set(example);
  *   }
  *
  * If example_tsd_set() is called within example_tsd_cleanup(), it will be
@@ -468,7 +471,8 @@ void	tsd_cleanup(void *arg);
 #ifndef JEMALLOC_ENABLE_INLINE
 malloc_tsd_protos(JEMALLOC_ATTR(unused), , tsd_t)
 
-tsd_t	*tsd_tryget(void);
+tsd_t	*tsd_fetch(void);
+bool	tsd_nominal(tsd_t *tsd);
 #define	O(n, t)								\
 t	*tsd_##n##p_get(tsd_t *tsd);					\
 t	tsd_##n##_get(tsd_t *tsd);					\
@@ -481,50 +485,53 @@ MALLOC_TSD
 malloc_tsd_externs(, tsd_t)
 malloc_tsd_funcs(JEMALLOC_ALWAYS_INLINE, , tsd_t, tsd_initializer, tsd_cleanup)
 
-JEMALLOC_INLINE tsd_t *
-tsd_tryget(void)
+JEMALLOC_ALWAYS_INLINE tsd_t *
+tsd_fetch(void)
 {
-	tsd_t *tsd;
+	tsd_t *tsd = tsd_get();
 
-	tsd = tsd_get();
-	if (unlikely(tsd == NULL))
-		return (NULL);
-
-	if (likely(tsd->state == tsd_state_nominal))
-		return (tsd);
-	else if (tsd->state == tsd_state_uninitialized) {
-		tsd->state = tsd_state_nominal;
-		tsd_set(tsd);
-		return (tsd);
-	} else if (tsd->state == tsd_state_purgatory) {
-		tsd->state = tsd_state_reincarnated;
-		tsd_set(tsd);
-		return (NULL);
-	} else {
-		assert(tsd->state == tsd_state_reincarnated);
-		return (NULL);
+	if (unlikely(tsd->state != tsd_state_nominal)) {
+		if (tsd->state == tsd_state_uninitialized) {
+			tsd->state = tsd_state_nominal;
+			/* Trigger cleanup handler registration. */
+			tsd_set(tsd);
+		} else if (tsd->state == tsd_state_purgatory) {
+			tsd->state = tsd_state_reincarnated;
+			tsd_set(tsd);
+		} else
+			assert(tsd->state == tsd_state_reincarnated);
 	}
+
+	return (tsd);
+}
+
+JEMALLOC_INLINE bool
+tsd_nominal(tsd_t *tsd)
+{
+
+	return (tsd->state == tsd_state_nominal);
 }
 
 #define	O(n, t)								\
-JEMALLOC_INLINE t *							\
+JEMALLOC_ALWAYS_INLINE t *						\
 tsd_##n##p_get(tsd_t *tsd)						\
 {									\
 									\
 	return (&tsd->n);						\
 }									\
 									\
-JEMALLOC_INLINE t							\
+JEMALLOC_ALWAYS_INLINE t						\
 tsd_##n##_get(tsd_t *tsd)						\
 {									\
 									\
 	return (*tsd_##n##p_get(tsd));					\
 }									\
 									\
-JEMALLOC_INLINE void							\
+JEMALLOC_ALWAYS_INLINE void						\
 tsd_##n##_set(tsd_t *tsd, t n)						\
 {									\
 									\
+	assert(tsd->state == tsd_state_nominal);			\
 	tsd->n = n;							\
 }
 MALLOC_TSD

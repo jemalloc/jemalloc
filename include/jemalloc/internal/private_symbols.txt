@@ -390,12 +390,14 @@ tsd_arena_set
 tsd_boot
 tsd_cleanup
 tsd_cleanup_wrapper
+tsd_fetch
 tsd_get
 tsd_get_wrapper
 tsd_initialized
 tsd_init_check_recursion
 tsd_init_finish
 tsd_init_head
+tsd_nominal
 tsd_quarantine_get
 tsd_quarantine_set
 tsd_set
@@ -411,7 +413,6 @@ tsd_thread_allocated_get
 tsd_thread_allocated_set
 tsd_thread_deallocated_get
 tsd_thread_deallocated_set
-tsd_tryget
 u2rz
 valgrind_freelike_block
 valgrind_make_mem_defined

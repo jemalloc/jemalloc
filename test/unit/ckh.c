@@ -5,8 +5,7 @@ TEST_BEGIN(test_new_delete)
 	tsd_t *tsd;
 	ckh_t ckh;
 
-	tsd = tsd_tryget();
-	assert_ptr_not_null(tsd, "Unexpected tsd failure");
+	tsd = tsd_fetch();
 
 	assert_false(ckh_new(tsd, &ckh, 2, ckh_string_hash, ckh_string_keycomp),
 	    "Unexpected ckh_new() error");
@@ -31,8 +30,7 @@ TEST_BEGIN(test_count_insert_search_remove)
 	const char *missing = "A string not in the hash table.";
 	size_t i;
 
-	tsd = tsd_tryget();
-	assert_ptr_not_null(tsd, "Unexpected tsd failure");
+	tsd = tsd_fetch();
 
 	assert_false(ckh_new(tsd, &ckh, 2, ckh_string_hash, ckh_string_keycomp),
 	    "Unexpected ckh_new() error");
@@ -116,8 +114,7 @@ TEST_BEGIN(test_insert_iter_remove)
 	void *q, *r;
 	size_t i;
 
-	tsd = tsd_tryget();
-	assert_ptr_not_null(tsd, "Unexpected tsd failure");
+	tsd = tsd_fetch();
 
 	assert_false(ckh_new(tsd, &ckh, 2, ckh_pointer_hash,
 	    ckh_pointer_keycomp), "Unexpected ckh_new() error");

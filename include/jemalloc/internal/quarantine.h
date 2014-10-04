@@ -49,8 +49,8 @@ quarantine_alloc_hook(void)
 
 	assert(config_fill && opt_quarantine);
 
-	tsd = tsd_tryget();
-	if (tsd != NULL && tsd_quarantine_get(tsd) == NULL)
+	tsd = tsd_fetch();
+	if (tsd_quarantine_get(tsd) == NULL && tsd_nominal(tsd))
 		tsd_quarantine_set(tsd, quarantine_init(tsd, LG_MAXOBJS_INIT));
 }
 #endif

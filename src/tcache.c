@@ -263,7 +263,8 @@ tcache_get_hard(tsd_t *tsd)
 {
 
 	if (!tcache_enabled_get()) {
-		tcache_enabled_set(false); /* Memoize. */
+		if (tsd_nominal(tsd))
+			tcache_enabled_set(false); /* Memoize. */
 		return (NULL);
 	}
 	return (tcache_create(choose_arena(tsd, NULL)));

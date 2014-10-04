@@ -571,9 +571,7 @@ ctl_grow(void)
 	ctl_arena_stats_t *astats;
 	arena_t **tarenas;
 
-	tsd = tsd_tryget();
-	if (tsd == NULL)
-		return (true);
+	tsd = tsd_fetch();
 
 	/* Allocate extended arena stats and arenas arrays. */
 	astats = (ctl_arena_stats_t *)imalloc(tsd, (ctl_stats.narenas + 2) *
@@ -1132,11 +1130,7 @@ n##_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,	\
 	if (!(c))							\
 		return (ENOENT);					\
 	READONLY();							\
-	tsd = tsd_tryget();						\
-	if (tsd == NULL) {						\
-		ret = EAGAIN;						\
-		goto label_return;					\
-	}								\
+	tsd = tsd_fetch();						\
 	oldval = (m(tsd));						\
 	READ(oldval, t);						\
 									\
@@ -1239,9 +1233,7 @@ thread_arena_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
 	tsd_t *tsd;
 	unsigned newind, oldind;
 
-	tsd = tsd_tryget();
-	if (tsd == NULL)
-		return (EAGAIN);
+	tsd = tsd_fetch();
 
 	malloc_mutex_lock(&ctl_mtx);
 	newind = oldind = choose_arena(tsd, NULL)->ind;
@@ -1359,11 +1351,7 @@ thread_prof_name_ctl(const size_t *mib, size_t miblen, void *oldp,
 			goto label_return;
 		}
 
-		tsd = tsd_tryget();
-		if (tsd == NULL) {
-			ret = EAGAIN;
-			goto label_return;
-		}
+		tsd = tsd_fetch();
 
 		if ((ret = prof_thread_name_set(tsd, *(const char **)newp)) !=
 		    0)
@@ -1763,11 +1751,7 @@ prof_reset_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
 	if (lg_sample >= (sizeof(uint64_t) << 3))
 		lg_sample = (sizeof(uint64_t) << 3) - 1;
 
-	tsd = tsd_tryget();
-	if (tsd == NULL) {
-		ret = EAGAIN;
-		goto label_return;
-	}
+	tsd = tsd_fetch();
 
 	prof_reset(tsd, lg_sample);
 

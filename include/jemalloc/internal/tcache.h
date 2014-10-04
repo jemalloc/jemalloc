@@ -142,9 +142,8 @@ tcache_flush(void)
 
 	cassert(config_tcache);
 
-	tsd = tsd_tryget();
-	if (tsd != NULL)
-		tcache_cleanup(tsd);
+	tsd = tsd_fetch();
+	tcache_cleanup(tsd);
 }
 
 JEMALLOC_INLINE bool
@@ -155,9 +154,7 @@ tcache_enabled_get(void)
 
 	cassert(config_tcache);
 
-	tsd = tsd_tryget();
-	if (tsd == NULL)
-		return (false);
+	tsd = tsd_fetch();
 	tcache_enabled = tsd_tcache_enabled_get(tsd);
 	if (tcache_enabled == tcache_enabled_default) {
 		tcache_enabled = (tcache_enabled_t)opt_tcache;
@@ -175,9 +172,7 @@ tcache_enabled_set(bool enabled)
 
 	cassert(config_tcache);
 
-	tsd = tsd_tryget();
-	if (tsd == NULL)
-		return;
+	tsd = tsd_fetch();
 
 	tcache_enabled = (tcache_enabled_t)enabled;
 	tsd_tcache_enabled_set(tsd, tcache_enabled);
@@ -195,17 +190,11 @@ tcache_get(tsd_t *tsd, bool create)
 		return (NULL);
 	if (config_lazy_lock && !isthreaded)
 		return (NULL);
-	/*
-	 * If create is true, the caller has already assured that tsd is
-	 * non-NULL.
-	 */
-	if (!create && unlikely(tsd == NULL))
-		return (NULL);
 
 	tcache = tsd_tcache_get(tsd);
 	if (!create)
 		return (tcache);
-	if (unlikely(tcache == NULL)) {
+	if (unlikely(tcache == NULL) && tsd_nominal(tsd)) {
 		tcache = tcache_get_hard(tsd);
 		tsd_tcache_set(tsd, tcache);
 	}

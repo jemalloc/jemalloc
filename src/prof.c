@@ -850,8 +850,7 @@ prof_bt_count(void)
 	tsd_t *tsd;
 	prof_tdata_t *tdata;
 
-	if ((tsd = tsd_tryget()) == NULL)
-		return (0);
+	tsd = tsd_fetch();
 	tdata = prof_tdata_get(tsd, false);
 	if (tdata == NULL)
 		return (0);
@@ -1475,8 +1474,7 @@ prof_fdump(void)
 
 	if (!prof_booted)
 		return;
-	if ((tsd = tsd_tryget()) == NULL)
-		return;
+	tsd = tsd_fetch();
 
 	if (opt_prof_final && opt_prof_prefix[0] != '\0') {
 		malloc_mutex_lock(&prof_dump_seq_mtx);
@@ -1497,8 +1495,7 @@ prof_idump(void)
 
 	if (!prof_booted)
 		return;
-	if ((tsd = tsd_tryget()) == NULL)
-		return;
+	tsd = tsd_fetch();
 	tdata = prof_tdata_get(tsd, false);
 	if (tdata == NULL)
 		return;
@@ -1526,8 +1523,7 @@ prof_mdump(const char *filename)
 
 	if (!opt_prof || !prof_booted)
 		return (true);
-	if ((tsd = tsd_tryget()) == NULL)
-		return (true);
+	tsd = tsd_fetch();
 
 	if (filename == NULL) {
 		/* No filename specified, so automatically generate one. */
@@ -1553,8 +1549,7 @@ prof_gdump(void)
 
 	if (!prof_booted)
 		return;
-	if ((tsd = tsd_tryget()) == NULL)
-		return;
+	tsd = tsd_fetch();
 	tdata = prof_tdata_get(tsd, false);
 	if (tdata == NULL)
 		return;
@@ -1677,6 +1672,7 @@ prof_tdata_destroy_locked(tsd_t *tsd, prof_tdata_t *tdata)
 {
 
 	assert(prof_tdata_should_destroy(tdata));
+	assert(tsd_prof_tdata_get(tsd) != tdata);
 
 	tdata_tree_remove(&tdatas, tdata);
 
@@ -1704,6 +1700,7 @@ prof_tdata_detach(tsd_t *tsd, prof_tdata_t *tdata)
 	if (tdata->attached) {
 		tdata->attached = false;
 		destroy_tdata = prof_tdata_should_destroy(tdata);
+		tsd_prof_tdata_set(tsd, NULL);
 	} else
 		destroy_tdata = false;
 	malloc_mutex_unlock(tdata->lock);
@@ -1819,8 +1816,7 @@ prof_thread_name_get(void)
 	tsd_t *tsd;
 	prof_tdata_t *tdata;
 
-	if ((tsd = tsd_tryget()) == NULL)
-		return ("");
+	tsd = tsd_fetch();
 	tdata = prof_tdata_get(tsd, true);
 	if (tdata == NULL)
 		return ("");
@@ -1886,8 +1882,7 @@ prof_thread_active_get(void)
 	tsd_t *tsd;
 	prof_tdata_t *tdata;
 
-	if ((tsd = tsd_tryget()) == NULL)
-		return (false);
+	tsd = tsd_fetch();
 	tdata = prof_tdata_get(tsd, true);
 	if (tdata == NULL)
 		return (false);
@@ -1900,8 +1895,7 @@ prof_thread_active_set(bool active)
 	tsd_t *tsd;
 	prof_tdata_t *tdata;
 
-	if ((tsd = tsd_tryget()) == NULL)
-		return (true);
+	tsd = tsd_fetch();
 	tdata = prof_tdata_get(tsd, true);
 	if (tdata == NULL)
 		return (true);
@@ -1988,8 +1982,7 @@ prof_boot2(void)
 		if (malloc_mutex_init(&prof_thread_active_init_mtx))
 			return (true);
 
-		if ((tsd = tsd_tryget()) == NULL)
-			return (true);
+		tsd = tsd_fetch();
 		if (ckh_new(tsd, &bt2gctx, PROF_CKH_MINITEMS, prof_bt_hash,
 		    prof_bt_keycomp))
 			return (true);

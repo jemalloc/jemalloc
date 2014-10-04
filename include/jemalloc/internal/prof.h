@@ -331,8 +331,10 @@ prof_tdata_get(tsd_t *tsd, bool create)
 	tdata = tsd_prof_tdata_get(tsd);
 	if (create) {
 		if (unlikely(tdata == NULL)) {
-			tdata = prof_tdata_init(tsd);
-			tsd_prof_tdata_set(tsd, tdata);
+			if (tsd_nominal(tsd)) {
+				tdata = prof_tdata_init(tsd);
+				tsd_prof_tdata_set(tsd, tdata);
+			}
 		} else if (unlikely(tdata->expired)) {
 			tdata = prof_tdata_reinit(tsd, tdata);
 			tsd_prof_tdata_set(tsd, tdata);
