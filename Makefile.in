@@ -101,7 +101,7 @@ DSOS := $(objroot)lib/$(LIBJEMALLOC).$(SOREV)
 ifneq ($(SOREV),$(SO))
 DSOS += $(objroot)lib/$(LIBJEMALLOC).$(SO)
 endif
-PC := $(srcroot)jemalloc.pc
+PC := $(objroot)jemalloc.pc
 MAN3 := $(objroot)doc/jemalloc$(install_suffix).3
 DOCS_XML := $(objroot)doc/jemalloc$(install_suffix).xml
 DOCS_HTML := $(DOCS_XML:$(objroot)%.xml=$(srcroot)%.html)
