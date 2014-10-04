@@ -793,11 +793,6 @@ fi
 AC_MSG_CHECKING([configured backtracing method])
 AC_MSG_RESULT([$backtrace_method])
 if test "x$enable_prof" = "x1" ; then
-  if test "x${force_tls}" = "x0" ; then
-    AC_MSG_ERROR([Heap profiling requires TLS]);
-  fi
-  force_tls="1"
-
   if test "x$abi" != "xpecoff"; then
     dnl Heap profiling uses the log(3) function.
     LIBS="$LIBS -lm"
