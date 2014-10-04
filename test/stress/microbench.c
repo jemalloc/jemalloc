@@ -19,6 +19,13 @@ compare_funcs(uint64_t nwarmup, uint64_t niter, const char *name_a,
 {
 	timedelta_t timer_a, timer_b;
 	char ratio_buf[6];
+	void *p;
+
+	p = mallocx(1, 0);
+	if (p == NULL) {
+		test_fail("Unexpected mallocx() failure");
+		return;
+	}
 
 	time_func(&timer_a, nwarmup, niter, func_a);
 	time_func(&timer_b, nwarmup, niter, func_b);
@@ -28,6 +35,8 @@ compare_funcs(uint64_t nwarmup, uint64_t niter, const char *name_a,
 	    "%s=%"PRIu64"us, ratio=1:%s\n",
 	    niter, name_a, timer_usec(&timer_a), name_b, timer_usec(&timer_b),
 	    ratio_buf);
+
+	dallocx(p, 0);
 }
 
 static void
