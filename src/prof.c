@@ -16,6 +16,7 @@
 
 bool		opt_prof = false;
 bool		opt_prof_active = true;
+bool		opt_prof_thread_active_init = true;
 size_t		opt_lg_prof_sample = LG_PROF_SAMPLE_DEFAULT;
 ssize_t		opt_lg_prof_interval = LG_PROF_INTERVAL_DEFAULT;
 bool		opt_prof_gdump = false;
@@ -28,6 +29,20 @@ char		opt_prof_prefix[
     PATH_MAX +
 #endif
     1];
+
+/*
+ * Initialized as opt_prof_active, and accessed via
+ * prof_active_[gs]et{_unlocked,}().
+ */
+bool			prof_active;
+static malloc_mutex_t	prof_active_mtx;
+
+/*
+ * Initialized as opt_prof_thread_active_init, and accessed via
+ * prof_thread_active_init_[gs]et().
+ */
+static bool		prof_thread_active_init;
+static malloc_mutex_t	prof_thread_active_init_mtx;
 
 uint64_t	prof_interval = 0;
 
@@ -103,6 +118,7 @@ static bool	prof_tctx_should_destroy(prof_tctx_t *tctx);
 static void	prof_tctx_destroy(tsd_t *tsd, prof_tctx_t *tctx);
 static bool	prof_tdata_should_destroy(prof_tdata_t *tdata);
 static void	prof_tdata_destroy(tsd_t *tsd, prof_tdata_t *tdata);
+static char	*prof_thread_name_alloc(tsd_t *tsd, const char *thread_name);
 
 /******************************************************************************/
 /* Red-black trees. */
@@ -1593,7 +1609,8 @@ prof_thr_uid_alloc(void)
 }
 
 static prof_tdata_t *
-prof_tdata_init_impl(tsd_t *tsd, uint64_t thr_uid, uint64_t thr_discrim)
+prof_tdata_init_impl(tsd_t *tsd, uint64_t thr_uid, uint64_t thr_discrim,
+    char *thread_name, bool active)
 {
 	prof_tdata_t *tdata;
 
@@ -1607,7 +1624,7 @@ prof_tdata_init_impl(tsd_t *tsd, uint64_t thr_uid, uint64_t thr_discrim)
 	tdata->lock = prof_tdata_mutex_choose(thr_uid);
 	tdata->thr_uid = thr_uid;
 	tdata->thr_discrim = thr_discrim;
-	tdata->thread_name = NULL;
+	tdata->thread_name = thread_name;
 	tdata->attached = true;
 	tdata->expired = false;
 
@@ -1625,7 +1642,7 @@ prof_tdata_init_impl(tsd_t *tsd, uint64_t thr_uid, uint64_t thr_discrim)
 	tdata->enq_gdump = false;
 
 	tdata->dumping = false;
-	tdata->active = true;
+	tdata->active = active;
 
 	malloc_mutex_lock(&tdatas_mtx);
 	tdata_tree_insert(&tdatas, tdata);
@@ -1638,7 +1655,8 @@ prof_tdata_t *
 prof_tdata_init(tsd_t *tsd)
 {
 
-	return (prof_tdata_init_impl(tsd, prof_thr_uid_alloc(), 0));
+	return (prof_tdata_init_impl(tsd, prof_thr_uid_alloc(), 0, NULL,
+	    prof_thread_active_init_get()));
 }
 
 /* tdata->lock must be held. */
@@ -1698,9 +1716,13 @@ prof_tdata_reinit(tsd_t *tsd, prof_tdata_t *tdata)
 {
 	uint64_t thr_uid = tdata->thr_uid;
 	uint64_t thr_discrim = tdata->thr_discrim + 1;
+	char *thread_name = (tdata->thread_name != NULL) ?
+	    prof_thread_name_alloc(tsd, tdata->thread_name) : NULL;
+	bool active = tdata->active;
 
 	prof_tdata_detach(tsd, tdata);
-	return (prof_tdata_init_impl(tsd, thr_uid, thr_discrim));
+	return (prof_tdata_init_impl(tsd, thr_uid, thr_discrim, thread_name,
+	    active));
 }
 
 static bool
@@ -1768,6 +1790,29 @@ prof_tdata_cleanup(tsd_t *tsd)
 		prof_tdata_detach(tsd, tdata);
 }
 
+bool
+prof_active_get(void)
+{
+	bool prof_active_current;
+
+	malloc_mutex_lock(&prof_active_mtx);
+	prof_active_current = prof_active;
+	malloc_mutex_unlock(&prof_active_mtx);
+	return (prof_active_current);
+}
+
+bool
+prof_active_set(bool active)
+{
+	bool prof_active_old;
+
+	malloc_mutex_lock(&prof_active_mtx);
+	prof_active_old = prof_active;
+	prof_active = active;
+	malloc_mutex_unlock(&prof_active_mtx);
+	return (prof_active_old);
+}
+
 const char *
 prof_thread_name_get(void)
 {
@@ -1775,34 +1820,64 @@ prof_thread_name_get(void)
 	prof_tdata_t *tdata;
 
 	if ((tsd = tsd_tryget()) == NULL)
-		return (NULL);
+		return ("");
 	tdata = prof_tdata_get(tsd, true);
 	if (tdata == NULL)
-		return (NULL);
-	return (tdata->thread_name);
+		return ("");
+	return (tdata->thread_name != NULL ? tdata->thread_name : "");
 }
 
-bool
+static char *
+prof_thread_name_alloc(tsd_t *tsd, const char *thread_name)
+{
+	char *ret;
+	size_t size;
+
+	if (thread_name == NULL)
+		return (NULL);
+
+	size = strlen(thread_name) + 1;
+	if (size == 1)
+		return ("");
+
+	ret = imalloc(tsd, size);
+	if (ret == NULL)
+		return (NULL);
+	memcpy(ret, thread_name, size);
+	return (ret);
+}
+
+int
 prof_thread_name_set(tsd_t *tsd, const char *thread_name)
 {
 	prof_tdata_t *tdata;
-	size_t size;
+	unsigned i;
 	char *s;
 
 	tdata = prof_tdata_get(tsd, true);
 	if (tdata == NULL)
-		return (true);
+		return (EAGAIN);
 
-	size = strlen(thread_name) + 1;
-	s = imalloc(tsd, size);
+	/* Validate input. */
+	if (thread_name == NULL)
+		return (EFAULT);
+	for (i = 0; thread_name[i] != '\0'; i++) {
+		char c = thread_name[i];
+		if (!isgraph(c) && !isblank(c))
+			return (EFAULT);
+	}
+
+	s = prof_thread_name_alloc(tsd, thread_name);
 	if (s == NULL)
-		return (true);
+		return (EAGAIN);
 
-	memcpy(s, thread_name, size);
-	if (tdata->thread_name != NULL)
+	if (tdata->thread_name != NULL) {
 		idalloc(tsd, tdata->thread_name);
-	tdata->thread_name = s;
-	return (false);
+		tdata->thread_name = NULL;
+	}
+	if (strlen(s) > 0)
+		tdata->thread_name = s;
+	return (0);
 }
 
 bool
@@ -1832,6 +1907,29 @@ prof_thread_active_set(bool active)
 		return (true);
 	tdata->active = active;
 	return (false);
+}
+
+bool
+prof_thread_active_init_get(void)
+{
+	bool active_init;
+
+	malloc_mutex_lock(&prof_thread_active_init_mtx);
+	active_init = prof_thread_active_init;
+	malloc_mutex_unlock(&prof_thread_active_init_mtx);
+	return (active_init);
+}
+
+bool
+prof_thread_active_init_set(bool active_init)
+{
+	bool active_init_old;
+
+	malloc_mutex_lock(&prof_thread_active_init_mtx);
+	active_init_old = prof_thread_active_init;
+	prof_thread_active_init = active_init;
+	malloc_mutex_unlock(&prof_thread_active_init_mtx);
+	return (active_init_old);
 }
 
 void
@@ -1881,6 +1979,14 @@ prof_boot2(void)
 		unsigned i;
 
 		lg_prof_sample = opt_lg_prof_sample;
+
+		prof_active = opt_prof_active;
+		if (malloc_mutex_init(&prof_active_mtx))
+			return (true);
+
+		prof_thread_active_init = opt_prof_thread_active_init;
+		if (malloc_mutex_init(&prof_thread_active_init_mtx))
+			return (true);
 
 		if ((tsd = tsd_tryget()) == NULL)
 			return (true);

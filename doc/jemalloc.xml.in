@@ -1061,6 +1061,21 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         This option is enabled by default.</para></listitem>
       </varlistentry>
 
+      <varlistentry id="opt.prof_thread_active_init">
+        <term>
+          <mallctl>opt.prof_thread_active_init</mallctl>
+          (<type>bool</type>)
+          <literal>r-</literal>
+          [<option>--enable-prof</option>]
+        </term>
+        <listitem><para>Initial setting for <link
+        linkend="thread.prof.active"><mallctl>thread.prof.active</mallctl></link>
+        in newly created threads.  The initial setting for newly created threads
+        can also be changed during execution via the <link
+        linkend="prof.thread_active_init"><mallctl>prof.thread_active_init</mallctl></link>
+        mallctl.  This option is enabled by default.</para></listitem>
+      </varlistentry>
+
       <varlistentry id="opt.lg_prof_sample">
         <term>
           <mallctl>opt.lg_prof_sample</mallctl>
@@ -1264,7 +1279,8 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         <term>
           <mallctl>thread.prof.name</mallctl>
           (<type>const char *</type>)
-          <literal>rw</literal>
+          <literal>r-</literal> or
+          <literal>-w</literal>
           [<option>--enable-prof</option>]
         </term>
         <listitem><para>Get/set the descriptive name associated with the calling
@@ -1272,7 +1288,15 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         created, so the input string need not be maintained after this interface
         completes execution.  The output string of this interface should be
         copied for non-ephemeral uses, because multiple implementation details
-        can cause asynchronous string deallocation.</para></listitem>
+        can cause asynchronous string deallocation.  Furthermore, each
+        invocation of this interface can only read or write; simultaneous
+        read/write is not supported due to string lifetime limitations.  The
+        name string must nil-terminated and comprised only of characters in the
+        sets recognized
+        by <citerefentry><refentrytitle>isgraph</refentrytitle>
+        <manvolnum>3</manvolnum></citerefentry> and
+        <citerefentry><refentrytitle>isblank</refentrytitle>
+        <manvolnum>3</manvolnum></citerefentry>.</para></listitem>
       </varlistentry>
 
       <varlistentry id="thread.prof.active">
@@ -1283,7 +1307,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
           [<option>--enable-prof</option>]
         </term>
         <listitem><para>Control whether sampling is currently active for the
-        calling thread.  This is a deactivation mechanism in addition to <link
+        calling thread.  This is an activation mechanism in addition to <link
         linkend="prof.active"><mallctl>prof.active</mallctl></link>; both must
         be active for the calling thread to sample.  This flag is enabled by
         default.</para></listitem>
@@ -1508,6 +1532,20 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         and returning the new arena index.</para></listitem>
       </varlistentry>
 
+      <varlistentry id="prof.thread_active_init">
+        <term>
+          <mallctl>prof.thread_active_init</mallctl>
+          (<type>bool</type>)
+          <literal>rw</literal>
+          [<option>--enable-prof</option>]
+        </term>
+        <listitem><para>Control the initial setting for <link
+        linkend="thread.prof.active"><mallctl>thread.prof.active</mallctl></link>
+        in newly created threads.  See the <link
+        linkend="opt.prof_thread_active_init"><mallctl>opt.prof_thread_active_init</mallctl></link>
+        option for additional information.</para></listitem>
+      </varlistentry>
+
       <varlistentry id="prof.active">
         <term>
           <mallctl>prof.active</mallctl>
@@ -1518,8 +1556,9 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         <listitem><para>Control whether sampling is currently active.  See the
         <link
         linkend="opt.prof_active"><mallctl>opt.prof_active</mallctl></link>
-        option for additional information.
-        </para></listitem>
+        option for additional information, as well as the interrelated <link
+        linkend="thread.prof.active"><mallctl>thread.prof.active</mallctl></link>
+        mallctl.</para></listitem>
       </varlistentry>
 
       <varlistentry id="prof.dump">
@@ -1548,7 +1587,8 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         <listitem><para>Reset all memory profile statistics, and optionally
         update the sample rate (see <link
         linkend="opt.lg_prof_sample"><mallctl>opt.lg_prof_sample</mallctl></link>
-        and <link linkend="prof.lg_sample"><mallctl>prof.lg_sample</mallctl>).
+        and <link
+        linkend="prof.lg_sample"><mallctl>prof.lg_sample</mallctl></link>).
         </para></listitem>
       </varlistentry>
 

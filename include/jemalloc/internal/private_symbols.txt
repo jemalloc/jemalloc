@@ -285,6 +285,9 @@ opt_zero
 p2rz
 pages_purge
 pow2_ceil
+prof_active_get
+prof_active_get_unlocked
+prof_active_set
 prof_alloc_prep
 prof_alloc_rollback
 prof_backtrace
@@ -316,6 +319,8 @@ prof_tdata_cleanup
 prof_tdata_get
 prof_tdata_init
 prof_thread_active_get
+prof_thread_active_init_get
+prof_thread_active_init_set
 prof_thread_active_set
 prof_thread_name_get
 prof_thread_name_set

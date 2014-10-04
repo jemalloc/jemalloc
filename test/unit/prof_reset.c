@@ -22,6 +22,8 @@ TEST_BEGIN(test_prof_reset_basic)
 	size_t sz;
 	unsigned i;
 
+	test_skip_if(!config_prof);
+
 	sz = sizeof(size_t);
 	assert_d_eq(mallctl("opt.lg_prof_sample", &lg_prof_sample_orig, &sz,
 	    NULL, 0), 0,
@@ -89,6 +91,8 @@ TEST_BEGIN(test_prof_reset_cleanup)
 	bool active;
 	void *p;
 	prof_dump_header_t *prof_dump_header_orig;
+
+	test_skip_if(!config_prof);
 
 	active = true;
 	assert_d_eq(mallctl("prof.active", NULL, NULL, &active, sizeof(active)),

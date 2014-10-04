@@ -655,6 +655,8 @@ malloc_conf_init(void)
 				    "prof_prefix", "jeprof")
 				CONF_HANDLE_BOOL(opt_prof_active, "prof_active",
 				    true)
+				CONF_HANDLE_BOOL(opt_prof_thread_active_init,
+				    "prof_thread_active_init", true)
 				CONF_HANDLE_SIZE_T(opt_lg_prof_sample,
 				    "lg_prof_sample", 0,
 				    (sizeof(uint64_t) << 3) - 1, true)

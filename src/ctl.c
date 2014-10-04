@@ -7,7 +7,6 @@
 /*
  * ctl_mtx protects the following:
  * - ctl_stats.*
- * - opt_prof_active
  */
 static malloc_mutex_t	ctl_mtx;
 static bool		ctl_initialized;
@@ -104,6 +103,7 @@ CTL_PROTO(opt_lg_tcache_max)
 CTL_PROTO(opt_prof)
 CTL_PROTO(opt_prof_prefix)
 CTL_PROTO(opt_prof_active)
+CTL_PROTO(opt_prof_thread_active_init)
 CTL_PROTO(opt_lg_prof_sample)
 CTL_PROTO(opt_lg_prof_interval)
 CTL_PROTO(opt_prof_gdump)
@@ -131,6 +131,7 @@ CTL_PROTO(arenas_nbins)
 CTL_PROTO(arenas_nhbins)
 CTL_PROTO(arenas_nlruns)
 CTL_PROTO(arenas_extend)
+CTL_PROTO(prof_thread_active_init)
 CTL_PROTO(prof_active)
 CTL_PROTO(prof_dump)
 CTL_PROTO(prof_reset)
@@ -253,6 +254,7 @@ static const ctl_named_node_t opt_node[] = {
 	{NAME("prof"),			CTL(opt_prof)},
 	{NAME("prof_prefix"),		CTL(opt_prof_prefix)},
 	{NAME("prof_active"),		CTL(opt_prof_active)},
+	{NAME("prof_thread_active_init"), CTL(opt_prof_thread_active_init)},
 	{NAME("lg_prof_sample"),	CTL(opt_lg_prof_sample)},
 	{NAME("lg_prof_interval"),	CTL(opt_lg_prof_interval)},
 	{NAME("prof_gdump"),		CTL(opt_prof_gdump)},
@@ -318,6 +320,7 @@ static const ctl_named_node_t arenas_node[] = {
 };
 
 static const ctl_named_node_t	prof_node[] = {
+	{NAME("thread_active_init"), CTL(prof_thread_active_init)},
 	{NAME("active"),	CTL(prof_active)},
 	{NAME("dump"),		CTL(prof_dump)},
 	{NAME("reset"),		CTL(prof_reset)},
@@ -979,6 +982,14 @@ ctl_postfork_child(void)
 	}								\
 } while (0)
 
+#define	READ_XOR_WRITE()	do {					\
+	if ((oldp != NULL && oldlenp != NULL) && (newp != NULL ||	\
+	    newlen != 0)) {						\
+		ret = EPERM;						\
+		goto label_return;					\
+	}								\
+} while (0)
+
 #define	READ(v, t)	do {						\
 	if (oldp != NULL && oldlenp != NULL) {				\
 		if (*oldlenp != sizeof(t)) {				\
@@ -1208,7 +1219,9 @@ CTL_RO_NL_CGEN(config_tcache, opt_tcache, opt_tcache, bool)
 CTL_RO_NL_CGEN(config_tcache, opt_lg_tcache_max, opt_lg_tcache_max, ssize_t)
 CTL_RO_NL_CGEN(config_prof, opt_prof, opt_prof, bool)
 CTL_RO_NL_CGEN(config_prof, opt_prof_prefix, opt_prof_prefix, const char *)
-CTL_RO_CGEN(config_prof, opt_prof_active, opt_prof_active, bool) /* Mutable. */
+CTL_RO_NL_CGEN(config_prof, opt_prof_active, opt_prof_active, bool)
+CTL_RO_NL_CGEN(config_prof, opt_prof_thread_active_init,
+    opt_prof_thread_active_init, bool)
 CTL_RO_NL_CGEN(config_prof, opt_lg_prof_sample, opt_lg_prof_sample, size_t)
 CTL_RO_NL_CGEN(config_prof, opt_prof_accum, opt_prof_accum, bool)
 CTL_RO_NL_CGEN(config_prof, opt_lg_prof_interval, opt_lg_prof_interval, ssize_t)
@@ -1332,12 +1345,12 @@ thread_prof_name_ctl(const size_t *mib, size_t miblen, void *oldp,
     size_t *oldlenp, void *newp, size_t newlen)
 {
 	int ret;
-	const char *oldname;
 
 	if (!config_prof)
 		return (ENOENT);
 
-	oldname = prof_thread_name_get();
+	READ_XOR_WRITE();
+
 	if (newp != NULL) {
 		tsd_t *tsd;
 
@@ -1352,12 +1365,13 @@ thread_prof_name_ctl(const size_t *mib, size_t miblen, void *oldp,
 			goto label_return;
 		}
 
-		if (prof_thread_name_set(tsd, *(const char **)newp)) {
-			ret = EAGAIN;
+		if ((ret = prof_thread_name_set(tsd, *(const char **)newp)) !=
+		    0)
 			goto label_return;
-		}
+	} else {
+		const char *oldname = prof_thread_name_get();
+		READ(oldname, const char *);
 	}
-	READ(oldname, const char *);
 
 	ret = 0;
 label_return:
@@ -1661,6 +1675,31 @@ label_return:
 /******************************************************************************/
 
 static int
+prof_thread_active_init_ctl(const size_t *mib, size_t miblen, void *oldp,
+    size_t *oldlenp, void *newp, size_t newlen)
+{
+	int ret;
+	bool oldval;
+
+	if (!config_prof)
+		return (ENOENT);
+
+	if (newp != NULL) {
+		if (newlen != sizeof(bool)) {
+			ret = EINVAL;
+			goto label_return;
+		}
+		oldval = prof_thread_active_init_set(*(bool *)newp);
+	} else
+		oldval = prof_thread_active_init_get();
+	READ(oldval, bool);
+
+	ret = 0;
+label_return:
+	return (ret);
+}
+
+static int
 prof_active_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
     void *newp, size_t newlen)
 {
@@ -1670,22 +1709,18 @@ prof_active_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
 	if (!config_prof)
 		return (ENOENT);
 
-	malloc_mutex_lock(&ctl_mtx); /* Protect opt_prof_active. */
-	oldval = opt_prof_active;
 	if (newp != NULL) {
-		/*
-		 * The memory barriers will tend to make opt_prof_active
-		 * propagate faster on systems with weak memory ordering.
-		 */
-		mb_write();
-		WRITE(opt_prof_active, bool);
-		mb_write();
-	}
+		if (newlen != sizeof(bool)) {
+			ret = EINVAL;
+			goto label_return;
+		}
+		oldval = prof_active_set(*(bool *)newp);
+	} else
+		oldval = prof_active_get();
 	READ(oldval, bool);
 
 	ret = 0;
 label_return:
-	malloc_mutex_unlock(&ctl_mtx);
 	return (ret);
 }
 

@@ -336,7 +336,6 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 	malloc_cprintf(write_cb, cbopaque,
 	    "___ Begin jemalloc statistics ___\n");
 	if (general) {
-		int err;
 		const char *cpv;
 		bool bv;
 		unsigned uv;
@@ -355,26 +354,31 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		    bv ? "enabled" : "disabled");
 
 #define	OPT_WRITE_BOOL(n)						\
-		if ((err = je_mallctl("opt."#n, &bv, &bsz, NULL, 0))	\
-		    == 0) {						\
+		if (je_mallctl("opt."#n, &bv, &bsz, NULL, 0) == 0) {	\
 			malloc_cprintf(write_cb, cbopaque,		\
 			    "  opt."#n": %s\n", bv ? "true" : "false");	\
 		}
+#define	OPT_WRITE_BOOL_MUTABLE(n, m) {					\
+		bool bv2;						\
+		if (je_mallctl("opt."#n, &bv, &bsz, NULL, 0) == 0 &&	\
+		    je_mallctl(#m, &bv2, &bsz, NULL, 0) == 0) {		\
+			malloc_cprintf(write_cb, cbopaque,		\
+			    "  opt."#n": %s ("#m": %s)\n", bv ? "true"	\
+			    : "false", bv2 ? "true" : "false");		\
+		}							\
+}
 #define	OPT_WRITE_SIZE_T(n)						\
-		if ((err = je_mallctl("opt."#n, &sv, &ssz, NULL, 0))	\
-		    == 0) {						\
+		if (je_mallctl("opt."#n, &sv, &ssz, NULL, 0) == 0) {	\
 			malloc_cprintf(write_cb, cbopaque,		\
 			"  opt."#n": %zu\n", sv);			\
 		}
 #define	OPT_WRITE_SSIZE_T(n)						\
-		if ((err = je_mallctl("opt."#n, &ssv, &sssz, NULL, 0))	\
-		    == 0) {						\
+		if (je_mallctl("opt."#n, &ssv, &sssz, NULL, 0) == 0) {	\
 			malloc_cprintf(write_cb, cbopaque,		\
 			    "  opt."#n": %zd\n", ssv);			\
 		}
 #define	OPT_WRITE_CHAR_P(n)						\
-		if ((err = je_mallctl("opt."#n, &cpv, &cpsz, NULL, 0))	\
-		    == 0) {						\
+		if (je_mallctl("opt."#n, &cpv, &cpsz, NULL, 0) == 0) {	\
 			malloc_cprintf(write_cb, cbopaque,		\
 			    "  opt."#n": \"%s\"\n", cpv);		\
 		}
@@ -398,7 +402,9 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		OPT_WRITE_SSIZE_T(lg_tcache_max)
 		OPT_WRITE_BOOL(prof)
 		OPT_WRITE_CHAR_P(prof_prefix)
-		OPT_WRITE_BOOL(prof_active)
+		OPT_WRITE_BOOL_MUTABLE(prof_active, prof.active)
+		OPT_WRITE_BOOL_MUTABLE(prof_thread_active_init,
+		    prof.thread_active_init)
 		OPT_WRITE_SSIZE_T(lg_prof_sample)
 		OPT_WRITE_BOOL(prof_accum)
 		OPT_WRITE_SSIZE_T(lg_prof_interval)
@@ -407,6 +413,7 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		OPT_WRITE_BOOL(prof_leak)
 
 #undef OPT_WRITE_BOOL
+#undef OPT_WRITE_BOOL_MUTABLE
 #undef OPT_WRITE_SIZE_T
 #undef OPT_WRITE_SSIZE_T
 #undef OPT_WRITE_CHAR_P
@@ -434,13 +441,11 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 			malloc_cprintf(write_cb, cbopaque,
 			    "Min active:dirty page ratio per arena: N/A\n");
 		}
-		if ((err = je_mallctl("arenas.tcache_max", &sv, &ssz, NULL, 0))
-		    == 0) {
+		if (je_mallctl("arenas.tcache_max", &sv, &ssz, NULL, 0) == 0) {
 			malloc_cprintf(write_cb, cbopaque,
 			    "Maximum thread-cached size class: %zu\n", sv);
 		}
-		if ((err = je_mallctl("opt.prof", &bv, &bsz, NULL, 0)) == 0 &&
-		    bv) {
+		if (je_mallctl("opt.prof", &bv, &bsz, NULL, 0) == 0 && bv) {
 			CTL_GET("prof.lg_sample", &sv, size_t);
 			malloc_cprintf(write_cb, cbopaque,
 			    "Average profile sample interval: %"PRIu64

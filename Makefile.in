@@ -123,9 +123,11 @@ TESTS_UNIT := $(srcroot)test/unit/atomic.c \
 	$(srcroot)test/unit/mq.c \
 	$(srcroot)test/unit/mtx.c \
 	$(srcroot)test/unit/prof_accum.c \
+	$(srcroot)test/unit/prof_active.c \
 	$(srcroot)test/unit/prof_gdump.c \
 	$(srcroot)test/unit/prof_idump.c \
 	$(srcroot)test/unit/prof_reset.c \
+	$(srcroot)test/unit/prof_thread_name.c \
 	$(srcroot)test/unit/ql.c \
 	$(srcroot)test/unit/qr.c \
 	$(srcroot)test/unit/quarantine.c \

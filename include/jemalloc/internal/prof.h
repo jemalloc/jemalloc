@@ -215,13 +215,8 @@ typedef rb_tree(prof_tdata_t) prof_tdata_tree_t;
 #ifdef JEMALLOC_H_EXTERNS
 
 extern bool	opt_prof;
-/*
- * Even if opt_prof is true, sampling can be temporarily disabled by setting
- * opt_prof_active to false.  No locking is used when updating opt_prof_active,
- * so there are no guarantees regarding how long it will take for all threads
- * to notice state changes.
- */
 extern bool	opt_prof_active;
+extern bool	opt_prof_thread_active_init;
 extern size_t	opt_lg_prof_sample;   /* Mean bytes between samples. */
 extern ssize_t	opt_lg_prof_interval; /* lg(prof_interval). */
 extern bool	opt_prof_gdump;       /* High-water memory dumping. */
@@ -234,6 +229,9 @@ extern char	opt_prof_prefix[
     PATH_MAX +
 #endif
     1];
+
+/* Accessed via prof_active_[gs]et{_unlocked,}(). */
+extern bool	prof_active;
 
 /*
  * Profile dump interval, measured in bytes allocated.  Each arena triggers a
@@ -274,9 +272,13 @@ prof_tdata_t	*prof_tdata_reinit(tsd_t *tsd, prof_tdata_t *tdata);
 void	prof_reset(tsd_t *tsd, size_t lg_sample);
 void	prof_tdata_cleanup(tsd_t *tsd);
 const char	*prof_thread_name_get(void);
-bool	prof_thread_name_set(tsd_t *tsd, const char *thread_name);
+bool	prof_active_get(void);
+bool	prof_active_set(bool active);
+int	prof_thread_name_set(tsd_t *tsd, const char *thread_name);
 bool	prof_thread_active_get(void);
 bool	prof_thread_active_set(bool active);
+bool	prof_thread_active_init_get(void);
+bool	prof_thread_active_init_set(bool active_init);
 void	prof_boot0(void);
 void	prof_boot1(void);
 bool	prof_boot2(void);
@@ -290,6 +292,7 @@ void	prof_sample_threshold_update(prof_tdata_t *tdata);
 #ifdef JEMALLOC_H_INLINES
 
 #ifndef JEMALLOC_ENABLE_INLINE
+bool	prof_active_get_unlocked(void);
 prof_tdata_t	*prof_tdata_get(tsd_t *tsd, bool create);
 bool	prof_sample_accum_update(tsd_t *tsd, size_t usize, bool commit,
     prof_tdata_t **tdata_out);
@@ -305,6 +308,19 @@ void	prof_free(tsd_t *tsd, const void *ptr, size_t usize);
 #endif
 
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_PROF_C_))
+JEMALLOC_INLINE bool
+prof_active_get_unlocked(void)
+{
+
+	/*
+	 * Even if opt_prof is true, sampling can be temporarily disabled by
+	 * setting prof_active to false.  No locking is used when reading
+	 * prof_active in the fast path, so there are no guarantees regarding
+	 * how long it will take for all threads to notice state changes.
+	 */
+	return (prof_active);
+}
+
 JEMALLOC_INLINE prof_tdata_t *
 prof_tdata_get(tsd_t *tsd, bool create)
 {
@@ -401,8 +417,8 @@ prof_alloc_prep(tsd_t *tsd, size_t usize, bool update)
 
 	assert(usize == s2u(usize));
 
-	if (!opt_prof_active || likely(prof_sample_accum_update(tsd, usize,
-	    update, &tdata)))
+	if (!prof_active_get_unlocked() || likely(prof_sample_accum_update(tsd,
+	    usize, update, &tdata)))
 		ret = (prof_tctx_t *)(uintptr_t)1U;
 	else {
 		bt_init(&bt, tdata->vec);
