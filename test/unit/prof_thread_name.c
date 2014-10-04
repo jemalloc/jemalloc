@@ -40,6 +40,8 @@ TEST_BEGIN(test_prof_thread_name_validation)
 {
 	const char *thread_name;
 
+	test_skip_if(!config_prof);
+
 	mallctl_thread_name_get("");
 	mallctl_thread_name_set("hi there");
 
