@@ -343,8 +343,8 @@ extern arena_bin_info_t	arena_bin_info[NBINS];
 /* Number of large size classes. */
 #define			nlclasses (chunk_npages - map_bias)
 
-void	*arena_chunk_alloc_huge(arena_t *arena, size_t size, size_t alignment,
-    bool *zero);
+void	*arena_chunk_alloc_huge(arena_t *arena, void *new_addr, size_t size,
+    size_t alignment, bool *zero);
 void	arena_chunk_dalloc_huge(arena_t *arena, void *chunk, size_t size);
 void	arena_purge_all(arena_t *arena);
 void	arena_tcache_fill_small(arena_t *arena, tcache_bin_t *tbin,

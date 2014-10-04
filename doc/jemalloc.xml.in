@@ -1351,6 +1351,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         function that knows how to deallocate the chunks.
         <funcprototype>
           <funcdef>typedef void *<function>(chunk_alloc_t)</function></funcdef>
+          <paramdef>void *<parameter>chunk</parameter></paramdef>
           <paramdef>size_t <parameter>size</parameter></paramdef>
           <paramdef>size_t <parameter>alignment</parameter></paramdef>
           <paramdef>bool *<parameter>zero</parameter></paramdef>
@@ -1367,8 +1368,10 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         <parameter>size</parameter> parameter is always a multiple of the chunk
         size.  The <parameter>alignment</parameter> parameter is always a power
         of two at least as large as the chunk size.  Zeroing is mandatory if
-        <parameter>*zero</parameter> is true upon function
-        entry.</para>
+        <parameter>*zero</parameter> is true upon function entry.  If
+        <parameter>chunk</parameter> is not <constant>NULL</constant>, the
+        returned pointer must be <parameter>chunk</parameter> or
+        <constant>NULL</constant> if it could not be allocated.</para>
 
         <para>Note that replacing the default chunk allocation function makes
         the arena's <link

@@ -42,8 +42,8 @@ static void	chunk_dalloc_core(void *chunk, size_t size);
 /******************************************************************************/
 
 static void *
-chunk_recycle(extent_tree_t *chunks_szad, extent_tree_t *chunks_ad, size_t size,
-    size_t alignment, bool base, bool *zero)
+chunk_recycle(extent_tree_t *chunks_szad, extent_tree_t *chunks_ad,
+    void *new_addr, size_t size, size_t alignment, bool base, bool *zero)
 {
 	void *ret;
 	extent_node_t *node;
@@ -65,11 +65,11 @@ chunk_recycle(extent_tree_t *chunks_szad, extent_tree_t *chunks_ad, size_t size,
 	/* Beware size_t wrap-around. */
 	if (alloc_size < size)
 		return (NULL);
-	key.addr = NULL;
+	key.addr = new_addr;
 	key.size = alloc_size;
 	malloc_mutex_lock(&chunks_mtx);
 	node = extent_tree_szad_nsearch(chunks_szad, &key);
-	if (node == NULL) {
+	if (node == NULL || (new_addr && node->addr != new_addr)) {
 		malloc_mutex_unlock(&chunks_mtx);
 		return (NULL);
 	}
@@ -142,8 +142,8 @@ chunk_recycle(extent_tree_t *chunks_szad, extent_tree_t *chunks_ad, size_t size,
  * them if they are returned.
  */
 static void *
-chunk_alloc_core(size_t size, size_t alignment, bool base, bool *zero,
-    dss_prec_t dss_prec)
+chunk_alloc_core(void *new_addr, size_t size, size_t alignment, bool base,
+    bool *zero, dss_prec_t dss_prec)
 {
 	void *ret;
 
@@ -154,24 +154,30 @@ chunk_alloc_core(size_t size, size_t alignment, bool base, bool *zero,
 
 	/* "primary" dss. */
 	if (have_dss && dss_prec == dss_prec_primary) {
-		if ((ret = chunk_recycle(&chunks_szad_dss, &chunks_ad_dss, size,
-		    alignment, base, zero)) != NULL)
+		if ((ret = chunk_recycle(&chunks_szad_dss, &chunks_ad_dss,
+		    new_addr, size, alignment, base, zero)) != NULL)
 			return (ret);
-		if ((ret = chunk_alloc_dss(size, alignment, zero)) != NULL)
+		/* requesting an address only implemented for recycle */
+		if (new_addr == NULL
+		    && (ret = chunk_alloc_dss(size, alignment, zero)) != NULL)
 			return (ret);
 	}
 	/* mmap. */
-	if ((ret = chunk_recycle(&chunks_szad_mmap, &chunks_ad_mmap, size,
-	    alignment, base, zero)) != NULL)
+	if ((ret = chunk_recycle(&chunks_szad_mmap, &chunks_ad_mmap, new_addr,
+	    size, alignment, base, zero)) != NULL)
 		return (ret);
-	if ((ret = chunk_alloc_mmap(size, alignment, zero)) != NULL)
+	/* requesting an address only implemented for recycle */
+	if (new_addr == NULL &&
+	    (ret = chunk_alloc_mmap(size, alignment, zero)) != NULL)
 		return (ret);
 	/* "secondary" dss. */
 	if (have_dss && dss_prec == dss_prec_secondary) {
-		if ((ret = chunk_recycle(&chunks_szad_dss, &chunks_ad_dss, size,
-		    alignment, base, zero)) != NULL)
+		if ((ret = chunk_recycle(&chunks_szad_dss, &chunks_ad_dss,
+		    new_addr, size, alignment, base, zero)) != NULL)
 			return (ret);
-		if ((ret = chunk_alloc_dss(size, alignment, zero)) != NULL)
+		/* requesting an address only implemented for recycle */
+		if (new_addr == NULL &&
+		    (ret = chunk_alloc_dss(size, alignment, zero)) != NULL)
 			return (ret);
 	}
 
@@ -219,7 +225,7 @@ chunk_alloc_base(size_t size)
 	bool zero;
 
 	zero = false;
-	ret = chunk_alloc_core(size, chunksize, true, &zero,
+	ret = chunk_alloc_core(NULL, size, chunksize, true, &zero,
 	    chunk_dss_prec_get());
 	if (ret == NULL)
 		return (NULL);
@@ -232,11 +238,12 @@ chunk_alloc_base(size_t size)
 
 void *
 chunk_alloc_arena(chunk_alloc_t *chunk_alloc, chunk_dalloc_t *chunk_dalloc,
-    unsigned arena_ind, size_t size, size_t alignment, bool *zero)
+    unsigned arena_ind, void *new_addr, size_t size, size_t alignment,
+    bool *zero)
 {
 	void *ret;
 
-	ret = chunk_alloc(size, alignment, zero, arena_ind);
+	ret = chunk_alloc(new_addr, size, alignment, zero, arena_ind);
 	if (ret != NULL && chunk_register(ret, size, false)) {
 		chunk_dalloc(ret, size, arena_ind);
 		ret = NULL;
@@ -247,11 +254,11 @@ chunk_alloc_arena(chunk_alloc_t *chunk_alloc, chunk_dalloc_t *chunk_dalloc,
 
 /* Default arena chunk allocation routine in the absence of user override. */
 void *
-chunk_alloc_default(size_t size, size_t alignment, bool *zero,
+chunk_alloc_default(void *new_addr, size_t size, size_t alignment, bool *zero,
     unsigned arena_ind)
 {
 
-	return (chunk_alloc_core(size, alignment, false, zero,
+	return (chunk_alloc_core(new_addr, size, alignment, false, zero,
 	    arenas[arena_ind]->dss_prec));
 }
 

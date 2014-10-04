@@ -902,7 +902,7 @@ ixalloc(void *ptr, size_t size, size_t extra, size_t alignment, bool zero)
 	if (size <= arena_maxclass)
 		return (arena_ralloc_no_move(ptr, oldsize, size, extra, zero));
 	else
-		return (huge_ralloc_no_move(ptr, oldsize, size, extra));
+		return (huge_ralloc_no_move(ptr, oldsize, size, extra, zero));
 }
 #endif
 
