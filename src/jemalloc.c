@@ -1262,7 +1262,7 @@ void *
 je_realloc(void *ptr, size_t size)
 {
 	void *ret;
-	tsd_t *tsd;
+	tsd_t *tsd JEMALLOC_CC_SILENCE_INIT(NULL);
 	size_t usize JEMALLOC_CC_SILENCE_INIT(0);
 	size_t old_usize = 0;
 	UNUSED size_t old_rzsize JEMALLOC_CC_SILENCE_INIT(0);
