@@ -188,8 +188,6 @@ tcache_get(tsd_t *tsd, bool create)
 
 	if (!config_tcache)
 		return (NULL);
-	if (config_lazy_lock && !isthreaded)
-		return (NULL);
 
 	tcache = tsd_tcache_get(tsd);
 	if (!create)
