@@ -57,8 +57,7 @@
   <refsynopsisdiv>
     <title>SYNOPSIS</title>
     <funcsynopsis>
-      <funcsynopsisinfo>#include &lt;<filename class="headerfile">stdlib.h</filename>&gt;
-#include &lt;<filename class="headerfile">jemalloc/jemalloc.h</filename>&gt;</funcsynopsisinfo>
+      <funcsynopsisinfo>#include &lt;<filename class="headerfile">jemalloc/jemalloc.h</filename>&gt;</funcsynopsisinfo>
       <refsect2>
         <title>Standard API</title>
         <funcprototype>
