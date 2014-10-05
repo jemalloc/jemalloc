@@ -1349,14 +1349,14 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         also be set via <link linkend="arena.i.chunk.dalloc">
         <mallctl>arena.&lt;i&gt;.chunk.dalloc</mallctl></link> to a companion
         function that knows how to deallocate the chunks.
-        <funcprototype>
+        <funcsynopsis><funcprototype>
           <funcdef>typedef void *<function>(chunk_alloc_t)</function></funcdef>
           <paramdef>void *<parameter>chunk</parameter></paramdef>
           <paramdef>size_t <parameter>size</parameter></paramdef>
           <paramdef>size_t <parameter>alignment</parameter></paramdef>
           <paramdef>bool *<parameter>zero</parameter></paramdef>
           <paramdef>unsigned <parameter>arena_ind</parameter></paramdef>
-        </funcprototype>
+        </funcprototype></funcsynopsis>
         A chunk allocation function conforms to the <type>chunk_alloc_t</type>
         type and upon success returns a pointer to <parameter>size</parameter>
         bytes of memory on behalf of arena <parameter>arena_ind</parameter> such
@@ -1397,12 +1397,12 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         arena creation), but the automatically created arenas may have already
         created chunks prior to the application having an opportunity to take
         over chunk allocation.
-        <funcprototype>
+        <funcsynopsis><funcprototype>
           <funcdef>typedef void <function>(chunk_dalloc_t)</function></funcdef>
           <paramdef>void *<parameter>chunk</parameter></paramdef>
           <paramdef>size_t <parameter>size</parameter></paramdef>
           <paramdef>unsigned <parameter>arena_ind</parameter></paramdef>
-        </funcprototype>
+        </funcprototype></funcsynopsis>
         A chunk deallocation function conforms to the
         <type>chunk_dalloc_t</type> type and deallocates a
         <parameter>chunk</parameter> of given <parameter>size</parameter> on
