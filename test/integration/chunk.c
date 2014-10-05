@@ -11,10 +11,11 @@ chunk_dalloc(void *chunk, size_t size, unsigned arena_ind)
 }
 
 void *
-chunk_alloc(size_t size, size_t alignment, bool *zero, unsigned arena_ind)
+chunk_alloc(void *new_addr, size_t size, size_t alignment, bool *zero,
+    unsigned arena_ind)
 {
 
-	return (old_alloc(size, alignment, zero, arena_ind));
+	return (old_alloc(new_addr, size, alignment, zero, arena_ind));
 }
 
 TEST_BEGIN(test_chunk)
