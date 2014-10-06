@@ -4,13 +4,39 @@
 /******************************************************************************/
 /* Data. */
 
-/* Protects chunk-related data structures. */
-static malloc_mutex_t	huge_mtx;
+typedef struct {
+	malloc_mutex_t mtx;
+	extent_tree_t tree;
+} huge_map_t;
 
-/******************************************************************************/
+/*
+ * Hash table holding trees of chunks that are stand-alone huge allocations. The
+ * huge allocation pointers are used as keys. It provides fine-grained locking
+ * by associating mutexes with individual trees rather than the entire map.
+ */
+static huge_map_t *huge_maps;
+static size_t huge_size;
 
-/* Tree of chunks that are stand-alone huge allocations. */
-static extent_tree_t	huge;
+/* Retrieve the huge map corresponding to a huge allocation. */
+static huge_map_t *get_huge_map(const void *ptr)
+{
+	size_t hash;
+
+	/* Shift out the known bad bits, as we use the lower bits. */
+	hash = (size_t)ptr >> opt_lg_chunk;
+
+	/* Mix the remaining bits a bit. */
+#if (LG_SIZEOF_PTR == 2)
+	hash = hash_fmix_32(hash);
+#elif (LG_SIZEOF_PTR == 3)
+	hash = hash_fmix_64(hash);
+#else
+#error "not implemented"
+#endif
+
+	huge_map_t *huge = &huge_maps[hash & (huge_size - 1)];
+	return huge;
+}
 
 void *
 huge_malloc(tsd_t *tsd, arena_t *arena, size_t size, bool zero)
@@ -34,6 +60,7 @@ huge_palloc(tsd_t *tsd, arena_t *arena, size_t usize, size_t alignment,
 	size_t csize;
 	extent_node_t *node;
 	bool is_zeroed;
+	huge_map_t *huge;
 
 	/* Allocate one or more contiguous chunks for this request. */
 
@@ -67,9 +94,11 @@ huge_palloc(tsd_t *tsd, arena_t *arena, size_t usize, size_t alignment,
 	node->size = usize;
 	node->arena = arena;
 
-	malloc_mutex_lock(&huge_mtx);
-	extent_tree_ad_insert(&huge, node);
-	malloc_mutex_unlock(&huge_mtx);
+	huge = get_huge_map(ret);
+
+	malloc_mutex_lock(&huge->mtx);
+	extent_tree_ad_insert(&huge->tree, node);
+	malloc_mutex_unlock(&huge->mtx);
 
 	if (config_fill && !zero) {
 		if (unlikely(opt_junk))
@@ -113,6 +142,7 @@ huge_ralloc_no_move_expand(void *ptr, size_t oldsize, size_t size, bool zero) {
 	arena_t *arena;
 	bool is_zeroed;
 	void *ret;
+	huge_map_t *huge;
 
 	usize = s2u(size);
 	if (usize == 0) {
@@ -123,17 +153,19 @@ huge_ralloc_no_move_expand(void *ptr, size_t oldsize, size_t size, bool zero) {
 	expand_addr = ptr + CHUNK_CEILING(oldsize);
 	expand_size = CHUNK_CEILING(usize) - CHUNK_CEILING(oldsize);
 
-	malloc_mutex_lock(&huge_mtx);
+	huge = get_huge_map(ptr);
+
+	malloc_mutex_lock(&huge->mtx);
 
 	key.addr = ptr;
-	node = extent_tree_ad_search(&huge, &key);
+	node = extent_tree_ad_search(&huge->tree, &key);
 	assert(node != NULL);
 	assert(node->addr == ptr);
 
 	/* Find the current arena. */
 	arena = node->arena;
 
-	malloc_mutex_unlock(&huge_mtx);
+	malloc_mutex_unlock(&huge->mtx);
 
 	/*
 	 * Copy zero into is_zeroed and pass the copy to chunk_alloc(), so that
@@ -147,10 +179,10 @@ huge_ralloc_no_move_expand(void *ptr, size_t oldsize, size_t size, bool zero) {
 
 	assert(ret == expand_addr);
 
-	malloc_mutex_lock(&huge_mtx);
+	malloc_mutex_lock(&huge->mtx);
 	/* Update the size of the huge allocation. */
 	node->size = usize;
-	malloc_mutex_unlock(&huge_mtx);
+	malloc_mutex_unlock(&huge->mtx);
 
 	if (config_fill && !zero) {
 		if (unlikely(opt_junk))
@@ -166,6 +198,7 @@ huge_ralloc_no_move(void *ptr, size_t oldsize, size_t size, size_t extra,
     bool zero)
 {
 	size_t usize;
+	huge_map_t *huge;
 
 	/* Both allocations must be huge to avoid a move. */
 	if (oldsize < chunksize)
@@ -177,6 +210,8 @@ huge_ralloc_no_move(void *ptr, size_t oldsize, size_t size, size_t extra,
 		/* size_t overflow. */
 		return (true);
 	}
+
+	huge = get_huge_map(ptr);
 
 	/*
 	 * Avoid moving the allocation if the existing chunk size accommodates
@@ -195,17 +230,17 @@ huge_ralloc_no_move(void *ptr, size_t oldsize, size_t size, size_t extra,
 		if (oldsize != usize) {
 			extent_node_t *node, key;
 
-			malloc_mutex_lock(&huge_mtx);
+			malloc_mutex_lock(&huge->mtx);
 
 			key.addr = ptr;
-			node = extent_tree_ad_search(&huge, &key);
+			node = extent_tree_ad_search(&huge->tree, &key);
 			assert(node != NULL);
 			assert(node->addr == ptr);
 
 			assert(node->size != usize);
 			node->size = usize;
 
-			malloc_mutex_unlock(&huge_mtx);
+			malloc_mutex_unlock(&huge->mtx);
 
 			if (oldsize < usize) {
 				if (zero || (config_fill &&
@@ -234,17 +269,17 @@ huge_ralloc_no_move(void *ptr, size_t oldsize, size_t size, size_t extra,
 		void *excess_addr;
 		size_t excess_size;
 
-		malloc_mutex_lock(&huge_mtx);
+		malloc_mutex_lock(&huge->mtx);
 
 		key.addr = ptr;
-		node = extent_tree_ad_search(&huge, &key);
+		node = extent_tree_ad_search(&huge->tree, &key);
 		assert(node != NULL);
 		assert(node->addr == ptr);
 
 		/* Update the size of the huge allocation. */
 		node->size = usize;
 
-		malloc_mutex_unlock(&huge_mtx);
+		malloc_mutex_unlock(&huge->mtx);
 
 		excess_addr = node->addr + CHUNK_CEILING(usize);
 		excess_size = CHUNK_CEILING(oldsize) - CHUNK_CEILING(usize);
@@ -315,17 +350,20 @@ void
 huge_dalloc(tsd_t *tsd, void *ptr)
 {
 	extent_node_t *node, key;
+	huge_map_t *huge;
 
-	malloc_mutex_lock(&huge_mtx);
+	huge = get_huge_map(ptr);
+
+	malloc_mutex_lock(&huge->mtx);
 
 	/* Extract from tree of huge allocations. */
 	key.addr = ptr;
-	node = extent_tree_ad_search(&huge, &key);
+	node = extent_tree_ad_search(&huge->tree, &key);
 	assert(node != NULL);
 	assert(node->addr == ptr);
-	extent_tree_ad_remove(&huge, node);
+	extent_tree_ad_remove(&huge->tree, node);
 
-	malloc_mutex_unlock(&huge_mtx);
+	malloc_mutex_unlock(&huge->mtx);
 
 	huge_dalloc_junk(node->addr, node->size);
 	arena_chunk_dalloc_huge(node->arena, node->addr,
@@ -338,17 +376,20 @@ huge_salloc(const void *ptr)
 {
 	size_t ret;
 	extent_node_t *node, key;
+	huge_map_t *huge;
 
-	malloc_mutex_lock(&huge_mtx);
+	huge = get_huge_map(ptr);
+
+	malloc_mutex_lock(&huge->mtx);
 
 	/* Extract from tree of huge allocations. */
 	key.addr = __DECONST(void *, ptr);
-	node = extent_tree_ad_search(&huge, &key);
+	node = extent_tree_ad_search(&huge->tree, &key);
 	assert(node != NULL);
 
 	ret = node->size;
 
-	malloc_mutex_unlock(&huge_mtx);
+	malloc_mutex_unlock(&huge->mtx);
 
 	return (ret);
 }
@@ -358,17 +399,20 @@ huge_prof_tctx_get(const void *ptr)
 {
 	prof_tctx_t *ret;
 	extent_node_t *node, key;
+	huge_map_t *huge;
 
-	malloc_mutex_lock(&huge_mtx);
+	huge = get_huge_map(ptr);
+
+	malloc_mutex_lock(&huge->mtx);
 
 	/* Extract from tree of huge allocations. */
 	key.addr = __DECONST(void *, ptr);
-	node = extent_tree_ad_search(&huge, &key);
+	node = extent_tree_ad_search(&huge->tree, &key);
 	assert(node != NULL);
 
 	ret = node->prof_tctx;
 
-	malloc_mutex_unlock(&huge_mtx);
+	malloc_mutex_unlock(&huge->mtx);
 
 	return (ret);
 }
@@ -377,27 +421,41 @@ void
 huge_prof_tctx_set(const void *ptr, prof_tctx_t *tctx)
 {
 	extent_node_t *node, key;
+	huge_map_t *huge;
 
-	malloc_mutex_lock(&huge_mtx);
+	huge = get_huge_map(ptr);
+
+	malloc_mutex_lock(&huge->mtx);
 
 	/* Extract from tree of huge allocations. */
 	key.addr = __DECONST(void *, ptr);
-	node = extent_tree_ad_search(&huge, &key);
+	node = extent_tree_ad_search(&huge->tree, &key);
 	assert(node != NULL);
 
 	node->prof_tctx = tctx;
 
-	malloc_mutex_unlock(&huge_mtx);
+	malloc_mutex_unlock(&huge->mtx);
 }
 
 bool
-huge_boot(void)
+huge_boot(unsigned ncpus)
 {
+	if (ncpus > 1)
+		huge_size = pow2_ceil(ncpus * 16);
+	else
+		huge_size = 1;
+
+	huge_maps = base_alloc(sizeof(huge_map_t) * huge_size);
+	if (huge_maps == NULL)
+		return (true);
 
 	/* Initialize chunks data. */
-	if (malloc_mutex_init(&huge_mtx))
-		return (true);
-	extent_tree_ad_new(&huge);
+	for (size_t i = 0; i < huge_size; i++) {
+		if (malloc_mutex_init(&huge_maps[i].mtx))
+			return (true);
+
+		extent_tree_ad_new(&huge_maps[i].tree);
+	}
 
 	return (false);
 }
@@ -405,20 +463,26 @@ huge_boot(void)
 void
 huge_prefork(void)
 {
+	size_t i;
 
-	malloc_mutex_prefork(&huge_mtx);
+	for (i = 0; i < huge_size; i++)
+		malloc_mutex_prefork(&huge_maps[i].mtx);
 }
 
 void
 huge_postfork_parent(void)
 {
+	size_t i;
 
-	malloc_mutex_postfork_parent(&huge_mtx);
+	for (i = 0; i < huge_size; i++)
+		malloc_mutex_postfork_parent(&huge_maps[i].mtx);
 }
 
 void
 huge_postfork_child(void)
 {
+	size_t i;
 
-	malloc_mutex_postfork_child(&huge_mtx);
+	for (i = 0; i < huge_size; i++)
+		malloc_mutex_postfork_child(&huge_maps[i].mtx);
 }
