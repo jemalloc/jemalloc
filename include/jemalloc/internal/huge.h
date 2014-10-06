@@ -10,7 +10,7 @@
 #ifdef JEMALLOC_H_EXTERNS
 
 void	*huge_malloc(tsd_t *tsd, arena_t *arena, size_t size, bool zero);
-void	*huge_palloc(tsd_t *tsd, arena_t *arena, size_t size, size_t alignment,
+void	*huge_palloc(tsd_t *tsd, arena_t *arena, size_t usize, size_t alignment,
     bool zero);
 bool	huge_ralloc_no_move(void *ptr, size_t oldsize, size_t size,
     size_t extra, bool zero);

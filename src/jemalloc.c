@@ -42,6 +42,38 @@ unsigned		narenas_auto;
 /* Set to true once the allocator has been initialized. */
 static bool		malloc_initialized = false;
 
+JEMALLOC_ALIGNED(CACHELINE)
+const size_t	index2size_tab[NSIZES] = {
+#define	SC(index, lg_grp, lg_delta, ndelta, bin, lg_delta_lookup) \
+	((ZU(1)<<lg_grp) + (ZU(ndelta)<<lg_delta)),
+	SIZE_CLASSES
+#undef SC
+};
+
+JEMALLOC_ALIGNED(CACHELINE)
+const uint8_t	size2index_tab[] = {
+#define	S2B_3(i)	i,
+#define	S2B_4(i)	S2B_3(i) S2B_3(i)
+#define	S2B_5(i)	S2B_4(i) S2B_4(i)
+#define	S2B_6(i)	S2B_5(i) S2B_5(i)
+#define	S2B_7(i)	S2B_6(i) S2B_6(i)
+#define	S2B_8(i)	S2B_7(i) S2B_7(i)
+#define	S2B_9(i)	S2B_8(i) S2B_8(i)
+#define	S2B_no(i)
+#define	SC(index, lg_grp, lg_delta, ndelta, bin, lg_delta_lookup) \
+	S2B_##lg_delta_lookup(index)
+	SIZE_CLASSES
+#undef S2B_3
+#undef S2B_4
+#undef S2B_5
+#undef S2B_6
+#undef S2B_7
+#undef S2B_8
+#undef S2B_9
+#undef S2B_no
+#undef SC
+};
+
 #ifdef JEMALLOC_THREADED_INIT
 /* Used to let the initializing thread recursively allocate. */
 #  define NO_INITIALIZER	((unsigned long)0)
@@ -1731,7 +1763,7 @@ ixallocx_prof_sample(void *ptr, size_t old_usize, size_t size, size_t extra,
 		    alignment, zero))
 			return (old_usize);
 		usize = isalloc(ptr, config_prof);
-		if (max_usize < PAGE)
+		if (max_usize < LARGE_MINCLASS)
 			arena_prof_promoted(ptr, usize);
 	} else {
 		usize = ixallocx_helper(ptr, old_usize, size, extra, alignment,

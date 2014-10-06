@@ -15,12 +15,19 @@ static extent_tree_t	huge;
 void *
 huge_malloc(tsd_t *tsd, arena_t *arena, size_t size, bool zero)
 {
+	size_t usize;
 
-	return (huge_palloc(tsd, arena, size, chunksize, zero));
+	usize = s2u(size);
+	if (usize == 0) {
+		/* size_t overflow. */
+		return (NULL);
+	}
+
+	return (huge_palloc(tsd, arena, usize, chunksize, zero));
 }
 
 void *
-huge_palloc(tsd_t *tsd, arena_t *arena, size_t size, size_t alignment,
+huge_palloc(tsd_t *tsd, arena_t *arena, size_t usize, size_t alignment,
     bool zero)
 {
 	void *ret;
@@ -30,11 +37,8 @@ huge_palloc(tsd_t *tsd, arena_t *arena, size_t size, size_t alignment,
 
 	/* Allocate one or more contiguous chunks for this request. */
 
-	csize = CHUNK_CEILING(size);
-	if (csize == 0) {
-		/* size is large enough to cause size_t wrap-around. */
-		return (NULL);
-	}
+	csize = CHUNK_CEILING(usize);
+	assert(csize >= usize);
 
 	/* Allocate an extent node with which to track the chunk. */
 	node = base_node_alloc();
@@ -55,7 +59,7 @@ huge_palloc(tsd_t *tsd, arena_t *arena, size_t size, size_t alignment,
 
 	/* Insert node into huge. */
 	node->addr = ret;
-	node->size = csize;
+	node->size = usize;
 	node->arena = arena;
 
 	malloc_mutex_lock(&huge_mtx);
@@ -64,9 +68,9 @@ huge_palloc(tsd_t *tsd, arena_t *arena, size_t size, size_t alignment,
 
 	if (config_fill && !zero) {
 		if (unlikely(opt_junk))
-			memset(ret, 0xa5, csize);
+			memset(ret, 0xa5, usize);
 		else if (unlikely(opt_zero) && !is_zeroed)
-			memset(ret, 0, csize);
+			memset(ret, 0, usize);
 	}
 
 	return (ret);
@@ -97,7 +101,7 @@ huge_dalloc_junk_t *huge_dalloc_junk = JEMALLOC_N(huge_dalloc_junk_impl);
 
 static bool
 huge_ralloc_no_move_expand(void *ptr, size_t oldsize, size_t size, bool zero) {
-	size_t csize;
+	size_t usize;
 	void *expand_addr;
 	size_t expand_size;
 	extent_node_t *node, key;
@@ -105,14 +109,14 @@ huge_ralloc_no_move_expand(void *ptr, size_t oldsize, size_t size, bool zero) {
 	bool is_zeroed;
 	void *ret;
 
-	csize = CHUNK_CEILING(size);
-	if (csize == 0) {
-		/* size is large enough to cause size_t wrap-around. */
+	usize = s2u(size);
+	if (usize == 0) {
+		/* size_t overflow. */
 		return (true);
 	}
 
-	expand_addr = ptr + oldsize;
-	expand_size = csize - oldsize;
+	expand_addr = ptr + CHUNK_CEILING(oldsize);
+	expand_size = CHUNK_CEILING(usize) - CHUNK_CEILING(oldsize);
 
 	malloc_mutex_lock(&huge_mtx);
 
@@ -140,14 +144,14 @@ huge_ralloc_no_move_expand(void *ptr, size_t oldsize, size_t size, bool zero) {
 
 	malloc_mutex_lock(&huge_mtx);
 	/* Update the size of the huge allocation. */
-	node->size = csize;
+	node->size = usize;
 	malloc_mutex_unlock(&huge_mtx);
 
 	if (config_fill && !zero) {
 		if (unlikely(opt_junk))
-			memset(expand_addr, 0xa5, expand_size);
+			memset(ptr + oldsize, 0xa5, usize - oldsize);
 		else if (unlikely(opt_zero) && !is_zeroed)
-			memset(expand_addr, 0, expand_size);
+			memset(ptr + oldsize, 0, usize - oldsize);
 	}
 	return (false);
 }
@@ -156,27 +160,71 @@ bool
 huge_ralloc_no_move(void *ptr, size_t oldsize, size_t size, size_t extra,
     bool zero)
 {
+	size_t usize;
 
 	/* Both allocations must be huge to avoid a move. */
-	if (oldsize <= arena_maxclass)
+	if (oldsize < chunksize)
 		return (true);
 
-	assert(CHUNK_CEILING(oldsize) == oldsize);
+	assert(s2u(oldsize) == oldsize);
+	usize = s2u(size);
+	if (usize == 0) {
+		/* size_t overflow. */
+		return (true);
+	}
 
 	/*
-	 * Avoid moving the allocation if the size class can be left the same.
+	 * Avoid moving the allocation if the existing chunk size accommodates
+	 * the new size.
 	 */
+	if (CHUNK_CEILING(oldsize) >= CHUNK_CEILING(usize)
+	    && CHUNK_CEILING(oldsize) <= CHUNK_CEILING(size+extra)) {
+		size_t usize_next;
+
+		/* Increase usize to incorporate extra. */
+		while (usize < s2u(size+extra) && (usize_next = s2u(usize+1)) <
+		    oldsize)
+			usize = usize_next;
+
+		/* Update the size of the huge allocation if it changed. */
+		if (oldsize != usize) {
+			extent_node_t *node, key;
+
+			malloc_mutex_lock(&huge_mtx);
+
+			key.addr = ptr;
+			node = extent_tree_ad_search(&huge, &key);
+			assert(node != NULL);
+			assert(node->addr == ptr);
+
+			assert(node->size != usize);
+			node->size = usize;
+
+			malloc_mutex_unlock(&huge_mtx);
+
+			if (oldsize < usize) {
+				if (zero || (config_fill &&
+				    unlikely(opt_zero))) {
+					memset(ptr + oldsize, 0, usize -
+					    oldsize);
+				} else if (config_fill && unlikely(opt_junk)) {
+					memset(ptr + oldsize, 0xa5, usize -
+					    oldsize);
+				}
+			} else if (config_fill && unlikely(opt_junk) && oldsize
+			    > usize)
+				memset(ptr + usize, 0x5a, oldsize - usize);
+		}
+		return (false);
+	}
+
 	if (CHUNK_CEILING(oldsize) >= CHUNK_CEILING(size)
 	    && CHUNK_CEILING(oldsize) <= CHUNK_CEILING(size+extra)) {
 		return (false);
 	}
 
-	/* Overflow. */
-	if (CHUNK_CEILING(size) == 0)
-		return (true);
-
 	/* Shrink the allocation in-place. */
-	if (CHUNK_CEILING(oldsize) > CHUNK_CEILING(size)) {
+	if (CHUNK_CEILING(oldsize) > CHUNK_CEILING(usize)) {
 		extent_node_t *node, key;
 		void *excess_addr;
 		size_t excess_size;
@@ -189,15 +237,15 @@ huge_ralloc_no_move(void *ptr, size_t oldsize, size_t size, size_t extra,
 		assert(node->addr == ptr);
 
 		/* Update the size of the huge allocation. */
-		node->size = CHUNK_CEILING(size);
+		node->size = usize;
 
 		malloc_mutex_unlock(&huge_mtx);
 
-		excess_addr = node->addr + CHUNK_CEILING(size);
-		excess_size = CHUNK_CEILING(oldsize) - CHUNK_CEILING(size);
+		excess_addr = node->addr + CHUNK_CEILING(usize);
+		excess_size = CHUNK_CEILING(oldsize) - CHUNK_CEILING(usize);
 
 		/* Zap the excess chunks. */
-		huge_dalloc_junk(excess_addr, excess_size);
+		huge_dalloc_junk(ptr + usize, oldsize - usize);
 		arena_chunk_dalloc_huge(node->arena, excess_addr, excess_size);
 
 		return (false);
@@ -275,7 +323,8 @@ huge_dalloc(void *ptr)
 	malloc_mutex_unlock(&huge_mtx);
 
 	huge_dalloc_junk(node->addr, node->size);
-	arena_chunk_dalloc_huge(node->arena, node->addr, node->size);
+	arena_chunk_dalloc_huge(node->arena, node->addr,
+	    CHUNK_CEILING(node->size));
 	base_node_dalloc(node);
 }
 

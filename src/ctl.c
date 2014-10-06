@@ -1628,7 +1628,7 @@ arenas_bin_i_index(const size_t *mib, size_t miblen, size_t i)
 }
 
 CTL_RO_NL_GEN(arenas_nlruns, nlclasses, size_t)
-CTL_RO_NL_GEN(arenas_lrun_i_size, ((mib[2]+1) << LG_PAGE), size_t)
+CTL_RO_NL_GEN(arenas_lrun_i_size, index2size(NBINS+mib[2]), size_t)
 static const ctl_named_node_t *
 arenas_lrun_i_index(const size_t *mib, size_t miblen, size_t i)
 {

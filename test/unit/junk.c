@@ -88,7 +88,6 @@ test_junk(size_t sz_min, size_t sz_max)
 
 		if (xallocx(s, sz+1, 0, 0) == sz) {
 			void *junked = (void *)s;
-
 			s = (char *)rallocx(s, sz+1, 0);
 			assert_ptr_not_null((void *)s,
 			    "Unexpected rallocx() failure");
@@ -134,13 +133,25 @@ TEST_END
 arena_ralloc_junk_large_t *arena_ralloc_junk_large_orig;
 static void *most_recently_trimmed;
 
+static size_t
+shrink_size(size_t size)
+{
+	size_t shrink_size;
+
+	for (shrink_size = size - 1; nallocx(shrink_size, 0) == size;
+	    shrink_size--)
+		; /* Do nothing. */
+
+	return (shrink_size);
+}
+
 static void
 arena_ralloc_junk_large_intercept(void *ptr, size_t old_usize, size_t usize)
 {
 
 	arena_ralloc_junk_large_orig(ptr, old_usize, usize);
 	assert_zu_eq(old_usize, arena_maxclass, "Unexpected old_usize");
-	assert_zu_eq(usize, arena_maxclass-PAGE, "Unexpected usize");
+	assert_zu_eq(usize, shrink_size(arena_maxclass), "Unexpected usize");
 	most_recently_trimmed = ptr;
 }
 
@@ -154,7 +165,7 @@ TEST_BEGIN(test_junk_large_ralloc_shrink)
 	arena_ralloc_junk_large_orig = arena_ralloc_junk_large;
 	arena_ralloc_junk_large = arena_ralloc_junk_large_intercept;
 
-	p2 = rallocx(p1, arena_maxclass-PAGE, 0);
+	p2 = rallocx(p1, shrink_size(arena_maxclass), 0);
 	assert_ptr_eq(p1, p2, "Unexpected move during shrink");
 
 	arena_ralloc_junk_large = arena_ralloc_junk_large_orig;

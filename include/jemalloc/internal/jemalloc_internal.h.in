@@ -165,6 +165,9 @@ static const bool config_ivsalloc =
 
 #include "jemalloc/internal/jemalloc_internal_macros.h"
 
+/* Size class index type. */
+typedef unsigned index_t;
+
 #define	MALLOCX_ARENA_MASK	((int)~0xff)
 #define	MALLOCX_LG_ALIGN_MASK	((int)0x3f)
 /* Use MALLOCX_ALIGN_GET() if alignment may not be specified in flags. */
@@ -397,6 +400,18 @@ extern arena_t		**arenas;
 extern unsigned		narenas_total;
 extern unsigned		narenas_auto; /* Read-only after initialization. */
 
+/*
+ * index2size_tab encodes the same information as could be computed (at
+ * unacceptable cost in some code paths) by index2size_compute().
+ */
+extern size_t const	index2size_tab[NSIZES];
+/*
+ * size2index_tab is a compact lookup table that rounds request sizes up to
+ * size classes.  In order to reduce cache footprint, the table is compressed,
+ * and all accesses are via size2index().
+ */
+extern uint8_t const	size2index_tab[];
+
 arena_t	*arenas_extend(unsigned ind);
 arena_t	*choose_arena_hard(tsd_t *tsd);
 void	thread_allocated_cleanup(tsd_t *tsd);
@@ -449,15 +464,15 @@ void	jemalloc_postfork_child(void);
 #include "jemalloc/internal/chunk.h"
 #include "jemalloc/internal/huge.h"
 
-/*
- * Include arena.h the first time in order to provide inline functions for this
- * header's inlines.
- */
-#define	JEMALLOC_ARENA_INLINE_A
-#include "jemalloc/internal/arena.h"
-#undef JEMALLOC_ARENA_INLINE_A
-
 #ifndef JEMALLOC_ENABLE_INLINE
+index_t	size2index_compute(size_t size);
+index_t	size2index_lookup(size_t size);
+index_t	size2index(size_t size);
+size_t	index2size_compute(index_t index);
+size_t	index2size_lookup(index_t index);
+size_t	index2size(index_t index);
+size_t	s2u_compute(size_t size);
+size_t	s2u_lookup(size_t size);
 size_t	s2u(size_t size);
 size_t	sa2u(size_t size, size_t alignment);
 unsigned	narenas_total_get(void);
@@ -465,6 +480,135 @@ arena_t	*choose_arena(tsd_t *tsd, arena_t *arena);
 #endif
 
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_C_))
+JEMALLOC_INLINE index_t
+size2index_compute(size_t size)
+{
+
+#if (NTBINS != 0)
+	if (size <= (ZU(1) << LG_TINY_MAXCLASS)) {
+		size_t lg_tmin = LG_TINY_MAXCLASS - NTBINS + 1;
+		size_t lg_ceil = lg_floor(pow2_ceil(size));
+		return (lg_ceil < lg_tmin ? 0 : lg_ceil - lg_tmin);
+	} else
+#endif
+	{
+		size_t x = lg_floor((size<<1)-1);
+		size_t shift = (x < LG_SIZE_CLASS_GROUP + LG_QUANTUM) ? 0 :
+		    x - (LG_SIZE_CLASS_GROUP + LG_QUANTUM);
+		size_t grp = shift << LG_SIZE_CLASS_GROUP;
+
+		size_t lg_delta = (x < LG_SIZE_CLASS_GROUP + LG_QUANTUM + 1)
+		    ? LG_QUANTUM : x - LG_SIZE_CLASS_GROUP - 1;
+
+		size_t delta_inverse_mask = ZI(-1) << lg_delta;
+		size_t mod = ((((size-1) & delta_inverse_mask) >> lg_delta)) &
+		    ((ZU(1) << LG_SIZE_CLASS_GROUP) - 1);
+
+		size_t index = NTBINS + grp + mod;
+		return (index);
+	}
+}
+
+JEMALLOC_ALWAYS_INLINE index_t
+size2index_lookup(size_t size)
+{
+
+	assert(size <= LOOKUP_MAXCLASS);
+	{
+		size_t ret = ((size_t)(size2index_tab[(size-1) >>
+		    LG_TINY_MIN]));
+		assert(ret == size2index_compute(size));
+		return (ret);
+	}
+}
+
+JEMALLOC_ALWAYS_INLINE index_t
+size2index(size_t size)
+{
+
+	assert(size > 0);
+	if (likely(size <= LOOKUP_MAXCLASS))
+		return (size2index_lookup(size));
+	else
+		return (size2index_compute(size));
+}
+
+JEMALLOC_INLINE size_t
+index2size_compute(index_t index)
+{
+
+#if (NTBINS > 0)
+	if (index < NTBINS)
+		return (ZU(1) << (LG_TINY_MAXCLASS - NTBINS + 1 + index));
+	else
+#endif
+	{
+		size_t reduced_index = index - NTBINS;
+		size_t grp = reduced_index >> LG_SIZE_CLASS_GROUP;
+		size_t mod = reduced_index & ((ZU(1) << LG_SIZE_CLASS_GROUP) -
+		    1);
+
+		size_t grp_size_mask = ~((!!grp)-1);
+		size_t grp_size = ((ZU(1) << (LG_QUANTUM +
+		    (LG_SIZE_CLASS_GROUP-1))) << grp) & grp_size_mask;
+
+		size_t shift = (grp == 0) ? 1 : grp;
+		size_t lg_delta = shift + (LG_QUANTUM-1);
+		size_t mod_size = (mod+1) << lg_delta;
+
+		size_t usize = grp_size + mod_size;
+		return (usize);
+	}
+}
+
+JEMALLOC_ALWAYS_INLINE size_t
+index2size_lookup(index_t index)
+{
+	size_t ret = (size_t)index2size_tab[index];
+	assert(ret == index2size_compute(index));
+	return (ret);
+}
+
+JEMALLOC_ALWAYS_INLINE size_t
+index2size(index_t index)
+{
+
+	assert(index < NSIZES);
+	return (index2size_lookup(index));
+}
+
+JEMALLOC_ALWAYS_INLINE size_t
+s2u_compute(size_t size)
+{
+
+#if (NTBINS > 0)
+	if (size <= (ZU(1) << LG_TINY_MAXCLASS)) {
+		size_t lg_tmin = LG_TINY_MAXCLASS - NTBINS + 1;
+		size_t lg_ceil = lg_floor(pow2_ceil(size));
+		return (lg_ceil < lg_tmin ? (ZU(1) << lg_tmin) :
+		    (ZU(1) << lg_ceil));
+	} else
+#endif
+	{
+		size_t x = lg_floor((size<<1)-1);
+		size_t lg_delta = (x < LG_SIZE_CLASS_GROUP + LG_QUANTUM + 1)
+		    ?  LG_QUANTUM : x - LG_SIZE_CLASS_GROUP - 1;
+		size_t delta = ZU(1) << lg_delta;
+		size_t delta_mask = delta - 1;
+		size_t usize = (size + delta_mask) & ~delta_mask;
+		return (usize);
+	}
+}
+
+JEMALLOC_ALWAYS_INLINE size_t
+s2u_lookup(size_t size)
+{
+	size_t ret = index2size_lookup(size2index_lookup(size));
+
+	assert(ret == s2u_compute(size));
+	return (ret);
+}
+
 /*
  * Compute usable size that would result from allocating an object with the
  * specified size.
@@ -473,11 +617,11 @@ JEMALLOC_ALWAYS_INLINE size_t
 s2u(size_t size)
 {
 
-	if (size <= SMALL_MAXCLASS)
-		return (small_s2u(size));
-	if (size <= arena_maxclass)
-		return (PAGE_CEILING(size));
-	return (CHUNK_CEILING(size));
+	assert(size > 0);
+	if (likely(size <= LOOKUP_MAXCLASS))
+		return (s2u_lookup(size));
+	else
+		return (s2u_compute(size));
 }
 
 /*
@@ -491,71 +635,78 @@ sa2u(size_t size, size_t alignment)
 
 	assert(alignment != 0 && ((alignment - 1) & alignment) == 0);
 
-	/*
-	 * Round size up to the nearest multiple of alignment.
-	 *
-	 * This done, we can take advantage of the fact that for each small
-	 * size class, every object is aligned at the smallest power of two
-	 * that is non-zero in the base two representation of the size.  For
-	 * example:
-	 *
-	 *   Size |   Base 2 | Minimum alignment
-	 *   -----+----------+------------------
-	 *     96 |  1100000 |  32
-	 *    144 | 10100000 |  32
-	 *    192 | 11000000 |  64
-	 */
-	usize = ALIGNMENT_CEILING(size, alignment);
-	/*
-	 * (usize < size) protects against the combination of maximal
-	 * alignment and size greater than maximal alignment.
-	 */
-	if (usize < size) {
-		/* size_t overflow. */
-		return (0);
+	/* Try for a small size class. */
+	if (size <= SMALL_MAXCLASS && alignment < PAGE) {
+		/*
+		 * Round size up to the nearest multiple of alignment.
+		 *
+		 * This done, we can take advantage of the fact that for each
+		 * small size class, every object is aligned at the smallest
+		 * power of two that is non-zero in the base two representation
+		 * of the size.  For example:
+		 *
+		 *   Size |   Base 2 | Minimum alignment
+		 *   -----+----------+------------------
+		 *     96 |  1100000 |  32
+		 *    144 | 10100000 |  32
+		 *    192 | 11000000 |  64
+		 */
+		usize = s2u(ALIGNMENT_CEILING(size, alignment));
+		if (usize < LARGE_MINCLASS)
+			return (usize);
 	}
 
-	if (usize <= arena_maxclass && alignment <= PAGE) {
-		if (usize <= SMALL_MAXCLASS)
-			return (small_s2u(usize));
-		return (PAGE_CEILING(usize));
-	} else {
-		size_t run_size;
-
+	/* Try for a large size class. */
+	if (size <= arena_maxclass && alignment < chunksize) {
 		/*
 		 * We can't achieve subpage alignment, so round up alignment
-		 * permanently; it makes later calculations simpler.
+		 * to the minimum that can actually be supported.
 		 */
 		alignment = PAGE_CEILING(alignment);
-		usize = PAGE_CEILING(size);
-		/*
-		 * (usize < size) protects against very large sizes within
-		 * PAGE of SIZE_T_MAX.
-		 *
-		 * (usize + alignment < usize) protects against the
-		 * combination of maximal alignment and usize large enough
-		 * to cause overflow.  This is similar to the first overflow
-		 * check above, but it needs to be repeated due to the new
-		 * usize value, which may now be *equal* to maximal
-		 * alignment, whereas before we only detected overflow if the
-		 * original size was *greater* than maximal alignment.
-		 */
-		if (usize < size || usize + alignment < usize) {
-			/* size_t overflow. */
-			return (0);
-		}
+
+		/* Make sure result is a large size class. */
+		usize = (size <= LARGE_MINCLASS) ? LARGE_MINCLASS : s2u(size);
 
 		/*
 		 * Calculate the size of the over-size run that arena_palloc()
 		 * would need to allocate in order to guarantee the alignment.
-		 * If the run wouldn't fit within a chunk, round up to a huge
-		 * allocation size.
 		 */
-		run_size = usize + alignment - PAGE;
-		if (run_size <= arena_maxclass)
-			return (PAGE_CEILING(usize));
-		return (CHUNK_CEILING(usize));
+		if (usize + alignment - PAGE <= arena_maxrun)
+			return (usize);
 	}
+
+	/* Huge size class.  Beware of size_t overflow. */
+
+	/*
+	 * We can't achieve subchunk alignment, so round up alignment to the
+	 * minimum that can actually be supported.
+	 */
+	alignment = CHUNK_CEILING(alignment);
+	if (alignment == 0) {
+		/* size_t overflow. */
+		return (0);
+	}
+
+	/* Make sure result is a huge size class. */
+	if (size <= chunksize)
+		usize = chunksize;
+	else {
+		usize = s2u(size);
+		if (usize < size) {
+			/* size_t overflow. */
+			return (0);
+		}
+	}
+
+	/*
+	 * Calculate the multi-chunk mapping that huge_palloc() would need in
+	 * order to guarantee the alignment.
+	 */
+	if (usize + alignment - PAGE < usize) {
+		/* size_t overflow. */
+		return (0);
+	}
+	return (usize);
 }
 
 JEMALLOC_INLINE unsigned
@@ -591,16 +742,16 @@ choose_arena(tsd_t *tsd, arena_t *arena)
 #include "jemalloc/internal/bitmap.h"
 #include "jemalloc/internal/rtree.h"
 /*
- * Include arena.h the second and third times in order to resolve circular
- * dependencies with tcache.h.
+ * Include portions of arena.h interleaved with tcache.h in order to resolve
+ * circular dependencies.
  */
+#define	JEMALLOC_ARENA_INLINE_A
+#include "jemalloc/internal/arena.h"
+#undef JEMALLOC_ARENA_INLINE_A
+#include "jemalloc/internal/tcache.h"
 #define	JEMALLOC_ARENA_INLINE_B
 #include "jemalloc/internal/arena.h"
 #undef JEMALLOC_ARENA_INLINE_B
-#include "jemalloc/internal/tcache.h"
-#define	JEMALLOC_ARENA_INLINE_C
-#include "jemalloc/internal/arena.h"
-#undef JEMALLOC_ARENA_INLINE_C
 #include "jemalloc/internal/hash.h"
 #include "jemalloc/internal/quarantine.h"
 
@@ -678,7 +829,7 @@ ipalloct(tsd_t *tsd, size_t usize, size_t alignment, bool zero, bool try_tcache,
 	assert(usize != 0);
 	assert(usize == sa2u(usize, alignment));
 
-	if (usize <= arena_maxclass && alignment <= PAGE)
+	if (usize <= SMALL_MAXCLASS && alignment < PAGE)
 		ret = arena_malloc(tsd, arena, usize, zero, try_tcache);
 	else {
 		if (usize <= arena_maxclass) {
@@ -742,7 +893,7 @@ u2rz(size_t usize)
 	size_t ret;
 
 	if (usize <= SMALL_MAXCLASS) {
-		size_t binind = small_size2bin(usize);
+		index_t binind = size2index(usize);
 		ret = arena_bin_info[binind].redzone_size;
 	} else
 		ret = 0;
