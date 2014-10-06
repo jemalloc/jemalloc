@@ -938,7 +938,7 @@ idalloct(tsd_t *tsd, void *ptr, bool try_tcache)
 	if (chunk != ptr)
 		arena_dalloc(tsd, chunk, ptr, try_tcache);
 	else
-		huge_dalloc(ptr);
+		huge_dalloc(tsd, ptr);
 }
 
 JEMALLOC_ALWAYS_INLINE void
@@ -952,7 +952,7 @@ isdalloct(tsd_t *tsd, void *ptr, size_t size, bool try_tcache)
 	if (chunk != ptr)
 		arena_sdalloc(tsd, chunk, ptr, size, try_tcache);
 	else
-		huge_dalloc(ptr);
+		huge_dalloc(tsd, ptr);
 }
 
 JEMALLOC_ALWAYS_INLINE void

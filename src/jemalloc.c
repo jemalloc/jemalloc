@@ -240,7 +240,7 @@ a0free(void *ptr)
 	if (chunk != ptr)
 		arena_dalloc(NULL, chunk, ptr, false);
 	else
-		huge_dalloc(ptr);
+		huge_dalloc(NULL, ptr);
 }
 
 /* Create a new arena and insert it into the arenas array at index ind. */

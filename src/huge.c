@@ -41,7 +41,8 @@ huge_palloc(tsd_t *tsd, arena_t *arena, size_t usize, size_t alignment,
 	assert(csize >= usize);
 
 	/* Allocate an extent node with which to track the chunk. */
-	node = base_node_alloc();
+	node = ipalloct(tsd, CACHELINE_CEILING(sizeof(extent_node_t)),
+	    CACHELINE, false, tsd != NULL, NULL);
 	if (node == NULL)
 		return (NULL);
 
@@ -57,7 +58,7 @@ huge_palloc(tsd_t *tsd, arena_t *arena, size_t usize, size_t alignment,
 	}
 	ret = arena_chunk_alloc_huge(arena, NULL, csize, alignment, &is_zeroed);
 	if (ret == NULL) {
-		base_node_dalloc(node);
+		idalloct(tsd, node, tsd != NULL);
 		return (NULL);
 	}
 
@@ -311,7 +312,7 @@ huge_ralloc(tsd_t *tsd, arena_t *arena, void *ptr, size_t oldsize, size_t size,
 }
 
 void
-huge_dalloc(void *ptr)
+huge_dalloc(tsd_t *tsd, void *ptr)
 {
 	extent_node_t *node, key;
 
@@ -329,7 +330,7 @@ huge_dalloc(void *ptr)
 	huge_dalloc_junk(node->addr, node->size);
 	arena_chunk_dalloc_huge(node->arena, node->addr,
 	    CHUNK_CEILING(node->size));
-	base_node_dalloc(node);
+	idalloct(tsd, node, tsd != NULL);
 }
 
 size_t
