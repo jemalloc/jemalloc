@@ -50,7 +50,11 @@ huge_palloc(tsd_t *tsd, arena_t *arena, size_t usize, size_t alignment,
 	 * it is possible to make correct junk/zero fill decisions below.
 	 */
 	is_zeroed = zero;
-	arena = choose_arena(tsd, arena);
+	arena = arena_choose(tsd, arena);
+	if (unlikely(arena == NULL)) {
+		base_node_dalloc(node);
+		return (NULL);
+	}
 	ret = arena_chunk_alloc_huge(arena, NULL, csize, alignment, &is_zeroed);
 	if (ret == NULL) {
 		base_node_dalloc(node);

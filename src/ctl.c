@@ -447,7 +447,7 @@ ctl_arena_init(ctl_arena_stats_t *astats)
 {
 
 	if (astats->lstats == NULL) {
-		astats->lstats = (malloc_large_stats_t *)base_alloc(nlclasses *
+		astats->lstats = (malloc_large_stats_t *)a0malloc(nlclasses *
 		    sizeof(malloc_large_stats_t));
 		if (astats->lstats == NULL)
 			return (true);
@@ -567,31 +567,24 @@ ctl_arena_refresh(arena_t *arena, unsigned i)
 static bool
 ctl_grow(void)
 {
-	tsd_t *tsd;
 	ctl_arena_stats_t *astats;
-	arena_t **tarenas;
 
-	tsd = tsd_fetch();
+	/* Initialize new arena. */
+	if (arena_init(ctl_stats.narenas) == NULL)
+		return (true);
 
-	/* Allocate extended arena stats and arenas arrays. */
-	astats = (ctl_arena_stats_t *)imalloc(tsd, (ctl_stats.narenas + 2) *
+	/* Allocate extended arena stats. */
+	astats = (ctl_arena_stats_t *)a0malloc((ctl_stats.narenas + 2) *
 	    sizeof(ctl_arena_stats_t));
 	if (astats == NULL)
 		return (true);
-	tarenas = (arena_t **)imalloc(tsd, (ctl_stats.narenas + 1) *
-	    sizeof(arena_t *));
-	if (tarenas == NULL) {
-		idalloc(tsd, astats);
-		return (true);
-	}
 
 	/* Initialize the new astats element. */
 	memcpy(astats, ctl_stats.arenas, (ctl_stats.narenas + 1) *
 	    sizeof(ctl_arena_stats_t));
 	memset(&astats[ctl_stats.narenas + 1], 0, sizeof(ctl_arena_stats_t));
 	if (ctl_arena_init(&astats[ctl_stats.narenas + 1])) {
-		idalloc(tsd, tarenas);
-		idalloc(tsd, astats);
+		a0free(astats);
 		return (true);
 	}
 	/* Swap merged stats to their new location. */
@@ -604,32 +597,7 @@ ctl_grow(void)
 		memcpy(&astats[ctl_stats.narenas + 1], &tstats,
 		    sizeof(ctl_arena_stats_t));
 	}
-	/* Initialize the new arenas element. */
-	tarenas[ctl_stats.narenas] = NULL;
-	{
-		arena_t **arenas_old = arenas;
-		/*
-		 * Swap extended arenas array into place.  Although ctl_mtx
-		 * protects this function from other threads extending the
-		 * array, it does not protect from other threads mutating it
-		 * (i.e. initializing arenas and setting array elements to
-		 * point to them).  Therefore, array copying must happen under
-		 * the protection of arenas_lock.
-		 */
-		malloc_mutex_lock(&arenas_lock);
-		arenas = tarenas;
-		memcpy(arenas, arenas_old, ctl_stats.narenas *
-		    sizeof(arena_t *));
-		narenas_total++;
-		arenas_extend(narenas_total - 1);
-		malloc_mutex_unlock(&arenas_lock);
-		/*
-		 * Deallocate arenas_old only if it came from imalloc() (not
-		 * base_alloc()).
-		 */
-		if (ctl_stats.narenas != narenas_auto)
-			idalloc(tsd, arenas_old);
-	}
+	a0free(ctl_stats.arenas);
 	ctl_stats.arenas = astats;
 	ctl_stats.narenas++;
 
@@ -639,6 +607,7 @@ ctl_grow(void)
 static void
 ctl_refresh(void)
 {
+	tsd_t *tsd;
 	unsigned i;
 	VARIABLE_ARRAY(arena_t *, tarenas, ctl_stats.narenas);
 
@@ -657,15 +626,17 @@ ctl_refresh(void)
 	ctl_stats.arenas[ctl_stats.narenas].nthreads = 0;
 	ctl_arena_clear(&ctl_stats.arenas[ctl_stats.narenas]);
 
-	malloc_mutex_lock(&arenas_lock);
-	memcpy(tarenas, arenas, sizeof(arena_t *) * ctl_stats.narenas);
+	tsd = tsd_fetch();
+	for (i = 0; i < ctl_stats.narenas; i++)
+		tarenas[i] = arena_get(tsd, i, false, (i == 0));
+
 	for (i = 0; i < ctl_stats.narenas; i++) {
-		if (arenas[i] != NULL)
-			ctl_stats.arenas[i].nthreads = arenas[i]->nthreads;
+		if (tarenas[i] != NULL)
+			ctl_stats.arenas[i].nthreads = arena_nbound(i);
 		else
 			ctl_stats.arenas[i].nthreads = 0;
 	}
-	malloc_mutex_unlock(&arenas_lock);
+
 	for (i = 0; i < ctl_stats.narenas; i++) {
 		bool initialized = (tarenas[i] != NULL);
 
@@ -698,9 +669,8 @@ ctl_init(void)
 		 * Allocate space for one extra arena stats element, which
 		 * contains summed stats across all arenas.
 		 */
-		assert(narenas_auto == narenas_total_get());
-		ctl_stats.narenas = narenas_auto;
-		ctl_stats.arenas = (ctl_arena_stats_t *)base_alloc(
+		ctl_stats.narenas = narenas_total_get();
+		ctl_stats.arenas = (ctl_arena_stats_t *)a0malloc(
 		    (ctl_stats.narenas + 1) * sizeof(ctl_arena_stats_t));
 		if (ctl_stats.arenas == NULL) {
 			ret = true;
@@ -718,6 +688,13 @@ ctl_init(void)
 			unsigned i;
 			for (i = 0; i <= ctl_stats.narenas; i++) {
 				if (ctl_arena_init(&ctl_stats.arenas[i])) {
+					unsigned j;
+					for (j = 0; j < i; j++) {
+						a0free(
+						    ctl_stats.arenas[j].lstats);
+					}
+					a0free(ctl_stats.arenas);
+					ctl_stats.arenas = NULL;
 					ret = true;
 					goto label_return;
 				}
@@ -1231,17 +1208,19 @@ thread_arena_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
 {
 	int ret;
 	tsd_t *tsd;
+	arena_t *arena;
 	unsigned newind, oldind;
 
 	tsd = tsd_fetch();
+	arena = arena_choose(tsd, NULL);
+	if (arena == NULL)
+		return (EAGAIN);
 
 	malloc_mutex_lock(&ctl_mtx);
-	newind = oldind = choose_arena(tsd, NULL)->ind;
+	newind = oldind = arena->ind;
 	WRITE(newind, unsigned);
 	READ(oldind, unsigned);
 	if (newind != oldind) {
-		arena_t *arena;
-
 		if (newind >= ctl_stats.narenas) {
 			/* New arena index is out of range. */
 			ret = EFAULT;
@@ -1249,28 +1228,18 @@ thread_arena_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
 		}
 
 		/* Initialize arena if necessary. */
-		malloc_mutex_lock(&arenas_lock);
-		if ((arena = arenas[newind]) == NULL && (arena =
-		    arenas_extend(newind)) == NULL) {
-			malloc_mutex_unlock(&arenas_lock);
+		arena = arena_get(tsd, newind, true, true);
+		if (arena == NULL) {
 			ret = EAGAIN;
 			goto label_return;
 		}
-		assert(arena == arenas[newind]);
-		arenas[oldind]->nthreads--;
-		arenas[newind]->nthreads++;
-		malloc_mutex_unlock(&arenas_lock);
-
-		/* Set new arena association. */
+		/* Set new arena/tcache associations. */
+		arena_migrate(tsd, oldind, newind);
 		if (config_tcache) {
 			tcache_t *tcache = tsd_tcache_get(tsd);
-			if (tcache != NULL) {
-				tcache_arena_dissociate(tcache);
-				tcache_arena_associate(tcache, arena);
-			}
+			if (tcache != NULL)
+				tcache_arena_reassociate(tcache, arena);
 		}
-
-		tsd_arena_set(tsd, arena);
 	}
 
 	ret = 0;
@@ -1400,11 +1369,13 @@ label_return:
 static void
 arena_purge(unsigned arena_ind)
 {
+	tsd_t *tsd;
+	unsigned i;
 	VARIABLE_ARRAY(arena_t *, tarenas, ctl_stats.narenas);
 
-	malloc_mutex_lock(&arenas_lock);
-	memcpy(tarenas, arenas, sizeof(arena_t *) * ctl_stats.narenas);
-	malloc_mutex_unlock(&arenas_lock);
+	tsd = tsd_fetch();
+	for (i = 0; i < ctl_stats.narenas; i++)
+		tarenas[i] = arena_get(tsd, i, false, (i == 0));
 
 	if (arena_ind == ctl_stats.narenas) {
 		unsigned i;
@@ -1467,7 +1438,7 @@ arena_i_dss_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
 	}
 
 	if (arena_ind < ctl_stats.narenas) {
-		arena_t *arena = arenas[arena_ind];
+		arena_t *arena = arena_get(tsd_fetch(), arena_ind, false, true);
 		if (arena == NULL || (dss_prec != dss_prec_limit &&
 		    arena_dss_prec_set(arena, dss_prec))) {
 			ret = EFAULT;
@@ -1501,7 +1472,8 @@ arena_i_chunk_alloc_ctl(const size_t *mib, size_t miblen, void *oldp,
 	arena_t *arena;
 
 	malloc_mutex_lock(&ctl_mtx);
-	if (arena_ind < narenas_total && (arena = arenas[arena_ind]) != NULL) {
+	if (arena_ind < narenas_total_get() && (arena = arena_get(tsd_fetch(),
+	    arena_ind, false, true)) != NULL) {
 		malloc_mutex_lock(&arena->lock);
 		READ(arena->chunk_alloc, chunk_alloc_t *);
 		WRITE(arena->chunk_alloc, chunk_alloc_t *);
@@ -1527,7 +1499,8 @@ arena_i_chunk_dalloc_ctl(const size_t *mib, size_t miblen, void *oldp,
 	arena_t *arena;
 
 	malloc_mutex_lock(&ctl_mtx);
-	if (arena_ind < narenas_total && (arena = arenas[arena_ind]) != NULL) {
+	if (arena_ind < narenas_total_get() && (arena = arena_get(tsd_fetch(),
+	    arena_ind, false, true)) != NULL) {
 		malloc_mutex_lock(&arena->lock);
 		READ(arena->chunk_dalloc, chunk_dalloc_t *);
 		WRITE(arena->chunk_dalloc, chunk_dalloc_t *);

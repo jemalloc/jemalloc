@@ -386,20 +386,6 @@ extern bool	in_valgrind;
 /* Number of CPUs. */
 extern unsigned		ncpus;
 
-/* Protects arenas initialization (arenas, arenas_total). */
-extern malloc_mutex_t	arenas_lock;
-/*
- * Arenas that are used to service external requests.  Not all elements of the
- * arenas array are necessarily used; arenas are created lazily as needed.
- *
- * arenas[0..narenas_auto) are used for automatic multiplexing of threads and
- * arenas.  arenas[narenas_auto..narenas_total) are only used if the application
- * takes some action to create them and allocate from them.
- */
-extern arena_t		**arenas;
-extern unsigned		narenas_total;
-extern unsigned		narenas_auto; /* Read-only after initialization. */
-
 /*
  * index2size_tab encodes the same information as could be computed (at
  * unacceptable cost in some code paths) by index2size_compute().
@@ -412,11 +398,23 @@ extern size_t const	index2size_tab[NSIZES];
  */
 extern uint8_t const	size2index_tab[];
 
+arena_t	*a0get(void);
+void	*a0malloc(size_t size);
+void	*a0calloc(size_t num, size_t size);
+void	a0free(void *ptr);
 arena_t	*arenas_extend(unsigned ind);
-arena_t	*choose_arena_hard(tsd_t *tsd);
+arena_t	*arena_init(unsigned ind);
+unsigned	narenas_total_get(void);
+arena_t	*arena_get_hard(tsd_t *tsd, unsigned ind, bool init_if_missing);
+arena_t	*arena_choose_hard(tsd_t *tsd);
+void	arena_migrate(tsd_t *tsd, unsigned oldind, unsigned newind);
+unsigned	arena_nbound(unsigned ind);
 void	thread_allocated_cleanup(tsd_t *tsd);
 void	thread_deallocated_cleanup(tsd_t *tsd);
 void	arena_cleanup(tsd_t *tsd);
+void	arenas_cache_cleanup(tsd_t *tsd);
+void	narenas_cache_cleanup(tsd_t *tsd);
+void	arenas_cache_bypass_cleanup(tsd_t *tsd);
 void	jemalloc_prefork(void);
 void	jemalloc_postfork_parent(void);
 void	jemalloc_postfork_child(void);
@@ -475,8 +473,9 @@ size_t	s2u_compute(size_t size);
 size_t	s2u_lookup(size_t size);
 size_t	s2u(size_t size);
 size_t	sa2u(size_t size, size_t alignment);
-unsigned	narenas_total_get(void);
-arena_t	*choose_arena(tsd_t *tsd, arena_t *arena);
+arena_t	*arena_choose(tsd_t *tsd, arena_t *arena);
+arena_t	*arena_get(tsd_t *tsd, unsigned ind, bool init_if_missing,
+    bool refresh_if_missing);
 #endif
 
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_C_))
@@ -709,33 +708,50 @@ sa2u(size_t size, size_t alignment)
 	return (usize);
 }
 
-JEMALLOC_INLINE unsigned
-narenas_total_get(void)
-{
-	unsigned narenas;
-
-	malloc_mutex_lock(&arenas_lock);
-	narenas = narenas_total;
-	malloc_mutex_unlock(&arenas_lock);
-
-	return (narenas);
-}
-
 /* Choose an arena based on a per-thread value. */
 JEMALLOC_INLINE arena_t *
-choose_arena(tsd_t *tsd, arena_t *arena)
+arena_choose(tsd_t *tsd, arena_t *arena)
 {
 	arena_t *ret;
 
 	if (arena != NULL)
 		return (arena);
 
-	if (unlikely((ret = tsd_arena_get(tsd)) == NULL)) {
-		ret = choose_arena_hard(tsd);
-		assert(ret != NULL);
-	}
+	if (unlikely((ret = tsd_arena_get(tsd)) == NULL))
+		ret = arena_choose_hard(tsd);
 
 	return (ret);
+}
+
+JEMALLOC_INLINE arena_t *
+arena_get(tsd_t *tsd, unsigned ind, bool init_if_missing,
+    bool refresh_if_missing)
+{
+	arena_t *arena;
+	arena_t **arenas_cache = tsd_arenas_cache_get(tsd);
+
+	/* init_if_missing requires refresh_if_missing. */
+	assert(!init_if_missing || refresh_if_missing);
+
+	if (unlikely(arenas_cache == NULL)) {
+		/* arenas_cache hasn't been initialized yet. */
+		return (arena_get_hard(tsd, ind, init_if_missing));
+	}
+	if (unlikely(ind >= tsd_narenas_cache_get(tsd))) {
+		/*
+		 * ind is invalid, cache is old (too small), or arena to be
+		 * initialized.
+		 */
+		return (refresh_if_missing ?  arena_get_hard(tsd, ind,
+		    init_if_missing) : NULL);
+	}
+	arena = arenas_cache[ind];
+	if (likely(arena != NULL) || !refresh_if_missing)
+		return (arena);
+	if (init_if_missing)
+		return (arena_get_hard(tsd, ind, init_if_missing));
+	else
+		return (NULL);
 }
 #endif
 
@@ -833,8 +849,10 @@ ipalloct(tsd_t *tsd, size_t usize, size_t alignment, bool zero, bool try_tcache,
 		ret = arena_malloc(tsd, arena, usize, zero, try_tcache);
 	else {
 		if (usize <= arena_maxclass) {
-			ret = arena_palloc(choose_arena(tsd, arena), usize,
-			    alignment, zero);
+			arena = arena_choose(tsd, arena);
+			if (unlikely(arena == NULL))
+				return (NULL);
+			ret = arena_palloc(arena, usize, alignment, zero);
 		} else if (alignment <= chunksize)
 			ret = huge_malloc(tsd, arena, usize, zero);
 		else

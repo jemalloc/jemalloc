@@ -246,6 +246,14 @@ tcache_arena_associate(tcache_t *tcache, arena_t *arena)
 }
 
 void
+tcache_arena_reassociate(tcache_t *tcache, arena_t *arena)
+{
+
+	tcache_arena_dissociate(tcache);
+	tcache_arena_associate(tcache, arena);
+}
+
+void
 tcache_arena_dissociate(tcache_t *tcache)
 {
 
@@ -261,13 +269,17 @@ tcache_arena_dissociate(tcache_t *tcache)
 tcache_t *
 tcache_get_hard(tsd_t *tsd)
 {
+	arena_t *arena;
 
 	if (!tcache_enabled_get()) {
 		if (tsd_nominal(tsd))
 			tcache_enabled_set(false); /* Memoize. */
 		return (NULL);
 	}
-	return (tcache_create(choose_arena(tsd, NULL)));
+	arena = arena_choose(tsd, NULL);
+	if (unlikely(arena == NULL))
+		return (NULL);
+	return (tcache_create(arena));
 }
 
 tcache_t *

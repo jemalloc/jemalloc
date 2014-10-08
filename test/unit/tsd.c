@@ -6,6 +6,7 @@ typedef unsigned int data_t;
 
 static bool data_cleanup_executed;
 
+malloc_tsd_types(data_, data_t)
 malloc_tsd_protos(, data_, data_t)
 
 void

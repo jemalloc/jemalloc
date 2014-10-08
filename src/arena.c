@@ -2192,11 +2192,24 @@ arena_stats_merge(arena_t *arena, const char **dss, size_t *nactive,
 	}
 }
 
-bool
-arena_new(arena_t *arena, unsigned ind)
+arena_t *
+arena_new(unsigned ind)
 {
+	arena_t *arena;
 	unsigned i;
 	arena_bin_t *bin;
+
+	/*
+	 * Allocate arena and arena->lstats contiguously, mainly because there
+	 * is no way to clean up if base_alloc() OOMs.
+	 */
+	if (config_stats) {
+		arena = (arena_t *)base_alloc(CACHELINE_CEILING(sizeof(arena_t))
+		    + nlclasses * sizeof(malloc_large_stats_t));
+	} else
+		arena = (arena_t *)base_alloc(sizeof(arena_t));
+	if (arena == NULL)
+		return (NULL);
 
 	arena->ind = ind;
 	arena->nthreads = 0;
@@ -2204,15 +2217,12 @@ arena_new(arena_t *arena, unsigned ind)
 	arena->chunk_dalloc = chunk_dalloc_default;
 
 	if (malloc_mutex_init(&arena->lock))
-		return (true);
+		return (NULL);
 
 	if (config_stats) {
 		memset(&arena->stats, 0, sizeof(arena_stats_t));
-		arena->stats.lstats =
-		    (malloc_large_stats_t *)base_alloc(nlclasses *
-		    sizeof(malloc_large_stats_t));
-		if (arena->stats.lstats == NULL)
-			return (true);
+		arena->stats.lstats = (malloc_large_stats_t *)(((void *)arena) +
+		    CACHELINE_CEILING(sizeof(arena_t)));
 		memset(arena->stats.lstats, 0, nlclasses *
 		    sizeof(malloc_large_stats_t));
 		if (config_tcache)
@@ -2236,14 +2246,14 @@ arena_new(arena_t *arena, unsigned ind)
 	for (i = 0; i < NBINS; i++) {
 		bin = &arena->bins[i];
 		if (malloc_mutex_init(&bin->lock))
-			return (true);
+			return (NULL);
 		bin->runcur = NULL;
 		arena_run_tree_new(&bin->runs);
 		if (config_stats)
 			memset(&bin->stats, 0, sizeof(malloc_bin_stats_t));
 	}
 
-	return (false);
+	return (arena);
 }
 
 /*

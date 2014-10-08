@@ -254,9 +254,17 @@ void *
 chunk_alloc_default(void *new_addr, size_t size, size_t alignment, bool *zero,
     unsigned arena_ind)
 {
+	arena_t *arena;
+
+	arena = arena_get(tsd_fetch(), arena_ind, false, true);
+	/*
+	 * The arena we're allocating on behalf of must have been initialized
+	 * already.
+	 */
+	assert(arena != NULL);
 
 	return (chunk_alloc_core(new_addr, size, alignment, false, zero,
-	    arenas[arena_ind]->dss_prec));
+	    arena->dss_prec));
 }
 
 static void

@@ -109,6 +109,7 @@ void	tcache_bin_flush_small(tcache_bin_t *tbin, index_t binind, unsigned rem,
 void	tcache_bin_flush_large(tcache_bin_t *tbin, index_t binind, unsigned rem,
     tcache_t *tcache);
 void	tcache_arena_associate(tcache_t *tcache, arena_t *arena);
+void	tcache_arena_reassociate(tcache_t *tcache, arena_t *arena);
 void	tcache_arena_dissociate(tcache_t *tcache);
 tcache_t *tcache_get_hard(tsd_t *tsd);
 tcache_t *tcache_create(arena_t *arena);

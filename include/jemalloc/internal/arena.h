@@ -389,7 +389,7 @@ bool	arena_dss_prec_set(arena_t *arena, dss_prec_t dss_prec);
 void	arena_stats_merge(arena_t *arena, const char **dss, size_t *nactive,
     size_t *ndirty, arena_stats_t *astats, malloc_bin_stats_t *bstats,
     malloc_large_stats_t *lstats);
-bool	arena_new(arena_t *arena, unsigned ind);
+arena_t	*arena_new(unsigned ind);
 void	arena_boot(void);
 void	arena_prefork(arena_t *arena);
 void	arena_postfork_parent(arena_t *arena);
@@ -924,8 +924,10 @@ arena_malloc(tsd_t *tsd, arena_t *arena, size_t size, bool zero,
 		    true)) != NULL))
 			return (tcache_alloc_small(tcache, size, zero));
 		else {
-			return (arena_malloc_small(choose_arena(tsd, arena),
-			    size, zero));
+			arena = arena_choose(tsd, arena);
+			if (unlikely(arena == NULL))
+				return (NULL);
+			return (arena_malloc_small(arena, size, zero));
 		}
 	} else {
 		/*
@@ -936,8 +938,10 @@ arena_malloc(tsd_t *tsd, arena_t *arena, size_t size, bool zero,
 		    tcache_get(tsd, true)) != NULL))
 			return (tcache_alloc_large(tcache, size, zero));
 		else {
-			return (arena_malloc_large(choose_arena(tsd, arena),
-			    size, zero));
+			arena = arena_choose(tsd, arena);
+			if (unlikely(arena == NULL))
+				return (NULL);
+			return (arena_malloc_large(arena, size, zero));
 		}
 	}
 }
