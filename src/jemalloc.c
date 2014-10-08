@@ -244,12 +244,10 @@ a0free(void *ptr)
 }
 
 /* Create a new arena and insert it into the arenas array at index ind. */
-arena_t *
-arena_init(unsigned ind)
+static arena_t *
+arena_init_locked(unsigned ind)
 {
 	arena_t *arena;
-
-	malloc_mutex_lock(&arenas_lock);
 
 	/* Expand arenas if necessary. */
 	assert(ind <= narenas_total);
@@ -258,10 +256,8 @@ arena_init(unsigned ind)
 		arena_t **arenas_new =
 		    (arena_t **)a0malloc(CACHELINE_CEILING(narenas_new *
 		    sizeof(arena_t *)));
-		if (arenas_new == NULL) {
-			arena = NULL;
-			goto label_return;
-		}
+		if (arenas_new == NULL)
+			return (NULL);
 		memcpy(arenas_new, arenas, narenas_total * sizeof(arena_t *));
 		arenas_new[ind] = NULL;
 		/*
@@ -281,12 +277,21 @@ arena_init(unsigned ind)
 	arena = arenas[ind];
 	if (arena != NULL) {
 		assert(ind < narenas_auto);
-		goto label_return;
+		return (arena);
 	}
 
 	/* Actually initialize the arena. */
 	arena = arenas[ind] = arena_new(ind);
-label_return:
+	return (arena);
+}
+
+arena_t *
+arena_init(unsigned ind)
+{
+	arena_t *arena;
+
+	malloc_mutex_lock(&arenas_lock);
+	arena = arena_init_locked(ind);
 	malloc_mutex_unlock(&arenas_lock);
 	return (arena);
 }
@@ -477,7 +482,7 @@ arena_choose_hard(tsd_t *tsd)
 		} else {
 			/* Initialize a new arena. */
 			choose = first_null;
-			ret = arena_init(choose);
+			ret = arena_init_locked(choose);
 			if (ret == NULL) {
 				malloc_mutex_unlock(&arenas_lock);
 				return (NULL);
