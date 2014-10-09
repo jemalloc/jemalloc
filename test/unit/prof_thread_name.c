@@ -1,8 +1,7 @@
 #include "test/jemalloc_test.h"
 
 #ifdef JEMALLOC_PROF
-const char *malloc_conf =
-    "prof:true,prof_active:false,prof_final:false";
+const char *malloc_conf = "prof:true,prof_active:false";
 #endif
 
 static void

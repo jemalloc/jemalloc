@@ -2,7 +2,7 @@
 
 #ifdef JEMALLOC_PROF
 const char *malloc_conf =
-    "prof:true,prof_thread_active_init:false,lg_prof_sample:0,prof_final:false";
+    "prof:true,prof_thread_active_init:false,lg_prof_sample:0";
 #endif
 
 static void

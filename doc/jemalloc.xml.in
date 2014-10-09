@@ -857,8 +857,14 @@ for (i = 0; i < nbins; i++) {
         <option>--enable-stats</option> is specified during configuration, this
         has the potential to cause deadlock for a multi-threaded process that
         exits while one or more threads are executing in the memory allocation
-        functions.  Therefore, this option should only be used with care; it is
-        primarily intended as a performance tuning aid during application
+        functions.  Furthermore, <function>atexit<parameter/></function> may
+        allocate memory during application initialization and then deadlock
+        internally when jemalloc in turn calls
+        <function>atexit<parameter/></function>, so this option is not
+        univerally usable (though the application can register its own
+        <function>atexit<parameter/></function> function with equivalent
+        functionality).  Therefore, this option should only be used with care;
+        it is primarily intended as a performance tuning aid during application
         development.  This option is disabled by default.</para></listitem>
       </varlistentry>
 
@@ -1155,7 +1161,13 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         <filename>&lt;prefix&gt;.&lt;pid&gt;.&lt;seq&gt;.f.heap</filename>,
         where <literal>&lt;prefix&gt;</literal> is controlled by the <link
         linkend="opt.prof_prefix"><mallctl>opt.prof_prefix</mallctl></link>
-        option.  This option is enabled by default.</para></listitem>
+        option.  Note that <function>atexit<parameter/></function> may allocate
+        memory during application initialization and then deadlock internally
+        when jemalloc in turn calls <function>atexit<parameter/></function>, so
+        this option is not univerally usable (though the application can
+        register its own <function>atexit<parameter/></function> function with
+        equivalent functionality).  This option is disabled by
+        default.</para></listitem>
       </varlistentry>
 
       <varlistentry id="opt.prof_leak">

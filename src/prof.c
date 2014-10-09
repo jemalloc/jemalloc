@@ -20,7 +20,7 @@ bool		opt_prof_thread_active_init = true;
 size_t		opt_lg_prof_sample = LG_PROF_SAMPLE_DEFAULT;
 ssize_t		opt_lg_prof_interval = LG_PROF_INTERVAL_DEFAULT;
 bool		opt_prof_gdump = false;
-bool		opt_prof_final = true;
+bool		opt_prof_final = false;
 bool		opt_prof_leak = false;
 bool		opt_prof_accum = false;
 char		opt_prof_prefix[
@@ -1487,17 +1487,17 @@ prof_fdump(void)
 	char filename[DUMP_FILENAME_BUFSIZE];
 
 	cassert(config_prof);
+	assert(opt_prof_final);
+	assert(opt_prof_prefix[0] != '\0');
 
 	if (!prof_booted)
 		return;
 	tsd = tsd_fetch();
 
-	if (opt_prof_final && opt_prof_prefix[0] != '\0') {
-		malloc_mutex_lock(&prof_dump_seq_mtx);
-		prof_dump_filename(filename, 'f', VSEQ_INVALID);
-		malloc_mutex_unlock(&prof_dump_seq_mtx);
-		prof_dump(tsd, false, filename, opt_prof_leak);
-	}
+	malloc_mutex_lock(&prof_dump_seq_mtx);
+	prof_dump_filename(filename, 'f', VSEQ_INVALID);
+	malloc_mutex_unlock(&prof_dump_seq_mtx);
+	prof_dump(tsd, false, filename, opt_prof_leak);
 }
 
 void
@@ -2023,7 +2023,8 @@ prof_boot2(void)
 		if (malloc_mutex_init(&prof_dump_mtx))
 			return (true);
 
-		if (atexit(prof_fdump) != 0) {
+		if (opt_prof_final && opt_prof_prefix[0] != '\0' &&
+		    atexit(prof_fdump) != 0) {
 			malloc_write("<jemalloc>: Error in atexit()\n");
 			if (opt_abort)
 				abort();
