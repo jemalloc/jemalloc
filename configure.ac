@@ -206,22 +206,12 @@ AC_CANONICAL_HOST
 dnl CPU-specific settings.
 CPU_SPINWAIT=""
 case "${host_cpu}" in
-  i[[345]]86)
-	;;
   i686|x86_64)
 	JE_COMPILABLE([pause instruction], [],
 	              [[__asm__ volatile("pause"); return 0;]],
 	              [je_cv_pause])
 	if test "x${je_cv_pause}" = "xyes" ; then
 	    CPU_SPINWAIT='__asm__ volatile("pause")'
-	fi
-	dnl emmintrin.h fails to compile unless MMX, SSE, and SSE2 are
-	dnl supported.
-	JE_COMPILABLE([SSE2 intrinsics], [
-#include <emmintrin.h>
-], [], [je_cv_sse2])
-	if test "x${je_cv_sse2}" = "xyes" ; then
-	  AC_DEFINE_UNQUOTED([HAVE_SSE2], [ ])
 	fi
 	;;
   powerpc)
