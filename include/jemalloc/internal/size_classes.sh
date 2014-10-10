@@ -1,4 +1,6 @@
 #!/bin/sh
+#
+# Usage: size_classes.sh <lg_parr> <lg_g>
 
 # The following limits are chosen such that they cover all supported platforms.
 
@@ -15,10 +17,10 @@ lg_tmin=3
 lg_kmax=12
 
 # Page sizes.
-lg_parr="12 13 16"
+lg_parr=`echo $1 | tr ',' ' '`
 
 # Size class group size (number of size classes for each size doubling).
-lg_g=2
+lg_g=$2
 
 pow2() {
   e=$1
@@ -159,7 +161,11 @@ size_classes() {
         nbins=$((${index} + 1))
         # Final written value is correct:
         small_maxclass="((((size_t)1) << ${lg_grp}) + (((size_t)${ndelta}) << ${lg_delta}))"
-        lg_large_minclass=$((${lg_grp} + 1))
+        if [ ${lg_g} -gt 0 ] ; then
+          lg_large_minclass=$((${lg_grp} + 1))
+        else
+          lg_large_minclass=$((${lg_grp} + 2))
+        fi
       fi
       index=$((${index} + 1))
       ndelta=$((${ndelta} + 1))

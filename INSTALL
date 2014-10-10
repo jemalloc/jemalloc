@@ -189,6 +189,73 @@ any of the following arguments (not a definitive list) to 'configure':
     Specify where to find DocBook XSL stylesheets when building the
     documentation.
 
+--with-lg-page=<lg-page>
+    Specify the base 2 log of the system page size.  This option is only useful
+    when cross compiling, since the configure script automatically determines the
+    host's page size by default.
+
+--with-lg-page-sizes=<lg-page-sizes>
+    Specify the comma-separated base 2 logs of the page sizes to support.  This
+    option may be useful when cross-compiling in combination with
+    --with-lg-page, but its primary use case is for integration with FreeBSD's
+    libc, wherein jemalloc is embedded.
+
+--with-lg-size-class-group=<lg-size-class-group>
+    Specify the base 2 log of how many size classes to use for each doubling in
+    size.  By default jemalloc uses <lg-size-class-group>=2, which results in
+    e.g. the following size classes:
+
+      [...], 64,
+      80, 96, 112, 128,
+      160, [...]
+
+    <lg-size-class-group>=3 results in e.g. the following size classes:
+
+      [...], 64,
+      72, 80, 88, 96, 104, 112, 120, 128,
+      144, [...]
+
+    The minimal <lg-size-class-group>=0 causes jemalloc to only provide size
+    classes that are powers of 2:
+
+      [...],
+      64,
+      128,
+      256,
+      [...]
+
+    An implementation detail currently limits the total number of small size
+    classes to 255, and a compilation error will result if the
+    <lg-size-class-group> you specify cannot be supported.  The limit is
+    roughly <lg-size-class-group>=4, depending on page size.
+
+--with-lg-quantum=<lg-quantum>
+    Specify the base 2 log of the minimum allocation alignment (only
+    <lg-quantum>=3 and <lg-quantum>=4 are supported).  jemalloc needs to know
+    the minimum alignment that meets the following C standard requirement
+    (quoted from the April 12, 2011 draft of the C11 standard):
+
+      The pointer returned if the allocation succeeds is suitably aligned so
+      that it may be assigned to a pointer to any type of object with a
+      fundamental alignment requirement and then used to access such an object
+      or an array of such objects in the space allocated [...]
+
+    This setting is architecture-specific, and although jemalloc includes known
+    safe values for the most commonly used modern architectures, there is a
+    wrinkle related to GNU libc (glibc) that may impact your choice of
+    <lg-quantum>.  On most modern architectures, this mandates 16-byte alignment
+    (<lg-quantum>=4), but the glibc developers chose not to meet this requirement
+    for performance reasons.  An old discussion can be found at
+    https://sourceware.org/bugzilla/show_bug.cgi?id=206 .  Unlike glibc,
+    jemalloc does follow the C standard by default (caveat: jemalloc technically
+    cheats by only providing 8-byte alignment for 8-byte allocation requests),
+    but the fact that Linux systems already work around this allocator
+    noncompliance means that it is generally safe in practice to let jemalloc's
+    minimum alignment follow glibc's lead.  If you specify --with-lg-quantum=3
+    during configuration, jemalloc will provide additional size classes that
+    are not 16-byte-aligned (24, 40, and 56, assuming
+    --with-lg-size-class-group=2).
+
 The following environment variables (not a definitive list) impact configure's
 behavior:
 

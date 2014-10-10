@@ -112,7 +112,7 @@ void	tcache_arena_associate(tcache_t *tcache, arena_t *arena);
 void	tcache_arena_reassociate(tcache_t *tcache, arena_t *arena);
 void	tcache_arena_dissociate(tcache_t *tcache);
 tcache_t *tcache_get_hard(tsd_t *tsd);
-tcache_t *tcache_create(arena_t *arena);
+tcache_t *tcache_create(tsd_t *tsd, arena_t *arena);
 void	tcache_cleanup(tsd_t *tsd);
 void	tcache_enabled_cleanup(tsd_t *tsd);
 void	tcache_stats_merge(tcache_t *tcache, arena_t *arena);
@@ -363,7 +363,7 @@ tcache_dalloc_large(tcache_t *tcache, void *ptr, size_t size)
 	binind = size2index(size);
 
 	if (config_fill && unlikely(opt_junk))
-		memset(ptr, 0x5a, size);
+		arena_dalloc_junk_large(ptr, size);
 
 	tbin = &tcache->tbins[binind];
 	tbin_info = &tcache_bin_info[binind];

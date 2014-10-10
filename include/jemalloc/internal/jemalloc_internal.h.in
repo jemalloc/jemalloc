@@ -185,7 +185,7 @@ typedef unsigned index_t;
 #define	TINY_MIN		(1U << LG_TINY_MIN)
 
 /*
- * Minimum alignment of allocations is 2^LG_QUANTUM bytes (ignoring tiny size
+ * Minimum allocation alignment is 2^LG_QUANTUM bytes (ignoring tiny size
  * classes).
  */
 #ifndef LG_QUANTUM
@@ -235,7 +235,8 @@ typedef unsigned index_t;
 #    define LG_QUANTUM		4
 #  endif
 #  ifndef LG_QUANTUM
-#    error "No LG_QUANTUM definition for architecture; specify via CPPFLAGS"
+#    error "Unknown minimum alignment for architecture; specify via "
+	 "--with-lg-quantum"
 #  endif
 #endif
 
@@ -275,12 +276,11 @@ typedef unsigned index_t;
 #define	CACHELINE_CEILING(s)						\
 	(((s) + CACHELINE_MASK) & ~CACHELINE_MASK)
 
-/* Page size.  STATIC_PAGE_SHIFT is determined by the configure script. */
+/* Page size.  LG_PAGE is determined by the configure script. */
 #ifdef PAGE_MASK
 #  undef PAGE_MASK
 #endif
-#define	LG_PAGE		STATIC_PAGE_SHIFT
-#define	PAGE		((size_t)(1U << STATIC_PAGE_SHIFT))
+#define	PAGE		((size_t)(1U << LG_PAGE))
 #define	PAGE_MASK	((size_t)(PAGE - 1))
 
 /* Return the smallest pagesize multiple that is >= s. */
@@ -809,7 +809,7 @@ imalloct(tsd_t *tsd, size_t size, bool try_tcache, arena_t *arena)
 	if (size <= arena_maxclass)
 		return (arena_malloc(tsd, arena, size, false, try_tcache));
 	else
-		return (huge_malloc(tsd, arena, size, false));
+		return (huge_malloc(tsd, arena, size, false, try_tcache));
 }
 
 JEMALLOC_ALWAYS_INLINE void *
@@ -826,7 +826,7 @@ icalloct(tsd_t *tsd, size_t size, bool try_tcache, arena_t *arena)
 	if (size <= arena_maxclass)
 		return (arena_malloc(tsd, arena, size, true, try_tcache));
 	else
-		return (huge_malloc(tsd, arena, size, true));
+		return (huge_malloc(tsd, arena, size, true, try_tcache));
 }
 
 JEMALLOC_ALWAYS_INLINE void *
@@ -854,9 +854,11 @@ ipalloct(tsd_t *tsd, size_t usize, size_t alignment, bool zero, bool try_tcache,
 				return (NULL);
 			ret = arena_palloc(arena, usize, alignment, zero);
 		} else if (alignment <= chunksize)
-			ret = huge_malloc(tsd, arena, usize, zero);
-		else
-			ret = huge_palloc(tsd, arena, usize, alignment, zero);
+			ret = huge_malloc(tsd, arena, usize, zero, try_tcache);
+		else {
+			ret = huge_palloc(tsd, arena, usize, alignment, zero,
+			    try_tcache);
+		}
 	}
 
 	assert(ALIGNMENT_ADDR2BASE(ret, alignment) == ret);
@@ -938,7 +940,7 @@ idalloct(tsd_t *tsd, void *ptr, bool try_tcache)
 	if (chunk != ptr)
 		arena_dalloc(tsd, chunk, ptr, try_tcache);
 	else
-		huge_dalloc(tsd, ptr);
+		huge_dalloc(tsd, ptr, try_tcache);
 }
 
 JEMALLOC_ALWAYS_INLINE void
@@ -952,7 +954,7 @@ isdalloct(tsd_t *tsd, void *ptr, size_t size, bool try_tcache)
 	if (chunk != ptr)
 		arena_sdalloc(tsd, chunk, ptr, size, try_tcache);
 	else
-		huge_dalloc(tsd, ptr);
+		huge_dalloc(tsd, ptr, try_tcache);
 }
 
 JEMALLOC_ALWAYS_INLINE void
@@ -1042,7 +1044,7 @@ iralloct(tsd_t *tsd, void *ptr, size_t size, size_t alignment, bool zero,
 		    alignment, zero, try_tcache_alloc, try_tcache_dalloc));
 	} else {
 		return (huge_ralloc(tsd, arena, ptr, oldsize, size, 0,
-		    alignment, zero, try_tcache_dalloc));
+		    alignment, zero, try_tcache_alloc, try_tcache_dalloc));
 	}
 }
 

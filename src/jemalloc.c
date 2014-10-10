@@ -67,6 +67,8 @@ const uint8_t	size2index_tab[] = {
 #define	S2B_7(i)	S2B_6(i) S2B_6(i)
 #define	S2B_8(i)	S2B_7(i) S2B_7(i)
 #define	S2B_9(i)	S2B_8(i) S2B_8(i)
+#define	S2B_10(i)	S2B_9(i) S2B_9(i)
+#define	S2B_11(i)	S2B_10(i) S2B_10(i)
 #define	S2B_no(i)
 #define	SC(index, lg_grp, lg_delta, ndelta, bin, lg_delta_lookup) \
 	S2B_##lg_delta_lookup(index)
@@ -78,6 +80,8 @@ const uint8_t	size2index_tab[] = {
 #undef S2B_7
 #undef S2B_8
 #undef S2B_9
+#undef S2B_10
+#undef S2B_11
 #undef S2B_no
 #undef SC
 };
@@ -199,6 +203,7 @@ static void *
 a0alloc(size_t size, bool zero)
 {
 	void *ret;
+	tsd_t *tsd;
 
 	if (unlikely(malloc_init()))
 		return (NULL);
@@ -206,10 +211,11 @@ a0alloc(size_t size, bool zero)
 	if (size == 0)
 		size = 1;
 
+	tsd = tsd_fetch();
 	if (size <= arena_maxclass)
-		ret = arena_malloc(NULL, a0get(), size, zero, false);
+		ret = arena_malloc(tsd, a0get(), size, zero, false);
 	else
-		ret = huge_malloc(NULL, a0get(), size, zero);
+		ret = huge_malloc(tsd, a0get(), size, zero, false);
 
 	return (ret);
 }
@@ -231,16 +237,18 @@ a0calloc(size_t num, size_t size)
 void
 a0free(void *ptr)
 {
+	tsd_t *tsd;
 	arena_chunk_t *chunk;
 
 	if (ptr == NULL)
 		return;
 
+	tsd = tsd_fetch();
 	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
 	if (chunk != ptr)
-		arena_dalloc(NULL, chunk, ptr, false);
+		arena_dalloc(tsd, chunk, ptr, false);
 	else
-		huge_dalloc(NULL, ptr);
+		huge_dalloc(tsd, ptr, false);
 }
 
 /* Create a new arena and insert it into the arenas array at index ind. */
@@ -817,15 +825,15 @@ malloc_conf_init(void)
 					    "Invalid conf value",	\
 					    k, klen, v, vlen);		\
 				} else if (clip) {			\
-					if (min != 0 && um < min)	\
-						o = min;		\
-					else if (um > max)		\
-						o = max;		\
+					if ((min) != 0 && um < (min))	\
+						o = (min);		\
+					else if (um > (max))		\
+						o = (max);		\
 					else				\
 						o = um;			\
 				} else {				\
-					if ((min != 0 && um < min) ||	\
-					    um > max) {			\
+					if (((min) != 0 && um < (min))	\
+					    || um > (max)) {		\
 						malloc_conf_error(	\
 						    "Out-of-range "	\
 						    "conf value",	\
@@ -847,8 +855,8 @@ malloc_conf_init(void)
 					malloc_conf_error(		\
 					    "Invalid conf value",	\
 					    k, klen, v, vlen);		\
-				} else if (l < (ssize_t)min || l >	\
-				    (ssize_t)max) {			\
+				} else if (l < (ssize_t)(min) || l >	\
+				    (ssize_t)(max)) {			\
 					malloc_conf_error(		\
 					    "Out-of-range conf value",	\
 					    k, klen, v, vlen);		\
@@ -868,15 +876,16 @@ malloc_conf_init(void)
 
 			CONF_HANDLE_BOOL(opt_abort, "abort", true)
 			/*
-			 * Chunks always require at least one header page, plus
-			 * one data page in the absence of redzones, or three
-			 * pages in the presence of redzones.  In order to
-			 * simplify options processing, fix the limit based on
-			 * config_fill.
+			 * Chunks always require at least one header page,
+			 * as many as 2^(LG_SIZE_CLASS_GROUP+1) data pages, and
+			 * possibly an additional page in the presence of
+			 * redzones.  In order to simplify options processing,
+			 * use a conservative bound that accommodates all these
+			 * constraints.
 			 */
 			CONF_HANDLE_SIZE_T(opt_lg_chunk, "lg_chunk", LG_PAGE +
-			    (config_fill ? 2 : 1), (sizeof(size_t) << 3) - 1,
-			    true)
+			    LG_SIZE_CLASS_GROUP + (config_fill ? 2 : 1),
+			    (sizeof(size_t) << 3) - 1, true)
 			if (strncmp("dss", k, klen) == 0) {
 				int i;
 				bool match = false;
@@ -2088,8 +2097,7 @@ je_xallocx(void *ptr, size_t size, size_t extra, int flags)
 
 	if (unlikely((flags & MALLOCX_ARENA_MASK) != 0)) {
 		unsigned arena_ind = MALLOCX_ARENA_GET(flags);
-		// XX Dangerous arenas read.
-		arena = arenas[arena_ind];
+		arena = arena_get(tsd, arena_ind, true, true);
 	} else
 		arena = NULL;
 

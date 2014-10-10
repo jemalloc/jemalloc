@@ -362,8 +362,8 @@ void	*arena_malloc_small(arena_t *arena, size_t size, bool zero);
 void	*arena_malloc_large(arena_t *arena, size_t size, bool zero);
 void	*arena_palloc(arena_t *arena, size_t size, size_t alignment, bool zero);
 void	arena_prof_promoted(const void *ptr, size_t size);
-void	arena_dalloc_bin_locked(arena_t *arena, arena_chunk_t *chunk, void *ptr,
-    arena_chunk_map_bits_t *bitselm);
+void	arena_dalloc_bin_junked_locked(arena_t *arena, arena_chunk_t *chunk,
+    void *ptr, arena_chunk_map_bits_t *bitselm);
 void	arena_dalloc_bin(arena_t *arena, arena_chunk_t *chunk, void *ptr,
     size_t pageind, arena_chunk_map_bits_t *bitselm);
 void	arena_dalloc_small(arena_t *arena, arena_chunk_t *chunk, void *ptr,
@@ -371,8 +371,10 @@ void	arena_dalloc_small(arena_t *arena, arena_chunk_t *chunk, void *ptr,
 #ifdef JEMALLOC_JET
 typedef void (arena_dalloc_junk_large_t)(void *, size_t);
 extern arena_dalloc_junk_large_t *arena_dalloc_junk_large;
+#else
+void	arena_dalloc_junk_large(void *ptr, size_t usize);
 #endif
-void	arena_dalloc_large_locked(arena_t *arena, arena_chunk_t *chunk,
+void	arena_dalloc_large_junked_locked(arena_t *arena, arena_chunk_t *chunk,
     void *ptr);
 void	arena_dalloc_large(arena_t *arena, arena_chunk_t *chunk, void *ptr);
 #ifdef JEMALLOC_JET

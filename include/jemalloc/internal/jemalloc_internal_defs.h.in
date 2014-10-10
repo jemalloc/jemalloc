@@ -144,8 +144,14 @@
 /* Support lazy locking (avoid locking unless a second thread is launched). */
 #undef JEMALLOC_LAZY_LOCK
 
-/* One page is 2^STATIC_PAGE_SHIFT bytes. */
-#undef STATIC_PAGE_SHIFT
+/*
+ * Minimum allocation alignment is 2^LG_QUANTUM bytes (ignoring tiny size
+ * classes).
+ */
+#undef LG_QUANTUM
+
+/* One page is 2^LG_PAGE bytes. */
+#undef LG_PAGE
 
 /*
  * If defined, use munmap() to unmap freed chunks, rather than storing them for

@@ -623,7 +623,7 @@ arena_run_alloc_large(arena_t *arena, size_t size, bool zero)
 	arena_chunk_t *chunk;
 	arena_run_t *run;
 
-	assert(size <= arena_maxclass);
+	assert(size <= arena_maxrun);
 	assert((size & PAGE_MASK) == 0);
 
 	/* Search the arena's chunks for the lowest best fit. */
@@ -673,7 +673,7 @@ arena_run_alloc_small(arena_t *arena, size_t size, index_t binind)
 	arena_chunk_t *chunk;
 	arena_run_t *run;
 
-	assert(size <= arena_maxclass);
+	assert(size <= arena_maxrun);
 	assert((size & PAGE_MASK) == 0);
 	assert(binind != BININD_INVALID);
 
@@ -1728,9 +1728,9 @@ arena_bin_lower_run(arena_t *arena, arena_chunk_t *chunk, arena_run_t *run,
 		arena_bin_runs_insert(bin, run);
 }
 
-void
-arena_dalloc_bin_locked(arena_t *arena, arena_chunk_t *chunk, void *ptr,
-    arena_chunk_map_bits_t *bitselm)
+static void
+arena_dalloc_bin_locked_impl(arena_t *arena, arena_chunk_t *chunk, void *ptr,
+    arena_chunk_map_bits_t *bitselm, bool junked)
 {
 	size_t pageind, rpages_ind;
 	arena_run_t *run;
@@ -1749,7 +1749,7 @@ arena_dalloc_bin_locked(arena_t *arena, arena_chunk_t *chunk, void *ptr,
 	if (config_fill || config_stats)
 		size = bin_info->reg_size;
 
-	if (config_fill && unlikely(opt_junk))
+	if (!junked && config_fill && unlikely(opt_junk))
 		arena_dalloc_junk_small(ptr, bin_info);
 
 	arena_run_reg_dalloc(run, ptr);
@@ -1766,6 +1766,14 @@ arena_dalloc_bin_locked(arena_t *arena, arena_chunk_t *chunk, void *ptr,
 }
 
 void
+arena_dalloc_bin_junked_locked(arena_t *arena, arena_chunk_t *chunk, void *ptr,
+    arena_chunk_map_bits_t *bitselm)
+{
+
+	arena_dalloc_bin_locked_impl(arena, chunk, ptr, bitselm, true);
+}
+
+void
 arena_dalloc_bin(arena_t *arena, arena_chunk_t *chunk, void *ptr,
     size_t pageind, arena_chunk_map_bits_t *bitselm)
 {
@@ -1777,7 +1785,7 @@ arena_dalloc_bin(arena_t *arena, arena_chunk_t *chunk, void *ptr,
 	run = &arena_miscelm_get(chunk, rpages_ind)->run;
 	bin = run->bin;
 	malloc_mutex_lock(&bin->lock);
-	arena_dalloc_bin_locked(arena, chunk, ptr, bitselm);
+	arena_dalloc_bin_locked_impl(arena, chunk, ptr, bitselm, false);
 	malloc_mutex_unlock(&bin->lock);
 }
 
@@ -1800,7 +1808,7 @@ arena_dalloc_small(arena_t *arena, arena_chunk_t *chunk, void *ptr,
 #undef arena_dalloc_junk_large
 #define	arena_dalloc_junk_large JEMALLOC_N(arena_dalloc_junk_large_impl)
 #endif
-static void
+void
 arena_dalloc_junk_large(void *ptr, size_t usize)
 {
 
@@ -1815,7 +1823,8 @@ arena_dalloc_junk_large_t *arena_dalloc_junk_large =
 #endif
 
 void
-arena_dalloc_large_locked(arena_t *arena, arena_chunk_t *chunk, void *ptr)
+arena_dalloc_large_locked_impl(arena_t *arena, arena_chunk_t *chunk,
+    void *ptr, bool junked)
 {
 	size_t pageind = ((uintptr_t)ptr - (uintptr_t)chunk) >> LG_PAGE;
 	arena_chunk_map_misc_t *miscelm = arena_miscelm_get(chunk, pageind);
@@ -1824,7 +1833,8 @@ arena_dalloc_large_locked(arena_t *arena, arena_chunk_t *chunk, void *ptr)
 	if (config_fill || config_stats) {
 		size_t usize = arena_mapbits_large_size_get(chunk, pageind);
 
-		arena_dalloc_junk_large(ptr, usize);
+		if (!junked)
+			arena_dalloc_junk_large(ptr, usize);
 		if (config_stats) {
 			index_t index = size2index(usize) - NBINS;
 
@@ -1839,11 +1849,19 @@ arena_dalloc_large_locked(arena_t *arena, arena_chunk_t *chunk, void *ptr)
 }
 
 void
+arena_dalloc_large_junked_locked(arena_t *arena, arena_chunk_t *chunk,
+    void *ptr)
+{
+
+	arena_dalloc_large_locked_impl(arena, chunk, ptr, true);
+}
+
+void
 arena_dalloc_large(arena_t *arena, arena_chunk_t *chunk, void *ptr)
 {
 
 	malloc_mutex_lock(&arena->lock);
-	arena_dalloc_large_locked(arena, chunk, ptr);
+	arena_dalloc_large_locked_impl(arena, chunk, ptr, false);
 	malloc_mutex_unlock(&arena->lock);
 }
 
@@ -2398,6 +2416,7 @@ arena_boot(void)
 	    sizeof(arena_chunk_map_bits_t) * (chunk_npages-map_bias);
 
 	arena_maxrun = chunksize - (map_bias << LG_PAGE);
+	assert(arena_maxrun > 0);
 	arena_maxclass = index2size(size2index(chunksize)-1);
 	if (arena_maxclass > arena_maxrun) {
 		/*
@@ -2407,6 +2426,7 @@ arena_boot(void)
 		 */
 		arena_maxclass = arena_maxrun;
 	}
+	assert(arena_maxclass > 0);
 	nlclasses = size2index(arena_maxclass) - size2index(SMALL_MAXCLASS);
 
 	bin_info_init();

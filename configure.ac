@@ -969,8 +969,17 @@ else
   fi
 fi
 
-AC_CACHE_CHECK([STATIC_PAGE_SHIFT],
-               [je_cv_static_page_shift],
+AC_ARG_WITH([lg_quantum],
+  [AS_HELP_STRING([--with-lg-quantum=<lg-quantum>],
+   [Base 2 log of minimum allocation alignment])],
+  [AC_DEFINE_UNQUOTED([LG_QUANTUM], [$with_lg_quantum])])
+
+AC_ARG_WITH([lg_page],
+  [AS_HELP_STRING([--with-lg-page=<lg-page>], [Base 2 log of system page size])],
+  [LG_PAGE="$with_lg_page"], [LG_PAGE="detect"])
+if test "x$LG_PAGE" == "xdetect"; then
+  AC_CACHE_CHECK([LG_PAGE],
+               [je_cv_lg_page],
                AC_RUN_IFELSE([AC_LANG_PROGRAM(
 [[
 #include <strings.h>
@@ -1006,15 +1015,29 @@ AC_CACHE_CHECK([STATIC_PAGE_SHIFT],
 
     return 0;
 ]])],
-                             [je_cv_static_page_shift=`cat conftest.out`],
-                             [je_cv_static_page_shift=undefined],
-                             [je_cv_static_page_shift=12]))
-
-if test "x$je_cv_static_page_shift" != "xundefined"; then
-   AC_DEFINE_UNQUOTED([STATIC_PAGE_SHIFT], [$je_cv_static_page_shift])
-else
-   AC_MSG_ERROR([cannot determine value for STATIC_PAGE_SHIFT])
+                             [je_cv_lg_page=`cat conftest.out`],
+                             [je_cv_lg_page=undefined],
+                             [je_cv_lg_page=12]))
 fi
+if test "x${je_cv_lg_page}" != "x" ; then
+  LG_PAGE="${je_cv_lg_page}"
+fi
+if test "x${LG_PAGE}" != "xundefined" ; then
+   AC_DEFINE_UNQUOTED([LG_PAGE], [$LG_PAGE])
+else
+   AC_MSG_ERROR([cannot determine value for LG_PAGE])
+fi
+
+AC_ARG_WITH([lg_page_sizes],
+  [AS_HELP_STRING([--with-lg-page-sizes=<lg-page-sizes>],
+   [Base 2 logs of system page sizes to support])],
+  [LG_PAGE_SIZES="$with_lg_page_sizes"], [LG_PAGE_SIZES="$LG_PAGE"])
+
+AC_ARG_WITH([lg_size_class_group],
+  [AS_HELP_STRING([--with-lg-size-class-group=<lg-size-class-group>],
+   [Base 2 log of size classes per doubling])],
+  [LG_SIZE_CLASS_GROUP="$with_lg_size_class_group"],
+  [LG_SIZE_CLASS_GROUP="2"])
 
 dnl ============================================================================
 dnl jemalloc configuration.
@@ -1456,10 +1479,12 @@ AC_CONFIG_COMMANDS([include/jemalloc/internal/public_unnamespace.h], [
 ])
 AC_CONFIG_COMMANDS([include/jemalloc/internal/size_classes.h], [
   mkdir -p "${objroot}include/jemalloc/internal"
-  "${srcdir}/include/jemalloc/internal/size_classes.sh" > "${objroot}include/jemalloc/internal/size_classes.h"
+  "${srcdir}/include/jemalloc/internal/size_classes.sh" ${LG_PAGE_SIZES} ${LG_SIZE_CLASS_GROUP} > "${objroot}include/jemalloc/internal/size_classes.h"
 ], [
   srcdir="${srcdir}"
   objroot="${objroot}"
+  LG_PAGE_SIZES=${LG_PAGE_SIZES}
+  LG_SIZE_CLASS_GROUP=${LG_SIZE_CLASS_GROUP}
 ])
 AC_CONFIG_COMMANDS([include/jemalloc/jemalloc_protos_jet.h], [
   mkdir -p "${objroot}include/jemalloc"

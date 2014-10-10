@@ -357,7 +357,7 @@ TEST_BEGIN(test_arenas_lrun_constants)
 	assert_zu_eq(name, expected, "Incorrect "#name" size");		\
 } while (0)
 
-	TEST_ARENAS_LRUN_CONSTANT(size_t, size, (1 << (LG_PAGE+2)));
+	TEST_ARENAS_LRUN_CONSTANT(size_t, size, LARGE_MINCLASS);
 
 #undef TEST_ARENAS_LRUN_CONSTANT
 }
