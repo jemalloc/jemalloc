@@ -203,7 +203,6 @@ static void *
 a0alloc(size_t size, bool zero)
 {
 	void *ret;
-	tsd_t *tsd;
 
 	if (unlikely(malloc_init()))
 		return (NULL);
@@ -211,11 +210,10 @@ a0alloc(size_t size, bool zero)
 	if (size == 0)
 		size = 1;
 
-	tsd = tsd_fetch();
 	if (size <= arena_maxclass)
-		ret = arena_malloc(tsd, a0get(), size, zero, false);
+		ret = arena_malloc(NULL, a0get(), size, zero, false);
 	else
-		ret = huge_malloc(tsd, a0get(), size, zero, false);
+		ret = huge_malloc(NULL, a0get(), size, zero, false);
 
 	return (ret);
 }
@@ -237,18 +235,16 @@ a0calloc(size_t num, size_t size)
 void
 a0free(void *ptr)
 {
-	tsd_t *tsd;
 	arena_chunk_t *chunk;
 
 	if (ptr == NULL)
 		return;
 
-	tsd = tsd_fetch();
 	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
 	if (chunk != ptr)
-		arena_dalloc(tsd, chunk, ptr, false);
+		arena_dalloc(NULL, chunk, ptr, false);
 	else
-		huge_dalloc(tsd, ptr, false);
+		huge_dalloc(NULL, ptr, false);
 }
 
 /* Create a new arena and insert it into the arenas array at index ind. */
@@ -2301,9 +2297,9 @@ je_malloc_usable_size(JEMALLOC_USABLE_SIZE_CONST void *ptr)
  * fork/malloc races via the following functions it registers during
  * initialization using pthread_atfork(), but of course that does no good if
  * the allocator isn't fully initialized at fork time.  The following library
- * constructor is a partial solution to this problem.  It may still possible to
- * trigger the deadlock described above, but doing so would involve forking via
- * a library constructor that runs before jemalloc's runs.
+ * constructor is a partial solution to this problem.  It may still be possible
+ * to trigger the deadlock described above, but doing so would involve forking
+ * via a library constructor that runs before jemalloc's runs.
  */
 JEMALLOC_ATTR(constructor)
 static void
