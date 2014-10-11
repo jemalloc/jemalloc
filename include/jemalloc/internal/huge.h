@@ -26,7 +26,7 @@ void	huge_dalloc(tsd_t *tsd, void *ptr, bool try_tcache);
 size_t	huge_salloc(const void *ptr);
 prof_tctx_t	*huge_prof_tctx_get(const void *ptr);
 void	huge_prof_tctx_set(const void *ptr, prof_tctx_t *tctx);
-bool	huge_boot(void);
+bool	huge_boot(unsigned ncpus);
 void	huge_prefork(void);
 void	huge_postfork_parent(void);
 void	huge_postfork_child(void);

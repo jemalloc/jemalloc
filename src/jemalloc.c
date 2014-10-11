@@ -1103,11 +1103,6 @@ malloc_init_hard(void)
 		return (true);
 	}
 
-	if (huge_boot()) {
-		malloc_mutex_unlock(&init_lock);
-		return (true);
-	}
-
 	if (malloc_mutex_init(&arenas_lock)) {
 		malloc_mutex_unlock(&init_lock);
 		return (true);
@@ -1138,7 +1133,10 @@ malloc_init_hard(void)
 
 	malloc_mutex_unlock(&init_lock);
 	/**********************************************************************/
-	/* Recursive allocation may follow. */
+	/*
+	 * Recursive allocation may follow. Note that the huge allocator is not
+	 * booted here, as it is not currently necessary.
+	 */
 
 	ncpus = malloc_ncpus();
 
@@ -1156,6 +1154,11 @@ malloc_init_hard(void)
 	/* Done recursively allocating. */
 	/**********************************************************************/
 	malloc_mutex_lock(&init_lock);
+
+	if (huge_boot(ncpus)) {
+		malloc_mutex_unlock(&init_lock);
+		return (true);
+	}
 
 	if (mutex_boot()) {
 		malloc_mutex_unlock(&init_lock);
