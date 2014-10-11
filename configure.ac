@@ -207,9 +207,10 @@ dnl CPU-specific settings.
 CPU_SPINWAIT=""
 case "${host_cpu}" in
   i686|x86_64)
-	JE_COMPILABLE([pause instruction], [],
-	              [[__asm__ volatile("pause"); return 0;]],
-	              [je_cv_pause])
+	AC_CACHE_CHECK([whether pause instruction is compilable], [je_cv_pause],
+	  [JE_COMPILABLE([pause instruction], [],
+	                [[__asm__ volatile("pause"); return 0;]],
+	                [je_cv_pause])])
 	if test "x${je_cv_pause}" = "xyes" ; then
 	    CPU_SPINWAIT='__asm__ volatile("pause")'
 	fi
