@@ -230,10 +230,9 @@ any of the following arguments (not a definitive list) to 'configure':
     roughly <lg-size-class-group>=4, depending on page size.
 
 --with-lg-quantum=<lg-quantum>
-    Specify the base 2 log of the minimum allocation alignment (only
-    <lg-quantum>=3 and <lg-quantum>=4 are supported).  jemalloc needs to know
-    the minimum alignment that meets the following C standard requirement
-    (quoted from the April 12, 2011 draft of the C11 standard):
+    Specify the base 2 log of the minimum allocation alignment.  jemalloc needs
+    to know the minimum alignment that meets the following C standard
+    requirement (quoted from the April 12, 2011 draft of the C11 standard):
 
       The pointer returned if the allocation succeeds is suitably aligned so
       that it may be assigned to a pointer to any type of object with a
@@ -247,14 +246,35 @@ any of the following arguments (not a definitive list) to 'configure':
     (<lg-quantum>=4), but the glibc developers chose not to meet this requirement
     for performance reasons.  An old discussion can be found at
     https://sourceware.org/bugzilla/show_bug.cgi?id=206 .  Unlike glibc,
-    jemalloc does follow the C standard by default (caveat: jemalloc technically
-    cheats by only providing 8-byte alignment for 8-byte allocation requests),
+    jemalloc does follow the C standard by default (caveat: jemalloc
+    technically cheats if --with-lg-tiny-min is smaller than --with-lg-quantum),
     but the fact that Linux systems already work around this allocator
     noncompliance means that it is generally safe in practice to let jemalloc's
     minimum alignment follow glibc's lead.  If you specify --with-lg-quantum=3
     during configuration, jemalloc will provide additional size classes that
     are not 16-byte-aligned (24, 40, and 56, assuming
     --with-lg-size-class-group=2).
+
+--with-lg-tiny-min=<lg-tiny-min>
+    Specify the base 2 log of the minimum tiny size class to support.  Tiny
+    size classes are powers of 2 less than the quantum, and are only
+    incorporated if <lg-tiny-min> is less than <lg-quantum> (see
+    --with-lg-quantum).  Tiny size classes technically violate the C standard
+    requirement for minimum alignment, and crashes could conceivably result if
+    the compiler were to generate instructions that made alignment assumptions,
+    both because illegal instruction traps could result, and because accesses
+    could straddle page boundaries and cause segmentation faults due to
+    accessing unmapped addresses.
+
+    The default of <lg-tiny-min>=3 works well in practice even on architectures
+    that technically require 16-byte alignment, probably for the same reason
+    --with-lg-quantum=3 works.  Smaller tiny size classes can, and will, cause
+    crashes (see https://bugzilla.mozilla.org/show_bug.cgi?id=691003 for an
+    example).
+
+    This option is rarely useful, and is mainly provided as documentation of a
+    subtle implementation detail.  If you do use this option, specify a
+    value in [3, ..., <lg-quantum>].
 
 The following environment variables (not a definitive list) impact configure's
 behavior:

@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# Usage: size_classes.sh <lg_parr> <lg_g>
+# Usage: size_classes.sh <lg_qarr> <lg_tmin> <lg_parr> <lg_g>
 
 # The following limits are chosen such that they cover all supported platforms.
 
@@ -8,19 +8,19 @@
 lg_zarr="2 3"
 
 # Quanta.
-lg_qarr="3 4"
+lg_qarr=$1
 
 # The range of tiny size classes is [2^lg_tmin..2^(lg_q-1)].
-lg_tmin=3
+lg_tmin=$2
 
 # Maximum lookup size.
 lg_kmax=12
 
 # Page sizes.
-lg_parr=`echo $1 | tr ',' ' '`
+lg_parr=`echo $3 | tr ',' ' '`
 
 # Size class group size (number of size classes for each size doubling).
-lg_g=$2
+lg_g=$4
 
 pow2() {
   e=$1

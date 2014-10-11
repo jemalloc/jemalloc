@@ -144,6 +144,9 @@
 /* Support lazy locking (avoid locking unless a second thread is launched). */
 #undef JEMALLOC_LAZY_LOCK
 
+/* Minimum size class to support is 2^LG_TINY_MIN bytes. */
+#undef LG_TINY_MIN
+
 /*
  * Minimum allocation alignment is 2^LG_QUANTUM bytes (ignoring tiny size
  * classes).

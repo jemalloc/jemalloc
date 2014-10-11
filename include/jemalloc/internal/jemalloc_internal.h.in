@@ -181,7 +181,6 @@ typedef unsigned index_t;
     (((unsigned)(flags >> 8)) - 1)
 
 /* Smallest size class to support. */
-#define	LG_TINY_MIN		3
 #define	TINY_MIN		(1U << LG_TINY_MIN)
 
 /*
