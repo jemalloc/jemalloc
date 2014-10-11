@@ -155,9 +155,6 @@ arena_run_reg_alloc(arena_run_t *run, arena_bin_info_t *bin_info)
 	ret = (void *)((uintptr_t)rpages + (uintptr_t)bin_info->reg0_offset +
 	    (uintptr_t)(bin_info->reg_interval * regind));
 	run->nfree--;
-	if (regind == run->nextind)
-		run->nextind++;
-	assert(regind < run->nextind);
 	return (ret);
 }
 
@@ -361,26 +358,12 @@ arena_run_split_small(arena_t *arena, arena_run_t *run, size_t size,
 
 	arena_run_split_remove(arena, chunk, run_ind, flag_dirty, need_pages);
 
-	/*
-	 * Propagate the dirty and unzeroed flags to the allocated small run,
-	 * so that arena_dalloc_bin_run() has the ability to conditionally trim
-	 * clean pages.
-	 */
-	arena_mapbits_small_set(chunk, run_ind, 0, binind, flag_dirty);
-	if (config_debug && flag_dirty == 0 && arena_mapbits_unzeroed_get(chunk,
-	    run_ind) == 0)
-		arena_run_page_validate_zeroed(chunk, run_ind);
-	for (i = 1; i < need_pages - 1; i++) {
+	for (i = 0; i < need_pages; i++) {
 		arena_mapbits_small_set(chunk, run_ind+i, i, binind, 0);
 		if (config_debug && flag_dirty == 0 &&
 		    arena_mapbits_unzeroed_get(chunk, run_ind+i) == 0)
 			arena_run_page_validate_zeroed(chunk, run_ind+i);
 	}
-	arena_mapbits_small_set(chunk, run_ind+need_pages-1, need_pages-1,
-	    binind, flag_dirty);
-	if (config_debug && flag_dirty == 0 && arena_mapbits_unzeroed_get(chunk,
-	    run_ind+need_pages-1) == 0)
-		arena_run_page_validate_zeroed(chunk, run_ind+need_pages-1);
 	JEMALLOC_VALGRIND_MAKE_MEM_UNDEFINED((void *)((uintptr_t)chunk +
 	    (run_ind << LG_PAGE)), (need_pages << LG_PAGE));
 }
@@ -1002,8 +985,7 @@ arena_run_dalloc(arena_t *arena, arena_run_t *run, bool dirty, bool cleaned)
 		    arena_mapbits_large_size_get(chunk,
 		    run_ind+(size>>LG_PAGE)-1) == 0);
 	} else {
-		index_t binind = arena_bin_index(arena, run->bin);
-		arena_bin_info_t *bin_info = &arena_bin_info[binind];
+		arena_bin_info_t *bin_info = &arena_bin_info[run->binind];
 		size = bin_info->run_size;
 	}
 	run_pages = (size >> LG_PAGE);
@@ -1199,8 +1181,7 @@ arena_bin_nonfull_run_get(arena_t *arena, arena_bin_t *bin)
 	run = arena_run_alloc_small(arena, bin_info->run_size, binind);
 	if (run != NULL) {
 		/* Initialize run internals. */
-		run->bin = bin;
-		run->nextind = 0;
+		run->binind = binind;
 		run->nfree = bin_info->nregs;
 		bitmap_init(run->bitmap, &bin_info->bitmap_info);
 	}
@@ -1652,54 +1633,15 @@ static void
 arena_dalloc_bin_run(arena_t *arena, arena_chunk_t *chunk, arena_run_t *run,
     arena_bin_t *bin)
 {
-	index_t binind;
-	arena_bin_info_t *bin_info;
-	size_t npages, run_ind, past;
-	arena_chunk_map_misc_t *miscelm;
-	void *rpages;
 
 	assert(run != bin->runcur);
 	assert(arena_run_tree_search(&bin->runs, arena_run_to_miscelm(run)) ==
 	    NULL);
 
-	binind = arena_bin_index(chunk->arena, run->bin);
-	bin_info = &arena_bin_info[binind];
-
 	malloc_mutex_unlock(&bin->lock);
 	/******************************/
-	npages = bin_info->run_size >> LG_PAGE;
-	miscelm = arena_run_to_miscelm(run);
-	run_ind = arena_miscelm_to_pageind(miscelm);
-	rpages = arena_miscelm_to_rpages(miscelm);
-	past = (size_t)(PAGE_CEILING((uintptr_t)rpages +
-	    (uintptr_t)bin_info->reg0_offset + (uintptr_t)(run->nextind *
-	    bin_info->reg_interval - bin_info->redzone_size) -
-	    (uintptr_t)chunk) >> LG_PAGE);
 	malloc_mutex_lock(&arena->lock);
-
-	/*
-	 * If the run was originally clean, and some pages were never touched,
-	 * trim the clean pages before deallocating the dirty portion of the
-	 * run.
-	 */
-	assert(arena_mapbits_dirty_get(chunk, run_ind) ==
-	    arena_mapbits_dirty_get(chunk, run_ind+npages-1));
-	if (arena_mapbits_dirty_get(chunk, run_ind) == 0 && past - run_ind <
-	    npages) {
-		/* Trim clean pages.  Convert to large run beforehand. */
-		assert(npages > 0);
-		if (past > run_ind) {
-			arena_mapbits_large_set(chunk, run_ind,
-			    bin_info->run_size, 0);
-			arena_mapbits_large_set(chunk, run_ind+npages-1, 0, 0);
-			arena_run_trim_tail(arena, chunk, run, (npages <<
-			    LG_PAGE), ((past - run_ind) << LG_PAGE), false);
-			arena_run_dalloc(arena, run, true, false);
-		} else
-			arena_run_dalloc(arena, run, false, false);
-		/* npages = past - run_ind; */
-	} else
-		arena_run_dalloc(arena, run, true, false);
+	arena_run_dalloc(arena, run, true, false);
 	malloc_mutex_unlock(&arena->lock);
 	/****************************/
 	malloc_mutex_lock(&bin->lock);
@@ -1742,9 +1684,8 @@ arena_dalloc_bin_locked_impl(arena_t *arena, arena_chunk_t *chunk, void *ptr,
 	pageind = ((uintptr_t)ptr - (uintptr_t)chunk) >> LG_PAGE;
 	rpages_ind = pageind - arena_mapbits_small_runind_get(chunk, pageind);
 	run = &arena_miscelm_get(chunk, rpages_ind)->run;
-	bin = run->bin;
-	binind = arena_ptr_small_binind_get(ptr, arena_mapbits_get(chunk,
-	    pageind));
+	binind = run->binind;
+	bin = &arena->bins[binind];
 	bin_info = &arena_bin_info[binind];
 	if (config_fill || config_stats)
 		size = bin_info->reg_size;
@@ -1783,7 +1724,7 @@ arena_dalloc_bin(arena_t *arena, arena_chunk_t *chunk, void *ptr,
 
 	rpages_ind = pageind - arena_mapbits_small_runind_get(chunk, pageind);
 	run = &arena_miscelm_get(chunk, rpages_ind)->run;
-	bin = run->bin;
+	bin = &arena->bins[run->binind];
 	malloc_mutex_lock(&bin->lock);
 	arena_dalloc_bin_locked_impl(arena, chunk, ptr, bitselm, false);
 	malloc_mutex_unlock(&bin->lock);

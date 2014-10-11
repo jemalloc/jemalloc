@@ -36,11 +36,8 @@ typedef struct arena_s arena_t;
 #ifdef JEMALLOC_H_STRUCTS
 
 struct arena_run_s {
-	/* Bin this run is associated with. */
-	arena_bin_t	*bin;
-
-	/* Index of next region that has never been allocated, or nregs. */
-	uint32_t	nextind;
+	/* Index of bin this run is associated with. */
+	index_t		binind;
 
 	/* Number of free regions in run. */
 	unsigned	nfree;
@@ -756,7 +753,7 @@ arena_ptr_small_binind_get(const void *ptr, size_t mapbits)
 		size_t rpages_ind;
 		arena_run_t *run;
 		arena_bin_t *bin;
-		index_t actual_binind;
+		index_t run_binind, actual_binind;
 		arena_bin_info_t *bin_info;
 		arena_chunk_map_misc_t *miscelm;
 		void *rpages;
@@ -774,9 +771,10 @@ arena_ptr_small_binind_get(const void *ptr, size_t mapbits)
 		    pageind);
 		miscelm = arena_miscelm_get(chunk, rpages_ind);
 		run = &miscelm->run;
-		bin = run->bin;
+		run_binind = run->binind;
+		bin = &arena->bins[run_binind];
 		actual_binind = bin - arena->bins;
-		assert(binind == actual_binind);
+		assert(run_binind == actual_binind);
 		bin_info = &arena_bin_info[actual_binind];
 		rpages = arena_miscelm_to_rpages(miscelm);
 		assert(((uintptr_t)ptr - ((uintptr_t)rpages +
