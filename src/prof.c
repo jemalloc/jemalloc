@@ -128,8 +128,8 @@ static char	*prof_thread_name_alloc(tsd_t *tsd, const char *thread_name);
 JEMALLOC_INLINE_C int
 prof_tctx_comp(const prof_tctx_t *a, const prof_tctx_t *b)
 {
-	uint64_t a_uid = a->tdata->thr_uid;
-	uint64_t b_uid = b->tdata->thr_uid;
+	uint64_t a_uid = a->thr_uid;
+	uint64_t b_uid = b->thr_uid;
 
 	return ((a_uid > b_uid) - (a_uid < b_uid));
 }
@@ -755,6 +755,7 @@ prof_lookup(tsd_t *tsd, prof_bt_t *bt)
 			return (NULL);
 		}
 		ret.p->tdata = tdata;
+		ret.p->thr_uid = tdata->thr_uid;
 		memset(&ret.p->cnts, 0, sizeof(prof_cnt_t));
 		ret.p->gctx = gctx;
 		ret.p->prepared = true;
@@ -1051,9 +1052,8 @@ prof_tctx_dump_iter(prof_tctx_tree_t *tctxs, prof_tctx_t *tctx, void *arg)
 
 	if (prof_dump_printf(propagate_err,
 	    "  t%"PRIu64": %"PRIu64": %"PRIu64" [%"PRIu64": %"PRIu64"]\n",
-	    tctx->tdata->thr_uid, tctx->dump_cnts.curobjs,
-	    tctx->dump_cnts.curbytes, tctx->dump_cnts.accumobjs,
-	    tctx->dump_cnts.accumbytes))
+	    tctx->thr_uid, tctx->dump_cnts.curobjs, tctx->dump_cnts.curbytes,
+	    tctx->dump_cnts.accumobjs, tctx->dump_cnts.accumbytes))
 		return (tctx);
 	return (NULL);
 }

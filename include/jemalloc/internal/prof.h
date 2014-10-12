@@ -89,6 +89,12 @@ struct prof_tctx_s {
 	/* Thread data for thread that performed the allocation. */
 	prof_tdata_t		*tdata;
 
+	/*
+	 * Copy of tdata->thr_uid, necessary because tdata may be defunct during
+	 * teardown.
+	 */
+	uint64_t		thr_uid;
+
 	/* Profiling counters, protected by tdata->lock. */
 	prof_cnt_t		cnts;
 
