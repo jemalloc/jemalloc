@@ -406,11 +406,12 @@ for (i = 0; i < nbins; i++) {
       functions simultaneously.  If <option>--enable-stats</option> is
       specified during configuration, &ldquo;m&rdquo; and &ldquo;a&rdquo; can
       be specified to omit merged arena and per arena statistics, respectively;
-      &ldquo;b&rdquo; and &ldquo;l&rdquo; can be specified to omit per size
-      class statistics for bins and large objects, respectively.  Unrecognized
-      characters are silently ignored.  Note that thread caching may prevent
-      some statistics from being completely up to date, since extra locking
-      would be required to merge counters that track thread cache operations.
+      &ldquo;b&rdquo;, &ldquo;l&rdquo;, and &ldquo;h&rdquo; can be specified to
+      omit per size class statistics for bins, large objects, and huge objects,
+      respectively.  Unrecognized characters are silently ignored.  Note that
+      thread caching may prevent some statistics from being completely up to
+      date, since extra locking would be required to merge counters that track
+      thread cache operations.
       </para>
 
       <para>The <function>malloc_usable_size<parameter/></function> function
@@ -1520,7 +1521,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
       <varlistentry id="arenas.nlruns">
         <term>
           <mallctl>arenas.nlruns</mallctl>
-          (<type>size_t</type>)
+          (<type>unsigned</type>)
           <literal>r-</literal>
         </term>
         <listitem><para>Total number of large size classes.</para></listitem>
@@ -1533,6 +1534,25 @@ malloc_conf = "xmalloc:true";]]></programlisting>
           <literal>r-</literal>
         </term>
         <listitem><para>Maximum size supported by this large size
+        class.</para></listitem>
+      </varlistentry>
+
+      <varlistentry id="arenas.nhchunks">
+        <term>
+          <mallctl>arenas.nhchunks</mallctl>
+          (<type>unsigned</type>)
+          <literal>r-</literal>
+        </term>
+        <listitem><para>Total number of huge size classes.</para></listitem>
+      </varlistentry>
+
+      <varlistentry id="arenas.hchunks.i.size">
+        <term>
+          <mallctl>arenas.hchunks.&lt;i&gt;.size</mallctl>
+          (<type>size_t</type>)
+          <literal>r-</literal>
+        </term>
+        <listitem><para>Maximum size supported by this huge size
         class.</para></listitem>
       </varlistentry>
 
@@ -1945,17 +1965,6 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         </para></listitem>
       </varlistentry>
 
-      <varlistentry id="stats.arenas.i.bins.j.allocated">
-        <term>
-          <mallctl>stats.arenas.&lt;i&gt;.bins.&lt;j&gt;.allocated</mallctl>
-          (<type>size_t</type>)
-          <literal>r-</literal>
-          [<option>--enable-stats</option>]
-        </term>
-        <listitem><para>Current number of bytes allocated by
-        bin.</para></listitem>
-      </varlistentry>
-
       <varlistentry id="stats.arenas.i.bins.j.nmalloc">
         <term>
           <mallctl>stats.arenas.&lt;i&gt;.bins.&lt;j&gt;.nmalloc</mallctl>
@@ -1987,6 +1996,17 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         </term>
         <listitem><para>Cumulative number of allocation
         requests.</para></listitem>
+      </varlistentry>
+
+      <varlistentry id="stats.arenas.i.bins.j.curregs">
+        <term>
+          <mallctl>stats.arenas.&lt;i&gt;.bins.&lt;j&gt;.curregs</mallctl>
+          (<type>size_t</type>)
+          <literal>r-</literal>
+          [<option>--enable-stats</option>]
+        </term>
+        <listitem><para>Current number of regions for this size
+        class.</para></listitem>
       </varlistentry>
 
       <varlistentry id="stats.arenas.i.bins.j.nfills">
@@ -2081,6 +2101,50 @@ malloc_conf = "xmalloc:true";]]></programlisting>
           [<option>--enable-stats</option>]
         </term>
         <listitem><para>Current number of runs for this size class.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry id="stats.arenas.i.hchunks.j.nmalloc">
+        <term>
+          <mallctl>stats.arenas.&lt;i&gt;.hchunks.&lt;j&gt;.nmalloc</mallctl>
+          (<type>uint64_t</type>)
+          <literal>r-</literal>
+          [<option>--enable-stats</option>]
+        </term>
+        <listitem><para>Cumulative number of allocation requests for this size
+        class served directly by the arena.</para></listitem>
+      </varlistentry>
+
+      <varlistentry id="stats.arenas.i.hchunks.j.ndalloc">
+        <term>
+          <mallctl>stats.arenas.&lt;i&gt;.hchunks.&lt;j&gt;.ndalloc</mallctl>
+          (<type>uint64_t</type>)
+          <literal>r-</literal>
+          [<option>--enable-stats</option>]
+        </term>
+        <listitem><para>Cumulative number of deallocation requests for this
+        size class served directly by the arena.</para></listitem>
+      </varlistentry>
+
+      <varlistentry id="stats.arenas.i.hchunks.j.nrequests">
+        <term>
+          <mallctl>stats.arenas.&lt;i&gt;.hchunks.&lt;j&gt;.nrequests</mallctl>
+          (<type>uint64_t</type>)
+          <literal>r-</literal>
+          [<option>--enable-stats</option>]
+        </term>
+        <listitem><para>Cumulative number of allocation requests for this size
+        class.</para></listitem>
+      </varlistentry>
+
+      <varlistentry id="stats.arenas.i.hchunks.j.curhchunks">
+        <term>
+          <mallctl>stats.arenas.&lt;i&gt;.hchunks.&lt;j&gt;.curhchunks</mallctl>
+          (<type>size_t</type>)
+          <literal>r-</literal>
+          [<option>--enable-stats</option>]
+        </term>
+        <listitem><para>Current number of huge allocations for this size class.
         </para></listitem>
       </varlistentry>
     </variablelist>

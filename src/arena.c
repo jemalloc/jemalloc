@@ -11,7 +11,8 @@ size_t		map_bias;
 size_t		map_misc_offset;
 size_t		arena_maxrun; /* Max run size for arenas. */
 size_t		arena_maxclass; /* Max size class for arenas. */
-size_t		nlclasses; /* Number of large size classes. */
+unsigned	nlclasses; /* Number of large size classes. */
+unsigned	nhclasses; /* Number of huge size classes. */
 
 /******************************************************************************/
 /*
@@ -411,7 +412,7 @@ arena_chunk_alloc_internal(arena_t *arena, size_t size, size_t alignment,
 }
 
 void *
-arena_chunk_alloc_huge(arena_t *arena, void *new_addr, size_t size,
+arena_chunk_alloc_huge(arena_t *arena, void *new_addr, size_t usize,
     size_t alignment, bool *zero)
 {
 	void *ret;
@@ -422,26 +423,33 @@ arena_chunk_alloc_huge(arena_t *arena, void *new_addr, size_t size,
 	chunk_alloc = arena->chunk_alloc;
 	chunk_dalloc = arena->chunk_dalloc;
 	if (config_stats) {
+		index_t index = size2index(usize) - nlclasses - NBINS;
+
 		/* Optimistically update stats prior to unlocking. */
-		arena->stats.mapped += size;
-		arena->stats.allocated_huge += size;
+		arena->stats.allocated_huge += usize;
 		arena->stats.nmalloc_huge++;
-		arena->stats.nrequests_huge++;
+		arena->stats.hstats[index].nmalloc++;
+		arena->stats.hstats[index].curhchunks++;
+		arena->stats.mapped += usize;
 	}
-	arena->nactive += (size >> LG_PAGE);
+	arena->nactive += (usize >> LG_PAGE);
 	malloc_mutex_unlock(&arena->lock);
 
 	ret = chunk_alloc_arena(chunk_alloc, chunk_dalloc, arena->ind,
-	    new_addr, size, alignment, zero);
+	    new_addr, usize, alignment, zero);
 	if (config_stats) {
 		if (ret != NULL)
-			stats_cactive_add(size);
+			stats_cactive_add(usize);
 		else {
-			/* Revert optimistic stats updates. */
+			index_t index = size2index(usize) - nlclasses - NBINS;
+
 			malloc_mutex_lock(&arena->lock);
-			arena->stats.mapped -= size;
-			arena->stats.allocated_huge -= size;
+			/* Revert optimistic stats updates. */
+			arena->stats.allocated_huge -= usize;
 			arena->stats.nmalloc_huge--;
+			arena->stats.hstats[index].nmalloc--;
+			arena->stats.hstats[index].curhchunks--;
+			arena->stats.mapped -= usize;
 			malloc_mutex_unlock(&arena->lock);
 		}
 	}
@@ -534,21 +542,25 @@ arena_chunk_dalloc_internal(arena_t *arena, arena_chunk_t *chunk)
 }
 
 void
-arena_chunk_dalloc_huge(arena_t *arena, void *chunk, size_t size)
+arena_chunk_dalloc_huge(arena_t *arena, void *chunk, size_t usize)
 {
 	chunk_dalloc_t *chunk_dalloc;
 
 	malloc_mutex_lock(&arena->lock);
 	chunk_dalloc = arena->chunk_dalloc;
 	if (config_stats) {
-		arena->stats.mapped -= size;
-		arena->stats.allocated_huge -= size;
+		index_t index = size2index(usize) - nlclasses - NBINS;
+
 		arena->stats.ndalloc_huge++;
-		stats_cactive_sub(size);
+		arena->stats.allocated_huge -= usize;
+		arena->stats.hstats[index].ndalloc++;
+		arena->stats.hstats[index].curhchunks--;
+		arena->stats.mapped -= usize;
+		stats_cactive_sub(usize);
 	}
-	arena->nactive -= (size >> LG_PAGE);
+	arena->nactive -= (usize >> LG_PAGE);
 	malloc_mutex_unlock(&arena->lock);
-	chunk_dalloc(chunk, size, arena->ind);
+	chunk_dalloc(chunk, usize, arena->ind);
 }
 
 static void
@@ -1300,9 +1312,9 @@ arena_tcache_fill_small(arena_t *arena, tcache_bin_t *tbin, index_t binind,
 		tbin->avail[nfill - 1 - i] = ptr;
 	}
 	if (config_stats) {
-		bin->stats.allocated += i * arena_bin_info[binind].reg_size;
 		bin->stats.nmalloc += i;
 		bin->stats.nrequests += tbin->tstats.nrequests;
+		bin->stats.curregs += i;
 		bin->stats.nfills++;
 		tbin->tstats.nrequests = 0;
 	}
@@ -1436,9 +1448,9 @@ arena_malloc_small(arena_t *arena, size_t size, bool zero)
 	}
 
 	if (config_stats) {
-		bin->stats.allocated += size;
 		bin->stats.nmalloc++;
 		bin->stats.nrequests++;
+		bin->stats.curregs++;
 	}
 	malloc_mutex_unlock(&bin->lock);
 	if (config_prof && !isthreaded && arena_prof_accum(arena, size))
@@ -1678,7 +1690,6 @@ arena_dalloc_bin_locked_impl(arena_t *arena, arena_chunk_t *chunk, void *ptr,
 	arena_run_t *run;
 	arena_bin_t *bin;
 	arena_bin_info_t *bin_info;
-	size_t size;
 	index_t binind;
 
 	pageind = ((uintptr_t)ptr - (uintptr_t)chunk) >> LG_PAGE;
@@ -1687,8 +1698,6 @@ arena_dalloc_bin_locked_impl(arena_t *arena, arena_chunk_t *chunk, void *ptr,
 	binind = run->binind;
 	bin = &arena->bins[binind];
 	bin_info = &arena_bin_info[binind];
-	if (config_fill || config_stats)
-		size = bin_info->reg_size;
 
 	if (!junked && config_fill && unlikely(opt_junk))
 		arena_dalloc_junk_small(ptr, bin_info);
@@ -1701,8 +1710,8 @@ arena_dalloc_bin_locked_impl(arena_t *arena, arena_chunk_t *chunk, void *ptr,
 		arena_bin_lower_run(arena, chunk, run, bin);
 
 	if (config_stats) {
-		bin->stats.allocated -= size;
 		bin->stats.ndalloc++;
+		bin->stats.curregs--;
 	}
 }
 
@@ -2102,7 +2111,7 @@ arena_dss_prec_set(arena_t *arena, dss_prec_t dss_prec)
 void
 arena_stats_merge(arena_t *arena, const char **dss, size_t *nactive,
     size_t *ndirty, arena_stats_t *astats, malloc_bin_stats_t *bstats,
-    malloc_large_stats_t *lstats)
+    malloc_large_stats_t *lstats, malloc_huge_stats_t *hstats)
 {
 	unsigned i;
 
@@ -2122,7 +2131,6 @@ arena_stats_merge(arena_t *arena, const char **dss, size_t *nactive,
 	astats->allocated_huge += arena->stats.allocated_huge;
 	astats->nmalloc_huge += arena->stats.nmalloc_huge;
 	astats->ndalloc_huge += arena->stats.ndalloc_huge;
-	astats->nrequests_huge += arena->stats.nrequests_huge;
 
 	for (i = 0; i < nlclasses; i++) {
 		lstats[i].nmalloc += arena->stats.lstats[i].nmalloc;
@@ -2130,16 +2138,22 @@ arena_stats_merge(arena_t *arena, const char **dss, size_t *nactive,
 		lstats[i].nrequests += arena->stats.lstats[i].nrequests;
 		lstats[i].curruns += arena->stats.lstats[i].curruns;
 	}
+
+	for (i = 0; i < nhclasses; i++) {
+		hstats[i].nmalloc += arena->stats.hstats[i].nmalloc;
+		hstats[i].ndalloc += arena->stats.hstats[i].ndalloc;
+		hstats[i].curhchunks += arena->stats.hstats[i].curhchunks;
+	}
 	malloc_mutex_unlock(&arena->lock);
 
 	for (i = 0; i < NBINS; i++) {
 		arena_bin_t *bin = &arena->bins[i];
 
 		malloc_mutex_lock(&bin->lock);
-		bstats[i].allocated += bin->stats.allocated;
 		bstats[i].nmalloc += bin->stats.nmalloc;
 		bstats[i].ndalloc += bin->stats.ndalloc;
 		bstats[i].nrequests += bin->stats.nrequests;
+		bstats[i].curregs += bin->stats.curregs;
 		if (config_tcache) {
 			bstats[i].nfills += bin->stats.nfills;
 			bstats[i].nflushes += bin->stats.nflushes;
@@ -2159,12 +2173,13 @@ arena_new(unsigned ind)
 	arena_bin_t *bin;
 
 	/*
-	 * Allocate arena and arena->lstats contiguously, mainly because there
-	 * is no way to clean up if base_alloc() OOMs.
+	 * Allocate arena, arena->lstats, and arena->hstats contiguously, mainly
+	 * because there is no way to clean up if base_alloc() OOMs.
 	 */
 	if (config_stats) {
 		arena = (arena_t *)base_alloc(CACHELINE_CEILING(sizeof(arena_t))
-		    + nlclasses * sizeof(malloc_large_stats_t));
+		    + QUANTUM_CEILING(nlclasses * sizeof(malloc_large_stats_t) +
+		    nhclasses) * sizeof(malloc_huge_stats_t));
 	} else
 		arena = (arena_t *)base_alloc(sizeof(arena_t));
 	if (arena == NULL)
@@ -2184,6 +2199,11 @@ arena_new(unsigned ind)
 		    CACHELINE_CEILING(sizeof(arena_t)));
 		memset(arena->stats.lstats, 0, nlclasses *
 		    sizeof(malloc_large_stats_t));
+		arena->stats.hstats = (malloc_huge_stats_t *)(((void *)arena) +
+		    CACHELINE_CEILING(sizeof(arena_t)) +
+		    QUANTUM_CEILING(nlclasses * sizeof(malloc_large_stats_t)));
+		memset(arena->stats.hstats, 0, nhclasses *
+		    sizeof(malloc_huge_stats_t));
 		if (config_tcache)
 			ql_new(&arena->tcache_ql);
 	}
@@ -2369,6 +2389,7 @@ arena_boot(void)
 	}
 	assert(arena_maxclass > 0);
 	nlclasses = size2index(arena_maxclass) - size2index(SMALL_MAXCLASS);
+	nhclasses = NSIZES - nlclasses - NBINS;
 
 	bin_info_init();
 }

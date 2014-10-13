@@ -104,6 +104,101 @@ huge_dalloc_junk(void *ptr, size_t usize)
 huge_dalloc_junk_t *huge_dalloc_junk = JEMALLOC_N(huge_dalloc_junk_impl);
 #endif
 
+static void
+huge_ralloc_no_move_stats_update(arena_t *arena, size_t oldsize, size_t usize)
+{
+	index_t oldindex = size2index(oldsize) - nlclasses - NBINS;
+	index_t index = size2index(usize) - nlclasses - NBINS;
+
+	cassert(config_stats);
+
+	arena->stats.ndalloc_huge++;
+	arena->stats.allocated_huge -= oldsize;
+	arena->stats.hstats[oldindex].ndalloc++;
+	arena->stats.hstats[oldindex].curhchunks--;
+
+	arena->stats.nmalloc_huge++;
+	arena->stats.allocated_huge += usize;
+	arena->stats.hstats[index].nmalloc++;
+	arena->stats.hstats[index].curhchunks++;
+}
+
+static void
+huge_ralloc_no_move_similar(void *ptr, size_t oldsize, size_t usize,
+    size_t size, size_t extra, bool zero)
+{
+	size_t usize_next;
+	extent_node_t *node, key;
+	arena_t *arena;
+
+	/* Increase usize to incorporate extra. */
+	while (usize < s2u(size+extra) && (usize_next = s2u(usize+1)) < oldsize)
+		usize = usize_next;
+
+	malloc_mutex_lock(&huge_mtx);
+
+	key.addr = ptr;
+	node = extent_tree_ad_search(&huge, &key);
+	assert(node != NULL);
+	assert(node->addr == ptr);
+
+	arena = node->arena;
+
+	/* Update the size of the huge allocation if it changed. */
+	if (oldsize != usize) {
+		assert(node->size != usize);
+		node->size = usize;
+	}
+
+	malloc_mutex_unlock(&huge_mtx);
+
+	/* Fill if necessary. */
+	if (oldsize < usize) {
+		if (zero || (config_fill && unlikely(opt_zero)))
+			memset(ptr + oldsize, 0, usize - oldsize);
+		else if (config_fill && unlikely(opt_junk))
+			memset(ptr + oldsize, 0xa5, usize - oldsize);
+	} else if (config_fill && unlikely(opt_junk) && oldsize > usize)
+		memset(ptr + usize, 0x5a, oldsize - usize);
+
+	if (config_stats)
+		huge_ralloc_no_move_stats_update(arena, oldsize, usize);
+}
+
+static void
+huge_ralloc_no_move_shrink(void *ptr, size_t oldsize, size_t usize)
+{
+	extent_node_t *node, key;
+	arena_t *arena;
+	void *excess_addr;
+	size_t excess_size;
+
+	malloc_mutex_lock(&huge_mtx);
+
+	key.addr = ptr;
+	node = extent_tree_ad_search(&huge, &key);
+	assert(node != NULL);
+	assert(node->addr == ptr);
+
+	arena = node->arena;
+
+	/* Update the size of the huge allocation. */
+	node->size = usize;
+
+	malloc_mutex_unlock(&huge_mtx);
+
+	excess_addr = node->addr + CHUNK_CEILING(usize);
+	excess_size = CHUNK_CEILING(oldsize) - CHUNK_CEILING(usize);
+
+	/* Zap the excess chunks. */
+	huge_dalloc_junk(ptr + usize, oldsize - usize);
+	if (excess_size > 0)
+		arena_chunk_dalloc_huge(arena, excess_addr, excess_size);
+
+	if (config_stats)
+		huge_ralloc_no_move_stats_update(arena, oldsize, usize);
+}
+
 static bool
 huge_ralloc_no_move_expand(void *ptr, size_t oldsize, size_t size, bool zero) {
 	size_t usize;
@@ -131,7 +226,6 @@ huge_ralloc_no_move_expand(void *ptr, size_t oldsize, size_t size, bool zero) {
 	assert(node != NULL);
 	assert(node->addr == ptr);
 
-	/* Find the current arena. */
 	arena = node->arena;
 
 	malloc_mutex_unlock(&huge_mtx);
@@ -159,6 +253,10 @@ huge_ralloc_no_move_expand(void *ptr, size_t oldsize, size_t size, bool zero) {
 		else if (unlikely(opt_zero) && !is_zeroed)
 			memset(ptr + oldsize, 0, usize - oldsize);
 	}
+
+	if (config_stats)
+		huge_ralloc_no_move_stats_update(arena, oldsize, usize);
+
 	return (false);
 }
 
@@ -185,78 +283,20 @@ huge_ralloc_no_move(void *ptr, size_t oldsize, size_t size, size_t extra,
 	 */
 	if (CHUNK_CEILING(oldsize) >= CHUNK_CEILING(usize)
 	    && CHUNK_CEILING(oldsize) <= CHUNK_CEILING(size+extra)) {
-		size_t usize_next;
-
-		/* Increase usize to incorporate extra. */
-		while (usize < s2u(size+extra) && (usize_next = s2u(usize+1)) <
-		    oldsize)
-			usize = usize_next;
-
-		/* Update the size of the huge allocation if it changed. */
-		if (oldsize != usize) {
-			extent_node_t *node, key;
-
-			malloc_mutex_lock(&huge_mtx);
-
-			key.addr = ptr;
-			node = extent_tree_ad_search(&huge, &key);
-			assert(node != NULL);
-			assert(node->addr == ptr);
-
-			assert(node->size != usize);
-			node->size = usize;
-
-			malloc_mutex_unlock(&huge_mtx);
-
-			if (oldsize < usize) {
-				if (zero || (config_fill &&
-				    unlikely(opt_zero))) {
-					memset(ptr + oldsize, 0, usize -
-					    oldsize);
-				} else if (config_fill && unlikely(opt_junk)) {
-					memset(ptr + oldsize, 0xa5, usize -
-					    oldsize);
-				}
-			} else if (config_fill && unlikely(opt_junk) && oldsize
-			    > usize)
-				memset(ptr + usize, 0x5a, oldsize - usize);
-		}
+		huge_ralloc_no_move_similar(ptr, oldsize, usize, size, extra,
+		    zero);
 		return (false);
 	}
 
 	/* Shrink the allocation in-place. */
 	if (CHUNK_CEILING(oldsize) >= CHUNK_CEILING(usize)) {
-		extent_node_t *node, key;
-		void *excess_addr;
-		size_t excess_size;
-
-		malloc_mutex_lock(&huge_mtx);
-
-		key.addr = ptr;
-		node = extent_tree_ad_search(&huge, &key);
-		assert(node != NULL);
-		assert(node->addr == ptr);
-
-		/* Update the size of the huge allocation. */
-		node->size = usize;
-
-		malloc_mutex_unlock(&huge_mtx);
-
-		excess_addr = node->addr + CHUNK_CEILING(usize);
-		excess_size = CHUNK_CEILING(oldsize) - CHUNK_CEILING(usize);
-
-		/* Zap the excess chunks. */
-		huge_dalloc_junk(ptr + usize, oldsize - usize);
-		if (excess_size > 0) {
-			arena_chunk_dalloc_huge(node->arena, excess_addr,
-			    excess_size);
-		}
-
+		huge_ralloc_no_move_shrink(ptr, oldsize, usize);
 		return (false);
 	}
 
 	/* Attempt to expand the allocation in-place. */
-	if (huge_ralloc_no_move_expand(ptr, oldsize, size + extra, zero)) {
+	if (huge_ralloc_no_move_expand(ptr, oldsize, size + extra,
+	    zero)) {
 		if (extra == 0)
 			return (true);
 

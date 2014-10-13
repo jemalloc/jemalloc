@@ -335,11 +335,12 @@ extern size_t		map_bias; /* Number of arena chunk header pages. */
 extern size_t		map_misc_offset;
 extern size_t		arena_maxrun; /* Max run size for arenas. */
 extern size_t		arena_maxclass; /* Max size class for arenas. */
-extern size_t		nlclasses; /* Number of large size classes. */
+extern unsigned		nlclasses; /* Number of large size classes. */
+extern unsigned		nhclasses; /* Number of huge size classes. */
 
-void	*arena_chunk_alloc_huge(arena_t *arena, void *new_addr, size_t size,
+void	*arena_chunk_alloc_huge(arena_t *arena, void *new_addr, size_t usize,
     size_t alignment, bool *zero);
-void	arena_chunk_dalloc_huge(arena_t *arena, void *chunk, size_t size);
+void	arena_chunk_dalloc_huge(arena_t *arena, void *chunk, size_t usize);
 void	arena_purge_all(arena_t *arena);
 void	arena_tcache_fill_small(arena_t *arena, tcache_bin_t *tbin,
     index_t binind, uint64_t prof_accumbytes);
@@ -387,7 +388,7 @@ dss_prec_t	arena_dss_prec_get(arena_t *arena);
 bool	arena_dss_prec_set(arena_t *arena, dss_prec_t dss_prec);
 void	arena_stats_merge(arena_t *arena, const char **dss, size_t *nactive,
     size_t *ndirty, arena_stats_t *astats, malloc_bin_stats_t *bstats,
-    malloc_large_stats_t *lstats);
+    malloc_large_stats_t *lstats, malloc_huge_stats_t *hstats);
 arena_t	*arena_new(unsigned ind);
 void	arena_boot(void);
 void	arena_prefork(arena_t *arena);
