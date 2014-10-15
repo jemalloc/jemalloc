@@ -191,8 +191,8 @@ any of the following arguments (not a definitive list) to 'configure':
 
 --with-lg-page=<lg-page>
     Specify the base 2 log of the system page size.  This option is only useful
-    when cross compiling, since the configure script automatically determines the
-    host's page size by default.
+    when cross compiling, since the configure script automatically determines
+    the host's page size by default.
 
 --with-lg-page-sizes=<lg-page-sizes>
     Specify the comma-separated base 2 logs of the page sizes to support.  This
@@ -243,16 +243,16 @@ any of the following arguments (not a definitive list) to 'configure':
     safe values for the most commonly used modern architectures, there is a
     wrinkle related to GNU libc (glibc) that may impact your choice of
     <lg-quantum>.  On most modern architectures, this mandates 16-byte alignment
-    (<lg-quantum>=4), but the glibc developers chose not to meet this requirement
-    for performance reasons.  An old discussion can be found at
+    (<lg-quantum>=4), but the glibc developers chose not to meet this
+    requirement for performance reasons.  An old discussion can be found at
     https://sourceware.org/bugzilla/show_bug.cgi?id=206 .  Unlike glibc,
     jemalloc does follow the C standard by default (caveat: jemalloc
-    technically cheats if --with-lg-tiny-min is smaller than --with-lg-quantum),
-    but the fact that Linux systems already work around this allocator
-    noncompliance means that it is generally safe in practice to let jemalloc's
-    minimum alignment follow glibc's lead.  If you specify --with-lg-quantum=3
-    during configuration, jemalloc will provide additional size classes that
-    are not 16-byte-aligned (24, 40, and 56, assuming
+    technically cheats if --with-lg-tiny-min is smaller than
+    --with-lg-quantum), but the fact that Linux systems already work around
+    this allocator noncompliance means that it is generally safe in practice to
+    let jemalloc's minimum alignment follow glibc's lead.  If you specify
+    --with-lg-quantum=3 during configuration, jemalloc will provide additional
+    size classes that are not 16-byte-aligned (24, 40, and 56, assuming
     --with-lg-size-class-group=2).
 
 --with-lg-tiny-min=<lg-tiny-min>
