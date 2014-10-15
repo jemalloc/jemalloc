@@ -31,14 +31,10 @@ huge_palloc(tsd_t *tsd, arena_t *arena, size_t usize, size_t alignment,
     bool zero, bool try_tcache)
 {
 	void *ret;
-	size_t csize;
 	extent_node_t *node;
 	bool is_zeroed;
 
 	/* Allocate one or more contiguous chunks for this request. */
-
-	csize = CHUNK_CEILING(usize);
-	assert(csize >= usize);
 
 	/* Allocate an extent node with which to track the chunk. */
 	node = ipalloct(tsd, CACHELINE_CEILING(sizeof(extent_node_t)),
@@ -56,7 +52,7 @@ huge_palloc(tsd_t *tsd, arena_t *arena, size_t usize, size_t alignment,
 		base_node_dalloc(node);
 		return (NULL);
 	}
-	ret = arena_chunk_alloc_huge(arena, NULL, csize, alignment, &is_zeroed);
+	ret = arena_chunk_alloc_huge(arena, usize, alignment, &is_zeroed);
 	if (ret == NULL) {
 		idalloct(tsd, node, try_tcache);
 		return (NULL);
@@ -105,25 +101,6 @@ huge_dalloc_junk_t *huge_dalloc_junk = JEMALLOC_N(huge_dalloc_junk_impl);
 #endif
 
 static void
-huge_ralloc_no_move_stats_update(arena_t *arena, size_t oldsize, size_t usize)
-{
-	index_t oldindex = size2index(oldsize) - nlclasses - NBINS;
-	index_t index = size2index(usize) - nlclasses - NBINS;
-
-	cassert(config_stats);
-
-	arena->stats.ndalloc_huge++;
-	arena->stats.allocated_huge -= oldsize;
-	arena->stats.hstats[oldindex].ndalloc++;
-	arena->stats.hstats[oldindex].curhchunks--;
-
-	arena->stats.nmalloc_huge++;
-	arena->stats.allocated_huge += usize;
-	arena->stats.hstats[index].nmalloc++;
-	arena->stats.hstats[index].curhchunks++;
-}
-
-static void
 huge_ralloc_no_move_similar(void *ptr, size_t oldsize, size_t usize,
     size_t size, size_t extra, bool zero)
 {
@@ -135,34 +112,33 @@ huge_ralloc_no_move_similar(void *ptr, size_t oldsize, size_t usize,
 	while (usize < s2u(size+extra) && (usize_next = s2u(usize+1)) < oldsize)
 		usize = usize_next;
 
-	malloc_mutex_lock(&huge_mtx);
+	if (oldsize == usize)
+		return;
 
+	malloc_mutex_lock(&huge_mtx);
 	key.addr = ptr;
 	node = extent_tree_ad_search(&huge, &key);
 	assert(node != NULL);
 	assert(node->addr == ptr);
-
 	arena = node->arena;
-
-	/* Update the size of the huge allocation if it changed. */
-	if (oldsize != usize) {
-		assert(node->size != usize);
-		node->size = usize;
-	}
-
+	/* Update the size of the huge allocation. */
+	assert(node->size != usize);
+	node->size = usize;
 	malloc_mutex_unlock(&huge_mtx);
 
-	/* Fill if necessary. */
+	/* Fill if necessary (shrinking). */
+	if (config_fill && unlikely(opt_junk) && oldsize > usize)
+		memset(ptr + usize, 0x5a, oldsize - usize);
+
+	arena_chunk_ralloc_huge_similar(arena, ptr, oldsize, usize);
+
+	/* Fill if necessary (growing). */
 	if (oldsize < usize) {
 		if (zero || (config_fill && unlikely(opt_zero)))
 			memset(ptr + oldsize, 0, usize - oldsize);
 		else if (config_fill && unlikely(opt_junk))
 			memset(ptr + oldsize, 0xa5, usize - oldsize);
-	} else if (config_fill && unlikely(opt_junk) && oldsize > usize)
-		memset(ptr + usize, 0x5a, oldsize - usize);
-
-	if (config_stats)
-		huge_ralloc_no_move_stats_update(arena, oldsize, usize);
+	}
 }
 
 static void
@@ -170,44 +146,28 @@ huge_ralloc_no_move_shrink(void *ptr, size_t oldsize, size_t usize)
 {
 	extent_node_t *node, key;
 	arena_t *arena;
-	void *excess_addr;
-	size_t excess_size;
 
 	malloc_mutex_lock(&huge_mtx);
-
 	key.addr = ptr;
 	node = extent_tree_ad_search(&huge, &key);
 	assert(node != NULL);
 	assert(node->addr == ptr);
-
 	arena = node->arena;
-
 	/* Update the size of the huge allocation. */
 	node->size = usize;
-
 	malloc_mutex_unlock(&huge_mtx);
-
-	excess_addr = node->addr + CHUNK_CEILING(usize);
-	excess_size = CHUNK_CEILING(oldsize) - CHUNK_CEILING(usize);
 
 	/* Zap the excess chunks. */
 	huge_dalloc_junk(ptr + usize, oldsize - usize);
-	if (excess_size > 0)
-		arena_chunk_dalloc_huge(arena, excess_addr, excess_size);
-
-	if (config_stats)
-		huge_ralloc_no_move_stats_update(arena, oldsize, usize);
+	arena_chunk_ralloc_huge_shrink(arena, ptr, oldsize, usize);
 }
 
 static bool
 huge_ralloc_no_move_expand(void *ptr, size_t oldsize, size_t size, bool zero) {
 	size_t usize;
-	void *expand_addr;
-	size_t expand_size;
 	extent_node_t *node, key;
 	arena_t *arena;
 	bool is_zeroed;
-	void *ret;
 
 	usize = s2u(size);
 	if (usize == 0) {
@@ -215,19 +175,12 @@ huge_ralloc_no_move_expand(void *ptr, size_t oldsize, size_t size, bool zero) {
 		return (true);
 	}
 
-	expand_addr = ptr + CHUNK_CEILING(oldsize);
-	expand_size = CHUNK_CEILING(usize) - CHUNK_CEILING(oldsize);
-	assert(expand_size > 0);
-
 	malloc_mutex_lock(&huge_mtx);
-
 	key.addr = ptr;
 	node = extent_tree_ad_search(&huge, &key);
 	assert(node != NULL);
 	assert(node->addr == ptr);
-
 	arena = node->arena;
-
 	malloc_mutex_unlock(&huge_mtx);
 
 	/*
@@ -235,12 +188,10 @@ huge_ralloc_no_move_expand(void *ptr, size_t oldsize, size_t size, bool zero) {
 	 * it is possible to make correct junk/zero fill decisions below.
 	 */
 	is_zeroed = zero;
-	ret = arena_chunk_alloc_huge(arena, expand_addr, expand_size, chunksize,
-				     &is_zeroed);
-	if (ret == NULL)
-		return (true);
 
-	assert(ret == expand_addr);
+	if (arena_chunk_ralloc_huge_expand(arena, ptr, oldsize, usize,
+	     &is_zeroed))
+		return (true);
 
 	malloc_mutex_lock(&huge_mtx);
 	/* Update the size of the huge allocation. */
@@ -253,9 +204,6 @@ huge_ralloc_no_move_expand(void *ptr, size_t oldsize, size_t size, bool zero) {
 		else if (unlikely(opt_zero) && !is_zeroed)
 			memset(ptr + oldsize, 0, usize - oldsize);
 	}
-
-	if (config_stats)
-		huge_ralloc_no_move_stats_update(arena, oldsize, usize);
 
 	return (false);
 }
@@ -363,19 +311,16 @@ huge_dalloc(tsd_t *tsd, void *ptr, bool try_tcache)
 	extent_node_t *node, key;
 
 	malloc_mutex_lock(&huge_mtx);
-
 	/* Extract from tree of huge allocations. */
 	key.addr = ptr;
 	node = extent_tree_ad_search(&huge, &key);
 	assert(node != NULL);
 	assert(node->addr == ptr);
 	extent_tree_ad_remove(&huge, node);
-
 	malloc_mutex_unlock(&huge_mtx);
 
 	huge_dalloc_junk(node->addr, node->size);
-	arena_chunk_dalloc_huge(node->arena, node->addr,
-	    CHUNK_CEILING(node->size));
+	arena_chunk_dalloc_huge(node->arena, node->addr, node->size);
 	idalloct(tsd, node, try_tcache);
 }
 

@@ -13,6 +13,9 @@ arena_choose
 arena_choose_hard
 arena_chunk_alloc_huge
 arena_chunk_dalloc_huge
+arena_chunk_ralloc_huge_expand
+arena_chunk_ralloc_huge_shrink
+arena_chunk_ralloc_huge_similar
 arena_cleanup
 arena_dalloc
 arena_dalloc_bin

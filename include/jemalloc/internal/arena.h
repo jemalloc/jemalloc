@@ -338,9 +338,15 @@ extern size_t		arena_maxclass; /* Max size class for arenas. */
 extern unsigned		nlclasses; /* Number of large size classes. */
 extern unsigned		nhclasses; /* Number of huge size classes. */
 
-void	*arena_chunk_alloc_huge(arena_t *arena, void *new_addr, size_t usize,
-    size_t alignment, bool *zero);
+void	*arena_chunk_alloc_huge(arena_t *arena, size_t usize, size_t alignment,
+    bool *zero);
 void	arena_chunk_dalloc_huge(arena_t *arena, void *chunk, size_t usize);
+void	arena_chunk_ralloc_huge_similar(arena_t *arena, void *chunk,
+    size_t oldsize, size_t usize);
+void	arena_chunk_ralloc_huge_shrink(arena_t *arena, void *chunk,
+    size_t oldsize, size_t usize);
+bool	arena_chunk_ralloc_huge_expand(arena_t *arena, void *chunk,
+    size_t oldsize, size_t usize, bool *zero);
 void	arena_purge_all(arena_t *arena);
 void	arena_tcache_fill_small(arena_t *arena, tcache_bin_t *tbin,
     index_t binind, uint64_t prof_accumbytes);
