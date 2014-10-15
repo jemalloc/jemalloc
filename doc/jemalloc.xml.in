@@ -501,13 +501,11 @@ for (i = 0; i < nbins; i++) {
     possible to find metadata for user objects very quickly.</para>
 
     <para>User objects are broken into three categories according to size:
-    small, large, and huge.  Small objects are smaller than one page.  Large
-    objects are smaller than the chunk size.  Huge objects are a multiple of
-    the chunk size.  Small and large objects are managed entirely by arenas;
-    huge objects are additionally aggregated in a single data structure that is
-    shared by all threads.  Huge objects are typically used by applications
-    infrequently enough that this single data structure is not a scalability
-    issue.</para>
+    small, large, and huge.  Small and large objects are managed entirely by
+    arenas; huge objects are additionally aggregated in a single data structure
+    that is shared by all threads.  Huge objects are typically used by
+    applications infrequently enough that this single data structure is not a
+    scalability issue.</para>
 
     <para>Each chunk that is managed by an arena tracks its contents as runs of
     contiguous pages (unused, backing a set of small objects, or backing one
@@ -516,18 +514,18 @@ for (i = 0; i < nbins; i++) {
     allocations in constant time.</para>
 
     <para>Small objects are managed in groups by page runs.  Each run maintains
-    a frontier and free list to track which regions are in use.  Allocation
-    requests that are no more than half the quantum (8 or 16, depending on
-    architecture) are rounded up to the nearest power of two that is at least
-    <code language="C">sizeof(<type>double</type>)</code>.  All other small
-    object size classes are multiples of the quantum, spaced such that internal
-    fragmentation is limited to approximately 25% for all but the smallest size
-    classes.  Allocation requests that are larger than the maximum small size
-    class, but small enough to fit in an arena-managed chunk (see the <link
-    linkend="opt.lg_chunk"><mallctl>opt.lg_chunk</mallctl></link> option), are
-    rounded up to the nearest run size.  Allocation requests that are too large
-    to fit in an arena-managed chunk are rounded up to the nearest multiple of
-    the chunk size.</para>
+    a bitmap to track which regions are in use.  Allocation requests that are no
+    more than half the quantum (8 or 16, depending on architecture) are rounded
+    up to the nearest power of two that is at least <code
+    language="C">sizeof(<type>double</type>)</code>.  All other object size
+    classes are multiples of the quantum, spaced such that there are four size
+    classes for each doubling in size, which limits internal fragmentation to
+    approximately 20% for all but the smallest size classes.  Small size classes
+    are smaller than four times the page size, large size classes are smaller
+    than the chunk size (see the <link
+    linkend="opt.lg_chunk"><mallctl>opt.lg_chunk</mallctl></link> option), and
+    huge size classes extend from the chunk size up to one size class less than
+    the full address space size.</para>
 
     <para>Allocations are packed tightly together, which can be an issue for
     multi-threaded applications.  If you need to assure that allocations do not
@@ -554,13 +552,13 @@ for (i = 0; i < nbins; i++) {
       </thead>
       <tbody>
         <row>
-          <entry morerows="6">Small</entry>
+          <entry morerows="8">Small</entry>
           <entry>lg</entry>
           <entry>[8]</entry>
         </row>
         <row>
           <entry>16</entry>
-          <entry>[16, 32, 48, ..., 128]</entry>
+          <entry>[16, 32, 48, 64, 80, 96, 112, 128]</entry>
         </row>
         <row>
           <entry>32</entry>
@@ -580,17 +578,77 @@ for (i = 0; i < nbins; i++) {
         </row>
         <row>
           <entry>512</entry>
-          <entry>[2560, 3072, 3584]</entry>
+          <entry>[2560, 3072, 3584, 4096]</entry>
         </row>
         <row>
-          <entry>Large</entry>
+          <entry>1 KiB</entry>
+          <entry>[5 KiB, 6 KiB, 7 KiB, 8 KiB]</entry>
+        </row>
+        <row>
+          <entry>2 KiB</entry>
+          <entry>[10 KiB, 12 KiB, 14 KiB]</entry>
+        </row>
+        <row>
+          <entry morerows="8">Large</entry>
+          <entry>2 KiB</entry>
+          <entry>[16 KiB]</entry>
+        </row>
+        <row>
           <entry>4 KiB</entry>
-          <entry>[4 KiB, 8 KiB, 12 KiB, ..., 4072 KiB]</entry>
+          <entry>[20 KiB, 24 KiB, 28 KiB, 32 KiB]</entry>
         </row>
         <row>
-          <entry>Huge</entry>
+          <entry>8 KiB</entry>
+          <entry>[40 KiB, 48 KiB, 54 KiB, 64 KiB]</entry>
+        </row>
+        <row>
+          <entry>16 KiB</entry>
+          <entry>[80 KiB, 96 KiB, 112 KiB, 128 KiB]</entry>
+        </row>
+        <row>
+          <entry>32 KiB</entry>
+          <entry>[160 KiB, 192 KiB, 224 KiB, 256 KiB]</entry>
+        </row>
+        <row>
+          <entry>64 KiB</entry>
+          <entry>[320 KiB, 384 KiB, 448 KiB, 512 KiB]</entry>
+        </row>
+        <row>
+          <entry>128 KiB</entry>
+          <entry>[640 KiB, 768 KiB, 896 KiB, 1024 KiB]</entry>
+        </row>
+        <row>
+          <entry>256 KiB</entry>
+          <entry>[1280 KiB, 1536 KiB, 1792 KiB, 2048 KiB]</entry>
+        </row>
+        <row>
+          <entry>512 KiB</entry>
+          <entry>[2560 KiB, 3072 KiB, 3584 KiB]</entry>
+        </row>
+        <row>
+          <entry morerows="5">Huge</entry>
+          <entry>512 KiB</entry>
+          <entry>[4 MiB]</entry>
+        </row>
+        <row>
+          <entry>1 MiB</entry>
+          <entry>[5 MiB, 6 MiB, 7 MiB, 8 MiB]</entry>
+        </row>
+        <row>
+          <entry>2 MiB</entry>
+          <entry>[10 MiB, 12 MiB, 14 MiB, 16 MiB]</entry>
+        </row>
+        <row>
           <entry>4 MiB</entry>
-          <entry>[4 MiB, 8 MiB, 12 MiB, ...]</entry>
+          <entry>[20 MiB, 24 MiB, 28 MiB, 32 MiB]</entry>
+        </row>
+        <row>
+          <entry>8 MiB</entry>
+          <entry>[40 MiB, 48 MiB, 56 MiB, 64 MiB]</entry>
+        </row>
+        <row>
+          <entry>...</entry>
+          <entry>...</entry>
         </row>
       </tbody>
       </tgroup>
