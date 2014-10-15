@@ -69,14 +69,14 @@ stats_arena_bins_print(void (*write_cb)(void *, const char *), void *cbopaque,
 	if (config_tcache) {
 		malloc_cprintf(write_cb, cbopaque,
 		    "bins:           size ind    allocated      nmalloc"
-		    "      ndalloc    nrequests      curregs regs pgs"
-		    "       nfills     nflushes      newruns       reruns"
-		    "      curruns\n");
+		    "      ndalloc    nrequests      curregs      curruns regs"
+		    " pgs  util       nfills     nflushes      newruns"
+		    "       reruns\n");
 	} else {
 		malloc_cprintf(write_cb, cbopaque,
 		    "bins:           size ind    allocated      nmalloc"
-		    "      ndalloc    nrequests      curregs regs pgs"
-		    "      newruns       reruns      curruns\n");
+		    "      ndalloc    nrequests      curregs      curruns regs"
+		    " pgs  util      newruns       reruns\n");
 	}
 	CTL_GET("arenas.nbins", &nbins, unsigned);
 	for (j = 0, in_gap = false; j < nbins; j++) {
@@ -86,11 +86,12 @@ stats_arena_bins_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		if (nruns == 0)
 			in_gap = true;
 		else {
-			size_t reg_size, run_size, curregs;
+			size_t reg_size, run_size, curregs, availregs, milli;
+			size_t curruns;
 			uint32_t nregs;
 			uint64_t nmalloc, ndalloc, nrequests, nfills, nflushes;
 			uint64_t reruns;
-			size_t curruns;
+			char util[6]; /* "x.yyy". */
 
 			if (in_gap) {
 				malloc_cprintf(write_cb, cbopaque,
@@ -118,24 +119,41 @@ stats_arena_bins_print(void (*write_cb)(void *, const char *), void *cbopaque,
 			    uint64_t);
 			CTL_IJ_GET("stats.arenas.0.bins.0.curruns", &curruns,
 			    size_t);
+
+			availregs = nregs * curruns;
+			milli = (availregs != 0) ? (1000 * curregs) / availregs
+			    : 1000;
+			assert(milli <= 1000);
+			if (milli < 10) {
+				malloc_snprintf(util, sizeof(util), "0.00%zu",
+				    milli);
+			} else if (milli < 100) {
+				malloc_snprintf(util, sizeof(util), "0.0%zu",
+				    milli);
+			} else if (milli < 1000) {
+				malloc_snprintf(util, sizeof(util), "0.%zu",
+				    milli);
+			} else
+				malloc_snprintf(util, sizeof(util), "1");
+
 			if (config_tcache) {
 				malloc_cprintf(write_cb, cbopaque,
 				    "%20zu %3u %12zu %12"PRIu64" %12"PRIu64
-				    " %12"PRIu64" %12zu %4u %3zu %12"PRIu64
+				    " %12"PRIu64" %12zu %12zu %4u %3zu %-5s"
 				    " %12"PRIu64" %12"PRIu64" %12"PRIu64
-				    " %12zu\n",
+				    " %12"PRIu64"\n",
 				    reg_size, j, curregs * reg_size, nmalloc,
-				    ndalloc, nrequests, curregs, nregs, run_size
-				    / page, nfills, nflushes, nruns, reruns,
-				    curruns);
+				    ndalloc, nrequests, curregs, curruns, nregs,
+				    run_size / page, util, nfills, nflushes,
+				    nruns, reruns);
 			} else {
 				malloc_cprintf(write_cb, cbopaque,
 				    "%20zu %3u %12zu %12"PRIu64" %12"PRIu64
-				    " %12"PRIu64" %12zu %4u %3zu %12"PRIu64
-				    " %12"PRIu64" %12zu\n",
+				    " %12"PRIu64" %12zu %12zu %4u %3zu %-5s"
+				    " %12"PRIu64" %12"PRIu64"\n",
 				    reg_size, j, curregs * reg_size, nmalloc,
-				    ndalloc, nrequests, curregs, nregs,
-				    run_size / page, nruns, reruns, curruns);
+				    ndalloc, nrequests, curregs, curruns, nregs,
+				    run_size / page, util, nruns, reruns);
 			}
 		}
 	}
