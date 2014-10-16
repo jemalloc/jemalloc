@@ -152,6 +152,14 @@ any of the following arguments (not a definitive list) to 'configure':
     memory allocation algorithm that causes semi-permanent VM map holes under
     normal jemalloc operation.
 
+--enable-recycle
+    When virtual memory becomes extremely fragmented, jemalloc may miss
+    remaining aligned chunks because they are preceded by unaligned chunks.
+    By keeping track of some virtual memory for later use, jemalloc will not
+    create these aligned holes as easily. To reduce contention with other
+    allocators, the amount of recycled space is limited to 128 chunks on
+    32-bit platforms.
+
 --disable-fill
     Disable support for junk/zero filling of memory, quarantine, and redzones.
     See the "opt.junk", "opt.zero", "opt.quarantine", and "opt.redzone" option

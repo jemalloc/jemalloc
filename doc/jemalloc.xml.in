@@ -733,6 +733,16 @@ for (i = 0; i < nbins; i++) {
         build configuration.</para></listitem>
       </varlistentry>
 
+      <varlistentry id="config.recycle">
+        <term>
+          <mallctl>config.recycle</mallctl>
+          (<type>bool</type>)
+          <literal>r-</literal>
+        </term>
+        <listitem><para><option>--enable-recycle</option> was specified during
+        build configuration.</para></listitem>
+      </varlistentry>
+
       <varlistentry id="config.prof">
         <term>
           <mallctl>config.prof</mallctl>

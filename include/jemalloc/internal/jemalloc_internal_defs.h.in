@@ -163,6 +163,12 @@
  */
 #undef JEMALLOC_MUNMAP
 
+/*
+ * If defined, store freed chunks for later reuse. Limited to 128 chunks on
+ * 32-bit platforms.
+ */
+#undef JEMALLOC_RECYCLE
+
 /* TLS is used to map arenas and magazine caches to threads. */
 #undef JEMALLOC_TLS
 

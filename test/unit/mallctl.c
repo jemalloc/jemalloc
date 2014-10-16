@@ -130,6 +130,7 @@ TEST_BEGIN(test_mallctl_config)
 	TEST_MALLCTL_CONFIG(fill);
 	TEST_MALLCTL_CONFIG(lazy_lock);
 	TEST_MALLCTL_CONFIG(munmap);
+	TEST_MALLCTL_CONFIG(recycle);
 	TEST_MALLCTL_CONFIG(prof);
 	TEST_MALLCTL_CONFIG(prof_libgcc);
 	TEST_MALLCTL_CONFIG(prof_libunwind);
