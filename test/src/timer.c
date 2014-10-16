@@ -4,22 +4,39 @@ void
 timer_start(timedelta_t *timer)
 {
 
+#if JEMALLOC_CLOCK_GETTIME
+	if (sysconf(_SC_MONOTONIC_CLOCK) <= 0)
+		timer->clock_id = CLOCK_REALTIME;
+	else
+		timer->clock_id = CLOCK_MONOTONIC;
+	clock_gettime(timer->clock_id, &timer->tv0);
+#else
 	gettimeofday(&timer->tv0, NULL);
+#endif
 }
 
 void
 timer_stop(timedelta_t *timer)
 {
 
+#if JEMALLOC_CLOCK_GETTIME
+	clock_gettime(timer->clock_id, &timer->tv1);
+#else
 	gettimeofday(&timer->tv1, NULL);
+#endif
 }
 
 uint64_t
 timer_usec(const timedelta_t *timer)
 {
 
+#if JEMALLOC_CLOCK_GETTIME
+	return (((timer->tv1.tv_sec - timer->tv0.tv_sec) * 1000000) +
+	    (timer->tv1.tv_nsec - timer->tv0.tv_nsec) / 1000);
+#else
 	return (((timer->tv1.tv_sec - timer->tv0.tv_sec) * 1000000) +
 	    timer->tv1.tv_usec - timer->tv0.tv_usec);
+#endif
 }
 
 void
