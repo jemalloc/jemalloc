@@ -409,11 +409,10 @@ chunk_boot(void)
 	chunksize_mask = chunksize - 1;
 	chunk_npages = (chunksize >> LG_PAGE);
 
-	if (config_stats || config_prof) {
-		if (malloc_mutex_init(&chunks_mtx))
-			return (true);
+	if (malloc_mutex_init(&chunks_mtx))
+		return (true);
+	if (config_stats || config_prof)
 		memset(&stats_chunks, 0, sizeof(chunk_stats_t));
-	}
 	if (have_dss && chunk_dss_boot())
 		return (true);
 	extent_tree_szad_new(&chunks_szad_mmap);
