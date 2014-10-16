@@ -119,7 +119,18 @@ pages_purge(void *addr, size_t length)
 	bool unzeroed;
 
 #ifdef _WIN32
-	VirtualAlloc(addr, length, MEM_RESET, PAGE_READWRITE);
+	/*
+	 * The region starting at addr may have been allocated in multiple calls
+	 * to VirtualAlloc and recycled, so resetting the entire region in one go
+	 * may not be valid. However, since we allocate at least a chunk at a time,
+	 * we may reset any region in chunksized increments.
+	 */
+	for (; length >= chunksize; length -= chunksize) {
+		VirtualAlloc(addr, chunksize, MEM_RESET, PAGE_READWRITE);
+		addr = (void *)((uintptr_t)addr + chunksize);
+	}
+	if (length)
+		VirtualAlloc(addr, length, MEM_RESET, PAGE_READWRITE);
 	unzeroed = true;
 #elif defined(JEMALLOC_HAVE_MADVISE)
 #  ifdef JEMALLOC_PURGE_MADVISE_DONTNEED

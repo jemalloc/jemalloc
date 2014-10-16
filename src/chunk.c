@@ -28,6 +28,10 @@ size_t		chunksize;
 size_t		chunksize_mask; /* (chunksize - 1). */
 size_t		chunk_npages;
 
+/* Settings related to chunk recycling. */
+size_t		recycled_size;
+size_t		recycle_limit;
+
 /******************************************************************************/
 /*
  * Function prototypes for static functions that are referenced prior to
@@ -113,6 +117,10 @@ chunk_recycle(extent_tree_t *chunks_szad, extent_tree_t *chunks_ad,
 		extent_tree_ad_insert(chunks_ad, node);
 		node = NULL;
 	}
+
+	if (config_recycle)
+		atomic_sub_uint32(&recycled_size, size);
+
 	malloc_mutex_unlock(&chunks_mtx);
 
 	if (node != NULL)
@@ -160,13 +168,25 @@ chunk_alloc_core(void *new_addr, size_t size, size_t alignment, bool base,
 			return (ret);
 	}
 	/* mmap. */
-	if ((ret = chunk_recycle(&chunks_szad_mmap, &chunks_ad_mmap, new_addr,
-	    size, alignment, base, zero)) != NULL)
-		return (ret);
-	/* requesting an address only implemented for recycle */
-	if (new_addr == NULL &&
-	    (ret = chunk_alloc_mmap(size, alignment, zero)) != NULL)
-		return (ret);
+#ifndef _WIN32
+	if (!config_munmap || config_recycle) {
+#else
+	/*
+	 * On Windows, calls to VirtualAlloc and VirtualFree must be
+	 * matched, making it awkward to recycle allocations of varying
+	 * sizes. Therefore we only allow recycling when the size equals
+	 * the chunksize unless deallocation is entirely disabled.
+	 */
+	if (!config_munmap || (config_recycle && size == chunksize)) {
+#endif
+		if ((ret = chunk_recycle(&chunks_szad_mmap, &chunks_ad_mmap,
+			new_addr, size, alignment, base, zero)) != NULL)
+			return (ret);
+		/* requesting an address only implemented for recycle */
+		if (new_addr == NULL
+			&& (ret = chunk_alloc_mmap(size, alignment, zero)) != NULL)
+			return (ret);
+	}
 	/* "secondary" dss. */
 	if (have_dss && dss_prec == dss_prec_secondary) {
 		if ((ret = chunk_recycle(&chunks_szad_dss, &chunks_ad_dss,
@@ -343,6 +363,9 @@ chunk_record(extent_tree_t *chunks_szad, extent_tree_t *chunks_ad, void *chunk,
 		xprev = prev;
 	}
 
+	if (config_recycle)
+		atomic_add_uint32(&recycled_size, size);
+
 label_return:
 	malloc_mutex_unlock(&chunks_mtx);
 	/*
@@ -365,8 +388,21 @@ chunk_unmap(void *chunk, size_t size)
 
 	if (have_dss && chunk_in_dss(chunk))
 		chunk_record(&chunks_szad_dss, &chunks_ad_dss, chunk, size);
-	else if (chunk_dalloc_mmap(chunk, size))
+#ifndef _WIN32
+	else if (!config_munmap || (config_recycle &&
+#else
+	/*
+	 * On Windows, calls to VirtualAlloc and VirtualFree must be
+	 * matched, making it awkward to recycle allocations of varying
+	 * sizes. Therefore we only allow recycling when the size equals
+	 * the chunksize unless deallocation is entirely disabled.
+	 */
+	else if (!config_munmap || (config_recycle && size == chunksize &&
+#endif
+			atomic_add_uint32(&recycled_size, 0) < recycle_limit))
 		chunk_record(&chunks_szad_mmap, &chunks_ad_mmap, chunk, size);
+	else
+		chunk_dalloc_mmap(chunk, size);
 }
 
 static void
@@ -408,6 +444,9 @@ chunk_boot(void)
 	assert(chunksize >= PAGE);
 	chunksize_mask = chunksize - 1;
 	chunk_npages = (chunksize >> LG_PAGE);
+
+	recycled_size = 0;
+	recycle_limit = 128 * chunksize;
 
 	if (config_stats || config_prof) {
 		if (malloc_mutex_init(&chunks_mtx))

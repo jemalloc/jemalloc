@@ -77,6 +77,13 @@ static const bool config_munmap =
     false
 #endif
     ;
+static const bool config_recycle =
+#ifdef JEMALLOC_RECYCLE
+	true
+#else
+	false
+#endif
+	;
 static const bool config_stats =
 #ifdef JEMALLOC_STATS
     true

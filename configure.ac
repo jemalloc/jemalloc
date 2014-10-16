@@ -825,6 +825,22 @@ if test "x$enable_munmap" = "x1" ; then
 fi
 AC_SUBST([enable_munmap])
 
+dnl Disable limited chunk recycling by default.
+AC_ARG_ENABLE([recycle],
+  [AS_HELP_STRING([--enable-recycle], [Enable limited chunk recycling])],
+[if test "x$enable_recycle" = "xno" ; then
+  enable_recycle="0"
+else
+  enable_recycle="1"
+fi
+],
+[enable_recycle="0"]
+)
+if test "x$enable_recycle" = "x1" ; then
+  AC_DEFINE([JEMALLOC_RECYCLE], [ ])
+fi
+AC_SUBST([enable_recycle])
+
 dnl Enable allocation from DSS if supported by the OS.
 have_dss="1"
 dnl Check whether the BSD/SUSv1 sbrk() exists.  If not, disable DSS support.
