@@ -282,9 +282,9 @@ huge_ralloc_no_move(void *ptr, size_t oldsize, size_t size, size_t extra,
 }
 
 void *
-huge_ralloc(tsd_t *tsd, arena_t *arena, void *ptr, size_t oldsize, size_t size,
-    size_t extra, size_t alignment, bool zero, bool try_tcache_alloc,
-    bool try_tcache_dalloc)
+huge_ralloc(tsd_t *tsd, arena_t *arena, void *ptr, size_t oldsize, size_t used,
+    size_t size, size_t extra, size_t alignment, bool zero,
+    bool try_tcache_alloc, bool try_tcache_dalloc)
 {
 	void *ret;
 	size_t copysize;
@@ -326,7 +326,7 @@ huge_ralloc(tsd_t *tsd, arena_t *arena, void *ptr, size_t oldsize, size_t size,
 	 * Copy at most size bytes (not size+extra), since the caller has no
 	 * expectation that the extra bytes will be reliably preserved.
 	 */
-	copysize = (size < oldsize) ? size : oldsize;
+	copysize = (size < used) ? size : used;
 	memcpy(ret, ptr, copysize);
 	iqalloc(tsd, ptr, try_tcache_dalloc);
 	return (ret);

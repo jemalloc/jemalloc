@@ -2056,6 +2056,93 @@ label_oom:
 }
 
 JEMALLOC_ALWAYS_INLINE_C size_t
+inallocx(size_t size, int flags)
+{
+	size_t usize;
+
+	if (likely((flags & MALLOCX_LG_ALIGN_MASK) == 0))
+		usize = s2u(size);
+	else
+		usize = sa2u(size, MALLOCX_ALIGN_GET_SPECIFIED(flags));
+	assert(usize != 0);
+	return (usize);
+}
+
+void *
+je_srallocx(void *ptr, size_t old_size, int old_flags, size_t used, size_t size,
+    int flags)
+{
+	void *p;
+	tsd_t *tsd;
+	size_t usize;
+	size_t old_usize;
+	UNUSED size_t old_rzsize JEMALLOC_CC_SILENCE_INIT(0);
+	size_t alignment = MALLOCX_ALIGN_GET(flags);
+	bool zero = flags & MALLOCX_ZERO;
+	bool try_tcache_alloc, try_tcache_dalloc;
+	arena_t *arena;
+
+	assert(ptr != NULL);
+	assert(size != 0);
+	assert(malloc_initialized || IS_INITIALIZER);
+	malloc_thread_init();
+	tsd = tsd_fetch();
+	old_usize = inallocx(old_size, old_flags);
+	assert(old_usize == isalloc(ptr, config_prof));
+	assert(used <= old_usize);
+
+	if (unlikely((flags & MALLOCX_ARENA_MASK) != 0)) {
+		unsigned arena_ind = MALLOCX_ARENA_GET(flags);
+		arena_chunk_t *chunk;
+		try_tcache_alloc = false;
+		chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
+		arena = arena_get(tsd, arena_ind, true, true);
+		if (unlikely(arena == NULL))
+			goto label_oom;
+		try_tcache_dalloc = (chunk == ptr || chunk->arena != arena);
+	} else {
+		try_tcache_alloc = true;
+		try_tcache_dalloc = true;
+		arena = NULL;
+	}
+
+	if (config_valgrind && unlikely(in_valgrind))
+		old_rzsize = u2rz(old_usize);
+
+	if (config_prof && opt_prof) {
+		usize = (alignment == 0) ? s2u(size) : sa2u(size, alignment);
+		assert(usize != 0);
+		p = irallocx_prof(tsd, ptr, old_usize, size, alignment, &usize,
+		    zero, try_tcache_alloc, try_tcache_dalloc, arena);
+		if (unlikely(p == NULL))
+			goto label_oom;
+	} else {
+		p = isralloct(tsd, ptr, old_size, used, size, alignment, zero,
+		    try_tcache_alloc, try_tcache_dalloc, arena);
+		if (unlikely(p == NULL))
+			goto label_oom;
+		if (config_stats || (config_valgrind && unlikely(in_valgrind)))
+			usize = isalloc(p, config_prof);
+	}
+
+	if (config_stats) {
+		*tsd_thread_allocatedp_get(tsd) += usize;
+		*tsd_thread_deallocatedp_get(tsd) += old_usize;
+	}
+	UTRACE(ptr, size, p);
+	JEMALLOC_VALGRIND_REALLOC(true, p, usize, false, ptr, old_usize,
+	    old_rzsize, false, zero);
+	return (p);
+label_oom:
+	if (config_xmalloc && unlikely(opt_xmalloc)) {
+		malloc_write("<jemalloc>: Error in rallocx(): out of memory\n");
+		abort();
+	}
+	UTRACE(ptr, size, 0);
+	return (NULL);
+}
+
+JEMALLOC_ALWAYS_INLINE_C size_t
 ixallocx_helper(void *ptr, size_t old_usize, size_t size, size_t extra,
     size_t alignment, bool zero, arena_t *arena)
 {
@@ -2220,19 +2307,6 @@ je_dallocx(void *ptr, int flags)
 
 	UTRACE(ptr, 0, 0);
 	ifree(tsd_fetch(), ptr, try_tcache);
-}
-
-JEMALLOC_ALWAYS_INLINE_C size_t
-inallocx(size_t size, int flags)
-{
-	size_t usize;
-
-	if (likely((flags & MALLOCX_LG_ALIGN_MASK) == 0))
-		usize = s2u(size);
-	else
-		usize = sa2u(size, MALLOCX_ALIGN_GET_SPECIFIED(flags));
-	assert(usize != 0);
-	return (usize);
 }
 
 void

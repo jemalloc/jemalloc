@@ -388,7 +388,7 @@ extern arena_ralloc_junk_large_t *arena_ralloc_junk_large;
 bool	arena_ralloc_no_move(void *ptr, size_t oldsize, size_t size,
     size_t extra, bool zero);
 void	*arena_ralloc(tsd_t *tsd, arena_t *arena, void *ptr, size_t oldsize,
-    size_t size, size_t extra, size_t alignment, bool zero,
+    size_t used, size_t size, size_t extra, size_t alignment, bool zero,
     bool try_tcache_alloc, bool try_tcache_dalloc);
 dss_prec_t	arena_dss_prec_get(arena_t *arena);
 bool	arena_dss_prec_set(arena_t *arena, dss_prec_t dss_prec);
