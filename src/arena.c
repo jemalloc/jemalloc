@@ -2220,7 +2220,7 @@ arena_ralloc(tsd_t *tsd, arena_t *arena, void *ptr, size_t oldsize, size_t size,
 	copysize = (size < oldsize) ? size : oldsize;
 	JEMALLOC_VALGRIND_MAKE_MEM_UNDEFINED(ret, copysize);
 	memcpy(ret, ptr, copysize);
-	iqalloc(tsd, ptr, try_tcache_dalloc);
+	isqalloc(tsd, ptr, oldsize, try_tcache_dalloc);
 	return (ret);
 }
 
