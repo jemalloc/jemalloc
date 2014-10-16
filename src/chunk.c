@@ -446,7 +446,16 @@ chunk_boot(void)
 	chunk_npages = (chunksize >> LG_PAGE);
 
 	recycled_size = 0;
-	recycle_limit = 128 * chunksize;
+#if (LG_SIZEOF_PTR == 2)
+	/*
+	 * We don't want to hold onto an unbounded amount of VM space on 32-bit
+	 * systems, since other allocators may need that space.
+	 */
+    recycle_limit = 128 * chunksize;
+#else
+	/* For 64-bit, just use a high (but bounded) value. */
+	recycle_limit = 128 * 1024 * chunksize;
+#endif
 
 	if (config_stats || config_prof) {
 		if (malloc_mutex_init(&chunks_mtx))
