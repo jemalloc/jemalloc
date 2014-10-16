@@ -61,18 +61,18 @@ huge_palloc(tsd_t *tsd, arena_t *arena, size_t usize, size_t alignment,
 	/* Insert node into huge. */
 	node->addr = ret;
 	node->size = usize;
+	node->zeroed = is_zeroed;
 	node->arena = arena;
 
 	malloc_mutex_lock(&huge_mtx);
 	extent_tree_ad_insert(&huge, node);
 	malloc_mutex_unlock(&huge_mtx);
 
-	if (config_fill && !zero) {
-		if (unlikely(opt_junk))
-			memset(ret, 0xa5, usize);
-		else if (unlikely(opt_zero) && !is_zeroed)
+	if (zero || (config_fill && unlikely(opt_zero))) {
+		if (!is_zeroed)
 			memset(ret, 0, usize);
-	}
+	} else if (config_fill && unlikely(opt_junk))
+		memset(ret, 0xa5, usize);
 
 	return (ret);
 }
@@ -105,6 +105,7 @@ huge_ralloc_no_move_similar(void *ptr, size_t oldsize, size_t usize,
     size_t size, size_t extra, bool zero)
 {
 	size_t usize_next;
+	bool zeroed;
 	extent_node_t *node, key;
 	arena_t *arena;
 
@@ -115,6 +116,17 @@ huge_ralloc_no_move_similar(void *ptr, size_t oldsize, size_t usize,
 	if (oldsize == usize)
 		return;
 
+	/* Fill if necessary (shrinking). */
+	if (oldsize > usize) {
+		size_t sdiff = CHUNK_CEILING(usize) - usize;
+		zeroed = (sdiff != 0) ? !pages_purge(ptr + usize, sdiff) : true;
+		if (config_fill && unlikely(opt_junk)) {
+			memset(ptr + usize, 0x5a, oldsize - usize);
+			zeroed = false;
+		}
+	} else
+		zeroed = true;
+
 	malloc_mutex_lock(&huge_mtx);
 	key.addr = ptr;
 	node = extent_tree_ad_search(&huge, &key);
@@ -124,19 +136,18 @@ huge_ralloc_no_move_similar(void *ptr, size_t oldsize, size_t usize,
 	/* Update the size of the huge allocation. */
 	assert(node->size != usize);
 	node->size = usize;
+	/* Clear node->zeroed if zeroing failed above. */
+	node->zeroed = (node->zeroed && zeroed);
 	malloc_mutex_unlock(&huge_mtx);
-
-	/* Fill if necessary (shrinking). */
-	if (config_fill && unlikely(opt_junk) && oldsize > usize)
-		memset(ptr + usize, 0x5a, oldsize - usize);
 
 	arena_chunk_ralloc_huge_similar(arena, ptr, oldsize, usize);
 
 	/* Fill if necessary (growing). */
 	if (oldsize < usize) {
-		if (zero || (config_fill && unlikely(opt_zero)))
-			memset(ptr + oldsize, 0, usize - oldsize);
-		else if (config_fill && unlikely(opt_junk))
+		if (zero || (config_fill && unlikely(opt_zero))) {
+			if (!zeroed)
+				memset(ptr + oldsize, 0, usize - oldsize);
+		} else if (config_fill && unlikely(opt_junk))
 			memset(ptr + oldsize, 0xa5, usize - oldsize);
 	}
 }
@@ -144,8 +155,17 @@ huge_ralloc_no_move_similar(void *ptr, size_t oldsize, size_t usize,
 static void
 huge_ralloc_no_move_shrink(void *ptr, size_t oldsize, size_t usize)
 {
+	size_t sdiff;
+	bool zeroed;
 	extent_node_t *node, key;
 	arena_t *arena;
+
+	sdiff = CHUNK_CEILING(usize) - usize;
+	zeroed = (sdiff != 0) ? !pages_purge(ptr + usize, sdiff) : true;
+	if (config_fill && unlikely(opt_junk)) {
+		huge_dalloc_junk(ptr + usize, oldsize - usize);
+		zeroed = false;
+	}
 
 	malloc_mutex_lock(&huge_mtx);
 	key.addr = ptr;
@@ -155,10 +175,11 @@ huge_ralloc_no_move_shrink(void *ptr, size_t oldsize, size_t usize)
 	arena = node->arena;
 	/* Update the size of the huge allocation. */
 	node->size = usize;
+	/* Clear node->zeroed if zeroing failed above. */
+	node->zeroed = (node->zeroed && zeroed);
 	malloc_mutex_unlock(&huge_mtx);
 
 	/* Zap the excess chunks. */
-	huge_dalloc_junk(ptr + usize, oldsize - usize);
 	arena_chunk_ralloc_huge_shrink(arena, ptr, oldsize, usize);
 }
 
@@ -167,7 +188,7 @@ huge_ralloc_no_move_expand(void *ptr, size_t oldsize, size_t size, bool zero) {
 	size_t usize;
 	extent_node_t *node, key;
 	arena_t *arena;
-	bool is_zeroed;
+	bool is_zeroed_subchunk, is_zeroed_chunk;
 
 	usize = s2u(size);
 	if (usize == 0) {
@@ -181,16 +202,17 @@ huge_ralloc_no_move_expand(void *ptr, size_t oldsize, size_t size, bool zero) {
 	assert(node != NULL);
 	assert(node->addr == ptr);
 	arena = node->arena;
+	is_zeroed_subchunk = node->zeroed;
 	malloc_mutex_unlock(&huge_mtx);
 
 	/*
-	 * Copy zero into is_zeroed and pass the copy to chunk_alloc(), so that
-	 * it is possible to make correct junk/zero fill decisions below.
+	 * Copy zero into is_zeroed_chunk and pass the copy to chunk_alloc(), so
+	 * that it is possible to make correct junk/zero fill decisions below.
 	 */
-	is_zeroed = zero;
+	is_zeroed_chunk = zero;
 
 	if (arena_chunk_ralloc_huge_expand(arena, ptr, oldsize, usize,
-	     &is_zeroed))
+	     &is_zeroed_chunk))
 		return (true);
 
 	malloc_mutex_lock(&huge_mtx);
@@ -198,12 +220,17 @@ huge_ralloc_no_move_expand(void *ptr, size_t oldsize, size_t size, bool zero) {
 	node->size = usize;
 	malloc_mutex_unlock(&huge_mtx);
 
-	if (config_fill && !zero) {
-		if (unlikely(opt_junk))
-			memset(ptr + oldsize, 0xa5, usize - oldsize);
-		else if (unlikely(opt_zero) && !is_zeroed)
-			memset(ptr + oldsize, 0, usize - oldsize);
-	}
+	if (zero || (config_fill && unlikely(opt_zero))) {
+		if (!is_zeroed_subchunk) {
+			memset(ptr + oldsize, 0, CHUNK_CEILING(oldsize) -
+			    oldsize);
+		}
+		if (!is_zeroed_chunk) {
+			memset(ptr + CHUNK_CEILING(oldsize), 0, usize -
+			    CHUNK_CEILING(oldsize));
+		}
+	} else if (config_fill && unlikely(opt_junk))
+		memset(ptr + oldsize, 0xa5, usize - oldsize);
 
 	return (false);
 }
