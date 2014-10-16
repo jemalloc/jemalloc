@@ -119,7 +119,7 @@ chunk_recycle(extent_tree_t *chunks_szad, extent_tree_t *chunks_ad,
 	}
 
 	if (config_recycle)
-		atomic_sub_uint32(&recycled_size, size);
+		atomic_sub_z(&recycled_size, size);
 
 	malloc_mutex_unlock(&chunks_mtx);
 
@@ -364,7 +364,7 @@ chunk_record(extent_tree_t *chunks_szad, extent_tree_t *chunks_ad, void *chunk,
 	}
 
 	if (config_recycle)
-		atomic_add_uint32(&recycled_size, size);
+		atomic_add_z(&recycled_size, size);
 
 label_return:
 	malloc_mutex_unlock(&chunks_mtx);
@@ -399,7 +399,7 @@ chunk_unmap(void *chunk, size_t size)
 	 */
 	else if (!config_munmap || (config_recycle && size == chunksize &&
 #endif
-			atomic_add_uint32(&recycled_size, 0) < recycle_limit))
+			atomic_add_z(&recycled_size, 0) < recycle_limit))
 		chunk_record(&chunks_szad_mmap, &chunks_ad_mmap, chunk, size);
 	else
 		chunk_dalloc_mmap(chunk, size);
