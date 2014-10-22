@@ -238,6 +238,7 @@ isalloc
 isdalloct
 isthreaded
 isqalloc
+isralloct
 ivsalloc
 ixalloc
 jemalloc_postfork_child

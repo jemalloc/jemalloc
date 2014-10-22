@@ -35,6 +35,7 @@
     <refname>free</refname>
     <refname>mallocx</refname>
     <refname>rallocx</refname>
+    <refname>srallocx</refname>
     <refname>xallocx</refname>
     <refname>sallocx</refname>
     <refname>dallocx</refname>
@@ -100,6 +101,15 @@
         <funcprototype>
           <funcdef>void *<function>rallocx</function></funcdef>
           <paramdef>void *<parameter>ptr</parameter></paramdef>
+          <paramdef>size_t <parameter>size</parameter></paramdef>
+          <paramdef>int <parameter>flags</parameter></paramdef>
+        </funcprototype>
+        <funcprototype>
+          <funcdef>void *<function>srallocx</function></funcdef>
+          <paramdef>void *<parameter>ptr</parameter></paramdef>
+          <paramdef>size_t <parameter>old_size</parameter></paramdef>
+          <paramdef>int <parameter>old_flags</parameter></paramdef>
+          <paramdef>size_t <parameter>used</parameter></paramdef>
           <paramdef>size_t <parameter>size</parameter></paramdef>
           <paramdef>int <parameter>flags</parameter></paramdef>
         </funcprototype>
@@ -232,6 +242,7 @@
       <title>Non-standard API</title>
       <para>The <function>mallocx<parameter/></function>,
       <function>rallocx<parameter/></function>,
+      <function>srallocx<parameter/></function>,
       <function>xallocx<parameter/></function>,
       <function>sallocx<parameter/></function>,
       <function>dallocx<parameter/></function>,
@@ -298,6 +309,18 @@
       its original location.  Behavior is undefined if
       <parameter>size</parameter> is <constant>0</constant>, or if request size
       overflows due to size class and/or alignment constraints.</para>
+
+      <para>The <function>srallocx<parameter/></function> function is an
+      extension of <function>rallocx<parameter/></function> with
+      <parameter>old_size</parameter> and <parameter>old_flags</parameter>
+      parameters to allow the caller to pass in the old allocation parameters as
+      an optimization.  The minimum valid input size is the original requested
+      size of the allocation, and the maximum valid input size is the
+      corresponding value returned by <function>nallocx<parameter/></function>
+      or <function>sallocx<parameter/></function>. The
+      <parameter>used</parameter> parameter can be set to a smaller value than
+      <parameter>old_size</parameter> to reduce the size of a copy to a new
+      memory allocation.</para>
 
       <para>The <function>xallocx<parameter/></function> function resizes the
       allocation at <parameter>ptr</parameter> in place to be at least
