@@ -264,7 +264,7 @@ a0alloc(size_t size, bool zero)
 	if (size == 0)
 		size = 1;
 
-	if (size <= arena_maxclass)
+	if (likely(size <= arena_maxclass))
 		ret = arena_malloc(NULL, a0get(), size, zero, false);
 	else
 		ret = huge_malloc(NULL, a0get(), size, zero, false);
@@ -295,7 +295,7 @@ a0free(void *ptr)
 		return;
 
 	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
-	if (chunk != ptr)
+	if (likely(chunk != ptr))
 		arena_dalloc(NULL, chunk, ptr, false);
 	else
 		huge_dalloc(NULL, ptr, false);
