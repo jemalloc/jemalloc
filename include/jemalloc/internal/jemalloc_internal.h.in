@@ -655,7 +655,7 @@ sa2u(size_t size, size_t alignment)
 	}
 
 	/* Try for a large size class. */
-	if (size <= arena_maxclass && alignment < chunksize) {
+	if (likely(size <= arena_maxclass) && likely(alignment < chunksize)) {
 		/*
 		 * We can't achieve subpage alignment, so round up alignment
 		 * to the minimum that can actually be supported.
@@ -805,7 +805,7 @@ imalloct(tsd_t *tsd, size_t size, bool try_tcache, arena_t *arena)
 
 	assert(size != 0);
 
-	if (size <= arena_maxclass)
+	if (likely(size <= arena_maxclass))
 		return (arena_malloc(tsd, arena, size, false, try_tcache));
 	else
 		return (huge_malloc(tsd, arena, size, false, try_tcache));
@@ -822,7 +822,7 @@ JEMALLOC_ALWAYS_INLINE void *
 icalloct(tsd_t *tsd, size_t size, bool try_tcache, arena_t *arena)
 {
 
-	if (size <= arena_maxclass)
+	if (likely(size <= arena_maxclass))
 		return (arena_malloc(tsd, arena, size, true, try_tcache));
 	else
 		return (huge_malloc(tsd, arena, size, true, try_tcache));
@@ -847,12 +847,12 @@ ipalloct(tsd_t *tsd, size_t usize, size_t alignment, bool zero, bool try_tcache,
 	if (usize <= SMALL_MAXCLASS && alignment < PAGE)
 		ret = arena_malloc(tsd, arena, usize, zero, try_tcache);
 	else {
-		if (usize <= arena_maxclass) {
+		if (likely(usize <= arena_maxclass)) {
 			arena = arena_choose(tsd, arena);
 			if (unlikely(arena == NULL))
 				return (NULL);
 			ret = arena_palloc(arena, usize, alignment, zero);
-		} else if (alignment <= chunksize)
+		} else if (likely(alignment <= chunksize))
 			ret = huge_malloc(tsd, arena, usize, zero, try_tcache);
 		else {
 			ret = huge_palloc(tsd, arena, usize, alignment, zero,
@@ -887,7 +887,7 @@ isalloc(const void *ptr, bool demote)
 	assert(config_prof || !demote);
 
 	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
-	if (chunk != ptr)
+	if (likely(chunk != ptr))
 		ret = arena_salloc(ptr, demote);
 	else
 		ret = huge_salloc(ptr);
@@ -936,7 +936,7 @@ idalloct(tsd_t *tsd, void *ptr, bool try_tcache)
 	assert(ptr != NULL);
 
 	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
-	if (chunk != ptr)
+	if (likely(chunk != ptr))
 		arena_dalloc(tsd, chunk, ptr, try_tcache);
 	else
 		huge_dalloc(tsd, ptr, try_tcache);
@@ -950,7 +950,7 @@ isdalloct(tsd_t *tsd, void *ptr, size_t size, bool try_tcache)
 	assert(ptr != NULL);
 
 	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
-	if (chunk != ptr)
+	if (likely(chunk != ptr))
 		arena_sdalloc(tsd, chunk, ptr, size, try_tcache);
 	else
 		huge_dalloc(tsd, ptr, try_tcache);
@@ -1038,7 +1038,7 @@ iralloct(tsd_t *tsd, void *ptr, size_t size, size_t alignment, bool zero,
 		    zero, try_tcache_alloc, try_tcache_dalloc, arena));
 	}
 
-	if (size <= arena_maxclass) {
+	if (likely(size <= arena_maxclass)) {
 		return (arena_ralloc(tsd, arena, ptr, oldsize, size, 0,
 		    alignment, zero, try_tcache_alloc, try_tcache_dalloc));
 	} else {
@@ -1069,7 +1069,7 @@ ixalloc(void *ptr, size_t size, size_t extra, size_t alignment, bool zero)
 		return (true);
 	}
 
-	if (size <= arena_maxclass)
+	if (likely(size <= arena_maxclass))
 		return (arena_ralloc_no_move(ptr, oldsize, size, extra, zero));
 	else
 		return (huge_ralloc_no_move(ptr, oldsize, size, extra, zero));

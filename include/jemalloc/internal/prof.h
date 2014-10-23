@@ -361,7 +361,7 @@ prof_tctx_get(const void *ptr)
 	assert(ptr != NULL);
 
 	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
-	if (chunk != ptr) {
+	if (likely(chunk != ptr)) {
 		/* Region. */
 		ret = arena_prof_tctx_get(ptr);
 	} else
@@ -379,7 +379,7 @@ prof_tctx_set(const void *ptr, prof_tctx_t *tctx)
 	assert(ptr != NULL);
 
 	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
-	if (chunk != ptr) {
+	if (likely(chunk != ptr)) {
 		/* Region. */
 		arena_prof_tctx_set(ptr, tctx);
 	} else

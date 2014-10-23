@@ -2095,7 +2095,7 @@ arena_ralloc_large(void *ptr, size_t oldsize, size_t size, size_t extra,
 	size_t usize;
 
 	/* Make sure extra can't cause size_t overflow. */
-	if (extra >= arena_maxclass)
+	if (unlikely(extra >= arena_maxclass))
 		return (true);
 
 	usize = s2u(size + extra);
@@ -2142,7 +2142,7 @@ arena_ralloc_no_move(void *ptr, size_t oldsize, size_t size, size_t extra,
 	/*
 	 * Avoid moving the allocation if the size class can be left the same.
 	 */
-	if (oldsize <= arena_maxclass) {
+	if (likely(oldsize <= arena_maxclass)) {
 		if (oldsize <= SMALL_MAXCLASS) {
 			assert(arena_bin_info[size2index(oldsize)].reg_size
 			    == oldsize);
