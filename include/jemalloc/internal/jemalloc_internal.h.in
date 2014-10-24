@@ -790,12 +790,13 @@ void	isqalloc(tsd_t *tsd, void *ptr, size_t size, bool try_tcache);
 void	*iralloct_realign(tsd_t *tsd, void *ptr, size_t oldsize, size_t size,
     size_t extra, size_t alignment, bool zero, bool try_tcache_alloc,
     bool try_tcache_dalloc, arena_t *arena);
-void	*iralloct(tsd_t *tsd, void *ptr, size_t size, size_t alignment,
-    bool zero, bool try_tcache_alloc, bool try_tcache_dalloc, arena_t *arena);
-void	*iralloc(tsd_t *tsd, void *ptr, size_t size, size_t alignment,
-    bool zero);
-bool	ixalloc(void *ptr, size_t size, size_t extra, size_t alignment,
-    bool zero);
+void	*iralloct(tsd_t *tsd, void *ptr, size_t oldsize, size_t size,
+    size_t alignment, bool zero, bool try_tcache_alloc, bool try_tcache_dalloc,
+    arena_t *arena);
+void	*iralloc(tsd_t *tsd, void *ptr, size_t oldsize, size_t size,
+    size_t alignment, bool zero);
+bool	ixalloc(void *ptr, size_t oldsize, size_t size, size_t extra,
+    size_t alignment, bool zero);
 #endif
 
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_C_))
@@ -1013,20 +1014,17 @@ iralloct_realign(tsd_t *tsd, void *ptr, size_t oldsize, size_t size,
 	 */
 	copysize = (size < oldsize) ? size : oldsize;
 	memcpy(p, ptr, copysize);
-	iqalloc(tsd, ptr, try_tcache_dalloc);
+	isqalloc(tsd, ptr, oldsize, try_tcache_dalloc);
 	return (p);
 }
 
 JEMALLOC_ALWAYS_INLINE void *
-iralloct(tsd_t *tsd, void *ptr, size_t size, size_t alignment, bool zero,
-    bool try_tcache_alloc, bool try_tcache_dalloc, arena_t *arena)
+iralloct(tsd_t *tsd, void *ptr, size_t oldsize, size_t size, size_t alignment,
+    bool zero, bool try_tcache_alloc, bool try_tcache_dalloc, arena_t *arena)
 {
-	size_t oldsize;
 
 	assert(ptr != NULL);
 	assert(size != 0);
-
-	oldsize = isalloc(ptr, config_prof);
 
 	if (alignment != 0 && ((uintptr_t)ptr & ((uintptr_t)alignment-1))
 	    != 0) {
@@ -1048,21 +1046,22 @@ iralloct(tsd_t *tsd, void *ptr, size_t size, size_t alignment, bool zero,
 }
 
 JEMALLOC_ALWAYS_INLINE void *
-iralloc(tsd_t *tsd, void *ptr, size_t size, size_t alignment, bool zero)
+iralloc(tsd_t *tsd, void *ptr, size_t oldsize, size_t size, size_t alignment,
+    bool zero)
 {
 
-	return (iralloct(tsd, ptr, size, alignment, zero, true, true, NULL));
+	return (iralloct(tsd, ptr, oldsize, size, alignment, zero, true, true,
+	    NULL));
 }
 
 JEMALLOC_ALWAYS_INLINE bool
-ixalloc(void *ptr, size_t size, size_t extra, size_t alignment, bool zero)
+ixalloc(void *ptr, size_t oldsize, size_t size, size_t extra, size_t alignment,
+    bool zero)
 {
-	size_t oldsize;
 
 	assert(ptr != NULL);
 	assert(size != 0);
 
-	oldsize = isalloc(ptr, config_prof);
 	if (alignment != 0 && ((uintptr_t)ptr & ((uintptr_t)alignment-1))
 	    != 0) {
 		/* Existing object alignment is inadequate. */
