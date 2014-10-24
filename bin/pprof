@@ -404,7 +404,7 @@ sub Init() {
              "edgefraction=f" => \$main::opt_edgefraction,
              "maxdegree=i"    => \$main::opt_maxdegree,
              "focus=s"        => \$main::opt_focus,
-             "thread=i"       => \$main::opt_thread,
+             "thread=s"       => \$main::opt_thread,
              "ignore=s"       => \$main::opt_ignore,
              "scale=i"        => \$main::opt_scale,
              "heapcheck"      => \$main::opt_heapcheck,
@@ -707,7 +707,8 @@ sub Main() {
   }
   if (defined($data->{threads})) {
     foreach my $thread (sort { $a <=> $b } keys(%{$data->{threads}})) {
-      if (!defined($main::opt_thread) || $main::opt_thread == $thread) {
+      if (defined($main::opt_thread) &&
+          ($main::opt_thread eq '*' || $main::opt_thread == $thread)) {
         my $thread_profile = $data->{threads}{$thread};
         FilterAndPrint($thread_profile, $symbols, $libs, $thread);
       }
