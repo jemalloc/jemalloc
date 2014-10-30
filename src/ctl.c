@@ -16,14 +16,14 @@ static ctl_stats_t	ctl_stats;
 /******************************************************************************/
 /* Helpers for named and indexed nodes. */
 
-static inline const ctl_named_node_t *
+JEMALLOC_INLINE_C const ctl_named_node_t *
 ctl_named_node(const ctl_node_t *node)
 {
 
 	return ((node->named) ? (const ctl_named_node_t *)node : NULL);
 }
 
-static inline const ctl_named_node_t *
+JEMALLOC_INLINE_C const ctl_named_node_t *
 ctl_named_children(const ctl_named_node_t *node, int index)
 {
 	const ctl_named_node_t *children = ctl_named_node(node->children);
@@ -31,7 +31,7 @@ ctl_named_children(const ctl_named_node_t *node, int index)
 	return (children ? &children[index] : NULL);
 }
 
-static inline const ctl_indexed_node_t *
+JEMALLOC_INLINE_C const ctl_indexed_node_t *
 ctl_indexed_node(const ctl_node_t *node)
 {
 

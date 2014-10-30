@@ -244,7 +244,7 @@ bt_init(prof_bt_t *bt, void **vec)
 	bt->len = 0;
 }
 
-static inline void
+JEMALLOC_INLINE_C void
 prof_enter(prof_tdata_t *tdata)
 {
 
@@ -256,7 +256,7 @@ prof_enter(prof_tdata_t *tdata)
 	malloc_mutex_lock(&bt2gctx_mtx);
 }
 
-static inline void
+JEMALLOC_INLINE_C void
 prof_leave(prof_tdata_t *tdata)
 {
 	bool idump, gdump;

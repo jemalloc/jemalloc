@@ -39,7 +39,7 @@ arena_miscelm_to_bits(arena_chunk_map_misc_t *miscelm)
 	return arena_mapbits_get(chunk, pageind);
 }
 
-static inline int
+JEMALLOC_INLINE_C int
 arena_run_comp(arena_chunk_map_misc_t *a, arena_chunk_map_misc_t *b)
 {
 	uintptr_t a_miscelm = (uintptr_t)a;
@@ -55,7 +55,7 @@ arena_run_comp(arena_chunk_map_misc_t *a, arena_chunk_map_misc_t *b)
 rb_gen(static UNUSED, arena_run_tree_, arena_run_tree_t, arena_chunk_map_misc_t,
     rb_link, arena_run_comp)
 
-static inline int
+JEMALLOC_INLINE_C int
 arena_avail_comp(arena_chunk_map_misc_t *a, arena_chunk_map_misc_t *b)
 {
 	int ret;
@@ -139,7 +139,7 @@ arena_dirty_remove(arena_t *arena, arena_chunk_t *chunk, size_t pageind,
 	arena->ndirty -= npages;
 }
 
-static inline void *
+JEMALLOC_INLINE_C void *
 arena_run_reg_alloc(arena_run_t *run, arena_bin_info_t *bin_info)
 {
 	void *ret;
@@ -159,7 +159,7 @@ arena_run_reg_alloc(arena_run_t *run, arena_bin_info_t *bin_info)
 	return (ret);
 }
 
-static inline void
+JEMALLOC_INLINE_C void
 arena_run_reg_dalloc(arena_run_t *run, void *ptr)
 {
 	arena_chunk_t *chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(run);
@@ -185,7 +185,7 @@ arena_run_reg_dalloc(arena_run_t *run, void *ptr)
 	run->nfree++;
 }
 
-static inline void
+JEMALLOC_INLINE_C void
 arena_run_zero(arena_chunk_t *chunk, size_t run_ind, size_t npages)
 {
 
@@ -195,7 +195,7 @@ arena_run_zero(arena_chunk_t *chunk, size_t run_ind, size_t npages)
 	    (npages << LG_PAGE));
 }
 
-static inline void
+JEMALLOC_INLINE_C void
 arena_run_page_mark_zeroed(arena_chunk_t *chunk, size_t run_ind)
 {
 
@@ -203,7 +203,7 @@ arena_run_page_mark_zeroed(arena_chunk_t *chunk, size_t run_ind)
 	    << LG_PAGE)), PAGE);
 }
 
-static inline void
+JEMALLOC_INLINE_C void
 arena_run_page_validate_zeroed(arena_chunk_t *chunk, size_t run_ind)
 {
 	size_t i;
@@ -834,7 +834,7 @@ arena_run_alloc_small(arena_t *arena, size_t size, index_t binind)
 	return (arena_run_alloc_small_helper(arena, size, binind));
 }
 
-static inline void
+JEMALLOC_INLINE_C void
 arena_maybe_purge(arena_t *arena)
 {
 	size_t threshold;

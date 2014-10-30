@@ -3,7 +3,7 @@
 
 /******************************************************************************/
 
-static inline int
+JEMALLOC_INLINE_C int
 extent_szad_comp(extent_node_t *a, extent_node_t *b)
 {
 	int ret;
@@ -25,7 +25,7 @@ extent_szad_comp(extent_node_t *a, extent_node_t *b)
 rb_gen(, extent_tree_szad_, extent_tree_t, extent_node_t, link_szad,
     extent_szad_comp)
 
-static inline int
+JEMALLOC_INLINE_C int
 extent_ad_comp(extent_node_t *a, extent_node_t *b)
 {
 	uintptr_t a_addr = (uintptr_t)a->addr;
