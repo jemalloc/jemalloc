@@ -2055,7 +2055,7 @@ label_oom:
 
 JEMALLOC_ALWAYS_INLINE_C size_t
 ixallocx_helper(void *ptr, size_t old_usize, size_t size, size_t extra,
-    size_t alignment, bool zero, arena_t *arena)
+    size_t alignment, bool zero)
 {
 	size_t usize;
 
@@ -2068,8 +2068,7 @@ ixallocx_helper(void *ptr, size_t old_usize, size_t size, size_t extra,
 
 static size_t
 ixallocx_prof_sample(void *ptr, size_t old_usize, size_t size, size_t extra,
-    size_t alignment, size_t max_usize, bool zero, arena_t *arena,
-    prof_tctx_t *tctx)
+    size_t alignment, size_t max_usize, bool zero, prof_tctx_t *tctx)
 {
 	size_t usize;
 
@@ -2087,7 +2086,7 @@ ixallocx_prof_sample(void *ptr, size_t old_usize, size_t size, size_t extra,
 			arena_prof_promoted(ptr, usize);
 	} else {
 		usize = ixallocx_helper(ptr, old_usize, size, extra, alignment,
-		    zero, arena);
+		    zero);
 	}
 
 	return (usize);
@@ -2095,7 +2094,7 @@ ixallocx_prof_sample(void *ptr, size_t old_usize, size_t size, size_t extra,
 
 JEMALLOC_ALWAYS_INLINE_C size_t
 ixallocx_prof(tsd_t *tsd, void *ptr, size_t old_usize, size_t size,
-    size_t extra, size_t alignment, bool zero, arena_t *arena)
+    size_t extra, size_t alignment, bool zero)
 {
 	size_t max_usize, usize;
 	prof_tctx_t *old_tctx, *tctx;
@@ -2112,10 +2111,10 @@ ixallocx_prof(tsd_t *tsd, void *ptr, size_t old_usize, size_t size,
 	tctx = prof_alloc_prep(tsd, max_usize, false);
 	if (unlikely((uintptr_t)tctx != (uintptr_t)1U)) {
 		usize = ixallocx_prof_sample(ptr, old_usize, size, extra,
-		    alignment, zero, max_usize, arena, tctx);
+		    alignment, zero, max_usize, tctx);
 	} else {
 		usize = ixallocx_helper(ptr, old_usize, size, extra, alignment,
-		    zero, arena);
+		    zero);
 	}
 	if (unlikely(usize == old_usize)) {
 		prof_alloc_rollback(tsd, tctx, false);
@@ -2134,7 +2133,6 @@ je_xallocx(void *ptr, size_t size, size_t extra, int flags)
 	UNUSED size_t old_rzsize JEMALLOC_CC_SILENCE_INIT(0);
 	size_t alignment = MALLOCX_ALIGN_GET(flags);
 	bool zero = flags & MALLOCX_ZERO;
-	arena_t *arena;
 
 	assert(ptr != NULL);
 	assert(size != 0);
@@ -2143,22 +2141,16 @@ je_xallocx(void *ptr, size_t size, size_t extra, int flags)
 	malloc_thread_init();
 	tsd = tsd_fetch();
 
-	if (unlikely((flags & MALLOCX_ARENA_MASK) != 0)) {
-		unsigned arena_ind = MALLOCX_ARENA_GET(flags);
-		arena = arena_get(tsd, arena_ind, true, true);
-	} else
-		arena = NULL;
-
 	old_usize = isalloc(ptr, config_prof);
 	if (config_valgrind && unlikely(in_valgrind))
 		old_rzsize = u2rz(old_usize);
 
 	if (config_prof && opt_prof) {
 		usize = ixallocx_prof(tsd, ptr, old_usize, size, extra,
-		    alignment, zero, arena);
+		    alignment, zero);
 	} else {
 		usize = ixallocx_helper(ptr, old_usize, size, extra, alignment,
-		    zero, arena);
+		    zero);
 	}
 	if (unlikely(usize == old_usize))
 		goto label_not_resized;
