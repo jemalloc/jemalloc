@@ -20,6 +20,8 @@ JEMALLOC_EXPORT void	@je_@free(void *ptr);
 JEMALLOC_EXPORT void	*@je_@mallocx(size_t size, int flags)
     JEMALLOC_ATTR(malloc);
 JEMALLOC_EXPORT void	*@je_@rallocx(void *ptr, size_t size, int flags);
+JEMALLOC_EXPORT void	*@je_@srallocx(void *ptr, size_t old_size,
+    int old_flags, size_t used, size_t size, int flags);
 JEMALLOC_EXPORT size_t	@je_@xallocx(void *ptr, size_t size, size_t extra,
     int flags);
 JEMALLOC_EXPORT size_t	@je_@sallocx(const void *ptr, int flags)

@@ -1982,23 +1982,32 @@ irallocx_prof(tsd_t *tsd, void *oldptr, size_t old_usize, size_t size,
 	return (p);
 }
 
-void *
-je_rallocx(void *ptr, size_t size, int flags)
+JEMALLOC_ALWAYS_INLINE_C size_t
+inallocx(size_t size, int flags)
+{
+	size_t usize;
+
+	if (likely((flags & MALLOCX_LG_ALIGN_MASK) == 0))
+		usize = s2u(size);
+	else
+		usize = sa2u(size, MALLOCX_ALIGN_GET_SPECIFIED(flags));
+	assert(usize != 0);
+	return (usize);
+}
+
+JEMALLOC_ALWAYS_INLINE_C void *
+irallocx_helper(void *ptr, size_t old_usize, size_t used, size_t size,
+    int flags)
 {
 	void *p;
 	tsd_t *tsd;
 	size_t usize;
-	size_t old_usize;
 	UNUSED size_t old_rzsize JEMALLOC_CC_SILENCE_INIT(0);
 	size_t alignment = MALLOCX_ALIGN_GET(flags);
 	bool zero = flags & MALLOCX_ZERO;
 	bool try_tcache_alloc, try_tcache_dalloc;
 	arena_t *arena;
 
-	assert(ptr != NULL);
-	assert(size != 0);
-	assert(malloc_initialized || IS_INITIALIZER);
-	malloc_thread_init();
 	tsd = tsd_fetch();
 
 	if (unlikely((flags & MALLOCX_ARENA_MASK) != 0)) {
@@ -2016,7 +2025,6 @@ je_rallocx(void *ptr, size_t size, int flags)
 		arena = NULL;
 	}
 
-	old_usize = isalloc(ptr, config_prof);
 	if (config_valgrind && unlikely(in_valgrind))
 		old_rzsize = u2rz(old_usize);
 
@@ -2051,6 +2059,38 @@ label_oom:
 	}
 	UTRACE(ptr, size, 0);
 	return (NULL);
+}
+
+void *
+je_rallocx(void *ptr, size_t size, int flags)
+{
+	size_t old_usize;
+
+	assert(ptr != NULL);
+	assert(size != 0);
+	assert(malloc_initialized || IS_INITIALIZER);
+	malloc_thread_init();
+
+	old_usize = isalloc(ptr, config_prof);
+
+	return irallocx_helper(ptr, old_usize, old_usize, size, flags);
+}
+
+void *
+je_srallocx(void *ptr, size_t old_size, int old_flags, size_t used, size_t size,
+    int flags)
+{
+	size_t old_usize;
+
+	assert(ptr != NULL);
+	assert(size != 0);
+	assert(malloc_initialized || IS_INITIALIZER);
+	malloc_thread_init();
+
+	old_usize = inallocx(old_size, old_flags);
+	assert(old_usize == isalloc(ptr, config_prof));
+
+	return irallocx_helper(ptr, old_usize, used, size, flags);
 }
 
 JEMALLOC_ALWAYS_INLINE_C size_t
@@ -2210,19 +2250,6 @@ je_dallocx(void *ptr, int flags)
 
 	UTRACE(ptr, 0, 0);
 	ifree(tsd_fetch(), ptr, try_tcache);
-}
-
-JEMALLOC_ALWAYS_INLINE_C size_t
-inallocx(size_t size, int flags)
-{
-	size_t usize;
-
-	if (likely((flags & MALLOCX_LG_ALIGN_MASK) == 0))
-		usize = s2u(size);
-	else
-		usize = sa2u(size, MALLOCX_ALIGN_GET_SPECIFIED(flags));
-	assert(usize != 0);
-	return (usize);
 }
 
 void
