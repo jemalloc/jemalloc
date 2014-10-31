@@ -2169,9 +2169,9 @@ arena_ralloc_no_move(void *ptr, size_t oldsize, size_t size, size_t extra,
 }
 
 void *
-arena_ralloc(tsd_t *tsd, arena_t *arena, void *ptr, size_t oldsize, size_t size,
-    size_t extra, size_t alignment, bool zero, bool try_tcache_alloc,
-    bool try_tcache_dalloc)
+arena_ralloc(tsd_t *tsd, arena_t *arena, void *ptr, size_t oldsize, size_t used,
+    size_t size, size_t extra, size_t alignment, bool zero,
+    bool try_tcache_alloc, bool try_tcache_dalloc)
 {
 	void *ret;
 	size_t copysize;
@@ -2221,7 +2221,7 @@ arena_ralloc(tsd_t *tsd, arena_t *arena, void *ptr, size_t oldsize, size_t size,
 	 * Copy at most size bytes (not size+extra), since the caller has no
 	 * expectation that the extra bytes will be reliably preserved.
 	 */
-	copysize = (size < oldsize) ? size : oldsize;
+	copysize = (size < used) ? size : used;
 	JEMALLOC_VALGRIND_MAKE_MEM_UNDEFINED(ret, copysize);
 	memcpy(ret, ptr, copysize);
 	isqalloc(tsd, ptr, oldsize, try_tcache_dalloc);
