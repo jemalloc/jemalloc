@@ -1243,7 +1243,7 @@ imalloc_prof(tsd_t *tsd, size_t usize)
 		p = imalloc_prof_sample(tsd, usize, tctx);
 	else
 		p = imalloc(tsd, usize);
-	if (p == NULL) {
+	if (unlikely(p == NULL)) {
 		prof_alloc_rollback(tsd, tctx, true);
 		return (NULL);
 	}
@@ -1329,7 +1329,7 @@ imemalign_prof(tsd_t *tsd, size_t alignment, size_t usize)
 		p = imemalign_prof_sample(tsd, alignment, usize, tctx);
 	else
 		p = ipalloc(tsd, usize, alignment, false);
-	if (p == NULL) {
+	if (unlikely(p == NULL)) {
 		prof_alloc_rollback(tsd, tctx, true);
 		return (NULL);
 	}
@@ -1457,7 +1457,7 @@ icalloc_prof(tsd_t *tsd, size_t usize)
 		p = icalloc_prof_sample(tsd, usize, tctx);
 	else
 		p = icalloc(tsd, usize);
-	if (p == NULL) {
+	if (unlikely(p == NULL)) {
 		prof_alloc_rollback(tsd, tctx, true);
 		return (NULL);
 	}

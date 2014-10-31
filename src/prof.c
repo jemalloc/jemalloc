@@ -204,7 +204,9 @@ prof_alloc_rollback(tsd_t *tsd, prof_tctx_t *tctx, bool updated)
 }
 
 void
-prof_malloc_sample_object(const void *ptr, size_t usize, prof_tctx_t *tctx) {
+prof_malloc_sample_object(const void *ptr, size_t usize, prof_tctx_t *tctx)
+{
+
 	prof_tctx_set(ptr, tctx);
 
 	malloc_mutex_lock(tctx->tdata->lock);
