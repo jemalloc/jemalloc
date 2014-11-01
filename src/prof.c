@@ -253,8 +253,10 @@ prof_enter(tsd_t *tsd, prof_tdata_t *tdata)
 	cassert(config_prof);
 	assert(tdata == prof_tdata_get(tsd, false));
 
-	assert(!tdata->enq);
-	tdata->enq = true;
+	if (tdata != NULL) {
+		assert(!tdata->enq);
+		tdata->enq = true;
+	}
 
 	malloc_mutex_lock(&bt2gctx_mtx);
 }
@@ -262,24 +264,27 @@ prof_enter(tsd_t *tsd, prof_tdata_t *tdata)
 JEMALLOC_INLINE_C void
 prof_leave(tsd_t *tsd, prof_tdata_t *tdata)
 {
-	bool idump, gdump;
 
 	cassert(config_prof);
 	assert(tdata == prof_tdata_get(tsd, false));
 
 	malloc_mutex_unlock(&bt2gctx_mtx);
 
-	assert(tdata->enq);
-	tdata->enq = false;
-	idump = tdata->enq_idump;
-	tdata->enq_idump = false;
-	gdump = tdata->enq_gdump;
-	tdata->enq_gdump = false;
+	if (tdata != NULL) {
+		bool idump, gdump;
 
-	if (idump)
-		prof_idump();
-	if (gdump)
-		prof_gdump();
+		assert(tdata->enq);
+		tdata->enq = false;
+		idump = tdata->enq_idump;
+		tdata->enq_idump = false;
+		gdump = tdata->enq_gdump;
+		tdata->enq_gdump = false;
+
+		if (idump)
+			prof_idump();
+		if (gdump)
+			prof_gdump();
+	}
 }
 
 #ifdef JEMALLOC_PROF_LIBUNWIND
