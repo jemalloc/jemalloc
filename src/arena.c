@@ -872,7 +872,7 @@ arena_dirty_count(arena_t *arena)
 		ndirty += npages;
 	}
 
-       return (ndirty);
+	return (ndirty);
 }
 
 static size_t
@@ -1015,7 +1015,11 @@ arena_purge(arena_t *arena, bool all)
 	size_t npurge, npurgeable, npurged;
 	arena_chunk_miscelms_t purge_list;
 
-	if (config_debug) {
+	/*
+	 * Calls to arena_dirty_count() are disabled even for debug builds
+	 * because overhead grows nonlinearly as memory usage increases.
+	 */
+	if (false && config_debug) {
 		size_t ndirty = arena_dirty_count(arena);
 		assert(ndirty == arena->ndirty);
 	}
