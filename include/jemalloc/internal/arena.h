@@ -1031,26 +1031,29 @@ JEMALLOC_ALWAYS_INLINE void
 arena_sdalloc(tsd_t *tsd, arena_chunk_t *chunk, void *ptr, size_t size,
     bool try_tcache)
 {
-	index_t binind;
 	tcache_t *tcache;
 
 	assert(ptr != NULL);
 	assert(CHUNK_ADDR2BASE(ptr) != ptr);
 
 	if (config_prof && opt_prof) {
-		/* Use promoted size, not request size. */
 		size_t pageind = ((uintptr_t)ptr - (uintptr_t)chunk) >> LG_PAGE;
-		binind = arena_mapbits_binind_get(chunk, pageind);
-		size = index2size(binind);
-	} else
-		binind = size2index(size);
+		assert(arena_mapbits_allocated_get(chunk, pageind) != 0);
+		if (arena_mapbits_large_get(chunk, pageind) != 0) {
+			/* Make sure to use promoted size, not request size. */
+			assert(((uintptr_t)ptr & PAGE_MASK) == 0);
+			size = arena_mapbits_large_size_get(chunk, pageind);
+		}
+	}
+	assert(s2u(size) == s2u(arena_salloc(ptr, false)));
 
 	if (likely(size <= SMALL_MAXCLASS)) {
 		/* Small allocation. */
 		if (likely(try_tcache) && likely((tcache = tcache_get(tsd,
-		    false)) != NULL))
+		    false)) != NULL)) {
+			index_t binind = size2index(size);
 			tcache_dalloc_small(tcache, ptr, binind);
-		else {
+		} else {
 			size_t pageind = ((uintptr_t)ptr - (uintptr_t)chunk) >>
 			    LG_PAGE;
 			arena_dalloc_small(chunk->arena, chunk, ptr, pageind);
