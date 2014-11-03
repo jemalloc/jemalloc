@@ -66,7 +66,7 @@ chunk_dss_prec_set(dss_prec_t dss_prec)
 }
 
 void *
-chunk_alloc_dss(size_t size, size_t alignment, bool *zero)
+chunk_alloc_dss(void *new_addr, size_t size, size_t alignment, bool *zero)
 {
 	void *ret;
 
@@ -93,8 +93,17 @@ chunk_alloc_dss(size_t size, size_t alignment, bool *zero)
 		 * malloc.
 		 */
 		do {
+			/* Avoid an unnecessary system call. */
+			if (new_addr != NULL && dss_max != new_addr)
+				break;
+
 			/* Get the current end of the DSS. */
 			dss_max = chunk_dss_sbrk(0);
+
+			/* Make sure the earlier condition still holds. */
+			if (new_addr != NULL && dss_max != new_addr)
+				break;
+
 			/*
 			 * Calculate how much padding is necessary to
 			 * chunk-align the end of the DSS.
