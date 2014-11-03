@@ -154,16 +154,15 @@ chunk_alloc_core(void *new_addr, size_t size, size_t alignment, bool base,
 		if ((ret = chunk_recycle(&chunks_szad_dss, &chunks_ad_dss,
 		    new_addr, size, alignment, base, zero)) != NULL)
 			return (ret);
-		/* requesting an address only implemented for recycle */
-		if (new_addr == NULL
-		    && (ret = chunk_alloc_dss(size, alignment, zero)) != NULL)
+		if ((ret = chunk_alloc_dss(new_addr, size, alignment, zero))
+		    != NULL)
 			return (ret);
 	}
 	/* mmap. */
 	if ((ret = chunk_recycle(&chunks_szad_mmap, &chunks_ad_mmap, new_addr,
 	    size, alignment, base, zero)) != NULL)
 		return (ret);
-	/* requesting an address only implemented for recycle */
+	/* requesting an address not implemented for chunk_alloc_mmap */
 	if (new_addr == NULL &&
 	    (ret = chunk_alloc_mmap(size, alignment, zero)) != NULL)
 		return (ret);
@@ -172,9 +171,8 @@ chunk_alloc_core(void *new_addr, size_t size, size_t alignment, bool base,
 		if ((ret = chunk_recycle(&chunks_szad_dss, &chunks_ad_dss,
 		    new_addr, size, alignment, base, zero)) != NULL)
 			return (ret);
-		/* requesting an address only implemented for recycle */
-		if (new_addr == NULL &&
-		    (ret = chunk_alloc_dss(size, alignment, zero)) != NULL)
+		if ((ret = chunk_alloc_dss(new_addr, size, alignment, zero))
+		    != NULL)
 			return (ret);
 	}
 
