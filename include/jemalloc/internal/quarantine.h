@@ -30,6 +30,7 @@ struct quarantine_s {
 #ifdef JEMALLOC_H_EXTERNS
 
 quarantine_t	*quarantine_init(tsd_t *tsd, size_t lg_maxobjs);
+void	quarantine_alloc_hook_work(tsd_t *tsd);
 void	quarantine(tsd_t *tsd, void *ptr);
 void	quarantine_cleanup(tsd_t *tsd);
 
@@ -50,8 +51,8 @@ quarantine_alloc_hook(void)
 	assert(config_fill && opt_quarantine);
 
 	tsd = tsd_fetch();
-	if (tsd_quarantine_get(tsd) == NULL && tsd_nominal(tsd))
-		tsd_quarantine_set(tsd, quarantine_init(tsd, LG_MAXOBJS_INIT));
+	if (tsd_quarantine_get(tsd) == NULL)
+		quarantine_alloc_hook_work(tsd);
 }
 #endif
 

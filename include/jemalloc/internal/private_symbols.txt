@@ -339,6 +339,7 @@ prof_thread_name_set
 quarantine
 quarantine_alloc_hook
 quarantine_cleanup
+quarantine_alloc_hook_work
 quarantine_init
 register_zone
 rtree_delete

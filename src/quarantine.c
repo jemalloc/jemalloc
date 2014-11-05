@@ -24,6 +24,8 @@ quarantine_init(tsd_t *tsd, size_t lg_maxobjs)
 {
 	quarantine_t *quarantine;
 
+	assert(tsd_nominal(tsd));
+
 	quarantine = (quarantine_t *)imalloc(tsd, offsetof(quarantine_t, objs) +
 	    ((ZU(1) << lg_maxobjs) * sizeof(quarantine_obj_t)));
 	if (quarantine == NULL)
@@ -34,6 +36,25 @@ quarantine_init(tsd_t *tsd, size_t lg_maxobjs)
 	quarantine->lg_maxobjs = lg_maxobjs;
 
 	return (quarantine);
+}
+
+void
+quarantine_alloc_hook_work(tsd_t *tsd)
+{
+	quarantine_t *quarantine;
+
+	if (!tsd_nominal(tsd))
+		return;
+
+	quarantine = quarantine_init(tsd, LG_MAXOBJS_INIT);
+	/*
+	 * Check again whether quarantine has been initialized, because
+	 * qurantine_init() may have triggered recursive initialization.
+	 */
+	if (tsd_quarantine_get(tsd) == NULL)
+		tsd_quarantine_set(tsd, quarantine);
+	else
+		idalloc(tsd, quarantine);
 }
 
 static quarantine_t *
@@ -67,6 +88,7 @@ quarantine_grow(tsd_t *tsd, quarantine_t *quarantine)
 	}
 	idalloc(tsd, quarantine);
 
+	tsd_quarantine_set(tsd, ret);
 	return (ret);
 }
 
