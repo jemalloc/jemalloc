@@ -19,7 +19,7 @@ static void	quarantine_drain(tsd_t *tsd, quarantine_t *quarantine,
 
 /******************************************************************************/
 
-quarantine_t *
+static quarantine_t *
 quarantine_init(tsd_t *tsd, size_t lg_maxobjs)
 {
 	quarantine_t *quarantine;

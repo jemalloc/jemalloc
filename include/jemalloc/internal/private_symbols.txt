@@ -338,9 +338,8 @@ prof_thread_name_get
 prof_thread_name_set
 quarantine
 quarantine_alloc_hook
-quarantine_cleanup
 quarantine_alloc_hook_work
-quarantine_init
+quarantine_cleanup
 register_zone
 rtree_delete
 rtree_get

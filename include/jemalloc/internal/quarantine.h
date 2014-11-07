@@ -29,7 +29,6 @@ struct quarantine_s {
 /******************************************************************************/
 #ifdef JEMALLOC_H_EXTERNS
 
-quarantine_t	*quarantine_init(tsd_t *tsd, size_t lg_maxobjs);
 void	quarantine_alloc_hook_work(tsd_t *tsd);
 void	quarantine(tsd_t *tsd, void *ptr);
 void	quarantine_cleanup(tsd_t *tsd);
