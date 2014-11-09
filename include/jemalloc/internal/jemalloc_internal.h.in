@@ -787,14 +787,14 @@ void	isdalloct(tsd_t *tsd, void *ptr, size_t size, bool try_tcache);
 void	idalloc(tsd_t *tsd, void *ptr);
 void	iqalloc(tsd_t *tsd, void *ptr, bool try_tcache);
 void	isqalloc(tsd_t *tsd, void *ptr, size_t size, bool try_tcache);
-void	*iralloct_realign(tsd_t *tsd, void *ptr, size_t oldsize, size_t size,
-    size_t extra, size_t alignment, bool zero, bool try_tcache_alloc,
+void	*iralloct_realign(tsd_t *tsd, void *ptr, size_t oldsize, size_t used,
+    size_t size, size_t extra, size_t alignment, bool zero,
+    bool try_tcache_alloc, bool try_tcache_dalloc, arena_t *arena);
+void	*iralloct(tsd_t *tsd, void *ptr, size_t oldsize, size_t used,
+    size_t size, size_t alignment, bool zero, bool try_tcache_alloc,
     bool try_tcache_dalloc, arena_t *arena);
-void	*iralloct(tsd_t *tsd, void *ptr, size_t oldsize, size_t size,
-    size_t alignment, bool zero, bool try_tcache_alloc, bool try_tcache_dalloc,
-    arena_t *arena);
-void	*iralloc(tsd_t *tsd, void *ptr, size_t oldsize, size_t size,
-    size_t alignment, bool zero);
+void	*iralloc(tsd_t *tsd, void *ptr, size_t oldsize, size_t used,
+    size_t size, size_t alignment, bool zero);
 bool	ixalloc(void *ptr, size_t oldsize, size_t size, size_t extra,
     size_t alignment, bool zero);
 #endif
@@ -985,9 +985,9 @@ isqalloc(tsd_t *tsd, void *ptr, size_t size, bool try_tcache)
 }
 
 JEMALLOC_ALWAYS_INLINE void *
-iralloct_realign(tsd_t *tsd, void *ptr, size_t oldsize, size_t size,
-    size_t extra, size_t alignment, bool zero, bool try_tcache_alloc,
-    bool try_tcache_dalloc, arena_t *arena)
+iralloct_realign(tsd_t *tsd, void *ptr, size_t oldsize, size_t used,
+    size_t size, size_t extra, size_t alignment, bool zero,
+    bool try_tcache_alloc, bool try_tcache_dalloc, arena_t *arena)
 {
 	void *p;
 	size_t usize, copysize;
@@ -1012,15 +1012,16 @@ iralloct_realign(tsd_t *tsd, void *ptr, size_t oldsize, size_t size,
 	 * Copy at most size bytes (not size+extra), since the caller has no
 	 * expectation that the extra bytes will be reliably preserved.
 	 */
-	copysize = (size < oldsize) ? size : oldsize;
+	copysize = (size < used) ? size : used;
 	memcpy(p, ptr, copysize);
 	isqalloc(tsd, ptr, oldsize, try_tcache_dalloc);
 	return (p);
 }
 
 JEMALLOC_ALWAYS_INLINE void *
-iralloct(tsd_t *tsd, void *ptr, size_t oldsize, size_t size, size_t alignment,
-    bool zero, bool try_tcache_alloc, bool try_tcache_dalloc, arena_t *arena)
+iralloct(tsd_t *tsd, void *ptr, size_t oldsize, size_t used, size_t size,
+    size_t alignment, bool zero, bool try_tcache_alloc, bool try_tcache_dalloc,
+    arena_t *arena)
 {
 
 	assert(ptr != NULL);
@@ -1032,26 +1033,27 @@ iralloct(tsd_t *tsd, void *ptr, size_t oldsize, size_t size, size_t alignment,
 		 * Existing object alignment is inadequate; allocate new space
 		 * and copy.
 		 */
-		return (iralloct_realign(tsd, ptr, oldsize, size, 0, alignment,
-		    zero, try_tcache_alloc, try_tcache_dalloc, arena));
+		return (iralloct_realign(tsd, ptr, oldsize, used, size, 0,
+		    alignment, zero, try_tcache_alloc, try_tcache_dalloc,
+		    arena));
 	}
 
 	if (likely(size <= arena_maxclass)) {
-		return (arena_ralloc(tsd, arena, ptr, oldsize, size, 0,
+		return (arena_ralloc(tsd, arena, ptr, oldsize, used, size, 0,
 		    alignment, zero, try_tcache_alloc, try_tcache_dalloc));
 	} else {
-		return (huge_ralloc(tsd, arena, ptr, oldsize, size, 0,
+		return (huge_ralloc(tsd, arena, ptr, oldsize, used, size, 0,
 		    alignment, zero, try_tcache_alloc, try_tcache_dalloc));
 	}
 }
 
 JEMALLOC_ALWAYS_INLINE void *
-iralloc(tsd_t *tsd, void *ptr, size_t oldsize, size_t size, size_t alignment,
-    bool zero)
+iralloc(tsd_t *tsd, void *ptr, size_t oldsize, size_t used, size_t size,
+    size_t alignment, bool zero)
 {
 
-	return (iralloct(tsd, ptr, oldsize, size, alignment, zero, true, true,
-	    NULL));
+	return (iralloct(tsd, ptr, oldsize, used, size, alignment, zero, true,
+	    true, NULL));
 }
 
 JEMALLOC_ALWAYS_INLINE bool

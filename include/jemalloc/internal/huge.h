@@ -16,7 +16,7 @@ void	*huge_palloc(tsd_t *tsd, arena_t *arena, size_t usize, size_t alignment,
 bool	huge_ralloc_no_move(void *ptr, size_t oldsize, size_t size,
     size_t extra, bool zero);
 void	*huge_ralloc(tsd_t *tsd, arena_t *arena, void *ptr, size_t oldsize,
-    size_t size, size_t extra, size_t alignment, bool zero,
+    size_t used, size_t size, size_t extra, size_t alignment, bool zero,
     bool try_tcache_alloc, bool try_tcache_dalloc);
 #ifdef JEMALLOC_JET
 typedef void (huge_dalloc_junk_t)(void *, size_t);
