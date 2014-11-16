@@ -691,7 +691,8 @@ arena_chunk_ralloc_huge_shrink(arena_t *arena, void *chunk, size_t oldsize,
 	arena->nactive -= udiff >> LG_PAGE;
 	malloc_mutex_unlock(&arena->lock);
 	if (cdiff != 0)
-		chunk_dalloc(chunk + CHUNK_CEILING(usize), cdiff, arena->ind);
+		chunk_dalloc((void *) ((uintptr_t) chunk + CHUNK_CEILING(usize)),
+		    cdiff, arena->ind);
 }
 
 bool
@@ -714,8 +715,9 @@ arena_chunk_ralloc_huge_expand(arena_t *arena, void *chunk, size_t oldsize,
 	arena->nactive += (udiff >> LG_PAGE);
 	malloc_mutex_unlock(&arena->lock);
 
-	if (chunk_alloc_arena(chunk_alloc, chunk_dalloc, arena->ind, chunk +
-	    CHUNK_CEILING(oldsize), cdiff, chunksize, zero) == NULL) {
+	if (chunk_alloc_arena(chunk_alloc, chunk_dalloc, arena->ind,
+	    (void *) ((uintptr_t) chunk + CHUNK_CEILING(oldsize)), cdiff,
+	    chunksize, zero) == NULL) {
 		/* Revert optimistic stats updates. */
 		malloc_mutex_lock(&arena->lock);
 		if (config_stats) {
@@ -2338,11 +2340,11 @@ arena_new(unsigned ind)
 
 	if (config_stats) {
 		memset(&arena->stats, 0, sizeof(arena_stats_t));
-		arena->stats.lstats = (malloc_large_stats_t *)(((void *)arena) +
+		arena->stats.lstats = (malloc_large_stats_t *)(((uintptr_t)arena) +
 		    CACHELINE_CEILING(sizeof(arena_t)));
 		memset(arena->stats.lstats, 0, nlclasses *
 		    sizeof(malloc_large_stats_t));
-		arena->stats.hstats = (malloc_huge_stats_t *)(((void *)arena) +
+		arena->stats.hstats = (malloc_huge_stats_t *)(((uintptr_t)arena) +
 		    CACHELINE_CEILING(sizeof(arena_t)) +
 		    QUANTUM_CEILING(nlclasses * sizeof(malloc_large_stats_t)));
 		memset(arena->stats.hstats, 0, nhclasses *
