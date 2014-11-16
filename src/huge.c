@@ -119,9 +119,11 @@ huge_ralloc_no_move_similar(void *ptr, size_t oldsize, size_t usize,
 	/* Fill if necessary (shrinking). */
 	if (oldsize > usize) {
 		size_t sdiff = CHUNK_CEILING(usize) - usize;
-		zeroed = (sdiff != 0) ? !pages_purge(ptr + usize, sdiff) : true;
+		if (sdiff != 0) {
+			zeroed = !pages_purge((void *) ((uintptr_t) ptr + usize), sdiff);
+		} else zeroed = true;
 		if (config_fill && unlikely(opt_junk)) {
-			memset(ptr + usize, 0x5a, oldsize - usize);
+			memset((void *) ((uintptr_t) ptr + usize), 0x5a, oldsize - usize);
 			zeroed = false;
 		}
 	} else
@@ -146,9 +148,9 @@ huge_ralloc_no_move_similar(void *ptr, size_t oldsize, size_t usize,
 	if (oldsize < usize) {
 		if (zero || (config_fill && unlikely(opt_zero))) {
 			if (!zeroed)
-				memset(ptr + oldsize, 0, usize - oldsize);
+				memset((void *) ((uintptr_t) ptr + oldsize), 0, usize - oldsize);
 		} else if (config_fill && unlikely(opt_junk))
-			memset(ptr + oldsize, 0xa5, usize - oldsize);
+			memset((void *) ((uintptr_t) ptr + oldsize), 0xa5, usize - oldsize);
 	}
 }
 
@@ -161,9 +163,11 @@ huge_ralloc_no_move_shrink(void *ptr, size_t oldsize, size_t usize)
 	arena_t *arena;
 
 	sdiff = CHUNK_CEILING(usize) - usize;
-	zeroed = (sdiff != 0) ? !pages_purge(ptr + usize, sdiff) : true;
+	if (sdiff != 0) {
+		zeroed = !pages_purge((void *) ((uintptr_t) ptr + usize), sdiff);
+	} else zeroed = true;
 	if (config_fill && unlikely(opt_junk)) {
-		huge_dalloc_junk(ptr + usize, oldsize - usize);
+		huge_dalloc_junk((void *) ((uintptr_t) ptr + usize), oldsize - usize);
 		zeroed = false;
 	}
 
@@ -222,15 +226,15 @@ huge_ralloc_no_move_expand(void *ptr, size_t oldsize, size_t size, bool zero) {
 
 	if (zero || (config_fill && unlikely(opt_zero))) {
 		if (!is_zeroed_subchunk) {
-			memset(ptr + oldsize, 0, CHUNK_CEILING(oldsize) -
+			memset((void *) ((uintptr_t) ptr + oldsize), 0, CHUNK_CEILING(oldsize) -
 			    oldsize);
 		}
 		if (!is_zeroed_chunk) {
-			memset(ptr + CHUNK_CEILING(oldsize), 0, usize -
+			memset((void *) ((uintptr_t) ptr + CHUNK_CEILING(oldsize)), 0, usize -
 			    CHUNK_CEILING(oldsize));
 		}
 	} else if (config_fill && unlikely(opt_junk))
-		memset(ptr + oldsize, 0xa5, usize - oldsize);
+		memset((void *) ((uintptr_t) ptr + oldsize), 0xa5, usize - oldsize);
 
 	return (false);
 }
