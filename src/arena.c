@@ -690,8 +690,10 @@ arena_chunk_ralloc_huge_shrink(arena_t *arena, void *chunk, size_t oldsize,
 	}
 	arena->nactive -= udiff >> LG_PAGE;
 	malloc_mutex_unlock(&arena->lock);
-	if (cdiff != 0)
-		chunk_dalloc(chunk + CHUNK_CEILING(usize), cdiff, arena->ind);
+	if (cdiff != 0) {
+		chunk_dalloc((void *)((uintptr_t)chunk + CHUNK_CEILING(usize)),
+		    cdiff, arena->ind);
+	}
 }
 
 bool
@@ -714,8 +716,9 @@ arena_chunk_ralloc_huge_expand(arena_t *arena, void *chunk, size_t oldsize,
 	arena->nactive += (udiff >> LG_PAGE);
 	malloc_mutex_unlock(&arena->lock);
 
-	if (chunk_alloc_arena(chunk_alloc, chunk_dalloc, arena->ind, chunk +
-	    CHUNK_CEILING(oldsize), cdiff, chunksize, zero) == NULL) {
+	if (chunk_alloc_arena(chunk_alloc, chunk_dalloc, arena->ind,
+	    (void *)((uintptr_t)chunk + CHUNK_CEILING(oldsize)), cdiff,
+	    chunksize, zero) == NULL) {
 		/* Revert optimistic stats updates. */
 		malloc_mutex_lock(&arena->lock);
 		if (config_stats) {
