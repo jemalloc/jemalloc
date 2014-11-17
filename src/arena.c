@@ -2341,12 +2341,12 @@ arena_new(unsigned ind)
 
 	if (config_stats) {
 		memset(&arena->stats, 0, sizeof(arena_stats_t));
-		arena->stats.lstats = (malloc_large_stats_t *)(((void *)arena) +
-		    CACHELINE_CEILING(sizeof(arena_t)));
+		arena->stats.lstats = (malloc_large_stats_t *)((uintptr_t)arena
+		    + CACHELINE_CEILING(sizeof(arena_t)));
 		memset(arena->stats.lstats, 0, nlclasses *
 		    sizeof(malloc_large_stats_t));
-		arena->stats.hstats = (malloc_huge_stats_t *)(((void *)arena) +
-		    CACHELINE_CEILING(sizeof(arena_t)) +
+		arena->stats.hstats = (malloc_huge_stats_t *)((uintptr_t)arena
+		    + CACHELINE_CEILING(sizeof(arena_t)) +
 		    QUANTUM_CEILING(nlclasses * sizeof(malloc_large_stats_t)));
 		memset(arena->stats.hstats, 0, nhclasses *
 		    sizeof(malloc_huge_stats_t));
