@@ -364,12 +364,6 @@ a_name##tsd_boot(void)							\
 	a_name##tsd_boot1();						\
 	return (false);							\
 }									\
-a_attr bool								\
-a_name##tsd_boot(void)							\
-{									\
-									\
-	return (false);							\
-}									\
 /* Get/set. */								\
 a_attr a_type *								\
 a_name##tsd_get(void)							\
