@@ -189,6 +189,7 @@ CTL_PROTO(stats_allocated)
 CTL_PROTO(stats_active)
 CTL_PROTO(stats_mapped)
 CTL_PROTO(introspect_next)
+CTL_PROTO(introspect_kind)
 
 /******************************************************************************/
 /* mallctl tree. */
@@ -467,6 +468,7 @@ static const ctl_named_node_t stats_node[] = {
 
 static const ctl_named_node_t introspect_node[] = {
 	{NAME("next"),		CTL(introspect_next)},
+	{NAME("kind"),		CTL_UINT(introspect_kind)},
 };
 
 static const ctl_named_node_t	root_node[] = {
@@ -932,18 +934,11 @@ label_return:
 	return(ret);
 }
 
-int
-ctl_bymib(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
-    void *newp, size_t newlen)
+static int
+ctl_getbymib(const size_t *mib, size_t miblen, const ctl_named_node_t **nodep)
 {
-	int ret;
 	const ctl_named_node_t *node;
 	size_t i;
-
-	if (!ctl_initialized && ctl_init()) {
-		ret = EAGAIN;
-		goto label_return;
-	}
 
 	/* Iterate down the tree. */
 	node = super_root_node;
@@ -952,10 +947,8 @@ ctl_bymib(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
 		assert(node->nchildren > 0);
 		if (ctl_named_node(node->children) != NULL) {
 			/* Children are named. */
-			if (node->nchildren <= mib[i]) {
-				ret = ENOENT;
-				goto label_return;
-			}
+			if (node->nchildren <= mib[i])
+				return (ENOENT);
 			node = ctl_named_children(node, mib[i]);
 		} else {
 			const ctl_indexed_node_t *inode;
@@ -963,12 +956,31 @@ ctl_bymib(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
 			/* Indexed element. */
 			inode = ctl_indexed_node(node->children);
 			node = inode->index(mib, miblen, mib[i]);
-			if (node == NULL) {
-				ret = ENOENT;
-				goto label_return;
-			}
+			if (node == NULL)
+				return (ENOENT);
 		}
 	}
+
+	assert(node);
+	*nodep = node;
+	return (0);
+}
+
+int
+ctl_bymib(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
+    void *newp, size_t newlen)
+{
+	int ret;
+	const ctl_named_node_t *node;
+
+	if (!ctl_initialized && ctl_init()) {
+		ret = EAGAIN;
+		goto label_return;
+	}
+
+	ret = ctl_getbymib(mib, miblen, &node);
+	if (ret)
+		goto label_return;
 
 	/* Call the ctl function. */
 	if (node && node->ctl)
@@ -2069,6 +2081,40 @@ introspect_next_ctl(const size_t *mib, size_t miblen, void *oldp,
 
 	memcpy(oldp, next_mib, next_mib_len * sizeof(*mib));
 	*oldlenp = next_mib_len * sizeof(*mib);
+
+label_return:
+	return (ret);
+}
+
+/*
+ * mallctl to get the type of a given MIB programmatically. (Similar to sysctl
+ * internal 'sysctl_oidfmt'.
+ *
+ * Takes a MIB array (size_t[]) "new" value; returns the type (MCTLTYPE_*) as
+ * an unsigned in "old."
+ */
+static int
+introspect_kind_ctl(const size_t *mib, size_t miblen, void *oldp,
+    size_t *oldlenp, void *newp, size_t newlen)
+{
+	size_t query_mib[CTL_MAX_DEPTH], query_mib_len;
+	const ctl_named_node_t *node;
+	int ret = EINVAL;
+
+	if (newp == NULL)
+		goto label_return;
+	if (newlen % sizeof(*mib) != 0)
+		goto label_return;
+
+	query_mib_len = newlen / sizeof(*mib);
+	memcpy(query_mib, newp, newlen);
+
+	ret = ctl_getbymib(query_mib, query_mib_len, &node);
+	if (ret)
+		goto label_return;
+
+	READ(node->kind, unsigned);
+	ret = 0;
 
 label_return:
 	return (ret);
