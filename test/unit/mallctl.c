@@ -475,6 +475,40 @@ TEST_BEGIN(test_introspect_kind)
 }
 TEST_END
 
+TEST_BEGIN(test_introspect_name)
+{
+	const char *tcases[] = {
+		"epoch",
+		"opt.zero",
+		"thread.tcache.enabled",
+		"arena.0.chunk.dalloc",
+		NULL
+	};
+	const char **tcase;
+	char output[256];
+	size_t mib[6], outsz, miblen;
+	int error;
+
+	for (tcase = tcases; *tcase; tcase++) {
+		miblen = sizeof(mib) / sizeof(mib[0]);
+		assert_d_eq(mallctlnametomib(*tcase, mib, &miblen), 0,
+		    "unexpected");
+
+		outsz = sizeof(output);
+		error = mallctl("introspect.name", output, &outsz, mib,
+		    miblen * sizeof(*mib));
+		assert_d_eq(error, 0, "%lu: mallctl: %s", tcase - tcases,
+		    strerror(error));
+		if (error == 0) {
+			assert_str_eq(output, *tcase, "%lu: unexpected",
+			    tcase - tcases);
+			assert_zu_eq(outsz, strlen(*tcase) + 1,
+			    "%lu: unexpected wrong size", tcase - tcases);
+		}
+	}
+}
+TEST_END
+
 int
 main(void)
 {
@@ -499,5 +533,6 @@ main(void)
 	    test_arenas_extend,
 	    test_stats_arenas,
 	    test_introspect_next,
-	    test_introspect_kind));
+	    test_introspect_kind,
+	    test_introspect_name));
 }

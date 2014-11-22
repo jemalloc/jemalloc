@@ -190,6 +190,7 @@ CTL_PROTO(stats_active)
 CTL_PROTO(stats_mapped)
 CTL_PROTO(introspect_next)
 CTL_PROTO(introspect_kind)
+CTL_PROTO(introspect_name)
 
 /******************************************************************************/
 /* mallctl tree. */
@@ -207,6 +208,7 @@ CTL_PROTO(introspect_kind)
 #define	CTL_BOOL(c)	0, NULL, c##_ctl, MCTLTYPE_BOOL
 #define	CTL_STRP(c)	0, NULL, c##_ctl, MCTLTYPE_STRP
 #define	CTL_SSZ(c)	0, NULL, c##_ctl, MCTLTYPE_SSIZE
+#define	CTL_STRING(c)	0, NULL, c##_ctl, MCTLTYPE_STRING
 #define	CTL_SZ(c)	0, NULL, c##_ctl, MCTLTYPE_SIZE
 #define	CTL_U32(c)	0, NULL, c##_ctl, MCTLTYPE_U32
 #define	CTL_U64(c)	0, NULL, c##_ctl, MCTLTYPE_U64
@@ -469,6 +471,7 @@ static const ctl_named_node_t stats_node[] = {
 static const ctl_named_node_t introspect_node[] = {
 	{NAME("next"),		CTL(introspect_next)},
 	{NAME("kind"),		CTL_UINT(introspect_kind)},
+	{NAME("name"),		CTL_STRING(introspect_name)},
 };
 
 static const ctl_named_node_t	root_node[] = {
@@ -494,6 +497,7 @@ static const ctl_named_node_t super_root_node[] = {
 #undef CTL_BOOL
 #undef CTL_STRP
 #undef CTL_SSZ
+#undef CTL_STRING
 #undef CTL_SZ
 #undef CTL_U32
 #undef CTL_U64
@@ -1025,6 +1029,26 @@ ctl_postfork_child(void)
 {
 
 	malloc_mutex_postfork_child(&ctl_mtx);
+}
+
+static int JEMALLOC_ATTR(format(printf, 4, 5))
+ctl_format(void *buf, size_t bufsz, size_t *pos, const char *fmt, ...)
+{
+	va_list ap;
+	int cnt;
+
+	assert(*pos < bufsz);
+
+	va_start(ap, fmt);
+	cnt = malloc_vsnprintf((char *)buf + *pos, bufsz - *pos, fmt, ap);
+	va_end(ap);
+
+	if (cnt < 0)
+		return (EINVAL);
+	if (*pos + cnt >= bufsz)
+		return (ENOMEM);
+	*pos += cnt;
+	return (0);
 }
 
 /******************************************************************************/
@@ -2118,4 +2142,68 @@ introspect_kind_ctl(const size_t *mib, size_t miblen, void *oldp,
 
 label_return:
 	return (ret);
+}
+
+/*
+ * mallctl to get the name of a given MIB programmatically. (Similar to sysctl
+ * internal 'sysctl_name'.
+ *
+ * Takes a MIB array (size_t[]) "new" value; returns the name as a string in
+ * "old."
+ */
+static int
+introspect_name_ctl(const size_t *mib, size_t miblen, void *oldp,
+    size_t *oldlenp, void *newp, size_t newlen)
+{
+	size_t query_mib[CTL_MAX_DEPTH], query_mib_len, i, cursor;
+	const ctl_named_node_t *node;
+	int ret;
+
+	if (newp == NULL || newlen == 0)
+		return (EINVAL);
+	if (newlen % sizeof(*mib) != 0)
+		return (EINVAL);
+
+	query_mib_len = newlen / sizeof(*mib);
+	memcpy(query_mib, newp, newlen);
+	cursor = 0;
+
+	node = super_root_node;
+	for (i = 0; i < query_mib_len; i++) {
+		if (i > 0) {
+			ret = ctl_format(oldp, *oldlenp, &cursor, ".");
+			if (ret)
+				return (ret);
+		}
+
+		assert(node);
+		assert(node->nchildren > 0);
+
+		if (ctl_named_node(node->children) != NULL) {
+			/* Children are named. */
+			if (node->nchildren <= query_mib[i])
+				return (ENOENT);
+			node = ctl_named_children(node, query_mib[i]);
+
+			ret = ctl_format(oldp, *oldlenp, &cursor, "%s",
+			    node->name);
+			if (ret)
+				return (ret);
+		} else {
+			const ctl_indexed_node_t *inode;
+
+			/* Indexed element. */
+			inode = ctl_indexed_node(node->children);
+			node = inode->index(query_mib, query_mib_len, query_mib[i]);
+			if (node == NULL)
+				return (ENOENT);
+			ret = ctl_format(oldp, *oldlenp, &cursor, "%zu",
+			    query_mib[i]);
+			if (ret)
+				return (ret);
+		}
+	}
+
+	*oldlenp = cursor + 1;
+	return (0);
 }
