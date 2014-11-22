@@ -188,6 +188,7 @@ CTL_PROTO(stats_cactive)
 CTL_PROTO(stats_allocated)
 CTL_PROTO(stats_active)
 CTL_PROTO(stats_mapped)
+CTL_PROTO(introspect_next)
 
 /******************************************************************************/
 /* mallctl tree. */
@@ -464,6 +465,10 @@ static const ctl_named_node_t stats_node[] = {
 	{NAME("arenas"),	CHILD(indexed, stats_arenas)}
 };
 
+static const ctl_named_node_t introspect_node[] = {
+	{NAME("next"),		CTL(introspect_next)},
+};
+
 static const ctl_named_node_t	root_node[] = {
 	{NAME("version"),	CTL_STRP(version)},
 	{NAME("epoch"),		CTL_U64(epoch)},
@@ -473,7 +478,8 @@ static const ctl_named_node_t	root_node[] = {
 	{NAME("arena"),		CHILD(indexed, arena)},
 	{NAME("arenas"),	CHILD(named, arenas)},
 	{NAME("prof"),		CHILD(named, prof)},
-	{NAME("stats"),		CHILD(named, stats)}
+	{NAME("stats"),		CHILD(named, stats)},
+	{NAME("introspect"),	CHILD(named, introspect)},
 };
 static const ctl_named_node_t super_root_node[] = {
 	{NAME(""),		CHILD(named, root)}
@@ -1945,5 +1951,125 @@ stats_arenas_i_index(const size_t *mib, size_t miblen, size_t i)
 	ret = super_stats_arenas_i_node;
 label_return:
 	malloc_mutex_unlock(&ctl_mtx);
+	return (ret);
+}
+
+/******************************************************************************/
+
+static int
+introspect_next(const ctl_named_node_t *node, size_t *name, size_t namelen,
+    size_t *next, size_t *len, size_t level)
+{
+	const ctl_named_node_t *child;
+	size_t i;
+
+	assert(node);
+
+	*len = level;
+	for (i = 0;; i++) {
+		if (ctl_named_node(node->children) != NULL) {
+			if (i >= node->nchildren)
+				break;
+			child = ctl_named_children(node, i);
+		} else {
+			const ctl_indexed_node_t *inode;
+
+			assert(level > 1);
+			assert(name != NULL);
+
+			inode = ctl_indexed_node(node->children);
+			child = inode->index(name - level + 1,
+			    namelen + level - 1, i);
+			if (child == NULL)
+				break;
+		}
+
+		*next = i;
+
+		if (namelen == 0) {
+			if (child->kind != MCTLTYPE_NODE)
+				return (0);
+			if (child->ctl != NULL)
+				return (0);
+			if (introspect_next(child, NULL, 0, next + 1, len,
+				level + 1) == 0)
+				return (0);
+			goto label_emptynode;
+		}
+
+		if (i < *name)
+			continue;
+
+		if (i > *name) {
+			if (child->kind != MCTLTYPE_NODE)
+				return (0);
+			if (child->ctl != NULL)
+				return (0);
+			if (introspect_next(child, name + 1, namelen - 1,
+				next + 1, len, level + 1) == 0)
+				return (0);
+			goto label_next;
+		}
+
+		if (child->kind != MCTLTYPE_NODE)
+			continue;
+		if (child->ctl != NULL)
+			continue;
+
+		if (introspect_next(child, name + 1, namelen - 1, next + 1,
+			len, level + 1) == 0)
+			return (0);
+label_next:
+		namelen = 1;
+label_emptynode:
+		*len = level;
+	}
+	return (ENOENT);
+}
+
+/*
+ * mallctl to iterate all defined ctls (see: sysctl internal 'sysctl_next').
+ *
+ * Takes a MIB array (size_t[]) "new" value; returns the next MIB in the tree
+ * as the "old" value. (Sysctl length values are in bytes.)
+ *
+ * Special cases:
+ *   - Start iteration -- caller should pass NULL / 0.
+ *   - End iteration   -- ENOENT.
+ */
+static int
+introspect_next_ctl(const size_t *mib, size_t miblen, void *oldp,
+    size_t *oldlenp, void *newp, size_t newlen)
+{
+	size_t query_mib[CTL_MAX_DEPTH], query_mib_len,
+	       next_mib[CTL_MAX_DEPTH], next_mib_len;
+	int ret = EINVAL;
+
+	if (newp == NULL)
+		goto label_return;
+	if (newlen % sizeof(*mib) != 0)
+		goto label_return;
+
+	query_mib_len = newlen / sizeof(*mib);
+	memcpy(query_mib, newp, newlen);
+
+	ret = introspect_next(super_root_node, query_mib, query_mib_len,
+	    next_mib, &next_mib_len, 1);
+	if (ret)
+		goto label_return;
+
+	ret = 0;
+
+	if (oldp == NULL || oldlenp == NULL)
+		goto label_return;
+	if (*oldlenp < next_mib_len * sizeof(*mib)) {
+		ret = ENOMEM;
+		goto label_return;
+	}
+
+	memcpy(oldp, next_mib, next_mib_len * sizeof(*mib));
+	*oldlenp = next_mib_len * sizeof(*mib);
+
+label_return:
 	return (ret);
 }

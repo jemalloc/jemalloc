@@ -418,6 +418,30 @@ TEST_BEGIN(test_stats_arenas)
 }
 TEST_END
 
+TEST_BEGIN(test_introspect_next)
+{
+	size_t mib[6], miblen, lastlen, n;
+	int error;
+
+	n = lastlen = 0;
+
+	while (true) {
+		miblen = sizeof(mib);
+		error = mallctl("introspect.next", mib, &miblen, mib, lastlen);
+		if (error == ENOENT)
+			break;
+		assert_d_eq(error, 0, "mallctl: %s", strerror(error));
+		if (error)
+			break;
+
+		lastlen = miblen;
+		n++;
+	}
+
+	assert_zu_gt(n, 5, "mallctl next");
+}
+TEST_END
+
 int
 main(void)
 {
@@ -440,5 +464,6 @@ main(void)
 	    test_arenas_lrun_constants,
 	    test_arenas_hchunk_constants,
 	    test_arenas_extend,
-	    test_stats_arenas));
+	    test_stats_arenas,
+	    test_introspect_next));
 }
