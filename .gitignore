@@ -1,6 +1,7 @@
 /*.gcov.*
 
 /bin/jemalloc.sh
+/bin/mallctl
 
 /config.stamp
 /config.log
