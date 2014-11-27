@@ -4,7 +4,7 @@
 /******************************************************************************/
 /* Data. */
 
-static malloc_mutex_t	base_mtx;
+malloc_mutex_t	base_mtx;
 
 /*
  * Current pages that are being used for internal memory allocations.  These
@@ -15,6 +15,8 @@ static void		*base_pages;
 static void		*base_next_addr;
 static void		*base_past_addr; /* Addr immediately past base_pages. */
 static extent_node_t	*base_nodes;
+
+size_t base_allocated;
 
 /******************************************************************************/
 
@@ -54,6 +56,8 @@ base_alloc(size_t size)
 	/* Allocate. */
 	ret = base_next_addr;
 	base_next_addr = (void *)((uintptr_t)base_next_addr + csize);
+	if (config_stats)
+		base_allocated += csize;
 	malloc_mutex_unlock(&base_mtx);
 	JEMALLOC_VALGRIND_MAKE_MEM_UNDEFINED(ret, csize);
 

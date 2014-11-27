@@ -187,6 +187,7 @@ INDEX_PROTO(stats_arenas_i)
 CTL_PROTO(stats_cactive)
 CTL_PROTO(stats_allocated)
 CTL_PROTO(stats_active)
+CTL_PROTO(stats_bookkeeping)
 CTL_PROTO(stats_mapped)
 
 /******************************************************************************/
@@ -448,12 +449,13 @@ static const ctl_indexed_node_t stats_arenas_node[] = {
 };
 
 static const ctl_named_node_t stats_node[] = {
-	{NAME("cactive"),	CTL(stats_cactive)},
-	{NAME("allocated"),	CTL(stats_allocated)},
-	{NAME("active"),	CTL(stats_active)},
-	{NAME("mapped"),	CTL(stats_mapped)},
-	{NAME("chunks"),	CHILD(named, stats_chunks)},
-	{NAME("arenas"),	CHILD(indexed, stats_arenas)}
+	{NAME("cactive"),		CTL(stats_cactive)},
+	{NAME("allocated"),		CTL(stats_allocated)},
+	{NAME("active"),		CTL(stats_active)},
+	{NAME("bookkeeping"),	CTL(stats_bookkeeping)},
+	{NAME("mapped"),		CTL(stats_mapped)},
+	{NAME("chunks"),		CHILD(named, stats_chunks)},
+	{NAME("arenas"),		CHILD(indexed, stats_arenas)}
 };
 
 static const ctl_named_node_t	root_node[] = {
@@ -705,6 +707,19 @@ ctl_refresh(void)
 		ctl_stats.active =
 		    (ctl_stats.arenas[ctl_stats.narenas].pactive << LG_PAGE);
 		ctl_stats.mapped = (ctl_stats.chunks.current << opt_lg_chunk);
+
+		ctl_stats.bookkeeping = 0;
+		malloc_mutex_lock(&base_mtx);
+		ctl_stats.bookkeeping += base_allocated;
+		malloc_mutex_unlock(&base_mtx);
+		/* add chunk headers to bookkeeping */
+		ctl_stats.bookkeeping += ctl_stats.chunks.current * (map_bias << LG_PAGE);
+		ctl_stats.bookkeeping += sizeof(extent_node_t)
+		    * (ctl_stats.arenas[ctl_stats.narenas].astats.nmalloc_huge
+		       - ctl_stats.arenas[ctl_stats.narenas].astats.ndalloc_huge);
+		malloc_mutex_lock(&a0_mtx);
+		ctl_stats.bookkeeping += a0_allocated;
+		malloc_mutex_unlock(&a0_mtx);
 	}
 
 	ctl_epoch++;
@@ -1806,6 +1821,7 @@ CTL_RO_NL_CGEN(config_prof, lg_prof_sample, lg_prof_sample, size_t)
 CTL_RO_CGEN(config_stats, stats_cactive, &stats_cactive, size_t *)
 CTL_RO_CGEN(config_stats, stats_allocated, ctl_stats.allocated, size_t)
 CTL_RO_CGEN(config_stats, stats_active, ctl_stats.active, size_t)
+CTL_RO_CGEN(config_stats, stats_bookkeeping, ctl_stats.bookkeeping, size_t)
 CTL_RO_CGEN(config_stats, stats_mapped, ctl_stats.mapped, size_t)
 
 CTL_RO_CGEN(config_stats, stats_chunks_current, ctl_stats.chunks.current,
