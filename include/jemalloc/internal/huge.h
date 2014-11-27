@@ -23,6 +23,7 @@ typedef void (huge_dalloc_junk_t)(void *, size_t);
 extern huge_dalloc_junk_t *huge_dalloc_junk;
 #endif
 void	huge_dalloc(tsd_t *tsd, void *ptr, bool try_tcache);
+arena_t	*huge_aalloc(const void *ptr);
 size_t	huge_salloc(const void *ptr);
 prof_tctx_t	*huge_prof_tctx_get(const void *ptr);
 void	huge_prof_tctx_set(const void *ptr, prof_tctx_t *tctx);

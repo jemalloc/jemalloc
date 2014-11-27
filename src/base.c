@@ -16,6 +16,8 @@ static void		*base_next_addr;
 static void		*base_past_addr; /* Addr immediately past base_pages. */
 static extent_node_t	*base_nodes;
 
+static size_t		base_allocated;
+
 /******************************************************************************/
 
 static bool
@@ -54,6 +56,8 @@ base_alloc(size_t size)
 	/* Allocate. */
 	ret = base_next_addr;
 	base_next_addr = (void *)((uintptr_t)base_next_addr + csize);
+	if (config_stats)
+		base_allocated += csize;
 	malloc_mutex_unlock(&base_mtx);
 	JEMALLOC_VALGRIND_MAKE_MEM_UNDEFINED(ret, csize);
 
@@ -100,6 +104,17 @@ base_node_dalloc(extent_node_t *node)
 	*(extent_node_t **)node = base_nodes;
 	base_nodes = node;
 	malloc_mutex_unlock(&base_mtx);
+}
+
+size_t
+base_allocated_get(void)
+{
+	size_t ret;
+
+	malloc_mutex_lock(&base_mtx);
+	ret = base_allocated;
+	malloc_mutex_unlock(&base_mtx);
+	return (ret);
 }
 
 bool

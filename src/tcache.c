@@ -298,7 +298,7 @@ tcache_create(tsd_t *tsd, arena_t *arena)
 	/* Avoid false cacheline sharing. */
 	size = sa2u(size, CACHELINE);
 
-	tcache = ipalloct(tsd, size, CACHELINE, true, false, arena);
+	tcache = ipallocztm(tsd, size, CACHELINE, true, false, true, arena);
 	if (tcache == NULL)
 		return (NULL);
 
@@ -353,7 +353,7 @@ tcache_destroy(tsd_t *tsd, tcache_t *tcache)
 	    arena_prof_accum(tcache->arena, tcache->prof_accumbytes))
 		prof_idump();
 
-	idalloct(tsd, tcache, false);
+	idalloctm(tsd, tcache, false, true);
 }
 
 void

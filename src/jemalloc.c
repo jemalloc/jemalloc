@@ -289,45 +289,34 @@ a0get(void)
 }
 
 static void *
-a0imalloc(size_t size, bool zero)
+a0ialloc(size_t size, bool zero, bool is_metadata)
 {
-	void *ret;
 
 	if (unlikely(malloc_init_a0()))
 		return (NULL);
 
-	if (likely(size <= arena_maxclass))
-		ret = arena_malloc(NULL, a0get(), size, zero, false);
-	else
-		ret = huge_malloc(NULL, a0get(), size, zero, false);
-
-	return (ret);
+	return (iallocztm(NULL, size, zero, false, is_metadata, a0get()));
 }
 
 static void
-a0idalloc(void *ptr)
+a0idalloc(void *ptr, bool is_metadata)
 {
-	arena_chunk_t *chunk;
 
-	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
-	if (likely(chunk != ptr))
-		arena_dalloc(NULL, chunk, ptr, false);
-	else
-		huge_dalloc(NULL, ptr, false);
+	idalloctm(NULL, ptr, false, is_metadata);
 }
 
 void *
-a0malloc(size_t size, bool zero)
+a0malloc(size_t size)
 {
 
-	return (a0imalloc(size, zero));
+	return (a0ialloc(size, false, true));
 }
 
 void
 a0dalloc(void *ptr)
 {
 
-	a0idalloc(ptr);
+	a0idalloc(ptr, true);
 }
 
 /*
@@ -343,7 +332,7 @@ bootstrap_malloc(size_t size)
 	if (unlikely(size == 0))
 		size = 1;
 
-	return (a0imalloc(size, false));
+	return (a0ialloc(size, false, false));
 }
 
 void *
@@ -357,7 +346,7 @@ bootstrap_calloc(size_t num, size_t size)
 		num_size = 1;
 	}
 
-	return (a0imalloc(num_size, true));
+	return (a0ialloc(num_size, true, false));
 }
 
 void
@@ -367,7 +356,7 @@ bootstrap_free(void *ptr)
 	if (unlikely(ptr == NULL))
 		return;
 
-	a0idalloc(ptr);
+	a0idalloc(ptr, false);
 }
 
 /* Create a new arena and insert it into the arenas array at index ind. */
@@ -382,7 +371,7 @@ arena_init_locked(unsigned ind)
 		unsigned narenas_new = narenas_total + 1;
 		arena_t **arenas_new =
 		    (arena_t **)a0malloc(CACHELINE_CEILING(narenas_new *
-		    sizeof(arena_t *)), false);
+		    sizeof(arena_t *)));
 		if (arenas_new == NULL)
 			return (NULL);
 		memcpy(arenas_new, arenas, narenas_total * sizeof(arena_t *));
@@ -519,7 +508,7 @@ arena_get_hard(tsd_t *tsd, unsigned ind, bool init_if_missing)
 		if (!*arenas_cache_bypassp) {
 			*arenas_cache_bypassp = true;
 			arenas_cache = (arena_t **)a0malloc(sizeof(arena_t *) *
-			    narenas_cache, false);
+			    narenas_cache);
 			*arenas_cache_bypassp = false;
 		} else
 			arenas_cache = NULL;
@@ -1202,6 +1191,8 @@ malloc_init_hard_a0_locked(void)
 	arena_boot();
 	if (config_tcache && tcache_boot())
 		return (true);
+	if (config_tcache && tcache_boot())
+		malloc_mutex_unlock(&init_lock);
 	if (huge_boot())
 		return (true);
 	if (malloc_mutex_init(&arenas_lock))

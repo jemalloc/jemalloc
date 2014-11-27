@@ -1,6 +1,7 @@
 a0dalloc
 a0get
 a0malloc
+arena_aalloc
 arena_get
 arena_get_hard
 arena_alloc_junk_small
@@ -50,6 +51,9 @@ arena_mapbitsp_read
 arena_mapbitsp_write
 arena_maxclass
 arena_maxrun
+arena_metadata_allocated_add
+arena_metadata_allocated_get
+arena_metadata_allocated_sub
 arena_migrate
 arena_miscelm_get
 arena_miscelm_to_pageind
@@ -90,6 +94,7 @@ atomic_sub_uint32
 atomic_sub_uint64
 atomic_sub_z
 base_alloc
+base_allocated_get
 base_boot
 base_calloc
 base_node_alloc
@@ -205,6 +210,7 @@ hash_rotl_64
 hash_x64_128
 hash_x86_128
 hash_x86_32
+huge_aalloc
 huge_allocated
 huge_boot
 huge_dalloc
@@ -221,10 +227,13 @@ huge_prof_tctx_set
 huge_ralloc
 huge_ralloc_no_move
 huge_salloc
+iaalloc
+iallocztm
 icalloc
 icalloct
 idalloc
 idalloct
+idalloctm
 imalloc
 imalloct
 in_valgrind
@@ -234,6 +243,7 @@ index2size_lookup
 index2size_tab
 ipalloc
 ipalloct
+ipallocztm
 iqalloc
 iralloc
 iralloct

@@ -183,10 +183,13 @@ CTL_PROTO(stats_arenas_i_mapped)
 CTL_PROTO(stats_arenas_i_npurge)
 CTL_PROTO(stats_arenas_i_nmadvise)
 CTL_PROTO(stats_arenas_i_purged)
+CTL_PROTO(stats_arenas_i_metadata_mapped)
+CTL_PROTO(stats_arenas_i_metadata_allocated)
 INDEX_PROTO(stats_arenas_i)
 CTL_PROTO(stats_cactive)
 CTL_PROTO(stats_allocated)
 CTL_PROTO(stats_active)
+CTL_PROTO(stats_metadata)
 CTL_PROTO(stats_mapped)
 
 /******************************************************************************/
@@ -355,6 +358,11 @@ static const ctl_named_node_t stats_chunks_node[] = {
 	{NAME("high"),		CTL(stats_chunks_high)}
 };
 
+static const ctl_named_node_t stats_arenas_i_metadata_node[] = {
+	{NAME("mapped"),	CTL(stats_arenas_i_metadata_mapped)},
+	{NAME("allocated"),	CTL(stats_arenas_i_metadata_allocated)}
+};
+
 static const ctl_named_node_t stats_arenas_i_small_node[] = {
 	{NAME("allocated"),	CTL(stats_arenas_i_small_allocated)},
 	{NAME("nmalloc"),	CTL(stats_arenas_i_small_nmalloc)},
@@ -432,6 +440,7 @@ static const ctl_named_node_t stats_arenas_i_node[] = {
 	{NAME("npurge"),	CTL(stats_arenas_i_npurge)},
 	{NAME("nmadvise"),	CTL(stats_arenas_i_nmadvise)},
 	{NAME("purged"),	CTL(stats_arenas_i_purged)},
+	{NAME("metadata"),	CHILD(named, stats_arenas_i_metadata)},
 	{NAME("small"),		CHILD(named, stats_arenas_i_small)},
 	{NAME("large"),		CHILD(named, stats_arenas_i_large)},
 	{NAME("huge"),		CHILD(named, stats_arenas_i_huge)},
@@ -451,6 +460,7 @@ static const ctl_named_node_t stats_node[] = {
 	{NAME("cactive"),	CTL(stats_cactive)},
 	{NAME("allocated"),	CTL(stats_allocated)},
 	{NAME("active"),	CTL(stats_active)},
+	{NAME("metadata"),	CTL(stats_metadata)},
 	{NAME("mapped"),	CTL(stats_mapped)},
 	{NAME("chunks"),	CHILD(named, stats_chunks)},
 	{NAME("arenas"),	CHILD(indexed, stats_arenas)}
@@ -484,14 +494,14 @@ ctl_arena_init(ctl_arena_stats_t *astats)
 
 	if (astats->lstats == NULL) {
 		astats->lstats = (malloc_large_stats_t *)a0malloc(nlclasses *
-		    sizeof(malloc_large_stats_t), false);
+		    sizeof(malloc_large_stats_t));
 		if (astats->lstats == NULL)
 			return (true);
 	}
 
 	if (astats->hstats == NULL) {
 		astats->hstats = (malloc_huge_stats_t *)a0malloc(nhclasses *
-		    sizeof(malloc_huge_stats_t), false);
+		    sizeof(malloc_huge_stats_t));
 		if (astats->hstats == NULL)
 			return (true);
 	}
@@ -550,6 +560,9 @@ ctl_arena_stats_smerge(ctl_arena_stats_t *sstats, ctl_arena_stats_t *astats)
 	sstats->astats.npurge += astats->astats.npurge;
 	sstats->astats.nmadvise += astats->astats.nmadvise;
 	sstats->astats.purged += astats->astats.purged;
+
+	sstats->astats.metadata_mapped += astats->astats.metadata_mapped;
+	sstats->astats.metadata_allocated += astats->astats.metadata_allocated;
 
 	sstats->allocated_small += astats->allocated_small;
 	sstats->nmalloc_small += astats->nmalloc_small;
@@ -627,7 +640,7 @@ ctl_grow(void)
 
 	/* Allocate extended arena stats. */
 	astats = (ctl_arena_stats_t *)a0malloc((ctl_stats.narenas + 2) *
-	    sizeof(ctl_arena_stats_t), false);
+	    sizeof(ctl_arena_stats_t));
 	if (astats == NULL)
 		return (true);
 
@@ -704,6 +717,10 @@ ctl_refresh(void)
 		    + ctl_stats.arenas[ctl_stats.narenas].astats.allocated_huge;
 		ctl_stats.active =
 		    (ctl_stats.arenas[ctl_stats.narenas].pactive << LG_PAGE);
+		ctl_stats.metadata = base_allocated_get()
+		    + ctl_stats.arenas[ctl_stats.narenas].astats.metadata_mapped
+		    + ctl_stats.arenas[ctl_stats.narenas].astats
+		    .metadata_allocated;
 		ctl_stats.mapped = (ctl_stats.chunks.current << opt_lg_chunk);
 	}
 
@@ -723,7 +740,7 @@ ctl_init(void)
 		 */
 		ctl_stats.narenas = narenas_total_get();
 		ctl_stats.arenas = (ctl_arena_stats_t *)a0malloc(
-		    (ctl_stats.narenas + 1) * sizeof(ctl_arena_stats_t), false);
+		    (ctl_stats.narenas + 1) * sizeof(ctl_arena_stats_t));
 		if (ctl_stats.arenas == NULL) {
 			ret = true;
 			goto label_return;
@@ -1806,6 +1823,7 @@ CTL_RO_NL_CGEN(config_prof, lg_prof_sample, lg_prof_sample, size_t)
 CTL_RO_CGEN(config_stats, stats_cactive, &stats_cactive, size_t *)
 CTL_RO_CGEN(config_stats, stats_allocated, ctl_stats.allocated, size_t)
 CTL_RO_CGEN(config_stats, stats_active, ctl_stats.active, size_t)
+CTL_RO_CGEN(config_stats, stats_metadata, ctl_stats.metadata, size_t)
 CTL_RO_CGEN(config_stats, stats_mapped, ctl_stats.mapped, size_t)
 
 CTL_RO_CGEN(config_stats, stats_chunks_current, ctl_stats.chunks.current,
@@ -1825,6 +1843,10 @@ CTL_RO_CGEN(config_stats, stats_arenas_i_nmadvise,
     ctl_stats.arenas[mib[2]].astats.nmadvise, uint64_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_purged,
     ctl_stats.arenas[mib[2]].astats.purged, uint64_t)
+CTL_RO_CGEN(config_stats, stats_arenas_i_metadata_mapped,
+    ctl_stats.arenas[mib[2]].astats.metadata_mapped, size_t)
+CTL_RO_CGEN(config_stats, stats_arenas_i_metadata_allocated,
+    ctl_stats.arenas[mib[2]].astats.metadata_allocated, size_t)
 
 CTL_RO_CGEN(config_stats, stats_arenas_i_small_allocated,
     ctl_stats.arenas[mib[2]].allocated_small, size_t)

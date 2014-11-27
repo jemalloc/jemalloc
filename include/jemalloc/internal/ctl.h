@@ -52,6 +52,7 @@ struct ctl_arena_stats_s {
 struct ctl_stats_s {
 	size_t			allocated;
 	size_t			active;
+	size_t			metadata;
 	size_t			mapped;
 	struct {
 		size_t		current;	/* stats_chunks.curchunks */

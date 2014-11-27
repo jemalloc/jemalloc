@@ -437,6 +437,9 @@ void	arena_mapbits_small_set(arena_chunk_t *chunk, size_t pageind,
     size_t runind, index_t binind, size_t flags);
 void	arena_mapbits_unzeroed_set(arena_chunk_t *chunk, size_t pageind,
     size_t unzeroed);
+void	arena_metadata_allocated_add(arena_t *arena, size_t size);
+void	arena_metadata_allocated_sub(arena_t *arena, size_t size);
+size_t	arena_metadata_allocated_get(arena_t *arena);
 bool	arena_prof_accum_impl(arena_t *arena, uint64_t accumbytes);
 bool	arena_prof_accum_locked(arena_t *arena, uint64_t accumbytes);
 bool	arena_prof_accum(arena_t *arena, uint64_t accumbytes);
@@ -448,6 +451,7 @@ prof_tctx_t	*arena_prof_tctx_get(const void *ptr);
 void	arena_prof_tctx_set(const void *ptr, prof_tctx_t *tctx);
 void	*arena_malloc(tsd_t *tsd, arena_t *arena, size_t size, bool zero,
     bool try_tcache);
+arena_t	*arena_aalloc(const void *ptr);
 size_t	arena_salloc(const void *ptr, bool demote);
 void	arena_dalloc(tsd_t *tsd, arena_chunk_t *chunk, void *ptr,
     bool try_tcache);
@@ -697,6 +701,27 @@ arena_mapbits_unzeroed_set(arena_chunk_t *chunk, size_t pageind,
 
 	arena_mapbitsp_write(mapbitsp, (mapbits & ~CHUNK_MAP_UNZEROED) |
 	    unzeroed);
+}
+
+JEMALLOC_INLINE void
+arena_metadata_allocated_add(arena_t *arena, size_t size)
+{
+
+	atomic_add_z(&arena->stats.metadata_allocated, size);
+}
+
+JEMALLOC_INLINE void
+arena_metadata_allocated_sub(arena_t *arena, size_t size)
+{
+
+	atomic_sub_z(&arena->stats.metadata_allocated, size);
+}
+
+JEMALLOC_INLINE size_t
+arena_metadata_allocated_get(arena_t *arena)
+{
+
+	return (atomic_read_z(&arena->stats.metadata_allocated));
 }
 
 JEMALLOC_INLINE bool
@@ -950,6 +975,15 @@ arena_malloc(tsd_t *tsd, arena_t *arena, size_t size, bool zero,
 			return (arena_malloc_large(arena, size, zero));
 		}
 	}
+}
+
+JEMALLOC_ALWAYS_INLINE arena_t *
+arena_aalloc(const void *ptr)
+{
+	arena_chunk_t *chunk;
+
+	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
+	return (chunk->arena);
 }
 
 /* Return the size of the allocation pointed to by ptr. */
