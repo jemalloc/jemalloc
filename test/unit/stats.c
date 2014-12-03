@@ -327,6 +327,7 @@ TEST_BEGIN(test_stats_arenas_bins)
 	assert_d_eq(mallctl("stats.arenas.0.bins.0.curregs", &curregs, &sz,
 	    NULL, 0), expected, "Unexpected mallctl() result");
 
+	sz = sizeof(uint64_t);
 	assert_d_eq(mallctl("stats.arenas.0.bins.0.nfills", &nfills, &sz,
 	    NULL, 0), config_tcache ? expected : ENOENT,
 	    "Unexpected mallctl() result");
