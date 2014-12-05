@@ -735,6 +735,12 @@ ctl_refresh(void)
 				}
 			}
 		}
+
+		if (opt_quarantine) {
+			malloc_mutex_lock(&quarantine_allocated_mtx);
+			ctl_stats.bookkeeping += quarantine_allocated;
+			malloc_mutex_unlock(&quarantine_allocated_mtx);
+		}
 	}
 
 	ctl_epoch++;

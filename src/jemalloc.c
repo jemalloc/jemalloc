@@ -1111,6 +1111,11 @@ malloc_init_hard(void)
 
 	arena_boot();
 
+	if (opt_quarantine && quarantine_boot()) {
+		malloc_mutex_unlock(&init_lock);
+		return (true);
+	}
+
 	if (config_tcache && tcache_boot()) {
 		malloc_mutex_unlock(&init_lock);
 		return (true);

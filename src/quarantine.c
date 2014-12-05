@@ -17,7 +17,16 @@ static void	quarantine_drain_one(tsd_t *tsd, quarantine_t *quarantine);
 static void	quarantine_drain(tsd_t *tsd, quarantine_t *quarantine,
     size_t upper_bound);
 
+malloc_mutex_t quarantine_allocated_mtx;
+size_t quarantine_allocated;
+
 /******************************************************************************/
+
+bool
+quarantine_boot(void)
+{
+	return malloc_mutex_init(&quarantine_allocated_mtx);
+}
 
 static quarantine_t *
 quarantine_init(tsd_t *tsd, size_t lg_maxobjs)
@@ -34,6 +43,12 @@ quarantine_init(tsd_t *tsd, size_t lg_maxobjs)
 	quarantine->curobjs = 0;
 	quarantine->first = 0;
 	quarantine->lg_maxobjs = lg_maxobjs;
+
+	if (config_stats) {
+		malloc_mutex_lock(&quarantine_allocated_mtx);
+		quarantine_allocated += isalloc(quarantine, false);
+		malloc_mutex_unlock(&quarantine_allocated_mtx);
+	}
 
 	return (quarantine);
 }
@@ -85,6 +100,11 @@ quarantine_grow(tsd_t *tsd, quarantine_t *quarantine)
 		    * sizeof(quarantine_obj_t));
 		memcpy(&ret->objs[ncopy_a], quarantine->objs, ncopy_b *
 		    sizeof(quarantine_obj_t));
+	}
+	if (config_stats) {
+		malloc_mutex_lock(&quarantine_allocated_mtx);
+		quarantine_allocated -= isalloc(quarantine, false);
+		malloc_mutex_unlock(&quarantine_allocated_mtx);
 	}
 	idalloc(tsd, quarantine);
 
