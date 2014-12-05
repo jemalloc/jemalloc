@@ -48,12 +48,8 @@ huge_palloc(tsd_t *tsd, arena_t *arena, size_t usize, size_t alignment,
 	 */
 	is_zeroed = zero;
 	arena = arena_choose(tsd, arena);
-	if (unlikely(arena == NULL)) {
-		base_node_dalloc(node);
-		return (NULL);
-	}
-	ret = arena_chunk_alloc_huge(arena, usize, alignment, &is_zeroed);
-	if (ret == NULL) {
+	if (unlikely(arena == NULL) || (ret = arena_chunk_alloc_huge(arena,
+	    usize, alignment, &is_zeroed)) == NULL) {
 		idalloct(tsd, node, try_tcache);
 		return (NULL);
 	}
