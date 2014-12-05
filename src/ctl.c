@@ -720,6 +720,21 @@ ctl_refresh(void)
 		malloc_mutex_lock(&a0_mtx);
 		ctl_stats.bookkeeping += a0_allocated;
 		malloc_mutex_unlock(&a0_mtx);
+
+		if (config_tcache) {
+			for (i = 0; i < ctl_stats.narenas; i++) {
+				arena_t *arena = tarenas[i];
+				if (arena != NULL) {
+					tcache_t *tcache;
+
+					malloc_mutex_lock(&arena->lock);
+					ql_foreach(tcache, &arena->tcache_ql, link) {
+						ctl_stats.bookkeeping += isalloc(tcache, false);
+					}
+					malloc_mutex_unlock(&arena->lock);
+				}
+			}
+		}
 	}
 
 	ctl_epoch++;
