@@ -58,7 +58,7 @@ atomic_sub_uint64(uint64_t *p, uint64_t x)
 
 	return (__sync_sub_and_fetch(p, x));
 }
-#elif (defined(_MSC_VER))
+#  elif (defined(_MSC_VER))
 JEMALLOC_INLINE uint64_t
 atomic_add_uint64(uint64_t *p, uint64_t x)
 {
@@ -72,7 +72,7 @@ atomic_sub_uint64(uint64_t *p, uint64_t x)
 
 	return (InterlockedExchangeAdd64(p, -((int64_t)x)) - x);
 }
-#elif (defined(JEMALLOC_OSATOMIC))
+#  elif (defined(JEMALLOC_OSATOMIC))
 JEMALLOC_INLINE uint64_t
 atomic_add_uint64(uint64_t *p, uint64_t x)
 {
