@@ -127,6 +127,10 @@ static const bool config_ivsalloc =
 #endif
     ;
 
+#ifdef JEMALLOC_C11ATOMICS
+#include <stdatomic.h>
+#endif
+
 #ifdef JEMALLOC_ATOMIC9
 #include <machine/atomic.h>
 #endif

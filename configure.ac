@@ -1200,6 +1200,27 @@ elif test "x${force_tls}" = "x1" ; then
 fi
 
 dnl ============================================================================
+dnl Check for C11 atomics.
+
+JE_COMPILABLE([C11 atomics], [
+#include <stdint.h>
+#if (__STDC_VERSION__ >= 201112L) && !defined(__STDC_NO_ATOMICS__)
+#include <stdatomic.h>
+#else
+#error Atomics not available
+#endif
+], [
+    uint64_t *p = (uint64_t *)0;
+    uint64_t x = 1;
+    volatile atomic_uint_least64_t *a = (volatile atomic_uint_least64_t *)p;
+    uint64_t r = atomic_fetch_add(a, x) + x;
+    return (r == 0);
+], [je_cv_c11atomics])
+if test "x${je_cv_c11atomics}" = "xyes" ; then
+  AC_DEFINE([JEMALLOC_C11ATOMICS])
+fi
+
+dnl ============================================================================
 dnl Check for atomic(9) operations as provided on FreeBSD.
 
 JE_COMPILABLE([atomic(9)], [

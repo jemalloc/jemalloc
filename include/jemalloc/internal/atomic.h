@@ -72,6 +72,20 @@ atomic_sub_uint64(uint64_t *p, uint64_t x)
 
 	return (InterlockedExchangeAdd64(p, -((int64_t)x)) - x);
 }
+#  elif (defined(JEMALLOC_C11ATOMICS))
+JEMALLOC_INLINE uint64_t
+atomic_add_uint64(uint64_t *p, uint64_t x)
+{
+	volatile atomic_uint_least64_t *a = (volatile atomic_uint_least64_t *)p;
+	return (atomic_fetch_add(a, x) + x);
+}
+
+JEMALLOC_INLINE uint64_t
+atomic_sub_uint64(uint64_t *p, uint64_t x)
+{
+	volatile atomic_uint_least64_t *a = (volatile atomic_uint_least64_t *)p;
+	return (atomic_fetch_sub(a, x) - x);
+}
 #  elif (defined(JEMALLOC_OSATOMIC))
 JEMALLOC_INLINE uint64_t
 atomic_add_uint64(uint64_t *p, uint64_t x)
@@ -186,6 +200,20 @@ atomic_sub_uint32(uint32_t *p, uint32_t x)
 {
 
 	return (InterlockedExchangeAdd(p, -((int32_t)x)) - x);
+}
+#  elif (defined(JEMALLOC_C11ATOMICS))
+JEMALLOC_INLINE uint32_t
+atomic_add_uint32(uint32_t *p, uint32_t x)
+{
+	volatile atomic_uint_least32_t *a = (volatile atomic_uint_least32_t *)p;
+	return (atomic_fetch_add(a, x) + x);
+}
+
+JEMALLOC_INLINE uint32_t
+atomic_sub_uint32(uint32_t *p, uint32_t x)
+{
+	volatile atomic_uint_least32_t *a = (volatile atomic_uint_least32_t *)p;
+	return (atomic_fetch_sub(a, x) - x);
 }
 #elif (defined(JEMALLOC_OSATOMIC))
 JEMALLOC_INLINE uint32_t
