@@ -1450,7 +1450,7 @@ arena_tcache_fill_small(arena_t *arena, tcache_bin_t *tbin, index_t binind,
 			}
 			break;
 		}
-		if (config_fill && unlikely(opt_junk)) {
+		if (config_fill && unlikely(opt_junk_alloc)) {
 			arena_alloc_junk_small(ptr, &arena_bin_info[binind],
 			    true);
 		}
@@ -1512,24 +1512,27 @@ arena_redzones_validate(void *ptr, arena_bin_info_t *bin_info, bool reset)
 	size_t i;
 	bool error = false;
 
-	for (i = 1; i <= redzone_size; i++) {
-		uint8_t *byte = (uint8_t *)((uintptr_t)ptr - i);
-		if (*byte != 0xa5) {
-			error = true;
-			arena_redzone_corruption(ptr, size, false, i, *byte);
-			if (reset)
-				*byte = 0xa5;
+	if (opt_junk_alloc) {
+		for (i = 1; i <= redzone_size; i++) {
+			uint8_t *byte = (uint8_t *)((uintptr_t)ptr - i);
+			if (*byte != 0xa5) {
+				error = true;
+				arena_redzone_corruption(ptr, size, false, i, *byte);
+				if (reset)
+					*byte = 0xa5;
+			}
+		}
+		for (i = 0; i < redzone_size; i++) {
+			uint8_t *byte = (uint8_t *)((uintptr_t)ptr + size + i);
+			if (*byte != 0xa5) {
+				error = true;
+				arena_redzone_corruption(ptr, size, true, i, *byte);
+				if (reset)
+					*byte = 0xa5;
+			}
 		}
 	}
-	for (i = 0; i < redzone_size; i++) {
-		uint8_t *byte = (uint8_t *)((uintptr_t)ptr + size + i);
-		if (*byte != 0xa5) {
-			error = true;
-			arena_redzone_corruption(ptr, size, true, i, *byte);
-			if (reset)
-				*byte = 0xa5;
-		}
-	}
+
 	if (opt_abort && error)
 		abort();
 }
@@ -1560,7 +1563,7 @@ arena_quarantine_junk_small(void *ptr, size_t usize)
 	index_t binind;
 	arena_bin_info_t *bin_info;
 	cassert(config_fill);
-	assert(opt_junk);
+	assert(opt_junk_free);
 	assert(opt_quarantine);
 	assert(usize <= SMALL_MAXCLASS);
 
@@ -1604,7 +1607,7 @@ arena_malloc_small(arena_t *arena, size_t size, bool zero)
 
 	if (!zero) {
 		if (config_fill) {
-			if (unlikely(opt_junk)) {
+			if (unlikely(opt_junk_alloc)) {
 				arena_alloc_junk_small(ret,
 				    &arena_bin_info[binind], false);
 			} else if (unlikely(opt_zero))
@@ -1612,7 +1615,7 @@ arena_malloc_small(arena_t *arena, size_t size, bool zero)
 		}
 		JEMALLOC_VALGRIND_MAKE_MEM_UNDEFINED(ret, size);
 	} else {
-		if (config_fill && unlikely(opt_junk)) {
+		if (config_fill && unlikely(opt_junk_alloc)) {
 			arena_alloc_junk_small(ret, &arena_bin_info[binind],
 			    true);
 		}
@@ -1660,7 +1663,7 @@ arena_malloc_large(arena_t *arena, size_t size, bool zero)
 
 	if (!zero) {
 		if (config_fill) {
-			if (unlikely(opt_junk))
+			if (unlikely(opt_junk_alloc))
 				memset(ret, 0xa5, usize);
 			else if (unlikely(opt_zero))
 				memset(ret, 0, usize);
@@ -1732,7 +1735,7 @@ arena_palloc(arena_t *arena, size_t size, size_t alignment, bool zero)
 	malloc_mutex_unlock(&arena->lock);
 
 	if (config_fill && !zero) {
-		if (unlikely(opt_junk))
+		if (unlikely(opt_junk_alloc))
 			memset(ret, 0xa5, size);
 		else if (unlikely(opt_zero))
 			memset(ret, 0, size);
@@ -1845,7 +1848,7 @@ arena_dalloc_bin_locked_impl(arena_t *arena, arena_chunk_t *chunk, void *ptr,
 	bin = &arena->bins[binind];
 	bin_info = &arena_bin_info[binind];
 
-	if (!junked && config_fill && unlikely(opt_junk))
+	if (!junked && config_fill && unlikely(opt_junk_free))
 		arena_dalloc_junk_small(ptr, bin_info);
 
 	arena_run_reg_dalloc(run, ptr);
@@ -1908,7 +1911,7 @@ void
 arena_dalloc_junk_large(void *ptr, size_t usize)
 {
 
-	if (config_fill && unlikely(opt_junk))
+	if (config_fill && unlikely(opt_junk_free))
 		memset(ptr, 0x5a, usize);
 }
 #ifdef JEMALLOC_JET
@@ -2079,7 +2082,7 @@ static void
 arena_ralloc_junk_large(void *ptr, size_t old_usize, size_t usize)
 {
 
-	if (config_fill && unlikely(opt_junk)) {
+	if (config_fill && unlikely(opt_junk_free)) {
 		memset((void *)((uintptr_t)ptr + usize), 0x5a,
 		    old_usize - usize);
 	}
@@ -2126,7 +2129,7 @@ arena_ralloc_large(void *ptr, size_t oldsize, size_t size, size_t extra,
 			bool ret = arena_ralloc_large_grow(arena, chunk, ptr,
 			    oldsize, size, extra, zero);
 			if (config_fill && !ret && !zero) {
-				if (unlikely(opt_junk)) {
+				if (unlikely(opt_junk_alloc)) {
 					memset((void *)((uintptr_t)ptr +
 					    oldsize), 0xa5, isalloc(ptr,
 					    config_prof) - oldsize);

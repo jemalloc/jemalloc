@@ -118,6 +118,8 @@ TESTS_UNIT := $(srcroot)test/unit/atomic.c \
 	$(srcroot)test/unit/ckh.c \
 	$(srcroot)test/unit/hash.c \
 	$(srcroot)test/unit/junk.c \
+	$(srcroot)test/unit/junk_alloc.c \
+	$(srcroot)test/unit/junk_free.c \
 	$(srcroot)test/unit/lg_chunk.c \
 	$(srcroot)test/unit/mallctl.c \
 	$(srcroot)test/unit/math.c \
