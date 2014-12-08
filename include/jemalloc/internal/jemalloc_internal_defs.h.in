@@ -38,7 +38,7 @@
  * Defined if __sync_add_and_fetch(uint32_t *, uint32_t) and
  * __sync_sub_and_fetch(uint32_t *, uint32_t) are available, despite
  * __GCC_HAVE_SYNC_COMPARE_AND_SWAP_4 not being defined (which means the
- * functions are defined in libgcc instead of being inlines)
+ * functions are defined in libgcc instead of being inlines).
  */
 #undef JE_FORCE_SYNC_COMPARE_AND_SWAP_4
 
@@ -46,7 +46,7 @@
  * Defined if __sync_add_and_fetch(uint64_t *, uint64_t) and
  * __sync_sub_and_fetch(uint64_t *, uint64_t) are available, despite
  * __GCC_HAVE_SYNC_COMPARE_AND_SWAP_8 not being defined (which means the
- * functions are defined in libgcc instead of being inlines)
+ * functions are defined in libgcc instead of being inlines).
  */
 #undef JE_FORCE_SYNC_COMPARE_AND_SWAP_8
 
@@ -201,9 +201,7 @@
 #undef JEMALLOC_PURGE_MADVISE_DONTNEED
 #undef JEMALLOC_PURGE_MADVISE_FREE
 
-/*
- * Define if operating system has alloca.h header.
- */
+/* Define if operating system has alloca.h header. */
 #undef JEMALLOC_HAS_ALLOCA_H
 
 /* C99 restrict keyword supported. */
@@ -221,13 +219,13 @@
 /* sizeof(intmax_t) == 2^LG_SIZEOF_INTMAX_T. */
 #undef LG_SIZEOF_INTMAX_T
 
-/* glibc malloc hooks (__malloc_hook, __realloc_hook, __free_hook) */
+/* glibc malloc hooks (__malloc_hook, __realloc_hook, __free_hook). */
 #undef JEMALLOC_GLIBC_MALLOC_HOOK
 
-/* glibc memalign hook */
+/* glibc memalign hook. */
 #undef JEMALLOC_GLIBC_MEMALIGN_HOOK
 
-/* adaptive mutex support in pthreads */
+/* Adaptive mutex support in pthreads. */
 #undef JEMALLOC_HAVE_PTHREAD_MUTEX_ADAPTIVE_NP
 
 #endif /* JEMALLOC_INTERNAL_DEFS_H_ */

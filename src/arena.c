@@ -36,7 +36,7 @@ arena_miscelm_to_bits(arena_chunk_map_misc_t *miscelm)
 	arena_chunk_t *chunk = CHUNK_ADDR2BASE(miscelm);
 	size_t pageind = arena_miscelm_to_pageind(miscelm);
 
-	return arena_mapbits_get(chunk, pageind);
+	return (arena_mapbits_get(chunk, pageind));
 }
 
 JEMALLOC_INLINE_C int

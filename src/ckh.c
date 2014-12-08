@@ -367,10 +367,10 @@ ckh_new(tsd_t *tsd, ckh_t *ckh, size_t minitems, ckh_hash_t *hash,
 	ckh->count = 0;
 
 	/*
-	 * Find the minimum power of 2 that is large enough to fit aBaseCount
+	 * Find the minimum power of 2 that is large enough to fit minitems
 	 * entries.  We are using (2+,2) cuckoo hashing, which has an expected
 	 * maximum load factor of at least ~0.86, so 0.75 is a conservative load
-	 * factor that will typically allow 2^aLgMinItems to fit without ever
+	 * factor that will typically allow mincells items to fit without ever
 	 * growing the table.
 	 */
 	assert(LG_CKH_BUCKET_CELLS > 0);

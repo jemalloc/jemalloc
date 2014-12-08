@@ -302,7 +302,7 @@ typedef unsigned index_t;
 #define	ALIGNMENT_CEILING(s, alignment)					\
 	(((s) + (alignment - 1)) & (-(alignment)))
 
-/* Declare a variable length array */
+/* Declare a variable-length array. */
 #if __STDC_VERSION__ < 199901L
 #  ifdef _MSC_VER
 #    include <malloc.h>

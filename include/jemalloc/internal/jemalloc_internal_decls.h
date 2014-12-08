@@ -50,7 +50,7 @@ typedef intptr_t ssize_t;
 #  define PATH_MAX 1024
 #  define STDERR_FILENO 2
 #  define __func__ __FUNCTION__
-/* Disable warnings about deprecated system functions */
+/* Disable warnings about deprecated system functions. */
 #  pragma warning(disable: 4996)
 #else
 #  include <unistd.h>

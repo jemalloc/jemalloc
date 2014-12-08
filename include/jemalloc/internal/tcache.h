@@ -69,7 +69,7 @@ struct tcache_bin_s {
 
 struct tcache_s {
 	ql_elm(tcache_t) link;		/* Used for aggregating stats. */
-	uint64_t	prof_accumbytes;/* Cleared after arena_prof_accum() */
+	uint64_t	prof_accumbytes;/* Cleared after arena_prof_accum(). */
 	arena_t		*arena;		/* This thread's arena. */
 	unsigned	ev_cnt;		/* Event count since incremental GC. */
 	index_t		next_gc_bin;	/* Next bin to GC. */

@@ -200,7 +200,7 @@ a_prefix##reverse_iter(a_rbt_type *rbtree, a_type *start,		\
  *                 int (a_cmp *)(a_type *a_node, a_type *a_other);
  *                                       ^^^^^^
  *                                    or a_key
- *               Interpretation of comparision function return values:
+ *               Interpretation of comparison function return values:
  *                 -1 : a_node <  a_other
  *                  0 : a_node == a_other
  *                  1 : a_node >  a_other
@@ -693,7 +693,7 @@ a_prefix##remove(a_rbt_type *rbtree, a_type *node) {			\
 		    rbtn_rotate_left(a_type, a_field, pathp->node,	\
 		      tnode);						\
 		    /* Balance restored, but rotation modified        */\
-		    /* subree root, which may actually be the tree    */\
+		    /* subtree root, which may actually be the tree   */\
 		    /* root.                                          */\
 		    if (pathp == path) {				\
 			/* Set root. */					\

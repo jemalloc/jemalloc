@@ -127,7 +127,7 @@ int	get_errno(void);
 
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_UTIL_C_))
 
-/* Sanity check: */
+/* Sanity check. */
 #if !defined(JEMALLOC_INTERNAL_FFSL) || !defined(JEMALLOC_INTERNAL_FFS)
 #  error Both JEMALLOC_INTERNAL_FFSL && JEMALLOC_INTERNAL_FFS should have been defined by configure
 #endif
@@ -231,7 +231,7 @@ lg_floor(size_t x)
 }
 #endif
 
-/* Sets error code */
+/* Set error code. */
 JEMALLOC_INLINE void
 set_errno(int errnum)
 {
@@ -243,7 +243,7 @@ set_errno(int errnum)
 #endif
 }
 
-/* Get last error code */
+/* Get last error code. */
 JEMALLOC_INLINE int
 get_errno(void)
 {

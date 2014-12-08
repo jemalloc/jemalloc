@@ -2,7 +2,7 @@
 #include "jemalloc/internal/jemalloc_internal.h"
 
 /*
- * quarantine pointers close to NULL are used to encode state information that
+ * Quarantine pointers close to NULL are used to encode state information that
  * is used for cleaning up during thread shutdown.
  */
 #define	QUARANTINE_STATE_REINCARNATED	((quarantine_t *)(uintptr_t)1)
@@ -49,7 +49,7 @@ quarantine_alloc_hook_work(tsd_t *tsd)
 	quarantine = quarantine_init(tsd, LG_MAXOBJS_INIT);
 	/*
 	 * Check again whether quarantine has been initialized, because
-	 * qurantine_init() may have triggered recursive initialization.
+	 * quarantine_init() may have triggered recursive initialization.
 	 */
 	if (tsd_quarantine_get(tsd) == NULL)
 		tsd_quarantine_set(tsd, quarantine);

@@ -1,6 +1,4 @@
-/*
- * Simple timer, for use in benchmark reporting.
- */
+/* Simple timer, for use in benchmark reporting. */
 
 #include <sys/time.h>
 

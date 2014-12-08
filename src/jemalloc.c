@@ -808,7 +808,7 @@ malloc_conf_init(void)
 			if (linklen == -1) {
 				/* No configuration specified. */
 				linklen = 0;
-				/* restore errno */
+				/* Restore errno. */
 				set_errno(saved_errno);
 			}
 #endif

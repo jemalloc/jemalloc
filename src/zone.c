@@ -263,7 +263,7 @@ register_zone(void)
 		 * after the default zone.  On OSX < 10.6, there is no purgeable
 		 * zone, so this does nothing.  On OSX >= 10.6, unregistering
 		 * replaces the purgeable zone with the last registered zone
-		 * above, i.e the default zone.  Registering it again then puts
+		 * above, i.e. the default zone.  Registering it again then puts
 		 * it at the end, obviously after the default zone.
 		 */
 		if (purgeable_zone) {

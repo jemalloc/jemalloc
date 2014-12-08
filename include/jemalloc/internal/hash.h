@@ -35,13 +35,14 @@ JEMALLOC_INLINE uint32_t
 hash_rotl_32(uint32_t x, int8_t r)
 {
 
-	return (x << r) | (x >> (32 - r));
+	return ((x << r) | (x >> (32 - r)));
 }
 
 JEMALLOC_INLINE uint64_t
 hash_rotl_64(uint64_t x, int8_t r)
 {
-	return (x << r) | (x >> (64 - r));
+
+	return ((x << r) | (x >> (64 - r)));
 }
 
 JEMALLOC_INLINE uint32_t
