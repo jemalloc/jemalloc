@@ -13,13 +13,28 @@ bool	opt_abort =
     false
 #endif
     ;
-bool	opt_junk =
+const char	*opt_junk =
+#if (defined(JEMALLOC_DEBUG) && defined(JEMALLOC_FILL))
+    "true"
+#else
+    "false"
+#endif
+    ;
+bool	opt_junk_alloc =
 #if (defined(JEMALLOC_DEBUG) && defined(JEMALLOC_FILL))
     true
 #else
     false
 #endif
     ;
+bool	opt_junk_free =
+#if (defined(JEMALLOC_DEBUG) && defined(JEMALLOC_FILL))
+    true
+#else
+    false
+#endif
+    ;
+
 size_t	opt_quarantine = ZU(0);
 bool	opt_redzone = false;
 bool	opt_utrace = false;
@@ -784,7 +799,9 @@ malloc_conf_init(void)
 	if (config_valgrind) {
 		in_valgrind = (RUNNING_ON_VALGRIND != 0) ? true : false;
 		if (config_fill && unlikely(in_valgrind)) {
-			opt_junk = false;
+			opt_junk = "false";
+			opt_junk_alloc = false;
+			opt_junk_free = false;
 			assert(!opt_zero);
 			opt_quarantine = JEMALLOC_VALGRIND_QUARANTINE_DEFAULT;
 			opt_redzone = true;
@@ -867,13 +884,13 @@ malloc_conf_init(void)
 		    &vlen)) {
 #define	CONF_MATCH(n)							\
 	(sizeof(n)-1 == klen && strncmp(n, k, klen) == 0)
+#define	CONF_MATCH_VALUE(n)						\
+	(sizeof(n)-1 == vlen && strncmp(n, v, vlen) == 0)
 #define	CONF_HANDLE_BOOL(o, n, cont)					\
 			if (CONF_MATCH(n)) {				\
-				if (strncmp("true", v, vlen) == 0 &&	\
-				    vlen == sizeof("true")-1)		\
+				if (CONF_MATCH_VALUE("true"))		\
 					o = true;			\
-				else if (strncmp("false", v, vlen) ==	\
-				    0 && vlen == sizeof("false")-1)	\
+				else if (CONF_MATCH_VALUE("false"))	\
 					o = false;			\
 				else {					\
 					malloc_conf_error(		\
@@ -987,7 +1004,30 @@ malloc_conf_init(void)
 			    -1, (sizeof(size_t) << 3) - 1)
 			CONF_HANDLE_BOOL(opt_stats_print, "stats_print", true)
 			if (config_fill) {
-				CONF_HANDLE_BOOL(opt_junk, "junk", true)
+				if (CONF_MATCH("junk")) {
+					if (CONF_MATCH_VALUE("true")) {
+						opt_junk = "true";
+						opt_junk_alloc = opt_junk_free =
+						    true;
+					} else if (CONF_MATCH_VALUE("false")) {
+						opt_junk = "false";
+						opt_junk_alloc = opt_junk_free =
+						    false;
+					} else if (CONF_MATCH_VALUE("alloc")) {
+						opt_junk = "alloc";
+						opt_junk_alloc = true;
+						opt_junk_free = false;
+					} else if (CONF_MATCH_VALUE("free")) {
+						opt_junk = "free";
+						opt_junk_alloc = false;
+						opt_junk_free = true;
+					} else {
+						malloc_conf_error(
+						    "Invalid conf value", k,
+						    klen, v, vlen);
+					}
+					continue;
+				}
 				CONF_HANDLE_SIZE_T(opt_quarantine, "quarantine",
 				    0, SIZE_T_MAX, false)
 				CONF_HANDLE_BOOL(opt_redzone, "redzone", true)

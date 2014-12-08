@@ -376,7 +376,9 @@ typedef unsigned index_t;
 #define	JEMALLOC_H_EXTERNS
 
 extern bool	opt_abort;
-extern bool	opt_junk;
+extern const char	*opt_junk;
+extern bool	opt_junk_alloc;
+extern bool	opt_junk_free;
 extern size_t	opt_quarantine;
 extern bool	opt_redzone;
 extern bool	opt_utrace;

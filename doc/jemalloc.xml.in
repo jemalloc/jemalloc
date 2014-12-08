@@ -930,18 +930,20 @@ for (i = 0; i < nbins; i++) {
       <varlistentry id="opt.junk">
         <term>
           <mallctl>opt.junk</mallctl>
-          (<type>bool</type>)
+          (<type>const char *</type>)
           <literal>r-</literal>
           [<option>--enable-fill</option>]
         </term>
-        <listitem><para>Junk filling enabled/disabled.  If enabled, each byte
-        of uninitialized allocated memory will be initialized to
-        <literal>0xa5</literal>.  All deallocated memory will be initialized to
-        <literal>0x5a</literal>.  This is intended for debugging and will
-        impact performance negatively.  This option is disabled by default
-        unless <option>--enable-debug</option> is specified during
-        configuration, in which case it is enabled by default unless running
-        inside <ulink
+        <listitem><para>Junk filling.  If set to "alloc", each byte of
+        uninitialized allocated memory will be initialized to
+        <literal>0xa5</literal>.  If set to "free", all deallocated memory will
+        be initialized to <literal>0x5a</literal>.  If set to "true", both
+        allocated and deallocated memory will be initialized, and if set to
+        "false", junk filling be disabled entirely.  This is intended for
+        debugging and will impact performance negatively.  This option is
+        "false" by default unless <option>--enable-debug</option> is specified
+        during configuration, in which case it is "true" by default unless
+        running inside <ulink
         url="http://valgrind.org/">Valgrind</ulink>.</para></listitem>
       </varlistentry>
 

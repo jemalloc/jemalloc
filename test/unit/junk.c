@@ -1,8 +1,11 @@
 #include "test/jemalloc_test.h"
 
 #ifdef JEMALLOC_FILL
+#  ifndef JEMALLOC_TEST_JUNK_OPT
+#    define JEMALLOC_TEST_JUNK_OPT "junk:true"
+#  endif
 const char *malloc_conf =
-    "abort:false,junk:true,zero:false,redzone:true,quarantine:0";
+    "abort:false,zero:false,redzone:true,quarantine:0," JEMALLOC_TEST_JUNK_OPT;
 #endif
 
 static arena_dalloc_junk_small_t *arena_dalloc_junk_small_orig;
@@ -69,12 +72,14 @@ test_junk(size_t sz_min, size_t sz_max)
 	char *s;
 	size_t sz_prev, sz, i;
 
-	arena_dalloc_junk_small_orig = arena_dalloc_junk_small;
-	arena_dalloc_junk_small = arena_dalloc_junk_small_intercept;
-	arena_dalloc_junk_large_orig = arena_dalloc_junk_large;
-	arena_dalloc_junk_large = arena_dalloc_junk_large_intercept;
-	huge_dalloc_junk_orig = huge_dalloc_junk;
-	huge_dalloc_junk = huge_dalloc_junk_intercept;
+	if (opt_junk_free) {
+		arena_dalloc_junk_small_orig = arena_dalloc_junk_small;
+		arena_dalloc_junk_small = arena_dalloc_junk_small_intercept;
+		arena_dalloc_junk_large_orig = arena_dalloc_junk_large;
+		arena_dalloc_junk_large = arena_dalloc_junk_large_intercept;
+		huge_dalloc_junk_orig = huge_dalloc_junk;
+		huge_dalloc_junk = huge_dalloc_junk_intercept;
+	}
 
 	sz_prev = 0;
 	s = (char *)mallocx(sz_min, 0);
@@ -92,9 +97,11 @@ test_junk(size_t sz_min, size_t sz_max)
 		}
 
 		for (i = sz_prev; i < sz; i++) {
-			assert_c_eq(s[i], 0xa5,
-			    "Newly allocated byte %zu/%zu isn't junk-filled",
-			    i, sz);
+			if (opt_junk_alloc) {
+				assert_c_eq(s[i], 0xa5,
+				    "Newly allocated byte %zu/%zu isn't "
+				    "junk-filled", i, sz);
+			}
 			s[i] = 'a';
 		}
 
@@ -103,7 +110,7 @@ test_junk(size_t sz_min, size_t sz_max)
 			s = (char *)rallocx(s, sz+1, 0);
 			assert_ptr_not_null((void *)s,
 			    "Unexpected rallocx() failure");
-			assert_true(saw_junking,
+			assert_true(!opt_junk_free || saw_junking,
 			    "Expected region of size %zu to be junk-filled",
 			    sz);
 		}
@@ -111,12 +118,14 @@ test_junk(size_t sz_min, size_t sz_max)
 
 	watch_junking(s);
 	dallocx(s, 0);
-	assert_true(saw_junking,
+	assert_true(!opt_junk_free || saw_junking,
 	    "Expected region of size %zu to be junk-filled", sz);
 
-	arena_dalloc_junk_small = arena_dalloc_junk_small_orig;
-	arena_dalloc_junk_large = arena_dalloc_junk_large_orig;
-	huge_dalloc_junk = huge_dalloc_junk_orig;
+	if (opt_junk_free) {
+		arena_dalloc_junk_small = arena_dalloc_junk_small_orig;
+		arena_dalloc_junk_large = arena_dalloc_junk_large_orig;
+		huge_dalloc_junk = huge_dalloc_junk_orig;
+	}
 }
 
 TEST_BEGIN(test_junk_small)
@@ -204,6 +213,7 @@ TEST_BEGIN(test_junk_redzone)
 	arena_redzone_corruption_t *arena_redzone_corruption_orig;
 
 	test_skip_if(!config_fill);
+	test_skip_if(!opt_junk_alloc || !opt_junk_free);
 
 	arena_redzone_corruption_orig = arena_redzone_corruption;
 	arena_redzone_corruption = arena_redzone_corruption_replacement;
@@ -234,6 +244,7 @@ int
 main(void)
 {
 
+	assert(opt_junk_alloc || opt_junk_free);
 	return (test(
 	    test_junk_small,
 	    test_junk_large,
