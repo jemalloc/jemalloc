@@ -648,6 +648,27 @@ stats_print_atexit(void)
  * Begin initialization functions.
  */
 
+#ifndef JEMALLOC_HAVE_SECURE_GETENV
+#  ifdef JEMALLOC_HAVE_ISSETUGID
+static char *
+secure_getenv(const char *name)
+{
+
+	if (issetugid() == 0)
+		return (getenv(name));
+	else
+		return (NULL);
+}
+#  else
+static char *
+secure_getenv(const char *name)
+{
+
+	return (getenv(name));
+}
+#  endif
+#endif
+
 static unsigned
 malloc_ncpus(void)
 {
@@ -824,7 +845,7 @@ malloc_conf_init(void)
 #endif
 			    ;
 
-			if ((opts = getenv(envname)) != NULL) {
+			if ((opts = secure_getenv(envname)) != NULL) {
 				/*
 				 * Do nothing; opts is already initialized to
 				 * the value of the MALLOC_CONF environment
