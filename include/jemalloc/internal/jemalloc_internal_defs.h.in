@@ -67,6 +67,16 @@
 #undef JEMALLOC_OSSPIN
 
 /*
+ * Defined if secure_getenv(3) is available.
+ */
+#undef JEMALLOC_HAVE_SECURE_GETENV
+
+/*
+ * Defined if issetugid(2) is available.
+ */
+#undef JEMALLOC_HAVE_ISSETUGID
+
+/*
  * Defined if _malloc_thread_cleanup() exists.  At least in the case of
  * FreeBSD, pthread_key_create() allocates, which if used during malloc
  * bootstrapping will cause recursion into the pthreads library.  Therefore, if
