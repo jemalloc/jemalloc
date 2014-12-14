@@ -197,6 +197,23 @@ typedef struct {
 #  define UTRACE(a, b, c)
 #endif
 
+#ifndef JEMALLOC_HAVE_SECURE_GETENV
+#  ifndef JEMALLOC_HAVE_ISSETUGID
+static char *secure_getenv(const char *name) {
+
+	return getenv(name);
+}
+#  else
+static char *secure_getenv(const char *name) {
+
+	if (issetugid() == 0)
+		return getenv(name);
+	else
+		return NULL;
+}
+#  endif
+#endif
+
 /******************************************************************************/
 /*
  * Function prototypes for static functions that are referenced prior to
