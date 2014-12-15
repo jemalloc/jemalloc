@@ -148,7 +148,7 @@ quarantine(tsd_t *tsd, void *ptr)
 		obj->usize = usize;
 		quarantine->curbytes += usize;
 		quarantine->curobjs++;
-		if (config_fill && unlikely(opt_junk)) {
+		if (config_fill && unlikely(opt_junk_free)) {
 			/*
 			 * Only do redzone validation if Valgrind isn't in
 			 * operation.

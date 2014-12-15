@@ -274,6 +274,8 @@ nhbins
 opt_abort
 opt_dss
 opt_junk
+opt_junk_alloc
+opt_junk_free
 opt_lg_chunk
 opt_lg_dirty_mult
 opt_lg_prof_interval

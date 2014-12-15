@@ -164,7 +164,7 @@ TEST_BEGIN(test_mallctl_opt)
 	TEST_MALLCTL_OPT(size_t, narenas, always);
 	TEST_MALLCTL_OPT(ssize_t, lg_dirty_mult, always);
 	TEST_MALLCTL_OPT(bool, stats_print, always);
-	TEST_MALLCTL_OPT(bool, junk, fill);
+	TEST_MALLCTL_OPT(const char *, junk, fill);
 	TEST_MALLCTL_OPT(size_t, quarantine, fill);
 	TEST_MALLCTL_OPT(bool, redzone, fill);
 	TEST_MALLCTL_OPT(bool, zero, fill);

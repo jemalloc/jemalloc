@@ -67,7 +67,7 @@ huge_palloc(tsd_t *tsd, arena_t *arena, size_t usize, size_t alignment,
 	if (zero || (config_fill && unlikely(opt_zero))) {
 		if (!is_zeroed)
 			memset(ret, 0, usize);
-	} else if (config_fill && unlikely(opt_junk))
+	} else if (config_fill && unlikely(opt_junk_alloc))
 		memset(ret, 0xa5, usize);
 
 	return (ret);
@@ -81,7 +81,7 @@ static void
 huge_dalloc_junk(void *ptr, size_t usize)
 {
 
-	if (config_fill && have_dss && unlikely(opt_junk)) {
+	if (config_fill && have_dss && unlikely(opt_junk_free)) {
 		/*
 		 * Only bother junk filling if the chunk isn't about to be
 		 * unmapped.
@@ -117,7 +117,7 @@ huge_ralloc_no_move_similar(void *ptr, size_t oldsize, size_t usize,
 		size_t sdiff = CHUNK_CEILING(usize) - usize;
 		zeroed = (sdiff != 0) ? !pages_purge((void *)((uintptr_t)ptr +
 		    usize), sdiff) : true;
-		if (config_fill && unlikely(opt_junk)) {
+		if (config_fill && unlikely(opt_junk_free)) {
 			memset((void *)((uintptr_t)ptr + usize), 0x5a, oldsize -
 			    usize);
 			zeroed = false;
@@ -147,7 +147,7 @@ huge_ralloc_no_move_similar(void *ptr, size_t oldsize, size_t usize,
 				memset((void *)((uintptr_t)ptr + oldsize), 0,
 				    usize - oldsize);
 			}
-		} else if (config_fill && unlikely(opt_junk)) {
+		} else if (config_fill && unlikely(opt_junk_alloc)) {
 			memset((void *)((uintptr_t)ptr + oldsize), 0xa5, usize -
 			    oldsize);
 		}
@@ -165,7 +165,7 @@ huge_ralloc_no_move_shrink(void *ptr, size_t oldsize, size_t usize)
 	sdiff = CHUNK_CEILING(usize) - usize;
 	zeroed = (sdiff != 0) ? !pages_purge((void *)((uintptr_t)ptr + usize),
 	    sdiff) : true;
-	if (config_fill && unlikely(opt_junk)) {
+	if (config_fill && unlikely(opt_junk_free)) {
 		huge_dalloc_junk((void *)((uintptr_t)ptr + usize), oldsize -
 		    usize);
 		zeroed = false;
@@ -234,7 +234,7 @@ huge_ralloc_no_move_expand(void *ptr, size_t oldsize, size_t size, bool zero) {
 			    CHUNK_CEILING(oldsize)), 0, usize -
 			    CHUNK_CEILING(oldsize));
 		}
-	} else if (config_fill && unlikely(opt_junk)) {
+	} else if (config_fill && unlikely(opt_junk_alloc)) {
 		memset((void *)((uintptr_t)ptr + oldsize), 0xa5, usize -
 		    oldsize);
 	}

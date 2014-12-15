@@ -252,14 +252,14 @@ tcache_alloc_small(tcache_t *tcache, size_t size, bool zero)
 
 	if (likely(!zero)) {
 		if (config_fill) {
-			if (unlikely(opt_junk)) {
+			if (unlikely(opt_junk_alloc)) {
 				arena_alloc_junk_small(ret,
 				    &arena_bin_info[binind], false);
 			} else if (unlikely(opt_zero))
 				memset(ret, 0, usize);
 		}
 	} else {
-		if (config_fill && unlikely(opt_junk)) {
+		if (config_fill && unlikely(opt_junk_alloc)) {
 			arena_alloc_junk_small(ret, &arena_bin_info[binind],
 			    true);
 		}
@@ -307,7 +307,7 @@ tcache_alloc_large(tcache_t *tcache, size_t size, bool zero)
 		}
 		if (likely(!zero)) {
 			if (config_fill) {
-				if (unlikely(opt_junk))
+				if (unlikely(opt_junk_alloc))
 					memset(ret, 0xa5, usize);
 				else if (unlikely(opt_zero))
 					memset(ret, 0, usize);
@@ -333,7 +333,7 @@ tcache_dalloc_small(tcache_t *tcache, void *ptr, index_t binind)
 
 	assert(tcache_salloc(ptr) <= SMALL_MAXCLASS);
 
-	if (config_fill && unlikely(opt_junk))
+	if (config_fill && unlikely(opt_junk_free))
 		arena_dalloc_junk_small(ptr, &arena_bin_info[binind]);
 
 	tbin = &tcache->tbins[binind];
@@ -362,7 +362,7 @@ tcache_dalloc_large(tcache_t *tcache, void *ptr, size_t size)
 
 	binind = size2index(size);
 
-	if (config_fill && unlikely(opt_junk))
+	if (config_fill && unlikely(opt_junk_free))
 		arena_dalloc_junk_large(ptr, size);
 
 	tbin = &tcache->tbins[binind];
