@@ -3,7 +3,7 @@
 chunk_alloc_t *old_alloc;
 chunk_dalloc_t *old_dalloc;
 
-bool
+int
 chunk_dalloc(void *chunk, size_t size, unsigned arena_ind)
 {
 
@@ -11,7 +11,7 @@ chunk_dalloc(void *chunk, size_t size, unsigned arena_ind)
 }
 
 void *
-chunk_alloc(void *new_addr, size_t size, size_t alignment, bool *zero,
+chunk_alloc(void *new_addr, size_t size, size_t alignment, int *zero,
     unsigned arena_ind)
 {
 
