@@ -2022,6 +2022,7 @@ arena_ralloc_large_grow(arena_t *arena, arena_chunk_t *chunk, void *ptr,
 		 * following run, then merge the first part with the existing
 		 * allocation.
 		 */
+		arena_run_t *run;
 		size_t flag_dirty, splitsize, usize;
 
 		usize = s2u(size + extra);
@@ -2030,8 +2031,7 @@ arena_ralloc_large_grow(arena_t *arena, arena_chunk_t *chunk, void *ptr,
 		assert(usize >= usize_min);
 		splitsize = usize - oldsize;
 
-		arena_run_t *run = &arena_miscelm_get(chunk,
-		    pageind+npages)->run;
+		run = &arena_miscelm_get(chunk, pageind+npages)->run;
 		arena_run_split_large(arena, run, splitsize, zero);
 
 		size = oldsize + splitsize;
