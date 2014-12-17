@@ -238,7 +238,7 @@ chunk_alloc_arena(chunk_alloc_t *chunk_alloc, chunk_dalloc_t *chunk_dalloc,
 {
 	void *ret;
 
-	ret = chunk_alloc(new_addr, size, alignment, zero, arena_ind);
+	ret = chunk_alloc(new_addr, size, alignment, (int *) zero, arena_ind);
 	if (ret != NULL && chunk_register(ret, size, false)) {
 		chunk_dalloc(ret, size, arena_ind);
 		ret = NULL;
@@ -249,7 +249,7 @@ chunk_alloc_arena(chunk_alloc_t *chunk_alloc, chunk_dalloc_t *chunk_dalloc,
 
 /* Default arena chunk allocation routine in the absence of user override. */
 void *
-chunk_alloc_default(void *new_addr, size_t size, size_t alignment, bool *zero,
+chunk_alloc_default(void *new_addr, size_t size, size_t alignment, int *zero,
     unsigned arena_ind)
 {
 	arena_t *arena;
@@ -261,7 +261,7 @@ chunk_alloc_default(void *new_addr, size_t size, size_t alignment, bool *zero,
 	 */
 	assert(arena != NULL);
 
-	return (chunk_alloc_core(new_addr, size, alignment, false, zero,
+	return (chunk_alloc_core(new_addr, size, alignment, false, (bool *) zero,
 	    arena->dss_prec));
 }
 
@@ -389,12 +389,12 @@ chunk_dalloc_core(void *chunk, size_t size)
 }
 
 /* Default arena chunk deallocation routine in the absence of user override. */
-bool
+int
 chunk_dalloc_default(void *chunk, size_t size, unsigned arena_ind)
 {
 
 	chunk_dalloc_core(chunk, size);
-	return (false);
+	return 0;
 }
 
 bool
