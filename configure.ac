@@ -134,6 +134,7 @@ if test "x$CFLAGS" = "x" ; then
       AC_DEFINE_UNQUOTED([JEMALLOC_HAS_RESTRICT])
     fi
     JE_CFLAGS_APPEND([-Wall])
+    JE_CFLAGS_APPEND([-Werror=declaration-after-statement])
     JE_CFLAGS_APPEND([-pipe])
     JE_CFLAGS_APPEND([-g3])
   elif test "x$je_cv_msvc" = "xyes" ; then
