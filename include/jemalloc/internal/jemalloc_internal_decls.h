@@ -52,6 +52,13 @@ typedef intptr_t ssize_t;
 #  define __func__ __FUNCTION__
 /* Disable warnings about deprecated system functions. */
 #  pragma warning(disable: 4996)
+#if _MSC_VER < 1800
+static int
+isblank(int c)
+{
+	return (c == '\t' || c == ' ');
+}
+#endif
 #else
 #  include <unistd.h>
 #endif
