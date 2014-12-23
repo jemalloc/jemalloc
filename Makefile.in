@@ -104,8 +104,8 @@ endif
 PC := $(objroot)jemalloc.pc
 MAN3 := $(objroot)doc/jemalloc$(install_suffix).3
 DOCS_XML := $(objroot)doc/jemalloc$(install_suffix).xml
-DOCS_HTML := $(DOCS_XML:$(objroot)%.xml=$(srcroot)%.html)
-DOCS_MAN3 := $(DOCS_XML:$(objroot)%.xml=$(srcroot)%.3)
+DOCS_HTML := $(DOCS_XML:$(objroot)%.xml=$(objroot)%.html)
+DOCS_MAN3 := $(DOCS_XML:$(objroot)%.xml=$(objroot)%.3)
 DOCS := $(DOCS_HTML) $(DOCS_MAN3)
 C_TESTLIB_SRCS := $(srcroot)test/src/btalloc.c $(srcroot)test/src/btalloc_0.c \
 	$(srcroot)test/src/btalloc_1.c $(srcroot)test/src/math.c \
@@ -181,10 +181,10 @@ all: build_lib
 
 dist: build_doc
 
-$(srcroot)doc/%.html : $(objroot)doc/%.xml $(srcroot)doc/stylesheet.xsl $(objroot)doc/html.xsl
+$(objroot)doc/%.html : $(objroot)doc/%.xml $(srcroot)doc/stylesheet.xsl $(objroot)doc/html.xsl
 	$(XSLTPROC) -o $@ $(objroot)doc/html.xsl $<
 
-$(srcroot)doc/%.3 : $(objroot)doc/%.xml $(srcroot)doc/stylesheet.xsl $(objroot)doc/manpages.xsl
+$(objroot)doc/%.3 : $(objroot)doc/%.xml $(srcroot)doc/stylesheet.xsl $(objroot)doc/manpages.xsl
 	$(XSLTPROC) -o $@ $(objroot)doc/manpages.xsl $<
 
 build_doc_html: $(DOCS_HTML)
