@@ -418,7 +418,7 @@ distclean: clean
 
 relclean: distclean
 	rm -f $(objroot)configure
-	rm -f $(srcroot)VERSION
+	rm -f $(objroot)VERSION
 	rm -f $(DOCS_HTML)
 	rm -f $(DOCS_MAN3)
 
