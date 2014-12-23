@@ -1046,32 +1046,36 @@ dnl jemalloc configuration.
 dnl 
 
 dnl Set VERSION if source directory is inside a git repository.
-if test "x`git rev-parse --is-inside-work-tree 2>/dev/null`" = "xtrue" ; then
+if test "x`test ! \"${srcroot}\" && cd \"${srcroot}\"; git rev-parse --is-inside-work-tree 2>/dev/null`" = "xtrue" ; then
   dnl Pattern globs aren't powerful enough to match both single- and
   dnl double-digit version numbers, so iterate over patterns to support up to
   dnl version 99.99.99 without any accidental matches.
-  rm -f "${srcroot}VERSION"
+  rm -f "${objroot}VERSION"
   for pattern in ['[0-9].[0-9].[0-9]' '[0-9].[0-9].[0-9][0-9]' \
                  '[0-9].[0-9][0-9].[0-9]' '[0-9].[0-9][0-9].[0-9][0-9]' \
                  '[0-9][0-9].[0-9].[0-9]' '[0-9][0-9].[0-9].[0-9][0-9]' \
                  '[0-9][0-9].[0-9][0-9].[0-9]' \
                  '[0-9][0-9].[0-9][0-9].[0-9][0-9]']; do
-    if test ! -e "${srcroot}VERSION" ; then
-      git describe --long --abbrev=40 --match="${pattern}" > "${srcroot}VERSION.tmp" 2>/dev/null
+    if test ! -e "${objroot}VERSION" ; then
+      (test ! "${srcroot}" && cd "${srcroot}"; git describe --long --abbrev=40 --match="${pattern}") > "${objroot}VERSION.tmp" 2>/dev/null
       if test $? -eq 0 ; then
-        mv "${srcroot}VERSION.tmp" "${srcroot}VERSION"
+        mv "${objroot}VERSION.tmp" "${objroot}VERSION"
         break
       fi
     fi
   done
 fi
-rm -f "${srcroot}VERSION.tmp"
-if test ! -e "${srcroot}VERSION" ; then
-  AC_MSG_RESULT(
-    [Missing VERSION file, and unable to generate it; creating bogus VERSION])
-  echo "0.0.0-0-g0000000000000000000000000000000000000000" > "${srcroot}VERSION"
+rm -f "${objroot}VERSION.tmp"
+if test ! -e "${objroot}VERSION" ; then
+  if test ! -e "${srcroot}VERSION" ; then
+    AC_MSG_RESULT(
+      [Missing VERSION file, and unable to generate it; creating bogus VERSION])
+    echo "0.0.0-0-g0000000000000000000000000000000000000000" > "${objroot}VERSION"
+  else
+    cp ${srcroot}VERSION ${objroot}VERSION
+  fi
 fi
-jemalloc_version=`cat "${srcroot}VERSION"`
+jemalloc_version=`cat "${objroot}VERSION"`
 jemalloc_version_major=`echo ${jemalloc_version} | tr ".g-" " " | awk '{print [$]1}'`
 jemalloc_version_minor=`echo ${jemalloc_version} | tr ".g-" " " | awk '{print [$]2}'`
 jemalloc_version_bugfix=`echo ${jemalloc_version} | tr ".g-" " " | awk '{print [$]3}'`
