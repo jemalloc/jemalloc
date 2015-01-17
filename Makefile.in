@@ -73,7 +73,7 @@ endif
 LIBJEMALLOC := $(LIBPREFIX)jemalloc$(install_suffix)
 
 # Lists of files.
-BINS := $(srcroot)bin/pprof $(objroot)bin/jemalloc.sh
+BINS := $(srcroot)bin/pprof $(objroot)bin/jemalloc.sh $(objroot)bin/mallctl$(EXE)
 C_HDRS := $(objroot)include/jemalloc/jemalloc$(install_suffix).h
 C_SRCS := $(srcroot)src/jemalloc.c $(srcroot)src/arena.c \
 	$(srcroot)src/atomic.c $(srcroot)src/base.c $(srcroot)src/bitmap.c \
@@ -177,7 +177,7 @@ TESTS_OBJS := $(TESTS_UNIT_OBJS) $(TESTS_INTEGRATION_OBJS) $(TESTS_STRESS_OBJS)
 .SECONDARY : $(TESTS_OBJS)
 
 # Default target.
-all: build_lib
+all: build_lib build_bin
 
 dist: build_doc
 
@@ -273,6 +273,12 @@ $(objroot)test/stress/%$(EXE): $(objroot)test/stress/%.$(O) $(C_JET_OBJS) $(C_TE
 build_lib_shared: $(DSOS)
 build_lib_static: $(STATIC_LIBS)
 build_lib: build_lib_shared build_lib_static
+
+$(objroot)bin/%$(EXE): $(objroot)bin/%.c $(DSOS)
+	@mkdir -p $(@D)
+	$(CC) -I$(srcroot)include $(CFLAGS) -Wno-strict-aliasing $(LDTARGET) $^ $(LDFLAGS) $(LIBS) $(EXTRA_LDFLAGS) $(objroot)lib/$(LIBJEMALLOC).$(IMPORTLIB)
+
+build_bin: $(BINS)
 
 install_bin:
 	install -d $(BINDIR)

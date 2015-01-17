@@ -7,6 +7,26 @@ typedef struct ctl_indexed_node_s ctl_indexed_node_t;
 typedef struct ctl_arena_stats_s ctl_arena_stats_t;
 typedef struct ctl_stats_s ctl_stats_t;
 
+#define	MCTLTYPE	0xf	/* Mask for the type */
+typedef enum {
+	MCTLTYPE_NODE	= 1,
+	MCTLTYPE_INT	= 2,
+	MCTLTYPE_STRING	= 3,
+	MCTLTYPE_S64	= 4,
+	MCTLTYPE_OPAQUE	= 5,
+	MCTLTYPE_STRUCT	= MCTLTYPE_OPAQUE,
+	MCTLTYPE_UINT	= 6,
+	MCTLTYPE_LONG	= 7,
+	MCTLTYPE_ULONG	= 8,
+	MCTLTYPE_U64	= 9,
+	/* Deviations from the FreeBSD kernel sysctl types: */
+	MCTLTYPE_U32	= 0xb,
+	MCTLTYPE_SIZE	= 0xc,		/* size_t and ssize_t */
+	MCTLTYPE_SSIZE	= 0xd,
+	MCTLTYPE_STRP	= 0xe,		/* Pointer to string */
+	MCTLTYPE_BOOL	= 0xf,
+} ctl_kind_t;
+
 #endif /* JEMALLOC_H_TYPES */
 /******************************************************************************/
 #ifdef JEMALLOC_H_STRUCTS
@@ -23,6 +43,7 @@ struct ctl_named_node_s {
 	const			ctl_node_t *children;
 	int			(*ctl)(const size_t *, size_t, void *, size_t *,
 	    void *, size_t);
+	unsigned		kind;
 };
 
 struct ctl_indexed_node_s {

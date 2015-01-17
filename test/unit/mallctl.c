@@ -418,6 +418,97 @@ TEST_BEGIN(test_stats_arenas)
 }
 TEST_END
 
+TEST_BEGIN(test_introspect_next)
+{
+	size_t mib[6], miblen, lastlen, n;
+	int error;
+
+	n = lastlen = 0;
+
+	while (true) {
+		miblen = sizeof(mib);
+		error = mallctl("introspect.next", mib, &miblen, mib, lastlen);
+		if (error == ENOENT)
+			break;
+		assert_d_eq(error, 0, "mallctl: %s", strerror(error));
+		if (error)
+			break;
+
+		lastlen = miblen;
+		n++;
+	}
+
+	assert_zu_gt(n, 5, "mallctl next");
+}
+TEST_END
+
+TEST_BEGIN(test_introspect_kind)
+{
+	struct {
+		const char *ctl_name;
+		unsigned exp_kind;
+	} tcases[] = {
+		{ "epoch", MCTLTYPE_U64 },
+		{ "version", MCTLTYPE_STRP },
+		{ "opt.zero", MCTLTYPE_BOOL },
+		{ NULL, 0 }
+	};
+	size_t mib[6], kindsz, miblen;
+	unsigned kind, i;
+	int error;
+
+	kindsz = sizeof(kind);
+
+	for (i = 0; tcases[i].ctl_name != NULL; i++) {
+		miblen = sizeof(mib) / sizeof(mib[0]);
+		assert_d_eq(mallctlnametomib(tcases[i].ctl_name, mib, &miblen),
+		    0, "unexpected");
+
+		error = mallctl("introspect.kind", &kind, &kindsz, mib,
+		    miblen * sizeof(*mib));
+		assert_d_eq(error, 0, "%u: mallctl: %s", i, strerror(error));
+		assert_zu_eq(kindsz, sizeof(kind), "%u: unexpected wrong size",
+		    i);
+
+		assert_u_eq(kind, tcases[i].exp_kind, "%u: wrong ctl type", i);
+	}
+}
+TEST_END
+
+TEST_BEGIN(test_introspect_name)
+{
+	const char *tcases[] = {
+		"epoch",
+		"opt.zero",
+		"thread.tcache.enabled",
+		"arena.0.chunk.dalloc",
+		NULL
+	};
+	const char **tcase;
+	char output[256];
+	size_t mib[6], outsz, miblen;
+	int error;
+
+	for (tcase = tcases; *tcase; tcase++) {
+		miblen = sizeof(mib) / sizeof(mib[0]);
+		assert_d_eq(mallctlnametomib(*tcase, mib, &miblen), 0,
+		    "unexpected");
+
+		outsz = sizeof(output);
+		error = mallctl("introspect.name", output, &outsz, mib,
+		    miblen * sizeof(*mib));
+		assert_d_eq(error, 0, "%lu: mallctl: %s", tcase - tcases,
+		    strerror(error));
+		if (error == 0) {
+			assert_str_eq(output, *tcase, "%lu: unexpected",
+			    tcase - tcases);
+			assert_zu_eq(outsz, strlen(*tcase) + 1,
+			    "%lu: unexpected wrong size", tcase - tcases);
+		}
+	}
+}
+TEST_END
+
 int
 main(void)
 {
@@ -440,5 +531,8 @@ main(void)
 	    test_arenas_lrun_constants,
 	    test_arenas_hchunk_constants,
 	    test_arenas_extend,
-	    test_stats_arenas));
+	    test_stats_arenas,
+	    test_introspect_next,
+	    test_introspect_kind,
+	    test_introspect_name));
 }
