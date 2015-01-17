@@ -1751,7 +1751,8 @@ void *
 je_memalign(size_t alignment, size_t size)
 {
 	void *ret JEMALLOC_CC_SILENCE_INIT(NULL);
-	imemalign(&ret, alignment, size, 1);
+	if (unlikely(imemalign(&ret, alignment, size, 1) != 0))
+		ret = NULL;
 	JEMALLOC_VALGRIND_MALLOC(ret != NULL, ret, size, false);
 	return (ret);
 }
@@ -1762,7 +1763,8 @@ void *
 je_valloc(size_t size)
 {
 	void *ret JEMALLOC_CC_SILENCE_INIT(NULL);
-	imemalign(&ret, PAGE, size, 1);
+	if (unlikely(imemalign(&ret, PAGE, size, 1) != 0))
+		ret = NULL;
 	JEMALLOC_VALGRIND_MALLOC(ret != NULL, ret, size, false);
 	return (ret);
 }
