@@ -404,9 +404,8 @@ extern size_t const	index2size_tab[NSIZES];
 extern uint8_t const	size2index_tab[];
 
 arena_t	*a0get(void);
-void	*a0malloc(size_t size);
-void	*a0calloc(size_t num, size_t size);
-void	a0free(void *ptr);
+void	*a0malloc(size_t size, bool zero);
+void	a0dalloc(void *ptr);
 arena_t	*arenas_extend(unsigned ind);
 arena_t	*arena_init(unsigned ind);
 unsigned	narenas_total_get(void);

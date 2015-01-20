@@ -1,5 +1,4 @@
-a0calloc
-a0free
+a0dalloc
 a0get
 a0malloc
 arena_get
@@ -107,6 +106,9 @@ bitmap_set
 bitmap_sfu
 bitmap_size
 bitmap_unset
+bootstrap_calloc
+bootstrap_free
+bootstrap_malloc
 bt_init
 buferror
 chunk_alloc_arena

@@ -48,7 +48,7 @@ typedef enum {
  *   void example_tsd_set(example_t *val) {...}
  *
  * Note that all of the functions deal in terms of (a_type *) rather than
- * (a_type)  so that it is possible to support non-pointer types (unlike
+ * (a_type) so that it is possible to support non-pointer types (unlike
  * pthreads TSD).  example_tsd_cleanup() is passed an (a_type *) pointer that is
  * cast to (void *).  This means that the cleanup function needs to cast the
  * function argument to (a_type *), then dereference the resulting pointer to

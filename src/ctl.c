@@ -484,14 +484,14 @@ ctl_arena_init(ctl_arena_stats_t *astats)
 
 	if (astats->lstats == NULL) {
 		astats->lstats = (malloc_large_stats_t *)a0malloc(nlclasses *
-		    sizeof(malloc_large_stats_t));
+		    sizeof(malloc_large_stats_t), false);
 		if (astats->lstats == NULL)
 			return (true);
 	}
 
 	if (astats->hstats == NULL) {
 		astats->hstats = (malloc_huge_stats_t *)a0malloc(nhclasses *
-		    sizeof(malloc_huge_stats_t));
+		    sizeof(malloc_huge_stats_t), false);
 		if (astats->hstats == NULL)
 			return (true);
 	}
@@ -627,7 +627,7 @@ ctl_grow(void)
 
 	/* Allocate extended arena stats. */
 	astats = (ctl_arena_stats_t *)a0malloc((ctl_stats.narenas + 2) *
-	    sizeof(ctl_arena_stats_t));
+	    sizeof(ctl_arena_stats_t), false);
 	if (astats == NULL)
 		return (true);
 
@@ -636,7 +636,7 @@ ctl_grow(void)
 	    sizeof(ctl_arena_stats_t));
 	memset(&astats[ctl_stats.narenas + 1], 0, sizeof(ctl_arena_stats_t));
 	if (ctl_arena_init(&astats[ctl_stats.narenas + 1])) {
-		a0free(astats);
+		a0dalloc(astats);
 		return (true);
 	}
 	/* Swap merged stats to their new location. */
@@ -649,7 +649,7 @@ ctl_grow(void)
 		memcpy(&astats[ctl_stats.narenas + 1], &tstats,
 		    sizeof(ctl_arena_stats_t));
 	}
-	a0free(ctl_stats.arenas);
+	a0dalloc(ctl_stats.arenas);
 	ctl_stats.arenas = astats;
 	ctl_stats.narenas++;
 
@@ -723,7 +723,7 @@ ctl_init(void)
 		 */
 		ctl_stats.narenas = narenas_total_get();
 		ctl_stats.arenas = (ctl_arena_stats_t *)a0malloc(
-		    (ctl_stats.narenas + 1) * sizeof(ctl_arena_stats_t));
+		    (ctl_stats.narenas + 1) * sizeof(ctl_arena_stats_t), false);
 		if (ctl_stats.arenas == NULL) {
 			ret = true;
 			goto label_return;
@@ -742,12 +742,12 @@ ctl_init(void)
 				if (ctl_arena_init(&ctl_stats.arenas[i])) {
 					unsigned j;
 					for (j = 0; j < i; j++) {
-						a0free(
+						a0dalloc(
 						    ctl_stats.arenas[j].lstats);
-						a0free(
+						a0dalloc(
 						    ctl_stats.arenas[j].hstats);
 					}
-					a0free(ctl_stats.arenas);
+					a0dalloc(ctl_stats.arenas);
 					ctl_stats.arenas = NULL;
 					ret = true;
 					goto label_return;

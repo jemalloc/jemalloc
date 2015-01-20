@@ -15,14 +15,14 @@ void *
 malloc_tsd_malloc(size_t size)
 {
 
-	return (a0malloc(CACHELINE_CEILING(size)));
+	return (a0malloc(CACHELINE_CEILING(size), false));
 }
 
 void
 malloc_tsd_dalloc(void *wrapper)
 {
 
-	a0free(wrapper);
+	a0dalloc(wrapper);
 }
 
 void
