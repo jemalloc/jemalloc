@@ -403,6 +403,9 @@ extern size_t const	index2size_tab[NSIZES];
  */
 extern uint8_t const	size2index_tab[];
 
+extern malloc_mutex_t a0_mtx;
+extern size_t a0_allocated;
+
 arena_t	*a0get(void);
 void	*a0malloc(size_t size);
 void	*a0calloc(size_t num, size_t size);

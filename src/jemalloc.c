@@ -60,6 +60,8 @@ static malloc_mutex_t	arenas_lock;
 static arena_t		**arenas;
 static unsigned		narenas_total;
 static arena_t		*a0; /* arenas[0]; read-only after initialization. */
+malloc_mutex_t		a0_mtx; /* protects a0_allocated */
+size_t				a0_allocated; /* memory allocated through a0 */
 static unsigned		narenas_auto; /* Read-only after initialization. */
 
 /* Set to true once the allocator has been initialized. */
@@ -283,6 +285,17 @@ a0alloc(size_t size, bool zero)
 		ret = arena_malloc(NULL, a0get(), size, zero, false);
 	else
 		ret = huge_malloc(NULL, a0get(), size, zero, false);
+
+	if (config_stats) {
+		// FIXME: this allocation will get reported in both stats.allocated
+		// (or stats.huge.allocated) and stats.bookkeeping.
+		// FIXME: apparently applications could call a0{m,c}alloc on FreeBSD,
+		// so not all calls to this function are due to bookkeeping.
+		// FIXME: need to deduct from a0_allocated on a0_free
+		malloc_mutex_lock(&a0_mtx);
+		a0_allocated += s2u(size);
+		malloc_mutex_unlock(&a0_mtx);
+	}
 
 	return (ret);
 }
@@ -1159,6 +1172,11 @@ malloc_init_hard(void)
 
 	arena_boot();
 
+	if (opt_quarantine && quarantine_boot()) {
+		malloc_mutex_unlock(&init_lock);
+		return (true);
+	}
+
 	if (config_tcache && tcache_boot()) {
 		malloc_mutex_unlock(&init_lock);
 		return (true);
@@ -1170,6 +1188,11 @@ malloc_init_hard(void)
 	}
 
 	if (malloc_mutex_init(&arenas_lock)) {
+		malloc_mutex_unlock(&init_lock);
+		return (true);
+	}
+
+	if (malloc_mutex_init(&a0_mtx)) {
 		malloc_mutex_unlock(&init_lock);
 		return (true);
 	}

@@ -29,6 +29,10 @@ struct quarantine_s {
 /******************************************************************************/
 #ifdef JEMALLOC_H_EXTERNS
 
+extern malloc_mutex_t quarantine_allocated_mtx;
+extern size_t quarantine_allocated;
+
+bool	quarantine_boot(void);
 void	quarantine_alloc_hook_work(tsd_t *tsd);
 void	quarantine(tsd_t *tsd, void *ptr);
 void	quarantine_cleanup(tsd_t *tsd);
