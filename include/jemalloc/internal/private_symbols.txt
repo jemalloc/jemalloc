@@ -158,6 +158,7 @@ ctl_postfork_child
 ctl_postfork_parent
 ctl_prefork
 dss_prec_names
+extent_tree_ad_empty
 extent_tree_ad_first
 extent_tree_ad_insert
 extent_tree_ad_iter
@@ -174,6 +175,7 @@ extent_tree_ad_reverse_iter
 extent_tree_ad_reverse_iter_recurse
 extent_tree_ad_reverse_iter_start
 extent_tree_ad_search
+extent_tree_szad_empty
 extent_tree_szad_first
 extent_tree_szad_insert
 extent_tree_szad_iter
@@ -289,6 +291,7 @@ opt_prof_final
 opt_prof_gdump
 opt_prof_leak
 opt_prof_prefix
+opt_prof_thread_active_init
 opt_quarantine
 opt_redzone
 opt_stats_print
@@ -332,6 +335,7 @@ prof_tctx_set
 prof_tdata_cleanup
 prof_tdata_get
 prof_tdata_init
+prof_tdata_reinit
 prof_thread_active_get
 prof_thread_active_init_get
 prof_thread_active_init_set
