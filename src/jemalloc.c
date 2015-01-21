@@ -601,7 +601,7 @@ arenas_cache_cleanup(tsd_t *tsd)
 	arena_t **arenas_cache;
 
 	arenas_cache = tsd_arenas_cache_get(tsd);
-	if (arenas != NULL)
+	if (arenas_cache != NULL)
 		a0free(arenas_cache);
 }
 
