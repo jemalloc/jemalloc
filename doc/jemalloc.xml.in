@@ -533,6 +533,22 @@ for (i = 0; i < nbins; i++) {
     nearest multiple of the cacheline size, or specify cacheline alignment when
     allocating.</para>
 
+    <para>The <function>realloc<parameter/></function>,
+    <function>rallocx<parameter/></function>, and
+    <function>xallocx<parameter/></function> functions may resize allocations
+    without moving them under limited circumstances.  Unlike the
+    <function>*allocx<parameter/></function> API, the standard API does not
+    officially round up the usable size of an allocation to the nearest size
+    class, so technically it is necessary to call
+    <function>realloc<parameter/></function> to grow e.g. a 9-byte allocation to
+    16 bytes, or shrink a 16-byte allocation to 9 bytes.  Growth and shrinkage
+    trivially succeeds in place as long as the pre-size and post-size both round
+    up to the same size class.  No other API guarantees are made regarding
+    in-place resizing, but the current implementation also tries to resize large
+    and huge allocations in place, as long as the pre-size and post-size are
+    both large or both huge.  In such cases shrinkage always succeeds, but
+    growth only succeeds if the trailing memory is currently available.</para>
+
     <para>Assuming 4 MiB chunks, 4 KiB pages, and a 16-byte quantum on a 64-bit
     system, the size classes in each category are as shown in <xref
     linkend="size_classes" xrefstyle="template:Table %n"/>.</para>
