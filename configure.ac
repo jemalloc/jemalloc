@@ -43,6 +43,9 @@ AC_CACHE_CHECK([whether $1 is compilable],
 
 dnl ============================================================================
 
+CONFIG=`echo ${ac_configure_args} | sed -e "s#\'\([^ ]*\)\'#\1#g"`
+AC_SUBST([CONFIG])
+
 dnl Library revision.
 rev=2
 AC_SUBST([rev])
@@ -1585,7 +1588,7 @@ AC_CONFIG_HEADERS([$cfghdrs_tup])
 dnl ============================================================================
 dnl Generate outputs.
 
-AC_CONFIG_FILES([$cfgoutputs_tup config.stamp bin/jemalloc.sh])
+AC_CONFIG_FILES([$cfgoutputs_tup config.stamp bin/jemalloc-config bin/jemalloc.sh])
 AC_SUBST([cfgoutputs_in])
 AC_SUBST([cfgoutputs_out])
 AC_OUTPUT
@@ -1596,9 +1599,10 @@ AC_MSG_RESULT([=================================================================
 AC_MSG_RESULT([jemalloc version   : ${jemalloc_version}])
 AC_MSG_RESULT([library revision   : ${rev}])
 AC_MSG_RESULT([])
+AC_MSG_RESULT([CONFIG             : ${CONFIG}])
 AC_MSG_RESULT([CC                 : ${CC}])
-AC_MSG_RESULT([CPPFLAGS           : ${CPPFLAGS}])
 AC_MSG_RESULT([CFLAGS             : ${CFLAGS}])
+AC_MSG_RESULT([CPPFLAGS           : ${CPPFLAGS}])
 AC_MSG_RESULT([LDFLAGS            : ${LDFLAGS}])
 AC_MSG_RESULT([EXTRA_LDFLAGS      : ${EXTRA_LDFLAGS}])
 AC_MSG_RESULT([LIBS               : ${LIBS}])
@@ -1609,9 +1613,9 @@ AC_MSG_RESULT([XSLROOT            : ${XSLROOT}])
 AC_MSG_RESULT([])
 AC_MSG_RESULT([PREFIX             : ${PREFIX}])
 AC_MSG_RESULT([BINDIR             : ${BINDIR}])
+AC_MSG_RESULT([DATADIR            : ${DATADIR}])
 AC_MSG_RESULT([INCLUDEDIR         : ${INCLUDEDIR}])
 AC_MSG_RESULT([LIBDIR             : ${LIBDIR}])
-AC_MSG_RESULT([DATADIR            : ${DATADIR}])
 AC_MSG_RESULT([MANDIR             : ${MANDIR}])
 AC_MSG_RESULT([])
 AC_MSG_RESULT([srcroot            : ${srcroot}])

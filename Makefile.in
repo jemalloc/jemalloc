@@ -73,7 +73,7 @@ endif
 LIBJEMALLOC := $(LIBPREFIX)jemalloc$(install_suffix)
 
 # Lists of files.
-BINS := $(srcroot)bin/pprof $(objroot)bin/jemalloc.sh
+BINS := $(srcroot)bin/pprof $(objroot)bin/jemalloc-config $(objroot)bin/jemalloc.sh
 C_HDRS := $(objroot)include/jemalloc/jemalloc$(install_suffix).h
 C_SRCS := $(srcroot)src/jemalloc.c $(srcroot)src/arena.c \
 	$(srcroot)src/atomic.c $(srcroot)src/base.c $(srcroot)src/bitmap.c \
@@ -408,6 +408,7 @@ clean:
 	rm -f $(objroot)*.gcov.*
 
 distclean: clean
+	rm -f $(objroot)bin/jemalloc-config
 	rm -f $(objroot)bin/jemalloc.sh
 	rm -f $(objroot)config.log
 	rm -f $(objroot)config.status

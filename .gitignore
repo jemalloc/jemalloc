@@ -1,5 +1,6 @@
 /*.gcov.*
 
+/bin/jemalloc-config
 /bin/jemalloc.sh
 
 /config.stamp
