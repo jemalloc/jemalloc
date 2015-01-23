@@ -461,7 +461,7 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		OPT_WRITE_SIZE_T(narenas)
 		OPT_WRITE_SSIZE_T(lg_dirty_mult)
 		OPT_WRITE_BOOL(stats_print)
-		OPT_WRITE_BOOL(junk)
+		OPT_WRITE_CHAR_P(junk)
 		OPT_WRITE_SIZE_T(quarantine)
 		OPT_WRITE_BOOL(redzone)
 		OPT_WRITE_BOOL(zero)
