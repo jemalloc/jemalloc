@@ -83,7 +83,6 @@ huge_node_locked(const void *ptr)
 	node = extent_tree_ad_search(&huge, &key);
 	assert(node != NULL);
 	assert(node->addr == ptr);
-	malloc_mutex_unlock(&huge_mtx);
 
 	return (node);
 }
