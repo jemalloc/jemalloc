@@ -34,6 +34,10 @@ huge_palloc(tsd_t *tsd, arena_t *arena, size_t usize, size_t alignment,
 	extent_node_t *node;
 	bool is_zeroed;
 
+	/* Prevent allocations where pointer arithmetic can be undefined. */
+	if (usize > PTRDIFF_MAX)
+		return (NULL);
+
 	/* Allocate one or more contiguous chunks for this request. */
 
 	/* Allocate an extent node with which to track the chunk. */
@@ -312,6 +316,17 @@ huge_ralloc(tsd_t *tsd, arena_t *arena, void *ptr, size_t oldsize, size_t size,
 {
 	void *ret;
 	size_t copysize;
+	size_t usize;
+
+	usize = s2u(size);
+	if (usize == 0) {
+		/* size_t overflow. */
+		return (NULL);
+	}
+
+	/* Prevent allocations where pointer arithmetic can be undefined. */
+	if (usize > PTRDIFF_MAX)
+		return (NULL);
 
 	/* Try to avoid moving the allocation. */
 	if (!huge_ralloc_no_move(ptr, oldsize, size, extra, zero))
