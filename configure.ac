@@ -43,7 +43,7 @@ AC_CACHE_CHECK([whether $1 is compilable],
 
 dnl ============================================================================
 
-CONFIG=`echo ${ac_configure_args} | sed -e "s#\'\([^ ]*\)\'#\1#g"`
+CONFIG=`echo ${ac_configure_args} | sed -e 's#'"'"'\([^ ]*\)'"'"'#\1#g'`
 AC_SUBST([CONFIG])
 
 dnl Library revision.
