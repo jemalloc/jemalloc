@@ -132,6 +132,19 @@ chunk_recycle(extent_tree_t *chunks_szad, extent_tree_t *chunks_ad,
 	return (ret);
 }
 
+static void *
+chunk_alloc_core_dss(void *new_addr, size_t size, size_t alignment, bool base,
+    bool *zero)
+{
+	void *ret;
+
+	if ((ret = chunk_recycle(&chunks_szad_dss, &chunks_ad_dss,
+	    new_addr, size, alignment, base, zero)) != NULL)
+		return (ret);
+	ret = chunk_alloc_dss(new_addr, size, alignment, zero);
+	return (ret);
+}
+
 /*
  * If the caller specifies (!*zero), it is still possible to receive zeroed
  * memory, in which case *zero is toggled to true.  arena_chunk_alloc() takes
@@ -150,31 +163,26 @@ chunk_alloc_core(void *new_addr, size_t size, size_t alignment, bool base,
 	assert((alignment & chunksize_mask) == 0);
 
 	/* "primary" dss. */
-	if (have_dss && dss_prec == dss_prec_primary) {
-		if ((ret = chunk_recycle(&chunks_szad_dss, &chunks_ad_dss,
-		    new_addr, size, alignment, base, zero)) != NULL)
-			return (ret);
-		if ((ret = chunk_alloc_dss(new_addr, size, alignment, zero))
-		    != NULL)
-			return (ret);
-	}
-	/* mmap. */
-	if ((ret = chunk_recycle(&chunks_szad_mmap, &chunks_ad_mmap, new_addr,
-	    size, alignment, base, zero)) != NULL)
+	if (have_dss && dss_prec == dss_prec_primary && (ret =
+	    chunk_alloc_core_dss(new_addr, size, alignment, base, zero)) !=
+	    NULL)
 		return (ret);
-	/* Requesting an address not implemented for chunk_alloc_mmap(). */
-	if (new_addr == NULL &&
-	    (ret = chunk_alloc_mmap(size, alignment, zero)) != NULL)
+	/* mmap. */
+	if (!config_munmap && (ret = chunk_recycle(&chunks_szad_mmap,
+	    &chunks_ad_mmap, new_addr, size, alignment, base, zero)) != NULL)
+		return (ret);
+	/*
+	 * Requesting an address is not implemented for chunk_alloc_mmap(), so
+	 * only call it if (new_addr == NULL).
+	 */
+	if (new_addr == NULL && (ret = chunk_alloc_mmap(size, alignment, zero))
+	    != NULL)
 		return (ret);
 	/* "secondary" dss. */
-	if (have_dss && dss_prec == dss_prec_secondary) {
-		if ((ret = chunk_recycle(&chunks_szad_dss, &chunks_ad_dss,
-		    new_addr, size, alignment, base, zero)) != NULL)
-			return (ret);
-		if ((ret = chunk_alloc_dss(new_addr, size, alignment, zero))
-		    != NULL)
-			return (ret);
-	}
+	if (have_dss && dss_prec == dss_prec_secondary && (ret =
+	    chunk_alloc_core_dss(new_addr, size, alignment, base, zero)) !=
+	    NULL)
+		return (ret);
 
 	/* All strategies for allocation failed. */
 	return (NULL);
