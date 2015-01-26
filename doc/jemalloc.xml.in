@@ -1215,13 +1215,11 @@ malloc_conf = "xmalloc:true";]]></programlisting>
           <literal>r-</literal>
           [<option>--enable-prof</option>]
         </term>
-        <listitem><para>Trigger a memory profile dump every time the total
-        virtual memory exceeds the previous maximum.  Profiles are dumped to
-        files named according to the pattern
-        <filename>&lt;prefix&gt;.&lt;pid&gt;.&lt;seq&gt;.u&lt;useq&gt;.heap</filename>,
-        where <literal>&lt;prefix&gt;</literal> is controlled by the <link
-        linkend="opt.prof_prefix"><mallctl>opt.prof_prefix</mallctl></link>
-        option.  This option is disabled by default.</para></listitem>
+        <listitem><para>Set the initial state of <link
+        linkend="prof.gdump"><mallctl>prof.gdump</mallctl></link>, which when
+        enabled triggers a memory profile dump every time the total virtual
+        memory exceeds the previous maximum.  This option is disabled by
+        default.</para></listitem>
       </varlistentry>
 
       <varlistentry id="opt.prof_final">
@@ -1683,6 +1681,22 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         <filename>&lt;prefix&gt;.&lt;pid&gt;.&lt;seq&gt;.m&lt;mseq&gt;.heap</filename>,
         where <literal>&lt;prefix&gt;</literal> is controlled by the
         <link
+        linkend="opt.prof_prefix"><mallctl>opt.prof_prefix</mallctl></link>
+        option.</para></listitem>
+      </varlistentry>
+
+      <varlistentry id="prof.gdump">
+        <term>
+          <mallctl>prof.gdump</mallctl>
+          (<type>bool</type>)
+          <literal>rw</literal>
+          [<option>--enable-prof</option>]
+        </term>
+        <listitem><para>When enabled, trigger a memory profile dump every time
+        the total virtual memory exceeds the previous maximum.  Profiles are
+        dumped to files named according to the pattern
+        <filename>&lt;prefix&gt;.&lt;pid&gt;.&lt;seq&gt;.u&lt;useq&gt;.heap</filename>,
+        where <literal>&lt;prefix&gt;</literal> is controlled by the <link
         linkend="opt.prof_prefix"><mallctl>opt.prof_prefix</mallctl></link>
         option.</para></listitem>
       </varlistentry>

@@ -44,6 +44,13 @@ static malloc_mutex_t	prof_active_mtx;
 static bool		prof_thread_active_init;
 static malloc_mutex_t	prof_thread_active_init_mtx;
 
+/*
+ * Initialized as opt_prof_gdump, and accessed via
+ * prof_gdump_[gs]et{_unlocked,}().
+ */
+bool			prof_gdump_val;
+static malloc_mutex_t	prof_gdump_mtx;
+
 uint64_t	prof_interval = 0;
 
 size_t		lg_prof_sample;
@@ -1961,6 +1968,29 @@ prof_thread_active_init_set(bool active_init)
 	return (active_init_old);
 }
 
+bool
+prof_gdump_get(void)
+{
+	bool prof_gdump_current;
+
+	malloc_mutex_lock(&prof_gdump_mtx);
+	prof_gdump_current = prof_gdump_val;
+	malloc_mutex_unlock(&prof_gdump_mtx);
+	return (prof_gdump_current);
+}
+
+bool
+prof_gdump_set(bool gdump)
+{
+	bool prof_gdump_old;
+
+	malloc_mutex_lock(&prof_gdump_mtx);
+	prof_gdump_old = prof_gdump_val;
+	prof_gdump_val = gdump;
+	malloc_mutex_unlock(&prof_gdump_mtx);
+	return (prof_gdump_old);
+}
+
 void
 prof_boot0(void)
 {
@@ -2011,6 +2041,10 @@ prof_boot2(void)
 
 		prof_active = opt_prof_active;
 		if (malloc_mutex_init(&prof_active_mtx))
+			return (true);
+
+		prof_gdump_val = opt_prof_gdump;
+		if (malloc_mutex_init(&prof_gdump_mtx))
 			return (true);
 
 		prof_thread_active_init = opt_prof_thread_active_init;

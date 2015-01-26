@@ -329,6 +329,10 @@ prof_dump_open
 prof_free
 prof_free_sampled_object
 prof_gdump
+prof_gdump_get
+prof_gdump_get_unlocked
+prof_gdump_set
+prof_gdump_val
 prof_idump
 prof_interval
 prof_lookup

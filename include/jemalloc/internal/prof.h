@@ -239,6 +239,9 @@ extern char	opt_prof_prefix[
 /* Accessed via prof_active_[gs]et{_unlocked,}(). */
 extern bool	prof_active;
 
+/* Accessed via prof_gdump_[gs]et{_unlocked,}(). */
+extern bool	prof_gdump_val;
+
 /*
  * Profile dump interval, measured in bytes allocated.  Each arena triggers a
  * profile dump when it reaches this threshold.  The effect is that the
@@ -285,6 +288,8 @@ bool	prof_thread_active_get(void);
 bool	prof_thread_active_set(bool active);
 bool	prof_thread_active_init_get(void);
 bool	prof_thread_active_init_set(bool active_init);
+bool	prof_gdump_get(void);
+bool	prof_gdump_set(bool active);
 void	prof_boot0(void);
 void	prof_boot1(void);
 bool	prof_boot2(void);
@@ -299,6 +304,7 @@ void	prof_sample_threshold_update(prof_tdata_t *tdata);
 
 #ifndef JEMALLOC_ENABLE_INLINE
 bool	prof_active_get_unlocked(void);
+bool	prof_gdump_get_unlocked(void);
 prof_tdata_t	*prof_tdata_get(tsd_t *tsd, bool create);
 bool	prof_sample_accum_update(tsd_t *tsd, size_t usize, bool commit,
     prof_tdata_t **tdata_out);
@@ -325,6 +331,18 @@ prof_active_get_unlocked(void)
 	 * how long it will take for all threads to notice state changes.
 	 */
 	return (prof_active);
+}
+
+JEMALLOC_ALWAYS_INLINE bool
+prof_gdump_get_unlocked(void)
+{
+
+	/*
+	 * No locking is used when reading prof_gdump_val in the fast path, so
+	 * there are no guarantees regarding how long it will take for all
+	 * threads to notice state changes.
+	 */
+	return (prof_gdump_val);
 }
 
 JEMALLOC_ALWAYS_INLINE prof_tdata_t *

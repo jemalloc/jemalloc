@@ -213,7 +213,8 @@ chunk_register(void *chunk, size_t size, bool base)
 		} else if (config_prof)
 			gdump = false;
 		malloc_mutex_unlock(&chunks_mtx);
-		if (config_prof && opt_prof && opt_prof_gdump && gdump)
+		if (config_prof && opt_prof && prof_gdump_get_unlocked() &&
+		    gdump)
 			prof_gdump();
 	}
 	if (config_valgrind)
