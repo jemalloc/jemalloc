@@ -19,8 +19,16 @@
 	 ((a < (size_t)INT_MAX) ? ffs(a)-1 : ffs(a>>32)+31)
 #  endif
 #  define MALLOCX_ZERO	((int)0x40)
-/* Bias arena index bits so that 0 encodes "MALLOCX_ARENA() unspecified". */
-#  define MALLOCX_ARENA(a)	((int)(((a)+1) << 8))
+/*
+ * Bias tcache index bits so that 0 encodes "automatic tcache management", and 1
+ * encodes MALLOCX_TCACHE_NONE.
+ */
+#  define MALLOCX_TCACHE(tc)	((int)(((tc)+2) << 8))
+#  define MALLOCX_TCACHE_NONE	MALLOCX_TCACHE(-1)
+/*
+ * Bias arena index bits so that 0 encodes "use an automatically chosen arena".
+ */
+#  define MALLOCX_ARENA(a)	((int)(((a)+1) << 20))
 
 #ifdef JEMALLOC_HAVE_ATTR
 #  define JEMALLOC_ATTR(s) __attribute__((s))

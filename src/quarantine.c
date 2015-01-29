@@ -27,8 +27,8 @@ quarantine_init(tsd_t *tsd, size_t lg_maxobjs)
 	assert(tsd_nominal(tsd));
 
 	quarantine = (quarantine_t *)iallocztm(tsd, offsetof(quarantine_t, objs)
-	    + ((ZU(1) << lg_maxobjs) * sizeof(quarantine_obj_t)), false, true,
-	    true, NULL);
+	    + ((ZU(1) << lg_maxobjs) * sizeof(quarantine_obj_t)), false,
+	    tcache_get(tsd, true), true, NULL);
 	if (quarantine == NULL)
 		return (NULL);
 	quarantine->curbytes = 0;
@@ -55,7 +55,7 @@ quarantine_alloc_hook_work(tsd_t *tsd)
 	if (tsd_quarantine_get(tsd) == NULL)
 		tsd_quarantine_set(tsd, quarantine);
 	else
-		idalloctm(tsd, quarantine, true, true);
+		idalloctm(tsd, quarantine, tcache_get(tsd, false), true);
 }
 
 static quarantine_t *
@@ -87,7 +87,7 @@ quarantine_grow(tsd_t *tsd, quarantine_t *quarantine)
 		memcpy(&ret->objs[ncopy_a], quarantine->objs, ncopy_b *
 		    sizeof(quarantine_obj_t));
 	}
-	idalloctm(tsd, quarantine, true, true);
+	idalloctm(tsd, quarantine, tcache_get(tsd, false), true);
 
 	tsd_quarantine_set(tsd, ret);
 	return (ret);
@@ -177,7 +177,7 @@ quarantine_cleanup(tsd_t *tsd)
 	quarantine = tsd_quarantine_get(tsd);
 	if (quarantine != NULL) {
 		quarantine_drain(tsd, quarantine, 0);
-		idalloctm(tsd, quarantine, true, true);
+		idalloctm(tsd, quarantine, tcache_get(tsd, false), true);
 		tsd_quarantine_set(tsd, NULL);
 	}
 }

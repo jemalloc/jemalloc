@@ -425,6 +425,11 @@ tcache_get_hard
 tcache_maxclass
 tcache_salloc
 tcache_stats_merge
+tcaches
+tcaches_create
+tcaches_destroy
+tcaches_flush
+tcaches_get
 thread_allocated_cleanup
 thread_deallocated_cleanup
 tsd_booted

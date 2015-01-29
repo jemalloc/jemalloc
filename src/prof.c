@@ -540,7 +540,8 @@ prof_gctx_create(tsd_t *tsd, prof_bt_t *bt)
 	 * Create a single allocation that has space for vec of length bt->len.
 	 */
 	prof_gctx_t *gctx = (prof_gctx_t *)iallocztm(tsd, offsetof(prof_gctx_t,
-	    vec) + (bt->len * sizeof(void *)), false, true, true, NULL);
+	    vec) + (bt->len * sizeof(void *)), false, tcache_get(tsd, true),
+	    true, NULL);
 	if (gctx == NULL)
 		return (NULL);
 	gctx->lock = prof_gctx_mutex_choose();
@@ -581,7 +582,7 @@ prof_gctx_try_destroy(tsd_t *tsd, prof_tdata_t *tdata_self, prof_gctx_t *gctx,
 		prof_leave(tsd, tdata_self);
 		/* Destroy gctx. */
 		malloc_mutex_unlock(gctx->lock);
-		idalloctm(tsd, gctx, true, true);
+		idalloctm(tsd, gctx, tcache_get(tsd, false), true);
 	} else {
 		/*
 		 * Compensate for increment in prof_tctx_destroy() or
@@ -681,7 +682,7 @@ prof_tctx_destroy(tsd_t *tsd, prof_tctx_t *tctx)
 		prof_tdata_destroy(tsd, tdata, false);
 
 	if (destroy_tctx)
-		idalloctm(tsd, tctx, true, true);
+		idalloctm(tsd, tctx, tcache_get(tsd, false), true);
 }
 
 static bool
@@ -710,7 +711,7 @@ prof_lookup_global(tsd_t *tsd, prof_bt_t *bt, prof_tdata_t *tdata,
 		if (ckh_insert(tsd, &bt2gctx, btkey.v, gctx.v)) {
 			/* OOM. */
 			prof_leave(tsd, tdata);
-			idalloctm(tsd, gctx.v, true, true);
+			idalloctm(tsd, gctx.v, tcache_get(tsd, false), true);
 			return (true);
 		}
 		new_gctx = true;
@@ -754,6 +755,7 @@ prof_lookup(tsd_t *tsd, prof_bt_t *bt)
 		ret.p->prepared = true;
 	malloc_mutex_unlock(tdata->lock);
 	if (not_found) {
+		tcache_t *tcache;
 		void *btkey;
 		prof_gctx_t *gctx;
 		bool new_gctx, error;
@@ -767,7 +769,8 @@ prof_lookup(tsd_t *tsd, prof_bt_t *bt)
 			return (NULL);
 
 		/* Link a prof_tctx_t into gctx for this thread. */
-		ret.v = iallocztm(tsd, sizeof(prof_tctx_t), false, true, true,
+		tcache = tcache_get(tsd, true);
+		ret.v = iallocztm(tsd, sizeof(prof_tctx_t), false, tcache, true,
 		    NULL);
 		if (ret.p == NULL) {
 			if (new_gctx)
@@ -786,7 +789,7 @@ prof_lookup(tsd_t *tsd, prof_bt_t *bt)
 		if (error) {
 			if (new_gctx)
 				prof_gctx_try_destroy(tsd, tdata, gctx, tdata);
-			idalloctm(tsd, ret.v, true, true);
+			idalloctm(tsd, ret.v, tcache, true);
 			return (NULL);
 		}
 		malloc_mutex_lock(gctx->lock);
@@ -1166,7 +1169,8 @@ prof_gctx_finish(tsd_t *tsd, prof_gctx_tree_t *gctxs)
 					    to_destroy);
 					tctx_tree_remove(&gctx->tctxs,
 					    to_destroy);
-					idalloctm(tsd, to_destroy, true, true);
+					idalloctm(tsd, to_destroy,
+					    tcache_get(tsd, false), true);
 				} else
 					next = NULL;
 			} while (next != NULL);
@@ -1644,12 +1648,14 @@ prof_tdata_init_impl(tsd_t *tsd, uint64_t thr_uid, uint64_t thr_discrim,
     char *thread_name, bool active)
 {
 	prof_tdata_t *tdata;
+	tcache_t *tcache;
 
 	cassert(config_prof);
 
 	/* Initialize an empty cache for this thread. */
+	tcache = tcache_get(tsd, true);
 	tdata = (prof_tdata_t *)iallocztm(tsd, sizeof(prof_tdata_t), false,
-	    true, true, NULL);
+	    tcache, true, NULL);
 	if (tdata == NULL)
 		return (NULL);
 
@@ -1662,7 +1668,7 @@ prof_tdata_init_impl(tsd_t *tsd, uint64_t thr_uid, uint64_t thr_discrim,
 
 	if (ckh_new(tsd, &tdata->bt2tctx, PROF_CKH_MINITEMS,
 	    prof_bt_hash, prof_bt_keycomp)) {
-		idalloctm(tsd, tdata, true, true);
+		idalloctm(tsd, tdata, tcache, true);
 		return (NULL);
 	}
 
@@ -1708,16 +1714,18 @@ static void
 prof_tdata_destroy_locked(tsd_t *tsd, prof_tdata_t *tdata,
     bool even_if_attached)
 {
+	tcache_t *tcache;
 
 	assert(prof_tdata_should_destroy(tdata, even_if_attached));
 	assert(tsd_prof_tdata_get(tsd) != tdata);
 
 	tdata_tree_remove(&tdatas, tdata);
 
+	tcache = tcache_get(tsd, false);
 	if (tdata->thread_name != NULL)
-		idalloctm(tsd, tdata->thread_name, true, true);
+		idalloctm(tsd, tdata->thread_name, tcache, true);
 	ckh_delete(tsd, &tdata->bt2tctx);
-	idalloctm(tsd, tdata, true, true);
+	idalloctm(tsd, tdata, tcache, true);
 }
 
 static void
@@ -1878,7 +1886,7 @@ prof_thread_name_alloc(tsd_t *tsd, const char *thread_name)
 	if (size == 1)
 		return ("");
 
-	ret = iallocztm(tsd, size, false, true, true, NULL);
+	ret = iallocztm(tsd, size, false, tcache_get(tsd, true), true, NULL);
 	if (ret == NULL)
 		return (NULL);
 	memcpy(ret, thread_name, size);
@@ -1910,7 +1918,8 @@ prof_thread_name_set(tsd_t *tsd, const char *thread_name)
 		return (EAGAIN);
 
 	if (tdata->thread_name != NULL) {
-		idalloctm(tsd, tdata->thread_name, true, true);
+		idalloctm(tsd, tdata->thread_name, tcache_get(tsd, false),
+		    true);
 		tdata->thread_name = NULL;
 	}
 	if (strlen(s) > 0)

@@ -110,6 +110,9 @@ CTL_PROTO(opt_prof_gdump)
 CTL_PROTO(opt_prof_final)
 CTL_PROTO(opt_prof_leak)
 CTL_PROTO(opt_prof_accum)
+CTL_PROTO(tcache_create)
+CTL_PROTO(tcache_flush)
+CTL_PROTO(tcache_destroy)
 CTL_PROTO(arena_i_purge)
 static void	arena_purge(unsigned arena_ind);
 CTL_PROTO(arena_i_dss)
@@ -273,6 +276,12 @@ static const ctl_named_node_t opt_node[] = {
 	{NAME("prof_final"),	CTL(opt_prof_final)},
 	{NAME("prof_leak"),	CTL(opt_prof_leak)},
 	{NAME("prof_accum"),	CTL(opt_prof_accum)}
+};
+
+static const ctl_named_node_t	tcache_node[] = {
+	{NAME("create"),	CTL(tcache_create)},
+	{NAME("flush"),		CTL(tcache_flush)},
+	{NAME("destroy"),	CTL(tcache_destroy)}
 };
 
 static const ctl_named_node_t chunk_node[] = {
@@ -474,6 +483,7 @@ static const ctl_named_node_t	root_node[] = {
 	{NAME("thread"),	CHILD(named, thread)},
 	{NAME("config"),	CHILD(named, config)},
 	{NAME("opt"),		CHILD(named, opt)},
+	{NAME("tcache"),	CHILD(named, tcache)},
 	{NAME("arena"),		CHILD(indexed, arena)},
 	{NAME("arenas"),	CHILD(named, arenas)},
 	{NAME("prof"),		CHILD(named, prof)},
@@ -1281,19 +1291,21 @@ thread_arena_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
 {
 	int ret;
 	tsd_t *tsd;
-	arena_t *arena;
+	arena_t *oldarena;
 	unsigned newind, oldind;
 
 	tsd = tsd_fetch();
-	arena = arena_choose(tsd, NULL);
-	if (arena == NULL)
+	oldarena = arena_choose(tsd, NULL);
+	if (oldarena == NULL)
 		return (EAGAIN);
 
 	malloc_mutex_lock(&ctl_mtx);
-	newind = oldind = arena->ind;
+	newind = oldind = oldarena->ind;
 	WRITE(newind, unsigned);
 	READ(oldind, unsigned);
 	if (newind != oldind) {
+		arena_t *newarena;
+
 		if (newind >= ctl_stats.narenas) {
 			/* New arena index is out of range. */
 			ret = EFAULT;
@@ -1301,8 +1313,8 @@ thread_arena_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
 		}
 
 		/* Initialize arena if necessary. */
-		arena = arena_get(tsd, newind, true, true);
-		if (arena == NULL) {
+		newarena = arena_get(tsd, newind, true, true);
+		if (newarena == NULL) {
 			ret = EAGAIN;
 			goto label_return;
 		}
@@ -1310,8 +1322,10 @@ thread_arena_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
 		arena_migrate(tsd, oldind, newind);
 		if (config_tcache) {
 			tcache_t *tcache = tsd_tcache_get(tsd);
-			if (tcache != NULL)
-				tcache_arena_reassociate(tcache, arena);
+			if (tcache != NULL) {
+				tcache_arena_reassociate(tcache, oldarena,
+				    newarena);
+			}
 		}
 	}
 
@@ -1430,6 +1444,89 @@ thread_prof_active_ctl(const size_t *mib, size_t miblen, void *oldp,
 		}
 	}
 	READ(oldval, bool);
+
+	ret = 0;
+label_return:
+	return (ret);
+}
+
+/******************************************************************************/
+
+static int
+tcache_create_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
+    void *newp, size_t newlen)
+{
+	int ret;
+	tsd_t *tsd;
+	unsigned tcache_ind;
+
+	if (!config_tcache)
+		return (ENOENT);
+
+	tsd = tsd_fetch();
+
+	malloc_mutex_lock(&ctl_mtx);
+	READONLY();
+	if (tcaches_create(tsd, &tcache_ind)) {
+		ret = EFAULT;
+		goto label_return;
+	}
+	READ(tcache_ind, unsigned);
+
+	ret = 0;
+label_return:
+	malloc_mutex_unlock(&ctl_mtx);
+	return (ret);
+}
+
+static int
+tcache_flush_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
+    void *newp, size_t newlen)
+{
+	int ret;
+	tsd_t *tsd;
+	unsigned tcache_ind;
+
+	if (!config_tcache)
+		return (ENOENT);
+
+	tsd = tsd_fetch();
+
+	WRITEONLY();
+	tcache_ind = UINT_MAX;
+	WRITE(tcache_ind, unsigned);
+	if (tcache_ind == UINT_MAX) {
+		ret = EFAULT;
+		goto label_return;
+	}
+	tcaches_flush(tsd, tcache_ind);
+
+	ret = 0;
+label_return:
+	return (ret);
+}
+
+static int
+tcache_destroy_ctl(const size_t *mib, size_t miblen, void *oldp,
+    size_t *oldlenp, void *newp, size_t newlen)
+{
+	int ret;
+	tsd_t *tsd;
+	unsigned tcache_ind;
+
+	if (!config_tcache)
+		return (ENOENT);
+
+	tsd = tsd_fetch();
+
+	WRITEONLY();
+	tcache_ind = UINT_MAX;
+	WRITE(tcache_ind, unsigned);
+	if (tcache_ind == UINT_MAX) {
+		ret = EFAULT;
+		goto label_return;
+	}
+	tcaches_destroy(tsd, tcache_ind);
 
 	ret = 0;
 label_return:

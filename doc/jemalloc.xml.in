@@ -242,7 +242,7 @@
       relevant.  Use bitwise or (<code language="C">|</code>) operations to
       specify one or more of the following:
         <variablelist>
-          <varlistentry>
+          <varlistentry id="MALLOCX_LG_ALIGN">
             <term><constant>MALLOCX_LG_ALIGN(<parameter>la</parameter>)
             </constant></term>
 
@@ -252,7 +252,7 @@
             that <parameter>la</parameter> is within the valid
             range.</para></listitem>
           </varlistentry>
-          <varlistentry>
+          <varlistentry id="MALLOCX_ALIGN">
             <term><constant>MALLOCX_ALIGN(<parameter>a</parameter>)
             </constant></term>
 
@@ -262,7 +262,7 @@
             validate that <parameter>a</parameter> is a power of 2.
             </para></listitem>
           </varlistentry>
-          <varlistentry>
+          <varlistentry id="MALLOCX_ZERO">
             <term><constant>MALLOCX_ZERO</constant></term>
 
             <listitem><para>Initialize newly allocated memory to contain zero
@@ -271,16 +271,38 @@
             that are initialized to contain zero bytes.  If this macro is
             absent, newly allocated memory is uninitialized.</para></listitem>
           </varlistentry>
-          <varlistentry>
+          <varlistentry id="MALLOCX_TCACHE">
+            <term><constant>MALLOCX_TCACHE(<parameter>tc</parameter>)
+            </constant></term>
+
+            <listitem><para>Use the thread-specific cache (tcache) specified by
+            the identifier <parameter>tc</parameter>, which must have been
+            acquired via the <link
+            linkend="tcache.create"><mallctl>tcache.create</mallctl></link>
+            mallctl.  This macro does not validate that
+            <parameter>tc</parameter> specifies a valid
+            identifier.</para></listitem>
+          </varlistentry>
+          <varlistentry id="MALLOC_TCACHE_NONE">
+            <term><constant>MALLOCX_TCACHE_NONE</constant></term>
+
+            <listitem><para>Do not use a thread-specific cache (tcache).  Unless
+            <constant>MALLOCX_TCACHE(<parameter>tc</parameter>)</constant> or
+            <constant>MALLOCX_TCACHE_NONE</constant> is specified, an
+            automatically managed tcache will be used under many circumstances.
+            This macro cannot be used in the same <parameter>flags</parameter>
+            argument as
+            <constant>MALLOCX_TCACHE(<parameter>tc</parameter>)</constant>.</para></listitem>
+          </varlistentry>
+          <varlistentry id="MALLOCX_ARENA">
             <term><constant>MALLOCX_ARENA(<parameter>a</parameter>)
             </constant></term>
 
             <listitem><para>Use the arena specified by the index
-            <parameter>a</parameter> (and by necessity bypass the thread
-            cache).  This macro has no effect for regions that were allocated
-            via an arena other than the one specified.  This macro does not
-            validate that <parameter>a</parameter> specifies an arena index in
-            the valid range.</para></listitem>
+            <parameter>a</parameter>.  This macro has no effect for regions that
+            were allocated via an arena other than the one specified.  This
+            macro does not validate that <parameter>a</parameter> specifies an
+            arena index in the valid range.</para></listitem>
           </varlistentry>
         </variablelist>
       </para>
@@ -1060,12 +1082,11 @@ malloc_conf = "xmalloc:true";]]></programlisting>
           <literal>r-</literal>
           [<option>--enable-tcache</option>]
         </term>
-        <listitem><para>Thread-specific caching enabled/disabled.  When there
-        are multiple threads, each thread uses a thread-specific cache for
-        objects up to a certain size.  Thread-specific caching allows many
-        allocations to be satisfied without performing any thread
-        synchronization, at the cost of increased memory use.  See the
-        <link
+        <listitem><para>Thread-specific caching (tcache) enabled/disabled.  When
+        there are multiple threads, each thread uses a tcache for objects up to
+        a certain size.  Thread-specific caching allows many allocations to be
+        satisfied without performing any thread synchronization, at the cost of
+        increased memory use.  See the <link
         linkend="opt.lg_tcache_max"><mallctl>opt.lg_tcache_max</mallctl></link>
         option for related tuning information.  This option is enabled by
         default unless running inside <ulink
@@ -1081,8 +1102,8 @@ malloc_conf = "xmalloc:true";]]></programlisting>
           [<option>--enable-tcache</option>]
         </term>
         <listitem><para>Maximum size class (log base 2) to cache in the
-        thread-specific cache.  At a minimum, all small size classes are
-        cached, and at a maximum all large size classes are cached.  The
+        thread-specific cache (tcache).  At a minimum, all small size classes
+        are cached, and at a maximum all large size classes are cached.  The
         default maximum is 32 KiB (2^15).</para></listitem>
       </varlistentry>
 
@@ -1339,7 +1360,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         <listitem><para>Enable/disable calling thread's tcache.  The tcache is
         implicitly flushed as a side effect of becoming
         disabled (see <link
-        lenkend="thread.tcache.flush"><mallctl>thread.tcache.flush</mallctl></link>).
+        linkend="thread.tcache.flush"><mallctl>thread.tcache.flush</mallctl></link>).
         </para></listitem>
       </varlistentry>
 
@@ -1350,9 +1371,9 @@ malloc_conf = "xmalloc:true";]]></programlisting>
           <literal>--</literal>
           [<option>--enable-tcache</option>]
         </term>
-        <listitem><para>Flush calling thread's tcache.  This interface releases
-        all cached objects and internal data structures associated with the
-        calling thread's thread-specific cache.  Ordinarily, this interface
+        <listitem><para>Flush calling thread's thread-specific cache (tcache).
+        This interface releases all cached objects and internal data structures
+        associated with the calling thread's tcache.  Ordinarily, this interface
         need not be called, since automatic periodic incremental garbage
         collection occurs, and the thread cache is automatically discarded when
         a thread exits.  However, garbage collection is triggered by allocation
@@ -1397,6 +1418,49 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         linkend="prof.active"><mallctl>prof.active</mallctl></link>; both must
         be active for the calling thread to sample.  This flag is enabled by
         default.</para></listitem>
+      </varlistentry>
+
+      <varlistentry id="tcache.create">
+        <term>
+          <mallctl>tcache.create</mallctl>
+          (<type>unsigned</type>)
+          <literal>r-</literal>
+          [<option>--enable-tcache</option>]
+        </term>
+        <listitem><para>Create an explicit thread-specific cache (tcache) and
+        return an identifier that can be passed to the <link
+        linkend="MALLOCX_TCACHE"><constant>MALLOCX_TCACHE(<parameter>tc</parameter>)</constant></link>
+        macro to explicitly use the specified cache rather than the
+        automatically managed one that is used by default.  Each explicit cache
+        can be used by only one thread at a time; the application must assure
+        that this constraint holds.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry id="tcache.flush">
+        <term>
+          <mallctl>tcache.flush</mallctl>
+          (<type>unsigned</type>)
+          <literal>-w</literal>
+          [<option>--enable-tcache</option>]
+        </term>
+        <listitem><para>Flush the specified thread-specific cache (tcache).  The
+        same considerations apply to this interface as to <link
+        linkend="thread.tcache.flush"><mallctl>thread.tcache.flush</mallctl></link>,
+        except that the tcache will never be automatically be discarded.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry id="tcache.destroy">
+        <term>
+          <mallctl>tcache.destroy</mallctl>
+          (<type>unsigned</type>)
+          <literal>-w</literal>
+          [<option>--enable-tcache</option>]
+        </term>
+        <listitem><para>Flush the specified thread-specific cache (tcache) and
+        make the identifier available for use during a future tcache creation.
+        </para></listitem>
       </varlistentry>
 
       <varlistentry id="arena.i.purge">
