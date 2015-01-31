@@ -10,7 +10,6 @@
 #ifdef JEMALLOC_H_EXTERNS
 
 void	*base_alloc(size_t size);
-void	*base_calloc(size_t number, size_t size);
 extent_node_t *base_node_alloc(void);
 void	base_node_dalloc(extent_node_t *node);
 size_t	base_allocated_get(void);

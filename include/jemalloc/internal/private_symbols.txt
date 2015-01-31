@@ -103,7 +103,6 @@ atomic_sub_z
 base_alloc
 base_allocated_get
 base_boot
-base_calloc
 base_node_alloc
 base_node_dalloc
 base_postfork_child

@@ -232,15 +232,18 @@ chunk_alloc_base(size_t size)
 	void *ret;
 	bool zero;
 
-	zero = false;
-	ret = chunk_alloc_core(NULL, size, chunksize, true, &zero,
-	    chunk_dss_prec_get());
-	if (ret == NULL)
-		return (NULL);
-	if (chunk_register(ret, size, true)) {
+	/*
+	 * Directly call chunk_alloc_mmap() rather than chunk_alloc_core()
+	 * because it's critical that chunk_alloc_base() return untouched
+	 * demand-zeroed virtual memory.
+	 */
+	zero = true;
+	ret = chunk_alloc_mmap(size, chunksize, &zero);
+	if (ret != NULL && chunk_register(ret, size, true)) {
 		chunk_dalloc_core(ret, size);
-		return (NULL);
+		ret = NULL;
 	}
+
 	return (ret);
 }
 
