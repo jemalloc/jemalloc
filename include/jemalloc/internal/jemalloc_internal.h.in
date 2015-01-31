@@ -955,7 +955,7 @@ ivsalloc(const void *ptr, bool demote)
 {
 
 	/* Return 0 if ptr is not within a chunk managed by jemalloc. */
-	if (rtree_get(chunks_rtree, (uintptr_t)CHUNK_ADDR2BASE(ptr)) == 0)
+	if (rtree_get(&chunks_rtree, (uintptr_t)CHUNK_ADDR2BASE(ptr)) == 0)
 		return (0);
 
 	return (isalloc(ptr, demote));

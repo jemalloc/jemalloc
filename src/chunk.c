@@ -21,7 +21,7 @@ static extent_tree_t	chunks_ad_mmap;
 static extent_tree_t	chunks_szad_dss;
 static extent_tree_t	chunks_ad_dss;
 
-rtree_t		*chunks_rtree;
+rtree_t		chunks_rtree;
 
 /* Various chunk-related settings. */
 size_t		chunksize;
@@ -200,7 +200,7 @@ chunk_register(void *chunk, size_t size, bool base)
 	assert(CHUNK_ADDR2BASE(chunk) == chunk);
 
 	if (config_ivsalloc && !base) {
-		if (rtree_set(chunks_rtree, (uintptr_t)chunk, 1))
+		if (rtree_set(&chunks_rtree, (uintptr_t)chunk, chunk))
 			return (true);
 	}
 	if (config_stats || config_prof) {
@@ -395,7 +395,7 @@ chunk_dalloc_core(void *chunk, size_t size)
 	assert((size & chunksize_mask) == 0);
 
 	if (config_ivsalloc)
-		rtree_set(chunks_rtree, (uintptr_t)chunk, 0);
+		rtree_set(&chunks_rtree, (uintptr_t)chunk, NULL);
 	if (config_stats || config_prof) {
 		malloc_mutex_lock(&chunks_mtx);
 		assert(stats_chunks.curchunks >= (size / chunksize));
@@ -413,6 +413,14 @@ chunk_dalloc_default(void *chunk, size_t size, unsigned arena_ind)
 
 	chunk_dalloc_core(chunk, size);
 	return (false);
+}
+
+static rtree_node_elm_t *
+chunks_rtree_node_alloc(size_t nelms)
+{
+
+	return ((rtree_node_elm_t *)base_alloc(nelms *
+	    sizeof(rtree_node_elm_t)));
 }
 
 bool
@@ -436,9 +444,8 @@ chunk_boot(void)
 	extent_tree_szad_new(&chunks_szad_dss);
 	extent_tree_ad_new(&chunks_ad_dss);
 	if (config_ivsalloc) {
-		chunks_rtree = rtree_new((ZU(1) << (LG_SIZEOF_PTR+3)) -
-		    opt_lg_chunk, base_alloc, NULL);
-		if (chunks_rtree == NULL)
+		if (rtree_new(&chunks_rtree, (ZU(1) << (LG_SIZEOF_PTR+3)) -
+		    opt_lg_chunk, chunks_rtree_node_alloc, NULL))
 			return (true);
 	}
 
@@ -450,8 +457,6 @@ chunk_prefork(void)
 {
 
 	malloc_mutex_prefork(&chunks_mtx);
-	if (config_ivsalloc)
-		rtree_prefork(chunks_rtree);
 	chunk_dss_prefork();
 }
 
@@ -460,8 +465,6 @@ chunk_postfork_parent(void)
 {
 
 	chunk_dss_postfork_parent();
-	if (config_ivsalloc)
-		rtree_postfork_parent(chunks_rtree);
 	malloc_mutex_postfork_parent(&chunks_mtx);
 }
 
@@ -470,7 +473,5 @@ chunk_postfork_child(void)
 {
 
 	chunk_dss_postfork_child();
-	if (config_ivsalloc)
-		rtree_postfork_child(chunks_rtree);
 	malloc_mutex_postfork_child(&chunks_mtx);
 }

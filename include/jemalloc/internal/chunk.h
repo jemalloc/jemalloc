@@ -35,7 +35,7 @@ extern malloc_mutex_t	chunks_mtx;
 /* Chunk statistics. */
 extern chunk_stats_t	stats_chunks;
 
-extern rtree_t		*chunks_rtree;
+extern rtree_t		chunks_rtree;
 
 extern size_t		chunksize;
 extern size_t		chunksize_mask; /* (chunksize - 1). */
