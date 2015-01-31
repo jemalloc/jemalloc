@@ -15,9 +15,6 @@ struct extent_node_s {
 	/* Linkage for the address-ordered tree. */
 	rb_node(extent_node_t)	link_ad;
 
-	/* Profile counters, used for huge objects. */
-	prof_tctx_t		*prof_tctx;
-
 	/* Pointer to the extent that this tree node is responsible for. */
 	void			*addr;
 
@@ -27,8 +24,17 @@ struct extent_node_s {
 	/* Arena from which this extent came, if any. */
 	arena_t			*arena;
 
-	/* True if zero-filled; used by chunk recycling code. */
-	bool			zeroed;
+	/*
+	 * 'prof_tctx' and 'zeroed' are never needed at the same time, so
+	 * overlay them in order to fit extent_node_t in one cache line.
+	 */
+	union {
+		/* Profile counters, used for huge objects. */
+		prof_tctx_t	*prof_tctx;
+
+		/* True if zero-filled; used by chunk recycling code. */
+		bool		zeroed;
+	};
 };
 typedef rb_tree(extent_node_t) extent_tree_t;
 
