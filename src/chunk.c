@@ -48,6 +48,8 @@ chunk_recycle(extent_tree_t *chunks_szad, extent_tree_t *chunks_ad,
 	size_t alloc_size, leadsize, trailsize;
 	bool zeroed;
 
+	assert(new_addr == NULL || alignment == chunksize);
+
 	if (base) {
 		/*
 		 * This function may need to call base_node_{,de}alloc(), but
@@ -65,13 +67,15 @@ chunk_recycle(extent_tree_t *chunks_szad, extent_tree_t *chunks_ad,
 	key.addr = new_addr;
 	key.size = alloc_size;
 	malloc_mutex_lock(&chunks_mtx);
-	node = extent_tree_szad_nsearch(chunks_szad, &key);
-	if (node == NULL || (new_addr && node->addr != new_addr)) {
+	node = (new_addr != NULL) ? extent_tree_ad_search(chunks_ad, &key) :
+	    extent_tree_szad_nsearch(chunks_szad, &key);
+	if (node == NULL) {
 		malloc_mutex_unlock(&chunks_mtx);
 		return (NULL);
 	}
 	leadsize = ALIGNMENT_CEILING((uintptr_t)node->addr, alignment) -
 	    (uintptr_t)node->addr;
+	assert(new_addr == NULL || leadsize == 0);
 	assert(node->size >= leadsize + size);
 	trailsize = node->size - leadsize - size;
 	ret = (void *)((uintptr_t)node->addr + leadsize);
