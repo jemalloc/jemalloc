@@ -85,10 +85,17 @@ arena_stats_merge
 arena_tcache_fill_small
 arenas_cache_bypass_cleanup
 arenas_cache_cleanup
+atomic_add_p
 atomic_add_u
 atomic_add_uint32
 atomic_add_uint64
 atomic_add_z
+atomic_cas_p
+atomic_cas_u
+atomic_cas_uint32
+atomic_cas_uint64
+atomic_cas_z
+atomic_sub_p
 atomic_sub_u
 atomic_sub_uint32
 atomic_sub_uint64
