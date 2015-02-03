@@ -850,6 +850,7 @@ arena_maybe_purge(arena_t *arena)
 	if (opt_lg_dirty_mult < 0)
 		return;
 	threshold = (arena->nactive >> opt_lg_dirty_mult);
+	threshold = threshold < chunk_npages ? chunk_npages : threshold;
 	/*
 	 * Don't purge unless the number of purgeable pages exceeds the
 	 * threshold.
@@ -893,6 +894,7 @@ arena_compute_npurge(arena_t *arena, bool all)
 	 */
 	if (!all) {
 		size_t threshold = (arena->nactive >> opt_lg_dirty_mult);
+		threshold = threshold < chunk_npages ? chunk_npages : threshold;
 
 		npurge = arena->ndirty - threshold;
 	} else
