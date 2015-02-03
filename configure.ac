@@ -998,7 +998,7 @@ fi
 AC_ARG_WITH([lg_page],
   [AS_HELP_STRING([--with-lg-page=<lg-page>], [Base 2 log of system page size])],
   [LG_PAGE="$with_lg_page"], [LG_PAGE="detect"])
-if test "x$LG_PAGE" == "xdetect"; then
+if test "x$LG_PAGE" = "xdetect"; then
   AC_CACHE_CHECK([LG_PAGE],
                [je_cv_lg_page],
                AC_RUN_IFELSE([AC_LANG_PROGRAM(
