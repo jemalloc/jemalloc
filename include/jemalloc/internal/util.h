@@ -136,14 +136,14 @@ JEMALLOC_ALWAYS_INLINE int
 jemalloc_ffsl(long bitmap)
 {
 
-        return (JEMALLOC_INTERNAL_FFSL(bitmap));
+	return (JEMALLOC_INTERNAL_FFSL(bitmap));
 }
 
 JEMALLOC_ALWAYS_INLINE int
 jemalloc_ffs(int bitmap)
 {
 
-        return (JEMALLOC_INTERNAL_FFS(bitmap));
+	return (JEMALLOC_INTERNAL_FFS(bitmap));
 }
 
 /* Compute the smallest power of 2 that is >= x. */
@@ -170,6 +170,8 @@ lg_floor(size_t x)
 {
 	size_t ret;
 
+	assert(x != 0);
+
 	asm ("bsr %1, %0"
 	    : "=r"(ret) // Outputs.
 	    : "r"(x)    // Inputs.
@@ -180,21 +182,25 @@ lg_floor(size_t x)
 JEMALLOC_INLINE size_t
 lg_floor(size_t x)
 {
-    unsigned long ret;
+	unsigned long ret;
+
+	assert(x != 0);
 
 #if (LG_SIZEOF_PTR == 3)
-    _BitScanReverse64(&ret, x);
+	_BitScanReverse64(&ret, x);
 #elif (LG_SIZEOF_PTR == 2)
-    _BitScanReverse(&ret, x);
+	_BitScanReverse(&ret, x);
 #else
 #  error "Unsupported type sizes for lg_floor()"
 #endif
-    return (ret);
+	return (ret);
 }
 #elif (defined(JEMALLOC_HAVE_BUILTIN_CLZ))
 JEMALLOC_INLINE size_t
 lg_floor(size_t x)
 {
+
+	assert(x != 0);
 
 #if (LG_SIZEOF_PTR == LG_SIZEOF_INT)
 	return (((8 << LG_SIZEOF_PTR) - 1) - __builtin_clz(x));
@@ -208,6 +214,8 @@ lg_floor(size_t x)
 JEMALLOC_INLINE size_t
 lg_floor(size_t x)
 {
+
+	assert(x != 0);
 
 	x |= (x >> 1);
 	x |= (x >> 2);
