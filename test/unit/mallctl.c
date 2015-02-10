@@ -258,6 +258,18 @@ TEST_BEGIN(test_tcache)
 		    "Unexpected mallctl() failure, i=%u", i);
 	}
 
+	/* Exercise tcache ID recycling. */
+	for (i = 0; i < NTCACHES; i++) {
+		assert_d_eq(mallctl("tcache.destroy", NULL, NULL, &tis[i],
+		    sizeof(unsigned)), 0, "Unexpected mallctl() failure, i=%u",
+		    i);
+	}
+	for (i = 0; i < NTCACHES; i++) {
+		sz = sizeof(unsigned);
+		assert_d_eq(mallctl("tcache.create", &tis[i], &sz, NULL, 0), 0,
+		    "Unexpected mallctl() failure, i=%u", i);
+	}
+
 	/* Flush empty tcaches. */
 	for (i = 0; i < NTCACHES; i++) {
 		assert_d_eq(mallctl("tcache.flush", NULL, NULL, &tis[i],

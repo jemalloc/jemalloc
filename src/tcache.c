@@ -451,7 +451,7 @@ tcaches_create(tsd_t *tsd, unsigned *r_ind)
 		elm = tcaches_avail;
 		tcaches_avail = tcaches_avail->next;
 		elm->tcache = tcache;
-		*r_ind = (elm - tcaches) / sizeof(tcaches_t);
+		*r_ind = elm - tcaches;
 	} else {
 		elm = &tcaches[tcaches_past];
 		elm->tcache = tcache;
