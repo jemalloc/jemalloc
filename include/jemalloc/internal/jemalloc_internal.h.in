@@ -755,10 +755,7 @@ arena_get(tsd_t *tsd, unsigned ind, bool init_if_missing,
 	arena = arenas_cache[ind];
 	if (likely(arena != NULL) || !refresh_if_missing)
 		return (arena);
-	if (init_if_missing)
-		return (arena_get_hard(tsd, ind, init_if_missing));
-	else
-		return (NULL);
+	return (arena_get_hard(tsd, ind, init_if_missing));
 }
 #endif
 
