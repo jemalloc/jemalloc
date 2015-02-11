@@ -119,7 +119,7 @@ atomic_write_uint64(uint64_t *p, uint64_t x)
 {
 
 	asm volatile (
-	    "lock; xchgq %1, %0;"
+	    "xchgq %1, %0;" /* Lock is implied by xchgq. */
 	    : "=m" (*p), "+r" (x) /* Outputs. */
 	    : "m" (*p) /* Inputs. */
 	    : "memory" /* Clobbers. */
@@ -343,7 +343,7 @@ atomic_write_uint32(uint32_t *p, uint32_t x)
 {
 
 	asm volatile (
-	    "lock; xchgl %1, %0;"
+	    "xchgl %1, %0;" /* Lock is implied by xchgl. */
 	    : "=m" (*p), "+r" (x) /* Outputs. */
 	    : "m" (*p) /* Inputs. */
 	    : "memory" /* Clobbers. */
