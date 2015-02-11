@@ -119,13 +119,6 @@ static const bool config_xmalloc =
     false
 #endif
     ;
-static const bool config_ivsalloc =
-#ifdef JEMALLOC_IVSALLOC
-    true
-#else
-    false
-#endif
-    ;
 
 #ifdef JEMALLOC_C11ATOMICS
 #include <stdatomic.h>
@@ -352,9 +345,9 @@ typedef unsigned index_t;
 #include "jemalloc/internal/arena.h"
 #include "jemalloc/internal/bitmap.h"
 #include "jemalloc/internal/base.h"
+#include "jemalloc/internal/rtree.h"
 #include "jemalloc/internal/chunk.h"
 #include "jemalloc/internal/huge.h"
-#include "jemalloc/internal/rtree.h"
 #include "jemalloc/internal/tcache.h"
 #include "jemalloc/internal/hash.h"
 #include "jemalloc/internal/quarantine.h"
@@ -378,9 +371,9 @@ typedef unsigned index_t;
 #include "jemalloc/internal/extent.h"
 #include "jemalloc/internal/arena.h"
 #include "jemalloc/internal/base.h"
+#include "jemalloc/internal/rtree.h"
 #include "jemalloc/internal/chunk.h"
 #include "jemalloc/internal/huge.h"
-#include "jemalloc/internal/rtree.h"
 #include "jemalloc/internal/tcache.h"
 #include "jemalloc/internal/hash.h"
 #include "jemalloc/internal/quarantine.h"
@@ -457,9 +450,9 @@ void	jemalloc_postfork_child(void);
 #include "jemalloc/internal/extent.h"
 #include "jemalloc/internal/arena.h"
 #include "jemalloc/internal/base.h"
+#include "jemalloc/internal/rtree.h"
 #include "jemalloc/internal/chunk.h"
 #include "jemalloc/internal/huge.h"
-#include "jemalloc/internal/rtree.h"
 #include "jemalloc/internal/tcache.h"
 #include "jemalloc/internal/hash.h"
 #include "jemalloc/internal/quarantine.h"
@@ -483,6 +476,7 @@ void	jemalloc_postfork_child(void);
 #include "jemalloc/internal/mb.h"
 #include "jemalloc/internal/extent.h"
 #include "jemalloc/internal/base.h"
+#include "jemalloc/internal/rtree.h"
 #include "jemalloc/internal/chunk.h"
 #include "jemalloc/internal/huge.h"
 
@@ -777,7 +771,6 @@ arena_get(tsd_t *tsd, unsigned ind, bool init_if_missing,
 #endif
 
 #include "jemalloc/internal/bitmap.h"
-#include "jemalloc/internal/rtree.h"
 /*
  * Include portions of arena.h interleaved with tcache.h in order to resolve
  * circular dependencies.
@@ -966,10 +959,14 @@ ipalloc(tsd_t *tsd, size_t usize, size_t alignment, bool zero)
 JEMALLOC_ALWAYS_INLINE size_t
 ivsalloc(const void *ptr, bool demote)
 {
+	extent_node_t *node;
 
 	/* Return 0 if ptr is not within a chunk managed by jemalloc. */
-	if (rtree_get(&chunks_rtree, (uintptr_t)CHUNK_ADDR2BASE(ptr)) == 0)
+	node = chunk_lookup(CHUNK_ADDR2BASE(ptr));
+	if (node == NULL)
 		return (0);
+	/* Only arena chunks should be looked up via interior pointers. */
+	assert(node->addr == ptr || node->size == 0);
 
 	return (isalloc(ptr, demote));
 }
@@ -999,7 +996,6 @@ p2rz(const void *ptr)
 JEMALLOC_ALWAYS_INLINE void
 idalloctm(tsd_t *tsd, void *ptr, tcache_t *tcache, bool is_metadata)
 {
-	arena_chunk_t *chunk;
 
 	assert(ptr != NULL);
 	if (config_stats && is_metadata) {
@@ -1007,11 +1003,7 @@ idalloctm(tsd_t *tsd, void *ptr, tcache_t *tcache, bool is_metadata)
 		    config_prof));
 	}
 
-	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
-	if (likely(chunk != ptr))
-		arena_dalloc(tsd, chunk, ptr, tcache);
-	else
-		huge_dalloc(tsd, ptr, tcache);
+	arena_dalloc(tsd, ptr, tcache);
 }
 
 JEMALLOC_ALWAYS_INLINE void

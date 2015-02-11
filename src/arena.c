@@ -20,6 +20,7 @@ unsigned	nhclasses; /* Number of huge size classes. */
  * definition.
  */
 
+static void	arena_chunk_dalloc(arena_t *arena, arena_chunk_t *chunk);
 static void	arena_purge(arena_t *arena, bool all);
 static void	arena_run_dalloc(arena_t *arena, arena_run_t *run, bool dirty,
     bool cleaned);
@@ -392,8 +393,7 @@ arena_chunk_init_spare(arena_t *arena)
 }
 
 static arena_chunk_t *
-arena_chunk_alloc_internal(arena_t *arena, size_t size, size_t alignment,
-    bool *zero)
+arena_chunk_alloc_internal(arena_t *arena, bool *zero)
 {
 	arena_chunk_t *chunk;
 	chunk_alloc_t *chunk_alloc;
@@ -403,7 +403,16 @@ arena_chunk_alloc_internal(arena_t *arena, size_t size, size_t alignment,
 	chunk_dalloc = arena->chunk_dalloc;
 	malloc_mutex_unlock(&arena->lock);
 	chunk = (arena_chunk_t *)chunk_alloc_arena(chunk_alloc, chunk_dalloc,
-	    arena->ind, NULL, size, alignment, zero);
+	    arena->ind, NULL, chunksize, chunksize, zero);
+	if (chunk != NULL) {
+		chunk->node.arena = arena;
+		chunk->node.addr = chunk;
+		chunk->node.size = 0; /* Indicates this is an arena chunk. */
+		if (chunk_register(chunk, &chunk->node)) {
+			chunk_dalloc((void *)chunk, chunksize, arena->ind);
+			chunk = NULL;
+		}
+	}
 	malloc_mutex_lock(&arena->lock);
 	if (config_stats && chunk != NULL) {
 		arena->stats.mapped += chunksize;
@@ -423,11 +432,9 @@ arena_chunk_init_hard(arena_t *arena)
 	assert(arena->spare == NULL);
 
 	zero = false;
-	chunk = arena_chunk_alloc_internal(arena, chunksize, chunksize, &zero);
+	chunk = arena_chunk_alloc_internal(arena, &zero);
 	if (chunk == NULL)
 		return (NULL);
-
-	chunk->arena = arena;
 
 	/*
 	 * Initialize the map to contain one maximal free untouched run.  Mark
@@ -514,6 +521,7 @@ arena_chunk_dalloc(arena_t *arena, arena_chunk_t *chunk)
 		}
 		chunk_dalloc = arena->chunk_dalloc;
 		malloc_mutex_unlock(&arena->lock);
+		chunk_deregister(spare, &spare->node);
 		chunk_dalloc((void *)spare, chunksize, arena->ind);
 		malloc_mutex_lock(&arena->lock);
 		if (config_stats) {
@@ -591,6 +599,32 @@ arena_huge_ralloc_stats_update_undo(arena_t *arena, size_t oldsize,
 
 	arena_huge_dalloc_stats_update_undo(arena, oldsize);
 	arena_huge_malloc_stats_update_undo(arena, usize);
+}
+
+extent_node_t *
+arena_node_alloc(arena_t *arena)
+{
+	extent_node_t *node;
+
+	malloc_mutex_lock(&arena->node_cache_mtx);
+	node = ql_last(&arena->node_cache, link_ql);
+	if (node == NULL) {
+		malloc_mutex_unlock(&arena->node_cache_mtx);
+		return (base_alloc(sizeof(extent_node_t)));
+	}
+	ql_tail_remove(&arena->node_cache, extent_node_t, link_ql);
+	malloc_mutex_unlock(&arena->node_cache_mtx);
+	return (node);
+}
+
+void
+arena_node_dalloc(arena_t *arena, extent_node_t *node)
+{
+
+	malloc_mutex_lock(&arena->node_cache_mtx);
+	ql_elm_new(node, link_ql);
+	ql_tail_insert(&arena->node_cache, node, link_ql);
+	malloc_mutex_unlock(&arena->node_cache_mtx);
 }
 
 void *
@@ -1782,7 +1816,7 @@ arena_dissociate_bin_run(arena_chunk_t *chunk, arena_run_t *run,
 	if (run == bin->runcur)
 		bin->runcur = NULL;
 	else {
-		index_t binind = arena_bin_index(chunk->arena, bin);
+		index_t binind = arena_bin_index(chunk->node.arena, bin);
 		arena_bin_info_t *bin_info = &arena_bin_info[binind];
 
 		if (bin_info->nregs != 1) {
@@ -2123,7 +2157,7 @@ arena_ralloc_large(void *ptr, size_t oldsize, size_t size, size_t extra,
 		arena_t *arena;
 
 		chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
-		arena = chunk->arena;
+		arena = chunk->node.arena;
 
 		if (usize < oldsize) {
 			/* Fill before shrinking in order avoid a race. */
@@ -2338,10 +2372,21 @@ arena_new(unsigned ind)
 
 	arena->ind = ind;
 	arena->nthreads = 0;
+	if (malloc_mutex_init(&arena->lock))
+		return (NULL);
 	arena->chunk_alloc = chunk_alloc_default;
 	arena->chunk_dalloc = chunk_dalloc_default;
-
-	if (malloc_mutex_init(&arena->lock))
+	ql_new(&arena->huge);
+	if (malloc_mutex_init(&arena->huge_mtx))
+		return (NULL);
+	extent_tree_szad_new(&arena->chunks_szad_mmap);
+	extent_tree_ad_new(&arena->chunks_ad_mmap);
+	extent_tree_szad_new(&arena->chunks_szad_dss);
+	extent_tree_ad_new(&arena->chunks_ad_dss);
+	ql_new(&arena->node_cache);
+	if (malloc_mutex_init(&arena->chunks_mtx))
+		return (NULL);
+	if (malloc_mutex_init(&arena->node_cache_mtx))
 		return (NULL);
 
 	if (config_stats) {
@@ -2551,6 +2596,9 @@ arena_prefork(arena_t *arena)
 	unsigned i;
 
 	malloc_mutex_prefork(&arena->lock);
+	malloc_mutex_prefork(&arena->huge_mtx);
+	malloc_mutex_prefork(&arena->chunks_mtx);
+	malloc_mutex_prefork(&arena->node_cache_mtx);
 	for (i = 0; i < NBINS; i++)
 		malloc_mutex_prefork(&arena->bins[i].lock);
 }
@@ -2562,6 +2610,9 @@ arena_postfork_parent(arena_t *arena)
 
 	for (i = 0; i < NBINS; i++)
 		malloc_mutex_postfork_parent(&arena->bins[i].lock);
+	malloc_mutex_postfork_parent(&arena->node_cache_mtx);
+	malloc_mutex_postfork_parent(&arena->chunks_mtx);
+	malloc_mutex_postfork_parent(&arena->huge_mtx);
 	malloc_mutex_postfork_parent(&arena->lock);
 }
 
@@ -2572,5 +2623,8 @@ arena_postfork_child(arena_t *arena)
 
 	for (i = 0; i < NBINS; i++)
 		malloc_mutex_postfork_child(&arena->bins[i].lock);
+	malloc_mutex_postfork_child(&arena->node_cache_mtx);
+	malloc_mutex_postfork_child(&arena->chunks_mtx);
+	malloc_mutex_postfork_child(&arena->huge_mtx);
 	malloc_mutex_postfork_child(&arena->lock);
 }

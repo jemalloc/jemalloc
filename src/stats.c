@@ -547,8 +547,6 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 	if (config_stats) {
 		size_t *cactive;
 		size_t allocated, active, metadata, mapped;
-		size_t chunks_current, chunks_high;
-		uint64_t chunks_total;
 
 		CTL_GET("stats.cactive", &cactive, size_t *);
 		CTL_GET("stats.allocated", &allocated, size_t);
@@ -560,16 +558,6 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		    allocated, active, metadata, mapped);
 		malloc_cprintf(write_cb, cbopaque,
 		    "Current active ceiling: %zu\n", atomic_read_z(cactive));
-
-		/* Print chunk stats. */
-		CTL_GET("stats.chunks.total", &chunks_total, uint64_t);
-		CTL_GET("stats.chunks.high", &chunks_high, size_t);
-		CTL_GET("stats.chunks.current", &chunks_current, size_t);
-		malloc_cprintf(write_cb, cbopaque, "chunks: nchunks   "
-		    "highchunks    curchunks\n");
-		malloc_cprintf(write_cb, cbopaque,
-		    "  %13"PRIu64" %12zu %12zu\n",
-		    chunks_total, chunks_high, chunks_current);
 
 		if (merged) {
 			unsigned narenas;

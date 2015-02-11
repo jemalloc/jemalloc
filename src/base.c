@@ -11,8 +11,9 @@ static size_t		base_allocated;
 
 /******************************************************************************/
 
+/* base_mtx must be held. */
 static extent_node_t *
-base_node_try_alloc_locked(void)
+base_node_try_alloc(void)
 {
 	extent_node_t *node;
 
@@ -24,8 +25,9 @@ base_node_try_alloc_locked(void)
 	return (node);
 }
 
+/* base_mtx must be held. */
 static void
-base_node_dalloc_locked(extent_node_t *node)
+base_node_dalloc(extent_node_t *node)
 {
 
 	JEMALLOC_VALGRIND_MAKE_MEM_UNDEFINED(node, sizeof(extent_node_t));
@@ -42,14 +44,14 @@ base_chunk_alloc(size_t minsize)
 	void *addr;
 
 	assert(minsize != 0);
-	node = base_node_try_alloc_locked();
+	node = base_node_try_alloc();
 	/* Allocate enough space to also carve a node out if necessary. */
 	nsize = (node == NULL) ? CACHELINE_CEILING(sizeof(extent_node_t)) : 0;
 	csize = CHUNK_CEILING(minsize + nsize);
 	addr = chunk_alloc_base(csize);
 	if (addr == NULL) {
 		if (node != NULL)
-			base_node_dalloc_locked(node);
+			base_node_dalloc(node);
 		return (NULL);
 	}
 	if (node == NULL) {
@@ -63,8 +65,13 @@ base_chunk_alloc(size_t minsize)
 	return (node);
 }
 
-static void *
-base_alloc_locked(size_t size)
+/*
+ * base_alloc() guarantees demand-zeroed memory, in order to make multi-page
+ * sparse data structures such as radix tree nodes efficient with respect to
+ * physical memory usage.
+ */
+void *
+base_alloc(size_t size)
 {
 	void *ret;
 	size_t csize;
@@ -79,6 +86,7 @@ base_alloc_locked(size_t size)
 
 	key.addr = NULL;
 	key.size = csize;
+	malloc_mutex_lock(&base_mtx);
 	node = extent_tree_szad_nsearch(&base_avail_szad, &key);
 	if (node != NULL) {
 		/* Use existing space. */
@@ -87,8 +95,10 @@ base_alloc_locked(size_t size)
 		/* Try to allocate more space. */
 		node = base_chunk_alloc(csize);
 	}
-	if (node == NULL)
-		return (NULL);
+	if (node == NULL) {
+		ret = NULL;
+		goto label_return;
+	}
 
 	ret = node->addr;
 	if (node->size > csize) {
@@ -96,48 +106,13 @@ base_alloc_locked(size_t size)
 		node->size -= csize;
 		extent_tree_szad_insert(&base_avail_szad, node);
 	} else
-		base_node_dalloc_locked(node);
+		base_node_dalloc(node);
 	if (config_stats)
 		base_allocated += csize;
 	JEMALLOC_VALGRIND_MAKE_MEM_UNDEFINED(ret, csize);
-	return (ret);
-}
-
-/*
- * base_alloc() guarantees demand-zeroed memory, in order to make multi-page
- * sparse data structures such as radix tree nodes efficient with respect to
- * physical memory usage.
- */
-void *
-base_alloc(size_t size)
-{
-	void *ret;
-
-	malloc_mutex_lock(&base_mtx);
-	ret = base_alloc_locked(size);
+label_return:
 	malloc_mutex_unlock(&base_mtx);
 	return (ret);
-}
-
-extent_node_t *
-base_node_alloc(void)
-{
-	extent_node_t *ret;
-
-	malloc_mutex_lock(&base_mtx);
-	if ((ret = base_node_try_alloc_locked()) == NULL)
-		ret = (extent_node_t *)base_alloc_locked(sizeof(extent_node_t));
-	malloc_mutex_unlock(&base_mtx);
-	return (ret);
-}
-
-void
-base_node_dalloc(extent_node_t *node)
-{
-
-	malloc_mutex_lock(&base_mtx);
-	base_node_dalloc_locked(node);
-	malloc_mutex_unlock(&base_mtx);
 }
 
 size_t

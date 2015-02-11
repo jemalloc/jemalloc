@@ -66,7 +66,8 @@ chunk_dss_prec_set(dss_prec_t dss_prec)
 }
 
 void *
-chunk_alloc_dss(void *new_addr, size_t size, size_t alignment, bool *zero)
+chunk_alloc_dss(arena_t *arena, void *new_addr, size_t size, size_t alignment,
+    bool *zero)
 {
 	void *ret;
 
@@ -133,7 +134,7 @@ chunk_alloc_dss(void *new_addr, size_t size, size_t alignment, bool *zero)
 				dss_max = dss_next;
 				malloc_mutex_unlock(&dss_mtx);
 				if (cpad_size != 0)
-					chunk_unmap(cpad, cpad_size);
+					chunk_unmap(arena, cpad, cpad_size);
 				if (*zero) {
 					JEMALLOC_VALGRIND_MAKE_MEM_UNDEFINED(
 					    ret, size);

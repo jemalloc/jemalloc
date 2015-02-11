@@ -102,7 +102,7 @@ tcache_bin_flush_small(tsd_t *tsd, tcache_bin_t *tbin, index_t binind,
 		/* Lock the arena bin associated with the first object. */
 		arena_chunk_t *chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(
 		    tbin->avail[0]);
-		arena_t *bin_arena = chunk->arena;
+		arena_t *bin_arena = chunk->node.arena;
 		arena_bin_t *bin = &bin_arena->bins[binind];
 
 		if (config_prof && bin_arena == arena) {
@@ -124,7 +124,7 @@ tcache_bin_flush_small(tsd_t *tsd, tcache_bin_t *tbin, index_t binind,
 			ptr = tbin->avail[i];
 			assert(ptr != NULL);
 			chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
-			if (chunk->arena == bin_arena) {
+			if (chunk->node.arena == bin_arena) {
 				size_t pageind = ((uintptr_t)ptr -
 				    (uintptr_t)chunk) >> LG_PAGE;
 				arena_chunk_map_bits_t *bitselm =
@@ -182,7 +182,7 @@ tcache_bin_flush_large(tsd_t *tsd, tcache_bin_t *tbin, index_t binind,
 		/* Lock the arena associated with the first object. */
 		arena_chunk_t *chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(
 		    tbin->avail[0]);
-		arena_t *locked_arena = chunk->arena;
+		arena_t *locked_arena = chunk->node.arena;
 		UNUSED bool idump;
 
 		if (config_prof)
@@ -208,7 +208,7 @@ tcache_bin_flush_large(tsd_t *tsd, tcache_bin_t *tbin, index_t binind,
 			ptr = tbin->avail[i];
 			assert(ptr != NULL);
 			chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
-			if (chunk->arena == locked_arena) {
+			if (chunk->node.arena == locked_arena) {
 				arena_dalloc_large_junked_locked(locked_arena,
 				    chunk, ptr);
 			} else {

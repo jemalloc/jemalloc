@@ -2,15 +2,33 @@
 #include "jemalloc/internal/jemalloc_internal.h"
 
 /******************************************************************************/
-/* Data. */
 
-/* Protects chunk-related data structures. */
-static malloc_mutex_t	huge_mtx;
+static extent_node_t *
+huge_node_get(const void *ptr)
+{
+	extent_node_t *node;
 
-/******************************************************************************/
+	node = chunk_lookup(ptr);
+	assert(node->size != 0);
 
-/* Tree of chunks that are stand-alone huge allocations. */
-static extent_tree_t	huge;
+	return (node);
+}
+
+static bool
+huge_node_set(const void *ptr, extent_node_t *node)
+{
+
+	assert(node->addr == ptr);
+	assert(node->size != 0);
+	return (chunk_register(ptr, node));
+}
+
+static void
+huge_node_unset(const void *ptr, const extent_node_t *node)
+{
+
+	chunk_deregister(ptr, node);
+}
 
 void *
 huge_malloc(tsd_t *tsd, arena_t *arena, size_t size, bool zero,
@@ -55,15 +73,22 @@ huge_palloc(tsd_t *tsd, arena_t *arena, size_t usize, size_t alignment,
 		return (NULL);
 	}
 
-	/* Insert node into huge. */
 	node->addr = ret;
 	node->size = usize;
 	node->zeroed = is_zeroed;
 	node->arena = arena;
 
-	malloc_mutex_lock(&huge_mtx);
-	extent_tree_ad_insert(&huge, node);
-	malloc_mutex_unlock(&huge_mtx);
+	if (huge_node_set(ret, node)) {
+		arena_chunk_dalloc_huge(arena, ret, usize);
+		idalloctm(tsd, node, tcache, true);
+		return (NULL);
+	}
+
+	/* Insert node into huge. */
+	malloc_mutex_lock(&arena->huge_mtx);
+	ql_elm_new(node, link_ql);
+	ql_tail_insert(&arena->huge, node, link_ql);
+	malloc_mutex_unlock(&arena->huge_mtx);
 
 	if (zero || (config_fill && unlikely(opt_zero))) {
 		if (!is_zeroed)
@@ -72,32 +97,6 @@ huge_palloc(tsd_t *tsd, arena_t *arena, size_t usize, size_t alignment,
 		memset(ret, 0xa5, usize);
 
 	return (ret);
-}
-
-static extent_node_t *
-huge_node_locked(const void *ptr)
-{
-	extent_node_t *node, key;
-
-	/* Extract from tree of huge allocations. */
-	key.addr = __DECONST(void *, ptr);
-	node = extent_tree_ad_search(&huge, &key);
-	assert(node != NULL);
-	assert(node->addr == ptr);
-
-	return (node);
-}
-
-static extent_node_t *
-huge_node(const void *ptr)
-{
-	extent_node_t *node;
-
-	malloc_mutex_lock(&huge_mtx);
-	node = huge_node_locked(ptr);
-	malloc_mutex_unlock(&huge_mtx);
-
-	return (node);
 }
 
 #ifdef JEMALLOC_JET
@@ -152,15 +151,15 @@ huge_ralloc_no_move_similar(void *ptr, size_t oldsize, size_t usize,
 	} else
 		zeroed = true;
 
-	malloc_mutex_lock(&huge_mtx);
-	node = huge_node_locked(ptr);
+	node = huge_node_get(ptr);
 	arena = node->arena;
+	malloc_mutex_lock(&arena->huge_mtx);
 	/* Update the size of the huge allocation. */
 	assert(node->size != usize);
 	node->size = usize;
 	/* Clear node->zeroed if zeroing failed above. */
 	node->zeroed = (node->zeroed && zeroed);
-	malloc_mutex_unlock(&huge_mtx);
+	malloc_mutex_unlock(&arena->huge_mtx);
 
 	arena_chunk_ralloc_huge_similar(arena, ptr, oldsize, usize);
 
@@ -195,14 +194,14 @@ huge_ralloc_no_move_shrink(void *ptr, size_t oldsize, size_t usize)
 		zeroed = false;
 	}
 
-	malloc_mutex_lock(&huge_mtx);
-	node = huge_node_locked(ptr);
+	node = huge_node_get(ptr);
 	arena = node->arena;
+	malloc_mutex_lock(&arena->huge_mtx);
 	/* Update the size of the huge allocation. */
 	node->size = usize;
 	/* Clear node->zeroed if zeroing failed above. */
 	node->zeroed = (node->zeroed && zeroed);
-	malloc_mutex_unlock(&huge_mtx);
+	malloc_mutex_unlock(&arena->huge_mtx);
 
 	/* Zap the excess chunks. */
 	arena_chunk_ralloc_huge_shrink(arena, ptr, oldsize, usize);
@@ -221,11 +220,11 @@ huge_ralloc_no_move_expand(void *ptr, size_t oldsize, size_t size, bool zero) {
 		return (true);
 	}
 
-	malloc_mutex_lock(&huge_mtx);
-	node = huge_node_locked(ptr);
+	node = huge_node_get(ptr);
 	arena = node->arena;
+	malloc_mutex_lock(&arena->huge_mtx);
 	is_zeroed_subchunk = node->zeroed;
-	malloc_mutex_unlock(&huge_mtx);
+	malloc_mutex_unlock(&arena->huge_mtx);
 
 	/*
 	 * Copy zero into is_zeroed_chunk and pass the copy to chunk_alloc(), so
@@ -237,10 +236,10 @@ huge_ralloc_no_move_expand(void *ptr, size_t oldsize, size_t size, bool zero) {
 	     &is_zeroed_chunk))
 		return (true);
 
-	malloc_mutex_lock(&huge_mtx);
+	malloc_mutex_lock(&arena->huge_mtx);
 	/* Update the size of the huge allocation. */
 	node->size = usize;
-	malloc_mutex_unlock(&huge_mtx);
+	malloc_mutex_unlock(&arena->huge_mtx);
 
 	if (zero || (config_fill && unlikely(opt_zero))) {
 		if (!is_zeroed_subchunk) {
@@ -356,11 +355,14 @@ void
 huge_dalloc(tsd_t *tsd, void *ptr, tcache_t *tcache)
 {
 	extent_node_t *node;
+	arena_t *arena;
 
-	malloc_mutex_lock(&huge_mtx);
-	node = huge_node_locked(ptr);
-	extent_tree_ad_remove(&huge, node);
-	malloc_mutex_unlock(&huge_mtx);
+	node = huge_node_get(ptr);
+	arena = node->arena;
+	huge_node_unset(ptr, node);
+	malloc_mutex_lock(&arena->huge_mtx);
+	ql_remove(&arena->huge, node, link_ql);
+	malloc_mutex_unlock(&arena->huge_mtx);
 
 	huge_dalloc_junk(node->addr, node->size);
 	arena_chunk_dalloc_huge(node->arena, node->addr, node->size);
@@ -371,59 +373,50 @@ arena_t *
 huge_aalloc(const void *ptr)
 {
 
-	return (huge_node(ptr)->arena);
+	return (huge_node_get(ptr)->arena);
 }
 
 size_t
 huge_salloc(const void *ptr)
 {
+	size_t size;
+	extent_node_t *node;
+	arena_t *arena;
 
-	return (huge_node(ptr)->size);
+	node = huge_node_get(ptr);
+	arena = node->arena;
+	malloc_mutex_lock(&arena->huge_mtx);
+	size = node->size;
+	malloc_mutex_unlock(&arena->huge_mtx);
+
+	return (size);
 }
 
 prof_tctx_t *
 huge_prof_tctx_get(const void *ptr)
 {
+	prof_tctx_t *tctx;
+	extent_node_t *node;
+	arena_t *arena;
 
-	return (huge_node(ptr)->prof_tctx);
+	node = huge_node_get(ptr);
+	arena = node->arena;
+	malloc_mutex_lock(&arena->huge_mtx);
+	tctx = node->prof_tctx;
+	malloc_mutex_unlock(&arena->huge_mtx);
+
+	return (tctx);
 }
 
 void
 huge_prof_tctx_set(const void *ptr, prof_tctx_t *tctx)
 {
+	extent_node_t *node;
+	arena_t *arena;
 
-	huge_node(ptr)->prof_tctx = tctx;
-}
-
-bool
-huge_boot(void)
-{
-
-	/* Initialize chunks data. */
-	if (malloc_mutex_init(&huge_mtx))
-		return (true);
-	extent_tree_ad_new(&huge);
-
-	return (false);
-}
-
-void
-huge_prefork(void)
-{
-
-	malloc_mutex_prefork(&huge_mtx);
-}
-
-void
-huge_postfork_parent(void)
-{
-
-	malloc_mutex_postfork_parent(&huge_mtx);
-}
-
-void
-huge_postfork_child(void)
-{
-
-	malloc_mutex_postfork_child(&huge_mtx);
+	node = huge_node_get(ptr);
+	arena = node->arena;
+	malloc_mutex_lock(&arena->huge_mtx);
+	node->prof_tctx = tctx;
+	malloc_mutex_unlock(&arena->huge_mtx);
 }

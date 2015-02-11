@@ -144,9 +144,6 @@ CTL_PROTO(prof_gdump)
 CTL_PROTO(prof_reset)
 CTL_PROTO(prof_interval)
 CTL_PROTO(lg_prof_sample)
-CTL_PROTO(stats_chunks_current)
-CTL_PROTO(stats_chunks_total)
-CTL_PROTO(stats_chunks_high)
 CTL_PROTO(stats_arenas_i_small_allocated)
 CTL_PROTO(stats_arenas_i_small_nmalloc)
 CTL_PROTO(stats_arenas_i_small_ndalloc)
@@ -363,12 +360,6 @@ static const ctl_named_node_t	prof_node[] = {
 	{NAME("lg_sample"),	CTL(lg_prof_sample)}
 };
 
-static const ctl_named_node_t stats_chunks_node[] = {
-	{NAME("current"),	CTL(stats_chunks_current)},
-	{NAME("total"),		CTL(stats_chunks_total)},
-	{NAME("high"),		CTL(stats_chunks_high)}
-};
-
 static const ctl_named_node_t stats_arenas_i_metadata_node[] = {
 	{NAME("mapped"),	CTL(stats_arenas_i_metadata_mapped)},
 	{NAME("allocated"),	CTL(stats_arenas_i_metadata_allocated)}
@@ -473,7 +464,6 @@ static const ctl_named_node_t stats_node[] = {
 	{NAME("active"),	CTL(stats_active)},
 	{NAME("metadata"),	CTL(stats_metadata)},
 	{NAME("mapped"),	CTL(stats_mapped)},
-	{NAME("chunks"),	CHILD(named, stats_chunks)},
 	{NAME("arenas"),	CHILD(indexed, stats_arenas)}
 };
 
@@ -688,14 +678,6 @@ ctl_refresh(void)
 	unsigned i;
 	VARIABLE_ARRAY(arena_t *, tarenas, ctl_stats.narenas);
 
-	if (config_stats) {
-		malloc_mutex_lock(&chunks_mtx);
-		ctl_stats.chunks.current = stats_chunks.curchunks;
-		ctl_stats.chunks.total = stats_chunks.nchunks;
-		ctl_stats.chunks.high = stats_chunks.highchunks;
-		malloc_mutex_unlock(&chunks_mtx);
-	}
-
 	/*
 	 * Clear sum stats, since they will be merged into by
 	 * ctl_arena_refresh().
@@ -733,7 +715,8 @@ ctl_refresh(void)
 		    + ctl_stats.arenas[ctl_stats.narenas].astats.metadata_mapped
 		    + ctl_stats.arenas[ctl_stats.narenas].astats
 		    .metadata_allocated;
-		ctl_stats.mapped = (ctl_stats.chunks.current << opt_lg_chunk);
+		ctl_stats.mapped =
+		    ctl_stats.arenas[ctl_stats.narenas].astats.mapped;
 	}
 
 	ctl_epoch++;
@@ -1949,11 +1932,6 @@ CTL_RO_CGEN(config_stats, stats_allocated, ctl_stats.allocated, size_t)
 CTL_RO_CGEN(config_stats, stats_active, ctl_stats.active, size_t)
 CTL_RO_CGEN(config_stats, stats_metadata, ctl_stats.metadata, size_t)
 CTL_RO_CGEN(config_stats, stats_mapped, ctl_stats.mapped, size_t)
-
-CTL_RO_CGEN(config_stats, stats_chunks_current, ctl_stats.chunks.current,
-    size_t)
-CTL_RO_CGEN(config_stats, stats_chunks_total, ctl_stats.chunks.total, uint64_t)
-CTL_RO_CGEN(config_stats, stats_chunks_high, ctl_stats.chunks.high, size_t)
 
 CTL_RO_GEN(stats_arenas_i_dss, ctl_stats.arenas[mib[2]].dss, const char *)
 CTL_RO_GEN(stats_arenas_i_nthreads, ctl_stats.arenas[mib[2]].nthreads, unsigned)

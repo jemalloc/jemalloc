@@ -60,6 +60,8 @@ arena_miscelm_to_pageind
 arena_miscelm_to_rpages
 arena_nbound
 arena_new
+arena_node_alloc
+arena_node_dalloc
 arena_palloc
 arena_postfork_child
 arena_postfork_parent
@@ -103,8 +105,6 @@ atomic_sub_z
 base_alloc
 base_allocated_get
 base_boot
-base_node_alloc
-base_node_dalloc
 base_postfork_child
 base_postfork_parent
 base_prefork
@@ -130,6 +130,7 @@ chunk_alloc_mmap
 chunk_boot
 chunk_dalloc_default
 chunk_dalloc_mmap
+chunk_deregister
 chunk_dss_boot
 chunk_dss_postfork_child
 chunk_dss_postfork_parent
@@ -137,12 +138,13 @@ chunk_dss_prec_get
 chunk_dss_prec_set
 chunk_dss_prefork
 chunk_in_dss
+chunk_lookup
 chunk_npages
 chunk_postfork_child
 chunk_postfork_parent
 chunk_prefork
+chunk_register
 chunk_unmap
-chunks_mtx
 chunks_rtree
 chunksize
 chunksize_mask
@@ -218,16 +220,12 @@ hash_x86_128
 hash_x86_32
 huge_aalloc
 huge_allocated
-huge_boot
 huge_dalloc
 huge_dalloc_junk
 huge_malloc
 huge_ndalloc
 huge_nmalloc
 huge_palloc
-huge_postfork_child
-huge_postfork_parent
-huge_prefork
 huge_prof_tctx_get
 huge_prof_tctx_set
 huge_ralloc

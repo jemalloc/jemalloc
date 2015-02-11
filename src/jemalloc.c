@@ -1195,8 +1195,6 @@ malloc_init_hard_a0_locked(void)
 		return (true);
 	if (config_tcache && tcache_boot())
 		malloc_mutex_unlock(&init_lock);
-	if (huge_boot())
-		return (true);
 	if (malloc_mutex_init(&arenas_lock))
 		return (true);
 	/*
@@ -2310,12 +2308,10 @@ je_sallocx(const void *ptr, int flags)
 	assert(malloc_initialized() || IS_INITIALIZER);
 	malloc_thread_init();
 
-	if (config_ivsalloc)
+	if (config_debug)
 		usize = ivsalloc(ptr, config_prof);
-	else {
-		assert(ptr != NULL);
+	else
 		usize = isalloc(ptr, config_prof);
-	}
 
 	return (usize);
 }
@@ -2440,10 +2436,10 @@ je_malloc_usable_size(JEMALLOC_USABLE_SIZE_CONST void *ptr)
 	assert(malloc_initialized() || IS_INITIALIZER);
 	malloc_thread_init();
 
-	if (config_ivsalloc)
+	if (config_debug)
 		ret = ivsalloc(ptr, config_prof);
 	else
-		ret = (ptr != NULL) ? isalloc(ptr, config_prof) : 0;
+		ret = (ptr == NULL) ? 0 : isalloc(ptr, config_prof);
 
 	return (ret);
 }
@@ -2504,7 +2500,6 @@ _malloc_prefork(void)
 	}
 	chunk_prefork();
 	base_prefork();
-	huge_prefork();
 }
 
 #ifndef JEMALLOC_MUTEX_INIT_CB
@@ -2524,7 +2519,6 @@ _malloc_postfork(void)
 	assert(malloc_initialized());
 
 	/* Release all mutexes, now that fork() has completed. */
-	huge_postfork_parent();
 	base_postfork_parent();
 	chunk_postfork_parent();
 	for (i = 0; i < narenas_total; i++) {
@@ -2544,7 +2538,6 @@ jemalloc_postfork_child(void)
 	assert(malloc_initialized());
 
 	/* Release all mutexes, now that fork() has completed. */
-	huge_postfork_child();
 	base_postfork_child();
 	chunk_postfork_child();
 	for (i = 0; i < narenas_total; i++) {

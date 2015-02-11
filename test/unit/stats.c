@@ -29,32 +29,6 @@ TEST_BEGIN(test_stats_summary)
 }
 TEST_END
 
-TEST_BEGIN(test_stats_chunks)
-{
-	size_t current, high;
-	uint64_t total;
-	size_t sz;
-	int expected = config_stats ? 0 : ENOENT;
-
-	sz = sizeof(size_t);
-	assert_d_eq(mallctl("stats.chunks.current", &current, &sz, NULL, 0),
-	    expected, "Unexpected mallctl() result");
-	sz = sizeof(uint64_t);
-	assert_d_eq(mallctl("stats.chunks.total", &total, &sz, NULL, 0),
-	    expected, "Unexpected mallctl() result");
-	sz = sizeof(size_t);
-	assert_d_eq(mallctl("stats.chunks.high", &high, &sz, NULL, 0), expected,
-	    "Unexpected mallctl() result");
-
-	if (config_stats) {
-		assert_zu_le(current, high,
-		    "current should be no larger than high");
-		assert_u64_le((uint64_t)high, total,
-		    "high should be no larger than total");
-	}
-}
-TEST_END
-
 TEST_BEGIN(test_stats_huge)
 {
 	void *p;
@@ -458,7 +432,6 @@ main(void)
 
 	return (test(
 	    test_stats_summary,
-	    test_stats_chunks,
 	    test_stats_huge,
 	    test_stats_arenas_summary,
 	    test_stats_arenas_small,

@@ -52,7 +52,7 @@ void	atomic_write_uint32(uint32_t *p, uint32_t x);
 void	*atomic_add_p(void **p, void *x);
 void	*atomic_sub_p(void **p, void *x);
 bool	atomic_cas_p(void **p, void *c, void *s);
-void	atomic_write_p(void **p, void *x);
+void	atomic_write_p(void **p, const void *x);
 size_t	atomic_add_z(size_t *p, size_t x);
 size_t	atomic_sub_z(size_t *p, size_t x);
 bool	atomic_cas_z(size_t *p, size_t c, size_t s);
@@ -538,7 +538,7 @@ atomic_cas_p(void **p, void *c, void *s)
 }
 
 JEMALLOC_INLINE void
-atomic_write_p(void **p, void *x)
+atomic_write_p(void **p, const void *x)
 {
 
 #if (LG_SIZEOF_PTR == 3)

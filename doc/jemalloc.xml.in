@@ -1847,7 +1847,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         equal to <link
         linkend="stats.allocated"><mallctl>stats.allocated</mallctl></link>.
         This does not include <link linkend="stats.arenas.i.pdirty">
-        <mallctl>stats.arenas.&lt;i&gt;.pdirty</mallctl></link> and pages
+        <mallctl>stats.arenas.&lt;i&gt;.pdirty</mallctl></link>, nor pages
         entirely devoted to allocator metadata.</para></listitem>
       </varlistentry>
 
@@ -1878,39 +1878,6 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         large as <link
         linkend="stats.active"><mallctl>stats.active</mallctl></link>.  This
         does not include inactive chunks.</para></listitem>
-      </varlistentry>
-
-      <varlistentry id="stats.chunks.current">
-        <term>
-          <mallctl>stats.chunks.current</mallctl>
-          (<type>size_t</type>)
-          <literal>r-</literal>
-          [<option>--enable-stats</option>]
-        </term>
-        <listitem><para>Total number of chunks actively mapped on behalf of the
-        application.  This does not include inactive chunks.
-        </para></listitem>
-      </varlistentry>
-
-      <varlistentry id="stats.chunks.total">
-        <term>
-          <mallctl>stats.chunks.total</mallctl>
-          (<type>uint64_t</type>)
-          <literal>r-</literal>
-          [<option>--enable-stats</option>]
-        </term>
-        <listitem><para>Cumulative number of chunks allocated.</para></listitem>
-      </varlistentry>
-
-      <varlistentry id="stats.chunks.high">
-        <term>
-          <mallctl>stats.chunks.high</mallctl>
-          (<type>size_t</type>)
-          <literal>r-</literal>
-          [<option>--enable-stats</option>]
-        </term>
-        <listitem><para>Maximum number of active chunks at any time thus far.
-        </para></listitem>
       </varlistentry>
 
       <varlistentry id="stats.arenas.i.dss">
