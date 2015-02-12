@@ -943,8 +943,11 @@ arena_prof_tctx_get(const void *ptr)
 		assert((mapbits & CHUNK_MAP_ALLOCATED) != 0);
 		if (likely((mapbits & CHUNK_MAP_LARGE) == 0))
 			ret = (prof_tctx_t *)(uintptr_t)1U;
-		else
-			ret = arena_miscelm_get(chunk, pageind)->prof_tctx;
+		else {
+			arena_chunk_map_misc_t *elm = arena_miscelm_get(chunk,
+			    pageind);
+			ret = atomic_read_p((void **)&elm->prof_tctx);
+		}
 	} else
 		ret = huge_prof_tctx_get(ptr);
 
@@ -965,8 +968,11 @@ arena_prof_tctx_set(const void *ptr, prof_tctx_t *tctx)
 		size_t pageind = ((uintptr_t)ptr - (uintptr_t)chunk) >> LG_PAGE;
 		assert(arena_mapbits_allocated_get(chunk, pageind) != 0);
 
-		if (unlikely(arena_mapbits_large_get(chunk, pageind) != 0))
-			arena_miscelm_get(chunk, pageind)->prof_tctx = tctx;
+		if (unlikely(arena_mapbits_large_get(chunk, pageind) != 0)) {
+			arena_chunk_map_misc_t *elm = arena_miscelm_get(chunk,
+			    pageind);
+			atomic_write_p((void **)&elm->prof_tctx, tctx);
+		}
 	} else
 		huge_prof_tctx_set(ptr, tctx);
 }
