@@ -103,7 +103,7 @@ tcache_bin_flush_small(tsd_t *tsd, tcache_bin_t *tbin, index_t binind,
 		arena_chunk_t *chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(
 		    tbin->avail[0]);
 		arena_t *bin_arena = chunk->arena;
-		arena_bin_t *bin = &arena->bins[binind];
+		arena_bin_t *bin = &bin_arena->bins[binind];
 
 		if (config_prof && bin_arena == arena) {
 			if (arena_prof_accum(arena, tcache->prof_accumbytes))
