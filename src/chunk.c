@@ -82,7 +82,7 @@ chunk_recycle(arena_t *arena, extent_tree_t *chunks_szad,
 	malloc_mutex_lock(&arena->chunks_mtx);
 	node = (new_addr != NULL) ? extent_tree_ad_search(chunks_ad, &key) :
 	    extent_tree_szad_nsearch(chunks_szad, &key);
-	if (node == NULL) {
+	if (node == NULL || (new_addr != NULL && node->size < size)) {
 		malloc_mutex_unlock(&arena->chunks_mtx);
 		return (NULL);
 	}
