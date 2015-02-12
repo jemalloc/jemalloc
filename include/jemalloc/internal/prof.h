@@ -372,34 +372,21 @@ prof_tdata_get(tsd_t *tsd, bool create)
 JEMALLOC_ALWAYS_INLINE prof_tctx_t *
 prof_tctx_get(const void *ptr)
 {
-	prof_tctx_t *ret;
-	arena_chunk_t *chunk;
 
 	cassert(config_prof);
 	assert(ptr != NULL);
 
-	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
-	if (likely(chunk != ptr))
-		ret = arena_prof_tctx_get(ptr);
-	else
-		ret = huge_prof_tctx_get(ptr);
-
-	return (ret);
+	return (arena_prof_tctx_get(ptr));
 }
 
 JEMALLOC_ALWAYS_INLINE void
 prof_tctx_set(const void *ptr, prof_tctx_t *tctx)
 {
-	arena_chunk_t *chunk;
 
 	cassert(config_prof);
 	assert(ptr != NULL);
 
-	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
-	if (likely(chunk != ptr))
-		arena_prof_tctx_set(ptr, tctx);
-	else
-		huge_prof_tctx_set(ptr, tctx);
+	arena_prof_tctx_set(ptr, tctx);
 }
 
 JEMALLOC_ALWAYS_INLINE bool

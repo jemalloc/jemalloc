@@ -1714,8 +1714,9 @@ arena_malloc_large(arena_t *arena, size_t size, bool zero)
 }
 
 /* Only handles large allocations that require more than page alignment. */
-void *
-arena_palloc(arena_t *arena, size_t size, size_t alignment, bool zero)
+static void *
+arena_palloc_large(tsd_t *tsd, arena_t *arena, size_t size, size_t alignment,
+    bool zero)
 {
 	void *ret;
 	size_t alloc_size, leadsize, trailsize;
@@ -1725,6 +1726,10 @@ arena_palloc(arena_t *arena, size_t size, size_t alignment, bool zero)
 	void *rpages;
 
 	assert((size & PAGE_MASK) == 0);
+
+	arena = arena_choose(tsd, arena);
+	if (unlikely(arena == NULL))
+		return (NULL);
 
 	alignment = PAGE_CEILING(alignment);
 	alloc_size = size + alignment - PAGE;
@@ -1779,6 +1784,28 @@ arena_palloc(arena_t *arena, size_t size, size_t alignment, bool zero)
 			memset(ret, 0xa5, size);
 		else if (unlikely(opt_zero))
 			memset(ret, 0, size);
+	}
+	return (ret);
+}
+
+void *
+arena_palloc(tsd_t *tsd, arena_t *arena, size_t usize, size_t alignment,
+    bool zero, tcache_t *tcache)
+{
+	void *ret;
+
+	if (usize <= SMALL_MAXCLASS && alignment < PAGE)
+		ret = arena_malloc(tsd, arena, usize, zero, tcache);
+	else {
+		if (likely(usize <= arena_maxclass)) {
+			ret = arena_palloc_large(tsd, arena, usize, alignment,
+			    zero);
+		} else if (likely(alignment <= chunksize))
+			ret = huge_malloc(tsd, arena, usize, zero, tcache);
+		else {
+			ret = huge_palloc(tsd, arena, usize, alignment, zero,
+			    tcache);
+		}
 	}
 	return (ret);
 }
@@ -2189,29 +2216,35 @@ arena_ralloc_no_move(void *ptr, size_t oldsize, size_t size, size_t extra,
     bool zero)
 {
 
-	/*
-	 * Avoid moving the allocation if the size class can be left the same.
-	 */
-	if (likely(oldsize <= arena_maxclass)) {
-		if (oldsize <= SMALL_MAXCLASS) {
-			assert(arena_bin_info[size2index(oldsize)].reg_size
-			    == oldsize);
-			if ((size + extra <= SMALL_MAXCLASS && size2index(size +
-			    extra) == size2index(oldsize)) || (size <= oldsize
-			    && size + extra >= oldsize))
-				return (false);
-		} else {
-			assert(size <= arena_maxclass);
-			if (size + extra > SMALL_MAXCLASS) {
-				if (!arena_ralloc_large(ptr, oldsize, size,
-				    extra, zero))
+	if (likely(size <= arena_maxclass)) {
+		/*
+		 * Avoid moving the allocation if the size class can be left the
+		 * same.
+		 */
+		if (likely(oldsize <= arena_maxclass)) {
+			if (oldsize <= SMALL_MAXCLASS) {
+				assert(
+				    arena_bin_info[size2index(oldsize)].reg_size
+				    == oldsize);
+				if ((size + extra <= SMALL_MAXCLASS &&
+				    size2index(size + extra) ==
+				    size2index(oldsize)) || (size <= oldsize &&
+				    size + extra >= oldsize))
 					return (false);
+			} else {
+				assert(size <= arena_maxclass);
+				if (size + extra > SMALL_MAXCLASS) {
+					if (!arena_ralloc_large(ptr, oldsize,
+					    size, extra, zero))
+						return (false);
+				}
 			}
 		}
-	}
 
-	/* Reallocation would require a move. */
-	return (true);
+		/* Reallocation would require a move. */
+		return (true);
+	} else
+		return (huge_ralloc_no_move(ptr, oldsize, size, extra, zero));
 }
 
 void *
@@ -2219,52 +2252,67 @@ arena_ralloc(tsd_t *tsd, arena_t *arena, void *ptr, size_t oldsize, size_t size,
     size_t extra, size_t alignment, bool zero, tcache_t *tcache)
 {
 	void *ret;
-	size_t copysize;
 
-	/* Try to avoid moving the allocation. */
-	if (!arena_ralloc_no_move(ptr, oldsize, size, extra, zero))
-		return (ptr);
+	if (likely(size <= arena_maxclass)) {
+		size_t copysize;
 
-	/*
-	 * size and oldsize are different enough that we need to move the
-	 * object.  In that case, fall back to allocating new space and
-	 * copying.
-	 */
-	if (alignment != 0) {
-		size_t usize = sa2u(size + extra, alignment);
-		if (usize == 0)
-			return (NULL);
-		ret = ipalloct(tsd, usize, alignment, zero, tcache, arena);
-	} else
-		ret = arena_malloc(tsd, arena, size + extra, zero, tcache);
+		/* Try to avoid moving the allocation. */
+		if (!arena_ralloc_no_move(ptr, oldsize, size, extra, zero))
+			return (ptr);
 
-	if (ret == NULL) {
-		if (extra == 0)
-			return (NULL);
-		/* Try again, this time without extra. */
+		/*
+		 * size and oldsize are different enough that we need to move
+		 * the object.  In that case, fall back to allocating new space
+		 * and copying.
+		 */
 		if (alignment != 0) {
-			size_t usize = sa2u(size, alignment);
+			size_t usize = sa2u(size + extra, alignment);
 			if (usize == 0)
 				return (NULL);
 			ret = ipalloct(tsd, usize, alignment, zero, tcache,
 			    arena);
-		} else
-			ret = arena_malloc(tsd, arena, size, zero, tcache);
+		} else {
+			ret = arena_malloc(tsd, arena, size + extra, zero,
+			    tcache);
+		}
 
-		if (ret == NULL)
-			return (NULL);
+		if (ret == NULL) {
+			if (extra == 0)
+				return (NULL);
+			/* Try again, this time without extra. */
+			if (alignment != 0) {
+				size_t usize = sa2u(size, alignment);
+				if (usize == 0)
+					return (NULL);
+				ret = ipalloct(tsd, usize, alignment, zero,
+				    tcache, arena);
+			} else {
+				ret = arena_malloc(tsd, arena, size, zero,
+				    tcache);
+			}
+
+			if (ret == NULL)
+				return (NULL);
+		}
+
+		/*
+		 * Junk/zero-filling were already done by
+		 * ipalloc()/arena_malloc().
+		 */
+
+		/*
+		 * Copy at most size bytes (not size+extra), since the caller
+		 * has no expectation that the extra bytes will be reliably
+		 * preserved.
+		 */
+		copysize = (size < oldsize) ? size : oldsize;
+		JEMALLOC_VALGRIND_MAKE_MEM_UNDEFINED(ret, copysize);
+		memcpy(ret, ptr, copysize);
+		isqalloc(tsd, ptr, oldsize, tcache);
+	} else {
+		ret = huge_ralloc(tsd, arena, ptr, oldsize, size, extra,
+		    alignment, zero, tcache);
 	}
-
-	/* Junk/zero-filling were already done by ipalloc()/arena_malloc(). */
-
-	/*
-	 * Copy at most size bytes (not size+extra), since the caller has no
-	 * expectation that the extra bytes will be reliably preserved.
-	 */
-	copysize = (size < oldsize) ? size : oldsize;
-	JEMALLOC_VALGRIND_MAKE_MEM_UNDEFINED(ret, copysize);
-	memcpy(ret, ptr, copysize);
-	isqalloc(tsd, ptr, oldsize, tcache);
 	return (ret);
 }
 
