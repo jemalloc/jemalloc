@@ -985,28 +985,26 @@ arena_malloc(tsd_t *tsd, arena_t *arena, size_t size, bool zero,
 	assert(size != 0);
 	assert(size <= arena_maxclass);
 
+	arena = arena_choose(tsd, arena);
+	if (unlikely(arena == NULL))
+		return (NULL);
+
 	if (likely(size <= SMALL_MAXCLASS)) {
-		if (likely(tcache != NULL))
-			return (tcache_alloc_small(tsd, tcache, size, zero));
-		else {
-			arena = arena_choose(tsd, arena);
-			if (unlikely(arena == NULL))
-				return (NULL);
+		if (likely(tcache != NULL)) {
+			return (tcache_alloc_small(tsd, arena, tcache, size,
+			    zero));
+		} else
 			return (arena_malloc_small(arena, size, zero));
-		}
 	} else if (likely(size <= arena_maxclass)) {
 		/*
 		 * Initialize tcache after checking size in order to avoid
 		 * infinite recursion during tcache initialization.
 		 */
-		if (likely(tcache != NULL) && size <= tcache_maxclass)
-			return (tcache_alloc_large(tsd, tcache, size, zero));
-		else {
-			arena = arena_choose(tsd, arena);
-			if (unlikely(arena == NULL))
-				return (NULL);
+		if (likely(tcache != NULL) && size <= tcache_maxclass) {
+			return (tcache_alloc_large(tsd, arena, tcache, size,
+			    zero));
+		} else
 			return (arena_malloc_large(arena, size, zero));
-		}
 	} else
 		return (huge_malloc(tsd, arena, size, zero, tcache));
 }

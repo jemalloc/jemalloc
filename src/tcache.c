@@ -41,8 +41,9 @@ tcache_event_hard(tsd_t *tsd, tcache_t *tcache)
 		 * Flush (ceiling) 3/4 of the objects below the low water mark.
 		 */
 		if (binind < NBINS) {
-			tcache_bin_flush_small(tsd, tbin, binind, tbin->ncached
-			    - tbin->low_water + (tbin->low_water >> 2), tcache);
+			tcache_bin_flush_small(tsd, tcache, tbin, binind,
+			    tbin->ncached - tbin->low_water + (tbin->low_water
+			    >> 2));
 		} else {
 			tcache_bin_flush_large(tsd, tbin, binind, tbin->ncached
 			    - tbin->low_water + (tbin->low_water >> 2), tcache);
@@ -70,13 +71,13 @@ tcache_event_hard(tsd_t *tsd, tcache_t *tcache)
 }
 
 void *
-tcache_alloc_small_hard(tsd_t *tsd, tcache_t *tcache, tcache_bin_t *tbin,
-    index_t binind)
+tcache_alloc_small_hard(tsd_t *tsd, arena_t *arena, tcache_t *tcache,
+    tcache_bin_t *tbin, index_t binind)
 {
 	void *ret;
 
-	arena_tcache_fill_small(arena_choose(tsd, NULL), tbin, binind,
-	    config_prof ? tcache->prof_accumbytes : 0);
+	arena_tcache_fill_small(arena, tbin, binind, config_prof ?
+	    tcache->prof_accumbytes : 0);
 	if (config_prof)
 		tcache->prof_accumbytes = 0;
 	ret = tcache_alloc_easy(tbin);
@@ -85,8 +86,8 @@ tcache_alloc_small_hard(tsd_t *tsd, tcache_t *tcache, tcache_bin_t *tbin,
 }
 
 void
-tcache_bin_flush_small(tsd_t *tsd, tcache_bin_t *tbin, index_t binind,
-    unsigned rem, tcache_t *tcache)
+tcache_bin_flush_small(tsd_t *tsd, tcache_t *tcache, tcache_bin_t *tbin,
+    index_t binind, unsigned rem)
 {
 	arena_t *arena;
 	void *ptr;
@@ -350,7 +351,7 @@ tcache_destroy(tsd_t *tsd, tcache_t *tcache)
 
 	for (i = 0; i < NBINS; i++) {
 		tcache_bin_t *tbin = &tcache->tbins[i];
-		tcache_bin_flush_small(tsd, tbin, i, 0, tcache);
+		tcache_bin_flush_small(tsd, tcache, tbin, i, 0);
 
 		if (config_stats && tbin->tstats.nrequests != 0) {
 			arena_bin_t *bin = &arena->bins[i];
