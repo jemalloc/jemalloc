@@ -1193,8 +1193,6 @@ malloc_init_hard_a0_locked(void)
 	arena_boot();
 	if (config_tcache && tcache_boot())
 		return (true);
-	if (config_tcache && tcache_boot())
-		malloc_mutex_unlock(&init_lock);
 	if (malloc_mutex_init(&arenas_lock))
 		return (true);
 	/*
