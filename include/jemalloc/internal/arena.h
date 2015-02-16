@@ -934,7 +934,6 @@ arena_prof_tctx_get(const void *ptr)
 
 	cassert(config_prof);
 	assert(ptr != NULL);
-	assert(CHUNK_ADDR2BASE(ptr) != ptr);
 
 	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
 	if (likely(chunk != ptr)) {
@@ -961,7 +960,6 @@ arena_prof_tctx_set(const void *ptr, prof_tctx_t *tctx)
 
 	cassert(config_prof);
 	assert(ptr != NULL);
-	assert(CHUNK_ADDR2BASE(ptr) != ptr);
 
 	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
 	if (likely(chunk != ptr)) {
