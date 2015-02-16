@@ -60,8 +60,8 @@ base_chunk_alloc(size_t minsize)
 		if (config_stats)
 			base_allocated += nsize;
 	}
-	node->addr = addr;
-	node->size = csize;
+	extent_node_addr_set(node, addr);
+	extent_node_size_set(node, csize);
 	return (node);
 }
 
@@ -84,8 +84,8 @@ base_alloc(size_t size)
 	 */
 	csize = CACHELINE_CEILING(size);
 
-	key.addr = NULL;
-	key.size = csize;
+	extent_node_addr_set(&key, NULL);
+	extent_node_size_set(&key, csize);
 	malloc_mutex_lock(&base_mtx);
 	node = extent_tree_szad_nsearch(&base_avail_szad, &key);
 	if (node != NULL) {
@@ -100,10 +100,10 @@ base_alloc(size_t size)
 		goto label_return;
 	}
 
-	ret = node->addr;
-	if (node->size > csize) {
-		node->addr = (void *)((uintptr_t)ret + csize);
-		node->size -= csize;
+	ret = extent_node_addr_get(node);
+	if (extent_node_size_get(node) > csize) {
+		extent_node_addr_set(node, (void *)((uintptr_t)ret + csize));
+		extent_node_size_set(node, extent_node_size_get(node) - csize);
 		extent_tree_szad_insert(&base_avail_szad, node);
 	} else
 		base_node_dalloc(node);

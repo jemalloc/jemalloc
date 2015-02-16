@@ -368,8 +368,13 @@ typedef unsigned index_t;
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/mb.h"
 #include "jemalloc/internal/bitmap.h"
-#include "jemalloc/internal/extent.h"
+#define	JEMALLOC_ARENA_STRUCTS_A
 #include "jemalloc/internal/arena.h"
+#undef JEMALLOC_ARENA_STRUCTS_A
+#include "jemalloc/internal/extent.h"
+#define	JEMALLOC_ARENA_STRUCTS_B
+#include "jemalloc/internal/arena.h"
+#undef JEMALLOC_ARENA_STRUCTS_B
 #include "jemalloc/internal/base.h"
 #include "jemalloc/internal/rtree.h"
 #include "jemalloc/internal/chunk.h"
@@ -933,7 +938,8 @@ ivsalloc(const void *ptr, bool demote)
 	if (node == NULL)
 		return (0);
 	/* Only arena chunks should be looked up via interior pointers. */
-	assert(node->addr == ptr || node->size == 0);
+	assert(extent_node_addr_get(node) == ptr ||
+	    extent_node_achunk_get(node));
 
 	return (isalloc(ptr, demote));
 }

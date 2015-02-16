@@ -35,6 +35,7 @@ typedef struct arena_s arena_t;
 /******************************************************************************/
 #ifdef JEMALLOC_H_STRUCTS
 
+#ifdef JEMALLOC_ARENA_STRUCTS_A
 struct arena_run_s {
 	/* Index of bin this run is associated with. */
 	index_t		binind;
@@ -136,7 +137,7 @@ struct arena_chunk_map_misc_s {
 
 	union {
 		/* Linkage for list of dirty runs. */
-		ql_elm(arena_chunk_map_misc_t)	dr_link;
+		qr(arena_chunk_map_misc_t)	rd_link;
 
 		/* Profile counters, used for large object runs. */
 		prof_tctx_t			*prof_tctx;
@@ -147,14 +148,16 @@ struct arena_chunk_map_misc_s {
 };
 typedef rb_tree(arena_chunk_map_misc_t) arena_avail_tree_t;
 typedef rb_tree(arena_chunk_map_misc_t) arena_run_tree_t;
-typedef ql_head(arena_chunk_map_misc_t) arena_chunk_miscelms_t;
+typedef qr(arena_chunk_map_misc_t) arena_chunk_miscelms_t;
+#endif /* JEMALLOC_ARENA_STRUCTS_A */
 
+#ifdef JEMALLOC_ARENA_STRUCTS_B
 /* Arena chunk header. */
 struct arena_chunk_s {
 	/*
-	 * The arena that owns the chunk is node.arena.  This field as a whole
-	 * is used by chunks_rtree to support both ivsalloc() and core-based
-	 * debugging.
+	 * A pointer to the arena that owns the chunk is stored within the node.
+	 * This field as a whole is used by chunks_rtree to support both
+	 * ivsalloc() and core-based debugging.
 	 */
 	extent_node_t		node;
 
@@ -309,13 +312,29 @@ struct arena_s {
 	size_t			ndirty;
 
 	/*
-	 * Size/address-ordered trees of this arena's available runs.  The trees
-	 * are used for first-best-fit run allocation.
+	 * Size/address-ordered tree of this arena's available runs.  The tree
+	 * is used for first-best-fit run allocation.
 	 */
 	arena_avail_tree_t	runs_avail;
 
-	/* List of dirty runs this arena manages. */
-	arena_chunk_miscelms_t	runs_dirty;
+	/*
+	 * Unused dirty memory this arena manages.  Dirty memory is conceptually
+	 * tracked as an arbitrarily interleaved LRU of runs and chunks, but the
+	 * list linkage is actually semi-duplicated in order to avoid extra
+	 * arena_chunk_map_misc_t space overhead.
+	 *
+	 *   LRU-----------------------------------------------------------MRU
+	 *
+	 *         ______________           ___                      ___
+	 *   ...-->|chunks_dirty|<--------->|c|<-------------------->|c|<--...
+	 *         --------------           |h|                      |h|
+	 *         ____________    _____    |u|    _____    _____    |u|
+	 *   ...-->|runs_dirty|<-->|run|<-->|n|<-->|run|<-->|run|<-->|n|<--...
+	 *         ------------    -----    |k|    -----    -----    |k|
+	 *                                  ---                      ---
+	 */
+	arena_chunk_map_misc_t	runs_dirty;
+	extent_node_t		chunks_dirty;
 
 	/* Extant huge allocations. */
 	ql_head(extent_node_t)	huge;
@@ -329,6 +348,8 @@ struct arena_s {
 	 * orderings are needed, which is why there are two trees with the same
 	 * contents.
 	 */
+	extent_tree_t		chunks_szad_dirty;
+	extent_tree_t		chunks_ad_dirty;
 	extent_tree_t		chunks_szad_mmap;
 	extent_tree_t		chunks_ad_mmap;
 	extent_tree_t		chunks_szad_dss;
@@ -347,6 +368,7 @@ struct arena_s {
 	/* bins is used to store trees of free regions. */
 	arena_bin_t		bins[NBINS];
 };
+#endif /* JEMALLOC_ARENA_STRUCTS_B */
 
 #endif /* JEMALLOC_H_STRUCTS */
 /******************************************************************************/
@@ -363,6 +385,10 @@ extern size_t		arena_maxclass; /* Max size class for arenas. */
 extern unsigned		nlclasses; /* Number of large size classes. */
 extern unsigned		nhclasses; /* Number of huge size classes. */
 
+void	arena_chunk_dirty_maybe_insert(arena_t *arena, extent_node_t *node,
+    bool dirty);
+void	arena_chunk_dirty_maybe_remove(arena_t *arena, extent_node_t *node,
+    bool dirty);
 extent_node_t	*arena_node_alloc(arena_t *arena);
 void	arena_node_dalloc(arena_t *arena, extent_node_t *node);
 void	*arena_chunk_alloc_huge(arena_t *arena, size_t usize, size_t alignment,
@@ -818,7 +844,7 @@ arena_ptr_small_binind_get(const void *ptr, size_t mapbits)
 		assert(binind != BININD_INVALID);
 		assert(binind < NBINS);
 		chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
-		arena = chunk->node.arena;
+		arena = extent_node_arena_get(&chunk->node);
 		pageind = ((uintptr_t)ptr - (uintptr_t)chunk) >> LG_PAGE;
 		actual_mapbits = arena_mapbits_get(chunk, pageind);
 		assert(mapbits == actual_mapbits);
@@ -1013,7 +1039,7 @@ arena_aalloc(const void *ptr)
 
 	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
 	if (likely(chunk != ptr))
-		return (chunk->node.arena);
+		return (extent_node_arena_get(&chunk->node));
 	else
 		return (huge_aalloc(ptr));
 }
@@ -1085,8 +1111,8 @@ arena_dalloc(tsd_t *tsd, void *ptr, tcache_t *tcache)
 				    mapbits);
 				tcache_dalloc_small(tsd, tcache, ptr, binind);
 			} else {
-				arena_dalloc_small(chunk->node.arena, chunk,
-				    ptr, pageind);
+				arena_dalloc_small(extent_node_arena_get(
+				    &chunk->node), chunk, ptr, pageind);
 			}
 		} else {
 			size_t size = arena_mapbits_large_size_get(chunk,
@@ -1097,8 +1123,8 @@ arena_dalloc(tsd_t *tsd, void *ptr, tcache_t *tcache)
 			if (likely(tcache != NULL) && size <= tcache_maxclass)
 				tcache_dalloc_large(tsd, tcache, ptr, size);
 			else {
-				arena_dalloc_large(chunk->node.arena, chunk,
-				    ptr);
+				arena_dalloc_large(extent_node_arena_get(
+				    &chunk->node), chunk, ptr);
 			}
 		}
 	} else
@@ -1136,8 +1162,8 @@ arena_sdalloc(tsd_t *tsd, void *ptr, size_t size, tcache_t *tcache)
 			} else {
 				size_t pageind = ((uintptr_t)ptr -
 				    (uintptr_t)chunk) >> LG_PAGE;
-				arena_dalloc_small(chunk->node.arena, chunk,
-				    ptr, pageind);
+				arena_dalloc_small(extent_node_arena_get(
+				    &chunk->node), chunk, ptr, pageind);
 			}
 		} else {
 			assert(((uintptr_t)ptr & PAGE_MASK) == 0);
@@ -1145,8 +1171,8 @@ arena_sdalloc(tsd_t *tsd, void *ptr, size_t size, tcache_t *tcache)
 			if (likely(tcache != NULL) && size <= tcache_maxclass)
 				tcache_dalloc_large(tsd, tcache, ptr, size);
 			else {
-				arena_dalloc_large(chunk->node.arena, chunk,
-				    ptr);
+				arena_dalloc_large(extent_node_arena_get(
+				    &chunk->node), chunk, ptr);
 			}
 		}
 	} else

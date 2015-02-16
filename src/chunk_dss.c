@@ -133,8 +133,12 @@ chunk_alloc_dss(arena_t *arena, void *new_addr, size_t size, size_t alignment,
 				/* Success. */
 				dss_max = dss_next;
 				malloc_mutex_unlock(&dss_mtx);
-				if (cpad_size != 0)
-					chunk_unmap(arena, cpad, cpad_size);
+				if (cpad_size != 0) {
+					chunk_record(arena,
+					    &arena->chunks_szad_dss,
+					    &arena->chunks_ad_dss, false, cpad,
+					    cpad_size);
+				}
 				if (*zero) {
 					JEMALLOC_VALGRIND_MAKE_MEM_UNDEFINED(
 					    ret, size);
