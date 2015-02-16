@@ -22,7 +22,7 @@ extent_szad_comp(extent_node_t *a, extent_node_t *b)
 }
 
 /* Generate red-black tree functions. */
-rb_gen(, extent_tree_szad_, extent_tree_t, extent_node_t, link_szad,
+rb_gen(, extent_tree_szad_, extent_tree_t, extent_node_t, szad_link,
     extent_szad_comp)
 
 JEMALLOC_INLINE_C int
@@ -35,5 +35,4 @@ extent_ad_comp(extent_node_t *a, extent_node_t *b)
 }
 
 /* Generate red-black tree functions. */
-rb_gen(, extent_tree_ad_, extent_tree_t, extent_node_t, link_ad,
-    extent_ad_comp)
+rb_gen(, extent_tree_ad_, extent_tree_t, extent_node_t, ad_link, extent_ad_comp)

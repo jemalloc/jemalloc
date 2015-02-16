@@ -34,14 +34,14 @@ struct extent_node_s {
 
 	union {
 		/* Linkage for the size/address-ordered tree. */
-		rb_node(extent_node_t)	link_szad;
+		rb_node(extent_node_t)	szad_link;
 
 		/* Linkage for huge allocations and cached chunks nodes. */
-		ql_elm(extent_node_t)	link_ql;
+		ql_elm(extent_node_t)	ql_link;
 	};
 
 	/* Linkage for the address-ordered tree. */
-	rb_node(extent_node_t)	link_ad;
+	rb_node(extent_node_t)	ad_link;
 };
 typedef rb_tree(extent_node_t) extent_tree_t;
 

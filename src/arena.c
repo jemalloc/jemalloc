@@ -607,12 +607,12 @@ arena_node_alloc(arena_t *arena)
 	extent_node_t *node;
 
 	malloc_mutex_lock(&arena->node_cache_mtx);
-	node = ql_last(&arena->node_cache, link_ql);
+	node = ql_last(&arena->node_cache, ql_link);
 	if (node == NULL) {
 		malloc_mutex_unlock(&arena->node_cache_mtx);
 		return (base_alloc(sizeof(extent_node_t)));
 	}
-	ql_tail_remove(&arena->node_cache, extent_node_t, link_ql);
+	ql_tail_remove(&arena->node_cache, extent_node_t, ql_link);
 	malloc_mutex_unlock(&arena->node_cache_mtx);
 	return (node);
 }
@@ -622,8 +622,8 @@ arena_node_dalloc(arena_t *arena, extent_node_t *node)
 {
 
 	malloc_mutex_lock(&arena->node_cache_mtx);
-	ql_elm_new(node, link_ql);
-	ql_tail_insert(&arena->node_cache, node, link_ql);
+	ql_elm_new(node, ql_link);
+	ql_tail_insert(&arena->node_cache, node, ql_link);
 	malloc_mutex_unlock(&arena->node_cache_mtx);
 }
 

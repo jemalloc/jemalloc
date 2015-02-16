@@ -86,8 +86,8 @@ huge_palloc(tsd_t *tsd, arena_t *arena, size_t usize, size_t alignment,
 
 	/* Insert node into huge. */
 	malloc_mutex_lock(&arena->huge_mtx);
-	ql_elm_new(node, link_ql);
-	ql_tail_insert(&arena->huge, node, link_ql);
+	ql_elm_new(node, ql_link);
+	ql_tail_insert(&arena->huge, node, ql_link);
 	malloc_mutex_unlock(&arena->huge_mtx);
 
 	if (zero || (config_fill && unlikely(opt_zero))) {
@@ -361,7 +361,7 @@ huge_dalloc(tsd_t *tsd, void *ptr, tcache_t *tcache)
 	arena = node->arena;
 	huge_node_unset(ptr, node);
 	malloc_mutex_lock(&arena->huge_mtx);
-	ql_remove(&arena->huge, node, link_ql);
+	ql_remove(&arena->huge, node, ql_link);
 	malloc_mutex_unlock(&arena->huge_mtx);
 
 	huge_dalloc_junk(node->addr, node->size);
