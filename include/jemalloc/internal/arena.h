@@ -983,7 +983,6 @@ arena_malloc(tsd_t *tsd, arena_t *arena, size_t size, bool zero,
 {
 
 	assert(size != 0);
-	assert(size <= arena_maxclass);
 
 	arena = arena_choose(tsd, arena);
 	if (unlikely(arena == NULL))
@@ -1031,7 +1030,6 @@ arena_salloc(const void *ptr, bool demote)
 	index_t binind;
 
 	assert(ptr != NULL);
-	assert(CHUNK_ADDR2BASE(ptr) != ptr);
 
 	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
 	if (likely(chunk != ptr)) {
