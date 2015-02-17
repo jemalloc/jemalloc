@@ -465,9 +465,7 @@ arena_chunk_alloc_internal(arena_t *arena, bool *zero)
 	chunk = (arena_chunk_t *)chunk_alloc_arena(chunk_alloc, chunk_dalloc,
 	    arena->ind, NULL, chunksize, chunksize, zero);
 	if (chunk != NULL) {
-		extent_node_arena_set(&chunk->node, arena);
-		extent_node_addr_set(&chunk->node, chunk);
-		extent_node_size_set(&chunk->node, chunksize);
+		extent_node_init(&chunk->node, arena, chunk, chunksize, *zero);
 		extent_node_achunk_set(&chunk->node, true);
 		if (chunk_register(chunk, &chunk->node)) {
 			chunk_dalloc((void *)chunk, chunksize, arena->ind);
@@ -1055,10 +1053,7 @@ arena_stash_dirty(arena_t *arena, bool all, size_t npurge,
 			 * just cached a node.
 			 */
 			assert(tnode != NULL);
-			extent_node_arena_set(tnode, arena);
-			extent_node_addr_set(tnode, addr);
-			extent_node_size_set(tnode, size);
-			extent_node_zeroed_set(tnode, zeroed);
+			extent_node_init(tnode, arena, addr, size, zeroed);
 			arena_chunk_dirty_node_init(tnode);
 			/* Stash. */
 			arena_chunk_dirty_insert(purge_runs_sentinel,

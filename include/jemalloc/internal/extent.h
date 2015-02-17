@@ -30,19 +30,12 @@ struct extent_node_s {
 	 */
 	bool			en_achunk;
 
-	union {
-		/* Profile counters, used for huge objects. */
-		prof_tctx_t	*en_prof_tctx;
+	/* Profile counters, used for huge objects. */
+	prof_tctx_t		*en_prof_tctx;
 
-		struct {
-			/*
-			 * Linkage for arena's runs_dirty and chunks_dirty
-			 * rings.
-			 */
-			qr(extent_node_t)	cd_link;
-			arena_chunk_map_misc_t	runs_dirty;
-		};
-	};
+	/* Linkage for arena's runs_dirty and chunks_dirty rings. */
+	qr(extent_node_t)	cd_link;
+	arena_chunk_map_misc_t	runs_dirty;
 
 	union {
 		/* Linkage for the size/address-ordered tree. */
@@ -82,6 +75,8 @@ void	extent_node_size_set(extent_node_t *node, size_t size);
 void	extent_node_zeroed_set(extent_node_t *node, bool zeroed);
 void	extent_node_achunk_set(extent_node_t *node, bool achunk);
 void	extent_node_prof_tctx_set(extent_node_t *node, prof_tctx_t *tctx);
+void	extent_node_init(extent_node_t *node, arena_t *arena, void *addr,
+    size_t size, bool zeroed);
 #endif
 
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_EXTENT_C_))
@@ -167,6 +162,20 @@ extent_node_prof_tctx_set(extent_node_t *node, prof_tctx_t *tctx)
 {
 
 	node->en_prof_tctx = tctx;
+}
+
+JEMALLOC_INLINE void
+extent_node_init(extent_node_t *node, arena_t *arena, void *addr, size_t size,
+    bool zeroed)
+{
+
+	extent_node_arena_set(node, arena);
+	extent_node_addr_set(node, addr);
+	extent_node_size_set(node, size);
+	extent_node_zeroed_set(node, zeroed);
+	extent_node_achunk_set(node, false);
+	if (config_prof)
+		extent_node_prof_tctx_set(node, NULL);
 }
 #endif
 

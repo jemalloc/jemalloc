@@ -79,8 +79,7 @@ chunk_recycle(arena_t *arena, extent_tree_t *chunks_szad,
 	/* Beware size_t wrap-around. */
 	if (alloc_size < size)
 		return (NULL);
-	extent_node_addr_set(&key, new_addr);
-	extent_node_size_set(&key, alloc_size);
+	extent_node_init(&key, arena, new_addr, alloc_size, false);
 	malloc_mutex_lock(&arena->chunks_mtx);
 	node = (new_addr != NULL) ? extent_tree_ad_search(chunks_ad, &key) :
 	    extent_tree_szad_nsearch(chunks_szad, &key);
@@ -121,9 +120,8 @@ chunk_recycle(arena_t *arena, extent_tree_t *chunks_szad,
 				return (NULL);
 			}
 		}
-		extent_node_addr_set(node, (void *)((uintptr_t)(ret) + size));
-		extent_node_size_set(node, trailsize);
-		extent_node_zeroed_set(node, zeroed);
+		extent_node_init(node, arena, (void *)((uintptr_t)(ret) + size),
+		    trailsize, zeroed);
 		extent_tree_szad_insert(chunks_szad, node);
 		extent_tree_ad_insert(chunks_ad, node);
 		arena_chunk_dirty_maybe_insert(arena, node, dirty);
@@ -288,7 +286,8 @@ chunk_record(arena_t *arena, extent_tree_t *chunks_szad,
 	JEMALLOC_VALGRIND_MAKE_MEM_NOACCESS(chunk, size);
 
 	malloc_mutex_lock(&arena->chunks_mtx);
-	extent_node_addr_set(&key, (void *)((uintptr_t)chunk + size));
+	extent_node_init(&key, arena, (void *)((uintptr_t)chunk + size), 0,
+	    false);
 	node = extent_tree_ad_nsearch(chunks_ad, &key);
 	/* Try to coalesce forward. */
 	if (node != NULL && extent_node_addr_get(node) ==
@@ -301,7 +300,7 @@ chunk_record(arena_t *arena, extent_tree_t *chunks_szad,
 		extent_tree_szad_remove(chunks_szad, node);
 		arena_chunk_dirty_maybe_remove(arena, node, dirty);
 		extent_node_addr_set(node, chunk);
-		extent_node_size_set(node, extent_node_size_get(node) + size);
+		extent_node_size_set(node, size + extent_node_size_get(node));
 		extent_node_zeroed_set(node, extent_node_zeroed_get(node) &&
 		    !unzeroed);
 		extent_tree_szad_insert(chunks_szad, node);
@@ -320,9 +319,7 @@ chunk_record(arena_t *arena, extent_tree_t *chunks_szad,
 				pages_purge(chunk, size);
 			goto label_return;
 		}
-		extent_node_addr_set(node, chunk);
-		extent_node_size_set(node, size);
-		extent_node_zeroed_set(node, !unzeroed);
+		extent_node_init(node, arena, chunk, size, !unzeroed);
 		extent_tree_ad_insert(chunks_ad, node);
 		extent_tree_szad_insert(chunks_szad, node);
 		arena_chunk_dirty_maybe_insert(arena, node, dirty);
@@ -343,10 +340,10 @@ chunk_record(arena_t *arena, extent_tree_t *chunks_szad,
 		extent_tree_szad_remove(chunks_szad, node);
 		arena_chunk_dirty_maybe_remove(arena, node, dirty);
 		extent_node_addr_set(node, extent_node_addr_get(prev));
-		extent_node_size_set(node, extent_node_size_get(node) +
-		    extent_node_size_get(prev));
-		extent_node_zeroed_set(node, extent_node_zeroed_get(node) &&
-		    extent_node_zeroed_get(prev));
+		extent_node_size_set(node, extent_node_size_get(prev) +
+		    extent_node_size_get(node));
+		extent_node_zeroed_set(node, extent_node_zeroed_get(prev) &&
+		    extent_node_zeroed_get(node));
 		extent_tree_szad_insert(chunks_szad, node);
 		arena_chunk_dirty_maybe_insert(arena, node, dirty);
 

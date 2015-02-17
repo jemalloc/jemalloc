@@ -60,8 +60,7 @@ base_chunk_alloc(size_t minsize)
 		if (config_stats)
 			base_allocated += nsize;
 	}
-	extent_node_addr_set(node, addr);
-	extent_node_size_set(node, csize);
+	extent_node_init(node, NULL, addr, csize, true);
 	return (node);
 }
 
@@ -84,8 +83,7 @@ base_alloc(size_t size)
 	 */
 	csize = CACHELINE_CEILING(size);
 
-	extent_node_addr_set(&key, NULL);
-	extent_node_size_set(&key, csize);
+	extent_node_init(&key, NULL, NULL, csize, false);
 	malloc_mutex_lock(&base_mtx);
 	node = extent_tree_szad_nsearch(&base_avail_szad, &key);
 	if (node != NULL) {
