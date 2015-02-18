@@ -148,7 +148,6 @@ struct arena_chunk_map_misc_s {
 };
 typedef rb_tree(arena_chunk_map_misc_t) arena_avail_tree_t;
 typedef rb_tree(arena_chunk_map_misc_t) arena_run_tree_t;
-typedef qr(arena_chunk_map_misc_t) arena_chunk_miscelms_t;
 #endif /* JEMALLOC_ARENA_STRUCTS_A */
 
 #ifdef JEMALLOC_ARENA_STRUCTS_B
