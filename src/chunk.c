@@ -377,7 +377,7 @@ chunk_dalloc_default(void *chunk, size_t size, unsigned arena_ind)
 }
 
 void
-chunk_unmap(arena_t *arena, void *chunk, size_t size)
+chunk_unmap(arena_t *arena, bool dirty, void *chunk, size_t size)
 {
 
 	assert(chunk != NULL);
@@ -387,10 +387,10 @@ chunk_unmap(arena_t *arena, void *chunk, size_t size)
 
 	if (have_dss && chunk_in_dss(chunk)) {
 		chunk_record(arena, &arena->chunks_szad_dss,
-		    &arena->chunks_ad_dss, false, chunk, size);
+		    &arena->chunks_ad_dss, dirty, chunk, size);
 	} else if (chunk_dalloc_mmap(chunk, size)) {
 		chunk_record(arena, &arena->chunks_szad_mmap,
-		    &arena->chunks_ad_mmap, false, chunk, size);
+		    &arena->chunks_ad_mmap, dirty, chunk, size);
 	}
 }
 

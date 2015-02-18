@@ -1035,6 +1035,7 @@ arena_stash_dirty(arena_t *arena, bool all, size_t npurge,
 			chunk = arena->chunk_alloc(addr, size, chunksize, &zero,
 			    arena->ind);
 			assert(chunk == addr);
+			assert(zero == zeroed);
 			/*
 			 * Create a temporary node to link into the ring of
 			 * stashed allocations.
@@ -1075,7 +1076,7 @@ arena_stash_dirty(arena_t *arena, bool all, size_t npurge,
 
 			/* Temporarily allocate the free dirty run. */
 			arena_run_split_large(arena, run, run_size, false);
-			/* Append to purge_runs for later processing. */
+			/* Stash. */
 			if (false)
 				qr_new(runselm, rd_link); /* Redundant. */
 			else {
@@ -1114,9 +1115,12 @@ arena_purge_stashed(arena_t *arena, arena_chunk_map_misc_t *purge_runs_sentinel,
 
 		if (runselm == &chunkselm->runs_dirty) {
 			size_t size = extent_node_size_get(chunkselm);
+			bool unzeroed;
 
-			pages_purge(extent_node_addr_get(chunkselm), size);
 			npages = size >> LG_PAGE;
+			unzeroed = pages_purge(extent_node_addr_get(chunkselm),
+			    size);
+			extent_node_zeroed_set(chunkselm, !unzeroed);
 			chunkselm = qr_next(chunkselm, cd_link);
 		} else {
 			arena_chunk_t *chunk;
@@ -1180,11 +1184,13 @@ arena_unstash_purged(arena_t *arena,
 		if (runselm == &chunkselm->runs_dirty) {
 			extent_node_t *chunkselm_next = qr_next(chunkselm,
 			    cd_link);
+			bool dirty = !extent_node_zeroed_get(chunkselm);
+			void *addr = extent_node_addr_get(chunkselm);
+			size_t size = extent_node_size_get(chunkselm);
 			arena_chunk_dirty_remove(chunkselm);
-			chunk_unmap(arena, extent_node_addr_get(chunkselm),
-			    extent_node_size_get(chunkselm));
 			arena_node_dalloc(arena, chunkselm);
 			chunkselm = chunkselm_next;
+			chunk_unmap(arena, dirty, addr, size);
 		} else {
 			arena_run_t *run = &runselm->run;
 			qr_remove(runselm, rd_link);

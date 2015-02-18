@@ -47,7 +47,7 @@ void	*chunk_alloc_default(void *new_addr, size_t size, size_t alignment,
 void	chunk_record(arena_t *arena, extent_tree_t *chunks_szad,
     extent_tree_t *chunks_ad, bool dirty, void *chunk, size_t size);
 bool	chunk_dalloc_default(void *chunk, size_t size, unsigned arena_ind);
-void	chunk_unmap(arena_t *arena, void *chunk, size_t size);
+void	chunk_unmap(arena_t *arena, bool dirty, void *chunk, size_t size);
 bool	chunk_boot(void);
 void	chunk_prefork(void);
 void	chunk_postfork_parent(void);
