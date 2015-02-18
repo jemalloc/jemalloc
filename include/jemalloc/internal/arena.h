@@ -318,14 +318,14 @@ struct arena_s {
 
 	/*
 	 * Unused dirty memory this arena manages.  Dirty memory is conceptually
-	 * tracked as an arbitrarily interleaved LRU of runs and chunks, but the
-	 * list linkage is actually semi-duplicated in order to avoid extra
-	 * arena_chunk_map_misc_t space overhead.
+	 * tracked as an arbitrarily interleaved LRU of dirty runs and cached
+	 * chunks, but the list linkage is actually semi-duplicated in order to
+	 * avoid extra arena_chunk_map_misc_t space overhead.
 	 *
 	 *   LRU-----------------------------------------------------------MRU
 	 *
 	 *         ______________           ___                      ___
-	 *   ...-->|chunks_dirty|<--------->|c|<-------------------->|c|<--...
+	 *   ...-->|chunks_cache|<--------->|c|<-------------------->|c|<--...
 	 *         --------------           |h|                      |h|
 	 *         ____________    _____    |u|    _____    _____    |u|
 	 *   ...-->|runs_dirty|<-->|run|<-->|n|<-->|run|<-->|run|<-->|n|<--...
@@ -333,7 +333,7 @@ struct arena_s {
 	 *                                  ---                      ---
 	 */
 	arena_chunk_map_misc_t	runs_dirty;
-	extent_node_t		chunks_dirty;
+	extent_node_t		chunks_cache;
 
 	/* Extant huge allocations. */
 	ql_head(extent_node_t)	huge;
@@ -347,8 +347,8 @@ struct arena_s {
 	 * orderings are needed, which is why there are two trees with the same
 	 * contents.
 	 */
-	extent_tree_t		chunks_szad_dirty;
-	extent_tree_t		chunks_ad_dirty;
+	extent_tree_t		chunks_szad_cache;
+	extent_tree_t		chunks_ad_cache;
 	extent_tree_t		chunks_szad_mmap;
 	extent_tree_t		chunks_ad_mmap;
 	extent_tree_t		chunks_szad_dss;
@@ -384,10 +384,10 @@ extern size_t		arena_maxclass; /* Max size class for arenas. */
 extern unsigned		nlclasses; /* Number of large size classes. */
 extern unsigned		nhclasses; /* Number of huge size classes. */
 
-void	arena_chunk_dirty_maybe_insert(arena_t *arena, extent_node_t *node,
-    bool dirty);
-void	arena_chunk_dirty_maybe_remove(arena_t *arena, extent_node_t *node,
-    bool dirty);
+void	arena_chunk_cache_maybe_insert(arena_t *arena, extent_node_t *node,
+    bool cache);
+void	arena_chunk_cache_maybe_remove(arena_t *arena, extent_node_t *node,
+    bool cache);
 extent_node_t	*arena_node_alloc(arena_t *arena);
 void	arena_node_dalloc(arena_t *arena, extent_node_t *node);
 void	*arena_chunk_alloc_huge(arena_t *arena, size_t usize, size_t alignment,

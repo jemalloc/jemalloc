@@ -64,7 +64,7 @@ chunk_deregister(const void *chunk, const extent_node_t *node)
 
 static void *
 chunk_recycle(arena_t *arena, extent_tree_t *chunks_szad,
-    extent_tree_t *chunks_ad, bool dirty, void *new_addr, size_t size,
+    extent_tree_t *chunks_ad, bool cache, void *new_addr, size_t size,
     size_t alignment, bool *zero)
 {
 	void *ret;
@@ -100,13 +100,13 @@ chunk_recycle(arena_t *arena, extent_tree_t *chunks_szad,
 	/* Remove node from the tree. */
 	extent_tree_szad_remove(chunks_szad, node);
 	extent_tree_ad_remove(chunks_ad, node);
-	arena_chunk_dirty_maybe_remove(arena, node, dirty);
+	arena_chunk_cache_maybe_remove(arena, node, cache);
 	if (leadsize != 0) {
 		/* Insert the leading space as a smaller chunk. */
 		extent_node_size_set(node, leadsize);
 		extent_tree_szad_insert(chunks_szad, node);
 		extent_tree_ad_insert(chunks_ad, node);
-		arena_chunk_dirty_maybe_insert(arena, node, dirty);
+		arena_chunk_cache_maybe_insert(arena, node, cache);
 		node = NULL;
 	}
 	if (trailsize != 0) {
@@ -116,7 +116,7 @@ chunk_recycle(arena_t *arena, extent_tree_t *chunks_szad,
 			if (node == NULL) {
 				malloc_mutex_unlock(&arena->chunks_mtx);
 				chunk_record(arena, chunks_szad, chunks_ad,
-				    dirty, ret, size);
+				    cache, ret, size, zeroed);
 				return (NULL);
 			}
 		}
@@ -124,7 +124,7 @@ chunk_recycle(arena_t *arena, extent_tree_t *chunks_szad,
 		    trailsize, zeroed);
 		extent_tree_szad_insert(chunks_szad, node);
 		extent_tree_ad_insert(chunks_ad, node);
-		arena_chunk_dirty_maybe_insert(arena, node, dirty);
+		arena_chunk_cache_maybe_insert(arena, node, cache);
 		node = NULL;
 	}
 	malloc_mutex_unlock(&arena->chunks_mtx);
@@ -177,9 +177,9 @@ chunk_alloc_core(arena_t *arena, void *new_addr, size_t size, size_t alignment,
 	assert(alignment != 0);
 	assert((alignment & chunksize_mask) == 0);
 
-	/* dirty. */
-	if ((ret = chunk_recycle(arena, &arena->chunks_szad_dirty,
-	    &arena->chunks_ad_dirty, true, new_addr, size, alignment, zero)) !=
+	/* cache. */
+	if ((ret = chunk_recycle(arena, &arena->chunks_szad_cache,
+	    &arena->chunks_ad_cache, true, new_addr, size, alignment, zero)) !=
 	    NULL)
 		return (ret);
 	/* "primary" dss. */
@@ -276,13 +276,14 @@ chunk_alloc_default(void *new_addr, size_t size, size_t alignment, bool *zero,
 
 void
 chunk_record(arena_t *arena, extent_tree_t *chunks_szad,
-    extent_tree_t *chunks_ad, bool dirty, void *chunk, size_t size)
+    extent_tree_t *chunks_ad, bool cache, void *chunk, size_t size, bool zeroed)
 {
 	bool unzeroed;
 	extent_node_t *node, *prev;
 	extent_node_t key;
 
-	unzeroed = dirty ? true : pages_purge(chunk, size);
+	assert(!cache || !zeroed);
+	unzeroed = cache || !zeroed;
 	JEMALLOC_VALGRIND_MAKE_MEM_NOACCESS(chunk, size);
 
 	malloc_mutex_lock(&arena->chunks_mtx);
@@ -298,13 +299,13 @@ chunk_record(arena_t *arena, extent_tree_t *chunks_szad,
 		 * remove/insert from/into chunks_szad.
 		 */
 		extent_tree_szad_remove(chunks_szad, node);
-		arena_chunk_dirty_maybe_remove(arena, node, dirty);
+		arena_chunk_cache_maybe_remove(arena, node, cache);
 		extent_node_addr_set(node, chunk);
 		extent_node_size_set(node, size + extent_node_size_get(node));
 		extent_node_zeroed_set(node, extent_node_zeroed_get(node) &&
 		    !unzeroed);
 		extent_tree_szad_insert(chunks_szad, node);
-		arena_chunk_dirty_maybe_insert(arena, node, dirty);
+		arena_chunk_cache_maybe_insert(arena, node, cache);
 	} else {
 		/* Coalescing forward failed, so insert a new node. */
 		node = arena_node_alloc(arena);
@@ -315,14 +316,14 @@ chunk_record(arena_t *arena, extent_tree_t *chunks_szad,
 			 * pages have already been purged, so that this is only
 			 * a virtual memory leak.
 			 */
-			if (dirty)
+			if (cache)
 				pages_purge(chunk, size);
 			goto label_return;
 		}
 		extent_node_init(node, arena, chunk, size, !unzeroed);
 		extent_tree_ad_insert(chunks_ad, node);
 		extent_tree_szad_insert(chunks_szad, node);
-		arena_chunk_dirty_maybe_insert(arena, node, dirty);
+		arena_chunk_cache_maybe_insert(arena, node, cache);
 	}
 
 	/* Try to coalesce backward. */
@@ -336,16 +337,16 @@ chunk_record(arena_t *arena, extent_tree_t *chunks_szad,
 		 */
 		extent_tree_szad_remove(chunks_szad, prev);
 		extent_tree_ad_remove(chunks_ad, prev);
-		arena_chunk_dirty_maybe_remove(arena, prev, dirty);
+		arena_chunk_cache_maybe_remove(arena, prev, cache);
 		extent_tree_szad_remove(chunks_szad, node);
-		arena_chunk_dirty_maybe_remove(arena, node, dirty);
+		arena_chunk_cache_maybe_remove(arena, node, cache);
 		extent_node_addr_set(node, extent_node_addr_get(prev));
 		extent_node_size_set(node, extent_node_size_get(prev) +
 		    extent_node_size_get(node));
 		extent_node_zeroed_set(node, extent_node_zeroed_get(prev) &&
 		    extent_node_zeroed_get(node));
 		extent_tree_szad_insert(chunks_szad, node);
-		arena_chunk_dirty_maybe_insert(arena, node, dirty);
+		arena_chunk_cache_maybe_insert(arena, node, cache);
 
 		arena_node_dalloc(arena, prev);
 	}
@@ -363,8 +364,8 @@ chunk_cache(arena_t *arena, void *chunk, size_t size)
 	assert(size != 0);
 	assert((size & chunksize_mask) == 0);
 
-	chunk_record(arena, &arena->chunks_szad_dirty, &arena->chunks_ad_dirty,
-	    true, chunk, size);
+	chunk_record(arena, &arena->chunks_szad_cache, &arena->chunks_ad_cache,
+	    true, chunk, size, false);
 }
 
 /* Default arena chunk deallocation routine in the absence of user override. */
@@ -377,7 +378,7 @@ chunk_dalloc_default(void *chunk, size_t size, unsigned arena_ind)
 }
 
 void
-chunk_unmap(arena_t *arena, bool dirty, void *chunk, size_t size)
+chunk_unmap(arena_t *arena, void *chunk, size_t size, bool zeroed)
 {
 
 	assert(chunk != NULL);
@@ -387,10 +388,10 @@ chunk_unmap(arena_t *arena, bool dirty, void *chunk, size_t size)
 
 	if (have_dss && chunk_in_dss(chunk)) {
 		chunk_record(arena, &arena->chunks_szad_dss,
-		    &arena->chunks_ad_dss, dirty, chunk, size);
+		    &arena->chunks_ad_dss, false, chunk, size, zeroed);
 	} else if (chunk_dalloc_mmap(chunk, size)) {
 		chunk_record(arena, &arena->chunks_szad_mmap,
-		    &arena->chunks_ad_mmap, dirty, chunk, size);
+		    &arena->chunks_ad_mmap, false, chunk, size, zeroed);
 	}
 }
 

@@ -152,41 +152,24 @@ arena_chunk_dirty_npages(const extent_node_t *node)
 	return (extent_node_size_get(node) >> LG_PAGE);
 }
 
-static void
-arena_chunk_dirty_insert(arena_chunk_map_misc_t *runs_dirty,
-    extent_node_t *chunks_dirty, extent_node_t *node)
-{
-
-	qr_meld(chunks_dirty, node, cd_link);
-	qr_meld(runs_dirty, &node->runs_dirty, rd_link);
-}
-
-static void
-arena_chunk_dirty_remove(extent_node_t *node)
-{
-
-	qr_remove(node, cd_link);
-	qr_remove(&node->runs_dirty, rd_link);
-}
-
 void
-arena_chunk_dirty_maybe_insert(arena_t *arena, extent_node_t *node, bool dirty)
+arena_chunk_cache_maybe_insert(arena_t *arena, extent_node_t *node, bool cache)
 {
 
-	if (dirty) {
+	if (cache) {
 		extent_node_dirty_linkage_init(node);
-		arena_chunk_dirty_insert(&arena->runs_dirty,
-		    &arena->chunks_dirty, node);
+		extent_node_dirty_insert(node, &arena->runs_dirty,
+		    &arena->chunks_cache);
 		arena->ndirty += arena_chunk_dirty_npages(node);
 	}
 }
 
 void
-arena_chunk_dirty_maybe_remove(arena_t *arena, extent_node_t *node, bool dirty)
+arena_chunk_cache_maybe_remove(arena_t *arena, extent_node_t *node, bool dirty)
 {
 
 	if (dirty) {
-		arena_chunk_dirty_remove(node);
+		extent_node_dirty_remove(node);
 		assert(arena->ndirty >= arena_chunk_dirty_npages(node));
 		arena->ndirty -= arena_chunk_dirty_npages(node);
 	}
@@ -954,14 +937,14 @@ arena_dirty_count(arena_t *arena)
 	extent_node_t *chunkselm;
 
 	for (runselm = qr_next(&arena->runs_dirty, rd_link),
-	    chunkselm = qr_next(&arena->chunks_dirty, cd_link);
+	    chunkselm = qr_next(&arena->chunks_cache, cc_link);
 	    runselm != &arena->runs_dirty; runselm = qr_next(runselm,
 	    rd_link)) {
 		size_t npages;
 
 		if (runselm == &chunkselm->runs_dirty) {
 			npages = extent_node_size_get(chunkselm) >> LG_PAGE;
-			chunkselm = qr_next(chunkselm, cd_link);
+			chunkselm = qr_next(chunkselm, cc_link);
 		} else {
 			arena_chunk_t *chunk = (arena_chunk_t
 			    *)CHUNK_ADDR2BASE(runselm);
@@ -1010,7 +993,7 @@ arena_stash_dirty(arena_t *arena, bool all, size_t npurge,
 
 	/* Stash at least npurge pages. */
 	for (runselm = qr_next(&arena->runs_dirty, rd_link),
-	    chunkselm = qr_next(&arena->chunks_dirty, cd_link);
+	    chunkselm = qr_next(&arena->chunks_cache, cc_link);
 	    runselm != &arena->runs_dirty; runselm = runselm_next) {
 		size_t npages;
 		runselm_next = qr_next(runselm, rd_link);
@@ -1022,7 +1005,7 @@ arena_stash_dirty(arena_t *arena, bool all, size_t npurge,
 			bool zeroed, zero;
 			UNUSED void *chunk;
 
-			chunkselm_next = qr_next(chunkselm, cd_link);
+			chunkselm_next = qr_next(chunkselm, cc_link);
 			/*
 			 * Cache contents of chunkselm prior to it being
 			 * destroyed as a side effect of allocating the chunk.
@@ -1038,19 +1021,16 @@ arena_stash_dirty(arena_t *arena, bool all, size_t npurge,
 			assert(zero == zeroed);
 			/*
 			 * Create a temporary node to link into the ring of
-			 * stashed allocations.
+			 * stashed allocations.  OOM shouldn't be possible
+			 * because chunk allocation just cached a node.
 			 */
 			tnode = arena_node_alloc(arena);
-			/*
-			 * OOM shouldn't be possible because chunk allocation
-			 * just cached a node.
-			 */
 			assert(tnode != NULL);
+			/* Stash. */
 			extent_node_init(tnode, arena, addr, size, zeroed);
 			extent_node_dirty_linkage_init(tnode);
-			/* Stash. */
-			arena_chunk_dirty_insert(purge_runs_sentinel,
-			    purge_chunks_sentinel, tnode);
+			extent_node_dirty_insert(tnode, purge_runs_sentinel,
+			    purge_chunks_sentinel);
 			npages = size >> LG_PAGE;
 			chunkselm = chunkselm_next;
 		} else {
@@ -1108,7 +1088,7 @@ arena_purge_stashed(arena_t *arena, arena_chunk_map_misc_t *purge_runs_sentinel,
 
 	malloc_mutex_unlock(&arena->lock);
 	for (runselm = qr_next(purge_runs_sentinel, rd_link),
-	    chunkselm = qr_next(purge_chunks_sentinel, cd_link);
+	    chunkselm = qr_next(purge_chunks_sentinel, cc_link);
 	    runselm != purge_runs_sentinel; runselm = qr_next(runselm,
 	    rd_link)) {
 		size_t npages;
@@ -1121,7 +1101,7 @@ arena_purge_stashed(arena_t *arena, arena_chunk_map_misc_t *purge_runs_sentinel,
 			unzeroed = pages_purge(extent_node_addr_get(chunkselm),
 			    size);
 			extent_node_zeroed_set(chunkselm, !unzeroed);
-			chunkselm = qr_next(chunkselm, cd_link);
+			chunkselm = qr_next(chunkselm, cc_link);
 		} else {
 			arena_chunk_t *chunk;
 			size_t pageind, run_size, flag_unzeroed, i;
@@ -1178,19 +1158,19 @@ arena_unstash_purged(arena_t *arena,
 
 	/* Deallocate runs. */
 	for (runselm = qr_next(purge_runs_sentinel, rd_link),
-	    chunkselm = qr_next(purge_chunks_sentinel, cd_link);
+	    chunkselm = qr_next(purge_chunks_sentinel, cc_link);
 	    runselm != purge_runs_sentinel; runselm = runselm_next) {
 		runselm_next = qr_next(runselm, rd_link);
 		if (runselm == &chunkselm->runs_dirty) {
 			extent_node_t *chunkselm_next = qr_next(chunkselm,
-			    cd_link);
-			bool dirty = !extent_node_zeroed_get(chunkselm);
+			    cc_link);
 			void *addr = extent_node_addr_get(chunkselm);
 			size_t size = extent_node_size_get(chunkselm);
-			arena_chunk_dirty_remove(chunkselm);
+			bool zeroed = extent_node_zeroed_get(chunkselm);
+			extent_node_dirty_remove(chunkselm);
 			arena_node_dalloc(arena, chunkselm);
 			chunkselm = chunkselm_next;
-			chunk_unmap(arena, dirty, addr, size);
+			chunk_unmap(arena, addr, size, zeroed);
 		} else {
 			arena_run_t *run = &runselm->run;
 			qr_remove(runselm, rd_link);
@@ -2612,14 +2592,14 @@ arena_new(unsigned ind)
 
 	arena_avail_tree_new(&arena->runs_avail);
 	qr_new(&arena->runs_dirty, rd_link);
-	qr_new(&arena->chunks_dirty, cd_link);
+	qr_new(&arena->chunks_cache, cc_link);
 
 	ql_new(&arena->huge);
 	if (malloc_mutex_init(&arena->huge_mtx))
 		return (NULL);
 
-	extent_tree_szad_new(&arena->chunks_szad_dirty);
-	extent_tree_ad_new(&arena->chunks_ad_dirty);
+	extent_tree_szad_new(&arena->chunks_szad_cache);
+	extent_tree_ad_new(&arena->chunks_ad_cache);
 	extent_tree_szad_new(&arena->chunks_szad_mmap);
 	extent_tree_ad_new(&arena->chunks_ad_mmap);
 	extent_tree_szad_new(&arena->chunks_szad_dss);

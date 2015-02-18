@@ -137,7 +137,7 @@ chunk_alloc_dss(arena_t *arena, void *new_addr, size_t size, size_t alignment,
 					chunk_record(arena,
 					    &arena->chunks_szad_dss,
 					    &arena->chunks_ad_dss, false, cpad,
-					    cpad_size);
+					    cpad_size, false);
 				}
 				if (*zero) {
 					JEMALLOC_VALGRIND_MAKE_MEM_UNDEFINED(

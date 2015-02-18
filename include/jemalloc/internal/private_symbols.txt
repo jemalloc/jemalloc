@@ -12,9 +12,9 @@ arena_boot
 arena_choose
 arena_choose_hard
 arena_chunk_alloc_huge
+arena_chunk_cache_maybe_insert
+arena_chunk_cache_maybe_remove
 arena_chunk_dalloc_huge
-arena_chunk_dirty_maybe_insert
-arena_chunk_dirty_maybe_remove
 arena_chunk_ralloc_huge_expand
 arena_chunk_ralloc_huge_shrink
 arena_chunk_ralloc_huge_similar
@@ -182,7 +182,9 @@ extent_node_addr_get
 extent_node_addr_set
 extent_node_arena_get
 extent_node_arena_set
+extent_node_dirty_insert
 extent_node_dirty_linkage_init
+extent_node_dirty_remove
 extent_node_init
 extent_node_prof_tctx_get
 extent_node_prof_tctx_set
