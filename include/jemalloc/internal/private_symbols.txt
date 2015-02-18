@@ -182,6 +182,7 @@ extent_node_addr_get
 extent_node_addr_set
 extent_node_arena_get
 extent_node_arena_set
+extent_node_dirty_linkage_init
 extent_node_init
 extent_node_prof_tctx_get
 extent_node_prof_tctx_set

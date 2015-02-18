@@ -153,14 +153,6 @@ arena_chunk_dirty_npages(const extent_node_t *node)
 }
 
 static void
-arena_chunk_dirty_node_init(extent_node_t *node)
-{
-
-	qr_new(node, cd_link);
-	qr_new(&node->runs_dirty, rd_link);
-}
-
-static void
 arena_chunk_dirty_insert(arena_chunk_map_misc_t *runs_dirty,
     extent_node_t *chunks_dirty, extent_node_t *node)
 {
@@ -181,8 +173,8 @@ void
 arena_chunk_dirty_maybe_insert(arena_t *arena, extent_node_t *node, bool dirty)
 {
 
-	arena_chunk_dirty_node_init(node);
 	if (dirty) {
+		extent_node_dirty_linkage_init(node);
 		arena_chunk_dirty_insert(&arena->runs_dirty,
 		    &arena->chunks_dirty, node);
 		arena->ndirty += arena_chunk_dirty_npages(node);
@@ -1054,7 +1046,7 @@ arena_stash_dirty(arena_t *arena, bool all, size_t npurge,
 			 */
 			assert(tnode != NULL);
 			extent_node_init(tnode, arena, addr, size, zeroed);
-			arena_chunk_dirty_node_init(tnode);
+			extent_node_dirty_linkage_init(tnode);
 			/* Stash. */
 			arena_chunk_dirty_insert(purge_runs_sentinel,
 			    purge_chunks_sentinel, tnode);
@@ -1223,7 +1215,7 @@ arena_purge(arena_t *arena, bool all)
 
 	npurge = arena_compute_npurge(arena, all);
 	qr_new(&purge_runs_sentinel, rd_link);
-	arena_chunk_dirty_node_init(&purge_chunks_sentinel);
+	extent_node_dirty_linkage_init(&purge_chunks_sentinel);
 
 	npurgeable = arena_stash_dirty(arena, all, npurge, &purge_runs_sentinel,
 	    &purge_chunks_sentinel);

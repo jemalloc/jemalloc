@@ -77,6 +77,7 @@ void	extent_node_achunk_set(extent_node_t *node, bool achunk);
 void	extent_node_prof_tctx_set(extent_node_t *node, prof_tctx_t *tctx);
 void	extent_node_init(extent_node_t *node, arena_t *arena, void *addr,
     size_t size, bool zeroed);
+void	extent_node_dirty_linkage_init(extent_node_t *node);
 #endif
 
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_EXTENT_C_))
@@ -176,6 +177,14 @@ extent_node_init(extent_node_t *node, arena_t *arena, void *addr, size_t size,
 	extent_node_achunk_set(node, false);
 	if (config_prof)
 		extent_node_prof_tctx_set(node, NULL);
+}
+
+JEMALLOC_INLINE void
+extent_node_dirty_linkage_init(extent_node_t *node)
+{
+
+	qr_new(node, cd_link);
+	qr_new(&node->runs_dirty, rd_link);
 }
 #endif
 
