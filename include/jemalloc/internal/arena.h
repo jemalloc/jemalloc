@@ -399,6 +399,7 @@ void	arena_chunk_ralloc_huge_shrink(arena_t *arena, void *chunk,
     size_t oldsize, size_t usize);
 bool	arena_chunk_ralloc_huge_expand(arena_t *arena, void *chunk,
     size_t oldsize, size_t usize, bool *zero);
+void	arena_maybe_purge(arena_t *arena);
 void	arena_purge_all(arena_t *arena);
 void	arena_tcache_fill_small(arena_t *arena, tcache_bin_t *tbin,
     index_t binind, uint64_t prof_accumbytes);

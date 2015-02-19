@@ -39,16 +39,21 @@ extern size_t		chunk_npages;
 bool	chunk_register(const void *chunk, const extent_node_t *node);
 void	chunk_deregister(const void *chunk, const extent_node_t *node);
 void	*chunk_alloc_base(size_t size);
-void	*chunk_alloc_arena(chunk_alloc_t *chunk_alloc,
-    chunk_dalloc_t *chunk_dalloc, unsigned arena_ind, void *new_addr,
-    size_t size, size_t alignment, bool *zero);
+void	*chunk_alloc_cache(arena_t *arena, void *new_addr, size_t size,
+    size_t alignment, bool *zero, bool dalloc_node);
 void	*chunk_alloc_default(void *new_addr, size_t size, size_t alignment,
     bool *zero, unsigned arena_ind);
+void	*chunk_alloc_wrapper(arena_t *arena, chunk_alloc_t *chunk_alloc,
+    void *new_addr, size_t size, size_t alignment, bool *zero);
 void	chunk_record(arena_t *arena, extent_tree_t *chunks_szad,
     extent_tree_t *chunks_ad, bool cache, void *chunk, size_t size,
     bool zeroed);
+void	chunk_dalloc_cache(arena_t *arena, void *chunk, size_t size);
+void	chunk_dalloc_arena(arena_t *arena, void *chunk, size_t size,
+    bool zeroed);
 bool	chunk_dalloc_default(void *chunk, size_t size, unsigned arena_ind);
-void	chunk_unmap(arena_t *arena, void *chunk, size_t size, bool zeroed);
+void	chunk_dalloc_wrapper(arena_t *arena, chunk_dalloc_t *chunk_dalloc,
+    void *chunk, size_t size);
 bool	chunk_boot(void);
 void	chunk_prefork(void);
 void	chunk_postfork_parent(void);

@@ -53,6 +53,7 @@ arena_mapbitsp_read
 arena_mapbitsp_write
 arena_maxclass
 arena_maxrun
+arena_maybe_purge
 arena_metadata_allocated_add
 arena_metadata_allocated_get
 arena_metadata_allocated_sub
@@ -124,14 +125,18 @@ bootstrap_free
 bootstrap_malloc
 bt_init
 buferror
-chunk_alloc_arena
+chunk_alloc_cache
 chunk_alloc_base
 chunk_alloc_default
 chunk_alloc_dss
 chunk_alloc_mmap
+chunk_alloc_wrapper
 chunk_boot
+chunk_dalloc_arena
+chunk_dalloc_cache
 chunk_dalloc_default
 chunk_dalloc_mmap
+chunk_dalloc_wrapper
 chunk_deregister
 chunk_dss_boot
 chunk_dss_postfork_child
@@ -147,7 +152,6 @@ chunk_postfork_parent
 chunk_prefork
 chunk_record
 chunk_register
-chunk_unmap
 chunks_rtree
 chunksize
 chunksize_mask

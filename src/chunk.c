@@ -65,7 +65,7 @@ chunk_deregister(const void *chunk, const extent_node_t *node)
 static void *
 chunk_recycle(arena_t *arena, extent_tree_t *chunks_szad,
     extent_tree_t *chunks_ad, bool cache, void *new_addr, size_t size,
-    size_t alignment, bool *zero)
+    size_t alignment, bool *zero, bool dalloc_node)
 {
 	void *ret;
 	extent_node_t *node;
@@ -74,6 +74,7 @@ chunk_recycle(arena_t *arena, extent_tree_t *chunks_szad,
 	bool zeroed;
 
 	assert(new_addr == NULL || alignment == chunksize);
+	assert(dalloc_node || new_addr != NULL);
 
 	alloc_size = size + alignment - chunksize;
 	/* Beware size_t wrap-around. */
@@ -129,7 +130,8 @@ chunk_recycle(arena_t *arena, extent_tree_t *chunks_szad,
 	}
 	malloc_mutex_unlock(&arena->chunks_mtx);
 
-	if (node != NULL)
+	assert(!dalloc_node || node != NULL);
+	if (dalloc_node && node != NULL)
 		arena_node_dalloc(arena, node);
 	if (*zero) {
 		if (!zeroed)
@@ -153,8 +155,8 @@ chunk_alloc_core_dss(arena_t *arena, void *new_addr, size_t size,
 	void *ret;
 
 	if ((ret = chunk_recycle(arena, &arena->chunks_szad_dss,
-	    &arena->chunks_ad_dss, false, new_addr, size, alignment, zero)) !=
-	    NULL)
+	    &arena->chunks_ad_dss, false, new_addr, size, alignment, zero,
+	    true)) != NULL)
 		return (ret);
 	ret = chunk_alloc_dss(arena, new_addr, size, alignment, zero);
 	return (ret);
@@ -177,11 +179,6 @@ chunk_alloc_core(arena_t *arena, void *new_addr, size_t size, size_t alignment,
 	assert(alignment != 0);
 	assert((alignment & chunksize_mask) == 0);
 
-	/* cache. */
-	if ((ret = chunk_recycle(arena, &arena->chunks_szad_cache,
-	    &arena->chunks_ad_cache, true, new_addr, size, alignment, zero)) !=
-	    NULL)
-		return (ret);
 	/* "primary" dss. */
 	if (have_dss && dss_prec == dss_prec_primary && (ret =
 	    chunk_alloc_core_dss(arena, new_addr, size, alignment, zero)) !=
@@ -190,7 +187,7 @@ chunk_alloc_core(arena_t *arena, void *new_addr, size_t size, size_t alignment,
 	/* mmap. */
 	if (!config_munmap && (ret = chunk_recycle(arena,
 	    &arena->chunks_szad_mmap, &arena->chunks_ad_mmap, false, new_addr,
-	    size, alignment, zero)) != NULL)
+	    size, alignment, zero, true)) != NULL)
 		return (ret);
 	/*
 	 * Requesting an address is not implemented for chunk_alloc_mmap(), so
@@ -231,19 +228,18 @@ chunk_alloc_base(size_t size)
 }
 
 void *
-chunk_alloc_arena(chunk_alloc_t *chunk_alloc, chunk_dalloc_t *chunk_dalloc,
-    unsigned arena_ind, void *new_addr, size_t size, size_t alignment,
-    bool *zero)
+chunk_alloc_cache(arena_t *arena, void *new_addr, size_t size, size_t alignment,
+    bool *zero, bool dalloc_node)
 {
-	void *ret;
 
-	ret = chunk_alloc(new_addr, size, alignment, zero, arena_ind);
-	if (ret == NULL)
-		return (NULL);
-	if (config_valgrind)
-		JEMALLOC_VALGRIND_MAKE_MEM_UNDEFINED(ret, size);
+	assert(size != 0);
+	assert((size & chunksize_mask) == 0);
+	assert(alignment != 0);
+	assert((alignment & chunksize_mask) == 0);
 
-	return (ret);
+	return (chunk_recycle(arena, &arena->chunks_szad_cache,
+	    &arena->chunks_ad_cache, true, new_addr, size, alignment, zero,
+	    dalloc_node));
 }
 
 static arena_t *
@@ -262,7 +258,27 @@ chunk_arena_get(unsigned arena_ind)
 	return (arena);
 }
 
-/* Default arena chunk allocation routine in the absence of user override. */
+static void *
+chunk_alloc_arena(arena_t *arena, void *new_addr, size_t size, size_t alignment,
+    bool *zero)
+{
+	void *ret;
+
+	ret = chunk_alloc_core(arena, new_addr, size, alignment, zero,
+	    arena->dss_prec);
+	if (ret == NULL)
+		return (NULL);
+	if (config_valgrind)
+		JEMALLOC_VALGRIND_MAKE_MEM_UNDEFINED(ret, size);
+
+	return (ret);
+}
+
+/*
+ * Default arena chunk allocation routine in the absence of user override.  This
+ * function isn't actually used by jemalloc, but it does the right thing if the
+ * application passes calls through to it during chunk allocation.
+ */
 void *
 chunk_alloc_default(void *new_addr, size_t size, size_t alignment, bool *zero,
     unsigned arena_ind)
@@ -270,8 +286,21 @@ chunk_alloc_default(void *new_addr, size_t size, size_t alignment, bool *zero,
 	arena_t *arena;
 
 	arena = chunk_arena_get(arena_ind);
-	return (chunk_alloc_core(arena, new_addr, size, alignment, zero,
-	    arena->dss_prec));
+	return (chunk_alloc_arena(arena, new_addr, size, alignment, zero));
+}
+
+void *
+chunk_alloc_wrapper(arena_t *arena, chunk_alloc_t *chunk_alloc, void *new_addr,
+    size_t size, size_t alignment, bool *zero)
+{
+	void *ret;
+
+	ret = chunk_alloc(new_addr, size, alignment, zero, arena->ind);
+	if (ret == NULL)
+		return (NULL);
+	if (config_valgrind && chunk_alloc != chunk_alloc_default)
+		JEMALLOC_VALGRIND_MAKE_MEM_UNDEFINED(chunk, chunksize);
+	return (ret);
 }
 
 void
@@ -355,8 +384,8 @@ label_return:
 	malloc_mutex_unlock(&arena->chunks_mtx);
 }
 
-static void
-chunk_cache(arena_t *arena, void *chunk, size_t size)
+void
+chunk_dalloc_cache(arena_t *arena, void *chunk, size_t size)
 {
 
 	assert(chunk != NULL);
@@ -366,19 +395,11 @@ chunk_cache(arena_t *arena, void *chunk, size_t size)
 
 	chunk_record(arena, &arena->chunks_szad_cache, &arena->chunks_ad_cache,
 	    true, chunk, size, false);
-}
-
-/* Default arena chunk deallocation routine in the absence of user override. */
-bool
-chunk_dalloc_default(void *chunk, size_t size, unsigned arena_ind)
-{
-
-	chunk_cache(chunk_arena_get(arena_ind), chunk, size);
-	return (false);
+	arena_maybe_purge(arena);
 }
 
 void
-chunk_unmap(arena_t *arena, void *chunk, size_t size, bool zeroed)
+chunk_dalloc_arena(arena_t *arena, void *chunk, size_t size, bool zeroed)
 {
 
 	assert(chunk != NULL);
@@ -393,6 +414,29 @@ chunk_unmap(arena_t *arena, void *chunk, size_t size, bool zeroed)
 		chunk_record(arena, &arena->chunks_szad_mmap,
 		    &arena->chunks_ad_mmap, false, chunk, size, zeroed);
 	}
+}
+
+/*
+ * Default arena chunk deallocation routine in the absence of user override.
+ * This function isn't actually used by jemalloc, but it does the right thing if
+ * the application passes calls through to it during chunk deallocation.
+ */
+bool
+chunk_dalloc_default(void *chunk, size_t size, unsigned arena_ind)
+{
+
+	chunk_dalloc_arena(chunk_arena_get(arena_ind), chunk, size, false);
+	return (false);
+}
+
+void
+chunk_dalloc_wrapper(arena_t *arena, chunk_dalloc_t *chunk_dalloc, void *chunk,
+    size_t size)
+{
+
+	chunk_dalloc(chunk, size, arena->ind);
+	if (config_valgrind && chunk_dalloc != chunk_dalloc_default)
+		JEMALLOC_VALGRIND_MAKE_MEM_NOACCESS(chunk, size);
 }
 
 static rtree_node_elm_t *
