@@ -130,7 +130,7 @@ chunk_recycle(arena_t *arena, extent_tree_t *chunks_szad,
 	}
 	malloc_mutex_unlock(&arena->chunks_mtx);
 
-	assert(!dalloc_node || node != NULL);
+	assert(dalloc_node || node != NULL);
 	if (dalloc_node && node != NULL)
 		arena_node_dalloc(arena, node);
 	if (*zero) {
@@ -299,7 +299,7 @@ chunk_alloc_wrapper(arena_t *arena, chunk_alloc_t *chunk_alloc, void *new_addr,
 	if (ret == NULL)
 		return (NULL);
 	if (config_valgrind && chunk_alloc != chunk_alloc_default)
-		JEMALLOC_VALGRIND_MAKE_MEM_UNDEFINED(chunk, chunksize);
+		JEMALLOC_VALGRIND_MAKE_MEM_UNDEFINED(ret, chunksize);
 	return (ret);
 }
 
