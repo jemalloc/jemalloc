@@ -277,9 +277,11 @@ a_name##tsd_set(a_type *val)						\
 a_attr bool								\
 a_name##tsd_cleanup_wrapper(void)					\
 {									\
-	a_name##tsd_wrapper_t *wrapper;					\
+	DWORD error = GetLastError();					\
+	a_name##tsd_wrapper_t *wrapper = (a_name##tsd_wrapper_t *)	\
+	    TlsGetValue(a_name##tsd_tsd);				\
+	SetLastError(error);						\
 									\
-	wrapper = (a_name##tsd_wrapper_t *)TlsGetValue(a_name##tsd_tsd);\
 	if (wrapper == NULL)						\
 		return (false);						\
 	if (a_cleanup != malloc_tsd_no_cleanup &&			\
@@ -307,8 +309,10 @@ a_name##tsd_wrapper_set(a_name##tsd_wrapper_t *wrapper)			\
 a_attr a_name##tsd_wrapper_t *						\
 a_name##tsd_wrapper_get(void)						\
 {									\
+	DWORD error = GetLastError();					\
 	a_name##tsd_wrapper_t *wrapper = (a_name##tsd_wrapper_t *)	\
 	    TlsGetValue(a_name##tsd_tsd);				\
+	SetLastError(error);						\
 									\
 	if (unlikely(wrapper == NULL)) {				\
 		wrapper = (a_name##tsd_wrapper_t *)			\
