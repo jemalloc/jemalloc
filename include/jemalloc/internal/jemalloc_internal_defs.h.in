@@ -232,4 +232,10 @@
 /* Adaptive mutex support in pthreads. */
 #undef JEMALLOC_HAVE_PTHREAD_MUTEX_ADAPTIVE_NP
 
+/*
+ * If defined, jemalloc symbols are not exported (doesn't work when
+ * JEMALLOC_PREFIX is not defined).
+ */
+#undef JEMALLOC_EXPORT
+
 #endif /* JEMALLOC_INTERNAL_DEFS_H_ */
