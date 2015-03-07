@@ -64,12 +64,21 @@ chunk_deregister(const void *chunk, const extent_node_t *node)
 
 /* Do first-fit chunk selection. */
 static extent_node_t *
-chunk_first_fit(arena_t *arena, extent_tree_t *chunks_szad, size_t size)
+chunk_first_fit(arena_t *arena, extent_tree_t *chunks_szad,
+    extent_tree_t *chunks_ad, size_t size)
 {
 	extent_node_t *node;
 	index_t index;
 
 	assert(size == CHUNK_CEILING(size));
+
+	if (size == chunksize) {
+		/*
+		 * Any chunk will suffice, so simply select the one lowest in
+		 * memory.
+		 */
+		return (extent_tree_ad_first(chunks_ad));
+	}
 
 	/*
 	 * Iterate over all size classes that are at least large enough to
@@ -113,12 +122,14 @@ chunk_recycle(arena_t *arena, extent_tree_t *chunks_szad,
 	if (alloc_size < size)
 		return (NULL);
 	malloc_mutex_lock(&arena->chunks_mtx);
-	if (new_addr != NULL || size == chunksize) {
+	if (new_addr != NULL) {
 		extent_node_t key;
 		extent_node_init(&key, arena, new_addr, alloc_size, false);
 		node = extent_tree_ad_search(chunks_ad, &key);
-	} else
-		node = chunk_first_fit(arena, chunks_szad, alloc_size);
+	} else {
+		node = chunk_first_fit(arena, chunks_szad, chunks_ad,
+		    alloc_size);
+	}
 	if (node == NULL || (new_addr != NULL && extent_node_size_get(node) <
 	    size)) {
 		malloc_mutex_unlock(&arena->chunks_mtx);
