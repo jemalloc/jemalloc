@@ -73,7 +73,7 @@ void *
 base_alloc(size_t size)
 {
 	void *ret;
-	size_t csize;
+	size_t csize, usize;
 	extent_node_t *node;
 	extent_node_t key;
 
@@ -83,7 +83,8 @@ base_alloc(size_t size)
 	 */
 	csize = CACHELINE_CEILING(size);
 
-	extent_node_init(&key, NULL, NULL, csize, false);
+	usize = s2u(csize);
+	extent_node_init(&key, NULL, NULL, usize, false);
 	malloc_mutex_lock(&base_mtx);
 	node = extent_tree_szad_nsearch(&base_avail_szad, &key);
 	if (node != NULL) {

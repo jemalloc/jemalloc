@@ -76,7 +76,7 @@ chunk_recycle(arena_t *arena, extent_tree_t *chunks_szad,
 	assert(new_addr == NULL || alignment == chunksize);
 	assert(dalloc_node || new_addr != NULL);
 
-	alloc_size = size + alignment - chunksize;
+	alloc_size = CHUNK_CEILING(s2u(size + alignment - chunksize));
 	/* Beware size_t wrap-around. */
 	if (alloc_size < size)
 		return (NULL);

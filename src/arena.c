@@ -59,21 +59,35 @@ JEMALLOC_INLINE_C int
 arena_avail_comp(arena_chunk_map_misc_t *a, arena_chunk_map_misc_t *b)
 {
 	int ret;
+	uintptr_t a_miscelm = (uintptr_t)a;
 	size_t a_size;
 	size_t b_size = arena_miscelm_to_bits(b) & ~PAGE_MASK;
-	uintptr_t a_miscelm = (uintptr_t)a;
-	uintptr_t b_miscelm = (uintptr_t)b;
+	index_t a_index, b_index;
 
-	if (a_miscelm & CHUNK_MAP_KEY)
+	if (a_miscelm & CHUNK_MAP_KEY) {
 		a_size = a_miscelm & ~PAGE_MASK;
-	else
+		assert(a_size == s2u(a_size));
+	} else
 		a_size = arena_miscelm_to_bits(a) & ~PAGE_MASK;
 
-	ret = (a_size > b_size) - (a_size < b_size);
+	/*
+	 * Compute the index of the largest size class that the run can satisfy
+	 * a request for.
+	 */
+	a_index = size2index(a_size + 1) - 1;
+	b_index = size2index(b_size + 1) - 1;
+
+	/*
+	 * Compare based on size class index rather than size, in order to
+	 * sort equally useful runs only by address.
+	 */
+	ret = (a_index > b_index) - (a_index < b_index);
 	if (ret == 0) {
-		if (!(a_miscelm & CHUNK_MAP_KEY))
+		if (!(a_miscelm & CHUNK_MAP_KEY)) {
+			uintptr_t b_miscelm = (uintptr_t)b;
+
 			ret = (a_miscelm > b_miscelm) - (a_miscelm < b_miscelm);
-		else {
+		} else {
 			/*
 			 * Treat keys as if they are lower than anything else.
 			 */
@@ -898,8 +912,10 @@ arena_run_alloc_large_helper(arena_t *arena, size_t size, bool zero)
 {
 	arena_chunk_map_misc_t *miscelm;
 	arena_chunk_map_misc_t *key;
+	size_t usize;
 
-	key = (arena_chunk_map_misc_t *)(size | CHUNK_MAP_KEY);
+	usize = s2u(size);
+	key = (arena_chunk_map_misc_t *)(usize | CHUNK_MAP_KEY);
 	miscelm = arena_avail_tree_nsearch(&arena->runs_avail, key);
 	if (miscelm != NULL) {
 		arena_run_t *run = &miscelm->run;
@@ -949,7 +965,8 @@ arena_run_alloc_small_helper(arena_t *arena, size_t size, index_t binind)
 	arena_chunk_map_misc_t *miscelm;
 	arena_chunk_map_misc_t *key;
 
-	key = (arena_chunk_map_misc_t *)(size | CHUNK_MAP_KEY);
+	assert(size == s2u(size));
+	key = (arena_chunk_map_misc_t *)(PAGE_CEILING(size) | CHUNK_MAP_KEY);
 	miscelm = arena_avail_tree_nsearch(&arena->runs_avail, key);
 	if (miscelm != NULL) {
 		run = &miscelm->run;
@@ -2778,6 +2795,7 @@ bin_info_run_size_calc(arena_bin_info_t *bin_info)
 		    bin_info->reg_interval;
 	}
 	assert(actual_nregs > 0);
+	assert(actual_run_size == s2u(actual_run_size));
 
 	/* Copy final settings. */
 	bin_info->run_size = actual_run_size;

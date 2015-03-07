@@ -9,8 +9,14 @@ extent_szad_comp(extent_node_t *a, extent_node_t *b)
 	int ret;
 	size_t a_size = extent_node_size_get(a);
 	size_t b_size = extent_node_size_get(b);
+	/*
+	 * Compute the index of the largest size class that the chunk can
+	 * satisfy a request for.
+	 */
+	size_t a_index = size2index(a_size + 1) - 1;
+	size_t b_index = size2index(b_size + 1) - 1;
 
-	ret = (a_size > b_size) - (a_size < b_size);
+	ret = (a_index > b_index) - (a_index < b_index);
 	if (ret == 0) {
 		uintptr_t a_addr = (uintptr_t)extent_node_addr_get(a);
 		uintptr_t b_addr = (uintptr_t)extent_node_addr_get(b);
