@@ -62,6 +62,39 @@ chunk_deregister(const void *chunk, const extent_node_t *node)
 	}
 }
 
+/* Do first-fit chunk selection. */
+static extent_node_t *
+chunk_first_fit(arena_t *arena, extent_tree_t *chunks_szad, size_t size)
+{
+	extent_node_t *node;
+	index_t index;
+
+	assert(size == CHUNK_CEILING(size));
+
+	/*
+	 * Iterate over all size classes that are at least large enough to
+	 * satisfy the request, search for the lowest chunk of each size class,
+	 * and choose the lowest of the chunks found.
+	 */
+	node = NULL;
+	for (index = size2index(size); index < NSIZES;) {
+		extent_node_t *curnode;
+		extent_node_t key;
+		extent_node_init(&key, arena, NULL,
+		    CHUNK_CEILING(index2size(index)), false);
+		curnode = extent_tree_szad_nsearch(chunks_szad, &key);
+		if (curnode == NULL)
+			break;
+		if (node == NULL || (uintptr_t)extent_node_addr_get(curnode) <
+		    (uintptr_t)extent_node_addr_get(node))
+			node = curnode;
+		assert(size2index(extent_node_size_get(curnode)) + 1 > index);
+		index = size2index(extent_node_size_get(curnode)) + 1;
+	}
+
+	return (node);
+}
+
 static void *
 chunk_recycle(arena_t *arena, extent_tree_t *chunks_szad,
     extent_tree_t *chunks_ad, bool cache, void *new_addr, size_t size,
@@ -69,7 +102,6 @@ chunk_recycle(arena_t *arena, extent_tree_t *chunks_szad,
 {
 	void *ret;
 	extent_node_t *node;
-	extent_node_t key;
 	size_t alloc_size, leadsize, trailsize;
 	bool zeroed;
 
@@ -80,10 +112,13 @@ chunk_recycle(arena_t *arena, extent_tree_t *chunks_szad,
 	/* Beware size_t wrap-around. */
 	if (alloc_size < size)
 		return (NULL);
-	extent_node_init(&key, arena, new_addr, alloc_size, false);
 	malloc_mutex_lock(&arena->chunks_mtx);
-	node = (new_addr != NULL) ? extent_tree_ad_search(chunks_ad, &key) :
-	    extent_tree_szad_nsearch(chunks_szad, &key);
+	if (new_addr != NULL || size == chunksize) {
+		extent_node_t key;
+		extent_node_init(&key, arena, new_addr, alloc_size, false);
+		node = extent_tree_ad_search(chunks_ad, &key);
+	} else
+		node = chunk_first_fit(arena, chunks_szad, alloc_size);
 	if (node == NULL || (new_addr != NULL && extent_node_size_get(node) <
 	    size)) {
 		malloc_mutex_unlock(&arena->chunks_mtx);

@@ -907,23 +907,55 @@ arena_chunk_ralloc_huge_expand(arena_t *arena, void *chunk, size_t oldsize,
 	return (err);
 }
 
+/* Do first-fit run selection. */
+static arena_run_t *
+arena_run_first_fit(arena_t *arena, size_t size)
+{
+	arena_run_t *run;
+	index_t index, max_index;
+
+	assert(size == s2u(size));
+	assert(size == PAGE_CEILING(size));
+
+	/*
+	 * Iterate over all size classes that are at least large enough to
+	 * satisfy the request, search for the lowest run of each size class,
+	 * and choose the lowest of the runs found.
+	 */
+	run = NULL;
+	for (index = size2index(size), max_index = size2index(arena_maxclass);
+	    index <= max_index;) {
+		arena_run_t *currun;
+		arena_chunk_t *currun_chunk;
+		size_t currun_pageind, currun_size;
+		size_t usize = PAGE_CEILING(index2size(index));
+		arena_chunk_map_misc_t *key = (arena_chunk_map_misc_t *)(usize |
+		    CHUNK_MAP_KEY);
+		arena_chunk_map_misc_t *miscelm =
+		    arena_avail_tree_nsearch(&arena->runs_avail, key);
+		if (miscelm == NULL)
+			break;
+		currun = &miscelm->run;
+		if (run == NULL || (uintptr_t)currun < (uintptr_t)run)
+			run = currun;
+		currun_chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(currun);
+		currun_pageind = arena_miscelm_to_pageind(miscelm);
+		currun_size = arena_mapbits_unallocated_size_get(currun_chunk,
+		    currun_pageind);
+		assert(size2index(currun_size) + 1 > index);
+		index = size2index(currun_size) + 1;
+	}
+
+	return (run);
+}
+
 static arena_run_t *
 arena_run_alloc_large_helper(arena_t *arena, size_t size, bool zero)
 {
-	arena_chunk_map_misc_t *miscelm;
-	arena_chunk_map_misc_t *key;
-	size_t usize;
-
-	usize = s2u(size);
-	key = (arena_chunk_map_misc_t *)(usize | CHUNK_MAP_KEY);
-	miscelm = arena_avail_tree_nsearch(&arena->runs_avail, key);
-	if (miscelm != NULL) {
-		arena_run_t *run = &miscelm->run;
-		arena_run_split_large(arena, &miscelm->run, size, zero);
-		return (run);
-	}
-
-	return (NULL);
+	arena_run_t *run = arena_run_first_fit(arena, s2u(size));
+	if (run != NULL)
+		arena_run_split_large(arena, run, size, zero);
+	return (run);
 }
 
 static arena_run_t *
@@ -961,20 +993,10 @@ arena_run_alloc_large(arena_t *arena, size_t size, bool zero)
 static arena_run_t *
 arena_run_alloc_small_helper(arena_t *arena, size_t size, index_t binind)
 {
-	arena_run_t *run;
-	arena_chunk_map_misc_t *miscelm;
-	arena_chunk_map_misc_t *key;
-
-	assert(size == s2u(size));
-	key = (arena_chunk_map_misc_t *)(PAGE_CEILING(size) | CHUNK_MAP_KEY);
-	miscelm = arena_avail_tree_nsearch(&arena->runs_avail, key);
-	if (miscelm != NULL) {
-		run = &miscelm->run;
+	arena_run_t *run = arena_run_first_fit(arena, PAGE_CEILING(size));
+	if (run != NULL)
 		arena_run_split_small(arena, run, size, binind);
-		return (run);
-	}
-
-	return (NULL);
+	return (run);
 }
 
 static arena_run_t *
