@@ -1215,11 +1215,10 @@ arena_purge_stashed(arena_t *arena,
 			extent_node_zeroed_set(chunkselm, !unzeroed);
 			chunkselm = qr_next(chunkselm, cc_link);
 		} else {
-			arena_chunk_t *chunk;
 			size_t pageind, run_size, flag_unzeroed, i;
 			bool unzeroed;
-
-			chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(rdelm);
+			arena_chunk_t *chunk = (arena_chunk_t
+			    *)CHUNK_ADDR2BASE(rdelm);
 			arena_chunk_map_misc_t *miscelm =
 			    arena_rd_to_miscelm(rdelm);
 			pageind = arena_miscelm_to_pageind(miscelm);
