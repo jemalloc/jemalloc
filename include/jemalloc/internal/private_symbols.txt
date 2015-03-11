@@ -81,6 +81,7 @@ arena_quarantine_junk_small
 arena_ralloc
 arena_ralloc_junk_large
 arena_ralloc_no_move
+arena_rd_to_miscelm
 arena_redzone_corruption
 arena_run_regind
 arena_run_to_miscelm

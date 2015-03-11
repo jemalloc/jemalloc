@@ -23,6 +23,7 @@
  */
 #define	LG_DIRTY_MULT_DEFAULT	3
 
+typedef struct arena_runs_dirty_link_s arena_runs_dirty_link_t;
 typedef struct arena_run_s arena_run_t;
 typedef struct arena_chunk_map_bits_s arena_chunk_map_bits_t;
 typedef struct arena_chunk_map_misc_s arena_chunk_map_misc_t;
@@ -120,6 +121,10 @@ struct arena_chunk_map_bits_s {
 #define	CHUNK_MAP_KEY		CHUNK_MAP_ALLOCATED
 };
 
+struct arena_runs_dirty_link_s {
+	qr(arena_runs_dirty_link_t)	rd_link;
+};
+
 /*
  * Each arena_chunk_map_misc_t corresponds to one page within the chunk, just
  * like arena_chunk_map_bits_t.  Two separate arrays are stored within each
@@ -131,13 +136,13 @@ struct arena_chunk_map_misc_s {
 	 *
 	 * 1) arena_t's runs_avail tree.
 	 * 2) arena_run_t conceptually uses this linkage for in-use non-full
-	 * runs, rather than directly embedding linkage.
+	 *    runs, rather than directly embedding linkage.
 	 */
 	rb_node(arena_chunk_map_misc_t)		rb_link;
 
 	union {
 		/* Linkage for list of dirty runs. */
-		qr(arena_chunk_map_misc_t)	rd_link;
+		arena_runs_dirty_link_t		rd;
 
 		/* Profile counters, used for large object runs. */
 		prof_tctx_t			*prof_tctx;
@@ -324,15 +329,27 @@ struct arena_s {
 	 *
 	 *   LRU-----------------------------------------------------------MRU
 	 *
-	 *         ______________           ___                      ___
-	 *   ...-->|chunks_cache|<--------->|c|<-------------------->|c|<--...
-	 *         --------------           |h|                      |h|
-	 *         ____________    _____    |u|    _____    _____    |u|
-	 *   ...-->|runs_dirty|<-->|run|<-->|n|<-->|run|<-->|run|<-->|n|<--...
-	 *         ------------    -----    |k|    -----    -----    |k|
-	 *                                  ---                      ---
+	 *        /------------------\
+	 *        |      arena       |
+	 *        |                  |
+	 *        |  /------------\  |                     /-----------\
+	 *   ...---->|chunks_cache|<---------------------->|   chunk   |<--...
+	 *        |  \------------/  |                     |           |
+	 *        |                  |                     |           |
+	 *        |                  |  /---\      /---\   |           |
+	 *        |                  |  |run|      |run|   |           |
+	 *        |                  |  |   |      |   |   |           |
+	 *        |   /----------\   |  |---|      |---|   |  /-----\  |
+	 *   ...----->|runs_dirty|<---->|rd |<---->|rd |<---->|rdelm|<-----...
+	 *        |   \----------/   |  |---|      |---|   |  \-----/  |
+	 *        |                  |  |   |      |   |   |           |
+	 *        |                  |  |   |      |   |   |           |
+	 *        |                  |  \---/      \---/   |           |
+	 *        |                  |                     |           |
+	 *        |                  |                     |           |
+	 *        \------------------/                     \-----------/
 	 */
-	arena_chunk_map_misc_t	runs_dirty;
+	arena_runs_dirty_link_t	runs_dirty;
 	extent_node_t		chunks_cache;
 
 	/* Extant huge allocations. */
@@ -465,6 +482,7 @@ arena_chunk_map_misc_t	*arena_miscelm_get(arena_chunk_t *chunk,
     size_t pageind);
 size_t	arena_miscelm_to_pageind(arena_chunk_map_misc_t *miscelm);
 void	*arena_miscelm_to_rpages(arena_chunk_map_misc_t *miscelm);
+arena_chunk_map_misc_t	*arena_rd_to_miscelm(arena_runs_dirty_link_t *rd);
 arena_chunk_map_misc_t	*arena_run_to_miscelm(arena_run_t *run);
 size_t	*arena_mapbitsp_get(arena_chunk_t *chunk, size_t pageind);
 size_t	arena_mapbitsp_read(size_t *mapbitsp);
@@ -554,6 +572,18 @@ arena_miscelm_to_rpages(arena_chunk_map_misc_t *miscelm)
 	size_t pageind = arena_miscelm_to_pageind(miscelm);
 
 	return ((void *)((uintptr_t)chunk + (pageind << LG_PAGE)));
+}
+
+JEMALLOC_ALWAYS_INLINE arena_chunk_map_misc_t *
+arena_rd_to_miscelm(arena_runs_dirty_link_t *rd)
+{
+	arena_chunk_map_misc_t *miscelm = (arena_chunk_map_misc_t
+	    *)((uintptr_t)rd - offsetof(arena_chunk_map_misc_t, rd));
+
+	assert(arena_miscelm_to_pageind(miscelm) >= map_bias);
+	assert(arena_miscelm_to_pageind(miscelm) < chunk_npages);
+
+	return (miscelm);
 }
 
 JEMALLOC_ALWAYS_INLINE arena_chunk_map_misc_t *
