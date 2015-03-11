@@ -1064,7 +1064,7 @@ arena_dirty_count(arena_t *arena)
 	    rdelm != &arena->runs_dirty; rdelm = qr_next(rdelm, rd_link)) {
 		size_t npages;
 
-		if (rdelm == &chunkselm->rdelm) {
+		if (rdelm == &chunkselm->rd) {
 			npages = extent_node_size_get(chunkselm) >> LG_PAGE;
 			chunkselm = qr_next(chunkselm, cc_link);
 		} else {
@@ -1122,7 +1122,7 @@ arena_stash_dirty(arena_t *arena, bool all, size_t npurge,
 		size_t npages;
 		rdelm_next = qr_next(rdelm, rd_link);
 
-		if (rdelm == &chunkselm->rdelm) {
+		if (rdelm == &chunkselm->rd) {
 			extent_node_t *chunkselm_next;
 			bool zero;
 			UNUSED void *chunk;
@@ -1205,7 +1205,7 @@ arena_purge_stashed(arena_t *arena,
 	    rdelm != purge_runs_sentinel; rdelm = qr_next(rdelm, rd_link)) {
 		size_t npages;
 
-		if (rdelm == &chunkselm->rdelm) {
+		if (rdelm == &chunkselm->rd) {
 			size_t size = extent_node_size_get(chunkselm);
 			bool unzeroed;
 
@@ -1275,7 +1275,7 @@ arena_unstash_purged(arena_t *arena,
 	    chunkselm = qr_next(purge_chunks_sentinel, cc_link);
 	    rdelm != purge_runs_sentinel; rdelm = rdelm_next) {
 		rdelm_next = qr_next(rdelm, rd_link);
-		if (rdelm == &chunkselm->rdelm) {
+		if (rdelm == &chunkselm->rd) {
 			extent_node_t *chunkselm_next = qr_next(chunkselm,
 			    cc_link);
 			void *addr = extent_node_addr_get(chunkselm);

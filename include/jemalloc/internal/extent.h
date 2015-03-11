@@ -34,7 +34,7 @@ struct extent_node_s {
 	prof_tctx_t		*en_prof_tctx;
 
 	/* Linkage for arena's runs_dirty and chunks_cache rings. */
-	arena_runs_dirty_link_t	rdelm;
+	arena_runs_dirty_link_t	rd;
 	qr(extent_node_t)	cc_link;
 
 	union {
@@ -186,7 +186,7 @@ JEMALLOC_INLINE void
 extent_node_dirty_linkage_init(extent_node_t *node)
 {
 
-	qr_new(&node->rdelm, rd_link);
+	qr_new(&node->rd, rd_link);
 	qr_new(node, cc_link);
 }
 
@@ -195,7 +195,7 @@ extent_node_dirty_insert(extent_node_t *node,
     arena_runs_dirty_link_t *runs_dirty, extent_node_t *chunks_dirty)
 {
 
-	qr_meld(runs_dirty, &node->rdelm, rd_link);
+	qr_meld(runs_dirty, &node->rd, rd_link);
 	qr_meld(chunks_dirty, node, cc_link);
 }
 
@@ -203,7 +203,7 @@ JEMALLOC_INLINE void
 extent_node_dirty_remove(extent_node_t *node)
 {
 
-	qr_remove(&node->rdelm, rd_link);
+	qr_remove(&node->rd, rd_link);
 	qr_remove(node, cc_link);
 }
 
