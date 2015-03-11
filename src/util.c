@@ -81,7 +81,7 @@ buferror(int err, char *buf, size_t buflen)
 {
 
 #ifdef _WIN32
-	FormatMessageA(FORMAT_MESSAGE_FROM_SYSTEM, NULL, GetLastError(), 0,
+	FormatMessageA(FORMAT_MESSAGE_FROM_SYSTEM, NULL, err, 0,
 	    (LPSTR)buf, buflen, NULL);
 	return (0);
 #elif defined(__GLIBC__) && defined(_GNU_SOURCE)
