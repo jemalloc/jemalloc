@@ -123,7 +123,6 @@ TESTS_UNIT := $(srcroot)test/unit/atomic.c \
 	$(srcroot)test/unit/lg_chunk.c \
 	$(srcroot)test/unit/mallctl.c \
 	$(srcroot)test/unit/math.c \
-	$(srcroot)test/unit/mq.c \
 	$(srcroot)test/unit/mtx.c \
 	$(srcroot)test/unit/prof_accum.c \
 	$(srcroot)test/unit/prof_active.c \
