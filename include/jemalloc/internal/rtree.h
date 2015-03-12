@@ -260,7 +260,7 @@ rtree_set(rtree_t *rtree, uintptr_t key, const extent_node_t *val)
 			rtree_val_write(rtree, &node[subkey], val);
 			return (false);
 		}
-		assert(i < rtree->height - 1);
+		assert(i + 1 < rtree->height);
 		child = rtree_child_read(rtree, &node[subkey], i);
 		if (child == NULL)
 			return (true);

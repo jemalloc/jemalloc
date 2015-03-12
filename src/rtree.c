@@ -63,7 +63,7 @@ static void
 rtree_delete_subtree(rtree_t *rtree, rtree_node_elm_t *node, unsigned level)
 {
 
-	if (level < rtree->height - 1) {
+	if (level + 1 < rtree->height) {
 		size_t nchildren, i;
 
 		nchildren = ZU(1) << rtree->levels[level].bits;
