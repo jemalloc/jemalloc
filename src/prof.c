@@ -137,8 +137,13 @@ prof_tctx_comp(const prof_tctx_t *a, const prof_tctx_t *b)
 {
 	uint64_t a_uid = a->thr_uid;
 	uint64_t b_uid = b->thr_uid;
-
-	return ((a_uid > b_uid) - (a_uid < b_uid));
+	int ret = (a_uid > b_uid) - (a_uid < b_uid);
+	if (ret == 0) {
+		prof_tctx_state_t a_state = a->state;
+		prof_tctx_state_t b_state = b->state;
+		ret = (a_state > b_state) - (a_state < b_state);
+	}
+	return (ret);
 }
 
 rb_gen(static UNUSED, tctx_tree_, prof_tctx_tree_t, prof_tctx_t,
