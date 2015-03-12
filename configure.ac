@@ -262,7 +262,7 @@ case "${host}" in
   *-*-darwin* | *-*-ios*)
 	CFLAGS="$CFLAGS"
 	abi="macho"
-	AC_DEFINE([JEMALLOC_PURGE_MADVISE_FREE], [ ])
+	AC_DEFINE([JEMALLOC_PURGE_USE_MMAP], [ ])
 	RPATH=""
 	LD_PRELOAD_VAR="DYLD_INSERT_LIBRARIES"
 	so="dylib"

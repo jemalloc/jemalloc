@@ -198,12 +198,14 @@
  *   madvise(..., MADV_DONTNEED) : On Linux, this immediately discards pages,
  *                                 such that new pages will be demand-zeroed if
  *                                 the address region is later touched.
- *   madvise(..., MADV_FREE) : On FreeBSD and Darwin, this marks pages as being
- *                             unused, such that they will be discarded rather
- *                             than swapped out.
+ *   madvise(..., MADV_FREE) : On FreeBSD, this marks pages as being unused,
+ *                             such that they will be discarded rather than
+ *                             swapped out.
+ *   mmap(..., MAP_FIXED | ...) : On Darwin, this immediately discards pages.
  */
 #undef JEMALLOC_PURGE_MADVISE_DONTNEED
 #undef JEMALLOC_PURGE_MADVISE_FREE
+#undef JEMALLOC_PURGE_USE_MMAP
 
 /* Define if operating system has alloca.h header. */
 #undef JEMALLOC_HAS_ALLOCA_H
