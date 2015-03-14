@@ -642,10 +642,13 @@ prof_tctx_destroy(tsd_t *tsd, prof_tctx_t *tctx)
 
 	ckh_remove(tsd, &tdata->bt2tctx, &gctx->bt, NULL, NULL);
 	destroy_tdata = prof_tdata_should_destroy(tdata, false);
+	if (tctx->state == prof_tctx_state_nominal)
+		tctx->state = prof_tctx_state_destroying;
 	malloc_mutex_unlock(tdata->lock);
 
 	malloc_mutex_lock(gctx->lock);
-	if (tctx->state != prof_tctx_state_dumping) {
+	switch (tctx->state) {
+	case prof_tctx_state_destroying:
 		tctx_tree_remove(&gctx->tctxs, tctx);
 		destroy_tctx = true;
 		if (prof_gctx_should_destroy(gctx)) {
@@ -667,7 +670,8 @@ prof_tctx_destroy(tsd_t *tsd, prof_tctx_t *tctx)
 			destroy_gctx = true;
 		} else
 			destroy_gctx = false;
-	} else {
+		break;
+	case prof_tctx_state_dumping:
 		/*
 		 * A dumping thread needs tctx to remain valid until dumping
 		 * has finished.  Change state such that the dumping thread will
@@ -676,6 +680,9 @@ prof_tctx_destroy(tsd_t *tsd, prof_tctx_t *tctx)
 		tctx->state = prof_tctx_state_purgatory;
 		destroy_tctx = false;
 		destroy_gctx = false;
+		break;
+	default:
+		not_reached();
 	}
 	malloc_mutex_unlock(gctx->lock);
 	if (destroy_gctx) {
@@ -1021,21 +1028,30 @@ prof_tctx_merge_tdata(prof_tctx_t *tctx, prof_tdata_t *tdata)
 {
 
 	malloc_mutex_lock(tctx->gctx->lock);
-	if (tctx->state == prof_tctx_state_initializing) {
+
+	switch (tctx->state) {
+	case prof_tctx_state_initializing:
+	case prof_tctx_state_destroying:
 		malloc_mutex_unlock(tctx->gctx->lock);
 		return;
-	}
-	assert(tctx->state == prof_tctx_state_nominal);
-	tctx->state = prof_tctx_state_dumping;
-	malloc_mutex_unlock(tctx->gctx->lock);
+	case prof_tctx_state_nominal:
+		tctx->state = prof_tctx_state_dumping;
+		malloc_mutex_unlock(tctx->gctx->lock);
 
-	memcpy(&tctx->dump_cnts, &tctx->cnts, sizeof(prof_cnt_t));
+		memcpy(&tctx->dump_cnts, &tctx->cnts, sizeof(prof_cnt_t));
 
-	tdata->cnt_summed.curobjs += tctx->dump_cnts.curobjs;
-	tdata->cnt_summed.curbytes += tctx->dump_cnts.curbytes;
-	if (opt_prof_accum) {
-		tdata->cnt_summed.accumobjs += tctx->dump_cnts.accumobjs;
-		tdata->cnt_summed.accumbytes += tctx->dump_cnts.accumbytes;
+		tdata->cnt_summed.curobjs += tctx->dump_cnts.curobjs;
+		tdata->cnt_summed.curbytes += tctx->dump_cnts.curbytes;
+		if (opt_prof_accum) {
+			tdata->cnt_summed.accumobjs +=
+			    tctx->dump_cnts.accumobjs;
+			tdata->cnt_summed.accumbytes +=
+			    tctx->dump_cnts.accumbytes;
+		}
+		break;
+	case prof_tctx_state_dumping:
+	case prof_tctx_state_purgatory:
+		not_reached();
 	}
 }
 
@@ -1059,6 +1075,7 @@ prof_tctx_merge_iter(prof_tctx_tree_t *tctxs, prof_tctx_t *tctx, void *arg)
 
 	switch (tctx->state) {
 	case prof_tctx_state_nominal:
+	case prof_tctx_state_destroying:
 		/* New since dumping started; ignore. */
 		break;
 	case prof_tctx_state_dumping:
@@ -1094,6 +1111,7 @@ prof_tctx_finish_iter(prof_tctx_tree_t *tctxs, prof_tctx_t *tctx, void *arg)
 
 	switch (tctx->state) {
 	case prof_tctx_state_nominal:
+	case prof_tctx_state_destroying:
 		/* New since dumping started; ignore. */
 		break;
 	case prof_tctx_state_dumping:
