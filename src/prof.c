@@ -683,6 +683,8 @@ prof_tctx_destroy(tsd_t *tsd, prof_tctx_t *tctx)
 		break;
 	default:
 		not_reached();
+		destroy_tctx = false;
+		destroy_gctx = false;
 	}
 	malloc_mutex_unlock(gctx->lock);
 	if (destroy_gctx) {
