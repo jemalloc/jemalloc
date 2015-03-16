@@ -135,13 +135,13 @@ static char	*prof_thread_name_alloc(tsd_t *tsd, const char *thread_name);
 JEMALLOC_INLINE_C int
 prof_tctx_comp(const prof_tctx_t *a, const prof_tctx_t *b)
 {
-	uint64_t a_uid = a->thr_uid;
-	uint64_t b_uid = b->thr_uid;
-	int ret = (a_uid > b_uid) - (a_uid < b_uid);
+	uint64_t a_thr_uid = a->thr_uid;
+	uint64_t b_thr_uid = b->thr_uid;
+	int ret = (a_thr_uid > b_thr_uid) - (a_thr_uid < b_thr_uid);
 	if (ret == 0) {
-		prof_tctx_state_t a_state = a->state;
-		prof_tctx_state_t b_state = b->state;
-		ret = (a_state > b_state) - (a_state < b_state);
+		uint64_t a_tctx_uid = a->tctx_uid;
+		uint64_t b_tctx_uid = b->tctx_uid;
+		ret = (a_tctx_uid > b_tctx_uid) - (a_tctx_uid < b_tctx_uid);
 	}
 	return (ret);
 }
@@ -642,13 +642,11 @@ prof_tctx_destroy(tsd_t *tsd, prof_tctx_t *tctx)
 
 	ckh_remove(tsd, &tdata->bt2tctx, &gctx->bt, NULL, NULL);
 	destroy_tdata = prof_tdata_should_destroy(tdata, false);
-	if (tctx->state == prof_tctx_state_nominal)
-		tctx->state = prof_tctx_state_destroying;
 	malloc_mutex_unlock(tdata->lock);
 
 	malloc_mutex_lock(gctx->lock);
 	switch (tctx->state) {
-	case prof_tctx_state_destroying:
+	case prof_tctx_state_nominal:
 		tctx_tree_remove(&gctx->tctxs, tctx);
 		destroy_tctx = true;
 		if (prof_gctx_should_destroy(gctx)) {
@@ -795,6 +793,7 @@ prof_lookup(tsd_t *tsd, prof_bt_t *bt)
 		ret.p->thr_uid = tdata->thr_uid;
 		memset(&ret.p->cnts, 0, sizeof(prof_cnt_t));
 		ret.p->gctx = gctx;
+		ret.p->tctx_uid = tdata->tctx_uid_next++;
 		ret.p->prepared = true;
 		ret.p->state = prof_tctx_state_initializing;
 		malloc_mutex_lock(tdata->lock);
@@ -1033,7 +1032,6 @@ prof_tctx_merge_tdata(prof_tctx_t *tctx, prof_tdata_t *tdata)
 
 	switch (tctx->state) {
 	case prof_tctx_state_initializing:
-	case prof_tctx_state_destroying:
 		malloc_mutex_unlock(tctx->gctx->lock);
 		return;
 	case prof_tctx_state_nominal:
@@ -1077,7 +1075,6 @@ prof_tctx_merge_iter(prof_tctx_tree_t *tctxs, prof_tctx_t *tctx, void *arg)
 
 	switch (tctx->state) {
 	case prof_tctx_state_nominal:
-	case prof_tctx_state_destroying:
 		/* New since dumping started; ignore. */
 		break;
 	case prof_tctx_state_dumping:
@@ -1113,7 +1110,6 @@ prof_tctx_finish_iter(prof_tctx_tree_t *tctxs, prof_tctx_t *tctx, void *arg)
 
 	switch (tctx->state) {
 	case prof_tctx_state_nominal:
-	case prof_tctx_state_destroying:
 		/* New since dumping started; ignore. */
 		break;
 	case prof_tctx_state_dumping:
@@ -1690,6 +1686,7 @@ prof_tdata_init_impl(tsd_t *tsd, uint64_t thr_uid, uint64_t thr_discrim,
 	tdata->thread_name = thread_name;
 	tdata->attached = true;
 	tdata->expired = false;
+	tdata->tctx_uid_next = 0;
 
 	if (ckh_new(tsd, &tdata->bt2tctx, PROF_CKH_MINITEMS,
 	    prof_bt_hash, prof_bt_keycomp)) {

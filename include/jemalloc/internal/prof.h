@@ -81,7 +81,6 @@ struct prof_cnt_s {
 typedef enum {
 	prof_tctx_state_initializing,
 	prof_tctx_state_nominal,
-	prof_tctx_state_destroying,
 	prof_tctx_state_dumping,
 	prof_tctx_state_purgatory /* Dumper must finish destroying. */
 } prof_tctx_state_t;
@@ -101,6 +100,21 @@ struct prof_tctx_s {
 
 	/* Associated global context. */
 	prof_gctx_t		*gctx;
+
+	/*
+	 * UID that distinguishes multiple tctx's created by the same thread,
+	 * but coexisting in gctx->tctxs.  There are two ways that such
+	 * coexistence can occur:
+	 * - A dumper thread can cause a tctx to be retained in the purgatory
+	 *   state.
+	 * - Although a single "producer" thread must create all tctx's which
+	 *   share the same thr_uid, multiple "consumers" can each concurrently
+	 *   execute portions of prof_tctx_destroy().  prof_tctx_destroy() only
+	 *   gets called once each time cnts.cur{objs,bytes} drop to 0, but this
+	 *   threshold can be hit again before the first consumer finishes
+	 *   executing prof_tctx_destroy().
+	 */
+	uint64_t		tctx_uid;
 
 	/* Linkage into gctx's tctxs. */
 	rb_node(prof_tctx_t)	tctx_link;
@@ -177,6 +191,13 @@ struct prof_tdata_s {
 	bool			expired;
 
 	rb_node(prof_tdata_t)	tdata_link;
+
+	/*
+	 * Counter used to initialize prof_tctx_t's tctx_uid.  No locking is
+	 * necessary when incrementing this field, because only one thread ever
+	 * does so.
+	 */
+	uint64_t		tctx_uid_next;
 
 	/*
 	 * Hash of (prof_bt_t *)-->(prof_tctx_t *).  Each thread tracks
