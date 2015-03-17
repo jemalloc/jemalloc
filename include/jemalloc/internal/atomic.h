@@ -457,7 +457,7 @@ atomic_cas_uint32(uint32_t *p, uint32_t c, uint32_t s)
 {
 	uint32_t o;
 
-	o = InterlockedCompareExchange32(p, s, c);
+	o = InterlockedCompareExchange(p, s, c);
 	return (o != c);
 }
 
