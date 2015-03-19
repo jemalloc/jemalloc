@@ -119,6 +119,13 @@ static const bool config_xmalloc =
     false
 #endif
     ;
+static const bool config_ivsalloc =
+#ifdef JEMALLOC_IVSALLOC
+    true
+#else
+    false
+#endif
+    ;
 
 #ifdef JEMALLOC_C11ATOMICS
 #include <stdatomic.h>

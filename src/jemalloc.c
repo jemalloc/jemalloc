@@ -2306,7 +2306,7 @@ je_sallocx(const void *ptr, int flags)
 	assert(malloc_initialized() || IS_INITIALIZER);
 	malloc_thread_init();
 
-	if (config_debug)
+	if (config_ivsalloc)
 		usize = ivsalloc(ptr, config_prof);
 	else
 		usize = isalloc(ptr, config_prof);
@@ -2434,7 +2434,7 @@ je_malloc_usable_size(JEMALLOC_USABLE_SIZE_CONST void *ptr)
 	assert(malloc_initialized() || IS_INITIALIZER);
 	malloc_thread_init();
 
-	if (config_debug)
+	if (config_ivsalloc)
 		ret = ivsalloc(ptr, config_prof);
 	else
 		ret = (ptr == NULL) ? 0 : isalloc(ptr, config_prof);

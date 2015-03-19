@@ -133,8 +133,6 @@ found in the git revision history:
   - Remove the "stats.huge.allocated", "stats.huge.nmalloc", and
     "stats.huge.ndalloc" mallctls.
   - Remove the --enable-mremap option.
-  - Remove the --enable-ivsalloc option, and merge its functionality into
-    --enable-debug.
   - Remove the "stats.chunks.current", "stats.chunks.total", and
     "stats.chunks.high" mallctls.
 
