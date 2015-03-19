@@ -116,8 +116,10 @@ CTL_PROTO(tcache_destroy)
 CTL_PROTO(arena_i_purge)
 static void	arena_purge(unsigned arena_ind);
 CTL_PROTO(arena_i_dss)
+CTL_PROTO(arena_i_lg_dirty_mult)
 CTL_PROTO(arena_i_chunk_alloc)
 CTL_PROTO(arena_i_chunk_dalloc)
+CTL_PROTO(arena_i_chunk_purge)
 INDEX_PROTO(arena_i)
 CTL_PROTO(arenas_bin_i_size)
 CTL_PROTO(arenas_bin_i_nregs)
@@ -129,6 +131,7 @@ CTL_PROTO(arenas_hchunk_i_size)
 INDEX_PROTO(arenas_hchunk_i)
 CTL_PROTO(arenas_narenas)
 CTL_PROTO(arenas_initialized)
+CTL_PROTO(arenas_lg_dirty_mult)
 CTL_PROTO(arenas_quantum)
 CTL_PROTO(arenas_page)
 CTL_PROTO(arenas_tcache_max)
@@ -283,12 +286,14 @@ static const ctl_named_node_t	tcache_node[] = {
 
 static const ctl_named_node_t chunk_node[] = {
 	{NAME("alloc"),		CTL(arena_i_chunk_alloc)},
-	{NAME("dalloc"),	CTL(arena_i_chunk_dalloc)}
+	{NAME("dalloc"),	CTL(arena_i_chunk_dalloc)},
+	{NAME("purge"),		CTL(arena_i_chunk_purge)}
 };
 
 static const ctl_named_node_t arena_i_node[] = {
 	{NAME("purge"),		CTL(arena_i_purge)},
 	{NAME("dss"),		CTL(arena_i_dss)},
+	{NAME("lg_dirty_mult"),	CTL(arena_i_lg_dirty_mult)},
 	{NAME("chunk"),		CHILD(named, chunk)},
 };
 static const ctl_named_node_t super_arena_i_node[] = {
@@ -337,6 +342,7 @@ static const ctl_indexed_node_t arenas_hchunk_node[] = {
 static const ctl_named_node_t arenas_node[] = {
 	{NAME("narenas"),	CTL(arenas_narenas)},
 	{NAME("initialized"),	CTL(arenas_initialized)},
+	{NAME("lg_dirty_mult"),	CTL(arenas_lg_dirty_mult)},
 	{NAME("quantum"),	CTL(arenas_quantum)},
 	{NAME("page"),		CTL(arenas_page)},
 	{NAME("tcache_max"),	CTL(arenas_tcache_max)},
@@ -1617,57 +1623,70 @@ label_return:
 }
 
 static int
-arena_i_chunk_alloc_ctl(const size_t *mib, size_t miblen, void *oldp,
+arena_i_lg_dirty_mult_ctl(const size_t *mib, size_t miblen, void *oldp,
     size_t *oldlenp, void *newp, size_t newlen)
 {
 	int ret;
 	unsigned arena_ind = mib[1];
 	arena_t *arena;
 
-	malloc_mutex_lock(&ctl_mtx);
-	if (arena_ind < narenas_total_get() && (arena = arena_get(tsd_fetch(),
-	    arena_ind, false, true)) != NULL) {
-		malloc_mutex_lock(&arena->lock);
-		READ(arena->chunk_alloc, chunk_alloc_t *);
-		WRITE(arena->chunk_alloc, chunk_alloc_t *);
-	} else {
+	arena = arena_get(tsd_fetch(), arena_ind, false, (arena_ind == 0));
+	if (arena == NULL) {
 		ret = EFAULT;
-		goto label_outer_return;
+		goto label_return;
 	}
+
+	if (oldp != NULL && oldlenp != NULL) {
+		size_t oldval = arena_lg_dirty_mult_get(arena);
+		READ(oldval, ssize_t);
+	}
+	if (newp != NULL) {
+		if (newlen != sizeof(ssize_t)) {
+			ret = EINVAL;
+			goto label_return;
+		}
+		if (arena_lg_dirty_mult_set(arena, *(ssize_t *)newp)) {
+			ret = EFAULT;
+			goto label_return;
+		}
+	}
+
 	ret = 0;
 label_return:
-	malloc_mutex_unlock(&arena->lock);
-label_outer_return:
-	malloc_mutex_unlock(&ctl_mtx);
 	return (ret);
 }
 
-static int
-arena_i_chunk_dalloc_ctl(const size_t *mib, size_t miblen, void *oldp,
-    size_t *oldlenp, void *newp, size_t newlen)
-{
-
-	int ret;
-	unsigned arena_ind = mib[1];
-	arena_t *arena;
-
-	malloc_mutex_lock(&ctl_mtx);
-	if (arena_ind < narenas_total_get() && (arena = arena_get(tsd_fetch(),
-	    arena_ind, false, true)) != NULL) {
-		malloc_mutex_lock(&arena->lock);
-		READ(arena->chunk_dalloc, chunk_dalloc_t *);
-		WRITE(arena->chunk_dalloc, chunk_dalloc_t *);
-	} else {
-		ret = EFAULT;
-		goto label_outer_return;
-	}
-	ret = 0;
-label_return:
-	malloc_mutex_unlock(&arena->lock);
-label_outer_return:
-	malloc_mutex_unlock(&ctl_mtx);
-	return (ret);
+#define	CHUNK_FUNC(n)							\
+static int								\
+arena_i_chunk_##n##_ctl(const size_t *mib, size_t miblen, void *oldp,	\
+    size_t *oldlenp, void *newp, size_t newlen)				\
+{									\
+									\
+	int ret;							\
+	unsigned arena_ind = mib[1];					\
+	arena_t *arena;							\
+									\
+	malloc_mutex_lock(&ctl_mtx);					\
+	if (arena_ind < narenas_total_get() && (arena =			\
+	    arena_get(tsd_fetch(), arena_ind, false, true)) != NULL) {	\
+		malloc_mutex_lock(&arena->lock);			\
+		READ(arena->chunk_##n, chunk_##n##_t *);		\
+		WRITE(arena->chunk_##n, chunk_##n##_t *);		\
+	} else {							\
+		ret = EFAULT;						\
+		goto label_outer_return;				\
+	}								\
+	ret = 0;							\
+label_return:								\
+	malloc_mutex_unlock(&arena->lock);				\
+label_outer_return:							\
+	malloc_mutex_unlock(&ctl_mtx);					\
+	return (ret);							\
 }
+CHUNK_FUNC(alloc)
+CHUNK_FUNC(dalloc)
+CHUNK_FUNC(purge)
+#undef CHUNK_FUNC
 
 static const ctl_named_node_t *
 arena_i_index(const size_t *mib, size_t miblen, size_t i)
@@ -1733,6 +1752,32 @@ arenas_initialized_ctl(const size_t *mib, size_t miblen, void *oldp,
 
 label_return:
 	malloc_mutex_unlock(&ctl_mtx);
+	return (ret);
+}
+
+static int
+arenas_lg_dirty_mult_ctl(const size_t *mib, size_t miblen, void *oldp,
+    size_t *oldlenp, void *newp, size_t newlen)
+{
+	int ret;
+
+	if (oldp != NULL && oldlenp != NULL) {
+		size_t oldval = arena_lg_dirty_mult_default_get();
+		READ(oldval, ssize_t);
+	}
+	if (newp != NULL) {
+		if (newlen != sizeof(ssize_t)) {
+			ret = EINVAL;
+			goto label_return;
+		}
+		if (arena_lg_dirty_mult_default_set(*(ssize_t *)newp)) {
+			ret = EFAULT;
+			goto label_return;
+		}
+	}
+
+	ret = 0;
+label_return:
 	return (ret);
 }
 

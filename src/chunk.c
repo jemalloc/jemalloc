@@ -391,8 +391,10 @@ chunk_record(arena_t *arena, extent_tree_t *chunks_szad,
 			 * pages have already been purged, so that this is only
 			 * a virtual memory leak.
 			 */
-			if (cache)
-				pages_purge(chunk, size);
+			if (cache) {
+				chunk_purge_wrapper(arena, arena->chunk_purge,
+				    chunk, 0, size);
+			}
 			goto label_return;
 		}
 		extent_node_init(node, arena, chunk, size, !unzeroed);
@@ -483,6 +485,37 @@ chunk_dalloc_wrapper(arena_t *arena, chunk_dalloc_t *chunk_dalloc, void *chunk,
 	chunk_dalloc(chunk, size, arena->ind);
 	if (config_valgrind && chunk_dalloc != chunk_dalloc_default)
 		JEMALLOC_VALGRIND_MAKE_MEM_NOACCESS(chunk, size);
+}
+
+bool
+chunk_purge_arena(arena_t *arena, void *chunk, size_t offset, size_t length)
+{
+
+	assert(chunk != NULL);
+	assert(CHUNK_ADDR2BASE(chunk) == chunk);
+	assert((offset & PAGE_MASK) == 0);
+	assert(length != 0);
+	assert((length & PAGE_MASK) == 0);
+
+	return (pages_purge((void *)((uintptr_t)chunk + (uintptr_t)offset),
+	    length));
+}
+
+bool
+chunk_purge_default(void *chunk, size_t offset, size_t length,
+    unsigned arena_ind)
+{
+
+	return (chunk_purge_arena(chunk_arena_get(arena_ind), chunk, offset,
+	    length));
+}
+
+bool
+chunk_purge_wrapper(arena_t *arena, chunk_purge_t *chunk_purge, void *chunk,
+    size_t offset, size_t length)
+{
+
+	return (chunk_purge(chunk, offset, length, arena->ind));
 }
 
 static rtree_node_elm_t *

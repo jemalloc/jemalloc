@@ -22,7 +22,7 @@ TEST_BEGIN(test_rtree_get_empty)
 		rtree_t rtree;
 		assert_false(rtree_new(&rtree, i, node_alloc, node_dalloc),
 		    "Unexpected rtree_new() failure");
-		assert_ptr_eq(rtree_get(&rtree, 0), NULL,
+		assert_ptr_null(rtree_get(&rtree, 0),
 		    "rtree_get() should return NULL for empty tree");
 		rtree_delete(&rtree);
 	}
@@ -75,8 +75,8 @@ TEST_BEGIN(test_rtree_bits)
 				    "get key=%#"PRIxPTR, i, j, k, keys[j],
 				    keys[k]);
 			}
-			assert_ptr_eq(rtree_get(&rtree,
-			    (((uintptr_t)1) << (sizeof(uintptr_t)*8-i))), NULL,
+			assert_ptr_null(rtree_get(&rtree,
+			    (((uintptr_t)1) << (sizeof(uintptr_t)*8-i))),
 			    "Only leftmost rtree leaf should be set; "
 			    "i=%u, j=%u", i, j);
 			rtree_set(&rtree, keys[j], NULL);
@@ -117,11 +117,11 @@ TEST_BEGIN(test_rtree_random)
 
 		for (j = 0; j < NSET; j++) {
 			rtree_set(&rtree, keys[j], NULL);
-			assert_ptr_eq(rtree_get(&rtree, keys[j]), NULL,
+			assert_ptr_null(rtree_get(&rtree, keys[j]),
 			    "rtree_get() should return previously set value");
 		}
 		for (j = 0; j < NSET; j++) {
-			assert_ptr_eq(rtree_get(&rtree, keys[j]), NULL,
+			assert_ptr_null(rtree_get(&rtree, keys[j]),
 			    "rtree_get() should return previously set value");
 		}
 

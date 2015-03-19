@@ -348,6 +348,38 @@ TEST_BEGIN(test_thread_arena)
 }
 TEST_END
 
+TEST_BEGIN(test_arena_i_lg_dirty_mult)
+{
+	ssize_t lg_dirty_mult, orig_lg_dirty_mult, prev_lg_dirty_mult;
+	size_t sz = sizeof(ssize_t);
+
+	assert_d_eq(mallctl("arena.0.lg_dirty_mult", &orig_lg_dirty_mult, &sz,
+	    NULL, 0), 0, "Unexpected mallctl() failure");
+
+	lg_dirty_mult = -2;
+	assert_d_eq(mallctl("arena.0.lg_dirty_mult", NULL, NULL,
+	    &lg_dirty_mult, sizeof(ssize_t)), EFAULT,
+	    "Unexpected mallctl() success");
+
+	lg_dirty_mult = (sizeof(size_t) << 3);
+	assert_d_eq(mallctl("arena.0.lg_dirty_mult", NULL, NULL,
+	    &lg_dirty_mult, sizeof(ssize_t)), EFAULT,
+	    "Unexpected mallctl() success");
+
+	for (prev_lg_dirty_mult = orig_lg_dirty_mult, lg_dirty_mult = -1;
+	    lg_dirty_mult < (sizeof(ssize_t) << 3); prev_lg_dirty_mult =
+	    lg_dirty_mult, lg_dirty_mult++) {
+		ssize_t old_lg_dirty_mult;
+
+		assert_d_eq(mallctl("arena.0.lg_dirty_mult", &old_lg_dirty_mult,
+		    &sz, &lg_dirty_mult, sizeof(ssize_t)), 0,
+		    "Unexpected mallctl() failure");
+		assert_zd_eq(old_lg_dirty_mult, prev_lg_dirty_mult,
+		    "Unexpected old arena.0.lg_dirty_mult");
+	}
+}
+TEST_END
+
 TEST_BEGIN(test_arena_i_purge)
 {
 	unsigned narenas;
@@ -423,6 +455,38 @@ TEST_BEGIN(test_arenas_initialized)
 		sz = narenas * sizeof(bool);
 		assert_d_eq(mallctl("arenas.initialized", initialized, &sz,
 		    NULL, 0), 0, "Unexpected mallctl() failure");
+	}
+}
+TEST_END
+
+TEST_BEGIN(test_arenas_lg_dirty_mult)
+{
+	ssize_t lg_dirty_mult, orig_lg_dirty_mult, prev_lg_dirty_mult;
+	size_t sz = sizeof(ssize_t);
+
+	assert_d_eq(mallctl("arenas.lg_dirty_mult", &orig_lg_dirty_mult, &sz,
+	    NULL, 0), 0, "Unexpected mallctl() failure");
+
+	lg_dirty_mult = -2;
+	assert_d_eq(mallctl("arenas.lg_dirty_mult", NULL, NULL,
+	    &lg_dirty_mult, sizeof(ssize_t)), EFAULT,
+	    "Unexpected mallctl() success");
+
+	lg_dirty_mult = (sizeof(size_t) << 3);
+	assert_d_eq(mallctl("arenas.lg_dirty_mult", NULL, NULL,
+	    &lg_dirty_mult, sizeof(ssize_t)), EFAULT,
+	    "Unexpected mallctl() success");
+
+	for (prev_lg_dirty_mult = orig_lg_dirty_mult, lg_dirty_mult = -1;
+	    lg_dirty_mult < (sizeof(ssize_t) << 3); prev_lg_dirty_mult =
+	    lg_dirty_mult, lg_dirty_mult++) {
+		ssize_t old_lg_dirty_mult;
+
+		assert_d_eq(mallctl("arenas.lg_dirty_mult", &old_lg_dirty_mult,
+		    &sz, &lg_dirty_mult, sizeof(ssize_t)), 0,
+		    "Unexpected mallctl() failure");
+		assert_zd_eq(old_lg_dirty_mult, prev_lg_dirty_mult,
+		    "Unexpected old arenas.lg_dirty_mult");
 	}
 }
 TEST_END
@@ -554,9 +618,11 @@ main(void)
 	    test_tcache_none,
 	    test_tcache,
 	    test_thread_arena,
+	    test_arena_i_lg_dirty_mult,
 	    test_arena_i_purge,
 	    test_arena_i_dss,
 	    test_arenas_initialized,
+	    test_arenas_lg_dirty_mult,
 	    test_arenas_constants,
 	    test_arenas_bin_constants,
 	    test_arenas_lrun_constants,

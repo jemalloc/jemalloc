@@ -54,6 +54,12 @@ void	chunk_dalloc_arena(arena_t *arena, void *chunk, size_t size,
 bool	chunk_dalloc_default(void *chunk, size_t size, unsigned arena_ind);
 void	chunk_dalloc_wrapper(arena_t *arena, chunk_dalloc_t *chunk_dalloc,
     void *chunk, size_t size);
+bool	chunk_purge_arena(arena_t *arena, void *chunk, size_t offset,
+    size_t length);
+bool	chunk_purge_default(void *chunk, size_t offset, size_t length,
+    unsigned arena_ind);
+bool	chunk_purge_wrapper(arena_t *arena, chunk_purge_t *chunk_purge,
+    void *chunk, size_t offset, size_t length);
 bool	chunk_boot(void);
 void	chunk_prefork(void);
 void	chunk_postfork_parent(void);

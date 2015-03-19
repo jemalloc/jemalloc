@@ -5,6 +5,7 @@
 /* Data. */
 
 ssize_t		opt_lg_dirty_mult = LG_DIRTY_MULT_DEFAULT;
+static ssize_t	lg_dirty_mult_default;
 arena_bin_info_t	arena_bin_info[NBINS];
 
 size_t		map_bias;
@@ -1032,15 +1033,49 @@ arena_run_alloc_small(arena_t *arena, size_t size, index_t binind)
 	return (arena_run_alloc_small_helper(arena, size, binind));
 }
 
+static bool
+arena_lg_dirty_mult_valid(ssize_t lg_dirty_mult)
+{
+
+	return (lg_dirty_mult >= -1 && lg_dirty_mult < (sizeof(size_t) << 3));
+}
+
+ssize_t
+arena_lg_dirty_mult_get(arena_t *arena)
+{
+	ssize_t lg_dirty_mult;
+
+	malloc_mutex_lock(&arena->lock);
+	lg_dirty_mult = arena->lg_dirty_mult;
+	malloc_mutex_unlock(&arena->lock);
+
+	return (lg_dirty_mult);
+}
+
+bool
+arena_lg_dirty_mult_set(arena_t *arena, ssize_t lg_dirty_mult)
+{
+
+	if (!arena_lg_dirty_mult_valid(lg_dirty_mult))
+		return (true);
+
+	malloc_mutex_lock(&arena->lock);
+	arena->lg_dirty_mult = lg_dirty_mult;
+	arena_maybe_purge(arena);
+	malloc_mutex_unlock(&arena->lock);
+
+	return (false);
+}
+
 void
 arena_maybe_purge(arena_t *arena)
 {
 	size_t threshold;
 
 	/* Don't purge if the option is disabled. */
-	if (opt_lg_dirty_mult < 0)
+	if (arena->lg_dirty_mult < 0)
 		return;
-	threshold = (arena->nactive >> opt_lg_dirty_mult);
+	threshold = (arena->nactive >> arena->lg_dirty_mult);
 	threshold = threshold < chunk_npages ? chunk_npages : threshold;
 	/*
 	 * Don't purge unless the number of purgeable pages exceeds the
@@ -1096,7 +1131,7 @@ arena_compute_npurge(arena_t *arena, bool all)
 	 * purge.
 	 */
 	if (!all) {
-		size_t threshold = (arena->nactive >> opt_lg_dirty_mult);
+		size_t threshold = (arena->nactive >> arena->lg_dirty_mult);
 		threshold = threshold < chunk_npages ? chunk_npages : threshold;
 
 		npurge = arena->ndirty - threshold;
@@ -1192,6 +1227,7 @@ arena_purge_stashed(arena_t *arena,
     extent_node_t *purge_chunks_sentinel)
 {
 	size_t npurged, nmadvise;
+	chunk_purge_t *chunk_purge;
 	arena_runs_dirty_link_t *rdelm;
 	extent_node_t *chunkselm;
 
@@ -1199,6 +1235,7 @@ arena_purge_stashed(arena_t *arena,
 		nmadvise = 0;
 	npurged = 0;
 
+	chunk_purge = arena->chunk_purge;
 	malloc_mutex_unlock(&arena->lock);
 	for (rdelm = qr_next(purge_runs_sentinel, rd_link),
 	    chunkselm = qr_next(purge_chunks_sentinel, cc_link);
@@ -1207,11 +1244,16 @@ arena_purge_stashed(arena_t *arena,
 
 		if (rdelm == &chunkselm->rd) {
 			size_t size = extent_node_size_get(chunkselm);
+			void *addr, *chunk;
+			size_t offset;
 			bool unzeroed;
 
 			npages = size >> LG_PAGE;
-			unzeroed = pages_purge(extent_node_addr_get(chunkselm),
-			    size);
+			addr = extent_node_addr_get(chunkselm);
+			chunk = CHUNK_ADDR2BASE(addr);
+			offset = CHUNK_ADDR2OFFSET(addr);
+			unzeroed = chunk_purge_wrapper(arena, chunk_purge,
+			    chunk, offset, size);
 			extent_node_zeroed_set(chunkselm, !unzeroed);
 			chunkselm = qr_next(chunkselm, cc_link);
 		} else {
@@ -1226,15 +1268,15 @@ arena_purge_stashed(arena_t *arena,
 			npages = run_size >> LG_PAGE;
 
 			assert(pageind + npages <= chunk_npages);
-			unzeroed = pages_purge((void *)((uintptr_t)chunk +
-			    (pageind << LG_PAGE)), run_size);
+			unzeroed = chunk_purge_wrapper(arena, chunk_purge,
+			    chunk, pageind << LG_PAGE, run_size);
 			flag_unzeroed = unzeroed ? CHUNK_MAP_UNZEROED : 0;
 
 			/*
 			 * Set the unzeroed flag for all pages, now that
-			 * pages_purge() has returned whether the pages were
-			 * zeroed as a side effect of purging.  This chunk map
-			 * modification is safe even though the arena mutex
+			 * chunk_purge_wrapper() has returned whether the pages
+			 * were zeroed as a side effect of purging.  This chunk
+			 * map modification is safe even though the arena mutex
 			 * isn't currently owned by this thread, because the run
 			 * is marked as allocated, thus protecting it from being
 			 * modified by any other thread.  As long as these
@@ -1294,7 +1336,7 @@ arena_unstash_purged(arena_t *arena,
 	}
 }
 
-void
+static void
 arena_purge(arena_t *arena, bool all)
 {
 	size_t npurge, npurgeable, npurged;
@@ -1309,7 +1351,7 @@ arena_purge(arena_t *arena, bool all)
 		size_t ndirty = arena_dirty_count(arena);
 		assert(ndirty == arena->ndirty);
 	}
-	assert((arena->nactive >> opt_lg_dirty_mult) < arena->ndirty || all);
+	assert((arena->nactive >> arena->lg_dirty_mult) < arena->ndirty || all);
 
 	if (config_stats)
 		arena->stats.npurge++;
@@ -2596,6 +2638,23 @@ arena_dss_prec_set(arena_t *arena, dss_prec_t dss_prec)
 	return (false);
 }
 
+ssize_t
+arena_lg_dirty_mult_default_get(void)
+{
+
+	return ((ssize_t)atomic_read_z((size_t *)&lg_dirty_mult_default));
+}
+
+bool
+arena_lg_dirty_mult_default_set(ssize_t lg_dirty_mult)
+{
+
+	if (!arena_lg_dirty_mult_valid(lg_dirty_mult))
+		return (true);
+	atomic_write_z((size_t *)&lg_dirty_mult_default, (size_t)lg_dirty_mult);
+	return (false);
+}
+
 void
 arena_stats_merge(arena_t *arena, const char **dss, size_t *nactive,
     size_t *ndirty, arena_stats_t *astats, malloc_bin_stats_t *bstats,
@@ -2702,6 +2761,7 @@ arena_new(unsigned ind)
 
 	arena->spare = NULL;
 
+	arena->lg_dirty_mult = arena_lg_dirty_mult_default_get();
 	arena->nactive = 0;
 	arena->ndirty = 0;
 
@@ -2727,6 +2787,7 @@ arena_new(unsigned ind)
 
 	arena->chunk_alloc = chunk_alloc_default;
 	arena->chunk_dalloc = chunk_dalloc_default;
+	arena->chunk_purge = chunk_purge_default;
 
 	/* Initialize bins. */
 	for (i = 0; i < NBINS; i++) {
@@ -2859,6 +2920,8 @@ arena_boot(void)
 {
 	size_t header_size;
 	unsigned i;
+
+	arena_lg_dirty_mult_default_set(opt_lg_dirty_mult);
 
 	/*
 	 * Compute the header size such that it is large enough to contain the

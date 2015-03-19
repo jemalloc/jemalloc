@@ -937,7 +937,11 @@ for (i = 0; i < nbins; i++) {
         provides the kernel with sufficient information to recycle dirty pages
         if physical memory becomes scarce and the pages remain unused.  The
         default minimum ratio is 8:1 (2^3:1); an option value of -1 will
-        disable dirty page purging.</para></listitem>
+        disable dirty page purging.  See <link
+        linkend="arenas.lg_dirty_mult"><mallctl>arenas.lg_dirty_mult</mallctl></link>
+        and <link
+        linkend="arena.i.lg_dirty_mult"><mallctl>arena.&lt;i&gt;.lg_dirty_mult</mallctl></link>
+        for related dynamic control options.</para></listitem>
       </varlistentry>
 
       <varlistentry id="opt.stats_print">
@@ -1151,7 +1155,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         <term>
           <mallctl>opt.prof_active</mallctl>
           (<type>bool</type>)
-          <literal>rw</literal>
+          <literal>r-</literal>
           [<option>--enable-prof</option>]
         </term>
         <listitem><para>Profiling activated/deactivated.  This is a secondary
@@ -1489,6 +1493,20 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         settings.</para></listitem>
       </varlistentry>
 
+      <varlistentry id="arena.i.lg_dirty_mult">
+        <term>
+          <mallctl>arena.&lt;i&gt;.lg_dirty_mult</mallctl>
+          (<type>ssize_t</type>)
+          <literal>rw</literal>
+        </term>
+        <listitem><para>Current per-arena minimum ratio (log base 2) of active
+        to dirty pages for arena &lt;i&gt;.  Each time this interface is set and
+        the ratio is increased, pages are synchronously purged as necessary to
+        impose the new ratio.  See <link
+        linkend="opt.lg_dirty_mult"><mallctl>opt.lg_dirty_mult</mallctl></link>
+        for additional information.</para></listitem>
+      </varlistentry>
+
       <varlistentry id="arena.i.chunk.alloc">
         <term>
           <mallctl>arena.&lt;i&gt;.chunk.alloc</mallctl>
@@ -1544,12 +1562,12 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         allocation for arenas created via <link
         linkend="arenas.extend"><mallctl>arenas.extend</mallctl></link> such
         that all chunks originate from an application-supplied chunk allocator
-        (by setting custom chunk allocation/deallocation functions just after
-        arena creation), but the automatically created arenas may have already
-        created chunks prior to the application having an opportunity to take
-        over chunk allocation.
+        (by setting custom chunk allocation/deallocation/purge functions just
+        after arena creation), but the automatically created arenas may have
+        already created chunks prior to the application having an opportunity to
+        take over chunk allocation.
         <funcsynopsis><funcprototype>
-          <funcdef>typedef void <function>(chunk_dalloc_t)</function></funcdef>
+          <funcdef>typedef bool <function>(chunk_dalloc_t)</function></funcdef>
           <paramdef>void *<parameter>chunk</parameter></paramdef>
           <paramdef>size_t <parameter>size</parameter></paramdef>
           <paramdef>unsigned <parameter>arena_ind</parameter></paramdef>
@@ -1557,7 +1575,47 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         A chunk deallocation function conforms to the
         <type>chunk_dalloc_t</type> type and deallocates a
         <parameter>chunk</parameter> of given <parameter>size</parameter> on
-        behalf of arena <parameter>arena_ind</parameter>.</para></listitem>
+        behalf of arena <parameter>arena_ind</parameter>, returning false upon
+        success.</para></listitem>
+      </varlistentry>
+
+      <varlistentry id="arena.i.chunk.purge">
+        <term>
+          <mallctl>arena.&lt;i&gt;.chunk.purge</mallctl>
+          (<type>chunk_purge_t *</type>)
+          <literal>rw</literal>
+        </term>
+        <listitem><para>Get or set the chunk purge function for arena &lt;i&gt;.
+        A chunk purge function optionally discards physical pages associated
+        with pages in the chunk's virtual memory range but leaves the virtual
+        memory mapping intact, and indicates via its return value whether pages
+        in the virtual memory range will be zero-filled the next time they are
+        accessed.  If setting, the chunk purge function must be capable of
+        purging all extant chunks associated with arena &lt;i&gt;, usually by
+        passing unknown chunks to the purge function that was replaced.  In
+        practice, it is feasible to control allocation for arenas created via
+        <link linkend="arenas.extend"><mallctl>arenas.extend</mallctl></link>
+        such that all chunks originate from an application-supplied chunk
+        allocator (by setting custom chunk allocation/deallocation/purge
+        functions just after arena creation), but the automatically created
+        arenas may have already created chunks prior to the application having
+        an opportunity to take over chunk allocation.
+        <funcsynopsis><funcprototype>
+          <funcdef>typedef bool <function>(chunk_purge_t)</function></funcdef>
+          <paramdef>void *<parameter>chunk</parameter></paramdef>
+          <paramdef>size_t <parameter>offset</parameter></paramdef>
+          <paramdef>size_t <parameter>length</parameter></paramdef>
+          <paramdef>unsigned <parameter>arena_ind</parameter></paramdef>
+        </funcprototype></funcsynopsis>
+        A chunk purge function conforms to the <type>chunk_purge_t</type> type
+        and purges pages within <parameter>chunk</parameter> at
+        <parameter>offset</parameter> bytes, extending for
+        <parameter>length</parameter> on behalf of arena
+        <parameter>arena_ind</parameter>, returning false if pages within the
+        purged virtual memory range will be zero-filled the next time they are
+        accessed.  Note that the memory range being purged may span multiple
+        contiguous chunks, e.g. when purging memory that backed a huge
+        allocation.</para></listitem>
       </varlistentry>
 
       <varlistentry id="arenas.narenas">
@@ -1579,6 +1637,20 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         linkend="arenas.narenas"><mallctl>arenas.narenas</mallctl></link>
         booleans.  Each boolean indicates whether the corresponding arena is
         initialized.</para></listitem>
+      </varlistentry>
+
+      <varlistentry id="arenas.lg_dirty_mult">
+        <term>
+          <mallctl>arenas.lg_dirty_mult</mallctl>
+          (<type>ssize_t</type>)
+          <literal>rw</literal>
+        </term>
+        <listitem><para>Current default per-arena minimum ratio (log base 2) of
+        active to dirty pages, used to initialize <link
+        linkend="arena.i.lg_dirty_mult"><mallctl>arena.&lt;i&gt;.lg_dirty_mult</mallctl></link>
+        during arena creation.  See <link
+        linkend="opt.lg_dirty_mult"><mallctl>opt.lg_dirty_mult</mallctl></link>
+        for additional information.</para></listitem>
       </varlistentry>
 
       <varlistentry id="arenas.quantum">

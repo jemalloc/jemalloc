@@ -30,6 +30,10 @@ arena_dalloc_small
 arena_dss_prec_get
 arena_dss_prec_set
 arena_init
+arena_lg_dirty_mult_default_get
+arena_lg_dirty_mult_default_set
+arena_lg_dirty_mult_get
+arena_lg_dirty_mult_set
 arena_malloc
 arena_malloc_large
 arena_malloc_small
@@ -151,6 +155,9 @@ chunk_npages
 chunk_postfork_child
 chunk_postfork_parent
 chunk_prefork
+chunk_purge_arena
+chunk_purge_default
+chunk_purge_wrapper
 chunk_record
 chunk_register
 chunks_rtree

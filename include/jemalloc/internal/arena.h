@@ -16,10 +16,10 @@
 /*
  * The minimum ratio of active:dirty pages per arena is computed as:
  *
- *   (nactive >> opt_lg_dirty_mult) >= ndirty
+ *   (nactive >> lg_dirty_mult) >= ndirty
  *
- * So, supposing that opt_lg_dirty_mult is 3, there can be no less than 8 times
- * as many active pages as dirty pages.
+ * So, supposing that lg_dirty_mult is 3, there can be no less than 8 times as
+ * many active pages as dirty pages.
  */
 #define	LG_DIRTY_MULT_DEFAULT	3
 
@@ -304,6 +304,9 @@ struct arena_s {
 	 */
 	arena_chunk_t		*spare;
 
+	/* Minimum ratio (log base 2) of nactive:ndirty. */
+	ssize_t			lg_dirty_mult;
+
 	/* Number of pages in active runs and huge regions. */
 	size_t			nactive;
 
@@ -376,10 +379,11 @@ struct arena_s {
 	malloc_mutex_t		node_cache_mtx;
 
 	/*
-	 * User-configurable chunk allocation and deallocation functions.
+	 * User-configurable chunk allocation/deallocation/purge functions.
 	 */
 	chunk_alloc_t		*chunk_alloc;
 	chunk_dalloc_t		*chunk_dalloc;
+	chunk_purge_t		*chunk_purge;
 
 	/* bins is used to store trees of free regions. */
 	arena_bin_t		bins[NBINS];
@@ -416,6 +420,8 @@ void	arena_chunk_ralloc_huge_shrink(arena_t *arena, void *chunk,
     size_t oldsize, size_t usize);
 bool	arena_chunk_ralloc_huge_expand(arena_t *arena, void *chunk,
     size_t oldsize, size_t usize, bool *zero);
+ssize_t	arena_lg_dirty_mult_get(arena_t *arena);
+bool	arena_lg_dirty_mult_set(arena_t *arena, ssize_t lg_dirty_mult);
 void	arena_maybe_purge(arena_t *arena);
 void	arena_purge_all(arena_t *arena);
 void	arena_tcache_fill_small(arena_t *arena, tcache_bin_t *tbin,
@@ -462,6 +468,8 @@ void	*arena_ralloc(tsd_t *tsd, arena_t *arena, void *ptr, size_t oldsize,
     size_t size, size_t extra, size_t alignment, bool zero, tcache_t *tcache);
 dss_prec_t	arena_dss_prec_get(arena_t *arena);
 bool	arena_dss_prec_set(arena_t *arena, dss_prec_t dss_prec);
+ssize_t	arena_lg_dirty_mult_default_get(void);
+bool	arena_lg_dirty_mult_default_set(ssize_t lg_dirty_mult);
 void	arena_stats_merge(arena_t *arena, const char **dss, size_t *nactive,
     size_t *ndirty, arena_stats_t *astats, malloc_bin_stats_t *bstats,
     malloc_large_stats_t *lstats, malloc_huge_stats_t *hstats);

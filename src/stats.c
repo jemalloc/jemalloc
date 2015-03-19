@@ -264,6 +264,7 @@ stats_arena_print(void (*write_cb)(void *, const char *), void *cbopaque,
 {
 	unsigned nthreads;
 	const char *dss;
+	ssize_t lg_dirty_mult;
 	size_t page, pactive, pdirty, mapped;
 	size_t metadata_mapped, metadata_allocated;
 	uint64_t npurge, nmadvise, purged;
@@ -282,6 +283,15 @@ stats_arena_print(void (*write_cb)(void *, const char *), void *cbopaque,
 	CTL_I_GET("stats.arenas.0.dss", &dss, const char *);
 	malloc_cprintf(write_cb, cbopaque, "dss allocation precedence: %s\n",
 	    dss);
+	CTL_I_GET("stats.arenas.0.lg_dirty_mult", &lg_dirty_mult, ssize_t);
+	if (lg_dirty_mult >= 0) {
+		malloc_cprintf(write_cb, cbopaque,
+		    "Min active:dirty page ratio: %u:1\n",
+		    (1U << lg_dirty_mult));
+	} else {
+		malloc_cprintf(write_cb, cbopaque,
+		    "Min active:dirty page ratio: N/A\n");
+	}
 	CTL_I_GET("stats.arenas.0.pactive", &pactive, size_t);
 	CTL_I_GET("stats.arenas.0.pdirty", &pdirty, size_t);
 	CTL_I_GET("stats.arenas.0.npurge", &npurge, uint64_t);
