@@ -472,14 +472,15 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 			malloc_cprintf(write_cb, cbopaque,		\
 			    "  opt."#n": %zd\n", ssv);			\
 		}
-#define	OPT_WRITE_SSIZE_T_MUTABLE(n, m)					\
+#define	OPT_WRITE_SSIZE_T_MUTABLE(n, m) {				\
 		ssize_t ssv2;						\
 		if (je_mallctl("opt."#n, &ssv, &sssz, NULL, 0) == 0 &&	\
 		    je_mallctl(#m, &ssv2, &sssz, NULL, 0) == 0) {	\
 			malloc_cprintf(write_cb, cbopaque,		\
 			    "  opt."#n": %zd ("#m": %zd)\n", ssv,	\
 			    ssv2);					\
-		}
+		}							\
+}
 #define	OPT_WRITE_CHAR_P(n)						\
 		if (je_mallctl("opt."#n, &cpv, &cpsz, NULL, 0) == 0) {	\
 			malloc_cprintf(write_cb, cbopaque,		\
