@@ -34,7 +34,7 @@ pages_map(void *addr, size_t size)
 	    -1, 0);
 	assert(ret != NULL);
 
-	if (ret == MAP_FAILED)
+	if (unlikely(ret == MAP_FAILED))
 		ret = NULL;
 	else if (addr != NULL && ret != addr) {
 		/*
