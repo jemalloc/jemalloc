@@ -453,68 +453,68 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 			malloc_cprintf(write_cb, cbopaque,		\
 			    "  opt."#n": %s\n", bv ? "true" : "false");	\
 		}
-#define	OPT_WRITE_BOOL_MUTABLE(n, m) {					\
-		bool bv2;						\
-		if (je_mallctl("opt."#n, &bv, &bsz, NULL, 0) == 0 &&	\
-		    je_mallctl(#m, &bv2, &bsz, NULL, 0) == 0) {		\
-			malloc_cprintf(write_cb, cbopaque,		\
-			    "  opt."#n": %s ("#m": %s)\n", bv ? "true"	\
-			    : "false", bv2 ? "true" : "false");		\
-		}							\
-}
+#define	OPT_WRITE_BOOL_MUTABLE(n, m)					\
+		if (je_mallctl("opt."#n, &bv, &bsz, NULL, 0) == 0) {	\
+			bool bv2;					\
+			if (je_mallctl(#m, &bv2, &bsz, NULL, 0) == 0) {	\
+				malloc_cprintf(write_cb, cbopaque,	\
+				    "  opt."#n": %s ("#m": %s)\n",	\
+				    bv  ? "true" : "false",		\
+				    bv2 ? "true" : "false");		\
+			}						\
+		} else
 #define	OPT_WRITE_SIZE_T(n)						\
 		if (je_mallctl("opt."#n, &sv, &ssz, NULL, 0) == 0) {	\
 			malloc_cprintf(write_cb, cbopaque,		\
 			"  opt."#n": %zu\n", sv);			\
-		}
+		} else
 #define	OPT_WRITE_SSIZE_T(n)						\
 		if (je_mallctl("opt."#n, &ssv, &sssz, NULL, 0) == 0) {	\
 			malloc_cprintf(write_cb, cbopaque,		\
 			    "  opt."#n": %zd\n", ssv);			\
-		}
-#define	OPT_WRITE_SSIZE_T_MUTABLE(n, m) {				\
-		ssize_t ssv2;						\
-		if (je_mallctl("opt."#n, &ssv, &sssz, NULL, 0) == 0 &&	\
-		    je_mallctl(#m, &ssv2, &sssz, NULL, 0) == 0) {	\
-			malloc_cprintf(write_cb, cbopaque,		\
-			    "  opt."#n": %zd ("#m": %zd)\n", ssv,	\
-			    ssv2);					\
-		}							\
-}
+		} else
+#define	OPT_WRITE_SSIZE_T_MUTABLE(n, m)					\
+		if (je_mallctl("opt."#n, &ssv, &sssz, NULL, 0) == 0) {	\
+			ssize_t ssv2;					\
+			if (je_mallctl(#m, &ssv2, &sssz, NULL, 0) == 0) \
+				malloc_cprintf(write_cb, cbopaque,	\
+				    "  opt."#n": %zd ("#m": %zd)\n",	\
+				    ssv, ssv2);				\
+		} else
 #define	OPT_WRITE_CHAR_P(n)						\
 		if (je_mallctl("opt."#n, &cpv, &cpsz, NULL, 0) == 0) {	\
 			malloc_cprintf(write_cb, cbopaque,		\
 			    "  opt."#n": \"%s\"\n", cpv);		\
-		}
+		} else
 
 		malloc_cprintf(write_cb, cbopaque,
 		    "Run-time option settings:\n");
-		OPT_WRITE_BOOL(abort)
-		OPT_WRITE_SIZE_T(lg_chunk)
-		OPT_WRITE_CHAR_P(dss)
-		OPT_WRITE_SIZE_T(narenas)
-		OPT_WRITE_SSIZE_T_MUTABLE(lg_dirty_mult, arenas.lg_dirty_mult)
-		OPT_WRITE_BOOL(stats_print)
-		OPT_WRITE_CHAR_P(junk)
-		OPT_WRITE_SIZE_T(quarantine)
-		OPT_WRITE_BOOL(redzone)
-		OPT_WRITE_BOOL(zero)
-		OPT_WRITE_BOOL(utrace)
-		OPT_WRITE_BOOL(valgrind)
-		OPT_WRITE_BOOL(xmalloc)
-		OPT_WRITE_BOOL(tcache)
-		OPT_WRITE_SSIZE_T(lg_tcache_max)
-		OPT_WRITE_BOOL(prof)
-		OPT_WRITE_CHAR_P(prof_prefix)
-		OPT_WRITE_BOOL_MUTABLE(prof_active, prof.active)
+		OPT_WRITE_BOOL(abort);
+		OPT_WRITE_SIZE_T(lg_chunk);
+		OPT_WRITE_CHAR_P(dss);
+		OPT_WRITE_SIZE_T(narenas);
+		OPT_WRITE_SSIZE_T_MUTABLE(lg_dirty_mult, arenas.lg_dirty_mult);
+		OPT_WRITE_BOOL(stats_print);
+		OPT_WRITE_CHAR_P(junk);
+		OPT_WRITE_SIZE_T(quarantine);
+		OPT_WRITE_BOOL(redzone);
+		OPT_WRITE_BOOL(zero);
+		OPT_WRITE_BOOL(utrace);
+		OPT_WRITE_BOOL(valgrind);
+		OPT_WRITE_BOOL(xmalloc);
+		OPT_WRITE_BOOL(tcache);
+		OPT_WRITE_SSIZE_T(lg_tcache_max);
+		OPT_WRITE_BOOL(prof);
+		OPT_WRITE_CHAR_P(prof_prefix);
+		OPT_WRITE_BOOL_MUTABLE(prof_active, prof.active);
 		OPT_WRITE_BOOL_MUTABLE(prof_thread_active_init,
-		    prof.thread_active_init)
-		OPT_WRITE_SSIZE_T(lg_prof_sample)
-		OPT_WRITE_BOOL(prof_accum)
-		OPT_WRITE_SSIZE_T(lg_prof_interval)
-		OPT_WRITE_BOOL(prof_gdump)
-		OPT_WRITE_BOOL(prof_final)
-		OPT_WRITE_BOOL(prof_leak)
+		    prof.thread_active_init);
+		OPT_WRITE_SSIZE_T(lg_prof_sample);
+		OPT_WRITE_BOOL(prof_accum);
+		OPT_WRITE_SSIZE_T(lg_prof_interval);
+		OPT_WRITE_BOOL(prof_gdump);
+		OPT_WRITE_BOOL(prof_final);
+		OPT_WRITE_BOOL(prof_leak);
 
 #undef OPT_WRITE_BOOL
 #undef OPT_WRITE_BOOL_MUTABLE

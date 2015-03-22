@@ -182,7 +182,7 @@ lg_floor(size_t x)
 JEMALLOC_INLINE size_t
 lg_floor(size_t x)
 {
-	unsigned long ret;
+	size_t ret;
 
 	assert(x != 0);
 
