@@ -40,15 +40,7 @@ pages_map(void *addr, size_t size)
 		/*
 		 * We succeeded in mapping memory, but not in the right place.
 		 */
-		if (munmap(ret, size) == -1) {
-			char buf[BUFERROR_BUF];
-
-			buferror(get_errno(), buf, sizeof(buf));
-			malloc_printf("<jemalloc: Error in munmap(): %s\n",
-			    buf);
-			if (opt_abort)
-				abort();
-		}
+		pages_unmap(ret, size);
 		ret = NULL;
 	}
 #endif
