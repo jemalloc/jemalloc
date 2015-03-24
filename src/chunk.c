@@ -119,7 +119,7 @@ chunk_recycle(arena_t *arena, extent_tree_t *chunks_szad,
 
 	alloc_size = CHUNK_CEILING(s2u(size + alignment - chunksize));
 	/* Beware size_t wrap-around. */
-	if (alloc_size < size)
+	if (unlikely(alloc_size < size))
 		return (NULL);
 	malloc_mutex_lock(&arena->chunks_mtx);
 	if (new_addr != NULL) {

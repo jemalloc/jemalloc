@@ -34,7 +34,7 @@ pages_map(void *addr, size_t size)
 	    -1, 0);
 	assert(ret != NULL);
 
-	if (ret == MAP_FAILED)
+	if (unlikely(ret == MAP_FAILED))
 		ret = NULL;
 	else if (addr != NULL && ret != addr) {
 		/*
@@ -142,7 +142,7 @@ chunk_alloc_mmap_slow(size_t size, size_t alignment, bool *zero)
 
 	alloc_size = size + alignment - PAGE;
 	/* Beware size_t wrap-around. */
-	if (alloc_size < size)
+	if (unlikely(alloc_size < size))
 		return (NULL);
 	do {
 		pages = pages_map(NULL, alloc_size);

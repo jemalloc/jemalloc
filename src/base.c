@@ -100,7 +100,7 @@ base_alloc(size_t size)
 		/* Try to allocate more space. */
 		node = base_chunk_alloc(csize);
 	}
-	if (node == NULL) {
+	if (unlikely(node == NULL)) {
 		ret = NULL;
 		goto label_return;
 	}

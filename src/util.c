@@ -105,7 +105,7 @@ malloc_strtoumax(const char *restrict nptr, char **restrict endptr, int base)
 	const char *p, *ns;
 
 	p = nptr;
-	if (base < 0 || base == 1 || base > 36) {
+	if (base < 2 || base > 36) {
 		ns = p;
 		set_errno(EINVAL);
 		ret = UINTMAX_MAX;
