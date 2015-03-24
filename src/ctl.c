@@ -181,6 +181,7 @@ CTL_PROTO(stats_arenas_i_hchunks_j_curhchunks)
 INDEX_PROTO(stats_arenas_i_hchunks_j)
 CTL_PROTO(stats_arenas_i_nthreads)
 CTL_PROTO(stats_arenas_i_dss)
+CTL_PROTO(stats_arenas_i_lg_dirty_mult)
 CTL_PROTO(stats_arenas_i_pactive)
 CTL_PROTO(stats_arenas_i_pdirty)
 CTL_PROTO(stats_arenas_i_mapped)
@@ -443,6 +444,7 @@ static const ctl_indexed_node_t stats_arenas_i_hchunks_node[] = {
 static const ctl_named_node_t stats_arenas_i_node[] = {
 	{NAME("nthreads"),	CTL(stats_arenas_i_nthreads)},
 	{NAME("dss"),		CTL(stats_arenas_i_dss)},
+	{NAME("lg_dirty_mult"),	CTL(stats_arenas_i_lg_dirty_mult)},
 	{NAME("pactive"),	CTL(stats_arenas_i_pactive)},
 	{NAME("pdirty"),	CTL(stats_arenas_i_pdirty)},
 	{NAME("mapped"),	CTL(stats_arenas_i_mapped)},
@@ -524,6 +526,7 @@ ctl_arena_clear(ctl_arena_stats_t *astats)
 {
 
 	astats->dss = dss_prec_names[dss_prec_limit];
+	astats->lg_dirty_mult = -1;
 	astats->pactive = 0;
 	astats->pdirty = 0;
 	if (config_stats) {
@@ -545,9 +548,9 @@ ctl_arena_stats_amerge(ctl_arena_stats_t *cstats, arena_t *arena)
 {
 	unsigned i;
 
-	arena_stats_merge(arena, &cstats->dss, &cstats->pactive,
-	    &cstats->pdirty, &cstats->astats, cstats->bstats, cstats->lstats,
-	    cstats->hstats);
+	arena_stats_merge(arena, &cstats->dss, &cstats->lg_dirty_mult,
+	    &cstats->pactive, &cstats->pdirty, &cstats->astats, cstats->bstats,
+	    cstats->lstats, cstats->hstats);
 
 	for (i = 0; i < NBINS; i++) {
 		cstats->allocated_small += cstats->bstats[i].curregs *
@@ -2000,6 +2003,8 @@ CTL_RO_CGEN(config_stats, stats_resident, ctl_stats.resident, size_t)
 CTL_RO_CGEN(config_stats, stats_mapped, ctl_stats.mapped, size_t)
 
 CTL_RO_GEN(stats_arenas_i_dss, ctl_stats.arenas[mib[2]].dss, const char *)
+CTL_RO_GEN(stats_arenas_i_lg_dirty_mult, ctl_stats.arenas[mib[2]].lg_dirty_mult,
+    ssize_t)
 CTL_RO_GEN(stats_arenas_i_nthreads, ctl_stats.arenas[mib[2]].nthreads, unsigned)
 CTL_RO_GEN(stats_arenas_i_pactive, ctl_stats.arenas[mib[2]].pactive, size_t)
 CTL_RO_GEN(stats_arenas_i_pdirty, ctl_stats.arenas[mib[2]].pdirty, size_t)

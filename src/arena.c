@@ -2657,14 +2657,16 @@ arena_lg_dirty_mult_default_set(ssize_t lg_dirty_mult)
 }
 
 void
-arena_stats_merge(arena_t *arena, const char **dss, size_t *nactive,
-    size_t *ndirty, arena_stats_t *astats, malloc_bin_stats_t *bstats,
-    malloc_large_stats_t *lstats, malloc_huge_stats_t *hstats)
+arena_stats_merge(arena_t *arena, const char **dss, ssize_t *lg_dirty_mult,
+    size_t *nactive, size_t *ndirty, arena_stats_t *astats,
+    malloc_bin_stats_t *bstats, malloc_large_stats_t *lstats,
+    malloc_huge_stats_t *hstats)
 {
 	unsigned i;
 
 	malloc_mutex_lock(&arena->lock);
 	*dss = dss_prec_names[arena->dss_prec];
+	*lg_dirty_mult = arena->lg_dirty_mult;
 	*nactive += arena->nactive;
 	*ndirty += arena->ndirty;
 

@@ -38,7 +38,8 @@ found in the git revision history:
     "opt.prof_thread_active_init", "prof.thread_active_init", and
     "thread.prof.active" mallctls.
   - Add support for per arena application-specified chunk allocators, configured
-    via the "arena<i>.chunk.alloc" and "arena<i>.chunk.dalloc" mallctls.
+    via the "arena<i>.chunk.alloc", "arena<i>.chunk.dalloc", and
+    "arena.<i>.chunk.purge" mallctls.
   - Refactor huge allocation to be managed by arenas, so that arenas now
     function as general purpose independent allocators.  This is important in
     the context of user-specified chunk allocators, aside from the scalability
@@ -65,6 +66,9 @@ found in the git revision history:
     "stats.arenas.<i>.metadata.allocated" mallctls.
   - Add the "stats.resident" mallctl, which reports the upper limit of
     physically resident memory mapped by the allocator.
+  - Add per arena control over unused dirty page purging, via the
+    "arenas.lg_dirty_mult", "arena.<i>.lg_dirty_mult", and
+    "stats.arenas.<i>.lg_dirty_mult" mallctls.
   - Add the "prof.gdump" mallctl, which makes it possible to toggle the gdump
     feature on/off during program execution.
   - Add sdallocx(), which implements sized deallocation.  The primary

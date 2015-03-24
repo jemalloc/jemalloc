@@ -6,15 +6,6 @@
 	xmallctl(n, v, &sz, NULL, 0);					\
 } while (0)
 
-#define	CTL_M1_GET(n, i, v, t) do {					\
-	size_t mib[6];							\
-	size_t miblen = sizeof(mib) / sizeof(size_t);			\
-	size_t sz = sizeof(t);						\
-	xmallctlnametomib(n, mib, &miblen);				\
-	mib[1] = (i);							\
-	xmallctlbymib(mib, miblen, v, &sz, NULL, 0);			\
-} while (0)
-
 #define	CTL_M2_GET(n, i, v, t) do {					\
 	size_t mib[6];							\
 	size_t miblen = sizeof(mib) / sizeof(size_t);			\
@@ -285,7 +276,7 @@ stats_arena_print(void (*write_cb)(void *, const char *), void *cbopaque,
 	CTL_M2_GET("stats.arenas.0.dss", i, &dss, const char *);
 	malloc_cprintf(write_cb, cbopaque, "dss allocation precedence: %s\n",
 	    dss);
-	CTL_M1_GET("arena.0.lg_dirty_mult", i, &lg_dirty_mult, ssize_t);
+	CTL_M2_GET("stats.arenas.0.lg_dirty_mult", i, &lg_dirty_mult, ssize_t);
 	if (lg_dirty_mult >= 0) {
 		malloc_cprintf(write_cb, cbopaque,
 		    "min active:dirty page ratio: %u:1\n",

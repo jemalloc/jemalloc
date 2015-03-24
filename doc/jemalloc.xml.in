@@ -1983,6 +1983,18 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         </para></listitem>
       </varlistentry>
 
+      <varlistentry id="stats.arenas.i.lg_dirty_mult">
+        <term>
+          <mallctl>stats.arenas.&lt;i&gt;.lg_dirty_mult</mallctl>
+          (<type>ssize_t</type>)
+          <literal>r-</literal>
+        </term>
+        <listitem><para>Minimum ratio (log base 2) of active to dirty pages.
+        See <link
+        linkend="opt.lg_dirty_mult"><mallctl>opt.lg_dirty_mult</mallctl></link>
+        for details.</para></listitem>
+      </varlistentry>
+
       <varlistentry id="stats.arenas.i.nthreads">
         <term>
           <mallctl>stats.arenas.&lt;i&gt;.nthreads</mallctl>
