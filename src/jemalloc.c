@@ -709,24 +709,16 @@ stats_print_atexit(void)
  */
 
 #ifndef JEMALLOC_HAVE_SECURE_GETENV
+static char *
+secure_getenv(const char *name)
+{
+
 #  ifdef JEMALLOC_HAVE_ISSETUGID
-static char *
-secure_getenv(const char *name)
-{
-
-	if (issetugid() == 0)
-		return (getenv(name));
-	else
+	if (issetugid() != 0)
 		return (NULL);
-}
-#  else
-static char *
-secure_getenv(const char *name)
-{
-
+#  endif
 	return (getenv(name));
 }
-#  endif
 #endif
 
 static unsigned
