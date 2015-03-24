@@ -684,6 +684,7 @@ ctl_refresh(void)
 {
 	tsd_t *tsd;
 	unsigned i;
+	bool refreshed;
 	VARIABLE_ARRAY(arena_t *, tarenas, ctl_stats.narenas);
 
 	/*
@@ -694,8 +695,13 @@ ctl_refresh(void)
 	ctl_arena_clear(&ctl_stats.arenas[ctl_stats.narenas]);
 
 	tsd = tsd_fetch();
-	for (i = 0; i < ctl_stats.narenas; i++)
-		tarenas[i] = arena_get(tsd, i, false, (i == 0));
+	for (i = 0, refreshed = false; i < ctl_stats.narenas; i++) {
+		tarenas[i] = arena_get(tsd, i, false, false);
+		if (tarenas[i] == NULL && !refreshed) {
+			tarenas[i] = arena_get(tsd, i, false, true);
+			refreshed = true;
+		}
+	}
 
 	for (i = 0; i < ctl_stats.narenas; i++) {
 		if (tarenas[i] != NULL)
@@ -1538,11 +1544,17 @@ arena_purge(unsigned arena_ind)
 {
 	tsd_t *tsd;
 	unsigned i;
+	bool refreshed;
 	VARIABLE_ARRAY(arena_t *, tarenas, ctl_stats.narenas);
 
 	tsd = tsd_fetch();
-	for (i = 0; i < ctl_stats.narenas; i++)
-		tarenas[i] = arena_get(tsd, i, false, (i == 0));
+	for (i = 0, refreshed = false; i < ctl_stats.narenas; i++) {
+		tarenas[i] = arena_get(tsd, i, false, false);
+		if (tarenas[i] == NULL && !refreshed) {
+			tarenas[i] = arena_get(tsd, i, false, true);
+			refreshed = true;
+		}
+	}
 
 	if (arena_ind == ctl_stats.narenas) {
 		unsigned i;
@@ -1638,7 +1650,7 @@ arena_i_lg_dirty_mult_ctl(const size_t *mib, size_t miblen, void *oldp,
 	unsigned arena_ind = mib[1];
 	arena_t *arena;
 
-	arena = arena_get(tsd_fetch(), arena_ind, false, (arena_ind == 0));
+	arena = arena_get(tsd_fetch(), arena_ind, false, true);
 	if (arena == NULL) {
 		ret = EFAULT;
 		goto label_return;
