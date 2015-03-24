@@ -1037,7 +1037,8 @@ static bool
 arena_lg_dirty_mult_valid(ssize_t lg_dirty_mult)
 {
 
-	return (lg_dirty_mult >= -1 && lg_dirty_mult < (sizeof(size_t) << 3));
+	return (lg_dirty_mult >= -1 && lg_dirty_mult < (ssize_t)(sizeof(size_t)
+	    << 3));
 }
 
 ssize_t

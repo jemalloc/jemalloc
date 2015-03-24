@@ -367,8 +367,8 @@ TEST_BEGIN(test_arena_i_lg_dirty_mult)
 	    "Unexpected mallctl() success");
 
 	for (prev_lg_dirty_mult = orig_lg_dirty_mult, lg_dirty_mult = -1;
-	    lg_dirty_mult < (sizeof(ssize_t) << 3); prev_lg_dirty_mult =
-	    lg_dirty_mult, lg_dirty_mult++) {
+	    lg_dirty_mult < (ssize_t)(sizeof(size_t) << 3); prev_lg_dirty_mult
+	    = lg_dirty_mult, lg_dirty_mult++) {
 		ssize_t old_lg_dirty_mult;
 
 		assert_d_eq(mallctl("arena.0.lg_dirty_mult", &old_lg_dirty_mult,
@@ -478,7 +478,7 @@ TEST_BEGIN(test_arenas_lg_dirty_mult)
 	    "Unexpected mallctl() success");
 
 	for (prev_lg_dirty_mult = orig_lg_dirty_mult, lg_dirty_mult = -1;
-	    lg_dirty_mult < (sizeof(ssize_t) << 3); prev_lg_dirty_mult =
+	    lg_dirty_mult < (ssize_t)(sizeof(size_t) << 3); prev_lg_dirty_mult =
 	    lg_dirty_mult, lg_dirty_mult++) {
 		ssize_t old_lg_dirty_mult;
 
