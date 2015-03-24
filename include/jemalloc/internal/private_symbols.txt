@@ -111,11 +111,11 @@ atomic_sub_uint32
 atomic_sub_uint64
 atomic_sub_z
 base_alloc
-base_allocated_get
 base_boot
 base_postfork_child
 base_postfork_parent
 base_prefork
+base_stats_get
 bitmap_full
 bitmap_get
 bitmap_info_init

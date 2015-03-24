@@ -10,7 +10,7 @@
 #ifdef JEMALLOC_H_EXTERNS
 
 void	*base_alloc(size_t size);
-size_t	base_allocated_get(void);
+void	base_stats_get(size_t *allocated, size_t *resident, size_t *mapped);
 bool	base_boot(void);
 void	base_prefork(void);
 void	base_postfork_parent(void);

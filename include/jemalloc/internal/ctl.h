@@ -53,6 +53,7 @@ struct ctl_stats_s {
 	size_t			allocated;
 	size_t			active;
 	size_t			metadata;
+	size_t			resident;
 	size_t			mapped;
 	unsigned		narenas;
 	ctl_arena_stats_t	*arenas;	/* (narenas + 1) elements. */

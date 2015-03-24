@@ -8,6 +8,8 @@ static malloc_mutex_t	base_mtx;
 static extent_tree_t	base_avail_szad;
 static extent_node_t	*base_nodes;
 static size_t		base_allocated;
+static size_t		base_resident;
+static size_t		base_mapped;
 
 /******************************************************************************/
 
@@ -54,11 +56,15 @@ base_chunk_alloc(size_t minsize)
 			base_node_dalloc(node);
 		return (NULL);
 	}
+	base_mapped += csize;
 	if (node == NULL) {
+		node = (extent_node_t *)addr;
+		addr = (void *)((uintptr_t)addr + nsize);
 		csize -= nsize;
-		node = (extent_node_t *)((uintptr_t)addr + csize);
-		if (config_stats)
+		if (config_stats) {
 			base_allocated += nsize;
+			base_resident += PAGE_CEILING(nsize);
+		}
 	}
 	extent_node_init(node, NULL, addr, csize, true);
 	return (node);
@@ -106,23 +112,30 @@ base_alloc(size_t size)
 		extent_tree_szad_insert(&base_avail_szad, node);
 	} else
 		base_node_dalloc(node);
-	if (config_stats)
+	if (config_stats) {
 		base_allocated += csize;
+		/*
+		 * Add one PAGE to base_resident for every page boundary that is
+		 * crossed by the new allocation.
+		 */
+		base_resident += PAGE_CEILING((uintptr_t)ret + csize) -
+		    PAGE_CEILING((uintptr_t)ret);
+	}
 	JEMALLOC_VALGRIND_MAKE_MEM_UNDEFINED(ret, csize);
 label_return:
 	malloc_mutex_unlock(&base_mtx);
 	return (ret);
 }
 
-size_t
-base_allocated_get(void)
+void
+base_stats_get(size_t *allocated, size_t *resident, size_t *mapped)
 {
-	size_t ret;
 
 	malloc_mutex_lock(&base_mtx);
-	ret = base_allocated;
+	*allocated = base_allocated;
+	*resident = base_resident;
+	*mapped = base_mapped;
 	malloc_mutex_unlock(&base_mtx);
-	return (ret);
 }
 
 bool

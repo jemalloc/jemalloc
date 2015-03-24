@@ -1938,6 +1938,23 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         linkend="stats.arenas.i.metadata.allocated"><mallctl>stats.arenas.&lt;i&gt;.metadata.allocated</mallctl></link>).</para></listitem>
       </varlistentry>
 
+      <varlistentry id="stats.resident">
+        <term>
+          <mallctl>stats.resident</mallctl>
+          (<type>size_t</type>)
+          <literal>r-</literal>
+          [<option>--enable-stats</option>]
+        </term>
+        <listitem><para>Maximum number of bytes in physically resident data
+        pages mapped by the allocator, comprising all pages dedicated to
+        allocator metadata, pages backing active allocations, and unused dirty
+        pages.  This is a maximum rather than precise because pages may not
+        actually be physically resident if they correspond to demand-zeroed
+        virtual memory that has not yet been touched.  This is a multiple of the
+        page size, and is larger than <link
+        linkend="stats.active"><mallctl>stats.active</mallctl></link>.</para></listitem>
+      </varlistentry>
+
       <varlistentry id="stats.mapped">
         <term>
           <mallctl>stats.mapped</mallctl>
@@ -1945,10 +1962,10 @@ malloc_conf = "xmalloc:true";]]></programlisting>
           <literal>r-</literal>
           [<option>--enable-stats</option>]
         </term>
-        <listitem><para>Total number of bytes in chunks mapped on behalf of the
-        application.  This is a multiple of the chunk size, and is at least as
+        <listitem><para>Total number of bytes in active chunks mapped by the
+        allocator.  This is a multiple of the chunk size, and is at least as
         large as <link
-        linkend="stats.active"><mallctl>stats.active</mallctl></link>.  This
+        linkend="stats.resident"><mallctl>stats.resident</mallctl></link>.  This
         does not include inactive chunks.</para></listitem>
       </varlistentry>
 

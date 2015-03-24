@@ -63,6 +63,8 @@ found in the git revision history:
   - Add metadata statistics, which are accessible via the "stats.metadata",
     "stats.arenas.<i>.metadata.mapped", and
     "stats.arenas.<i>.metadata.allocated" mallctls.
+  - Add the "stats.resident" mallctl, which reports the upper limit of
+    physically resident memory mapped by the allocator.
   - Add the "prof.gdump" mallctl, which makes it possible to toggle the gdump
     feature on/off during program execution.
   - Add sdallocx(), which implements sized deallocation.  The primary

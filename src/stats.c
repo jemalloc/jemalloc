@@ -573,16 +573,18 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 
 	if (config_stats) {
 		size_t *cactive;
-		size_t allocated, active, metadata, mapped;
+		size_t allocated, active, metadata, resident, mapped;
 
 		CTL_GET("stats.cactive", &cactive, size_t *);
 		CTL_GET("stats.allocated", &allocated, size_t);
 		CTL_GET("stats.active", &active, size_t);
 		CTL_GET("stats.metadata", &metadata, size_t);
+		CTL_GET("stats.resident", &resident, size_t);
 		CTL_GET("stats.mapped", &mapped, size_t);
 		malloc_cprintf(write_cb, cbopaque,
-		    "Allocated: %zu, active: %zu, metadata: %zu, mapped: %zu\n",
-		    allocated, active, metadata, mapped);
+		    "Allocated: %zu, active: %zu, metadata: %zu, resident: %zu,"
+		    " mapped: %zu\n", allocated, active, metadata, resident,
+		    mapped);
 		malloc_cprintf(write_cb, cbopaque,
 		    "Current active ceiling: %zu\n", atomic_read_z(cactive));
 

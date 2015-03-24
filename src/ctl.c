@@ -194,6 +194,7 @@ CTL_PROTO(stats_cactive)
 CTL_PROTO(stats_allocated)
 CTL_PROTO(stats_active)
 CTL_PROTO(stats_metadata)
+CTL_PROTO(stats_resident)
 CTL_PROTO(stats_mapped)
 
 /******************************************************************************/
@@ -469,6 +470,7 @@ static const ctl_named_node_t stats_node[] = {
 	{NAME("allocated"),	CTL(stats_allocated)},
 	{NAME("active"),	CTL(stats_active)},
 	{NAME("metadata"),	CTL(stats_metadata)},
+	{NAME("resident"),	CTL(stats_resident)},
 	{NAME("mapped"),	CTL(stats_mapped)},
 	{NAME("arenas"),	CHILD(indexed, stats_arenas)}
 };
@@ -711,17 +713,23 @@ ctl_refresh(void)
 	}
 
 	if (config_stats) {
+		size_t base_allocated, base_resident, base_mapped;
+		base_stats_get(&base_allocated, &base_resident, &base_mapped);
 		ctl_stats.allocated =
-		    ctl_stats.arenas[ctl_stats.narenas].allocated_small
-		    + ctl_stats.arenas[ctl_stats.narenas].astats.allocated_large
-		    + ctl_stats.arenas[ctl_stats.narenas].astats.allocated_huge;
+		    ctl_stats.arenas[ctl_stats.narenas].allocated_small +
+		    ctl_stats.arenas[ctl_stats.narenas].astats.allocated_large +
+		    ctl_stats.arenas[ctl_stats.narenas].astats.allocated_huge;
 		ctl_stats.active =
 		    (ctl_stats.arenas[ctl_stats.narenas].pactive << LG_PAGE);
-		ctl_stats.metadata = base_allocated_get()
-		    + ctl_stats.arenas[ctl_stats.narenas].astats.metadata_mapped
-		    + ctl_stats.arenas[ctl_stats.narenas].astats
+		ctl_stats.metadata = base_allocated +
+		    ctl_stats.arenas[ctl_stats.narenas].astats.metadata_mapped +
+		    ctl_stats.arenas[ctl_stats.narenas].astats
 		    .metadata_allocated;
-		ctl_stats.mapped =
+		ctl_stats.resident = base_resident +
+		    ctl_stats.arenas[ctl_stats.narenas].astats.metadata_mapped +
+		    ((ctl_stats.arenas[ctl_stats.narenas].pactive +
+		    ctl_stats.arenas[ctl_stats.narenas].pdirty) << LG_PAGE);
+		ctl_stats.mapped = base_mapped +
 		    ctl_stats.arenas[ctl_stats.narenas].astats.mapped;
 	}
 
@@ -1976,6 +1984,7 @@ CTL_RO_CGEN(config_stats, stats_cactive, &stats_cactive, size_t *)
 CTL_RO_CGEN(config_stats, stats_allocated, ctl_stats.allocated, size_t)
 CTL_RO_CGEN(config_stats, stats_active, ctl_stats.active, size_t)
 CTL_RO_CGEN(config_stats, stats_metadata, ctl_stats.metadata, size_t)
+CTL_RO_CGEN(config_stats, stats_resident, ctl_stats.resident, size_t)
 CTL_RO_CGEN(config_stats, stats_mapped, ctl_stats.mapped, size_t)
 
 CTL_RO_GEN(stats_arenas_i_dss, ctl_stats.arenas[mib[2]].dss, const char *)
