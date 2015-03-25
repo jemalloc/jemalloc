@@ -180,6 +180,7 @@ CTL_PROTO(stats_arenas_i_hchunks_j_nrequests)
 CTL_PROTO(stats_arenas_i_hchunks_j_curhchunks)
 INDEX_PROTO(stats_arenas_i_hchunks_j)
 CTL_PROTO(stats_arenas_i_nthreads)
+CTL_PROTO(stats_arenas_i_tid)
 CTL_PROTO(stats_arenas_i_dss)
 CTL_PROTO(stats_arenas_i_lg_dirty_mult)
 CTL_PROTO(stats_arenas_i_pactive)
@@ -443,6 +444,7 @@ static const ctl_indexed_node_t stats_arenas_i_hchunks_node[] = {
 
 static const ctl_named_node_t stats_arenas_i_node[] = {
 	{NAME("nthreads"),	CTL(stats_arenas_i_nthreads)},
+	{NAME("tid"),		CTL(stats_arenas_i_tid)},
 	{NAME("dss"),		CTL(stats_arenas_i_dss)},
 	{NAME("lg_dirty_mult"),	CTL(stats_arenas_i_lg_dirty_mult)},
 	{NAME("pactive"),	CTL(stats_arenas_i_pactive)},
@@ -629,6 +631,7 @@ ctl_arena_refresh(arena_t *arena, unsigned i)
 	ctl_arena_clear(astats);
 
 	sstats->nthreads += astats->nthreads;
+	sstats->tid = arena->tid;
 	if (config_stats) {
 		ctl_arena_stats_amerge(astats, arena);
 		/* Merge into sum stats as well. */
@@ -711,6 +714,10 @@ ctl_refresh(void)
 			ctl_stats.arenas[i].nthreads = arena_nbound(i);
 		else
 			ctl_stats.arenas[i].nthreads = 0;
+		if (tarenas[i] != NULL)
+			ctl_stats.arenas[i].tid = tarenas[i]->tid;
+		else
+			ctl_stats.arenas[i].tid = 0;
 	}
 
 	for (i = 0; i < ctl_stats.narenas; i++) {
@@ -2006,6 +2013,7 @@ CTL_RO_GEN(stats_arenas_i_dss, ctl_stats.arenas[mib[2]].dss, const char *)
 CTL_RO_GEN(stats_arenas_i_lg_dirty_mult, ctl_stats.arenas[mib[2]].lg_dirty_mult,
     ssize_t)
 CTL_RO_GEN(stats_arenas_i_nthreads, ctl_stats.arenas[mib[2]].nthreads, unsigned)
+CTL_RO_GEN(stats_arenas_i_tid, ctl_stats.arenas[mib[2]].tid, int)
 CTL_RO_GEN(stats_arenas_i_pactive, ctl_stats.arenas[mib[2]].pactive, size_t)
 CTL_RO_GEN(stats_arenas_i_pdirty, ctl_stats.arenas[mib[2]].pdirty, size_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_mapped,

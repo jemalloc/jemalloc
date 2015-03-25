@@ -272,6 +272,11 @@ struct arena_s {
 	unsigned		nthreads;
 
 	/*
+	 * The Task ID for the first thread to use this arena.
+	 */
+	int				tid;
+
+	/*
 	 * There are three classes of arena operations from a locking
 	 * perspective:
 	 * 1) Thread assignment (modifies nthreads) is protected by arenas_lock.

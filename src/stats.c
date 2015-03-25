@@ -256,6 +256,7 @@ stats_arena_print(void (*write_cb)(void *, const char *), void *cbopaque,
     unsigned i, bool bins, bool large, bool huge)
 {
 	unsigned nthreads;
+	int tid;
 	const char *dss;
 	ssize_t lg_dirty_mult;
 	size_t page, pactive, pdirty, mapped;
@@ -273,6 +274,9 @@ stats_arena_print(void (*write_cb)(void *, const char *), void *cbopaque,
 	CTL_M2_GET("stats.arenas.0.nthreads", i, &nthreads, unsigned);
 	malloc_cprintf(write_cb, cbopaque,
 	    "assigned threads: %u\n", nthreads);
+	CTL_M2_GET("stats.arenas.0.tid", i, &tid, int);
+	malloc_cprintf(write_cb, cbopaque,
+	    "tid: %u\n", tid);
 	CTL_M2_GET("stats.arenas.0.dss", i, &dss, const char *);
 	malloc_cprintf(write_cb, cbopaque, "dss allocation precedence: %s\n",
 	    dss);

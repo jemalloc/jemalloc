@@ -2739,6 +2739,14 @@ arena_new(unsigned ind)
 
 	arena->ind = ind;
 	arena->nthreads = 0;
+
+#ifndef _WIN32
+	/* Save the creating thread's Task ID. */
+	arena->tid = syscall(SYS_gettid);
+#else
+	arena->tid = 0;
+#endif
+
 	if (malloc_mutex_init(&arena->lock))
 		return (NULL);
 
