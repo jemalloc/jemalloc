@@ -145,12 +145,11 @@ huge_ralloc_no_move_similar(void *ptr, size_t oldsize, size_t usize,
 
 	/* Fill if necessary (shrinking). */
 	if (oldsize > usize) {
-		size_t sdiff = CHUNK_CEILING(usize) - usize;
-		zeroed = (sdiff != 0) ? !chunk_purge_wrapper(arena, chunk_purge,
-		    CHUNK_ADDR2BASE(ptr), CHUNK_ADDR2OFFSET(ptr), usize) : true;
+		size_t sdiff = oldsize - usize;
+		zeroed = !chunk_purge_wrapper(arena, chunk_purge, ptr, usize,
+		    sdiff);
 		if (config_fill && unlikely(opt_junk_free)) {
-			memset((void *)((uintptr_t)ptr + usize), 0x5a, oldsize -
-			    usize);
+			memset((void *)((uintptr_t)ptr + usize), 0x5a, sdiff);
 			zeroed = false;
 		}
 	} else
@@ -186,7 +185,6 @@ huge_ralloc_no_move_shrink(void *ptr, size_t oldsize, size_t usize)
 	extent_node_t *node;
 	arena_t *arena;
 	chunk_purge_t *chunk_purge;
-	size_t sdiff;
 	bool zeroed;
 
 	node = huge_node_get(ptr);
@@ -196,15 +194,18 @@ huge_ralloc_no_move_shrink(void *ptr, size_t oldsize, size_t usize)
 	chunk_purge = arena->chunk_purge;
 	malloc_mutex_unlock(&arena->lock);
 
-	sdiff = CHUNK_CEILING(usize) - usize;
-	zeroed = (sdiff != 0) ? !chunk_purge_wrapper(arena, chunk_purge,
-	    CHUNK_ADDR2BASE((uintptr_t)ptr + usize),
-	    CHUNK_ADDR2OFFSET((uintptr_t)ptr + usize), sdiff) : true;
-	if (config_fill && unlikely(opt_junk_free)) {
-		huge_dalloc_junk((void *)((uintptr_t)ptr + usize), oldsize -
-		    usize);
-		zeroed = false;
-	}
+	if (oldsize > usize) {
+		size_t sdiff = oldsize - usize;
+		zeroed = !chunk_purge_wrapper(arena, chunk_purge,
+		    CHUNK_ADDR2BASE((uintptr_t)ptr + usize),
+		    CHUNK_ADDR2OFFSET((uintptr_t)ptr + usize), sdiff);
+		if (config_fill && unlikely(opt_junk_free)) {
+			huge_dalloc_junk((void *)((uintptr_t)ptr + usize),
+			    sdiff);
+			zeroed = false;
+		}
+	} else
+		zeroed = true;
 
 	malloc_mutex_lock(&arena->huge_mtx);
 	/* Update the size of the huge allocation. */

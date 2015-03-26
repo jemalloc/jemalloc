@@ -1245,16 +1245,11 @@ arena_purge_stashed(arena_t *arena,
 
 		if (rdelm == &chunkselm->rd) {
 			size_t size = extent_node_size_get(chunkselm);
-			void *addr, *chunk;
-			size_t offset;
 			bool unzeroed;
 
 			npages = size >> LG_PAGE;
-			addr = extent_node_addr_get(chunkselm);
-			chunk = CHUNK_ADDR2BASE(addr);
-			offset = CHUNK_ADDR2OFFSET(addr);
 			unzeroed = chunk_purge_wrapper(arena, chunk_purge,
-			    chunk, offset, size);
+			    extent_node_addr_get(chunkselm), 0, size);
 			extent_node_zeroed_set(chunkselm, !unzeroed);
 			chunkselm = qr_next(chunkselm, cc_link);
 		} else {
