@@ -287,11 +287,9 @@ case "${host}" in
 	CFLAGS="$CFLAGS"
 	abi="elf"
 	AC_DEFINE([JEMALLOC_PURGE_MADVISE_FREE], [ ])
-	force_tls="0"
-	sbrk_deprecated="1"
 	;;
   *-*-bitrig*)
- 	CFLAGS="$CFLAGS"
+	CFLAGS="$CFLAGS"
 	abi="elf"
 	AC_DEFINE([JEMALLOC_PURGE_MADVISE_FREE], [ ])
 	sbrk_deprecated="1"
