@@ -33,6 +33,7 @@ struct ctl_indexed_node_s {
 struct ctl_arena_stats_s {
 	bool			initialized;
 	unsigned		nthreads;
+	int				tid;
 	const char		*dss;
 	ssize_t			lg_dirty_mult;
 	size_t			pactive;
