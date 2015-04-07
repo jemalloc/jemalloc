@@ -283,7 +283,13 @@ case "${host}" in
 	abi="elf"
 	AC_DEFINE([JEMALLOC_PURGE_MADVISE_FREE], [ ])
 	;;
-  *-*-openbsd*|*-*-bitrig*)
+  *-*-openbsd*)
+	CFLAGS="$CFLAGS"
+	abi="elf"
+	AC_DEFINE([JEMALLOC_PURGE_MADVISE_FREE], [ ])
+	force_tls="0"
+	;;
+  *-*-bitrig*)
 	CFLAGS="$CFLAGS"
 	abi="elf"
 	AC_DEFINE([JEMALLOC_PURGE_MADVISE_FREE], [ ])
