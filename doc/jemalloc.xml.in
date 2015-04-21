@@ -1756,9 +1756,9 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         <listitem><para>Total number of huge size classes.</para></listitem>
       </varlistentry>
 
-      <varlistentry id="arenas.hchunks.i.size">
+      <varlistentry id="arenas.hchunk.i.size">
         <term>
-          <mallctl>arenas.hchunks.&lt;i&gt;.size</mallctl>
+          <mallctl>arenas.hchunk.&lt;i&gt;.size</mallctl>
           (<type>size_t</type>)
           <literal>r-</literal>
         </term>
