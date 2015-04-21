@@ -47,7 +47,7 @@ found in the git revision history:
     + The "stats.arenas.<i>.huge.allocated", "stats.arenas.<i>.huge.nmalloc",
       "stats.arenas.<i>.huge.ndalloc", and "stats.arenas.<i>.huge.nrequests"
       mallctls provide high level per arena huge allocation statistics.
-    + The "arenas.nhchunks", "arenas.hchunks.<i>.size",
+    + The "arenas.nhchunks", "arenas.hchunk.<i>.size",
       "stats.arenas.<i>.hchunks.<j>.nmalloc",
       "stats.arenas.<i>.hchunks.<j>.ndalloc",
       "stats.arenas.<i>.hchunks.<j>.nrequests", and
