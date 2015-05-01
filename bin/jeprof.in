@@ -40,28 +40,28 @@
 #
 # Examples:
 #
-# % tools/pprof "program" "profile"
+# % tools/jeprof "program" "profile"
 #   Enters "interactive" mode
 #
-# % tools/pprof --text "program" "profile"
+# % tools/jeprof --text "program" "profile"
 #   Generates one line per procedure
 #
-# % tools/pprof --gv "program" "profile"
+# % tools/jeprof --gv "program" "profile"
 #   Generates annotated call-graph and displays via "gv"
 #
-# % tools/pprof --gv --focus=Mutex "program" "profile"
+# % tools/jeprof --gv --focus=Mutex "program" "profile"
 #   Restrict to code paths that involve an entry that matches "Mutex"
 #
-# % tools/pprof --gv --focus=Mutex --ignore=string "program" "profile"
+# % tools/jeprof --gv --focus=Mutex --ignore=string "program" "profile"
 #   Restrict to code paths that involve an entry that matches "Mutex"
 #   and does not match "string"
 #
-# % tools/pprof --list=IBF_CheckDocid "program" "profile"
+# % tools/jeprof --list=IBF_CheckDocid "program" "profile"
 #   Generates disassembly listing of all routines with at least one
 #   sample that match the --list=<regexp> pattern.  The listing is
 #   annotated with the flat and cumulative sample counts at each line.
 #
-# % tools/pprof --disasm=IBF_CheckDocid "program" "profile"
+# % tools/jeprof --disasm=IBF_CheckDocid "program" "profile"
 #   Generates disassembly listing of all routines with at least one
 #   sample that match the --disasm=<regexp> pattern.  The listing is
 #   annotated with the flat and cumulative sample counts at each PC value.
@@ -72,10 +72,11 @@ use strict;
 use warnings;
 use Getopt::Long;
 
+my $JEPROF_VERSION = "@jemalloc_version@";
 my $PPROF_VERSION = "2.0";
 
 # These are the object tools we use which can come from a
-# user-specified location using --tools, from the PPROF_TOOLS
+# user-specified location using --tools, from the JEPROF_TOOLS
 # environment variable, or from the environment.
 my %obj_tool_map = (
   "objdump" => "objdump",
@@ -144,13 +145,13 @@ my $sep_address = undef;
 sub usage_string {
   return <<EOF;
 Usage:
-pprof [options] <program> <profiles>
+jeprof [options] <program> <profiles>
    <profiles> is a space separated list of profile names.
-pprof [options] <symbolized-profiles>
+jeprof [options] <symbolized-profiles>
    <symbolized-profiles> is a list of profile files where each file contains
    the necessary symbol mappings  as well as profile data (likely generated
    with --raw).
-pprof [options] <profile>
+jeprof [options] <profile>
    <profile> is a remote form.  Symbols are obtained from host:port$SYMBOL_PAGE
 
    Each name can be:
@@ -161,9 +162,9 @@ pprof [options] <profile>
                          $GROWTH_PAGE, $CONTENTION_PAGE, /pprof/wall,
                          $CENSUSPROFILE_PAGE, or /pprof/filteredprofile.
    For instance:
-     pprof http://myserver.com:80$HEAP_PAGE
+     jeprof http://myserver.com:80$HEAP_PAGE
    If /<service> is omitted, the service defaults to $PROFILE_PAGE (cpu profiling).
-pprof --symbols <program>
+jeprof --symbols <program>
    Maps addresses to symbol names.  In this mode, stdin should be a
    list of library mappings, in the same format as is found in the heap-
    and cpu-profile files (this loosely matches that of /proc/self/maps
@@ -202,7 +203,7 @@ Output type:
    --pdf               Generate PDF to stdout
    --svg               Generate SVG to stdout
    --gif               Generate GIF to stdout
-   --raw               Generate symbolized pprof data (useful with remote fetch)
+   --raw               Generate symbolized jeprof data (useful with remote fetch)
 
 Heap-Profile Options:
    --inuse_space       Display in-use (mega)bytes [default]
@@ -236,34 +237,34 @@ Miscellaneous:
    --version           Version information
 
 Environment Variables:
-   PPROF_TMPDIR        Profiles directory. Defaults to \$HOME/pprof
-   PPROF_TOOLS         Prefix for object tools pathnames
+   JEPROF_TMPDIR        Profiles directory. Defaults to \$HOME/jeprof
+   JEPROF_TOOLS         Prefix for object tools pathnames
 
 Examples:
 
-pprof /bin/ls ls.prof
+jeprof /bin/ls ls.prof
                        Enters "interactive" mode
-pprof --text /bin/ls ls.prof
+jeprof --text /bin/ls ls.prof
                        Outputs one line per procedure
-pprof --web /bin/ls ls.prof
+jeprof --web /bin/ls ls.prof
                        Displays annotated call-graph in web browser
-pprof --gv /bin/ls ls.prof
+jeprof --gv /bin/ls ls.prof
                        Displays annotated call-graph via 'gv'
-pprof --gv --focus=Mutex /bin/ls ls.prof
+jeprof --gv --focus=Mutex /bin/ls ls.prof
                        Restricts to code paths including a .*Mutex.* entry
-pprof --gv --focus=Mutex --ignore=string /bin/ls ls.prof
+jeprof --gv --focus=Mutex --ignore=string /bin/ls ls.prof
                        Code paths including Mutex but not string
-pprof --list=getdir /bin/ls ls.prof
+jeprof --list=getdir /bin/ls ls.prof
                        (Per-line) annotated source listing for getdir()
-pprof --disasm=getdir /bin/ls ls.prof
+jeprof --disasm=getdir /bin/ls ls.prof
                        (Per-PC) annotated disassembly for getdir()
 
-pprof http://localhost:1234/
+jeprof http://localhost:1234/
                        Enters "interactive" mode
-pprof --text localhost:1234
+jeprof --text localhost:1234
                        Outputs one line per procedure for localhost:1234
-pprof --raw localhost:1234 > ./local.raw
-pprof --text ./local.raw
+jeprof --raw localhost:1234 > ./local.raw
+jeprof --text ./local.raw
                        Fetches a remote profile for later analysis and then
                        analyzes it in text mode.
 EOF
@@ -271,7 +272,8 @@ EOF
 
 sub version_string {
   return <<EOF
-pprof (part of gperftools $PPROF_VERSION)
+jeprof (part of jemalloc $JEPROF_VERSION)
+based on pprof (part of gperftools $PPROF_VERSION)
 
 Copyright 1998-2007 Google Inc.
 
@@ -294,8 +296,8 @@ sub Init() {
   # Setup tmp-file name and handler to clean it up.
   # We do this in the very beginning so that we can use
   # error() and cleanup() function anytime here after.
-  $main::tmpfile_sym = "/tmp/pprof$$.sym";
-  $main::tmpfile_ps = "/tmp/pprof$$";
+  $main::tmpfile_sym = "/tmp/jeprof$$.sym";
+  $main::tmpfile_ps = "/tmp/jeprof$$";
   $main::next_tmpfile = 0;
   $SIG{'INT'} = \&sighandler;
 
@@ -802,14 +804,14 @@ sub InteractiveMode {
   $| = 1;  # Make output unbuffered for interactive mode
   my ($orig_profile, $symbols, $libs, $total) = @_;
 
-  print STDERR "Welcome to pprof!  For help, type 'help'.\n";
+  print STDERR "Welcome to jeprof!  For help, type 'help'.\n";
 
   # Use ReadLine if it's installed and input comes from a console.
   if ( -t STDIN &&
        !ReadlineMightFail() &&
        defined(eval {require Term::ReadLine}) ) {
-    my $term = new Term::ReadLine 'pprof';
-    while ( defined ($_ = $term->readline('(pprof) '))) {
+    my $term = new Term::ReadLine 'jeprof';
+    while ( defined ($_ = $term->readline('(jeprof) '))) {
       $term->addhistory($_) if /\S/;
       if (!InteractiveCommand($orig_profile, $symbols, $libs, $total, $_)) {
         last;    # exit when we get an interactive command to quit
@@ -817,7 +819,7 @@ sub InteractiveMode {
     }
   } else {       # don't have readline
     while (1) {
-      print STDERR "(pprof) ";
+      print STDERR "(jeprof) ";
       $_ = <STDIN>;
       last if ! defined $_ ;
       s/\r//g;         # turn windows-looking lines into unix-looking lines
@@ -1010,7 +1012,7 @@ sub ProcessProfile {
 
 sub InteractiveHelpMessage {
   print STDERR <<ENDOFHELP;
-Interactive pprof mode
+Interactive jeprof mode
 
 Commands:
   gv
@@ -1053,7 +1055,7 @@ Commands:
       Generates callgrind file. If no filename is given, kcachegrind is called.
 
   help - This listing
-  quit or ^D - End pprof
+  quit or ^D - End jeprof
 
 For commands that accept optional -ignore tags, samples where any routine in
 the stack trace matches the regular expression in any of the -ignore
@@ -1498,7 +1500,7 @@ h1 {
 }
 </style>
 <script type="text/javascript">
-function pprof_toggle_asm(e) {
+function jeprof_toggle_asm(e) {
   var target;
   if (!e) e = window.event;
   if (e.target) target = e.target;
@@ -1767,7 +1769,7 @@ sub PrintSource {
 
   if ($html) {
     printf $output (
-      "<h1>%s</h1>%s\n<pre onClick=\"pprof_toggle_asm()\">\n" .
+      "<h1>%s</h1>%s\n<pre onClick=\"jeprof_toggle_asm()\">\n" .
       "Total:%6s %6s (flat / cumulative %s)\n",
       HtmlEscape(ShortFunctionName($routine)),
       HtmlEscape(CleanFileName($filename)),
@@ -3433,7 +3435,7 @@ sub FetchDynamicProfile {
       $profile_file .= $suffix;
     }
 
-    my $profile_dir = $ENV{"PPROF_TMPDIR"} || ($ENV{HOME} . "/pprof");
+    my $profile_dir = $ENV{"JEPROF_TMPDIR"} || ($ENV{HOME} . "/jeprof");
     if (! -d $profile_dir) {
       mkdir($profile_dir)
           || die("Unable to create profile directory $profile_dir: $!\n");
@@ -3649,7 +3651,7 @@ BEGIN {
 # Reads the top, 'header' section of a profile, and returns the last
 # line of the header, commonly called a 'header line'.  The header
 # section of a profile consists of zero or more 'command' lines that
-# are instructions to pprof, which pprof executes when reading the
+# are instructions to jeprof, which jeprof executes when reading the
 # header.  All 'command' lines start with a %.  After the command
 # lines is the 'header line', which is a profile-specific line that
 # indicates what type of profile it is, and perhaps other global
@@ -4256,10 +4258,10 @@ sub ReadSynchProfile {
       } elsif ($variable eq "sampling period") {
         $sampling_period = $value;
       } elsif ($variable eq "ms since reset") {
-        # Currently nothing is done with this value in pprof
+        # Currently nothing is done with this value in jeprof
         # So we just silently ignore it for now
       } elsif ($variable eq "discarded samples") {
-        # Currently nothing is done with this value in pprof
+        # Currently nothing is done with this value in jeprof
         # So we just silently ignore it for now
       } else {
         printf STDERR ("Ignoring unnknown variable in /contention output: " .
@@ -4565,7 +4567,7 @@ sub ParseLibraries {
 }
 
 # Add two hex addresses of length $address_length.
-# Run pprof --test for unit test if this is changed.
+# Run jeprof --test for unit test if this is changed.
 sub AddressAdd {
   my $addr1 = shift;
   my $addr2 = shift;
@@ -4619,7 +4621,7 @@ sub AddressAdd {
 
 
 # Subtract two hex addresses of length $address_length.
-# Run pprof --test for unit test if this is changed.
+# Run jeprof --test for unit test if this is changed.
 sub AddressSub {
   my $addr1 = shift;
   my $addr2 = shift;
@@ -4671,7 +4673,7 @@ sub AddressSub {
 }
 
 # Increment a hex addresses of length $address_length.
-# Run pprof --test for unit test if this is changed.
+# Run jeprof --test for unit test if this is changed.
 sub AddressInc {
   my $addr = shift;
   my $sum;
@@ -4989,7 +4991,7 @@ sub UnparseAddress {
 # 32-bit or ELF 64-bit executable file.  The location of the tools
 # is determined by considering the following options in this order:
 #   1) --tools option, if set
-#   2) PPROF_TOOLS environment variable, if set
+#   2) JEPROF_TOOLS environment variable, if set
 #   3) the environment
 sub ConfigureObjTools {
   my $prog_file = shift;
@@ -5022,7 +5024,7 @@ sub ConfigureObjTools {
     # For windows, we provide a version of nm and addr2line as part of
     # the opensource release, which is capable of parsing
     # Windows-style PDB executables.  It should live in the path, or
-    # in the same directory as pprof.
+    # in the same directory as jeprof.
     $obj_tool_map{"nm_pdb"} = "nm-pdb";
     $obj_tool_map{"addr2line_pdb"} = "addr2line-pdb";
   }
@@ -5041,20 +5043,20 @@ sub ConfigureObjTools {
 }
 
 # Returns the path of a caller-specified object tool.  If --tools or
-# PPROF_TOOLS are specified, then returns the full path to the tool
+# JEPROF_TOOLS are specified, then returns the full path to the tool
 # with that prefix.  Otherwise, returns the path unmodified (which
 # means we will look for it on PATH).
 sub ConfigureTool {
   my $tool = shift;
   my $path;
 
-  # --tools (or $PPROF_TOOLS) is a comma separated list, where each
+  # --tools (or $JEPROF_TOOLS) is a comma separated list, where each
   # item is either a) a pathname prefix, or b) a map of the form
   # <tool>:<path>.  First we look for an entry of type (b) for our
   # tool.  If one is found, we use it.  Otherwise, we consider all the
   # pathname prefixes in turn, until one yields an existing file.  If
   # none does, we use a default path.
-  my $tools = $main::opt_tools || $ENV{"PPROF_TOOLS"} || "";
+  my $tools = $main::opt_tools || $ENV{"JEPROF_TOOLS"} || "";
   if ($tools =~ m/(,|^)\Q$tool\E:([^,]*)/) {
     $path = $2;
     # TODO(csilvers): sanity-check that $path exists?  Hard if it's relative.
@@ -5068,11 +5070,11 @@ sub ConfigureTool {
     }
     if (!$path) {
       error("No '$tool' found with prefix specified by " .
-            "--tools (or \$PPROF_TOOLS) '$tools'\n");
+            "--tools (or \$JEPROF_TOOLS) '$tools'\n");
     }
   } else {
     # ... otherwise use the version that exists in the same directory as
-    # pprof.  If there's nothing there, use $PATH.
+    # jeprof.  If there's nothing there, use $PATH.
     $0 =~ m,[^/]*$,;     # this is everything after the last slash
     my $dirname = $`;    # this is everything up to and including the last slash
     if (-x "$dirname$tool") {
@@ -5102,7 +5104,7 @@ sub cleanup {
   unlink($main::tmpfile_sym);
   unlink(keys %main::tempnames);
 
-  # We leave any collected profiles in $HOME/pprof in case the user wants
+  # We leave any collected profiles in $HOME/jeprof in case the user wants
   # to look at them later.  We print a message informing them of this.
   if ((scalar(@main::profile_files) > 0) &&
       defined($main::collected_profile)) {
@@ -5111,7 +5113,7 @@ sub cleanup {
     }
     print STDERR "If you want to investigate this profile further, you can do:\n";
     print STDERR "\n";
-    print STDERR "  pprof \\\n";
+    print STDERR "  jeprof \\\n";
     print STDERR "    $main::prog \\\n";
     print STDERR "    $main::collected_profile\n";
     print STDERR "\n";
@@ -5296,7 +5298,7 @@ sub GetProcedureBoundaries {
 # The test vectors for AddressAdd/Sub/Inc are 8-16-nibble hex strings.
 # To make them more readable, we add underscores at interesting places.
 # This routine removes the underscores, producing the canonical representation
-# used by pprof to represent addresses, particularly in the tested routines.
+# used by jeprof to represent addresses, particularly in the tested routines.
 sub CanonicalHex {
   my $arg = shift;
   return join '', (split '_',$arg);

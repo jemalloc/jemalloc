@@ -2,6 +2,7 @@
 
 /bin/jemalloc-config
 /bin/jemalloc.sh
+/bin/jeprof
 
 /config.stamp
 /config.log

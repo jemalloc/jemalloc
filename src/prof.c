@@ -1418,7 +1418,7 @@ prof_leakcheck(const prof_cnt_t *cnt_all, size_t leak_ngctx,
 		    cnt_all->curobjs, (cnt_all->curobjs != 1) ? "s" : "",
 		    leak_ngctx, (leak_ngctx != 1) ? "s" : "");
 		malloc_printf(
-		    "<jemalloc>: Run pprof on \"%s\" for leak detail\n",
+		    "<jemalloc>: Run jeprof on \"%s\" for leak detail\n",
 		    filename);
 	}
 }

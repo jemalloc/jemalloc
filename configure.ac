@@ -1607,7 +1607,7 @@ AC_CONFIG_HEADERS([$cfghdrs_tup])
 dnl ============================================================================
 dnl Generate outputs.
 
-AC_CONFIG_FILES([$cfgoutputs_tup config.stamp bin/jemalloc-config bin/jemalloc.sh])
+AC_CONFIG_FILES([$cfgoutputs_tup config.stamp bin/jemalloc-config bin/jemalloc.sh bin/jeprof])
 AC_SUBST([cfgoutputs_in])
 AC_SUBST([cfgoutputs_out])
 AC_OUTPUT

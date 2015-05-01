@@ -117,8 +117,9 @@ found in the git revision history:
   - Assure that the constness of malloc_usable_size()'s return type matches that
     of the system implementation.
   - Change the heap profile dump format to support per thread heap profiling,
-    and enhance pprof with the --thread=<n> option.  As a result, the bundled
-    pprof must now be used rather than the upstream (gperftools) pprof.
+    rename pprof to jeprof, and enhance it with the --thread=<n> option.  As a
+    result, the bundled jeprof must now be used rather than the upstream
+    (gperftools) pprof.
   - Disable "opt.prof_final" by default, in order to avoid atexit(3), which can
     internally deadlock on some platforms.
   - Change the "arenas.nlruns" mallctl type from size_t to unsigned.

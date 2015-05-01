@@ -1132,8 +1132,9 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         option for information on high-water-triggered profile dumping, and the
         <link linkend="opt.prof_final"><mallctl>opt.prof_final</mallctl></link>
         option for final profile dumping.  Profile output is compatible with
-        the included <command>pprof</command> Perl script, which originates
-        from the <ulink url="http://code.google.com/p/gperftools/">gperftools
+        the <command>jeprof</command> command, which is based on the
+        <command>pprof</command> that is developed as part of the <ulink
+        url="http://code.google.com/p/gperftools/">gperftools
         package</ulink>.</para></listitem>
       </varlistentry>
 
