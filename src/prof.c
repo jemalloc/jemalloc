@@ -1338,21 +1338,40 @@ label_return:
 	return (ret);
 }
 
+JEMALLOC_ATTR(format(printf, 1, 2))
+static int
+prof_open_maps(const char *format, ...)
+{
+	int mfd;
+	va_list ap;
+	char filename[PATH_MAX + 1];
+
+	va_start(ap, format);
+	malloc_vsnprintf(filename, sizeof(filename), format, ap);
+	va_end(ap);
+	mfd = open(filename, O_RDONLY);
+
+	return (mfd);
+}
+
 static bool
 prof_dump_maps(bool propagate_err)
 {
 	bool ret;
 	int mfd;
-	char filename[PATH_MAX + 1];
 
 	cassert(config_prof);
 #ifdef __FreeBSD__
-	malloc_snprintf(filename, sizeof(filename), "/proc/curproc/map");
+	mfd = prof_open_maps("/proc/curproc/map");
 #else
-	malloc_snprintf(filename, sizeof(filename), "/proc/%d/maps",
-	    (int)getpid());
+	{
+		int pid = getpid();
+
+		mfd = prof_open_maps("/proc/%d/task/%d/maps", pid, pid);
+		if (mfd == -1)
+			mfd = prof_open_maps("/proc/%d/maps", pid);
+	}
 #endif
-	mfd = open(filename, O_RDONLY);
 	if (mfd != -1) {
 		ssize_t nread;
 
