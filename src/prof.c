@@ -1338,27 +1338,24 @@ label_return:
 	return (ret);
 }
 
-static bool
-prof_dump_maps(bool propagate_err)
-{
-	bool ret;
-	int mfd;
-	char filename[PATH_MAX + 1];
+enum prof_map_ret {
+	PMR_OPEN_FAIL,
+	PMR_WRITE_FAIL,
+	PMR_SUCCESS,
+};
 
-	cassert(config_prof);
-#ifdef __FreeBSD__
-	malloc_snprintf(filename, sizeof(filename), "/proc/curproc/map");
-#else
-	malloc_snprintf(filename, sizeof(filename), "/proc/%d/maps",
-	    (int)getpid());
-#endif
+static enum prof_map_ret
+prof_dump_mapfile(bool propagate_err, const char *filename)
+{
+	enum prof_map_ret ret;
+	int mfd;
+
 	mfd = open(filename, O_RDONLY);
 	if (mfd != -1) {
 		ssize_t nread;
 
-		if (prof_dump_write(propagate_err, "\nMAPPED_LIBRARIES:\n") &&
-		    propagate_err) {
-			ret = true;
+		if (prof_dump_write(propagate_err, "\nMAPPED_LIBRARIES:\n")) {
+			ret = PMR_WRITE_FAIL;
 			goto label_return;
 		}
 		nread = 0;
@@ -1366,9 +1363,8 @@ prof_dump_maps(bool propagate_err)
 			prof_dump_buf_end += nread;
 			if (prof_dump_buf_end == PROF_DUMP_BUFSIZE) {
 				/* Make space in prof_dump_buf before read(). */
-				if (prof_dump_flush(propagate_err) &&
-				    propagate_err) {
-					ret = true;
+				if (prof_dump_flush(propagate_err)) {
+					ret = PMR_WRITE_FAIL;
 					goto label_return;
 				}
 			}
@@ -1376,15 +1372,53 @@ prof_dump_maps(bool propagate_err)
 			    PROF_DUMP_BUFSIZE - prof_dump_buf_end);
 		} while (nread > 0);
 	} else {
-		ret = true;
+		ret = PMR_OPEN_FAIL;
 		goto label_return;
 	}
 
-	ret = false;
+	ret = PMR_SUCCESS;
 label_return:
 	if (mfd != -1)
 		close(mfd);
 	return (ret);
+}
+
+static bool
+prof_dump_maps(bool propagate_err)
+{
+	char filename[PATH_MAX + 1];
+
+	cassert(config_prof);
+#ifdef __FreeBSD__
+	malloc_snprintf(filename, sizeof(filename), "/proc/curproc/map");
+#else
+	malloc_snprintf(filename, sizeof(filename), "/proc/%d/task/%d/maps",
+	    (int)getpid(), (int)getpid());
+#endif
+
+	switch (prof_dump_mapfile(propagate_err, filename)) {
+	case PMR_OPEN_FAIL:
+#ifndef __FreeBSD__
+		malloc_snprintf(filename, sizeof(filename), "/proc/%d/maps",
+		    (int)getpid());
+		if (prof_dump_mapfile(propagate_err, filename) &&
+		    propagate_err) {
+			return (true);
+		}
+#endif
+	case PMR_WRITE_FAIL:
+		if (propagate_err) {
+			return (true);
+		}
+	case PMR_SUCCESS:
+		return (false);
+	}
+
+	if (propagate_err) {
+		return (true);
+	}
+
+	return (false);
 }
 
 static void
