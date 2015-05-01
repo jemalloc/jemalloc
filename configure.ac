@@ -268,7 +268,7 @@ case "${host}" in
 	so="dylib"
 	importlib="${so}"
 	force_tls="0"
-	DSO_LDFLAGS='-shared -Wl,-dylib_install_name,$(@F)'
+	DSO_LDFLAGS='-shared -Wl,-install_name,$(LIBDIR)/$(@F)'
 	SOREV="${rev}.${so}"
 	sbrk_deprecated="1"
 	;;
