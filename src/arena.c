@@ -12,6 +12,8 @@ size_t		map_bias;
 size_t		map_misc_offset;
 size_t		arena_maxrun; /* Max run size for arenas. */
 size_t		arena_maxclass; /* Max size class for arenas. */
+static size_t	small_maxrun; /* Max run size used for small size classes. */
+static bool	*small_run_tab; /* Valid small run page multiples. */
 unsigned	nlclasses; /* Number of large size classes. */
 unsigned	nhclasses; /* Number of huge size classes. */
 
@@ -56,33 +58,102 @@ arena_run_comp(arena_chunk_map_misc_t *a, arena_chunk_map_misc_t *b)
 rb_gen(static UNUSED, arena_run_tree_, arena_run_tree_t, arena_chunk_map_misc_t,
     rb_link, arena_run_comp)
 
+static size_t
+run_quantize(size_t size)
+{
+	size_t qsize;
+
+	assert(size != 0);
+	assert(size == PAGE_CEILING(size));
+
+	/* Don't change sizes that are valid small run sizes. */
+	if (size <= small_maxrun && small_run_tab[size >> LG_PAGE])
+		return (size);
+
+	/*
+	 * Round down to the nearest run size that can actually be requested
+	 * during normal large allocation.  Add large_pad so that cache index
+	 * randomization can offset the allocation from the page boundary.
+	 */
+	qsize = index2size(size2index(size - large_pad + 1) - 1) + large_pad;
+	if (qsize <= SMALL_MAXCLASS + large_pad)
+		return (run_quantize(size - large_pad));
+	assert(qsize <= size);
+	return (qsize);
+}
+
+static size_t
+run_quantize_next(size_t size)
+{
+	size_t large_run_size_next;
+
+	assert(size != 0);
+	assert(size == PAGE_CEILING(size));
+
+	/*
+	 * Return the next quantized size greater than the input size.
+	 * Quantized sizes comprise the union of run sizes that back small
+	 * region runs, and run sizes that back large regions with no explicit
+	 * alignment constraints.
+	 */
+
+	if (size > SMALL_MAXCLASS) {
+		large_run_size_next = PAGE_CEILING(index2size(size2index(size -
+		    large_pad) + 1) + large_pad);
+	} else
+		large_run_size_next = SIZE_T_MAX;
+	if (size >= small_maxrun)
+		return (large_run_size_next);
+
+	while (true) {
+		size += PAGE;
+		assert(size <= small_maxrun);
+		if (small_run_tab[size >> LG_PAGE]) {
+			if (large_run_size_next < size)
+				return (large_run_size_next);
+			return (size);
+		}
+	}
+}
+
+static size_t
+run_quantize_first(size_t size)
+{
+	size_t qsize = run_quantize(size);
+
+	if (qsize < size) {
+		/*
+		 * Skip a quantization that may have an adequately large run,
+		 * because under-sized runs may be mixed in.  This only happens
+		 * when an unusual size is requested, i.e. for aligned
+		 * allocation, and is just one of several places where linear
+		 * search would potentially find sufficiently aligned available
+		 * memory somewhere lower.
+		 */
+		qsize = run_quantize_next(size);
+	}
+	return (qsize);
+}
+
 JEMALLOC_INLINE_C int
 arena_avail_comp(arena_chunk_map_misc_t *a, arena_chunk_map_misc_t *b)
 {
 	int ret;
 	uintptr_t a_miscelm = (uintptr_t)a;
-	size_t a_size;
-	size_t b_size = arena_miscelm_to_bits(b) & ~PAGE_MASK;
-	index_t a_index, b_index;
+	size_t a_qsize;
+	size_t b_qsize = run_quantize(arena_miscelm_to_bits(b) & ~PAGE_MASK);
 
 	if (a_miscelm & CHUNK_MAP_KEY) {
-		a_size = a_miscelm & ~PAGE_MASK;
-		assert(a_size == s2u(a_size));
+		size_t a_size = a_miscelm & ~PAGE_MASK;
+		a_qsize = run_quantize(a_size);
 	} else
-		a_size = arena_miscelm_to_bits(a) & ~PAGE_MASK;
+		a_qsize = run_quantize(arena_miscelm_to_bits(a) & ~PAGE_MASK);
 
 	/*
-	 * Compute the index of the largest size class that the run can satisfy
-	 * a request for.
+	 * Compare based on quantized size rather than size, in order to sort
+	 * equally useful runs only by address.
 	 */
-	a_index = size2index(a_size + 1) - 1;
-	b_index = size2index(b_size + 1) - 1;
-
-	/*
-	 * Compare based on size class index rather than size, in order to
-	 * sort equally useful runs only by address.
-	 */
-	ret = (a_index > b_index) - (a_index < b_index);
+	ret = (a_qsize > b_qsize) - (a_qsize < b_qsize);
 	if (ret == 0) {
 		if (!(a_miscelm & CHUNK_MAP_KEY)) {
 			uintptr_t b_miscelm = (uintptr_t)b;
@@ -913,7 +984,7 @@ static arena_run_t *
 arena_run_first_fit(arena_t *arena, size_t size)
 {
 	arena_run_t *run;
-	index_t index, max_index;
+	size_t search_size, max_size;
 
 	assert(size == s2u(size));
 	assert(size == PAGE_CEILING(size));
@@ -924,14 +995,14 @@ arena_run_first_fit(arena_t *arena, size_t size)
 	 * and choose the lowest of the runs found.
 	 */
 	run = NULL;
-	for (index = size2index(size), max_index = size2index(arena_maxclass);
-	    index <= max_index;) {
+	for (search_size = run_quantize_first(size), max_size =
+	    run_quantize(arena_maxclass + large_pad); search_size <= max_size;
+	    search_size = run_quantize_next(search_size)) {
 		arena_run_t *currun;
 		arena_chunk_t *currun_chunk;
 		size_t currun_pageind, currun_size;
-		size_t usize = PAGE_CEILING(index2size(index));
-		arena_chunk_map_misc_t *key = (arena_chunk_map_misc_t *)(usize |
-		    CHUNK_MAP_KEY);
+		arena_chunk_map_misc_t *key = (arena_chunk_map_misc_t *)
+		    (search_size | CHUNK_MAP_KEY);
 		arena_chunk_map_misc_t *miscelm =
 		    arena_avail_tree_nsearch(&arena->runs_avail, key);
 		if (miscelm == NULL)
@@ -939,12 +1010,13 @@ arena_run_first_fit(arena_t *arena, size_t size)
 		currun = &miscelm->run;
 		if (run == NULL || (uintptr_t)currun < (uintptr_t)run)
 			run = currun;
+		/* Skip iteration(s) if run is larger than the search size. */
 		currun_chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(currun);
 		currun_pageind = arena_miscelm_to_pageind(miscelm);
 		currun_size = arena_mapbits_unallocated_size_get(currun_chunk,
 		    currun_pageind);
-		assert(size2index(currun_size) + 1 > index);
-		index = size2index(currun_size) + 1;
+		assert(currun_size >= search_size);
+		search_size = currun_size;
 	}
 
 	return (run);
@@ -966,7 +1038,7 @@ arena_run_alloc_large(arena_t *arena, size_t size, bool zero)
 	arena_run_t *run;
 
 	assert(size <= arena_maxrun);
-	assert((size & PAGE_MASK) == 0);
+	assert(size == PAGE_CEILING(size));
 
 	/* Search the arena's chunks for the lowest best fit. */
 	run = arena_run_alloc_large_helper(arena, size, zero);
@@ -994,7 +1066,7 @@ arena_run_alloc_large(arena_t *arena, size_t size, bool zero)
 static arena_run_t *
 arena_run_alloc_small_helper(arena_t *arena, size_t size, index_t binind)
 {
-	arena_run_t *run = arena_run_first_fit(arena, PAGE_CEILING(size));
+	arena_run_t *run = arena_run_first_fit(arena, size);
 	if (run != NULL)
 		arena_run_split_small(arena, run, size, binind);
 	return (run);
@@ -1007,7 +1079,7 @@ arena_run_alloc_small(arena_t *arena, size_t size, index_t binind)
 	arena_run_t *run;
 
 	assert(size <= arena_maxrun);
-	assert((size & PAGE_MASK) == 0);
+	assert(size == PAGE_CEILING(size));
 	assert(binind != BININD_INVALID);
 
 	/* Search the arena's chunks for the lowest best fit. */
@@ -1965,6 +2037,8 @@ arena_malloc_large(arena_t *arena, size_t size, bool zero)
 {
 	void *ret;
 	size_t usize;
+	uint64_t r;
+	uintptr_t random_offset;
 	arena_run_t *run;
 	arena_chunk_map_misc_t *miscelm;
 	UNUSED bool idump;
@@ -1972,13 +2046,25 @@ arena_malloc_large(arena_t *arena, size_t size, bool zero)
 	/* Large allocation. */
 	usize = s2u(size);
 	malloc_mutex_lock(&arena->lock);
-	run = arena_run_alloc_large(arena, usize, zero);
+	if (config_cache_oblivious) {
+		/*
+		 * Compute a uniformly distributed offset within the first page
+		 * that is a multiple of the cacheline size, e.g. [0 .. 63) * 64
+		 * for 4 KiB pages and 64-byte cachelines.
+		 */
+		prng64(r, LG_PAGE - LG_CACHELINE, arena->offset_state,
+		    UINT64_C(6364136223846793009), UINT64_C(1442695040888963409));
+		random_offset = ((uintptr_t)r) << LG_CACHELINE;
+	} else
+		random_offset = 0;
+	run = arena_run_alloc_large(arena, usize + large_pad, zero);
 	if (run == NULL) {
 		malloc_mutex_unlock(&arena->lock);
 		return (NULL);
 	}
 	miscelm = arena_run_to_miscelm(run);
-	ret = arena_miscelm_to_rpages(miscelm);
+	ret = (void *)((uintptr_t)arena_miscelm_to_rpages(miscelm) +
+	    random_offset);
 	if (config_stats) {
 		index_t index = size2index(usize) - NBINS;
 
@@ -2019,14 +2105,14 @@ arena_palloc_large(tsd_t *tsd, arena_t *arena, size_t size, size_t alignment,
 	arena_chunk_map_misc_t *miscelm;
 	void *rpages;
 
-	assert((size & PAGE_MASK) == 0);
+	assert(size == PAGE_CEILING(size));
 
 	arena = arena_choose(tsd, arena);
 	if (unlikely(arena == NULL))
 		return (NULL);
 
 	alignment = PAGE_CEILING(alignment);
-	alloc_size = size + alignment - PAGE;
+	alloc_size = size + large_pad + alignment - PAGE;
 
 	malloc_mutex_lock(&arena->lock);
 	run = arena_run_alloc_large(arena, alloc_size, false);
@@ -2041,7 +2127,7 @@ arena_palloc_large(tsd_t *tsd, arena_t *arena, size_t size, size_t alignment,
 	leadsize = ALIGNMENT_CEILING((uintptr_t)rpages, alignment) -
 	    (uintptr_t)rpages;
 	assert(alloc_size >= leadsize + size);
-	trailsize = alloc_size - leadsize - size;
+	trailsize = alloc_size - leadsize - size - large_pad;
 	if (leadsize != 0) {
 		arena_chunk_map_misc_t *head_miscelm = miscelm;
 		arena_run_t *head_run = run;
@@ -2055,10 +2141,10 @@ arena_palloc_large(tsd_t *tsd, arena_t *arena, size_t size, size_t alignment,
 		    alloc_size - leadsize);
 	}
 	if (trailsize != 0) {
-		arena_run_trim_tail(arena, chunk, run, size + trailsize, size,
-		    false);
+		arena_run_trim_tail(arena, chunk, run, size + large_pad +
+		    trailsize, size + large_pad, false);
 	}
-	arena_run_init_large(arena, run, size, zero);
+	arena_run_init_large(arena, run, size + large_pad, zero);
 	ret = arena_miscelm_to_rpages(miscelm);
 
 	if (config_stats) {
@@ -2088,7 +2174,8 @@ arena_palloc(tsd_t *tsd, arena_t *arena, size_t usize, size_t alignment,
 {
 	void *ret;
 
-	if (usize <= SMALL_MAXCLASS && alignment < PAGE)
+	if (usize <= SMALL_MAXCLASS && (alignment < PAGE || (alignment == PAGE
+	    && (usize & PAGE_MASK) == 0)))
 		ret = arena_malloc(tsd, arena, usize, zero, tcache);
 	else {
 		if (likely(usize <= arena_maxclass)) {
@@ -2292,7 +2379,8 @@ arena_dalloc_large_locked_impl(arena_t *arena, arena_chunk_t *chunk,
 	arena_run_t *run = &miscelm->run;
 
 	if (config_fill || config_stats) {
-		size_t usize = arena_mapbits_large_size_get(chunk, pageind);
+		size_t usize = arena_mapbits_large_size_get(chunk, pageind) -
+		    large_pad;
 
 		if (!junked)
 			arena_dalloc_junk_large(ptr, usize);
@@ -2341,7 +2429,8 @@ arena_ralloc_large_shrink(arena_t *arena, arena_chunk_t *chunk, void *ptr,
 	 * allocations.
 	 */
 	malloc_mutex_lock(&arena->lock);
-	arena_run_trim_tail(arena, chunk, run, oldsize, size, true);
+	arena_run_trim_tail(arena, chunk, run, oldsize + large_pad, size +
+	    large_pad, true);
 	if (config_stats) {
 		index_t oldindex = size2index(oldsize) - NBINS;
 		index_t index = size2index(size) - NBINS;
@@ -2370,7 +2459,8 @@ arena_ralloc_large_grow(arena_t *arena, arena_chunk_t *chunk, void *ptr,
 	size_t followsize;
 	size_t usize_min = s2u(size);
 
-	assert(oldsize == arena_mapbits_large_size_get(chunk, pageind));
+	assert(oldsize == arena_mapbits_large_size_get(chunk, pageind) -
+	    large_pad);
 
 	/* Try to extend the run. */
 	assert(usize_min > oldsize);
@@ -2391,7 +2481,7 @@ arena_ralloc_large_grow(arena_t *arena, arena_chunk_t *chunk, void *ptr,
 		while (oldsize + followsize < usize)
 			usize = index2size(size2index(usize)-1);
 		assert(usize >= usize_min);
-		splitsize = usize - oldsize;
+		splitsize = usize - oldsize + large_pad;
 
 		run = &arena_miscelm_get(chunk, pageind+npages)->run;
 		arena_run_split_large(arena, run, splitsize, zero);
@@ -2755,6 +2845,18 @@ arena_new(unsigned ind)
 	if (config_prof)
 		arena->prof_accumbytes = 0;
 
+	if (config_cache_oblivious) {
+		/*
+		 * A nondeterministic seed based on the address of arena reduces
+		 * the likelihood of lockstep non-uniform cache index
+		 * utilization among identical concurrent processes, but at the
+		 * cost of test repeatability.  For debug builds, instead use a
+		 * deterministic seed.
+		 */
+		arena->offset_state = config_debug ? ind :
+		    (uint64_t)(uintptr_t)arena;
+	}
+
 	arena->dss_prec = chunk_dss_prec_get();
 
 	arena->spare = NULL;
@@ -2890,6 +2992,9 @@ bin_info_run_size_calc(arena_bin_info_t *bin_info)
 	bin_info->reg0_offset = actual_run_size - (actual_nregs *
 	    bin_info->reg_interval) - pad_size + bin_info->redzone_size;
 
+	if (actual_run_size > small_maxrun)
+		small_maxrun = actual_run_size;
+
 	assert(bin_info->reg0_offset - bin_info->redzone_size + (bin_info->nregs
 	    * bin_info->reg_interval) + pad_size == bin_info->run_size);
 }
@@ -2899,7 +3004,7 @@ bin_info_init(void)
 {
 	arena_bin_info_t *bin_info;
 
-#define	BIN_INFO_INIT_bin_yes(index, size) \
+#define	BIN_INFO_INIT_bin_yes(index, size)				\
 	bin_info = &arena_bin_info[index];				\
 	bin_info->reg_size = size;					\
 	bin_info_run_size_calc(bin_info);				\
@@ -2913,7 +3018,33 @@ bin_info_init(void)
 #undef SC
 }
 
-void
+static bool
+small_run_size_init(void)
+{
+
+	assert(small_maxrun != 0);
+
+	small_run_tab = (bool *)base_alloc(sizeof(bool) * (small_maxrun >>
+	    LG_PAGE));
+	if (small_run_tab == NULL)
+		return (true);
+
+#define	TAB_INIT_bin_yes(index, size) {					\
+		arena_bin_info_t *bin_info = &arena_bin_info[index];	\
+		small_run_tab[bin_info->run_size >> LG_PAGE] = true;	\
+	}
+#define	TAB_INIT_bin_no(index, size)
+#define	SC(index, lg_grp, lg_delta, ndelta, bin, lg_delta_lookup)	\
+	TAB_INIT_bin_##bin(index, (ZU(1)<<lg_grp) + (ZU(ndelta)<<lg_delta))
+	SIZE_CLASSES
+#undef TAB_INIT_bin_yes
+#undef TAB_INIT_bin_no
+#undef SC
+
+	return (false);
+}
+
+bool
 arena_boot(void)
 {
 	size_t header_size;
@@ -2961,6 +3092,7 @@ arena_boot(void)
 	nhclasses = NSIZES - nlclasses - NBINS;
 
 	bin_info_init();
+	return (small_run_size_init());
 }
 
 void

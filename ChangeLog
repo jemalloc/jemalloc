@@ -101,6 +101,9 @@ found in the git revision history:
     run fragmentation, smaller runs reduce external fragmentation for small size
     classes, and packed (less uniformly aligned) metadata layout improves CPU
     cache set distribution.
+  - Randomly distribute large allocation base pointer alignment relative to page
+    boundaries in order to more uniformly utilize CPU cache sets.  This can be
+    disabled via the --disable-cache-oblivious configure option.
   - Micro-optimize the fast paths for the public API functions.
   - Refactor thread-specific data to reside in a single structure.  This assures
     that only a single TLS read is necessary per call into the public API.

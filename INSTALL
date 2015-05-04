@@ -185,6 +185,15 @@ any of the following arguments (not a definitive list) to 'configure':
     thread-local variables via the __thread keyword.  If TLS is available,
     jemalloc uses it for several purposes.
 
+--disable-cache-oblivious
+    Disable cache-oblivious large allocation alignment for large allocation
+    requests with no alignment constraints.  If this feature is disabled, all
+    large allocations are page-aligned as an implementation artifact, which can
+    severely harm CPU cache utilization.  However, the cache-oblivious layout
+    comes at the cost of one extra page per large allocation, which in the
+    most extreme case increases physical memory usage for the 16 KiB size class
+    to 20 KiB.
+
 --with-xslroot=<path>
     Specify where to find DocBook XSL stylesheets when building the
     documentation.

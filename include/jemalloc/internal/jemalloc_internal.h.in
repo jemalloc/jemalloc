@@ -126,6 +126,13 @@ static const bool config_ivsalloc =
     false
 #endif
     ;
+static const bool config_cache_oblivious =
+#ifdef JEMALLOC_CACHE_OBLIVIOUS
+    true
+#else
+    false
+#endif
+    ;
 
 #ifdef JEMALLOC_C11ATOMICS
 #include <stdatomic.h>

@@ -193,6 +193,12 @@
 #undef JEMALLOC_IVSALLOC
 
 /*
+ * If defined, explicitly attempt to more uniformly distribute large allocation
+ * pointer alignments across all cache indices.
+ */
+#undef JEMALLOC_CACHE_OBLIVIOUS
+
+/*
  * Darwin (OS X) uses zones to work around Mach-O symbol override shortcomings.
  */
 #undef JEMALLOC_ZONE

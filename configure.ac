@@ -952,6 +952,23 @@ if test "x$enable_xmalloc" = "x1" ; then
 fi
 AC_SUBST([enable_xmalloc])
 
+dnl Support cache-oblivious allocation alignment by default.
+AC_ARG_ENABLE([cache-oblivious],
+  [AS_HELP_STRING([--disable-cache-oblivious],
+                  [Disable support for cache-oblivious allocation alignment])],
+[if test "x$enable_cache_oblivious" = "xno" ; then
+  enable_cache_oblivious="0"
+else
+  enable_cache_oblivious="1"
+fi
+],
+[enable_cache_oblivious="1"]
+)
+if test "x$enable_cache_oblivious" = "x1" ; then
+  AC_DEFINE([JEMALLOC_CACHE_OBLIVIOUS], [ ])
+fi
+AC_SUBST([enable_cache_oblivious])
+
 dnl ============================================================================
 dnl Check for  __builtin_ffsl(), then ffsl(3), and fail if neither are found.
 dnl One of those two functions should (theoretically) exist on all platforms
@@ -1663,4 +1680,5 @@ AC_MSG_RESULT([xmalloc            : ${enable_xmalloc}])
 AC_MSG_RESULT([munmap             : ${enable_munmap}])
 AC_MSG_RESULT([lazy_lock          : ${enable_lazy_lock}])
 AC_MSG_RESULT([tls                : ${enable_tls}])
+AC_MSG_RESULT([cache-oblivious    : ${enable_cache_oblivious}])
 AC_MSG_RESULT([===============================================================================])
