@@ -410,6 +410,7 @@ clean:
 distclean: clean
 	rm -f $(objroot)bin/jemalloc-config
 	rm -f $(objroot)bin/jemalloc.sh
+	rm -f $(objroot)bin/jeprof
 	rm -f $(objroot)config.log
 	rm -f $(objroot)config.status
 	rm -f $(objroot)config.stamp
