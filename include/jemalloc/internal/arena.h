@@ -145,7 +145,10 @@ struct arena_chunk_map_misc_s {
 		arena_runs_dirty_link_t		rd;
 
 		/* Profile counters, used for large object runs. */
-		prof_tctx_t			*prof_tctx;
+		union {
+			void				*prof_tctx_pun;
+			prof_tctx_t			*prof_tctx;
+		};
 
 		/* Small region run metadata. */
 		arena_run_t			run;
@@ -1025,7 +1028,7 @@ arena_prof_tctx_get(const void *ptr)
 		else {
 			arena_chunk_map_misc_t *elm = arena_miscelm_get(chunk,
 			    pageind);
-			ret = atomic_read_p((void **)&elm->prof_tctx);
+			ret = atomic_read_p(&elm->prof_tctx_pun);
 		}
 	} else
 		ret = huge_prof_tctx_get(ptr);
@@ -1049,7 +1052,7 @@ arena_prof_tctx_set(const void *ptr, prof_tctx_t *tctx)
 		if (unlikely(arena_mapbits_large_get(chunk, pageind) != 0)) {
 			arena_chunk_map_misc_t *elm = arena_miscelm_get(chunk,
 			    pageind);
-			atomic_write_p((void **)&elm->prof_tctx, tctx);
+			atomic_write_p(&elm->prof_tctx_pun, tctx);
 		}
 	} else
 		huge_prof_tctx_set(ptr, tctx);

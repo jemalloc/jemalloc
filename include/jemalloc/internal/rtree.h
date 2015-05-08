@@ -36,6 +36,7 @@ typedef void (rtree_node_dalloc_t)(rtree_node_elm_t *);
 
 struct rtree_node_elm_s {
 	union {
+		void			*pun;
 		rtree_node_elm_t	*child;
 		extent_node_t		*val;
 	};
@@ -64,7 +65,10 @@ struct rtree_level_s {
 	 * lower 47 bits of virtual address space in userland, thus leaving
 	 * subtrees[0] unused and avoiding a level of tree traversal.
 	 */
-	rtree_node_elm_t	*subtree;
+	union {
+		void			*subtree_pun;
+		rtree_node_elm_t	*subtree;
+	};
 	/* Number of key bits distinguished by this level. */
 	unsigned		bits;
 	/*
@@ -159,7 +163,7 @@ rtree_child_tryread(rtree_node_elm_t *elm)
 	/* Double-checked read (first read may be stale. */
 	child = elm->child;
 	if (!rtree_node_valid(child))
-		child = atomic_read_p((void **)&elm->child);
+		child = atomic_read_p(&elm->pun);
 	return (child);
 }
 
@@ -178,14 +182,14 @@ JEMALLOC_INLINE extent_node_t *
 rtree_val_read(rtree_t *rtree, rtree_node_elm_t *elm)
 {
 
-	return (atomic_read_p((void **)&elm->val));
+	return (atomic_read_p(&elm->pun));
 }
 
 JEMALLOC_INLINE void
 rtree_val_write(rtree_t *rtree, rtree_node_elm_t *elm, const extent_node_t *val)
 {
 
-	atomic_write_p((void **)&elm->val, val);
+	atomic_write_p(&elm->pun, val);
 }
 
 JEMALLOC_INLINE rtree_node_elm_t *
@@ -196,7 +200,7 @@ rtree_subtree_tryread(rtree_t *rtree, unsigned level)
 	/* Double-checked read (first read may be stale. */
 	subtree = rtree->levels[level].subtree;
 	if (!rtree_node_valid(subtree))
-		subtree = atomic_read_p((void **)&rtree->levels[level].subtree);
+		subtree = atomic_read_p(&rtree->levels[level].subtree_pun);
 	return (subtree);
 }
 
