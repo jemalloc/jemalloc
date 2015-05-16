@@ -8,7 +8,7 @@ huge_node_get(const void *ptr)
 {
 	extent_node_t *node;
 
-	node = chunk_lookup(ptr);
+	node = chunk_lookup(ptr, true);
 	assert(!extent_node_achunk_get(node));
 
 	return (node);

@@ -948,7 +948,7 @@ ivsalloc(const void *ptr, bool demote)
 	extent_node_t *node;
 
 	/* Return 0 if ptr is not within a chunk managed by jemalloc. */
-	node = chunk_lookup(CHUNK_ADDR2BASE(ptr));
+	node = chunk_lookup(ptr, false);
 	if (node == NULL)
 		return (0);
 	/* Only arena chunks should be looked up via interior pointers. */

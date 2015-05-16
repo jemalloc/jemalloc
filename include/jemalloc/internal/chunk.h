@@ -70,15 +70,15 @@ void	chunk_postfork_child(void);
 #ifdef JEMALLOC_H_INLINES
 
 #ifndef JEMALLOC_ENABLE_INLINE
-extent_node_t	*chunk_lookup(const void *chunk);
+extent_node_t	*chunk_lookup(const void *chunk, bool dependent);
 #endif
 
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_CHUNK_C_))
 JEMALLOC_INLINE extent_node_t *
-chunk_lookup(const void *chunk)
+chunk_lookup(const void *ptr, bool dependent)
 {
 
-	return (rtree_get(&chunks_rtree, (uintptr_t)chunk));
+	return (rtree_get(&chunks_rtree, (uintptr_t)ptr, dependent));
 }
 #endif
 
