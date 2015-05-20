@@ -2175,9 +2175,20 @@ arena_palloc(tsd_t *tsd, arena_t *arena, size_t usize, size_t alignment,
 	void *ret;
 
 	if (usize <= SMALL_MAXCLASS && (alignment < PAGE || (alignment == PAGE
-	    && (usize & PAGE_MASK) == 0)))
+	    && (usize & PAGE_MASK) == 0))) {
+		/* Small; alignment doesn't require special run placement. */
 		ret = arena_malloc(tsd, arena, usize, zero, tcache);
-	else {
+	} else if (usize <= arena_maxclass && alignment <= PAGE) {
+		/*
+		 * Large; alignment doesn't require special run placement.
+		 * However, the cached pointer may be at a random offset from
+		 * the base of the run, so do some bit manipulation to retrieve
+		 * the base.
+		 */
+		ret = arena_malloc(tsd, arena, usize, zero, tcache);
+		if (config_cache_oblivious)
+			ret = (void *)((uintptr_t)ret & ~PAGE_MASK);
+	} else {
 		if (likely(usize <= arena_maxclass)) {
 			ret = arena_palloc_large(tsd, arena, usize, alignment,
 			    zero);
