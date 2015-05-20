@@ -515,7 +515,11 @@ tcache_boot(void)
 		return (true);
 	stack_nelms = 0;
 	for (i = 0; i < NBINS; i++) {
-		if ((arena_bin_info[i].nregs << 1) <= TCACHE_NSLOTS_SMALL_MAX) {
+		if ((arena_bin_info[i].nregs << 1) <= TCACHE_NSLOTS_SMALL_MIN) {
+			tcache_bin_info[i].ncached_max =
+			    TCACHE_NSLOTS_SMALL_MIN;
+		} else if ((arena_bin_info[i].nregs << 1) <=
+		    TCACHE_NSLOTS_SMALL_MAX) {
 			tcache_bin_info[i].ncached_max =
 			    (arena_bin_info[i].nregs << 1);
 		} else {

@@ -17,6 +17,11 @@ typedef struct tcaches_s tcaches_t;
 #define	TCACHE_STATE_MAX		TCACHE_STATE_PURGATORY
 
 /*
+ * Absolute minimum number of cache slots for each small bin.
+ */
+#define	TCACHE_NSLOTS_SMALL_MIN		20
+
+/*
  * Absolute maximum number of cache slots for each small bin in the thread
  * cache.  This is an additional constraint beyond that imposed as: twice the
  * number of regions per run for this size class.
