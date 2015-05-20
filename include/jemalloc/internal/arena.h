@@ -1181,7 +1181,8 @@ arena_dalloc(tsd_t *tsd, void *ptr, tcache_t *tcache)
 			assert(config_cache_oblivious || ((uintptr_t)ptr &
 			    PAGE_MASK) == 0);
 
-			if (likely(tcache != NULL) && size <= tcache_maxclass) {
+			if (likely(tcache != NULL) && size - large_pad <=
+			    tcache_maxclass) {
 				tcache_dalloc_large(tsd, tcache, ptr, size -
 				    large_pad);
 			} else {
