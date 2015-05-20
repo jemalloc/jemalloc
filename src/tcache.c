@@ -506,7 +506,7 @@ tcache_boot(void)
 	else
 		tcache_maxclass = (1U << opt_lg_tcache_max);
 
-	nhbins = NBINS + (tcache_maxclass >> LG_PAGE);
+	nhbins = size2index(tcache_maxclass) + 1;
 
 	/* Initialize tcache_bin_info. */
 	tcache_bin_info = (tcache_bin_info_t *)base_alloc(nhbins *
