@@ -3,7 +3,7 @@
 TEST_BEGIN(test_stats_summary)
 {
 	size_t *cactive;
-	size_t sz, allocated, active, mapped;
+	size_t sz, allocated, active, resident, mapped;
 	int expected = config_stats ? 0 : ENOENT;
 
 	sz = sizeof(cactive);
@@ -15,6 +15,8 @@ TEST_BEGIN(test_stats_summary)
 	    expected, "Unexpected mallctl() result");
 	assert_d_eq(mallctl("stats.active", &active, &sz, NULL, 0), expected,
 	    "Unexpected mallctl() result");
+	assert_d_eq(mallctl("stats.resident", &resident, &sz, NULL, 0),
+	    expected, "Unexpected mallctl() result");
 	assert_d_eq(mallctl("stats.mapped", &mapped, &sz, NULL, 0), expected,
 	    "Unexpected mallctl() result");
 
@@ -23,8 +25,10 @@ TEST_BEGIN(test_stats_summary)
 		    "active should be no larger than cactive");
 		assert_zu_le(allocated, active,
 		    "allocated should be no larger than active");
-		assert_zu_le(active, mapped,
-		    "active should be no larger than mapped");
+		assert_zu_lt(active, resident,
+		    "active should be less than resident");
+		assert_zu_lt(active, mapped,
+		    "active should be less than mapped");
 	}
 }
 TEST_END

@@ -1964,10 +1964,12 @@ malloc_conf = "xmalloc:true";]]></programlisting>
           [<option>--enable-stats</option>]
         </term>
         <listitem><para>Total number of bytes in active chunks mapped by the
-        allocator.  This is a multiple of the chunk size, and is at least as
-        large as <link
-        linkend="stats.resident"><mallctl>stats.resident</mallctl></link>.  This
-        does not include inactive chunks.</para></listitem>
+        allocator.  This is a multiple of the chunk size, and is larger than
+        <link linkend="stats.active"><mallctl>stats.active</mallctl></link>.
+        This does not include inactive chunks, even those that contain unused
+        dirty pages, which means that there is no strict ordering between this
+        and <link
+        linkend="stats.resident"><mallctl>stats.resident</mallctl></link>.</para></listitem>
       </varlistentry>
 
       <varlistentry id="stats.arenas.i.dss">

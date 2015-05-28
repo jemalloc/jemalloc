@@ -132,6 +132,8 @@ base_stats_get(size_t *allocated, size_t *resident, size_t *mapped)
 {
 
 	malloc_mutex_lock(&base_mtx);
+	assert(base_allocated <= base_resident);
+	assert(base_resident <= base_mapped);
 	*allocated = base_allocated;
 	*resident = base_resident;
 	*mapped = base_mapped;
