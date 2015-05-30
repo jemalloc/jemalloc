@@ -98,7 +98,7 @@ quarantine_drain_one(tsd_t *tsd, quarantine_t *quarantine)
 {
 	quarantine_obj_t *obj = &quarantine->objs[quarantine->first];
 	assert(obj->usize == isalloc(obj->ptr, config_prof));
-	idalloc(tsd, obj->ptr);
+	idalloctm(tsd, obj->ptr, NULL, false);
 	quarantine->curbytes -= obj->usize;
 	quarantine->curobjs--;
 	quarantine->first = (quarantine->first + 1) & ((ZU(1) <<
@@ -123,7 +123,7 @@ quarantine(tsd_t *tsd, void *ptr)
 	assert(opt_quarantine);
 
 	if ((quarantine = tsd_quarantine_get(tsd)) == NULL) {
-		idalloc(tsd, ptr);
+		idalloctm(tsd, ptr, NULL, false);
 		return;
 	}
 	/*
@@ -162,7 +162,7 @@ quarantine(tsd_t *tsd, void *ptr)
 		}
 	} else {
 		assert(quarantine->curbytes == 0);
-		idalloc(tsd, ptr);
+		idalloctm(tsd, ptr, NULL, false);
 	}
 }
 
