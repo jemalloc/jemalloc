@@ -198,7 +198,8 @@ cat <<EOF
  *
  *   LG_SIZE_CLASS_GROUP: Lg of size class count for each size doubling.
  *   SIZE_CLASSES: Complete table of
- *                 SC(index, lg_delta, size, bin, lg_delta_lookup) tuples.
+ *                 SC(index, lg_grp, lg_delta, ndelta, bin, lg_delta_lookup)
+ *                 tuples.
  *     index: Size class index.
  *     lg_grp: Lg group base size (no deltas added).
  *     lg_delta: Lg delta to previous size class.
