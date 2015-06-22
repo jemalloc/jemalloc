@@ -277,15 +277,21 @@ void *
 chunk_alloc_cache(arena_t *arena, void *new_addr, size_t size, size_t alignment,
     bool *zero, bool dalloc_node)
 {
+	void *ret;
 
 	assert(size != 0);
 	assert((size & chunksize_mask) == 0);
 	assert(alignment != 0);
 	assert((alignment & chunksize_mask) == 0);
 
-	return (chunk_recycle(arena, &arena->chunks_szad_cache,
+	ret = chunk_recycle(arena, &arena->chunks_szad_cache,
 	    &arena->chunks_ad_cache, true, new_addr, size, alignment, zero,
-	    dalloc_node));
+	    dalloc_node);
+	if (ret == NULL)
+		return (NULL);
+	if (config_valgrind)
+		JEMALLOC_VALGRIND_MAKE_MEM_UNDEFINED(ret, size);
+	return (ret);
 }
 
 static arena_t *

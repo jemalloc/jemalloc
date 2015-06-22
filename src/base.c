@@ -121,7 +121,7 @@ base_alloc(size_t size)
 		base_resident += PAGE_CEILING((uintptr_t)ret + csize) -
 		    PAGE_CEILING((uintptr_t)ret);
 	}
-	JEMALLOC_VALGRIND_MAKE_MEM_UNDEFINED(ret, csize);
+	JEMALLOC_VALGRIND_MAKE_MEM_DEFINED(ret, csize);
 label_return:
 	malloc_mutex_unlock(&base_mtx);
 	return (ret);
