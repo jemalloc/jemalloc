@@ -316,6 +316,9 @@ struct arena_s {
 	/* Minimum ratio (log base 2) of nactive:ndirty. */
 	ssize_t			lg_dirty_mult;
 
+	/* True if a thread is currently executing arena_purge(). */
+	bool			purging;
+
 	/* Number of pages in active runs and huge regions. */
 	size_t			nactive;
 

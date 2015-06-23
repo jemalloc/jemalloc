@@ -1143,21 +1143,29 @@ arena_lg_dirty_mult_set(arena_t *arena, ssize_t lg_dirty_mult)
 void
 arena_maybe_purge(arena_t *arena)
 {
-	size_t threshold;
 
 	/* Don't purge if the option is disabled. */
 	if (arena->lg_dirty_mult < 0)
 		return;
-	threshold = (arena->nactive >> arena->lg_dirty_mult);
-	threshold = threshold < chunk_npages ? chunk_npages : threshold;
-	/*
-	 * Don't purge unless the number of purgeable pages exceeds the
-	 * threshold.
-	 */
-	if (arena->ndirty <= threshold)
+	/* Don't recursively purge. */
+	if (arena->purging)
 		return;
-
-	arena_purge(arena, false);
+	/*
+	 * Iterate, since preventing recursive purging could otherwise leave too
+	 * many dirty pages.
+	 */
+	while (true) {
+		size_t threshold = (arena->nactive >> arena->lg_dirty_mult);
+		if (threshold < chunk_npages)
+			threshold = chunk_npages;
+		/*
+		 * Don't purge unless the number of purgeable pages exceeds the
+		 * threshold.
+		 */
+		if (arena->ndirty <= threshold)
+			return;
+		arena_purge(arena, false);
+	}
 }
 
 static size_t
@@ -1411,6 +1419,8 @@ arena_purge(arena_t *arena, bool all)
 	arena_runs_dirty_link_t purge_runs_sentinel;
 	extent_node_t purge_chunks_sentinel;
 
+	arena->purging = true;
+
 	/*
 	 * Calls to arena_dirty_count() are disabled even for debug builds
 	 * because overhead grows nonlinearly as memory usage increases.
@@ -1436,6 +1446,8 @@ arena_purge(arena_t *arena, bool all)
 	assert(npurged == npurgeable);
 	arena_unstash_purged(arena, &purge_runs_sentinel,
 	    &purge_chunks_sentinel);
+
+	arena->purging = false;
 }
 
 void
@@ -2053,7 +2065,8 @@ arena_malloc_large(arena_t *arena, size_t size, bool zero)
 		 * for 4 KiB pages and 64-byte cachelines.
 		 */
 		prng64(r, LG_PAGE - LG_CACHELINE, arena->offset_state,
-		    UINT64_C(6364136223846793009), UINT64_C(1442695040888963409));
+		    UINT64_C(6364136223846793009),
+		    UINT64_C(1442695040888963409));
 		random_offset = ((uintptr_t)r) << LG_CACHELINE;
 	} else
 		random_offset = 0;
@@ -2873,6 +2886,7 @@ arena_new(unsigned ind)
 	arena->spare = NULL;
 
 	arena->lg_dirty_mult = arena_lg_dirty_mult_default_get();
+	arena->purging = false;
 	arena->nactive = 0;
 	arena->ndirty = 0;
 
