@@ -535,6 +535,17 @@ chunks_rtree_node_alloc(size_t nelms)
 bool
 chunk_boot(void)
 {
+#ifdef _WIN32
+	SYSTEM_INFO info;
+	GetSystemInfo(&info);
+
+	/* Verify actual page size is equal to or an integral multiple of configured page size */
+	if (info.dwPageSize & (1U << LG_PAGE - 1))
+		return (false);
+
+	/* Configure chunksize to match granularity (usually 64K), so pages_map will always take fast path */
+	opt_lg_chunk = fss((int)info.dwAllocationGranularity) - 1;
+#endif
 
 	/* Set variables according to the value of opt_lg_chunk. */
 	chunksize = (ZU(1) << opt_lg_chunk);
