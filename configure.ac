@@ -513,6 +513,7 @@ if test "x$JEMALLOC_PREFIX" != "x" ; then
   AC_DEFINE_UNQUOTED([JEMALLOC_PREFIX], ["$JEMALLOC_PREFIX"])
   AC_DEFINE_UNQUOTED([JEMALLOC_CPREFIX], ["$JEMALLOC_CPREFIX"])
 fi
+AC_SUBST([JEMALLOC_CPREFIX])
 
 AC_ARG_WITH([export],
   [AS_HELP_STRING([--without-export], [disable exporting jemalloc public APIs])],

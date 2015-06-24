@@ -151,6 +151,8 @@ found in the git revision history:
     memory decreases.  This regression was first released in 3.5.0.
   - Fix OOM handling in memalign() and valloc().  A variant of this bug existed
     in all releases since 2.0.0, which introduced these functions.
+  - Fix size class overflow handling for malloc(), posix_memalign(), memalign(),
+    calloc(), and realloc() when profiling is enabled.
   - Fix the "arena.<i>.dss" mallctl to return an error if "primary" or
     "secondary" precedence is specified, but sbrk(2) is not supported.
   - Fix fallback lg_floor() implementations to handle extremely large inputs.

@@ -525,7 +525,7 @@ size2index_compute(size_t size)
 		size_t lg_tmin = LG_TINY_MAXCLASS - NTBINS + 1;
 		size_t lg_ceil = lg_floor(pow2_ceil(size));
 		return (lg_ceil < lg_tmin ? 0 : lg_ceil - lg_tmin);
-	} else
+	}
 #endif
 	{
 		size_t x = lg_floor((size<<1)-1);
@@ -565,8 +565,7 @@ size2index(size_t size)
 	assert(size > 0);
 	if (likely(size <= LOOKUP_MAXCLASS))
 		return (size2index_lookup(size));
-	else
-		return (size2index_compute(size));
+	return (size2index_compute(size));
 }
 
 JEMALLOC_INLINE size_t
@@ -576,7 +575,6 @@ index2size_compute(index_t index)
 #if (NTBINS > 0)
 	if (index < NTBINS)
 		return (ZU(1) << (LG_TINY_MAXCLASS - NTBINS + 1 + index));
-	else
 #endif
 	{
 		size_t reduced_index = index - NTBINS;
@@ -623,7 +621,7 @@ s2u_compute(size_t size)
 		size_t lg_ceil = lg_floor(pow2_ceil(size));
 		return (lg_ceil < lg_tmin ? (ZU(1) << lg_tmin) :
 		    (ZU(1) << lg_ceil));
-	} else
+	}
 #endif
 	{
 		size_t x = lg_floor((size<<1)-1);
@@ -656,8 +654,7 @@ s2u(size_t size)
 	assert(size > 0);
 	if (likely(size <= LOOKUP_MAXCLASS))
 		return (s2u_lookup(size));
-	else
-		return (s2u_compute(size));
+	return (s2u_compute(size));
 }
 
 /*

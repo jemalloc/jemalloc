@@ -48,8 +48,10 @@ cfgoutputs_in := $(addprefix $(srcroot),@cfgoutputs_in@)
 cfgoutputs_out := @cfgoutputs_out@
 enable_autogen := @enable_autogen@
 enable_code_coverage := @enable_code_coverage@
+enable_prof := @enable_prof@
 enable_valgrind := @enable_valgrind@
 enable_zone_allocator := @enable_zone_allocator@
+MALLOC_CONF := @JEMALLOC_CPREFIX@MALLOC_CONF
 DSO_LDFLAGS = @DSO_LDFLAGS@
 SOREV = @SOREV@
 PIC_CFLAGS = @PIC_CFLAGS@
@@ -146,6 +148,7 @@ TESTS_INTEGRATION := $(srcroot)test/integration/aligned_alloc.c \
 	$(srcroot)test/integration/sdallocx.c \
 	$(srcroot)test/integration/mallocx.c \
 	$(srcroot)test/integration/MALLOCX_ARENA.c \
+	$(srcroot)test/integration/overflow.c \
 	$(srcroot)test/integration/posix_memalign.c \
 	$(srcroot)test/integration/rallocx.c \
 	$(srcroot)test/integration/thread_arena.c \
@@ -344,11 +347,15 @@ check_dir: check_unit_dir check_integration_dir check_stress_dir
 
 check_unit: tests_unit check_unit_dir
 	$(SHELL) $(objroot)test/test.sh $(TESTS_UNIT:$(srcroot)%.c=$(objroot)%)
+check_integration_prof: tests_integration check_integration_dir
+ifeq ($(enable_prof), 1)
+	$(MALLOC_CONF)="prof:true" $(SHELL) $(objroot)test/test.sh $(TESTS_INTEGRATION:$(srcroot)%.c=$(objroot)%)
+endif
 check_integration: tests_integration check_integration_dir
 	$(SHELL) $(objroot)test/test.sh $(TESTS_INTEGRATION:$(srcroot)%.c=$(objroot)%)
 check_stress: tests_stress check_stress_dir
 	$(SHELL) $(objroot)test/test.sh $(TESTS_STRESS:$(srcroot)%.c=$(objroot)%)
-check: tests check_dir
+check: tests check_dir check_integration_prof
 	$(SHELL) $(objroot)test/test.sh $(TESTS:$(srcroot)%.c=$(objroot)%)
 
 ifeq ($(enable_code_coverage), 1)

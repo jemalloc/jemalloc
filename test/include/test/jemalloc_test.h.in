@@ -1,3 +1,7 @@
+#include <limits.h>
+#ifndef SIZE_T_MAX
+#  define SIZE_T_MAX	SIZE_MAX
+#endif
 #include <stdlib.h>
 #include <stdarg.h>
 #include <stdbool.h>

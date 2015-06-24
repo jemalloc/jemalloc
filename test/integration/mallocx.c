@@ -1,12 +1,8 @@
 #include "test/jemalloc_test.h"
 
-#define	CHUNK 0x400000
-#define	MAXALIGN (((size_t)1) << 25)
-#define	MAXSZ (((size_t)1) << 26)
-#define	NITER 4
-
 TEST_BEGIN(test_basic)
 {
+#define	MAXSZ (((size_t)1) << 26)
 	size_t sz;
 
 	for (sz = 1; sz < MAXSZ; sz = nallocx(sz, 0) + 1) {
@@ -33,11 +29,14 @@ TEST_BEGIN(test_basic)
 		assert_zu_eq(nsz, rsz, "nallocx()/sallocx() rsize mismatch");
 		dallocx(p, 0);
 	}
+#undef MAXSZ
 }
 TEST_END
 
 TEST_BEGIN(test_alignment_and_size)
 {
+#define	MAXALIGN (((size_t)1) << 25)
+#define	NITER 4
 	size_t nsz, rsz, sz, alignment, total;
 	unsigned i;
 	void *ps[NITER];
@@ -87,6 +86,8 @@ TEST_BEGIN(test_alignment_and_size)
 			}
 		}
 	}
+#undef MAXALIGN
+#undef NITER
 }
 TEST_END
 

@@ -1382,6 +1382,8 @@ imalloc_body(size_t size, tsd_t **tsd, size_t *usize)
 
 	if (config_prof && opt_prof) {
 		*usize = s2u(size);
+		if (unlikely(*usize == 0))
+			return (NULL);
 		return (imalloc_prof(*tsd, *usize));
 	}
 
@@ -1428,7 +1430,7 @@ imemalign_prof_sample(tsd_t *tsd, size_t alignment, size_t usize,
 		return (NULL);
 	if (usize <= SMALL_MAXCLASS) {
 		assert(sa2u(LARGE_MINCLASS, alignment) == LARGE_MINCLASS);
-		p = imalloc(tsd, LARGE_MINCLASS);
+		p = ipalloc(tsd, LARGE_MINCLASS, alignment, false);
 		if (p == NULL)
 			return (NULL);
 		arena_prof_promoted(p, usize);
@@ -1623,6 +1625,10 @@ je_calloc(size_t num, size_t size)
 
 	if (config_prof && opt_prof) {
 		usize = s2u(num_size);
+		if (unlikely(usize == 0)) {
+			ret = NULL;
+			goto label_return;
+		}
 		ret = icalloc_prof(tsd, usize);
 	} else {
 		if (config_stats || (config_valgrind && unlikely(in_valgrind)))
@@ -1757,7 +1763,8 @@ je_realloc(void *ptr, size_t size)
 
 		if (config_prof && opt_prof) {
 			usize = s2u(size);
-			ret = irealloc_prof(tsd, ptr, old_usize, usize);
+			ret = unlikely(usize == 0) ? NULL : irealloc_prof(tsd,
+			    ptr, old_usize, usize);
 		} else {
 			if (config_stats || (config_valgrind &&
 			    unlikely(in_valgrind)))
@@ -1903,7 +1910,7 @@ imallocx_flags_decode(tsd_t *tsd, size_t size, int flags, size_t *usize,
 
 	if (likely(flags == 0)) {
 		*usize = s2u(size);
-		assert(usize != 0);
+		assert(*usize != 0);
 		*alignment = 0;
 		*zero = false;
 		*tcache = tcache_get(tsd, true);
@@ -1946,7 +1953,8 @@ imallocx_prof_sample(tsd_t *tsd, size_t size, int flags, size_t usize,
 	if (usize <= SMALL_MAXCLASS) {
 		assert(((alignment == 0) ? s2u(LARGE_MINCLASS) :
 		    sa2u(LARGE_MINCLASS, alignment)) == LARGE_MINCLASS);
-		p = imalloct(tsd, LARGE_MINCLASS, tcache, arena);
+		p = imallocx_maybe_flags(tsd, LARGE_MINCLASS, flags,
+		    LARGE_MINCLASS, alignment, zero, tcache, arena);
 		if (p == NULL)
 			return (NULL);
 		arena_prof_promoted(p, usize);
