@@ -73,9 +73,13 @@ malloc_mutex_init(malloc_mutex_t *mutex)
 {
 
 #ifdef _WIN32
+#  if _WIN32_WINNT >= 0x0600
+	InitializeSRWLock(&mutex->lock);
+#  else
 	if (!InitializeCriticalSectionAndSpinCount(&mutex->lock,
 	    _CRT_SPINCOUNT))
 		return (true);
+#  endif
 #elif (defined(JEMALLOC_OSSPIN))
 	mutex->lock = 0;
 #elif (defined(JEMALLOC_MUTEX_INIT_CB))
