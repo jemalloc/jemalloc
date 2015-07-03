@@ -675,7 +675,7 @@ found in the git revision history:
   - Make it possible for the application to manually flush a thread's cache, via
     the "tcache.flush" mallctl.
   - Base maximum dirty page count on proportion of active memory.
-  - Compute various addtional run-time statistics, including per size class
+  - Compute various additional run-time statistics, including per size class
     statistics for large objects.
   - Expose malloc_stats_print(), which can be called repeatedly by the
     application.
