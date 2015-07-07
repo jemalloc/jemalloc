@@ -2049,7 +2049,6 @@ arena_malloc_large(arena_t *arena, size_t size, bool zero)
 {
 	void *ret;
 	size_t usize;
-	uint64_t r;
 	uintptr_t random_offset;
 	arena_run_t *run;
 	arena_chunk_map_misc_t *miscelm;
@@ -2059,6 +2058,8 @@ arena_malloc_large(arena_t *arena, size_t size, bool zero)
 	usize = s2u(size);
 	malloc_mutex_lock(&arena->lock);
 	if (config_cache_oblivious) {
+		uint64_t r;
+
 		/*
 		 * Compute a uniformly distributed offset within the first page
 		 * that is a multiple of the cacheline size, e.g. [0 .. 63) * 64
