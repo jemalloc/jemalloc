@@ -118,32 +118,33 @@ stats_arena_bins_print(void (*write_cb)(void *, const char *), void *cbopaque,
 			    : 1000;
 			assert(milli <= 1000);
 			if (milli < 10) {
-				malloc_snprintf(util, sizeof(util), "0.00%zu",
-				    milli);
+				malloc_snprintf(util, sizeof(util),
+				    "0.00%"PRIzu, milli);
 			} else if (milli < 100) {
-				malloc_snprintf(util, sizeof(util), "0.0%zu",
+				malloc_snprintf(util, sizeof(util), "0.0%"PRIzu,
 				    milli);
 			} else if (milli < 1000) {
-				malloc_snprintf(util, sizeof(util), "0.%zu",
+				malloc_snprintf(util, sizeof(util), "0.%"PRIzu,
 				    milli);
 			} else
 				malloc_snprintf(util, sizeof(util), "1");
 
 			if (config_tcache) {
 				malloc_cprintf(write_cb, cbopaque,
-				    "%20zu %3u %12zu %12"PRIu64" %12"PRIu64
-				    " %12"PRIu64" %12zu %12zu %4u %3zu %-5s"
-				    " %12"PRIu64" %12"PRIu64" %12"PRIu64
-				    " %12"PRIu64"\n",
+				    "%20"PRIzu" %3u %12"PRIzu" %12"PRIu64
+				    " %12"PRIu64" %12"PRIu64" %12"PRIzu
+				    " %12"PRIzu" %4u %3"PRIzu" %-5s %12"PRIu64
+				    " %12"PRIu64" %12"PRIu64" %12"PRIu64"\n",
 				    reg_size, j, curregs * reg_size, nmalloc,
 				    ndalloc, nrequests, curregs, curruns, nregs,
 				    run_size / page, util, nfills, nflushes,
 				    nruns, reruns);
 			} else {
 				malloc_cprintf(write_cb, cbopaque,
-				    "%20zu %3u %12zu %12"PRIu64" %12"PRIu64
-				    " %12"PRIu64" %12zu %12zu %4u %3zu %-5s"
-				    " %12"PRIu64" %12"PRIu64"\n",
+				    "%20"PRIzu" %3u %12"PRIzu" %12"PRIu64
+				    " %12"PRIu64" %12"PRIu64" %12"PRIzu
+				    " %12"PRIzu" %4u %3"PRIzu" %-5s %12"PRIu64
+				    " %12"PRIu64"\n",
 				    reg_size, j, curregs * reg_size, nmalloc,
 				    ndalloc, nrequests, curregs, curruns, nregs,
 				    run_size / page, util, nruns, reruns);
@@ -190,8 +191,8 @@ stats_arena_lruns_print(void (*write_cb)(void *, const char *), void *cbopaque,
 				in_gap = false;
 			}
 			malloc_cprintf(write_cb, cbopaque,
-			    "%20zu %3u %12zu %12"PRIu64" %12"PRIu64" %12"PRIu64
-			    " %12zu\n",
+			    "%20"PRIzu" %3u %12"PRIzu" %12"PRIu64" %12"PRIu64
+			    " %12"PRIu64" %12"PRIzu"\n",
 			    run_size, nbins + j, curruns * run_size, nmalloc,
 			    ndalloc, nrequests, curruns);
 		}
@@ -238,8 +239,8 @@ stats_arena_hchunks_print(void (*write_cb)(void *, const char *),
 				in_gap = false;
 			}
 			malloc_cprintf(write_cb, cbopaque,
-			    "%20zu %3u %12zu %12"PRIu64" %12"PRIu64" %12"PRIu64
-			    " %12zu\n",
+			    "%20"PRIzu" %3u %12"PRIzu" %12"PRIu64" %12"PRIu64
+			    " %12"PRIu64" %12"PRIzu"\n",
 			    hchunk_size, nbins + nlruns + j,
 			    curhchunks * hchunk_size, nmalloc, ndalloc,
 			    nrequests, curhchunks);
@@ -291,7 +292,7 @@ stats_arena_print(void (*write_cb)(void *, const char *), void *cbopaque,
 	CTL_M2_GET("stats.arenas.0.nmadvise", i, &nmadvise, uint64_t);
 	CTL_M2_GET("stats.arenas.0.purged", i, &purged, uint64_t);
 	malloc_cprintf(write_cb, cbopaque,
-	    "dirty pages: %zu:%zu active:dirty, %"PRIu64" sweep%s,"
+	    "dirty pages: %"PRIzu":%"PRIzu" active:dirty, %"PRIu64" sweep%s,"
 	    " %"PRIu64" madvise%s, %"PRIu64" purged\n",
 	    pactive, pdirty, npurge, npurge == 1 ? "" : "s",
 	    nmadvise, nmadvise == 1 ? "" : "s", purged);
@@ -306,8 +307,8 @@ stats_arena_print(void (*write_cb)(void *, const char *), void *cbopaque,
 	CTL_M2_GET("stats.arenas.0.small.nrequests", i, &small_nrequests,
 	    uint64_t);
 	malloc_cprintf(write_cb, cbopaque,
-	    "small:                   %12zu %12"PRIu64" %12"PRIu64" %12"PRIu64
-	    "\n",
+	    "small:                   %12"PRIzu" %12"PRIu64" %12"PRIu64
+	    " %12"PRIu64"\n",
 	    small_allocated, small_nmalloc, small_ndalloc, small_nrequests);
 	CTL_M2_GET("stats.arenas.0.large.allocated", i, &large_allocated,
 	    size_t);
@@ -316,8 +317,8 @@ stats_arena_print(void (*write_cb)(void *, const char *), void *cbopaque,
 	CTL_M2_GET("stats.arenas.0.large.nrequests", i, &large_nrequests,
 	    uint64_t);
 	malloc_cprintf(write_cb, cbopaque,
-	    "large:                   %12zu %12"PRIu64" %12"PRIu64" %12"PRIu64
-	    "\n",
+	    "large:                   %12"PRIzu" %12"PRIu64" %12"PRIu64
+	    " %12"PRIu64"\n",
 	    large_allocated, large_nmalloc, large_ndalloc, large_nrequests);
 	CTL_M2_GET("stats.arenas.0.huge.allocated", i, &huge_allocated, size_t);
 	CTL_M2_GET("stats.arenas.0.huge.nmalloc", i, &huge_nmalloc, uint64_t);
@@ -325,28 +326,28 @@ stats_arena_print(void (*write_cb)(void *, const char *), void *cbopaque,
 	CTL_M2_GET("stats.arenas.0.huge.nrequests", i, &huge_nrequests,
 	    uint64_t);
 	malloc_cprintf(write_cb, cbopaque,
-	    "huge:                    %12zu %12"PRIu64" %12"PRIu64" %12"PRIu64
-	    "\n",
+	    "huge:                    %12"PRIzu" %12"PRIu64" %12"PRIu64
+	    " %12"PRIu64"\n",
 	    huge_allocated, huge_nmalloc, huge_ndalloc, huge_nrequests);
 	malloc_cprintf(write_cb, cbopaque,
-	    "total:                   %12zu %12"PRIu64" %12"PRIu64" %12"PRIu64
-	    "\n",
+	    "total:                   %12"PRIzu" %12"PRIu64" %12"PRIu64
+	    " %12"PRIu64"\n",
 	    small_allocated + large_allocated + huge_allocated,
 	    small_nmalloc + large_nmalloc + huge_nmalloc,
 	    small_ndalloc + large_ndalloc + huge_ndalloc,
 	    small_nrequests + large_nrequests + huge_nrequests);
-	malloc_cprintf(write_cb, cbopaque, "active:                  %12zu\n",
-	    pactive * page);
+	malloc_cprintf(write_cb, cbopaque,
+	    "active:                  %12"PRIzu"\n", pactive * page);
 	CTL_M2_GET("stats.arenas.0.mapped", i, &mapped, size_t);
-	malloc_cprintf(write_cb, cbopaque, "mapped:                  %12zu\n",
-	    mapped);
+	malloc_cprintf(write_cb, cbopaque,
+	    "mapped:                  %12"PRIzu"\n", mapped);
 	CTL_M2_GET("stats.arenas.0.metadata.mapped", i, &metadata_mapped,
 	    size_t);
 	CTL_M2_GET("stats.arenas.0.metadata.allocated", i, &metadata_allocated,
 	    size_t);
 	malloc_cprintf(write_cb, cbopaque,
-	    "metadata: mapped: %zu, allocated: %zu\n", metadata_mapped,
-	    metadata_allocated);
+	    "metadata: mapped: %"PRIzu", allocated: %"PRIzu"\n",
+	    metadata_mapped, metadata_allocated);
 
 	if (bins)
 		stats_arena_bins_print(write_cb, cbopaque, i);
@@ -456,20 +457,20 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 #define	OPT_WRITE_SIZE_T(n)						\
 		if (je_mallctl("opt."#n, &sv, &ssz, NULL, 0) == 0) {	\
 			malloc_cprintf(write_cb, cbopaque,		\
-			"  opt."#n": %zu\n", sv);			\
+			"  opt."#n": %"PRIzu"\n", sv);			\
 		}
 #define	OPT_WRITE_SSIZE_T(n)						\
 		if (je_mallctl("opt."#n, &ssv, &sssz, NULL, 0) == 0) {	\
 			malloc_cprintf(write_cb, cbopaque,		\
-			    "  opt."#n": %zd\n", ssv);			\
+			    "  opt."#n": %"PRIzd"\n", ssv);		\
 		}
 #define	OPT_WRITE_SSIZE_T_MUTABLE(n, m) {				\
 		ssize_t ssv2;						\
 		if (je_mallctl("opt."#n, &ssv, &sssz, NULL, 0) == 0 &&	\
 		    je_mallctl(#m, &ssv2, &sssz, NULL, 0) == 0) {	\
 			malloc_cprintf(write_cb, cbopaque,		\
-			    "  opt."#n": %zd ("#m": %zd)\n", ssv,	\
-			    ssv2);					\
+			    "  opt."#n": %"PRIzd" ("#m": %"PRIzd")\n",	\
+			    ssv, ssv2);					\
 		}							\
 }
 #define	OPT_WRITE_CHAR_P(n)						\
@@ -518,14 +519,15 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		CTL_GET("arenas.narenas", &uv, unsigned);
 		malloc_cprintf(write_cb, cbopaque, "Arenas: %u\n", uv);
 
-		malloc_cprintf(write_cb, cbopaque, "Pointer size: %zu\n",
+		malloc_cprintf(write_cb, cbopaque, "Pointer size: %"PRIzu"\n",
 		    sizeof(void *));
 
 		CTL_GET("arenas.quantum", &sv, size_t);
-		malloc_cprintf(write_cb, cbopaque, "Quantum size: %zu\n", sv);
+		malloc_cprintf(write_cb, cbopaque, "Quantum size: %"PRIzu"\n",
+		    sv);
 
 		CTL_GET("arenas.page", &sv, size_t);
-		malloc_cprintf(write_cb, cbopaque, "Page size: %zu\n", sv);
+		malloc_cprintf(write_cb, cbopaque, "Page size: %"PRIzu"\n", sv);
 
 		CTL_GET("arenas.lg_dirty_mult", &ssv, ssize_t);
 		if (ssv >= 0) {
@@ -538,19 +540,19 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		}
 		if (je_mallctl("arenas.tcache_max", &sv, &ssz, NULL, 0) == 0) {
 			malloc_cprintf(write_cb, cbopaque,
-			    "Maximum thread-cached size class: %zu\n", sv);
+			    "Maximum thread-cached size class: %"PRIzu"\n", sv);
 		}
 		if (je_mallctl("opt.prof", &bv, &bsz, NULL, 0) == 0 && bv) {
 			CTL_GET("prof.lg_sample", &sv, size_t);
 			malloc_cprintf(write_cb, cbopaque,
 			    "Average profile sample interval: %"PRIu64
-			    " (2^%zu)\n", (((uint64_t)1U) << sv), sv);
+			    " (2^%"PRIzu")\n", (((uint64_t)1U) << sv), sv);
 
 			CTL_GET("opt.lg_prof_interval", &ssv, ssize_t);
 			if (ssv >= 0) {
 				malloc_cprintf(write_cb, cbopaque,
 				    "Average profile dump interval: %"PRIu64
-				    " (2^%zd)\n",
+				    " (2^%"PRIzd")\n",
 				    (((uint64_t)1U) << ssv), ssv);
 			} else {
 				malloc_cprintf(write_cb, cbopaque,
@@ -558,8 +560,8 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 			}
 		}
 		CTL_GET("opt.lg_chunk", &sv, size_t);
-		malloc_cprintf(write_cb, cbopaque, "Chunk size: %zu (2^%zu)\n",
-		    (ZU(1) << sv), sv);
+		malloc_cprintf(write_cb, cbopaque,
+		    "Chunk size: %"PRIzu" (2^%"PRIzu")\n", (ZU(1) << sv), sv);
 	}
 
 	if (config_stats) {
@@ -573,11 +575,12 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		CTL_GET("stats.resident", &resident, size_t);
 		CTL_GET("stats.mapped", &mapped, size_t);
 		malloc_cprintf(write_cb, cbopaque,
-		    "Allocated: %zu, active: %zu, metadata: %zu, resident: %zu,"
-		    " mapped: %zu\n", allocated, active, metadata, resident,
-		    mapped);
+		    "Allocated: %"PRIzu", active: %"PRIzu", metadata: %"PRIzu","
+		    " resident: %"PRIzu", mapped: %"PRIzu"\n",
+		    allocated, active, metadata, resident, mapped);
 		malloc_cprintf(write_cb, cbopaque,
-		    "Current active ceiling: %zu\n", atomic_read_z(cactive));
+		    "Current active ceiling: %"PRIzu"\n",
+		    atomic_read_z(cactive));
 
 		if (merged) {
 			unsigned narenas;
