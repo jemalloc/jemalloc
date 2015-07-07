@@ -1,7 +1,6 @@
 Following are change highlights associated with official releases.  Important
-bug fixes are all mentioned, but internal enhancements are omitted here for
-brevity (even though they are more fun to write about).  Much more detail can be
-found in the git revision history:
+bug fixes are all mentioned, but some internal enhancements are omitted here for
+brevity.  Much more detail can be found in the git revision history:
 
     https://github.com/jemalloc/jemalloc
 
