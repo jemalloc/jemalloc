@@ -152,7 +152,7 @@ _tls_callback(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 #endif
 JEMALLOC_SECTION(".CRT$XLY") JEMALLOC_ATTR(used)
 static BOOL	(WINAPI *const tls_callback)(HINSTANCE hinstDLL,
-    DWORD fdwRerason, LPVOID lpvReserved) = _tls_callback;
+    DWORD fdwReason, LPVOID lpvReserved) = _tls_callback;
 #endif
 
 #if (!defined(JEMALLOC_MALLOC_THREAD_CLEANUP) && !defined(JEMALLOC_TLS) && \
