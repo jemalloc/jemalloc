@@ -22,5 +22,5 @@ main(void)
 {
 
 	return (test(
-		test_lg_chunk_clamp));
+	    test_lg_chunk_clamp));
 }
