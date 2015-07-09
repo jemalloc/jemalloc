@@ -150,6 +150,9 @@ brevity.  Much more detail can be found in the git revision history:
     memory decreases.  This regression was first released in 3.5.0.
   - Fix OOM handling in memalign() and valloc().  A variant of this bug existed
     in all releases since 2.0.0, which introduced these functions.
+  - Fix an OOM-related regression in arena_tcache_fill_small(), which could
+    cause cache corruption on OOM.  This regression was present in all releases
+    from 2.2.0 through 3.6.0.
   - Fix size class overflow handling for malloc(), posix_memalign(), memalign(),
     calloc(), and realloc() when profiling is enabled.
   - Fix the "arena.<i>.dss" mallctl to return an error if "primary" or
