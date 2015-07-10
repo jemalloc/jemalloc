@@ -431,9 +431,8 @@ fi
 dnl Check for alloc_size attribute support.
 SAVED_CFLAGS="${CFLAGS}"
 JE_CFLAGS_APPEND([-Werror])
-JE_COMPILABLE([alloc_size attribute], [],
-              [#include <stdlib.h>
-               static void *foo(size_t size) __attribute__((alloc_size(1)));],
+JE_COMPILABLE([alloc_size attribute], [#include <stdlib.h>],
+              [void *foo(size_t size) __attribute__((alloc_size(1)));],
               [je_cv_alloc_size])
 CFLAGS="${SAVED_CFLAGS}"
 if test "x${je_cv_alloc_size}" = "xyes" ; then
