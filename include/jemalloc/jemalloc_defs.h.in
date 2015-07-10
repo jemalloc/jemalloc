@@ -17,5 +17,12 @@
  */
 #undef JEMALLOC_USABLE_SIZE_CONST
 
+/*
+ * If defined, specify throw() for the public function prototypes when compiling
+ * with C++.  The only justification for this is to match the prototypes that
+ * glibc defines.
+ */
+#undef JEMALLOC_USE_CXX_THROW
+
 /* sizeof(void *) == 2^LG_SIZEOF_PTR. */
 #undef LG_SIZEOF_PTR

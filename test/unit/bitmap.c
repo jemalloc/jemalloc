@@ -23,7 +23,7 @@ TEST_BEGIN(test_bitmap_init)
 		bitmap_info_init(&binfo, i);
 		{
 			size_t j;
-			bitmap_t *bitmap = malloc(sizeof(bitmap_t) *
+			bitmap_t *bitmap = (bitmap_t *)malloc(sizeof(bitmap_t) *
 				bitmap_info_ngroups(&binfo));
 			bitmap_init(bitmap, &binfo);
 
@@ -46,7 +46,7 @@ TEST_BEGIN(test_bitmap_set)
 		bitmap_info_init(&binfo, i);
 		{
 			size_t j;
-			bitmap_t *bitmap = malloc(sizeof(bitmap_t) *
+			bitmap_t *bitmap = (bitmap_t *)malloc(sizeof(bitmap_t) *
 				bitmap_info_ngroups(&binfo));
 			bitmap_init(bitmap, &binfo);
 
@@ -69,7 +69,7 @@ TEST_BEGIN(test_bitmap_unset)
 		bitmap_info_init(&binfo, i);
 		{
 			size_t j;
-			bitmap_t *bitmap = malloc(sizeof(bitmap_t) *
+			bitmap_t *bitmap = (bitmap_t *)malloc(sizeof(bitmap_t) *
 				bitmap_info_ngroups(&binfo));
 			bitmap_init(bitmap, &binfo);
 
@@ -98,7 +98,7 @@ TEST_BEGIN(test_bitmap_sfu)
 		bitmap_info_init(&binfo, i);
 		{
 			ssize_t j;
-			bitmap_t *bitmap = malloc(sizeof(bitmap_t) *
+			bitmap_t *bitmap = (bitmap_t *)malloc(sizeof(bitmap_t) *
 				bitmap_info_ngroups(&binfo));
 			bitmap_init(bitmap, &binfo);
 

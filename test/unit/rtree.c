@@ -4,7 +4,7 @@ static rtree_node_elm_t *
 node_alloc(size_t nelms)
 {
 
-	return (calloc(nelms, sizeof(rtree_node_elm_t)));
+	return ((rtree_node_elm_t *)calloc(nelms, sizeof(rtree_node_elm_t)));
 }
 
 static void
