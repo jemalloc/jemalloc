@@ -528,7 +528,9 @@ size2index_compute(size_t size)
 	}
 #endif
 	{
-		size_t x = lg_floor((size<<1)-1);
+		size_t x = unlikely(ZI(size) < 0) ? ((size<<1) ?
+		    (ZU(1)<<(LG_SIZEOF_PTR+3)) : ((ZU(1)<<(LG_SIZEOF_PTR+3))-1))
+		    : lg_floor((size<<1)-1);
 		size_t shift = (x < LG_SIZE_CLASS_GROUP + LG_QUANTUM) ? 0 :
 		    x - (LG_SIZE_CLASS_GROUP + LG_QUANTUM);
 		size_t grp = shift << LG_SIZE_CLASS_GROUP;
@@ -624,7 +626,9 @@ s2u_compute(size_t size)
 	}
 #endif
 	{
-		size_t x = lg_floor((size<<1)-1);
+		size_t x = unlikely(ZI(size) < 0) ? ((size<<1) ?
+		    (ZU(1)<<(LG_SIZEOF_PTR+3)) : ((ZU(1)<<(LG_SIZEOF_PTR+3))-1))
+		    : lg_floor((size<<1)-1);
 		size_t lg_delta = (x < LG_SIZE_CLASS_GROUP + LG_QUANTUM + 1)
 		    ?  LG_QUANTUM : x - LG_SIZE_CLASS_GROUP - 1;
 		size_t delta = ZU(1) << lg_delta;
