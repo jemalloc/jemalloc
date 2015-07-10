@@ -1,6 +1,9 @@
 /* Defined if __attribute__((...)) syntax is supported. */
 #undef JEMALLOC_HAVE_ATTR
 
+/* Defined if alloc_size attribute is supported. */
+#undef JEMALLOC_HAVE_ATTR_ALLOC_SIZE
+
 /*
  * Define overrides for non-standard allocator-related functions if they are
  * present on the system.

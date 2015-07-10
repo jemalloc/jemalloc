@@ -42,8 +42,13 @@
 #    define JEMALLOC_EXPORT JEMALLOC_ATTR(visibility("default"))
 #  endif
 #  define JEMALLOC_ALIGNED(s) JEMALLOC_ATTR(aligned(s))
-#  define JEMALLOC_ALLOC_SIZE(s) JEMALLOC_ATTR(alloc_size(s))
-#  define JEMALLOC_ALLOC_SIZE2(s1, s2) JEMALLOC_ATTR(alloc_size(s1, s2))
+#  ifdef JEMALLOC_HAVE_ATTR_ALLOC_SIZE
+#    define JEMALLOC_ALLOC_SIZE(s) JEMALLOC_ATTR(alloc_size(s))
+#    define JEMALLOC_ALLOC_SIZE2(s1, s2) JEMALLOC_ATTR(alloc_size(s1, s2))
+#  else
+#    define JEMALLOC_ALLOC_SIZE(s)
+#    define JEMALLOC_ALLOC_SIZE2(s1, s2)
+#  endif
 #  define JEMALLOC_NOINLINE JEMALLOC_ATTR(noinline)
 #  define JEMALLOC_NOTHROW JEMALLOC_ATTR(nothrow)
 #  define JEMALLOC_SECTION(s) JEMALLOC_ATTR(section(s))
