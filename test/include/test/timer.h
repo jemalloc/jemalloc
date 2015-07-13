@@ -7,9 +7,12 @@
     && _POSIX_MONOTONIC_CLOCK >= 0
 
 typedef struct {
-#if JEMALLOC_CLOCK_GETTIME
-	struct timespec tv0;
-	struct timespec tv1;
+#ifdef _WIN32
+	FILETIME ft0;
+	FILETIME ft1;
+#elif JEMALLOC_CLOCK_GETTIME
+	struct timespec ts0;
+	struct timespec ts1;
 	int clock_id;
 #else
 	struct timeval tv0;
