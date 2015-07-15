@@ -332,7 +332,7 @@ struct arena_s {
 
 	/*
 	 * Size/address-ordered tree of this arena's available runs.  The tree
-	 * is used for first-fit run allocation.
+	 * is used for first-best-fit run allocation.
 	 */
 	arena_avail_tree_t	runs_avail;
 

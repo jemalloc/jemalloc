@@ -62,46 +62,20 @@ chunk_deregister(const void *chunk, const extent_node_t *node)
 	}
 }
 
-/* Do first-fit chunk selection. */
+/*
+ * Do first-best-fit chunk selection, i.e. select the lowest chunk that best
+ * fits.
+ */
 static extent_node_t *
-chunk_first_fit(arena_t *arena, extent_tree_t *chunks_szad,
+chunk_first_best_fit(arena_t *arena, extent_tree_t *chunks_szad,
     extent_tree_t *chunks_ad, size_t size)
 {
-	extent_node_t *node;
-	index_t index;
+	extent_node_t key;
 
 	assert(size == CHUNK_CEILING(size));
 
-	if (size == chunksize) {
-		/*
-		 * Any chunk will suffice, so simply select the one lowest in
-		 * memory.
-		 */
-		return (extent_tree_ad_first(chunks_ad));
-	}
-
-	/*
-	 * Iterate over all size classes that are at least large enough to
-	 * satisfy the request, search for the lowest chunk of each size class,
-	 * and choose the lowest of the chunks found.
-	 */
-	node = NULL;
-	for (index = size2index(size); index < NSIZES;) {
-		extent_node_t *curnode;
-		extent_node_t key;
-		extent_node_init(&key, arena, NULL,
-		    CHUNK_CEILING(index2size(index)), false);
-		curnode = extent_tree_szad_nsearch(chunks_szad, &key);
-		if (curnode == NULL)
-			break;
-		if (node == NULL || (uintptr_t)extent_node_addr_get(curnode) <
-		    (uintptr_t)extent_node_addr_get(node))
-			node = curnode;
-		assert(size2index(extent_node_size_get(curnode)) + 1 > index);
-		index = size2index(extent_node_size_get(curnode)) + 1;
-	}
-
-	return (node);
+	extent_node_init(&key, arena, NULL, size, false);
+	return (extent_tree_szad_nsearch(chunks_szad, &key));
 }
 
 static void *
@@ -127,7 +101,7 @@ chunk_recycle(arena_t *arena, extent_tree_t *chunks_szad,
 		extent_node_init(&key, arena, new_addr, alloc_size, false);
 		node = extent_tree_ad_search(chunks_ad, &key);
 	} else {
-		node = chunk_first_fit(arena, chunks_szad, chunks_ad,
+		node = chunk_first_best_fit(arena, chunks_szad, chunks_ad,
 		    alloc_size);
 	}
 	if (node == NULL || (new_addr != NULL && extent_node_size_get(node) <

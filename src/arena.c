@@ -979,53 +979,28 @@ arena_chunk_ralloc_huge_expand(arena_t *arena, void *chunk, size_t oldsize,
 	return (err);
 }
 
-/* Do first-fit run selection. */
+/*
+ * Do first-best-fit run selection, i.e. select the lowest run that best fits.
+ * Run sizes are quantized, so not all candidate runs are necessarily exactly
+ * the same size.
+ */
 static arena_run_t *
-arena_run_first_fit(arena_t *arena, size_t size)
+arena_run_first_best_fit(arena_t *arena, size_t size)
 {
-	arena_run_t *run;
-	size_t search_size, max_size;
-
-	assert(size == s2u(size));
-	assert(size == PAGE_CEILING(size));
-
-	/*
-	 * Iterate over all size classes that are at least large enough to
-	 * satisfy the request, search for the lowest run of each size class,
-	 * and choose the lowest of the runs found.
-	 */
-	run = NULL;
-	for (search_size = run_quantize_first(size), max_size =
-	    run_quantize(arena_maxclass + large_pad); search_size <= max_size;
-	    search_size = run_quantize_next(search_size)) {
-		arena_run_t *currun;
-		arena_chunk_t *currun_chunk;
-		size_t currun_pageind, currun_size;
-		arena_chunk_map_misc_t *key = (arena_chunk_map_misc_t *)
-		    (search_size | CHUNK_MAP_KEY);
-		arena_chunk_map_misc_t *miscelm =
-		    arena_avail_tree_nsearch(&arena->runs_avail, key);
-		if (miscelm == NULL)
-			break;
-		currun = &miscelm->run;
-		if (run == NULL || (uintptr_t)currun < (uintptr_t)run)
-			run = currun;
-		/* Skip iteration(s) if run is larger than the search size. */
-		currun_chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(currun);
-		currun_pageind = arena_miscelm_to_pageind(miscelm);
-		currun_size = arena_mapbits_unallocated_size_get(currun_chunk,
-		    currun_pageind);
-		assert(currun_size >= search_size);
-		search_size = currun_size;
-	}
-
-	return (run);
+	size_t search_size = run_quantize_first(size);
+	arena_chunk_map_misc_t *key = (arena_chunk_map_misc_t *)
+	    (search_size | CHUNK_MAP_KEY);
+	arena_chunk_map_misc_t *miscelm =
+	    arena_avail_tree_nsearch(&arena->runs_avail, key);
+	if (miscelm == NULL)
+		return (NULL);
+	return (&miscelm->run);
 }
 
 static arena_run_t *
 arena_run_alloc_large_helper(arena_t *arena, size_t size, bool zero)
 {
-	arena_run_t *run = arena_run_first_fit(arena, s2u(size));
+	arena_run_t *run = arena_run_first_best_fit(arena, s2u(size));
 	if (run != NULL)
 		arena_run_split_large(arena, run, size, zero);
 	return (run);
@@ -1066,7 +1041,7 @@ arena_run_alloc_large(arena_t *arena, size_t size, bool zero)
 static arena_run_t *
 arena_run_alloc_small_helper(arena_t *arena, size_t size, index_t binind)
 {
-	arena_run_t *run = arena_run_first_fit(arena, size);
+	arena_run_t *run = arena_run_first_best_fit(arena, size);
 	if (run != NULL)
 		arena_run_split_small(arena, run, size, binind);
 	return (run);
