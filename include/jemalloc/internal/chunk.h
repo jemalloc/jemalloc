@@ -5,7 +5,7 @@
  * Size and alignment of memory chunks that are allocated by the OS's virtual
  * memory system.
  */
-#define	LG_CHUNK_DEFAULT	18
+#define	LG_CHUNK_DEFAULT	21
 
 /* Return the chunk address for allocation address a. */
 #define	CHUNK_ADDR2BASE(a)						\

@@ -907,7 +907,7 @@ for (i = 0; i < nbins; i++) {
         <listitem><para>Virtual memory chunk size (log base 2).  If a chunk
         size outside the supported size range is specified, the size is
         silently clipped to the minimum/maximum supported size.  The default
-        chunk size is 256 KiB (2^18).
+        chunk size is 2 MiB (2^21).
         </para></listitem>
       </varlistentry>
 
