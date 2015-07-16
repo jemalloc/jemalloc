@@ -22,7 +22,7 @@ done
 
 cat <<EOF
 #ifdef __cplusplus
-};
+}
 #endif
 #endif /* JEMALLOC_H_ */
 EOF
