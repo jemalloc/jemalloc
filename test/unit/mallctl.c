@@ -126,6 +126,7 @@ TEST_BEGIN(test_mallctl_config)
 	assert_zu_eq(sz, sizeof(oldval), "Unexpected output size");	\
 } while (0)
 
+	TEST_MALLCTL_CONFIG(cache_oblivious);
 	TEST_MALLCTL_CONFIG(debug);
 	TEST_MALLCTL_CONFIG(fill);
 	TEST_MALLCTL_CONFIG(lazy_lock);

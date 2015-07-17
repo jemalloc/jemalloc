@@ -731,6 +731,16 @@ for (i = 0; i < nbins; i++) {
         detecting whether another thread caused a refresh.</para></listitem>
       </varlistentry>
 
+      <varlistentry id="config.cache_oblivious">
+        <term>
+          <mallctl>config.cache_oblivious</mallctl>
+          (<type>bool</type>)
+          <literal>r-</literal>
+        </term>
+        <listitem><para><option>--enable-cache-oblivious</option> was specified
+        during build configuration.</para></listitem>
+      </varlistentry>
+
       <varlistentry id="config.debug">
         <term>
           <mallctl>config.debug</mallctl>

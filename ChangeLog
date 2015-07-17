@@ -102,7 +102,8 @@ brevity.  Much more detail can be found in the git revision history:
     cache set distribution.
   - Randomly distribute large allocation base pointer alignment relative to page
     boundaries in order to more uniformly utilize CPU cache sets.  This can be
-    disabled via the --disable-cache-oblivious configure option.
+    disabled via the --disable-cache-oblivious configure option, and queried via
+    the "config.cache_oblivious" mallctl.
   - Micro-optimize the fast paths for the public API functions.
   - Refactor thread-specific data to reside in a single structure.  This assures
     that only a single TLS read is necessary per call into the public API.

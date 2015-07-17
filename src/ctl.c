@@ -73,6 +73,7 @@ CTL_PROTO(thread_allocated)
 CTL_PROTO(thread_allocatedp)
 CTL_PROTO(thread_deallocated)
 CTL_PROTO(thread_deallocatedp)
+CTL_PROTO(config_cache_oblivious)
 CTL_PROTO(config_debug)
 CTL_PROTO(config_fill)
 CTL_PROTO(config_lazy_lock)
@@ -238,6 +239,7 @@ static const ctl_named_node_t	thread_node[] = {
 };
 
 static const ctl_named_node_t	config_node[] = {
+	{NAME("cache_oblivious"), CTL(config_cache_oblivious)},
 	{NAME("debug"),		CTL(config_debug)},
 	{NAME("fill"),		CTL(config_fill)},
 	{NAME("lazy_lock"),	CTL(config_lazy_lock)},
@@ -1247,6 +1249,7 @@ label_return:
 
 /******************************************************************************/
 
+CTL_RO_BOOL_CONFIG_GEN(config_cache_oblivious)
 CTL_RO_BOOL_CONFIG_GEN(config_debug)
 CTL_RO_BOOL_CONFIG_GEN(config_fill)
 CTL_RO_BOOL_CONFIG_GEN(config_lazy_lock)
