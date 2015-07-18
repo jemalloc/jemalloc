@@ -35,15 +35,15 @@ TEST_BEGIN(test_count_insert_search_remove)
 	assert_false(ckh_new(tsd, &ckh, 2, ckh_string_hash, ckh_string_keycomp),
 	    "Unexpected ckh_new() error");
 	assert_zu_eq(ckh_count(&ckh), 0,
-	    "ckh_count() should return %zu, but it returned %zu", ZU(0),
+	    "ckh_count() should return %"PRIzu", but it returned %"PRIzu, ZU(0),
 	    ckh_count(&ckh));
 
 	/* Insert. */
 	for (i = 0; i < sizeof(strs)/sizeof(const char *); i++) {
 		ckh_insert(tsd, &ckh, strs[i], strs[i]);
 		assert_zu_eq(ckh_count(&ckh), i+1,
-		    "ckh_count() should return %zu, but it returned %zu", i+1,
-		    ckh_count(&ckh));
+		    "ckh_count() should return %"PRIzu", but it returned "
+		    "%"PRIzu, i+1, ckh_count(&ckh));
 	}
 
 	/* Search. */
@@ -65,9 +65,9 @@ TEST_BEGIN(test_count_insert_search_remove)
 		ks = (i & 1) ? strs[i] : (const char *)NULL;
 		vs = (i & 2) ? strs[i] : (const char *)NULL;
 		assert_ptr_eq((void *)ks, (void *)k.s,
-		    "Key mismatch, i=%zu", i);
+		    "Key mismatch, i=%"PRIzu, i);
 		assert_ptr_eq((void *)vs, (void *)v.s,
-		    "Value mismatch, i=%zu", i);
+		    "Value mismatch, i=%"PRIzu, i);
 	}
 	assert_true(ckh_search(&ckh, missing, NULL, NULL),
 	    "Unexpected ckh_search() success");
@@ -91,13 +91,13 @@ TEST_BEGIN(test_count_insert_search_remove)
 		ks = (i & 1) ? strs[i] : (const char *)NULL;
 		vs = (i & 2) ? strs[i] : (const char *)NULL;
 		assert_ptr_eq((void *)ks, (void *)k.s,
-		    "Key mismatch, i=%zu", i);
+		    "Key mismatch, i=%"PRIzu, i);
 		assert_ptr_eq((void *)vs, (void *)v.s,
-		    "Value mismatch, i=%zu", i);
+		    "Value mismatch, i=%"PRIzu, i);
 		assert_zu_eq(ckh_count(&ckh),
 		    sizeof(strs)/sizeof(const char *) - i - 1,
-		    "ckh_count() should return %zu, but it returned %zu",
-		    sizeof(strs)/sizeof(const char *) - i - 1,
+		    "ckh_count() should return %"PRIzu", but it returned "
+		    "%"PRIzu, sizeof(strs)/sizeof(const char *) - i - 1,
 		    ckh_count(&ckh));
 	}
 
@@ -137,8 +137,8 @@ TEST_BEGIN(test_insert_iter_remove)
 		}
 
 		assert_zu_eq(ckh_count(&ckh), NITEMS,
-		    "ckh_count() should return %zu, but it returned %zu",
-		    NITEMS, ckh_count(&ckh));
+		    "ckh_count() should return %"PRIzu", but it returned "
+		    "%"PRIzu, NITEMS, ckh_count(&ckh));
 
 		for (j = i + 1; j < NITEMS; j++) {
 			assert_false(ckh_search(&ckh, p[j], NULL, NULL),
@@ -167,17 +167,20 @@ TEST_BEGIN(test_insert_iter_remove)
 				for (k = 0; k < NITEMS; k++) {
 					if (p[k] == q) {
 						assert_false(seen[k],
-						    "Item %zu already seen", k);
+						    "Item %"PRIzu" already "
+						    "seen", k);
 						seen[k] = true;
 						break;
 					}
 				}
 			}
 
-			for (j = 0; j < i + 1; j++)
-				assert_true(seen[j], "Item %zu not seen", j);
+			for (j = 0; j < i + 1; j++) {
+				assert_true(seen[j], "Item %"PRIzu" not seen",
+				    j);
+			}
 			for (; j < NITEMS; j++)
-				assert_false(seen[j], "Item %zu seen", j);
+				assert_false(seen[j], "Item %"PRIzu" seen", j);
 		}
 	}
 
@@ -196,8 +199,8 @@ TEST_BEGIN(test_insert_iter_remove)
 	}
 
 	assert_zu_eq(ckh_count(&ckh), 0,
-	    "ckh_count() should return %zu, but it returned %zu", ZU(0),
-	    ckh_count(&ckh));
+	    "ckh_count() should return %"PRIzu", but it returned %"PRIzu,
+	    ZU(0), ckh_count(&ckh));
 	ckh_delete(tsd, &ckh);
 #undef NITEMS
 }

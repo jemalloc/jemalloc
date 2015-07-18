@@ -133,30 +133,30 @@
     <=, "ju", __VA_ARGS__)
 
 #define	assert_zd_eq(a, b, ...)	assert_cmp(ssize_t, a, b, ==,	\
-    !=, "zd", __VA_ARGS__)
+    !=, PRIzd, __VA_ARGS__)
 #define	assert_zd_ne(a, b, ...)	assert_cmp(ssize_t, a, b, !=,	\
-    ==, "zd", __VA_ARGS__)
+    ==, PRIzd, __VA_ARGS__)
 #define	assert_zd_lt(a, b, ...)	assert_cmp(ssize_t, a, b, <,	\
-    >=, "zd", __VA_ARGS__)
+    >=, PRIzd, __VA_ARGS__)
 #define	assert_zd_le(a, b, ...)	assert_cmp(ssize_t, a, b, <=,	\
-    >, "zd", __VA_ARGS__)
+    >, PRIzd, __VA_ARGS__)
 #define	assert_zd_ge(a, b, ...)	assert_cmp(ssize_t, a, b, >=,	\
-    <, "zd", __VA_ARGS__)
+    <, PRIzd, __VA_ARGS__)
 #define	assert_zd_gt(a, b, ...)	assert_cmp(ssize_t, a, b, >,	\
-    <=, "zd", __VA_ARGS__)
+    <=, PRIzd, __VA_ARGS__)
 
 #define	assert_zu_eq(a, b, ...)	assert_cmp(size_t, a, b, ==,	\
-    !=, "zu", __VA_ARGS__)
+    !=, PRIzu, __VA_ARGS__)
 #define	assert_zu_ne(a, b, ...)	assert_cmp(size_t, a, b, !=,	\
-    ==, "zu", __VA_ARGS__)
+    ==, PRIzu, __VA_ARGS__)
 #define	assert_zu_lt(a, b, ...)	assert_cmp(size_t, a, b, <,	\
-    >=, "zu", __VA_ARGS__)
+    >=, PRIzu, __VA_ARGS__)
 #define	assert_zu_le(a, b, ...)	assert_cmp(size_t, a, b, <=,	\
-    >, "zu", __VA_ARGS__)
+    >, PRIzu, __VA_ARGS__)
 #define	assert_zu_ge(a, b, ...)	assert_cmp(size_t, a, b, >=,	\
-    <, "zu", __VA_ARGS__)
+    <, PRIzu, __VA_ARGS__)
 #define	assert_zu_gt(a, b, ...)	assert_cmp(size_t, a, b, >,	\
-    <=, "zu", __VA_ARGS__)
+    <=, PRIzu, __VA_ARGS__)
 
 #define	assert_d32_eq(a, b, ...)	assert_cmp(int32_t, a, b, ==,	\
     !=, PRId32, __VA_ARGS__)

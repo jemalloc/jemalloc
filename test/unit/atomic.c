@@ -97,7 +97,7 @@ TEST_STRUCT(z, size_t)
 TEST_BEGIN(test_atomic_z)
 {
 
-	TEST_BODY(z, size_t, size_t, zu, "#zx");
+	TEST_BODY(z, size_t, size_t, zu, "#"PRIzx);
 }
 TEST_END
 
