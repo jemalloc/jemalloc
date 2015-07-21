@@ -1531,7 +1531,7 @@ label_oom:
 }
 
 JEMALLOC_EXPORT int
-JEMALLOC_ATTR(nonnull(1)) JEMALLOC_ALLOC_SIZE(2) JEMALLOC_NOTHROW
+JEMALLOC_ATTR(nonnull(1)) JEMALLOC_NOTHROW
 je_posix_memalign(void **memptr, size_t alignment, size_t size)
 {
 	int ret = imemalign(memptr, alignment, size, sizeof(void *));
@@ -2277,7 +2277,7 @@ ixallocx_prof(tsd_t *tsd, void *ptr, size_t old_usize, size_t size,
 }
 
 JEMALLOC_EXPORT size_t
-JEMALLOC_ALLOC_SIZE(2) JEMALLOC_NOTHROW
+JEMALLOC_NOTHROW
 je_xallocx(void *ptr, size_t size, size_t extra, int flags)
 {
 	tsd_t *tsd;

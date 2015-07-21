@@ -13,7 +13,7 @@ JEMALLOC_EXPORT void	*@je_@calloc(size_t num, size_t size) JEMALLOC_CXX_THROW
     JEMALLOC_ATTR(malloc) JEMALLOC_ALLOC_SIZE2(1, 2) JEMALLOC_NOTHROW;
 JEMALLOC_EXPORT int	@je_@posix_memalign(void **memptr, size_t alignment,
     size_t size) JEMALLOC_CXX_THROW JEMALLOC_ATTR(nonnull(1))
-    JEMALLOC_ALLOC_SIZE(2) JEMALLOC_NOTHROW;
+    JEMALLOC_NOTHROW;
 JEMALLOC_EXPORT void	*@je_@aligned_alloc(size_t alignment, size_t size)
     JEMALLOC_CXX_THROW JEMALLOC_ATTR(malloc) JEMALLOC_ALLOC_SIZE(2)
     JEMALLOC_NOTHROW;
@@ -27,7 +27,7 @@ JEMALLOC_EXPORT void	*@je_@mallocx(size_t size, int flags)
 JEMALLOC_EXPORT void	*@je_@rallocx(void *ptr, size_t size, int flags)
     JEMALLOC_ALLOC_SIZE(2) JEMALLOC_NOTHROW;
 JEMALLOC_EXPORT size_t	@je_@xallocx(void *ptr, size_t size, size_t extra,
-    int flags) JEMALLOC_ALLOC_SIZE(2) JEMALLOC_NOTHROW;
+    int flags) JEMALLOC_NOTHROW;
 JEMALLOC_EXPORT size_t	@je_@sallocx(const void *ptr, int flags)
     JEMALLOC_ATTR(pure) JEMALLOC_NOTHROW;
 JEMALLOC_EXPORT void	@je_@dallocx(void *ptr, int flags) JEMALLOC_NOTHROW;
