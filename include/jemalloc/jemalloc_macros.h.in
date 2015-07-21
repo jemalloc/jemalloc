@@ -65,7 +65,11 @@
 #  define JEMALLOC_ALLOC_SIZE(s)
 #  define JEMALLOC_ALLOC_SIZE2(s1, s2)
 #  define JEMALLOC_NOINLINE __declspec(noinline)
-#  define JEMALLOC_NOTHROW __declspec(nothrow)
+#  ifdef __cplusplus
+#    define JEMALLOC_NOTHROW __declspec(nothrow)
+#  else
+#    define JEMALLOC_NOTHROW
+#  endif
 #  define JEMALLOC_SECTION(s) __declspec(allocate(s))
 #else
 #  define JEMALLOC_ATTR(s)
