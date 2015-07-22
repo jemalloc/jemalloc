@@ -5,7 +5,7 @@ static test_status_t	test_counts[test_status_count] = {0, 0, 0};
 static test_status_t	test_status = test_status_pass;
 static const char *	test_name = "";
 
-JEMALLOC_ATTR(format(printf, 1, 2))
+JEMALLOC_FORMAT_PRINTF(1, 2)
 void
 test_skip(const char *format, ...)
 {
@@ -18,7 +18,7 @@ test_skip(const char *format, ...)
 	test_status = test_status_skip;
 }
 
-JEMALLOC_ATTR(format(printf, 1, 2))
+JEMALLOC_FORMAT_PRINTF(1, 2)
 void
 test_fail(const char *format, ...)
 {

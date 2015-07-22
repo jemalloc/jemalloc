@@ -319,8 +319,8 @@ label_test_end:								\
 	}								\
 } while (0)
 
-void	test_skip(const char *format, ...) JEMALLOC_ATTR(format(printf, 1, 2));
-void	test_fail(const char *format, ...) JEMALLOC_ATTR(format(printf, 1, 2));
+void	test_skip(const char *format, ...) JEMALLOC_FORMAT_PRINTF(1, 2);
+void	test_fail(const char *format, ...) JEMALLOC_FORMAT_PRINTF(1, 2);
 
 /* For private use by macros. */
 test_status_t	p_test(test_t *t, ...);

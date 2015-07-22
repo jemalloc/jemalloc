@@ -1007,7 +1007,7 @@ prof_dump_write(bool propagate_err, const char *s)
 	return (false);
 }
 
-JEMALLOC_ATTR(format(printf, 2, 3))
+JEMALLOC_FORMAT_PRINTF(2, 3)
 static bool
 prof_dump_printf(bool propagate_err, const char *format, ...)
 {
@@ -1338,7 +1338,7 @@ label_return:
 	return (ret);
 }
 
-JEMALLOC_ATTR(format(printf, 1, 2))
+JEMALLOC_FORMAT_PRINTF(1, 2)
 static int
 prof_open_maps(const char *format, ...)
 {

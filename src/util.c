@@ -586,7 +586,7 @@ malloc_vsnprintf(char *str, size_t size, const char *format, va_list ap)
 	return (ret);
 }
 
-JEMALLOC_ATTR(format(printf, 3, 4))
+JEMALLOC_FORMAT_PRINTF(3, 4)
 int
 malloc_snprintf(char *str, size_t size, const char *format, ...)
 {
@@ -625,7 +625,7 @@ malloc_vcprintf(void (*write_cb)(void *, const char *), void *cbopaque,
  * Print to a callback function in such a way as to (hopefully) avoid memory
  * allocation.
  */
-JEMALLOC_ATTR(format(printf, 3, 4))
+JEMALLOC_FORMAT_PRINTF(3, 4)
 void
 malloc_cprintf(void (*write_cb)(void *, const char *), void *cbopaque,
     const char *format, ...)
@@ -638,7 +638,7 @@ malloc_cprintf(void (*write_cb)(void *, const char *), void *cbopaque,
 }
 
 /* Print to stderr in such a way as to avoid memory allocation. */
-JEMALLOC_ATTR(format(printf, 1, 2))
+JEMALLOC_FORMAT_PRINTF(1, 2)
 void
 malloc_printf(const char *format, ...)
 {

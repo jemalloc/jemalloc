@@ -438,6 +438,26 @@ CFLAGS="${SAVED_CFLAGS}"
 if test "x${je_cv_alloc_size}" = "xyes" ; then
   AC_DEFINE([JEMALLOC_HAVE_ATTR_ALLOC_SIZE], [ ])
 fi
+dnl Check for format(gnu_printf, ...) attribute support.
+SAVED_CFLAGS="${CFLAGS}"
+JE_CFLAGS_APPEND([-Werror])
+JE_COMPILABLE([format(gnu_printf, ...) attribute], [#include <stdlib.h>],
+              [void *foo(const char *format, ...) __attribute__((format(gnu_printf, 1, 2)));],
+              [je_cv_format_gnu_printf])
+CFLAGS="${SAVED_CFLAGS}"
+if test "x${je_cv_format_gnu_printf}" = "xyes" ; then
+  AC_DEFINE([JEMALLOC_HAVE_ATTR_FORMAT_GNU_PRINTF], [ ])
+fi
+dnl Check for format(printf, ...) attribute support.
+SAVED_CFLAGS="${CFLAGS}"
+JE_CFLAGS_APPEND([-Werror])
+JE_COMPILABLE([format(printf, ...) attribute], [#include <stdlib.h>],
+              [void *foo(const char *format, ...) __attribute__((format(printf, 1, 2)));],
+              [je_cv_format_printf])
+CFLAGS="${SAVED_CFLAGS}"
+if test "x${je_cv_format_printf}" = "xyes" ; then
+  AC_DEFINE([JEMALLOC_HAVE_ATTR_FORMAT_PRINTF], [ ])
+fi
 
 dnl Support optional additions to rpath.
 AC_ARG_WITH([rpath],
