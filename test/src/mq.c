@@ -13,15 +13,17 @@ mq_nanosleep(unsigned ns)
 #ifdef _WIN32
 	Sleep(ns / 1000);
 #else
-	struct timespec timeout;
+	{
+		struct timespec timeout;
 
-	if (ns < 1000*1000*1000) {
-		timeout.tv_sec = 0;
-		timeout.tv_nsec = ns;
-	} else {
-		timeout.tv_sec = 1;
-		timeout.tv_nsec = 0;
+		if (ns < 1000*1000*1000) {
+			timeout.tv_sec = 0;
+			timeout.tv_nsec = ns;
+		} else {
+			timeout.tv_sec = 1;
+			timeout.tv_nsec = 0;
+		}
+		nanosleep(&timeout, NULL);
 	}
-	nanosleep(&timeout, NULL);
 #endif
 }
