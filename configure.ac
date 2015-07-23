@@ -340,6 +340,7 @@ case "${host}" in
   *-*-mingw* | *-*-cygwin*)
 	abi="pecoff"
 	force_tls="0"
+	force_lazy_lock="1"
 	RPATH=""
 	so="dll"
 	if test "x$je_cv_msvc" = "xyes" ; then
