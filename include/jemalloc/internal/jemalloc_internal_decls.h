@@ -4,27 +4,8 @@
 #include <math.h>
 #ifdef _WIN32
 #  include <windows.h>
-#  ifndef ENOENT
-#    define ENOENT ERROR_PATH_NOT_FOUND
-#  endif
-#  ifndef EINVAL
-#    define EINVAL ERROR_BAD_ARGUMENTS
-#  endif
-#  ifndef EAGAIN
-#    define EAGAIN ERROR_OUTOFMEMORY
-#  endif
-#  ifndef EPERM
-#    define EPERM  ERROR_WRITE_FAULT
-#  endif
-#  ifndef EFAULT
-#    define EFAULT ERROR_INVALID_ADDRESS
-#  endif
-#  ifndef ENOMEM
-#    define ENOMEM ERROR_NOT_ENOUGH_MEMORY
-#  endif
-#  ifndef ERANGE
-#    define ERANGE ERROR_INVALID_DATA
-#  endif
+#  include "msvc_compat/windows_extra.h"
+
 #else
 #  include <sys/param.h>
 #  include <sys/mman.h>
@@ -52,16 +33,6 @@
 #include <stddef.h>
 #ifndef offsetof
 #  define offsetof(type, member)	((size_t)&(((type *)NULL)->member))
-#endif
-#include <inttypes.h>
-#ifdef _WIN32
-#  define PRIzu "Iu"
-#  define PRIzd "Id"
-#  define PRIzx "Ix"
-#else
-#  define PRIzu "zu"
-#  define PRIzd "zd"
-#  define PRIzx "zx"
 #endif
 #include <string.h>
 #include <strings.h>

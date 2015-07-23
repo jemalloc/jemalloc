@@ -1543,13 +1543,13 @@ TEST_BEGIN(test_gen_rand_64)
 		}
 		r = gen_rand64(ctx);
 		assert_u64_eq(r, array64[i],
-		    "Mismatch at array64[%d]=%"PRIx64", gen=%"PRIx64, i,
+		    "Mismatch at array64[%d]=%"FMTx64", gen=%"FMTx64, i,
 		    array64[i], r);
 	}
 	for (i = 0; i < COUNT_2; i++) {
 		r = gen_rand64(ctx);
 		assert_u64_eq(r, array64_2[i],
-		    "Mismatch at array64_2[%d]=%"PRIx64" gen=%"PRIx64"", i,
+		    "Mismatch at array64_2[%d]=%"FMTx64" gen=%"FMTx64"", i,
 		    array64_2[i], r);
 	}
 	fini_gen_rand(ctx);
@@ -1580,13 +1580,13 @@ TEST_BEGIN(test_by_array_64)
 		}
 		r = gen_rand64(ctx);
 		assert_u64_eq(r, array64[i],
-		    "Mismatch at array64[%d]=%"PRIx64" gen=%"PRIx64, i,
+		    "Mismatch at array64[%d]=%"FMTx64" gen=%"FMTx64, i,
 		    array64[i], r);
 	}
 	for (i = 0; i < COUNT_2; i++) {
 		r = gen_rand64(ctx);
 		assert_u64_eq(r, array64_2[i],
-		    "Mismatch at array64_2[%d]=%"PRIx64" gen=%"PRIx64, i,
+		    "Mismatch at array64_2[%d]=%"FMTx64" gen=%"FMTx64, i,
 		    array64_2[i], r);
 	}
 	fini_gen_rand(ctx);

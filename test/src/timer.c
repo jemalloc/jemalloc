@@ -61,7 +61,7 @@ timer_ratio(timedelta_t *a, timedelta_t *b, char *buf, size_t buflen)
 	int n;
 
 	/* Whole. */
-	n = malloc_snprintf(&buf[i], buflen-i, "%"PRIu64, t0 / t1);
+	n = malloc_snprintf(&buf[i], buflen-i, "%"FMTu64, t0 / t1);
 	i += n;
 	if (i >= buflen)
 		return;
@@ -78,7 +78,7 @@ timer_ratio(timedelta_t *a, timedelta_t *b, char *buf, size_t buflen)
 		uint64_t round = (i+1 == buflen-1 && ((t0 * mult * 10 / t1) % 10
 		    >= 5)) ? 1 : 0;
 		n = malloc_snprintf(&buf[i], buflen-i,
-		    "%"PRIu64, (t0 * mult / t1) % 10 + round);
+		    "%"FMTu64, (t0 * mult / t1) % 10 + round);
 		i += n;
 		mult *= 10;
 	}

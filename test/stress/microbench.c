@@ -31,8 +31,8 @@ compare_funcs(uint64_t nwarmup, uint64_t niter, const char *name_a,
 	time_func(&timer_b, nwarmup, niter, func_b);
 
 	timer_ratio(&timer_a, &timer_b, ratio_buf, sizeof(ratio_buf));
-	malloc_printf("%"PRIu64" iterations, %s=%"PRIu64"us, "
-	    "%s=%"PRIu64"us, ratio=1:%s\n",
+	malloc_printf("%"FMTu64" iterations, %s=%"FMTu64"us, "
+	    "%s=%"FMTu64"us, ratio=1:%s\n",
 	    niter, name_a, timer_usec(&timer_a), name_b, timer_usec(&timer_b),
 	    ratio_buf);
 

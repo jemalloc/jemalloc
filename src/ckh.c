@@ -411,9 +411,9 @@ ckh_delete(tsd_t *tsd, ckh_t *ckh)
 
 #ifdef CKH_VERBOSE
 	malloc_printf(
-	    "%s(%p): ngrows: %"PRIu64", nshrinks: %"PRIu64","
-	    " nshrinkfails: %"PRIu64", ninserts: %"PRIu64","
-	    " nrelocs: %"PRIu64"\n", __func__, ckh,
+	    "%s(%p): ngrows: %"FMTu64", nshrinks: %"FMTu64","
+	    " nshrinkfails: %"FMTu64", ninserts: %"FMTu64","
+	    " nrelocs: %"FMTu64"\n", __func__, ckh,
 	    (unsigned long long)ckh->ngrows,
 	    (unsigned long long)ckh->nshrinks,
 	    (unsigned long long)ckh->nshrinkfails,

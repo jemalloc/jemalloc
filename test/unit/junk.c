@@ -30,8 +30,8 @@ arena_dalloc_junk_small_intercept(void *ptr, arena_bin_info_t *bin_info)
 	arena_dalloc_junk_small_orig(ptr, bin_info);
 	for (i = 0; i < bin_info->reg_size; i++) {
 		assert_c_eq(((char *)ptr)[i], 0x5a,
-		    "Missing junk fill for byte %"PRIzu"/%"PRIzu" of "
-		    "deallocated region", i, bin_info->reg_size);
+		    "Missing junk fill for byte %zu/%zu of deallocated region",
+		    i, bin_info->reg_size);
 	}
 	if (ptr == watch_for_junking)
 		saw_junking = true;
@@ -45,8 +45,8 @@ arena_dalloc_junk_large_intercept(void *ptr, size_t usize)
 	arena_dalloc_junk_large_orig(ptr, usize);
 	for (i = 0; i < usize; i++) {
 		assert_c_eq(((char *)ptr)[i], 0x5a,
-		    "Missing junk fill for byte %"PRIzu"/%"PRIzu" of "
-		    "deallocated region", i, usize);
+		    "Missing junk fill for byte %zu/%zu of deallocated region",
+		    i, usize);
 	}
 	if (ptr == watch_for_junking)
 		saw_junking = true;
@@ -89,18 +89,18 @@ test_junk(size_t sz_min, size_t sz_max)
 	    sz_prev = sz, sz = sallocx(s, 0)) {
 		if (sz_prev > 0) {
 			assert_c_eq(s[0], 'a',
-			    "Previously allocated byte %"PRIzu"/%"PRIzu" is "
-			    "corrupted", ZU(0), sz_prev);
+			    "Previously allocated byte %zu/%zu is corrupted",
+			    ZU(0), sz_prev);
 			assert_c_eq(s[sz_prev-1], 'a',
-			    "Previously allocated byte %"PRIzu"/%"PRIzu" is "
-			    "corrupted", sz_prev-1, sz_prev);
+			    "Previously allocated byte %zu/%zu is corrupted",
+			    sz_prev-1, sz_prev);
 		}
 
 		for (i = sz_prev; i < sz; i++) {
 			if (opt_junk_alloc) {
 				assert_c_eq(s[i], 0xa5,
-				    "Newly allocated byte %"PRIzu"/%"PRIzu
-				    " isn't junk-filled", i, sz);
+				    "Newly allocated byte %zu/%zu isn't "
+				    "junk-filled", i, sz);
 			}
 			s[i] = 'a';
 		}
@@ -111,15 +111,15 @@ test_junk(size_t sz_min, size_t sz_max)
 			assert_ptr_not_null((void *)s,
 			    "Unexpected rallocx() failure");
 			assert_true(!opt_junk_free || saw_junking,
-			    "Expected region of size %"PRIzu" to be "
-			    "junk-filled", sz);
+			    "Expected region of size %zu to be junk-filled",
+			    sz);
 		}
 	}
 
 	watch_junking(s);
 	dallocx(s, 0);
 	assert_true(!opt_junk_free || saw_junking,
-	    "Expected region of size %"PRIzu" to be junk-filled", sz);
+	    "Expected region of size %zu to be junk-filled", sz);
 
 	if (opt_junk_free) {
 		arena_dalloc_junk_small = arena_dalloc_junk_small_orig;

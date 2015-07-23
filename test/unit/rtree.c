@@ -72,7 +72,7 @@ TEST_BEGIN(test_rtree_bits)
 				    &node, "rtree_get() should return "
 				    "previously set value and ignore "
 				    "insignificant key bits; i=%u, j=%u, k=%u, "
-				    "set key=%#"PRIxPTR", get key=%#"PRIxPTR, i,
+				    "set key=%#"FMTxPTR", get key=%#"FMTxPTR, i,
 				    j, k, keys[j], keys[k]);
 			}
 			assert_ptr_null(rtree_get(&rtree,
