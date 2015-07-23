@@ -29,17 +29,6 @@
 #  define FMTdPTR PRIdPTR
 #  define FMTuPTR PRIuPTR
 #  define FMTxPTR PRIxPTR
-
-/* Prevent PRI* macros from accidentally being used. */
-#  undef PRId32
-#  undef PRIu32
-#  undef PRIx32
-#  undef PRId64
-#  undef PRIu64
-#  undef PRIx64
-#  undef PRIdPTR
-#  undef PRIuPTR
-#  undef PRIxPTR
 #endif
 
 /* Size of stack-allocated buffer passed to buferror(). */
