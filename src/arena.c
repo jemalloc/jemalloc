@@ -2084,7 +2084,7 @@ arena_malloc_large(arena_t *arena, size_t size, bool zero)
 
 /* Only handles large allocations that require more than page alignment. */
 static void *
-arena_palloc_large(tsd_t *tsd, arena_t *arena, size_t size, size_t alignment,
+arena_palloc_large(tsd_t *tsd, arena_t *arena, size_t usize, size_t alignment,
     bool zero)
 {
 	void *ret;
@@ -2094,14 +2094,14 @@ arena_palloc_large(tsd_t *tsd, arena_t *arena, size_t size, size_t alignment,
 	arena_chunk_map_misc_t *miscelm;
 	void *rpages;
 
-	assert(size == PAGE_CEILING(size));
+	assert(usize == PAGE_CEILING(usize));
 
 	arena = arena_choose(tsd, arena);
 	if (unlikely(arena == NULL))
 		return (NULL);
 
 	alignment = PAGE_CEILING(alignment);
-	alloc_size = size + large_pad + alignment - PAGE;
+	alloc_size = usize + large_pad + alignment - PAGE;
 
 	malloc_mutex_lock(&arena->lock);
 	run = arena_run_alloc_large(arena, alloc_size, false);
@@ -2115,8 +2115,8 @@ arena_palloc_large(tsd_t *tsd, arena_t *arena, size_t size, size_t alignment,
 
 	leadsize = ALIGNMENT_CEILING((uintptr_t)rpages, alignment) -
 	    (uintptr_t)rpages;
-	assert(alloc_size >= leadsize + size);
-	trailsize = alloc_size - leadsize - size - large_pad;
+	assert(alloc_size >= leadsize + usize);
+	trailsize = alloc_size - leadsize - usize - large_pad;
 	if (leadsize != 0) {
 		arena_chunk_map_misc_t *head_miscelm = miscelm;
 		arena_run_t *head_run = run;
@@ -2130,18 +2130,18 @@ arena_palloc_large(tsd_t *tsd, arena_t *arena, size_t size, size_t alignment,
 		    alloc_size - leadsize);
 	}
 	if (trailsize != 0) {
-		arena_run_trim_tail(arena, chunk, run, size + large_pad +
-		    trailsize, size + large_pad, false);
+		arena_run_trim_tail(arena, chunk, run, usize + large_pad +
+		    trailsize, usize + large_pad, false);
 	}
-	arena_run_init_large(arena, run, size + large_pad, zero);
+	arena_run_init_large(arena, run, usize + large_pad, zero);
 	ret = arena_miscelm_to_rpages(miscelm);
 
 	if (config_stats) {
-		index_t index = size2index(size) - NBINS;
+		index_t index = size2index(usize) - NBINS;
 
 		arena->stats.nmalloc_large++;
 		arena->stats.nrequests_large++;
-		arena->stats.allocated_large += size;
+		arena->stats.allocated_large += usize;
 		arena->stats.lstats[index].nmalloc++;
 		arena->stats.lstats[index].nrequests++;
 		arena->stats.lstats[index].curruns++;
@@ -2150,9 +2150,9 @@ arena_palloc_large(tsd_t *tsd, arena_t *arena, size_t size, size_t alignment,
 
 	if (config_fill && !zero) {
 		if (unlikely(opt_junk_alloc))
-			memset(ret, 0xa5, size);
+			memset(ret, 0xa5, usize);
 		else if (unlikely(opt_zero))
-			memset(ret, 0, size);
+			memset(ret, 0, usize);
 	}
 	return (ret);
 }
