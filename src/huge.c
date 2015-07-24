@@ -46,14 +46,20 @@ huge_malloc(tsd_t *tsd, arena_t *arena, size_t size, bool zero,
 }
 
 void *
-huge_palloc(tsd_t *tsd, arena_t *arena, size_t usize, size_t alignment,
+huge_palloc(tsd_t *tsd, arena_t *arena, size_t size, size_t alignment,
     bool zero, tcache_t *tcache)
 {
 	void *ret;
+	size_t usize;
 	extent_node_t *node;
 	bool is_zeroed;
 
 	/* Allocate one or more contiguous chunks for this request. */
+
+	usize = sa2u(size, alignment);
+	if (unlikely(usize == 0))
+		return (NULL);
+	assert(usize >= chunksize);
 
 	/* Allocate an extent node with which to track the chunk. */
 	node = ipallocztm(tsd, CACHELINE_CEILING(sizeof(extent_node_t)),
@@ -68,15 +74,15 @@ huge_palloc(tsd_t *tsd, arena_t *arena, size_t usize, size_t alignment,
 	is_zeroed = zero;
 	arena = arena_choose(tsd, arena);
 	if (unlikely(arena == NULL) || (ret = arena_chunk_alloc_huge(arena,
-	    usize, alignment, &is_zeroed)) == NULL) {
+	    size, alignment, &is_zeroed)) == NULL) {
 		idalloctm(tsd, node, tcache, true);
 		return (NULL);
 	}
 
-	extent_node_init(node, arena, ret, usize, is_zeroed);
+	extent_node_init(node, arena, ret, size, is_zeroed);
 
 	if (huge_node_set(ret, node)) {
-		arena_chunk_dalloc_huge(arena, ret, usize);
+		arena_chunk_dalloc_huge(arena, ret, size);
 		idalloctm(tsd, node, tcache, true);
 		return (NULL);
 	}
@@ -89,9 +95,9 @@ huge_palloc(tsd_t *tsd, arena_t *arena, size_t usize, size_t alignment,
 
 	if (zero || (config_fill && unlikely(opt_zero))) {
 		if (!is_zeroed)
-			memset(ret, 0, usize);
+			memset(ret, 0, size);
 	} else if (config_fill && unlikely(opt_junk_alloc))
-		memset(ret, 0xa5, usize);
+		memset(ret, 0xa5, size);
 
 	return (ret);
 }
