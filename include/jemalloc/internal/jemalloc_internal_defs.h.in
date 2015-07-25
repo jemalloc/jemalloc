@@ -170,6 +170,15 @@
 #undef LG_PAGE
 
 /*
+ * If defined, adjacent virtual memory mappings with identical attributes
+ * automatically coalesce, and they fragment when changes are made to subranges.
+ * This is the normal order of things for mmap()/munmap(), but on Windows
+ * VirtualAlloc()/VirtualFree() operations must be precisely matched, i.e.
+ * mappings do *not* coalesce/fragment.
+ */
+#undef JEMALLOC_MAPS_COALESCE
+
+/*
  * If defined, use munmap() to unmap freed chunks, rather than storing them for
  * later reuse.  This is disabled by default on Linux because common sequences
  * of mmap()/munmap() calls will cause virtual memory map holes.

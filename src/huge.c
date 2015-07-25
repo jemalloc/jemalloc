@@ -304,6 +304,9 @@ huge_ralloc_no_move(void *ptr, size_t oldsize, size_t size, size_t extra,
 		return (false);
 	}
 
+	if (!maps_coalesce)
+		return (true);
+
 	/* Shrink the allocation in-place. */
 	if (CHUNK_CEILING(oldsize) >= CHUNK_CEILING(usize)) {
 		huge_ralloc_no_move_shrink(ptr, oldsize, usize);

@@ -63,9 +63,9 @@ TEST_BEGIN(test_chunk)
 	    "Unexpected arenas.hchunk.2.size failure");
 	if (huge0 * 2 > huge2) {
 		/*
-		 * There are at least four size classes per doubling, so
-		 * xallocx() from size=huge2 to size=huge1 is guaranteed to
-		 * leave trailing purgeable memory.
+		 * There are at least four size classes per doubling, so a
+		 * successful xallocx() from size=huge2 to size=huge1 is
+		 * guaranteed to leave trailing purgeable memory.
 		 */
 		p = mallocx(huge2, 0);
 		assert_ptr_not_null(p, "Unexpected mallocx() error");

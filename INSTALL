@@ -150,7 +150,10 @@ any of the following arguments (not a definitive list) to 'configure':
     the virtual memory for later use.  munmap() is disabled by default (i.e.
     --disable-munmap is implied) on Linux, which has a quirk in its virtual
     memory allocation algorithm that causes semi-permanent VM map holes under
-    normal jemalloc operation.
+    normal jemalloc operation.  Conversely, munmap() (actually VirtualFree()) is
+    forcefully enabled on MinGW because virtual memory mappings do not
+    automatically coalesce (nor fragment on demand), and extra bookkeeping
+    would be required to track mapping boundaries.
 
 --disable-fill
     Disable support for junk/zero filling of memory, quarantine, and redzones.

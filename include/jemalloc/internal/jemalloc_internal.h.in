@@ -70,6 +70,13 @@ static const bool config_prof_libunwind =
     false
 #endif
     ;
+static const bool maps_coalesce =
+#ifdef JEMALLOC_MAPS_COALESCE
+    true
+#else
+    false
+#endif
+    ;
 static const bool config_munmap =
 #ifdef JEMALLOC_MUNMAP
     true

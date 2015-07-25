@@ -337,6 +337,7 @@ chunk_record(arena_t *arena, extent_tree_t *chunks_szad,
 	extent_node_t *node, *prev;
 	extent_node_t key;
 
+	assert(maps_coalesce || size == chunksize);
 	assert(!cache || !zeroed);
 	unzeroed = cache || !zeroed;
 	JEMALLOC_VALGRIND_MAKE_MEM_NOACCESS(chunk, size);
@@ -420,6 +421,11 @@ chunk_dalloc_cache(arena_t *arena, void *chunk, size_t size)
 	assert(CHUNK_ADDR2BASE(chunk) == chunk);
 	assert(size != 0);
 	assert((size & chunksize_mask) == 0);
+
+	if (!maps_coalesce && size != chunksize) {
+		chunk_dalloc_arena(arena, chunk, size, false);
+		return;
+	}
 
 	chunk_record(arena, &arena->chunks_szad_cache, &arena->chunks_ad_cache,
 	    true, chunk, size, false);

@@ -258,6 +258,7 @@ dnl Define cpp macros in CPPFLAGS, rather than doing AC_DEFINE(macro), since the
 dnl definitions need to be seen before any headers are included, which is a pain
 dnl to make happen otherwise.
 default_munmap="1"
+maps_coalesce="1"
 case "${host}" in
   *-*-darwin* | *-*-ios*)
 	CFLAGS="$CFLAGS"
@@ -341,6 +342,7 @@ case "${host}" in
 	abi="pecoff"
 	force_tls="0"
 	force_lazy_lock="1"
+	maps_coalesce="0"
 	RPATH=""
 	so="dll"
 	if test "x$je_cv_msvc" = "xyes" ; then
@@ -862,6 +864,12 @@ if test "x$enable_tcache" = "x1" ; then
 fi
 AC_SUBST([enable_tcache])
 
+dnl Indicate whether adjacent virtual memory mappings automatically coalesce
+dnl (and fragment on demand).
+if test "x${maps_coalesce}" = "x1" ; then
+  AC_DEFINE([JEMALLOC_MAPS_COALESCE], [ ])
+fi
+
 dnl Enable VM deallocation via munmap() by default.
 AC_ARG_ENABLE([munmap],
   [AS_HELP_STRING([--disable-munmap], [Disable VM deallocation via munmap(2)])],
@@ -873,6 +881,10 @@ fi
 ],
 [enable_munmap="${default_munmap}"]
 )
+if test "x$enable_munmap" = "x0" -a "x${maps_coalesce}" = "x0" ; then
+  AC_MSG_RESULT([Forcing munmap to avoid non-coalescing map issues])
+  enable_munmap="1"
+fi
 if test "x$enable_munmap" = "x1" ; then
   AC_DEFINE([JEMALLOC_MUNMAP], [ ])
 fi
