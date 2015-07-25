@@ -111,8 +111,14 @@ pages_purge(void *addr, size_t length)
 	bool unzeroed;
 
 #ifdef _WIN32
-	VirtualAlloc(addr, length, MEM_RESET, PAGE_READWRITE);
-	unzeroed = true;
+	VirtualFree(addr, length, MEM_DECOMMIT);
+	VirtualAlloc(addr, length, MEM_COMMIT, PAGE_READWRITE);
+	unzeroed = false;
+#elif defined(JEMALLOC_PURGE_USE_MMAP)
+	void *new_addr = mmap(addr, length, PROT_READ | PROT_WRITE,
+	                      MAP_FIXED | MAP_PRIVATE | MAP_ANON, -1, 0);
+	assert(new_addr == addr);
+	unzeroed = false;
 #elif defined(JEMALLOC_HAVE_MADVISE)
 #  ifdef JEMALLOC_PURGE_MADVISE_DONTNEED
 #    define JEMALLOC_MADV_PURGE MADV_DONTNEED
