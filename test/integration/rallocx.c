@@ -55,8 +55,9 @@ validate_fill(const void *p, uint8_t c, size_t offset, size_t len)
 	for (i = 0; i < len; i++) {
 		uint8_t b = buf[offset+i];
 		if (b != c) {
-			test_fail("Allocation at %p contains %#x rather than "
-			    "%#x at offset %zu", p, b, c, offset+i);
+			test_fail("Allocation at %p (len=%zu) contains %#x "
+			    "rather than %#x at offset %zu", p, len, b, c,
+			    offset+i);
 			ret = true;
 		}
 	}

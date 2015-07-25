@@ -298,7 +298,7 @@ huge_ralloc_no_move(void *ptr, size_t oldsize, size_t size, size_t extra,
 	 * the new size.
 	 */
 	if (CHUNK_CEILING(oldsize) >= CHUNK_CEILING(usize)
-	    && CHUNK_CEILING(oldsize) <= CHUNK_CEILING(size+extra)) {
+	    && CHUNK_CEILING(oldsize) <= CHUNK_CEILING(s2u(size+extra))) {
 		huge_ralloc_no_move_similar(ptr, oldsize, usize, size, extra,
 		    zero);
 		return (false);
