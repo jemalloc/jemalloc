@@ -43,6 +43,9 @@ typedef intptr_t ssize_t;
 #  define PATH_MAX 1024
 #  define STDERR_FILENO 2
 #  define __func__ __FUNCTION__
+#  ifdef JEMALLOC_HAS_RESTRICT
+#    define restrict __restrict
+#  endif
 /* Disable warnings about deprecated system functions. */
 #  pragma warning(disable: 4996)
 #if _MSC_VER < 1800

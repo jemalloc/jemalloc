@@ -59,6 +59,8 @@
 #  define JEMALLOC_NOINLINE JEMALLOC_ATTR(noinline)
 #  define JEMALLOC_NOTHROW JEMALLOC_ATTR(nothrow)
 #  define JEMALLOC_SECTION(s) JEMALLOC_ATTR(section(s))
+#  define JEMALLOC_RESTRICT_RETURN
+#  define JEMALLOC_ALLOCATOR
 #elif _MSC_VER
 #  define JEMALLOC_ATTR(s)
 #  define JEMALLOC_ALIGNED(s) __declspec(align(s))
@@ -79,6 +81,12 @@
 #    define JEMALLOC_NOTHROW
 #  endif
 #  define JEMALLOC_SECTION(s) __declspec(allocate(s))
+#  define JEMALLOC_RESTRICT_RETURN __declspec(restrict)
+#  if _MSC_VER >= 1900 && !defined(__EDG__)
+#    define JEMALLOC_ALLOCATOR __declspec(allocator)
+#  else
+#    define JEMALLOC_ALLOCATOR
+#  endif
 #else
 #  define JEMALLOC_ATTR(s)
 #  define JEMALLOC_ALIGNED(s)
@@ -89,4 +97,6 @@
 #  define JEMALLOC_NOINLINE
 #  define JEMALLOC_NOTHROW
 #  define JEMALLOC_SECTION(s)
+#  define JEMALLOC_RESTRICT_RETURN
+#  define JEMALLOC_ALLOCATOR
 #endif
