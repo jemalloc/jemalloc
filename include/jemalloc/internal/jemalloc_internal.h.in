@@ -367,6 +367,7 @@ typedef unsigned index_t;
 #include "jemalloc/internal/bitmap.h"
 #include "jemalloc/internal/base.h"
 #include "jemalloc/internal/rtree.h"
+#include "jemalloc/internal/pages.h"
 #include "jemalloc/internal/chunk.h"
 #include "jemalloc/internal/huge.h"
 #include "jemalloc/internal/tcache.h"
@@ -398,6 +399,7 @@ typedef unsigned index_t;
 #undef JEMALLOC_ARENA_STRUCTS_B
 #include "jemalloc/internal/base.h"
 #include "jemalloc/internal/rtree.h"
+#include "jemalloc/internal/pages.h"
 #include "jemalloc/internal/chunk.h"
 #include "jemalloc/internal/huge.h"
 #include "jemalloc/internal/tcache.h"
@@ -477,6 +479,7 @@ void	jemalloc_postfork_child(void);
 #include "jemalloc/internal/arena.h"
 #include "jemalloc/internal/base.h"
 #include "jemalloc/internal/rtree.h"
+#include "jemalloc/internal/pages.h"
 #include "jemalloc/internal/chunk.h"
 #include "jemalloc/internal/huge.h"
 #include "jemalloc/internal/tcache.h"
@@ -503,6 +506,7 @@ void	jemalloc_postfork_child(void);
 #include "jemalloc/internal/extent.h"
 #include "jemalloc/internal/base.h"
 #include "jemalloc/internal/rtree.h"
+#include "jemalloc/internal/pages.h"
 #include "jemalloc/internal/chunk.h"
 #include "jemalloc/internal/huge.h"
 

@@ -79,7 +79,7 @@ huge_palloc(tsd_t *tsd, arena_t *arena, size_t size, size_t alignment,
 		return (NULL);
 	}
 
-	extent_node_init(node, arena, ret, size, is_zeroed);
+	extent_node_init(node, arena, ret, size, true, is_zeroed);
 
 	if (huge_node_set(ret, node)) {
 		arena_chunk_dalloc_huge(arena, ret, size);
@@ -132,7 +132,7 @@ huge_ralloc_no_move_similar(void *ptr, size_t oldsize, size_t usize,
 	size_t usize_next;
 	extent_node_t *node;
 	arena_t *arena;
-	chunk_purge_t *chunk_purge;
+	chunk_hooks_t chunk_hooks = CHUNK_HOOKS_INITIALIZER;
 	bool zeroed;
 
 	/* Increase usize to incorporate extra. */
@@ -145,15 +145,11 @@ huge_ralloc_no_move_similar(void *ptr, size_t oldsize, size_t usize,
 	node = huge_node_get(ptr);
 	arena = extent_node_arena_get(node);
 
-	malloc_mutex_lock(&arena->lock);
-	chunk_purge = arena->chunk_purge;
-	malloc_mutex_unlock(&arena->lock);
-
 	/* Fill if necessary (shrinking). */
 	if (oldsize > usize) {
 		size_t sdiff = oldsize - usize;
-		zeroed = !chunk_purge_wrapper(arena, chunk_purge, ptr, usize,
-		    sdiff);
+		zeroed = !chunk_purge_wrapper(arena, &chunk_hooks, ptr,
+		    CHUNK_CEILING(usize), usize, sdiff);
 		if (config_fill && unlikely(opt_junk_free)) {
 			memset((void *)((uintptr_t)ptr + usize), 0x5a, sdiff);
 			zeroed = false;
@@ -185,26 +181,31 @@ huge_ralloc_no_move_similar(void *ptr, size_t oldsize, size_t usize,
 	}
 }
 
-static void
+static bool
 huge_ralloc_no_move_shrink(void *ptr, size_t oldsize, size_t usize)
 {
 	extent_node_t *node;
 	arena_t *arena;
-	chunk_purge_t *chunk_purge;
+	chunk_hooks_t chunk_hooks;
+	size_t cdiff;
 	bool zeroed;
 
 	node = huge_node_get(ptr);
 	arena = extent_node_arena_get(node);
+	chunk_hooks = chunk_hooks_get(arena);
 
-	malloc_mutex_lock(&arena->lock);
-	chunk_purge = arena->chunk_purge;
-	malloc_mutex_unlock(&arena->lock);
+	/* Split excess chunks. */
+	cdiff = CHUNK_CEILING(oldsize) - CHUNK_CEILING(usize);
+	if (cdiff != 0 && chunk_hooks.split(ptr, CHUNK_CEILING(oldsize),
+	    CHUNK_CEILING(usize), cdiff, true, arena->ind))
+		return (true);
 
 	if (oldsize > usize) {
 		size_t sdiff = oldsize - usize;
-		zeroed = !chunk_purge_wrapper(arena, chunk_purge,
+		zeroed = !chunk_purge_wrapper(arena, &chunk_hooks,
 		    CHUNK_ADDR2BASE((uintptr_t)ptr + usize),
-		    CHUNK_ADDR2OFFSET((uintptr_t)ptr + usize), sdiff);
+		    CHUNK_CEILING(usize), CHUNK_ADDR2OFFSET((uintptr_t)ptr +
+		    usize), sdiff);
 		if (config_fill && unlikely(opt_junk_free)) {
 			huge_dalloc_junk((void *)((uintptr_t)ptr + usize),
 			    sdiff);
@@ -222,6 +223,8 @@ huge_ralloc_no_move_shrink(void *ptr, size_t oldsize, size_t usize)
 
 	/* Zap the excess chunks. */
 	arena_chunk_ralloc_huge_shrink(arena, ptr, oldsize, usize);
+
+	return (false);
 }
 
 static bool
@@ -304,14 +307,9 @@ huge_ralloc_no_move(void *ptr, size_t oldsize, size_t size, size_t extra,
 		return (false);
 	}
 
-	if (!maps_coalesce)
-		return (true);
-
-	/* Shrink the allocation in-place. */
-	if (CHUNK_CEILING(oldsize) >= CHUNK_CEILING(usize)) {
-		huge_ralloc_no_move_shrink(ptr, oldsize, usize);
-		return (false);
-	}
+	/* Attempt to shrink the allocation in-place. */
+	if (CHUNK_CEILING(oldsize) >= CHUNK_CEILING(usize))
+		return (huge_ralloc_no_move_shrink(ptr, oldsize, usize));
 
 	/* Attempt to expand the allocation in-place. */
 	if (huge_ralloc_no_move_expand(ptr, oldsize, size + extra, zero)) {

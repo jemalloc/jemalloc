@@ -379,23 +379,18 @@ struct arena_s {
 	 * orderings are needed, which is why there are two trees with the same
 	 * contents.
 	 */
-	extent_tree_t		chunks_szad_cache;
-	extent_tree_t		chunks_ad_cache;
-	extent_tree_t		chunks_szad_mmap;
-	extent_tree_t		chunks_ad_mmap;
-	extent_tree_t		chunks_szad_dss;
-	extent_tree_t		chunks_ad_dss;
+	extent_tree_t		chunks_szad_cached;
+	extent_tree_t		chunks_ad_cached;
+	extent_tree_t		chunks_szad_retained;
+	extent_tree_t		chunks_ad_retained;
+
 	malloc_mutex_t		chunks_mtx;
 	/* Cache of nodes that were allocated via base_alloc(). */
 	ql_head(extent_node_t)	node_cache;
 	malloc_mutex_t		node_cache_mtx;
 
-	/*
-	 * User-configurable chunk allocation/deallocation/purge functions.
-	 */
-	chunk_alloc_t		*chunk_alloc;
-	chunk_dalloc_t		*chunk_dalloc;
-	chunk_purge_t		*chunk_purge;
+	/* User-configurable chunk hook functions. */
+	chunk_hooks_t		chunk_hooks;
 
 	/* bins is used to store trees of free regions. */
 	arena_bin_t		bins[NBINS];

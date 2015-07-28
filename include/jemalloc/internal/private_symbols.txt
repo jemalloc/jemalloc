@@ -132,14 +132,12 @@ bt_init
 buferror
 chunk_alloc_cache
 chunk_alloc_base
-chunk_alloc_default
 chunk_alloc_dss
 chunk_alloc_mmap
 chunk_alloc_wrapper
 chunk_boot
 chunk_dalloc_arena
 chunk_dalloc_cache
-chunk_dalloc_default
 chunk_dalloc_mmap
 chunk_dalloc_wrapper
 chunk_deregister
@@ -149,6 +147,9 @@ chunk_dss_postfork_parent
 chunk_dss_prec_get
 chunk_dss_prec_set
 chunk_dss_prefork
+chunk_hooks_default
+chunk_hooks_get
+chunk_hooks_set
 chunk_in_dss
 chunk_lookup
 chunk_npages
@@ -156,9 +157,7 @@ chunk_postfork_child
 chunk_postfork_parent
 chunk_prefork
 chunk_purge_arena
-chunk_purge_default
 chunk_purge_wrapper
-chunk_record
 chunk_register
 chunks_rtree
 chunksize
@@ -347,7 +346,12 @@ opt_utrace
 opt_xmalloc
 opt_zero
 p2rz
+pages_commit
+pages_decommit
+pages_map
 pages_purge
+pages_trim
+pages_unmap
 pow2_ceil
 prof_active_get
 prof_active_get_unlocked

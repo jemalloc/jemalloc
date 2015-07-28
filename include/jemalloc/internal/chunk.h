@@ -19,6 +19,16 @@
 #define	CHUNK_CEILING(s)						\
 	(((s) + chunksize_mask) & ~chunksize_mask)
 
+#define	CHUNK_HOOKS_INITIALIZER {					\
+    NULL,								\
+    NULL,								\
+    NULL,								\
+    NULL,								\
+    NULL,								\
+    NULL,								\
+    NULL								\
+}
+
 #endif /* JEMALLOC_H_TYPES */
 /******************************************************************************/
 #ifdef JEMALLOC_H_STRUCTS
@@ -36,30 +46,30 @@ extern size_t		chunksize;
 extern size_t		chunksize_mask; /* (chunksize - 1). */
 extern size_t		chunk_npages;
 
+extern const chunk_hooks_t	chunk_hooks_default;
+
+chunk_hooks_t	chunk_hooks_get(arena_t *arena);
+chunk_hooks_t	chunk_hooks_set(arena_t *arena,
+    const chunk_hooks_t *chunk_hooks);
+
 bool	chunk_register(const void *chunk, const extent_node_t *node);
 void	chunk_deregister(const void *chunk, const extent_node_t *node);
 void	*chunk_alloc_base(size_t size);
-void	*chunk_alloc_cache(arena_t *arena, void *new_addr, size_t size,
-    size_t alignment, bool *zero, bool dalloc_node);
-void	*chunk_alloc_default(void *new_addr, size_t size, size_t alignment,
-    bool *zero, unsigned arena_ind);
-void	*chunk_alloc_wrapper(arena_t *arena, chunk_alloc_t *chunk_alloc,
+void	*chunk_alloc_cache(arena_t *arena, chunk_hooks_t *chunk_hooks,
+    void *new_addr, size_t size, size_t alignment, bool *zero,
+    bool dalloc_node);
+void	*chunk_alloc_wrapper(arena_t *arena, chunk_hooks_t *chunk_hooks,
     void *new_addr, size_t size, size_t alignment, bool *zero);
-void	chunk_record(arena_t *arena, extent_tree_t *chunks_szad,
-    extent_tree_t *chunks_ad, bool cache, void *chunk, size_t size,
-    bool zeroed);
-void	chunk_dalloc_cache(arena_t *arena, void *chunk, size_t size);
-void	chunk_dalloc_arena(arena_t *arena, void *chunk, size_t size,
-    bool zeroed);
-bool	chunk_dalloc_default(void *chunk, size_t size, unsigned arena_ind);
-void	chunk_dalloc_wrapper(arena_t *arena, chunk_dalloc_t *chunk_dalloc,
+void	chunk_dalloc_cache(arena_t *arena, chunk_hooks_t *chunk_hooks,
+    void *chunk, size_t size);
+void	chunk_dalloc_arena(arena_t *arena, chunk_hooks_t *chunk_hooks,
+    void *chunk, size_t size, bool zeroed);
+void	chunk_dalloc_wrapper(arena_t *arena, chunk_hooks_t *chunk_hooks,
     void *chunk, size_t size);
 bool	chunk_purge_arena(arena_t *arena, void *chunk, size_t offset,
     size_t length);
-bool	chunk_purge_default(void *chunk, size_t offset, size_t length,
-    unsigned arena_ind);
-bool	chunk_purge_wrapper(arena_t *arena, chunk_purge_t *chunk_purge,
-    void *chunk, size_t offset, size_t length);
+bool	chunk_purge_wrapper(arena_t *arena, chunk_hooks_t *chunk_hooks,
+    void *chunk, size_t size, size_t offset, size_t length);
 bool	chunk_boot(void);
 void	chunk_prefork(void);
 void	chunk_postfork_parent(void);

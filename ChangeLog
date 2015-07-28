@@ -37,8 +37,7 @@ brevity.  Much more detail can be found in the git revision history:
     "opt.prof_thread_active_init", "prof.thread_active_init", and
     "thread.prof.active" mallctls.
   - Add support for per arena application-specified chunk allocators, configured
-    via the "arena<i>.chunk.alloc", "arena<i>.chunk.dalloc", and
-    "arena.<i>.chunk.purge" mallctls.
+    via the "arena.<i>.chunk_hooks" mallctl.
   - Refactor huge allocation to be managed by arenas, so that arenas now
     function as general purpose independent allocators.  This is important in
     the context of user-specified chunk allocators, aside from the scalability

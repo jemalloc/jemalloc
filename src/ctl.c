@@ -118,9 +118,7 @@ CTL_PROTO(arena_i_purge)
 static void	arena_purge(unsigned arena_ind);
 CTL_PROTO(arena_i_dss)
 CTL_PROTO(arena_i_lg_dirty_mult)
-CTL_PROTO(arena_i_chunk_alloc)
-CTL_PROTO(arena_i_chunk_dalloc)
-CTL_PROTO(arena_i_chunk_purge)
+CTL_PROTO(arena_i_chunk_hooks)
 INDEX_PROTO(arena_i)
 CTL_PROTO(arenas_bin_i_size)
 CTL_PROTO(arenas_bin_i_nregs)
@@ -288,17 +286,11 @@ static const ctl_named_node_t	tcache_node[] = {
 	{NAME("destroy"),	CTL(tcache_destroy)}
 };
 
-static const ctl_named_node_t chunk_node[] = {
-	{NAME("alloc"),		CTL(arena_i_chunk_alloc)},
-	{NAME("dalloc"),	CTL(arena_i_chunk_dalloc)},
-	{NAME("purge"),		CTL(arena_i_chunk_purge)}
-};
-
 static const ctl_named_node_t arena_i_node[] = {
 	{NAME("purge"),		CTL(arena_i_purge)},
 	{NAME("dss"),		CTL(arena_i_dss)},
 	{NAME("lg_dirty_mult"),	CTL(arena_i_lg_dirty_mult)},
-	{NAME("chunk"),		CHILD(named, chunk)},
+	{NAME("chunk_hooks"),	CTL(arena_i_chunk_hooks)}
 };
 static const ctl_named_node_t super_arena_i_node[] = {
 	{NAME(""),		CHILD(named, arena_i)}
@@ -1064,8 +1056,8 @@ ctl_postfork_child(void)
 			memcpy(oldp, (void *)&(v), copylen);		\
 			ret = EINVAL;					\
 			goto label_return;				\
-		} else							\
-			*(t *)oldp = (v);				\
+		}							\
+		*(t *)oldp = (v);					\
 	}								\
 } while (0)
 
@@ -1682,37 +1674,36 @@ label_return:
 	return (ret);
 }
 
-#define	CHUNK_FUNC(n)							\
-static int								\
-arena_i_chunk_##n##_ctl(const size_t *mib, size_t miblen, void *oldp,	\
-    size_t *oldlenp, void *newp, size_t newlen)				\
-{									\
-									\
-	int ret;							\
-	unsigned arena_ind = mib[1];					\
-	arena_t *arena;							\
-									\
-	malloc_mutex_lock(&ctl_mtx);					\
-	if (arena_ind < narenas_total_get() && (arena =			\
-	    arena_get(tsd_fetch(), arena_ind, false, true)) != NULL) {	\
-		malloc_mutex_lock(&arena->lock);			\
-		READ(arena->chunk_##n, chunk_##n##_t *);		\
-		WRITE(arena->chunk_##n, chunk_##n##_t *);		\
-	} else {							\
-		ret = EFAULT;						\
-		goto label_outer_return;				\
-	}								\
-	ret = 0;							\
-label_return:								\
-	malloc_mutex_unlock(&arena->lock);				\
-label_outer_return:							\
-	malloc_mutex_unlock(&ctl_mtx);					\
-	return (ret);							\
+static int
+arena_i_chunk_hooks_ctl(const size_t *mib, size_t miblen, void *oldp,
+    size_t *oldlenp, void *newp, size_t newlen)
+{
+	int ret;
+	unsigned arena_ind = mib[1];
+	arena_t *arena;
+
+	malloc_mutex_lock(&ctl_mtx);
+	if (arena_ind < narenas_total_get() && (arena =
+	    arena_get(tsd_fetch(), arena_ind, false, true)) != NULL) {
+		if (newp != NULL) {
+			chunk_hooks_t old_chunk_hooks, new_chunk_hooks;
+			WRITE(new_chunk_hooks, chunk_hooks_t);
+			old_chunk_hooks = chunk_hooks_set(arena,
+			    &new_chunk_hooks);
+			READ(old_chunk_hooks, chunk_hooks_t);
+		} else {
+			chunk_hooks_t old_chunk_hooks = chunk_hooks_get(arena);
+			READ(old_chunk_hooks, chunk_hooks_t);
+		}
+	} else {
+		ret = EFAULT;
+		goto label_return;
+	}
+	ret = 0;
+label_return:
+	malloc_mutex_unlock(&ctl_mtx);
+	return (ret);
 }
-CHUNK_FUNC(alloc)
-CHUNK_FUNC(dalloc)
-CHUNK_FUNC(purge)
-#undef CHUNK_FUNC
 
 static const ctl_named_node_t *
 arena_i_index(const size_t *mib, size_t miblen, size_t i)
