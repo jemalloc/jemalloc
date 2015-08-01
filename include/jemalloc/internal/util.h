@@ -60,9 +60,11 @@
 #ifdef __GNUC__
 #	define likely(x)   __builtin_expect(!!(x), 1)
 #	define unlikely(x) __builtin_expect(!!(x), 0)
+#	define unreachable() __builtin_unreachable()
 #else
 #	define likely(x)   !!(x)
 #	define unlikely(x) !!(x)
+#	define unreachable()
 #endif
 
 /*
@@ -88,6 +90,7 @@
 		    __FILE__, __LINE__);				\
 		abort();						\
 	}								\
+	unreachable();							\
 } while (0)
 #endif
 
