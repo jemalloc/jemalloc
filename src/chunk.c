@@ -19,13 +19,13 @@ size_t		chunksize_mask; /* (chunksize - 1). */
 size_t		chunk_npages;
 
 static void	*chunk_alloc_default(void *new_addr, size_t size,
-    size_t alignment, bool *zero, unsigned arena_ind);
-static bool	chunk_dalloc_default(void *chunk, size_t size,
+    size_t alignment, bool *zero, bool *commit, unsigned arena_ind);
+static bool	chunk_dalloc_default(void *chunk, size_t size, bool committed,
     unsigned arena_ind);
-static bool	chunk_commit_default(void *chunk, size_t size,
-    unsigned arena_ind);
-static bool	chunk_decommit_default(void *chunk, size_t size,
-    unsigned arena_ind);
+static bool	chunk_commit_default(void *chunk, size_t size, size_t offset,
+    size_t length, unsigned arena_ind);
+static bool	chunk_decommit_default(void *chunk, size_t size, size_t offset,
+    size_t length, unsigned arena_ind);
 static bool	chunk_purge_default(void *chunk, size_t size, size_t offset,
     size_t length, unsigned arena_ind);
 static bool	chunk_split_default(void *chunk, size_t size, size_t size_a,
@@ -51,7 +51,7 @@ const chunk_hooks_t	chunk_hooks_default = {
 
 static void	chunk_record(arena_t *arena, chunk_hooks_t *chunk_hooks,
     extent_tree_t *chunks_szad, extent_tree_t *chunks_ad, bool cache,
-    void *chunk, size_t size, bool committed, bool zeroed);
+    void *chunk, size_t size, bool zeroed, bool committed);
 
 /******************************************************************************/
 
@@ -81,7 +81,24 @@ chunk_hooks_set(arena_t *arena, const chunk_hooks_t *chunk_hooks)
 
 	malloc_mutex_lock(&arena->chunks_mtx);
 	old_chunk_hooks = arena->chunk_hooks;
-	arena->chunk_hooks = *chunk_hooks;
+	/*
+	 * Copy each field atomically so that it is impossible for readers to
+	 * see partially updated pointers.  There are places where readers only
+	 * need one hook function pointer (therefore no need to copy the
+	 * entirety of arena->chunk_hooks), and stale reads do not affect
+	 * correctness, so they perform unlocked reads.
+	 */
+#define	ATOMIC_COPY_HOOK(n) do {					\
+	atomic_write_p((void **)&arena->chunk_hooks.n, chunk_hooks->n);	\
+} while (0)
+	ATOMIC_COPY_HOOK(alloc);
+	ATOMIC_COPY_HOOK(dalloc);
+	ATOMIC_COPY_HOOK(commit);
+	ATOMIC_COPY_HOOK(decommit);
+	ATOMIC_COPY_HOOK(purge);
+	ATOMIC_COPY_HOOK(split);
+	ATOMIC_COPY_HOOK(merge);
+#undef ATOMIC_COPY_HOOK
 	malloc_mutex_unlock(&arena->chunks_mtx);
 
 	return (old_chunk_hooks);
@@ -177,12 +194,13 @@ chunk_first_best_fit(arena_t *arena, extent_tree_t *chunks_szad,
 static void *
 chunk_recycle(arena_t *arena, chunk_hooks_t *chunk_hooks,
     extent_tree_t *chunks_szad, extent_tree_t *chunks_ad, bool cache,
-    void *new_addr, size_t size, size_t alignment, bool *zero, bool dalloc_node)
+    void *new_addr, size_t size, size_t alignment, bool *zero, bool *commit,
+    bool dalloc_node)
 {
 	void *ret;
 	extent_node_t *node;
 	size_t alloc_size, leadsize, trailsize;
-	bool committed, zeroed;
+	bool zeroed, committed;
 
 	assert(new_addr == NULL || alignment == chunksize);
 	/*
@@ -218,10 +236,12 @@ chunk_recycle(arena_t *arena, chunk_hooks_t *chunk_hooks,
 	assert(extent_node_size_get(node) >= leadsize + size);
 	trailsize = extent_node_size_get(node) - leadsize - size;
 	ret = (void *)((uintptr_t)extent_node_addr_get(node) + leadsize);
-	committed = extent_node_committed_get(node);
 	zeroed = extent_node_zeroed_get(node);
 	if (zeroed)
-	    *zero = true;
+		*zero = true;
+	committed = extent_node_committed_get(node);
+	if (committed)
+		*commit = true;
 	/* Split the lead. */
 	if (leadsize != 0 &&
 	    chunk_hooks->split(extent_node_addr_get(node),
@@ -249,7 +269,7 @@ chunk_recycle(arena_t *arena, chunk_hooks_t *chunk_hooks,
 				arena_node_dalloc(arena, node);
 			malloc_mutex_unlock(&arena->chunks_mtx);
 			chunk_record(arena, chunk_hooks, chunks_szad, chunks_ad,
-			    cache, ret, size + trailsize, committed, zeroed);
+			    cache, ret, size + trailsize, zeroed, committed);
 			return (NULL);
 		}
 		/* Insert the trailing space as a smaller chunk. */
@@ -259,21 +279,21 @@ chunk_recycle(arena_t *arena, chunk_hooks_t *chunk_hooks,
 				malloc_mutex_unlock(&arena->chunks_mtx);
 				chunk_record(arena, chunk_hooks, chunks_szad,
 				    chunks_ad, cache, ret, size + trailsize,
-				    committed, zeroed);
+				    zeroed, committed);
 				return (NULL);
 			}
 		}
 		extent_node_init(node, arena, (void *)((uintptr_t)(ret) + size),
-		    trailsize, committed, zeroed);
+		    trailsize, zeroed, committed);
 		extent_tree_szad_insert(chunks_szad, node);
 		extent_tree_ad_insert(chunks_ad, node);
 		arena_chunk_cache_maybe_insert(arena, node, cache);
 		node = NULL;
 	}
-	if (!committed && chunk_hooks->commit(ret, size, arena->ind)) {
+	if (!committed && chunk_hooks->commit(ret, size, 0, size, arena->ind)) {
 		malloc_mutex_unlock(&arena->chunks_mtx);
 		chunk_record(arena, chunk_hooks, chunks_szad, chunks_ad, cache,
-		    ret, size, committed, zeroed);
+		    ret, size, zeroed, committed);
 		return (NULL);
 	}
 	malloc_mutex_unlock(&arena->chunks_mtx);
@@ -304,7 +324,7 @@ chunk_recycle(arena_t *arena, chunk_hooks_t *chunk_hooks,
  */
 static void *
 chunk_alloc_core(arena_t *arena, void *new_addr, size_t size, size_t alignment,
-    bool *zero, dss_prec_t dss_prec)
+    bool *zero, bool *commit, dss_prec_t dss_prec)
 {
 	void *ret;
 	chunk_hooks_t chunk_hooks = CHUNK_HOOKS_INITIALIZER;
@@ -317,23 +337,25 @@ chunk_alloc_core(arena_t *arena, void *new_addr, size_t size, size_t alignment,
 	/* Retained. */
 	if ((ret = chunk_recycle(arena, &chunk_hooks,
 	    &arena->chunks_szad_retained, &arena->chunks_ad_retained, false,
-	    new_addr, size, alignment, zero, true)) != NULL)
+	    new_addr, size, alignment, zero, commit, true)) != NULL)
 		return (ret);
 
 	/* "primary" dss. */
 	if (have_dss && dss_prec == dss_prec_primary && (ret =
-	    chunk_alloc_dss(arena, new_addr, size, alignment, zero)) != NULL)
+	    chunk_alloc_dss(arena, new_addr, size, alignment, zero, commit)) !=
+	    NULL)
 		return (ret);
 	/*
 	 * mmap.  Requesting an address is not implemented for
 	 * chunk_alloc_mmap(), so only call it if (new_addr == NULL).
 	 */
-	if (new_addr == NULL && (ret = chunk_alloc_mmap(size, alignment, zero))
-	    != NULL)
+	if (new_addr == NULL && (ret = chunk_alloc_mmap(size, alignment, zero,
+	    commit)) != NULL)
 		return (ret);
 	/* "secondary" dss. */
 	if (have_dss && dss_prec == dss_prec_secondary && (ret =
-	    chunk_alloc_dss(arena, new_addr, size, alignment, zero)) != NULL)
+	    chunk_alloc_dss(arena, new_addr, size, alignment, zero, commit)) !=
+	    NULL)
 		return (ret);
 
 	/* All strategies for allocation failed. */
@@ -344,7 +366,7 @@ void *
 chunk_alloc_base(size_t size)
 {
 	void *ret;
-	bool zero;
+	bool zero, commit;
 
 	/*
 	 * Directly call chunk_alloc_mmap() rather than chunk_alloc_core()
@@ -352,7 +374,8 @@ chunk_alloc_base(size_t size)
 	 * demand-zeroed virtual memory.
 	 */
 	zero = true;
-	ret = chunk_alloc_mmap(size, chunksize, &zero);
+	commit = true;
+	ret = chunk_alloc_mmap(size, chunksize, &zero, &commit);
 	if (ret == NULL)
 		return (NULL);
 	if (config_valgrind)
@@ -366,17 +389,20 @@ chunk_alloc_cache(arena_t *arena, chunk_hooks_t *chunk_hooks, void *new_addr,
     size_t size, size_t alignment, bool *zero, bool dalloc_node)
 {
 	void *ret;
+	bool commit;
 
 	assert(size != 0);
 	assert((size & chunksize_mask) == 0);
 	assert(alignment != 0);
 	assert((alignment & chunksize_mask) == 0);
 
+	commit = true;
 	ret = chunk_recycle(arena, chunk_hooks, &arena->chunks_szad_cached,
 	    &arena->chunks_ad_cached, true, new_addr, size, alignment, zero,
-	    dalloc_node);
+	    &commit, dalloc_node);
 	if (ret == NULL)
 		return (NULL);
+	assert(commit);
 	if (config_valgrind)
 		JEMALLOC_VALGRIND_MAKE_MEM_UNDEFINED(ret, size);
 	return (ret);
@@ -400,14 +426,14 @@ chunk_arena_get(unsigned arena_ind)
 
 static void *
 chunk_alloc_default(void *new_addr, size_t size, size_t alignment, bool *zero,
-    unsigned arena_ind)
+    bool *commit, unsigned arena_ind)
 {
 	void *ret;
 	arena_t *arena;
 
 	arena = chunk_arena_get(arena_ind);
 	ret = chunk_alloc_core(arena, new_addr, size, alignment, zero,
-	    arena->dss_prec);
+	    commit, arena->dss_prec);
 	if (ret == NULL)
 		return (NULL);
 	if (config_valgrind)
@@ -418,12 +444,13 @@ chunk_alloc_default(void *new_addr, size_t size, size_t alignment, bool *zero,
 
 void *
 chunk_alloc_wrapper(arena_t *arena, chunk_hooks_t *chunk_hooks, void *new_addr,
-    size_t size, size_t alignment, bool *zero)
+    size_t size, size_t alignment, bool *zero, bool *commit)
 {
 	void *ret;
 
 	chunk_hooks_assure_initialized(arena, chunk_hooks);
-	ret = chunk_hooks->alloc(new_addr, size, alignment, zero, arena->ind);
+	ret = chunk_hooks->alloc(new_addr, size, alignment, zero, commit,
+	    arena->ind);
 	if (ret == NULL)
 		return (NULL);
 	if (config_valgrind && chunk_hooks->alloc != chunk_alloc_default)
@@ -434,7 +461,7 @@ chunk_alloc_wrapper(arena_t *arena, chunk_hooks_t *chunk_hooks, void *new_addr,
 static void
 chunk_record(arena_t *arena, chunk_hooks_t *chunk_hooks,
     extent_tree_t *chunks_szad, extent_tree_t *chunks_ad, bool cache,
-    void *chunk, size_t size, bool committed, bool zeroed)
+    void *chunk, size_t size, bool zeroed, bool committed)
 {
 	bool unzeroed;
 	extent_node_t *node, *prev;
@@ -484,8 +511,8 @@ chunk_record(arena_t *arena, chunk_hooks_t *chunk_hooks,
 			}
 			goto label_return;
 		}
-		extent_node_init(node, arena, chunk, size, committed,
-		    !unzeroed);
+		extent_node_init(node, arena, chunk, size, !unzeroed,
+		    committed);
 		extent_tree_ad_insert(chunks_ad, node);
 		extent_tree_szad_insert(chunks_szad, node);
 		arena_chunk_cache_maybe_insert(arena, node, cache);
@@ -534,15 +561,14 @@ chunk_dalloc_cache(arena_t *arena, chunk_hooks_t *chunk_hooks, void *chunk,
 	assert((size & chunksize_mask) == 0);
 
 	chunk_record(arena, chunk_hooks, &arena->chunks_szad_cached,
-	    &arena->chunks_ad_cached, true, chunk, size, true, false);
+	    &arena->chunks_ad_cached, true, chunk, size, false, true);
 	arena_maybe_purge(arena);
 }
 
 void
 chunk_dalloc_arena(arena_t *arena, chunk_hooks_t *chunk_hooks, void *chunk,
-    size_t size, bool zeroed)
+    size_t size, bool zeroed, bool committed)
 {
-	bool committed;
 
 	assert(chunk != NULL);
 	assert(CHUNK_ADDR2BASE(chunk) == chunk);
@@ -551,18 +577,22 @@ chunk_dalloc_arena(arena_t *arena, chunk_hooks_t *chunk_hooks, void *chunk,
 
 	chunk_hooks_assure_initialized(arena, chunk_hooks);
 	/* Try to deallocate. */
-	if (!chunk_hooks->dalloc(chunk, size, arena->ind))
+	if (!chunk_hooks->dalloc(chunk, size, committed, arena->ind))
 		return;
 	/* Try to decommit; purge if that fails. */
-	committed = chunk_hooks->decommit(chunk, size, arena->ind);
+	if (committed) {
+		committed = chunk_hooks->decommit(chunk, size, 0, size,
+		    arena->ind);
+	}
 	zeroed = !committed || chunk_hooks->purge(chunk, size, 0, size,
 	    arena->ind);
 	chunk_record(arena, chunk_hooks, &arena->chunks_szad_retained,
-	    &arena->chunks_ad_retained, false, chunk, size, committed, zeroed);
+	    &arena->chunks_ad_retained, false, chunk, size, zeroed, committed);
 }
 
 static bool
-chunk_dalloc_default(void *chunk, size_t size, unsigned arena_ind)
+chunk_dalloc_default(void *chunk, size_t size, bool committed,
+    unsigned arena_ind)
 {
 
 	if (!have_dss || !chunk_in_dss(chunk))
@@ -572,27 +602,31 @@ chunk_dalloc_default(void *chunk, size_t size, unsigned arena_ind)
 
 void
 chunk_dalloc_wrapper(arena_t *arena, chunk_hooks_t *chunk_hooks, void *chunk,
-    size_t size)
+    size_t size, bool committed)
 {
 
 	chunk_hooks_assure_initialized(arena, chunk_hooks);
-	chunk_hooks->dalloc(chunk, size, arena->ind);
+	chunk_hooks->dalloc(chunk, size, committed, arena->ind);
 	if (config_valgrind && chunk_hooks->dalloc != chunk_dalloc_default)
 		JEMALLOC_VALGRIND_MAKE_MEM_NOACCESS(chunk, size);
 }
 
 static bool
-chunk_commit_default(void *chunk, size_t size, unsigned arena_ind)
+chunk_commit_default(void *chunk, size_t size, size_t offset, size_t length,
+    unsigned arena_ind)
 {
 
-	return (pages_commit(chunk, size));
+	return (pages_commit((void *)((uintptr_t)chunk + (uintptr_t)offset),
+	    length));
 }
 
 static bool
-chunk_decommit_default(void *chunk, size_t size, unsigned arena_ind)
+chunk_decommit_default(void *chunk, size_t size, size_t offset, size_t length,
+    unsigned arena_ind)
 {
 
-	return (pages_decommit(chunk, size));
+	return (pages_decommit((void *)((uintptr_t)chunk + (uintptr_t)offset),
+	    length));
 }
 
 bool

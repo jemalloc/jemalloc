@@ -22,45 +22,50 @@ static bool did_merge;
 
 void *
 chunk_alloc(void *new_addr, size_t size, size_t alignment, bool *zero,
-    unsigned arena_ind)
+    bool *commit, unsigned arena_ind)
 {
 
 	TRACE_HOOK("%s(new_addr=%p, size=%zu, alignment=%zu, *zero=%s, "
-	    "arena_ind=%u)\n", __func__, new_addr, size, alignment, *zero ?
-	    "true" : "false", arena_ind);
+	    "*commit=%s, arena_ind=%u)\n", __func__, new_addr, size, alignment,
+	    *zero ?  "true" : "false", *commit ? "true" : "false", arena_ind);
 	did_alloc = true;
-	return (old_hooks.alloc(new_addr, size, alignment, zero, arena_ind));
+	return (old_hooks.alloc(new_addr, size, alignment, zero, commit,
+	    arena_ind));
 }
 
 bool
-chunk_dalloc(void *chunk, size_t size, unsigned arena_ind)
+chunk_dalloc(void *chunk, size_t size, bool committed, unsigned arena_ind)
 {
 
-	TRACE_HOOK("%s(chunk=%p, size=%zu, arena_ind=%u)\n", __func__, chunk,
-	    size, arena_ind);
+	TRACE_HOOK("%s(chunk=%p, size=%zu, committed=%s, arena_ind=%u)\n",
+	    __func__, chunk, size, committed ? "true" : "false", arena_ind);
 	did_dalloc = true;
 	if (!do_dalloc)
 		return (true);
-	return (old_hooks.dalloc(chunk, size, arena_ind));
+	return (old_hooks.dalloc(chunk, size, committed, arena_ind));
 }
 
 bool
-chunk_commit(void *chunk, size_t size, unsigned arena_ind)
+chunk_commit(void *chunk, size_t size, size_t offset, size_t length,
+    unsigned arena_ind)
 {
 
-	TRACE_HOOK("%s(chunk=%p, size=%zu, arena_ind=%u)\n", __func__, chunk,
-	    size, arena_ind);
+	TRACE_HOOK("%s(chunk=%p, size=%zu, offset=%zu, length=%zu, "
+	    "arena_ind=%u)\n", __func__, chunk, size, offset, length,
+	    arena_ind);
 	did_commit = true;
-	memset(chunk, 0, size);
+	memset((void *)((uintptr_t)chunk + offset), 0, length);
 	return (false);
 }
 
 bool
-chunk_decommit(void *chunk, size_t size, unsigned arena_ind)
+chunk_decommit(void *chunk, size_t size, size_t offset, size_t length,
+    unsigned arena_ind)
 {
 
-	TRACE_HOOK("%s(chunk=%p, size=%zu, arena_ind=%u)\n", __func__, chunk,
-	    size, arena_ind);
+	TRACE_HOOK("%s(chunk=%p, size=%zu, offset=%zu, length=%zu, "
+	    "arena_ind=%u)\n", __func__, chunk, size, offset, length,
+	    arena_ind);
 	did_decommit = true;
 	return (!do_decommit);
 }
@@ -106,7 +111,7 @@ chunk_merge(void *chunk_a, size_t size_a, void *chunk_b, size_t size_b,
 TEST_BEGIN(test_chunk)
 {
 	void *p;
-	size_t old_size, new_size, huge0, huge1, huge2, sz;
+	size_t old_size, new_size, large0, large1, huge0, huge1, huge2, sz;
 	chunk_hooks_t new_hooks = {
 		chunk_alloc,
 		chunk_dalloc,
@@ -134,8 +139,14 @@ TEST_BEGIN(test_chunk)
 	assert_ptr_ne(old_hooks.split, chunk_split, "Unexpected split error");
 	assert_ptr_ne(old_hooks.merge, chunk_merge, "Unexpected merge error");
 
-	/* Get huge size classes. */
+	/* Get large size classes. */
 	sz = sizeof(size_t);
+	assert_d_eq(mallctl("arenas.lrun.0.size", &large0, &sz, NULL, 0), 0,
+	    "Unexpected arenas.lrun.0.size failure");
+	assert_d_eq(mallctl("arenas.lrun.1.size", &large1, &sz, NULL, 0), 0,
+	    "Unexpected arenas.lrun.1.size failure");
+
+	/* Get huge size classes. */
 	assert_d_eq(mallctl("arenas.hchunk.0.size", &huge0, &sz, NULL, 0), 0,
 	    "Unexpected arenas.hchunk.0.size failure");
 	assert_d_eq(mallctl("arenas.hchunk.1.size", &huge1, &sz, NULL, 0), 0,
@@ -196,9 +207,28 @@ TEST_BEGIN(test_chunk)
 		did_purge = false;
 		assert_zu_eq(xallocx(p, huge1, 0, 0), huge1,
 		    "Unexpected xallocx() failure");
-		assert_true(did_purge, "Unexpected purge");
+		assert_true(did_purge, "Expected purge");
 		dallocx(p, 0);
 	}
+
+	/* Test decommit for large allocations. */
+	do_decommit = true;
+	p = mallocx(large1, 0);
+	assert_ptr_not_null(p, "Unexpected mallocx() error");
+	assert_d_eq(mallctl("arena.0.purge", NULL, NULL, NULL, 0), 0,
+	    "Unexpected arena.0.purge error");
+	did_decommit = false;
+	assert_zu_eq(xallocx(p, large0, 0, 0), large0,
+	    "Unexpected xallocx() failure");
+	assert_d_eq(mallctl("arena.0.purge", NULL, NULL, NULL, 0), 0,
+	    "Unexpected arena.0.purge error");
+	assert_true(did_decommit, "Expected decommit");
+	did_commit = false;
+	assert_zu_eq(xallocx(p, large1, 0, 0), large1,
+	    "Unexpected xallocx() failure");
+	assert_true(did_commit, "Expected commit");
+	dallocx(p, 0);
+	do_decommit = false;
 
 	/* Make sure non-huge allocation succeeds. */
 	p = mallocx(42, 0);

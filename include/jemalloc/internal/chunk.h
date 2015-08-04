@@ -59,13 +59,13 @@ void	*chunk_alloc_cache(arena_t *arena, chunk_hooks_t *chunk_hooks,
     void *new_addr, size_t size, size_t alignment, bool *zero,
     bool dalloc_node);
 void	*chunk_alloc_wrapper(arena_t *arena, chunk_hooks_t *chunk_hooks,
-    void *new_addr, size_t size, size_t alignment, bool *zero);
+    void *new_addr, size_t size, size_t alignment, bool *zero, bool *commit);
 void	chunk_dalloc_cache(arena_t *arena, chunk_hooks_t *chunk_hooks,
     void *chunk, size_t size);
 void	chunk_dalloc_arena(arena_t *arena, chunk_hooks_t *chunk_hooks,
-    void *chunk, size_t size, bool zeroed);
+    void *chunk, size_t size, bool zeroed, bool committed);
 void	chunk_dalloc_wrapper(arena_t *arena, chunk_hooks_t *chunk_hooks,
-    void *chunk, size_t size);
+    void *chunk, size_t size, bool committed);
 bool	chunk_purge_arena(arena_t *arena, void *chunk, size_t offset,
     size_t length);
 bool	chunk_purge_wrapper(arena_t *arena, chunk_hooks_t *chunk_hooks,

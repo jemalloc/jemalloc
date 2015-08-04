@@ -1,27 +1,29 @@
 /*
  * void *
  * chunk_alloc(void *new_addr, size_t size, size_t alignment, bool *zero,
+ *     bool *commit, unsigned arena_ind);
+ */
+typedef void *(chunk_alloc_t)(void *, size_t, size_t, bool *, bool *, unsigned);
+
+/*
+ * bool
+ * chunk_dalloc(void *chunk, size_t size, bool committed, unsigned arena_ind);
+ */
+typedef bool (chunk_dalloc_t)(void *, size_t, bool, unsigned);
+
+/*
+ * bool
+ * chunk_commit(void *chunk, size_t size, size_t offset, size_t length,
  *     unsigned arena_ind);
  */
-typedef void *(chunk_alloc_t)(void *, size_t, size_t, bool *, unsigned);
+typedef bool (chunk_commit_t)(void *, size_t, size_t, size_t, unsigned);
 
 /*
  * bool
- * chunk_dalloc(void *chunk, size_t size, unsigned arena_ind);
+ * chunk_decommit(void *chunk, size_t size, size_t offset, size_t length,
+ *     unsigned arena_ind);
  */
-typedef bool (chunk_dalloc_t)(void *, size_t, unsigned);
-
-/*
- * bool
- * chunk_commit(void *chunk, size_t size, unsigned arena_ind);
- */
-typedef bool (chunk_commit_t)(void *, size_t, unsigned);
-
-/*
- * bool
- * chunk_decommit(void *chunk, size_t size, unsigned arena_ind);
- */
-typedef bool (chunk_decommit_t)(void *, size_t, unsigned);
+typedef bool (chunk_decommit_t)(void *, size_t, size_t, size_t, unsigned);
 
 /*
  * bool

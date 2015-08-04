@@ -4,7 +4,7 @@
 /******************************************************************************/
 
 static void *
-chunk_alloc_mmap_slow(size_t size, size_t alignment, bool *zero)
+chunk_alloc_mmap_slow(size_t size, size_t alignment, bool *zero, bool *commit)
 {
 	void *ret, *pages;
 	size_t alloc_size, leadsize;
@@ -24,11 +24,12 @@ chunk_alloc_mmap_slow(size_t size, size_t alignment, bool *zero)
 
 	assert(ret != NULL);
 	*zero = true;
+	*commit = true;
 	return (ret);
 }
 
 void *
-chunk_alloc_mmap(size_t size, size_t alignment, bool *zero)
+chunk_alloc_mmap(size_t size, size_t alignment, bool *zero, bool *commit)
 {
 	void *ret;
 	size_t offset;
@@ -55,11 +56,12 @@ chunk_alloc_mmap(size_t size, size_t alignment, bool *zero)
 	offset = ALIGNMENT_ADDR2OFFSET(ret, alignment);
 	if (offset != 0) {
 		pages_unmap(ret, size);
-		return (chunk_alloc_mmap_slow(size, alignment, zero));
+		return (chunk_alloc_mmap_slow(size, alignment, zero, commit));
 	}
 
 	assert(ret != NULL);
 	*zero = true;
+	*commit = true;
 	return (ret);
 }
 

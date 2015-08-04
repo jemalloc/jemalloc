@@ -39,6 +39,7 @@ arena_malloc_large
 arena_malloc_small
 arena_mapbits_allocated_get
 arena_mapbits_binind_get
+arena_mapbits_decommitted_get
 arena_mapbits_dirty_get
 arena_mapbits_get
 arena_mapbits_large_binind_set

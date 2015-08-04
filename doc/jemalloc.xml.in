@@ -1565,21 +1565,25 @@ typedef struct {
           <paramdef>size_t <parameter>size</parameter></paramdef>
           <paramdef>size_t <parameter>alignment</parameter></paramdef>
           <paramdef>bool *<parameter>zero</parameter></paramdef>
+          <paramdef>bool *<parameter>commit</parameter></paramdef>
           <paramdef>unsigned <parameter>arena_ind</parameter></paramdef>
         </funcprototype></funcsynopsis>
         A chunk allocation function conforms to the <type>chunk_alloc_t</type>
         type and upon success returns a pointer to <parameter>size</parameter>
-        bytes of mapped committed memory on behalf of arena
+        bytes of mapped memory on behalf of arena
         <parameter>arena_ind</parameter> such that the chunk's base address is a
         multiple of <parameter>alignment</parameter>, as well as setting
-        <parameter>*zero</parameter> to indicate whether the chunk is zeroed.
-        Upon error the function returns <constant>NULL</constant> and leaves
-        <parameter>*zero</parameter> unmodified.  The
+        <parameter>*zero</parameter> to indicate whether the chunk is zeroed and
+        <parameter>*commit</parameter> to indicate whether the chunk is
+        committed.  Upon error the function returns <constant>NULL</constant>
+        and leaves <parameter>*zero</parameter> and
+        <parameter>*commit</parameter> unmodified.  The
         <parameter>size</parameter> parameter is always a multiple of the chunk
         size.  The <parameter>alignment</parameter> parameter is always a power
         of two at least as large as the chunk size.  Zeroing is mandatory if
-        <parameter>*zero</parameter> is true upon function entry.  If
-        <parameter>chunk</parameter> is not <constant>NULL</constant>, the
+        <parameter>*zero</parameter> is true upon function entry.  Committing is
+        mandatory if <parameter>*commit</parameter> is true upon function entry.
+        If <parameter>chunk</parameter> is not <constant>NULL</constant>, the
         returned pointer must be <parameter>chunk</parameter> on success or
         <constant>NULL</constant> on error.  Committed memory may be committed
         in absolute terms as on a system that does not overcommit, or in
@@ -1593,48 +1597,57 @@ typedef struct {
           <funcdef>typedef bool <function>(chunk_dalloc_t)</function></funcdef>
           <paramdef>void *<parameter>chunk</parameter></paramdef>
           <paramdef>size_t <parameter>size</parameter></paramdef>
+          <paramdef>bool <parameter>committed</parameter></paramdef>
           <paramdef>unsigned <parameter>arena_ind</parameter></paramdef>
         </funcprototype></funcsynopsis>
         A chunk deallocation function conforms to the
         <type>chunk_dalloc_t</type> type and deallocates a
-        <parameter>chunk</parameter> of given <parameter>size</parameter> on
+        <parameter>chunk</parameter> of given <parameter>size</parameter> with
+        <parameter>committed</parameter>/decommited memory as indicated, on
         behalf of arena <parameter>arena_ind</parameter>, returning false upon
         success.  If the function returns true, this indicates opt-out from
         deallocation; the virtual memory mapping associated with the chunk
-        remains mapped, committed, and available for future use, in which case
-        it will be automatically retained for later reuse.</para>
+        remains mapped, in the same commit state, and available for future use,
+        in which case it will be automatically retained for later reuse.</para>
 
         <para><funcsynopsis><funcprototype>
           <funcdef>typedef bool <function>(chunk_commit_t)</function></funcdef>
           <paramdef>void *<parameter>chunk</parameter></paramdef>
           <paramdef>size_t <parameter>size</parameter></paramdef>
+          <paramdef>size_t <parameter>offset</parameter></paramdef>
+          <paramdef>size_t <parameter>length</parameter></paramdef>
           <paramdef>unsigned <parameter>arena_ind</parameter></paramdef>
         </funcprototype></funcsynopsis>
         A chunk commit function conforms to the <type>chunk_commit_t</type> type
-        and commits zeroed physical memory to back a
-        <parameter>chunk</parameter> of given <parameter>size</parameter> on
-        behalf of arena <parameter>arena_ind</parameter>, returning false upon
-        success.  Committed memory may be committed in absolute terms as on a
-        system that does not overcommit, or in implicit terms as on a system
-        that overcommits and satisfies physical memory needs on demand via soft
-        page faults. If the function returns true, this indicates insufficient
+        and commits zeroed physical memory to back pages within a
+        <parameter>chunk</parameter> of given <parameter>size</parameter> at
+        <parameter>offset</parameter> bytes, extending for
+        <parameter>length</parameter> on behalf of arena
+        <parameter>arena_ind</parameter>, returning false upon success.
+        Committed memory may be committed in absolute terms as on a system that
+        does not overcommit, or in implicit terms as on a system that
+        overcommits and satisfies physical memory needs on demand via soft page
+        faults. If the function returns true, this indicates insufficient
         physical memory to satisfy the request.</para>
 
         <para><funcsynopsis><funcprototype>
           <funcdef>typedef bool <function>(chunk_decommit_t)</function></funcdef>
           <paramdef>void *<parameter>chunk</parameter></paramdef>
           <paramdef>size_t <parameter>size</parameter></paramdef>
+          <paramdef>size_t <parameter>offset</parameter></paramdef>
+          <paramdef>size_t <parameter>length</parameter></paramdef>
           <paramdef>unsigned <parameter>arena_ind</parameter></paramdef>
         </funcprototype></funcsynopsis>
         A chunk decommit function conforms to the <type>chunk_decommit_t</type>
-        type and decommits any physical memory that is backing a
-        <parameter>chunk</parameter> of given <parameter>size</parameter> on
-        behalf of arena <parameter>arena_ind</parameter>, returning false upon
-        success, in which case the chunk will be committed via the chunk commit
-        function before being reused.  If the function returns true, this
-        indicates opt-out from decommit; the memory remains committed and
-        available for future use, in which case it will be automatically
-        retained for later reuse.</para>
+        type and decommits any physical memory that is backing pages within a
+        <parameter>chunk</parameter> of given <parameter>size</parameter> at
+        <parameter>offset</parameter> bytes, extending for
+        <parameter>length</parameter> on behalf of arena
+        <parameter>arena_ind</parameter>, returning false upon success, in which
+        case the pages will be committed via the chunk commit function before
+        being reused.  If the function returns true, this indicates opt-out from
+        decommit; the memory remains committed and available for future use, in
+        which case it will be automatically retained for later reuse.</para>
 
         <para><funcsynopsis><funcprototype>
           <funcdef>typedef bool <function>(chunk_purge_t)</function></funcdef>

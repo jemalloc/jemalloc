@@ -79,7 +79,7 @@ huge_palloc(tsd_t *tsd, arena_t *arena, size_t size, size_t alignment,
 		return (NULL);
 	}
 
-	extent_node_init(node, arena, ret, size, true, is_zeroed);
+	extent_node_init(node, arena, ret, size, is_zeroed, true);
 
 	if (huge_node_set(ret, node)) {
 		arena_chunk_dalloc_huge(arena, ret, size);
