@@ -2441,7 +2441,7 @@ arena_ralloc_large_grow(arena_t *arena, arena_chunk_t *chunk, void *ptr,
     size_t oldsize, size_t size, size_t extra, bool zero)
 {
 	size_t pageind = ((uintptr_t)ptr - (uintptr_t)chunk) >> LG_PAGE;
-	size_t npages = oldsize >> LG_PAGE;
+	size_t npages = (oldsize + large_pad) >> LG_PAGE;
 	size_t followsize;
 	size_t usize_min = s2u(size);
 
@@ -2451,7 +2451,7 @@ arena_ralloc_large_grow(arena_t *arena, arena_chunk_t *chunk, void *ptr,
 	/* Try to extend the run. */
 	assert(usize_min > oldsize);
 	malloc_mutex_lock(&arena->lock);
-	if (pageind + npages < chunk_npages &&
+	if (pageind+npages < chunk_npages &&
 	    arena_mapbits_allocated_get(chunk, pageind+npages) == 0 &&
 	    (followsize = arena_mapbits_unallocated_size_get(chunk,
 	    pageind+npages)) >= usize_min - oldsize) {
@@ -2467,13 +2467,13 @@ arena_ralloc_large_grow(arena_t *arena, arena_chunk_t *chunk, void *ptr,
 		while (oldsize + followsize < usize)
 			usize = index2size(size2index(usize)-1);
 		assert(usize >= usize_min);
-		splitsize = usize - oldsize + large_pad;
+		splitsize = usize - oldsize;
 
 		run = &arena_miscelm_get(chunk, pageind+npages)->run;
 		arena_run_split_large(arena, run, splitsize, zero);
 
 		size = oldsize + splitsize;
-		npages = size >> LG_PAGE;
+		npages = (size + large_pad) >> LG_PAGE;
 
 		/*
 		 * Mark the extended run as dirty if either portion of the run
@@ -2485,7 +2485,8 @@ arena_ralloc_large_grow(arena_t *arena, arena_chunk_t *chunk, void *ptr,
 		 */
 		flag_dirty = arena_mapbits_dirty_get(chunk, pageind) |
 		    arena_mapbits_dirty_get(chunk, pageind+npages-1);
-		arena_mapbits_large_set(chunk, pageind, size, flag_dirty);
+		arena_mapbits_large_set(chunk, pageind, size + large_pad,
+		    flag_dirty);
 		arena_mapbits_large_set(chunk, pageind+npages-1, 0, flag_dirty);
 
 		if (config_stats) {
