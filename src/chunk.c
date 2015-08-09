@@ -552,7 +552,7 @@ label_return:
 
 void
 chunk_dalloc_cache(arena_t *arena, chunk_hooks_t *chunk_hooks, void *chunk,
-    size_t size)
+    size_t size, bool committed)
 {
 
 	assert(chunk != NULL);
@@ -561,7 +561,7 @@ chunk_dalloc_cache(arena_t *arena, chunk_hooks_t *chunk_hooks, void *chunk,
 	assert((size & chunksize_mask) == 0);
 
 	chunk_record(arena, chunk_hooks, &arena->chunks_szad_cached,
-	    &arena->chunks_ad_cached, true, chunk, size, false, true);
+	    &arena->chunks_ad_cached, true, chunk, size, false, committed);
 	arena_maybe_purge(arena);
 }
 

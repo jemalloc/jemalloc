@@ -838,6 +838,7 @@ arena_mapbits_unzeroed_set(arena_chunk_t *chunk, size_t pageind,
 	size_t *mapbitsp = arena_mapbitsp_get(chunk, pageind);
 	size_t mapbits = arena_mapbitsp_read(mapbitsp);
 
+	assert((mapbits & CHUNK_MAP_DECOMMITTED) == 0 || !unzeroed);
 	arena_mapbitsp_write(mapbitsp, (mapbits & ~CHUNK_MAP_UNZEROED) |
 	    unzeroed);
 }

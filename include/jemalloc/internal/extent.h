@@ -27,7 +27,7 @@ struct extent_node_s {
 	/*
 	 * True if physical memory is committed to the extent, whether
 	 * explicitly or implicitly as on a system that overcommits and
-	 * satisfies physical mamory needs on demand via soft page faults.
+	 * satisfies physical memory needs on demand via soft page faults.
 	 */
 	bool			en_committed;
 
@@ -125,6 +125,7 @@ JEMALLOC_INLINE bool
 extent_node_committed_get(const extent_node_t *node)
 {
 
+	assert(!extent_node_achunk_get(node));
 	return (node->en_committed);
 }
 

@@ -442,9 +442,8 @@ arena_run_split_large_helper(arena_t *arena, arena_run_t *run, size_t size,
 	need_pages = (size >> LG_PAGE);
 	assert(need_pages > 0);
 
-	if (flag_decommitted != 0 && arena->chunk_hooks.commit(chunk,
-	    chunksize, (run_ind << LG_PAGE), (need_pages << LG_PAGE),
-	    arena->ind))
+	if (flag_decommitted != 0 && arena->chunk_hooks.commit(chunk, chunksize,
+	    run_ind << LG_PAGE, size, arena->ind))
 		return (true);
 
 	if (remove) {
@@ -566,9 +565,9 @@ arena_chunk_register(arena_t *arena, arena_chunk_t *chunk, bool zero)
 
 	/*
 	 * The extent node notion of "committed" doesn't directly apply to
-	 * arena chunks.  Arbitrarily mark them as committed (after all they are
-	 * always at least partially committed).  The commit state of runs is
-	 * tracked individually.
+	 * arena chunks.  Arbitrarily mark them as committed.  The commit state
+	 * of runs is tracked individually, and upon chunk deallocation the
+	 * entire chunk is in a consistent commit state.
 	 */
 	extent_node_init(&chunk->node, arena, chunk, chunksize, zero, true);
 	extent_node_achunk_set(&chunk->node, true);
@@ -620,7 +619,7 @@ arena_chunk_alloc_internal(arena_t *arena, bool *zero, bool *commit)
 	if (chunk != NULL) {
 		if (arena_chunk_register(arena, chunk, *zero)) {
 			chunk_dalloc_cache(arena, &chunk_hooks, chunk,
-			    chunksize);
+			    chunksize, true);
 			return (NULL);
 		}
 		*commit = true;
@@ -723,6 +722,8 @@ arena_chunk_dalloc(arena_t *arena, arena_chunk_t *chunk)
 	    arena_maxrun);
 	assert(arena_mapbits_dirty_get(chunk, map_bias) ==
 	    arena_mapbits_dirty_get(chunk, chunk_npages-1));
+	assert(arena_mapbits_decommitted_get(chunk, map_bias) ==
+	    arena_mapbits_decommitted_get(chunk, chunk_npages-1));
 
 	/*
 	 * Remove run from the runs_avail tree, so that the arena does not use
@@ -733,6 +734,7 @@ arena_chunk_dalloc(arena_t *arena, arena_chunk_t *chunk)
 	if (arena->spare != NULL) {
 		arena_chunk_t *spare = arena->spare;
 		chunk_hooks_t chunk_hooks = CHUNK_HOOKS_INITIALIZER;
+		bool committed;
 
 		arena->spare = chunk;
 		if (arena_mapbits_dirty_get(spare, map_bias) != 0) {
@@ -742,8 +744,23 @@ arena_chunk_dalloc(arena_t *arena, arena_chunk_t *chunk)
 
 		chunk_deregister(spare, &spare->node);
 
+		committed = (arena_mapbits_decommitted_get(spare, map_bias) ==
+		    0);
+		if (!committed) {
+			/*
+			 * Decommit the header.  Mark the chunk as decommitted
+			 * even if header decommit fails, since treating a
+			 * partially committed chunk as committed has a high
+			 * potential for causing later access of decommitted
+			 * memory.
+			 */
+			chunk_hooks = chunk_hooks_get(arena);
+			chunk_hooks.decommit(spare, chunksize, 0, map_bias <<
+			    LG_PAGE, arena->ind);
+		}
+
 		chunk_dalloc_cache(arena, &chunk_hooks, (void *)spare,
-		    chunksize);
+		    chunksize, committed);
 
 		if (config_stats) {
 			arena->stats.mapped -= chunksize;
@@ -916,7 +933,7 @@ arena_chunk_dalloc_huge(arena_t *arena, void *chunk, size_t usize)
 	}
 	arena->nactive -= (usize >> LG_PAGE);
 
-	chunk_dalloc_cache(arena, &chunk_hooks, chunk, csize);
+	chunk_dalloc_cache(arena, &chunk_hooks, chunk, csize, true);
 	malloc_mutex_unlock(&arena->lock);
 }
 
@@ -967,7 +984,7 @@ arena_chunk_ralloc_huge_shrink(arena_t *arena, void *chunk, size_t oldsize,
 		void *nchunk = (void *)((uintptr_t)chunk +
 		    CHUNK_CEILING(usize));
 
-		chunk_dalloc_cache(arena, &chunk_hooks, nchunk, cdiff);
+		chunk_dalloc_cache(arena, &chunk_hooks, nchunk, cdiff, true);
 	}
 	malloc_mutex_unlock(&arena->lock);
 }
@@ -1385,6 +1402,9 @@ arena_purge_stashed(arena_t *arena, chunk_hooks_t *chunk_hooks,
 			npages = run_size >> LG_PAGE;
 
 			assert(pageind + npages <= chunk_npages);
+			assert(!arena_mapbits_decommitted_get(chunk, pageind));
+			assert(!arena_mapbits_decommitted_get(chunk,
+			    pageind+npages-1));
 			decommitted = !chunk_hooks->decommit(chunk, chunksize,
 			    pageind << LG_PAGE, npages << LG_PAGE, arena->ind);
 			if (decommitted) {
@@ -1450,11 +1470,12 @@ arena_unstash_purged(arena_t *arena, chunk_hooks_t *chunk_hooks,
 			void *addr = extent_node_addr_get(chunkselm);
 			size_t size = extent_node_size_get(chunkselm);
 			bool zeroed = extent_node_zeroed_get(chunkselm);
+			bool committed = extent_node_committed_get(chunkselm);
 			extent_node_dirty_remove(chunkselm);
 			arena_node_dalloc(arena, chunkselm);
 			chunkselm = chunkselm_next;
 			chunk_dalloc_arena(arena, chunk_hooks, addr, size,
-			    zeroed, true);
+			    zeroed, committed);
 		} else {
 			arena_chunk_t *chunk =
 			    (arena_chunk_t *)CHUNK_ADDR2BASE(rdelm);
@@ -1721,6 +1742,15 @@ arena_run_dalloc(arena_t *arena, arena_run_t *run, bool dirty, bool cleaned,
 }
 
 static void
+arena_run_dalloc_decommit(arena_t *arena, arena_chunk_t *chunk,
+    arena_run_t *run)
+{
+	bool committed = arena_run_decommit(arena, chunk, run);
+
+	arena_run_dalloc(arena, run, committed, false, !committed);
+}
+
+static void
 arena_run_trim_head(arena_t *arena, arena_chunk_t *chunk, arena_run_t *run,
     size_t oldsize, size_t newsize)
 {
@@ -1762,7 +1792,7 @@ arena_run_trim_tail(arena_t *arena, arena_chunk_t *chunk, arena_run_t *run,
 	size_t pageind = arena_miscelm_to_pageind(miscelm);
 	size_t head_npages = newsize >> LG_PAGE;
 	size_t flag_dirty = arena_mapbits_dirty_get(chunk, pageind);
-	bool decommitted = arena_mapbits_decommitted_get(chunk, pageind) != 0;
+	bool decommitted = (arena_mapbits_decommitted_get(chunk, pageind) != 0);
 	arena_chunk_map_misc_t *tail_miscelm;
 	arena_run_t *tail_run;
 
@@ -2263,13 +2293,12 @@ arena_palloc_large(tsd_t *tsd, arena_t *arena, size_t usize, size_t alignment,
 	if (arena_run_init_large(arena, run, usize + large_pad, zero)) {
 		size_t run_ind =
 		    arena_miscelm_to_pageind(arena_run_to_miscelm(run));
-		size_t flag_dirty = arena_mapbits_dirty_get(chunk, run_ind);
-		size_t flag_decommitted = arena_mapbits_decommitted_get(chunk,
-		    run_ind);
+		bool dirty = (arena_mapbits_dirty_get(chunk, run_ind) != 0);
+		bool decommitted = (arena_mapbits_decommitted_get(chunk,
+		    run_ind) != 0);
 
-		assert(flag_decommitted != 0); /* Cause of OOM. */
-		arena_run_dalloc(arena, run, (flag_dirty != 0), false,
-		    (flag_decommitted != 0));
+		assert(decommitted); /* Cause of OOM. */
+		arena_run_dalloc(arena, run, dirty, false, decommitted);
 		malloc_mutex_unlock(&arena->lock);
 		return (NULL);
 	}
@@ -2390,10 +2419,7 @@ arena_dalloc_bin_run(arena_t *arena, arena_chunk_t *chunk, arena_run_t *run,
 	malloc_mutex_unlock(&bin->lock);
 	/******************************/
 	malloc_mutex_lock(&arena->lock);
-	{
-		bool committed = arena_run_decommit(arena, chunk, run);
-		arena_run_dalloc(arena, run, committed, false, !committed);
-	}
+	arena_run_dalloc_decommit(arena, chunk, run);
 	malloc_mutex_unlock(&arena->lock);
 	/****************************/
 	malloc_mutex_lock(&bin->lock);
@@ -2519,7 +2545,6 @@ arena_dalloc_large_locked_impl(arena_t *arena, arena_chunk_t *chunk,
 	size_t pageind = ((uintptr_t)ptr - (uintptr_t)chunk) >> LG_PAGE;
 	arena_chunk_map_misc_t *miscelm = arena_miscelm_get(chunk, pageind);
 	arena_run_t *run = &miscelm->run;
-	bool committed;
 
 	if (config_fill || config_stats) {
 		size_t usize = arena_mapbits_large_size_get(chunk, pageind) -
@@ -2537,8 +2562,7 @@ arena_dalloc_large_locked_impl(arena_t *arena, arena_chunk_t *chunk,
 		}
 	}
 
-	committed = arena_run_decommit(arena, chunk, run);
-	arena_run_dalloc(arena, run, committed, false, !committed);
+	arena_run_dalloc_decommit(arena, chunk, run);
 }
 
 void
