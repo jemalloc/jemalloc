@@ -125,7 +125,7 @@ JEMALLOC_INLINE bool
 extent_node_committed_get(const extent_node_t *node)
 {
 
-	assert(!extent_node_achunk_get(node));
+	assert(!node->en_achunk);
 	return (node->en_committed);
 }
 
