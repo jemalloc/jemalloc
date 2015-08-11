@@ -102,7 +102,7 @@ pages_commit_impl(void *addr, size_t size, bool commit)
 {
 
 #ifndef _WIN32
-	if (config_debug) {
+	if (false &&/*XXX*/ config_debug) {
 		int prot = commit ? (PROT_READ | PROT_WRITE) : PROT_NONE;
 		void *result = mmap(addr, size, prot, MAP_PRIVATE | MAP_ANON |
 		    MAP_FIXED, -1, 0);

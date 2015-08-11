@@ -642,7 +642,7 @@ arena_chunk_init_hard(arena_t *arena)
 {
 	arena_chunk_t *chunk;
 	bool zero, commit;
-	size_t unzeroed, decommitted, i;
+	size_t flag_unzeroed, flag_decommitted, i;
 
 	assert(arena->spare == NULL);
 
@@ -657,10 +657,10 @@ arena_chunk_init_hard(arena_t *arena)
 	 * the pages as zeroed if chunk_alloc() returned a zeroed or decommitted
 	 * chunk.
 	 */
-	unzeroed = (zero || !commit) ? 0 : CHUNK_MAP_UNZEROED;
-	decommitted = commit ? 0 : CHUNK_MAP_DECOMMITTED;
-	arena_mapbits_unallocated_set(chunk, map_bias, arena_maxrun, unzeroed |
-	    decommitted);
+	flag_unzeroed = (zero || !commit) ? 0 : CHUNK_MAP_UNZEROED;
+	flag_decommitted = commit ? 0 : CHUNK_MAP_DECOMMITTED;
+	arena_mapbits_unallocated_set(chunk, map_bias, arena_maxrun,
+	    flag_unzeroed | flag_decommitted);
 	/*
 	 * There is no need to initialize the internal page map entries unless
 	 * the chunk is not zeroed.
@@ -672,7 +672,7 @@ arena_chunk_init_hard(arena_t *arena)
 		    chunk_npages-1) - (uintptr_t)arena_bitselm_get(chunk,
 		    map_bias+1)));
 		for (i = map_bias+1; i < chunk_npages-1; i++)
-			arena_mapbits_unzeroed_set(chunk, i, unzeroed);
+			arena_mapbits_internal_set(chunk, i, flag_unzeroed);
 	} else {
 		JEMALLOC_VALGRIND_MAKE_MEM_DEFINED((void
 		    *)arena_bitselm_get(chunk, map_bias+1), (size_t)((uintptr_t)
@@ -681,12 +681,12 @@ arena_chunk_init_hard(arena_t *arena)
 		if (config_debug) {
 			for (i = map_bias+1; i < chunk_npages-1; i++) {
 				assert(arena_mapbits_unzeroed_get(chunk, i) ==
-				    unzeroed);
+				    flag_unzeroed);
 			}
 		}
 	}
 	arena_mapbits_unallocated_set(chunk, chunk_npages-1, arena_maxrun,
-	    unzeroed);
+	    flag_unzeroed);
 
 	return (chunk);
 }
@@ -1391,8 +1391,8 @@ arena_purge_stashed(arena_t *arena, chunk_hooks_t *chunk_hooks,
 			npages = size >> LG_PAGE;
 			chunkselm = qr_next(chunkselm, cc_link);
 		} else {
-			size_t pageind, run_size, flag_unzeroed, i;
-			bool unzeroed, decommitted;
+			size_t pageind, run_size, flag_unzeroed, flags, i;
+			bool decommitted;
 			arena_chunk_t *chunk =
 			    (arena_chunk_t *)CHUNK_ADDR2BASE(rdelm);
 			arena_chunk_map_misc_t *miscelm =
@@ -1408,20 +1408,21 @@ arena_purge_stashed(arena_t *arena, chunk_hooks_t *chunk_hooks,
 			decommitted = !chunk_hooks->decommit(chunk, chunksize,
 			    pageind << LG_PAGE, npages << LG_PAGE, arena->ind);
 			if (decommitted) {
-				arena_mapbits_large_set(chunk, pageind+npages-1,
-				    0, CHUNK_MAP_DECOMMITTED);
-				arena_mapbits_large_set(chunk, pageind,
-				    run_size, CHUNK_MAP_DECOMMITTED);
-				unzeroed = false;
+				flag_unzeroed = 0;
+				flags = CHUNK_MAP_DECOMMITTED;
 			} else {
-				unzeroed = chunk_purge_wrapper(arena,
+				flag_unzeroed = chunk_purge_wrapper(arena,
 				    chunk_hooks, chunk, chunksize, pageind <<
-				    LG_PAGE, run_size);
+				    LG_PAGE, run_size) ? CHUNK_MAP_UNZEROED : 0;
+				flags = flag_unzeroed;
 			}
-			flag_unzeroed = unzeroed ? CHUNK_MAP_UNZEROED : 0;
+			arena_mapbits_large_set(chunk, pageind+npages-1, 0,
+			    flags);
+			arena_mapbits_large_set(chunk, pageind, run_size,
+			    flags);
 
 			/*
-			 * Set the unzeroed flag for all pages, now that
+			 * Set the unzeroed flag for internal pages, now that
 			 * chunk_purge_wrapper() has returned whether the pages
 			 * were zeroed as a side effect of purging.  This chunk
 			 * map modification is safe even though the arena mutex
@@ -1431,8 +1432,8 @@ arena_purge_stashed(arena_t *arena, chunk_hooks_t *chunk_hooks,
 			 * writes don't perturb the first and last elements'
 			 * CHUNK_MAP_ALLOCATED bits, behavior is well defined.
 			 */
-			for (i = 0; i < npages; i++) {
-				arena_mapbits_unzeroed_set(chunk, pageind+i,
+			for (i = 1; i < npages-1; i++) {
+				arena_mapbits_internal_set(chunk, pageind+i,
 				    flag_unzeroed);
 			}
 		}

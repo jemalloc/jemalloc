@@ -534,14 +534,14 @@ void	arena_mapbits_unallocated_set(arena_chunk_t *chunk, size_t pageind,
     size_t size, size_t flags);
 void	arena_mapbits_unallocated_size_set(arena_chunk_t *chunk, size_t pageind,
     size_t size);
+void	arena_mapbits_internal_set(arena_chunk_t *chunk, size_t pageind,
+    size_t flags);
 void	arena_mapbits_large_set(arena_chunk_t *chunk, size_t pageind,
     size_t size, size_t flags);
 void	arena_mapbits_large_binind_set(arena_chunk_t *chunk, size_t pageind,
     index_t binind);
 void	arena_mapbits_small_set(arena_chunk_t *chunk, size_t pageind,
     size_t runind, index_t binind, size_t flags);
-void	arena_mapbits_unzeroed_set(arena_chunk_t *chunk, size_t pageind,
-    size_t unzeroed);
 void	arena_metadata_allocated_add(arena_t *arena, size_t size);
 void	arena_metadata_allocated_sub(arena_t *arena, size_t size);
 size_t	arena_metadata_allocated_get(arena_t *arena);
@@ -784,6 +784,15 @@ arena_mapbits_unallocated_size_set(arena_chunk_t *chunk, size_t pageind,
 }
 
 JEMALLOC_ALWAYS_INLINE void
+arena_mapbits_internal_set(arena_chunk_t *chunk, size_t pageind, size_t flags)
+{
+	size_t *mapbitsp = arena_mapbitsp_get(chunk, pageind);
+
+	assert((flags & CHUNK_MAP_UNZEROED) == flags);
+	arena_mapbitsp_write(mapbitsp, flags);
+}
+
+JEMALLOC_ALWAYS_INLINE void
 arena_mapbits_large_set(arena_chunk_t *chunk, size_t pageind, size_t size,
     size_t flags)
 {
@@ -829,18 +838,6 @@ arena_mapbits_small_set(arena_chunk_t *chunk, size_t pageind, size_t runind,
 	arena_mapbitsp_write(mapbitsp, (runind << CHUNK_MAP_RUNIND_SHIFT) |
 	    (binind << CHUNK_MAP_BININD_SHIFT) | flags | unzeroed |
 	    CHUNK_MAP_ALLOCATED);
-}
-
-JEMALLOC_ALWAYS_INLINE void
-arena_mapbits_unzeroed_set(arena_chunk_t *chunk, size_t pageind,
-    size_t unzeroed)
-{
-	size_t *mapbitsp = arena_mapbitsp_get(chunk, pageind);
-	size_t mapbits = arena_mapbitsp_read(mapbitsp);
-
-	assert((mapbits & CHUNK_MAP_DECOMMITTED) == 0 || !unzeroed);
-	arena_mapbitsp_write(mapbitsp, (mapbits & ~CHUNK_MAP_UNZEROED) |
-	    unzeroed);
 }
 
 JEMALLOC_INLINE void

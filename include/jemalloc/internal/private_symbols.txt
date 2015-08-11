@@ -42,6 +42,7 @@ arena_mapbits_binind_get
 arena_mapbits_decommitted_get
 arena_mapbits_dirty_get
 arena_mapbits_get
+arena_mapbits_internal_set
 arena_mapbits_large_binind_set
 arena_mapbits_large_get
 arena_mapbits_large_set
@@ -52,7 +53,6 @@ arena_mapbits_unallocated_set
 arena_mapbits_unallocated_size_get
 arena_mapbits_unallocated_size_set
 arena_mapbits_unzeroed_get
-arena_mapbits_unzeroed_set
 arena_mapbitsp_get
 arena_mapbitsp_read
 arena_mapbitsp_write
