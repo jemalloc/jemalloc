@@ -797,15 +797,14 @@ arena_mapbits_large_set(arena_chunk_t *chunk, size_t pageind, size_t size,
     size_t flags)
 {
 	size_t *mapbitsp = arena_mapbitsp_get(chunk, pageind);
-	size_t mapbits = arena_mapbitsp_read(mapbitsp);
-	size_t unzeroed;
 
 	assert((size & PAGE_MASK) == 0);
 	assert(((size << CHUNK_MAP_SIZE_SHIFT) & ~CHUNK_MAP_SIZE_MASK) == 0);
-	assert((flags & (CHUNK_MAP_DIRTY|CHUNK_MAP_DECOMMITTED)) == flags);
-	unzeroed = mapbits & CHUNK_MAP_UNZEROED; /* Preserve unzeroed. */
+	assert((flags & CHUNK_MAP_FLAGS_MASK) == flags);
+	assert((flags & CHUNK_MAP_DECOMMITTED) == 0 || (flags &
+	    (CHUNK_MAP_DIRTY|CHUNK_MAP_UNZEROED)) == 0);
 	arena_mapbitsp_write(mapbitsp, (size << CHUNK_MAP_SIZE_SHIFT) |
-	    CHUNK_MAP_BININD_INVALID | flags | unzeroed | CHUNK_MAP_LARGE |
+	    CHUNK_MAP_BININD_INVALID | flags | CHUNK_MAP_LARGE |
 	    CHUNK_MAP_ALLOCATED);
 }
 
@@ -828,16 +827,12 @@ arena_mapbits_small_set(arena_chunk_t *chunk, size_t pageind, size_t runind,
     index_t binind, size_t flags)
 {
 	size_t *mapbitsp = arena_mapbitsp_get(chunk, pageind);
-	size_t mapbits = arena_mapbitsp_read(mapbitsp);
-	size_t unzeroed;
 
 	assert(binind < BININD_INVALID);
 	assert(pageind - runind >= map_bias);
-	assert((flags & CHUNK_MAP_DIRTY) == flags);
-	unzeroed = mapbits & CHUNK_MAP_UNZEROED; /* Preserve unzeroed. */
+	assert((flags & CHUNK_MAP_UNZEROED) == flags);
 	arena_mapbitsp_write(mapbitsp, (runind << CHUNK_MAP_RUNIND_SHIFT) |
-	    (binind << CHUNK_MAP_BININD_SHIFT) | flags | unzeroed |
-	    CHUNK_MAP_ALLOCATED);
+	    (binind << CHUNK_MAP_BININD_SHIFT) | flags | CHUNK_MAP_ALLOCATED);
 }
 
 JEMALLOC_INLINE void
