@@ -1246,9 +1246,9 @@ else
   enable_lazy_lock="1"
 fi
 ],
-[enable_lazy_lock="0"]
+[enable_lazy_lock=""]
 )
-if test "x$enable_lazy_lock" = "x0" -a "x${force_lazy_lock}" = "x1" ; then
+if test "x$enable_lazy_lock" = "x" -a "x${force_lazy_lock}" = "x1" ; then
   AC_MSG_RESULT([Forcing lazy-lock to avoid allocator/threading bootstrap issues])
   enable_lazy_lock="1"
 fi
@@ -1261,6 +1261,8 @@ if test "x$enable_lazy_lock" = "x1" ; then
       ])
   fi
   AC_DEFINE([JEMALLOC_LAZY_LOCK], [ ])
+else
+  enable_lazy_lock="0"
 fi
 AC_SUBST([enable_lazy_lock])
 
@@ -1272,13 +1274,13 @@ else
   enable_tls="1"
 fi
 ,
-enable_tls="1"
+enable_tls=""
 )
-if test "x${enable_tls}" = "x0" -a "x${force_tls}" = "x1" ; then
+if test "x${enable_tls}" = "x" -a "x${force_tls}" = "x1" ; then
   AC_MSG_RESULT([Forcing TLS to avoid allocator/threading bootstrap issues])
   enable_tls="1"
 fi
-if test "x${enable_tls}" = "x1" -a "x${force_tls}" = "x0" ; then
+if test "x${enable_tls}" = "x" -a "x${force_tls}" = "x0" ; then
   AC_MSG_RESULT([Forcing no TLS to avoid allocator/threading bootstrap issues])
   enable_tls="0"
 fi
@@ -1295,6 +1297,8 @@ AC_COMPILE_IFELSE([AC_LANG_PROGRAM(
               AC_MSG_RESULT([yes]),
               AC_MSG_RESULT([no])
               enable_tls="0")
+else
+  enable_tls="0"
 fi
 AC_SUBST([enable_tls])
 if test "x${enable_tls}" = "x1" ; then
