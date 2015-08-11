@@ -1246,9 +1246,9 @@ else
   enable_lazy_lock="1"
 fi
 ],
-[enable_lazy_lock="0"]
+[enable_lazy_lock=""]
 )
-if test "x$enable_lazy_lock" = "x0" -a "x${force_lazy_lock}" = "x1" ; then
+if test "x$enable_lazy_lock" = "x" -a "x${force_lazy_lock}" = "x1" ; then
   AC_MSG_RESULT([Forcing lazy-lock to avoid allocator/threading bootstrap issues])
   enable_lazy_lock="1"
 fi
@@ -1272,13 +1272,13 @@ else
   enable_tls="1"
 fi
 ,
-enable_tls="1"
+enable_tls=""
 )
-if test "x${enable_tls}" = "x0" -a "x${force_tls}" = "x1" ; then
+if test "x${enable_tls}" = "x" -a "x${force_tls}" = "x1" ; then
   AC_MSG_RESULT([Forcing TLS to avoid allocator/threading bootstrap issues])
   enable_tls="1"
 fi
-if test "x${enable_tls}" = "x1" -a "x${force_tls}" = "x0" ; then
+if test "x${enable_tls}" = "x" -a "x${force_tls}" = "x0" ; then
   AC_MSG_RESULT([Forcing no TLS to avoid allocator/threading bootstrap issues])
   enable_tls="0"
 fi
