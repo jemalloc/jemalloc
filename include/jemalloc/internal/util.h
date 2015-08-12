@@ -60,6 +60,9 @@
 #define	JEMALLOC_GNUC_PREREQ(major, minor)				\
     (!defined(__clang__) &&						\
     (__GNUC__ > (major) || (__GNUC__ == (major) && __GNUC_MINOR__ >= (minor))))
+#ifndef __has_builtin
+#  define __has_builtin(builtin) (0)
+#endif
 #define	JEMALLOC_CLANG_HAS_BUILTIN(builtin)				\
     (defined(__clang__) && __has_builtin(builtin))
 
