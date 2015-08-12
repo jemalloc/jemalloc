@@ -584,7 +584,7 @@ chunk_dalloc_arena(arena_t *arena, chunk_hooks_t *chunk_hooks, void *chunk,
 		committed = chunk_hooks->decommit(chunk, size, 0, size,
 		    arena->ind);
 	}
-	zeroed = !committed || chunk_hooks->purge(chunk, size, 0, size,
+	zeroed = !committed || !chunk_hooks->purge(chunk, size, 0, size,
 	    arena->ind);
 	chunk_record(arena, chunk_hooks, &arena->chunks_szad_retained,
 	    &arena->chunks_ad_retained, false, chunk, size, zeroed, committed);
