@@ -244,7 +244,7 @@ int
 main(void)
 {
 
-	assert(opt_junk_alloc || opt_junk_free);
+	assert(!config_fill || opt_junk_alloc || opt_junk_free);
 	return (test(
 	    test_junk_small,
 	    test_junk_large,
