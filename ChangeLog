@@ -83,10 +83,6 @@ brevity.  Much more detail can be found in the git revision history:
     + OpenRISC/or1k
 
   Optimizations:
-  - Switch run and chunk allocation from first-best-fit (among best-fit
-    candidates, choose the lowest in memory) to first-fit (among all candidates,
-    choose the lowest in memory).  This tends to reduce chunk and virtual memory
-    fragmentation, respectively.
   - Maintain dirty runs in per arena LRUs rather than in per arena trees of
     dirty-run-containing chunks.  In practice this change significantly reduces
     dirty page purging volume.
