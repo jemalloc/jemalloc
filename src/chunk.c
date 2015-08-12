@@ -89,7 +89,12 @@ chunk_hooks_set(arena_t *arena, const chunk_hooks_t *chunk_hooks)
 	 * correctness, so they perform unlocked reads.
 	 */
 #define	ATOMIC_COPY_HOOK(n) do {					\
-	atomic_write_p((void **)&arena->chunk_hooks.n, chunk_hooks->n);	\
+	union {								\
+		chunk_##n##_t	**n;					\
+		void		**v;					\
+	} u;								\
+	u.n = &arena->chunk_hooks.n;					\
+	atomic_write_p(u.v, chunk_hooks->n);				\
 } while (0)
 	ATOMIC_COPY_HOOK(alloc);
 	ATOMIC_COPY_HOOK(dalloc);
