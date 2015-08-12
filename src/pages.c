@@ -102,7 +102,13 @@ pages_commit_impl(void *addr, size_t size, bool commit)
 {
 
 #ifndef _WIN32
-	if (config_debug) {
+	/*
+	 * The following decommit/commit implementation is functional, but
+	 * always disabled because it doesn't add value beyong improved
+	 * debugging (at the cost of extra system calls) on systems that
+	 * overcommit.
+	 */
+	if (false) {
 		int prot = commit ? (PROT_READ | PROT_WRITE) : PROT_NONE;
 		void *result = mmap(addr, size, prot, MAP_PRIVATE | MAP_ANON |
 		    MAP_FIXED, -1, 0);

@@ -24,7 +24,8 @@ chunk_alloc_mmap_slow(size_t size, size_t alignment, bool *zero, bool *commit)
 
 	assert(ret != NULL);
 	*zero = true;
-	*commit = true;
+	if (!*commit)
+		*commit = pages_decommit(ret, size);
 	return (ret);
 }
 
@@ -61,7 +62,8 @@ chunk_alloc_mmap(size_t size, size_t alignment, bool *zero, bool *commit)
 
 	assert(ret != NULL);
 	*zero = true;
-	*commit = true;
+	if (!*commit)
+		*commit = pages_decommit(ret, size);
 	return (ret);
 }
 

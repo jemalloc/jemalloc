@@ -49,25 +49,30 @@ bool
 chunk_commit(void *chunk, size_t size, size_t offset, size_t length,
     unsigned arena_ind)
 {
+	bool err;
 
 	TRACE_HOOK("%s(chunk=%p, size=%zu, offset=%zu, length=%zu, "
 	    "arena_ind=%u)\n", __func__, chunk, size, offset, length,
 	    arena_ind);
-	did_commit = true;
-	memset((void *)((uintptr_t)chunk + offset), 0, length);
-	return (false);
+	err = old_hooks.commit(chunk, size, offset, length, arena_ind);
+	did_commit = !err;
+	return (err);
 }
 
 bool
 chunk_decommit(void *chunk, size_t size, size_t offset, size_t length,
     unsigned arena_ind)
 {
+	bool err;
 
 	TRACE_HOOK("%s(chunk=%p, size=%zu, offset=%zu, length=%zu, "
 	    "arena_ind=%u)\n", __func__, chunk, size, offset, length,
 	    arena_ind);
-	did_decommit = true;
-	return (!do_decommit);
+	if (!do_decommit)
+		return (true);
+	err = old_hooks.decommit(chunk, size, offset, length, arena_ind);
+	did_decommit = !err;
+	return (err);
 }
 
 bool
@@ -167,7 +172,7 @@ TEST_BEGIN(test_chunk)
 	assert_d_eq(mallctl("arena.0.purge", NULL, NULL, NULL, 0), 0,
 	    "Unexpected arena.0.purge error");
 	assert_true(did_dalloc, "Expected dalloc");
-	assert_true(did_decommit, "Expected decommit");
+	assert_false(did_decommit, "Unexpected decommit");
 	assert_true(did_purge, "Expected purge");
 	dallocx(p, 0);
 	do_dalloc = true;
@@ -185,12 +190,11 @@ TEST_BEGIN(test_chunk)
 	    "Unexpected xallocx() failure");
 	assert_d_eq(mallctl("arena.0.purge", NULL, NULL, NULL, 0), 0,
 	    "Unexpected arena.0.purge error");
-	assert_true(did_decommit, "Expected decommit");
 	assert_true(did_split, "Expected split");
 	assert_zu_eq(xallocx(p, huge0 * 2, 0, 0), huge0 * 2,
 	    "Unexpected xallocx() failure");
-	assert_true(did_commit, "Expected commit");
-	assert_true(did_commit, "Expected merge");
+	assert_b_eq(did_decommit, did_commit, "Expected decommit/commit match");
+	assert_true(did_merge, "Expected merge");
 	dallocx(p, 0);
 	do_dalloc = true;
 	do_decommit = false;
@@ -222,11 +226,10 @@ TEST_BEGIN(test_chunk)
 	    "Unexpected xallocx() failure");
 	assert_d_eq(mallctl("arena.0.purge", NULL, NULL, NULL, 0), 0,
 	    "Unexpected arena.0.purge error");
-	assert_true(did_decommit, "Expected decommit");
 	did_commit = false;
 	assert_zu_eq(xallocx(p, large1, 0, 0), large1,
 	    "Unexpected xallocx() failure");
-	assert_true(did_commit, "Expected commit");
+	assert_b_eq(did_decommit, did_commit, "Expected decommit/commit match");
 	dallocx(p, 0);
 	do_decommit = false;
 

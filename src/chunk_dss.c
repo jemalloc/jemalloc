@@ -145,7 +145,8 @@ chunk_alloc_dss(arena_t *arena, void *new_addr, size_t size, size_t alignment,
 					    ret, size);
 					memset(ret, 0, size);
 				}
-				*commit = true;
+				if (!*commit)
+					*commit = pages_decommit(ret, size);
 				return (ret);
 			}
 		} while (dss_prev != (void *)-1);
