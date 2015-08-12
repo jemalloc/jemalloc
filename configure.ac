@@ -881,10 +881,6 @@ fi
 ],
 [enable_munmap="${default_munmap}"]
 )
-if test "x$enable_munmap" = "x0" -a "x${maps_coalesce}" = "x0" ; then
-  AC_MSG_RESULT([Forcing munmap to avoid non-coalescing map issues])
-  enable_munmap="1"
-fi
 if test "x$enable_munmap" = "x1" ; then
   AC_DEFINE([JEMALLOC_MUNMAP], [ ])
 fi
