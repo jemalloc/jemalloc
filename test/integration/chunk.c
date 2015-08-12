@@ -126,6 +126,7 @@ TEST_BEGIN(test_chunk)
 		chunk_split,
 		chunk_merge
 	};
+	bool xallocx_success_a, xallocx_success_b, xallocx_success_c;
 
 	/* Install custom chunk hooks. */
 	old_size = sizeof(chunk_hooks_t);
@@ -167,13 +168,16 @@ TEST_BEGIN(test_chunk)
 	did_dalloc = false;
 	did_decommit = false;
 	did_purge = false;
-	assert_zu_eq(xallocx(p, huge0, 0, 0), huge0,
-	    "Unexpected xallocx() failure");
+	did_split = false;
+	xallocx_success_a = (xallocx(p, huge0, 0, 0) == huge0);
 	assert_d_eq(mallctl("arena.0.purge", NULL, NULL, NULL, 0), 0,
 	    "Unexpected arena.0.purge error");
-	assert_true(did_dalloc, "Expected dalloc");
-	assert_false(did_decommit, "Unexpected decommit");
-	assert_true(did_purge, "Expected purge");
+	if (xallocx_success_a) {
+		assert_true(did_dalloc, "Expected dalloc");
+		assert_false(did_decommit, "Unexpected decommit");
+		assert_true(did_purge, "Expected purge");
+	}
+	assert_true(did_split, "Expected split");
 	dallocx(p, 0);
 	do_dalloc = true;
 
@@ -186,15 +190,15 @@ TEST_BEGIN(test_chunk)
 	did_commit = false;
 	did_split = false;
 	did_merge = false;
-	assert_zu_eq(xallocx(p, huge0, 0, 0), huge0,
-	    "Unexpected xallocx() failure");
+	xallocx_success_b = (xallocx(p, huge0, 0, 0) == huge0);
 	assert_d_eq(mallctl("arena.0.purge", NULL, NULL, NULL, 0), 0,
 	    "Unexpected arena.0.purge error");
-	assert_true(did_split, "Expected split");
-	assert_zu_eq(xallocx(p, huge0 * 2, 0, 0), huge0 * 2,
-	    "Unexpected xallocx() failure");
+	if (xallocx_success_b)
+		assert_true(did_split, "Expected split");
+	xallocx_success_c = (xallocx(p, huge0 * 2, 0, 0) == huge0 * 2);
 	assert_b_eq(did_decommit, did_commit, "Expected decommit/commit match");
-	assert_true(did_merge, "Expected merge");
+	if (xallocx_success_b && xallocx_success_c)
+		assert_true(did_merge, "Expected merge");
 	dallocx(p, 0);
 	do_dalloc = true;
 	do_decommit = false;
