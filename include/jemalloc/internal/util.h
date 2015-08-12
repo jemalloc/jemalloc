@@ -57,10 +57,21 @@
 #	define JEMALLOC_CC_SILENCE_INIT(v)
 #endif
 
+#define	JEMALLOC_GNUC_PREREQ(major, minor)				\
+    (!defined(__clang__) &&						\
+    (__GNUC__ > (major) || (__GNUC__ == (major) && __GNUC_MINOR__ >= (minor))))
+#define	JEMALLOC_CLANG_HAS_BUILTIN(builtin)				\
+    (defined(__clang__) && __has_builtin(builtin))
+
 #ifdef __GNUC__
 #	define likely(x)   __builtin_expect(!!(x), 1)
 #	define unlikely(x) __builtin_expect(!!(x), 0)
+#  if JEMALLOC_GNUC_PREREQ(4, 6) ||					\
+      JEMALLOC_CLANG_HAS_BUILTIN(__builtin_unreachable)
 #	define unreachable() __builtin_unreachable()
+#  else
+#	define unreachable()
+#  endif
 #else
 #	define likely(x)   !!(x)
 #	define unlikely(x) !!(x)
