@@ -568,8 +568,13 @@ for (i = 0; i < nbins; i++) {
     up to the same size class.  No other API guarantees are made regarding
     in-place resizing, but the current implementation also tries to resize large
     and huge allocations in place, as long as the pre-size and post-size are
-    both large or both huge.  In such cases shrinkage always succeeds, but
-    growth only succeeds if the trailing memory is currently available.</para>
+    both large or both huge.  In such cases shrinkage always succeeds for large
+    size classes, but for huge size classes the chunk allocator must support
+    splitting (see <link
+    linkend="arena.i.chunk_hooks"><mallctl>arena.&lt;i&gt;.chunk_hooks</mallctl></link>).
+    Growth only succeeds if the trailing memory is currently available, and
+    additionally for huge size classes the chunk allocator must support
+    merging.</para>
 
     <para>Assuming 2 MiB chunks, 4 KiB pages, and a 16-byte quantum on a
     64-bit system, the size classes in each category are as shown in <xref
@@ -1557,7 +1562,8 @@ typedef struct {
         (and often less costly) operations.  The chunk splitting and merging
         operations can also be opted out of, but this is mainly intended to
         support platforms on which virtual memory mappings provided by the
-        operating system kernel do not automatically coalesce and split.</para>
+        operating system kernel do not automatically coalesce and split, e.g.
+        Windows.</para>
 
         <para><funcsynopsis><funcprototype>
           <funcdef>typedef void *<function>(chunk_alloc_t)</function></funcdef>
