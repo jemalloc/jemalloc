@@ -1541,7 +1541,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         to the application having an opportunity to take over chunk
         allocation.</para>
 
-        <para><programlisting language="C"><![CDATA[
+        <programlisting language="C"><![CDATA[
 typedef struct {
 	chunk_alloc_t		*alloc;
 	chunk_dalloc_t		*dalloc;
@@ -1551,8 +1551,8 @@ typedef struct {
 	chunk_split_t		*split;
 	chunk_merge_t		*merge;
 } chunk_hooks_t;]]></programlisting>
-        The <type>chunk_hooks_t</type> structure comprises function pointers
-        which are described individually below.  jemalloc uses these
+        <para>The <type>chunk_hooks_t</type> structure comprises function
+        pointers which are described individually below.  jemalloc uses these
         functions to manage chunk lifetime, which starts off with allocation of
         mapped committed memory, in the simplest case followed by deallocation.
         However, there are performance and platform reasons to retain chunks for
@@ -1565,7 +1565,7 @@ typedef struct {
         operating system kernel do not automatically coalesce and split, e.g.
         Windows.</para>
 
-        <para><funcsynopsis><funcprototype>
+        <funcsynopsis><funcprototype>
           <funcdef>typedef void *<function>(chunk_alloc_t)</function></funcdef>
           <paramdef>void *<parameter>chunk</parameter></paramdef>
           <paramdef>size_t <parameter>size</parameter></paramdef>
@@ -1574,9 +1574,10 @@ typedef struct {
           <paramdef>bool *<parameter>commit</parameter></paramdef>
           <paramdef>unsigned <parameter>arena_ind</parameter></paramdef>
         </funcprototype></funcsynopsis>
-        A chunk allocation function conforms to the <type>chunk_alloc_t</type>
-        type and upon success returns a pointer to <parameter>size</parameter>
-        bytes of mapped memory on behalf of arena
+        <literallayout></literallayout>
+        <para>A chunk allocation function conforms to the
+        <type>chunk_alloc_t</type> type and upon success returns a pointer to
+        <parameter>size</parameter> bytes of mapped memory on behalf of arena
         <parameter>arena_ind</parameter> such that the chunk's base address is a
         multiple of <parameter>alignment</parameter>, as well as setting
         <parameter>*zero</parameter> to indicate whether the chunk is zeroed and
@@ -1599,13 +1600,15 @@ typedef struct {
         linkend="arena.i.dss"><mallctl>arena.&lt;i&gt;.dss</mallctl></link>
         setting irrelevant.</para>
 
-        <para><funcsynopsis><funcprototype>
+        <funcsynopsis><funcprototype>
           <funcdef>typedef bool <function>(chunk_dalloc_t)</function></funcdef>
           <paramdef>void *<parameter>chunk</parameter></paramdef>
           <paramdef>size_t <parameter>size</parameter></paramdef>
           <paramdef>bool <parameter>committed</parameter></paramdef>
           <paramdef>unsigned <parameter>arena_ind</parameter></paramdef>
         </funcprototype></funcsynopsis>
+        <literallayout></literallayout>
+        <para>
         A chunk deallocation function conforms to the
         <type>chunk_dalloc_t</type> type and deallocates a
         <parameter>chunk</parameter> of given <parameter>size</parameter> with
@@ -1616,7 +1619,7 @@ typedef struct {
         remains mapped, in the same commit state, and available for future use,
         in which case it will be automatically retained for later reuse.</para>
 
-        <para><funcsynopsis><funcprototype>
+        <funcsynopsis><funcprototype>
           <funcdef>typedef bool <function>(chunk_commit_t)</function></funcdef>
           <paramdef>void *<parameter>chunk</parameter></paramdef>
           <paramdef>size_t <parameter>size</parameter></paramdef>
@@ -1624,11 +1627,12 @@ typedef struct {
           <paramdef>size_t <parameter>length</parameter></paramdef>
           <paramdef>unsigned <parameter>arena_ind</parameter></paramdef>
         </funcprototype></funcsynopsis>
-        A chunk commit function conforms to the <type>chunk_commit_t</type> type
-        and commits zeroed physical memory to back pages within a
-        <parameter>chunk</parameter> of given <parameter>size</parameter> at
-        <parameter>offset</parameter> bytes, extending for
-        <parameter>length</parameter> on behalf of arena
+        <literallayout></literallayout>
+        <para>A chunk commit function conforms to the
+        <type>chunk_commit_t</type> type and commits zeroed physical memory to
+        back pages within a <parameter>chunk</parameter> of given
+        <parameter>size</parameter> at <parameter>offset</parameter> bytes,
+        extending for <parameter>length</parameter> on behalf of arena
         <parameter>arena_ind</parameter>, returning false upon success.
         Committed memory may be committed in absolute terms as on a system that
         does not overcommit, or in implicit terms as on a system that
@@ -1636,7 +1640,7 @@ typedef struct {
         faults. If the function returns true, this indicates insufficient
         physical memory to satisfy the request.</para>
 
-        <para><funcsynopsis><funcprototype>
+        <funcsynopsis><funcprototype>
           <funcdef>typedef bool <function>(chunk_decommit_t)</function></funcdef>
           <paramdef>void *<parameter>chunk</parameter></paramdef>
           <paramdef>size_t <parameter>size</parameter></paramdef>
@@ -1644,18 +1648,19 @@ typedef struct {
           <paramdef>size_t <parameter>length</parameter></paramdef>
           <paramdef>unsigned <parameter>arena_ind</parameter></paramdef>
         </funcprototype></funcsynopsis>
-        A chunk decommit function conforms to the <type>chunk_decommit_t</type>
-        type and decommits any physical memory that is backing pages within a
-        <parameter>chunk</parameter> of given <parameter>size</parameter> at
-        <parameter>offset</parameter> bytes, extending for
-        <parameter>length</parameter> on behalf of arena
+        <literallayout></literallayout>
+        <para>A chunk decommit function conforms to the
+        <type>chunk_decommit_t</type> type and decommits any physical memory
+        that is backing pages within a <parameter>chunk</parameter> of given
+        <parameter>size</parameter> at <parameter>offset</parameter> bytes,
+        extending for <parameter>length</parameter> on behalf of arena
         <parameter>arena_ind</parameter>, returning false upon success, in which
         case the pages will be committed via the chunk commit function before
         being reused.  If the function returns true, this indicates opt-out from
         decommit; the memory remains committed and available for future use, in
         which case it will be automatically retained for later reuse.</para>
 
-        <para><funcsynopsis><funcprototype>
+        <funcsynopsis><funcprototype>
           <funcdef>typedef bool <function>(chunk_purge_t)</function></funcdef>
           <paramdef>void *<parameter>chunk</parameter></paramdef>
           <paramdef>size_t<parameter>size</parameter></paramdef>
@@ -1663,16 +1668,17 @@ typedef struct {
           <paramdef>size_t <parameter>length</parameter></paramdef>
           <paramdef>unsigned <parameter>arena_ind</parameter></paramdef>
         </funcprototype></funcsynopsis>
-        A chunk purge function conforms to the <type>chunk_purge_t</type> type
-        and optionally discards physical pages within the virtual memory mapping
-        associated with <parameter>chunk</parameter> of given
+        <literallayout></literallayout>
+        <para>A chunk purge function conforms to the <type>chunk_purge_t</type>
+        type and optionally discards physical pages within the virtual memory
+        mapping associated with <parameter>chunk</parameter> of given
         <parameter>size</parameter> at <parameter>offset</parameter> bytes,
         extending for <parameter>length</parameter> on behalf of arena
         <parameter>arena_ind</parameter>, returning false if pages within the
         purged virtual memory range will be zero-filled the next time they are
         accessed.</para>
 
-        <para><funcsynopsis><funcprototype>
+        <funcsynopsis><funcprototype>
           <funcdef>typedef bool <function>(chunk_split_t)</function></funcdef>
           <paramdef>void *<parameter>chunk</parameter></paramdef>
           <paramdef>size_t <parameter>size</parameter></paramdef>
@@ -1681,8 +1687,9 @@ typedef struct {
           <paramdef>bool <parameter>committed</parameter></paramdef>
           <paramdef>unsigned <parameter>arena_ind</parameter></paramdef>
         </funcprototype></funcsynopsis>
-        A chunk split function conforms to the <type>chunk_split_t</type> type
-        and optionally splits <parameter>chunk</parameter> of given
+        <literallayout></literallayout>
+        <para>A chunk split function conforms to the <type>chunk_split_t</type>
+        type and optionally splits <parameter>chunk</parameter> of given
         <parameter>size</parameter> into two adjacent chunks, the first of
         <parameter>size_a</parameter> bytes, and the second of
         <parameter>size_b</parameter> bytes, operating on
@@ -1692,7 +1699,7 @@ typedef struct {
         remains unsplit and therefore should continue to be operated on as a
         whole.</para>
 
-        <para><funcsynopsis><funcprototype>
+        <funcsynopsis><funcprototype>
           <funcdef>typedef bool <function>(chunk_merge_t)</function></funcdef>
           <paramdef>void *<parameter>chunk_a</parameter></paramdef>
           <paramdef>size_t <parameter>size_a</parameter></paramdef>
@@ -1701,15 +1708,17 @@ typedef struct {
           <paramdef>bool <parameter>committed</parameter></paramdef>
           <paramdef>unsigned <parameter>arena_ind</parameter></paramdef>
         </funcprototype></funcsynopsis>
-        A chunk merge function conforms to the <type>chunk_merge_t</type> type
-        and optionally merges adjacent chunks, <parameter>chunk_a</parameter> of
-        given <parameter>size_a</parameter> and <parameter>chunk_b</parameter>
-        of given <parameter>size_b</parameter> into one contiguous chunk,
-        operating on <parameter>committed</parameter>/decommitted memory as
-        indicated, on behalf of arena <parameter>arena_ind</parameter>,
-        returning false upon success.  If the function returns true, this
-        indicates that the chunks remain distinct mappings and therefore should
-        continue to be operated on independently.</para>
+        <literallayout></literallayout>
+        <para>A chunk merge function conforms to the <type>chunk_merge_t</type>
+        type and optionally merges adjacent chunks,
+        <parameter>chunk_a</parameter> of given <parameter>size_a</parameter>
+        and <parameter>chunk_b</parameter> of given
+        <parameter>size_b</parameter> into one contiguous chunk, operating on
+        <parameter>committed</parameter>/decommitted memory as indicated, on
+        behalf of arena <parameter>arena_ind</parameter>, returning false upon
+        success.  If the function returns true, this indicates that the chunks
+        remain distinct mappings and therefore should continue to be operated on
+        independently.</para>
         </listitem>
       </varlistentry>
 
