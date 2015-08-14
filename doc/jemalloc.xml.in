@@ -571,7 +571,7 @@ for (i = 0; i < nbins; i++) {
     both large or both huge.  In such cases shrinkage always succeeds, but
     growth only succeeds if the trailing memory is currently available.</para>
 
-    <para>Assuming 256 KiB chunks, 4 KiB pages, and a 16-byte quantum on a
+    <para>Assuming 2 MiB chunks, 4 KiB pages, and a 16-byte quantum on a
     64-bit system, the size classes in each category are as shown in <xref
     linkend="size_classes" xrefstyle="template:Table %n"/>.</para>
 
@@ -627,7 +627,7 @@ for (i = 0; i < nbins; i++) {
           <entry>[10 KiB, 12 KiB, 14 KiB]</entry>
         </row>
         <row>
-          <entry morerows="4">Large</entry>
+          <entry morerows="7">Large</entry>
           <entry>2 KiB</entry>
           <entry>[16 KiB]</entry>
         </row>
@@ -645,12 +645,7 @@ for (i = 0; i < nbins; i++) {
         </row>
         <row>
           <entry>32 KiB</entry>
-          <entry>[160 KiB, 192 KiB, 224 KiB]</entry>
-        </row>
-        <row>
-          <entry morerows="9">Huge</entry>
-          <entry>32 KiB</entry>
-          <entry>[256 KiB]</entry>
+          <entry>[160 KiB, 192 KiB, 224 KiB, 256 KiB]</entry>
         </row>
         <row>
           <entry>64 KiB</entry>
@@ -662,7 +657,12 @@ for (i = 0; i < nbins; i++) {
         </row>
         <row>
           <entry>256 KiB</entry>
-          <entry>[1280 KiB, 1536 KiB, 1792 KiB, 2 MiB]</entry>
+          <entry>[1280 KiB, 1536 KiB, 1792 KiB]</entry>
+        </row>
+        <row>
+          <entry morerows="6">Huge</entry>
+          <entry>256 KiB</entry>
+          <entry>[2 MiB]</entry>
         </row>
         <row>
           <entry>512 KiB</entry>
