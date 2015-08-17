@@ -4,8 +4,7 @@ brevity.  Much more detail can be found in the git revision history:
 
     https://github.com/jemalloc/jemalloc
 
-* 4.0.0 (XXX) See https://github.com/jemalloc/jemalloc/milestones/4.0.0 for
-              remaining work.
+* 4.0.0 (August 17, 2015)
 
   This version contains many speed and space optimizations, both minor and
   major.  The major themes are generalization, unification, and simplification.
