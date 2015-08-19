@@ -50,6 +50,8 @@ arena_mapbits_large_size_get
 arena_mapbitsp_get
 arena_mapbitsp_read
 arena_mapbitsp_write
+arena_mapbits_size_decode
+arena_mapbits_size_encode
 arena_mapbits_small_runind_get
 arena_mapbits_small_set
 arena_mapbits_unallocated_set
