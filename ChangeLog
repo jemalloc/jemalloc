@@ -9,6 +9,7 @@ brevity.  Much more detail can be found in the git revision history:
   Bug fixes:
   - Don't bitshift by negative amounts when encoding/decoding run sizes in chunk
     header maps.  This affected systems with page sizes greater than 8 KiB.
+  - Rename index_t to szind_t to avoid an existing type on Solaris.
 
 * 4.0.0 (August 17, 2015)
 

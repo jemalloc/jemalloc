@@ -32,7 +32,7 @@ size_t	tcache_salloc(const void *ptr)
 void
 tcache_event_hard(tsd_t *tsd, tcache_t *tcache)
 {
-	index_t binind = tcache->next_gc_bin;
+	szind_t binind = tcache->next_gc_bin;
 	tcache_bin_t *tbin = &tcache->tbins[binind];
 	tcache_bin_info_t *tbin_info = &tcache_bin_info[binind];
 
@@ -72,7 +72,7 @@ tcache_event_hard(tsd_t *tsd, tcache_t *tcache)
 
 void *
 tcache_alloc_small_hard(tsd_t *tsd, arena_t *arena, tcache_t *tcache,
-    tcache_bin_t *tbin, index_t binind)
+    tcache_bin_t *tbin, szind_t binind)
 {
 	void *ret;
 
@@ -87,7 +87,7 @@ tcache_alloc_small_hard(tsd_t *tsd, arena_t *arena, tcache_t *tcache,
 
 void
 tcache_bin_flush_small(tsd_t *tsd, tcache_t *tcache, tcache_bin_t *tbin,
-    index_t binind, unsigned rem)
+    szind_t binind, unsigned rem)
 {
 	arena_t *arena;
 	void *ptr;
@@ -166,7 +166,7 @@ tcache_bin_flush_small(tsd_t *tsd, tcache_t *tcache, tcache_bin_t *tbin,
 }
 
 void
-tcache_bin_flush_large(tsd_t *tsd, tcache_bin_t *tbin, index_t binind,
+tcache_bin_flush_large(tsd_t *tsd, tcache_bin_t *tbin, szind_t binind,
     unsigned rem, tcache_t *tcache)
 {
 	arena_t *arena;

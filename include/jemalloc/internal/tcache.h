@@ -77,7 +77,7 @@ struct tcache_s {
 	ql_elm(tcache_t) link;		/* Used for aggregating stats. */
 	uint64_t	prof_accumbytes;/* Cleared after arena_prof_accum(). */
 	unsigned	ev_cnt;		/* Event count since incremental GC. */
-	index_t		next_gc_bin;	/* Next bin to GC. */
+	szind_t		next_gc_bin;	/* Next bin to GC. */
 	tcache_bin_t	tbins[1];	/* Dynamically sized. */
 	/*
 	 * The pointer stacks associated with tbins follow as a contiguous
@@ -126,10 +126,10 @@ extern tcaches_t	*tcaches;
 size_t	tcache_salloc(const void *ptr);
 void	tcache_event_hard(tsd_t *tsd, tcache_t *tcache);
 void	*tcache_alloc_small_hard(tsd_t *tsd, arena_t *arena, tcache_t *tcache,
-    tcache_bin_t *tbin, index_t binind);
+    tcache_bin_t *tbin, szind_t binind);
 void	tcache_bin_flush_small(tsd_t *tsd, tcache_t *tcache, tcache_bin_t *tbin,
-    index_t binind, unsigned rem);
-void	tcache_bin_flush_large(tsd_t *tsd, tcache_bin_t *tbin, index_t binind,
+    szind_t binind, unsigned rem);
+void	tcache_bin_flush_large(tsd_t *tsd, tcache_bin_t *tbin, szind_t binind,
     unsigned rem, tcache_t *tcache);
 void	tcache_arena_associate(tcache_t *tcache, arena_t *arena);
 void	tcache_arena_reassociate(tcache_t *tcache, arena_t *oldarena,
@@ -161,7 +161,7 @@ void	*tcache_alloc_small(tsd_t *tsd, arena_t *arena, tcache_t *tcache,
 void	*tcache_alloc_large(tsd_t *tsd, arena_t *arena, tcache_t *tcache,
     size_t size, bool zero);
 void	tcache_dalloc_small(tsd_t *tsd, tcache_t *tcache, void *ptr,
-    index_t binind);
+    szind_t binind);
 void	tcache_dalloc_large(tsd_t *tsd, tcache_t *tcache, void *ptr,
     size_t size);
 tcache_t	*tcaches_get(tsd_t *tsd, unsigned ind);
@@ -267,7 +267,7 @@ tcache_alloc_small(tsd_t *tsd, arena_t *arena, tcache_t *tcache, size_t size,
     bool zero)
 {
 	void *ret;
-	index_t binind;
+	szind_t binind;
 	size_t usize;
 	tcache_bin_t *tbin;
 
@@ -312,7 +312,7 @@ tcache_alloc_large(tsd_t *tsd, arena_t *arena, tcache_t *tcache, size_t size,
     bool zero)
 {
 	void *ret;
-	index_t binind;
+	szind_t binind;
 	size_t usize;
 	tcache_bin_t *tbin;
 
@@ -360,7 +360,7 @@ tcache_alloc_large(tsd_t *tsd, arena_t *arena, tcache_t *tcache, size_t size,
 }
 
 JEMALLOC_ALWAYS_INLINE void
-tcache_dalloc_small(tsd_t *tsd, tcache_t *tcache, void *ptr, index_t binind)
+tcache_dalloc_small(tsd_t *tsd, tcache_t *tcache, void *ptr, szind_t binind)
 {
 	tcache_bin_t *tbin;
 	tcache_bin_info_t *tbin_info;
@@ -386,7 +386,7 @@ tcache_dalloc_small(tsd_t *tsd, tcache_t *tcache, void *ptr, index_t binind)
 JEMALLOC_ALWAYS_INLINE void
 tcache_dalloc_large(tsd_t *tsd, tcache_t *tcache, void *ptr, size_t size)
 {
-	index_t binind;
+	szind_t binind;
 	tcache_bin_t *tbin;
 	tcache_bin_info_t *tbin_info;
 

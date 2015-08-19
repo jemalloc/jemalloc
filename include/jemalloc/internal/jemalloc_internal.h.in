@@ -184,7 +184,7 @@ static const bool config_cache_oblivious =
 #include "jemalloc/internal/jemalloc_internal_macros.h"
 
 /* Size class index type. */
-typedef unsigned index_t;
+typedef unsigned szind_t;
 
 /*
  * Flags bits:
@@ -511,12 +511,12 @@ void	jemalloc_postfork_child(void);
 #include "jemalloc/internal/huge.h"
 
 #ifndef JEMALLOC_ENABLE_INLINE
-index_t	size2index_compute(size_t size);
-index_t	size2index_lookup(size_t size);
-index_t	size2index(size_t size);
-size_t	index2size_compute(index_t index);
-size_t	index2size_lookup(index_t index);
-size_t	index2size(index_t index);
+szind_t	size2index_compute(size_t size);
+szind_t	size2index_lookup(size_t size);
+szind_t	size2index(size_t size);
+size_t	index2size_compute(szind_t index);
+size_t	index2size_lookup(szind_t index);
+size_t	index2size(szind_t index);
 size_t	s2u_compute(size_t size);
 size_t	s2u_lookup(size_t size);
 size_t	s2u(size_t size);
@@ -527,7 +527,7 @@ arena_t	*arena_get(tsd_t *tsd, unsigned ind, bool init_if_missing,
 #endif
 
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_C_))
-JEMALLOC_INLINE index_t
+JEMALLOC_INLINE szind_t
 size2index_compute(size_t size)
 {
 
@@ -558,7 +558,7 @@ size2index_compute(size_t size)
 	}
 }
 
-JEMALLOC_ALWAYS_INLINE index_t
+JEMALLOC_ALWAYS_INLINE szind_t
 size2index_lookup(size_t size)
 {
 
@@ -571,7 +571,7 @@ size2index_lookup(size_t size)
 	}
 }
 
-JEMALLOC_ALWAYS_INLINE index_t
+JEMALLOC_ALWAYS_INLINE szind_t
 size2index(size_t size)
 {
 
@@ -582,7 +582,7 @@ size2index(size_t size)
 }
 
 JEMALLOC_INLINE size_t
-index2size_compute(index_t index)
+index2size_compute(szind_t index)
 {
 
 #if (NTBINS > 0)
@@ -609,7 +609,7 @@ index2size_compute(index_t index)
 }
 
 JEMALLOC_ALWAYS_INLINE size_t
-index2size_lookup(index_t index)
+index2size_lookup(szind_t index)
 {
 	size_t ret = (size_t)index2size_tab[index];
 	assert(ret == index2size_compute(index));
@@ -617,7 +617,7 @@ index2size_lookup(index_t index)
 }
 
 JEMALLOC_ALWAYS_INLINE size_t
-index2size(index_t index)
+index2size(szind_t index)
 {
 
 	assert(index < NSIZES);
@@ -976,7 +976,7 @@ u2rz(size_t usize)
 	size_t ret;
 
 	if (usize <= SMALL_MAXCLASS) {
-		index_t binind = size2index(usize);
+		szind_t binind = size2index(usize);
 		ret = arena_bin_info[binind].redzone_size;
 	} else
 		ret = 0;
