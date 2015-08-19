@@ -1555,6 +1555,15 @@ if test "x${je_cv_pthread_mutex_adaptive_np}" = "xyes" ; then
   AC_DEFINE([JEMALLOC_HAVE_PTHREAD_MUTEX_ADAPTIVE_NP], [ ])
 fi
 
+JE_COMPILABLE([index_t present in sys/types.h], [
+#include <sys/types.h>
+], [
+  index_t index = 0;
+], [je_system_index_t])
+if test "x${je_system_index_t}" = "xyes" ; then
+  AC_DEFINE([JEMALLOC_HAVE_SYSTEM_INDEX_T], [ ])
+fi
+
 dnl ============================================================================
 dnl Check for typedefs, structures, and compiler characteristics.
 AC_HEADER_STDBOOL

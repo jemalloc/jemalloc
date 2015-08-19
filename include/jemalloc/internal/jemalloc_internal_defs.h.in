@@ -253,6 +253,9 @@
 /* Adaptive mutex support in pthreads. */
 #undef JEMALLOC_HAVE_PTHREAD_MUTEX_ADAPTIVE_NP
 
+/* index_t defined on the target system in sys/types.h */
+#undef JEMALLOC_HAVE_SYSTEM_INDEX_T
+
 /*
  * If defined, jemalloc symbols are not exported (doesn't work when
  * JEMALLOC_PREFIX is not defined).

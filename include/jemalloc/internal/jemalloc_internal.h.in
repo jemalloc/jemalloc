@@ -183,8 +183,10 @@ static const bool config_cache_oblivious =
 
 #include "jemalloc/internal/jemalloc_internal_macros.h"
 
+#ifndef JEMALLOC_HAVE_SYSTEM_INDEX_T
 /* Size class index type. */
 typedef unsigned index_t;
+#endif
 
 /*
  * Flags bits:
