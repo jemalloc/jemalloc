@@ -4,9 +4,12 @@ brevity.  Much more detail can be found in the git revision history:
 
     https://github.com/jemalloc/jemalloc
 
-* 4.x.x (XXX)
+* 4.0.1 (XXX)
 
   Bug fixes:
+  - Fix arenas_cache_cleanup() to handle allocation/deallocation within the
+    application's thread-specific data cleanup functions even after
+    arenas_cache is torn down.
   - Don't bitshift by negative amounts when encoding/decoding run sizes in chunk
     header maps.  This affected systems with page sizes greater than 8 KiB.
   - Rename index_t to szind_t to avoid an existing type on Solaris.

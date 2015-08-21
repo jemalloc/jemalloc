@@ -649,8 +649,12 @@ arenas_cache_cleanup(tsd_t *tsd)
 	arena_t **arenas_cache;
 
 	arenas_cache = tsd_arenas_cache_get(tsd);
-	if (arenas_cache != NULL)
+	if (arenas_cache != NULL) {
+		bool *arenas_cache_bypassp = tsd_arenas_cache_bypassp_get(tsd);
+		*arenas_cache_bypassp = true;
+		tsd_arenas_cache_set(tsd, NULL);
 		a0dalloc(arenas_cache);
+	}
 }
 
 void
