@@ -510,17 +510,17 @@ arena_get_hard(tsd_t *tsd, unsigned ind, bool init_if_missing)
 		assert(ind < narenas_actual || !init_if_missing);
 		narenas_cache = (ind < narenas_actual) ? narenas_actual : ind+1;
 
-		if (!*arenas_cache_bypassp) {
+		if (tsd_nominal(tsd) && !*arenas_cache_bypassp) {
 			*arenas_cache_bypassp = true;
 			arenas_cache = (arena_t **)a0malloc(sizeof(arena_t *) *
 			    narenas_cache);
 			*arenas_cache_bypassp = false;
-		} else
-			arenas_cache = NULL;
+		}
 		if (arenas_cache == NULL) {
 			/*
 			 * This function must always tell the truth, even if
-			 * it's slow, so don't let OOM or recursive allocation
+			 * it's slow, so don't let OOM, thread cleanup (note
+			 * tsd_nominal check), nor recursive allocation
 			 * avoidance (note arenas_cache_bypass check) get in the
 			 * way.
 			 */
@@ -531,6 +531,7 @@ arena_get_hard(tsd_t *tsd, unsigned ind, bool init_if_missing)
 			malloc_mutex_unlock(&arenas_lock);
 			return (arena);
 		}
+		assert(tsd_nominal(tsd) && !*arenas_cache_bypassp);
 		tsd_arenas_cache_set(tsd, arenas_cache);
 		tsd_narenas_cache_set(tsd, narenas_cache);
 	}
@@ -650,8 +651,6 @@ arenas_cache_cleanup(tsd_t *tsd)
 
 	arenas_cache = tsd_arenas_cache_get(tsd);
 	if (arenas_cache != NULL) {
-		bool *arenas_cache_bypassp = tsd_arenas_cache_bypassp_get(tsd);
-		*arenas_cache_bypassp = true;
 		tsd_arenas_cache_set(tsd, NULL);
 		a0dalloc(arenas_cache);
 	}
