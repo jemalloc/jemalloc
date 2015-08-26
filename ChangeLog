@@ -13,6 +13,9 @@ brevity.  Much more detail can be found in the git revision history:
   - Don't bitshift by negative amounts when encoding/decoding run sizes in chunk
     header maps.  This affected systems with page sizes greater than 8 KiB.
   - Rename index_t to szind_t to avoid an existing type on Solaris.
+  - Add JEMALLOC_CXX_THROW to the memalign() function prototype, in order to
+    match glibc and avoid compilation errors when including both
+    jemalloc/jemalloc.h and malloc.h in C++ code.
 
 * 4.0.0 (August 17, 2015)
 
