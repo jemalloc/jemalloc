@@ -148,11 +148,12 @@ huge_ralloc_no_move_similar(void *ptr, size_t oldsize, size_t usize,
 	/* Fill if necessary (shrinking). */
 	if (oldsize > usize) {
 		size_t sdiff = oldsize - usize;
-		zeroed = !chunk_purge_wrapper(arena, &chunk_hooks, ptr,
-		    CHUNK_CEILING(oldsize), usize, sdiff);
 		if (config_fill && unlikely(opt_junk_free)) {
 			memset((void *)((uintptr_t)ptr + usize), 0x5a, sdiff);
 			zeroed = false;
+		} else {
+			zeroed = !chunk_purge_wrapper(arena, &chunk_hooks, ptr,
+			    CHUNK_CEILING(oldsize), usize, sdiff);
 		}
 	} else
 		zeroed = true;
@@ -202,14 +203,15 @@ huge_ralloc_no_move_shrink(void *ptr, size_t oldsize, size_t usize)
 
 	if (oldsize > usize) {
 		size_t sdiff = oldsize - usize;
-		zeroed = !chunk_purge_wrapper(arena, &chunk_hooks,
-		    CHUNK_ADDR2BASE((uintptr_t)ptr + usize),
-		    CHUNK_CEILING(oldsize), CHUNK_ADDR2OFFSET((uintptr_t)ptr +
-		    usize), sdiff);
 		if (config_fill && unlikely(opt_junk_free)) {
 			huge_dalloc_junk((void *)((uintptr_t)ptr + usize),
 			    sdiff);
 			zeroed = false;
+		} else {
+			zeroed = !chunk_purge_wrapper(arena, &chunk_hooks,
+			    CHUNK_ADDR2BASE((uintptr_t)ptr + usize),
+			    CHUNK_CEILING(oldsize),
+			    CHUNK_ADDR2OFFSET((uintptr_t)ptr + usize), sdiff);
 		}
 	} else
 		zeroed = true;
