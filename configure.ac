@@ -421,13 +421,13 @@ SAVED_CFLAGS="${CFLAGS}"
 JE_CFLAGS_APPEND([-Werror])
 JE_COMPILABLE([tls_model attribute], [],
               [static __thread int
-               __attribute__((tls_model("initial-exec"), unused)) foo;
+               __attribute__((tls_model("local-dynamic"), unused)) foo;
                foo = 0;],
               [je_cv_tls_model])
 CFLAGS="${SAVED_CFLAGS}"
 if test "x${je_cv_tls_model}" = "xyes" ; then
   AC_DEFINE([JEMALLOC_TLS_MODEL],
-            [__attribute__((tls_model("initial-exec")))])
+            [__attribute__((tls_model("local-dynamic")))])
 else
   AC_DEFINE([JEMALLOC_TLS_MODEL], [ ])
 fi
