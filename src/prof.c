@@ -219,7 +219,7 @@ void
 prof_malloc_sample_object(const void *ptr, size_t usize, prof_tctx_t *tctx)
 {
 
-	prof_tctx_set(ptr, tctx);
+	prof_tctx_set(ptr, usize, tctx);
 
 	malloc_mutex_lock(tctx->tdata->lock);
 	tctx->cnts.curobjs++;

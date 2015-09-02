@@ -555,7 +555,7 @@ szind_t	arena_bin_index(arena_t *arena, arena_bin_t *bin);
 unsigned	arena_run_regind(arena_run_t *run, arena_bin_info_t *bin_info,
     const void *ptr);
 prof_tctx_t	*arena_prof_tctx_get(const void *ptr);
-void	arena_prof_tctx_set(const void *ptr, prof_tctx_t *tctx);
+void	arena_prof_tctx_set(const void *ptr, size_t usize, prof_tctx_t *tctx);
 void	*arena_malloc(tsd_t *tsd, arena_t *arena, size_t size, bool zero,
     tcache_t *tcache);
 arena_t	*arena_aalloc(const void *ptr);
@@ -1092,7 +1092,7 @@ arena_prof_tctx_get(const void *ptr)
 }
 
 JEMALLOC_INLINE void
-arena_prof_tctx_set(const void *ptr, prof_tctx_t *tctx)
+arena_prof_tctx_set(const void *ptr, size_t usize, prof_tctx_t *tctx)
 {
 	arena_chunk_t *chunk;
 
@@ -1102,12 +1102,25 @@ arena_prof_tctx_set(const void *ptr, prof_tctx_t *tctx)
 	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
 	if (likely(chunk != ptr)) {
 		size_t pageind = ((uintptr_t)ptr - (uintptr_t)chunk) >> LG_PAGE;
+
 		assert(arena_mapbits_allocated_get(chunk, pageind) != 0);
 
-		if (unlikely(arena_mapbits_large_get(chunk, pageind) != 0)) {
-			arena_chunk_map_misc_t *elm = arena_miscelm_get(chunk,
-			    pageind);
+		if (unlikely(usize > SMALL_MAXCLASS || tctx >
+		    (prof_tctx_t *)(uintptr_t)1U)) {
+			arena_chunk_map_misc_t *elm;
+
+			assert(arena_mapbits_large_get(chunk, pageind) != 0);
+
+			elm = arena_miscelm_get(chunk, pageind);
 			atomic_write_p(&elm->prof_tctx_pun, tctx);
+		} else {
+			/*
+			 * tctx must always be initialized for large runs.
+			 * Assert that the surrounding conditional logic is
+			 * equivalent to checking whether ptr refers to a large
+			 * run.
+			 */
+			assert(arena_mapbits_large_get(chunk, pageind) == 0);
 		}
 	} else
 		huge_prof_tctx_set(ptr, tctx);

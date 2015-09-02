@@ -16,6 +16,27 @@ prof_dump_open_intercept(bool propagate_err, const char *filename)
 	return (fd);
 }
 
+static size_t
+get_lg_prof_sample(void)
+{
+	size_t lg_prof_sample;
+	size_t sz = sizeof(size_t);
+
+	assert_d_eq(mallctl("prof.lg_sample", &lg_prof_sample, &sz, NULL, 0), 0,
+	    "Unexpected mallctl failure while reading profiling sample rate");
+	return (lg_prof_sample);
+}
+
+static void
+do_prof_reset(size_t lg_prof_sample)
+{
+	assert_d_eq(mallctl("prof.reset", NULL, NULL,
+	    &lg_prof_sample, sizeof(size_t)), 0,
+	    "Unexpected mallctl failure while resetting profile data");
+	assert_zu_eq(lg_prof_sample, get_lg_prof_sample(),
+	    "Expected profile sample rate change");
+}
+
 TEST_BEGIN(test_prof_reset_basic)
 {
 	size_t lg_prof_sample_orig, lg_prof_sample, lg_prof_sample_next;
@@ -30,9 +51,7 @@ TEST_BEGIN(test_prof_reset_basic)
 	    "Unexpected mallctl failure while reading profiling sample rate");
 	assert_zu_eq(lg_prof_sample_orig, 0,
 	    "Unexpected profiling sample rate");
-	sz = sizeof(size_t);
-	assert_d_eq(mallctl("prof.lg_sample", &lg_prof_sample, &sz, NULL, 0), 0,
-	    "Unexpected mallctl failure while reading profiling sample rate");
+	lg_prof_sample = get_lg_prof_sample();
 	assert_zu_eq(lg_prof_sample_orig, lg_prof_sample,
 	    "Unexpected disagreement between \"opt.lg_prof_sample\" and "
 	    "\"prof.lg_sample\"");
@@ -41,10 +60,7 @@ TEST_BEGIN(test_prof_reset_basic)
 	for (i = 0; i < 2; i++) {
 		assert_d_eq(mallctl("prof.reset", NULL, NULL, NULL, 0), 0,
 		    "Unexpected mallctl failure while resetting profile data");
-		sz = sizeof(size_t);
-		assert_d_eq(mallctl("prof.lg_sample", &lg_prof_sample, &sz,
-		    NULL, 0), 0, "Unexpected mallctl failure while reading "
-		    "profiling sample rate");
+		lg_prof_sample = get_lg_prof_sample();
 		assert_zu_eq(lg_prof_sample_orig, lg_prof_sample,
 		    "Unexpected profile sample rate change");
 	}
@@ -52,22 +68,15 @@ TEST_BEGIN(test_prof_reset_basic)
 	/* Test resets with prof.lg_sample changes. */
 	lg_prof_sample_next = 1;
 	for (i = 0; i < 2; i++) {
-		assert_d_eq(mallctl("prof.reset", NULL, NULL,
-		    &lg_prof_sample_next, sizeof(size_t)), 0,
-		    "Unexpected mallctl failure while resetting profile data");
-		sz = sizeof(size_t);
-		assert_d_eq(mallctl("prof.lg_sample", &lg_prof_sample, &sz,
-		    NULL, 0), 0, "Unexpected mallctl failure while reading "
-		    "profiling sample rate");
+		do_prof_reset(lg_prof_sample_next);
+		lg_prof_sample = get_lg_prof_sample();
 		assert_zu_eq(lg_prof_sample, lg_prof_sample_next,
 		    "Expected profile sample rate change");
 		lg_prof_sample_next = lg_prof_sample_orig;
 	}
 
 	/* Make sure the test code restored prof.lg_sample. */
-	sz = sizeof(size_t);
-	assert_d_eq(mallctl("prof.lg_sample", &lg_prof_sample, &sz, NULL, 0), 0,
-	    "Unexpected mallctl failure while reading profiling sample rate");
+	lg_prof_sample = get_lg_prof_sample();
 	assert_zu_eq(lg_prof_sample_orig, lg_prof_sample,
 	    "Unexpected disagreement between \"opt.lg_prof_sample\" and "
 	    "\"prof.lg_sample\"");
@@ -182,6 +191,7 @@ thd_start(void *varg)
 
 TEST_BEGIN(test_prof_reset)
 {
+	size_t lg_prof_sample_orig;
 	bool active;
 	thd_t thds[NTHREADS];
 	unsigned thd_args[NTHREADS];
@@ -194,6 +204,9 @@ TEST_BEGIN(test_prof_reset)
 	assert_zu_eq(bt_count, 0,
 	    "Unexpected pre-existing tdata structures");
 	tdata_count = prof_tdata_count();
+
+	lg_prof_sample_orig = get_lg_prof_sample();
+	do_prof_reset(5);
 
 	active = true;
 	assert_d_eq(mallctl("prof.active", NULL, NULL, &active, sizeof(active)),
@@ -214,6 +227,8 @@ TEST_BEGIN(test_prof_reset)
 	active = false;
 	assert_d_eq(mallctl("prof.active", NULL, NULL, &active, sizeof(active)),
 	    0, "Unexpected mallctl failure while deactivating profiling");
+
+	do_prof_reset(lg_prof_sample_orig);
 }
 TEST_END
 #undef NTHREADS
