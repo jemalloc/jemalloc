@@ -20,6 +20,8 @@ brevity.  Much more detail can be found in the git revision history:
     specify the old chunk size rather than the new chunk size.  This bug caused
     no correctness issues for the default chunk purge function, but was
     visible to custom functions set via the "arena.<i>.chunk_hooks" mallctl.
+  - Fix TLS configuration such that it is enabled by default for platforms on
+    which it works correctly.
 
 * 4.0.0 (August 17, 2015)
 

@@ -1272,13 +1272,16 @@ fi
 ,
 enable_tls=""
 )
-if test "x${enable_tls}" = "x" -a "x${force_tls}" = "x1" ; then
-  AC_MSG_RESULT([Forcing TLS to avoid allocator/threading bootstrap issues])
-  enable_tls="1"
-fi
-if test "x${enable_tls}" = "x" -a "x${force_tls}" = "x0" ; then
-  AC_MSG_RESULT([Forcing no TLS to avoid allocator/threading bootstrap issues])
-  enable_tls="0"
+if test "x${enable_tls}" = "x" ; then
+  if test "x${force_tls}" = "x1" ; then
+    AC_MSG_RESULT([Forcing TLS to avoid allocator/threading bootstrap issues])
+    enable_tls="1"
+  elif test "x${force_tls}" = "x0" ; then
+    AC_MSG_RESULT([Forcing no TLS to avoid allocator/threading bootstrap issues])
+    enable_tls="0"
+  else
+    enable_tls="1"
+  fi
 fi
 if test "x${enable_tls}" = "x1" ; then
 AC_MSG_CHECKING([for TLS])
@@ -1298,9 +1301,12 @@ else
 fi
 AC_SUBST([enable_tls])
 if test "x${enable_tls}" = "x1" ; then
+  if test "x${force_tls}" = "x0" ; then
+    AC_MSG_WARN([TLS enabled despite being marked unusable on this platform])
+  fi
   AC_DEFINE_UNQUOTED([JEMALLOC_TLS], [ ])
 elif test "x${force_tls}" = "x1" ; then
-  AC_MSG_ERROR([Failed to configure TLS, which is mandatory for correct function])
+  AC_MSG_WARN([TLS disabled despite being marked critical on this platform])
 fi
 
 dnl ============================================================================
