@@ -1750,15 +1750,6 @@ arena_run_dalloc(arena_t *arena, arena_run_t *run, bool dirty, bool cleaned,
 }
 
 static void
-arena_run_dalloc_decommit(arena_t *arena, arena_chunk_t *chunk,
-    arena_run_t *run)
-{
-	bool committed = arena_run_decommit(arena, chunk, run);
-
-	arena_run_dalloc(arena, run, committed, false, !committed);
-}
-
-static void
 arena_run_trim_head(arena_t *arena, arena_chunk_t *chunk, arena_run_t *run,
     size_t oldsize, size_t newsize)
 {
@@ -2441,7 +2432,7 @@ arena_dalloc_bin_run(arena_t *arena, arena_chunk_t *chunk, arena_run_t *run,
 	malloc_mutex_unlock(&bin->lock);
 	/******************************/
 	malloc_mutex_lock(&arena->lock);
-	arena_run_dalloc_decommit(arena, chunk, run);
+	arena_run_dalloc(arena, run, true, false, false);
 	malloc_mutex_unlock(&arena->lock);
 	/****************************/
 	malloc_mutex_lock(&bin->lock);
@@ -2584,7 +2575,7 @@ arena_dalloc_large_locked_impl(arena_t *arena, arena_chunk_t *chunk,
 		}
 	}
 
-	arena_run_dalloc_decommit(arena, chunk, run);
+	arena_run_dalloc(arena, run, true, false, false);
 }
 
 void
