@@ -1660,18 +1660,6 @@ arena_run_size_get(arena_t *arena, arena_chunk_t *chunk, arena_run_t *run,
 	return (size);
 }
 
-static bool
-arena_run_decommit(arena_t *arena, arena_chunk_t *chunk, arena_run_t *run)
-{
-	arena_chunk_map_misc_t *miscelm = arena_run_to_miscelm(run);
-	size_t run_ind = arena_miscelm_to_pageind(miscelm);
-	size_t offset = run_ind << LG_PAGE;
-	size_t length = arena_run_size_get(arena, chunk, run, run_ind);
-
-	return (arena->chunk_hooks.decommit(chunk, chunksize, offset, length,
-	    arena->ind));
-}
-
 static void
 arena_run_dalloc(arena_t *arena, arena_run_t *run, bool dirty, bool cleaned,
     bool decommitted)
@@ -1747,15 +1735,6 @@ arena_run_dalloc(arena_t *arena, arena_run_t *run, bool dirty, bool cleaned,
 	 */
 	if (dirty)
 		arena_maybe_purge(arena);
-}
-
-static void
-arena_run_dalloc_decommit(arena_t *arena, arena_chunk_t *chunk,
-    arena_run_t *run)
-{
-	bool committed = arena_run_decommit(arena, chunk, run);
-
-	arena_run_dalloc(arena, run, committed, false, !committed);
 }
 
 static void
@@ -2441,7 +2420,7 @@ arena_dalloc_bin_run(arena_t *arena, arena_chunk_t *chunk, arena_run_t *run,
 	malloc_mutex_unlock(&bin->lock);
 	/******************************/
 	malloc_mutex_lock(&arena->lock);
-	arena_run_dalloc_decommit(arena, chunk, run);
+	arena_run_dalloc(arena, run, true, false, false);
 	malloc_mutex_unlock(&arena->lock);
 	/****************************/
 	malloc_mutex_lock(&bin->lock);
@@ -2584,7 +2563,7 @@ arena_dalloc_large_locked_impl(arena_t *arena, arena_chunk_t *chunk,
 		}
 	}
 
-	arena_run_dalloc_decommit(arena, chunk, run);
+	arena_run_dalloc(arena, run, true, false, false);
 }
 
 void
