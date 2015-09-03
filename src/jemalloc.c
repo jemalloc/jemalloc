@@ -179,13 +179,24 @@ static bool			malloc_initializer = NO_INITIALIZER;
 static malloc_mutex_t	init_lock = SRWLOCK_INIT;
 #else
 static malloc_mutex_t	init_lock;
+static bool init_lock_initialized = false;
 
 JEMALLOC_ATTR(constructor)
 static void WINAPI
 _init_init_lock(void)
 {
 
-	malloc_mutex_init(&init_lock);
+	/* If another constructor in the same binary is using mallctl to
+	 * e.g. setup chunk hooks, it may end up running before this one,
+	 * and malloc_init_hard will crash trying to lock the uninitialized
+	 * lock. So we force an initialization of the lock in
+	 * malloc_init_hard as well. We don't try to care about atomicity
+	 * of the accessed to the init_lock_initialized boolean, since it
+	 * really only matters early in the process creation, before any
+	 * separate thread normally starts doing anything. */
+	if (!init_lock_initialized)
+		malloc_mutex_init(&init_lock);
+	init_lock_initialized = true;
 }
 
 #ifdef _MSC_VER
@@ -1300,6 +1311,9 @@ static bool
 malloc_init_hard(void)
 {
 
+#if defined(_WIN32) && _WIN32_WINNT < 0x0600
+	_init_init_lock();
+#endif
 	malloc_mutex_lock(&init_lock);
 	if (!malloc_init_hard_needed()) {
 		malloc_mutex_unlock(&init_lock);
