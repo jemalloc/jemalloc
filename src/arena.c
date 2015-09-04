@@ -426,7 +426,7 @@ arena_run_split_large_helper(arena_t *arena, arena_run_t *run, size_t size,
 {
 	arena_chunk_t *chunk;
 	arena_chunk_map_misc_t *miscelm;
-	size_t flag_dirty, flag_decommitted, run_ind, need_pages, i;
+	size_t flag_dirty, flag_decommitted, run_ind, need_pages;
 	size_t flag_unzeroed_mask;
 
 	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(run);
@@ -460,6 +460,7 @@ arena_run_split_large_helper(arena_t *arena, arena_run_t *run, size_t size,
 			 * The run is clean, so some pages may be zeroed (i.e.
 			 * never before touched).
 			 */
+			size_t i;
 			for (i = 0; i < need_pages; i++) {
 				if (arena_mapbits_unzeroed_get(chunk, run_ind+i)
 				    != 0)
@@ -1939,7 +1940,6 @@ arena_bin_nonfull_run_get(arena_t *arena, arena_bin_t *bin)
 static void *
 arena_bin_malloc_hard(arena_t *arena, arena_bin_t *bin)
 {
-	void *ret;
 	index_t binind;
 	arena_bin_info_t *bin_info;
 	arena_run_t *run;
@@ -1953,6 +1953,7 @@ arena_bin_malloc_hard(arena_t *arena, arena_bin_t *bin)
 		 * Another thread updated runcur while this one ran without the
 		 * bin lock in arena_bin_nonfull_run_get().
 		 */
+		void *ret;
 		assert(bin->runcur->nfree > 0);
 		ret = arena_run_reg_alloc(bin->runcur, bin_info);
 		if (run != NULL) {
@@ -1991,8 +1992,6 @@ arena_tcache_fill_small(arena_t *arena, tcache_bin_t *tbin, index_t binind,
 {
 	unsigned i, nfill;
 	arena_bin_t *bin;
-	arena_run_t *run;
-	void *ptr;
 
 	assert(tbin->ncached == 0);
 
@@ -2002,6 +2001,8 @@ arena_tcache_fill_small(arena_t *arena, tcache_bin_t *tbin, index_t binind,
 	malloc_mutex_lock(&bin->lock);
 	for (i = 0, nfill = (tcache_bin_info[binind].ncached_max >>
 	    tbin->lg_fill_div); i < nfill; i++) {
+		arena_run_t *run;
+		void *ptr;
 		if ((run = bin->runcur) != NULL && run->nfree > 0)
 			ptr = arena_run_reg_alloc(run, &arena_bin_info[binind]);
 		else
@@ -2076,12 +2077,13 @@ arena_redzone_corruption_t *arena_redzone_corruption =
 static void
 arena_redzones_validate(void *ptr, arena_bin_info_t *bin_info, bool reset)
 {
-	size_t size = bin_info->reg_size;
-	size_t redzone_size = bin_info->redzone_size;
-	size_t i;
 	bool error = false;
 
 	if (opt_junk_alloc) {
+		size_t size = bin_info->reg_size;
+		size_t redzone_size = bin_info->redzone_size;
+		size_t i;
+
 		for (i = 1; i <= redzone_size; i++) {
 			uint8_t *byte = (uint8_t *)((uintptr_t)ptr - i);
 			if (*byte != 0xa5) {
@@ -3241,7 +3243,6 @@ small_run_size_init(void)
 bool
 arena_boot(void)
 {
-	size_t header_size;
 	unsigned i;
 
 	arena_lg_dirty_mult_default_set(opt_lg_dirty_mult);
@@ -3260,6 +3261,7 @@ arena_boot(void)
 	 */
 	map_bias = 0;
 	for (i = 0; i < 3; i++) {
+		size_t header_size;
 		header_size = offsetof(arena_chunk_t, map_bits) +
 		    ((sizeof(arena_chunk_map_bits_t) +
 		    sizeof(arena_chunk_map_misc_t)) * (chunk_npages-map_bias));
