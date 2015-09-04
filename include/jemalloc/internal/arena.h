@@ -1105,8 +1105,8 @@ arena_prof_tctx_set(const void *ptr, size_t usize, prof_tctx_t *tctx)
 
 		assert(arena_mapbits_allocated_get(chunk, pageind) != 0);
 
-		if (unlikely(usize > SMALL_MAXCLASS || tctx >
-		    (prof_tctx_t *)(uintptr_t)1U)) {
+		if (unlikely(usize > SMALL_MAXCLASS || (uintptr_t)tctx >
+		    (uintptr_t)1U)) {
 			arena_chunk_map_misc_t *elm;
 
 			assert(arena_mapbits_large_get(chunk, pageind) != 0);
