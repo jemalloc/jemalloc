@@ -69,8 +69,6 @@ void *
 chunk_alloc_dss(arena_t *arena, void *new_addr, size_t size, size_t alignment,
     bool *zero, bool *commit)
 {
-	void *ret;
-
 	cassert(have_dss);
 	assert(size > 0 && (size & chunksize_mask) == 0);
 	assert(alignment > 0 && (alignment & chunksize_mask) == 0);
@@ -84,9 +82,6 @@ chunk_alloc_dss(arena_t *arena, void *new_addr, size_t size, size_t alignment,
 
 	malloc_mutex_lock(&dss_mtx);
 	if (dss_prev != (void *)-1) {
-		size_t gap_size, cpad_size;
-		void *cpad, *dss_next;
-		intptr_t incr;
 
 		/*
 		 * The loop is necessary to recover from races with other
@@ -94,6 +89,9 @@ chunk_alloc_dss(arena_t *arena, void *new_addr, size_t size, size_t alignment,
 		 * malloc.
 		 */
 		do {
+			void *ret, *cpad, *dss_next;
+			size_t gap_size, cpad_size;
+			intptr_t incr;
 			/* Avoid an unnecessary system call. */
 			if (new_addr != NULL && dss_max != new_addr)
 				break;
