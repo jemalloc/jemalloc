@@ -1577,7 +1577,6 @@ prof_idump(void)
 {
 	tsd_t *tsd;
 	prof_tdata_t *tdata;
-	char filename[PATH_MAX + 1];
 
 	cassert(config_prof);
 
@@ -1593,6 +1592,7 @@ prof_idump(void)
 	}
 
 	if (opt_prof_prefix[0] != '\0') {
+		char filename[PATH_MAX + 1];
 		malloc_mutex_lock(&prof_dump_seq_mtx);
 		prof_dump_filename(filename, 'i', prof_dump_iseq);
 		prof_dump_iseq++;
@@ -1631,7 +1631,6 @@ prof_gdump(void)
 {
 	tsd_t *tsd;
 	prof_tdata_t *tdata;
-	char filename[DUMP_FILENAME_BUFSIZE];
 
 	cassert(config_prof);
 
@@ -1647,6 +1646,7 @@ prof_gdump(void)
 	}
 
 	if (opt_prof_prefix[0] != '\0') {
+		char filename[DUMP_FILENAME_BUFSIZE];
 		malloc_mutex_lock(&prof_dump_seq_mtx);
 		prof_dump_filename(filename, 'u', prof_dump_useq);
 		prof_dump_useq++;
