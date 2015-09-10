@@ -90,10 +90,11 @@ struct prof_tctx_s {
 	prof_tdata_t		*tdata;
 
 	/*
-	 * Copy of tdata->thr_uid, necessary because tdata may be defunct during
-	 * teardown.
+	 * Copy of tdata->thr_{uid,discrim}, necessary because tdata may be
+	 * defunct during teardown.
 	 */
 	uint64_t		thr_uid;
+	uint64_t		thr_discrim;
 
 	/* Profiling counters, protected by tdata->lock. */
 	prof_cnt_t		cnts;

@@ -22,6 +22,10 @@ brevity.  Much more detail can be found in the git revision history:
     visible to custom functions set via the "arena.<i>.chunk_hooks" mallctl.
   - Fix TLS configuration such that it is enabled by default for platforms on
     which it works correctly.
+  - Fix heap profiling to distinguish among otherwise identical sample sites
+    with interposed resets (triggered via the "prof.reset" mallctl).  This bug
+    could cause data structure corruption that would most likely result in a
+    segfault.
 
 * 4.0.0 (August 17, 2015)
 
