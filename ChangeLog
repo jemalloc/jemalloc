@@ -26,6 +26,8 @@ brevity.  Much more detail can be found in the git revision history:
     with interposed resets (triggered via the "prof.reset" mallctl).  This bug
     could cause data structure corruption that would most likely result in a
     segfault.
+  - Fix xallocx() bugs related to the 'extra' parameter when specified as
+    non-zero.
 
 * 4.0.0 (August 17, 2015)
 

@@ -13,11 +13,10 @@ void	*huge_malloc(tsd_t *tsd, arena_t *arena, size_t size, bool zero,
     tcache_t *tcache);
 void	*huge_palloc(tsd_t *tsd, arena_t *arena, size_t size, size_t alignment,
     bool zero, tcache_t *tcache);
-bool	huge_ralloc_no_move(void *ptr, size_t oldsize, size_t size,
-    size_t extra, bool zero);
+bool	huge_ralloc_no_move(void *ptr, size_t oldsize, size_t usize_min,
+    size_t usize_max, bool zero);
 void	*huge_ralloc(tsd_t *tsd, arena_t *arena, void *ptr, size_t oldsize,
-    size_t size, size_t extra, size_t alignment, bool zero,
-    tcache_t *tcache);
+    size_t usize, size_t alignment, bool zero, tcache_t *tcache);
 #ifdef JEMALLOC_JET
 typedef void (huge_dalloc_junk_t)(void *, size_t);
 extern huge_dalloc_junk_t *huge_dalloc_junk;
