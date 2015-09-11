@@ -79,6 +79,15 @@ struct {								\
     (a_node)->a_field.rbn_right_red = (a_type *) (((intptr_t)		\
       (a_node)->a_field.rbn_right_red) & ((ssize_t)-2));		\
 } while (0)
+
+/* Node initializer. */
+#define	rbt_node_new(a_type, a_field, a_rbt, a_node) do {		\
+    /* Bookkeeping bit cannot be used by node pointer. */		\
+    assert(((uintptr_t)(a_node) & 0x1) == 0);				\
+    rbtn_left_set(a_type, a_field, (a_node), &(a_rbt)->rbt_nil);	\
+    rbtn_right_set(a_type, a_field, (a_node), &(a_rbt)->rbt_nil);	\
+    rbtn_red_set(a_type, a_field, (a_node));				\
+} while (0)
 #else
 /* Right accessors. */
 #define	rbtn_right_get(a_type, a_field, a_node)				\
@@ -99,7 +108,6 @@ struct {								\
 #define	rbtn_black_set(a_type, a_field, a_node) do {			\
     (a_node)->a_field.rbn_red = false;					\
 } while (0)
-#endif
 
 /* Node initializer. */
 #define	rbt_node_new(a_type, a_field, a_rbt, a_node) do {		\
@@ -107,6 +115,7 @@ struct {								\
     rbtn_right_set(a_type, a_field, (a_node), &(a_rbt)->rbt_nil);	\
     rbtn_red_set(a_type, a_field, (a_node));				\
 } while (0)
+#endif
 
 /* Tree initializer. */
 #define	rb_new(a_type, a_field, a_rbt) do {				\
