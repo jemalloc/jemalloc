@@ -496,13 +496,13 @@ tcache_boot(void)
 	unsigned i;
 
 	/*
-	 * If necessary, clamp opt_lg_tcache_max, now that arena_maxclass is
+	 * If necessary, clamp opt_lg_tcache_max, now that large_maxclass is
 	 * known.
 	 */
 	if (opt_lg_tcache_max < 0 || (1U << opt_lg_tcache_max) < SMALL_MAXCLASS)
 		tcache_maxclass = SMALL_MAXCLASS;
-	else if ((1U << opt_lg_tcache_max) > arena_maxclass)
-		tcache_maxclass = arena_maxclass;
+	else if ((1U << opt_lg_tcache_max) > large_maxclass)
+		tcache_maxclass = large_maxclass;
 	else
 		tcache_maxclass = (1U << opt_lg_tcache_max);
 

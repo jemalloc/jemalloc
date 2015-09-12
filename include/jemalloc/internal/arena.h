@@ -424,7 +424,7 @@ extern arena_bin_info_t	arena_bin_info[NBINS];
 extern size_t		map_bias; /* Number of arena chunk header pages. */
 extern size_t		map_misc_offset;
 extern size_t		arena_maxrun; /* Max run size for arenas. */
-extern size_t		arena_maxclass; /* Max size class for arenas. */
+extern size_t		large_maxclass; /* Max large size class. */
 extern unsigned		nlclasses; /* Number of large size classes. */
 extern unsigned		nhclasses; /* Number of huge size classes. */
 
@@ -1143,7 +1143,7 @@ arena_malloc(tsd_t *tsd, arena_t *arena, size_t size, bool zero,
 			    zero));
 		} else
 			return (arena_malloc_small(arena, size, zero));
-	} else if (likely(size <= arena_maxclass)) {
+	} else if (likely(size <= large_maxclass)) {
 		/*
 		 * Initialize tcache after checking size in order to avoid
 		 * infinite recursion during tcache initialization.

@@ -11,7 +11,7 @@ arena_bin_info_t	arena_bin_info[NBINS];
 size_t		map_bias;
 size_t		map_misc_offset;
 size_t		arena_maxrun; /* Max run size for arenas. */
-size_t		arena_maxclass; /* Max size class for arenas. */
+size_t		large_maxclass; /* Max large size class. */
 static size_t	small_maxrun; /* Max run size used for small size classes. */
 static bool	*small_run_tab; /* Valid small run page multiples. */
 unsigned	nlclasses; /* Number of large size classes. */
@@ -2357,7 +2357,7 @@ arena_palloc(tsd_t *tsd, arena_t *arena, size_t usize, size_t alignment,
 	    && (usize & PAGE_MASK) == 0))) {
 		/* Small; alignment doesn't require special run placement. */
 		ret = arena_malloc(tsd, arena, usize, zero, tcache);
-	} else if (usize <= arena_maxclass && alignment <= PAGE) {
+	} else if (usize <= large_maxclass && alignment <= PAGE) {
 		/*
 		 * Large; alignment doesn't require special run placement.
 		 * However, the cached pointer may be at a random offset from
@@ -2368,7 +2368,7 @@ arena_palloc(tsd_t *tsd, arena_t *arena, size_t usize, size_t alignment,
 		if (config_cache_oblivious)
 			ret = (void *)((uintptr_t)ret & ~PAGE_MASK);
 	} else {
-		if (likely(usize <= arena_maxclass)) {
+		if (likely(usize <= large_maxclass)) {
 			ret = arena_palloc_large(tsd, arena, usize, alignment,
 			    zero);
 		} else if (likely(alignment <= chunksize))
@@ -2800,7 +2800,7 @@ arena_ralloc_no_move(void *ptr, size_t oldsize, size_t size, size_t extra,
 		extra = HUGE_MAXCLASS - size;
 	usize_max = s2u(size + extra);
 
-	if (likely(oldsize <= arena_maxclass && usize_min <= arena_maxclass)) {
+	if (likely(oldsize <= large_maxclass && usize_min <= large_maxclass)) {
 		/*
 		 * Avoid moving the allocation if the size class can be left the
 		 * same.
@@ -2852,7 +2852,7 @@ arena_ralloc(tsd_t *tsd, arena_t *arena, void *ptr, size_t oldsize, size_t size,
 	if (usize == 0)
 		return (NULL);
 
-	if (likely(usize <= arena_maxclass)) {
+	if (likely(usize <= large_maxclass)) {
 		size_t copysize;
 
 		/* Try to avoid moving the allocation. */
@@ -3258,17 +3258,17 @@ arena_boot(void)
 
 	arena_maxrun = chunksize - (map_bias << LG_PAGE);
 	assert(arena_maxrun > 0);
-	arena_maxclass = index2size(size2index(chunksize)-1);
-	if (arena_maxclass > arena_maxrun) {
+	large_maxclass = index2size(size2index(chunksize)-1);
+	if (large_maxclass > arena_maxrun) {
 		/*
 		 * For small chunk sizes it's possible for there to be fewer
 		 * non-header pages available than are necessary to serve the
 		 * size classes just below chunksize.
 		 */
-		arena_maxclass = arena_maxrun;
+		large_maxclass = arena_maxrun;
 	}
-	assert(arena_maxclass > 0);
-	nlclasses = size2index(arena_maxclass) - size2index(SMALL_MAXCLASS);
+	assert(large_maxclass > 0);
+	nlclasses = size2index(large_maxclass) - size2index(SMALL_MAXCLASS);
 	nhclasses = NSIZES - nlclasses - NBINS;
 
 	bin_info_init();

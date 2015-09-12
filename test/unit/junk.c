@@ -140,7 +140,7 @@ TEST_BEGIN(test_junk_large)
 {
 
 	test_skip_if(!config_fill);
-	test_junk(SMALL_MAXCLASS+1, arena_maxclass);
+	test_junk(SMALL_MAXCLASS+1, large_maxclass);
 }
 TEST_END
 
@@ -148,7 +148,7 @@ TEST_BEGIN(test_junk_huge)
 {
 
 	test_skip_if(!config_fill);
-	test_junk(arena_maxclass+1, chunksize*2);
+	test_junk(large_maxclass+1, chunksize*2);
 }
 TEST_END
 
@@ -172,8 +172,8 @@ arena_ralloc_junk_large_intercept(void *ptr, size_t old_usize, size_t usize)
 {
 
 	arena_ralloc_junk_large_orig(ptr, old_usize, usize);
-	assert_zu_eq(old_usize, arena_maxclass, "Unexpected old_usize");
-	assert_zu_eq(usize, shrink_size(arena_maxclass), "Unexpected usize");
+	assert_zu_eq(old_usize, large_maxclass, "Unexpected old_usize");
+	assert_zu_eq(usize, shrink_size(large_maxclass), "Unexpected usize");
 	most_recently_trimmed = ptr;
 }
 
@@ -181,13 +181,13 @@ TEST_BEGIN(test_junk_large_ralloc_shrink)
 {
 	void *p1, *p2;
 
-	p1 = mallocx(arena_maxclass, 0);
+	p1 = mallocx(large_maxclass, 0);
 	assert_ptr_not_null(p1, "Unexpected mallocx() failure");
 
 	arena_ralloc_junk_large_orig = arena_ralloc_junk_large;
 	arena_ralloc_junk_large = arena_ralloc_junk_large_intercept;
 
-	p2 = rallocx(p1, shrink_size(arena_maxclass), 0);
+	p2 = rallocx(p1, shrink_size(large_maxclass), 0);
 	assert_ptr_eq(p1, p2, "Unexpected move during shrink");
 
 	arena_ralloc_junk_large = arena_ralloc_junk_large_orig;

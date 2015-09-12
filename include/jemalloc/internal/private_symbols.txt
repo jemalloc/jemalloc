@@ -58,7 +58,6 @@ arena_mapbits_unallocated_set
 arena_mapbits_unallocated_size_get
 arena_mapbits_unallocated_size_set
 arena_mapbits_unzeroed_get
-arena_maxclass
 arena_maxrun
 arena_maybe_purge
 arena_metadata_allocated_add
@@ -285,6 +284,7 @@ ixalloc
 jemalloc_postfork_child
 jemalloc_postfork_parent
 jemalloc_prefork
+large_maxclass
 lg_floor
 malloc_cprintf
 malloc_mutex_init

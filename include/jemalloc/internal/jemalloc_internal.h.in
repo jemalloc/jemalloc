@@ -705,7 +705,7 @@ sa2u(size_t size, size_t alignment)
 	}
 
 	/* Try for a large size class. */
-	if (likely(size <= arena_maxclass) && likely(alignment < chunksize)) {
+	if (likely(size <= large_maxclass) && likely(alignment < chunksize)) {
 		/*
 		 * We can't achieve subpage alignment, so round up alignment
 		 * to the minimum that can actually be supported.
