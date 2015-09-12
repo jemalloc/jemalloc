@@ -343,9 +343,9 @@ check_unit_dir:
 	@mkdir -p $(objroot)test/unit
 check_integration_dir:
 	@mkdir -p $(objroot)test/integration
-check_stress_dir:
+stress_dir:
 	@mkdir -p $(objroot)test/stress
-check_dir: check_unit_dir check_integration_dir check_stress_dir
+check_dir: check_unit_dir check_integration_dir
 
 check_unit: tests_unit check_unit_dir
 	$(SHELL) $(objroot)test/test.sh $(TESTS_UNIT:$(srcroot)%.c=$(objroot)%)
@@ -355,7 +355,7 @@ ifeq ($(enable_prof), 1)
 endif
 check_integration: tests_integration check_integration_dir
 	$(SHELL) $(objroot)test/test.sh $(TESTS_INTEGRATION:$(srcroot)%.c=$(objroot)%)
-check_stress: tests_stress check_stress_dir
+stress: tests_stress stress_dir
 	$(SHELL) $(objroot)test/test.sh $(TESTS_STRESS:$(srcroot)%.c=$(objroot)%)
 check: tests check_dir check_integration_prof
 	$(SHELL) $(objroot)test/test.sh $(TESTS:$(srcroot)%.c=$(objroot)%)
@@ -372,7 +372,7 @@ coverage_integration: check_integration
 	$(SHELL) $(srcroot)coverage.sh $(srcroot)test/src integration $(C_TESTLIB_INTEGRATION_OBJS)
 	$(SHELL) $(srcroot)coverage.sh $(srcroot)test/integration integration $(TESTS_INTEGRATION_OBJS)
 
-coverage_stress: check_stress
+coverage_stress: stress
 	$(SHELL) $(srcroot)coverage.sh $(srcroot)src pic $(C_PIC_OBJS)
 	$(SHELL) $(srcroot)coverage.sh $(srcroot)src jet $(C_JET_OBJS)
 	$(SHELL) $(srcroot)coverage.sh $(srcroot)test/src stress $(C_TESTLIB_STRESS_OBJS)
