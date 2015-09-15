@@ -1621,8 +1621,9 @@ AC_CONFIG_COMMANDS([include/jemalloc/internal/public_unnamespace.h], [
 ])
 AC_CONFIG_COMMANDS([include/jemalloc/internal/size_classes.h], [
   mkdir -p "${objroot}include/jemalloc/internal"
-  "${srcdir}/include/jemalloc/internal/size_classes.sh" "${LG_QUANTA}" ${LG_TINY_MIN} "${LG_PAGE_SIZES}" ${LG_SIZE_CLASS_GROUP} > "${objroot}include/jemalloc/internal/size_classes.h"
+  "${SHELL}" "${srcdir}/include/jemalloc/internal/size_classes.sh" "${LG_QUANTA}" ${LG_TINY_MIN} "${LG_PAGE_SIZES}" ${LG_SIZE_CLASS_GROUP} > "${objroot}include/jemalloc/internal/size_classes.h"
 ], [
+  SHELL="${SHELL}"
   srcdir="${srcdir}"
   objroot="${objroot}"
   LG_QUANTA="${LG_QUANTA}"
