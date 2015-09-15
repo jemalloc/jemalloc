@@ -33,6 +33,8 @@ brevity.  Much more detail can be found in the git revision history:
     the result throughout the relevant functions that handle an allocation
     event.  Also add a missing check in prof_realloc().  These fixes protect
     allocation events against concurrent prof_active changes.
+  - Fix ixallocx_prof() to pass usize_max and zero to ixallocx_prof_sample() in
+    the correct order.
 
 * 4.0.0 (August 17, 2015)
 
