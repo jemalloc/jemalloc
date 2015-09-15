@@ -2286,8 +2286,12 @@ ixallocx_prof(tsd_t *tsd, void *ptr, size_t old_usize, size_t size,
 	prof_active = prof_active_get_unlocked();
 	old_tctx = prof_tctx_get(ptr);
 	/* Clamp extra if necessary to avoid (size + extra) overflow. */
-	if (unlikely(size + extra > HUGE_MAXCLASS))
+	if (unlikely(size + extra > HUGE_MAXCLASS)) {
+		/* Check for size overflow. */
+		if (size > HUGE_MAXCLASS)
+			return (old_usize);
 		extra = HUGE_MAXCLASS - size;
+	}
 	/*
 	 * usize isn't knowable before ixalloc() returns when extra is non-zero.
 	 * Therefore, compute its maximum possible value and use that in
