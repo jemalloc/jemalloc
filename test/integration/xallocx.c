@@ -122,6 +122,68 @@ get_huge_size(size_t ind)
 	return (get_size_impl("arenas.hchunk.0.size", ind));
 }
 
+TEST_BEGIN(test_size)
+{
+	size_t small0, hugemax;
+	void *p;
+
+	/* Get size classes. */
+	small0 = get_small_size(0);
+	hugemax = get_huge_size(get_nhuge()-1);
+
+	p = mallocx(small0, 0);
+	assert_ptr_not_null(p, "Unexpected mallocx() error");
+
+	/* Test smallest supported size. */
+	assert_zu_eq(xallocx(p, 1, 0, 0), small0,
+	    "Unexpected xallocx() behavior");
+
+	/* Test largest supported size. */
+	assert_zu_le(xallocx(p, hugemax, 0, 0), hugemax,
+	    "Unexpected xallocx() behavior");
+
+	/* Test size overflow. */
+	assert_zu_le(xallocx(p, hugemax+1, 0, 0), hugemax,
+	    "Unexpected xallocx() behavior");
+	assert_zu_le(xallocx(p, SIZE_T_MAX, 0, 0), hugemax,
+	    "Unexpected xallocx() behavior");
+
+	dallocx(p, 0);
+}
+TEST_END
+
+TEST_BEGIN(test_size_extra_overflow)
+{
+	size_t small0, hugemax;
+	void *p;
+
+	/* Get size classes. */
+	small0 = get_small_size(0);
+	hugemax = get_huge_size(get_nhuge()-1);
+
+	p = mallocx(small0, 0);
+	assert_ptr_not_null(p, "Unexpected mallocx() error");
+
+	/* Test overflows that can be resolved by clamping extra. */
+	assert_zu_le(xallocx(p, hugemax-1, 2, 0), hugemax,
+	    "Unexpected xallocx() behavior");
+	assert_zu_le(xallocx(p, hugemax, 1, 0), hugemax,
+	    "Unexpected xallocx() behavior");
+
+	/* Test overflow such that hugemax-size underflows. */
+	assert_zu_le(xallocx(p, hugemax+1, 2, 0), hugemax,
+	    "Unexpected xallocx() behavior");
+	assert_zu_le(xallocx(p, hugemax+2, 3, 0), hugemax,
+	    "Unexpected xallocx() behavior");
+	assert_zu_le(xallocx(p, SIZE_T_MAX-2, 2, 0), hugemax,
+	    "Unexpected xallocx() behavior");
+	assert_zu_le(xallocx(p, SIZE_T_MAX-1, 1, 0), hugemax,
+	    "Unexpected xallocx() behavior");
+
+	dallocx(p, 0);
+}
+TEST_END
+
 TEST_BEGIN(test_extra_small)
 {
 	size_t small0, small1, hugemax;
@@ -293,6 +355,8 @@ main(void)
 	    test_same_size,
 	    test_extra_no_move,
 	    test_no_move_fail,
+	    test_size,
+	    test_size_extra_overflow,
 	    test_extra_small,
 	    test_extra_large,
 	    test_extra_huge));
