@@ -1378,7 +1378,7 @@ imalloc_prof(tsd_t *tsd, size_t usize)
 	void *p;
 	prof_tctx_t *tctx;
 
-	tctx = prof_alloc_prep(tsd, usize, true);
+	tctx = prof_alloc_prep(tsd, usize, prof_active_get_unlocked(), true);
 	if (unlikely((uintptr_t)tctx != (uintptr_t)1U))
 		p = imalloc_prof_sample(tsd, usize, tctx);
 	else
@@ -1468,7 +1468,7 @@ imemalign_prof(tsd_t *tsd, size_t alignment, size_t usize)
 	void *p;
 	prof_tctx_t *tctx;
 
-	tctx = prof_alloc_prep(tsd, usize, true);
+	tctx = prof_alloc_prep(tsd, usize, prof_active_get_unlocked(), true);
 	if (unlikely((uintptr_t)tctx != (uintptr_t)1U))
 		p = imemalign_prof_sample(tsd, alignment, usize, tctx);
 	else
@@ -1599,7 +1599,7 @@ icalloc_prof(tsd_t *tsd, size_t usize)
 	void *p;
 	prof_tctx_t *tctx;
 
-	tctx = prof_alloc_prep(tsd, usize, true);
+	tctx = prof_alloc_prep(tsd, usize, prof_active_get_unlocked(), true);
 	if (unlikely((uintptr_t)tctx != (uintptr_t)1U))
 		p = icalloc_prof_sample(tsd, usize, tctx);
 	else
@@ -1704,10 +1704,12 @@ JEMALLOC_ALWAYS_INLINE_C void *
 irealloc_prof(tsd_t *tsd, void *oldptr, size_t old_usize, size_t usize)
 {
 	void *p;
+	bool prof_active;
 	prof_tctx_t *old_tctx, *tctx;
 
+	prof_active = prof_active_get_unlocked();
 	old_tctx = prof_tctx_get(oldptr);
-	tctx = prof_alloc_prep(tsd, usize, true);
+	tctx = prof_alloc_prep(tsd, usize, prof_active, true);
 	if (unlikely((uintptr_t)tctx != (uintptr_t)1U))
 		p = irealloc_prof_sample(tsd, oldptr, old_usize, usize, tctx);
 	else
@@ -1716,7 +1718,8 @@ irealloc_prof(tsd_t *tsd, void *oldptr, size_t old_usize, size_t usize)
 		prof_alloc_rollback(tsd, tctx, true);
 		return (NULL);
 	}
-	prof_realloc(tsd, p, usize, tctx, true, old_usize, old_tctx);
+	prof_realloc(tsd, p, usize, tctx, prof_active, true, old_usize,
+	    old_tctx);
 
 	return (p);
 }
@@ -2014,7 +2017,7 @@ imallocx_prof(tsd_t *tsd, size_t size, int flags, size_t *usize)
 	if (unlikely(imallocx_flags_decode(tsd, size, flags, usize, &alignment,
 	    &zero, &tcache, &arena)))
 		return (NULL);
-	tctx = prof_alloc_prep(tsd, *usize, true);
+	tctx = prof_alloc_prep(tsd, *usize, prof_active_get_unlocked(), true);
 	if (likely((uintptr_t)tctx == (uintptr_t)1U)) {
 		p = imallocx_maybe_flags(tsd, size, flags, *usize, alignment,
 		    zero, tcache, arena);
@@ -2123,10 +2126,12 @@ irallocx_prof(tsd_t *tsd, void *oldptr, size_t old_usize, size_t size,
     arena_t *arena)
 {
 	void *p;
+	bool prof_active;
 	prof_tctx_t *old_tctx, *tctx;
 
+	prof_active = prof_active_get_unlocked();
 	old_tctx = prof_tctx_get(oldptr);
-	tctx = prof_alloc_prep(tsd, *usize, true);
+	tctx = prof_alloc_prep(tsd, *usize, prof_active, true);
 	if (unlikely((uintptr_t)tctx != (uintptr_t)1U)) {
 		p = irallocx_prof_sample(tsd, oldptr, old_usize, size,
 		    alignment, *usize, zero, tcache, arena, tctx);
@@ -2150,7 +2155,8 @@ irallocx_prof(tsd_t *tsd, void *oldptr, size_t old_usize, size_t size,
 		 */
 		*usize = isalloc(p, config_prof);
 	}
-	prof_realloc(tsd, p, *usize, tctx, true, old_usize, old_tctx);
+	prof_realloc(tsd, p, *usize, tctx, prof_active, true,
+	    old_usize, old_tctx);
 
 	return (p);
 }
@@ -2274,8 +2280,10 @@ ixallocx_prof(tsd_t *tsd, void *ptr, size_t old_usize, size_t size,
     size_t extra, size_t alignment, bool zero)
 {
 	size_t max_usize, usize;
+	bool prof_active;
 	prof_tctx_t *old_tctx, *tctx;
 
+	prof_active = prof_active_get_unlocked();
 	old_tctx = prof_tctx_get(ptr);
 	/* Clamp extra if necessary to avoid (size + extra) overflow. */
 	if (unlikely(size + extra > HUGE_MAXCLASS))
@@ -2288,7 +2296,7 @@ ixallocx_prof(tsd_t *tsd, void *ptr, size_t old_usize, size_t size,
 	 */
 	max_usize = (alignment == 0) ? s2u(size+extra) : sa2u(size+extra,
 	    alignment);
-	tctx = prof_alloc_prep(tsd, max_usize, false);
+	tctx = prof_alloc_prep(tsd, max_usize, prof_active, false);
 	if (unlikely((uintptr_t)tctx != (uintptr_t)1U)) {
 		usize = ixallocx_prof_sample(ptr, old_usize, size, extra,
 		    alignment, zero, max_usize, tctx);
@@ -2300,7 +2308,8 @@ ixallocx_prof(tsd_t *tsd, void *ptr, size_t old_usize, size_t size,
 		prof_alloc_rollback(tsd, tctx, false);
 		return (usize);
 	}
-	prof_realloc(tsd, ptr, usize, tctx, false, old_usize, old_tctx);
+	prof_realloc(tsd, ptr, usize, tctx, prof_active, false, old_usize,
+	    old_tctx);
 
 	return (usize);
 }
