@@ -1712,8 +1712,10 @@ irealloc_prof(tsd_t *tsd, void *oldptr, size_t old_usize, size_t usize)
 		p = irealloc_prof_sample(tsd, oldptr, old_usize, usize, tctx);
 	else
 		p = iralloc(tsd, oldptr, old_usize, usize, 0, false);
-	if (p == NULL)
+	if (unlikely(p == NULL)) {
+		prof_alloc_rollback(tsd, tctx, true);
 		return (NULL);
+	}
 	prof_realloc(tsd, p, usize, tctx, true, old_usize, old_tctx);
 
 	return (p);

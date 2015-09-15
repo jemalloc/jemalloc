@@ -28,6 +28,7 @@ brevity.  Much more detail can be found in the git revision history:
     segfault.
   - Fix xallocx() bugs related to the 'extra' parameter when specified as
     non-zero.
+  - Fix irealloc_prof() to prof_alloc_rollback() on OOM.
 
 * 4.0.0 (August 17, 2015)
 
