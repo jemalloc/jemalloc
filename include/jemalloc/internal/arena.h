@@ -556,6 +556,8 @@ unsigned	arena_run_regind(arena_run_t *run, arena_bin_info_t *bin_info,
     const void *ptr);
 prof_tctx_t	*arena_prof_tctx_get(const void *ptr);
 void	arena_prof_tctx_set(const void *ptr, size_t usize, prof_tctx_t *tctx);
+void	arena_prof_tctx_reset(const void *ptr, size_t usize,
+    const void *old_ptr, prof_tctx_t *old_tctx);
 void	*arena_malloc(tsd_t *tsd, arena_t *arena, size_t size, bool zero,
     tcache_t *tcache);
 arena_t	*arena_aalloc(const void *ptr);
@@ -1124,6 +1126,35 @@ arena_prof_tctx_set(const void *ptr, size_t usize, prof_tctx_t *tctx)
 		}
 	} else
 		huge_prof_tctx_set(ptr, tctx);
+}
+
+JEMALLOC_INLINE void
+arena_prof_tctx_reset(const void *ptr, size_t usize, const void *old_ptr,
+    prof_tctx_t *old_tctx)
+{
+
+	cassert(config_prof);
+	assert(ptr != NULL);
+
+	if (unlikely(usize > SMALL_MAXCLASS || (ptr == old_ptr &&
+	    (uintptr_t)old_tctx > (uintptr_t)1U))) {
+		arena_chunk_t *chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
+		if (likely(chunk != ptr)) {
+			size_t pageind;
+			arena_chunk_map_misc_t *elm;
+
+			pageind = ((uintptr_t)ptr - (uintptr_t)chunk) >>
+			    LG_PAGE;
+			assert(arena_mapbits_allocated_get(chunk, pageind) !=
+			    0);
+			assert(arena_mapbits_large_get(chunk, pageind) != 0);
+
+			elm = arena_miscelm_get(chunk, pageind);
+			atomic_write_p(&elm->prof_tctx_pun,
+			    (prof_tctx_t *)(uintptr_t)1U);
+		} else
+			huge_prof_tctx_reset(ptr);
+	}
 }
 
 JEMALLOC_ALWAYS_INLINE void *

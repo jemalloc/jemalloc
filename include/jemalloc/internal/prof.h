@@ -335,11 +335,13 @@ prof_tctx_t	*prof_alloc_prep(tsd_t *tsd, size_t usize, bool prof_active,
     bool update);
 prof_tctx_t	*prof_tctx_get(const void *ptr);
 void	prof_tctx_set(const void *ptr, size_t usize, prof_tctx_t *tctx);
+void	prof_tctx_reset(const void *ptr, size_t usize, const void *old_ptr,
+    prof_tctx_t *tctx);
 void	prof_malloc_sample_object(const void *ptr, size_t usize,
     prof_tctx_t *tctx);
 void	prof_malloc(const void *ptr, size_t usize, prof_tctx_t *tctx);
 void	prof_realloc(tsd_t *tsd, const void *ptr, size_t usize,
-    prof_tctx_t *tctx, bool prof_active, bool updated,
+    prof_tctx_t *tctx, bool prof_active, bool updated, const void *old_ptr,
     size_t old_usize, prof_tctx_t *old_tctx);
 void	prof_free(tsd_t *tsd, const void *ptr, size_t usize);
 #endif
@@ -414,6 +416,17 @@ prof_tctx_set(const void *ptr, size_t usize, prof_tctx_t *tctx)
 	arena_prof_tctx_set(ptr, usize, tctx);
 }
 
+JEMALLOC_ALWAYS_INLINE void
+prof_tctx_reset(const void *ptr, size_t usize, const void *old_ptr,
+    prof_tctx_t *old_tctx)
+{
+
+	cassert(config_prof);
+	assert(ptr != NULL);
+
+	arena_prof_tctx_reset(ptr, usize, old_ptr, old_tctx);
+}
+
 JEMALLOC_ALWAYS_INLINE bool
 prof_sample_accum_update(tsd_t *tsd, size_t usize, bool update,
     prof_tdata_t **tdata_out)
@@ -481,7 +494,8 @@ prof_malloc(const void *ptr, size_t usize, prof_tctx_t *tctx)
 
 JEMALLOC_ALWAYS_INLINE void
 prof_realloc(tsd_t *tsd, const void *ptr, size_t usize, prof_tctx_t *tctx,
-    bool prof_active, bool updated, size_t old_usize, prof_tctx_t *old_tctx)
+    bool prof_active, bool updated, const void *old_ptr, size_t old_usize,
+    prof_tctx_t *old_tctx)
 {
 	bool sampled, old_sampled;
 
@@ -508,7 +522,7 @@ prof_realloc(tsd_t *tsd, const void *ptr, size_t usize, prof_tctx_t *tctx,
 	if (unlikely(sampled))
 		prof_malloc_sample_object(ptr, usize, tctx);
 	else
-		prof_tctx_set(ptr, usize, (prof_tctx_t *)(uintptr_t)1U);
+		prof_tctx_reset(ptr, usize, old_ptr, old_tctx);
 
 	if (unlikely(old_sampled))
 		prof_free_sampled_object(tsd, old_usize, old_tctx);

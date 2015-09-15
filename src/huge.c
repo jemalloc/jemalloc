@@ -424,3 +424,10 @@ huge_prof_tctx_set(const void *ptr, prof_tctx_t *tctx)
 	extent_node_prof_tctx_set(node, tctx);
 	malloc_mutex_unlock(&arena->huge_mtx);
 }
+
+void
+huge_prof_tctx_reset(const void *ptr)
+{
+
+	huge_prof_tctx_set(ptr, (prof_tctx_t *)(uintptr_t)1U);
+}

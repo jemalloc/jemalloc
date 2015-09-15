@@ -1718,7 +1718,7 @@ irealloc_prof(tsd_t *tsd, void *old_ptr, size_t old_usize, size_t usize)
 		prof_alloc_rollback(tsd, tctx, true);
 		return (NULL);
 	}
-	prof_realloc(tsd, p, usize, tctx, prof_active, true, old_usize,
+	prof_realloc(tsd, p, usize, tctx, prof_active, true, old_ptr, old_usize,
 	    old_tctx);
 
 	return (p);
@@ -2155,7 +2155,7 @@ irallocx_prof(tsd_t *tsd, void *old_ptr, size_t old_usize, size_t size,
 		 */
 		*usize = isalloc(p, config_prof);
 	}
-	prof_realloc(tsd, p, *usize, tctx, prof_active, true,
+	prof_realloc(tsd, p, *usize, tctx, prof_active, true, old_ptr,
 	    old_usize, old_tctx);
 
 	return (p);
@@ -2308,7 +2308,7 @@ ixallocx_prof(tsd_t *tsd, void *ptr, size_t old_usize, size_t size,
 		prof_alloc_rollback(tsd, tctx, false);
 		return (usize);
 	}
-	prof_realloc(tsd, ptr, usize, tctx, prof_active, false, old_usize,
+	prof_realloc(tsd, ptr, usize, tctx, prof_active, false, ptr, old_usize,
 	    old_tctx);
 
 	return (usize);

@@ -80,6 +80,7 @@ arena_prof_accum_impl
 arena_prof_accum_locked
 arena_prof_promoted
 arena_prof_tctx_get
+arena_prof_tctx_reset
 arena_prof_tctx_set
 arena_ptr_small_binind_get
 arena_purge_all
@@ -250,6 +251,7 @@ huge_dalloc_junk
 huge_malloc
 huge_palloc
 huge_prof_tctx_get
+huge_prof_tctx_reset
 huge_prof_tctx_set
 huge_ralloc
 huge_ralloc_no_move
@@ -379,6 +381,7 @@ prof_reset
 prof_sample_accum_update
 prof_sample_threshold_update
 prof_tctx_get
+prof_tctx_reset
 prof_tctx_set
 prof_tdata_cleanup
 prof_tdata_get

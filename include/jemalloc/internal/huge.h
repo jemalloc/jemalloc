@@ -26,6 +26,7 @@ arena_t	*huge_aalloc(const void *ptr);
 size_t	huge_salloc(const void *ptr);
 prof_tctx_t	*huge_prof_tctx_get(const void *ptr);
 void	huge_prof_tctx_set(const void *ptr, prof_tctx_t *tctx);
+void	huge_prof_tctx_reset(const void *ptr);
 
 #endif /* JEMALLOC_H_EXTERNS */
 /******************************************************************************/
