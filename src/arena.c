@@ -2791,15 +2791,8 @@ arena_ralloc_no_move(void *ptr, size_t oldsize, size_t size, size_t extra,
 {
 	size_t usize_min, usize_max;
 
-	/* Check for size overflow. */
-	if (unlikely(size > HUGE_MAXCLASS))
-		return (true);
 	usize_min = s2u(size);
-	/* Clamp extra if necessary to avoid (size + extra) overflow. */
-	if (unlikely(size + extra > HUGE_MAXCLASS))
-		extra = HUGE_MAXCLASS - size;
 	usize_max = s2u(size + extra);
-
 	if (likely(oldsize <= large_maxclass && usize_min <= large_maxclass)) {
 		/*
 		 * Avoid moving the allocation if the size class can be left the
