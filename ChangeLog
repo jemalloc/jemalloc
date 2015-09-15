@@ -35,6 +35,9 @@ brevity.  Much more detail can be found in the git revision history:
     allocation events against concurrent prof_active changes.
   - Fix ixallocx_prof() to pass usize_max and zero to ixallocx_prof_sample() in
     the correct order.
+  - Fix prof_realloc() to call prof_free_sampled_object() after calling
+    prof_malloc_sample_object().  Prior to this fix, if tctx and old_tctx were
+    the same, the tctx could have been prematurely destroyed.
 
 * 4.0.0 (August 17, 2015)
 

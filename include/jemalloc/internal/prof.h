@@ -483,6 +483,7 @@ JEMALLOC_ALWAYS_INLINE void
 prof_realloc(tsd_t *tsd, const void *ptr, size_t usize, prof_tctx_t *tctx,
     bool prof_active, bool updated, size_t old_usize, prof_tctx_t *old_tctx)
 {
+	bool sampled, old_sampled;
 
 	cassert(config_prof);
 	assert(ptr != NULL || (uintptr_t)tctx <= (uintptr_t)1U);
@@ -501,12 +502,16 @@ prof_realloc(tsd_t *tsd, const void *ptr, size_t usize, prof_tctx_t *tctx,
 		}
 	}
 
-	if (unlikely((uintptr_t)old_tctx > (uintptr_t)1U))
-		prof_free_sampled_object(tsd, old_usize, old_tctx);
-	if (unlikely((uintptr_t)tctx > (uintptr_t)1U))
+	sampled = ((uintptr_t)tctx > (uintptr_t)1U);
+	old_sampled = ((uintptr_t)old_tctx > (uintptr_t)1U);
+
+	if (unlikely(sampled))
 		prof_malloc_sample_object(ptr, usize, tctx);
 	else
 		prof_tctx_set(ptr, usize, (prof_tctx_t *)(uintptr_t)1U);
+
+	if (unlikely(old_sampled))
+		prof_free_sampled_object(tsd, old_usize, old_tctx);
 }
 
 JEMALLOC_ALWAYS_INLINE void
