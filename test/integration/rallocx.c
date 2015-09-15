@@ -22,7 +22,7 @@ TEST_BEGIN(test_grow_and_shrink)
 			    szs[j-1], szs[j-1]+1);
 			szs[j] = sallocx(q, 0);
 			assert_zu_ne(szs[j], szs[j-1]+1,
-			    "Expected size to at least: %zu", szs[j-1]+1);
+			    "Expected size to be at least: %zu", szs[j-1]+1);
 			p = q;
 		}
 

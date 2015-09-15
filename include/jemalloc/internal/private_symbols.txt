@@ -50,13 +50,14 @@ arena_mapbits_large_size_get
 arena_mapbitsp_get
 arena_mapbitsp_read
 arena_mapbitsp_write
+arena_mapbits_size_decode
+arena_mapbits_size_encode
 arena_mapbits_small_runind_get
 arena_mapbits_small_set
 arena_mapbits_unallocated_set
 arena_mapbits_unallocated_size_get
 arena_mapbits_unallocated_size_set
 arena_mapbits_unzeroed_get
-arena_maxclass
 arena_maxrun
 arena_maybe_purge
 arena_metadata_allocated_add
@@ -79,6 +80,7 @@ arena_prof_accum_impl
 arena_prof_accum_locked
 arena_prof_promoted
 arena_prof_tctx_get
+arena_prof_tctx_reset
 arena_prof_tctx_set
 arena_ptr_small_binind_get
 arena_purge_all
@@ -249,6 +251,7 @@ huge_dalloc_junk
 huge_malloc
 huge_palloc
 huge_prof_tctx_get
+huge_prof_tctx_reset
 huge_prof_tctx_set
 huge_ralloc
 huge_ralloc_no_move
@@ -283,6 +286,7 @@ ixalloc
 jemalloc_postfork_child
 jemalloc_postfork_parent
 jemalloc_prefork
+large_maxclass
 lg_floor
 malloc_cprintf
 malloc_mutex_init
@@ -377,6 +381,7 @@ prof_reset
 prof_sample_accum_update
 prof_sample_threshold_update
 prof_tctx_get
+prof_tctx_reset
 prof_tctx_set
 prof_tdata_cleanup
 prof_tdata_get

@@ -42,7 +42,7 @@ TEST_BEGIN(test_stats_huge)
 	size_t sz;
 	int expected = config_stats ? 0 : ENOENT;
 
-	p = mallocx(arena_maxclass+1, 0);
+	p = mallocx(large_maxclass+1, 0);
 	assert_ptr_not_null(p, "Unexpected mallocx() failure");
 
 	assert_d_eq(mallctl("epoch", NULL, NULL, &epoch, sizeof(epoch)), 0,
@@ -88,7 +88,7 @@ TEST_BEGIN(test_stats_arenas_summary)
 
 	little = mallocx(SMALL_MAXCLASS, 0);
 	assert_ptr_not_null(little, "Unexpected mallocx() failure");
-	large = mallocx(arena_maxclass, 0);
+	large = mallocx(large_maxclass, 0);
 	assert_ptr_not_null(large, "Unexpected mallocx() failure");
 	huge = mallocx(chunksize, 0);
 	assert_ptr_not_null(huge, "Unexpected mallocx() failure");
@@ -200,7 +200,7 @@ TEST_BEGIN(test_stats_arenas_large)
 	assert_d_eq(mallctl("thread.arena", NULL, NULL, &arena, sizeof(arena)),
 	    0, "Unexpected mallctl() failure");
 
-	p = mallocx(arena_maxclass, 0);
+	p = mallocx(large_maxclass, 0);
 	assert_ptr_not_null(p, "Unexpected mallocx() failure");
 
 	assert_d_eq(mallctl("epoch", NULL, NULL, &epoch, sizeof(epoch)), 0,

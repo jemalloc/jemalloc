@@ -4,6 +4,63 @@ brevity.  Much more detail can be found in the git revision history:
 
     https://github.com/jemalloc/jemalloc
 
+* 4.0.1 (September 15, 2015)
+
+  This is a bugfix release that is somewhat high risk due to the amount of
+  refactoring required to address deep xallocx() problems.  As a side effect of
+  these fixes, xallocx() now tries harder to partially fulfill requests for
+  optional extra space.  Note that a couple of minor heap profiling
+  optimizations are included, but these are better thought of as performance
+  fixes that were integral to disovering most of the other bugs.
+
+  Optimizations:
+  - Avoid a chunk metadata read in arena_prof_tctx_set(), since it is in the
+    fast path when heap profiling is enabled.  Additionally, split a special
+    case out into arena_prof_tctx_reset(), which also avoids chunk metadata
+    reads.
+  - Optimize irallocx_prof() to optimistically update the sampler state.  The
+    prior implementation appears to have been a holdover from when
+    rallocx()/xallocx() functionality was combined as rallocm().
+
+  Bug fixes:
+  - Fix TLS configuration such that it is enabled by default for platforms on
+    which it works correctly.
+  - Fix arenas_cache_cleanup() and arena_get_hard() to handle
+    allocation/deallocation within the application's thread-specific data
+    cleanup functions even after arenas_cache is torn down.
+  - Fix xallocx() bugs related to size+extra exceeding HUGE_MAXCLASS.
+  - Fix chunk purge hook calls for in-place huge shrinking reallocation to
+    specify the old chunk size rather than the new chunk size.  This bug caused
+    no correctness issues for the default chunk purge function, but was
+    visible to custom functions set via the "arena.<i>.chunk_hooks" mallctl.
+  - Fix heap profiling bugs:
+    + Fix heap profiling to distinguish among otherwise identical sample sites
+      with interposed resets (triggered via the "prof.reset" mallctl).  This bug
+      could cause data structure corruption that would most likely result in a
+      segfault.
+    + Fix irealloc_prof() to prof_alloc_rollback() on OOM.
+    + Make one call to prof_active_get_unlocked() per allocation event, and use
+      the result throughout the relevant functions that handle an allocation
+      event.  Also add a missing check in prof_realloc().  These fixes protect
+      allocation events against concurrent prof_active changes.
+    + Fix ixallocx_prof() to pass usize_max and zero to ixallocx_prof_sample()
+      in the correct order.
+    + Fix prof_realloc() to call prof_free_sampled_object() after calling
+      prof_malloc_sample_object().  Prior to this fix, if tctx and old_tctx were
+      the same, the tctx could have been prematurely destroyed.
+  - Fix portability bugs:
+    + Don't bitshift by negative amounts when encoding/decoding run sizes in
+      chunk header maps.  This affected systems with page sizes greater than 8
+      KiB.
+    + Rename index_t to szind_t to avoid an existing type on Solaris.
+    + Add JEMALLOC_CXX_THROW to the memalign() function prototype, in order to
+      match glibc and avoid compilation errors when including both
+      jemalloc/jemalloc.h and malloc.h in C++ code.
+    + Don't assume that /bin/sh is appropriate when running size_classes.sh
+      during configuration.
+    + Consider __sparcv9 a synonym for __sparc64__ when defining LG_QUANTUM.
+    + Link tests to librt if it contains clock_gettime(2).
+
 * 4.0.0 (August 17, 2015)
 
   This version contains many speed and space optimizations, both minor and

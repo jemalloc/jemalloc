@@ -139,9 +139,16 @@ prof_tctx_comp(const prof_tctx_t *a, const prof_tctx_t *b)
 	uint64_t b_thr_uid = b->thr_uid;
 	int ret = (a_thr_uid > b_thr_uid) - (a_thr_uid < b_thr_uid);
 	if (ret == 0) {
-		uint64_t a_tctx_uid = a->tctx_uid;
-		uint64_t b_tctx_uid = b->tctx_uid;
-		ret = (a_tctx_uid > b_tctx_uid) - (a_tctx_uid < b_tctx_uid);
+		uint64_t a_thr_discrim = a->thr_discrim;
+		uint64_t b_thr_discrim = b->thr_discrim;
+		ret = (a_thr_discrim > b_thr_discrim) - (a_thr_discrim <
+		    b_thr_discrim);
+		if (ret == 0) {
+			uint64_t a_tctx_uid = a->tctx_uid;
+			uint64_t b_tctx_uid = b->tctx_uid;
+			ret = (a_tctx_uid > b_tctx_uid) - (a_tctx_uid <
+			    b_tctx_uid);
+		}
 	}
 	return (ret);
 }
@@ -219,7 +226,7 @@ void
 prof_malloc_sample_object(const void *ptr, size_t usize, prof_tctx_t *tctx)
 {
 
-	prof_tctx_set(ptr, tctx);
+	prof_tctx_set(ptr, usize, tctx);
 
 	malloc_mutex_lock(tctx->tdata->lock);
 	tctx->cnts.curobjs++;
@@ -791,6 +798,7 @@ prof_lookup(tsd_t *tsd, prof_bt_t *bt)
 		}
 		ret.p->tdata = tdata;
 		ret.p->thr_uid = tdata->thr_uid;
+		ret.p->thr_discrim = tdata->thr_discrim;
 		memset(&ret.p->cnts, 0, sizeof(prof_cnt_t));
 		ret.p->gctx = gctx;
 		ret.p->tctx_uid = tdata->tctx_uid_next++;
@@ -1569,7 +1577,6 @@ prof_idump(void)
 {
 	tsd_t *tsd;
 	prof_tdata_t *tdata;
-	char filename[PATH_MAX + 1];
 
 	cassert(config_prof);
 
@@ -1585,6 +1592,7 @@ prof_idump(void)
 	}
 
 	if (opt_prof_prefix[0] != '\0') {
+		char filename[PATH_MAX + 1];
 		malloc_mutex_lock(&prof_dump_seq_mtx);
 		prof_dump_filename(filename, 'i', prof_dump_iseq);
 		prof_dump_iseq++;
@@ -1623,7 +1631,6 @@ prof_gdump(void)
 {
 	tsd_t *tsd;
 	prof_tdata_t *tdata;
-	char filename[DUMP_FILENAME_BUFSIZE];
 
 	cassert(config_prof);
 
@@ -1639,6 +1646,7 @@ prof_gdump(void)
 	}
 
 	if (opt_prof_prefix[0] != '\0') {
+		char filename[DUMP_FILENAME_BUFSIZE];
 		malloc_mutex_lock(&prof_dump_seq_mtx);
 		prof_dump_filename(filename, 'u', prof_dump_useq);
 		prof_dump_useq++;

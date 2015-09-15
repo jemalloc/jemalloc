@@ -1190,6 +1190,14 @@ fi
 
 CPPFLAGS="$CPPFLAGS -D_REENTRANT"
 
+dnl Check whether clock_gettime(2) is in libc or librt.  This function is only
+dnl used in test code, so save the result to TESTLIBS to avoid poluting LIBS.
+SAVED_LIBS="${LIBS}"
+LIBS=
+AC_SEARCH_LIBS([clock_gettime], [rt], [TESTLIBS="${LIBS}"])
+AC_SUBST([TESTLIBS])
+LIBS="${SAVED_LIBS}"
+
 dnl Check if the GNU-specific secure_getenv function exists.
 AC_CHECK_FUNC([secure_getenv],
               [have_secure_getenv="1"],
@@ -1272,13 +1280,16 @@ fi
 ,
 enable_tls=""
 )
-if test "x${enable_tls}" = "x" -a "x${force_tls}" = "x1" ; then
-  AC_MSG_RESULT([Forcing TLS to avoid allocator/threading bootstrap issues])
-  enable_tls="1"
-fi
-if test "x${enable_tls}" = "x" -a "x${force_tls}" = "x0" ; then
-  AC_MSG_RESULT([Forcing no TLS to avoid allocator/threading bootstrap issues])
-  enable_tls="0"
+if test "x${enable_tls}" = "x" ; then
+  if test "x${force_tls}" = "x1" ; then
+    AC_MSG_RESULT([Forcing TLS to avoid allocator/threading bootstrap issues])
+    enable_tls="1"
+  elif test "x${force_tls}" = "x0" ; then
+    AC_MSG_RESULT([Forcing no TLS to avoid allocator/threading bootstrap issues])
+    enable_tls="0"
+  else
+    enable_tls="1"
+  fi
 fi
 if test "x${enable_tls}" = "x1" ; then
 AC_MSG_CHECKING([for TLS])
@@ -1298,9 +1309,12 @@ else
 fi
 AC_SUBST([enable_tls])
 if test "x${enable_tls}" = "x1" ; then
+  if test "x${force_tls}" = "x0" ; then
+    AC_MSG_WARN([TLS enabled despite being marked unusable on this platform])
+  fi
   AC_DEFINE_UNQUOTED([JEMALLOC_TLS], [ ])
 elif test "x${force_tls}" = "x1" ; then
-  AC_MSG_ERROR([Failed to configure TLS, which is mandatory for correct function])
+  AC_MSG_WARN([TLS disabled despite being marked critical on this platform])
 fi
 
 dnl ============================================================================
@@ -1615,8 +1629,9 @@ AC_CONFIG_COMMANDS([include/jemalloc/internal/public_unnamespace.h], [
 ])
 AC_CONFIG_COMMANDS([include/jemalloc/internal/size_classes.h], [
   mkdir -p "${objroot}include/jemalloc/internal"
-  "${srcdir}/include/jemalloc/internal/size_classes.sh" "${LG_QUANTA}" ${LG_TINY_MIN} "${LG_PAGE_SIZES}" ${LG_SIZE_CLASS_GROUP} > "${objroot}include/jemalloc/internal/size_classes.h"
+  "${SHELL}" "${srcdir}/include/jemalloc/internal/size_classes.sh" "${LG_QUANTA}" ${LG_TINY_MIN} "${LG_PAGE_SIZES}" ${LG_SIZE_CLASS_GROUP} > "${objroot}include/jemalloc/internal/size_classes.h"
 ], [
+  SHELL="${SHELL}"
   srcdir="${srcdir}"
   objroot="${objroot}"
   LG_QUANTA="${LG_QUANTA}"
@@ -1687,6 +1702,7 @@ AC_MSG_RESULT([CPPFLAGS           : ${CPPFLAGS}])
 AC_MSG_RESULT([LDFLAGS            : ${LDFLAGS}])
 AC_MSG_RESULT([EXTRA_LDFLAGS      : ${EXTRA_LDFLAGS}])
 AC_MSG_RESULT([LIBS               : ${LIBS}])
+AC_MSG_RESULT([TESTLIBS           : ${TESTLIBS}])
 AC_MSG_RESULT([RPATH_EXTRA        : ${RPATH_EXTRA}])
 AC_MSG_RESULT([])
 AC_MSG_RESULT([XSLTPROC           : ${XSLTPROC}])
