@@ -4,6 +4,13 @@ brevity.  Much more detail can be found in the git revision history:
 
     https://github.com/jemalloc/jemalloc
 
+* 4.0.2 (XXX)
+
+  Bug fixes:
+  - Fix ixallocx_prof_sample() to never modify nor create sampled small
+    allocations.  xallocx() is in general incapable of moving small allocations,
+    so this fix removes buggy code without loss of generality.
+
 * 4.0.1 (September 15, 2015)
 
   This is a bugfix release that is somewhat high risk due to the amount of
