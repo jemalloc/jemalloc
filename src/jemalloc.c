@@ -1923,6 +1923,7 @@ imallocx_flags_decode_hard(tsd_t *tsd, size_t size, int flags, size_t *usize,
 		*alignment = MALLOCX_ALIGN_GET_SPECIFIED(flags);
 		*usize = sa2u(size, *alignment);
 	}
+	assert(*usize != 0);
 	*zero = MALLOCX_ZERO_GET(flags);
 	if ((flags & MALLOCX_TCACHE_MASK) != 0) {
 		if ((flags & MALLOCX_TCACHE_MASK) == MALLOCX_TCACHE_NONE)
@@ -2267,6 +2268,7 @@ ixallocx_prof(tsd_t *tsd, void *ptr, size_t old_usize, size_t size,
 	 */
 	usize_max = (alignment == 0) ? s2u(size+extra) : sa2u(size+extra,
 	    alignment);
+	assert(usize_max != 0);
 	tctx = prof_alloc_prep(tsd, usize_max, prof_active, false);
 	if (unlikely((uintptr_t)tctx != (uintptr_t)1U)) {
 		usize = ixallocx_prof_sample(ptr, old_usize, size, extra,
