@@ -353,6 +353,7 @@ check_unit: tests_unit check_unit_dir
 check_integration_prof: tests_integration check_integration_dir
 ifeq ($(enable_prof), 1)
 	$(MALLOC_CONF)="prof:true" $(SHELL) $(objroot)test/test.sh $(TESTS_INTEGRATION:$(srcroot)%.c=$(objroot)%)
+	$(MALLOC_CONF)="prof:true,prof_active:false" $(SHELL) $(objroot)test/test.sh $(TESTS_INTEGRATION:$(srcroot)%.c=$(objroot)%)
 endif
 check_integration: tests_integration check_integration_dir
 	$(SHELL) $(objroot)test/test.sh $(TESTS_INTEGRATION:$(srcroot)%.c=$(objroot)%)
