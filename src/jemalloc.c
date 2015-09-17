@@ -2098,8 +2098,8 @@ label_oom:
 }
 
 static void *
-irallocx_prof_sample(tsd_t *tsd, void *old_ptr, size_t old_usize, size_t size,
-    size_t alignment, size_t usize, bool zero, tcache_t *tcache, arena_t *arena,
+irallocx_prof_sample(tsd_t *tsd, void *old_ptr, size_t old_usize,
+    size_t usize, size_t alignment, bool zero, tcache_t *tcache, arena_t *arena,
     prof_tctx_t *tctx)
 {
 	void *p;
@@ -2113,7 +2113,7 @@ irallocx_prof_sample(tsd_t *tsd, void *old_ptr, size_t old_usize, size_t size,
 			return (NULL);
 		arena_prof_promoted(p, usize);
 	} else {
-		p = iralloct(tsd, old_ptr, old_usize, size, alignment, zero,
+		p = iralloct(tsd, old_ptr, old_usize, usize, alignment, zero,
 		    tcache, arena);
 	}
 
@@ -2133,8 +2133,8 @@ irallocx_prof(tsd_t *tsd, void *old_ptr, size_t old_usize, size_t size,
 	old_tctx = prof_tctx_get(old_ptr);
 	tctx = prof_alloc_prep(tsd, *usize, prof_active, true);
 	if (unlikely((uintptr_t)tctx != (uintptr_t)1U)) {
-		p = irallocx_prof_sample(tsd, old_ptr, old_usize, size,
-		    alignment, *usize, zero, tcache, arena, tctx);
+		p = irallocx_prof_sample(tsd, old_ptr, old_usize, *usize,
+		    alignment, zero, tcache, arena, tctx);
 	} else {
 		p = iralloct(tsd, old_ptr, old_usize, size, alignment, zero,
 		    tcache, arena);

@@ -10,6 +10,8 @@ brevity.  Much more detail can be found in the git revision history:
   - Fix ixallocx_prof_sample() to never modify nor create sampled small
     allocations.  xallocx() is in general incapable of moving small allocations,
     so this fix removes buggy code without loss of generality.
+  - Fix irallocx_prof_sample() to always allocate large regions, even when
+    alignment is non-zero.
 
 * 4.0.1 (September 15, 2015)
 
