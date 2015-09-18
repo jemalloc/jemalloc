@@ -512,7 +512,7 @@ arena_chunk_map_bits_t	*arena_bitselm_get(arena_chunk_t *chunk,
     size_t pageind);
 arena_chunk_map_misc_t	*arena_miscelm_get(arena_chunk_t *chunk,
     size_t pageind);
-size_t	arena_miscelm_to_pageind(arena_chunk_map_misc_t *miscelm);
+size_t	arena_miscelm_to_pageind(const arena_chunk_map_misc_t *miscelm);
 void	*arena_miscelm_to_rpages(arena_chunk_map_misc_t *miscelm);
 arena_chunk_map_misc_t	*arena_rd_to_miscelm(arena_runs_dirty_link_t *rd);
 arena_chunk_map_misc_t	*arena_run_to_miscelm(arena_run_t *run);
@@ -590,7 +590,7 @@ arena_miscelm_get(arena_chunk_t *chunk, size_t pageind)
 }
 
 JEMALLOC_ALWAYS_INLINE size_t
-arena_miscelm_to_pageind(arena_chunk_map_misc_t *miscelm)
+arena_miscelm_to_pageind(const arena_chunk_map_misc_t *miscelm)
 {
 	arena_chunk_t *chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(miscelm);
 	size_t pageind = ((uintptr_t)miscelm - ((uintptr_t)chunk +

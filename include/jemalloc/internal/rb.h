@@ -178,11 +178,11 @@ a_prefix##next(a_rbt_type *rbtree, a_type *node);			\
 a_attr a_type *								\
 a_prefix##prev(a_rbt_type *rbtree, a_type *node);			\
 a_attr a_type *								\
-a_prefix##search(a_rbt_type *rbtree, a_type *key);			\
+a_prefix##search(a_rbt_type *rbtree, const a_type *key);		\
 a_attr a_type *								\
-a_prefix##nsearch(a_rbt_type *rbtree, a_type *key);			\
+a_prefix##nsearch(a_rbt_type *rbtree, const a_type *key);		\
 a_attr a_type *								\
-a_prefix##psearch(a_rbt_type *rbtree, a_type *key);			\
+a_prefix##psearch(a_rbt_type *rbtree, const a_type *key);		\
 a_attr void								\
 a_prefix##insert(a_rbt_type *rbtree, a_type *node);			\
 a_attr void								\
@@ -263,7 +263,7 @@ a_prefix##reverse_iter(a_rbt_type *rbtree, a_type *start,		\
  *            last/first.
  *
  *   static ex_node_t *
- *   ex_search(ex_t *tree, ex_node_t *key);
+ *   ex_search(ex_t *tree, const ex_node_t *key);
  *       Description: Search for node that matches key.
  *       Args:
  *         tree: Pointer to an initialized red-black tree object.
@@ -271,9 +271,9 @@ a_prefix##reverse_iter(a_rbt_type *rbtree, a_type *start,		\
  *       Ret: Node in tree that matches key, or NULL if no match.
  *
  *   static ex_node_t *
- *   ex_nsearch(ex_t *tree, ex_node_t *key);
+ *   ex_nsearch(ex_t *tree, const ex_node_t *key);
  *   static ex_node_t *
- *   ex_psearch(ex_t *tree, ex_node_t *key);
+ *   ex_psearch(ex_t *tree, const ex_node_t *key);
  *       Description: Search for node that matches key.  If no match is found,
  *                    return what would be key's successor/predecessor, were
  *                    key in tree.
@@ -406,7 +406,7 @@ a_prefix##prev(a_rbt_type *rbtree, a_type *node) {			\
     return (ret);							\
 }									\
 a_attr a_type *								\
-a_prefix##search(a_rbt_type *rbtree, a_type *key) {			\
+a_prefix##search(a_rbt_type *rbtree, const a_type *key) {		\
     a_type *ret;							\
     int cmp;								\
     ret = rbtree->rbt_root;						\
@@ -424,7 +424,7 @@ a_prefix##search(a_rbt_type *rbtree, a_type *key) {			\
     return (ret);							\
 }									\
 a_attr a_type *								\
-a_prefix##nsearch(a_rbt_type *rbtree, a_type *key) {			\
+a_prefix##nsearch(a_rbt_type *rbtree, const a_type *key) {		\
     a_type *ret;							\
     a_type *tnode = rbtree->rbt_root;					\
     ret = &rbtree->rbt_nil;						\
@@ -446,7 +446,7 @@ a_prefix##nsearch(a_rbt_type *rbtree, a_type *key) {			\
     return (ret);							\
 }									\
 a_attr a_type *								\
-a_prefix##psearch(a_rbt_type *rbtree, a_type *key) {			\
+a_prefix##psearch(a_rbt_type *rbtree, const a_type *key) {		\
     a_type *ret;							\
     a_type *tnode = rbtree->rbt_root;					\
     ret = &rbtree->rbt_nil;						\

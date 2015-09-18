@@ -62,7 +62,7 @@ arena_miscelm_key_size_get(const arena_chunk_map_misc_t *miscelm)
 }
 
 JEMALLOC_INLINE_C size_t
-arena_miscelm_size_get(arena_chunk_map_misc_t *miscelm)
+arena_miscelm_size_get(const arena_chunk_map_misc_t *miscelm)
 {
 	arena_chunk_t *chunk;
 	size_t pageind, mapbits;
@@ -76,7 +76,7 @@ arena_miscelm_size_get(arena_chunk_map_misc_t *miscelm)
 }
 
 JEMALLOC_INLINE_C int
-arena_run_comp(arena_chunk_map_misc_t *a, arena_chunk_map_misc_t *b)
+arena_run_comp(const arena_chunk_map_misc_t *a, const arena_chunk_map_misc_t *b)
 {
 	uintptr_t a_miscelm = (uintptr_t)a;
 	uintptr_t b_miscelm = (uintptr_t)b;
@@ -169,7 +169,8 @@ run_quantize_first(size_t size)
 }
 
 JEMALLOC_INLINE_C int
-arena_avail_comp(arena_chunk_map_misc_t *a, arena_chunk_map_misc_t *b)
+arena_avail_comp(const arena_chunk_map_misc_t *a,
+    const arena_chunk_map_misc_t *b)
 {
 	int ret;
 	uintptr_t a_miscelm = (uintptr_t)a;
