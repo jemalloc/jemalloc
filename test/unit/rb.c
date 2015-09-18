@@ -21,7 +21,7 @@ struct node_s {
 };
 
 static int
-node_cmp(node_t *a, node_t *b) {
+node_cmp(const node_t *a, const node_t *b) {
 	int ret;
 
 	assert_u32_eq(a->magic, NODE_MAGIC, "Bad magic");
