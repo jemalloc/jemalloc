@@ -192,7 +192,10 @@ a_prefix##iter(a_rbt_type *rbtree, a_type *start, a_type *(*cb)(	\
   a_rbt_type *, a_type *, void *), void *arg);				\
 a_attr a_type *								\
 a_prefix##reverse_iter(a_rbt_type *rbtree, a_type *start,		\
-  a_type *(*cb)(a_rbt_type *, a_type *, void *), void *arg);
+  a_type *(*cb)(a_rbt_type *, a_type *, void *), void *arg);		\
+a_attr void								\
+a_prefix##destroy(a_rbt_type *rbtree, void (*cb)(a_type *, void *),	\
+  void *arg);
 
 /*
  * The rb_gen() macro generates a type-specific red-black tree implementation,
@@ -321,6 +324,20 @@ a_prefix##reverse_iter(a_rbt_type *rbtree, a_type *start,		\
  *         arg  : Opaque pointer passed to cb().
  *       Ret: NULL if iteration completed, or the non-NULL callback return value
  *            that caused termination of the iteration.
+ *
+ *   static void
+ *   ex_destroy(ex_t *tree, void (*cb)(ex_node_t *, void *), void *arg);
+ *       Description: Iterate over the tree with post-order traversal, remove
+ *                    each node, and run the callback if non-null.  This is
+ *                    used for destroying a tree without paying the cost to
+ *                    rebalance it.  The tree must not be otherwise altered
+ *                    during traversal.
+ *       Args:
+ *         tree: Pointer to an initialized red-black tree object.
+ *         cb  : Callback function, which, if non-null, is called for each node
+ *               during iteration.  There is no way to stop iteration once it has
+ *               begun.
+ *         arg : Opaque pointer passed to cb().
  */
 #define	rb_gen(a_attr, a_prefix, a_rbt_type, a_type, a_field, a_cmp)	\
 a_attr void								\
@@ -985,6 +1002,28 @@ a_prefix##reverse_iter(a_rbt_type *rbtree, a_type *start,		\
 	ret = NULL;							\
     }									\
     return (ret);							\
+}									\
+a_attr void								\
+a_prefix##destroy_recurse(a_rbt_type *rbtree, a_type *node, void (*cb)(	\
+  a_type *, void *), void *arg) {					\
+    if (node == &rbtree->rbt_nil) {					\
+	return;								\
+    }									\
+    a_prefix##destroy_recurse(rbtree, rbtn_left_get(a_type, a_field,	\
+      node), cb, arg);							\
+    rbtn_left_set(a_type, a_field, (node), &rbtree->rbt_nil);		\
+    a_prefix##destroy_recurse(rbtree, rbtn_right_get(a_type, a_field,	\
+      node), cb, arg);							\
+    rbtn_right_set(a_type, a_field, (node), &rbtree->rbt_nil);		\
+    if (cb) {								\
+	cb(node, arg);							\
+    }									\
+}									\
+a_attr void								\
+a_prefix##destroy(a_rbt_type *rbtree, void (*cb)(a_type *, void *),	\
+  void *arg) {								\
+    a_prefix##destroy_recurse(rbtree, rbtree->rbt_root, cb, arg);	\
+    rbtree->rbt_root = &rbtree->rbt_nil;				\
 }
 
 #endif /* RB_H_ */
