@@ -2560,7 +2560,7 @@ arena_dalloc_junk_large_t *arena_dalloc_junk_large =
     JEMALLOC_N(arena_dalloc_junk_large_impl);
 #endif
 
-void
+static void
 arena_dalloc_large_locked_impl(arena_t *arena, arena_chunk_t *chunk,
     void *ptr, bool junked)
 {
