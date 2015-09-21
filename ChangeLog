@@ -4,7 +4,9 @@ brevity.  Much more detail can be found in the git revision history:
 
     https://github.com/jemalloc/jemalloc
 
-* 4.0.2 (XXX)
+* 4.0.2 (September 21, 2015)
+
+  This bugfix release addresses a few bugs specific to heap profiling.
 
   Bug fixes:
   - Fix ixallocx_prof_sample() to never modify nor create sampled small
