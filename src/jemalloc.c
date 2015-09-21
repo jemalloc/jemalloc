@@ -1379,10 +1379,10 @@ imalloc_prof(tsd_t *tsd, size_t usize)
 	prof_tctx_t *tctx;
 
 	tctx = prof_alloc_prep(tsd, usize, prof_active_get_unlocked(), true);
-	if (unlikely((uintptr_t)tctx != (uintptr_t)1U))
-		p = imalloc_prof_sample(tsd, usize, tctx);
-	else
+	if (likely((uintptr_t)tctx == (uintptr_t)1U))
 		p = imalloc(tsd, usize);
+	else
+		p = imalloc_prof_sample(tsd, usize, tctx);
 	if (unlikely(p == NULL)) {
 		prof_alloc_rollback(tsd, tctx, true);
 		return (NULL);
@@ -1469,10 +1469,10 @@ imemalign_prof(tsd_t *tsd, size_t alignment, size_t usize)
 	prof_tctx_t *tctx;
 
 	tctx = prof_alloc_prep(tsd, usize, prof_active_get_unlocked(), true);
-	if (unlikely((uintptr_t)tctx != (uintptr_t)1U))
-		p = imemalign_prof_sample(tsd, alignment, usize, tctx);
-	else
+	if (likely((uintptr_t)tctx == (uintptr_t)1U))
 		p = ipalloc(tsd, usize, alignment, false);
+	else
+		p = imemalign_prof_sample(tsd, alignment, usize, tctx);
 	if (unlikely(p == NULL)) {
 		prof_alloc_rollback(tsd, tctx, true);
 		return (NULL);
@@ -1600,10 +1600,10 @@ icalloc_prof(tsd_t *tsd, size_t usize)
 	prof_tctx_t *tctx;
 
 	tctx = prof_alloc_prep(tsd, usize, prof_active_get_unlocked(), true);
-	if (unlikely((uintptr_t)tctx != (uintptr_t)1U))
-		p = icalloc_prof_sample(tsd, usize, tctx);
-	else
+	if (likely((uintptr_t)tctx == (uintptr_t)1U))
 		p = icalloc(tsd, usize);
+	else
+		p = icalloc_prof_sample(tsd, usize, tctx);
 	if (unlikely(p == NULL)) {
 		prof_alloc_rollback(tsd, tctx, true);
 		return (NULL);
@@ -1710,10 +1710,10 @@ irealloc_prof(tsd_t *tsd, void *old_ptr, size_t old_usize, size_t usize)
 	prof_active = prof_active_get_unlocked();
 	old_tctx = prof_tctx_get(old_ptr);
 	tctx = prof_alloc_prep(tsd, usize, prof_active, true);
-	if (unlikely((uintptr_t)tctx != (uintptr_t)1U))
-		p = irealloc_prof_sample(tsd, old_ptr, old_usize, usize, tctx);
-	else
+	if (likely((uintptr_t)tctx == (uintptr_t)1U))
 		p = iralloc(tsd, old_ptr, old_usize, usize, 0, false);
+	else
+		p = irealloc_prof_sample(tsd, old_ptr, old_usize, usize, tctx);
 	if (unlikely(p == NULL)) {
 		prof_alloc_rollback(tsd, tctx, true);
 		return (NULL);
@@ -2120,12 +2120,12 @@ irallocx_prof(tsd_t *tsd, void *old_ptr, size_t old_usize, size_t size,
 	prof_active = prof_active_get_unlocked();
 	old_tctx = prof_tctx_get(old_ptr);
 	tctx = prof_alloc_prep(tsd, *usize, prof_active, true);
-	if (unlikely((uintptr_t)tctx != (uintptr_t)1U)) {
-		p = irallocx_prof_sample(tsd, old_ptr, old_usize, *usize,
-		    alignment, zero, tcache, arena, tctx);
-	} else {
+	if (likely((uintptr_t)tctx == (uintptr_t)1U)) {
 		p = iralloct(tsd, old_ptr, old_usize, size, alignment, zero,
 		    tcache, arena);
+	} else {
+		p = irallocx_prof_sample(tsd, old_ptr, old_usize, *usize,
+		    alignment, zero, tcache, arena, tctx);
 	}
 	if (unlikely(p == NULL)) {
 		prof_alloc_rollback(tsd, tctx, true);
@@ -2270,12 +2270,12 @@ ixallocx_prof(tsd_t *tsd, void *ptr, size_t old_usize, size_t size,
 	    alignment);
 	assert(usize_max != 0);
 	tctx = prof_alloc_prep(tsd, usize_max, prof_active, false);
-	if (unlikely((uintptr_t)tctx != (uintptr_t)1U)) {
-		usize = ixallocx_prof_sample(ptr, old_usize, size, extra,
-		    alignment, zero, tctx);
-	} else {
+	if (likely((uintptr_t)tctx == (uintptr_t)1U)) {
 		usize = ixallocx_helper(ptr, old_usize, size, extra, alignment,
 		    zero);
+	} else {
+		usize = ixallocx_prof_sample(ptr, old_usize, size, extra,
+		    alignment, zero, tctx);
 	}
 	if (usize == old_usize) {
 		prof_alloc_rollback(tsd, tctx, false);
