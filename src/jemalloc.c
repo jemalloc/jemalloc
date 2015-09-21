@@ -1923,6 +1923,7 @@ imallocx_flags_decode_hard(tsd_t *tsd, size_t size, int flags, size_t *usize,
 		*alignment = MALLOCX_ALIGN_GET_SPECIFIED(flags);
 		*usize = sa2u(size, *alignment);
 	}
+	assert(*usize != 0);
 	*zero = MALLOCX_ZERO_GET(flags);
 	if ((flags & MALLOCX_TCACHE_MASK) != 0) {
 		if ((flags & MALLOCX_TCACHE_MASK) == MALLOCX_TCACHE_NONE)
@@ -1965,41 +1966,29 @@ imallocx_flags(tsd_t *tsd, size_t usize, size_t alignment, bool zero,
     tcache_t *tcache, arena_t *arena)
 {
 
-	if (alignment != 0)
+	if (unlikely(alignment != 0))
 		return (ipalloct(tsd, usize, alignment, zero, tcache, arena));
-	if (zero)
+	if (unlikely(zero))
 		return (icalloct(tsd, usize, tcache, arena));
 	return (imalloct(tsd, usize, tcache, arena));
 }
 
-JEMALLOC_ALWAYS_INLINE_C void *
-imallocx_maybe_flags(tsd_t *tsd, size_t size, int flags, size_t usize,
-    size_t alignment, bool zero, tcache_t *tcache, arena_t *arena)
-{
-
-	if (likely(flags == 0))
-		return (imalloc(tsd, size));
-	return (imallocx_flags(tsd, usize, alignment, zero, tcache, arena));
-}
-
 static void *
-imallocx_prof_sample(tsd_t *tsd, size_t size, int flags, size_t usize,
-    size_t alignment, bool zero, tcache_t *tcache, arena_t *arena)
+imallocx_prof_sample(tsd_t *tsd, size_t usize, size_t alignment, bool zero,
+    tcache_t *tcache, arena_t *arena)
 {
 	void *p;
 
 	if (usize <= SMALL_MAXCLASS) {
 		assert(((alignment == 0) ? s2u(LARGE_MINCLASS) :
 		    sa2u(LARGE_MINCLASS, alignment)) == LARGE_MINCLASS);
-		p = imallocx_maybe_flags(tsd, LARGE_MINCLASS, flags,
-		    LARGE_MINCLASS, alignment, zero, tcache, arena);
+		p = imallocx_flags(tsd, LARGE_MINCLASS, alignment, zero, tcache,
+		    arena);
 		if (p == NULL)
 			return (NULL);
 		arena_prof_promoted(p, usize);
-	} else {
-		p = imallocx_maybe_flags(tsd, size, flags, usize, alignment,
-		    zero, tcache, arena);
-	}
+	} else
+		p = imallocx_flags(tsd, usize, alignment, zero, tcache, arena);
 
 	return (p);
 }
@@ -2018,12 +2007,11 @@ imallocx_prof(tsd_t *tsd, size_t size, int flags, size_t *usize)
 	    &zero, &tcache, &arena)))
 		return (NULL);
 	tctx = prof_alloc_prep(tsd, *usize, prof_active_get_unlocked(), true);
-	if (likely((uintptr_t)tctx == (uintptr_t)1U)) {
-		p = imallocx_maybe_flags(tsd, size, flags, *usize, alignment,
-		    zero, tcache, arena);
-	} else if ((uintptr_t)tctx > (uintptr_t)1U) {
-		p = imallocx_prof_sample(tsd, size, flags, *usize, alignment,
-		    zero, tcache, arena);
+	if (likely((uintptr_t)tctx == (uintptr_t)1U))
+		p = imallocx_flags(tsd, *usize, alignment, zero, tcache, arena);
+	else if ((uintptr_t)tctx > (uintptr_t)1U) {
+		p = imallocx_prof_sample(tsd, *usize, alignment, zero, tcache,
+		    arena);
 	} else
 		p = NULL;
 	if (unlikely(p == NULL)) {
@@ -2098,8 +2086,8 @@ label_oom:
 }
 
 static void *
-irallocx_prof_sample(tsd_t *tsd, void *old_ptr, size_t old_usize, size_t size,
-    size_t alignment, size_t usize, bool zero, tcache_t *tcache, arena_t *arena,
+irallocx_prof_sample(tsd_t *tsd, void *old_ptr, size_t old_usize,
+    size_t usize, size_t alignment, bool zero, tcache_t *tcache, arena_t *arena,
     prof_tctx_t *tctx)
 {
 	void *p;
@@ -2113,7 +2101,7 @@ irallocx_prof_sample(tsd_t *tsd, void *old_ptr, size_t old_usize, size_t size,
 			return (NULL);
 		arena_prof_promoted(p, usize);
 	} else {
-		p = iralloct(tsd, old_ptr, old_usize, size, alignment, zero,
+		p = iralloct(tsd, old_ptr, old_usize, usize, alignment, zero,
 		    tcache, arena);
 	}
 
@@ -2133,8 +2121,8 @@ irallocx_prof(tsd_t *tsd, void *old_ptr, size_t old_usize, size_t size,
 	old_tctx = prof_tctx_get(old_ptr);
 	tctx = prof_alloc_prep(tsd, *usize, prof_active, true);
 	if (unlikely((uintptr_t)tctx != (uintptr_t)1U)) {
-		p = irallocx_prof_sample(tsd, old_ptr, old_usize, size,
-		    alignment, *usize, zero, tcache, arena, tctx);
+		p = irallocx_prof_sample(tsd, old_ptr, old_usize, *usize,
+		    alignment, zero, tcache, arena, tctx);
 	} else {
 		p = iralloct(tsd, old_ptr, old_usize, size, alignment, zero,
 		    tcache, arena);
@@ -2251,26 +2239,13 @@ ixallocx_helper(void *ptr, size_t old_usize, size_t size, size_t extra,
 
 static size_t
 ixallocx_prof_sample(void *ptr, size_t old_usize, size_t size, size_t extra,
-    size_t alignment, size_t usize_max, bool zero, prof_tctx_t *tctx)
+    size_t alignment, bool zero, prof_tctx_t *tctx)
 {
 	size_t usize;
 
 	if (tctx == NULL)
 		return (old_usize);
-	/* Use minimum usize to determine whether promotion may happen. */
-	if (((alignment == 0) ? s2u(size) : sa2u(size, alignment)) <=
-	    SMALL_MAXCLASS) {
-		if (ixalloc(ptr, old_usize, SMALL_MAXCLASS+1,
-		    (SMALL_MAXCLASS+1 >= size+extra) ? 0 : size+extra -
-		    (SMALL_MAXCLASS+1), alignment, zero))
-			return (old_usize);
-		usize = isalloc(ptr, config_prof);
-		if (usize_max < LARGE_MINCLASS)
-			arena_prof_promoted(ptr, usize);
-	} else {
-		usize = ixallocx_helper(ptr, old_usize, size, extra, alignment,
-		    zero);
-	}
+	usize = ixallocx_helper(ptr, old_usize, size, extra, alignment, zero);
 
 	return (usize);
 }
@@ -2293,15 +2268,16 @@ ixallocx_prof(tsd_t *tsd, void *ptr, size_t old_usize, size_t size,
 	 */
 	usize_max = (alignment == 0) ? s2u(size+extra) : sa2u(size+extra,
 	    alignment);
+	assert(usize_max != 0);
 	tctx = prof_alloc_prep(tsd, usize_max, prof_active, false);
 	if (unlikely((uintptr_t)tctx != (uintptr_t)1U)) {
 		usize = ixallocx_prof_sample(ptr, old_usize, size, extra,
-		    alignment, usize_max, zero, tctx);
+		    alignment, zero, tctx);
 	} else {
 		usize = ixallocx_helper(ptr, old_usize, size, extra, alignment,
 		    zero);
 	}
-	if (unlikely(usize == old_usize)) {
+	if (usize == old_usize) {
 		prof_alloc_rollback(tsd, tctx, false);
 		return (usize);
 	}

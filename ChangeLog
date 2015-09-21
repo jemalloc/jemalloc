@@ -4,6 +4,19 @@ brevity.  Much more detail can be found in the git revision history:
 
     https://github.com/jemalloc/jemalloc
 
+* 4.0.2 (September 21, 2015)
+
+  This bugfix release addresses a few bugs specific to heap profiling.
+
+  Bug fixes:
+  - Fix ixallocx_prof_sample() to never modify nor create sampled small
+    allocations.  xallocx() is in general incapable of moving small allocations,
+    so this fix removes buggy code without loss of generality.
+  - Fix irallocx_prof_sample() to always allocate large regions, even when
+    alignment is non-zero.
+  - Fix prof_alloc_rollback() to read tdata from thread-specific data rather
+    than dereferencing a potentially invalid tctx.
+
 * 4.0.1 (September 15, 2015)
 
   This is a bugfix release that is somewhat high risk due to the amount of

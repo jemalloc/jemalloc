@@ -1,5 +1,74 @@
 #include "test/jemalloc_test.h"
 
+static unsigned
+get_nsizes_impl(const char *cmd)
+{
+	unsigned ret;
+	size_t z;
+
+	z = sizeof(unsigned);
+	assert_d_eq(mallctl(cmd, &ret, &z, NULL, 0), 0,
+	    "Unexpected mallctl(\"%s\", ...) failure", cmd);
+
+	return (ret);
+}
+
+static unsigned
+get_nhuge(void)
+{
+
+	return (get_nsizes_impl("arenas.nhchunks"));
+}
+
+static size_t
+get_size_impl(const char *cmd, size_t ind)
+{
+	size_t ret;
+	size_t z;
+	size_t mib[4];
+	size_t miblen = 4;
+
+	z = sizeof(size_t);
+	assert_d_eq(mallctlnametomib(cmd, mib, &miblen),
+	    0, "Unexpected mallctlnametomib(\"%s\", ...) failure", cmd);
+	mib[2] = ind;
+	z = sizeof(size_t);
+	assert_d_eq(mallctlbymib(mib, miblen, &ret, &z, NULL, 0),
+	    0, "Unexpected mallctlbymib([\"%s\", %zu], ...) failure", cmd, ind);
+
+	return (ret);
+}
+
+static size_t
+get_huge_size(size_t ind)
+{
+
+	return (get_size_impl("arenas.hchunk.0.size", ind));
+}
+
+TEST_BEGIN(test_oom)
+{
+	size_t hugemax, size, alignment;
+
+	hugemax = get_huge_size(get_nhuge()-1);
+
+	/* In practice hugemax is too large to be allocated. */
+	assert_ptr_null(mallocx(hugemax, 0),
+	    "Expected OOM for mallocx(size=%#zx, 0)", hugemax);
+
+#if LG_SIZEOF_PTR == 3
+	size      = ZU(0x8000000000000000);
+	alignment = ZU(0x8000000000000000);
+#else
+	size      = ZU(0x80000000);
+	alignment = ZU(0x80000000);
+#endif
+	assert_ptr_null(mallocx(size, MALLOCX_ALIGN(alignment)),
+	    "Expected OOM for mallocx(size=%#zx, MALLOCX_ALIGN(%#zx)", size,
+	    alignment);
+}
+TEST_END
+
 TEST_BEGIN(test_basic)
 {
 #define	MAXSZ (((size_t)1) << 26)
@@ -96,6 +165,7 @@ main(void)
 {
 
 	return (test(
+	    test_oom,
 	    test_basic,
 	    test_alignment_and_size));
 }

@@ -209,7 +209,7 @@ prof_alloc_rollback(tsd_t *tsd, prof_tctx_t *tctx, bool updated)
 		 */
 		tdata = prof_tdata_get(tsd, true);
 		if (tdata != NULL)
-			prof_sample_threshold_update(tctx->tdata);
+			prof_sample_threshold_update(tdata);
 	}
 
 	if ((uintptr_t)tctx > (uintptr_t)1U) {
