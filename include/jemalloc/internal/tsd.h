@@ -190,7 +190,7 @@ a_name##tsd_boot0(void)							\
 	return (false);							\
 }									\
 a_attr void								\
-a_name##tsd_boot1()							\
+a_name##tsd_boot1(void)							\
 {									\
 									\
 	/* Do nothing. */						\
@@ -235,7 +235,7 @@ a_name##tsd_boot0(void)							\
 	return (false);							\
 }									\
 a_attr void								\
-a_name##tsd_boot1()							\
+a_name##tsd_boot1(void)							\
 {									\
 									\
 	/* Do nothing. */						\
@@ -345,7 +345,7 @@ a_name##tsd_boot0(void)							\
 	return (false);							\
 }									\
 a_attr void								\
-a_name##tsd_boot1()							\
+a_name##tsd_boot1(void)							\
 {									\
 	a_name##tsd_wrapper_t *wrapper;					\
 	wrapper = (a_name##tsd_wrapper_t *)				\
@@ -467,7 +467,7 @@ a_name##tsd_boot0(void)							\
 	return (false);							\
 }									\
 a_attr void								\
-a_name##tsd_boot1()							\
+a_name##tsd_boot1(void)							\
 {									\
 	a_name##tsd_wrapper_t *wrapper;					\
 	wrapper = (a_name##tsd_wrapper_t *)				\
