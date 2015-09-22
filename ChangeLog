@@ -4,6 +4,12 @@ brevity.  Much more detail can be found in the git revision history:
 
     https://github.com/jemalloc/jemalloc
 
+* 4.0.3 (XXX)
+
+  Bug fixes:
+  - Fix prof_tctx_dump_iter() to filter out nodes that were created after heap
+    profile dumping started.
+
 * 4.0.2 (September 21, 2015)
 
   This bugfix release addresses a few bugs specific to heap profiling.
