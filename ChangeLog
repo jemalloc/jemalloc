@@ -7,6 +7,10 @@ brevity.  Much more detail can be found in the git revision history:
 * 4.0.3 (XXX)
 
   Bug fixes:
+  - Fix xallocx(..., MALLOCX_ZERO) to zero all trailing bytes of large
+    allocations when --enable-cache-oblivious configure option is enabled.
+  - Fix xallocx(..., MALLOCX_ZERO) to zero trailing bytes of huge allocations
+    when resizing from/to a size class that is not a multiple of the chunk size.
   - Fix prof_tctx_dump_iter() to filter out nodes that were created after heap
     profile dumping started.
 

@@ -133,7 +133,7 @@ huge_ralloc_no_move_similar(void *ptr, size_t oldsize, size_t usize_min,
 	extent_node_t *node;
 	arena_t *arena;
 	chunk_hooks_t chunk_hooks = CHUNK_HOOKS_INITIALIZER;
-	bool zeroed;
+	bool pre_zeroed, post_zeroed;
 
 	/* Increase usize to incorporate extra. */
 	for (usize = usize_min; usize < usize_max && (usize_next = s2u(usize+1))
@@ -145,26 +145,27 @@ huge_ralloc_no_move_similar(void *ptr, size_t oldsize, size_t usize_min,
 
 	node = huge_node_get(ptr);
 	arena = extent_node_arena_get(node);
+	pre_zeroed = extent_node_zeroed_get(node);
 
 	/* Fill if necessary (shrinking). */
 	if (oldsize > usize) {
 		size_t sdiff = oldsize - usize;
 		if (config_fill && unlikely(opt_junk_free)) {
 			memset((void *)((uintptr_t)ptr + usize), 0x5a, sdiff);
-			zeroed = false;
+			post_zeroed = false;
 		} else {
-			zeroed = !chunk_purge_wrapper(arena, &chunk_hooks, ptr,
-			    CHUNK_CEILING(oldsize), usize, sdiff);
+			post_zeroed = !chunk_purge_wrapper(arena, &chunk_hooks,
+			    ptr, CHUNK_CEILING(oldsize), usize, sdiff);
 		}
 	} else
-		zeroed = true;
+		post_zeroed = pre_zeroed;
 
 	malloc_mutex_lock(&arena->huge_mtx);
 	/* Update the size of the huge allocation. */
 	assert(extent_node_size_get(node) != usize);
 	extent_node_size_set(node, usize);
-	/* Clear node's zeroed field if zeroing failed above. */
-	extent_node_zeroed_set(node, extent_node_zeroed_get(node) && zeroed);
+	/* Update zeroed. */
+	extent_node_zeroed_set(node, post_zeroed);
 	malloc_mutex_unlock(&arena->huge_mtx);
 
 	arena_chunk_ralloc_huge_similar(arena, ptr, oldsize, usize);
@@ -172,7 +173,7 @@ huge_ralloc_no_move_similar(void *ptr, size_t oldsize, size_t usize_min,
 	/* Fill if necessary (growing). */
 	if (oldsize < usize) {
 		if (zero || (config_fill && unlikely(opt_zero))) {
-			if (!zeroed) {
+			if (!pre_zeroed) {
 				memset((void *)((uintptr_t)ptr + oldsize), 0,
 				    usize - oldsize);
 			}
@@ -190,10 +191,11 @@ huge_ralloc_no_move_shrink(void *ptr, size_t oldsize, size_t usize)
 	arena_t *arena;
 	chunk_hooks_t chunk_hooks;
 	size_t cdiff;
-	bool zeroed;
+	bool pre_zeroed, post_zeroed;
 
 	node = huge_node_get(ptr);
 	arena = extent_node_arena_get(node);
+	pre_zeroed = extent_node_zeroed_get(node);
 	chunk_hooks = chunk_hooks_get(arena);
 
 	assert(oldsize > usize);
@@ -209,21 +211,21 @@ huge_ralloc_no_move_shrink(void *ptr, size_t oldsize, size_t usize)
 		if (config_fill && unlikely(opt_junk_free)) {
 			huge_dalloc_junk((void *)((uintptr_t)ptr + usize),
 			    sdiff);
-			zeroed = false;
+			post_zeroed = false;
 		} else {
-			zeroed = !chunk_purge_wrapper(arena, &chunk_hooks,
+			post_zeroed = !chunk_purge_wrapper(arena, &chunk_hooks,
 			    CHUNK_ADDR2BASE((uintptr_t)ptr + usize),
 			    CHUNK_CEILING(oldsize),
 			    CHUNK_ADDR2OFFSET((uintptr_t)ptr + usize), sdiff);
 		}
 	} else
-		zeroed = true;
+		post_zeroed = pre_zeroed;
 
 	malloc_mutex_lock(&arena->huge_mtx);
 	/* Update the size of the huge allocation. */
 	extent_node_size_set(node, usize);
-	/* Clear node's zeroed field if zeroing failed above. */
-	extent_node_zeroed_set(node, extent_node_zeroed_get(node) && zeroed);
+	/* Update zeroed. */
+	extent_node_zeroed_set(node, post_zeroed);
 	malloc_mutex_unlock(&arena->huge_mtx);
 
 	/* Zap the excess chunks. */

@@ -347,6 +347,121 @@ TEST_BEGIN(test_extra_huge)
 }
 TEST_END
 
+static void
+print_filled_extents(const void *p, uint8_t c, size_t len)
+{
+	const uint8_t *pc = (const uint8_t *)p;
+	size_t i, range0;
+	uint8_t c0;
+
+	malloc_printf("  p=%p, c=%#x, len=%zu:", p, c, len);
+	range0 = 0;
+	c0 = pc[0];
+	for (i = 0; i < len; i++) {
+		if (pc[i] != c0) {
+			malloc_printf(" %#x[%zu..%zu)", c0, range0, i);
+			range0 = i;
+			c0 = pc[i];
+		}
+	}
+	malloc_printf(" %#x[%zu..%zu)\n", c0, range0, i);
+}
+
+static bool
+validate_fill(const void *p, uint8_t c, size_t offset, size_t len)
+{
+	const uint8_t *pc = (const uint8_t *)p;
+	bool err;
+	size_t i;
+
+	for (i = offset, err = false; i < offset+len; i++) {
+		if (pc[i] != c)
+			err = true;
+	}
+
+	if (err)
+		print_filled_extents(p, c, offset + len);
+
+	return (err);
+}
+
+static void
+test_zero(size_t szmin, size_t szmax)
+{
+	size_t sz, nsz;
+	void *p;
+#define	FILL_BYTE 0x7aU
+
+	sz = szmax;
+	p = mallocx(sz, MALLOCX_ZERO);
+	assert_ptr_not_null(p, "Unexpected mallocx() error");
+	assert_false(validate_fill(p, 0x00, 0, sz), "Memory not filled: sz=%zu",
+	    sz);
+
+	/*
+	 * Fill with non-zero so that non-debug builds are more likely to detect
+	 * errors.
+	 */
+	memset(p, FILL_BYTE, sz);
+	assert_false(validate_fill(p, FILL_BYTE, 0, sz),
+	    "Memory not filled: sz=%zu", sz);
+
+	/* Shrink in place so that we can expect growing in place to succeed. */
+	sz = szmin;
+	assert_zu_eq(xallocx(p, sz, 0, MALLOCX_ZERO), sz,
+	    "Unexpected xallocx() error");
+	assert_false(validate_fill(p, FILL_BYTE, 0, sz),
+	    "Memory not filled: sz=%zu", sz);
+
+	for (sz = szmin; sz < szmax; sz = nsz) {
+		nsz = nallocx(sz+1, MALLOCX_ZERO);
+		assert_zu_eq(xallocx(p, sz+1, 0, MALLOCX_ZERO), nsz,
+		    "Unexpected xallocx() failure");
+		assert_false(validate_fill(p, FILL_BYTE, 0, sz),
+		    "Memory not filled: sz=%zu", sz);
+		assert_false(validate_fill(p, 0x00, sz, nsz-sz),
+		    "Memory not filled: sz=%zu, nsz-sz=%zu", sz, nsz-sz);
+		memset((void *)((uintptr_t)p + sz), FILL_BYTE, nsz-sz);
+		assert_false(validate_fill(p, FILL_BYTE, 0, nsz),
+		    "Memory not filled: nsz=%zu", nsz);
+	}
+
+	dallocx(p, 0);
+}
+
+TEST_BEGIN(test_zero_large)
+{
+	size_t large0, largemax;
+
+	/* Get size classes. */
+	large0 = get_large_size(0);
+	largemax = get_large_size(get_nlarge()-1);
+
+	test_zero(large0, largemax);
+}
+TEST_END
+
+TEST_BEGIN(test_zero_huge)
+{
+	size_t huge0, huge1;
+	static const bool maps_coalesce =
+#ifdef JEMALLOC_MAPS_COALESCE
+	    true
+#else
+	    false
+#endif
+	    ;
+
+	/* Get size classes. */
+	huge0 = get_huge_size(0);
+	huge1 = get_huge_size(1);
+
+	if (maps_coalesce)
+		test_zero(huge0, huge0 * 4);
+	test_zero(huge1, huge0 * 2);
+}
+TEST_END
+
 int
 main(void)
 {
@@ -359,5 +474,7 @@ main(void)
 	    test_size_extra_overflow,
 	    test_extra_small,
 	    test_extra_large,
-	    test_extra_huge));
+	    test_extra_huge,
+	    test_zero_large,
+	    test_zero_huge));
 }
