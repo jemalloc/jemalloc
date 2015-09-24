@@ -52,9 +52,20 @@ TEST_BEGIN(test_oom)
 
 	hugemax = get_huge_size(get_nhuge()-1);
 
-	/* In practice hugemax is too large to be allocated. */
-	assert_ptr_null(mallocx(hugemax, 0),
-	    "Expected OOM for mallocx(size=%#zx, 0)", hugemax);
+	/*
+	 * It should be impossible to allocate two objects that each consume
+	 * more than half the virtual address space.
+	 */
+	{
+		void *p;
+
+		p = mallocx(hugemax, 0);
+		if (p != NULL) {
+			assert_ptr_null(mallocx(hugemax, 0),
+			    "Expected OOM for mallocx(size=%#zx, 0)", hugemax);
+			dallocx(p, 0);
+		}
+	}
 
 #if LG_SIZEOF_PTR == 3
 	size      = ZU(0x8000000000000000);
