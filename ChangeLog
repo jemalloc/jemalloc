@@ -13,6 +13,8 @@ brevity.  Much more detail can be found in the git revision history:
     when resizing from/to a size class that is not a multiple of the chunk size.
   - Fix prof_tctx_dump_iter() to filter out nodes that were created after heap
     profile dumping started.
+  - Work around a potentially bad thread-specific data initialization
+    interaction with NPTL (glibc's pthreads implementation).
 
 * 4.0.2 (September 21, 2015)
 

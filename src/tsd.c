@@ -73,6 +73,9 @@ tsd_cleanup(void *arg)
 	tsd_t *tsd = (tsd_t *)arg;
 
 	switch (tsd->state) {
+	case tsd_state_uninitialized:
+		/* Do nothing. */
+		break;
 	case tsd_state_nominal:
 #define O(n, t)								\
 		n##_cleanup(tsd);
