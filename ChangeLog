@@ -4,7 +4,9 @@ brevity.  Much more detail can be found in the git revision history:
 
     https://github.com/jemalloc/jemalloc
 
-* 4.0.3 (XXX)
+* 4.0.3 (September 24, 2015)
+
+  This bugfix release continues the trend of xallocx() and heap profiling fixes.
 
   Bug fixes:
   - Fix xallocx(..., MALLOCX_ZERO) to zero all trailing bytes of large
