@@ -444,20 +444,11 @@ TEST_END
 TEST_BEGIN(test_zero_huge)
 {
 	size_t huge0, huge1;
-	static const bool maps_coalesce =
-#ifdef JEMALLOC_MAPS_COALESCE
-	    true
-#else
-	    false
-#endif
-	    ;
 
 	/* Get size classes. */
 	huge0 = get_huge_size(0);
 	huge1 = get_huge_size(1);
 
-	if (maps_coalesce)
-		test_zero(huge0, huge0 * 4);
 	test_zero(huge1, huge0 * 2);
 }
 TEST_END
