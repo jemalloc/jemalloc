@@ -2679,6 +2679,16 @@ arena_ralloc_large_grow(arena_t *arena, arena_chunk_t *chunk, void *ptr,
 		if (arena_run_split_large(arena, run, splitsize, zero))
 			goto label_fail;
 
+		if (config_cache_oblivious && zero) {
+			/*
+			 * Zero the trailing bytes of the original allocation's
+			 * last page, since they are in an indeterminate state.
+			 */
+			assert(PAGE_CEILING(oldsize) == oldsize);
+			memset((void *)((uintptr_t)ptr + oldsize), 0,
+			    PAGE_CEILING((uintptr_t)ptr) - (uintptr_t)ptr);
+		}
+
 		size = oldsize + splitsize;
 		npages = (size + large_pad) >> LG_PAGE;
 

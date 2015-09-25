@@ -1102,11 +1102,23 @@ prof_tctx_dump_iter(prof_tctx_tree_t *tctxs, prof_tctx_t *tctx, void *arg)
 {
 	bool propagate_err = *(bool *)arg;
 
-	if (prof_dump_printf(propagate_err,
-	    "  t%"FMTu64": %"FMTu64": %"FMTu64" [%"FMTu64": %"FMTu64"]\n",
-	    tctx->thr_uid, tctx->dump_cnts.curobjs, tctx->dump_cnts.curbytes,
-	    tctx->dump_cnts.accumobjs, tctx->dump_cnts.accumbytes))
-		return (tctx);
+	switch (tctx->state) {
+	case prof_tctx_state_initializing:
+	case prof_tctx_state_nominal:
+		/* Not captured by this dump. */
+		break;
+	case prof_tctx_state_dumping:
+	case prof_tctx_state_purgatory:
+		if (prof_dump_printf(propagate_err,
+		    "  t%"FMTu64": %"FMTu64": %"FMTu64" [%"FMTu64": "
+		    "%"FMTu64"]\n", tctx->thr_uid, tctx->dump_cnts.curobjs,
+		    tctx->dump_cnts.curbytes, tctx->dump_cnts.accumobjs,
+		    tctx->dump_cnts.accumbytes))
+			return (tctx);
+		break;
+	default:
+		not_reached();
+	}
 	return (NULL);
 }
 
