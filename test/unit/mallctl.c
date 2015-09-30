@@ -164,6 +164,7 @@ TEST_BEGIN(test_mallctl_opt)
 	TEST_MALLCTL_OPT(const char *, dss, always);
 	TEST_MALLCTL_OPT(size_t, narenas, always);
 	TEST_MALLCTL_OPT(ssize_t, lg_dirty_mult, always);
+	TEST_MALLCTL_OPT(uint64_t, dirty_exp_time, always);
 	TEST_MALLCTL_OPT(bool, stats_print, always);
 	TEST_MALLCTL_OPT(const char *, junk, fill);
 	TEST_MALLCTL_OPT(size_t, quarantine, fill);
@@ -381,6 +382,28 @@ TEST_BEGIN(test_arena_i_lg_dirty_mult)
 }
 TEST_END
 
+TEST_BEGIN(test_arena_i_dirty_exp_time)
+{
+	uint64_t dirty_exp_time, orig_dirty_exp_time, prev_dirty_exp_time;
+	size_t sz = sizeof(uint64_t);
+
+	assert_d_eq(mallctl("arena.0.dirty_exp_time", &orig_dirty_exp_time, &sz,
+	    NULL, 0), 0, "Unexpected mallctl() failure");
+	assert_u64_eq(orig_dirty_exp_time, DIRTY_EXP_TIME_DEFAULT,
+	    "Unexpected orig arena.0.dirty_exp_time");
+
+	dirty_exp_time = 1234567;
+	assert_d_eq(mallctl("arena.0.dirty_exp_time", NULL, NULL,
+	    &dirty_exp_time, sizeof(uint64_t)), 0,
+	    "Unexpected mallctl() failure");
+
+	assert_d_eq(mallctl("arena.0.dirty_exp_time", &prev_dirty_exp_time, &sz,
+	    NULL, 0), 0, "Unexpected mallctl() failure");
+	assert_u64_eq(prev_dirty_exp_time, dirty_exp_time,
+	    "Expected prev_dirty_exp_time=%"PRIu64, dirty_exp_time);
+}
+TEST_END
+
 TEST_BEGIN(test_arena_i_purge)
 {
 	unsigned narenas;
@@ -394,6 +417,26 @@ TEST_BEGIN(test_arena_i_purge)
 	assert_d_eq(mallctl("arenas.narenas", &narenas, &sz, NULL, 0), 0,
 	    "Unexpected mallctl() failure");
 	assert_d_eq(mallctlnametomib("arena.0.purge", mib, &miblen), 0,
+	    "Unexpected mallctlnametomib() failure");
+	mib[1] = narenas;
+	assert_d_eq(mallctlbymib(mib, miblen, NULL, NULL, NULL, 0), 0,
+	    "Unexpected mallctlbymib() failure");
+}
+TEST_END
+
+TEST_BEGIN(test_arena_i_purge_old)
+{
+	unsigned narenas;
+	size_t sz = sizeof(unsigned);
+	size_t mib[3];
+	size_t miblen = 3;
+
+	assert_d_eq(mallctl("arena.0.purge_old", NULL, NULL, NULL, 0), 0,
+	    "Unexpected mallctl() failure");
+
+	assert_d_eq(mallctl("arenas.narenas", &narenas, &sz, NULL, 0), 0,
+	    "Unexpected mallctl() failure");
+	assert_d_eq(mallctlnametomib("arena.0.purge_old", mib, &miblen), 0,
 	    "Unexpected mallctlnametomib() failure");
 	mib[1] = narenas;
 	assert_d_eq(mallctlbymib(mib, miblen, NULL, NULL, NULL, 0), 0,
@@ -489,6 +532,40 @@ TEST_BEGIN(test_arenas_lg_dirty_mult)
 		assert_zd_eq(old_lg_dirty_mult, prev_lg_dirty_mult,
 		    "Unexpected old arenas.lg_dirty_mult");
 	}
+}
+TEST_END
+
+TEST_BEGIN(test_arenas_dirty_exp_time)
+{
+	uint64_t dirty_exp_time, orig_dirty_exp_time, prev_dirty_exp_time,
+	    new_dirty_exp_time;
+	unsigned arena;
+	size_t szu64 = sizeof(uint64_t);
+	size_t szu = sizeof(unsigned);
+	char ctl[32] = "";
+
+	assert_d_eq(mallctl("arenas.dirty_exp_time", &orig_dirty_exp_time,
+	    &szu64, NULL, 0), 0, "Unexpected mallctl() failure");
+	assert_u64_eq(orig_dirty_exp_time, DIRTY_EXP_TIME_DEFAULT,
+	    "Unexpected orig arenas.dirty_exp_time");
+
+	dirty_exp_time = 7654321;
+	assert_d_eq(mallctl("arenas.dirty_exp_time", NULL, NULL,
+	    &dirty_exp_time, sizeof(uint64_t)), 0,
+	    "Unexpected mallctl() failure");
+
+	assert_d_eq(mallctl("arenas.dirty_exp_time", &prev_dirty_exp_time,
+	    &szu64, NULL, 0), 0, "Unexpected mallctl() failure");
+	assert_u64_eq(prev_dirty_exp_time, dirty_exp_time,
+	    "Expected prev_dirty_exp_time=%"PRIu64, dirty_exp_time);
+
+	assert_d_eq(mallctl("arenas.extend", &arena, &szu, NULL, 0), 0,
+	    "Unexpected mallctl() failure");
+	sprintf(ctl, "arena.%u.dirty_exp_time", arena);
+	assert_d_eq(mallctl(ctl, &new_dirty_exp_time, &szu64, NULL, 0), 0,
+	    "Unexpected mallctl() failure");
+	assert_u64_eq(new_dirty_exp_time, dirty_exp_time,
+	    "Expected new_dirty_exp_time=%"PRIu64, dirty_exp_time);
 }
 TEST_END
 
@@ -620,10 +697,13 @@ main(void)
 	    test_tcache,
 	    test_thread_arena,
 	    test_arena_i_lg_dirty_mult,
+	    test_arena_i_dirty_exp_time,
 	    test_arena_i_purge,
+	    test_arena_i_purge_old,
 	    test_arena_i_dss,
 	    test_arenas_initialized,
 	    test_arenas_lg_dirty_mult,
+	    test_arenas_dirty_exp_time,
 	    test_arenas_constants,
 	    test_arenas_bin_constants,
 	    test_arenas_lrun_constants,

@@ -378,6 +378,7 @@ typedef unsigned szind_t;
 #include "jemalloc/internal/hash.h"
 #include "jemalloc/internal/quarantine.h"
 #include "jemalloc/internal/prof.h"
+#include "jemalloc/internal/time.h"
 
 #undef JEMALLOC_H_TYPES
 /******************************************************************************/
@@ -491,6 +492,7 @@ void	jemalloc_postfork_child(void);
 #include "jemalloc/internal/quarantine.h"
 #include "jemalloc/internal/prof.h"
 #include "jemalloc/internal/tsd.h"
+#include "jemalloc/internal/time.h"
 
 #undef JEMALLOC_H_EXTERNS
 /******************************************************************************/

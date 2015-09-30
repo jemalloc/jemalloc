@@ -23,10 +23,17 @@
  */
 #define	LG_DIRTY_MULT_DEFAULT	3
 
+#define	ASYNC_PURGE_DEFAULT	false
+
+#define	DIRTY_EXP_TIME_DEFAULT	(KQU(1) << 31)
+
+#define	RUNS_DIRTY_MARKER_NUM	(1 << 7)
+
 typedef struct arena_runs_dirty_link_s arena_runs_dirty_link_t;
 typedef struct arena_run_s arena_run_t;
 typedef struct arena_chunk_map_bits_s arena_chunk_map_bits_t;
 typedef struct arena_chunk_map_misc_s arena_chunk_map_misc_t;
+typedef struct arena_runs_dirty_marker_s arena_runs_dirty_marker_t;
 typedef struct arena_chunk_s arena_chunk_t;
 typedef struct arena_bin_info_s arena_bin_info_t;
 typedef struct arena_bin_s arena_bin_t;
@@ -164,6 +171,21 @@ struct arena_chunk_map_misc_s {
 };
 typedef rb_tree(arena_chunk_map_misc_t) arena_avail_tree_t;
 typedef rb_tree(arena_chunk_map_misc_t) arena_run_tree_t;
+
+/*
+ * Applications (by calling mallctl("arena.<i>.purge_old")) or jemalloc itself
+ * (when async_purge=false and a dirty run is deallocated) can insert this kind
+ * of markers to arena->runs_dirty.  Having these markers in runs_dirty helps
+ * understand how long the dirty pages have existed and impose limit on
+ * expiration time.
+ */
+struct arena_runs_dirty_marker_s {
+	/* Linkage in list of dirty runs. */
+	arena_runs_dirty_link_t		rd;
+
+	/* The time when this marker is appended to runs_dirty. */
+	uint64_t			time;
+};
 #endif /* JEMALLOC_ARENA_STRUCTS_A */
 
 #ifdef JEMALLOC_ARENA_STRUCTS_B
@@ -324,6 +346,12 @@ struct arena_s {
 	/* Minimum ratio (log base 2) of nactive:ndirty. */
 	ssize_t			lg_dirty_mult;
 
+	/*
+	 * Maximum time dirty pages are allowed to exist before being returned
+	 * to kernel.
+	 */
+	uint64_t		dirty_exp_time;
+
 	/* True if a thread is currently executing arena_purge(). */
 	bool			purging;
 
@@ -350,6 +378,10 @@ struct arena_s {
 	 * chunks, but the list linkage is actually semi-duplicated in order to
 	 * avoid extra arena_chunk_map_misc_t space overhead.
 	 *
+	 * Sometimes a special timestamp is also appended to runs_dirty, thus
+	 * jemalloc knows approximately how long dirty runs/chunks has lived and
+	 * is able to purge old dirty pages accordingly.
+	 *
 	 *   LRU-----------------------------------------------------------MRU
 	 *
 	 *        /-- arena ---\
@@ -374,6 +406,22 @@ struct arena_s {
 	 */
 	arena_runs_dirty_link_t	runs_dirty;
 	extent_node_t		chunks_cache;
+
+	/*
+	 * The markers that can be inserted to runs_dirty to help time-based
+	 * dirty page purging. They are allocated contiguously within arena so
+	 * no extra base_alloc_* is needed.
+	 */
+	arena_runs_dirty_marker_t	markers[RUNS_DIRTY_MARKER_NUM];
+	/*
+	 * Array of pointers to the markers above. The first nmarkers ponters
+	 * point to the markers currently in use.
+	 */
+	arena_runs_dirty_marker_t	*marker[RUNS_DIRTY_MARKER_NUM];
+	/* The current number of markers in runs_dirty. */
+	unsigned		nmarkers;
+	/* The time when last marker was inserted to runs_dirty. */
+	uint64_t		time_last_marker;
 
 	/* Extant huge allocations. */
 	ql_head(extent_node_t)	huge;
@@ -418,6 +466,8 @@ static const size_t	large_pad =
     ;
 
 extern ssize_t		opt_lg_dirty_mult;
+extern bool		opt_async_purge;
+extern uint64_t		opt_dirty_exp_time;
 
 extern arena_bin_info_t	arena_bin_info[NBINS];
 
@@ -445,8 +495,11 @@ bool	arena_chunk_ralloc_huge_expand(arena_t *arena, void *chunk,
     size_t oldsize, size_t usize, bool *zero);
 ssize_t	arena_lg_dirty_mult_get(arena_t *arena);
 bool	arena_lg_dirty_mult_set(arena_t *arena, ssize_t lg_dirty_mult);
+uint64_t	arena_dirty_exp_time_get(arena_t *arena);
+void	arena_dirty_exp_time_set(arena_t *arena, uint64_t dirty_exp_time);
 void	arena_maybe_purge(arena_t *arena);
 void	arena_purge_all(arena_t *arena);
+void	arena_maybe_purge_old(arena_t *arena);
 void	arena_tcache_fill_small(arena_t *arena, tcache_bin_t *tbin,
     szind_t binind, uint64_t prof_accumbytes);
 void	arena_alloc_junk_small(void *ptr, arena_bin_info_t *bin_info,
@@ -493,9 +546,11 @@ dss_prec_t	arena_dss_prec_get(arena_t *arena);
 bool	arena_dss_prec_set(arena_t *arena, dss_prec_t dss_prec);
 ssize_t	arena_lg_dirty_mult_default_get(void);
 bool	arena_lg_dirty_mult_default_set(ssize_t lg_dirty_mult);
+uint64_t	arena_dirty_exp_time_default_get(void);
+void	arena_dirty_exp_time_default_set(uint64_t dirty_exp_time);
 void	arena_stats_merge(arena_t *arena, const char **dss,
-    ssize_t *lg_dirty_mult, size_t *nactive, size_t *ndirty,
-    arena_stats_t *astats, malloc_bin_stats_t *bstats,
+    ssize_t *lg_dirty_mult, uint64_t *dirty_exp_time, size_t *nactive,
+    size_t *ndirty, arena_stats_t *astats, malloc_bin_stats_t *bstats,
     malloc_large_stats_t *lstats, malloc_huge_stats_t *hstats);
 arena_t	*arena_new(unsigned ind);
 bool	arena_boot(void);
@@ -516,6 +571,8 @@ size_t	arena_miscelm_to_pageind(arena_chunk_map_misc_t *miscelm);
 void	*arena_miscelm_to_rpages(arena_chunk_map_misc_t *miscelm);
 arena_chunk_map_misc_t	*arena_rd_to_miscelm(arena_runs_dirty_link_t *rd);
 arena_chunk_map_misc_t	*arena_run_to_miscelm(arena_run_t *run);
+arena_runs_dirty_marker_t	*arena_rd_to_marker(arena_t *arena,
+    arena_runs_dirty_link_t *rd);
 size_t	*arena_mapbitsp_get(arena_chunk_t *chunk, size_t pageind);
 size_t	arena_mapbitsp_read(size_t *mapbitsp);
 size_t	arena_mapbits_get(arena_chunk_t *chunk, size_t pageind);
@@ -633,6 +690,25 @@ arena_run_to_miscelm(arena_run_t *run)
 	assert(arena_miscelm_to_pageind(miscelm) < chunk_npages);
 
 	return (miscelm);
+}
+
+JEMALLOC_ALWAYS_INLINE bool
+arena_rdelm_is_marker(arena_t *arena, arena_runs_dirty_link_t *rdelm)
+{
+
+	return ((uintptr_t)rdelm >= (uintptr_t)(arena->markers) &&
+	    (uintptr_t)rdelm < (uintptr_t)(arena->markers +
+	    RUNS_DIRTY_MARKER_NUM));
+}
+
+JEMALLOC_ALWAYS_INLINE arena_runs_dirty_marker_t *
+arena_rd_to_marker(arena_t *arena, arena_runs_dirty_link_t *rd)
+{
+
+	assert(arena_rdelm_is_marker(arena, rd));
+
+	return ((arena_runs_dirty_marker_t *)((uintptr_t)rd -
+	    offsetof(arena_runs_dirty_marker_t, rd)));
 }
 
 JEMALLOC_ALWAYS_INLINE size_t *
