@@ -304,7 +304,7 @@ malloc_mutex_unlock
 malloc_printf
 malloc_snprintf
 malloc_strtoumax
-malloc_time_get
+malloc_time_get_ns
 malloc_tsd_boot0
 malloc_tsd_boot1
 malloc_tsd_cleanup_register

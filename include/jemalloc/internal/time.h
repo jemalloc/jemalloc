@@ -13,7 +13,7 @@
 /******************************************************************************/
 #ifdef JEMALLOC_H_EXTERNS
 
-uint64_t	malloc_time_get(void);
+uint64_t	malloc_time_get_ns(void);
 
 #endif /* JEMALLOC_H_EXTERNS */
 /******************************************************************************/

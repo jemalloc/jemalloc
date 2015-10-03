@@ -1058,7 +1058,8 @@ malloc_conf_init(void)
 			    -1, (sizeof(size_t) << 3) - 1)
 			CONF_HANDLE_BOOL(opt_async_purge, "async_purge", true)
 			CONF_HANDLE_SIZE_T(opt_dirty_exp_time, "dirty_exp_time",
-			    0, SIZE_T_MAX, false)
+			    0, UINT32_MAX, false)
+			opt_dirty_exp_time *= NANOSECONDS_PER_MILLISECOND;
 			CONF_HANDLE_BOOL(opt_stats_print, "stats_print", true)
 			if (config_fill) {
 				if (CONF_MATCH("junk")) {

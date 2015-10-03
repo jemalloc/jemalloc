@@ -281,14 +281,14 @@ arena_run_dirty_insert_marker(arena_t *arena, uint64_t now)
  * this function is called.
  */
 static void
-arena_run_dirty_remove_marker(arena_t *arena)
+arena_run_dirty_remove_marker(arena_t *arena, arena_runs_dirty_link_t *rdelm)
 {
 	unsigned ind = arena->nmarkers;
-	arena_runs_dirty_link_t *rdelm = qr_next(&arena->runs_dirty, rd_link);
 	arena_runs_dirty_marker_t *marker = arena_rd_to_marker(arena, rdelm);
 
 	assert(ind > 0);
 	assert(ind <= RUNS_DIRTY_MARKER_NUM);
+	assert(rdelm == qr_next(&arena->runs_dirty, rd_link));
 
 	qr_remove(&marker->rd, rd_link);
 	arena->marker[ind-1] = marker;
@@ -298,15 +298,15 @@ arena_run_dirty_remove_marker(arena_t *arena)
 static void
 arena_run_dirty_maybe_insert_marker(arena_t *arena, uint64_t now)
 {
+	arena_runs_dirty_link_t *rdelm = qr_next(&arena->runs_dirty, rd_link);
 
 	assert(arena->nmarkers > 0);
 	assert(arena->nmarkers <= RUNS_DIRTY_MARKER_NUM);
 	assert(now >= arena->time_last_marker);
-	assert(arena_rdelm_is_marker(arena, qr_next(&arena->runs_dirty,
-	    rd_link)));
+	assert(arena_rdelm_is_marker(arena, rdelm));
 
 	if (arena->nmarkers == RUNS_DIRTY_MARKER_NUM)
-		arena_run_dirty_remove_marker(arena);
+		arena_run_dirty_remove_marker(arena, rdelm);
 
 	if (now - arena->time_last_marker > arena->dirty_exp_time /
 	    RUNS_DIRTY_MARKER_NUM) {
@@ -1476,7 +1476,7 @@ arena_stash_dirty(arena_t *arena, chunk_hooks_t *chunk_hooks, bool all,
 	assert(!purge_old_pages || (all == false && npurge == 0));
 
 	if (purge_old_pages) {
-		now = malloc_time_get();
+		now = malloc_time_get_ns();
 		if (unlikely(now == 0))
 			return (nstashed);
 		arena_run_dirty_maybe_insert_marker(arena, now);
@@ -1492,7 +1492,8 @@ arena_stash_dirty(arena_t *arena, chunk_hooks_t *chunk_hooks, bool all,
 		if (arena_rdelm_is_marker(arena, rdelm)) {
 			if (purge_old_pages) {
 				if (arena_dirty_old_exist(arena, now)) {
-					arena_run_dirty_remove_marker(arena);
+					arena_run_dirty_remove_marker(arena,
+					    rdelm);
 					continue;
 				} else
 					break;
@@ -3278,7 +3279,7 @@ arena_new(unsigned ind)
 		arena->marker[i] = &arena->markers[i];
 	}
 	arena->nmarkers = 0;
-	arena_run_dirty_insert_marker(arena, malloc_time_get());
+	arena_run_dirty_insert_marker(arena, malloc_time_get_ns());
 
 	ql_new(&arena->huge);
 	if (malloc_mutex_init(&arena->huge_mtx))

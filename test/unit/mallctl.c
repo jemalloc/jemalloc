@@ -389,7 +389,8 @@ TEST_BEGIN(test_arena_i_dirty_exp_time)
 
 	assert_d_eq(mallctl("arena.0.dirty_exp_time", &orig_dirty_exp_time, &sz,
 	    NULL, 0), 0, "Unexpected mallctl() failure");
-	assert_u64_eq(orig_dirty_exp_time, DIRTY_EXP_TIME_DEFAULT,
+	assert_u64_eq(orig_dirty_exp_time, DIRTY_EXP_TIME_DEFAULT /
+	    NANOSECONDS_PER_MILLISECOND,
 	    "Unexpected orig arena.0.dirty_exp_time");
 
 	dirty_exp_time = 1234567;
@@ -546,7 +547,8 @@ TEST_BEGIN(test_arenas_dirty_exp_time)
 
 	assert_d_eq(mallctl("arenas.dirty_exp_time", &orig_dirty_exp_time,
 	    &szu64, NULL, 0), 0, "Unexpected mallctl() failure");
-	assert_u64_eq(orig_dirty_exp_time, DIRTY_EXP_TIME_DEFAULT,
+	assert_u64_eq(orig_dirty_exp_time, DIRTY_EXP_TIME_DEFAULT /
+	    NANOSECONDS_PER_MILLISECOND,
 	    "Unexpected orig arenas.dirty_exp_time");
 
 	dirty_exp_time = 7654321;

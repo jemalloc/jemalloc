@@ -259,7 +259,7 @@ stats_arena_print(void (*write_cb)(void *, const char *), void *cbopaque,
 	unsigned nthreads;
 	const char *dss;
 	ssize_t lg_dirty_mult;
-	uint64_t dirty_exp_time;
+	size_t dirty_exp_time;
 	size_t page, pactive, pdirty, mapped;
 	size_t metadata_mapped, metadata_allocated;
 	uint64_t npurge, nmadvise, purged;
@@ -287,11 +287,9 @@ stats_arena_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		malloc_cprintf(write_cb, cbopaque,
 		    "min active:dirty page ratio: N/A\n");
 	}
-	CTL_M2_GET("stats.arenas.0.dirty_exp_time", i, &dirty_exp_time,
-	    uint64_t);
+	CTL_M2_GET("stats.arenas.0.dirty_exp_time", i, &dirty_exp_time, size_t);
 	malloc_cprintf(write_cb, cbopaque,
-	    "dirty page expiration time: %"PRIu64" nanoseconds\n",
-	    dirty_exp_time);
+	    "dirty page expiration time: %zu milliseconds\n", dirty_exp_time);
 	CTL_M2_GET("stats.arenas.0.pactive", i, &pactive, size_t);
 	CTL_M2_GET("stats.arenas.0.pdirty", i, &pdirty, size_t);
 	CTL_M2_GET("stats.arenas.0.npurge", i, &npurge, uint64_t);
@@ -432,13 +430,11 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		bool bv;
 		unsigned uv;
 		ssize_t ssv;
-		uint64_t u64v;
-		size_t sv, bsz, ssz, sssz, u64sz, cpsz;
+		size_t sv, bsz, ssz, sssz, cpsz;
 
 		bsz = sizeof(bool);
 		ssz = sizeof(size_t);
 		sssz = sizeof(ssize_t);
-		u64sz = sizeof(uint64_t);
 		cpsz = sizeof(const char *);
 
 		CTL_GET("version", &cpv, const char *);
@@ -466,6 +462,15 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 			malloc_cprintf(write_cb, cbopaque,		\
 			"  opt."#n": %zu\n", sv);			\
 		}
+#define	OPT_WRITE_SIZE_T_MUTABLE(n, m) {				\
+		size_t sv2;						\
+		if (je_mallctl("opt."#n, &sv, &ssz, NULL, 0) == 0 &&	\
+		    je_mallctl(#m, &sv2, &ssz, NULL, 0) == 0) {		\
+			malloc_cprintf(write_cb, cbopaque,		\
+			    "  opt."#n": %zu ("#m": %zu)\n",		\
+			    sv, sv2);					\
+		}							\
+}
 #define	OPT_WRITE_SSIZE_T(n)						\
 		if (je_mallctl("opt."#n, &ssv, &sssz, NULL, 0) == 0) {	\
 			malloc_cprintf(write_cb, cbopaque,		\
@@ -478,15 +483,6 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 			malloc_cprintf(write_cb, cbopaque,		\
 			    "  opt."#n": %zd ("#m": %zd)\n",		\
 			    ssv, ssv2);					\
-		}							\
-}
-#define	OPT_WRITE_UINT64_T_MUTABLE(n, m) {				\
-		uint64_t u64v2;						\
-		if (je_mallctl("opt."#n, &u64v, &u64sz, NULL, 0) == 0 &&\
-		    je_mallctl(#m, &u64v2, &u64sz, NULL, 0) == 0) {	\
-			malloc_cprintf(write_cb, cbopaque,		\
-			    "  opt."#n": %"PRIu64" ("#m": %"PRIu64")\n",\
-			    u64v, u64v2);				\
 		}							\
 }
 #define	OPT_WRITE_CHAR_P(n)						\
@@ -502,8 +498,7 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		OPT_WRITE_CHAR_P(dss)
 		OPT_WRITE_SIZE_T(narenas)
 		OPT_WRITE_SSIZE_T_MUTABLE(lg_dirty_mult, arenas.lg_dirty_mult)
-		OPT_WRITE_UINT64_T_MUTABLE(dirty_exp_time,
-		    arenas.dirty_exp_time)
+		OPT_WRITE_SIZE_T_MUTABLE(dirty_exp_time, arenas.dirty_exp_time)
 		OPT_WRITE_BOOL(stats_print)
 		OPT_WRITE_CHAR_P(junk)
 		OPT_WRITE_SIZE_T(quarantine)
@@ -556,10 +551,9 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 			malloc_cprintf(write_cb, cbopaque,
 			    "Min active:dirty page ratio per arena: N/A\n");
 		}
-		CTL_GET("arenas.dirty_exp_time", &u64v, uint64_t);
+		CTL_GET("arenas.dirty_exp_time", &sv, size_t);
 		malloc_cprintf(write_cb, cbopaque,
-		    "Dirty page expiration time : %"PRIu64" nanoseconds\n",
-		    u64v);
+		    "Dirty page expiration time : %zu milliseconds\n", sv);
 		if (je_mallctl("arenas.tcache_max", &sv, &ssz, NULL, 0) == 0) {
 			malloc_cprintf(write_cb, cbopaque,
 			    "Maximum thread-cached size class: %zu\n", sv);

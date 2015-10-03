@@ -23,10 +23,22 @@
  */
 #define	LG_DIRTY_MULT_DEFAULT	3
 
+/*
+ * Whether or not jemalloc drives time-based dirty page purging internally. By
+ * default purging is triggered by deallocation of a dirty run. If async_purge
+ * is set to true, the application needs to manually call
+ * mallctl("arena.<i>.purge_old") to purge expired dirty pages.
+ */
 #define	ASYNC_PURGE_DEFAULT	false
 
-#define	DIRTY_EXP_TIME_DEFAULT	(KQU(1) << 31)
+/*
+ * Default expiration time in nanoseconds for dirty pages. All time is expressed
+ * in nanoseconds internally but opt.dirty_exp_time and related mallctl
+ * interface use milliseconds for application's convenience.
+ */
+#define	DIRTY_EXP_TIME_DEFAULT	KQU(2000000000)
 
+/* Number of markers per arena. */
 #define	RUNS_DIRTY_MARKER_NUM	(1 << 7)
 
 typedef struct arena_runs_dirty_link_s arena_runs_dirty_link_t;
@@ -175,7 +187,7 @@ typedef rb_tree(arena_chunk_map_misc_t) arena_run_tree_t;
 /*
  * Applications (by calling mallctl("arena.<i>.purge_old")) or jemalloc itself
  * (when async_purge=false and a dirty run is deallocated) can insert this kind
- * of markers to arena->runs_dirty.  Having these markers in runs_dirty helps
+ * of marker to arena->runs_dirty.  Having these markers in runs_dirty helps
  * understand how long the dirty pages have existed and impose limit on
  * expiration time.
  */
@@ -183,7 +195,7 @@ struct arena_runs_dirty_marker_s {
 	/* Linkage in list of dirty runs. */
 	arena_runs_dirty_link_t		rd;
 
-	/* The time when this marker is appended to runs_dirty. */
+	/* The time when this marker was appended to runs_dirty. */
 	uint64_t			time;
 };
 #endif /* JEMALLOC_ARENA_STRUCTS_A */

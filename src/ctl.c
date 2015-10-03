@@ -1275,7 +1275,6 @@ CTL_RO_NL_GEN(opt_dss, opt_dss, const char *)
 CTL_RO_NL_GEN(opt_lg_chunk, opt_lg_chunk, size_t)
 CTL_RO_NL_GEN(opt_narenas, opt_narenas, size_t)
 CTL_RO_NL_GEN(opt_lg_dirty_mult, opt_lg_dirty_mult, ssize_t)
-CTL_RO_NL_GEN(opt_dirty_exp_time, opt_dirty_exp_time, uint64_t)
 CTL_RO_NL_GEN(opt_stats_print, opt_stats_print, bool)
 CTL_RO_NL_CGEN(config_fill, opt_junk, opt_junk, const char *)
 CTL_RO_NL_CGEN(config_fill, opt_quarantine, opt_quarantine, size_t)
@@ -1298,6 +1297,24 @@ CTL_RO_NL_CGEN(config_prof, opt_prof_final, opt_prof_final, bool)
 CTL_RO_NL_CGEN(config_prof, opt_prof_leak, opt_prof_leak, bool)
 
 /******************************************************************************/
+
+static int
+opt_dirty_exp_time_ctl(const size_t *mib, size_t miblen, void *oldp,
+    size_t *oldlenp, void *newp, size_t newlen)
+{
+	int ret;
+	uint64_t oldval_ns;
+	size_t oldval_ms;
+
+	READONLY();
+	oldval_ns = opt_dirty_exp_time;
+	oldval_ms = oldval_ns / NANOSECONDS_PER_MILLISECOND;
+	READ(oldval_ms, size_t);
+
+	ret = 0;
+label_return:
+	return (ret);
+}
 
 static int
 thread_arena_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
@@ -1733,6 +1750,17 @@ label_return:
 	return (ret);
 }
 
+static bool
+dirty_exp_time_valid(size_t dirty_exp_time)
+{
+
+	/*
+	 * Make sure dirty_exp_time * NANOSECONDS_PER_MILLISECOND does not
+	 * overflow.
+	 */
+	return (dirty_exp_time <= UINT32_MAX);
+}
+
 static int
 arena_i_dirty_exp_time_ctl(const size_t *mib, size_t miblen, void *oldp,
     size_t *oldlenp, void *newp, size_t newlen)
@@ -1748,15 +1776,21 @@ arena_i_dirty_exp_time_ctl(const size_t *mib, size_t miblen, void *oldp,
 	}
 
 	if (oldp != NULL && oldlenp != NULL) {
-		uint64_t oldval = arena_dirty_exp_time_get(arena);
-		READ(oldval, size_t);
+		uint64_t oldval_ns = arena_dirty_exp_time_get(arena);
+		size_t oldval_ms = oldval_ns / NANOSECONDS_PER_MILLISECOND;
+		READ(oldval_ms, size_t);
 	}
 	if (newp != NULL) {
-		if (newlen != sizeof(uint64_t)) {
+		if (newlen != sizeof(size_t)) {
 			ret = EINVAL;
 			goto label_return;
 		}
-		arena_dirty_exp_time_set(arena, *(uint64_t *)newp);
+		if (!dirty_exp_time_valid(*(size_t *)newp)) {
+			ret = EINVAL;
+			goto label_return;
+		}
+		arena_dirty_exp_time_set(arena, (*(size_t *)newp *
+		    NANOSECONDS_PER_MILLISECOND));
 	}
 
 	ret = 0;
@@ -1895,15 +1929,21 @@ arenas_dirty_exp_time_ctl(const size_t *mib, size_t miblen, void *oldp,
 	int ret;
 
 	if (oldp != NULL && oldlenp != NULL) {
-		uint64_t oldval = arena_dirty_exp_time_default_get();
-		READ(oldval, uint64_t);
+		uint64_t oldval_ns = arena_dirty_exp_time_default_get();
+		size_t oldval_ms = oldval_ns / NANOSECONDS_PER_MILLISECOND;
+		READ(oldval_ms, size_t);
 	}
 	if (newp != NULL) {
-		if (newlen != sizeof(uint64_t)) {
+		if (newlen != sizeof(size_t)) {
 			ret = EINVAL;
 			goto label_return;
 		}
-		arena_dirty_exp_time_default_set(*(uint64_t *)newp);
+		if (!dirty_exp_time_valid(*(size_t *)newp)) {
+			ret = EINVAL;
+			goto label_return;
+		}
+		arena_dirty_exp_time_default_set((*(size_t *)newp *
+		    NANOSECONDS_PER_MILLISECOND));
 	}
 
 	ret = 0;
@@ -2112,8 +2152,6 @@ CTL_RO_CGEN(config_stats, stats_mapped, ctl_stats.mapped, size_t)
 CTL_RO_GEN(stats_arenas_i_dss, ctl_stats.arenas[mib[2]].dss, const char *)
 CTL_RO_GEN(stats_arenas_i_lg_dirty_mult, ctl_stats.arenas[mib[2]].lg_dirty_mult,
     ssize_t)
-CTL_RO_GEN(stats_arenas_i_dirty_exp_time,
-    ctl_stats.arenas[mib[2]].dirty_exp_time, uint64_t)
 CTL_RO_GEN(stats_arenas_i_nthreads, ctl_stats.arenas[mib[2]].nthreads, unsigned)
 CTL_RO_GEN(stats_arenas_i_pactive, ctl_stats.arenas[mib[2]].pactive, size_t)
 CTL_RO_GEN(stats_arenas_i_pdirty, ctl_stats.arenas[mib[2]].pdirty, size_t)
@@ -2129,6 +2167,26 @@ CTL_RO_CGEN(config_stats, stats_arenas_i_metadata_mapped,
     ctl_stats.arenas[mib[2]].astats.metadata_mapped, size_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_metadata_allocated,
     ctl_stats.arenas[mib[2]].astats.metadata_allocated, size_t)
+
+static int
+stats_arenas_i_dirty_exp_time_ctl(const size_t *mib, size_t miblen, void *oldp,
+    size_t *oldlenp, void *newp, size_t newlen)
+{
+	int ret;
+	uint64_t oldval_ns;
+	size_t oldval_ms;
+
+	malloc_mutex_lock(&ctl_mtx);
+	READONLY();
+	oldval_ns = ctl_stats.arenas[mib[2]].dirty_exp_time;
+	oldval_ms = oldval_ns / NANOSECONDS_PER_MILLISECOND;
+	READ(oldval_ms, size_t);
+
+	ret = 0;
+label_return:
+	malloc_mutex_unlock(&ctl_mtx);
+	return (ret);
+}
 
 CTL_RO_CGEN(config_stats, stats_arenas_i_small_allocated,
     ctl_stats.arenas[mib[2]].allocated_small, size_t)
