@@ -1418,8 +1418,8 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         can cause asynchronous string deallocation.  Furthermore, each
         invocation of this interface can only read or write; simultaneous
         read/write is not supported due to string lifetime limitations.  The
-        name string must nil-terminated and comprised only of characters in the
-        sets recognized
+        name string must be nil-terminated and comprised only of characters in
+        the sets recognized
         by <citerefentry><refentrytitle>isgraph</refentrytitle>
         <manvolnum>3</manvolnum></citerefentry> and
         <citerefentry><refentrytitle>isblank</refentrytitle>
