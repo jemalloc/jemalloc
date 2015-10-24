@@ -4,6 +4,18 @@ brevity.  Much more detail can be found in the git revision history:
 
     https://github.com/jemalloc/jemalloc
 
+* 4.0.4 (October 24, 2015)
+
+  This bugfix release fixes another xallocx() regression.  No other regressions
+  have come to light in over a month, so this is likely a good starting point
+  for people who prefer to wait for "dot one" releases with all the major issues
+  shaken out.
+
+  Bug fixes:
+  - Fix xallocx(..., MALLOCX_ZERO to zero the last full trailing page of large
+    allocations that have been randomly assigned an offset of 0 when
+    --enable-cache-oblivious configure option is enabled.
+
 * 4.0.3 (September 24, 2015)
 
   This bugfix release continues the trend of xallocx() and heap profiling fixes.

@@ -2683,10 +2683,16 @@ arena_ralloc_large_grow(arena_t *arena, arena_chunk_t *chunk, void *ptr,
 			/*
 			 * Zero the trailing bytes of the original allocation's
 			 * last page, since they are in an indeterminate state.
+			 * There will always be trailing bytes, because ptr's
+			 * offset from the beginning of the run is a multiple of
+			 * CACHELINE in [0 .. PAGE).
 			 */
-			assert(PAGE_CEILING(oldsize) == oldsize);
-			memset((void *)((uintptr_t)ptr + oldsize), 0,
-			    PAGE_CEILING((uintptr_t)ptr) - (uintptr_t)ptr);
+			void *zbase = (void *)((uintptr_t)ptr + oldsize);
+			void *zpast = PAGE_ADDR2BASE((void *)((uintptr_t)zbase +
+			    PAGE));
+			size_t nzero = (uintptr_t)zpast - (uintptr_t)zbase;
+			assert(nzero > 0);
+			memset(zbase, 0, nzero);
 		}
 
 		size = oldsize + splitsize;
