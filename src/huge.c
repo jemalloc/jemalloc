@@ -75,7 +75,7 @@ huge_palloc(tsd_t *tsd, arena_t *arena, size_t size, size_t alignment,
 	arena = arena_choose(tsd, arena);
 	if (unlikely(arena == NULL) || (ret = arena_chunk_alloc_huge(arena,
 	    size, alignment, &is_zeroed)) == NULL) {
-		idalloctm(tsd, node, tcache, true);
+		idalloctm(tsd, node, tcache, true, true);
 		return (NULL);
 	}
 
@@ -83,7 +83,7 @@ huge_palloc(tsd_t *tsd, arena_t *arena, size_t size, size_t alignment,
 
 	if (huge_node_set(ret, node)) {
 		arena_chunk_dalloc_huge(arena, ret, size);
-		idalloctm(tsd, node, tcache, true);
+		idalloctm(tsd, node, tcache, true, true);
 		return (NULL);
 	}
 
@@ -372,7 +372,7 @@ huge_dalloc(tsd_t *tsd, void *ptr, tcache_t *tcache)
 	    extent_node_size_get(node));
 	arena_chunk_dalloc_huge(extent_node_arena_get(node),
 	    extent_node_addr_get(node), extent_node_size_get(node));
-	idalloctm(tsd, node, tcache, true);
+	idalloctm(tsd, node, tcache, true, true);
 }
 
 arena_t *
