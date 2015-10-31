@@ -177,7 +177,9 @@ TESTS_OBJS := $(TESTS_UNIT_OBJS) $(TESTS_INTEGRATION_OBJS) $(TESTS_STRESS_OBJS)
 
 .PHONY: all dist build_doc_html build_doc_man build_doc
 .PHONY: install_bin install_include install_lib
+.PHONY: uninstall_bin uninstall_include uninstall_lib
 .PHONY: install_doc_html install_doc_man install_doc install
+.PHONY: uninstall_doc_html uninstall_doc_man uninstall_doc uninstall
 .PHONY: tests check clean distclean relclean
 
 .SECONDARY : $(TESTS_OBJS)
@@ -287,12 +289,18 @@ install_bin:
 	install -m 755 $$b $(BINDIR); \
 done
 
+uninstall_bin:
+	rm -rf $(BINDIR)
+
 install_include:
 	install -d $(INCLUDEDIR)/jemalloc
 	@for h in $(C_HDRS); do \
 	echo "install -m 644 $$h $(INCLUDEDIR)/jemalloc"; \
 	install -m 644 $$h $(INCLUDEDIR)/jemalloc; \
 done
+
+uninstall_include:
+	rm -rf $(INCLUDEDIR)/jemalloc
 
 install_lib_shared: $(DSOS)
 	install -d $(LIBDIR)
@@ -317,12 +325,18 @@ done
 
 install_lib: install_lib_shared install_lib_static install_lib_pc
 
+uninstall_lib:
+	rm -rf $(LIBDIR)
+
 install_doc_html:
 	install -d $(DATADIR)/doc/jemalloc$(install_suffix)
 	@for d in $(DOCS_HTML); do \
 	echo "install -m 644 $$d $(DATADIR)/doc/jemalloc$(install_suffix)"; \
 	install -m 644 $$d $(DATADIR)/doc/jemalloc$(install_suffix); \
 done
+
+uninstall_doc_html:
+	rm -rf $(DATADIR)/doc/jemalloc$(install_suffix)
 
 install_doc_man:
 	install -d $(MANDIR)/man3
@@ -331,9 +345,16 @@ install_doc_man:
 	install -m 644 $$d $(MANDIR)/man3; \
 done
 
+uninstall_doc_man:
+	rm -rf $(MANDIR)
+
 install_doc: install_doc_html install_doc_man
 
+uninstall_doc: uninstall_doc_html uninstall_doc_man
+
 install: install_bin install_include install_lib install_doc
+
+uninstall: uninstall_bin uninstall_include uninstall_lib uninstall_doc
 
 tests_unit: $(TESTS_UNIT:$(srcroot)%.c=$(objroot)%$(EXE))
 tests_integration: $(TESTS_INTEGRATION:$(srcroot)%.c=$(objroot)%$(EXE))
