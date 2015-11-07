@@ -31,6 +31,9 @@ JEMALLOC_EXPORT JEMALLOC_ALLOCATOR JEMALLOC_RESTRICT_RETURN
 JEMALLOC_EXPORT JEMALLOC_ALLOCATOR JEMALLOC_RESTRICT_RETURN
     void JEMALLOC_NOTHROW	*@je_@rallocx(void *ptr, size_t size,
     int flags) JEMALLOC_ALLOC_SIZE(2);
+JEMALLOC_EXPORT JEMALLOC_ALLOCATOR JEMALLOC_RESTRICT_RETURN
+    void JEMALLOC_NOTHROW	*@je_@srallocx(void *ptr, size_t old_size,
+    size_t used_size, size_t size, int flags) JEMALLOC_ALLOC_SIZE(4);
 JEMALLOC_EXPORT size_t JEMALLOC_NOTHROW	@je_@xallocx(void *ptr, size_t size,
     size_t extra, int flags);
 JEMALLOC_EXPORT size_t JEMALLOC_NOTHROW	@je_@sallocx(const void *ptr,

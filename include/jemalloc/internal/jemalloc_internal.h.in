@@ -1083,8 +1083,8 @@ iralloct_realign(tsd_t *tsd, void *ptr, size_t oldsize, size_t size,
 }
 
 JEMALLOC_ALWAYS_INLINE void *
-iralloct(tsd_t *tsd, void *ptr, size_t oldsize, size_t size, size_t alignment,
-    bool zero, tcache_t *tcache, arena_t *arena)
+iralloct(tsd_t *tsd, void *ptr, size_t oldsize, size_t oldsize_used, size_t size,
+	size_t alignment, bool zero, tcache_t *tcache, arena_t *arena)
 {
 
 	assert(ptr != NULL);
@@ -1100,16 +1100,16 @@ iralloct(tsd_t *tsd, void *ptr, size_t oldsize, size_t size, size_t alignment,
 		    zero, tcache, arena));
 	}
 
-	return (arena_ralloc(tsd, arena, ptr, oldsize, size, alignment, zero,
-	    tcache));
+	return (arena_ralloc(tsd, arena, ptr, oldsize, oldsize_used, size,
+		alignment, zero, tcache));
 }
 
 JEMALLOC_ALWAYS_INLINE void *
-iralloc(tsd_t *tsd, void *ptr, size_t oldsize, size_t size, size_t alignment,
-    bool zero)
+iralloc(tsd_t *tsd, void *ptr, size_t oldsize, size_t oldsize_used, size_t size,
+	size_t alignment, bool zero)
 {
 
-	return (iralloct(tsd, ptr, oldsize, size, alignment, zero,
+	return (iralloct(tsd, ptr, oldsize, oldsize_used, size, alignment, zero,
 	    tcache_get(tsd, true), NULL));
 }
 

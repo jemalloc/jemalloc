@@ -35,6 +35,7 @@
     <refname>free</refname>
     <refname>mallocx</refname>
     <refname>rallocx</refname>
+    <refname>srallocx</refname>
     <refname>xallocx</refname>
     <refname>sallocx</refname>
     <refname>dallocx</refname>
@@ -100,6 +101,14 @@
         <funcprototype>
           <funcdef>void *<function>rallocx</function></funcdef>
           <paramdef>void *<parameter>ptr</parameter></paramdef>
+          <paramdef>size_t <parameter>size</parameter></paramdef>
+          <paramdef>int <parameter>flags</parameter></paramdef>
+        </funcprototype>
+        <funcprototype>
+          <funcdef>void *<function>srallocx</function></funcdef>
+          <paramdef>void *<parameter>ptr</parameter></paramdef>
+          <paramdef>size_t <parameter>old_size</parameter></paramdef>
+          <paramdef>size_t <parameter>old_size_used</parameter></paramdef>
           <paramdef>size_t <parameter>size</parameter></paramdef>
           <paramdef>int <parameter>flags</parameter></paramdef>
         </funcprototype>
@@ -232,6 +241,7 @@
       <title>Non-standard API</title>
       <para>The <function>mallocx<parameter/></function>,
       <function>rallocx<parameter/></function>,
+      <function>srallocx<parameter/></function>,
       <function>xallocx<parameter/></function>,
       <function>sallocx<parameter/></function>,
       <function>dallocx<parameter/></function>,
@@ -320,6 +330,12 @@
       its original location.  Behavior is undefined if
       <parameter>size</parameter> is <constant>0</constant>, or if request size
       overflows due to size class and/or alignment constraints.</para>
+
+      <para>The <function>srallocx<parameter/></function> function is a
+      sized version of <function>rallocx<parameter/></function> function and has two more
+      parameters: <parameter>old_size</parameter> for size of previosly allocated
+      memory, and <parameter>old_size_used</parameter> for number of bytes to be
+      copied during reallocation.</para>
 
       <para>The <function>xallocx<parameter/></function> function resizes the
       allocation at <parameter>ptr</parameter> in place to be at least
@@ -556,8 +572,8 @@ for (i = 0; i < nbins; i++) {
     allocating.</para>
 
     <para>The <function>realloc<parameter/></function>,
-    <function>rallocx<parameter/></function>, and
-    <function>xallocx<parameter/></function> functions may resize allocations
+    <function>rallocx<parameter/></function>, <function>srallocx<parameter/></function>
+    and <function>xallocx<parameter/></function> functions may resize allocations
     without moving them under limited circumstances.  Unlike the
     <function>*allocx<parameter/></function> API, the standard API does not
     officially round up the usable size of an allocation to the nearest size
@@ -1054,8 +1070,8 @@ for (i = 0; i < nbins; i++) {
         <listitem><para>Zero filling enabled/disabled.  If enabled, each byte
         of uninitialized allocated memory will be initialized to 0.  Note that
         this initialization only happens once for each byte, so
-        <function>realloc<parameter/></function> and
-        <function>rallocx<parameter/></function> calls do not zero memory that
+        <function>realloc<parameter/></function>, <function>rallocx<parameter/></function>
+        and <function>srallocx<parameter/></function> calls do not zero memory that
         was previously allocated.  This is intended for debugging and will
         impact performance negatively.  This option is disabled by default.
         </para></listitem>
@@ -2637,8 +2653,9 @@ typedef struct {
     </refsect2>
     <refsect2>
       <title>Non-standard API</title>
-      <para>The <function>mallocx<parameter/></function> and
-      <function>rallocx<parameter/></function> functions return a pointer to
+      <para>The <function>mallocx<parameter/></function>,
+      <function>rallocx<parameter/></function>
+      and <function>srallocx<parameter/></function> functions return a pointer to
       the allocated memory if successful; otherwise a <constant>NULL</constant>
       pointer is returned to indicate insufficient contiguous memory was
       available to service the allocation request.  </para>
