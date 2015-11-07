@@ -329,8 +329,9 @@ huge_ralloc_move_helper(tsd_t *tsd, arena_t *arena, size_t usize,
 }
 
 void *
-huge_ralloc(tsd_t *tsd, arena_t *arena, void *ptr, size_t oldsize, size_t usize,
-    size_t alignment, bool zero, tcache_t *tcache)
+huge_ralloc(tsd_t *tsd, arena_t *arena, void *ptr,
+	size_t oldsize, size_t oldsize_used,
+	size_t usize, size_t alignment, bool zero, tcache_t *tcache)
 {
 	void *ret;
 	size_t copysize;
@@ -349,7 +350,7 @@ huge_ralloc(tsd_t *tsd, arena_t *arena, void *ptr, size_t oldsize, size_t usize,
 	if (ret == NULL)
 		return (NULL);
 
-	copysize = (usize < oldsize) ? usize : oldsize;
+	copysize = (usize < oldsize_used) ? usize : oldsize_used;
 	memcpy(ret, ptr, copysize);
 	isqalloc(tsd, ptr, oldsize, tcache);
 	return (ret);

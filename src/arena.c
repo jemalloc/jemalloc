@@ -2851,8 +2851,8 @@ arena_ralloc_move_helper(tsd_t *tsd, arena_t *arena, size_t usize,
 }
 
 void *
-arena_ralloc(tsd_t *tsd, arena_t *arena, void *ptr, size_t oldsize, size_t size,
-    size_t alignment, bool zero, tcache_t *tcache)
+arena_ralloc(tsd_t *tsd, arena_t *arena, void *ptr, size_t oldsize, size_t oldsize_used,
+	size_t size, size_t alignment, bool zero, tcache_t *tcache)
 {
 	void *ret;
 	size_t usize;
@@ -2883,13 +2883,13 @@ arena_ralloc(tsd_t *tsd, arena_t *arena, void *ptr, size_t oldsize, size_t size,
 		 * ipalloc()/arena_malloc().
 		 */
 
-		copysize = (usize < oldsize) ? usize : oldsize;
+		copysize = (usize < oldsize_used) ? usize : oldsize_used;
 		JEMALLOC_VALGRIND_MAKE_MEM_UNDEFINED(ret, copysize);
 		memcpy(ret, ptr, copysize);
 		isqalloc(tsd, ptr, oldsize, tcache);
 	} else {
-		ret = huge_ralloc(tsd, arena, ptr, oldsize, usize, alignment,
-		    zero, tcache);
+		ret = huge_ralloc(tsd, arena, ptr, oldsize, oldsize_used,
+			usize, alignment, zero, tcache);
 	}
 	return (ret);
 }
