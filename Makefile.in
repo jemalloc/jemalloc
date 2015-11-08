@@ -290,7 +290,9 @@ install_bin:
 done
 
 uninstall_bin:
-	rm -rf $(BINDIR)
+	rm -f $(BINDIR)/jemalloc-config
+	rm -f $(BINDIR)/jemalloc.sh
+	rm -f $(BINDIR)/jeprof
 
 install_include:
 	install -d $(INCLUDEDIR)/jemalloc
@@ -325,8 +327,26 @@ done
 
 install_lib: install_lib_shared install_lib_static install_lib_pc
 
-uninstall_lib:
-	rm -rf $(LIBDIR)
+uninstall_lib_shared:
+	rm -f $(LIBDIR)/$(LIBJEMALLOC).$(SOREV)
+ifneq ($(SOREV),$(SO))
+	rm -f $(LIBDIR)/$(LIBJEMALLOC).$(SO)
+endif
+
+uninstall_lib_static:
+ifeq ($(IMPORTLIB),$(SO))
+	rm -f $(LIBDIR)/$(LIBJEMALLOC).$(A)
+endif
+ifdef PIC_CFLAGS
+	rm -f $(LIBDIR)/$(LIBJEMALLOC)_pic.$(A)
+else
+	rm -f $(LIBDIR)/$(LIBJEMALLOC)_s.$(A)
+endif
+
+uninstall_lib_pc: 
+	rm -f $(LIBDIR)/pkgconfig/jemalloc.pc
+
+uninstall_lib: uninstall_lib_shared uninstall_lib_static uninstall_lib_pc
 
 install_doc_html:
 	install -d $(DATADIR)/doc/jemalloc$(install_suffix)
@@ -346,7 +366,7 @@ install_doc_man:
 done
 
 uninstall_doc_man:
-	rm -rf $(MANDIR)
+	rm -f $(MANDIR)/man3/jemalloc$(install_suffix).3
 
 install_doc: install_doc_html install_doc_man
 
