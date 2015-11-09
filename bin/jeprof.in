@@ -1160,8 +1160,21 @@ sub PrintSymbolizedProfile {
   }
   print '---', "\n";
 
-  $PROFILE_PAGE =~ m,[^/]+$,;    # matches everything after the last slash
-  my $profile_marker = $&;
+  my $profile_marker;
+  if ($main::profile_type eq 'heap') {
+    $HEAP_PAGE =~ m,[^/]+$,;    # matches everything after the last slash
+    $profile_marker = $&;
+  } elsif ($main::profile_type eq 'growth') {
+    $GROWTH_PAGE =~ m,[^/]+$,;    # matches everything after the last slash
+    $profile_marker = $&;
+  } elsif ($main::profile_type eq 'contention') {
+    $CONTENTION_PAGE =~ m,[^/]+$,;    # matches everything after the last slash
+    $profile_marker = $&;
+  } else { # elsif ($main::profile_type eq 'cpu')
+    $PROFILE_PAGE =~ m,[^/]+$,;    # matches everything after the last slash
+    $profile_marker = $&;
+  }
+
   print '--- ', $profile_marker, "\n";
   if (defined($main::collected_profile)) {
     # if used with remote fetch, simply dump the collected profile to output.
@@ -1171,6 +1184,12 @@ sub PrintSymbolizedProfile {
     }
     close(SRC);
   } else {
+    # --raw/http: For everything to work correctly for non-remote profiles, we
+    # would need to extend PrintProfileData() to handle all possible profile
+    # types, re-enable the code that is currently disabled in ReadCPUProfile()
+    # and FixCallerAddresses(), and remove the remote profile dumping code in
+    # the block above.
+    die "--raw/http: jeprof can only dump remote profiles for --raw\n";
     # dump a cpu-format profile to standard out
     PrintProfileData($profile);
   }
@@ -3427,12 +3446,22 @@ sub FetchDynamicProfile {
       }
       $url .= sprintf("seconds=%d", $main::opt_seconds);
       $fetch_timeout = $main::opt_seconds * 1.01 + 60;
+      # Set $profile_type for consumption by PrintSymbolizedProfile.
+      $main::profile_type = 'cpu';
     } else {
       # For non-CPU profiles, we add a type-extension to
       # the target profile file name.
       my $suffix = $path;
       $suffix =~ s,/,.,g;
       $profile_file .= $suffix;
+      # Set $profile_type for consumption by PrintSymbolizedProfile.
+      if ($path =~ m/$HEAP_PAGE/) {
+        $main::profile_type = 'heap';
+      } elsif ($path =~ m/$GROWTH_PAGE/) {
+        $main::profile_type = 'growth';
+      } elsif ($path =~ m/$CONTENTION_PAGE/) {
+        $main::profile_type = 'contention';
+      }
     }
 
     my $profile_dir = $ENV{"JEPROF_TMPDIR"} || ($ENV{HOME} . "/jeprof");
@@ -3730,6 +3759,8 @@ sub ReadProfile {
   my $symbol_marker = $&;
   $PROFILE_PAGE =~ m,[^/]+$,;    # matches everything after the last slash
   my $profile_marker = $&;
+  $HEAP_PAGE =~ m,[^/]+$,;    # matches everything after the last slash
+  my $heap_marker = $&;
 
   # Look at first line to see if it is a heap or a CPU profile.
   # CPU profile may start with no header at all, and just binary data
@@ -3756,7 +3787,13 @@ sub ReadProfile {
     $header = ReadProfileHeader(*PROFILE) || "";
   }
 
+  if ($header =~ m/^--- *($heap_marker|$growth_marker)/o) {
+    # Skip "--- ..." line for profile types that have their own headers.
+    $header = ReadProfileHeader(*PROFILE) || "";
+  }
+
   $main::profile_type = '';
+
   if ($header =~ m/^heap profile:.*$growth_marker/o) {
     $main::profile_type = 'growth';
     $result =  ReadHeapProfile($prog, *PROFILE, $header);
@@ -3808,9 +3845,9 @@ sub ReadProfile {
 # independent implementation.
 sub FixCallerAddresses {
   my $stack = shift;
-  if ($main::use_symbolized_profile) {
-    return $stack;
-  } else {
+  # --raw/http: Always subtract one from pc's, because PrintSymbolizedProfile()
+  # dumps unadjusted profiles.
+  {
     $stack =~ /(\s)/;
     my $delimiter = $1;
     my @addrs = split(' ', $stack);
@@ -3878,12 +3915,7 @@ sub ReadCPUProfile {
     for (my $j = 0; $j < $d; $j++) {
       my $pc = $slots->get($i+$j);
       # Subtract one from caller pc so we map back to call instr.
-      # However, don't do this if we're reading a symbolized profile
-      # file, in which case the subtract-one was done when the file
-      # was written.
-      if ($j > 0 && !$main::use_symbolized_profile) {
-        $pc--;
-      }
+      $pc--;
       $pc = sprintf("%0*x", $address_length, $pc);
       $pcs->{$pc} = 1;
       push @k, $pc;
