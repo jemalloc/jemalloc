@@ -959,6 +959,45 @@ for (i = 0; i < nbins; i++) {
         for related dynamic control options.</para></listitem>
       </varlistentry>
 
+      <varlistentry id="opt.dirty_exp_time">
+        <term>
+          <mallctl>opt.dirty_exp_time</mallctl>
+          (<type>size_t</type>)
+          <literal>r-</literal>
+        </term>
+        <listitem><para>In addition to having control on the amount of dirty
+        pages via <link
+        linkend="opt.lg_dirty_mult"><mallctl>opt.lg_dirty_mult</mallctl></link>,
+        this provides a way to specify the maximum time in milliseconds a dirty
+        page is allowed to exist before being returned to kernel by
+        <citerefentry><refentrytitle>madvise</refentrytitle>
+        <manvolnum>2</manvolnum></citerefentry> or a similar system call. The
+        default expiration time for dirty pages is 2000 milliseconds. If <link
+        linkend="opt.async_purge"><mallctl>opt.async_purge</mallctl></link> is
+        true, <link
+        linkend="arena.i.purge_old"><mallctl>arena.&lt;i&gt;.purge_old</mallctl></link>
+        must be called periodcally to enforce this constraint. See <link
+        linkend="arenas.dirty_exp_time"><mallctl>arenas.dirty_exp_time</mallctl></link>
+        and <link
+        linkend="arena.i.dirty_exp_time"><mallctl>arena.&lt;i&gt;.dirty_exp_time</mallctl></link>
+        for related dynamic control options.</para></listitem>
+      </varlistentry>
+
+      <varlistentry id="opt.async_purge">
+        <term>
+          <mallctl>opt.async_purge</mallctl>
+          (<type>bool</type>)
+          <literal>r-</literal>
+        </term>
+        <listitem><para>Enable/disable internal dirty page purging based on <link
+        linkend="opt.dirty_exp_time"><mallctl>opt.dirty_exp_time</mallctl></link>.
+        If set to true, jemalloc will not automatically purge expired dirty
+        pages and it is application's responsibility to call <link
+        linkend="arena.i.purge_old"><mallctl>arena.&lt;i&gt;.purge_old</mallctl></link>
+        periodcally to enforce the expiration time limit. This value is set to
+        false by default.</para></listitem>
+      </varlistentry>
+
       <varlistentry id="opt.stats_print">
         <term>
           <mallctl>opt.stats_print</mallctl>
@@ -1495,6 +1534,20 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         </para></listitem>
       </varlistentry>
 
+      <varlistentry id="arena.i.dirty_exp_time">
+        <term>
+          <mallctl>arena.&lt;i&gt;.dirty_exp_time</mallctl>
+          (<type>size_t</type>)
+          <literal>rw</literal>
+        </term>
+        <listitem><para>Current per-arena setting of <link
+        linkend="opt.dirty_exp_time"><mallctl>opt.dirty_exp_time</mallctl></link>.
+        Each time this interface is set and the max time is decreased, pages are
+        synchronously purged as necessary to impose the new limit. See <link
+        linkend="opt.dirty_exp_time"><mallctl>opt.dirty_exp_time</mallctl></link>
+        for additional information.</para></listitem>
+      </varlistentry>
+
       <varlistentry id="arena.i.dss">
         <term>
           <mallctl>arena.&lt;i&gt;.dss</mallctl>
@@ -1754,6 +1807,21 @@ typedef struct {
         linkend="arena.i.lg_dirty_mult"><mallctl>arena.&lt;i&gt;.lg_dirty_mult</mallctl></link>
         during arena creation.  See <link
         linkend="opt.lg_dirty_mult"><mallctl>opt.lg_dirty_mult</mallctl></link>
+        for additional information.</para></listitem>
+      </varlistentry>
+
+      <varlistentry id="arenas.dirty_exp_time">
+        <term>
+          <mallctl>arenas.dirty_exp_time</mallctl>
+          (<type>size_t</type>)
+          <literal>rw</literal>
+        </term>
+        <listitem><para>Current default per-arena setting of <link
+        linkend="opt.dirty_exp_time"><mallctl>opt.dirty_exp_time</mallctl></link>,
+        used to initialize <link
+        linkend="arena.i.dirty_exp_time"><mallctl>arena.&lt;i&gt;.dirty_exp_time</mallctl></link>
+        during arena creation.  See <link
+        linkend="opt.dirty_exp_time"><mallctl>opt.dirty_exp_time</mallctl></link>
         for additional information.</para></listitem>
       </varlistentry>
 
@@ -2098,6 +2166,18 @@ typedef struct {
         <listitem><para>Minimum ratio (log base 2) of active to dirty pages.
         See <link
         linkend="opt.lg_dirty_mult"><mallctl>opt.lg_dirty_mult</mallctl></link>
+        for details.</para></listitem>
+      </varlistentry>
+
+      <varlistentry id="stats.arenas.i.dirty_exp_time">
+        <term>
+          <mallctl>stats.arenas.&lt;i&gt;.dirty_exp_time</mallctl>
+          (<type>size_t</type>)
+          <literal>r-</literal>
+        </term>
+        <listitem><para>Maximum time in milliseconds dirty pages are allowed to
+        exist. See <link
+        linkend="opt.dirty_exp_time"><mallctl>opt.dirty_exp_time</mallctl></link>
         for details.</para></listitem>
       </varlistentry>
 

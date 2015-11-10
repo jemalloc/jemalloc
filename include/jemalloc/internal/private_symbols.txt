@@ -25,6 +25,10 @@ arena_dalloc_junk_small
 arena_dalloc_large
 arena_dalloc_large_junked_locked
 arena_dalloc_small
+arena_dirty_exp_time_default_get
+arena_dirty_exp_time_default_set
+arena_dirty_exp_time_get
+arena_dirty_exp_time_set
 arena_dss_prec_get
 arena_dss_prec_set
 arena_get
@@ -88,7 +92,9 @@ arena_quarantine_junk_small
 arena_ralloc
 arena_ralloc_junk_large
 arena_ralloc_no_move
+arena_rd_to_marker
 arena_rd_to_miscelm
+arena_rdelm_is_marker
 arena_redzone_corruption
 arena_run_regind
 arena_run_to_miscelm
@@ -298,6 +304,7 @@ malloc_mutex_unlock
 malloc_printf
 malloc_snprintf
 malloc_strtoumax
+malloc_time_get_ns
 malloc_tsd_boot0
 malloc_tsd_boot1
 malloc_tsd_cleanup_register
