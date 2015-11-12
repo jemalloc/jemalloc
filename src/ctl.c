@@ -115,7 +115,7 @@ CTL_PROTO(tcache_create)
 CTL_PROTO(tcache_flush)
 CTL_PROTO(tcache_destroy)
 CTL_PROTO(arena_i_purge)
-static void	arena_purge(unsigned arena_ind);
+static void	arena_i_purge(unsigned arena_ind);
 CTL_PROTO(arena_i_dss)
 CTL_PROTO(arena_i_lg_dirty_mult)
 CTL_PROTO(arena_i_chunk_hooks)
@@ -1538,7 +1538,7 @@ label_return:
 
 /* ctl_mutex must be held during execution of this function. */
 static void
-arena_purge(unsigned arena_ind)
+arena_i_purge(unsigned arena_ind)
 {
 	tsd_t *tsd;
 	unsigned i;
@@ -1576,7 +1576,7 @@ arena_i_purge_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
 	READONLY();
 	WRITEONLY();
 	malloc_mutex_lock(&ctl_mtx);
-	arena_purge(mib[1]);
+	arena_i_purge(mib[1]);
 	malloc_mutex_unlock(&ctl_mtx);
 
 	ret = 0;

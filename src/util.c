@@ -1,3 +1,7 @@
+/*
+ * Define simple versions of assertion macros that won't recurse in case
+ * of assertion failures in malloc_*printf().
+ */
 #define	assert(e) do {							\
 	if (config_debug && !(e)) {					\
 		malloc_write("<jemalloc>: Failed assertion\n");		\
@@ -648,3 +652,12 @@ malloc_printf(const char *format, ...)
 	malloc_vcprintf(NULL, NULL, format, ap);
 	va_end(ap);
 }
+
+/*
+ * Restore normal assertion macros, in order to make it possible to compile all
+ * C files as a single concatenation.
+ */
+#undef assert
+#undef not_reached
+#undef not_implemented
+#include "jemalloc/internal/assert.h"
