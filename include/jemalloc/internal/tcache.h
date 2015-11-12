@@ -74,7 +74,7 @@ struct tcache_bin_s {
 	 * To make use of adjacent cacheline prefetch, the items in the avail
 	 * stack goes to higher address for newer allocations.  avail points
 	 * just above the available space, which means that
-	 * avail[-ncached, ... 1] are available items and the lowest item will
+	 * avail[-ncached, ... -1] are available items and the lowest item will
 	 * be allocated first.
 	 */
 	void		**avail;	/* Stack of available objects. */
