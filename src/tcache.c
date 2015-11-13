@@ -40,13 +40,11 @@ tcache_event_hard(tsd_t *tsd, tcache_t *tcache)
 		/*
 		 * Flush (ceiling) 3/4 of the objects below the low water mark.
 		 */
+		unsigned rem = tbin->ncached - tbin->low_water + (tbin->low_water >> 2);
 		if (binind < NBINS) {
-			tcache_bin_flush_small(tsd, tcache, tbin, binind,
-			    tbin->ncached - tbin->low_water + (tbin->low_water
-			    >> 2));
+			tcache_bin_flush_small(tsd, tcache, tbin, binind, rem);
 		} else {
-			tcache_bin_flush_large(tsd, tbin, binind, tbin->ncached
-			    - tbin->low_water + (tbin->low_water >> 2), tcache);
+			tcache_bin_flush_large(tsd, tbin, binind, rem, tcache);
 		}
 		/*
 		 * Reduce fill count by 2X.  Limit lg_fill_div such that the
@@ -90,8 +88,7 @@ tcache_bin_flush_small(tsd_t *tsd, tcache_t *tcache, tcache_bin_t *tbin,
     szind_t binind, unsigned rem)
 {
 	arena_t *arena;
-	void *ptr;
-	unsigned i, nflush, ndeferred;
+	unsigned nflush, ndeferred;
 	bool merged_stats = false;
 
 	assert(binind < NBINS);
@@ -105,6 +102,7 @@ tcache_bin_flush_small(tsd_t *tsd, tcache_t *tcache, tcache_bin_t *tbin,
 		    *(tbin->avail - 1));
 		arena_t *bin_arena = extent_node_arena_get(&chunk->node);
 		arena_bin_t *bin = &bin_arena->bins[binind];
+		unsigned i;
 
 		if (config_prof && bin_arena == arena) {
 			if (arena_prof_accum(arena, tcache->prof_accumbytes))
@@ -122,7 +120,7 @@ tcache_bin_flush_small(tsd_t *tsd, tcache_t *tcache, tcache_bin_t *tbin,
 		}
 		ndeferred = 0;
 		for (i = 0; i < nflush; i++) {
-			ptr = *(tbin->avail - 1 - i);
+			void* ptr = *(tbin->avail - 1 - i);
 			assert(ptr != NULL);
 			chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
 			if (extent_node_arena_get(&chunk->node) == bin_arena) {
@@ -170,8 +168,7 @@ tcache_bin_flush_large(tsd_t *tsd, tcache_bin_t *tbin, szind_t binind,
     unsigned rem, tcache_t *tcache)
 {
 	arena_t *arena;
-	void *ptr;
-	unsigned i, nflush, ndeferred;
+	unsigned nflush, ndeferred;
 	bool merged_stats = false;
 
 	assert(binind < nhbins);
@@ -185,6 +182,7 @@ tcache_bin_flush_large(tsd_t *tsd, tcache_bin_t *tbin, szind_t binind,
 		    *(tbin->avail - 1));
 		arena_t *locked_arena = extent_node_arena_get(&chunk->node);
 		UNUSED bool idump;
+		unsigned i;
 
 		if (config_prof)
 			idump = false;
@@ -206,7 +204,7 @@ tcache_bin_flush_large(tsd_t *tsd, tcache_bin_t *tbin, szind_t binind,
 		}
 		ndeferred = 0;
 		for (i = 0; i < nflush; i++) {
-			ptr = *(tbin->avail - 1 - i);
+			void* ptr = *(tbin->avail - 1 - i);
 			assert(ptr != NULL);
 			chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
 			if (extent_node_arena_get(&chunk->node) ==
@@ -520,18 +518,17 @@ tcache_boot(void)
 		return (true);
 	stack_nelms = 0;
 	for (i = 0; i < NBINS; i++) {
-		if ((arena_bin_info[i].nregs << 1) <= TCACHE_NSLOTS_SMALL_MIN) {
-			tcache_bin_info[i].ncached_max =
-			    TCACHE_NSLOTS_SMALL_MIN;
-		} else if ((arena_bin_info[i].nregs << 1) <=
-		    TCACHE_NSLOTS_SMALL_MAX) {
-			tcache_bin_info[i].ncached_max =
-			    (arena_bin_info[i].nregs << 1);
+		uint32_t nregs_doubled = (arena_bin_info[i].nregs << 1);
+		unsigned ncached_max;
+		if (nregs_doubled <= TCACHE_NSLOTS_SMALL_MIN) {
+			ncached_max = TCACHE_NSLOTS_SMALL_MIN;
+		} else if (nregs_doubled <= TCACHE_NSLOTS_SMALL_MAX) {
+			ncached_max = nregs_doubled;
 		} else {
-			tcache_bin_info[i].ncached_max =
-			    TCACHE_NSLOTS_SMALL_MAX;
+			ncached_max = TCACHE_NSLOTS_SMALL_MAX;
 		}
-		stack_nelms += tcache_bin_info[i].ncached_max;
+		stack_nelms += ncached_max;
+		tcache_bin_info[i].ncached_max = ncached_max;
 	}
 	for (; i < nhbins; i++) {
 		tcache_bin_info[i].ncached_max = TCACHE_NSLOTS_LARGE;
