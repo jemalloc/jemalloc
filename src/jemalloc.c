@@ -1276,26 +1276,37 @@ malloc_init_hard_a0(void)
  *
  * init_lock must be held.
  */
-static void
+static bool
 malloc_init_hard_recursible(void)
 {
+	bool ret = false;
 
 	malloc_init_state = malloc_init_recursible;
 	malloc_mutex_unlock(&init_lock);
+
+	/* LinuxThreads' pthread_setspecific() allocates. */
+	if (malloc_tsd_boot0()) {
+		ret = true;
+		goto label_return;
+	}
 
 	ncpus = malloc_ncpus();
 
 #if (!defined(JEMALLOC_MUTEX_INIT_CB) && !defined(JEMALLOC_ZONE) \
     && !defined(_WIN32) && !defined(__native_client__))
-	/* LinuxThreads's pthread_atfork() allocates. */
+	/* LinuxThreads' pthread_atfork() allocates. */
 	if (pthread_atfork(jemalloc_prefork, jemalloc_postfork_parent,
 	    jemalloc_postfork_child) != 0) {
+		ret = true;
 		malloc_write("<jemalloc>: Error in pthread_atfork()\n");
 		if (opt_abort)
 			abort();
 	}
 #endif
+
+label_return:
 	malloc_mutex_lock(&init_lock);
+	return (ret);
 }
 
 /* init_lock must be held. */
@@ -1365,16 +1376,16 @@ malloc_init_hard(void)
 		malloc_mutex_unlock(&init_lock);
 		return (true);
 	}
-	if (malloc_tsd_boot0()) {
-		malloc_mutex_unlock(&init_lock);
-		return (true);
-	}
-	if (config_prof && prof_boot2()) {
+
+	if (malloc_init_hard_recursible()) {
 		malloc_mutex_unlock(&init_lock);
 		return (true);
 	}
 
-	malloc_init_hard_recursible();
+	if (config_prof && prof_boot2()) {
+		malloc_mutex_unlock(&init_lock);
+		return (true);
+	}
 
 	if (malloc_init_hard_finish()) {
 		malloc_mutex_unlock(&init_lock);
