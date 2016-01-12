@@ -95,7 +95,7 @@ my @EVINCE = ("evince");    # could also be xpdf or perhaps acroread
 my @KCACHEGRIND = ("kcachegrind");
 my @PS2PDF = ("ps2pdf");
 # These are used for dynamic profiles
-my @URL_FETCHER = ("curl", "-s");
+my @URL_FETCHER = ("curl", "-s", "--fail");
 
 # These are the web pages that servers need to support for dynamic profiles
 my $HEAP_PAGE = "/pprof/heap";
