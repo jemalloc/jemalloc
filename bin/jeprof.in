@@ -3339,7 +3339,7 @@ sub ResolveRedirectionForCurl {
 # Add a timeout flat to URL_FETCHER.  Returns a new list.
 sub AddFetchTimeout {
   my $timeout = shift;
-  my @fetcher = shift;
+  my @fetcher = @_;
   if (defined($timeout)) {
     if (join(" ", @fetcher) =~ m/\bcurl -s/) {
       push(@fetcher, "--max-time", sprintf("%d", $timeout));
