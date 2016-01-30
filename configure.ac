@@ -218,12 +218,22 @@ dnl CPU-specific settings.
 CPU_SPINWAIT=""
 case "${host_cpu}" in
   i686|x86_64)
-	AC_CACHE_VAL([je_cv_pause],
-	  [JE_COMPILABLE([pause instruction], [],
-	                [[__asm__ volatile("pause"); return 0;]],
-	                [je_cv_pause])])
-	if test "x${je_cv_pause}" = "xyes" ; then
-	    CPU_SPINWAIT='__asm__ volatile("pause")'
+	if test "x${je_cv_msvc}" = "xyes" ; then
+	    AC_CACHE_VAL([je_cv_pause_msvc],
+	      [JE_COMPILABLE([pause instruction MSVC], [],
+					[[_mm_pause(); return 0;]],
+					[je_cv_pause_msvc])])
+	    if test "x${je_cv_pause_msvc}" = "xyes" ; then
+		CPU_SPINWAIT='_mm_pause()'
+	    fi
+	else
+	    AC_CACHE_VAL([je_cv_pause],
+	      [JE_COMPILABLE([pause instruction], [],
+					[[__asm__ volatile("pause"); return 0;]],
+					[je_cv_pause])])
+	    if test "x${je_cv_pause}" = "xyes" ; then
+		CPU_SPINWAIT='__asm__ volatile("pause")'
+	    fi
 	fi
 	;;
   powerpc)
