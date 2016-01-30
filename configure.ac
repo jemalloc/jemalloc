@@ -1116,7 +1116,7 @@ if test "x$LG_PAGE" = "xdetect"; then
     if (f == NULL) {
 	return 1;
     }
-    fprintf(f, "%d\n", result);
+    fprintf(f, "%d", result);
     fclose(f);
 
     return 0;
