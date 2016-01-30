@@ -1384,6 +1384,8 @@ prof_dump_maps(bool propagate_err)
 	cassert(config_prof);
 #ifdef __FreeBSD__
 	mfd = prof_open_maps("/proc/curproc/map");
+#elif defined(_WIN32)
+	mfd = -1; // Not implemented
 #else
 	{
 		int pid = getpid();
