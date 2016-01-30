@@ -3385,6 +3385,27 @@ sub ReadSymbols {
   return $map;
 }
 
+sub URLEncode {
+  my $str = shift;
+  $str =~ s/([^A-Za-z0-9\-_.!~*'()])/ sprintf "%%%02x", ord $1 /eg;
+  return $str;
+}
+
+sub AppendSymbolFilterParams {
+  my $url = shift;
+  my @params = ();
+  if ($main::opt_retain ne '') {
+    push(@params, sprintf("retain=%s", URLEncode($main::opt_retain)));
+  }
+  if ($main::opt_exclude ne '') {
+    push(@params, sprintf("exclude=%s", URLEncode($main::opt_exclude)));
+  }
+  if (scalar @params > 0) {
+    $url = sprintf("%s?%s", $url, join("&", @params));
+  }
+  return $url;
+}
+
 # Fetches and processes symbols to prepare them for use in the profile output
 # code.  If the optional 'symbol_map' arg is not given, fetches symbols from
 # $SYMBOL_PAGE for all PC values found in profile.  Otherwise, the raw symbols
@@ -3409,9 +3430,11 @@ sub FetchSymbols {
     my $command_line;
     if (join(" ", @URL_FETCHER) =~ m/\bcurl -s/) {
       $url = ResolveRedirectionForCurl($url);
+      $url = AppendSymbolFilterParams($url);
       $command_line = ShellEscape(@URL_FETCHER, "-d", "\@$main::tmpfile_sym",
                                   $url);
     } else {
+      $url = AppendSymbolFilterParams($url);
       $command_line = (ShellEscape(@URL_FETCHER, "--post", $url)
                        . " < " . ShellEscape($main::tmpfile_sym));
     }
