@@ -960,7 +960,7 @@ ipalloc(tsd_t *tsd, size_t usize, size_t alignment, bool zero)
 {
 
 	return (ipallocztm(tsd, usize, alignment, zero, tcache_get(tsd,
-	    NULL), false, NULL));
+	    true), false, NULL));
 }
 
 JEMALLOC_ALWAYS_INLINE size_t
