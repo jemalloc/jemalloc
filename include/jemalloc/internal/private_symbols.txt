@@ -460,6 +460,7 @@ tcaches_get
 tcache_stats_merge
 thread_allocated_cleanup
 thread_deallocated_cleanup
+time_update
 tsd_arena_get
 tsd_arena_set
 tsd_boot
