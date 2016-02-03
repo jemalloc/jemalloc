@@ -460,8 +460,11 @@ tcaches_get
 tcache_stats_merge
 thread_allocated_cleanup
 thread_deallocated_cleanup
+ticker_copy
 ticker_init
+ticker_read
 ticker_tick
+ticker_ticks
 time_add
 time_compare
 time_copy
