@@ -67,7 +67,6 @@ tcache_event_hard(tsd_t *tsd, tcache_t *tcache)
 	tcache->next_gc_bin++;
 	if (tcache->next_gc_bin == nhbins)
 		tcache->next_gc_bin = 0;
-	tcache->ev_cnt = 0;
 }
 
 void *
@@ -329,6 +328,8 @@ tcache_create(tsd_t *tsd, arena_t *arena)
 		return (NULL);
 
 	tcache_arena_associate(tcache, arena);
+
+	ticker_init(&tcache->gc_ticker, TCACHE_GC_INCR);
 
 	assert((TCACHE_NSLOTS_SMALL_MAX & 1U) == 0);
 	for (i = 0; i < nhbins; i++) {
