@@ -438,6 +438,8 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		CTL_GET("config.debug", &bv, bool);
 		malloc_cprintf(write_cb, cbopaque, "Assertions %s\n",
 		    bv ? "enabled" : "disabled");
+		malloc_cprintf(write_cb, cbopaque,
+		    "config.malloc_conf: \"%s\"\n", config_malloc_conf);
 
 #define	OPT_WRITE_BOOL(n)						\
 		if (je_mallctl("opt."#n, &bv, &bsz, NULL, 0) == 0) {	\

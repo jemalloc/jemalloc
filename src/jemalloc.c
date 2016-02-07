@@ -902,10 +902,13 @@ malloc_conf_init(void)
 			opt_tcache = false;
 	}
 
-	for (i = 0; i < 3; i++) {
+	for (i = 0; i < 4; i++) {
 		/* Get runtime configuration. */
 		switch (i) {
 		case 0:
+			opts = config_malloc_conf;
+			break;
+		case 1:
 			if (je_malloc_conf != NULL) {
 				/*
 				 * Use options that were compiled into the
@@ -918,7 +921,7 @@ malloc_conf_init(void)
 				opts = buf;
 			}
 			break;
-		case 1: {
+		case 2: {
 			int linklen = 0;
 #ifndef _WIN32
 			int saved_errno = errno;
@@ -945,7 +948,7 @@ malloc_conf_init(void)
 			buf[linklen] = '\0';
 			opts = buf;
 			break;
-		} case 2: {
+		} case 3: {
 			const char *envname =
 #ifdef JEMALLOC_PREFIX
 			    JEMALLOC_CPREFIX"MALLOC_CONF"

@@ -259,4 +259,7 @@
  */
 #undef JEMALLOC_EXPORT
 
+/* config.malloc_conf options string. */
+#undef JEMALLOC_CONFIG_MALLOC_CONF
+
 #endif /* JEMALLOC_INTERNAL_DEFS_H_ */

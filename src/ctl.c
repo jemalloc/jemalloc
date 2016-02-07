@@ -77,6 +77,7 @@ CTL_PROTO(config_cache_oblivious)
 CTL_PROTO(config_debug)
 CTL_PROTO(config_fill)
 CTL_PROTO(config_lazy_lock)
+CTL_PROTO(config_malloc_conf)
 CTL_PROTO(config_munmap)
 CTL_PROTO(config_prof)
 CTL_PROTO(config_prof_libgcc)
@@ -241,6 +242,7 @@ static const ctl_named_node_t	config_node[] = {
 	{NAME("debug"),		CTL(config_debug)},
 	{NAME("fill"),		CTL(config_fill)},
 	{NAME("lazy_lock"),	CTL(config_lazy_lock)},
+	{NAME("malloc_conf"),	CTL(config_malloc_conf)},
 	{NAME("munmap"),	CTL(config_munmap)},
 	{NAME("prof"),		CTL(config_prof)},
 	{NAME("prof_libgcc"),	CTL(config_prof_libgcc)},
@@ -1199,17 +1201,17 @@ label_return:								\
 	return (ret);							\
 }
 
-#define	CTL_RO_BOOL_CONFIG_GEN(n)					\
+#define	CTL_RO_CONFIG_GEN(n, t)						\
 static int								\
 n##_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,	\
     void *newp, size_t newlen)						\
 {									\
 	int ret;							\
-	bool oldval;							\
+	t oldval;							\
 									\
 	READONLY();							\
 	oldval = n;							\
-	READ(oldval, bool);						\
+	READ(oldval, t);						\
 									\
 	ret = 0;							\
 label_return:								\
@@ -1241,20 +1243,21 @@ label_return:
 
 /******************************************************************************/
 
-CTL_RO_BOOL_CONFIG_GEN(config_cache_oblivious)
-CTL_RO_BOOL_CONFIG_GEN(config_debug)
-CTL_RO_BOOL_CONFIG_GEN(config_fill)
-CTL_RO_BOOL_CONFIG_GEN(config_lazy_lock)
-CTL_RO_BOOL_CONFIG_GEN(config_munmap)
-CTL_RO_BOOL_CONFIG_GEN(config_prof)
-CTL_RO_BOOL_CONFIG_GEN(config_prof_libgcc)
-CTL_RO_BOOL_CONFIG_GEN(config_prof_libunwind)
-CTL_RO_BOOL_CONFIG_GEN(config_stats)
-CTL_RO_BOOL_CONFIG_GEN(config_tcache)
-CTL_RO_BOOL_CONFIG_GEN(config_tls)
-CTL_RO_BOOL_CONFIG_GEN(config_utrace)
-CTL_RO_BOOL_CONFIG_GEN(config_valgrind)
-CTL_RO_BOOL_CONFIG_GEN(config_xmalloc)
+CTL_RO_CONFIG_GEN(config_cache_oblivious, bool)
+CTL_RO_CONFIG_GEN(config_debug, bool)
+CTL_RO_CONFIG_GEN(config_fill, bool)
+CTL_RO_CONFIG_GEN(config_lazy_lock, bool)
+CTL_RO_CONFIG_GEN(config_malloc_conf, const char *)
+CTL_RO_CONFIG_GEN(config_munmap, bool)
+CTL_RO_CONFIG_GEN(config_prof, bool)
+CTL_RO_CONFIG_GEN(config_prof_libgcc, bool)
+CTL_RO_CONFIG_GEN(config_prof_libunwind, bool)
+CTL_RO_CONFIG_GEN(config_stats, bool)
+CTL_RO_CONFIG_GEN(config_tcache, bool)
+CTL_RO_CONFIG_GEN(config_tls, bool)
+CTL_RO_CONFIG_GEN(config_utrace, bool)
+CTL_RO_CONFIG_GEN(config_valgrind, bool)
+CTL_RO_CONFIG_GEN(config_xmalloc, bool)
 
 /******************************************************************************/
 

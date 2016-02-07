@@ -117,8 +117,8 @@ TEST_END
 TEST_BEGIN(test_mallctl_config)
 {
 
-#define	TEST_MALLCTL_CONFIG(config) do {				\
-	bool oldval;							\
+#define	TEST_MALLCTL_CONFIG(config, t) do {				\
+	t oldval;							\
 	size_t sz = sizeof(oldval);					\
 	assert_d_eq(mallctl("config."#config, &oldval, &sz, NULL, 0),	\
 	    0, "Unexpected mallctl() failure");				\
@@ -126,20 +126,21 @@ TEST_BEGIN(test_mallctl_config)
 	assert_zu_eq(sz, sizeof(oldval), "Unexpected output size");	\
 } while (0)
 
-	TEST_MALLCTL_CONFIG(cache_oblivious);
-	TEST_MALLCTL_CONFIG(debug);
-	TEST_MALLCTL_CONFIG(fill);
-	TEST_MALLCTL_CONFIG(lazy_lock);
-	TEST_MALLCTL_CONFIG(munmap);
-	TEST_MALLCTL_CONFIG(prof);
-	TEST_MALLCTL_CONFIG(prof_libgcc);
-	TEST_MALLCTL_CONFIG(prof_libunwind);
-	TEST_MALLCTL_CONFIG(stats);
-	TEST_MALLCTL_CONFIG(tcache);
-	TEST_MALLCTL_CONFIG(tls);
-	TEST_MALLCTL_CONFIG(utrace);
-	TEST_MALLCTL_CONFIG(valgrind);
-	TEST_MALLCTL_CONFIG(xmalloc);
+	TEST_MALLCTL_CONFIG(cache_oblivious, bool);
+	TEST_MALLCTL_CONFIG(debug, bool);
+	TEST_MALLCTL_CONFIG(fill, bool);
+	TEST_MALLCTL_CONFIG(lazy_lock, bool);
+	TEST_MALLCTL_CONFIG(malloc_conf, const char *);
+	TEST_MALLCTL_CONFIG(munmap, bool);
+	TEST_MALLCTL_CONFIG(prof, bool);
+	TEST_MALLCTL_CONFIG(prof_libgcc, bool);
+	TEST_MALLCTL_CONFIG(prof_libunwind, bool);
+	TEST_MALLCTL_CONFIG(stats, bool);
+	TEST_MALLCTL_CONFIG(tcache, bool);
+	TEST_MALLCTL_CONFIG(tls, bool);
+	TEST_MALLCTL_CONFIG(utrace, bool);
+	TEST_MALLCTL_CONFIG(valgrind, bool);
+	TEST_MALLCTL_CONFIG(xmalloc, bool);
 
 #undef TEST_MALLCTL_CONFIG
 }

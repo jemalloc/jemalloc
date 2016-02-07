@@ -455,19 +455,20 @@ for (i = 0; i < nbins; i++) {
     routines, the allocator initializes its internals based in part on various
     options that can be specified at compile- or run-time.</para>
 
-    <para>The string pointed to by the global variable
-    <varname>malloc_conf</varname>, the &ldquo;name&rdquo; of the file
-    referenced by the symbolic link named <filename
-    class="symlink">/etc/malloc.conf</filename>, and the value of the
+    <para>The string specified via <option>--with-malloc-conf</option>, the
+    string pointed to by the global variable <varname>malloc_conf</varname>, the
+    &ldquo;name&rdquo; of the file referenced by the symbolic link named
+    <filename class="symlink">/etc/malloc.conf</filename>, and the value of the
     environment variable <envar>MALLOC_CONF</envar>, will be interpreted, in
     that order, from left to right as options.  Note that
     <varname>malloc_conf</varname> may be read before
     <function>main<parameter/></function> is entered, so the declaration of
     <varname>malloc_conf</varname> should specify an initializer that contains
-    the final value to be read by jemalloc.  <varname>malloc_conf</varname> is
-    a compile-time setting, whereas <filename
-    class="symlink">/etc/malloc.conf</filename> and <envar>MALLOC_CONF</envar>
-    can be safely set any time prior to program invocation.</para>
+    the final value to be read by jemalloc.  <option>--with-malloc-conf</option>
+    and <varname>malloc_conf</varname> are compile-time mechanisms, whereas
+    <filename class="symlink">/etc/malloc.conf</filename> and
+    <envar>MALLOC_CONF</envar> can be safely set any time prior to program
+    invocation.</para>
 
     <para>An options string is a comma-separated list of option:value pairs.
     There is one key corresponding to each <link
@@ -773,6 +774,17 @@ for (i = 0; i < nbins; i++) {
           <literal>r-</literal>
         </term>
         <listitem><para><option>--enable-lazy-lock</option> was specified
+        during build configuration.</para></listitem>
+      </varlistentry>
+
+      <varlistentry id="config.malloc_conf">
+        <term>
+          <mallctl>config.malloc_conf</mallctl>
+          (<type>const char *</type>)
+          <literal>r-</literal>
+        </term>
+        <listitem><para>Embedded configure-time-specified run-time options
+        string, empty unless <option>--with-malloc-conf</option> was specified
         during build configuration.</para></listitem>
       </varlistentry>
 

@@ -577,6 +577,15 @@ AC_ARG_WITH([install_suffix],
 install_suffix="$INSTALL_SUFFIX"
 AC_SUBST([install_suffix])
 
+dnl Specify default malloc_conf.
+AC_ARG_WITH([malloc_conf],
+  [AS_HELP_STRING([--with-malloc-conf=<malloc_conf>], [config.malloc_conf options string])],
+  [JEMALLOC_CONFIG_MALLOC_CONF="$with_malloc_conf"],
+  [JEMALLOC_CONFIG_MALLOC_CONF=""]
+)
+config_malloc_conf="$JEMALLOC_CONFIG_MALLOC_CONF"
+AC_DEFINE_UNQUOTED([JEMALLOC_CONFIG_MALLOC_CONF], ["$config_malloc_conf"])
+
 dnl Substitute @je_@ in jemalloc_protos.h.in, primarily to make generation of
 dnl jemalloc_protos_jet.h easy.
 je_="je_"
@@ -1726,6 +1735,7 @@ AC_MSG_RESULT([JEMALLOC_PREFIX    : ${JEMALLOC_PREFIX}])
 AC_MSG_RESULT([JEMALLOC_PRIVATE_NAMESPACE])
 AC_MSG_RESULT([                   : ${JEMALLOC_PRIVATE_NAMESPACE}])
 AC_MSG_RESULT([install_suffix     : ${install_suffix}])
+AC_MSG_RESULT([malloc_conf        : ${config_malloc_conf}])
 AC_MSG_RESULT([autogen            : ${enable_autogen}])
 AC_MSG_RESULT([cc-silence         : ${enable_cc_silence}])
 AC_MSG_RESULT([debug              : ${enable_debug}])
