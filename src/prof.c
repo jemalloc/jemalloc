@@ -871,8 +871,7 @@ prof_sample_threshold_update(prof_tdata_t *tdata)
 	 *   pp 500
 	 *   (http://luc.devroye.org/rnbookindex.html)
 	 */
-	prng64(r, 53, tdata->prng_state, UINT64_C(6364136223846793005),
-	    UINT64_C(1442695040888963407));
+	r = prng_lg_range(&tdata->prng_state, 53);
 	u = (double)r * (1.0/9007199254740992.0L);
 	tdata->bytes_until_sample = (uint64_t)(log(u) /
 	    log(1.0 - (1.0 / (double)((uint64_t)1U << lg_prof_sample))))

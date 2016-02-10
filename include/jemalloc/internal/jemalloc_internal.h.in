@@ -547,7 +547,7 @@ size2index_compute(size_t size)
 #if (NTBINS != 0)
 	if (size <= (ZU(1) << LG_TINY_MAXCLASS)) {
 		size_t lg_tmin = LG_TINY_MAXCLASS - NTBINS + 1;
-		size_t lg_ceil = lg_floor(pow2_ceil(size));
+		size_t lg_ceil = lg_floor(pow2_ceil_zu(size));
 		return (lg_ceil < lg_tmin ? 0 : lg_ceil - lg_tmin);
 	}
 #endif
@@ -644,7 +644,7 @@ s2u_compute(size_t size)
 #if (NTBINS > 0)
 	if (size <= (ZU(1) << LG_TINY_MAXCLASS)) {
 		size_t lg_tmin = LG_TINY_MAXCLASS - NTBINS + 1;
-		size_t lg_ceil = lg_floor(pow2_ceil(size));
+		size_t lg_ceil = lg_floor(pow2_ceil_zu(size));
 		return (lg_ceil < lg_tmin ? (ZU(1) << lg_tmin) :
 		    (ZU(1) << lg_ceil));
 	}

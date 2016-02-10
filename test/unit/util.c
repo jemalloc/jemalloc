@@ -1,33 +1,54 @@
 #include "test/jemalloc_test.h"
 
-TEST_BEGIN(test_pow2_ceil)
+#define	TEST_POW2_CEIL(t, suf, pri) do {				\
+	unsigned i, pow2;						\
+	t x;								\
+									\
+	assert_zu_eq(pow2_ceil_##suf(0), 0, "Unexpected result");	\
+									\
+	for (i = 0; i < sizeof(t) * 8; i++) {				\
+		assert_zu_eq(pow2_ceil_##suf(((t)1) << i), ((t)1) << i,	\
+		    "Unexpected result");				\
+	}								\
+									\
+	for (i = 2; i < sizeof(t) * 8; i++) {				\
+		assert_zu_eq(pow2_ceil_##suf((((t)1) << i) - 1),	\
+		    ((t)1) << i, "Unexpected result");			\
+	}								\
+									\
+	for (i = 0; i < sizeof(t) * 8 - 1; i++) {			\
+		assert_zu_eq(pow2_ceil_##suf((((t)1) << i) + 1),	\
+		    ((t)1) << (i+1), "Unexpected result");		\
+	}								\
+									\
+	for (pow2 = 1; pow2 < 25; pow2++) {				\
+		for (x = (((t)1) << (pow2-1)) + 1; x <= ((t)1) << pow2;	\
+		    x++) {						\
+			assert_zu_eq(pow2_ceil_##suf(x),		\
+			    ((t)1) << pow2,				\
+			    "Unexpected result, x=%"pri, x);		\
+		}							\
+	}								\
+} while (0)
+
+TEST_BEGIN(test_pow2_ceil_u64)
 {
-	unsigned i, pow2;
-	size_t x;
 
-	assert_zu_eq(pow2_ceil(0), 0, "Unexpected result");
+	TEST_POW2_CEIL(uint64_t, u64, FMTu64);
+}
+TEST_END
 
-	for (i = 0; i < sizeof(size_t) * 8; i++) {
-		assert_zu_eq(pow2_ceil(ZU(1) << i), ZU(1) << i,
-		    "Unexpected result");
-	}
+TEST_BEGIN(test_pow2_ceil_u32)
+{
 
-	for (i = 2; i < sizeof(size_t) * 8; i++) {
-		assert_zu_eq(pow2_ceil((ZU(1) << i) - 1), ZU(1) << i,
-		    "Unexpected result");
-	}
+	TEST_POW2_CEIL(uint32_t, u32, FMTu32);
+}
+TEST_END
 
-	for (i = 0; i < sizeof(size_t) * 8 - 1; i++) {
-		assert_zu_eq(pow2_ceil((ZU(1) << i) + 1), ZU(1) << (i+1),
-		    "Unexpected result");
-	}
+TEST_BEGIN(test_pow2_ceil_zu)
+{
 
-	for (pow2 = 1; pow2 < 25; pow2++) {
-		for (x = (ZU(1) << (pow2-1)) + 1; x <= ZU(1) << pow2; x++) {
-			assert_zu_eq(pow2_ceil(x), ZU(1) << pow2,
-			    "Unexpected result, x=%zu", x);
-		}
-	}
+	TEST_POW2_CEIL(size_t, zu, "zu");
 }
 TEST_END
 
@@ -286,7 +307,9 @@ main(void)
 {
 
 	return (test(
-	    test_pow2_ceil,
+	    test_pow2_ceil_u64,
+	    test_pow2_ceil_u32,
+	    test_pow2_ceil_zu,
 	    test_malloc_strtoumax_no_endptr,
 	    test_malloc_strtoumax,
 	    test_malloc_snprintf_truncated,

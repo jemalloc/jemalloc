@@ -348,7 +348,9 @@ pages_map
 pages_purge
 pages_trim
 pages_unmap
-pow2_ceil
+pow2_ceil_u32
+pow2_ceil_u64
+pow2_ceil_zu
 prof_active_get
 prof_active_get_unlocked
 prof_active_set

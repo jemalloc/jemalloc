@@ -2196,9 +2196,7 @@ arena_malloc_large(arena_t *arena, size_t size, szind_t binind, bool zero)
 		 * that is a multiple of the cacheline size, e.g. [0 .. 63) * 64
 		 * for 4 KiB pages and 64-byte cachelines.
 		 */
-		prng64(r, LG_PAGE - LG_CACHELINE, arena->offset_state,
-		    UINT64_C(6364136223846793009),
-		    UINT64_C(1442695040888963409));
+		r = prng_lg_range(&arena->offset_state, LG_PAGE - LG_CACHELINE);
 		random_offset = ((uintptr_t)r) << LG_CACHELINE;
 	} else
 		random_offset = 0;

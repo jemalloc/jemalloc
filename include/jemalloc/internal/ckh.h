@@ -40,9 +40,7 @@ struct ckh_s {
 #endif
 
 	/* Used for pseudo-random number generation. */
-#define	CKH_A		1103515241
-#define	CKH_C		12347
-	uint32_t	prng_state;
+	uint64_t	prng_state;
 
 	/* Total number of items. */
 	size_t		count;
