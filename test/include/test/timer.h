@@ -1,7 +1,9 @@
 /* Simple timer, for use in benchmark reporting. */
 
-#include <unistd.h>
-#include <sys/time.h>
+#ifndef _MSC_VER
+#  include <unistd.h>
+#  include <sys/time.h>
+#endif
 
 #define JEMALLOC_CLOCK_GETTIME defined(_POSIX_MONOTONIC_CLOCK) \
     && _POSIX_MONOTONIC_CLOCK >= 0
