@@ -1467,7 +1467,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         <listitem><para>Flush the specified thread-specific cache (tcache).  The
         same considerations apply to this interface as to <link
         linkend="thread.tcache.flush"><mallctl>thread.tcache.flush</mallctl></link>,
-        except that the tcache will never be automatically be discarded.
+        except that the tcache will never be automatically discarded.
         </para></listitem>
       </varlistentry>
 
