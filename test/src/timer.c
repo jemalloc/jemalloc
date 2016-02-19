@@ -4,50 +4,26 @@ void
 timer_start(timedelta_t *timer)
 {
 
-#ifdef _WIN32
-	GetSystemTimeAsFileTime(&timer->ft0);
-#elif JEMALLOC_CLOCK_GETTIME
-	if (sysconf(_SC_MONOTONIC_CLOCK) <= 0)
-		timer->clock_id = CLOCK_REALTIME;
-	else
-		timer->clock_id = CLOCK_MONOTONIC;
-	clock_gettime(timer->clock_id, &timer->ts0);
-#else
-	gettimeofday(&timer->tv0, NULL);
-#endif
+	time_init(&timer->t0, 0, 0);
+	time_update(&timer->t0);
 }
 
 void
 timer_stop(timedelta_t *timer)
 {
 
-#ifdef _WIN32
-	GetSystemTimeAsFileTime(&timer->ft0);
-#elif JEMALLOC_CLOCK_GETTIME
-	clock_gettime(timer->clock_id, &timer->ts1);
-#else
-	gettimeofday(&timer->tv1, NULL);
-#endif
+	time_copy(&timer->t1, &timer->t0);
+	time_update(&timer->t1);
 }
 
 uint64_t
 timer_usec(const timedelta_t *timer)
 {
+	struct timespec delta;
 
-#ifdef _WIN32
-	uint64_t t0, t1;
-	t0 = (((uint64_t)timer->ft0.dwHighDateTime) << 32) |
-	    timer->ft0.dwLowDateTime;
-	t1 = (((uint64_t)timer->ft1.dwHighDateTime) << 32) |
-	    timer->ft1.dwLowDateTime;
-	return ((t1 - t0) / 10);
-#elif JEMALLOC_CLOCK_GETTIME
-	return (((timer->ts1.tv_sec - timer->ts0.tv_sec) * 1000000) +
-	    (timer->ts1.tv_nsec - timer->ts0.tv_nsec) / 1000);
-#else
-	return (((timer->tv1.tv_sec - timer->tv0.tv_sec) * 1000000) +
-	    timer->tv1.tv_usec - timer->tv0.tv_usec);
-#endif
+	time_copy(&delta, &timer->t1);
+	time_subtract(&delta, &timer->t0);
+	return (time_sec(&delta) * 1000000 + time_nsec(&delta) / 1000);
 }
 
 void

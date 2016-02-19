@@ -3,21 +3,9 @@
 #include <unistd.h>
 #include <sys/time.h>
 
-#define JEMALLOC_CLOCK_GETTIME defined(_POSIX_MONOTONIC_CLOCK) \
-    && _POSIX_MONOTONIC_CLOCK >= 0
-
 typedef struct {
-#ifdef _WIN32
-	FILETIME ft0;
-	FILETIME ft1;
-#elif JEMALLOC_CLOCK_GETTIME
-	struct timespec ts0;
-	struct timespec ts1;
-	int clock_id;
-#else
-	struct timeval tv0;
-	struct timeval tv1;
-#endif
+	struct timespec t0;
+	struct timespec t1;
 } timedelta_t;
 
 void	timer_start(timedelta_t *timer);
