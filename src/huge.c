@@ -99,6 +99,7 @@ huge_palloc(tsd_t *tsd, arena_t *arena, size_t size, size_t alignment,
 	} else if (config_fill && unlikely(opt_junk_alloc))
 		memset(ret, 0xa5, size);
 
+	arena_decay_tick(tsd, arena);
 	return (ret);
 }
 
@@ -280,7 +281,7 @@ huge_ralloc_no_move_expand(void *ptr, size_t oldsize, size_t usize, bool zero) {
 }
 
 bool
-huge_ralloc_no_move(void *ptr, size_t oldsize, size_t usize_min,
+huge_ralloc_no_move(tsd_t *tsd, void *ptr, size_t oldsize, size_t usize_min,
     size_t usize_max, bool zero)
 {
 
@@ -292,13 +293,18 @@ huge_ralloc_no_move(void *ptr, size_t oldsize, size_t usize_min,
 
 	if (CHUNK_CEILING(usize_max) > CHUNK_CEILING(oldsize)) {
 		/* Attempt to expand the allocation in-place. */
-		if (!huge_ralloc_no_move_expand(ptr, oldsize, usize_max, zero))
+		if (!huge_ralloc_no_move_expand(ptr, oldsize, usize_max,
+		    zero)) {
+			arena_decay_tick(tsd, huge_aalloc(ptr));
 			return (false);
+		}
 		/* Try again, this time with usize_min. */
 		if (usize_min < usize_max && CHUNK_CEILING(usize_min) >
 		    CHUNK_CEILING(oldsize) && huge_ralloc_no_move_expand(ptr,
-		    oldsize, usize_min, zero))
+		    oldsize, usize_min, zero)) {
+			arena_decay_tick(tsd, huge_aalloc(ptr));
 			return (false);
+		}
 	}
 
 	/*
@@ -309,12 +315,17 @@ huge_ralloc_no_move(void *ptr, size_t oldsize, size_t usize_min,
 	    && CHUNK_CEILING(oldsize) <= CHUNK_CEILING(usize_max)) {
 		huge_ralloc_no_move_similar(ptr, oldsize, usize_min, usize_max,
 		    zero);
+		arena_decay_tick(tsd, huge_aalloc(ptr));
 		return (false);
 	}
 
 	/* Attempt to shrink the allocation in-place. */
-	if (CHUNK_CEILING(oldsize) > CHUNK_CEILING(usize_max))
-		return (huge_ralloc_no_move_shrink(ptr, oldsize, usize_max));
+	if (CHUNK_CEILING(oldsize) > CHUNK_CEILING(usize_max)) {
+		if (!huge_ralloc_no_move_shrink(ptr, oldsize, usize_max)) {
+			arena_decay_tick(tsd, huge_aalloc(ptr));
+			return (false);
+		}
+	}
 	return (true);
 }
 
@@ -336,7 +347,7 @@ huge_ralloc(tsd_t *tsd, arena_t *arena, void *ptr, size_t oldsize, size_t usize,
 	size_t copysize;
 
 	/* Try to avoid moving the allocation. */
-	if (!huge_ralloc_no_move(ptr, oldsize, usize, usize, zero))
+	if (!huge_ralloc_no_move(tsd, ptr, oldsize, usize, usize, zero))
 		return (ptr);
 
 	/*
@@ -373,6 +384,8 @@ huge_dalloc(tsd_t *tsd, void *ptr, tcache_t *tcache)
 	arena_chunk_dalloc_huge(extent_node_arena_get(node),
 	    extent_node_addr_get(node), extent_node_size_get(node));
 	idalloctm(tsd, node, tcache, true, true);
+
+	arena_decay_tick(tsd, arena);
 }
 
 arena_t *

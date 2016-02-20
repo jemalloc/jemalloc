@@ -25,6 +25,12 @@ arena_dalloc_junk_small
 arena_dalloc_large
 arena_dalloc_large_junked_locked
 arena_dalloc_small
+arena_decay_time_default_get
+arena_decay_time_default_set
+arena_decay_time_get
+arena_decay_time_set
+arena_decay_tick
+arena_decay_ticks
 arena_dss_prec_get
 arena_dss_prec_set
 arena_get
@@ -83,7 +89,7 @@ arena_prof_tctx_get
 arena_prof_tctx_reset
 arena_prof_tctx_set
 arena_ptr_small_binind_get
-arena_purge_all
+arena_purge
 arena_quarantine_junk_small
 arena_ralloc
 arena_ralloc_junk_large
@@ -185,6 +191,7 @@ ctl_nametomib
 ctl_postfork_child
 ctl_postfork_parent
 ctl_prefork
+decay_ticker_get
 dss_prec_names
 extent_node_achunk_get
 extent_node_achunk_set
@@ -318,6 +325,7 @@ narenas_total_get
 ncpus
 nhbins
 opt_abort
+opt_decay_time
 opt_dss
 opt_junk
 opt_junk_alloc
@@ -336,6 +344,7 @@ opt_prof_gdump
 opt_prof_leak
 opt_prof_prefix
 opt_prof_thread_active_init
+opt_purge
 opt_quarantine
 opt_redzone
 opt_stats_print
@@ -397,6 +406,7 @@ prof_thread_active_init_set
 prof_thread_active_set
 prof_thread_name_get
 prof_thread_name_set
+purge_mode_names
 quarantine
 quarantine_alloc_hook
 quarantine_alloc_hook_work

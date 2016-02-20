@@ -147,6 +147,10 @@ time_divide(const struct timespec *time, const struct timespec *divisor)
 	return (t / d);
 }
 
+#ifdef JEMALLOC_JET
+#undef time_update
+#define	time_update JEMALLOC_N(time_update_impl)
+#endif
 bool
 time_update(struct timespec *time)
 {
@@ -184,3 +188,8 @@ time_update(struct timespec *time)
 	assert(time_valid(time));
 	return (false);
 }
+#ifdef JEMALLOC_JET
+#undef time_update
+#define	time_update JEMALLOC_N(time_update)
+time_update_t *time_update = JEMALLOC_N(time_update_impl);
+#endif

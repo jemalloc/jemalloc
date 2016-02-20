@@ -577,6 +577,17 @@ arena_tdata_get_hard(tsd_t *tsd, unsigned ind)
 		    * (narenas_tdata - narenas_actual));
 	}
 
+	/* Copy/initialize tickers. */
+	for (i = 0; i < narenas_actual; i++) {
+		if (i < narenas_tdata_old) {
+			ticker_copy(&arenas_tdata[i].decay_ticker,
+			    &arenas_tdata_old[i].decay_ticker);
+		} else {
+			ticker_init(&arenas_tdata[i].decay_ticker,
+			    DECAY_NTICKS_PER_UPDATE);
+		}
+	}
+
 	/* Read the refreshed tdata array. */
 	tdata = &arenas_tdata[ind];
 label_return:
@@ -1120,8 +1131,27 @@ malloc_conf_init(void)
 			}
 			CONF_HANDLE_SIZE_T(opt_narenas, "narenas", 1,
 			    SIZE_T_MAX, false)
+			if (strncmp("purge", k, klen) == 0) {
+				int i;
+				bool match = false;
+				for (i = 0; i < purge_mode_limit; i++) {
+					if (strncmp(purge_mode_names[i], v,
+					    vlen) == 0) {
+						opt_purge = (purge_mode_t)i;
+						match = true;
+						break;
+					}
+				}
+				if (!match) {
+					malloc_conf_error("Invalid conf value",
+					    k, klen, v, vlen);
+				}
+				continue;
+			}
 			CONF_HANDLE_SSIZE_T(opt_lg_dirty_mult, "lg_dirty_mult",
 			    -1, (sizeof(size_t) << 3) - 1)
+			CONF_HANDLE_SSIZE_T(opt_decay_time, "decay_time", -1,
+			    TIME_SEC_MAX);
 			CONF_HANDLE_BOOL(opt_stats_print, "stats_print", true)
 			if (config_fill) {
 				if (CONF_MATCH("junk")) {
@@ -2344,12 +2374,12 @@ label_oom:
 }
 
 JEMALLOC_ALWAYS_INLINE_C size_t
-ixallocx_helper(void *ptr, size_t old_usize, size_t size, size_t extra,
-    size_t alignment, bool zero)
+ixallocx_helper(tsd_t *tsd, void *ptr, size_t old_usize, size_t size,
+    size_t extra, size_t alignment, bool zero)
 {
 	size_t usize;
 
-	if (ixalloc(ptr, old_usize, size, extra, alignment, zero))
+	if (ixalloc(tsd, ptr, old_usize, size, extra, alignment, zero))
 		return (old_usize);
 	usize = isalloc(ptr, config_prof);
 
@@ -2357,14 +2387,15 @@ ixallocx_helper(void *ptr, size_t old_usize, size_t size, size_t extra,
 }
 
 static size_t
-ixallocx_prof_sample(void *ptr, size_t old_usize, size_t size, size_t extra,
-    size_t alignment, bool zero, prof_tctx_t *tctx)
+ixallocx_prof_sample(tsd_t *tsd, void *ptr, size_t old_usize, size_t size,
+    size_t extra, size_t alignment, bool zero, prof_tctx_t *tctx)
 {
 	size_t usize;
 
 	if (tctx == NULL)
 		return (old_usize);
-	usize = ixallocx_helper(ptr, old_usize, size, extra, alignment, zero);
+	usize = ixallocx_helper(tsd, ptr, old_usize, size, extra, alignment,
+	    zero);
 
 	return (usize);
 }
@@ -2390,11 +2421,11 @@ ixallocx_prof(tsd_t *tsd, void *ptr, size_t old_usize, size_t size,
 	assert(usize_max != 0);
 	tctx = prof_alloc_prep(tsd, usize_max, prof_active, false);
 	if (unlikely((uintptr_t)tctx != (uintptr_t)1U)) {
-		usize = ixallocx_prof_sample(ptr, old_usize, size, extra,
+		usize = ixallocx_prof_sample(tsd, ptr, old_usize, size, extra,
 		    alignment, zero, tctx);
 	} else {
-		usize = ixallocx_helper(ptr, old_usize, size, extra, alignment,
-		    zero);
+		usize = ixallocx_helper(tsd, ptr, old_usize, size, extra,
+		    alignment, zero);
 	}
 	if (usize == old_usize) {
 		prof_alloc_rollback(tsd, tctx, false);
@@ -2441,8 +2472,8 @@ je_xallocx(void *ptr, size_t size, size_t extra, int flags)
 		usize = ixallocx_prof(tsd, ptr, old_usize, size, extra,
 		    alignment, zero);
 	} else {
-		usize = ixallocx_helper(ptr, old_usize, size, extra, alignment,
-		    zero);
+		usize = ixallocx_helper(tsd, ptr, old_usize, size, extra,
+		    alignment, zero);
 	}
 	if (unlikely(usize == old_usize))
 		goto label_not_resized;

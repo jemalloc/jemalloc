@@ -361,7 +361,7 @@ tcache_alloc_large(tsd_t *tsd, arena_t *arena, tcache_t *tcache, size_t size,
 
 		usize = index2size(binind);
 		assert(usize <= tcache_maxclass);
-		ret = arena_malloc_large(arena, usize, binind, zero);
+		ret = arena_malloc_large(tsd, arena, usize, binind, zero);
 		if (ret == NULL)
 			return (NULL);
 	} else {

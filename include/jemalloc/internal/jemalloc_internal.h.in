@@ -545,6 +545,7 @@ arena_tdata_t	*arena_tdata_get(tsd_t *tsd, unsigned ind,
     bool refresh_if_missing);
 arena_t	*arena_get(tsd_t *tsd, unsigned ind, bool init_if_missing,
     bool refresh_if_missing);
+ticker_t	*decay_ticker_get(tsd_t *tsd, unsigned ind);
 #endif
 
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_C_))
@@ -833,6 +834,17 @@ arena_get(tsd_t *tsd, unsigned ind, bool init_if_missing,
 
 	return (tdata->arena);
 }
+
+JEMALLOC_INLINE ticker_t *
+decay_ticker_get(tsd_t *tsd, unsigned ind)
+{
+	arena_tdata_t *tdata;
+
+	tdata = arena_tdata_get(tsd, ind, true);
+	if (unlikely(tdata == NULL))
+		return (NULL);
+	return (&tdata->decay_ticker);
+}
 #endif
 
 #include "jemalloc/internal/bitmap.h"
@@ -883,8 +895,8 @@ void	*iralloct(tsd_t *tsd, void *ptr, size_t oldsize, size_t size,
     size_t alignment, bool zero, tcache_t *tcache, arena_t *arena);
 void	*iralloc(tsd_t *tsd, void *ptr, size_t oldsize, size_t size,
     size_t alignment, bool zero);
-bool	ixalloc(void *ptr, size_t oldsize, size_t size, size_t extra,
-    size_t alignment, bool zero);
+bool	ixalloc(tsd_t *tsd, void *ptr, size_t oldsize, size_t size,
+    size_t extra, size_t alignment, bool zero);
 #endif
 
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_C_))
@@ -1150,8 +1162,8 @@ iralloc(tsd_t *tsd, void *ptr, size_t oldsize, size_t size, size_t alignment,
 }
 
 JEMALLOC_ALWAYS_INLINE bool
-ixalloc(void *ptr, size_t oldsize, size_t size, size_t extra, size_t alignment,
-    bool zero)
+ixalloc(tsd_t *tsd, void *ptr, size_t oldsize, size_t size, size_t extra,
+    size_t alignment, bool zero)
 {
 
 	assert(ptr != NULL);
@@ -1163,7 +1175,7 @@ ixalloc(void *ptr, size_t oldsize, size_t size, size_t extra, size_t alignment,
 		return (true);
 	}
 
-	return (arena_ralloc_no_move(ptr, oldsize, size, extra, zero));
+	return (arena_ralloc_no_move(tsd, ptr, oldsize, size, extra, zero));
 }
 #endif
 

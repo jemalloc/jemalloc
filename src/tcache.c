@@ -75,7 +75,7 @@ tcache_alloc_small_hard(tsd_t *tsd, arena_t *arena, tcache_t *tcache,
 {
 	void *ret;
 
-	arena_tcache_fill_small(arena, tbin, binind, config_prof ?
+	arena_tcache_fill_small(tsd, arena, tbin, binind, config_prof ?
 	    tcache->prof_accumbytes : 0);
 	if (config_prof)
 		tcache->prof_accumbytes = 0;
@@ -143,6 +143,7 @@ tcache_bin_flush_small(tsd_t *tsd, tcache_t *tcache, tcache_bin_t *tbin,
 			}
 		}
 		malloc_mutex_unlock(&bin->lock);
+		arena_decay_ticks(tsd, bin_arena, nflush - ndeferred);
 	}
 	if (config_stats && !merged_stats) {
 		/*
@@ -226,6 +227,7 @@ tcache_bin_flush_large(tsd_t *tsd, tcache_bin_t *tbin, szind_t binind,
 		malloc_mutex_unlock(&locked_arena->lock);
 		if (config_prof && idump)
 			prof_idump();
+		arena_decay_ticks(tsd, locked_arena, nflush - ndeferred);
 	}
 	if (config_stats && !merged_stats) {
 		/*

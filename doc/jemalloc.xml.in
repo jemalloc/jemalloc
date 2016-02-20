@@ -949,6 +949,20 @@ for (i = 0; i < nbins; i++) {
         number of CPUs, or one if there is a single CPU.</para></listitem>
       </varlistentry>
 
+      <varlistentry id="opt.purge">
+        <term>
+          <mallctl>opt.purge</mallctl>
+          (<type>const char *</type>)
+          <literal>r-</literal>
+        </term>
+        <listitem><para>Purge mode is &ldquo;ratio&rdquo; (default) or
+        &ldquo;decay&rdquo;.  See <link
+        linkend="opt.lg_dirty_mult"><mallctl>opt.lg_dirty_mult</mallctl></link>
+        for details of the ratio mode.  See <link
+        linkend="opt.decay_time"><mallctl>opt.decay_time</mallctl></link> for
+        details of the decay mode.</para></listitem>
+      </varlistentry>
+
       <varlistentry id="opt.lg_dirty_mult">
         <term>
           <mallctl>opt.lg_dirty_mult</mallctl>
@@ -969,6 +983,26 @@ for (i = 0; i < nbins; i++) {
         and <link
         linkend="arena.i.lg_dirty_mult"><mallctl>arena.&lt;i&gt;.lg_dirty_mult</mallctl></link>
         for related dynamic control options.</para></listitem>
+      </varlistentry>
+
+      <varlistentry id="opt.decay_time">
+        <term>
+          <mallctl>opt.decay_time</mallctl>
+          (<type>ssize_t</type>)
+          <literal>r-</literal>
+        </term>
+        <listitem><para>Approximate time in seconds from the creation of a set
+        of unused dirty pages until an equivalent set of unused dirty pages is
+        purged and/or reused.  The pages are incrementally purged according to a
+        sigmoidal decay curve that starts and ends with zero purge rate.  A
+        decay time of 0 causes all unused dirty pages to be purged immediately
+        upon creation.  A decay time of -1 disables purging.  The default decay
+        time is 10 seconds.  See <link
+        linkend="arenas.decay_time"><mallctl>arenas.decay_time</mallctl></link>
+        and <link
+        linkend="arena.i.decay_time"><mallctl>arena.&lt;i&gt;.decay_time</mallctl></link>
+        for related dynamic control options.
+        </para></listitem>
       </varlistentry>
 
       <varlistentry id="opt.stats_print">
@@ -1501,10 +1535,25 @@ malloc_conf = "xmalloc:true";]]></programlisting>
           (<type>void</type>)
           <literal>--</literal>
         </term>
-        <listitem><para>Purge unused dirty pages for arena &lt;i&gt;, or for
+        <listitem><para>Purge all unused dirty pages for arena &lt;i&gt;, or for
         all arenas if &lt;i&gt; equals <link
         linkend="arenas.narenas"><mallctl>arenas.narenas</mallctl></link>.
         </para></listitem>
+      </varlistentry>
+
+      <varlistentry id="arena.i.decay">
+        <term>
+          <mallctl>arena.&lt;i&gt;.decay</mallctl>
+          (<type>void</type>)
+          <literal>--</literal>
+        </term>
+        <listitem><para>Trigger decay-based purging of unused dirty pages for
+        arena &lt;i&gt;, or for all arenas if &lt;i&gt; equals <link
+        linkend="arenas.narenas"><mallctl>arenas.narenas</mallctl></link>.
+        The proportion of unused dirty pages to be purged depends on the current
+        time; see <link
+        linkend="opt.decay_time"><mallctl>opt.decay_time</mallctl></link> for
+        details.</para></listitem>
       </varlistentry>
 
       <varlistentry id="arena.i.dss">
@@ -1533,6 +1582,22 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         impose the new ratio.  See <link
         linkend="opt.lg_dirty_mult"><mallctl>opt.lg_dirty_mult</mallctl></link>
         for additional information.</para></listitem>
+      </varlistentry>
+
+      <varlistentry id="arena.i.decay_time">
+        <term>
+          <mallctl>arena.&lt;i&gt;.decay_time</mallctl>
+          (<type>ssize_t</type>)
+          <literal>rw</literal>
+        </term>
+        <listitem><para>Current per-arena approximate time in seconds from the
+        creation of a set of unused dirty pages until an equivalent set of
+        unused dirty pages is purged and/or reused.  Each time this interface is
+        set, all currently unused dirty pages are considered to have fully
+        decayed, which causes immediate purging of all unused dirty pages unless
+        the decay time is set to -1 (i.e. purging disabled).  See <link
+        linkend="opt.decay_time"><mallctl>opt.decay_time</mallctl></link> for
+        additional information.</para></listitem>
       </varlistentry>
 
       <varlistentry id="arena.i.chunk_hooks">
@@ -1767,6 +1832,21 @@ typedef struct {
         during arena creation.  See <link
         linkend="opt.lg_dirty_mult"><mallctl>opt.lg_dirty_mult</mallctl></link>
         for additional information.</para></listitem>
+      </varlistentry>
+
+      <varlistentry id="arenas.decay_time">
+        <term>
+          <mallctl>arenas.decay_time</mallctl>
+          (<type>ssize_t</type>)
+          <literal>rw</literal>
+        </term>
+        <listitem><para>Current default per-arena approximate time in seconds
+        from the creation of a set of unused dirty pages until an equivalent set
+        of unused dirty pages is purged and/or reused, used to initialize <link
+        linkend="arena.i.decay_time"><mallctl>arena.&lt;i&gt;.decay_time</mallctl></link>
+        during arena creation.  See <link
+        linkend="opt.decay_time"><mallctl>opt.decay_time</mallctl></link> for
+        additional information.</para></listitem>
       </varlistentry>
 
       <varlistentry id="arenas.quantum">
@@ -2110,6 +2190,19 @@ typedef struct {
         <listitem><para>Minimum ratio (log base 2) of active to dirty pages.
         See <link
         linkend="opt.lg_dirty_mult"><mallctl>opt.lg_dirty_mult</mallctl></link>
+        for details.</para></listitem>
+      </varlistentry>
+
+      <varlistentry id="stats.arenas.i.decay_time">
+        <term>
+          <mallctl>stats.arenas.&lt;i&gt;.decay_time</mallctl>
+          (<type>ssize_t</type>)
+          <literal>r-</literal>
+        </term>
+        <listitem><para>Approximate time in seconds from the creation of a set
+        of unused dirty pages until an equivalent set of unused dirty pages is
+        purged and/or reused.  See <link
+        linkend="opt.decay_time"><mallctl>opt.decay_time</mallctl></link>
         for details.</para></listitem>
       </varlistentry>
 

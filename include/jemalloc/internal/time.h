@@ -26,7 +26,12 @@ void	time_imultiply(struct timespec *time, uint64_t multiplier);
 void	time_idivide(struct timespec *time, uint64_t divisor);
 uint64_t	time_divide(const struct timespec *time,
     const struct timespec *divisor);
+#ifdef JEMALLOC_JET
+typedef bool (time_update_t)(struct timespec *);
+extern time_update_t *time_update;
+#else
 bool	time_update(struct timespec *time);
+#endif
 
 #endif /* JEMALLOC_H_EXTERNS */
 /******************************************************************************/
