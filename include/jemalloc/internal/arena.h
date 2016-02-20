@@ -31,6 +31,7 @@ typedef struct arena_chunk_s arena_chunk_t;
 typedef struct arena_bin_info_s arena_bin_info_t;
 typedef struct arena_bin_s arena_bin_t;
 typedef struct arena_s arena_t;
+typedef struct arena_tdata_s arena_tdata_t;
 
 #endif /* JEMALLOC_H_TYPES */
 /******************************************************************************/
@@ -402,6 +403,11 @@ struct arena_s {
 
 	/* bins is used to store trees of free regions. */
 	arena_bin_t		bins[NBINS];
+};
+
+/* Used in conjunction with tsd for fast arena-related context lookup. */
+struct arena_tdata_s {
+	arena_t			*arena;
 };
 #endif /* JEMALLOC_ARENA_STRUCTS_B */
 

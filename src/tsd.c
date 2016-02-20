@@ -113,7 +113,7 @@ malloc_tsd_boot0(void)
 	ncleanups = 0;
 	if (tsd_boot0())
 		return (true);
-	*tsd_arenas_cache_bypassp_get(tsd_fetch()) = true;
+	*tsd_arenas_tdata_bypassp_get(tsd_fetch()) = true;
 	return (false);
 }
 
@@ -122,7 +122,7 @@ malloc_tsd_boot1(void)
 {
 
 	tsd_boot1();
-	*tsd_arenas_cache_bypassp_get(tsd_fetch()) = false;
+	*tsd_arenas_tdata_bypassp_get(tsd_fetch()) = false;
 }
 
 #ifdef _WIN32

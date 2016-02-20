@@ -516,74 +516,99 @@ arena_unbind(tsd_t *tsd, unsigned ind)
 	tsd_arena_set(tsd, NULL);
 }
 
-arena_t *
-arena_get_hard(tsd_t *tsd, unsigned ind, bool init_if_missing)
+arena_tdata_t *
+arena_tdata_get_hard(tsd_t *tsd, unsigned ind)
 {
-	arena_t *arena;
-	arena_t **arenas_cache = tsd_arenas_cache_get(tsd);
-	unsigned narenas_cache = tsd_narenas_cache_get(tsd);
+	arena_tdata_t *tdata, *arenas_tdata_old;
+	arena_tdata_t *arenas_tdata = tsd_arenas_tdata_get(tsd);
+	unsigned narenas_tdata_old, i;
+	unsigned narenas_tdata = tsd_narenas_tdata_get(tsd);
 	unsigned narenas_actual = narenas_total_get();
 
-	/* Deallocate old cache if it's too small. */
-	if (arenas_cache != NULL && narenas_cache < narenas_actual) {
-		a0dalloc(arenas_cache);
-		arenas_cache = NULL;
-		narenas_cache = 0;
-		tsd_arenas_cache_set(tsd, arenas_cache);
-		tsd_narenas_cache_set(tsd, narenas_cache);
+	/*
+	 * Dissociate old tdata array (and set up for deallocation upon return)
+	 * if it's too small.
+	 */
+	if (arenas_tdata != NULL && narenas_tdata < narenas_actual) {
+		arenas_tdata_old = arenas_tdata;
+		narenas_tdata_old = narenas_tdata;
+		arenas_tdata = NULL;
+		narenas_tdata = 0;
+		tsd_arenas_tdata_set(tsd, arenas_tdata);
+		tsd_narenas_tdata_set(tsd, narenas_tdata);
+	} else {
+		arenas_tdata_old = NULL;
+		narenas_tdata_old = 0;
 	}
 
-	/* Allocate cache if it's missing. */
-	if (arenas_cache == NULL) {
-		bool *arenas_cache_bypassp = tsd_arenas_cache_bypassp_get(tsd);
-		assert(ind < narenas_actual || !init_if_missing);
-		narenas_cache = (ind < narenas_actual) ? narenas_actual : ind+1;
+	/* Allocate tdata array if it's missing. */
+	if (arenas_tdata == NULL) {
+		bool *arenas_tdata_bypassp = tsd_arenas_tdata_bypassp_get(tsd);
+		narenas_tdata = (ind < narenas_actual) ? narenas_actual : ind+1;
 
-		if (tsd_nominal(tsd) && !*arenas_cache_bypassp) {
-			*arenas_cache_bypassp = true;
-			arenas_cache = (arena_t **)a0malloc(sizeof(arena_t *) *
-			    narenas_cache);
-			*arenas_cache_bypassp = false;
+		if (tsd_nominal(tsd) && !*arenas_tdata_bypassp) {
+			*arenas_tdata_bypassp = true;
+			arenas_tdata = (arena_tdata_t *)a0malloc(
+			    sizeof(arena_tdata_t) * narenas_tdata);
+			*arenas_tdata_bypassp = false;
 		}
-		if (arenas_cache == NULL) {
-			/*
-			 * This function must always tell the truth, even if
-			 * it's slow, so don't let OOM, thread cleanup (note
-			 * tsd_nominal check), nor recursive allocation
-			 * avoidance (note arenas_cache_bypass check) get in the
-			 * way.
-			 */
-			if (ind >= narenas_actual)
-				return (NULL);
-			malloc_mutex_lock(&arenas_lock);
-			arena = arenas[ind];
-			malloc_mutex_unlock(&arenas_lock);
-			return (arena);
+		if (arenas_tdata == NULL) {
+			tdata = NULL;
+			goto label_return;
 		}
-		assert(tsd_nominal(tsd) && !*arenas_cache_bypassp);
-		tsd_arenas_cache_set(tsd, arenas_cache);
-		tsd_narenas_cache_set(tsd, narenas_cache);
+		assert(tsd_nominal(tsd) && !*arenas_tdata_bypassp);
+		tsd_arenas_tdata_set(tsd, arenas_tdata);
+		tsd_narenas_tdata_set(tsd, narenas_tdata);
 	}
 
 	/*
-	 * Copy to cache.  It's possible that the actual number of arenas has
-	 * increased since narenas_total_get() was called above, but that causes
-	 * no correctness issues unless two threads concurrently execute the
-	 * arenas.extend mallctl, which we trust mallctl synchronization to
+	 * Copy to tdata array.  It's possible that the actual number of arenas
+	 * has increased since narenas_total_get() was called above, but that
+	 * causes no correctness issues unless two threads concurrently execute
+	 * the arenas.extend mallctl, which we trust mallctl synchronization to
 	 * prevent.
 	 */
 	malloc_mutex_lock(&arenas_lock);
-	memcpy(arenas_cache, arenas, sizeof(arena_t *) * narenas_actual);
+	for (i = 0; i < narenas_actual; i++)
+		arenas_tdata[i].arena = arenas[i];
 	malloc_mutex_unlock(&arenas_lock);
-	if (narenas_cache > narenas_actual) {
-		memset(&arenas_cache[narenas_actual], 0, sizeof(arena_t *) *
-		    (narenas_cache - narenas_actual));
+	if (narenas_tdata > narenas_actual) {
+		memset(&arenas_tdata[narenas_actual], 0, sizeof(arena_tdata_t)
+		    * (narenas_tdata - narenas_actual));
 	}
 
-	/* Read the refreshed cache, and init the arena if necessary. */
-	arena = arenas_cache[ind];
-	if (init_if_missing && arena == NULL)
-		arena = arenas_cache[ind] = arena_init(ind);
+	/* Read the refreshed tdata array. */
+	tdata = &arenas_tdata[ind];
+label_return:
+	if (arenas_tdata_old != NULL)
+		a0dalloc(arenas_tdata_old);
+	return (tdata);
+}
+
+arena_t *
+arena_get_hard(tsd_t *tsd, unsigned ind, bool init_if_missing,
+    arena_tdata_t *tdata)
+{
+	arena_t *arena;
+	unsigned narenas_actual;
+
+	if (init_if_missing && tdata != NULL) {
+		tdata->arena = arena_init(ind);
+		if (tdata->arena != NULL)
+			return (tdata->arena);
+	}
+
+	/*
+	 * This function must always tell the truth, even if it's slow, so don't
+	 * let OOM, thread cleanup (note tsd_nominal check), nor recursive
+	 * allocation avoidance (note arenas_tdata_bypass check) get in the way.
+	 */
+	narenas_actual = narenas_total_get();
+	if (ind >= narenas_actual)
+		return (NULL);
+	malloc_mutex_lock(&arenas_lock);
+	arena = arenas[ind];
+	malloc_mutex_unlock(&arenas_lock);
 	return (arena);
 }
 
@@ -674,26 +699,26 @@ arena_cleanup(tsd_t *tsd)
 }
 
 void
-arenas_cache_cleanup(tsd_t *tsd)
+arenas_tdata_cleanup(tsd_t *tsd)
 {
-	arena_t **arenas_cache;
+	arena_tdata_t *arenas_tdata;
 
-	arenas_cache = tsd_arenas_cache_get(tsd);
-	if (arenas_cache != NULL) {
-		tsd_arenas_cache_set(tsd, NULL);
-		a0dalloc(arenas_cache);
+	arenas_tdata = tsd_arenas_tdata_get(tsd);
+	if (arenas_tdata != NULL) {
+		tsd_arenas_tdata_set(tsd, NULL);
+		a0dalloc(arenas_tdata);
 	}
 }
 
 void
-narenas_cache_cleanup(tsd_t *tsd)
+narenas_tdata_cleanup(tsd_t *tsd)
 {
 
 	/* Do nothing. */
 }
 
 void
-arenas_cache_bypass_cleanup(tsd_t *tsd)
+arenas_tdata_bypass_cleanup(tsd_t *tsd)
 {
 
 	/* Do nothing. */

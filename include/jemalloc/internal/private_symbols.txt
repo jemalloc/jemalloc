@@ -93,11 +93,13 @@ arena_redzone_corruption
 arena_run_regind
 arena_run_to_miscelm
 arena_salloc
-arenas_cache_bypass_cleanup
-arenas_cache_cleanup
+arenas_tdata_bypass_cleanup
+arenas_tdata_cleanup
 arena_sdalloc
 arena_stats_merge
 arena_tcache_fill_small
+arena_tdata_get
+arena_tdata_get_hard
 atomic_add_p
 atomic_add_u
 atomic_add_uint32
@@ -311,7 +313,7 @@ map_bias
 map_misc_offset
 mb_write
 mutex_boot
-narenas_cache_cleanup
+narenas_tdata_cleanup
 narenas_total_get
 ncpus
 nhbins
