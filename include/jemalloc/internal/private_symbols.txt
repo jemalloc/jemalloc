@@ -362,6 +362,8 @@ pages_unmap
 pow2_ceil_u32
 pow2_ceil_u64
 pow2_ceil_zu
+prng_lg_range
+prng_range
 prof_active_get
 prof_active_get_unlocked
 prof_active_set
