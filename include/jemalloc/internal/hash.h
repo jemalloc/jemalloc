@@ -1,6 +1,6 @@
 /*
  * The following hash function is based on MurmurHash3, placed into the public
- * domain by Austin Appleby.  See http://code.google.com/p/smhasher/ for
+ * domain by Austin Appleby.  See https://github.com/aappleby/smhasher for
  * details.
  */
 /******************************************************************************/
@@ -49,12 +49,28 @@ JEMALLOC_INLINE uint32_t
 hash_get_block_32(const uint32_t *p, int i)
 {
 
+	/* Handle unaligned read. */
+	if (unlikely((uintptr_t)p & (sizeof(uint32_t)-1)) != 0) {
+		uint32_t ret;
+
+		memcpy(&ret, &p[i], sizeof(uint32_t));
+		return (ret);
+	}
+
 	return (p[i]);
 }
 
 JEMALLOC_INLINE uint64_t
 hash_get_block_64(const uint64_t *p, int i)
 {
+
+	/* Handle unaligned read. */
+	if (unlikely((uintptr_t)p & (sizeof(uint64_t)-1)) != 0) {
+		uint64_t ret;
+
+		memcpy(&ret, &p[i], sizeof(uint64_t));
+		return (ret);
+	}
 
 	return (p[i]);
 }
