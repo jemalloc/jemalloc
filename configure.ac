@@ -166,13 +166,18 @@ if test "x${je_cv_msvc}" = "xyes" -a "x${ac_cv_header_inttypes_h}" = "xno"; then
   CPPFLAGS="$CPPFLAGS -I${srcdir}/include/msvc_compat/C99"
 fi
 
-AC_CHECK_SIZEOF([void *])
-if test "x${ac_cv_sizeof_void_p}" = "x8" ; then
-  LG_SIZEOF_PTR=3
-elif test "x${ac_cv_sizeof_void_p}" = "x4" ; then
-  LG_SIZEOF_PTR=2
+if test "x${je_cv_msvc}" = "xyes" ; then
+  LG_SIZEOF_PTR=LG_SIZEOF_PTR_WIN
+  AC_MSG_RESULT([Using a predefined value for sizeof(void *): 4 for 32-bit, 8 for 64-bit])
 else
-  AC_MSG_ERROR([Unsupported pointer size: ${ac_cv_sizeof_void_p}])
+  AC_CHECK_SIZEOF([void *])
+  if test "x${ac_cv_sizeof_void_p}" = "x8" ; then
+    LG_SIZEOF_PTR=3
+  elif test "x${ac_cv_sizeof_void_p}" = "x4" ; then
+    LG_SIZEOF_PTR=2
+  else
+    AC_MSG_ERROR([Unsupported pointer size: ${ac_cv_sizeof_void_p}])
+  fi
 fi
 AC_DEFINE_UNQUOTED([LG_SIZEOF_PTR], [$LG_SIZEOF_PTR])
 
@@ -213,12 +218,22 @@ dnl CPU-specific settings.
 CPU_SPINWAIT=""
 case "${host_cpu}" in
   i686|x86_64)
-	AC_CACHE_VAL([je_cv_pause],
-	  [JE_COMPILABLE([pause instruction], [],
-	                [[__asm__ volatile("pause"); return 0;]],
-	                [je_cv_pause])])
-	if test "x${je_cv_pause}" = "xyes" ; then
-	    CPU_SPINWAIT='__asm__ volatile("pause")'
+	if test "x${je_cv_msvc}" = "xyes" ; then
+	    AC_CACHE_VAL([je_cv_pause_msvc],
+	      [JE_COMPILABLE([pause instruction MSVC], [],
+	                [[_mm_pause(); return 0;]],
+	                [je_cv_pause_msvc])])
+	    if test "x${je_cv_pause_msvc}" = "xyes" ; then
+		CPU_SPINWAIT='_mm_pause()'
+	    fi
+	else
+		AC_CACHE_VAL([je_cv_pause],
+		  [JE_COMPILABLE([pause instruction], [],
+						[[__asm__ volatile("pause"); return 0;]],
+						[je_cv_pause])])
+		if test "x${je_cv_pause}" = "xyes" ; then
+			CPU_SPINWAIT='__asm__ volatile("pause")'
+		fi
 	fi
 	;;
   powerpc)
@@ -1111,7 +1126,7 @@ if test "x$LG_PAGE" = "xdetect"; then
     if (f == NULL) {
 	return 1;
     }
-    fprintf(f, "%d\n", result);
+    fprintf(f, "%d", result);
     fclose(f);
 
     return 0;
