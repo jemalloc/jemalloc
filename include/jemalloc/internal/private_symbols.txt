@@ -35,8 +35,8 @@ arena_lg_dirty_mult_default_set
 arena_lg_dirty_mult_get
 arena_lg_dirty_mult_set
 arena_malloc
+arena_malloc_hard
 arena_malloc_large
-arena_malloc_small
 arena_mapbits_allocated_get
 arena_mapbits_binind_get
 arena_mapbits_decommitted_get

@@ -461,10 +461,10 @@ extern arena_dalloc_junk_small_t *arena_dalloc_junk_small;
 void	arena_dalloc_junk_small(void *ptr, arena_bin_info_t *bin_info);
 #endif
 void	arena_quarantine_junk_small(void *ptr, size_t usize);
-void	*arena_malloc_small(arena_t *arena, size_t size, szind_t ind,
-    bool zero);
-void	*arena_malloc_large(arena_t *arena, size_t size, szind_t ind,
-    bool zero);
+void	*arena_malloc_large(arena_t *arena, size_t size,
+    szind_t ind, bool zero);
+void	*arena_malloc_hard(tsd_t *tsd, arena_t *arena, size_t size, szind_t ind,
+    bool zero, tcache_t *tcache);
 void	*arena_palloc(tsd_t *tsd, arena_t *arena, size_t usize,
     size_t alignment, bool zero, tcache_t *tcache);
 void	arena_prof_promoted(const void *ptr, size_t size);
@@ -1160,8 +1160,8 @@ arena_prof_tctx_reset(const void *ptr, size_t usize, const void *old_ptr,
 }
 
 JEMALLOC_ALWAYS_INLINE void *
-arena_malloc(tsd_t *tsd, arena_t *arena, size_t size, szind_t ind,
-    bool zero, tcache_t *tcache, bool slow_path)
+arena_malloc(tsd_t *tsd, arena_t *arena, size_t size, szind_t ind, bool zero,
+    tcache_t *tcache, bool slow_path)
 {
 
 	assert(size != 0);
@@ -1179,15 +1179,7 @@ arena_malloc(tsd_t *tsd, arena_t *arena, size_t size, szind_t ind,
 		assert(size > tcache_maxclass);
 	}
 
-	arena = arena_choose(tsd, arena);
-	if (unlikely(arena == NULL))
-		return (NULL);
-
-	if (likely(size <= SMALL_MAXCLASS))
-		return (arena_malloc_small(arena, size, ind, zero));
-	if (likely(size <= large_maxclass))
-		return (arena_malloc_large(arena, size, ind, zero));
-	return (huge_malloc(tsd, arena, size, zero, tcache));
+	return (arena_malloc_hard(tsd, arena, size, ind, zero, tcache));
 }
 
 JEMALLOC_ALWAYS_INLINE arena_t *

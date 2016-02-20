@@ -2123,7 +2123,7 @@ arena_quarantine_junk_small(void *ptr, size_t usize)
 	arena_redzones_validate(ptr, bin_info, true);
 }
 
-void *
+static void *
 arena_malloc_small(arena_t *arena, size_t size, szind_t binind, bool zero)
 {
 	void *ret;
@@ -2234,6 +2234,22 @@ arena_malloc_large(arena_t *arena, size_t size, szind_t binind, bool zero)
 	}
 
 	return (ret);
+}
+
+void *
+arena_malloc_hard(tsd_t *tsd, arena_t *arena, size_t size, szind_t ind,
+    bool zero, tcache_t *tcache)
+{
+
+	arena = arena_choose(tsd, arena);
+	if (unlikely(arena == NULL))
+		return (NULL);
+
+	if (likely(size <= SMALL_MAXCLASS))
+		return (arena_malloc_small(arena, size, ind, zero));
+	if (likely(size <= large_maxclass))
+		return (arena_malloc_large(arena, size, ind, zero));
+	return (huge_malloc(tsd, arena, size, zero, tcache));
 }
 
 /* Only handles large allocations that require more than page alignment. */
