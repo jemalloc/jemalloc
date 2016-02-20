@@ -24,7 +24,6 @@ TEST_BEGIN(test_decay_ticks)
 	unsigned tick0, tick1;
 	size_t sz, huge0, large0;
 	void *p;
-	unsigned tcache_ind;
 
 	test_skip_if(opt_purge != purge_mode_decay);
 
@@ -37,6 +36,12 @@ TEST_BEGIN(test_decay_ticks)
 	    "Unexpected mallctl failure");
 	assert_d_eq(mallctl("arenas.lrun.0.size", &large0, &sz, NULL, 0), 0,
 	    "Unexpected mallctl failure");
+
+	/*
+	 * Test the standard APIs using a huge size class, since we can't
+	 * control tcache interactions (except by completely disabling tcache
+	 * for the entire test program).
+	 */
 
 	/* malloc(). */
 	tick0 = ticker_read(decay_ticker);
@@ -95,129 +100,99 @@ TEST_BEGIN(test_decay_ticks)
 	tick1 = ticker_read(decay_ticker);
 	assert_u32_ne(tick1, tick0, "Expected ticker to tick during realloc()");
 
-	/* Huge mallocx(). */
-	tick0 = ticker_read(decay_ticker);
-	p = mallocx(huge0, 0);
-	assert_ptr_not_null(p, "Unexpected mallocx() failure");
-	tick1 = ticker_read(decay_ticker);
-	assert_u32_ne(tick1, tick0,
-	    "Expected ticker to tick during huge mallocx()");
-	/* Huge rallocx(). */
-	tick0 = ticker_read(decay_ticker);
-	p = rallocx(p, huge0, 0);
-	assert_ptr_not_null(p, "Unexpected rallocx() failure");
-	tick1 = ticker_read(decay_ticker);
-	assert_u32_ne(tick1, tick0,
-	    "Expected ticker to tick during huge rallocx()");
-	/* Huge xallocx(). */
-	tick0 = ticker_read(decay_ticker);
-	xallocx(p, huge0, 0, 0);
-	tick1 = ticker_read(decay_ticker);
-	assert_u32_ne(tick1, tick0,
-	    "Expected ticker to tick during huge xallocx()");
-	/* Huge dallocx(). */
-	tick0 = ticker_read(decay_ticker);
-	dallocx(p, 0);
-	tick1 = ticker_read(decay_ticker);
-	assert_u32_ne(tick1, tick0,
-	    "Expected ticker to tick during huge dallocx()");
-	/* Huge sdallocx(). */
-	p = mallocx(huge0, 0);
-	assert_ptr_not_null(p, "Unexpected mallocx() failure");
-	tick0 = ticker_read(decay_ticker);
-	sdallocx(p, huge0, 0);
-	tick1 = ticker_read(decay_ticker);
-	assert_u32_ne(tick1, tick0,
-	    "Expected ticker to tick during huge sdallocx()");
+	/*
+	 * Test the *allocx() APIs using huge, large, and small size classes,
+	 * with tcache explicitly disabled.
+	 */
+	{
+		unsigned i;
+		size_t allocx_sizes[3];
+		allocx_sizes[0] = huge0;
+		allocx_sizes[1] = large0;
+		allocx_sizes[2] = 1;
 
-	/* Large mallocx(). */
-	tick0 = ticker_read(decay_ticker);
-	p = mallocx(large0, MALLOCX_TCACHE_NONE);
-	assert_ptr_not_null(p, "Unexpected mallocx() failure");
-	tick1 = ticker_read(decay_ticker);
-	assert_u32_ne(tick1, tick0,
-	    "Expected ticker to tick during large mallocx()");
-	/* Large rallocx(). */
-	tick0 = ticker_read(decay_ticker);
-	p = rallocx(p, large0, MALLOCX_TCACHE_NONE);
-	assert_ptr_not_null(p, "Unexpected rallocx() failure");
-	tick1 = ticker_read(decay_ticker);
-	assert_u32_ne(tick1, tick0,
-	    "Expected ticker to tick during large rallocx()");
-	/* Large xallocx(). */
-	tick0 = ticker_read(decay_ticker);
-	xallocx(p, large0, 0, MALLOCX_TCACHE_NONE);
-	tick1 = ticker_read(decay_ticker);
-	assert_u32_ne(tick1, tick0,
-	    "Expected ticker to tick during large xallocx()");
-	/* Large dallocx(). */
-	tick0 = ticker_read(decay_ticker);
-	dallocx(p, MALLOCX_TCACHE_NONE);
-	tick1 = ticker_read(decay_ticker);
-	assert_u32_ne(tick1, tick0,
-	    "Expected ticker to tick during large dallocx()");
-	/* Large sdallocx(). */
-	p = mallocx(large0, MALLOCX_TCACHE_NONE);
-	assert_ptr_not_null(p, "Unexpected mallocx() failure");
-	tick0 = ticker_read(decay_ticker);
-	sdallocx(p, large0, MALLOCX_TCACHE_NONE);
-	tick1 = ticker_read(decay_ticker);
-	assert_u32_ne(tick1, tick0,
-	    "Expected ticker to tick during large sdallocx()");
+		for (i = 0; i < sizeof(allocx_sizes) / sizeof(size_t); i++) {
+			sz = allocx_sizes[i];
 
-	/* Small mallocx(). */
-	tick0 = ticker_read(decay_ticker);
-	p = mallocx(1, MALLOCX_TCACHE_NONE);
-	assert_ptr_not_null(p, "Unexpected mallocx() failure");
-	tick1 = ticker_read(decay_ticker);
-	assert_u32_ne(tick1, tick0,
-	    "Expected ticker to tick during small mallocx()");
-	/* Small rallocx(). */
-	tick0 = ticker_read(decay_ticker);
-	p = rallocx(p, 1, MALLOCX_TCACHE_NONE);
-	assert_ptr_not_null(p, "Unexpected rallocx() failure");
-	tick1 = ticker_read(decay_ticker);
-	assert_u32_ne(tick1, tick0,
-	    "Expected ticker to tick during small rallocx()");
-	/* Small xallocx(). */
-	tick0 = ticker_read(decay_ticker);
-	xallocx(p, 1, 0, MALLOCX_TCACHE_NONE);
-	tick1 = ticker_read(decay_ticker);
-	assert_u32_ne(tick1, tick0,
-	    "Expected ticker to tick during small xallocx()");
-	/* Small dallocx(). */
-	tick0 = ticker_read(decay_ticker);
-	dallocx(p, MALLOCX_TCACHE_NONE);
-	tick1 = ticker_read(decay_ticker);
-	assert_u32_ne(tick1, tick0,
-	    "Expected ticker to tick during small dallocx()");
-	/* Small sdallocx(). */
-	p = mallocx(1, MALLOCX_TCACHE_NONE);
-	assert_ptr_not_null(p, "Unexpected mallocx() failure");
-	tick0 = ticker_read(decay_ticker);
-	sdallocx(p, 1, MALLOCX_TCACHE_NONE);
-	tick1 = ticker_read(decay_ticker);
-	assert_u32_ne(tick1, tick0,
-	    "Expected ticker to tick during small sdallocx()");
+			/* mallocx(). */
+			tick0 = ticker_read(decay_ticker);
+			p = mallocx(sz, MALLOCX_TCACHE_NONE);
+			assert_ptr_not_null(p, "Unexpected mallocx() failure");
+			tick1 = ticker_read(decay_ticker);
+			assert_u32_ne(tick1, tick0,
+			    "Expected ticker to tick during mallocx() (sz=%zu)",
+			    sz);
+			/* rallocx(). */
+			tick0 = ticker_read(decay_ticker);
+			p = rallocx(p, sz, MALLOCX_TCACHE_NONE);
+			assert_ptr_not_null(p, "Unexpected rallocx() failure");
+			tick1 = ticker_read(decay_ticker);
+			assert_u32_ne(tick1, tick0,
+			    "Expected ticker to tick during rallocx() (sz=%zu)",
+			    sz);
+			/* xallocx(). */
+			tick0 = ticker_read(decay_ticker);
+			xallocx(p, sz, 0, MALLOCX_TCACHE_NONE);
+			tick1 = ticker_read(decay_ticker);
+			assert_u32_ne(tick1, tick0,
+			    "Expected ticker to tick during xallocx() (sz=%zu)",
+			    sz);
+			/* dallocx(). */
+			tick0 = ticker_read(decay_ticker);
+			dallocx(p, MALLOCX_TCACHE_NONE);
+			tick1 = ticker_read(decay_ticker);
+			assert_u32_ne(tick1, tick0,
+			    "Expected ticker to tick during dallocx() (sz=%zu)",
+			    sz);
+			/* sdallocx(). */
+			p = mallocx(sz, MALLOCX_TCACHE_NONE);
+			assert_ptr_not_null(p, "Unexpected mallocx() failure");
+			tick0 = ticker_read(decay_ticker);
+			sdallocx(p, sz, MALLOCX_TCACHE_NONE);
+			tick1 = ticker_read(decay_ticker);
+			assert_u32_ne(tick1, tick0,
+			    "Expected ticker to tick during sdallocx() "
+			    "(sz=%zu)", sz);
+		}
+	}
 
-	/* tcache fill. */
-	sz = sizeof(unsigned);
-	assert_d_eq(mallctl("tcache.create", &tcache_ind, &sz, NULL, 0), 0,
-	    "Unexpected mallctl failure");
-	tick0 = ticker_read(decay_ticker);
-	p = mallocx(1, MALLOCX_TCACHE(tcache_ind));
-	assert_ptr_not_null(p, "Unexpected mallocx() failure");
-	tick1 = ticker_read(decay_ticker);
-	assert_u32_ne(tick1, tick0,
-	    "Expected ticker to tick during tcache fill");
-	/* tcache flush. */
-	dallocx(p, MALLOCX_TCACHE(tcache_ind));
-	tick0 = ticker_read(decay_ticker);
-	assert_d_eq(mallctl("tcache.flush", NULL, NULL, &tcache_ind,
-	    sizeof(unsigned)), 0, "Unexpected mallctl failure");
-	tick1 = ticker_read(decay_ticker);
-	assert_u32_ne(tick1, tick0,
-	    "Expected ticker to tick during tcache flush");
+	/*
+	 * Test tcache fill/flush interactions for large and small size classes,
+	 * using an explicit tcache.
+	 */
+	{
+		unsigned tcache_ind, i;
+		size_t tcache_sizes[2];
+		tcache_sizes[0] = large0;
+		tcache_sizes[1] = 1;
+
+		sz = sizeof(unsigned);
+		assert_d_eq(mallctl("tcache.create", &tcache_ind, &sz, NULL, 0),
+		    0, "Unexpected mallctl failure");
+
+		for (i = 0; i < sizeof(tcache_sizes) / sizeof(size_t); i++) {
+			sz = tcache_sizes[i];
+
+			/* tcache fill. */
+			tick0 = ticker_read(decay_ticker);
+			p = mallocx(sz, MALLOCX_TCACHE(tcache_ind));
+			assert_ptr_not_null(p, "Unexpected mallocx() failure");
+			tick1 = ticker_read(decay_ticker);
+			assert_u32_ne(tick1, tick0,
+			    "Expected ticker to tick during tcache fill "
+			    "(sz=%zu)", sz);
+			/* tcache flush. */
+			dallocx(p, MALLOCX_TCACHE(tcache_ind));
+			tick0 = ticker_read(decay_ticker);
+			assert_d_eq(mallctl("tcache.flush", NULL, NULL,
+			    &tcache_ind, sizeof(unsigned)), 0,
+			    "Unexpected mallctl failure");
+			tick1 = ticker_read(decay_ticker);
+			assert_u32_ne(tick1, tick0,
+			    "Expected ticker to tick during tcache flush "
+			    "(sz=%zu)", sz);
+		}
+	}
 }
 TEST_END
 
