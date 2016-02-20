@@ -2810,20 +2810,19 @@ arena_ralloc_no_move(void *ptr, size_t oldsize, size_t size, size_t extra,
 		if (oldsize <= SMALL_MAXCLASS) {
 			assert(arena_bin_info[size2index(oldsize)].reg_size ==
 			    oldsize);
-			if ((usize_max <= SMALL_MAXCLASS &&
-			    size2index(usize_max) == size2index(oldsize)) ||
-			    (size <= oldsize && usize_max >= oldsize))
-				return (false);
+			if ((usize_max > SMALL_MAXCLASS ||
+			    size2index(usize_max) != size2index(oldsize)) &&
+			    (size > oldsize || usize_max < oldsize))
+				return (true);
 		} else {
-			if (usize_max > SMALL_MAXCLASS) {
-				if (!arena_ralloc_large(ptr, oldsize, usize_min,
-				    usize_max, zero))
-					return (false);
-			}
+			if (usize_max <= SMALL_MAXCLASS)
+				return (true);
+			if (arena_ralloc_large(ptr, oldsize, usize_min,
+			    usize_max, zero))
+				return (true);
 		}
 
-		/* Reallocation would require a move. */
-		return (true);
+		return (false);
 	} else {
 		return (huge_ralloc_no_move(ptr, oldsize, usize_min, usize_max,
 		    zero));
