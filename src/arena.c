@@ -23,7 +23,7 @@ unsigned	nhclasses; /* Number of huge size classes. */
  * definition.
  */
 
-static void	arena_purge(arena_t *arena, bool all);
+static void	arena_purge_to_limit(arena_t *arena, size_t ndirty_limit);
 static void	arena_run_dalloc(arena_t *arena, arena_run_t *run, bool dirty,
     bool cleaned, bool decommitted);
 static void	arena_dalloc_bin_run(arena_t *arena, arena_chunk_t *chunk,
@@ -1205,16 +1205,14 @@ arena_lg_dirty_mult_set(arena_t *arena, ssize_t lg_dirty_mult)
 	return (false);
 }
 
-void
-arena_maybe_purge(arena_t *arena)
+static void
+arena_maybe_purge_ratio(arena_t *arena)
 {
 
 	/* Don't purge if the option is disabled. */
 	if (arena->lg_dirty_mult < 0)
 		return;
-	/* Don't recursively purge. */
-	if (arena->purging)
-		return;
+
 	/*
 	 * Iterate, since preventing recursive purging could otherwise leave too
 	 * many dirty pages.
@@ -1229,8 +1227,19 @@ arena_maybe_purge(arena_t *arena)
 		 */
 		if (arena->ndirty <= threshold)
 			return;
-		arena_purge(arena, false);
+		arena_purge_to_limit(arena, threshold);
 	}
+}
+
+void
+arena_maybe_purge(arena_t *arena)
+{
+
+	/* Don't recursively purge. */
+	if (arena->purging)
+		return;
+
+	arena_maybe_purge_ratio(arena);
 }
 
 static size_t
@@ -1268,35 +1277,15 @@ arena_dirty_count(arena_t *arena)
 }
 
 static size_t
-arena_compute_npurge(arena_t *arena, bool all)
-{
-	size_t npurge;
-
-	/*
-	 * Compute the minimum number of pages that this thread should try to
-	 * purge.
-	 */
-	if (!all) {
-		size_t threshold = (arena->nactive >> arena->lg_dirty_mult);
-		threshold = threshold < chunk_npages ? chunk_npages : threshold;
-
-		npurge = arena->ndirty - threshold;
-	} else
-		npurge = arena->ndirty;
-
-	return (npurge);
-}
-
-static size_t
-arena_stash_dirty(arena_t *arena, chunk_hooks_t *chunk_hooks, bool all,
-    size_t npurge, arena_runs_dirty_link_t *purge_runs_sentinel,
+arena_stash_dirty(arena_t *arena, chunk_hooks_t *chunk_hooks,
+    size_t ndirty_limit, arena_runs_dirty_link_t *purge_runs_sentinel,
     extent_node_t *purge_chunks_sentinel)
 {
 	arena_runs_dirty_link_t *rdelm, *rdelm_next;
 	extent_node_t *chunkselm;
 	size_t nstashed = 0;
 
-	/* Stash at least npurge pages. */
+	/* Stash runs/chunks according to ndirty_limit. */
 	for (rdelm = qr_next(&arena->runs_dirty, rd_link),
 	    chunkselm = qr_next(&arena->chunks_cache, cc_link);
 	    rdelm != &arena->runs_dirty; rdelm = rdelm_next) {
@@ -1307,6 +1296,8 @@ arena_stash_dirty(arena_t *arena, chunk_hooks_t *chunk_hooks, bool all,
 			extent_node_t *chunkselm_next;
 			bool zero;
 			UNUSED void *chunk;
+
+			npages = extent_node_size_get(chunkselm) >> LG_PAGE;
 
 			chunkselm_next = qr_next(chunkselm, cc_link);
 			/*
@@ -1322,7 +1313,8 @@ arena_stash_dirty(arena_t *arena, chunk_hooks_t *chunk_hooks, bool all,
 			assert(zero == extent_node_zeroed_get(chunkselm));
 			extent_node_dirty_insert(chunkselm, purge_runs_sentinel,
 			    purge_chunks_sentinel);
-			npages = extent_node_size_get(chunkselm) >> LG_PAGE;
+			assert(npages == (extent_node_size_get(chunkselm) >>
+			    LG_PAGE));
 			chunkselm = chunkselm_next;
 		} else {
 			arena_chunk_t *chunk =
@@ -1360,7 +1352,7 @@ arena_stash_dirty(arena_t *arena, chunk_hooks_t *chunk_hooks, bool all,
 		}
 
 		nstashed += npages;
-		if (!all && nstashed >= npurge)
+		if (arena->ndirty - nstashed <= ndirty_limit)
 			break;
 	}
 
@@ -1501,10 +1493,10 @@ arena_unstash_purged(arena_t *arena, chunk_hooks_t *chunk_hooks,
 }
 
 static void
-arena_purge(arena_t *arena, bool all)
+arena_purge_to_limit(arena_t *arena, size_t ndirty_limit)
 {
 	chunk_hooks_t chunk_hooks = chunk_hooks_get(arena);
-	size_t npurge, npurgeable, npurged;
+	size_t npurge, npurged;
 	arena_runs_dirty_link_t purge_runs_sentinel;
 	extent_node_t purge_chunks_sentinel;
 
@@ -1518,24 +1510,26 @@ arena_purge(arena_t *arena, bool all)
 		size_t ndirty = arena_dirty_count(arena);
 		assert(ndirty == arena->ndirty);
 	}
-	assert((arena->nactive >> arena->lg_dirty_mult) < arena->ndirty || all);
+	assert((arena->nactive >> arena->lg_dirty_mult) < arena->ndirty ||
+	    ndirty_limit == 0);
+
+	qr_new(&purge_runs_sentinel, rd_link);
+	extent_node_dirty_linkage_init(&purge_chunks_sentinel);
+
+	npurge = arena_stash_dirty(arena, &chunk_hooks, ndirty_limit,
+	    &purge_runs_sentinel, &purge_chunks_sentinel);
+	if (npurge == 0)
+		goto label_return;
+	npurged = arena_purge_stashed(arena, &chunk_hooks, &purge_runs_sentinel,
+	    &purge_chunks_sentinel);
+	assert(npurged == npurge);
+	arena_unstash_purged(arena, &chunk_hooks, &purge_runs_sentinel,
+	    &purge_chunks_sentinel);
 
 	if (config_stats)
 		arena->stats.npurge++;
 
-	npurge = arena_compute_npurge(arena, all);
-	qr_new(&purge_runs_sentinel, rd_link);
-	extent_node_dirty_linkage_init(&purge_chunks_sentinel);
-
-	npurgeable = arena_stash_dirty(arena, &chunk_hooks, all, npurge,
-	    &purge_runs_sentinel, &purge_chunks_sentinel);
-	assert(npurgeable >= npurge);
-	npurged = arena_purge_stashed(arena, &chunk_hooks, &purge_runs_sentinel,
-	    &purge_chunks_sentinel);
-	assert(npurged == npurgeable);
-	arena_unstash_purged(arena, &chunk_hooks, &purge_runs_sentinel,
-	    &purge_chunks_sentinel);
-
+label_return:
 	arena->purging = false;
 }
 
@@ -1544,7 +1538,7 @@ arena_purge_all(arena_t *arena)
 {
 
 	malloc_mutex_lock(&arena->lock);
-	arena_purge(arena, true);
+	arena_purge_to_limit(arena, 0);
 	malloc_mutex_unlock(&arena->lock);
 }
 
