@@ -1306,7 +1306,8 @@ arena_sdalloc(tsd_t *tsd, void *ptr, size_t size, tcache_t *tcache)
 		if (config_prof && opt_prof) {
 			size_t pageind = ((uintptr_t)ptr - (uintptr_t)chunk) >>
 			    LG_PAGE;
-			assert(arena_mapbits_allocated_get(chunk, pageind) != 0);
+			assert(arena_mapbits_allocated_get(chunk, pageind) !=
+			    0);
 			if (arena_mapbits_large_get(chunk, pageind) != 0) {
 				/*
 				 * Make sure to use promoted size, not request
@@ -1322,7 +1323,8 @@ arena_sdalloc(tsd_t *tsd, void *ptr, size_t size, tcache_t *tcache)
 			/* Small allocation. */
 			if (likely(tcache != NULL)) {
 				szind_t binind = size2index(size);
-				tcache_dalloc_small(tsd, tcache, ptr, binind, true);
+				tcache_dalloc_small(tsd, tcache, ptr, binind,
+				    true);
 			} else {
 				size_t pageind = ((uintptr_t)ptr -
 				    (uintptr_t)chunk) >> LG_PAGE;
@@ -1333,9 +1335,10 @@ arena_sdalloc(tsd_t *tsd, void *ptr, size_t size, tcache_t *tcache)
 			assert(config_cache_oblivious || ((uintptr_t)ptr &
 			    PAGE_MASK) == 0);
 
-			if (likely(tcache != NULL) && size <= tcache_maxclass)
-				tcache_dalloc_large(tsd, tcache, ptr, size, true);
-			else {
+			if (likely(tcache != NULL) && size <= tcache_maxclass) {
+				tcache_dalloc_large(tsd, tcache, ptr, size,
+				    true);
+			} else {
 				arena_dalloc_large(extent_node_arena_get(
 				    &chunk->node), chunk, ptr);
 			}
