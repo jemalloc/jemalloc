@@ -161,12 +161,15 @@ time_update(struct timespec *time)
 	time_copy(&old_time, time);
 
 #ifdef _WIN32
-	FILETIME ft;
-	uint64_t ticks;
-	GetSystemTimeAsFileTime(&ft);
-	ticks = (ft.dwHighDateTime << 32) | ft.dWLowDateTime;
-	time->tv_sec = ticks / 10000;
-	time->tv_nsec = ((ticks % 10000) * 100);
+	{
+		FILETIME ft;
+		uint64_t ticks;
+		GetSystemTimeAsFileTime(&ft);
+		ticks = (((uint64_t)ft.dwHighDateTime) << 32) |
+		    ft.dwLowDateTime;
+		time->tv_sec = ticks / 10000000;
+		time->tv_nsec = ((ticks % 10000000) * 100);
+	}
 #elif JEMALLOC_CLOCK_GETTIME
 	if (sysconf(_SC_MONOTONIC_CLOCK) > 0)
 		clock_gettime(CLOCK_MONOTONIC, time);
