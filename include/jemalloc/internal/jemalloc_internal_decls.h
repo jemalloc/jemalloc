@@ -62,11 +62,5 @@ isblank(int c)
 #include <fcntl.h>
 
 #include <sys/time.h>
-#ifdef _WIN32
-struct timespec {
-	time_t	tv_sec;
-	long	tv_nsec;
-};
-#endif
 
 #endif /* JEMALLOC_INTERNAL_H */
