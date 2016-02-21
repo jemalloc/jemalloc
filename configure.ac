@@ -201,6 +201,16 @@ else
 fi
 AC_DEFINE_UNQUOTED([LG_SIZEOF_LONG], [$LG_SIZEOF_LONG])
 
+AC_CHECK_SIZEOF([long long])
+if test "x${ac_cv_sizeof_long_long}" = "x8" ; then
+  LG_SIZEOF_LONG_LONG=3
+elif test "x${ac_cv_sizeof_long_long}" = "x4" ; then
+  LG_SIZEOF_LONG_LONG=2
+else
+  AC_MSG_ERROR([Unsupported long long size: ${ac_cv_sizeof_long_long}])
+fi
+AC_DEFINE_UNQUOTED([LG_SIZEOF_LONG_LONG], [$LG_SIZEOF_LONG_LONG])
+
 AC_CHECK_SIZEOF([intmax_t])
 if test "x${ac_cv_sizeof_intmax_t}" = "x16" ; then
   LG_SIZEOF_INTMAX_T=4
@@ -1040,7 +1050,7 @@ dnl ============================================================================
 dnl Check for  __builtin_ffsl(), then ffsl(3), and fail if neither are found.
 dnl One of those two functions should (theoretically) exist on all platforms
 dnl that jemalloc currently has a chance of functioning on without modification.
-dnl We additionally assume ffs() or __builtin_ffs() are defined if
+dnl We additionally assume ffs[ll]() or __builtin_ffs[ll]() are defined if
 dnl ffsl() or __builtin_ffsl() are defined, respectively.
 JE_COMPILABLE([a program using __builtin_ffsl], [
 #include <stdio.h>
@@ -1053,6 +1063,7 @@ JE_COMPILABLE([a program using __builtin_ffsl], [
 	}
 ], [je_cv_gcc_builtin_ffsl])
 if test "x${je_cv_gcc_builtin_ffsl}" = "xyes" ; then
+  AC_DEFINE([JEMALLOC_INTERNAL_FFSLL], [__builtin_ffsll])
   AC_DEFINE([JEMALLOC_INTERNAL_FFSL], [__builtin_ffsl])
   AC_DEFINE([JEMALLOC_INTERNAL_FFS], [__builtin_ffs])
 else
@@ -1067,6 +1078,7 @@ else
 	}
   ], [je_cv_function_ffsl])
   if test "x${je_cv_function_ffsl}" = "xyes" ; then
+    AC_DEFINE([JEMALLOC_INTERNAL_FFSLL], [ffsll])
     AC_DEFINE([JEMALLOC_INTERNAL_FFSL], [ffsl])
     AC_DEFINE([JEMALLOC_INTERNAL_FFS], [ffs])
   else

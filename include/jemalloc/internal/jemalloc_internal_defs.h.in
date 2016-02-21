@@ -189,9 +189,10 @@
 #undef JEMALLOC_TLS
 
 /*
- * ffs()/ffsl() functions to use for bitmapping.  Don't use these directly;
- * instead, use jemalloc_ffs() or jemalloc_ffsl() from util.h.
+ * ffs*() functions to use for bitmapping.  Don't use these directly; instead,
+ * use jemalloc_ffs*() from util.h.
  */
+#undef JEMALLOC_INTERNAL_FFSLL
 #undef JEMALLOC_INTERNAL_FFSL
 #undef JEMALLOC_INTERNAL_FFS
 
@@ -240,6 +241,9 @@
 
 /* sizeof(long) == 2^LG_SIZEOF_LONG. */
 #undef LG_SIZEOF_LONG
+
+/* sizeof(long long) == 2^LG_SIZEOF_LONG_LONG. */
+#undef LG_SIZEOF_LONG_LONG
 
 /* sizeof(intmax_t) == 2^LG_SIZEOF_INTMAX_T. */
 #undef LG_SIZEOF_INTMAX_T

@@ -121,6 +121,7 @@ void	malloc_printf(const char *format, ...) JEMALLOC_FORMAT_PRINTF(1, 2);
 #ifdef JEMALLOC_H_INLINES
 
 #ifndef JEMALLOC_ENABLE_INLINE
+int	jemalloc_ffs64(uint64_t bitmap);
 int	jemalloc_ffsl(long bitmap);
 int	jemalloc_ffs(int bitmap);
 uint64_t	pow2_ceil_u64(uint64_t x);
@@ -134,9 +135,23 @@ int	get_errno(void);
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_UTIL_C_))
 
 /* Sanity check. */
-#if !defined(JEMALLOC_INTERNAL_FFSL) || !defined(JEMALLOC_INTERNAL_FFS)
-#  error Both JEMALLOC_INTERNAL_FFSL && JEMALLOC_INTERNAL_FFS should have been defined by configure
+#if !defined(JEMALLOC_INTERNAL_FFSLL) || !defined(JEMALLOC_INTERNAL_FFSL) \
+    || !defined(JEMALLOC_INTERNAL_FFS)
+#  error JEMALLOC_INTERNAL_FFS{,L,LL} should have been defined by configure
 #endif
+
+JEMALLOC_ALWAYS_INLINE int
+jemalloc_ffs64(uint64_t bitmap)
+{
+
+#if LG_SIZEOF_LONG == 3
+	return (JEMALLOC_INTERNAL_FFSL(bitmap));
+#elif LG_SIZEOF_LONG_LONG == 3
+	return (JEMALLOC_INTERNAL_FFSLL(bitmap));
+#else
+#error No implementation for 64-bit ffs()
+#endif
+}
 
 JEMALLOC_ALWAYS_INLINE int
 jemalloc_ffsl(long bitmap)

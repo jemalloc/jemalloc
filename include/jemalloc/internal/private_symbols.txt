@@ -292,6 +292,9 @@ isqalloc
 isthreaded
 ivsalloc
 ixalloc
+jemalloc_ffs
+jemalloc_ffs64
+jemalloc_ffsl
 jemalloc_postfork_child
 jemalloc_postfork_parent
 jemalloc_prefork

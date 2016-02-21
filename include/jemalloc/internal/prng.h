@@ -64,7 +64,7 @@ prng_range(uint64_t *state, uint64_t range)
 	assert(range > 1);
 
 	/* Compute the ceiling of lg(range). */
-	lg_range = jemalloc_ffsl(pow2_ceil_u64(range)) - 1;
+	lg_range = jemalloc_ffs64(pow2_ceil_u64(range)) - 1;
 
 	/* Generate a result in [0..range) via repeated trial. */
 	do {
