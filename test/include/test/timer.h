@@ -4,8 +4,8 @@
 #include <sys/time.h>
 
 typedef struct {
-	struct timespec t0;
-	struct timespec t1;
+	nstime_t t0;
+	nstime_t t1;
 } timedelta_t;
 
 void	timer_start(timedelta_t *timer);

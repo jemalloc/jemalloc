@@ -2,19 +2,19 @@
 
 const char *malloc_conf = "purge:decay,decay_time:1";
 
-static time_update_t *time_update_orig;
+static nstime_update_t *nstime_update_orig;
 
 static unsigned nupdates_mock;
-static struct timespec time_mock;
+static nstime_t time_mock;
 static bool nonmonotonic_mock;
 
 static bool
-time_update_mock(struct timespec *time)
+nstime_update_mock(nstime_t *time)
 {
 
 	nupdates_mock++;
 	if (!nonmonotonic_mock)
-		time_copy(time, &time_mock);
+		nstime_copy(time, &time_mock);
 	return (nonmonotonic_mock);
 }
 
@@ -204,7 +204,7 @@ TEST_BEGIN(test_decay_ticker)
 	uint64_t epoch, npurge0, npurge1;
 	size_t sz, tcache_max, large;
 	unsigned i, nupdates0;
-	struct timespec time, decay_time, deadline;
+	nstime_t time, decay_time, deadline;
 
 	test_skip_if(opt_purge != purge_mode_decay);
 
@@ -233,12 +233,12 @@ TEST_BEGIN(test_decay_ticker)
 	}
 
 	nupdates_mock = 0;
-	time_init(&time_mock, 0, 0);
-	time_update(&time_mock);
+	nstime_init(&time_mock, 0);
+	nstime_update(&time_mock);
 	nonmonotonic_mock = false;
 
-	time_update_orig = time_update;
-	time_update = time_update_mock;
+	nstime_update_orig = nstime_update;
+	nstime_update = nstime_update_mock;
 
 	for (i = 0; i < NPS; i++) {
 		dallocx(ps[i], flags);
@@ -246,16 +246,16 @@ TEST_BEGIN(test_decay_ticker)
 		assert_d_eq(mallctl("arena.0.decay", NULL, NULL, NULL, 0), 0,
 		    "Unexpected arena.0.decay failure");
 		assert_u_gt(nupdates_mock, nupdates0,
-		    "Expected time_update() to be called");
+		    "Expected nstime_update() to be called");
 	}
 
-	time_update = time_update_orig;
+	nstime_update = nstime_update_orig;
 
-	time_init(&time, 0, 0);
-	time_update(&time);
-	time_init(&decay_time, opt_decay_time, 0);
-	time_copy(&deadline, &time);
-	time_add(&deadline, &decay_time);
+	nstime_init(&time, 0);
+	nstime_update(&time);
+	nstime_init2(&decay_time, opt_decay_time, 0);
+	nstime_copy(&deadline, &time);
+	nstime_add(&deadline, &decay_time);
 	do {
 		for (i = 0; i < DECAY_NTICKS_PER_UPDATE / 2; i++) {
 			void *p = mallocx(1, flags);
@@ -268,8 +268,8 @@ TEST_BEGIN(test_decay_ticker)
 		assert_d_eq(mallctl("stats.arenas.0.npurge", &npurge1, &sz,
 		    NULL, 0), 0, "Unexpected mallctl failure");
 
-		time_update(&time);
-	} while (time_compare(&time, &deadline) <= 0 && npurge1 == npurge0);
+		nstime_update(&time);
+	} while (nstime_compare(&time, &deadline) <= 0 && npurge1 == npurge0);
 
 	assert_u64_gt(npurge1, npurge0, "Expected purging to occur");
 #undef NPS
@@ -300,12 +300,12 @@ TEST_BEGIN(test_decay_nonmonotonic)
 	    "Unexpected mallctl failure");
 
 	nupdates_mock = 0;
-	time_init(&time_mock, 0, 0);
-	time_update(&time_mock);
+	nstime_init(&time_mock, 0);
+	nstime_update(&time_mock);
 	nonmonotonic_mock = true;
 
-	time_update_orig = time_update;
-	time_update = time_update_mock;
+	nstime_update_orig = nstime_update;
+	nstime_update = nstime_update_mock;
 
 	for (i = 0; i < NPS; i++) {
 		ps[i] = mallocx(large0, flags);
@@ -318,7 +318,7 @@ TEST_BEGIN(test_decay_nonmonotonic)
 		assert_d_eq(mallctl("arena.0.decay", NULL, NULL, NULL, 0), 0,
 		    "Unexpected arena.0.decay failure");
 		assert_u_gt(nupdates_mock, nupdates0,
-		    "Expected time_update() to be called");
+		    "Expected nstime_update() to be called");
 	}
 
 	assert_d_eq(mallctl("epoch", NULL, NULL, &epoch, sizeof(uint64_t)), 0,
@@ -329,7 +329,7 @@ TEST_BEGIN(test_decay_nonmonotonic)
 
 	assert_u64_gt(npurge1, npurge0, "Expected purging to occur");
 
-	time_update = time_update_orig;
+	nstime_update = nstime_update_orig;
 #undef NPS
 }
 TEST_END

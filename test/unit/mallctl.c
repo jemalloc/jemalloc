@@ -401,7 +401,7 @@ TEST_BEGIN(test_arena_i_decay_time)
 	    &decay_time, sizeof(ssize_t)), EFAULT,
 	    "Unexpected mallctl() success");
 
-	decay_time = TIME_SEC_MAX;
+	decay_time = 0x7fffffff;
 	assert_d_eq(mallctl("arena.0.decay_time", NULL, NULL,
 	    &decay_time, sizeof(ssize_t)), 0,
 	    "Unexpected mallctl() failure");
@@ -567,7 +567,7 @@ TEST_BEGIN(test_arenas_decay_time)
 	    &decay_time, sizeof(ssize_t)), EFAULT,
 	    "Unexpected mallctl() success");
 
-	decay_time = TIME_SEC_MAX;
+	decay_time = 0x7fffffff;
 	assert_d_eq(mallctl("arenas.decay_time", NULL, NULL,
 	    &decay_time, sizeof(ssize_t)), 0,
 	    "Expected mallctl() failure");

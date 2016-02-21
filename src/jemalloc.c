@@ -1151,7 +1151,7 @@ malloc_conf_init(void)
 			CONF_HANDLE_SSIZE_T(opt_lg_dirty_mult, "lg_dirty_mult",
 			    -1, (sizeof(size_t) << 3) - 1)
 			CONF_HANDLE_SSIZE_T(opt_decay_time, "decay_time", -1,
-			    TIME_SEC_MAX);
+			    NSTIME_SEC_MAX);
 			CONF_HANDLE_BOOL(opt_stats_print, "stats_print", true)
 			if (config_fill) {
 				if (CONF_MATCH("junk")) {

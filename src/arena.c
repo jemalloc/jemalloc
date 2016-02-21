@@ -1224,27 +1224,24 @@ arena_decay_deadline_init(arena_t *arena)
 	 * Generate a new deadline that is uniformly random within the next
 	 * epoch after the current one.
 	 */
-	time_copy(&arena->decay_deadline, &arena->decay_epoch);
-	time_add(&arena->decay_deadline, &arena->decay_interval);
+	nstime_copy(&arena->decay_deadline, &arena->decay_epoch);
+	nstime_add(&arena->decay_deadline, &arena->decay_interval);
 	if (arena->decay_time > 0) {
-		uint64_t decay_interval_ns, r;
-		struct timespec jitter;
+		nstime_t jitter;
 
-		decay_interval_ns = time_sec(&arena->decay_interval) *
-		    1000000000 + time_nsec(&arena->decay_interval);
-		r = prng_range(&arena->decay_jitter_state, decay_interval_ns);
-		time_init(&jitter, r / 1000000000, r % 1000000000);
-		time_add(&arena->decay_deadline, &jitter);
+		nstime_init(&jitter, prng_range(&arena->decay_jitter_state,
+		    nstime_ns(&arena->decay_interval)));
+		nstime_add(&arena->decay_deadline, &jitter);
 	}
 }
 
 static bool
-arena_decay_deadline_reached(const arena_t *arena, const struct timespec *time)
+arena_decay_deadline_reached(const arena_t *arena, const nstime_t *time)
 {
 
 	assert(opt_purge == purge_mode_decay);
 
-	return (time_compare(&arena->decay_deadline, time) <= 0);
+	return (nstime_compare(&arena->decay_deadline, time) <= 0);
 }
 
 static size_t
@@ -1276,24 +1273,24 @@ arena_decay_backlog_npages_limit(const arena_t *arena)
 }
 
 static void
-arena_decay_epoch_advance(arena_t *arena, const struct timespec *time)
+arena_decay_epoch_advance(arena_t *arena, const nstime_t *time)
 {
 	uint64_t nadvance;
-	struct timespec delta;
+	nstime_t delta;
 	size_t ndirty_delta;
 
 	assert(opt_purge == purge_mode_decay);
 	assert(arena_decay_deadline_reached(arena, time));
 
-	time_copy(&delta, time);
-	time_subtract(&delta, &arena->decay_epoch);
-	nadvance = time_divide(&delta, &arena->decay_interval);
+	nstime_copy(&delta, time);
+	nstime_subtract(&delta, &arena->decay_epoch);
+	nadvance = nstime_divide(&delta, &arena->decay_interval);
 	assert(nadvance > 0);
 
 	/* Add nadvance decay intervals to epoch. */
-	time_copy(&delta, &arena->decay_interval);
-	time_imultiply(&delta, nadvance);
-	time_add(&arena->decay_epoch, &delta);
+	nstime_copy(&delta, &arena->decay_interval);
+	nstime_imultiply(&delta, nadvance);
+	nstime_add(&arena->decay_epoch, &delta);
 
 	/* Set a new deadline. */
 	arena_decay_deadline_init(arena);
@@ -1340,12 +1337,12 @@ arena_decay_init(arena_t *arena, ssize_t decay_time)
 
 	arena->decay_time = decay_time;
 	if (decay_time > 0) {
-		time_init(&arena->decay_interval, decay_time, 0);
-		time_idivide(&arena->decay_interval, SMOOTHSTEP_NSTEPS);
+		nstime_init2(&arena->decay_interval, decay_time, 0);
+		nstime_idivide(&arena->decay_interval, SMOOTHSTEP_NSTEPS);
 	}
 
-	time_init(&arena->decay_epoch, 0, 0);
-	time_update(&arena->decay_epoch);
+	nstime_init(&arena->decay_epoch, 0);
+	nstime_update(&arena->decay_epoch);
 	arena->decay_jitter_state = (uint64_t)(uintptr_t)arena;
 	arena_decay_deadline_init(arena);
 	arena->decay_ndirty = arena->ndirty;
@@ -1357,7 +1354,7 @@ static bool
 arena_decay_time_valid(ssize_t decay_time)
 {
 
-	return (decay_time >= -1 && decay_time <= TIME_SEC_MAX);
+	return (decay_time >= -1 && decay_time <= NSTIME_SEC_MAX);
 }
 
 ssize_t
@@ -1426,7 +1423,7 @@ arena_maybe_purge_ratio(arena_t *arena)
 static void
 arena_maybe_purge_decay(arena_t *arena)
 {
-	struct timespec time;
+	nstime_t time;
 	size_t ndirty_limit;
 
 	assert(opt_purge == purge_mode_decay);
@@ -1438,10 +1435,10 @@ arena_maybe_purge_decay(arena_t *arena)
 		return;
 	}
 
-	time_copy(&time, &arena->decay_epoch);
-	if (unlikely(time_update(&time))) {
+	nstime_copy(&time, &arena->decay_epoch);
+	if (unlikely(nstime_update(&time))) {
 		/* Time went backwards.  Force an epoch advance. */
-		time_copy(&time, &arena->decay_deadline);
+		nstime_copy(&time, &arena->decay_deadline);
 	}
 
 	if (arena_decay_deadline_reached(arena, &time))

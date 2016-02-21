@@ -4,26 +4,26 @@ void
 timer_start(timedelta_t *timer)
 {
 
-	time_init(&timer->t0, 0, 0);
-	time_update(&timer->t0);
+	nstime_init(&timer->t0, 0);
+	nstime_update(&timer->t0);
 }
 
 void
 timer_stop(timedelta_t *timer)
 {
 
-	time_copy(&timer->t1, &timer->t0);
-	time_update(&timer->t1);
+	nstime_copy(&timer->t1, &timer->t0);
+	nstime_update(&timer->t1);
 }
 
 uint64_t
 timer_usec(const timedelta_t *timer)
 {
-	struct timespec delta;
+	nstime_t delta;
 
-	time_copy(&delta, &timer->t1);
-	time_subtract(&delta, &timer->t0);
-	return (time_sec(&delta) * 1000000 + time_nsec(&delta) / 1000);
+	nstime_copy(&delta, &timer->t1);
+	nstime_subtract(&delta, &timer->t0);
+	return (nstime_ns(&delta) / 1000);
 }
 
 void

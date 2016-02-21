@@ -395,7 +395,7 @@ struct arena_s {
 	 */
 	ssize_t			decay_time;
 	/* decay_time / SMOOTHSTEP_NSTEPS. */
-	struct timespec		decay_interval;
+	nstime_t		decay_interval;
 	/*
 	 * Time at which the current decay interval logically started.  We do
 	 * not actually advance to a new epoch until sometime after it starts
@@ -403,7 +403,7 @@ struct arena_s {
 	 * to completely skip epochs.  In all cases, during epoch advancement we
 	 * merge all relevant activity into the most recently recorded epoch.
 	 */
-	struct timespec		decay_epoch;
+	nstime_t		decay_epoch;
 	/* decay_deadline randomness generator. */
 	uint64_t		decay_jitter_state;
 	/*
@@ -413,7 +413,7 @@ struct arena_s {
 	 * decay_interval, but we randomize the deadline to reduce the
 	 * likelihood of arenas purging in lockstep.
 	 */
-	struct timespec		decay_deadline;
+	nstime_t		decay_deadline;
 	/*
 	 * Number of dirty pages at beginning of current epoch.  During epoch
 	 * advancement we use the delta between decay_ndirty and ndirty to
