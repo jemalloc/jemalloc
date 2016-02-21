@@ -23,6 +23,4 @@
 #  define ERANGE ERROR_INVALID_DATA
 #endif
 
-#define getpid() GetCurrentProcessId()
-
 #endif /* MSVC_COMPAT_WINDOWS_EXTRA_H */

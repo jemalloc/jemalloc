@@ -1359,6 +1359,7 @@ label_return:
 	return (ret);
 }
 
+#ifndef _WIN32
 JEMALLOC_FORMAT_PRINTF(1, 2)
 static int
 prof_open_maps(const char *format, ...)
@@ -1374,6 +1375,18 @@ prof_open_maps(const char *format, ...)
 
 	return (mfd);
 }
+#endif
+
+static int
+prof_getpid(void)
+{
+
+#ifdef _WIN32
+	return (GetCurrentProcessId());
+#else
+	return (getpid());
+#endif
+}
 
 static bool
 prof_dump_maps(bool propagate_err)
@@ -1388,7 +1401,7 @@ prof_dump_maps(bool propagate_err)
 	mfd = -1; // Not implemented
 #else
 	{
-		int pid = getpid();
+		int pid = prof_getpid();
 
 		mfd = prof_open_maps("/proc/%d/task/%d/maps", pid, pid);
 		if (mfd == -1)
@@ -1557,12 +1570,12 @@ prof_dump_filename(char *filename, char v, uint64_t vseq)
 	        /* "<prefix>.<pid>.<seq>.v<vseq>.heap" */
 		malloc_snprintf(filename, DUMP_FILENAME_BUFSIZE,
 		    "%s.%d.%"FMTu64".%c%"FMTu64".heap",
-		    opt_prof_prefix, (int)getpid(), prof_dump_seq, v, vseq);
+		    opt_prof_prefix, prof_getpid(), prof_dump_seq, v, vseq);
 	} else {
 	        /* "<prefix>.<pid>.<seq>.<v>.heap" */
 		malloc_snprintf(filename, DUMP_FILENAME_BUFSIZE,
 		    "%s.%d.%"FMTu64".%c.heap",
-		    opt_prof_prefix, (int)getpid(), prof_dump_seq, v);
+		    opt_prof_prefix, prof_getpid(), prof_dump_seq, v);
 	}
 	prof_dump_seq++;
 }
