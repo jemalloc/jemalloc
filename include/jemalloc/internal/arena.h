@@ -494,9 +494,15 @@ extern size_t		map_bias; /* Number of arena chunk header pages. */
 extern size_t		map_misc_offset;
 extern size_t		arena_maxrun; /* Max run size for arenas. */
 extern size_t		large_maxclass; /* Max large size class. */
+extern size_t		small_maxrun; /* Max run size for small size classes. */
 extern unsigned		nlclasses; /* Number of large size classes. */
 extern unsigned		nhclasses; /* Number of huge size classes. */
 
+#ifdef JEMALLOC_JET
+typedef size_t (run_quantize_t)(size_t);
+extern run_quantize_t *run_quantize_floor;
+extern run_quantize_t *run_quantize_ceil;
+#endif
 void	arena_chunk_cache_maybe_insert(arena_t *arena, extent_node_t *node,
     bool cache);
 void	arena_chunk_cache_maybe_remove(arena_t *arena, extent_node_t *node,

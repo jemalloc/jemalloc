@@ -445,6 +445,8 @@ rtree_subtree_read_hard
 rtree_subtree_tryread
 rtree_val_read
 rtree_val_write
+run_quantize_ceil
+run_quantize_floor
 s2u
 s2u_compute
 s2u_lookup

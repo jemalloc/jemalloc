@@ -159,6 +159,7 @@ TESTS_UNIT := $(srcroot)test/unit/atomic.c \
 	$(srcroot)test/unit/quarantine.c \
 	$(srcroot)test/unit/rb.c \
 	$(srcroot)test/unit/rtree.c \
+	$(srcroot)test/unit/run_quantize.c \
 	$(srcroot)test/unit/SFMT.c \
 	$(srcroot)test/unit/size_classes.c \
 	$(srcroot)test/unit/smoothstep.c \

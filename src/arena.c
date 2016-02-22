@@ -21,7 +21,7 @@ size_t		map_bias;
 size_t		map_misc_offset;
 size_t		arena_maxrun; /* Max run size for arenas. */
 size_t		large_maxclass; /* Max large size class. */
-static size_t	small_maxrun; /* Max run size used for small size classes. */
+size_t		small_maxrun; /* Max run size for small size classes. */
 static bool	*small_run_tab; /* Valid small run page multiples. */
 unsigned	nlclasses; /* Number of large size classes. */
 unsigned	nhclasses; /* Number of huge size classes. */
@@ -100,8 +100,12 @@ arena_run_comp(const arena_chunk_map_misc_t *a, const arena_chunk_map_misc_t *b)
 rb_gen(static UNUSED, arena_run_tree_, arena_run_tree_t, arena_chunk_map_misc_t,
     rb_link, arena_run_comp)
 
+#ifdef JEMALLOC_JET
+#undef run_quantize_floor
+#define	run_quantize_floor JEMALLOC_N(run_quantize_floor_impl)
+#endif
 static size_t
-run_quantize(size_t size)
+run_quantize_floor(size_t size)
 {
 	size_t qsize;
 
@@ -119,13 +123,18 @@ run_quantize(size_t size)
 	 */
 	qsize = index2size(size2index(size - large_pad + 1) - 1) + large_pad;
 	if (qsize <= SMALL_MAXCLASS + large_pad)
-		return (run_quantize(size - large_pad));
+		return (run_quantize_floor(size - large_pad));
 	assert(qsize <= size);
 	return (qsize);
 }
+#ifdef JEMALLOC_JET
+#undef run_quantize_floor
+#define	run_quantize_floor JEMALLOC_N(run_quantize_floor)
+run_quantize_t *run_quantize_floor = JEMALLOC_N(run_quantize_floor_impl);
+#endif
 
 static size_t
-run_quantize_next(size_t size)
+run_quantize_ceil_hard(size_t size)
 {
 	size_t large_run_size_next;
 
@@ -158,10 +167,14 @@ run_quantize_next(size_t size)
 	}
 }
 
+#ifdef JEMALLOC_JET
+#undef run_quantize_ceil
+#define	run_quantize_ceil JEMALLOC_N(run_quantize_ceil_impl)
+#endif
 static size_t
-run_quantize_first(size_t size)
+run_quantize_ceil(size_t size)
 {
-	size_t qsize = run_quantize(size);
+	size_t qsize = run_quantize_floor(size);
 
 	if (qsize < size) {
 		/*
@@ -172,10 +185,15 @@ run_quantize_first(size_t size)
 		 * search would potentially find sufficiently aligned available
 		 * memory somewhere lower.
 		 */
-		qsize = run_quantize_next(size);
+		qsize = run_quantize_ceil_hard(size);
 	}
 	return (qsize);
 }
+#ifdef JEMALLOC_JET
+#undef run_quantize_ceil
+#define	run_quantize_ceil JEMALLOC_N(run_quantize_ceil)
+run_quantize_t *run_quantize_ceil = JEMALLOC_N(run_quantize_ceil_impl);
+#endif
 
 JEMALLOC_INLINE_C int
 arena_avail_comp(const arena_chunk_map_misc_t *a,
@@ -183,9 +201,9 @@ arena_avail_comp(const arena_chunk_map_misc_t *a,
 {
 	int ret;
 	uintptr_t a_miscelm = (uintptr_t)a;
-	size_t a_qsize = run_quantize(arena_miscelm_is_key(a) ?
+	size_t a_qsize = run_quantize_floor(arena_miscelm_is_key(a) ?
 	    arena_miscelm_key_size_get(a) : arena_miscelm_size_get(a));
-	size_t b_qsize = run_quantize(arena_miscelm_size_get(b));
+	size_t b_qsize = run_quantize_floor(arena_miscelm_size_get(b));
 
 	/*
 	 * Compare based on quantized size rather than size, in order to sort
@@ -1081,7 +1099,7 @@ arena_chunk_ralloc_huge_expand(arena_t *arena, void *chunk, size_t oldsize,
 static arena_run_t *
 arena_run_first_best_fit(arena_t *arena, size_t size)
 {
-	size_t search_size = run_quantize_first(size);
+	size_t search_size = run_quantize_ceil(size);
 	arena_chunk_map_misc_t *key = arena_miscelm_key_create(search_size);
 	arena_chunk_map_misc_t *miscelm =
 	    arena_avail_tree_nsearch(&arena->runs_avail, key);
