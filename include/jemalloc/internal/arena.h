@@ -462,6 +462,7 @@ struct arena_s {
 
 	/* bins is used to store trees of free regions. */
 	arena_bin_t		bins[NBINS];
+	arena_avail_tree_t	avail[NSIZES];
 };
 
 /* Used in conjunction with tsd for fast arena-related context lookup. */

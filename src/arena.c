@@ -85,7 +85,8 @@ arena_miscelm_size_get(const arena_chunk_map_misc_t *miscelm)
 }
 
 JEMALLOC_INLINE_C int
-arena_run_comp(const arena_chunk_map_misc_t *a, const arena_chunk_map_misc_t *b)
+arena_run_address_comp(const arena_chunk_map_misc_t *a,
+			const arena_chunk_map_misc_t *b)
 {
 	uintptr_t a_miscelm = (uintptr_t)a;
 	uintptr_t b_miscelm = (uintptr_t)b;
@@ -98,129 +99,24 @@ arena_run_comp(const arena_chunk_map_misc_t *a, const arena_chunk_map_misc_t *b)
 
 /* Generate red-black tree functions. */
 rb_gen(static UNUSED, arena_run_tree_, arena_run_tree_t, arena_chunk_map_misc_t,
-    rb_link, arena_run_comp)
-
-static size_t
-run_quantize(size_t size)
-{
-	size_t qsize;
-
-	assert(size != 0);
-	assert(size == PAGE_CEILING(size));
-
-	/* Don't change sizes that are valid small run sizes. */
-	if (size <= small_maxrun && small_run_tab[size >> LG_PAGE])
-		return (size);
-
-	/*
-	 * Round down to the nearest run size that can actually be requested
-	 * during normal large allocation.  Add large_pad so that cache index
-	 * randomization can offset the allocation from the page boundary.
-	 */
-	qsize = index2size(size2index(size - large_pad + 1) - 1) + large_pad;
-	if (qsize <= SMALL_MAXCLASS + large_pad)
-		return (run_quantize(size - large_pad));
-	assert(qsize <= size);
-	return (qsize);
-}
-
-static size_t
-run_quantize_next(size_t size)
-{
-	size_t large_run_size_next;
-
-	assert(size != 0);
-	assert(size == PAGE_CEILING(size));
-
-	/*
-	 * Return the next quantized size greater than the input size.
-	 * Quantized sizes comprise the union of run sizes that back small
-	 * region runs, and run sizes that back large regions with no explicit
-	 * alignment constraints.
-	 */
-
-	if (size > SMALL_MAXCLASS) {
-		large_run_size_next = PAGE_CEILING(index2size(size2index(size -
-		    large_pad) + 1) + large_pad);
-	} else
-		large_run_size_next = SIZE_T_MAX;
-	if (size >= small_maxrun)
-		return (large_run_size_next);
-
-	while (true) {
-		size += PAGE;
-		assert(size <= small_maxrun);
-		if (small_run_tab[size >> LG_PAGE]) {
-			if (large_run_size_next < size)
-				return (large_run_size_next);
-			return (size);
-		}
-	}
-}
-
-static size_t
-run_quantize_first(size_t size)
-{
-	size_t qsize = run_quantize(size);
-
-	if (qsize < size) {
-		/*
-		 * Skip a quantization that may have an adequately large run,
-		 * because under-sized runs may be mixed in.  This only happens
-		 * when an unusual size is requested, i.e. for aligned
-		 * allocation, and is just one of several places where linear
-		 * search would potentially find sufficiently aligned available
-		 * memory somewhere lower.
-		 */
-		qsize = run_quantize_next(size);
-	}
-	return (qsize);
-}
-
-JEMALLOC_INLINE_C int
-arena_avail_comp(const arena_chunk_map_misc_t *a,
-    const arena_chunk_map_misc_t *b)
-{
-	int ret;
-	uintptr_t a_miscelm = (uintptr_t)a;
-	size_t a_qsize = run_quantize(arena_miscelm_is_key(a) ?
-	    arena_miscelm_key_size_get(a) : arena_miscelm_size_get(a));
-	size_t b_qsize = run_quantize(arena_miscelm_size_get(b));
-
-	/*
-	 * Compare based on quantized size rather than size, in order to sort
-	 * equally useful runs only by address.
-	 */
-	ret = (a_qsize > b_qsize) - (a_qsize < b_qsize);
-	if (ret == 0) {
-		if (!arena_miscelm_is_key(a)) {
-			uintptr_t b_miscelm = (uintptr_t)b;
-
-			ret = (a_miscelm > b_miscelm) - (a_miscelm < b_miscelm);
-		} else {
-			/*
-			 * Treat keys as if they are lower than anything else.
-			 */
-			ret = -1;
-		}
-	}
-
-	return (ret);
-}
+	rb_link, arena_run_address_comp)
 
 /* Generate red-black tree functions. */
 rb_gen(static UNUSED, arena_avail_tree_, arena_avail_tree_t,
-    arena_chunk_map_misc_t, rb_link, arena_avail_comp)
+    arena_chunk_map_misc_t, rb_link, arena_run_address_comp)
 
 static void
 arena_avail_insert(arena_t *arena, arena_chunk_t *chunk, size_t pageind,
     size_t npages)
 {
-
+	/* size2index rounds up, the extra logic rounds down - get the max ind
+	   that this run size can support */
+	szind_t ind = size2index(arena_miscelm_size_get(
+				   arena_miscelm_get(chunk, pageind)) + 1) - 1;
 	assert(npages == (arena_mapbits_unallocated_size_get(chunk, pageind) >>
 	    LG_PAGE));
-	arena_avail_tree_insert(&arena->runs_avail, arena_miscelm_get(chunk,
-	    pageind));
+	arena_avail_tree_insert(&arena->avail[ind], arena_miscelm_get(chunk,
+								pageind));
 }
 
 static void
@@ -228,10 +124,12 @@ arena_avail_remove(arena_t *arena, arena_chunk_t *chunk, size_t pageind,
     size_t npages)
 {
 
+	szind_t ind = size2index(arena_miscelm_size_get(
+				   arena_miscelm_get(chunk, pageind)) + 1) - 1;
 	assert(npages == (arena_mapbits_unallocated_size_get(chunk, pageind) >>
 	    LG_PAGE));
-	arena_avail_tree_remove(&arena->runs_avail, arena_miscelm_get(chunk,
-	    pageind));
+	arena_avail_tree_remove(&arena->avail[ind], arena_miscelm_get(chunk,
+                                                                      pageind));
 }
 
 static void
@@ -1075,19 +973,22 @@ arena_chunk_ralloc_huge_expand(arena_t *arena, void *chunk, size_t oldsize,
 
 /*
  * Do first-best-fit run selection, i.e. select the lowest run that best fits.
- * Run sizes are quantized, so not all candidate runs are necessarily exactly
+ * Run sizes are indexed, so not all candidate runs are necessarily exactly
  * the same size.
  */
 static arena_run_t *
 arena_run_first_best_fit(arena_t *arena, size_t size)
 {
-	size_t search_size = run_quantize_first(size);
-	arena_chunk_map_misc_t *key = arena_miscelm_key_create(search_size);
-	arena_chunk_map_misc_t *miscelm =
-	    arena_avail_tree_nsearch(&arena->runs_avail, key);
-	if (miscelm == NULL)
-		return (NULL);
-	return (&miscelm->run);
+	szind_t ind = size2index(size);
+	arena_chunk_map_misc_t *miscelm;
+	int i;
+	for (i = ind; i < NSIZES; i++) {
+		miscelm = arena_avail_tree_first(&arena->avail[i]);
+		if (miscelm != NULL)
+			return &miscelm->run;
+	}
+
+	return (NULL);
 }
 
 static arena_run_t *
@@ -3327,6 +3228,9 @@ arena_new(unsigned ind)
 	arena->ndirty = 0;
 
 	arena_avail_tree_new(&arena->runs_avail);
+	for(i = 0; i < NSIZES; i++) {
+		arena_avail_tree_new(&arena->avail[i]);
+	}
 	qr_new(&arena->runs_dirty, rd_link);
 	qr_new(&arena->chunks_cache, cc_link);
 
