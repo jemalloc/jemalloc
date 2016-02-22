@@ -167,8 +167,8 @@ struct arena_chunk_map_misc_s {
 
 		/* Profile counters, used for large object runs. */
 		union {
-			void				*prof_tctx_pun;
-			prof_tctx_t			*prof_tctx;
+			void			*prof_tctx_pun;
+			prof_tctx_t		*prof_tctx;
 		};
 
 		/* Small region run metadata. */
@@ -233,28 +233,28 @@ struct arena_chunk_s {
  */
 struct arena_bin_info_s {
 	/* Size of regions in a run for this bin's size class. */
-	size_t		reg_size;
+	size_t			reg_size;
 
 	/* Redzone size. */
-	size_t		redzone_size;
+	size_t			redzone_size;
 
 	/* Interval between regions (reg_size + (redzone_size << 1)). */
-	size_t		reg_interval;
+	size_t			reg_interval;
 
 	/* Total size of a run for this bin's size class. */
-	size_t		run_size;
+	size_t			run_size;
 
 	/* Total number of regions in a run for this bin's size class. */
-	uint32_t	nregs;
+	uint32_t		nregs;
 
 	/*
 	 * Metadata used to manipulate bitmaps for runs associated with this
 	 * bin.
 	 */
-	bitmap_info_t	bitmap_info;
+	bitmap_info_t		bitmap_info;
 
 	/* Offset of first region in a run for this bin's size class. */
-	uint32_t	reg0_offset;
+	uint32_t		reg0_offset;
 };
 
 struct arena_bin_s {
@@ -264,13 +264,13 @@ struct arena_bin_s {
 	 * which may be acquired while holding one or more bin locks, but not
 	 * vise versa.
 	 */
-	malloc_mutex_t	lock;
+	malloc_mutex_t		lock;
 
 	/*
 	 * Current run being used to service allocations of this bin's size
 	 * class.
 	 */
-	arena_run_t	*runcur;
+	arena_run_t		*runcur;
 
 	/*
 	 * Tree of non-full runs.  This tree is used when looking for an
@@ -279,10 +279,10 @@ struct arena_bin_s {
 	 * objects packed well, and it can also help reduce the number of
 	 * almost-empty chunks.
 	 */
-	arena_run_tree_t runs;
+	arena_run_tree_t	runs;
 
 	/* Bin statistics. */
-	malloc_bin_stats_t stats;
+	malloc_bin_stats_t	stats;
 };
 
 struct arena_s {
