@@ -185,7 +185,7 @@ run_quantize_ceil(size_t size)
 		 * search would potentially find sufficiently aligned available
 		 * memory somewhere lower.
 		 */
-		qsize = run_quantize_ceil_hard(size);
+		qsize = run_quantize_ceil_hard(qsize);
 	}
 	return (qsize);
 }
