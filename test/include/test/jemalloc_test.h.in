@@ -11,7 +11,6 @@
 #ifdef _WIN32
 #  include "msvc_compat/strings.h"
 #endif
-#include <sys/time.h>
 
 #ifdef _WIN32
 #  include <windows.h>

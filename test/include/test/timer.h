@@ -1,8 +1,5 @@
 /* Simple timer, for use in benchmark reporting. */
 
-#include <unistd.h>
-#include <sys/time.h>
-
 typedef struct {
 	nstime_t t0;
 	nstime_t t1;

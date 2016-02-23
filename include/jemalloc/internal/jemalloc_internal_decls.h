@@ -18,6 +18,7 @@
 #  endif
 #  include <pthread.h>
 #  include <errno.h>
+#  include <sys/time.h>
 #endif
 #include <sys/types.h>
 
@@ -60,7 +61,5 @@ isblank(int c)
 #  include <unistd.h>
 #endif
 #include <fcntl.h>
-
-#include <sys/time.h>
 
 #endif /* JEMALLOC_INTERNAL_H */
