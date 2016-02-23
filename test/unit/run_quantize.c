@@ -93,18 +93,13 @@ TEST_END
 
 TEST_BEGIN(test_monotonic)
 {
-	bool cache_oblivious;
 	unsigned nbins, nlruns, i;
-	size_t sz, max_run_size, floor_prev, ceil_prev;
+	size_t sz, floor_prev, ceil_prev;
 
 	/*
 	 * Iterate over all run sizes and verify that
 	 * run_quantize_{floor,ceil}() are monotonic.
 	 */
-
-	sz = sizeof(bool);
-	assert_d_eq(mallctl("config.cache_oblivious", &cache_oblivious, &sz,
-	    NULL, 0), 0, "Unexpected mallctl failure");
 
 	sz = sizeof(unsigned);
 	assert_d_eq(mallctl("arenas.nbins", &nbins, &sz, NULL, 0), 0,
@@ -114,12 +109,9 @@ TEST_BEGIN(test_monotonic)
 	assert_d_eq(mallctl("arenas.nlruns", &nlruns, &sz, NULL, 0), 0,
 	    "Unexpected mallctl failure");
 
-	max_run_size = (large_maxclass > small_maxrun) ? large_maxclass :
-	    small_maxrun;
-
 	floor_prev = 0;
 	ceil_prev = 0;
-	for (i = 1; i < max_run_size >> LG_PAGE; i++) {
+	for (i = 1; i < run_quantize_max >> LG_PAGE; i++) {
 		size_t run_size, floor, ceil;
 
 		run_size = i << LG_PAGE;

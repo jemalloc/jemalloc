@@ -494,7 +494,7 @@ extern size_t		map_bias; /* Number of arena chunk header pages. */
 extern size_t		map_misc_offset;
 extern size_t		arena_maxrun; /* Max run size for arenas. */
 extern size_t		large_maxclass; /* Max large size class. */
-extern size_t		small_maxrun; /* Max run size for small size classes. */
+extern size_t		run_quantize_max; /* Max run_quantize_*() input. */
 extern unsigned		nlclasses; /* Number of large size classes. */
 extern unsigned		nhclasses; /* Number of huge size classes. */
 
