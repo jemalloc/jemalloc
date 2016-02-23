@@ -352,12 +352,6 @@ struct arena_s {
 	size_t			ndirty;
 
 	/*
-	 * Size/address-ordered tree of this arena's available runs.  The tree
-	 * is used for first-best-fit run allocation.
-	 */
-	arena_avail_tree_t	runs_avail;
-
-	/*
 	 * Unused dirty memory this arena manages.  Dirty memory is conceptually
 	 * tracked as an arbitrarily interleaved LRU of dirty runs and cached
 	 * chunks, but the list linkage is actually semi-duplicated in order to
@@ -462,6 +456,12 @@ struct arena_s {
 
 	/* bins is used to store trees of free regions. */
 	arena_bin_t		bins[NBINS];
+
+	/*
+	 * Quantized address-ordered trees of this arena's available runs.  The
+	 * trees are used for first-best-fit run allocation.
+	 */
+	arena_avail_tree_t	runs_avail[1]; /* Dynamically sized. */
 };
 
 /* Used in conjunction with tsd for fast arena-related context lookup. */
