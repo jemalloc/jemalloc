@@ -140,6 +140,7 @@ if test "x$CFLAGS" = "x" ; then
     fi
     JE_CFLAGS_APPEND([-Wall])
     JE_CFLAGS_APPEND([-Werror=declaration-after-statement])
+    JE_CFLAGS_APPEND([-Wshorten-64-to-32])
     JE_CFLAGS_APPEND([-pipe])
     JE_CFLAGS_APPEND([-g3])
   elif test "x$je_cv_msvc" = "xyes" ; then
