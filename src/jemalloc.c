@@ -958,7 +958,7 @@ malloc_conf_init(void)
 			}
 			break;
 		case 2: {
-			int linklen = 0;
+			ssize_t linklen = 0;
 #ifndef _WIN32
 			int saved_errno = errno;
 			const char *linkname =
