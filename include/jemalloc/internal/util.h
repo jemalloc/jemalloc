@@ -130,7 +130,7 @@ unsigned	ffs_u32(uint32_t bitmap);
 uint64_t	pow2_ceil_u64(uint64_t x);
 uint32_t	pow2_ceil_u32(uint32_t x);
 size_t	pow2_ceil_zu(size_t x);
-size_t	lg_floor(size_t x);
+unsigned	lg_floor(size_t x);
 void	set_errno(int errnum);
 int	get_errno(void);
 #endif
@@ -244,7 +244,7 @@ pow2_ceil_zu(size_t x)
 }
 
 #if (defined(__i386__) || defined(__amd64__) || defined(__x86_64__))
-JEMALLOC_INLINE size_t
+JEMALLOC_INLINE unsigned
 lg_floor(size_t x)
 {
 	size_t ret;
@@ -255,10 +255,11 @@ lg_floor(size_t x)
 	    : "=r"(ret) // Outputs.
 	    : "r"(x)    // Inputs.
 	    );
-	return (ret);
+	assert(ret < UINT_MAX);
+	return ((unsigned)ret);
 }
 #elif (defined(_MSC_VER))
-JEMALLOC_INLINE size_t
+JEMALLOC_INLINE unsigned
 lg_floor(size_t x)
 {
 	unsigned long ret;
@@ -272,10 +273,11 @@ lg_floor(size_t x)
 #else
 #  error "Unsupported type size for lg_floor()"
 #endif
-	return (ret);
+	assert(ret < UINT_MAX);
+	return ((unsigned)ret);
 }
 #elif (defined(JEMALLOC_HAVE_BUILTIN_CLZ))
-JEMALLOC_INLINE size_t
+JEMALLOC_INLINE unsigned
 lg_floor(size_t x)
 {
 
@@ -290,7 +292,7 @@ lg_floor(size_t x)
 #endif
 }
 #else
-JEMALLOC_INLINE size_t
+JEMALLOC_INLINE unsigned
 lg_floor(size_t x)
 {
 
