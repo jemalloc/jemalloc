@@ -24,7 +24,7 @@ ctl_named_node(const ctl_node_t *node)
 }
 
 JEMALLOC_INLINE_C const ctl_named_node_t *
-ctl_named_children(const ctl_named_node_t *node, int index)
+ctl_named_children(const ctl_named_node_t *node, size_t index)
 {
 	const ctl_named_node_t *children = ctl_named_node(node->children);
 
@@ -975,7 +975,7 @@ ctl_bymib(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
 		assert(node->nchildren > 0);
 		if (ctl_named_node(node->children) != NULL) {
 			/* Children are named. */
-			if (node->nchildren <= mib[i]) {
+			if (node->nchildren <= (unsigned)mib[i]) {
 				ret = ENOENT;
 				goto label_return;
 			}
@@ -1611,7 +1611,7 @@ arena_i_purge_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
 
 	READONLY();
 	WRITEONLY();
-	arena_i_purge(mib[1], true);
+	arena_i_purge((unsigned)mib[1], true);
 
 	ret = 0;
 label_return:
@@ -1626,7 +1626,7 @@ arena_i_decay_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
 
 	READONLY();
 	WRITEONLY();
-	arena_i_purge(mib[1], false);
+	arena_i_purge((unsigned)mib[1], false);
 
 	ret = 0;
 label_return:
@@ -1639,7 +1639,7 @@ arena_i_dss_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
 {
 	int ret;
 	const char *dss = NULL;
-	unsigned arena_ind = mib[1];
+	unsigned arena_ind = (unsigned)mib[1];
 	dss_prec_t dss_prec_old = dss_prec_limit;
 	dss_prec_t dss_prec = dss_prec_limit;
 
@@ -1694,7 +1694,7 @@ arena_i_lg_dirty_mult_ctl(const size_t *mib, size_t miblen, void *oldp,
     size_t *oldlenp, void *newp, size_t newlen)
 {
 	int ret;
-	unsigned arena_ind = mib[1];
+	unsigned arena_ind = (unsigned)mib[1];
 	arena_t *arena;
 
 	arena = arena_get(tsd_fetch(), arena_ind, false, true);
@@ -1728,7 +1728,7 @@ arena_i_decay_time_ctl(const size_t *mib, size_t miblen, void *oldp,
     size_t *oldlenp, void *newp, size_t newlen)
 {
 	int ret;
-	unsigned arena_ind = mib[1];
+	unsigned arena_ind = (unsigned)mib[1];
 	arena_t *arena;
 
 	arena = arena_get(tsd_fetch(), arena_ind, false, true);
@@ -1762,7 +1762,7 @@ arena_i_chunk_hooks_ctl(const size_t *mib, size_t miblen, void *oldp,
     size_t *oldlenp, void *newp, size_t newlen)
 {
 	int ret;
-	unsigned arena_ind = mib[1];
+	unsigned arena_ind = (unsigned)mib[1];
 	arena_t *arena;
 
 	malloc_mutex_lock(&ctl_mtx);
@@ -1841,7 +1841,7 @@ arenas_initialized_ctl(const size_t *mib, size_t miblen, void *oldp,
 	if (*oldlenp != ctl_stats.narenas * sizeof(bool)) {
 		ret = EINVAL;
 		nread = (*oldlenp < ctl_stats.narenas * sizeof(bool))
-		    ? (*oldlenp / sizeof(bool)) : ctl_stats.narenas;
+		    ? (unsigned)(*oldlenp / sizeof(bool)) : ctl_stats.narenas;
 	} else {
 		ret = 0;
 		nread = ctl_stats.narenas;
