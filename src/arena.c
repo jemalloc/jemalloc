@@ -1079,7 +1079,7 @@ arena_run_first_best_fit(arena_t *arena, size_t size)
 	szind_t ind, i;
 
 	ind = size2index(run_quantize_ceil(size));
-	for (i = ind; i < runs_avail_nclasses; i++) {
+	for (i = ind; i < runs_avail_nclasses + runs_avail_bias; i++) {
 		arena_chunk_map_misc_t *miscelm = arena_run_tree_first(
 		    arena_runs_avail_get(arena, i));
 		if (miscelm != NULL)
