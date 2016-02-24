@@ -518,23 +518,18 @@ for (i = 0; i < nbins; i++) {
     common case, but it increases memory usage and fragmentation, since a
     bounded number of objects can remain allocated in each thread cache.</para>
 
-    <para>Memory is conceptually broken into equal-sized chunks, where the
-    chunk size is a power of two that is greater than the page size.  Chunks
-    are always aligned to multiples of the chunk size.  This alignment makes it
-    possible to find metadata for user objects very quickly.</para>
-
-    <para>User objects are broken into three categories according to size:
-    small, large, and huge.  Small and large objects are managed entirely by
-    arenas; huge objects are additionally aggregated in a single data structure
-    that is shared by all threads.  Huge objects are typically used by
-    applications infrequently enough that this single data structure is not a
-    scalability issue.</para>
-
-    <para>Each chunk that is managed by an arena tracks its contents as runs of
+    <para>Memory is conceptually broken into equal-sized chunks, where the chunk
+    size is a power of two that is greater than the page size.  Chunks are
+    always aligned to multiples of the chunk size.  This alignment makes it
+    possible to find metadata for user objects very quickly.  User objects are
+    broken into three categories according to size: small, large, and huge.
+    Multiple small and large objects can reside within a single chunk, whereas
+    huge objects each have one or more chunks backing them.  Each chunk that
+    contains small and/or large objects tracks its contents as runs of
     contiguous pages (unused, backing a set of small objects, or backing one
-    large object).  The combination of chunk alignment and chunk page maps
-    makes it possible to determine all metadata regarding small and large
-    allocations in constant time.</para>
+    large object).  The combination of chunk alignment and chunk page maps makes
+    it possible to determine all metadata regarding small and large allocations
+    in constant time.</para>
 
     <para>Small objects are managed in groups by page runs.  Each run maintains
     a bitmap to track which regions are in use.  Allocation requests that are no
