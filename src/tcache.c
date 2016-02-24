@@ -10,7 +10,7 @@ ssize_t	opt_lg_tcache_max = LG_TCACHE_MAXCLASS_DEFAULT;
 tcache_bin_info_t	*tcache_bin_info;
 static unsigned		stack_nelms; /* Total stack elms per tcache. */
 
-size_t			nhbins;
+unsigned		nhbins;
 size_t			tcache_maxclass;
 
 tcaches_t		*tcaches;

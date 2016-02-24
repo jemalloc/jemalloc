@@ -115,7 +115,7 @@ extern tcache_bin_info_t	*tcache_bin_info;
  * Number of tcache bins.  There are NBINS small-object bins, plus 0 or more
  * large-object bins.
  */
-extern size_t	nhbins;
+extern unsigned	nhbins;
 
 /* Maximum cached size class. */
 extern size_t	tcache_maxclass;
