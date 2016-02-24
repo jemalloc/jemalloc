@@ -1,7 +1,9 @@
 /* Simple timer, for use in benchmark reporting. */
 
-#include <unistd.h>
-#include <sys/time.h>
+#ifndef _MSC_VER
+#  include <unistd.h>
+#  include <sys/time.h>
+#endif
 
 typedef struct {
 	nstime_t t0;
