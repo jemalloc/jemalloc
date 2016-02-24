@@ -1079,7 +1079,7 @@ arena_run_first_best_fit(arena_t *arena, size_t size)
 	szind_t ind, i;
 
 	ind = size2index(run_quantize_ceil(size));
-	for (i = ind; i < runs_avail_nclasses; i++) {
+	for (i = ind; i < runs_avail_nclasses + runs_avail_bias; i++) {
 		arena_chunk_map_misc_t *miscelm = arena_run_tree_first(
 		    arena_runs_avail_get(arena, i));
 		if (miscelm != NULL)
@@ -3271,7 +3271,7 @@ arena_new(unsigned ind)
 
 	/* Compute arena size to incorporate sufficient runs_avail elements. */
 	arena_size = offsetof(arena_t, runs_avail) + (sizeof(arena_run_tree_t) *
-	    (runs_avail_nclasses - 1));
+	    runs_avail_nclasses);
 	/*
 	 * Allocate arena, arena->lstats, and arena->hstats contiguously, mainly
 	 * because there is no way to clean up if base_alloc() OOMs.
