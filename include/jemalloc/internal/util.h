@@ -168,10 +168,12 @@ JEMALLOC_ALWAYS_INLINE unsigned
 ffs_zu(size_t bitmap)
 {
 
-#if LG_SIZEOF_PTR == LG_SIZEOF_LONG
-	return (ffs_lu(bitmap));
-#elif LG_SIZEOF_PTR == LG_SIZEOF_INT
+#if LG_SIZEOF_PTR == LG_SIZEOF_INT
 	return (ffs_u(bitmap));
+#elif LG_SIZEOF_PTR == LG_SIZEOF_LONG
+	return (ffs_lu(bitmap));
+#elif LG_SIZEOF_PTR == LG_SIZEOF_LONG_LONG
+	return (ffs_llu(bitmap));
 #else
 #error No implementation for size_t ffs()
 #endif
