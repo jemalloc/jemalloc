@@ -199,11 +199,7 @@ run_quantize_ceil(size_t size)
 run_quantize_t *run_quantize_ceil = JEMALLOC_N(run_quantize_ceil_impl);
 #endif
 
-/* Generate red-black tree functions. */
-rb_gen(static UNUSED, arena_avail_tree_, arena_avail_tree_t,
-    arena_chunk_map_misc_t, rb_link, arena_run_addr_comp)
-
-static arena_avail_tree_t *
+static arena_run_tree_t *
 arena_runs_avail_get(arena_t *arena, szind_t ind)
 {
 
@@ -221,7 +217,7 @@ arena_avail_insert(arena_t *arena, arena_chunk_t *chunk, size_t pageind,
 	    arena_miscelm_get(chunk, pageind))));
 	assert(npages == (arena_mapbits_unallocated_size_get(chunk, pageind) >>
 	    LG_PAGE));
-	arena_avail_tree_insert(arena_runs_avail_get(arena, ind),
+	arena_run_tree_insert(arena_runs_avail_get(arena, ind),
 	    arena_miscelm_get(chunk, pageind));
 }
 
@@ -233,7 +229,7 @@ arena_avail_remove(arena_t *arena, arena_chunk_t *chunk, size_t pageind,
 	    arena_miscelm_get(chunk, pageind))));
 	assert(npages == (arena_mapbits_unallocated_size_get(chunk, pageind) >>
 	    LG_PAGE));
-	arena_avail_tree_remove(arena_runs_avail_get(arena, ind),
+	arena_run_tree_remove(arena_runs_avail_get(arena, ind),
 	    arena_miscelm_get(chunk, pageind));
 }
 
@@ -1084,7 +1080,7 @@ arena_run_first_best_fit(arena_t *arena, size_t size)
 
 	ind = size2index(run_quantize_ceil(size));
 	for (i = ind; i < runs_avail_nclasses; i++) {
-		arena_chunk_map_misc_t *miscelm = arena_avail_tree_first(
+		arena_chunk_map_misc_t *miscelm = arena_run_tree_first(
 		    arena_runs_avail_get(arena, i));
 		if (miscelm != NULL)
 			return (&miscelm->run);
@@ -3274,8 +3270,8 @@ arena_new(unsigned ind)
 	arena_bin_t *bin;
 
 	/* Compute arena size to incorporate sufficient runs_avail elements. */
-	arena_size = offsetof(arena_t, runs_avail) + (sizeof(arena_avail_tree_t)
-	    * (runs_avail_nclasses - 1));
+	arena_size = offsetof(arena_t, runs_avail) + (sizeof(arena_run_tree_t) *
+	    (runs_avail_nclasses - 1));
 	/*
 	 * Allocate arena, arena->lstats, and arena->hstats contiguously, mainly
 	 * because there is no way to clean up if base_alloc() OOMs.
@@ -3334,7 +3330,7 @@ arena_new(unsigned ind)
 	arena->ndirty = 0;
 
 	for(i = 0; i < runs_avail_nclasses; i++)
-		arena_avail_tree_new(&arena->runs_avail[i]);
+		arena_run_tree_new(&arena->runs_avail[i]);
 	qr_new(&arena->runs_dirty, rd_link);
 	qr_new(&arena->chunks_cache, cc_link);
 

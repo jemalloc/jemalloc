@@ -175,7 +175,6 @@ struct arena_chunk_map_misc_s {
 		arena_run_t			run;
 	};
 };
-typedef rb_tree(arena_chunk_map_misc_t) arena_avail_tree_t;
 typedef rb_tree(arena_chunk_map_misc_t) arena_run_tree_t;
 #endif /* JEMALLOC_ARENA_STRUCTS_A */
 
@@ -461,7 +460,7 @@ struct arena_s {
 	 * Quantized address-ordered trees of this arena's available runs.  The
 	 * trees are used for first-best-fit run allocation.
 	 */
-	arena_avail_tree_t	runs_avail[1]; /* Dynamically sized. */
+	arena_run_tree_t	runs_avail[1]; /* Dynamically sized. */
 };
 
 /* Used in conjunction with tsd for fast arena-related context lookup. */
