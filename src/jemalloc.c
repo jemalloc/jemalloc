@@ -1396,7 +1396,7 @@ malloc_init_hard_finish(void)
 	 * machinery will fail to allocate memory at far lower limits.
 	 */
 	if (narenas_auto > chunksize / sizeof(arena_t *)) {
-		narenas_auto = chunksize / sizeof(arena_t *);
+		narenas_auto = (unsigned)(chunksize / sizeof(arena_t *));
 		malloc_printf("<jemalloc>: Reducing narenas to limit (%d)\n",
 		    narenas_auto);
 	}

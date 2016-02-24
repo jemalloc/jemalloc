@@ -581,7 +581,8 @@ malloc_vsnprintf(char *str, size_t size, const char *format, va_list ap)
 		str[i] = '\0';
 	else
 		str[size - 1] = '\0';
-	ret = i;
+	assert(i < INT_MAX);
+	ret = (int)i;
 
 #undef APPEND_C
 #undef APPEND_S

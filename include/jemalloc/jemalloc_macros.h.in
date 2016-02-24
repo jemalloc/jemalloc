@@ -11,12 +11,12 @@
 #define	JEMALLOC_VERSION_NREV @jemalloc_version_nrev@
 #define	JEMALLOC_VERSION_GID "@jemalloc_version_gid@"
 
-#  define MALLOCX_LG_ALIGN(la)	(la)
+#  define MALLOCX_LG_ALIGN(la)	((int)(la))
 #  if LG_SIZEOF_PTR == 2
-#    define MALLOCX_ALIGN(a)	(ffs(a)-1)
+#    define MALLOCX_ALIGN(a)	((int)(ffs(a)-1))
 #  else
 #    define MALLOCX_ALIGN(a)						\
-	 ((a < (size_t)INT_MAX) ? ffs(a)-1 : ffs(a>>32)+31)
+	 ((int)((a < (size_t)INT_MAX) ? ffs((int)a)-1 : ffs((int)(a>>32))+31))
 #  endif
 #  define MALLOCX_ZERO	((int)0x40)
 /*

@@ -1053,7 +1053,7 @@ arena_ptr_small_binind_get(const void *ptr, size_t mapbits)
 		run = &miscelm->run;
 		run_binind = run->binind;
 		bin = &arena->bins[run_binind];
-		actual_binind = bin - arena->bins;
+		actual_binind = (szind_t)(bin - arena->bins);
 		assert(run_binind == actual_binind);
 		bin_info = &arena_bin_info[actual_binind];
 		rpages = arena_miscelm_to_rpages(miscelm);
@@ -1070,7 +1070,7 @@ arena_ptr_small_binind_get(const void *ptr, size_t mapbits)
 JEMALLOC_INLINE szind_t
 arena_bin_index(arena_t *arena, arena_bin_t *bin)
 {
-	szind_t binind = bin - arena->bins;
+	szind_t binind = (szind_t)(bin - arena->bins);
 	assert(binind < NBINS);
 	return (binind);
 }

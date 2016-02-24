@@ -337,13 +337,18 @@ hash_x64_128(const void *key, const int len, const uint32_t seed,
 JEMALLOC_INLINE void
 hash(const void *key, size_t len, const uint32_t seed, size_t r_hash[2])
 {
+
+	assert(len <= INT_MAX); /* Unfortunate implementation limitation. */
+
 #if (LG_SIZEOF_PTR == 3 && !defined(JEMALLOC_BIG_ENDIAN))
-	hash_x64_128(key, len, seed, (uint64_t *)r_hash);
+	hash_x64_128(key, (int)len, seed, (uint64_t *)r_hash);
 #else
-	uint64_t hashes[2];
-	hash_x86_128(key, len, seed, hashes);
-	r_hash[0] = (size_t)hashes[0];
-	r_hash[1] = (size_t)hashes[1];
+	{
+		uint64_t hashes[2];
+		hash_x86_128(key, (int)len, seed, hashes);
+		r_hash[0] = (size_t)hashes[0];
+		r_hash[1] = (size_t)hashes[1];
+	}
 #endif
 }
 #endif

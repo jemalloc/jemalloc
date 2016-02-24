@@ -732,8 +732,8 @@ chunk_boot(void)
 
 	if (have_dss && chunk_dss_boot())
 		return (true);
-	if (rtree_new(&chunks_rtree, (ZU(1) << (LG_SIZEOF_PTR+3)) -
-	    opt_lg_chunk, chunks_rtree_node_alloc, NULL))
+	if (rtree_new(&chunks_rtree, (unsigned)((ZU(1) << (LG_SIZEOF_PTR+3)) -
+	    opt_lg_chunk), chunks_rtree_node_alloc, NULL))
 		return (true);
 
 	return (false);

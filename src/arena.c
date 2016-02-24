@@ -308,7 +308,7 @@ arena_run_reg_alloc(arena_run_t *run, arena_bin_info_t *bin_info)
 	assert(run->nfree > 0);
 	assert(!bitmap_full(run->bitmap, &bin_info->bitmap_info));
 
-	regind = bitmap_sfu(run->bitmap, &bin_info->bitmap_info);
+	regind = (unsigned)bitmap_sfu(run->bitmap, &bin_info->bitmap_info);
 	miscelm = arena_run_to_miscelm(run);
 	rpages = arena_miscelm_to_rpages(miscelm);
 	ret = (void *)((uintptr_t)rpages + (uintptr_t)bin_info->reg0_offset +
@@ -3411,18 +3411,19 @@ bin_info_run_size_calc(arena_bin_info_t *bin_info)
 	 * size).
 	 */
 	try_run_size = PAGE;
-	try_nregs = try_run_size / bin_info->reg_size;
+	try_nregs = (uint32_t)(try_run_size / bin_info->reg_size);
 	do {
 		perfect_run_size = try_run_size;
 		perfect_nregs = try_nregs;
 
 		try_run_size += PAGE;
-		try_nregs = try_run_size / bin_info->reg_size;
+		try_nregs = (uint32_t)(try_run_size / bin_info->reg_size);
 	} while (perfect_run_size != perfect_nregs * bin_info->reg_size);
 	assert(perfect_nregs <= RUN_MAXREGS);
 
 	actual_run_size = perfect_run_size;
-	actual_nregs = (actual_run_size - pad_size) / bin_info->reg_interval;
+	actual_nregs = (uint32_t)((actual_run_size - pad_size) /
+	    bin_info->reg_interval);
 
 	/*
 	 * Redzones can require enough padding that not even a single region can
@@ -3434,8 +3435,8 @@ bin_info_run_size_calc(arena_bin_info_t *bin_info)
 		assert(config_fill && unlikely(opt_redzone));
 
 		actual_run_size += PAGE;
-		actual_nregs = (actual_run_size - pad_size) /
-		    bin_info->reg_interval;
+		actual_nregs = (uint32_t)((actual_run_size - pad_size) /
+		    bin_info->reg_interval);
 	}
 
 	/*
@@ -3443,8 +3444,8 @@ bin_info_run_size_calc(arena_bin_info_t *bin_info)
 	 */
 	while (actual_run_size > arena_maxrun) {
 		actual_run_size -= PAGE;
-		actual_nregs = (actual_run_size - pad_size) /
-		    bin_info->reg_interval;
+		actual_nregs = (uint32_t)((actual_run_size - pad_size) /
+		    bin_info->reg_interval);
 	}
 	assert(actual_nregs > 0);
 	assert(actual_run_size == s2u(actual_run_size));
@@ -3452,8 +3453,8 @@ bin_info_run_size_calc(arena_bin_info_t *bin_info)
 	/* Copy final settings. */
 	bin_info->run_size = actual_run_size;
 	bin_info->nregs = actual_nregs;
-	bin_info->reg0_offset = actual_run_size - (actual_nregs *
-	    bin_info->reg_interval) - pad_size + bin_info->redzone_size;
+	bin_info->reg0_offset = (uint32_t)(actual_run_size - (actual_nregs *
+	    bin_info->reg_interval) - pad_size + bin_info->redzone_size);
 
 	if (actual_run_size > small_maxrun)
 		small_maxrun = actual_run_size;

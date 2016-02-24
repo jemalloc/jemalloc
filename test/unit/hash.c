@@ -35,7 +35,7 @@ typedef enum {
 	hash_variant_x64_128
 } hash_variant_t;
 
-static size_t
+static int
 hash_variant_bits(hash_variant_t variant)
 {
 
@@ -63,7 +63,7 @@ hash_variant_string(hash_variant_t variant)
 static void
 hash_variant_verify_key(hash_variant_t variant, uint8_t *key)
 {
-	const size_t hashbytes = hash_variant_bits(variant) / 8;
+	const int hashbytes = hash_variant_bits(variant) / 8;
 	VARIABLE_ARRAY(uint8_t, hashes, hashbytes * 256);
 	VARIABLE_ARRAY(uint8_t, final, hashbytes);
 	unsigned i;
