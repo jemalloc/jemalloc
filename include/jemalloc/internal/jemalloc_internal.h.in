@@ -433,7 +433,7 @@ extern bool	opt_redzone;
 extern bool	opt_utrace;
 extern bool	opt_xmalloc;
 extern bool	opt_zero;
-extern size_t	opt_narenas;
+extern unsigned	opt_narenas;
 
 extern bool	in_valgrind;
 

@@ -435,9 +435,10 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		bool bv;
 		unsigned uv;
 		ssize_t ssv;
-		size_t sv, bsz, ssz, sssz, cpsz;
+		size_t sv, bsz, usz, ssz, sssz, cpsz;
 
 		bsz = sizeof(bool);
+		usz = sizeof(unsigned);
 		ssz = sizeof(size_t);
 		sssz = sizeof(ssize_t);
 		cpsz = sizeof(const char *);
@@ -464,6 +465,11 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 			    : "false", bv2 ? "true" : "false");		\
 		}							\
 }
+#define	OPT_WRITE_UNSIGNED(n)						\
+		if (je_mallctl("opt."#n, &uv, &usz, NULL, 0) == 0) {	\
+			malloc_cprintf(write_cb, cbopaque,		\
+			"  opt."#n": %zu\n", sv);			\
+		}
 #define	OPT_WRITE_SIZE_T(n)						\
 		if (je_mallctl("opt."#n, &sv, &ssz, NULL, 0) == 0) {	\
 			malloc_cprintf(write_cb, cbopaque,		\
@@ -494,7 +500,7 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		OPT_WRITE_BOOL(abort)
 		OPT_WRITE_SIZE_T(lg_chunk)
 		OPT_WRITE_CHAR_P(dss)
-		OPT_WRITE_SIZE_T(narenas)
+		OPT_WRITE_UNSIGNED(narenas)
 		OPT_WRITE_CHAR_P(purge)
 		if (opt_purge == purge_mode_ratio) {
 			OPT_WRITE_SSIZE_T_MUTABLE(lg_dirty_mult,

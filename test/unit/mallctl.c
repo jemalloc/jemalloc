@@ -163,7 +163,7 @@ TEST_BEGIN(test_mallctl_opt)
 	TEST_MALLCTL_OPT(bool, abort, always);
 	TEST_MALLCTL_OPT(size_t, lg_chunk, always);
 	TEST_MALLCTL_OPT(const char *, dss, always);
-	TEST_MALLCTL_OPT(size_t, narenas, always);
+	TEST_MALLCTL_OPT(unsigned, narenas, always);
 	TEST_MALLCTL_OPT(const char *, purge, always);
 	TEST_MALLCTL_OPT(ssize_t, lg_dirty_mult, always);
 	TEST_MALLCTL_OPT(ssize_t, decay_time, always);

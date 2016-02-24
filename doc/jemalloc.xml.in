@@ -941,7 +941,7 @@ for (i = 0; i < nbins; i++) {
       <varlistentry id="opt.narenas">
         <term>
           <mallctl>opt.narenas</mallctl>
-          (<type>size_t</type>)
+          (<type>unsigned</type>)
           <literal>r-</literal>
         </term>
         <listitem><para>Maximum number of arenas to use for automatic

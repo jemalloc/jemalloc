@@ -40,7 +40,7 @@ bool	opt_redzone = false;
 bool	opt_utrace = false;
 bool	opt_xmalloc = false;
 bool	opt_zero = false;
-size_t	opt_narenas = 0;
+unsigned	opt_narenas = 0;
 
 /* Initialized to true if the process is running inside Valgrind. */
 bool	in_valgrind;
@@ -1031,7 +1031,7 @@ malloc_conf_init(void)
 				if (cont)				\
 					continue;			\
 			}
-#define	CONF_HANDLE_SIZE_T(o, n, min, max, clip)			\
+#define	CONF_HANDLE_T_U(t, o, n, min, max, clip)			\
 			if (CONF_MATCH(n)) {				\
 				uintmax_t um;				\
 				char *end;				\
@@ -1045,11 +1045,11 @@ malloc_conf_init(void)
 					    k, klen, v, vlen);		\
 				} else if (clip) {			\
 					if ((min) != 0 && um < (min))	\
-						o = (min);		\
+						o = (t)(min);		\
 					else if (um > (max))		\
-						o = (max);		\
+						o = (t)(max);		\
 					else				\
-						o = um;			\
+						o = (t)um;		\
 				} else {				\
 					if (((min) != 0 && um < (min))	\
 					    || um > (max)) {		\
@@ -1058,10 +1058,14 @@ malloc_conf_init(void)
 						    "conf value",	\
 						    k, klen, v, vlen);	\
 					} else				\
-						o = um;			\
+						o = (t)um;		\
 				}					\
 				continue;				\
 			}
+#define	CONF_HANDLE_UNSIGNED(o, n, min, max, clip)			\
+			CONF_HANDLE_T_U(unsigned, o, n, min, max, clip)
+#define	CONF_HANDLE_SIZE_T(o, n, min, max, clip)			\
+			CONF_HANDLE_T_U(size_t, o, n, min, max, clip)
 #define	CONF_HANDLE_SSIZE_T(o, n, min, max)				\
 			if (CONF_MATCH(n)) {				\
 				long l;					\
@@ -1129,8 +1133,8 @@ malloc_conf_init(void)
 				}
 				continue;
 			}
-			CONF_HANDLE_SIZE_T(opt_narenas, "narenas", 1,
-			    SIZE_T_MAX, false)
+			CONF_HANDLE_UNSIGNED(opt_narenas, "narenas", 1,
+			    UINT_MAX, false)
 			if (strncmp("purge", k, klen) == 0) {
 				int i;
 				bool match = false;
