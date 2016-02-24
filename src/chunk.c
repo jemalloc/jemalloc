@@ -716,7 +716,7 @@ chunk_boot(void)
 	 * so pages_map will always take fast path.
 	 */
 	if (!opt_lg_chunk) {
-		opt_lg_chunk = jemalloc_ffs((int)info.dwAllocationGranularity)
+		opt_lg_chunk = ffs_u((unsigned)info.dwAllocationGranularity)
 		    - 1;
 	}
 #else

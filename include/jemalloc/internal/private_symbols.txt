@@ -243,6 +243,12 @@ extent_tree_szad_reverse_iter
 extent_tree_szad_reverse_iter_recurse
 extent_tree_szad_reverse_iter_start
 extent_tree_szad_search
+ffs_llu
+ffs_lu
+ffs_u
+ffs_u32
+ffs_u64
+ffs_zu
 get_errno
 hash
 hash_fmix_32
@@ -292,9 +298,6 @@ isqalloc
 isthreaded
 ivsalloc
 ixalloc
-jemalloc_ffs
-jemalloc_ffs64
-jemalloc_ffsl
 jemalloc_postfork_child
 jemalloc_postfork_parent
 jemalloc_prefork
