@@ -3,6 +3,7 @@
 
 /******************************************************************************/
 
+#ifdef USE_TREE
 void
 bitmap_info_init(bitmap_info_t *binfo, size_t nbits)
 {
@@ -39,15 +40,6 @@ bitmap_info_ngroups(const bitmap_info_t *binfo)
 	return (binfo->levels[binfo->nlevels].group_offset << LG_SIZEOF_BITMAP);
 }
 
-size_t
-bitmap_size(size_t nbits)
-{
-	bitmap_info_t binfo;
-
-	bitmap_info_init(&binfo, nbits);
-	return (bitmap_info_ngroups(&binfo));
-}
-
 void
 bitmap_init(bitmap_t *bitmap, const bitmap_info_t *binfo)
 {
@@ -75,4 +67,50 @@ bitmap_init(bitmap_t *bitmap, const bitmap_info_t *binfo)
 		if (extra != 0)
 			bitmap[binfo->levels[i+1].group_offset - 1] >>= extra;
 	}
+}
+
+#else /* USE_TREE */
+
+void
+bitmap_info_init(bitmap_info_t *binfo, size_t nbits)
+{
+	unsigned i;
+
+	assert(nbits > 0);
+	assert(nbits <= (ZU(1) << LG_BITMAP_MAXBITS));
+
+	i = nbits >> LG_BITMAP_GROUP_NBITS;
+	if (nbits % BITMAP_GROUP_NBITS != 0)
+		i++;
+	binfo->nlevels = i;
+	binfo->nbits = nbits;
+}
+
+size_t
+bitmap_info_ngroups(const bitmap_info_t *binfo)
+{
+
+	return (0);
+}
+
+void
+bitmap_init(bitmap_t *bitmap, const bitmap_info_t *binfo)
+{
+	size_t extra;
+
+	memset(bitmap, 0xffU, binfo->nlevels * (1 << LG_SIZEOF_LONG));
+	extra = (binfo->nbits % (binfo->nlevels * BITMAP_GROUP_NBITS));
+	if (extra != 0)
+		bitmap[binfo->nlevels - 1] >>= (BITMAP_GROUP_NBITS - extra);
+}
+
+#endif /* USE_TREE */
+
+size_t
+bitmap_size(size_t nbits)
+{
+	bitmap_info_t binfo;
+
+	bitmap_info_init(&binfo, nbits);
+	return (bitmap_info_ngroups(&binfo));
 }
