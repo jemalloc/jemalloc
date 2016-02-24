@@ -989,7 +989,7 @@ prof_dump_close(bool propagate_err)
 static bool
 prof_dump_write(bool propagate_err, const char *s)
 {
-	unsigned i, slen, n;
+	size_t i, slen, n;
 
 	cassert(config_prof);
 
