@@ -350,12 +350,9 @@ chunk_alloc_core(arena_t *arena, void *new_addr, size_t size, size_t alignment,
 	    chunk_alloc_dss(arena, new_addr, size, alignment, zero, commit)) !=
 	    NULL)
 		return (ret);
-	/*
-	 * mmap.  Requesting an address is not implemented for
-	 * chunk_alloc_mmap(), so only call it if (new_addr == NULL).
-	 */
-	if (new_addr == NULL && (ret = chunk_alloc_mmap(size, alignment, zero,
-	    commit)) != NULL)
+	/* mmap. */
+	if ((ret = chunk_alloc_mmap(new_addr, size, alignment, zero, commit)) !=
+	    NULL)
 		return (ret);
 	/* "secondary" dss. */
 	if (have_dss && dss_prec == dss_prec_secondary && (ret =
@@ -380,7 +377,7 @@ chunk_alloc_base(size_t size)
 	 */
 	zero = true;
 	commit = true;
-	ret = chunk_alloc_mmap(size, chunksize, &zero, &commit);
+	ret = chunk_alloc_mmap(NULL, size, chunksize, &zero, &commit);
 	if (ret == NULL)
 		return (NULL);
 	if (config_valgrind)
