@@ -2364,16 +2364,16 @@ arena_quarantine_junk_small(void *ptr, size_t usize)
 }
 
 static void *
-arena_malloc_small(tsd_t *tsd, arena_t *arena, size_t size, szind_t binind,
-    bool zero)
+arena_malloc_small(tsd_t *tsd, arena_t *arena, szind_t binind, bool zero)
 {
 	void *ret;
 	arena_bin_t *bin;
+	size_t usize;
 	arena_run_t *run;
 
 	assert(binind < NBINS);
 	bin = &arena->bins[binind];
-	size = index2size(binind);
+	usize = index2size(binind);
 
 	malloc_mutex_lock(&bin->lock);
 	if ((run = bin->runcur) != NULL && run->nfree > 0)
@@ -2392,7 +2392,7 @@ arena_malloc_small(tsd_t *tsd, arena_t *arena, size_t size, szind_t binind,
 		bin->stats.curregs++;
 	}
 	malloc_mutex_unlock(&bin->lock);
-	if (config_prof && !isthreaded && arena_prof_accum(arena, size))
+	if (config_prof && !isthreaded && arena_prof_accum(arena, usize))
 		prof_idump();
 
 	if (!zero) {
@@ -2401,16 +2401,16 @@ arena_malloc_small(tsd_t *tsd, arena_t *arena, size_t size, szind_t binind,
 				arena_alloc_junk_small(ret,
 				    &arena_bin_info[binind], false);
 			} else if (unlikely(opt_zero))
-				memset(ret, 0, size);
+				memset(ret, 0, usize);
 		}
-		JEMALLOC_VALGRIND_MAKE_MEM_UNDEFINED(ret, size);
+		JEMALLOC_VALGRIND_MAKE_MEM_UNDEFINED(ret, usize);
 	} else {
 		if (config_fill && unlikely(opt_junk_alloc)) {
 			arena_alloc_junk_small(ret, &arena_bin_info[binind],
 			    true);
 		}
-		JEMALLOC_VALGRIND_MAKE_MEM_UNDEFINED(ret, size);
-		memset(ret, 0, size);
+		JEMALLOC_VALGRIND_MAKE_MEM_UNDEFINED(ret, usize);
+		memset(ret, 0, usize);
 	}
 
 	arena_decay_tick(tsd, arena);
@@ -2418,8 +2418,7 @@ arena_malloc_small(tsd_t *tsd, arena_t *arena, size_t size, szind_t binind,
 }
 
 void *
-arena_malloc_large(tsd_t *tsd, arena_t *arena, size_t size, szind_t binind,
-    bool zero)
+arena_malloc_large(tsd_t *tsd, arena_t *arena, szind_t binind, bool zero)
 {
 	void *ret;
 	size_t usize;
@@ -2490,10 +2489,10 @@ arena_malloc_hard(tsd_t *tsd, arena_t *arena, size_t size, szind_t ind,
 		return (NULL);
 
 	if (likely(size <= SMALL_MAXCLASS))
-		return (arena_malloc_small(tsd, arena, size, ind, zero));
+		return (arena_malloc_small(tsd, arena, ind, zero));
 	if (likely(size <= large_maxclass))
-		return (arena_malloc_large(tsd, arena, size, ind, zero));
-	return (huge_malloc(tsd, arena, size, zero, tcache));
+		return (arena_malloc_large(tsd, arena, ind, zero));
+	return (huge_malloc(tsd, arena, index2size(ind), zero, tcache));
 }
 
 /* Only handles large allocations that require more than page alignment. */
@@ -3047,6 +3046,13 @@ arena_ralloc_no_move(tsd_t *tsd, void *ptr, size_t oldsize, size_t size,
 {
 	size_t usize_min, usize_max;
 
+	/* Calls with non-zero extra had to clamp extra. */
+	assert(extra == 0 || size + extra <= HUGE_MAXCLASS);
+
+	/* Prevent exceeding PTRDIFF_MAX. */
+	if (unlikely(size > HUGE_MAXCLASS))
+		return (true);
+
 	usize_min = s2u(size);
 	usize_max = s2u(size + extra);
 	if (likely(oldsize <= large_maxclass && usize_min <= large_maxclass)) {
@@ -3089,7 +3095,7 @@ arena_ralloc_move_helper(tsd_t *tsd, arena_t *arena, size_t usize,
 		return (arena_malloc(tsd, arena, usize, size2index(usize), zero,
 		    tcache, true));
 	usize = sa2u(usize, alignment);
-	if (usize == 0)
+	if (unlikely(usize == 0 || usize > HUGE_MAXCLASS))
 		return (NULL);
 	return (ipalloct(tsd, usize, alignment, zero, tcache, arena));
 }
@@ -3102,7 +3108,7 @@ arena_ralloc(tsd_t *tsd, arena_t *arena, void *ptr, size_t oldsize, size_t size,
 	size_t usize;
 
 	usize = s2u(size);
-	if (usize == 0)
+	if (unlikely(usize == 0 || size > HUGE_MAXCLASS))
 		return (NULL);
 
 	if (likely(usize <= large_maxclass)) {

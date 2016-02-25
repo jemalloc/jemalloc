@@ -1449,18 +1449,17 @@ imalloc_body(size_t size, tsd_t **tsd, size_t *usize, bool slow_path)
 		return (NULL);
 	*tsd = tsd_fetch();
 	ind = size2index(size);
+	if (unlikely(ind >= NSIZES))
+		return (NULL);
 
-	if (config_stats ||
-	    (config_prof && opt_prof) ||
-	    (slow_path && config_valgrind && unlikely(in_valgrind))) {
+	if (config_stats || (config_prof && opt_prof) || (slow_path &&
+	    config_valgrind && unlikely(in_valgrind))) {
 		*usize = index2size(ind);
+		assert(*usize > 0 && *usize <= HUGE_MAXCLASS);
 	}
 
-	if (config_prof && opt_prof) {
-		if (unlikely(*usize == 0))
-			return (NULL);
+	if (config_prof && opt_prof)
 		return (imalloc_prof(*tsd, *usize, ind, slow_path));
-	}
 
 	return (imalloc(*tsd, size, ind, slow_path));
 }
@@ -1584,7 +1583,7 @@ imemalign(void **memptr, size_t alignment, size_t size, size_t min_alignment)
 	}
 
 	usize = sa2u(size, alignment);
-	if (unlikely(usize == 0)) {
+	if (unlikely(usize == 0 || usize > HUGE_MAXCLASS)) {
 		result = NULL;
 		goto label_oom;
 	}
@@ -1722,12 +1721,12 @@ je_calloc(size_t num, size_t size)
 	}
 
 	ind = size2index(num_size);
+	if (unlikely(ind >= NSIZES)) {
+		ret = NULL;
+		goto label_return;
+	}
 	if (config_prof && opt_prof) {
 		usize = index2size(ind);
-		if (unlikely(usize == 0)) {
-			ret = NULL;
-			goto label_return;
-		}
 		ret = icalloc_prof(tsd, usize, ind);
 	} else {
 		if (config_stats || (config_valgrind && unlikely(in_valgrind)))
@@ -1874,8 +1873,8 @@ je_realloc(void *ptr, size_t size)
 
 		if (config_prof && opt_prof) {
 			usize = s2u(size);
-			ret = unlikely(usize == 0) ? NULL : irealloc_prof(tsd,
-			    ptr, old_usize, usize);
+			ret = unlikely(usize == 0 || usize > HUGE_MAXCLASS) ?
+			    NULL : irealloc_prof(tsd, ptr, old_usize, usize);
 		} else {
 			if (config_stats || (config_valgrind &&
 			    unlikely(in_valgrind)))
@@ -2006,7 +2005,8 @@ imallocx_flags_decode_hard(tsd_t *tsd, size_t size, int flags, size_t *usize,
 		*alignment = MALLOCX_ALIGN_GET_SPECIFIED(flags);
 		*usize = sa2u(size, *alignment);
 	}
-	assert(*usize != 0);
+	if (unlikely(*usize == 0 || *usize > HUGE_MAXCLASS))
+		return (true);
 	*zero = MALLOCX_ZERO_GET(flags);
 	if ((flags & MALLOCX_TCACHE_MASK) != 0) {
 		if ((flags & MALLOCX_TCACHE_MASK) == MALLOCX_TCACHE_NONE)
@@ -2032,7 +2032,6 @@ imallocx_flags_decode(tsd_t *tsd, size_t size, int flags, size_t *usize,
 
 	if (likely(flags == 0)) {
 		*usize = s2u(size);
-		assert(*usize != 0);
 		*alignment = 0;
 		*zero = false;
 		*tcache = tcache_get(tsd, true);
@@ -2051,6 +2050,8 @@ imallocx_flags(tsd_t *tsd, size_t usize, size_t alignment, bool zero,
 	szind_t ind;
 
 	ind = size2index(usize);
+	if (unlikely(ind >= NSIZES))
+		return (NULL);
 	if (unlikely(alignment != 0))
 		return (ipalloct(tsd, usize, alignment, zero, tcache, arena));
 	if (unlikely(zero))
@@ -2120,8 +2121,13 @@ imallocx_no_prof(tsd_t *tsd, size_t size, int flags, size_t *usize)
 
 	if (likely(flags == 0)) {
 		szind_t ind = size2index(size);
-		if (config_stats || (config_valgrind && unlikely(in_valgrind)))
+		if (unlikely(ind >= NSIZES))
+			return (NULL);
+		if (config_stats || (config_valgrind &&
+		    unlikely(in_valgrind))) {
 			*usize = index2size(ind);
+			assert(*usize > 0 && *usize <= HUGE_MAXCLASS);
+		}
 		return (imalloc(tsd, size, ind, true));
 	}
 
@@ -2278,7 +2284,8 @@ je_rallocx(void *ptr, size_t size, int flags)
 
 	if (config_prof && opt_prof) {
 		usize = (alignment == 0) ? s2u(size) : sa2u(size, alignment);
-		assert(usize != 0);
+		if (unlikely(usize == 0 || usize > HUGE_MAXCLASS))
+			goto label_oom;
 		p = irallocx_prof(tsd, ptr, old_usize, size, alignment, &usize,
 		    zero, tcache, arena);
 		if (unlikely(p == NULL))
@@ -2392,14 +2399,23 @@ je_xallocx(void *ptr, size_t size, size_t extra, int flags)
 
 	old_usize = isalloc(ptr, config_prof);
 
-	/* Clamp extra if necessary to avoid (size + extra) overflow. */
-	if (unlikely(size + extra > HUGE_MAXCLASS)) {
-		/* Check for size overflow. */
+	if (unlikely(extra > 0)) {
+		/*
+		 * The API explicitly absolves itself of protecting against
+		 * (size + extra) numerical overflow, but we may need to clamp
+		 * extra to avoid exceeding HUGE_MAXCLASS.
+		 *
+		 * Ordinarily, size limit checking is handled deeper down, but
+		 * here we have to check as part of (size + extra) clamping,
+		 * since we need the clamped value in the above helper
+		 * functions.
+		 */
 		if (unlikely(size > HUGE_MAXCLASS)) {
 			usize = old_usize;
 			goto label_not_resized;
 		}
-		extra = HUGE_MAXCLASS - size;
+		if (unlikely(HUGE_MAXCLASS - size < extra))
+			extra = HUGE_MAXCLASS - size;
 	}
 
 	if (config_valgrind && unlikely(in_valgrind))
@@ -2474,7 +2490,6 @@ inallocx(size_t size, int flags)
 		usize = s2u(size);
 	else
 		usize = sa2u(size, MALLOCX_ALIGN_GET_SPECIFIED(flags));
-	assert(usize != 0);
 	return (usize);
 }
 
@@ -2507,13 +2522,18 @@ JEMALLOC_EXPORT size_t JEMALLOC_NOTHROW
 JEMALLOC_ATTR(pure)
 je_nallocx(size_t size, int flags)
 {
+	size_t usize;
 
 	assert(size != 0);
 
 	if (unlikely(malloc_init()))
 		return (0);
 
-	return (inallocx(size, flags));
+	usize = inallocx(size, flags);
+	if (unlikely(usize > HUGE_MAXCLASS))
+		return (0);
+
+	return (usize);
 }
 
 JEMALLOC_EXPORT int JEMALLOC_NOTHROW

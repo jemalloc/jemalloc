@@ -46,6 +46,35 @@ get_huge_size(size_t ind)
 	return (get_size_impl("arenas.hchunk.0.size", ind));
 }
 
+TEST_BEGIN(test_overflow)
+{
+	size_t hugemax, size;
+
+	hugemax = get_huge_size(get_nhuge()-1);
+
+	assert_ptr_null(mallocx(hugemax+1, 0),
+	    "Expected OOM for mallocx(size=%#zx, 0)", hugemax+1);
+
+	assert_ptr_null(mallocx(PTRDIFF_MAX+1, 0),
+	    "Expected OOM for mallocx(size=%#zx, 0)", ZU(PTRDIFF_MAX+1));
+
+	assert_ptr_null(mallocx(SIZE_T_MAX, 0),
+	    "Expected OOM for mallocx(size=%#zx, 0)", SIZE_T_MAX);
+
+#if LG_SIZEOF_PTR == 3
+	size      = ZU(0x600000000000000);
+#else
+	size      = ZU(0x6000000);
+#endif
+	assert_ptr_null(mallocx(size, 0),
+	    "Expected OOM for mallocx(size=%#zx, 0", size);
+
+	assert_ptr_null(mallocx(1, MALLOCX_ALIGN(PTRDIFF_MAX+1)),
+	    "Expected OOM for mallocx(size=1, MALLOCX_ALIGN(%#zx))",
+	    ZU(PTRDIFF_MAX+1));
+}
+TEST_END
+
 TEST_BEGIN(test_oom)
 {
 	size_t hugemax, size, alignment;
@@ -176,6 +205,7 @@ main(void)
 {
 
 	return (test(
+	    test_overflow,
 	    test_oom,
 	    test_basic,
 	    test_alignment_and_size));

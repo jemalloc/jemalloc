@@ -642,7 +642,7 @@ JEMALLOC_ALWAYS_INLINE size_t
 index2size(szind_t index)
 {
 
-	assert(index <= NSIZES);
+	assert(index < NSIZES);
 	return (index2size_lookup(index));
 }
 
@@ -745,17 +745,16 @@ sa2u(size_t size, size_t alignment)
 			return (usize);
 	}
 
-	/* Huge size class.  Beware of size_t overflow. */
+	/* Huge size class.  Beware of overflow. */
+
+	if (unlikely(alignment > HUGE_MAXCLASS))
+		return (0);
 
 	/*
 	 * We can't achieve subchunk alignment, so round up alignment to the
 	 * minimum that can actually be supported.
 	 */
 	alignment = CHUNK_CEILING(alignment);
-	if (alignment == 0) {
-		/* size_t overflow. */
-		return (0);
-	}
 
 	/* Make sure result is a huge size class. */
 	if (size <= chunksize)
@@ -1106,7 +1105,7 @@ iralloct_realign(tsd_t *tsd, void *ptr, size_t oldsize, size_t size,
 	size_t usize, copysize;
 
 	usize = sa2u(size + extra, alignment);
-	if (usize == 0)
+	if (unlikely(usize == 0 || usize > HUGE_MAXCLASS))
 		return (NULL);
 	p = ipalloct(tsd, usize, alignment, zero, tcache, arena);
 	if (p == NULL) {
@@ -1114,7 +1113,7 @@ iralloct_realign(tsd_t *tsd, void *ptr, size_t oldsize, size_t size,
 			return (NULL);
 		/* Try again, without extra this time. */
 		usize = sa2u(size, alignment);
-		if (usize == 0)
+		if (unlikely(usize == 0 || usize > HUGE_MAXCLASS))
 			return (NULL);
 		p = ipalloct(tsd, usize, alignment, zero, tcache, arena);
 		if (p == NULL)

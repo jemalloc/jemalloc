@@ -344,7 +344,6 @@ tcache_alloc_large(tsd_t *tsd, arena_t *arena, tcache_t *tcache, size_t size,
 	void *ret;
 	tcache_bin_t *tbin;
 	bool tcache_success;
-	size_t usize JEMALLOC_CC_SILENCE_INIT(0);
 
 	assert(binind < nhbins);
 	tbin = &tcache->tbins[binind];
@@ -359,14 +358,15 @@ tcache_alloc_large(tsd_t *tsd, arena_t *arena, tcache_t *tcache, size_t size,
 		if (unlikely(arena == NULL))
 			return (NULL);
 
-		usize = index2size(binind);
-		assert(usize <= tcache_maxclass);
-		ret = arena_malloc_large(tsd, arena, usize, binind, zero);
+		ret = arena_malloc_large(tsd, arena, binind, zero);
 		if (ret == NULL)
 			return (NULL);
 	} else {
+		size_t usize JEMALLOC_CC_SILENCE_INIT(0);
+
 		/* Only compute usize on demand */
-		if (config_prof || (slow_path && config_fill) || unlikely(zero)) {
+		if (config_prof || (slow_path && config_fill) ||
+		    unlikely(zero)) {
 			usize = index2size(binind);
 			assert(usize <= tcache_maxclass);
 		}

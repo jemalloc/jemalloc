@@ -1,5 +1,51 @@
 #include "test/jemalloc_test.h"
 
+static unsigned
+get_nsizes_impl(const char *cmd)
+{
+	unsigned ret;
+	size_t z;
+
+	z = sizeof(unsigned);
+	assert_d_eq(mallctl(cmd, &ret, &z, NULL, 0), 0,
+	    "Unexpected mallctl(\"%s\", ...) failure", cmd);
+
+	return (ret);
+}
+
+static unsigned
+get_nhuge(void)
+{
+
+	return (get_nsizes_impl("arenas.nhchunks"));
+}
+
+static size_t
+get_size_impl(const char *cmd, size_t ind)
+{
+	size_t ret;
+	size_t z;
+	size_t mib[4];
+	size_t miblen = 4;
+
+	z = sizeof(size_t);
+	assert_d_eq(mallctlnametomib(cmd, mib, &miblen),
+	    0, "Unexpected mallctlnametomib(\"%s\", ...) failure", cmd);
+	mib[2] = ind;
+	z = sizeof(size_t);
+	assert_d_eq(mallctlbymib(mib, miblen, &ret, &z, NULL, 0),
+	    0, "Unexpected mallctlbymib([\"%s\", %zu], ...) failure", cmd, ind);
+
+	return (ret);
+}
+
+static size_t
+get_huge_size(size_t ind)
+{
+
+	return (get_size_impl("arenas.hchunk.0.size", ind));
+}
+
 TEST_BEGIN(test_grow_and_shrink)
 {
 	void *p, *q;
@@ -173,6 +219,41 @@ TEST_BEGIN(test_lg_align_and_zero)
 }
 TEST_END
 
+TEST_BEGIN(test_overflow)
+{
+	size_t hugemax, size;
+	void *p;
+
+	hugemax = get_huge_size(get_nhuge()-1);
+
+	p = mallocx(1, 0);
+	assert_ptr_not_null(p, "Unexpected mallocx() failure");
+
+	assert_ptr_null(rallocx(p, hugemax+1, 0),
+	    "Expected OOM for rallocx(p, size=%#zx, 0)", hugemax+1);
+
+	assert_ptr_null(rallocx(p, PTRDIFF_MAX+1, 0),
+	    "Expected OOM for rallocx(p, size=%#zx, 0)", ZU(PTRDIFF_MAX+1));
+
+	assert_ptr_null(rallocx(p, SIZE_T_MAX, 0),
+	    "Expected OOM for rallocx(p, size=%#zx, 0)", SIZE_T_MAX);
+
+#if LG_SIZEOF_PTR == 3
+	size      = ZU(0x600000000000000);
+#else
+	size      = ZU(0x6000000);
+#endif
+	assert_ptr_null(rallocx(p, size, 0),
+	    "Expected OOM for rallocx(p, size=%#zx, 0", size);
+
+	assert_ptr_null(rallocx(p, 1, MALLOCX_ALIGN(PTRDIFF_MAX+1)),
+	    "Expected OOM for rallocx(p, size=1, MALLOCX_ALIGN(%#zx))",
+	    ZU(PTRDIFF_MAX+1));
+
+	dallocx(p, 0);
+}
+TEST_END
+
 int
 main(void)
 {
@@ -181,5 +262,6 @@ main(void)
 	    test_grow_and_shrink,
 	    test_zero,
 	    test_align,
-	    test_lg_align_and_zero));
+	    test_lg_align_and_zero,
+	    test_overflow));
 }
