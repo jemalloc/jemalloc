@@ -3271,7 +3271,7 @@ arena_new(unsigned ind)
 
 	/* Compute arena size to incorporate sufficient runs_avail elements. */
 	arena_size = offsetof(arena_t, runs_avail) + (sizeof(arena_run_tree_t) *
-	    (runs_avail_nclasses - 1));
+	    runs_avail_nclasses);
 	/*
 	 * Allocate arena, arena->lstats, and arena->hstats contiguously, mainly
 	 * because there is no way to clean up if base_alloc() OOMs.
