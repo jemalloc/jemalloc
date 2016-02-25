@@ -61,6 +61,11 @@ huge_palloc(tsd_t *tsd, arena_t *arena, size_t size, size_t alignment,
 		return (NULL);
 	assert(usize >= chunksize);
 
+#ifdef __ANDROID__
+	if (usize > PTRDIFF_MAX)
+		return (NULL);
+#endif
+
 	/* Allocate an extent node with which to track the chunk. */
 	node = ipallocztm(tsd, CACHELINE_CEILING(sizeof(extent_node_t)),
 	    CACHELINE, false, tcache, true, arena);
@@ -291,6 +296,11 @@ huge_ralloc_no_move(tsd_t *tsd, void *ptr, size_t oldsize, size_t usize_min,
 	if (oldsize < chunksize || usize_max < chunksize)
 		return (true);
 
+#ifdef __ANDROID__
+	if (usize_max > PTRDIFF_MAX)
+		return (true);
+#endif
+
 	if (CHUNK_CEILING(usize_max) > CHUNK_CEILING(oldsize)) {
 		/* Attempt to expand the allocation in-place. */
 		if (!huge_ralloc_no_move_expand(ptr, oldsize, usize_max,
@@ -345,6 +355,11 @@ huge_ralloc(tsd_t *tsd, arena_t *arena, void *ptr, size_t oldsize, size_t usize,
 {
 	void *ret;
 	size_t copysize;
+
+#ifdef __ANDROID__
+	if (usize > PTRDIFF_MAX)
+		return (NULL);
+#endif
 
 	/* Try to avoid moving the allocation. */
 	if (!huge_ralloc_no_move(tsd, ptr, oldsize, usize, usize, zero))
