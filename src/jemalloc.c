@@ -47,7 +47,7 @@ bool	in_valgrind;
 
 unsigned	ncpus;
 
-/* Protects arenas initialization (arenas, narenas_total). */
+/* Protects arenas initialization. */
 static malloc_mutex_t	arenas_lock;
 /*
  * Arenas that are used to service external requests.  Not all elements of the
@@ -57,8 +57,8 @@ static malloc_mutex_t	arenas_lock;
  * arenas.  arenas[narenas_auto..narenas_total) are only used if the application
  * takes some action to create them and allocate from them.
  */
-static arena_t		**arenas;
-static unsigned		narenas_total;
+arena_t			**arenas;
+static unsigned		narenas_total; /* Use narenas_total_*(). */
 static arena_t		*a0; /* arenas[0]; read-only after initialization. */
 static unsigned		narenas_auto; /* Read-only after initialization. */
 
@@ -311,14 +311,6 @@ malloc_init(void)
  * cannot tolerate TLS variable access.
  */
 
-arena_t *
-a0get(void)
-{
-
-	assert(a0 != NULL);
-	return (a0);
-}
-
 static void *
 a0ialloc(size_t size, bool zero, bool is_metadata)
 {
@@ -327,7 +319,7 @@ a0ialloc(size_t size, bool zero, bool is_metadata)
 		return (NULL);
 
 	return (iallocztm(NULL, size, size2index(size), zero, false,
-	    is_metadata, a0get(), true));
+	    is_metadata, arena_get(0, false), true));
 }
 
 static void
@@ -391,47 +383,59 @@ bootstrap_free(void *ptr)
 	a0idalloc(ptr, false);
 }
 
+static void
+arena_set(unsigned ind, arena_t *arena)
+{
+
+	atomic_write_p((void **)&arenas[ind], arena);
+}
+
+static void
+narenas_total_set(unsigned narenas)
+{
+
+	atomic_write_u(&narenas_total, narenas);
+}
+
+static void
+narenas_total_inc(void)
+{
+
+	atomic_add_u(&narenas_total, 1);
+}
+
+unsigned
+narenas_total_get(void)
+{
+
+	return (atomic_read_u(&narenas_total));
+}
+
 /* Create a new arena and insert it into the arenas array at index ind. */
 static arena_t *
 arena_init_locked(unsigned ind)
 {
 	arena_t *arena;
 
-	/* Expand arenas if necessary. */
-	assert(ind <= narenas_total);
+	assert(ind <= narenas_total_get());
 	if (ind > MALLOCX_ARENA_MAX)
 		return (NULL);
-	if (ind == narenas_total) {
-		unsigned narenas_new = narenas_total + 1;
-		arena_t **arenas_new =
-		    (arena_t **)a0malloc(CACHELINE_CEILING(narenas_new *
-		    sizeof(arena_t *)));
-		if (arenas_new == NULL)
-			return (NULL);
-		memcpy(arenas_new, arenas, narenas_total * sizeof(arena_t *));
-		arenas_new[ind] = NULL;
-		/*
-		 * Deallocate only if arenas came from a0malloc() (not
-		 * base_alloc()).
-		 */
-		if (narenas_total != narenas_auto)
-			a0dalloc(arenas);
-		arenas = arenas_new;
-		narenas_total = narenas_new;
-	}
+	if (ind == narenas_total_get())
+		narenas_total_inc();
 
 	/*
 	 * Another thread may have already initialized arenas[ind] if it's an
 	 * auto arena.
 	 */
-	arena = arenas[ind];
+	arena = arena_get(ind, false);
 	if (arena != NULL) {
 		assert(ind < narenas_auto);
 		return (arena);
 	}
 
 	/* Actually initialize the arena. */
-	arena = arenas[ind] = arena_new(ind);
+	arena = arena_new(ind);
+	arena_set(ind, arena);
 	return (arena);
 }
 
@@ -446,37 +450,16 @@ arena_init(unsigned ind)
 	return (arena);
 }
 
-unsigned
-narenas_total_get(void)
-{
-	unsigned narenas;
-
-	malloc_mutex_lock(&arenas_lock);
-	narenas = narenas_total;
-	malloc_mutex_unlock(&arenas_lock);
-
-	return (narenas);
-}
-
-static void
-arena_bind_locked(tsd_t *tsd, unsigned ind)
-{
-	arena_t *arena;
-
-	arena = arenas[ind];
-	arena->nthreads++;
-
-	if (tsd_nominal(tsd))
-		tsd_arena_set(tsd, arena);
-}
-
 static void
 arena_bind(tsd_t *tsd, unsigned ind)
 {
+	arena_t *arena;
 
-	malloc_mutex_lock(&arenas_lock);
-	arena_bind_locked(tsd, ind);
-	malloc_mutex_unlock(&arenas_lock);
+	arena = arena_get(ind, false);
+	arena_nthreads_inc(arena);
+
+	if (tsd_nominal(tsd))
+		tsd_arena_set(tsd, arena);
 }
 
 void
@@ -484,24 +467,11 @@ arena_migrate(tsd_t *tsd, unsigned oldind, unsigned newind)
 {
 	arena_t *oldarena, *newarena;
 
-	malloc_mutex_lock(&arenas_lock);
-	oldarena = arenas[oldind];
-	newarena = arenas[newind];
-	oldarena->nthreads--;
-	newarena->nthreads++;
-	malloc_mutex_unlock(&arenas_lock);
+	oldarena = arena_get(oldind, false);
+	newarena = arena_get(newind, false);
+	arena_nthreads_dec(oldarena);
+	arena_nthreads_inc(newarena);
 	tsd_arena_set(tsd, newarena);
-}
-
-unsigned
-arena_nbound(unsigned ind)
-{
-	unsigned nthreads;
-
-	malloc_mutex_lock(&arenas_lock);
-	nthreads = arenas[ind]->nthreads;
-	malloc_mutex_unlock(&arenas_lock);
-	return (nthreads);
 }
 
 static void
@@ -509,10 +479,8 @@ arena_unbind(tsd_t *tsd, unsigned ind)
 {
 	arena_t *arena;
 
-	malloc_mutex_lock(&arenas_lock);
-	arena = arenas[ind];
-	arena->nthreads--;
-	malloc_mutex_unlock(&arenas_lock);
+	arena = arena_get(ind, false);
+	arena_nthreads_dec(arena);
 	tsd_arena_set(tsd, NULL);
 }
 
@@ -568,14 +536,6 @@ arena_tdata_get_hard(tsd_t *tsd, unsigned ind)
 	 * the arenas.extend mallctl, which we trust mallctl synchronization to
 	 * prevent.
 	 */
-	malloc_mutex_lock(&arenas_lock);
-	for (i = 0; i < narenas_actual; i++)
-		arenas_tdata[i].arena = arenas[i];
-	malloc_mutex_unlock(&arenas_lock);
-	if (narenas_tdata > narenas_actual) {
-		memset(&arenas_tdata[narenas_actual], 0, sizeof(arena_tdata_t)
-		    * (narenas_tdata - narenas_actual));
-	}
 
 	/* Copy/initialize tickers. */
 	for (i = 0; i < narenas_actual; i++) {
@@ -587,6 +547,10 @@ arena_tdata_get_hard(tsd_t *tsd, unsigned ind)
 			    DECAY_NTICKS_PER_UPDATE);
 		}
 	}
+	if (narenas_tdata > narenas_actual) {
+		memset(&arenas_tdata[narenas_actual], 0, sizeof(arena_tdata_t)
+		    * (narenas_tdata - narenas_actual));
+	}
 
 	/* Read the refreshed tdata array. */
 	tdata = &arenas_tdata[ind];
@@ -594,33 +558,6 @@ label_return:
 	if (arenas_tdata_old != NULL)
 		a0dalloc(arenas_tdata_old);
 	return (tdata);
-}
-
-arena_t *
-arena_get_hard(tsd_t *tsd, unsigned ind, bool init_if_missing,
-    arena_tdata_t *tdata)
-{
-	arena_t *arena;
-	unsigned narenas_actual;
-
-	if (init_if_missing && tdata != NULL) {
-		tdata->arena = arena_init(ind);
-		if (tdata->arena != NULL)
-			return (tdata->arena);
-	}
-
-	/*
-	 * This function must always tell the truth, even if it's slow, so don't
-	 * let OOM, thread cleanup (note tsd_nominal check), nor recursive
-	 * allocation avoidance (note arenas_tdata_bypass check) get in the way.
-	 */
-	narenas_actual = narenas_total_get();
-	if (ind >= narenas_actual)
-		return (NULL);
-	malloc_mutex_lock(&arenas_lock);
-	arena = arenas[ind];
-	malloc_mutex_unlock(&arenas_lock);
-	return (arena);
 }
 
 /* Slow path, called only by arena_choose(). */
@@ -635,15 +572,16 @@ arena_choose_hard(tsd_t *tsd)
 		choose = 0;
 		first_null = narenas_auto;
 		malloc_mutex_lock(&arenas_lock);
-		assert(a0get() != NULL);
+		assert(arena_get(0, false) != NULL);
 		for (i = 1; i < narenas_auto; i++) {
-			if (arenas[i] != NULL) {
+			if (arena_get(i, false) != NULL) {
 				/*
 				 * Choose the first arena that has the lowest
 				 * number of threads assigned to it.
 				 */
-				if (arenas[i]->nthreads <
-				    arenas[choose]->nthreads)
+				if (arena_nthreads_get(arena_get(i, false)) <
+				    arena_nthreads_get(arena_get(choose,
+				    false)))
 					choose = i;
 			} else if (first_null == narenas_auto) {
 				/*
@@ -659,13 +597,13 @@ arena_choose_hard(tsd_t *tsd)
 			}
 		}
 
-		if (arenas[choose]->nthreads == 0
+		if (arena_nthreads_get(arena_get(choose, false)) == 0
 		    || first_null == narenas_auto) {
 			/*
 			 * Use an unloaded arena, or the least loaded arena if
 			 * all arenas are already initialized.
 			 */
-			ret = arenas[choose];
+			ret = arena_get(choose, false);
 		} else {
 			/* Initialize a new arena. */
 			choose = first_null;
@@ -675,10 +613,10 @@ arena_choose_hard(tsd_t *tsd)
 				return (NULL);
 			}
 		}
-		arena_bind_locked(tsd, choose);
+		arena_bind(tsd, choose);
 		malloc_mutex_unlock(&arenas_lock);
 	} else {
-		ret = a0get();
+		ret = arena_get(0, false);
 		arena_bind(tsd, 0);
 	}
 
@@ -750,7 +688,7 @@ stats_print_atexit(void)
 		 * continue to allocate.
 		 */
 		for (i = 0, narenas = narenas_total_get(); i < narenas; i++) {
-			arena_t *arena = arenas[i];
+			arena_t *arena = arena_get(i, false);
 			if (arena != NULL) {
 				tcache_t *tcache;
 
@@ -1309,7 +1247,8 @@ malloc_init_hard_a0_locked(void)
 	 * Create enough scaffolding to allow recursive allocation in
 	 * malloc_ncpus().
 	 */
-	narenas_total = narenas_auto = 1;
+	narenas_auto = 1;
+	narenas_total_set(narenas_auto);
 	arenas = &a0;
 	memset(arenas, 0, sizeof(arena_t *) * narenas_auto);
 	/*
@@ -1391,28 +1330,22 @@ malloc_init_hard_finish(void)
 	}
 	narenas_auto = opt_narenas;
 	/*
-	 * Make sure that the arenas array can be allocated.  In practice, this
-	 * limit is enough to allow the allocator to function, but the ctl
-	 * machinery will fail to allocate memory at far lower limits.
+	 * Limit the number of arenas to the indexing range of MALLOCX_ARENA().
 	 */
-	if (narenas_auto > chunksize / sizeof(arena_t *)) {
-		narenas_auto = (unsigned)(chunksize / sizeof(arena_t *));
+	if (narenas_auto > MALLOCX_ARENA_MAX) {
+		narenas_auto = MALLOCX_ARENA_MAX;
 		malloc_printf("<jemalloc>: Reducing narenas to limit (%d)\n",
 		    narenas_auto);
 	}
-	narenas_total = narenas_auto;
+	narenas_total_set(narenas_auto);
 
 	/* Allocate and initialize arenas. */
-	arenas = (arena_t **)base_alloc(sizeof(arena_t *) * narenas_total);
+	arenas = (arena_t **)base_alloc(sizeof(arena_t *) *
+	    (MALLOCX_ARENA_MAX+1));
 	if (arenas == NULL)
 		return (true);
-	/*
-	 * Zero the array.  In practice, this should always be pre-zeroed,
-	 * since it was just mmap()ed, but let's be sure.
-	 */
-	memset(arenas, 0, sizeof(arena_t *) * narenas_total);
 	/* Copy the pointer to the one arena that was already initialized. */
-	arenas[0] = a0;
+	arena_set(0, a0);
 
 	malloc_init_state = malloc_init_initialized;
 	malloc_slow_flag_init();
@@ -2084,7 +2017,7 @@ imallocx_flags_decode_hard(tsd_t *tsd, size_t size, int flags, size_t *usize,
 		*tcache = tcache_get(tsd, true);
 	if ((flags & MALLOCX_ARENA_MASK) != 0) {
 		unsigned arena_ind = MALLOCX_ARENA_GET(flags);
-		*arena = arena_get(tsd, arena_ind, true, true);
+		*arena = arena_get(arena_ind, true);
 		if (unlikely(*arena == NULL))
 			return (true);
 	} else
@@ -2325,7 +2258,7 @@ je_rallocx(void *ptr, size_t size, int flags)
 
 	if (unlikely((flags & MALLOCX_ARENA_MASK) != 0)) {
 		unsigned arena_ind = MALLOCX_ARENA_GET(flags);
-		arena = arena_get(tsd, arena_ind, true, true);
+		arena = arena_get(arena_ind, true);
 		if (unlikely(arena == NULL))
 			goto label_oom;
 	} else
@@ -2677,7 +2610,7 @@ JEMALLOC_EXPORT void
 _malloc_prefork(void)
 #endif
 {
-	unsigned i;
+	unsigned i, narenas;
 
 #ifdef JEMALLOC_MUTEX_INIT_CB
 	if (!malloc_initialized())
@@ -2689,9 +2622,11 @@ _malloc_prefork(void)
 	ctl_prefork();
 	prof_prefork();
 	malloc_mutex_prefork(&arenas_lock);
-	for (i = 0; i < narenas_total; i++) {
-		if (arenas[i] != NULL)
-			arena_prefork(arenas[i]);
+	for (i = 0, narenas = narenas_total_get(); i < narenas; i++) {
+		arena_t *arena;
+
+		if ((arena = arena_get(i, false)) != NULL)
+			arena_prefork(arena);
 	}
 	chunk_prefork();
 	base_prefork();
@@ -2705,7 +2640,7 @@ JEMALLOC_EXPORT void
 _malloc_postfork(void)
 #endif
 {
-	unsigned i;
+	unsigned i, narenas;
 
 #ifdef JEMALLOC_MUTEX_INIT_CB
 	if (!malloc_initialized())
@@ -2716,9 +2651,11 @@ _malloc_postfork(void)
 	/* Release all mutexes, now that fork() has completed. */
 	base_postfork_parent();
 	chunk_postfork_parent();
-	for (i = 0; i < narenas_total; i++) {
-		if (arenas[i] != NULL)
-			arena_postfork_parent(arenas[i]);
+	for (i = 0, narenas = narenas_total_get(); i < narenas; i++) {
+		arena_t *arena;
+
+		if ((arena = arena_get(i, false)) != NULL)
+			arena_postfork_parent(arena);
 	}
 	malloc_mutex_postfork_parent(&arenas_lock);
 	prof_postfork_parent();
@@ -2728,16 +2665,18 @@ _malloc_postfork(void)
 void
 jemalloc_postfork_child(void)
 {
-	unsigned i;
+	unsigned i, narenas;
 
 	assert(malloc_initialized());
 
 	/* Release all mutexes, now that fork() has completed. */
 	base_postfork_child();
 	chunk_postfork_child();
-	for (i = 0; i < narenas_total; i++) {
-		if (arenas[i] != NULL)
-			arena_postfork_child(arenas[i]);
+	for (i = 0, narenas = narenas_total_get(); i < narenas; i++) {
+		arena_t *arena;
+
+		if ((arena = arena_get(i, false)) != NULL)
+			arena_postfork_child(arena);
 	}
 	malloc_mutex_postfork_child(&arenas_lock);
 	prof_postfork_child();

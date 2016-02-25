@@ -3261,6 +3261,27 @@ arena_stats_merge(arena_t *arena, const char **dss, ssize_t *lg_dirty_mult,
 	}
 }
 
+unsigned
+arena_nthreads_get(arena_t *arena)
+{
+
+	return (atomic_read_u(&arena->nthreads));
+}
+
+void
+arena_nthreads_inc(arena_t *arena)
+{
+
+	atomic_add_u(&arena->nthreads, 1);
+}
+
+void
+arena_nthreads_dec(arena_t *arena)
+{
+
+	atomic_sub_u(&arena->nthreads, 1);
+}
+
 arena_t *
 arena_new(unsigned ind)
 {

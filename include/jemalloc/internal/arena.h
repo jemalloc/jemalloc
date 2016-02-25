@@ -290,14 +290,14 @@ struct arena_s {
 
 	/*
 	 * Number of threads currently assigned to this arena.  This field is
-	 * protected by arenas_lock.
+	 * synchronized via atomic operations.
 	 */
 	unsigned		nthreads;
 
 	/*
 	 * There are three classes of arena operations from a locking
 	 * perspective:
-	 * 1) Thread assignment (modifies nthreads) is protected by arenas_lock.
+	 * 1) Thread assignment (modifies nthreads) is synchronized via atomics.
 	 * 2) Bin-related operations are protected by bin locks.
 	 * 3) Chunk- and run-related operations are protected by this mutex.
 	 */
@@ -465,7 +465,6 @@ struct arena_s {
 
 /* Used in conjunction with tsd for fast arena-related context lookup. */
 struct arena_tdata_s {
-	arena_t			*arena;
 	ticker_t		decay_ticker;
 };
 #endif /* JEMALLOC_ARENA_STRUCTS_B */
@@ -578,6 +577,9 @@ void	arena_stats_merge(arena_t *arena, const char **dss,
     ssize_t *lg_dirty_mult, ssize_t *decay_time, size_t *nactive,
     size_t *ndirty, arena_stats_t *astats, malloc_bin_stats_t *bstats,
     malloc_large_stats_t *lstats, malloc_huge_stats_t *hstats);
+unsigned	arena_nthreads_get(arena_t *arena);
+void	arena_nthreads_inc(arena_t *arena);
+void	arena_nthreads_dec(arena_t *arena);
 arena_t	*arena_new(unsigned ind);
 bool	arena_boot(void);
 void	arena_prefork(arena_t *arena);

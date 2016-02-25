@@ -325,7 +325,8 @@ tcache_create(tsd_t *tsd, arena_t *arena)
 	/* Avoid false cacheline sharing. */
 	size = sa2u(size, CACHELINE);
 
-	tcache = ipallocztm(tsd, size, CACHELINE, true, false, true, a0get());
+	tcache = ipallocztm(tsd, size, CACHELINE, true, false, true,
+	    arena_get(0, false));
 	if (tcache == NULL)
 		return (NULL);
 
@@ -453,7 +454,7 @@ tcaches_create(tsd_t *tsd, unsigned *r_ind)
 
 	if (tcaches_avail == NULL && tcaches_past > MALLOCX_TCACHE_MAX)
 		return (true);
-	tcache = tcache_create(tsd, a0get());
+	tcache = tcache_create(tsd, arena_get(0, false));
 	if (tcache == NULL)
 		return (true);
 

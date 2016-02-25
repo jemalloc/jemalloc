@@ -694,9 +694,7 @@ ctl_grow(void)
 static void
 ctl_refresh(void)
 {
-	tsd_t *tsd;
 	unsigned i;
-	bool refreshed;
 	VARIABLE_ARRAY(arena_t *, tarenas, ctl_stats.narenas);
 
 	/*
@@ -706,19 +704,14 @@ ctl_refresh(void)
 	ctl_stats.arenas[ctl_stats.narenas].nthreads = 0;
 	ctl_arena_clear(&ctl_stats.arenas[ctl_stats.narenas]);
 
-	tsd = tsd_fetch();
-	for (i = 0, refreshed = false; i < ctl_stats.narenas; i++) {
-		tarenas[i] = arena_get(tsd, i, false, false);
-		if (tarenas[i] == NULL && !refreshed) {
-			tarenas[i] = arena_get(tsd, i, false, true);
-			refreshed = true;
-		}
-	}
+	for (i = 0; i < ctl_stats.narenas; i++)
+		tarenas[i] = arena_get(i, false);
 
 	for (i = 0; i < ctl_stats.narenas; i++) {
-		if (tarenas[i] != NULL)
-			ctl_stats.arenas[i].nthreads = arena_nbound(i);
-		else
+		if (tarenas[i] != NULL) {
+			ctl_stats.arenas[i].nthreads =
+			    arena_nthreads_get(arena_get(i, false));
+		} else
 			ctl_stats.arenas[i].nthreads = 0;
 	}
 
@@ -1332,7 +1325,7 @@ thread_arena_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
 		}
 
 		/* Initialize arena if necessary. */
-		newarena = arena_get(tsd, newind, true, true);
+		newarena = arena_get(newind, true);
 		if (newarena == NULL) {
 			ret = EAGAIN;
 			goto label_return;
@@ -1560,22 +1553,14 @@ arena_i_purge(unsigned arena_ind, bool all)
 
 	malloc_mutex_lock(&ctl_mtx);
 	{
-		tsd_t *tsd = tsd_fetch();
 		unsigned narenas = ctl_stats.narenas;
 
 		if (arena_ind == narenas) {
 			unsigned i;
-			bool refreshed;
 			VARIABLE_ARRAY(arena_t *, tarenas, narenas);
 
-			for (i = 0, refreshed = false; i < narenas; i++) {
-				tarenas[i] = arena_get(tsd, i, false, false);
-				if (tarenas[i] == NULL && !refreshed) {
-					tarenas[i] = arena_get(tsd, i, false,
-					    true);
-					refreshed = true;
-				}
-			}
+			for (i = 0; i < narenas; i++)
+				tarenas[i] = arena_get(i, false);
 
 			/*
 			 * No further need to hold ctl_mtx, since narenas and
@@ -1592,7 +1577,7 @@ arena_i_purge(unsigned arena_ind, bool all)
 
 			assert(arena_ind < narenas);
 
-			tarena = arena_get(tsd, arena_ind, false, true);
+			tarena = arena_get(arena_ind, false);
 
 			/* No further need to hold ctl_mtx. */
 			malloc_mutex_unlock(&ctl_mtx);
@@ -1664,7 +1649,7 @@ arena_i_dss_ctl(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
 	}
 
 	if (arena_ind < ctl_stats.narenas) {
-		arena_t *arena = arena_get(tsd_fetch(), arena_ind, false, true);
+		arena_t *arena = arena_get(arena_ind, false);
 		if (arena == NULL || (dss_prec != dss_prec_limit &&
 		    arena_dss_prec_set(arena, dss_prec))) {
 			ret = EFAULT;
@@ -1697,7 +1682,7 @@ arena_i_lg_dirty_mult_ctl(const size_t *mib, size_t miblen, void *oldp,
 	unsigned arena_ind = (unsigned)mib[1];
 	arena_t *arena;
 
-	arena = arena_get(tsd_fetch(), arena_ind, false, true);
+	arena = arena_get(arena_ind, false);
 	if (arena == NULL) {
 		ret = EFAULT;
 		goto label_return;
@@ -1731,7 +1716,7 @@ arena_i_decay_time_ctl(const size_t *mib, size_t miblen, void *oldp,
 	unsigned arena_ind = (unsigned)mib[1];
 	arena_t *arena;
 
-	arena = arena_get(tsd_fetch(), arena_ind, false, true);
+	arena = arena_get(arena_ind, false);
 	if (arena == NULL) {
 		ret = EFAULT;
 		goto label_return;
@@ -1767,7 +1752,7 @@ arena_i_chunk_hooks_ctl(const size_t *mib, size_t miblen, void *oldp,
 
 	malloc_mutex_lock(&ctl_mtx);
 	if (arena_ind < narenas_total_get() && (arena =
-	    arena_get(tsd_fetch(), arena_ind, false, true)) != NULL) {
+	    arena_get(arena_ind, false)) != NULL) {
 		if (newp != NULL) {
 			chunk_hooks_t old_chunk_hooks, new_chunk_hooks;
 			WRITE(new_chunk_hooks, chunk_hooks_t);

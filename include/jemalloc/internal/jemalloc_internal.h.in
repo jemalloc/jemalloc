@@ -438,7 +438,13 @@ extern unsigned	opt_narenas;
 extern bool	in_valgrind;
 
 /* Number of CPUs. */
-extern unsigned		ncpus;
+extern unsigned	ncpus;
+
+/*
+ * Arenas that are used to service external requests.  Not all elements of the
+ * arenas array are necessarily used; arenas are created lazily as needed.
+ */
+extern arena_t	**arenas;
 
 /*
  * index2size_tab encodes the same information as could be computed (at
@@ -452,21 +458,17 @@ extern size_t const	index2size_tab[NSIZES+1];
  */
 extern uint8_t const	size2index_tab[];
 
-arena_t	*a0get(void);
 void	*a0malloc(size_t size);
 void	a0dalloc(void *ptr);
 void	*bootstrap_malloc(size_t size);
 void	*bootstrap_calloc(size_t num, size_t size);
 void	bootstrap_free(void *ptr);
 arena_t	*arenas_extend(unsigned ind);
-arena_t	*arena_init(unsigned ind);
 unsigned	narenas_total_get(void);
+arena_t	*arena_init(unsigned ind);
 arena_tdata_t	*arena_tdata_get_hard(tsd_t *tsd, unsigned ind);
-arena_t	*arena_get_hard(tsd_t *tsd, unsigned ind, bool init_if_missing,
-    arena_tdata_t *tdata);
 arena_t	*arena_choose_hard(tsd_t *tsd);
 void	arena_migrate(tsd_t *tsd, unsigned oldind, unsigned newind);
-unsigned	arena_nbound(unsigned ind);
 void	thread_allocated_cleanup(tsd_t *tsd);
 void	thread_deallocated_cleanup(tsd_t *tsd);
 void	arena_cleanup(tsd_t *tsd);
@@ -543,8 +545,7 @@ size_t	sa2u(size_t size, size_t alignment);
 arena_t	*arena_choose(tsd_t *tsd, arena_t *arena);
 arena_tdata_t	*arena_tdata_get(tsd_t *tsd, unsigned ind,
     bool refresh_if_missing);
-arena_t	*arena_get(tsd_t *tsd, unsigned ind, bool init_if_missing,
-    bool refresh_if_missing);
+arena_t	*arena_get(unsigned ind, bool init_if_missing);
 ticker_t	*decay_ticker_get(tsd_t *tsd, unsigned ind);
 #endif
 
@@ -819,19 +820,19 @@ arena_tdata_get(tsd_t *tsd, unsigned ind, bool refresh_if_missing)
 }
 
 JEMALLOC_INLINE arena_t *
-arena_get(tsd_t *tsd, unsigned ind, bool init_if_missing,
-    bool refresh_if_missing)
+arena_get(unsigned ind, bool init_if_missing)
 {
-	arena_tdata_t *tdata;
+	arena_t *ret;
 
-	/* init_if_missing requires refresh_if_missing. */
-	assert(!init_if_missing || refresh_if_missing);
+	assert(ind <= MALLOCX_ARENA_MAX);
 
-	tdata = arena_tdata_get(tsd, ind, refresh_if_missing);
-	if (unlikely(tdata == NULL || tdata->arena == NULL))
-		return (arena_get_hard(tsd, ind, init_if_missing, tdata));
-
-	return (tdata->arena);
+	ret = arenas[ind];
+	if (unlikely(ret == NULL)) {
+		ret = atomic_read_p((void *)&arenas[ind]);
+		if (init_if_missing && unlikely(ret == NULL))
+			ret = arena_init(ind);
+	}
+	return (ret);
 }
 
 JEMALLOC_INLINE ticker_t *

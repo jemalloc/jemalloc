@@ -415,9 +415,7 @@ chunk_arena_get(unsigned arena_ind)
 {
 	arena_t *arena;
 
-	/* Dodge tsd for a0 in order to avoid bootstrapping issues. */
-	arena = (arena_ind == 0) ? a0get() : arena_get(tsd_fetch(), arena_ind,
-	     false, true);
+	arena = arena_get(arena_ind, false);
 	/*
 	 * The arena we're allocating on behalf of must have been initialized
 	 * already.
