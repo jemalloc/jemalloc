@@ -58,22 +58,22 @@ int test_threads()
 				thread t([&]() {
 					for (int i = 0; i < numIter2; ++i) {
 						const int numAllocs = numAllocsMax - sizeDist(rnd);
-						for (int j = 0; j < numAllocs; j++) {
+						for (int j = 0; j < numAllocs; j += 64) {
 							const int x = sizeDist(rnd);
 							const int sz = sizes[x];
 							ptrsz[j] = sz;
 							ptrs[j] = (uint8_t*)je_malloc(sz);
 							if (!ptrs[j]) {
-								printf("Unable to allocate %d bytes in thread %d, iter %d, alloc %d. %d", sz, tid, i, j, x);
+								printf("Unable to allocate %d bytes in thread %d, iter %d, alloc %d. %d\n", sz, tid, i, j, x);
 								exit(1);
 							}
 							for (int k = 0; k < sz; k++)
 								ptrs[j][k] = tid + k;
 						}
-						for (int j = 0; j < numAllocs; j++) {
+						for (int j = 0; j < numAllocs; j += 64) {
 							for (int k = 0, sz = ptrsz[j]; k < sz; k++)
 								if (ptrs[j][k] != (uint8_t)(tid + k)) {
-									printf("Memory error in thread %d, iter %d, alloc %d @ %d : %02X!=%02X", tid, i, j, k, ptrs[j][k], (uint8_t)(tid + k));
+									printf("Memory error in thread %d, iter %d, alloc %d @ %d : %02X!=%02X\n", tid, i, j, k, ptrs[j][k], (uint8_t)(tid + k));
 									exit(1);
 								}
 							je_free(ptrs[j]);
