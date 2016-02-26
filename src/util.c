@@ -60,7 +60,7 @@ wrtmessage(void *cbopaque, const char *s)
 	 */
 	UNUSED long result = syscall(SYS_write, STDERR_FILENO, s, strlen(s));
 #else
-	UNUSED int result = write(STDERR_FILENO, s, strlen(s));
+	UNUSED ssize_t result = write(STDERR_FILENO, s, strlen(s));
 #endif
 }
 
@@ -90,7 +90,7 @@ buferror(int err, char *buf, size_t buflen)
 
 #ifdef _WIN32
 	FormatMessageA(FORMAT_MESSAGE_FROM_SYSTEM, NULL, err, 0,
-	    (LPSTR)buf, buflen, NULL);
+	    (LPSTR)buf, (DWORD)buflen, NULL);
 	return (0);
 #elif defined(__GLIBC__) && defined(_GNU_SOURCE)
 	char *b = strerror_r(err, buf, buflen);

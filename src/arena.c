@@ -301,7 +301,7 @@ JEMALLOC_INLINE_C void *
 arena_run_reg_alloc(arena_run_t *run, arena_bin_info_t *bin_info)
 {
 	void *ret;
-	unsigned regind;
+	size_t regind;
 	arena_chunk_map_misc_t *miscelm;
 	void *rpages;
 
@@ -325,7 +325,7 @@ arena_run_reg_dalloc(arena_run_t *run, void *ptr)
 	size_t mapbits = arena_mapbits_get(chunk, pageind);
 	szind_t binind = arena_ptr_small_binind_get(ptr, mapbits);
 	arena_bin_info_t *bin_info = &arena_bin_info[binind];
-	unsigned regind = arena_run_regind(run, bin_info, ptr);
+	size_t regind = arena_run_regind(run, bin_info, ptr);
 
 	assert(run->nfree < bin_info->nregs);
 	/* Freeing an interior pointer can cause assertion failure. */

@@ -109,7 +109,7 @@ static char		prof_dump_buf[
     1
 #endif
 ];
-static unsigned		prof_dump_buf_end;
+static size_t		prof_dump_buf_end;
 static int		prof_dump_fd;
 
 /* Do not dump any profiles until bootstrapping is complete. */
