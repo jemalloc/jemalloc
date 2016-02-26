@@ -20,7 +20,7 @@ typedef unsigned long bitmap_t;
  * force linear search, if we would have to call ffsl more than 2^3 times, use a
  * tree instead.
  */
-#if LG_RUN_MAXREGS - LG_BITMAP_GROUP_NBITS > 3
+#if LG_BITMAP_MAXBITS - LG_BITMAP_GROUP_NBITS > 3
 #  define USE_TREE
 #endif
 
@@ -78,8 +78,7 @@ typedef unsigned long bitmap_t;
 
 #else /* USE_TREE */
 
-#define	BITMAP_GROUPS_MAX						\
-    (ZU(1) << (LG_RUN_MAXREGS - LG_SIZEOF_BITMAP - LG_SIZEOF_BITMAP))
+#define	BITMAP_GROUPS_MAX BITMAP_BITS2GROUPS(BITMAP_MAXBITS)
 
 #endif /* USE_TREE */
 
