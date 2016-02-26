@@ -88,14 +88,14 @@ TEST_BEGIN(test_overflow)
 
 	assert_u_ge(size2index(max_size_class+1), NSIZES,
 	    "size2index() should return >= NSIZES on overflow");
-	assert_u_ge(size2index(PTRDIFF_MAX+1), NSIZES,
+	assert_u_ge(size2index(ZU(PTRDIFF_MAX)+1), NSIZES,
 	    "size2index() should return >= NSIZES on overflow");
 	assert_u_ge(size2index(SIZE_T_MAX), NSIZES,
 	    "size2index() should return >= NSIZES on overflow");
 
 	assert_zu_gt(s2u(max_size_class+1), HUGE_MAXCLASS,
 	    "s2u() should return > HUGE_MAXCLASS for unsupported size");
-	assert_zu_gt(s2u(PTRDIFF_MAX+1), HUGE_MAXCLASS,
+	assert_zu_gt(s2u(ZU(PTRDIFF_MAX)+1), HUGE_MAXCLASS,
 	    "s2u() should return > HUGE_MAXCLASS for unsupported size");
 	assert_zu_eq(s2u(SIZE_T_MAX), 0,
 	    "s2u() should return 0 on overflow");

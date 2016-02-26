@@ -232,8 +232,8 @@ TEST_BEGIN(test_overflow)
 	assert_ptr_null(rallocx(p, hugemax+1, 0),
 	    "Expected OOM for rallocx(p, size=%#zx, 0)", hugemax+1);
 
-	assert_ptr_null(rallocx(p, PTRDIFF_MAX+1, 0),
-	    "Expected OOM for rallocx(p, size=%#zx, 0)", ZU(PTRDIFF_MAX+1));
+	assert_ptr_null(rallocx(p, ZU(PTRDIFF_MAX)+1, 0),
+	    "Expected OOM for rallocx(p, size=%#zx, 0)", ZU(PTRDIFF_MAX)+1);
 
 	assert_ptr_null(rallocx(p, SIZE_T_MAX, 0),
 	    "Expected OOM for rallocx(p, size=%#zx, 0)", SIZE_T_MAX);
@@ -246,9 +246,9 @@ TEST_BEGIN(test_overflow)
 	assert_ptr_null(rallocx(p, size, 0),
 	    "Expected OOM for rallocx(p, size=%#zx, 0", size);
 
-	assert_ptr_null(rallocx(p, 1, MALLOCX_ALIGN(PTRDIFF_MAX+1)),
+	assert_ptr_null(rallocx(p, 1, MALLOCX_ALIGN(ZU(PTRDIFF_MAX)+1)),
 	    "Expected OOM for rallocx(p, size=1, MALLOCX_ALIGN(%#zx))",
-	    ZU(PTRDIFF_MAX+1));
+	    ZU(PTRDIFF_MAX)+1);
 
 	dallocx(p, 0);
 }

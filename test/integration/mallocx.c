@@ -55,8 +55,8 @@ TEST_BEGIN(test_overflow)
 	assert_ptr_null(mallocx(hugemax+1, 0),
 	    "Expected OOM for mallocx(size=%#zx, 0)", hugemax+1);
 
-	assert_ptr_null(mallocx(PTRDIFF_MAX+1, 0),
-	    "Expected OOM for mallocx(size=%#zx, 0)", ZU(PTRDIFF_MAX+1));
+	assert_ptr_null(mallocx(ZU(PTRDIFF_MAX)+1, 0),
+	    "Expected OOM for mallocx(size=%#zx, 0)", ZU(PTRDIFF_MAX)+1);
 
 	assert_ptr_null(mallocx(SIZE_T_MAX, 0),
 	    "Expected OOM for mallocx(size=%#zx, 0)", SIZE_T_MAX);
@@ -69,9 +69,9 @@ TEST_BEGIN(test_overflow)
 	assert_ptr_null(mallocx(size, 0),
 	    "Expected OOM for mallocx(size=%#zx, 0", size);
 
-	assert_ptr_null(mallocx(1, MALLOCX_ALIGN(PTRDIFF_MAX+1)),
+	assert_ptr_null(mallocx(1, MALLOCX_ALIGN(ZU(PTRDIFF_MAX)+1)),
 	    "Expected OOM for mallocx(size=1, MALLOCX_ALIGN(%#zx))",
-	    ZU(PTRDIFF_MAX+1));
+	    ZU(PTRDIFF_MAX)+1);
 }
 TEST_END
 
