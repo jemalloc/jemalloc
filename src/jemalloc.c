@@ -2032,6 +2032,8 @@ imallocx_flags_decode(tsd_t *tsd, size_t size, int flags, size_t *usize,
 
 	if (likely(flags == 0)) {
 		*usize = s2u(size);
+		if (unlikely(*usize == 0 || *usize > HUGE_MAXCLASS))
+			return (true);
 		*alignment = 0;
 		*zero = false;
 		*tcache = tcache_get(tsd, true);
@@ -2049,11 +2051,10 @@ imallocx_flags(tsd_t *tsd, size_t usize, size_t alignment, bool zero,
 {
 	szind_t ind;
 
-	ind = size2index(usize);
-	if (unlikely(ind >= NSIZES))
-		return (NULL);
 	if (unlikely(alignment != 0))
 		return (ipalloct(tsd, usize, alignment, zero, tcache, arena));
+	ind = size2index(usize);
+	assert(ind < NSIZES);
 	if (unlikely(zero))
 		return (icalloct(tsd, usize, ind, tcache, arena));
 	return (imalloct(tsd, usize, ind, tcache, arena));
@@ -2360,10 +2361,23 @@ ixallocx_prof(tsd_t *tsd, void *ptr, size_t old_usize, size_t size,
 	 * prof_alloc_prep() to decide whether to capture a backtrace.
 	 * prof_realloc() will use the actual usize to decide whether to sample.
 	 */
-	usize_max = (alignment == 0) ? s2u(size+extra) : sa2u(size+extra,
-	    alignment);
-	assert(usize_max != 0);
+	if (alignment == 0) {
+		usize_max = s2u(size+extra);
+		assert(usize_max > 0 && usize_max <= HUGE_MAXCLASS);
+	} else {
+		usize_max = sa2u(size+extra, alignment);
+		if (unlikely(usize_max == 0 || usize_max > HUGE_MAXCLASS)) {
+			/*
+			 * usize_max is out of range, and chances are that
+			 * allocation will fail, but use the maximum possible
+			 * value and carry on with prof_alloc_prep(), just in
+			 * case allocation succeeds.
+			 */
+			usize_max = HUGE_MAXCLASS;
+		}
+	}
 	tctx = prof_alloc_prep(tsd, usize_max, prof_active, false);
+
 	if (unlikely((uintptr_t)tctx != (uintptr_t)1U)) {
 		usize = ixallocx_prof_sample(tsd, ptr, old_usize, size, extra,
 		    alignment, zero, tctx);
@@ -2399,24 +2413,21 @@ je_xallocx(void *ptr, size_t size, size_t extra, int flags)
 
 	old_usize = isalloc(ptr, config_prof);
 
-	if (unlikely(extra > 0)) {
-		/*
-		 * The API explicitly absolves itself of protecting against
-		 * (size + extra) numerical overflow, but we may need to clamp
-		 * extra to avoid exceeding HUGE_MAXCLASS.
-		 *
-		 * Ordinarily, size limit checking is handled deeper down, but
-		 * here we have to check as part of (size + extra) clamping,
-		 * since we need the clamped value in the above helper
-		 * functions.
-		 */
-		if (unlikely(size > HUGE_MAXCLASS)) {
-			usize = old_usize;
-			goto label_not_resized;
-		}
-		if (unlikely(HUGE_MAXCLASS - size < extra))
-			extra = HUGE_MAXCLASS - size;
+	/*
+	 * The API explicitly absolves itself of protecting against (size +
+	 * extra) numerical overflow, but we may need to clamp extra to avoid
+	 * exceeding HUGE_MAXCLASS.
+	 *
+	 * Ordinarily, size limit checking is handled deeper down, but here we
+	 * have to check as part of (size + extra) clamping, since we need the
+	 * clamped value in the above helper functions.
+	 */
+	if (unlikely(size > HUGE_MAXCLASS)) {
+		usize = old_usize;
+		goto label_not_resized;
 	}
+	if (unlikely(HUGE_MAXCLASS - size < extra))
+		extra = HUGE_MAXCLASS - size;
 
 	if (config_valgrind && unlikely(in_valgrind))
 		old_rzsize = u2rz(old_usize);
