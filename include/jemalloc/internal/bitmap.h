@@ -93,9 +93,8 @@ struct bitmap_info_s {
 #ifdef JEMALLOC_H_EXTERNS
 
 void	bitmap_info_init(bitmap_info_t *binfo, size_t nbits);
-size_t	bitmap_info_ngroups(const bitmap_info_t *binfo);
-size_t	bitmap_size(size_t nbits);
 void	bitmap_init(bitmap_t *bitmap, const bitmap_info_t *binfo);
+size_t	bitmap_size(const bitmap_info_t *binfo);
 
 #endif /* JEMALLOC_H_EXTERNS */
 /******************************************************************************/
@@ -128,7 +127,7 @@ bitmap_get(bitmap_t *bitmap, const bitmap_info_t *binfo, size_t bit)
 	assert(bit < binfo->nbits);
 	goff = bit >> LG_BITMAP_GROUP_NBITS;
 	g = bitmap[goff];
-	return (!(g & (1LU << (bit & BITMAP_GROUP_NBITS_MASK))));
+	return (!(g & (ZU(1) << (bit & BITMAP_GROUP_NBITS_MASK))));
 }
 
 JEMALLOC_INLINE void
@@ -143,8 +142,8 @@ bitmap_set(bitmap_t *bitmap, const bitmap_info_t *binfo, size_t bit)
 	goff = bit >> LG_BITMAP_GROUP_NBITS;
 	gp = &bitmap[goff];
 	g = *gp;
-	assert(g & (1LU << (bit & BITMAP_GROUP_NBITS_MASK)));
-	g ^= 1LU << (bit & BITMAP_GROUP_NBITS_MASK);
+	assert(g & (ZU(1) << (bit & BITMAP_GROUP_NBITS_MASK)));
+	g ^= ZU(1) << (bit & BITMAP_GROUP_NBITS_MASK);
 	*gp = g;
 	assert(bitmap_get(bitmap, binfo, bit));
 	/* Propagate group state transitions up the tree. */
@@ -155,8 +154,8 @@ bitmap_set(bitmap_t *bitmap, const bitmap_info_t *binfo, size_t bit)
 			goff = bit >> LG_BITMAP_GROUP_NBITS;
 			gp = &bitmap[binfo->levels[i].group_offset + goff];
 			g = *gp;
-			assert(g & (1LU << (bit & BITMAP_GROUP_NBITS_MASK)));
-			g ^= 1LU << (bit & BITMAP_GROUP_NBITS_MASK);
+			assert(g & (ZU(1) << (bit & BITMAP_GROUP_NBITS_MASK)));
+			g ^= ZU(1) << (bit & BITMAP_GROUP_NBITS_MASK);
 			*gp = g;
 			if (g != 0)
 				break;
@@ -201,8 +200,8 @@ bitmap_unset(bitmap_t *bitmap, const bitmap_info_t *binfo, size_t bit)
 	gp = &bitmap[goff];
 	g = *gp;
 	propagate = (g == 0);
-	assert((g & (1LU << (bit & BITMAP_GROUP_NBITS_MASK))) == 0);
-	g ^= 1LU << (bit & BITMAP_GROUP_NBITS_MASK);
+	assert((g & (ZU(1) << (bit & BITMAP_GROUP_NBITS_MASK))) == 0);
+	g ^= ZU(1) << (bit & BITMAP_GROUP_NBITS_MASK);
 	*gp = g;
 	assert(!bitmap_get(bitmap, binfo, bit));
 	/* Propagate group state transitions up the tree. */
@@ -214,9 +213,9 @@ bitmap_unset(bitmap_t *bitmap, const bitmap_info_t *binfo, size_t bit)
 			gp = &bitmap[binfo->levels[i].group_offset + goff];
 			g = *gp;
 			propagate = (g == 0);
-			assert((g & (1LU << (bit & BITMAP_GROUP_NBITS_MASK)))
+			assert((g & (ZU(1) << (bit & BITMAP_GROUP_NBITS_MASK)))
 			    == 0);
-			g ^= 1LU << (bit & BITMAP_GROUP_NBITS_MASK);
+			g ^= ZU(1) << (bit & BITMAP_GROUP_NBITS_MASK);
 			*gp = g;
 			if (!propagate)
 				break;

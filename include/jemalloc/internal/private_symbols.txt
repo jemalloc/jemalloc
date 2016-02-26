@@ -131,7 +131,6 @@ base_stats_get
 bitmap_full
 bitmap_get
 bitmap_info_init
-bitmap_info_ngroups
 bitmap_init
 bitmap_set
 bitmap_sfu
