@@ -3049,7 +3049,6 @@ arena_ralloc_no_move(tsd_t *tsd, void *ptr, size_t oldsize, size_t size,
 	/* Calls with non-zero extra had to clamp extra. */
 	assert(extra == 0 || size + extra <= HUGE_MAXCLASS);
 
-	/* Prevent exceeding PTRDIFF_MAX. */
 	if (unlikely(size > HUGE_MAXCLASS))
 		return (true);
 
