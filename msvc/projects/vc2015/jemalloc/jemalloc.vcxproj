@@ -101,6 +101,7 @@
     <ClCompile Include="..\..\..\..\src\jemalloc.c" />
     <ClCompile Include="..\..\..\..\src\mb.c" />
     <ClCompile Include="..\..\..\..\src\mutex.c" />
+    <ClCompile Include="..\..\..\..\src\nstime.c" />
     <ClCompile Include="..\..\..\..\src\pages.c" />
     <ClCompile Include="..\..\..\..\src\prof.c" />
     <ClCompile Include="..\..\..\..\src\quarantine.c" />
