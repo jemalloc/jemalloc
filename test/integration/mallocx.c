@@ -48,7 +48,7 @@ get_huge_size(size_t ind)
 
 TEST_BEGIN(test_overflow)
 {
-	size_t hugemax, size;
+	size_t hugemax;
 
 	hugemax = get_huge_size(get_nhuge()-1);
 
@@ -60,14 +60,6 @@ TEST_BEGIN(test_overflow)
 
 	assert_ptr_null(mallocx(SIZE_T_MAX, 0),
 	    "Expected OOM for mallocx(size=%#zx, 0)", SIZE_T_MAX);
-
-#if LG_SIZEOF_PTR == 3
-	size      = ZU(0x600000000000000);
-#else
-	size      = ZU(0x6000000);
-#endif
-	assert_ptr_null(mallocx(size, 0),
-	    "Expected OOM for mallocx(size=%#zx, 0", size);
 
 	assert_ptr_null(mallocx(1, MALLOCX_ALIGN(ZU(PTRDIFF_MAX)+1)),
 	    "Expected OOM for mallocx(size=1, MALLOCX_ALIGN(%#zx))",
