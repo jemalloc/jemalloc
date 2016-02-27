@@ -373,15 +373,27 @@ arena_run_page_validate_zeroed(arena_chunk_t *chunk, size_t run_ind)
 }
 
 static void
-arena_cactive_update(arena_t *arena, size_t add_pages, size_t sub_pages)
+arena_cactive_add(arena_t *arena, size_t add_pages)
 {
 
 	if (config_stats) {
-		ssize_t cactive_diff = CHUNK_CEILING((arena->nactive + add_pages
-		    - sub_pages) << LG_PAGE) - CHUNK_CEILING(arena->nactive <<
+		size_t cactive_add = CHUNK_CEILING((arena->nactive +
+		    add_pages) << LG_PAGE) - CHUNK_CEILING(arena->nactive <<
 		    LG_PAGE);
-		if (cactive_diff != 0)
-			stats_cactive_add(cactive_diff);
+		if (cactive_add != 0)
+			stats_cactive_add(cactive_add);
+	}
+}
+
+static void
+arena_cactive_sub(arena_t *arena, size_t sub_pages)
+{
+
+	if (config_stats) {
+		size_t cactive_sub = CHUNK_CEILING(arena->nactive << LG_PAGE) -
+		    CHUNK_CEILING((arena->nactive - sub_pages) << LG_PAGE);
+		if (cactive_sub != 0)
+			stats_cactive_sub(cactive_sub);
 	}
 }
 
@@ -403,7 +415,7 @@ arena_run_split_remove(arena_t *arena, arena_chunk_t *chunk, size_t run_ind,
 	arena_avail_remove(arena, chunk, run_ind, total_pages);
 	if (flag_dirty != 0)
 		arena_run_dirty_remove(arena, chunk, run_ind, total_pages);
-	arena_cactive_update(arena, need_pages, 0);
+	arena_cactive_add(arena, need_pages);
 	arena->nactive += need_pages;
 
 	/* Keep track of trailing unused pages for later use. */
@@ -1915,7 +1927,7 @@ arena_run_dalloc(arena_t *arena, arena_run_t *run, bool dirty, bool cleaned,
 	assert(run_ind < chunk_npages);
 	size = arena_run_size_get(arena, chunk, run, run_ind);
 	run_pages = (size >> LG_PAGE);
-	arena_cactive_update(arena, 0, run_pages);
+	arena_cactive_sub(arena, run_pages);
 	arena->nactive -= run_pages;
 
 	/*
