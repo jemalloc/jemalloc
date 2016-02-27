@@ -167,15 +167,25 @@ stats_cactive_get(void)
 JEMALLOC_INLINE void
 stats_cactive_add(size_t size)
 {
+	UNUSED size_t cactive;
 
-	atomic_add_z(&stats_cactive, size);
+	assert(size > 0);
+	assert((size & chunksize_mask) == 0);
+
+	cactive = atomic_add_z(&stats_cactive, size);
+	assert(cactive - size < cactive);
 }
 
 JEMALLOC_INLINE void
 stats_cactive_sub(size_t size)
 {
+	UNUSED size_t cactive;
 
-	atomic_sub_z(&stats_cactive, size);
+	assert(size > 0);
+	assert((size & chunksize_mask) == 0);
+
+	cactive = atomic_sub_z(&stats_cactive, size);
+	assert(cactive + size > cactive);
 }
 #endif
 

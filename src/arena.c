@@ -373,7 +373,7 @@ arena_run_page_validate_zeroed(arena_chunk_t *chunk, size_t run_ind)
 }
 
 static void
-arena_cactive_add(arena_t *arena, size_t add_pages)
+arena_nactive_add(arena_t *arena, size_t add_pages)
 {
 
 	if (config_stats) {
@@ -383,10 +383,11 @@ arena_cactive_add(arena_t *arena, size_t add_pages)
 		if (cactive_add != 0)
 			stats_cactive_add(cactive_add);
 	}
+	arena->nactive += add_pages;
 }
 
 static void
-arena_cactive_sub(arena_t *arena, size_t sub_pages)
+arena_nactive_sub(arena_t *arena, size_t sub_pages)
 {
 
 	if (config_stats) {
@@ -395,6 +396,7 @@ arena_cactive_sub(arena_t *arena, size_t sub_pages)
 		if (cactive_sub != 0)
 			stats_cactive_sub(cactive_sub);
 	}
+	arena->nactive -= sub_pages;
 }
 
 static void
@@ -415,8 +417,7 @@ arena_run_split_remove(arena_t *arena, arena_chunk_t *chunk, size_t run_ind,
 	arena_avail_remove(arena, chunk, run_ind, total_pages);
 	if (flag_dirty != 0)
 		arena_run_dirty_remove(arena, chunk, run_ind, total_pages);
-	arena_cactive_add(arena, need_pages);
-	arena->nactive += need_pages;
+	arena_nactive_add(arena, need_pages);
 
 	/* Keep track of trailing unused pages for later use. */
 	if (rem_pages > 0) {
@@ -905,7 +906,7 @@ arena_chunk_alloc_huge_hard(arena_t *arena, chunk_hooks_t *chunk_hooks,
 			arena_huge_malloc_stats_update_undo(arena, usize);
 			arena->stats.mapped -= usize;
 		}
-		arena->nactive -= (usize >> LG_PAGE);
+		arena_nactive_sub(arena, usize >> LG_PAGE);
 		malloc_mutex_unlock(&arena->lock);
 	}
 
@@ -927,7 +928,7 @@ arena_chunk_alloc_huge(arena_t *arena, size_t usize, size_t alignment,
 		arena_huge_malloc_stats_update(arena, usize);
 		arena->stats.mapped += usize;
 	}
-	arena->nactive += (usize >> LG_PAGE);
+	arena_nactive_add(arena, usize >> LG_PAGE);
 
 	ret = chunk_alloc_cache(arena, &chunk_hooks, NULL, csize, alignment,
 	    zero, true);
@@ -937,8 +938,6 @@ arena_chunk_alloc_huge(arena_t *arena, size_t usize, size_t alignment,
 		    alignment, zero, csize);
 	}
 
-	if (config_stats && ret != NULL)
-		stats_cactive_add(usize);
 	return (ret);
 }
 
@@ -953,9 +952,8 @@ arena_chunk_dalloc_huge(arena_t *arena, void *chunk, size_t usize)
 	if (config_stats) {
 		arena_huge_dalloc_stats_update(arena, usize);
 		arena->stats.mapped -= usize;
-		stats_cactive_sub(usize);
 	}
-	arena->nactive -= (usize >> LG_PAGE);
+	arena_nactive_sub(arena, usize >> LG_PAGE);
 
 	chunk_dalloc_cache(arena, &chunk_hooks, chunk, csize, true);
 	malloc_mutex_unlock(&arena->lock);
@@ -972,17 +970,10 @@ arena_chunk_ralloc_huge_similar(arena_t *arena, void *chunk, size_t oldsize,
 	malloc_mutex_lock(&arena->lock);
 	if (config_stats)
 		arena_huge_ralloc_stats_update(arena, oldsize, usize);
-	if (oldsize < usize) {
-		size_t udiff = usize - oldsize;
-		arena->nactive += udiff >> LG_PAGE;
-		if (config_stats)
-			stats_cactive_add(udiff);
-	} else {
-		size_t udiff = oldsize - usize;
-		arena->nactive -= udiff >> LG_PAGE;
-		if (config_stats)
-			stats_cactive_sub(udiff);
-	}
+	if (oldsize < usize)
+		arena_nactive_add(arena, (usize - oldsize) >> LG_PAGE);
+	else
+		arena_nactive_sub(arena, (oldsize - usize) >> LG_PAGE);
 	malloc_mutex_unlock(&arena->lock);
 }
 
@@ -996,12 +987,10 @@ arena_chunk_ralloc_huge_shrink(arena_t *arena, void *chunk, size_t oldsize,
 	malloc_mutex_lock(&arena->lock);
 	if (config_stats) {
 		arena_huge_ralloc_stats_update(arena, oldsize, usize);
-		if (cdiff != 0) {
+		if (cdiff != 0)
 			arena->stats.mapped -= cdiff;
-			stats_cactive_sub(udiff);
-		}
 	}
-	arena->nactive -= udiff >> LG_PAGE;
+	arena_nactive_sub(arena, udiff >> LG_PAGE);
 
 	if (cdiff != 0) {
 		chunk_hooks_t chunk_hooks = CHUNK_HOOKS_INITIALIZER;
@@ -1031,7 +1020,7 @@ arena_chunk_ralloc_huge_expand_hard(arena_t *arena, chunk_hooks_t *chunk_hooks,
 			    usize);
 			arena->stats.mapped -= cdiff;
 		}
-		arena->nactive -= (udiff >> LG_PAGE);
+		arena_nactive_sub(arena, udiff >> LG_PAGE);
 		malloc_mutex_unlock(&arena->lock);
 	} else if (chunk_hooks->merge(chunk, CHUNK_CEILING(oldsize), nchunk,
 	    cdiff, true, arena->ind)) {
@@ -1059,7 +1048,7 @@ arena_chunk_ralloc_huge_expand(arena_t *arena, void *chunk, size_t oldsize,
 		arena_huge_ralloc_stats_update(arena, oldsize, usize);
 		arena->stats.mapped += cdiff;
 	}
-	arena->nactive += (udiff >> LG_PAGE);
+	arena_nactive_add(arena, udiff >> LG_PAGE);
 
 	err = (chunk_alloc_cache(arena, &arena->chunk_hooks, nchunk, cdiff,
 	    chunksize, zero, true) == NULL);
@@ -1075,8 +1064,6 @@ arena_chunk_ralloc_huge_expand(arena_t *arena, void *chunk, size_t oldsize,
 		err = true;
 	}
 
-	if (config_stats && !err)
-		stats_cactive_add(udiff);
 	return (err);
 }
 
@@ -1927,8 +1914,7 @@ arena_run_dalloc(arena_t *arena, arena_run_t *run, bool dirty, bool cleaned,
 	assert(run_ind < chunk_npages);
 	size = arena_run_size_get(arena, chunk, run, run_ind);
 	run_pages = (size >> LG_PAGE);
-	arena_cactive_sub(arena, run_pages);
-	arena->nactive -= run_pages;
+	arena_nactive_sub(arena, run_pages);
 
 	/*
 	 * The run is dirty if the caller claims to have dirtied it, as well as
