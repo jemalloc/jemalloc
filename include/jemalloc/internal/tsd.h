@@ -537,9 +537,9 @@ struct tsd_init_head_s {
     O(thread_deallocated,	uint64_t)				\
     O(prof_tdata,		prof_tdata_t *)				\
     O(arena,			arena_t *)				\
-    O(arenas_cache,		arena_t **)				\
-    O(narenas_cache,		unsigned)				\
-    O(arenas_cache_bypass,	bool)					\
+    O(arenas_tdata,		arena_tdata_t *)			\
+    O(narenas_tdata,		unsigned)				\
+    O(arenas_tdata_bypass,	bool)					\
     O(tcache_enabled,		tcache_enabled_t)			\
     O(quarantine,		quarantine_t *)				\
 

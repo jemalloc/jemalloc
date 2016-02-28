@@ -11,7 +11,6 @@
 #ifdef _WIN32
 #  include "msvc_compat/strings.h"
 #endif
-#include <sys/time.h>
 
 #ifdef _WIN32
 #  include <windows.h>
@@ -94,6 +93,7 @@
 #  define JEMALLOC_H_STRUCTS
 #  define JEMALLOC_H_EXTERNS
 #  define JEMALLOC_H_INLINES
+#  include "jemalloc/internal/nstime.h"
 #  include "jemalloc/internal/util.h"
 #  include "jemalloc/internal/qr.h"
 #  include "jemalloc/internal/ql.h"

@@ -436,16 +436,16 @@ prof_sample_accum_update(tsd_t *tsd, size_t usize, bool update,
 	cassert(config_prof);
 
 	tdata = prof_tdata_get(tsd, true);
-	if ((uintptr_t)tdata <= (uintptr_t)PROF_TDATA_STATE_MAX)
+	if (unlikely((uintptr_t)tdata <= (uintptr_t)PROF_TDATA_STATE_MAX))
 		tdata = NULL;
 
 	if (tdata_out != NULL)
 		*tdata_out = tdata;
 
-	if (tdata == NULL)
+	if (unlikely(tdata == NULL))
 		return (true);
 
-	if (tdata->bytes_until_sample >= usize) {
+	if (likely(tdata->bytes_until_sample >= usize)) {
 		if (update)
 			tdata->bytes_until_sample -= usize;
 		return (true);

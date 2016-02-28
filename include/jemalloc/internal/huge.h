@@ -9,12 +9,12 @@
 /******************************************************************************/
 #ifdef JEMALLOC_H_EXTERNS
 
-void	*huge_malloc(tsd_t *tsd, arena_t *arena, size_t size, bool zero,
+void	*huge_malloc(tsd_t *tsd, arena_t *arena, size_t usize, bool zero,
     tcache_t *tcache);
-void	*huge_palloc(tsd_t *tsd, arena_t *arena, size_t size, size_t alignment,
+void	*huge_palloc(tsd_t *tsd, arena_t *arena, size_t usize, size_t alignment,
     bool zero, tcache_t *tcache);
-bool	huge_ralloc_no_move(void *ptr, size_t oldsize, size_t usize_min,
-    size_t usize_max, bool zero);
+bool	huge_ralloc_no_move(tsd_t *tsd, void *ptr, size_t oldsize,
+    size_t usize_min, size_t usize_max, bool zero);
 void	*huge_ralloc(tsd_t *tsd, arena_t *arena, void *ptr, size_t oldsize,
     size_t usize, size_t alignment, bool zero, tcache_t *tcache);
 #ifdef JEMALLOC_JET

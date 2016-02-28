@@ -31,35 +31,30 @@ huge_node_unset(const void *ptr, const extent_node_t *node)
 }
 
 void *
-huge_malloc(tsd_t *tsd, arena_t *arena, size_t size, bool zero,
+huge_malloc(tsd_t *tsd, arena_t *arena, size_t usize, bool zero,
     tcache_t *tcache)
 {
-	size_t usize;
 
-	usize = s2u(size);
-	if (usize == 0) {
-		/* size_t overflow. */
-		return (NULL);
-	}
+	assert(usize == s2u(usize));
 
 	return (huge_palloc(tsd, arena, usize, chunksize, zero, tcache));
 }
 
 void *
-huge_palloc(tsd_t *tsd, arena_t *arena, size_t size, size_t alignment,
+huge_palloc(tsd_t *tsd, arena_t *arena, size_t usize, size_t alignment,
     bool zero, tcache_t *tcache)
 {
 	void *ret;
-	size_t usize;
+	size_t ausize;
 	extent_node_t *node;
 	bool is_zeroed;
 
 	/* Allocate one or more contiguous chunks for this request. */
 
-	usize = sa2u(size, alignment);
-	if (unlikely(usize == 0))
+	ausize = sa2u(usize, alignment);
+	if (unlikely(ausize == 0 || ausize > HUGE_MAXCLASS))
 		return (NULL);
-	assert(usize >= chunksize);
+	assert(ausize >= chunksize);
 
 	/* Allocate an extent node with which to track the chunk. */
 	node = ipallocztm(tsd, CACHELINE_CEILING(sizeof(extent_node_t)),
@@ -74,16 +69,16 @@ huge_palloc(tsd_t *tsd, arena_t *arena, size_t size, size_t alignment,
 	is_zeroed = zero;
 	arena = arena_choose(tsd, arena);
 	if (unlikely(arena == NULL) || (ret = arena_chunk_alloc_huge(arena,
-	    size, alignment, &is_zeroed)) == NULL) {
-		idalloctm(tsd, node, tcache, true);
+	    usize, alignment, &is_zeroed)) == NULL) {
+		idalloctm(tsd, node, tcache, true, true);
 		return (NULL);
 	}
 
-	extent_node_init(node, arena, ret, size, is_zeroed, true);
+	extent_node_init(node, arena, ret, usize, is_zeroed, true);
 
 	if (huge_node_set(ret, node)) {
-		arena_chunk_dalloc_huge(arena, ret, size);
-		idalloctm(tsd, node, tcache, true);
+		arena_chunk_dalloc_huge(arena, ret, usize);
+		idalloctm(tsd, node, tcache, true, true);
 		return (NULL);
 	}
 
@@ -95,10 +90,11 @@ huge_palloc(tsd_t *tsd, arena_t *arena, size_t size, size_t alignment,
 
 	if (zero || (config_fill && unlikely(opt_zero))) {
 		if (!is_zeroed)
-			memset(ret, 0, size);
+			memset(ret, 0, usize);
 	} else if (config_fill && unlikely(opt_junk_alloc))
-		memset(ret, 0xa5, size);
+		memset(ret, 0xa5, usize);
 
+	arena_decay_tick(tsd, arena);
 	return (ret);
 }
 
@@ -280,11 +276,13 @@ huge_ralloc_no_move_expand(void *ptr, size_t oldsize, size_t usize, bool zero) {
 }
 
 bool
-huge_ralloc_no_move(void *ptr, size_t oldsize, size_t usize_min,
+huge_ralloc_no_move(tsd_t *tsd, void *ptr, size_t oldsize, size_t usize_min,
     size_t usize_max, bool zero)
 {
 
 	assert(s2u(oldsize) == oldsize);
+	/* The following should have been caught by callers. */
+	assert(usize_min > 0 && usize_max <= HUGE_MAXCLASS);
 
 	/* Both allocations must be huge to avoid a move. */
 	if (oldsize < chunksize || usize_max < chunksize)
@@ -292,13 +290,18 @@ huge_ralloc_no_move(void *ptr, size_t oldsize, size_t usize_min,
 
 	if (CHUNK_CEILING(usize_max) > CHUNK_CEILING(oldsize)) {
 		/* Attempt to expand the allocation in-place. */
-		if (!huge_ralloc_no_move_expand(ptr, oldsize, usize_max, zero))
+		if (!huge_ralloc_no_move_expand(ptr, oldsize, usize_max,
+		    zero)) {
+			arena_decay_tick(tsd, huge_aalloc(ptr));
 			return (false);
+		}
 		/* Try again, this time with usize_min. */
 		if (usize_min < usize_max && CHUNK_CEILING(usize_min) >
 		    CHUNK_CEILING(oldsize) && huge_ralloc_no_move_expand(ptr,
-		    oldsize, usize_min, zero))
+		    oldsize, usize_min, zero)) {
+			arena_decay_tick(tsd, huge_aalloc(ptr));
 			return (false);
+		}
 	}
 
 	/*
@@ -309,12 +312,17 @@ huge_ralloc_no_move(void *ptr, size_t oldsize, size_t usize_min,
 	    && CHUNK_CEILING(oldsize) <= CHUNK_CEILING(usize_max)) {
 		huge_ralloc_no_move_similar(ptr, oldsize, usize_min, usize_max,
 		    zero);
+		arena_decay_tick(tsd, huge_aalloc(ptr));
 		return (false);
 	}
 
 	/* Attempt to shrink the allocation in-place. */
-	if (CHUNK_CEILING(oldsize) > CHUNK_CEILING(usize_max))
-		return (huge_ralloc_no_move_shrink(ptr, oldsize, usize_max));
+	if (CHUNK_CEILING(oldsize) > CHUNK_CEILING(usize_max)) {
+		if (!huge_ralloc_no_move_shrink(ptr, oldsize, usize_max)) {
+			arena_decay_tick(tsd, huge_aalloc(ptr));
+			return (false);
+		}
+	}
 	return (true);
 }
 
@@ -335,8 +343,11 @@ huge_ralloc(tsd_t *tsd, arena_t *arena, void *ptr, size_t oldsize, size_t usize,
 	void *ret;
 	size_t copysize;
 
+	/* The following should have been caught by callers. */
+	assert(usize > 0 && usize <= HUGE_MAXCLASS);
+
 	/* Try to avoid moving the allocation. */
-	if (!huge_ralloc_no_move(ptr, oldsize, usize, usize, zero))
+	if (!huge_ralloc_no_move(tsd, ptr, oldsize, usize, usize, zero))
 		return (ptr);
 
 	/*
@@ -372,7 +383,9 @@ huge_dalloc(tsd_t *tsd, void *ptr, tcache_t *tcache)
 	    extent_node_size_get(node));
 	arena_chunk_dalloc_huge(extent_node_arena_get(node),
 	    extent_node_addr_get(node), extent_node_size_get(node));
-	idalloctm(tsd, node, tcache, true);
+	idalloctm(tsd, node, tcache, true, true);
+
+	arena_decay_tick(tsd, arena);
 }
 
 arena_t *

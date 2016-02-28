@@ -121,9 +121,11 @@ zone_memalign(malloc_zone_t *zone, size_t alignment, size_t size)
 static void
 zone_free_definite_size(malloc_zone_t *zone, void *ptr, size_t size)
 {
+	size_t alloc_size;
 
-	if (ivsalloc(ptr, config_prof) != 0) {
-		assert(ivsalloc(ptr, config_prof) == size);
+	alloc_size = ivsalloc(ptr, config_prof);
+	if (alloc_size != 0) {
+		assert(alloc_size == size);
 		je_free(ptr);
 		return;
 	}

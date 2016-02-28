@@ -35,7 +35,7 @@ typedef enum {
 	hash_variant_x64_128
 } hash_variant_t;
 
-static size_t
+static int
 hash_variant_bits(hash_variant_t variant)
 {
 
@@ -59,17 +59,17 @@ hash_variant_string(hash_variant_t variant)
 	}
 }
 
+#define	KEY_SIZE	256
 static void
-hash_variant_verify(hash_variant_t variant)
+hash_variant_verify_key(hash_variant_t variant, uint8_t *key)
 {
-	const size_t hashbytes = hash_variant_bits(variant) / 8;
-	uint8_t key[256];
+	const int hashbytes = hash_variant_bits(variant) / 8;
 	VARIABLE_ARRAY(uint8_t, hashes, hashbytes * 256);
 	VARIABLE_ARRAY(uint8_t, final, hashbytes);
 	unsigned i;
 	uint32_t computed, expected;
 
-	memset(key, 0, sizeof(key));
+	memset(key, 0, KEY_SIZE);
 	memset(hashes, 0, sizeof(hashes));
 	memset(final, 0, sizeof(final));
 
@@ -138,6 +138,19 @@ hash_variant_verify(hash_variant_t variant)
 	    "Hash mismatch for %s(): expected %#x but got %#x",
 	    hash_variant_string(variant), expected, computed);
 }
+
+static void
+hash_variant_verify(hash_variant_t variant)
+{
+#define	MAX_ALIGN	16
+	uint8_t key[KEY_SIZE + (MAX_ALIGN - 1)];
+	unsigned i;
+
+	for (i = 0; i < MAX_ALIGN; i++)
+		hash_variant_verify_key(variant, &key[i]);
+#undef MAX_ALIGN
+}
+#undef KEY_SIZE
 
 TEST_BEGIN(test_hash_x86_32)
 {

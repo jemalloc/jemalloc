@@ -93,6 +93,10 @@ TEST_BEGIN(test_stats_arenas_summary)
 	huge = mallocx(chunksize, 0);
 	assert_ptr_not_null(huge, "Unexpected mallocx() failure");
 
+	dallocx(little, 0);
+	dallocx(large, 0);
+	dallocx(huge, 0);
+
 	assert_d_eq(mallctl("arena.0.purge", NULL, NULL, NULL, 0), 0,
 	    "Unexpected mallctl() failure");
 
@@ -116,10 +120,6 @@ TEST_BEGIN(test_stats_arenas_summary)
 		assert_u64_le(nmadvise, purged,
 		    "nmadvise should be no greater than purged");
 	}
-
-	dallocx(little, 0);
-	dallocx(large, 0);
-	dallocx(huge, 0);
 }
 TEST_END
 

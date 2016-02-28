@@ -258,7 +258,7 @@ stats_arena_print(void (*write_cb)(void *, const char *), void *cbopaque,
 {
 	unsigned nthreads;
 	const char *dss;
-	ssize_t lg_dirty_mult;
+	ssize_t lg_dirty_mult, decay_time;
 	size_t page, pactive, pdirty, mapped;
 	size_t metadata_mapped, metadata_allocated;
 	uint64_t npurge, nmadvise, purged;
@@ -278,13 +278,23 @@ stats_arena_print(void (*write_cb)(void *, const char *), void *cbopaque,
 	malloc_cprintf(write_cb, cbopaque, "dss allocation precedence: %s\n",
 	    dss);
 	CTL_M2_GET("stats.arenas.0.lg_dirty_mult", i, &lg_dirty_mult, ssize_t);
-	if (lg_dirty_mult >= 0) {
-		malloc_cprintf(write_cb, cbopaque,
-		    "min active:dirty page ratio: %u:1\n",
-		    (1U << lg_dirty_mult));
-	} else {
-		malloc_cprintf(write_cb, cbopaque,
-		    "min active:dirty page ratio: N/A\n");
+	if (opt_purge == purge_mode_ratio) {
+		if (lg_dirty_mult >= 0) {
+			malloc_cprintf(write_cb, cbopaque,
+			    "min active:dirty page ratio: %u:1\n",
+			    (1U << lg_dirty_mult));
+		} else {
+			malloc_cprintf(write_cb, cbopaque,
+			    "min active:dirty page ratio: N/A\n");
+		}
+	}
+	CTL_M2_GET("stats.arenas.0.decay_time", i, &decay_time, ssize_t);
+	if (opt_purge == purge_mode_decay) {
+		if (decay_time >= 0) {
+			malloc_cprintf(write_cb, cbopaque, "decay time: %zd\n",
+			    decay_time);
+		} else
+			malloc_cprintf(write_cb, cbopaque, "decay time: N/A\n");
 	}
 	CTL_M2_GET("stats.arenas.0.pactive", i, &pactive, size_t);
 	CTL_M2_GET("stats.arenas.0.pdirty", i, &pdirty, size_t);
@@ -292,9 +302,8 @@ stats_arena_print(void (*write_cb)(void *, const char *), void *cbopaque,
 	CTL_M2_GET("stats.arenas.0.nmadvise", i, &nmadvise, uint64_t);
 	CTL_M2_GET("stats.arenas.0.purged", i, &purged, uint64_t);
 	malloc_cprintf(write_cb, cbopaque,
-	    "dirty pages: %zu:%zu active:dirty, %"FMTu64" sweep%s, %"FMTu64
-	    " madvise%s, %"FMTu64" purged\n", pactive, pdirty, npurge, npurge ==
-	    1 ? "" : "s", nmadvise, nmadvise == 1 ? "" : "s", purged);
+	    "purging: dirty: %zu, sweeps: %"FMTu64", madvises: %"FMTu64", "
+	    "purged: %"FMTu64"\n", pdirty, npurge, nmadvise, purged);
 
 	malloc_cprintf(write_cb, cbopaque,
 	    "                            allocated      nmalloc      ndalloc"
@@ -426,9 +435,10 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		bool bv;
 		unsigned uv;
 		ssize_t ssv;
-		size_t sv, bsz, ssz, sssz, cpsz;
+		size_t sv, bsz, usz, ssz, sssz, cpsz;
 
 		bsz = sizeof(bool);
+		usz = sizeof(unsigned);
 		ssz = sizeof(size_t);
 		sssz = sizeof(ssize_t);
 		cpsz = sizeof(const char *);
@@ -438,6 +448,8 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		CTL_GET("config.debug", &bv, bool);
 		malloc_cprintf(write_cb, cbopaque, "Assertions %s\n",
 		    bv ? "enabled" : "disabled");
+		malloc_cprintf(write_cb, cbopaque,
+		    "config.malloc_conf: \"%s\"\n", config_malloc_conf);
 
 #define	OPT_WRITE_BOOL(n)						\
 		if (je_mallctl("opt."#n, &bv, &bsz, NULL, 0) == 0) {	\
@@ -453,6 +465,11 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 			    : "false", bv2 ? "true" : "false");		\
 		}							\
 }
+#define	OPT_WRITE_UNSIGNED(n)						\
+		if (je_mallctl("opt."#n, &uv, &usz, NULL, 0) == 0) {	\
+			malloc_cprintf(write_cb, cbopaque,		\
+			"  opt."#n": %zu\n", sv);			\
+		}
 #define	OPT_WRITE_SIZE_T(n)						\
 		if (je_mallctl("opt."#n, &sv, &ssz, NULL, 0) == 0) {	\
 			malloc_cprintf(write_cb, cbopaque,		\
@@ -483,8 +500,14 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		OPT_WRITE_BOOL(abort)
 		OPT_WRITE_SIZE_T(lg_chunk)
 		OPT_WRITE_CHAR_P(dss)
-		OPT_WRITE_SIZE_T(narenas)
-		OPT_WRITE_SSIZE_T_MUTABLE(lg_dirty_mult, arenas.lg_dirty_mult)
+		OPT_WRITE_UNSIGNED(narenas)
+		OPT_WRITE_CHAR_P(purge)
+		if (opt_purge == purge_mode_ratio) {
+			OPT_WRITE_SSIZE_T_MUTABLE(lg_dirty_mult,
+			    arenas.lg_dirty_mult)
+		}
+		if (opt_purge == purge_mode_decay)
+			OPT_WRITE_SSIZE_T_MUTABLE(decay_time, arenas.decay_time)
 		OPT_WRITE_BOOL(stats_print)
 		OPT_WRITE_CHAR_P(junk)
 		OPT_WRITE_SIZE_T(quarantine)
@@ -529,13 +552,22 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		malloc_cprintf(write_cb, cbopaque, "Page size: %zu\n", sv);
 
 		CTL_GET("arenas.lg_dirty_mult", &ssv, ssize_t);
-		if (ssv >= 0) {
+		if (opt_purge == purge_mode_ratio) {
+			if (ssv >= 0) {
+				malloc_cprintf(write_cb, cbopaque,
+				    "Min active:dirty page ratio per arena: "
+				    "%u:1\n", (1U << ssv));
+			} else {
+				malloc_cprintf(write_cb, cbopaque,
+				    "Min active:dirty page ratio per arena: "
+				    "N/A\n");
+			}
+		}
+		CTL_GET("arenas.decay_time", &ssv, ssize_t);
+		if (opt_purge == purge_mode_decay) {
 			malloc_cprintf(write_cb, cbopaque,
-			    "Min active:dirty page ratio per arena: %u:1\n",
-			    (1U << ssv));
-		} else {
-			malloc_cprintf(write_cb, cbopaque,
-			    "Min active:dirty page ratio per arena: N/A\n");
+			    "Unused dirty page decay time: %zd%s\n",
+			    ssv, (ssv < 0) ? " (no decay)" : "");
 		}
 		if (je_mallctl("arenas.tcache_max", &sv, &ssz, NULL, 0) == 0) {
 			malloc_cprintf(write_cb, cbopaque,

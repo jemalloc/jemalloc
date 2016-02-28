@@ -4,6 +4,79 @@ brevity.  Much more detail can be found in the git revision history:
 
     https://github.com/jemalloc/jemalloc
 
+* 4.1.0 (February 28, 2016)
+
+  This release is primarily about optimizations, but it also incorporates a lot
+  of portability-motivated refactoring and enhancements.  Many people worked on
+  this release, to an extent that even with the omission here of minor changes
+  (see git revision history), and of the people who reported and diagnosed
+  issues, so much of the work was contributed that starting with this release,
+  changes are annotated with author credits to help reflect the collaborative
+  effort involved.
+
+  New features:
+  - Implement decay-based unused dirty page purging, a major optimization with
+    mallctl API impact.  This is an alternative to the existing ratio-based
+    unused dirty page purging, and is intended to eventually become the sole
+    purging mechanism.  New mallctls:
+    + opt.purge
+    + opt.decay_time
+    + arena.<i>.decay
+    + arena.<i>.decay_time
+    + arenas.decay_time
+    + stats.arenas.<i>.decay_time
+    (@jasone, @cevans87)
+  - Add --with-malloc-conf, which makes it possible to embed a default
+    options string during configuration.  This was motivated by the desire to
+    specify --with-malloc-conf=purge:decay , since the default must remain
+    purge:ratio until the 5.0.0 release.  (@jasone)
+  - Add MS Visual Studio 2015 support.  (@rustyx, @yuslepukhin)
+  - Make *allocx() size class overflow behavior defined.  The maximum
+    size class is now less than PTRDIFF_MAX to protect applications against
+    numerical overflow, and all allocation functions are guaranteed to indicate
+    errors rather than potentially crashing if the request size exceeds the
+    maximum size class.  (@jasone)
+  - jeprof:
+    + Add raw heap profile support.  (@jasone)
+    + Add --retain and --exclude for backtrace symbol filtering.  (@jasone)
+
+  Optimizations:
+  - Optimize the fast path to combine various bootstrapping and configuration
+    checks and execute more streamlined code in the common case.  (@interwq)
+  - Use linear scan for small bitmaps (used for small object tracking).  In
+    addition to speeding up bitmap operations on 64-bit systems, this reduces
+    allocator metadata overhead by approximately 0.2%.  (@djwatson)
+  - Separate arena_avail trees, which substantially speeds up run tree
+    operations.  (@djwatson)
+  - Use memoization (boot-time-computed table) for run quantization.  Separate
+    arena_avail trees reduced the importance of this optimization.  (@jasone)
+  - Attempt mmap-based in-place huge reallocation.  This can dramatically speed
+    up incremental huge reallocation.  (@jasone)
+
+  Incompatible changes:
+  - Make opt.narenas unsigned rather than size_t.  (@jasone)
+
+  Bug fixes:
+  - Fix stats.cactive accounting regression.  (@rustyx, @jasone)
+  - Handle unaligned keys in hash().  This caused problems for some ARM systems.
+    (@jasone, Christopher Ferris)
+  - Refactor arenas array.  In addition to fixing a fork-related deadlock, this
+    makes arena lookups faster and simpler.  (@jasone)
+  - Move retained memory allocation out of the default chunk allocation
+    function, to a location that gets executed even if the application installs
+    a custom chunk allocation function.  This resolves a virtual memory leak.
+    (@buchgr)
+  - Fix a potential tsd cleanup leak.  (Christopher Ferris, @jasone)
+  - Fix run quantization.  In practice this bug had no impact unless
+    applications requested memory with alignment exceeding one page.
+    (@jasone, @djwatson)
+  - Fix LinuxThreads-specific bootstrapping deadlock.  (Cosmin Paraschiv)
+  - jeprof:
+    + Don't discard curl options if timeout is not defined.  (@djwatson)
+    + Detect failed profile fetches.  (@djwatson)
+  - Fix stats.arenas.<i>.{dss,lg_dirty_mult,decay_time,pactive,pdirty} for
+    --disable-stats case.  (@jasone)
+
 * 4.0.4 (October 24, 2015)
 
   This bugfix release fixes another xallocx() regression.  No other regressions

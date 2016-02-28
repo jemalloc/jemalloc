@@ -84,6 +84,14 @@ any of the following arguments (not a definitive list) to 'configure':
     versions of jemalloc can coexist in the same installation directory.  For
     example, libjemalloc.so.0 becomes libjemalloc<suffix>.so.0.
 
+--with-malloc-conf=<malloc_conf>
+    Embed <malloc_conf> as a run-time options string that is processed prior to
+    the malloc_conf global variable, the /etc/malloc.conf symlink, and the
+    MALLOC_CONF environment variable.  For example, to change the default chunk
+    size to 256 KiB:
+
+      --with-malloc-conf=lg_chunk:18
+
 --disable-cc-silence
     Disable code that silences non-useful compiler warnings.  This is mainly
     useful during development when auditing the set of warnings that are being
