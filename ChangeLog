@@ -4,7 +4,7 @@ brevity.  Much more detail can be found in the git revision history:
 
     https://github.com/jemalloc/jemalloc
 
-* 4.1.0 (XXX)
+* 4.1.0 (February 28, 2016)
 
   This release is primarily about optimizations, but it also incorporates a lot
   of portability-motivated refactoring and enhancements.  Many people worked on
