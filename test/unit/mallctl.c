@@ -687,8 +687,10 @@ TEST_BEGIN(test_stats_arenas)
 	    0), 0, "Unexpected mallctl() failure");			\
 } while (0)
 
-	TEST_STATS_ARENAS(const char *, dss);
 	TEST_STATS_ARENAS(unsigned, nthreads);
+	TEST_STATS_ARENAS(const char *, dss);
+	TEST_STATS_ARENAS(ssize_t, lg_dirty_mult);
+	TEST_STATS_ARENAS(ssize_t, decay_time);
 	TEST_STATS_ARENAS(size_t, pactive);
 	TEST_STATS_ARENAS(size_t, pdirty);
 

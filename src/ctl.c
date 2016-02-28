@@ -533,6 +533,7 @@ static void
 ctl_arena_clear(ctl_arena_stats_t *astats)
 {
 
+	astats->nthreads = 0;
 	astats->dss = dss_prec_names[dss_prec_limit];
 	astats->lg_dirty_mult = -1;
 	astats->decay_time = -1;
@@ -557,16 +558,23 @@ ctl_arena_stats_amerge(ctl_arena_stats_t *cstats, arena_t *arena)
 {
 	unsigned i;
 
-	arena_stats_merge(arena, &cstats->dss, &cstats->lg_dirty_mult,
-	    &cstats->decay_time, &cstats->pactive, &cstats->pdirty,
-	    &cstats->astats, cstats->bstats, cstats->lstats, cstats->hstats);
+	if (config_stats) {
+		arena_stats_merge(arena, &cstats->nthreads, &cstats->dss,
+		    &cstats->lg_dirty_mult, &cstats->decay_time,
+		    &cstats->pactive, &cstats->pdirty, &cstats->astats,
+		    cstats->bstats, cstats->lstats, cstats->hstats);
 
-	for (i = 0; i < NBINS; i++) {
-		cstats->allocated_small += cstats->bstats[i].curregs *
-		    index2size(i);
-		cstats->nmalloc_small += cstats->bstats[i].nmalloc;
-		cstats->ndalloc_small += cstats->bstats[i].ndalloc;
-		cstats->nrequests_small += cstats->bstats[i].nrequests;
+		for (i = 0; i < NBINS; i++) {
+			cstats->allocated_small += cstats->bstats[i].curregs *
+			    index2size(i);
+			cstats->nmalloc_small += cstats->bstats[i].nmalloc;
+			cstats->ndalloc_small += cstats->bstats[i].ndalloc;
+			cstats->nrequests_small += cstats->bstats[i].nrequests;
+		}
+	} else {
+		arena_basic_stats_merge(arena, &cstats->nthreads, &cstats->dss,
+		    &cstats->lg_dirty_mult, &cstats->decay_time,
+		    &cstats->pactive, &cstats->pdirty);
 	}
 }
 
@@ -575,57 +583,68 @@ ctl_arena_stats_smerge(ctl_arena_stats_t *sstats, ctl_arena_stats_t *astats)
 {
 	unsigned i;
 
+	sstats->nthreads += astats->nthreads;
 	sstats->pactive += astats->pactive;
 	sstats->pdirty += astats->pdirty;
 
-	sstats->astats.mapped += astats->astats.mapped;
-	sstats->astats.npurge += astats->astats.npurge;
-	sstats->astats.nmadvise += astats->astats.nmadvise;
-	sstats->astats.purged += astats->astats.purged;
+	if (config_stats) {
+		sstats->astats.mapped += astats->astats.mapped;
+		sstats->astats.npurge += astats->astats.npurge;
+		sstats->astats.nmadvise += astats->astats.nmadvise;
+		sstats->astats.purged += astats->astats.purged;
 
-	sstats->astats.metadata_mapped += astats->astats.metadata_mapped;
-	sstats->astats.metadata_allocated += astats->astats.metadata_allocated;
+		sstats->astats.metadata_mapped +=
+		    astats->astats.metadata_mapped;
+		sstats->astats.metadata_allocated +=
+		    astats->astats.metadata_allocated;
 
-	sstats->allocated_small += astats->allocated_small;
-	sstats->nmalloc_small += astats->nmalloc_small;
-	sstats->ndalloc_small += astats->ndalloc_small;
-	sstats->nrequests_small += astats->nrequests_small;
+		sstats->allocated_small += astats->allocated_small;
+		sstats->nmalloc_small += astats->nmalloc_small;
+		sstats->ndalloc_small += astats->ndalloc_small;
+		sstats->nrequests_small += astats->nrequests_small;
 
-	sstats->astats.allocated_large += astats->astats.allocated_large;
-	sstats->astats.nmalloc_large += astats->astats.nmalloc_large;
-	sstats->astats.ndalloc_large += astats->astats.ndalloc_large;
-	sstats->astats.nrequests_large += astats->astats.nrequests_large;
+		sstats->astats.allocated_large +=
+		    astats->astats.allocated_large;
+		sstats->astats.nmalloc_large += astats->astats.nmalloc_large;
+		sstats->astats.ndalloc_large += astats->astats.ndalloc_large;
+		sstats->astats.nrequests_large +=
+		    astats->astats.nrequests_large;
 
-	sstats->astats.allocated_huge += astats->astats.allocated_huge;
-	sstats->astats.nmalloc_huge += astats->astats.nmalloc_huge;
-	sstats->astats.ndalloc_huge += astats->astats.ndalloc_huge;
+		sstats->astats.allocated_huge += astats->astats.allocated_huge;
+		sstats->astats.nmalloc_huge += astats->astats.nmalloc_huge;
+		sstats->astats.ndalloc_huge += astats->astats.ndalloc_huge;
 
-	for (i = 0; i < NBINS; i++) {
-		sstats->bstats[i].nmalloc += astats->bstats[i].nmalloc;
-		sstats->bstats[i].ndalloc += astats->bstats[i].ndalloc;
-		sstats->bstats[i].nrequests += astats->bstats[i].nrequests;
-		sstats->bstats[i].curregs += astats->bstats[i].curregs;
-		if (config_tcache) {
-			sstats->bstats[i].nfills += astats->bstats[i].nfills;
-			sstats->bstats[i].nflushes +=
-			    astats->bstats[i].nflushes;
+		for (i = 0; i < NBINS; i++) {
+			sstats->bstats[i].nmalloc += astats->bstats[i].nmalloc;
+			sstats->bstats[i].ndalloc += astats->bstats[i].ndalloc;
+			sstats->bstats[i].nrequests +=
+			    astats->bstats[i].nrequests;
+			sstats->bstats[i].curregs += astats->bstats[i].curregs;
+			if (config_tcache) {
+				sstats->bstats[i].nfills +=
+				    astats->bstats[i].nfills;
+				sstats->bstats[i].nflushes +=
+				    astats->bstats[i].nflushes;
+			}
+			sstats->bstats[i].nruns += astats->bstats[i].nruns;
+			sstats->bstats[i].reruns += astats->bstats[i].reruns;
+			sstats->bstats[i].curruns += astats->bstats[i].curruns;
 		}
-		sstats->bstats[i].nruns += astats->bstats[i].nruns;
-		sstats->bstats[i].reruns += astats->bstats[i].reruns;
-		sstats->bstats[i].curruns += astats->bstats[i].curruns;
-	}
 
-	for (i = 0; i < nlclasses; i++) {
-		sstats->lstats[i].nmalloc += astats->lstats[i].nmalloc;
-		sstats->lstats[i].ndalloc += astats->lstats[i].ndalloc;
-		sstats->lstats[i].nrequests += astats->lstats[i].nrequests;
-		sstats->lstats[i].curruns += astats->lstats[i].curruns;
-	}
+		for (i = 0; i < nlclasses; i++) {
+			sstats->lstats[i].nmalloc += astats->lstats[i].nmalloc;
+			sstats->lstats[i].ndalloc += astats->lstats[i].ndalloc;
+			sstats->lstats[i].nrequests +=
+			    astats->lstats[i].nrequests;
+			sstats->lstats[i].curruns += astats->lstats[i].curruns;
+		}
 
-	for (i = 0; i < nhclasses; i++) {
-		sstats->hstats[i].nmalloc += astats->hstats[i].nmalloc;
-		sstats->hstats[i].ndalloc += astats->hstats[i].ndalloc;
-		sstats->hstats[i].curhchunks += astats->hstats[i].curhchunks;
+		for (i = 0; i < nhclasses; i++) {
+			sstats->hstats[i].nmalloc += astats->hstats[i].nmalloc;
+			sstats->hstats[i].ndalloc += astats->hstats[i].ndalloc;
+			sstats->hstats[i].curhchunks +=
+			    astats->hstats[i].curhchunks;
+		}
 	}
 }
 
@@ -636,19 +655,9 @@ ctl_arena_refresh(arena_t *arena, unsigned i)
 	ctl_arena_stats_t *sstats = &ctl_stats.arenas[ctl_stats.narenas];
 
 	ctl_arena_clear(astats);
-
-	sstats->nthreads += astats->nthreads;
-	if (config_stats) {
-		ctl_arena_stats_amerge(astats, arena);
-		/* Merge into sum stats as well. */
-		ctl_arena_stats_smerge(sstats, astats);
-	} else {
-		astats->pactive += arena->nactive;
-		astats->pdirty += arena->ndirty;
-		/* Merge into sum stats as well. */
-		sstats->pactive += arena->nactive;
-		sstats->pdirty += arena->ndirty;
-	}
+	ctl_arena_stats_amerge(astats, arena);
+	/* Merge into sum stats as well. */
+	ctl_arena_stats_smerge(sstats, astats);
 }
 
 static bool
@@ -701,19 +710,10 @@ ctl_refresh(void)
 	 * Clear sum stats, since they will be merged into by
 	 * ctl_arena_refresh().
 	 */
-	ctl_stats.arenas[ctl_stats.narenas].nthreads = 0;
 	ctl_arena_clear(&ctl_stats.arenas[ctl_stats.narenas]);
 
 	for (i = 0; i < ctl_stats.narenas; i++)
 		tarenas[i] = arena_get(i, false);
-
-	for (i = 0; i < ctl_stats.narenas; i++) {
-		if (tarenas[i] != NULL) {
-			ctl_stats.arenas[i].nthreads =
-			    arena_nthreads_get(arena_get(i, false));
-		} else
-			ctl_stats.arenas[i].nthreads = 0;
-	}
 
 	for (i = 0; i < ctl_stats.narenas; i++) {
 		bool initialized = (tarenas[i] != NULL);

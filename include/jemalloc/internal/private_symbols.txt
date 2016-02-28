@@ -2,6 +2,7 @@ a0dalloc
 a0malloc
 arena_aalloc
 arena_alloc_junk_small
+arena_basic_stats_merge
 arena_bin_index
 arena_bin_info
 arena_bitselm_get

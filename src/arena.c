@@ -3202,20 +3202,45 @@ arena_decay_time_default_set(ssize_t decay_time)
 	return (false);
 }
 
-void
-arena_stats_merge(arena_t *arena, const char **dss, ssize_t *lg_dirty_mult,
-    ssize_t *decay_time, size_t *nactive, size_t *ndirty, arena_stats_t *astats,
-    malloc_bin_stats_t *bstats, malloc_large_stats_t *lstats,
-    malloc_huge_stats_t *hstats)
+static void
+arena_basic_stats_merge_locked(arena_t *arena, unsigned *nthreads,
+    const char **dss, ssize_t *lg_dirty_mult, ssize_t *decay_time,
+    size_t *nactive, size_t *ndirty)
 {
-	unsigned i;
 
-	malloc_mutex_lock(&arena->lock);
+	*nthreads += arena_nthreads_get(arena);
 	*dss = dss_prec_names[arena->dss_prec];
 	*lg_dirty_mult = arena->lg_dirty_mult;
 	*decay_time = arena->decay_time;
 	*nactive += arena->nactive;
 	*ndirty += arena->ndirty;
+}
+
+void
+arena_basic_stats_merge(arena_t *arena, unsigned *nthreads, const char **dss,
+    ssize_t *lg_dirty_mult, ssize_t *decay_time, size_t *nactive,
+    size_t *ndirty)
+{
+
+	malloc_mutex_lock(&arena->lock);
+	arena_basic_stats_merge_locked(arena, nthreads, dss, lg_dirty_mult,
+	    decay_time, nactive, ndirty);
+	malloc_mutex_unlock(&arena->lock);
+}
+
+void
+arena_stats_merge(arena_t *arena, unsigned *nthreads, const char **dss,
+    ssize_t *lg_dirty_mult, ssize_t *decay_time, size_t *nactive,
+    size_t *ndirty, arena_stats_t *astats, malloc_bin_stats_t *bstats,
+    malloc_large_stats_t *lstats, malloc_huge_stats_t *hstats)
+{
+	unsigned i;
+
+	cassert(config_stats);
+
+	malloc_mutex_lock(&arena->lock);
+	arena_basic_stats_merge_locked(arena, nthreads, dss, lg_dirty_mult,
+	    decay_time, nactive, ndirty);
 
 	astats->mapped += arena->stats.mapped;
 	astats->npurge += arena->stats.npurge;

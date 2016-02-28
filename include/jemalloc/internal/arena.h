@@ -572,7 +572,10 @@ ssize_t	arena_lg_dirty_mult_default_get(void);
 bool	arena_lg_dirty_mult_default_set(ssize_t lg_dirty_mult);
 ssize_t	arena_decay_time_default_get(void);
 bool	arena_decay_time_default_set(ssize_t decay_time);
-void	arena_stats_merge(arena_t *arena, const char **dss,
+void	arena_basic_stats_merge(arena_t *arena, unsigned *nthreads,
+    const char **dss, ssize_t *lg_dirty_mult, ssize_t *decay_time,
+    size_t *nactive, size_t *ndirty);
+void	arena_stats_merge(arena_t *arena, unsigned *nthreads, const char **dss,
     ssize_t *lg_dirty_mult, ssize_t *decay_time, size_t *nactive,
     size_t *ndirty, arena_stats_t *astats, malloc_bin_stats_t *bstats,
     malloc_large_stats_t *lstats, malloc_huge_stats_t *hstats);
