@@ -652,6 +652,9 @@ arenas_tdata_cleanup(tsd_t *tsd)
 {
 	arena_tdata_t *arenas_tdata;
 
+	/* Prevent tsd->arenas_tdata from being (re)created. */
+	*tsd_arenas_tdata_bypassp_get(tsd) = true;
+
 	arenas_tdata = tsd_arenas_tdata_get(tsd);
 	if (arenas_tdata != NULL) {
 		tsd_arenas_tdata_set(tsd, NULL);
