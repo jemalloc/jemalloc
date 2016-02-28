@@ -160,7 +160,7 @@ TEST_BEGIN(test_decay_ticks)
 	 * Test tcache fill/flush interactions for large and small size classes,
 	 * using an explicit tcache.
 	 */
-	{
+	if (config_tcache) {
 		unsigned tcache_ind, i;
 		size_t tcache_sizes[2];
 		tcache_sizes[0] = large0;
@@ -204,7 +204,7 @@ TEST_BEGIN(test_decay_ticker)
 	uint64_t epoch;
 	uint64_t npurge0 = 0;
 	uint64_t npurge1 = 0;
-	size_t sz, tcache_max, large;
+	size_t sz, large;
 	unsigned i, nupdates0;
 	nstime_t time, decay_time, deadline;
 
@@ -216,10 +216,18 @@ TEST_BEGIN(test_decay_ticker)
 	 * verify the ticker triggers purging.
 	 */
 
-	sz = sizeof(size_t);
-	assert_d_eq(mallctl("arenas.tcache_max", &tcache_max, &sz, NULL, 0), 0,
-	    "Unexpected mallctl failure");
-	large = nallocx(tcache_max + 1, flags);
+	if (config_tcache) {
+		size_t tcache_max;
+
+		sz = sizeof(size_t);
+		assert_d_eq(mallctl("arenas.tcache_max", &tcache_max, &sz, NULL,
+		    0), 0, "Unexpected mallctl failure");
+		large = nallocx(tcache_max + 1, flags);
+	}  else {
+		sz = sizeof(size_t);
+		assert_d_eq(mallctl("arenas.lrun.0.size", &large, &sz, NULL, 0),
+		    0, "Unexpected mallctl failure");
+	}
 
 	assert_d_eq(mallctl("arena.0.purge", NULL, NULL, NULL, 0), 0,
 	    "Unexpected mallctl failure");
