@@ -201,7 +201,9 @@ TEST_BEGIN(test_decay_ticker)
 #define	NPS 1024
 	int flags = (MALLOCX_ARENA(0) | MALLOCX_TCACHE_NONE);
 	void *ps[NPS];
-	uint64_t epoch, npurge0, npurge1;
+	uint64_t epoch;
+	uint64_t npurge0 = 0;
+	uint64_t npurge1 = 0;
 	size_t sz, tcache_max, large;
 	unsigned i, nupdates0;
 	nstime_t time, decay_time, deadline;
@@ -224,8 +226,8 @@ TEST_BEGIN(test_decay_ticker)
 	assert_d_eq(mallctl("epoch", NULL, NULL, &epoch, sizeof(uint64_t)), 0,
 	    "Unexpected mallctl failure");
 	sz = sizeof(uint64_t);
-	assert_d_eq(mallctl("stats.arenas.0.npurge", &npurge0, &sz, NULL, 0), 0,
-	    "Unexpected mallctl failure");
+	assert_d_eq(mallctl("stats.arenas.0.npurge", &npurge0, &sz, NULL, 0),
+	    config_stats ? 0 : ENOENT, "Unexpected mallctl result");
 
 	for (i = 0; i < NPS; i++) {
 		ps[i] = mallocx(large, flags);
@@ -266,12 +268,14 @@ TEST_BEGIN(test_decay_ticker)
 		    sizeof(uint64_t)), 0, "Unexpected mallctl failure");
 		sz = sizeof(uint64_t);
 		assert_d_eq(mallctl("stats.arenas.0.npurge", &npurge1, &sz,
-		    NULL, 0), 0, "Unexpected mallctl failure");
+		    NULL, 0), config_stats ? 0 : ENOENT,
+		    "Unexpected mallctl result");
 
 		nstime_update(&time);
 	} while (nstime_compare(&time, &deadline) <= 0 && npurge1 == npurge0);
 
-	assert_u64_gt(npurge1, npurge0, "Expected purging to occur");
+	if (config_stats)
+		assert_u64_gt(npurge1, npurge0, "Expected purging to occur");
 #undef NPS
 }
 TEST_END
@@ -281,7 +285,9 @@ TEST_BEGIN(test_decay_nonmonotonic)
 #define	NPS (SMOOTHSTEP_NSTEPS + 1)
 	int flags = (MALLOCX_ARENA(0) | MALLOCX_TCACHE_NONE);
 	void *ps[NPS];
-	uint64_t epoch, npurge0, npurge1;
+	uint64_t epoch;
+	uint64_t npurge0 = 0;
+	uint64_t npurge1 = 0;
 	size_t sz, large0;
 	unsigned i, nupdates0;
 
@@ -296,8 +302,8 @@ TEST_BEGIN(test_decay_nonmonotonic)
 	assert_d_eq(mallctl("epoch", NULL, NULL, &epoch, sizeof(uint64_t)), 0,
 	    "Unexpected mallctl failure");
 	sz = sizeof(uint64_t);
-	assert_d_eq(mallctl("stats.arenas.0.npurge", &npurge0, &sz, NULL, 0), 0,
-	    "Unexpected mallctl failure");
+	assert_d_eq(mallctl("stats.arenas.0.npurge", &npurge0, &sz, NULL, 0),
+	    config_stats ? 0 : ENOENT, "Unexpected mallctl result");
 
 	nupdates_mock = 0;
 	nstime_init(&time_mock, 0);
@@ -324,10 +330,11 @@ TEST_BEGIN(test_decay_nonmonotonic)
 	assert_d_eq(mallctl("epoch", NULL, NULL, &epoch, sizeof(uint64_t)), 0,
 	    "Unexpected mallctl failure");
 	sz = sizeof(uint64_t);
-	assert_d_eq(mallctl("stats.arenas.0.npurge", &npurge1, &sz, NULL, 0), 0,
-	    "Unexpected mallctl failure");
+	assert_d_eq(mallctl("stats.arenas.0.npurge", &npurge1, &sz, NULL, 0),
+	    config_stats ? 0 : ENOENT, "Unexpected mallctl result");
 
-	assert_u64_gt(npurge1, npurge0, "Expected purging to occur");
+	if (config_stats)
+		assert_u64_gt(npurge1, npurge0, "Expected purging to occur");
 
 	nstime_update = nstime_update_orig;
 #undef NPS
