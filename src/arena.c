@@ -2458,6 +2458,7 @@ arena_malloc_large(tsd_t *tsd, arena_t *arena, szind_t binind, bool zero)
 		arena->stats.lstats[index].nrequests++;
 		arena->stats.lstats[index].curruns++;
 	}
+  idump = false;
 	if (config_prof)
 		idump = arena_prof_accum_locked(arena, usize);
 	malloc_mutex_unlock(&arena->lock);
