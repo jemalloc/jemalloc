@@ -379,6 +379,14 @@ pages_map
 pages_purge
 pages_trim
 pages_unmap
+ph_first
+ph_insert
+ph_merge
+ph_merge_aux_list
+ph_merge_pairs
+ph_new
+ph_remove_first
+ph_remove
 pow2_ceil_u32
 pow2_ceil_u64
 pow2_ceil_zu
