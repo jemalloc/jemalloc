@@ -79,6 +79,7 @@ arena_nthreads_dec
 arena_nthreads_get
 arena_nthreads_inc
 arena_palloc
+arena_ph_to_miscelm
 arena_postfork_child
 arena_postfork_parent
 arena_prefork
