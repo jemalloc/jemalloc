@@ -101,6 +101,9 @@
     <ClInclude Include="..\..\..\..\include\jemalloc\internal\mutex.h">
       <Filter>Header Files\internal</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\..\include\jemalloc\internal\nstime.h">
+      <Filter>Header Files\internal</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\..\..\include\jemalloc\internal\pages.h">
       <Filter>Header Files\internal</Filter>
     </ClInclude>
@@ -144,6 +147,9 @@
       <Filter>Header Files\internal</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\..\include\jemalloc\internal\tcache.h">
+      <Filter>Header Files\internal</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\include\jemalloc\internal\ticker.h">
       <Filter>Header Files\internal</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\..\include\jemalloc\internal\tsd.h">
@@ -214,7 +220,13 @@
     <ClCompile Include="..\..\..\..\src\mutex.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\..\src\nstime.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\..\..\src\pages.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\src\prng.c">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\src\prof.c">
@@ -232,13 +244,13 @@
     <ClCompile Include="..\..\..\..\src\tcache.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\..\src\ticker.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\..\..\src\tsd.c">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\src\util.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\..\src\nstime.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
