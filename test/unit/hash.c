@@ -63,15 +63,16 @@ hash_variant_string(hash_variant_t variant)
 static void
 hash_variant_verify_key(hash_variant_t variant, uint8_t *key)
 {
-	const int hashbytes = hash_variant_bits(variant) / 8;
-	VARIABLE_ARRAY(uint8_t, hashes, hashbytes * 256);
+	const size_t hashbytes = hash_variant_bits(variant) / 8;
+  const size_t hashes_size = hashbytes * 256U;
+  VARIABLE_ARRAY(uint8_t, hashes, hashes_size);
 	VARIABLE_ARRAY(uint8_t, final, hashbytes);
 	unsigned i;
 	uint32_t computed, expected;
 
 	memset(key, 0, KEY_SIZE);
-	memset(hashes, 0, sizeof(hashes));
-	memset(final, 0, sizeof(final));
+  memset(hashes, 0, hashes_size);
+  memset(final, 0, hashbytes);
 
 	/*
 	 * Hash keys of the form {0}, {0,1}, {0,1,2}, ..., {0,1,...,255} as the
