@@ -2423,7 +2423,7 @@ arena_malloc_large(tsd_t *tsd, arena_t *arena, szind_t binind, bool zero)
 	uintptr_t random_offset;
 	arena_run_t *run;
 	arena_chunk_map_misc_t *miscelm;
-	UNUSED bool idump;
+	UNUSED bool idump JEMALLOC_CC_SILENCE_INIT(false);
 
 	/* Large allocation. */
 	usize = index2size(binind);
