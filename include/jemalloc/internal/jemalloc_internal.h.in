@@ -371,6 +371,7 @@ typedef unsigned szind_t;
 #include "jemalloc/internal/tsd.h"
 #include "jemalloc/internal/mb.h"
 #include "jemalloc/internal/extent.h"
+#include "jemalloc/internal/ph.h"
 #include "jemalloc/internal/arena.h"
 #include "jemalloc/internal/bitmap.h"
 #include "jemalloc/internal/base.h"
@@ -401,6 +402,7 @@ typedef unsigned szind_t;
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/mb.h"
 #include "jemalloc/internal/bitmap.h"
+#include "jemalloc/internal/ph.h"
 #define	JEMALLOC_ARENA_STRUCTS_A
 #include "jemalloc/internal/arena.h"
 #undef JEMALLOC_ARENA_STRUCTS_A
@@ -494,6 +496,7 @@ void	jemalloc_postfork_child(void);
 #include "jemalloc/internal/mb.h"
 #include "jemalloc/internal/bitmap.h"
 #include "jemalloc/internal/extent.h"
+#include "jemalloc/internal/ph.h"
 #include "jemalloc/internal/arena.h"
 #include "jemalloc/internal/base.h"
 #include "jemalloc/internal/rtree.h"
@@ -525,6 +528,7 @@ void	jemalloc_postfork_child(void);
 #include "jemalloc/internal/tsd.h"
 #include "jemalloc/internal/mb.h"
 #include "jemalloc/internal/extent.h"
+#include "jemalloc/internal/ph.h"
 #include "jemalloc/internal/base.h"
 #include "jemalloc/internal/rtree.h"
 #include "jemalloc/internal/pages.h"
