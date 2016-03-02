@@ -206,6 +206,12 @@
 #undef JEMALLOC_CACHE_OBLIVIOUS
 
 /*
+ * If defined, use runtime code modification to remove configuration branches
+ * from the hot path.
+ */
+#undef JEMALLOC_RUNTIME_PATCHING
+
+/*
  * Darwin (OS X) uses zones to work around Mach-O symbol override shortcomings.
  */
 #undef JEMALLOC_ZONE
