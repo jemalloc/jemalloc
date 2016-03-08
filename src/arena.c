@@ -199,7 +199,7 @@ run_quantize_ceil(size_t size)
 run_quantize_t *run_quantize_ceil = JEMALLOC_N(run_quantize_ceil_impl);
 #endif
 
-static arena_run_tree_t *
+static ph_heap_t *
 arena_runs_avail_get(arena_t *arena, szind_t ind)
 {
 
@@ -217,8 +217,8 @@ arena_avail_insert(arena_t *arena, arena_chunk_t *chunk, size_t pageind,
 	    arena_miscelm_get(chunk, pageind))));
 	assert(npages == (arena_mapbits_unallocated_size_get(chunk, pageind) >>
 	    LG_PAGE));
-	arena_run_tree_insert(arena_runs_avail_get(arena, ind),
-	    arena_miscelm_get(chunk, pageind));
+	ph_insert(arena_runs_avail_get(arena, ind),
+	    &arena_miscelm_get(chunk, pageind)->avail.ph_link);
 }
 
 static void
@@ -229,8 +229,8 @@ arena_avail_remove(arena_t *arena, arena_chunk_t *chunk, size_t pageind,
 	    arena_miscelm_get(chunk, pageind))));
 	assert(npages == (arena_mapbits_unallocated_size_get(chunk, pageind) >>
 	    LG_PAGE));
-	arena_run_tree_remove(arena_runs_avail_get(arena, ind),
-	    arena_miscelm_get(chunk, pageind));
+	ph_remove(arena_runs_avail_get(arena, ind),
+	    &arena_miscelm_get(chunk, pageind)->avail.ph_link);
 }
 
 static void
@@ -245,8 +245,8 @@ arena_run_dirty_insert(arena_t *arena, arena_chunk_t *chunk, size_t pageind,
 	assert(arena_mapbits_dirty_get(chunk, pageind+npages-1) ==
 	    CHUNK_MAP_DIRTY);
 
-	qr_new(&miscelm->rd, rd_link);
-	qr_meld(&arena->runs_dirty, &miscelm->rd, rd_link);
+	qr_new(&miscelm->avail.rd, rd_link);
+	qr_meld(&arena->runs_dirty, &miscelm->avail.rd, rd_link);
 	arena->ndirty += npages;
 }
 
@@ -262,7 +262,7 @@ arena_run_dirty_remove(arena_t *arena, arena_chunk_t *chunk, size_t pageind,
 	assert(arena_mapbits_dirty_get(chunk, pageind+npages-1) ==
 	    CHUNK_MAP_DIRTY);
 
-	qr_remove(&miscelm->rd, rd_link);
+	qr_remove(&miscelm->avail.rd, rd_link);
 	assert(arena->ndirty >= npages);
 	arena->ndirty -= npages;
 }
@@ -1079,9 +1079,9 @@ arena_run_first_best_fit(arena_t *arena, size_t size)
 
 	ind = size2index(run_quantize_ceil(size));
 	for (i = ind; i < runs_avail_nclasses + runs_avail_bias; i++) {
-		arena_chunk_map_misc_t *miscelm = arena_run_tree_first(
-		    arena_runs_avail_get(arena, i));
-		if (miscelm != NULL)
+		ph_node_t *node = ph_first(arena_runs_avail_get(arena, i));
+		arena_chunk_map_misc_t *miscelm = arena_ph_to_miscelm(node);
+		if (node != NULL)
 			return (&miscelm->run);
 	}
 
@@ -3383,7 +3383,7 @@ arena_new(unsigned ind)
 	arena->ndirty = 0;
 
 	for(i = 0; i < runs_avail_nclasses; i++)
-		arena_run_tree_new(&arena->runs_avail[i]);
+		ph_new(&arena->runs_avail[i]);
 	qr_new(&arena->runs_dirty, rd_link);
 	qr_new(&arena->chunks_cache, cc_link);
 

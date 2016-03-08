@@ -95,6 +95,7 @@ C_SRCS := $(srcroot)src/jemalloc.c \
 	$(srcroot)src/mutex.c \
 	$(srcroot)src/nstime.c \
 	$(srcroot)src/pages.c \
+	$(srcroot)src/ph.c \
 	$(srcroot)src/prng.c \
 	$(srcroot)src/prof.c \
 	$(srcroot)src/quarantine.c \
@@ -147,6 +148,7 @@ TESTS_UNIT := $(srcroot)test/unit/atomic.c \
 	$(srcroot)test/unit/math.c \
 	$(srcroot)test/unit/mq.c \
 	$(srcroot)test/unit/mtx.c \
+	$(srcroot)test/unit/ph.c \
 	$(srcroot)test/unit/prng.c \
 	$(srcroot)test/unit/prof_accum.c \
 	$(srcroot)test/unit/prof_active.c \

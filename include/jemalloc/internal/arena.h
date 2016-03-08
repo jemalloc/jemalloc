@@ -36,6 +36,7 @@ typedef enum {
 #define	DECAY_NTICKS_PER_UPDATE	1000
 
 typedef struct arena_runs_dirty_link_s arena_runs_dirty_link_t;
+typedef struct arena_avail_links_s arena_avail_links_t;
 typedef struct arena_run_s arena_run_t;
 typedef struct arena_chunk_map_bits_s arena_chunk_map_bits_t;
 typedef struct arena_chunk_map_misc_s arena_chunk_map_misc_t;
@@ -146,6 +147,11 @@ struct arena_runs_dirty_link_s {
 	qr(arena_runs_dirty_link_t)	rd_link;
 };
 
+struct arena_avail_links_s {
+	arena_runs_dirty_link_t		rd;
+	ph_node_t			ph_link;
+};
+
 /*
  * Each arena_chunk_map_misc_t corresponds to one page within the chunk, just
  * like arena_chunk_map_bits_t.  Two separate arrays are stored within each
@@ -163,7 +169,7 @@ struct arena_chunk_map_misc_s {
 
 	union {
 		/* Linkage for list of dirty runs. */
-		arena_runs_dirty_link_t		rd;
+		arena_avail_links_t		avail;
 
 		/* Profile counters, used for large object runs. */
 		union {
@@ -457,10 +463,10 @@ struct arena_s {
 	arena_bin_t		bins[NBINS];
 
 	/*
-	 * Quantized address-ordered trees of this arena's available runs.  The
-	 * trees are used for first-best-fit run allocation.
+	 * Quantized address-ordered heaps of this arena's available runs.  The
+	 * heaps are used for first-best-fit run allocation.
 	 */
-	arena_run_tree_t	runs_avail[1]; /* Dynamically sized. */
+	ph_heap_t		runs_avail[1]; /* Dynamically sized. */
 };
 
 /* Used in conjunction with tsd for fast arena-related context lookup. */
@@ -600,6 +606,7 @@ arena_chunk_map_misc_t	*arena_miscelm_get(arena_chunk_t *chunk,
 size_t	arena_miscelm_to_pageind(const arena_chunk_map_misc_t *miscelm);
 void	*arena_miscelm_to_rpages(arena_chunk_map_misc_t *miscelm);
 arena_chunk_map_misc_t	*arena_rd_to_miscelm(arena_runs_dirty_link_t *rd);
+arena_chunk_map_misc_t	*arena_ph_to_miscelm(ph_node_t *ph);
 arena_chunk_map_misc_t	*arena_run_to_miscelm(arena_run_t *run);
 size_t	*arena_mapbitsp_get(arena_chunk_t *chunk, size_t pageind);
 size_t	arena_mapbitsp_read(size_t *mapbitsp);
@@ -702,7 +709,20 @@ JEMALLOC_ALWAYS_INLINE arena_chunk_map_misc_t *
 arena_rd_to_miscelm(arena_runs_dirty_link_t *rd)
 {
 	arena_chunk_map_misc_t *miscelm = (arena_chunk_map_misc_t
-	    *)((uintptr_t)rd - offsetof(arena_chunk_map_misc_t, rd));
+	    *)((uintptr_t)rd - offsetof(arena_chunk_map_misc_t, avail));
+
+	assert(arena_miscelm_to_pageind(miscelm) >= map_bias);
+	assert(arena_miscelm_to_pageind(miscelm) < chunk_npages);
+
+	return (miscelm);
+}
+
+JEMALLOC_ALWAYS_INLINE arena_chunk_map_misc_t *
+arena_ph_to_miscelm(ph_node_t *ph)
+{
+	arena_chunk_map_misc_t *miscelm = (arena_chunk_map_misc_t *)
+		((uintptr_t)ph -
+			offsetof(arena_chunk_map_misc_t, avail.ph_link));
 
 	assert(arena_miscelm_to_pageind(miscelm) >= map_bias);
 	assert(arena_miscelm_to_pageind(miscelm) < chunk_npages);
