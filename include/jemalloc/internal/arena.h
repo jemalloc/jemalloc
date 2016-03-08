@@ -147,11 +147,6 @@ struct arena_runs_dirty_link_s {
 	qr(arena_runs_dirty_link_t)	rd_link;
 };
 
-struct arena_avail_links_s {
-	arena_runs_dirty_link_t		rd;
-	ph_node_t			ph_link;
-};
-
 /*
  * Each arena_chunk_map_misc_t corresponds to one page within the chunk, just
  * like arena_chunk_map_bits_t.  Two separate arrays are stored within each
@@ -159,17 +154,17 @@ struct arena_avail_links_s {
  */
 struct arena_chunk_map_misc_s {
 	/*
-	 * Linkage for run trees.  There are two disjoint uses:
+	 * Linkage for run heaps.  There are two disjoint uses:
 	 *
-	 * 1) arena_t's runs_avail tree.
+	 * 1) arena_t's runs_avail heaps.
 	 * 2) arena_run_t conceptually uses this linkage for in-use non-full
 	 *    runs, rather than directly embedding linkage.
 	 */
-	rb_node(arena_chunk_map_misc_t)		rb_link;
+	ph_node_t				ph_link;
 
 	union {
 		/* Linkage for list of dirty runs. */
-		arena_avail_links_t		avail;
+		arena_runs_dirty_link_t		rd;
 
 		/* Profile counters, used for large object runs. */
 		union {
@@ -181,7 +176,6 @@ struct arena_chunk_map_misc_s {
 		arena_run_t			run;
 	};
 };
-typedef rb_tree(arena_chunk_map_misc_t) arena_run_tree_t;
 #endif /* JEMALLOC_ARENA_STRUCTS_A */
 
 #ifdef JEMALLOC_ARENA_STRUCTS_B
@@ -278,13 +272,13 @@ struct arena_bin_s {
 	arena_run_t		*runcur;
 
 	/*
-	 * Tree of non-full runs.  This tree is used when looking for an
+	 * Heap of non-full runs.  This heap is used when looking for an
 	 * existing run when runcur is no longer usable.  We choose the
 	 * non-full run that is lowest in memory; this policy tends to keep
 	 * objects packed well, and it can also help reduce the number of
 	 * almost-empty chunks.
 	 */
-	arena_run_tree_t	runs;
+	ph_heap_t		runs;
 
 	/* Bin statistics. */
 	malloc_bin_stats_t	stats;
@@ -709,7 +703,7 @@ JEMALLOC_ALWAYS_INLINE arena_chunk_map_misc_t *
 arena_rd_to_miscelm(arena_runs_dirty_link_t *rd)
 {
 	arena_chunk_map_misc_t *miscelm = (arena_chunk_map_misc_t
-	    *)((uintptr_t)rd - offsetof(arena_chunk_map_misc_t, avail));
+	    *)((uintptr_t)rd - offsetof(arena_chunk_map_misc_t, rd));
 
 	assert(arena_miscelm_to_pageind(miscelm) >= map_bias);
 	assert(arena_miscelm_to_pageind(miscelm) < chunk_npages);
@@ -721,7 +715,7 @@ JEMALLOC_ALWAYS_INLINE arena_chunk_map_misc_t *
 arena_ph_to_miscelm(ph_node_t *ph)
 {
 	arena_chunk_map_misc_t *miscelm = (arena_chunk_map_misc_t *)
-	    ((uintptr_t)ph - offsetof(arena_chunk_map_misc_t, avail.ph_link));
+	    ((uintptr_t)ph - offsetof(arena_chunk_map_misc_t, ph_link));
 
 	assert(arena_miscelm_to_pageind(miscelm) >= map_bias);
 	assert(arena_miscelm_to_pageind(miscelm) < chunk_npages);

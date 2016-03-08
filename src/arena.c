@@ -59,23 +59,6 @@ arena_miscelm_size_get(const arena_chunk_map_misc_t *miscelm)
 	return (arena_mapbits_size_decode(mapbits));
 }
 
-JEMALLOC_INLINE_C int
-arena_run_addr_comp(const arena_chunk_map_misc_t *a,
-    const arena_chunk_map_misc_t *b)
-{
-	uintptr_t a_miscelm = (uintptr_t)a;
-	uintptr_t b_miscelm = (uintptr_t)b;
-
-	assert(a != NULL);
-	assert(b != NULL);
-
-	return ((a_miscelm > b_miscelm) - (a_miscelm < b_miscelm));
-}
-
-/* Generate red-black tree functions. */
-rb_gen(static UNUSED, arena_run_tree_, arena_run_tree_t, arena_chunk_map_misc_t,
-    rb_link, arena_run_addr_comp)
-
 static size_t
 run_quantize_floor_compute(size_t size)
 {
@@ -218,7 +201,7 @@ arena_avail_insert(arena_t *arena, arena_chunk_t *chunk, size_t pageind,
 	assert(npages == (arena_mapbits_unallocated_size_get(chunk, pageind) >>
 	    LG_PAGE));
 	ph_insert(arena_runs_avail_get(arena, ind),
-	    &arena_miscelm_get(chunk, pageind)->avail.ph_link);
+	    &arena_miscelm_get(chunk, pageind)->ph_link);
 }
 
 static void
@@ -230,7 +213,7 @@ arena_avail_remove(arena_t *arena, arena_chunk_t *chunk, size_t pageind,
 	assert(npages == (arena_mapbits_unallocated_size_get(chunk, pageind) >>
 	    LG_PAGE));
 	ph_remove(arena_runs_avail_get(arena, ind),
-	    &arena_miscelm_get(chunk, pageind)->avail.ph_link);
+	    &arena_miscelm_get(chunk, pageind)->ph_link);
 }
 
 static void
@@ -245,8 +228,8 @@ arena_run_dirty_insert(arena_t *arena, arena_chunk_t *chunk, size_t pageind,
 	assert(arena_mapbits_dirty_get(chunk, pageind+npages-1) ==
 	    CHUNK_MAP_DIRTY);
 
-	qr_new(&miscelm->avail.rd, rd_link);
-	qr_meld(&arena->runs_dirty, &miscelm->avail.rd, rd_link);
+	qr_new(&miscelm->rd, rd_link);
+	qr_meld(&arena->runs_dirty, &miscelm->rd, rd_link);
 	arena->ndirty += npages;
 }
 
@@ -262,7 +245,7 @@ arena_run_dirty_remove(arena_t *arena, arena_chunk_t *chunk, size_t pageind,
 	assert(arena_mapbits_dirty_get(chunk, pageind+npages-1) ==
 	    CHUNK_MAP_DIRTY);
 
-	qr_remove(&miscelm->avail.rd, rd_link);
+	qr_remove(&miscelm->rd, rd_link);
 	assert(arena->ndirty >= npages);
 	arena->ndirty -= npages;
 }
@@ -2069,11 +2052,14 @@ arena_run_trim_tail(arena_t *arena, arena_chunk_t *chunk, arena_run_t *run,
 static arena_run_t *
 arena_bin_runs_first(arena_bin_t *bin)
 {
-	arena_chunk_map_misc_t *miscelm = arena_run_tree_first(&bin->runs);
-	if (miscelm != NULL)
-		return (&miscelm->run);
+	ph_node_t *node;
+	arena_chunk_map_misc_t *miscelm;
 
-	return (NULL);
+	node = ph_first(&bin->runs);
+	if (node == NULL)
+		return (NULL);
+	miscelm = arena_ph_to_miscelm(node);
+	return (&miscelm->run);
 }
 
 static void
@@ -2081,9 +2067,7 @@ arena_bin_runs_insert(arena_bin_t *bin, arena_run_t *run)
 {
 	arena_chunk_map_misc_t *miscelm = arena_run_to_miscelm(run);
 
-	assert(arena_run_tree_search(&bin->runs, miscelm) == NULL);
-
-	arena_run_tree_insert(&bin->runs, miscelm);
+	ph_insert(&bin->runs, &miscelm->ph_link);
 }
 
 static void
@@ -2091,9 +2075,7 @@ arena_bin_runs_remove(arena_bin_t *bin, arena_run_t *run)
 {
 	arena_chunk_map_misc_t *miscelm = arena_run_to_miscelm(run);
 
-	assert(arena_run_tree_search(&bin->runs, miscelm) != NULL);
-
-	arena_run_tree_remove(&bin->runs, miscelm);
+	ph_remove(&bin->runs, &miscelm->ph_link);
 }
 
 static arena_run_t *
@@ -2676,8 +2658,6 @@ arena_dalloc_bin_run(arena_t *arena, arena_chunk_t *chunk, arena_run_t *run,
 {
 
 	assert(run != bin->runcur);
-	assert(arena_run_tree_search(&bin->runs, arena_run_to_miscelm(run)) ==
-	    NULL);
 
 	malloc_mutex_unlock(&bin->lock);
 	/******************************/
@@ -3414,7 +3394,7 @@ arena_new(unsigned ind)
 		if (malloc_mutex_init(&bin->lock))
 			return (NULL);
 		bin->runcur = NULL;
-		arena_run_tree_new(&bin->runs);
+		ph_new(&bin->runs);
 		if (config_stats)
 			memset(&bin->stats, 0, sizeof(malloc_bin_stats_t));
 	}
