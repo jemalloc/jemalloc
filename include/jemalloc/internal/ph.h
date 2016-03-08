@@ -49,6 +49,7 @@ struct ph_heap_s {
 #ifdef JEMALLOC_H_INLINES
 
 #ifndef JEMALLOC_ENABLE_INLINE
+ph_node_t	*ph_merge_ordered(ph_node_t *heap1, ph_node_t *heap2);
 ph_node_t	*ph_merge(ph_node_t *heap1, ph_node_t *heap2);
 ph_node_t	*ph_merge_pairs(ph_node_t *subheaps);
 void	ph_merge_aux_list(ph_heap_t *l);
@@ -64,6 +65,23 @@ void	ph_remove(ph_heap_t *l, ph_node_t *n);
 /* Helper routines ************************************************************/
 
 JEMALLOC_INLINE ph_node_t *
+ph_merge_ordered(ph_node_t *heap1, ph_node_t *heap2)
+{
+
+	assert(heap1 != NULL);
+	assert(heap2 != NULL);
+	assert ((uintptr_t)heap1 <= (uintptr_t)heap2);
+
+	heap2->parent = heap1;
+	heap2->prev = NULL;
+	heap2->next = heap1->subheaps;
+	if (heap1->subheaps != NULL)
+		heap1->subheaps->prev = heap2;
+	heap1->subheaps = heap2;
+	return (heap1);
+}
+
+JEMALLOC_INLINE ph_node_t *
 ph_merge(ph_node_t *heap1, ph_node_t *heap2)
 {
 
@@ -72,23 +90,10 @@ ph_merge(ph_node_t *heap1, ph_node_t *heap2)
 	if (heap2 == NULL)
 		return (heap1);
 	/* Optional: user-settable comparison function */
-	if ((uintptr_t)heap1 < (uintptr_t)heap2) {
-		heap2->parent = heap1;
-		heap2->prev = NULL;
-		heap2->next = heap1->subheaps;
-		if (heap1->subheaps != NULL)
-			heap1->subheaps->prev = heap2;
-		heap1->subheaps = heap2;
-		return (heap1);
-	} else {
-		heap1->parent = heap2;
-		heap1->prev = NULL;
-		heap1->next = heap2->subheaps;
-		if (heap2->subheaps != NULL)
-			heap2->subheaps->prev = heap1;
-		heap2->subheaps = heap1;
-		return (heap2);
-	}
+	if ((uintptr_t)heap1 < (uintptr_t)heap2)
+		return (ph_merge_ordered(heap1, heap2));
+	else
+		return (ph_merge_ordered(heap2, heap1));
 }
 
 JEMALLOC_INLINE ph_node_t *

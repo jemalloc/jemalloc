@@ -383,6 +383,7 @@ ph_first
 ph_insert
 ph_merge
 ph_merge_aux_list
+ph_merge_ordered
 ph_merge_pairs
 ph_new
 ph_remove_first
