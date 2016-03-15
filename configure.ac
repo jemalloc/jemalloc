@@ -1172,27 +1172,36 @@ dnl ============================================================================
 dnl jemalloc configuration.
 dnl 
 
-dnl Set VERSION if source directory is inside a git repository.
-if test "x`test ! \"${srcroot}\" && cd \"${srcroot}\"; git rev-parse --is-inside-work-tree 2>/dev/null`" = "xtrue" ; then
-  dnl Pattern globs aren't powerful enough to match both single- and
-  dnl double-digit version numbers, so iterate over patterns to support up to
-  dnl version 99.99.99 without any accidental matches.
-  rm -f "${objroot}VERSION"
-  for pattern in ['[0-9].[0-9].[0-9]' '[0-9].[0-9].[0-9][0-9]' \
-                 '[0-9].[0-9][0-9].[0-9]' '[0-9].[0-9][0-9].[0-9][0-9]' \
-                 '[0-9][0-9].[0-9].[0-9]' '[0-9][0-9].[0-9].[0-9][0-9]' \
-                 '[0-9][0-9].[0-9][0-9].[0-9]' \
-                 '[0-9][0-9].[0-9][0-9].[0-9][0-9]']; do
-    if test ! -e "${objroot}VERSION" ; then
-      (test ! "${srcroot}" && cd "${srcroot}"; git describe --long --abbrev=40 --match="${pattern}") > "${objroot}VERSION.tmp" 2>/dev/null
-      if test $? -eq 0 ; then
-        mv "${objroot}VERSION.tmp" "${objroot}VERSION"
-        break
-      fi
+AC_ARG_WITH([version],
+  [AS_HELP_STRING([--with-version=<major>.<minor>.<bugfix>-<nrev>-g<gid>],
+   [Version string])],
+  [
+    echo "${with_version}" | grep ['^[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+-g[0-9a-f]\+$'] 2>&1 1>/dev/null
+    if test $? -ne 0 ; then
+      AC_MSG_ERROR([${with_version} does not match <major>.<minor>.<bugfix>-<nrev>-g<gid>])
     fi
-  done
-fi
-rm -f "${objroot}VERSION.tmp"
+    echo "$with_version" > "${objroot}VERSION"
+  ], [
+    dnl Set VERSION if source directory is inside a git repository.
+    if test "x`test ! \"${srcroot}\" && cd \"${srcroot}\"; git rev-parse --is-inside-work-tree 2>/dev/null`" = "xtrue" ; then
+      dnl Pattern globs aren't powerful enough to match both single- and
+      dnl double-digit version numbers, so iterate over patterns to support up
+      dnl to version 99.99.99 without any accidental matches.
+      for pattern in ['[0-9].[0-9].[0-9]' '[0-9].[0-9].[0-9][0-9]' \
+                     '[0-9].[0-9][0-9].[0-9]' '[0-9].[0-9][0-9].[0-9][0-9]' \
+                     '[0-9][0-9].[0-9].[0-9]' '[0-9][0-9].[0-9].[0-9][0-9]' \
+                     '[0-9][0-9].[0-9][0-9].[0-9]' \
+                     '[0-9][0-9].[0-9][0-9].[0-9][0-9]']; do
+        (test ! "${srcroot}" && cd "${srcroot}"; git describe --long --abbrev=40 --match="${pattern}") > "${objroot}VERSION.tmp" 2>/dev/null
+        if test $? -eq 0 ; then
+          mv "${objroot}VERSION.tmp" "${objroot}VERSION"
+          break
+        fi
+      done
+    fi
+    rm -f "${objroot}VERSION.tmp"
+  ])
+
 if test ! -e "${objroot}VERSION" ; then
   if test ! -e "${srcroot}VERSION" ; then
     AC_MSG_RESULT(
