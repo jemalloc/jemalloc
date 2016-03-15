@@ -314,10 +314,9 @@ x2s(uintmax_t x, bool alt_form, bool uppercase, char *s, size_t *slen_p)
 	return (s);
 }
 
-int
+size_t
 malloc_vsnprintf(char *str, size_t size, const char *format, va_list ap)
 {
-	int ret;
 	size_t i;
 	const char *f;
 
@@ -585,21 +584,19 @@ malloc_vsnprintf(char *str, size_t size, const char *format, va_list ap)
 		str[i] = '\0';
 	else
 		str[size - 1] = '\0';
-	assert(i < INT_MAX);
-	ret = (int)i;
 
 #undef APPEND_C
 #undef APPEND_S
 #undef APPEND_PADDED_S
 #undef GET_ARG_NUMERIC
-	return (ret);
+	return (i);
 }
 
 JEMALLOC_FORMAT_PRINTF(3, 4)
-int
+size_t
 malloc_snprintf(char *str, size_t size, const char *format, ...)
 {
-	int ret;
+	size_t ret;
 	va_list ap;
 
 	va_start(ap, format);

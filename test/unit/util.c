@@ -160,14 +160,14 @@ TEST_BEGIN(test_malloc_snprintf_truncated)
 {
 #define	BUFLEN	15
 	char buf[BUFLEN];
-	int result;
+	size_t result;
 	size_t len;
 #define TEST(expected_str_untruncated, ...) do {			\
 	result = malloc_snprintf(buf, len, __VA_ARGS__);		\
 	assert_d_eq(strncmp(buf, expected_str_untruncated, len-1), 0,	\
 	    "Unexpected string inequality (\"%s\" vs \"%s\")",		\
 	    buf, expected_str_untruncated);		\
-	assert_d_eq(result, strlen(expected_str_untruncated),		\
+	assert_zu_eq(result, strlen(expected_str_untruncated),		\
 	    "Unexpected result");					\
 } while (0)
 
@@ -193,11 +193,11 @@ TEST_BEGIN(test_malloc_snprintf)
 {
 #define	BUFLEN	128
 	char buf[BUFLEN];
-	int result;
+	size_t result;
 #define	TEST(expected_str, ...) do {					\
 	result = malloc_snprintf(buf, sizeof(buf), __VA_ARGS__);	\
 	assert_str_eq(buf, expected_str, "Unexpected output");		\
-	assert_d_eq(result, strlen(expected_str), "Unexpected result");	\
+	assert_zu_eq(result, strlen(expected_str), "Unexpected result");\
 } while (0)
 
 	TEST("hello", "hello");
