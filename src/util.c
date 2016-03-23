@@ -14,6 +14,7 @@
 		malloc_write("<jemalloc>: Unreachable code reached\n");	\
 		abort();						\
 	}								\
+	unreachable();							\
 } while (0)
 
 #define	not_implemented() do {						\
