@@ -72,6 +72,7 @@
 #  if JEMALLOC_GNUC_PREREQ(4, 6) ||					\
       JEMALLOC_CLANG_HAS_BUILTIN(__builtin_unreachable)
 #	define unreachable() __builtin_unreachable()
+#	define JEMALLOC_HAS_UNREACHABLE
 #  else
 #	define unreachable()
 #  endif
