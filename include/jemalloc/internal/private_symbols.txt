@@ -5,7 +5,8 @@ arena_alloc_junk_small
 arena_basic_stats_merge
 arena_bin_index
 arena_bin_info
-arena_bitselm_get
+arena_bitselm_get_const
+arena_bitselm_get_mutable
 arena_boot
 arena_choose
 arena_choose_hard
@@ -60,7 +61,8 @@ arena_mapbits_unallocated_set
 arena_mapbits_unallocated_size_get
 arena_mapbits_unallocated_size_set
 arena_mapbits_unzeroed_get
-arena_mapbitsp_get
+arena_mapbitsp_get_const
+arena_mapbitsp_get_mutable
 arena_mapbitsp_read
 arena_mapbitsp_write
 arena_maxrun
@@ -69,7 +71,8 @@ arena_metadata_allocated_add
 arena_metadata_allocated_get
 arena_metadata_allocated_sub
 arena_migrate
-arena_miscelm_get
+arena_miscelm_get_const
+arena_miscelm_get_mutable
 arena_miscelm_to_pageind
 arena_miscelm_to_rpages
 arena_new

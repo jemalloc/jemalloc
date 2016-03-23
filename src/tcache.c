@@ -129,7 +129,7 @@ tcache_bin_flush_small(tsd_t *tsd, tcache_t *tcache, tcache_bin_t *tbin,
 				size_t pageind = ((uintptr_t)ptr -
 				    (uintptr_t)chunk) >> LG_PAGE;
 				arena_chunk_map_bits_t *bitselm =
-				    arena_bitselm_get(chunk, pageind);
+				    arena_bitselm_get_mutable(chunk, pageind);
 				arena_dalloc_bin_junked_locked(bin_arena, chunk,
 				    ptr, bitselm);
 			} else {

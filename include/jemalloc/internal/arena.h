@@ -593,29 +593,38 @@ void	arena_postfork_child(arena_t *arena);
 #ifdef JEMALLOC_H_INLINES
 
 #ifndef JEMALLOC_ENABLE_INLINE
-arena_chunk_map_bits_t	*arena_bitselm_get(arena_chunk_t *chunk,
+arena_chunk_map_bits_t	*arena_bitselm_get_mutable(arena_chunk_t *chunk,
     size_t pageind);
-arena_chunk_map_misc_t	*arena_miscelm_get(arena_chunk_t *chunk,
+const arena_chunk_map_bits_t	*arena_bitselm_get_const(
+    const arena_chunk_t *chunk, size_t pageind);
+arena_chunk_map_misc_t	*arena_miscelm_get_mutable(arena_chunk_t *chunk,
     size_t pageind);
+const arena_chunk_map_misc_t	*arena_miscelm_get_const(
+    const arena_chunk_t *chunk, size_t pageind);
 size_t	arena_miscelm_to_pageind(const arena_chunk_map_misc_t *miscelm);
-void	*arena_miscelm_to_rpages(arena_chunk_map_misc_t *miscelm);
+void	*arena_miscelm_to_rpages(const arena_chunk_map_misc_t *miscelm);
 arena_chunk_map_misc_t	*arena_rd_to_miscelm(arena_runs_dirty_link_t *rd);
 arena_chunk_map_misc_t	*arena_ph_to_miscelm(ph_node_t *ph);
 arena_chunk_map_misc_t	*arena_run_to_miscelm(arena_run_t *run);
-size_t	*arena_mapbitsp_get(arena_chunk_t *chunk, size_t pageind);
-size_t	arena_mapbitsp_read(size_t *mapbitsp);
-size_t	arena_mapbits_get(arena_chunk_t *chunk, size_t pageind);
-size_t	arena_mapbits_size_decode(size_t mapbits);
-size_t	arena_mapbits_unallocated_size_get(arena_chunk_t *chunk,
+size_t	*arena_mapbitsp_get_mutable(arena_chunk_t *chunk, size_t pageind);
+const size_t	*arena_mapbitsp_get_const(const arena_chunk_t *chunk,
     size_t pageind);
-size_t	arena_mapbits_large_size_get(arena_chunk_t *chunk, size_t pageind);
-size_t	arena_mapbits_small_runind_get(arena_chunk_t *chunk, size_t pageind);
-szind_t	arena_mapbits_binind_get(arena_chunk_t *chunk, size_t pageind);
-size_t	arena_mapbits_dirty_get(arena_chunk_t *chunk, size_t pageind);
-size_t	arena_mapbits_unzeroed_get(arena_chunk_t *chunk, size_t pageind);
-size_t	arena_mapbits_decommitted_get(arena_chunk_t *chunk, size_t pageind);
-size_t	arena_mapbits_large_get(arena_chunk_t *chunk, size_t pageind);
-size_t	arena_mapbits_allocated_get(arena_chunk_t *chunk, size_t pageind);
+size_t	arena_mapbitsp_read(const size_t *mapbitsp);
+size_t	arena_mapbits_get(const arena_chunk_t *chunk, size_t pageind);
+size_t	arena_mapbits_size_decode(size_t mapbits);
+size_t	arena_mapbits_unallocated_size_get(const arena_chunk_t *chunk,
+    size_t pageind);
+size_t	arena_mapbits_large_size_get(const arena_chunk_t *chunk,
+    size_t pageind);
+size_t	arena_mapbits_small_runind_get(const arena_chunk_t *chunk,
+    size_t pageind);
+szind_t	arena_mapbits_binind_get(const arena_chunk_t *chunk, size_t pageind);
+size_t	arena_mapbits_dirty_get(const arena_chunk_t *chunk, size_t pageind);
+size_t	arena_mapbits_unzeroed_get(const arena_chunk_t *chunk, size_t pageind);
+size_t	arena_mapbits_decommitted_get(const arena_chunk_t *chunk,
+    size_t pageind);
+size_t	arena_mapbits_large_get(const arena_chunk_t *chunk, size_t pageind);
+size_t	arena_mapbits_allocated_get(const arena_chunk_t *chunk, size_t pageind);
 void	arena_mapbitsp_write(size_t *mapbitsp, size_t mapbits);
 size_t	arena_mapbits_size_encode(size_t size);
 void	arena_mapbits_unallocated_set(arena_chunk_t *chunk, size_t pageind,
@@ -657,7 +666,7 @@ void	arena_sdalloc(tsd_t *tsd, void *ptr, size_t size, tcache_t *tcache);
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_ARENA_C_))
 #  ifdef JEMALLOC_ARENA_INLINE_A
 JEMALLOC_ALWAYS_INLINE arena_chunk_map_bits_t *
-arena_bitselm_get(arena_chunk_t *chunk, size_t pageind)
+arena_bitselm_get_mutable(arena_chunk_t *chunk, size_t pageind)
 {
 
 	assert(pageind >= map_bias);
@@ -666,8 +675,15 @@ arena_bitselm_get(arena_chunk_t *chunk, size_t pageind)
 	return (&chunk->map_bits[pageind-map_bias]);
 }
 
+JEMALLOC_ALWAYS_INLINE const arena_chunk_map_bits_t *
+arena_bitselm_get_const(const arena_chunk_t *chunk, size_t pageind)
+{
+
+	return (arena_bitselm_get_mutable((arena_chunk_t *)chunk, pageind));
+}
+
 JEMALLOC_ALWAYS_INLINE arena_chunk_map_misc_t *
-arena_miscelm_get(arena_chunk_t *chunk, size_t pageind)
+arena_miscelm_get_mutable(arena_chunk_t *chunk, size_t pageind)
 {
 
 	assert(pageind >= map_bias);
@@ -675,6 +691,13 @@ arena_miscelm_get(arena_chunk_t *chunk, size_t pageind)
 
 	return ((arena_chunk_map_misc_t *)((uintptr_t)chunk +
 	    (uintptr_t)map_misc_offset) + pageind-map_bias);
+}
+
+JEMALLOC_ALWAYS_INLINE const arena_chunk_map_misc_t *
+arena_miscelm_get_const(const arena_chunk_t *chunk, size_t pageind)
+{
+
+	return (arena_miscelm_get_mutable((arena_chunk_t *)chunk, pageind));
 }
 
 JEMALLOC_ALWAYS_INLINE size_t
@@ -691,7 +714,7 @@ arena_miscelm_to_pageind(const arena_chunk_map_misc_t *miscelm)
 }
 
 JEMALLOC_ALWAYS_INLINE void *
-arena_miscelm_to_rpages(arena_chunk_map_misc_t *miscelm)
+arena_miscelm_to_rpages(const arena_chunk_map_misc_t *miscelm)
 {
 	arena_chunk_t *chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(miscelm);
 	size_t pageind = arena_miscelm_to_pageind(miscelm);
@@ -736,24 +759,31 @@ arena_run_to_miscelm(arena_run_t *run)
 }
 
 JEMALLOC_ALWAYS_INLINE size_t *
-arena_mapbitsp_get(arena_chunk_t *chunk, size_t pageind)
+arena_mapbitsp_get_mutable(arena_chunk_t *chunk, size_t pageind)
 {
 
-	return (&arena_bitselm_get(chunk, pageind)->bits);
+	return (&arena_bitselm_get_mutable(chunk, pageind)->bits);
+}
+
+JEMALLOC_ALWAYS_INLINE const size_t *
+arena_mapbitsp_get_const(const arena_chunk_t *chunk, size_t pageind)
+{
+
+	return (arena_mapbitsp_get_mutable((arena_chunk_t *)chunk, pageind));
 }
 
 JEMALLOC_ALWAYS_INLINE size_t
-arena_mapbitsp_read(size_t *mapbitsp)
+arena_mapbitsp_read(const size_t *mapbitsp)
 {
 
 	return (*mapbitsp);
 }
 
 JEMALLOC_ALWAYS_INLINE size_t
-arena_mapbits_get(arena_chunk_t *chunk, size_t pageind)
+arena_mapbits_get(const arena_chunk_t *chunk, size_t pageind)
 {
 
-	return (arena_mapbitsp_read(arena_mapbitsp_get(chunk, pageind)));
+	return (arena_mapbitsp_read(arena_mapbitsp_get_const(chunk, pageind)));
 }
 
 JEMALLOC_ALWAYS_INLINE size_t
@@ -773,7 +803,7 @@ arena_mapbits_size_decode(size_t mapbits)
 }
 
 JEMALLOC_ALWAYS_INLINE size_t
-arena_mapbits_unallocated_size_get(arena_chunk_t *chunk, size_t pageind)
+arena_mapbits_unallocated_size_get(const arena_chunk_t *chunk, size_t pageind)
 {
 	size_t mapbits;
 
@@ -783,7 +813,7 @@ arena_mapbits_unallocated_size_get(arena_chunk_t *chunk, size_t pageind)
 }
 
 JEMALLOC_ALWAYS_INLINE size_t
-arena_mapbits_large_size_get(arena_chunk_t *chunk, size_t pageind)
+arena_mapbits_large_size_get(const arena_chunk_t *chunk, size_t pageind)
 {
 	size_t mapbits;
 
@@ -794,7 +824,7 @@ arena_mapbits_large_size_get(arena_chunk_t *chunk, size_t pageind)
 }
 
 JEMALLOC_ALWAYS_INLINE size_t
-arena_mapbits_small_runind_get(arena_chunk_t *chunk, size_t pageind)
+arena_mapbits_small_runind_get(const arena_chunk_t *chunk, size_t pageind)
 {
 	size_t mapbits;
 
@@ -805,7 +835,7 @@ arena_mapbits_small_runind_get(arena_chunk_t *chunk, size_t pageind)
 }
 
 JEMALLOC_ALWAYS_INLINE szind_t
-arena_mapbits_binind_get(arena_chunk_t *chunk, size_t pageind)
+arena_mapbits_binind_get(const arena_chunk_t *chunk, size_t pageind)
 {
 	size_t mapbits;
 	szind_t binind;
@@ -817,7 +847,7 @@ arena_mapbits_binind_get(arena_chunk_t *chunk, size_t pageind)
 }
 
 JEMALLOC_ALWAYS_INLINE size_t
-arena_mapbits_dirty_get(arena_chunk_t *chunk, size_t pageind)
+arena_mapbits_dirty_get(const arena_chunk_t *chunk, size_t pageind)
 {
 	size_t mapbits;
 
@@ -828,7 +858,7 @@ arena_mapbits_dirty_get(arena_chunk_t *chunk, size_t pageind)
 }
 
 JEMALLOC_ALWAYS_INLINE size_t
-arena_mapbits_unzeroed_get(arena_chunk_t *chunk, size_t pageind)
+arena_mapbits_unzeroed_get(const arena_chunk_t *chunk, size_t pageind)
 {
 	size_t mapbits;
 
@@ -839,7 +869,7 @@ arena_mapbits_unzeroed_get(arena_chunk_t *chunk, size_t pageind)
 }
 
 JEMALLOC_ALWAYS_INLINE size_t
-arena_mapbits_decommitted_get(arena_chunk_t *chunk, size_t pageind)
+arena_mapbits_decommitted_get(const arena_chunk_t *chunk, size_t pageind)
 {
 	size_t mapbits;
 
@@ -850,7 +880,7 @@ arena_mapbits_decommitted_get(arena_chunk_t *chunk, size_t pageind)
 }
 
 JEMALLOC_ALWAYS_INLINE size_t
-arena_mapbits_large_get(arena_chunk_t *chunk, size_t pageind)
+arena_mapbits_large_get(const arena_chunk_t *chunk, size_t pageind)
 {
 	size_t mapbits;
 
@@ -859,7 +889,7 @@ arena_mapbits_large_get(arena_chunk_t *chunk, size_t pageind)
 }
 
 JEMALLOC_ALWAYS_INLINE size_t
-arena_mapbits_allocated_get(arena_chunk_t *chunk, size_t pageind)
+arena_mapbits_allocated_get(const arena_chunk_t *chunk, size_t pageind)
 {
 	size_t mapbits;
 
@@ -895,7 +925,7 @@ JEMALLOC_ALWAYS_INLINE void
 arena_mapbits_unallocated_set(arena_chunk_t *chunk, size_t pageind, size_t size,
     size_t flags)
 {
-	size_t *mapbitsp = arena_mapbitsp_get(chunk, pageind);
+	size_t *mapbitsp = arena_mapbitsp_get_mutable(chunk, pageind);
 
 	assert((size & PAGE_MASK) == 0);
 	assert((flags & CHUNK_MAP_FLAGS_MASK) == flags);
@@ -909,7 +939,7 @@ JEMALLOC_ALWAYS_INLINE void
 arena_mapbits_unallocated_size_set(arena_chunk_t *chunk, size_t pageind,
     size_t size)
 {
-	size_t *mapbitsp = arena_mapbitsp_get(chunk, pageind);
+	size_t *mapbitsp = arena_mapbitsp_get_mutable(chunk, pageind);
 	size_t mapbits = arena_mapbitsp_read(mapbitsp);
 
 	assert((size & PAGE_MASK) == 0);
@@ -921,7 +951,7 @@ arena_mapbits_unallocated_size_set(arena_chunk_t *chunk, size_t pageind,
 JEMALLOC_ALWAYS_INLINE void
 arena_mapbits_internal_set(arena_chunk_t *chunk, size_t pageind, size_t flags)
 {
-	size_t *mapbitsp = arena_mapbitsp_get(chunk, pageind);
+	size_t *mapbitsp = arena_mapbitsp_get_mutable(chunk, pageind);
 
 	assert((flags & CHUNK_MAP_UNZEROED) == flags);
 	arena_mapbitsp_write(mapbitsp, flags);
@@ -931,7 +961,7 @@ JEMALLOC_ALWAYS_INLINE void
 arena_mapbits_large_set(arena_chunk_t *chunk, size_t pageind, size_t size,
     size_t flags)
 {
-	size_t *mapbitsp = arena_mapbitsp_get(chunk, pageind);
+	size_t *mapbitsp = arena_mapbitsp_get_mutable(chunk, pageind);
 
 	assert((size & PAGE_MASK) == 0);
 	assert((flags & CHUNK_MAP_FLAGS_MASK) == flags);
@@ -946,7 +976,7 @@ JEMALLOC_ALWAYS_INLINE void
 arena_mapbits_large_binind_set(arena_chunk_t *chunk, size_t pageind,
     szind_t binind)
 {
-	size_t *mapbitsp = arena_mapbitsp_get(chunk, pageind);
+	size_t *mapbitsp = arena_mapbitsp_get_mutable(chunk, pageind);
 	size_t mapbits = arena_mapbitsp_read(mapbitsp);
 
 	assert(binind <= BININD_INVALID);
@@ -960,7 +990,7 @@ JEMALLOC_ALWAYS_INLINE void
 arena_mapbits_small_set(arena_chunk_t *chunk, size_t pageind, size_t runind,
     szind_t binind, size_t flags)
 {
-	size_t *mapbitsp = arena_mapbitsp_get(chunk, pageind);
+	size_t *mapbitsp = arena_mapbitsp_get_mutable(chunk, pageind);
 
 	assert(binind < BININD_INVALID);
 	assert(pageind - runind >= map_bias);
@@ -1048,12 +1078,12 @@ arena_ptr_small_binind_get(const void *ptr, size_t mapbits)
 		size_t pageind;
 		size_t actual_mapbits;
 		size_t rpages_ind;
-		arena_run_t *run;
+		const arena_run_t *run;
 		arena_bin_t *bin;
 		szind_t run_binind, actual_binind;
 		arena_bin_info_t *bin_info;
-		arena_chunk_map_misc_t *miscelm;
-		void *rpages;
+		const arena_chunk_map_misc_t *miscelm;
+		const void *rpages;
 
 		assert(binind != BININD_INVALID);
 		assert(binind < NBINS);
@@ -1066,7 +1096,7 @@ arena_ptr_small_binind_get(const void *ptr, size_t mapbits)
 		assert(arena_mapbits_allocated_get(chunk, pageind) != 0);
 		rpages_ind = pageind - arena_mapbits_small_runind_get(chunk,
 		    pageind);
-		miscelm = arena_miscelm_get(chunk, rpages_ind);
+		miscelm = arena_miscelm_get_const(chunk, rpages_ind);
 		run = &miscelm->run;
 		run_binind = run->binind;
 		bin = &arena->bins[run_binind];
@@ -1182,8 +1212,8 @@ arena_prof_tctx_get(const void *ptr)
 		if (likely((mapbits & CHUNK_MAP_LARGE) == 0))
 			ret = (prof_tctx_t *)(uintptr_t)1U;
 		else {
-			arena_chunk_map_misc_t *elm = arena_miscelm_get(chunk,
-			    pageind);
+			arena_chunk_map_misc_t *elm =
+			    arena_miscelm_get_mutable(chunk, pageind);
 			ret = atomic_read_p(&elm->prof_tctx_pun);
 		}
 	} else
@@ -1212,7 +1242,7 @@ arena_prof_tctx_set(const void *ptr, size_t usize, prof_tctx_t *tctx)
 
 			assert(arena_mapbits_large_get(chunk, pageind) != 0);
 
-			elm = arena_miscelm_get(chunk, pageind);
+			elm = arena_miscelm_get_mutable(chunk, pageind);
 			atomic_write_p(&elm->prof_tctx_pun, tctx);
 		} else {
 			/*
@@ -1248,7 +1278,7 @@ arena_prof_tctx_reset(const void *ptr, size_t usize, const void *old_ptr,
 			    0);
 			assert(arena_mapbits_large_get(chunk, pageind) != 0);
 
-			elm = arena_miscelm_get(chunk, pageind);
+			elm = arena_miscelm_get_mutable(chunk, pageind);
 			atomic_write_p(&elm->prof_tctx_pun,
 			    (prof_tctx_t *)(uintptr_t)1U);
 		} else
