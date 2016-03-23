@@ -155,7 +155,7 @@ bool	rtree_set(rtree_t *rtree, uintptr_t key, const extent_node_t *val);
 #endif
 
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_RTREE_C_))
-JEMALLOC_INLINE unsigned
+JEMALLOC_ALWAYS_INLINE unsigned
 rtree_start_level(rtree_t *rtree, uintptr_t key)
 {
 	unsigned start_level;
@@ -169,7 +169,7 @@ rtree_start_level(rtree_t *rtree, uintptr_t key)
 	return (start_level);
 }
 
-JEMALLOC_INLINE uintptr_t
+JEMALLOC_ALWAYS_INLINE uintptr_t
 rtree_subkey(rtree_t *rtree, uintptr_t key, unsigned level)
 {
 
@@ -178,14 +178,14 @@ rtree_subkey(rtree_t *rtree, uintptr_t key, unsigned level)
 	    rtree->levels[level].bits) - 1));
 }
 
-JEMALLOC_INLINE bool
+JEMALLOC_ALWAYS_INLINE bool
 rtree_node_valid(rtree_node_elm_t *node)
 {
 
 	return ((uintptr_t)node > (uintptr_t)RTREE_NODE_INITIALIZING);
 }
 
-JEMALLOC_INLINE rtree_node_elm_t *
+JEMALLOC_ALWAYS_INLINE rtree_node_elm_t *
 rtree_child_tryread(rtree_node_elm_t *elm, bool dependent)
 {
 	rtree_node_elm_t *child;
@@ -198,7 +198,7 @@ rtree_child_tryread(rtree_node_elm_t *elm, bool dependent)
 	return (child);
 }
 
-JEMALLOC_INLINE rtree_node_elm_t *
+JEMALLOC_ALWAYS_INLINE rtree_node_elm_t *
 rtree_child_read(rtree_t *rtree, rtree_node_elm_t *elm, unsigned level,
     bool dependent)
 {
@@ -211,7 +211,7 @@ rtree_child_read(rtree_t *rtree, rtree_node_elm_t *elm, unsigned level,
 	return (child);
 }
 
-JEMALLOC_INLINE extent_node_t *
+JEMALLOC_ALWAYS_INLINE extent_node_t *
 rtree_val_read(rtree_t *rtree, rtree_node_elm_t *elm, bool dependent)
 {
 
@@ -240,7 +240,7 @@ rtree_val_write(rtree_t *rtree, rtree_node_elm_t *elm, const extent_node_t *val)
 	atomic_write_p(&elm->pun, val);
 }
 
-JEMALLOC_INLINE rtree_node_elm_t *
+JEMALLOC_ALWAYS_INLINE rtree_node_elm_t *
 rtree_subtree_tryread(rtree_t *rtree, unsigned level, bool dependent)
 {
 	rtree_node_elm_t *subtree;
@@ -253,7 +253,7 @@ rtree_subtree_tryread(rtree_t *rtree, unsigned level, bool dependent)
 	return (subtree);
 }
 
-JEMALLOC_INLINE rtree_node_elm_t *
+JEMALLOC_ALWAYS_INLINE rtree_node_elm_t *
 rtree_subtree_read(rtree_t *rtree, unsigned level, bool dependent)
 {
 	rtree_node_elm_t *subtree;
@@ -265,7 +265,7 @@ rtree_subtree_read(rtree_t *rtree, unsigned level, bool dependent)
 	return (subtree);
 }
 
-JEMALLOC_INLINE extent_node_t *
+JEMALLOC_ALWAYS_INLINE extent_node_t *
 rtree_get(rtree_t *rtree, uintptr_t key, bool dependent)
 {
 	uintptr_t subkey;
@@ -352,6 +352,7 @@ rtree_get(rtree_t *rtree, uintptr_t key, bool dependent)
 #undef RTREE_GET_LEAF
 	default: not_reached();
 	}
+#undef RTREE_GET_BIAS
 	not_reached();
 }
 
