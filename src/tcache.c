@@ -23,7 +23,8 @@ static tcaches_t	*tcaches_avail;
 
 /******************************************************************************/
 
-size_t	tcache_salloc(const void *ptr)
+size_t
+tcache_salloc(const void *ptr)
 {
 
 	return (arena_salloc(ptr, false));
