@@ -1,237 +1,236 @@
 /******************************************************************************/
 #ifdef JEMALLOC_H_TYPES
 
-typedef struct extent_node_s extent_node_t;
+typedef struct extent_s extent_t;
 
 #endif /* JEMALLOC_H_TYPES */
 /******************************************************************************/
 #ifdef JEMALLOC_H_STRUCTS
 
-/* Tree of extents.  Use accessor functions for en_* fields. */
-struct extent_node_s {
+/* Extent (span of pages).  Use accessor functions for e_* fields. */
+struct extent_s {
 	/* Arena from which this extent came, if any. */
-	arena_t			*en_arena;
+	arena_t			*e_arena;
 
-	/* Pointer to the extent that this tree node is responsible for. */
-	void			*en_addr;
+	/* Pointer to the extent that this structure is responsible for. */
+	void			*e_addr;
 
 	/* Total region size. */
-	size_t			en_size;
+	size_t			e_size;
 
 	/*
 	 * The zeroed flag is used by chunk recycling code to track whether
 	 * memory is zero-filled.
 	 */
-	bool			en_zeroed;
+	bool			e_zeroed;
 
 	/*
 	 * True if physical memory is committed to the extent, whether
 	 * explicitly or implicitly as on a system that overcommits and
 	 * satisfies physical memory needs on demand via soft page faults.
 	 */
-	bool			en_committed;
+	bool			e_committed;
 
 	/*
 	 * The achunk flag is used to validate that huge allocation lookups
 	 * don't return arena chunks.
 	 */
-	bool			en_achunk;
+	bool			e_achunk;
 
 	/* Profile counters, used for huge objects. */
-	prof_tctx_t		*en_prof_tctx;
+	prof_tctx_t		*e_prof_tctx;
 
 	/* Linkage for arena's runs_dirty and chunks_cache rings. */
 	arena_runs_dirty_link_t	rd;
-	qr(extent_node_t)	cc_link;
+	qr(extent_t)		cc_link;
 
 	union {
 		/* Linkage for the size/address-ordered tree. */
-		rb_node(extent_node_t)	szad_link;
+		rb_node(extent_t)	szad_link;
 
 		/* Linkage for arena's achunks, huge, and node_cache lists. */
-		ql_elm(extent_node_t)	ql_link;
+		ql_elm(extent_t)	ql_link;
 	};
 
 	/* Linkage for the address-ordered tree. */
-	rb_node(extent_node_t)	ad_link;
+	rb_node(extent_t)	ad_link;
 };
-typedef rb_tree(extent_node_t) extent_tree_t;
+typedef rb_tree(extent_t) extent_tree_t;
 
 #endif /* JEMALLOC_H_STRUCTS */
 /******************************************************************************/
 #ifdef JEMALLOC_H_EXTERNS
 
-rb_proto(, extent_tree_szad_, extent_tree_t, extent_node_t)
+rb_proto(, extent_tree_szad_, extent_tree_t, extent_t)
 
-rb_proto(, extent_tree_ad_, extent_tree_t, extent_node_t)
+rb_proto(, extent_tree_ad_, extent_tree_t, extent_t)
 
 #endif /* JEMALLOC_H_EXTERNS */
 /******************************************************************************/
 #ifdef JEMALLOC_H_INLINES
 
 #ifndef JEMALLOC_ENABLE_INLINE
-arena_t	*extent_node_arena_get(const extent_node_t *node);
-void	*extent_node_addr_get(const extent_node_t *node);
-size_t	extent_node_size_get(const extent_node_t *node);
-bool	extent_node_zeroed_get(const extent_node_t *node);
-bool	extent_node_committed_get(const extent_node_t *node);
-bool	extent_node_achunk_get(const extent_node_t *node);
-prof_tctx_t	*extent_node_prof_tctx_get(const extent_node_t *node);
-void	extent_node_arena_set(extent_node_t *node, arena_t *arena);
-void	extent_node_addr_set(extent_node_t *node, void *addr);
-void	extent_node_size_set(extent_node_t *node, size_t size);
-void	extent_node_zeroed_set(extent_node_t *node, bool zeroed);
-void	extent_node_committed_set(extent_node_t *node, bool committed);
-void	extent_node_achunk_set(extent_node_t *node, bool achunk);
-void	extent_node_prof_tctx_set(extent_node_t *node, prof_tctx_t *tctx);
-void	extent_node_init(extent_node_t *node, arena_t *arena, void *addr,
+arena_t	*extent_arena_get(const extent_t *extent);
+void	*extent_addr_get(const extent_t *extent);
+size_t	extent_size_get(const extent_t *extent);
+bool	extent_zeroed_get(const extent_t *extent);
+bool	extent_committed_get(const extent_t *extent);
+bool	extent_achunk_get(const extent_t *extent);
+prof_tctx_t	*extent_prof_tctx_get(const extent_t *extent);
+void	extent_arena_set(extent_t *extent, arena_t *arena);
+void	extent_addr_set(extent_t *extent, void *addr);
+void	extent_size_set(extent_t *extent, size_t size);
+void	extent_zeroed_set(extent_t *extent, bool zeroed);
+void	extent_committed_set(extent_t *extent, bool committed);
+void	extent_achunk_set(extent_t *extent, bool achunk);
+void	extent_prof_tctx_set(extent_t *extent, prof_tctx_t *tctx);
+void	extent_init(extent_t *extent, arena_t *arena, void *addr,
     size_t size, bool zeroed, bool committed);
-void	extent_node_dirty_linkage_init(extent_node_t *node);
-void	extent_node_dirty_insert(extent_node_t *node,
-    arena_runs_dirty_link_t *runs_dirty, extent_node_t *chunks_dirty);
-void	extent_node_dirty_remove(extent_node_t *node);
+void	extent_dirty_linkage_init(extent_t *extent);
+void	extent_dirty_insert(extent_t *extent,
+    arena_runs_dirty_link_t *runs_dirty, extent_t *chunks_dirty);
+void	extent_dirty_remove(extent_t *extent);
 #endif
 
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_EXTENT_C_))
 JEMALLOC_INLINE arena_t *
-extent_node_arena_get(const extent_node_t *node)
+extent_arena_get(const extent_t *extent)
 {
 
-	return (node->en_arena);
+	return (extent->e_arena);
 }
 
 JEMALLOC_INLINE void *
-extent_node_addr_get(const extent_node_t *node)
+extent_addr_get(const extent_t *extent)
 {
 
-	return (node->en_addr);
+	return (extent->e_addr);
 }
 
 JEMALLOC_INLINE size_t
-extent_node_size_get(const extent_node_t *node)
+extent_size_get(const extent_t *extent)
 {
 
-	return (node->en_size);
+	return (extent->e_size);
 }
 
 JEMALLOC_INLINE bool
-extent_node_zeroed_get(const extent_node_t *node)
+extent_zeroed_get(const extent_t *extent)
 {
 
-	return (node->en_zeroed);
+	return (extent->e_zeroed);
 }
 
 JEMALLOC_INLINE bool
-extent_node_committed_get(const extent_node_t *node)
+extent_committed_get(const extent_t *extent)
 {
 
-	assert(!node->en_achunk);
-	return (node->en_committed);
+	assert(!extent->e_achunk);
+	return (extent->e_committed);
 }
 
 JEMALLOC_INLINE bool
-extent_node_achunk_get(const extent_node_t *node)
+extent_achunk_get(const extent_t *extent)
 {
 
-	return (node->en_achunk);
+	return (extent->e_achunk);
 }
 
 JEMALLOC_INLINE prof_tctx_t *
-extent_node_prof_tctx_get(const extent_node_t *node)
+extent_prof_tctx_get(const extent_t *extent)
 {
 
-	return (node->en_prof_tctx);
+	return (extent->e_prof_tctx);
 }
 
 JEMALLOC_INLINE void
-extent_node_arena_set(extent_node_t *node, arena_t *arena)
+extent_arena_set(extent_t *extent, arena_t *arena)
 {
 
-	node->en_arena = arena;
+	extent->e_arena = arena;
 }
 
 JEMALLOC_INLINE void
-extent_node_addr_set(extent_node_t *node, void *addr)
+extent_addr_set(extent_t *extent, void *addr)
 {
 
-	node->en_addr = addr;
+	extent->e_addr = addr;
 }
 
 JEMALLOC_INLINE void
-extent_node_size_set(extent_node_t *node, size_t size)
+extent_size_set(extent_t *extent, size_t size)
 {
 
-	node->en_size = size;
+	extent->e_size = size;
 }
 
 JEMALLOC_INLINE void
-extent_node_zeroed_set(extent_node_t *node, bool zeroed)
+extent_zeroed_set(extent_t *extent, bool zeroed)
 {
 
-	node->en_zeroed = zeroed;
+	extent->e_zeroed = zeroed;
 }
 
 JEMALLOC_INLINE void
-extent_node_committed_set(extent_node_t *node, bool committed)
+extent_committed_set(extent_t *extent, bool committed)
 {
 
-	node->en_committed = committed;
+	extent->e_committed = committed;
 }
 
 JEMALLOC_INLINE void
-extent_node_achunk_set(extent_node_t *node, bool achunk)
+extent_achunk_set(extent_t *extent, bool achunk)
 {
 
-	node->en_achunk = achunk;
+	extent->e_achunk = achunk;
 }
 
 JEMALLOC_INLINE void
-extent_node_prof_tctx_set(extent_node_t *node, prof_tctx_t *tctx)
+extent_prof_tctx_set(extent_t *extent, prof_tctx_t *tctx)
 {
 
-	node->en_prof_tctx = tctx;
+	extent->e_prof_tctx = tctx;
 }
 
 JEMALLOC_INLINE void
-extent_node_init(extent_node_t *node, arena_t *arena, void *addr, size_t size,
+extent_init(extent_t *extent, arena_t *arena, void *addr, size_t size,
     bool zeroed, bool committed)
 {
 
-	extent_node_arena_set(node, arena);
-	extent_node_addr_set(node, addr);
-	extent_node_size_set(node, size);
-	extent_node_zeroed_set(node, zeroed);
-	extent_node_committed_set(node, committed);
-	extent_node_achunk_set(node, false);
+	extent_arena_set(extent, arena);
+	extent_addr_set(extent, addr);
+	extent_size_set(extent, size);
+	extent_zeroed_set(extent, zeroed);
+	extent_committed_set(extent, committed);
+	extent_achunk_set(extent, false);
 	if (config_prof)
-		extent_node_prof_tctx_set(node, NULL);
+		extent_prof_tctx_set(extent, NULL);
 }
 
 JEMALLOC_INLINE void
-extent_node_dirty_linkage_init(extent_node_t *node)
+extent_dirty_linkage_init(extent_t *extent)
 {
 
-	qr_new(&node->rd, rd_link);
-	qr_new(node, cc_link);
+	qr_new(&extent->rd, rd_link);
+	qr_new(extent, cc_link);
 }
 
 JEMALLOC_INLINE void
-extent_node_dirty_insert(extent_node_t *node,
-    arena_runs_dirty_link_t *runs_dirty, extent_node_t *chunks_dirty)
+extent_dirty_insert(extent_t *extent,
+    arena_runs_dirty_link_t *runs_dirty, extent_t *chunks_dirty)
 {
 
-	qr_meld(runs_dirty, &node->rd, rd_link);
-	qr_meld(chunks_dirty, node, cc_link);
+	qr_meld(runs_dirty, &extent->rd, rd_link);
+	qr_meld(chunks_dirty, extent, cc_link);
 }
 
 JEMALLOC_INLINE void
-extent_node_dirty_remove(extent_node_t *node)
+extent_dirty_remove(extent_t *extent)
 {
 
-	qr_remove(&node->rd, rd_link);
-	qr_remove(node, cc_link);
+	qr_remove(&extent->rd, rd_link);
+	qr_remove(extent, cc_link);
 }
-
 #endif
 
 #endif /* JEMALLOC_H_INLINES */

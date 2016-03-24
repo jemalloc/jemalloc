@@ -3,40 +3,40 @@
 
 /******************************************************************************/
 
-static extent_node_t *
-huge_node_get(const void *ptr)
+static extent_t *
+huge_extent_get(const void *ptr)
 {
-	extent_node_t *node;
+	extent_t *extent;
 
-	node = chunk_lookup(ptr, true);
-	assert(!extent_node_achunk_get(node));
+	extent = chunk_lookup(ptr, true);
+	assert(!extent_achunk_get(extent));
 
-	return (node);
+	return (extent);
 }
 
 static bool
-huge_node_set(tsdn_t *tsdn, const void *ptr, extent_node_t *node)
+huge_extent_set(tsdn_t *tsdn, const void *ptr, extent_t *extent)
 {
 
-	assert(extent_node_addr_get(node) == ptr);
-	assert(!extent_node_achunk_get(node));
-	return (chunk_register(tsdn, ptr, node));
+	assert(extent_addr_get(extent) == ptr);
+	assert(!extent_achunk_get(extent));
+	return (chunk_register(tsdn, ptr, extent));
 }
 
 static void
-huge_node_reset(tsdn_t *tsdn, const void *ptr, extent_node_t *node)
+huge_extent_reset(tsdn_t *tsdn, const void *ptr, extent_t *extent)
 {
 	bool err;
 
-	err = huge_node_set(tsdn, ptr, node);
+	err = huge_extent_set(tsdn, ptr, extent);
 	assert(!err);
 }
 
 static void
-huge_node_unset(const void *ptr, const extent_node_t *node)
+huge_extent_unset(const void *ptr, const extent_t *extent)
 {
 
-	chunk_deregister(ptr, node);
+	chunk_deregister(ptr, extent);
 }
 
 void *
@@ -54,7 +54,7 @@ huge_palloc(tsdn_t *tsdn, arena_t *arena, size_t usize, size_t alignment,
 {
 	void *ret;
 	size_t ausize;
-	extent_node_t *node;
+	extent_t *extent;
 	bool is_zeroed;
 
 	/* Allocate one or more contiguous chunks for this request. */
@@ -66,10 +66,10 @@ huge_palloc(tsdn_t *tsdn, arena_t *arena, size_t usize, size_t alignment,
 		return (NULL);
 	assert(ausize >= chunksize);
 
-	/* Allocate an extent node with which to track the chunk. */
-	node = ipallocztm(tsdn, CACHELINE_CEILING(sizeof(extent_node_t)),
+	/* Allocate an extent with which to track the chunk. */
+	extent = ipallocztm(tsdn, CACHELINE_CEILING(sizeof(extent_t)),
 	    CACHELINE, false, NULL, true, arena_ichoose(tsdn, arena));
-	if (node == NULL)
+	if (extent == NULL)
 		return (NULL);
 
 	/*
@@ -81,22 +81,22 @@ huge_palloc(tsdn_t *tsdn, arena_t *arena, size_t usize, size_t alignment,
 		arena = arena_choose(tsdn_tsd(tsdn), arena);
 	if (unlikely(arena == NULL) || (ret = arena_chunk_alloc_huge(tsdn,
 	    arena, usize, alignment, &is_zeroed)) == NULL) {
-		idalloctm(tsdn, node, NULL, true, true);
+		idalloctm(tsdn, extent, NULL, true, true);
 		return (NULL);
 	}
 
-	extent_node_init(node, arena, ret, usize, is_zeroed, true);
+	extent_init(extent, arena, ret, usize, is_zeroed, true);
 
-	if (huge_node_set(tsdn, ret, node)) {
+	if (huge_extent_set(tsdn, ret, extent)) {
 		arena_chunk_dalloc_huge(tsdn, arena, ret, usize);
-		idalloctm(tsdn, node, NULL, true, true);
+		idalloctm(tsdn, extent, NULL, true, true);
 		return (NULL);
 	}
 
-	/* Insert node into huge. */
+	/* Insert extent into huge. */
 	malloc_mutex_lock(tsdn, &arena->huge_mtx);
-	ql_elm_new(node, ql_link);
-	ql_tail_insert(&arena->huge, node, ql_link);
+	ql_elm_new(extent, ql_link);
+	ql_tail_insert(&arena->huge, extent, ql_link);
 	malloc_mutex_unlock(tsdn, &arena->huge_mtx);
 
 	if (zero || (config_fill && unlikely(opt_zero))) {
@@ -137,7 +137,7 @@ huge_ralloc_no_move_similar(tsdn_t *tsdn, void *ptr, size_t oldsize,
     size_t usize_min, size_t usize_max, bool zero)
 {
 	size_t usize, usize_next;
-	extent_node_t *node;
+	extent_t *extent;
 	arena_t *arena;
 	chunk_hooks_t chunk_hooks = CHUNK_HOOKS_INITIALIZER;
 	bool pre_zeroed, post_zeroed;
@@ -150,9 +150,9 @@ huge_ralloc_no_move_similar(tsdn_t *tsdn, void *ptr, size_t oldsize,
 	if (oldsize == usize)
 		return;
 
-	node = huge_node_get(ptr);
-	arena = extent_node_arena_get(node);
-	pre_zeroed = extent_node_zeroed_get(node);
+	extent = huge_extent_get(ptr);
+	arena = extent_arena_get(extent);
+	pre_zeroed = extent_zeroed_get(extent);
 
 	/* Fill if necessary (shrinking). */
 	if (oldsize > usize) {
@@ -171,12 +171,12 @@ huge_ralloc_no_move_similar(tsdn_t *tsdn, void *ptr, size_t oldsize,
 
 	malloc_mutex_lock(tsdn, &arena->huge_mtx);
 	/* Update the size of the huge allocation. */
-	huge_node_unset(ptr, node);
-	assert(extent_node_size_get(node) != usize);
-	extent_node_size_set(node, usize);
-	huge_node_reset(tsdn, ptr, node);
+	assert(extent_size_get(extent) != usize);
+	huge_extent_unset(ptr, extent);
+	extent_size_set(extent, usize);
+	huge_extent_reset(tsdn, ptr, extent);
 	/* Update zeroed. */
-	extent_node_zeroed_set(node, post_zeroed);
+	extent_zeroed_set(extent, post_zeroed);
 	malloc_mutex_unlock(tsdn, &arena->huge_mtx);
 
 	arena_chunk_ralloc_huge_similar(tsdn, arena, ptr, oldsize, usize);
@@ -199,15 +199,15 @@ static bool
 huge_ralloc_no_move_shrink(tsdn_t *tsdn, void *ptr, size_t oldsize,
     size_t usize)
 {
-	extent_node_t *node;
+	extent_t *extent;
 	arena_t *arena;
 	chunk_hooks_t chunk_hooks;
 	size_t cdiff;
 	bool pre_zeroed, post_zeroed;
 
-	node = huge_node_get(ptr);
-	arena = extent_node_arena_get(node);
-	pre_zeroed = extent_node_zeroed_get(node);
+	extent = huge_extent_get(ptr);
+	arena = extent_arena_get(extent);
+	pre_zeroed = extent_zeroed_get(extent);
 	chunk_hooks = chunk_hooks_get(tsdn, arena);
 
 	assert(oldsize > usize);
@@ -235,11 +235,11 @@ huge_ralloc_no_move_shrink(tsdn_t *tsdn, void *ptr, size_t oldsize,
 
 	malloc_mutex_lock(tsdn, &arena->huge_mtx);
 	/* Update the size of the huge allocation. */
-	huge_node_unset(ptr, node);
-	extent_node_size_set(node, usize);
-	huge_node_reset(tsdn, ptr, node);
+	huge_extent_unset(ptr, extent);
+	extent_size_set(extent, usize);
+	huge_extent_reset(tsdn, ptr, extent);
 	/* Update zeroed. */
-	extent_node_zeroed_set(node, post_zeroed);
+	extent_zeroed_set(extent, post_zeroed);
 	malloc_mutex_unlock(tsdn, &arena->huge_mtx);
 
 	/* Zap the excess chunks. */
@@ -250,15 +250,16 @@ huge_ralloc_no_move_shrink(tsdn_t *tsdn, void *ptr, size_t oldsize,
 
 static bool
 huge_ralloc_no_move_expand(tsdn_t *tsdn, void *ptr, size_t oldsize,
-    size_t usize, bool zero) {
-	extent_node_t *node;
+    size_t usize, bool zero)
+{
+	extent_t *extent;
 	arena_t *arena;
 	bool is_zeroed_subchunk, is_zeroed_chunk;
 
-	node = huge_node_get(ptr);
-	arena = extent_node_arena_get(node);
+	extent = huge_extent_get(ptr);
+	arena = extent_arena_get(extent);
 	malloc_mutex_lock(tsdn, &arena->huge_mtx);
-	is_zeroed_subchunk = extent_node_zeroed_get(node);
+	is_zeroed_subchunk = extent_zeroed_get(extent);
 	malloc_mutex_unlock(tsdn, &arena->huge_mtx);
 
 	/*
@@ -273,9 +274,9 @@ huge_ralloc_no_move_expand(tsdn_t *tsdn, void *ptr, size_t oldsize,
 
 	malloc_mutex_lock(tsdn, &arena->huge_mtx);
 	/* Update the size of the huge allocation. */
-	huge_node_unset(ptr, node);
-	extent_node_size_set(node, usize);
-	huge_node_reset(tsdn, ptr, node);
+	huge_extent_unset(ptr, extent);
+	extent_size_set(extent, usize);
+	huge_extent_reset(tsdn, ptr, extent);
 	malloc_mutex_unlock(tsdn, &arena->huge_mtx);
 
 	if (zero || (config_fill && unlikely(opt_zero))) {
@@ -390,21 +391,21 @@ huge_ralloc(tsdn_t *tsdn, arena_t *arena, void *ptr, size_t oldsize,
 void
 huge_dalloc(tsdn_t *tsdn, void *ptr)
 {
-	extent_node_t *node;
+	extent_t *extent;
 	arena_t *arena;
 
-	node = huge_node_get(ptr);
-	arena = extent_node_arena_get(node);
-	huge_node_unset(ptr, node);
+	extent = huge_extent_get(ptr);
+	arena = extent_arena_get(extent);
+	huge_extent_unset(ptr, extent);
 	malloc_mutex_lock(tsdn, &arena->huge_mtx);
-	ql_remove(&arena->huge, node, ql_link);
+	ql_remove(&arena->huge, extent, ql_link);
 	malloc_mutex_unlock(tsdn, &arena->huge_mtx);
 
-	huge_dalloc_junk(tsdn, extent_node_addr_get(node),
-	    extent_node_size_get(node));
-	arena_chunk_dalloc_huge(tsdn, extent_node_arena_get(node),
-	    extent_node_addr_get(node), extent_node_size_get(node));
-	idalloctm(tsdn, node, NULL, true, true);
+	huge_dalloc_junk(tsdn, extent_addr_get(extent),
+	    extent_size_get(extent));
+	arena_chunk_dalloc_huge(tsdn, extent_arena_get(extent),
+	    extent_addr_get(extent), extent_size_get(extent));
+	idalloctm(tsdn, extent, NULL, true, true);
 
 	arena_decay_tick(tsdn, arena);
 }
@@ -413,20 +414,20 @@ arena_t *
 huge_aalloc(const void *ptr)
 {
 
-	return (extent_node_arena_get(huge_node_get(ptr)));
+	return (extent_arena_get(huge_extent_get(ptr)));
 }
 
 size_t
 huge_salloc(tsdn_t *tsdn, const void *ptr)
 {
 	size_t size;
-	extent_node_t *node;
+	extent_t *extent;
 	arena_t *arena;
 
-	node = huge_node_get(ptr);
-	arena = extent_node_arena_get(node);
+	extent = huge_extent_get(ptr);
+	arena = extent_arena_get(extent);
 	malloc_mutex_lock(tsdn, &arena->huge_mtx);
-	size = extent_node_size_get(node);
+	size = extent_size_get(extent);
 	malloc_mutex_unlock(tsdn, &arena->huge_mtx);
 
 	return (size);
@@ -436,13 +437,13 @@ prof_tctx_t *
 huge_prof_tctx_get(tsdn_t *tsdn, const void *ptr)
 {
 	prof_tctx_t *tctx;
-	extent_node_t *node;
+	extent_t *extent;
 	arena_t *arena;
 
-	node = huge_node_get(ptr);
-	arena = extent_node_arena_get(node);
+	extent = huge_extent_get(ptr);
+	arena = extent_arena_get(extent);
 	malloc_mutex_lock(tsdn, &arena->huge_mtx);
-	tctx = extent_node_prof_tctx_get(node);
+	tctx = extent_prof_tctx_get(extent);
 	malloc_mutex_unlock(tsdn, &arena->huge_mtx);
 
 	return (tctx);
@@ -451,13 +452,13 @@ huge_prof_tctx_get(tsdn_t *tsdn, const void *ptr)
 void
 huge_prof_tctx_set(tsdn_t *tsdn, const void *ptr, prof_tctx_t *tctx)
 {
-	extent_node_t *node;
+	extent_t *extent;
 	arena_t *arena;
 
-	node = huge_node_get(ptr);
-	arena = extent_node_arena_get(node);
+	extent = huge_extent_get(ptr);
+	arena = extent_arena_get(extent);
 	malloc_mutex_lock(tsdn, &arena->huge_mtx);
-	extent_node_prof_tctx_set(node, tctx);
+	extent_prof_tctx_set(extent, tctx);
 	malloc_mutex_unlock(tsdn, &arena->huge_mtx);
 }
 

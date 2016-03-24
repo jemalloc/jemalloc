@@ -177,11 +177,11 @@ typedef ph(arena_chunk_map_misc_t) arena_run_heap_t;
 /* Arena chunk header. */
 struct arena_chunk_s {
 	/*
-	 * A pointer to the arena that owns the chunk is stored within the node.
-	 * This field as a whole is used by chunks_rtree to support both
-	 * ivsalloc() and core-based debugging.
+	 * A pointer to the arena that owns the chunk is stored within the
+	 * extent structure.  This field as a whole is used by chunks_rtree to
+	 * support both ivsalloc() and core-based debugging.
 	 */
-	extent_node_t		node;
+	extent_t		extent;
 
 	/*
 	 * Map of pages within chunk that keeps track of free/large/small.  The
@@ -303,7 +303,7 @@ struct arena_s {
 
 
 	/* Extant arena chunks. */
-	ql_head(extent_node_t)	achunks;
+	ql_head(extent_t)	achunks;
 
 	/*
 	 * In order to avoid rapid chunk allocation/deallocation when an arena
@@ -345,25 +345,25 @@ struct arena_s {
 	 *        /-- arena ---\
 	 *        |            |
 	 *        |            |
-	 *        |------------|                             /- chunk -\
-	 *   ...->|chunks_cache|<--------------------------->|  /----\ |<--...
-	 *        |------------|                             |  |node| |
-	 *        |            |                             |  |    | |
-	 *        |            |    /- run -\    /- run -\   |  |    | |
-	 *        |            |    |       |    |       |   |  |    | |
-	 *        |            |    |       |    |       |   |  |    | |
-	 *        |------------|    |-------|    |-------|   |  |----| |
-	 *   ...->|runs_dirty  |<-->|rd     |<-->|rd     |<---->|rd  |<----...
-	 *        |------------|    |-------|    |-------|   |  |----| |
-	 *        |            |    |       |    |       |   |  |    | |
-	 *        |            |    |       |    |       |   |  \----/ |
-	 *        |            |    \-------/    \-------/   |         |
-	 *        |            |                             |         |
-	 *        |            |                             |         |
-	 *        \------------/                             \---------/
+	 *        |------------|                             /-- chunk --\
+	 *   ...->|chunks_cache|<--------------------------->|  /------\ |<--...
+	 *        |------------|                             |  |extent| |
+	 *        |            |                             |  |      | |
+	 *        |            |    /- run -\    /- run -\   |  |      | |
+	 *        |            |    |       |    |       |   |  |      | |
+	 *        |            |    |       |    |       |   |  |      | |
+	 *        |------------|    |-------|    |-------|   |  |------| |
+	 *   ...->|runs_dirty  |<-->|rd     |<-->|rd     |<---->|rd    |<----...
+	 *        |------------|    |-------|    |-------|   |  |------| |
+	 *        |            |    |       |    |       |   |  |      | |
+	 *        |            |    |       |    |       |   |  \------/ |
+	 *        |            |    \-------/    \-------/   |           |
+	 *        |            |                             |           |
+	 *        |            |                             |           |
+	 *        \------------/                             \-----------/
 	 */
 	arena_runs_dirty_link_t	runs_dirty;
-	extent_node_t		chunks_cache;
+	extent_t		chunks_cache;
 
 	/*
 	 * Approximate time in seconds from the creation of a set of unused
@@ -413,16 +413,16 @@ struct arena_s {
 	size_t			decay_backlog[SMOOTHSTEP_NSTEPS];
 
 	/* Extant huge allocations. */
-	ql_head(extent_node_t)	huge;
+	ql_head(extent_t)	huge;
 	/* Synchronizes all huge allocation/update/deallocation. */
 	malloc_mutex_t		huge_mtx;
 
 	/*
 	 * Trees of chunks that were previously allocated (trees differ only in
-	 * node ordering).  These are used when allocating chunks, in an attempt
-	 * to re-use address space.  Depending on function, different tree
-	 * orderings are needed, which is why there are two trees with the same
-	 * contents.
+	 * extent ordering).  These are used when allocating chunks, in an
+	 * attempt to re-use address space.  Depending on function, different
+	 * tree orderings are needed, which is why there are two trees with the
+	 * same contents.
 	 */
 	extent_tree_t		chunks_szad_cached;
 	extent_tree_t		chunks_ad_cached;
@@ -430,9 +430,9 @@ struct arena_s {
 	extent_tree_t		chunks_ad_retained;
 
 	malloc_mutex_t		chunks_mtx;
-	/* Cache of nodes that were allocated via base_alloc(). */
-	ql_head(extent_node_t)	node_cache;
-	malloc_mutex_t		node_cache_mtx;
+	/* Cache of extent structures that were allocated via base_alloc(). */
+	ql_head(extent_t)	extent_cache;
+	malloc_mutex_t		extent_cache_mtx;
 
 	/* User-configurable chunk hook functions. */
 	chunk_hooks_t		chunk_hooks;
@@ -486,12 +486,12 @@ typedef size_t (run_quantize_t)(size_t);
 extern run_quantize_t *run_quantize_floor;
 extern run_quantize_t *run_quantize_ceil;
 #endif
-void	arena_chunk_cache_maybe_insert(arena_t *arena, extent_node_t *node,
+void	arena_chunk_cache_maybe_insert(arena_t *arena, extent_t *extent,
     bool cache);
-void	arena_chunk_cache_maybe_remove(arena_t *arena, extent_node_t *node,
+void	arena_chunk_cache_maybe_remove(arena_t *arena, extent_t *extent,
     bool cache);
-extent_node_t	*arena_node_alloc(tsdn_t *tsdn, arena_t *arena);
-void	arena_node_dalloc(tsdn_t *tsdn, arena_t *arena, extent_node_t *node);
+extent_t	*arena_extent_alloc(tsdn_t *tsdn, arena_t *arena);
+void	arena_extent_dalloc(tsdn_t *tsdn, arena_t *arena, extent_t *extent);
 void	*arena_chunk_alloc_huge(tsdn_t *tsdn, arena_t *arena, size_t usize,
     size_t alignment, bool *zero);
 void	arena_chunk_dalloc_huge(tsdn_t *tsdn, arena_t *arena, void *chunk,
@@ -1066,7 +1066,7 @@ arena_ptr_small_binind_get(const void *ptr, size_t mapbits)
 		assert(binind != BININD_INVALID);
 		assert(binind < NBINS);
 		chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
-		arena = extent_node_arena_get(&chunk->node);
+		arena = extent_arena_get(&chunk->extent);
 		pageind = ((uintptr_t)ptr - (uintptr_t)chunk) >> LG_PAGE;
 		actual_mapbits = arena_mapbits_get(chunk, pageind);
 		assert(mapbits == actual_mapbits);
@@ -1317,7 +1317,7 @@ arena_aalloc(const void *ptr)
 
 	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
 	if (likely(chunk != ptr))
-		return (extent_node_arena_get(&chunk->node));
+		return (extent_arena_get(&chunk->extent));
 	else
 		return (huge_aalloc(ptr));
 }
@@ -1395,7 +1395,7 @@ arena_dalloc(tsdn_t *tsdn, void *ptr, tcache_t *tcache, bool slow_path)
 				    binind, slow_path);
 			} else {
 				arena_dalloc_small(tsdn,
-				    extent_node_arena_get(&chunk->node), chunk,
+				    extent_arena_get(&chunk->extent), chunk,
 				    ptr, pageind);
 			}
 		} else {
@@ -1411,7 +1411,7 @@ arena_dalloc(tsdn_t *tsdn, void *ptr, tcache_t *tcache, bool slow_path)
 				    size - large_pad, slow_path);
 			} else {
 				arena_dalloc_large(tsdn,
-				    extent_node_arena_get(&chunk->node), chunk,
+				    extent_arena_get(&chunk->extent), chunk,
 				    ptr);
 			}
 		}
@@ -1455,7 +1455,7 @@ arena_sdalloc(tsdn_t *tsdn, void *ptr, size_t size, tcache_t *tcache,
 				size_t pageind = ((uintptr_t)ptr -
 				    (uintptr_t)chunk) >> LG_PAGE;
 				arena_dalloc_small(tsdn,
-				    extent_node_arena_get(&chunk->node), chunk,
+				    extent_arena_get(&chunk->extent), chunk,
 				    ptr, pageind);
 			}
 		} else {
@@ -1467,7 +1467,7 @@ arena_sdalloc(tsdn_t *tsdn, void *ptr, size_t size, tcache_t *tcache,
 				    size, slow_path);
 			} else {
 				arena_dalloc_large(tsdn,
-				    extent_node_arena_get(&chunk->node), chunk,
+				    extent_arena_get(&chunk->extent), chunk,
 				    ptr);
 			}
 		}

@@ -966,6 +966,7 @@ decay_ticker_get(tsd_t *tsd, unsigned ind)
 #include "jemalloc/internal/hash.h"
 
 #ifndef JEMALLOC_ENABLE_INLINE
+extent_t	*iealloc(const void *ptr);
 arena_t	*iaalloc(const void *ptr);
 size_t	isalloc(tsdn_t *tsdn, const void *ptr, bool demote);
 void	*iallocztm(tsdn_t *tsdn, size_t size, szind_t ind, bool zero,
@@ -995,6 +996,13 @@ bool	ixalloc(tsdn_t *tsdn, void *ptr, size_t oldsize, size_t size,
 #endif
 
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_C_))
+JEMALLOC_ALWAYS_INLINE extent_t *
+iealloc(const void *ptr)
+{
+
+	return (chunk_lookup(ptr, true));
+}
+
 JEMALLOC_ALWAYS_INLINE arena_t *
 iaalloc(const void *ptr)
 {
@@ -1086,15 +1094,15 @@ ipalloc(tsd_t *tsd, size_t usize, size_t alignment, bool zero)
 JEMALLOC_ALWAYS_INLINE size_t
 ivsalloc(tsdn_t *tsdn, const void *ptr, bool demote)
 {
-	extent_node_t *node;
+	extent_t *extent;
 
 	/* Return 0 if ptr is not within a chunk managed by jemalloc. */
-	node = chunk_lookup(ptr, false);
-	if (node == NULL)
+	extent = chunk_lookup(ptr, false);
+	if (extent == NULL)
 		return (0);
 	/* Only arena chunks should be looked up via interior pointers. */
-	assert(extent_node_addr_get(node) == ptr ||
-	    extent_node_achunk_get(node));
+	assert(extent_addr_get(extent) == ptr ||
+	    extent_achunk_get(extent));
 
 	return (isalloc(tsdn, ptr, demote));
 }
