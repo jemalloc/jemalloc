@@ -181,6 +181,7 @@ chunk_postfork_parent
 chunk_prefork
 chunk_purge_wrapper
 chunk_register
+chunk_reregister
 chunks_rtree
 chunksize
 chunksize_mask
@@ -277,7 +278,6 @@ hash_rotl_64
 hash_x64_128
 hash_x86_128
 hash_x86_32
-huge_aalloc
 huge_dalloc
 huge_dalloc_junk
 huge_malloc

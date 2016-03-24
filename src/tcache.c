@@ -27,7 +27,7 @@ size_t
 tcache_salloc(tsdn_t *tsdn, const void *ptr)
 {
 
-	return (arena_salloc(tsdn, ptr, false));
+	return (arena_salloc(tsdn, iealloc(ptr), ptr, false));
 }
 
 void
@@ -101,9 +101,8 @@ tcache_bin_flush_small(tsd_t *tsd, tcache_t *tcache, tcache_bin_t *tbin,
 	assert(arena != NULL);
 	for (nflush = tbin->ncached - rem; nflush > 0; nflush = ndeferred) {
 		/* Lock the arena bin associated with the first object. */
-		arena_chunk_t *chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(
-		    *(tbin->avail - 1));
-		arena_t *bin_arena = extent_arena_get(&chunk->extent);
+		extent_t *extent = iealloc(*(tbin->avail - 1));
+		arena_t *bin_arena = extent_arena_get(extent);
 		arena_bin_t *bin = &bin_arena->bins[binind];
 
 		if (config_prof && bin_arena == arena) {
@@ -125,14 +124,17 @@ tcache_bin_flush_small(tsd_t *tsd, tcache_t *tcache, tcache_bin_t *tbin,
 		for (i = 0; i < nflush; i++) {
 			ptr = *(tbin->avail - 1 - i);
 			assert(ptr != NULL);
-			chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
-			if (extent_arena_get(&chunk->extent) == bin_arena) {
+
+			extent = iealloc(ptr);
+			if (extent_arena_get(extent) == bin_arena) {
+				arena_chunk_t *chunk =
+				    (arena_chunk_t *)extent_addr_get(extent);
 				size_t pageind = ((uintptr_t)ptr -
 				    (uintptr_t)chunk) >> LG_PAGE;
 				arena_chunk_map_bits_t *bitselm =
 				    arena_bitselm_get_mutable(chunk, pageind);
 				arena_dalloc_bin_junked_locked(tsd_tsdn(tsd),
-				    bin_arena, chunk, ptr, bitselm);
+				    bin_arena, chunk, extent, ptr, bitselm);
 			} else {
 				/*
 				 * This object was allocated via a different
@@ -183,9 +185,8 @@ tcache_bin_flush_large(tsd_t *tsd, tcache_bin_t *tbin, szind_t binind,
 	assert(arena != NULL);
 	for (nflush = tbin->ncached - rem; nflush > 0; nflush = ndeferred) {
 		/* Lock the arena associated with the first object. */
-		arena_chunk_t *chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(
-		    *(tbin->avail - 1));
-		arena_t *locked_arena = extent_arena_get(&chunk->extent);
+		extent_t *extent = iealloc(*(tbin->avail - 1));
+		arena_t *locked_arena = extent_arena_get(extent);
 		UNUSED bool idump;
 
 		if (config_prof)
@@ -210,10 +211,12 @@ tcache_bin_flush_large(tsd_t *tsd, tcache_bin_t *tbin, szind_t binind,
 		for (i = 0; i < nflush; i++) {
 			ptr = *(tbin->avail - 1 - i);
 			assert(ptr != NULL);
-			chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
-			if (extent_arena_get(&chunk->extent) == locked_arena) {
+			extent = iealloc(ptr);
+			if (extent_arena_get(extent) == locked_arena) {
+				arena_chunk_t *chunk =
+				    (arena_chunk_t *)extent_addr_get(extent);
 				arena_dalloc_large_junked_locked(tsd_tsdn(tsd),
-				    locked_arena, chunk, ptr);
+				    locked_arena, chunk, extent, ptr);
 			} else {
 				/*
 				 * This object was allocated via a different
@@ -391,7 +394,7 @@ tcache_destroy(tsd_t *tsd, tcache_t *tcache)
 	    arena_prof_accum(tsd_tsdn(tsd), arena, tcache->prof_accumbytes))
 		prof_idump(tsd_tsdn(tsd));
 
-	idalloctm(tsd_tsdn(tsd), tcache, NULL, true, true);
+	idalloctm(tsd_tsdn(tsd), iealloc(tcache), tcache, NULL, true, true);
 }
 
 void

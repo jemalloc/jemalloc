@@ -54,6 +54,8 @@ chunk_hooks_t	chunk_hooks_set(tsdn_t *tsdn, arena_t *arena,
 
 bool	chunk_register(tsdn_t *tsdn, const void *chunk, const extent_t *extent);
 void	chunk_deregister(const void *chunk, const extent_t *extent);
+void	chunk_reregister(tsdn_t *tsdn, const void *chunk,
+    const extent_t *extent);
 void	*chunk_alloc_base(size_t size);
 void	*chunk_alloc_cache(tsdn_t *tsdn, arena_t *arena,
     chunk_hooks_t *chunk_hooks, void *new_addr, size_t size, size_t alignment,

@@ -180,6 +180,15 @@ chunk_deregister(const void *chunk, const extent_t *extent)
 	}
 }
 
+void
+chunk_reregister(tsdn_t *tsdn, const void *chunk, const extent_t *extent)
+{
+	bool err;
+
+	err = chunk_register(tsdn, chunk, extent);
+	assert(!err);
+}
+
 /*
  * Do first-best-fit chunk selection, i.e. select the lowest chunk that best
  * fits.
