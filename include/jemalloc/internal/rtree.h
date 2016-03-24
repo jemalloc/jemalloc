@@ -354,6 +354,9 @@ rtree_get(rtree_t *rtree, uintptr_t key, bool dependent)
 	}
 #undef RTREE_GET_BIAS
 	not_reached();
+#ifndef JEMALLOC_HAS_UNREACHABLE
+	return NULL;
+#endif
 }
 
 JEMALLOC_INLINE bool
