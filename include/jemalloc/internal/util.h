@@ -73,12 +73,12 @@
       JEMALLOC_CLANG_HAS_BUILTIN(__builtin_unreachable)
 #	define unreachable() __builtin_unreachable()
 #  else
-#	define unreachable()
+#	define unreachable() abort()
 #  endif
 #else
 #	define likely(x)   !!(x)
 #	define unlikely(x) !!(x)
-#	define unreachable()
+#	define unreachable() abort()
 #endif
 
 #include "jemalloc/internal/assert.h"
