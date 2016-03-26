@@ -465,7 +465,6 @@ void	a0dalloc(void *ptr);
 void	*bootstrap_malloc(size_t size);
 void	*bootstrap_calloc(size_t num, size_t size);
 void	bootstrap_free(void *ptr);
-arena_t	*arenas_extend(unsigned ind);
 unsigned	narenas_total_get(void);
 arena_t	*arena_init(unsigned ind);
 arena_tdata_t	*arena_tdata_get_hard(tsd_t *tsd, unsigned ind);
