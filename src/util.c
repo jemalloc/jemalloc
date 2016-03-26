@@ -408,6 +408,8 @@ malloc_vsnprintf(char *str, size_t size, const char *format, va_list ap)
 			int prec = -1;
 			int width = -1;
 			unsigned char len = '?';
+			char *s;
+			size_t slen;
 
 			f++;
 			/* Flags. */
@@ -498,8 +500,6 @@ malloc_vsnprintf(char *str, size_t size, const char *format, va_list ap)
 			}
 			/* Conversion specifier. */
 			switch (*f) {
-				char *s;
-				size_t slen;
 			case '%':
 				/* %% */
 				APPEND_C(*f);
