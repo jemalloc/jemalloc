@@ -59,6 +59,23 @@ arena_miscelm_size_get(const arena_chunk_map_misc_t *miscelm)
 	return (arena_mapbits_size_decode(mapbits));
 }
 
+JEMALLOC_INLINE_C int
+arena_run_addr_comp(const arena_chunk_map_misc_t *a,
+    const arena_chunk_map_misc_t *b)
+{
+	uintptr_t a_miscelm = (uintptr_t)a;
+	uintptr_t b_miscelm = (uintptr_t)b;
+
+	assert(a != NULL);
+	assert(b != NULL);
+
+	return ((a_miscelm > b_miscelm) - (a_miscelm < b_miscelm));
+}
+
+/* Generate pairing heap functions. */
+ph_gen(static UNUSED, arena_run_heap_, arena_run_heap_t, arena_chunk_map_misc_t,
+    ph_link, arena_run_addr_comp)
+
 static size_t
 run_quantize_floor_compute(size_t size)
 {
@@ -182,7 +199,7 @@ run_quantize_ceil(size_t size)
 run_quantize_t *run_quantize_ceil = JEMALLOC_N(run_quantize_ceil_impl);
 #endif
 
-static ph_heap_t *
+static arena_run_heap_t *
 arena_runs_avail_get(arena_t *arena, szind_t ind)
 {
 
@@ -200,8 +217,8 @@ arena_avail_insert(arena_t *arena, arena_chunk_t *chunk, size_t pageind,
 	    arena_miscelm_get_const(chunk, pageind))));
 	assert(npages == (arena_mapbits_unallocated_size_get(chunk, pageind) >>
 	    LG_PAGE));
-	ph_insert(arena_runs_avail_get(arena, ind),
-	    &arena_miscelm_get_mutable(chunk, pageind)->ph_link);
+	arena_run_heap_insert(arena_runs_avail_get(arena, ind),
+	    arena_miscelm_get_mutable(chunk, pageind));
 }
 
 static void
@@ -212,8 +229,8 @@ arena_avail_remove(arena_t *arena, arena_chunk_t *chunk, size_t pageind,
 	    arena_miscelm_get_const(chunk, pageind))));
 	assert(npages == (arena_mapbits_unallocated_size_get(chunk, pageind) >>
 	    LG_PAGE));
-	ph_remove(arena_runs_avail_get(arena, ind),
-	    &arena_miscelm_get_mutable(chunk, pageind)->ph_link);
+	arena_run_heap_remove(arena_runs_avail_get(arena, ind),
+	    arena_miscelm_get_mutable(chunk, pageind));
 }
 
 static void
@@ -1065,12 +1082,10 @@ arena_run_first_best_fit(arena_t *arena, size_t size)
 
 	ind = size2index(run_quantize_ceil(size));
 	for (i = ind; i < runs_avail_nclasses + runs_avail_bias; i++) {
-		ph_node_t *node = ph_first(arena_runs_avail_get(arena, i));
-		if (node != NULL) {
-			arena_chunk_map_misc_t *miscelm =
-			    arena_ph_to_miscelm(node);
+		arena_chunk_map_misc_t *miscelm = arena_run_heap_first(
+		    arena_runs_avail_get(arena, i));
+		if (miscelm != NULL)
 			return (&miscelm->run);
-		}
 	}
 
 	return (NULL);
@@ -2052,45 +2067,26 @@ arena_run_trim_tail(arena_t *arena, arena_chunk_t *chunk, arena_run_t *run,
 	    0));
 }
 
-static arena_run_t *
-arena_bin_runs_first(arena_bin_t *bin)
-{
-	ph_node_t *node;
-	arena_chunk_map_misc_t *miscelm;
-
-	node = ph_first(&bin->runs);
-	if (node == NULL)
-		return (NULL);
-	miscelm = arena_ph_to_miscelm(node);
-	return (&miscelm->run);
-}
-
 static void
 arena_bin_runs_insert(arena_bin_t *bin, arena_run_t *run)
 {
 	arena_chunk_map_misc_t *miscelm = arena_run_to_miscelm(run);
 
-	ph_insert(&bin->runs, &miscelm->ph_link);
-}
-
-static void
-arena_bin_runs_remove(arena_bin_t *bin, arena_run_t *run)
-{
-	arena_chunk_map_misc_t *miscelm = arena_run_to_miscelm(run);
-
-	ph_remove(&bin->runs, &miscelm->ph_link);
+	arena_run_heap_insert(&bin->runs, miscelm);
 }
 
 static arena_run_t *
 arena_bin_nonfull_run_tryget(arena_bin_t *bin)
 {
-	arena_run_t *run = arena_bin_runs_first(bin);
-	if (run != NULL) {
-		arena_bin_runs_remove(bin, run);
-		if (config_stats)
-			bin->stats.reruns++;
-	}
-	return (run);
+	arena_chunk_map_misc_t *miscelm;
+
+	miscelm = arena_run_heap_remove_first(&bin->runs);
+	if (miscelm == NULL)
+		return (NULL);
+	if (config_stats)
+		bin->stats.reruns++;
+
+	return (&miscelm->run);
 }
 
 static arena_run_t *
@@ -2645,13 +2641,16 @@ arena_dissociate_bin_run(arena_chunk_t *chunk, arena_run_t *run,
 		    &chunk->node), bin);
 		arena_bin_info_t *bin_info = &arena_bin_info[binind];
 
+		/*
+		 * The following block's conditional is necessary because if the
+		 * run only contains one region, then it never gets inserted
+		 * into the non-full runs tree.
+		 */
 		if (bin_info->nregs != 1) {
-			/*
-			 * This block's conditional is necessary because if the
-			 * run only contains one region, then it never gets
-			 * inserted into the non-full runs tree.
-			 */
-			arena_bin_runs_remove(bin, run);
+			arena_chunk_map_misc_t *miscelm =
+			    arena_run_to_miscelm(run);
+
+			arena_run_heap_remove(&bin->runs, miscelm);
 		}
 	}
 }
@@ -3312,7 +3311,7 @@ arena_new(unsigned ind)
 	arena_bin_t *bin;
 
 	/* Compute arena size to incorporate sufficient runs_avail elements. */
-	arena_size = offsetof(arena_t, runs_avail) + (sizeof(ph_heap_t) *
+	arena_size = offsetof(arena_t, runs_avail) + (sizeof(arena_run_heap_t) *
 	    runs_avail_nclasses);
 	/*
 	 * Allocate arena, arena->lstats, and arena->hstats contiguously, mainly
@@ -3372,7 +3371,7 @@ arena_new(unsigned ind)
 	arena->ndirty = 0;
 
 	for(i = 0; i < runs_avail_nclasses; i++)
-		ph_new(&arena->runs_avail[i]);
+		arena_run_heap_new(&arena->runs_avail[i]);
 	qr_new(&arena->runs_dirty, rd_link);
 	qr_new(&arena->chunks_cache, cc_link);
 
@@ -3401,7 +3400,7 @@ arena_new(unsigned ind)
 		if (malloc_mutex_init(&bin->lock))
 			return (NULL);
 		bin->runcur = NULL;
-		ph_new(&bin->runs);
+		arena_run_heap_new(&bin->runs);
 		if (config_stats)
 			memset(&bin->stats, 0, sizeof(malloc_bin_stats_t));
 	}

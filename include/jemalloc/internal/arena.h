@@ -160,7 +160,7 @@ struct arena_chunk_map_misc_s {
 	 * 2) arena_run_t conceptually uses this linkage for in-use non-full
 	 *    runs, rather than directly embedding linkage.
 	 */
-	ph_node_t				ph_link;
+	phn(arena_chunk_map_misc_t)		ph_link;
 
 	union {
 		/* Linkage for list of dirty runs. */
@@ -176,6 +176,7 @@ struct arena_chunk_map_misc_s {
 		arena_run_t			run;
 	};
 };
+typedef ph(arena_chunk_map_misc_t) arena_run_heap_t;
 #endif /* JEMALLOC_ARENA_STRUCTS_A */
 
 #ifdef JEMALLOC_ARENA_STRUCTS_B
@@ -278,7 +279,7 @@ struct arena_bin_s {
 	 * objects packed well, and it can also help reduce the number of
 	 * almost-empty chunks.
 	 */
-	ph_heap_t		runs;
+	arena_run_heap_t	runs;
 
 	/* Bin statistics. */
 	malloc_bin_stats_t	stats;
@@ -460,7 +461,7 @@ struct arena_s {
 	 * Quantized address-ordered heaps of this arena's available runs.  The
 	 * heaps are used for first-best-fit run allocation.
 	 */
-	ph_heap_t		runs_avail[1]; /* Dynamically sized. */
+	arena_run_heap_t	runs_avail[1]; /* Dynamically sized. */
 };
 
 /* Used in conjunction with tsd for fast arena-related context lookup. */
@@ -604,7 +605,6 @@ const arena_chunk_map_misc_t	*arena_miscelm_get_const(
 size_t	arena_miscelm_to_pageind(const arena_chunk_map_misc_t *miscelm);
 void	*arena_miscelm_to_rpages(const arena_chunk_map_misc_t *miscelm);
 arena_chunk_map_misc_t	*arena_rd_to_miscelm(arena_runs_dirty_link_t *rd);
-arena_chunk_map_misc_t	*arena_ph_to_miscelm(ph_node_t *ph);
 arena_chunk_map_misc_t	*arena_run_to_miscelm(arena_run_t *run);
 size_t	*arena_mapbitsp_get_mutable(arena_chunk_t *chunk, size_t pageind);
 const size_t	*arena_mapbitsp_get_const(const arena_chunk_t *chunk,
@@ -727,18 +727,6 @@ arena_rd_to_miscelm(arena_runs_dirty_link_t *rd)
 {
 	arena_chunk_map_misc_t *miscelm = (arena_chunk_map_misc_t
 	    *)((uintptr_t)rd - offsetof(arena_chunk_map_misc_t, rd));
-
-	assert(arena_miscelm_to_pageind(miscelm) >= map_bias);
-	assert(arena_miscelm_to_pageind(miscelm) < chunk_npages);
-
-	return (miscelm);
-}
-
-JEMALLOC_ALWAYS_INLINE arena_chunk_map_misc_t *
-arena_ph_to_miscelm(ph_node_t *ph)
-{
-	arena_chunk_map_misc_t *miscelm = (arena_chunk_map_misc_t *)
-	    ((uintptr_t)ph - offsetof(arena_chunk_map_misc_t, ph_link));
 
 	assert(arena_miscelm_to_pageind(miscelm) >= map_bias);
 	assert(arena_miscelm_to_pageind(miscelm) < chunk_npages);

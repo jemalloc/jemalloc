@@ -82,7 +82,6 @@ arena_nthreads_dec
 arena_nthreads_get
 arena_nthreads_inc
 arena_palloc
-arena_ph_to_miscelm
 arena_postfork_child
 arena_postfork_parent
 arena_prefork
@@ -101,6 +100,12 @@ arena_ralloc_junk_large
 arena_ralloc_no_move
 arena_rd_to_miscelm
 arena_redzone_corruption
+arena_run_heap_empty
+arena_run_heap_first
+arena_run_heap_insert
+arena_run_heap_new
+arena_run_heap_remove_first
+arena_run_heap_remove
 arena_run_regind
 arena_run_to_miscelm
 arena_salloc
@@ -381,15 +386,6 @@ pages_map
 pages_purge
 pages_trim
 pages_unmap
-ph_first
-ph_insert
-ph_merge
-ph_merge_aux_list
-ph_merge_ordered
-ph_merge_pairs
-ph_new
-ph_remove_first
-ph_remove
 pow2_ceil_u32
 pow2_ceil_u64
 pow2_ceil_zu
