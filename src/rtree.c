@@ -8,7 +8,10 @@ hmin(unsigned ha, unsigned hb)
 	return (ha < hb ? ha : hb);
 }
 
-/* Only the most significant bits of keys passed to rtree_[gs]et() are used. */
+/*
+ * Only the most significant bits of keys passed to rtree_{read,write}() are
+ * used.
+ */
 bool
 rtree_new(rtree_t *rtree, unsigned bits, rtree_node_alloc_t *alloc,
     rtree_node_dalloc_t *dalloc)
@@ -62,7 +65,7 @@ rtree_new(rtree_t *rtree, unsigned bits, rtree_node_alloc_t *alloc,
 }
 
 static void
-rtree_delete_subtree(rtree_t *rtree, rtree_node_elm_t *node, unsigned level)
+rtree_delete_subtree(rtree_t *rtree, rtree_elm_t *node, unsigned level)
 {
 
 	if (level + 1 < rtree->height) {
@@ -70,7 +73,7 @@ rtree_delete_subtree(rtree_t *rtree, rtree_node_elm_t *node, unsigned level)
 
 		nchildren = ZU(1) << rtree->levels[level].bits;
 		for (i = 0; i < nchildren; i++) {
-			rtree_node_elm_t *child = node[i].child;
+			rtree_elm_t *child = node[i].child;
 			if (child != NULL)
 				rtree_delete_subtree(rtree, child, level + 1);
 		}
@@ -84,16 +87,16 @@ rtree_delete(rtree_t *rtree)
 	unsigned i;
 
 	for (i = 0; i < rtree->height; i++) {
-		rtree_node_elm_t *subtree = rtree->levels[i].subtree;
+		rtree_elm_t *subtree = rtree->levels[i].subtree;
 		if (subtree != NULL)
 			rtree_delete_subtree(rtree, subtree, i);
 	}
 }
 
-static rtree_node_elm_t *
-rtree_node_init(rtree_t *rtree, unsigned level, rtree_node_elm_t **elmp)
+static rtree_elm_t *
+rtree_node_init(rtree_t *rtree, unsigned level, rtree_elm_t **elmp)
 {
-	rtree_node_elm_t *node;
+	rtree_elm_t *node;
 
 	if (atomic_cas_p((void **)elmp, NULL, RTREE_NODE_INITIALIZING)) {
 		/*
@@ -114,15 +117,15 @@ rtree_node_init(rtree_t *rtree, unsigned level, rtree_node_elm_t **elmp)
 	return (node);
 }
 
-rtree_node_elm_t *
+rtree_elm_t *
 rtree_subtree_read_hard(rtree_t *rtree, unsigned level)
 {
 
 	return (rtree_node_init(rtree, level, &rtree->levels[level].subtree));
 }
 
-rtree_node_elm_t *
-rtree_child_read_hard(rtree_t *rtree, rtree_node_elm_t *elm, unsigned level)
+rtree_elm_t *
+rtree_child_read_hard(rtree_t *rtree, rtree_elm_t *elm, unsigned level)
 {
 
 	return (rtree_node_init(rtree, level, &elm->child));
