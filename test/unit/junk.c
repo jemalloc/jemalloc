@@ -29,7 +29,7 @@ arena_dalloc_junk_small_intercept(void *ptr, arena_bin_info_t *bin_info)
 
 	arena_dalloc_junk_small_orig(ptr, bin_info);
 	for (i = 0; i < bin_info->reg_size; i++) {
-		assert_c_eq(((char *)ptr)[i], 0x5a,
+		assert_c_eq(((char *)ptr)[i], JEMALLOC_FREE_JUNK,
 		    "Missing junk fill for byte %zu/%zu of deallocated region",
 		    i, bin_info->reg_size);
 	}
@@ -44,7 +44,7 @@ arena_dalloc_junk_large_intercept(void *ptr, size_t usize)
 
 	arena_dalloc_junk_large_orig(ptr, usize);
 	for (i = 0; i < usize; i++) {
-		assert_c_eq(((char *)ptr)[i], 0x5a,
+		assert_c_eq(((char *)ptr)[i], JEMALLOC_FREE_JUNK,
 		    "Missing junk fill for byte %zu/%zu of deallocated region",
 		    i, usize);
 	}
@@ -98,7 +98,7 @@ test_junk(size_t sz_min, size_t sz_max)
 
 		for (i = sz_prev; i < sz; i++) {
 			if (opt_junk_alloc) {
-				assert_c_eq(s[i], 0xa5,
+				assert_c_eq(s[i], JEMALLOC_ALLOC_JUNK,
 				    "Newly allocated byte %zu/%zu isn't "
 				    "junk-filled", i, sz);
 			}

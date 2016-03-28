@@ -92,7 +92,7 @@ huge_palloc(tsd_t *tsd, arena_t *arena, size_t usize, size_t alignment,
 		if (!is_zeroed)
 			memset(ret, 0, usize);
 	} else if (config_fill && unlikely(opt_junk_alloc))
-		memset(ret, 0xa5, usize);
+		memset(ret, JEMALLOC_ALLOC_JUNK, usize);
 
 	arena_decay_tick(tsd, arena);
 	return (ret);
@@ -112,7 +112,7 @@ huge_dalloc_junk(void *ptr, size_t usize)
 		 * unmapped.
 		 */
 		if (!config_munmap || (have_dss && chunk_in_dss(ptr)))
-			memset(ptr, 0x5a, usize);
+			memset(ptr, JEMALLOC_FREE_JUNK, usize);
 	}
 }
 #ifdef JEMALLOC_JET
@@ -147,7 +147,8 @@ huge_ralloc_no_move_similar(void *ptr, size_t oldsize, size_t usize_min,
 	if (oldsize > usize) {
 		size_t sdiff = oldsize - usize;
 		if (config_fill && unlikely(opt_junk_free)) {
-			memset((void *)((uintptr_t)ptr + usize), 0x5a, sdiff);
+			memset((void *)((uintptr_t)ptr + usize),
+			    JEMALLOC_FREE_JUNK, sdiff);
 			post_zeroed = false;
 		} else {
 			post_zeroed = !chunk_purge_wrapper(arena, &chunk_hooks,
@@ -174,8 +175,8 @@ huge_ralloc_no_move_similar(void *ptr, size_t oldsize, size_t usize_min,
 				    usize - oldsize);
 			}
 		} else if (config_fill && unlikely(opt_junk_alloc)) {
-			memset((void *)((uintptr_t)ptr + oldsize), 0xa5, usize -
-			    oldsize);
+			memset((void *)((uintptr_t)ptr + oldsize),
+			    JEMALLOC_ALLOC_JUNK, usize - oldsize);
 		}
 	}
 }
@@ -268,8 +269,8 @@ huge_ralloc_no_move_expand(void *ptr, size_t oldsize, size_t usize, bool zero) {
 			    CHUNK_CEILING(oldsize));
 		}
 	} else if (config_fill && unlikely(opt_junk_alloc)) {
-		memset((void *)((uintptr_t)ptr + oldsize), 0xa5, usize -
-		    oldsize);
+		memset((void *)((uintptr_t)ptr + oldsize), JEMALLOC_ALLOC_JUNK,
+		    usize - oldsize);
 	}
 
 	return (false);

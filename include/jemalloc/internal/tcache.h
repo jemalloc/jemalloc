@@ -382,7 +382,8 @@ tcache_alloc_large(tsd_t *tsd, arena_t *arena, tcache_t *tcache, size_t size,
 		if (likely(!zero)) {
 			if (slow_path && config_fill) {
 				if (unlikely(opt_junk_alloc))
-					memset(ret, 0xa5, usize);
+					memset(ret, JEMALLOC_ALLOC_JUNK,
+					    usize);
 				else if (unlikely(opt_zero))
 					memset(ret, 0, usize);
 			}

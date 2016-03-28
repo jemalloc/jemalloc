@@ -2249,15 +2249,16 @@ void
 arena_alloc_junk_small(void *ptr, arena_bin_info_t *bin_info, bool zero)
 {
 
+	size_t redzone_size = bin_info->redzone_size;
+
 	if (zero) {
-		size_t redzone_size = bin_info->redzone_size;
-		memset((void *)((uintptr_t)ptr - redzone_size), 0xa5,
-		    redzone_size);
-		memset((void *)((uintptr_t)ptr + bin_info->reg_size), 0xa5,
-		    redzone_size);
+		memset((void *)((uintptr_t)ptr - redzone_size),
+		    JEMALLOC_ALLOC_JUNK, redzone_size);
+		memset((void *)((uintptr_t)ptr + bin_info->reg_size),
+		    JEMALLOC_ALLOC_JUNK, redzone_size);
 	} else {
-		memset((void *)((uintptr_t)ptr - bin_info->redzone_size), 0xa5,
-		    bin_info->reg_interval);
+		memset((void *)((uintptr_t)ptr - redzone_size),
+		    JEMALLOC_ALLOC_JUNK, bin_info->reg_interval);
 	}
 }
 
@@ -2293,22 +2294,22 @@ arena_redzones_validate(void *ptr, arena_bin_info_t *bin_info, bool reset)
 
 		for (i = 1; i <= redzone_size; i++) {
 			uint8_t *byte = (uint8_t *)((uintptr_t)ptr - i);
-			if (*byte != 0xa5) {
+			if (*byte != JEMALLOC_ALLOC_JUNK) {
 				error = true;
 				arena_redzone_corruption(ptr, size, false, i,
 				    *byte);
 				if (reset)
-					*byte = 0xa5;
+					*byte = JEMALLOC_ALLOC_JUNK;
 			}
 		}
 		for (i = 0; i < redzone_size; i++) {
 			uint8_t *byte = (uint8_t *)((uintptr_t)ptr + size + i);
-			if (*byte != 0xa5) {
+			if (*byte != JEMALLOC_ALLOC_JUNK) {
 				error = true;
 				arena_redzone_corruption(ptr, size, true, i,
 				    *byte);
 				if (reset)
-					*byte = 0xa5;
+					*byte = JEMALLOC_ALLOC_JUNK;
 			}
 		}
 	}
@@ -2327,7 +2328,7 @@ arena_dalloc_junk_small(void *ptr, arena_bin_info_t *bin_info)
 	size_t redzone_size = bin_info->redzone_size;
 
 	arena_redzones_validate(ptr, bin_info, false);
-	memset((void *)((uintptr_t)ptr - redzone_size), 0x5a,
+	memset((void *)((uintptr_t)ptr - redzone_size), JEMALLOC_FREE_JUNK,
 	    bin_info->reg_interval);
 }
 #ifdef JEMALLOC_JET
@@ -2458,7 +2459,7 @@ arena_malloc_large(tsd_t *tsd, arena_t *arena, szind_t binind, bool zero)
 	if (!zero) {
 		if (config_fill) {
 			if (unlikely(opt_junk_alloc))
-				memset(ret, 0xa5, usize);
+				memset(ret, JEMALLOC_ALLOC_JUNK, usize);
 			else if (unlikely(opt_zero))
 				memset(ret, 0, usize);
 		}
@@ -2563,7 +2564,7 @@ arena_palloc_large(tsd_t *tsd, arena_t *arena, size_t usize, size_t alignment,
 
 	if (config_fill && !zero) {
 		if (unlikely(opt_junk_alloc))
-			memset(ret, 0xa5, usize);
+			memset(ret, JEMALLOC_ALLOC_JUNK, usize);
 		else if (unlikely(opt_zero))
 			memset(ret, 0, usize);
 	}
@@ -2776,7 +2777,7 @@ arena_dalloc_junk_large(void *ptr, size_t usize)
 {
 
 	if (config_fill && unlikely(opt_junk_free))
-		memset(ptr, 0x5a, usize);
+		memset(ptr, JEMALLOC_FREE_JUNK, usize);
 }
 #ifdef JEMALLOC_JET
 #undef arena_dalloc_junk_large
@@ -2977,7 +2978,7 @@ arena_ralloc_junk_large(void *ptr, size_t old_usize, size_t usize)
 {
 
 	if (config_fill && unlikely(opt_junk_free)) {
-		memset((void *)((uintptr_t)ptr + usize), 0x5a,
+		memset((void *)((uintptr_t)ptr + usize), JEMALLOC_FREE_JUNK,
 		    old_usize - usize);
 	}
 }
@@ -3012,7 +3013,8 @@ arena_ralloc_large(void *ptr, size_t oldsize, size_t usize_min,
 		    usize_min, usize_max, zero);
 		if (config_fill && !ret && !zero) {
 			if (unlikely(opt_junk_alloc)) {
-				memset((void *)((uintptr_t)ptr + oldsize), 0xa5,
+				memset((void *)((uintptr_t)ptr + oldsize),
+				    JEMALLOC_ALLOC_JUNK,
 				    isalloc(ptr, config_prof) - oldsize);
 			} else if (unlikely(opt_zero)) {
 				memset((void *)((uintptr_t)ptr + oldsize), 0,
