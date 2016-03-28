@@ -143,14 +143,35 @@ chunk_hooks_assure_initialized(tsdn_t *tsdn, arena_t *arena,
 bool
 chunk_register(tsdn_t *tsdn, const void *chunk, const extent_t *extent)
 {
+	size_t size;
+	rtree_elm_t *elm_a;
 
 	assert(extent_addr_get(extent) == chunk);
 
-	if (rtree_write(tsdn, &chunks_rtree, (uintptr_t)chunk, extent))
+	size = extent_size_get(extent);
+
+	if ((elm_a = rtree_elm_acquire(tsdn, &chunks_rtree, (uintptr_t)chunk,
+	    false, true)) == NULL)
 		return (true);
+	rtree_elm_write_acquired(tsdn, &chunks_rtree, elm_a, extent);
+	if (size > chunksize) {
+		uintptr_t last = ((uintptr_t)chunk +
+		    (uintptr_t)(CHUNK_CEILING(size - chunksize)));
+		rtree_elm_t *elm_b;
+
+		if ((elm_b = rtree_elm_acquire(tsdn, &chunks_rtree, last, false,
+		    true)) == NULL) {
+			rtree_elm_write_acquired(tsdn, &chunks_rtree, elm_a,
+			    NULL);
+			rtree_elm_release(tsdn, &chunks_rtree, elm_a);
+			return (true);
+		}
+		rtree_elm_write_acquired(tsdn, &chunks_rtree, elm_b, extent);
+		rtree_elm_release(tsdn, &chunks_rtree, elm_b);
+	}
+	rtree_elm_release(tsdn, &chunks_rtree, elm_a);
 
 	if (config_prof && opt_prof) {
-		size_t size = extent_size_get(extent);
 		size_t nadd = (size == 0) ? 1 : size / chunksize;
 		size_t cur = atomic_add_z(&curchunks, nadd);
 		size_t high = atomic_read_z(&highchunks);
@@ -171,10 +192,26 @@ chunk_register(tsdn_t *tsdn, const void *chunk, const extent_t *extent)
 void
 chunk_deregister(tsdn_t *tsdn, const void *chunk, const extent_t *extent)
 {
+	size_t size;
+	rtree_elm_t *elm_a;
 
-	rtree_clear(tsdn, &chunks_rtree, (uintptr_t)chunk);
+	size = extent_size_get(extent);
+
+	elm_a = rtree_elm_acquire(tsdn, &chunks_rtree, (uintptr_t)chunk, true,
+	    false);
+	rtree_elm_write_acquired(tsdn, &chunks_rtree, elm_a, NULL);
+	if (size > chunksize) {
+		uintptr_t last = ((uintptr_t)chunk +
+		    (uintptr_t)(CHUNK_CEILING(size - chunksize)));
+		rtree_elm_t *elm_b = rtree_elm_acquire(tsdn, &chunks_rtree,
+		    last, true, false);
+
+		rtree_elm_write_acquired(tsdn, &chunks_rtree, elm_b, NULL);
+		rtree_elm_release(tsdn, &chunks_rtree, elm_b);
+	}
+	rtree_elm_release(tsdn, &chunks_rtree, elm_a);
+
 	if (config_prof && opt_prof) {
-		size_t size = extent_size_get(extent);
 		size_t nsub = (size == 0) ? 1 : size / chunksize;
 		assert(atomic_read_z(&curchunks) >= nsub);
 		atomic_sub_z(&curchunks, nsub);
