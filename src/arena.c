@@ -225,7 +225,6 @@ arena_chunk_cache_maybe_insert(arena_t *arena, extent_t *extent, bool cache)
 {
 
 	if (cache) {
-		extent_dirty_linkage_init(extent);
 		extent_dirty_insert(extent, &arena->runs_dirty,
 		    &arena->chunks_cache);
 		arena->ndirty += arena_chunk_dirty_npages(extent);
@@ -526,7 +525,7 @@ arena_chunk_register(tsdn_t *tsdn, arena_t *arena, arena_chunk_t *chunk,
 	 * runs is tracked individually, and upon chunk deallocation the entire
 	 * chunk is in a consistent commit state.
 	 */
-	extent_init(&chunk->extent, arena, chunk, chunksize, zero, true);
+	extent_init(&chunk->extent, arena, chunk, chunksize, true, zero, true);
 	extent_achunk_set(&chunk->extent, true);
 	return (chunk_register(tsdn, chunk, &chunk->extent));
 }
@@ -1723,7 +1722,8 @@ arena_purge_to_limit(tsdn_t *tsdn, arena_t *arena, size_t ndirty_limit)
 	    arena->lg_dirty_mult) < arena->ndirty || ndirty_limit == 0);
 
 	qr_new(&purge_runs_sentinel, rd_link);
-	extent_dirty_linkage_init(&purge_chunks_sentinel);
+	extent_init(&purge_chunks_sentinel, arena, NULL, 0, false, false,
+	    false);
 
 	npurge = arena_stash_dirty(tsdn, arena, &chunk_hooks, ndirty_limit,
 	    &purge_runs_sentinel, &purge_chunks_sentinel);

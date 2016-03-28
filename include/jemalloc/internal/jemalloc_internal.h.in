@@ -1093,6 +1093,7 @@ ivsalloc(tsdn_t *tsdn, const void *ptr, bool demote)
 	extent = chunk_lookup(tsdn, ptr, false);
 	if (extent == NULL)
 		return (0);
+	assert(extent_active_get(extent));
 	/* Only arena chunks should be looked up via interior pointers. */
 	assert(extent_addr_get(extent) == ptr ||
 	    extent_achunk_get(extent));

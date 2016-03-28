@@ -239,7 +239,7 @@ chunk_first_best_fit(arena_t *arena, extent_tree_t *chunks_szad,
 
 	assert(size == CHUNK_CEILING(size));
 
-	extent_init(&key, arena, NULL, size, false, false);
+	extent_init(&key, arena, NULL, size, false, false, false);
 	return (extent_tree_szad_nsearch(chunks_szad, &key));
 }
 
@@ -270,7 +270,8 @@ chunk_recycle(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 	chunk_hooks_assure_initialized_locked(tsdn, arena, chunk_hooks);
 	if (new_addr != NULL) {
 		extent_t key;
-		extent_init(&key, arena, new_addr, alloc_size, false, false);
+		extent_init(&key, arena, new_addr, alloc_size, false, false,
+		    false);
 		extent = extent_tree_ad_search(chunks_ad, &key);
 	} else {
 		extent = chunk_first_best_fit(arena, chunks_szad, chunks_ad,
@@ -336,7 +337,7 @@ chunk_recycle(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 			}
 		}
 		extent_init(extent, arena, (void *)((uintptr_t)(ret) + size),
-		    trailsize, zeroed, committed);
+		    trailsize, false, zeroed, committed);
 		extent_tree_szad_insert(chunks_szad, extent);
 		extent_tree_ad_insert(chunks_ad, extent);
 		arena_chunk_cache_maybe_insert(arena, extent, cache);
@@ -534,7 +535,7 @@ chunk_record(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 	malloc_mutex_lock(tsdn, &arena->chunks_mtx);
 	chunk_hooks_assure_initialized_locked(tsdn, arena, chunk_hooks);
 	extent_init(&key, arena, (void *)((uintptr_t)chunk + size), 0, false,
-	    false);
+	    false, false);
 	extent = extent_tree_ad_nsearch(chunks_ad, &key);
 	/* Try to coalesce forward. */
 	if (extent != NULL && extent_addr_get(extent) == extent_addr_get(&key)
@@ -570,7 +571,7 @@ chunk_record(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 			}
 			goto label_return;
 		}
-		extent_init(extent, arena, chunk, size, !unzeroed,
+		extent_init(extent, arena, chunk, size, false, !unzeroed,
 		    committed);
 		extent_tree_ad_insert(chunks_ad, extent);
 		extent_tree_szad_insert(chunks_szad, extent);

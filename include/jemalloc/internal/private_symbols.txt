@@ -207,6 +207,8 @@ decay_ticker_get
 dss_prec_names
 extent_achunk_get
 extent_achunk_set
+extent_active_get
+extent_active_set
 extent_addr_get
 extent_addr_set
 extent_arena_get
@@ -214,7 +216,6 @@ extent_arena_set
 extent_committed_get
 extent_committed_set
 extent_dirty_insert
-extent_dirty_linkage_init
 extent_dirty_remove
 extent_init
 extent_prof_tctx_get

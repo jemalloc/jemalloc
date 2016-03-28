@@ -18,6 +18,9 @@ struct extent_s {
 	/* Total region size. */
 	size_t			e_size;
 
+	/* True if extent is active (in use). */
+	bool			e_active;
+
 	/*
 	 * The zeroed flag is used by chunk recycling code to track whether
 	 * memory is zero-filled.
@@ -73,6 +76,7 @@ rb_proto(, extent_tree_ad_, extent_tree_t, extent_t)
 arena_t	*extent_arena_get(const extent_t *extent);
 void	*extent_addr_get(const extent_t *extent);
 size_t	extent_size_get(const extent_t *extent);
+bool	extent_active_get(const extent_t *extent);
 bool	extent_zeroed_get(const extent_t *extent);
 bool	extent_committed_get(const extent_t *extent);
 bool	extent_achunk_get(const extent_t *extent);
@@ -80,13 +84,13 @@ prof_tctx_t	*extent_prof_tctx_get(const extent_t *extent);
 void	extent_arena_set(extent_t *extent, arena_t *arena);
 void	extent_addr_set(extent_t *extent, void *addr);
 void	extent_size_set(extent_t *extent, size_t size);
+void	extent_active_set(extent_t *extent, bool active);
 void	extent_zeroed_set(extent_t *extent, bool zeroed);
 void	extent_committed_set(extent_t *extent, bool committed);
 void	extent_achunk_set(extent_t *extent, bool achunk);
 void	extent_prof_tctx_set(extent_t *extent, prof_tctx_t *tctx);
 void	extent_init(extent_t *extent, arena_t *arena, void *addr,
-    size_t size, bool zeroed, bool committed);
-void	extent_dirty_linkage_init(extent_t *extent);
+    size_t size, bool active, bool zeroed, bool committed);
 void	extent_dirty_insert(extent_t *extent,
     arena_runs_dirty_link_t *runs_dirty, extent_t *chunks_dirty);
 void	extent_dirty_remove(extent_t *extent);
@@ -112,6 +116,13 @@ extent_size_get(const extent_t *extent)
 {
 
 	return (extent->e_size);
+}
+
+JEMALLOC_INLINE bool
+extent_active_get(const extent_t *extent)
+{
+
+	return (extent->e_active);
 }
 
 JEMALLOC_INLINE bool
@@ -165,6 +176,13 @@ extent_size_set(extent_t *extent, size_t size)
 }
 
 JEMALLOC_INLINE void
+extent_active_set(extent_t *extent, bool active)
+{
+
+	extent->e_active = active;
+}
+
+JEMALLOC_INLINE void
 extent_zeroed_set(extent_t *extent, bool zeroed)
 {
 
@@ -194,23 +212,18 @@ extent_prof_tctx_set(extent_t *extent, prof_tctx_t *tctx)
 
 JEMALLOC_INLINE void
 extent_init(extent_t *extent, arena_t *arena, void *addr, size_t size,
-    bool zeroed, bool committed)
+    bool active, bool zeroed, bool committed)
 {
 
 	extent_arena_set(extent, arena);
 	extent_addr_set(extent, addr);
 	extent_size_set(extent, size);
+	extent_active_set(extent, active);
 	extent_zeroed_set(extent, zeroed);
 	extent_committed_set(extent, committed);
 	extent_achunk_set(extent, false);
 	if (config_prof)
 		extent_prof_tctx_set(extent, NULL);
-}
-
-JEMALLOC_INLINE void
-extent_dirty_linkage_init(extent_t *extent)
-{
-
 	qr_new(&extent->rd, rd_link);
 	qr_new(extent, cc_link);
 }
