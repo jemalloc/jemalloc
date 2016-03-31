@@ -423,7 +423,7 @@ ckh_delete(tsd_t *tsd, ckh_t *ckh)
 
 	idalloctm(tsd, ckh->tab, tcache_get(tsd, false), true, true);
 	if (config_debug)
-		memset(ckh, 0x5a, sizeof(ckh_t));
+		memset(ckh, JEMALLOC_FREE_JUNK, sizeof(ckh_t));
 }
 
 size_t

@@ -160,7 +160,7 @@ quarantine(tsd_t *tsd, void *ptr)
 			    && usize <= SMALL_MAXCLASS)
 				arena_quarantine_junk_small(ptr, usize);
 			else
-				memset(ptr, 0x5a, usize);
+				memset(ptr, JEMALLOC_FREE_JUNK, usize);
 		}
 	} else {
 		assert(quarantine->curbytes == 0);
