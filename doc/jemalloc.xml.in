@@ -540,8 +540,8 @@ for (i = 0; i < nbins; i++) {
     are smaller than four times the page size, large size classes are smaller
     than the chunk size (see the <link
     linkend="opt.lg_chunk"><mallctl>opt.lg_chunk</mallctl></link> option), and
-    huge size classes extend from the chunk size up to one size class less than
-    the full address space size.</para>
+    huge size classes extend from the chunk size up to the largest size class
+    that does not exceed <constant>PTRDIFF_MAX</constant>.</para>
 
     <para>Allocations are packed tightly together, which can be an issue for
     multi-threaded applications.  If you need to assure that allocations do not
@@ -659,7 +659,7 @@ for (i = 0; i < nbins; i++) {
           <entry>[1280 KiB, 1536 KiB, 1792 KiB]</entry>
         </row>
         <row>
-          <entry morerows="6">Huge</entry>
+          <entry morerows="8">Huge</entry>
           <entry>256 KiB</entry>
           <entry>[2 MiB]</entry>
         </row>
@@ -686,6 +686,14 @@ for (i = 0; i < nbins; i++) {
         <row>
           <entry>...</entry>
           <entry>...</entry>
+        </row>
+        <row>
+          <entry>512 PiB</entry>
+          <entry>[2560 PiB, 3 EiB, 3584 PiB, 4 EiB]</entry>
+        </row>
+        <row>
+          <entry>1 EiB</entry>
+          <entry>[5 EiB, 6 EiB, 7 EiB]</entry>
         </row>
       </tbody>
       </tgroup>
