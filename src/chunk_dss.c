@@ -136,7 +136,7 @@ chunk_alloc_dss(arena_t *arena, void *new_addr, size_t size, size_t alignment,
 					    CHUNK_HOOKS_INITIALIZER;
 					chunk_dalloc_wrapper(arena,
 					    &chunk_hooks, cpad, cpad_size,
-					    true);
+					    false, true);
 				}
 				if (*zero) {
 					JEMALLOC_VALGRIND_MAKE_MEM_UNDEFINED(

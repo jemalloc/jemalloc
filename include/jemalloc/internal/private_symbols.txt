@@ -152,7 +152,6 @@ chunk_alloc_dss
 chunk_alloc_mmap
 chunk_alloc_wrapper
 chunk_boot
-chunk_dalloc_arena
 chunk_dalloc_cache
 chunk_dalloc_mmap
 chunk_dalloc_wrapper
@@ -172,7 +171,6 @@ chunk_npages
 chunk_postfork_child
 chunk_postfork_parent
 chunk_prefork
-chunk_purge_arena
 chunk_purge_wrapper
 chunk_register
 chunks_rtree
