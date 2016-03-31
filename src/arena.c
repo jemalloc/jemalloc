@@ -668,8 +668,8 @@ arena_chunk_init_hard(arena_t *arena)
 
 	/*
 	 * Initialize the map to contain one maximal free untouched run.  Mark
-	 * the pages as zeroed if chunk_alloc() returned a zeroed or decommitted
-	 * chunk.
+	 * the pages as zeroed if arena_chunk_alloc_internal() returned a zeroed
+	 * or decommitted chunk.
 	 */
 	flag_unzeroed = (zero || !commit) ? 0 : CHUNK_MAP_UNZEROED;
 	flag_decommitted = commit ? 0 : CHUNK_MAP_DECOMMITTED;
