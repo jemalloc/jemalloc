@@ -425,8 +425,8 @@ chunk_alloc_default(void *new_addr, size_t size, size_t alignment, bool *zero,
 	arena_t *arena;
 
 	arena = chunk_arena_get(arena_ind);
-	ret = chunk_alloc_core(arena, new_addr, size, alignment, zero,
-	    commit, arena->dss_prec);
+	ret = chunk_alloc_core(arena, new_addr, size, alignment, zero, commit,
+	    arena->dss_prec);
 	if (ret == NULL)
 		return (NULL);
 	if (config_valgrind)
@@ -579,8 +579,18 @@ chunk_dalloc_cache(arena_t *arena, chunk_hooks_t *chunk_hooks, void *chunk,
 	arena_maybe_purge(arena);
 }
 
+static bool
+chunk_dalloc_default(void *chunk, size_t size, bool committed,
+    unsigned arena_ind)
+{
+
+	if (!have_dss || !chunk_in_dss(chunk))
+		return (chunk_dalloc_mmap(chunk, size));
+	return (true);
+}
+
 void
-chunk_dalloc_arena(arena_t *arena, chunk_hooks_t *chunk_hooks, void *chunk,
+chunk_dalloc_wrapper(arena_t *arena, chunk_hooks_t *chunk_hooks, void *chunk,
     size_t size, bool zeroed, bool committed)
 {
 
@@ -605,27 +615,6 @@ chunk_dalloc_arena(arena_t *arena, chunk_hooks_t *chunk_hooks, void *chunk,
 }
 
 static bool
-chunk_dalloc_default(void *chunk, size_t size, bool committed,
-    unsigned arena_ind)
-{
-
-	if (!have_dss || !chunk_in_dss(chunk))
-		return (chunk_dalloc_mmap(chunk, size));
-	return (true);
-}
-
-void
-chunk_dalloc_wrapper(arena_t *arena, chunk_hooks_t *chunk_hooks, void *chunk,
-    size_t size, bool committed)
-{
-
-	chunk_hooks_assure_initialized(arena, chunk_hooks);
-	chunk_hooks->dalloc(chunk, size, committed, arena->ind);
-	if (config_valgrind && chunk_hooks->dalloc != chunk_dalloc_default)
-		JEMALLOC_VALGRIND_MAKE_MEM_NOACCESS(chunk, size);
-}
-
-static bool
 chunk_commit_default(void *chunk, size_t size, size_t offset, size_t length,
     unsigned arena_ind)
 {
@@ -643,8 +632,9 @@ chunk_decommit_default(void *chunk, size_t size, size_t offset, size_t length,
 	    length));
 }
 
-bool
-chunk_purge_arena(arena_t *arena, void *chunk, size_t offset, size_t length)
+static bool
+chunk_purge_default(void *chunk, size_t size, size_t offset, size_t length,
+    unsigned arena_ind)
 {
 
 	assert(chunk != NULL);
@@ -654,15 +644,6 @@ chunk_purge_arena(arena_t *arena, void *chunk, size_t offset, size_t length)
 	assert((length & PAGE_MASK) == 0);
 
 	return (pages_purge((void *)((uintptr_t)chunk + (uintptr_t)offset),
-	    length));
-}
-
-static bool
-chunk_purge_default(void *chunk, size_t size, size_t offset, size_t length,
-    unsigned arena_ind)
-{
-
-	return (chunk_purge_arena(chunk_arena_get(arena_ind), chunk, offset,
 	    length));
 }
 
