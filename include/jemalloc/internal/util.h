@@ -41,8 +41,8 @@
 #define	MALLOC_PRINTF_BUFSIZE	4096
 
 /* Junk fill patterns. */
-#define	JEMALLOC_ALLOC_JUNK	0xa5
-#define	JEMALLOC_FREE_JUNK	0x5a
+#define	JEMALLOC_ALLOC_JUNK	((uint8_t)0xa5)
+#define	JEMALLOC_FREE_JUNK	((uint8_t)0x5a)
 
 /*
  * Wrap a cpp argument that contains commas such that it isn't broken up into
