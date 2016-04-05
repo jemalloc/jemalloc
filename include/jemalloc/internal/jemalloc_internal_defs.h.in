@@ -148,9 +148,6 @@
 /* Support utrace(2)-based tracing. */
 #undef JEMALLOC_UTRACE
 
-/* Support Valgrind. */
-#undef JEMALLOC_VALGRIND
-
 /* Support optional abort() on OOM. */
 #undef JEMALLOC_XMALLOC
 

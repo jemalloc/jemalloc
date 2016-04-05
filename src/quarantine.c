@@ -150,12 +150,7 @@ quarantine(tsd_t *tsd, void *ptr)
 		quarantine->curbytes += usize;
 		quarantine->curobjs++;
 		if (config_fill && unlikely(opt_junk_free)) {
-			/*
-			 * Only do redzone validation if Valgrind isn't in
-			 * operation.
-			 */
-			if ((!config_valgrind || likely(!in_valgrind))
-			    && usize <= SMALL_MAXCLASS)
+			if (usize <= SMALL_MAXCLASS)
 				arena_quarantine_junk_small(ptr, usize);
 			else
 				memset(ptr, JEMALLOC_FREE_JUNK, usize);

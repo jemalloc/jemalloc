@@ -86,7 +86,6 @@ CTL_PROTO(config_stats)
 CTL_PROTO(config_tcache)
 CTL_PROTO(config_tls)
 CTL_PROTO(config_utrace)
-CTL_PROTO(config_valgrind)
 CTL_PROTO(config_xmalloc)
 CTL_PROTO(opt_abort)
 CTL_PROTO(opt_dss)
@@ -260,7 +259,6 @@ static const ctl_named_node_t	config_node[] = {
 	{NAME("tcache"),	CTL(config_tcache)},
 	{NAME("tls"),		CTL(config_tls)},
 	{NAME("utrace"),	CTL(config_utrace)},
-	{NAME("valgrind"),	CTL(config_valgrind)},
 	{NAME("xmalloc"),	CTL(config_xmalloc)}
 };
 
@@ -1270,7 +1268,6 @@ CTL_RO_CONFIG_GEN(config_stats, bool)
 CTL_RO_CONFIG_GEN(config_tcache, bool)
 CTL_RO_CONFIG_GEN(config_tls, bool)
 CTL_RO_CONFIG_GEN(config_utrace, bool)
-CTL_RO_CONFIG_GEN(config_valgrind, bool)
 CTL_RO_CONFIG_GEN(config_xmalloc, bool)
 
 /******************************************************************************/
@@ -1622,8 +1619,7 @@ arena_i_reset_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
 	READONLY();
 	WRITEONLY();
 
-	if ((config_valgrind && unlikely(in_valgrind)) || (config_fill &&
-	    unlikely(opt_quarantine))) {
+	if (config_fill && unlikely(opt_quarantine)) {
 		ret = EFAULT;
 		goto label_return;
 	}

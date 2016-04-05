@@ -139,7 +139,6 @@ TEST_BEGIN(test_mallctl_config)
 	TEST_MALLCTL_CONFIG(tcache, bool);
 	TEST_MALLCTL_CONFIG(tls, bool);
 	TEST_MALLCTL_CONFIG(utrace, bool);
-	TEST_MALLCTL_CONFIG(valgrind, bool);
 	TEST_MALLCTL_CONFIG(xmalloc, bool);
 
 #undef TEST_MALLCTL_CONFIG

@@ -113,13 +113,6 @@ static const bool config_utrace =
     false
 #endif
     ;
-static const bool config_valgrind =
-#ifdef JEMALLOC_VALGRIND
-    true
-#else
-    false
-#endif
-    ;
 static const bool config_xmalloc =
 #ifdef JEMALLOC_XMALLOC
     true
@@ -361,7 +354,6 @@ typedef unsigned szind_t;
 #endif
 
 #include "jemalloc/internal/nstime.h"
-#include "jemalloc/internal/valgrind.h"
 #include "jemalloc/internal/util.h"
 #include "jemalloc/internal/atomic.h"
 #include "jemalloc/internal/prng.h"
@@ -393,7 +385,6 @@ typedef unsigned szind_t;
 #define	JEMALLOC_H_STRUCTS
 
 #include "jemalloc/internal/nstime.h"
-#include "jemalloc/internal/valgrind.h"
 #include "jemalloc/internal/util.h"
 #include "jemalloc/internal/atomic.h"
 #include "jemalloc/internal/prng.h"
@@ -441,8 +432,6 @@ extern bool	opt_xmalloc;
 extern bool	opt_zero;
 extern unsigned	opt_narenas;
 
-extern bool	in_valgrind;
-
 /* Number of CPUs. */
 extern unsigned	ncpus;
 
@@ -489,7 +478,6 @@ void	jemalloc_postfork_parent(void);
 void	jemalloc_postfork_child(void);
 
 #include "jemalloc/internal/nstime.h"
-#include "jemalloc/internal/valgrind.h"
 #include "jemalloc/internal/util.h"
 #include "jemalloc/internal/atomic.h"
 #include "jemalloc/internal/prng.h"
@@ -521,7 +509,6 @@ void	jemalloc_postfork_child(void);
 #define	JEMALLOC_H_INLINES
 
 #include "jemalloc/internal/nstime.h"
-#include "jemalloc/internal/valgrind.h"
 #include "jemalloc/internal/util.h"
 #include "jemalloc/internal/atomic.h"
 #include "jemalloc/internal/prng.h"

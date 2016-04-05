@@ -4,9 +4,6 @@
 typedef struct quarantine_obj_s quarantine_obj_t;
 typedef struct quarantine_s quarantine_t;
 
-/* Default per thread quarantine size if valgrind is enabled. */
-#define	JEMALLOC_VALGRIND_QUARANTINE_DEFAULT	(ZU(1) << 24)
-
 #endif /* JEMALLOC_H_TYPES */
 /******************************************************************************/
 #ifdef JEMALLOC_H_STRUCTS

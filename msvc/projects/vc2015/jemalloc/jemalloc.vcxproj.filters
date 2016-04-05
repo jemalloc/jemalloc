@@ -161,9 +161,6 @@
     <ClInclude Include="..\..\..\..\include\jemalloc\internal\util.h">
       <Filter>Header Files\internal</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\include\jemalloc\internal\valgrind.h">
-      <Filter>Header Files\internal</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\..\..\include\msvc_compat\strings.h">
       <Filter>Header Files\msvc_compat</Filter>
     </ClInclude>

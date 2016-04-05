@@ -350,18 +350,8 @@ JEMALLOC_INLINE_C void
 arena_run_zero(arena_chunk_t *chunk, size_t run_ind, size_t npages)
 {
 
-	JEMALLOC_VALGRIND_MAKE_MEM_UNDEFINED((void *)((uintptr_t)chunk +
-	    (run_ind << LG_PAGE)), (npages << LG_PAGE));
 	memset((void *)((uintptr_t)chunk + (run_ind << LG_PAGE)), 0,
 	    (npages << LG_PAGE));
-}
-
-JEMALLOC_INLINE_C void
-arena_run_page_mark_zeroed(arena_chunk_t *chunk, size_t run_ind)
-{
-
-	JEMALLOC_VALGRIND_MAKE_MEM_DEFINED((void *)((uintptr_t)chunk + (run_ind
-	    << LG_PAGE)), PAGE);
 }
 
 JEMALLOC_INLINE_C void
@@ -370,7 +360,6 @@ arena_run_page_validate_zeroed(arena_chunk_t *chunk, size_t run_ind)
 	size_t i;
 	UNUSED size_t *p = (size_t *)((uintptr_t)chunk + (run_ind << LG_PAGE));
 
-	arena_run_page_mark_zeroed(chunk, run_ind);
 	for (i = 0; i < PAGE / sizeof(size_t); i++)
 		assert(p[i] == 0);
 }
@@ -471,12 +460,9 @@ arena_run_split_large_helper(arena_t *arena, arena_run_t *run, size_t size,
 	}
 
 	if (zero) {
-		if (flag_decommitted != 0) {
-			/* The run is untouched, and therefore zeroed. */
-			JEMALLOC_VALGRIND_MAKE_MEM_DEFINED((void
-			    *)((uintptr_t)chunk + (run_ind << LG_PAGE)),
-			    (need_pages << LG_PAGE));
-		} else if (flag_dirty != 0) {
+		if (flag_decommitted != 0)
+			; /* The run is untouched, and therefore zeroed. */
+		else if (flag_dirty != 0) {
 			/* The run is dirty, so all pages must be zeroed. */
 			arena_run_zero(chunk, run_ind, need_pages);
 		} else {
@@ -492,15 +478,9 @@ arena_run_split_large_helper(arena_t *arena, arena_run_t *run, size_t size,
 				else if (config_debug) {
 					arena_run_page_validate_zeroed(chunk,
 					    run_ind+i);
-				} else {
-					arena_run_page_mark_zeroed(chunk,
-					    run_ind+i);
 				}
 			}
 		}
-	} else {
-		JEMALLOC_VALGRIND_MAKE_MEM_UNDEFINED((void *)((uintptr_t)chunk +
-		    (run_ind << LG_PAGE)), (need_pages << LG_PAGE));
 	}
 
 	/*
@@ -564,8 +544,6 @@ arena_run_split_small(arena_t *arena, arena_run_t *run, size_t size,
 		if (config_debug && flag_dirty == 0 && flag_unzeroed == 0)
 			arena_run_page_validate_zeroed(chunk, run_ind+i);
 	}
-	JEMALLOC_VALGRIND_MAKE_MEM_UNDEFINED((void *)((uintptr_t)chunk +
-	    (run_ind << LG_PAGE)), (need_pages << LG_PAGE));
 	return (false);
 }
 
@@ -700,19 +678,9 @@ arena_chunk_init_hard(tsdn_t *tsdn, arena_t *arena)
 	 * the chunk is not zeroed.
 	 */
 	if (!zero) {
-		JEMALLOC_VALGRIND_MAKE_MEM_UNDEFINED(
-		    (void *)arena_bitselm_get_const(chunk, map_bias+1),
-		    (size_t)((uintptr_t)arena_bitselm_get_const(chunk,
-		    chunk_npages-1) -
-		    (uintptr_t)arena_bitselm_get_const(chunk, map_bias+1)));
 		for (i = map_bias+1; i < chunk_npages-1; i++)
 			arena_mapbits_internal_set(chunk, i, flag_unzeroed);
 	} else {
-		JEMALLOC_VALGRIND_MAKE_MEM_DEFINED((void
-		    *)arena_bitselm_get_const(chunk, map_bias+1),
-		    (size_t)((uintptr_t)arena_bitselm_get_const(chunk,
-		    chunk_npages-1) -
-		    (uintptr_t)arena_bitselm_get_const(chunk, map_bias+1)));
 		if (config_debug) {
 			for (i = map_bias+1; i < chunk_npages-1; i++) {
 				assert(arena_mapbits_unzeroed_get(chunk, i) ==
@@ -2571,13 +2539,11 @@ arena_malloc_small(tsdn_t *tsdn, arena_t *arena, szind_t binind, bool zero)
 			} else if (unlikely(opt_zero))
 				memset(ret, 0, usize);
 		}
-		JEMALLOC_VALGRIND_MAKE_MEM_UNDEFINED(ret, usize);
 	} else {
 		if (config_fill && unlikely(opt_junk_alloc)) {
 			arena_alloc_junk_small(ret, &arena_bin_info[binind],
 			    true);
 		}
-		JEMALLOC_VALGRIND_MAKE_MEM_UNDEFINED(ret, usize);
 		memset(ret, 0, usize);
 	}
 
@@ -3311,7 +3277,6 @@ arena_ralloc(tsd_t *tsd, arena_t *arena, void *ptr, size_t oldsize, size_t size,
 		 */
 
 		copysize = (usize < oldsize) ? usize : oldsize;
-		JEMALLOC_VALGRIND_MAKE_MEM_UNDEFINED(ret, copysize);
 		memcpy(ret, ptr, copysize);
 		isqalloc(tsd, ptr, oldsize, tcache, true);
 	} else {

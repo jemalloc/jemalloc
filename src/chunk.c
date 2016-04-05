@@ -316,7 +316,6 @@ chunk_recycle(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 			size_t i;
 			size_t *p = (size_t *)(uintptr_t)ret;
 
-			JEMALLOC_VALGRIND_MAKE_MEM_DEFINED(ret, size);
 			for (i = 0; i < size / sizeof(size_t); i++)
 				assert(p[i] == 0);
 		}
@@ -376,8 +375,6 @@ chunk_alloc_base(size_t size)
 	ret = chunk_alloc_mmap(NULL, size, chunksize, &zero, &commit);
 	if (ret == NULL)
 		return (NULL);
-	if (config_valgrind)
-		JEMALLOC_VALGRIND_MAKE_MEM_UNDEFINED(ret, size);
 
 	return (ret);
 }
@@ -401,8 +398,6 @@ chunk_alloc_cache(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 	if (ret == NULL)
 		return (NULL);
 	assert(commit);
-	if (config_valgrind)
-		JEMALLOC_VALGRIND_MAKE_MEM_UNDEFINED(ret, size);
 	return (ret);
 }
 
@@ -434,8 +429,6 @@ chunk_alloc_default(void *new_addr, size_t size, size_t alignment, bool *zero,
 	    commit, arena->dss_prec);
 	if (ret == NULL)
 		return (NULL);
-	if (config_valgrind)
-		JEMALLOC_VALGRIND_MAKE_MEM_UNDEFINED(ret, size);
 
 	return (ret);
 }
@@ -478,8 +471,6 @@ chunk_alloc_wrapper(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 			return (NULL);
 	}
 
-	if (config_valgrind && chunk_hooks->alloc != chunk_alloc_default)
-		JEMALLOC_VALGRIND_MAKE_MEM_UNDEFINED(ret, chunksize);
 	return (ret);
 }
 
@@ -494,7 +485,6 @@ chunk_record(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 
 	assert(!cache || !zeroed);
 	unzeroed = cache || !zeroed;
-	JEMALLOC_VALGRIND_MAKE_MEM_NOACCESS(chunk, size);
 
 	malloc_mutex_lock(tsdn, &arena->chunks_mtx);
 	chunk_hooks_assure_initialized_locked(tsdn, arena, chunk_hooks);

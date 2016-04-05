@@ -138,11 +138,8 @@ chunk_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
 					    &chunk_hooks, cpad, cpad_size,
 					    false, true);
 				}
-				if (*zero) {
-					JEMALLOC_VALGRIND_MAKE_MEM_UNDEFINED(
-					    ret, size);
+				if (*zero)
 					memset(ret, 0, size);
-				}
 				if (!*commit)
 					*commit = pages_decommit(ret, size);
 				return (ret);

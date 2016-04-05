@@ -296,7 +296,6 @@ iallocztm
 iarena_cleanup
 idalloc
 idalloctm
-in_valgrind
 index2size
 index2size_compute
 index2size_lookup
@@ -591,10 +590,6 @@ tsdn_fetch
 tsdn_null
 tsdn_tsd
 u2rz
-valgrind_freelike_block
-valgrind_make_mem_defined
-valgrind_make_mem_noaccess
-valgrind_make_mem_undefined
 witness_assert_lockless
 witness_assert_not_owner
 witness_assert_owner

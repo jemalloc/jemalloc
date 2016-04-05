@@ -169,9 +169,6 @@ any of the following arguments (not a definitive list) to 'configure':
     See the "opt.junk", "opt.zero", "opt.quarantine", and "opt.redzone" option
     documentation for usage details.
 
---disable-valgrind
-    Disable support for Valgrind.
-
 --disable-zone-allocator
     Disable zone allocator for Darwin.  This means jemalloc won't be hooked as
     the default allocator on OSX/iOS.

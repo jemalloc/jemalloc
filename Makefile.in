@@ -49,7 +49,6 @@ cfgoutputs_out := @cfgoutputs_out@
 enable_autogen := @enable_autogen@
 enable_code_coverage := @enable_code_coverage@
 enable_prof := @enable_prof@
-enable_valgrind := @enable_valgrind@
 enable_zone_allocator := @enable_zone_allocator@
 MALLOC_CONF := @JEMALLOC_CPREFIX@MALLOC_CONF
 DSO_LDFLAGS = @DSO_LDFLAGS@
@@ -104,9 +103,6 @@ C_SRCS := $(srcroot)src/jemalloc.c \
 	$(srcroot)src/tsd.c \
 	$(srcroot)src/util.c \
 	$(srcroot)src/witness.c
-ifeq ($(enable_valgrind), 1)
-C_SRCS += $(srcroot)src/valgrind.c
-endif
 ifeq ($(enable_zone_allocator), 1)
 C_SRCS += $(srcroot)src/zone.c
 endif

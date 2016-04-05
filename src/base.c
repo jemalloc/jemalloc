@@ -24,7 +24,6 @@ base_node_try_alloc(tsdn_t *tsdn)
 		return (NULL);
 	node = base_nodes;
 	base_nodes = *(extent_node_t **)node;
-	JEMALLOC_VALGRIND_MAKE_MEM_UNDEFINED(node, sizeof(extent_node_t));
 	return (node);
 }
 
@@ -34,7 +33,6 @@ base_node_dalloc(tsdn_t *tsdn, extent_node_t *node)
 
 	malloc_mutex_assert_owner(tsdn, &base_mtx);
 
-	JEMALLOC_VALGRIND_MAKE_MEM_UNDEFINED(node, sizeof(extent_node_t));
 	*(extent_node_t **)node = base_nodes;
 	base_nodes = node;
 }
@@ -123,7 +121,6 @@ base_alloc(tsdn_t *tsdn, size_t size)
 		base_resident += PAGE_CEILING((uintptr_t)ret + csize) -
 		    PAGE_CEILING((uintptr_t)ret);
 	}
-	JEMALLOC_VALGRIND_MAKE_MEM_DEFINED(ret, csize);
 label_return:
 	malloc_mutex_unlock(tsdn, &base_mtx);
 	return (ret);
