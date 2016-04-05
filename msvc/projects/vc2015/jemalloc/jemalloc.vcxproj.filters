@@ -134,9 +134,6 @@
     <ClInclude Include="..\..\..\..\include\jemalloc\internal\qr.h">
       <Filter>Header Files\internal</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\include\jemalloc\internal\quarantine.h">
-      <Filter>Header Files\internal</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\..\..\include\jemalloc\internal\rb.h">
       <Filter>Header Files\internal</Filter>
     </ClInclude>
@@ -230,9 +227,6 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\src\prof.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\..\src\quarantine.c">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\src\rtree.c">

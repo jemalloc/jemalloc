@@ -88,8 +88,6 @@ TEST_BEGIN(test_arena_reset)
 	size_t mib[3];
 	tsdn_t *tsdn;
 
-	test_skip_if(config_fill && unlikely(opt_quarantine));
-
 	sz = sizeof(unsigned);
 	assert_d_eq(mallctl("arenas.extend", &arena_ind, &sz, NULL, 0), 0,
 	    "Unexpected mallctl() failure");

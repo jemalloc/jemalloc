@@ -99,7 +99,6 @@ arena_prof_tctx_reset
 arena_prof_tctx_set
 arena_ptr_small_binind_get
 arena_purge
-arena_quarantine_junk_small
 arena_ralloc
 arena_ralloc_junk_large
 arena_ralloc_no_move
@@ -303,13 +302,11 @@ index2size_tab
 ipalloc
 ipalloct
 ipallocztm
-iqalloc
 iralloc
 iralloct
 iralloct_realign
 isalloc
 isdalloct
-isqalloc
 isthreaded
 ivsalloc
 ixalloc
@@ -385,7 +382,6 @@ opt_prof_leak
 opt_prof_prefix
 opt_prof_thread_active_init
 opt_purge
-opt_quarantine
 opt_redzone
 opt_stats_print
 opt_tcache
@@ -454,10 +450,6 @@ prof_thread_active_set
 prof_thread_name_get
 prof_thread_name_set
 purge_mode_names
-quarantine
-quarantine_alloc_hook
-quarantine_alloc_hook_work
-quarantine_cleanup
 register_zone
 rtree_child_read
 rtree_child_read_hard
@@ -561,9 +553,6 @@ tsd_nominal
 tsd_prof_tdata_get
 tsd_prof_tdata_set
 tsd_prof_tdatap_get
-tsd_quarantine_get
-tsd_quarantine_set
-tsd_quarantinep_get
 tsd_set
 tsd_tcache_enabled_get
 tsd_tcache_enabled_set

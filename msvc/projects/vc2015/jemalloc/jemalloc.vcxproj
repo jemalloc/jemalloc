@@ -65,7 +65,6 @@
     <ClInclude Include="..\..\..\..\include\jemalloc\internal\public_unnamespace.h" />
     <ClInclude Include="..\..\..\..\include\jemalloc\internal\ql.h" />
     <ClInclude Include="..\..\..\..\include\jemalloc\internal\qr.h" />
-    <ClInclude Include="..\..\..\..\include\jemalloc\internal\quarantine.h" />
     <ClInclude Include="..\..\..\..\include\jemalloc\internal\rb.h" />
     <ClInclude Include="..\..\..\..\include\jemalloc\internal\rtree.h" />
     <ClInclude Include="..\..\..\..\include\jemalloc\internal\size_classes.h" />
@@ -107,7 +106,6 @@
     <ClCompile Include="..\..\..\..\src\pages.c" />
     <ClCompile Include="..\..\..\..\src\prng.c" />
     <ClCompile Include="..\..\..\..\src\prof.c" />
-    <ClCompile Include="..\..\..\..\src\quarantine.c" />
     <ClCompile Include="..\..\..\..\src\rtree.c" />
     <ClCompile Include="..\..\..\..\src\stats.c" />
     <ClCompile Include="..\..\..\..\src\tcache.c" />

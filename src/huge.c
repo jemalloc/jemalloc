@@ -359,7 +359,7 @@ huge_ralloc_move_helper(tsdn_t *tsdn, arena_t *arena, size_t usize,
 }
 
 void *
-huge_ralloc(tsd_t *tsd, arena_t *arena, void *ptr, size_t oldsize,
+huge_ralloc(tsdn_t *tsdn, arena_t *arena, void *ptr, size_t oldsize,
     size_t usize, size_t alignment, bool zero, tcache_t *tcache)
 {
 	void *ret;
@@ -369,8 +369,7 @@ huge_ralloc(tsd_t *tsd, arena_t *arena, void *ptr, size_t oldsize,
 	assert(usize > 0 && usize <= HUGE_MAXCLASS);
 
 	/* Try to avoid moving the allocation. */
-	if (!huge_ralloc_no_move(tsd_tsdn(tsd), ptr, oldsize, usize, usize,
-	    zero))
+	if (!huge_ralloc_no_move(tsdn, ptr, oldsize, usize, usize, zero))
 		return (ptr);
 
 	/*
@@ -378,14 +377,13 @@ huge_ralloc(tsd_t *tsd, arena_t *arena, void *ptr, size_t oldsize,
 	 * different size class.  In that case, fall back to allocating new
 	 * space and copying.
 	 */
-	ret = huge_ralloc_move_helper(tsd_tsdn(tsd), arena, usize, alignment,
-	    zero);
+	ret = huge_ralloc_move_helper(tsdn, arena, usize, alignment, zero);
 	if (ret == NULL)
 		return (NULL);
 
 	copysize = (usize < oldsize) ? usize : oldsize;
 	memcpy(ret, ptr, copysize);
-	isqalloc(tsd, ptr, oldsize, tcache, true);
+	isdalloct(tsdn, ptr, oldsize, tcache, true);
 	return (ret);
 }
 

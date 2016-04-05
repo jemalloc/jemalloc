@@ -2484,21 +2484,6 @@ arena_dalloc_junk_small_t *arena_dalloc_junk_small =
     JEMALLOC_N(n_arena_dalloc_junk_small);
 #endif
 
-void
-arena_quarantine_junk_small(void *ptr, size_t usize)
-{
-	szind_t binind;
-	arena_bin_info_t *bin_info;
-	cassert(config_fill);
-	assert(opt_junk_free);
-	assert(opt_quarantine);
-	assert(usize <= SMALL_MAXCLASS);
-
-	binind = size2index(usize);
-	bin_info = &arena_bin_info[binind];
-	arena_redzones_validate(ptr, bin_info, true);
-}
-
 static void *
 arena_malloc_small(tsdn_t *tsdn, arena_t *arena, szind_t binind, bool zero)
 {
@@ -3243,8 +3228,8 @@ arena_ralloc_move_helper(tsdn_t *tsdn, arena_t *arena, size_t usize,
 }
 
 void *
-arena_ralloc(tsd_t *tsd, arena_t *arena, void *ptr, size_t oldsize, size_t size,
-    size_t alignment, bool zero, tcache_t *tcache)
+arena_ralloc(tsdn_t *tsdn, arena_t *arena, void *ptr, size_t oldsize,
+    size_t size, size_t alignment, bool zero, tcache_t *tcache)
 {
 	void *ret;
 	size_t usize;
@@ -3257,8 +3242,7 @@ arena_ralloc(tsd_t *tsd, arena_t *arena, void *ptr, size_t oldsize, size_t size,
 		size_t copysize;
 
 		/* Try to avoid moving the allocation. */
-		if (!arena_ralloc_no_move(tsd_tsdn(tsd), ptr, oldsize, usize, 0,
-		    zero))
+		if (!arena_ralloc_no_move(tsdn, ptr, oldsize, usize, 0, zero))
 			return (ptr);
 
 		/*
@@ -3266,8 +3250,8 @@ arena_ralloc(tsd_t *tsd, arena_t *arena, void *ptr, size_t oldsize, size_t size,
 		 * the object.  In that case, fall back to allocating new space
 		 * and copying.
 		 */
-		ret = arena_ralloc_move_helper(tsd_tsdn(tsd), arena, usize,
-		    alignment, zero, tcache);
+		ret = arena_ralloc_move_helper(tsdn, arena, usize, alignment,
+		    zero, tcache);
 		if (ret == NULL)
 			return (NULL);
 
@@ -3278,9 +3262,9 @@ arena_ralloc(tsd_t *tsd, arena_t *arena, void *ptr, size_t oldsize, size_t size,
 
 		copysize = (usize < oldsize) ? usize : oldsize;
 		memcpy(ret, ptr, copysize);
-		isqalloc(tsd, ptr, oldsize, tcache, true);
+		isdalloct(tsdn, ptr, oldsize, tcache, true);
 	} else {
-		ret = huge_ralloc(tsd, arena, ptr, oldsize, usize, alignment,
+		ret = huge_ralloc(tsdn, arena, ptr, oldsize, usize, alignment,
 		    zero, tcache);
 	}
 	return (ret);

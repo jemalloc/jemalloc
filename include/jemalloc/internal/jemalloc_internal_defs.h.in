@@ -142,7 +142,7 @@
  */
 #undef JEMALLOC_DSS
 
-/* Support memory filling (junk/zero/quarantine/redzone). */
+/* Support memory filling (junk/zero/redzone). */
 #undef JEMALLOC_FILL
 
 /* Support utrace(2)-based tracing. */

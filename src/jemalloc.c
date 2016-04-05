@@ -35,7 +35,6 @@ bool	opt_junk_free =
 #endif
     ;
 
-size_t	opt_quarantine = ZU(0);
 bool	opt_redzone = false;
 bool	opt_utrace = false;
 bool	opt_xmalloc = false;
@@ -74,10 +73,9 @@ static bool	malloc_slow = true;
 enum {
 	flag_opt_junk_alloc	= (1U),
 	flag_opt_junk_free	= (1U << 1),
-	flag_opt_quarantine	= (1U << 2),
-	flag_opt_zero		= (1U << 3),
-	flag_opt_utrace		= (1U << 4),
-	flag_opt_xmalloc	= (1U << 5)
+	flag_opt_zero		= (1U << 2),
+	flag_opt_utrace		= (1U << 3),
+	flag_opt_xmalloc	= (1U << 4)
 };
 static uint8_t	malloc_slow_flags;
 
@@ -265,23 +263,6 @@ malloc_initialized(void)
 	return (malloc_init_state == malloc_init_initialized);
 }
 
-JEMALLOC_ALWAYS_INLINE_C void
-malloc_thread_init(void)
-{
-
-	/*
-	 * TSD initialization can't be safely done as a side effect of
-	 * deallocation, because it is possible for a thread to do nothing but
-	 * deallocate its TLS data via free(), in which case writing to TLS
-	 * would cause write-after-free memory corruption.  The quarantine
-	 * facility *only* gets used as a side effect of deallocation, so make
-	 * a best effort attempt at initializing its TSD by hooking all
-	 * allocation events.
-	 */
-	if (config_fill && unlikely(opt_quarantine))
-		quarantine_alloc_hook();
-}
-
 JEMALLOC_ALWAYS_INLINE_C bool
 malloc_init_a0(void)
 {
@@ -297,8 +278,6 @@ malloc_init(void)
 
 	if (unlikely(!malloc_initialized()) && malloc_init_hard())
 		return (true);
-	malloc_thread_init();
-
 	return (false);
 }
 
@@ -885,7 +864,6 @@ malloc_slow_flag_init(void)
 	 */
 	malloc_slow_flags |= (opt_junk_alloc ? flag_opt_junk_alloc : 0)
 	    | (opt_junk_free ? flag_opt_junk_free : 0)
-	    | (opt_quarantine ? flag_opt_quarantine : 0)
 	    | (opt_zero ? flag_opt_zero : 0)
 	    | (opt_utrace ? flag_opt_utrace : 0)
 	    | (opt_xmalloc ? flag_opt_xmalloc : 0);
@@ -1146,8 +1124,6 @@ malloc_conf_init(void)
 					}
 					continue;
 				}
-				CONF_HANDLE_SIZE_T(opt_quarantine, "quarantine",
-				    0, SIZE_T_MAX, false)
 				CONF_HANDLE_BOOL(opt_redzone, "redzone", true)
 				CONF_HANDLE_BOOL(opt_zero, "zero", true)
 			}
@@ -1761,9 +1737,9 @@ ifree(tsd_t *tsd, void *ptr, tcache_t *tcache, bool slow_path)
 		*tsd_thread_deallocatedp_get(tsd) += usize;
 
 	if (likely(!slow_path))
-		iqalloc(tsd, ptr, tcache, false);
+		idalloctm(tsd_tsdn(tsd), ptr, tcache, false, false);
 	else
-		iqalloc(tsd, ptr, tcache, true);
+		idalloctm(tsd_tsdn(tsd), ptr, tcache, false, true);
 }
 
 JEMALLOC_INLINE_C void
@@ -1779,7 +1755,11 @@ isfree(tsd_t *tsd, void *ptr, size_t usize, tcache_t *tcache, bool slow_path)
 		prof_free(tsd, ptr, usize);
 	if (config_stats)
 		*tsd_thread_deallocatedp_get(tsd) += usize;
-	isqalloc(tsd, ptr, usize, tcache, slow_path);
+
+	if (likely(!slow_path))
+		isdalloct(tsd_tsdn(tsd), ptr, usize, tcache, false);
+	else
+		isdalloct(tsd_tsdn(tsd), ptr, usize, tcache, true);
 }
 
 JEMALLOC_EXPORT JEMALLOC_ALLOCATOR JEMALLOC_RESTRICT_RETURN
@@ -1809,7 +1789,6 @@ je_realloc(void *ptr, size_t size)
 		tsd_t *tsd;
 
 		assert(malloc_initialized() || IS_INITIALIZER);
-		malloc_thread_init();
 		tsd = tsd_fetch();
 
 		witness_assert_lockless(tsd_tsdn(tsd));
@@ -2123,7 +2102,7 @@ je_mallocx(size_t size, int flags)
 }
 
 static void *
-irallocx_prof_sample(tsd_t *tsd, void *old_ptr, size_t old_usize,
+irallocx_prof_sample(tsdn_t *tsdn, void *old_ptr, size_t old_usize,
     size_t usize, size_t alignment, bool zero, tcache_t *tcache, arena_t *arena,
     prof_tctx_t *tctx)
 {
@@ -2132,13 +2111,13 @@ irallocx_prof_sample(tsd_t *tsd, void *old_ptr, size_t old_usize,
 	if (tctx == NULL)
 		return (NULL);
 	if (usize <= SMALL_MAXCLASS) {
-		p = iralloct(tsd, old_ptr, old_usize, LARGE_MINCLASS, alignment,
-		    zero, tcache, arena);
+		p = iralloct(tsdn, old_ptr, old_usize, LARGE_MINCLASS,
+		    alignment, zero, tcache, arena);
 		if (p == NULL)
 			return (NULL);
-		arena_prof_promoted(tsd_tsdn(tsd), p, usize);
+		arena_prof_promoted(tsdn, p, usize);
 	} else {
-		p = iralloct(tsd, old_ptr, old_usize, usize, alignment, zero,
+		p = iralloct(tsdn, old_ptr, old_usize, usize, alignment, zero,
 		    tcache, arena);
 	}
 
@@ -2158,11 +2137,11 @@ irallocx_prof(tsd_t *tsd, void *old_ptr, size_t old_usize, size_t size,
 	old_tctx = prof_tctx_get(tsd_tsdn(tsd), old_ptr);
 	tctx = prof_alloc_prep(tsd, *usize, prof_active, true);
 	if (unlikely((uintptr_t)tctx != (uintptr_t)1U)) {
-		p = irallocx_prof_sample(tsd, old_ptr, old_usize, *usize,
-		    alignment, zero, tcache, arena, tctx);
+		p = irallocx_prof_sample(tsd_tsdn(tsd), old_ptr, old_usize,
+		    *usize, alignment, zero, tcache, arena, tctx);
 	} else {
-		p = iralloct(tsd, old_ptr, old_usize, size, alignment, zero,
-		    tcache, arena);
+		p = iralloct(tsd_tsdn(tsd), old_ptr, old_usize, size, alignment,
+		    zero, tcache, arena);
 	}
 	if (unlikely(p == NULL)) {
 		prof_alloc_rollback(tsd, tctx, true);
@@ -2203,7 +2182,6 @@ je_rallocx(void *ptr, size_t size, int flags)
 	assert(ptr != NULL);
 	assert(size != 0);
 	assert(malloc_initialized() || IS_INITIALIZER);
-	malloc_thread_init();
 	tsd = tsd_fetch();
 	witness_assert_lockless(tsd_tsdn(tsd));
 
@@ -2234,8 +2212,8 @@ je_rallocx(void *ptr, size_t size, int flags)
 		if (unlikely(p == NULL))
 			goto label_oom;
 	} else {
-		p = iralloct(tsd, ptr, old_usize, size, alignment, zero,
-		     tcache, arena);
+		p = iralloct(tsd_tsdn(tsd), ptr, old_usize, size, alignment,
+		    zero, tcache, arena);
 		if (unlikely(p == NULL))
 			goto label_oom;
 		if (config_stats)
@@ -2349,7 +2327,6 @@ je_xallocx(void *ptr, size_t size, size_t extra, int flags)
 	assert(size != 0);
 	assert(SIZE_T_MAX - size >= extra);
 	assert(malloc_initialized() || IS_INITIALIZER);
-	malloc_thread_init();
 	tsd = tsd_fetch();
 	witness_assert_lockless(tsd_tsdn(tsd));
 
@@ -2399,7 +2376,6 @@ je_sallocx(const void *ptr, int flags)
 	tsdn_t *tsdn;
 
 	assert(malloc_initialized() || IS_INITIALIZER);
-	malloc_thread_init();
 
 	tsdn = tsdn_fetch();
 	witness_assert_lockless(tsdn);
@@ -2577,7 +2553,6 @@ je_malloc_usable_size(JEMALLOC_USABLE_SIZE_CONST void *ptr)
 	tsdn_t *tsdn;
 
 	assert(malloc_initialized() || IS_INITIALIZER);
-	malloc_thread_init();
 
 	tsdn = tsdn_fetch();
 	witness_assert_lockless(tsdn);

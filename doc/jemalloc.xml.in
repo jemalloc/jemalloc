@@ -1040,23 +1040,6 @@ for (i = 0; i < nbins; i++) {
         default.</para></listitem>
       </varlistentry>
 
-      <varlistentry id="opt.quarantine">
-        <term>
-          <mallctl>opt.quarantine</mallctl>
-          (<type>size_t</type>)
-          <literal>r-</literal>
-          [<option>--enable-fill</option>]
-        </term>
-        <listitem><para>Per thread quarantine size in bytes.  If non-zero, each
-        thread maintains a FIFO object quarantine that stores up to the
-        specified number of bytes of memory.  The quarantined memory is not
-        freed until it is released from quarantine, though it is immediately
-        junk-filled if the <link
-        linkend="opt.junk"><mallctl>opt.junk</mallctl></link> option is enabled.
-        This is intended for debugging and will impact performance negatively.
-        The default quarantine size is 0.</para></listitem>
-      </varlistentry>
-
       <varlistentry id="opt.redzone">
         <term>
           <mallctl>opt.redzone</mallctl>

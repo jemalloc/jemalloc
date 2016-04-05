@@ -551,7 +551,6 @@ extern arena_dalloc_junk_small_t *arena_dalloc_junk_small;
 #else
 void	arena_dalloc_junk_small(void *ptr, arena_bin_info_t *bin_info);
 #endif
-void	arena_quarantine_junk_small(void *ptr, size_t usize);
 void	*arena_malloc_large(tsdn_t *tsdn, arena_t *arena, szind_t ind,
     bool zero);
 void	*arena_malloc_hard(tsdn_t *tsdn, arena_t *arena, size_t size,
@@ -581,7 +580,7 @@ extern arena_ralloc_junk_large_t *arena_ralloc_junk_large;
 #endif
 bool	arena_ralloc_no_move(tsdn_t *tsdn, void *ptr, size_t oldsize,
     size_t size, size_t extra, bool zero);
-void	*arena_ralloc(tsd_t *tsd, arena_t *arena, void *ptr, size_t oldsize,
+void	*arena_ralloc(tsdn_t *tsdn, arena_t *arena, void *ptr, size_t oldsize,
     size_t size, size_t alignment, bool zero, tcache_t *tcache);
 dss_prec_t	arena_dss_prec_get(tsdn_t *tsdn, arena_t *arena);
 bool	arena_dss_prec_set(tsdn_t *tsdn, arena_t *arena, dss_prec_t dss_prec);

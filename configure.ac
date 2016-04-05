@@ -946,7 +946,7 @@ fi
 dnl Support the junk/zero filling option by default.
 AC_ARG_ENABLE([fill],
   [AS_HELP_STRING([--disable-fill],
-                  [Disable support for junk/zero filling, quarantine, and redzones])],
+                  [Disable support for junk/zero filling and redzones])],
 [if test "x$enable_fill" = "xno" ; then
   enable_fill="0"
 else

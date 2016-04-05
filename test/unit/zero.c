@@ -2,7 +2,7 @@
 
 #ifdef JEMALLOC_FILL
 const char *malloc_conf =
-    "abort:false,junk:false,zero:true,redzone:false,quarantine:0";
+    "abort:false,junk:false,zero:true,redzone:false";
 #endif
 
 static void

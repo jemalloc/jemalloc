@@ -572,7 +572,6 @@ struct tsd_init_head_s {
     O(narenas_tdata,		unsigned)				\
     O(arenas_tdata_bypass,	bool)					\
     O(tcache_enabled,		tcache_enabled_t)			\
-    O(quarantine,		quarantine_t *)				\
     O(witnesses,		witness_list_t)				\
     O(witness_fork,		bool)					\
 
@@ -588,7 +587,6 @@ struct tsd_init_head_s {
     0,									\
     false,								\
     tcache_enabled_default,						\
-    NULL,								\
     ql_head_initializer(witnesses),					\
     false								\
 }
