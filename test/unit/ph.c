@@ -19,32 +19,14 @@ TEST_END
 TEST_BEGIN(test_ph_random)
 {
 #define	NNODES 25
-#define	NBAGS 250
 #define	SEED 42
 	sfmt_t *sfmt;
-	uint64_t bag[NNODES];
 	ph_heap_t heap;
 	node_t nodes[NNODES];
 	unsigned i, j, k;
 
 	sfmt = init_gen_rand(SEED);
-	for (i = 0; i < NBAGS; i++) {
-		switch (i) {
-		case 0:
-			/* Insert in order. */
-			for (j = 0; j < NNODES; j++)
-				bag[j] = j;
-			break;
-		case 1:
-			/* Insert in reverse order. */
-			for (j = 0; j < NNODES; j++)
-				bag[j] = NNODES - j - 1;
-			break;
-		default:
-			for (j = 0; j < NNODES; j++)
-				bag[j] = gen_rand64_range(sfmt, NNODES);
-		}
-
+	for (i = 0; i < 2; i++) {
 		for (j = 1; j <= NNODES; j++) {
 			/* Initialize heap and nodes. */
 			ph_new(&heap);
@@ -77,7 +59,6 @@ TEST_BEGIN(test_ph_random)
 	}
 	fini_gen_rand(sfmt);
 #undef NNODES
-#undef NBAGS
 #undef SEED
 }
 TEST_END
