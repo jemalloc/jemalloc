@@ -2500,7 +2500,7 @@ arena_palloc_large(tsd_t *tsd, arena_t *arena, size_t usize, size_t alignment,
 		return (NULL);
 
 	alignment = PAGE_CEILING(alignment);
-	alloc_size = usize + large_pad + alignment - PAGE;
+	alloc_size = usize + large_pad + alignment;
 
 	malloc_mutex_lock(&arena->lock);
 	run = arena_run_alloc_large(arena, alloc_size, false);
