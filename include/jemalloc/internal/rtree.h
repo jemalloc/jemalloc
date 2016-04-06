@@ -15,35 +15,10 @@ typedef struct rtree_s rtree_t;
  * machine address width.
  */
 #define	LG_RTREE_BITS_PER_LEVEL	4
-#define	RTREE_BITS_PER_LEVEL	(ZU(1) << LG_RTREE_BITS_PER_LEVEL)
-/*
- * Avoid math in RTREE_HEIGHT_MAX definition so that it can be used in cpp
- * conditionals.  The following defininitions are precomputed equivalents to:
- *
- *  #define	RTREE_HEIGHT_MAX					\
- *      ((ZU(1) << (LG_SIZEOF_PTR+3)) / RTREE_BITS_PER_LEVEL)
- */
-#if LG_RTREE_BITS_PER_LEVEL == 2
-#  if LG_SIZEOF_PTR == 3
-#    define RTREE_HEIGHT_MAX	16
-#  elif LG_SIZEOF_PTR == 2
-#    define RTREE_HEIGHT_MAX	8
-#  endif
-#elif LG_RTREE_BITS_PER_LEVEL == 3
-#  if LG_SIZEOF_PTR == 3
-#    define RTREE_HEIGHT_MAX	8
-#  elif LG_SIZEOF_PTR == 2
-#    define RTREE_HEIGHT_MAX	4
-#  endif
-#elif LG_RTREE_BITS_PER_LEVEL == 4
-#  if LG_SIZEOF_PTR == 3
-#    define RTREE_HEIGHT_MAX	4
-#  elif LG_SIZEOF_PTR == 2
-#    define RTREE_HEIGHT_MAX	2
-#  endif
-#else
-#  error Unsupported LG_RTREE_BITS_PER_LEVEL
-#endif
+#define	RTREE_BITS_PER_LEVEL	(1U << LG_RTREE_BITS_PER_LEVEL)
+/* Maximum rtree height. */
+#define	RTREE_HEIGHT_MAX						\
+    ((1U << (LG_SIZEOF_PTR+3)) / RTREE_BITS_PER_LEVEL)
 
 /* Used for two-stage lock-free node initialization. */
 #define	RTREE_NODE_INITIALIZING	((rtree_node_elm_t *)0x1)
