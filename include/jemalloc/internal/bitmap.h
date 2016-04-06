@@ -223,7 +223,7 @@ bitmap_sfu(bitmap_t *bitmap, const bitmap_info_t *binfo)
 		i++;
 		g = bitmap[i];
 	}
-	bit = (bit - 1) + (i << 6);
+	bit = (bit - 1) + (i << LG_BITMAP_GROUP_NBITS);
 #endif
 	bitmap_set(bitmap, binfo, bit);
 	return (bit);
