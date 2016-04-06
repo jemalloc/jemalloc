@@ -314,8 +314,8 @@ arena_run_reg_alloc(arena_run_t *run, arena_bin_info_t *bin_info)
 	regind = (unsigned)bitmap_sfu(run->bitmap, &bin_info->bitmap_info);
 	miscelm = arena_run_to_miscelm(run);
 	rpages = arena_miscelm_to_rpages(miscelm);
-	ret = (void *)((uintptr_t)rpages + (uintptr_t)bin_info->reg0_offset +
-	    (uintptr_t)(bin_info->reg_interval * regind));
+	ret = (void *)((uintptr_t)rpages + (uintptr_t)(bin_info->reg_size *
+	    regind));
 	run->nfree--;
 	return (ret);
 }
@@ -333,12 +333,10 @@ arena_run_reg_dalloc(arena_run_t *run, void *ptr)
 	assert(run->nfree < bin_info->nregs);
 	/* Freeing an interior pointer can cause assertion failure. */
 	assert(((uintptr_t)ptr -
-	    ((uintptr_t)arena_miscelm_to_rpages(arena_run_to_miscelm(run)) +
-	    (uintptr_t)bin_info->reg0_offset)) %
-	    (uintptr_t)bin_info->reg_interval == 0);
+	    (uintptr_t)arena_miscelm_to_rpages(arena_run_to_miscelm(run))) %
+	    (uintptr_t)bin_info->reg_size == 0);
 	assert((uintptr_t)ptr >=
-	    (uintptr_t)arena_miscelm_to_rpages(arena_run_to_miscelm(run)) +
-	    (uintptr_t)bin_info->reg0_offset);
+	    (uintptr_t)arena_miscelm_to_rpages(arena_run_to_miscelm(run)));
 	/* Freeing an unallocated pointer can cause assertion failure. */
 	assert(bitmap_get(run->bitmap, &bin_info->bitmap_info, regind));
 
@@ -2395,73 +2393,8 @@ void
 arena_alloc_junk_small(void *ptr, arena_bin_info_t *bin_info, bool zero)
 {
 
-	size_t redzone_size = bin_info->redzone_size;
-
-	if (zero) {
-		memset((void *)((uintptr_t)ptr - redzone_size),
-		    JEMALLOC_ALLOC_JUNK, redzone_size);
-		memset((void *)((uintptr_t)ptr + bin_info->reg_size),
-		    JEMALLOC_ALLOC_JUNK, redzone_size);
-	} else {
-		memset((void *)((uintptr_t)ptr - redzone_size),
-		    JEMALLOC_ALLOC_JUNK, bin_info->reg_interval);
-	}
-}
-
-#ifdef JEMALLOC_JET
-#undef arena_redzone_corruption
-#define	arena_redzone_corruption JEMALLOC_N(n_arena_redzone_corruption)
-#endif
-static void
-arena_redzone_corruption(void *ptr, size_t usize, bool after,
-    size_t offset, uint8_t byte)
-{
-
-	malloc_printf("<jemalloc>: Corrupt redzone %zu byte%s %s %p "
-	    "(size %zu), byte=%#x\n", offset, (offset == 1) ? "" : "s",
-	    after ? "after" : "before", ptr, usize, byte);
-}
-#ifdef JEMALLOC_JET
-#undef arena_redzone_corruption
-#define	arena_redzone_corruption JEMALLOC_N(arena_redzone_corruption)
-arena_redzone_corruption_t *arena_redzone_corruption =
-    JEMALLOC_N(n_arena_redzone_corruption);
-#endif
-
-static void
-arena_redzones_validate(void *ptr, arena_bin_info_t *bin_info, bool reset)
-{
-	bool error = false;
-
-	if (opt_junk_alloc) {
-		size_t size = bin_info->reg_size;
-		size_t redzone_size = bin_info->redzone_size;
-		size_t i;
-
-		for (i = 1; i <= redzone_size; i++) {
-			uint8_t *byte = (uint8_t *)((uintptr_t)ptr - i);
-			if (*byte != JEMALLOC_ALLOC_JUNK) {
-				error = true;
-				arena_redzone_corruption(ptr, size, false, i,
-				    *byte);
-				if (reset)
-					*byte = JEMALLOC_ALLOC_JUNK;
-			}
-		}
-		for (i = 0; i < redzone_size; i++) {
-			uint8_t *byte = (uint8_t *)((uintptr_t)ptr + size + i);
-			if (*byte != JEMALLOC_ALLOC_JUNK) {
-				error = true;
-				arena_redzone_corruption(ptr, size, true, i,
-				    *byte);
-				if (reset)
-					*byte = JEMALLOC_ALLOC_JUNK;
-			}
-		}
-	}
-
-	if (opt_abort && error)
-		abort();
+	if (!zero)
+		memset(ptr, JEMALLOC_ALLOC_JUNK, bin_info->reg_size);
 }
 
 #ifdef JEMALLOC_JET
@@ -2471,11 +2404,8 @@ arena_redzones_validate(void *ptr, arena_bin_info_t *bin_info, bool reset)
 void
 arena_dalloc_junk_small(void *ptr, arena_bin_info_t *bin_info)
 {
-	size_t redzone_size = bin_info->redzone_size;
 
-	arena_redzones_validate(ptr, bin_info, false);
-	memset((void *)((uintptr_t)ptr - redzone_size), JEMALLOC_FREE_JUNK,
-	    bin_info->reg_interval);
+	memset(ptr, JEMALLOC_FREE_JUNK, bin_info->reg_size);
 }
 #ifdef JEMALLOC_JET
 #undef arena_dalloc_junk_small
@@ -3559,43 +3489,16 @@ arena_new(tsdn_t *tsdn, unsigned ind)
  *   *) bin_info->run_size <= arena_maxrun
  *   *) bin_info->nregs <= RUN_MAXREGS
  *
- * bin_info->nregs and bin_info->reg0_offset are also calculated here, since
- * these settings are all interdependent.
+ * bin_info->nregs is also calculated here, since these settings are all
+ * interdependent.
  */
 static void
 bin_info_run_size_calc(arena_bin_info_t *bin_info)
 {
-	size_t pad_size;
 	size_t try_run_size, perfect_run_size, actual_run_size;
 	uint32_t try_nregs, perfect_nregs, actual_nregs;
 
-	/*
-	 * Determine redzone size based on minimum alignment and minimum
-	 * redzone size.  Add padding to the end of the run if it is needed to
-	 * align the regions.  The padding allows each redzone to be half the
-	 * minimum alignment; without the padding, each redzone would have to
-	 * be twice as large in order to maintain alignment.
-	 */
-	if (config_fill && unlikely(opt_redzone)) {
-		size_t align_min = ZU(1) << (ffs_zu(bin_info->reg_size) - 1);
-		if (align_min <= REDZONE_MINSIZE) {
-			bin_info->redzone_size = REDZONE_MINSIZE;
-			pad_size = 0;
-		} else {
-			bin_info->redzone_size = align_min >> 1;
-			pad_size = bin_info->redzone_size;
-		}
-	} else {
-		bin_info->redzone_size = 0;
-		pad_size = 0;
-	}
-	bin_info->reg_interval = bin_info->reg_size +
-	    (bin_info->redzone_size << 1);
-
-	/*
-	 * Compute run size under ideal conditions (no redzones, no limit on run
-	 * size).
-	 */
+	/* Compute smallest run size that is an integer multiple of reg_size. */
 	try_run_size = PAGE;
 	try_nregs = (uint32_t)(try_run_size / bin_info->reg_size);
 	do {
@@ -3605,48 +3508,18 @@ bin_info_run_size_calc(arena_bin_info_t *bin_info)
 		try_run_size += PAGE;
 		try_nregs = (uint32_t)(try_run_size / bin_info->reg_size);
 	} while (perfect_run_size != perfect_nregs * bin_info->reg_size);
+	assert(perfect_run_size <= arena_maxrun);
 	assert(perfect_nregs <= RUN_MAXREGS);
 
 	actual_run_size = perfect_run_size;
-	actual_nregs = (uint32_t)((actual_run_size - pad_size) /
-	    bin_info->reg_interval);
-
-	/*
-	 * Redzones can require enough padding that not even a single region can
-	 * fit within the number of pages that would normally be dedicated to a
-	 * run for this size class.  Increase the run size until at least one
-	 * region fits.
-	 */
-	while (actual_nregs == 0) {
-		assert(config_fill && unlikely(opt_redzone));
-
-		actual_run_size += PAGE;
-		actual_nregs = (uint32_t)((actual_run_size - pad_size) /
-		    bin_info->reg_interval);
-	}
-
-	/*
-	 * Make sure that the run will fit within an arena chunk.
-	 */
-	while (actual_run_size > arena_maxrun) {
-		actual_run_size -= PAGE;
-		actual_nregs = (uint32_t)((actual_run_size - pad_size) /
-		    bin_info->reg_interval);
-	}
-	assert(actual_nregs > 0);
-	assert(actual_run_size == s2u(actual_run_size));
+	actual_nregs = (uint32_t)((actual_run_size) / bin_info->reg_size);
 
 	/* Copy final settings. */
 	bin_info->run_size = actual_run_size;
 	bin_info->nregs = actual_nregs;
-	bin_info->reg0_offset = (uint32_t)(actual_run_size - (actual_nregs *
-	    bin_info->reg_interval) - pad_size + bin_info->redzone_size);
 
 	if (actual_run_size > small_maxrun)
 		small_maxrun = actual_run_size;
-
-	assert(bin_info->reg0_offset - bin_info->redzone_size + (bin_info->nregs
-	    * bin_info->reg_interval) + pad_size == bin_info->run_size);
 }
 
 static void

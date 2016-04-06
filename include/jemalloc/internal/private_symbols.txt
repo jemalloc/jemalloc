@@ -103,7 +103,6 @@ arena_ralloc
 arena_ralloc_junk_large
 arena_ralloc_no_move
 arena_rd_to_miscelm
-arena_redzone_corruption
 arena_reset
 arena_run_regind
 arena_run_to_miscelm
@@ -382,13 +381,11 @@ opt_prof_leak
 opt_prof_prefix
 opt_prof_thread_active_init
 opt_purge
-opt_redzone
 opt_stats_print
 opt_tcache
 opt_utrace
 opt_xmalloc
 opt_zero
-p2rz
 pages_boot
 pages_commit
 pages_decommit
@@ -578,7 +575,6 @@ tsd_witnessesp_get
 tsdn_fetch
 tsdn_null
 tsdn_tsd
-u2rz
 witness_assert_lockless
 witness_assert_not_owner
 witness_assert_owner

@@ -8,12 +8,6 @@
 #define	RUN_MAXREGS		(1U << LG_RUN_MAXREGS)
 
 /*
- * Minimum redzone size.  Redzones may be larger than this if necessary to
- * preserve region alignment.
- */
-#define	REDZONE_MINSIZE		16
-
-/*
  * The minimum ratio of active:dirty pages per arena is computed as:
  *
  *   (nactive >> lg_dirty_mult) >= ndirty
@@ -205,41 +199,21 @@ struct arena_chunk_s {
  *
  * Each run has the following layout:
  *
- *               /--------------------\
- *               | pad?               |
- *               |--------------------|
- *               | redzone            |
- *   reg0_offset | region 0           |
- *               | redzone            |
- *               |--------------------| \
- *               | redzone            | |
- *               | region 1           |  > reg_interval
- *               | redzone            | /
- *               |--------------------|
- *               | ...                |
- *               | ...                |
- *               | ...                |
- *               |--------------------|
- *               | redzone            |
- *               | region nregs-1     |
- *               | redzone            |
- *               |--------------------|
- *               | alignment pad?     |
- *               \--------------------/
- *
- * reg_interval has at least the same minimum alignment as reg_size; this
- * preserves the alignment constraint that sa2u() depends on.  Alignment pad is
- * either 0 or redzone_size; it is present only if needed to align reg0_offset.
+ *   /--------------------\
+ *   | region 0           |
+ *   |--------------------|
+ *   | region 1           |
+ *   |--------------------|
+ *   | ...                |
+ *   | ...                |
+ *   | ...                |
+ *   |--------------------|
+ *   | region nregs-1     |
+ *   \--------------------/
  */
 struct arena_bin_info_s {
 	/* Size of regions in a run for this bin's size class. */
 	size_t			reg_size;
-
-	/* Redzone size. */
-	size_t			redzone_size;
-
-	/* Interval between regions (reg_size + (redzone_size << 1)). */
-	size_t			reg_interval;
 
 	/* Total size of a run for this bin's size class. */
 	size_t			run_size;
@@ -252,9 +226,6 @@ struct arena_bin_info_s {
 	 * bin.
 	 */
 	bitmap_info_t		bitmap_info;
-
-	/* Offset of first region in a run for this bin's size class. */
-	uint32_t		reg0_offset;
 };
 
 struct arena_bin_s {
@@ -543,9 +514,6 @@ void	arena_tcache_fill_small(tsdn_t *tsdn, arena_t *arena,
 void	arena_alloc_junk_small(void *ptr, arena_bin_info_t *bin_info,
     bool zero);
 #ifdef JEMALLOC_JET
-typedef void (arena_redzone_corruption_t)(void *, size_t, bool, size_t,
-    uint8_t);
-extern arena_redzone_corruption_t *arena_redzone_corruption;
 typedef void (arena_dalloc_junk_small_t)(void *, arena_bin_info_t *);
 extern arena_dalloc_junk_small_t *arena_dalloc_junk_small;
 #else
@@ -1113,8 +1081,7 @@ arena_ptr_small_binind_get(const void *ptr, size_t mapbits)
 		assert(run_binind == actual_binind);
 		bin_info = &arena_bin_info[actual_binind];
 		rpages = arena_miscelm_to_rpages(miscelm);
-		assert(((uintptr_t)ptr - ((uintptr_t)rpages +
-		    (uintptr_t)bin_info->reg0_offset)) % bin_info->reg_interval
+		assert(((uintptr_t)ptr - (uintptr_t)rpages) % bin_info->reg_size
 		    == 0);
 	}
 
@@ -1142,18 +1109,16 @@ arena_run_regind(arena_run_t *run, arena_bin_info_t *bin_info, const void *ptr)
 	 * Freeing a pointer lower than region zero can cause assertion
 	 * failure.
 	 */
-	assert((uintptr_t)ptr >= (uintptr_t)rpages +
-	    (uintptr_t)bin_info->reg0_offset);
+	assert((uintptr_t)ptr >= (uintptr_t)rpages);
 
 	/*
 	 * Avoid doing division with a variable divisor if possible.  Using
 	 * actual division here can reduce allocator throughput by over 20%!
 	 */
-	diff = (size_t)((uintptr_t)ptr - (uintptr_t)rpages -
-	    bin_info->reg0_offset);
+	diff = (size_t)((uintptr_t)ptr - (uintptr_t)rpages);
 
 	/* Rescale (factor powers of 2 out of the numerator and denominator). */
-	interval = bin_info->reg_interval;
+	interval = bin_info->reg_size;
 	shift = ffs_zu(interval) - 1;
 	diff >>= shift;
 	interval >>= shift;

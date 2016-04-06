@@ -423,7 +423,6 @@ extern bool	opt_abort;
 extern const char	*opt_junk;
 extern bool	opt_junk_alloc;
 extern bool	opt_junk_free;
-extern bool	opt_redzone;
 extern bool	opt_utrace;
 extern bool	opt_xmalloc;
 extern bool	opt_zero;
@@ -888,8 +887,6 @@ void	*ipalloct(tsdn_t *tsdn, size_t usize, size_t alignment, bool zero,
     tcache_t *tcache, arena_t *arena);
 void	*ipalloc(tsd_t *tsd, size_t usize, size_t alignment, bool zero);
 size_t	ivsalloc(tsdn_t *tsdn, const void *ptr, bool demote);
-size_t	u2rz(size_t usize);
-size_t	p2rz(tsdn_t *tsdn, const void *ptr);
 void	idalloctm(tsdn_t *tsdn, void *ptr, tcache_t *tcache, bool is_metadata,
     bool slow_path);
 void	idalloc(tsd_t *tsd, void *ptr);
@@ -1009,28 +1006,6 @@ ivsalloc(tsdn_t *tsdn, const void *ptr, bool demote)
 	    extent_node_achunk_get(node));
 
 	return (isalloc(tsdn, ptr, demote));
-}
-
-JEMALLOC_INLINE size_t
-u2rz(size_t usize)
-{
-	size_t ret;
-
-	if (usize <= SMALL_MAXCLASS) {
-		szind_t binind = size2index(usize);
-		ret = arena_bin_info[binind].redzone_size;
-	} else
-		ret = 0;
-
-	return (ret);
-}
-
-JEMALLOC_INLINE size_t
-p2rz(tsdn_t *tsdn, const void *ptr)
-{
-	size_t usize = isalloc(tsdn, ptr, false);
-
-	return (u2rz(usize));
 }
 
 JEMALLOC_ALWAYS_INLINE void

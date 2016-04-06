@@ -35,7 +35,6 @@ bool	opt_junk_free =
 #endif
     ;
 
-bool	opt_redzone = false;
 bool	opt_utrace = false;
 bool	opt_xmalloc = false;
 bool	opt_zero = false;
@@ -1040,16 +1039,15 @@ malloc_conf_init(void)
 
 			CONF_HANDLE_BOOL(opt_abort, "abort", true)
 			/*
-			 * Chunks always require at least one header page,
-			 * as many as 2^(LG_SIZE_CLASS_GROUP+1) data pages, and
-			 * possibly an additional page in the presence of
-			 * redzones.  In order to simplify options processing,
-			 * use a conservative bound that accommodates all these
+			 * Chunks always require at least one header page and as
+			 * many as 2^(LG_SIZE_CLASS_GROUP+1) data pages.  In
+			 * order to simplify options processing, use a
+			 * conservative bound that accommodates all these
 			 * constraints.
 			 */
 			CONF_HANDLE_SIZE_T(opt_lg_chunk, "lg_chunk", LG_PAGE +
-			    LG_SIZE_CLASS_GROUP + (config_fill ? 2 : 1),
-			    (sizeof(size_t) << 3) - 1, true)
+			    LG_SIZE_CLASS_GROUP + 1, (sizeof(size_t) << 3) - 1,
+			    true)
 			if (strncmp("dss", k, klen) == 0) {
 				int i;
 				bool match = false;
@@ -1124,7 +1122,6 @@ malloc_conf_init(void)
 					}
 					continue;
 				}
-				CONF_HANDLE_BOOL(opt_redzone, "redzone", true)
 				CONF_HANDLE_BOOL(opt_zero, "zero", true)
 			}
 			if (config_utrace) {

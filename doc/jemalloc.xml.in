@@ -1040,21 +1040,6 @@ for (i = 0; i < nbins; i++) {
         default.</para></listitem>
       </varlistentry>
 
-      <varlistentry id="opt.redzone">
-        <term>
-          <mallctl>opt.redzone</mallctl>
-          (<type>bool</type>)
-          <literal>r-</literal>
-          [<option>--enable-fill</option>]
-        </term>
-        <listitem><para>Redzones enabled/disabled.  If enabled, small
-        allocations have redzones before and after them.  Furthermore, if the
-        <link linkend="opt.junk"><mallctl>opt.junk</mallctl></link> option is
-        enabled, the redzones are checked for corruption during deallocation.
-        This option is intended for debugging and will impact performance
-        negatively.  This option is disabled by default.</para></listitem>
-      </varlistentry>
-
       <varlistentry id="opt.zero">
         <term>
           <mallctl>opt.zero</mallctl>

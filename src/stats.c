@@ -513,7 +513,6 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 			OPT_WRITE_SSIZE_T_MUTABLE(decay_time, arenas.decay_time)
 		OPT_WRITE_BOOL(stats_print)
 		OPT_WRITE_CHAR_P(junk)
-		OPT_WRITE_BOOL(redzone)
 		OPT_WRITE_BOOL(zero)
 		OPT_WRITE_BOOL(utrace)
 		OPT_WRITE_BOOL(xmalloc)

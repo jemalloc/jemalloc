@@ -5,7 +5,7 @@
 #    define JEMALLOC_TEST_JUNK_OPT "junk:true"
 #  endif
 const char *malloc_conf =
-    "abort:false,zero:false,redzone:true," JEMALLOC_TEST_JUNK_OPT;
+    "abort:false,zero:false," JEMALLOC_TEST_JUNK_OPT;
 #endif
 
 static arena_dalloc_junk_small_t *arena_dalloc_junk_small_orig;
@@ -197,49 +197,6 @@ TEST_BEGIN(test_junk_large_ralloc_shrink)
 }
 TEST_END
 
-static bool detected_redzone_corruption;
-
-static void
-arena_redzone_corruption_replacement(void *ptr, size_t usize, bool after,
-    size_t offset, uint8_t byte)
-{
-
-	detected_redzone_corruption = true;
-}
-
-TEST_BEGIN(test_junk_redzone)
-{
-	char *s;
-	arena_redzone_corruption_t *arena_redzone_corruption_orig;
-
-	test_skip_if(!config_fill);
-	test_skip_if(!opt_junk_alloc || !opt_junk_free);
-
-	arena_redzone_corruption_orig = arena_redzone_corruption;
-	arena_redzone_corruption = arena_redzone_corruption_replacement;
-
-	/* Test underflow. */
-	detected_redzone_corruption = false;
-	s = (char *)mallocx(1, 0);
-	assert_ptr_not_null((void *)s, "Unexpected mallocx() failure");
-	s[-1] = 0xbb;
-	dallocx(s, 0);
-	assert_true(detected_redzone_corruption,
-	    "Did not detect redzone corruption");
-
-	/* Test overflow. */
-	detected_redzone_corruption = false;
-	s = (char *)mallocx(1, 0);
-	assert_ptr_not_null((void *)s, "Unexpected mallocx() failure");
-	s[sallocx(s, 0)] = 0xbb;
-	dallocx(s, 0);
-	assert_true(detected_redzone_corruption,
-	    "Did not detect redzone corruption");
-
-	arena_redzone_corruption = arena_redzone_corruption_orig;
-}
-TEST_END
-
 int
 main(void)
 {
@@ -248,6 +205,5 @@ main(void)
 	    test_junk_small,
 	    test_junk_large,
 	    test_junk_huge,
-	    test_junk_large_ralloc_shrink,
-	    test_junk_redzone));
+	    test_junk_large_ralloc_shrink));
 }
