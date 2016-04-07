@@ -15,14 +15,25 @@ static ssize_t	lg_dirty_mult_default;
 ssize_t		opt_decay_time = DECAY_TIME_DEFAULT;
 static ssize_t	decay_time_default;
 
-arena_bin_info_t	arena_bin_info[NBINS];
+const arena_bin_info_t	arena_bin_info[NBINS] = {
+#define	BIN_INFO_bin_yes(reg_size, run_size, nregs)			\
+	{reg_size, run_size, nregs, BITMAP_INFO_INITIALIZER(nregs)},
+#define	BIN_INFO_bin_no(reg_size, run_size, nregs)
+#define	SC(index, lg_grp, lg_delta, ndelta, bin, pgs, lg_delta_lookup)	\
+	BIN_INFO_bin_##bin((1U<<lg_grp) + (ndelta<<lg_delta),		\
+	    (pgs << LG_PAGE), (pgs << LG_PAGE) / ((1U<<lg_grp) +	\
+	    (ndelta<<lg_delta)))
+	SIZE_CLASSES
+#undef BIN_INFO_bin_yes
+#undef BIN_INFO_bin_no
+#undef SC
+};
 
 size_t		map_bias;
 size_t		map_misc_offset;
 size_t		arena_maxrun; /* Max run size for arenas. */
 size_t		large_maxclass; /* Max large size class. */
 size_t		run_quantize_max; /* Max run_quantize_*() input. */
-static size_t	small_maxrun; /* Max run size for small size classes. */
 static bool	*small_run_tab; /* Valid small run page multiples. */
 static size_t	*run_quantize_floor_tab; /* run_quantize_floor() memoization. */
 static size_t	*run_quantize_ceil_tab; /* run_quantize_ceil() memoization. */
@@ -86,7 +97,8 @@ run_quantize_floor_compute(size_t size)
 	assert(size == PAGE_CEILING(size));
 
 	/* Don't change sizes that are valid small run sizes. */
-	if (size <= small_maxrun && small_run_tab[size >> LG_PAGE])
+	if (size <= (ZU(SLAB_MAXPGS) << LG_PAGE) && small_run_tab[size >>
+	    LG_PAGE])
 		return (size);
 
 	/*
@@ -121,12 +133,12 @@ run_quantize_ceil_compute_hard(size_t size)
 		    large_pad) + 1) + large_pad);
 	} else
 		large_run_size_next = SIZE_T_MAX;
-	if (size >= small_maxrun)
+	if ((size >> LG_PAGE) >= ZU(SLAB_MAXPGS))
 		return (large_run_size_next);
 
 	while (true) {
 		size += PAGE;
-		assert(size <= small_maxrun);
+		assert(size <= (ZU(SLAB_MAXPGS) << LG_PAGE));
 		if (small_run_tab[size >> LG_PAGE]) {
 			if (large_run_size_next < size)
 				return (large_run_size_next);
@@ -301,7 +313,7 @@ arena_chunk_cache_maybe_remove(arena_t *arena, extent_node_t *node, bool dirty)
 }
 
 JEMALLOC_INLINE_C void *
-arena_run_reg_alloc(arena_run_t *run, arena_bin_info_t *bin_info)
+arena_run_reg_alloc(arena_run_t *run, const arena_bin_info_t *bin_info)
 {
 	void *ret;
 	size_t regind;
@@ -327,7 +339,7 @@ arena_run_reg_dalloc(arena_run_t *run, void *ptr)
 	size_t pageind = ((uintptr_t)ptr - (uintptr_t)chunk) >> LG_PAGE;
 	size_t mapbits = arena_mapbits_get(chunk, pageind);
 	szind_t binind = arena_ptr_small_binind_get(ptr, mapbits);
-	arena_bin_info_t *bin_info = &arena_bin_info[binind];
+	const arena_bin_info_t *bin_info = &arena_bin_info[binind];
 	size_t regind = arena_run_regind(run, bin_info, ptr);
 
 	assert(run->nfree < bin_info->nregs);
@@ -1822,7 +1834,7 @@ arena_achunk_prof_reset(tsd_t *tsd, arena_t *arena, arena_chunk_t *chunk)
 				/* Skip small run. */
 				size_t binind = arena_mapbits_binind_get(chunk,
 				    pageind);
-				arena_bin_info_t *bin_info =
+				const arena_bin_info_t *bin_info =
 				    &arena_bin_info[binind];
 				npages = bin_info->run_size >> LG_PAGE;
 			}
@@ -2045,7 +2057,7 @@ arena_run_size_get(arena_t *arena, arena_chunk_t *chunk, arena_run_t *run,
 		assert(size == PAGE || arena_mapbits_large_size_get(chunk,
 		    run_ind+(size>>LG_PAGE)-1) == 0);
 	} else {
-		arena_bin_info_t *bin_info = &arena_bin_info[run->binind];
+		const arena_bin_info_t *bin_info = &arena_bin_info[run->binind];
 		size = bin_info->run_size;
 	}
 
@@ -2241,7 +2253,7 @@ arena_bin_nonfull_run_get(tsdn_t *tsdn, arena_t *arena, arena_bin_t *bin)
 {
 	arena_run_t *run;
 	szind_t binind;
-	arena_bin_info_t *bin_info;
+	const arena_bin_info_t *bin_info;
 
 	/* Look for a usable run. */
 	run = arena_bin_nonfull_run_tryget(bin);
@@ -2291,7 +2303,7 @@ static void *
 arena_bin_malloc_hard(tsdn_t *tsdn, arena_t *arena, arena_bin_t *bin)
 {
 	szind_t binind;
-	arena_bin_info_t *bin_info;
+	const arena_bin_info_t *bin_info;
 	arena_run_t *run;
 
 	binind = arena_bin_index(arena, bin);
@@ -2390,7 +2402,7 @@ arena_tcache_fill_small(tsdn_t *tsdn, arena_t *arena, tcache_bin_t *tbin,
 }
 
 void
-arena_alloc_junk_small(void *ptr, arena_bin_info_t *bin_info, bool zero)
+arena_alloc_junk_small(void *ptr, const arena_bin_info_t *bin_info, bool zero)
 {
 
 	if (!zero)
@@ -2402,7 +2414,7 @@ arena_alloc_junk_small(void *ptr, arena_bin_info_t *bin_info, bool zero)
 #define	arena_dalloc_junk_small JEMALLOC_N(n_arena_dalloc_junk_small)
 #endif
 void
-arena_dalloc_junk_small(void *ptr, arena_bin_info_t *bin_info)
+arena_dalloc_junk_small(void *ptr, const arena_bin_info_t *bin_info)
 {
 
 	memset(ptr, JEMALLOC_FREE_JUNK, bin_info->reg_size);
@@ -2706,7 +2718,7 @@ arena_dissociate_bin_run(arena_chunk_t *chunk, arena_run_t *run,
 	else {
 		szind_t binind = arena_bin_index(extent_node_arena_get(
 		    &chunk->node), bin);
-		arena_bin_info_t *bin_info = &arena_bin_info[binind];
+		const arena_bin_info_t *bin_info = &arena_bin_info[binind];
 
 		/*
 		 * The following block's conditional is necessary because if the
@@ -2768,7 +2780,7 @@ arena_dalloc_bin_locked_impl(tsdn_t *tsdn, arena_t *arena, arena_chunk_t *chunk,
 	size_t pageind, rpages_ind;
 	arena_run_t *run;
 	arena_bin_t *bin;
-	arena_bin_info_t *bin_info;
+	const arena_bin_info_t *bin_info;
 	szind_t binind;
 
 	pageind = ((uintptr_t)ptr - (uintptr_t)chunk) >> LG_PAGE;
@@ -3483,81 +3495,24 @@ arena_new(tsdn_t *tsdn, unsigned ind)
 	return (arena);
 }
 
-/*
- * Calculate bin_info->run_size such that it meets the following constraints:
- *
- *   *) bin_info->run_size <= arena_maxrun
- *   *) bin_info->nregs <= RUN_MAXREGS
- *
- * bin_info->nregs is also calculated here, since these settings are all
- * interdependent.
- */
-static void
-bin_info_run_size_calc(arena_bin_info_t *bin_info)
-{
-	size_t try_run_size, perfect_run_size, actual_run_size;
-	uint32_t try_nregs, perfect_nregs, actual_nregs;
-
-	/* Compute smallest run size that is an integer multiple of reg_size. */
-	try_run_size = PAGE;
-	try_nregs = (uint32_t)(try_run_size / bin_info->reg_size);
-	do {
-		perfect_run_size = try_run_size;
-		perfect_nregs = try_nregs;
-
-		try_run_size += PAGE;
-		try_nregs = (uint32_t)(try_run_size / bin_info->reg_size);
-	} while (perfect_run_size != perfect_nregs * bin_info->reg_size);
-	assert(perfect_run_size <= arena_maxrun);
-	assert(perfect_nregs <= RUN_MAXREGS);
-
-	actual_run_size = perfect_run_size;
-	actual_nregs = (uint32_t)((actual_run_size) / bin_info->reg_size);
-
-	/* Copy final settings. */
-	bin_info->run_size = actual_run_size;
-	bin_info->nregs = actual_nregs;
-
-	if (actual_run_size > small_maxrun)
-		small_maxrun = actual_run_size;
-}
-
-static void
-bin_info_init(void)
-{
-	arena_bin_info_t *bin_info;
-
-#define	BIN_INFO_INIT_bin_yes(index, size)				\
-	bin_info = &arena_bin_info[index];				\
-	bin_info->reg_size = size;					\
-	bin_info_run_size_calc(bin_info);				\
-	bitmap_info_init(&bin_info->bitmap_info, bin_info->nregs);
-#define	BIN_INFO_INIT_bin_no(index, size)
-#define	SC(index, lg_grp, lg_delta, ndelta, bin, lg_delta_lookup)	\
-	BIN_INFO_INIT_bin_##bin(index, (ZU(1)<<lg_grp) + (ZU(ndelta)<<lg_delta))
-	SIZE_CLASSES
-#undef BIN_INFO_INIT_bin_yes
-#undef BIN_INFO_INIT_bin_no
-#undef SC
-}
-
 static bool
 small_run_size_init(void)
 {
 
-	assert(small_maxrun != 0);
+	assert(SLAB_MAXPGS != 0);
 
-	small_run_tab = (bool *)base_alloc(NULL, sizeof(bool) * (small_maxrun >>
-	    LG_PAGE));
+	small_run_tab = (bool *)base_alloc(NULL, sizeof(bool) * SLAB_MAXPGS);
 	if (small_run_tab == NULL)
 		return (true);
 
 #define	TAB_INIT_bin_yes(index, size) {					\
-		arena_bin_info_t *bin_info = &arena_bin_info[index];	\
+		const arena_bin_info_t *bin_info =			\
+		    &arena_bin_info[index];				\
 		small_run_tab[bin_info->run_size >> LG_PAGE] = true;	\
 	}
 #define	TAB_INIT_bin_no(index, size)
-#define	SC(index, lg_grp, lg_delta, ndelta, bin, lg_delta_lookup)	\
+#define	SC(index, lg_grp, lg_delta, ndelta, bin, run_size,		\
+    lg_delta_lookup)							\
 	TAB_INIT_bin_##bin(index, (ZU(1)<<lg_grp) + (ZU(ndelta)<<lg_delta))
 	SIZE_CLASSES
 #undef TAB_INIT_bin_yes
@@ -3643,7 +3598,6 @@ arena_boot(void)
 	nlclasses = size2index(large_maxclass) - size2index(SMALL_MAXCLASS);
 	nhclasses = NSIZES - nlclasses - NBINS;
 
-	bin_info_init();
 	if (small_run_size_init())
 		return (true);
 	if (run_quantize_init())

@@ -470,7 +470,7 @@ extern const char	*purge_mode_names[];
 extern ssize_t		opt_lg_dirty_mult;
 extern ssize_t		opt_decay_time;
 
-extern arena_bin_info_t	arena_bin_info[NBINS];
+extern const arena_bin_info_t	arena_bin_info[NBINS];
 
 extern size_t		map_bias; /* Number of arena chunk header pages. */
 extern size_t		map_misc_offset;
@@ -511,13 +511,13 @@ void	arena_maybe_purge(tsdn_t *tsdn, arena_t *arena);
 void	arena_reset(tsd_t *tsd, arena_t *arena);
 void	arena_tcache_fill_small(tsdn_t *tsdn, arena_t *arena,
     tcache_bin_t *tbin, szind_t binind, uint64_t prof_accumbytes);
-void	arena_alloc_junk_small(void *ptr, arena_bin_info_t *bin_info,
+void	arena_alloc_junk_small(void *ptr, const arena_bin_info_t *bin_info,
     bool zero);
 #ifdef JEMALLOC_JET
-typedef void (arena_dalloc_junk_small_t)(void *, arena_bin_info_t *);
+typedef void (arena_dalloc_junk_small_t)(void *, const arena_bin_info_t *);
 extern arena_dalloc_junk_small_t *arena_dalloc_junk_small;
 #else
-void	arena_dalloc_junk_small(void *ptr, arena_bin_info_t *bin_info);
+void	arena_dalloc_junk_small(void *ptr, const arena_bin_info_t *bin_info);
 #endif
 void	*arena_malloc_large(tsdn_t *tsdn, arena_t *arena, szind_t ind,
     bool zero);
@@ -634,7 +634,7 @@ bool	arena_prof_accum_locked(arena_t *arena, uint64_t accumbytes);
 bool	arena_prof_accum(tsdn_t *tsdn, arena_t *arena, uint64_t accumbytes);
 szind_t	arena_ptr_small_binind_get(const void *ptr, size_t mapbits);
 szind_t	arena_bin_index(arena_t *arena, arena_bin_t *bin);
-size_t	arena_run_regind(arena_run_t *run, arena_bin_info_t *bin_info,
+size_t	arena_run_regind(arena_run_t *run, const arena_bin_info_t *bin_info,
     const void *ptr);
 prof_tctx_t	*arena_prof_tctx_get(tsdn_t *tsdn, const void *ptr);
 void	arena_prof_tctx_set(tsdn_t *tsdn, const void *ptr, size_t usize,
@@ -1058,7 +1058,7 @@ arena_ptr_small_binind_get(const void *ptr, size_t mapbits)
 		const arena_run_t *run;
 		arena_bin_t *bin;
 		szind_t run_binind, actual_binind;
-		arena_bin_info_t *bin_info;
+		const arena_bin_info_t *bin_info;
 		const arena_chunk_map_misc_t *miscelm;
 		const void *rpages;
 
@@ -1099,7 +1099,8 @@ arena_bin_index(arena_t *arena, arena_bin_t *bin)
 }
 
 JEMALLOC_INLINE size_t
-arena_run_regind(arena_run_t *run, arena_bin_info_t *bin_info, const void *ptr)
+arena_run_regind(arena_run_t *run, const arena_bin_info_t *bin_info,
+    const void *ptr)
 {
 	size_t diff, interval, shift, regind;
 	arena_chunk_map_misc_t *miscelm = arena_run_to_miscelm(run);

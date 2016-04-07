@@ -81,7 +81,7 @@ static uint8_t	malloc_slow_flags;
 /* Last entry for overflow detection only.  */
 JEMALLOC_ALIGNED(CACHELINE)
 const size_t	index2size_tab[NSIZES+1] = {
-#define	SC(index, lg_grp, lg_delta, ndelta, bin, lg_delta_lookup) \
+#define	SC(index, lg_grp, lg_delta, ndelta, bin, pgs, lg_delta_lookup) \
 	((ZU(1)<<lg_grp) + (ZU(ndelta)<<lg_delta)),
 	SIZE_CLASSES
 #undef SC
@@ -154,7 +154,7 @@ const uint8_t	size2index_tab[] = {
 #define	S2B_11(i)	S2B_10(i) S2B_10(i)
 #endif
 #define	S2B_no(i)
-#define	SC(index, lg_grp, lg_delta, ndelta, bin, lg_delta_lookup) \
+#define	SC(index, lg_grp, lg_delta, ndelta, bin, pgs, lg_delta_lookup) \
 	S2B_##lg_delta_lookup(index)
 	SIZE_CLASSES
 #undef S2B_3
