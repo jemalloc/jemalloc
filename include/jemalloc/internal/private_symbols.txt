@@ -205,8 +205,6 @@ ctl_postfork_parent
 ctl_prefork
 decay_ticker_get
 dss_prec_names
-extent_achunk_get
-extent_achunk_set
 extent_active_get
 extent_active_set
 extent_addr_get
@@ -222,6 +220,8 @@ extent_prof_tctx_get
 extent_prof_tctx_set
 extent_size_get
 extent_size_set
+extent_slab_get
+extent_slab_set
 extent_tree_ad_destroy
 extent_tree_ad_destroy_recurse
 extent_tree_ad_empty

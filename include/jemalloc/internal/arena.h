@@ -1185,7 +1185,7 @@ arena_prof_tctx_get(tsdn_t *tsdn, const extent_t *extent, const void *ptr)
 	cassert(config_prof);
 	assert(ptr != NULL);
 
-	if (likely(extent_achunk_get(extent))) {
+	if (likely(extent_slab_get(extent))) {
 		arena_chunk_t *chunk = (arena_chunk_t *)extent_addr_get(extent);
 		size_t pageind = ((uintptr_t)ptr - (uintptr_t)chunk) >> LG_PAGE;
 		size_t mapbits = arena_mapbits_get(chunk, pageind);
@@ -1211,7 +1211,7 @@ arena_prof_tctx_set(tsdn_t *tsdn, extent_t *extent, const void *ptr,
 	cassert(config_prof);
 	assert(ptr != NULL);
 
-	if (likely(extent_achunk_get(extent))) {
+	if (likely(extent_slab_get(extent))) {
 		arena_chunk_t *chunk = (arena_chunk_t *)extent_addr_get(extent);
 		size_t pageind = ((uintptr_t)ptr - (uintptr_t)chunk) >> LG_PAGE;
 
@@ -1331,7 +1331,7 @@ arena_salloc(tsdn_t *tsdn, const extent_t *extent, const void *ptr, bool demote)
 
 	assert(ptr != NULL);
 
-	if (likely(extent_achunk_get(extent))) {
+	if (likely(extent_slab_get(extent))) {
 		const arena_chunk_t *chunk =
 		    (const arena_chunk_t *)extent_addr_get(extent);
 
@@ -1381,7 +1381,7 @@ arena_dalloc(tsdn_t *tsdn, extent_t *extent, void *ptr, tcache_t *tcache,
 	assert(!tsdn_null(tsdn) || tcache == NULL);
 	assert(ptr != NULL);
 
-	if (likely(extent_achunk_get(extent))) {
+	if (likely(extent_slab_get(extent))) {
 		arena_chunk_t *chunk = (arena_chunk_t *)extent_addr_get(extent);
 
 		pageind = ((uintptr_t)ptr - (uintptr_t)chunk) >> LG_PAGE;
@@ -1428,7 +1428,7 @@ arena_sdalloc(tsdn_t *tsdn, extent_t *extent, void *ptr, size_t size,
 
 	assert(!tsdn_null(tsdn) || tcache == NULL);
 
-	if (likely(extent_achunk_get(extent))) {
+	if (likely(extent_slab_get(extent))) {
 		arena_chunk_t *chunk = (arena_chunk_t *)extent_addr_get(extent);
 
 		if (config_prof && opt_prof) {

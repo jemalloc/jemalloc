@@ -50,7 +50,7 @@ huge_palloc(tsdn_t *tsdn, arena_t *arena, size_t usize, size_t alignment,
 		return (NULL);
 	}
 
-	extent_init(extent, arena, ret, usize, true, is_zeroed, true);
+	extent_init(extent, arena, ret, usize, true, is_zeroed, true, false);
 
 	if (chunk_register(tsdn, ret, extent)) {
 		arena_chunk_dalloc_huge(tsdn, arena, ret, usize);

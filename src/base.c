@@ -66,7 +66,7 @@ base_chunk_alloc(tsdn_t *tsdn, size_t minsize)
 			base_resident += PAGE_CEILING(nsize);
 		}
 	}
-	extent_init(extent, NULL, addr, csize, true, true, true);
+	extent_init(extent, NULL, addr, csize, true, true, true, false);
 	return (extent);
 }
 
@@ -90,7 +90,7 @@ base_alloc(tsdn_t *tsdn, size_t size)
 	csize = CACHELINE_CEILING(size);
 
 	usize = s2u(csize);
-	extent_init(&key, NULL, NULL, usize, false, false, false);
+	extent_init(&key, NULL, NULL, usize, false, false, false, false);
 	malloc_mutex_lock(tsdn, &base_mtx);
 	extent = extent_tree_szad_nsearch(&base_avail_szad, &key);
 	if (extent != NULL) {
