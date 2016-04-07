@@ -216,6 +216,7 @@ extent_committed_set
 extent_dirty_insert
 extent_dirty_remove
 extent_init
+extent_past_get
 extent_prof_tctx_get
 extent_prof_tctx_set
 extent_size_get

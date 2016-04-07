@@ -77,6 +77,7 @@ rb_proto(, extent_tree_ad_, extent_tree_t, extent_t)
 arena_t	*extent_arena_get(const extent_t *extent);
 void	*extent_addr_get(const extent_t *extent);
 size_t	extent_size_get(const extent_t *extent);
+void	*extent_past_get(const extent_t *extent);
 bool	extent_active_get(const extent_t *extent);
 bool	extent_zeroed_get(const extent_t *extent);
 bool	extent_committed_get(const extent_t *extent);
@@ -117,6 +118,13 @@ extent_size_get(const extent_t *extent)
 {
 
 	return (extent->e_size);
+}
+
+JEMALLOC_INLINE void *
+extent_past_get(const extent_t *extent)
+{
+
+	return ((void *)(uintptr_t)extent->e_addr + extent->e_size);
 }
 
 JEMALLOC_INLINE bool
