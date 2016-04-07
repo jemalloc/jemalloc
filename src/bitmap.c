@@ -3,7 +3,7 @@
 
 /******************************************************************************/
 
-#ifdef USE_TREE
+#ifdef BITMAP_USE_TREE
 
 void
 bitmap_info_init(bitmap_info_t *binfo, size_t nbits)
@@ -69,7 +69,7 @@ bitmap_init(bitmap_t *bitmap, const bitmap_info_t *binfo)
 	}
 }
 
-#else /* USE_TREE */
+#else /* BITMAP_USE_TREE */
 
 void
 bitmap_info_init(bitmap_info_t *binfo, size_t nbits)
@@ -101,7 +101,7 @@ bitmap_init(bitmap_t *bitmap, const bitmap_info_t *binfo)
 		bitmap[binfo->ngroups - 1] >>= extra;
 }
 
-#endif /* USE_TREE */
+#endif /* BITMAP_USE_TREE */
 
 size_t
 bitmap_size(const bitmap_info_t *binfo)
