@@ -394,6 +394,8 @@ pages_purge
 pages_trim
 pages_unmap
 pind2sz
+pind2sz_compute
+pind2sz_lookup
 pow2_ceil_u32
 pow2_ceil_u64
 pow2_ceil_zu
@@ -468,7 +470,6 @@ rtree_val_read
 rtree_val_write
 run_quantize_ceil
 run_quantize_floor
-run_quantize_max
 s2u
 s2u_compute
 s2u_lookup

@@ -40,6 +40,16 @@ lg() {
   done
 }
 
+reg_size_compute() {
+  lg_grp=$1
+  lg_delta=$2
+  ndelta=$3
+
+  pow2 ${lg_grp}; grp=${pow2_result}
+  pow2 ${lg_delta}; delta=${pow2_result}
+  reg_size=$((${grp} + ${delta}*${ndelta}))
+}
+
 run_size() {
   lg_p=$1
   lg_grp=$2
@@ -47,10 +57,7 @@ run_size() {
   ndelta=$4
 
   pow2 ${lg_p}; p=${pow2_result}
-
-  pow2 ${lg_grp}; grp=${pow2_result}
-  pow2 ${lg_delta}; delta=${pow2_result}
-  reg_size=$((${grp} + ${delta}*${ndelta}))
+  reg_size_compute ${lg_grp} ${lg_delta} ${ndelta}
 
   # Compute smallest run size that is an integer multiple of reg_size.
   try_run_size=${p}

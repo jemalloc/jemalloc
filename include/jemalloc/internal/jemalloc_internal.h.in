@@ -444,10 +444,15 @@ extern unsigned	narenas_auto;
 extern arena_t	**arenas;
 
 /*
+ * pind2sz_tab encodes the same information as could be computed by
+ * pind2sz_compute().
+ */
+extern size_t const	pind2sz_tab[NPSIZES];
+/*
  * index2size_tab encodes the same information as could be computed (at
  * unacceptable cost in some code paths) by index2size_compute().
  */
-extern size_t const	index2size_tab[NSIZES+1];
+extern size_t const	index2size_tab[NSIZES];
 /*
  * size2index_tab is a compact lookup table that rounds request sizes up to
  * size classes.  In order to reduce cache footprint, the table is compressed,
@@ -529,6 +534,8 @@ void	jemalloc_postfork_child(void);
 
 #ifndef JEMALLOC_ENABLE_INLINE
 pszind_t	psz2ind(size_t psz);
+size_t	pind2sz_compute(pszind_t pind);
+size_t	pind2sz_lookup(pszind_t pind);
 size_t	pind2sz(pszind_t pind);
 size_t	psz2u(size_t psz);
 szind_t	size2index_compute(size_t size);
@@ -576,7 +583,7 @@ psz2ind(size_t psz)
 }
 
 JEMALLOC_INLINE size_t
-pind2sz(pszind_t pind)
+pind2sz_compute(pszind_t pind)
 {
 
 	{
@@ -594,6 +601,22 @@ pind2sz(pszind_t pind)
 		size_t sz = grp_size + mod_size;
 		return (sz);
 	}
+}
+
+JEMALLOC_INLINE size_t
+pind2sz_lookup(pszind_t pind)
+{
+	size_t ret = (size_t)pind2sz_tab[pind];
+	assert(ret == pind2sz_compute(pind));
+	return (ret);
+}
+
+JEMALLOC_INLINE size_t
+pind2sz(pszind_t pind)
+{
+
+	assert(pind < NPSIZES);
+	return (pind2sz_lookup(pind));
 }
 
 JEMALLOC_INLINE size_t
