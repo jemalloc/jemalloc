@@ -21,15 +21,12 @@ size_t		map_bias;
 size_t		map_misc_offset;
 size_t		arena_maxrun; /* Max run size for arenas. */
 size_t		large_maxclass; /* Max large size class. */
-size_t		run_quantize_max; /* Max run_quantize_*() input. */
 static size_t	small_maxrun; /* Max run size for small size classes. */
 static bool	*small_run_tab; /* Valid small run page multiples. */
 static size_t	*run_quantize_floor_tab; /* run_quantize_floor() memoization. */
 static size_t	*run_quantize_ceil_tab; /* run_quantize_ceil() memoization. */
 unsigned	nlclasses; /* Number of large size classes. */
 unsigned	nhclasses; /* Number of huge size classes. */
-static szind_t	runs_avail_bias; /* Size index for first runs_avail tree. */
-static szind_t	runs_avail_nclasses; /* Number of runs_avail trees. */
 
 /******************************************************************************/
 /*
@@ -164,7 +161,7 @@ run_quantize_floor(size_t size)
 	size_t ret;
 
 	assert(size > 0);
-	assert(size <= run_quantize_max);
+	assert(size <= HUGE_MAXCLASS);
 	assert((size & PAGE_MASK) == 0);
 
 	ret = run_quantize_floor_tab[(size >> LG_PAGE) - 1];
@@ -187,7 +184,7 @@ run_quantize_ceil(size_t size)
 	size_t ret;
 
 	assert(size > 0);
-	assert(size <= run_quantize_max);
+	assert(size <= HUGE_MAXCLASS);
 	assert((size & PAGE_MASK) == 0);
 
 	ret = run_quantize_ceil_tab[(size >> LG_PAGE) - 1];
@@ -200,25 +197,15 @@ run_quantize_ceil(size_t size)
 run_quantize_t *run_quantize_ceil = JEMALLOC_N(n_run_quantize_ceil);
 #endif
 
-static arena_run_heap_t *
-arena_runs_avail_get(arena_t *arena, szind_t ind)
-{
-
-	assert(ind >= runs_avail_bias);
-	assert(ind - runs_avail_bias < runs_avail_nclasses);
-
-	return (&arena->runs_avail[ind - runs_avail_bias]);
-}
-
 static void
 arena_avail_insert(arena_t *arena, arena_chunk_t *chunk, size_t pageind,
     size_t npages)
 {
-	szind_t ind = size2index(run_quantize_floor(arena_miscelm_size_get(
+	pszind_t pind = psz2ind(run_quantize_floor(arena_miscelm_size_get(
 	    arena_miscelm_get_const(chunk, pageind))));
 	assert(npages == (arena_mapbits_unallocated_size_get(chunk, pageind) >>
 	    LG_PAGE));
-	arena_run_heap_insert(arena_runs_avail_get(arena, ind),
+	arena_run_heap_insert(&arena->runs_avail[pind],
 	    arena_miscelm_get_mutable(chunk, pageind));
 }
 
@@ -226,11 +213,11 @@ static void
 arena_avail_remove(arena_t *arena, arena_chunk_t *chunk, size_t pageind,
     size_t npages)
 {
-	szind_t ind = size2index(run_quantize_floor(arena_miscelm_size_get(
+	pszind_t pind = psz2ind(run_quantize_floor(arena_miscelm_size_get(
 	    arena_miscelm_get_const(chunk, pageind))));
 	assert(npages == (arena_mapbits_unallocated_size_get(chunk, pageind) >>
 	    LG_PAGE));
-	arena_run_heap_remove(arena_runs_avail_get(arena, ind),
+	arena_run_heap_remove(&arena->runs_avail[pind],
 	    arena_miscelm_get_mutable(chunk, pageind));
 }
 
@@ -1109,12 +1096,13 @@ arena_chunk_ralloc_huge_expand(tsdn_t *tsdn, arena_t *arena, void *chunk,
 static arena_run_t *
 arena_run_first_best_fit(arena_t *arena, size_t size)
 {
-	szind_t ind, i;
+	pszind_t pind, i;
 
-	ind = size2index(run_quantize_ceil(size));
-	for (i = ind; i < runs_avail_nclasses + runs_avail_bias; i++) {
+	pind = psz2ind(run_quantize_ceil(size));
+
+	for (i = pind; pind2sz(i) <= large_maxclass; i++) {
 		arena_chunk_map_misc_t *miscelm = arena_run_heap_first(
-		    arena_runs_avail_get(arena, i));
+		    &arena->runs_avail[i]);
 		if (miscelm != NULL)
 			return (&miscelm->run);
 	}
@@ -1967,7 +1955,8 @@ arena_reset(tsd_t *tsd, arena_t *arena)
 	assert(!arena->purging);
 	arena->nactive = 0;
 
-	for(i = 0; i < runs_avail_nclasses; i++)
+	for (i = 0; i < sizeof(arena->runs_avail) / sizeof(arena_run_heap_t);
+	    i++)
 		arena_run_heap_new(&arena->runs_avail[i]);
 
 	malloc_mutex_unlock(tsd_tsdn(tsd), &arena->lock);
@@ -3496,23 +3485,19 @@ arena_t *
 arena_new(tsdn_t *tsdn, unsigned ind)
 {
 	arena_t *arena;
-	size_t arena_size;
 	unsigned i;
 
-	/* Compute arena size to incorporate sufficient runs_avail elements. */
-	arena_size = offsetof(arena_t, runs_avail) + (sizeof(arena_run_heap_t) *
-	    runs_avail_nclasses);
 	/*
 	 * Allocate arena, arena->lstats, and arena->hstats contiguously, mainly
 	 * because there is no way to clean up if base_alloc() OOMs.
 	 */
 	if (config_stats) {
 		arena = (arena_t *)base_alloc(tsdn,
-		    CACHELINE_CEILING(arena_size) + QUANTUM_CEILING(nlclasses *
-		    sizeof(malloc_large_stats_t) + nhclasses) *
-		    sizeof(malloc_huge_stats_t));
+		    CACHELINE_CEILING(sizeof(arena_t)) +
+		    QUANTUM_CEILING((nlclasses * sizeof(malloc_large_stats_t)) +
+		    (nhclasses * sizeof(malloc_huge_stats_t))));
 	} else
-		arena = (arena_t *)base_alloc(tsdn, arena_size);
+		arena = (arena_t *)base_alloc(tsdn, sizeof(arena_t));
 	if (arena == NULL)
 		return (NULL);
 
@@ -3524,11 +3509,11 @@ arena_new(tsdn_t *tsdn, unsigned ind)
 	if (config_stats) {
 		memset(&arena->stats, 0, sizeof(arena_stats_t));
 		arena->stats.lstats = (malloc_large_stats_t *)((uintptr_t)arena
-		    + CACHELINE_CEILING(arena_size));
+		    + CACHELINE_CEILING(sizeof(arena_t)));
 		memset(arena->stats.lstats, 0, nlclasses *
 		    sizeof(malloc_large_stats_t));
 		arena->stats.hstats = (malloc_huge_stats_t *)((uintptr_t)arena
-		    + CACHELINE_CEILING(arena_size) +
+		    + CACHELINE_CEILING(sizeof(arena_t)) +
 		    QUANTUM_CEILING(nlclasses * sizeof(malloc_large_stats_t)));
 		memset(arena->stats.hstats, 0, nhclasses *
 		    sizeof(malloc_huge_stats_t));
@@ -3562,8 +3547,10 @@ arena_new(tsdn_t *tsdn, unsigned ind)
 	arena->nactive = 0;
 	arena->ndirty = 0;
 
-	for(i = 0; i < runs_avail_nclasses; i++)
+	for (i = 0; i < sizeof(arena->runs_avail) / sizeof(arena_run_heap_t);
+	    i++)
 		arena_run_heap_new(&arena->runs_avail[i]);
+
 	qr_new(&arena->runs_dirty, rd_link);
 	qr_new(&arena->chunks_cache, cc_link);
 
@@ -3748,6 +3735,7 @@ small_run_size_init(void)
 static bool
 run_quantize_init(void)
 {
+	size_t run_quantize_max;
 	unsigned i;
 
 	run_quantize_max = chunksize + large_pad;
@@ -3826,9 +3814,6 @@ arena_boot(void)
 		return (true);
 	if (run_quantize_init())
 		return (true);
-
-	runs_avail_bias = size2index(PAGE);
-	runs_avail_nclasses = size2index(run_quantize_max)+1 - runs_avail_bias;
 
 	return (false);
 }

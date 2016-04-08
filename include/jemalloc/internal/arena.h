@@ -470,10 +470,12 @@ struct arena_s {
 	arena_bin_t		bins[NBINS];
 
 	/*
-	 * Quantized address-ordered heaps of this arena's available runs.  The
-	 * heaps are used for first-best-fit run allocation.
+	 * Size-segregated address-ordered heaps of this arena's available runs,
+	 * used for first-best-fit run allocation.  Runs are quantized, i.e.
+	 * they reside in the last heap which corresponds to a size class less
+	 * than or equal to the run size.
 	 */
-	arena_run_heap_t	runs_avail[1]; /* Dynamically sized. */
+	arena_run_heap_t	runs_avail[NPSIZES];
 };
 
 /* Used in conjunction with tsd for fast arena-related context lookup. */
@@ -505,7 +507,6 @@ extern size_t		map_bias; /* Number of arena chunk header pages. */
 extern size_t		map_misc_offset;
 extern size_t		arena_maxrun; /* Max run size for arenas. */
 extern size_t		large_maxclass; /* Max large size class. */
-extern size_t		run_quantize_max; /* Max run_quantize_*() input. */
 extern unsigned		nlclasses; /* Number of large size classes. */
 extern unsigned		nhclasses; /* Number of huge size classes. */
 
