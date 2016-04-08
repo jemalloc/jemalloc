@@ -1299,8 +1299,7 @@ malloc_init_hard_a0_locked()
 		return (true);
 	if (config_prof)
 		prof_boot1();
-	if (arena_boot())
-		return (true);
+	arena_boot();
 	if (config_tcache && tcache_boot(TSDN_NULL))
 		return (true);
 	if (malloc_mutex_init(&arenas_lock, "arenas", WITNESS_RANK_ARENAS))

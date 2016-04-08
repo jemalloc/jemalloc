@@ -21,10 +21,6 @@ size_t		map_bias;
 size_t		map_misc_offset;
 size_t		arena_maxrun; /* Max run size for arenas. */
 size_t		large_maxclass; /* Max large size class. */
-static size_t	small_maxrun; /* Max run size for small size classes. */
-static bool	*small_run_tab; /* Valid small run page multiples. */
-static size_t	*run_quantize_floor_tab; /* run_quantize_floor() memoization. */
-static size_t	*run_quantize_ceil_tab; /* run_quantize_ceil() memoization. */
 unsigned	nlclasses; /* Number of large size classes. */
 unsigned	nhclasses; /* Number of huge size classes. */
 
@@ -74,83 +70,6 @@ arena_run_addr_comp(const arena_chunk_map_misc_t *a,
 ph_gen(static UNUSED, arena_run_heap_, arena_run_heap_t, arena_chunk_map_misc_t,
     ph_link, arena_run_addr_comp)
 
-static size_t
-run_quantize_floor_compute(size_t size)
-{
-	size_t qsize;
-
-	assert(size != 0);
-	assert(size == PAGE_CEILING(size));
-
-	/* Don't change sizes that are valid small run sizes. */
-	if (size <= small_maxrun && small_run_tab[size >> LG_PAGE])
-		return (size);
-
-	/*
-	 * Round down to the nearest run size that can actually be requested
-	 * during normal large allocation.  Add large_pad so that cache index
-	 * randomization can offset the allocation from the page boundary.
-	 */
-	qsize = index2size(size2index(size - large_pad + 1) - 1) + large_pad;
-	if (qsize <= SMALL_MAXCLASS + large_pad)
-		return (run_quantize_floor_compute(size - large_pad));
-	assert(qsize <= size);
-	return (qsize);
-}
-
-static size_t
-run_quantize_ceil_compute_hard(size_t size)
-{
-	size_t large_run_size_next;
-
-	assert(size != 0);
-	assert(size == PAGE_CEILING(size));
-
-	/*
-	 * Return the next quantized size greater than the input size.
-	 * Quantized sizes comprise the union of run sizes that back small
-	 * region runs, and run sizes that back large regions with no explicit
-	 * alignment constraints.
-	 */
-
-	if (size > SMALL_MAXCLASS) {
-		large_run_size_next = PAGE_CEILING(index2size(size2index(size -
-		    large_pad) + 1) + large_pad);
-	} else
-		large_run_size_next = SIZE_T_MAX;
-	if (size >= small_maxrun)
-		return (large_run_size_next);
-
-	while (true) {
-		size += PAGE;
-		assert(size <= small_maxrun);
-		if (small_run_tab[size >> LG_PAGE]) {
-			if (large_run_size_next < size)
-				return (large_run_size_next);
-			return (size);
-		}
-	}
-}
-
-static size_t
-run_quantize_ceil_compute(size_t size)
-{
-	size_t qsize = run_quantize_floor_compute(size);
-
-	if (qsize < size) {
-		/*
-		 * Skip a quantization that may have an adequately large run,
-		 * because under-sized runs may be mixed in.  This only happens
-		 * when an unusual size is requested, i.e. for aligned
-		 * allocation, and is just one of several places where linear
-		 * search would potentially find sufficiently aligned available
-		 * memory somewhere lower.
-		 */
-		qsize = run_quantize_ceil_compute_hard(qsize);
-	}
-	return (qsize);
-}
-
 #ifdef JEMALLOC_JET
 #undef run_quantize_floor
 #define	run_quantize_floor JEMALLOC_N(n_run_quantize_floor)
@@ -159,13 +78,27 @@ static size_t
 run_quantize_floor(size_t size)
 {
 	size_t ret;
+	pszind_t pind;
 
 	assert(size > 0);
 	assert(size <= HUGE_MAXCLASS);
 	assert((size & PAGE_MASK) == 0);
 
-	ret = run_quantize_floor_tab[(size >> LG_PAGE) - 1];
-	assert(ret == run_quantize_floor_compute(size));
+	assert(size != 0);
+	assert(size == PAGE_CEILING(size));
+
+	pind = psz2ind(size - large_pad + 1);
+	if (pind == 0) {
+		/*
+		 * Avoid underflow.  This short-circuit would also do the right
+		 * thing for all sizes in the range for which there are
+		 * PAGE-spaced size classes, but it's simplest to just handle
+		 * the one case that would cause erroneous results.
+		 */
+		return (size);
+	}
+	ret = pind2sz(pind - 1) + large_pad;
+	assert(ret <= size);
 	return (ret);
 }
 #ifdef JEMALLOC_JET
@@ -187,8 +120,18 @@ run_quantize_ceil(size_t size)
 	assert(size <= HUGE_MAXCLASS);
 	assert((size & PAGE_MASK) == 0);
 
-	ret = run_quantize_ceil_tab[(size >> LG_PAGE) - 1];
-	assert(ret == run_quantize_ceil_compute(size));
+	ret = run_quantize_floor(size);
+	if (ret < size) {
+		/*
+		 * Skip a quantization that may have an adequately large run,
+		 * because under-sized runs may be mixed in.  This only happens
+		 * when an unusual size is requested, i.e. for aligned
+		 * allocation, and is just one of several places where linear
+		 * search would potentially find sufficiently aligned available
+		 * memory somewhere lower.
+		 */
+		ret = pind2sz(psz2ind(ret - large_pad + 1)) + large_pad;
+	}
 	return (ret);
 }
 #ifdef JEMALLOC_JET
@@ -3680,9 +3623,6 @@ bin_info_run_size_calc(arena_bin_info_t *bin_info)
 	bin_info->reg0_offset = (uint32_t)(actual_run_size - (actual_nregs *
 	    bin_info->reg_interval) - pad_size + bin_info->redzone_size);
 
-	if (actual_run_size > small_maxrun)
-		small_maxrun = actual_run_size;
-
 	assert(bin_info->reg0_offset - bin_info->redzone_size + (bin_info->nregs
 	    * bin_info->reg_interval) + pad_size == bin_info->run_size);
 }
@@ -3706,63 +3646,7 @@ bin_info_init(void)
 #undef SC
 }
 
-static bool
-small_run_size_init(void)
-{
-
-	assert(small_maxrun != 0);
-
-	small_run_tab = (bool *)base_alloc(NULL, sizeof(bool) * (small_maxrun >>
-	    LG_PAGE));
-	if (small_run_tab == NULL)
-		return (true);
-
-#define	TAB_INIT_bin_yes(index, size) {					\
-		arena_bin_info_t *bin_info = &arena_bin_info[index];	\
-		small_run_tab[bin_info->run_size >> LG_PAGE] = true;	\
-	}
-#define	TAB_INIT_bin_no(index, size)
-#define	SC(index, lg_grp, lg_delta, ndelta, psz, bin, lg_delta_lookup)	\
-	TAB_INIT_bin_##bin(index, (ZU(1)<<lg_grp) + (ZU(ndelta)<<lg_delta))
-	SIZE_CLASSES
-#undef TAB_INIT_bin_yes
-#undef TAB_INIT_bin_no
-#undef SC
-
-	return (false);
-}
-
-static bool
-run_quantize_init(void)
-{
-	size_t run_quantize_max;
-	unsigned i;
-
-	run_quantize_max = chunksize + large_pad;
-
-	run_quantize_floor_tab = (size_t *)base_alloc(NULL, sizeof(size_t) *
-	    (run_quantize_max >> LG_PAGE));
-	if (run_quantize_floor_tab == NULL)
-		return (true);
-
-	run_quantize_ceil_tab = (size_t *)base_alloc(NULL, sizeof(size_t) *
-	    (run_quantize_max >> LG_PAGE));
-	if (run_quantize_ceil_tab == NULL)
-		return (true);
-
-	for (i = 1; i <= run_quantize_max >> LG_PAGE; i++) {
-		size_t run_size = i << LG_PAGE;
-
-		run_quantize_floor_tab[i-1] =
-		    run_quantize_floor_compute(run_size);
-		run_quantize_ceil_tab[i-1] =
-		    run_quantize_ceil_compute(run_size);
-	}
-
-	return (false);
-}
-
-bool
+void
 arena_boot(void)
 {
 	unsigned i;
@@ -3810,12 +3694,6 @@ arena_boot(void)
 	nhclasses = NSIZES - nlclasses - NBINS;
 
 	bin_info_init();
-	if (small_run_size_init())
-		return (true);
-	if (run_quantize_init())
-		return (true);
-
-	return (false);
 }
 
 void
