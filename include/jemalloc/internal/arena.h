@@ -569,7 +569,7 @@ unsigned	arena_nthreads_get(arena_t *arena, bool internal);
 void	arena_nthreads_inc(arena_t *arena, bool internal);
 void	arena_nthreads_dec(arena_t *arena, bool internal);
 arena_t	*arena_new(tsdn_t *tsdn, unsigned ind);
-bool	arena_boot(void);
+void	arena_boot(void);
 void	arena_prefork0(tsdn_t *tsdn, arena_t *arena);
 void	arena_prefork1(tsdn_t *tsdn, arena_t *arena);
 void	arena_prefork2(tsdn_t *tsdn, arena_t *arena);

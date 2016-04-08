@@ -158,7 +158,6 @@ size_classes() {
   lg_tiny_maxclass='"NA"'
   nbins=0
   npsizes=0
-  slab_maxpgs=0
 
   # Tiny size classes.
   ndelta=0
@@ -175,9 +174,6 @@ size_classes() {
     fi
     if [ ${bin} != "no" ] ; then
       nbins=$((${index} + 1))
-      if [ ${pgs} -gt ${slab_maxpgs} ] ; then
-        slab_maxpgs=${pgs}
-      fi
     fi
     ntbins=$((${ntbins} + 1))
     lg_tiny_maxclass=${lg_grp} # Final written value is correct.
@@ -200,9 +196,6 @@ size_classes() {
     if [ ${psz} = "yes" ] ; then
       npsizes=$((${npsizes} + 1))
     fi
-    if [ ${pgs} -gt ${slab_maxpgs} ] ; then
-      slab_maxpgs=${pgs}
-    fi
   fi
   while [ ${ndelta} -lt ${g} ] ; do
     size_class ${index} ${lg_grp} ${lg_delta} ${ndelta} ${lg_p} ${lg_kmax}
@@ -210,9 +203,6 @@ size_classes() {
     ndelta=$((${ndelta} + 1))
     if [ ${psz} = "yes" ] ; then
       npsizes=$((${npsizes} + 1))
-    fi
-    if [ ${pgs} -gt ${slab_maxpgs} ] ; then
-      slab_maxpgs=${pgs}
     fi
   done
 
@@ -240,9 +230,6 @@ size_classes() {
         nbins=$((${index} + 1))
         # Final written value is correct:
         small_maxclass="((((size_t)1) << ${lg_grp}) + (((size_t)${ndelta}) << ${lg_delta}))"
-        if [ ${pgs} -gt ${slab_maxpgs} ] ; then
-          slab_maxpgs=${pgs}
-        fi
         if [ ${lg_g} -gt 0 ] ; then
           lg_large_minclass=$((${lg_grp} + 1))
         else
@@ -269,7 +256,6 @@ size_classes() {
   # - lg_tiny_maxclass
   # - lookup_maxclass
   # - small_maxclass
-  # - slab_maxpgs
   # - lg_large_minclass
   # - huge_maxclass
 }
@@ -303,7 +289,6 @@ cat <<EOF
  *   LG_TINY_MAXCLASS: Lg of maximum tiny size class.
  *   LOOKUP_MAXCLASS: Maximum size class included in lookup table.
  *   SMALL_MAXCLASS: Maximum small size class.
- *   SLAB_MAXPGS: Maximum pages in small size class run.
  *   LG_LARGE_MINCLASS: Lg of minimum large size class.
  *   HUGE_MAXCLASS: Maximum (huge) size class.
  */
@@ -329,7 +314,6 @@ for lg_z in ${lg_zarr} ; do
         echo "#define	LG_TINY_MAXCLASS	${lg_tiny_maxclass}"
         echo "#define	LOOKUP_MAXCLASS		${lookup_maxclass}"
         echo "#define	SMALL_MAXCLASS		${small_maxclass}"
-        echo "#define	SLAB_MAXPGS		${slab_maxpgs}"
         echo "#define	LG_LARGE_MINCLASS	${lg_large_minclass}"
         echo "#define	HUGE_MAXCLASS		${huge_maxclass}"
         echo "#endif"
