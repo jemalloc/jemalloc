@@ -468,7 +468,7 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 #define	OPT_WRITE_UNSIGNED(n)						\
 		if (je_mallctl("opt."#n, &uv, &usz, NULL, 0) == 0) {	\
 			malloc_cprintf(write_cb, cbopaque,		\
-			"  opt."#n": %zu\n", sv);			\
+			"  opt."#n": %u\n", uv);			\
 		}
 #define	OPT_WRITE_SIZE_T(n)						\
 		if (je_mallctl("opt."#n, &sv, &ssz, NULL, 0) == 0) {	\
