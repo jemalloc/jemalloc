@@ -1268,7 +1268,7 @@ arena_decay_backlog_npages_limit(const arena_t *arena)
 	sum = 0;
 	for (i = 0; i < SMOOTHSTEP_NSTEPS; i++)
 		sum += arena->decay_backlog[i] * h_steps[i];
-	npages_limit_backlog = (sum >> SMOOTHSTEP_BFP);
+	npages_limit_backlog = (size_t)(sum >> SMOOTHSTEP_BFP);
 
 	return (npages_limit_backlog);
 }
@@ -1276,7 +1276,7 @@ arena_decay_backlog_npages_limit(const arena_t *arena)
 static void
 arena_decay_epoch_advance(arena_t *arena, const nstime_t *time)
 {
-	uint64_t nadvance;
+	uint64_t nadvance_u64;
 	nstime_t delta;
 	size_t ndirty_delta;
 
@@ -1285,27 +1285,31 @@ arena_decay_epoch_advance(arena_t *arena, const nstime_t *time)
 
 	nstime_copy(&delta, time);
 	nstime_subtract(&delta, &arena->decay_epoch);
-	nadvance = nstime_divide(&delta, &arena->decay_interval);
-	assert(nadvance > 0);
+	nadvance_u64 = nstime_divide(&delta, &arena->decay_interval);
+	assert(nadvance_u64 > 0);
 
-	/* Add nadvance decay intervals to epoch. */
+	/* Add nadvance_u64 decay intervals to epoch. */
 	nstime_copy(&delta, &arena->decay_interval);
-	nstime_imultiply(&delta, nadvance);
+	nstime_imultiply(&delta, nadvance_u64);
 	nstime_add(&arena->decay_epoch, &delta);
 
 	/* Set a new deadline. */
 	arena_decay_deadline_init(arena);
 
 	/* Update the backlog. */
-	if (nadvance >= SMOOTHSTEP_NSTEPS) {
+	if (nadvance_u64 >= SMOOTHSTEP_NSTEPS) {
 		memset(arena->decay_backlog, 0, (SMOOTHSTEP_NSTEPS-1) *
 		    sizeof(size_t));
 	} else {
-		memmove(arena->decay_backlog, &arena->decay_backlog[nadvance],
-		    (SMOOTHSTEP_NSTEPS - nadvance) * sizeof(size_t));
-		if (nadvance > 1) {
+		size_t nadvance_z = (size_t)nadvance_u64;
+
+		assert((uint64_t)nadvance_z == nadvance_u64);
+
+		memmove(arena->decay_backlog, &arena->decay_backlog[nadvance_z],
+		    (SMOOTHSTEP_NSTEPS - nadvance_z) * sizeof(size_t));
+		if (nadvance_z > 1) {
 			memset(&arena->decay_backlog[SMOOTHSTEP_NSTEPS -
-			    nadvance], 0, (nadvance-1) * sizeof(size_t));
+			    nadvance_z], 0, (nadvance_z-1) * sizeof(size_t));
 		}
 	}
 	ndirty_delta = (arena->ndirty > arena->decay_ndirty) ? arena->ndirty -
