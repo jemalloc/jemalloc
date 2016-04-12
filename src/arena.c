@@ -1268,7 +1268,7 @@ arena_decay_backlog_npages_limit(const arena_t *arena)
 	sum = 0;
 	for (i = 0; i < SMOOTHSTEP_NSTEPS; i++)
 		sum += arena->decay_backlog[i] * h_steps[i];
-	npages_limit_backlog = (sum >> SMOOTHSTEP_BFP);
+	npages_limit_backlog = (size_t)(sum >> SMOOTHSTEP_BFP);
 
 	return (npages_limit_backlog);
 }
@@ -1301,11 +1301,11 @@ arena_decay_epoch_advance(arena_t *arena, const nstime_t *time)
 		memset(arena->decay_backlog, 0, (SMOOTHSTEP_NSTEPS-1) *
 		    sizeof(size_t));
 	} else {
-		memmove(arena->decay_backlog, &arena->decay_backlog[nadvance],
-		    (SMOOTHSTEP_NSTEPS - nadvance) * sizeof(size_t));
-		if (nadvance > 1) {
+		memmove(arena->decay_backlog, &arena->decay_backlog[(size_t)nadvance],
+		    (SMOOTHSTEP_NSTEPS - (size_t)nadvance) * sizeof(size_t));
+		if ((size_t)nadvance > 1) {
 			memset(&arena->decay_backlog[SMOOTHSTEP_NSTEPS -
-			    nadvance], 0, (nadvance-1) * sizeof(size_t));
+			    (size_t)nadvance], 0, ((size_t)nadvance-1) * sizeof(size_t));
 		}
 	}
 	ndirty_delta = (arena->ndirty > arena->decay_ndirty) ? arena->ndirty -

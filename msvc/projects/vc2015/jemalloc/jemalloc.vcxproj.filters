@@ -229,9 +229,6 @@
     <ClCompile Include="..\..\..\..\src\pages.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\src\ph.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\..\..\src\prng.c">
       <Filter>Source Files</Filter>
     </ClCompile>
