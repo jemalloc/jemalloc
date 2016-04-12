@@ -220,11 +220,11 @@ TEST_BEGIN(test_stats_arenas_large)
 	if (config_stats) {
 		assert_zu_gt(allocated, 0,
 		    "allocated should be greater than zero");
-		assert_zu_gt(nmalloc, 0,
+		assert_u64_gt(nmalloc, 0,
 		    "nmalloc should be greater than zero");
-		assert_zu_ge(nmalloc, ndalloc,
+		assert_u64_ge(nmalloc, ndalloc,
 		    "nmalloc should be at least as large as ndalloc");
-		assert_zu_gt(nrequests, 0,
+		assert_u64_gt(nrequests, 0,
 		    "nrequests should be greater than zero");
 	}
 
@@ -262,9 +262,9 @@ TEST_BEGIN(test_stats_arenas_huge)
 	if (config_stats) {
 		assert_zu_gt(allocated, 0,
 		    "allocated should be greater than zero");
-		assert_zu_gt(nmalloc, 0,
+		assert_u64_gt(nmalloc, 0,
 		    "nmalloc should be greater than zero");
-		assert_zu_ge(nmalloc, ndalloc,
+		assert_u64_ge(nmalloc, ndalloc,
 		    "nmalloc should be at least as large as ndalloc");
 	}
 

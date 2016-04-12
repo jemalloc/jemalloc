@@ -4,27 +4,27 @@
 	unsigned i, pow2;						\
 	t x;								\
 									\
-	assert_zu_eq(pow2_ceil_##suf(0), 0, "Unexpected result");	\
+	assert_##suf##_eq(pow2_ceil_##suf(0), 0, "Unexpected result");	\
 									\
 	for (i = 0; i < sizeof(t) * 8; i++) {				\
-		assert_zu_eq(pow2_ceil_##suf(((t)1) << i), ((t)1) << i,	\
-		    "Unexpected result");				\
+		assert_##suf##_eq(pow2_ceil_##suf(((t)1) << i), ((t)1)	\
+		    << i, "Unexpected result");				\
 	}								\
 									\
 	for (i = 2; i < sizeof(t) * 8; i++) {				\
-		assert_zu_eq(pow2_ceil_##suf((((t)1) << i) - 1),	\
+		assert_##suf##_eq(pow2_ceil_##suf((((t)1) << i) - 1),	\
 		    ((t)1) << i, "Unexpected result");			\
 	}								\
 									\
 	for (i = 0; i < sizeof(t) * 8 - 1; i++) {			\
-		assert_zu_eq(pow2_ceil_##suf((((t)1) << i) + 1),	\
+		assert_##suf##_eq(pow2_ceil_##suf((((t)1) << i) + 1),	\
 		    ((t)1) << (i+1), "Unexpected result");		\
 	}								\
 									\
 	for (pow2 = 1; pow2 < 25; pow2++) {				\
 		for (x = (((t)1) << (pow2-1)) + 1; x <= ((t)1) << pow2;	\
 		    x++) {						\
-			assert_zu_eq(pow2_ceil_##suf(x),		\
+			assert_##suf##_eq(pow2_ceil_##suf(x),		\
 			    ((t)1) << pow2,				\
 			    "Unexpected result, x=%"pri, x);		\
 		}							\
