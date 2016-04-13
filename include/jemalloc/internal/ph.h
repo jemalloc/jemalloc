@@ -211,7 +211,8 @@ a_prefix##new(a_ph_type *ph)						\
 	memset(ph, 0, sizeof(ph(a_type)));				\
 }									\
 a_attr bool								\
-a_prefix##empty(a_ph_type *ph) {					\
+a_prefix##empty(a_ph_type *ph)						\
+{									\
 									\
 	return (ph->ph_root == NULL);					\
 }									\
