@@ -104,7 +104,7 @@ mb_write(void)
 {
 	malloc_mutex_t mtx;
 
-	malloc_mutex_init(&mtx, MALLOC_MUTEX_RANK_OMIT);
+	malloc_mutex_init(&mtx, WITNESS_RANK_OMIT);
 	malloc_mutex_lock(NULL, &mtx);
 	malloc_mutex_unlock(NULL, &mtx);
 }
