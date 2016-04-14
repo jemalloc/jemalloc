@@ -542,6 +542,7 @@ struct tsd_init_head_s {
     O(arenas_tdata_bypass,	bool)					\
     O(tcache_enabled,		tcache_enabled_t)			\
     O(quarantine,		quarantine_t *)				\
+    O(witnesses,		witness_list_t)				\
 
 #define	TSD_INITIALIZER {						\
     tsd_state_uninitialized,						\
@@ -554,7 +555,8 @@ struct tsd_init_head_s {
     0,									\
     false,								\
     tcache_enabled_default,						\
-    NULL								\
+    NULL,								\
+    ql_head_initializer(witnesses)					\
 }
 
 struct tsd_s {
@@ -577,7 +579,7 @@ void	*malloc_tsd_malloc(size_t size);
 void	malloc_tsd_dalloc(void *wrapper);
 void	malloc_tsd_no_cleanup(void *arg);
 void	malloc_tsd_cleanup_register(bool (*f)(void));
-bool	malloc_tsd_boot0(void);
+tsd_t	*malloc_tsd_boot0(void);
 void	malloc_tsd_boot1(void);
 #if (!defined(JEMALLOC_MALLOC_THREAD_CLEANUP) && !defined(JEMALLOC_TLS) && \
     !defined(_WIN32))

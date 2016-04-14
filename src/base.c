@@ -76,7 +76,7 @@ base_chunk_alloc(size_t minsize)
  * physical memory usage.
  */
 void *
-base_alloc(size_t size)
+base_alloc(tsd_t *tsd, size_t size)
 {
 	void *ret;
 	size_t csize, usize;
@@ -91,7 +91,7 @@ base_alloc(size_t size)
 
 	usize = s2u(csize);
 	extent_node_init(&key, NULL, NULL, usize, false, false);
-	malloc_mutex_lock(&base_mtx);
+	malloc_mutex_lock(tsd, &base_mtx);
 	node = extent_tree_szad_nsearch(&base_avail_szad, &key);
 	if (node != NULL) {
 		/* Use existing space. */
@@ -123,28 +123,28 @@ base_alloc(size_t size)
 	}
 	JEMALLOC_VALGRIND_MAKE_MEM_DEFINED(ret, csize);
 label_return:
-	malloc_mutex_unlock(&base_mtx);
+	malloc_mutex_unlock(tsd, &base_mtx);
 	return (ret);
 }
 
 void
-base_stats_get(size_t *allocated, size_t *resident, size_t *mapped)
+base_stats_get(tsd_t *tsd, size_t *allocated, size_t *resident, size_t *mapped)
 {
 
-	malloc_mutex_lock(&base_mtx);
+	malloc_mutex_lock(tsd, &base_mtx);
 	assert(base_allocated <= base_resident);
 	assert(base_resident <= base_mapped);
 	*allocated = base_allocated;
 	*resident = base_resident;
 	*mapped = base_mapped;
-	malloc_mutex_unlock(&base_mtx);
+	malloc_mutex_unlock(tsd, &base_mtx);
 }
 
 bool
 base_boot(void)
 {
 
-	if (malloc_mutex_init(&base_mtx))
+	if (malloc_mutex_init(&base_mtx, "base", WITNESS_RANK_BASE))
 		return (true);
 	extent_tree_szad_new(&base_avail_szad);
 	base_nodes = NULL;
@@ -153,22 +153,22 @@ base_boot(void)
 }
 
 void
-base_prefork(void)
+base_prefork(tsd_t *tsd)
 {
 
-	malloc_mutex_prefork(&base_mtx);
+	malloc_mutex_prefork(tsd, &base_mtx);
 }
 
 void
-base_postfork_parent(void)
+base_postfork_parent(tsd_t *tsd)
 {
 
-	malloc_mutex_postfork_parent(&base_mtx);
+	malloc_mutex_postfork_parent(tsd, &base_mtx);
 }
 
 void
-base_postfork_child(void)
+base_postfork_child(tsd_t *tsd)
 {
 
-	malloc_mutex_postfork_child(&base_mtx);
+	malloc_mutex_postfork_child(tsd, &base_mtx);
 }

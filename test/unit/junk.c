@@ -53,10 +53,10 @@ arena_dalloc_junk_large_intercept(void *ptr, size_t usize)
 }
 
 static void
-huge_dalloc_junk_intercept(void *ptr, size_t usize)
+huge_dalloc_junk_intercept(tsd_t *tsd, void *ptr, size_t usize)
 {
 
-	huge_dalloc_junk_orig(ptr, usize);
+	huge_dalloc_junk_orig(tsd, ptr, usize);
 	/*
 	 * The conditions under which junk filling actually occurs are nuanced
 	 * enough that it doesn't make sense to duplicate the decision logic in

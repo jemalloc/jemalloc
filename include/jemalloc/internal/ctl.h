@@ -21,13 +21,14 @@ struct ctl_named_node_s {
 	/* If (nchildren == 0), this is a terminal node. */
 	unsigned		nchildren;
 	const			ctl_node_t *children;
-	int			(*ctl)(const size_t *, size_t, void *, size_t *,
-	    void *, size_t);
+	int			(*ctl)(tsd_t *, const size_t *, size_t, void *,
+	    size_t *, void *, size_t);
 };
 
 struct ctl_indexed_node_s {
 	struct ctl_node_s	node;
-	const ctl_named_node_t	*(*index)(const size_t *, size_t, size_t);
+	const ctl_named_node_t	*(*index)(tsd_t *, const size_t *, size_t,
+	    size_t);
 };
 
 struct ctl_arena_stats_s {
@@ -68,16 +69,17 @@ struct ctl_stats_s {
 /******************************************************************************/
 #ifdef JEMALLOC_H_EXTERNS
 
-int	ctl_byname(const char *name, void *oldp, size_t *oldlenp, void *newp,
-    size_t newlen);
-int	ctl_nametomib(const char *name, size_t *mibp, size_t *miblenp);
-
-int	ctl_bymib(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
+int	ctl_byname(tsd_t *tsd, const char *name, void *oldp, size_t *oldlenp,
     void *newp, size_t newlen);
+int	ctl_nametomib(tsd_t *tsd, const char *name, size_t *mibp,
+    size_t *miblenp);
+
+int	ctl_bymib(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
+    size_t *oldlenp, void *newp, size_t newlen);
 bool	ctl_boot(void);
-void	ctl_prefork(void);
-void	ctl_postfork_parent(void);
-void	ctl_postfork_child(void);
+void	ctl_prefork(tsd_t *tsd);
+void	ctl_postfork_parent(tsd_t *tsd);
+void	ctl_postfork_child(tsd_t *tsd);
 
 #define	xmallctl(name, oldp, oldlenp, newp, newlen) do {		\
 	if (je_mallctl(name, oldp, oldlenp, newp, newlen)		\

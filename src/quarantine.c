@@ -99,7 +99,7 @@ static void
 quarantine_drain_one(tsd_t *tsd, quarantine_t *quarantine)
 {
 	quarantine_obj_t *obj = &quarantine->objs[quarantine->first];
-	assert(obj->usize == isalloc(obj->ptr, config_prof));
+	assert(obj->usize == isalloc(tsd, obj->ptr, config_prof));
 	idalloctm(tsd, obj->ptr, NULL, false, true);
 	quarantine->curbytes -= obj->usize;
 	quarantine->curobjs--;
@@ -119,7 +119,7 @@ void
 quarantine(tsd_t *tsd, void *ptr)
 {
 	quarantine_t *quarantine;
-	size_t usize = isalloc(ptr, config_prof);
+	size_t usize = isalloc(tsd, ptr, config_prof);
 
 	cassert(config_fill);
 	assert(opt_quarantine);

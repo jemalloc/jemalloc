@@ -314,6 +314,9 @@ lg_floor
 malloc_cprintf
 malloc_mutex_init
 malloc_mutex_lock
+malloc_mutex_assert_not_owner
+malloc_mutex_assert_owner
+malloc_mutex_boot
 malloc_mutex_postfork_child
 malloc_mutex_postfork_parent
 malloc_mutex_prefork
@@ -333,7 +336,6 @@ malloc_write
 map_bias
 map_misc_offset
 mb_write
-mutex_boot
 narenas_tdata_cleanup
 narenas_total_get
 ncpus
@@ -548,3 +550,14 @@ valgrind_freelike_block
 valgrind_make_mem_defined
 valgrind_make_mem_noaccess
 valgrind_make_mem_undefined
+witness_assert_lockless
+witness_assert_not_owner
+witness_assert_owner
+witness_init
+witness_lock
+witness_lock_error
+witness_lockless_error
+witness_not_owner_error
+witness_owner_error
+witness_unlock
+witnesses_cleanup

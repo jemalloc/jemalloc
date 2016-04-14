@@ -368,6 +368,7 @@ typedef unsigned szind_t;
 #include "jemalloc/internal/smoothstep.h"
 #include "jemalloc/internal/stats.h"
 #include "jemalloc/internal/ctl.h"
+#include "jemalloc/internal/witness.h"
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/tsd.h"
 #include "jemalloc/internal/mb.h"
@@ -399,6 +400,7 @@ typedef unsigned szind_t;
 #include "jemalloc/internal/smoothstep.h"
 #include "jemalloc/internal/stats.h"
 #include "jemalloc/internal/ctl.h"
+#include "jemalloc/internal/witness.h"
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/mb.h"
 #include "jemalloc/internal/bitmap.h"
@@ -465,7 +467,7 @@ void	*bootstrap_malloc(size_t size);
 void	*bootstrap_calloc(size_t num, size_t size);
 void	bootstrap_free(void *ptr);
 unsigned	narenas_total_get(void);
-arena_t	*arena_init(unsigned ind);
+arena_t	*arena_init(tsd_t *tsd, unsigned ind);
 arena_tdata_t	*arena_tdata_get_hard(tsd_t *tsd, unsigned ind);
 arena_t	*arena_choose_hard(tsd_t *tsd);
 void	arena_migrate(tsd_t *tsd, unsigned oldind, unsigned newind);
@@ -490,6 +492,7 @@ void	jemalloc_postfork_child(void);
 #include "jemalloc/internal/smoothstep.h"
 #include "jemalloc/internal/stats.h"
 #include "jemalloc/internal/ctl.h"
+#include "jemalloc/internal/witness.h"
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/mb.h"
 #include "jemalloc/internal/bitmap.h"
@@ -521,6 +524,7 @@ void	jemalloc_postfork_child(void);
 #include "jemalloc/internal/smoothstep.h"
 #include "jemalloc/internal/stats.h"
 #include "jemalloc/internal/ctl.h"
+#include "jemalloc/internal/witness.h"
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/tsd.h"
 #include "jemalloc/internal/mb.h"
@@ -545,7 +549,7 @@ size_t	sa2u(size_t size, size_t alignment);
 arena_t	*arena_choose(tsd_t *tsd, arena_t *arena);
 arena_tdata_t	*arena_tdata_get(tsd_t *tsd, unsigned ind,
     bool refresh_if_missing);
-arena_t	*arena_get(unsigned ind, bool init_if_missing);
+arena_t	*arena_get(tsd_t *tsd, unsigned ind, bool init_if_missing);
 ticker_t	*decay_ticker_get(tsd_t *tsd, unsigned ind);
 #endif
 
@@ -819,7 +823,7 @@ arena_tdata_get(tsd_t *tsd, unsigned ind, bool refresh_if_missing)
 }
 
 JEMALLOC_INLINE arena_t *
-arena_get(unsigned ind, bool init_if_missing)
+arena_get(tsd_t *tsd, unsigned ind, bool init_if_missing)
 {
 	arena_t *ret;
 
@@ -829,7 +833,7 @@ arena_get(unsigned ind, bool init_if_missing)
 	if (unlikely(ret == NULL)) {
 		ret = atomic_read_p((void *)&arenas[ind]);
 		if (init_if_missing && unlikely(ret == NULL))
-			ret = arena_init(ind);
+			ret = arena_init(tsd, ind);
 	}
 	return (ret);
 }
@@ -863,7 +867,7 @@ decay_ticker_get(tsd_t *tsd, unsigned ind)
 
 #ifndef JEMALLOC_ENABLE_INLINE
 arena_t	*iaalloc(const void *ptr);
-size_t	isalloc(const void *ptr, bool demote);
+size_t	isalloc(tsd_t *tsd, const void *ptr, bool demote);
 void	*iallocztm(tsd_t *tsd, size_t size, szind_t ind, bool zero,
     tcache_t *tcache, bool is_metadata, arena_t *arena, bool slow_path);
 void	*imalloct(tsd_t *tsd, size_t size, szind_t ind, tcache_t *tcache,
@@ -877,9 +881,9 @@ void	*ipallocztm(tsd_t *tsd, size_t usize, size_t alignment, bool zero,
 void	*ipalloct(tsd_t *tsd, size_t usize, size_t alignment, bool zero,
     tcache_t *tcache, arena_t *arena);
 void	*ipalloc(tsd_t *tsd, size_t usize, size_t alignment, bool zero);
-size_t	ivsalloc(const void *ptr, bool demote);
+size_t	ivsalloc(tsd_t *tsd, const void *ptr, bool demote);
 size_t	u2rz(size_t usize);
-size_t	p2rz(const void *ptr);
+size_t	p2rz(tsd_t *tsd, const void *ptr);
 void	idalloctm(tsd_t *tsd, void *ptr, tcache_t *tcache, bool is_metadata,
     bool slow_path);
 void	idalloct(tsd_t *tsd, void *ptr, tcache_t *tcache);
@@ -914,14 +918,14 @@ iaalloc(const void *ptr)
  *   size_t sz = isalloc(ptr, config_prof);
  */
 JEMALLOC_ALWAYS_INLINE size_t
-isalloc(const void *ptr, bool demote)
+isalloc(tsd_t *tsd, const void *ptr, bool demote)
 {
 
 	assert(ptr != NULL);
 	/* Demotion only makes sense if config_prof is true. */
 	assert(config_prof || !demote);
 
-	return (arena_salloc(ptr, demote));
+	return (arena_salloc(tsd, ptr, demote));
 }
 
 JEMALLOC_ALWAYS_INLINE void *
@@ -934,7 +938,7 @@ iallocztm(tsd_t *tsd, size_t size, szind_t ind, bool zero, tcache_t *tcache,
 
 	ret = arena_malloc(tsd, arena, size, ind, zero, tcache, slow_path);
 	if (config_stats && is_metadata && likely(ret != NULL)) {
-		arena_metadata_allocated_add(iaalloc(ret), isalloc(ret,
+		arena_metadata_allocated_add(iaalloc(ret), isalloc(tsd, ret,
 		    config_prof));
 	}
 	return (ret);
@@ -982,7 +986,7 @@ ipallocztm(tsd_t *tsd, size_t usize, size_t alignment, bool zero,
 	ret = arena_palloc(tsd, arena, usize, alignment, zero, tcache);
 	assert(ALIGNMENT_ADDR2BASE(ret, alignment) == ret);
 	if (config_stats && is_metadata && likely(ret != NULL)) {
-		arena_metadata_allocated_add(iaalloc(ret), isalloc(ret,
+		arena_metadata_allocated_add(iaalloc(ret), isalloc(tsd, ret,
 		    config_prof));
 	}
 	return (ret);
@@ -1005,7 +1009,7 @@ ipalloc(tsd_t *tsd, size_t usize, size_t alignment, bool zero)
 }
 
 JEMALLOC_ALWAYS_INLINE size_t
-ivsalloc(const void *ptr, bool demote)
+ivsalloc(tsd_t *tsd, const void *ptr, bool demote)
 {
 	extent_node_t *node;
 
@@ -1017,7 +1021,7 @@ ivsalloc(const void *ptr, bool demote)
 	assert(extent_node_addr_get(node) == ptr ||
 	    extent_node_achunk_get(node));
 
-	return (isalloc(ptr, demote));
+	return (isalloc(tsd, ptr, demote));
 }
 
 JEMALLOC_INLINE size_t
@@ -1035,9 +1039,9 @@ u2rz(size_t usize)
 }
 
 JEMALLOC_INLINE size_t
-p2rz(const void *ptr)
+p2rz(tsd_t *tsd, const void *ptr)
 {
-	size_t usize = isalloc(ptr, false);
+	size_t usize = isalloc(tsd, ptr, false);
 
 	return (u2rz(usize));
 }
@@ -1049,7 +1053,7 @@ idalloctm(tsd_t *tsd, void *ptr, tcache_t *tcache, bool is_metadata,
 
 	assert(ptr != NULL);
 	if (config_stats && is_metadata) {
-		arena_metadata_allocated_sub(iaalloc(ptr), isalloc(ptr,
+		arena_metadata_allocated_sub(iaalloc(ptr), isalloc(tsd, ptr,
 		    config_prof));
 	}
 

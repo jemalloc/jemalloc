@@ -130,7 +130,7 @@ extern size_t	tcache_maxclass;
  */
 extern tcaches_t	*tcaches;
 
-size_t	tcache_salloc(const void *ptr);
+size_t	tcache_salloc(tsd_t *tsd, const void *ptr);
 void	tcache_event_hard(tsd_t *tsd, tcache_t *tcache);
 void	*tcache_alloc_small_hard(tsd_t *tsd, arena_t *arena, tcache_t *tcache,
     tcache_bin_t *tbin, szind_t binind, bool *tcache_success);
@@ -138,19 +138,19 @@ void	tcache_bin_flush_small(tsd_t *tsd, tcache_t *tcache, tcache_bin_t *tbin,
     szind_t binind, unsigned rem);
 void	tcache_bin_flush_large(tsd_t *tsd, tcache_bin_t *tbin, szind_t binind,
     unsigned rem, tcache_t *tcache);
-void	tcache_arena_associate(tcache_t *tcache, arena_t *arena);
-void	tcache_arena_reassociate(tcache_t *tcache, arena_t *oldarena,
-    arena_t *newarena);
-void	tcache_arena_dissociate(tcache_t *tcache, arena_t *arena);
+void	tcache_arena_associate(tsd_t *tsd, tcache_t *tcache, arena_t *arena);
+void	tcache_arena_reassociate(tsd_t *tsd, tcache_t *tcache,
+    arena_t *oldarena, arena_t *newarena);
+void	tcache_arena_dissociate(tsd_t *tsd, tcache_t *tcache, arena_t *arena);
 tcache_t *tcache_get_hard(tsd_t *tsd);
 tcache_t *tcache_create(tsd_t *tsd, arena_t *arena);
 void	tcache_cleanup(tsd_t *tsd);
 void	tcache_enabled_cleanup(tsd_t *tsd);
-void	tcache_stats_merge(tcache_t *tcache, arena_t *arena);
+void	tcache_stats_merge(tsd_t *tsd, tcache_t *tcache, arena_t *arena);
 bool	tcaches_create(tsd_t *tsd, unsigned *r_ind);
 void	tcaches_flush(tsd_t *tsd, unsigned ind);
 void	tcaches_destroy(tsd_t *tsd, unsigned ind);
-bool	tcache_boot(void);
+bool	tcache_boot(tsd_t *tsd);
 
 #endif /* JEMALLOC_H_EXTERNS */
 /******************************************************************************/
@@ -310,7 +310,7 @@ tcache_alloc_small(tsd_t *tsd, arena_t *arena, tcache_t *tcache, size_t size,
 	 */
 	if (config_prof || (slow_path && config_fill) || unlikely(zero)) {
 		usize = index2size(binind);
-		assert(tcache_salloc(ret) == usize);
+		assert(tcache_salloc(tsd, ret) == usize);
 	}
 
 	if (likely(!zero)) {
@@ -407,7 +407,7 @@ tcache_dalloc_small(tsd_t *tsd, tcache_t *tcache, void *ptr, szind_t binind,
 	tcache_bin_t *tbin;
 	tcache_bin_info_t *tbin_info;
 
-	assert(tcache_salloc(ptr) <= SMALL_MAXCLASS);
+	assert(tcache_salloc(tsd, ptr) <= SMALL_MAXCLASS);
 
 	if (slow_path && config_fill && unlikely(opt_junk_free))
 		arena_dalloc_junk_small(ptr, &arena_bin_info[binind]);
@@ -434,8 +434,8 @@ tcache_dalloc_large(tsd_t *tsd, tcache_t *tcache, void *ptr, size_t size,
 	tcache_bin_info_t *tbin_info;
 
 	assert((size & PAGE_MASK) == 0);
-	assert(tcache_salloc(ptr) > SMALL_MAXCLASS);
-	assert(tcache_salloc(ptr) <= tcache_maxclass);
+	assert(tcache_salloc(tsd, ptr) > SMALL_MAXCLASS);
+	assert(tcache_salloc(tsd, ptr) <= tcache_maxclass);
 
 	binind = size2index(size);
 

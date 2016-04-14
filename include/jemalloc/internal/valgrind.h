@@ -30,15 +30,17 @@
  * calls must be embedded in macros rather than in functions so that when
  * Valgrind reports errors, there are no extra stack frames in the backtraces.
  */
-#define	JEMALLOC_VALGRIND_MALLOC(cond, ptr, usize, zero) do {		\
-	if (unlikely(in_valgrind && cond))				\
-		VALGRIND_MALLOCLIKE_BLOCK(ptr, usize, p2rz(ptr), zero);	\
+#define	JEMALLOC_VALGRIND_MALLOC(cond, tsd, ptr, usize, zero) do {	\
+	if (unlikely(in_valgrind && cond)) {				\
+		VALGRIND_MALLOCLIKE_BLOCK(ptr, usize, p2rz(tsd, ptr),	\
+		    zero);						\
+	}								\
 } while (0)
-#define	JEMALLOC_VALGRIND_REALLOC(maybe_moved, ptr, usize,		\
+#define	JEMALLOC_VALGRIND_REALLOC(maybe_moved, tsd, ptr, usize,		\
     ptr_maybe_null, old_ptr, old_usize, old_rzsize, old_ptr_maybe_null,	\
     zero) do {								\
 	if (unlikely(in_valgrind)) {					\
-		size_t rzsize = p2rz(ptr);				\
+		size_t rzsize = p2rz(tsd, ptr);				\
 									\
 		if (!maybe_moved || ptr == old_ptr) {			\
 			VALGRIND_RESIZEINPLACE_BLOCK(ptr, old_usize,	\
