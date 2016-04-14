@@ -83,8 +83,8 @@
 #define	JEMALLOC_VALGRIND_MAKE_MEM_NOACCESS(ptr, usize) do {} while (0)
 #define	JEMALLOC_VALGRIND_MAKE_MEM_UNDEFINED(ptr, usize) do {} while (0)
 #define	JEMALLOC_VALGRIND_MAKE_MEM_DEFINED(ptr, usize) do {} while (0)
-#define	JEMALLOC_VALGRIND_MALLOC(cond, ptr, usize, zero) do {} while (0)
-#define	JEMALLOC_VALGRIND_REALLOC(maybe_moved, ptr, usize,		\
+#define	JEMALLOC_VALGRIND_MALLOC(cond, tsd, ptr, usize, zero) do {} while (0)
+#define	JEMALLOC_VALGRIND_REALLOC(maybe_moved, tsd, ptr, usize,		\
     ptr_maybe_null, old_ptr, old_usize, old_rzsize, old_ptr_maybe_null,	\
     zero) do {} while (0)
 #define	JEMALLOC_VALGRIND_FREE(ptr, rzsize) do {} while (0)
