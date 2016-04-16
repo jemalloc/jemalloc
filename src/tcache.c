@@ -27,7 +27,7 @@ size_t
 tcache_salloc(tsdn_t *tsdn, const void *ptr)
 {
 
-	return (arena_salloc(tsdn, iealloc(ptr), ptr, false));
+	return (arena_salloc(tsdn, iealloc(tsdn, ptr), ptr, false));
 }
 
 void
@@ -101,7 +101,7 @@ tcache_bin_flush_small(tsd_t *tsd, tcache_t *tcache, tcache_bin_t *tbin,
 	assert(arena != NULL);
 	for (nflush = tbin->ncached - rem; nflush > 0; nflush = ndeferred) {
 		/* Lock the arena bin associated with the first object. */
-		extent_t *extent = iealloc(*(tbin->avail - 1));
+		extent_t *extent = iealloc(tsd_tsdn(tsd), *(tbin->avail - 1));
 		arena_t *bin_arena = extent_arena_get(extent);
 		arena_bin_t *bin = &bin_arena->bins[binind];
 
@@ -125,7 +125,7 @@ tcache_bin_flush_small(tsd_t *tsd, tcache_t *tcache, tcache_bin_t *tbin,
 			ptr = *(tbin->avail - 1 - i);
 			assert(ptr != NULL);
 
-			extent = iealloc(ptr);
+			extent = iealloc(tsd_tsdn(tsd), ptr);
 			if (extent_arena_get(extent) == bin_arena) {
 				arena_chunk_t *chunk =
 				    (arena_chunk_t *)extent_addr_get(extent);
@@ -185,7 +185,7 @@ tcache_bin_flush_large(tsd_t *tsd, tcache_bin_t *tbin, szind_t binind,
 	assert(arena != NULL);
 	for (nflush = tbin->ncached - rem; nflush > 0; nflush = ndeferred) {
 		/* Lock the arena associated with the first object. */
-		extent_t *extent = iealloc(*(tbin->avail - 1));
+		extent_t *extent = iealloc(tsd_tsdn(tsd), *(tbin->avail - 1));
 		arena_t *locked_arena = extent_arena_get(extent);
 		UNUSED bool idump;
 
@@ -211,7 +211,7 @@ tcache_bin_flush_large(tsd_t *tsd, tcache_bin_t *tbin, szind_t binind,
 		for (i = 0; i < nflush; i++) {
 			ptr = *(tbin->avail - 1 - i);
 			assert(ptr != NULL);
-			extent = iealloc(ptr);
+			extent = iealloc(tsd_tsdn(tsd), ptr);
 			if (extent_arena_get(extent) == locked_arena) {
 				arena_chunk_t *chunk =
 				    (arena_chunk_t *)extent_addr_get(extent);
@@ -394,7 +394,8 @@ tcache_destroy(tsd_t *tsd, tcache_t *tcache)
 	    arena_prof_accum(tsd_tsdn(tsd), arena, tcache->prof_accumbytes))
 		prof_idump(tsd_tsdn(tsd));
 
-	idalloctm(tsd_tsdn(tsd), iealloc(tcache), tcache, NULL, true, true);
+	idalloctm(tsd_tsdn(tsd), iealloc(tsd_tsdn(tsd), tcache), tcache, NULL,
+	    true, true);
 }
 
 void

@@ -633,7 +633,8 @@ size_t	arena_metadata_allocated_get(arena_t *arena);
 bool	arena_prof_accum_impl(arena_t *arena, uint64_t accumbytes);
 bool	arena_prof_accum_locked(arena_t *arena, uint64_t accumbytes);
 bool	arena_prof_accum(tsdn_t *tsdn, arena_t *arena, uint64_t accumbytes);
-szind_t	arena_ptr_small_binind_get(const void *ptr, size_t mapbits);
+szind_t	arena_ptr_small_binind_get(tsdn_t *tsdn, const void *ptr,
+    size_t mapbits);
 szind_t	arena_bin_index(arena_t *arena, arena_bin_t *bin);
 size_t	arena_run_regind(arena_run_t *run, const arena_bin_info_t *bin_info,
     const void *ptr);
@@ -647,7 +648,7 @@ void	arena_decay_ticks(tsdn_t *tsdn, arena_t *arena, unsigned nticks);
 void	arena_decay_tick(tsdn_t *tsdn, arena_t *arena);
 void	*arena_malloc(tsdn_t *tsdn, arena_t *arena, size_t size, szind_t ind,
     bool zero, tcache_t *tcache, bool slow_path);
-arena_t	*arena_aalloc(const void *ptr);
+arena_t	*arena_aalloc(tsdn_t *tsdn, const void *ptr);
 size_t	arena_salloc(tsdn_t *tsdn, const extent_t *extent, const void *ptr,
     bool demote);
 void	arena_dalloc(tsdn_t *tsdn, extent_t *extent, void *ptr,
@@ -1049,7 +1050,7 @@ arena_prof_accum(tsdn_t *tsdn, arena_t *arena, uint64_t accumbytes)
 
 #  ifdef JEMALLOC_ARENA_INLINE_B
 JEMALLOC_ALWAYS_INLINE szind_t
-arena_ptr_small_binind_get(const void *ptr, size_t mapbits)
+arena_ptr_small_binind_get(tsdn_t *tsdn, const void *ptr, size_t mapbits)
 {
 	szind_t binind;
 
@@ -1071,7 +1072,7 @@ arena_ptr_small_binind_get(const void *ptr, size_t mapbits)
 
 		assert(binind != BININD_INVALID);
 		assert(binind < NBINS);
-		extent = iealloc(ptr);
+		extent = iealloc(tsdn, ptr);
 		chunk = (arena_chunk_t *)extent_addr_get(extent);
 		arena = extent_arena_get(extent);
 		pageind = ((uintptr_t)ptr - (uintptr_t)chunk) >> LG_PAGE;
@@ -1314,10 +1315,10 @@ arena_malloc(tsdn_t *tsdn, arena_t *arena, size_t size, szind_t ind, bool zero,
 }
 
 JEMALLOC_ALWAYS_INLINE arena_t *
-arena_aalloc(const void *ptr)
+arena_aalloc(tsdn_t *tsdn, const void *ptr)
 {
 
-	return (extent_arena_get(iealloc(ptr)));
+	return (extent_arena_get(iealloc(tsdn, ptr)));
 }
 
 /* Return the size of the allocation pointed to by ptr. */
@@ -1361,7 +1362,7 @@ arena_salloc(tsdn_t *tsdn, const extent_t *extent, const void *ptr, bool demote)
 			 * object).
 			 */
 			assert(arena_mapbits_large_get(chunk, pageind) != 0 ||
-			    arena_ptr_small_binind_get(ptr,
+			    arena_ptr_small_binind_get(tsdn, ptr,
 			    arena_mapbits_get(chunk, pageind)) == binind);
 			ret = index2size(binind);
 		}
@@ -1389,7 +1390,8 @@ arena_dalloc(tsdn_t *tsdn, extent_t *extent, void *ptr, tcache_t *tcache,
 		if (likely((mapbits & CHUNK_MAP_LARGE) == 0)) {
 			/* Small allocation. */
 			if (likely(tcache != NULL)) {
-				szind_t binind = arena_ptr_small_binind_get(ptr,
+				szind_t binind =
+				    arena_ptr_small_binind_get(tsdn, ptr,
 				    mapbits);
 				tcache_dalloc_small(tsdn_tsd(tsdn), tcache, ptr,
 				    binind, slow_path);

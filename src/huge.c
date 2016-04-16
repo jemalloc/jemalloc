@@ -45,7 +45,8 @@ huge_palloc(tsdn_t *tsdn, arena_t *arena, size_t usize, size_t alignment,
 		arena = arena_choose(tsdn_tsd(tsdn), arena);
 	if (unlikely(arena == NULL) || (ret = arena_chunk_alloc_huge(tsdn,
 	    arena, usize, alignment, &is_zeroed)) == NULL) {
-		idalloctm(tsdn, iealloc(extent), extent, NULL, true, true);
+		idalloctm(tsdn, iealloc(tsdn, extent), extent, NULL, true,
+		    true);
 		return (NULL);
 	}
 
@@ -53,7 +54,8 @@ huge_palloc(tsdn_t *tsdn, arena_t *arena, size_t usize, size_t alignment,
 
 	if (chunk_register(tsdn, ret, extent)) {
 		arena_chunk_dalloc_huge(tsdn, arena, ret, usize);
-		idalloctm(tsdn, iealloc(extent), extent, NULL, true, true);
+		idalloctm(tsdn, iealloc(tsdn, extent), extent, NULL, true,
+		    true);
 		return (NULL);
 	}
 
@@ -194,7 +196,7 @@ huge_ralloc_no_move_shrink(tsdn_t *tsdn, extent_t *extent, void *ptr,
 		post_zeroed = pre_zeroed;
 
 	/* Update the size of the huge allocation. */
-	chunk_deregister(ptr, extent);
+	chunk_deregister(tsdn, ptr, extent);
 	malloc_mutex_lock(tsdn, &arena->huge_mtx);
 	extent_size_set(extent, usize);
 	/* Update zeroed. */
@@ -231,7 +233,7 @@ huge_ralloc_no_move_expand(tsdn_t *tsdn, extent_t *extent, void *ptr,
 		return (true);
 
 	/* Update the size of the huge allocation. */
-	chunk_deregister(ptr, extent);
+	chunk_deregister(tsdn, ptr, extent);
 	malloc_mutex_lock(tsdn, &arena->huge_mtx);
 	extent_size_set(extent, usize);
 	malloc_mutex_unlock(tsdn, &arena->huge_mtx);
@@ -353,7 +355,7 @@ huge_dalloc(tsdn_t *tsdn, extent_t *extent, void *ptr)
 	arena_t *arena;
 
 	arena = extent_arena_get(extent);
-	chunk_deregister(ptr, extent);
+	chunk_deregister(tsdn, ptr, extent);
 	malloc_mutex_lock(tsdn, &arena->huge_mtx);
 	ql_remove(&arena->huge, extent, ql_link);
 	malloc_mutex_unlock(tsdn, &arena->huge_mtx);
@@ -362,7 +364,7 @@ huge_dalloc(tsdn_t *tsdn, extent_t *extent, void *ptr)
 	    extent_size_get(extent));
 	arena_chunk_dalloc_huge(tsdn, extent_arena_get(extent),
 	    extent_addr_get(extent), extent_size_get(extent));
-	idalloctm(tsdn, iealloc(extent), extent, NULL, true, true);
+	idalloctm(tsdn, iealloc(tsdn, extent), extent, NULL, true, true);
 
 	arena_decay_tick(tsdn, arena);
 }
@@ -387,7 +389,7 @@ huge_prof_tctx_get(tsdn_t *tsdn, const extent_t *extent, const void *ptr)
 	prof_tctx_t *tctx;
 	arena_t *arena;
 
-	assert(extent == iealloc(ptr));
+	assert(extent == iealloc(tsdn, ptr));
 
 	arena = extent_arena_get(extent);
 	malloc_mutex_lock(tsdn, &arena->huge_mtx);
@@ -403,7 +405,7 @@ huge_prof_tctx_set(tsdn_t *tsdn, extent_t *extent, const void *ptr,
 {
 	arena_t *arena;
 
-	assert(extent == iealloc(ptr));
+	assert(extent == iealloc(tsdn, ptr));
 
 	arena = extent_arena_get(extent);
 	malloc_mutex_lock(tsdn, &arena->huge_mtx);

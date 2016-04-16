@@ -460,6 +460,8 @@ rtree_child_tryread
 rtree_clear
 rtree_delete
 rtree_new
+rtree_node_alloc
+rtree_node_dalloc
 rtree_node_valid
 rtree_elm_acquire
 rtree_elm_lookup

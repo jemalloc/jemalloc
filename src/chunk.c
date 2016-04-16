@@ -146,8 +146,9 @@ chunk_register(tsdn_t *tsdn, const void *chunk, const extent_t *extent)
 
 	assert(extent_addr_get(extent) == chunk);
 
-	if (rtree_write(&chunks_rtree, (uintptr_t)chunk, extent))
+	if (rtree_write(tsdn, &chunks_rtree, (uintptr_t)chunk, extent))
 		return (true);
+
 	if (config_prof && opt_prof) {
 		size_t size = extent_size_get(extent);
 		size_t nadd = (size == 0) ? 1 : size / chunksize;
@@ -168,10 +169,10 @@ chunk_register(tsdn_t *tsdn, const void *chunk, const extent_t *extent)
 }
 
 void
-chunk_deregister(const void *chunk, const extent_t *extent)
+chunk_deregister(tsdn_t *tsdn, const void *chunk, const extent_t *extent)
 {
 
-	rtree_clear(&chunks_rtree, (uintptr_t)chunk);
+	rtree_clear(tsdn, &chunks_rtree, (uintptr_t)chunk);
 	if (config_prof && opt_prof) {
 		size_t size = extent_size_get(extent);
 		size_t nsub = (size == 0) ? 1 : size / chunksize;
@@ -691,14 +692,6 @@ chunk_merge_default(void *chunk_a, size_t size_a, void *chunk_b, size_t size_b,
 	return (false);
 }
 
-static rtree_elm_t *
-chunks_rtree_node_alloc(size_t nelms)
-{
-
-	return ((rtree_elm_t *)base_alloc(tsdn_fetch(), nelms *
-	    sizeof(rtree_elm_t)));
-}
-
 bool
 chunk_boot(void)
 {
@@ -735,7 +728,7 @@ chunk_boot(void)
 	if (have_dss && chunk_dss_boot())
 		return (true);
 	if (rtree_new(&chunks_rtree, (unsigned)((ZU(1) << (LG_SIZEOF_PTR+3)) -
-	    opt_lg_chunk), chunks_rtree_node_alloc, NULL))
+	    opt_lg_chunk)))
 		return (true);
 
 	return (false);

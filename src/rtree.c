@@ -13,8 +13,7 @@ hmin(unsigned ha, unsigned hb)
  * used.
  */
 bool
-rtree_new(rtree_t *rtree, unsigned bits, rtree_node_alloc_t *alloc,
-    rtree_node_dalloc_t *dalloc)
+rtree_new(rtree_t *rtree, unsigned bits)
 {
 	unsigned bits_in_leaf, height, i;
 
@@ -32,8 +31,6 @@ rtree_new(rtree_t *rtree, unsigned bits, rtree_node_alloc_t *alloc,
 		height = 1;
 	assert((height-1) * RTREE_BITS_PER_LEVEL + bits_in_leaf == bits);
 
-	rtree->alloc = alloc;
-	rtree->dalloc = dalloc;
 	rtree->height = height;
 
 	/* Root level. */
@@ -64,8 +61,43 @@ rtree_new(rtree_t *rtree, unsigned bits, rtree_node_alloc_t *alloc,
 	return (false);
 }
 
+#ifdef JEMALLOC_JET
+#undef rtree_node_alloc
+#define	rtree_node_alloc JEMALLOC_N(rtree_node_alloc_impl)
+#endif
+static rtree_elm_t *
+rtree_node_alloc(tsdn_t *tsdn, rtree_t *rtree, size_t nelms)
+{
+
+	return ((rtree_elm_t *)base_alloc(tsdn, nelms * sizeof(rtree_elm_t)));
+}
+#ifdef JEMALLOC_JET
+#undef rtree_node_alloc
+#define	rtree_node_alloc JEMALLOC_N(rtree_node_alloc)
+rtree_node_alloc_t *rtree_node_alloc = JEMALLOC_N(rtree_node_alloc_impl);
+#endif
+
+#ifdef JEMALLOC_JET
+#undef rtree_node_dalloc
+#define	rtree_node_dalloc JEMALLOC_N(rtree_node_dalloc_impl)
+#endif
+UNUSED static void
+rtree_node_dalloc(tsdn_t *tsdn, rtree_t *rtree, rtree_elm_t *node)
+{
+
+	/* Nodes are never deleted during normal operation. */
+	not_reached();
+}
+#ifdef JEMALLOC_JET
+#undef rtree_node_dalloc
+#define	rtree_node_dalloc JEMALLOC_N(rtree_node_dalloc)
+rtree_node_dalloc_t *rtree_node_dalloc = JEMALLOC_N(rtree_node_dalloc_impl);
+#endif
+
+#ifdef JEMALLOC_JET
 static void
-rtree_delete_subtree(rtree_t *rtree, rtree_elm_t *node, unsigned level)
+rtree_delete_subtree(tsdn_t *tsdn, rtree_t *rtree, rtree_elm_t *node,
+    unsigned level)
 {
 
 	if (level + 1 < rtree->height) {
@@ -74,27 +106,31 @@ rtree_delete_subtree(rtree_t *rtree, rtree_elm_t *node, unsigned level)
 		nchildren = ZU(1) << rtree->levels[level].bits;
 		for (i = 0; i < nchildren; i++) {
 			rtree_elm_t *child = node[i].child;
-			if (child != NULL)
-				rtree_delete_subtree(rtree, child, level + 1);
+			if (child != NULL) {
+				rtree_delete_subtree(tsdn, rtree, child, level +
+				    1);
+			}
 		}
 	}
-	rtree->dalloc(node);
+	rtree_node_dalloc(tsdn, rtree, node);
 }
 
 void
-rtree_delete(rtree_t *rtree)
+rtree_delete(tsdn_t *tsdn, rtree_t *rtree)
 {
 	unsigned i;
 
 	for (i = 0; i < rtree->height; i++) {
 		rtree_elm_t *subtree = rtree->levels[i].subtree;
 		if (subtree != NULL)
-			rtree_delete_subtree(rtree, subtree, i);
+			rtree_delete_subtree(tsdn, rtree, subtree, i);
 	}
 }
+#endif
 
 static rtree_elm_t *
-rtree_node_init(rtree_t *rtree, unsigned level, rtree_elm_t **elmp)
+rtree_node_init(tsdn_t *tsdn, rtree_t *rtree, unsigned level,
+    rtree_elm_t **elmp)
 {
 	rtree_elm_t *node;
 
@@ -108,7 +144,8 @@ rtree_node_init(rtree_t *rtree, unsigned level, rtree_elm_t **elmp)
 			node = atomic_read_p((void **)elmp);
 		} while (node == RTREE_NODE_INITIALIZING);
 	} else {
-		node = rtree->alloc(ZU(1) << rtree->levels[level].bits);
+		node = rtree_node_alloc(tsdn, rtree, ZU(1) <<
+		    rtree->levels[level].bits);
 		if (node == NULL)
 			return (NULL);
 		atomic_write_p((void **)elmp, node);
@@ -118,15 +155,17 @@ rtree_node_init(rtree_t *rtree, unsigned level, rtree_elm_t **elmp)
 }
 
 rtree_elm_t *
-rtree_subtree_read_hard(rtree_t *rtree, unsigned level)
+rtree_subtree_read_hard(tsdn_t *tsdn, rtree_t *rtree, unsigned level)
 {
 
-	return (rtree_node_init(rtree, level, &rtree->levels[level].subtree));
+	return (rtree_node_init(tsdn, rtree, level,
+	    &rtree->levels[level].subtree));
 }
 
 rtree_elm_t *
-rtree_child_read_hard(rtree_t *rtree, rtree_elm_t *elm, unsigned level)
+rtree_child_read_hard(tsdn_t *tsdn, rtree_t *rtree, rtree_elm_t *elm,
+    unsigned level)
 {
 
-	return (rtree_node_init(rtree, level, &elm->child));
+	return (rtree_node_init(tsdn, rtree, level, &elm->child));
 }

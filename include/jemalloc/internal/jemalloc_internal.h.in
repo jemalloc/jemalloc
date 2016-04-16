@@ -961,15 +961,15 @@ decay_ticker_get(tsd_t *tsd, unsigned ind)
 #undef JEMALLOC_ARENA_INLINE_A
 
 #ifndef JEMALLOC_ENABLE_INLINE
-extent_t	*iealloc(const void *ptr);
+extent_t	*iealloc(tsdn_t *tsdn, const void *ptr);
 #endif
 
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_C_))
 JEMALLOC_ALWAYS_INLINE extent_t *
-iealloc(const void *ptr)
+iealloc(tsdn_t *tsdn, const void *ptr)
 {
 
-	return (chunk_lookup(ptr, true));
+	return (chunk_lookup(tsdn, ptr, true));
 }
 #endif
 
@@ -980,8 +980,7 @@ iealloc(const void *ptr)
 #include "jemalloc/internal/hash.h"
 
 #ifndef JEMALLOC_ENABLE_INLINE
-extent_t	*iealloc(const void *ptr);
-arena_t	*iaalloc(const void *ptr);
+arena_t	*iaalloc(tsdn_t *tsdn, const void *ptr);
 size_t	isalloc(tsdn_t *tsdn, const extent_t *extent, const void *ptr,
     bool demote);
 void	*iallocztm(tsdn_t *tsdn, size_t size, szind_t ind, bool zero,
@@ -1012,19 +1011,19 @@ bool	ixalloc(tsdn_t *tsdn, extent_t *extent, void *ptr, size_t oldsize,
 
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_C_))
 JEMALLOC_ALWAYS_INLINE arena_t *
-iaalloc(const void *ptr)
+iaalloc(tsdn_t *tsdn, const void *ptr)
 {
 
 	assert(ptr != NULL);
 
-	return (arena_aalloc(ptr));
+	return (arena_aalloc(tsdn, ptr));
 }
 
 /*
  * Typical usage:
  *   tsdn_t *tsdn = [...]
  *   void *ptr = [...]
- *   extent_t *extent = iealloc(ptr);
+ *   extent_t *extent = iealloc(tsdn, ptr);
  *   size_t sz = isalloc(tsdn, extent, ptr, config_prof);
  */
 JEMALLOC_ALWAYS_INLINE size_t
@@ -1050,8 +1049,8 @@ iallocztm(tsdn_t *tsdn, size_t size, szind_t ind, bool zero, tcache_t *tcache,
 
 	ret = arena_malloc(tsdn, arena, size, ind, zero, tcache, slow_path);
 	if (config_stats && is_metadata && likely(ret != NULL)) {
-		arena_metadata_allocated_add(iaalloc(ret), isalloc(tsdn,
-		    iealloc(ret), ret, config_prof));
+		arena_metadata_allocated_add(iaalloc(tsdn, ret), isalloc(tsdn,
+		    iealloc(tsdn, ret), ret, config_prof));
 	}
 	return (ret);
 }
@@ -1078,8 +1077,8 @@ ipallocztm(tsdn_t *tsdn, size_t usize, size_t alignment, bool zero,
 	ret = arena_palloc(tsdn, arena, usize, alignment, zero, tcache);
 	assert(ALIGNMENT_ADDR2BASE(ret, alignment) == ret);
 	if (config_stats && is_metadata && likely(ret != NULL)) {
-		arena_metadata_allocated_add(iaalloc(ret), isalloc(tsdn,
-		    iealloc(ret), ret, config_prof));
+		arena_metadata_allocated_add(iaalloc(tsdn, ret), isalloc(tsdn,
+		    iealloc(tsdn, ret), ret, config_prof));
 	}
 	return (ret);
 }
@@ -1106,7 +1105,7 @@ ivsalloc(tsdn_t *tsdn, const void *ptr, bool demote)
 	extent_t *extent;
 
 	/* Return 0 if ptr is not within a chunk managed by jemalloc. */
-	extent = chunk_lookup(ptr, false);
+	extent = chunk_lookup(tsdn, ptr, false);
 	if (extent == NULL)
 		return (0);
 	/* Only arena chunks should be looked up via interior pointers. */
@@ -1123,10 +1122,10 @@ idalloctm(tsdn_t *tsdn, extent_t *extent, void *ptr, tcache_t *tcache,
 
 	assert(ptr != NULL);
 	assert(!is_metadata || tcache == NULL);
-	assert(!is_metadata || iaalloc(ptr)->ind < narenas_auto);
+	assert(!is_metadata || iaalloc(tsdn, ptr)->ind < narenas_auto);
 	if (config_stats && is_metadata) {
-		arena_metadata_allocated_sub(iaalloc(ptr), isalloc(tsdn, extent,
-		    ptr, config_prof));
+		arena_metadata_allocated_sub(iaalloc(tsdn, ptr), isalloc(tsdn,
+		    extent, ptr, config_prof));
 	}
 
 	arena_dalloc(tsdn, extent, ptr, tcache, slow_path);

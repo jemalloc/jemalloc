@@ -53,7 +53,8 @@ chunk_hooks_t	chunk_hooks_set(tsdn_t *tsdn, arena_t *arena,
     const chunk_hooks_t *chunk_hooks);
 
 bool	chunk_register(tsdn_t *tsdn, const void *chunk, const extent_t *extent);
-void	chunk_deregister(const void *chunk, const extent_t *extent);
+void	chunk_deregister(tsdn_t *tsdn, const void *chunk,
+    const extent_t *extent);
 void	chunk_reregister(tsdn_t *tsdn, const void *chunk,
     const extent_t *extent);
 void	*chunk_alloc_base(size_t size);
@@ -81,15 +82,15 @@ void	chunk_postfork_child(tsdn_t *tsdn);
 #ifdef JEMALLOC_H_INLINES
 
 #ifndef JEMALLOC_ENABLE_INLINE
-extent_t	*chunk_lookup(const void *chunk, bool dependent);
+extent_t	*chunk_lookup(tsdn_t *tsdn, const void *chunk, bool dependent);
 #endif
 
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_CHUNK_C_))
 JEMALLOC_INLINE extent_t *
-chunk_lookup(const void *ptr, bool dependent)
+chunk_lookup(tsdn_t *tsdn, const void *ptr, bool dependent)
 {
 
-	return (rtree_read(&chunks_rtree, (uintptr_t)ptr, dependent));
+	return (rtree_read(tsdn, &chunks_rtree, (uintptr_t)ptr, dependent));
 }
 #endif
 

@@ -325,7 +325,7 @@ void
 a0dalloc(void *ptr)
 {
 
-	a0idalloc(iealloc(ptr), ptr, true);
+	a0idalloc(iealloc(NULL, ptr), ptr, true);
 }
 
 /*
@@ -365,7 +365,7 @@ bootstrap_free(void *ptr)
 	if (unlikely(ptr == NULL))
 		return;
 
-	a0idalloc(iealloc(ptr), ptr, false);
+	a0idalloc(iealloc(NULL, ptr), ptr, false);
 }
 
 static void
@@ -1401,7 +1401,8 @@ ialloc_prof_sample(tsd_t *tsd, size_t usize, szind_t ind, bool zero,
 		p = ialloc(tsd, LARGE_MINCLASS, ind_large, zero, slow_path);
 		if (p == NULL)
 			return (NULL);
-		arena_prof_promoted(tsd_tsdn(tsd), iealloc(p), p, usize);
+		arena_prof_promoted(tsd_tsdn(tsd), iealloc(tsd_tsdn(tsd), p), p,
+		    usize);
 	} else
 		p = ialloc(tsd, usize, ind, zero, slow_path);
 
@@ -1423,7 +1424,7 @@ ialloc_prof(tsd_t *tsd, size_t usize, szind_t ind, bool zero, bool slow_path)
 		prof_alloc_rollback(tsd, tctx, true);
 		return (NULL);
 	}
-	prof_malloc(tsd_tsdn(tsd), iealloc(p), p, usize, tctx);
+	prof_malloc(tsd_tsdn(tsd), iealloc(tsd_tsdn(tsd), p), p, usize, tctx);
 
 	return (p);
 }
@@ -1482,7 +1483,8 @@ ialloc_post_check(void *ret, tsdn_t *tsdn, size_t usize, const char *func,
 			set_errno(ENOMEM);
 	}
 	if (config_stats && likely(ret != NULL)) {
-		assert(usize == isalloc(tsdn, iealloc(ret), ret, config_prof));
+		assert(usize == isalloc(tsdn, iealloc(tsdn, ret), ret,
+		    config_prof));
 		*tsd_thread_allocatedp_get(tsdn_tsd(tsdn)) += usize;
 	}
 	witness_assert_lockless(tsdn);
@@ -1525,7 +1527,8 @@ imemalign_prof_sample(tsd_t *tsd, size_t alignment, size_t usize,
 		p = ipalloc(tsd, LARGE_MINCLASS, alignment, false);
 		if (p == NULL)
 			return (NULL);
-		arena_prof_promoted(tsd_tsdn(tsd), iealloc(p), p, usize);
+		arena_prof_promoted(tsd_tsdn(tsd), iealloc(tsd_tsdn(tsd), p), p,
+		    usize);
 	} else
 		p = ipalloc(tsd, usize, alignment, false);
 
@@ -1547,7 +1550,7 @@ imemalign_prof(tsd_t *tsd, size_t alignment, size_t usize)
 		prof_alloc_rollback(tsd, tctx, true);
 		return (NULL);
 	}
-	prof_malloc(tsd_tsdn(tsd), iealloc(p), p, usize, tctx);
+	prof_malloc(tsd_tsdn(tsd), iealloc(tsd_tsdn(tsd), p), p, usize, tctx);
 
 	return (p);
 }
@@ -1604,8 +1607,8 @@ imemalign(void **memptr, size_t alignment, size_t size, size_t min_alignment)
 	ret = 0;
 label_return:
 	if (config_stats && likely(result != NULL)) {
-		assert(usize == isalloc(tsd_tsdn(tsd), iealloc(result), result,
-		    config_prof));
+		assert(usize == isalloc(tsd_tsdn(tsd), iealloc(tsd_tsdn(tsd),
+		    result), result, config_prof));
 		*tsd_thread_allocatedp_get(tsd) += usize;
 	}
 	UTRACE(0, size, result);
@@ -1696,7 +1699,8 @@ irealloc_prof_sample(tsd_t *tsd, extent_t *extent, void *old_ptr,
 		    false);
 		if (p == NULL)
 			return (NULL);
-		arena_prof_promoted(tsd_tsdn(tsd), iealloc(p), p, usize);
+		arena_prof_promoted(tsd_tsdn(tsd), iealloc(tsd_tsdn(tsd), p), p,
+		    usize);
 	} else
 		p = iralloc(tsd, extent, old_ptr, old_usize, usize, 0, false);
 
@@ -1724,7 +1728,7 @@ irealloc_prof(tsd_t *tsd, extent_t *extent, void *old_ptr, size_t old_usize,
 		prof_alloc_rollback(tsd, tctx, true);
 		return (NULL);
 	}
-	e = (p == old_ptr) ? extent : iealloc(p);
+	e = (p == old_ptr) ? extent : iealloc(tsd_tsdn(tsd), p);
 	prof_realloc(tsd, e, p, usize, tctx, prof_active, true,
 	    old_ptr, old_usize, old_tctx);
 
@@ -1742,7 +1746,7 @@ ifree(tsd_t *tsd, void *ptr, tcache_t *tcache, bool slow_path)
 	assert(ptr != NULL);
 	assert(malloc_initialized() || IS_INITIALIZER);
 
-	extent = iealloc(ptr);
+	extent = iealloc(tsd_tsdn(tsd), ptr);
 	if (config_prof && opt_prof) {
 		usize = isalloc(tsd_tsdn(tsd), extent, ptr, config_prof);
 		prof_free(tsd, extent, ptr, usize);
@@ -1810,9 +1814,8 @@ je_realloc(void *ptr, size_t size)
 
 		witness_assert_lockless(tsd_tsdn(tsd));
 
-		extent = iealloc(ptr);
+		extent = iealloc(tsd_tsdn(tsd), ptr);
 		old_usize = isalloc(tsd_tsdn(tsd), extent, ptr, config_prof);
-
 		if (config_prof && opt_prof) {
 			usize = s2u(size);
 			ret = unlikely(usize == 0 || usize > HUGE_MAXCLASS) ?
@@ -1845,7 +1848,8 @@ je_realloc(void *ptr, size_t size)
 	if (config_stats && likely(ret != NULL)) {
 		tsd_t *tsd;
 
-		assert(usize == isalloc(tsdn, iealloc(ret), ret, config_prof));
+		assert(usize == isalloc(tsdn, iealloc(tsdn, ret), ret,
+		    config_prof));
 		tsd = tsdn_tsd(tsdn);
 		*tsd_thread_allocatedp_get(tsd) += usize;
 		*tsd_thread_deallocatedp_get(tsd) += old_usize;
@@ -1999,7 +2003,7 @@ imallocx_prof_sample(tsdn_t *tsdn, size_t usize, size_t alignment, bool zero,
 		    tcache, arena, slow_path);
 		if (p == NULL)
 			return (NULL);
-		arena_prof_promoted(tsdn, iealloc(p), p, usize);
+		arena_prof_promoted(tsdn, iealloc(tsdn, p), p, usize);
 	} else
 		p = imallocx_flags(tsdn, usize, alignment, zero, tcache, arena,
 		    slow_path);
@@ -2033,7 +2037,7 @@ imallocx_prof(tsd_t *tsd, size_t size, int flags, size_t *usize, bool slow_path)
 		prof_alloc_rollback(tsd, tctx, true);
 		return (NULL);
 	}
-	prof_malloc(tsd_tsdn(tsd), iealloc(p), p, *usize, tctx);
+	prof_malloc(tsd_tsdn(tsd), iealloc(tsd_tsdn(tsd), p), p, *usize, tctx);
 
 	assert(alignment == 0 || ((uintptr_t)p & (alignment - 1)) == ZU(0));
 	return (p);
@@ -2134,7 +2138,7 @@ irallocx_prof_sample(tsdn_t *tsdn, extent_t *extent, void *old_ptr,
 		    alignment, zero, tcache, arena);
 		if (p == NULL)
 			return (NULL);
-		arena_prof_promoted(tsdn, iealloc(p), p, usize);
+		arena_prof_promoted(tsdn, iealloc(tsdn, p), p, usize);
 	} else {
 		p = iralloct(tsdn, extent, old_ptr, old_usize, usize, alignment,
 		    zero, tcache, arena);
@@ -2180,7 +2184,7 @@ irallocx_prof(tsd_t *tsd, extent_t *extent, void *old_ptr, size_t old_usize,
 		e = extent;
 		*usize = isalloc(tsd_tsdn(tsd), e, p, config_prof);
 	} else
-		e = iealloc(p);
+		e = iealloc(tsd_tsdn(tsd), p);
 	prof_realloc(tsd, e, p, *usize, tctx, prof_active, true, old_ptr,
 	    old_usize, old_tctx);
 
@@ -2207,7 +2211,7 @@ je_rallocx(void *ptr, size_t size, int flags)
 	assert(malloc_initialized() || IS_INITIALIZER);
 	tsd = tsd_fetch();
 	witness_assert_lockless(tsd_tsdn(tsd));
-	extent = iealloc(ptr);
+	extent = iealloc(tsd_tsdn(tsd), ptr);
 
 	if (unlikely((flags & MALLOCX_ARENA_MASK) != 0)) {
 		unsigned arena_ind = MALLOCX_ARENA_GET(flags);
@@ -2241,8 +2245,8 @@ je_rallocx(void *ptr, size_t size, int flags)
 		if (unlikely(p == NULL))
 			goto label_oom;
 		if (config_stats) {
-			usize = isalloc(tsd_tsdn(tsd), iealloc(p), p,
-			    config_prof);
+			usize = isalloc(tsd_tsdn(tsd), iealloc(tsd_tsdn(tsd),
+			    p), p, config_prof);
 		}
 	}
 	assert(alignment == 0 || ((uintptr_t)p & (alignment - 1)) == ZU(0));
@@ -2357,7 +2361,7 @@ je_xallocx(void *ptr, size_t size, size_t extra, int flags)
 	assert(malloc_initialized() || IS_INITIALIZER);
 	tsd = tsd_fetch();
 	witness_assert_lockless(tsd_tsdn(tsd));
-	extent = iealloc(ptr);
+	extent = iealloc(tsd_tsdn(tsd), ptr);
 
 	old_usize = isalloc(tsd_tsdn(tsd), extent, ptr, config_prof);
 
@@ -2412,7 +2416,7 @@ je_sallocx(const void *ptr, int flags)
 	if (config_ivsalloc)
 		usize = ivsalloc(tsdn, ptr, config_prof);
 	else
-		usize = isalloc(tsdn, iealloc(ptr), ptr, config_prof);
+		usize = isalloc(tsdn, iealloc(tsdn, ptr), ptr, config_prof);
 
 	witness_assert_lockless(tsdn);
 	return (usize);
@@ -2471,7 +2475,7 @@ je_sdallocx(void *ptr, size_t size, int flags)
 	assert(ptr != NULL);
 	assert(malloc_initialized() || IS_INITIALIZER);
 	tsd = tsd_fetch();
-	extent = iealloc(ptr);
+	extent = iealloc(tsd_tsdn(tsd), ptr);
 	usize = inallocx(tsd_tsdn(tsd), size, flags);
 	assert(usize == isalloc(tsd_tsdn(tsd), extent, ptr, config_prof));
 
@@ -2591,7 +2595,7 @@ je_malloc_usable_size(JEMALLOC_USABLE_SIZE_CONST void *ptr)
 	if (config_ivsalloc)
 		ret = ivsalloc(tsdn, ptr, config_prof);
 	else {
-		ret = (ptr == NULL) ? 0 : isalloc(tsdn, iealloc(ptr), ptr,
+		ret = (ptr == NULL) ? 0 : isalloc(tsdn, iealloc(tsdn, ptr), ptr,
 		    config_prof);
 	}
 

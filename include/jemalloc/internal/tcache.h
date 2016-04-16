@@ -370,8 +370,8 @@ tcache_alloc_large(tsd_t *tsd, arena_t *arena, tcache_t *tcache, size_t size,
 		}
 
 		if (config_prof && usize == LARGE_MINCLASS) {
-			arena_chunk_t *chunk =
-			    (arena_chunk_t *)extent_addr_get(iealloc(ret));
+			arena_chunk_t *chunk =(arena_chunk_t *)extent_addr_get(
+			    iealloc(tsd_tsdn(tsd), ret));
 			size_t pageind = (((uintptr_t)ret - (uintptr_t)chunk) >>
 			    LG_PAGE);
 			arena_mapbits_large_binind_set(chunk, pageind,
