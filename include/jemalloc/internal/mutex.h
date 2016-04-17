@@ -81,7 +81,8 @@ malloc_mutex_lock(tsd_t *tsd, malloc_mutex_t *mutex)
 {
 
 	if (isthreaded) {
-		witness_assert_not_owner(tsd, &mutex->witness);
+		if (config_debug)
+			witness_assert_not_owner(tsd, &mutex->witness);
 #ifdef _WIN32
 #  if _WIN32_WINNT >= 0x0600
 		AcquireSRWLockExclusive(&mutex->lock);
@@ -103,7 +104,6 @@ malloc_mutex_unlock(tsd_t *tsd, malloc_mutex_t *mutex)
 {
 
 	if (isthreaded) {
-		witness_assert_owner(tsd, &mutex->witness);
 		if (config_debug)
 			witness_unlock(tsd, &mutex->witness);
 #ifdef _WIN32

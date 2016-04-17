@@ -39,8 +39,6 @@ witness_lock(tsd_t *tsd, witness_t *witness)
 	witness_list_t *witnesses;
 	witness_t *w;
 
-	cassert(config_debug);
-
 	if (tsd == NULL)
 		return;
 	if (witness->rank == WITNESS_RANK_OMIT)
@@ -62,8 +60,6 @@ void
 witness_unlock(tsd_t *tsd, witness_t *witness)
 {
 	witness_list_t *witnesses;
-
-	cassert(config_debug);
 
 	if (tsd == NULL)
 		return;
@@ -100,8 +96,6 @@ witness_assert_owner(tsd_t *tsd, const witness_t *witness)
 {
 	witness_list_t *witnesses;
 	witness_t *w;
-
-	cassert(config_debug);
 
 	if (tsd == NULL)
 		return;
@@ -140,8 +134,6 @@ witness_assert_not_owner(tsd_t *tsd, const witness_t *witness)
 {
 	witness_list_t *witnesses;
 	witness_t *w;
-
-	cassert(config_debug);
 
 	if (tsd == NULL)
 		return;
@@ -183,8 +175,6 @@ witness_assert_lockless(tsd_t *tsd)
 {
 	witness_list_t *witnesses;
 	witness_t *w;
-
-	cassert(config_debug);
 
 	if (tsd == NULL)
 		return;
