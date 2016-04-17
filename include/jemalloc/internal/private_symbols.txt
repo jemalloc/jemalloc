@@ -401,6 +401,7 @@ pages_map
 pages_purge
 pages_trim
 pages_unmap
+pind2sz
 pow2_ceil_u32
 pow2_ceil_u64
 pow2_ceil_zu
@@ -454,6 +455,8 @@ prof_thread_active_init_set
 prof_thread_active_set
 prof_thread_name_get
 prof_thread_name_set
+psz2ind
+psz2u
 purge_mode_names
 quarantine
 quarantine_alloc_hook

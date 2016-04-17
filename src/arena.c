@@ -3711,7 +3711,7 @@ bin_info_init(void)
 	bin_info_run_size_calc(bin_info);				\
 	bitmap_info_init(&bin_info->bitmap_info, bin_info->nregs);
 #define	BIN_INFO_INIT_bin_no(index, size)
-#define	SC(index, lg_grp, lg_delta, ndelta, bin, lg_delta_lookup)	\
+#define	SC(index, lg_grp, lg_delta, ndelta, psz, bin, lg_delta_lookup)	\
 	BIN_INFO_INIT_bin_##bin(index, (ZU(1)<<lg_grp) + (ZU(ndelta)<<lg_delta))
 	SIZE_CLASSES
 #undef BIN_INFO_INIT_bin_yes
@@ -3735,7 +3735,7 @@ small_run_size_init(void)
 		small_run_tab[bin_info->run_size >> LG_PAGE] = true;	\
 	}
 #define	TAB_INIT_bin_no(index, size)
-#define	SC(index, lg_grp, lg_delta, ndelta, bin, lg_delta_lookup)	\
+#define	SC(index, lg_grp, lg_delta, ndelta, psz, bin, lg_delta_lookup)	\
 	TAB_INIT_bin_##bin(index, (ZU(1)<<lg_grp) + (ZU(ndelta)<<lg_delta))
 	SIZE_CLASSES
 #undef TAB_INIT_bin_yes
