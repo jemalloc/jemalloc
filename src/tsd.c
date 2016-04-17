@@ -77,7 +77,7 @@ tsd_cleanup(void *arg)
 		/* Do nothing. */
 		break;
 	case tsd_state_nominal:
-#define O(n, t)								\
+#define	O(n, t)								\
 		n##_cleanup(tsd);
 MALLOC_TSD
 #undef O
