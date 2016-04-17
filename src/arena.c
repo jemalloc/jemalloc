@@ -19,7 +19,8 @@ const arena_bin_info_t	arena_bin_info[NBINS] = {
 #define	BIN_INFO_bin_yes(reg_size, run_size, nregs)			\
 	{reg_size, run_size, nregs, BITMAP_INFO_INITIALIZER(nregs)},
 #define	BIN_INFO_bin_no(reg_size, run_size, nregs)
-#define	SC(index, lg_grp, lg_delta, ndelta, bin, pgs, lg_delta_lookup)	\
+#define	SC(index, lg_grp, lg_delta, ndelta, psz, bin, pgs,		\
+    lg_delta_lookup)							\
 	BIN_INFO_bin_##bin((1U<<lg_grp) + (ndelta<<lg_delta),		\
 	    (pgs << LG_PAGE), (pgs << LG_PAGE) / ((1U<<lg_grp) +	\
 	    (ndelta<<lg_delta)))
@@ -3511,7 +3512,7 @@ small_run_size_init(void)
 		small_run_tab[bin_info->run_size >> LG_PAGE] = true;	\
 	}
 #define	TAB_INIT_bin_no(index, size)
-#define	SC(index, lg_grp, lg_delta, ndelta, bin, run_size,		\
+#define	SC(index, lg_grp, lg_delta, ndelta, psz, bin, run_size,		\
     lg_delta_lookup)							\
 	TAB_INIT_bin_##bin(index, (ZU(1)<<lg_grp) + (ZU(ndelta)<<lg_delta))
 	SIZE_CLASSES
