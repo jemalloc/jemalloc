@@ -40,19 +40,25 @@ witness_lockless_error_intercept(const witness_list_t *witnesses)
 }
 
 static int
-witness_comp(const witness_t *a, const witness_t *b)
+witness_comp(const witness_t *a, void *oa, const witness_t *b, void *ob)
 {
 
 	assert_u_eq(a->rank, b->rank, "Witnesses should have equal rank");
+
+	assert(oa == (void *)a);
+	assert(ob == (void *)b);
 
 	return (strcmp(a->name, b->name));
 }
 
 static int
-witness_comp_reverse(const witness_t *a, const witness_t *b)
+witness_comp_reverse(const witness_t *a, void *oa, const witness_t *b, void *ob)
 {
 
 	assert_u_eq(a->rank, b->rank, "Witnesses should have equal rank");
+
+	assert(oa == (void *)a);
+	assert(ob == (void *)b);
 
 	return (-strcmp(a->name, b->name));
 }
@@ -68,12 +74,12 @@ TEST_BEGIN(test_witness)
 
 	witness_assert_lockless(tsdn);
 
-	witness_init(&a, "a", 1, NULL);
+	witness_init(&a, "a", 1, NULL, NULL);
 	witness_assert_not_owner(tsdn, &a);
 	witness_lock(tsdn, &a);
 	witness_assert_owner(tsdn, &a);
 
-	witness_init(&b, "b", 2, NULL);
+	witness_init(&b, "b", 2, NULL, NULL);
 	witness_assert_not_owner(tsdn, &b);
 	witness_lock(tsdn, &b);
 	witness_assert_owner(tsdn, &b);
@@ -96,12 +102,12 @@ TEST_BEGIN(test_witness_comp)
 
 	witness_assert_lockless(tsdn);
 
-	witness_init(&a, "a", 1, witness_comp);
+	witness_init(&a, "a", 1, witness_comp, &a);
 	witness_assert_not_owner(tsdn, &a);
 	witness_lock(tsdn, &a);
 	witness_assert_owner(tsdn, &a);
 
-	witness_init(&b, "b", 1, witness_comp);
+	witness_init(&b, "b", 1, witness_comp, &b);
 	witness_assert_not_owner(tsdn, &b);
 	witness_lock(tsdn, &b);
 	witness_assert_owner(tsdn, &b);
@@ -111,7 +117,7 @@ TEST_BEGIN(test_witness_comp)
 	witness_lock_error = witness_lock_error_intercept;
 	saw_lock_error = false;
 
-	witness_init(&c, "c", 1, witness_comp_reverse);
+	witness_init(&c, "c", 1, witness_comp_reverse, &c);
 	witness_assert_not_owner(tsdn, &c);
 	assert_false(saw_lock_error, "Unexpected witness lock error");
 	witness_lock(tsdn, &c);
@@ -120,7 +126,7 @@ TEST_BEGIN(test_witness_comp)
 
 	saw_lock_error = false;
 
-	witness_init(&d, "d", 1, NULL);
+	witness_init(&d, "d", 1, NULL, NULL);
 	witness_assert_not_owner(tsdn, &d);
 	assert_false(saw_lock_error, "Unexpected witness lock error");
 	witness_lock(tsdn, &d);
@@ -150,8 +156,8 @@ TEST_BEGIN(test_witness_reversal)
 
 	witness_assert_lockless(tsdn);
 
-	witness_init(&a, "a", 1, NULL);
-	witness_init(&b, "b", 2, NULL);
+	witness_init(&a, "a", 1, NULL, NULL);
+	witness_init(&b, "b", 2, NULL, NULL);
 
 	witness_lock(tsdn, &b);
 	assert_false(saw_lock_error, "Unexpected witness lock error");
@@ -186,7 +192,7 @@ TEST_BEGIN(test_witness_recursive)
 
 	witness_assert_lockless(tsdn);
 
-	witness_init(&a, "a", 1, NULL);
+	witness_init(&a, "a", 1, NULL, NULL);
 
 	witness_lock(tsdn, &a);
 	assert_false(saw_lock_error, "Unexpected witness lock error");
@@ -220,7 +226,7 @@ TEST_BEGIN(test_witness_unlock_not_owned)
 
 	witness_assert_lockless(tsdn);
 
-	witness_init(&a, "a", 1, NULL);
+	witness_init(&a, "a", 1, NULL, NULL);
 
 	assert_false(saw_owner_error, "Unexpected owner error");
 	witness_unlock(tsdn, &a);
@@ -247,7 +253,7 @@ TEST_BEGIN(test_witness_lockful)
 
 	witness_assert_lockless(tsdn);
 
-	witness_init(&a, "a", 1, NULL);
+	witness_init(&a, "a", 1, NULL, NULL);
 
 	assert_false(saw_lockless_error, "Unexpected lockless error");
 	witness_assert_lockless(tsdn);

@@ -7,6 +7,8 @@
 #ifdef JEMALLOC_H_TYPES
 
 typedef struct rtree_elm_s rtree_elm_t;
+typedef struct rtree_elm_witness_s rtree_elm_witness_t;
+typedef struct rtree_elm_witness_tsd_s rtree_elm_witness_tsd_t;
 typedef struct rtree_level_s rtree_level_t;
 typedef struct rtree_s rtree_t;
 
@@ -23,6 +25,29 @@ typedef struct rtree_s rtree_t;
 /* Used for two-stage lock-free node initialization. */
 #define	RTREE_NODE_INITIALIZING	((rtree_elm_t *)0x1)
 
+/*
+ * Maximum number of concurrently acquired elements per thread.  This controls
+ * how many witness_t structures are embedded in tsd.  Ideally rtree_elm_t would
+ * have a witness_t directly embedded, but that would dramatically bloat the
+ * tree.  This must contain enough entries to e.g. coalesce two extents.
+ */
+#define	RTREE_ELM_ACQUIRE_MAX	4
+
+/* Initializers for rtree_elm_witness_tsd_t. */
+#define	RTREE_ELM_WITNESS_INITIALIZER {					\
+	NULL,								\
+	WITNESS_INITIALIZER("rtree_elm", WITNESS_RANK_RTREE_ELM)	\
+}
+
+#define	RTREE_ELM_WITNESS_TSD_INITIALIZER {				\
+	{								\
+		RTREE_ELM_WITNESS_INITIALIZER,				\
+		RTREE_ELM_WITNESS_INITIALIZER,				\
+		RTREE_ELM_WITNESS_INITIALIZER,				\
+		RTREE_ELM_WITNESS_INITIALIZER				\
+	}								\
+}
+
 #endif /* JEMALLOC_H_TYPES */
 /******************************************************************************/
 #ifdef JEMALLOC_H_STRUCTS
@@ -33,6 +58,15 @@ struct rtree_elm_s {
 		rtree_elm_t	*child;
 		extent_t	*extent;
 	};
+};
+
+struct rtree_elm_witness_s {
+	const rtree_elm_t	*elm;
+	witness_t		witness;
+};
+
+struct rtree_elm_witness_tsd_s {
+	rtree_elm_witness_t	witnesses[RTREE_ELM_ACQUIRE_MAX];
 };
 
 struct rtree_level_s {
@@ -97,6 +131,13 @@ rtree_elm_t	*rtree_subtree_read_hard(tsdn_t *tsdn, rtree_t *rtree,
     unsigned level);
 rtree_elm_t	*rtree_child_read_hard(tsdn_t *tsdn, rtree_t *rtree,
     rtree_elm_t *elm, unsigned level);
+void	rtree_elm_witness_acquire(tsdn_t *tsdn, const rtree_t *rtree,
+    uintptr_t key, const rtree_elm_t *elm);
+void	rtree_elm_witness_access(tsdn_t *tsdn, const rtree_t *rtree,
+    const rtree_elm_t *elm);
+void	rtree_elm_witness_release(tsdn_t *tsdn, const rtree_t *rtree,
+    const rtree_elm_t *elm);
+void	rtree_elm_witnesses_cleanup(tsd_t *tsd);
 
 #endif /* JEMALLOC_H_EXTERNS */
 /******************************************************************************/
@@ -125,9 +166,11 @@ extent_t	*rtree_read(tsdn_t *tsdn, rtree_t *rtree, uintptr_t key,
     bool dependent);
 rtree_elm_t	*rtree_elm_acquire(tsdn_t *tsdn, rtree_t *rtree, uintptr_t key,
     bool dependent, bool init_missing);
-extent_t	*rtree_elm_read_acquired(rtree_elm_t *elm);
-void	rtree_elm_write_acquired(rtree_elm_t *elm, const extent_t *extent);
-void	rtree_elm_release(rtree_elm_t *elm);
+extent_t	*rtree_elm_read_acquired(tsdn_t *tsdn, const rtree_t *rtree,
+    rtree_elm_t *elm);
+void	rtree_elm_write_acquired(tsdn_t *tsdn, const rtree_t *rtree,
+    rtree_elm_t *elm, const extent_t *extent);
+void	rtree_elm_release(tsdn_t *tsdn, const rtree_t *rtree, rtree_elm_t *elm);
 void	rtree_clear(tsdn_t *tsdn, rtree_t *rtree, uintptr_t key);
 #endif
 
@@ -393,11 +436,14 @@ rtree_elm_acquire(tsdn_t *tsdn, rtree_t *rtree, uintptr_t key, bool dependent,
 		} while (atomic_cas_p(&elm->pun, (void *)extent, s));
 	}
 
+	if (config_debug)
+		rtree_elm_witness_acquire(tsdn, rtree, key, elm);
+
 	return (elm);
 }
 
 JEMALLOC_INLINE extent_t *
-rtree_elm_read_acquired(rtree_elm_t *elm)
+rtree_elm_read_acquired(tsdn_t *tsdn, const rtree_t *rtree, rtree_elm_t *elm)
 {
 	extent_t *extent;
 
@@ -405,24 +451,34 @@ rtree_elm_read_acquired(rtree_elm_t *elm)
 	extent = (extent_t *)((uintptr_t)elm->pun & ~((uintptr_t)0x1));
 	assert(((uintptr_t)extent & (uintptr_t)0x1) == (uintptr_t)0x0);
 
+	if (config_debug)
+		rtree_elm_witness_access(tsdn, rtree, elm);
+
 	return (extent);
 }
 
 JEMALLOC_INLINE void
-rtree_elm_write_acquired(rtree_elm_t *elm, const extent_t *extent)
+rtree_elm_write_acquired(tsdn_t *tsdn, const rtree_t *rtree, rtree_elm_t *elm,
+    const extent_t *extent)
 {
 
 	assert(((uintptr_t)extent & (uintptr_t)0x1) == (uintptr_t)0x0);
 	assert(((uintptr_t)elm->pun & (uintptr_t)0x1) == (uintptr_t)0x1);
+
+	if (config_debug)
+		rtree_elm_witness_access(tsdn, rtree, elm);
+
 	elm->pun = (void *)((uintptr_t)extent | (uintptr_t)0x1);
-	assert(rtree_elm_read_acquired(elm) == extent);
+	assert(rtree_elm_read_acquired(tsdn, rtree, elm) == extent);
 }
 
 JEMALLOC_INLINE void
-rtree_elm_release(rtree_elm_t *elm)
+rtree_elm_release(tsdn_t *tsdn, const rtree_t *rtree, rtree_elm_t *elm)
 {
 
-	rtree_elm_write(elm, rtree_elm_read_acquired(elm));
+	rtree_elm_write(elm, rtree_elm_read_acquired(tsdn, rtree, elm));
+	if (config_debug)
+		rtree_elm_witness_release(tsdn, rtree, elm);
 }
 
 JEMALLOC_INLINE void
@@ -431,8 +487,8 @@ rtree_clear(tsdn_t *tsdn, rtree_t *rtree, uintptr_t key)
 	rtree_elm_t *elm;
 
 	elm = rtree_elm_acquire(tsdn, rtree, key, true, false);
-	rtree_elm_write_acquired(elm, NULL);
-	rtree_elm_release(elm);
+	rtree_elm_write_acquired(tsdn, rtree, elm, NULL);
+	rtree_elm_release(tsdn, rtree, elm);
 }
 #endif
 

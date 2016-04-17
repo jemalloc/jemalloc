@@ -468,6 +468,10 @@ rtree_elm_lookup
 rtree_elm_read
 rtree_elm_read_acquired
 rtree_elm_release
+rtree_elm_witness_access
+rtree_elm_witness_acquire
+rtree_elm_witness_release
+rtree_elm_witnesses_cleanup
 rtree_elm_write
 rtree_elm_write_acquired
 rtree_read

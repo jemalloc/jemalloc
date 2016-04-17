@@ -85,15 +85,15 @@ thd_start(void *varg)
 			    true);
 			assert_ptr_not_null(elm,
 			    "Unexpected rtree_elm_acquire() failure");
-			rtree_elm_write_acquired(elm, extent);
-			rtree_elm_release(elm);
+			rtree_elm_write_acquired(tsdn, &arg->rtree, elm, extent);
+			rtree_elm_release(tsdn, &arg->rtree, elm);
 
 			elm = rtree_elm_acquire(tsdn, &arg->rtree, key, true,
 			    false);
 			assert_ptr_not_null(elm,
 			    "Unexpected rtree_elm_acquire() failure");
-			rtree_elm_read_acquired(elm);
-			rtree_elm_release(elm);
+			rtree_elm_read_acquired(tsdn, &arg->rtree, elm);
+			rtree_elm_release(tsdn, &arg->rtree, elm);
 		} else
 			rtree_read(tsdn, &arg->rtree, key, false);
 	}
@@ -234,8 +234,8 @@ TEST_BEGIN(test_rtree_random)
 			    true);
 			assert_ptr_not_null(elm,
 			    "Unexpected rtree_elm_acquire() failure");
-			rtree_elm_write_acquired(elm, &extent);
-			rtree_elm_release(elm);
+			rtree_elm_write_acquired(tsdn, &rtree, elm, &extent);
+			rtree_elm_release(tsdn, &rtree, elm);
 			assert_ptr_eq(rtree_read(tsdn, &rtree, keys[j], true),
 			    &extent,
 			    "rtree_read() should return previously set value");

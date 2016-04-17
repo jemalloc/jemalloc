@@ -104,7 +104,7 @@ malloc_mutex_init(malloc_mutex_t *mutex, const char *name, witness_rank_t rank)
 	pthread_mutexattr_destroy(&attr);
 #endif
 	if (config_debug)
-		witness_init(&mutex->witness, name, rank, NULL);
+		witness_init(&mutex->witness, name, rank, NULL, NULL);
 	return (false);
 }
 

@@ -4,7 +4,8 @@
 typedef struct witness_s witness_t;
 typedef unsigned witness_rank_t;
 typedef ql_head(witness_t) witness_list_t;
-typedef int witness_comp_t (const witness_t *, const witness_t *);
+typedef int witness_comp_t (const witness_t *, void *, const witness_t *,
+    void *);
 
 /*
  * Lock ranks.  Witnesses with rank WITNESS_RANK_OMIT are completely ignored by
@@ -26,7 +27,8 @@ typedef int witness_comp_t (const witness_t *, const witness_t *);
 #define	WITNESS_RANK_ARENA_CHUNKS	9U
 #define	WITNESS_RANK_ARENA_EXTENT_CACHE	10
 
-#define	WITNESS_RANK_BASE		11U
+#define	WITNESS_RANK_RTREE_ELM		11U
+#define	WITNESS_RANK_BASE		12U
 
 #define	WITNESS_RANK_LEAF		0xffffffffU
 #define	WITNESS_RANK_ARENA_BIN		WITNESS_RANK_LEAF
@@ -38,7 +40,7 @@ typedef int witness_comp_t (const witness_t *, const witness_t *);
 #define	WITNESS_RANK_PROF_NEXT_THR_UID	WITNESS_RANK_LEAF
 #define	WITNESS_RANK_PROF_THREAD_ACTIVE_INIT	WITNESS_RANK_LEAF
 
-#define	WITNESS_INITIALIZER(rank) {"initializer", rank, NULL, {NULL, NULL}}
+#define	WITNESS_INITIALIZER(name, rank) {name, rank, NULL, NULL, {NULL, NULL}}
 
 #endif /* JEMALLOC_H_TYPES */
 /******************************************************************************/
@@ -61,6 +63,9 @@ struct witness_s {
 	 */
 	witness_comp_t		*comp;
 
+	/* Opaque data, passed to comp(). */
+	void			*opaque;
+
 	/* Linkage for thread's currently owned locks. */
 	ql_elm(witness_t)	link;
 };
@@ -70,7 +75,7 @@ struct witness_s {
 #ifdef JEMALLOC_H_EXTERNS
 
 void	witness_init(witness_t *witness, const char *name, witness_rank_t rank,
-    witness_comp_t *comp);
+    witness_comp_t *comp, void *opaque);
 #ifdef JEMALLOC_JET
 typedef void (witness_lock_error_t)(const witness_list_t *, const witness_t *);
 extern witness_lock_error_t *witness_lock_error;
@@ -211,7 +216,8 @@ witness_lock(tsdn_t *tsdn, witness_t *witness)
 		/* Not forking, rank order reversal. */
 		witness_lock_error(witnesses, witness);
 	} else if (w->rank == witness->rank && (w->comp == NULL || w->comp !=
-	    witness->comp || w->comp(w, witness) > 0)) {
+	    witness->comp || w->comp(w, w->opaque, witness, witness->opaque) >
+	    0)) {
 		/*
 		 * Missing/incompatible comparison function, or comparison
 		 * function indicates rank order reversal.

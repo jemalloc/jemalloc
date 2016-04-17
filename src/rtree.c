@@ -169,3 +169,126 @@ rtree_child_read_hard(tsdn_t *tsdn, rtree_t *rtree, rtree_elm_t *elm,
 
 	return (rtree_node_init(tsdn, rtree, level, &elm->child));
 }
+
+static int
+rtree_elm_witness_comp(const witness_t *a, void *oa, const witness_t *b,
+    void *ob)
+{
+	uintptr_t ka = (uintptr_t)oa;
+	uintptr_t kb = (uintptr_t)ob;
+
+	assert(ka != 0);
+	assert(kb != 0);
+
+	return ((ka > kb) - (ka < kb));
+}
+
+static witness_t *
+rtree_elm_witness_alloc(tsd_t *tsd, uintptr_t key, const rtree_elm_t *elm)
+{
+	witness_t *witness;
+	size_t i;
+	rtree_elm_witness_tsd_t *witnesses = tsd_rtree_elm_witnessesp_get(tsd);
+
+	/* Iterate over entire array to detect double allocation attempts. */
+	witness = NULL;
+	for (i = 0; i < sizeof(rtree_elm_witness_tsd_t) / sizeof(witness_t);
+	    i++) {
+		rtree_elm_witness_t *rew = &witnesses->witnesses[i];
+
+		assert(rew->elm != elm);
+		if (rew->elm == NULL && witness == NULL) {
+			rew->elm = elm;
+			witness = &rew->witness;
+			witness_init(witness, "rtree_elm",
+			    WITNESS_RANK_RTREE_ELM, rtree_elm_witness_comp,
+			    (void *)key);
+		}
+	}
+	assert(witness != NULL);
+	return (witness);
+}
+
+static witness_t *
+rtree_elm_witness_find(tsd_t *tsd, const rtree_elm_t *elm)
+{
+	size_t i;
+	rtree_elm_witness_tsd_t *witnesses = tsd_rtree_elm_witnessesp_get(tsd);
+
+	for (i = 0; i < sizeof(rtree_elm_witness_tsd_t) / sizeof(witness_t);
+	    i++) {
+		rtree_elm_witness_t *rew = &witnesses->witnesses[i];
+
+		if (rew->elm == elm)
+			return (&rew->witness);
+	}
+	not_reached();
+}
+
+static void
+rtree_elm_witness_dalloc(tsd_t *tsd, witness_t *witness, const rtree_elm_t *elm)
+{
+	size_t i;
+	rtree_elm_witness_tsd_t *witnesses = tsd_rtree_elm_witnessesp_get(tsd);
+
+	for (i = 0; i < sizeof(rtree_elm_witness_tsd_t) / sizeof(witness_t);
+	    i++) {
+		rtree_elm_witness_t *rew = &witnesses->witnesses[i];
+
+		if (rew->elm == elm) {
+			rew->elm = NULL;
+			witness_init(&rew->witness, "rtree_elm",
+			    WITNESS_RANK_RTREE_ELM, rtree_elm_witness_comp,
+			    NULL);
+			    return;
+		}
+	}
+	not_reached();
+}
+
+void
+rtree_elm_witness_acquire(tsdn_t *tsdn, const rtree_t *rtree, uintptr_t key,
+    const rtree_elm_t *elm)
+{
+	witness_t *witness;
+
+	if (tsdn_null(tsdn))
+		return;
+
+	witness = rtree_elm_witness_alloc(tsdn_tsd(tsdn), key, elm);
+	witness_lock(tsdn, witness);
+}
+
+void
+rtree_elm_witness_access(tsdn_t *tsdn, const rtree_t *rtree,
+    const rtree_elm_t *elm)
+{
+	witness_t *witness;
+
+	if (tsdn_null(tsdn))
+		return;
+
+	witness = rtree_elm_witness_find(tsdn_tsd(tsdn), elm);
+	witness_assert_owner(tsdn, witness);
+}
+
+void
+rtree_elm_witness_release(tsdn_t *tsdn, const rtree_t *rtree,
+    const rtree_elm_t *elm)
+{
+	witness_t *witness;
+
+	if (tsdn_null(tsdn))
+		return;
+
+	witness = rtree_elm_witness_find(tsdn_tsd(tsdn), elm);
+	witness_unlock(tsdn, witness);
+	rtree_elm_witness_dalloc(tsdn_tsd(tsdn), witness, elm);
+}
+
+void
+rtree_elm_witnesses_cleanup(tsd_t *tsd)
+{
+
+	/* Do nothing. */
+}

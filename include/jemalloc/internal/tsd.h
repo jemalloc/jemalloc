@@ -573,6 +573,7 @@ struct tsd_init_head_s {
     O(arenas_tdata_bypass,	bool)					\
     O(tcache_enabled,		tcache_enabled_t)			\
     O(witnesses,		witness_list_t)				\
+    O(rtree_elm_witnesses,	rtree_elm_witness_tsd_t)		\
     O(witness_fork,		bool)					\
 
 #define	TSD_INITIALIZER {						\
@@ -588,6 +589,7 @@ struct tsd_init_head_s {
     false,								\
     tcache_enabled_default,						\
     ql_head_initializer(witnesses),					\
+    RTREE_ELM_WITNESS_TSD_INITIALIZER,					\
     false								\
 }
 
