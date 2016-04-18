@@ -239,7 +239,7 @@
       <function>nallocx<parameter/></function> functions all have a
       <parameter>flags</parameter> argument that can be used to specify
       options.  The functions only check the options that are contextually
-      relevant.  Use bitwise or (<code language="C">|</code>) operations to
+      relevant.  Use bitwise OR (<code language="C">|</code>) operations to
       specify one or more of the following:
         <variablelist>
           <varlistentry id="MALLOCX_LG_ALIGN">
