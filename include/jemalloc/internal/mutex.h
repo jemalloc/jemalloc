@@ -124,7 +124,7 @@ JEMALLOC_INLINE void
 malloc_mutex_assert_owner(tsd_t *tsd, malloc_mutex_t *mutex)
 {
 
-	if (config_debug)
+	if (isthreaded && config_debug)
 		witness_assert_owner(tsd, &mutex->witness);
 }
 
@@ -132,7 +132,7 @@ JEMALLOC_INLINE void
 malloc_mutex_assert_not_owner(tsd_t *tsd, malloc_mutex_t *mutex)
 {
 
-	if (config_debug)
+	if (isthreaded && config_debug)
 		witness_assert_not_owner(tsd, &mutex->witness);
 }
 #endif
