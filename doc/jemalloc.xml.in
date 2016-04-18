@@ -1016,7 +1016,7 @@ for (i = 0; i < nbins; i++) {
         allocate memory during application initialization and then deadlock
         internally when jemalloc in turn calls
         <function>atexit<parameter/></function>, so this option is not
-        univerally usable (though the application can register its own
+        universally usable (though the application can register its own
         <function>atexit<parameter/></function> function with equivalent
         functionality).  Therefore, this option should only be used with care;
         it is primarily intended as a performance tuning aid during application
@@ -1320,7 +1320,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         option.  Note that <function>atexit<parameter/></function> may allocate
         memory during application initialization and then deadlock internally
         when jemalloc in turn calls <function>atexit<parameter/></function>, so
-        this option is not univerally usable (though the application can
+        this option is not universally usable (though the application can
         register its own <function>atexit<parameter/></function> function with
         equivalent functionality).  This option is disabled by
         default.</para></listitem>
@@ -2062,7 +2062,7 @@ typedef struct {
           [<option>--enable-prof</option>]
         </term>
         <listitem><para>Average number of bytes allocated between
-        inverval-based profile dumps.  See the
+        interval-based profile dumps.  See the
         <link
         linkend="opt.lg_prof_interval"><mallctl>opt.lg_prof_interval</mallctl></link>
         option for additional information.</para></listitem>
