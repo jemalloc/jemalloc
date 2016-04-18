@@ -156,7 +156,7 @@ run_quantize_ceil_compute(size_t size)
 
 #ifdef JEMALLOC_JET
 #undef run_quantize_floor
-#define	run_quantize_floor JEMALLOC_N(run_quantize_floor_impl)
+#define	run_quantize_floor JEMALLOC_N(n_run_quantize_floor)
 #endif
 static size_t
 run_quantize_floor(size_t size)
@@ -174,12 +174,12 @@ run_quantize_floor(size_t size)
 #ifdef JEMALLOC_JET
 #undef run_quantize_floor
 #define	run_quantize_floor JEMALLOC_N(run_quantize_floor)
-run_quantize_t *run_quantize_floor = JEMALLOC_N(run_quantize_floor_impl);
+run_quantize_t *run_quantize_floor = JEMALLOC_N(n_run_quantize_floor);
 #endif
 
 #ifdef JEMALLOC_JET
 #undef run_quantize_ceil
-#define	run_quantize_ceil JEMALLOC_N(run_quantize_ceil_impl)
+#define	run_quantize_ceil JEMALLOC_N(n_run_quantize_ceil)
 #endif
 static size_t
 run_quantize_ceil(size_t size)
@@ -197,7 +197,7 @@ run_quantize_ceil(size_t size)
 #ifdef JEMALLOC_JET
 #undef run_quantize_ceil
 #define	run_quantize_ceil JEMALLOC_N(run_quantize_ceil)
-run_quantize_t *run_quantize_ceil = JEMALLOC_N(run_quantize_ceil_impl);
+run_quantize_t *run_quantize_ceil = JEMALLOC_N(n_run_quantize_ceil);
 #endif
 
 static arena_run_heap_t *
@@ -2271,7 +2271,7 @@ arena_alloc_junk_small(void *ptr, arena_bin_info_t *bin_info, bool zero)
 
 #ifdef JEMALLOC_JET
 #undef arena_redzone_corruption
-#define	arena_redzone_corruption JEMALLOC_N(arena_redzone_corruption_impl)
+#define	arena_redzone_corruption JEMALLOC_N(n_arena_redzone_corruption)
 #endif
 static void
 arena_redzone_corruption(void *ptr, size_t usize, bool after,
@@ -2286,7 +2286,7 @@ arena_redzone_corruption(void *ptr, size_t usize, bool after,
 #undef arena_redzone_corruption
 #define	arena_redzone_corruption JEMALLOC_N(arena_redzone_corruption)
 arena_redzone_corruption_t *arena_redzone_corruption =
-    JEMALLOC_N(arena_redzone_corruption_impl);
+    JEMALLOC_N(n_arena_redzone_corruption);
 #endif
 
 static void
@@ -2327,7 +2327,7 @@ arena_redzones_validate(void *ptr, arena_bin_info_t *bin_info, bool reset)
 
 #ifdef JEMALLOC_JET
 #undef arena_dalloc_junk_small
-#define	arena_dalloc_junk_small JEMALLOC_N(arena_dalloc_junk_small_impl)
+#define	arena_dalloc_junk_small JEMALLOC_N(n_arena_dalloc_junk_small)
 #endif
 void
 arena_dalloc_junk_small(void *ptr, arena_bin_info_t *bin_info)
@@ -2342,7 +2342,7 @@ arena_dalloc_junk_small(void *ptr, arena_bin_info_t *bin_info)
 #undef arena_dalloc_junk_small
 #define	arena_dalloc_junk_small JEMALLOC_N(arena_dalloc_junk_small)
 arena_dalloc_junk_small_t *arena_dalloc_junk_small =
-    JEMALLOC_N(arena_dalloc_junk_small_impl);
+    JEMALLOC_N(n_arena_dalloc_junk_small);
 #endif
 
 void
@@ -2780,7 +2780,7 @@ arena_dalloc_small(tsd_t *tsd, arena_t *arena, arena_chunk_t *chunk, void *ptr,
 
 #ifdef JEMALLOC_JET
 #undef arena_dalloc_junk_large
-#define	arena_dalloc_junk_large JEMALLOC_N(arena_dalloc_junk_large_impl)
+#define	arena_dalloc_junk_large JEMALLOC_N(n_arena_dalloc_junk_large)
 #endif
 void
 arena_dalloc_junk_large(void *ptr, size_t usize)
@@ -2793,7 +2793,7 @@ arena_dalloc_junk_large(void *ptr, size_t usize)
 #undef arena_dalloc_junk_large
 #define	arena_dalloc_junk_large JEMALLOC_N(arena_dalloc_junk_large)
 arena_dalloc_junk_large_t *arena_dalloc_junk_large =
-    JEMALLOC_N(arena_dalloc_junk_large_impl);
+    JEMALLOC_N(n_arena_dalloc_junk_large);
 #endif
 
 static void
@@ -2981,7 +2981,7 @@ label_fail:
 
 #ifdef JEMALLOC_JET
 #undef arena_ralloc_junk_large
-#define	arena_ralloc_junk_large JEMALLOC_N(arena_ralloc_junk_large_impl)
+#define	arena_ralloc_junk_large JEMALLOC_N(n_arena_ralloc_junk_large)
 #endif
 static void
 arena_ralloc_junk_large(void *ptr, size_t old_usize, size_t usize)
@@ -2996,7 +2996,7 @@ arena_ralloc_junk_large(void *ptr, size_t old_usize, size_t usize)
 #undef arena_ralloc_junk_large
 #define	arena_ralloc_junk_large JEMALLOC_N(arena_ralloc_junk_large)
 arena_ralloc_junk_large_t *arena_ralloc_junk_large =
-    JEMALLOC_N(arena_ralloc_junk_large_impl);
+    JEMALLOC_N(n_arena_ralloc_junk_large);
 #endif
 
 /*

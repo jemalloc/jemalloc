@@ -99,7 +99,7 @@ nstime_divide(const nstime_t *time, const nstime_t *divisor)
 
 #ifdef JEMALLOC_JET
 #undef nstime_update
-#define	nstime_update JEMALLOC_N(nstime_update_impl)
+#define	nstime_update JEMALLOC_N(n_nstime_update)
 #endif
 bool
 nstime_update(nstime_t *time)
@@ -144,5 +144,5 @@ nstime_update(nstime_t *time)
 #ifdef JEMALLOC_JET
 #undef nstime_update
 #define	nstime_update JEMALLOC_N(nstime_update)
-nstime_update_t *nstime_update = JEMALLOC_N(nstime_update_impl);
+nstime_update_t *nstime_update = JEMALLOC_N(n_nstime_update);
 #endif
