@@ -330,6 +330,10 @@ struct arena_s {
 
 	dss_prec_t		dss_prec;
 
+
+	/* Extant arena chunks. */
+	ql_head(extent_node_t)	achunks;
+
 	/*
 	 * In order to avoid rapid chunk allocation/deallocation when an arena
 	 * oscillates right on the cusp of needing a new chunk, cache the most
@@ -533,6 +537,7 @@ ssize_t	arena_decay_time_get(tsd_t *tsd, arena_t *arena);
 bool	arena_decay_time_set(tsd_t *tsd, arena_t *arena, ssize_t decay_time);
 void	arena_purge(tsd_t *tsd, arena_t *arena, bool all);
 void	arena_maybe_purge(tsd_t *tsd, arena_t *arena);
+void	arena_reset(tsd_t *tsd, arena_t *arena);
 void	arena_tcache_fill_small(tsd_t *tsd, arena_t *arena, tcache_bin_t *tbin,
     szind_t binind, uint64_t prof_accumbytes);
 void	arena_alloc_junk_small(void *ptr, arena_bin_info_t *bin_info,

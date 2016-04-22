@@ -135,7 +135,9 @@ C_TESTLIB_SRCS := $(srcroot)test/src/btalloc.c $(srcroot)test/src/btalloc_0.c \
 	$(srcroot)test/src/SFMT.c $(srcroot)test/src/test.c \
 	$(srcroot)test/src/thd.c $(srcroot)test/src/timer.c
 C_UTIL_INTEGRATION_SRCS := $(srcroot)src/nstime.c $(srcroot)src/util.c
-TESTS_UNIT := $(srcroot)test/unit/atomic.c \
+TESTS_UNIT := \
+	$(srcroot)test/unit/arena_reset.c \
+	$(srcroot)test/unit/atomic.c \
 	$(srcroot)test/unit/bitmap.c \
 	$(srcroot)test/unit/ckh.c \
 	$(srcroot)test/unit/decay.c \

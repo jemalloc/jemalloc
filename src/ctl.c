@@ -120,6 +120,7 @@ CTL_PROTO(tcache_destroy)
 static void	arena_i_purge(tsd_t *tsd, unsigned arena_ind, bool all);
 CTL_PROTO(arena_i_purge)
 CTL_PROTO(arena_i_decay)
+CTL_PROTO(arena_i_reset)
 CTL_PROTO(arena_i_dss)
 CTL_PROTO(arena_i_lg_dirty_mult)
 CTL_PROTO(arena_i_decay_time)
@@ -299,6 +300,7 @@ static const ctl_named_node_t	tcache_node[] = {
 static const ctl_named_node_t arena_i_node[] = {
 	{NAME("purge"),		CTL(arena_i_purge)},
 	{NAME("decay"),		CTL(arena_i_decay)},
+	{NAME("reset"),		CTL(arena_i_reset)},
 	{NAME("dss"),		CTL(arena_i_dss)},
 	{NAME("lg_dirty_mult"),	CTL(arena_i_lg_dirty_mult)},
 	{NAME("decay_time"),	CTL(arena_i_decay_time)},
@@ -1596,6 +1598,40 @@ arena_i_decay_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
 	READONLY();
 	WRITEONLY();
 	arena_i_purge(tsd, (unsigned)mib[1], false);
+
+	ret = 0;
+label_return:
+	return (ret);
+}
+
+static int
+arena_i_reset_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
+    size_t *oldlenp, void *newp, size_t newlen)
+{
+	int ret;
+	unsigned arena_ind;
+	arena_t *arena;
+
+	READONLY();
+	WRITEONLY();
+
+	if ((config_valgrind && unlikely(in_valgrind)) || (config_fill &&
+	    unlikely(opt_quarantine))) {
+		ret = EFAULT;
+		goto label_return;
+	}
+
+	arena_ind = (unsigned)mib[1];
+	if (config_debug) {
+		malloc_mutex_lock(tsd, &ctl_mtx);
+		assert(arena_ind < ctl_stats.narenas);
+		malloc_mutex_unlock(tsd, &ctl_mtx);
+	}
+	assert(arena_ind >= opt_narenas);
+
+	arena = arena_get(tsd, arena_ind, false);
+
+	arena_reset(tsd, arena);
 
 	ret = 0;
 label_return:
