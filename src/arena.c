@@ -3320,7 +3320,6 @@ arena_new(tsd_t *tsd, unsigned ind)
 	arena_t *arena;
 	size_t arena_size;
 	unsigned i;
-	arena_bin_t *bin;
 
 	/* Compute arena size to incorporate sufficient runs_avail elements. */
 	arena_size = offsetof(arena_t, runs_avail) + (sizeof(arena_run_heap_t) *
@@ -3411,7 +3410,7 @@ arena_new(tsd_t *tsd, unsigned ind)
 
 	/* Initialize bins. */
 	for (i = 0; i < NBINS; i++) {
-		bin = &arena->bins[i];
+		arena_bin_t *bin = &arena->bins[i];
 		if (malloc_mutex_init(&bin->lock, "arena_bin",
 		    WITNESS_RANK_ARENA_BIN))
 			return (NULL);
