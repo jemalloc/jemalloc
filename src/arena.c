@@ -2478,10 +2478,10 @@ arena_malloc_large(tsd_t *tsd, arena_t *arena, szind_t binind, bool zero)
 
 void *
 arena_malloc_hard(tsd_t *tsd, arena_t *arena, size_t size, szind_t ind,
-    bool zero, tcache_t *tcache)
+    bool zero)
 {
 
-	arena = arena_choose(tsd, arena);
+	arena = arena_choose(tsd, arena, false);
 	if (unlikely(arena == NULL))
 		return (NULL);
 
@@ -2489,7 +2489,7 @@ arena_malloc_hard(tsd_t *tsd, arena_t *arena, size_t size, szind_t ind,
 		return (arena_malloc_small(tsd, arena, ind, zero));
 	if (likely(size <= large_maxclass))
 		return (arena_malloc_large(tsd, arena, ind, zero));
-	return (huge_malloc(tsd, arena, index2size(ind), zero, tcache));
+	return (huge_malloc(tsd, arena, index2size(ind), zero));
 }
 
 /* Only handles large allocations that require more than page alignment. */
@@ -2506,7 +2506,7 @@ arena_palloc_large(tsd_t *tsd, arena_t *arena, size_t usize, size_t alignment,
 
 	assert(usize == PAGE_CEILING(usize));
 
-	arena = arena_choose(tsd, arena);
+	arena = arena_choose(tsd, arena, false);
 	if (unlikely(arena == NULL))
 		return (NULL);
 
@@ -2606,10 +2606,9 @@ arena_palloc(tsd_t *tsd, arena_t *arena, size_t usize, size_t alignment,
 			ret = arena_palloc_large(tsd, arena, usize, alignment,
 			    zero);
 		} else if (likely(alignment <= chunksize))
-			ret = huge_malloc(tsd, arena, usize, zero, tcache);
+			ret = huge_malloc(tsd, arena, usize, zero);
 		else {
-			ret = huge_palloc(tsd, arena, usize, alignment, zero,
-			    tcache);
+			ret = huge_palloc(tsd, arena, usize, alignment, zero);
 		}
 	}
 	return (ret);
@@ -3211,7 +3210,7 @@ arena_basic_stats_merge_locked(arena_t *arena, unsigned *nthreads,
     size_t *nactive, size_t *ndirty)
 {
 
-	*nthreads += arena_nthreads_get(arena);
+	*nthreads += arena_nthreads_get(arena, false);
 	*dss = dss_prec_names[arena->dss_prec];
 	*lg_dirty_mult = arena->lg_dirty_mult;
 	*decay_time = arena->decay_time;
@@ -3294,24 +3293,24 @@ arena_stats_merge(tsd_t *tsd, arena_t *arena, unsigned *nthreads,
 }
 
 unsigned
-arena_nthreads_get(arena_t *arena)
+arena_nthreads_get(arena_t *arena, bool internal)
 {
 
-	return (atomic_read_u(&arena->nthreads));
+	return (atomic_read_u(&arena->nthreads[internal]));
 }
 
 void
-arena_nthreads_inc(arena_t *arena)
+arena_nthreads_inc(arena_t *arena, bool internal)
 {
 
-	atomic_add_u(&arena->nthreads, 1);
+	atomic_add_u(&arena->nthreads[internal], 1);
 }
 
 void
-arena_nthreads_dec(arena_t *arena)
+arena_nthreads_dec(arena_t *arena, bool internal)
 {
 
-	atomic_sub_u(&arena->nthreads, 1);
+	atomic_sub_u(&arena->nthreads[internal], 1);
 }
 
 arena_t *
@@ -3338,7 +3337,7 @@ arena_new(tsd_t *tsd, unsigned ind)
 		return (NULL);
 
 	arena->ind = ind;
-	arena->nthreads = 0;
+	arena->nthreads[0] = arena->nthreads[1] = 0;
 	if (malloc_mutex_init(&arena->lock, "arena", WITNESS_RANK_ARENA))
 		return (NULL);
 

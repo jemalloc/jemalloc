@@ -443,6 +443,9 @@ extern bool	in_valgrind;
 /* Number of CPUs. */
 extern unsigned	ncpus;
 
+/* Number of arenas used for automatic multiplexing of threads and arenas. */
+extern unsigned	narenas_auto;
+
 /*
  * Arenas that are used to service external requests.  Not all elements of the
  * arenas array are necessarily used; arenas are created lazily as needed.
@@ -469,10 +472,11 @@ void	bootstrap_free(void *ptr);
 unsigned	narenas_total_get(void);
 arena_t	*arena_init(tsd_t *tsd, unsigned ind);
 arena_tdata_t	*arena_tdata_get_hard(tsd_t *tsd, unsigned ind);
-arena_t	*arena_choose_hard(tsd_t *tsd);
+arena_t	*arena_choose_hard(tsd_t *tsd, bool internal);
 void	arena_migrate(tsd_t *tsd, unsigned oldind, unsigned newind);
 void	thread_allocated_cleanup(tsd_t *tsd);
 void	thread_deallocated_cleanup(tsd_t *tsd);
+void	iarena_cleanup(tsd_t *tsd);
 void	arena_cleanup(tsd_t *tsd);
 void	arenas_tdata_cleanup(tsd_t *tsd);
 void	narenas_tdata_cleanup(tsd_t *tsd);
@@ -546,7 +550,7 @@ size_t	s2u_compute(size_t size);
 size_t	s2u_lookup(size_t size);
 size_t	s2u(size_t size);
 size_t	sa2u(size_t size, size_t alignment);
-arena_t	*arena_choose(tsd_t *tsd, arena_t *arena);
+arena_t	*arena_choose(tsd_t *tsd, arena_t *arena, bool internal);
 arena_tdata_t	*arena_tdata_get(tsd_t *tsd, unsigned ind,
     bool refresh_if_missing);
 arena_t	*arena_get(tsd_t *tsd, unsigned ind, bool init_if_missing);
@@ -784,15 +788,16 @@ sa2u(size_t size, size_t alignment)
 
 /* Choose an arena based on a per-thread value. */
 JEMALLOC_INLINE arena_t *
-arena_choose(tsd_t *tsd, arena_t *arena)
+arena_choose(tsd_t *tsd, arena_t *arena, bool internal)
 {
 	arena_t *ret;
 
 	if (arena != NULL)
 		return (arena);
 
-	if (unlikely((ret = tsd_arena_get(tsd)) == NULL))
-		ret = arena_choose_hard(tsd);
+	ret = internal ? tsd_iarena_get(tsd) : tsd_arena_get(tsd);
+	if (unlikely(ret == NULL))
+		ret = arena_choose_hard(tsd, internal);
 
 	return (ret);
 }
@@ -935,6 +940,8 @@ iallocztm(tsd_t *tsd, size_t size, szind_t ind, bool zero, tcache_t *tcache,
 	void *ret;
 
 	assert(size != 0);
+	assert(!is_metadata || tcache == NULL);
+	assert(!is_metadata || arena == NULL || arena->ind < narenas_auto);
 
 	ret = arena_malloc(tsd, arena, size, ind, zero, tcache, slow_path);
 	if (config_stats && is_metadata && likely(ret != NULL)) {
@@ -982,6 +989,8 @@ ipallocztm(tsd_t *tsd, size_t usize, size_t alignment, bool zero,
 
 	assert(usize != 0);
 	assert(usize == sa2u(usize, alignment));
+	assert(!is_metadata || tcache == NULL);
+	assert(!is_metadata || arena == NULL || arena->ind < narenas_auto);
 
 	ret = arena_palloc(tsd, arena, usize, alignment, zero, tcache);
 	assert(ALIGNMENT_ADDR2BASE(ret, alignment) == ret);
@@ -1052,6 +1061,8 @@ idalloctm(tsd_t *tsd, void *ptr, tcache_t *tcache, bool is_metadata,
 {
 
 	assert(ptr != NULL);
+	assert(!is_metadata || tcache == NULL);
+	assert(!is_metadata || iaalloc(ptr)->ind < narenas_auto);
 	if (config_stats && is_metadata) {
 		arena_metadata_allocated_sub(iaalloc(ptr), isalloc(tsd, ptr,
 		    config_prof));

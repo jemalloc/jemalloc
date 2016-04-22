@@ -536,6 +536,7 @@ struct tsd_init_head_s {
     O(thread_allocated,		uint64_t)				\
     O(thread_deallocated,	uint64_t)				\
     O(prof_tdata,		prof_tdata_t *)				\
+    O(iarena,			arena_t *)				\
     O(arena,			arena_t *)				\
     O(arenas_tdata,		arena_tdata_t *)			\
     O(narenas_tdata,		unsigned)				\
@@ -549,6 +550,7 @@ struct tsd_init_head_s {
     NULL,								\
     0,									\
     0,									\
+    NULL,								\
     NULL,								\
     NULL,								\
     NULL,								\

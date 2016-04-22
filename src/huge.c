@@ -31,18 +31,17 @@ huge_node_unset(const void *ptr, const extent_node_t *node)
 }
 
 void *
-huge_malloc(tsd_t *tsd, arena_t *arena, size_t usize, bool zero,
-    tcache_t *tcache)
+huge_malloc(tsd_t *tsd, arena_t *arena, size_t usize, bool zero)
 {
 
 	assert(usize == s2u(usize));
 
-	return (huge_palloc(tsd, arena, usize, chunksize, zero, tcache));
+	return (huge_palloc(tsd, arena, usize, chunksize, zero));
 }
 
 void *
 huge_palloc(tsd_t *tsd, arena_t *arena, size_t usize, size_t alignment,
-    bool zero, tcache_t *tcache)
+    bool zero)
 {
 	void *ret;
 	size_t ausize;
@@ -58,7 +57,7 @@ huge_palloc(tsd_t *tsd, arena_t *arena, size_t usize, size_t alignment,
 
 	/* Allocate an extent node with which to track the chunk. */
 	node = ipallocztm(tsd, CACHELINE_CEILING(sizeof(extent_node_t)),
-	    CACHELINE, false, tcache, true, arena);
+	    CACHELINE, false, NULL, true, arena_choose(tsd, NULL, true));
 	if (node == NULL)
 		return (NULL);
 
@@ -67,10 +66,10 @@ huge_palloc(tsd_t *tsd, arena_t *arena, size_t usize, size_t alignment,
 	 * it is possible to make correct junk/zero fill decisions below.
 	 */
 	is_zeroed = zero;
-	arena = arena_choose(tsd, arena);
+	arena = arena_choose(tsd, arena, false);
 	if (unlikely(arena == NULL) || (ret = arena_chunk_alloc_huge(tsd, arena,
 	    usize, alignment, &is_zeroed)) == NULL) {
-		idalloctm(tsd, node, tcache, true, true);
+		idalloctm(tsd, node, NULL, true, true);
 		return (NULL);
 	}
 
@@ -78,7 +77,7 @@ huge_palloc(tsd_t *tsd, arena_t *arena, size_t usize, size_t alignment,
 
 	if (huge_node_set(tsd, ret, node)) {
 		arena_chunk_dalloc_huge(tsd, arena, ret, usize);
-		idalloctm(tsd, node, tcache, true, true);
+		idalloctm(tsd, node, NULL, true, true);
 		return (NULL);
 	}
 
@@ -331,12 +330,12 @@ huge_ralloc_no_move(tsd_t *tsd, void *ptr, size_t oldsize, size_t usize_min,
 
 static void *
 huge_ralloc_move_helper(tsd_t *tsd, arena_t *arena, size_t usize,
-    size_t alignment, bool zero, tcache_t *tcache)
+    size_t alignment, bool zero)
 {
 
 	if (alignment <= chunksize)
-		return (huge_malloc(tsd, arena, usize, zero, tcache));
-	return (huge_palloc(tsd, arena, usize, alignment, zero, tcache));
+		return (huge_malloc(tsd, arena, usize, zero));
+	return (huge_palloc(tsd, arena, usize, alignment, zero));
 }
 
 void *
@@ -358,8 +357,7 @@ huge_ralloc(tsd_t *tsd, arena_t *arena, void *ptr, size_t oldsize, size_t usize,
 	 * different size class.  In that case, fall back to allocating new
 	 * space and copying.
 	 */
-	ret = huge_ralloc_move_helper(tsd, arena, usize, alignment, zero,
-	    tcache);
+	ret = huge_ralloc_move_helper(tsd, arena, usize, alignment, zero);
 	if (ret == NULL)
 		return (NULL);
 
@@ -370,7 +368,7 @@ huge_ralloc(tsd_t *tsd, arena_t *arena, void *ptr, size_t oldsize, size_t usize,
 }
 
 void
-huge_dalloc(tsd_t *tsd, void *ptr, tcache_t *tcache)
+huge_dalloc(tsd_t *tsd, void *ptr)
 {
 	extent_node_t *node;
 	arena_t *arena;
@@ -386,7 +384,7 @@ huge_dalloc(tsd_t *tsd, void *ptr, tcache_t *tcache)
 	    extent_node_size_get(node));
 	arena_chunk_dalloc_huge(tsd, extent_node_arena_get(node),
 	    extent_node_addr_get(node), extent_node_size_get(node));
-	idalloctm(tsd, node, tcache, true, true);
+	idalloctm(tsd, node, NULL, true, true);
 
 	arena_decay_tick(tsd, arena);
 }

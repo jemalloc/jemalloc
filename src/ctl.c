@@ -1304,7 +1304,7 @@ thread_arena_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
 	arena_t *oldarena;
 	unsigned newind, oldind;
 
-	oldarena = arena_choose(tsd, NULL);
+	oldarena = arena_choose(tsd, NULL, false);
 	if (oldarena == NULL)
 		return (EAGAIN);
 

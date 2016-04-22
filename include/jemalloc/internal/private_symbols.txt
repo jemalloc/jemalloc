@@ -286,6 +286,7 @@ huge_ralloc_no_move
 huge_salloc
 iaalloc
 iallocztm
+iarena_cleanup
 icalloc
 icalloct
 idalloc
@@ -342,6 +343,7 @@ malloc_write
 map_bias
 map_misc_offset
 mb_write
+narenas_auto
 narenas_tdata_cleanup
 narenas_total_get
 ncpus

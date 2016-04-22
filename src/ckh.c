@@ -271,7 +271,7 @@ ckh_grow(tsd_t *tsd, ckh_t *ckh)
 			goto label_return;
 		}
 		tab = (ckhc_t *)ipallocztm(tsd, usize, CACHELINE, true, NULL,
-		    true, NULL);
+		    true, arena_choose(tsd, NULL, true));
 		if (tab == NULL) {
 			ret = true;
 			goto label_return;
@@ -283,12 +283,12 @@ ckh_grow(tsd_t *tsd, ckh_t *ckh)
 		ckh->lg_curbuckets = lg_curcells - LG_CKH_BUCKET_CELLS;
 
 		if (!ckh_rebuild(ckh, tab)) {
-			idalloctm(tsd, tab, tcache_get(tsd, false), true, true);
+			idalloctm(tsd, tab, NULL, true, true);
 			break;
 		}
 
 		/* Rebuilding failed, so back out partially rebuilt table. */
-		idalloctm(tsd, ckh->tab, tcache_get(tsd, false), true, true);
+		idalloctm(tsd, ckh->tab, NULL, true, true);
 		ckh->tab = tab;
 		ckh->lg_curbuckets = lg_prevbuckets;
 	}
@@ -315,7 +315,7 @@ ckh_shrink(tsd_t *tsd, ckh_t *ckh)
 	if (unlikely(usize == 0 || usize > HUGE_MAXCLASS))
 		return;
 	tab = (ckhc_t *)ipallocztm(tsd, usize, CACHELINE, true, NULL, true,
-	    NULL);
+	    arena_choose(tsd, NULL, true));
 	if (tab == NULL) {
 		/*
 		 * An OOM error isn't worth propagating, since it doesn't
@@ -330,7 +330,7 @@ ckh_shrink(tsd_t *tsd, ckh_t *ckh)
 	ckh->lg_curbuckets = lg_curcells - LG_CKH_BUCKET_CELLS;
 
 	if (!ckh_rebuild(ckh, tab)) {
-		idalloctm(tsd, tab, tcache_get(tsd, false), true, true);
+		idalloctm(tsd, tab, NULL, true, true);
 #ifdef CKH_COUNT
 		ckh->nshrinks++;
 #endif
@@ -338,7 +338,7 @@ ckh_shrink(tsd_t *tsd, ckh_t *ckh)
 	}
 
 	/* Rebuilding failed, so back out partially rebuilt table. */
-	idalloctm(tsd, ckh->tab, tcache_get(tsd, false), true, true);
+	idalloctm(tsd, ckh->tab, NULL, true, true);
 	ckh->tab = tab;
 	ckh->lg_curbuckets = lg_prevbuckets;
 #ifdef CKH_COUNT
@@ -392,7 +392,7 @@ ckh_new(tsd_t *tsd, ckh_t *ckh, size_t minitems, ckh_hash_t *hash,
 		goto label_return;
 	}
 	ckh->tab = (ckhc_t *)ipallocztm(tsd, usize, CACHELINE, true, NULL, true,
-	    NULL);
+	    arena_choose(tsd, NULL, true));
 	if (ckh->tab == NULL) {
 		ret = true;
 		goto label_return;
@@ -421,7 +421,7 @@ ckh_delete(tsd_t *tsd, ckh_t *ckh)
 	    (unsigned long long)ckh->nrelocs);
 #endif
 
-	idalloctm(tsd, ckh->tab, tcache_get(tsd, false), true, true);
+	idalloctm(tsd, ckh->tab, NULL, true, true);
 	if (config_debug)
 		memset(ckh, JEMALLOC_FREE_JUNK, sizeof(ckh_t));
 }

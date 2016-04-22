@@ -290,10 +290,18 @@ struct arena_s {
 	unsigned		ind;
 
 	/*
-	 * Number of threads currently assigned to this arena.  This field is
-	 * synchronized via atomic operations.
+	 * Number of threads currently assigned to this arena, synchronized via
+	 * atomic operations.  Each thread has two distinct assignments, one for
+	 * application-serving allocation, and the other for internal metadata
+	 * allocation.  Internal metadata must not be allocated from arenas
+	 * created via the arenas.extend mallctl, because the arena.<i>.reset
+	 * mallctl indiscriminately discards all allocations for the affected
+	 * arena.
+	 *
+	 *   0: Application allocation.
+	 *   1: Internal metadata allocation.
 	 */
-	unsigned		nthreads;
+	unsigned		nthreads[2];
 
 	/*
 	 * There are three classes of arena operations from a locking
@@ -541,7 +549,7 @@ void	arena_dalloc_junk_small(void *ptr, arena_bin_info_t *bin_info);
 void	arena_quarantine_junk_small(void *ptr, size_t usize);
 void	*arena_malloc_large(tsd_t *tsd, arena_t *arena, szind_t ind, bool zero);
 void	*arena_malloc_hard(tsd_t *tsd, arena_t *arena, size_t size, szind_t ind,
-    bool zero, tcache_t *tcache);
+    bool zero);
 void	*arena_palloc(tsd_t *tsd, arena_t *arena, size_t usize,
     size_t alignment, bool zero, tcache_t *tcache);
 void	arena_prof_promoted(tsd_t *tsd, const void *ptr, size_t size);
@@ -583,9 +591,9 @@ void	arena_stats_merge(tsd_t *tsd, arena_t *arena, unsigned *nthreads,
     size_t *nactive, size_t *ndirty, arena_stats_t *astats,
     malloc_bin_stats_t *bstats, malloc_large_stats_t *lstats,
     malloc_huge_stats_t *hstats);
-unsigned	arena_nthreads_get(arena_t *arena);
-void	arena_nthreads_inc(arena_t *arena);
-void	arena_nthreads_dec(arena_t *arena);
+unsigned	arena_nthreads_get(arena_t *arena, bool internal);
+void	arena_nthreads_inc(arena_t *arena, bool internal);
+void	arena_nthreads_dec(arena_t *arena, bool internal);
 arena_t	*arena_new(tsd_t *tsd, unsigned ind);
 bool	arena_boot(void);
 void	arena_prefork(tsd_t *tsd, arena_t *arena);
@@ -1320,7 +1328,7 @@ arena_malloc(tsd_t *tsd, arena_t *arena, size_t size, szind_t ind, bool zero,
 		assert(size > tcache_maxclass);
 	}
 
-	return (arena_malloc_hard(tsd, arena, size, ind, zero, tcache));
+	return (arena_malloc_hard(tsd, arena, size, ind, zero));
 }
 
 JEMALLOC_ALWAYS_INLINE arena_t *
@@ -1426,7 +1434,7 @@ arena_dalloc(tsd_t *tsd, void *ptr, tcache_t *tcache, bool slow_path)
 			}
 		}
 	} else
-		huge_dalloc(tsd, ptr, tcache);
+		huge_dalloc(tsd, ptr);
 }
 
 JEMALLOC_ALWAYS_INLINE void
@@ -1477,7 +1485,7 @@ arena_sdalloc(tsd_t *tsd, void *ptr, size_t size, tcache_t *tcache)
 			}
 		}
 	} else
-		huge_dalloc(tsd, ptr, tcache);
+		huge_dalloc(tsd, ptr);
 }
 #  endif /* JEMALLOC_ARENA_INLINE_B */
 #endif

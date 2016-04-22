@@ -97,7 +97,7 @@ tcache_bin_flush_small(tsd_t *tsd, tcache_t *tcache, tcache_bin_t *tbin,
 	assert(binind < NBINS);
 	assert(rem <= tbin->ncached);
 
-	arena = arena_choose(tsd, NULL);
+	arena = arena_choose(tsd, NULL, false);
 	assert(arena != NULL);
 	for (nflush = tbin->ncached - rem; nflush > 0; nflush = ndeferred) {
 		/* Lock the arena bin associated with the first object. */
@@ -179,7 +179,7 @@ tcache_bin_flush_large(tsd_t *tsd, tcache_bin_t *tbin, szind_t binind,
 	assert(binind < nhbins);
 	assert(rem <= tbin->ncached);
 
-	arena = arena_choose(tsd, NULL);
+	arena = arena_choose(tsd, NULL, false);
 	assert(arena != NULL);
 	for (nflush = tbin->ncached - rem; nflush > 0; nflush = ndeferred) {
 		/* Lock the arena associated with the first object. */
@@ -307,7 +307,7 @@ tcache_get_hard(tsd_t *tsd)
 			tcache_enabled_set(false); /* Memoize. */
 		return (NULL);
 	}
-	arena = arena_choose(tsd, NULL);
+	arena = arena_choose(tsd, NULL, false);
 	if (unlikely(arena == NULL))
 		return (NULL);
 	return (tcache_create(tsd, arena));
@@ -328,8 +328,8 @@ tcache_create(tsd_t *tsd, arena_t *arena)
 	/* Avoid false cacheline sharing. */
 	size = sa2u(size, CACHELINE);
 
-	tcache = ipallocztm(tsd, size, CACHELINE, true, false, true,
-	    arena_get(tsd, 0, false));
+	tcache = ipallocztm(tsd, size, CACHELINE, true, NULL, true,
+	    arena_get(NULL, 0, true));
 	if (tcache == NULL)
 		return (NULL);
 
@@ -359,7 +359,7 @@ tcache_destroy(tsd_t *tsd, tcache_t *tcache)
 	arena_t *arena;
 	unsigned i;
 
-	arena = arena_choose(tsd, NULL);
+	arena = arena_choose(tsd, NULL, false);
 	tcache_arena_dissociate(tsd, tcache, arena);
 
 	for (i = 0; i < NBINS; i++) {
@@ -391,7 +391,7 @@ tcache_destroy(tsd_t *tsd, tcache_t *tcache)
 	    arena_prof_accum(tsd, arena, tcache->prof_accumbytes))
 		prof_idump(tsd);
 
-	idalloctm(tsd, tcache, false, true, true);
+	idalloctm(tsd, tcache, NULL, true, true);
 }
 
 void
@@ -446,6 +446,7 @@ tcache_stats_merge(tsd_t *tsd, tcache_t *tcache, arena_t *arena)
 bool
 tcaches_create(tsd_t *tsd, unsigned *r_ind)
 {
+	arena_t *arena;
 	tcache_t *tcache;
 	tcaches_t *elm;
 
@@ -458,7 +459,10 @@ tcaches_create(tsd_t *tsd, unsigned *r_ind)
 
 	if (tcaches_avail == NULL && tcaches_past > MALLOCX_TCACHE_MAX)
 		return (true);
-	tcache = tcache_create(tsd, arena_get(tsd, 0, false));
+	arena = arena_choose(tsd, NULL, true);
+	if (unlikely(arena == NULL))
+		return (true);
+	tcache = tcache_create(tsd, arena);
 	if (tcache == NULL)
 		return (true);
 

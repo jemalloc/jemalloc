@@ -9,10 +9,9 @@
 /******************************************************************************/
 #ifdef JEMALLOC_H_EXTERNS
 
-void	*huge_malloc(tsd_t *tsd, arena_t *arena, size_t usize, bool zero,
-    tcache_t *tcache);
+void	*huge_malloc(tsd_t *tsd, arena_t *arena, size_t usize, bool zero);
 void	*huge_palloc(tsd_t *tsd, arena_t *arena, size_t usize, size_t alignment,
-    bool zero, tcache_t *tcache);
+    bool zero);
 bool	huge_ralloc_no_move(tsd_t *tsd, void *ptr, size_t oldsize,
     size_t usize_min, size_t usize_max, bool zero);
 void	*huge_ralloc(tsd_t *tsd, arena_t *arena, void *ptr, size_t oldsize,
@@ -21,7 +20,7 @@ void	*huge_ralloc(tsd_t *tsd, arena_t *arena, void *ptr, size_t oldsize,
 typedef void (huge_dalloc_junk_t)(tsd_t *, void *, size_t);
 extern huge_dalloc_junk_t *huge_dalloc_junk;
 #endif
-void	huge_dalloc(tsd_t *tsd, void *ptr, tcache_t *tcache);
+void	huge_dalloc(tsd_t *tsd, void *ptr);
 arena_t	*huge_aalloc(const void *ptr);
 size_t	huge_salloc(tsd_t *tsd, const void *ptr);
 prof_tctx_t	*huge_prof_tctx_get(tsd_t *tsd, const void *ptr);
