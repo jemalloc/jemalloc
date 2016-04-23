@@ -261,6 +261,7 @@ stats_arena_print(void (*write_cb)(void *, const char *), void *cbopaque,
 	uint64_t small_nmalloc, small_ndalloc, small_nrequests;
 	size_t large_allocated;
 	uint64_t large_nmalloc, large_ndalloc, large_nrequests;
+	size_t tcache_bytes;
 
 	CTL_GET("arenas.page", &page, size_t);
 
@@ -421,6 +422,18 @@ stats_arena_print(void (*write_cb)(void *, const char *), void *cbopaque,
 	} else {
 		malloc_cprintf(write_cb, cbopaque,
 		    "internal:                %12zu\n", internal);
+	}
+
+	if (config_tcache) {
+		CTL_M2_GET("stats.arenas.0.tcache_bytes", i, &tcache_bytes,
+		    size_t);
+		if (json) {
+			malloc_cprintf(write_cb, cbopaque,
+			    "\t\t\t\t\"tcache\": %zu,\n", tcache_bytes);
+		} else {
+			malloc_cprintf(write_cb, cbopaque,
+			    "tcache:                  %12zu\n", tcache_bytes);
+		}
 	}
 
 	CTL_M2_GET("stats.arenas.0.resident", i, &resident, size_t);
