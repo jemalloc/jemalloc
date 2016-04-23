@@ -619,7 +619,7 @@ arena_choose_hard(tsd_t *tsd, bool internal)
 
 		for (j = 0; j < 2; j++) {
 			if (arena_nthreads_get(arena_get(tsd, choose[j], false),
-			    !!j) == 0 || first_null != narenas_auto) {
+			    !!j) == 0 || first_null == narenas_auto) {
 				/*
 				 * Use an unloaded arena, or the least loaded
 				 * arena if all arenas are already initialized.
