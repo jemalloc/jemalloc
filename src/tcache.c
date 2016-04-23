@@ -366,25 +366,16 @@ tcache_destroy(tsd_t *tsd, tcache_t *tcache)
 		tcache_bin_t *tbin = &tcache->tbins[i];
 		tcache_bin_flush_small(tsd, tcache, tbin, i, 0);
 
-		if (config_stats && tbin->tstats.nrequests != 0) {
-			arena_bin_t *bin = &arena->bins[i];
-			malloc_mutex_lock(tsd, &bin->lock);
-			bin->stats.nrequests += tbin->tstats.nrequests;
-			malloc_mutex_unlock(tsd, &bin->lock);
-		}
+		if (config_stats)
+			assert(tbin->tstats.nrequests == 0);
 	}
 
 	for (; i < nhbins; i++) {
 		tcache_bin_t *tbin = &tcache->tbins[i];
 		tcache_bin_flush_large(tsd, tbin, i, 0, tcache);
 
-		if (config_stats && tbin->tstats.nrequests != 0) {
-			malloc_mutex_lock(tsd, &arena->lock);
-			arena->stats.nrequests_large += tbin->tstats.nrequests;
-			arena->stats.lstats[i - NBINS].nrequests +=
-			    tbin->tstats.nrequests;
-			malloc_mutex_unlock(tsd, &arena->lock);
-		}
+		if (config_stats)
+			assert(tbin->tstats.nrequests == 0);
 	}
 
 	if (config_prof && tcache->prof_accumbytes > 0 &&
