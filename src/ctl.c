@@ -161,6 +161,7 @@ CTL_PROTO(stats_arenas_i_nmadvise)
 CTL_PROTO(stats_arenas_i_purged)
 CTL_PROTO(stats_arenas_i_base)
 CTL_PROTO(stats_arenas_i_internal)
+CTL_PROTO(stats_arenas_i_tcache_bytes)
 CTL_PROTO(stats_arenas_i_resident)
 INDEX_PROTO(stats_arenas_i)
 CTL_PROTO(stats_allocated)
@@ -382,6 +383,7 @@ static const ctl_named_node_t stats_arenas_i_node[] = {
 	{NAME("purged"),	CTL(stats_arenas_i_purged)},
 	{NAME("base"),		CTL(stats_arenas_i_base)},
 	{NAME("internal"),	CTL(stats_arenas_i_internal)},
+	{NAME("tcache_bytes"),	CTL(stats_arenas_i_tcache_bytes)},
 	{NAME("resident"),	CTL(stats_arenas_i_resident)},
 	{NAME("small"),		CHILD(named, stats_arenas_i_small)},
 	{NAME("large"),		CHILD(named, stats_arenas_i_large)},
@@ -600,6 +602,11 @@ ctl_arena_stats_sdmerge(ctl_arena_stats_t *sdstats, ctl_arena_stats_t *astats,
 		sdstats->astats.ndalloc_large += astats->astats.ndalloc_large;
 		sdstats->astats.nrequests_large +=
 		    astats->astats.nrequests_large;
+
+		if (config_tcache) {
+			sdstats->astats.tcache_bytes +=
+			    astats->astats.tcache_bytes;
+		}
 
 		for (i = 0; i < NBINS; i++) {
 			sdstats->bstats[i].nmalloc += astats->bstats[i].nmalloc;
@@ -2105,6 +2112,8 @@ CTL_RO_CGEN(config_stats, stats_arenas_i_base,
     stats_arenas_i(mib[2])->astats.base, size_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_internal,
     stats_arenas_i(mib[2])->astats.internal, size_t)
+CTL_RO_CGEN(config_stats && config_tcache, stats_arenas_i_tcache_bytes,
+    stats_arenas_i(mib[2])->astats.tcache_bytes, size_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_resident,
     stats_arenas_i(mib[2])->astats.resident, size_t)
 
