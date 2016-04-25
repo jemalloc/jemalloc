@@ -855,6 +855,17 @@ arena_huge_dalloc_stats_update(arena_t *arena, size_t usize)
 }
 
 static void
+arena_huge_reset_stats_cancel(arena_t *arena, size_t usize)
+{
+	szind_t index = size2index(usize) - nlclasses - NBINS;
+
+	cassert(config_stats);
+
+	arena->stats.ndalloc_huge++;
+	arena->stats.hstats[index].ndalloc--;
+}
+
+static void
 arena_huge_dalloc_stats_update_undo(arena_t *arena, size_t usize)
 {
 	szind_t index = size2index(usize) - nlclasses - NBINS;
@@ -1884,22 +1895,30 @@ arena_reset(tsd_t *tsd, arena_t *arena)
 		}
 	}
 
+	/* Reset curruns for large size classes. */
+	if (config_stats) {
+		for (i = 0; i < nlclasses; i++)
+			arena->stats.lstats[i].curruns = 0;
+	}
+
 	/* Huge allocations. */
 	malloc_mutex_lock(tsd, &arena->huge_mtx);
 	for (node = ql_last(&arena->huge, ql_link); node != NULL; node =
 	    ql_last(&arena->huge, ql_link)) {
 		void *ptr = extent_node_addr_get(node);
+		size_t usize;
 
 		malloc_mutex_unlock(tsd, &arena->huge_mtx);
-		/* Remove huge allocation from prof sample set. */
-		if (config_prof && opt_prof) {
-			size_t usize;
-
+		if (config_stats || (config_prof && opt_prof))
 			usize = isalloc(tsd, ptr, config_prof);
+		/* Remove huge allocation from prof sample set. */
+		if (config_prof && opt_prof)
 			prof_free(tsd, ptr, usize);
-		}
 		huge_dalloc(tsd, ptr);
 		malloc_mutex_lock(tsd, &arena->huge_mtx);
+		/* Cancel out unwanted effects on stats. */
+		if (config_stats)
+			arena_huge_reset_stats_cancel(arena, usize);
 	}
 	malloc_mutex_unlock(tsd, &arena->huge_mtx);
 
