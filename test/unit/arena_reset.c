@@ -84,6 +84,7 @@ TEST_BEGIN(test_arena_reset)
 	unsigned arena_ind, nsmall, nlarge, nhuge, nptrs, i;
 	size_t sz, miblen;
 	void **ptrs;
+	int flags;
 	size_t mib[3];
 	tsd_t *tsd;
 
@@ -93,6 +94,8 @@ TEST_BEGIN(test_arena_reset)
 	sz = sizeof(unsigned);
 	assert_d_eq(mallctl("arenas.extend", &arena_ind, &sz, NULL, 0), 0,
 	    "Unexpected mallctl() failure");
+
+	flags = MALLOCX_ARENA(arena_ind) | MALLOCX_TCACHE_NONE;
 
 	nsmall = get_nsmall();
 	nlarge = get_nlarge();
@@ -104,25 +107,21 @@ TEST_BEGIN(test_arena_reset)
 	/* Allocate objects with a wide range of sizes. */
 	for (i = 0; i < nsmall; i++) {
 		sz = get_small_size(i);
-		ptrs[i] = mallocx(sz, MALLOCX_ARENA(arena_ind));
+		ptrs[i] = mallocx(sz, flags);
 		assert_ptr_not_null(ptrs[i],
-		    "Unexpected mallocx(%zu, MALLOCX_ARENA(%u)) failure", sz,
-		    arena_ind);
+		    "Unexpected mallocx(%zu, %#x) failure", sz, flags);
 	}
 	for (i = 0; i < nlarge; i++) {
 		sz = get_large_size(i);
-		ptrs[nsmall + i] = mallocx(sz, MALLOCX_ARENA(arena_ind));
+		ptrs[nsmall + i] = mallocx(sz, flags);
 		assert_ptr_not_null(ptrs[i],
-		    "Unexpected mallocx(%zu, MALLOCX_ARENA(%u)) failure", sz,
-		    arena_ind);
+		    "Unexpected mallocx(%zu, %#x) failure", sz, flags);
 	}
 	for (i = 0; i < nhuge; i++) {
 		sz = get_huge_size(i);
-		ptrs[nsmall + nlarge + i] = mallocx(sz,
-		    MALLOCX_ARENA(arena_ind));
+		ptrs[nsmall + nlarge + i] = mallocx(sz, flags);
 		assert_ptr_not_null(ptrs[i],
-		    "Unexpected mallocx(%zu, MALLOCX_ARENA(%u)) failure", sz,
-		    arena_ind);
+		    "Unexpected mallocx(%zu, %#x) failure", sz, flags);
 	}
 
 	tsd = tsd_fetch();
