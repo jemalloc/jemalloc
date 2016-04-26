@@ -2644,7 +2644,8 @@ JEMALLOC_EXPORT void
 _malloc_prefork(void)
 #endif
 {
-	unsigned i, narenas;
+	unsigned i, j, narenas;
+	arena_t *arena;
 
 #ifdef JEMALLOC_MUTEX_INIT_CB
 	if (!malloc_initialized())
@@ -2652,18 +2653,31 @@ _malloc_prefork(void)
 #endif
 	assert(malloc_initialized());
 
+	narenas = narenas_total_get();
+
 	/* Acquire all mutexes in a safe order. */
 	ctl_prefork();
-	prof_prefork();
 	malloc_mutex_prefork(&arenas_lock);
-	for (i = 0, narenas = narenas_total_get(); i < narenas; i++) {
-		arena_t *arena;
-
-		if ((arena = arena_get(i, false)) != NULL)
-			arena_prefork(arena);
+	prof_prefork0();
+	for (i = 0; i < 3; i++) {
+		for (j = 0; j < narenas; j++) {
+			if ((arena = arena_get(j, false)) != NULL) {
+				switch (i) {
+				case 0: arena_prefork0(arena); break;
+				case 1: arena_prefork1(arena); break;
+				case 2: arena_prefork2(arena); break;
+				default: not_reached();
+				}
+			}
+		}
 	}
-	chunk_prefork();
 	base_prefork();
+	chunk_prefork();
+	for (i = 0; i < narenas; i++) {
+		if ((arena = arena_get(i, false)) != NULL)
+			arena_prefork3(arena);
+	}
+	prof_prefork1();
 }
 
 #ifndef JEMALLOC_MUTEX_INIT_CB
@@ -2683,16 +2697,16 @@ _malloc_postfork(void)
 	assert(malloc_initialized());
 
 	/* Release all mutexes, now that fork() has completed. */
-	base_postfork_parent();
 	chunk_postfork_parent();
+	base_postfork_parent();
 	for (i = 0, narenas = narenas_total_get(); i < narenas; i++) {
 		arena_t *arena;
 
 		if ((arena = arena_get(i, false)) != NULL)
 			arena_postfork_parent(arena);
 	}
-	malloc_mutex_postfork_parent(&arenas_lock);
 	prof_postfork_parent();
+	malloc_mutex_postfork_parent(&arenas_lock);
 	ctl_postfork_parent();
 }
 
@@ -2704,16 +2718,16 @@ jemalloc_postfork_child(void)
 	assert(malloc_initialized());
 
 	/* Release all mutexes, now that fork() has completed. */
-	base_postfork_child();
 	chunk_postfork_child();
+	base_postfork_child();
 	for (i = 0, narenas = narenas_total_get(); i < narenas; i++) {
 		arena_t *arena;
 
 		if ((arena = arena_get(i, false)) != NULL)
 			arena_postfork_child(arena);
 	}
-	malloc_mutex_postfork_child(&arenas_lock);
 	prof_postfork_child();
+	malloc_mutex_postfork_child(&arenas_lock);
 	ctl_postfork_child();
 }
 

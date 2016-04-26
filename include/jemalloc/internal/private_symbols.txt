@@ -81,7 +81,10 @@ arena_nthreads_inc
 arena_palloc
 arena_postfork_child
 arena_postfork_parent
-arena_prefork
+arena_prefork0
+arena_prefork1
+arena_prefork2
+arena_prefork3
 arena_prof_accum
 arena_prof_accum_impl
 arena_prof_accum_locked
@@ -408,7 +411,8 @@ prof_malloc_sample_object
 prof_mdump
 prof_postfork_child
 prof_postfork_parent
-prof_prefork
+prof_prefork0
+prof_prefork1
 prof_realloc
 prof_reset
 prof_sample_accum_update
