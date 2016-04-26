@@ -11,6 +11,13 @@ TEST_BEGIN(test_fork)
 	assert_ptr_not_null(p, "Unexpected malloc() failure");
 
 	pid = fork();
+
+	free(p);
+
+	p = malloc(64);
+	assert_ptr_not_null(p, "Unexpected malloc() failure");
+	free(p);
+
 	if (pid == -1) {
 		/* Error. */
 		test_fail("Unexpected fork() failure");
@@ -21,11 +28,23 @@ TEST_BEGIN(test_fork)
 		int status;
 
 		/* Parent. */
-		free(p);
-		do {
+		while (true) {
 			if (waitpid(pid, &status, 0) == -1)
 				test_fail("Unexpected waitpid() failure");
-		} while (!WIFEXITED(status) && !WIFSIGNALED(status));
+			if (WIFSIGNALED(status)) {
+				test_fail("Unexpected child termination due to "
+				    "signal %d", WTERMSIG(status));
+				break;
+			}
+			if (WIFEXITED(status)) {
+				if (WEXITSTATUS(status) != 0) {
+					test_fail(
+					    "Unexpected child exit value %d",
+					    WEXITSTATUS(status));
+				}
+				break;
+			}
+		}
 	}
 }
 TEST_END

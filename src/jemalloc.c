@@ -2770,8 +2770,8 @@ _malloc_prefork(void)
 
 	narenas = narenas_total_get();
 
-	/* Acquire all mutexes in a safe order. */
 	witness_prefork(tsd);
+	/* Acquire all mutexes in a safe order. */
 	ctl_prefork(tsd);
 	malloc_mutex_prefork(tsd, &arenas_lock);
 	prof_prefork0(tsd);
@@ -2815,6 +2815,7 @@ _malloc_postfork(void)
 
 	tsd = tsd_fetch();
 
+	witness_postfork_parent(tsd);
 	/* Release all mutexes, now that fork() has completed. */
 	chunk_postfork_parent(tsd);
 	base_postfork_parent(tsd);
@@ -2827,7 +2828,6 @@ _malloc_postfork(void)
 	prof_postfork_parent(tsd);
 	malloc_mutex_postfork_parent(tsd, &arenas_lock);
 	ctl_postfork_parent(tsd);
-	witness_postfork(tsd);
 }
 
 void
@@ -2840,6 +2840,7 @@ jemalloc_postfork_child(void)
 
 	tsd = tsd_fetch();
 
+	witness_postfork_child(tsd);
 	/* Release all mutexes, now that fork() has completed. */
 	chunk_postfork_child(tsd);
 	base_postfork_child(tsd);
@@ -2852,7 +2853,6 @@ jemalloc_postfork_child(void)
 	prof_postfork_child(tsd);
 	malloc_mutex_postfork_child(tsd, &arenas_lock);
 	ctl_postfork_child(tsd);
-	witness_postfork(tsd);
 }
 
 /******************************************************************************/

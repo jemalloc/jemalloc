@@ -222,8 +222,20 @@ witness_prefork(tsd_t *tsd)
 }
 
 void
-witness_postfork(tsd_t *tsd)
+witness_postfork_parent(tsd_t *tsd)
 {
 
+	tsd_witness_fork_set(tsd, false);
+}
+
+void
+witness_postfork_child(tsd_t *tsd)
+{
+#ifndef JEMALLOC_MUTEX_INIT_CB
+	witness_list_t *witnesses;
+
+	witnesses = tsd_witnessesp_get(tsd);
+	ql_new(witnesses);
+#endif
 	tsd_witness_fork_set(tsd, false);
 }

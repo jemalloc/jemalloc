@@ -594,7 +594,8 @@ witness_lock_error
 witness_lockless_error
 witness_not_owner_error
 witness_owner_error
-witness_postfork
+witness_postfork_child
+witness_postfork_parent
 witness_prefork
 witness_unlock
 witnesses_cleanup

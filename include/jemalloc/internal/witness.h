@@ -96,7 +96,8 @@ void	witness_assert_lockless(tsd_t *tsd);
 void	witnesses_cleanup(tsd_t *tsd);
 void	witness_fork_cleanup(tsd_t *tsd);
 void	witness_prefork(tsd_t *tsd);
-void	witness_postfork(tsd_t *tsd);
+void	witness_postfork_parent(tsd_t *tsd);
+void	witness_postfork_child(tsd_t *tsd);
 
 #endif /* JEMALLOC_H_EXTERNS */
 /******************************************************************************/
