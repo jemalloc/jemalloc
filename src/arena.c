@@ -3822,16 +3822,34 @@ arena_boot(void)
 }
 
 void
-arena_prefork(tsd_t *tsd, arena_t *arena)
+arena_prefork0(tsd_t *tsd, arena_t *arena)
+{
+
+	malloc_mutex_prefork(tsd, &arena->lock);
+}
+
+void
+arena_prefork1(tsd_t *tsd, arena_t *arena)
+{
+
+	malloc_mutex_prefork(tsd, &arena->chunks_mtx);
+}
+
+void
+arena_prefork2(tsd_t *tsd, arena_t *arena)
+{
+
+	malloc_mutex_prefork(tsd, &arena->node_cache_mtx);
+}
+
+void
+arena_prefork3(tsd_t *tsd, arena_t *arena)
 {
 	unsigned i;
 
-	malloc_mutex_prefork(tsd, &arena->lock);
-	malloc_mutex_prefork(tsd, &arena->huge_mtx);
-	malloc_mutex_prefork(tsd, &arena->chunks_mtx);
-	malloc_mutex_prefork(tsd, &arena->node_cache_mtx);
 	for (i = 0; i < NBINS; i++)
 		malloc_mutex_prefork(tsd, &arena->bins[i].lock);
+	malloc_mutex_prefork(tsd, &arena->huge_mtx);
 }
 
 void
@@ -3839,11 +3857,11 @@ arena_postfork_parent(tsd_t *tsd, arena_t *arena)
 {
 	unsigned i;
 
+	malloc_mutex_postfork_parent(tsd, &arena->huge_mtx);
 	for (i = 0; i < NBINS; i++)
 		malloc_mutex_postfork_parent(tsd, &arena->bins[i].lock);
 	malloc_mutex_postfork_parent(tsd, &arena->node_cache_mtx);
 	malloc_mutex_postfork_parent(tsd, &arena->chunks_mtx);
-	malloc_mutex_postfork_parent(tsd, &arena->huge_mtx);
 	malloc_mutex_postfork_parent(tsd, &arena->lock);
 }
 
@@ -3852,10 +3870,10 @@ arena_postfork_child(tsd_t *tsd, arena_t *arena)
 {
 	unsigned i;
 
+	malloc_mutex_postfork_child(tsd, &arena->huge_mtx);
 	for (i = 0; i < NBINS; i++)
 		malloc_mutex_postfork_child(tsd, &arena->bins[i].lock);
 	malloc_mutex_postfork_child(tsd, &arena->node_cache_mtx);
 	malloc_mutex_postfork_child(tsd, &arena->chunks_mtx);
-	malloc_mutex_postfork_child(tsd, &arena->huge_mtx);
 	malloc_mutex_postfork_child(tsd, &arena->lock);
 }

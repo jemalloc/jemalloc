@@ -601,7 +601,10 @@ void	arena_nthreads_inc(arena_t *arena, bool internal);
 void	arena_nthreads_dec(arena_t *arena, bool internal);
 arena_t	*arena_new(tsd_t *tsd, unsigned ind);
 bool	arena_boot(void);
-void	arena_prefork(tsd_t *tsd, arena_t *arena);
+void	arena_prefork0(tsd_t *tsd, arena_t *arena);
+void	arena_prefork1(tsd_t *tsd, arena_t *arena);
+void	arena_prefork2(tsd_t *tsd, arena_t *arena);
+void	arena_prefork3(tsd_t *tsd, arena_t *arena);
 void	arena_postfork_parent(tsd_t *tsd, arena_t *arena);
 void	arena_postfork_child(tsd_t *tsd, arena_t *arena);
 

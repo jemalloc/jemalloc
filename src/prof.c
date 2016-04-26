@@ -2257,20 +2257,32 @@ prof_boot2(tsd_t *tsd)
 }
 
 void
-prof_prefork(tsd_t *tsd)
+prof_prefork0(tsd_t *tsd)
 {
 
 	if (opt_prof) {
 		unsigned i;
 
-		malloc_mutex_prefork(tsd, &tdatas_mtx);
+		malloc_mutex_prefork(tsd, &prof_dump_mtx);
 		malloc_mutex_prefork(tsd, &bt2gctx_mtx);
-		malloc_mutex_prefork(tsd, &next_thr_uid_mtx);
-		malloc_mutex_prefork(tsd, &prof_dump_seq_mtx);
-		for (i = 0; i < PROF_NCTX_LOCKS; i++)
-			malloc_mutex_prefork(tsd, &gctx_locks[i]);
+		malloc_mutex_prefork(tsd, &tdatas_mtx);
 		for (i = 0; i < PROF_NTDATA_LOCKS; i++)
 			malloc_mutex_prefork(tsd, &tdata_locks[i]);
+		for (i = 0; i < PROF_NCTX_LOCKS; i++)
+			malloc_mutex_prefork(tsd, &gctx_locks[i]);
+	}
+}
+
+void
+prof_prefork1(tsd_t *tsd)
+{
+
+	if (opt_prof) {
+		malloc_mutex_prefork(tsd, &prof_active_mtx);
+		malloc_mutex_prefork(tsd, &prof_dump_seq_mtx);
+		malloc_mutex_prefork(tsd, &prof_gdump_mtx);
+		malloc_mutex_prefork(tsd, &next_thr_uid_mtx);
+		malloc_mutex_prefork(tsd, &prof_thread_active_init_mtx);
 	}
 }
 
@@ -2281,14 +2293,18 @@ prof_postfork_parent(tsd_t *tsd)
 	if (opt_prof) {
 		unsigned i;
 
-		for (i = 0; i < PROF_NTDATA_LOCKS; i++)
-			malloc_mutex_postfork_parent(tsd, &tdata_locks[i]);
+		malloc_mutex_postfork_parent(tsd, &prof_thread_active_init_mtx);
+		malloc_mutex_postfork_parent(tsd, &next_thr_uid_mtx);
+		malloc_mutex_postfork_parent(tsd, &prof_gdump_mtx);
+		malloc_mutex_postfork_parent(tsd, &prof_dump_seq_mtx);
+		malloc_mutex_postfork_parent(tsd, &prof_active_mtx);
 		for (i = 0; i < PROF_NCTX_LOCKS; i++)
 			malloc_mutex_postfork_parent(tsd, &gctx_locks[i]);
-		malloc_mutex_postfork_parent(tsd, &prof_dump_seq_mtx);
-		malloc_mutex_postfork_parent(tsd, &next_thr_uid_mtx);
-		malloc_mutex_postfork_parent(tsd, &bt2gctx_mtx);
+		for (i = 0; i < PROF_NTDATA_LOCKS; i++)
+			malloc_mutex_postfork_parent(tsd, &tdata_locks[i]);
 		malloc_mutex_postfork_parent(tsd, &tdatas_mtx);
+		malloc_mutex_postfork_parent(tsd, &bt2gctx_mtx);
+		malloc_mutex_postfork_parent(tsd, &prof_dump_mtx);
 	}
 }
 
@@ -2299,14 +2315,18 @@ prof_postfork_child(tsd_t *tsd)
 	if (opt_prof) {
 		unsigned i;
 
-		for (i = 0; i < PROF_NTDATA_LOCKS; i++)
-			malloc_mutex_postfork_child(tsd, &tdata_locks[i]);
+		malloc_mutex_postfork_child(tsd, &prof_thread_active_init_mtx);
+		malloc_mutex_postfork_child(tsd, &next_thr_uid_mtx);
+		malloc_mutex_postfork_child(tsd, &prof_gdump_mtx);
+		malloc_mutex_postfork_child(tsd, &prof_dump_seq_mtx);
+		malloc_mutex_postfork_child(tsd, &prof_active_mtx);
 		for (i = 0; i < PROF_NCTX_LOCKS; i++)
 			malloc_mutex_postfork_child(tsd, &gctx_locks[i]);
-		malloc_mutex_postfork_child(tsd, &prof_dump_seq_mtx);
-		malloc_mutex_postfork_child(tsd, &next_thr_uid_mtx);
-		malloc_mutex_postfork_child(tsd, &bt2gctx_mtx);
+		for (i = 0; i < PROF_NTDATA_LOCKS; i++)
+			malloc_mutex_postfork_child(tsd, &tdata_locks[i]);
 		malloc_mutex_postfork_child(tsd, &tdatas_mtx);
+		malloc_mutex_postfork_child(tsd, &bt2gctx_mtx);
+		malloc_mutex_postfork_child(tsd, &prof_dump_mtx);
 	}
 }
 

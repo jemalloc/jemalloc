@@ -2757,7 +2757,8 @@ _malloc_prefork(void)
 #endif
 {
 	tsd_t *tsd;
-	unsigned i, narenas;
+	unsigned i, j, narenas;
+	arena_t *arena;
 
 #ifdef JEMALLOC_MUTEX_INIT_CB
 	if (!malloc_initialized())
@@ -2767,18 +2768,32 @@ _malloc_prefork(void)
 
 	tsd = tsd_fetch();
 
-	/* Acquire all mutexes in a safe order. */
-	ctl_prefork(tsd);
-	prof_prefork(tsd);
-	malloc_mutex_prefork(tsd, &arenas_lock);
-	for (i = 0, narenas = narenas_total_get(); i < narenas; i++) {
-		arena_t *arena;
+	narenas = narenas_total_get();
 
-		if ((arena = arena_get(tsd, i, false)) != NULL)
-			arena_prefork(tsd, arena);
+	/* Acquire all mutexes in a safe order. */
+	witness_prefork(tsd);
+	ctl_prefork(tsd);
+	malloc_mutex_prefork(tsd, &arenas_lock);
+	prof_prefork0(tsd);
+	for (i = 0; i < 3; i++) {
+		for (j = 0; j < narenas; j++) {
+			if ((arena = arena_get(tsd, j, false)) != NULL) {
+				switch (i) {
+				case 0: arena_prefork0(tsd, arena); break;
+				case 1: arena_prefork1(tsd, arena); break;
+				case 2: arena_prefork2(tsd, arena); break;
+				default: not_reached();
+				}
+			}
+		}
 	}
-	chunk_prefork(tsd);
 	base_prefork(tsd);
+	chunk_prefork(tsd);
+	for (i = 0; i < narenas; i++) {
+		if ((arena = arena_get(tsd, i, false)) != NULL)
+			arena_prefork3(tsd, arena);
+	}
+	prof_prefork1(tsd);
 }
 
 #ifndef JEMALLOC_MUTEX_INIT_CB
@@ -2801,17 +2816,18 @@ _malloc_postfork(void)
 	tsd = tsd_fetch();
 
 	/* Release all mutexes, now that fork() has completed. */
-	base_postfork_parent(tsd);
 	chunk_postfork_parent(tsd);
+	base_postfork_parent(tsd);
 	for (i = 0, narenas = narenas_total_get(); i < narenas; i++) {
 		arena_t *arena;
 
 		if ((arena = arena_get(tsd, i, false)) != NULL)
 			arena_postfork_parent(tsd, arena);
 	}
-	malloc_mutex_postfork_parent(tsd, &arenas_lock);
 	prof_postfork_parent(tsd);
+	malloc_mutex_postfork_parent(tsd, &arenas_lock);
 	ctl_postfork_parent(tsd);
+	witness_postfork(tsd);
 }
 
 void
@@ -2825,17 +2841,18 @@ jemalloc_postfork_child(void)
 	tsd = tsd_fetch();
 
 	/* Release all mutexes, now that fork() has completed. */
-	base_postfork_child(tsd);
 	chunk_postfork_child(tsd);
+	base_postfork_child(tsd);
 	for (i = 0, narenas = narenas_total_get(); i < narenas; i++) {
 		arena_t *arena;
 
 		if ((arena = arena_get(tsd, i, false)) != NULL)
 			arena_postfork_child(tsd, arena);
 	}
-	malloc_mutex_postfork_child(tsd, &arenas_lock);
 	prof_postfork_child(tsd);
+	malloc_mutex_postfork_child(tsd, &arenas_lock);
 	ctl_postfork_child(tsd);
+	witness_postfork(tsd);
 }
 
 /******************************************************************************/

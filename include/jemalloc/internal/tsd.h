@@ -544,6 +544,7 @@ struct tsd_init_head_s {
     O(tcache_enabled,		tcache_enabled_t)			\
     O(quarantine,		quarantine_t *)				\
     O(witnesses,		witness_list_t)				\
+    O(witness_fork,		bool)					\
 
 #define	TSD_INITIALIZER {						\
     tsd_state_uninitialized,						\
@@ -558,7 +559,8 @@ struct tsd_init_head_s {
     false,								\
     tcache_enabled_default,						\
     NULL,								\
-    ql_head_initializer(witnesses)					\
+    ql_head_initializer(witnesses),					\
+    false								\
 }
 
 struct tsd_s {

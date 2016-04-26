@@ -48,9 +48,21 @@ witness_lock(tsd_t *tsd, witness_t *witness)
 
 	witnesses = tsd_witnessesp_get(tsd);
 	w = ql_last(witnesses, link);
-	if (w != NULL && w->rank >= witness->rank && (w->comp == NULL ||
-	    w->comp != witness->comp || w->comp(w, witness) > 0))
+	if (w == NULL) {
+		/* No other locks; do nothing. */
+	} else if (tsd_witness_fork_get(tsd) && w->rank <= witness->rank) {
+		/* Forking, and relaxed ranking satisfied. */
+	} else if (w->rank > witness->rank) {
+		/* Not forking, rank order reversal. */
 		witness_lock_error(witnesses, witness);
+	} else if (w->rank == witness->rank && (w->comp == NULL || w->comp !=
+	    witness->comp || w->comp(w, witness) > 0)) {
+		/*
+		 * Missing/incompatible comparison function, or comparison
+		 * function indicates rank order reversal.
+		 */
+		witness_lock_error(witnesses, witness);
+	}
 
 	ql_elm_new(witness, link);
 	ql_tail_insert(witnesses, witness, link);
@@ -193,4 +205,25 @@ witnesses_cleanup(tsd_t *tsd)
 	witness_assert_lockless(tsd);
 
 	/* Do nothing. */
+}
+
+void
+witness_fork_cleanup(tsd_t *tsd)
+{
+
+	/* Do nothing. */
+}
+
+void
+witness_prefork(tsd_t *tsd)
+{
+
+	tsd_witness_fork_set(tsd, true);
+}
+
+void
+witness_postfork(tsd_t *tsd)
+{
+
+	tsd_witness_fork_set(tsd, false);
 }
