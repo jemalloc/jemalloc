@@ -268,6 +268,7 @@ stats_arena_print(void (*write_cb)(void *, const char *), void *cbopaque,
 	uint64_t large_nmalloc, large_ndalloc, large_nrequests;
 	size_t huge_allocated;
 	uint64_t huge_nmalloc, huge_ndalloc, huge_nrequests;
+	size_t tcache_bytes;
 
 	CTL_GET("arenas.page", &page, size_t);
 
@@ -353,6 +354,11 @@ stats_arena_print(void (*write_cb)(void *, const char *), void *cbopaque,
 	    size_t);
 	CTL_M2_GET("stats.arenas.0.metadata.allocated", i, &metadata_allocated,
 	    size_t);
+	CTL_M2_GET("stats.arenas.0.tcache_bytes", i, &tcache_bytes,
+	    size_t);
+	malloc_cprintf(write_cb, cbopaque,
+	    "bytes in tcache:         %12zu\n", tcache_bytes);
+
 	malloc_cprintf(write_cb, cbopaque,
 	    "metadata: mapped: %zu, allocated: %zu\n",
 	    metadata_mapped, metadata_allocated);
@@ -629,6 +635,11 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 					if (initialized[i])
 						ninitialized++;
 				}
+
+				malloc_cprintf(write_cb, cbopaque,
+					    "\nMerged arenas stats:\n");
+				stats_arena_print(write_cb, cbopaque,
+					    narenas, bins, large, huge);
 
 				if (ninitialized > 1 || !unmerged) {
 					/* Print merged arena stats. */

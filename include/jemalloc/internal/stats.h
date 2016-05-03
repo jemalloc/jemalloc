@@ -128,6 +128,9 @@ struct arena_stats_s {
 	uint64_t	nmalloc_huge;
 	uint64_t	ndalloc_huge;
 
+	/* Number of bytes cached in tcache assocated with this arena.*/
+	size_t		tcache_bytes;
+
 	/* One element for each large size class. */
 	malloc_large_stats_t	*lstats;
 

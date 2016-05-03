@@ -3439,6 +3439,21 @@ arena_stats_merge(tsd_t *tsd, arena_t *arena, unsigned *nthreads,
 		hstats[i].ndalloc += arena->stats.hstats[i].ndalloc;
 		hstats[i].curhchunks += arena->stats.hstats[i].curhchunks;
 	}
+
+	if (config_tcache) {
+		tcache_bin_t *tbin;
+		tcache_t *tcache;
+
+		/* tcache_bytes counts currently cached bytes. */
+		astats->tcache_bytes = 0;
+		ql_foreach(tcache, &arena->tcache_ql, link) {
+			for (i = 0; i < nhbins; i++) {
+				tbin = &tcache->tbins[i];
+				astats->tcache_bytes += tbin->ncached * index2size(i);
+			}
+		}
+	}
+
 	malloc_mutex_unlock(tsd, &arena->lock);
 
 	for (i = 0; i < NBINS; i++) {
