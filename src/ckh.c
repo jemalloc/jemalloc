@@ -271,7 +271,7 @@ ckh_grow(tsd_t *tsd, ckh_t *ckh)
 			goto label_return;
 		}
 		tab = (ckhc_t *)ipallocztm(tsd, usize, CACHELINE, true, NULL,
-		    true, arena_choose(tsd, NULL, true));
+		    true, arena_ichoose(tsd, NULL));
 		if (tab == NULL) {
 			ret = true;
 			goto label_return;
@@ -315,7 +315,7 @@ ckh_shrink(tsd_t *tsd, ckh_t *ckh)
 	if (unlikely(usize == 0 || usize > HUGE_MAXCLASS))
 		return;
 	tab = (ckhc_t *)ipallocztm(tsd, usize, CACHELINE, true, NULL, true,
-	    arena_choose(tsd, NULL, true));
+	    arena_ichoose(tsd, NULL));
 	if (tab == NULL) {
 		/*
 		 * An OOM error isn't worth propagating, since it doesn't
@@ -392,7 +392,7 @@ ckh_new(tsd_t *tsd, ckh_t *ckh, size_t minitems, ckh_hash_t *hash,
 		goto label_return;
 	}
 	ckh->tab = (ckhc_t *)ipallocztm(tsd, usize, CACHELINE, true, NULL, true,
-	    arena_choose(tsd, NULL, true));
+	    arena_ichoose(tsd, NULL));
 	if (ckh->tab == NULL) {
 		ret = true;
 		goto label_return;

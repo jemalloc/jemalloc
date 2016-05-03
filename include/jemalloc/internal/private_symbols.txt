@@ -10,6 +10,7 @@ arena_bitselm_get_mutable
 arena_boot
 arena_choose
 arena_choose_hard
+arena_choose_impl
 arena_chunk_alloc_huge
 arena_chunk_cache_maybe_insert
 arena_chunk_cache_maybe_remove
@@ -35,6 +36,7 @@ arena_decay_time_set
 arena_dss_prec_get
 arena_dss_prec_set
 arena_get
+arena_ichoose
 arena_init
 arena_lg_dirty_mult_default_get
 arena_lg_dirty_mult_default_set

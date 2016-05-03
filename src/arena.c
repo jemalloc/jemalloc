@@ -2649,7 +2649,7 @@ arena_malloc_hard(tsd_t *tsd, arena_t *arena, size_t size, szind_t ind,
     bool zero)
 {
 
-	arena = arena_choose(tsd, arena, false);
+	arena = arena_choose(tsd, arena);
 	if (unlikely(arena == NULL))
 		return (NULL);
 
@@ -2674,7 +2674,7 @@ arena_palloc_large(tsd_t *tsd, arena_t *arena, size_t usize, size_t alignment,
 
 	assert(usize == PAGE_CEILING(usize));
 
-	arena = arena_choose(tsd, arena, false);
+	arena = arena_choose(tsd, arena);
 	if (unlikely(arena == NULL))
 		return (NULL);
 

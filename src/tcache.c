@@ -97,7 +97,7 @@ tcache_bin_flush_small(tsd_t *tsd, tcache_t *tcache, tcache_bin_t *tbin,
 	assert(binind < NBINS);
 	assert(rem <= tbin->ncached);
 
-	arena = arena_choose(tsd, NULL, false);
+	arena = arena_choose(tsd, NULL);
 	assert(arena != NULL);
 	for (nflush = tbin->ncached - rem; nflush > 0; nflush = ndeferred) {
 		/* Lock the arena bin associated with the first object. */
@@ -179,7 +179,7 @@ tcache_bin_flush_large(tsd_t *tsd, tcache_bin_t *tbin, szind_t binind,
 	assert(binind < nhbins);
 	assert(rem <= tbin->ncached);
 
-	arena = arena_choose(tsd, NULL, false);
+	arena = arena_choose(tsd, NULL);
 	assert(arena != NULL);
 	for (nflush = tbin->ncached - rem; nflush > 0; nflush = ndeferred) {
 		/* Lock the arena associated with the first object. */
@@ -307,7 +307,7 @@ tcache_get_hard(tsd_t *tsd)
 			tcache_enabled_set(false); /* Memoize. */
 		return (NULL);
 	}
-	arena = arena_choose(tsd, NULL, false);
+	arena = arena_choose(tsd, NULL);
 	if (unlikely(arena == NULL))
 		return (NULL);
 	return (tcache_create(tsd, arena));
@@ -359,7 +359,7 @@ tcache_destroy(tsd_t *tsd, tcache_t *tcache)
 	arena_t *arena;
 	unsigned i;
 
-	arena = arena_choose(tsd, NULL, false);
+	arena = arena_choose(tsd, NULL);
 	tcache_arena_dissociate(tsd, tcache, arena);
 
 	for (i = 0; i < NBINS; i++) {
@@ -459,7 +459,7 @@ tcaches_create(tsd_t *tsd, unsigned *r_ind)
 
 	if (tcaches_avail == NULL && tcaches_past > MALLOCX_TCACHE_MAX)
 		return (true);
-	arena = arena_choose(tsd, NULL, true);
+	arena = arena_ichoose(tsd, NULL);
 	if (unlikely(arena == NULL))
 		return (true);
 	tcache = tcache_create(tsd, arena);

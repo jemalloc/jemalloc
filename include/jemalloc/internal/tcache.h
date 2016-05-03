@@ -293,7 +293,7 @@ tcache_alloc_small(tsd_t *tsd, arena_t *arena, tcache_t *tcache, size_t size,
 	assert(tcache_success == (ret != NULL));
 	if (unlikely(!tcache_success)) {
 		bool tcache_hard_success;
-		arena = arena_choose(tsd, arena, false);
+		arena = arena_choose(tsd, arena);
 		if (unlikely(arena == NULL))
 			return (NULL);
 
@@ -354,7 +354,7 @@ tcache_alloc_large(tsd_t *tsd, arena_t *arena, tcache_t *tcache, size_t size,
 		 * Only allocate one large object at a time, because it's quite
 		 * expensive to create one and not use it.
 		 */
-		arena = arena_choose(tsd, arena, false);
+		arena = arena_choose(tsd, arena);
 		if (unlikely(arena == NULL))
 			return (NULL);
 
@@ -460,8 +460,7 @@ tcaches_get(tsd_t *tsd, unsigned ind)
 {
 	tcaches_t *elm = &tcaches[ind];
 	if (unlikely(elm->tcache == NULL)) {
-		elm->tcache = tcache_create(tsd, arena_choose(tsd, NULL,
-		    false));
+		elm->tcache = tcache_create(tsd, arena_choose(tsd, NULL));
 	}
 	return (elm->tcache);
 }

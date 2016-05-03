@@ -795,7 +795,7 @@ prof_lookup(tsd_t *tsd, prof_bt_t *bt)
 		/* Link a prof_tctx_t into gctx for this thread. */
 		ret.v = iallocztm(tsd, sizeof(prof_tctx_t),
 		    size2index(sizeof(prof_tctx_t)), false, NULL, true,
-		    arena_choose(tsd, NULL, true), true);
+		    arena_ichoose(tsd, NULL), true);
 		if (ret.p == NULL) {
 			if (new_gctx)
 				prof_gctx_try_destroy(tsd, tdata, gctx, tdata);
