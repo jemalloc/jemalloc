@@ -4,6 +4,27 @@ brevity.  Much more detail can be found in the git revision history:
 
     https://github.com/jemalloc/jemalloc
 
+* 4.1.1 (May 3, 2016)
+
+  This bugfix release resolves a variety of mostly minor issues, though the
+  bitmap fix is critical for 64-bit Windows.
+
+  Bug fixes:
+  - Fix the linear scan version of bitmap_sfu() to shift by the proper amount
+    even when sizeof(long) is not the same as sizeof(void *), as on 64-bit
+    Windows.  (@jasone)
+  - Fix hashing functions to avoid unaligned memory accesses (and resulting
+    crashes).  This is relevant at least to some ARM-based platforms.
+    (@rkmisra)
+  - Fix fork()-related lock rank ordering reversals.  These reversals were
+    unlikely to cause deadlocks in practice except when heap profiling was
+    enabled and active.  (@jasone)
+  - Fix various chunk leaks in OOM code paths.  (@jasone)
+  - Fix malloc_stats_print() to print opt.narenas correctly.  (@jasone)
+  - Fix MSVC-specific build/test issues.  (@rustyx, yuslepukhin)
+  - Fix a variety of test failures that were due to test fragility rather than
+    core bugs.  (@jasone)
+
 * 4.1.0 (February 28, 2016)
 
   This release is primarily about optimizations, but it also incorporates a lot
