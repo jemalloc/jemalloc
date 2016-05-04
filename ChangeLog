@@ -21,7 +21,7 @@ brevity.  Much more detail can be found in the git revision history:
     enabled and active.  (@jasone)
   - Fix various chunk leaks in OOM code paths.  (@jasone)
   - Fix malloc_stats_print() to print opt.narenas correctly.  (@jasone)
-  - Fix MSVC-specific build/test issues.  (@rustyx, yuslepukhin)
+  - Fix MSVC-specific build/test issues.  (@rustyx, @yuslepukhin)
   - Fix a variety of test failures that were due to test fragility rather than
     core bugs.  (@jasone)
 
