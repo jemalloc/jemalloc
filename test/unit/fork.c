@@ -1,9 +1,12 @@
 #include "test/jemalloc_test.h"
 
+#ifndef _WIN32
 #include <sys/wait.h>
+#endif
 
 TEST_BEGIN(test_fork)
 {
+#ifndef _WIN32
 	void *p;
 	pid_t pid;
 
@@ -46,6 +49,9 @@ TEST_BEGIN(test_fork)
 			}
 		}
 	}
+#else
+	test_skip("fork(2) is irrelevant to Windows");
+#endif
 }
 TEST_END
 
