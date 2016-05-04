@@ -1239,13 +1239,8 @@ fi
 
 CPPFLAGS="$CPPFLAGS -D_REENTRANT"
 
-dnl Check whether clock_gettime(2) is in libc or librt.  This function is only
-dnl used in test code, so save the result to TESTLIBS to avoid poluting LIBS.
-SAVED_LIBS="${LIBS}"
-LIBS=
-AC_SEARCH_LIBS([clock_gettime], [rt], [TESTLIBS="${LIBS}"])
-AC_SUBST([TESTLIBS])
-LIBS="${SAVED_LIBS}"
+dnl Check whether clock_gettime(2) is in libc or librt.
+AC_SEARCH_LIBS([clock_gettime], [rt])
 
 dnl Check if the GNU-specific secure_getenv function exists.
 AC_CHECK_FUNC([secure_getenv],
@@ -1751,7 +1746,6 @@ AC_MSG_RESULT([CPPFLAGS           : ${CPPFLAGS}])
 AC_MSG_RESULT([LDFLAGS            : ${LDFLAGS}])
 AC_MSG_RESULT([EXTRA_LDFLAGS      : ${EXTRA_LDFLAGS}])
 AC_MSG_RESULT([LIBS               : ${LIBS}])
-AC_MSG_RESULT([TESTLIBS           : ${TESTLIBS}])
 AC_MSG_RESULT([RPATH_EXTRA        : ${RPATH_EXTRA}])
 AC_MSG_RESULT([])
 AC_MSG_RESULT([XSLTPROC           : ${XSLTPROC}])
