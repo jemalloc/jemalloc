@@ -192,6 +192,7 @@ CTL_PROTO(stats_arenas_i_decay_time)
 CTL_PROTO(stats_arenas_i_pactive)
 CTL_PROTO(stats_arenas_i_pdirty)
 CTL_PROTO(stats_arenas_i_mapped)
+CTL_PROTO(stats_arenas_i_retained)
 CTL_PROTO(stats_arenas_i_npurge)
 CTL_PROTO(stats_arenas_i_nmadvise)
 CTL_PROTO(stats_arenas_i_purged)
@@ -204,6 +205,7 @@ CTL_PROTO(stats_active)
 CTL_PROTO(stats_metadata)
 CTL_PROTO(stats_resident)
 CTL_PROTO(stats_mapped)
+CTL_PROTO(stats_retained)
 
 /******************************************************************************/
 /* mallctl tree. */
@@ -458,6 +460,7 @@ static const ctl_named_node_t stats_arenas_i_node[] = {
 	{NAME("pactive"),	CTL(stats_arenas_i_pactive)},
 	{NAME("pdirty"),	CTL(stats_arenas_i_pdirty)},
 	{NAME("mapped"),	CTL(stats_arenas_i_mapped)},
+	{NAME("retained"),	CTL(stats_arenas_i_retained)},
 	{NAME("npurge"),	CTL(stats_arenas_i_npurge)},
 	{NAME("nmadvise"),	CTL(stats_arenas_i_nmadvise)},
 	{NAME("purged"),	CTL(stats_arenas_i_purged)},
@@ -484,6 +487,7 @@ static const ctl_named_node_t stats_node[] = {
 	{NAME("metadata"),	CTL(stats_metadata)},
 	{NAME("resident"),	CTL(stats_resident)},
 	{NAME("mapped"),	CTL(stats_mapped)},
+	{NAME("retained"),	CTL(stats_retained)},
 	{NAME("arenas"),	CHILD(indexed, stats_arenas)}
 };
 
@@ -591,6 +595,7 @@ ctl_arena_stats_smerge(ctl_arena_stats_t *sstats, ctl_arena_stats_t *astats)
 
 	if (config_stats) {
 		sstats->astats.mapped += astats->astats.mapped;
+		sstats->astats.retained += astats->astats.retained;
 		sstats->astats.npurge += astats->astats.npurge;
 		sstats->astats.nmadvise += astats->astats.nmadvise;
 		sstats->astats.purged += astats->astats.purged;
@@ -745,6 +750,8 @@ ctl_refresh(tsd_t *tsd)
 		    ctl_stats.arenas[ctl_stats.narenas].pdirty) << LG_PAGE);
 		ctl_stats.mapped = base_mapped +
 		    ctl_stats.arenas[ctl_stats.narenas].astats.mapped;
+		ctl_stats.retained =
+		    ctl_stats.arenas[ctl_stats.narenas].astats.retained;
 	}
 
 	ctl_epoch++;
@@ -2108,6 +2115,7 @@ CTL_RO_CGEN(config_stats, stats_active, ctl_stats.active, size_t)
 CTL_RO_CGEN(config_stats, stats_metadata, ctl_stats.metadata, size_t)
 CTL_RO_CGEN(config_stats, stats_resident, ctl_stats.resident, size_t)
 CTL_RO_CGEN(config_stats, stats_mapped, ctl_stats.mapped, size_t)
+CTL_RO_CGEN(config_stats, stats_retained, ctl_stats.retained, size_t)
 
 CTL_RO_GEN(stats_arenas_i_dss, ctl_stats.arenas[mib[2]].dss, const char *)
 CTL_RO_GEN(stats_arenas_i_lg_dirty_mult, ctl_stats.arenas[mib[2]].lg_dirty_mult,
@@ -2119,6 +2127,8 @@ CTL_RO_GEN(stats_arenas_i_pactive, ctl_stats.arenas[mib[2]].pactive, size_t)
 CTL_RO_GEN(stats_arenas_i_pdirty, ctl_stats.arenas[mib[2]].pdirty, size_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_mapped,
     ctl_stats.arenas[mib[2]].astats.mapped, size_t)
+CTL_RO_CGEN(config_stats, stats_arenas_i_retained,
+    ctl_stats.arenas[mib[2]].astats.retained, size_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_npurge,
     ctl_stats.arenas[mib[2]].astats.npurge, uint64_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_nmadvise,

@@ -2186,6 +2186,25 @@ typedef struct {
         linkend="stats.resident"><mallctl>stats.resident</mallctl></link>.</para></listitem>
       </varlistentry>
 
+      <varlistentry id="stats.retained">
+        <term>
+          <mallctl>stats.retained</mallctl>
+          (<type>size_t</type>)
+          <literal>r-</literal>
+          [<option>--enable-stats</option>]
+        </term>
+        <listitem><para>Total number of bytes in virtual memory mappings that
+        were retained rather than being returned to the operating system via
+        e.g. <citerefentry><refentrytitle>munmap</refentrytitle>
+        <manvolnum>2</manvolnum></citerefentry>.  Retained virtual memory is
+        typically untouched, decommitted, or purged, so it has no strongly
+        associated physical memory (see <link
+        linkend="arena.i.chunk_hooks">chunk hooks</link> for details).  Retained
+        memory is excluded from mapped memory statistics, e.g. <link
+        linkend="stats.mapped"><mallctl>stats.mapped</mallctl></link>.
+        </para></listitem>
+      </varlistentry>
+
       <varlistentry id="stats.arenas.i.dss">
         <term>
           <mallctl>stats.arenas.&lt;i&gt;.dss</mallctl>
@@ -2264,6 +2283,18 @@ typedef struct {
           [<option>--enable-stats</option>]
         </term>
         <listitem><para>Number of mapped bytes.</para></listitem>
+      </varlistentry>
+
+      <varlistentry id="stats.arenas.i.retained">
+        <term>
+          <mallctl>stats.arenas.&lt;i&gt;.retained</mallctl>
+          (<type>size_t</type>)
+          <literal>r-</literal>
+          [<option>--enable-stats</option>]
+        </term>
+        <listitem><para>Number of retained bytes.  See <link
+        linkend="stats.retained"><mallctl>stats.retained</mallctl></link> for
+        details.</para></listitem>
       </varlistentry>
 
       <varlistentry id="stats.arenas.i.metadata.mapped">

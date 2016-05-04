@@ -444,15 +444,21 @@ static void *
 chunk_alloc_retained(tsd_t *tsd, arena_t *arena, chunk_hooks_t *chunk_hooks,
     void *new_addr, size_t size, size_t alignment, bool *zero, bool *commit)
 {
+	void *ret;
 
 	assert(size != 0);
 	assert((size & chunksize_mask) == 0);
 	assert(alignment != 0);
 	assert((alignment & chunksize_mask) == 0);
 
-	return (chunk_recycle(tsd, arena, chunk_hooks,
+	ret = chunk_recycle(tsd, arena, chunk_hooks,
 	    &arena->chunks_szad_retained, &arena->chunks_ad_retained, false,
-	    new_addr, size, alignment, zero, commit, true));
+	    new_addr, size, alignment, zero, commit, true);
+
+	if (config_stats && ret != NULL)
+		arena->stats.retained -= size;
+
+	return (ret);
 }
 
 void *
@@ -617,6 +623,9 @@ chunk_dalloc_wrapper(tsd_t *tsd, arena_t *arena, chunk_hooks_t *chunk_hooks,
 	    arena->ind);
 	chunk_record(tsd, arena, chunk_hooks, &arena->chunks_szad_retained,
 	    &arena->chunks_ad_retained, false, chunk, size, zeroed, committed);
+
+	if (config_stats)
+		arena->stats.retained += size;
 }
 
 static bool

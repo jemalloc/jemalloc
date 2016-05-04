@@ -3414,6 +3414,7 @@ arena_stats_merge(tsd_t *tsd, arena_t *arena, unsigned *nthreads,
 	    decay_time, nactive, ndirty);
 
 	astats->mapped += arena->stats.mapped;
+	astats->retained += arena->stats.retained;
 	astats->npurge += arena->stats.npurge;
 	astats->nmadvise += arena->stats.nmadvise;
 	astats->purged += arena->stats.purged;

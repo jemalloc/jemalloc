@@ -103,6 +103,14 @@ struct arena_stats_s {
 	size_t		mapped;
 
 	/*
+	 * Number of bytes currently retained as a side effect of munmap() being
+	 * disabled/bypassed.  Retained bytes are technically mapped (though
+	 * always decommitted or purged), but they are excluded from the mapped
+	 * statistic (above).
+	 */
+	size_t		retained;
+
+	/*
 	 * Total number of purge sweeps, total number of madvise calls made,
 	 * and total pages purged in order to keep dirty unused memory under
 	 * control.
