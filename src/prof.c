@@ -828,22 +828,22 @@ prof_lookup(tsd_t *tsd, prof_bt_t *bt)
 	return (ret.p);
 }
 
+/*
+ * The bodies of this function and prof_leakcheck() are compiled out unless heap
+ * profiling is enabled, so that it is possible to compile jemalloc with
+ * floating point support completely disabled.  Avoiding floating point code is
+ * important on memory-constrained systems, but it also enables a workaround for
+ * versions of glibc that don't properly save/restore floating point registers
+ * during dynamic lazy symbol loading (which internally calls into whatever
+ * malloc implementation happens to be integrated into the application).  Note
+ * that some compilers (e.g.  gcc 4.8) may use floating point registers for fast
+ * memory moves, so jemalloc must be compiled with such optimizations disabled
+ * (e.g.
+ * -mno-sse) in order for the workaround to be complete.
+ */
 void
 prof_sample_threshold_update(prof_tdata_t *tdata)
 {
-	/*
-	 * The body of this function is compiled out unless heap profiling is
-	 * enabled, so that it is possible to compile jemalloc with floating
-	 * point support completely disabled.  Avoiding floating point code is
-	 * important on memory-constrained systems, but it also enables a
-	 * workaround for versions of glibc that don't properly save/restore
-	 * floating point registers during dynamic lazy symbol loading (which
-	 * internally calls into whatever malloc implementation happens to be
-	 * integrated into the application).  Note that some compilers (e.g.
-	 * gcc 4.8) may use floating point registers for fast memory moves, so
-	 * jemalloc must be compiled with such optimizations disabled (e.g.
-	 * -mno-sse) in order for the workaround to be complete.
-	 */
 #ifdef JEMALLOC_PROF
 	uint64_t r;
 	double u;
@@ -1477,21 +1477,41 @@ label_return:
 	return (ret);
 }
 
+/*
+ * See prof_sample_threshold_update() comment for why the body of this function
+ * is conditionally compiled.
+ */
 static void
 prof_leakcheck(const prof_cnt_t *cnt_all, size_t leak_ngctx,
     const char *filename)
 {
 
+#ifdef JEMALLOC_PROF
+	/*
+	 * Scaling is equivalent AdjustSamples() in jeprof, but the result may
+	 * differ slightly from what jeprof reports, because here we scale the
+	 * summary values, whereas jeprof scales each context individually and
+	 * reports the sums of the scaled values.
+	 */
 	if (cnt_all->curbytes != 0) {
-		malloc_printf("<jemalloc>: Leak summary: %"FMTu64" byte%s, %"
-		    FMTu64" object%s, %zu context%s\n",
-		    cnt_all->curbytes, (cnt_all->curbytes != 1) ? "s" : "",
-		    cnt_all->curobjs, (cnt_all->curobjs != 1) ? "s" : "",
-		    leak_ngctx, (leak_ngctx != 1) ? "s" : "");
+		double sample_period = (double)((uint64_t)1 << lg_prof_sample);
+		double ratio = (((double)cnt_all->curbytes) /
+		    (double)cnt_all->curobjs) / sample_period;
+		double scale_factor = 1.0 / (1.0 - exp(-ratio));
+		uint64_t curbytes = (uint64_t)round(((double)cnt_all->curbytes)
+		    * scale_factor);
+		uint64_t curobjs = (uint64_t)round(((double)cnt_all->curobjs) *
+		    scale_factor);
+
+		malloc_printf("<jemalloc>: Leak approximation summary: ~%"FMTu64
+		    " byte%s, ~%"FMTu64" object%s, >= %zu context%s\n",
+		    curbytes, (curbytes != 1) ? "s" : "", curobjs, (curobjs !=
+		    1) ? "s" : "", leak_ngctx, (leak_ngctx != 1) ? "s" : "");
 		malloc_printf(
 		    "<jemalloc>: Run jeprof on \"%s\" for leak detail\n",
 		    filename);
 	}
+#endif
 }
 
 struct prof_gctx_dump_iter_arg_s {
