@@ -584,7 +584,10 @@ void	arena_nthreads_inc(arena_t *arena);
 void	arena_nthreads_dec(arena_t *arena);
 arena_t	*arena_new(unsigned ind);
 bool	arena_boot(void);
-void	arena_prefork(arena_t *arena);
+void	arena_prefork0(arena_t *arena);
+void	arena_prefork1(arena_t *arena);
+void	arena_prefork2(arena_t *arena);
+void	arena_prefork3(arena_t *arena);
 void	arena_postfork_parent(arena_t *arena);
 void	arena_postfork_child(arena_t *arena);
 

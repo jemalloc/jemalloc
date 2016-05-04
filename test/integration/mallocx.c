@@ -70,22 +70,27 @@ TEST_END
 TEST_BEGIN(test_oom)
 {
 	size_t hugemax, size, alignment;
-
-	hugemax = get_huge_size(get_nhuge()-1);
+	bool oom;
+	void *ptrs[3];
+	unsigned i;
 
 	/*
-	 * It should be impossible to allocate two objects that each consume
-	 * more than half the virtual address space.
+	 * It should be impossible to allocate three objects that each consume
+	 * nearly half the virtual address space.
 	 */
-	{
-		void *p;
-
-		p = mallocx(hugemax, 0);
-		if (p != NULL) {
-			assert_ptr_null(mallocx(hugemax, 0),
-			    "Expected OOM for mallocx(size=%#zx, 0)", hugemax);
-			dallocx(p, 0);
-		}
+	hugemax = get_huge_size(get_nhuge()-1);
+	oom = false;
+	for (i = 0; i < sizeof(ptrs) / sizeof(void *); i++) {
+		ptrs[i] = mallocx(hugemax, 0);
+		if (ptrs[i] == NULL)
+			oom = true;
+	}
+	assert_true(oom,
+	    "Expected OOM during series of calls to mallocx(size=%zu, 0)",
+	    hugemax);
+	for (i = 0; i < sizeof(ptrs) / sizeof(void *); i++) {
+		if (ptrs[i] != NULL)
+			dallocx(ptrs[i], 0);
 	}
 
 #if LG_SIZEOF_PTR == 3

@@ -617,8 +617,8 @@ arena_chunk_alloc_internal_hard(arena_t *arena, chunk_hooks_t *chunk_hooks,
 		/* Commit header. */
 		if (chunk_hooks->commit(chunk, chunksize, 0, map_bias <<
 		    LG_PAGE, arena->ind)) {
-			chunk_dalloc_wrapper(arena, chunk_hooks,
-			    (void *)chunk, chunksize, *commit);
+			chunk_dalloc_wrapper(arena, chunk_hooks, (void *)chunk,
+			    chunksize, *zero, *commit);
 			chunk = NULL;
 		}
 	}
@@ -629,7 +629,7 @@ arena_chunk_alloc_internal_hard(arena_t *arena, chunk_hooks_t *chunk_hooks,
 			    LG_PAGE, arena->ind);
 		}
 		chunk_dalloc_wrapper(arena, chunk_hooks, (void *)chunk,
-		    chunksize, *commit);
+		    chunksize, *zero, *commit);
 		chunk = NULL;
 	}
 
@@ -1024,7 +1024,7 @@ arena_chunk_ralloc_huge_expand_hard(arena_t *arena, chunk_hooks_t *chunk_hooks,
 		malloc_mutex_unlock(&arena->lock);
 	} else if (chunk_hooks->merge(chunk, CHUNK_CEILING(oldsize), nchunk,
 	    cdiff, true, arena->ind)) {
-		chunk_dalloc_arena(arena, chunk_hooks, nchunk, cdiff, *zero,
+		chunk_dalloc_wrapper(arena, chunk_hooks, nchunk, cdiff, *zero,
 		    true);
 		err = true;
 	}
@@ -1050,8 +1050,8 @@ arena_chunk_ralloc_huge_expand(arena_t *arena, void *chunk, size_t oldsize,
 	}
 	arena_nactive_add(arena, udiff >> LG_PAGE);
 
-	err = (chunk_alloc_cache(arena, &arena->chunk_hooks, nchunk, cdiff,
-	    chunksize, zero, true) == NULL);
+	err = (chunk_alloc_cache(arena, &chunk_hooks, nchunk, cdiff, chunksize,
+	    zero, true) == NULL);
 	malloc_mutex_unlock(&arena->lock);
 	if (err) {
 		err = arena_chunk_ralloc_huge_expand_hard(arena, &chunk_hooks,
@@ -1059,7 +1059,7 @@ arena_chunk_ralloc_huge_expand(arena_t *arena, void *chunk, size_t oldsize,
 		    cdiff);
 	} else if (chunk_hooks.merge(chunk, CHUNK_CEILING(oldsize), nchunk,
 	    cdiff, true, arena->ind)) {
-		chunk_dalloc_arena(arena, &chunk_hooks, nchunk, cdiff, *zero,
+		chunk_dalloc_wrapper(arena, &chunk_hooks, nchunk, cdiff, *zero,
 		    true);
 		err = true;
 	}
@@ -1707,7 +1707,7 @@ arena_unstash_purged(arena_t *arena, chunk_hooks_t *chunk_hooks,
 			extent_node_dirty_remove(chunkselm);
 			arena_node_dalloc(arena, chunkselm);
 			chunkselm = chunkselm_next;
-			chunk_dalloc_arena(arena, chunk_hooks, addr, size,
+			chunk_dalloc_wrapper(arena, chunk_hooks, addr, size,
 			    zeroed, committed);
 		} else {
 			arena_chunk_t *chunk =
@@ -2423,7 +2423,7 @@ arena_malloc_large(tsd_t *tsd, arena_t *arena, szind_t binind, bool zero)
 	uintptr_t random_offset;
 	arena_run_t *run;
 	arena_chunk_map_misc_t *miscelm;
-	UNUSED bool idump;
+	UNUSED bool idump JEMALLOC_CC_SILENCE_INIT(false);
 
 	/* Large allocation. */
 	usize = index2size(binind);
@@ -3646,16 +3646,34 @@ arena_boot(void)
 }
 
 void
-arena_prefork(arena_t *arena)
+arena_prefork0(arena_t *arena)
+{
+
+	malloc_mutex_prefork(&arena->lock);
+}
+
+void
+arena_prefork1(arena_t *arena)
+{
+
+	malloc_mutex_prefork(&arena->chunks_mtx);
+}
+
+void
+arena_prefork2(arena_t *arena)
+{
+
+	malloc_mutex_prefork(&arena->node_cache_mtx);
+}
+
+void
+arena_prefork3(arena_t *arena)
 {
 	unsigned i;
 
-	malloc_mutex_prefork(&arena->lock);
-	malloc_mutex_prefork(&arena->huge_mtx);
-	malloc_mutex_prefork(&arena->chunks_mtx);
-	malloc_mutex_prefork(&arena->node_cache_mtx);
 	for (i = 0; i < NBINS; i++)
 		malloc_mutex_prefork(&arena->bins[i].lock);
+	malloc_mutex_prefork(&arena->huge_mtx);
 }
 
 void
@@ -3663,11 +3681,11 @@ arena_postfork_parent(arena_t *arena)
 {
 	unsigned i;
 
+	malloc_mutex_postfork_parent(&arena->huge_mtx);
 	for (i = 0; i < NBINS; i++)
 		malloc_mutex_postfork_parent(&arena->bins[i].lock);
 	malloc_mutex_postfork_parent(&arena->node_cache_mtx);
 	malloc_mutex_postfork_parent(&arena->chunks_mtx);
-	malloc_mutex_postfork_parent(&arena->huge_mtx);
 	malloc_mutex_postfork_parent(&arena->lock);
 }
 
@@ -3676,10 +3694,10 @@ arena_postfork_child(arena_t *arena)
 {
 	unsigned i;
 
+	malloc_mutex_postfork_child(&arena->huge_mtx);
 	for (i = 0; i < NBINS; i++)
 		malloc_mutex_postfork_child(&arena->bins[i].lock);
 	malloc_mutex_postfork_child(&arena->node_cache_mtx);
 	malloc_mutex_postfork_child(&arena->chunks_mtx);
-	malloc_mutex_postfork_child(&arena->huge_mtx);
 	malloc_mutex_postfork_child(&arena->lock);
 }

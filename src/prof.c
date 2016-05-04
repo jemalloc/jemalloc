@@ -2198,20 +2198,32 @@ prof_boot2(void)
 }
 
 void
-prof_prefork(void)
+prof_prefork0(void)
 {
 
 	if (opt_prof) {
 		unsigned i;
 
-		malloc_mutex_prefork(&tdatas_mtx);
+		malloc_mutex_prefork(&prof_dump_mtx);
 		malloc_mutex_prefork(&bt2gctx_mtx);
-		malloc_mutex_prefork(&next_thr_uid_mtx);
-		malloc_mutex_prefork(&prof_dump_seq_mtx);
-		for (i = 0; i < PROF_NCTX_LOCKS; i++)
-			malloc_mutex_prefork(&gctx_locks[i]);
+		malloc_mutex_prefork(&tdatas_mtx);
 		for (i = 0; i < PROF_NTDATA_LOCKS; i++)
 			malloc_mutex_prefork(&tdata_locks[i]);
+		for (i = 0; i < PROF_NCTX_LOCKS; i++)
+			malloc_mutex_prefork(&gctx_locks[i]);
+	}
+}
+
+void
+prof_prefork1(void)
+{
+
+	if (opt_prof) {
+		malloc_mutex_prefork(&prof_active_mtx);
+		malloc_mutex_prefork(&prof_dump_seq_mtx);
+		malloc_mutex_prefork(&prof_gdump_mtx);
+		malloc_mutex_prefork(&next_thr_uid_mtx);
+		malloc_mutex_prefork(&prof_thread_active_init_mtx);
 	}
 }
 
@@ -2222,14 +2234,18 @@ prof_postfork_parent(void)
 	if (opt_prof) {
 		unsigned i;
 
-		for (i = 0; i < PROF_NTDATA_LOCKS; i++)
-			malloc_mutex_postfork_parent(&tdata_locks[i]);
+		malloc_mutex_postfork_parent(&prof_thread_active_init_mtx);
+		malloc_mutex_postfork_parent(&next_thr_uid_mtx);
+		malloc_mutex_postfork_parent(&prof_gdump_mtx);
+		malloc_mutex_postfork_parent(&prof_dump_seq_mtx);
+		malloc_mutex_postfork_parent(&prof_active_mtx);
 		for (i = 0; i < PROF_NCTX_LOCKS; i++)
 			malloc_mutex_postfork_parent(&gctx_locks[i]);
-		malloc_mutex_postfork_parent(&prof_dump_seq_mtx);
-		malloc_mutex_postfork_parent(&next_thr_uid_mtx);
-		malloc_mutex_postfork_parent(&bt2gctx_mtx);
+		for (i = 0; i < PROF_NTDATA_LOCKS; i++)
+			malloc_mutex_postfork_parent(&tdata_locks[i]);
 		malloc_mutex_postfork_parent(&tdatas_mtx);
+		malloc_mutex_postfork_parent(&bt2gctx_mtx);
+		malloc_mutex_postfork_parent(&prof_dump_mtx);
 	}
 }
 
@@ -2240,14 +2256,18 @@ prof_postfork_child(void)
 	if (opt_prof) {
 		unsigned i;
 
-		for (i = 0; i < PROF_NTDATA_LOCKS; i++)
-			malloc_mutex_postfork_child(&tdata_locks[i]);
+		malloc_mutex_postfork_child(&prof_thread_active_init_mtx);
+		malloc_mutex_postfork_child(&next_thr_uid_mtx);
+		malloc_mutex_postfork_child(&prof_gdump_mtx);
+		malloc_mutex_postfork_child(&prof_dump_seq_mtx);
+		malloc_mutex_postfork_child(&prof_active_mtx);
 		for (i = 0; i < PROF_NCTX_LOCKS; i++)
 			malloc_mutex_postfork_child(&gctx_locks[i]);
-		malloc_mutex_postfork_child(&prof_dump_seq_mtx);
-		malloc_mutex_postfork_child(&next_thr_uid_mtx);
-		malloc_mutex_postfork_child(&bt2gctx_mtx);
+		for (i = 0; i < PROF_NTDATA_LOCKS; i++)
+			malloc_mutex_postfork_child(&tdata_locks[i]);
 		malloc_mutex_postfork_child(&tdatas_mtx);
+		malloc_mutex_postfork_child(&bt2gctx_mtx);
+		malloc_mutex_postfork_child(&prof_dump_mtx);
 	}
 }
 

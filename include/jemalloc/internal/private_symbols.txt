@@ -21,7 +21,9 @@ arena_dalloc
 arena_dalloc_bin
 arena_dalloc_bin_junked_locked
 arena_dalloc_junk_large
+arena_dalloc_junk_large_impl
 arena_dalloc_junk_small
+arena_dalloc_junk_small_impl
 arena_dalloc_large
 arena_dalloc_large_junked_locked
 arena_dalloc_small
@@ -81,7 +83,10 @@ arena_nthreads_inc
 arena_palloc
 arena_postfork_child
 arena_postfork_parent
-arena_prefork
+arena_prefork0
+arena_prefork1
+arena_prefork2
+arena_prefork3
 arena_prof_accum
 arena_prof_accum_impl
 arena_prof_accum_locked
@@ -123,6 +128,11 @@ atomic_sub_u
 atomic_sub_uint32
 atomic_sub_uint64
 atomic_sub_z
+atomic_write_p
+atomic_write_u
+atomic_write_uint32
+atomic_write_uint64
+atomic_write_z
 base_alloc
 base_boot
 base_postfork_child
@@ -148,7 +158,6 @@ chunk_alloc_dss
 chunk_alloc_mmap
 chunk_alloc_wrapper
 chunk_boot
-chunk_dalloc_arena
 chunk_dalloc_cache
 chunk_dalloc_mmap
 chunk_dalloc_wrapper
@@ -168,7 +177,6 @@ chunk_npages
 chunk_postfork_child
 chunk_postfork_parent
 chunk_prefork
-chunk_purge_arena
 chunk_purge_wrapper
 chunk_register
 chunks_rtree
@@ -200,6 +208,8 @@ extent_node_addr_get
 extent_node_addr_set
 extent_node_arena_get
 extent_node_arena_set
+extent_node_committed_get
+extent_node_committed_set
 extent_node_dirty_insert
 extent_node_dirty_linkage_init
 extent_node_dirty_remove
@@ -210,6 +220,8 @@ extent_node_size_get
 extent_node_size_set
 extent_node_zeroed_get
 extent_node_zeroed_set
+extent_tree_ad_destroy
+extent_tree_ad_destroy_recurse
 extent_tree_ad_empty
 extent_tree_ad_first
 extent_tree_ad_insert
@@ -227,6 +239,8 @@ extent_tree_ad_reverse_iter
 extent_tree_ad_reverse_iter_recurse
 extent_tree_ad_reverse_iter_start
 extent_tree_ad_search
+extent_tree_szad_destroy
+extent_tree_szad_destroy_recurse
 extent_tree_szad_empty
 extent_tree_szad_first
 extent_tree_szad_insert
@@ -304,6 +318,7 @@ jemalloc_postfork_parent
 jemalloc_prefork
 large_maxclass
 lg_floor
+lg_prof_sample
 malloc_cprintf
 malloc_mutex_init
 malloc_mutex_lock
@@ -331,6 +346,8 @@ narenas_tdata_cleanup
 narenas_total_get
 ncpus
 nhbins
+nhclasses
+nlclasses
 nstime_add
 nstime_compare
 nstime_copy
@@ -344,6 +361,7 @@ nstime_nsec
 nstime_sec
 nstime_subtract
 nstime_update
+nstime_update_impl
 opt_abort
 opt_decay_time
 opt_dss
@@ -384,6 +402,7 @@ pow2_ceil_u64
 pow2_ceil_zu
 prng_lg_range
 prng_range
+prof_active
 prof_active_get
 prof_active_get_unlocked
 prof_active_set
@@ -393,6 +412,7 @@ prof_backtrace
 prof_boot0
 prof_boot1
 prof_boot2
+prof_bt_count
 prof_dump_header
 prof_dump_open
 prof_free
@@ -410,7 +430,8 @@ prof_malloc_sample_object
 prof_mdump
 prof_postfork_child
 prof_postfork_parent
-prof_prefork
+prof_prefork0
+prof_prefork1
 prof_realloc
 prof_reset
 prof_sample_accum_update
@@ -419,6 +440,7 @@ prof_tctx_get
 prof_tctx_reset
 prof_tctx_set
 prof_tdata_cleanup
+prof_tdata_count
 prof_tdata_get
 prof_tdata_init
 prof_tdata_reinit
@@ -506,6 +528,13 @@ ticker_tick
 ticker_ticks
 tsd_arena_get
 tsd_arena_set
+tsd_arenap_get
+tsd_arenas_tdata_bypass_get
+tsd_arenas_tdata_bypass_set
+tsd_arenas_tdata_bypassp_get
+tsd_arenas_tdata_get
+tsd_arenas_tdata_set
+tsd_arenas_tdatap_get
 tsd_boot
 tsd_boot0
 tsd_boot1
@@ -514,6 +543,9 @@ tsd_cleanup
 tsd_cleanup_wrapper
 tsd_fetch
 tsd_get
+tsd_narenas_tdata_get
+tsd_narenas_tdata_set
+tsd_narenas_tdatap_get
 tsd_wrapper_get
 tsd_wrapper_set
 tsd_initialized
@@ -523,17 +555,23 @@ tsd_init_head
 tsd_nominal
 tsd_prof_tdata_get
 tsd_prof_tdata_set
+tsd_prof_tdatap_get
 tsd_quarantine_get
 tsd_quarantine_set
+tsd_quarantinep_get
 tsd_set
 tsd_tcache_enabled_get
 tsd_tcache_enabled_set
+tsd_tcache_enabledp_get
 tsd_tcache_get
 tsd_tcache_set
+tsd_tcachep_get
 tsd_thread_allocated_get
 tsd_thread_allocated_set
+tsd_thread_allocatedp_get
 tsd_thread_deallocated_get
 tsd_thread_deallocated_set
+tsd_thread_deallocatedp_get
 tsd_tls
 tsd_tsd
 u2rz
