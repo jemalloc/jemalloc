@@ -398,6 +398,7 @@ opt_utrace
 opt_xmalloc
 opt_zero
 p2rz
+pages_boot
 pages_commit
 pages_decommit
 pages_map

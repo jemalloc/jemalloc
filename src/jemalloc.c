@@ -1272,6 +1272,7 @@ malloc_init_hard_a0_locked(tsd_t *tsd)
 				abort();
 		}
 	}
+	pages_boot();
 	if (base_boot())
 		return (true);
 	if (chunk_boot())
