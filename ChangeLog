@@ -4,6 +4,28 @@ brevity.  Much more detail can be found in the git revision history:
 
     https://github.com/jemalloc/jemalloc
 
+* 4.2.0 (XXX)
+
+  New features:
+  - Add the arena.<i>.reset mallctl, which makes it possible to discard all of
+    an arena's allocations in a single operation.  (@jasone@)
+  - Add the stats.retained and stats.arenas.<i>.retained statistics.  (@jasone)
+  - Add the --with-version configure option.  (@jasone)
+  - Support --with-lg-page values larger than actual page size.  (@jasone)
+
+  Optimizations:
+  - Use pairing heaps rather than red-black trees for various hot data
+    structures.  (@djwatson, @jasone)
+  - Streamline fast paths of rtree operations.  (@jasone)
+  - Optimize the fast paths of calloc() and [m,d,sd]allocx().  (@jasone)
+  - Decommit unused virtual memory if the OS does not overcommit.  (@jasone)
+  - Specify MAP_NORESERVE on Linux if [heuristic] overcommit is active, in order
+    to avoid unfortunate interactions during fork(2).  (@jasone)
+
+  Bug fixes:
+  - Link against librt for clock_gettime(2) if glibc < 2.17.  (@jasone)
+  - Scale leak report summary according to sampling probability.  (@jasone)
+
 * 4.1.1 (May 3, 2016)
 
   This bugfix release resolves a variety of mostly minor issues, though the
