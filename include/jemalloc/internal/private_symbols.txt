@@ -291,15 +291,11 @@ huge_ralloc
 huge_ralloc_no_move
 huge_salloc
 iaalloc
+ialloc
 iallocztm
 iarena_cleanup
-icalloc
-icalloct
 idalloc
-idalloct
 idalloctm
-imalloc
-imalloct
 in_valgrind
 index2size
 index2size_compute

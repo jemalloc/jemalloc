@@ -3303,7 +3303,7 @@ arena_ralloc(tsd_t *tsd, arena_t *arena, void *ptr, size_t oldsize, size_t size,
 		copysize = (usize < oldsize) ? usize : oldsize;
 		JEMALLOC_VALGRIND_MAKE_MEM_UNDEFINED(ret, copysize);
 		memcpy(ret, ptr, copysize);
-		isqalloc(tsd, ptr, oldsize, tcache);
+		isqalloc(tsd, ptr, oldsize, tcache, true);
 	} else {
 		ret = huge_ralloc(tsd, arena, ptr, oldsize, usize, alignment,
 		    zero, tcache);

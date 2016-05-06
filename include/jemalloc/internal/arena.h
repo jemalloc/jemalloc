@@ -680,7 +680,8 @@ void	*arena_malloc(tsd_t *tsd, arena_t *arena, size_t size, szind_t ind,
 arena_t	*arena_aalloc(const void *ptr);
 size_t	arena_salloc(tsd_t *tsd, const void *ptr, bool demote);
 void	arena_dalloc(tsd_t *tsd, void *ptr, tcache_t *tcache, bool slow_path);
-void	arena_sdalloc(tsd_t *tsd, void *ptr, size_t size, tcache_t *tcache);
+void	arena_sdalloc(tsd_t *tsd, void *ptr, size_t size, tcache_t *tcache,
+    bool slow_path);
 #endif
 
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_ARENA_C_))
@@ -1446,7 +1447,8 @@ arena_dalloc(tsd_t *tsd, void *ptr, tcache_t *tcache, bool slow_path)
 }
 
 JEMALLOC_ALWAYS_INLINE void
-arena_sdalloc(tsd_t *tsd, void *ptr, size_t size, tcache_t *tcache)
+arena_sdalloc(tsd_t *tsd, void *ptr, size_t size, tcache_t *tcache,
+    bool slow_path)
 {
 	arena_chunk_t *chunk;
 
@@ -1473,7 +1475,7 @@ arena_sdalloc(tsd_t *tsd, void *ptr, size_t size, tcache_t *tcache)
 			if (likely(tcache != NULL)) {
 				szind_t binind = size2index(size);
 				tcache_dalloc_small(tsd, tcache, ptr, binind,
-				    true);
+				    slow_path);
 			} else {
 				size_t pageind = ((uintptr_t)ptr -
 				    (uintptr_t)chunk) >> LG_PAGE;
@@ -1486,7 +1488,7 @@ arena_sdalloc(tsd_t *tsd, void *ptr, size_t size, tcache_t *tcache)
 
 			if (likely(tcache != NULL) && size <= tcache_maxclass) {
 				tcache_dalloc_large(tsd, tcache, ptr, size,
-				    true);
+				    slow_path);
 			} else {
 				arena_dalloc_large(tsd, extent_node_arena_get(
 				    &chunk->node), chunk, ptr);

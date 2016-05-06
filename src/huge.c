@@ -364,7 +364,7 @@ huge_ralloc(tsd_t *tsd, arena_t *arena, void *ptr, size_t oldsize, size_t usize,
 
 	copysize = (usize < oldsize) ? usize : oldsize;
 	memcpy(ret, ptr, copysize);
-	isqalloc(tsd, ptr, oldsize, tcache);
+	isqalloc(tsd, ptr, oldsize, tcache, true);
 	return (ret);
 }
 
