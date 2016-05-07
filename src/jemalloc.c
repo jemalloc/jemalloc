@@ -254,7 +254,7 @@ typedef struct {
  * definition.
  */
 
-static bool	malloc_init_hard_a0(tsd_t *tsd);
+static bool	malloc_init_hard_a0(void);
 static bool	malloc_init_hard(void);
 
 /******************************************************************************/
@@ -291,7 +291,7 @@ malloc_init_a0(void)
 {
 
 	if (unlikely(malloc_init_state == malloc_init_uninitialized))
-		return (malloc_init_hard_a0(NULL));
+		return (malloc_init_hard_a0());
 	return (false);
 }
 
@@ -307,7 +307,7 @@ malloc_init(void)
 }
 
 /*
- * The a0*() functions are used instead of i[mcd]alloc() in situations that
+ * The a0*() functions are used instead of i{d,}alloc() in situations that
  * cannot tolerate TLS variable access.
  */
 
@@ -318,8 +318,8 @@ a0ialloc(size_t size, bool zero, bool is_metadata)
 	if (unlikely(malloc_init_a0()))
 		return (NULL);
 
-	return (iallocztm(NULL, size, size2index(size), zero, NULL,
-	    is_metadata, arena_get(NULL, 0, true), true));
+	return (iallocztm(NULL, size, size2index(size), zero, NULL, is_metadata,
+	    arena_get(NULL, 0, true), true));
 }
 
 static void
@@ -1256,7 +1256,7 @@ malloc_init_hard_needed(void)
 }
 
 static bool
-malloc_init_hard_a0_locked(tsd_t *tsd)
+malloc_init_hard_a0_locked(tsd_t **tsd)
 {
 
 	malloc_initializer = INITIALIZER;
@@ -1283,7 +1283,7 @@ malloc_init_hard_a0_locked(tsd_t *tsd)
 		prof_boot1();
 	if (arena_boot())
 		return (true);
-	if (config_tcache && tcache_boot(tsd))
+	if (config_tcache && tcache_boot(*tsd))
 		return (true);
 	if (malloc_mutex_init(&arenas_lock, "arenas", WITNESS_RANK_ARENAS))
 		return (true);
@@ -1299,38 +1299,41 @@ malloc_init_hard_a0_locked(tsd_t *tsd)
 	 * Initialize one arena here.  The rest are lazily created in
 	 * arena_choose_hard().
 	 */
-	if (arena_init(tsd, 0) == NULL)
+	if (arena_init(*tsd, 0) == NULL)
 		return (true);
+
+	/*
+	 * Initialize tsd, since some code paths cause chunk allocation, which
+	 * in turn depends on tsd.
+	 */
+	*tsd = malloc_tsd_boot0();
+	if (*tsd == NULL)
+		return (true);
+
 	malloc_init_state = malloc_init_a0_initialized;
+
 	return (false);
 }
 
 static bool
-malloc_init_hard_a0(tsd_t *tsd)
+malloc_init_hard_a0(void)
 {
 	bool ret;
+	tsd_t *tsd = NULL;
 
 	malloc_mutex_lock(tsd, &init_lock);
-	ret = malloc_init_hard_a0_locked(tsd);
+	ret = malloc_init_hard_a0_locked(&tsd);
 	malloc_mutex_unlock(tsd, &init_lock);
 	return (ret);
 }
 
 /* Initialize data structures which may trigger recursive allocation. */
 static bool
-malloc_init_hard_recursible(tsd_t **tsd)
+malloc_init_hard_recursible(tsd_t *tsd)
 {
-	bool ret;
 
 	malloc_init_state = malloc_init_recursible;
-	malloc_mutex_unlock(*tsd, &init_lock);
-
-	/* LinuxThreads' pthread_setspecific() allocates. */
-	*tsd = malloc_tsd_boot0();
-	if (*tsd == NULL) {
-		ret = true;
-		goto label_return;
-	}
+	malloc_mutex_unlock(tsd, &init_lock);
 
 	ncpus = malloc_ncpus();
 
@@ -1339,17 +1342,16 @@ malloc_init_hard_recursible(tsd_t **tsd)
 	/* LinuxThreads' pthread_atfork() allocates. */
 	if (pthread_atfork(jemalloc_prefork, jemalloc_postfork_parent,
 	    jemalloc_postfork_child) != 0) {
-		ret = true;
 		malloc_write("<jemalloc>: Error in pthread_atfork()\n");
 		if (opt_abort)
 			abort();
+		malloc_mutex_lock(tsd, &init_lock);
+		return (true);
 	}
 #endif
 
-	ret = false;
-label_return:
-	malloc_mutex_lock(*tsd, &init_lock);
-	return (ret);
+	malloc_mutex_lock(tsd, &init_lock);
+	return (false);
 }
 
 static bool
@@ -1409,12 +1411,12 @@ malloc_init_hard(void)
 	}
 
 	if (malloc_init_state != malloc_init_a0_initialized &&
-	    malloc_init_hard_a0_locked(tsd)) {
+	    malloc_init_hard_a0_locked(&tsd)) {
 		malloc_mutex_unlock(tsd, &init_lock);
 		return (true);
 	}
 
-	if (malloc_init_hard_recursible(&tsd)) {
+	if (malloc_init_hard_recursible(tsd)) {
 		malloc_mutex_unlock(tsd, &init_lock);
 		return (true);
 	}
@@ -2669,6 +2671,7 @@ je_malloc_usable_size(JEMALLOC_USABLE_SIZE_CONST void *ptr)
  * to trigger the deadlock described above, but doing so would involve forking
  * via a library constructor that runs before jemalloc's runs.
  */
+#ifndef JEMALLOC_JET
 JEMALLOC_ATTR(constructor)
 static void
 jemalloc_constructor(void)
@@ -2676,6 +2679,7 @@ jemalloc_constructor(void)
 
 	malloc_init();
 }
+#endif
 
 #ifndef JEMALLOC_MUTEX_INIT_CB
 void
