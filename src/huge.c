@@ -67,7 +67,6 @@ huge_palloc(tsdn_t *tsdn, arena_t *arena, size_t usize, size_t alignment,
 	assert(ausize >= chunksize);
 
 	/* Allocate an extent node with which to track the chunk. */
-	assert(tsdn != NULL || arena != NULL);
 	node = ipallocztm(tsdn, CACHELINE_CEILING(sizeof(extent_node_t)),
 	    CACHELINE, false, NULL, true, arena_ichoose(tsdn, arena));
 	if (node == NULL)
@@ -78,7 +77,8 @@ huge_palloc(tsdn_t *tsdn, arena_t *arena, size_t usize, size_t alignment,
 	 * it is possible to make correct junk/zero fill decisions below.
 	 */
 	is_zeroed = zero;
-	arena = arena_choose(tsdn_tsd(tsdn), arena);
+	if (likely(!tsdn_null(tsdn)))
+		arena = arena_choose(tsdn_tsd(tsdn), arena);
 	if (unlikely(arena == NULL) || (ret = arena_chunk_alloc_huge(tsdn,
 	    arena, usize, alignment, &is_zeroed)) == NULL) {
 		idalloctm(tsdn, node, NULL, true, true);
