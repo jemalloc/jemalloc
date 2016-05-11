@@ -86,7 +86,7 @@ TEST_BEGIN(test_arena_reset)
 	void **ptrs;
 	int flags;
 	size_t mib[3];
-	tsd_t *tsd;
+	tsdn_t *tsdn;
 
 	test_skip_if((config_valgrind && unlikely(in_valgrind)) || (config_fill
 	    && unlikely(opt_quarantine)));
@@ -124,11 +124,11 @@ TEST_BEGIN(test_arena_reset)
 		    "Unexpected mallocx(%zu, %#x) failure", sz, flags);
 	}
 
-	tsd = tsd_fetch();
+	tsdn = tsdn_fetch();
 
 	/* Verify allocations. */
 	for (i = 0; i < nptrs; i++) {
-		assert_zu_gt(ivsalloc(tsd, ptrs[i], false), 0,
+		assert_zu_gt(ivsalloc(tsdn, ptrs[i], false), 0,
 		    "Allocation should have queryable size");
 	}
 
@@ -142,7 +142,7 @@ TEST_BEGIN(test_arena_reset)
 
 	/* Verify allocations no longer exist. */
 	for (i = 0; i < nptrs; i++) {
-		assert_zu_eq(ivsalloc(tsd, ptrs[i], false), 0,
+		assert_zu_eq(ivsalloc(tsdn, ptrs[i], false), 0,
 		    "Allocation should no longer exist");
 	}
 

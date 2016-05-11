@@ -109,25 +109,25 @@ malloc_mutex_init(malloc_mutex_t *mutex, const char *name, witness_rank_t rank)
 }
 
 void
-malloc_mutex_prefork(tsd_t *tsd, malloc_mutex_t *mutex)
+malloc_mutex_prefork(tsdn_t *tsdn, malloc_mutex_t *mutex)
 {
 
-	malloc_mutex_lock(tsd, mutex);
+	malloc_mutex_lock(tsdn, mutex);
 }
 
 void
-malloc_mutex_postfork_parent(tsd_t *tsd, malloc_mutex_t *mutex)
+malloc_mutex_postfork_parent(tsdn_t *tsdn, malloc_mutex_t *mutex)
 {
 
-	malloc_mutex_unlock(tsd, mutex);
+	malloc_mutex_unlock(tsdn, mutex);
 }
 
 void
-malloc_mutex_postfork_child(tsd_t *tsd, malloc_mutex_t *mutex)
+malloc_mutex_postfork_child(tsdn_t *tsdn, malloc_mutex_t *mutex)
 {
 
 #ifdef JEMALLOC_MUTEX_INIT_CB
-	malloc_mutex_unlock(tsd, mutex);
+	malloc_mutex_unlock(tsdn, mutex);
 #else
 	if (malloc_mutex_init(mutex, mutex->witness.name,
 	    mutex->witness.rank)) {

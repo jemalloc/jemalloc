@@ -21,15 +21,15 @@ extern const char *dss_prec_names[];
 /******************************************************************************/
 #ifdef JEMALLOC_H_EXTERNS
 
-dss_prec_t	chunk_dss_prec_get(tsd_t *tsd);
-bool	chunk_dss_prec_set(tsd_t *tsd, dss_prec_t dss_prec);
-void	*chunk_alloc_dss(tsd_t *tsd, arena_t *arena, void *new_addr,
+dss_prec_t	chunk_dss_prec_get(tsdn_t *tsdn);
+bool	chunk_dss_prec_set(tsdn_t *tsdn, dss_prec_t dss_prec);
+void	*chunk_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr,
     size_t size, size_t alignment, bool *zero, bool *commit);
-bool	chunk_in_dss(tsd_t *tsd, void *chunk);
+bool	chunk_in_dss(tsdn_t *tsdn, void *chunk);
 bool	chunk_dss_boot(void);
-void	chunk_dss_prefork(tsd_t *tsd);
-void	chunk_dss_postfork_parent(tsd_t *tsd);
-void	chunk_dss_postfork_child(tsd_t *tsd);
+void	chunk_dss_prefork(tsdn_t *tsdn);
+void	chunk_dss_postfork_parent(tsdn_t *tsdn);
+void	chunk_dss_postfork_child(tsdn_t *tsdn);
 
 #endif /* JEMALLOC_H_EXTERNS */
 /******************************************************************************/

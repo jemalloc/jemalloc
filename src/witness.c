@@ -34,17 +34,19 @@ witness_lock_error_t *witness_lock_error = JEMALLOC_N(witness_lock_error_impl);
 #endif
 
 void
-witness_lock(tsd_t *tsd, witness_t *witness)
+witness_lock(tsdn_t *tsdn, witness_t *witness)
 {
+	tsd_t *tsd;
 	witness_list_t *witnesses;
 	witness_t *w;
 
-	if (tsd == NULL)
+	if (tsdn_null(tsdn))
 		return;
+	tsd = tsdn_tsd(tsdn);
 	if (witness->rank == WITNESS_RANK_OMIT)
 		return;
 
-	witness_assert_not_owner(tsd, witness);
+	witness_assert_not_owner(tsdn, witness);
 
 	witnesses = tsd_witnessesp_get(tsd);
 	w = ql_last(witnesses, link);
@@ -69,16 +71,18 @@ witness_lock(tsd_t *tsd, witness_t *witness)
 }
 
 void
-witness_unlock(tsd_t *tsd, witness_t *witness)
+witness_unlock(tsdn_t *tsdn, witness_t *witness)
 {
+	tsd_t *tsd;
 	witness_list_t *witnesses;
 
-	if (tsd == NULL)
+	if (tsdn_null(tsdn))
 		return;
+	tsd = tsdn_tsd(tsdn);
 	if (witness->rank == WITNESS_RANK_OMIT)
 		return;
 
-	witness_assert_owner(tsd, witness);
+	witness_assert_owner(tsdn, witness);
 
 	witnesses = tsd_witnessesp_get(tsd);
 	ql_remove(witnesses, witness, link);
@@ -104,13 +108,15 @@ witness_owner_error_t *witness_owner_error =
 #endif
 
 void
-witness_assert_owner(tsd_t *tsd, const witness_t *witness)
+witness_assert_owner(tsdn_t *tsdn, const witness_t *witness)
 {
+	tsd_t *tsd;
 	witness_list_t *witnesses;
 	witness_t *w;
 
-	if (tsd == NULL)
+	if (tsdn_null(tsdn))
 		return;
+	tsd = tsdn_tsd(tsdn);
 	if (witness->rank == WITNESS_RANK_OMIT)
 		return;
 
@@ -142,13 +148,15 @@ witness_not_owner_error_t *witness_not_owner_error =
 #endif
 
 void
-witness_assert_not_owner(tsd_t *tsd, const witness_t *witness)
+witness_assert_not_owner(tsdn_t *tsdn, const witness_t *witness)
 {
+	tsd_t *tsd;
 	witness_list_t *witnesses;
 	witness_t *w;
 
-	if (tsd == NULL)
+	if (tsdn_null(tsdn))
 		return;
+	tsd = tsdn_tsd(tsdn);
 	if (witness->rank == WITNESS_RANK_OMIT)
 		return;
 
@@ -183,13 +191,15 @@ witness_lockless_error_t *witness_lockless_error =
 #endif
 
 void
-witness_assert_lockless(tsd_t *tsd)
+witness_assert_lockless(tsdn_t *tsdn)
 {
+	tsd_t *tsd;
 	witness_list_t *witnesses;
 	witness_t *w;
 
-	if (tsd == NULL)
+	if (tsdn_null(tsdn))
 		return;
+	tsd = tsdn_tsd(tsdn);
 
 	witnesses = tsd_witnessesp_get(tsd);
 	w = ql_last(witnesses, link);
@@ -202,7 +212,7 @@ void
 witnesses_cleanup(tsd_t *tsd)
 {
 
-	witness_assert_lockless(tsd);
+	witness_assert_lockless(tsd_tsdn(tsd));
 
 	/* Do nothing. */
 }

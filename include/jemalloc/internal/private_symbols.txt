@@ -496,8 +496,6 @@ tcache_alloc_easy
 tcache_alloc_large
 tcache_alloc_small
 tcache_alloc_small_hard
-tcache_arena_associate
-tcache_arena_dissociate
 tcache_arena_reassociate
 tcache_bin_flush_large
 tcache_bin_flush_small
@@ -543,6 +541,7 @@ tsd_boot
 tsd_boot0
 tsd_boot1
 tsd_booted
+tsd_booted_get
 tsd_cleanup
 tsd_cleanup_wrapper
 tsd_fetch
@@ -581,12 +580,16 @@ tsd_thread_deallocated_set
 tsd_thread_deallocatedp_get
 tsd_tls
 tsd_tsd
+tsd_tsdn
 tsd_witness_fork_get
 tsd_witness_fork_set
 tsd_witness_forkp_get
 tsd_witnesses_get
 tsd_witnesses_set
 tsd_witnessesp_get
+tsdn_fetch
+tsdn_null
+tsdn_tsd
 u2rz
 valgrind_freelike_block
 valgrind_make_mem_defined

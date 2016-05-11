@@ -41,32 +41,32 @@ chunk_dss_sbrk(intptr_t increment)
 }
 
 dss_prec_t
-chunk_dss_prec_get(tsd_t *tsd)
+chunk_dss_prec_get(tsdn_t *tsdn)
 {
 	dss_prec_t ret;
 
 	if (!have_dss)
 		return (dss_prec_disabled);
-	malloc_mutex_lock(tsd, &dss_mtx);
+	malloc_mutex_lock(tsdn, &dss_mtx);
 	ret = dss_prec_default;
-	malloc_mutex_unlock(tsd, &dss_mtx);
+	malloc_mutex_unlock(tsdn, &dss_mtx);
 	return (ret);
 }
 
 bool
-chunk_dss_prec_set(tsd_t *tsd, dss_prec_t dss_prec)
+chunk_dss_prec_set(tsdn_t *tsdn, dss_prec_t dss_prec)
 {
 
 	if (!have_dss)
 		return (dss_prec != dss_prec_disabled);
-	malloc_mutex_lock(tsd, &dss_mtx);
+	malloc_mutex_lock(tsdn, &dss_mtx);
 	dss_prec_default = dss_prec;
-	malloc_mutex_unlock(tsd, &dss_mtx);
+	malloc_mutex_unlock(tsdn, &dss_mtx);
 	return (false);
 }
 
 void *
-chunk_alloc_dss(tsd_t *tsd, arena_t *arena, void *new_addr, size_t size,
+chunk_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
     size_t alignment, bool *zero, bool *commit)
 {
 	cassert(have_dss);
@@ -80,7 +80,7 @@ chunk_alloc_dss(tsd_t *tsd, arena_t *arena, void *new_addr, size_t size,
 	if ((intptr_t)size < 0)
 		return (NULL);
 
-	malloc_mutex_lock(tsd, &dss_mtx);
+	malloc_mutex_lock(tsdn, &dss_mtx);
 	if (dss_prev != (void *)-1) {
 
 		/*
@@ -122,7 +122,7 @@ chunk_alloc_dss(tsd_t *tsd, arena_t *arena, void *new_addr, size_t size,
 			if ((uintptr_t)ret < (uintptr_t)dss_max ||
 			    (uintptr_t)dss_next < (uintptr_t)dss_max) {
 				/* Wrap-around. */
-				malloc_mutex_unlock(tsd, &dss_mtx);
+				malloc_mutex_unlock(tsdn, &dss_mtx);
 				return (NULL);
 			}
 			incr = gap_size + cpad_size + size;
@@ -130,11 +130,11 @@ chunk_alloc_dss(tsd_t *tsd, arena_t *arena, void *new_addr, size_t size,
 			if (dss_prev == dss_max) {
 				/* Success. */
 				dss_max = dss_next;
-				malloc_mutex_unlock(tsd, &dss_mtx);
+				malloc_mutex_unlock(tsdn, &dss_mtx);
 				if (cpad_size != 0) {
 					chunk_hooks_t chunk_hooks =
 					    CHUNK_HOOKS_INITIALIZER;
-					chunk_dalloc_wrapper(tsd, arena,
+					chunk_dalloc_wrapper(tsdn, arena,
 					    &chunk_hooks, cpad, cpad_size,
 					    false, true);
 				}
@@ -149,25 +149,25 @@ chunk_alloc_dss(tsd_t *tsd, arena_t *arena, void *new_addr, size_t size,
 			}
 		} while (dss_prev != (void *)-1);
 	}
-	malloc_mutex_unlock(tsd, &dss_mtx);
+	malloc_mutex_unlock(tsdn, &dss_mtx);
 
 	return (NULL);
 }
 
 bool
-chunk_in_dss(tsd_t *tsd, void *chunk)
+chunk_in_dss(tsdn_t *tsdn, void *chunk)
 {
 	bool ret;
 
 	cassert(have_dss);
 
-	malloc_mutex_lock(tsd, &dss_mtx);
+	malloc_mutex_lock(tsdn, &dss_mtx);
 	if ((uintptr_t)chunk >= (uintptr_t)dss_base
 	    && (uintptr_t)chunk < (uintptr_t)dss_max)
 		ret = true;
 	else
 		ret = false;
-	malloc_mutex_unlock(tsd, &dss_mtx);
+	malloc_mutex_unlock(tsdn, &dss_mtx);
 
 	return (ret);
 }
@@ -188,27 +188,27 @@ chunk_dss_boot(void)
 }
 
 void
-chunk_dss_prefork(tsd_t *tsd)
+chunk_dss_prefork(tsdn_t *tsdn)
 {
 
 	if (have_dss)
-		malloc_mutex_prefork(tsd, &dss_mtx);
+		malloc_mutex_prefork(tsdn, &dss_mtx);
 }
 
 void
-chunk_dss_postfork_parent(tsd_t *tsd)
+chunk_dss_postfork_parent(tsdn_t *tsdn)
 {
 
 	if (have_dss)
-		malloc_mutex_postfork_parent(tsd, &dss_mtx);
+		malloc_mutex_postfork_parent(tsdn, &dss_mtx);
 }
 
 void
-chunk_dss_postfork_child(tsd_t *tsd)
+chunk_dss_postfork_child(tsdn_t *tsdn)
 {
 
 	if (have_dss)
-		malloc_mutex_postfork_child(tsd, &dss_mtx);
+		malloc_mutex_postfork_child(tsdn, &dss_mtx);
 }
 
 /******************************************************************************/

@@ -75,23 +75,23 @@ void	witness_init(witness_t *witness, const char *name, witness_rank_t rank,
 typedef void (witness_lock_error_t)(const witness_list_t *, const witness_t *);
 extern witness_lock_error_t *witness_lock_error;
 #endif
-void	witness_lock(tsd_t *tsd, witness_t *witness);
-void	witness_unlock(tsd_t *tsd, witness_t *witness);
+void	witness_lock(tsdn_t *tsdn, witness_t *witness);
+void	witness_unlock(tsdn_t *tsdn, witness_t *witness);
 #ifdef JEMALLOC_JET
 typedef void (witness_owner_error_t)(const witness_t *);
 extern witness_owner_error_t *witness_owner_error;
 #endif
-void	witness_assert_owner(tsd_t *tsd, const witness_t *witness);
+void	witness_assert_owner(tsdn_t *tsdn, const witness_t *witness);
 #ifdef JEMALLOC_JET
 typedef void (witness_not_owner_error_t)(const witness_t *);
 extern witness_not_owner_error_t *witness_not_owner_error;
 #endif
-void	witness_assert_not_owner(tsd_t *tsd, const witness_t *witness);
+void	witness_assert_not_owner(tsdn_t *tsdn, const witness_t *witness);
 #ifdef JEMALLOC_JET
 typedef void (witness_lockless_error_t)(const witness_list_t *);
 extern witness_lockless_error_t *witness_lockless_error;
 #endif
-void	witness_assert_lockless(tsd_t *tsd);
+void	witness_assert_lockless(tsdn_t *tsdn);
 
 void	witnesses_cleanup(tsd_t *tsd);
 void	witness_fork_cleanup(tsd_t *tsd);

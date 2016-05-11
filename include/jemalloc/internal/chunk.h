@@ -48,32 +48,32 @@ extern size_t		chunk_npages;
 
 extern const chunk_hooks_t	chunk_hooks_default;
 
-chunk_hooks_t	chunk_hooks_get(tsd_t *tsd, arena_t *arena);
-chunk_hooks_t	chunk_hooks_set(tsd_t *tsd, arena_t *arena,
+chunk_hooks_t	chunk_hooks_get(tsdn_t *tsdn, arena_t *arena);
+chunk_hooks_t	chunk_hooks_set(tsdn_t *tsdn, arena_t *arena,
     const chunk_hooks_t *chunk_hooks);
 
-bool	chunk_register(tsd_t *tsd, const void *chunk,
+bool	chunk_register(tsdn_t *tsdn, const void *chunk,
     const extent_node_t *node);
 void	chunk_deregister(const void *chunk, const extent_node_t *node);
 void	*chunk_alloc_base(size_t size);
-void	*chunk_alloc_cache(tsd_t *tsd, arena_t *arena,
+void	*chunk_alloc_cache(tsdn_t *tsdn, arena_t *arena,
     chunk_hooks_t *chunk_hooks, void *new_addr, size_t size, size_t alignment,
     bool *zero, bool dalloc_node);
-void	*chunk_alloc_wrapper(tsd_t *tsd, arena_t *arena,
+void	*chunk_alloc_wrapper(tsdn_t *tsdn, arena_t *arena,
     chunk_hooks_t *chunk_hooks, void *new_addr, size_t size, size_t alignment,
     bool *zero, bool *commit);
-void	chunk_dalloc_cache(tsd_t *tsd, arena_t *arena,
+void	chunk_dalloc_cache(tsdn_t *tsdn, arena_t *arena,
     chunk_hooks_t *chunk_hooks, void *chunk, size_t size, bool committed);
-void	chunk_dalloc_wrapper(tsd_t *tsd, arena_t *arena,
+void	chunk_dalloc_wrapper(tsdn_t *tsdn, arena_t *arena,
     chunk_hooks_t *chunk_hooks, void *chunk, size_t size, bool zeroed,
     bool committed);
-bool	chunk_purge_wrapper(tsd_t *tsd, arena_t *arena,
+bool	chunk_purge_wrapper(tsdn_t *tsdn, arena_t *arena,
     chunk_hooks_t *chunk_hooks, void *chunk, size_t size, size_t offset,
     size_t length);
 bool	chunk_boot(void);
-void	chunk_prefork(tsd_t *tsd);
-void	chunk_postfork_parent(tsd_t *tsd);
-void	chunk_postfork_child(tsd_t *tsd);
+void	chunk_prefork(tsdn_t *tsdn);
+void	chunk_postfork_parent(tsdn_t *tsdn);
+void	chunk_postfork_child(tsdn_t *tsdn);
 
 #endif /* JEMALLOC_H_EXTERNS */
 /******************************************************************************/

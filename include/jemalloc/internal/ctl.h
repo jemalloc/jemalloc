@@ -27,7 +27,7 @@ struct ctl_named_node_s {
 
 struct ctl_indexed_node_s {
 	struct ctl_node_s	node;
-	const ctl_named_node_t	*(*index)(tsd_t *, const size_t *, size_t,
+	const ctl_named_node_t	*(*index)(tsdn_t *, const size_t *, size_t,
 	    size_t);
 };
 
@@ -72,15 +72,15 @@ struct ctl_stats_s {
 
 int	ctl_byname(tsd_t *tsd, const char *name, void *oldp, size_t *oldlenp,
     void *newp, size_t newlen);
-int	ctl_nametomib(tsd_t *tsd, const char *name, size_t *mibp,
+int	ctl_nametomib(tsdn_t *tsdn, const char *name, size_t *mibp,
     size_t *miblenp);
 
 int	ctl_bymib(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
     size_t *oldlenp, void *newp, size_t newlen);
 bool	ctl_boot(void);
-void	ctl_prefork(tsd_t *tsd);
-void	ctl_postfork_parent(tsd_t *tsd);
-void	ctl_postfork_child(tsd_t *tsd);
+void	ctl_prefork(tsdn_t *tsdn);
+void	ctl_postfork_parent(tsdn_t *tsdn);
+void	ctl_postfork_child(tsdn_t *tsdn);
 
 #define	xmallctl(name, oldp, oldlenp, newp, newlen) do {		\
 	if (je_mallctl(name, oldp, oldlenp, newp, newlen)		\

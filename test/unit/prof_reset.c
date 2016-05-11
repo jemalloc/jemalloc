@@ -94,7 +94,7 @@ TEST_END
 bool prof_dump_header_intercepted = false;
 prof_cnt_t cnt_all_copy = {0, 0, 0, 0};
 static bool
-prof_dump_header_intercept(tsd_t *tsd, bool propagate_err,
+prof_dump_header_intercept(tsdn_t *tsdn, bool propagate_err,
     const prof_cnt_t *cnt_all)
 {
 
