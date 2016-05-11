@@ -24,6 +24,15 @@ huge_node_set(tsdn_t *tsdn, const void *ptr, extent_node_t *node)
 }
 
 static void
+huge_node_reset(tsdn_t *tsdn, const void *ptr, extent_node_t *node)
+{
+	bool err;
+
+	err = huge_node_set(tsdn, ptr, node);
+	assert(!err);
+}
+
+static void
 huge_node_unset(const void *ptr, const extent_node_t *node)
 {
 
@@ -162,8 +171,10 @@ huge_ralloc_no_move_similar(tsdn_t *tsdn, void *ptr, size_t oldsize,
 
 	malloc_mutex_lock(tsdn, &arena->huge_mtx);
 	/* Update the size of the huge allocation. */
+	huge_node_unset(ptr, node);
 	assert(extent_node_size_get(node) != usize);
 	extent_node_size_set(node, usize);
+	huge_node_reset(tsdn, ptr, node);
 	/* Update zeroed. */
 	extent_node_zeroed_set(node, post_zeroed);
 	malloc_mutex_unlock(tsdn, &arena->huge_mtx);
@@ -224,7 +235,9 @@ huge_ralloc_no_move_shrink(tsdn_t *tsdn, void *ptr, size_t oldsize,
 
 	malloc_mutex_lock(tsdn, &arena->huge_mtx);
 	/* Update the size of the huge allocation. */
+	huge_node_unset(ptr, node);
 	extent_node_size_set(node, usize);
+	huge_node_reset(tsdn, ptr, node);
 	/* Update zeroed. */
 	extent_node_zeroed_set(node, post_zeroed);
 	malloc_mutex_unlock(tsdn, &arena->huge_mtx);
@@ -260,7 +273,9 @@ huge_ralloc_no_move_expand(tsdn_t *tsdn, void *ptr, size_t oldsize,
 
 	malloc_mutex_lock(tsdn, &arena->huge_mtx);
 	/* Update the size of the huge allocation. */
+	huge_node_unset(ptr, node);
 	extent_node_size_set(node, usize);
+	huge_node_reset(tsdn, ptr, node);
 	malloc_mutex_unlock(tsdn, &arena->huge_mtx);
 
 	if (zero || (config_fill && unlikely(opt_zero))) {

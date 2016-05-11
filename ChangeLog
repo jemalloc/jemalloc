@@ -23,6 +23,7 @@ brevity.  Much more detail can be found in the git revision history:
     to avoid unfortunate interactions during fork(2).  (@jasone)
 
   Bug fixes:
+  - Fix chunk accounting related to triggering gdump profiles.  (@jasone)
   - Link against librt for clock_gettime(2) if glibc < 2.17.  (@jasone)
   - Scale leak report summary according to sampling probability.  (@jasone)
 
