@@ -19,7 +19,7 @@ brevity.  Much more detail can be found in the git revision history:
 
   New features:
   - Add the arena.<i>.reset mallctl, which makes it possible to discard all of
-    an arena's allocations in a single operation.  (@jasone@)
+    an arena's allocations in a single operation.  (@jasone)
   - Add the stats.retained and stats.arenas.<i>.retained statistics.  (@jasone)
   - Add the --with-version configure option.  (@jasone)
   - Support --with-lg-page values larger than actual page size.  (@jasone)
