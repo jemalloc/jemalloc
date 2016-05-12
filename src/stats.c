@@ -259,7 +259,7 @@ stats_arena_print(void (*write_cb)(void *, const char *), void *cbopaque,
 	unsigned nthreads;
 	const char *dss;
 	ssize_t lg_dirty_mult, decay_time;
-	size_t page, pactive, pdirty, mapped;
+	size_t page, pactive, pdirty, mapped, retained;
 	size_t metadata_mapped, metadata_allocated;
 	uint64_t npurge, nmadvise, purged;
 	size_t small_allocated;
@@ -349,6 +349,9 @@ stats_arena_print(void (*write_cb)(void *, const char *), void *cbopaque,
 	CTL_M2_GET("stats.arenas.0.mapped", i, &mapped, size_t);
 	malloc_cprintf(write_cb, cbopaque,
 	    "mapped:                  %12zu\n", mapped);
+	CTL_M2_GET("stats.arenas.0.retained", i, &retained, size_t);
+	malloc_cprintf(write_cb, cbopaque,
+	    "retained:                %12zu\n", retained);
 	CTL_M2_GET("stats.arenas.0.metadata.mapped", i, &metadata_mapped,
 	    size_t);
 	CTL_M2_GET("stats.arenas.0.metadata.allocated", i, &metadata_allocated,
@@ -597,7 +600,7 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 
 	if (config_stats) {
 		size_t *cactive;
-		size_t allocated, active, metadata, resident, mapped;
+		size_t allocated, active, metadata, resident, mapped, retained;
 
 		CTL_GET("stats.cactive", &cactive, size_t *);
 		CTL_GET("stats.allocated", &allocated, size_t);
@@ -605,10 +608,11 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		CTL_GET("stats.metadata", &metadata, size_t);
 		CTL_GET("stats.resident", &resident, size_t);
 		CTL_GET("stats.mapped", &mapped, size_t);
+		CTL_GET("stats.retained", &retained, size_t);
 		malloc_cprintf(write_cb, cbopaque,
 		    "Allocated: %zu, active: %zu, metadata: %zu,"
-		    " resident: %zu, mapped: %zu\n",
-		    allocated, active, metadata, resident, mapped);
+		    " resident: %zu, mapped: %zu, retained: %zu\n",
+		    allocated, active, metadata, resident, mapped, retained);
 		malloc_cprintf(write_cb, cbopaque,
 		    "Current active ceiling: %zu\n",
 		    atomic_read_z(cactive));

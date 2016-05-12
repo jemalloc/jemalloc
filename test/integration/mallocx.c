@@ -1,5 +1,9 @@
 #include "test/jemalloc_test.h"
 
+#ifdef JEMALLOC_FILL
+const char *malloc_conf = "junk:false";
+#endif
+
 static unsigned
 get_nsizes_impl(const char *cmd)
 {
@@ -69,7 +73,7 @@ TEST_END
 
 TEST_BEGIN(test_oom)
 {
-	size_t hugemax, size, alignment;
+	size_t hugemax;
 	bool oom;
 	void *ptrs[3];
 	unsigned i;
@@ -94,15 +98,16 @@ TEST_BEGIN(test_oom)
 	}
 
 #if LG_SIZEOF_PTR == 3
-	size      = ZU(0x8000000000000000);
-	alignment = ZU(0x8000000000000000);
+	assert_ptr_null(mallocx(0x8000000000000000ULL,
+	    MALLOCX_ALIGN(0x8000000000000000ULL)),
+	    "Expected OOM for mallocx()");
+	assert_ptr_null(mallocx(0x8000000000000000ULL,
+	    MALLOCX_ALIGN(0x80000000)),
+	    "Expected OOM for mallocx()");
 #else
-	size      = ZU(0x80000000);
-	alignment = ZU(0x80000000);
+	assert_ptr_null(mallocx(0x80000000UL, MALLOCX_ALIGN(0x80000000UL)),
+	    "Expected OOM for mallocx()");
 #endif
-	assert_ptr_null(mallocx(size, MALLOCX_ALIGN(alignment)),
-	    "Expected OOM for mallocx(size=%#zx, MALLOCX_ALIGN(%#zx)", size,
-	    alignment);
 }
 TEST_END
 

@@ -141,6 +141,7 @@ if test "x$CFLAGS" = "x" ; then
     JE_CFLAGS_APPEND([-Wall])
     JE_CFLAGS_APPEND([-Werror=declaration-after-statement])
     JE_CFLAGS_APPEND([-Wshorten-64-to-32])
+    JE_CFLAGS_APPEND([-Wsign-compare])
     JE_CFLAGS_APPEND([-pipe])
     JE_CFLAGS_APPEND([-g3])
   elif test "x$je_cv_msvc" = "xyes" ; then
@@ -304,6 +305,7 @@ case "${host}" in
   *-*-freebsd*)
 	CFLAGS="$CFLAGS"
 	abi="elf"
+	AC_DEFINE([JEMALLOC_SYSCTL_VM_OVERCOMMIT], [ ])
 	AC_DEFINE([JEMALLOC_PURGE_MADVISE_FREE], [ ])
 	force_lazy_lock="1"
 	;;
@@ -328,6 +330,7 @@ case "${host}" in
 	CPPFLAGS="$CPPFLAGS -D_GNU_SOURCE"
 	abi="elf"
 	AC_DEFINE([JEMALLOC_HAS_ALLOCA_H])
+	AC_DEFINE([JEMALLOC_PROC_SYS_VM_OVERCOMMIT_MEMORY], [ ])
 	AC_DEFINE([JEMALLOC_PURGE_MADVISE_DONTNEED], [ ])
 	AC_DEFINE([JEMALLOC_THREADED_INIT], [ ])
 	AC_DEFINE([JEMALLOC_USE_CXX_THROW], [ ])
@@ -1172,27 +1175,36 @@ dnl ============================================================================
 dnl jemalloc configuration.
 dnl 
 
-dnl Set VERSION if source directory is inside a git repository.
-if test "x`test ! \"${srcroot}\" && cd \"${srcroot}\"; git rev-parse --is-inside-work-tree 2>/dev/null`" = "xtrue" ; then
-  dnl Pattern globs aren't powerful enough to match both single- and
-  dnl double-digit version numbers, so iterate over patterns to support up to
-  dnl version 99.99.99 without any accidental matches.
-  rm -f "${objroot}VERSION"
-  for pattern in ['[0-9].[0-9].[0-9]' '[0-9].[0-9].[0-9][0-9]' \
-                 '[0-9].[0-9][0-9].[0-9]' '[0-9].[0-9][0-9].[0-9][0-9]' \
-                 '[0-9][0-9].[0-9].[0-9]' '[0-9][0-9].[0-9].[0-9][0-9]' \
-                 '[0-9][0-9].[0-9][0-9].[0-9]' \
-                 '[0-9][0-9].[0-9][0-9].[0-9][0-9]']; do
-    if test ! -e "${objroot}VERSION" ; then
-      (test ! "${srcroot}" && cd "${srcroot}"; git describe --long --abbrev=40 --match="${pattern}") > "${objroot}VERSION.tmp" 2>/dev/null
-      if test $? -eq 0 ; then
-        mv "${objroot}VERSION.tmp" "${objroot}VERSION"
-        break
-      fi
+AC_ARG_WITH([version],
+  [AS_HELP_STRING([--with-version=<major>.<minor>.<bugfix>-<nrev>-g<gid>],
+   [Version string])],
+  [
+    echo "${with_version}" | grep ['^[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+-g[0-9a-f]\+$'] 2>&1 1>/dev/null
+    if test $? -ne 0 ; then
+      AC_MSG_ERROR([${with_version} does not match <major>.<minor>.<bugfix>-<nrev>-g<gid>])
     fi
-  done
-fi
-rm -f "${objroot}VERSION.tmp"
+    echo "$with_version" > "${objroot}VERSION"
+  ], [
+    dnl Set VERSION if source directory is inside a git repository.
+    if test "x`test ! \"${srcroot}\" && cd \"${srcroot}\"; git rev-parse --is-inside-work-tree 2>/dev/null`" = "xtrue" ; then
+      dnl Pattern globs aren't powerful enough to match both single- and
+      dnl double-digit version numbers, so iterate over patterns to support up
+      dnl to version 99.99.99 without any accidental matches.
+      for pattern in ['[0-9].[0-9].[0-9]' '[0-9].[0-9].[0-9][0-9]' \
+                     '[0-9].[0-9][0-9].[0-9]' '[0-9].[0-9][0-9].[0-9][0-9]' \
+                     '[0-9][0-9].[0-9].[0-9]' '[0-9][0-9].[0-9].[0-9][0-9]' \
+                     '[0-9][0-9].[0-9][0-9].[0-9]' \
+                     '[0-9][0-9].[0-9][0-9].[0-9][0-9]']; do
+        (test ! "${srcroot}" && cd "${srcroot}"; git describe --long --abbrev=40 --match="${pattern}") > "${objroot}VERSION.tmp" 2>/dev/null
+        if test $? -eq 0 ; then
+          mv "${objroot}VERSION.tmp" "${objroot}VERSION"
+          break
+        fi
+      done
+    fi
+    rm -f "${objroot}VERSION.tmp"
+  ])
+
 if test ! -e "${objroot}VERSION" ; then
   if test ! -e "${srcroot}VERSION" ; then
     AC_MSG_RESULT(
@@ -1229,13 +1241,8 @@ fi
 
 CPPFLAGS="$CPPFLAGS -D_REENTRANT"
 
-dnl Check whether clock_gettime(2) is in libc or librt.  This function is only
-dnl used in test code, so save the result to TESTLIBS to avoid poluting LIBS.
-SAVED_LIBS="${LIBS}"
-LIBS=
-AC_SEARCH_LIBS([clock_gettime], [rt], [TESTLIBS="${LIBS}"])
-AC_SUBST([TESTLIBS])
-LIBS="${SAVED_LIBS}"
+dnl Check whether clock_gettime(2) is in libc or librt.
+AC_SEARCH_LIBS([clock_gettime], [rt])
 
 dnl Check if the GNU-specific secure_getenv function exists.
 AC_CHECK_FUNC([secure_getenv],
@@ -1741,7 +1748,6 @@ AC_MSG_RESULT([CPPFLAGS           : ${CPPFLAGS}])
 AC_MSG_RESULT([LDFLAGS            : ${LDFLAGS}])
 AC_MSG_RESULT([EXTRA_LDFLAGS      : ${EXTRA_LDFLAGS}])
 AC_MSG_RESULT([LIBS               : ${LIBS}])
-AC_MSG_RESULT([TESTLIBS           : ${TESTLIBS}])
 AC_MSG_RESULT([RPATH_EXTRA        : ${RPATH_EXTRA}])
 AC_MSG_RESULT([])
 AC_MSG_RESULT([XSLTPROC           : ${XSLTPROC}])

@@ -35,6 +35,10 @@ any of the following arguments (not a definitive list) to 'configure':
     will cause files to be installed into /usr/local/include, /usr/local/lib,
     and /usr/local/man.
 
+--with-version=<major>.<minor>.<bugfix>-<nrev>-g<gid>
+    Use the specified version string rather than trying to generate one (if in
+    a git repository) or use existing the VERSION file (if present).
+
 --with-rpath=<colon-separated-rpath>
     Embed one or more library paths, so that libjemalloc can find the libraries
     it is linked to.  This works only on ELF-based systems.

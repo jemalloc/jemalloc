@@ -107,6 +107,9 @@
     <ClInclude Include="..\..\..\..\include\jemalloc\internal\pages.h">
       <Filter>Header Files\internal</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\..\include\jemalloc\internal\ph.h">
+      <Filter>Header Files\internal</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\..\..\include\jemalloc\internal\private_namespace.h">
       <Filter>Header Files\internal</Filter>
     </ClInclude>

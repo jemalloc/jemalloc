@@ -1,13 +1,13 @@
 /******************************************************************************/
 #ifdef JEMALLOC_H_TYPES
 
-#define JEMALLOC_CLOCK_GETTIME defined(_POSIX_MONOTONIC_CLOCK) \
+#define	JEMALLOC_CLOCK_GETTIME defined(_POSIX_MONOTONIC_CLOCK) \
     && _POSIX_MONOTONIC_CLOCK >= 0
 
 typedef struct nstime_s nstime_t;
 
 /* Maximum supported number of seconds (~584 years). */
-#define	NSTIME_SEC_MAX	18446744072
+#define	NSTIME_SEC_MAX	KQU(18446744072)
 
 #endif /* JEMALLOC_H_TYPES */
 /******************************************************************************/

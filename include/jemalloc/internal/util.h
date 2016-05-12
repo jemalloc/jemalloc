@@ -40,6 +40,10 @@
  */
 #define	MALLOC_PRINTF_BUFSIZE	4096
 
+/* Junk fill patterns. */
+#define	JEMALLOC_ALLOC_JUNK	((uint8_t)0xa5)
+#define	JEMALLOC_FREE_JUNK	((uint8_t)0x5a)
+
 /*
  * Wrap a cpp argument that contains commas such that it isn't broken up into
  * multiple arguments.
@@ -73,12 +77,12 @@
       JEMALLOC_CLANG_HAS_BUILTIN(__builtin_unreachable)
 #	define unreachable() __builtin_unreachable()
 #  else
-#	define unreachable()
+#	define unreachable() abort()
 #  endif
 #else
 #	define likely(x)   !!(x)
 #	define unlikely(x) !!(x)
-#	define unreachable()
+#	define unreachable() abort()
 #endif
 
 #include "jemalloc/internal/assert.h"
@@ -106,9 +110,9 @@ void	malloc_write(const char *s);
  * malloc_vsnprintf() supports a subset of snprintf(3) that avoids floating
  * point math.
  */
-int	malloc_vsnprintf(char *str, size_t size, const char *format,
+size_t	malloc_vsnprintf(char *str, size_t size, const char *format,
     va_list ap);
-int	malloc_snprintf(char *str, size_t size, const char *format, ...)
+size_t	malloc_snprintf(char *str, size_t size, const char *format, ...)
     JEMALLOC_FORMAT_PRINTF(3, 4);
 void	malloc_vcprintf(void (*write_cb)(void *, const char *), void *cbopaque,
     const char *format, va_list ap);
