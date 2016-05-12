@@ -4,7 +4,7 @@ brevity.  Much more detail can be found in the git revision history:
 
     https://github.com/jemalloc/jemalloc
 
-* 4.2.0 (XXX)
+* 4.2.0 (May 12, 2016)
 
   New features:
   - Add the arena.<i>.reset mallctl, which makes it possible to discard all of
