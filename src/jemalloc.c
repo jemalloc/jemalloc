@@ -1252,9 +1252,9 @@ malloc_init_hard_needed(void)
 	if (malloc_initializer != NO_INITIALIZER && !IS_INITIALIZER) {
 		/* Busy-wait until the initializing thread completes. */
 		do {
-			malloc_mutex_unlock(NULL, &init_lock);
+			malloc_mutex_unlock(TSDN_NULL, &init_lock);
 			CPU_SPINWAIT;
-			malloc_mutex_lock(NULL, &init_lock);
+			malloc_mutex_lock(TSDN_NULL, &init_lock);
 		} while (!malloc_initialized());
 		return (false);
 	}
