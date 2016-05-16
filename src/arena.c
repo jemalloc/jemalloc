@@ -3427,9 +3427,7 @@ arena_new(tsdn_t *tsdn, unsigned ind)
 		return (NULL);
 
 	extent_tree_szad_new(&arena->chunks_szad_cached);
-	extent_tree_ad_new(&arena->chunks_ad_cached);
 	extent_tree_szad_new(&arena->chunks_szad_retained);
-	extent_tree_ad_new(&arena->chunks_ad_retained);
 	if (malloc_mutex_init(&arena->chunks_mtx, "arena_chunks",
 	    WITNESS_RANK_ARENA_CHUNKS))
 		return (NULL);

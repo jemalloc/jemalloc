@@ -39,15 +39,3 @@ extent_szad_comp(const extent_t *a, const extent_t *b)
 /* Generate red-black tree functions. */
 rb_gen(, extent_tree_szad_, extent_tree_t, extent_t, szad_link,
     extent_szad_comp)
-
-JEMALLOC_INLINE_C int
-extent_ad_comp(const extent_t *a, const extent_t *b)
-{
-	uintptr_t a_addr = (uintptr_t)extent_addr_get(a);
-	uintptr_t b_addr = (uintptr_t)extent_addr_get(b);
-
-	return ((a_addr > b_addr) - (a_addr < b_addr));
-}
-
-/* Generate red-black tree functions. */
-rb_gen(, extent_tree_ad_, extent_tree_t, extent_t, ad_link, extent_ad_comp)

@@ -55,9 +55,6 @@ struct extent_s {
 		/* Linkage for arena's achunks, huge, and node_cache lists. */
 		ql_elm(extent_t)	ql_link;
 	};
-
-	/* Linkage for the address-ordered tree. */
-	rb_node(extent_t)	ad_link;
 };
 typedef rb_tree(extent_t) extent_tree_t;
 
@@ -66,8 +63,6 @@ typedef rb_tree(extent_t) extent_tree_t;
 #ifdef JEMALLOC_H_EXTERNS
 
 rb_proto(, extent_tree_szad_, extent_tree_t, extent_t)
-
-rb_proto(, extent_tree_ad_, extent_tree_t, extent_t)
 
 #endif /* JEMALLOC_H_EXTERNS */
 /******************************************************************************/
@@ -79,6 +74,7 @@ void	*extent_addr_get(const extent_t *extent);
 size_t	extent_size_get(const extent_t *extent);
 void	*extent_past_get(const extent_t *extent);
 bool	extent_active_get(const extent_t *extent);
+bool	extent_retained_get(const extent_t *extent);
 bool	extent_zeroed_get(const extent_t *extent);
 bool	extent_committed_get(const extent_t *extent);
 bool	extent_slab_get(const extent_t *extent);
@@ -132,6 +128,14 @@ extent_active_get(const extent_t *extent)
 {
 
 	return (extent->e_active);
+}
+
+JEMALLOC_INLINE bool
+extent_retained_get(const extent_t *extent)
+{
+
+	assert(!extent->e_slab);
+	return (qr_next(&extent->rd, rd_link) == &extent->rd);
 }
 
 JEMALLOC_INLINE bool
