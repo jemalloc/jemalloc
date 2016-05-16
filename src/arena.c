@@ -527,7 +527,7 @@ arena_chunk_register(tsdn_t *tsdn, arena_t *arena, arena_chunk_t *chunk,
 	 */
 	extent_init(&chunk->extent, arena, chunk, chunksize, true, zero, true,
 	    true);
-	return (chunk_register(tsdn, chunk, &chunk->extent));
+	return (chunk_register(tsdn, &chunk->extent));
 }
 
 static arena_chunk_t *
@@ -665,7 +665,7 @@ arena_chunk_discard(tsdn_t *tsdn, arena_t *arena, arena_chunk_t *chunk)
 	bool committed;
 	chunk_hooks_t chunk_hooks = CHUNK_HOOKS_INITIALIZER;
 
-	chunk_deregister(tsdn, chunk, &chunk->extent);
+	chunk_deregister(tsdn, &chunk->extent);
 
 	committed = (arena_mapbits_decommitted_get(chunk, map_bias) == 0);
 	if (!committed) {

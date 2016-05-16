@@ -52,7 +52,7 @@ huge_palloc(tsdn_t *tsdn, arena_t *arena, size_t usize, size_t alignment,
 
 	extent_init(extent, arena, ret, usize, true, is_zeroed, true, false);
 
-	if (chunk_register(tsdn, ret, extent)) {
+	if (chunk_register(tsdn, extent)) {
 		arena_chunk_dalloc_huge(tsdn, arena, ret, usize);
 		idalloctm(tsdn, iealloc(tsdn, extent), extent, NULL, true,
 		    true);
@@ -135,11 +135,11 @@ huge_ralloc_no_move_similar(tsdn_t *tsdn, extent_t *extent, void *ptr,
 
 	/* Update the size of the huge allocation. */
 	assert(extent_size_get(extent) != usize);
-	chunk_deregister(tsdn, ptr, extent);
+	chunk_deregister(tsdn, extent);
 	malloc_mutex_lock(tsdn, &arena->huge_mtx);
 	extent_size_set(extent, usize);
 	malloc_mutex_unlock(tsdn, &arena->huge_mtx);
-	chunk_reregister(tsdn, ptr, extent);
+	chunk_reregister(tsdn, extent);
 	/* Update zeroed. */
 	extent_zeroed_set(extent, post_zeroed);
 
@@ -196,13 +196,13 @@ huge_ralloc_no_move_shrink(tsdn_t *tsdn, extent_t *extent, void *ptr,
 		post_zeroed = pre_zeroed;
 
 	/* Update the size of the huge allocation. */
-	chunk_deregister(tsdn, ptr, extent);
+	chunk_deregister(tsdn, extent);
 	malloc_mutex_lock(tsdn, &arena->huge_mtx);
 	extent_size_set(extent, usize);
 	/* Update zeroed. */
 	extent_zeroed_set(extent, post_zeroed);
 	malloc_mutex_unlock(tsdn, &arena->huge_mtx);
-	chunk_reregister(tsdn, ptr, extent);
+	chunk_reregister(tsdn, extent);
 
 	/* Zap the excess chunks. */
 	arena_chunk_ralloc_huge_shrink(tsdn, arena, ptr, oldsize, usize);
@@ -232,12 +232,12 @@ huge_ralloc_no_move_expand(tsdn_t *tsdn, extent_t *extent, void *ptr,
 		return (true);
 
 	/* Update the size of the huge allocation. */
-	chunk_deregister(tsdn, ptr, extent);
+	chunk_deregister(tsdn, extent);
 	malloc_mutex_lock(tsdn, &arena->huge_mtx);
 	extent_size_set(extent, usize);
 	extent_zeroed_set(extent, extent_zeroed_get(extent) && is_zeroed_chunk);
 	malloc_mutex_unlock(tsdn, &arena->huge_mtx);
-	chunk_reregister(tsdn, ptr, extent);
+	chunk_reregister(tsdn, extent);
 
 	if (zero || (config_fill && unlikely(opt_zero))) {
 		if (!is_zeroed_subchunk) {
@@ -355,7 +355,7 @@ huge_dalloc(tsdn_t *tsdn, extent_t *extent, void *ptr)
 	arena_t *arena;
 
 	arena = extent_arena_get(extent);
-	chunk_deregister(tsdn, ptr, extent);
+	chunk_deregister(tsdn, extent);
 	malloc_mutex_lock(tsdn, &arena->huge_mtx);
 	ql_remove(&arena->huge, extent, ql_link);
 	malloc_mutex_unlock(tsdn, &arena->huge_mtx);

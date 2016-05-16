@@ -141,21 +141,21 @@ chunk_hooks_assure_initialized(tsdn_t *tsdn, arena_t *arena,
 }
 
 bool
-chunk_register(tsdn_t *tsdn, const void *chunk, const extent_t *extent)
+chunk_register(tsdn_t *tsdn, const extent_t *extent)
 {
+	const void *addr;
 	size_t size;
 	rtree_elm_t *elm_a;
 
-	assert(extent_addr_get(extent) == chunk);
-
+	addr = extent_addr_get(extent);
 	size = extent_size_get(extent);
 
-	if ((elm_a = rtree_elm_acquire(tsdn, &chunks_rtree, (uintptr_t)chunk,
+	if ((elm_a = rtree_elm_acquire(tsdn, &chunks_rtree, (uintptr_t)addr,
 	    false, true)) == NULL)
 		return (true);
 	rtree_elm_write_acquired(tsdn, &chunks_rtree, elm_a, extent);
 	if (size > chunksize) {
-		uintptr_t last = ((uintptr_t)chunk +
+		uintptr_t last = ((uintptr_t)addr +
 		    (uintptr_t)(CHUNK_CEILING(size - chunksize)));
 		rtree_elm_t *elm_b;
 
@@ -190,18 +190,20 @@ chunk_register(tsdn_t *tsdn, const void *chunk, const extent_t *extent)
 }
 
 void
-chunk_deregister(tsdn_t *tsdn, const void *chunk, const extent_t *extent)
+chunk_deregister(tsdn_t *tsdn, const extent_t *extent)
 {
+	const void *addr;
 	size_t size;
 	rtree_elm_t *elm_a;
 
+	addr = extent_addr_get(extent);
 	size = extent_size_get(extent);
 
-	elm_a = rtree_elm_acquire(tsdn, &chunks_rtree, (uintptr_t)chunk, true,
+	elm_a = rtree_elm_acquire(tsdn, &chunks_rtree, (uintptr_t)addr, true,
 	    false);
 	rtree_elm_write_acquired(tsdn, &chunks_rtree, elm_a, NULL);
 	if (size > chunksize) {
-		uintptr_t last = ((uintptr_t)chunk +
+		uintptr_t last = ((uintptr_t)addr +
 		    (uintptr_t)(CHUNK_CEILING(size - chunksize)));
 		rtree_elm_t *elm_b = rtree_elm_acquire(tsdn, &chunks_rtree,
 		    last, true, false);
@@ -219,11 +221,11 @@ chunk_deregister(tsdn_t *tsdn, const void *chunk, const extent_t *extent)
 }
 
 void
-chunk_reregister(tsdn_t *tsdn, const void *chunk, const extent_t *extent)
+chunk_reregister(tsdn_t *tsdn, const extent_t *extent)
 {
 	bool err;
 
-	err = chunk_register(tsdn, chunk, extent);
+	err = chunk_register(tsdn, extent);
 	assert(!err);
 }
 
