@@ -78,6 +78,21 @@ get_huge_size(size_t ind)
 	return (get_size_impl("arenas.hchunk.0.size", ind));
 }
 
+/* Like ivsalloc(), but safe to call on discarded allocations. */
+static size_t
+vsalloc(tsdn_t *tsdn, const void *ptr)
+{
+	extent_t *extent;
+
+	extent = chunk_lookup(tsdn, ptr, false);
+	if (extent == NULL)
+		return (0);
+	if (!extent_active_get(extent))
+		return (0);
+
+	return (isalloc(tsdn, extent, ptr, false));
+}
+
 TEST_BEGIN(test_arena_reset)
 {
 #define	NHUGE	4
@@ -139,7 +154,7 @@ TEST_BEGIN(test_arena_reset)
 
 	/* Verify allocations no longer exist. */
 	for (i = 0; i < nptrs; i++) {
-		assert_zu_eq(ivsalloc(tsdn, ptrs[i], false), 0,
+		assert_zu_eq(vsalloc(tsdn, ptrs[i]), 0,
 		    "Allocation should no longer exist");
 	}
 
