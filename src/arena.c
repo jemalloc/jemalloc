@@ -3411,10 +3411,6 @@ arena_new(tsdn_t *tsdn, unsigned ind)
 	arena->nactive = 0;
 	arena->ndirty = 0;
 
-	for (i = 0; i < sizeof(arena->runs_avail) / sizeof(arena_run_heap_t);
-	    i++)
-		arena_run_heap_new(&arena->runs_avail[i]);
-
 	qr_new(&arena->runs_dirty, rd_link);
 	qr_new(&arena->chunks_cache, cc_link);
 
@@ -3426,8 +3422,11 @@ arena_new(tsdn_t *tsdn, unsigned ind)
 	    WITNESS_RANK_ARENA_HUGE))
 		return (NULL);
 
-	extent_tree_szad_new(&arena->chunks_szad_cached);
-	extent_tree_szad_new(&arena->chunks_szad_retained);
+	for (i = 0; i < NPSIZES; i++) {
+		extent_heap_new(&arena->chunks_cached[i]);
+		extent_heap_new(&arena->chunks_retained[i]);
+	}
+
 	if (malloc_mutex_init(&arena->chunks_mtx, "arena_chunks",
 	    WITNESS_RANK_ARENA_CHUNKS))
 		return (NULL);
@@ -3449,6 +3448,9 @@ arena_new(tsdn_t *tsdn, unsigned ind)
 		if (config_stats)
 			memset(&bin->stats, 0, sizeof(malloc_bin_stats_t));
 	}
+
+	for (i = 0; i < NPSIZES; i++)
+		arena_run_heap_new(&arena->runs_avail[i]);
 
 	return (arena);
 }

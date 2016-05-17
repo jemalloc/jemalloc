@@ -5,7 +5,7 @@
 /* Data. */
 
 static malloc_mutex_t	base_mtx;
-static extent_tree_t	base_avail_szad;
+static extent_heap_t	base_avail[NSIZES];
 static extent_t		*base_extents;
 static size_t		base_allocated;
 static size_t		base_resident;
@@ -79,9 +79,9 @@ void *
 base_alloc(tsdn_t *tsdn, size_t size)
 {
 	void *ret;
-	size_t csize, usize;
+	size_t csize;
+	szind_t i;
 	extent_t *extent;
-	extent_t key;
 
 	/*
 	 * Round size up to nearest multiple of the cacheline size, so that
@@ -89,14 +89,16 @@ base_alloc(tsdn_t *tsdn, size_t size)
 	 */
 	csize = CACHELINE_CEILING(size);
 
-	usize = s2u(csize);
-	extent_init(&key, NULL, NULL, usize, false, false, false, false);
+	extent = NULL;
 	malloc_mutex_lock(tsdn, &base_mtx);
-	extent = extent_tree_szad_nsearch(&base_avail_szad, &key);
-	if (extent != NULL) {
-		/* Use existing space. */
-		extent_tree_szad_remove(&base_avail_szad, extent);
-	} else {
+	for (i = size2index(csize); i < NSIZES; i++) {
+		extent = extent_heap_remove_first(&base_avail[i]);
+		if (extent != NULL) {
+			/* Use existing space. */
+			break;
+		}
+	}
+	if (extent == NULL) {
 		/* Try to allocate more space. */
 		extent = base_chunk_alloc(tsdn, csize);
 	}
@@ -107,9 +109,16 @@ base_alloc(tsdn_t *tsdn, size_t size)
 
 	ret = extent_addr_get(extent);
 	if (extent_size_get(extent) > csize) {
+		szind_t index_floor;
+
 		extent_addr_set(extent, (void *)((uintptr_t)ret + csize));
 		extent_size_set(extent, extent_size_get(extent) - csize);
-		extent_tree_szad_insert(&base_avail_szad, extent);
+		/*
+		 * Compute the index for the largest size class that does not
+		 * exceed extent's size.
+		 */
+		index_floor = size2index(extent_size_get(extent) + 1) - 1;
+		extent_heap_insert(&base_avail[index_floor], extent);
 	} else
 		base_extent_dalloc(tsdn, extent);
 	if (config_stats) {
@@ -143,10 +152,12 @@ base_stats_get(tsdn_t *tsdn, size_t *allocated, size_t *resident,
 bool
 base_boot(void)
 {
+	szind_t i;
 
 	if (malloc_mutex_init(&base_mtx, "base", WITNESS_RANK_BASE))
 		return (true);
-	extent_tree_szad_new(&base_avail_szad);
+	for (i = 0; i < NSIZES; i++)
+		extent_heap_new(&base_avail[i]);
 	base_extents = NULL;
 
 	return (false);

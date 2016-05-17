@@ -49,20 +49,29 @@ struct extent_s {
 	qr(extent_t)		cc_link;
 
 	union {
-		/* Linkage for the size/address-ordered tree. */
-		rb_node(extent_t)	szad_link;
+		/* Linkage for per size class address-ordered heaps. */
+		phn(extent_t)		ph_link;
 
 		/* Linkage for arena's achunks, huge, and node_cache lists. */
 		ql_elm(extent_t)	ql_link;
 	};
 };
-typedef rb_tree(extent_t) extent_tree_t;
+typedef ph(extent_t) extent_heap_t;
 
 #endif /* JEMALLOC_H_STRUCTS */
 /******************************************************************************/
 #ifdef JEMALLOC_H_EXTERNS
 
-rb_proto(, extent_tree_szad_, extent_tree_t, extent_t)
+#ifdef JEMALLOC_JET
+typedef size_t (extent_size_quantize_t)(size_t);
+extern extent_size_quantize_t *extent_size_quantize_floor;
+extern extent_size_quantize_t *extent_size_quantize_ceil;
+#else
+size_t	extent_size_quantize_floor(size_t size);
+size_t	extent_size_quantize_ceil(size_t size);
+#endif
+
+ph_proto(, extent_heap_, extent_heap_t, extent_t)
 
 #endif /* JEMALLOC_H_EXTERNS */
 /******************************************************************************/

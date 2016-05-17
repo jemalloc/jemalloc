@@ -418,11 +418,11 @@ struct arena_s {
 	malloc_mutex_t		huge_mtx;
 
 	/*
-	 * Trees of chunks that were previously allocated.  These are used when
+	 * Heaps of chunks that were previously allocated.  These are used when
 	 * allocating chunks, in an attempt to re-use address space.
 	 */
-	extent_tree_t		chunks_szad_cached;
-	extent_tree_t		chunks_szad_retained;
+	extent_heap_t		chunks_cached[NPSIZES];
+	extent_heap_t		chunks_retained[NPSIZES];
 
 	malloc_mutex_t		chunks_mtx;
 	/* Cache of extent structures that were allocated via base_alloc(). */

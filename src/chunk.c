@@ -50,10 +50,26 @@ const chunk_hooks_t	chunk_hooks_default = {
  */
 
 static void	chunk_record(tsdn_t *tsdn, arena_t *arena,
-    chunk_hooks_t *chunk_hooks, extent_tree_t *chunks_szad, bool cache,
+    chunk_hooks_t *chunk_hooks, extent_heap_t extent_heaps[NPSIZES], bool cache,
     void *chunk, size_t size, bool zeroed, bool committed);
 
 /******************************************************************************/
+
+static void
+extent_heaps_insert(extent_heap_t extent_heaps[NPSIZES], extent_t *extent)
+{
+	size_t psz = extent_size_quantize_floor(extent_size_get(extent));
+	pszind_t pind = psz2ind(psz);
+	extent_heap_insert(&extent_heaps[pind], extent);
+}
+
+static void
+extent_heaps_remove(extent_heap_t extent_heaps[NPSIZES], extent_t *extent)
+{
+	size_t psz = extent_size_quantize_floor(extent_size_get(extent));
+	pszind_t pind = psz2ind(psz);
+	extent_heap_remove(&extent_heaps[pind], extent);
+}
 
 static chunk_hooks_t
 chunk_hooks_get_locked(arena_t *arena)
@@ -245,14 +261,21 @@ chunk_reregister(tsdn_t *tsdn, const extent_t *extent)
  * fits.
  */
 static extent_t *
-chunk_first_best_fit(arena_t *arena, extent_tree_t *chunks_szad, size_t size)
+chunk_first_best_fit(arena_t *arena, extent_heap_t extent_heaps[NPSIZES],
+    size_t size)
 {
-	extent_t key;
+	pszind_t pind, i;
 
 	assert(size == CHUNK_CEILING(size));
 
-	extent_init(&key, arena, NULL, size, false, false, false, false);
-	return (extent_tree_szad_nsearch(chunks_szad, &key));
+	pind = psz2ind(extent_size_quantize_ceil(size));
+	for (i = pind; i < NPSIZES; i++) {
+		extent_t *extent = extent_heap_first(&extent_heaps[i]);
+		if (extent != NULL)
+			return (extent);
+	}
+
+	return (NULL);
 }
 
 static void
@@ -272,8 +295,8 @@ chunk_leak(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks, bool cache,
 
 static void *
 chunk_recycle(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
-    extent_tree_t *chunks_szad, bool cache, void *new_addr, size_t size,
-    size_t alignment, bool *zero, bool *commit, bool dalloc_extent)
+    extent_heap_t extent_heaps[NPSIZES], bool cache, void *new_addr,
+    size_t size, size_t alignment, bool *zero, bool *commit, bool dalloc_extent)
 {
 	void *ret;
 	extent_t *extent;
@@ -309,7 +332,7 @@ chunk_recycle(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 		} else
 			extent = NULL;
 	} else
-		extent = chunk_first_best_fit(arena, chunks_szad, alloc_size);
+		extent = chunk_first_best_fit(arena, extent_heaps, alloc_size);
 	if (extent == NULL || (new_addr != NULL && extent_size_get(extent) <
 	    size)) {
 		malloc_mutex_unlock(tsdn, &arena->chunks_mtx);
@@ -334,9 +357,9 @@ chunk_recycle(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 		malloc_mutex_unlock(tsdn, &arena->chunks_mtx);
 		return (NULL);
 	}
-	/* Remove extent from the tree. */
+	/* Remove extent from the heap. */
 	chunk_deregister(tsdn, extent);
-	extent_tree_szad_remove(chunks_szad, extent);
+	extent_heaps_remove(extent_heaps, extent);
 	arena_chunk_cache_maybe_remove(arena, extent, cache);
 	if (leadsize != 0) {
 		/* Insert the leading space as a smaller chunk. */
@@ -346,7 +369,7 @@ chunk_recycle(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 			    extent_addr_get(extent), extent_size_get(extent));
 			arena_extent_dalloc(tsdn, arena, extent);
 		} else {
-			extent_tree_szad_insert(chunks_szad, extent);
+			extent_heaps_insert(extent_heaps, extent);
 			arena_chunk_cache_maybe_insert(arena, extent, cache);
 		}
 		extent = NULL;
@@ -358,7 +381,7 @@ chunk_recycle(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 			if (dalloc_extent && extent != NULL)
 				arena_extent_dalloc(tsdn, arena, extent);
 			malloc_mutex_unlock(tsdn, &arena->chunks_mtx);
-			chunk_record(tsdn, arena, chunk_hooks, chunks_szad,
+			chunk_record(tsdn, arena, chunk_hooks, extent_heaps,
 			    cache, ret, size + trailsize, zeroed, committed);
 			return (NULL);
 		}
@@ -368,7 +391,7 @@ chunk_recycle(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 			if (extent == NULL) {
 				malloc_mutex_unlock(tsdn, &arena->chunks_mtx);
 				chunk_record(tsdn, arena, chunk_hooks,
-				    chunks_szad, cache, ret, size + trailsize,
+				    extent_heaps, cache, ret, size + trailsize,
 				    zeroed, committed);
 				return (NULL);
 			}
@@ -380,14 +403,14 @@ chunk_recycle(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 			    extent_addr_get(extent), extent_size_get(extent));
 			arena_extent_dalloc(tsdn, arena, extent);
 		} else {
-			extent_tree_szad_insert(chunks_szad, extent);
+			extent_heaps_insert(extent_heaps, extent);
 			arena_chunk_cache_maybe_insert(arena, extent, cache);
 		}
 		extent = NULL;
 	}
 	if (!committed && chunk_hooks->commit(ret, size, 0, size, arena->ind)) {
 		malloc_mutex_unlock(tsdn, &arena->chunks_mtx);
-		chunk_record(tsdn, arena, chunk_hooks, chunks_szad, cache, ret,
+		chunk_record(tsdn, arena, chunk_hooks, extent_heaps, cache, ret,
 		    size, zeroed, committed);
 		return (NULL);
 	}
@@ -480,9 +503,8 @@ chunk_alloc_cache(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 	assert((alignment & chunksize_mask) == 0);
 
 	commit = true;
-	ret = chunk_recycle(tsdn, arena, chunk_hooks,
-	    &arena->chunks_szad_cached, true, new_addr, size, alignment, zero,
-	    &commit, dalloc_extent);
+	ret = chunk_recycle(tsdn, arena, chunk_hooks, arena->chunks_cached,
+	    true, new_addr, size, alignment, zero, &commit, dalloc_extent);
 	if (ret == NULL)
 		return (NULL);
 	assert(commit);
@@ -532,9 +554,8 @@ chunk_alloc_retained(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 	assert(alignment != 0);
 	assert((alignment & chunksize_mask) == 0);
 
-	ret = chunk_recycle(tsdn, arena, chunk_hooks,
-	    &arena->chunks_szad_retained, false, new_addr, size, alignment,
-	    zero, commit, true);
+	ret = chunk_recycle(tsdn, arena, chunk_hooks, arena->chunks_retained,
+	    false, new_addr, size, alignment, zero, commit, true);
 
 	if (config_stats && ret != NULL)
 		arena->stats.retained -= size;
@@ -583,7 +604,7 @@ chunk_can_coalesce(const extent_t *a, const extent_t *b)
 
 static void
 chunk_try_coalesce(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
-    extent_t *a, extent_t *b, extent_tree_t *chunks_szad, bool cache)
+    extent_t *a, extent_t *b, extent_heap_t extent_heaps[NPSIZES], bool cache)
 {
 	rtree_elm_t *a_elm_a, *a_elm_b, *b_elm_a, *b_elm_b;
 
@@ -613,8 +634,8 @@ chunk_try_coalesce(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 	} else
 		b_elm_b = b_elm_a;
 
-	extent_tree_szad_remove(chunks_szad, a);
-	extent_tree_szad_remove(chunks_szad, b);
+	extent_heaps_remove(extent_heaps, a);
+	extent_heaps_remove(extent_heaps, b);
 
 	arena_chunk_cache_maybe_remove(extent_arena_get(a), a, cache);
 	arena_chunk_cache_maybe_remove(extent_arena_get(b), b, cache);
@@ -622,7 +643,7 @@ chunk_try_coalesce(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 	extent_size_set(a, extent_size_get(a) + extent_size_get(b));
 	extent_zeroed_set(a, extent_zeroed_get(a) && extent_zeroed_get(b));
 
-	extent_tree_szad_insert(chunks_szad, a);
+	extent_heaps_insert(extent_heaps, a);
 
 	extent_rtree_write_acquired(tsdn, a_elm_a, b_elm_b, a);
 	extent_rtree_release(tsdn, a_elm_a, b_elm_b);
@@ -634,7 +655,7 @@ chunk_try_coalesce(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 
 static void
 chunk_record(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
-    extent_tree_t *chunks_szad, bool cache, void *chunk, size_t size,
+    extent_heap_t extent_heaps[NPSIZES], bool cache, void *chunk, size_t size,
     bool zeroed, bool committed)
 {
 	extent_t *extent, *prev, *next;
@@ -657,7 +678,7 @@ chunk_record(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 		chunk_leak(tsdn, arena, chunk_hooks, cache, chunk, size);
 		goto label_return;
 	}
-	extent_tree_szad_insert(chunks_szad, extent);
+	extent_heaps_insert(extent_heaps, extent);
 	arena_chunk_cache_maybe_insert(arena, extent, cache);
 
 	/* Try to coalesce forward. */
@@ -665,7 +686,7 @@ chunk_record(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 	    CHUNK_CEILING((uintptr_t)extent_past_get(extent)), false);
 	if (next != NULL) {
 		chunk_try_coalesce(tsdn, arena, chunk_hooks, extent, next,
-		    chunks_szad, cache);
+		    extent_heaps, cache);
 	}
 
 	/* Try to coalesce backward. */
@@ -673,7 +694,7 @@ chunk_record(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 	    (uintptr_t)extent_addr_get(extent) - chunksize, false);
 	if (prev != NULL) {
 		chunk_try_coalesce(tsdn, arena, chunk_hooks, prev, extent,
-		    chunks_szad, cache);
+		    extent_heaps, cache);
 	}
 
 label_return:
@@ -690,7 +711,7 @@ chunk_dalloc_cache(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 	assert(size != 0);
 	assert((size & chunksize_mask) == 0);
 
-	chunk_record(tsdn, arena, chunk_hooks, &arena->chunks_szad_cached, true,
+	chunk_record(tsdn, arena, chunk_hooks, arena->chunks_cached, true,
 	    chunk, size, false, committed);
 	arena_maybe_purge(tsdn, arena);
 }
@@ -726,8 +747,8 @@ chunk_dalloc_wrapper(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 	}
 	zeroed = !committed || !chunk_hooks->purge(chunk, size, 0, size,
 	    arena->ind);
-	chunk_record(tsdn, arena, chunk_hooks, &arena->chunks_szad_retained,
-	    false, chunk, size, zeroed, committed);
+	chunk_record(tsdn, arena, chunk_hooks, arena->chunks_retained, false,
+	    chunk, size, zeroed, committed);
 
 	if (config_stats)
 		arena->stats.retained += size;
