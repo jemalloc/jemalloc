@@ -159,6 +159,7 @@ chunk_alloc_dss
 chunk_alloc_mmap
 chunk_alloc_wrapper
 chunk_boot
+chunk_commit_wrapper
 chunk_dalloc_cache
 chunk_dalloc_mmap
 chunk_dalloc_wrapper

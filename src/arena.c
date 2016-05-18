@@ -375,8 +375,8 @@ arena_run_split_remove(arena_t *arena, arena_chunk_t *chunk, size_t run_ind,
 }
 
 static bool
-arena_run_split_large_helper(arena_t *arena, extent_t *extent, arena_run_t *run,
-    size_t size, bool remove, bool zero)
+arena_run_split_large_helper(tsdn_t *tsdn, arena_t *arena, extent_t *extent,
+    arena_run_t *run, size_t size, bool remove, bool zero)
 {
 	arena_chunk_t *chunk;
 	arena_chunk_map_misc_t *miscelm;
@@ -391,8 +391,8 @@ arena_run_split_large_helper(arena_t *arena, extent_t *extent, arena_run_t *run,
 	need_pages = (size >> LG_PAGE);
 	assert(need_pages > 0);
 
-	if (flag_decommitted != 0 && arena->chunk_hooks.commit(chunk, chunksize,
-	    run_ind << LG_PAGE, size, arena->ind))
+	if (flag_decommitted != 0 && chunk_commit_wrapper(tsdn, arena,
+	    &arena->chunk_hooks, chunk, chunksize, run_ind << LG_PAGE, size))
 		return (true);
 
 	if (remove) {
@@ -439,26 +439,26 @@ arena_run_split_large_helper(arena_t *arena, extent_t *extent, arena_run_t *run,
 }
 
 static bool
-arena_run_split_large(arena_t *arena, extent_t *extent, arena_run_t *run,
-    size_t size, bool zero)
+arena_run_split_large(tsdn_t *tsdn, arena_t *arena, extent_t *extent,
+    arena_run_t *run, size_t size, bool zero)
 {
 
-	return (arena_run_split_large_helper(arena, extent, run, size, true,
-	    zero));
+	return (arena_run_split_large_helper(tsdn, arena, extent, run, size,
+	    true, zero));
 }
 
 static bool
-arena_run_init_large(arena_t *arena, extent_t *extent, arena_run_t *run,
-    size_t size, bool zero)
+arena_run_init_large(tsdn_t *tsdn, arena_t *arena, extent_t *extent,
+    arena_run_t *run, size_t size, bool zero)
 {
 
-	return (arena_run_split_large_helper(arena, extent, run, size, false,
-	    zero));
+	return (arena_run_split_large_helper(tsdn, arena, extent, run, size,
+	    false, zero));
 }
 
 static bool
-arena_run_split_small(arena_t *arena, extent_t *extent, arena_run_t *run,
-    size_t size, szind_t binind)
+arena_run_split_small(tsdn_t *tsdn, arena_t *arena, extent_t *extent,
+    arena_run_t *run, size_t size, szind_t binind)
 {
 	arena_chunk_t *chunk;
 	arena_chunk_map_misc_t *miscelm;
@@ -474,8 +474,8 @@ arena_run_split_small(arena_t *arena, extent_t *extent, arena_run_t *run,
 	need_pages = (size >> LG_PAGE);
 	assert(need_pages > 0);
 
-	if (flag_decommitted != 0 && arena->chunk_hooks.commit(chunk, chunksize,
-	    run_ind << LG_PAGE, size, arena->ind))
+	if (flag_decommitted != 0 && chunk_commit_wrapper(tsdn, arena,
+	    &arena->chunk_hooks, chunk, chunksize, run_ind << LG_PAGE, size))
 		return (true);
 
 	arena_run_split_remove(arena, chunk, run_ind, flag_dirty,
@@ -542,8 +542,8 @@ arena_chunk_alloc_internal_hard(tsdn_t *tsdn, arena_t *arena,
 	    NULL, chunksize, chunksize, zero, commit);
 	if (chunk != NULL && !*commit) {
 		/* Commit header. */
-		if (chunk_hooks->commit(chunk, chunksize, 0, map_bias <<
-		    LG_PAGE, arena->ind)) {
+		if (chunk_commit_wrapper(tsdn, arena, chunk_hooks, chunk,
+		    chunksize, 0, map_bias << LG_PAGE)) {
 			chunk_dalloc_wrapper(tsdn, arena, chunk_hooks,
 			    (void *)chunk, chunksize, *zero, *commit);
 			chunk = NULL;
@@ -1041,8 +1041,8 @@ arena_run_alloc_large_helper(tsdn_t *tsdn, arena_t *arena, size_t size,
 {
 	arena_run_t *run = arena_run_first_best_fit(arena, s2u(size));
 	if (run != NULL) {
-		if (arena_run_split_large(arena, iealloc(tsdn, run), run, size,
-		    zero))
+		if (arena_run_split_large(tsdn, arena, iealloc(tsdn, run), run,
+		    size, zero))
 			run = NULL;
 	}
 	return (run);
@@ -1068,8 +1068,8 @@ arena_run_alloc_large(tsdn_t *tsdn, arena_t *arena, size_t size, bool zero)
 	chunk = arena_chunk_alloc(tsdn, arena);
 	if (chunk != NULL) {
 		run = &arena_miscelm_get_mutable(chunk, map_bias)->run;
-		if (arena_run_split_large(arena, iealloc(tsdn, run), run, size,
-		    zero))
+		if (arena_run_split_large(tsdn, arena, iealloc(tsdn, run), run,
+		    size, zero))
 			run = NULL;
 		return (run);
 	}
@@ -1088,8 +1088,8 @@ arena_run_alloc_small_helper(tsdn_t *tsdn, arena_t *arena, size_t size,
 {
 	arena_run_t *run = arena_run_first_best_fit(arena, size);
 	if (run != NULL) {
-		if (arena_run_split_small(arena, iealloc(tsdn, run), run, size,
-		    binind))
+		if (arena_run_split_small(tsdn, arena, iealloc(tsdn, run), run,
+		    size, binind))
 			run = NULL;
 	}
 	return (run);
@@ -1116,8 +1116,8 @@ arena_run_alloc_small(tsdn_t *tsdn, arena_t *arena, size_t size, szind_t binind)
 	chunk = arena_chunk_alloc(tsdn, arena);
 	if (chunk != NULL) {
 		run = &arena_miscelm_get_mutable(chunk, map_bias)->run;
-		if (arena_run_split_small(arena, iealloc(tsdn, run), run, size,
-		    binind))
+		if (arena_run_split_small(tsdn, arena, iealloc(tsdn, run), run,
+		    size, binind))
 			run = NULL;
 		return (run);
 	}
@@ -1534,8 +1534,8 @@ arena_stash_dirty(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 				arena_chunk_alloc(tsdn, arena);
 
 			/* Temporarily allocate the free dirty run. */
-			arena_run_split_large(arena, extent, run, run_size,
-			    false);
+			arena_run_split_large(tsdn, arena, extent, run,
+			    run_size, false);
 			/* Stash. */
 			if (false)
 				qr_new(rdelm, rd_link); /* Redundant. */
@@ -2569,7 +2569,8 @@ arena_palloc_large(tsdn_t *tsdn, arena_t *arena, size_t usize, size_t alignment,
 		arena_run_trim_tail(tsdn, arena, chunk, extent, run, usize +
 		    large_pad + trailsize, usize + large_pad, false);
 	}
-	if (arena_run_init_large(arena, extent, run, usize + large_pad, zero)) {
+	if (arena_run_init_large(tsdn, arena, extent, run, usize + large_pad,
+	    zero)) {
 		size_t run_ind =
 		    arena_miscelm_to_pageind(arena_run_to_miscelm(run));
 		bool dirty = (arena_mapbits_dirty_get(chunk, run_ind) != 0);
@@ -2944,7 +2945,7 @@ arena_ralloc_large_grow(tsdn_t *tsdn, arena_t *arena, arena_chunk_t *chunk,
 			goto label_fail;
 
 		run = &arena_miscelm_get_mutable(chunk, pageind+npages)->run;
-		if (arena_run_split_large(arena, iealloc(tsdn, run), run,
+		if (arena_run_split_large(tsdn, arena, iealloc(tsdn, run), run,
 		    splitsize, zero))
 			goto label_fail;
 
