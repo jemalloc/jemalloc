@@ -586,33 +586,9 @@ static void
 chunk_try_coalesce(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
     extent_t *a, extent_t *b, extent_heap_t extent_heaps[NPSIZES], bool cache)
 {
-	rtree_elm_t *a_elm_a, *a_elm_b, *b_elm_a, *b_elm_b;
 
 	if (!chunk_can_coalesce(a, b))
 		return;
-
-	if (chunk_hooks->merge(extent_addr_get(a), extent_size_get(a),
-	    extent_addr_get(b), extent_size_get(b), extent_committed_get(a),
-	    arena->ind))
-		return;
-
-	/*
-	 * The rtree writes must happen while all the relevant elements are
-	 * owned, so the following code uses decomposed helper functions rather
-	 * than chunk_{,de}register() to do things in the right order.
-	 */
-	extent_rtree_acquire(tsdn, a, true, false, &a_elm_a, &a_elm_b);
-	extent_rtree_acquire(tsdn, b, true, false, &b_elm_a, &b_elm_b);
-
-	if (a_elm_b != NULL) {
-		rtree_elm_write_acquired(tsdn, &chunks_rtree, a_elm_b, NULL);
-		rtree_elm_release(tsdn, &chunks_rtree, a_elm_b);
-	}
-	if (b_elm_b != NULL) {
-		rtree_elm_write_acquired(tsdn, &chunks_rtree, b_elm_a, NULL);
-		rtree_elm_release(tsdn, &chunks_rtree, b_elm_a);
-	} else
-		b_elm_b = b_elm_a;
 
 	extent_heaps_remove(extent_heaps, a);
 	extent_heaps_remove(extent_heaps, b);
@@ -620,17 +596,16 @@ chunk_try_coalesce(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 	arena_chunk_cache_maybe_remove(extent_arena_get(a), a, cache);
 	arena_chunk_cache_maybe_remove(extent_arena_get(b), b, cache);
 
-	extent_size_set(a, extent_size_get(a) + extent_size_get(b));
-	extent_zeroed_set(a, extent_zeroed_get(a) && extent_zeroed_get(b));
+	if (chunk_merge_wrapper(tsdn, arena, chunk_hooks, a, b)) {
+		extent_heaps_insert(extent_heaps, a);
+		extent_heaps_insert(extent_heaps, b);
+		arena_chunk_cache_maybe_insert(extent_arena_get(a), a, cache);
+		arena_chunk_cache_maybe_insert(extent_arena_get(b), b, cache);
+		return;
+	}
 
 	extent_heaps_insert(extent_heaps, a);
-
-	extent_rtree_write_acquired(tsdn, a_elm_a, b_elm_b, a);
-	extent_rtree_release(tsdn, a_elm_a, b_elm_b);
-
 	arena_chunk_cache_maybe_insert(extent_arena_get(a), a, cache);
-
-	arena_extent_dalloc(tsdn, extent_arena_get(b), b);
 }
 
 static void
@@ -816,6 +791,46 @@ chunk_merge_default(void *chunk_a, size_t size_a, void *chunk_b, size_t size_b,
 		if (chunk_in_dss(tsdn, chunk_a) != chunk_in_dss(tsdn, chunk_b))
 			return (true);
 	}
+
+	return (false);
+}
+
+bool
+chunk_merge_wrapper(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
+    extent_t *a, extent_t *b)
+{
+	rtree_elm_t *a_elm_a, *a_elm_b, *b_elm_a, *b_elm_b;
+
+	if (chunk_hooks->merge(extent_addr_get(a), extent_size_get(a),
+	    extent_addr_get(b), extent_size_get(b), extent_committed_get(a),
+	    arena->ind))
+		return (true);
+
+	/*
+	 * The rtree writes must happen while all the relevant elements are
+	 * owned, so the following code uses decomposed helper functions rather
+	 * than chunk_{,de}register() to do things in the right order.
+	 */
+	extent_rtree_acquire(tsdn, a, true, false, &a_elm_a, &a_elm_b);
+	extent_rtree_acquire(tsdn, b, true, false, &b_elm_a, &b_elm_b);
+
+	if (a_elm_b != NULL) {
+		rtree_elm_write_acquired(tsdn, &chunks_rtree, a_elm_b, NULL);
+		rtree_elm_release(tsdn, &chunks_rtree, a_elm_b);
+	}
+	if (b_elm_b != NULL) {
+		rtree_elm_write_acquired(tsdn, &chunks_rtree, b_elm_a, NULL);
+		rtree_elm_release(tsdn, &chunks_rtree, b_elm_a);
+	} else
+		b_elm_b = b_elm_a;
+
+	extent_size_set(a, extent_size_get(a) + extent_size_get(b));
+	extent_zeroed_set(a, extent_zeroed_get(a) && extent_zeroed_get(b));
+
+	extent_rtree_write_acquired(tsdn, a_elm_a, b_elm_b, a);
+	extent_rtree_release(tsdn, a_elm_a, b_elm_b);
+
+	arena_extent_dalloc(tsdn, extent_arena_get(b), b);
 
 	return (false);
 }

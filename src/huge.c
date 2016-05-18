@@ -215,31 +215,19 @@ huge_ralloc_no_move_expand(tsdn_t *tsdn, extent_t *extent, void *ptr,
     size_t oldsize, size_t usize, bool zero)
 {
 	arena_t *arena;
-	bool is_zeroed_subchunk, is_zeroed_chunk;
+	bool is_zeroed_subchunk;
 
 	arena = extent_arena_get(extent);
 	malloc_mutex_lock(tsdn, &arena->huge_mtx);
 	is_zeroed_subchunk = extent_zeroed_get(extent);
 	malloc_mutex_unlock(tsdn, &arena->huge_mtx);
 
-	/*
-	 * Use is_zeroed_chunk to detect whether the trailing memory is zeroed,
-	 * update extent's zeroed field, and zero as necessary.
-	 */
-	is_zeroed_chunk = false;
-	if (arena_chunk_ralloc_huge_expand(tsdn, arena, ptr, oldsize, usize,
-	     &is_zeroed_chunk))
+	if (arena_chunk_ralloc_huge_expand(tsdn, arena, extent, usize))
 		return (true);
 
-	/* Update the size of the huge allocation. */
-	chunk_deregister(tsdn, extent);
-	malloc_mutex_lock(tsdn, &arena->huge_mtx);
-	extent_size_set(extent, usize);
-	extent_zeroed_set(extent, extent_zeroed_get(extent) && is_zeroed_chunk);
-	malloc_mutex_unlock(tsdn, &arena->huge_mtx);
-	chunk_reregister(tsdn, extent);
-
 	if (zero || (config_fill && unlikely(opt_zero))) {
+		bool is_zeroed_chunk = extent_zeroed_get(extent);
+
 		if (!is_zeroed_subchunk) {
 			memset((void *)((uintptr_t)ptr + oldsize), 0,
 			    CHUNK_CEILING(oldsize) - oldsize);

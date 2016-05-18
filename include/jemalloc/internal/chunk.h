@@ -75,6 +75,8 @@ bool	chunk_decommit_wrapper(tsdn_t *tsdn, arena_t *arena,
 bool	chunk_purge_wrapper(tsdn_t *tsdn, arena_t *arena,
     chunk_hooks_t *chunk_hooks, void *chunk, size_t size, size_t offset,
     size_t length);
+bool	chunk_merge_wrapper(tsdn_t *tsdn, arena_t *arena,
+    chunk_hooks_t *chunk_hooks, extent_t *a, extent_t *b);
 bool	chunk_boot(void);
 void	chunk_prefork(tsdn_t *tsdn);
 void	chunk_postfork_parent(tsdn_t *tsdn);

@@ -176,6 +176,7 @@ chunk_hooks_get
 chunk_hooks_set
 chunk_in_dss
 chunk_lookup
+chunk_merge_wrapper
 chunk_npages
 chunk_postfork_child
 chunk_postfork_parent

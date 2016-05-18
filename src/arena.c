@@ -948,69 +948,71 @@ arena_chunk_ralloc_huge_shrink(tsdn_t *tsdn, arena_t *arena, void *chunk,
 	malloc_mutex_unlock(tsdn, &arena->lock);
 }
 
-static bool
-arena_chunk_ralloc_huge_expand_hard(tsdn_t *tsdn, arena_t *arena,
-    chunk_hooks_t *chunk_hooks, void *chunk, size_t oldsize, size_t usize,
-    bool *zero, void *nchunk, size_t udiff, size_t cdiff)
-{
-	bool err;
-	bool commit = true;
-
-	err = (chunk_alloc_wrapper(tsdn, arena, chunk_hooks, nchunk, cdiff,
-	    chunksize, zero, &commit) == NULL);
-	if (err) {
-		/* Revert optimistic stats updates. */
-		malloc_mutex_lock(tsdn, &arena->lock);
-		if (config_stats) {
-			arena_huge_ralloc_stats_update_undo(arena, oldsize,
-			    usize);
-			arena->stats.mapped -= cdiff;
-		}
-		arena_nactive_sub(arena, udiff >> LG_PAGE);
-		malloc_mutex_unlock(tsdn, &arena->lock);
-	} else if (chunk_hooks->merge(chunk, CHUNK_CEILING(oldsize), nchunk,
-	    cdiff, true, arena->ind)) {
-		chunk_dalloc_wrapper(tsdn, arena, chunk_hooks, nchunk, cdiff,
-		    *zero, true);
-		err = true;
-	}
-	return (err);
-}
-
 bool
-arena_chunk_ralloc_huge_expand(tsdn_t *tsdn, arena_t *arena, void *chunk,
-    size_t oldsize, size_t usize, bool *zero)
+arena_chunk_ralloc_huge_expand(tsdn_t *tsdn, arena_t *arena, extent_t *extent,
+    size_t usize)
 {
 	bool err;
+	bool zero = false;
 	chunk_hooks_t chunk_hooks = chunk_hooks_get(tsdn, arena);
-	void *nchunk = (void *)((uintptr_t)chunk + CHUNK_CEILING(oldsize));
-	size_t udiff = usize - oldsize;
-	size_t cdiff = CHUNK_CEILING(usize) - CHUNK_CEILING(oldsize);
+	void *nchunk =
+	    (void *)CHUNK_CEILING((uintptr_t)extent_past_get(extent));
+	size_t udiff = usize - extent_size_get(extent);
+	size_t cdiff = CHUNK_CEILING(usize) -
+	    CHUNK_CEILING(extent_size_get(extent));
+	extent_t *trail;
 
 	malloc_mutex_lock(tsdn, &arena->lock);
 
 	/* Optimistically update stats. */
 	if (config_stats) {
-		arena_huge_ralloc_stats_update(arena, oldsize, usize);
+		arena_huge_ralloc_stats_update(arena, extent_size_get(extent),
+		    usize);
 		arena->stats.mapped += cdiff;
 	}
 	arena_nactive_add(arena, udiff >> LG_PAGE);
 
 	err = (chunk_alloc_cache(tsdn, arena, &chunk_hooks, nchunk, cdiff,
-	    chunksize, zero, true) == NULL);
+	    chunksize, &zero, true) == NULL);
 	malloc_mutex_unlock(tsdn, &arena->lock);
+
 	if (err) {
-		err = arena_chunk_ralloc_huge_expand_hard(tsdn, arena,
-		    &chunk_hooks, chunk, oldsize, usize, zero, nchunk, udiff,
-		    cdiff);
-	} else if (chunk_hooks.merge(chunk, CHUNK_CEILING(oldsize), nchunk,
-	    cdiff, true, arena->ind)) {
-		chunk_dalloc_wrapper(tsdn, arena, &chunk_hooks, nchunk, cdiff,
-		    *zero, true);
-		err = true;
+		bool commit = true;
+
+		if (chunk_alloc_wrapper(tsdn, arena, &chunk_hooks, nchunk,
+		    cdiff, chunksize, &zero, &commit) == NULL)
+			goto label_revert;
 	}
 
-	return (err);
+	trail = arena_extent_alloc(tsdn, arena);
+	if (trail == NULL) {
+		chunk_dalloc_wrapper(tsdn, arena, &chunk_hooks, nchunk, cdiff,
+		    zero, true);
+		goto label_revert;
+	}
+	extent_init(trail, arena, nchunk, cdiff, true, zero, true, false);
+	if (chunk_merge_wrapper(tsdn, arena, &chunk_hooks, extent, trail)) {
+		arena_extent_dalloc(tsdn, arena, trail);
+		chunk_dalloc_wrapper(tsdn, arena, &chunk_hooks, nchunk, cdiff,
+		    zero, true);
+		goto label_revert;
+	}
+
+	if (usize < extent_size_get(extent))
+		extent_size_set(extent, usize);
+
+	return (false);
+label_revert:
+	/* Revert optimistic stats updates. */
+	malloc_mutex_lock(tsdn, &arena->lock);
+	if (config_stats) {
+		arena_huge_ralloc_stats_update_undo(arena,
+		    extent_size_get(extent), usize);
+		arena->stats.mapped -= cdiff;
+	}
+	arena_nactive_sub(arena, udiff >> LG_PAGE);
+	malloc_mutex_unlock(tsdn, &arena->lock);
+	return (true);
 }
 
 /*

@@ -496,7 +496,7 @@ void	arena_chunk_ralloc_huge_similar(tsdn_t *tsdn, arena_t *arena,
 void	arena_chunk_ralloc_huge_shrink(tsdn_t *tsdn, arena_t *arena,
     void *chunk, size_t oldsize, size_t usize);
 bool	arena_chunk_ralloc_huge_expand(tsdn_t *tsdn, arena_t *arena,
-    void *chunk, size_t oldsize, size_t usize, bool *zero);
+    extent_t *extent, size_t usize);
 ssize_t	arena_lg_dirty_mult_get(tsdn_t *tsdn, arena_t *arena);
 bool	arena_lg_dirty_mult_set(tsdn_t *tsdn, arena_t *arena,
     ssize_t lg_dirty_mult);
