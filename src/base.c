@@ -50,7 +50,15 @@ base_chunk_alloc(tsdn_t *tsdn, size_t minsize)
 	/* Allocate enough space to also carve an extent out if necessary. */
 	nsize = (extent == NULL) ? CACHELINE_CEILING(sizeof(extent_t)) : 0;
 	csize = CHUNK_CEILING(minsize + nsize);
-	addr = chunk_alloc_base(csize);
+	/*
+	 * Directly call chunk_alloc_mmap() because it's critical to allocate
+	 * untouched demand-zeroed virtual memory.
+	 */
+	{
+		bool zero = true;
+		bool commit = true;
+		addr = chunk_alloc_mmap(NULL, csize, chunksize, &zero, &commit);
+	}
 	if (addr == NULL) {
 		if (extent != NULL)
 			base_extent_dalloc(tsdn, extent);

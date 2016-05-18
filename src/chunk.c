@@ -470,26 +470,6 @@ chunk_alloc_core(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
 }
 
 void *
-chunk_alloc_base(size_t size)
-{
-	void *ret;
-	bool zero, commit;
-
-	/*
-	 * Directly call chunk_alloc_mmap() rather than chunk_alloc_core()
-	 * because it's critical that chunk_alloc_base() return untouched
-	 * demand-zeroed virtual memory.
-	 */
-	zero = true;
-	commit = true;
-	ret = chunk_alloc_mmap(NULL, size, chunksize, &zero, &commit);
-	if (ret == NULL)
-		return (NULL);
-
-	return (ret);
-}
-
-void *
 chunk_alloc_cache(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
     void *new_addr, size_t size, size_t alignment, bool *zero,
     bool dalloc_extent)

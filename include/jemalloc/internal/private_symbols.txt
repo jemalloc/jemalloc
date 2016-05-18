@@ -154,7 +154,6 @@ bootstrap_free
 bootstrap_malloc
 bt_init
 buferror
-chunk_alloc_base
 chunk_alloc_cache
 chunk_alloc_dss
 chunk_alloc_mmap
