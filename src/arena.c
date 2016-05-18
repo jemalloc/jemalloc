@@ -552,8 +552,8 @@ arena_chunk_alloc_internal_hard(tsdn_t *tsdn, arena_t *arena,
 	if (chunk != NULL && arena_chunk_register(tsdn, arena, chunk, *zero)) {
 		if (!*commit) {
 			/* Undo commit of header. */
-			chunk_hooks->decommit(chunk, chunksize, 0, map_bias <<
-			    LG_PAGE, arena->ind);
+			chunk_decommit_wrapper(tsdn, arena, chunk_hooks,
+			    chunk, chunksize, 0, map_bias << LG_PAGE);
 		}
 		chunk_dalloc_wrapper(tsdn, arena, chunk_hooks, (void *)chunk,
 		    chunksize, *zero, *commit);
@@ -675,9 +675,8 @@ arena_chunk_discard(tsdn_t *tsdn, arena_t *arena, arena_chunk_t *chunk)
 		 * chunk as committed has a high potential for causing later
 		 * access of decommitted memory.
 		 */
-		chunk_hooks = chunk_hooks_get(tsdn, arena);
-		chunk_hooks.decommit(chunk, chunksize, 0, map_bias << LG_PAGE,
-		    arena->ind);
+		chunk_decommit_wrapper(tsdn, arena, &chunk_hooks, chunk,
+		    chunksize, 0, map_bias << LG_PAGE);
 	}
 
 	chunk_dalloc_cache(tsdn, arena, &chunk_hooks, (void *)chunk, chunksize,
@@ -1603,8 +1602,9 @@ arena_purge_stashed(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 			assert(!arena_mapbits_decommitted_get(chunk, pageind));
 			assert(!arena_mapbits_decommitted_get(chunk,
 			    pageind+npages-1));
-			decommitted = !chunk_hooks->decommit(chunk, chunksize,
-			    pageind << LG_PAGE, npages << LG_PAGE, arena->ind);
+			decommitted = !chunk_decommit_wrapper(tsdn, arena,
+			    chunk_hooks, chunk, chunksize, pageind << LG_PAGE,
+			    npages << LG_PAGE);
 			if (decommitted) {
 				flag_unzeroed = 0;
 				flags = CHUNK_MAP_DECOMMITTED;

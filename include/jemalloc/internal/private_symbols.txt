@@ -162,6 +162,7 @@ chunk_boot
 chunk_dalloc_cache
 chunk_dalloc_mmap
 chunk_dalloc_wrapper
+chunk_decommit_wrapper
 chunk_deregister
 chunk_dss_boot
 chunk_dss_postfork_child
