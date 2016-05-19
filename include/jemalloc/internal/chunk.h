@@ -55,10 +55,10 @@ chunk_hooks_t	chunk_hooks_set(tsdn_t *tsdn, arena_t *arena,
 bool	chunk_register(tsdn_t *tsdn, const extent_t *extent);
 void	chunk_deregister(tsdn_t *tsdn, const extent_t *extent);
 void	chunk_reregister(tsdn_t *tsdn, const extent_t *extent);
-void	*chunk_alloc_cache(tsdn_t *tsdn, arena_t *arena,
+extent_t	*chunk_alloc_cache(tsdn_t *tsdn, arena_t *arena,
     chunk_hooks_t *chunk_hooks, void *new_addr, size_t size, size_t alignment,
-    bool *zero, bool dalloc_extent);
-void	*chunk_alloc_wrapper(tsdn_t *tsdn, arena_t *arena,
+    bool *zero);
+extent_t	*chunk_alloc_wrapper(tsdn_t *tsdn, arena_t *arena,
     chunk_hooks_t *chunk_hooks, void *new_addr, size_t size, size_t alignment,
     bool *zero, bool *commit);
 void	chunk_dalloc_cache(tsdn_t *tsdn, arena_t *arena,
@@ -75,6 +75,8 @@ bool	chunk_decommit_wrapper(tsdn_t *tsdn, arena_t *arena,
 bool	chunk_purge_wrapper(tsdn_t *tsdn, arena_t *arena,
     chunk_hooks_t *chunk_hooks, void *chunk, size_t size, size_t offset,
     size_t length);
+extent_t	*chunk_split_wrapper(tsdn_t *tsdn, arena_t *arena,
+    chunk_hooks_t *chunk_hooks, extent_t *extent, size_t size_a, size_t size_b);
 bool	chunk_merge_wrapper(tsdn_t *tsdn, arena_t *arena,
     chunk_hooks_t *chunk_hooks, extent_t *a, extent_t *b);
 bool	chunk_boot(void);

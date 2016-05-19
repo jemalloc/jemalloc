@@ -177,13 +177,6 @@ typedef ph(arena_chunk_map_misc_t) arena_run_heap_t;
 /* Arena chunk header. */
 struct arena_chunk_s {
 	/*
-	 * A pointer to the arena that owns the chunk is stored within the
-	 * extent structure.  This field as a whole is used by chunks_rtree to
-	 * support both ivsalloc() and core-based debugging.
-	 */
-	extent_t		extent;
-
-	/*
 	 * Map of pages within chunk that keeps track of free/large/small.  The
 	 * first map_bias entries are omitted, since the chunk header does not
 	 * need to be tracked in the map.  This omission saves a header page
@@ -315,7 +308,7 @@ struct arena_s {
 	 * order to avoid interactions between multiple threads that could make
 	 * a single spare inadequate.
 	 */
-	arena_chunk_t		*spare;
+	extent_t		*spare;
 
 	/* Minimum ratio (log base 2) of nactive:ndirty. */
 	ssize_t			lg_dirty_mult;
@@ -481,22 +474,27 @@ typedef size_t (run_quantize_t)(size_t);
 extern run_quantize_t *run_quantize_floor;
 extern run_quantize_t *run_quantize_ceil;
 #endif
+extent_t	*arena_chunk_cache_alloc(tsdn_t *tsdn, arena_t *arena,
+    chunk_hooks_t *chunk_hooks, void *new_addr, size_t size, size_t alignment,
+    bool *zero);
+void	arena_chunk_cache_dalloc(tsdn_t *tsdn, arena_t *arena,
+    chunk_hooks_t *chunk_hooks, void *chunk, size_t size, bool committed);
 void	arena_chunk_cache_maybe_insert(arena_t *arena, extent_t *extent,
     bool cache);
 void	arena_chunk_cache_maybe_remove(arena_t *arena, extent_t *extent,
     bool cache);
 extent_t	*arena_extent_alloc(tsdn_t *tsdn, arena_t *arena);
 void	arena_extent_dalloc(tsdn_t *tsdn, arena_t *arena, extent_t *extent);
-void	*arena_chunk_alloc_huge(tsdn_t *tsdn, arena_t *arena, size_t usize,
-    size_t alignment, bool *zero);
+extent_t	*arena_chunk_alloc_huge(tsdn_t *tsdn, arena_t *arena,
+    size_t usize, size_t alignment, bool *zero);
 void	arena_chunk_dalloc_huge(tsdn_t *tsdn, arena_t *arena, void *chunk,
     size_t usize);
 void	arena_chunk_ralloc_huge_similar(tsdn_t *tsdn, arena_t *arena,
-    void *chunk, size_t oldsize, size_t usize);
+    extent_t *extent, size_t oldsize);
 void	arena_chunk_ralloc_huge_shrink(tsdn_t *tsdn, arena_t *arena,
-    void *chunk, size_t oldsize, size_t usize);
-bool	arena_chunk_ralloc_huge_expand(tsdn_t *tsdn, arena_t *arena,
-    extent_t *extent, size_t usize);
+    extent_t *extent, size_t oldsize);
+void	arena_chunk_ralloc_huge_expand(tsdn_t *tsdn, arena_t *arena,
+    extent_t *extent, size_t oldsize);
 ssize_t	arena_lg_dirty_mult_get(tsdn_t *tsdn, arena_t *arena);
 bool	arena_lg_dirty_mult_set(tsdn_t *tsdn, arena_t *arena,
     ssize_t lg_dirty_mult);
@@ -1193,7 +1191,7 @@ arena_prof_tctx_get(tsdn_t *tsdn, const extent_t *extent, const void *ptr)
 			ret = atomic_read_p(&elm->prof_tctx_pun);
 		}
 	} else
-		ret = huge_prof_tctx_get(tsdn, extent, ptr);
+		ret = huge_prof_tctx_get(tsdn, extent);
 
 	return (ret);
 }
@@ -1230,7 +1228,7 @@ arena_prof_tctx_set(tsdn_t *tsdn, extent_t *extent, const void *ptr,
 			assert(arena_mapbits_large_get(chunk, pageind) == 0);
 		}
 	} else
-		huge_prof_tctx_set(tsdn, extent, ptr, tctx);
+		huge_prof_tctx_set(tsdn, extent, tctx);
 }
 
 JEMALLOC_INLINE void
@@ -1258,7 +1256,7 @@ arena_prof_tctx_reset(tsdn_t *tsdn, extent_t *extent, const void *ptr,
 			atomic_write_p(&elm->prof_tctx_pun,
 			    (prof_tctx_t *)(uintptr_t)1U);
 		} else
-			huge_prof_tctx_reset(tsdn, extent, ptr);
+			huge_prof_tctx_reset(tsdn, extent);
 	}
 }
 
@@ -1362,7 +1360,7 @@ arena_salloc(tsdn_t *tsdn, const extent_t *extent, const void *ptr, bool demote)
 			ret = index2size(binind);
 		}
 	} else
-		ret = huge_salloc(tsdn, extent, ptr);
+		ret = huge_salloc(tsdn, extent);
 
 	return (ret);
 }
@@ -1413,7 +1411,7 @@ arena_dalloc(tsdn_t *tsdn, extent_t *extent, void *ptr, tcache_t *tcache,
 			}
 		}
 	} else
-		huge_dalloc(tsdn, extent, ptr);
+		huge_dalloc(tsdn, extent);
 }
 
 JEMALLOC_ALWAYS_INLINE void
@@ -1470,7 +1468,7 @@ arena_sdalloc(tsdn_t *tsdn, extent_t *extent, void *ptr, size_t size,
 			}
 		}
 	} else
-		huge_dalloc(tsdn, extent, ptr);
+		huge_dalloc(tsdn, extent);
 }
 #  endif /* JEMALLOC_ARENA_INLINE_B */
 #endif

@@ -12,22 +12,19 @@
 void	*huge_malloc(tsdn_t *tsdn, arena_t *arena, size_t usize, bool zero);
 void	*huge_palloc(tsdn_t *tsdn, arena_t *arena, size_t usize,
     size_t alignment, bool zero);
-bool	huge_ralloc_no_move(tsdn_t *tsdn, extent_t *extent, void *ptr,
-    size_t oldsize, size_t usize_min, size_t usize_max, bool zero);
-void	*huge_ralloc(tsdn_t *tsdn, arena_t *arena, extent_t *extent, void *ptr,
-    size_t oldsize, size_t usize, size_t alignment, bool zero,
-    tcache_t *tcache);
+bool	huge_ralloc_no_move(tsdn_t *tsdn, extent_t *extent, size_t usize_min,
+    size_t usize_max, bool zero);
+void	*huge_ralloc(tsdn_t *tsdn, arena_t *arena, extent_t *extent,
+    size_t usize, size_t alignment, bool zero, tcache_t *tcache);
 #ifdef JEMALLOC_JET
 typedef void (huge_dalloc_junk_t)(tsdn_t *, void *, size_t);
 extern huge_dalloc_junk_t *huge_dalloc_junk;
 #endif
-void	huge_dalloc(tsdn_t *tsdn, extent_t *extent, void *ptr);
-size_t	huge_salloc(tsdn_t *tsdn, const extent_t *extent, const void *ptr);
-prof_tctx_t	*huge_prof_tctx_get(tsdn_t *tsdn, const extent_t *extent,
-    const void *ptr);
-void	huge_prof_tctx_set(tsdn_t *tsdn, extent_t *extent, const void *ptr,
-    prof_tctx_t *tctx);
-void	huge_prof_tctx_reset(tsdn_t *tsdn, extent_t *extent, const void *ptr);
+void	huge_dalloc(tsdn_t *tsdn, extent_t *extent);
+size_t	huge_salloc(tsdn_t *tsdn, const extent_t *extent);
+prof_tctx_t	*huge_prof_tctx_get(tsdn_t *tsdn, const extent_t *extent);
+void	huge_prof_tctx_set(tsdn_t *tsdn, extent_t *extent, prof_tctx_t *tctx);
+void	huge_prof_tctx_reset(tsdn_t *tsdn, extent_t *extent);
 
 #endif /* JEMALLOC_H_EXTERNS */
 /******************************************************************************/
