@@ -1542,8 +1542,8 @@ arena_purge_stashed(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 				flags = CHUNK_MAP_DECOMMITTED;
 			} else {
 				flag_unzeroed = chunk_purge_wrapper(tsdn, arena,
-				    chunk_hooks, chunk, chunksize, pageind <<
-				    LG_PAGE, run_size) ? CHUNK_MAP_UNZEROED : 0;
+				    chunk_hooks, extent, pageind << LG_PAGE,
+				    run_size) ? CHUNK_MAP_UNZEROED : 0;
 				flags = flag_unzeroed;
 			}
 			arena_mapbits_large_set(chunk, pageind+npages-1, 0,

@@ -67,8 +67,7 @@ bool	chunk_commit_wrapper(tsdn_t *tsdn, arena_t *arena,
 bool	chunk_decommit_wrapper(tsdn_t *tsdn, arena_t *arena,
     chunk_hooks_t *chunk_hooks, extent_t *extent, size_t offset, size_t length);
 bool	chunk_purge_wrapper(tsdn_t *tsdn, arena_t *arena,
-    chunk_hooks_t *chunk_hooks, void *chunk, size_t size, size_t offset,
-    size_t length);
+    chunk_hooks_t *chunk_hooks, extent_t *extent, size_t offset, size_t length);
 extent_t	*chunk_split_wrapper(tsdn_t *tsdn, arena_t *arena,
     chunk_hooks_t *chunk_hooks, extent_t *extent, size_t size_a, size_t size_b);
 bool	chunk_merge_wrapper(tsdn_t *tsdn, arena_t *arena,

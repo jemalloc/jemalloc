@@ -281,8 +281,7 @@ chunk_leak(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks, bool cache,
 	 * that this is only a virtual memory leak.
 	 */
 	if (cache) {
-		chunk_purge_wrapper(tsdn, arena, chunk_hooks,
-		    extent_addr_get(extent), extent_size_get(extent), 0,
+		chunk_purge_wrapper(tsdn, arena, chunk_hooks, extent, 0,
 		    extent_size_get(extent));
 	}
 	extent_dalloc(tsdn, arena, extent);
@@ -739,11 +738,13 @@ chunk_purge_default(void *chunk, size_t size, size_t offset, size_t length,
 
 bool
 chunk_purge_wrapper(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
-    void *chunk, size_t size, size_t offset, size_t length)
+    extent_t *extent, size_t offset, size_t length)
 {
 
 	chunk_hooks_assure_initialized(tsdn, arena, chunk_hooks);
-	return (chunk_hooks->purge(chunk, size, offset, length, arena->ind));
+	return (chunk_hooks->purge(extent_addr_get(extent),
+	    CHUNK_CEILING(extent_size_get(extent)), offset, length,
+	    arena->ind));
 }
 
 static bool

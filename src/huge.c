@@ -115,8 +115,7 @@ huge_ralloc_no_move_similar(tsdn_t *tsdn, extent_t *extent, size_t usize_min,
 			post_zeroed = false;
 		} else {
 			post_zeroed = !chunk_purge_wrapper(tsdn, arena,
-			    &chunk_hooks, extent_addr_get(extent),
-			    CHUNK_CEILING(oldsize), usize, sdiff);
+			    &chunk_hooks, extent, usize, sdiff);
 		}
 	} else
 		post_zeroed = pre_zeroed;
@@ -183,8 +182,7 @@ huge_ralloc_no_move_shrink(tsdn_t *tsdn, extent_t *extent, size_t usize)
 			post_zeroed = false;
 		} else {
 			post_zeroed = !chunk_purge_wrapper(tsdn, arena,
-			    &chunk_hooks, extent_addr_get(extent),
-			    CHUNK_CEILING(usize), usize, sdiff);
+			    &chunk_hooks, extent, usize, sdiff);
 
 			if (config_fill && unlikely(opt_zero) && !post_zeroed) {
 				memset((void *)
