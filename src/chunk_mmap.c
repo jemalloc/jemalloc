@@ -73,6 +73,5 @@ chunk_dalloc_mmap(void *chunk, size_t size)
 
 	if (config_munmap)
 		pages_unmap(chunk, size);
-
 	return (!config_munmap);
 }

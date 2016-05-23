@@ -89,7 +89,8 @@ chunk_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
 		 * malloc.
 		 */
 		do {
-			void *ret, *cpad, *dss_next;
+			void *ret, *cpad_addr, *dss_next;
+			extent_t *cpad;
 			size_t gap_size, cpad_size;
 			intptr_t incr;
 			/* Avoid an unnecessary system call. */
@@ -114,10 +115,19 @@ chunk_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
 			 * necessary to satisfy alignment.  This space can be
 			 * recycled for later use.
 			 */
-			cpad = (void *)((uintptr_t)dss_max + gap_size);
+			cpad_addr = (void *)((uintptr_t)dss_max + gap_size);
 			ret = (void *)ALIGNMENT_CEILING((uintptr_t)dss_max,
 			    alignment);
-			cpad_size = (uintptr_t)ret - (uintptr_t)cpad;
+			cpad_size = (uintptr_t)ret - (uintptr_t)cpad_addr;
+			if (cpad_size != 0) {
+				cpad = extent_alloc(tsdn, arena);
+				if (cpad == NULL) {
+					malloc_mutex_unlock(tsdn, &dss_mtx);
+					return (NULL);
+				}
+				extent_init(cpad, arena, cpad_addr, cpad_size,
+				    false, false, true, false);
+			}
 			dss_next = (void *)((uintptr_t)ret + size);
 			if ((uintptr_t)ret < (uintptr_t)dss_max ||
 			    (uintptr_t)dss_next < (uintptr_t)dss_max) {
@@ -135,8 +145,7 @@ chunk_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
 					chunk_hooks_t chunk_hooks =
 					    CHUNK_HOOKS_INITIALIZER;
 					chunk_dalloc_wrapper(tsdn, arena,
-					    &chunk_hooks, cpad, cpad_size,
-					    false, true);
+					    &chunk_hooks, cpad);
 				}
 				if (*zero)
 					memset(ret, 0, size);

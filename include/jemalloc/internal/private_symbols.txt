@@ -37,8 +37,6 @@ arena_decay_time_get
 arena_decay_time_set
 arena_dss_prec_get
 arena_dss_prec_set
-arena_extent_alloc
-arena_extent_dalloc
 arena_get
 arena_ichoose
 arena_init
@@ -166,7 +164,6 @@ chunk_dalloc_cache
 chunk_dalloc_mmap
 chunk_dalloc_wrapper
 chunk_decommit_wrapper
-chunk_deregister
 chunk_dss_boot
 chunk_dss_postfork_child
 chunk_dss_postfork_parent
@@ -184,8 +181,6 @@ chunk_postfork_child
 chunk_postfork_parent
 chunk_prefork
 chunk_purge_wrapper
-chunk_register
-chunk_reregister
 chunk_split_wrapper
 chunks_rtree
 chunksize
@@ -214,10 +209,12 @@ extent_active_get
 extent_active_set
 extent_addr_get
 extent_addr_set
+extent_alloc
 extent_arena_get
 extent_arena_set
 extent_committed_get
 extent_committed_set
+extent_dalloc
 extent_dirty_insert
 extent_dirty_remove
 extent_init

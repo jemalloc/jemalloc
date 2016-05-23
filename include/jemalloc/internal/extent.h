@@ -62,6 +62,9 @@ typedef ph(extent_t) extent_heap_t;
 /******************************************************************************/
 #ifdef JEMALLOC_H_EXTERNS
 
+extent_t	*extent_alloc(tsdn_t *tsdn, arena_t *arena);
+void	extent_dalloc(tsdn_t *tsdn, arena_t *arena, extent_t *extent);
+
 #ifdef JEMALLOC_JET
 typedef size_t (extent_size_quantize_t)(size_t);
 extern extent_size_quantize_t *extent_size_quantize_floor;

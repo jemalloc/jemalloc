@@ -3,6 +3,32 @@
 
 /******************************************************************************/
 
+extent_t *
+extent_alloc(tsdn_t *tsdn, arena_t *arena)
+{
+	extent_t *extent;
+
+	malloc_mutex_lock(tsdn, &arena->extent_cache_mtx);
+	extent = ql_last(&arena->extent_cache, ql_link);
+	if (extent == NULL) {
+		malloc_mutex_unlock(tsdn, &arena->extent_cache_mtx);
+		return (base_alloc(tsdn, sizeof(extent_t)));
+	}
+	ql_tail_remove(&arena->extent_cache, extent_t, ql_link);
+	malloc_mutex_unlock(tsdn, &arena->extent_cache_mtx);
+	return (extent);
+}
+
+void
+extent_dalloc(tsdn_t *tsdn, arena_t *arena, extent_t *extent)
+{
+
+	malloc_mutex_lock(tsdn, &arena->extent_cache_mtx);
+	ql_elm_new(extent, ql_link);
+	ql_tail_insert(&arena->extent_cache, extent, ql_link);
+	malloc_mutex_unlock(tsdn, &arena->extent_cache_mtx);
+}
+
 #ifdef JEMALLOC_JET
 #undef extent_size_quantize_floor
 #define	extent_size_quantize_floor JEMALLOC_N(n_extent_size_quantize_floor)

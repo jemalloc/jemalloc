@@ -478,17 +478,14 @@ extent_t	*arena_chunk_cache_alloc(tsdn_t *tsdn, arena_t *arena,
     chunk_hooks_t *chunk_hooks, void *new_addr, size_t size, size_t alignment,
     bool *zero);
 void	arena_chunk_cache_dalloc(tsdn_t *tsdn, arena_t *arena,
-    chunk_hooks_t *chunk_hooks, void *chunk, size_t size, bool committed);
+    chunk_hooks_t *chunk_hooks, extent_t *extent);
 void	arena_chunk_cache_maybe_insert(arena_t *arena, extent_t *extent,
     bool cache);
 void	arena_chunk_cache_maybe_remove(arena_t *arena, extent_t *extent,
     bool cache);
-extent_t	*arena_extent_alloc(tsdn_t *tsdn, arena_t *arena);
-void	arena_extent_dalloc(tsdn_t *tsdn, arena_t *arena, extent_t *extent);
 extent_t	*arena_chunk_alloc_huge(tsdn_t *tsdn, arena_t *arena,
     size_t usize, size_t alignment, bool *zero);
-void	arena_chunk_dalloc_huge(tsdn_t *tsdn, arena_t *arena, void *chunk,
-    size_t usize);
+void	arena_chunk_dalloc_huge(tsdn_t *tsdn, arena_t *arena, extent_t *extent);
 void	arena_chunk_ralloc_huge_similar(tsdn_t *tsdn, arena_t *arena,
     extent_t *extent, size_t oldsize);
 void	arena_chunk_ralloc_huge_shrink(tsdn_t *tsdn, arena_t *arena,
