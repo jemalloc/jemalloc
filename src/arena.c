@@ -440,7 +440,7 @@ arena_run_split_large_helper(tsdn_t *tsdn, arena_t *arena, extent_t *extent,
 	assert(need_pages > 0);
 
 	if (flag_decommitted != 0 && chunk_commit_wrapper(tsdn, arena,
-	    &arena->chunk_hooks, chunk, chunksize, run_ind << LG_PAGE, size))
+	    &arena->chunk_hooks, extent, run_ind << LG_PAGE, size))
 		return (true);
 
 	if (remove) {
@@ -523,7 +523,7 @@ arena_run_split_small(tsdn_t *tsdn, arena_t *arena, extent_t *extent,
 	assert(need_pages > 0);
 
 	if (flag_decommitted != 0 && chunk_commit_wrapper(tsdn, arena,
-	    &arena->chunk_hooks, chunk, chunksize, run_ind << LG_PAGE, size))
+	    &arena->chunk_hooks, extent, run_ind << LG_PAGE, size))
 		return (true);
 
 	arena_run_split_remove(arena, chunk, run_ind, flag_dirty,
@@ -578,8 +578,7 @@ arena_chunk_alloc_internal_hard(tsdn_t *tsdn, arena_t *arena,
 	    chunksize, zero, commit);
 	if (extent != NULL && !*commit) {
 		/* Commit header. */
-		if (chunk_commit_wrapper(tsdn, arena, chunk_hooks,
-		    extent_addr_get(extent), extent_size_get(extent), 0,
+		if (chunk_commit_wrapper(tsdn, arena, chunk_hooks, extent, 0,
 		    map_bias << LG_PAGE)) {
 			chunk_dalloc_wrapper(tsdn, arena, chunk_hooks, extent);
 			extent = NULL;
@@ -708,8 +707,7 @@ arena_chunk_discard(tsdn_t *tsdn, arena_t *arena, extent_t *extent)
 		 * chunk as committed has a high potential for causing later
 		 * access of decommitted memory.
 		 */
-		chunk_decommit_wrapper(tsdn, arena, &chunk_hooks,
-		    extent_addr_get(extent), extent_size_get(extent), 0,
+		chunk_decommit_wrapper(tsdn, arena, &chunk_hooks, extent, 0,
 		    map_bias << LG_PAGE);
 	}
 
@@ -1537,8 +1535,8 @@ arena_purge_stashed(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 			assert(!arena_mapbits_decommitted_get(chunk,
 			    pageind+npages-1));
 			decommitted = !chunk_decommit_wrapper(tsdn, arena,
-			    chunk_hooks, chunk, chunksize, pageind << LG_PAGE,
-			    npages << LG_PAGE);
+			    chunk_hooks, extent, pageind << LG_PAGE, npages <<
+			    LG_PAGE);
 			if (decommitted) {
 				flag_unzeroed = 0;
 				flags = CHUNK_MAP_DECOMMITTED;

@@ -695,11 +695,12 @@ chunk_commit_default(void *chunk, size_t size, size_t offset, size_t length,
 
 bool
 chunk_commit_wrapper(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
-    void *chunk, size_t size, size_t offset, size_t length)
+    extent_t *extent, size_t offset, size_t length)
 {
 
 	chunk_hooks_assure_initialized(tsdn, arena, chunk_hooks);
-	return (chunk_hooks->commit(chunk, size, offset, length, arena->ind));
+	return (chunk_hooks->commit(extent_addr_get(extent),
+	    extent_size_get(extent), offset, length, arena->ind));
 }
 
 static bool
@@ -713,11 +714,12 @@ chunk_decommit_default(void *chunk, size_t size, size_t offset, size_t length,
 
 bool
 chunk_decommit_wrapper(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
-    void *chunk, size_t size, size_t offset, size_t length)
+    extent_t *extent, size_t offset, size_t length)
 {
 
 	chunk_hooks_assure_initialized(tsdn, arena, chunk_hooks);
-	return (chunk_hooks->decommit(chunk, size, offset, length, arena->ind));
+	return (chunk_hooks->decommit(extent_addr_get(extent),
+	    extent_size_get(extent), offset, length, arena->ind));
 }
 
 static bool

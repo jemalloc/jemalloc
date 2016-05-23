@@ -63,11 +63,9 @@ void	chunk_dalloc_cache(tsdn_t *tsdn, arena_t *arena,
 void	chunk_dalloc_wrapper(tsdn_t *tsdn, arena_t *arena,
     chunk_hooks_t *chunk_hooks, extent_t *extent);
 bool	chunk_commit_wrapper(tsdn_t *tsdn, arena_t *arena,
-    chunk_hooks_t *chunk_hooks, void *chunk, size_t size, size_t offset,
-    size_t length);
+    chunk_hooks_t *chunk_hooks, extent_t *extent, size_t offset, size_t length);
 bool	chunk_decommit_wrapper(tsdn_t *tsdn, arena_t *arena,
-    chunk_hooks_t *chunk_hooks, void *chunk, size_t size, size_t offset,
-    size_t length);
+    chunk_hooks_t *chunk_hooks, extent_t *extent, size_t offset, size_t length);
 bool	chunk_purge_wrapper(tsdn_t *tsdn, arena_t *arena,
     chunk_hooks_t *chunk_hooks, void *chunk, size_t size, size_t offset,
     size_t length);
