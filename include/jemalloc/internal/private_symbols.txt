@@ -215,8 +215,10 @@ extent_arena_set
 extent_committed_get
 extent_committed_set
 extent_dalloc
+extent_dirty_get
 extent_dirty_insert
 extent_dirty_remove
+extent_dirty_set
 extent_init
 extent_past_get
 extent_prof_tctx_get

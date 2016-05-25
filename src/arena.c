@@ -1644,7 +1644,7 @@ arena_purge_to_limit(tsdn_t *tsdn, arena_t *arena, size_t ndirty_limit)
 	    arena->lg_dirty_mult) < arena->ndirty || ndirty_limit == 0);
 
 	qr_new(&purge_runs_sentinel, rd_link);
-	extent_init(&purge_chunks_sentinel, arena, NULL, 0, false, false,
+	extent_init(&purge_chunks_sentinel, arena, NULL, 0, false, false, false,
 	    false, false);
 
 	npurge = arena_stash_dirty(tsdn, arena, &chunk_hooks, ndirty_limit,

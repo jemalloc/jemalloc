@@ -553,7 +553,7 @@ chunk_alloc_wrapper_hard(tsdn_t *tsdn, arena_t *arena,
 	    arena->ind);
 	if (addr == NULL)
 		return (NULL);
-	extent_init(extent, arena, addr, size, true, zero, commit, slab);
+	extent_init(extent, arena, addr, size, true, false, zero, commit, slab);
 	if (chunk_register(tsdn, extent)) {
 		chunk_leak(tsdn, arena, chunk_hooks, false, extent);
 		return (NULL);
@@ -828,8 +828,9 @@ chunk_split_wrapper(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 		extent_t lead;
 
 		extent_init(&lead, arena, extent_addr_get(extent), size_a,
-		    extent_active_get(extent), extent_zeroed_get(extent),
-		    extent_committed_get(extent), extent_slab_get(extent));
+		    extent_active_get(extent), extent_dirty_get(extent),
+		    extent_zeroed_get(extent), extent_committed_get(extent),
+		    extent_slab_get(extent));
 
 		if (extent_rtree_acquire(tsdn, &lead, false, true, &lead_elm_a,
 		    &lead_elm_b))
@@ -838,8 +839,8 @@ chunk_split_wrapper(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 
 	extent_init(trail, arena, (void *)((uintptr_t)extent_addr_get(extent) +
 	    size_a), CHUNK_CEILING(size_b), extent_active_get(extent),
-	    extent_zeroed_get(extent), extent_committed_get(extent),
-	    extent_slab_get(extent));
+	    extent_dirty_get(extent), extent_zeroed_get(extent),
+	    extent_committed_get(extent), extent_slab_get(extent));
 	if (extent_rtree_acquire(tsdn, trail, false, true, &trail_elm_a,
 	    &trail_elm_b))
 		goto label_error_c;

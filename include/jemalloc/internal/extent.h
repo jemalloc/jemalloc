@@ -21,6 +21,9 @@ struct extent_s {
 	/* True if extent is active (in use). */
 	bool			e_active;
 
+	/* True if extent is dirty (touched). */
+	bool			e_dirty;
+
 	/*
 	 * The zeroed flag is used by chunk recycling code to track whether
 	 * memory is zero-filled.
@@ -86,6 +89,7 @@ void	*extent_addr_get(const extent_t *extent);
 size_t	extent_size_get(const extent_t *extent);
 void	*extent_past_get(const extent_t *extent);
 bool	extent_active_get(const extent_t *extent);
+bool	extent_dirty_get(const extent_t *extent);
 bool	extent_retained_get(const extent_t *extent);
 bool	extent_zeroed_get(const extent_t *extent);
 bool	extent_committed_get(const extent_t *extent);
@@ -95,12 +99,14 @@ void	extent_arena_set(extent_t *extent, arena_t *arena);
 void	extent_addr_set(extent_t *extent, void *addr);
 void	extent_size_set(extent_t *extent, size_t size);
 void	extent_active_set(extent_t *extent, bool active);
+void	extent_dirty_set(extent_t *extent, bool dirty);
 void	extent_zeroed_set(extent_t *extent, bool zeroed);
 void	extent_committed_set(extent_t *extent, bool committed);
 void	extent_slab_set(extent_t *extent, bool slab);
 void	extent_prof_tctx_set(extent_t *extent, prof_tctx_t *tctx);
 void	extent_init(extent_t *extent, arena_t *arena, void *addr,
-    size_t size, bool active, bool zeroed, bool committed, bool slab);
+    size_t size, bool active, bool dirty, bool zeroed, bool committed,
+    bool slab);
 void	extent_dirty_insert(extent_t *extent,
     arena_runs_dirty_link_t *runs_dirty, extent_t *chunks_dirty);
 void	extent_dirty_remove(extent_t *extent);
@@ -140,6 +146,13 @@ extent_active_get(const extent_t *extent)
 {
 
 	return (extent->e_active);
+}
+
+JEMALLOC_INLINE bool
+extent_dirty_get(const extent_t *extent)
+{
+
+	return (extent->e_dirty);
 }
 
 JEMALLOC_INLINE bool
@@ -206,6 +219,13 @@ extent_active_set(extent_t *extent, bool active)
 }
 
 JEMALLOC_INLINE void
+extent_dirty_set(extent_t *extent, bool dirty)
+{
+
+	extent->e_dirty = dirty;
+}
+
+JEMALLOC_INLINE void
 extent_zeroed_set(extent_t *extent, bool zeroed)
 {
 
@@ -235,13 +255,14 @@ extent_prof_tctx_set(extent_t *extent, prof_tctx_t *tctx)
 
 JEMALLOC_INLINE void
 extent_init(extent_t *extent, arena_t *arena, void *addr, size_t size,
-    bool active, bool zeroed, bool committed, bool slab)
+    bool active, bool dirty, bool zeroed, bool committed, bool slab)
 {
 
 	extent_arena_set(extent, arena);
 	extent_addr_set(extent, addr);
 	extent_size_set(extent, size);
 	extent_active_set(extent, active);
+	extent_dirty_set(extent, dirty);
 	extent_zeroed_set(extent, zeroed);
 	extent_committed_set(extent, committed);
 	extent_slab_set(extent, slab);

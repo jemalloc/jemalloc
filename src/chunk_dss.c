@@ -126,7 +126,7 @@ chunk_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
 					return (NULL);
 				}
 				extent_init(cpad, arena, cpad_addr, cpad_size,
-				    false, false, true, false);
+				    false, true, false, true, false);
 			}
 			dss_next = (void *)((uintptr_t)ret + size);
 			if ((uintptr_t)ret < (uintptr_t)dss_max ||
