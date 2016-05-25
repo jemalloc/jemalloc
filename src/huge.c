@@ -216,8 +216,8 @@ huge_ralloc_no_move_expand(tsdn_t *tsdn, extent_t *extent, size_t usize,
 	    cdiff, chunksize, &is_zeroed_chunk)) == NULL) {
 		bool commit = true;
 		if ((trail = chunk_alloc_wrapper(tsdn, arena, &chunk_hooks,
-		    nchunk, cdiff, chunksize, &is_zeroed_chunk, &commit)) ==
-		    NULL)
+		    nchunk, cdiff, chunksize, &is_zeroed_chunk, &commit, false))
+		    == NULL)
 			return (true);
 	}
 

@@ -223,13 +223,13 @@ arena_chunk_dirty_npages(const extent_t *extent)
 static extent_t *
 arena_chunk_cache_alloc_locked(tsdn_t *tsdn, arena_t *arena,
     chunk_hooks_t *chunk_hooks, void *new_addr, size_t size, size_t alignment,
-    bool *zero)
+    bool *zero, bool slab)
 {
 
 	malloc_mutex_assert_owner(tsdn, &arena->lock);
 
 	return (chunk_alloc_cache(tsdn, arena, chunk_hooks, new_addr, size,
-	    alignment, zero));
+	    alignment, zero, slab));
 }
 
 extent_t *
@@ -241,7 +241,7 @@ arena_chunk_cache_alloc(tsdn_t *tsdn, arena_t *arena,
 
 	malloc_mutex_lock(tsdn, &arena->lock);
 	extent = arena_chunk_cache_alloc_locked(tsdn, arena, chunk_hooks,
-	    new_addr, size, alignment, zero);
+	    new_addr, size, alignment, zero, false);
 	malloc_mutex_unlock(tsdn, &arena->lock);
 
 	return (extent);
@@ -575,7 +575,7 @@ arena_chunk_alloc_internal_hard(tsdn_t *tsdn, arena_t *arena,
 	malloc_mutex_unlock(tsdn, &arena->lock);
 
 	extent = chunk_alloc_wrapper(tsdn, arena, chunk_hooks, NULL, chunksize,
-	    chunksize, zero, commit);
+	    chunksize, zero, commit, true);
 	if (extent != NULL && !*commit) {
 		/* Commit header. */
 		if (chunk_commit_wrapper(tsdn, arena, chunk_hooks, extent, 0,
@@ -584,9 +584,6 @@ arena_chunk_alloc_internal_hard(tsdn_t *tsdn, arena_t *arena,
 			extent = NULL;
 		}
 	}
-
-	if (extent != NULL)
-		extent_slab_set(extent, true);
 
 	malloc_mutex_lock(tsdn, &arena->lock);
 
@@ -601,11 +598,9 @@ arena_chunk_alloc_internal(tsdn_t *tsdn, arena_t *arena, bool *zero,
 	chunk_hooks_t chunk_hooks = CHUNK_HOOKS_INITIALIZER;
 
 	extent = arena_chunk_cache_alloc_locked(tsdn, arena, &chunk_hooks, NULL,
-	    chunksize, chunksize, zero);
-	if (extent != NULL) {
-		extent_slab_set(extent, true);
+	    chunksize, chunksize, zero, true);
+	if (extent != NULL)
 		*commit = true;
-	}
 	if (extent == NULL) {
 		extent = arena_chunk_alloc_internal_hard(tsdn, arena,
 		    &chunk_hooks, zero, commit);
@@ -699,7 +694,6 @@ arena_chunk_discard(tsdn_t *tsdn, arena_t *arena, extent_t *extent)
 	extent_committed_set(extent,
 	    (arena_mapbits_decommitted_get((arena_chunk_t *)
 	    extent_addr_get(extent), map_bias) == 0));
-	extent_slab_set(extent, false);
 	if (!extent_committed_get(extent)) {
 		/*
 		 * Decommit the header.  Mark the chunk as decommitted even if
@@ -828,7 +822,7 @@ arena_chunk_alloc_huge_hard(tsdn_t *tsdn, arena_t *arena,
 	bool commit = true;
 
 	extent = chunk_alloc_wrapper(tsdn, arena, chunk_hooks, NULL, csize,
-	    alignment, zero, &commit);
+	    alignment, zero, &commit, false);
 	if (extent == NULL) {
 		/* Revert optimistic stats updates. */
 		malloc_mutex_lock(tsdn, &arena->lock);
@@ -861,7 +855,7 @@ arena_chunk_alloc_huge(tsdn_t *tsdn, arena_t *arena, size_t usize,
 	arena_nactive_add(arena, usize >> LG_PAGE);
 
 	extent = arena_chunk_cache_alloc_locked(tsdn, arena, &chunk_hooks, NULL,
-	    csize, alignment, zero);
+	    csize, alignment, zero, false);
 	malloc_mutex_unlock(tsdn, &arena->lock);
 	if (extent == NULL) {
 		extent = arena_chunk_alloc_huge_hard(tsdn, arena, &chunk_hooks,
@@ -1429,7 +1423,8 @@ arena_stash_dirty(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 			zero = false;
 			extent = arena_chunk_cache_alloc_locked(tsdn, arena,
 			    chunk_hooks, extent_addr_get(chunkselm),
-			    extent_size_get(chunkselm), chunksize, &zero);
+			    extent_size_get(chunkselm), chunksize, &zero,
+			    false);
 			assert(extent == chunkselm);
 			assert(zero == extent_zeroed_get(chunkselm));
 			extent_dirty_insert(chunkselm, purge_runs_sentinel,
@@ -2561,9 +2556,8 @@ arena_palloc(tsdn_t *tsdn, arena_t *arena, size_t usize, size_t alignment,
 			    zero);
 		} else if (likely(alignment <= chunksize))
 			ret = huge_malloc(tsdn, arena, usize, zero);
-		else {
+		else
 			ret = huge_palloc(tsdn, arena, usize, alignment, zero);
-		}
 	}
 	return (ret);
 }

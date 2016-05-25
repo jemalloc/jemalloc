@@ -146,7 +146,6 @@ JEMALLOC_INLINE bool
 extent_retained_get(const extent_t *extent)
 {
 
-	assert(!extent->e_slab);
 	return (qr_next(&extent->rd, rd_link) == &extent->rd);
 }
 
@@ -161,7 +160,6 @@ JEMALLOC_INLINE bool
 extent_committed_get(const extent_t *extent)
 {
 
-	assert(!extent->e_slab);
 	return (extent->e_committed);
 }
 
