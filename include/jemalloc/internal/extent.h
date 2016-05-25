@@ -45,7 +45,10 @@ struct extent_s {
 	bool			e_slab;
 
 	/* Profile counters, used for huge objects. */
-	prof_tctx_t		*e_prof_tctx;
+	union {
+		void		*e_prof_tctx_pun;
+		prof_tctx_t	*e_prof_tctx;
+	};
 
 	/* Linkage for arena's runs_dirty and chunks_cache rings. */
 	arena_runs_dirty_link_t	rd;
@@ -187,7 +190,8 @@ JEMALLOC_INLINE prof_tctx_t *
 extent_prof_tctx_get(const extent_t *extent)
 {
 
-	return (extent->e_prof_tctx);
+	return ((prof_tctx_t *)atomic_read_p(
+	    &((extent_t *)extent)->e_prof_tctx_pun));
 }
 
 JEMALLOC_INLINE void
@@ -250,7 +254,7 @@ JEMALLOC_INLINE void
 extent_prof_tctx_set(extent_t *extent, prof_tctx_t *tctx)
 {
 
-	extent->e_prof_tctx = tctx;
+	atomic_write_p(&extent->e_prof_tctx_pun, tctx);
 }
 
 JEMALLOC_INLINE void
