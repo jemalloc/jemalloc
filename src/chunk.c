@@ -674,8 +674,6 @@ chunk_dalloc_cache(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 {
 
 	assert(extent_addr_get(extent) != NULL);
-	assert(CHUNK_ADDR2BASE(extent_addr_get(extent)) ==
-	    extent_addr_get(extent));
 	assert(extent_size_get(extent) != 0);
 	assert((extent_size_get(extent) & chunksize_mask) == 0);
 
@@ -701,8 +699,6 @@ chunk_dalloc_wrapper(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 {
 
 	assert(extent_addr_get(extent) != NULL);
-	assert(CHUNK_ADDR2BASE(extent_addr_get(extent)) ==
-	    extent_addr_get(extent));
 	assert(extent_size_get(extent) != 0);
 	assert((extent_size_get(extent) & chunksize_mask) == 0);
 
@@ -777,7 +773,6 @@ chunk_purge_default(void *chunk, size_t size, size_t offset, size_t length,
 {
 
 	assert(chunk != NULL);
-	assert(CHUNK_ADDR2BASE(chunk) == chunk);
 	assert((offset & PAGE_MASK) == 0);
 	assert(length != 0);
 	assert((length & PAGE_MASK) == 0);

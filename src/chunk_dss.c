@@ -108,8 +108,8 @@ chunk_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
 			 * Calculate how much padding is necessary to
 			 * chunk-align the end of the DSS.
 			 */
-			gap_size = (chunksize - CHUNK_ADDR2OFFSET(dss_max)) &
-			    chunksize_mask;
+			gap_size = (chunksize - ALIGNMENT_ADDR2OFFSET(dss_max,
+			    chunksize)) & chunksize_mask;
 			/*
 			 * Compute how much chunk-aligned pad space (if any) is
 			 * necessary to satisfy alignment.  This space can be

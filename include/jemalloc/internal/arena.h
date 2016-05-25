@@ -580,10 +580,14 @@ arena_chunk_map_misc_t	*arena_miscelm_get_mutable(arena_chunk_t *chunk,
     size_t pageind);
 const arena_chunk_map_misc_t	*arena_miscelm_get_const(
     const arena_chunk_t *chunk, size_t pageind);
-size_t	arena_miscelm_to_pageind(const arena_chunk_map_misc_t *miscelm);
-void	*arena_miscelm_to_rpages(const arena_chunk_map_misc_t *miscelm);
-arena_chunk_map_misc_t	*arena_rd_to_miscelm(arena_runs_dirty_link_t *rd);
-arena_chunk_map_misc_t	*arena_run_to_miscelm(arena_run_t *run);
+size_t	arena_miscelm_to_pageind(const extent_t *extent,
+    const arena_chunk_map_misc_t *miscelm);
+void	*arena_miscelm_to_rpages(const extent_t *extent,
+    const arena_chunk_map_misc_t *miscelm);
+arena_chunk_map_misc_t	*arena_rd_to_miscelm(const extent_t *extent,
+    arena_runs_dirty_link_t *rd);
+arena_chunk_map_misc_t	*arena_run_to_miscelm(const extent_t *extent,
+    arena_run_t *run);
 size_t	*arena_mapbitsp_get_mutable(arena_chunk_t *chunk, size_t pageind);
 const size_t	*arena_mapbitsp_get_const(const arena_chunk_t *chunk,
     size_t pageind);
@@ -626,8 +630,6 @@ bool	arena_prof_accum(tsdn_t *tsdn, arena_t *arena, uint64_t accumbytes);
 szind_t	arena_ptr_small_binind_get(tsdn_t *tsdn, const void *ptr,
     size_t mapbits);
 szind_t	arena_bin_index(arena_t *arena, arena_bin_t *bin);
-size_t	arena_run_regind(arena_run_t *run, const arena_bin_info_t *bin_info,
-    const void *ptr);
 prof_tctx_t	*arena_prof_tctx_get(tsdn_t *tsdn, const extent_t *extent,
     const void *ptr);
 void	arena_prof_tctx_set(tsdn_t *tsdn, extent_t *extent, const void *ptr,
@@ -685,9 +687,10 @@ arena_miscelm_get_const(const arena_chunk_t *chunk, size_t pageind)
 }
 
 JEMALLOC_ALWAYS_INLINE size_t
-arena_miscelm_to_pageind(const arena_chunk_map_misc_t *miscelm)
+arena_miscelm_to_pageind(const extent_t *extent,
+    const arena_chunk_map_misc_t *miscelm)
 {
-	arena_chunk_t *chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(miscelm);
+	arena_chunk_t *chunk = (arena_chunk_t *)extent_addr_get(extent);
 	size_t pageind = ((uintptr_t)miscelm - ((uintptr_t)chunk +
 	    map_misc_offset)) / sizeof(arena_chunk_map_misc_t) + map_bias;
 
@@ -698,34 +701,35 @@ arena_miscelm_to_pageind(const arena_chunk_map_misc_t *miscelm)
 }
 
 JEMALLOC_ALWAYS_INLINE void *
-arena_miscelm_to_rpages(const arena_chunk_map_misc_t *miscelm)
+arena_miscelm_to_rpages(const extent_t *extent,
+    const arena_chunk_map_misc_t *miscelm)
 {
-	arena_chunk_t *chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(miscelm);
-	size_t pageind = arena_miscelm_to_pageind(miscelm);
+	arena_chunk_t *chunk = (arena_chunk_t *)extent_addr_get(extent);
+	size_t pageind = arena_miscelm_to_pageind(extent, miscelm);
 
 	return ((void *)((uintptr_t)chunk + (pageind << LG_PAGE)));
 }
 
 JEMALLOC_ALWAYS_INLINE arena_chunk_map_misc_t *
-arena_rd_to_miscelm(arena_runs_dirty_link_t *rd)
+arena_rd_to_miscelm(const extent_t *extent, arena_runs_dirty_link_t *rd)
 {
 	arena_chunk_map_misc_t *miscelm = (arena_chunk_map_misc_t
 	    *)((uintptr_t)rd - offsetof(arena_chunk_map_misc_t, rd));
 
-	assert(arena_miscelm_to_pageind(miscelm) >= map_bias);
-	assert(arena_miscelm_to_pageind(miscelm) < chunk_npages);
+	assert(arena_miscelm_to_pageind(extent, miscelm) >= map_bias);
+	assert(arena_miscelm_to_pageind(extent, miscelm) < chunk_npages);
 
 	return (miscelm);
 }
 
 JEMALLOC_ALWAYS_INLINE arena_chunk_map_misc_t *
-arena_run_to_miscelm(arena_run_t *run)
+arena_run_to_miscelm(const extent_t *extent, arena_run_t *run)
 {
 	arena_chunk_map_misc_t *miscelm = (arena_chunk_map_misc_t
 	    *)((uintptr_t)run - offsetof(arena_chunk_map_misc_t, run));
 
-	assert(arena_miscelm_to_pageind(miscelm) >= map_bias);
-	assert(arena_miscelm_to_pageind(miscelm) < chunk_npages);
+	assert(arena_miscelm_to_pageind(extent, miscelm) >= map_bias);
+	assert(arena_miscelm_to_pageind(extent, miscelm) < chunk_npages);
 
 	return (miscelm);
 }
@@ -1079,7 +1083,7 @@ arena_ptr_small_binind_get(tsdn_t *tsdn, const void *ptr, size_t mapbits)
 		actual_binind = (szind_t)(bin - arena->bins);
 		assert(run_binind == actual_binind);
 		bin_info = &arena_bin_info[actual_binind];
-		rpages = arena_miscelm_to_rpages(miscelm);
+		rpages = arena_miscelm_to_rpages(extent, miscelm);
 		assert(((uintptr_t)ptr - (uintptr_t)rpages) % bin_info->reg_size
 		    == 0);
 	}
@@ -1093,78 +1097,6 @@ arena_bin_index(arena_t *arena, arena_bin_t *bin)
 	szind_t binind = (szind_t)(bin - arena->bins);
 	assert(binind < NBINS);
 	return (binind);
-}
-
-JEMALLOC_INLINE size_t
-arena_run_regind(arena_run_t *run, const arena_bin_info_t *bin_info,
-    const void *ptr)
-{
-	size_t diff, interval, shift, regind;
-	arena_chunk_map_misc_t *miscelm = arena_run_to_miscelm(run);
-	void *rpages = arena_miscelm_to_rpages(miscelm);
-
-	/*
-	 * Freeing a pointer lower than region zero can cause assertion
-	 * failure.
-	 */
-	assert((uintptr_t)ptr >= (uintptr_t)rpages);
-
-	/*
-	 * Avoid doing division with a variable divisor if possible.  Using
-	 * actual division here can reduce allocator throughput by over 20%!
-	 */
-	diff = (size_t)((uintptr_t)ptr - (uintptr_t)rpages);
-
-	/* Rescale (factor powers of 2 out of the numerator and denominator). */
-	interval = bin_info->reg_size;
-	shift = ffs_zu(interval) - 1;
-	diff >>= shift;
-	interval >>= shift;
-
-	if (interval == 1) {
-		/* The divisor was a power of 2. */
-		regind = diff;
-	} else {
-		/*
-		 * To divide by a number D that is not a power of two we
-		 * multiply by (2^21 / D) and then right shift by 21 positions.
-		 *
-		 *   X / D
-		 *
-		 * becomes
-		 *
-		 *   (X * interval_invs[D - 3]) >> SIZE_INV_SHIFT
-		 *
-		 * We can omit the first three elements, because we never
-		 * divide by 0, and 1 and 2 are both powers of two, which are
-		 * handled above.
-		 */
-#define	SIZE_INV_SHIFT	((sizeof(size_t) << 3) - LG_RUN_MAXREGS)
-#define	SIZE_INV(s)	(((ZU(1) << SIZE_INV_SHIFT) / (s)) + 1)
-		static const size_t interval_invs[] = {
-		    SIZE_INV(3),
-		    SIZE_INV(4), SIZE_INV(5), SIZE_INV(6), SIZE_INV(7),
-		    SIZE_INV(8), SIZE_INV(9), SIZE_INV(10), SIZE_INV(11),
-		    SIZE_INV(12), SIZE_INV(13), SIZE_INV(14), SIZE_INV(15),
-		    SIZE_INV(16), SIZE_INV(17), SIZE_INV(18), SIZE_INV(19),
-		    SIZE_INV(20), SIZE_INV(21), SIZE_INV(22), SIZE_INV(23),
-		    SIZE_INV(24), SIZE_INV(25), SIZE_INV(26), SIZE_INV(27),
-		    SIZE_INV(28), SIZE_INV(29), SIZE_INV(30), SIZE_INV(31)
-		};
-
-		if (likely(interval <= ((sizeof(interval_invs) / sizeof(size_t))
-		    + 2))) {
-			regind = (diff * interval_invs[interval - 3]) >>
-			    SIZE_INV_SHIFT;
-		} else
-			regind = diff / interval;
-#undef SIZE_INV
-#undef SIZE_INV_SHIFT
-	}
-	assert(diff == regind * interval);
-	assert(regind < bin_info->nregs);
-
-	return (regind);
 }
 
 JEMALLOC_INLINE prof_tctx_t *
