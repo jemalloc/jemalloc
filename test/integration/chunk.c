@@ -224,22 +224,6 @@ TEST_BEGIN(test_chunk)
 	do_dalloc = true;
 	do_decommit = false;
 
-	/* Test purge for partial-chunk huge allocations. */
-	if (huge0 * 2 > huge2) {
-		/*
-		 * There are at least four size classes per doubling, so a
-		 * successful xallocx() from size=huge2 to size=huge1 is
-		 * guaranteed to leave trailing purgeable memory.
-		 */
-		p = mallocx(huge2, flags);
-		assert_ptr_not_null(p, "Unexpected mallocx() error");
-		did_purge = false;
-		assert_zu_eq(xallocx(p, huge1, 0, flags), huge1,
-		    "Unexpected xallocx() failure");
-		assert_true(did_purge, "Expected purge");
-		dallocx(p, flags);
-	}
-
 	/* Test decommit for large allocations. */
 	do_decommit = true;
 	p = mallocx(large1, flags);

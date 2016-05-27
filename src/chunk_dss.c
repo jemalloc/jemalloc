@@ -69,9 +69,12 @@ void *
 chunk_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
     size_t alignment, bool *zero, bool *commit)
 {
+	void *ret;
+	extent_t *pad;
+
 	cassert(have_dss);
-	assert(size > 0 && (size & chunksize_mask) == 0);
-	assert(alignment > 0 && (alignment & chunksize_mask) == 0);
+	assert(size > 0);
+	assert(alignment > 0);
 
 	/*
 	 * sbrk() uses a signed increment argument, so take care not to
@@ -80,19 +83,22 @@ chunk_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
 	if ((intptr_t)size < 0)
 		return (NULL);
 
+	pad = extent_alloc(tsdn, arena);
+	if (pad == NULL)
+		return (NULL);
+
 	malloc_mutex_lock(tsdn, &dss_mtx);
 	if (dss_prev != (void *)-1) {
-
 		/*
 		 * The loop is necessary to recover from races with other
 		 * threads that are using the DSS for something other than
 		 * malloc.
 		 */
-		do {
-			void *ret, *cpad_addr, *dss_next;
-			extent_t *cpad;
-			size_t gap_size, cpad_size;
+		while (true) {
+			void *pad_addr, *dss_next;
+			size_t pad_size;
 			intptr_t incr;
+
 			/* Avoid an unnecessary system call. */
 			if (new_addr != NULL && dss_max != new_addr)
 				break;
@@ -105,58 +111,48 @@ chunk_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
 				break;
 
 			/*
-			 * Calculate how much padding is necessary to
-			 * chunk-align the end of the DSS.
+			 * Compute how much pad space (if any) is necessary to
+			 * satisfy alignment.  This space can be recycled for
+			 * later use.
 			 */
-			gap_size = (chunksize - ALIGNMENT_ADDR2OFFSET(dss_max,
-			    chunksize)) & chunksize_mask;
-			/*
-			 * Compute how much chunk-aligned pad space (if any) is
-			 * necessary to satisfy alignment.  This space can be
-			 * recycled for later use.
-			 */
-			cpad_addr = (void *)((uintptr_t)dss_max + gap_size);
+			pad_addr = (void *)((uintptr_t)dss_max);
 			ret = (void *)ALIGNMENT_CEILING((uintptr_t)dss_max,
 			    alignment);
-			cpad_size = (uintptr_t)ret - (uintptr_t)cpad_addr;
-			if (cpad_size != 0) {
-				cpad = extent_alloc(tsdn, arena);
-				if (cpad == NULL) {
-					malloc_mutex_unlock(tsdn, &dss_mtx);
-					return (NULL);
-				}
-				extent_init(cpad, arena, cpad_addr, cpad_size,
+			pad_size = (uintptr_t)ret - (uintptr_t)pad_addr;
+			if (pad_size != 0) {
+				extent_init(pad, arena, pad_addr, pad_size,
 				    false, true, false, true, false);
 			}
 			dss_next = (void *)((uintptr_t)ret + size);
 			if ((uintptr_t)ret < (uintptr_t)dss_max ||
-			    (uintptr_t)dss_next < (uintptr_t)dss_max) {
-				/* Wrap-around. */
-				malloc_mutex_unlock(tsdn, &dss_mtx);
-				return (NULL);
-			}
-			incr = gap_size + cpad_size + size;
+			    (uintptr_t)dss_next < (uintptr_t)dss_max)
+				break; /* Wrap-around. */
+			incr = pad_size + size;
 			dss_prev = chunk_dss_sbrk(incr);
+			if (dss_prev == (void *)-1)
+				break;
 			if (dss_prev == dss_max) {
 				/* Success. */
 				dss_max = dss_next;
 				malloc_mutex_unlock(tsdn, &dss_mtx);
-				if (cpad_size != 0) {
+				if (pad_size != 0) {
 					chunk_hooks_t chunk_hooks =
 					    CHUNK_HOOKS_INITIALIZER;
 					chunk_dalloc_wrapper(tsdn, arena,
-					    &chunk_hooks, cpad);
-				}
+					    &chunk_hooks, pad);
+				} else
+					extent_dalloc(tsdn, arena, pad);
 				if (*zero)
 					memset(ret, 0, size);
 				if (!*commit)
 					*commit = pages_decommit(ret, size);
 				return (ret);
 			}
-		} while (dss_prev != (void *)-1);
+		}
 	}
+	/* OOM. */
 	malloc_mutex_unlock(tsdn, &dss_mtx);
-
+	extent_dalloc(tsdn, arena, pad);
 	return (NULL);
 }
 

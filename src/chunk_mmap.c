@@ -50,7 +50,6 @@ chunk_alloc_mmap(void *new_addr, size_t size, size_t alignment, bool *zero,
 	 */
 
 	assert(alignment != 0);
-	assert((alignment & chunksize_mask) == 0);
 
 	ret = pages_map(new_addr, size, commit);
 	if (ret == NULL || ret == new_addr)

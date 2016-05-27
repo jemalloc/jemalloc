@@ -19,7 +19,6 @@ arena_chunk_cache_maybe_remove
 arena_chunk_dalloc_huge
 arena_chunk_ralloc_huge_expand
 arena_chunk_ralloc_huge_shrink
-arena_chunk_ralloc_huge_similar
 arena_cleanup
 arena_dalloc
 arena_dalloc_bin
@@ -211,6 +210,7 @@ extent_addr_set
 extent_alloc
 extent_arena_get
 extent_arena_set
+extent_before_get
 extent_committed_get
 extent_committed_set
 extent_dalloc
@@ -219,6 +219,7 @@ extent_dirty_insert
 extent_dirty_remove
 extent_dirty_set
 extent_init
+extent_last_get
 extent_past_get
 extent_prof_tctx_get
 extent_prof_tctx_set

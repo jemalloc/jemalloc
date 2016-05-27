@@ -486,8 +486,6 @@ void	arena_chunk_cache_maybe_remove(arena_t *arena, extent_t *extent,
 extent_t	*arena_chunk_alloc_huge(tsdn_t *tsdn, arena_t *arena,
     size_t usize, size_t alignment, bool *zero);
 void	arena_chunk_dalloc_huge(tsdn_t *tsdn, arena_t *arena, extent_t *extent);
-void	arena_chunk_ralloc_huge_similar(tsdn_t *tsdn, arena_t *arena,
-    extent_t *extent, size_t oldsize);
 void	arena_chunk_ralloc_huge_shrink(tsdn_t *tsdn, arena_t *arena,
     extent_t *extent, size_t oldsize);
 void	arena_chunk_ralloc_huge_expand(tsdn_t *tsdn, arena_t *arena,

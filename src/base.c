@@ -57,7 +57,7 @@ base_chunk_alloc(tsdn_t *tsdn, size_t minsize)
 	{
 		bool zero = true;
 		bool commit = true;
-		addr = chunk_alloc_mmap(NULL, csize, chunksize, &zero, &commit);
+		addr = chunk_alloc_mmap(NULL, csize, PAGE, &zero, &commit);
 	}
 	if (addr == NULL) {
 		if (extent != NULL)

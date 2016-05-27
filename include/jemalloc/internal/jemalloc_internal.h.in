@@ -797,14 +797,14 @@ sa2u(size_t size, size_t alignment)
 			return (usize);
 	}
 
-	/* Try for a large size class. */
-	if (likely(size <= large_maxclass) && likely(alignment < chunksize)) {
-		/*
-		 * We can't achieve subpage alignment, so round up alignment
-		 * to the minimum that can actually be supported.
-		 */
-		alignment = PAGE_CEILING(alignment);
+	/*
+	 * We can't achieve subpage alignment, so round up alignment to the
+	 * minimum that can actually be supported.
+	 */
+	alignment = PAGE_CEILING(alignment);
 
+	/* Try for a large size class. */
+	if (likely(size <= large_maxclass) && likely(alignment == PAGE)) {
 		/* Make sure result is a large size class. */
 		usize = (size <= LARGE_MINCLASS) ? LARGE_MINCLASS : s2u(size);
 
@@ -821,12 +821,6 @@ sa2u(size_t size, size_t alignment)
 	if (unlikely(alignment > HUGE_MAXCLASS))
 		return (0);
 
-	/*
-	 * We can't achieve subchunk alignment, so round up alignment to the
-	 * minimum that can actually be supported.
-	 */
-	alignment = CHUNK_CEILING(alignment);
-
 	/* Make sure result is a huge size class. */
 	if (size <= chunksize)
 		usize = chunksize;
@@ -839,7 +833,7 @@ sa2u(size_t size, size_t alignment)
 	}
 
 	/*
-	 * Calculate the multi-chunk mapping that huge_palloc() would need in
+	 * Calculate the multi-page mapping that huge_palloc() would need in
 	 * order to guarantee the alignment.
 	 */
 	if (usize + alignment < usize) {
