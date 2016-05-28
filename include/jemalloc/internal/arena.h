@@ -688,7 +688,7 @@ JEMALLOC_ALWAYS_INLINE size_t
 arena_miscelm_to_pageind(const extent_t *extent,
     const arena_chunk_map_misc_t *miscelm)
 {
-	arena_chunk_t *chunk = (arena_chunk_t *)extent_addr_get(extent);
+	arena_chunk_t *chunk = (arena_chunk_t *)extent_base_get(extent);
 	size_t pageind = ((uintptr_t)miscelm - ((uintptr_t)chunk +
 	    map_misc_offset)) / sizeof(arena_chunk_map_misc_t) + map_bias;
 
@@ -702,7 +702,7 @@ JEMALLOC_ALWAYS_INLINE void *
 arena_miscelm_to_rpages(const extent_t *extent,
     const arena_chunk_map_misc_t *miscelm)
 {
-	arena_chunk_t *chunk = (arena_chunk_t *)extent_addr_get(extent);
+	arena_chunk_t *chunk = (arena_chunk_t *)extent_base_get(extent);
 	size_t pageind = arena_miscelm_to_pageind(extent, miscelm);
 
 	return ((void *)((uintptr_t)chunk + (pageind << LG_PAGE)));
@@ -1065,7 +1065,7 @@ arena_ptr_small_binind_get(tsdn_t *tsdn, const void *ptr, size_t mapbits)
 		assert(binind != BININD_INVALID);
 		assert(binind < NBINS);
 		extent = iealloc(tsdn, ptr);
-		chunk = (arena_chunk_t *)extent_addr_get(extent);
+		chunk = (arena_chunk_t *)extent_base_get(extent);
 		arena = extent_arena_get(extent);
 		pageind = ((uintptr_t)ptr - (uintptr_t)chunk) >> LG_PAGE;
 		actual_mapbits = arena_mapbits_get(chunk, pageind);
@@ -1106,7 +1106,7 @@ arena_prof_tctx_get(tsdn_t *tsdn, const extent_t *extent, const void *ptr)
 	assert(ptr != NULL);
 
 	if (likely(extent_slab_get(extent))) {
-		arena_chunk_t *chunk = (arena_chunk_t *)extent_addr_get(extent);
+		arena_chunk_t *chunk = (arena_chunk_t *)extent_base_get(extent);
 		size_t pageind = ((uintptr_t)ptr - (uintptr_t)chunk) >> LG_PAGE;
 		size_t mapbits = arena_mapbits_get(chunk, pageind);
 		assert((mapbits & CHUNK_MAP_ALLOCATED) != 0);
@@ -1132,7 +1132,7 @@ arena_prof_tctx_set(tsdn_t *tsdn, extent_t *extent, const void *ptr,
 	assert(ptr != NULL);
 
 	if (likely(extent_slab_get(extent))) {
-		arena_chunk_t *chunk = (arena_chunk_t *)extent_addr_get(extent);
+		arena_chunk_t *chunk = (arena_chunk_t *)extent_base_get(extent);
 		size_t pageind = ((uintptr_t)ptr - (uintptr_t)chunk) >> LG_PAGE;
 
 		assert(arena_mapbits_allocated_get(chunk, pageind) != 0);
@@ -1168,8 +1168,9 @@ arena_prof_tctx_reset(tsdn_t *tsdn, extent_t *extent, const void *ptr,
 
 	if (unlikely(usize > SMALL_MAXCLASS || (ptr == old_ptr &&
 	    (uintptr_t)old_tctx > (uintptr_t)1U))) {
-		arena_chunk_t *chunk = (arena_chunk_t *)extent_addr_get(extent);
-		if (likely(chunk != ptr)) {
+		if (likely(extent_slab_get(extent))) {
+			arena_chunk_t *chunk =
+			    (arena_chunk_t *)extent_base_get(extent);
 			size_t pageind;
 			arena_chunk_map_misc_t *elm;
 
@@ -1253,7 +1254,7 @@ arena_salloc(tsdn_t *tsdn, const extent_t *extent, const void *ptr, bool demote)
 
 	if (likely(extent_slab_get(extent))) {
 		const arena_chunk_t *chunk =
-		    (const arena_chunk_t *)extent_addr_get(extent);
+		    (const arena_chunk_t *)extent_base_get(extent);
 
 		pageind = ((uintptr_t)ptr - (uintptr_t)chunk) >> LG_PAGE;
 		assert(arena_mapbits_allocated_get(chunk, pageind) != 0);
@@ -1302,7 +1303,7 @@ arena_dalloc(tsdn_t *tsdn, extent_t *extent, void *ptr, tcache_t *tcache,
 	assert(ptr != NULL);
 
 	if (likely(extent_slab_get(extent))) {
-		arena_chunk_t *chunk = (arena_chunk_t *)extent_addr_get(extent);
+		arena_chunk_t *chunk = (arena_chunk_t *)extent_base_get(extent);
 
 		pageind = ((uintptr_t)ptr - (uintptr_t)chunk) >> LG_PAGE;
 		mapbits = arena_mapbits_get(chunk, pageind);
@@ -1349,7 +1350,7 @@ arena_sdalloc(tsdn_t *tsdn, extent_t *extent, void *ptr, size_t size,
 	assert(!tsdn_null(tsdn) || tcache == NULL);
 
 	if (likely(extent_slab_get(extent))) {
-		arena_chunk_t *chunk = (arena_chunk_t *)extent_addr_get(extent);
+		arena_chunk_t *chunk = (arena_chunk_t *)extent_base_get(extent);
 
 		if (config_prof && opt_prof) {
 			size_t pageind = ((uintptr_t)ptr - (uintptr_t)chunk) >>

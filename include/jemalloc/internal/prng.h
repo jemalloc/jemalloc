@@ -35,28 +35,45 @@
 #ifdef JEMALLOC_H_INLINES
 
 #ifndef JEMALLOC_ENABLE_INLINE
-uint64_t	prng_lg_range(uint64_t *state, unsigned lg_range);
-uint64_t	prng_range(uint64_t *state, uint64_t range);
+uint64_t	prng_state_next(uint64_t state);
+uint64_t	prng_lg_range(uint64_t *state, unsigned lg_range, bool atomic);
+uint64_t	prng_range(uint64_t *state, uint64_t range, bool atomic);
 #endif
 
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_PRNG_C_))
 JEMALLOC_ALWAYS_INLINE uint64_t
-prng_lg_range(uint64_t *state, unsigned lg_range)
+prng_state_next(uint64_t state)
 {
-	uint64_t ret;
+
+	return ((state * PRNG_A) + PRNG_C);
+}
+
+JEMALLOC_ALWAYS_INLINE uint64_t
+prng_lg_range(uint64_t *state, unsigned lg_range, bool atomic)
+{
+	uint64_t ret, state1;
 
 	assert(lg_range > 0);
 	assert(lg_range <= 64);
 
-	ret = (*state * PRNG_A) + PRNG_C;
-	*state = ret;
-	ret >>= (64 - lg_range);
+	if (atomic) {
+		uint64_t state0;
+
+		do {
+			state0 = atomic_read_uint64(state);
+			state1 = prng_state_next(state0);
+		} while (atomic_cas_uint64(state, state0, state1));
+	} else {
+		state1 = prng_state_next(*state);
+		*state = state1;
+	}
+	ret = state1 >> (64 - lg_range);
 
 	return (ret);
 }
 
 JEMALLOC_ALWAYS_INLINE uint64_t
-prng_range(uint64_t *state, uint64_t range)
+prng_range(uint64_t *state, uint64_t range, bool atomic)
 {
 	uint64_t ret;
 	unsigned lg_range;
@@ -68,7 +85,7 @@ prng_range(uint64_t *state, uint64_t range)
 
 	/* Generate a result in [0..range) via repeated trial. */
 	do {
-		ret = prng_lg_range(state, lg_range);
+		ret = prng_lg_range(state, lg_range, atomic);
 	} while (ret >= range);
 
 	return (ret);

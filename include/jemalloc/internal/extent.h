@@ -88,8 +88,10 @@ ph_proto(, extent_heap_, extent_heap_t, extent_t)
 
 #ifndef JEMALLOC_ENABLE_INLINE
 arena_t	*extent_arena_get(const extent_t *extent);
+void	*extent_base_get(const extent_t *extent);
 void	*extent_addr_get(const extent_t *extent);
 size_t	extent_size_get(const extent_t *extent);
+size_t	extent_usize_get(const extent_t *extent);
 void	*extent_before_get(const extent_t *extent);
 void	*extent_last_get(const extent_t *extent);
 void	*extent_past_get(const extent_t *extent);
@@ -102,6 +104,7 @@ bool	extent_slab_get(const extent_t *extent);
 prof_tctx_t	*extent_prof_tctx_get(const extent_t *extent);
 void	extent_arena_set(extent_t *extent, arena_t *arena);
 void	extent_addr_set(extent_t *extent, void *addr);
+void	extent_addr_randomize(tsdn_t *tsdn, extent_t *extent, size_t alignment);
 void	extent_size_set(extent_t *extent, size_t size);
 void	extent_active_set(extent_t *extent, bool active);
 void	extent_dirty_set(extent_t *extent, bool dirty);
@@ -126,9 +129,20 @@ extent_arena_get(const extent_t *extent)
 }
 
 JEMALLOC_INLINE void *
+extent_base_get(const extent_t *extent)
+{
+
+	assert(extent->e_addr == PAGE_ADDR2BASE(extent->e_addr) ||
+	    !extent->e_slab);
+	return (PAGE_ADDR2BASE(extent->e_addr));
+}
+
+JEMALLOC_INLINE void *
 extent_addr_get(const extent_t *extent)
 {
 
+	assert(extent->e_addr == PAGE_ADDR2BASE(extent->e_addr) ||
+	    !extent->e_slab);
 	return (extent->e_addr);
 }
 
@@ -137,6 +151,14 @@ extent_size_get(const extent_t *extent)
 {
 
 	return (extent->e_size);
+}
+
+JEMALLOC_INLINE size_t
+extent_usize_get(const extent_t *extent)
+{
+
+	assert(!extent->e_slab);
+	return (extent->e_size - large_pad);
 }
 
 JEMALLOC_INLINE void *
@@ -225,6 +247,24 @@ extent_addr_set(extent_t *extent, void *addr)
 }
 
 JEMALLOC_INLINE void
+extent_addr_randomize(tsdn_t *tsdn, extent_t *extent, size_t alignment)
+{
+
+	assert(extent_base_get(extent) == extent_addr_get(extent));
+
+	if (alignment < PAGE) {
+		unsigned lg_range = LG_PAGE -
+		    lg_floor(CACHELINE_CEILING(alignment));
+		uint64_t r =
+		    prng_lg_range(&extent_arena_get(extent)->offset_state,
+		    lg_range, true);
+		uintptr_t random_offset = ((uintptr_t)r) << lg_range;
+		extent->e_addr = (void *)((uintptr_t)extent->e_addr +
+		    random_offset);
+	}
+}
+
+JEMALLOC_INLINE void
 extent_size_set(extent_t *extent, size_t size)
 {
 
@@ -277,6 +317,8 @@ JEMALLOC_INLINE void
 extent_init(extent_t *extent, arena_t *arena, void *addr, size_t size,
     bool active, bool dirty, bool zeroed, bool committed, bool slab)
 {
+
+	assert(addr == PAGE_ADDR2BASE(addr) || !slab);
 
 	extent_arena_set(extent, arena);
 	extent_addr_set(extent, addr);

@@ -45,11 +45,11 @@ chunk_hooks_t	chunk_hooks_set(tsdn_t *tsdn, arena_t *arena,
     const chunk_hooks_t *chunk_hooks);
 
 extent_t	*chunk_alloc_cache(tsdn_t *tsdn, arena_t *arena,
-    chunk_hooks_t *chunk_hooks, void *new_addr, size_t size, size_t alignment,
-    bool *zero, bool slab);
+    chunk_hooks_t *chunk_hooks, void *new_addr, size_t usize, size_t pad,
+    size_t alignment, bool *zero, bool slab);
 extent_t	*chunk_alloc_wrapper(tsdn_t *tsdn, arena_t *arena,
-    chunk_hooks_t *chunk_hooks, void *new_addr, size_t size, size_t alignment,
-    bool *zero, bool *commit, bool slab);
+    chunk_hooks_t *chunk_hooks, void *new_addr, size_t usize, size_t pad,
+    size_t alignment, bool *zero, bool *commit, bool slab);
 void	chunk_dalloc_cache(tsdn_t *tsdn, arena_t *arena,
     chunk_hooks_t *chunk_hooks, extent_t *extent);
 void	chunk_dalloc_wrapper(tsdn_t *tsdn, arena_t *arena,

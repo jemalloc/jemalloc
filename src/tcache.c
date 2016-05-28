@@ -128,7 +128,7 @@ tcache_bin_flush_small(tsd_t *tsd, tcache_t *tcache, tcache_bin_t *tbin,
 			extent = iealloc(tsd_tsdn(tsd), ptr);
 			if (extent_arena_get(extent) == bin_arena) {
 				arena_chunk_t *chunk =
-				    (arena_chunk_t *)extent_addr_get(extent);
+				    (arena_chunk_t *)extent_base_get(extent);
 				size_t pageind = ((uintptr_t)ptr -
 				    (uintptr_t)chunk) >> LG_PAGE;
 				arena_chunk_map_bits_t *bitselm =
@@ -214,7 +214,7 @@ tcache_bin_flush_large(tsd_t *tsd, tcache_bin_t *tbin, szind_t binind,
 			extent = iealloc(tsd_tsdn(tsd), ptr);
 			if (extent_arena_get(extent) == locked_arena) {
 				arena_chunk_t *chunk =
-				    (arena_chunk_t *)extent_addr_get(extent);
+				    (arena_chunk_t *)extent_base_get(extent);
 				arena_dalloc_large_junked_locked(tsd_tsdn(tsd),
 				    locked_arena, chunk, extent, ptr);
 			} else {

@@ -206,10 +206,12 @@ dss_prec_names
 extent_active_get
 extent_active_set
 extent_addr_get
+extent_addr_randomize
 extent_addr_set
 extent_alloc
 extent_arena_get
 extent_arena_set
+extent_base_get
 extent_before_get
 extent_committed_get
 extent_committed_set
@@ -230,6 +232,7 @@ extent_size_quantize_ceil
 extent_size_quantize_floor
 extent_slab_get
 extent_slab_set
+extent_usize_get
 extent_zeroed_get
 extent_zeroed_set
 ffs_llu
@@ -373,6 +376,7 @@ pow2_ceil_u64
 pow2_ceil_zu
 prng_lg_range
 prng_range
+prng_state_next
 prof_active
 prof_active_get
 prof_active_get_unlocked

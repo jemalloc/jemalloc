@@ -57,7 +57,7 @@ static void	arena_bin_lower_run(tsdn_t *tsdn, arena_t *arena,
 JEMALLOC_INLINE_C size_t
 arena_miscelm_size_get(extent_t *extent, const arena_chunk_map_misc_t *miscelm)
 {
-	arena_chunk_t *chunk = (arena_chunk_t *)extent_addr_get(extent);
+	arena_chunk_t *chunk = (arena_chunk_t *)extent_base_get(extent);
 	size_t pageind = arena_miscelm_to_pageind(extent, miscelm);
 	size_t mapbits = arena_mapbits_get(chunk, pageind);
 	return (arena_mapbits_size_decode(mapbits));
@@ -154,7 +154,7 @@ static void
 arena_avail_insert(arena_t *arena, extent_t *extent, size_t pageind,
     size_t npages)
 {
-	arena_chunk_t *chunk = (arena_chunk_t *)extent_addr_get(extent);
+	arena_chunk_t *chunk = (arena_chunk_t *)extent_base_get(extent);
 	pszind_t pind = psz2ind(run_quantize_floor(arena_miscelm_size_get(
 	    extent, arena_miscelm_get_const(chunk, pageind))));
 	assert(npages == (arena_mapbits_unallocated_size_get(chunk, pageind) >>
@@ -167,7 +167,7 @@ static void
 arena_avail_remove(arena_t *arena, extent_t *extent, size_t pageind,
     size_t npages)
 {
-	arena_chunk_t *chunk = (arena_chunk_t *)extent_addr_get(extent);
+	arena_chunk_t *chunk = (arena_chunk_t *)extent_base_get(extent);
 	pszind_t pind = psz2ind(run_quantize_floor(arena_miscelm_size_get(
 	    extent, arena_miscelm_get_const(chunk, pageind))));
 	assert(npages == (arena_mapbits_unallocated_size_get(chunk, pageind) >>
@@ -221,14 +221,14 @@ arena_chunk_dirty_npages(const extent_t *extent)
 
 static extent_t *
 arena_chunk_cache_alloc_locked(tsdn_t *tsdn, arena_t *arena,
-    chunk_hooks_t *chunk_hooks, void *new_addr, size_t size, size_t alignment,
-    bool *zero, bool slab)
+    chunk_hooks_t *chunk_hooks, void *new_addr, size_t usize, size_t pad,
+    size_t alignment, bool *zero, bool slab)
 {
 
 	malloc_mutex_assert_owner(tsdn, &arena->lock);
 
-	return (chunk_alloc_cache(tsdn, arena, chunk_hooks, new_addr, size,
-	    alignment, zero, slab));
+	return (chunk_alloc_cache(tsdn, arena, chunk_hooks, new_addr, usize,
+	    pad, alignment, zero, slab));
 }
 
 extent_t *
@@ -240,7 +240,7 @@ arena_chunk_cache_alloc(tsdn_t *tsdn, arena_t *arena,
 
 	malloc_mutex_lock(tsdn, &arena->lock);
 	extent = arena_chunk_cache_alloc_locked(tsdn, arena, chunk_hooks,
-	    new_addr, size, alignment, zero, false);
+	    new_addr, size, 0, alignment, zero, false);
 	malloc_mutex_unlock(tsdn, &arena->lock);
 
 	return (extent);
@@ -388,7 +388,7 @@ JEMALLOC_INLINE_C void
 arena_run_reg_dalloc(tsdn_t *tsdn, arena_run_t *run, extent_t *extent,
     void *ptr)
 {
-	arena_chunk_t *chunk = (arena_chunk_t *)extent_addr_get(extent);
+	arena_chunk_t *chunk = (arena_chunk_t *)extent_base_get(extent);
 	size_t pageind = ((uintptr_t)ptr - (uintptr_t)chunk) >> LG_PAGE;
 	size_t mapbits = arena_mapbits_get(chunk, pageind);
 	szind_t binind = arena_ptr_small_binind_get(tsdn, ptr, mapbits);
@@ -460,7 +460,7 @@ static void
 arena_run_split_remove(arena_t *arena, extent_t *extent, size_t run_ind,
     size_t flag_dirty, size_t flag_decommitted, size_t need_pages)
 {
-	arena_chunk_t *chunk = (arena_chunk_t *)extent_addr_get(extent);
+	arena_chunk_t *chunk = (arena_chunk_t *)extent_base_get(extent);
 	size_t total_pages, rem_pages;
 
 	assert(flag_dirty == 0 || flag_decommitted == 0);
@@ -509,7 +509,7 @@ arena_run_split_large_helper(tsdn_t *tsdn, arena_t *arena, extent_t *extent,
 	size_t flag_dirty, flag_decommitted, run_ind, need_pages;
 	size_t flag_unzeroed_mask;
 
-	chunk = (arena_chunk_t *)extent_addr_get(extent);
+	chunk = (arena_chunk_t *)extent_base_get(extent);
 	miscelm = arena_run_to_miscelm(extent, run);
 	run_ind = arena_miscelm_to_pageind(extent, miscelm);
 	flag_dirty = arena_mapbits_dirty_get(chunk, run_ind);
@@ -592,7 +592,7 @@ arena_run_split_small(tsdn_t *tsdn, arena_t *arena, extent_t *extent,
 
 	assert(binind != BININD_INVALID);
 
-	chunk = (arena_chunk_t *)extent_addr_get(extent);
+	chunk = (arena_chunk_t *)extent_base_get(extent);
 	miscelm = arena_run_to_miscelm(extent, run);
 	run_ind = arena_miscelm_to_pageind(extent, miscelm);
 	flag_dirty = arena_mapbits_dirty_get(chunk, run_ind);
@@ -629,16 +629,16 @@ arena_chunk_init_spare(arena_t *arena)
 	arena->spare = NULL;
 
 	assert(arena_mapbits_allocated_get((arena_chunk_t *)
-	    extent_addr_get(extent), map_bias) == 0);
+	    extent_base_get(extent), map_bias) == 0);
 	assert(arena_mapbits_allocated_get((arena_chunk_t *)
-	    extent_addr_get(extent), chunk_npages-1) == 0);
+	    extent_base_get(extent), chunk_npages-1) == 0);
 	assert(arena_mapbits_unallocated_size_get((arena_chunk_t *)
-	    extent_addr_get(extent), map_bias) == arena_maxrun);
+	    extent_base_get(extent), map_bias) == arena_maxrun);
 	assert(arena_mapbits_unallocated_size_get((arena_chunk_t *)
-	    extent_addr_get(extent), chunk_npages-1) == arena_maxrun);
+	    extent_base_get(extent), chunk_npages-1) == arena_maxrun);
 	assert(arena_mapbits_dirty_get((arena_chunk_t *)
-	    extent_addr_get(extent), map_bias) ==
-	    arena_mapbits_dirty_get((arena_chunk_t *)extent_addr_get(extent),
+	    extent_base_get(extent), map_bias) ==
+	    arena_mapbits_dirty_get((arena_chunk_t *)extent_base_get(extent),
 	    chunk_npages-1));
 
 	return (extent);
@@ -653,7 +653,7 @@ arena_chunk_alloc_internal_hard(tsdn_t *tsdn, arena_t *arena,
 	malloc_mutex_unlock(tsdn, &arena->lock);
 
 	extent = chunk_alloc_wrapper(tsdn, arena, chunk_hooks, NULL, chunksize,
-	    PAGE, zero, commit, true);
+	    0, CACHELINE, zero, commit, true);
 	if (extent != NULL && !*commit) {
 		/* Commit header. */
 		if (chunk_commit_wrapper(tsdn, arena, chunk_hooks, extent, 0,
@@ -676,7 +676,7 @@ arena_chunk_alloc_internal(tsdn_t *tsdn, arena_t *arena, bool *zero,
 	chunk_hooks_t chunk_hooks = CHUNK_HOOKS_INITIALIZER;
 
 	extent = arena_chunk_cache_alloc_locked(tsdn, arena, &chunk_hooks, NULL,
-	    chunksize, PAGE, zero, true);
+	    chunksize, 0, CACHELINE, zero, true);
 	if (extent != NULL)
 		*commit = true;
 	if (extent == NULL) {
@@ -717,7 +717,7 @@ arena_chunk_init_hard(tsdn_t *tsdn, arena_t *arena)
 	 */
 	flag_unzeroed = (zero || !commit) ? 0 : CHUNK_MAP_UNZEROED;
 	flag_decommitted = commit ? 0 : CHUNK_MAP_DECOMMITTED;
-	arena_mapbits_unallocated_set((arena_chunk_t *)extent_addr_get(extent),
+	arena_mapbits_unallocated_set((arena_chunk_t *)extent_base_get(extent),
 	    map_bias, arena_maxrun, flag_unzeroed | flag_decommitted);
 	/*
 	 * There is no need to initialize the internal page map entries unless
@@ -726,18 +726,18 @@ arena_chunk_init_hard(tsdn_t *tsdn, arena_t *arena)
 	if (!zero) {
 		for (i = map_bias+1; i < chunk_npages-1; i++) {
 			arena_mapbits_internal_set((arena_chunk_t *)
-			    extent_addr_get(extent), i, flag_unzeroed);
+			    extent_base_get(extent), i, flag_unzeroed);
 		}
 	} else {
 		if (config_debug) {
 			for (i = map_bias+1; i < chunk_npages-1; i++) {
 				assert(arena_mapbits_unzeroed_get(
-				    (arena_chunk_t *)extent_addr_get(extent), i)
+				    (arena_chunk_t *)extent_base_get(extent), i)
 				    == flag_unzeroed);
 			}
 		}
 	}
-	arena_mapbits_unallocated_set((arena_chunk_t *)extent_addr_get(extent),
+	arena_mapbits_unallocated_set((arena_chunk_t *)extent_base_get(extent),
 	    chunk_npages-1, arena_maxrun, flag_unzeroed);
 
 	return (extent);
@@ -770,7 +770,7 @@ arena_chunk_discard(tsdn_t *tsdn, arena_t *arena, extent_t *extent)
 
 	extent_committed_set(extent,
 	    (arena_mapbits_decommitted_get((arena_chunk_t *)
-	    extent_addr_get(extent), map_bias) == 0));
+	    extent_base_get(extent), map_bias) == 0));
 	if (!extent_committed_get(extent)) {
 		/*
 		 * Decommit the header.  Mark the chunk as decommitted even if
@@ -796,10 +796,10 @@ arena_spare_discard(tsdn_t *tsdn, arena_t *arena, extent_t *spare)
 
 	assert(arena->spare != spare);
 
-	if (arena_mapbits_dirty_get((arena_chunk_t *)extent_addr_get(spare),
+	if (arena_mapbits_dirty_get((arena_chunk_t *)extent_base_get(spare),
 	    map_bias) != 0) {
 		arena_run_dirty_remove(arena, (arena_chunk_t *)
-		    extent_addr_get(spare), map_bias, chunk_npages-map_bias);
+		    extent_base_get(spare), map_bias, chunk_npages-map_bias);
 	}
 
 	arena_chunk_discard(tsdn, arena, spare);
@@ -808,7 +808,7 @@ arena_spare_discard(tsdn_t *tsdn, arena_t *arena, extent_t *spare)
 static void
 arena_chunk_dalloc(tsdn_t *tsdn, arena_t *arena, extent_t *extent)
 {
-	arena_chunk_t *chunk = (arena_chunk_t *)extent_addr_get(extent);
+	arena_chunk_t *chunk = (arena_chunk_t *)extent_base_get(extent);
 	extent_t *spare;
 
 	assert(arena_mapbits_allocated_get(chunk, map_bias) == 0);
@@ -898,7 +898,7 @@ arena_chunk_alloc_huge_hard(tsdn_t *tsdn, arena_t *arena,
 	bool commit = true;
 
 	extent = chunk_alloc_wrapper(tsdn, arena, chunk_hooks, NULL, usize,
-	    alignment, zero, &commit, false);
+	    large_pad, alignment, zero, &commit, false);
 	if (extent == NULL) {
 		/* Revert optimistic stats updates. */
 		malloc_mutex_lock(tsdn, &arena->lock);
@@ -930,7 +930,7 @@ arena_chunk_alloc_huge(tsdn_t *tsdn, arena_t *arena, size_t usize,
 	arena_nactive_add(arena, usize >> LG_PAGE);
 
 	extent = arena_chunk_cache_alloc_locked(tsdn, arena, &chunk_hooks, NULL,
-	    usize, alignment, zero, false);
+	    usize, large_pad, alignment, zero, false);
 	malloc_mutex_unlock(tsdn, &arena->lock);
 	if (extent == NULL) {
 		extent = arena_chunk_alloc_huge_hard(tsdn, arena, &chunk_hooks,
@@ -1046,7 +1046,7 @@ arena_run_alloc_large(tsdn_t *tsdn, arena_t *arena, size_t size, bool zero)
 	extent = arena_chunk_alloc(tsdn, arena);
 	if (extent != NULL) {
 		run = &arena_miscelm_get_mutable((arena_chunk_t *)
-		    extent_addr_get(extent), map_bias)->run;
+		    extent_base_get(extent), map_bias)->run;
 		if (arena_run_split_large(tsdn, arena, iealloc(tsdn, run), run,
 		    size, zero))
 			run = NULL;
@@ -1095,7 +1095,7 @@ arena_run_alloc_small(tsdn_t *tsdn, arena_t *arena, size_t size, szind_t binind)
 	extent = arena_chunk_alloc(tsdn, arena);
 	if (extent != NULL) {
 		run = &arena_miscelm_get_mutable(
-		    (arena_chunk_t *)extent_addr_get(extent), map_bias)->run;
+		    (arena_chunk_t *)extent_base_get(extent), map_bias)->run;
 		if (arena_run_split_small(tsdn, arena, iealloc(tsdn, run), run,
 		    size, binind))
 			run = NULL;
@@ -1161,7 +1161,7 @@ arena_decay_deadline_init(arena_t *arena)
 		nstime_t jitter;
 
 		nstime_init(&jitter, prng_range(&arena->decay_jitter_state,
-		    nstime_ns(&arena->decay_interval)));
+		    nstime_ns(&arena->decay_interval), false));
 		nstime_add(&arena->decay_deadline, &jitter);
 	}
 }
@@ -1428,7 +1428,7 @@ arena_dirty_count(tsdn_t *tsdn, arena_t *arena)
 		} else {
 			extent_t *extent = iealloc(tsdn, rdelm);
 			arena_chunk_t *chunk =
-			    (arena_chunk_t *)extent_addr_get(extent);
+			    (arena_chunk_t *)extent_base_get(extent);
 			arena_chunk_map_misc_t *miscelm =
 			    arena_rd_to_miscelm(extent, rdelm);
 			size_t pageind = arena_miscelm_to_pageind(extent,
@@ -1476,8 +1476,9 @@ arena_stash_dirty(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 			/* Allocate. */
 			zero = false;
 			extent = arena_chunk_cache_alloc_locked(tsdn, arena,
-			    chunk_hooks, extent_addr_get(chunkselm),
-			    extent_size_get(chunkselm), PAGE, &zero, false);
+			    chunk_hooks, extent_base_get(chunkselm),
+			    extent_size_get(chunkselm), 0, CACHELINE, &zero,
+			    false);
 			assert(extent == chunkselm);
 			assert(zero == extent_zeroed_get(chunkselm));
 			extent_dirty_insert(chunkselm, purge_runs_sentinel,
@@ -1494,7 +1495,7 @@ arena_stash_dirty(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 			arena_run_t *run = &miscelm->run;
 			size_t run_size =
 			    arena_mapbits_unallocated_size_get((arena_chunk_t *)
-			    extent_addr_get(extent), pageind);
+			    extent_base_get(extent), pageind);
 
 			npages = run_size >> LG_PAGE;
 			if (opt_purge == purge_mode_decay && arena->ndirty -
@@ -1503,9 +1504,9 @@ arena_stash_dirty(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 
 			assert(pageind + npages <= chunk_npages);
 			assert(arena_mapbits_dirty_get((arena_chunk_t *)
-			    extent_addr_get(extent), pageind) ==
+			    extent_base_get(extent), pageind) ==
 			    arena_mapbits_dirty_get((arena_chunk_t *)
-			    extent_addr_get(extent), pageind+npages-1));
+			    extent_base_get(extent), pageind+npages-1));
 
 			/*
 			 * If purging the spare chunk's run, make it available
@@ -1572,7 +1573,7 @@ arena_purge_stashed(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 			bool decommitted;
 			extent_t *extent = iealloc(tsdn, rdelm);
 			arena_chunk_t *chunk =
-			    (arena_chunk_t *)extent_addr_get(extent);
+			    (arena_chunk_t *)extent_base_get(extent);
 			arena_chunk_map_misc_t *miscelm =
 			    arena_rd_to_miscelm(extent, rdelm);
 			pageind = arena_miscelm_to_pageind(extent, miscelm);
@@ -1653,7 +1654,7 @@ arena_unstash_purged(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 		} else {
 			extent_t *extent = iealloc(tsdn, rdelm);
 			arena_chunk_t *chunk =
-			    (arena_chunk_t *)extent_addr_get(extent);
+			    (arena_chunk_t *)extent_base_get(extent);
 			arena_chunk_map_misc_t *miscelm =
 			    arena_rd_to_miscelm(extent, rdelm);
 			size_t pageind = arena_miscelm_to_pageind(extent,
@@ -1734,7 +1735,7 @@ arena_purge(tsdn_t *tsdn, arena_t *arena, bool all)
 static void
 arena_achunk_prof_reset(tsd_t *tsd, arena_t *arena, extent_t *extent)
 {
-	arena_chunk_t *chunk = (arena_chunk_t *)extent_addr_get(extent);
+	arena_chunk_t *chunk = (arena_chunk_t *)extent_base_get(extent);
 	size_t pageind, npages;
 
 	cassert(config_prof);
@@ -1809,7 +1810,7 @@ arena_reset(tsd_t *tsd, arena_t *arena)
 	malloc_mutex_lock(tsd_tsdn(tsd), &arena->huge_mtx);
 	for (extent = ql_last(&arena->huge, ql_link); extent != NULL; extent =
 	    ql_last(&arena->huge, ql_link)) {
-		void *ptr = extent_addr_get(extent);
+		void *ptr = extent_base_get(extent);
 		size_t usize;
 
 		malloc_mutex_unlock(tsd_tsdn(tsd), &arena->huge_mtx);
@@ -1882,7 +1883,7 @@ arena_run_coalesce(arena_t *arena, extent_t *extent, size_t *p_size,
     size_t *p_run_ind, size_t *p_run_pages, size_t flag_dirty,
     size_t flag_decommitted)
 {
-	arena_chunk_t *chunk = (arena_chunk_t *)extent_addr_get(extent);
+	arena_chunk_t *chunk = (arena_chunk_t *)extent_base_get(extent);
 	size_t size = *p_size;
 	size_t run_ind = *p_run_ind;
 	size_t run_pages = *p_run_pages;
@@ -2000,7 +2001,7 @@ arena_run_dalloc(tsdn_t *tsdn, arena_t *arena, extent_t *extent,
 	arena_chunk_map_misc_t *miscelm;
 	size_t size, run_ind, run_pages, flag_dirty, flag_decommitted;
 
-	chunk = (arena_chunk_t *)extent_addr_get(extent);
+	chunk = (arena_chunk_t *)extent_base_get(extent);
 	miscelm = arena_run_to_miscelm(extent, run);
 	run_ind = arena_miscelm_to_pageind(extent, miscelm);
 	assert(run_ind >= map_bias);
@@ -2260,7 +2261,7 @@ arena_bin_malloc_hard(tsdn_t *tsdn, arena_t *arena, arena_bin_t *bin)
 			 * were just deallocated from the run.
 			 */
 			extent = iealloc(tsdn, run);
-			chunk = (arena_chunk_t *)extent_addr_get(extent);
+			chunk = (arena_chunk_t *)extent_base_get(extent);
 			if (run->nfree == bin_info->nregs) {
 				arena_dalloc_bin_run(tsdn, arena, chunk, extent,
 				    run, bin);
@@ -2425,7 +2426,6 @@ arena_malloc_large(tsdn_t *tsdn, arena_t *arena, szind_t binind, bool zero)
 
 	/* Large allocation. */
 	usize = index2size(binind);
-	malloc_mutex_lock(tsdn, &arena->lock);
 	if (config_cache_oblivious) {
 		uint64_t r;
 
@@ -2434,10 +2434,12 @@ arena_malloc_large(tsdn_t *tsdn, arena_t *arena, szind_t binind, bool zero)
 		 * that is a multiple of the cacheline size, e.g. [0 .. 63) * 64
 		 * for 4 KiB pages and 64-byte cachelines.
 		 */
-		r = prng_lg_range(&arena->offset_state, LG_PAGE - LG_CACHELINE);
+		r = prng_lg_range(&arena->offset_state, LG_PAGE - LG_CACHELINE,
+		    true);
 		random_offset = ((uintptr_t)r) << LG_CACHELINE;
 	} else
 		random_offset = 0;
+	malloc_mutex_lock(tsdn, &arena->lock);
 	run = arena_run_alloc_large(tsdn, arena, usize + large_pad, zero);
 	if (run == NULL) {
 		malloc_mutex_unlock(tsdn, &arena->lock);
@@ -2526,7 +2528,7 @@ arena_palloc_large(tsdn_t *tsdn, arena_t *arena, size_t usize, size_t alignment,
 		return (NULL);
 	}
 	extent = iealloc(tsdn, run);
-	chunk = (arena_chunk_t *)extent_addr_get(extent);
+	chunk = (arena_chunk_t *)extent_base_get(extent);
 	miscelm = arena_run_to_miscelm(extent, run);
 	rpages = arena_miscelm_to_rpages(extent, miscelm);
 
@@ -2616,7 +2618,7 @@ arena_palloc(tsdn_t *tsdn, arena_t *arena, size_t usize, size_t alignment,
 		if (likely(usize <= large_maxclass)) {
 			ret = arena_palloc_large(tsdn, arena, usize, alignment,
 			    zero);
-		} else if (likely(alignment <= PAGE))
+		} else if (likely(alignment <= CACHELINE))
 			ret = huge_malloc(tsdn, arena, usize, zero);
 		else
 			ret = huge_palloc(tsdn, arena, usize, alignment, zero);
@@ -2634,12 +2636,11 @@ arena_prof_promoted(tsdn_t *tsdn, const extent_t *extent, const void *ptr,
 
 	cassert(config_prof);
 	assert(ptr != NULL);
-	assert(extent_addr_get(extent) != ptr);
 	assert(isalloc(tsdn, extent, ptr, false) == LARGE_MINCLASS);
 	assert(isalloc(tsdn, extent, ptr, true) == LARGE_MINCLASS);
 	assert(size <= SMALL_MAXCLASS);
 
-	chunk = (arena_chunk_t *)extent_addr_get(extent);
+	chunk = (arena_chunk_t *)extent_base_get(extent);
 	pageind = ((uintptr_t)ptr - (uintptr_t)chunk) >> LG_PAGE;
 	binind = size2index(size);
 	assert(binind < NBINS);
@@ -3030,7 +3031,7 @@ arena_ralloc_large(tsdn_t *tsdn, extent_t *extent, void *ptr, size_t oldsize,
 		return (false);
 	}
 
-	chunk = (arena_chunk_t *)extent_addr_get(extent);
+	chunk = (arena_chunk_t *)extent_base_get(extent);
 	arena = extent_arena_get(extent);
 
 	if (oldsize < usize_max) {
