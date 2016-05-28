@@ -120,7 +120,7 @@ chunk_merge(void *chunk_a, size_t size_a, void *chunk_b, size_t size_b,
 TEST_BEGIN(test_chunk)
 {
 	void *p;
-	size_t old_size, new_size, large0, large1, huge0, huge1, huge2, sz;
+	size_t old_size, new_size, huge0, huge1, huge2, sz;
 	unsigned arena_ind;
 	int flags;
 	size_t hooks_mib[3], purge_mib[3];
@@ -162,14 +162,8 @@ TEST_BEGIN(test_chunk)
 	assert_ptr_ne(old_hooks.split, chunk_split, "Unexpected split error");
 	assert_ptr_ne(old_hooks.merge, chunk_merge, "Unexpected merge error");
 
-	/* Get large size classes. */
-	sz = sizeof(size_t);
-	assert_d_eq(mallctl("arenas.lrun.0.size", &large0, &sz, NULL, 0), 0,
-	    "Unexpected arenas.lrun.0.size failure");
-	assert_d_eq(mallctl("arenas.lrun.1.size", &large1, &sz, NULL, 0), 0,
-	    "Unexpected arenas.lrun.1.size failure");
-
 	/* Get huge size classes. */
+	sz = sizeof(size_t);
 	assert_d_eq(mallctl("arenas.hchunk.0.size", &huge0, &sz, NULL, 0), 0,
 	    "Unexpected arenas.hchunk.0.size failure");
 	assert_d_eq(mallctl("arenas.hchunk.1.size", &huge1, &sz, NULL, 0), 0,
@@ -222,24 +216,6 @@ TEST_BEGIN(test_chunk)
 		assert_true(did_merge, "Expected merge");
 	dallocx(p, flags);
 	do_dalloc = true;
-	do_decommit = false;
-
-	/* Test decommit for large allocations. */
-	do_decommit = true;
-	p = mallocx(large1, flags);
-	assert_ptr_not_null(p, "Unexpected mallocx() error");
-	assert_d_eq(mallctlbymib(purge_mib, purge_miblen, NULL, NULL, NULL, 0),
-	    0, "Unexpected arena.%u.purge error", arena_ind);
-	did_decommit = false;
-	assert_zu_eq(xallocx(p, large0, 0, flags), large0,
-	    "Unexpected xallocx() failure");
-	assert_d_eq(mallctlbymib(purge_mib, purge_miblen, NULL, NULL, NULL, 0),
-	    0, "Unexpected arena.%u.purge error", arena_ind);
-	did_commit = false;
-	assert_zu_eq(xallocx(p, large1, 0, flags), large1,
-	    "Unexpected xallocx() failure");
-	assert_b_eq(did_decommit, did_commit, "Expected decommit/commit match");
-	dallocx(p, flags);
 	do_decommit = false;
 
 	/* Make sure non-huge allocation succeeds. */

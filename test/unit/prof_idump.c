@@ -1,10 +1,17 @@
 #include "test/jemalloc_test.h"
 
+const char *malloc_conf = ""
 #ifdef JEMALLOC_PROF
-const char *malloc_conf =
-    "prof:true,prof_accum:true,prof_active:false,lg_prof_sample:0,"
-    "lg_prof_interval:0";
+    "prof:true,prof_accum:true,prof_active:false,lg_prof_sample:0"
+    ",lg_prof_interval:0"
+#  ifdef JEMALLOC_TCACHE
+    ","
+#  endif
 #endif
+#ifdef JEMALLOC_TCACHE
+    "tcache:false"
+#endif
+    ;
 
 static bool did_prof_dump_open;
 

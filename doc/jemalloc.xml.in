@@ -417,22 +417,21 @@ for (i = 0; i < nbins; i++) {
       <parameter>write_cb</parameter>, or
       <function>malloc_message<parameter/></function> if
       <parameter>write_cb</parameter> is <constant>NULL</constant>.  This
-      function can be called repeatedly.  General information that never
-      changes during execution can be omitted by specifying "g" as a character
-      within the <parameter>opts</parameter> string.  Note that
+      function can be called repeatedly.  General information that never changes
+      during execution can be omitted by specifying "g" as a character within
+      the <parameter>opts</parameter> string.  Note that
       <function>malloc_message<parameter/></function> uses the
       <function>mallctl*<parameter/></function> functions internally, so
       inconsistent statistics can be reported if multiple threads use these
-      functions simultaneously.  If <option>--enable-stats</option> is
-      specified during configuration, &ldquo;m&rdquo; and &ldquo;a&rdquo; can
-      be specified to omit merged arena and per arena statistics, respectively;
-      &ldquo;b&rdquo;, &ldquo;l&rdquo;, and &ldquo;h&rdquo; can be specified to
-      omit per size class statistics for bins, large objects, and huge objects,
-      respectively.  Unrecognized characters are silently ignored.  Note that
-      thread caching may prevent some statistics from being completely up to
-      date, since extra locking would be required to merge counters that track
-      thread cache operations.
-      </para>
+      functions simultaneously.  If <option>--enable-stats</option> is specified
+      during configuration, &ldquo;m&rdquo; and &ldquo;a&rdquo; can be specified
+      to omit merged arena and per arena statistics, respectively;
+      &ldquo;b&rdquo; and &ldquo;l&rdquo; can be specified to omit per size
+      class statistics for bins and large objects, respectively.  Unrecognized
+      characters are silently ignored.  Note that thread caching may prevent
+      some statistics from being completely up to date, since extra locking
+      would be required to merge counters that track thread cache
+      operations.</para>
 
       <para>The <function>malloc_usable_size<parameter/></function> function
       returns the usable size of the allocation pointed to by
@@ -1888,25 +1887,6 @@ typedef struct {
         <listitem><para>Number of bytes per page run.</para></listitem>
       </varlistentry>
 
-      <varlistentry id="arenas.nlruns">
-        <term>
-          <mallctl>arenas.nlruns</mallctl>
-          (<type>unsigned</type>)
-          <literal>r-</literal>
-        </term>
-        <listitem><para>Total number of large size classes.</para></listitem>
-      </varlistentry>
-
-      <varlistentry id="arenas.lrun.i.size">
-        <term>
-          <mallctl>arenas.lrun.&lt;i&gt;.size</mallctl>
-          (<type>size_t</type>)
-          <literal>r-</literal>
-        </term>
-        <listitem><para>Maximum size supported by this large size
-        class.</para></listitem>
-      </varlistentry>
-
       <varlistentry id="arenas.nhchunks">
         <term>
           <mallctl>arenas.nhchunks</mallctl>
@@ -2532,50 +2512,6 @@ typedef struct {
           [<option>--enable-stats</option>]
         </term>
         <listitem><para>Current number of runs.</para></listitem>
-      </varlistentry>
-
-      <varlistentry id="stats.arenas.i.lruns.j.nmalloc">
-        <term>
-          <mallctl>stats.arenas.&lt;i&gt;.lruns.&lt;j&gt;.nmalloc</mallctl>
-          (<type>uint64_t</type>)
-          <literal>r-</literal>
-          [<option>--enable-stats</option>]
-        </term>
-        <listitem><para>Cumulative number of allocation requests for this size
-        class served directly by the arena.</para></listitem>
-      </varlistentry>
-
-      <varlistentry id="stats.arenas.i.lruns.j.ndalloc">
-        <term>
-          <mallctl>stats.arenas.&lt;i&gt;.lruns.&lt;j&gt;.ndalloc</mallctl>
-          (<type>uint64_t</type>)
-          <literal>r-</literal>
-          [<option>--enable-stats</option>]
-        </term>
-        <listitem><para>Cumulative number of deallocation requests for this
-        size class served directly by the arena.</para></listitem>
-      </varlistentry>
-
-      <varlistentry id="stats.arenas.i.lruns.j.nrequests">
-        <term>
-          <mallctl>stats.arenas.&lt;i&gt;.lruns.&lt;j&gt;.nrequests</mallctl>
-          (<type>uint64_t</type>)
-          <literal>r-</literal>
-          [<option>--enable-stats</option>]
-        </term>
-        <listitem><para>Cumulative number of allocation requests for this size
-        class.</para></listitem>
-      </varlistentry>
-
-      <varlistentry id="stats.arenas.i.lruns.j.curruns">
-        <term>
-          <mallctl>stats.arenas.&lt;i&gt;.lruns.&lt;j&gt;.curruns</mallctl>
-          (<type>size_t</type>)
-          <literal>r-</literal>
-          [<option>--enable-stats</option>]
-        </term>
-        <listitem><para>Current number of runs for this size class.
-        </para></listitem>
       </varlistentry>
 
       <varlistentry id="stats.arenas.i.hchunks.j.nmalloc">

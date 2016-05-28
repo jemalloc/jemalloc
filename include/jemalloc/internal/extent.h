@@ -15,8 +15,14 @@ struct extent_s {
 	/* Pointer to the extent that this structure is responsible for. */
 	void			*e_addr;
 
-	/* Total region size. */
+	/* Extent size. */
 	size_t			e_size;
+
+	/*
+	 * Usable size, typically smaller than extent size due to large_pad or
+	 * promotion of sampled small regions.
+	 */
+	size_t			e_usize;
 
 	/* True if extent is active (in use). */
 	bool			e_active;
@@ -106,6 +112,7 @@ void	extent_arena_set(extent_t *extent, arena_t *arena);
 void	extent_addr_set(extent_t *extent, void *addr);
 void	extent_addr_randomize(tsdn_t *tsdn, extent_t *extent, size_t alignment);
 void	extent_size_set(extent_t *extent, size_t size);
+void	extent_usize_set(extent_t *extent, size_t usize);
 void	extent_active_set(extent_t *extent, bool active);
 void	extent_dirty_set(extent_t *extent, bool dirty);
 void	extent_zeroed_set(extent_t *extent, bool zeroed);
@@ -113,8 +120,8 @@ void	extent_committed_set(extent_t *extent, bool committed);
 void	extent_slab_set(extent_t *extent, bool slab);
 void	extent_prof_tctx_set(extent_t *extent, prof_tctx_t *tctx);
 void	extent_init(extent_t *extent, arena_t *arena, void *addr,
-    size_t size, bool active, bool dirty, bool zeroed, bool committed,
-    bool slab);
+    size_t size, size_t usize, bool active, bool dirty, bool zeroed,
+    bool committed, bool slab);
 void	extent_dirty_insert(extent_t *extent,
     arena_runs_dirty_link_t *runs_dirty, extent_t *chunks_dirty);
 void	extent_dirty_remove(extent_t *extent);
@@ -158,7 +165,7 @@ extent_usize_get(const extent_t *extent)
 {
 
 	assert(!extent->e_slab);
-	return (extent->e_size - large_pad);
+	return (extent->e_usize);
 }
 
 JEMALLOC_INLINE void *
@@ -172,14 +179,15 @@ JEMALLOC_INLINE void *
 extent_last_get(const extent_t *extent)
 {
 
-	return ((void *)(uintptr_t)extent->e_addr + extent->e_size - PAGE);
+	return ((void *)(uintptr_t)extent->e_addr + extent_size_get(extent) -
+	    PAGE);
 }
 
 JEMALLOC_INLINE void *
 extent_past_get(const extent_t *extent)
 {
 
-	return ((void *)(uintptr_t)extent->e_addr + extent->e_size);
+	return ((void *)(uintptr_t)extent->e_addr + extent_size_get(extent));
 }
 
 JEMALLOC_INLINE bool
@@ -258,9 +266,12 @@ extent_addr_randomize(tsdn_t *tsdn, extent_t *extent, size_t alignment)
 		uint64_t r =
 		    prng_lg_range(&extent_arena_get(extent)->offset_state,
 		    lg_range, true);
-		uintptr_t random_offset = ((uintptr_t)r) << lg_range;
+		uintptr_t random_offset = ((uintptr_t)r) << (LG_PAGE -
+		    lg_range);
 		extent->e_addr = (void *)((uintptr_t)extent->e_addr +
 		    random_offset);
+		assert(ALIGNMENT_ADDR2BASE(extent->e_addr, alignment) ==
+		    extent->e_addr);
 	}
 }
 
@@ -269,6 +280,13 @@ extent_size_set(extent_t *extent, size_t size)
 {
 
 	extent->e_size = size;
+}
+
+JEMALLOC_INLINE void
+extent_usize_set(extent_t *extent, size_t usize)
+{
+
+	extent->e_usize = usize;
 }
 
 JEMALLOC_INLINE void
@@ -315,7 +333,8 @@ extent_prof_tctx_set(extent_t *extent, prof_tctx_t *tctx)
 
 JEMALLOC_INLINE void
 extent_init(extent_t *extent, arena_t *arena, void *addr, size_t size,
-    bool active, bool dirty, bool zeroed, bool committed, bool slab)
+    size_t usize, bool active, bool dirty, bool zeroed, bool committed,
+    bool slab)
 {
 
 	assert(addr == PAGE_ADDR2BASE(addr) || !slab);
@@ -323,6 +342,7 @@ extent_init(extent_t *extent, arena_t *arena, void *addr, size_t size,
 	extent_arena_set(extent, arena);
 	extent_addr_set(extent, addr);
 	extent_size_set(extent, size);
+	extent_usize_set(extent, usize);
 	extent_active_set(extent, active);
 	extent_dirty_set(extent, dirty);
 	extent_zeroed_set(extent, zeroed);

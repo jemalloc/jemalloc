@@ -92,13 +92,6 @@ get_nsmall(void)
 }
 
 static unsigned
-get_nlarge(void)
-{
-
-	return (get_nsizes_impl("arenas.nlruns"));
-}
-
-static unsigned
 get_nhuge(void)
 {
 
@@ -129,13 +122,6 @@ get_small_size(size_t ind)
 {
 
 	return (get_size_impl("arenas.bin.0.size", ind));
-}
-
-static size_t
-get_large_size(size_t ind)
-{
-
-	return (get_size_impl("arenas.lrun.0.size", ind));
 }
 
 static size_t
@@ -239,81 +225,14 @@ TEST_BEGIN(test_extra_small)
 }
 TEST_END
 
-TEST_BEGIN(test_extra_large)
+TEST_BEGIN(test_extra_huge)
 {
 	int flags = MALLOCX_ARENA(arena_ind());
-	size_t smallmax, large0, large1, large2, huge0, hugemax;
+	size_t smallmax, huge1, huge2, huge3, hugemax;
 	void *p;
 
 	/* Get size classes. */
 	smallmax = get_small_size(get_nsmall()-1);
-	large0 = get_large_size(0);
-	large1 = get_large_size(1);
-	large2 = get_large_size(2);
-	huge0 = get_huge_size(0);
-	hugemax = get_huge_size(get_nhuge()-1);
-
-	p = mallocx(large2, flags);
-	assert_ptr_not_null(p, "Unexpected mallocx() error");
-
-	assert_zu_eq(xallocx(p, large2, 0, flags), large2,
-	    "Unexpected xallocx() behavior");
-	/* Test size decrease with zero extra. */
-	assert_zu_eq(xallocx(p, large0, 0, flags), large0,
-	    "Unexpected xallocx() behavior");
-	assert_zu_eq(xallocx(p, smallmax, 0, flags), large0,
-	    "Unexpected xallocx() behavior");
-
-	assert_zu_eq(xallocx(p, large2, 0, flags), large2,
-	    "Unexpected xallocx() behavior");
-	/* Test size decrease with non-zero extra. */
-	assert_zu_eq(xallocx(p, large0, large2 - large0, flags), large2,
-	    "Unexpected xallocx() behavior");
-	assert_zu_eq(xallocx(p, large1, large2 - large1, flags), large2,
-	    "Unexpected xallocx() behavior");
-	assert_zu_eq(xallocx(p, large0, large1 - large0, flags), large1,
-	    "Unexpected xallocx() behavior");
-	assert_zu_eq(xallocx(p, smallmax, large0 - smallmax, flags), large0,
-	    "Unexpected xallocx() behavior");
-
-	assert_zu_eq(xallocx(p, large0, 0, flags), large0,
-	    "Unexpected xallocx() behavior");
-	/* Test size increase with zero extra. */
-	assert_zu_eq(xallocx(p, large2, 0, flags), large2,
-	    "Unexpected xallocx() behavior");
-	assert_zu_eq(xallocx(p, huge0, 0, flags), large2,
-	    "Unexpected xallocx() behavior");
-
-	assert_zu_eq(xallocx(p, large0, 0, flags), large0,
-	    "Unexpected xallocx() behavior");
-	/* Test size increase with non-zero extra. */
-	assert_zu_lt(xallocx(p, large0, huge0 - large0, flags), huge0,
-	    "Unexpected xallocx() behavior");
-
-	assert_zu_eq(xallocx(p, large0, 0, flags), large0,
-	    "Unexpected xallocx() behavior");
-	/* Test size increase with non-zero extra. */
-	assert_zu_eq(xallocx(p, large0, large2 - large0, flags), large2,
-	    "Unexpected xallocx() behavior");
-
-	assert_zu_eq(xallocx(p, large2, 0, flags), large2,
-	    "Unexpected xallocx() behavior");
-	/* Test size+extra overflow. */
-	assert_zu_lt(xallocx(p, large2, hugemax - large2 + 1, flags), huge0,
-	    "Unexpected xallocx() behavior");
-
-	dallocx(p, flags);
-}
-TEST_END
-
-TEST_BEGIN(test_extra_huge)
-{
-	int flags = MALLOCX_ARENA(arena_ind());
-	size_t largemax, huge1, huge2, huge3, hugemax;
-	void *p;
-
-	/* Get size classes. */
-	largemax = get_large_size(get_nlarge()-1);
 	huge1 = get_huge_size(1);
 	huge2 = get_huge_size(2);
 	huge3 = get_huge_size(3);
@@ -327,7 +246,7 @@ TEST_BEGIN(test_extra_huge)
 	/* Test size decrease with zero extra. */
 	assert_zu_ge(xallocx(p, huge1, 0, flags), huge1,
 	    "Unexpected xallocx() behavior");
-	assert_zu_ge(xallocx(p, largemax, 0, flags), huge1,
+	assert_zu_ge(xallocx(p, smallmax, 0, flags), huge1,
 	    "Unexpected xallocx() behavior");
 
 	assert_zu_eq(xallocx(p, huge3, 0, flags), huge3,
@@ -339,7 +258,7 @@ TEST_BEGIN(test_extra_huge)
 	    "Unexpected xallocx() behavior");
 	assert_zu_eq(xallocx(p, huge1, huge2 - huge1, flags), huge2,
 	    "Unexpected xallocx() behavior");
-	assert_zu_ge(xallocx(p, largemax, huge1 - largemax, flags), huge1,
+	assert_zu_ge(xallocx(p, smallmax, huge1 - smallmax, flags), huge1,
 	    "Unexpected xallocx() behavior");
 
 	assert_zu_ge(xallocx(p, huge1, 0, flags), huge1,
@@ -455,18 +374,6 @@ test_zero(size_t szmin, size_t szmax)
 	dallocx(p, flags);
 }
 
-TEST_BEGIN(test_zero_large)
-{
-	size_t large0, largemax;
-
-	/* Get size classes. */
-	large0 = get_large_size(0);
-	largemax = get_large_size(get_nlarge()-1);
-
-	test_zero(large0, largemax);
-}
-TEST_END
-
 TEST_BEGIN(test_zero_huge)
 {
 	size_t huge0, huge1;
@@ -490,8 +397,6 @@ main(void)
 	    test_size,
 	    test_size_extra_overflow,
 	    test_extra_small,
-	    test_extra_large,
 	    test_extra_huge,
-	    test_zero_large,
 	    test_zero_huge));
 }

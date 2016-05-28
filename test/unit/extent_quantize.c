@@ -35,16 +35,16 @@ TEST_BEGIN(test_small_extent_size)
 }
 TEST_END
 
-TEST_BEGIN(test_large_extent_size)
+TEST_BEGIN(test_huge_extent_size)
 {
 	bool cache_oblivious;
-	unsigned nlruns, i;
+	unsigned nhchunks, i;
 	size_t sz, extent_size_prev, ceil_prev;
 	size_t mib[4];
 	size_t miblen = sizeof(mib) / sizeof(size_t);
 
 	/*
-	 * Iterate over all large size classes, get their extent sizes, and
+	 * Iterate over all huge size classes, get their extent sizes, and
 	 * verify that the quantized size is the same as the extent size.
 	 */
 
@@ -53,12 +53,12 @@ TEST_BEGIN(test_large_extent_size)
 	    NULL, 0), 0, "Unexpected mallctl failure");
 
 	sz = sizeof(unsigned);
-	assert_d_eq(mallctl("arenas.nlruns", &nlruns, &sz, NULL, 0), 0,
+	assert_d_eq(mallctl("arenas.nhchunks", &nhchunks, &sz, NULL, 0), 0,
 	    "Unexpected mallctl failure");
 
-	assert_d_eq(mallctlnametomib("arenas.lrun.0.size", mib, &miblen), 0,
+	assert_d_eq(mallctlnametomib("arenas.hchunk.0.size", mib, &miblen), 0,
 	    "Unexpected mallctlnametomib failure");
-	for (i = 0; i < nlruns; i++) {
+	for (i = 0; i < nhchunks; i++) {
 		size_t lextent_size, extent_size, floor, ceil;
 
 		mib[2] = i;
@@ -91,33 +91,24 @@ TEST_BEGIN(test_large_extent_size)
 				    ceil_prev, extent_size);
 			}
 		}
-		extent_size_prev = floor;
-		ceil_prev = extent_size_quantize_ceil(extent_size + PAGE);
+		if (i + 1 < nhchunks) {
+			extent_size_prev = floor;
+			ceil_prev = extent_size_quantize_ceil(extent_size +
+			    PAGE);
+		}
 	}
 }
 TEST_END
 
 TEST_BEGIN(test_monotonic)
 {
-	unsigned nbins, nlruns, i;
-	size_t sz, floor_prev, ceil_prev;
-
-	/*
-	 * Iterate over all extent sizes and verify that
-	 * extent_size_quantize_{floor,ceil}() are monotonic.
-	 */
-
-	sz = sizeof(unsigned);
-	assert_d_eq(mallctl("arenas.nbins", &nbins, &sz, NULL, 0), 0,
-	    "Unexpected mallctl failure");
-
-	sz = sizeof(unsigned);
-	assert_d_eq(mallctl("arenas.nlruns", &nlruns, &sz, NULL, 0), 0,
-	    "Unexpected mallctl failure");
+#define	SZ_MAX	ZU(4 * 1024 * 1024)
+	unsigned i;
+	size_t floor_prev, ceil_prev;
 
 	floor_prev = 0;
 	ceil_prev = 0;
-	for (i = 1; i <= large_maxclass >> LG_PAGE; i++) {
+	for (i = 1; i <= SZ_MAX >> LG_PAGE; i++) {
 		size_t extent_size, floor, ceil;
 
 		extent_size = i << LG_PAGE;
@@ -150,6 +141,6 @@ main(void)
 
 	return (test(
 	    test_small_extent_size,
-	    test_large_extent_size,
+	    test_huge_extent_size,
 	    test_monotonic));
 }

@@ -25,13 +25,6 @@ get_nsmall(void)
 }
 
 static unsigned
-get_nlarge(void)
-{
-
-	return (get_nsizes_impl("arenas.nlruns"));
-}
-
-static unsigned
 get_nhuge(void)
 {
 
@@ -65,13 +58,6 @@ get_small_size(size_t ind)
 }
 
 static size_t
-get_large_size(size_t ind)
-{
-
-	return (get_size_impl("arenas.lrun.0.size", ind));
-}
-
-static size_t
 get_huge_size(size_t ind)
 {
 
@@ -90,13 +76,13 @@ vsalloc(tsdn_t *tsdn, const void *ptr)
 	if (!extent_active_get(extent))
 		return (0);
 
-	return (isalloc(tsdn, extent, ptr, false));
+	return (isalloc(tsdn, extent, ptr));
 }
 
 TEST_BEGIN(test_arena_reset)
 {
-#define	NHUGE	4
-	unsigned arena_ind, nsmall, nlarge, nhuge, nptrs, i;
+#define	NHUGE	32
+	unsigned arena_ind, nsmall, nhuge, nptrs, i;
 	size_t sz, miblen;
 	void **ptrs;
 	int flags;
@@ -110,9 +96,8 @@ TEST_BEGIN(test_arena_reset)
 	flags = MALLOCX_ARENA(arena_ind) | MALLOCX_TCACHE_NONE;
 
 	nsmall = get_nsmall();
-	nlarge = get_nlarge();
 	nhuge = get_nhuge() > NHUGE ? NHUGE : get_nhuge();
-	nptrs = nsmall + nlarge + nhuge;
+	nptrs = nsmall + nhuge;
 	ptrs = (void **)malloc(nptrs * sizeof(void *));
 	assert_ptr_not_null(ptrs, "Unexpected malloc() failure");
 
@@ -123,15 +108,9 @@ TEST_BEGIN(test_arena_reset)
 		assert_ptr_not_null(ptrs[i],
 		    "Unexpected mallocx(%zu, %#x) failure", sz, flags);
 	}
-	for (i = 0; i < nlarge; i++) {
-		sz = get_large_size(i);
-		ptrs[nsmall + i] = mallocx(sz, flags);
-		assert_ptr_not_null(ptrs[i],
-		    "Unexpected mallocx(%zu, %#x) failure", sz, flags);
-	}
 	for (i = 0; i < nhuge; i++) {
 		sz = get_huge_size(i);
-		ptrs[nsmall + nlarge + i] = mallocx(sz, flags);
+		ptrs[nsmall + i] = mallocx(sz, flags);
 		assert_ptr_not_null(ptrs[i],
 		    "Unexpected mallocx(%zu, %#x) failure", sz, flags);
 	}
@@ -140,7 +119,7 @@ TEST_BEGIN(test_arena_reset)
 
 	/* Verify allocations. */
 	for (i = 0; i < nptrs; i++) {
-		assert_zu_gt(ivsalloc(tsdn, ptrs[i], false), 0,
+		assert_zu_gt(ivsalloc(tsdn, ptrs[i]), 0,
 		    "Allocation should have queryable size");
 	}
 

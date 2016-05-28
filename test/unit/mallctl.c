@@ -596,8 +596,7 @@ TEST_BEGIN(test_arenas_constants)
 	TEST_ARENAS_CONSTANT(size_t, quantum, QUANTUM);
 	TEST_ARENAS_CONSTANT(size_t, page, PAGE);
 	TEST_ARENAS_CONSTANT(unsigned, nbins, NBINS);
-	TEST_ARENAS_CONSTANT(unsigned, nlruns, nlclasses);
-	TEST_ARENAS_CONSTANT(unsigned, nhchunks, nhclasses);
+	TEST_ARENAS_CONSTANT(unsigned, nhchunks, NSIZES - NBINS);
 
 #undef TEST_ARENAS_CONSTANT
 }
@@ -622,23 +621,6 @@ TEST_BEGIN(test_arenas_bin_constants)
 }
 TEST_END
 
-TEST_BEGIN(test_arenas_lrun_constants)
-{
-
-#define	TEST_ARENAS_LRUN_CONSTANT(t, name, expected) do {		\
-	t name;								\
-	size_t sz = sizeof(t);						\
-	assert_d_eq(mallctl("arenas.lrun.0."#name, &name, &sz, NULL,	\
-	    0), 0, "Unexpected mallctl() failure");			\
-	assert_zu_eq(name, expected, "Incorrect "#name" size");		\
-} while (0)
-
-	TEST_ARENAS_LRUN_CONSTANT(size_t, size, LARGE_MINCLASS);
-
-#undef TEST_ARENAS_LRUN_CONSTANT
-}
-TEST_END
-
 TEST_BEGIN(test_arenas_hchunk_constants)
 {
 
@@ -650,7 +632,7 @@ TEST_BEGIN(test_arenas_hchunk_constants)
 	assert_zu_eq(name, expected, "Incorrect "#name" size");		\
 } while (0)
 
-	TEST_ARENAS_HCHUNK_CONSTANT(size_t, size, chunksize);
+	TEST_ARENAS_HCHUNK_CONSTANT(size_t, size, LARGE_MINCLASS);
 
 #undef TEST_ARENAS_HCHUNK_CONSTANT
 }
@@ -721,7 +703,6 @@ main(void)
 	    test_arenas_decay_time,
 	    test_arenas_constants,
 	    test_arenas_bin_constants,
-	    test_arenas_lrun_constants,
 	    test_arenas_hchunk_constants,
 	    test_arenas_extend,
 	    test_stats_arenas));

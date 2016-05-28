@@ -369,7 +369,7 @@ chunk_recycle(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 	if (leadsize != 0) {
 		extent_t *lead = extent;
 		extent = chunk_split_wrapper(tsdn, arena, chunk_hooks, lead,
-		    leadsize, size + trailsize);
+		    leadsize, leadsize, size + trailsize, usize + trailsize);
 		if (extent == NULL) {
 			chunk_leak(tsdn, arena, chunk_hooks, cache, lead);
 			malloc_mutex_unlock(tsdn, &arena->chunks_mtx);
@@ -382,7 +382,7 @@ chunk_recycle(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 	/* Split the trail. */
 	if (trailsize != 0) {
 		extent_t *trail = chunk_split_wrapper(tsdn, arena, chunk_hooks,
-		    extent, size, trailsize);
+		    extent, size, usize, trailsize, trailsize);
 		if (trail == NULL) {
 			chunk_leak(tsdn, arena, chunk_hooks, cache, extent);
 			malloc_mutex_unlock(tsdn, &arena->chunks_mtx);
@@ -390,6 +390,12 @@ chunk_recycle(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 		}
 		extent_heaps_insert(extent_heaps, trail);
 		arena_chunk_cache_maybe_insert(arena, trail, cache);
+	} else if (leadsize == 0) {
+		/*
+		 * Splitting causes usize to be set as a side effect, but no
+		 * splitting occurred.
+		 */
+		extent_usize_set(extent, usize);
 	}
 
 	if (!extent_committed_get(extent) &&
@@ -552,7 +558,8 @@ chunk_alloc_wrapper_hard(tsdn_t *tsdn, arena_t *arena,
 		extent_dalloc(tsdn, arena, extent);
 		return (NULL);
 	}
-	extent_init(extent, arena, addr, size, true, false, zero, commit, slab);
+	extent_init(extent, arena, addr, size, usize, true, false, zero, commit,
+	    slab);
 	if (pad != 0)
 		extent_addr_randomize(tsdn, extent, alignment);
 	if (chunk_register(tsdn, extent)) {
@@ -635,6 +642,7 @@ chunk_record(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 	malloc_mutex_lock(tsdn, &arena->chunks_mtx);
 	chunk_hooks_assure_initialized_locked(tsdn, arena, chunk_hooks);
 
+	extent_usize_set(extent, 0);
 	extent_active_set(extent, false);
 	extent_zeroed_set(extent, !cache && extent_zeroed_get(extent));
 	if (extent_slab_get(extent)) {
@@ -801,7 +809,8 @@ chunk_split_default(void *chunk, size_t size, size_t size_a, size_t size_b,
 
 extent_t *
 chunk_split_wrapper(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
-  extent_t *extent, size_t size_a, size_t size_b)
+  extent_t *extent, size_t size_a, size_t usize_a, size_t size_b,
+  size_t usize_b)
 {
 	extent_t *trail;
 	rtree_elm_t *lead_elm_a, *lead_elm_b, *trail_elm_a, *trail_elm_b;
@@ -818,9 +827,9 @@ chunk_split_wrapper(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 		extent_t lead;
 
 		extent_init(&lead, arena, extent_addr_get(extent), size_a,
-		    extent_active_get(extent), extent_dirty_get(extent),
-		    extent_zeroed_get(extent), extent_committed_get(extent),
-		    extent_slab_get(extent));
+		    usize_a, extent_active_get(extent),
+		    extent_dirty_get(extent), extent_zeroed_get(extent),
+		    extent_committed_get(extent), extent_slab_get(extent));
 
 		if (extent_rtree_acquire(tsdn, &lead, false, true, &lead_elm_a,
 		    &lead_elm_b))
@@ -828,7 +837,7 @@ chunk_split_wrapper(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 	}
 
 	extent_init(trail, arena, (void *)((uintptr_t)extent_base_get(extent) +
-	    size_a), size_b, extent_active_get(extent),
+	    size_a), size_b, usize_b, extent_active_get(extent),
 	    extent_dirty_get(extent), extent_zeroed_get(extent),
 	    extent_committed_get(extent), extent_slab_get(extent));
 	if (extent_rtree_acquire(tsdn, trail, false, true, &trail_elm_a,
@@ -840,6 +849,7 @@ chunk_split_wrapper(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 		goto label_error_d;
 
 	extent_size_set(extent, size_a);
+	extent_usize_set(extent, usize_a);
 
 	extent_rtree_write_acquired(tsdn, lead_elm_a, lead_elm_b, extent);
 	extent_rtree_write_acquired(tsdn, trail_elm_a, trail_elm_b, trail);
@@ -905,6 +915,7 @@ chunk_merge_wrapper(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 		b_elm_b = b_elm_a;
 
 	extent_size_set(a, extent_size_get(a) + extent_size_get(b));
+	extent_usize_set(a, extent_usize_get(a) + extent_usize_get(b));
 	extent_zeroed_set(a, extent_zeroed_get(a) && extent_zeroed_get(b));
 
 	extent_rtree_write_acquired(tsdn, a_elm_a, b_elm_b, a);

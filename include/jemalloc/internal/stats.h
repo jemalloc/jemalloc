@@ -3,7 +3,6 @@
 
 typedef struct tcache_bin_stats_s tcache_bin_stats_t;
 typedef struct malloc_bin_stats_s malloc_bin_stats_t;
-typedef struct malloc_large_stats_s malloc_large_stats_t;
 typedef struct malloc_huge_stats_s malloc_huge_stats_t;
 typedef struct arena_stats_s arena_stats_t;
 typedef struct chunk_stats_s chunk_stats_t;
@@ -62,12 +61,10 @@ struct malloc_bin_stats_s {
 	size_t		curruns;
 };
 
-struct malloc_large_stats_s {
+struct malloc_huge_stats_s {
 	/*
 	 * Total number of allocation/deallocation requests served directly by
-	 * the arena.  Note that tcache may allocate an object, then recycle it
-	 * many times, resulting many increments to nrequests, but only one
-	 * each to nmalloc and ndalloc.
+	 * the arena.
 	 */
 	uint64_t	nmalloc;
 	uint64_t	ndalloc;
@@ -78,21 +75,6 @@ struct malloc_large_stats_s {
 	 * periodically merges into this counter.
 	 */
 	uint64_t	nrequests;
-
-	/*
-	 * Current number of runs of this size class, including runs currently
-	 * cached by tcache.
-	 */
-	size_t		curruns;
-};
-
-struct malloc_huge_stats_s {
-	/*
-	 * Total number of allocation/deallocation requests served directly by
-	 * the arena.
-	 */
-	uint64_t	nmalloc;
-	uint64_t	ndalloc;
 
 	/* Current number of (multi-)chunk allocations of this size class. */
 	size_t		curhchunks;
@@ -126,21 +108,13 @@ struct arena_stats_s {
 	size_t		metadata_mapped;
 	size_t		metadata_allocated; /* Protected via atomic_*_z(). */
 
-	/* Per-size-category statistics. */
-	size_t		allocated_large;
-	uint64_t	nmalloc_large;
-	uint64_t	ndalloc_large;
-	uint64_t	nrequests_large;
-
 	size_t		allocated_huge;
 	uint64_t	nmalloc_huge;
 	uint64_t	ndalloc_huge;
-
-	/* One element for each large size class. */
-	malloc_large_stats_t	*lstats;
+	uint64_t	nrequests_huge;
 
 	/* One element for each huge size class. */
-	malloc_huge_stats_t	*hstats;
+	malloc_huge_stats_t	hstats[NSIZES - NBINS];
 };
 
 #endif /* JEMALLOC_H_STRUCTS */

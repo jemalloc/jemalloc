@@ -797,33 +797,14 @@ sa2u(size_t size, size_t alignment)
 			return (usize);
 	}
 
-	/*
-	 * We can't achieve subpage alignment, so round up alignment to the
-	 * minimum that can actually be supported.
-	 */
-	alignment = PAGE_CEILING(alignment);
-
-	/* Try for a large size class. */
-	if (likely(size <= large_maxclass) && likely(alignment == PAGE)) {
-		/* Make sure result is a large size class. */
-		usize = (size <= LARGE_MINCLASS) ? LARGE_MINCLASS : s2u(size);
-
-		/*
-		 * Calculate the size of the over-size run that arena_palloc()
-		 * would need to allocate in order to guarantee the alignment.
-		 */
-		if (usize + large_pad + alignment <= arena_maxrun)
-			return (usize);
-	}
-
 	/* Huge size class.  Beware of overflow. */
 
 	if (unlikely(alignment > HUGE_MAXCLASS))
 		return (0);
 
-	/* Make sure result is a huge size class. */
-	if (size <= chunksize)
-		usize = chunksize;
+	/* Make sure result is a large size class. */
+	if (size <= LARGE_MINCLASS)
+		usize = LARGE_MINCLASS;
 	else {
 		usize = s2u(size);
 		if (usize < size) {
@@ -836,7 +817,7 @@ sa2u(size_t size, size_t alignment)
 	 * Calculate the multi-page mapping that huge_palloc() would need in
 	 * order to guarantee the alignment.
 	 */
-	if (usize + alignment < usize) {
+	if (usize + large_pad + PAGE_CEILING(alignment) < usize) {
 		/* size_t overflow. */
 		return (0);
 	}
@@ -960,8 +941,7 @@ iealloc(tsdn_t *tsdn, const void *ptr)
 
 #ifndef JEMALLOC_ENABLE_INLINE
 arena_t	*iaalloc(tsdn_t *tsdn, const void *ptr);
-size_t	isalloc(tsdn_t *tsdn, const extent_t *extent, const void *ptr,
-    bool demote);
+size_t	isalloc(tsdn_t *tsdn, const extent_t *extent, const void *ptr);
 void	*iallocztm(tsdn_t *tsdn, size_t size, szind_t ind, bool zero,
     tcache_t *tcache, bool is_metadata, arena_t *arena, bool slow_path);
 void	*ialloc(tsd_t *tsd, size_t size, szind_t ind, bool zero,
@@ -971,7 +951,7 @@ void	*ipallocztm(tsdn_t *tsdn, size_t usize, size_t alignment, bool zero,
 void	*ipalloct(tsdn_t *tsdn, size_t usize, size_t alignment, bool zero,
     tcache_t *tcache, arena_t *arena);
 void	*ipalloc(tsd_t *tsd, size_t usize, size_t alignment, bool zero);
-size_t	ivsalloc(tsdn_t *tsdn, const void *ptr, bool demote);
+size_t	ivsalloc(tsdn_t *tsdn, const void *ptr);
 void	idalloctm(tsdn_t *tsdn, extent_t *extent, void *ptr, tcache_t *tcache,
     bool is_metadata, bool slow_path);
 void	idalloc(tsd_t *tsd, extent_t *extent, void *ptr);
@@ -1003,17 +983,15 @@ iaalloc(tsdn_t *tsdn, const void *ptr)
  *   tsdn_t *tsdn = [...]
  *   void *ptr = [...]
  *   extent_t *extent = iealloc(tsdn, ptr);
- *   size_t sz = isalloc(tsdn, extent, ptr, config_prof);
+ *   size_t sz = isalloc(tsdn, extent, ptr);
  */
 JEMALLOC_ALWAYS_INLINE size_t
-isalloc(tsdn_t *tsdn, const extent_t *extent, const void *ptr, bool demote)
+isalloc(tsdn_t *tsdn, const extent_t *extent, const void *ptr)
 {
 
 	assert(ptr != NULL);
-	/* Demotion only makes sense if config_prof is true. */
-	assert(config_prof || !demote);
 
-	return (arena_salloc(tsdn, extent, ptr, demote));
+	return (arena_salloc(tsdn, extent, ptr));
 }
 
 JEMALLOC_ALWAYS_INLINE void *
@@ -1029,7 +1007,7 @@ iallocztm(tsdn_t *tsdn, size_t size, szind_t ind, bool zero, tcache_t *tcache,
 	ret = arena_malloc(tsdn, arena, size, ind, zero, tcache, slow_path);
 	if (config_stats && is_metadata && likely(ret != NULL)) {
 		arena_metadata_allocated_add(iaalloc(tsdn, ret), isalloc(tsdn,
-		    iealloc(tsdn, ret), ret, config_prof));
+		    iealloc(tsdn, ret), ret));
 	}
 	return (ret);
 }
@@ -1057,7 +1035,7 @@ ipallocztm(tsdn_t *tsdn, size_t usize, size_t alignment, bool zero,
 	assert(ALIGNMENT_ADDR2BASE(ret, alignment) == ret);
 	if (config_stats && is_metadata && likely(ret != NULL)) {
 		arena_metadata_allocated_add(iaalloc(tsdn, ret), isalloc(tsdn,
-		    iealloc(tsdn, ret), ret, config_prof));
+		    iealloc(tsdn, ret), ret));
 	}
 	return (ret);
 }
@@ -1079,7 +1057,7 @@ ipalloc(tsd_t *tsd, size_t usize, size_t alignment, bool zero)
 }
 
 JEMALLOC_ALWAYS_INLINE size_t
-ivsalloc(tsdn_t *tsdn, const void *ptr, bool demote)
+ivsalloc(tsdn_t *tsdn, const void *ptr)
 {
 	extent_t *extent;
 
@@ -1091,7 +1069,7 @@ ivsalloc(tsdn_t *tsdn, const void *ptr, bool demote)
 	/* Only arena chunks should be looked up via interior pointers. */
 	assert(extent_addr_get(extent) == ptr || extent_slab_get(extent));
 
-	return (isalloc(tsdn, extent, ptr, demote));
+	return (isalloc(tsdn, extent, ptr));
 }
 
 JEMALLOC_ALWAYS_INLINE void
@@ -1104,7 +1082,7 @@ idalloctm(tsdn_t *tsdn, extent_t *extent, void *ptr, tcache_t *tcache,
 	assert(!is_metadata || iaalloc(tsdn, ptr)->ind < narenas_auto);
 	if (config_stats && is_metadata) {
 		arena_metadata_allocated_sub(iaalloc(tsdn, ptr), isalloc(tsdn,
-		    extent, ptr, config_prof));
+		    extent, ptr));
 	}
 
 	arena_dalloc(tsdn, extent, ptr, tcache, slow_path);

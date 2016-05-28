@@ -1,6 +1,6 @@
 #include "test/jemalloc_test.h"
 
-const char *malloc_conf = "purge:decay,decay_time:1";
+const char *malloc_conf = "purge:decay,decay_time:1,lg_tcache_max:0";
 
 static nstime_update_t *nstime_update_orig;
 
@@ -22,7 +22,7 @@ TEST_BEGIN(test_decay_ticks)
 {
 	ticker_t *decay_ticker;
 	unsigned tick0, tick1;
-	size_t sz, huge0, large0;
+	size_t sz, huge0;
 	void *p;
 
 	test_skip_if(opt_purge != purge_mode_decay);
@@ -34,13 +34,11 @@ TEST_BEGIN(test_decay_ticks)
 	sz = sizeof(size_t);
 	assert_d_eq(mallctl("arenas.hchunk.0.size", &huge0, &sz, NULL, 0), 0,
 	    "Unexpected mallctl failure");
-	assert_d_eq(mallctl("arenas.lrun.0.size", &large0, &sz, NULL, 0), 0,
-	    "Unexpected mallctl failure");
 
 	/*
 	 * Test the standard APIs using a huge size class, since we can't
-	 * control tcache interactions (except by completely disabling tcache
-	 * for the entire test program).
+	 * control tcache interactions for small size classes (except by
+	 * completely disabling tcache for the entire test program).
 	 */
 
 	/* malloc(). */
@@ -101,15 +99,14 @@ TEST_BEGIN(test_decay_ticks)
 	assert_u32_ne(tick1, tick0, "Expected ticker to tick during realloc()");
 
 	/*
-	 * Test the *allocx() APIs using huge, large, and small size classes,
-	 * with tcache explicitly disabled.
+	 * Test the *allocx() APIs using huge and small size classes, with
+	 * tcache explicitly disabled.
 	 */
 	{
 		unsigned i;
-		size_t allocx_sizes[3];
+		size_t allocx_sizes[2];
 		allocx_sizes[0] = huge0;
-		allocx_sizes[1] = large0;
-		allocx_sizes[2] = 1;
+		allocx_sizes[1] = 1;
 
 		for (i = 0; i < sizeof(allocx_sizes) / sizeof(size_t); i++) {
 			sz = allocx_sizes[i];
@@ -157,13 +154,13 @@ TEST_BEGIN(test_decay_ticks)
 	}
 
 	/*
-	 * Test tcache fill/flush interactions for large and small size classes,
+	 * Test tcache fill/flush interactions for huge and small size classes,
 	 * using an explicit tcache.
 	 */
 	if (config_tcache) {
 		unsigned tcache_ind, i;
 		size_t tcache_sizes[2];
-		tcache_sizes[0] = large0;
+		tcache_sizes[0] = huge0;
 		tcache_sizes[1] = 1;
 
 		sz = sizeof(unsigned);
@@ -204,14 +201,14 @@ TEST_BEGIN(test_decay_ticker)
 	uint64_t epoch;
 	uint64_t npurge0 = 0;
 	uint64_t npurge1 = 0;
-	size_t sz, large;
+	size_t sz, huge;
 	unsigned i, nupdates0;
 	nstime_t time, decay_time, deadline;
 
 	test_skip_if(opt_purge != purge_mode_decay);
 
 	/*
-	 * Allocate a bunch of large objects, pause the clock, deallocate the
+	 * Allocate a bunch of huge objects, pause the clock, deallocate the
 	 * objects, restore the clock, then [md]allocx() in a tight loop to
 	 * verify the ticker triggers purging.
 	 */
@@ -222,11 +219,11 @@ TEST_BEGIN(test_decay_ticker)
 		sz = sizeof(size_t);
 		assert_d_eq(mallctl("arenas.tcache_max", &tcache_max, &sz, NULL,
 		    0), 0, "Unexpected mallctl failure");
-		large = nallocx(tcache_max + 1, flags);
+		huge = nallocx(tcache_max + 1, flags);
 	}  else {
 		sz = sizeof(size_t);
-		assert_d_eq(mallctl("arenas.lrun.0.size", &large, &sz, NULL, 0),
-		    0, "Unexpected mallctl failure");
+		assert_d_eq(mallctl("arenas.hchunk.0.size", &huge, &sz, NULL,
+		    0), 0, "Unexpected mallctl failure");
 	}
 
 	assert_d_eq(mallctl("arena.0.purge", NULL, NULL, NULL, 0), 0,
@@ -238,7 +235,7 @@ TEST_BEGIN(test_decay_ticker)
 	    config_stats ? 0 : ENOENT, "Unexpected mallctl result");
 
 	for (i = 0; i < NPS; i++) {
-		ps[i] = mallocx(large, flags);
+		ps[i] = mallocx(huge, flags);
 		assert_ptr_not_null(ps[i], "Unexpected mallocx() failure");
 	}
 
@@ -296,13 +293,13 @@ TEST_BEGIN(test_decay_nonmonotonic)
 	uint64_t epoch;
 	uint64_t npurge0 = 0;
 	uint64_t npurge1 = 0;
-	size_t sz, large0;
+	size_t sz, huge0;
 	unsigned i, nupdates0;
 
 	test_skip_if(opt_purge != purge_mode_decay);
 
 	sz = sizeof(size_t);
-	assert_d_eq(mallctl("arenas.lrun.0.size", &large0, &sz, NULL, 0), 0,
+	assert_d_eq(mallctl("arenas.hchunk.0.size", &huge0, &sz, NULL, 0), 0,
 	    "Unexpected mallctl failure");
 
 	assert_d_eq(mallctl("arena.0.purge", NULL, NULL, NULL, 0), 0,
@@ -322,7 +319,7 @@ TEST_BEGIN(test_decay_nonmonotonic)
 	nstime_update = nstime_update_mock;
 
 	for (i = 0; i < NPS; i++) {
-		ps[i] = mallocx(large0, flags);
+		ps[i] = mallocx(huge0, flags);
 		assert_ptr_not_null(ps[i], "Unexpected mallocx() failure");
 	}
 
