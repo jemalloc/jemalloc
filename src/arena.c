@@ -2258,6 +2258,7 @@ void
 arena_prof_promote(tsdn_t *tsdn, extent_t *extent, const void *ptr,
     size_t usize)
 {
+	arena_t *arena = extent_arena_get(extent);
 
 	cassert(config_prof);
 	assert(ptr != NULL);
@@ -2265,6 +2266,19 @@ arena_prof_promote(tsdn_t *tsdn, extent_t *extent, const void *ptr,
 	assert(usize <= SMALL_MAXCLASS);
 
 	extent_usize_set(extent, usize);
+
+	/*
+	 * Cancel out as much of the excessive prof_accumbytes increase as
+	 * possible without underflowing.  Interval-triggered dumps occur
+	 * slightly more often than intended as a result of incomplete
+	 * canceling.
+	 */
+	malloc_mutex_lock(tsdn, &arena->lock);
+	if (arena->prof_accumbytes >= LARGE_MINCLASS - usize)
+		arena->prof_accumbytes -= LARGE_MINCLASS - usize;
+	else
+		arena->prof_accumbytes = 0;
+	malloc_mutex_unlock(tsdn, &arena->lock);
 
 	assert(isalloc(tsdn, extent, ptr) == usize);
 }

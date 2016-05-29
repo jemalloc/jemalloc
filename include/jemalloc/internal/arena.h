@@ -984,7 +984,7 @@ arena_prof_accum_impl(arena_t *arena, uint64_t accumbytes)
 
 	arena->prof_accumbytes += accumbytes;
 	if (arena->prof_accumbytes >= prof_interval) {
-		arena->prof_accumbytes -= prof_interval;
+		arena->prof_accumbytes %= prof_interval;
 		return (true);
 	}
 	return (false);
