@@ -16,7 +16,7 @@ TEST_BEGIN(test_small_extent_size)
 	assert_d_eq(mallctl("arenas.nbins", &nbins, &sz, NULL, 0), 0,
 	    "Unexpected mallctl failure");
 
-	assert_d_eq(mallctlnametomib("arenas.bin.0.run_size", mib, &miblen), 0,
+	assert_d_eq(mallctlnametomib("arenas.bin.0.slab_size", mib, &miblen), 0,
 	    "Unexpected mallctlnametomib failure");
 	for (i = 0; i < nbins; i++) {
 		mib[2] = i;
@@ -71,12 +71,12 @@ TEST_BEGIN(test_huge_extent_size)
 		ceil = extent_size_quantize_ceil(extent_size);
 
 		assert_zu_eq(extent_size, floor,
-		    "Large run quantization should be a no-op for precise "
-		    "size (lextent_size=%zu, extent_size=%zu)", lextent_size,
+		    "Extent quantization should be a no-op for precise size "
+		    "(lextent_size=%zu, extent_size=%zu)", lextent_size,
 		    extent_size);
 		assert_zu_eq(extent_size, ceil,
-		    "Large run quantization should be a no-op for precise "
-		    "size (lextent_size=%zu, extent_size=%zu)", lextent_size,
+		    "Extent quantization should be a no-op for precise size "
+		    "(lextent_size=%zu, extent_size=%zu)", lextent_size,
 		    extent_size);
 
 		if (i > 0) {

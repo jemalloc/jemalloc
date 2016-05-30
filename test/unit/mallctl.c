@@ -615,7 +615,8 @@ TEST_BEGIN(test_arenas_bin_constants)
 
 	TEST_ARENAS_BIN_CONSTANT(size_t, size, arena_bin_info[0].reg_size);
 	TEST_ARENAS_BIN_CONSTANT(uint32_t, nregs, arena_bin_info[0].nregs);
-	TEST_ARENAS_BIN_CONSTANT(size_t, run_size, arena_bin_info[0].run_size);
+	TEST_ARENAS_BIN_CONSTANT(size_t, slab_size,
+	    arena_bin_info[0].slab_size);
 
 #undef TEST_ARENAS_BIN_CONSTANT
 }

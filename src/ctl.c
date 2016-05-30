@@ -124,7 +124,7 @@ CTL_PROTO(arena_i_chunk_hooks)
 INDEX_PROTO(arena_i)
 CTL_PROTO(arenas_bin_i_size)
 CTL_PROTO(arenas_bin_i_nregs)
-CTL_PROTO(arenas_bin_i_run_size)
+CTL_PROTO(arenas_bin_i_slab_size)
 INDEX_PROTO(arenas_bin_i)
 CTL_PROTO(arenas_hchunk_i_size)
 INDEX_PROTO(arenas_hchunk_i)
@@ -160,9 +160,9 @@ CTL_PROTO(stats_arenas_i_bins_j_nrequests)
 CTL_PROTO(stats_arenas_i_bins_j_curregs)
 CTL_PROTO(stats_arenas_i_bins_j_nfills)
 CTL_PROTO(stats_arenas_i_bins_j_nflushes)
-CTL_PROTO(stats_arenas_i_bins_j_nruns)
-CTL_PROTO(stats_arenas_i_bins_j_nreruns)
-CTL_PROTO(stats_arenas_i_bins_j_curruns)
+CTL_PROTO(stats_arenas_i_bins_j_nslabs)
+CTL_PROTO(stats_arenas_i_bins_j_nreslabs)
+CTL_PROTO(stats_arenas_i_bins_j_curslabs)
 INDEX_PROTO(stats_arenas_i_bins_j)
 CTL_PROTO(stats_arenas_i_hchunks_j_nmalloc)
 CTL_PROTO(stats_arenas_i_hchunks_j_ndalloc)
@@ -300,7 +300,7 @@ static const ctl_indexed_node_t arena_node[] = {
 static const ctl_named_node_t arenas_bin_i_node[] = {
 	{NAME("size"),		CTL(arenas_bin_i_size)},
 	{NAME("nregs"),		CTL(arenas_bin_i_nregs)},
-	{NAME("run_size"),	CTL(arenas_bin_i_run_size)}
+	{NAME("slab_size"),	CTL(arenas_bin_i_slab_size)}
 };
 static const ctl_named_node_t super_arenas_bin_i_node[] = {
 	{NAME(""),		CHILD(named, arenas_bin_i)}
@@ -373,9 +373,9 @@ static const ctl_named_node_t stats_arenas_i_bins_j_node[] = {
 	{NAME("curregs"),	CTL(stats_arenas_i_bins_j_curregs)},
 	{NAME("nfills"),	CTL(stats_arenas_i_bins_j_nfills)},
 	{NAME("nflushes"),	CTL(stats_arenas_i_bins_j_nflushes)},
-	{NAME("nruns"),		CTL(stats_arenas_i_bins_j_nruns)},
-	{NAME("nreruns"),	CTL(stats_arenas_i_bins_j_nreruns)},
-	{NAME("curruns"),	CTL(stats_arenas_i_bins_j_curruns)}
+	{NAME("nslabs"),	CTL(stats_arenas_i_bins_j_nslabs)},
+	{NAME("nreslabs"),	CTL(stats_arenas_i_bins_j_nreslabs)},
+	{NAME("curslabs"),	CTL(stats_arenas_i_bins_j_curslabs)}
 };
 static const ctl_named_node_t super_stats_arenas_i_bins_j_node[] = {
 	{NAME(""),		CHILD(named, stats_arenas_i_bins_j)}
@@ -549,9 +549,10 @@ ctl_arena_stats_smerge(ctl_arena_stats_t *sstats, ctl_arena_stats_t *astats)
 				sstats->bstats[i].nflushes +=
 				    astats->bstats[i].nflushes;
 			}
-			sstats->bstats[i].nruns += astats->bstats[i].nruns;
-			sstats->bstats[i].reruns += astats->bstats[i].reruns;
-			sstats->bstats[i].curruns += astats->bstats[i].curruns;
+			sstats->bstats[i].nslabs += astats->bstats[i].nslabs;
+			sstats->bstats[i].reslabs += astats->bstats[i].reslabs;
+			sstats->bstats[i].curslabs +=
+			    astats->bstats[i].curslabs;
 		}
 
 		for (i = 0; i < NSIZES - NBINS; i++) {
@@ -1801,7 +1802,7 @@ CTL_RO_NL_GEN(arenas_nbins, NBINS, unsigned)
 CTL_RO_NL_CGEN(config_tcache, arenas_nhbins, nhbins, unsigned)
 CTL_RO_NL_GEN(arenas_bin_i_size, arena_bin_info[mib[2]].reg_size, size_t)
 CTL_RO_NL_GEN(arenas_bin_i_nregs, arena_bin_info[mib[2]].nregs, uint32_t)
-CTL_RO_NL_GEN(arenas_bin_i_run_size, arena_bin_info[mib[2]].run_size, size_t)
+CTL_RO_NL_GEN(arenas_bin_i_slab_size, arena_bin_info[mib[2]].slab_size, size_t)
 static const ctl_named_node_t *
 arenas_bin_i_index(tsdn_t *tsdn, const size_t *mib, size_t miblen, size_t i)
 {
@@ -2032,12 +2033,12 @@ CTL_RO_CGEN(config_stats && config_tcache, stats_arenas_i_bins_j_nfills,
     ctl_stats.arenas[mib[2]].bstats[mib[4]].nfills, uint64_t)
 CTL_RO_CGEN(config_stats && config_tcache, stats_arenas_i_bins_j_nflushes,
     ctl_stats.arenas[mib[2]].bstats[mib[4]].nflushes, uint64_t)
-CTL_RO_CGEN(config_stats, stats_arenas_i_bins_j_nruns,
-    ctl_stats.arenas[mib[2]].bstats[mib[4]].nruns, uint64_t)
-CTL_RO_CGEN(config_stats, stats_arenas_i_bins_j_nreruns,
-    ctl_stats.arenas[mib[2]].bstats[mib[4]].reruns, uint64_t)
-CTL_RO_CGEN(config_stats, stats_arenas_i_bins_j_curruns,
-    ctl_stats.arenas[mib[2]].bstats[mib[4]].curruns, size_t)
+CTL_RO_CGEN(config_stats, stats_arenas_i_bins_j_nslabs,
+    ctl_stats.arenas[mib[2]].bstats[mib[4]].nslabs, uint64_t)
+CTL_RO_CGEN(config_stats, stats_arenas_i_bins_j_nreslabs,
+    ctl_stats.arenas[mib[2]].bstats[mib[4]].reslabs, uint64_t)
+CTL_RO_CGEN(config_stats, stats_arenas_i_bins_j_curslabs,
+    ctl_stats.arenas[mib[2]].bstats[mib[4]].curslabs, size_t)
 
 static const ctl_named_node_t *
 stats_arenas_i_bins_j_index(tsdn_t *tsdn, const size_t *mib, size_t miblen,

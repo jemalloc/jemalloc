@@ -24,7 +24,7 @@ typedef struct tcaches_s tcaches_t;
 /*
  * Absolute maximum number of cache slots for each small bin in the thread
  * cache.  This is an additional constraint beyond that imposed as: twice the
- * number of regions per run for this size class.
+ * number of regions per slab for this size class.
  *
  * This constant must be an even number.
  */

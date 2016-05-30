@@ -509,26 +509,20 @@ for (i = 0; i < nbins; i++) {
 
     <para>In addition to multiple arenas, unless
     <option>--disable-tcache</option> is specified during configuration, this
-    allocator supports thread-specific caching for small and large objects, in
-    order to make it possible to completely avoid synchronization for most
-    allocation requests.  Such caching allows very fast allocation in the
-    common case, but it increases memory usage and fragmentation, since a
-    bounded number of objects can remain allocated in each thread cache.</para>
+    allocator supports thread-specific caching, in order to make it possible to
+    completely avoid synchronization for most allocation requests.  Such caching
+    allows very fast allocation in the common case, but it increases memory
+    usage and fragmentation, since a bounded number of objects can remain
+    allocated in each thread cache.</para>
 
-    <para>Memory is conceptually broken into equal-sized chunks, where the chunk
-    size is a power of two that is greater than the page size.  Chunks are
-    always aligned to multiples of the chunk size.  This alignment makes it
-    possible to find metadata for user objects very quickly.  User objects are
-    broken into three categories according to size: small, large, and huge.
-    Multiple small and large objects can reside within a single chunk, whereas
-    huge objects each have one or more chunks backing them.  Each chunk that
-    contains small and/or large objects tracks its contents as runs of
-    contiguous pages (unused, backing a set of small objects, or backing one
-    large object).  The combination of chunk alignment and chunk page maps makes
-    it possible to determine all metadata regarding small and large allocations
-    in constant time.</para>
+    <para>Memory is conceptually broken into extents.  Extents are always
+    aligned to multiples of the page size.  This alignment makes it possible to
+    find metadata for user objects quickly.  User objects are broken into two
+    categories according to size: small and large.  Contiguous small objects
+    comprise a slab, which resides within a single extent, whereas large objects
+    each have their own extents backing them.</para>
 
-    <para>Small objects are managed in groups by page runs.  Each run maintains
+    <para>Small objects are managed in groups by slabs.  Each slab maintains
     a bitmap to track which regions are in use.  Allocation requests that are no
     more than half the quantum (8 or 16, depending on architecture) are rounded
     up to the nearest power of two that is at least <code
@@ -536,11 +530,9 @@ for (i = 0; i < nbins; i++) {
     classes are multiples of the quantum, spaced such that there are four size
     classes for each doubling in size, which limits internal fragmentation to
     approximately 20% for all but the smallest size classes.  Small size classes
-    are smaller than four times the page size, large size classes are smaller
-    than the chunk size (see the <link
-    linkend="opt.lg_chunk"><mallctl>opt.lg_chunk</mallctl></link> option), and
-    huge size classes extend from the chunk size up to the largest size class
-    that does not exceed <constant>PTRDIFF_MAX</constant>.</para>
+    are smaller than four times the page size, and large size classes extend
+    from four times the page size up to the largest size class that does not
+    exceed <constant>PTRDIFF_MAX</constant>.</para>
 
     <para>Allocations are packed tightly together, which can be an issue for
     multi-threaded applications.  If you need to assure that allocations do not
@@ -560,18 +552,16 @@ for (i = 0; i < nbins; i++) {
     trivially succeeds in place as long as the pre-size and post-size both round
     up to the same size class.  No other API guarantees are made regarding
     in-place resizing, but the current implementation also tries to resize large
-    and huge allocations in place, as long as the pre-size and post-size are
-    both large or both huge.  In such cases shrinkage always succeeds for large
-    size classes, but for huge size classes the chunk allocator must support
-    splitting (see <link
+    allocations in place, as long as the pre-size and post-size are both large.
+    For shrinkage to succeed, the extent allocator must support splitting (see
+    <link
     linkend="arena.i.chunk_hooks"><mallctl>arena.&lt;i&gt;.chunk_hooks</mallctl></link>).
-    Growth only succeeds if the trailing memory is currently available, and
-    additionally for huge size classes the chunk allocator must support
-    merging.</para>
+    Growth only succeeds if the trailing memory is currently available, and the
+    extent allocator supports merging.</para>
 
-    <para>Assuming 2 MiB chunks, 4 KiB pages, and a 16-byte quantum on a
-    64-bit system, the size classes in each category are as shown in <xref
-    linkend="size_classes" xrefstyle="template:Table %n"/>.</para>
+    <para>Assuming 4 KiB pages and a 16-byte quantum on a 64-bit system, the
+    size classes in each category are as shown in <xref linkend="size_classes"
+    xrefstyle="template:Table %n"/>.</para>
 
     <table xml:id="size_classes" frame="all">
       <title>Size classes</title>
@@ -625,7 +615,7 @@ for (i = 0; i < nbins; i++) {
           <entry>[10 KiB, 12 KiB, 14 KiB]</entry>
         </row>
         <row>
-          <entry morerows="7">Large</entry>
+          <entry morerows="15">Large</entry>
           <entry>2 KiB</entry>
           <entry>[16 KiB]</entry>
         </row>
@@ -655,12 +645,7 @@ for (i = 0; i < nbins; i++) {
         </row>
         <row>
           <entry>256 KiB</entry>
-          <entry>[1280 KiB, 1536 KiB, 1792 KiB]</entry>
-        </row>
-        <row>
-          <entry morerows="8">Huge</entry>
-          <entry>256 KiB</entry>
-          <entry>[2 MiB]</entry>
+          <entry>[1280 KiB, 1536 KiB, 1792 KiB, 2 MiB]</entry>
         </row>
         <row>
           <entry>512 KiB</entry>
@@ -1875,16 +1860,16 @@ typedef struct {
           (<type>uint32_t</type>)
           <literal>r-</literal>
         </term>
-        <listitem><para>Number of regions per page run.</para></listitem>
+        <listitem><para>Number of regions per slab.</para></listitem>
       </varlistentry>
 
-      <varlistentry id="arenas.bin.i.run_size">
+      <varlistentry id="arenas.bin.i.slab_size">
         <term>
-          <mallctl>arenas.bin.&lt;i&gt;.run_size</mallctl>
+          <mallctl>arenas.bin.&lt;i&gt;.slab_size</mallctl>
           (<type>size_t</type>)
           <literal>r-</literal>
         </term>
-        <listitem><para>Number of bytes per page run.</para></listitem>
+        <listitem><para>Number of bytes per slab.</para></listitem>
       </varlistentry>
 
       <varlistentry id="arenas.nhchunks">
@@ -2185,7 +2170,7 @@ typedef struct {
           (<type>size_t</type>)
           <literal>r-</literal>
         </term>
-        <listitem><para>Number of pages in active runs.</para></listitem>
+        <listitem><para>Number of pages in active extents.</para></listitem>
       </varlistentry>
 
       <varlistentry id="stats.arenas.i.pdirty">
@@ -2194,8 +2179,9 @@ typedef struct {
           (<type>size_t</type>)
           <literal>r-</literal>
         </term>
-        <listitem><para>Number of pages within unused runs that are potentially
-        dirty, and for which <function>madvise<parameter>...</parameter>
+        <listitem><para>Number of pages within unused extents that are
+        potentially dirty, and for which
+        <function>madvise<parameter>...</parameter>
         <parameter><constant>MADV_DONTNEED</constant></parameter></function> or
         similar has not been called.</para></listitem>
       </varlistentry>
@@ -2483,35 +2469,35 @@ typedef struct {
         <listitem><para>Cumulative number of tcache flushes.</para></listitem>
       </varlistentry>
 
-      <varlistentry id="stats.arenas.i.bins.j.nruns">
+      <varlistentry id="stats.arenas.i.bins.j.nslabs">
         <term>
-          <mallctl>stats.arenas.&lt;i&gt;.bins.&lt;j&gt;.nruns</mallctl>
+          <mallctl>stats.arenas.&lt;i&gt;.bins.&lt;j&gt;.nslabs</mallctl>
           (<type>uint64_t</type>)
           <literal>r-</literal>
           [<option>--enable-stats</option>]
         </term>
-        <listitem><para>Cumulative number of runs created.</para></listitem>
+        <listitem><para>Cumulative number of slabs created.</para></listitem>
       </varlistentry>
 
-      <varlistentry id="stats.arenas.i.bins.j.nreruns">
+      <varlistentry id="stats.arenas.i.bins.j.nreslabs">
         <term>
-          <mallctl>stats.arenas.&lt;i&gt;.bins.&lt;j&gt;.nreruns</mallctl>
+          <mallctl>stats.arenas.&lt;i&gt;.bins.&lt;j&gt;.nreslabs</mallctl>
           (<type>uint64_t</type>)
           <literal>r-</literal>
           [<option>--enable-stats</option>]
         </term>
-        <listitem><para>Cumulative number of times the current run from which
+        <listitem><para>Cumulative number of times the current slab from which
         to allocate changed.</para></listitem>
       </varlistentry>
 
-      <varlistentry id="stats.arenas.i.bins.j.curruns">
+      <varlistentry id="stats.arenas.i.bins.j.curslabs">
         <term>
-          <mallctl>stats.arenas.&lt;i&gt;.bins.&lt;j&gt;.curruns</mallctl>
+          <mallctl>stats.arenas.&lt;i&gt;.bins.&lt;j&gt;.curslabs</mallctl>
           (<type>size_t</type>)
           <literal>r-</literal>
           [<option>--enable-stats</option>]
         </term>
-        <listitem><para>Current number of runs.</para></listitem>
+        <listitem><para>Current number of slabs.</para></listitem>
       </varlistentry>
 
       <varlistentry id="stats.arenas.i.hchunks.j.nmalloc">

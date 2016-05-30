@@ -229,9 +229,9 @@ TEST_BEGIN(test_stats_arenas_bins)
 {
 	unsigned arena;
 	void *p;
-	size_t sz, curruns, curregs;
+	size_t sz, curslabs, curregs;
 	uint64_t epoch, nmalloc, ndalloc, nrequests, nfills, nflushes;
-	uint64_t nruns, nreruns;
+	uint64_t nslabs, nreslabs;
 	int expected = config_stats ? 0 : ENOENT;
 
 	arena = 0;
@@ -266,12 +266,12 @@ TEST_BEGIN(test_stats_arenas_bins)
 	    NULL, 0), config_tcache ? expected : ENOENT,
 	    "Unexpected mallctl() result");
 
-	assert_d_eq(mallctl("stats.arenas.0.bins.0.nruns", &nruns, &sz,
+	assert_d_eq(mallctl("stats.arenas.0.bins.0.nslabs", &nslabs, &sz,
 	    NULL, 0), expected, "Unexpected mallctl() result");
-	assert_d_eq(mallctl("stats.arenas.0.bins.0.nreruns", &nreruns, &sz,
+	assert_d_eq(mallctl("stats.arenas.0.bins.0.nreslabs", &nreslabs, &sz,
 	    NULL, 0), expected, "Unexpected mallctl() result");
 	sz = sizeof(size_t);
-	assert_d_eq(mallctl("stats.arenas.0.bins.0.curruns", &curruns, &sz,
+	assert_d_eq(mallctl("stats.arenas.0.bins.0.curslabs", &curslabs, &sz,
 	    NULL, 0), expected, "Unexpected mallctl() result");
 
 	if (config_stats) {
@@ -289,10 +289,10 @@ TEST_BEGIN(test_stats_arenas_bins)
 			assert_u64_gt(nflushes, 0,
 			    "At least one flush should have occurred");
 		}
-		assert_u64_gt(nruns, 0,
-		    "At least one run should have been allocated");
-		assert_zu_gt(curruns, 0,
-		    "At least one run should be currently allocated");
+		assert_u64_gt(nslabs, 0,
+		    "At least one slab should have been allocated");
+		assert_zu_gt(curslabs, 0,
+		    "At least one slab should be currently allocated");
 	}
 
 	dallocx(p, 0);

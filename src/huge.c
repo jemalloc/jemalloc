@@ -153,8 +153,8 @@ huge_ralloc_no_move_expand(tsdn_t *tsdn, extent_t *extent, size_t usize,
 			 * Zero the trailing bytes of the original allocation's
 			 * last page, since they are in an indeterminate state.
 			 * There will always be trailing bytes, because ptr's
-			 * offset from the beginning of the run is a multiple of
-			 * CACHELINE in [0 .. PAGE).
+			 * offset from the beginning of the extent is a multiple
+			 * of CACHELINE in [0 .. PAGE).
 			 */
 			void *zbase = (void *)
 			    ((uintptr_t)extent_addr_get(extent) + oldusize);

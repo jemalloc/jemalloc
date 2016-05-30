@@ -127,14 +127,8 @@ tcache_bin_flush_small(tsd_t *tsd, tcache_t *tcache, tcache_bin_t *tbin,
 
 			extent = iealloc(tsd_tsdn(tsd), ptr);
 			if (extent_arena_get(extent) == bin_arena) {
-				arena_chunk_t *chunk =
-				    (arena_chunk_t *)extent_base_get(extent);
-				size_t pageind = ((uintptr_t)ptr -
-				    (uintptr_t)chunk) >> LG_PAGE;
-				arena_chunk_map_bits_t *bitselm =
-				    arena_bitselm_get_mutable(chunk, pageind);
 				arena_dalloc_bin_junked_locked(tsd_tsdn(tsd),
-				    bin_arena, chunk, extent, ptr, bitselm);
+				    bin_arena, extent, ptr);
 			} else {
 				/*
 				 * This object was allocated via a different

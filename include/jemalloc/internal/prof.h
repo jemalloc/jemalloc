@@ -335,8 +335,8 @@ prof_tctx_t	*prof_tctx_get(tsdn_t *tsdn, const extent_t *extent,
 void	prof_tctx_set(tsdn_t *tsdn, extent_t *extent, const void *ptr,
     size_t usize, prof_tctx_t *tctx);
 void	prof_tctx_reset(tsdn_t *tsdn, extent_t *extent, const void *ptr,
-    size_t usize, const void *old_ptr, prof_tctx_t *tctx);
-bool	prof_sample_accum_update(tsd_t *tsd, size_t usize, bool commit,
+    prof_tctx_t *tctx);
+bool	prof_sample_accum_update(tsd_t *tsd, size_t usize, bool update,
     prof_tdata_t **tdata_out);
 prof_tctx_t	*prof_alloc_prep(tsd_t *tsd, size_t usize, bool prof_active,
     bool update);
@@ -344,7 +344,8 @@ void	prof_malloc(tsdn_t *tsdn, extent_t *extent, const void *ptr,
     size_t usize, prof_tctx_t *tctx);
 void	prof_realloc(tsd_t *tsd, extent_t *extent, const void *ptr,
     size_t usize, prof_tctx_t *tctx, bool prof_active, bool updated,
-    const void *old_ptr, size_t old_usize, prof_tctx_t *old_tctx);
+    extent_t *old_extent, const void *old_ptr, size_t old_usize,
+    prof_tctx_t *old_tctx);
 void	prof_free(tsd_t *tsd, const extent_t *extent, const void *ptr,
     size_t usize);
 #endif
@@ -421,14 +422,14 @@ prof_tctx_set(tsdn_t *tsdn, extent_t *extent, const void *ptr, size_t usize,
 }
 
 JEMALLOC_ALWAYS_INLINE void
-prof_tctx_reset(tsdn_t *tsdn, extent_t *extent, const void *ptr, size_t usize,
-    const void *old_ptr, prof_tctx_t *old_tctx)
+prof_tctx_reset(tsdn_t *tsdn, extent_t *extent, const void *ptr,
+    prof_tctx_t *tctx)
 {
 
 	cassert(config_prof);
 	assert(ptr != NULL);
 
-	arena_prof_tctx_reset(tsdn, extent, ptr, usize, old_ptr, old_tctx);
+	arena_prof_tctx_reset(tsdn, extent, ptr, tctx);
 }
 
 JEMALLOC_ALWAYS_INLINE bool
@@ -501,10 +502,10 @@ prof_malloc(tsdn_t *tsdn, extent_t *extent, const void *ptr, size_t usize,
 
 JEMALLOC_ALWAYS_INLINE void
 prof_realloc(tsd_t *tsd, extent_t *extent, const void *ptr, size_t usize,
-    prof_tctx_t *tctx, bool prof_active, bool updated, const void *old_ptr,
-    size_t old_usize, prof_tctx_t *old_tctx)
+    prof_tctx_t *tctx, bool prof_active, bool updated, extent_t *old_extent,
+    const void *old_ptr, size_t old_usize, prof_tctx_t *old_tctx)
 {
-	bool sampled, old_sampled;
+	bool sampled, old_sampled, moved;
 
 	cassert(config_prof);
 	assert(ptr != NULL || (uintptr_t)tctx <= (uintptr_t)1U);
@@ -523,19 +524,30 @@ prof_realloc(tsd_t *tsd, extent_t *extent, const void *ptr, size_t usize,
 		}
 	}
 
+	/*
+	 * The following code must differentiate among eight possible cases,
+	 * based on three boolean conditions.
+	 */
 	sampled = ((uintptr_t)tctx > (uintptr_t)1U);
 	old_sampled = ((uintptr_t)old_tctx > (uintptr_t)1U);
+	moved = (ptr != old_ptr);
+
+	/*
+	 * The following block must only execute if this is a non-moving
+	 * reallocation, because for moving reallocation the old allocation will
+	 * be deallocated via a separate call.
+	 */
+	if (unlikely(old_sampled) && !moved)
+		prof_free_sampled_object(tsd, old_usize, old_tctx);
 
 	if (unlikely(sampled)) {
 		prof_malloc_sample_object(tsd_tsdn(tsd), extent, ptr, usize,
 		    tctx);
-	} else {
-		prof_tctx_reset(tsd_tsdn(tsd), extent, ptr, usize, old_ptr,
-		    old_tctx);
-	}
-
-	if (unlikely(old_sampled))
-		prof_free_sampled_object(tsd, old_usize, old_tctx);
+	} else if (moved) {
+		prof_tctx_set(tsd_tsdn(tsd), extent, ptr, usize,
+		    (prof_tctx_t *)(uintptr_t)1U);
+	} else if (unlikely(old_sampled))
+		prof_tctx_reset(tsd_tsdn(tsd), extent, ptr, tctx);
 }
 
 JEMALLOC_ALWAYS_INLINE void

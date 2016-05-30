@@ -48,17 +48,17 @@ struct malloc_bin_stats_s {
 	/* Number of tcache flushes to this bin. */
 	uint64_t	nflushes;
 
-	/* Total number of runs created for this bin's size class. */
-	uint64_t	nruns;
+	/* Total number of slabs created for this bin's size class. */
+	uint64_t	nslabs;
 
 	/*
-	 * Total number of runs reused by extracting them from the runs tree for
-	 * this bin's size class.
+	 * Total number of slabs reused by extracting them from the slabs heap
+	 * for this bin's size class.
 	 */
-	uint64_t	reruns;
+	uint64_t	reslabs;
 
-	/* Current number of runs in this bin. */
-	size_t		curruns;
+	/* Current number of slabs in this bin. */
+	size_t		curslabs;
 };
 
 struct malloc_huge_stats_s {

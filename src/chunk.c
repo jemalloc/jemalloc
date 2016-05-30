@@ -558,8 +558,7 @@ chunk_alloc_wrapper_hard(tsdn_t *tsdn, arena_t *arena,
 		extent_dalloc(tsdn, arena, extent);
 		return (NULL);
 	}
-	extent_init(extent, arena, addr, size, usize, true, false, zero, commit,
-	    slab);
+	extent_init(extent, arena, addr, size, usize, true, zero, commit, slab);
 	if (pad != 0)
 		extent_addr_randomize(tsdn, extent, alignment);
 	if (chunk_register(tsdn, extent)) {
@@ -828,8 +827,8 @@ chunk_split_wrapper(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 
 		extent_init(&lead, arena, extent_addr_get(extent), size_a,
 		    usize_a, extent_active_get(extent),
-		    extent_dirty_get(extent), extent_zeroed_get(extent),
-		    extent_committed_get(extent), extent_slab_get(extent));
+		    extent_zeroed_get(extent), extent_committed_get(extent),
+		    extent_slab_get(extent));
 
 		if (extent_rtree_acquire(tsdn, &lead, false, true, &lead_elm_a,
 		    &lead_elm_b))
@@ -838,8 +837,8 @@ chunk_split_wrapper(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 
 	extent_init(trail, arena, (void *)((uintptr_t)extent_base_get(extent) +
 	    size_a), size_b, usize_b, extent_active_get(extent),
-	    extent_dirty_get(extent), extent_zeroed_get(extent),
-	    extent_committed_get(extent), extent_slab_get(extent));
+	    extent_zeroed_get(extent), extent_committed_get(extent),
+	    extent_slab_get(extent));
 	if (extent_rtree_acquire(tsdn, trail, false, true, &trail_elm_a,
 	    &trail_elm_b))
 		goto label_error_c;

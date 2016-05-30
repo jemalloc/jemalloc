@@ -58,29 +58,29 @@ stats_arena_bins_print(void (*write_cb)(void *, const char *), void *cbopaque,
 	if (config_tcache) {
 		malloc_cprintf(write_cb, cbopaque,
 		    "bins:           size ind    allocated      nmalloc"
-		    "      ndalloc    nrequests      curregs      curruns regs"
-		    " pgs  util       nfills     nflushes      newruns"
-		    "       reruns\n");
+		    "      ndalloc    nrequests      curregs     curslabs regs"
+		    " pgs  util       nfills     nflushes     newslabs"
+		    "      reslabs\n");
 	} else {
 		malloc_cprintf(write_cb, cbopaque,
 		    "bins:           size ind    allocated      nmalloc"
-		    "      ndalloc    nrequests      curregs      curruns regs"
-		    " pgs  util      newruns       reruns\n");
+		    "      ndalloc    nrequests      curregs     curslabs regs"
+		    " pgs  util     newslabs      reslabs\n");
 	}
 	CTL_GET("arenas.nbins", &nbins, unsigned);
 	for (j = 0, in_gap = false; j < nbins; j++) {
-		uint64_t nruns;
+		uint64_t nslabs;
 
-		CTL_M2_M4_GET("stats.arenas.0.bins.0.nruns", i, j, &nruns,
+		CTL_M2_M4_GET("stats.arenas.0.bins.0.nslabs", i, j, &nslabs,
 		    uint64_t);
-		if (nruns == 0)
+		if (nslabs == 0)
 			in_gap = true;
 		else {
-			size_t reg_size, run_size, curregs, availregs, milli;
-			size_t curruns;
+			size_t reg_size, slab_size, curregs, availregs, milli;
+			size_t curslabs;
 			uint32_t nregs;
 			uint64_t nmalloc, ndalloc, nrequests, nfills, nflushes;
-			uint64_t reruns;
+			uint64_t reslabs;
 			char util[6]; /* "x.yyy". */
 
 			if (in_gap) {
@@ -90,7 +90,7 @@ stats_arena_bins_print(void (*write_cb)(void *, const char *), void *cbopaque,
 			}
 			CTL_M2_GET("arenas.bin.0.size", j, &reg_size, size_t);
 			CTL_M2_GET("arenas.bin.0.nregs", j, &nregs, uint32_t);
-			CTL_M2_GET("arenas.bin.0.run_size", j, &run_size,
+			CTL_M2_GET("arenas.bin.0.slab_size", j, &slab_size,
 			    size_t);
 			CTL_M2_M4_GET("stats.arenas.0.bins.0.nmalloc", i, j,
 			    &nmalloc, uint64_t);
@@ -106,12 +106,12 @@ stats_arena_bins_print(void (*write_cb)(void *, const char *), void *cbopaque,
 				CTL_M2_M4_GET("stats.arenas.0.bins.0.nflushes",
 				    i, j, &nflushes, uint64_t);
 			}
-			CTL_M2_M4_GET("stats.arenas.0.bins.0.nreruns", i, j,
-			    &reruns, uint64_t);
-			CTL_M2_M4_GET("stats.arenas.0.bins.0.curruns", i, j,
-			    &curruns, size_t);
+			CTL_M2_M4_GET("stats.arenas.0.bins.0.nreslabs", i, j,
+			    &reslabs, uint64_t);
+			CTL_M2_M4_GET("stats.arenas.0.bins.0.curslabs", i, j,
+			    &curslabs, size_t);
 
-			availregs = nregs * curruns;
+			availregs = nregs * curslabs;
 			milli = (availregs != 0) ? (1000 * curregs) / availregs
 			    : 1000;
 			assert(milli <= 1000);
@@ -134,9 +134,9 @@ stats_arena_bins_print(void (*write_cb)(void *, const char *), void *cbopaque,
 				    " %12zu %4u %3zu %-5s %12"FMTu64
 				    " %12"FMTu64" %12"FMTu64" %12"FMTu64"\n",
 				    reg_size, j, curregs * reg_size, nmalloc,
-				    ndalloc, nrequests, curregs, curruns, nregs,
-				    run_size / page, util, nfills, nflushes,
-				    nruns, reruns);
+				    ndalloc, nrequests, curregs, curslabs,
+				    nregs, slab_size / page, util, nfills,
+				    nflushes, nslabs, reslabs);
 			} else {
 				malloc_cprintf(write_cb, cbopaque,
 				    "%20zu %3u %12zu %12"FMTu64
@@ -144,8 +144,9 @@ stats_arena_bins_print(void (*write_cb)(void *, const char *), void *cbopaque,
 				    " %12zu %4u %3zu %-5s %12"FMTu64
 				    " %12"FMTu64"\n",
 				    reg_size, j, curregs * reg_size, nmalloc,
-				    ndalloc, nrequests, curregs, curruns, nregs,
-				    run_size / page, util, nruns, reruns);
+				    ndalloc, nrequests, curregs, curslabs,
+				    nregs, slab_size / page, util, nslabs,
+				    reslabs);
 			}
 		}
 	}

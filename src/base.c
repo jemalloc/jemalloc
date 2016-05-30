@@ -74,8 +74,7 @@ base_chunk_alloc(tsdn_t *tsdn, size_t minsize)
 			base_resident += PAGE_CEILING(nsize);
 		}
 	}
-	extent_init(extent, NULL, addr, csize, 0, true, false, true, true,
-	    false);
+	extent_init(extent, NULL, addr, csize, 0, true, true, true, false);
 	return (extent);
 }
 

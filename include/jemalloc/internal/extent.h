@@ -27,9 +27,6 @@ struct extent_s {
 	/* True if extent is active (in use). */
 	bool			e_active;
 
-	/* True if extent is dirty (touched). */
-	bool			e_dirty;
-
 	/*
 	 * The zeroed flag is used by chunk recycling code to track whether
 	 * memory is zero-filled.
@@ -50,21 +47,27 @@ struct extent_s {
 	 */
 	bool			e_slab;
 
-	/* Profile counters, used for huge objects. */
 	union {
-		void		*e_prof_tctx_pun;
-		prof_tctx_t	*e_prof_tctx;
+		/* Small region slab metadata. */
+		arena_slab_data_t	e_slab_data;
+
+		/* Profile counters, used for huge objects. */
+		union {
+			void		*e_prof_tctx_pun;
+			prof_tctx_t	*e_prof_tctx;
+		};
 	};
 
-	/* Linkage for arena's runs_dirty and chunks_cache rings. */
-	arena_runs_dirty_link_t	rd;
-	qr(extent_t)		cc_link;
+	/*
+	 * Linkage for arena's extents_dirty and arena_bin_t's slabs_full rings.
+	 */
+	qr(extent_t)		qr_link;
 
 	union {
 		/* Linkage for per size class address-ordered heaps. */
 		phn(extent_t)		ph_link;
 
-		/* Linkage for arena's achunks, huge, and node_cache lists. */
+		/* Linkage for arena's huge and extent_cache lists. */
 		ql_elm(extent_t)	ql_link;
 	};
 };
@@ -102,11 +105,12 @@ void	*extent_before_get(const extent_t *extent);
 void	*extent_last_get(const extent_t *extent);
 void	*extent_past_get(const extent_t *extent);
 bool	extent_active_get(const extent_t *extent);
-bool	extent_dirty_get(const extent_t *extent);
 bool	extent_retained_get(const extent_t *extent);
 bool	extent_zeroed_get(const extent_t *extent);
 bool	extent_committed_get(const extent_t *extent);
 bool	extent_slab_get(const extent_t *extent);
+arena_slab_data_t	*extent_slab_data_get(extent_t *extent);
+const arena_slab_data_t	*extent_slab_data_get_const(const extent_t *extent);
 prof_tctx_t	*extent_prof_tctx_get(const extent_t *extent);
 void	extent_arena_set(extent_t *extent, arena_t *arena);
 void	extent_addr_set(extent_t *extent, void *addr);
@@ -114,17 +118,15 @@ void	extent_addr_randomize(tsdn_t *tsdn, extent_t *extent, size_t alignment);
 void	extent_size_set(extent_t *extent, size_t size);
 void	extent_usize_set(extent_t *extent, size_t usize);
 void	extent_active_set(extent_t *extent, bool active);
-void	extent_dirty_set(extent_t *extent, bool dirty);
 void	extent_zeroed_set(extent_t *extent, bool zeroed);
 void	extent_committed_set(extent_t *extent, bool committed);
 void	extent_slab_set(extent_t *extent, bool slab);
 void	extent_prof_tctx_set(extent_t *extent, prof_tctx_t *tctx);
 void	extent_init(extent_t *extent, arena_t *arena, void *addr,
-    size_t size, size_t usize, bool active, bool dirty, bool zeroed,
-    bool committed, bool slab);
-void	extent_dirty_insert(extent_t *extent,
-    arena_runs_dirty_link_t *runs_dirty, extent_t *chunks_dirty);
-void	extent_dirty_remove(extent_t *extent);
+    size_t size, size_t usize, bool active, bool zeroed, bool committed,
+    bool slab);
+void	extent_ring_insert(extent_t *sentinel, extent_t *extent);
+void	extent_ring_remove(extent_t *extent);
 #endif
 
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_EXTENT_C_))
@@ -198,17 +200,10 @@ extent_active_get(const extent_t *extent)
 }
 
 JEMALLOC_INLINE bool
-extent_dirty_get(const extent_t *extent)
-{
-
-	return (extent->e_dirty);
-}
-
-JEMALLOC_INLINE bool
 extent_retained_get(const extent_t *extent)
 {
 
-	return (qr_next(&extent->rd, rd_link) == &extent->rd);
+	return (qr_next(extent, qr_link) == extent);
 }
 
 JEMALLOC_INLINE bool
@@ -230,6 +225,22 @@ extent_slab_get(const extent_t *extent)
 {
 
 	return (extent->e_slab);
+}
+
+JEMALLOC_INLINE arena_slab_data_t *
+extent_slab_data_get(extent_t *extent)
+{
+
+	assert(extent->e_slab);
+	return (&extent->e_slab_data);
+}
+
+JEMALLOC_INLINE const arena_slab_data_t *
+extent_slab_data_get_const(const extent_t *extent)
+{
+
+	assert(extent->e_slab);
+	return (&extent->e_slab_data);
 }
 
 JEMALLOC_INLINE prof_tctx_t *
@@ -297,13 +308,6 @@ extent_active_set(extent_t *extent, bool active)
 }
 
 JEMALLOC_INLINE void
-extent_dirty_set(extent_t *extent, bool dirty)
-{
-
-	extent->e_dirty = dirty;
-}
-
-JEMALLOC_INLINE void
 extent_zeroed_set(extent_t *extent, bool zeroed)
 {
 
@@ -333,8 +337,7 @@ extent_prof_tctx_set(extent_t *extent, prof_tctx_t *tctx)
 
 JEMALLOC_INLINE void
 extent_init(extent_t *extent, arena_t *arena, void *addr, size_t size,
-    size_t usize, bool active, bool dirty, bool zeroed, bool committed,
-    bool slab)
+    size_t usize, bool active, bool zeroed, bool committed, bool slab)
 {
 
 	assert(addr == PAGE_ADDR2BASE(addr) || !slab);
@@ -344,31 +347,26 @@ extent_init(extent_t *extent, arena_t *arena, void *addr, size_t size,
 	extent_size_set(extent, size);
 	extent_usize_set(extent, usize);
 	extent_active_set(extent, active);
-	extent_dirty_set(extent, dirty);
 	extent_zeroed_set(extent, zeroed);
 	extent_committed_set(extent, committed);
 	extent_slab_set(extent, slab);
 	if (config_prof)
 		extent_prof_tctx_set(extent, NULL);
-	qr_new(&extent->rd, rd_link);
-	qr_new(extent, cc_link);
+	qr_new(extent, qr_link);
 }
 
 JEMALLOC_INLINE void
-extent_dirty_insert(extent_t *extent,
-    arena_runs_dirty_link_t *runs_dirty, extent_t *chunks_dirty)
+extent_ring_insert(extent_t *sentinel, extent_t *extent)
 {
 
-	qr_meld(runs_dirty, &extent->rd, rd_link);
-	qr_meld(chunks_dirty, extent, cc_link);
+	qr_meld(sentinel, extent, qr_link);
 }
 
 JEMALLOC_INLINE void
-extent_dirty_remove(extent_t *extent)
+extent_ring_remove(extent_t *extent)
 {
 
-	qr_remove(&extent->rd, rd_link);
-	qr_remove(extent, cc_link);
+	qr_remove(extent, qr_link);
 }
 #endif
 
