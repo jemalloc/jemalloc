@@ -1517,9 +1517,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         of the arena's discarded/cached allocations may accessed afterward.  As
         part of this requirement, all thread caches which were used to
         allocate/deallocate in conjunction with the arena must be flushed
-        beforehand.  This interface cannot be used if running inside Valgrind,
-        nor if the <link linkend="opt.quarantine">quarantine</link> size is
-        non-zero.</para></listitem>
+        beforehand.</para></listitem>
       </varlistentry>
 
       <varlistentry id="arena.i.dss">
