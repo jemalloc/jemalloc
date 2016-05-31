@@ -1872,22 +1872,22 @@ typedef struct {
         <listitem><para>Number of bytes per slab.</para></listitem>
       </varlistentry>
 
-      <varlistentry id="arenas.nhchunks">
+      <varlistentry id="arenas.nlextents">
         <term>
-          <mallctl>arenas.nhchunks</mallctl>
+          <mallctl>arenas.nlextents</mallctl>
           (<type>unsigned</type>)
           <literal>r-</literal>
         </term>
-        <listitem><para>Total number of huge size classes.</para></listitem>
+        <listitem><para>Total number of large size classes.</para></listitem>
       </varlistentry>
 
-      <varlistentry id="arenas.hchunk.i.size">
+      <varlistentry id="arenas.lextent.i.size">
         <term>
-          <mallctl>arenas.hchunk.&lt;i&gt;.size</mallctl>
+          <mallctl>arenas.lextent.&lt;i&gt;.size</mallctl>
           (<type>size_t</type>)
           <literal>r-</literal>
         </term>
-        <listitem><para>Maximum size supported by this huge size
+        <listitem><para>Maximum size supported by this large size
         class.</para></listitem>
       </varlistentry>
 
@@ -2361,50 +2361,6 @@ typedef struct {
         </para></listitem>
       </varlistentry>
 
-      <varlistentry id="stats.arenas.i.huge.allocated">
-        <term>
-          <mallctl>stats.arenas.&lt;i&gt;.huge.allocated</mallctl>
-          (<type>size_t</type>)
-          <literal>r-</literal>
-          [<option>--enable-stats</option>]
-        </term>
-        <listitem><para>Number of bytes currently allocated by huge objects.
-        </para></listitem>
-      </varlistentry>
-
-      <varlistentry id="stats.arenas.i.huge.nmalloc">
-        <term>
-          <mallctl>stats.arenas.&lt;i&gt;.huge.nmalloc</mallctl>
-          (<type>uint64_t</type>)
-          <literal>r-</literal>
-          [<option>--enable-stats</option>]
-        </term>
-        <listitem><para>Cumulative number of huge allocation requests served
-        directly by the arena.</para></listitem>
-      </varlistentry>
-
-      <varlistentry id="stats.arenas.i.huge.ndalloc">
-        <term>
-          <mallctl>stats.arenas.&lt;i&gt;.huge.ndalloc</mallctl>
-          (<type>uint64_t</type>)
-          <literal>r-</literal>
-          [<option>--enable-stats</option>]
-        </term>
-        <listitem><para>Cumulative number of huge deallocation requests served
-        directly by the arena.</para></listitem>
-      </varlistentry>
-
-      <varlistentry id="stats.arenas.i.huge.nrequests">
-        <term>
-          <mallctl>stats.arenas.&lt;i&gt;.huge.nrequests</mallctl>
-          (<type>uint64_t</type>)
-          <literal>r-</literal>
-          [<option>--enable-stats</option>]
-        </term>
-        <listitem><para>Cumulative number of huge allocation requests.
-        </para></listitem>
-      </varlistentry>
-
       <varlistentry id="stats.arenas.i.bins.j.nmalloc">
         <term>
           <mallctl>stats.arenas.&lt;i&gt;.bins.&lt;j&gt;.nmalloc</mallctl>
@@ -2500,9 +2456,9 @@ typedef struct {
         <listitem><para>Current number of slabs.</para></listitem>
       </varlistentry>
 
-      <varlistentry id="stats.arenas.i.hchunks.j.nmalloc">
+      <varlistentry id="stats.arenas.i.lextents.j.nmalloc">
         <term>
-          <mallctl>stats.arenas.&lt;i&gt;.hchunks.&lt;j&gt;.nmalloc</mallctl>
+          <mallctl>stats.arenas.&lt;i&gt;.lextents.&lt;j&gt;.nmalloc</mallctl>
           (<type>uint64_t</type>)
           <literal>r-</literal>
           [<option>--enable-stats</option>]
@@ -2511,9 +2467,9 @@ typedef struct {
         class served directly by the arena.</para></listitem>
       </varlistentry>
 
-      <varlistentry id="stats.arenas.i.hchunks.j.ndalloc">
+      <varlistentry id="stats.arenas.i.lextents.j.ndalloc">
         <term>
-          <mallctl>stats.arenas.&lt;i&gt;.hchunks.&lt;j&gt;.ndalloc</mallctl>
+          <mallctl>stats.arenas.&lt;i&gt;.lextents.&lt;j&gt;.ndalloc</mallctl>
           (<type>uint64_t</type>)
           <literal>r-</literal>
           [<option>--enable-stats</option>]
@@ -2522,9 +2478,9 @@ typedef struct {
         size class served directly by the arena.</para></listitem>
       </varlistentry>
 
-      <varlistentry id="stats.arenas.i.hchunks.j.nrequests">
+      <varlistentry id="stats.arenas.i.lextents.j.nrequests">
         <term>
-          <mallctl>stats.arenas.&lt;i&gt;.hchunks.&lt;j&gt;.nrequests</mallctl>
+          <mallctl>stats.arenas.&lt;i&gt;.lextents.&lt;j&gt;.nrequests</mallctl>
           (<type>uint64_t</type>)
           <literal>r-</literal>
           [<option>--enable-stats</option>]
@@ -2533,14 +2489,14 @@ typedef struct {
         class.</para></listitem>
       </varlistentry>
 
-      <varlistentry id="stats.arenas.i.hchunks.j.curhchunks">
+      <varlistentry id="stats.arenas.i.lextents.j.curlextents">
         <term>
-          <mallctl>stats.arenas.&lt;i&gt;.hchunks.&lt;j&gt;.curhchunks</mallctl>
+          <mallctl>stats.arenas.&lt;i&gt;.lextents.&lt;j&gt;.curlextents</mallctl>
           (<type>size_t</type>)
           <literal>r-</literal>
           [<option>--enable-stats</option>]
         </term>
-        <listitem><para>Current number of huge allocations for this size class.
+        <listitem><para>Current number of large allocations for this size class.
         </para></listitem>
       </varlistentry>
     </variablelist>

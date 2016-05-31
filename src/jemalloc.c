@@ -1457,7 +1457,7 @@ ialloc_body(size_t size, bool zero, tsdn_t **tsdn, size_t *usize,
 
 	if (config_stats || (config_prof && opt_prof)) {
 		*usize = index2size(ind);
-		assert(*usize > 0 && *usize <= HUGE_MAXCLASS);
+		assert(*usize > 0 && *usize <= LARGE_MAXCLASS);
 	}
 
 	if (config_prof && opt_prof)
@@ -1589,7 +1589,7 @@ imemalign(void **memptr, size_t alignment, size_t size, size_t min_alignment)
 	}
 
 	usize = sa2u(size, alignment);
-	if (unlikely(usize == 0 || usize > HUGE_MAXCLASS)) {
+	if (unlikely(usize == 0 || usize > LARGE_MAXCLASS)) {
 		result = NULL;
 		goto label_oom;
 	}
@@ -1663,7 +1663,7 @@ je_calloc(size_t num, size_t size)
 		if (num == 0 || size == 0)
 			num_size = 1;
 		else
-			num_size = HUGE_MAXCLASS + 1; /* Trigger OOM. */
+			num_size = LARGE_MAXCLASS + 1; /* Trigger OOM. */
 	/*
 	 * Try to avoid division here.  We know that it isn't possible to
 	 * overflow during multiplication if neither operand uses any of the
@@ -1671,7 +1671,7 @@ je_calloc(size_t num, size_t size)
 	 */
 	} else if (unlikely(((num | size) & (SIZE_T_MAX << (sizeof(size_t) <<
 	    2))) && (num_size / size != num)))
-		num_size = HUGE_MAXCLASS + 1; /* size_t overflow. */
+		num_size = LARGE_MAXCLASS + 1; /* size_t overflow. */
 
 	if (likely(!malloc_slow)) {
 		ret = ialloc_body(num_size, true, &tsdn, &usize, false);
@@ -1819,7 +1819,7 @@ je_realloc(void *ptr, size_t size)
 		old_usize = isalloc(tsd_tsdn(tsd), extent, ptr);
 		if (config_prof && opt_prof) {
 			usize = s2u(size);
-			ret = unlikely(usize == 0 || usize > HUGE_MAXCLASS) ?
+			ret = unlikely(usize == 0 || usize > LARGE_MAXCLASS) ?
 			    NULL : irealloc_prof(tsd, extent, ptr, old_usize,
 			    usize);
 		} else {
@@ -1956,7 +1956,7 @@ imallocx_flags_decode(tsd_t *tsd, size_t size, int flags, size_t *usize,
 		*alignment = MALLOCX_ALIGN_GET_SPECIFIED(flags);
 		*usize = sa2u(size, *alignment);
 	}
-	if (unlikely(*usize == 0 || *usize > HUGE_MAXCLASS))
+	if (unlikely(*usize == 0 || *usize > LARGE_MAXCLASS))
 		return (true);
 	*zero = MALLOCX_ZERO_GET(flags);
 	if ((flags & MALLOCX_TCACHE_MASK) != 0) {
@@ -2084,7 +2084,7 @@ imallocx_body(size_t size, int flags, tsdn_t **tsdn, size_t *usize,
 			return (NULL);
 		if (config_stats || (config_prof && opt_prof)) {
 			*usize = index2size(ind);
-			assert(*usize > 0 && *usize <= HUGE_MAXCLASS);
+			assert(*usize > 0 && *usize <= LARGE_MAXCLASS);
 		}
 
 		if (config_prof && opt_prof) {
@@ -2233,7 +2233,7 @@ je_rallocx(void *ptr, size_t size, int flags)
 
 	if (config_prof && opt_prof) {
 		usize = (alignment == 0) ? s2u(size) : sa2u(size, alignment);
-		if (unlikely(usize == 0 || usize > HUGE_MAXCLASS))
+		if (unlikely(usize == 0 || usize > LARGE_MAXCLASS))
 			goto label_oom;
 		p = irallocx_prof(tsd, extent, ptr, old_usize, size, alignment,
 		    &usize, zero, tcache, arena);
@@ -2314,17 +2314,17 @@ ixallocx_prof(tsd_t *tsd, extent_t *extent, void *ptr, size_t old_usize,
 	 */
 	if (alignment == 0) {
 		usize_max = s2u(size+extra);
-		assert(usize_max > 0 && usize_max <= HUGE_MAXCLASS);
+		assert(usize_max > 0 && usize_max <= LARGE_MAXCLASS);
 	} else {
 		usize_max = sa2u(size+extra, alignment);
-		if (unlikely(usize_max == 0 || usize_max > HUGE_MAXCLASS)) {
+		if (unlikely(usize_max == 0 || usize_max > LARGE_MAXCLASS)) {
 			/*
 			 * usize_max is out of range, and chances are that
 			 * allocation will fail, but use the maximum possible
 			 * value and carry on with prof_alloc_prep(), just in
 			 * case allocation succeeds.
 			 */
-			usize_max = HUGE_MAXCLASS;
+			usize_max = LARGE_MAXCLASS;
 		}
 	}
 	tctx = prof_alloc_prep(tsd, usize_max, prof_active, false);
@@ -2368,18 +2368,18 @@ je_xallocx(void *ptr, size_t size, size_t extra, int flags)
 	/*
 	 * The API explicitly absolves itself of protecting against (size +
 	 * extra) numerical overflow, but we may need to clamp extra to avoid
-	 * exceeding HUGE_MAXCLASS.
+	 * exceeding LARGE_MAXCLASS.
 	 *
 	 * Ordinarily, size limit checking is handled deeper down, but here we
 	 * have to check as part of (size + extra) clamping, since we need the
 	 * clamped value in the above helper functions.
 	 */
-	if (unlikely(size > HUGE_MAXCLASS)) {
+	if (unlikely(size > LARGE_MAXCLASS)) {
 		usize = old_usize;
 		goto label_not_resized;
 	}
-	if (unlikely(HUGE_MAXCLASS - size < extra))
-		extra = HUGE_MAXCLASS - size;
+	if (unlikely(LARGE_MAXCLASS - size < extra))
+		extra = LARGE_MAXCLASS - size;
 
 	if (config_prof && opt_prof) {
 		usize = ixallocx_prof(tsd, extent, ptr, old_usize, size, extra,
@@ -2512,7 +2512,7 @@ je_nallocx(size_t size, int flags)
 	witness_assert_lockless(tsdn);
 
 	usize = inallocx(tsdn, size, flags);
-	if (unlikely(usize > HUGE_MAXCLASS))
+	if (unlikely(usize > LARGE_MAXCLASS))
 		return (0);
 
 	witness_assert_lockless(tsdn);

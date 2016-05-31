@@ -46,7 +46,7 @@ tcache_event_hard(tsd_t *tsd, tcache_t *tcache)
 			    tbin->ncached - tbin->low_water + (tbin->low_water
 			    >> 2));
 		} else {
-			tcache_bin_flush_huge(tsd, tbin, binind, tbin->ncached
+			tcache_bin_flush_large(tsd, tbin, binind, tbin->ncached
 			    - tbin->low_water + (tbin->low_water >> 2), tcache);
 		}
 		/*
@@ -164,7 +164,7 @@ tcache_bin_flush_small(tsd_t *tsd, tcache_t *tcache, tcache_bin_t *tbin,
 }
 
 void
-tcache_bin_flush_huge(tsd_t *tsd, tcache_bin_t *tbin, szind_t binind,
+tcache_bin_flush_large(tsd_t *tsd, tcache_bin_t *tbin, szind_t binind,
     unsigned rem, tcache_t *tcache)
 {
 	arena_t *arena;
@@ -194,9 +194,9 @@ tcache_bin_flush_huge(tsd_t *tsd, tcache_bin_t *tbin, szind_t binind,
 			}
 			if (config_stats) {
 				merged_stats = true;
-				arena->stats.nrequests_huge +=
+				arena->stats.nrequests_large +=
 				    tbin->tstats.nrequests;
-				arena->stats.hstats[binind - NBINS].nrequests +=
+				arena->stats.lstats[binind - NBINS].nrequests +=
 				    tbin->tstats.nrequests;
 				tbin->tstats.nrequests = 0;
 			}
@@ -207,7 +207,7 @@ tcache_bin_flush_huge(tsd_t *tsd, tcache_bin_t *tbin, szind_t binind,
 			assert(ptr != NULL);
 			extent = iealloc(tsd_tsdn(tsd), ptr);
 			if (extent_arena_get(extent) == locked_arena) {
-				huge_dalloc_junked_locked(tsd_tsdn(tsd),
+				large_dalloc_junked_locked(tsd_tsdn(tsd),
 				    extent);
 			} else {
 				/*
@@ -232,8 +232,8 @@ tcache_bin_flush_huge(tsd_t *tsd, tcache_bin_t *tbin, szind_t binind,
 		 * arena, so the stats didn't get merged.  Manually do so now.
 		 */
 		malloc_mutex_lock(tsd_tsdn(tsd), &arena->lock);
-		arena->stats.nrequests_huge += tbin->tstats.nrequests;
-		arena->stats.hstats[binind - NBINS].nrequests +=
+		arena->stats.nrequests_large += tbin->tstats.nrequests;
+		arena->stats.lstats[binind - NBINS].nrequests +=
 		    tbin->tstats.nrequests;
 		tbin->tstats.nrequests = 0;
 		malloc_mutex_unlock(tsd_tsdn(tsd), &arena->lock);
@@ -371,12 +371,12 @@ tcache_destroy(tsd_t *tsd, tcache_t *tcache)
 
 	for (; i < nhbins; i++) {
 		tcache_bin_t *tbin = &tcache->tbins[i];
-		tcache_bin_flush_huge(tsd, tbin, i, 0, tcache);
+		tcache_bin_flush_large(tsd, tbin, i, 0, tcache);
 
 		if (config_stats && tbin->tstats.nrequests != 0) {
 			malloc_mutex_lock(tsd_tsdn(tsd), &arena->lock);
-			arena->stats.nrequests_huge += tbin->tstats.nrequests;
-			arena->stats.hstats[i - NBINS].nrequests +=
+			arena->stats.nrequests_large += tbin->tstats.nrequests;
+			arena->stats.lstats[i - NBINS].nrequests +=
 			    tbin->tstats.nrequests;
 			malloc_mutex_unlock(tsd_tsdn(tsd), &arena->lock);
 		}
@@ -431,10 +431,10 @@ tcache_stats_merge(tsdn_t *tsdn, tcache_t *tcache, arena_t *arena)
 	}
 
 	for (; i < nhbins; i++) {
-		malloc_huge_stats_t *hstats = &arena->stats.hstats[i - NBINS];
+		malloc_large_stats_t *lstats = &arena->stats.lstats[i - NBINS];
 		tcache_bin_t *tbin = &tcache->tbins[i];
-		arena->stats.nrequests_huge += tbin->tstats.nrequests;
-		hstats->nrequests += tbin->tstats.nrequests;
+		arena->stats.nrequests_large += tbin->tstats.nrequests;
+		lstats->nrequests += tbin->tstats.nrequests;
 		tbin->tstats.nrequests = 0;
 	}
 }
@@ -537,7 +537,7 @@ tcache_boot(tsdn_t *tsdn)
 		stack_nelms += tcache_bin_info[i].ncached_max;
 	}
 	for (; i < nhbins; i++) {
-		tcache_bin_info[i].ncached_max = TCACHE_NSLOTS_HUGE;
+		tcache_bin_info[i].ncached_max = TCACHE_NSLOTS_LARGE;
 		stack_nelms += tcache_bin_info[i].ncached_max;
 	}
 

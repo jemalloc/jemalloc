@@ -362,7 +362,7 @@ typedef unsigned szind_t;
 #include "jemalloc/internal/rtree.h"
 #include "jemalloc/internal/pages.h"
 #include "jemalloc/internal/chunk.h"
-#include "jemalloc/internal/huge.h"
+#include "jemalloc/internal/large.h"
 #include "jemalloc/internal/tcache.h"
 #include "jemalloc/internal/hash.h"
 #include "jemalloc/internal/prof.h"
@@ -396,7 +396,7 @@ typedef unsigned szind_t;
 #include "jemalloc/internal/rtree.h"
 #include "jemalloc/internal/pages.h"
 #include "jemalloc/internal/chunk.h"
-#include "jemalloc/internal/huge.h"
+#include "jemalloc/internal/large.h"
 #include "jemalloc/internal/tcache.h"
 #include "jemalloc/internal/hash.h"
 #include "jemalloc/internal/prof.h"
@@ -486,7 +486,7 @@ void	jemalloc_postfork_child(void);
 #include "jemalloc/internal/rtree.h"
 #include "jemalloc/internal/pages.h"
 #include "jemalloc/internal/chunk.h"
-#include "jemalloc/internal/huge.h"
+#include "jemalloc/internal/large.h"
 #include "jemalloc/internal/tcache.h"
 #include "jemalloc/internal/hash.h"
 #include "jemalloc/internal/prof.h"
@@ -515,7 +515,7 @@ void	jemalloc_postfork_child(void);
 #include "jemalloc/internal/rtree.h"
 #include "jemalloc/internal/pages.h"
 #include "jemalloc/internal/chunk.h"
-#include "jemalloc/internal/huge.h"
+#include "jemalloc/internal/large.h"
 
 #ifndef JEMALLOC_ENABLE_INLINE
 pszind_t	psz2ind(size_t psz);
@@ -547,7 +547,7 @@ JEMALLOC_INLINE pszind_t
 psz2ind(size_t psz)
 {
 
-	if (unlikely(psz > HUGE_MAXCLASS))
+	if (unlikely(psz > LARGE_MAXCLASS))
 		return (NPSIZES);
 	{
 		pszind_t x = lg_floor((psz<<1)-1);
@@ -608,7 +608,7 @@ JEMALLOC_INLINE size_t
 psz2u(size_t psz)
 {
 
-	if (unlikely(psz > HUGE_MAXCLASS))
+	if (unlikely(psz > LARGE_MAXCLASS))
 		return (0);
 	{
 		size_t x = lg_floor((psz<<1)-1);
@@ -625,7 +625,7 @@ JEMALLOC_INLINE szind_t
 size2index_compute(size_t size)
 {
 
-	if (unlikely(size > HUGE_MAXCLASS))
+	if (unlikely(size > LARGE_MAXCLASS))
 		return (NSIZES);
 #if (NTBINS != 0)
 	if (size <= (ZU(1) << LG_TINY_MAXCLASS)) {
@@ -721,7 +721,7 @@ JEMALLOC_ALWAYS_INLINE size_t
 s2u_compute(size_t size)
 {
 
-	if (unlikely(size > HUGE_MAXCLASS))
+	if (unlikely(size > LARGE_MAXCLASS))
 		return (0);
 #if (NTBINS > 0)
 	if (size <= (ZU(1) << LG_TINY_MAXCLASS)) {
@@ -797,9 +797,9 @@ sa2u(size_t size, size_t alignment)
 			return (usize);
 	}
 
-	/* Huge size class.  Beware of overflow. */
+	/* Large size class.  Beware of overflow. */
 
-	if (unlikely(alignment > HUGE_MAXCLASS))
+	if (unlikely(alignment > LARGE_MAXCLASS))
 		return (0);
 
 	/* Make sure result is a large size class. */
@@ -814,7 +814,7 @@ sa2u(size_t size, size_t alignment)
 	}
 
 	/*
-	 * Calculate the multi-page mapping that huge_palloc() would need in
+	 * Calculate the multi-page mapping that large_palloc() would need in
 	 * order to guarantee the alignment.
 	 */
 	if (usize + large_pad + PAGE_CEILING(alignment) < usize) {
@@ -1113,7 +1113,7 @@ iralloct_realign(tsdn_t *tsdn, extent_t *extent, void *ptr, size_t oldsize,
 	size_t usize, copysize;
 
 	usize = sa2u(size + extra, alignment);
-	if (unlikely(usize == 0 || usize > HUGE_MAXCLASS))
+	if (unlikely(usize == 0 || usize > LARGE_MAXCLASS))
 		return (NULL);
 	p = ipalloct(tsdn, usize, alignment, zero, tcache, arena);
 	if (p == NULL) {
@@ -1121,7 +1121,7 @@ iralloct_realign(tsdn_t *tsdn, extent_t *extent, void *ptr, size_t oldsize,
 			return (NULL);
 		/* Try again, without extra this time. */
 		usize = sa2u(size, alignment);
-		if (unlikely(usize == 0 || usize > HUGE_MAXCLASS))
+		if (unlikely(usize == 0 || usize > LARGE_MAXCLASS))
 			return (NULL);
 		p = ipalloct(tsdn, usize, alignment, zero, tcache, arena);
 		if (p == NULL)

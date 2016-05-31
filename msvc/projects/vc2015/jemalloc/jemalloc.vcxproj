@@ -47,11 +47,11 @@
     <ClInclude Include="..\..\..\..\include\jemalloc\internal\ctl.h" />
     <ClInclude Include="..\..\..\..\include\jemalloc\internal\extent.h" />
     <ClInclude Include="..\..\..\..\include\jemalloc\internal\hash.h" />
-    <ClInclude Include="..\..\..\..\include\jemalloc\internal\huge.h" />
     <ClInclude Include="..\..\..\..\include\jemalloc\internal\jemalloc_internal.h" />
     <ClInclude Include="..\..\..\..\include\jemalloc\internal\jemalloc_internal_decls.h" />
     <ClInclude Include="..\..\..\..\include\jemalloc\internal\jemalloc_internal_defs.h" />
     <ClInclude Include="..\..\..\..\include\jemalloc\internal\jemalloc_internal_macros.h" />
+    <ClInclude Include="..\..\..\..\include\jemalloc\internal\large.h" />
     <ClInclude Include="..\..\..\..\include\jemalloc\internal\mb.h" />
     <ClInclude Include="..\..\..\..\include\jemalloc\internal\mutex.h" />
     <ClInclude Include="..\..\..\..\include\jemalloc\internal\nstime.h" />
@@ -98,8 +98,8 @@
     <ClCompile Include="..\..\..\..\src\ctl.c" />
     <ClCompile Include="..\..\..\..\src\extent.c" />
     <ClCompile Include="..\..\..\..\src\hash.c" />
-    <ClCompile Include="..\..\..\..\src\huge.c" />
     <ClCompile Include="..\..\..\..\src\jemalloc.c" />
+    <ClCompile Include="..\..\..\..\src\large.c" />
     <ClCompile Include="..\..\..\..\src\mb.c" />
     <ClCompile Include="..\..\..\..\src\mutex.c" />
     <ClCompile Include="..\..\..\..\src\nstime.c" />

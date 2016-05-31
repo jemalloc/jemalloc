@@ -237,7 +237,7 @@ size_classes() {
         fi
       fi
       # Final written value is correct:
-      huge_maxclass="((((size_t)1) << ${lg_grp}) + (((size_t)${ndelta}) << ${lg_delta}))"
+      large_maxclass="((((size_t)1) << ${lg_grp}) + (((size_t)${ndelta}) << ${lg_delta}))"
       index=$((${index} + 1))
       ndelta=$((${ndelta} + 1))
     done
@@ -257,7 +257,7 @@ size_classes() {
   # - lookup_maxclass
   # - small_maxclass
   # - lg_large_minclass
-  # - huge_maxclass
+  # - large_maxclass
 }
 
 cat <<EOF
@@ -290,7 +290,7 @@ cat <<EOF
  *   LOOKUP_MAXCLASS: Maximum size class included in lookup table.
  *   SMALL_MAXCLASS: Maximum small size class.
  *   LG_LARGE_MINCLASS: Lg of minimum large size class.
- *   HUGE_MAXCLASS: Maximum (huge) size class.
+ *   LARGE_MAXCLASS: Maximum (large) size class.
  */
 
 #define	LG_SIZE_CLASS_GROUP	${lg_g}
@@ -315,7 +315,7 @@ for lg_z in ${lg_zarr} ; do
         echo "#define	LOOKUP_MAXCLASS		${lookup_maxclass}"
         echo "#define	SMALL_MAXCLASS		${small_maxclass}"
         echo "#define	LG_LARGE_MINCLASS	${lg_large_minclass}"
-        echo "#define	HUGE_MAXCLASS		${huge_maxclass}"
+        echo "#define	LARGE_MAXCLASS		${large_maxclass}"
         echo "#endif"
         echo
       done

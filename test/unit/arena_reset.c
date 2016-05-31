@@ -25,10 +25,10 @@ get_nsmall(void)
 }
 
 static unsigned
-get_nhuge(void)
+get_nlarge(void)
 {
 
-	return (get_nsizes_impl("arenas.nhchunks"));
+	return (get_nsizes_impl("arenas.nlextents"));
 }
 
 static size_t
@@ -58,10 +58,10 @@ get_small_size(size_t ind)
 }
 
 static size_t
-get_huge_size(size_t ind)
+get_large_size(size_t ind)
 {
 
-	return (get_size_impl("arenas.hchunk.0.size", ind));
+	return (get_size_impl("arenas.lextent.0.size", ind));
 }
 
 /* Like ivsalloc(), but safe to call on discarded allocations. */
@@ -81,8 +81,8 @@ vsalloc(tsdn_t *tsdn, const void *ptr)
 
 TEST_BEGIN(test_arena_reset)
 {
-#define	NHUGE	32
-	unsigned arena_ind, nsmall, nhuge, nptrs, i;
+#define	NLARGE	32
+	unsigned arena_ind, nsmall, nlarge, nptrs, i;
 	size_t sz, miblen;
 	void **ptrs;
 	int flags;
@@ -96,8 +96,8 @@ TEST_BEGIN(test_arena_reset)
 	flags = MALLOCX_ARENA(arena_ind) | MALLOCX_TCACHE_NONE;
 
 	nsmall = get_nsmall();
-	nhuge = get_nhuge() > NHUGE ? NHUGE : get_nhuge();
-	nptrs = nsmall + nhuge;
+	nlarge = get_nlarge() > NLARGE ? NLARGE : get_nlarge();
+	nptrs = nsmall + nlarge;
 	ptrs = (void **)malloc(nptrs * sizeof(void *));
 	assert_ptr_not_null(ptrs, "Unexpected malloc() failure");
 
@@ -108,8 +108,8 @@ TEST_BEGIN(test_arena_reset)
 		assert_ptr_not_null(ptrs[i],
 		    "Unexpected mallocx(%zu, %#x) failure", sz, flags);
 	}
-	for (i = 0; i < nhuge; i++) {
-		sz = get_huge_size(i);
+	for (i = 0; i < nlarge; i++) {
+		sz = get_large_size(i);
 		ptrs[nsmall + i] = mallocx(sz, flags);
 		assert_ptr_not_null(ptrs[i],
 		    "Unexpected mallocx(%zu, %#x) failure", sz, flags);

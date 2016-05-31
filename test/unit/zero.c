@@ -53,7 +53,7 @@ TEST_BEGIN(test_zero_small)
 }
 TEST_END
 
-TEST_BEGIN(test_zero_huge)
+TEST_BEGIN(test_zero_large)
 {
 
 	test_skip_if(!config_fill);
@@ -67,5 +67,5 @@ main(void)
 
 	return (test(
 	    test_zero_small,
-	    test_zero_huge));
+	    test_zero_large));
 }

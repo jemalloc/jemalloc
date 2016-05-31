@@ -18,10 +18,10 @@ get_nsizes_impl(const char *cmd)
 }
 
 static unsigned
-get_nhuge(void)
+get_nlarge(void)
 {
 
-	return (get_nsizes_impl("arenas.nhchunks"));
+	return (get_nsizes_impl("arenas.nlextents"));
 }
 
 static size_t
@@ -44,20 +44,20 @@ get_size_impl(const char *cmd, size_t ind)
 }
 
 static size_t
-get_huge_size(size_t ind)
+get_large_size(size_t ind)
 {
 
-	return (get_size_impl("arenas.hchunk.0.size", ind));
+	return (get_size_impl("arenas.lextent.0.size", ind));
 }
 
 TEST_BEGIN(test_overflow)
 {
-	size_t hugemax;
+	size_t largemax;
 
-	hugemax = get_huge_size(get_nhuge()-1);
+	largemax = get_large_size(get_nlarge()-1);
 
-	assert_ptr_null(mallocx(hugemax+1, 0),
-	    "Expected OOM for mallocx(size=%#zx, 0)", hugemax+1);
+	assert_ptr_null(mallocx(largemax+1, 0),
+	    "Expected OOM for mallocx(size=%#zx, 0)", largemax+1);
 
 	assert_ptr_null(mallocx(ZU(PTRDIFF_MAX)+1, 0),
 	    "Expected OOM for mallocx(size=%#zx, 0)", ZU(PTRDIFF_MAX)+1);
@@ -73,7 +73,7 @@ TEST_END
 
 TEST_BEGIN(test_oom)
 {
-	size_t hugemax;
+	size_t largemax;
 	bool oom;
 	void *ptrs[3];
 	unsigned i;
@@ -82,16 +82,16 @@ TEST_BEGIN(test_oom)
 	 * It should be impossible to allocate three objects that each consume
 	 * nearly half the virtual address space.
 	 */
-	hugemax = get_huge_size(get_nhuge()-1);
+	largemax = get_large_size(get_nlarge()-1);
 	oom = false;
 	for (i = 0; i < sizeof(ptrs) / sizeof(void *); i++) {
-		ptrs[i] = mallocx(hugemax, 0);
+		ptrs[i] = mallocx(largemax, 0);
 		if (ptrs[i] == NULL)
 			oom = true;
 	}
 	assert_true(oom,
 	    "Expected OOM during series of calls to mallocx(size=%zu, 0)",
-	    hugemax);
+	    largemax);
 	for (i = 0; i < sizeof(ptrs) / sizeof(void *); i++) {
 		if (ptrs[i] != NULL)
 			dallocx(ptrs[i], 0);

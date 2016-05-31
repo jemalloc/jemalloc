@@ -40,7 +40,7 @@ extent_size_quantize_floor(size_t size)
 	pszind_t pind;
 
 	assert(size > 0);
-	assert(size - large_pad <= HUGE_MAXCLASS);
+	assert(size - large_pad <= LARGE_MAXCLASS);
 	assert((size & PAGE_MASK) == 0);
 
 	assert(size != 0);
@@ -77,7 +77,7 @@ extent_size_quantize_ceil(size_t size)
 	size_t ret;
 
 	assert(size > 0);
-	assert(size - large_pad <= HUGE_MAXCLASS);
+	assert(size - large_pad <= LARGE_MAXCLASS);
 	assert((size & PAGE_MASK) == 0);
 
 	ret = extent_size_quantize_floor(size);

@@ -14,10 +14,10 @@ get_nsizes_impl(const char *cmd)
 }
 
 static unsigned
-get_nhuge(void)
+get_nlarge(void)
 {
 
-	return (get_nsizes_impl("arenas.nhchunks"));
+	return (get_nsizes_impl("arenas.nlextents"));
 }
 
 static size_t
@@ -40,10 +40,10 @@ get_size_impl(const char *cmd, size_t ind)
 }
 
 static size_t
-get_huge_size(size_t ind)
+get_large_size(size_t ind)
 {
 
-	return (get_size_impl("arenas.hchunk.0.size", ind));
+	return (get_size_impl("arenas.lextent.0.size", ind));
 }
 
 TEST_BEGIN(test_grow_and_shrink)
@@ -221,16 +221,16 @@ TEST_END
 
 TEST_BEGIN(test_overflow)
 {
-	size_t hugemax;
+	size_t largemax;
 	void *p;
 
-	hugemax = get_huge_size(get_nhuge()-1);
+	largemax = get_large_size(get_nlarge()-1);
 
 	p = mallocx(1, 0);
 	assert_ptr_not_null(p, "Unexpected mallocx() failure");
 
-	assert_ptr_null(rallocx(p, hugemax+1, 0),
-	    "Expected OOM for rallocx(p, size=%#zx, 0)", hugemax+1);
+	assert_ptr_null(rallocx(p, largemax+1, 0),
+	    "Expected OOM for rallocx(p, size=%#zx, 0)", largemax+1);
 
 	assert_ptr_null(rallocx(p, ZU(PTRDIFF_MAX)+1, 0),
 	    "Expected OOM for rallocx(p, size=%#zx, 0)", ZU(PTRDIFF_MAX)+1);

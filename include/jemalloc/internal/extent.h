@@ -51,7 +51,7 @@ struct extent_s {
 		/* Small region slab metadata. */
 		arena_slab_data_t	e_slab_data;
 
-		/* Profile counters, used for huge objects. */
+		/* Profile counters, used for large objects. */
 		union {
 			void		*e_prof_tctx_pun;
 			prof_tctx_t	*e_prof_tctx;
@@ -67,7 +67,7 @@ struct extent_s {
 		/* Linkage for per size class address-ordered heaps. */
 		phn(extent_t)		ph_link;
 
-		/* Linkage for arena's huge and extent_cache lists. */
+		/* Linkage for arena's large and extent_cache lists. */
 		ql_elm(extent_t)	ql_link;
 	};
 };

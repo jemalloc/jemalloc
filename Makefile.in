@@ -88,7 +88,7 @@ C_SRCS := $(srcroot)src/jemalloc.c \
 	$(srcroot)src/ctl.c \
 	$(srcroot)src/extent.c \
 	$(srcroot)src/hash.c \
-	$(srcroot)src/huge.c \
+	$(srcroot)src/large.c \
 	$(srcroot)src/mb.c \
 	$(srcroot)src/mutex.c \
 	$(srcroot)src/nstime.c \

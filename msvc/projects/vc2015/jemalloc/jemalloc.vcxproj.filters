@@ -80,9 +80,6 @@
     <ClInclude Include="..\..\..\..\include\jemalloc\internal\hash.h">
       <Filter>Header Files\internal</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\include\jemalloc\internal\huge.h">
-      <Filter>Header Files\internal</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\..\..\include\jemalloc\internal\jemalloc_internal.h">
       <Filter>Header Files\internal</Filter>
     </ClInclude>
@@ -93,6 +90,9 @@
       <Filter>Header Files\internal</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\..\include\jemalloc\internal\jemalloc_internal_macros.h">
+      <Filter>Header Files\internal</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\include\jemalloc\internal\large.h">
       <Filter>Header Files\internal</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\..\include\jemalloc\internal\mb.h">
@@ -205,10 +205,10 @@
     <ClCompile Include="..\..\..\..\src\hash.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\src\huge.c">
+    <ClCompile Include="..\..\..\..\src\jemalloc.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\src\jemalloc.c">
+    <ClCompile Include="..\..\..\..\src\large.c">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\src\mb.c">

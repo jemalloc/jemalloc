@@ -229,10 +229,10 @@ struct arena_s {
 	 */
 	size_t			decay_backlog[SMOOTHSTEP_NSTEPS];
 
-	/* Extant huge allocations. */
-	ql_head(extent_t)	huge;
-	/* Synchronizes all huge allocation/update/deallocation. */
-	malloc_mutex_t		huge_mtx;
+	/* Extant large allocations. */
+	ql_head(extent_t)	large;
+	/* Synchronizes all large allocation/update/deallocation. */
+	malloc_mutex_t		large_mtx;
 
 	/*
 	 * Heaps of chunks that were previously allocated.  These are used when
@@ -287,13 +287,13 @@ void	arena_chunk_cache_maybe_insert(arena_t *arena, extent_t *extent,
     bool cache);
 void	arena_chunk_cache_maybe_remove(arena_t *arena, extent_t *extent,
     bool cache);
-extent_t	*arena_chunk_alloc_huge(tsdn_t *tsdn, arena_t *arena,
+extent_t	*arena_chunk_alloc_large(tsdn_t *tsdn, arena_t *arena,
     size_t usize, size_t alignment, bool *zero);
-void	arena_chunk_dalloc_huge(tsdn_t *tsdn, arena_t *arena, extent_t *extent,
+void	arena_chunk_dalloc_large(tsdn_t *tsdn, arena_t *arena, extent_t *extent,
     bool locked);
-void	arena_chunk_ralloc_huge_shrink(tsdn_t *tsdn, arena_t *arena,
+void	arena_chunk_ralloc_large_shrink(tsdn_t *tsdn, arena_t *arena,
     extent_t *extent, size_t oldsize);
-void	arena_chunk_ralloc_huge_expand(tsdn_t *tsdn, arena_t *arena,
+void	arena_chunk_ralloc_large_expand(tsdn_t *tsdn, arena_t *arena,
     extent_t *extent, size_t oldsize);
 ssize_t	arena_lg_dirty_mult_get(tsdn_t *tsdn, arena_t *arena);
 bool	arena_lg_dirty_mult_set(tsdn_t *tsdn, arena_t *arena,
@@ -341,7 +341,7 @@ void	arena_basic_stats_merge(tsdn_t *tsdn, arena_t *arena,
 void	arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
     const char **dss, ssize_t *lg_dirty_mult, ssize_t *decay_time,
     size_t *nactive, size_t *ndirty, arena_stats_t *astats,
-    malloc_bin_stats_t *bstats, malloc_huge_stats_t *hstats);
+    malloc_bin_stats_t *bstats, malloc_large_stats_t *lstats);
 unsigned	arena_nthreads_get(arena_t *arena, bool internal);
 void	arena_nthreads_inc(arena_t *arena, bool internal);
 void	arena_nthreads_dec(arena_t *arena, bool internal);
@@ -470,7 +470,7 @@ arena_prof_tctx_get(tsdn_t *tsdn, const extent_t *extent, const void *ptr)
 	assert(ptr != NULL);
 
 	if (unlikely(!extent_slab_get(extent)))
-		return (huge_prof_tctx_get(tsdn, extent));
+		return (large_prof_tctx_get(tsdn, extent));
 	return ((prof_tctx_t *)(uintptr_t)1U);
 }
 
@@ -483,7 +483,7 @@ arena_prof_tctx_set(tsdn_t *tsdn, extent_t *extent, const void *ptr,
 	assert(ptr != NULL);
 
 	if (unlikely(!extent_slab_get(extent)))
-		huge_prof_tctx_set(tsdn, extent, tctx);
+		large_prof_tctx_set(tsdn, extent, tctx);
 }
 
 JEMALLOC_INLINE void
@@ -495,7 +495,7 @@ arena_prof_tctx_reset(tsdn_t *tsdn, extent_t *extent, const void *ptr,
 	assert(ptr != NULL);
 	assert(!extent_slab_get(extent));
 
-	huge_prof_tctx_reset(tsdn, extent);
+	large_prof_tctx_reset(tsdn, extent);
 }
 
 JEMALLOC_ALWAYS_INLINE void
@@ -535,7 +535,7 @@ arena_malloc(tsdn_t *tsdn, arena_t *arena, size_t size, szind_t ind, bool zero,
 			    tcache, size, ind, zero, slow_path));
 		}
 		if (likely(size <= tcache_maxclass)) {
-			return (tcache_alloc_huge(tsdn_tsd(tsdn), arena,
+			return (tcache_alloc_large(tsdn_tsd(tsdn), arena,
 			    tcache, size, ind, zero, slow_path));
 		}
 		/* (size > tcache_maxclass) case falls through. */
@@ -563,7 +563,7 @@ arena_salloc(tsdn_t *tsdn, const extent_t *extent, const void *ptr)
 	if (likely(extent_slab_get(extent)))
 		ret = index2size(extent_slab_data_get_const(extent)->binind);
 	else
-		ret = huge_salloc(tsdn, extent);
+		ret = large_salloc(tsdn, extent);
 
 	return (ret);
 }
@@ -594,11 +594,11 @@ arena_dalloc(tsdn_t *tsdn, extent_t *extent, void *ptr, tcache_t *tcache,
 				arena_dalloc_promoted(tsdn, extent, ptr,
 				    tcache, slow_path);
 			} else {
-				tcache_dalloc_huge(tsdn_tsd(tsdn), tcache,
+				tcache_dalloc_large(tsdn_tsd(tsdn), tcache,
 				    ptr, usize, slow_path);
 			}
 		} else
-			huge_dalloc(tsdn, extent);
+			large_dalloc(tsdn, extent);
 	}
 }
 
@@ -627,11 +627,11 @@ arena_sdalloc(tsdn_t *tsdn, extent_t *extent, void *ptr, size_t size,
 				arena_dalloc_promoted(tsdn, extent, ptr,
 				    tcache, slow_path);
 			} else {
-				tcache_dalloc_huge(tsdn_tsd(tsdn), tcache, ptr,
+				tcache_dalloc_large(tsdn_tsd(tsdn), tcache, ptr,
 				    size, slow_path);
 			}
 		} else
-			huge_dalloc(tsdn, extent);
+			large_dalloc(tsdn, extent);
 	}
 }
 #  endif /* JEMALLOC_ARENA_INLINE_B */

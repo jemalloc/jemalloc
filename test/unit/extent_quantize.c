@@ -35,16 +35,16 @@ TEST_BEGIN(test_small_extent_size)
 }
 TEST_END
 
-TEST_BEGIN(test_huge_extent_size)
+TEST_BEGIN(test_large_extent_size)
 {
 	bool cache_oblivious;
-	unsigned nhchunks, i;
+	unsigned nlextents, i;
 	size_t sz, extent_size_prev, ceil_prev;
 	size_t mib[4];
 	size_t miblen = sizeof(mib) / sizeof(size_t);
 
 	/*
-	 * Iterate over all huge size classes, get their extent sizes, and
+	 * Iterate over all large size classes, get their extent sizes, and
 	 * verify that the quantized size is the same as the extent size.
 	 */
 
@@ -53,12 +53,12 @@ TEST_BEGIN(test_huge_extent_size)
 	    NULL, 0), 0, "Unexpected mallctl failure");
 
 	sz = sizeof(unsigned);
-	assert_d_eq(mallctl("arenas.nhchunks", &nhchunks, &sz, NULL, 0), 0,
+	assert_d_eq(mallctl("arenas.nlextents", &nlextents, &sz, NULL, 0), 0,
 	    "Unexpected mallctl failure");
 
-	assert_d_eq(mallctlnametomib("arenas.hchunk.0.size", mib, &miblen), 0,
+	assert_d_eq(mallctlnametomib("arenas.lextent.0.size", mib, &miblen), 0,
 	    "Unexpected mallctlnametomib failure");
-	for (i = 0; i < nhchunks; i++) {
+	for (i = 0; i < nlextents; i++) {
 		size_t lextent_size, extent_size, floor, ceil;
 
 		mib[2] = i;
@@ -91,7 +91,7 @@ TEST_BEGIN(test_huge_extent_size)
 				    ceil_prev, extent_size);
 			}
 		}
-		if (i + 1 < nhchunks) {
+		if (i + 1 < nlextents) {
 			extent_size_prev = floor;
 			ceil_prev = extent_size_quantize_ceil(extent_size +
 			    PAGE);
@@ -141,6 +141,6 @@ main(void)
 
 	return (test(
 	    test_small_extent_size,
-	    test_huge_extent_size,
+	    test_large_extent_size,
 	    test_monotonic));
 }

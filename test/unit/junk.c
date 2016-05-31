@@ -9,7 +9,7 @@ const char *malloc_conf =
 #endif
 
 static arena_dalloc_junk_small_t *arena_dalloc_junk_small_orig;
-static huge_dalloc_junk_t *huge_dalloc_junk_orig;
+static large_dalloc_junk_t *large_dalloc_junk_orig;
 static void *watch_for_junking;
 static bool saw_junking;
 
@@ -37,10 +37,10 @@ arena_dalloc_junk_small_intercept(void *ptr, const arena_bin_info_t *bin_info)
 }
 
 static void
-huge_dalloc_junk_intercept(void *ptr, size_t usize)
+large_dalloc_junk_intercept(void *ptr, size_t usize)
 {
 
-	huge_dalloc_junk_orig(ptr, usize);
+	large_dalloc_junk_orig(ptr, usize);
 	/*
 	 * The conditions under which junk filling actually occurs are nuanced
 	 * enough that it doesn't make sense to duplicate the decision logic in
@@ -59,8 +59,8 @@ test_junk(size_t sz_min, size_t sz_max)
 	if (opt_junk_free) {
 		arena_dalloc_junk_small_orig = arena_dalloc_junk_small;
 		arena_dalloc_junk_small = arena_dalloc_junk_small_intercept;
-		huge_dalloc_junk_orig = huge_dalloc_junk;
-		huge_dalloc_junk = huge_dalloc_junk_intercept;
+		large_dalloc_junk_orig = large_dalloc_junk;
+		large_dalloc_junk = large_dalloc_junk_intercept;
 	}
 
 	sz_prev = 0;
@@ -110,7 +110,7 @@ test_junk(size_t sz_min, size_t sz_max)
 
 	if (opt_junk_free) {
 		arena_dalloc_junk_small = arena_dalloc_junk_small_orig;
-		huge_dalloc_junk = huge_dalloc_junk_orig;
+		large_dalloc_junk = large_dalloc_junk_orig;
 	}
 }
 
@@ -122,7 +122,7 @@ TEST_BEGIN(test_junk_small)
 }
 TEST_END
 
-TEST_BEGIN(test_junk_huge)
+TEST_BEGIN(test_junk_large)
 {
 
 	test_skip_if(!config_fill);
@@ -136,5 +136,5 @@ main(void)
 
 	return (test(
 	    test_junk_small,
-	    test_junk_huge));
+	    test_junk_large));
 }

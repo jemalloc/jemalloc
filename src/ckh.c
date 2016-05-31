@@ -267,7 +267,7 @@ ckh_grow(tsdn_t *tsdn, ckh_t *ckh)
 
 		lg_curcells++;
 		usize = sa2u(sizeof(ckhc_t) << lg_curcells, CACHELINE);
-		if (unlikely(usize == 0 || usize > HUGE_MAXCLASS)) {
+		if (unlikely(usize == 0 || usize > LARGE_MAXCLASS)) {
 			ret = true;
 			goto label_return;
 		}
@@ -315,7 +315,7 @@ ckh_shrink(tsdn_t *tsdn, ckh_t *ckh)
 	lg_prevbuckets = ckh->lg_curbuckets;
 	lg_curcells = ckh->lg_curbuckets + LG_CKH_BUCKET_CELLS - 1;
 	usize = sa2u(sizeof(ckhc_t) << lg_curcells, CACHELINE);
-	if (unlikely(usize == 0 || usize > HUGE_MAXCLASS))
+	if (unlikely(usize == 0 || usize > LARGE_MAXCLASS))
 		return;
 	tab = (ckhc_t *)ipallocztm(tsdn, usize, CACHELINE, true, NULL, true,
 	    arena_ichoose(tsdn, NULL));
@@ -390,7 +390,7 @@ ckh_new(tsdn_t *tsdn, ckh_t *ckh, size_t minitems, ckh_hash_t *hash,
 	ckh->keycomp = keycomp;
 
 	usize = sa2u(sizeof(ckhc_t) << lg_mincells, CACHELINE);
-	if (unlikely(usize == 0 || usize > HUGE_MAXCLASS)) {
+	if (unlikely(usize == 0 || usize > LARGE_MAXCLASS)) {
 		ret = true;
 		goto label_return;
 	}
