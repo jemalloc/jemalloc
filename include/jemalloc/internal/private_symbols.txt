@@ -131,9 +131,6 @@ chunk_dss_postfork_parent
 chunk_dss_prec_get
 chunk_dss_prec_set
 chunk_dss_prefork
-chunk_hooks_default
-chunk_hooks_get
-chunk_hooks_set
 chunk_in_dss
 chunk_lookup
 chunk_merge_wrapper
@@ -185,6 +182,9 @@ extent_heap_insert
 extent_heap_new
 extent_heap_remove
 extent_heap_remove_first
+extent_hooks_default
+extent_hooks_get
+extent_hooks_set
 extent_init
 extent_last_get
 extent_past_get

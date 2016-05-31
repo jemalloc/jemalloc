@@ -96,15 +96,16 @@ large_ralloc_no_move_shrink(tsdn_t *tsdn, extent_t *extent, size_t usize)
 {
 	arena_t *arena = extent_arena_get(extent);
 	size_t oldusize = extent_usize_get(extent);
-	chunk_hooks_t chunk_hooks = chunk_hooks_get(tsdn, arena);
+	extent_hooks_t extent_hooks = extent_hooks_get(tsdn, arena);
 	size_t diff = extent_size_get(extent) - (usize + large_pad);
 
 	assert(oldusize > usize);
 
 	/* Split excess pages. */
 	if (diff != 0) {
-		extent_t *trail = chunk_split_wrapper(tsdn, arena, &chunk_hooks,
-		    extent, usize + large_pad, usize, diff, diff);
+		extent_t *trail = chunk_split_wrapper(tsdn, arena,
+		    &extent_hooks, extent, usize + large_pad, usize, diff,
+		    diff);
 		if (trail == NULL)
 			return (true);
 
@@ -113,7 +114,7 @@ large_ralloc_no_move_shrink(tsdn_t *tsdn, extent_t *extent, size_t usize)
 			    extent_usize_get(trail));
 		}
 
-		arena_chunk_cache_dalloc(tsdn, arena, &chunk_hooks, trail);
+		arena_chunk_cache_dalloc(tsdn, arena, &extent_hooks, trail);
 	}
 
 	arena_chunk_ralloc_large_shrink(tsdn, arena, extent, oldusize);
@@ -128,22 +129,22 @@ large_ralloc_no_move_expand(tsdn_t *tsdn, extent_t *extent, size_t usize,
 	arena_t *arena = extent_arena_get(extent);
 	size_t oldusize = extent_usize_get(extent);
 	bool is_zeroed_trail = false;
-	chunk_hooks_t chunk_hooks = chunk_hooks_get(tsdn, arena);
+	extent_hooks_t extent_hooks = extent_hooks_get(tsdn, arena);
 	size_t trailsize = usize - extent_usize_get(extent);
 	extent_t *trail;
 
-	if ((trail = arena_chunk_cache_alloc(tsdn, arena, &chunk_hooks,
+	if ((trail = arena_chunk_cache_alloc(tsdn, arena, &extent_hooks,
 	    extent_past_get(extent), trailsize, CACHELINE, &is_zeroed_trail))
 	    == NULL) {
 		bool commit = true;
-		if ((trail = chunk_alloc_wrapper(tsdn, arena, &chunk_hooks,
+		if ((trail = chunk_alloc_wrapper(tsdn, arena, &extent_hooks,
 		    extent_past_get(extent), trailsize, 0, CACHELINE,
 		    &is_zeroed_trail, &commit, false)) == NULL)
 			return (true);
 	}
 
-	if (chunk_merge_wrapper(tsdn, arena, &chunk_hooks, extent, trail)) {
-		chunk_dalloc_wrapper(tsdn, arena, &chunk_hooks, trail);
+	if (chunk_merge_wrapper(tsdn, arena, &extent_hooks, extent, trail)) {
+		chunk_dalloc_wrapper(tsdn, arena, &extent_hooks, trail);
 		return (true);
 	}
 

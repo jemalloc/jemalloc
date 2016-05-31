@@ -246,8 +246,8 @@ struct arena_s {
 	ql_head(extent_t)	extent_cache;
 	malloc_mutex_t		extent_cache_mtx;
 
-	/* User-configurable chunk hook functions. */
-	chunk_hooks_t		chunk_hooks;
+	/* User-configurable extent hook functions. */
+	extent_hooks_t		extent_hooks;
 
 	/* bins is used to store heaps of free regions. */
 	arena_bin_t		bins[NBINS];
@@ -279,10 +279,10 @@ extern ssize_t		opt_decay_time;
 extern const arena_bin_info_t	arena_bin_info[NBINS];
 
 extent_t	*arena_chunk_cache_alloc(tsdn_t *tsdn, arena_t *arena,
-    chunk_hooks_t *chunk_hooks, void *new_addr, size_t size, size_t alignment,
+    extent_hooks_t *extent_hooks, void *new_addr, size_t size, size_t alignment,
     bool *zero);
 void	arena_chunk_cache_dalloc(tsdn_t *tsdn, arena_t *arena,
-    chunk_hooks_t *chunk_hooks, extent_t *extent);
+    extent_hooks_t *extent_hooks, extent_t *extent);
 void	arena_chunk_cache_maybe_insert(arena_t *arena, extent_t *extent,
     bool cache);
 void	arena_chunk_cache_maybe_remove(arena_t *arena, extent_t *extent,

@@ -4,8 +4,8 @@
 const char *malloc_conf = "junk:false";
 #endif
 
-static chunk_hooks_t orig_hooks;
-static chunk_hooks_t old_hooks;
+static extent_hooks_t orig_hooks;
+static extent_hooks_t old_hooks;
 
 static bool do_dalloc = true;
 static bool do_decommit;
@@ -125,7 +125,7 @@ TEST_BEGIN(test_chunk)
 	int flags;
 	size_t hooks_mib[3], purge_mib[3];
 	size_t hooks_miblen, purge_miblen;
-	chunk_hooks_t new_hooks = {
+	extent_hooks_t new_hooks = {
 		chunk_alloc,
 		chunk_dalloc,
 		chunk_commit,
@@ -141,15 +141,15 @@ TEST_BEGIN(test_chunk)
 	    "Unexpected mallctl() failure");
 	flags = MALLOCX_ARENA(arena_ind) | MALLOCX_TCACHE_NONE;
 
-	/* Install custom chunk hooks. */
+	/* Install custom extent hooks. */
 	hooks_miblen = sizeof(hooks_mib)/sizeof(size_t);
-	assert_d_eq(mallctlnametomib("arena.0.chunk_hooks", hooks_mib,
+	assert_d_eq(mallctlnametomib("arena.0.extent_hooks", hooks_mib,
 	    &hooks_miblen), 0, "Unexpected mallctlnametomib() failure");
 	hooks_mib[1] = (size_t)arena_ind;
-	old_size = sizeof(chunk_hooks_t);
-	new_size = sizeof(chunk_hooks_t);
+	old_size = sizeof(extent_hooks_t);
+	new_size = sizeof(extent_hooks_t);
 	assert_d_eq(mallctlbymib(hooks_mib, hooks_miblen, &old_hooks, &old_size,
-	    &new_hooks, new_size), 0, "Unexpected chunk_hooks error");
+	    &new_hooks, new_size), 0, "Unexpected extent_hooks error");
 	orig_hooks = old_hooks;
 	assert_ptr_ne(old_hooks.alloc, chunk_alloc, "Unexpected alloc error");
 	assert_ptr_ne(old_hooks.dalloc, chunk_dalloc,
@@ -223,11 +223,11 @@ TEST_BEGIN(test_chunk)
 	assert_ptr_not_null(p, "Unexpected mallocx() error");
 	dallocx(p, flags);
 
-	/* Restore chunk hooks. */
+	/* Restore extent hooks. */
 	assert_d_eq(mallctlbymib(hooks_mib, hooks_miblen, NULL, NULL,
-	    &old_hooks, new_size), 0, "Unexpected chunk_hooks error");
+	    &old_hooks, new_size), 0, "Unexpected extent_hooks error");
 	assert_d_eq(mallctlbymib(hooks_mib, hooks_miblen, &old_hooks, &old_size,
-	    NULL, 0), 0, "Unexpected chunk_hooks error");
+	    NULL, 0), 0, "Unexpected extent_hooks error");
 	assert_ptr_eq(old_hooks.alloc, orig_hooks.alloc,
 	    "Unexpected alloc error");
 	assert_ptr_eq(old_hooks.dalloc, orig_hooks.dalloc,

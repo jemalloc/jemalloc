@@ -54,4 +54,4 @@ typedef struct {
 	chunk_purge_t		*purge;
 	chunk_split_t		*split;
 	chunk_merge_t		*merge;
-} chunk_hooks_t;
+} extent_hooks_t;

@@ -555,7 +555,7 @@ for (i = 0; i < nbins; i++) {
     allocations in place, as long as the pre-size and post-size are both large.
     For shrinkage to succeed, the extent allocator must support splitting (see
     <link
-    linkend="arena.i.chunk_hooks"><mallctl>arena.&lt;i&gt;.chunk_hooks</mallctl></link>).
+    linkend="arena.i.extent_hooks"><mallctl>arena.&lt;i&gt;.extent_hooks</mallctl></link>).
     Growth only succeeds if the trailing memory is currently available, and the
     extent allocator supports merging.</para>
 
@@ -1548,10 +1548,10 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         additional information.</para></listitem>
       </varlistentry>
 
-      <varlistentry id="arena.i.chunk_hooks">
+      <varlistentry id="arena.i.extent_hooks">
         <term>
-          <mallctl>arena.&lt;i&gt;.chunk_hooks</mallctl>
-          (<type>chunk_hooks_t</type>)
+          <mallctl>arena.&lt;i&gt;.extent_hooks</mallctl>
+          (<type>extent_hooks_t</type>)
           <literal>rw</literal>
         </term>
         <listitem><para>Get or set the chunk management hook functions for arena
@@ -1561,7 +1561,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         control allocation for arenas created via <link
         linkend="arenas.extend"><mallctl>arenas.extend</mallctl></link> such
         that all chunks originate from an application-supplied chunk allocator
-        (by setting custom chunk hook functions just after arena creation), but
+        (by setting custom extent hook functions just after arena creation), but
         the automatically created arenas may have already created chunks prior
         to the application having an opportunity to take over chunk
         allocation.</para>
@@ -1575,8 +1575,8 @@ typedef struct {
 	chunk_purge_t		*purge;
 	chunk_split_t		*split;
 	chunk_merge_t		*merge;
-} chunk_hooks_t;]]></programlisting>
-        <para>The <type>chunk_hooks_t</type> structure comprises function
+} extent_hooks_t;]]></programlisting>
+        <para>The <type>extent_hooks_t</type> structure comprises function
         pointers which are described individually below.  jemalloc uses these
         functions to manage chunk lifetime, which starts off with allocation of
         mapped committed memory, in the simplest case followed by deallocation.
@@ -2109,8 +2109,8 @@ typedef struct {
         <manvolnum>2</manvolnum></citerefentry>.  Retained virtual memory is
         typically untouched, decommitted, or purged, so it has no strongly
         associated physical memory (see <link
-        linkend="arena.i.chunk_hooks">chunk hooks</link> for details).  Retained
-        memory is excluded from mapped memory statistics, e.g. <link
+        linkend="arena.i.extent_hooks">extent hooks</link> for details).
+        Retained memory is excluded from mapped memory statistics, e.g. <link
         linkend="stats.mapped"><mallctl>stats.mapped</mallctl></link>.
         </para></listitem>
       </varlistentry>

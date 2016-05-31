@@ -120,7 +120,7 @@ CTL_PROTO(arena_i_reset)
 CTL_PROTO(arena_i_dss)
 CTL_PROTO(arena_i_lg_dirty_mult)
 CTL_PROTO(arena_i_decay_time)
-CTL_PROTO(arena_i_chunk_hooks)
+CTL_PROTO(arena_i_extent_hooks)
 INDEX_PROTO(arena_i)
 CTL_PROTO(arenas_bin_i_size)
 CTL_PROTO(arenas_bin_i_nregs)
@@ -287,7 +287,7 @@ static const ctl_named_node_t arena_i_node[] = {
 	{NAME("dss"),		CTL(arena_i_dss)},
 	{NAME("lg_dirty_mult"),	CTL(arena_i_lg_dirty_mult)},
 	{NAME("decay_time"),	CTL(arena_i_decay_time)},
-	{NAME("chunk_hooks"),	CTL(arena_i_chunk_hooks)}
+	{NAME("extent_hooks"),	CTL(arena_i_extent_hooks)}
 };
 static const ctl_named_node_t super_arena_i_node[] = {
 	{NAME(""),		CHILD(named, arena_i)}
@@ -1647,7 +1647,7 @@ label_return:
 }
 
 static int
-arena_i_chunk_hooks_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
+arena_i_extent_hooks_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
     void *oldp, size_t *oldlenp, void *newp, size_t newlen)
 {
 	int ret;
@@ -1658,15 +1658,15 @@ arena_i_chunk_hooks_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
 	if (arena_ind < narenas_total_get() && (arena =
 	    arena_get(tsd_tsdn(tsd), arena_ind, false)) != NULL) {
 		if (newp != NULL) {
-			chunk_hooks_t old_chunk_hooks, new_chunk_hooks;
-			WRITE(new_chunk_hooks, chunk_hooks_t);
-			old_chunk_hooks = chunk_hooks_set(tsd_tsdn(tsd), arena,
-			    &new_chunk_hooks);
-			READ(old_chunk_hooks, chunk_hooks_t);
+			extent_hooks_t old_extent_hooks, new_extent_hooks;
+			WRITE(new_extent_hooks, extent_hooks_t);
+			old_extent_hooks = extent_hooks_set(tsd_tsdn(tsd),
+			    arena, &new_extent_hooks);
+			READ(old_extent_hooks, extent_hooks_t);
 		} else {
-			chunk_hooks_t old_chunk_hooks =
-			    chunk_hooks_get(tsd_tsdn(tsd), arena);
-			READ(old_chunk_hooks, chunk_hooks_t);
+			extent_hooks_t old_extent_hooks =
+			    extent_hooks_get(tsd_tsdn(tsd), arena);
+			READ(old_extent_hooks, extent_hooks_t);
 		}
 	} else {
 		ret = EFAULT;

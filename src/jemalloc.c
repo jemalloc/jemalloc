@@ -207,14 +207,16 @@ static void WINAPI
 _init_init_lock(void)
 {
 
-	/* If another constructor in the same binary is using mallctl to
-	 * e.g. setup chunk hooks, it may end up running before this one,
-	 * and malloc_init_hard will crash trying to lock the uninitialized
-	 * lock. So we force an initialization of the lock in
-	 * malloc_init_hard as well. We don't try to care about atomicity
-	 * of the accessed to the init_lock_initialized boolean, since it
-	 * really only matters early in the process creation, before any
-	 * separate thread normally starts doing anything. */
+	/*
+	 * If another constructor in the same binary is using mallctl to e.g.
+	 * set up extent hooks, it may end up running before this one, and
+	 * malloc_init_hard will crash trying to lock the uninitialized lock. So
+	 * we force an initialization of the lock in malloc_init_hard as well.
+	 * We don't try to care about atomicity of the accessed to the
+	 * init_lock_initialized boolean, since it really only matters early in
+	 * the process creation, before any separate thread normally starts
+	 * doing anything.
+	 */
 	if (!init_lock_initialized)
 		malloc_mutex_init(&init_lock, "init", WITNESS_RANK_INIT);
 	init_lock_initialized = true;
