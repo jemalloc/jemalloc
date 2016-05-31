@@ -62,7 +62,7 @@ huge_palloc(tsdn_t *tsdn, arena_t *arena, size_t usize, size_t alignment,
 
 #ifdef JEMALLOC_JET
 #undef huge_dalloc_junk
-#define	huge_dalloc_junk JEMALLOC_N(huge_dalloc_junk_impl)
+#define	huge_dalloc_junk JEMALLOC_N(n_huge_dalloc_junk)
 #endif
 void
 huge_dalloc_junk(void *ptr, size_t usize)
@@ -73,7 +73,7 @@ huge_dalloc_junk(void *ptr, size_t usize)
 #ifdef JEMALLOC_JET
 #undef huge_dalloc_junk
 #define	huge_dalloc_junk JEMALLOC_N(huge_dalloc_junk)
-huge_dalloc_junk_t *huge_dalloc_junk = JEMALLOC_N(huge_dalloc_junk_impl);
+huge_dalloc_junk_t *huge_dalloc_junk = JEMALLOC_N(n_huge_dalloc_junk);
 #endif
 
 static void
