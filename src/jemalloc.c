@@ -2155,7 +2155,7 @@ irallocx_prof(tsd_t *tsd, extent_t *old_extent, void *old_ptr, size_t old_usize,
 
 	prof_active = prof_active_get_unlocked();
 	old_tctx = prof_tctx_get(tsd_tsdn(tsd), old_extent, old_ptr);
-	tctx = prof_alloc_prep(tsd, *usize, prof_active, true);
+	tctx = prof_alloc_prep(tsd, *usize, prof_active, false);
 	if (unlikely((uintptr_t)tctx != (uintptr_t)1U)) {
 		p = irallocx_prof_sample(tsd_tsdn(tsd), old_extent, old_ptr,
 		    old_usize, *usize, alignment, zero, tcache, arena, tctx);
@@ -2164,7 +2164,7 @@ irallocx_prof(tsd_t *tsd, extent_t *old_extent, void *old_ptr, size_t old_usize,
 		    size, alignment, zero, tcache, arena);
 	}
 	if (unlikely(p == NULL)) {
-		prof_alloc_rollback(tsd, tctx, true);
+		prof_alloc_rollback(tsd, tctx, false);
 		return (NULL);
 	}
 
@@ -2181,7 +2181,7 @@ irallocx_prof(tsd_t *tsd, extent_t *old_extent, void *old_ptr, size_t old_usize,
 		*usize = isalloc(tsd_tsdn(tsd), extent, p);
 	} else
 		extent = iealloc(tsd_tsdn(tsd), p);
-	prof_realloc(tsd, extent, p, *usize, tctx, prof_active, true,
+	prof_realloc(tsd, extent, p, *usize, tctx, prof_active, false,
 	    old_extent, old_ptr, old_usize, old_tctx);
 
 	return (p);
