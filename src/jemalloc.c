@@ -1051,16 +1051,8 @@ malloc_conf_init(void)
 			}
 
 			CONF_HANDLE_BOOL(opt_abort, "abort", true)
-			/*
-			 * Chunks always require at least one header page and as
-			 * many as 2^(LG_SIZE_CLASS_GROUP+1) data pages.  In
-			 * order to simplify options processing, use a
-			 * conservative bound that accommodates all these
-			 * constraints.
-			 */
-			CONF_HANDLE_SIZE_T(opt_lg_chunk, "lg_chunk", LG_PAGE +
-			    LG_SIZE_CLASS_GROUP + 1, (sizeof(size_t) << 3) - 1,
-			    true)
+			CONF_HANDLE_SIZE_T(opt_lg_chunk, "lg_chunk", LG_PAGE,
+			    (sizeof(size_t) << 3) - 1, true)
 			if (strncmp("dss", k, klen) == 0) {
 				int i;
 				bool match = false;
