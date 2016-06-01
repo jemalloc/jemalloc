@@ -310,40 +310,22 @@ large_dalloc(tsdn_t *tsdn, extent_t *extent)
 size_t
 large_salloc(tsdn_t *tsdn, const extent_t *extent)
 {
-	size_t usize;
-	arena_t *arena;
 
-	arena = extent_arena_get(extent);
-	malloc_mutex_lock(tsdn, &arena->large_mtx);
-	usize = extent_usize_get(extent);
-	malloc_mutex_unlock(tsdn, &arena->large_mtx);
-
-	return (usize);
+	return (extent_usize_get(extent));
 }
 
 prof_tctx_t *
 large_prof_tctx_get(tsdn_t *tsdn, const extent_t *extent)
 {
-	prof_tctx_t *tctx;
-	arena_t *arena;
 
-	arena = extent_arena_get(extent);
-	malloc_mutex_lock(tsdn, &arena->large_mtx);
-	tctx = extent_prof_tctx_get(extent);
-	malloc_mutex_unlock(tsdn, &arena->large_mtx);
-
-	return (tctx);
+	return (extent_prof_tctx_get(extent));
 }
 
 void
 large_prof_tctx_set(tsdn_t *tsdn, extent_t *extent, prof_tctx_t *tctx)
 {
-	arena_t *arena;
 
-	arena = extent_arena_get(extent);
-	malloc_mutex_lock(tsdn, &arena->large_mtx);
 	extent_prof_tctx_set(extent, tctx);
-	malloc_mutex_unlock(tsdn, &arena->large_mtx);
 }
 
 void
