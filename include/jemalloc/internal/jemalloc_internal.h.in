@@ -1006,7 +1006,7 @@ iallocztm(tsdn_t *tsdn, size_t size, szind_t ind, bool zero, tcache_t *tcache,
 
 	ret = arena_malloc(tsdn, arena, size, ind, zero, tcache, slow_path);
 	if (config_stats && is_metadata && likely(ret != NULL)) {
-		arena_metadata_allocated_add(iaalloc(tsdn, ret), isalloc(tsdn,
+		arena_metadata_add(iaalloc(tsdn, ret), isalloc(tsdn,
 		    iealloc(tsdn, ret), ret));
 	}
 	return (ret);
@@ -1034,7 +1034,7 @@ ipallocztm(tsdn_t *tsdn, size_t usize, size_t alignment, bool zero,
 	ret = arena_palloc(tsdn, arena, usize, alignment, zero, tcache);
 	assert(ALIGNMENT_ADDR2BASE(ret, alignment) == ret);
 	if (config_stats && is_metadata && likely(ret != NULL)) {
-		arena_metadata_allocated_add(iaalloc(tsdn, ret), isalloc(tsdn,
+		arena_metadata_add(iaalloc(tsdn, ret), isalloc(tsdn,
 		    iealloc(tsdn, ret), ret));
 	}
 	return (ret);
@@ -1088,8 +1088,8 @@ idalloctm(tsdn_t *tsdn, extent_t *extent, void *ptr, tcache_t *tcache,
 	assert(!is_metadata || tcache == NULL);
 	assert(!is_metadata || iaalloc(tsdn, ptr)->ind < narenas_auto);
 	if (config_stats && is_metadata) {
-		arena_metadata_allocated_sub(iaalloc(tsdn, ptr), isalloc(tsdn,
-		    extent, ptr));
+		arena_metadata_sub(iaalloc(tsdn, ptr), isalloc(tsdn, extent,
+		    ptr));
 	}
 
 	arena_dalloc(tsdn, extent, ptr, tcache, slow_path);

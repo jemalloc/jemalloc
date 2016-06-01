@@ -359,9 +359,9 @@ void	arena_postfork_child(tsdn_t *tsdn, arena_t *arena);
 #ifdef JEMALLOC_H_INLINES
 
 #ifndef JEMALLOC_ENABLE_INLINE
-void	arena_metadata_allocated_add(arena_t *arena, size_t size);
-void	arena_metadata_allocated_sub(arena_t *arena, size_t size);
-size_t	arena_metadata_allocated_get(arena_t *arena);
+void	arena_metadata_add(arena_t *arena, size_t size);
+void	arena_metadata_sub(arena_t *arena, size_t size);
+size_t	arena_metadata_get(arena_t *arena);
 bool	arena_prof_accum_impl(arena_t *arena, uint64_t accumbytes);
 bool	arena_prof_accum_locked(arena_t *arena, uint64_t accumbytes);
 bool	arena_prof_accum(tsdn_t *tsdn, arena_t *arena, uint64_t accumbytes);
@@ -387,24 +387,24 @@ void	arena_sdalloc(tsdn_t *tsdn, extent_t *extent, void *ptr, size_t size,
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_ARENA_C_))
 #  ifdef JEMALLOC_ARENA_INLINE_A
 JEMALLOC_INLINE void
-arena_metadata_allocated_add(arena_t *arena, size_t size)
+arena_metadata_add(arena_t *arena, size_t size)
 {
 
-	atomic_add_z(&arena->stats.metadata_allocated, size);
+	atomic_add_z(&arena->stats.metadata, size);
 }
 
 JEMALLOC_INLINE void
-arena_metadata_allocated_sub(arena_t *arena, size_t size)
+arena_metadata_sub(arena_t *arena, size_t size)
 {
 
-	atomic_sub_z(&arena->stats.metadata_allocated, size);
+	atomic_sub_z(&arena->stats.metadata, size);
 }
 
 JEMALLOC_INLINE size_t
-arena_metadata_allocated_get(arena_t *arena)
+arena_metadata_get(arena_t *arena)
 {
 
-	return (atomic_read_z(&arena->stats.metadata_allocated));
+	return (atomic_read_z(&arena->stats.metadata));
 }
 
 JEMALLOC_INLINE bool

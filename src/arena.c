@@ -1686,8 +1686,7 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 	astats->npurge += arena->stats.npurge;
 	astats->nmadvise += arena->stats.nmadvise;
 	astats->purged += arena->stats.purged;
-	astats->metadata_mapped += arena->stats.metadata_mapped;
-	astats->metadata_allocated += arena_metadata_allocated_get(arena);
+	astats->metadata += arena_metadata_get(arena);
 	astats->allocated_large += arena->stats.allocated_large;
 	astats->nmalloc_large += arena->stats.nmalloc_large;
 	astats->ndalloc_large += arena->stats.ndalloc_large;

@@ -2059,10 +2059,8 @@ typedef struct {
         </term>
         <listitem><para>Total number of bytes dedicated to metadata, which
         comprise base allocations used for bootstrap-sensitive internal
-        allocator data structures, arena chunk headers (see <link
-        linkend="stats.arenas.i.metadata.mapped"><mallctl>stats.arenas.&lt;i&gt;.metadata.mapped</mallctl></link>),
-        and internal allocations (see <link
-        linkend="stats.arenas.i.metadata.allocated"><mallctl>stats.arenas.&lt;i&gt;.metadata.allocated</mallctl></link>).</para></listitem>
+        allocator data structures and internal allocations (see <link
+        linkend="stats.arenas.i.metadata"><mallctl>stats.arenas.&lt;i&gt;.metadata</mallctl></link>).</para></listitem>
       </varlistentry>
 
       <varlistentry id="stats.resident">
@@ -2210,20 +2208,9 @@ typedef struct {
         details.</para></listitem>
       </varlistentry>
 
-      <varlistentry id="stats.arenas.i.metadata.mapped">
+      <varlistentry id="stats.arenas.i.metadata">
         <term>
-          <mallctl>stats.arenas.&lt;i&gt;.metadata.mapped</mallctl>
-          (<type>size_t</type>)
-          <literal>r-</literal>
-          [<option>--enable-stats</option>]
-        </term>
-        <listitem><para>Number of mapped bytes in arena chunk headers, which
-        track the states of the non-metadata pages.</para></listitem>
-      </varlistentry>
-
-      <varlistentry id="stats.arenas.i.metadata.allocated">
-        <term>
-          <mallctl>stats.arenas.&lt;i&gt;.metadata.allocated</mallctl>
+          <mallctl>stats.arenas.&lt;i&gt;.metadata</mallctl>
           (<type>size_t</type>)
           <literal>r-</literal>
           [<option>--enable-stats</option>]
@@ -2232,9 +2219,7 @@ typedef struct {
         Internal allocations differ from application-originated allocations in
         that they are for internal use, and that they are omitted from heap
         profiles.  This statistic is reported separately from <link
-        linkend="stats.metadata"><mallctl>stats.metadata</mallctl></link> and
-        <link
-        linkend="stats.arenas.i.metadata.mapped"><mallctl>stats.arenas.&lt;i&gt;.metadata.mapped</mallctl></link>
+        linkend="stats.metadata"><mallctl>stats.metadata</mallctl></link>
         because it overlaps with e.g. the <link
         linkend="stats.allocated"><mallctl>stats.allocated</mallctl></link> and
         <link linkend="stats.active"><mallctl>stats.active</mallctl></link>

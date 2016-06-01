@@ -41,9 +41,9 @@ arena_lg_dirty_mult_set
 arena_malloc
 arena_malloc_hard
 arena_maybe_purge
-arena_metadata_allocated_add
-arena_metadata_allocated_get
-arena_metadata_allocated_sub
+arena_metadata_add
+arena_metadata_get
+arena_metadata_sub
 arena_migrate
 arena_new
 arena_nthreads_dec

@@ -211,8 +211,7 @@ stats_arena_print(void (*write_cb)(void *, const char *), void *cbopaque,
 	unsigned nthreads;
 	const char *dss;
 	ssize_t lg_dirty_mult, decay_time;
-	size_t page, pactive, pdirty, mapped, retained;
-	size_t metadata_mapped, metadata_allocated;
+	size_t page, pactive, pdirty, mapped, retained, metadata;
 	uint64_t npurge, nmadvise, purged;
 	size_t small_allocated;
 	uint64_t small_nmalloc, small_ndalloc, small_nrequests;
@@ -291,13 +290,9 @@ stats_arena_print(void (*write_cb)(void *, const char *), void *cbopaque,
 	CTL_M2_GET("stats.arenas.0.retained", i, &retained, size_t);
 	malloc_cprintf(write_cb, cbopaque,
 	    "retained:                %12zu\n", retained);
-	CTL_M2_GET("stats.arenas.0.metadata.mapped", i, &metadata_mapped,
-	    size_t);
-	CTL_M2_GET("stats.arenas.0.metadata.allocated", i, &metadata_allocated,
-	    size_t);
-	malloc_cprintf(write_cb, cbopaque,
-	    "metadata: mapped: %zu, allocated: %zu\n",
-	    metadata_mapped, metadata_allocated);
+	CTL_M2_GET("stats.arenas.0.metadata", i, &metadata, size_t);
+	malloc_cprintf(write_cb, cbopaque, "metadata:                %12zu\n",
+	    metadata);
 
 	if (bins)
 		stats_arena_bins_print(write_cb, cbopaque, i);
