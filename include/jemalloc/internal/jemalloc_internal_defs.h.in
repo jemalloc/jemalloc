@@ -137,7 +137,7 @@
 #undef JEMALLOC_TCACHE
 
 /*
- * JEMALLOC_DSS enables use of sbrk(2) to allocate chunks from the data storage
+ * JEMALLOC_DSS enables use of sbrk(2) to allocate extents from the data storage
  * segment (DSS).
  */
 #undef JEMALLOC_DSS
@@ -176,7 +176,7 @@
 #undef JEMALLOC_MAPS_COALESCE
 
 /*
- * If defined, use munmap() to unmap freed chunks, rather than storing them for
+ * If defined, use munmap() to unmap freed extents, rather than storing them for
  * later reuse.  This is disabled by default on Linux because common sequences
  * of mmap()/munmap() calls will cause virtual memory map holes.
  */

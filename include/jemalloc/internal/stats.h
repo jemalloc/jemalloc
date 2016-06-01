@@ -5,7 +5,6 @@ typedef struct tcache_bin_stats_s tcache_bin_stats_t;
 typedef struct malloc_bin_stats_s malloc_bin_stats_t;
 typedef struct malloc_large_stats_s malloc_large_stats_t;
 typedef struct arena_stats_s arena_stats_t;
-typedef struct chunk_stats_s chunk_stats_t;
 
 #endif /* JEMALLOC_H_TYPES */
 /******************************************************************************/
@@ -76,7 +75,7 @@ struct malloc_large_stats_s {
 	 */
 	uint64_t	nrequests;
 
-	/* Current number of (multi-)chunk allocations of this size class. */
+	/* Current number of allocations of this size class. */
 	size_t		curlextents;
 };
 

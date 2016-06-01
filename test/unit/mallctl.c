@@ -625,7 +625,7 @@ TEST_END
 TEST_BEGIN(test_arenas_lextent_constants)
 {
 
-#define	TEST_ARENAS_HCHUNK_CONSTANT(t, name, expected) do {		\
+#define	TEST_ARENAS_LEXTENT_CONSTANT(t, name, expected) do {		\
 	t name;								\
 	size_t sz = sizeof(t);						\
 	assert_d_eq(mallctl("arenas.lextent.0."#name, &name, &sz, NULL,	\
@@ -633,9 +633,9 @@ TEST_BEGIN(test_arenas_lextent_constants)
 	assert_zu_eq(name, expected, "Incorrect "#name" size");		\
 } while (0)
 
-	TEST_ARENAS_HCHUNK_CONSTANT(size_t, size, LARGE_MINCLASS);
+	TEST_ARENAS_LEXTENT_CONSTANT(size_t, size, LARGE_MINCLASS);
 
-#undef TEST_ARENAS_HCHUNK_CONSTANT
+#undef TEST_ARENAS_LEXTENT_CONSTANT
 }
 TEST_END
 

@@ -54,7 +54,7 @@ zone_size(malloc_zone_t *zone, void *ptr)
 	 * our zone into two parts, and use one as the default allocator and
 	 * the other as the default deallocator/reallocator.  Since that will
 	 * not work in practice, we must check all pointers to assure that they
-	 * reside within a mapped chunk before determining size.
+	 * reside within a mapped extent before determining size.
 	 */
 	return (ivsalloc(tsdn_fetch(), ptr));
 }

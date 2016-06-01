@@ -2087,12 +2087,12 @@ typedef struct {
           <literal>r-</literal>
           [<option>--enable-stats</option>]
         </term>
-        <listitem><para>Total number of bytes in active chunks mapped by the
-        allocator.  This is a multiple of the chunk size, and is larger than
-        <link linkend="stats.active"><mallctl>stats.active</mallctl></link>.
-        This does not include inactive chunks, even those that contain unused
-        dirty pages, which means that there is no strict ordering between this
-        and <link
+        <listitem><para>Total number of bytes in active extents mapped by the
+        allocator.  This is larger than <link
+        linkend="stats.active"><mallctl>stats.active</mallctl></link>.  This
+        does not include inactive extents, even those that contain unused dirty
+        pages, which means that there is no strict ordering between this and
+        <link
         linkend="stats.resident"><mallctl>stats.resident</mallctl></link>.</para></listitem>
       </varlistentry>
 
@@ -2737,9 +2737,10 @@ MAPPED_LIBRARIES:
     <para>To dump core whenever a problem occurs:
       <screen>ln -s 'abort:true' /etc/malloc.conf</screen>
     </para>
-    <para>To specify in the source a chunk size that is 16 MiB:
+    <para>To specify in the source that only one arena should be automatically
+    created:
       <programlisting language="C"><![CDATA[
-malloc_conf = "lg_chunk:24";]]></programlisting></para>
+malloc_conf = "narenas:1";]]></programlisting></para>
   </refsect1>
   <refsect1 id="see_also">
     <title>SEE ALSO</title>

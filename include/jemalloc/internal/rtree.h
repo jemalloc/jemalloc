@@ -1,6 +1,6 @@
 /*
  * This radix tree implementation is tailored to the singular purpose of
- * associating metadata with chunks that are currently owned by jemalloc.
+ * associating metadata with extents that are currently owned by jemalloc.
  *
  *******************************************************************************
  */
