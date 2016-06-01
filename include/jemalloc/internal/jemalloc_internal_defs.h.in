@@ -195,7 +195,7 @@
 
 /*
  * JEMALLOC_IVSALLOC enables ivsalloc(), which verifies that pointers reside
- * within jemalloc-owned chunks before dereferencing them.
+ * within jemalloc-owned extents before dereferencing them.
  */
 #undef JEMALLOC_IVSALLOC
 

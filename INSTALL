@@ -124,9 +124,10 @@ any of the following arguments (not a definitive list) to 'configure':
     option documentation for usage details.
 
 --enable-ivsalloc
-    Enable validation code, which verifies that pointers reside within
-    jemalloc-owned chunks before dereferencing them.  This incurs a minor
-    performance hit.
+    Enable validation code for malloc_usable_size() and sallocx(), which
+    verifies that pointers reside within jemalloc-owned extents before
+    dereferencing metadata.  This incurs a minor performance hit, and causes
+    the functions to return 0 for failed lookups.
 
 --enable-prof
     Enable heap profiling and leak detection functionality.  See the "opt.prof"
