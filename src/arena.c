@@ -347,7 +347,7 @@ arena_chunk_alloc_large(tsdn_t *tsdn, arena_t *arena, size_t usize,
     size_t alignment, bool *zero)
 {
 	extent_t *extent;
-	extent_hooks_t extent_hooks = CHUNK_HOOKS_INITIALIZER;
+	extent_hooks_t extent_hooks = EXTENT_HOOKS_INITIALIZER;
 
 	malloc_mutex_lock(tsdn, &arena->lock);
 
@@ -373,7 +373,7 @@ void
 arena_chunk_dalloc_large(tsdn_t *tsdn, arena_t *arena, extent_t *extent,
     bool locked)
 {
-	extent_hooks_t extent_hooks = CHUNK_HOOKS_INITIALIZER;
+	extent_hooks_t extent_hooks = EXTENT_HOOKS_INITIALIZER;
 
 	if (!locked)
 		malloc_mutex_lock(tsdn, &arena->lock);
@@ -866,7 +866,7 @@ arena_purge(tsdn_t *tsdn, arena_t *arena, bool all)
 static void
 arena_slab_dalloc(tsdn_t *tsdn, arena_t *arena, extent_t *slab)
 {
-	extent_hooks_t extent_hooks = CHUNK_HOOKS_INITIALIZER;
+	extent_hooks_t extent_hooks = EXTENT_HOOKS_INITIALIZER;
 
 	arena_nactive_sub(arena, extent_size_get(slab) >> LG_PAGE);
 	arena_chunk_cache_dalloc_locked(tsdn, arena, &extent_hooks, slab);
@@ -1009,7 +1009,7 @@ arena_slab_alloc(tsdn_t *tsdn, arena_t *arena, szind_t binind,
 {
 	extent_t *slab;
 	arena_slab_data_t *slab_data;
-	extent_hooks_t extent_hooks = CHUNK_HOOKS_INITIALIZER;
+	extent_hooks_t extent_hooks = EXTENT_HOOKS_INITIALIZER;
 	bool zero;
 
 	zero = false;

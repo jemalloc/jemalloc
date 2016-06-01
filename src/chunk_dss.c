@@ -137,7 +137,7 @@ chunk_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
 				malloc_mutex_unlock(tsdn, &dss_mtx);
 				if (pad_size != 0) {
 					extent_hooks_t extent_hooks =
-					    CHUNK_HOOKS_INITIALIZER;
+					    EXTENT_HOOKS_INITIALIZER;
 					chunk_dalloc_wrapper(tsdn, arena,
 					    &extent_hooks, pad);
 				} else

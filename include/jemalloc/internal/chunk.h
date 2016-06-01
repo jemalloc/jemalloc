@@ -11,16 +11,6 @@
 #define	CHUNK_CEILING(s)						\
 	(((s) + chunksize_mask) & ~chunksize_mask)
 
-#define	CHUNK_HOOKS_INITIALIZER {					\
-    NULL,								\
-    NULL,								\
-    NULL,								\
-    NULL,								\
-    NULL,								\
-    NULL,								\
-    NULL								\
-}
-
 #endif /* JEMALLOC_H_TYPES */
 /******************************************************************************/
 #ifdef JEMALLOC_H_STRUCTS

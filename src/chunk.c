@@ -131,7 +131,7 @@ extent_hooks_assure_initialized_impl(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t *extent_hooks, bool locked)
 {
 	static const extent_hooks_t uninitialized_hooks =
-	    CHUNK_HOOKS_INITIALIZER;
+	    EXTENT_HOOKS_INITIALIZER;
 
 	if (memcmp(extent_hooks, &uninitialized_hooks, sizeof(extent_hooks_t))
 	    == 0) {
