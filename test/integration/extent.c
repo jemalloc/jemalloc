@@ -25,7 +25,7 @@ static bool did_merge;
 #endif
 
 void *
-chunk_alloc(void *new_addr, size_t size, size_t alignment, bool *zero,
+extent_alloc(void *new_addr, size_t size, size_t alignment, bool *zero,
     bool *commit, unsigned arena_ind)
 {
 
@@ -38,86 +38,86 @@ chunk_alloc(void *new_addr, size_t size, size_t alignment, bool *zero,
 }
 
 bool
-chunk_dalloc(void *chunk, size_t size, bool committed, unsigned arena_ind)
+extent_dalloc(void *addr, size_t size, bool committed, unsigned arena_ind)
 {
 
-	TRACE_HOOK("%s(chunk=%p, size=%zu, committed=%s, arena_ind=%u)\n",
-	    __func__, chunk, size, committed ? "true" : "false", arena_ind);
+	TRACE_HOOK("%s(addr=%p, size=%zu, committed=%s, arena_ind=%u)\n",
+	    __func__, addr, size, committed ? "true" : "false", arena_ind);
 	did_dalloc = true;
 	if (!do_dalloc)
 		return (true);
-	return (old_hooks.dalloc(chunk, size, committed, arena_ind));
+	return (old_hooks.dalloc(addr, size, committed, arena_ind));
 }
 
 bool
-chunk_commit(void *chunk, size_t size, size_t offset, size_t length,
+extent_commit(void *addr, size_t size, size_t offset, size_t length,
     unsigned arena_ind)
 {
 	bool err;
 
-	TRACE_HOOK("%s(chunk=%p, size=%zu, offset=%zu, length=%zu, "
-	    "arena_ind=%u)\n", __func__, chunk, size, offset, length,
+	TRACE_HOOK("%s(addr=%p, size=%zu, offset=%zu, length=%zu, "
+	    "arena_ind=%u)\n", __func__, addr, size, offset, length,
 	    arena_ind);
-	err = old_hooks.commit(chunk, size, offset, length, arena_ind);
+	err = old_hooks.commit(addr, size, offset, length, arena_ind);
 	did_commit = !err;
 	return (err);
 }
 
 bool
-chunk_decommit(void *chunk, size_t size, size_t offset, size_t length,
+extent_decommit(void *addr, size_t size, size_t offset, size_t length,
     unsigned arena_ind)
 {
 	bool err;
 
-	TRACE_HOOK("%s(chunk=%p, size=%zu, offset=%zu, length=%zu, "
-	    "arena_ind=%u)\n", __func__, chunk, size, offset, length,
+	TRACE_HOOK("%s(addr=%p, size=%zu, offset=%zu, length=%zu, "
+	    "arena_ind=%u)\n", __func__, addr, size, offset, length,
 	    arena_ind);
 	if (!do_decommit)
 		return (true);
-	err = old_hooks.decommit(chunk, size, offset, length, arena_ind);
+	err = old_hooks.decommit(addr, size, offset, length, arena_ind);
 	did_decommit = !err;
 	return (err);
 }
 
 bool
-chunk_purge(void *chunk, size_t size, size_t offset, size_t length,
+extent_purge(void *addr, size_t size, size_t offset, size_t length,
     unsigned arena_ind)
 {
 
-	TRACE_HOOK("%s(chunk=%p, size=%zu, offset=%zu, length=%zu "
-	    "arena_ind=%u)\n", __func__, chunk, size, offset, length,
+	TRACE_HOOK("%s(addr=%p, size=%zu, offset=%zu, length=%zu "
+	    "arena_ind=%u)\n", __func__, addr, size, offset, length,
 	    arena_ind);
 	did_purge = true;
-	return (old_hooks.purge(chunk, size, offset, length, arena_ind));
+	return (old_hooks.purge(addr, size, offset, length, arena_ind));
 }
 
 bool
-chunk_split(void *chunk, size_t size, size_t size_a, size_t size_b,
+extent_split(void *addr, size_t size, size_t size_a, size_t size_b,
     bool committed, unsigned arena_ind)
 {
 
-	TRACE_HOOK("%s(chunk=%p, size=%zu, size_a=%zu, size_b=%zu, "
-	    "committed=%s, arena_ind=%u)\n", __func__, chunk, size, size_a,
+	TRACE_HOOK("%s(addr=%p, size=%zu, size_a=%zu, size_b=%zu, "
+	    "committed=%s, arena_ind=%u)\n", __func__, addr, size, size_a,
 	    size_b, committed ? "true" : "false", arena_ind);
 	did_split = true;
-	return (old_hooks.split(chunk, size, size_a, size_b, committed,
+	return (old_hooks.split(addr, size, size_a, size_b, committed,
 	    arena_ind));
 }
 
 bool
-chunk_merge(void *chunk_a, size_t size_a, void *chunk_b, size_t size_b,
+extent_merge(void *addr_a, size_t size_a, void *addr_b, size_t size_b,
     bool committed, unsigned arena_ind)
 {
 
-	TRACE_HOOK("%s(chunk_a=%p, size_a=%zu, chunk_b=%p size_b=%zu, "
-	    "committed=%s, arena_ind=%u)\n", __func__, chunk_a, size_a, chunk_b,
+	TRACE_HOOK("%s(addr_a=%p, size_a=%zu, addr_b=%p size_b=%zu, "
+	    "committed=%s, arena_ind=%u)\n", __func__, addr_a, size_a, addr_b,
 	    size_b, committed ? "true" : "false", arena_ind);
 	did_merge = true;
-	return (old_hooks.merge(chunk_a, size_a, chunk_b, size_b,
+	return (old_hooks.merge(addr_a, size_a, addr_b, size_b,
 	    committed, arena_ind));
 }
 
-TEST_BEGIN(test_chunk)
+TEST_BEGIN(test_extent)
 {
 	void *p;
 	size_t old_size, new_size, large0, large1, large2, sz;
@@ -126,13 +126,13 @@ TEST_BEGIN(test_chunk)
 	size_t hooks_mib[3], purge_mib[3];
 	size_t hooks_miblen, purge_miblen;
 	extent_hooks_t new_hooks = {
-		chunk_alloc,
-		chunk_dalloc,
-		chunk_commit,
-		chunk_decommit,
-		chunk_purge,
-		chunk_split,
-		chunk_merge
+		extent_alloc,
+		extent_dalloc,
+		extent_commit,
+		extent_decommit,
+		extent_purge,
+		extent_split,
+		extent_merge
 	};
 	bool xallocx_success_a, xallocx_success_b, xallocx_success_c;
 
@@ -151,16 +151,16 @@ TEST_BEGIN(test_chunk)
 	assert_d_eq(mallctlbymib(hooks_mib, hooks_miblen, &old_hooks, &old_size,
 	    &new_hooks, new_size), 0, "Unexpected extent_hooks error");
 	orig_hooks = old_hooks;
-	assert_ptr_ne(old_hooks.alloc, chunk_alloc, "Unexpected alloc error");
-	assert_ptr_ne(old_hooks.dalloc, chunk_dalloc,
+	assert_ptr_ne(old_hooks.alloc, extent_alloc, "Unexpected alloc error");
+	assert_ptr_ne(old_hooks.dalloc, extent_dalloc,
 	    "Unexpected dalloc error");
-	assert_ptr_ne(old_hooks.commit, chunk_commit,
+	assert_ptr_ne(old_hooks.commit, extent_commit,
 	    "Unexpected commit error");
-	assert_ptr_ne(old_hooks.decommit, chunk_decommit,
+	assert_ptr_ne(old_hooks.decommit, extent_decommit,
 	    "Unexpected decommit error");
-	assert_ptr_ne(old_hooks.purge, chunk_purge, "Unexpected purge error");
-	assert_ptr_ne(old_hooks.split, chunk_split, "Unexpected split error");
-	assert_ptr_ne(old_hooks.merge, chunk_merge, "Unexpected merge error");
+	assert_ptr_ne(old_hooks.purge, extent_purge, "Unexpected purge error");
+	assert_ptr_ne(old_hooks.split, extent_split, "Unexpected split error");
+	assert_ptr_ne(old_hooks.merge, extent_merge, "Unexpected merge error");
 
 	/* Get large size classes. */
 	sz = sizeof(size_t);
@@ -249,5 +249,5 @@ int
 main(void)
 {
 
-	return (test(test_chunk));
+	return (test(test_extent));
 }

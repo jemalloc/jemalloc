@@ -38,7 +38,7 @@ struct extent_s {
 	bool			e_active;
 
 	/*
-	 * The zeroed flag is used by chunk recycling code to track whether
+	 * The zeroed flag is used by extent recycling code to track whether
 	 * memory is zero-filled.
 	 */
 	bool			e_zeroed;
@@ -87,10 +87,15 @@ typedef ph(extent_t) extent_heap_t;
 /******************************************************************************/
 #ifdef JEMALLOC_H_EXTERNS
 
-extern rtree_t		extents_rtree;
+extern rtree_t			extents_rtree;
+extern const extent_hooks_t	extent_hooks_default;
 
 extent_t	*extent_alloc(tsdn_t *tsdn, arena_t *arena);
 void	extent_dalloc(tsdn_t *tsdn, arena_t *arena, extent_t *extent);
+
+extent_hooks_t	extent_hooks_get(tsdn_t *tsdn, arena_t *arena);
+extent_hooks_t	extent_hooks_set(tsdn_t *tsdn, arena_t *arena,
+    const extent_hooks_t *extent_hooks);
 
 #ifdef JEMALLOC_JET
 typedef size_t (extent_size_quantize_t)(size_t);
@@ -103,6 +108,34 @@ size_t	extent_size_quantize_ceil(size_t size);
 
 ph_proto(, extent_heap_, extent_heap_t, extent_t)
 
+extent_t	*extent_alloc_cache(tsdn_t *tsdn, arena_t *arena,
+    extent_hooks_t *extent_hooks, void *new_addr, size_t usize, size_t pad,
+    size_t alignment, bool *zero, bool slab);
+extent_t	*extent_alloc_wrapper(tsdn_t *tsdn, arena_t *arena,
+    extent_hooks_t *extent_hooks, void *new_addr, size_t usize, size_t pad,
+    size_t alignment, bool *zero, bool *commit, bool slab);
+void	extent_dalloc_cache(tsdn_t *tsdn, arena_t *arena,
+    extent_hooks_t *extent_hooks, extent_t *extent);
+void	extent_dalloc_wrapper(tsdn_t *tsdn, arena_t *arena,
+    extent_hooks_t *extent_hooks, extent_t *extent);
+bool	extent_commit_wrapper(tsdn_t *tsdn, arena_t *arena,
+    extent_hooks_t *extent_hooks, extent_t *extent, size_t offset,
+    size_t length);
+bool	extent_decommit_wrapper(tsdn_t *tsdn, arena_t *arena,
+    extent_hooks_t *extent_hooks, extent_t *extent, size_t offset,
+    size_t length);
+bool	extent_purge_wrapper(tsdn_t *tsdn, arena_t *arena,
+    extent_hooks_t *extent_hooks, extent_t *extent, size_t offset,
+    size_t length);
+extent_t	*extent_split_wrapper(tsdn_t *tsdn, arena_t *arena,
+    extent_hooks_t *extent_hooks, extent_t *extent, size_t size_a,
+    size_t usize_a, size_t size_b, size_t usize_b);
+bool	extent_merge_wrapper(tsdn_t *tsdn, arena_t *arena,
+    extent_hooks_t *extent_hooks, extent_t *a, extent_t *b);
+void	extent_prefork(tsdn_t *tsdn);
+void	extent_postfork_parent(tsdn_t *tsdn);
+void	extent_postfork_child(tsdn_t *tsdn);
+
 bool	extent_boot(void);
 
 #endif /* JEMALLOC_H_EXTERNS */
@@ -110,7 +143,7 @@ bool	extent_boot(void);
 #ifdef JEMALLOC_H_INLINES
 
 #ifndef JEMALLOC_ENABLE_INLINE
-extent_t	*extent_lookup(tsdn_t *tsdn, const void *chunk, bool dependent);
+extent_t	*extent_lookup(tsdn_t *tsdn, const void *ptr, bool dependent);
 arena_t	*extent_arena_get(const extent_t *extent);
 void	*extent_base_get(const extent_t *extent);
 void	*extent_addr_get(const extent_t *extent);
@@ -395,3 +428,5 @@ extent_ring_remove(extent_t *extent)
 #endif /* JEMALLOC_H_INLINES */
 /******************************************************************************/
 
+#include "jemalloc/internal/extent_dss.h"
+#include "jemalloc/internal/extent_mmap.h"

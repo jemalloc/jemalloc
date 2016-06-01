@@ -46,33 +46,33 @@ static void	arena_bin_lower_slab(tsdn_t *tsdn, arena_t *arena,
 /******************************************************************************/
 
 static size_t
-arena_chunk_dirty_npages(const extent_t *extent)
+arena_extent_dirty_npages(const extent_t *extent)
 {
 
 	return (extent_size_get(extent) >> LG_PAGE);
 }
 
 static extent_t *
-arena_chunk_cache_alloc_locked(tsdn_t *tsdn, arena_t *arena,
+arena_extent_cache_alloc_locked(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t *extent_hooks, void *new_addr, size_t usize, size_t pad,
     size_t alignment, bool *zero, bool slab)
 {
 
 	malloc_mutex_assert_owner(tsdn, &arena->lock);
 
-	return (chunk_alloc_cache(tsdn, arena, extent_hooks, new_addr, usize,
+	return (extent_alloc_cache(tsdn, arena, extent_hooks, new_addr, usize,
 	    pad, alignment, zero, slab));
 }
 
 extent_t *
-arena_chunk_cache_alloc(tsdn_t *tsdn, arena_t *arena,
+arena_extent_cache_alloc(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t *extent_hooks, void *new_addr, size_t size, size_t alignment,
     bool *zero)
 {
 	extent_t *extent;
 
 	malloc_mutex_lock(tsdn, &arena->lock);
-	extent = arena_chunk_cache_alloc_locked(tsdn, arena, extent_hooks,
+	extent = arena_extent_cache_alloc_locked(tsdn, arena, extent_hooks,
 	    new_addr, size, 0, alignment, zero, false);
 	malloc_mutex_unlock(tsdn, &arena->lock);
 
@@ -80,44 +80,44 @@ arena_chunk_cache_alloc(tsdn_t *tsdn, arena_t *arena,
 }
 
 static void
-arena_chunk_cache_dalloc_locked(tsdn_t *tsdn, arena_t *arena,
+arena_extent_cache_dalloc_locked(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t *extent_hooks, extent_t *extent)
 {
 
 	malloc_mutex_assert_owner(tsdn, &arena->lock);
 
-	chunk_dalloc_cache(tsdn, arena, extent_hooks, extent);
+	extent_dalloc_cache(tsdn, arena, extent_hooks, extent);
 	arena_maybe_purge(tsdn, arena);
 }
 
 void
-arena_chunk_cache_dalloc(tsdn_t *tsdn, arena_t *arena,
+arena_extent_cache_dalloc(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t *extent_hooks, extent_t *extent)
 {
 
 	malloc_mutex_lock(tsdn, &arena->lock);
-	arena_chunk_cache_dalloc_locked(tsdn, arena, extent_hooks, extent);
+	arena_extent_cache_dalloc_locked(tsdn, arena, extent_hooks, extent);
 	malloc_mutex_unlock(tsdn, &arena->lock);
 }
 
 void
-arena_chunk_cache_maybe_insert(arena_t *arena, extent_t *extent, bool cache)
+arena_extent_cache_maybe_insert(arena_t *arena, extent_t *extent, bool cache)
 {
 
 	if (cache) {
 		extent_ring_insert(&arena->extents_dirty, extent);
-		arena->ndirty += arena_chunk_dirty_npages(extent);
+		arena->ndirty += arena_extent_dirty_npages(extent);
 	}
 }
 
 void
-arena_chunk_cache_maybe_remove(arena_t *arena, extent_t *extent, bool dirty)
+arena_extent_cache_maybe_remove(arena_t *arena, extent_t *extent, bool dirty)
 {
 
 	if (dirty) {
 		extent_ring_remove(extent);
-		assert(arena->ndirty >= arena_chunk_dirty_npages(extent));
-		arena->ndirty -= arena_chunk_dirty_npages(extent);
+		assert(arena->ndirty >= arena_extent_dirty_npages(extent));
+		arena->ndirty -= arena_extent_dirty_npages(extent);
 	}
 }
 
@@ -320,13 +320,13 @@ arena_large_ralloc_stats_update(arena_t *arena, size_t oldusize, size_t usize)
 }
 
 static extent_t *
-arena_chunk_alloc_large_hard(tsdn_t *tsdn, arena_t *arena,
+arena_extent_alloc_large_hard(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t *extent_hooks, size_t usize, size_t alignment, bool *zero)
 {
 	extent_t *extent;
 	bool commit = true;
 
-	extent = chunk_alloc_wrapper(tsdn, arena, extent_hooks, NULL, usize,
+	extent = extent_alloc_wrapper(tsdn, arena, extent_hooks, NULL, usize,
 	    large_pad, alignment, zero, &commit, false);
 	if (extent == NULL) {
 		/* Revert optimistic stats updates. */
@@ -343,7 +343,7 @@ arena_chunk_alloc_large_hard(tsdn_t *tsdn, arena_t *arena,
 }
 
 extent_t *
-arena_chunk_alloc_large(tsdn_t *tsdn, arena_t *arena, size_t usize,
+arena_extent_alloc_large(tsdn_t *tsdn, arena_t *arena, size_t usize,
     size_t alignment, bool *zero)
 {
 	extent_t *extent;
@@ -358,11 +358,11 @@ arena_chunk_alloc_large(tsdn_t *tsdn, arena_t *arena, size_t usize,
 	}
 	arena_nactive_add(arena, (usize + large_pad) >> LG_PAGE);
 
-	extent = arena_chunk_cache_alloc_locked(tsdn, arena, &extent_hooks,
+	extent = arena_extent_cache_alloc_locked(tsdn, arena, &extent_hooks,
 	    NULL, usize, large_pad, alignment, zero, false);
 	malloc_mutex_unlock(tsdn, &arena->lock);
 	if (extent == NULL) {
-		extent = arena_chunk_alloc_large_hard(tsdn, arena,
+		extent = arena_extent_alloc_large_hard(tsdn, arena,
 		    &extent_hooks, usize, alignment, zero);
 	}
 
@@ -370,7 +370,7 @@ arena_chunk_alloc_large(tsdn_t *tsdn, arena_t *arena, size_t usize,
 }
 
 void
-arena_chunk_dalloc_large(tsdn_t *tsdn, arena_t *arena, extent_t *extent,
+arena_extent_dalloc_large(tsdn_t *tsdn, arena_t *arena, extent_t *extent,
     bool locked)
 {
 	extent_hooks_t extent_hooks = EXTENT_HOOKS_INITIALIZER;
@@ -384,13 +384,13 @@ arena_chunk_dalloc_large(tsdn_t *tsdn, arena_t *arena, extent_t *extent,
 	}
 	arena_nactive_sub(arena, extent_size_get(extent) >> LG_PAGE);
 
-	arena_chunk_cache_dalloc_locked(tsdn, arena, &extent_hooks, extent);
+	arena_extent_cache_dalloc_locked(tsdn, arena, &extent_hooks, extent);
 	if (!locked)
 		malloc_mutex_unlock(tsdn, &arena->lock);
 }
 
 void
-arena_chunk_ralloc_large_shrink(tsdn_t *tsdn, arena_t *arena, extent_t *extent,
+arena_extent_ralloc_large_shrink(tsdn_t *tsdn, arena_t *arena, extent_t *extent,
     size_t oldusize)
 {
 	size_t usize = extent_usize_get(extent);
@@ -406,7 +406,7 @@ arena_chunk_ralloc_large_shrink(tsdn_t *tsdn, arena_t *arena, extent_t *extent,
 }
 
 void
-arena_chunk_ralloc_large_expand(tsdn_t *tsdn, arena_t *arena, extent_t *extent,
+arena_extent_ralloc_large_expand(tsdn_t *tsdn, arena_t *arena, extent_t *extent,
     size_t oldusize)
 {
 	size_t usize = extent_usize_get(extent);
@@ -756,7 +756,7 @@ arena_stash_dirty(tsdn_t *tsdn, arena_t *arena, extent_hooks_t *extent_hooks,
 		next = qr_next(extent, qr_link);
 		/* Allocate. */
 		zero = false;
-		textent = arena_chunk_cache_alloc_locked(tsdn, arena,
+		textent = arena_extent_cache_alloc_locked(tsdn, arena,
 		    extent_hooks, extent_base_get(extent),
 		    extent_size_get(extent), 0, CACHELINE, &zero, false);
 		assert(textent == extent);
@@ -793,7 +793,7 @@ arena_purge_stashed(tsdn_t *tsdn, arena_t *arena, extent_hooks_t *extent_hooks,
 
 		next = qr_next(extent, qr_link);
 		extent_ring_remove(extent);
-		chunk_dalloc_wrapper(tsdn, arena, extent_hooks, extent);
+		extent_dalloc_wrapper(tsdn, arena, extent_hooks, extent);
 	}
 
 	if (config_stats) {
@@ -869,7 +869,7 @@ arena_slab_dalloc(tsdn_t *tsdn, arena_t *arena, extent_t *slab)
 	extent_hooks_t extent_hooks = EXTENT_HOOKS_INITIALIZER;
 
 	arena_nactive_sub(arena, extent_size_get(slab) >> LG_PAGE);
-	arena_chunk_cache_dalloc_locked(tsdn, arena, &extent_hooks, slab);
+	arena_extent_cache_dalloc_locked(tsdn, arena, &extent_hooks, slab);
 }
 
 void
@@ -996,7 +996,7 @@ arena_slab_alloc_hard(tsdn_t *tsdn, arena_t *arena,
 	zero = false;
 	commit = true;
 	malloc_mutex_unlock(tsdn, &arena->lock);
-	slab = chunk_alloc_wrapper(tsdn, arena, extent_hooks, NULL,
+	slab = extent_alloc_wrapper(tsdn, arena, extent_hooks, NULL,
 	    bin_info->slab_size, 0, PAGE, &zero, &commit, true);
 	malloc_mutex_lock(tsdn, &arena->lock);
 
@@ -1013,7 +1013,7 @@ arena_slab_alloc(tsdn_t *tsdn, arena_t *arena, szind_t binind,
 	bool zero;
 
 	zero = false;
-	slab = arena_chunk_cache_alloc_locked(tsdn, arena, &extent_hooks, NULL,
+	slab = arena_extent_cache_alloc_locked(tsdn, arena, &extent_hooks, NULL,
 	    bin_info->slab_size, 0, PAGE, &zero, true);
 	if (slab == NULL) {
 		slab = arena_slab_alloc_hard(tsdn, arena, &extent_hooks,
@@ -1774,7 +1774,7 @@ arena_new(tsdn_t *tsdn, unsigned ind)
 		    (uint64_t)(uintptr_t)arena;
 	}
 
-	arena->dss_prec = chunk_dss_prec_get(tsdn);
+	arena->dss_prec = extent_dss_prec_get(tsdn);
 
 	arena->lg_dirty_mult = arena_lg_dirty_mult_default_get();
 	arena->purging = false;

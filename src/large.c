@@ -28,13 +28,13 @@ large_palloc(tsdn_t *tsdn, arena_t *arena, size_t usize, size_t alignment,
 		return (NULL);
 
 	/*
-	 * Copy zero into is_zeroed and pass the copy to chunk_alloc(), so that
+	 * Copy zero into is_zeroed and pass the copy to extent_alloc(), so that
 	 * it is possible to make correct junk/zero fill decisions below.
 	 */
 	is_zeroed = zero;
 	if (likely(!tsdn_null(tsdn)))
 		arena = arena_choose(tsdn_tsd(tsdn), arena);
-	if (unlikely(arena == NULL) || (extent = arena_chunk_alloc_large(tsdn,
+	if (unlikely(arena == NULL) || (extent = arena_extent_alloc_large(tsdn,
 	    arena, usize, alignment, &is_zeroed)) == NULL)
 		return (NULL);
 
@@ -82,10 +82,10 @@ large_dalloc_maybe_junk(tsdn_t *tsdn, void *ptr, size_t usize)
 
 	if (config_fill && have_dss && unlikely(opt_junk_free)) {
 		/*
-		 * Only bother junk filling if the chunk isn't about to be
+		 * Only bother junk filling if the extent isn't about to be
 		 * unmapped.
 		 */
-		if (!config_munmap || (have_dss && chunk_in_dss(tsdn, ptr)))
+		if (!config_munmap || (have_dss && extent_in_dss(tsdn, ptr)))
 			large_dalloc_junk(ptr, usize);
 			memset(ptr, JEMALLOC_FREE_JUNK, usize);
 	}
@@ -103,7 +103,7 @@ large_ralloc_no_move_shrink(tsdn_t *tsdn, extent_t *extent, size_t usize)
 
 	/* Split excess pages. */
 	if (diff != 0) {
-		extent_t *trail = chunk_split_wrapper(tsdn, arena,
+		extent_t *trail = extent_split_wrapper(tsdn, arena,
 		    &extent_hooks, extent, usize + large_pad, usize, diff,
 		    diff);
 		if (trail == NULL)
@@ -114,10 +114,10 @@ large_ralloc_no_move_shrink(tsdn_t *tsdn, extent_t *extent, size_t usize)
 			    extent_usize_get(trail));
 		}
 
-		arena_chunk_cache_dalloc(tsdn, arena, &extent_hooks, trail);
+		arena_extent_cache_dalloc(tsdn, arena, &extent_hooks, trail);
 	}
 
-	arena_chunk_ralloc_large_shrink(tsdn, arena, extent, oldusize);
+	arena_extent_ralloc_large_shrink(tsdn, arena, extent, oldusize);
 
 	return (false);
 }
@@ -133,18 +133,18 @@ large_ralloc_no_move_expand(tsdn_t *tsdn, extent_t *extent, size_t usize,
 	size_t trailsize = usize - extent_usize_get(extent);
 	extent_t *trail;
 
-	if ((trail = arena_chunk_cache_alloc(tsdn, arena, &extent_hooks,
+	if ((trail = arena_extent_cache_alloc(tsdn, arena, &extent_hooks,
 	    extent_past_get(extent), trailsize, CACHELINE, &is_zeroed_trail))
 	    == NULL) {
 		bool commit = true;
-		if ((trail = chunk_alloc_wrapper(tsdn, arena, &extent_hooks,
+		if ((trail = extent_alloc_wrapper(tsdn, arena, &extent_hooks,
 		    extent_past_get(extent), trailsize, 0, CACHELINE,
 		    &is_zeroed_trail, &commit, false)) == NULL)
 			return (true);
 	}
 
-	if (chunk_merge_wrapper(tsdn, arena, &extent_hooks, extent, trail)) {
-		chunk_dalloc_wrapper(tsdn, arena, &extent_hooks, trail);
+	if (extent_merge_wrapper(tsdn, arena, &extent_hooks, extent, trail)) {
+		extent_dalloc_wrapper(tsdn, arena, &extent_hooks, trail);
 		return (true);
 	}
 
@@ -174,7 +174,7 @@ large_ralloc_no_move_expand(tsdn_t *tsdn, extent_t *extent, size_t usize,
 		    JEMALLOC_ALLOC_JUNK, usize - oldusize);
 	}
 
-	arena_chunk_ralloc_large_expand(tsdn, arena, extent, oldusize);
+	arena_extent_ralloc_large_expand(tsdn, arena, extent, oldusize);
 
 	return (false);
 }
@@ -209,7 +209,7 @@ large_ralloc_no_move(tsdn_t *tsdn, extent_t *extent, size_t usize_min,
 	}
 
 	/*
-	 * Avoid moving the allocation if the existing chunk size accommodates
+	 * Avoid moving the allocation if the existing extent size accommodates
 	 * the new size.
 	 */
 	if (extent_usize_get(extent) >= usize_min && extent_usize_get(extent) <=
@@ -287,7 +287,7 @@ large_dalloc_impl(tsdn_t *tsdn, extent_t *extent, bool junked_locked)
 		large_dalloc_maybe_junk(tsdn, extent_addr_get(extent),
 		    extent_usize_get(extent));
 	}
-	arena_chunk_dalloc_large(tsdn, arena, extent, junked_locked);
+	arena_extent_dalloc_large(tsdn, arena, extent, junked_locked);
 
 	if (!junked_locked)
 		arena_decay_tick(tsdn, arena);

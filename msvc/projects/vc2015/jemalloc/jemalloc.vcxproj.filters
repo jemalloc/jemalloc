@@ -62,12 +62,6 @@
     <ClInclude Include="..\..\..\..\include\jemalloc\internal\chunk.h">
       <Filter>Header Files\internal</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\include\jemalloc\internal\chunk_dss.h">
-      <Filter>Header Files\internal</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\..\include\jemalloc\internal\chunk_mmap.h">
-      <Filter>Header Files\internal</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\..\..\include\jemalloc\internal\ckh.h">
       <Filter>Header Files\internal</Filter>
     </ClInclude>
@@ -75,6 +69,12 @@
       <Filter>Header Files\internal</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\..\include\jemalloc\internal\extent.h">
+      <Filter>Header Files\internal</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\include\jemalloc\internal\extent_dss.h">
+      <Filter>Header Files\internal</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\include\jemalloc\internal\extent_mmap.h">
       <Filter>Header Files\internal</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\..\include\jemalloc\internal\hash.h">
@@ -187,12 +187,6 @@
     <ClCompile Include="..\..\..\..\src\chunk.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\src\chunk_dss.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\..\src\chunk_mmap.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\..\..\src\ckh.c">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -200,6 +194,12 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\src\extent.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\src\extent_dss.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\src\extent_mmap.c">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\src\hash.c">

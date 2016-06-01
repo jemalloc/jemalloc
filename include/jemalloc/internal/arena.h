@@ -278,22 +278,22 @@ extern ssize_t		opt_decay_time;
 
 extern const arena_bin_info_t	arena_bin_info[NBINS];
 
-extent_t	*arena_chunk_cache_alloc(tsdn_t *tsdn, arena_t *arena,
+extent_t	*arena_extent_cache_alloc(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t *extent_hooks, void *new_addr, size_t size, size_t alignment,
     bool *zero);
-void	arena_chunk_cache_dalloc(tsdn_t *tsdn, arena_t *arena,
+void	arena_extent_cache_dalloc(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t *extent_hooks, extent_t *extent);
-void	arena_chunk_cache_maybe_insert(arena_t *arena, extent_t *extent,
+void	arena_extent_cache_maybe_insert(arena_t *arena, extent_t *extent,
     bool cache);
-void	arena_chunk_cache_maybe_remove(arena_t *arena, extent_t *extent,
+void	arena_extent_cache_maybe_remove(arena_t *arena, extent_t *extent,
     bool cache);
-extent_t	*arena_chunk_alloc_large(tsdn_t *tsdn, arena_t *arena,
+extent_t	*arena_extent_alloc_large(tsdn_t *tsdn, arena_t *arena,
     size_t usize, size_t alignment, bool *zero);
-void	arena_chunk_dalloc_large(tsdn_t *tsdn, arena_t *arena, extent_t *extent,
-    bool locked);
-void	arena_chunk_ralloc_large_shrink(tsdn_t *tsdn, arena_t *arena,
+void	arena_extent_dalloc_large(tsdn_t *tsdn, arena_t *arena,
+    extent_t *extent, bool locked);
+void	arena_extent_ralloc_large_shrink(tsdn_t *tsdn, arena_t *arena,
     extent_t *extent, size_t oldsize);
-void	arena_chunk_ralloc_large_expand(tsdn_t *tsdn, arena_t *arena,
+void	arena_extent_ralloc_large_expand(tsdn_t *tsdn, arena_t *arena,
     extent_t *extent, size_t oldsize);
 ssize_t	arena_lg_dirty_mult_get(tsdn_t *tsdn, arena_t *arena);
 bool	arena_lg_dirty_mult_set(tsdn_t *tsdn, arena_t *arena,

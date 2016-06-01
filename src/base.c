@@ -38,7 +38,7 @@ base_extent_dalloc(tsdn_t *tsdn, extent_t *extent)
 }
 
 static extent_t *
-base_chunk_alloc(tsdn_t *tsdn, size_t minsize)
+base_extent_alloc(tsdn_t *tsdn, size_t minsize)
 {
 	extent_t *extent;
 	size_t csize, nsize;
@@ -51,13 +51,13 @@ base_chunk_alloc(tsdn_t *tsdn, size_t minsize)
 	nsize = (extent == NULL) ? CACHELINE_CEILING(sizeof(extent_t)) : 0;
 	csize = CHUNK_CEILING(minsize + nsize);
 	/*
-	 * Directly call chunk_alloc_mmap() because it's critical to allocate
+	 * Directly call extent_alloc_mmap() because it's critical to allocate
 	 * untouched demand-zeroed virtual memory.
 	 */
 	{
 		bool zero = true;
 		bool commit = true;
-		addr = chunk_alloc_mmap(NULL, csize, PAGE, &zero, &commit);
+		addr = extent_alloc_mmap(NULL, csize, PAGE, &zero, &commit);
 	}
 	if (addr == NULL) {
 		if (extent != NULL)
@@ -108,7 +108,7 @@ base_alloc(tsdn_t *tsdn, size_t size)
 	}
 	if (extent == NULL) {
 		/* Try to allocate more space. */
-		extent = base_chunk_alloc(tsdn, csize);
+		extent = base_extent_alloc(tsdn, csize);
 	}
 	if (extent == NULL) {
 		ret = NULL;

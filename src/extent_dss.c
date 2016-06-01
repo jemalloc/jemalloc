@@ -1,4 +1,4 @@
-#define	JEMALLOC_CHUNK_DSS_C_
+#define	JEMALLOC_EXTENT_DSS_C_
 #include "jemalloc/internal/jemalloc_internal.h"
 /******************************************************************************/
 /* Data. */
@@ -29,7 +29,7 @@ static void		*dss_max;
 /******************************************************************************/
 
 static void *
-chunk_dss_sbrk(intptr_t increment)
+extent_dss_sbrk(intptr_t increment)
 {
 
 #ifdef JEMALLOC_DSS
@@ -41,7 +41,7 @@ chunk_dss_sbrk(intptr_t increment)
 }
 
 dss_prec_t
-chunk_dss_prec_get(tsdn_t *tsdn)
+extent_dss_prec_get(tsdn_t *tsdn)
 {
 	dss_prec_t ret;
 
@@ -54,7 +54,7 @@ chunk_dss_prec_get(tsdn_t *tsdn)
 }
 
 bool
-chunk_dss_prec_set(tsdn_t *tsdn, dss_prec_t dss_prec)
+extent_dss_prec_set(tsdn_t *tsdn, dss_prec_t dss_prec)
 {
 
 	if (!have_dss)
@@ -66,7 +66,7 @@ chunk_dss_prec_set(tsdn_t *tsdn, dss_prec_t dss_prec)
 }
 
 void *
-chunk_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
+extent_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
     size_t alignment, bool *zero, bool *commit)
 {
 	void *ret;
@@ -104,7 +104,7 @@ chunk_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
 				break;
 
 			/* Get the current end of the DSS. */
-			dss_max = chunk_dss_sbrk(0);
+			dss_max = extent_dss_sbrk(0);
 
 			/* Make sure the earlier condition still holds. */
 			if (new_addr != NULL && dss_max != new_addr)
@@ -128,7 +128,7 @@ chunk_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
 			    (uintptr_t)dss_next < (uintptr_t)dss_max)
 				break; /* Wrap-around. */
 			incr = pad_size + size;
-			dss_prev = chunk_dss_sbrk(incr);
+			dss_prev = extent_dss_sbrk(incr);
 			if (dss_prev == (void *)-1)
 				break;
 			if (dss_prev == dss_max) {
@@ -138,7 +138,7 @@ chunk_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
 				if (pad_size != 0) {
 					extent_hooks_t extent_hooks =
 					    EXTENT_HOOKS_INITIALIZER;
-					chunk_dalloc_wrapper(tsdn, arena,
+					extent_dalloc_wrapper(tsdn, arena,
 					    &extent_hooks, pad);
 				} else
 					extent_dalloc(tsdn, arena, pad);
@@ -157,15 +157,15 @@ chunk_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
 }
 
 bool
-chunk_in_dss(tsdn_t *tsdn, void *chunk)
+extent_in_dss(tsdn_t *tsdn, void *addr)
 {
 	bool ret;
 
 	cassert(have_dss);
 
 	malloc_mutex_lock(tsdn, &dss_mtx);
-	if ((uintptr_t)chunk >= (uintptr_t)dss_base
-	    && (uintptr_t)chunk < (uintptr_t)dss_max)
+	if ((uintptr_t)addr >= (uintptr_t)dss_base
+	    && (uintptr_t)addr < (uintptr_t)dss_max)
 		ret = true;
 	else
 		ret = false;
@@ -175,14 +175,14 @@ chunk_in_dss(tsdn_t *tsdn, void *chunk)
 }
 
 bool
-chunk_dss_boot(void)
+extent_dss_boot(void)
 {
 
 	cassert(have_dss);
 
 	if (malloc_mutex_init(&dss_mtx, "dss", WITNESS_RANK_DSS))
 		return (true);
-	dss_base = chunk_dss_sbrk(0);
+	dss_base = extent_dss_sbrk(0);
 	dss_prev = dss_base;
 	dss_max = dss_base;
 
@@ -190,7 +190,7 @@ chunk_dss_boot(void)
 }
 
 void
-chunk_dss_prefork(tsdn_t *tsdn)
+extent_dss_prefork(tsdn_t *tsdn)
 {
 
 	if (have_dss)
@@ -198,7 +198,7 @@ chunk_dss_prefork(tsdn_t *tsdn)
 }
 
 void
-chunk_dss_postfork_parent(tsdn_t *tsdn)
+extent_dss_postfork_parent(tsdn_t *tsdn)
 {
 
 	if (have_dss)
@@ -206,7 +206,7 @@ chunk_dss_postfork_parent(tsdn_t *tsdn)
 }
 
 void
-chunk_dss_postfork_child(tsdn_t *tsdn)
+extent_dss_postfork_child(tsdn_t *tsdn)
 {
 
 	if (have_dss)
