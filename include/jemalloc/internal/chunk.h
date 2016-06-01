@@ -22,8 +22,6 @@
 extern size_t		opt_lg_chunk;
 extern const char	*opt_dss;
 
-extern rtree_t		chunks_rtree;
-
 extern size_t		chunksize;
 extern size_t		chunksize_mask; /* (chunksize - 1). */
 extern size_t		chunk_npages;
@@ -66,19 +64,6 @@ void	chunk_postfork_child(tsdn_t *tsdn);
 #endif /* JEMALLOC_H_EXTERNS */
 /******************************************************************************/
 #ifdef JEMALLOC_H_INLINES
-
-#ifndef JEMALLOC_ENABLE_INLINE
-extent_t	*chunk_lookup(tsdn_t *tsdn, const void *chunk, bool dependent);
-#endif
-
-#if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_CHUNK_C_))
-JEMALLOC_INLINE extent_t *
-chunk_lookup(tsdn_t *tsdn, const void *ptr, bool dependent)
-{
-
-	return (rtree_read(tsdn, &chunks_rtree, (uintptr_t)ptr, dependent));
-}
-#endif
 
 #endif /* JEMALLOC_H_INLINES */
 /******************************************************************************/

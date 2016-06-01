@@ -11,8 +11,6 @@ size_t		opt_lg_chunk = 0;
 static size_t	curchunks;
 static size_t	highchunks;
 
-rtree_t		chunks_rtree;
-
 /* Various chunk-related settings. */
 size_t		chunksize;
 size_t		chunksize_mask; /* (chunksize - 1). */
@@ -161,14 +159,14 @@ extent_rtree_acquire(tsdn_t *tsdn, const extent_t *extent, bool dependent,
     bool init_missing, rtree_elm_t **r_elm_a, rtree_elm_t **r_elm_b)
 {
 
-	*r_elm_a = rtree_elm_acquire(tsdn, &chunks_rtree,
+	*r_elm_a = rtree_elm_acquire(tsdn, &extents_rtree,
 	    (uintptr_t)extent_base_get(extent), dependent, init_missing);
 	if (!dependent && *r_elm_a == NULL)
 		return (true);
 	assert(*r_elm_a != NULL);
 
 	if (extent_size_get(extent) > PAGE) {
-		*r_elm_b = rtree_elm_acquire(tsdn, &chunks_rtree,
+		*r_elm_b = rtree_elm_acquire(tsdn, &extents_rtree,
 		    (uintptr_t)extent_last_get(extent), dependent,
 		    init_missing);
 		if (!dependent && *r_elm_b == NULL)
@@ -185,18 +183,18 @@ extent_rtree_write_acquired(tsdn_t *tsdn, rtree_elm_t *elm_a,
     rtree_elm_t *elm_b, const extent_t *extent)
 {
 
-	rtree_elm_write_acquired(tsdn, &chunks_rtree, elm_a, extent);
+	rtree_elm_write_acquired(tsdn, &extents_rtree, elm_a, extent);
 	if (elm_b != NULL)
-		rtree_elm_write_acquired(tsdn, &chunks_rtree, elm_b, extent);
+		rtree_elm_write_acquired(tsdn, &extents_rtree, elm_b, extent);
 }
 
 static void
 extent_rtree_release(tsdn_t *tsdn, rtree_elm_t *elm_a, rtree_elm_t *elm_b)
 {
 
-	rtree_elm_release(tsdn, &chunks_rtree, elm_a);
+	rtree_elm_release(tsdn, &extents_rtree, elm_a);
 	if (elm_b != NULL)
-		rtree_elm_release(tsdn, &chunks_rtree, elm_b);
+		rtree_elm_release(tsdn, &extents_rtree, elm_b);
 }
 
 static void
@@ -207,7 +205,7 @@ chunk_interior_register(tsdn_t *tsdn, const extent_t *extent)
 	assert(extent_slab_get(extent));
 
 	for (i = 1; i < (extent_size_get(extent) >> LG_PAGE) - 1; i++) {
-		rtree_write(tsdn, &chunks_rtree,
+		rtree_write(tsdn, &extents_rtree,
 		    (uintptr_t)extent_base_get(extent) + (uintptr_t)(i <<
 		    LG_PAGE), extent);
 	}
@@ -252,7 +250,7 @@ chunk_interior_deregister(tsdn_t *tsdn, const extent_t *extent)
 	assert(extent_slab_get(extent));
 
 	for (i = 1; i < (extent_size_get(extent) >> LG_PAGE) - 1; i++) {
-		rtree_clear(tsdn, &chunks_rtree,
+		rtree_clear(tsdn, &extents_rtree,
 		    (uintptr_t)extent_base_get(extent) + (uintptr_t)(i <<
 		    LG_PAGE));
 	}
@@ -335,15 +333,15 @@ chunk_recycle(tsdn_t *tsdn, arena_t *arena, extent_hooks_t *extent_hooks,
 	if (new_addr != NULL) {
 		rtree_elm_t *elm;
 
-		elm = rtree_elm_acquire(tsdn, &chunks_rtree,
+		elm = rtree_elm_acquire(tsdn, &extents_rtree,
 		    (uintptr_t)new_addr, false, false);
 		if (elm != NULL) {
-			extent = rtree_elm_read_acquired(tsdn, &chunks_rtree,
+			extent = rtree_elm_read_acquired(tsdn, &extents_rtree,
 			    elm);
 			if (extent != NULL && (extent_active_get(extent) ||
 			    extent_retained_get(extent) == cache))
 				extent = NULL;
-			rtree_elm_release(tsdn, &chunks_rtree, elm);
+			rtree_elm_release(tsdn, &extents_rtree, elm);
 		} else
 			extent = NULL;
 	} else
@@ -651,12 +649,12 @@ chunk_record(tsdn_t *tsdn, arena_t *arena, extent_hooks_t *extent_hooks,
 		extent_slab_set(extent, false);
 	}
 
-	assert(chunk_lookup(tsdn, extent_base_get(extent), true) == extent);
+	assert(extent_lookup(tsdn, extent_base_get(extent), true) == extent);
 	extent_heaps_insert(extent_heaps, extent);
 	arena_chunk_cache_maybe_insert(arena, extent, cache);
 
 	/* Try to coalesce forward. */
-	next = rtree_read(tsdn, &chunks_rtree,
+	next = rtree_read(tsdn, &extents_rtree,
 	    (uintptr_t)extent_past_get(extent), false);
 	if (next != NULL) {
 		chunk_try_coalesce(tsdn, arena, extent_hooks, extent, next,
@@ -664,7 +662,7 @@ chunk_record(tsdn_t *tsdn, arena_t *arena, extent_hooks_t *extent_hooks,
 	}
 
 	/* Try to coalesce backward. */
-	prev = rtree_read(tsdn, &chunks_rtree,
+	prev = rtree_read(tsdn, &extents_rtree,
 	    (uintptr_t)extent_before_get(extent), false);
 	if (prev != NULL) {
 		chunk_try_coalesce(tsdn, arena, extent_hooks, prev, extent,
@@ -907,12 +905,12 @@ chunk_merge_wrapper(tsdn_t *tsdn, arena_t *arena, extent_hooks_t *extent_hooks,
 	extent_rtree_acquire(tsdn, b, true, false, &b_elm_a, &b_elm_b);
 
 	if (a_elm_b != NULL) {
-		rtree_elm_write_acquired(tsdn, &chunks_rtree, a_elm_b, NULL);
-		rtree_elm_release(tsdn, &chunks_rtree, a_elm_b);
+		rtree_elm_write_acquired(tsdn, &extents_rtree, a_elm_b, NULL);
+		rtree_elm_release(tsdn, &extents_rtree, a_elm_b);
 	}
 	if (b_elm_b != NULL) {
-		rtree_elm_write_acquired(tsdn, &chunks_rtree, b_elm_a, NULL);
-		rtree_elm_release(tsdn, &chunks_rtree, b_elm_a);
+		rtree_elm_write_acquired(tsdn, &extents_rtree, b_elm_a, NULL);
+		rtree_elm_release(tsdn, &extents_rtree, b_elm_a);
 	} else
 		b_elm_b = b_elm_a;
 
@@ -962,9 +960,6 @@ chunk_boot(void)
 	chunk_npages = (chunksize >> LG_PAGE);
 
 	if (have_dss && chunk_dss_boot())
-		return (true);
-	if (rtree_new(&chunks_rtree, (unsigned)((ZU(1) << (LG_SIZEOF_PTR+3)) -
-	    LG_PAGE)))
 		return (true);
 
 	return (false);

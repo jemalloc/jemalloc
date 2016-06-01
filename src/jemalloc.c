@@ -1232,6 +1232,8 @@ malloc_init_hard_a0_locked()
 		return (true);
 	if (chunk_boot())
 		return (true);
+	if (extent_boot())
+		return (true);
 	if (ctl_boot())
 		return (true);
 	if (config_prof)

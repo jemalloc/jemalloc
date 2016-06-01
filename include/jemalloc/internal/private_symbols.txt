@@ -132,7 +132,6 @@ chunk_dss_prec_get
 chunk_dss_prec_set
 chunk_dss_prefork
 chunk_in_dss
-chunk_lookup
 chunk_merge_wrapper
 chunk_npages
 chunk_postfork_child
@@ -140,7 +139,6 @@ chunk_postfork_parent
 chunk_prefork
 chunk_purge_wrapper
 chunk_split_wrapper
-chunks_rtree
 chunksize
 chunksize_mask
 ckh_count
@@ -173,6 +171,7 @@ extent_arena_get
 extent_arena_set
 extent_base_get
 extent_before_get
+extent_boot
 extent_committed_get
 extent_committed_set
 extent_dalloc
@@ -187,6 +186,7 @@ extent_hooks_get
 extent_hooks_set
 extent_init
 extent_last_get
+extent_lookup
 extent_past_get
 extent_prof_tctx_get
 extent_prof_tctx_set
@@ -205,6 +205,7 @@ extent_usize_get
 extent_usize_set
 extent_zeroed_get
 extent_zeroed_set
+extents_rtree
 ffs_llu
 ffs_lu
 ffs_u

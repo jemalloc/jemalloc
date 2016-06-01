@@ -87,6 +87,8 @@ typedef ph(extent_t) extent_heap_t;
 /******************************************************************************/
 #ifdef JEMALLOC_H_EXTERNS
 
+extern rtree_t		extents_rtree;
+
 extent_t	*extent_alloc(tsdn_t *tsdn, arena_t *arena);
 void	extent_dalloc(tsdn_t *tsdn, arena_t *arena, extent_t *extent);
 
@@ -101,11 +103,14 @@ size_t	extent_size_quantize_ceil(size_t size);
 
 ph_proto(, extent_heap_, extent_heap_t, extent_t)
 
+bool	extent_boot(void);
+
 #endif /* JEMALLOC_H_EXTERNS */
 /******************************************************************************/
 #ifdef JEMALLOC_H_INLINES
 
 #ifndef JEMALLOC_ENABLE_INLINE
+extent_t	*extent_lookup(tsdn_t *tsdn, const void *chunk, bool dependent);
 arena_t	*extent_arena_get(const extent_t *extent);
 void	*extent_base_get(const extent_t *extent);
 void	*extent_addr_get(const extent_t *extent);
@@ -140,6 +145,13 @@ void	extent_ring_remove(extent_t *extent);
 #endif
 
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_EXTENT_C_))
+JEMALLOC_INLINE extent_t *
+extent_lookup(tsdn_t *tsdn, const void *ptr, bool dependent)
+{
+
+	return (rtree_read(tsdn, &extents_rtree, (uintptr_t)ptr, dependent));
+}
+
 JEMALLOC_INLINE arena_t *
 extent_arena_get(const extent_t *extent)
 {

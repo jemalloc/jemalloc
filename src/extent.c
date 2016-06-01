@@ -2,6 +2,11 @@
 #include "jemalloc/internal/jemalloc_internal.h"
 
 /******************************************************************************/
+/* Data. */
+
+rtree_t		extents_rtree;
+
+/******************************************************************************/
 
 extent_t *
 extent_alloc(tsdn_t *tsdn, arena_t *arena)
@@ -112,3 +117,14 @@ extent_ad_comp(const extent_t *a, const extent_t *b)
 
 /* Generate pairing heap functions. */
 ph_gen(, extent_heap_, extent_heap_t, extent_t, ph_link, extent_ad_comp)
+
+bool
+extent_boot(void)
+{
+
+	if (rtree_new(&extents_rtree, (unsigned)((ZU(1) << (LG_SIZEOF_PTR+3)) -
+	    LG_PAGE)))
+		return (true);
+
+	return (false);
+}

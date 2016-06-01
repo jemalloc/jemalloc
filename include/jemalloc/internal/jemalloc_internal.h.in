@@ -510,9 +510,9 @@ void	jemalloc_postfork_child(void);
 #include "jemalloc/internal/witness.h"
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/mb.h"
+#include "jemalloc/internal/rtree.h"
 #include "jemalloc/internal/extent.h"
 #include "jemalloc/internal/base.h"
-#include "jemalloc/internal/rtree.h"
 #include "jemalloc/internal/pages.h"
 #include "jemalloc/internal/chunk.h"
 #include "jemalloc/internal/large.h"
@@ -929,7 +929,7 @@ JEMALLOC_ALWAYS_INLINE extent_t *
 iealloc(tsdn_t *tsdn, const void *ptr)
 {
 
-	return (chunk_lookup(tsdn, ptr, true));
+	return (extent_lookup(tsdn, ptr, true));
 }
 #endif
 
@@ -1062,7 +1062,7 @@ ivsalloc(tsdn_t *tsdn, const void *ptr)
 	extent_t *extent;
 
 	/* Return 0 if ptr is not within a chunk managed by jemalloc. */
-	extent = chunk_lookup(tsdn, ptr, false);
+	extent = extent_lookup(tsdn, ptr, false);
 	if (extent == NULL)
 		return (0);
 	assert(extent_active_get(extent));

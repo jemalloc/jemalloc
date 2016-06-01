@@ -70,7 +70,7 @@ vsalloc(tsdn_t *tsdn, const void *ptr)
 {
 	extent_t *extent;
 
-	extent = chunk_lookup(tsdn, ptr, false);
+	extent = extent_lookup(tsdn, ptr, false);
 	if (extent == NULL)
 		return (0);
 	if (!extent_active_get(extent))
