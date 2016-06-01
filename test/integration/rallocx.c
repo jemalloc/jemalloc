@@ -52,7 +52,7 @@ TEST_BEGIN(test_grow_and_shrink)
 	size_t tsz;
 #define	NCYCLES 3
 	unsigned i, j;
-#define	NSZS 2500
+#define	NSZS 1024
 	size_t szs[NSZS];
 #define	MAXSZ ZU(12 * 1024 * 1024)
 
