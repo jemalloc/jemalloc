@@ -331,11 +331,9 @@ cat <<EOF
 #undef SIZE_CLASSES_DEFINED
 /*
  * The size2index_tab lookup table uses uint8_t to encode each bin index, so we
- * cannot support more than 256 small size classes.  Further constrain NBINS to
- * 255 since all small size classes, plus a "not small" size class must be
- * stored in 8 bits of arena_chunk_map_bits_t's bits field.
+ * cannot support more than 256 small size classes.
  */
-#if (NBINS > 255)
+#if (NBINS > 256)
 #  error "Too many small size classes"
 #endif
 
