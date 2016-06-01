@@ -235,19 +235,19 @@ struct arena_s {
 	malloc_mutex_t		large_mtx;
 
 	/*
-	 * Heaps of chunks that were previously allocated.  These are used when
-	 * allocating chunks, in an attempt to re-use address space.
+	 * Heaps of extents that were previously allocated.  These are used when
+	 * allocating extents, in an attempt to re-use address space.
 	 */
-	extent_heap_t		chunks_cached[NPSIZES];
-	extent_heap_t		chunks_retained[NPSIZES];
+	extent_heap_t		extents_cached[NPSIZES];
+	extent_heap_t		extents_retained[NPSIZES];
+	/* User-configurable extent hook functions. */
+	extent_hooks_t		extent_hooks;
+	/* Protects extents_cached, extents_retained, and extent_hooks. */
+	malloc_mutex_t		extents_mtx;
 
-	malloc_mutex_t		chunks_mtx;
 	/* Cache of extent structures that were allocated via base_alloc(). */
 	ql_head(extent_t)	extent_cache;
 	malloc_mutex_t		extent_cache_mtx;
-
-	/* User-configurable extent hook functions. */
-	extent_hooks_t		extent_hooks;
 
 	/* bins is used to store heaps of free regions. */
 	arena_bin_t		bins[NBINS];
