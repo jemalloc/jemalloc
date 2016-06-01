@@ -520,6 +520,7 @@ prof_realloc(tsd_t *tsd, extent_t *extent, const void *ptr, size_t usize,
 			 * though its actual usize was insufficient to cross the
 			 * sample threshold.
 			 */
+			prof_alloc_rollback(tsd, tctx, true);
 			tctx = (prof_tctx_t *)(uintptr_t)1U;
 		}
 	}
