@@ -1554,45 +1554,45 @@ malloc_conf = "xmalloc:true";]]></programlisting>
           (<type>extent_hooks_t</type>)
           <literal>rw</literal>
         </term>
-        <listitem><para>Get or set the chunk management hook functions for arena
-        &lt;i&gt;.  The functions must be capable of operating on all extant
-        chunks associated with arena &lt;i&gt;, usually by passing unknown
-        chunks to the replaced functions.  In practice, it is feasible to
-        control allocation for arenas created via <link
+        <listitem><para>Get or set the extent management hook functions for
+        arena &lt;i&gt;.  The functions must be capable of operating on all
+        extant extents associated with arena &lt;i&gt;, usually by passing
+        unknown extents to the replaced functions.  In practice, it is feasible
+        to control allocation for arenas created via <link
         linkend="arenas.extend"><mallctl>arenas.extend</mallctl></link> such
-        that all chunks originate from an application-supplied chunk allocator
+        that all extents originate from an application-supplied extent allocator
         (by setting custom extent hook functions just after arena creation), but
-        the automatically created arenas may have already created chunks prior
-        to the application having an opportunity to take over chunk
+        the automatically created arenas may have already created extents prior
+        to the application having an opportunity to take over extent
         allocation.</para>
 
         <programlisting language="C"><![CDATA[
 typedef struct {
-	chunk_alloc_t		*alloc;
-	chunk_dalloc_t		*dalloc;
-	chunk_commit_t		*commit;
-	chunk_decommit_t	*decommit;
-	chunk_purge_t		*purge;
-	chunk_split_t		*split;
-	chunk_merge_t		*merge;
+	extent_alloc_t		*alloc;
+	extent_dalloc_t		*dalloc;
+	extent_commit_t		*commit;
+	extent_decommit_t	*decommit;
+	extent_purge_t		*purge;
+	extent_split_t		*split;
+	extent_merge_t		*merge;
 } extent_hooks_t;]]></programlisting>
         <para>The <type>extent_hooks_t</type> structure comprises function
         pointers which are described individually below.  jemalloc uses these
-        functions to manage chunk lifetime, which starts off with allocation of
+        functions to manage extent lifetime, which starts off with allocation of
         mapped committed memory, in the simplest case followed by deallocation.
-        However, there are performance and platform reasons to retain chunks for
-        later reuse.  Cleanup attempts cascade from deallocation to decommit to
-        purging, which gives the chunk management functions opportunities to
+        However, there are performance and platform reasons to retain extents
+        for later reuse.  Cleanup attempts cascade from deallocation to decommit
+        to purging, which gives the extent management functions opportunities to
         reject the most permanent cleanup operations in favor of less permanent
-        (and often less costly) operations.  The chunk splitting and merging
+        (and often less costly) operations.  The extent splitting and merging
         operations can also be opted out of, but this is mainly intended to
         support platforms on which virtual memory mappings provided by the
         operating system kernel do not automatically coalesce and split, e.g.
         Windows.</para>
 
         <funcsynopsis><funcprototype>
-          <funcdef>typedef void *<function>(chunk_alloc_t)</function></funcdef>
-          <paramdef>void *<parameter>chunk</parameter></paramdef>
+          <funcdef>typedef void *<function>(extent_alloc_t)</function></funcdef>
+          <paramdef>void *<parameter>new_addr</parameter></paramdef>
           <paramdef>size_t <parameter>size</parameter></paramdef>
           <paramdef>size_t <parameter>alignment</parameter></paramdef>
           <paramdef>bool *<parameter>zero</parameter></paramdef>
@@ -1600,62 +1600,62 @@ typedef struct {
           <paramdef>unsigned <parameter>arena_ind</parameter></paramdef>
         </funcprototype></funcsynopsis>
         <literallayout></literallayout>
-        <para>A chunk allocation function conforms to the
-        <type>chunk_alloc_t</type> type and upon success returns a pointer to
+        <para>An extent allocation function conforms to the
+        <type>extent_alloc_t</type> type and upon success returns a pointer to
         <parameter>size</parameter> bytes of mapped memory on behalf of arena
-        <parameter>arena_ind</parameter> such that the chunk's base address is a
-        multiple of <parameter>alignment</parameter>, as well as setting
-        <parameter>*zero</parameter> to indicate whether the chunk is zeroed and
-        <parameter>*commit</parameter> to indicate whether the chunk is
+        <parameter>arena_ind</parameter> such that the extent's base address is
+        a multiple of <parameter>alignment</parameter>, as well as setting
+        <parameter>*zero</parameter> to indicate whether the extent is zeroed
+        and <parameter>*commit</parameter> to indicate whether the extent is
         committed.  Upon error the function returns <constant>NULL</constant>
         and leaves <parameter>*zero</parameter> and
         <parameter>*commit</parameter> unmodified.  The
-        <parameter>size</parameter> parameter is always a multiple of the chunk
+        <parameter>size</parameter> parameter is always a multiple of the page
         size.  The <parameter>alignment</parameter> parameter is always a power
-        of two at least as large as the chunk size.  Zeroing is mandatory if
+        of two at least as large as the page size.  Zeroing is mandatory if
         <parameter>*zero</parameter> is true upon function entry.  Committing is
         mandatory if <parameter>*commit</parameter> is true upon function entry.
-        If <parameter>chunk</parameter> is not <constant>NULL</constant>, the
-        returned pointer must be <parameter>chunk</parameter> on success or
+        If <parameter>new_addr</parameter> is not <constant>NULL</constant>, the
+        returned pointer must be <parameter>new_addr</parameter> on success or
         <constant>NULL</constant> on error.  Committed memory may be committed
         in absolute terms as on a system that does not overcommit, or in
         implicit terms as on a system that overcommits and satisfies physical
         memory needs on demand via soft page faults.  Note that replacing the
-        default chunk allocation function makes the arena's <link
+        default extent allocation function makes the arena's <link
         linkend="arena.i.dss"><mallctl>arena.&lt;i&gt;.dss</mallctl></link>
         setting irrelevant.</para>
 
         <funcsynopsis><funcprototype>
-          <funcdef>typedef bool <function>(chunk_dalloc_t)</function></funcdef>
-          <paramdef>void *<parameter>chunk</parameter></paramdef>
+          <funcdef>typedef bool <function>(extent_dalloc_t)</function></funcdef>
+          <paramdef>void *<parameter>addr</parameter></paramdef>
           <paramdef>size_t <parameter>size</parameter></paramdef>
           <paramdef>bool <parameter>committed</parameter></paramdef>
           <paramdef>unsigned <parameter>arena_ind</parameter></paramdef>
         </funcprototype></funcsynopsis>
         <literallayout></literallayout>
         <para>
-        A chunk deallocation function conforms to the
-        <type>chunk_dalloc_t</type> type and deallocates a
-        <parameter>chunk</parameter> of given <parameter>size</parameter> with
+        An extent deallocation function conforms to the
+        <type>extent_dalloc_t</type> type and deallocates an extent at given
+        <parameter>addr</parameter> and <parameter>size</parameter> with
         <parameter>committed</parameter>/decommited memory as indicated, on
         behalf of arena <parameter>arena_ind</parameter>, returning false upon
         success.  If the function returns true, this indicates opt-out from
-        deallocation; the virtual memory mapping associated with the chunk
+        deallocation; the virtual memory mapping associated with the extent
         remains mapped, in the same commit state, and available for future use,
         in which case it will be automatically retained for later reuse.</para>
 
         <funcsynopsis><funcprototype>
-          <funcdef>typedef bool <function>(chunk_commit_t)</function></funcdef>
-          <paramdef>void *<parameter>chunk</parameter></paramdef>
+          <funcdef>typedef bool <function>(extent_commit_t)</function></funcdef>
+          <paramdef>void *<parameter>addr</parameter></paramdef>
           <paramdef>size_t <parameter>size</parameter></paramdef>
           <paramdef>size_t <parameter>offset</parameter></paramdef>
           <paramdef>size_t <parameter>length</parameter></paramdef>
           <paramdef>unsigned <parameter>arena_ind</parameter></paramdef>
         </funcprototype></funcsynopsis>
         <literallayout></literallayout>
-        <para>A chunk commit function conforms to the
-        <type>chunk_commit_t</type> type and commits zeroed physical memory to
-        back pages within a <parameter>chunk</parameter> of given
+        <para>An extent commit function conforms to the
+        <type>extent_commit_t</type> type and commits zeroed physical memory to
+        back pages within an extent at given <parameter>addr</parameter> and
         <parameter>size</parameter> at <parameter>offset</parameter> bytes,
         extending for <parameter>length</parameter> on behalf of arena
         <parameter>arena_ind</parameter>, returning false upon success.
@@ -1666,46 +1666,48 @@ typedef struct {
         physical memory to satisfy the request.</para>
 
         <funcsynopsis><funcprototype>
-          <funcdef>typedef bool <function>(chunk_decommit_t)</function></funcdef>
-          <paramdef>void *<parameter>chunk</parameter></paramdef>
+          <funcdef>typedef bool <function>(extent_decommit_t)</function></funcdef>
+          <paramdef>void *<parameter>addr</parameter></paramdef>
           <paramdef>size_t <parameter>size</parameter></paramdef>
           <paramdef>size_t <parameter>offset</parameter></paramdef>
           <paramdef>size_t <parameter>length</parameter></paramdef>
           <paramdef>unsigned <parameter>arena_ind</parameter></paramdef>
         </funcprototype></funcsynopsis>
         <literallayout></literallayout>
-        <para>A chunk decommit function conforms to the
-        <type>chunk_decommit_t</type> type and decommits any physical memory
-        that is backing pages within a <parameter>chunk</parameter> of given
-        <parameter>size</parameter> at <parameter>offset</parameter> bytes,
-        extending for <parameter>length</parameter> on behalf of arena
+        <para>An extent decommit function conforms to the
+        <type>extent_decommit_t</type> type and decommits any physical memory
+        that is backing pages within an extent at given
+        <parameter>addr</parameter> and <parameter>size</parameter> at
+        <parameter>offset</parameter> bytes, extending for
+        <parameter>length</parameter> on behalf of arena
         <parameter>arena_ind</parameter>, returning false upon success, in which
-        case the pages will be committed via the chunk commit function before
+        case the pages will be committed via the extent commit function before
         being reused.  If the function returns true, this indicates opt-out from
         decommit; the memory remains committed and available for future use, in
         which case it will be automatically retained for later reuse.</para>
 
         <funcsynopsis><funcprototype>
-          <funcdef>typedef bool <function>(chunk_purge_t)</function></funcdef>
-          <paramdef>void *<parameter>chunk</parameter></paramdef>
+          <funcdef>typedef bool <function>(extent_purge_t)</function></funcdef>
+          <paramdef>void *<parameter>addr</parameter></paramdef>
           <paramdef>size_t<parameter>size</parameter></paramdef>
           <paramdef>size_t <parameter>offset</parameter></paramdef>
           <paramdef>size_t <parameter>length</parameter></paramdef>
           <paramdef>unsigned <parameter>arena_ind</parameter></paramdef>
         </funcprototype></funcsynopsis>
         <literallayout></literallayout>
-        <para>A chunk purge function conforms to the <type>chunk_purge_t</type>
-        type and optionally discards physical pages within the virtual memory
-        mapping associated with <parameter>chunk</parameter> of given
-        <parameter>size</parameter> at <parameter>offset</parameter> bytes,
-        extending for <parameter>length</parameter> on behalf of arena
+        <para>An extent purge function conforms to the
+        <type>extent_purge_t</type> type and optionally discards physical pages
+        within the virtual memory mapping associated with an extent at given
+        <parameter>addr</parameter> and <parameter>size</parameter> at
+        <parameter>offset</parameter> bytes, extending for
+        <parameter>length</parameter> on behalf of arena
         <parameter>arena_ind</parameter>, returning false if pages within the
         purged virtual memory range will be zero-filled the next time they are
         accessed.</para>
 
         <funcsynopsis><funcprototype>
-          <funcdef>typedef bool <function>(chunk_split_t)</function></funcdef>
-          <paramdef>void *<parameter>chunk</parameter></paramdef>
+          <funcdef>typedef bool <function>(extent_split_t)</function></funcdef>
+          <paramdef>void *<parameter>addr</parameter></paramdef>
           <paramdef>size_t <parameter>size</parameter></paramdef>
           <paramdef>size_t <parameter>size_a</parameter></paramdef>
           <paramdef>size_t <parameter>size_b</parameter></paramdef>
@@ -1713,35 +1715,35 @@ typedef struct {
           <paramdef>unsigned <parameter>arena_ind</parameter></paramdef>
         </funcprototype></funcsynopsis>
         <literallayout></literallayout>
-        <para>A chunk split function conforms to the <type>chunk_split_t</type>
-        type and optionally splits <parameter>chunk</parameter> of given
-        <parameter>size</parameter> into two adjacent chunks, the first of
-        <parameter>size_a</parameter> bytes, and the second of
-        <parameter>size_b</parameter> bytes, operating on
+        <para>An extent split function conforms to the
+        <type>extent_split_t</type> type and optionally splits an extent at
+        given <parameter>addr</parameter> and <parameter>size</parameter> into
+        two adjacent extents, the first of <parameter>size_a</parameter> bytes,
+        and the second of <parameter>size_b</parameter> bytes, operating on
         <parameter>committed</parameter>/decommitted memory as indicated, on
         behalf of arena <parameter>arena_ind</parameter>, returning false upon
-        success.  If the function returns true, this indicates that the chunk
+        success.  If the function returns true, this indicates that the extent
         remains unsplit and therefore should continue to be operated on as a
         whole.</para>
 
         <funcsynopsis><funcprototype>
-          <funcdef>typedef bool <function>(chunk_merge_t)</function></funcdef>
-          <paramdef>void *<parameter>chunk_a</parameter></paramdef>
+          <funcdef>typedef bool <function>(extent_merge_t)</function></funcdef>
+          <paramdef>void *<parameter>addr_a</parameter></paramdef>
           <paramdef>size_t <parameter>size_a</parameter></paramdef>
-          <paramdef>void *<parameter>chunk_b</parameter></paramdef>
+          <paramdef>void *<parameter>addr_b</parameter></paramdef>
           <paramdef>size_t <parameter>size_b</parameter></paramdef>
           <paramdef>bool <parameter>committed</parameter></paramdef>
           <paramdef>unsigned <parameter>arena_ind</parameter></paramdef>
         </funcprototype></funcsynopsis>
         <literallayout></literallayout>
-        <para>A chunk merge function conforms to the <type>chunk_merge_t</type>
-        type and optionally merges adjacent chunks,
-        <parameter>chunk_a</parameter> of given <parameter>size_a</parameter>
-        and <parameter>chunk_b</parameter> of given
-        <parameter>size_b</parameter> into one contiguous chunk, operating on
+        <para>An extent merge function conforms to the
+        <type>extent_merge_t</type> type and optionally merges adjacent extents,
+        at given <parameter>addr_a</parameter> and <parameter>size_a</parameter>
+        with given <parameter>addr_b</parameter> and
+        <parameter>size_b</parameter> into one contiguous extent, operating on
         <parameter>committed</parameter>/decommitted memory as indicated, on
         behalf of arena <parameter>arena_ind</parameter>, returning false upon
-        success.  If the function returns true, this indicates that the chunks
+        success.  If the function returns true, this indicates that the extents
         remain distinct mappings and therefore should continue to be operated on
         independently.</para>
         </listitem>

@@ -18,29 +18,29 @@ size_t		chunksize;
 size_t		chunksize_mask; /* (chunksize - 1). */
 size_t		chunk_npages;
 
-static void	*chunk_alloc_default(void *new_addr, size_t size,
+static void	*extent_alloc_default(void *new_addr, size_t size,
     size_t alignment, bool *zero, bool *commit, unsigned arena_ind);
-static bool	chunk_dalloc_default(void *chunk, size_t size, bool committed,
+static bool	extent_dalloc_default(void *addr, size_t size, bool committed,
     unsigned arena_ind);
-static bool	chunk_commit_default(void *chunk, size_t size, size_t offset,
+static bool	extent_commit_default(void *addr, size_t size, size_t offset,
     size_t length, unsigned arena_ind);
-static bool	chunk_decommit_default(void *chunk, size_t size, size_t offset,
+static bool	extent_decommit_default(void *addr, size_t size, size_t offset,
     size_t length, unsigned arena_ind);
-static bool	chunk_purge_default(void *chunk, size_t size, size_t offset,
+static bool	extent_purge_default(void *addr, size_t size, size_t offset,
     size_t length, unsigned arena_ind);
-static bool	chunk_split_default(void *chunk, size_t size, size_t size_a,
+static bool	extent_split_default(void *addr, size_t size, size_t size_a,
     size_t size_b, bool committed, unsigned arena_ind);
-static bool	chunk_merge_default(void *chunk_a, size_t size_a, void *chunk_b,
+static bool	extent_merge_default(void *addr_a, size_t size_a, void *addr_b,
     size_t size_b, bool committed, unsigned arena_ind);
 
 const extent_hooks_t	extent_hooks_default = {
-	chunk_alloc_default,
-	chunk_dalloc_default,
-	chunk_commit_default,
-	chunk_decommit_default,
-	chunk_purge_default,
-	chunk_split_default,
-	chunk_merge_default
+	extent_alloc_default,
+	extent_dalloc_default,
+	extent_commit_default,
+	extent_decommit_default,
+	extent_purge_default,
+	extent_split_default,
+	extent_merge_default
 };
 
 /******************************************************************************/
@@ -107,7 +107,7 @@ extent_hooks_set(tsdn_t *tsdn, arena_t *arena,
 	 */
 #define	ATOMIC_COPY_HOOK(n) do {					\
 	union {								\
-		chunk_##n##_t	**n;					\
+		extent_##n##_t	**n;					\
 		void		**v;					\
 	} u;								\
 	u.n = &arena->extent_hooks.n;					\
@@ -503,7 +503,7 @@ chunk_arena_get(tsdn_t *tsdn, unsigned arena_ind)
 }
 
 static void *
-chunk_alloc_default(void *new_addr, size_t size, size_t alignment, bool *zero,
+extent_alloc_default(void *new_addr, size_t size, size_t alignment, bool *zero,
     bool *commit, unsigned arena_ind)
 {
 	void *ret;
@@ -690,12 +690,12 @@ chunk_dalloc_cache(tsdn_t *tsdn, arena_t *arena, extent_hooks_t *extent_hooks,
 }
 
 static bool
-chunk_dalloc_default(void *chunk, size_t size, bool committed,
+extent_dalloc_default(void *addr, size_t size, bool committed,
     unsigned arena_ind)
 {
 
-	if (!have_dss || !chunk_in_dss(tsdn_fetch(), chunk))
-		return (chunk_dalloc_mmap(chunk, size));
+	if (!have_dss || !chunk_in_dss(tsdn_fetch(), addr))
+		return (chunk_dalloc_mmap(addr, size));
 	return (true);
 }
 
@@ -737,11 +737,11 @@ chunk_dalloc_wrapper(tsdn_t *tsdn, arena_t *arena, extent_hooks_t *extent_hooks,
 }
 
 static bool
-chunk_commit_default(void *chunk, size_t size, size_t offset, size_t length,
+extent_commit_default(void *addr, size_t size, size_t offset, size_t length,
     unsigned arena_ind)
 {
 
-	return (pages_commit((void *)((uintptr_t)chunk + (uintptr_t)offset),
+	return (pages_commit((void *)((uintptr_t)addr + (uintptr_t)offset),
 	    length));
 }
 
@@ -756,11 +756,11 @@ chunk_commit_wrapper(tsdn_t *tsdn, arena_t *arena, extent_hooks_t *extent_hooks,
 }
 
 static bool
-chunk_decommit_default(void *chunk, size_t size, size_t offset, size_t length,
+extent_decommit_default(void *addr, size_t size, size_t offset, size_t length,
     unsigned arena_ind)
 {
 
-	return (pages_decommit((void *)((uintptr_t)chunk + (uintptr_t)offset),
+	return (pages_decommit((void *)((uintptr_t)addr + (uintptr_t)offset),
 	    length));
 }
 
@@ -776,16 +776,16 @@ chunk_decommit_wrapper(tsdn_t *tsdn, arena_t *arena,
 }
 
 static bool
-chunk_purge_default(void *chunk, size_t size, size_t offset, size_t length,
+extent_purge_default(void *addr, size_t size, size_t offset, size_t length,
     unsigned arena_ind)
 {
 
-	assert(chunk != NULL);
+	assert(addr != NULL);
 	assert((offset & PAGE_MASK) == 0);
 	assert(length != 0);
 	assert((length & PAGE_MASK) == 0);
 
-	return (pages_purge((void *)((uintptr_t)chunk + (uintptr_t)offset),
+	return (pages_purge((void *)((uintptr_t)addr + (uintptr_t)offset),
 	    length));
 }
 
@@ -800,7 +800,7 @@ chunk_purge_wrapper(tsdn_t *tsdn, arena_t *arena, extent_hooks_t *extent_hooks,
 }
 
 static bool
-chunk_split_default(void *chunk, size_t size, size_t size_a, size_t size_b,
+extent_split_default(void *addr, size_t size, size_t size_a, size_t size_b,
     bool committed, unsigned arena_ind)
 {
 
@@ -871,7 +871,7 @@ label_error_a:
 }
 
 static bool
-chunk_merge_default(void *chunk_a, size_t size_a, void *chunk_b, size_t size_b,
+extent_merge_default(void *addr_a, size_t size_a, void *addr_b, size_t size_b,
     bool committed, unsigned arena_ind)
 {
 
@@ -879,7 +879,7 @@ chunk_merge_default(void *chunk_a, size_t size_a, void *chunk_b, size_t size_b,
 		return (true);
 	if (have_dss) {
 		tsdn_t *tsdn = tsdn_fetch();
-		if (chunk_in_dss(tsdn, chunk_a) != chunk_in_dss(tsdn, chunk_b))
+		if (chunk_in_dss(tsdn, addr_a) != chunk_in_dss(tsdn, addr_b))
 			return (true);
 	}
 
