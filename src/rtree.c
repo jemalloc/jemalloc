@@ -285,10 +285,3 @@ rtree_elm_witness_release(tsdn_t *tsdn, const rtree_t *rtree,
 	witness_unlock(tsdn, witness);
 	rtree_elm_witness_dalloc(tsdn_tsd(tsdn), witness, elm);
 }
-
-void
-rtree_elm_witnesses_cleanup(tsd_t *tsd)
-{
-
-	/* Do nothing. */
-}

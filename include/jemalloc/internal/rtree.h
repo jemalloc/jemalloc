@@ -137,7 +137,6 @@ void	rtree_elm_witness_access(tsdn_t *tsdn, const rtree_t *rtree,
     const rtree_elm_t *elm);
 void	rtree_elm_witness_release(tsdn_t *tsdn, const rtree_t *rtree,
     const rtree_elm_t *elm);
-void	rtree_elm_witnesses_cleanup(tsd_t *tsd);
 
 #endif /* JEMALLOC_H_EXTERNS */
 /******************************************************************************/

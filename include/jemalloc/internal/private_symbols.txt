@@ -74,7 +74,6 @@ arena_tcache_fill_small
 arena_tdata_get
 arena_tdata_get_hard
 arenas
-arenas_tdata_bypass_cleanup
 arenas_tdata_cleanup
 atomic_add_p
 atomic_add_u
@@ -285,7 +284,6 @@ malloc_vsnprintf
 malloc_write
 mb_write
 narenas_auto
-narenas_tdata_cleanup
 narenas_total_get
 ncpus
 nhbins
@@ -410,7 +408,6 @@ rtree_elm_release
 rtree_elm_witness_access
 rtree_elm_witness_acquire
 rtree_elm_witness_release
-rtree_elm_witnesses_cleanup
 rtree_elm_write
 rtree_elm_write_acquired
 rtree_new
@@ -451,7 +448,6 @@ tcache_cleanup
 tcache_create
 tcache_dalloc_large
 tcache_dalloc_small
-tcache_enabled_cleanup
 tcache_enabled_get
 tcache_enabled_set
 tcache_event
@@ -467,8 +463,6 @@ tcaches_create
 tcaches_destroy
 tcaches_flush
 tcaches_get
-thread_allocated_cleanup
-thread_deallocated_cleanup
 ticker_copy
 ticker_init
 ticker_read
@@ -539,7 +533,6 @@ tsdn_tsd
 witness_assert_lockless
 witness_assert_not_owner
 witness_assert_owner
-witness_fork_cleanup
 witness_init
 witness_lock
 witness_lock_error

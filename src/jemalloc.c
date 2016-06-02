@@ -645,20 +645,6 @@ arena_choose_hard(tsd_t *tsd, bool internal)
 }
 
 void
-thread_allocated_cleanup(tsd_t *tsd)
-{
-
-	/* Do nothing. */
-}
-
-void
-thread_deallocated_cleanup(tsd_t *tsd)
-{
-
-	/* Do nothing. */
-}
-
-void
 iarena_cleanup(tsd_t *tsd)
 {
 	arena_t *iarena;
@@ -691,20 +677,6 @@ arenas_tdata_cleanup(tsd_t *tsd)
 		tsd_arenas_tdata_set(tsd, NULL);
 		a0dalloc(arenas_tdata);
 	}
-}
-
-void
-narenas_tdata_cleanup(tsd_t *tsd)
-{
-
-	/* Do nothing. */
-}
-
-void
-arenas_tdata_bypass_cleanup(tsd_t *tsd)
-{
-
-	/* Do nothing. */
 }
 
 static void

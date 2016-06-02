@@ -103,7 +103,6 @@ void	witness_lockless_error(const witness_list_t *witnesses);
 #endif
 
 void	witnesses_cleanup(tsd_t *tsd);
-void	witness_fork_cleanup(tsd_t *tsd);
 void	witness_prefork(tsd_t *tsd);
 void	witness_postfork_parent(tsd_t *tsd);
 void	witness_postfork_child(tsd_t *tsd);

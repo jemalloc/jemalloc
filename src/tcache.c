@@ -405,13 +405,6 @@ tcache_cleanup(tsd_t *tsd)
 }
 
 void
-tcache_enabled_cleanup(tsd_t *tsd)
-{
-
-	/* Do nothing. */
-}
-
-void
 tcache_stats_merge(tsdn_t *tsdn, tcache_t *tcache, arena_t *arena)
 {
 	unsigned i;

@@ -104,13 +104,6 @@ witnesses_cleanup(tsd_t *tsd)
 }
 
 void
-witness_fork_cleanup(tsd_t *tsd)
-{
-
-	/* Do nothing. */
-}
-
-void
 witness_prefork(tsd_t *tsd)
 {
 
