@@ -136,7 +136,7 @@ extent_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
 				dss_max = dss_next;
 				malloc_mutex_unlock(tsdn, &dss_mtx);
 				if (pad_size != 0) {
-					extent_hooks_t extent_hooks =
+					extent_hooks_t *extent_hooks =
 					    EXTENT_HOOKS_INITIALIZER;
 					extent_dalloc_wrapper(tsdn, arena,
 					    &extent_hooks, pad);

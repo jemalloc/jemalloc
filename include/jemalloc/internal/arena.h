@@ -240,10 +240,14 @@ struct arena_s {
 	 */
 	extent_heap_t		extents_cached[NPSIZES];
 	extent_heap_t		extents_retained[NPSIZES];
-	/* User-configurable extent hook functions. */
-	extent_hooks_t		extent_hooks;
-	/* Protects extents_cached, extents_retained, and extent_hooks. */
+	/* Protects extents_cached and extents_retained. */
 	malloc_mutex_t		extents_mtx;
+
+	/* User-configurable extent hook functions. */
+	union {
+		extent_hooks_t		*extent_hooks;
+		void			*extent_hooks_pun;
+	};
 
 	/* Cache of extent structures that were allocated via base_alloc(). */
 	ql_head(extent_t)	extent_cache;
@@ -279,10 +283,10 @@ extern ssize_t		opt_decay_time;
 extern const arena_bin_info_t	arena_bin_info[NBINS];
 
 extent_t	*arena_extent_cache_alloc(tsdn_t *tsdn, arena_t *arena,
-    extent_hooks_t *extent_hooks, void *new_addr, size_t size, size_t alignment,
-    bool *zero);
+    extent_hooks_t **r_extent_hooks, void *new_addr, size_t size,
+    size_t alignment, bool *zero);
 void	arena_extent_cache_dalloc(tsdn_t *tsdn, arena_t *arena,
-    extent_hooks_t *extent_hooks, extent_t *extent);
+    extent_hooks_t **r_extent_hooks, extent_t *extent);
 void	arena_extent_cache_maybe_insert(arena_t *arena, extent_t *extent,
     bool cache);
 void	arena_extent_cache_maybe_remove(arena_t *arena, extent_t *extent,

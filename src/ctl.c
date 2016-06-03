@@ -1646,15 +1646,15 @@ arena_i_extent_hooks_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
 	if (arena_ind < narenas_total_get() && (arena =
 	    arena_get(tsd_tsdn(tsd), arena_ind, false)) != NULL) {
 		if (newp != NULL) {
-			extent_hooks_t old_extent_hooks, new_extent_hooks;
-			WRITE(new_extent_hooks, extent_hooks_t);
-			old_extent_hooks = extent_hooks_set(tsd_tsdn(tsd),
-			    arena, &new_extent_hooks);
-			READ(old_extent_hooks, extent_hooks_t);
+			extent_hooks_t *old_extent_hooks, *new_extent_hooks;
+			WRITE(new_extent_hooks, extent_hooks_t *);
+			old_extent_hooks = extent_hooks_set(arena,
+			    new_extent_hooks);
+			READ(old_extent_hooks, extent_hooks_t *);
 		} else {
-			extent_hooks_t old_extent_hooks =
-			    extent_hooks_get(tsd_tsdn(tsd), arena);
-			READ(old_extent_hooks, extent_hooks_t);
+			extent_hooks_t *old_extent_hooks =
+			    extent_hooks_get(arena);
+			READ(old_extent_hooks, extent_hooks_t *);
 		}
 	} else {
 		ret = EFAULT;

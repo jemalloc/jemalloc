@@ -1551,7 +1551,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
       <varlistentry id="arena.i.extent_hooks">
         <term>
           <mallctl>arena.&lt;i&gt;.extent_hooks</mallctl>
-          (<type>extent_hooks_t</type>)
+          (<type>extent_hooks_t *</type>)
           <literal>rw</literal>
         </term>
         <listitem><para>Get or set the extent management hook functions for
@@ -1567,7 +1567,8 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         allocation.</para>
 
         <programlisting language="C"><![CDATA[
-typedef struct {
+typedef extent_hooks_s extent_hooks_t;
+struct extent_hooks_s {
 	extent_alloc_t		*alloc;
 	extent_dalloc_t		*dalloc;
 	extent_commit_t		*commit;
@@ -1575,7 +1576,7 @@ typedef struct {
 	extent_purge_t		*purge;
 	extent_split_t		*split;
 	extent_merge_t		*merge;
-} extent_hooks_t;]]></programlisting>
+};]]></programlisting>
         <para>The <type>extent_hooks_t</type> structure comprises function
         pointers which are described individually below.  jemalloc uses these
         functions to manage extent lifetime, which starts off with allocation of
@@ -1592,6 +1593,7 @@ typedef struct {
 
         <funcsynopsis><funcprototype>
           <funcdef>typedef void *<function>(extent_alloc_t)</function></funcdef>
+          <paramdef>extent_hooks_t *<parameter>extent_hooks</parameter></paramdef>
           <paramdef>void *<parameter>new_addr</parameter></paramdef>
           <paramdef>size_t <parameter>size</parameter></paramdef>
           <paramdef>size_t <parameter>alignment</parameter></paramdef>
@@ -1627,6 +1629,7 @@ typedef struct {
 
         <funcsynopsis><funcprototype>
           <funcdef>typedef bool <function>(extent_dalloc_t)</function></funcdef>
+          <paramdef>extent_hooks_t *<parameter>extent_hooks</parameter></paramdef>
           <paramdef>void *<parameter>addr</parameter></paramdef>
           <paramdef>size_t <parameter>size</parameter></paramdef>
           <paramdef>bool <parameter>committed</parameter></paramdef>
@@ -1646,6 +1649,7 @@ typedef struct {
 
         <funcsynopsis><funcprototype>
           <funcdef>typedef bool <function>(extent_commit_t)</function></funcdef>
+          <paramdef>extent_hooks_t *<parameter>extent_hooks</parameter></paramdef>
           <paramdef>void *<parameter>addr</parameter></paramdef>
           <paramdef>size_t <parameter>size</parameter></paramdef>
           <paramdef>size_t <parameter>offset</parameter></paramdef>
@@ -1667,6 +1671,7 @@ typedef struct {
 
         <funcsynopsis><funcprototype>
           <funcdef>typedef bool <function>(extent_decommit_t)</function></funcdef>
+          <paramdef>extent_hooks_t *<parameter>extent_hooks</parameter></paramdef>
           <paramdef>void *<parameter>addr</parameter></paramdef>
           <paramdef>size_t <parameter>size</parameter></paramdef>
           <paramdef>size_t <parameter>offset</parameter></paramdef>
@@ -1688,6 +1693,7 @@ typedef struct {
 
         <funcsynopsis><funcprototype>
           <funcdef>typedef bool <function>(extent_purge_t)</function></funcdef>
+          <paramdef>extent_hooks_t *<parameter>extent_hooks</parameter></paramdef>
           <paramdef>void *<parameter>addr</parameter></paramdef>
           <paramdef>size_t<parameter>size</parameter></paramdef>
           <paramdef>size_t <parameter>offset</parameter></paramdef>
@@ -1707,6 +1713,7 @@ typedef struct {
 
         <funcsynopsis><funcprototype>
           <funcdef>typedef bool <function>(extent_split_t)</function></funcdef>
+          <paramdef>extent_hooks_t *<parameter>extent_hooks</parameter></paramdef>
           <paramdef>void *<parameter>addr</parameter></paramdef>
           <paramdef>size_t <parameter>size</parameter></paramdef>
           <paramdef>size_t <parameter>size_a</parameter></paramdef>
@@ -1728,6 +1735,7 @@ typedef struct {
 
         <funcsynopsis><funcprototype>
           <funcdef>typedef bool <function>(extent_merge_t)</function></funcdef>
+          <paramdef>extent_hooks_t *<parameter>extent_hooks</parameter></paramdef>
           <paramdef>void *<parameter>addr_a</parameter></paramdef>
           <paramdef>size_t <parameter>size_a</parameter></paramdef>
           <paramdef>void *<parameter>addr_b</parameter></paramdef>

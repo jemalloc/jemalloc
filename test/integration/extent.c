@@ -4,8 +4,8 @@
 const char *malloc_conf = "junk:false";
 #endif
 
-static extent_hooks_t orig_hooks;
-static extent_hooks_t old_hooks;
+static extent_hooks_t *orig_hooks;
+static extent_hooks_t *old_hooks;
 
 static bool do_dalloc = true;
 static bool do_decommit;
@@ -24,96 +24,111 @@ static bool did_merge;
 #  define TRACE_HOOK(fmt, ...)
 #endif
 
-void *
-extent_alloc(void *new_addr, size_t size, size_t alignment, bool *zero,
-    bool *commit, unsigned arena_ind)
+static void *
+extent_alloc(extent_hooks_t *extent_hooks, void *new_addr, size_t size,
+    size_t alignment, bool *zero, bool *commit, unsigned arena_ind)
 {
 
-	TRACE_HOOK("%s(new_addr=%p, size=%zu, alignment=%zu, *zero=%s, "
-	    "*commit=%s, arena_ind=%u)\n", __func__, new_addr, size, alignment,
-	    *zero ?  "true" : "false", *commit ? "true" : "false", arena_ind);
+	TRACE_HOOK("%s(extent_hooks=%p, new_addr=%p, size=%zu, alignment=%zu, "
+	    "*zero=%s, *commit=%s, arena_ind=%u)\n", __func__, extent_hooks,
+	    new_addr, size, alignment, *zero ?  "true" : "false", *commit ?
+	    "true" : "false", arena_ind);
+	assert(extent_hooks->alloc == extent_alloc);
 	did_alloc = true;
-	return (old_hooks.alloc(new_addr, size, alignment, zero, commit,
-	    arena_ind));
+	return (old_hooks->alloc(old_hooks, new_addr, size, alignment, zero,
+	    commit, arena_ind));
 }
 
-bool
-extent_dalloc(void *addr, size_t size, bool committed, unsigned arena_ind)
+static bool
+extent_dalloc(extent_hooks_t *extent_hooks, void *addr, size_t size,
+    bool committed, unsigned arena_ind)
 {
 
-	TRACE_HOOK("%s(addr=%p, size=%zu, committed=%s, arena_ind=%u)\n",
-	    __func__, addr, size, committed ? "true" : "false", arena_ind);
+	TRACE_HOOK("%s(extent_hooks=%p, addr=%p, size=%zu, committed=%s, "
+	    "arena_ind=%u)\n", __func__, extent_hooks, addr, size, committed ?
+	    "true" : "false", arena_ind);
+	assert(extent_hooks->dalloc == extent_dalloc);
 	did_dalloc = true;
 	if (!do_dalloc)
 		return (true);
-	return (old_hooks.dalloc(addr, size, committed, arena_ind));
+	return (old_hooks->dalloc(old_hooks, addr, size, committed, arena_ind));
 }
 
-bool
-extent_commit(void *addr, size_t size, size_t offset, size_t length,
-    unsigned arena_ind)
+static bool
+extent_commit(extent_hooks_t *extent_hooks, void *addr, size_t size,
+    size_t offset, size_t length, unsigned arena_ind)
 {
 	bool err;
 
-	TRACE_HOOK("%s(addr=%p, size=%zu, offset=%zu, length=%zu, "
-	    "arena_ind=%u)\n", __func__, addr, size, offset, length,
+	TRACE_HOOK("%s(extent_hooks=%p, addr=%p, size=%zu, offset=%zu, "
+	    "length=%zu, arena_ind=%u)\n", __func__, extent_hooks, addr, size,
+	    offset, length, arena_ind);
+	assert(extent_hooks->commit == extent_commit);
+	err = old_hooks->commit(old_hooks, addr, size, offset, length,
 	    arena_ind);
-	err = old_hooks.commit(addr, size, offset, length, arena_ind);
 	did_commit = !err;
 	return (err);
 }
 
-bool
-extent_decommit(void *addr, size_t size, size_t offset, size_t length,
-    unsigned arena_ind)
+static bool
+extent_decommit(extent_hooks_t *extent_hooks, void *addr, size_t size,
+    size_t offset, size_t length, unsigned arena_ind)
 {
 	bool err;
 
-	TRACE_HOOK("%s(addr=%p, size=%zu, offset=%zu, length=%zu, "
-	    "arena_ind=%u)\n", __func__, addr, size, offset, length,
-	    arena_ind);
+	TRACE_HOOK("%s(extent_hooks=%p, addr=%p, size=%zu, offset=%zu, "
+	    "length=%zu, arena_ind=%u)\n", __func__, extent_hooks, addr, size,
+	    offset, length, arena_ind);
+	assert(extent_hooks->decommit == extent_decommit);
 	if (!do_decommit)
 		return (true);
-	err = old_hooks.decommit(addr, size, offset, length, arena_ind);
+	err = old_hooks->decommit(old_hooks, addr, size, offset, length,
+	    arena_ind);
 	did_decommit = !err;
 	return (err);
 }
 
-bool
-extent_purge(void *addr, size_t size, size_t offset, size_t length,
-    unsigned arena_ind)
+static bool
+extent_purge(extent_hooks_t *extent_hooks, void *addr, size_t size,
+    size_t offset, size_t length, unsigned arena_ind)
 {
 
-	TRACE_HOOK("%s(addr=%p, size=%zu, offset=%zu, length=%zu "
-	    "arena_ind=%u)\n", __func__, addr, size, offset, length,
-	    arena_ind);
+	TRACE_HOOK("%s(extent_hooks=%p, addr=%p, size=%zu, offset=%zu, "
+	    "length=%zu arena_ind=%u)\n", __func__, extent_hooks, addr, size,
+	    offset, length, arena_ind);
+	assert(extent_hooks->purge == extent_purge);
 	did_purge = true;
-	return (old_hooks.purge(addr, size, offset, length, arena_ind));
-}
-
-bool
-extent_split(void *addr, size_t size, size_t size_a, size_t size_b,
-    bool committed, unsigned arena_ind)
-{
-
-	TRACE_HOOK("%s(addr=%p, size=%zu, size_a=%zu, size_b=%zu, "
-	    "committed=%s, arena_ind=%u)\n", __func__, addr, size, size_a,
-	    size_b, committed ? "true" : "false", arena_ind);
-	did_split = true;
-	return (old_hooks.split(addr, size, size_a, size_b, committed,
+	return (old_hooks->purge(old_hooks, addr, size, offset, length,
 	    arena_ind));
 }
 
-bool
-extent_merge(void *addr_a, size_t size_a, void *addr_b, size_t size_b,
-    bool committed, unsigned arena_ind)
+static bool
+extent_split(extent_hooks_t *extent_hooks, void *addr, size_t size,
+    size_t size_a, size_t size_b, bool committed, unsigned arena_ind)
 {
 
-	TRACE_HOOK("%s(addr_a=%p, size_a=%zu, addr_b=%p size_b=%zu, "
-	    "committed=%s, arena_ind=%u)\n", __func__, addr_a, size_a, addr_b,
-	    size_b, committed ? "true" : "false", arena_ind);
+	TRACE_HOOK("%s(extent_hooks=%p, addr=%p, size=%zu, size_a=%zu, "
+	    "size_b=%zu, committed=%s, arena_ind=%u)\n", __func__, extent_hooks,
+	    addr, size, size_a, size_b, committed ? "true" : "false",
+	    arena_ind);
+	assert(extent_hooks->split == extent_split);
+	did_split = true;
+	return (old_hooks->split(old_hooks, addr, size, size_a, size_b,
+	    committed, arena_ind));
+}
+
+static bool
+extent_merge(extent_hooks_t *extent_hooks, void *addr_a, size_t size_a,
+    void *addr_b, size_t size_b, bool committed, unsigned arena_ind)
+{
+
+	TRACE_HOOK("%s(extent_hooks=%p, addr_a=%p, size_a=%zu, addr_b=%p "
+	    "size_b=%zu, committed=%s, arena_ind=%u)\n", __func__, extent_hooks,
+	    addr_a, size_a, addr_b, size_b, committed ? "true" : "false",
+	    arena_ind);
+	assert(extent_hooks->merge == extent_merge);
 	did_merge = true;
-	return (old_hooks.merge(addr_a, size_a, addr_b, size_b,
+	return (old_hooks->merge(old_hooks, addr_a, size_a, addr_b, size_b,
 	    committed, arena_ind));
 }
 
@@ -125,7 +140,7 @@ TEST_BEGIN(test_extent)
 	int flags;
 	size_t hooks_mib[3], purge_mib[3];
 	size_t hooks_miblen, purge_miblen;
-	extent_hooks_t new_hooks = {
+	extent_hooks_t hooks = {
 		extent_alloc,
 		extent_dalloc,
 		extent_commit,
@@ -134,6 +149,7 @@ TEST_BEGIN(test_extent)
 		extent_split,
 		extent_merge
 	};
+	extent_hooks_t *new_hooks = &hooks;
 	bool xallocx_success_a, xallocx_success_b, xallocx_success_c;
 
 	sz = sizeof(unsigned);
@@ -146,21 +162,21 @@ TEST_BEGIN(test_extent)
 	assert_d_eq(mallctlnametomib("arena.0.extent_hooks", hooks_mib,
 	    &hooks_miblen), 0, "Unexpected mallctlnametomib() failure");
 	hooks_mib[1] = (size_t)arena_ind;
-	old_size = sizeof(extent_hooks_t);
-	new_size = sizeof(extent_hooks_t);
+	old_size = sizeof(extent_hooks_t *);
+	new_size = sizeof(extent_hooks_t *);
 	assert_d_eq(mallctlbymib(hooks_mib, hooks_miblen, &old_hooks, &old_size,
 	    &new_hooks, new_size), 0, "Unexpected extent_hooks error");
 	orig_hooks = old_hooks;
-	assert_ptr_ne(old_hooks.alloc, extent_alloc, "Unexpected alloc error");
-	assert_ptr_ne(old_hooks.dalloc, extent_dalloc,
+	assert_ptr_ne(old_hooks->alloc, extent_alloc, "Unexpected alloc error");
+	assert_ptr_ne(old_hooks->dalloc, extent_dalloc,
 	    "Unexpected dalloc error");
-	assert_ptr_ne(old_hooks.commit, extent_commit,
+	assert_ptr_ne(old_hooks->commit, extent_commit,
 	    "Unexpected commit error");
-	assert_ptr_ne(old_hooks.decommit, extent_decommit,
+	assert_ptr_ne(old_hooks->decommit, extent_decommit,
 	    "Unexpected decommit error");
-	assert_ptr_ne(old_hooks.purge, extent_purge, "Unexpected purge error");
-	assert_ptr_ne(old_hooks.split, extent_split, "Unexpected split error");
-	assert_ptr_ne(old_hooks.merge, extent_merge, "Unexpected merge error");
+	assert_ptr_ne(old_hooks->purge, extent_purge, "Unexpected purge error");
+	assert_ptr_ne(old_hooks->split, extent_split, "Unexpected split error");
+	assert_ptr_ne(old_hooks->merge, extent_merge, "Unexpected merge error");
 
 	/* Get large size classes. */
 	sz = sizeof(size_t);
@@ -228,19 +244,20 @@ TEST_BEGIN(test_extent)
 	    &old_hooks, new_size), 0, "Unexpected extent_hooks error");
 	assert_d_eq(mallctlbymib(hooks_mib, hooks_miblen, &old_hooks, &old_size,
 	    NULL, 0), 0, "Unexpected extent_hooks error");
-	assert_ptr_eq(old_hooks.alloc, orig_hooks.alloc,
+	assert_ptr_eq(old_hooks, orig_hooks, "Unexpected hooks error");
+	assert_ptr_eq(old_hooks->alloc, orig_hooks->alloc,
 	    "Unexpected alloc error");
-	assert_ptr_eq(old_hooks.dalloc, orig_hooks.dalloc,
+	assert_ptr_eq(old_hooks->dalloc, orig_hooks->dalloc,
 	    "Unexpected dalloc error");
-	assert_ptr_eq(old_hooks.commit, orig_hooks.commit,
+	assert_ptr_eq(old_hooks->commit, orig_hooks->commit,
 	    "Unexpected commit error");
-	assert_ptr_eq(old_hooks.decommit, orig_hooks.decommit,
+	assert_ptr_eq(old_hooks->decommit, orig_hooks->decommit,
 	    "Unexpected decommit error");
-	assert_ptr_eq(old_hooks.purge, orig_hooks.purge,
+	assert_ptr_eq(old_hooks->purge, orig_hooks->purge,
 	    "Unexpected purge error");
-	assert_ptr_eq(old_hooks.split, orig_hooks.split,
+	assert_ptr_eq(old_hooks->split, orig_hooks->split,
 	    "Unexpected split error");
-	assert_ptr_eq(old_hooks.merge, orig_hooks.merge,
+	assert_ptr_eq(old_hooks->merge, orig_hooks->merge,
 	    "Unexpected merge error");
 }
 TEST_END

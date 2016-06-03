@@ -3,15 +3,7 @@
 
 typedef struct extent_s extent_t;
 
-#define	EXTENT_HOOKS_INITIALIZER {					\
-    NULL,								\
-    NULL,								\
-    NULL,								\
-    NULL,								\
-    NULL,								\
-    NULL,								\
-    NULL								\
-}
+#define	EXTENT_HOOKS_INITIALIZER	NULL
 
 #endif /* JEMALLOC_H_TYPES */
 /******************************************************************************/
@@ -93,9 +85,8 @@ extern const extent_hooks_t	extent_hooks_default;
 extent_t	*extent_alloc(tsdn_t *tsdn, arena_t *arena);
 void	extent_dalloc(tsdn_t *tsdn, arena_t *arena, extent_t *extent);
 
-extent_hooks_t	extent_hooks_get(tsdn_t *tsdn, arena_t *arena);
-extent_hooks_t	extent_hooks_set(tsdn_t *tsdn, arena_t *arena,
-    const extent_hooks_t *extent_hooks);
+extent_hooks_t	*extent_hooks_get(arena_t *arena);
+extent_hooks_t	*extent_hooks_set(arena_t *arena, extent_hooks_t *extent_hooks);
 
 #ifdef JEMALLOC_JET
 typedef size_t (extent_size_quantize_t)(size_t);
@@ -109,29 +100,29 @@ size_t	extent_size_quantize_ceil(size_t size);
 ph_proto(, extent_heap_, extent_heap_t, extent_t)
 
 extent_t	*extent_alloc_cache(tsdn_t *tsdn, arena_t *arena,
-    extent_hooks_t *extent_hooks, void *new_addr, size_t usize, size_t pad,
+    extent_hooks_t **r_extent_hooks, void *new_addr, size_t usize, size_t pad,
     size_t alignment, bool *zero, bool slab);
 extent_t	*extent_alloc_wrapper(tsdn_t *tsdn, arena_t *arena,
-    extent_hooks_t *extent_hooks, void *new_addr, size_t usize, size_t pad,
+    extent_hooks_t **r_extent_hooks, void *new_addr, size_t usize, size_t pad,
     size_t alignment, bool *zero, bool *commit, bool slab);
 void	extent_dalloc_cache(tsdn_t *tsdn, arena_t *arena,
-    extent_hooks_t *extent_hooks, extent_t *extent);
+    extent_hooks_t **r_extent_hooks, extent_t *extent);
 void	extent_dalloc_wrapper(tsdn_t *tsdn, arena_t *arena,
-    extent_hooks_t *extent_hooks, extent_t *extent);
+    extent_hooks_t **r_extent_hooks, extent_t *extent);
 bool	extent_commit_wrapper(tsdn_t *tsdn, arena_t *arena,
-    extent_hooks_t *extent_hooks, extent_t *extent, size_t offset,
+    extent_hooks_t **r_extent_hooks, extent_t *extent, size_t offset,
     size_t length);
 bool	extent_decommit_wrapper(tsdn_t *tsdn, arena_t *arena,
-    extent_hooks_t *extent_hooks, extent_t *extent, size_t offset,
+    extent_hooks_t **r_extent_hooks, extent_t *extent, size_t offset,
     size_t length);
 bool	extent_purge_wrapper(tsdn_t *tsdn, arena_t *arena,
-    extent_hooks_t *extent_hooks, extent_t *extent, size_t offset,
+    extent_hooks_t **r_extent_hooks, extent_t *extent, size_t offset,
     size_t length);
 extent_t	*extent_split_wrapper(tsdn_t *tsdn, arena_t *arena,
-    extent_hooks_t *extent_hooks, extent_t *extent, size_t size_a,
+    extent_hooks_t **r_extent_hooks, extent_t *extent, size_t size_a,
     size_t usize_a, size_t size_b, size_t usize_b);
 bool	extent_merge_wrapper(tsdn_t *tsdn, arena_t *arena,
-    extent_hooks_t *extent_hooks, extent_t *a, extent_t *b);
+    extent_hooks_t **r_extent_hooks, extent_t *a, extent_t *b);
 void	extent_prefork(tsdn_t *tsdn);
 void	extent_postfork_parent(tsdn_t *tsdn);
 void	extent_postfork_child(tsdn_t *tsdn);
