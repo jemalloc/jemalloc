@@ -40,10 +40,11 @@ TEST_BEGIN(test_rtree_read_empty)
 
 	for (i = 1; i <= (sizeof(uintptr_t) << 3); i++) {
 		rtree_t rtree;
+		rtree_ctx_t rtree_ctx = RTREE_CTX_INITIALIZER;
 		test_rtree = &rtree;
 		assert_false(rtree_new(&rtree, i),
 		    "Unexpected rtree_new() failure");
-		assert_ptr_null(rtree_read(tsdn, &rtree, 0, false),
+		assert_ptr_null(rtree_read(tsdn, &rtree, &rtree_ctx, 0, false),
 		    "rtree_read() should return NULL for empty tree");
 		rtree_delete(tsdn, &rtree);
 		test_rtree = NULL;
@@ -66,7 +67,8 @@ static void *
 thd_start(void *varg)
 {
 	thd_start_arg_t *arg = (thd_start_arg_t *)varg;
-	sfmt_t	*sfmt;
+	rtree_ctx_t rtree_ctx = RTREE_CTX_INITIALIZER;
+	sfmt_t *sfmt;
 	extent_t *extent;
 	tsdn_t *tsdn;
 	unsigned i;
@@ -81,21 +83,22 @@ thd_start(void *varg)
 		if (i % 2 == 0) {
 			rtree_elm_t *elm;
 
-			elm = rtree_elm_acquire(tsdn, &arg->rtree, key, false,
-			    true);
+			elm = rtree_elm_acquire(tsdn, &arg->rtree, &rtree_ctx,
+			    key, false, true);
 			assert_ptr_not_null(elm,
 			    "Unexpected rtree_elm_acquire() failure");
-			rtree_elm_write_acquired(tsdn, &arg->rtree, elm, extent);
+			rtree_elm_write_acquired(tsdn, &arg->rtree, elm,
+			    extent);
 			rtree_elm_release(tsdn, &arg->rtree, elm);
 
-			elm = rtree_elm_acquire(tsdn, &arg->rtree, key, true,
-			    false);
+			elm = rtree_elm_acquire(tsdn, &arg->rtree, &rtree_ctx,
+			    key, true, false);
 			assert_ptr_not_null(elm,
 			    "Unexpected rtree_elm_acquire() failure");
 			rtree_elm_read_acquired(tsdn, &arg->rtree, elm);
 			rtree_elm_release(tsdn, &arg->rtree, elm);
 		} else
-			rtree_read(tsdn, &arg->rtree, key, false);
+			rtree_read(tsdn, &arg->rtree, &rtree_ctx, key, false);
 	}
 
 	free(extent);
@@ -145,19 +148,22 @@ TEST_BEGIN(test_rtree_extrema)
 
 	for (i = 1; i <= (sizeof(uintptr_t) << 3); i++) {
 		rtree_t rtree;
+		rtree_ctx_t rtree_ctx = RTREE_CTX_INITIALIZER;
 		test_rtree = &rtree;
 		assert_false(rtree_new(&rtree, i),
 		    "Unexpected rtree_new() failure");
 
-		assert_false(rtree_write(tsdn, &rtree, 0, &extent_a),
-		    "Unexpected rtree_write() failure, i=%u", i);
-		assert_ptr_eq(rtree_read(tsdn, &rtree, 0, true), &extent_a,
+		assert_false(rtree_write(tsdn, &rtree, &rtree_ctx, 0,
+		    &extent_a), "Unexpected rtree_write() failure, i=%u", i);
+		assert_ptr_eq(rtree_read(tsdn, &rtree, &rtree_ctx, 0, true),
+		    &extent_a,
 		    "rtree_read() should return previously set value, i=%u", i);
 
-		assert_false(rtree_write(tsdn, &rtree, ~((uintptr_t)0),
-		    &extent_b), "Unexpected rtree_write() failure, i=%u", i);
-		assert_ptr_eq(rtree_read(tsdn, &rtree, ~((uintptr_t)0), true),
-		    &extent_b,
+		assert_false(rtree_write(tsdn, &rtree, &rtree_ctx,
+		    ~((uintptr_t)0), &extent_b),
+		    "Unexpected rtree_write() failure, i=%u", i);
+		assert_ptr_eq(rtree_read(tsdn, &rtree, &rtree_ctx,
+		    ~((uintptr_t)0), true), &extent_b,
 		    "rtree_read() should return previously set value, i=%u", i);
 
 		rtree_delete(tsdn, &rtree);
@@ -178,27 +184,30 @@ TEST_BEGIN(test_rtree_bits)
 		    (((uintptr_t)1) << (sizeof(uintptr_t)*8-i)) - 1};
 		extent_t extent;
 		rtree_t rtree;
+		rtree_ctx_t rtree_ctx = RTREE_CTX_INITIALIZER;
 
 		test_rtree = &rtree;
 		assert_false(rtree_new(&rtree, i),
 		    "Unexpected rtree_new() failure");
 
 		for (j = 0; j < sizeof(keys)/sizeof(uintptr_t); j++) {
-			assert_false(rtree_write(tsdn, &rtree, keys[j],
-			    &extent), "Unexpected rtree_write() failure");
+			assert_false(rtree_write(tsdn, &rtree, &rtree_ctx,
+			    keys[j], &extent),
+			    "Unexpected rtree_write() failure");
 			for (k = 0; k < sizeof(keys)/sizeof(uintptr_t); k++) {
-				assert_ptr_eq(rtree_read(tsdn, &rtree, keys[k],
-				    true), &extent, "rtree_read() should "
-				    "return previously set value and ignore "
-				    "insignificant key bits; i=%u, j=%u, k=%u, "
-				    "set key=%#"FMTxPTR", get key=%#"FMTxPTR, i,
-				    j, k, keys[j], keys[k]);
+				assert_ptr_eq(rtree_read(tsdn, &rtree,
+				    &rtree_ctx, keys[k], true), &extent,
+				    "rtree_read() should return previously set "
+				    "value and ignore insignificant key bits; "
+				    "i=%u, j=%u, k=%u, set key=%#"FMTxPTR", "
+				    "get key=%#"FMTxPTR, i, j, k, keys[j],
+				    keys[k]);
 			}
-			assert_ptr_null(rtree_read(tsdn, &rtree,
+			assert_ptr_null(rtree_read(tsdn, &rtree, &rtree_ctx,
 			    (((uintptr_t)1) << (sizeof(uintptr_t)*8-i)), false),
 			    "Only leftmost rtree leaf should be set; "
 			    "i=%u, j=%u", i, j);
-			rtree_clear(tsdn, &rtree, keys[j]);
+			rtree_clear(tsdn, &rtree, &rtree_ctx, keys[j]);
 		}
 
 		rtree_delete(tsdn, &rtree);
@@ -222,6 +231,7 @@ TEST_BEGIN(test_rtree_random)
 		extent_t extent;
 		unsigned j;
 		rtree_t rtree;
+		rtree_ctx_t rtree_ctx = RTREE_CTX_INITIALIZER;
 		rtree_elm_t *elm;
 
 		test_rtree = &rtree;
@@ -230,29 +240,32 @@ TEST_BEGIN(test_rtree_random)
 
 		for (j = 0; j < NSET; j++) {
 			keys[j] = (uintptr_t)gen_rand64(sfmt);
-			elm = rtree_elm_acquire(tsdn, &rtree, keys[j], false,
-			    true);
+			elm = rtree_elm_acquire(tsdn, &rtree, &rtree_ctx,
+			    keys[j], false, true);
 			assert_ptr_not_null(elm,
 			    "Unexpected rtree_elm_acquire() failure");
 			rtree_elm_write_acquired(tsdn, &rtree, elm, &extent);
 			rtree_elm_release(tsdn, &rtree, elm);
-			assert_ptr_eq(rtree_read(tsdn, &rtree, keys[j], true),
-			    &extent,
+			assert_ptr_eq(rtree_read(tsdn, &rtree, &rtree_ctx,
+			    keys[j], true), &extent,
 			    "rtree_read() should return previously set value");
 		}
 		for (j = 0; j < NSET; j++) {
-			assert_ptr_eq(rtree_read(tsdn, &rtree, keys[j], true),
-			    &extent, "rtree_read() should return previously "
-			    "set value, j=%u", j);
+			assert_ptr_eq(rtree_read(tsdn, &rtree, &rtree_ctx,
+			    keys[j], true), &extent,
+			    "rtree_read() should return previously set value, "
+			    "j=%u", j);
 		}
 
 		for (j = 0; j < NSET; j++) {
-			rtree_clear(tsdn, &rtree, keys[j]);
-			assert_ptr_null(rtree_read(tsdn, &rtree, keys[j], true),
+			rtree_clear(tsdn, &rtree, &rtree_ctx, keys[j]);
+			assert_ptr_null(rtree_read(tsdn, &rtree, &rtree_ctx,
+			    keys[j], true),
 			    "rtree_read() should return previously set value");
 		}
 		for (j = 0; j < NSET; j++) {
-			assert_ptr_null(rtree_read(tsdn, &rtree, keys[j], true),
+			assert_ptr_null(rtree_read(tsdn, &rtree, &rtree_ctx,
+			    keys[j], true),
 			    "rtree_read() should return previously set value");
 		}
 

@@ -572,6 +572,7 @@ struct tsd_init_head_s {
     O(narenas_tdata,		unsigned,		no)		\
     O(arenas_tdata_bypass,	bool,			no)		\
     O(tcache_enabled,		tcache_enabled_t,	no)		\
+    O(rtree_ctx,		rtree_ctx_t,		no)		\
     O(witnesses,		witness_list_t,		yes)		\
     O(rtree_elm_witnesses,	rtree_elm_witness_tsd_t,no)		\
     O(witness_fork,		bool,			no)		\
@@ -588,6 +589,7 @@ struct tsd_init_head_s {
     0,									\
     false,								\
     tcache_enabled_default,						\
+    RTREE_CTX_INITIALIZER,						\
     ql_head_initializer(witnesses),					\
     RTREE_ELM_WITNESS_TSD_INITIALIZER,					\
     false								\
@@ -651,6 +653,7 @@ MALLOC_TSD
 tsdn_t	*tsdn_fetch(void);
 bool	tsdn_null(const tsdn_t *tsdn);
 tsd_t	*tsdn_tsd(tsdn_t *tsdn);
+rtree_ctx_t	*tsdn_rtree_ctx(tsdn_t *tsdn, rtree_ctx_t *fallback);
 #endif
 
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_TSD_C_))
@@ -740,6 +743,22 @@ tsdn_tsd(tsdn_t *tsdn)
 	assert(!tsdn_null(tsdn));
 
 	return (&tsdn->tsd);
+}
+
+JEMALLOC_ALWAYS_INLINE rtree_ctx_t *
+tsdn_rtree_ctx(tsdn_t *tsdn, rtree_ctx_t *fallback)
+{
+
+	/*
+	 * If tsd cannot be accessed, initialize the fallback rtree_ctx and
+	 * return a pointer to it.
+	 */
+	if (unlikely(tsdn_null(tsdn))) {
+		static const rtree_ctx_t rtree_ctx = RTREE_CTX_INITIALIZER;
+		memcpy(fallback, &rtree_ctx, sizeof(rtree_ctx_t));
+		return (fallback);
+	}
+	return (tsd_rtree_ctxp_get(tsdn_tsd(tsdn)));
 }
 #endif
 

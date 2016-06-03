@@ -52,11 +52,12 @@ rtree_new(rtree_t *rtree, unsigned bits)
 		rtree->levels[height-1].cumbits = bits;
 	}
 
-	/* Compute lookup table to be used by rtree_start_level(). */
+	/* Compute lookup table to be used by rtree_[ctx_]start_level(). */
 	for (i = 0; i < RTREE_HEIGHT_MAX; i++) {
 		rtree->start_level[i] = hmin(RTREE_HEIGHT_MAX - 1 - i, height -
 		    1);
 	}
+	rtree->start_level[RTREE_HEIGHT_MAX] = 0;
 
 	return (false);
 }

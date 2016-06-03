@@ -399,6 +399,7 @@ rtree_child_read
 rtree_child_read_hard
 rtree_child_tryread
 rtree_clear
+rtree_ctx_start_level
 rtree_delete
 rtree_elm_acquire
 rtree_elm_lookup
@@ -502,6 +503,9 @@ tsd_nominal
 tsd_prof_tdata_get
 tsd_prof_tdata_set
 tsd_prof_tdatap_get
+tsd_rtree_ctx_get
+tsd_rtree_ctx_set
+tsd_rtree_ctxp_get
 tsd_rtree_elm_witnesses_get
 tsd_rtree_elm_witnesses_set
 tsd_rtree_elm_witnessesp_get
@@ -529,6 +533,7 @@ tsd_witnesses_set
 tsd_witnessesp_get
 tsdn_fetch
 tsdn_null
+tsdn_rtree_ctx
 tsdn_tsd
 witness_assert_lockless
 witness_assert_not_owner

@@ -181,8 +181,11 @@ void	extent_ring_remove(extent_t *extent);
 JEMALLOC_INLINE extent_t *
 extent_lookup(tsdn_t *tsdn, const void *ptr, bool dependent)
 {
+	rtree_ctx_t rtree_ctx_fallback;
+	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
 
-	return (rtree_read(tsdn, &extents_rtree, (uintptr_t)ptr, dependent));
+	return (rtree_read(tsdn, &extents_rtree, rtree_ctx, (uintptr_t)ptr,
+	    dependent));
 }
 
 JEMALLOC_INLINE arena_t *
