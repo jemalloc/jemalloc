@@ -917,20 +917,28 @@ arena_reset(tsd_t *tsd, arena_t *arena)
 
 	/* Bins. */
 	for (i = 0; i < NBINS; i++) {
-		extent_t *slab, *next;
+		extent_t *slab;
 		arena_bin_t *bin = &arena->bins[i];
 		malloc_mutex_lock(tsd_tsdn(tsd), &bin->lock);
 		if (bin->slabcur != NULL) {
-			arena_slab_dalloc(tsd_tsdn(tsd), arena, bin->slabcur);
+			slab = bin->slabcur;
 			bin->slabcur = NULL;
+			malloc_mutex_unlock(tsd_tsdn(tsd), &bin->lock);
+			arena_slab_dalloc(tsd_tsdn(tsd), arena, slab);
+			malloc_mutex_lock(tsd_tsdn(tsd), &bin->lock);
 		}
 		while ((slab = extent_heap_remove_first(&bin->slabs_nonfull)) !=
-		    NULL)
+		    NULL) {
+			malloc_mutex_unlock(tsd_tsdn(tsd), &bin->lock);
 			arena_slab_dalloc(tsd_tsdn(tsd), arena, slab);
+			malloc_mutex_lock(tsd_tsdn(tsd), &bin->lock);
+		}
 		for (slab = qr_next(&bin->slabs_full, qr_link); slab !=
-		    &bin->slabs_full; slab = next) {
-			next = qr_next(slab, qr_link);
+		    &bin->slabs_full; slab = qr_next(&bin->slabs_full,
+		    qr_link)) {
+			malloc_mutex_unlock(tsd_tsdn(tsd), &bin->lock);
 			arena_slab_dalloc(tsd_tsdn(tsd), arena, slab);
+			malloc_mutex_lock(tsd_tsdn(tsd), &bin->lock);
 		}
 		if (config_stats) {
 			bin->stats.curregs = 0;
