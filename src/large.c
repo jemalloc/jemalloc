@@ -76,7 +76,11 @@ large_dalloc_junk(void *ptr, size_t usize)
 large_dalloc_junk_t *large_dalloc_junk = JEMALLOC_N(n_large_dalloc_junk);
 #endif
 
-static void
+#ifdef JEMALLOC_JET
+#undef large_dalloc_maybe_junk
+#define	large_dalloc_maybe_junk JEMALLOC_N(n_large_dalloc_maybe_junk)
+#endif
+void
 large_dalloc_maybe_junk(tsdn_t *tsdn, void *ptr, size_t usize)
 {
 
@@ -87,9 +91,14 @@ large_dalloc_maybe_junk(tsdn_t *tsdn, void *ptr, size_t usize)
 		 */
 		if (!config_munmap || (have_dss && extent_in_dss(tsdn, ptr)))
 			large_dalloc_junk(ptr, usize);
-			memset(ptr, JEMALLOC_FREE_JUNK, usize);
 	}
 }
+#ifdef JEMALLOC_JET
+#undef large_dalloc_maybe_junk
+#define	large_dalloc_maybe_junk JEMALLOC_N(large_dalloc_maybe_junk)
+large_dalloc_maybe_junk_t *large_dalloc_maybe_junk =
+    JEMALLOC_N(n_large_dalloc_maybe_junk);
+#endif
 
 static bool
 large_ralloc_no_move_shrink(tsdn_t *tsdn, extent_t *extent, size_t usize)

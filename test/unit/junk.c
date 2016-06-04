@@ -10,6 +10,7 @@ const char *malloc_conf =
 
 static arena_dalloc_junk_small_t *arena_dalloc_junk_small_orig;
 static large_dalloc_junk_t *large_dalloc_junk_orig;
+static large_dalloc_maybe_junk_t *large_dalloc_maybe_junk_orig;
 static void *watch_for_junking;
 static bool saw_junking;
 
@@ -39,13 +40,23 @@ arena_dalloc_junk_small_intercept(void *ptr, const arena_bin_info_t *bin_info)
 static void
 large_dalloc_junk_intercept(void *ptr, size_t usize)
 {
+	size_t i;
 
 	large_dalloc_junk_orig(ptr, usize);
-	/*
-	 * The conditions under which junk filling actually occurs are nuanced
-	 * enough that it doesn't make sense to duplicate the decision logic in
-	 * test code, so don't actually check that the region is junk-filled.
-	 */
+	for (i = 0; i < usize; i++) {
+		assert_u_eq(((uint8_t *)ptr)[i], JEMALLOC_FREE_JUNK,
+		    "Missing junk fill for byte %zu/%zu of deallocated region",
+		    i, usize);
+	}
+	if (ptr == watch_for_junking)
+		saw_junking = true;
+}
+
+static void
+large_dalloc_maybe_junk_intercept(tsdn_t *tsdn, void *ptr, size_t usize)
+{
+
+	large_dalloc_maybe_junk_orig(tsdn, ptr, usize);
 	if (ptr == watch_for_junking)
 		saw_junking = true;
 }
@@ -61,6 +72,8 @@ test_junk(size_t sz_min, size_t sz_max)
 		arena_dalloc_junk_small = arena_dalloc_junk_small_intercept;
 		large_dalloc_junk_orig = large_dalloc_junk;
 		large_dalloc_junk = large_dalloc_junk_intercept;
+		large_dalloc_maybe_junk_orig = large_dalloc_maybe_junk;
+		large_dalloc_maybe_junk = large_dalloc_maybe_junk_intercept;
 	}
 
 	sz_prev = 0;
@@ -111,6 +124,7 @@ test_junk(size_t sz_min, size_t sz_max)
 	if (opt_junk_free) {
 		arena_dalloc_junk_small = arena_dalloc_junk_small_orig;
 		large_dalloc_junk = large_dalloc_junk_orig;
+		large_dalloc_maybe_junk = large_dalloc_maybe_junk_orig;
 	}
 }
 

@@ -250,6 +250,7 @@ jemalloc_prefork
 large_dalloc
 large_dalloc_junk
 large_dalloc_junked_locked
+large_dalloc_maybe_junk
 large_malloc
 large_palloc
 large_prof_tctx_get
