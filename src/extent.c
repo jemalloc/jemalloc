@@ -35,8 +35,8 @@ const extent_hooks_t	extent_hooks_default = {
 };
 
 /* Used exclusively for gdump triggering. */
-static size_t	curchunks;
-static size_t	highchunks;
+static size_t	curpages;
+static size_t	highpages;
 
 /******************************************************************************/
 /*
@@ -281,16 +281,15 @@ extent_register(tsdn_t *tsdn, const extent_t *extent)
 	extent_rtree_release(tsdn, elm_a, elm_b);
 
 	if (config_prof && opt_prof && extent_active_get(extent)) {
-		size_t nadd = (extent_size_get(extent) == 0) ? 1 :
-		    extent_size_get(extent) / chunksize;
-		size_t cur = atomic_add_z(&curchunks, nadd);
-		size_t high = atomic_read_z(&highchunks);
-		while (cur > high && atomic_cas_z(&highchunks, high, cur)) {
+		size_t nadd = extent_size_get(extent) >> LG_PAGE;
+		size_t cur = atomic_add_z(&curpages, nadd);
+		size_t high = atomic_read_z(&highpages);
+		while (cur > high && atomic_cas_z(&highpages, high, cur)) {
 			/*
 			 * Don't refresh cur, because it may have decreased
-			 * since this thread lost the highchunks update race.
+			 * since this thread lost the highpages update race.
 			 */
-			high = atomic_read_z(&highchunks);
+			high = atomic_read_z(&highpages);
 		}
 		if (cur > high && prof_gdump_get_unlocked())
 			prof_gdump(tsdn);
@@ -329,10 +328,9 @@ extent_deregister(tsdn_t *tsdn, const extent_t *extent)
 	extent_rtree_release(tsdn, elm_a, elm_b);
 
 	if (config_prof && opt_prof && extent_active_get(extent)) {
-		size_t nsub = (extent_size_get(extent) == 0) ? 1 :
-		    extent_size_get(extent) / chunksize;
-		assert(atomic_read_z(&curchunks) >= nsub);
-		atomic_sub_z(&curchunks, nsub);
+		size_t nsub = extent_size_get(extent) >> LG_PAGE;
+		assert(atomic_read_z(&curpages) >= nsub);
+		atomic_sub_z(&curpages, nsub);
 	}
 }
 
