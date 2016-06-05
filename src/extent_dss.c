@@ -70,7 +70,7 @@ extent_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
     size_t alignment, bool *zero, bool *commit)
 {
 	void *ret;
-	extent_t *pad;
+	extent_t *gap;
 
 	cassert(have_dss);
 	assert(size > 0);
@@ -83,8 +83,8 @@ extent_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
 	if ((intptr_t)size < 0)
 		return (NULL);
 
-	pad = extent_alloc(tsdn, arena);
-	if (pad == NULL)
+	gap = extent_alloc(tsdn, arena);
+	if (gap == NULL)
 		return (NULL);
 
 	malloc_mutex_lock(tsdn, &dss_mtx);
@@ -95,8 +95,8 @@ extent_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
 		 * malloc.
 		 */
 		while (true) {
-			void *pad_addr, *dss_next;
-			size_t pad_size;
+			void *gap_addr, *dss_next;
+			size_t gap_size;
 			intptr_t incr;
 
 			/* Avoid an unnecessary system call. */
@@ -111,23 +111,23 @@ extent_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
 				break;
 
 			/*
-			 * Compute how much pad space (if any) is necessary to
+			 * Compute how much gap space (if any) is necessary to
 			 * satisfy alignment.  This space can be recycled for
 			 * later use.
 			 */
-			pad_addr = (void *)((uintptr_t)dss_max);
-			ret = (void *)ALIGNMENT_CEILING((uintptr_t)dss_max,
-			    alignment);
-			pad_size = (uintptr_t)ret - (uintptr_t)pad_addr;
-			if (pad_size != 0) {
-				extent_init(pad, arena, pad_addr, pad_size,
-				    pad_size, false, false, true, false);
+			gap_addr = (void *)(PAGE_CEILING((uintptr_t)dss_max));
+			ret = (void *)ALIGNMENT_CEILING((uintptr_t)gap_addr,
+			    PAGE_CEILING(alignment));
+			gap_size = (uintptr_t)ret - (uintptr_t)gap_addr;
+			if (gap_size != 0) {
+				extent_init(gap, arena, gap_addr, gap_size,
+				    gap_size, false, false, true, false);
 			}
 			dss_next = (void *)((uintptr_t)ret + size);
 			if ((uintptr_t)ret < (uintptr_t)dss_max ||
 			    (uintptr_t)dss_next < (uintptr_t)dss_max)
 				break; /* Wrap-around. */
-			incr = pad_size + size;
+			incr = gap_size + size;
 			dss_prev = extent_dss_sbrk(incr);
 			if (dss_prev == (void *)-1)
 				break;
@@ -135,13 +135,10 @@ extent_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
 				/* Success. */
 				dss_max = dss_next;
 				malloc_mutex_unlock(tsdn, &dss_mtx);
-				if (pad_size != 0) {
-					extent_hooks_t *extent_hooks =
-					    EXTENT_HOOKS_INITIALIZER;
-					extent_dalloc_wrapper(tsdn, arena,
-					    &extent_hooks, pad);
-				} else
-					extent_dalloc(tsdn, arena, pad);
+				if (gap_size != 0)
+					extent_dalloc_gap(tsdn, arena, gap);
+				else
+					extent_dalloc(tsdn, arena, gap);
 				if (*zero)
 					memset(ret, 0, size);
 				if (!*commit)
@@ -152,7 +149,7 @@ extent_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
 	}
 	/* OOM. */
 	malloc_mutex_unlock(tsdn, &dss_mtx);
-	extent_dalloc(tsdn, arena, pad);
+	extent_dalloc(tsdn, arena, gap);
 	return (NULL);
 }
 

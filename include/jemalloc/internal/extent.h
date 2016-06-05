@@ -105,6 +105,7 @@ extent_t	*extent_alloc_cache(tsdn_t *tsdn, arena_t *arena,
 extent_t	*extent_alloc_wrapper(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, void *new_addr, size_t usize, size_t pad,
     size_t alignment, bool *zero, bool *commit, bool slab);
+void	extent_dalloc_gap(tsdn_t *tsdn, arena_t *arena, extent_t *extent);
 void	extent_dalloc_cache(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, extent_t *extent);
 void	extent_dalloc_wrapper(tsdn_t *tsdn, arena_t *arena,

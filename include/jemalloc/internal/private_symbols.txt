@@ -158,6 +158,7 @@ extent_committed_get
 extent_committed_set
 extent_dalloc
 extent_dalloc_cache
+extent_dalloc_gap
 extent_dalloc_mmap
 extent_dalloc_wrapper
 extent_decommit_wrapper

@@ -733,6 +733,18 @@ extent_record(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
 }
 
 void
+extent_dalloc_gap(tsdn_t *tsdn, arena_t *arena, extent_t *extent)
+{
+	extent_hooks_t *extent_hooks = EXTENT_HOOKS_INITIALIZER;
+
+	if (extent_register(tsdn, extent)) {
+		extent_leak(tsdn, arena, &extent_hooks, false, extent);
+		return;
+	}
+	extent_dalloc_wrapper(tsdn, arena, &extent_hooks, extent);
+}
+
+void
 extent_dalloc_cache(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, extent_t *extent)
 {
