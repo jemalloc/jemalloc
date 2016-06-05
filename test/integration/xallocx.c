@@ -249,8 +249,10 @@ TEST_BEGIN(test_extra_large)
 	assert_zu_ge(xallocx(p, smallmax, 0, flags), large1,
 	    "Unexpected xallocx() behavior");
 
-	assert_zu_eq(xallocx(p, large3, 0, flags), large3,
-	    "Unexpected xallocx() behavior");
+	if (xallocx(p, large3, 0, flags) != large3) {
+		p = rallocx(p, large3, flags);
+		assert_ptr_not_null(p, "Unexpected rallocx() failure");
+	}
 	/* Test size decrease with non-zero extra. */
 	assert_zu_eq(xallocx(p, large1, large3 - large1, flags), large3,
 	    "Unexpected xallocx() behavior");
@@ -281,8 +283,10 @@ TEST_BEGIN(test_extra_large)
 	assert_zu_le(xallocx(p, large1, large3 - large1, flags), large3,
 	    "Unexpected xallocx() behavior");
 
-	assert_zu_eq(xallocx(p, large3, 0, flags), large3,
-	    "Unexpected xallocx() behavior");
+	if (xallocx(p, large3, 0, flags) != large3) {
+		p = rallocx(p, large3, flags);
+		assert_ptr_not_null(p, "Unexpected rallocx() failure");
+	}
 	/* Test size+extra overflow. */
 	assert_zu_le(xallocx(p, large3, largemax - large3 + 1, flags), largemax,
 	    "Unexpected xallocx() behavior");
@@ -360,8 +364,10 @@ test_zero(size_t szmin, size_t szmax)
 
 	for (sz = szmin; sz < szmax; sz = nsz) {
 		nsz = nallocx(sz+1, flags);
-		assert_zu_eq(xallocx(p, sz+1, 0, flags), nsz,
-		    "Unexpected xallocx() failure");
+		if (xallocx(p, sz+1, 0, flags) != nsz) {
+			p = rallocx(p, sz+1, flags);
+			assert_ptr_not_null(p, "Unexpected rallocx() failure");
+		}
 		assert_false(validate_fill(p, FILL_BYTE, 0, sz),
 		    "Memory not filled: sz=%zu", sz);
 		assert_false(validate_fill(p, 0x00, sz, nsz-sz),
