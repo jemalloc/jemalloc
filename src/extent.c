@@ -299,6 +299,13 @@ extent_register(tsdn_t *tsdn, const extent_t *extent)
 }
 
 static void
+extent_reregister(tsdn_t *tsdn, const extent_t *extent)
+{
+	bool err = extent_register(tsdn, extent);
+	assert(!err);
+}
+
+static void
 extent_interior_deregister(tsdn_t *tsdn, rtree_ctx_t *rtree_ctx,
     const extent_t *extent)
 {
@@ -314,7 +321,7 @@ extent_interior_deregister(tsdn_t *tsdn, rtree_ctx_t *rtree_ctx,
 }
 
 static void
-extent_deregister(tsdn_t *tsdn, const extent_t *extent)
+extent_deregister(tsdn_t *tsdn, extent_t *extent)
 {
 	rtree_ctx_t rtree_ctx_fallback;
 	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
@@ -323,8 +330,10 @@ extent_deregister(tsdn_t *tsdn, const extent_t *extent)
 	extent_rtree_acquire(tsdn, rtree_ctx, extent, true, false, &elm_a,
 	    &elm_b);
 	extent_rtree_write_acquired(tsdn, elm_a, elm_b, NULL);
-	if (extent_slab_get(extent))
+	if (extent_slab_get(extent)) {
 		extent_interior_deregister(tsdn, rtree_ctx, extent);
+		extent_slab_set(extent, false);
+	}
 	extent_rtree_release(tsdn, elm_a, elm_b);
 
 	if (config_prof && opt_prof && extent_active_get(extent)) {
@@ -782,14 +791,18 @@ extent_dalloc_wrapper(tsdn_t *tsdn, arena_t *arena,
 	extent_addr_set(extent, extent_base_get(extent));
 
 	extent_hooks_assure_initialized(arena, r_extent_hooks);
-	/* Try to deallocate. */
+	/*
+	 * Try to deallocate.  Deregister first to avoid a race with other
+	 * allocating threads, and reregister if deallocation fails.
+	 */
+	extent_deregister(tsdn, extent);
 	if (!(*r_extent_hooks)->dalloc(*r_extent_hooks, extent_base_get(extent),
 	    extent_size_get(extent), extent_committed_get(extent),
 	    arena->ind)) {
-		extent_deregister(tsdn, extent);
 		extent_dalloc(tsdn, arena, extent);
 		return;
 	}
+	extent_reregister(tsdn, extent);
 	/* Try to decommit; purge if that fails. */
 	if (extent_committed_get(extent)) {
 		extent_committed_set(extent,
