@@ -471,9 +471,8 @@ extent_recycle(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
 		extent_usize_set(extent, usize);
 	}
 
-	if (!extent_committed_get(extent) &&
-	    (*r_extent_hooks)->commit(*r_extent_hooks, extent_base_get(extent),
-	    extent_size_get(extent), 0, extent_size_get(extent), arena->ind)) {
+	if (!extent_committed_get(extent) && extent_commit_wrapper(tsdn, arena,
+	    r_extent_hooks, extent, 0, extent_size_get(extent))) {
 		malloc_mutex_unlock(tsdn, &arena->extents_mtx);
 		extent_record(tsdn, arena, r_extent_hooks, extent_heaps, cache,
 		    extent);
