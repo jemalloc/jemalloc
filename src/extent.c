@@ -807,10 +807,8 @@ extent_dalloc_wrapper(tsdn_t *tsdn, arena_t *arena,
 	extent_reregister(tsdn, extent);
 	/* Try to decommit; purge if that fails. */
 	if (extent_committed_get(extent)) {
-		extent_committed_set(extent,
-		    (*r_extent_hooks)->decommit(*r_extent_hooks,
-		    extent_base_get(extent), extent_size_get(extent), 0,
-		    extent_size_get(extent), arena->ind));
+		extent_decommit_wrapper(tsdn, arena, r_extent_hooks, extent,
+		    0, extent_size_get(extent));
 	}
 	extent_zeroed_set(extent, !extent_committed_get(extent) ||
 	    !(*r_extent_hooks)->purge(*r_extent_hooks, extent_base_get(extent),
@@ -839,11 +837,14 @@ extent_commit_wrapper(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, extent_t *extent, size_t offset,
     size_t length)
 {
+	bool err;
 
 	extent_hooks_assure_initialized(arena, r_extent_hooks);
-	return ((*r_extent_hooks)->commit(*r_extent_hooks,
+	err = (*r_extent_hooks)->commit(*r_extent_hooks,
 	    extent_base_get(extent), extent_size_get(extent), offset, length,
-	    arena->ind));
+	    arena->ind);
+	extent_committed_set(extent, extent_committed_get(extent) || !err);
+	return (err);
 }
 
 static bool
@@ -862,11 +863,15 @@ extent_decommit_wrapper(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, extent_t *extent, size_t offset,
     size_t length)
 {
+	bool err;
 
 	extent_hooks_assure_initialized(arena, r_extent_hooks);
-	return ((*r_extent_hooks)->decommit(*r_extent_hooks,
+
+	err = (*r_extent_hooks)->decommit(*r_extent_hooks,
 	    extent_base_get(extent), extent_size_get(extent), offset, length,
-	    arena->ind));
+	    arena->ind);
+	extent_committed_set(extent, extent_committed_get(extent) && err);
+	return (err);
 }
 
 static bool
