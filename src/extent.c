@@ -441,6 +441,7 @@ extent_recycle(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
 		    lead, leadsize, leadsize, size + trailsize, usize +
 		    trailsize);
 		if (extent == NULL) {
+			extent_deregister(tsdn, lead);
 			extent_leak(tsdn, arena, r_extent_hooks, cache, lead);
 			malloc_mutex_unlock(tsdn, &arena->extents_mtx);
 			return (NULL);
@@ -454,6 +455,7 @@ extent_recycle(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
 		extent_t *trail = extent_split_wrapper(tsdn, arena,
 		    r_extent_hooks, extent, size, usize, trailsize, trailsize);
 		if (trail == NULL) {
+			extent_deregister(tsdn, extent);
 			extent_leak(tsdn, arena, r_extent_hooks, cache,
 			    extent);
 			malloc_mutex_unlock(tsdn, &arena->extents_mtx);
@@ -961,7 +963,7 @@ extent_split_wrapper(tsdn_t *tsdn, arena_t *arena,
 
 	return (trail);
 label_error_d:
-	extent_rtree_release(tsdn, lead_elm_a, lead_elm_b);
+	extent_rtree_release(tsdn, trail_elm_a, trail_elm_b);
 label_error_c:
 	extent_rtree_release(tsdn, lead_elm_a, lead_elm_b);
 label_error_b:

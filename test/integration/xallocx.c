@@ -258,7 +258,7 @@ TEST_BEGIN(test_extra_large)
 	    "Unexpected xallocx() behavior");
 	assert_zu_eq(xallocx(p, large2, large3 - large2, flags), large3,
 	    "Unexpected xallocx() behavior");
-	assert_zu_eq(xallocx(p, large1, large2 - large1, flags), large2,
+	assert_zu_ge(xallocx(p, large1, large2 - large1, flags), large2,
 	    "Unexpected xallocx() behavior");
 	assert_zu_ge(xallocx(p, smallmax, large1 - smallmax, flags), large1,
 	    "Unexpected xallocx() behavior");
@@ -357,8 +357,10 @@ test_zero(size_t szmin, size_t szmax)
 
 	/* Shrink in place so that we can expect growing in place to succeed. */
 	sz = szmin;
-	assert_zu_eq(xallocx(p, sz, 0, flags), sz,
-	    "Unexpected xallocx() error");
+	if (xallocx(p, sz, 0, flags) != sz) {
+		p = rallocx(p, sz, flags);
+		assert_ptr_not_null(p, "Unexpected rallocx() failure");
+	}
 	assert_false(validate_fill(p, FILL_BYTE, 0, sz),
 	    "Memory not filled: sz=%zu", sz);
 
