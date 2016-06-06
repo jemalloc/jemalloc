@@ -15,6 +15,7 @@ static bool did_dalloc;
 static bool did_commit;
 static bool did_decommit;
 static bool did_purge;
+static bool tried_split;
 static bool did_split;
 static bool did_merge;
 
@@ -106,30 +107,35 @@ static bool
 extent_split(extent_hooks_t *extent_hooks, void *addr, size_t size,
     size_t size_a, size_t size_b, bool committed, unsigned arena_ind)
 {
+	bool err;
 
 	TRACE_HOOK("%s(extent_hooks=%p, addr=%p, size=%zu, size_a=%zu, "
 	    "size_b=%zu, committed=%s, arena_ind=%u)\n", __func__, extent_hooks,
 	    addr, size, size_a, size_b, committed ? "true" : "false",
 	    arena_ind);
 	assert(extent_hooks->split == extent_split);
-	did_split = true;
-	return (old_hooks->split(old_hooks, addr, size, size_a, size_b,
-	    committed, arena_ind));
+	tried_split = true;
+	err = old_hooks->split(old_hooks, addr, size, size_a, size_b, committed,
+	    arena_ind);
+	did_split = !err;
+	return (err);
 }
 
 static bool
 extent_merge(extent_hooks_t *extent_hooks, void *addr_a, size_t size_a,
     void *addr_b, size_t size_b, bool committed, unsigned arena_ind)
 {
+	bool err;
 
 	TRACE_HOOK("%s(extent_hooks=%p, addr_a=%p, size_a=%zu, addr_b=%p "
 	    "size_b=%zu, committed=%s, arena_ind=%u)\n", __func__, extent_hooks,
 	    addr_a, size_a, addr_b, size_b, committed ? "true" : "false",
 	    arena_ind);
 	assert(extent_hooks->merge == extent_merge);
-	did_merge = true;
-	return (old_hooks->merge(old_hooks, addr_a, size_a, addr_b, size_b,
-	    committed, arena_ind));
+	err = old_hooks->merge(old_hooks, addr_a, size_a, addr_b, size_b,
+	    committed, arena_ind);
+	did_merge = !err;
+	return (err);
 }
 
 TEST_BEGIN(test_extent)
@@ -199,6 +205,7 @@ TEST_BEGIN(test_extent)
 	did_dalloc = false;
 	did_decommit = false;
 	did_purge = false;
+	tried_split = false;
 	did_split = false;
 	xallocx_success_a = (xallocx(p, large0, 0, flags) == large0);
 	assert_d_eq(mallctlbymib(purge_mib, purge_miblen, NULL, NULL, NULL, 0),
@@ -208,7 +215,7 @@ TEST_BEGIN(test_extent)
 		assert_false(did_decommit, "Unexpected decommit");
 		assert_true(did_purge, "Expected purge");
 	}
-	assert_true(did_split, "Expected split");
+	assert_true(tried_split, "Expected split");
 	dallocx(p, flags);
 	do_dalloc = true;
 
@@ -219,6 +226,7 @@ TEST_BEGIN(test_extent)
 	assert_ptr_not_null(p, "Unexpected mallocx() error");
 	did_decommit = false;
 	did_commit = false;
+	tried_split = false;
 	did_split = false;
 	did_merge = false;
 	xallocx_success_b = (xallocx(p, large0, 0, flags) == large0);
@@ -227,7 +235,10 @@ TEST_BEGIN(test_extent)
 	if (xallocx_success_b)
 		assert_true(did_split, "Expected split");
 	xallocx_success_c = (xallocx(p, large0 * 2, 0, flags) == large0 * 2);
-	assert_b_eq(did_decommit, did_commit, "Expected decommit/commit match");
+	if (did_split) {
+		assert_b_eq(did_decommit, did_commit,
+		    "Expected decommit/commit match");
+	}
 	if (xallocx_success_b && xallocx_success_c)
 		assert_true(did_merge, "Expected merge");
 	dallocx(p, flags);
