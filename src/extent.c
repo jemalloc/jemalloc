@@ -561,10 +561,23 @@ extent_alloc_cache(tsdn_t *tsdn, arena_t *arena,
 }
 
 static void *
+extent_alloc_default_impl(tsdn_t *tsdn, arena_t *arena, void *new_addr,
+    size_t size, size_t alignment, bool *zero, bool *commit)
+{
+	void *ret;
+
+	ret = extent_alloc_core(tsdn, arena, new_addr, size, alignment, zero,
+	    commit, arena->dss_prec);
+	if (ret == NULL)
+		return (NULL);
+
+	return (ret);
+}
+
+static void *
 extent_alloc_default(extent_hooks_t *extent_hooks, void *new_addr, size_t size,
     size_t alignment, bool *zero, bool *commit, unsigned arena_ind)
 {
-	void *ret;
 	tsdn_t *tsdn;
 	arena_t *arena;
 
@@ -577,12 +590,9 @@ extent_alloc_default(extent_hooks_t *extent_hooks, void *new_addr, size_t size,
 	 * already.
 	 */
 	assert(arena != NULL);
-	ret = extent_alloc_core(tsdn, arena, new_addr, size, alignment, zero,
-	    commit, arena->dss_prec);
-	if (ret == NULL)
-		return (NULL);
 
-	return (ret);
+	return (extent_alloc_default_impl(tsdn, arena, new_addr, size,
+	    alignment, zero, commit));
 }
 
 static extent_t *
@@ -619,8 +629,14 @@ extent_alloc_wrapper_hard(tsdn_t *tsdn, arena_t *arena,
 	extent = extent_alloc(tsdn, arena);
 	if (extent == NULL)
 		return (NULL);
-	addr = (*r_extent_hooks)->alloc(*r_extent_hooks, new_addr, size,
-	    alignment, zero, commit, arena->ind);
+	if (*r_extent_hooks == &extent_hooks_default) {
+		/* Call directly to propagate tsdn. */
+		addr = extent_alloc_default_impl(tsdn, arena, new_addr, size,
+		    alignment, zero, commit);
+	} else {
+		addr = (*r_extent_hooks)->alloc(*r_extent_hooks, new_addr, size,
+		    alignment, zero, commit, arena->ind);
+	}
 	if (addr == NULL) {
 		extent_dalloc(tsdn, arena, extent);
 		return (NULL);
@@ -770,21 +786,33 @@ extent_dalloc_cache(tsdn_t *tsdn, arena_t *arena,
 }
 
 static bool
+extent_dalloc_default_impl(tsdn_t *tsdn, void *addr, size_t size)
+{
+
+	if (!have_dss || !extent_in_dss(tsdn, addr))
+		return (extent_dalloc_mmap(addr, size));
+	return (true);
+}
+
+
+static bool
 extent_dalloc_default(extent_hooks_t *extent_hooks, void *addr, size_t size,
     bool committed, unsigned arena_ind)
 {
+	tsdn_t *tsdn;
 
 	assert(extent_hooks == &extent_hooks_default);
 
-	if (!have_dss || !extent_in_dss(tsdn_fetch(), addr))
-		return (extent_dalloc_mmap(addr, size));
-	return (true);
+	tsdn = tsdn_fetch();
+
+	return (extent_dalloc_default_impl(tsdn, addr, size));
 }
 
 void
 extent_dalloc_wrapper(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, extent_t *extent)
 {
+	bool err;
 
 	assert(extent_base_get(extent) != NULL);
 	assert(extent_size_get(extent) != 0);
@@ -797,9 +825,17 @@ extent_dalloc_wrapper(tsdn_t *tsdn, arena_t *arena,
 	 * allocating threads, and reregister if deallocation fails.
 	 */
 	extent_deregister(tsdn, extent);
-	if (!(*r_extent_hooks)->dalloc(*r_extent_hooks, extent_base_get(extent),
-	    extent_size_get(extent), extent_committed_get(extent),
-	    arena->ind)) {
+	if (*r_extent_hooks == &extent_hooks_default) {
+		/* Call directly to propagate tsdn. */
+		err = extent_dalloc_default_impl(tsdn, extent_base_get(extent),
+		    extent_size_get(extent));
+	} else {
+		err = (*r_extent_hooks)->dalloc(*r_extent_hooks,
+		    extent_base_get(extent), extent_size_get(extent),
+		    extent_committed_get(extent), arena->ind);
+	}
+
+	if (!err) {
 		extent_dalloc(tsdn, arena, extent);
 		return;
 	}
@@ -977,35 +1013,52 @@ label_error_a:
 }
 
 static bool
-extent_merge_default(extent_hooks_t *extent_hooks, void *addr_a, size_t size_a,
-    void *addr_b, size_t size_b, bool committed, unsigned arena_ind)
+extent_merge_default_impl(tsdn_t *tsdn, void *addr_a, void *addr_b)
 {
-
-	assert(extent_hooks == &extent_hooks_default);
 
 	if (!maps_coalesce)
 		return (true);
-	if (have_dss) {
-		tsdn_t *tsdn = tsdn_fetch();
-		if (extent_in_dss(tsdn, addr_a) != extent_in_dss(tsdn, addr_b))
+	if (have_dss && extent_in_dss(tsdn, addr_a) != extent_in_dss(tsdn,
+	    addr_b))
 			return (true);
-	}
 
 	return (false);
+}
+
+static bool
+extent_merge_default(extent_hooks_t *extent_hooks, void *addr_a, size_t size_a,
+    void *addr_b, size_t size_b, bool committed, unsigned arena_ind)
+{
+	tsdn_t *tsdn;
+
+	assert(extent_hooks == &extent_hooks_default);
+
+	tsdn = tsdn_fetch();
+
+	return (extent_merge_default_impl(tsdn, addr_a, addr_b));
 }
 
 bool
 extent_merge_wrapper(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, extent_t *a, extent_t *b)
 {
+	bool err;
 	rtree_ctx_t rtree_ctx_fallback;
 	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
 	rtree_elm_t *a_elm_a, *a_elm_b, *b_elm_a, *b_elm_b;
 
 	extent_hooks_assure_initialized(arena, r_extent_hooks);
-	if ((*r_extent_hooks)->merge(*r_extent_hooks, extent_base_get(a),
-	    extent_size_get(a), extent_base_get(b), extent_size_get(b),
-	    extent_committed_get(a), arena->ind))
+	if (*r_extent_hooks == &extent_hooks_default) {
+		/* Call directly to propagate tsdn. */
+		err = extent_merge_default_impl(tsdn, extent_base_get(a),
+		    extent_base_get(b));
+	} else {
+		err = (*r_extent_hooks)->merge(*r_extent_hooks,
+		    extent_base_get(a), extent_size_get(a), extent_base_get(b),
+		    extent_size_get(b), extent_committed_get(a), arena->ind);
+	}
+
+	if (err)
 		return (true);
 
 	/*
