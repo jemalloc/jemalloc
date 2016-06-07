@@ -493,10 +493,12 @@ chunk_alloc_wrapper(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 
 		if (ret == NULL)
 			return (NULL);
+
+		if (config_valgrind && chunk_hooks->alloc !=
+		    chunk_alloc_default)
+			JEMALLOC_VALGRIND_MAKE_MEM_UNDEFINED(ret, chunksize);
 	}
 
-	if (config_valgrind && chunk_hooks->alloc != chunk_alloc_default)
-		JEMALLOC_VALGRIND_MAKE_MEM_UNDEFINED(ret, chunksize);
 	return (ret);
 }
 
