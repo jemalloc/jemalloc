@@ -4,6 +4,17 @@ brevity.  Much more detail can be found in the git revision history:
 
     https://github.com/jemalloc/jemalloc
 
+* 4.2.1 (June 8, 2016)
+
+  Bug fixes:
+  - Fix bootstrapping issues for configurations that require allocation during
+    tsd initialization (e.g. --disable-tls).  (@cferris1000, @jasone)
+  - Fix gettimeofday() version of nstime_update().  (@ronawho)
+  - Fix Valgrind regressions in calloc() and chunk_alloc_wrapper().  (@ronawho)
+  - Fix potential VM map fragmentation regression.  (@jasone)
+  - Fix opt_zero-triggered in-place huge reallocation zeroing.  (@jasone)
+  - Fix heap profiling context leaks in reallocation edge cases.  (@jasone)
+
 * 4.2.0 (May 12, 2016)
 
   New features:
