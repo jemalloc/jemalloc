@@ -1739,7 +1739,7 @@ je_calloc(size_t num, size_t size)
 		ret = ialloc_body(num_size, true, &tsdn, &usize, true);
 		ialloc_post_check(ret, tsdn, usize, "calloc", true, true);
 		UTRACE(0, num_size, ret);
-		JEMALLOC_VALGRIND_MALLOC(ret != NULL, tsdn, ret, usize, false);
+		JEMALLOC_VALGRIND_MALLOC(ret != NULL, tsdn, ret, usize, true);
 	}
 
 	return (ret);
