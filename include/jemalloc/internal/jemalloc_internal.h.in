@@ -813,7 +813,7 @@ sa2u(size_t size, size_t alignment)
 	 * Calculate the multi-page mapping that large_palloc() would need in
 	 * order to guarantee the alignment.
 	 */
-	if (usize + large_pad + PAGE_CEILING(alignment) < usize) {
+	if (usize + large_pad + PAGE_CEILING(alignment) - PAGE < usize) {
 		/* size_t overflow. */
 		return (0);
 	}
