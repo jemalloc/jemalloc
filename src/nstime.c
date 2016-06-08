@@ -128,9 +128,11 @@ nstime_update(nstime_t *time)
 		time->ns = ts.tv_sec * BILLION + ts.tv_nsec;
 	}
 #else
-	struct timeval tv;
-	gettimeofday(&tv, NULL);
-	time->ns = tv.tv_sec * BILLION + tv.tv_usec * 1000;
+	{
+		struct timeval tv;
+		gettimeofday(&tv, NULL);
+		time->ns = tv.tv_sec * BILLION + tv.tv_usec * 1000;
+	}
 #endif
 
 	/* Handle non-monotonic clocks. */

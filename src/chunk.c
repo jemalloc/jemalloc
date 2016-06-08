@@ -421,15 +421,11 @@ chunk_arena_get(tsdn_t *tsdn, unsigned arena_ind)
 }
 
 static void *
-chunk_alloc_default(void *new_addr, size_t size, size_t alignment, bool *zero,
-    bool *commit, unsigned arena_ind)
+chunk_alloc_default_impl(tsdn_t *tsdn, arena_t *arena, void *new_addr,
+    size_t size, size_t alignment, bool *zero, bool *commit)
 {
 	void *ret;
-	tsdn_t *tsdn;
-	arena_t *arena;
 
-	tsdn = tsdn_fetch();
-	arena = chunk_arena_get(tsdn, arena_ind);
 	ret = chunk_alloc_core(tsdn, arena, new_addr, size, alignment, zero,
 	    commit, arena->dss_prec);
 	if (ret == NULL)
@@ -438,6 +434,20 @@ chunk_alloc_default(void *new_addr, size_t size, size_t alignment, bool *zero,
 		JEMALLOC_VALGRIND_MAKE_MEM_UNDEFINED(ret, size);
 
 	return (ret);
+}
+
+static void *
+chunk_alloc_default(void *new_addr, size_t size, size_t alignment, bool *zero,
+    bool *commit, unsigned arena_ind)
+{
+	tsdn_t *tsdn;
+	arena_t *arena;
+
+	tsdn = tsdn_fetch();
+	arena = chunk_arena_get(tsdn, arena_ind);
+
+	return (chunk_alloc_default_impl(tsdn, arena, new_addr, size, alignment,
+	    zero, commit));
 }
 
 static void *
@@ -472,14 +482,23 @@ chunk_alloc_wrapper(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 	ret = chunk_alloc_retained(tsdn, arena, chunk_hooks, new_addr, size,
 	    alignment, zero, commit);
 	if (ret == NULL) {
-		ret = chunk_hooks->alloc(new_addr, size, alignment, zero,
-		    commit, arena->ind);
+		if (chunk_hooks->alloc == chunk_alloc_default) {
+			/* Call directly to propagate tsdn. */
+			ret = chunk_alloc_default_impl(tsdn, arena, new_addr,
+			    size, alignment, zero, commit);
+		} else {
+			ret = chunk_hooks->alloc(new_addr, size, alignment,
+			    zero, commit, arena->ind);
+		}
+
 		if (ret == NULL)
 			return (NULL);
+
+		if (config_valgrind && chunk_hooks->alloc !=
+		    chunk_alloc_default)
+			JEMALLOC_VALGRIND_MAKE_MEM_UNDEFINED(ret, chunksize);
 	}
 
-	if (config_valgrind && chunk_hooks->alloc != chunk_alloc_default)
-		JEMALLOC_VALGRIND_MAKE_MEM_UNDEFINED(ret, chunksize);
 	return (ret);
 }
 
@@ -591,19 +610,30 @@ chunk_dalloc_cache(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 }
 
 static bool
+chunk_dalloc_default_impl(tsdn_t *tsdn, void *chunk, size_t size)
+{
+
+	if (!have_dss || !chunk_in_dss(tsdn, chunk))
+		return (chunk_dalloc_mmap(chunk, size));
+	return (true);
+}
+
+static bool
 chunk_dalloc_default(void *chunk, size_t size, bool committed,
     unsigned arena_ind)
 {
+	tsdn_t *tsdn;
 
-	if (!have_dss || !chunk_in_dss(tsdn_fetch(), chunk))
-		return (chunk_dalloc_mmap(chunk, size));
-	return (true);
+	tsdn = tsdn_fetch();
+
+	return (chunk_dalloc_default_impl(tsdn, chunk, size));
 }
 
 void
 chunk_dalloc_wrapper(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
     void *chunk, size_t size, bool zeroed, bool committed)
 {
+	bool err;
 
 	assert(chunk != NULL);
 	assert(CHUNK_ADDR2BASE(chunk) == chunk);
@@ -612,7 +642,13 @@ chunk_dalloc_wrapper(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 
 	chunk_hooks_assure_initialized(tsdn, arena, chunk_hooks);
 	/* Try to deallocate. */
-	if (!chunk_hooks->dalloc(chunk, size, committed, arena->ind))
+	if (chunk_hooks->dalloc == chunk_dalloc_default) {
+		/* Call directly to propagate tsdn. */
+		err = chunk_dalloc_default_impl(tsdn, chunk, size);
+	} else
+		err = chunk_hooks->dalloc(chunk, size, committed, arena->ind);
+
+	if (!err)
 		return;
 	/* Try to decommit; purge if that fails. */
 	if (committed) {
@@ -681,26 +717,34 @@ chunk_split_default(void *chunk, size_t size, size_t size_a, size_t size_b,
 }
 
 static bool
-chunk_merge_default(void *chunk_a, size_t size_a, void *chunk_b, size_t size_b,
-    bool committed, unsigned arena_ind)
+chunk_merge_default_impl(tsdn_t *tsdn, void *chunk_a, void *chunk_b)
 {
 
 	if (!maps_coalesce)
 		return (true);
-	if (have_dss) {
-		tsdn_t *tsdn = tsdn_fetch();
-		if (chunk_in_dss(tsdn, chunk_a) != chunk_in_dss(tsdn, chunk_b))
-			return (true);
-	}
+	if (have_dss && chunk_in_dss(tsdn, chunk_a) != chunk_in_dss(tsdn,
+	    chunk_b))
+		return (true);
 
 	return (false);
+}
+
+static bool
+chunk_merge_default(void *chunk_a, size_t size_a, void *chunk_b, size_t size_b,
+    bool committed, unsigned arena_ind)
+{
+	tsdn_t *tsdn;
+
+	tsdn = tsdn_fetch();
+
+	return (chunk_merge_default_impl(tsdn, chunk_a, chunk_b));
 }
 
 static rtree_node_elm_t *
 chunks_rtree_node_alloc(size_t nelms)
 {
 
-	return ((rtree_node_elm_t *)base_alloc(tsdn_fetch(), nelms *
+	return ((rtree_node_elm_t *)base_alloc(TSDN_NULL, nelms *
 	    sizeof(rtree_node_elm_t)));
 }
 

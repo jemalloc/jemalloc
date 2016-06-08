@@ -1739,7 +1739,7 @@ je_calloc(size_t num, size_t size)
 		ret = ialloc_body(num_size, true, &tsdn, &usize, true);
 		ialloc_post_check(ret, tsdn, usize, "calloc", true, true);
 		UTRACE(0, num_size, ret);
-		JEMALLOC_VALGRIND_MALLOC(ret != NULL, tsdn, ret, usize, false);
+		JEMALLOC_VALGRIND_MALLOC(ret != NULL, tsdn, ret, usize, true);
 	}
 
 	return (ret);
@@ -2222,7 +2222,7 @@ irallocx_prof(tsd_t *tsd, void *old_ptr, size_t old_usize, size_t size,
 
 	prof_active = prof_active_get_unlocked();
 	old_tctx = prof_tctx_get(tsd_tsdn(tsd), old_ptr);
-	tctx = prof_alloc_prep(tsd, *usize, prof_active, true);
+	tctx = prof_alloc_prep(tsd, *usize, prof_active, false);
 	if (unlikely((uintptr_t)tctx != (uintptr_t)1U)) {
 		p = irallocx_prof_sample(tsd, old_ptr, old_usize, *usize,
 		    alignment, zero, tcache, arena, tctx);
@@ -2231,7 +2231,7 @@ irallocx_prof(tsd_t *tsd, void *old_ptr, size_t old_usize, size_t size,
 		    tcache, arena);
 	}
 	if (unlikely(p == NULL)) {
-		prof_alloc_rollback(tsd, tctx, true);
+		prof_alloc_rollback(tsd, tctx, false);
 		return (NULL);
 	}
 
@@ -2246,7 +2246,7 @@ irallocx_prof(tsd_t *tsd, void *old_ptr, size_t old_usize, size_t size,
 		 */
 		*usize = isalloc(tsd_tsdn(tsd), p, config_prof);
 	}
-	prof_realloc(tsd, p, *usize, tctx, prof_active, true, old_ptr,
+	prof_realloc(tsd, p, *usize, tctx, prof_active, false, old_ptr,
 	    old_usize, old_tctx);
 
 	return (p);
