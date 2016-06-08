@@ -162,7 +162,9 @@ static const bool config_cache_oblivious =
 #endif
 
 #include "jemalloc/internal/ph.h"
+#ifndef __PGI
 #define	RB_COMPACT
+#endif
 #include "jemalloc/internal/rb.h"
 #include "jemalloc/internal/qr.h"
 #include "jemalloc/internal/ql.h"
