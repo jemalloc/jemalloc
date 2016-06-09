@@ -66,8 +66,7 @@ void	atomic_write_u(unsigned *p, unsigned x);
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_ATOMIC_C_))
 /******************************************************************************/
 /* 64-bit operations. */
-#if (LG_SIZEOF_PTR == 3 || LG_SIZEOF_INT == 3)
-#  if (defined(__amd64__) || defined(__x86_64__))
+#if (defined(__amd64__) || defined(__x86_64__))
 JEMALLOC_INLINE uint64_t
 atomic_add_uint64(uint64_t *p, uint64_t x)
 {
@@ -125,7 +124,7 @@ atomic_write_uint64(uint64_t *p, uint64_t x)
 	    : "memory" /* Clobbers. */
 	    );
 }
-#  elif (defined(JEMALLOC_C11ATOMICS))
+#elif (defined(JEMALLOC_C11ATOMICS))
 JEMALLOC_INLINE uint64_t
 atomic_add_uint64(uint64_t *p, uint64_t x)
 {
@@ -153,7 +152,7 @@ atomic_write_uint64(uint64_t *p, uint64_t x)
 	volatile atomic_uint_least64_t *a = (volatile atomic_uint_least64_t *)p;
 	atomic_store(a, x);
 }
-#  elif (defined(JEMALLOC_ATOMIC9))
+#elif (defined(JEMALLOC_ATOMIC9))
 JEMALLOC_INLINE uint64_t
 atomic_add_uint64(uint64_t *p, uint64_t x)
 {
@@ -193,7 +192,7 @@ atomic_write_uint64(uint64_t *p, uint64_t x)
 
 	atomic_store_rel_long(p, x);
 }
-#  elif (defined(JEMALLOC_OSATOMIC))
+#elif (defined(JEMALLOC_OSATOMIC))
 JEMALLOC_INLINE uint64_t
 atomic_add_uint64(uint64_t *p, uint64_t x)
 {
@@ -225,7 +224,7 @@ atomic_write_uint64(uint64_t *p, uint64_t x)
 		o = atomic_read_uint64(p);
 	} while (atomic_cas_uint64(p, o, x));
 }
-#  elif (defined(_MSC_VER))
+#elif (defined(_MSC_VER))
 JEMALLOC_INLINE uint64_t
 atomic_add_uint64(uint64_t *p, uint64_t x)
 {
@@ -255,7 +254,7 @@ atomic_write_uint64(uint64_t *p, uint64_t x)
 
 	InterlockedExchange64(p, x);
 }
-#  elif (defined(__GCC_HAVE_SYNC_COMPARE_AND_SWAP_8) || \
+#elif (defined(__GCC_HAVE_SYNC_COMPARE_AND_SWAP_8) || \
     defined(JE_FORCE_SYNC_COMPARE_AND_SWAP_8))
 JEMALLOC_INLINE uint64_t
 atomic_add_uint64(uint64_t *p, uint64_t x)
@@ -284,9 +283,8 @@ atomic_write_uint64(uint64_t *p, uint64_t x)
 
 	__sync_lock_test_and_set(p, x);
 }
-#  else
-#    error "Missing implementation for 64-bit atomic operations"
-#  endif
+#else
+#  error "Missing implementation for 64-bit atomic operations"
 #endif
 
 /******************************************************************************/
