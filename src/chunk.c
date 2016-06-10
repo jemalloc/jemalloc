@@ -316,10 +316,11 @@ chunk_recycle(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 			size_t i;
 			size_t *p = (size_t *)(uintptr_t)ret;
 
-			JEMALLOC_VALGRIND_MAKE_MEM_DEFINED(ret, size);
 			for (i = 0; i < size / sizeof(size_t); i++)
 				assert(p[i] == 0);
 		}
+		if (config_valgrind)
+			JEMALLOC_VALGRIND_MAKE_MEM_DEFINED(ret, size);
 	}
 	return (ret);
 }
