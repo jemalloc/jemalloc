@@ -504,6 +504,7 @@ fi
 dnl Check for tls_model attribute support (clang 3.0 still lacks support).
 SAVED_CFLAGS="${CFLAGS}"
 JE_CFLAGS_APPEND([-Werror])
+JE_CFLAGS_APPEND([-herror_on_warning])
 JE_COMPILABLE([tls_model attribute], [],
               [static __thread int
                __attribute__((tls_model("initial-exec"), unused)) foo;
@@ -519,6 +520,7 @@ fi
 dnl Check for alloc_size attribute support.
 SAVED_CFLAGS="${CFLAGS}"
 JE_CFLAGS_APPEND([-Werror])
+JE_CFLAGS_APPEND([-herror_on_warning])
 JE_COMPILABLE([alloc_size attribute], [#include <stdlib.h>],
               [void *foo(size_t size) __attribute__((alloc_size(1)));],
               [je_cv_alloc_size])
@@ -529,6 +531,7 @@ fi
 dnl Check for format(gnu_printf, ...) attribute support.
 SAVED_CFLAGS="${CFLAGS}"
 JE_CFLAGS_APPEND([-Werror])
+JE_CFLAGS_APPEND([-herror_on_warning])
 JE_COMPILABLE([format(gnu_printf, ...) attribute], [#include <stdlib.h>],
               [void *foo(const char *format, ...) __attribute__((format(gnu_printf, 1, 2)));],
               [je_cv_format_gnu_printf])
@@ -539,6 +542,7 @@ fi
 dnl Check for format(printf, ...) attribute support.
 SAVED_CFLAGS="${CFLAGS}"
 JE_CFLAGS_APPEND([-Werror])
+JE_CFLAGS_APPEND([-herror_on_warning])
 JE_COMPILABLE([format(printf, ...) attribute], [#include <stdlib.h>],
               [void *foo(const char *format, ...) __attribute__((format(printf, 1, 2)));],
               [je_cv_format_printf])
