@@ -131,6 +131,18 @@ if test "x$GCC" != "xyes" ; then
                                [je_cv_msvc=no])])
 fi
 
+dnl check if a cray prgenv wrapper compiler is being used
+je_cv_cray_prgenv_wrapper=""
+if test "x${PE_ENV}" != "x" ; then
+  case "${CC}" in
+    CC|cc)
+	je_cv_cray_prgenv_wrapper="yes"
+	;;
+    *)
+       ;;
+  esac
+fi
+
 if test "x$CFLAGS" = "x" ; then
   no_CFLAGS="yes"
   if test "x$GCC" = "xyes" ; then
@@ -269,10 +281,15 @@ SOREV="${so}.${rev}"
 PIC_CFLAGS='-fPIC -DPIC'
 CTARGET='-o $@'
 LDTARGET='-o $@'
+TEST_LD_MODE=
 EXTRA_LDFLAGS=
 ARFLAGS='crus'
 AROUT=' $@'
 CC_MM=1
+
+if test "x$je_cv_cray_prgenv_wrapper" = "xyes" ; then
+  TEST_LD_MODE='-dynamic'
+fi
 
 AN_MAKEVAR([AR], [AC_PROG_AR])
 AN_PROGRAM([ar], [AC_PROG_AR])
@@ -432,6 +449,7 @@ AC_SUBST([SOREV])
 AC_SUBST([PIC_CFLAGS])
 AC_SUBST([CTARGET])
 AC_SUBST([LDTARGET])
+AC_SUBST([TEST_LD_MODE])
 AC_SUBST([MKLIB])
 AC_SUBST([ARFLAGS])
 AC_SUBST([AROUT])
