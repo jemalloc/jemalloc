@@ -224,22 +224,22 @@ JEMALLOC_INLINE void *
 extent_before_get(const extent_t *extent)
 {
 
-	return ((void *)(uintptr_t)extent->e_addr - PAGE);
+	return ((void *)((uintptr_t)extent->e_addr - PAGE));
 }
 
 JEMALLOC_INLINE void *
 extent_last_get(const extent_t *extent)
 {
 
-	return ((void *)(uintptr_t)extent->e_addr + extent_size_get(extent) -
-	    PAGE);
+	return ((void *)((uintptr_t)extent->e_addr + extent_size_get(extent) -
+	    PAGE));
 }
 
 JEMALLOC_INLINE void *
 extent_past_get(const extent_t *extent)
 {
 
-	return ((void *)(uintptr_t)extent->e_addr + extent_size_get(extent));
+	return ((void *)((uintptr_t)extent->e_addr + extent_size_get(extent)));
 }
 
 JEMALLOC_INLINE bool
