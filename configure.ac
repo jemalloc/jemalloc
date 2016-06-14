@@ -1279,6 +1279,20 @@ CPPFLAGS="$CPPFLAGS -D_REENTRANT"
 dnl Check whether clock_gettime(2) is in libc or librt.
 AC_SEARCH_LIBS([clock_gettime], [rt])
 
+dnl Cray wrapper compiler often adds `-lrt` when using `-static`. Check with
+dnl `-dynamic` as well in case a user tries to dynamically link in jemalloc
+if test "x$je_cv_cray_prgenv_wrapper" = "xyes" ; then
+  if test "$ac_cv_search_clock_gettime" != "-lrt"; then
+    SAVED_CFLAGS="${CFLAGS}"
+
+    unset ac_cv_search_clock_gettime
+    JE_CFLAGS_APPEND([-dynamic])
+    AC_SEARCH_LIBS([clock_gettime], [rt])
+
+    CFLAGS="${SAVED_CFLAGS}"
+  fi
+fi
+
 dnl Check if the GNU-specific secure_getenv function exists.
 AC_CHECK_FUNC([secure_getenv],
               [have_secure_getenv="1"],
