@@ -323,6 +323,10 @@ if test "x$je_cv_cray_prgenv_wrapper" = "xyes" ; then
   TEST_LD_MODE='-dynamic'
 fi
 
+if test "x${je_cv_cray}" = "xyes" ; then
+  CC_MM=
+fi
+
 AN_MAKEVAR([AR], [AC_PROG_AR])
 AN_PROGRAM([ar], [AC_PROG_AR])
 AC_DEFUN([AC_PROG_AR], [AC_CHECK_TOOL(AR, ar, :)])
