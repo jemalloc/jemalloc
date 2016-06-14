@@ -118,6 +118,7 @@ dnl If CFLAGS isn't defined, set CFLAGS to something reasonable.  Otherwise,
 dnl just prevent autoconf from molesting CFLAGS.
 CFLAGS=$CFLAGS
 AC_PROG_CC
+
 if test "x$GCC" != "xyes" ; then
   AC_CACHE_CHECK([whether compiler is MSVC],
                  [je_cv_msvc],
@@ -143,6 +144,30 @@ if test "x${PE_ENV}" != "x" ; then
   esac
 fi
 
+AC_CACHE_CHECK([whether compiler is cray],
+              [je_cv_cray],
+              [AC_COMPILE_IFELSE([AC_LANG_PROGRAM([],
+                                                  [
+#ifndef _CRAYC
+  int fail[-1];
+#endif
+])],
+                            [je_cv_cray=yes],
+                            [je_cv_cray=no])])
+
+if test "x${je_cv_cray}" = "xyes" ; then
+  AC_CACHE_CHECK([whether cray compiler version is 8.4],
+                [je_cv_cray_84],
+                [AC_COMPILE_IFELSE([AC_LANG_PROGRAM([],
+                                                      [
+#if !(_RELEASE_MAJOR == 8 && _RELEASE_MINOR == 4)
+  int fail[-1];
+#endif
+])],
+                              [je_cv_cray_84=yes],
+                              [je_cv_cray_84=no])])
+fi
+
 if test "x$CFLAGS" = "x" ; then
   no_CFLAGS="yes"
   if test "x$GCC" = "xyes" ; then
@@ -163,6 +188,13 @@ if test "x$CFLAGS" = "x" ; then
     JE_CFLAGS_APPEND([-W3])
     JE_CFLAGS_APPEND([-FS])
     CPPFLAGS="$CPPFLAGS -I${srcdir}/include/msvc_compat"
+  fi
+  if test "x$je_cv_cray" = "xyes" ; then
+    dnl cray compiler 8.4 has an inlining bug
+    if test "x$je_cv_cray_84" = "xyes" ; then
+      JE_CFLAGS_APPEND([-hipa2])
+      JE_CFLAGS_APPEND([-hnognu])
+    fi
   fi
 fi
 dnl Append EXTRA_CFLAGS to CFLAGS, if defined.
