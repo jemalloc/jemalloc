@@ -1050,6 +1050,23 @@ if test "x$enable_cache_oblivious" = "x1" ; then
 fi
 AC_SUBST([enable_cache_oblivious])
 
+
+
+JE_COMPILABLE([a program using __builtin_unreachable], [
+void foo (void) {
+  __builtin_unreachable();
+}
+], [
+	{
+		foo();
+	}
+], [je_cv_gcc_builtin_unreachable])
+if test "x${je_cv_gcc_builtin_ffsl}" = "xyes" ; then
+  AC_DEFINE([JEMALLOC_INTERNAL_UNREACHABLE], [__builtin_unreachable])
+else
+  AC_DEFINE([JEMALLOC_INTERNAL_UNREACHABLE], [abort])
+fi
+
 dnl ============================================================================
 dnl Check for  __builtin_ffsl(), then ffsl(3), and fail if neither are found.
 dnl One of those two functions should (theoretically) exist on all platforms
