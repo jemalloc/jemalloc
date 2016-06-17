@@ -189,6 +189,12 @@
 #undef JEMALLOC_TLS
 
 /*
+ * Used to mark unreachable code to quiet "end of non-void" compiler warnings.
+ * Don't use this directly; instead use unreachable() from util.h
+ */
+#undef JEMALLOC_INTERNAL_UNREACHABLE
+
+/*
  * ffs*() functions to use for bitmapping.  Don't use these directly; instead,
  * use ffs_*() from util.h.
  */
