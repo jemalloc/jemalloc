@@ -170,6 +170,12 @@
     <ClInclude Include="..\..\..\..\include\msvc_compat\C99\stdint.h">
       <Filter>Header Files\msvc_compat\C99</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\..\include\jemalloc\internal\witness.h">
+      <Filter>Header Files\internal</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\include\jemalloc\internal\smoothstep.h">
+      <Filter>Header Files\internal</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\..\src\arena.c">
@@ -245,6 +251,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\src\util.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\src\witness.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
