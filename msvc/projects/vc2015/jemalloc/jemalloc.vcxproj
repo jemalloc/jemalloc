@@ -68,11 +68,13 @@
     <ClInclude Include="..\..\..\..\include\jemalloc\internal\rb.h" />
     <ClInclude Include="..\..\..\..\include\jemalloc\internal\rtree.h" />
     <ClInclude Include="..\..\..\..\include\jemalloc\internal\size_classes.h" />
+    <ClInclude Include="..\..\..\..\include\jemalloc\internal\smoothstep.h" />
     <ClInclude Include="..\..\..\..\include\jemalloc\internal\stats.h" />
     <ClInclude Include="..\..\..\..\include\jemalloc\internal\tcache.h" />
     <ClInclude Include="..\..\..\..\include\jemalloc\internal\ticker.h" />
     <ClInclude Include="..\..\..\..\include\jemalloc\internal\tsd.h" />
     <ClInclude Include="..\..\..\..\include\jemalloc\internal\util.h" />
+    <ClInclude Include="..\..\..\..\include\jemalloc\internal\witness.h" />
     <ClInclude Include="..\..\..\..\include\jemalloc\jemalloc.h" />
     <ClInclude Include="..\..\..\..\include\jemalloc\jemalloc_defs.h" />
     <ClInclude Include="..\..\..\..\include\jemalloc\jemalloc_macros.h" />
@@ -112,6 +114,7 @@
     <ClCompile Include="..\..\..\..\src\ticker.c" />
     <ClCompile Include="..\..\..\..\src\tsd.c" />
     <ClCompile Include="..\..\..\..\src\util.c" />
+    <ClCompile Include="..\..\..\..\src\witness.c" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{8D6BB292-9E1C-413D-9F98-4864BDC1514A}</ProjectGuid>
