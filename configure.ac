@@ -195,6 +195,12 @@ if test "x$CFLAGS" = "x" ; then
       JE_CFLAGS_APPEND([-hipa2])
       JE_CFLAGS_APPEND([-hnognu])
     fi
+    if test "x$enable_cc_silence" != "xno" ; then
+      dnl ignore unreachable code warning
+      JE_CFLAGS_APPEND([-hnomessage=128])
+      dnl ignore redefinition of "malloc", "free", etc warning
+      JE_CFLAGS_APPEND([-hnomessage=1357])
+    fi
   fi
 fi
 dnl Append EXTRA_CFLAGS to CFLAGS, if defined.
