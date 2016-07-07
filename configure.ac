@@ -1020,6 +1020,32 @@ if test "x$enable_cache_oblivious" = "x1" ; then
 fi
 AC_SUBST([enable_cache_oblivious])
 
+dnl Support runtime-patching of configuration branches
+AC_ARG_ENABLE([runtime-patching],
+  [AS_HELP_STRING([--disable-runtime-patching],
+                  [Disable support for runtime-patching of configuration branches])],
+[if test "x$enable_runtime_patching" = "xno" ; then
+  enable_runtime_patching="0"
+else
+  enable_runtime_patching="1"
+fi
+],
+[enable_runtime_patching="1"]
+)
+if test "x$enable_runtime_patching" = "x1" -a "x$GCC" = "xyes"; then
+  case "${host_cpu}" in
+    i686|x86_64)
+	AC_DEFINE([JEMALLOC_RUNTIME_PATCHING], [ ])
+	;;
+    *)
+	enable_runtime_patching="0"
+	;;
+  esac
+else
+  enable_runtime_patching="0"
+fi
+AC_SUBST([enable_runtime_patching])
+
 dnl ============================================================================
 dnl Check for  __builtin_ffsl(), then ffsl(3), and fail if neither are found.
 dnl One of those two functions should (theoretically) exist on all platforms
@@ -1757,4 +1783,5 @@ AC_MSG_RESULT([munmap             : ${enable_munmap}])
 AC_MSG_RESULT([lazy_lock          : ${enable_lazy_lock}])
 AC_MSG_RESULT([tls                : ${enable_tls}])
 AC_MSG_RESULT([cache-oblivious    : ${enable_cache_oblivious}])
+AC_MSG_RESULT([runtime-patching   : ${enable_runtime_patching}])
 AC_MSG_RESULT([===============================================================================])

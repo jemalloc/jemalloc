@@ -2021,6 +2021,7 @@ prof_active_set(tsdn_t *tsdn, bool active)
 	malloc_mutex_lock(tsdn, &prof_active_mtx);
 	prof_active_old = prof_active;
 	prof_active = active;
+	malloc_patch_option(PROF_ACTIVE, &prof_active);
 	malloc_mutex_unlock(tsdn, &prof_active_mtx);
 	return (prof_active_old);
 }
@@ -2208,6 +2209,7 @@ prof_boot2(tsdn_t *tsdn)
 		lg_prof_sample = opt_lg_prof_sample;
 
 		prof_active = opt_prof_active;
+		malloc_patch_option(PROF_ACTIVE, &prof_active);
 		if (malloc_mutex_init(&prof_active_mtx, "prof_active",
 		    WITNESS_RANK_PROF_ACTIVE))
 			return (true);

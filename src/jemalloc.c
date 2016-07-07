@@ -853,6 +853,7 @@ malloc_slow_flag_init(void)
 	    | (opt_xmalloc ? flag_opt_xmalloc : 0);
 
 	malloc_slow = (malloc_slow_flags != 0);
+	malloc_patch_option(MALLOC_SLOW, &malloc_slow);
 }
 
 static void
@@ -1145,6 +1146,7 @@ malloc_conf_init(void)
 #undef CONF_HANDLE_CHAR_P
 		}
 	}
+	malloc_patch_option(OPT_PROF, &opt_prof);
 }
 
 static bool
@@ -1423,12 +1425,13 @@ ialloc_body(size_t size, bool zero, tsdn_t **tsdn, size_t *usize,
 	if (unlikely(ind >= NSIZES))
 		return (NULL);
 
-	if (config_stats || (config_prof && opt_prof)) {
+	if (config_stats ||
+	    (config_prof && malloc_OPT_PROF_default_off(&opt_prof))) {
 		*usize = index2size(ind);
 		assert(*usize > 0 && *usize <= LARGE_MAXCLASS);
 	}
 
-	if (config_prof && opt_prof)
+	if (config_prof && malloc_OPT_PROF_default_off(&opt_prof))
 		return (ialloc_prof(tsd, *usize, ind, zero, slow_path));
 
 	return (ialloc(tsd, size, ind, zero, slow_path));
@@ -1469,7 +1472,7 @@ je_malloc(size_t size)
 	if (size == 0)
 		size = 1;
 
-	if (likely(!malloc_slow)) {
+	if (likely(!malloc_MALLOC_SLOW_default_on(&malloc_slow))) {
 		ret = ialloc_body(size, false, &tsdn, &usize, false);
 		ialloc_post_check(ret, tsdn, usize, "malloc", true, false);
 	} else {
@@ -1716,7 +1719,7 @@ ifree(tsd_t *tsd, void *ptr, tcache_t *tcache, bool slow_path)
 	assert(malloc_initialized() || IS_INITIALIZER);
 
 	extent = iealloc(tsd_tsdn(tsd), ptr);
-	if (config_prof && opt_prof) {
+	if (config_prof && malloc_OPT_PROF_default_off(&opt_prof)) {
 		usize = isalloc(tsd_tsdn(tsd), extent, ptr);
 		prof_free(tsd, extent, ptr, usize);
 	} else if (config_stats)
@@ -1835,7 +1838,7 @@ je_free(void *ptr)
 	if (likely(ptr != NULL)) {
 		tsd_t *tsd = tsd_fetch();
 		witness_assert_lockless(tsd_tsdn(tsd));
-		if (likely(!malloc_slow))
+		if (likely(!malloc_MALLOC_SLOW_default_on(&malloc_slow)))
 			ifree(tsd, ptr, tcache_get(tsd, false), false);
 		else
 			ifree(tsd, ptr, tcache_get(tsd, false), true);
