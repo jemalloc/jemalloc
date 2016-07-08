@@ -246,7 +246,6 @@ register_zone(void)
 	malloc_zone_register(&zone);
 
 	do {
-		default_zone = malloc_default_zone();
 		/*
 		 * Unregister and reregister the default zone.  On OSX >= 10.6,
 		 * unregistering takes the last registered zone and places it
@@ -272,5 +271,7 @@ register_zone(void)
 			malloc_zone_unregister(purgeable_zone);
 			malloc_zone_register(purgeable_zone);
 		}
-	} while (malloc_default_zone() != &zone);
+
+		default_zone = malloc_default_zone();
+	} while (default_zone != &zone);
 }
