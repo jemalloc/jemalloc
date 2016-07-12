@@ -1095,7 +1095,7 @@ void foo (void) {
 		foo();
 	}
 ], [je_cv_gcc_builtin_unreachable])
-if test "x${je_cv_gcc_builtin_ffsl}" = "xyes" ; then
+if test "x${je_cv_gcc_builtin_unreachable}" = "xyes" ; then
   AC_DEFINE([JEMALLOC_INTERNAL_UNREACHABLE], [__builtin_unreachable])
 else
   AC_DEFINE([JEMALLOC_INTERNAL_UNREACHABLE], [abort])
