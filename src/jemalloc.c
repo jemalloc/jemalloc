@@ -1191,7 +1191,7 @@ malloc_init_hard_a0_locked()
 				abort();
 		}
 	}
-	pages_boot();
+
 	if (base_boot())
 		return (true);
 	if (chunk_boot())
@@ -1231,6 +1231,8 @@ static bool
 malloc_init_hard_a0(void)
 {
 	bool ret;
+
+	pages_boot();
 
 	malloc_mutex_lock(TSDN_NULL, &init_lock);
 	ret = malloc_init_hard_a0_locked();
@@ -1308,6 +1310,8 @@ static bool
 malloc_init_hard(void)
 {
 	tsd_t *tsd;
+
+	pages_boot();
 
 #if defined(_WIN32) && _WIN32_WINNT < 0x0600
 	_init_init_lock();
