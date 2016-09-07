@@ -61,6 +61,7 @@ MKLIB = @MKLIB@
 AR = @AR@
 ARFLAGS = @ARFLAGS@
 CC_MM = @CC_MM@
+INSTALL = @INSTALL@
 
 ifeq (macho, $(ABI))
 TEST_LIBRARY_PATH := DYLD_FALLBACK_LIBRARY_PATH="$(objroot)lib"
@@ -305,54 +306,54 @@ build_lib_static: $(STATIC_LIBS)
 build_lib: build_lib_shared build_lib_static
 
 install_bin:
-	install -d $(BINDIR)
+	$(INSTALL) -d $(BINDIR)
 	@for b in $(BINS); do \
-	echo "install -m 755 $$b $(BINDIR)"; \
-	install -m 755 $$b $(BINDIR); \
+	echo "$(INSTALL) -m 755 $$b $(BINDIR)"; \
+	$(INSTALL) -m 755 $$b $(BINDIR); \
 done
 
 install_include:
-	install -d $(INCLUDEDIR)/jemalloc
+	$(INSTALL) -d $(INCLUDEDIR)/jemalloc
 	@for h in $(C_HDRS); do \
-	echo "install -m 644 $$h $(INCLUDEDIR)/jemalloc"; \
-	install -m 644 $$h $(INCLUDEDIR)/jemalloc; \
+	echo "$(INSTALL) -m 644 $$h $(INCLUDEDIR)/jemalloc"; \
+	$(INSTALL) -m 644 $$h $(INCLUDEDIR)/jemalloc; \
 done
 
 install_lib_shared: $(DSOS)
-	install -d $(LIBDIR)
-	install -m 755 $(objroot)lib/$(LIBJEMALLOC).$(SOREV) $(LIBDIR)
+	$(INSTALL) -d $(LIBDIR)
+	$(INSTALL) -m 755 $(objroot)lib/$(LIBJEMALLOC).$(SOREV) $(LIBDIR)
 ifneq ($(SOREV),$(SO))
 	ln -sf $(LIBJEMALLOC).$(SOREV) $(LIBDIR)/$(LIBJEMALLOC).$(SO)
 endif
 
 install_lib_static: $(STATIC_LIBS)
-	install -d $(LIBDIR)
+	$(INSTALL) -d $(LIBDIR)
 	@for l in $(STATIC_LIBS); do \
-	echo "install -m 755 $$l $(LIBDIR)"; \
-	install -m 755 $$l $(LIBDIR); \
+	echo "$(INSTALL) -m 755 $$l $(LIBDIR)"; \
+	$(INSTALL) -m 755 $$l $(LIBDIR); \
 done
 
 install_lib_pc: $(PC)
-	install -d $(LIBDIR)/pkgconfig
+	$(INSTALL) -d $(LIBDIR)/pkgconfig
 	@for l in $(PC); do \
-	echo "install -m 644 $$l $(LIBDIR)/pkgconfig"; \
-	install -m 644 $$l $(LIBDIR)/pkgconfig; \
+	echo "$(INSTALL) -m 644 $$l $(LIBDIR)/pkgconfig"; \
+	$(INSTALL) -m 644 $$l $(LIBDIR)/pkgconfig; \
 done
 
 install_lib: install_lib_shared install_lib_static install_lib_pc
 
 install_doc_html:
-	install -d $(DATADIR)/doc/jemalloc$(install_suffix)
+	$(INSTALL) -d $(DATADIR)/doc/jemalloc$(install_suffix)
 	@for d in $(DOCS_HTML); do \
-	echo "install -m 644 $$d $(DATADIR)/doc/jemalloc$(install_suffix)"; \
-	install -m 644 $$d $(DATADIR)/doc/jemalloc$(install_suffix); \
+	echo "$(INSTALL) -m 644 $$d $(DATADIR)/doc/jemalloc$(install_suffix)"; \
+	$(INSTALL) -m 644 $$d $(DATADIR)/doc/jemalloc$(install_suffix); \
 done
 
 install_doc_man:
-	install -d $(MANDIR)/man3
+	$(INSTALL) -d $(MANDIR)/man3
 	@for d in $(DOCS_MAN3); do \
-	echo "install -m 644 $$d $(MANDIR)/man3"; \
-	install -m 644 $$d $(MANDIR)/man3; \
+	echo "$(INSTALL) -m 644 $$d $(MANDIR)/man3"; \
+	$(INSTALL) -m 644 $$d $(MANDIR)/man3; \
 done
 
 install_doc: install_doc_html install_doc_man
