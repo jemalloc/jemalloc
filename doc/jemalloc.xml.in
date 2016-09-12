@@ -52,7 +52,7 @@
     <title>LIBRARY</title>
     <para>This manual describes jemalloc @jemalloc_version@.  More information
     can be found at the <ulink
-    url="http://www.canonware.com/jemalloc/">jemalloc website</ulink>.</para>
+    url="http://jemalloc.net/">jemalloc website</ulink>.</para>
   </refsect1>
   <refsynopsisdiv>
     <title>SYNOPSIS</title>
