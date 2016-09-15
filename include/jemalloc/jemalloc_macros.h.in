@@ -37,7 +37,7 @@
 #  define JEMALLOC_CXX_THROW
 #endif
 
-#if _MSC_VER
+#if defined(_MSC_VER)
 #  define JEMALLOC_ATTR(s)
 #  define JEMALLOC_ALIGNED(s) __declspec(align(s))
 #  define JEMALLOC_ALLOC_SIZE(s)
