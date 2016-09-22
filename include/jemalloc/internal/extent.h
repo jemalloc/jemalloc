@@ -99,6 +99,9 @@ size_t	extent_size_quantize_ceil(size_t size);
 
 ph_proto(, extent_heap_, extent_heap_t, extent_t)
 
+extent_t	*extent_alloc_cache_locked(tsdn_t *tsdn, arena_t *arena,
+    extent_hooks_t **r_extent_hooks, void *new_addr, size_t usize, size_t pad,
+    size_t alignment, bool *zero, bool slab);
 extent_t	*extent_alloc_cache(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, void *new_addr, size_t usize, size_t pad,
     size_t alignment, bool *zero, bool slab);

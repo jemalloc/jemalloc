@@ -177,12 +177,6 @@ struct arena_s {
 	size_t			ndirty;
 
 	/*
-	 * Ring sentinel used to track unused dirty memory.  Dirty memory is
-	 * managed as an LRU of cached extents.
-	 */
-	extent_t		extents_dirty;
-
-	/*
 	 * Approximate time in seconds from the creation of a set of unused
 	 * dirty pages until an equivalent set of unused dirty pages is purged
 	 * and/or reused.
@@ -240,7 +234,12 @@ struct arena_s {
 	 */
 	extent_heap_t		extents_cached[NPSIZES];
 	extent_heap_t		extents_retained[NPSIZES];
-	/* Protects extents_cached and extents_retained. */
+	/*
+	 * Ring sentinel used to track unused dirty memory.  Dirty memory is
+	 * managed as an LRU of cached extents.
+	 */
+	extent_t		extents_dirty;
+	/* Protects extents_{cached,retained,dirty}. */
 	malloc_mutex_t		extents_mtx;
 
 	/* User-configurable extent hook functions. */
@@ -287,10 +286,10 @@ extent_t	*arena_extent_cache_alloc(tsdn_t *tsdn, arena_t *arena,
     size_t alignment, bool *zero);
 void	arena_extent_cache_dalloc(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, extent_t *extent);
-void	arena_extent_cache_maybe_insert(arena_t *arena, extent_t *extent,
-    bool cache);
-void	arena_extent_cache_maybe_remove(arena_t *arena, extent_t *extent,
-    bool cache);
+void	arena_extent_cache_maybe_insert(tsdn_t *tsdn, arena_t *arena,
+    extent_t *extent, bool cache);
+void	arena_extent_cache_maybe_remove(tsdn_t *tsdn, arena_t *arena,
+    extent_t *extent, bool cache);
 extent_t	*arena_extent_alloc_large(tsdn_t *tsdn, arena_t *arena,
     size_t usize, size_t alignment, bool *zero);
 void	arena_extent_dalloc_large(tsdn_t *tsdn, arena_t *arena,

@@ -145,6 +145,7 @@ extent_addr_randomize
 extent_addr_set
 extent_alloc
 extent_alloc_cache
+extent_alloc_cache_locked
 extent_alloc_dss
 extent_alloc_mmap
 extent_alloc_wrapper
