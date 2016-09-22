@@ -408,7 +408,8 @@ extent_recycle(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
 		if (elm != NULL) {
 			extent = rtree_elm_read_acquired(tsdn, &extents_rtree,
 			    elm);
-			if (extent != NULL && (extent_active_get(extent) ||
+			if (extent != NULL && (extent_arena_get(extent) != arena
+			    || extent_active_get(extent) ||
 			    extent_retained_get(extent) == cache))
 				extent = NULL;
 			rtree_elm_release(tsdn, &extents_rtree, elm);
