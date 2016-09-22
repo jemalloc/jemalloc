@@ -442,15 +442,16 @@ arena_bind(tsd_t *tsd, unsigned ind, bool internal)
 {
 	arena_t *arena;
 
+	if (!tsd_nominal(tsd))
+		return;
+
 	arena = arena_get(tsd_tsdn(tsd), ind, false);
 	arena_nthreads_inc(arena, internal);
 
-	if (tsd_nominal(tsd)) {
-		if (internal)
-			tsd_iarena_set(tsd, arena);
-		else
-			tsd_arena_set(tsd, arena);
-	}
+	if (internal)
+		tsd_iarena_set(tsd, arena);
+	else
+		tsd_arena_set(tsd, arena);
 }
 
 void
