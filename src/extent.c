@@ -400,6 +400,25 @@ extent_recycle(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
 
 	assert(new_addr == NULL || !slab);
 	assert(pad == 0 || !slab);
+	if (config_debug && new_addr != NULL) {
+		extent_t *prev;
+
+		/*
+		 * Non-NULL new_addr has two use cases:
+		 *
+		 *   1) Recycle a known-extant extent, e.g. during purging.
+		 *   2) Perform in-place expanding reallocation.
+		 *
+		 * Regardless of use case, new_addr must either refer to a
+		 * non-existing extent, or to the base of an extant extent,
+		 * since only active slabs support interior lookups (which of
+		 * course cannot be recycled).
+		 */
+		assert(PAGE_ADDR2BASE(new_addr) == new_addr);
+		prev = extent_lookup(tsdn, (void *)((uintptr_t)new_addr - PAGE),
+		    false);
+		assert(prev == NULL || extent_past_get(prev) == new_addr);
+	}
 
 	size = usize + pad;
 	alloc_size = s2u(size + PAGE_CEILING(alignment) - PAGE);
@@ -417,17 +436,20 @@ extent_recycle(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
 		if (elm != NULL) {
 			extent = rtree_elm_read_acquired(tsdn, &extents_rtree,
 			    elm);
-			if (extent != NULL && (extent_arena_get(extent) != arena
-			    || extent_active_get(extent) ||
-			    extent_retained_get(extent) == cache))
-				extent = NULL;
+			if (extent != NULL) {
+				assert(extent_base_get(extent) == new_addr);
+				if (extent_arena_get(extent) != arena ||
+				    extent_size_get(extent) < size ||
+				    extent_active_get(extent) ||
+				    extent_retained_get(extent) == cache)
+					extent = NULL;
+			}
 			rtree_elm_release(tsdn, &extents_rtree, elm);
 		} else
 			extent = NULL;
 	} else
 		extent = extent_first_best_fit(arena, extent_heaps, alloc_size);
-	if (extent == NULL || (new_addr != NULL && extent_size_get(extent) <
-	    size)) {
+	if (extent == NULL) {
 		if (!locked)
 			malloc_mutex_unlock(tsdn, &arena->extents_mtx);
 		return (NULL);
