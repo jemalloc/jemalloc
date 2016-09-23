@@ -383,6 +383,8 @@ arena_extent_dalloc_large(tsdn_t *tsdn, arena_t *arena, extent_t *extent,
 
 	if (!locked)
 		malloc_mutex_lock(tsdn, &arena->lock);
+	else
+		malloc_mutex_assert_owner(tsdn, &arena->lock);
 	if (config_stats) {
 		arena_large_dalloc_stats_update(arena,
 		    extent_usize_get(extent));

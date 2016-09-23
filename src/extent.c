@@ -356,10 +356,12 @@ extent_deregister(tsdn_t *tsdn, extent_t *extent)
  * fits.
  */
 static extent_t *
-extent_first_best_fit(arena_t *arena, extent_heap_t extent_heaps[NPSIZES],
-    size_t size)
+extent_first_best_fit(tsdn_t *tsdn, arena_t *arena,
+    extent_heap_t extent_heaps[NPSIZES], size_t size)
 {
 	pszind_t pind, i;
+
+	malloc_mutex_assert_owner(tsdn, &arena->extents_mtx);
 
 	pind = psz2ind(extent_size_quantize_ceil(size));
 	for (i = pind; i < NPSIZES; i++) {
@@ -398,6 +400,8 @@ extent_recycle(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
 	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
 	size_t size, alloc_size, leadsize, trailsize;
 
+	if (locked)
+		malloc_mutex_assert_owner(tsdn, &arena->extents_mtx);
 	assert(new_addr == NULL || !slab);
 	assert(pad == 0 || !slab);
 	if (config_debug && new_addr != NULL) {
@@ -447,8 +451,10 @@ extent_recycle(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
 			rtree_elm_release(tsdn, &extents_rtree, elm);
 		} else
 			extent = NULL;
-	} else
-		extent = extent_first_best_fit(arena, extent_heaps, alloc_size);
+	} else {
+		extent = extent_first_best_fit(tsdn, arena, extent_heaps,
+		    alloc_size);
+	}
 	if (extent == NULL) {
 		if (!locked)
 			malloc_mutex_unlock(tsdn, &arena->extents_mtx);
@@ -586,8 +592,6 @@ extent_alloc_cache_impl(tsdn_t *tsdn, arena_t *arena,
 
 	assert(usize + pad != 0);
 	assert(alignment != 0);
-	if (locked)
-		malloc_mutex_assert_owner(tsdn, &arena->extents_mtx);
 
 	commit = true;
 	extent = extent_recycle(tsdn, arena, r_extent_hooks,
