@@ -281,18 +281,21 @@ large_ralloc(tsdn_t *tsdn, arena_t *arena, extent_t *extent, size_t usize,
 	return (ret);
 }
 
+/*
+ * junked_locked indicates whether the extent's data have been junk-filled, and
+ * whether the arena's lock is currently held.  The arena's large_mtx is
+ * independent of these considerations.
+ */
 static void
 large_dalloc_impl(tsdn_t *tsdn, extent_t *extent, bool junked_locked)
 {
 	arena_t *arena;
 
 	arena = extent_arena_get(extent);
-	if (!junked_locked)
-		malloc_mutex_lock(tsdn, &arena->large_mtx);
+	malloc_mutex_lock(tsdn, &arena->large_mtx);
 	ql_remove(&arena->large, extent, ql_link);
+	malloc_mutex_unlock(tsdn, &arena->large_mtx);
 	if (!junked_locked) {
-		malloc_mutex_unlock(tsdn, &arena->large_mtx);
-
 		large_dalloc_maybe_junk(tsdn, extent_addr_get(extent),
 		    extent_usize_get(extent));
 	}
