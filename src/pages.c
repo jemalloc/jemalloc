@@ -219,6 +219,7 @@ os_overcommits_proc(void)
 		return (false); /* Error. */
 
 	nread = read(fd, &buf, sizeof(buf));
+	close(fd);
 	if (nread < 1)
 		return (false); /* Error. */
 	/*
