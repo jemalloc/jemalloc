@@ -1186,14 +1186,13 @@ thread_arena_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
 	if (oldarena == NULL)
 		return (EAGAIN);
 
-	malloc_mutex_lock(tsd_tsdn(tsd), &ctl_mtx);
 	newind = oldind = oldarena->ind;
 	WRITE(newind, unsigned);
 	READ(oldind, unsigned);
 	if (newind != oldind) {
 		arena_t *newarena;
 
-		if (newind >= ctl_stats.narenas) {
+		if (newind >= narenas_total_get()) {
 			/* New arena index is out of range. */
 			ret = EFAULT;
 			goto label_return;
@@ -1218,7 +1217,6 @@ thread_arena_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
 
 	ret = 0;
 label_return:
-	malloc_mutex_unlock(tsd_tsdn(tsd), &ctl_mtx);
 	return (ret);
 }
 
