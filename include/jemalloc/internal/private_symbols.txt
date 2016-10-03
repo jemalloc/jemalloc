@@ -395,6 +395,8 @@ prof_thread_active_set
 prof_thread_name_get
 prof_thread_name_set
 psz2ind
+psz2ind_clamp
+psz2ind_impl
 psz2u
 purge_mode_names
 register_zone

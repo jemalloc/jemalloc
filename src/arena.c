@@ -769,8 +769,8 @@ arena_stash_dirty(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
 		/* Allocate. */
 		zero = false;
 		textent = extent_alloc_cache_locked(tsdn, arena, r_extent_hooks,
-		    extent_base_get(extent), extent_size_get(extent), 0,
-		    CACHELINE, &zero, false);
+		    extent_base_get(extent), extent_size_get(extent), 0, PAGE,
+		    &zero, false);
 		assert(textent == extent);
 		assert(zero == extent_zeroed_get(extent));
 		extent_ring_remove(extent);

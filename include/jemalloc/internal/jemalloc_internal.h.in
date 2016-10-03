@@ -516,7 +516,9 @@ void	jemalloc_postfork_child(void);
 #include "jemalloc/internal/large.h"
 
 #ifndef JEMALLOC_ENABLE_INLINE
+pszind_t	psz2ind_impl(size_t psz, bool clamp);
 pszind_t	psz2ind(size_t psz);
+pszind_t	psz2ind_clamp(size_t psz);
 size_t	pind2sz_compute(pszind_t pind);
 size_t	pind2sz_lookup(pszind_t pind);
 size_t	pind2sz(pszind_t pind);
@@ -541,12 +543,12 @@ ticker_t	*decay_ticker_get(tsd_t *tsd, unsigned ind);
 #endif
 
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_C_))
-JEMALLOC_INLINE pszind_t
-psz2ind(size_t psz)
+JEMALLOC_ALWAYS_INLINE pszind_t
+psz2ind_impl(size_t psz, bool clamp)
 {
 
 	if (unlikely(psz > LARGE_MAXCLASS))
-		return (NPSIZES);
+		return (clamp ? NPSIZES-1 : NPSIZES);
 	{
 		pszind_t x = lg_floor((psz<<1)-1);
 		pszind_t shift = (x < LG_SIZE_CLASS_GROUP + LG_PAGE) ? 0 : x -
@@ -563,6 +565,20 @@ psz2ind(size_t psz)
 		pszind_t ind = grp + mod;
 		return (ind);
 	}
+}
+
+JEMALLOC_INLINE pszind_t
+psz2ind(size_t psz)
+{
+
+	return (psz2ind_impl(psz, false));
+}
+
+JEMALLOC_INLINE pszind_t
+psz2ind_clamp(size_t psz)
+{
+
+	return (psz2ind_impl(psz, true));
 }
 
 JEMALLOC_INLINE size_t
