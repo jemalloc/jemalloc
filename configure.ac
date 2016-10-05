@@ -384,7 +384,7 @@ case "${host}" in
 	abi="elf"
 	AC_DEFINE([JEMALLOC_PURGE_MADVISE_FREE], [ ])
 	;;
-  *-*-linux*)
+  *-*-linux* | *-*-kfreebsd*)
 	CFLAGS="$CFLAGS"
 	CPPFLAGS="$CPPFLAGS -D_GNU_SOURCE"
 	abi="elf"
