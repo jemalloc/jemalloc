@@ -345,11 +345,11 @@ dnl
 dnl Define cpp macros in CPPFLAGS, rather than doing AC_DEFINE(macro), since the
 dnl definitions need to be seen before any headers are included, which is a pain
 dnl to make happen otherwise.
+CFLAGS="$CFLAGS"
 default_munmap="1"
 maps_coalesce="1"
 case "${host}" in
   *-*-darwin* | *-*-ios*)
-	CFLAGS="$CFLAGS"
 	abi="macho"
 	AC_DEFINE([JEMALLOC_PURGE_MADVISE_FREE], [ ])
 	RPATH=""
@@ -362,30 +362,26 @@ case "${host}" in
 	sbrk_deprecated="1"
 	;;
   *-*-freebsd*)
-	CFLAGS="$CFLAGS"
 	abi="elf"
 	AC_DEFINE([JEMALLOC_SYSCTL_VM_OVERCOMMIT], [ ])
 	AC_DEFINE([JEMALLOC_PURGE_MADVISE_FREE], [ ])
 	force_lazy_lock="1"
 	;;
   *-*-dragonfly*)
-	CFLAGS="$CFLAGS"
 	abi="elf"
 	AC_DEFINE([JEMALLOC_PURGE_MADVISE_FREE], [ ])
 	;;
   *-*-openbsd*)
-	CFLAGS="$CFLAGS"
 	abi="elf"
 	AC_DEFINE([JEMALLOC_PURGE_MADVISE_FREE], [ ])
 	force_tls="0"
 	;;
   *-*-bitrig*)
-	CFLAGS="$CFLAGS"
 	abi="elf"
 	AC_DEFINE([JEMALLOC_PURGE_MADVISE_FREE], [ ])
 	;;
   *-*-linux*)
-	CFLAGS="$CFLAGS"
+	dnl secure_getenv() is exposed by _GNU_SOURCE.
 	CPPFLAGS="$CPPFLAGS -D_GNU_SOURCE"
 	abi="elf"
 	AC_DEFINE([JEMALLOC_HAS_ALLOCA_H])
@@ -404,13 +400,12 @@ case "${host}" in
 #error aout
 #endif
 ]])],
-                          [CFLAGS="$CFLAGS"; abi="elf"],
+                          [abi="elf"],
                           [abi="aout"])
 	AC_MSG_RESULT([$abi])
 	AC_DEFINE([JEMALLOC_PURGE_MADVISE_FREE], [ ])
 	;;
   *-*-solaris2*)
-	CFLAGS="$CFLAGS"
 	abi="elf"
 	AC_DEFINE([JEMALLOC_PURGE_MADVISE_FREE], [ ])
 	RPATH='-Wl,-R,$(1)'
@@ -1307,6 +1302,44 @@ if test "x$je_cv_cray_prgenv_wrapper" = "xyes" ; then
 
     CFLAGS="${SAVED_CFLAGS}"
   fi
+fi
+
+dnl check for CLOCK_MONOTONIC_RAW (Linux-specific).
+JE_COMPILABLE([clock_gettime(CLOCK_MONOTONIC_RAW, ...)], [
+#include <time.h>
+], [
+	struct timespec ts;
+
+	clock_gettime(CLOCK_MONOTONIC_RAW, &ts);
+], [je_cv_clock_monotonic_raw])
+if test "x${je_cv_clock_monotonic_raw}" = "xyes" ; then
+  AC_DEFINE([JEMALLOC_HAVE_CLOCK_MONOTONIC_RAW])
+fi
+
+dnl check for CLOCK_MONOTONIC.
+JE_COMPILABLE([clock_gettime(CLOCK_MONOTONIC, ...)], [
+#include <unistd.h>
+#include <time.h>
+], [
+	struct timespec ts;
+
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+#if !defined(_POSIX_MONOTONIC_CLOCK) || _POSIX_MONOTONIC_CLOCK < 0
+#  error _POSIX_MONOTONIC_CLOCK missing/invalid
+#endif
+], [je_cv_clock_monotonic])
+if test "x${je_cv_clock_monotonic}" = "xyes" ; then
+  AC_DEFINE([JEMALLOC_HAVE_CLOCK_MONOTONIC])
+fi
+
+dnl Check for mach_absolute_time().
+JE_COMPILABLE([mach_absolute_time()], [
+#include <mach/mach_time.h>
+], [
+	mach_absolute_time();
+], [je_cv_mach_absolute_time])
+if test "x${je_cv_mach_absolute_time}" = "xyes" ; then
+  AC_DEFINE([JEMALLOC_HAVE_MACH_ABSOLUTE_TIME])
 fi
 
 dnl Check if the GNU-specific secure_getenv function exists.

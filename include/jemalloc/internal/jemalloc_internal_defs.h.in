@@ -77,6 +77,21 @@
 #undef JEMALLOC_HAVE_ISSETUGID
 
 /*
+ * Defined if clock_gettime(CLOCK_MONOTONIC_RAW, ...) is available.
+ */
+#undef JEMALLOC_HAVE_CLOCK_MONOTONIC_RAW
+
+/*
+ * Defined if clock_gettime(CLOCK_MONOTONIC, ...) is available.
+ */
+#undef JEMALLOC_HAVE_CLOCK_MONOTONIC
+
+/*
+ * Defined if mach_absolute_time() is available.
+ */
+#undef JEMALLOC_HAVE_MACH_ABSOLUTE_TIME
+
+/*
  * Defined if _malloc_thread_cleanup() exists.  At least in the case of
  * FreeBSD, pthread_key_create() allocates, which if used during malloc
  * bootstrapping will cause recursion into the pthreads library.  Therefore, if
