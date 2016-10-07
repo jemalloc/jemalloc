@@ -19,6 +19,10 @@
 #  include <pthread.h>
 #  include <errno.h>
 #  include <sys/time.h>
+#  include <time.h>
+#  ifdef JEMALLOC_HAVE_MACH_ABSOLUTE_TIME
+#    include <mach/mach_time.h>
+#  endif
 #endif
 #include <sys/types.h>
 
