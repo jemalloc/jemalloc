@@ -31,6 +31,7 @@ typedef enum {
 
 typedef struct arena_slab_data_s arena_slab_data_t;
 typedef struct arena_bin_info_s arena_bin_info_t;
+typedef struct arena_decay_s arena_decay_t;
 typedef struct arena_bin_s arena_bin_t;
 typedef struct arena_s arena_t;
 typedef struct arena_tdata_s arena_tdata_t;
@@ -87,6 +88,56 @@ struct arena_bin_info_s {
 	 * bin.
 	 */
 	bitmap_info_t		bitmap_info;
+};
+
+struct arena_decay_s {
+	/*
+	 * Approximate time in seconds from the creation of a set of unused
+	 * dirty pages until an equivalent set of unused dirty pages is purged
+	 * and/or reused.
+	 */
+	ssize_t			time;
+	/* decay_time / SMOOTHSTEP_NSTEPS. */
+	nstime_t		interval;
+	/*
+	 * Time at which the current decay interval logically started.  We do
+	 * not actually advance to a new epoch until sometime after it starts
+	 * because of scheduling and computation delays, and it is even possible
+	 * to completely skip epochs.  In all cases, during epoch advancement we
+	 * merge all relevant activity into the most recently recorded epoch.
+	 */
+	nstime_t		epoch;
+	/* decay_deadline randomness generator. */
+	uint64_t		jitter_state;
+	/*
+	 * Deadline for current epoch.  This is the sum of decay_interval and
+	 * per epoch jitter which is a uniform random variable in
+	 * [0..decay_interval).  Epochs always advance by precise multiples of
+	 * decay_interval, but we randomize the deadline to reduce the
+	 * likelihood of arenas purging in lockstep.
+	 */
+	nstime_t		deadline;
+	/*
+	 * Number of dirty pages at beginning of current epoch.  During epoch
+	 * advancement we use the delta between decay_ndirty and ndirty to
+	 * determine how many dirty pages, if any, were generated, and record
+	 * the result in decay_backlog.
+	 */
+	size_t			ndirty;
+	/*
+	 * Memoized result of arena_decay_backlog_npages_limit() corresponding
+	 * to the current contents of decay_backlog, i.e. the limit on how many
+	 * pages are allowed to exist for the decay epochs.
+	 */
+	size_t			backlog_npages_limit;
+	/*
+	 * Trailing log of how many unused dirty pages were generated during
+	 * each of the past SMOOTHSTEP_NSTEPS decay epochs, where the last
+	 * element is the most recent epoch.  Corresponding epoch times are
+	 * relative to decay_epoch.
+	 */
+	size_t			backlog[SMOOTHSTEP_NSTEPS];
+
 };
 
 struct arena_bin_s {
@@ -176,52 +227,8 @@ struct arena_s {
 	 */
 	size_t			ndirty;
 
-	/*
-	 * Approximate time in seconds from the creation of a set of unused
-	 * dirty pages until an equivalent set of unused dirty pages is purged
-	 * and/or reused.
-	 */
-	ssize_t			decay_time;
-	/* decay_time / SMOOTHSTEP_NSTEPS. */
-	nstime_t		decay_interval;
-	/*
-	 * Time at which the current decay interval logically started.  We do
-	 * not actually advance to a new epoch until sometime after it starts
-	 * because of scheduling and computation delays, and it is even possible
-	 * to completely skip epochs.  In all cases, during epoch advancement we
-	 * merge all relevant activity into the most recently recorded epoch.
-	 */
-	nstime_t		decay_epoch;
-	/* decay_deadline randomness generator. */
-	uint64_t		decay_jitter_state;
-	/*
-	 * Deadline for current epoch.  This is the sum of decay_interval and
-	 * per epoch jitter which is a uniform random variable in
-	 * [0..decay_interval).  Epochs always advance by precise multiples of
-	 * decay_interval, but we randomize the deadline to reduce the
-	 * likelihood of arenas purging in lockstep.
-	 */
-	nstime_t		decay_deadline;
-	/*
-	 * Number of dirty pages at beginning of current epoch.  During epoch
-	 * advancement we use the delta between decay_ndirty and ndirty to
-	 * determine how many dirty pages, if any, were generated, and record
-	 * the result in decay_backlog.
-	 */
-	size_t			decay_ndirty;
-	/*
-	 * Memoized result of arena_decay_backlog_npages_limit() corresponding
-	 * to the current contents of decay_backlog, i.e. the limit on how many
-	 * pages are allowed to exist for the decay epochs.
-	 */
-	size_t			decay_backlog_npages_limit;
-	/*
-	 * Trailing log of how many unused dirty pages were generated during
-	 * each of the past SMOOTHSTEP_NSTEPS decay epochs, where the last
-	 * element is the most recent epoch.  Corresponding epoch times are
-	 * relative to decay_epoch.
-	 */
-	size_t			decay_backlog[SMOOTHSTEP_NSTEPS];
+	/* Decay-based purging state. */
+	arena_decay_t		decay;
 
 	/* Extant large allocations. */
 	ql_head(extent_t)	large;

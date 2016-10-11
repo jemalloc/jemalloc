@@ -474,14 +474,14 @@ arena_decay_deadline_init(arena_t *arena)
 	 * Generate a new deadline that is uniformly random within the next
 	 * epoch after the current one.
 	 */
-	nstime_copy(&arena->decay_deadline, &arena->decay_epoch);
-	nstime_add(&arena->decay_deadline, &arena->decay_interval);
-	if (arena->decay_time > 0) {
+	nstime_copy(&arena->decay.deadline, &arena->decay.epoch);
+	nstime_add(&arena->decay.deadline, &arena->decay.interval);
+	if (arena->decay.time > 0) {
 		nstime_t jitter;
 
-		nstime_init(&jitter, prng_range(&arena->decay_jitter_state,
-		    nstime_ns(&arena->decay_interval), false));
-		nstime_add(&arena->decay_deadline, &jitter);
+		nstime_init(&jitter, prng_range(&arena->decay.jitter_state,
+		    nstime_ns(&arena->decay.interval), false));
+		nstime_add(&arena->decay.deadline, &jitter);
 	}
 }
 
@@ -491,7 +491,7 @@ arena_decay_deadline_reached(const arena_t *arena, const nstime_t *time)
 
 	assert(opt_purge == purge_mode_decay);
 
-	return (nstime_compare(&arena->decay_deadline, time) <= 0);
+	return (nstime_compare(&arena->decay.deadline, time) <= 0);
 }
 
 static size_t
@@ -516,7 +516,7 @@ arena_decay_backlog_npages_limit(const arena_t *arena)
 	 */
 	sum = 0;
 	for (i = 0; i < SMOOTHSTEP_NSTEPS; i++)
-		sum += arena->decay_backlog[i] * h_steps[i];
+		sum += arena->decay.backlog[i] * h_steps[i];
 	npages_limit_backlog = (size_t)(sum >> SMOOTHSTEP_BFP);
 
 	return (npages_limit_backlog);
@@ -533,39 +533,39 @@ arena_decay_epoch_advance(arena_t *arena, const nstime_t *time)
 	assert(arena_decay_deadline_reached(arena, time));
 
 	nstime_copy(&delta, time);
-	nstime_subtract(&delta, &arena->decay_epoch);
-	nadvance_u64 = nstime_divide(&delta, &arena->decay_interval);
+	nstime_subtract(&delta, &arena->decay.epoch);
+	nadvance_u64 = nstime_divide(&delta, &arena->decay.interval);
 	assert(nadvance_u64 > 0);
 
 	/* Add nadvance_u64 decay intervals to epoch. */
-	nstime_copy(&delta, &arena->decay_interval);
+	nstime_copy(&delta, &arena->decay.interval);
 	nstime_imultiply(&delta, nadvance_u64);
-	nstime_add(&arena->decay_epoch, &delta);
+	nstime_add(&arena->decay.epoch, &delta);
 
 	/* Set a new deadline. */
 	arena_decay_deadline_init(arena);
 
 	/* Update the backlog. */
 	if (nadvance_u64 >= SMOOTHSTEP_NSTEPS) {
-		memset(arena->decay_backlog, 0, (SMOOTHSTEP_NSTEPS-1) *
+		memset(arena->decay.backlog, 0, (SMOOTHSTEP_NSTEPS-1) *
 		    sizeof(size_t));
 	} else {
 		size_t nadvance_z = (size_t)nadvance_u64;
 
 		assert((uint64_t)nadvance_z == nadvance_u64);
 
-		memmove(arena->decay_backlog, &arena->decay_backlog[nadvance_z],
+		memmove(arena->decay.backlog, &arena->decay.backlog[nadvance_z],
 		    (SMOOTHSTEP_NSTEPS - nadvance_z) * sizeof(size_t));
 		if (nadvance_z > 1) {
-			memset(&arena->decay_backlog[SMOOTHSTEP_NSTEPS -
+			memset(&arena->decay.backlog[SMOOTHSTEP_NSTEPS -
 			    nadvance_z], 0, (nadvance_z-1) * sizeof(size_t));
 		}
 	}
-	ndirty_delta = (arena->ndirty > arena->decay_ndirty) ? arena->ndirty -
-	    arena->decay_ndirty : 0;
-	arena->decay_ndirty = arena->ndirty;
-	arena->decay_backlog[SMOOTHSTEP_NSTEPS-1] = ndirty_delta;
-	arena->decay_backlog_npages_limit =
+	ndirty_delta = (arena->ndirty > arena->decay.ndirty) ? arena->ndirty -
+	    arena->decay.ndirty : 0;
+	arena->decay.ndirty = arena->ndirty;
+	arena->decay.backlog[SMOOTHSTEP_NSTEPS-1] = ndirty_delta;
+	arena->decay.backlog_npages_limit =
 	    arena_decay_backlog_npages_limit(arena);
 }
 
@@ -576,11 +576,11 @@ arena_decay_npages_limit(arena_t *arena)
 
 	assert(opt_purge == purge_mode_decay);
 
-	npages_limit = arena->decay_backlog_npages_limit;
+	npages_limit = arena->decay.backlog_npages_limit;
 
 	/* Add in any dirty pages created during the current epoch. */
-	if (arena->ndirty > arena->decay_ndirty)
-		npages_limit += arena->ndirty - arena->decay_ndirty;
+	if (arena->ndirty > arena->decay.ndirty)
+		npages_limit += arena->ndirty - arena->decay.ndirty;
 
 	return (npages_limit);
 }
@@ -589,19 +589,19 @@ static void
 arena_decay_init(arena_t *arena, ssize_t decay_time)
 {
 
-	arena->decay_time = decay_time;
+	arena->decay.time = decay_time;
 	if (decay_time > 0) {
-		nstime_init2(&arena->decay_interval, decay_time, 0);
-		nstime_idivide(&arena->decay_interval, SMOOTHSTEP_NSTEPS);
+		nstime_init2(&arena->decay.interval, decay_time, 0);
+		nstime_idivide(&arena->decay.interval, SMOOTHSTEP_NSTEPS);
 	}
 
-	nstime_init(&arena->decay_epoch, 0);
-	nstime_update(&arena->decay_epoch);
-	arena->decay_jitter_state = (uint64_t)(uintptr_t)arena;
+	nstime_init(&arena->decay.epoch, 0);
+	nstime_update(&arena->decay.epoch);
+	arena->decay.jitter_state = (uint64_t)(uintptr_t)arena;
 	arena_decay_deadline_init(arena);
-	arena->decay_ndirty = arena->ndirty;
-	arena->decay_backlog_npages_limit = 0;
-	memset(arena->decay_backlog, 0, SMOOTHSTEP_NSTEPS * sizeof(size_t));
+	arena->decay.ndirty = arena->ndirty;
+	arena->decay.backlog_npages_limit = 0;
+	memset(arena->decay.backlog, 0, SMOOTHSTEP_NSTEPS * sizeof(size_t));
 }
 
 static bool
@@ -621,7 +621,7 @@ arena_decay_time_get(tsdn_t *tsdn, arena_t *arena)
 	ssize_t decay_time;
 
 	malloc_mutex_lock(tsdn, &arena->lock);
-	decay_time = arena->decay_time;
+	decay_time = arena->decay.time;
 	malloc_mutex_unlock(tsdn, &arena->lock);
 
 	return (decay_time);
@@ -687,16 +687,16 @@ arena_maybe_purge_decay(tsdn_t *tsdn, arena_t *arena)
 	assert(opt_purge == purge_mode_decay);
 
 	/* Purge all or nothing if the option is disabled. */
-	if (arena->decay_time <= 0) {
-		if (arena->decay_time == 0)
+	if (arena->decay.time <= 0) {
+		if (arena->decay.time == 0)
 			arena_purge_to_limit(tsdn, arena, 0);
 		return;
 	}
 
-	nstime_copy(&time, &arena->decay_epoch);
+	nstime_copy(&time, &arena->decay.epoch);
 	if (unlikely(nstime_update(&time))) {
 		/* Time went backwards.  Force an epoch advance. */
-		nstime_copy(&time, &arena->decay_deadline);
+		nstime_copy(&time, &arena->decay.deadline);
 	}
 
 	if (arena_decay_deadline_reached(arena, &time))
@@ -1671,7 +1671,7 @@ arena_basic_stats_merge_locked(arena_t *arena, unsigned *nthreads,
 	*nthreads += arena_nthreads_get(arena, false);
 	*dss = dss_prec_names[arena->dss_prec];
 	*lg_dirty_mult = arena->lg_dirty_mult;
-	*decay_time = arena->decay_time;
+	*decay_time = arena->decay.time;
 	*nactive += arena->nactive;
 	*ndirty += arena->ndirty;
 }
