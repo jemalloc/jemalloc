@@ -7,13 +7,13 @@ static nstime_update_t *nstime_update_orig;
 
 static unsigned nupdates_mock;
 static nstime_t time_mock;
-static bool nonmonotonic_mock;
+static bool monotonic_mock;
 
 static bool
 nstime_monotonic_mock(void)
 {
 
-	return (false);
+	return (monotonic_mock);
 }
 
 static bool
@@ -21,9 +21,9 @@ nstime_update_mock(nstime_t *time)
 {
 
 	nupdates_mock++;
-	if (!nonmonotonic_mock)
+	if (monotonic_mock)
 		nstime_copy(time, &time_mock);
-	return (nonmonotonic_mock);
+	return (!monotonic_mock);
 }
 
 TEST_BEGIN(test_decay_ticks)
@@ -250,9 +250,11 @@ TEST_BEGIN(test_decay_ticker)
 	nupdates_mock = 0;
 	nstime_init(&time_mock, 0);
 	nstime_update(&time_mock);
-	nonmonotonic_mock = false;
+	monotonic_mock = true;
 
+	nstime_monotonic_orig = nstime_monotonic;
 	nstime_update_orig = nstime_update;
+	nstime_monotonic = nstime_monotonic_mock;
 	nstime_update = nstime_update_mock;
 
 	for (i = 0; i < NPS; i++) {
@@ -264,6 +266,7 @@ TEST_BEGIN(test_decay_ticker)
 		    "Expected nstime_update() to be called");
 	}
 
+	nstime_monotonic = nstime_monotonic_orig;
 	nstime_update = nstime_update_orig;
 
 	nstime_init(&time, 0);
@@ -321,7 +324,7 @@ TEST_BEGIN(test_decay_nonmonotonic)
 	nupdates_mock = 0;
 	nstime_init(&time_mock, 0);
 	nstime_update(&time_mock);
-	nonmonotonic_mock = true;
+	monotonic_mock = false;
 
 	nstime_monotonic_orig = nstime_monotonic;
 	nstime_update_orig = nstime_update;
