@@ -1236,11 +1236,41 @@ arena_decay_backlog_npages_limit(const arena_t *arena)
 }
 
 static void
-arena_decay_epoch_advance(arena_t *arena, const nstime_t *time)
+arena_decay_backlog_update_last(arena_t *arena)
+{
+	size_t ndirty_delta = (arena->ndirty > arena->decay.ndirty) ?
+	    arena->ndirty - arena->decay.ndirty : 0;
+	arena->decay.backlog[SMOOTHSTEP_NSTEPS-1] = ndirty_delta;
+}
+
+static void
+arena_decay_backlog_update(arena_t *arena, uint64_t nadvance_u64)
+{
+
+	if (nadvance_u64 >= SMOOTHSTEP_NSTEPS) {
+		memset(arena->decay.backlog, 0, (SMOOTHSTEP_NSTEPS-1) *
+		    sizeof(size_t));
+	} else {
+		size_t nadvance_z = (size_t)nadvance_u64;
+
+		assert((uint64_t)nadvance_z == nadvance_u64);
+
+		memmove(arena->decay.backlog, &arena->decay.backlog[nadvance_z],
+		    (SMOOTHSTEP_NSTEPS - nadvance_z) * sizeof(size_t));
+		if (nadvance_z > 1) {
+			memset(&arena->decay.backlog[SMOOTHSTEP_NSTEPS -
+			    nadvance_z], 0, (nadvance_z-1) * sizeof(size_t));
+		}
+	}
+
+	arena_decay_backlog_update_last(arena);
+}
+
+static void
+arena_decay_epoch_advance_helper(arena_t *arena, const nstime_t *time)
 {
 	uint64_t nadvance_u64;
 	nstime_t delta;
-	size_t ndirty_delta;
 
 	assert(opt_purge == purge_mode_decay);
 	assert(arena_decay_deadline_reached(arena, time));
@@ -1259,43 +1289,25 @@ arena_decay_epoch_advance(arena_t *arena, const nstime_t *time)
 	arena_decay_deadline_init(arena);
 
 	/* Update the backlog. */
-	if (nadvance_u64 >= SMOOTHSTEP_NSTEPS) {
-		memset(arena->decay.backlog, 0, (SMOOTHSTEP_NSTEPS-1) *
-		    sizeof(size_t));
-	} else {
-		size_t nadvance_z = (size_t)nadvance_u64;
-
-		assert((uint64_t)nadvance_z == nadvance_u64);
-
-		memmove(arena->decay.backlog, &arena->decay.backlog[nadvance_z],
-		    (SMOOTHSTEP_NSTEPS - nadvance_z) * sizeof(size_t));
-		if (nadvance_z > 1) {
-			memset(&arena->decay.backlog[SMOOTHSTEP_NSTEPS -
-			    nadvance_z], 0, (nadvance_z-1) * sizeof(size_t));
-		}
-	}
-	ndirty_delta = (arena->ndirty > arena->decay.ndirty) ? arena->ndirty -
-	    arena->decay.ndirty : 0;
-	arena->decay.ndirty = arena->ndirty;
-	arena->decay.backlog[SMOOTHSTEP_NSTEPS-1] = ndirty_delta;
-	arena->decay.backlog_npages_limit =
-	    arena_decay_backlog_npages_limit(arena);
+	arena_decay_backlog_update(arena, nadvance_u64);
 }
 
-static size_t
-arena_decay_npages_limit(arena_t *arena)
+static void
+arena_decay_epoch_advance_purge(tsdn_t *tsdn, arena_t *arena)
 {
-	size_t npages_limit;
+	size_t ndirty_limit = arena_decay_backlog_npages_limit(arena);
 
-	assert(opt_purge == purge_mode_decay);
+	if (arena->ndirty > ndirty_limit)
+		arena_purge_to_limit(tsdn, arena, ndirty_limit);
+	arena->decay.ndirty = arena->ndirty;
+}
 
-	npages_limit = arena->decay.backlog_npages_limit;
+static void
+arena_decay_epoch_advance(tsdn_t *tsdn, arena_t *arena, const nstime_t *time)
+{
 
-	/* Add in any dirty pages created during the current epoch. */
-	if (arena->ndirty > arena->decay.ndirty)
-		npages_limit += arena->ndirty - arena->decay.ndirty;
-
-	return (npages_limit);
+	arena_decay_epoch_advance_helper(arena, time);
+	arena_decay_epoch_advance_purge(tsdn, arena);
 }
 
 static void
@@ -1313,7 +1325,6 @@ arena_decay_init(arena_t *arena, ssize_t decay_time)
 	arena->decay.jitter_state = (uint64_t)(uintptr_t)arena;
 	arena_decay_deadline_init(arena);
 	arena->decay.ndirty = arena->ndirty;
-	arena->decay.backlog_npages_limit = 0;
 	memset(arena->decay.backlog, 0, SMOOTHSTEP_NSTEPS * sizeof(size_t));
 }
 
@@ -1395,7 +1406,6 @@ static void
 arena_maybe_purge_decay(tsdn_t *tsdn, arena_t *arena)
 {
 	nstime_t time;
-	size_t ndirty_limit;
 
 	assert(opt_purge == purge_mode_decay);
 
@@ -1411,32 +1421,29 @@ arena_maybe_purge_decay(tsdn_t *tsdn, arena_t *arena)
 	if (unlikely(!nstime_monotonic() && nstime_compare(&arena->decay.epoch,
 	    &time) > 0)) {
 		/*
-		 * Time went backwards.  Move the epoch back in time, with the
-		 * expectation that time typically flows forward for long enough
-		 * periods of time that epochs complete.  Unfortunately,
-		 * this strategy is susceptible to clock jitter triggering
-		 * premature epoch advances, but clock jitter estimation and
-		 * compensation isn't feasible here because calls into this code
-		 * are event-driven.
+		 * Time went backwards.  Move the epoch back in time and
+		 * generate a new deadline, with the expectation that time
+		 * typically flows forward for long enough periods of time that
+		 * epochs complete.  Unfortunately, this strategy is susceptible
+		 * to clock jitter triggering premature epoch advances, but
+		 * clock jitter estimation and compensation isn't feasible here
+		 * because calls into this code are event-driven.
 		 */
 		nstime_copy(&arena->decay.epoch, &time);
+		arena_decay_deadline_init(arena);
 	} else {
 		/* Verify that time does not go backwards. */
 		assert(nstime_compare(&arena->decay.epoch, &time) <= 0);
 	}
 
-	if (arena_decay_deadline_reached(arena, &time))
-		arena_decay_epoch_advance(arena, &time);
-
-	ndirty_limit = arena_decay_npages_limit(arena);
-
 	/*
-	 * Don't try to purge unless the number of purgeable pages exceeds the
-	 * current limit.
+	 * If the deadline has been reached, advance to the current epoch and
+	 * purge to the new limit if necessary.  Note that dirty pages created
+	 * during the current epoch are not subject to purge until a future
+	 * epoch, so as a result purging only happens during epoch advances.
 	 */
-	if (arena->ndirty <= ndirty_limit)
-		return;
-	arena_purge_to_limit(tsdn, arena, ndirty_limit);
+	if (arena_decay_deadline_reached(arena, &time))
+		arena_decay_epoch_advance(tsdn, arena, &time);
 }
 
 void

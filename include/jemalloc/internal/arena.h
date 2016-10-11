@@ -265,7 +265,7 @@ struct arena_decay_s {
 	 * and/or reused.
 	 */
 	ssize_t			time;
-	/* decay_time / SMOOTHSTEP_NSTEPS. */
+	/* time / SMOOTHSTEP_NSTEPS. */
 	nstime_t		interval;
 	/*
 	 * Time at which the current decay interval logically started.  We do
@@ -275,37 +275,30 @@ struct arena_decay_s {
 	 * merge all relevant activity into the most recently recorded epoch.
 	 */
 	nstime_t		epoch;
-	/* decay_deadline randomness generator. */
+	/* Deadline randomness generator. */
 	uint64_t		jitter_state;
 	/*
-	 * Deadline for current epoch.  This is the sum of decay_interval and
-	 * per epoch jitter which is a uniform random variable in
-	 * [0..decay_interval).  Epochs always advance by precise multiples of
-	 * decay_interval, but we randomize the deadline to reduce the
-	 * likelihood of arenas purging in lockstep.
+	 * Deadline for current epoch.  This is the sum of interval and per
+	 * epoch jitter which is a uniform random variable in [0..interval).
+	 * Epochs always advance by precise multiples of interval, but we
+	 * randomize the deadline to reduce the likelihood of arenas purging in
+	 * lockstep.
 	 */
 	nstime_t		deadline;
 	/*
 	 * Number of dirty pages at beginning of current epoch.  During epoch
-	 * advancement we use the delta between decay_ndirty and ndirty to
-	 * determine how many dirty pages, if any, were generated, and record
-	 * the result in decay_backlog.
+	 * advancement we use the delta between arena->decay.ndirty and
+	 * arena->ndirty to determine how many dirty pages, if any, were
+	 * generated.
 	 */
 	size_t			ndirty;
-	/*
-	 * Memoized result of arena_decay_backlog_npages_limit() corresponding
-	 * to the current contents of decay_backlog, i.e. the limit on how many
-	 * pages are allowed to exist for the decay epochs.
-	 */
-	size_t			backlog_npages_limit;
 	/*
 	 * Trailing log of how many unused dirty pages were generated during
 	 * each of the past SMOOTHSTEP_NSTEPS decay epochs, where the last
 	 * element is the most recent epoch.  Corresponding epoch times are
-	 * relative to decay_epoch.
+	 * relative to epoch.
 	 */
 	size_t			backlog[SMOOTHSTEP_NSTEPS];
-
 };
 
 struct arena_bin_s {
