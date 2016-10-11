@@ -2,11 +2,19 @@
 
 const char *malloc_conf = "purge:decay,decay_time:1";
 
+static nstime_monotonic_t *nstime_monotonic_orig;
 static nstime_update_t *nstime_update_orig;
 
 static unsigned nupdates_mock;
 static nstime_t time_mock;
 static bool nonmonotonic_mock;
+
+static bool
+nstime_monotonic_mock(void)
+{
+
+	return (false);
+}
 
 static bool
 nstime_update_mock(nstime_t *time)
@@ -318,7 +326,9 @@ TEST_BEGIN(test_decay_nonmonotonic)
 	nstime_update(&time_mock);
 	nonmonotonic_mock = true;
 
+	nstime_monotonic_orig = nstime_monotonic;
 	nstime_update_orig = nstime_update;
+	nstime_monotonic = nstime_monotonic_mock;
 	nstime_update = nstime_update_mock;
 
 	for (i = 0; i < NPS; i++) {
@@ -342,8 +352,9 @@ TEST_BEGIN(test_decay_nonmonotonic)
 	    config_stats ? 0 : ENOENT, "Unexpected mallctl result");
 
 	if (config_stats)
-		assert_u64_gt(npurge1, npurge0, "Expected purging to occur");
+		assert_u64_eq(npurge0, npurge1, "Unexpected purging occurred");
 
+	nstime_monotonic = nstime_monotonic_orig;
 	nstime_update = nstime_update_orig;
 #undef NPS
 }
