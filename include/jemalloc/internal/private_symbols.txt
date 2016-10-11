@@ -298,6 +298,7 @@ nstime_idivide
 nstime_imultiply
 nstime_init
 nstime_init2
+nstime_monotonic
 nstime_ns
 nstime_nsec
 nstime_sec

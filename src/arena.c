@@ -693,10 +693,23 @@ arena_maybe_purge_decay(tsdn_t *tsdn, arena_t *arena)
 		return;
 	}
 
-	nstime_copy(&time, &arena->decay.epoch);
-	if (unlikely(nstime_update(&time))) {
-		/* Time went backwards.  Force an epoch advance. */
-		nstime_copy(&time, &arena->decay.deadline);
+	nstime_init(&time, 0);
+	nstime_update(&time);
+	if (unlikely(!nstime_monotonic() && nstime_compare(&arena->decay.epoch,
+	    &time) > 0)) {
+		/*
+		 * Time went backwards.  Move the epoch back in time, with the
+		 * expectation that time typically flows forward for long enough
+		 * periods of time that epochs complete.  Unfortunately,
+		 * this strategy is susceptible to clock jitter triggering
+		 * premature epoch advances, but clock jitter estimation and
+		 * compensation isn't feasible here because calls into this code
+		 * are event-driven.
+		 */
+		nstime_copy(&arena->decay.epoch, &time);
+	} else {
+		/* Verify that time does not go backwards. */
+		assert(nstime_compare(&arena->decay.epoch, &time) <= 0);
 	}
 
 	if (arena_decay_deadline_reached(arena, &time))

@@ -98,6 +98,7 @@ nstime_divide(const nstime_t *time, const nstime_t *divisor)
 }
 
 #ifdef _WIN32
+#  define NSTIME_MONOTONIC true
 static void
 nstime_get(nstime_t *time)
 {
@@ -110,6 +111,7 @@ nstime_get(nstime_t *time)
 	nstime_init(time, ticks_100ns * 100);
 }
 #elif JEMALLOC_HAVE_CLOCK_MONOTONIC_RAW
+#  define NSTIME_MONOTONIC true
 static void
 nstime_get(nstime_t *time)
 {
@@ -119,6 +121,7 @@ nstime_get(nstime_t *time)
 	nstime_init2(time, ts.tv_sec, ts.tv_nsec);
 }
 #elif JEMALLOC_HAVE_CLOCK_MONOTONIC
+#  define NSTIME_MONOTONIC true
 static void
 nstime_get(nstime_t *time)
 {
@@ -128,6 +131,7 @@ nstime_get(nstime_t *time)
 	nstime_init2(time, ts.tv_sec, ts.tv_nsec);
 }
 #elif JEMALLOC_HAVE_MACH_ABSOLUTE_TIME
+#  define NSTIME_MONOTONIC true
 static void
 nstime_get(nstime_t *time)
 {
@@ -135,6 +139,7 @@ nstime_get(nstime_t *time)
 	nstime_init(time, mach_absolute_time());
 }
 #else
+#  define NSTIME_MONOTONIC false
 static void
 nstime_get(nstime_t *time)
 {
@@ -143,6 +148,23 @@ nstime_get(nstime_t *time)
 	gettimeofday(&tv, NULL);
 	nstime_init2(time, tv.tv_sec, tv.tv_usec * 1000);
 }
+#endif
+
+#ifdef JEMALLOC_JET
+#undef nstime_monotonic
+#define	nstime_monotonic JEMALLOC_N(n_nstime_monotonic)
+#endif
+bool
+nstime_monotonic(void)
+{
+
+	return (NSTIME_MONOTONIC);
+#undef NSTIME_MONOTONIC
+}
+#ifdef JEMALLOC_JET
+#undef nstime_monotonic
+#define	nstime_monotonic JEMALLOC_N(nstime_monotonic)
+nstime_monotonic_t *nstime_monotonic = JEMALLOC_N(n_nstime_monotonic);
 #endif
 
 #ifdef JEMALLOC_JET
