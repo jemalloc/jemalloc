@@ -7,23 +7,6 @@
 #define	LG_SLAB_MAXREGS		(LG_PAGE - LG_TINY_MIN)
 #define	SLAB_MAXREGS		(1U << LG_SLAB_MAXREGS)
 
-/*
- * The minimum ratio of active:dirty pages per arena is computed as:
- *
- *   (nactive >> lg_dirty_mult) >= ndirty
- *
- * So, supposing that lg_dirty_mult is 3, there can be no less than 8 times as
- * many active pages as dirty pages.
- */
-#define	LG_DIRTY_MULT_DEFAULT	3
-
-typedef enum {
-	purge_mode_ratio = 0,
-	purge_mode_decay = 1,
-
-	purge_mode_limit = 2
-} purge_mode_t;
-#define	PURGE_DEFAULT		purge_mode_ratio
 /* Default decay time in seconds. */
 #define	DECAY_TIME_DEFAULT	10
 /* Number of event ticks between time checks. */
@@ -203,9 +186,6 @@ struct arena_s {
 
 	dss_prec_t		dss_prec;
 
-	/* Minimum ratio (log base 2) of nactive:ndirty. */
-	ssize_t			lg_dirty_mult;
-
 	/* True if a thread is currently executing arena_purge_to_limit(). */
 	bool			purging;
 
@@ -274,9 +254,6 @@ static const size_t	large_pad =
 #endif
     ;
 
-extern purge_mode_t	opt_purge;
-extern const char	*purge_mode_names[];
-extern ssize_t		opt_lg_dirty_mult;
 extern ssize_t		opt_decay_time;
 
 extern const arena_bin_info_t	arena_bin_info[NBINS];
@@ -298,9 +275,6 @@ void	arena_extent_ralloc_large_shrink(tsdn_t *tsdn, arena_t *arena,
     extent_t *extent, size_t oldsize);
 void	arena_extent_ralloc_large_expand(tsdn_t *tsdn, arena_t *arena,
     extent_t *extent, size_t oldsize);
-ssize_t	arena_lg_dirty_mult_get(tsdn_t *tsdn, arena_t *arena);
-bool	arena_lg_dirty_mult_set(tsdn_t *tsdn, arena_t *arena,
-    ssize_t lg_dirty_mult);
 ssize_t	arena_decay_time_get(tsdn_t *tsdn, arena_t *arena);
 bool	arena_decay_time_set(tsdn_t *tsdn, arena_t *arena, ssize_t decay_time);
 void	arena_purge(tsdn_t *tsdn, arena_t *arena, bool all);
@@ -334,17 +308,15 @@ void	*arena_ralloc(tsdn_t *tsdn, arena_t *arena, extent_t *extent, void *ptr,
     size_t oldsize, size_t size, size_t alignment, bool zero, tcache_t *tcache);
 dss_prec_t	arena_dss_prec_get(tsdn_t *tsdn, arena_t *arena);
 bool	arena_dss_prec_set(tsdn_t *tsdn, arena_t *arena, dss_prec_t dss_prec);
-ssize_t	arena_lg_dirty_mult_default_get(void);
-bool	arena_lg_dirty_mult_default_set(ssize_t lg_dirty_mult);
 ssize_t	arena_decay_time_default_get(void);
 bool	arena_decay_time_default_set(ssize_t decay_time);
 void	arena_basic_stats_merge(tsdn_t *tsdn, arena_t *arena,
-    unsigned *nthreads, const char **dss, ssize_t *lg_dirty_mult,
-    ssize_t *decay_time, size_t *nactive, size_t *ndirty);
+    unsigned *nthreads, const char **dss, ssize_t *decay_time, size_t *nactive,
+    size_t *ndirty);
 void	arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
-    const char **dss, ssize_t *lg_dirty_mult, ssize_t *decay_time,
-    size_t *nactive, size_t *ndirty, arena_stats_t *astats,
-    malloc_bin_stats_t *bstats, malloc_large_stats_t *lstats);
+    const char **dss, ssize_t *decay_time, size_t *nactive, size_t *ndirty,
+    arena_stats_t *astats, malloc_bin_stats_t *bstats,
+    malloc_large_stats_t *lstats);
 unsigned	arena_nthreads_get(arena_t *arena, bool internal);
 void	arena_nthreads_inc(arena_t *arena, bool internal);
 void	arena_nthreads_dec(arena_t *arena, bool internal);

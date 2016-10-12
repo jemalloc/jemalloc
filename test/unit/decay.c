@@ -1,6 +1,6 @@
 #include "test/jemalloc_test.h"
 
-const char *malloc_conf = "purge:decay,decay_time:1,lg_tcache_max:0";
+const char *malloc_conf = "decay_time:1,lg_tcache_max:0";
 
 static nstime_monotonic_t *nstime_monotonic_orig;
 static nstime_update_t *nstime_update_orig;
@@ -32,8 +32,6 @@ TEST_BEGIN(test_decay_ticks)
 	unsigned tick0, tick1;
 	size_t sz, large0;
 	void *p;
-
-	test_skip_if(opt_purge != purge_mode_decay);
 
 	decay_ticker = decay_ticker_get(tsd_fetch(), 0);
 	assert_ptr_not_null(decay_ticker,
@@ -213,8 +211,6 @@ TEST_BEGIN(test_decay_ticker)
 	unsigned i, nupdates0;
 	nstime_t time, decay_time, deadline;
 
-	test_skip_if(opt_purge != purge_mode_decay);
-
 	/*
 	 * Allocate a bunch of large objects, pause the clock, deallocate the
 	 * objects, restore the clock, then [md]allocx() in a tight loop to
@@ -306,8 +302,6 @@ TEST_BEGIN(test_decay_nonmonotonic)
 	uint64_t npurge1 = 0;
 	size_t sz, large0;
 	unsigned i, nupdates0;
-
-	test_skip_if(opt_purge != purge_mode_decay);
 
 	sz = sizeof(size_t);
 	assert_d_eq(mallctl("arenas.lextent.0.size", &large0, &sz, NULL, 0), 0,

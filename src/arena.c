@@ -4,14 +4,6 @@
 /******************************************************************************/
 /* Data. */
 
-purge_mode_t	opt_purge = PURGE_DEFAULT;
-const char	*purge_mode_names[] = {
-	"ratio",
-	"decay",
-	"N/A"
-};
-ssize_t		opt_lg_dirty_mult = LG_DIRTY_MULT_DEFAULT;
-static ssize_t	lg_dirty_mult_default;
 ssize_t		opt_decay_time = DECAY_TIME_DEFAULT;
 static ssize_t	decay_time_default;
 
@@ -429,46 +421,9 @@ arena_extent_ralloc_large_expand(tsdn_t *tsdn, arena_t *arena, extent_t *extent,
 	malloc_mutex_unlock(tsdn, &arena->lock);
 }
 
-static bool
-arena_lg_dirty_mult_valid(ssize_t lg_dirty_mult)
-{
-
-	return (lg_dirty_mult >= -1 && lg_dirty_mult < (ssize_t)(sizeof(size_t)
-	    << 3));
-}
-
-ssize_t
-arena_lg_dirty_mult_get(tsdn_t *tsdn, arena_t *arena)
-{
-	ssize_t lg_dirty_mult;
-
-	malloc_mutex_lock(tsdn, &arena->lock);
-	lg_dirty_mult = arena->lg_dirty_mult;
-	malloc_mutex_unlock(tsdn, &arena->lock);
-
-	return (lg_dirty_mult);
-}
-
-bool
-arena_lg_dirty_mult_set(tsdn_t *tsdn, arena_t *arena, ssize_t lg_dirty_mult)
-{
-
-	if (!arena_lg_dirty_mult_valid(lg_dirty_mult))
-		return (true);
-
-	malloc_mutex_lock(tsdn, &arena->lock);
-	arena->lg_dirty_mult = lg_dirty_mult;
-	arena_maybe_purge(tsdn, arena);
-	malloc_mutex_unlock(tsdn, &arena->lock);
-
-	return (false);
-}
-
 static void
 arena_decay_deadline_init(arena_t *arena)
 {
-
-	assert(opt_purge == purge_mode_decay);
 
 	/*
 	 * Generate a new deadline that is uniformly random within the next
@@ -489,8 +444,6 @@ static bool
 arena_decay_deadline_reached(const arena_t *arena, const nstime_t *time)
 {
 
-	assert(opt_purge == purge_mode_decay);
-
 	return (nstime_compare(&arena->decay.deadline, time) <= 0);
 }
 
@@ -506,8 +459,6 @@ arena_decay_backlog_npages_limit(const arena_t *arena)
 	uint64_t sum;
 	size_t npages_limit_backlog;
 	unsigned i;
-
-	assert(opt_purge == purge_mode_decay);
 
 	/*
 	 * For each element of decay_backlog, multiply by the corresponding
@@ -559,7 +510,6 @@ arena_decay_epoch_advance_helper(arena_t *arena, const nstime_t *time)
 	uint64_t nadvance_u64;
 	nstime_t delta;
 
-	assert(opt_purge == purge_mode_decay);
 	assert(arena_decay_deadline_reached(arena, time));
 
 	nstime_copy(&delta, time);
@@ -662,39 +612,9 @@ arena_decay_time_set(tsdn_t *tsdn, arena_t *arena, ssize_t decay_time)
 }
 
 static void
-arena_maybe_purge_ratio(tsdn_t *tsdn, arena_t *arena)
-{
-
-	assert(opt_purge == purge_mode_ratio);
-
-	/* Don't purge if the option is disabled. */
-	if (arena->lg_dirty_mult < 0)
-		return;
-
-	/*
-	 * Iterate, since preventing recursive purging could otherwise leave too
-	 * many dirty pages.
-	 */
-	while (true) {
-		size_t threshold = (arena->nactive >> arena->lg_dirty_mult);
-		if (threshold < chunk_npages)
-			threshold = chunk_npages;
-		/*
-		 * Don't purge unless the number of purgeable pages exceeds the
-		 * threshold.
-		 */
-		if (arena->ndirty <= threshold)
-			return;
-		arena_purge_to_limit(tsdn, arena, threshold);
-	}
-}
-
-static void
-arena_maybe_purge_decay(tsdn_t *tsdn, arena_t *arena)
+arena_maybe_purge_helper(tsdn_t *tsdn, arena_t *arena)
 {
 	nstime_t time;
-
-	assert(opt_purge == purge_mode_decay);
 
 	/* Purge all or nothing if the option is disabled. */
 	if (arena->decay.time <= 0) {
@@ -743,10 +663,7 @@ arena_maybe_purge(tsdn_t *tsdn, arena_t *arena)
 	if (arena->purging)
 		return;
 
-	if (opt_purge == purge_mode_ratio)
-		arena_maybe_purge_ratio(tsdn, arena);
-	else
-		arena_maybe_purge_decay(tsdn, arena);
+	arena_maybe_purge_helper(tsdn, arena);
 }
 
 static size_t
@@ -781,8 +698,7 @@ arena_stash_dirty(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
 		UNUSED extent_t *textent;
 
 		npages = extent_size_get(extent) >> LG_PAGE;
-		if (opt_purge == purge_mode_decay && arena->ndirty - (nstashed +
-		    npages) < ndirty_limit)
+		if (arena->ndirty - (nstashed + npages) < ndirty_limit)
 			break;
 
 		next = qr_next(extent, qr_link);
@@ -797,9 +713,6 @@ arena_stash_dirty(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
 		extent_ring_insert(purge_extents_sentinel, extent);
 
 		nstashed += npages;
-		if (opt_purge == purge_mode_ratio && arena->ndirty - nstashed <=
-		    ndirty_limit)
-			break;
 	}
 
 	malloc_mutex_unlock(tsdn, &arena->extents_mtx);
@@ -838,13 +751,8 @@ arena_purge_stashed(tsdn_t *tsdn, arena_t *arena,
 }
 
 /*
- * NB: ndirty_limit is interpreted differently depending on opt_purge:
- *   - purge_mode_ratio: Purge as few dirty extents as possible to reach the
- *                       desired state:
- *                       (arena->ndirty <= ndirty_limit)
- *   - purge_mode_decay: Purge as many dirty extents as possible without
- *                       violating the invariant:
- *                       (arena->ndirty >= ndirty_limit)
+ *   ndirty_limit: Purge as many dirty extents as possible without violating the
+ *   invariant: (arena->ndirty >= ndirty_limit)
  */
 static void
 arena_purge_to_limit(tsdn_t *tsdn, arena_t *arena, size_t ndirty_limit)
@@ -863,9 +771,6 @@ arena_purge_to_limit(tsdn_t *tsdn, arena_t *arena, size_t ndirty_limit)
 		size_t ndirty = arena_dirty_count(tsdn, arena);
 		assert(ndirty == arena->ndirty);
 	}
-	assert(opt_purge != purge_mode_ratio || (arena->nactive >>
-	    arena->lg_dirty_mult) < arena->ndirty || ndirty_limit == 0);
-
 	extent_init(&purge_extents_sentinel, arena, NULL, 0, 0, false, false,
 	    false, false);
 
@@ -1645,25 +1550,6 @@ arena_dss_prec_set(tsdn_t *tsdn, arena_t *arena, dss_prec_t dss_prec)
 }
 
 ssize_t
-arena_lg_dirty_mult_default_get(void)
-{
-
-	return ((ssize_t)atomic_read_z((size_t *)&lg_dirty_mult_default));
-}
-
-bool
-arena_lg_dirty_mult_default_set(ssize_t lg_dirty_mult)
-{
-
-	if (opt_purge != purge_mode_ratio)
-		return (true);
-	if (!arena_lg_dirty_mult_valid(lg_dirty_mult))
-		return (true);
-	atomic_write_z((size_t *)&lg_dirty_mult_default, (size_t)lg_dirty_mult);
-	return (false);
-}
-
-ssize_t
 arena_decay_time_default_get(void)
 {
 
@@ -1674,8 +1560,6 @@ bool
 arena_decay_time_default_set(ssize_t decay_time)
 {
 
-	if (opt_purge != purge_mode_decay)
-		return (true);
 	if (!arena_decay_time_valid(decay_time))
 		return (true);
 	atomic_write_z((size_t *)&decay_time_default, (size_t)decay_time);
@@ -1684,13 +1568,11 @@ arena_decay_time_default_set(ssize_t decay_time)
 
 static void
 arena_basic_stats_merge_locked(arena_t *arena, unsigned *nthreads,
-    const char **dss, ssize_t *lg_dirty_mult, ssize_t *decay_time,
-    size_t *nactive, size_t *ndirty)
+    const char **dss, ssize_t *decay_time, size_t *nactive, size_t *ndirty)
 {
 
 	*nthreads += arena_nthreads_get(arena, false);
 	*dss = dss_prec_names[arena->dss_prec];
-	*lg_dirty_mult = arena->lg_dirty_mult;
 	*decay_time = arena->decay.time;
 	*nactive += arena->nactive;
 	*ndirty += arena->ndirty;
@@ -1698,29 +1580,28 @@ arena_basic_stats_merge_locked(arena_t *arena, unsigned *nthreads,
 
 void
 arena_basic_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
-    const char **dss, ssize_t *lg_dirty_mult, ssize_t *decay_time,
-    size_t *nactive, size_t *ndirty)
+    const char **dss, ssize_t *decay_time, size_t *nactive, size_t *ndirty)
 {
 
 	malloc_mutex_lock(tsdn, &arena->lock);
-	arena_basic_stats_merge_locked(arena, nthreads, dss, lg_dirty_mult,
-	    decay_time, nactive, ndirty);
+	arena_basic_stats_merge_locked(arena, nthreads, dss, decay_time,
+	    nactive, ndirty);
 	malloc_mutex_unlock(tsdn, &arena->lock);
 }
 
 void
 arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
-    const char **dss, ssize_t *lg_dirty_mult, ssize_t *decay_time,
-    size_t *nactive, size_t *ndirty, arena_stats_t *astats,
-    malloc_bin_stats_t *bstats, malloc_large_stats_t *lstats)
+    const char **dss, ssize_t *decay_time, size_t *nactive, size_t *ndirty,
+    arena_stats_t *astats, malloc_bin_stats_t *bstats,
+    malloc_large_stats_t *lstats)
 {
 	unsigned i;
 
 	cassert(config_stats);
 
 	malloc_mutex_lock(tsdn, &arena->lock);
-	arena_basic_stats_merge_locked(arena, nthreads, dss, lg_dirty_mult,
-	    decay_time, nactive, ndirty);
+	arena_basic_stats_merge_locked(arena, nthreads, dss, decay_time,
+	    nactive, ndirty);
 
 	astats->mapped += arena->stats.mapped;
 	astats->retained += arena->stats.retained;
@@ -1816,13 +1697,11 @@ arena_new(tsdn_t *tsdn, unsigned ind)
 
 	arena->dss_prec = extent_dss_prec_get(tsdn);
 
-	arena->lg_dirty_mult = arena_lg_dirty_mult_default_get();
 	arena->purging = false;
 	arena->nactive = 0;
 	arena->ndirty = 0;
 
-	if (opt_purge == purge_mode_decay)
-		arena_decay_init(arena, arena_decay_time_default_get());
+	arena_decay_init(arena, arena_decay_time_default_get());
 
 	ql_new(&arena->large);
 	if (malloc_mutex_init(&arena->large_mtx, "arena_large",
@@ -1869,7 +1748,6 @@ void
 arena_boot(void)
 {
 
-	arena_lg_dirty_mult_default_set(opt_lg_dirty_mult);
 	arena_decay_time_default_set(opt_decay_time);
 }
 

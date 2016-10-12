@@ -35,7 +35,6 @@ struct ctl_arena_stats_s {
 	bool			initialized;
 	unsigned		nthreads;
 	const char		*dss;
-	ssize_t			lg_dirty_mult;
 	ssize_t			decay_time;
 	size_t			pactive;
 	size_t			pdirty;

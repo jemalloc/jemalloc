@@ -374,17 +374,15 @@ stress_dir:
 check_dir: check_unit_dir check_integration_dir
 
 check_unit: tests_unit check_unit_dir
-	$(MALLOC_CONF)="purge:ratio" $(SHELL) $(objroot)test/test.sh $(TESTS_UNIT:$(srcroot)%.c=$(objroot)%)
-	$(MALLOC_CONF)="purge:decay" $(SHELL) $(objroot)test/test.sh $(TESTS_UNIT:$(srcroot)%.c=$(objroot)%)
+	$(SHELL) $(objroot)test/test.sh $(TESTS_UNIT:$(srcroot)%.c=$(objroot)%)
 check_integration_prof: tests_integration check_integration_dir
 ifeq ($(enable_prof), 1)
 	$(MALLOC_CONF)="prof:true" $(SHELL) $(objroot)test/test.sh $(TESTS_INTEGRATION:$(srcroot)%.c=$(objroot)%)
 	$(MALLOC_CONF)="prof:true,prof_active:false" $(SHELL) $(objroot)test/test.sh $(TESTS_INTEGRATION:$(srcroot)%.c=$(objroot)%)
 endif
 check_integration_decay: tests_integration check_integration_dir
-	$(MALLOC_CONF)="purge:decay,decay_time:-1" $(SHELL) $(objroot)test/test.sh $(TESTS_INTEGRATION:$(srcroot)%.c=$(objroot)%)
-	$(MALLOC_CONF)="purge:decay,decay_time:0" $(SHELL) $(objroot)test/test.sh $(TESTS_INTEGRATION:$(srcroot)%.c=$(objroot)%)
-	$(MALLOC_CONF)="purge:decay" $(SHELL) $(objroot)test/test.sh $(TESTS_INTEGRATION:$(srcroot)%.c=$(objroot)%)
+	$(MALLOC_CONF)="decay_time:-1" $(SHELL) $(objroot)test/test.sh $(TESTS_INTEGRATION:$(srcroot)%.c=$(objroot)%)
+	$(MALLOC_CONF)="decay_time:0" $(SHELL) $(objroot)test/test.sh $(TESTS_INTEGRATION:$(srcroot)%.c=$(objroot)%)
 check_integration: tests_integration check_integration_dir
 	$(SHELL) $(objroot)test/test.sh $(TESTS_INTEGRATION:$(srcroot)%.c=$(objroot)%)
 stress: tests_stress stress_dir

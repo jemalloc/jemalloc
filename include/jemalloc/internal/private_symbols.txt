@@ -34,10 +34,6 @@ arena_extent_ralloc_large_shrink
 arena_get
 arena_ichoose
 arena_init
-arena_lg_dirty_mult_default_get
-arena_lg_dirty_mult_default_set
-arena_lg_dirty_mult_get
-arena_lg_dirty_mult_set
 arena_malloc
 arena_malloc_hard
 arena_maybe_purge
@@ -311,7 +307,6 @@ opt_junk
 opt_junk_alloc
 opt_junk_free
 opt_lg_chunk
-opt_lg_dirty_mult
 opt_lg_prof_interval
 opt_lg_prof_sample
 opt_lg_tcache_max
@@ -324,7 +319,6 @@ opt_prof_gdump
 opt_prof_leak
 opt_prof_prefix
 opt_prof_thread_active_init
-opt_purge
 opt_stats_print
 opt_tcache
 opt_utrace
@@ -399,7 +393,6 @@ psz2ind
 psz2ind_clamp
 psz2ind_impl
 psz2u
-purge_mode_names
 register_zone
 rtree_child_read
 rtree_child_read_hard
