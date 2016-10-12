@@ -21,6 +21,8 @@ extern const char *dss_prec_names[];
 /******************************************************************************/
 #ifdef JEMALLOC_H_EXTERNS
 
+extern const char	*opt_dss;
+
 dss_prec_t	extent_dss_prec_get(tsdn_t *tsdn);
 bool	extent_dss_prec_set(tsdn_t *tsdn, dss_prec_t dss_prec);
 void	*extent_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr,

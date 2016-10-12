@@ -110,10 +110,6 @@ bootstrap_free
 bootstrap_malloc
 bt_init
 buferror
-chunk_boot
-chunk_npages
-chunksize
-chunksize_mask
 ckh_count
 ckh_delete
 ckh_insert
@@ -306,7 +302,6 @@ opt_dss
 opt_junk
 opt_junk_alloc
 opt_junk_free
-opt_lg_chunk
 opt_lg_prof_interval
 opt_lg_prof_sample
 opt_lg_tcache_max
@@ -430,10 +425,6 @@ size2index
 size2index_compute
 size2index_lookup
 size2index_tab
-stats_cactive
-stats_cactive_add
-stats_cactive_get
-stats_cactive_sub
 stats_print
 tcache_alloc_easy
 tcache_alloc_large

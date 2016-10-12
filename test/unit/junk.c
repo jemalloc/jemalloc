@@ -140,7 +140,7 @@ TEST_BEGIN(test_junk_large)
 {
 
 	test_skip_if(!config_fill);
-	test_junk(SMALL_MAXCLASS+1, chunksize*2);
+	test_junk(SMALL_MAXCLASS+1, (1U << (LG_LARGE_MINCLASS+1)));
 }
 TEST_END
 

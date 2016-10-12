@@ -118,53 +118,12 @@ struct arena_stats_s {
 
 extern bool	opt_stats_print;
 
-extern size_t	stats_cactive;
-
 void	stats_print(void (*write)(void *, const char *), void *cbopaque,
     const char *opts);
 
 #endif /* JEMALLOC_H_EXTERNS */
 /******************************************************************************/
 #ifdef JEMALLOC_H_INLINES
-
-#ifndef JEMALLOC_ENABLE_INLINE
-size_t	stats_cactive_get(void);
-void	stats_cactive_add(size_t size);
-void	stats_cactive_sub(size_t size);
-#endif
-
-#if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_STATS_C_))
-JEMALLOC_INLINE size_t
-stats_cactive_get(void)
-{
-
-	return (atomic_read_z(&stats_cactive));
-}
-
-JEMALLOC_INLINE void
-stats_cactive_add(size_t size)
-{
-	UNUSED size_t cactive;
-
-	assert(size > 0);
-	assert((size & chunksize_mask) == 0);
-
-	cactive = atomic_add_z(&stats_cactive, size);
-	assert(cactive - size < cactive);
-}
-
-JEMALLOC_INLINE void
-stats_cactive_sub(size_t size)
-{
-	UNUSED size_t cactive;
-
-	assert(size > 0);
-	assert((size & chunksize_mask) == 0);
-
-	cactive = atomic_sub_z(&stats_cactive, size);
-	assert(cactive + size > cactive);
-}
-#endif
 
 #endif /* JEMALLOC_H_INLINES */
 /******************************************************************************/

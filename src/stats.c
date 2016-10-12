@@ -30,8 +30,6 @@
 
 bool	opt_stats_print = false;
 
-size_t	stats_cactive = 0;
-
 /******************************************************************************/
 /* Function prototypes for non-inline static functions. */
 
@@ -416,7 +414,6 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		malloc_cprintf(write_cb, cbopaque,
 		    "Run-time option settings:\n");
 		OPT_WRITE_BOOL(abort)
-		OPT_WRITE_SIZE_T(lg_chunk)
 		OPT_WRITE_CHAR_P(dss)
 		OPT_WRITE_UNSIGNED(narenas)
 		OPT_WRITE_CHAR_P(purge)
@@ -486,16 +483,11 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 				    "Average profile dump interval: N/A\n");
 			}
 		}
-		CTL_GET("opt.lg_chunk", &sv, size_t);
-		malloc_cprintf(write_cb, cbopaque,
-		    "Chunk size: %zu (2^%zu)\n", (ZU(1) << sv), sv);
 	}
 
 	if (config_stats) {
-		size_t *cactive;
 		size_t allocated, active, metadata, resident, mapped, retained;
 
-		CTL_GET("stats.cactive", &cactive, size_t *);
 		CTL_GET("stats.allocated", &allocated, size_t);
 		CTL_GET("stats.active", &active, size_t);
 		CTL_GET("stats.metadata", &metadata, size_t);
@@ -506,9 +498,6 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		    "Allocated: %zu, active: %zu, metadata: %zu,"
 		    " resident: %zu, mapped: %zu, retained: %zu\n",
 		    allocated, active, metadata, resident, mapped, retained);
-		malloc_cprintf(write_cb, cbopaque,
-		    "Current active ceiling: %zu\n",
-		    atomic_read_z(cactive));
 
 		if (merged) {
 			unsigned narenas;

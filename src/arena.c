@@ -229,13 +229,6 @@ static void
 arena_nactive_add(arena_t *arena, size_t add_pages)
 {
 
-	if (config_stats) {
-		size_t cactive_add = CHUNK_CEILING((arena->nactive +
-		    add_pages) << LG_PAGE) - CHUNK_CEILING(arena->nactive <<
-		    LG_PAGE);
-		if (cactive_add != 0)
-			stats_cactive_add(cactive_add);
-	}
 	arena->nactive += add_pages;
 }
 
@@ -244,12 +237,6 @@ arena_nactive_sub(arena_t *arena, size_t sub_pages)
 {
 
 	assert(arena->nactive >= sub_pages);
-	if (config_stats) {
-		size_t cactive_sub = CHUNK_CEILING(arena->nactive << LG_PAGE) -
-		    CHUNK_CEILING((arena->nactive - sub_pages) << LG_PAGE);
-		if (cactive_sub != 0)
-			stats_cactive_sub(cactive_sub);
-	}
 	arena->nactive -= sub_pages;
 }
 

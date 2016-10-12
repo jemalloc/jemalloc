@@ -363,7 +363,6 @@ typedef unsigned szind_t;
 #include "jemalloc/internal/base.h"
 #include "jemalloc/internal/rtree.h"
 #include "jemalloc/internal/pages.h"
-#include "jemalloc/internal/chunk.h"
 #include "jemalloc/internal/large.h"
 #include "jemalloc/internal/tcache.h"
 #include "jemalloc/internal/hash.h"
@@ -397,7 +396,6 @@ typedef unsigned szind_t;
 #include "jemalloc/internal/base.h"
 #include "jemalloc/internal/rtree.h"
 #include "jemalloc/internal/pages.h"
-#include "jemalloc/internal/chunk.h"
 #include "jemalloc/internal/large.h"
 #include "jemalloc/internal/tcache.h"
 #include "jemalloc/internal/hash.h"
@@ -483,7 +481,6 @@ void	jemalloc_postfork_child(void);
 #include "jemalloc/internal/base.h"
 #include "jemalloc/internal/rtree.h"
 #include "jemalloc/internal/pages.h"
-#include "jemalloc/internal/chunk.h"
 #include "jemalloc/internal/large.h"
 #include "jemalloc/internal/tcache.h"
 #include "jemalloc/internal/hash.h"
@@ -512,7 +509,6 @@ void	jemalloc_postfork_child(void);
 #include "jemalloc/internal/extent.h"
 #include "jemalloc/internal/base.h"
 #include "jemalloc/internal/pages.h"
-#include "jemalloc/internal/chunk.h"
 #include "jemalloc/internal/large.h"
 
 #ifndef JEMALLOC_ENABLE_INLINE

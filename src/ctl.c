@@ -88,7 +88,6 @@ CTL_PROTO(config_utrace)
 CTL_PROTO(config_xmalloc)
 CTL_PROTO(opt_abort)
 CTL_PROTO(opt_dss)
-CTL_PROTO(opt_lg_chunk)
 CTL_PROTO(opt_narenas)
 CTL_PROTO(opt_decay_time)
 CTL_PROTO(opt_stats_print)
@@ -177,7 +176,6 @@ CTL_PROTO(stats_arenas_i_nmadvise)
 CTL_PROTO(stats_arenas_i_purged)
 CTL_PROTO(stats_arenas_i_metadata)
 INDEX_PROTO(stats_arenas_i)
-CTL_PROTO(stats_cactive)
 CTL_PROTO(stats_allocated)
 CTL_PROTO(stats_active)
 CTL_PROTO(stats_metadata)
@@ -244,7 +242,6 @@ static const ctl_named_node_t	config_node[] = {
 static const ctl_named_node_t opt_node[] = {
 	{NAME("abort"),		CTL(opt_abort)},
 	{NAME("dss"),		CTL(opt_dss)},
-	{NAME("lg_chunk"),	CTL(opt_lg_chunk)},
 	{NAME("narenas"),	CTL(opt_narenas)},
 	{NAME("decay_time"),	CTL(opt_decay_time)},
 	{NAME("stats_print"),	CTL(opt_stats_print)},
@@ -410,7 +407,6 @@ static const ctl_indexed_node_t stats_arenas_node[] = {
 };
 
 static const ctl_named_node_t stats_node[] = {
-	{NAME("cactive"),	CTL(stats_cactive)},
 	{NAME("allocated"),	CTL(stats_allocated)},
 	{NAME("active"),	CTL(stats_active)},
 	{NAME("metadata"),	CTL(stats_metadata)},
@@ -1136,7 +1132,6 @@ CTL_RO_CONFIG_GEN(config_xmalloc, bool)
 
 CTL_RO_NL_GEN(opt_abort, opt_abort, bool)
 CTL_RO_NL_GEN(opt_dss, opt_dss, const char *)
-CTL_RO_NL_GEN(opt_lg_chunk, opt_lg_chunk, size_t)
 CTL_RO_NL_GEN(opt_narenas, opt_narenas, unsigned)
 CTL_RO_NL_GEN(opt_decay_time, opt_decay_time, ssize_t)
 CTL_RO_NL_GEN(opt_stats_print, opt_stats_print, bool)
@@ -1888,7 +1883,6 @@ CTL_RO_NL_CGEN(config_prof, lg_prof_sample, lg_prof_sample, size_t)
 
 /******************************************************************************/
 
-CTL_RO_CGEN(config_stats, stats_cactive, &stats_cactive, size_t *)
 CTL_RO_CGEN(config_stats, stats_allocated, ctl_stats.allocated, size_t)
 CTL_RO_CGEN(config_stats, stats_active, ctl_stats.active, size_t)
 CTL_RO_CGEN(config_stats, stats_metadata, ctl_stats.metadata, size_t)

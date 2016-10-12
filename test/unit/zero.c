@@ -57,7 +57,7 @@ TEST_BEGIN(test_zero_large)
 {
 
 	test_skip_if(!config_fill);
-	test_zero(SMALL_MAXCLASS+1, chunksize*2);
+	test_zero(SMALL_MAXCLASS+1, (1U << (LG_LARGE_MINCLASS+1)));
 }
 TEST_END
 

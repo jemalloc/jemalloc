@@ -3,6 +3,8 @@
 /******************************************************************************/
 /* Data. */
 
+const char	*opt_dss = DSS_DEFAULT;
+
 const char	*dss_prec_names[] = {
 	"disabled",
 	"primary",

@@ -41,7 +41,7 @@ static extent_t *
 base_extent_alloc(tsdn_t *tsdn, size_t minsize)
 {
 	extent_t *extent;
-	size_t csize, nsize;
+	size_t esize, nsize;
 	void *addr;
 
 	malloc_mutex_assert_owner(tsdn, &base_mtx);
@@ -49,7 +49,7 @@ base_extent_alloc(tsdn_t *tsdn, size_t minsize)
 	extent = base_extent_try_alloc(tsdn);
 	/* Allocate enough space to also carve an extent out if necessary. */
 	nsize = (extent == NULL) ? CACHELINE_CEILING(sizeof(extent_t)) : 0;
-	csize = CHUNK_CEILING(minsize + nsize);
+	esize = PAGE_CEILING(minsize + nsize);
 	/*
 	 * Directly call extent_alloc_mmap() because it's critical to allocate
 	 * untouched demand-zeroed virtual memory.
@@ -57,24 +57,24 @@ base_extent_alloc(tsdn_t *tsdn, size_t minsize)
 	{
 		bool zero = true;
 		bool commit = true;
-		addr = extent_alloc_mmap(NULL, csize, PAGE, &zero, &commit);
+		addr = extent_alloc_mmap(NULL, esize, PAGE, &zero, &commit);
 	}
 	if (addr == NULL) {
 		if (extent != NULL)
 			base_extent_dalloc(tsdn, extent);
 		return (NULL);
 	}
-	base_mapped += csize;
+	base_mapped += esize;
 	if (extent == NULL) {
 		extent = (extent_t *)addr;
 		addr = (void *)((uintptr_t)addr + nsize);
-		csize -= nsize;
+		esize -= nsize;
 		if (config_stats) {
 			base_allocated += nsize;
 			base_resident += PAGE_CEILING(nsize);
 		}
 	}
-	extent_init(extent, NULL, addr, csize, 0, true, true, true, false);
+	extent_init(extent, NULL, addr, esize, 0, true, true, true, false);
 	return (extent);
 }
 

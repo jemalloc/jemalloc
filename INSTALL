@@ -91,10 +91,10 @@ any of the following arguments (not a definitive list) to 'configure':
 --with-malloc-conf=<malloc_conf>
     Embed <malloc_conf> as a run-time options string that is processed prior to
     the malloc_conf global variable, the /etc/malloc.conf symlink, and the
-    MALLOC_CONF environment variable.  For example, to change the default chunk
-    size to 256 KiB:
+    MALLOC_CONF environment variable.  For example, to change the default decay
+    time to 30 seconds:
 
-      --with-malloc-conf=lg_chunk:18
+      --with-malloc-conf=decay_time:30
 
 --disable-cc-silence
     Disable code that silences non-useful compiler warnings.  This is mainly

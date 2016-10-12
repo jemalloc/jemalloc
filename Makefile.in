@@ -83,7 +83,6 @@ C_SRCS := $(srcroot)src/jemalloc.c \
 	$(srcroot)src/atomic.c \
 	$(srcroot)src/base.c \
 	$(srcroot)src/bitmap.c \
-	$(srcroot)src/chunk.c \
 	$(srcroot)src/ckh.c \
 	$(srcroot)src/ctl.c \
 	$(srcroot)src/extent.c \
@@ -144,7 +143,6 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/junk.c \
 	$(srcroot)test/unit/junk_alloc.c \
 	$(srcroot)test/unit/junk_free.c \
-	$(srcroot)test/unit/lg_chunk.c \
 	$(srcroot)test/unit/mallctl.c \
 	$(srcroot)test/unit/math.c \
 	$(srcroot)test/unit/mq.c \

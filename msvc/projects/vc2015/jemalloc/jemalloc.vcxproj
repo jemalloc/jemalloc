@@ -40,7 +40,6 @@
     <ClInclude Include="..\..\..\..\include\jemalloc\internal\atomic.h" />
     <ClInclude Include="..\..\..\..\include\jemalloc\internal\base.h" />
     <ClInclude Include="..\..\..\..\include\jemalloc\internal\bitmap.h" />
-    <ClInclude Include="..\..\..\..\include\jemalloc\internal\chunk.h" />
     <ClInclude Include="..\..\..\..\include\jemalloc\internal\ckh.h" />
     <ClInclude Include="..\..\..\..\include\jemalloc\internal\ctl.h" />
     <ClInclude Include="..\..\..\..\include\jemalloc\internal\extent.h" />
@@ -93,7 +92,6 @@
     <ClCompile Include="..\..\..\..\src\atomic.c" />
     <ClCompile Include="..\..\..\..\src\base.c" />
     <ClCompile Include="..\..\..\..\src\bitmap.c" />
-    <ClCompile Include="..\..\..\..\src\chunk.c" />
     <ClCompile Include="..\..\..\..\src\ckh.c" />
     <ClCompile Include="..\..\..\..\src\ctl.c" />
     <ClCompile Include="..\..\..\..\src\extent.c" />

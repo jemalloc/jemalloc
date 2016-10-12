@@ -2,13 +2,8 @@
 
 TEST_BEGIN(test_stats_summary)
 {
-	size_t *cactive;
 	size_t sz, allocated, active, resident, mapped;
 	int expected = config_stats ? 0 : ENOENT;
-
-	sz = sizeof(cactive);
-	assert_d_eq(mallctl("stats.cactive", &cactive, &sz, NULL, 0), expected,
-	    "Unexpected mallctl() result");
 
 	sz = sizeof(size_t);
 	assert_d_eq(mallctl("stats.allocated", &allocated, &sz, NULL, 0),
@@ -21,8 +16,6 @@ TEST_BEGIN(test_stats_summary)
 	    "Unexpected mallctl() result");
 
 	if (config_stats) {
-		assert_zu_le(active, *cactive,
-		    "active should be no larger than cactive");
 		assert_zu_le(allocated, active,
 		    "allocated should be no larger than active");
 		assert_zu_lt(active, resident,
@@ -88,12 +81,14 @@ TEST_BEGIN(test_stats_arenas_summary)
 
 	little = mallocx(SMALL_MAXCLASS, 0);
 	assert_ptr_not_null(little, "Unexpected mallocx() failure");
-	large = mallocx(chunksize, 0);
+	large = mallocx((1U << LG_LARGE_MINCLASS), 0);
 	assert_ptr_not_null(large, "Unexpected mallocx() failure");
 
 	dallocx(little, 0);
 	dallocx(large, 0);
 
+	assert_d_eq(mallctl("thread.tcache.flush", NULL, NULL, NULL, 0),
+	    config_tcache ? 0 : ENOENT, "Unexpected mallctl() result");
 	assert_d_eq(mallctl("arena.0.purge", NULL, NULL, NULL, 0), 0,
 	    "Unexpected mallctl() failure");
 
@@ -197,7 +192,7 @@ TEST_BEGIN(test_stats_arenas_large)
 	assert_d_eq(mallctl("thread.arena", NULL, NULL, &arena, sizeof(arena)),
 	    0, "Unexpected mallctl() failure");
 
-	p = mallocx(chunksize, 0);
+	p = mallocx((1U << LG_LARGE_MINCLASS), 0);
 	assert_ptr_not_null(p, "Unexpected mallocx() failure");
 
 	assert_d_eq(mallctl("epoch", NULL, NULL, &epoch, sizeof(epoch)), 0,
@@ -336,7 +331,7 @@ TEST_BEGIN(test_stats_arenas_lextents)
 		assert_u64_ge(nmalloc, ndalloc,
 		    "nmalloc should be at least as large as ndalloc");
 		assert_u64_gt(curlextents, 0,
-		    "At least one chunk should be currently allocated");
+		    "At least one extent should be currently allocated");
 	}
 
 	dallocx(p, 0);
