@@ -1161,9 +1161,20 @@ malloc_conf_init(void)
 			if (config_fill) {
 				if (CONF_MATCH("junk")) {
 					if (CONF_MATCH_VALUE("true")) {
-						opt_junk = "true";
-						opt_junk_alloc = opt_junk_free =
-						    true;
+						if (config_valgrind &&
+						    unlikely(in_valgrind)) {
+							malloc_conf_error(
+							"Deallocation-time "
+							"junk filling cannot "
+							"be enabled while "
+							"running inside "
+							"Valgrind", k, klen, v,
+							vlen);
+						} else {
+							opt_junk = "true";
+							opt_junk_alloc = true;
+							opt_junk_free = true;
+						}
 					} else if (CONF_MATCH_VALUE("false")) {
 						opt_junk = "false";
 						opt_junk_alloc = opt_junk_free =
@@ -1173,9 +1184,20 @@ malloc_conf_init(void)
 						opt_junk_alloc = true;
 						opt_junk_free = false;
 					} else if (CONF_MATCH_VALUE("free")) {
-						opt_junk = "free";
-						opt_junk_alloc = false;
-						opt_junk_free = true;
+						if (config_valgrind &&
+						    unlikely(in_valgrind)) {
+							malloc_conf_error(
+							"Deallocation-time "
+							"junk filling cannot "
+							"be enabled while "
+							"running inside "
+							"Valgrind", k, klen, v,
+							vlen);
+						} else {
+							opt_junk = "free";
+							opt_junk_alloc = false;
+							opt_junk_free = true;
+						}
 					} else {
 						malloc_conf_error(
 						    "Invalid conf value", k,
