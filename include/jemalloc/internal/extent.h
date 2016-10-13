@@ -127,9 +127,6 @@ extent_t	*extent_split_wrapper(tsdn_t *tsdn, arena_t *arena,
     size_t usize_a, size_t size_b, size_t usize_b);
 bool	extent_merge_wrapper(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, extent_t *a, extent_t *b);
-void	extent_prefork(tsdn_t *tsdn);
-void	extent_postfork_parent(tsdn_t *tsdn);
-void	extent_postfork_child(tsdn_t *tsdn);
 
 bool	extent_boot(void);
 

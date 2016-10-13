@@ -156,11 +156,9 @@ extent_dalloc_mmap
 extent_dalloc_wrapper
 extent_decommit_wrapper
 extent_dss_boot
-extent_dss_postfork_child
-extent_dss_postfork_parent
+extent_dss_mergeable
 extent_dss_prec_get
 extent_dss_prec_set
-extent_dss_prefork
 extent_heap_empty
 extent_heap_first
 extent_heap_insert
@@ -176,9 +174,6 @@ extent_last_get
 extent_lookup
 extent_merge_wrapper
 extent_past_get
-extent_postfork_child
-extent_postfork_parent
-extent_prefork
 extent_prof_tctx_get
 extent_prof_tctx_set
 extent_purge_wrapper

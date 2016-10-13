@@ -23,15 +23,13 @@ extern const char *dss_prec_names[];
 
 extern const char	*opt_dss;
 
-dss_prec_t	extent_dss_prec_get(tsdn_t *tsdn);
-bool	extent_dss_prec_set(tsdn_t *tsdn, dss_prec_t dss_prec);
+dss_prec_t	extent_dss_prec_get(void);
+bool	extent_dss_prec_set(dss_prec_t dss_prec);
 void	*extent_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr,
     size_t size, size_t alignment, bool *zero, bool *commit);
-bool	extent_in_dss(tsdn_t *tsdn, void *addr);
-bool	extent_dss_boot(void);
-void	extent_dss_prefork(tsdn_t *tsdn);
-void	extent_dss_postfork_parent(tsdn_t *tsdn);
-void	extent_dss_postfork_child(tsdn_t *tsdn);
+bool	extent_in_dss(void *addr);
+bool	extent_dss_mergeable(void *addr_a, void *addr_b);
+void	extent_dss_boot(void);
 
 #endif /* JEMALLOC_H_EXTERNS */
 /******************************************************************************/

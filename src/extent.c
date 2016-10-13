@@ -856,10 +856,10 @@ extent_dalloc_cache(tsdn_t *tsdn, arena_t *arena,
 }
 
 static bool
-extent_dalloc_default_impl(tsdn_t *tsdn, void *addr, size_t size)
+extent_dalloc_default_impl(void *addr, size_t size)
 {
 
-	if (!have_dss || !extent_in_dss(tsdn, addr))
+	if (!have_dss || !extent_in_dss(addr))
 		return (extent_dalloc_mmap(addr, size));
 	return (true);
 }
@@ -869,13 +869,10 @@ static bool
 extent_dalloc_default(extent_hooks_t *extent_hooks, void *addr, size_t size,
     bool committed, unsigned arena_ind)
 {
-	tsdn_t *tsdn;
 
 	assert(extent_hooks == &extent_hooks_default);
 
-	tsdn = tsdn_fetch();
-
-	return (extent_dalloc_default_impl(tsdn, addr, size));
+	return (extent_dalloc_default_impl(addr, size));
 }
 
 void
@@ -897,7 +894,7 @@ extent_dalloc_wrapper(tsdn_t *tsdn, arena_t *arena,
 	extent_deregister(tsdn, extent);
 	if (*r_extent_hooks == &extent_hooks_default) {
 		/* Call directly to propagate tsdn. */
-		err = extent_dalloc_default_impl(tsdn, extent_base_get(extent),
+		err = extent_dalloc_default_impl(extent_base_get(extent),
 		    extent_size_get(extent));
 	} else {
 		err = (*r_extent_hooks)->dalloc(*r_extent_hooks,
@@ -1083,13 +1080,12 @@ label_error_a:
 }
 
 static bool
-extent_merge_default_impl(tsdn_t *tsdn, void *addr_a, void *addr_b)
+extent_merge_default_impl(void *addr_a, void *addr_b)
 {
 
 	if (!maps_coalesce)
 		return (true);
-	if (have_dss && extent_in_dss(tsdn, addr_a) != extent_in_dss(tsdn,
-	    addr_b))
+	if (have_dss && !extent_dss_mergeable(addr_a, addr_b))
 		return (true);
 
 	return (false);
@@ -1099,13 +1095,10 @@ static bool
 extent_merge_default(extent_hooks_t *extent_hooks, void *addr_a, size_t size_a,
     void *addr_b, size_t size_b, bool committed, unsigned arena_ind)
 {
-	tsdn_t *tsdn;
 
 	assert(extent_hooks == &extent_hooks_default);
 
-	tsdn = tsdn_fetch();
-
-	return (extent_merge_default_impl(tsdn, addr_a, addr_b));
+	return (extent_merge_default_impl(addr_a, addr_b));
 }
 
 bool
@@ -1120,7 +1113,7 @@ extent_merge_wrapper(tsdn_t *tsdn, arena_t *arena,
 	extent_hooks_assure_initialized(arena, r_extent_hooks);
 	if (*r_extent_hooks == &extent_hooks_default) {
 		/* Call directly to propagate tsdn. */
-		err = extent_merge_default_impl(tsdn, extent_base_get(a),
+		err = extent_merge_default_impl(extent_base_get(a),
 		    extent_base_get(b));
 	} else {
 		err = (*r_extent_hooks)->merge(*r_extent_hooks,
@@ -1171,29 +1164,8 @@ extent_boot(void)
 	    LG_PAGE)))
 		return (true);
 
-	if (have_dss && extent_dss_boot())
-		return (true);
+	if (have_dss)
+		extent_dss_boot();
 
 	return (false);
-}
-
-void
-extent_prefork(tsdn_t *tsdn)
-{
-
-	extent_dss_prefork(tsdn);
-}
-
-void
-extent_postfork_parent(tsdn_t *tsdn)
-{
-
-	extent_dss_postfork_parent(tsdn);
-}
-
-void
-extent_postfork_child(tsdn_t *tsdn)
-{
-
-	extent_dss_postfork_child(tsdn);
 }

@@ -1030,8 +1030,7 @@ malloc_conf_init(void)
 				for (i = 0; i < dss_prec_limit; i++) {
 					if (strncmp(dss_prec_names[i], v, vlen)
 					    == 0) {
-						if (extent_dss_prec_set(NULL,
-						   i)) {
+						if (extent_dss_prec_set(i)) {
 							malloc_conf_error(
 							    "Error setting dss",
 							    k, klen, v, vlen);
@@ -2631,7 +2630,6 @@ _malloc_prefork(void)
 		}
 	}
 	base_prefork(tsd_tsdn(tsd));
-	extent_prefork(tsd_tsdn(tsd));
 	for (i = 0; i < narenas; i++) {
 		if ((arena = arena_get(tsd_tsdn(tsd), i, false)) != NULL)
 			arena_prefork3(tsd_tsdn(tsd), arena);
@@ -2660,7 +2658,6 @@ _malloc_postfork(void)
 
 	witness_postfork_parent(tsd);
 	/* Release all mutexes, now that fork() has completed. */
-	extent_postfork_parent(tsd_tsdn(tsd));
 	base_postfork_parent(tsd_tsdn(tsd));
 	for (i = 0, narenas = narenas_total_get(); i < narenas; i++) {
 		arena_t *arena;
@@ -2685,7 +2682,6 @@ jemalloc_postfork_child(void)
 
 	witness_postfork_child(tsd);
 	/* Release all mutexes, now that fork() has completed. */
-	extent_postfork_child(tsd_tsdn(tsd));
 	base_postfork_child(tsd_tsdn(tsd));
 	for (i = 0, narenas = narenas_total_get(); i < narenas; i++) {
 		arena_t *arena;

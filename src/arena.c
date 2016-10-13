@@ -1682,7 +1682,7 @@ arena_new(tsdn_t *tsdn, unsigned ind)
 		    (uint64_t)(uintptr_t)arena;
 	}
 
-	arena->dss_prec = extent_dss_prec_get(tsdn);
+	arena->dss_prec = extent_dss_prec_get();
 
 	arena->purging = false;
 	arena->nactive = 0;

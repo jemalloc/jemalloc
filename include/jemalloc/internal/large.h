@@ -19,11 +19,11 @@ void	*large_ralloc(tsdn_t *tsdn, arena_t *arena, extent_t *extent,
 #ifdef JEMALLOC_JET
 typedef void (large_dalloc_junk_t)(void *, size_t);
 extern large_dalloc_junk_t *large_dalloc_junk;
-typedef void (large_dalloc_maybe_junk_t)(tsdn_t *, void *, size_t);
+typedef void (large_dalloc_maybe_junk_t)(void *, size_t);
 extern large_dalloc_maybe_junk_t *large_dalloc_maybe_junk;
 #else
 void	large_dalloc_junk(void *ptr, size_t usize);
-void	large_dalloc_maybe_junk(tsdn_t *tsdn, void *ptr, size_t usize);
+void	large_dalloc_maybe_junk(void *ptr, size_t usize);
 #endif
 void	large_dalloc_junked_locked(tsdn_t *tsdn, extent_t *extent);
 void	large_dalloc(tsdn_t *tsdn, extent_t *extent);

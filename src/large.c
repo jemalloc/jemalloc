@@ -81,7 +81,7 @@ large_dalloc_junk_t *large_dalloc_junk = JEMALLOC_N(n_large_dalloc_junk);
 #define	large_dalloc_maybe_junk JEMALLOC_N(n_large_dalloc_maybe_junk)
 #endif
 void
-large_dalloc_maybe_junk(tsdn_t *tsdn, void *ptr, size_t usize)
+large_dalloc_maybe_junk(void *ptr, size_t usize)
 {
 
 	if (config_fill && have_dss && unlikely(opt_junk_free)) {
@@ -89,7 +89,7 @@ large_dalloc_maybe_junk(tsdn_t *tsdn, void *ptr, size_t usize)
 		 * Only bother junk filling if the extent isn't about to be
 		 * unmapped.
 		 */
-		if (!config_munmap || (have_dss && extent_in_dss(tsdn, ptr)))
+		if (!config_munmap || (have_dss && extent_in_dss(ptr)))
 			large_dalloc_junk(ptr, usize);
 	}
 }
@@ -119,7 +119,7 @@ large_ralloc_no_move_shrink(tsdn_t *tsdn, extent_t *extent, size_t usize)
 			return (true);
 
 		if (config_fill && unlikely(opt_junk_free)) {
-			large_dalloc_maybe_junk(tsdn, extent_addr_get(trail),
+			large_dalloc_maybe_junk(extent_addr_get(trail),
 			    extent_usize_get(trail));
 		}
 
@@ -296,7 +296,7 @@ large_dalloc_impl(tsdn_t *tsdn, extent_t *extent, bool junked_locked)
 	ql_remove(&arena->large, extent, ql_link);
 	malloc_mutex_unlock(tsdn, &arena->large_mtx);
 	if (!junked_locked) {
-		large_dalloc_maybe_junk(tsdn, extent_addr_get(extent),
+		large_dalloc_maybe_junk(extent_addr_get(extent),
 		    extent_usize_get(extent));
 	}
 	arena_extent_dalloc_large(tsdn, arena, extent, junked_locked);

@@ -1527,11 +1527,11 @@ arena_i_dss_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
 		dss_prec_old = arena_dss_prec_get(tsd_tsdn(tsd), arena);
 	} else {
 		if (dss_prec != dss_prec_limit &&
-		    extent_dss_prec_set(tsd_tsdn(tsd), dss_prec)) {
+		    extent_dss_prec_set(dss_prec)) {
 			ret = EFAULT;
 			goto label_return;
 		}
-		dss_prec_old = extent_dss_prec_get(tsd_tsdn(tsd));
+		dss_prec_old = extent_dss_prec_get();
 	}
 
 	dss = dss_prec_names[dss_prec_old];
