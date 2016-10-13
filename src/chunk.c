@@ -611,10 +611,10 @@ chunk_dalloc_cache(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 }
 
 static bool
-chunk_dalloc_default_impl(tsdn_t *tsdn, void *chunk, size_t size)
+chunk_dalloc_default_impl(void *chunk, size_t size)
 {
 
-	if (!have_dss || !chunk_in_dss(tsdn, chunk))
+	if (!have_dss || !chunk_in_dss(chunk))
 		return (chunk_dalloc_mmap(chunk, size));
 	return (true);
 }
@@ -623,11 +623,8 @@ static bool
 chunk_dalloc_default(void *chunk, size_t size, bool committed,
     unsigned arena_ind)
 {
-	tsdn_t *tsdn;
 
-	tsdn = tsdn_fetch();
-
-	return (chunk_dalloc_default_impl(tsdn, chunk, size));
+	return (chunk_dalloc_default_impl(chunk, size));
 }
 
 void
@@ -645,7 +642,7 @@ chunk_dalloc_wrapper(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 	/* Try to deallocate. */
 	if (chunk_hooks->dalloc == chunk_dalloc_default) {
 		/* Call directly to propagate tsdn. */
-		err = chunk_dalloc_default_impl(tsdn, chunk, size);
+		err = chunk_dalloc_default_impl(chunk, size);
 	} else
 		err = chunk_hooks->dalloc(chunk, size, committed, arena->ind);
 
@@ -718,13 +715,12 @@ chunk_split_default(void *chunk, size_t size, size_t size_a, size_t size_b,
 }
 
 static bool
-chunk_merge_default_impl(tsdn_t *tsdn, void *chunk_a, void *chunk_b)
+chunk_merge_default_impl(void *chunk_a, void *chunk_b)
 {
 
 	if (!maps_coalesce)
 		return (true);
-	if (have_dss && chunk_in_dss(tsdn, chunk_a) != chunk_in_dss(tsdn,
-	    chunk_b))
+	if (have_dss && !chunk_dss_mergeable(chunk_a, chunk_b))
 		return (true);
 
 	return (false);
@@ -734,11 +730,8 @@ static bool
 chunk_merge_default(void *chunk_a, size_t size_a, void *chunk_b, size_t size_b,
     bool committed, unsigned arena_ind)
 {
-	tsdn_t *tsdn;
 
-	tsdn = tsdn_fetch();
-
-	return (chunk_merge_default_impl(tsdn, chunk_a, chunk_b));
+	return (chunk_merge_default_impl(chunk_a, chunk_b));
 }
 
 static rtree_node_elm_t *
@@ -782,32 +775,11 @@ chunk_boot(void)
 	chunksize_mask = chunksize - 1;
 	chunk_npages = (chunksize >> LG_PAGE);
 
-	if (have_dss && chunk_dss_boot())
-		return (true);
+	if (have_dss)
+		chunk_dss_boot();
 	if (rtree_new(&chunks_rtree, (unsigned)((ZU(1) << (LG_SIZEOF_PTR+3)) -
 	    opt_lg_chunk), chunks_rtree_node_alloc, NULL))
 		return (true);
 
 	return (false);
-}
-
-void
-chunk_prefork(tsdn_t *tsdn)
-{
-
-	chunk_dss_prefork(tsdn);
-}
-
-void
-chunk_postfork_parent(tsdn_t *tsdn)
-{
-
-	chunk_dss_postfork_parent(tsdn);
-}
-
-void
-chunk_postfork_child(tsdn_t *tsdn)
-{
-
-	chunk_dss_postfork_child(tsdn);
 }

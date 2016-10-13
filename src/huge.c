@@ -114,7 +114,7 @@ huge_palloc(tsdn_t *tsdn, arena_t *arena, size_t usize, size_t alignment,
 #define	huge_dalloc_junk JEMALLOC_N(huge_dalloc_junk_impl)
 #endif
 static void
-huge_dalloc_junk(tsdn_t *tsdn, void *ptr, size_t usize)
+huge_dalloc_junk(void *ptr, size_t usize)
 {
 
 	if (config_fill && have_dss && unlikely(opt_junk_free)) {
@@ -122,7 +122,7 @@ huge_dalloc_junk(tsdn_t *tsdn, void *ptr, size_t usize)
 		 * Only bother junk filling if the chunk isn't about to be
 		 * unmapped.
 		 */
-		if (!config_munmap || (have_dss && chunk_in_dss(tsdn, ptr)))
+		if (!config_munmap || (have_dss && chunk_in_dss(ptr)))
 			memset(ptr, JEMALLOC_FREE_JUNK, usize);
 	}
 }
@@ -221,7 +221,7 @@ huge_ralloc_no_move_shrink(tsdn_t *tsdn, void *ptr, size_t oldsize,
 	if (oldsize > usize) {
 		size_t sdiff = oldsize - usize;
 		if (config_fill && unlikely(opt_junk_free)) {
-			huge_dalloc_junk(tsdn, (void *)((uintptr_t)ptr + usize),
+			huge_dalloc_junk((void *)((uintptr_t)ptr + usize),
 			    sdiff);
 			post_zeroed = false;
 		} else {
@@ -402,7 +402,7 @@ huge_dalloc(tsdn_t *tsdn, void *ptr)
 	ql_remove(&arena->huge, node, ql_link);
 	malloc_mutex_unlock(tsdn, &arena->huge_mtx);
 
-	huge_dalloc_junk(tsdn, extent_node_addr_get(node),
+	huge_dalloc_junk(extent_node_addr_get(node),
 	    extent_node_size_get(node));
 	arena_chunk_dalloc_huge(tsdn, extent_node_arena_get(node),
 	    extent_node_addr_get(node), extent_node_size_get(node));

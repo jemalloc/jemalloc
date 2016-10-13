@@ -3499,7 +3499,7 @@ arena_new(tsdn_t *tsdn, unsigned ind)
 		    (uint64_t)(uintptr_t)arena;
 	}
 
-	arena->dss_prec = chunk_dss_prec_get(tsdn);
+	arena->dss_prec = chunk_dss_prec_get();
 
 	ql_new(&arena->achunks);
 
