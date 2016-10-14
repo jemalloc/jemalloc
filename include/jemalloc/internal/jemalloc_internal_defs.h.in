@@ -242,6 +242,16 @@
 #undef JEMALLOC_PROC_SYS_VM_OVERCOMMIT_MEMORY
 
 /*
+ * Options for forcing an overcommit setting.
+ * This can be used if the overcommit setting from
+ * the target OS is known and static.
+ * Using this is benefitial since some overhead
+ * from querying sysctl or proc/sys can be avoided.
+ */
+#undef JEMALLOC_FORCE_VM_OVERCOMMIT
+#undef JEMALLOC_FORCE_NO_VM_OVERCOMMIT
+
+/*
  * Methods for purging unused pages differ between operating systems.
  *
  *   madvise(..., MADV_DONTNEED) : On Linux, this immediately discards pages,

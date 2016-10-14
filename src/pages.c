@@ -1,6 +1,19 @@
 #define	JEMALLOC_PAGES_C_
 #include "jemalloc/internal/jemalloc_internal.h"
 
+#if (JEMALLOC_FORCE_VM_OVERCOMMIT && JEMALLOC_FORCE_NO_VM_OVERCOMMIT)
+#  error JEMALLOC_FORCE_VM_OVERCOMMIT and JEMALLOC_FORCE_NO_VM_OVERCOMMIT cannot be defined at the same time
+#endif
+
+/*
+* If an overcommit setting is forced, we don't need
+* any method to determine the overcommit setting.
+*/
+#if (defined(JEMALLOC_FORCE_VM_OVERCOMMIT) || defined(JEMALLOC_FORCE_NO_VM_OVERCOMMIT))
+#  undef JEMALLOC_SYSCTL_VM_OVERCOMMIT
+#  undef JEMALLOC_PROC_SYS_VM_OVERCOMMIT_MEMORY
+#endif
+
 #ifdef JEMALLOC_SYSCTL_VM_OVERCOMMIT
 #include <sys/sysctl.h>
 #endif
@@ -13,8 +26,14 @@
 #  define PAGES_PROT_DECOMMIT (PROT_NONE)
 static int	mmap_flags;
 #endif
-static bool	os_overcommits;
 
+#ifdef JEMALLOC_FORCE_VM_OVERCOMMIT
+static const bool os_overcommits = true;
+#elif defined(JEMALLOC_FORCE_NO_VM_OVERCOMMIT)
+static const bool os_overcommits = false;
+#else
+static bool	os_overcommits;
+#endif
 /******************************************************************************/
 
 void *
@@ -240,6 +259,7 @@ pages_boot(void)
 	mmap_flags = MAP_PRIVATE | MAP_ANON;
 #endif
 
+#if (!defined(JEMALLOC_FORCE_VM_OVERCOMMIT) && !defined(JEMALLOC_FORCE_NO_VM_OVERCOMMIT))
 #ifdef JEMALLOC_SYSCTL_VM_OVERCOMMIT
 	os_overcommits = os_overcommits_sysctl();
 #elif defined(JEMALLOC_PROC_SYS_VM_OVERCOMMIT_MEMORY)
@@ -250,5 +270,6 @@ pages_boot(void)
 #  endif
 #else
 	os_overcommits = false;
+#endif
 #endif
 }
