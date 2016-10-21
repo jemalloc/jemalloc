@@ -54,6 +54,7 @@ huge_palloc(tsdn_t *tsdn, arena_t *arena, size_t usize, size_t alignment,
 {
 	void *ret;
 	size_t ausize;
+	arena_t *iarena;
 	extent_node_t *node;
 	bool is_zeroed;
 
@@ -67,8 +68,9 @@ huge_palloc(tsdn_t *tsdn, arena_t *arena, size_t usize, size_t alignment,
 	assert(ausize >= chunksize);
 
 	/* Allocate an extent node with which to track the chunk. */
+	iarena = (!tsdn_null(tsdn)) ? arena_ichoose(tsdn_tsd(tsdn), NULL) : a0get();
 	node = ipallocztm(tsdn, CACHELINE_CEILING(sizeof(extent_node_t)),
-	    CACHELINE, false, NULL, true, arena_ichoose(tsdn, arena));
+	    CACHELINE, false, NULL, true, iarena);
 	if (node == NULL)
 		return (NULL);
 

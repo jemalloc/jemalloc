@@ -340,6 +340,13 @@ a0idalloc(void *ptr, bool is_metadata)
 	idalloctm(TSDN_NULL, ptr, false, is_metadata, true);
 }
 
+arena_t *
+a0get(void)
+{
+
+	return (a0);
+}
+
 void *
 a0malloc(size_t size)
 {
@@ -1454,7 +1461,7 @@ malloc_init_hard(void)
 		return (true);
 	malloc_mutex_lock(tsd_tsdn(tsd), &init_lock);
 
-	if (config_prof && prof_boot2(tsd_tsdn(tsd))) {
+	if (config_prof && prof_boot2(tsd)) {
 		malloc_mutex_unlock(tsd_tsdn(tsd), &init_lock);
 		return (true);
 	}
