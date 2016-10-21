@@ -1313,7 +1313,7 @@ malloc_init_hard(void)
 		return (true);
 	malloc_mutex_lock(tsd_tsdn(tsd), &init_lock);
 
-	if (config_prof && prof_boot2(tsd_tsdn(tsd))) {
+	if (config_prof && prof_boot2(tsd)) {
 		malloc_mutex_unlock(tsd_tsdn(tsd), &init_lock);
 		return (true);
 	}

@@ -471,7 +471,9 @@ tsd_booted_get
 tsd_cleanup
 tsd_cleanup_wrapper
 tsd_fetch
+tsd_fetch_impl
 tsd_get
+tsd_get_allocates
 tsd_iarena_get
 tsd_iarena_set
 tsd_iarenap_get

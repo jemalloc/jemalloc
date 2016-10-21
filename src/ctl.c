@@ -1326,7 +1326,7 @@ tcache_create_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
 
 	malloc_mutex_lock(tsd_tsdn(tsd), &ctl_mtx);
 	READONLY();
-	if (tcaches_create(tsd_tsdn(tsd), &tcache_ind)) {
+	if (tcaches_create(tsd, &tcache_ind)) {
 		ret = EFAULT;
 		goto label_return;
 	}
@@ -1871,7 +1871,7 @@ prof_reset_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
 	if (lg_sample >= (sizeof(uint64_t) << 3))
 		lg_sample = (sizeof(uint64_t) << 3) - 1;
 
-	prof_reset(tsd_tsdn(tsd), lg_sample);
+	prof_reset(tsd, lg_sample);
 
 	ret = 0;
 label_return:
