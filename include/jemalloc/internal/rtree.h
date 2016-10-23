@@ -260,7 +260,7 @@ rtree_child_tryread(rtree_elm_t *elm, bool dependent)
 	/* Double-checked read (first read may be stale). */
 	child = elm->child;
 	if (!dependent && !rtree_node_valid(child))
-		child = atomic_read_p(&elm->pun);
+		child = (rtree_elm_t *)atomic_read_p(&elm->pun);
 	assert(!dependent || child != NULL);
 	return (child);
 }
@@ -320,8 +320,10 @@ rtree_subtree_tryread(rtree_t *rtree, unsigned level, bool dependent)
 
 	/* Double-checked read (first read may be stale). */
 	subtree = rtree->levels[level].subtree;
-	if (!dependent && unlikely(!rtree_node_valid(subtree)))
-		subtree = atomic_read_p(&rtree->levels[level].subtree_pun);
+	if (!dependent && unlikely(!rtree_node_valid(subtree))) {
+		subtree = (rtree_elm_t *)atomic_read_p(
+		    &rtree->levels[level].subtree_pun);
+	}
 	assert(!dependent || subtree != NULL);
 	return (subtree);
 }

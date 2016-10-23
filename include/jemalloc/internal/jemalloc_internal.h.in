@@ -1,6 +1,10 @@
 #ifndef JEMALLOC_INTERNAL_H
 #define	JEMALLOC_INTERNAL_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "jemalloc_internal_defs.h"
 #include "jemalloc/internal/jemalloc_internal_decls.h"
 
@@ -135,7 +139,7 @@ static const bool config_cache_oblivious =
 #endif
     ;
 
-#ifdef JEMALLOC_C11ATOMICS
+#if defined(JEMALLOC_C11ATOMICS) && !defined(__cplusplus)
 #include <stdatomic.h>
 #endif
 
@@ -888,7 +892,7 @@ arena_get(tsdn_t *tsdn, unsigned ind, bool init_if_missing)
 
 	ret = arenas[ind];
 	if (unlikely(ret == NULL)) {
-		ret = atomic_read_p((void *)&arenas[ind]);
+		ret = (arena_t *)atomic_read_p((void **)&arenas[ind]);
 		if (init_if_missing && unlikely(ret == NULL))
 			ret = arena_init(tsdn, ind);
 	}
@@ -1194,4 +1198,9 @@ ixalloc(tsdn_t *tsdn, extent_t *extent, void *ptr, size_t oldsize, size_t size,
 
 #undef JEMALLOC_H_INLINES
 /******************************************************************************/
+
+#ifdef __cplusplus
+}
+#endif
+
 #endif /* JEMALLOC_INTERNAL_H */

@@ -8,8 +8,8 @@
 		char message[ASSERT_BUFSIZE];				\
 		malloc_snprintf(prefix, sizeof(prefix),			\
 		    "%s:%s:%d: Failed assertion: "			\
-		    "(%s) "#cmp" (%s) --> "				\
-		    "%"pri" "#neg_cmp" %"pri": ",			\
+		    "(%s) " #cmp " (%s) --> "				\
+		    "%" pri " " #neg_cmp " %" pri ": ",			\
 		    __func__, __FILE__, __LINE__,			\
 		    #a, #b, a_, b_);					\
 		malloc_snprintf(message, sizeof(message), __VA_ARGS__);	\

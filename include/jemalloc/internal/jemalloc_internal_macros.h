@@ -52,6 +52,6 @@
 #  define	__DECONST(type, var)	((type)(uintptr_t)(const void *)(var))
 #endif
 
-#ifndef JEMALLOC_HAS_RESTRICT
+#if !defined(JEMALLOC_HAS_RESTRICT) || defined(__cplusplus)
 #  define restrict
 #endif

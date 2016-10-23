@@ -29,6 +29,29 @@ AC_COMPILE_IFELSE([AC_LANG_PROGRAM(
 )
 ])
 
+dnl JE_CXXFLAGS_APPEND(cflag)
+AC_DEFUN([JE_CXXFLAGS_APPEND],
+[
+AC_MSG_CHECKING([whether compiler supports $1])
+TCXXFLAGS="${CXXFLAGS}"
+if test "x${CXXFLAGS}" = "x" ; then
+  CXXFLAGS="$1"
+else
+  CXXFLAGS="${CXXFLAGS} $1"
+fi
+AC_COMPILE_IFELSE([AC_LANG_PROGRAM(
+[[
+]], [[
+    return 0;
+]])],
+              [je_cv_cflags_appended=$1]
+              AC_MSG_RESULT([yes]),
+              [je_cv_cflags_appended=]
+              AC_MSG_RESULT([no])
+              [CXXFLAGS="${TCXXFLAGS}"]
+)
+])
+
 dnl JE_COMPILABLE(label, hcode, mcode, rvar)
 dnl 
 dnl Use AC_LINK_IFELSE() rather than AC_COMPILE_IFELSE() so that linker errors
@@ -210,6 +233,46 @@ if test "x$CFLAGS" = "x" ; then
 fi
 AC_SUBST([EXTRA_CFLAGS])
 AC_PROG_CPP
+
+AC_ARG_ENABLE([cxx],
+  [AS_HELP_STRING([--disable-cxx], [Disable C++ integration])],
+if test "x$enable_cxx" = "xno" ; then
+  enable_cxx="0"
+else
+  enable_cxx="1"
+fi
+,
+enable_cxx="1"
+)
+if test "x$enable_cxx" = "x1" ; then
+  CXXFLAGS=""
+  dnl Require at least c++14, which is the first version to support sized
+  dnl deallocation.  C++ support is not compiled otherwise.
+  m4_include([m4/ax_cxx_compile_stdcxx.m4])
+  AX_CXX_COMPILE_STDCXX([14], [noext], [optional])
+  if test "x${HAVE_CXX14}" = "x1" ; then
+    JE_CXXFLAGS_APPEND([-Wall])
+    JE_CXXFLAGS_APPEND([-g3])
+
+    SAVED_LIBS="${LIBS}"
+    LIBS="${LIBS} -lstdc++"
+    JE_COMPILABLE([libstdc++ linkage], [
+#include <stdlib.h>
+], [[
+	int *arr = (int *)malloc(sizeof(int) * 42);
+	if (arr == NULL)
+		return (1);
+]], [je_cv_libstdcxx])
+    if test "x${je_cv_libstdcxx}" = "xno" ; then
+      LIBS="${SAVED_LIBS}"
+    fi
+  else
+    enable_cxx="0"
+  fi
+fi
+AC_SUBST([enable_cxx])
+AC_SUBST([CXXFLAGS])
+AC_SUBST([EXTRA_CXXFLAGS])
 
 AC_C_BIGENDIAN([ac_cv_big_endian=1], [ac_cv_big_endian=0])
 if test "x${ac_cv_big_endian}" = "x1" ; then
@@ -516,6 +579,7 @@ if test "x${je_cv_attribute}" = "xyes" ; then
   AC_DEFINE([JEMALLOC_HAVE_ATTR], [ ])
   if test "x${GCC}" = "xyes" -a "x${abi}" = "xelf"; then
     JE_CFLAGS_APPEND([-fvisibility=hidden])
+    JE_CXXFLAGS_APPEND([-fvisibility=hidden])
   fi
 fi
 dnl Check for tls_model attribute support (clang 3.0 still lacks support).
@@ -824,11 +888,14 @@ if test "x$enable_debug" = "x0" -a "x$no_CFLAGS" = "xyes" ; then
   if test "x${optimize}" = "xyes" ; then
     if test "x$GCC" = "xyes" ; then
       JE_CFLAGS_APPEND([-O3])
+      JE_CXXFLAGS_APPEND([-O3])
       JE_CFLAGS_APPEND([-funroll-loops])
     elif test "x$je_cv_msvc" = "xyes" ; then
       JE_CFLAGS_APPEND([-O2])
+      JE_CXXFLAGS_APPEND([-O2])
     else
       JE_CFLAGS_APPEND([-O])
+      JE_CXXFLAGS_APPEND([-O])
     fi
   fi
 fi
@@ -1943,8 +2010,12 @@ AC_MSG_RESULT([CC                 : ${CC}])
 AC_MSG_RESULT([CFLAGS             : ${CFLAGS}])
 AC_MSG_RESULT([EXTRA_CFLAGS       : ${EXTRA_CFLAGS}])
 AC_MSG_RESULT([CPPFLAGS           : ${CPPFLAGS}])
+AC_MSG_RESULT([CXX                : ${CXX}])
+AC_MSG_RESULT([CXXFLAGS           : ${CXXFLAGS}])
+AC_MSG_RESULT([EXTRA_CXXFLAGS     : ${EXTRA_CXXFLAGS}])
 AC_MSG_RESULT([LDFLAGS            : ${LDFLAGS}])
 AC_MSG_RESULT([EXTRA_LDFLAGS      : ${EXTRA_LDFLAGS}])
+AC_MSG_RESULT([DSO_LDFLAGS        : ${DSO_LDFLAGS}])
 AC_MSG_RESULT([LIBS               : ${LIBS}])
 AC_MSG_RESULT([RPATH_EXTRA        : ${RPATH_EXTRA}])
 AC_MSG_RESULT([])
@@ -1985,4 +2056,5 @@ AC_MSG_RESULT([munmap             : ${enable_munmap}])
 AC_MSG_RESULT([lazy_lock          : ${enable_lazy_lock}])
 AC_MSG_RESULT([tls                : ${enable_tls}])
 AC_MSG_RESULT([cache-oblivious    : ${enable_cache_oblivious}])
+AC_MSG_RESULT([cxx                : ${enable_cxx}])
 AC_MSG_RESULT([===============================================================================])

@@ -208,6 +208,10 @@ any of the following arguments (not a definitive list) to 'configure':
     intended as a workaround for systems that place security limitations on
     syscall(2).
 
+--disable-cxx
+    Disable C++ integration.  This will cause new and delete operator
+    implementations to be omitted.
+
 --with-xslroot=<path>
     Specify where to find DocBook XSL stylesheets when building the
     documentation.
