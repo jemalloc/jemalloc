@@ -9,6 +9,7 @@ vpath % .
 SHELL := /bin/sh
 
 CC := @CC@
+CXX := @CXX@
 
 # Configuration parameters.
 DESTDIR =
@@ -24,6 +25,7 @@ abs_objroot := @abs_objroot@
 
 # Build parameters.
 CPPFLAGS := @CPPFLAGS@ -I$(srcroot)include -I$(objroot)include
+CXXFLAGS := @CXXFLAGS@
 CFLAGS := @CFLAGS@
 LDFLAGS := @LDFLAGS@
 EXTRA_LDFLAGS := @EXTRA_LDFLAGS@
@@ -192,10 +194,20 @@ TESTS_INTEGRATION := $(srcroot)test/integration/aligned_alloc.c \
 	$(srcroot)test/integration/thread_tcache_enabled.c \
 	$(srcroot)test/integration/xallocx.c
 TESTS_STRESS := $(srcroot)test/stress/microbench.c
-TESTS := $(TESTS_UNIT) $(TESTS_INTEGRATION) $(TESTS_STRESS)
+
+ifeq (@HAVE_CXX14@, 1)
+CPP_SRCS := $(srcroot)src/jemalloc-cpp.cpp
+TESTS_CPP := $(srcroot)test/cpp/basic.cpp
+else
+CPP_SRCS :=
+endif
+
+TESTS := $(TESTS_UNIT) $(TESTS_INTEGRATION) $(TESTS_STRESS) $(TESTS_CPP)
 
 C_OBJS := $(C_SRCS:$(srcroot)%.c=$(objroot)%.$(O))
+CPP_OBJS := $(CPP_SRCS:$(srcroot)%.cpp=$(objroot)%.$(O))
 C_PIC_OBJS := $(C_SRCS:$(srcroot)%.c=$(objroot)%.pic.$(O))
+CPP_PIC_OBJS := $(CPP_SRCS:$(srcroot)%.cpp=$(objroot)%.pic.$(O))
 C_JET_OBJS := $(C_SRCS:$(srcroot)%.c=$(objroot)%.jet.$(O))
 C_TESTLIB_UNIT_OBJS := $(C_TESTLIB_SRCS:$(srcroot)%.c=$(objroot)%.unit.$(O))
 C_TESTLIB_INTEGRATION_OBJS := $(C_TESTLIB_SRCS:$(srcroot)%.c=$(objroot)%.integration.$(O))
@@ -206,6 +218,7 @@ C_TESTLIB_OBJS := $(C_TESTLIB_UNIT_OBJS) $(C_TESTLIB_INTEGRATION_OBJS) $(C_UTIL_
 TESTS_UNIT_OBJS := $(TESTS_UNIT:$(srcroot)%.c=$(objroot)%.$(O))
 TESTS_INTEGRATION_OBJS := $(TESTS_INTEGRATION:$(srcroot)%.c=$(objroot)%.$(O))
 TESTS_STRESS_OBJS := $(TESTS_STRESS:$(srcroot)%.c=$(objroot)%.$(O))
+TESTS_CPP_OBJS := $(TESTS_CPP:$(srcroot)%.cpp=$(objroot)%.$(O))
 TESTS_OBJS := $(TESTS_UNIT_OBJS) $(TESTS_INTEGRATION_OBJS) $(TESTS_STRESS_OBJS)
 
 .PHONY: all dist build_doc_html build_doc_man build_doc
@@ -213,7 +226,7 @@ TESTS_OBJS := $(TESTS_UNIT_OBJS) $(TESTS_INTEGRATION_OBJS) $(TESTS_STRESS_OBJS)
 .PHONY: install_doc_html install_doc_man install_doc install
 .PHONY: tests check clean distclean relclean
 
-.SECONDARY : $(TESTS_OBJS)
+.SECONDARY : $(TESTS_OBJS) $(TESTS_CPP_OBJS)
 
 # Default target.
 all: build_lib
@@ -235,15 +248,20 @@ build_doc: $(DOCS)
 #
 ifdef CC_MM
 -include $(C_OBJS:%.$(O)=%.d)
+-include $(CPP_OBJS:%.$(O)=%.d)
 -include $(C_PIC_OBJS:%.$(O)=%.d)
+-include $(CPP_PIC_OBJS:%.$(O)=%.d)
 -include $(C_JET_OBJS:%.$(O)=%.d)
 -include $(C_TESTLIB_OBJS:%.$(O)=%.d)
 -include $(TESTS_OBJS:%.$(O)=%.d)
 endif
 
 $(C_OBJS): $(objroot)src/%.$(O): $(srcroot)src/%.c
+$(CPP_OBJS): $(objroot)src/%.$(O): $(srcroot)src/%.cpp
 $(C_PIC_OBJS): $(objroot)src/%.pic.$(O): $(srcroot)src/%.c
 $(C_PIC_OBJS): CFLAGS += $(PIC_CFLAGS)
+$(CPP_PIC_OBJS): $(objroot)src/%.pic.$(O): $(srcroot)src/%.cpp
+$(CPP_PIC_OBJS): CXXFLAGS += $(PIC_CFLAGS)
 $(C_JET_OBJS): $(objroot)src/%.jet.$(O): $(srcroot)src/%.c
 $(C_JET_OBJS): CFLAGS += -DJEMALLOC_JET
 $(C_TESTLIB_UNIT_OBJS): $(objroot)test/src/%.unit.$(O): $(srcroot)test/src/%.c
@@ -258,9 +276,10 @@ $(TESTS_UNIT_OBJS): CPPFLAGS += -DJEMALLOC_UNIT_TEST
 $(TESTS_INTEGRATION_OBJS): CPPFLAGS += -DJEMALLOC_INTEGRATION_TEST
 $(TESTS_STRESS_OBJS): CPPFLAGS += -DJEMALLOC_STRESS_TEST
 $(TESTS_OBJS): $(objroot)test/%.$(O): $(srcroot)test/%.c
+$(TESTS_CPP_OBJS): $(objroot)test/%.$(O): $(srcroot)test/%.cpp
 $(TESTS_OBJS): CPPFLAGS += -I$(srcroot)test/include -I$(objroot)test/include
 ifneq ($(IMPORTLIB),$(SO))
-$(C_OBJS) $(C_JET_OBJS): CPPFLAGS += -DDLLEXPORT
+$(CPP_OBJS) $(C_OBJS) $(C_JET_OBJS): CPPFLAGS += -DDLLEXPORT
 endif
 
 ifndef CC_MM
@@ -268,9 +287,14 @@ ifndef CC_MM
 HEADER_DIRS = $(srcroot)include/jemalloc/internal \
 	$(objroot)include/jemalloc $(objroot)include/jemalloc/internal
 HEADERS = $(wildcard $(foreach dir,$(HEADER_DIRS),$(dir)/*.h))
-$(C_OBJS) $(C_PIC_OBJS) $(C_JET_OBJS) $(C_TESTLIB_OBJS) $(TESTS_OBJS): $(HEADERS)
+$(CPP_OBJS) $(C_OBJS) $(CPP_PIC_OBJS) $(C_PIC_OBJS) $(C_JET_OBJS) $(C_TESTLIB_OBJS) $(TESTS_OBJS) $(TESTS_CPP_OBJS): $(HEADERS)
 $(TESTS_OBJS): $(objroot)test/include/test/jemalloc_test.h
+$(TESTS_CPP_OBJS): $(objroot)test/include/test/jemalloc_test.h
 endif
+
+$(CPP_OBJS) $(CPP_PIC_OBJS) $(TESTS_CPP_OBJS): %.$(O):
+	@mkdir -p $(@D)
+	$(CXX) $(CXXFLAGS) -c $(CPPFLAGS) $(CTARGET) $<
 
 $(C_OBJS) $(C_PIC_OBJS) $(C_JET_OBJS) $(C_TESTLIB_OBJS) $(TESTS_OBJS): %.$(O):
 	@mkdir -p $(@D)
@@ -285,13 +309,13 @@ ifneq ($(SOREV),$(SO))
 	ln -sf $(<F) $@
 endif
 
-$(objroot)lib/$(LIBJEMALLOC).$(SOREV) : $(if $(PIC_CFLAGS),$(C_PIC_OBJS),$(C_OBJS))
+$(objroot)lib/$(LIBJEMALLOC).$(SOREV) : $(if $(PIC_CFLAGS),$(C_PIC_OBJS),$(C_OBJS)) $(if $(PIC_CFLAGS),$(CPP_PIC_OBJS),$(CPP_OBJS))
 	@mkdir -p $(@D)
 	$(CC) $(DSO_LDFLAGS) $(call RPATH,$(RPATH_EXTRA)) $(LDTARGET) $+ $(LDFLAGS) $(LIBS) $(EXTRA_LDFLAGS)
 
-$(objroot)lib/$(LIBJEMALLOC)_pic.$(A) : $(C_PIC_OBJS)
-$(objroot)lib/$(LIBJEMALLOC).$(A) : $(C_OBJS)
-$(objroot)lib/$(LIBJEMALLOC)_s.$(A) : $(C_OBJS)
+$(objroot)lib/$(LIBJEMALLOC)_pic.$(A) : $(C_PIC_OBJS) $(CPP_PIC_OBJS)
+$(objroot)lib/$(LIBJEMALLOC).$(A) : $(C_OBJS) $(CPP_OBJS)
+$(objroot)lib/$(LIBJEMALLOC)_s.$(A) : $(C_OBJS) $(CPP_OBJS)
 
 $(STATIC_LIBS):
 	@mkdir -p $(@D)
@@ -308,6 +332,10 @@ $(objroot)test/integration/%$(EXE): $(objroot)test/integration/%.$(O) $(C_TESTLI
 $(objroot)test/stress/%$(EXE): $(objroot)test/stress/%.$(O) $(C_JET_OBJS) $(C_TESTLIB_STRESS_OBJS) $(objroot)lib/$(LIBJEMALLOC).$(IMPORTLIB)
 	@mkdir -p $(@D)
 	$(CC) $(TEST_LD_MODE) $(LDTARGET) $(filter %.$(O),$^) $(call RPATH,$(objroot)lib) $(objroot)lib/$(LIBJEMALLOC).$(IMPORTLIB) $(LDFLAGS) $(filter-out -lm,$(LIBS)) -lm $(EXTRA_LDFLAGS)
+
+$(objroot)test/cpp/%$(EXE): $(objroot)test/cpp/%.$(O) $(C_JET_OBJS) $(C_TESTLIB_CPP_OBJS) $(objroot)lib/$(LIBJEMALLOC).$(IMPORTLIB)
+	@mkdir -p $(@D)
+	$(CXX) $(LDTARGET) $(filter %.$(O),$^) $(call RPATH,$(objroot)lib) $(objroot)lib/$(LIBJEMALLOC).$(IMPORTLIB) $(LDFLAGS) $(filter-out -lm,$(LIBS)) -lm $(EXTRA_LDFLAGS) -lstdc++
 
 build_lib_shared: $(DSOS)
 build_lib_static: $(STATIC_LIBS)
@@ -371,6 +399,7 @@ install: install_bin install_include install_lib install_doc
 tests_unit: $(TESTS_UNIT:$(srcroot)%.c=$(objroot)%$(EXE))
 tests_integration: $(TESTS_INTEGRATION:$(srcroot)%.c=$(objroot)%$(EXE))
 tests_stress: $(TESTS_STRESS:$(srcroot)%.c=$(objroot)%$(EXE))
+tests_cpp: $(TESTS_CPP:$(srcroot)%.cpp=$(objroot)%$(EXE))
 tests: tests_unit tests_integration tests_stress
 
 check_unit_dir:
@@ -395,7 +424,9 @@ check_integration: tests_integration check_integration_dir
 	$(SHELL) $(objroot)test/test.sh $(TESTS_INTEGRATION:$(srcroot)%.c=$(objroot)%)
 stress: tests_stress stress_dir
 	$(SHELL) $(objroot)test/test.sh $(TESTS_STRESS:$(srcroot)%.c=$(objroot)%)
-check: check_unit check_integration check_integration_decay check_integration_prof
+check_cpp: tests_cpp
+	$(SHELL) $(objroot)test/test.sh $(TESTS_CPP:$(srcroot)%.cpp=$(objroot)%)
+check: check_cpp check_unit check_integration check_integration_decay check_integration_prof
 
 ifeq ($(enable_code_coverage), 1)
 coverage_unit: check_unit
@@ -429,7 +460,9 @@ endif
 
 clean:
 	rm -f $(C_OBJS)
+	rm -f $(CPP_OBJS)
 	rm -f $(C_PIC_OBJS)
+	rm -f $(CPP_PIC_OBJS)
 	rm -f $(C_JET_OBJS)
 	rm -f $(C_TESTLIB_OBJS)
 	rm -f $(C_OBJS:%.$(O)=%.d)
