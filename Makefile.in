@@ -119,6 +119,11 @@ DSOS := $(objroot)lib/$(LIBJEMALLOC).$(SOREV)
 ifneq ($(SOREV),$(SO))
 DSOS += $(objroot)lib/$(LIBJEMALLOC).$(SO)
 endif
+ifeq (pecoff, $(ABI))
+LJEMALLOC := -Wl,--whole-archive -L$(objroot)lib -l$(LIBJEMALLOC) -Wl,--no-whole-archive
+else
+LJEMALLOC := $(objroot)lib/$(LIBJEMALLOC).$(IMPORTLIB)
+endif
 PC := $(objroot)jemalloc.pc
 MAN3 := $(objroot)doc/jemalloc$(install_suffix).3
 DOCS_XML := $(objroot)doc/jemalloc$(install_suffix).xml
@@ -130,7 +135,11 @@ C_TESTLIB_SRCS := $(srcroot)test/src/btalloc.c $(srcroot)test/src/btalloc_0.c \
 	$(srcroot)test/src/mtx.c $(srcroot)test/src/mq.c \
 	$(srcroot)test/src/SFMT.c $(srcroot)test/src/test.c \
 	$(srcroot)test/src/thd.c $(srcroot)test/src/timer.c
+ifeq (pecoff, $(ABI))
+C_UTIL_INTEGRATION_SRCS :=
+else
 C_UTIL_INTEGRATION_SRCS := $(srcroot)src/nstime.c $(srcroot)src/util.c
+endif
 TESTS_UNIT := \
 	$(srcroot)test/unit/a0.c \
 	$(srcroot)test/unit/arena_reset.c \
@@ -294,7 +303,7 @@ $(objroot)test/unit/%$(EXE): $(objroot)test/unit/%.$(O) $(TESTS_UNIT_LINK_OBJS) 
 
 $(objroot)test/integration/%$(EXE): $(objroot)test/integration/%.$(O) $(C_TESTLIB_INTEGRATION_OBJS) $(C_UTIL_INTEGRATION_OBJS) $(objroot)lib/$(LIBJEMALLOC).$(IMPORTLIB)
 	@mkdir -p $(@D)
-	$(CC) $(TEST_LD_MODE) $(LDTARGET) $(filter %.$(O),$^) $(call RPATH,$(objroot)lib) $(objroot)lib/$(LIBJEMALLOC).$(IMPORTLIB) $(LDFLAGS) $(filter-out -lm,$(filter -lrt -lpthread,$(LIBS))) -lm $(EXTRA_LDFLAGS)
+	$(CC) $(TEST_LD_MODE) $(LDTARGET) $(filter %.$(O),$^) $(call RPATH,$(objroot)lib) $(LJEMALLOC) $(LDFLAGS) $(filter-out -lm,$(filter -lrt -lpthread,$(LIBS))) -lm $(EXTRA_LDFLAGS)
 
 $(objroot)test/stress/%$(EXE): $(objroot)test/stress/%.$(O) $(C_JET_OBJS) $(C_TESTLIB_STRESS_OBJS) $(objroot)lib/$(LIBJEMALLOC).$(IMPORTLIB)
 	@mkdir -p $(@D)
