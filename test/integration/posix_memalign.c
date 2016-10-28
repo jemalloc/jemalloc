@@ -1,6 +1,19 @@
 #include "test/jemalloc_test.h"
 
-#define	MAXALIGN (((size_t)1) << 25)
+#define	MAXALIGN (((size_t)1) << 23)
+
+/*
+ * On systems which can't merge extents, tests that call this function generate
+ * a lot of dirty memory very quickly.  Purging between cycles mitigates
+ * potential OOM on e.g. 32-bit Windows.
+ */
+static void
+purge(void)
+{
+
+	assert_d_eq(mallctl("arena.0.purge", NULL, NULL, NULL, 0), 0,
+	    "Unexpected mallctl error");
+}
 
 TEST_BEGIN(test_alignment_errors)
 {
@@ -102,13 +115,7 @@ TEST_BEGIN(test_alignment_and_size)
 				}
 			}
 		}
-		/*
-		 * On systems which can't merge extents, this test generates a
-		 * lot of dirty memory very quickly.  Purge between cycles to
-		 * avoid potential OOM on e.g. 32-bit Windows.
-		 */
-		assert_d_eq(mallctl("arena.0.purge", NULL, NULL, NULL, 0), 0,
-		    "Unexpected mallctl error");
+		purge();
 	}
 #undef NITER
 }
