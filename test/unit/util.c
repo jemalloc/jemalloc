@@ -75,6 +75,7 @@ TEST_BEGIN(test_malloc_strtoumax)
 	};
 #define	ERR(e)		e, #e
 #define	KUMAX(x)	((uintmax_t)x##ULL)
+#define	KSMAX(x)	((uintmax_t)(intmax_t)x##LL)
 	struct test_s tests[] = {
 		{"0",		"0",	-1,	ERR(EINVAL),	UINTMAX_MAX},
 		{"0",		"0",	1,	ERR(EINVAL),	UINTMAX_MAX},
@@ -87,13 +88,13 @@ TEST_BEGIN(test_malloc_strtoumax)
 
 		{"42",		"",	0,	ERR(0),		KUMAX(42)},
 		{"+42",		"",	0,	ERR(0),		KUMAX(42)},
-		{"-42",		"",	0,	ERR(0),		KUMAX(-42)},
+		{"-42",		"",	0,	ERR(0),		KSMAX(-42)},
 		{"042",		"",	0,	ERR(0),		KUMAX(042)},
 		{"+042",	"",	0,	ERR(0),		KUMAX(042)},
-		{"-042",	"",	0,	ERR(0),		KUMAX(-042)},
+		{"-042",	"",	0,	ERR(0),		KSMAX(-042)},
 		{"0x42",	"",	0,	ERR(0),		KUMAX(0x42)},
 		{"+0x42",	"",	0,	ERR(0),		KUMAX(0x42)},
-		{"-0x42",	"",	0,	ERR(0),		KUMAX(-0x42)},
+		{"-0x42",	"",	0,	ERR(0),		KSMAX(-0x42)},
 
 		{"0",		"",	0,	ERR(0),		KUMAX(0)},
 		{"1",		"",	0,	ERR(0),		KUMAX(1)},
@@ -130,6 +131,7 @@ TEST_BEGIN(test_malloc_strtoumax)
 	};
 #undef ERR
 #undef KUMAX
+#undef KSMAX
 	unsigned i;
 
 	for (i = 0; i < sizeof(tests)/sizeof(struct test_s); i++) {
