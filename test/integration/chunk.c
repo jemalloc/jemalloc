@@ -137,8 +137,8 @@ TEST_BEGIN(test_chunk)
 	bool xallocx_success_a, xallocx_success_b, xallocx_success_c;
 
 	sz = sizeof(unsigned);
-	assert_d_eq(mallctl("arenas.extend", &arena_ind, &sz, NULL, 0), 0,
-	    "Unexpected mallctl() failure");
+	assert_d_eq(mallctl("arenas.extend", (void *)&arena_ind, &sz, NULL, 0),
+	    0, "Unexpected mallctl() failure");
 	flags = MALLOCX_ARENA(arena_ind) | MALLOCX_TCACHE_NONE;
 
 	/* Install custom chunk hooks. */
@@ -148,8 +148,9 @@ TEST_BEGIN(test_chunk)
 	hooks_mib[1] = (size_t)arena_ind;
 	old_size = sizeof(chunk_hooks_t);
 	new_size = sizeof(chunk_hooks_t);
-	assert_d_eq(mallctlbymib(hooks_mib, hooks_miblen, &old_hooks, &old_size,
-	    &new_hooks, new_size), 0, "Unexpected chunk_hooks error");
+	assert_d_eq(mallctlbymib(hooks_mib, hooks_miblen, (void *)&old_hooks,
+	    &old_size, (void *)&new_hooks, new_size), 0,
+	    "Unexpected chunk_hooks error");
 	orig_hooks = old_hooks;
 	assert_ptr_ne(old_hooks.alloc, chunk_alloc, "Unexpected alloc error");
 	assert_ptr_ne(old_hooks.dalloc, chunk_dalloc,
@@ -164,18 +165,18 @@ TEST_BEGIN(test_chunk)
 
 	/* Get large size classes. */
 	sz = sizeof(size_t);
-	assert_d_eq(mallctl("arenas.lrun.0.size", &large0, &sz, NULL, 0), 0,
-	    "Unexpected arenas.lrun.0.size failure");
-	assert_d_eq(mallctl("arenas.lrun.1.size", &large1, &sz, NULL, 0), 0,
-	    "Unexpected arenas.lrun.1.size failure");
+	assert_d_eq(mallctl("arenas.lrun.0.size", (void *)&large0, &sz, NULL,
+	    0), 0, "Unexpected arenas.lrun.0.size failure");
+	assert_d_eq(mallctl("arenas.lrun.1.size", (void *)&large1, &sz, NULL,
+	    0), 0, "Unexpected arenas.lrun.1.size failure");
 
 	/* Get huge size classes. */
-	assert_d_eq(mallctl("arenas.hchunk.0.size", &huge0, &sz, NULL, 0), 0,
-	    "Unexpected arenas.hchunk.0.size failure");
-	assert_d_eq(mallctl("arenas.hchunk.1.size", &huge1, &sz, NULL, 0), 0,
-	    "Unexpected arenas.hchunk.1.size failure");
-	assert_d_eq(mallctl("arenas.hchunk.2.size", &huge2, &sz, NULL, 0), 0,
-	    "Unexpected arenas.hchunk.2.size failure");
+	assert_d_eq(mallctl("arenas.hchunk.0.size", (void *)&huge0, &sz, NULL,
+	    0), 0, "Unexpected arenas.hchunk.0.size failure");
+	assert_d_eq(mallctl("arenas.hchunk.1.size", (void *)&huge1, &sz, NULL,
+	    0), 0, "Unexpected arenas.hchunk.1.size failure");
+	assert_d_eq(mallctl("arenas.hchunk.2.size", (void *)&huge2, &sz, NULL,
+	    0), 0, "Unexpected arenas.hchunk.2.size failure");
 
 	/* Test dalloc/decommit/purge cascade. */
 	purge_miblen = sizeof(purge_mib)/sizeof(size_t);
@@ -265,9 +266,9 @@ TEST_BEGIN(test_chunk)
 
 	/* Restore chunk hooks. */
 	assert_d_eq(mallctlbymib(hooks_mib, hooks_miblen, NULL, NULL,
-	    &old_hooks, new_size), 0, "Unexpected chunk_hooks error");
-	assert_d_eq(mallctlbymib(hooks_mib, hooks_miblen, &old_hooks, &old_size,
-	    NULL, 0), 0, "Unexpected chunk_hooks error");
+	    (void *)&old_hooks, new_size), 0, "Unexpected chunk_hooks error");
+	assert_d_eq(mallctlbymib(hooks_mib, hooks_miblen, (void *)&old_hooks,
+	    &old_size, NULL, 0), 0, "Unexpected chunk_hooks error");
 	assert_ptr_eq(old_hooks.alloc, orig_hooks.alloc,
 	    "Unexpected alloc error");
 	assert_ptr_eq(old_hooks.dalloc, orig_hooks.dalloc,

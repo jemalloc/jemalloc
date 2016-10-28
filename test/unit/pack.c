@@ -31,7 +31,7 @@ binind_compute(void)
 	unsigned nbins, i;
 
 	sz = sizeof(nbins);
-	assert_d_eq(mallctl("arenas.nbins", &nbins, &sz, NULL, 0), 0,
+	assert_d_eq(mallctl("arenas.nbins", (void *)&nbins, &sz, NULL, 0), 0,
 	    "Unexpected mallctl failure");
 
 	for (i = 0; i < nbins; i++) {
@@ -44,8 +44,8 @@ binind_compute(void)
 		mib[2] = (size_t)i;
 
 		sz = sizeof(size);
-		assert_d_eq(mallctlbymib(mib, miblen, &size, &sz, NULL, 0), 0,
-		    "Unexpected mallctlbymib failure");
+		assert_d_eq(mallctlbymib(mib, miblen, (void *)&size, &sz, NULL,
+		    0), 0, "Unexpected mallctlbymib failure");
 		if (size == SZ)
 			return (i);
 	}
@@ -67,7 +67,7 @@ nregs_per_run_compute(void)
 	    "Unexpected mallctlnametomb failure");
 	mib[2] = (size_t)binind;
 	sz = sizeof(nregs);
-	assert_d_eq(mallctlbymib(mib, miblen, &nregs, &sz, NULL,
+	assert_d_eq(mallctlbymib(mib, miblen, (void *)&nregs, &sz, NULL,
 	    0), 0, "Unexpected mallctlbymib failure");
 	return (nregs);
 }
@@ -85,7 +85,7 @@ npages_per_run_compute(void)
 	    "Unexpected mallctlnametomb failure");
 	mib[2] = (size_t)binind;
 	sz = sizeof(run_size);
-	assert_d_eq(mallctlbymib(mib, miblen, &run_size, &sz, NULL,
+	assert_d_eq(mallctlbymib(mib, miblen, (void *)&run_size, &sz, NULL,
 	    0), 0, "Unexpected mallctlbymib failure");
 	return (run_size >> LG_PAGE);
 }
@@ -111,8 +111,8 @@ arenas_extend_mallctl(void)
 	size_t sz;
 
 	sz = sizeof(arena_ind);
-	assert_d_eq(mallctl("arenas.extend", &arena_ind, &sz, NULL, 0), 0,
-	    "Error in arenas.extend");
+	assert_d_eq(mallctl("arenas.extend", (void *)&arena_ind, &sz, NULL, 0),
+	    0, "Error in arenas.extend");
 
 	return (arena_ind);
 }

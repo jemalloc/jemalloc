@@ -3,7 +3,7 @@
 
 #define	CTL_GET(n, v, t) do {						\
 	size_t sz = sizeof(t);						\
-	xmallctl(n, v, &sz, NULL, 0);					\
+	xmallctl(n, (void *)v, &sz, NULL, 0);				\
 } while (0)
 
 #define	CTL_M2_GET(n, i, v, t) do {					\
@@ -12,7 +12,7 @@
 	size_t sz = sizeof(t);						\
 	xmallctlnametomib(n, mib, &miblen);				\
 	mib[2] = (i);							\
-	xmallctlbymib(mib, miblen, v, &sz, NULL, 0);			\
+	xmallctlbymib(mib, miblen, (void *)v, &sz, NULL, 0);		\
 } while (0)
 
 #define	CTL_M2_M4_GET(n, i, j, v, t) do {				\
@@ -22,7 +22,7 @@
 	xmallctlnametomib(n, mib, &miblen);				\
 	mib[2] = (i);							\
 	mib[4] = (j);							\
-	xmallctlbymib(mib, miblen, v, &sz, NULL, 0);			\
+	xmallctlbymib(mib, miblen, (void *)v, &sz, NULL, 0);		\
 } while (0)
 
 /******************************************************************************/
@@ -647,7 +647,7 @@ stats_general_print(void (*write_cb)(void *, const char *), void *cbopaque,
 #define	OPT_WRITE_BOOL_MUTABLE(n, m, c) {				\
 	bool bv2;							\
 	if (je_mallctl("opt."#n, (void *)&bv, &bsz, NULL, 0) == 0 &&	\
-	    je_mallctl(#m, &bv2, &bsz, NULL, 0) == 0) {			\
+	    je_mallctl(#m, &bv2, (void *)&bsz, NULL, 0) == 0) {		\
 		if (json) {						\
 			malloc_cprintf(write_cb, cbopaque,		\
 			    "\t\t\t\""#n"\": %s%s\n", bv ? "true" :	\
@@ -692,7 +692,7 @@ stats_general_print(void (*write_cb)(void *, const char *), void *cbopaque,
 #define	OPT_WRITE_SSIZE_T_MUTABLE(n, m, c) {				\
 	ssize_t ssv2;							\
 	if (je_mallctl("opt."#n, (void *)&ssv, &sssz, NULL, 0) == 0 &&	\
-	    je_mallctl(#m, &ssv2, &sssz, NULL, 0) == 0) {		\
+	    je_mallctl(#m, (void *)&ssv2, &sssz, NULL, 0) == 0) {	\
 		if (json) {						\
 			malloc_cprintf(write_cb, cbopaque,		\
 			    "\t\t\t\""#n"\": %zd%s\n", ssv, (c));	\
@@ -1084,7 +1084,8 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 	 * */
 	epoch = 1;
 	u64sz = sizeof(uint64_t);
-	err = je_mallctl("epoch", &epoch, &u64sz, &epoch, sizeof(uint64_t));
+	err = je_mallctl("epoch", (void *)&epoch, &u64sz, (void *)&epoch,
+	    sizeof(uint64_t));
 	if (err != 0) {
 		if (err == EAGAIN) {
 			malloc_write("<jemalloc>: Memory allocation failure in "
