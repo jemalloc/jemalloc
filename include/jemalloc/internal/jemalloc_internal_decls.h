@@ -17,6 +17,9 @@
 #    include <sys/uio.h>
 #  endif
 #  include <pthread.h>
+#  ifdef JEMALLOC_GLIBC_MALLOC_HOOK
+#    include <sched.h>
+#  endif
 #  include <errno.h>
 #  include <sys/time.h>
 #  include <time.h>

@@ -808,6 +808,18 @@ malloc_ncpus(void)
 	SYSTEM_INFO si;
 	GetSystemInfo(&si);
 	result = si.dwNumberOfProcessors;
+#elif defined(JEMALLOC_GLIBC_MALLOC_HOOK)
+	/*
+	 * glibc's sysconf() uses isspace().  glibc allocates for the first time
+	 * *before* setting up the isspace tables.  Therefore we need a
+	 * different method to get the number of CPUs.
+	 */
+	{
+		cpu_set_t set;
+
+		pthread_getaffinity_np(pthread_self(), sizeof(set), &set);
+		result = CPU_COUNT(&set);
+	}
 #else
 	result = sysconf(_SC_NPROCESSORS_ONLN);
 #endif
@@ -2036,6 +2048,25 @@ JEMALLOC_EXPORT void *(*__realloc_hook)(void *ptr, size_t size) = je_realloc;
 JEMALLOC_EXPORT void *(*__memalign_hook)(size_t alignment, size_t size) =
     je_memalign;
 # endif
+
+/*
+ * To enable static linking with glibc, the libc specific malloc interface must
+ * be implemented also, so none of glibc's malloc.o functions are added to the
+ * link.
+ */
+#define	ALIAS(je_fn)	__attribute__((alias (#je_fn), used))
+/* To force macro expansion of je_ prefix before stringification. */
+#define	PREALIAS(je_fn)  ALIAS(je_fn)
+void	*__libc_malloc(size_t size) PREALIAS(je_malloc);
+void	__libc_free(void* ptr) PREALIAS(je_free);
+void	*__libc_realloc(void* ptr, size_t size) PREALIAS(je_realloc);
+void	*__libc_calloc(size_t n, size_t size) PREALIAS(je_calloc);
+void	*__libc_memalign(size_t align, size_t s) PREALIAS(je_memalign);
+void	*__libc_valloc(size_t size) PREALIAS(je_valloc);
+int	__posix_memalign(void** r, size_t a, size_t s)
+    PREALIAS(je_posix_memalign);
+#undef PREALIAS
+#undef ALIAS
 #endif
 
 /*
