@@ -313,6 +313,7 @@ o="$ac_objext"
 a="a"
 exe="$ac_exeext"
 libprefix="lib"
+link_whole_archive="0"
 DSO_LDFLAGS='-shared -Wl,-soname,$(@F)'
 RPATH='-Wl,-rpath,$(1)'
 SOREV="${so}.${rev}"
@@ -442,6 +443,7 @@ case "${host}" in
         else
 	  importlib="${so}"
 	  DSO_LDFLAGS="-shared"
+	  link_whole_archive="1"
 	fi
 	a="lib"
 	libprefix=""
@@ -479,6 +481,7 @@ AC_SUBST([o])
 AC_SUBST([a])
 AC_SUBST([exe])
 AC_SUBST([libprefix])
+AC_SUBST([link_whole_archive])
 AC_SUBST([DSO_LDFLAGS])
 AC_SUBST([EXTRA_LDFLAGS])
 AC_SUBST([SOREV])
