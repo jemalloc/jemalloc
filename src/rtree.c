@@ -171,7 +171,7 @@ rtree_child_read_hard(tsdn_t *tsdn, rtree_t *rtree, rtree_elm_t *elm,
     unsigned level)
 {
 
-	return (rtree_node_init(tsdn, rtree, level, &elm->child));
+	return (rtree_node_init(tsdn, rtree, level+1, &elm->child));
 }
 
 static int
