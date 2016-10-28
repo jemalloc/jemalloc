@@ -128,5 +128,5 @@ rtree_node_elm_t *
 rtree_child_read_hard(rtree_t *rtree, rtree_node_elm_t *elm, unsigned level)
 {
 
-	return (rtree_node_init(rtree, level, &elm->child));
+	return (rtree_node_init(rtree, level+1, &elm->child));
 }
