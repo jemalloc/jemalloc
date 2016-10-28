@@ -13,7 +13,7 @@ TEST_BEGIN(test_small_extent_size)
 	 */
 
 	sz = sizeof(unsigned);
-	assert_d_eq(mallctl("arenas.nbins", &nbins, &sz, NULL, 0), 0,
+	assert_d_eq(mallctl("arenas.nbins", (void *)&nbins, &sz, NULL, 0), 0,
 	    "Unexpected mallctl failure");
 
 	assert_d_eq(mallctlnametomib("arenas.bin.0.slab_size", mib, &miblen), 0,
@@ -21,8 +21,8 @@ TEST_BEGIN(test_small_extent_size)
 	for (i = 0; i < nbins; i++) {
 		mib[2] = i;
 		sz = sizeof(size_t);
-		assert_d_eq(mallctlbymib(mib, miblen, &extent_size, &sz, NULL,
-		    0), 0, "Unexpected mallctlbymib failure");
+		assert_d_eq(mallctlbymib(mib, miblen, (void *)&extent_size, &sz,
+		    NULL, 0), 0, "Unexpected mallctlbymib failure");
 		assert_zu_eq(extent_size,
 		    extent_size_quantize_floor(extent_size),
 		    "Small extent quantization should be a no-op "
@@ -49,12 +49,12 @@ TEST_BEGIN(test_large_extent_size)
 	 */
 
 	sz = sizeof(bool);
-	assert_d_eq(mallctl("config.cache_oblivious", &cache_oblivious, &sz,
-	    NULL, 0), 0, "Unexpected mallctl failure");
+	assert_d_eq(mallctl("config.cache_oblivious", (void *)&cache_oblivious,
+	    &sz, NULL, 0), 0, "Unexpected mallctl failure");
 
 	sz = sizeof(unsigned);
-	assert_d_eq(mallctl("arenas.nlextents", &nlextents, &sz, NULL, 0), 0,
-	    "Unexpected mallctl failure");
+	assert_d_eq(mallctl("arenas.nlextents", (void *)&nlextents, &sz, NULL,
+	    0), 0, "Unexpected mallctl failure");
 
 	assert_d_eq(mallctlnametomib("arenas.lextent.0.size", mib, &miblen), 0,
 	    "Unexpected mallctlnametomib failure");
@@ -63,8 +63,8 @@ TEST_BEGIN(test_large_extent_size)
 
 		mib[2] = i;
 		sz = sizeof(size_t);
-		assert_d_eq(mallctlbymib(mib, miblen, &lextent_size, &sz, NULL,
-		    0), 0, "Unexpected mallctlbymib failure");
+		assert_d_eq(mallctlbymib(mib, miblen, (void *)&lextent_size,
+		    &sz, NULL, 0), 0, "Unexpected mallctlbymib failure");
 		extent_size = cache_oblivious ? lextent_size + PAGE :
 		    lextent_size;
 		floor = extent_size_quantize_floor(extent_size);

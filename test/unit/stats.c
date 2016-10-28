@@ -6,14 +6,14 @@ TEST_BEGIN(test_stats_summary)
 	int expected = config_stats ? 0 : ENOENT;
 
 	sz = sizeof(size_t);
-	assert_d_eq(mallctl("stats.allocated", &allocated, &sz, NULL, 0),
+	assert_d_eq(mallctl("stats.allocated", (void *)&allocated, &sz, NULL,
+	    0), expected, "Unexpected mallctl() result");
+	assert_d_eq(mallctl("stats.active", (void *)&active, &sz, NULL, 0),
 	    expected, "Unexpected mallctl() result");
-	assert_d_eq(mallctl("stats.active", &active, &sz, NULL, 0), expected,
-	    "Unexpected mallctl() result");
-	assert_d_eq(mallctl("stats.resident", &resident, &sz, NULL, 0),
+	assert_d_eq(mallctl("stats.resident", (void *)&resident, &sz, NULL, 0),
 	    expected, "Unexpected mallctl() result");
-	assert_d_eq(mallctl("stats.mapped", &mapped, &sz, NULL, 0), expected,
-	    "Unexpected mallctl() result");
+	assert_d_eq(mallctl("stats.mapped", (void *)&mapped, &sz, NULL, 0),
+	    expected, "Unexpected mallctl() result");
 
 	if (config_stats) {
 		assert_zu_le(allocated, active,
@@ -38,19 +38,21 @@ TEST_BEGIN(test_stats_large)
 	p = mallocx(SMALL_MAXCLASS+1, 0);
 	assert_ptr_not_null(p, "Unexpected mallocx() failure");
 
-	assert_d_eq(mallctl("epoch", NULL, NULL, &epoch, sizeof(epoch)), 0,
-	    "Unexpected mallctl() failure");
+	assert_d_eq(mallctl("epoch", NULL, NULL, (void *)&epoch, sizeof(epoch)),
+	    0, "Unexpected mallctl() failure");
 
 	sz = sizeof(size_t);
-	assert_d_eq(mallctl("stats.arenas.0.large.allocated", &allocated, &sz,
-	    NULL, 0), expected, "Unexpected mallctl() result");
+	assert_d_eq(mallctl("stats.arenas.0.large.allocated",
+	    (void *)&allocated, &sz, NULL, 0), expected,
+	    "Unexpected mallctl() result");
 	sz = sizeof(uint64_t);
-	assert_d_eq(mallctl("stats.arenas.0.large.nmalloc", &nmalloc, &sz, NULL,
-	    0), expected, "Unexpected mallctl() result");
-	assert_d_eq(mallctl("stats.arenas.0.large.ndalloc", &ndalloc, &sz, NULL,
-	    0), expected, "Unexpected mallctl() result");
-	assert_d_eq(mallctl("stats.arenas.0.large.nrequests", &nrequests, &sz,
-	    NULL, 0), expected, "Unexpected mallctl() result");
+	assert_d_eq(mallctl("stats.arenas.0.large.nmalloc", (void *)&nmalloc,
+	    &sz, NULL, 0), expected, "Unexpected mallctl() result");
+	assert_d_eq(mallctl("stats.arenas.0.large.ndalloc", (void *)&ndalloc,
+	    &sz, NULL, 0), expected, "Unexpected mallctl() result");
+	assert_d_eq(mallctl("stats.arenas.0.large.nrequests",
+	    (void *)&nrequests, &sz, NULL, 0), expected,
+	    "Unexpected mallctl() result");
 
 	if (config_stats) {
 		assert_zu_gt(allocated, 0,
@@ -76,8 +78,8 @@ TEST_BEGIN(test_stats_arenas_summary)
 	uint64_t npurge, nmadvise, purged;
 
 	arena = 0;
-	assert_d_eq(mallctl("thread.arena", NULL, NULL, &arena, sizeof(arena)),
-	    0, "Unexpected mallctl() failure");
+	assert_d_eq(mallctl("thread.arena", NULL, NULL, (void *)&arena,
+	    sizeof(arena)), 0, "Unexpected mallctl() failure");
 
 	little = mallocx(SMALL_MAXCLASS, 0);
 	assert_ptr_not_null(little, "Unexpected mallocx() failure");
@@ -92,19 +94,19 @@ TEST_BEGIN(test_stats_arenas_summary)
 	assert_d_eq(mallctl("arena.0.purge", NULL, NULL, NULL, 0), 0,
 	    "Unexpected mallctl() failure");
 
-	assert_d_eq(mallctl("epoch", NULL, NULL, &epoch, sizeof(epoch)), 0,
-	    "Unexpected mallctl() failure");
+	assert_d_eq(mallctl("epoch", NULL, NULL, (void *)&epoch, sizeof(epoch)),
+	    0, "Unexpected mallctl() failure");
 
 	sz = sizeof(size_t);
-	assert_d_eq(mallctl("stats.arenas.0.mapped", &mapped, &sz, NULL, 0),
-	    expected, "Unexepected mallctl() result");
+	assert_d_eq(mallctl("stats.arenas.0.mapped", (void *)&mapped, &sz, NULL,
+	    0), expected, "Unexepected mallctl() result");
 	sz = sizeof(uint64_t);
-	assert_d_eq(mallctl("stats.arenas.0.npurge", &npurge, &sz, NULL, 0),
-	    expected, "Unexepected mallctl() result");
-	assert_d_eq(mallctl("stats.arenas.0.nmadvise", &nmadvise, &sz, NULL, 0),
-	    expected, "Unexepected mallctl() result");
-	assert_d_eq(mallctl("stats.arenas.0.purged", &purged, &sz, NULL, 0),
-	    expected, "Unexepected mallctl() result");
+	assert_d_eq(mallctl("stats.arenas.0.npurge", (void *)&npurge, &sz, NULL,
+	    0), expected, "Unexepected mallctl() result");
+	assert_d_eq(mallctl("stats.arenas.0.nmadvise", (void *)&nmadvise, &sz,
+	    NULL, 0), expected, "Unexepected mallctl() result");
+	assert_d_eq(mallctl("stats.arenas.0.purged", (void *)&purged, &sz, NULL,
+	    0), expected, "Unexepected mallctl() result");
 
 	if (config_stats) {
 		assert_u64_gt(npurge, 0,
@@ -142,8 +144,8 @@ TEST_BEGIN(test_stats_arenas_small)
 	no_lazy_lock(); /* Lazy locking would dodge tcache testing. */
 
 	arena = 0;
-	assert_d_eq(mallctl("thread.arena", NULL, NULL, &arena, sizeof(arena)),
-	    0, "Unexpected mallctl() failure");
+	assert_d_eq(mallctl("thread.arena", NULL, NULL, (void *)&arena,
+	    sizeof(arena)), 0, "Unexpected mallctl() failure");
 
 	p = mallocx(SMALL_MAXCLASS, 0);
 	assert_ptr_not_null(p, "Unexpected mallocx() failure");
@@ -151,19 +153,21 @@ TEST_BEGIN(test_stats_arenas_small)
 	assert_d_eq(mallctl("thread.tcache.flush", NULL, NULL, NULL, 0),
 	    config_tcache ? 0 : ENOENT, "Unexpected mallctl() result");
 
-	assert_d_eq(mallctl("epoch", NULL, NULL, &epoch, sizeof(epoch)), 0,
-	    "Unexpected mallctl() failure");
+	assert_d_eq(mallctl("epoch", NULL, NULL, (void *)&epoch, sizeof(epoch)),
+	    0, "Unexpected mallctl() failure");
 
 	sz = sizeof(size_t);
-	assert_d_eq(mallctl("stats.arenas.0.small.allocated", &allocated, &sz,
-	    NULL, 0), expected, "Unexpected mallctl() result");
+	assert_d_eq(mallctl("stats.arenas.0.small.allocated",
+	    (void *)&allocated, &sz, NULL, 0), expected,
+	    "Unexpected mallctl() result");
 	sz = sizeof(uint64_t);
-	assert_d_eq(mallctl("stats.arenas.0.small.nmalloc", &nmalloc, &sz,
-	    NULL, 0), expected, "Unexpected mallctl() result");
-	assert_d_eq(mallctl("stats.arenas.0.small.ndalloc", &ndalloc, &sz,
-	    NULL, 0), expected, "Unexpected mallctl() result");
-	assert_d_eq(mallctl("stats.arenas.0.small.nrequests", &nrequests, &sz,
-	    NULL, 0), expected, "Unexpected mallctl() result");
+	assert_d_eq(mallctl("stats.arenas.0.small.nmalloc", (void *)&nmalloc,
+	    &sz, NULL, 0), expected, "Unexpected mallctl() result");
+	assert_d_eq(mallctl("stats.arenas.0.small.ndalloc", (void *)&ndalloc,
+	    &sz, NULL, 0), expected, "Unexpected mallctl() result");
+	assert_d_eq(mallctl("stats.arenas.0.small.nrequests",
+	    (void *)&nrequests, &sz, NULL, 0), expected,
+	    "Unexpected mallctl() result");
 
 	if (config_stats) {
 		assert_zu_gt(allocated, 0,
@@ -189,23 +193,24 @@ TEST_BEGIN(test_stats_arenas_large)
 	int expected = config_stats ? 0 : ENOENT;
 
 	arena = 0;
-	assert_d_eq(mallctl("thread.arena", NULL, NULL, &arena, sizeof(arena)),
-	    0, "Unexpected mallctl() failure");
+	assert_d_eq(mallctl("thread.arena", NULL, NULL, (void *)&arena,
+	    sizeof(arena)), 0, "Unexpected mallctl() failure");
 
 	p = mallocx((1U << LG_LARGE_MINCLASS), 0);
 	assert_ptr_not_null(p, "Unexpected mallocx() failure");
 
-	assert_d_eq(mallctl("epoch", NULL, NULL, &epoch, sizeof(epoch)), 0,
-	    "Unexpected mallctl() failure");
+	assert_d_eq(mallctl("epoch", NULL, NULL, (void *)&epoch, sizeof(epoch)),
+	    0, "Unexpected mallctl() failure");
 
 	sz = sizeof(size_t);
-	assert_d_eq(mallctl("stats.arenas.0.large.allocated", &allocated, &sz,
-	    NULL, 0), expected, "Unexpected mallctl() result");
+	assert_d_eq(mallctl("stats.arenas.0.large.allocated",
+	    (void *)&allocated, &sz, NULL, 0), expected,
+	    "Unexpected mallctl() result");
 	sz = sizeof(uint64_t);
-	assert_d_eq(mallctl("stats.arenas.0.large.nmalloc", &nmalloc, &sz,
-	    NULL, 0), expected, "Unexpected mallctl() result");
-	assert_d_eq(mallctl("stats.arenas.0.large.ndalloc", &ndalloc, &sz,
-	    NULL, 0), expected, "Unexpected mallctl() result");
+	assert_d_eq(mallctl("stats.arenas.0.large.nmalloc", (void *)&nmalloc,
+	    &sz, NULL, 0), expected, "Unexpected mallctl() result");
+	assert_d_eq(mallctl("stats.arenas.0.large.ndalloc", (void *)&ndalloc,
+	    &sz, NULL, 0), expected, "Unexpected mallctl() result");
 
 	if (config_stats) {
 		assert_zu_gt(allocated, 0,
@@ -230,8 +235,8 @@ TEST_BEGIN(test_stats_arenas_bins)
 	int expected = config_stats ? 0 : ENOENT;
 
 	arena = 0;
-	assert_d_eq(mallctl("thread.arena", NULL, NULL, &arena, sizeof(arena)),
-	    0, "Unexpected mallctl() failure");
+	assert_d_eq(mallctl("thread.arena", NULL, NULL, (void *)&arena,
+	    sizeof(arena)), 0, "Unexpected mallctl() failure");
 
 	p = mallocx(arena_bin_info[0].reg_size, 0);
 	assert_ptr_not_null(p, "Unexpected mallocx() failure");
@@ -239,35 +244,36 @@ TEST_BEGIN(test_stats_arenas_bins)
 	assert_d_eq(mallctl("thread.tcache.flush", NULL, NULL, NULL, 0),
 	    config_tcache ? 0 : ENOENT, "Unexpected mallctl() result");
 
-	assert_d_eq(mallctl("epoch", NULL, NULL, &epoch, sizeof(epoch)), 0,
-	    "Unexpected mallctl() failure");
+	assert_d_eq(mallctl("epoch", NULL, NULL, (void *)&epoch, sizeof(epoch)),
+	    0, "Unexpected mallctl() failure");
 
 	sz = sizeof(uint64_t);
-	assert_d_eq(mallctl("stats.arenas.0.bins.0.nmalloc", &nmalloc, &sz,
-	    NULL, 0), expected, "Unexpected mallctl() result");
-	assert_d_eq(mallctl("stats.arenas.0.bins.0.ndalloc", &ndalloc, &sz,
-	    NULL, 0), expected, "Unexpected mallctl() result");
-	assert_d_eq(mallctl("stats.arenas.0.bins.0.nrequests", &nrequests, &sz,
-	    NULL, 0), expected, "Unexpected mallctl() result");
+	assert_d_eq(mallctl("stats.arenas.0.bins.0.nmalloc", (void *)&nmalloc,
+	    &sz, NULL, 0), expected, "Unexpected mallctl() result");
+	assert_d_eq(mallctl("stats.arenas.0.bins.0.ndalloc", (void *)&ndalloc,
+	    &sz, NULL, 0), expected, "Unexpected mallctl() result");
+	assert_d_eq(mallctl("stats.arenas.0.bins.0.nrequests",
+	    (void *)&nrequests, &sz, NULL, 0), expected,
+	    "Unexpected mallctl() result");
 	sz = sizeof(size_t);
-	assert_d_eq(mallctl("stats.arenas.0.bins.0.curregs", &curregs, &sz,
-	    NULL, 0), expected, "Unexpected mallctl() result");
+	assert_d_eq(mallctl("stats.arenas.0.bins.0.curregs", (void *)&curregs,
+	    &sz, NULL, 0), expected, "Unexpected mallctl() result");
 
 	sz = sizeof(uint64_t);
-	assert_d_eq(mallctl("stats.arenas.0.bins.0.nfills", &nfills, &sz,
-	    NULL, 0), config_tcache ? expected : ENOENT,
+	assert_d_eq(mallctl("stats.arenas.0.bins.0.nfills", (void *)&nfills,
+	    &sz, NULL, 0), config_tcache ? expected : ENOENT,
 	    "Unexpected mallctl() result");
-	assert_d_eq(mallctl("stats.arenas.0.bins.0.nflushes", &nflushes, &sz,
-	    NULL, 0), config_tcache ? expected : ENOENT,
+	assert_d_eq(mallctl("stats.arenas.0.bins.0.nflushes", (void *)&nflushes,
+	    &sz, NULL, 0), config_tcache ? expected : ENOENT,
 	    "Unexpected mallctl() result");
 
-	assert_d_eq(mallctl("stats.arenas.0.bins.0.nslabs", &nslabs, &sz,
-	    NULL, 0), expected, "Unexpected mallctl() result");
-	assert_d_eq(mallctl("stats.arenas.0.bins.0.nreslabs", &nreslabs, &sz,
-	    NULL, 0), expected, "Unexpected mallctl() result");
+	assert_d_eq(mallctl("stats.arenas.0.bins.0.nslabs", (void *)&nslabs,
+	    &sz, NULL, 0), expected, "Unexpected mallctl() result");
+	assert_d_eq(mallctl("stats.arenas.0.bins.0.nreslabs", (void *)&nreslabs,
+	    &sz, NULL, 0), expected, "Unexpected mallctl() result");
 	sz = sizeof(size_t);
-	assert_d_eq(mallctl("stats.arenas.0.bins.0.curslabs", &curslabs, &sz,
-	    NULL, 0), expected, "Unexpected mallctl() result");
+	assert_d_eq(mallctl("stats.arenas.0.bins.0.curslabs", (void *)&curslabs,
+	    &sz, NULL, 0), expected, "Unexpected mallctl() result");
 
 	if (config_stats) {
 		assert_u64_gt(nmalloc, 0,
@@ -303,27 +309,30 @@ TEST_BEGIN(test_stats_arenas_lextents)
 	int expected = config_stats ? 0 : ENOENT;
 
 	arena = 0;
-	assert_d_eq(mallctl("thread.arena", NULL, NULL, &arena, sizeof(arena)),
-	    0, "Unexpected mallctl() failure");
+	assert_d_eq(mallctl("thread.arena", NULL, NULL, (void *)&arena,
+	    sizeof(arena)), 0, "Unexpected mallctl() failure");
 
 	sz = sizeof(size_t);
-	assert_d_eq(mallctl("arenas.lextent.0.size", &hsize, &sz, NULL, 0), 0,
-	    "Unexpected mallctl() failure");
+	assert_d_eq(mallctl("arenas.lextent.0.size", (void *)&hsize, &sz, NULL,
+	    0), 0, "Unexpected mallctl() failure");
 
 	p = mallocx(hsize, 0);
 	assert_ptr_not_null(p, "Unexpected mallocx() failure");
 
-	assert_d_eq(mallctl("epoch", NULL, NULL, &epoch, sizeof(epoch)), 0,
-	    "Unexpected mallctl() failure");
+	assert_d_eq(mallctl("epoch", NULL, NULL, (void *)&epoch, sizeof(epoch)),
+	    0, "Unexpected mallctl() failure");
 
 	sz = sizeof(uint64_t);
-	assert_d_eq(mallctl("stats.arenas.0.lextents.0.nmalloc", &nmalloc, &sz,
-	    NULL, 0), expected, "Unexpected mallctl() result");
-	assert_d_eq(mallctl("stats.arenas.0.lextents.0.ndalloc", &ndalloc, &sz,
-	    NULL, 0), expected, "Unexpected mallctl() result");
+	assert_d_eq(mallctl("stats.arenas.0.lextents.0.nmalloc",
+	    (void *)&nmalloc, &sz, NULL, 0), expected,
+	    "Unexpected mallctl() result");
+	assert_d_eq(mallctl("stats.arenas.0.lextents.0.ndalloc",
+	    (void *)&ndalloc, &sz, NULL, 0), expected,
+	    "Unexpected mallctl() result");
 	sz = sizeof(size_t);
 	assert_d_eq(mallctl("stats.arenas.0.lextents.0.curlextents",
-	    &curlextents, &sz, NULL, 0), expected, "Unexpected mallctl() result");
+	    (void *)&curlextents, &sz, NULL, 0), expected,
+	    "Unexpected mallctl() result");
 
 	if (config_stats) {
 		assert_u64_gt(nmalloc, 0,

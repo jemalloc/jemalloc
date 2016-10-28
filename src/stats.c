@@ -3,7 +3,7 @@
 
 #define	CTL_GET(n, v, t) do {						\
 	size_t sz = sizeof(t);						\
-	xmallctl(n, v, &sz, NULL, 0);					\
+	xmallctl(n, (void *)v, &sz, NULL, 0);				\
 } while (0)
 
 #define	CTL_M2_GET(n, i, v, t) do {					\
@@ -12,7 +12,7 @@
 	size_t sz = sizeof(t);						\
 	xmallctlnametomib(n, mib, &miblen);				\
 	mib[2] = (i);							\
-	xmallctlbymib(mib, miblen, v, &sz, NULL, 0);			\
+	xmallctlbymib(mib, miblen, (void *)v, &sz, NULL, 0);		\
 } while (0)
 
 #define	CTL_M2_M4_GET(n, i, j, v, t) do {				\
@@ -22,7 +22,7 @@
 	xmallctlnametomib(n, mib, &miblen);				\
 	mib[2] = (i);							\
 	mib[4] = (j);							\
-	xmallctlbymib(mib, miblen, v, &sz, NULL, 0);			\
+	xmallctlbymib(mib, miblen, (void *)v, &sz, NULL, 0);		\
 } while (0)
 
 /******************************************************************************/
@@ -368,45 +368,51 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		    "config.malloc_conf: \"%s\"\n", config_malloc_conf);
 
 #define	OPT_WRITE_BOOL(n)						\
-		if (je_mallctl("opt."#n, &bv, &bsz, NULL, 0) == 0) {	\
+		if (je_mallctl("opt."#n, (void *)&bv, &bsz, NULL, 0) ==	\
+		    0) {						\
 			malloc_cprintf(write_cb, cbopaque,		\
 			    "  opt."#n": %s\n", bv ? "true" : "false");	\
 		}
 #define	OPT_WRITE_BOOL_MUTABLE(n, m) {					\
 		bool bv2;						\
-		if (je_mallctl("opt."#n, &bv, &bsz, NULL, 0) == 0 &&	\
-		    je_mallctl(#m, &bv2, &bsz, NULL, 0) == 0) {		\
+		if (je_mallctl("opt."#n, (void *)&bv, &bsz, NULL, 0) ==	\
+		    0 && je_mallctl(#m, &bv2, &bsz, NULL, 0) == 0) {	\
 			malloc_cprintf(write_cb, cbopaque,		\
 			    "  opt."#n": %s ("#m": %s)\n", bv ? "true"	\
 			    : "false", bv2 ? "true" : "false");		\
 		}							\
 }
 #define	OPT_WRITE_UNSIGNED(n)						\
-		if (je_mallctl("opt."#n, &uv, &usz, NULL, 0) == 0) {	\
+		if (je_mallctl("opt."#n, (void *)&uv, &usz, NULL, 0) ==	\
+		    0) {						\
 			malloc_cprintf(write_cb, cbopaque,		\
 			"  opt."#n": %u\n", uv);			\
 		}
 #define	OPT_WRITE_SIZE_T(n)						\
-		if (je_mallctl("opt."#n, &sv, &ssz, NULL, 0) == 0) {	\
+		if (je_mallctl("opt."#n, (void *)&sv, &ssz, NULL, 0) ==	\
+		    0) {						\
 			malloc_cprintf(write_cb, cbopaque,		\
 			"  opt."#n": %zu\n", sv);			\
 		}
 #define	OPT_WRITE_SSIZE_T(n)						\
-		if (je_mallctl("opt."#n, &ssv, &sssz, NULL, 0) == 0) {	\
+		if (je_mallctl("opt."#n, (void *)&ssv, &sssz, NULL, 0)	\
+		    == 0) {						\
 			malloc_cprintf(write_cb, cbopaque,		\
 			    "  opt."#n": %zd\n", ssv);			\
 		}
 #define	OPT_WRITE_SSIZE_T_MUTABLE(n, m) {				\
 		ssize_t ssv2;						\
-		if (je_mallctl("opt."#n, &ssv, &sssz, NULL, 0) == 0 &&	\
-		    je_mallctl(#m, &ssv2, &sssz, NULL, 0) == 0) {	\
+		if (je_mallctl("opt."#n, (void *)&ssv, &sssz, NULL, 0)	\
+		    == 0 && je_mallctl(#m, &ssv2, &sssz, NULL, 0) ==	\
+		    0) {						\
 			malloc_cprintf(write_cb, cbopaque,		\
 			    "  opt."#n": %zd ("#m": %zd)\n",		\
 			    ssv, ssv2);					\
 		}							\
 }
 #define	OPT_WRITE_CHAR_P(n)						\
-		if (je_mallctl("opt."#n, &cpv, &cpsz, NULL, 0) == 0) {	\
+		if (je_mallctl("opt."#n, (void *)&cpv, &cpsz, NULL, 0)	\
+		    == 0) {						\
 			malloc_cprintf(write_cb, cbopaque,		\
 			    "  opt."#n": \"%s\"\n", cpv);		\
 		}
@@ -462,11 +468,13 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		malloc_cprintf(write_cb, cbopaque,
 		    "Unused dirty page decay time: %zd%s\n", ssv, (ssv < 0) ?
 		    " (no decay)" : "");
-		if (je_mallctl("arenas.tcache_max", &sv, &ssz, NULL, 0) == 0) {
+		if (je_mallctl("arenas.tcache_max", (void *)&sv, &ssz, NULL, 0)
+		    == 0) {
 			malloc_cprintf(write_cb, cbopaque,
 			    "Maximum thread-cached size class: %zu\n", sv);
 		}
-		if (je_mallctl("opt.prof", &bv, &bsz, NULL, 0) == 0 && bv) {
+		if (je_mallctl("opt.prof", (void *)&bv, &bsz, NULL, 0) == 0 &&
+		    bv) {
 			CTL_GET("prof.lg_sample", &sv, size_t);
 			malloc_cprintf(write_cb, cbopaque,
 			    "Average profile sample interval: %"FMTu64
@@ -509,8 +517,8 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 				unsigned i, ninitialized;
 
 				isz = sizeof(bool) * narenas;
-				xmallctl("arenas.initialized", initialized,
-				    &isz, NULL, 0);
+				xmallctl("arenas.initialized",
+				    (void *)initialized, &isz, NULL, 0);
 				for (i = ninitialized = 0; i < narenas; i++) {
 					if (initialized[i])
 						ninitialized++;
@@ -538,8 +546,8 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 				unsigned i;
 
 				isz = sizeof(bool) * narenas;
-				xmallctl("arenas.initialized", initialized,
-				    &isz, NULL, 0);
+				xmallctl("arenas.initialized",
+				    (void *)initialized, &isz, NULL, 0);
 
 				for (i = 0; i < narenas; i++) {
 					if (initialized[i]) {

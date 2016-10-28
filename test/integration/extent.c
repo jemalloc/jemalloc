@@ -194,8 +194,8 @@ TEST_BEGIN(test_extent)
 	bool xallocx_success_a, xallocx_success_b, xallocx_success_c;
 
 	sz = sizeof(unsigned);
-	assert_d_eq(mallctl("arenas.extend", &arena_ind, &sz, NULL, 0), 0,
-	    "Unexpected mallctl() failure");
+	assert_d_eq(mallctl("arenas.extend", (void *)&arena_ind, &sz, NULL, 0),
+	    0, "Unexpected mallctl() failure");
 	flags = MALLOCX_ARENA(arena_ind) | MALLOCX_TCACHE_NONE;
 
 	/* Install custom extent hooks. */
@@ -205,8 +205,9 @@ TEST_BEGIN(test_extent)
 	hooks_mib[1] = (size_t)arena_ind;
 	old_size = sizeof(extent_hooks_t *);
 	new_size = sizeof(extent_hooks_t *);
-	assert_d_eq(mallctlbymib(hooks_mib, hooks_miblen, &old_hooks, &old_size,
-	    &new_hooks, new_size), 0, "Unexpected extent_hooks error");
+	assert_d_eq(mallctlbymib(hooks_mib, hooks_miblen, (void *)&old_hooks,
+	    &old_size, (void *)&new_hooks, new_size), 0,
+	    "Unexpected extent_hooks error");
 	orig_hooks = old_hooks;
 	assert_ptr_ne(old_hooks->alloc, extent_alloc, "Unexpected alloc error");
 	assert_ptr_ne(old_hooks->dalloc, extent_dalloc,
@@ -221,12 +222,12 @@ TEST_BEGIN(test_extent)
 
 	/* Get large size classes. */
 	sz = sizeof(size_t);
-	assert_d_eq(mallctl("arenas.lextent.0.size", &large0, &sz, NULL, 0), 0,
-	    "Unexpected arenas.lextent.0.size failure");
-	assert_d_eq(mallctl("arenas.lextent.1.size", &large1, &sz, NULL, 0), 0,
-	    "Unexpected arenas.lextent.1.size failure");
-	assert_d_eq(mallctl("arenas.lextent.2.size", &large2, &sz, NULL, 0), 0,
-	    "Unexpected arenas.lextent.2.size failure");
+	assert_d_eq(mallctl("arenas.lextent.0.size", (void *)&large0, &sz, NULL,
+	    0), 0, "Unexpected arenas.lextent.0.size failure");
+	assert_d_eq(mallctl("arenas.lextent.1.size", (void *)&large1, &sz, NULL,
+	    0), 0, "Unexpected arenas.lextent.1.size failure");
+	assert_d_eq(mallctl("arenas.lextent.2.size", (void *)&large2, &sz, NULL,
+	    0), 0, "Unexpected arenas.lextent.2.size failure");
 
 	/* Test dalloc/decommit/purge cascade. */
 	purge_miblen = sizeof(purge_mib)/sizeof(size_t);
@@ -287,9 +288,9 @@ TEST_BEGIN(test_extent)
 
 	/* Restore extent hooks. */
 	assert_d_eq(mallctlbymib(hooks_mib, hooks_miblen, NULL, NULL,
-	    &old_hooks, new_size), 0, "Unexpected extent_hooks error");
-	assert_d_eq(mallctlbymib(hooks_mib, hooks_miblen, &old_hooks, &old_size,
-	    NULL, 0), 0, "Unexpected extent_hooks error");
+	    (void *)&old_hooks, new_size), 0, "Unexpected extent_hooks error");
+	assert_d_eq(mallctlbymib(hooks_mib, hooks_miblen, (void *)&old_hooks,
+	    &old_size, NULL, 0), 0, "Unexpected extent_hooks error");
 	assert_ptr_eq(old_hooks, orig_hooks, "Unexpected hooks error");
 	assert_ptr_eq(old_hooks->alloc, orig_hooks->alloc,
 	    "Unexpected alloc error");

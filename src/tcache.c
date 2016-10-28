@@ -502,10 +502,10 @@ tcache_boot(tsdn_t *tsdn)
 	unsigned i;
 
 	/* If necessary, clamp opt_lg_tcache_max. */
-	if (opt_lg_tcache_max < 0 || (1U << opt_lg_tcache_max) < SMALL_MAXCLASS)
+	if (opt_lg_tcache_max < 0 || (ZU(1) << opt_lg_tcache_max) < SMALL_MAXCLASS)
 		tcache_maxclass = SMALL_MAXCLASS;
 	else
-		tcache_maxclass = (1U << opt_lg_tcache_max);
+		tcache_maxclass = (ZU(1) << opt_lg_tcache_max);
 
 	nhbins = size2index(tcache_maxclass) + 1;
 
