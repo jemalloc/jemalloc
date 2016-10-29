@@ -6,7 +6,7 @@
 
 /* Runtime configuration options. */
 const char	*je_malloc_conf
-#ifndef JEMALLOC_JET
+#ifndef _WIN32
     JEMALLOC_ATTR(weak)
 #endif
     ;
