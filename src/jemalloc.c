@@ -5,7 +5,11 @@
 /* Data. */
 
 /* Runtime configuration options. */
-const char	*je_malloc_conf JEMALLOC_ATTR(weak);
+const char	*je_malloc_conf
+#ifndef JEMALLOC_JET
+    JEMALLOC_ATTR(weak)
+#endif
+    ;
 bool	opt_abort =
 #ifdef JEMALLOC_DEBUG
     true
