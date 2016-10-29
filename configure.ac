@@ -29,8 +29,31 @@ AC_COMPILE_IFELSE([AC_LANG_PROGRAM(
 )
 ])
 
+dnl JE_CXXFLAGS_APPEND(cflag)
+AC_DEFUN([JE_CXXFLAGS_APPEND],
+[
+AC_MSG_CHECKING([whether compiler supports $1])
+TCXXFLAGS="${CXXFLAGS}"
+if test "x${CXXFLAGS}" = "x" ; then
+  CXXFLAGS="$1"
+else
+  CXXFLAGS="${CXXFLAGS} $1"
+fi
+AC_COMPILE_IFELSE([AC_LANG_PROGRAM(
+[[
+]], [[
+    return 0;
+]])],
+              [je_cv_cflags_appended=$1]
+              AC_MSG_RESULT([yes]),
+              [je_cv_cflags_appended=]
+              AC_MSG_RESULT([no])
+              [CXXFLAGS="${TCXXFLAGS}"]
+)
+])
+
 dnl JE_COMPILABLE(label, hcode, mcode, rvar)
-dnl 
+dnl
 dnl Use AC_LINK_IFELSE() rather than AC_COMPILE_IFELSE() so that linker errors
 dnl cause failure.
 AC_DEFUN([JE_COMPILABLE],
@@ -209,6 +232,20 @@ if test "x$EXTRA_CFLAGS" != "x" ; then
 fi
 AC_PROG_CPP
 
+dnl Set CXXFLAGS to std necessary for sized deallocation
+
+CXXFLAGS=""
+dnl Check for c++14 support.  C++ support is not compiled otherwise.
+m4_include([m4/ax_cxx_compile_stdcxx.m4])
+AX_CXX_COMPILE_STDCXX([14], [noext], [optional])
+
+JE_CXXFLAGS_APPEND([-Wall])
+JE_CXXFLAGS_APPEND([-g3])
+if test "x$EXTRA_CXXFLAGS" != "x" ; then
+  JE_CXXFLAGS_APPEND([$EXTRA_CXXFLAGS])
+fi
+
+
 AC_C_BIGENDIAN([ac_cv_big_endian=1], [ac_cv_big_endian=0])
 if test "x${ac_cv_big_endian}" = "x1" ; then
   AC_DEFINE_UNQUOTED([JEMALLOC_BIG_ENDIAN], [ ])
@@ -342,7 +379,7 @@ AC_PROG_AR
 dnl Platform-specific settings.  abi and RPATH can probably be determined
 dnl programmatically, but doing so is error-prone, which makes it generally
 dnl not worth the trouble.
-dnl 
+dnl
 dnl Define cpp macros in CPPFLAGS, rather than doing AC_DEFINE(macro), since the
 dnl definitions need to be seen before any headers are included, which is a pain
 dnl to make happen otherwise.
@@ -359,6 +396,9 @@ case "${host}" in
 	importlib="${so}"
 	force_tls="0"
 	DSO_LDFLAGS='-shared -Wl,-install_name,$(LIBDIR)/$(@F)'
+        if test "x${HAVE_CXX14}" = "x1"; then
+        DSO_LDFLAGS="${DSO_LDFLAGS} -lstdc++"
+        fi
 	SOREV="${rev}.${so}"
 	sbrk_deprecated="1"
 	;;
@@ -511,6 +551,7 @@ if test "x${je_cv_attribute}" = "xyes" ; then
   AC_DEFINE([JEMALLOC_HAVE_ATTR], [ ])
   if test "x${GCC}" = "xyes" -a "x${abi}" = "xelf"; then
     JE_CFLAGS_APPEND([-fvisibility=hidden])
+#    JE_CXXFLAGS_APPEND([-fvisibility=hidden])
   fi
 fi
 dnl Check for tls_model attribute support (clang 3.0 still lacks support).
@@ -819,11 +860,14 @@ if test "x$enable_debug" = "x0" -a "x$no_CFLAGS" = "xyes" ; then
   if test "x${optimize}" = "xyes" ; then
     if test "x$GCC" = "xyes" ; then
       JE_CFLAGS_APPEND([-O3])
+      JE_CXXFLAGS_APPEND([-O3])
       JE_CFLAGS_APPEND([-funroll-loops])
     elif test "x$je_cv_msvc" = "xyes" ; then
       JE_CFLAGS_APPEND([-O2])
+      JE_CXXFLAGS_APPEND([-O2])
     else
       JE_CFLAGS_APPEND([-O])
+      JE_CXXFLAGS_APPEND([-O])
     fi
   fi
 fi
@@ -1230,7 +1274,7 @@ AC_ARG_WITH([lg_size_class_group],
 
 dnl ============================================================================
 dnl jemalloc configuration.
-dnl 
+dnl
 
 AC_ARG_WITH([version],
   [AS_HELP_STRING([--with-version=<major>.<minor>.<bugfix>-<nrev>-g<gid>],
@@ -1832,6 +1876,8 @@ AC_CONFIG_COMMANDS([include/jemalloc/jemalloc.h], [
 ])
 
 dnl Process .in files.
+AC_SUBST(CXXFLAGS)
+AC_SUBST(HAVE_CXX14)
 AC_SUBST([cfghdrs_in])
 AC_SUBST([cfghdrs_out])
 AC_CONFIG_HEADERS([$cfghdrs_tup])
@@ -1854,6 +1900,8 @@ AC_MSG_RESULT([CONFIG             : ${CONFIG}])
 AC_MSG_RESULT([CC                 : ${CC}])
 AC_MSG_RESULT([CFLAGS             : ${CFLAGS}])
 AC_MSG_RESULT([CPPFLAGS           : ${CPPFLAGS}])
+AC_MSG_RESULT([CXX                 : ${CXX}])
+AC_MSG_RESULT([CXXFLAGS           : ${CXXFLAGS}])
 AC_MSG_RESULT([LDFLAGS            : ${LDFLAGS}])
 AC_MSG_RESULT([EXTRA_LDFLAGS      : ${EXTRA_LDFLAGS}])
 AC_MSG_RESULT([LIBS               : ${LIBS}])
@@ -1896,4 +1944,5 @@ AC_MSG_RESULT([munmap             : ${enable_munmap}])
 AC_MSG_RESULT([lazy_lock          : ${enable_lazy_lock}])
 AC_MSG_RESULT([tls                : ${enable_tls}])
 AC_MSG_RESULT([cache-oblivious    : ${enable_cache_oblivious}])
+AC_MSG_RESULT([c++14 support      : ${HAVE_CXX14}])
 AC_MSG_RESULT([===============================================================================])
