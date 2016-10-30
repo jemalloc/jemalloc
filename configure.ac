@@ -203,10 +203,7 @@ if test "x$CFLAGS" = "x" ; then
     fi
   fi
 fi
-dnl Append EXTRA_CFLAGS to CFLAGS, if defined.
-if test "x$EXTRA_CFLAGS" != "x" ; then
-  JE_CFLAGS_APPEND([$EXTRA_CFLAGS])
-fi
+AC_SUBST([EXTRA_CFLAGS])
 AC_PROG_CPP
 
 AC_C_BIGENDIAN([ac_cv_big_endian=1], [ac_cv_big_endian=0])
@@ -1853,6 +1850,7 @@ AC_MSG_RESULT([])
 AC_MSG_RESULT([CONFIG             : ${CONFIG}])
 AC_MSG_RESULT([CC                 : ${CC}])
 AC_MSG_RESULT([CFLAGS             : ${CFLAGS}])
+AC_MSG_RESULT([EXTRA_CFLAGS       : ${EXTRA_CFLAGS}])
 AC_MSG_RESULT([CPPFLAGS           : ${CPPFLAGS}])
 AC_MSG_RESULT([LDFLAGS            : ${LDFLAGS}])
 AC_MSG_RESULT([EXTRA_LDFLAGS      : ${EXTRA_LDFLAGS}])
