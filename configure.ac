@@ -1312,16 +1312,16 @@ if test "x$je_cv_cray_prgenv_wrapper" = "xyes" ; then
   fi
 fi
 
-dnl check for CLOCK_MONOTONIC_RAW (Linux-specific).
-JE_COMPILABLE([clock_gettime(CLOCK_MONOTONIC_RAW, ...)], [
+dnl check for CLOCK_MONOTONIC_COARSE (Linux-specific).
+JE_COMPILABLE([clock_gettime(CLOCK_MONOTONIC_COARSE, ...)], [
 #include <time.h>
 ], [
 	struct timespec ts;
 
-	clock_gettime(CLOCK_MONOTONIC_RAW, &ts);
-], [je_cv_clock_monotonic_raw])
-if test "x${je_cv_clock_monotonic_raw}" = "xyes" ; then
-  AC_DEFINE([JEMALLOC_HAVE_CLOCK_MONOTONIC_RAW])
+	clock_gettime(CLOCK_MONOTONIC_COARSE, &ts);
+], [je_cv_clock_monotonic_coarse])
+if test "x${je_cv_clock_monotonic_coarse}" = "xyes" ; then
+  AC_DEFINE([JEMALLOC_HAVE_CLOCK_MONOTONIC_COARSE])
 fi
 
 dnl check for CLOCK_MONOTONIC.
