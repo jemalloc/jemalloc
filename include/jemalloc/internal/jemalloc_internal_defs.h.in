@@ -77,9 +77,9 @@
 #undef JEMALLOC_HAVE_ISSETUGID
 
 /*
- * Defined if clock_gettime(CLOCK_MONOTONIC_RAW, ...) is available.
+ * Defined if clock_gettime(CLOCK_MONOTONIC_COARSE, ...) is available.
  */
-#undef JEMALLOC_HAVE_CLOCK_MONOTONIC_RAW
+#undef JEMALLOC_HAVE_CLOCK_MONOTONIC_COARSE
 
 /*
  * Defined if clock_gettime(CLOCK_MONOTONIC, ...) is available.
