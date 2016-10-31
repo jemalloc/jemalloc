@@ -59,6 +59,8 @@ rtree_new(rtree_t *rtree, unsigned bits)
 	}
 	rtree->start_level[RTREE_HEIGHT_MAX] = 0;
 
+	malloc_mutex_init(&rtree->init_lock, "rtree", WITNESS_RANK_RTREE);
+
 	return (false);
 }
 
@@ -135,25 +137,18 @@ rtree_node_init(tsdn_t *tsdn, rtree_t *rtree, unsigned level,
 {
 	rtree_elm_t *node;
 
-	if (atomic_cas_p((void **)elmp, NULL, RTREE_NODE_INITIALIZING)) {
-		spin_t spinner;
-
-		/*
-		 * Another thread is already in the process of initializing.
-		 * Spin-wait until initialization is complete.
-		 */
-		spin_init(&spinner);
-		do {
-			spin_adaptive(&spinner);
-			node = atomic_read_p((void **)elmp);
-		} while (node == RTREE_NODE_INITIALIZING);
-	} else {
+	malloc_mutex_lock(tsdn, &rtree->init_lock);
+	node = atomic_read_p((void**)elmp);
+	if (node == NULL) {
 		node = rtree_node_alloc(tsdn, rtree, ZU(1) <<
 		    rtree->levels[level].bits);
-		if (node == NULL)
+		if (node == NULL) {
+			malloc_mutex_unlock(tsdn, &rtree->init_lock);
 			return (NULL);
+		}
 		atomic_write_p((void **)elmp, node);
 	}
+	malloc_mutex_unlock(tsdn, &rtree->init_lock);
 
 	return (node);
 }
