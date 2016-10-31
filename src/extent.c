@@ -229,8 +229,10 @@ extent_rtree_acquire(tsdn_t *tsdn, rtree_ctx_t *rtree_ctx,
 		*r_elm_b = rtree_elm_acquire(tsdn, &extents_rtree, rtree_ctx,
 		    (uintptr_t)extent_last_get(extent), dependent,
 		    init_missing);
-		if (!dependent && *r_elm_b == NULL)
+		if (!dependent && *r_elm_b == NULL) {
+			rtree_elm_release(tsdn, &extents_rtree, *r_elm_a);
 			return (true);
+		}
 		assert(*r_elm_b != NULL);
 	} else
 		*r_elm_b = NULL;
