@@ -23,9 +23,6 @@ typedef struct rtree_s rtree_t;
 #define	RTREE_HEIGHT_MAX						\
     ((1U << (LG_SIZEOF_PTR+3)) / RTREE_BITS_PER_LEVEL)
 
-/* Used for two-stage lock-free node initialization. */
-#define	RTREE_NODE_INITIALIZING	((rtree_elm_t *)0x1)
-
 #define	RTREE_CTX_INITIALIZER	{					\
 	false,								\
 	0,								\
@@ -139,6 +136,7 @@ struct rtree_s {
 	 */
 	unsigned		start_level[RTREE_HEIGHT_MAX + 1];
 	rtree_level_t		levels[RTREE_HEIGHT_MAX];
+	malloc_mutex_t		init_lock;
 };
 
 #endif /* JEMALLOC_H_STRUCTS */
@@ -251,7 +249,7 @@ JEMALLOC_ALWAYS_INLINE bool
 rtree_node_valid(rtree_elm_t *node)
 {
 
-	return ((uintptr_t)node > (uintptr_t)RTREE_NODE_INITIALIZING);
+	return ((uintptr_t)node != (uintptr_t)0);
 }
 
 JEMALLOC_ALWAYS_INLINE rtree_elm_t *

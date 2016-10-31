@@ -28,7 +28,8 @@ typedef int witness_comp_t (const witness_t *, void *, const witness_t *,
 #define	WITNESS_RANK_ARENA_EXTENT_CACHE	10
 
 #define	WITNESS_RANK_RTREE_ELM		11U
-#define	WITNESS_RANK_BASE		12U
+#define	WITNESS_RANK_RTREE		12U
+#define	WITNESS_RANK_BASE		13U
 
 #define	WITNESS_RANK_LEAF		0xffffffffU
 #define	WITNESS_RANK_ARENA_BIN		WITNESS_RANK_LEAF
