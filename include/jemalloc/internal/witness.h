@@ -121,11 +121,14 @@ void	witness_unlock(tsdn_t *tsdn, witness_t *witness);
 #endif
 
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_MUTEX_C_))
+/* Helper, not intended for direct use. */
 JEMALLOC_INLINE bool
 witness_owner(tsd_t *tsd, const witness_t *witness)
 {
 	witness_list_t *witnesses;
 	witness_t *w;
+
+	cassert(config_debug);
 
 	witnesses = tsd_witnessesp_get(tsd);
 	ql_foreach(w, witnesses, link) {
