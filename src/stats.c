@@ -73,8 +73,7 @@ stats_arena_bins_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		CTL_M2_M4_GET("stats.arenas.0.bins.0.nslabs", i, j, &nslabs,
 		    uint64_t);
 		in_gap_prev = in_gap;
-		if (nslabs == 0)
-			in_gap = true;
+		in_gap = (nslabs == 0);
 
 		if (!json && in_gap_prev && !in_gap) {
 			malloc_cprintf(write_cb, cbopaque,
@@ -211,8 +210,7 @@ stats_arena_lextents_print(void (*write_cb)(void *, const char *),
 		CTL_M2_M4_GET("stats.arenas.0.lextents.0.nrequests", i, j,
 		    &nrequests, uint64_t);
 		in_gap_prev = in_gap;
-		if (nrequests == 0)
-			in_gap = true;
+		in_gap = (nrequests == 0);
 
 		if (!json && in_gap_prev && !in_gap) {
 			malloc_cprintf(write_cb, cbopaque,
@@ -314,8 +312,7 @@ stats_arena_print(void (*write_cb)(void *, const char *), void *cbopaque,
 	} else {
 		malloc_cprintf(write_cb, cbopaque,
 		    "purging: dirty: %zu, sweeps: %"FMTu64", madvises: %"FMTu64
-		    ", ""purged: %"FMTu64"\n", pdirty, npurge, nmadvise,
-		    purged);
+		    ", purged: %"FMTu64"\n", pdirty, npurge, nmadvise, purged);
 	}
 
 	CTL_M2_GET("stats.arenas.0.small.allocated", i, &small_allocated,
@@ -538,16 +535,6 @@ stats_general_print(void (*write_cb)(void *, const char *), void *cbopaque,
 			"  opt."#n": %u\n", uv);			\
 		}							\
 	}
-#define	OPT_WRITE_SIZE_T(n)						\
-	if (je_mallctl("opt."#n, (void *)&sv, &ssz, NULL, 0) == 0) {	\
-		if (json) {						\
-			malloc_cprintf(write_cb, cbopaque,		\
-			    "\t\t\t\""#n"\": %zu%s\n", sv, (c));	\
-		} else {						\
-			malloc_cprintf(write_cb, cbopaque,		\
-			"  opt."#n": %zu\n", sv);			\
-		}							\
-	}
 #define	OPT_WRITE_SSIZE_T(n, c)						\
 	if (je_mallctl("opt."#n, (void *)&ssv, &sssz, NULL, 0) == 0) {	\
 		if (json) {						\
@@ -593,7 +580,6 @@ stats_general_print(void (*write_cb)(void *, const char *), void *cbopaque,
 	OPT_WRITE_BOOL(abort, ",")
 	OPT_WRITE_CHAR_P(dss, ",")
 	OPT_WRITE_UNSIGNED(narenas, ",")
-	OPT_WRITE_CHAR_P(purge, ",")
 	OPT_WRITE_SSIZE_T_MUTABLE(decay_time, arenas.decay_time, ",")
 	OPT_WRITE_CHAR_P(junk, ",")
 	OPT_WRITE_BOOL(zero, ",")
@@ -625,7 +611,6 @@ stats_general_print(void (*write_cb)(void *, const char *), void *cbopaque,
 
 #undef OPT_WRITE_BOOL
 #undef OPT_WRITE_BOOL_MUTABLE
-#undef OPT_WRITE_SIZE_T
 #undef OPT_WRITE_SSIZE_T
 #undef OPT_WRITE_CHAR_P
 
