@@ -5,6 +5,6 @@
     <xsl:call-template name="inline.monoseq"/>
   </xsl:template>
   <xsl:template match="mallctl">
-    "<xsl:call-template name="inline.monoseq"/>"
+    <quote><xsl:call-template name="inline.monoseq"/></quote>
   </xsl:template>
 </xsl:stylesheet>

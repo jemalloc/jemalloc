@@ -375,7 +375,7 @@
       <para>The <function>mallctlnametomib()</function> function
       provides a way to avoid repeated name lookups for applications that
       repeatedly query the same portion of the namespace, by translating a name
-      to a &ldquo;Management Information Base&rdquo; (MIB) that can be passed
+      to a <quote>Management Information Base</quote> (MIB) that can be passed
       repeatedly to <function>mallctlbymib()</function>.  Upon
       successful return from <function>mallctlnametomib()</function>,
       <parameter>mibp</parameter> contains an array of
@@ -456,7 +456,7 @@ for (i = 0; i < nbins; i++) {
 
     <para>The string specified via <option>--with-malloc-conf</option>, the
     string pointed to by the global variable <varname>malloc_conf</varname>, the
-    &ldquo;name&rdquo; of the file referenced by the symbolic link named
+    <quote>name</quote> of the file referenced by the symbolic link named
     <filename class="symlink">/etc/malloc.conf</filename>, and the value of the
     environment variable <envar>MALLOC_CONF</envar>, will be interpreted, in
     that order, from left to right as options.  Note that
@@ -918,12 +918,12 @@ for (i = 0; i < nbins; i++) {
         settings are supported if
         <citerefentry><refentrytitle>sbrk</refentrytitle>
         <manvolnum>2</manvolnum></citerefentry> is supported by the operating
-        system: &ldquo;disabled&rdquo;, &ldquo;primary&rdquo;, and
-        &ldquo;secondary&rdquo;; otherwise only &ldquo;disabled&rdquo; is
-        supported.  The default is &ldquo;secondary&rdquo; if
+        system: <quote>disabled</quote>, <quote>primary</quote>, and
+        <quote>secondary</quote>; otherwise only <quote>disabled</quote> is
+        supported.  The default is <quote>secondary</quote> if
         <citerefentry><refentrytitle>sbrk</refentrytitle>
         <manvolnum>2</manvolnum></citerefentry> is supported by the operating
-        system; &ldquo;disabled&rdquo; otherwise.
+        system; <quote>disabled</quote> otherwise.
         </para></listitem>
       </varlistentry>
 
@@ -1039,15 +1039,16 @@ for (i = 0; i < nbins; i++) {
           <literal>r-</literal>
           [<option>--enable-fill</option>]
         </term>
-        <listitem><para>Junk filling.  If set to "alloc", each byte of
-        uninitialized allocated memory will be initialized to
-        <literal>0xa5</literal>.  If set to "free", all deallocated memory will
-        be initialized to <literal>0x5a</literal>.  If set to "true", both
-        allocated and deallocated memory will be initialized, and if set to
-        "false", junk filling be disabled entirely.  This is intended for
-        debugging and will impact performance negatively.  This option is
-        "false" by default unless <option>--enable-debug</option> is specified
-        during configuration, in which case it is "true" by default unless
+        <listitem><para>Junk filling.  If set to <quote>alloc</quote>, each byte
+        of uninitialized allocated memory will be initialized to
+        <literal>0xa5</literal>.  If set to <quote>free</quote>, all deallocated
+        memory will be initialized to <literal>0x5a</literal>.  If set to
+        <quote>true</quote>, both allocated and deallocated memory will be
+        initialized, and if set to <quote>false</quote>, junk filling be
+        disabled entirely.  This is intended for debugging and will impact
+        performance negatively.  This option is <quote>false</quote> by default
+        unless <option>--enable-debug</option> is specified during
+        configuration, in which case it is <quote>true</quote> by default unless
         running inside <ulink
         url="http://valgrind.org/">Valgrind</ulink>.</para></listitem>
       </varlistentry>
@@ -2735,7 +2736,7 @@ MAPPED_LIBRARIES:
     of run-time assertions that catch application errors such as double-free,
     write-after-free, etc.</para>
 
-    <para>Programs often accidentally depend on &ldquo;uninitialized&rdquo;
+    <para>Programs often accidentally depend on <quote>uninitialized</quote>
     memory actually being filled with zero bytes.  Junk filling
     (see the <link linkend="opt.junk"><mallctl>opt.junk</mallctl></link>
     option) tends to expose such bugs in the form of obviously incorrect
@@ -2772,7 +2773,7 @@ MAPPED_LIBRARIES:
     this function is likely to result in a crash or deadlock.</para>
 
     <para>All messages are prefixed by
-    &ldquo;<computeroutput>&lt;jemalloc&gt;: </computeroutput>&rdquo;.</para>
+    <quote><computeroutput>&lt;jemalloc&gt;: </computeroutput></quote>.</para>
   </refsect1>
   <refsect1 id="return_values">
     <title>RETURN VALUES</title>
@@ -2957,9 +2958,9 @@ malloc_conf = "lg_chunk:24";]]></programlisting></para>
     <function>calloc()</function>,
     <function>realloc()</function>, and
     <function>free()</function> functions conform to ISO/IEC
-    9899:1990 (&ldquo;ISO C90&rdquo;).</para>
+    9899:1990 (<quote>ISO C90</quote>).</para>
 
     <para>The <function>posix_memalign()</function> function conforms
-    to IEEE Std 1003.1-2001 (&ldquo;POSIX.1&rdquo;).</para>
+    to IEEE Std 1003.1-2001 (<quote>POSIX.1</quote>).</para>
   </refsect1>
 </refentry>
