@@ -1434,9 +1434,17 @@ fi
 ],
 [enable_lazy_lock=""]
 )
-if test "x$enable_lazy_lock" = "x" -a "x${force_lazy_lock}" = "x1" ; then
-  AC_MSG_RESULT([Forcing lazy-lock to avoid allocator/threading bootstrap issues])
-  enable_lazy_lock="1"
+if test "x${enable_lazy_lock}" = "x" ; then
+  if test "x${force_lazy_lock}" = "x1" ; then
+    AC_MSG_RESULT([Forcing lazy-lock to avoid allocator/threading bootstrap issues])
+    enable_lazy_lock="1"
+  else
+    enable_lazy_lock="0"
+  fi
+fi
+if test "x${enable_lazy_lock}" = "x1" -a "x${abi}" = "xpecoff" ; then
+  AC_MSG_RESULT([Forcing no lazy-lock because thread creation monitoring is unimplemented])
+  enable_lazy_lock="0"
 fi
 if test "x$enable_lazy_lock" = "x1" ; then
   if test "x$abi" != "xpecoff" ; then
@@ -1447,8 +1455,6 @@ if test "x$enable_lazy_lock" = "x1" ; then
       ])
   fi
   AC_DEFINE([JEMALLOC_LAZY_LOCK], [ ])
-else
-  enable_lazy_lock="0"
 fi
 AC_SUBST([enable_lazy_lock])
 
