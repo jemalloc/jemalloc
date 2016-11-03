@@ -812,8 +812,10 @@ malloc_ncpus(void)
 	SYSTEM_INFO si;
 	GetSystemInfo(&si);
 	result = si.dwNumberOfProcessors;
-#elif defined(JEMALLOC_GLIBC_MALLOC_HOOK)
+#elif defined(JEMALLOC_GLIBC_MALLOC_HOOK) && defined(CPU_COUNT)
 	/*
+	 * glibc >= 2.6 has the CPU_COUNT macro.
+	 *
 	 * glibc's sysconf() uses isspace().  glibc allocates for the first time
 	 * *before* setting up the isspace tables.  Therefore we need a
 	 * different method to get the number of CPUs.
@@ -2053,6 +2055,7 @@ JEMALLOC_EXPORT void *(*__memalign_hook)(size_t alignment, size_t size) =
     je_memalign;
 # endif
 
+#ifdef CPU_COUNT
 /*
  * To enable static linking with glibc, the libc specific malloc interface must
  * be implemented also, so none of glibc's malloc.o functions are added to the
@@ -2071,6 +2074,9 @@ int	__posix_memalign(void** r, size_t a, size_t s)
     PREALIAS(je_posix_memalign);
 #undef PREALIAS
 #undef ALIAS
+
+#endif
+
 #endif
 
 /*
