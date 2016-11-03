@@ -61,6 +61,11 @@
 #undef JEMALLOC_HAVE_MADVISE
 
 /*
+ * Defined if os_unfair_lock_*() functions are available, as provided by Darwin.
+ */
+#undef JEMALLOC_OS_UNFAIR_LOCK
+
+/*
  * Defined if OSSpin*() functions are available, as provided by Darwin, and
  * documented in the spinlock(3) manual page.
  */

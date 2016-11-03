@@ -17,6 +17,9 @@
 #    include <sys/uio.h>
 #  endif
 #  include <pthread.h>
+#  ifdef JEMALLOC_OS_UNFAIR_LOCK
+#    include <os/lock.h>
+#  endif
 #  ifdef JEMALLOC_GLIBC_MALLOC_HOOK
 #    include <sched.h>
 #  endif
