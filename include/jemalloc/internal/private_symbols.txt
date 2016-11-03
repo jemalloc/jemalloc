@@ -419,6 +419,8 @@ size2index
 size2index_compute
 size2index_lookup
 size2index_tab
+spin_adaptive
+spin_init
 stats_print
 tcache_alloc_easy
 tcache_alloc_large
