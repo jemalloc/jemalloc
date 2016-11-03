@@ -461,7 +461,6 @@ quarantine
 quarantine_alloc_hook
 quarantine_alloc_hook_work
 quarantine_cleanup
-register_zone
 rtree_child_read
 rtree_child_read_hard
 rtree_child_tryread
@@ -614,3 +613,4 @@ witness_postfork_parent
 witness_prefork
 witness_unlock
 witnesses_cleanup
+zone_register
