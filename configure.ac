@@ -379,7 +379,7 @@ case "${host}" in
 	AC_DEFINE([JEMALLOC_PURGE_MADVISE_FREE], [ ])
 	;;
   *-*-linux*)
-	dnl secure_getenv() is exposed by _GNU_SOURCE.
+	dnl syscall(2) and secure_getenv(3) are exposed by _GNU_SOURCE.
 	CPPFLAGS="$CPPFLAGS -D_GNU_SOURCE"
 	abi="elf"
 	AC_DEFINE([JEMALLOC_HAS_ALLOCA_H])
@@ -1385,7 +1385,6 @@ dnl 10.12's deprecation warning prevents use.
 SAVED_CFLAGS="${CFLAGS}"
 JE_CFLAGS_APPEND([-Werror])
 JE_COMPILABLE([syscall(2)], [
-#define _GNU_SOURCE
 #include <sys/syscall.h>
 #include <unistd.h>
 ], [
