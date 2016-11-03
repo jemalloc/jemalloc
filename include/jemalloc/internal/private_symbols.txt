@@ -401,6 +401,7 @@ pages_unmap
 pind2sz
 pind2sz_compute
 pind2sz_lookup
+pind2sz_tab
 pow2_ceil_u32
 pow2_ceil_u64
 pow2_ceil_zu
@@ -487,6 +488,8 @@ size2index
 size2index_compute
 size2index_lookup
 size2index_tab
+spin_adaptive
+spin_init
 stats_cactive
 stats_cactive_add
 stats_cactive_get
