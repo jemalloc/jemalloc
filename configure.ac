@@ -1380,6 +1380,23 @@ if test "x${je_cv_mach_absolute_time}" = "xyes" ; then
   AC_DEFINE([JEMALLOC_HAVE_MACH_ABSOLUTE_TIME])
 fi
 
+dnl Check if syscall(2) is usable.  Treat warnings as errors, so that e.g. OS X
+dnl 10.12's deprecation warning prevents use.
+SAVED_CFLAGS="${CFLAGS}"
+JE_CFLAGS_APPEND([-Werror])
+JE_COMPILABLE([syscall(2)], [
+#define _GNU_SOURCE
+#include <sys/syscall.h>
+#include <unistd.h>
+], [
+	syscall(SYS_write, 2, "hello", 5);
+],
+              [je_cv_syscall])
+CFLAGS="${SAVED_CFLAGS}"
+if test "x$je_cv_syscall" = "xyes" ; then
+  AC_DEFINE([JEMALLOC_HAVE_SYSCALL], [ ])
+fi
+
 dnl Check if the GNU-specific secure_getenv function exists.
 AC_CHECK_FUNC([secure_getenv],
               [have_secure_getenv="1"],
