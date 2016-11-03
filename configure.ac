@@ -1613,6 +1613,20 @@ if test "x${je_cv_builtin_clz}" = "xyes" ; then
 fi
 
 dnl ============================================================================
+dnl Check for os_unfair_lock operations as provided on Darwin.
+
+JE_COMPILABLE([Darwin os_unfair_lock_*()], [
+#include <os/lock.h>
+], [
+	os_unfair_lock lock = OS_UNFAIR_LOCK_INIT;
+	os_unfair_lock_lock(&lock);
+	os_unfair_lock_unlock(&lock);
+], [je_cv_os_unfair_lock])
+if test "x${je_cv_os_unfair_lock}" = "xyes" ; then
+  AC_DEFINE([JEMALLOC_OS_UNFAIR_LOCK], [ ])
+fi
+
+dnl ============================================================================
 dnl Check for spinlock(3) operations as provided on Darwin.
 
 JE_COMPILABLE([Darwin OSSpin*()], [
