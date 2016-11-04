@@ -1,9 +1,5 @@
 #include "test/jemalloc_test.h"
 
-#ifdef JEMALLOC_FILL
-const char *malloc_conf = "junk:false";
-#endif
-
 /*
  * Use a separate arena for xallocx() extension/contraction tests so that
  * internal allocation e.g. by heap profiling can't interpose allocations where
@@ -397,7 +393,9 @@ TEST_END
 int
 main(void)
 {
-
+#ifdef JEMALLOC_FILL
+  malloc_conf = "junk:false";
+#endif
 	return (test(
 	    test_same_size,
 	    test_extra_no_move,
