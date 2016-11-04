@@ -143,8 +143,8 @@ large_ralloc_no_move_expand(tsdn_t *tsdn, extent_t *extent, size_t usize,
 	extent_t *trail;
 
 	if ((trail = arena_extent_cache_alloc(tsdn, arena, &extent_hooks,
-	    extent_past_get(extent), trailsize, CACHELINE, &is_zeroed_trail))
-	    == NULL) {
+	    extent_past_get(extent), trailsize, CACHELINE, &is_zeroed_trail)) ==
+	    NULL) {
 		bool commit = true;
 		if ((trail = extent_alloc_wrapper(tsdn, arena, &extent_hooks,
 		    extent_past_get(extent), trailsize, 0, CACHELINE,

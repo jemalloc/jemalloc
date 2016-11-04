@@ -101,10 +101,10 @@ ph_proto(, extent_heap_, extent_heap_t, extent_t)
 
 extent_t	*extent_alloc_cache_locked(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, void *new_addr, size_t usize, size_t pad,
-    size_t alignment, bool *zero, bool slab);
+    size_t alignment, bool *zero, bool *commit, bool slab);
 extent_t	*extent_alloc_cache(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, void *new_addr, size_t usize, size_t pad,
-    size_t alignment, bool *zero, bool slab);
+    size_t alignment, bool *zero, bool *commit, bool slab);
 extent_t	*extent_alloc_wrapper(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, void *new_addr, size_t usize, size_t pad,
     size_t alignment, bool *zero, bool *commit, bool slab);

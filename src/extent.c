@@ -517,8 +517,9 @@ extent_recycle(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
 		extent_usize_set(extent, usize);
 	}
 
-	if (!extent_committed_get(extent) && extent_commit_wrapper(tsdn, arena,
-	    r_extent_hooks, extent, 0, extent_size_get(extent))) {
+	if (commit && !extent_committed_get(extent) &&
+	    extent_commit_wrapper(tsdn, arena, r_extent_hooks, extent, 0,
+	    extent_size_get(extent))) {
 		if (!locked)
 			malloc_mutex_unlock(tsdn, &arena->extents_mtx);
 		extent_record(tsdn, arena, r_extent_hooks, extent_heaps, cache,
@@ -590,44 +591,41 @@ extent_alloc_core(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
 static extent_t *
 extent_alloc_cache_impl(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, bool locked, void *new_addr, size_t usize,
-    size_t pad, size_t alignment, bool *zero, bool slab)
+    size_t pad, size_t alignment, bool *zero, bool *commit, bool slab)
 {
 	extent_t *extent;
-	bool commit;
 
 	assert(usize + pad != 0);
 	assert(alignment != 0);
 
-	commit = true;
 	extent = extent_recycle(tsdn, arena, r_extent_hooks,
 	    arena->extents_cached, locked, true, new_addr, usize, pad,
-	    alignment, zero, &commit, slab);
+	    alignment, zero, commit, slab);
 	if (extent == NULL)
 		return (NULL);
-	assert(commit);
 	return (extent);
 }
 
 extent_t *
 extent_alloc_cache_locked(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, void *new_addr, size_t usize, size_t pad,
-    size_t alignment, bool *zero, bool slab)
+    size_t alignment, bool *zero, bool *commit, bool slab)
 {
 
 	malloc_mutex_assert_owner(tsdn, &arena->extents_mtx);
 
 	return (extent_alloc_cache_impl(tsdn, arena, r_extent_hooks, true,
-	    new_addr, usize, pad, alignment, zero, slab));
+	    new_addr, usize, pad, alignment, zero, commit, slab));
 }
 
 extent_t *
 extent_alloc_cache(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, void *new_addr, size_t usize, size_t pad,
-    size_t alignment, bool *zero, bool slab)
+    size_t alignment, bool *zero, bool *commit, bool slab)
 {
 
 	return (extent_alloc_cache_impl(tsdn, arena, r_extent_hooks, false,
-	    new_addr, usize, pad, alignment, zero, slab));
+	    new_addr, usize, pad, alignment, zero, commit, slab));
 }
 
 static void *

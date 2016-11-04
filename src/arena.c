@@ -49,11 +49,12 @@ arena_extent_cache_alloc_locked(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, void *new_addr, size_t usize, size_t pad,
     size_t alignment, bool *zero, bool slab)
 {
+	bool commit = true;
 
 	malloc_mutex_assert_owner(tsdn, &arena->lock);
 
 	return (extent_alloc_cache(tsdn, arena, r_extent_hooks, new_addr, usize,
-	    pad, alignment, zero, slab));
+	    pad, alignment, zero, &commit, slab));
 }
 
 extent_t *
@@ -681,7 +682,7 @@ arena_stash_dirty(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
 	for (extent = qr_next(&arena->extents_dirty, qr_link); extent !=
 	    &arena->extents_dirty; extent = next) {
 		size_t npages;
-		bool zero;
+		bool zero, commit;
 		UNUSED extent_t *textent;
 
 		npages = extent_size_get(extent) >> LG_PAGE;
@@ -691,9 +692,10 @@ arena_stash_dirty(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
 		next = qr_next(extent, qr_link);
 		/* Allocate. */
 		zero = false;
+		commit = false;
 		textent = extent_alloc_cache_locked(tsdn, arena, r_extent_hooks,
 		    extent_base_get(extent), extent_size_get(extent), 0, PAGE,
-		    &zero, false);
+		    &zero, &commit, false);
 		assert(textent == extent);
 		assert(zero == extent_zeroed_get(extent));
 		extent_ring_remove(extent);
@@ -943,9 +945,8 @@ arena_slab_alloc(tsdn_t *tsdn, arena_t *arena, szind_t binind,
 	extent_t *slab;
 	arena_slab_data_t *slab_data;
 	extent_hooks_t *extent_hooks = EXTENT_HOOKS_INITIALIZER;
-	bool zero;
+	bool zero = false;
 
-	zero = false;
 	slab = arena_extent_cache_alloc_locked(tsdn, arena, &extent_hooks, NULL,
 	    bin_info->slab_size, 0, PAGE, &zero, true);
 	if (slab == NULL) {
