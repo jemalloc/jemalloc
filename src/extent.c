@@ -405,6 +405,7 @@ extent_recycle(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
 		malloc_mutex_assert_owner(tsdn, &arena->extents_mtx);
 	assert(new_addr == NULL || !slab);
 	assert(pad == 0 || !slab);
+	assert(alignment > 0);
 	if (config_debug && new_addr != NULL) {
 		extent_t *prev;
 
@@ -427,13 +428,11 @@ extent_recycle(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
 		assert(prev == NULL || extent_past_get(prev) == new_addr);
 	}
 
-	alloc_size = ((new_addr != NULL) ? usize : s2u(usize +
-	    PAGE_CEILING(alignment) - PAGE)) + pad;
-	if (alloc_size > LARGE_MAXCLASS + pad || alloc_size < usize) {
-		/* Too large, possibly wrapped around. */
-		return (NULL);
-	}
 	size = usize + pad;
+	alloc_size = size + PAGE_CEILING(alignment) - PAGE;
+	/* Beware size_t wrap-around. */
+	if (alloc_size < usize)
+		return (NULL);
 	if (!locked)
 		malloc_mutex_lock(tsdn, &arena->extents_mtx);
 	extent_hooks_assure_initialized(arena, r_extent_hooks);
