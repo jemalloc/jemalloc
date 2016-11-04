@@ -4,7 +4,7 @@ brevity.  Much more detail can be found in the git revision history:
 
     https://github.com/jemalloc/jemalloc
 
-* 4.3.0 (November 3, 2016)
+* 4.3.0 (November 4, 2016)
 
   This is the first release that passes the test suite for multiple Windows
   configurations, thanks in large part to @glandium setting up continuous
@@ -19,6 +19,9 @@ brevity.  Much more detail can be found in the git revision history:
     initialization.  (@jasone)
 
   Bug fixes:
+  - Fix large allocation to search starting in the optimal size class heap,
+    which can substantially reduce virtual memory churn and fragmentation.  This
+    regression was first released in 4.0.0.  (@mjp41, @jasone)
   - Fix stats.arenas.<i>.nthreads accounting.  (@interwq)
   - Fix and simplify decay-based purging.  (@jasone)
   - Make DSS (sbrk(2)-related) operations lockless, which resolves potential
@@ -29,13 +32,16 @@ brevity.  Much more detail can be found in the git revision history:
   - Fix a Valgrind integration bug.  (@ronawho)
   - Disallow 0x5a junk filling when running in Valgrind.  (@jasone)
   - Fix a file descriptor leak on Linux.  This regression was first released in
-    4.2.0.  (@jasone)
+    4.2.0.  (@vsarunas, @jasone)
   - Fix static linking of jemalloc with glibc.  (@djwatson)
   - Use syscall(2) rather than {open,read,close}(2) during boot on Linux.  This
     works around other libraries' system call wrappers performing reentrant
-    allocation.  (@jasone)
+    allocation.  (@kspinka, @Whissi, @jasone)
   - Fix OS X default zone replacement to work with OS X 10.12.  (@glandium,
     @jasone)
+  - Fix cached memory management to avoid needless commit/decommit operations
+    during purging, which resolves permanent virtual memory map fragmentation
+    issues on Windows.  (@mjp41, @jasone)
   - Fix TSD fetches to avoid (recursive) allocation.  This is relevant to
     non-TLS and Windows configurations.  (@jasone)
   - Fix malloc_conf overriding to work on Windows.  (@jasone)
