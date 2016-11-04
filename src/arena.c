@@ -1059,7 +1059,7 @@ arena_run_first_best_fit(arena_t *arena, size_t size)
 static arena_run_t *
 arena_run_alloc_large_helper(arena_t *arena, size_t size, bool zero)
 {
-	arena_run_t *run = arena_run_first_best_fit(arena, s2u(size));
+	arena_run_t *run = arena_run_first_best_fit(arena, size);
 	if (run != NULL) {
 		if (arena_run_split_large(arena, run, size, zero))
 			run = NULL;
