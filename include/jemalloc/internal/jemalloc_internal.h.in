@@ -434,7 +434,7 @@ extern arena_t	**arenas;
  * pind2sz_tab encodes the same information as could be computed by
  * pind2sz_compute().
  */
-extern size_t const	pind2sz_tab[NPSIZES];
+extern size_t const	pind2sz_tab[NPSIZES+1];
 /*
  * index2size_tab encodes the same information as could be computed (at
  * unacceptable cost in some code paths) by index2size_compute().
@@ -516,9 +516,7 @@ void	jemalloc_postfork_child(void);
 #include "jemalloc/internal/large.h"
 
 #ifndef JEMALLOC_ENABLE_INLINE
-pszind_t	psz2ind_impl(size_t psz, bool clamp);
 pszind_t	psz2ind(size_t psz);
-pszind_t	psz2ind_clamp(size_t psz);
 size_t	pind2sz_compute(pszind_t pind);
 size_t	pind2sz_lookup(pszind_t pind);
 size_t	pind2sz(pszind_t pind);
@@ -544,11 +542,11 @@ ticker_t	*decay_ticker_get(tsd_t *tsd, unsigned ind);
 
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_C_))
 JEMALLOC_ALWAYS_INLINE pszind_t
-psz2ind_impl(size_t psz, bool clamp)
+psz2ind(size_t psz)
 {
 
 	if (unlikely(psz > LARGE_MAXCLASS))
-		return (clamp ? NPSIZES-1 : NPSIZES);
+		return (NPSIZES);
 	{
 		pszind_t x = lg_floor((psz<<1)-1);
 		pszind_t shift = (x < LG_SIZE_CLASS_GROUP + LG_PAGE) ? 0 : x -
@@ -567,24 +565,12 @@ psz2ind_impl(size_t psz, bool clamp)
 	}
 }
 
-JEMALLOC_INLINE pszind_t
-psz2ind(size_t psz)
-{
-
-	return (psz2ind_impl(psz, false));
-}
-
-JEMALLOC_INLINE pszind_t
-psz2ind_clamp(size_t psz)
-{
-
-	return (psz2ind_impl(psz, true));
-}
-
 JEMALLOC_INLINE size_t
 pind2sz_compute(pszind_t pind)
 {
 
+	if (unlikely(pind == NPSIZES))
+		return (LARGE_MAXCLASS + PAGE);
 	{
 		size_t grp = pind >> LG_SIZE_CLASS_GROUP;
 		size_t mod = pind & ((ZU(1) << LG_SIZE_CLASS_GROUP) - 1);
@@ -614,7 +600,7 @@ JEMALLOC_INLINE size_t
 pind2sz(pszind_t pind)
 {
 
-	assert(pind < NPSIZES);
+	assert(pind < NPSIZES+1);
 	return (pind2sz_lookup(pind));
 }
 
@@ -623,7 +609,7 @@ psz2u(size_t psz)
 {
 
 	if (unlikely(psz > LARGE_MAXCLASS))
-		return (0);
+		return (LARGE_MAXCLASS + PAGE);
 	{
 		size_t x = lg_floor((psz<<1)-1);
 		size_t lg_delta = (x < LG_SIZE_CLASS_GROUP + LG_PAGE + 1) ?

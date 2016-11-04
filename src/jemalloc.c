@@ -83,7 +83,7 @@ enum {
 static uint8_t	malloc_slow_flags;
 
 JEMALLOC_ALIGNED(CACHELINE)
-const size_t	pind2sz_tab[NPSIZES] = {
+const size_t	pind2sz_tab[NPSIZES+1] = {
 #define	PSZ_yes(lg_grp, ndelta, lg_delta)				\
 	(((ZU(1)<<lg_grp) + (ZU(ndelta)<<lg_delta))),
 #define	PSZ_no(lg_grp, ndelta, lg_delta)
@@ -93,6 +93,7 @@ const size_t	pind2sz_tab[NPSIZES] = {
 #undef PSZ_yes
 #undef PSZ_no
 #undef SC
+	(LARGE_MAXCLASS + PAGE)
 };
 
 JEMALLOC_ALIGNED(CACHELINE)

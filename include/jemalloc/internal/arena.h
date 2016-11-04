@@ -212,8 +212,8 @@ struct arena_s {
 	 * Heaps of extents that were previously allocated.  These are used when
 	 * allocating extents, in an attempt to re-use address space.
 	 */
-	extent_heap_t		extents_cached[NPSIZES];
-	extent_heap_t		extents_retained[NPSIZES];
+	extent_heap_t		extents_cached[NPSIZES+1];
+	extent_heap_t		extents_retained[NPSIZES+1];
 	/*
 	 * Ring sentinel used to track unused dirty memory.  Dirty memory is
 	 * managed as an LRU of cached extents.

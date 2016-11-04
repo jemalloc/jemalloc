@@ -82,19 +82,18 @@ TEST_END
 
 TEST_BEGIN(test_psize_classes)
 {
-	size_t size_class, max_size_class;
+	size_t size_class, max_psz;
 	pszind_t pind, max_pind;
 
-	max_size_class = get_max_size_class();
-	max_pind = psz2ind(max_size_class);
+	max_psz = get_max_size_class() + PAGE;
+	max_pind = psz2ind(max_psz);
 
-	for (pind = 0, size_class = pind2sz(pind); pind < max_pind ||
-	    size_class < max_size_class; pind++, size_class =
-	    pind2sz(pind)) {
+	for (pind = 0, size_class = pind2sz(pind); pind < max_pind || size_class
+	    < max_psz; pind++, size_class = pind2sz(pind)) {
 		assert_true(pind < max_pind,
 		    "Loop conditionals should be equivalent; pind=%u, "
 		    "size_class=%zu (%#zx)", pind, size_class, size_class);
-		assert_true(size_class < max_size_class,
+		assert_true(size_class < max_psz,
 		    "Loop conditionals should be equivalent; pind=%u, "
 		    "size_class=%zu (%#zx)", pind, size_class, size_class);
 
@@ -125,7 +124,7 @@ TEST_BEGIN(test_psize_classes)
 
 	assert_u_eq(pind, psz2ind(pind2sz(pind)),
 	    "psz2ind() does not reverse pind2sz()");
-	assert_zu_eq(max_size_class, pind2sz(psz2ind(max_size_class)),
+	assert_zu_eq(max_psz, pind2sz(psz2ind(max_psz)),
 	    "pind2sz() does not reverse psz2ind()");
 
 	assert_zu_eq(size_class, psz2u(pind2sz(pind-1)+1),
@@ -139,9 +138,10 @@ TEST_END
 
 TEST_BEGIN(test_overflow)
 {
-	size_t max_size_class;
+	size_t max_size_class, max_psz;
 
 	max_size_class = get_max_size_class();
+	max_psz = max_size_class + PAGE;
 
 	assert_u_eq(size2index(max_size_class+1), NSIZES,
 	    "size2index() should return NSIZES on overflow");
@@ -164,12 +164,14 @@ TEST_BEGIN(test_overflow)
 	assert_u_eq(psz2ind(SIZE_T_MAX), NPSIZES,
 	    "psz2ind() should return NPSIZES on overflow");
 
-	assert_zu_eq(psz2u(max_size_class+1), 0,
-	    "psz2u() should return 0 for unsupported size");
-	assert_zu_eq(psz2u(ZU(PTRDIFF_MAX)+1), 0,
-	    "psz2u() should return 0 for unsupported size");
-	assert_zu_eq(psz2u(SIZE_T_MAX), 0,
-	    "psz2u() should return 0 on overflow");
+	assert_zu_eq(psz2u(max_size_class+1), max_psz,
+	    "psz2u() should return (LARGE_MAXCLASS + PAGE) for unsupported"
+	    " size");
+	assert_zu_eq(psz2u(ZU(PTRDIFF_MAX)+1), max_psz,
+	    "psz2u() should return (LARGE_MAXCLASS + PAGE) for unsupported "
+	    "size");
+	assert_zu_eq(psz2u(SIZE_T_MAX), max_psz,
+	    "psz2u() should return (LARGE_MAXCLASS + PAGE) on overflow");
 }
 TEST_END
 

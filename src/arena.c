@@ -1696,7 +1696,7 @@ arena_new(tsdn_t *tsdn, unsigned ind)
 	    WITNESS_RANK_ARENA_LARGE))
 		return (NULL);
 
-	for (i = 0; i < NPSIZES; i++) {
+	for (i = 0; i < NPSIZES+1; i++) {
 		extent_heap_new(&arena->extents_cached[i]);
 		extent_heap_new(&arena->extents_retained[i]);
 	}
