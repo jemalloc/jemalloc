@@ -3461,8 +3461,8 @@ arena_new(tsdn_t *tsdn, unsigned ind)
 	if (config_stats) {
 		arena = (arena_t *)base_alloc(tsdn,
 		    CACHELINE_CEILING(sizeof(arena_t)) +
-		    QUANTUM_CEILING((nlclasses * sizeof(malloc_large_stats_t)) +
-		    (nhclasses * sizeof(malloc_huge_stats_t))));
+		    QUANTUM_CEILING((nlclasses * sizeof(malloc_large_stats_t)))
+		    + (nhclasses * sizeof(malloc_huge_stats_t)));
 	} else
 		arena = (arena_t *)base_alloc(tsdn, sizeof(arena_t));
 	if (arena == NULL)
