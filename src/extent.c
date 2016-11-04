@@ -427,12 +427,13 @@ extent_recycle(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
 		assert(prev == NULL || extent_past_get(prev) == new_addr);
 	}
 
-	size = usize + pad;
-	alloc_size = (new_addr != NULL) ? size : s2u(size +
-	    PAGE_CEILING(alignment) - PAGE);
-	/* Beware size_t wrap-around. */
-	if (alloc_size < usize)
+	alloc_size = ((new_addr != NULL) ? usize : s2u(usize +
+	    PAGE_CEILING(alignment) - PAGE)) + pad;
+	if (alloc_size > LARGE_MAXCLASS + pad || alloc_size < usize) {
+		/* Too large, possibly wrapped around. */
 		return (NULL);
+	}
+	size = usize + pad;
 	if (!locked)
 		malloc_mutex_lock(tsdn, &arena->extents_mtx);
 	extent_hooks_assure_initialized(arena, r_extent_hooks);
