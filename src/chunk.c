@@ -385,23 +385,21 @@ chunk_alloc_base(size_t size)
 
 void *
 chunk_alloc_cache(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
-    void *new_addr, size_t size, size_t alignment, bool *zero, bool dalloc_node)
+    void *new_addr, size_t size, size_t alignment, bool *zero, bool *commit,
+    bool dalloc_node)
 {
 	void *ret;
-	bool commit;
 
 	assert(size != 0);
 	assert((size & chunksize_mask) == 0);
 	assert(alignment != 0);
 	assert((alignment & chunksize_mask) == 0);
 
-	commit = true;
 	ret = chunk_recycle(tsdn, arena, chunk_hooks,
 	    &arena->chunks_szad_cached, &arena->chunks_ad_cached, true,
-	    new_addr, size, alignment, zero, &commit, dalloc_node);
+	    new_addr, size, alignment, zero, commit, dalloc_node);
 	if (ret == NULL)
 		return (NULL);
-	assert(commit);
 	if (config_valgrind)
 		JEMALLOC_VALGRIND_MAKE_MEM_UNDEFINED(ret, size);
 	return (ret);

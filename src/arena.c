@@ -30,6 +30,8 @@ unsigned	nhclasses; /* Number of huge size classes. */
  * definition.
  */
 
+static void	arena_chunk_dalloc(tsdn_t *tsdn, arena_t *arena,
+    arena_chunk_t *chunk);
 static void	arena_purge_to_limit(tsdn_t *tsdn, arena_t *arena,
     size_t ndirty_limit);
 static void	arena_run_dalloc(tsdn_t *tsdn, arena_t *arena, arena_run_t *run,
@@ -579,14 +581,13 @@ arena_chunk_alloc_internal(tsdn_t *tsdn, arena_t *arena, bool *zero,
 	chunk_hooks_t chunk_hooks = CHUNK_HOOKS_INITIALIZER;
 
 	chunk = chunk_alloc_cache(tsdn, arena, &chunk_hooks, NULL, chunksize,
-	    chunksize, zero, true);
+	    chunksize, zero, commit, true);
 	if (chunk != NULL) {
 		if (arena_chunk_register(tsdn, arena, chunk, *zero)) {
 			chunk_dalloc_cache(tsdn, arena, &chunk_hooks, chunk,
 			    chunksize, true);
 			return (NULL);
 		}
-		*commit = true;
 	}
 	if (chunk == NULL) {
 		chunk = arena_chunk_alloc_internal_hard(tsdn, arena,
@@ -883,6 +884,7 @@ arena_chunk_alloc_huge(tsdn_t *tsdn, arena_t *arena, size_t usize,
 	void *ret;
 	chunk_hooks_t chunk_hooks = CHUNK_HOOKS_INITIALIZER;
 	size_t csize = CHUNK_CEILING(usize);
+	bool commit = true;
 
 	malloc_mutex_lock(tsdn, &arena->lock);
 
@@ -894,7 +896,7 @@ arena_chunk_alloc_huge(tsdn_t *tsdn, arena_t *arena, size_t usize,
 	arena_nactive_add(arena, usize >> LG_PAGE);
 
 	ret = chunk_alloc_cache(tsdn, arena, &chunk_hooks, NULL, csize,
-	    alignment, zero, true);
+	    alignment, zero, &commit, true);
 	malloc_mutex_unlock(tsdn, &arena->lock);
 	if (ret == NULL) {
 		ret = arena_chunk_alloc_huge_hard(tsdn, arena, &chunk_hooks,
@@ -1004,6 +1006,7 @@ arena_chunk_ralloc_huge_expand(tsdn_t *tsdn, arena_t *arena, void *chunk,
 	void *nchunk = (void *)((uintptr_t)chunk + CHUNK_CEILING(oldsize));
 	size_t udiff = usize - oldsize;
 	size_t cdiff = CHUNK_CEILING(usize) - CHUNK_CEILING(oldsize);
+	bool commit = true;
 
 	malloc_mutex_lock(tsdn, &arena->lock);
 
@@ -1015,7 +1018,7 @@ arena_chunk_ralloc_huge_expand(tsdn_t *tsdn, arena_t *arena, void *chunk,
 	arena_nactive_add(arena, udiff >> LG_PAGE);
 
 	err = (chunk_alloc_cache(tsdn, arena, &chunk_hooks, nchunk, cdiff,
-	    chunksize, zero, true) == NULL);
+	    chunksize, zero, &commit, true) == NULL);
 	malloc_mutex_unlock(tsdn, &arena->lock);
 	if (err) {
 		err = arena_chunk_ralloc_huge_expand_hard(tsdn, arena,
@@ -1512,7 +1515,7 @@ arena_stash_dirty(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 
 		if (rdelm == &chunkselm->rd) {
 			extent_node_t *chunkselm_next;
-			bool zero;
+			bool zero, commit;
 			UNUSED void *chunk;
 
 			npages = extent_node_size_get(chunkselm) >> LG_PAGE;
@@ -1526,10 +1529,11 @@ arena_stash_dirty(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 			 * dalloc_node=false argument to chunk_alloc_cache().
 			 */
 			zero = false;
+			commit = false;
 			chunk = chunk_alloc_cache(tsdn, arena, chunk_hooks,
 			    extent_node_addr_get(chunkselm),
 			    extent_node_size_get(chunkselm), chunksize, &zero,
-			    false);
+			    &commit, false);
 			assert(chunk == extent_node_addr_get(chunkselm));
 			assert(zero == extent_node_zeroed_get(chunkselm));
 			extent_node_dirty_insert(chunkselm, purge_runs_sentinel,
