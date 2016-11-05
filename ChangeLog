@@ -28,6 +28,8 @@ brevity.  Much more detail can be found in the git revision history:
     deadlocks during thread exit.  (@jasone)
   - Fix over-sized allocation of radix tree leaf nodes.  (@mjp41, @ogaun,
     @jasone)
+  - Fix over-sized allocation of arena_t (plus associated stats) data
+    structures.  (@jasone, @interwq)
   - Fix EXTRA_CFLAGS to not affect configuration.  (@jasone)
   - Fix a Valgrind integration bug.  (@ronawho)
   - Disallow 0x5a junk filling when running in Valgrind.  (@jasone)
