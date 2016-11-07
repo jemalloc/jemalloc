@@ -365,21 +365,21 @@ JEMALLOC_INLINE void
 arena_metadata_add(arena_t *arena, size_t size)
 {
 
-	atomic_add_z(&arena->stats.metadata, size);
+	atomic_add_zu(&arena->stats.metadata, size);
 }
 
 JEMALLOC_INLINE void
 arena_metadata_sub(arena_t *arena, size_t size)
 {
 
-	atomic_sub_z(&arena->stats.metadata, size);
+	atomic_sub_zu(&arena->stats.metadata, size);
 }
 
 JEMALLOC_INLINE size_t
 arena_metadata_get(arena_t *arena)
 {
 
-	return (atomic_read_z(&arena->stats.metadata));
+	return (atomic_read_zu(&arena->stats.metadata));
 }
 
 JEMALLOC_INLINE bool

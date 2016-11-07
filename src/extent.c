@@ -291,14 +291,14 @@ extent_register(tsdn_t *tsdn, const extent_t *extent)
 
 	if (config_prof && opt_prof && extent_active_get(extent)) {
 		size_t nadd = extent_size_get(extent) >> LG_PAGE;
-		size_t cur = atomic_add_z(&curpages, nadd);
-		size_t high = atomic_read_z(&highpages);
-		while (cur > high && atomic_cas_z(&highpages, high, cur)) {
+		size_t cur = atomic_add_zu(&curpages, nadd);
+		size_t high = atomic_read_zu(&highpages);
+		while (cur > high && atomic_cas_zu(&highpages, high, cur)) {
 			/*
 			 * Don't refresh cur, because it may have decreased
 			 * since this thread lost the highpages update race.
 			 */
-			high = atomic_read_z(&highpages);
+			high = atomic_read_zu(&highpages);
 		}
 		if (cur > high && prof_gdump_get_unlocked())
 			prof_gdump(tsdn);
@@ -347,8 +347,8 @@ extent_deregister(tsdn_t *tsdn, extent_t *extent)
 
 	if (config_prof && opt_prof && extent_active_get(extent)) {
 		size_t nsub = extent_size_get(extent) >> LG_PAGE;
-		assert(atomic_read_z(&curpages) >= nsub);
-		atomic_sub_z(&curpages, nsub);
+		assert(atomic_read_zu(&curpages) >= nsub);
+		atomic_sub_zu(&curpages, nsub);
 	}
 }
 

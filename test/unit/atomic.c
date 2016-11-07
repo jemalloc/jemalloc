@@ -65,23 +65,23 @@ typedef struct p##_test_s p##_test_t;
 	}								\
 } while (0)
 
-TEST_STRUCT(uint64, uint64_t)
-TEST_BEGIN(test_atomic_uint64)
+TEST_STRUCT(u64, uint64_t)
+TEST_BEGIN(test_atomic_u64)
 {
 
 #if !(LG_SIZEOF_PTR == 3 || LG_SIZEOF_INT == 3)
 	test_skip("64-bit atomic operations not supported");
 #else
-	TEST_BODY(uint64, uint64_t, uint64_t, u64, FMTx64);
+	TEST_BODY(u64, uint64_t, uint64_t, u64, FMTx64);
 #endif
 }
 TEST_END
 
-TEST_STRUCT(uint32, uint32_t)
-TEST_BEGIN(test_atomic_uint32)
+TEST_STRUCT(u32, uint32_t)
+TEST_BEGIN(test_atomic_u32)
 {
 
-	TEST_BODY(uint32, uint32_t, uint32_t, u32, "#"FMTx32);
+	TEST_BODY(u32, uint32_t, uint32_t, u32, "#"FMTx32);
 }
 TEST_END
 
@@ -93,11 +93,11 @@ TEST_BEGIN(test_atomic_p)
 }
 TEST_END
 
-TEST_STRUCT(z, size_t)
-TEST_BEGIN(test_atomic_z)
+TEST_STRUCT(zu, size_t)
+TEST_BEGIN(test_atomic_zu)
 {
 
-	TEST_BODY(z, size_t, size_t, zu, "#zx");
+	TEST_BODY(zu, size_t, size_t, zu, "#zx");
 }
 TEST_END
 
@@ -114,9 +114,9 @@ main(void)
 {
 
 	return (test(
-	    test_atomic_uint64,
-	    test_atomic_uint32,
+	    test_atomic_u64,
+	    test_atomic_u32,
 	    test_atomic_p,
-	    test_atomic_z,
+	    test_atomic_zu,
 	    test_atomic_u));
 }

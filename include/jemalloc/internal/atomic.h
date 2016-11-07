@@ -9,10 +9,12 @@
 /******************************************************************************/
 #ifdef JEMALLOC_H_EXTERNS
 
-#define	atomic_read_uint64(p)	atomic_add_uint64(p, 0)
-#define	atomic_read_uint32(p)	atomic_add_uint32(p, 0)
+#if (LG_SIZEOF_PTR == 3 || LG_SIZEOF_INT == 3)
+#define	atomic_read_u64(p)	atomic_add_u64(p, 0)
+#endif
+#define	atomic_read_u32(p)	atomic_add_u32(p, 0)
 #define	atomic_read_p(p)	atomic_add_p(p, NULL)
-#define	atomic_read_z(p)	atomic_add_z(p, 0)
+#define	atomic_read_zu(p)	atomic_add_zu(p, 0)
 #define	atomic_read_u(p)	atomic_add_u(p, 0)
 
 #endif /* JEMALLOC_H_EXTERNS */
@@ -41,22 +43,24 @@
  */
 
 #ifndef JEMALLOC_ENABLE_INLINE
-uint64_t	atomic_add_uint64(uint64_t *p, uint64_t x);
-uint64_t	atomic_sub_uint64(uint64_t *p, uint64_t x);
-bool	atomic_cas_uint64(uint64_t *p, uint64_t c, uint64_t s);
-void	atomic_write_uint64(uint64_t *p, uint64_t x);
-uint32_t	atomic_add_uint32(uint32_t *p, uint32_t x);
-uint32_t	atomic_sub_uint32(uint32_t *p, uint32_t x);
-bool	atomic_cas_uint32(uint32_t *p, uint32_t c, uint32_t s);
-void	atomic_write_uint32(uint32_t *p, uint32_t x);
+#  if (LG_SIZEOF_PTR == 3 || LG_SIZEOF_INT == 3)
+uint64_t	atomic_add_u64(uint64_t *p, uint64_t x);
+uint64_t	atomic_sub_u64(uint64_t *p, uint64_t x);
+bool	atomic_cas_u64(uint64_t *p, uint64_t c, uint64_t s);
+void	atomic_write_u64(uint64_t *p, uint64_t x);
+#  endif
+uint32_t	atomic_add_u32(uint32_t *p, uint32_t x);
+uint32_t	atomic_sub_u32(uint32_t *p, uint32_t x);
+bool	atomic_cas_u32(uint32_t *p, uint32_t c, uint32_t s);
+void	atomic_write_u32(uint32_t *p, uint32_t x);
 void	*atomic_add_p(void **p, void *x);
 void	*atomic_sub_p(void **p, void *x);
 bool	atomic_cas_p(void **p, void *c, void *s);
 void	atomic_write_p(void **p, const void *x);
-size_t	atomic_add_z(size_t *p, size_t x);
-size_t	atomic_sub_z(size_t *p, size_t x);
-bool	atomic_cas_z(size_t *p, size_t c, size_t s);
-void	atomic_write_z(size_t *p, size_t x);
+size_t	atomic_add_zu(size_t *p, size_t x);
+size_t	atomic_sub_zu(size_t *p, size_t x);
+bool	atomic_cas_zu(size_t *p, size_t c, size_t s);
+void	atomic_write_zu(size_t *p, size_t x);
 unsigned	atomic_add_u(unsigned *p, unsigned x);
 unsigned	atomic_sub_u(unsigned *p, unsigned x);
 bool	atomic_cas_u(unsigned *p, unsigned c, unsigned s);
@@ -69,7 +73,7 @@ void	atomic_write_u(unsigned *p, unsigned x);
 #if (LG_SIZEOF_PTR == 3 || LG_SIZEOF_INT == 3)
 #  if (defined(__amd64__) || defined(__x86_64__))
 JEMALLOC_INLINE uint64_t
-atomic_add_uint64(uint64_t *p, uint64_t x)
+atomic_add_u64(uint64_t *p, uint64_t x)
 {
 	uint64_t t = x;
 
@@ -83,7 +87,7 @@ atomic_add_uint64(uint64_t *p, uint64_t x)
 }
 
 JEMALLOC_INLINE uint64_t
-atomic_sub_uint64(uint64_t *p, uint64_t x)
+atomic_sub_u64(uint64_t *p, uint64_t x)
 {
 	uint64_t t;
 
@@ -99,7 +103,7 @@ atomic_sub_uint64(uint64_t *p, uint64_t x)
 }
 
 JEMALLOC_INLINE bool
-atomic_cas_uint64(uint64_t *p, uint64_t c, uint64_t s)
+atomic_cas_u64(uint64_t *p, uint64_t c, uint64_t s)
 {
 	uint8_t success;
 
@@ -115,7 +119,7 @@ atomic_cas_uint64(uint64_t *p, uint64_t c, uint64_t s)
 }
 
 JEMALLOC_INLINE void
-atomic_write_uint64(uint64_t *p, uint64_t x)
+atomic_write_u64(uint64_t *p, uint64_t x)
 {
 
 	asm volatile (
@@ -127,35 +131,35 @@ atomic_write_uint64(uint64_t *p, uint64_t x)
 }
 #  elif (defined(JEMALLOC_C11ATOMICS))
 JEMALLOC_INLINE uint64_t
-atomic_add_uint64(uint64_t *p, uint64_t x)
+atomic_add_u64(uint64_t *p, uint64_t x)
 {
 	volatile atomic_uint_least64_t *a = (volatile atomic_uint_least64_t *)p;
 	return (atomic_fetch_add(a, x) + x);
 }
 
 JEMALLOC_INLINE uint64_t
-atomic_sub_uint64(uint64_t *p, uint64_t x)
+atomic_sub_u64(uint64_t *p, uint64_t x)
 {
 	volatile atomic_uint_least64_t *a = (volatile atomic_uint_least64_t *)p;
 	return (atomic_fetch_sub(a, x) - x);
 }
 
 JEMALLOC_INLINE bool
-atomic_cas_uint64(uint64_t *p, uint64_t c, uint64_t s)
+atomic_cas_u64(uint64_t *p, uint64_t c, uint64_t s)
 {
 	volatile atomic_uint_least64_t *a = (volatile atomic_uint_least64_t *)p;
 	return (!atomic_compare_exchange_strong(a, &c, s));
 }
 
 JEMALLOC_INLINE void
-atomic_write_uint64(uint64_t *p, uint64_t x)
+atomic_write_u64(uint64_t *p, uint64_t x)
 {
 	volatile atomic_uint_least64_t *a = (volatile atomic_uint_least64_t *)p;
 	atomic_store(a, x);
 }
 #  elif (defined(JEMALLOC_ATOMIC9))
 JEMALLOC_INLINE uint64_t
-atomic_add_uint64(uint64_t *p, uint64_t x)
+atomic_add_u64(uint64_t *p, uint64_t x)
 {
 
 	/*
@@ -168,7 +172,7 @@ atomic_add_uint64(uint64_t *p, uint64_t x)
 }
 
 JEMALLOC_INLINE uint64_t
-atomic_sub_uint64(uint64_t *p, uint64_t x)
+atomic_sub_u64(uint64_t *p, uint64_t x)
 {
 
 	assert(sizeof(uint64_t) == sizeof(unsigned long));
@@ -177,7 +181,7 @@ atomic_sub_uint64(uint64_t *p, uint64_t x)
 }
 
 JEMALLOC_INLINE bool
-atomic_cas_uint64(uint64_t *p, uint64_t c, uint64_t s)
+atomic_cas_u64(uint64_t *p, uint64_t c, uint64_t s)
 {
 
 	assert(sizeof(uint64_t) == sizeof(unsigned long));
@@ -186,7 +190,7 @@ atomic_cas_uint64(uint64_t *p, uint64_t c, uint64_t s)
 }
 
 JEMALLOC_INLINE void
-atomic_write_uint64(uint64_t *p, uint64_t x)
+atomic_write_u64(uint64_t *p, uint64_t x)
 {
 
 	assert(sizeof(uint64_t) == sizeof(unsigned long));
@@ -195,53 +199,53 @@ atomic_write_uint64(uint64_t *p, uint64_t x)
 }
 #  elif (defined(JEMALLOC_OSATOMIC))
 JEMALLOC_INLINE uint64_t
-atomic_add_uint64(uint64_t *p, uint64_t x)
+atomic_add_u64(uint64_t *p, uint64_t x)
 {
 
 	return (OSAtomicAdd64((int64_t)x, (int64_t *)p));
 }
 
 JEMALLOC_INLINE uint64_t
-atomic_sub_uint64(uint64_t *p, uint64_t x)
+atomic_sub_u64(uint64_t *p, uint64_t x)
 {
 
 	return (OSAtomicAdd64(-((int64_t)x), (int64_t *)p));
 }
 
 JEMALLOC_INLINE bool
-atomic_cas_uint64(uint64_t *p, uint64_t c, uint64_t s)
+atomic_cas_u64(uint64_t *p, uint64_t c, uint64_t s)
 {
 
 	return (!OSAtomicCompareAndSwap64(c, s, (int64_t *)p));
 }
 
 JEMALLOC_INLINE void
-atomic_write_uint64(uint64_t *p, uint64_t x)
+atomic_write_u64(uint64_t *p, uint64_t x)
 {
 	uint64_t o;
 
 	/*The documented OSAtomic*() API does not expose an atomic exchange. */
 	do {
-		o = atomic_read_uint64(p);
-	} while (atomic_cas_uint64(p, o, x));
+		o = atomic_read_u64(p);
+	} while (atomic_cas_u64(p, o, x));
 }
 #  elif (defined(_MSC_VER))
 JEMALLOC_INLINE uint64_t
-atomic_add_uint64(uint64_t *p, uint64_t x)
+atomic_add_u64(uint64_t *p, uint64_t x)
 {
 
 	return (InterlockedExchangeAdd64(p, x) + x);
 }
 
 JEMALLOC_INLINE uint64_t
-atomic_sub_uint64(uint64_t *p, uint64_t x)
+atomic_sub_u64(uint64_t *p, uint64_t x)
 {
 
 	return (InterlockedExchangeAdd64(p, -((int64_t)x)) - x);
 }
 
 JEMALLOC_INLINE bool
-atomic_cas_uint64(uint64_t *p, uint64_t c, uint64_t s)
+atomic_cas_u64(uint64_t *p, uint64_t c, uint64_t s)
 {
 	uint64_t o;
 
@@ -250,7 +254,7 @@ atomic_cas_uint64(uint64_t *p, uint64_t c, uint64_t s)
 }
 
 JEMALLOC_INLINE void
-atomic_write_uint64(uint64_t *p, uint64_t x)
+atomic_write_u64(uint64_t *p, uint64_t x)
 {
 
 	InterlockedExchange64(p, x);
@@ -258,28 +262,28 @@ atomic_write_uint64(uint64_t *p, uint64_t x)
 #  elif (defined(__GCC_HAVE_SYNC_COMPARE_AND_SWAP_8) || \
     defined(JE_FORCE_SYNC_COMPARE_AND_SWAP_8))
 JEMALLOC_INLINE uint64_t
-atomic_add_uint64(uint64_t *p, uint64_t x)
+atomic_add_u64(uint64_t *p, uint64_t x)
 {
 
 	return (__sync_add_and_fetch(p, x));
 }
 
 JEMALLOC_INLINE uint64_t
-atomic_sub_uint64(uint64_t *p, uint64_t x)
+atomic_sub_u64(uint64_t *p, uint64_t x)
 {
 
 	return (__sync_sub_and_fetch(p, x));
 }
 
 JEMALLOC_INLINE bool
-atomic_cas_uint64(uint64_t *p, uint64_t c, uint64_t s)
+atomic_cas_u64(uint64_t *p, uint64_t c, uint64_t s)
 {
 
 	return (!__sync_bool_compare_and_swap(p, c, s));
 }
 
 JEMALLOC_INLINE void
-atomic_write_uint64(uint64_t *p, uint64_t x)
+atomic_write_u64(uint64_t *p, uint64_t x)
 {
 
 	__sync_lock_test_and_set(p, x);
@@ -293,7 +297,7 @@ atomic_write_uint64(uint64_t *p, uint64_t x)
 /* 32-bit operations. */
 #if (defined(__i386__) || defined(__amd64__) || defined(__x86_64__))
 JEMALLOC_INLINE uint32_t
-atomic_add_uint32(uint32_t *p, uint32_t x)
+atomic_add_u32(uint32_t *p, uint32_t x)
 {
 	uint32_t t = x;
 
@@ -307,7 +311,7 @@ atomic_add_uint32(uint32_t *p, uint32_t x)
 }
 
 JEMALLOC_INLINE uint32_t
-atomic_sub_uint32(uint32_t *p, uint32_t x)
+atomic_sub_u32(uint32_t *p, uint32_t x)
 {
 	uint32_t t;
 
@@ -323,7 +327,7 @@ atomic_sub_uint32(uint32_t *p, uint32_t x)
 }
 
 JEMALLOC_INLINE bool
-atomic_cas_uint32(uint32_t *p, uint32_t c, uint32_t s)
+atomic_cas_u32(uint32_t *p, uint32_t c, uint32_t s)
 {
 	uint8_t success;
 
@@ -339,7 +343,7 @@ atomic_cas_uint32(uint32_t *p, uint32_t c, uint32_t s)
 }
 
 JEMALLOC_INLINE void
-atomic_write_uint32(uint32_t *p, uint32_t x)
+atomic_write_u32(uint32_t *p, uint32_t x)
 {
 
 	asm volatile (
@@ -351,109 +355,109 @@ atomic_write_uint32(uint32_t *p, uint32_t x)
 }
 #  elif (defined(JEMALLOC_C11ATOMICS))
 JEMALLOC_INLINE uint32_t
-atomic_add_uint32(uint32_t *p, uint32_t x)
+atomic_add_u32(uint32_t *p, uint32_t x)
 {
 	volatile atomic_uint_least32_t *a = (volatile atomic_uint_least32_t *)p;
 	return (atomic_fetch_add(a, x) + x);
 }
 
 JEMALLOC_INLINE uint32_t
-atomic_sub_uint32(uint32_t *p, uint32_t x)
+atomic_sub_u32(uint32_t *p, uint32_t x)
 {
 	volatile atomic_uint_least32_t *a = (volatile atomic_uint_least32_t *)p;
 	return (atomic_fetch_sub(a, x) - x);
 }
 
 JEMALLOC_INLINE bool
-atomic_cas_uint32(uint32_t *p, uint32_t c, uint32_t s)
+atomic_cas_u32(uint32_t *p, uint32_t c, uint32_t s)
 {
 	volatile atomic_uint_least32_t *a = (volatile atomic_uint_least32_t *)p;
 	return (!atomic_compare_exchange_strong(a, &c, s));
 }
 
 JEMALLOC_INLINE void
-atomic_write_uint32(uint32_t *p, uint32_t x)
+atomic_write_u32(uint32_t *p, uint32_t x)
 {
 	volatile atomic_uint_least32_t *a = (volatile atomic_uint_least32_t *)p;
 	atomic_store(a, x);
 }
 #elif (defined(JEMALLOC_ATOMIC9))
 JEMALLOC_INLINE uint32_t
-atomic_add_uint32(uint32_t *p, uint32_t x)
+atomic_add_u32(uint32_t *p, uint32_t x)
 {
 
 	return (atomic_fetchadd_32(p, x) + x);
 }
 
 JEMALLOC_INLINE uint32_t
-atomic_sub_uint32(uint32_t *p, uint32_t x)
+atomic_sub_u32(uint32_t *p, uint32_t x)
 {
 
 	return (atomic_fetchadd_32(p, (uint32_t)(-(int32_t)x)) - x);
 }
 
 JEMALLOC_INLINE bool
-atomic_cas_uint32(uint32_t *p, uint32_t c, uint32_t s)
+atomic_cas_u32(uint32_t *p, uint32_t c, uint32_t s)
 {
 
 	return (!atomic_cmpset_32(p, c, s));
 }
 
 JEMALLOC_INLINE void
-atomic_write_uint32(uint32_t *p, uint32_t x)
+atomic_write_u32(uint32_t *p, uint32_t x)
 {
 
 	atomic_store_rel_32(p, x);
 }
 #elif (defined(JEMALLOC_OSATOMIC))
 JEMALLOC_INLINE uint32_t
-atomic_add_uint32(uint32_t *p, uint32_t x)
+atomic_add_u32(uint32_t *p, uint32_t x)
 {
 
 	return (OSAtomicAdd32((int32_t)x, (int32_t *)p));
 }
 
 JEMALLOC_INLINE uint32_t
-atomic_sub_uint32(uint32_t *p, uint32_t x)
+atomic_sub_u32(uint32_t *p, uint32_t x)
 {
 
 	return (OSAtomicAdd32(-((int32_t)x), (int32_t *)p));
 }
 
 JEMALLOC_INLINE bool
-atomic_cas_uint32(uint32_t *p, uint32_t c, uint32_t s)
+atomic_cas_u32(uint32_t *p, uint32_t c, uint32_t s)
 {
 
 	return (!OSAtomicCompareAndSwap32(c, s, (int32_t *)p));
 }
 
 JEMALLOC_INLINE void
-atomic_write_uint32(uint32_t *p, uint32_t x)
+atomic_write_u32(uint32_t *p, uint32_t x)
 {
 	uint32_t o;
 
 	/*The documented OSAtomic*() API does not expose an atomic exchange. */
 	do {
-		o = atomic_read_uint32(p);
-	} while (atomic_cas_uint32(p, o, x));
+		o = atomic_read_u32(p);
+	} while (atomic_cas_u32(p, o, x));
 }
 #elif (defined(_MSC_VER))
 JEMALLOC_INLINE uint32_t
-atomic_add_uint32(uint32_t *p, uint32_t x)
+atomic_add_u32(uint32_t *p, uint32_t x)
 {
 
 	return (InterlockedExchangeAdd(p, x) + x);
 }
 
 JEMALLOC_INLINE uint32_t
-atomic_sub_uint32(uint32_t *p, uint32_t x)
+atomic_sub_u32(uint32_t *p, uint32_t x)
 {
 
 	return (InterlockedExchangeAdd(p, -((int32_t)x)) - x);
 }
 
 JEMALLOC_INLINE bool
-atomic_cas_uint32(uint32_t *p, uint32_t c, uint32_t s)
+atomic_cas_u32(uint32_t *p, uint32_t c, uint32_t s)
 {
 	uint32_t o;
 
@@ -462,7 +466,7 @@ atomic_cas_uint32(uint32_t *p, uint32_t c, uint32_t s)
 }
 
 JEMALLOC_INLINE void
-atomic_write_uint32(uint32_t *p, uint32_t x)
+atomic_write_u32(uint32_t *p, uint32_t x)
 {
 
 	InterlockedExchange(p, x);
@@ -470,28 +474,28 @@ atomic_write_uint32(uint32_t *p, uint32_t x)
 #elif (defined(__GCC_HAVE_SYNC_COMPARE_AND_SWAP_4) || \
  defined(JE_FORCE_SYNC_COMPARE_AND_SWAP_4))
 JEMALLOC_INLINE uint32_t
-atomic_add_uint32(uint32_t *p, uint32_t x)
+atomic_add_u32(uint32_t *p, uint32_t x)
 {
 
 	return (__sync_add_and_fetch(p, x));
 }
 
 JEMALLOC_INLINE uint32_t
-atomic_sub_uint32(uint32_t *p, uint32_t x)
+atomic_sub_u32(uint32_t *p, uint32_t x)
 {
 
 	return (__sync_sub_and_fetch(p, x));
 }
 
 JEMALLOC_INLINE bool
-atomic_cas_uint32(uint32_t *p, uint32_t c, uint32_t s)
+atomic_cas_u32(uint32_t *p, uint32_t c, uint32_t s)
 {
 
 	return (!__sync_bool_compare_and_swap(p, c, s));
 }
 
 JEMALLOC_INLINE void
-atomic_write_uint32(uint32_t *p, uint32_t x)
+atomic_write_u32(uint32_t *p, uint32_t x)
 {
 
 	__sync_lock_test_and_set(p, x);
@@ -507,9 +511,9 @@ atomic_add_p(void **p, void *x)
 {
 
 #if (LG_SIZEOF_PTR == 3)
-	return ((void *)atomic_add_uint64((uint64_t *)p, (uint64_t)x));
+	return ((void *)atomic_add_u64((uint64_t *)p, (uint64_t)x));
 #elif (LG_SIZEOF_PTR == 2)
-	return ((void *)atomic_add_uint32((uint32_t *)p, (uint32_t)x));
+	return ((void *)atomic_add_u32((uint32_t *)p, (uint32_t)x));
 #endif
 }
 
@@ -518,11 +522,9 @@ atomic_sub_p(void **p, void *x)
 {
 
 #if (LG_SIZEOF_PTR == 3)
-	return ((void *)atomic_add_uint64((uint64_t *)p,
-	    (uint64_t)-((int64_t)x)));
+	return ((void *)atomic_add_u64((uint64_t *)p, (uint64_t)-((int64_t)x)));
 #elif (LG_SIZEOF_PTR == 2)
-	return ((void *)atomic_add_uint32((uint32_t *)p,
-	    (uint32_t)-((int32_t)x)));
+	return ((void *)atomic_add_u32((uint32_t *)p, (uint32_t)-((int32_t)x)));
 #endif
 }
 
@@ -531,9 +533,9 @@ atomic_cas_p(void **p, void *c, void *s)
 {
 
 #if (LG_SIZEOF_PTR == 3)
-	return (atomic_cas_uint64((uint64_t *)p, (uint64_t)c, (uint64_t)s));
+	return (atomic_cas_u64((uint64_t *)p, (uint64_t)c, (uint64_t)s));
 #elif (LG_SIZEOF_PTR == 2)
-	return (atomic_cas_uint32((uint32_t *)p, (uint32_t)c, (uint32_t)s));
+	return (atomic_cas_u32((uint32_t *)p, (uint32_t)c, (uint32_t)s));
 #endif
 }
 
@@ -542,57 +544,55 @@ atomic_write_p(void **p, const void *x)
 {
 
 #if (LG_SIZEOF_PTR == 3)
-	atomic_write_uint64((uint64_t *)p, (uint64_t)x);
+	atomic_write_u64((uint64_t *)p, (uint64_t)x);
 #elif (LG_SIZEOF_PTR == 2)
-	atomic_write_uint32((uint32_t *)p, (uint32_t)x);
+	atomic_write_u32((uint32_t *)p, (uint32_t)x);
 #endif
 }
 
 /******************************************************************************/
 /* size_t operations. */
 JEMALLOC_INLINE size_t
-atomic_add_z(size_t *p, size_t x)
+atomic_add_zu(size_t *p, size_t x)
 {
 
 #if (LG_SIZEOF_PTR == 3)
-	return ((size_t)atomic_add_uint64((uint64_t *)p, (uint64_t)x));
+	return ((size_t)atomic_add_u64((uint64_t *)p, (uint64_t)x));
 #elif (LG_SIZEOF_PTR == 2)
-	return ((size_t)atomic_add_uint32((uint32_t *)p, (uint32_t)x));
+	return ((size_t)atomic_add_u32((uint32_t *)p, (uint32_t)x));
 #endif
 }
 
 JEMALLOC_INLINE size_t
-atomic_sub_z(size_t *p, size_t x)
+atomic_sub_zu(size_t *p, size_t x)
 {
 
 #if (LG_SIZEOF_PTR == 3)
-	return ((size_t)atomic_add_uint64((uint64_t *)p,
-	    (uint64_t)-((int64_t)x)));
+	return ((size_t)atomic_add_u64((uint64_t *)p, (uint64_t)-((int64_t)x)));
 #elif (LG_SIZEOF_PTR == 2)
-	return ((size_t)atomic_add_uint32((uint32_t *)p,
-	    (uint32_t)-((int32_t)x)));
+	return ((size_t)atomic_add_u32((uint32_t *)p, (uint32_t)-((int32_t)x)));
 #endif
 }
 
 JEMALLOC_INLINE bool
-atomic_cas_z(size_t *p, size_t c, size_t s)
+atomic_cas_zu(size_t *p, size_t c, size_t s)
 {
 
 #if (LG_SIZEOF_PTR == 3)
-	return (atomic_cas_uint64((uint64_t *)p, (uint64_t)c, (uint64_t)s));
+	return (atomic_cas_u64((uint64_t *)p, (uint64_t)c, (uint64_t)s));
 #elif (LG_SIZEOF_PTR == 2)
-	return (atomic_cas_uint32((uint32_t *)p, (uint32_t)c, (uint32_t)s));
+	return (atomic_cas_u32((uint32_t *)p, (uint32_t)c, (uint32_t)s));
 #endif
 }
 
 JEMALLOC_INLINE void
-atomic_write_z(size_t *p, size_t x)
+atomic_write_zu(size_t *p, size_t x)
 {
 
 #if (LG_SIZEOF_PTR == 3)
-	atomic_write_uint64((uint64_t *)p, (uint64_t)x);
+	atomic_write_u64((uint64_t *)p, (uint64_t)x);
 #elif (LG_SIZEOF_PTR == 2)
-	atomic_write_uint32((uint32_t *)p, (uint32_t)x);
+	atomic_write_u32((uint32_t *)p, (uint32_t)x);
 #endif
 }
 
@@ -603,9 +603,9 @@ atomic_add_u(unsigned *p, unsigned x)
 {
 
 #if (LG_SIZEOF_INT == 3)
-	return ((unsigned)atomic_add_uint64((uint64_t *)p, (uint64_t)x));
+	return ((unsigned)atomic_add_u64((uint64_t *)p, (uint64_t)x));
 #elif (LG_SIZEOF_INT == 2)
-	return ((unsigned)atomic_add_uint32((uint32_t *)p, (uint32_t)x));
+	return ((unsigned)atomic_add_u32((uint32_t *)p, (uint32_t)x));
 #endif
 }
 
@@ -614,10 +614,10 @@ atomic_sub_u(unsigned *p, unsigned x)
 {
 
 #if (LG_SIZEOF_INT == 3)
-	return ((unsigned)atomic_add_uint64((uint64_t *)p,
+	return ((unsigned)atomic_add_u64((uint64_t *)p,
 	    (uint64_t)-((int64_t)x)));
 #elif (LG_SIZEOF_INT == 2)
-	return ((unsigned)atomic_add_uint32((uint32_t *)p,
+	return ((unsigned)atomic_add_u32((uint32_t *)p,
 	    (uint32_t)-((int32_t)x)));
 #endif
 }
@@ -627,9 +627,9 @@ atomic_cas_u(unsigned *p, unsigned c, unsigned s)
 {
 
 #if (LG_SIZEOF_INT == 3)
-	return (atomic_cas_uint64((uint64_t *)p, (uint64_t)c, (uint64_t)s));
+	return (atomic_cas_u64((uint64_t *)p, (uint64_t)c, (uint64_t)s));
 #elif (LG_SIZEOF_INT == 2)
-	return (atomic_cas_uint32((uint32_t *)p, (uint32_t)c, (uint32_t)s));
+	return (atomic_cas_u32((uint32_t *)p, (uint32_t)c, (uint32_t)s));
 #endif
 }
 
@@ -638,9 +638,9 @@ atomic_write_u(unsigned *p, unsigned x)
 {
 
 #if (LG_SIZEOF_INT == 3)
-	atomic_write_uint64((uint64_t *)p, (uint64_t)x);
+	atomic_write_u64((uint64_t *)p, (uint64_t)x);
 #elif (LG_SIZEOF_INT == 2)
-	atomic_write_uint32((uint32_t *)p, (uint32_t)x);
+	atomic_write_u32((uint32_t *)p, (uint32_t)x);
 #endif
 }
 

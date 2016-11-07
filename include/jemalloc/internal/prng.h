@@ -93,9 +93,9 @@ prng_lg_range_u32(uint32_t *state, unsigned lg_range, bool atomic)
 		uint32_t state0;
 
 		do {
-			state0 = atomic_read_uint32(state);
+			state0 = atomic_read_u32(state);
 			state1 = prng_state_next_u32(state0);
-		} while (atomic_cas_uint32(state, state0, state1));
+		} while (atomic_cas_u32(state, state0, state1));
 	} else {
 		state1 = prng_state_next_u32(*state);
 		*state = state1;
@@ -133,9 +133,9 @@ prng_lg_range_zu(size_t *state, unsigned lg_range, bool atomic)
 		size_t state0;
 
 		do {
-			state0 = atomic_read_z(state);
+			state0 = atomic_read_zu(state);
 			state1 = prng_state_next_zu(state0);
-		} while (atomic_cas_z(state, state0, state1));
+		} while (atomic_cas_zu(state, state0, state1));
 	} else {
 		state1 = prng_state_next_zu(*state);
 		*state = state1;

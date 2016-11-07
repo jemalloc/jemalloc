@@ -1541,7 +1541,7 @@ ssize_t
 arena_decay_time_default_get(void)
 {
 
-	return ((ssize_t)atomic_read_z((size_t *)&decay_time_default));
+	return ((ssize_t)atomic_read_zu((size_t *)&decay_time_default));
 }
 
 bool
@@ -1550,7 +1550,7 @@ arena_decay_time_default_set(ssize_t decay_time)
 
 	if (!arena_decay_time_valid(decay_time))
 		return (true);
-	atomic_write_z((size_t *)&decay_time_default, (size_t)decay_time);
+	atomic_write_zu((size_t *)&decay_time_default, (size_t)decay_time);
 	return (false);
 }
 
