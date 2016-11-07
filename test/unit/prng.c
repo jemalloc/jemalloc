@@ -77,38 +77,38 @@ test_prng_lg_range_u64(void)
 static void
 test_prng_lg_range_zu(bool atomic)
 {
-	uint64_t sa, sb, ra, rb;
+	size_t sa, sb, ra, rb;
 	unsigned lg_range;
 
 	sa = 42;
-	ra = prng_lg_range_zu(&sa, 64, atomic);
+	ra = prng_lg_range_zu(&sa, ZU(1) << (3 + LG_SIZEOF_PTR), atomic);
 	sa = 42;
-	rb = prng_lg_range_zu(&sa, 64, atomic);
+	rb = prng_lg_range_zu(&sa, ZU(1) << (3 + LG_SIZEOF_PTR), atomic);
 	assert_zu_eq(ra, rb,
 	    "Repeated generation should produce repeated results");
 
 	sb = 42;
-	rb = prng_lg_range_zu(&sb, 64, atomic);
+	rb = prng_lg_range_zu(&sb, ZU(1) << (3 + LG_SIZEOF_PTR), atomic);
 	assert_zu_eq(ra, rb,
 	    "Equivalent generation should produce equivalent results");
 
 	sa = 42;
-	ra = prng_lg_range_zu(&sa, 64, atomic);
-	rb = prng_lg_range_zu(&sa, 64, atomic);
+	ra = prng_lg_range_zu(&sa, ZU(1) << (3 + LG_SIZEOF_PTR), atomic);
+	rb = prng_lg_range_zu(&sa, ZU(1) << (3 + LG_SIZEOF_PTR), atomic);
 	assert_zu_ne(ra, rb,
 	    "Full-width results must not immediately repeat");
 
 	sa = 42;
-	ra = prng_lg_range_zu(&sa, 64, atomic);
+	ra = prng_lg_range_zu(&sa, ZU(1) << (3 + LG_SIZEOF_PTR), atomic);
 	for (lg_range = (ZU(1) << (3 + LG_SIZEOF_PTR)) - 1; lg_range > 0;
 	    lg_range--) {
 		sb = 42;
 		rb = prng_lg_range_zu(&sb, lg_range, atomic);
 		assert_zu_eq((rb & (SIZE_T_MAX << lg_range)),
 		    0, "High order bits should be 0, lg_range=%u", lg_range);
-		assert_zu_eq(rb, (ra >> (64 - lg_range)),
-		    "Expected high order bits of full-width result, "
-		    "lg_range=%u", lg_range);
+		assert_zu_eq(rb, (ra >> ((ZU(1) << (3 + LG_SIZEOF_PTR)) -
+		    lg_range)), "Expected high order bits of full-width "
+		    "result, lg_range=%u", lg_range);
 	}
 }
 
