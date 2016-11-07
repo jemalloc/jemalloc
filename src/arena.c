@@ -150,6 +150,8 @@ arena_avail_insert(arena_t *arena, arena_chunk_t *chunk, size_t pageind,
 	    arena_miscelm_get_const(chunk, pageind))));
 	assert(npages == (arena_mapbits_unallocated_size_get(chunk, pageind) >>
 	    LG_PAGE));
+	assert((npages << LG_PAGE) < chunksize);
+	assert(pind2sz(pind) <= chunksize);
 	arena_run_heap_insert(&arena->runs_avail[pind],
 	    arena_miscelm_get_mutable(chunk, pageind));
 }
@@ -162,6 +164,8 @@ arena_avail_remove(arena_t *arena, arena_chunk_t *chunk, size_t pageind,
 	    arena_miscelm_get_const(chunk, pageind))));
 	assert(npages == (arena_mapbits_unallocated_size_get(chunk, pageind) >>
 	    LG_PAGE));
+	assert((npages << LG_PAGE) < chunksize);
+	assert(pind2sz(pind) <= chunksize);
 	arena_run_heap_remove(&arena->runs_avail[pind],
 	    arena_miscelm_get_mutable(chunk, pageind));
 }
@@ -1046,7 +1050,7 @@ arena_run_first_best_fit(arena_t *arena, size_t size)
 
 	pind = psz2ind(run_quantize_ceil(size));
 
-	for (i = pind; pind2sz(i) <= large_maxclass; i++) {
+	for (i = pind; pind2sz(i) <= chunksize; i++) {
 		arena_chunk_map_misc_t *miscelm = arena_run_heap_first(
 		    &arena->runs_avail[i]);
 		if (miscelm != NULL)
@@ -1922,8 +1926,7 @@ arena_reset(tsd_t *tsd, arena_t *arena)
 	assert(!arena->purging);
 	arena->nactive = 0;
 
-	for (i = 0; i < sizeof(arena->runs_avail) / sizeof(arena_run_heap_t);
-	    i++)
+	for (i = 0; i < NPSIZES; i++)
 		arena_run_heap_new(&arena->runs_avail[i]);
 
 	malloc_mutex_unlock(tsd_tsdn(tsd), &arena->lock);
@@ -3514,8 +3517,7 @@ arena_new(tsdn_t *tsdn, unsigned ind)
 	arena->nactive = 0;
 	arena->ndirty = 0;
 
-	for (i = 0; i < sizeof(arena->runs_avail) / sizeof(arena_run_heap_t);
-	    i++)
+	for (i = 0; i < NPSIZES; i++)
 		arena_run_heap_new(&arena->runs_avail[i]);
 
 	qr_new(&arena->runs_dirty, rd_link);
