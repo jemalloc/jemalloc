@@ -99,7 +99,8 @@ ckh_try_bucket_insert(ckh_t *ckh, size_t bucket, const void *key,
 	 * Cycle through the cells in the bucket, starting at a random position.
 	 * The randomness avoids worst-case search overhead as buckets fill up.
 	 */
-	offset = (unsigned)prng_lg_range(&ckh->prng_state, LG_CKH_BUCKET_CELLS);
+	offset = (unsigned)prng_lg_range_u64(&ckh->prng_state,
+	    LG_CKH_BUCKET_CELLS);
 	for (i = 0; i < (ZU(1) << LG_CKH_BUCKET_CELLS); i++) {
 		cell = &ckh->tab[(bucket << LG_CKH_BUCKET_CELLS) +
 		    ((i + offset) & ((ZU(1) << LG_CKH_BUCKET_CELLS) - 1))];
@@ -141,7 +142,7 @@ ckh_evict_reloc_insert(ckh_t *ckh, size_t argbucket, void const **argkey,
 		 * were an item for which both hashes indicated the same
 		 * bucket.
 		 */
-		i = (unsigned)prng_lg_range(&ckh->prng_state,
+		i = (unsigned)prng_lg_range_u64(&ckh->prng_state,
 		    LG_CKH_BUCKET_CELLS);
 		cell = &ckh->tab[(bucket << LG_CKH_BUCKET_CELLS) + i];
 		assert(cell->key != NULL);
