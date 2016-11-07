@@ -422,8 +422,8 @@ arena_decay_deadline_init(arena_t *arena)
 	if (arena->decay.time > 0) {
 		nstime_t jitter;
 
-		nstime_init(&jitter, prng_range(&arena->decay.jitter_state,
-		    nstime_ns(&arena->decay.interval), false));
+		nstime_init(&jitter, prng_range_u64(&arena->decay.jitter_state,
+		    nstime_ns(&arena->decay.interval)));
 		nstime_add(&arena->decay.deadline, &jitter);
 	}
 }
@@ -1680,7 +1680,7 @@ arena_new(tsdn_t *tsdn, unsigned ind)
 		 * deterministic seed.
 		 */
 		arena->offset_state = config_debug ? ind :
-		    (uint64_t)(uintptr_t)arena;
+		    (size_t)(uintptr_t)arena;
 	}
 
 	arena->dss_prec = extent_dss_prec_get();
