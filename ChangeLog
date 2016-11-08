@@ -4,6 +4,14 @@ brevity.  Much more detail can be found in the git revision history:
 
     https://github.com/jemalloc/jemalloc
 
+* 4.3.1 (November 7, 2016)
+
+  Bug fixes:
+  - Fix a severe virtual memory leak.  This regression was first released in
+    4.3.0.  (@interwq, @jasone)
+  - Refactor atomic and prng APIs to restore support for 32-bit platforms that
+    use pre-C11 toolchains, e.g. FreeBSD's mips.  (@jasone)
+
 * 4.3.0 (November 4, 2016)
 
   This is the first release that passes the test suite for multiple Windows

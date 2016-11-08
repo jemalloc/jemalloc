@@ -370,7 +370,7 @@ struct arena_s {
 	 * PRNG state for cache index randomization of large allocation base
 	 * pointers.
 	 */
-	uint64_t		offset_state;
+	size_t			offset_state;
 
 	dss_prec_t		dss_prec;
 
