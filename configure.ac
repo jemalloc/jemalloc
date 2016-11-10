@@ -384,6 +384,18 @@ case "${host}" in
 	abi="elf"
 	AC_DEFINE([JEMALLOC_PURGE_MADVISE_FREE], [ ])
 	;;
+  *-*-linux-android)
+	dnl syscall(2) and secure_getenv(3) are exposed by _GNU_SOURCE.
+	CPPFLAGS="$CPPFLAGS -D_GNU_SOURCE"
+	abi="elf"
+	AC_DEFINE([JEMALLOC_HAS_ALLOCA_H])
+	AC_DEFINE([JEMALLOC_PROC_SYS_VM_OVERCOMMIT_MEMORY], [ ])
+	AC_DEFINE([JEMALLOC_PURGE_MADVISE_DONTNEED], [ ])
+	AC_DEFINE([JEMALLOC_THREADED_INIT], [ ])
+	AC_DEFINE([JEMALLOC_C11ATOMICS])
+	force_tls="0"
+	default_munmap="0"
+	;;
   *-*-linux* | *-*-kfreebsd*)
 	dnl syscall(2) and secure_getenv(3) are exposed by _GNU_SOURCE.
 	CPPFLAGS="$CPPFLAGS -D_GNU_SOURCE"
