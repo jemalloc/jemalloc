@@ -16,12 +16,9 @@ extent_quantize(size_t size)
 	assert(size > 0);
 
 	ind = size2index(size + 1);
-	if (ind == NSIZES) {
-		/*
-		 * Allocation requests can't directly create extents that exceed
-		 * HUGE_MAXCLASS, but extent merging can create them.
-		 */
-		return (HUGE_MAXCLASS);
+	if (ind == 0) {
+		/* Avoid underflow. */
+		return (index2size(0));
 	}
 	ret = index2size(ind - 1);
 	assert(ret <= size);
