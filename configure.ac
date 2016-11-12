@@ -43,6 +43,17 @@ AC_CACHE_CHECK([whether $1 is compilable],
                                [$4=no])])
 ])
 
+dnl JE_RUNNABLE(label, hcode, mcode, rvar)
+AC_DEFUN([JE_RUNNABLE],
+[
+AC_CACHE_CHECK([whether $1 is runnable],
+               [$4],
+               [AC_RUN_IFELSE([AC_LANG_PROGRAM([$2],
+                                               [$3])],
+                              [$4=yes],
+                              [$4=no])])
+])
+
 dnl ============================================================================
 
 CONFIG=`echo ${ac_configure_args} | sed -e 's#'"'"'\([^ ]*\)'"'"'#\1#g'`
@@ -1679,7 +1690,11 @@ fi
 dnl ============================================================================
 dnl Check for os_unfair_lock operations as provided on Darwin.
 
-JE_COMPILABLE([Darwin os_unfair_lock_*()], [
+dnl Run the test program rather than merely compiling so that dyld lazy symbol
+dnl binding doesn't result in a false positive if building with a version of
+dnl XCode (>7) that supports the API on a system that is too old to actually
+dnl implement it (<10.12).
+JE_RUNNABLE([Darwin os_unfair_lock_*()], [
 #include <os/lock.h>
 ], [
 	os_unfair_lock lock = OS_UNFAIR_LOCK_INIT;
