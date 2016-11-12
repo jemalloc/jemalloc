@@ -3,15 +3,29 @@
 
 /******************************************************************************/
 
+/*
+ * Round down to the nearest chunk size that can actually be requested during
+ * normal huge allocation.
+ */
 JEMALLOC_INLINE_C size_t
 extent_quantize(size_t size)
 {
+	size_t ret;
+	szind_t ind;
 
-	/*
-	 * Round down to the nearest chunk size that can actually be requested
-	 * during normal huge allocation.
-	 */
-	return (index2size(size2index(size + 1) - 1));
+	assert(size > 0);
+
+	ind = size2index(size + 1);
+	if (ind == NSIZES) {
+		/*
+		 * Allocation requests can't directly create extents that exceed
+		 * HUGE_MAXCLASS, but extent merging can create them.
+		 */
+		return (HUGE_MAXCLASS);
+	}
+	ret = index2size(ind - 1);
+	assert(ret <= size);
+	return (ret);
 }
 
 JEMALLOC_INLINE_C int
