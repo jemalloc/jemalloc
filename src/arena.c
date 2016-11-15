@@ -67,7 +67,7 @@ arena_miscelm_extent_get(const arena_chunk_map_misc_t *miscelm)
 JEMALLOC_INLINE_C int
 arena_sn_comp(const arena_chunk_map_misc_t *a, const arena_chunk_map_misc_t *b)
 {
-	uint64_t a_sn, b_sn;
+	size_t a_sn, b_sn;
 
 	assert(a != NULL);
 	assert(b != NULL);

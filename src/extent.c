@@ -37,8 +37,8 @@ extent_sz_comp(const extent_node_t *a, const extent_node_t *b)
 JEMALLOC_INLINE_C int
 extent_sn_comp(const extent_node_t *a, const extent_node_t *b)
 {
-	uint64_t a_sn = (uintptr_t)extent_node_sn_get(a);
-	uint64_t b_sn = (uintptr_t)extent_node_sn_get(b);
+	size_t a_sn = extent_node_sn_get(a);
+	size_t b_sn = extent_node_sn_get(b);
 
 	return ((a_sn > b_sn) - (a_sn < b_sn));
 }
