@@ -58,15 +58,16 @@ void	chunk_deregister(const void *chunk, const extent_node_t *node);
 void	*chunk_alloc_base(size_t size);
 void	*chunk_alloc_cache(tsdn_t *tsdn, arena_t *arena,
     chunk_hooks_t *chunk_hooks, void *new_addr, size_t size, size_t alignment,
-    bool *zero, bool *commit, bool dalloc_node);
+    size_t *sn, bool *zero, bool *commit, bool dalloc_node);
 void	*chunk_alloc_wrapper(tsdn_t *tsdn, arena_t *arena,
     chunk_hooks_t *chunk_hooks, void *new_addr, size_t size, size_t alignment,
-    bool *zero, bool *commit);
+    size_t *sn, bool *zero, bool *commit);
 void	chunk_dalloc_cache(tsdn_t *tsdn, arena_t *arena,
-    chunk_hooks_t *chunk_hooks, void *chunk, size_t size, bool committed);
-void	chunk_dalloc_wrapper(tsdn_t *tsdn, arena_t *arena,
-    chunk_hooks_t *chunk_hooks, void *chunk, size_t size, bool zeroed,
+    chunk_hooks_t *chunk_hooks, void *chunk, size_t size, size_t sn,
     bool committed);
+void	chunk_dalloc_wrapper(tsdn_t *tsdn, arena_t *arena,
+    chunk_hooks_t *chunk_hooks, void *chunk, size_t size, size_t sn,
+    bool zeroed, bool committed);
 bool	chunk_purge_wrapper(tsdn_t *tsdn, arena_t *arena,
     chunk_hooks_t *chunk_hooks, void *chunk, size_t size, size_t offset,
     size_t length);
