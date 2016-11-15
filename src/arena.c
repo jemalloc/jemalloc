@@ -799,6 +799,47 @@ arena_slab_dalloc(tsdn_t *tsdn, arena_t *arena, extent_t *slab)
 	arena_extent_cache_dalloc_locked(tsdn, arena, &extent_hooks, slab);
 }
 
+static void
+arena_bin_slabs_nonfull_insert(arena_bin_t *bin, extent_t *slab)
+{
+
+	assert(extent_slab_data_get(slab)->nfree > 0);
+	extent_heap_insert(&bin->slabs_nonfull, slab);
+}
+
+static void
+arena_bin_slabs_nonfull_remove(arena_bin_t *bin, extent_t *slab)
+{
+
+	extent_heap_remove(&bin->slabs_nonfull, slab);
+}
+
+static extent_t *
+arena_bin_slabs_nonfull_tryget(arena_bin_t *bin)
+{
+	extent_t *slab = extent_heap_remove_first(&bin->slabs_nonfull);
+	if (slab == NULL)
+		return (NULL);
+	if (config_stats)
+		bin->stats.reslabs++;
+	return (slab);
+}
+
+static void
+arena_bin_slabs_full_insert(arena_bin_t *bin, extent_t *slab)
+{
+
+	assert(extent_slab_data_get(slab)->nfree == 0);
+	extent_ring_insert(&bin->slabs_full, slab);
+}
+
+static void
+arena_bin_slabs_full_remove(extent_t *slab)
+{
+
+	extent_ring_remove(slab);
+}
+
 void
 arena_reset(tsd_t *tsd, arena_t *arena)
 {
@@ -863,6 +904,7 @@ arena_reset(tsd_t *tsd, arena_t *arena)
 		for (slab = qr_next(&bin->slabs_full, qr_link); slab !=
 		    &bin->slabs_full; slab = qr_next(&bin->slabs_full,
 		    qr_link)) {
+			arena_bin_slabs_full_remove(slab);
 			malloc_mutex_unlock(tsd_tsdn(tsd), &bin->lock);
 			arena_slab_dalloc(tsd_tsdn(tsd), arena, slab);
 			malloc_mutex_lock(tsd_tsdn(tsd), &bin->lock);
@@ -878,47 +920,6 @@ arena_reset(tsd_t *tsd, arena_t *arena)
 	arena->nactive = 0;
 
 	malloc_mutex_unlock(tsd_tsdn(tsd), &arena->lock);
-}
-
-static void
-arena_bin_slabs_nonfull_insert(arena_bin_t *bin, extent_t *slab)
-{
-
-	assert(extent_slab_data_get(slab)->nfree > 0);
-	extent_heap_insert(&bin->slabs_nonfull, slab);
-}
-
-static void
-arena_bin_slabs_nonfull_remove(arena_bin_t *bin, extent_t *slab)
-{
-
-	extent_heap_remove(&bin->slabs_nonfull, slab);
-}
-
-static extent_t *
-arena_bin_slabs_nonfull_tryget(arena_bin_t *bin)
-{
-	extent_t *slab = extent_heap_remove_first(&bin->slabs_nonfull);
-	if (slab == NULL)
-		return (NULL);
-	if (config_stats)
-		bin->stats.reslabs++;
-	return (slab);
-}
-
-static void
-arena_bin_slabs_full_insert(arena_bin_t *bin, extent_t *slab)
-{
-
-	assert(extent_slab_data_get(slab)->nfree == 0);
-	extent_ring_insert(&bin->slabs_full, slab);
-}
-
-static void
-arena_bin_slabs_full_remove(extent_t *slab)
-{
-
-	extent_ring_remove(slab);
 }
 
 static extent_t *
