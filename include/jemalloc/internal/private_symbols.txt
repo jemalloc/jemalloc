@@ -31,6 +31,7 @@ arena_extent_cache_maybe_remove
 arena_extent_dalloc_large
 arena_extent_ralloc_large_expand
 arena_extent_ralloc_large_shrink
+arena_extent_sn_next
 arena_get
 arena_ichoose
 arena_init
@@ -132,6 +133,7 @@ decay_ticker_get
 dss_prec_names
 extent_active_get
 extent_active_set
+extent_ad_comp
 extent_addr_get
 extent_addr_randomize
 extent_addr_set
@@ -188,6 +190,10 @@ extent_slab_data_get
 extent_slab_data_get_const
 extent_slab_get
 extent_slab_set
+extent_sn_comp
+extent_sn_get
+extent_sn_set
+extent_snad_comp
 extent_split_wrapper
 extent_usize_get
 extent_usize_set

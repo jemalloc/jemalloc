@@ -177,17 +177,8 @@ extent_size_quantize_t *extent_size_quantize_ceil =
     JEMALLOC_N(n_extent_size_quantize_ceil);
 #endif
 
-JEMALLOC_INLINE_C int
-extent_ad_comp(const extent_t *a, const extent_t *b)
-{
-	uintptr_t a_addr = (uintptr_t)extent_addr_get(a);
-	uintptr_t b_addr = (uintptr_t)extent_addr_get(b);
-
-	return ((a_addr > b_addr) - (a_addr < b_addr));
-}
-
 /* Generate pairing heap functions. */
-ph_gen(, extent_heap_, extent_heap_t, extent_t, ph_link, extent_ad_comp)
+ph_gen(, extent_heap_, extent_heap_t, extent_t, ph_link, extent_snad_comp)
 
 static void
 extent_heaps_insert(tsdn_t *tsdn, extent_heap_t extent_heaps[NPSIZES+1],
@@ -353,8 +344,8 @@ extent_deregister(tsdn_t *tsdn, extent_t *extent)
 }
 
 /*
- * Do first-best-fit extent selection, i.e. select the lowest extent that best
- * fits.
+ * Do first-best-fit extent selection, i.e. select the oldest/lowest extent that
+ * best fits.
  */
 static extent_t *
 extent_first_best_fit(tsdn_t *tsdn, arena_t *arena,
@@ -708,7 +699,8 @@ extent_alloc_wrapper_hard(tsdn_t *tsdn, arena_t *arena,
 		extent_dalloc(tsdn, arena, extent);
 		return (NULL);
 	}
-	extent_init(extent, arena, addr, size, usize, true, zero, commit, slab);
+	extent_init(extent, arena, addr, size, usize,
+	    arena_extent_sn_next(arena), true, zero, commit, slab);
 	if (pad != 0)
 		extent_addr_randomize(tsdn, extent, alignment);
 	if (extent_register(tsdn, extent)) {
@@ -1036,7 +1028,7 @@ extent_split_wrapper(tsdn_t *tsdn, arena_t *arena,
 		extent_t lead;
 
 		extent_init(&lead, arena, extent_addr_get(extent), size_a,
-		    usize_a, extent_active_get(extent),
+		    usize_a, extent_sn_get(extent), extent_active_get(extent),
 		    extent_zeroed_get(extent), extent_committed_get(extent),
 		    extent_slab_get(extent));
 
@@ -1046,9 +1038,9 @@ extent_split_wrapper(tsdn_t *tsdn, arena_t *arena,
 	}
 
 	extent_init(trail, arena, (void *)((uintptr_t)extent_base_get(extent) +
-	    size_a), size_b, usize_b, extent_active_get(extent),
-	    extent_zeroed_get(extent), extent_committed_get(extent),
-	    extent_slab_get(extent));
+	    size_a), size_b, usize_b, extent_sn_get(extent),
+	    extent_active_get(extent), extent_zeroed_get(extent),
+	    extent_committed_get(extent), extent_slab_get(extent));
 	if (extent_rtree_acquire(tsdn, rtree_ctx, trail, false, true,
 	    &trail_elm_a, &trail_elm_b))
 		goto label_error_c;
@@ -1145,6 +1137,8 @@ extent_merge_wrapper(tsdn_t *tsdn, arena_t *arena,
 
 	extent_size_set(a, extent_size_get(a) + extent_size_get(b));
 	extent_usize_set(a, extent_usize_get(a) + extent_usize_get(b));
+	extent_sn_set(a, (extent_sn_get(a) < extent_sn_get(b)) ?
+	    extent_sn_get(a) : extent_sn_get(b));
 	extent_zeroed_set(a, extent_zeroed_get(a) && extent_zeroed_get(b));
 
 	extent_rtree_write_acquired(tsdn, a_elm_a, b_elm_b, a);

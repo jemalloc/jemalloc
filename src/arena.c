@@ -760,7 +760,7 @@ arena_purge_to_limit(tsdn_t *tsdn, arena_t *arena, size_t ndirty_limit)
 		size_t ndirty = arena_dirty_count(tsdn, arena);
 		assert(ndirty == arena->ndirty);
 	}
-	extent_init(&purge_extents_sentinel, arena, NULL, 0, 0, false, false,
+	extent_init(&purge_extents_sentinel, arena, NULL, 0, 0, 0, false, false,
 	    false, false);
 
 	npurge = arena_stash_dirty(tsdn, arena, &extent_hooks, ndirty_limit,
@@ -1351,12 +1351,12 @@ arena_bin_lower_slab(tsdn_t *tsdn, arena_t *arena, extent_t *slab,
 	assert(extent_slab_data_get(slab)->nfree > 0);
 
 	/*
-	 * Make sure that if bin->slabcur is non-NULL, it refers to the lowest
-	 * non-full slab.  It is okay to NULL slabcur out rather than
-	 * proactively keeping it pointing at the lowest non-full slab.
+	 * Make sure that if bin->slabcur is non-NULL, it refers to the
+	 * oldest/lowest non-full slab.  It is okay to NULL slabcur out rather
+	 * than proactively keeping it pointing at the oldest/lowest non-full
+	 * slab.
 	 */
-	if (bin->slabcur != NULL && (uintptr_t)extent_addr_get(slab) <
-	    (uintptr_t)extent_addr_get(bin->slabcur)) {
+	if (bin->slabcur != NULL && extent_snad_comp(bin->slabcur, slab) > 0) {
 		/* Switch slabcur. */
 		if (extent_slab_data_get(bin->slabcur)->nfree > 0)
 			arena_bin_slabs_nonfull_insert(bin, bin->slabcur);
@@ -1651,6 +1651,13 @@ arena_nthreads_dec(arena_t *arena, bool internal)
 	atomic_sub_u(&arena->nthreads[internal], 1);
 }
 
+size_t
+arena_extent_sn_next(arena_t *arena)
+{
+
+	return (atomic_add_zu(&arena->extent_sn_next, 1) - 1);
+}
+
 arena_t *
 arena_new(tsdn_t *tsdn, unsigned ind)
 {
@@ -1684,6 +1691,8 @@ arena_new(tsdn_t *tsdn, unsigned ind)
 		    (size_t)(uintptr_t)arena;
 	}
 
+	arena->extent_sn_next = 0;
+
 	arena->dss_prec = extent_dss_prec_get();
 
 	arena->purging = false;
@@ -1702,7 +1711,7 @@ arena_new(tsdn_t *tsdn, unsigned ind)
 		extent_heap_new(&arena->extents_retained[i]);
 	}
 
-	extent_init(&arena->extents_dirty, arena, NULL, 0, 0, false, false,
+	extent_init(&arena->extents_dirty, arena, NULL, 0, 0, 0, false, false,
 	    false, false);
 
 	if (malloc_mutex_init(&arena->extents_mtx, "arena_extents",
@@ -1724,8 +1733,8 @@ arena_new(tsdn_t *tsdn, unsigned ind)
 			return (NULL);
 		bin->slabcur = NULL;
 		extent_heap_new(&bin->slabs_nonfull);
-		extent_init(&bin->slabs_full, arena, NULL, 0, 0, false, false,
-		    false, false);
+		extent_init(&bin->slabs_full, arena, NULL, 0, 0, 0, false,
+		    false, false, false);
 		if (config_stats)
 			memset(&bin->stats, 0, sizeof(malloc_bin_stats_t));
 	}

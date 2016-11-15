@@ -142,7 +142,8 @@ extent_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
 			gap_size = (uintptr_t)ret - (uintptr_t)gap_addr;
 			if (gap_size != 0) {
 				extent_init(gap, arena, gap_addr, gap_size,
-				    gap_size, false, false, true, false);
+				    gap_size, arena_extent_sn_next(arena),
+				    false, false, true, false);
 			}
 			dss_next = (void *)((uintptr_t)ret + size);
 			if ((uintptr_t)ret < (uintptr_t)max_cur ||

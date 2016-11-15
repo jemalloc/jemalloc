@@ -26,6 +26,20 @@ struct extent_s {
 	 */
 	size_t			e_usize;
 
+	/*
+	 * Serial number (potentially non-unique).
+	 *
+	 * In principle serial numbers can wrap around on 32-bit systems if
+	 * JEMALLOC_MUNMAP is defined, but as long as comparison functions fall
+	 * back on address comparison for equal serial numbers, stable (if
+	 * imperfect) ordering is maintained.
+	 *
+	 * Serial numbers may not be unique even in the absence of wrap-around,
+	 * e.g. when splitting an extent and assigning the same serial number to
+	 * both resulting adjacent extents.
+	 */
+	size_t			e_sn;
+
 	/* True if extent is active (in use). */
 	bool			e_active;
 
@@ -66,7 +80,7 @@ struct extent_s {
 	qr(extent_t)		qr_link;
 
 	union {
-		/* Linkage for per size class address-ordered heaps. */
+		/* Linkage for per size class sn/address-ordered heaps. */
 		phn(extent_t)		ph_link;
 
 		/* Linkage for arena's large and extent_cache lists. */
@@ -144,6 +158,7 @@ size_t	extent_usize_get(const extent_t *extent);
 void	*extent_before_get(const extent_t *extent);
 void	*extent_last_get(const extent_t *extent);
 void	*extent_past_get(const extent_t *extent);
+size_t	extent_sn_get(const extent_t *extent);
 bool	extent_active_get(const extent_t *extent);
 bool	extent_retained_get(const extent_t *extent);
 bool	extent_zeroed_get(const extent_t *extent);
@@ -157,16 +172,20 @@ void	extent_addr_set(extent_t *extent, void *addr);
 void	extent_addr_randomize(tsdn_t *tsdn, extent_t *extent, size_t alignment);
 void	extent_size_set(extent_t *extent, size_t size);
 void	extent_usize_set(extent_t *extent, size_t usize);
+void	extent_sn_set(extent_t *extent, size_t sn);
 void	extent_active_set(extent_t *extent, bool active);
 void	extent_zeroed_set(extent_t *extent, bool zeroed);
 void	extent_committed_set(extent_t *extent, bool committed);
 void	extent_slab_set(extent_t *extent, bool slab);
 void	extent_prof_tctx_set(extent_t *extent, prof_tctx_t *tctx);
 void	extent_init(extent_t *extent, arena_t *arena, void *addr,
-    size_t size, size_t usize, bool active, bool zeroed, bool committed,
-    bool slab);
+    size_t size, size_t usize, size_t sn, bool active, bool zeroed,
+    bool committed, bool slab);
 void	extent_ring_insert(extent_t *sentinel, extent_t *extent);
 void	extent_ring_remove(extent_t *extent);
+int	extent_sn_comp(const extent_t *a, const extent_t *b);
+int	extent_ad_comp(const extent_t *a, const extent_t *b);
+int	extent_snad_comp(const extent_t *a, const extent_t *b);
 #endif
 
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_EXTENT_C_))
@@ -241,6 +260,13 @@ extent_past_get(const extent_t *extent)
 
 	return ((void *)((uintptr_t)extent_base_get(extent) +
 	    extent_size_get(extent)));
+}
+
+JEMALLOC_INLINE size_t
+extent_sn_get(const extent_t *extent)
+{
+
+	return (extent->e_sn);
 }
 
 JEMALLOC_INLINE bool
@@ -352,6 +378,13 @@ extent_usize_set(extent_t *extent, size_t usize)
 }
 
 JEMALLOC_INLINE void
+extent_sn_set(extent_t *extent, size_t sn)
+{
+
+	extent->e_sn = sn;
+}
+
+JEMALLOC_INLINE void
 extent_active_set(extent_t *extent, bool active)
 {
 
@@ -388,7 +421,8 @@ extent_prof_tctx_set(extent_t *extent, prof_tctx_t *tctx)
 
 JEMALLOC_INLINE void
 extent_init(extent_t *extent, arena_t *arena, void *addr, size_t size,
-    size_t usize, bool active, bool zeroed, bool committed, bool slab)
+    size_t usize, size_t sn, bool active, bool zeroed, bool committed,
+    bool slab)
 {
 
 	assert(addr == PAGE_ADDR2BASE(addr) || !slab);
@@ -397,6 +431,7 @@ extent_init(extent_t *extent, arena_t *arena, void *addr, size_t size,
 	extent_addr_set(extent, addr);
 	extent_size_set(extent, size);
 	extent_usize_set(extent, usize);
+	extent_sn_set(extent, sn);
 	extent_active_set(extent, active);
 	extent_zeroed_set(extent, zeroed);
 	extent_committed_set(extent, committed);
@@ -418,6 +453,37 @@ extent_ring_remove(extent_t *extent)
 {
 
 	qr_remove(extent, qr_link);
+}
+
+JEMALLOC_INLINE int
+extent_sn_comp(const extent_t *a, const extent_t *b)
+{
+	size_t a_sn = extent_sn_get(a);
+	size_t b_sn = extent_sn_get(b);
+
+	return ((a_sn > b_sn) - (a_sn < b_sn));
+}
+
+JEMALLOC_INLINE int
+extent_ad_comp(const extent_t *a, const extent_t *b)
+{
+	uintptr_t a_addr = (uintptr_t)extent_addr_get(a);
+	uintptr_t b_addr = (uintptr_t)extent_addr_get(b);
+
+	return ((a_addr > b_addr) - (a_addr < b_addr));
+}
+
+JEMALLOC_INLINE int
+extent_snad_comp(const extent_t *a, const extent_t *b)
+{
+	int ret;
+
+	ret = extent_sn_comp(a, b);
+	if (ret != 0)
+		return (ret);
+
+	ret = extent_ad_comp(a, b);
+	return (ret);
 }
 #endif
 

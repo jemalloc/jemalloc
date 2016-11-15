@@ -5,6 +5,7 @@
 /* Data. */
 
 static malloc_mutex_t	base_mtx;
+static size_t		base_extent_sn_next;
 static extent_heap_t	base_avail[NSIZES];
 static extent_t		*base_extents;
 static size_t		base_allocated;
@@ -35,6 +36,14 @@ base_extent_dalloc(tsdn_t *tsdn, extent_t *extent)
 
 	*(extent_t **)extent = base_extents;
 	base_extents = extent;
+}
+
+static void
+base_extent_init(extent_t *extent, void *addr, size_t size)
+{
+	size_t sn = atomic_add_zu(&base_extent_sn_next, 1) - 1;
+
+	extent_init(extent, NULL, addr, size, 0, sn, true, true, true, false);
 }
 
 static extent_t *
@@ -74,7 +83,7 @@ base_extent_alloc(tsdn_t *tsdn, size_t minsize)
 			base_resident += PAGE_CEILING(nsize);
 		}
 	}
-	extent_init(extent, NULL, addr, esize, 0, true, true, true, false);
+	base_extent_init(extent, addr, esize);
 	return (extent);
 }
 
@@ -164,6 +173,7 @@ base_boot(void)
 
 	if (malloc_mutex_init(&base_mtx, "base", WITNESS_RANK_BASE))
 		return (true);
+	base_extent_sn_next = 0;
 	for (i = 0; i < NSIZES; i++)
 		extent_heap_new(&base_avail[i]);
 	base_extents = NULL;
