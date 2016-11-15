@@ -406,7 +406,7 @@ for (i = 0; i < nbins; i++) {
 
 	mib[2] = i;
 	len = sizeof(bin_size);
-	mallctlbymib(mib, miblen, &bin_size, &len, NULL, 0);
+	mallctlbymib(mib, miblen, (void *)&bin_size, &len, NULL, 0);
 	/* Do something with bin_size... */
 }]]></programlisting></para>
 
