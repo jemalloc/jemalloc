@@ -324,6 +324,21 @@ LDFLAGS="?"
 PATH="?"
     'configure' uses this to find programs.
 
+In some cases it may be necessary to work around configuration results that do
+not match reality.  For example, OS X 10.12 in conjunction with XCode 8 adds
+the os_unfair_lock_*() API, but if XCode 8 is used to build jemalloc on older
+versions of OS X, the configure script will determine that os_unfair_lock_*()
+is compilable, yet run-time failures will result.  To work around this
+(ignoring that MACOSX_DEPLOYMENT_TARGET may be the correct fix), create a cache
+file (called e.g. darwin.cache) with the following contents to override the
+relevant configuration variable defined in configure.ac:
+
+    je_cv_os_unfair_lock=no
+
+Invoke configure as such:
+
+    ./configure --cache=darwin.cache
+
 === Advanced compilation =======================================================
 
 To build only parts of jemalloc, use the following targets:
