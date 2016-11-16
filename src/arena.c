@@ -131,8 +131,7 @@ arena_slab_reg_alloc(tsdn_t *tsdn, extent_t *slab,
 	assert(slab_data->nfree > 0);
 	assert(!bitmap_full(slab_data->bitmap, &bin_info->bitmap_info));
 
-	regind = (unsigned)bitmap_sfu(slab_data->bitmap,
-	    &bin_info->bitmap_info);
+	regind = bitmap_sfu(slab_data->bitmap, &bin_info->bitmap_info);
 	ret = (void *)((uintptr_t)extent_addr_get(slab) +
 	    (uintptr_t)(bin_info->reg_size * regind));
 	slab_data->nfree--;
