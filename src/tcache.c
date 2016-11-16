@@ -519,7 +519,7 @@ tcache_boot(tsdn_t *tsdn)
 	 */
 	if (opt_lg_tcache_max < 0 || (ZU(1) << opt_lg_tcache_max) < SMALL_MAXCLASS)
 		tcache_maxclass = SMALL_MAXCLASS;
-	else if ((1U << opt_lg_tcache_max) > large_maxclass)
+	else if ((ZU(1) << opt_lg_tcache_max) > large_maxclass)
 		tcache_maxclass = large_maxclass;
 	else
 		tcache_maxclass = (ZU(1) << opt_lg_tcache_max);
