@@ -976,7 +976,11 @@ malloc_conf_init(void)
 				if (cont)				\
 					continue;			\
 			}
-#define	CONF_HANDLE_T_U(t, o, n, min, max, clip)			\
+#define	CONF_MIN_no(um, min)	false
+#define	CONF_MIN_yes(um, min)	((um) < (min))
+#define	CONF_MAX_no(um, max)	false
+#define	CONF_MAX_yes(um, max)	((um) > (max))
+#define	CONF_HANDLE_T_U(t, o, n, min, max, check_min, check_max, clip)	\
 			if (CONF_MATCH(n)) {				\
 				uintmax_t um;				\
 				char *end;				\
@@ -989,15 +993,19 @@ malloc_conf_init(void)
 					    "Invalid conf value",	\
 					    k, klen, v, vlen);		\
 				} else if (clip) {			\
-					if ((min) != 0 && um < (min))	\
+					if (CONF_MIN_##check_min(um,	\
+					    (min)))			\
 						o = (t)(min);		\
-					else if (um > (max))		\
+					else if (CONF_MAX_##check_max(	\
+					    um, (max)))			\
 						o = (t)(max);		\
 					else				\
 						o = (t)um;		\
 				} else {				\
-					if (((min) != 0 && um < (min))	\
-					    || um > (max)) {		\
+					if (CONF_MIN_##check_min(um,	\
+					    (min)) ||			\
+					    CONF_MAX_##check_max(um,	\
+					    (max))) {			\
 						malloc_conf_error(	\
 						    "Out-of-range "	\
 						    "conf value",	\
@@ -1007,10 +1015,13 @@ malloc_conf_init(void)
 				}					\
 				continue;				\
 			}
-#define	CONF_HANDLE_UNSIGNED(o, n, min, max, clip)			\
-			CONF_HANDLE_T_U(unsigned, o, n, min, max, clip)
-#define	CONF_HANDLE_SIZE_T(o, n, min, max, clip)			\
-			CONF_HANDLE_T_U(size_t, o, n, min, max, clip)
+#define	CONF_HANDLE_UNSIGNED(o, n, min, max, check_min, check_max,	\
+    clip)								\
+			CONF_HANDLE_T_U(unsigned, o, n, min, max,	\
+			    check_min, check_max, clip)
+#define	CONF_HANDLE_SIZE_T(o, n, min, max, check_min, check_max, clip)	\
+			CONF_HANDLE_T_U(size_t, o, n, min, max,		\
+			    check_min, check_max, clip)
 #define	CONF_HANDLE_SSIZE_T(o, n, min, max)				\
 			if (CONF_MATCH(n)) {				\
 				long l;					\
@@ -1068,7 +1079,7 @@ malloc_conf_init(void)
 				continue;
 			}
 			CONF_HANDLE_UNSIGNED(opt_narenas, "narenas", 1,
-			    UINT_MAX, false)
+			    UINT_MAX, yes, no, false)
 			CONF_HANDLE_SSIZE_T(opt_decay_time, "decay_time", -1,
 			    NSTIME_SEC_MAX);
 			CONF_HANDLE_BOOL(opt_stats_print, "stats_print", true)
@@ -1120,8 +1131,8 @@ malloc_conf_init(void)
 				CONF_HANDLE_BOOL(opt_prof_thread_active_init,
 				    "prof_thread_active_init", true)
 				CONF_HANDLE_SIZE_T(opt_lg_prof_sample,
-				    "lg_prof_sample", 0,
-				    (sizeof(uint64_t) << 3) - 1, true)
+				    "lg_prof_sample", 0, (sizeof(uint64_t) << 3)
+				    - 1, no, yes, true)
 				CONF_HANDLE_BOOL(opt_prof_accum, "prof_accum",
 				    true)
 				CONF_HANDLE_SSIZE_T(opt_lg_prof_interval,
@@ -1137,7 +1148,14 @@ malloc_conf_init(void)
 			malloc_conf_error("Invalid conf pair", k, klen, v,
 			    vlen);
 #undef CONF_MATCH
+#undef CONF_MATCH_VALUE
 #undef CONF_HANDLE_BOOL
+#undef CONF_MIN_no
+#undef CONF_MIN_yes
+#undef CONF_MAX_no
+#undef CONF_MAX_yes
+#undef CONF_HANDLE_T_U
+#undef CONF_HANDLE_UNSIGNED
 #undef CONF_HANDLE_SIZE_T
 #undef CONF_HANDLE_SSIZE_T
 #undef CONF_HANDLE_CHAR_P
