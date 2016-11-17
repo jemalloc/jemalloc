@@ -165,7 +165,7 @@ struct arena_s {
 	 * perspective:
 	 * 1) Thread assignment (modifies nthreads) is synchronized via atomics.
 	 * 2) Bin-related operations are protected by bin locks.
-	 * 3) Chunk-related operations are protected by this mutex.
+	 * 3) Extent-related operations are protected by this mutex.
 	 */
 	malloc_mutex_t		lock;
 
