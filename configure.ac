@@ -1329,6 +1329,14 @@ if test "x$abi" != "xpecoff" ; then
   AC_CHECK_LIB([pthread], [pthread_create], [LIBS="$LIBS -lpthread"],
                [AC_SEARCH_LIBS([pthread_create], , ,
                                AC_MSG_ERROR([libpthread is missing]))])
+  JE_COMPILABLE([pthread_atfork(3)], [
+#include <pthread.h>
+], [
+  pthread_atfork((void *)0, (void *)0, (void *)0);
+], [je_cv_pthread_atfork])
+  if test "x${je_cv_pthread_atfork}" = "xyes" ; then
+    AC_DEFINE([JEMALLOC_HAVE_PTHREAD_ATFORK], [ ])
+  fi
 fi
 
 CPPFLAGS="$CPPFLAGS -D_REENTRANT"

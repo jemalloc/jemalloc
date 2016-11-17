@@ -79,6 +79,9 @@
  */
 #undef JEMALLOC_HAVE_ISSETUGID
 
+/* Defined if pthread_atfork(3) is available. */
+#undef JEMALLOC_HAVE_PTHREAD_ATFORK
+
 /*
  * Defined if clock_gettime(CLOCK_MONOTONIC_COARSE, ...) is available.
  */

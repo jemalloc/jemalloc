@@ -1411,8 +1411,9 @@ malloc_init_hard_recursible(void)
 
 	ncpus = malloc_ncpus();
 
-#if (!defined(JEMALLOC_MUTEX_INIT_CB) && !defined(JEMALLOC_ZONE) \
-    && !defined(_WIN32) && !defined(__native_client__))
+#if (defined(JEMALLOC_HAVE_PTHREAD_ATFORK) && !defined(JEMALLOC_MUTEX_INIT_CB) \
+    && !defined(JEMALLOC_ZONE) && !defined(_WIN32) && \
+    !defined(__native_client__))
 	/* LinuxThreads' pthread_atfork() allocates. */
 	if (pthread_atfork(jemalloc_prefork, jemalloc_postfork_parent,
 	    jemalloc_postfork_child) != 0) {
