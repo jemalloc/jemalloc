@@ -56,11 +56,6 @@
 #undef JEMALLOC_HAVE_BUILTIN_CLZ
 
 /*
- * Defined if madvise(2) is available.
- */
-#undef JEMALLOC_HAVE_MADVISE
-
-/*
  * Defined if os_unfair_lock_*() functions are available, as provided by Darwin.
  */
 #undef JEMALLOC_OS_UNFAIR_LOCK
@@ -249,18 +244,20 @@
 #undef JEMALLOC_SYSCTL_VM_OVERCOMMIT
 #undef JEMALLOC_PROC_SYS_VM_OVERCOMMIT_MEMORY
 
+/* Defined if madvise(2) is available. */
+#undef JEMALLOC_HAVE_MADVISE
+
 /*
  * Methods for purging unused pages differ between operating systems.
  *
- *   madvise(..., MADV_DONTNEED) : On Linux, this immediately discards pages,
- *                                 such that new pages will be demand-zeroed if
- *                                 the address region is later touched.
- *   madvise(..., MADV_FREE) : On FreeBSD and Darwin, this marks pages as being
- *                             unused, such that they will be discarded rather
- *                             than swapped out.
+ *   madvise(..., MADV_FREE) : This marks pages as being unused, such that they
+ *                             will be discarded rather than swapped out.
+ *   madvise(..., MADV_DONTNEED) : This immediately discards pages, such that
+ *                                 new pages will be demand-zeroed if the
+ *                                 address region is later touched.
  */
-#undef JEMALLOC_PURGE_MADVISE_DONTNEED
 #undef JEMALLOC_PURGE_MADVISE_FREE
+#undef JEMALLOC_PURGE_MADVISE_DONTNEED
 
 /* Define if operating system has alloca.h header. */
 #undef JEMALLOC_HAS_ALLOCA_H

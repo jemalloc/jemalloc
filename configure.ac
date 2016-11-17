@@ -354,7 +354,6 @@ maps_coalesce="1"
 case "${host}" in
   *-*-darwin* | *-*-ios*)
 	abi="macho"
-	AC_DEFINE([JEMALLOC_PURGE_MADVISE_FREE], [ ])
 	RPATH=""
 	LD_PRELOAD_VAR="DYLD_INSERT_LIBRARIES"
 	so="dylib"
@@ -367,21 +366,17 @@ case "${host}" in
   *-*-freebsd*)
 	abi="elf"
 	AC_DEFINE([JEMALLOC_SYSCTL_VM_OVERCOMMIT], [ ])
-	AC_DEFINE([JEMALLOC_PURGE_MADVISE_FREE], [ ])
 	force_lazy_lock="1"
 	;;
   *-*-dragonfly*)
 	abi="elf"
-	AC_DEFINE([JEMALLOC_PURGE_MADVISE_FREE], [ ])
 	;;
   *-*-openbsd*)
 	abi="elf"
-	AC_DEFINE([JEMALLOC_PURGE_MADVISE_FREE], [ ])
 	force_tls="0"
 	;;
   *-*-bitrig*)
 	abi="elf"
-	AC_DEFINE([JEMALLOC_PURGE_MADVISE_FREE], [ ])
 	;;
   *-*-linux-android)
 	dnl syscall(2) and secure_getenv(3) are exposed by _GNU_SOURCE.
@@ -389,7 +384,6 @@ case "${host}" in
 	abi="elf"
 	AC_DEFINE([JEMALLOC_HAS_ALLOCA_H])
 	AC_DEFINE([JEMALLOC_PROC_SYS_VM_OVERCOMMIT_MEMORY], [ ])
-	AC_DEFINE([JEMALLOC_PURGE_MADVISE_DONTNEED], [ ])
 	AC_DEFINE([JEMALLOC_THREADED_INIT], [ ])
 	AC_DEFINE([JEMALLOC_C11ATOMICS])
 	force_tls="0"
@@ -401,7 +395,6 @@ case "${host}" in
 	abi="elf"
 	AC_DEFINE([JEMALLOC_HAS_ALLOCA_H])
 	AC_DEFINE([JEMALLOC_PROC_SYS_VM_OVERCOMMIT_MEMORY], [ ])
-	AC_DEFINE([JEMALLOC_PURGE_MADVISE_DONTNEED], [ ])
 	AC_DEFINE([JEMALLOC_THREADED_INIT], [ ])
 	AC_DEFINE([JEMALLOC_USE_CXX_THROW], [ ])
 	default_munmap="0"
@@ -418,11 +411,9 @@ case "${host}" in
                           [abi="elf"],
                           [abi="aout"])
 	AC_MSG_RESULT([$abi])
-	AC_DEFINE([JEMALLOC_PURGE_MADVISE_FREE], [ ])
 	;;
   *-*-solaris2*)
 	abi="elf"
-	AC_DEFINE([JEMALLOC_PURGE_MADVISE_FREE], [ ])
 	RPATH='-Wl,-R,$(1)'
 	dnl Solaris needs this for sigwait().
 	CPPFLAGS="$CPPFLAGS -D_POSIX_PTHREAD_SEMANTICS"
@@ -1580,12 +1571,33 @@ dnl Check for madvise(2).
 JE_COMPILABLE([madvise(2)], [
 #include <sys/mman.h>
 ], [
-	{
-		madvise((void *)0, 0, 0);
-	}
+	madvise((void *)0, 0, 0);
 ], [je_cv_madvise])
 if test "x${je_cv_madvise}" = "xyes" ; then
-  AC_DEFINE([JEMALLOC_HAVE_MADVISE], [ ])
+  dnl Check for madvise(..., MADV_FREE).
+  JE_COMPILABLE([madvise(..., MADV_FREE)], [
+#include <sys/mman.h>
+], [
+	madvise((void *)0, 0, MADV_FREE);
+], [je_cv_madv_free])
+  if test "x${je_cv_madv_free}" = "xyes" ; then
+    AC_DEFINE([JEMALLOC_PURGE_MADVISE_FREE], [ ])
+  fi
+
+  dnl Check for madvise(..., MADV_DONTNEED).
+  JE_COMPILABLE([madvise(..., MADV_DONTNEED)], [
+#include <sys/mman.h>
+], [
+	madvise((void *)0, 0, MADV_DONTNEED);
+], [je_cv_madv_dontneed])
+  if test "x${je_cv_madv_dontneed}" = "xyes" ; then
+    AC_DEFINE([JEMALLOC_PURGE_MADVISE_DONTNEED], [ ])
+  fi
+
+  if test "x${je_cv_madv_free}" = "xyes" \
+       -o "x${je_cv_madv_dontneed}" = "xyes" ; then
+    AC_DEFINE([JEMALLOC_HAVE_MADVISE], [ ])
+  fi
 fi
 
 dnl ============================================================================
