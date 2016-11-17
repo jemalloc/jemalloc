@@ -1612,6 +1612,8 @@ JE_COMPILABLE([madvise(2)], [
 	madvise((void *)0, 0, 0);
 ], [je_cv_madvise])
 if test "x${je_cv_madvise}" = "xyes" ; then
+  AC_DEFINE([JEMALLOC_HAVE_MADVISE], [ ])
+
   dnl Check for madvise(..., MADV_FREE).
   JE_COMPILABLE([madvise(..., MADV_FREE)], [
 #include <sys/mman.h>
@@ -1632,9 +1634,15 @@ if test "x${je_cv_madvise}" = "xyes" ; then
     AC_DEFINE([JEMALLOC_PURGE_MADVISE_DONTNEED], [ ])
   fi
 
-  if test "x${je_cv_madv_free}" = "xyes" \
-       -o "x${je_cv_madv_dontneed}" = "xyes" ; then
-    AC_DEFINE([JEMALLOC_HAVE_MADVISE], [ ])
+  dnl Check for madvise(..., MADV_[NO]HUGEPAGE).
+  JE_COMPILABLE([madvise(..., MADV_[[NO]]HUGEPAGE)], [
+#include <sys/mman.h>
+], [
+	madvise((void *)0, 0, MADV_HUGEPAGE);
+	madvise((void *)0, 0, MADV_NOHUGEPAGE);
+], [je_cv_thp])
+  if test "x${je_cv_thp}" = "xyes" ; then
+    AC_DEFINE([JEMALLOC_THP], [ ])
   fi
 fi
 

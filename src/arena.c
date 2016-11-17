@@ -664,6 +664,8 @@ arena_chunk_init_hard(tsdn_t *tsdn, arena_t *arena)
 	if (chunk == NULL)
 		return (NULL);
 
+	chunk->hugepage = true;
+
 	/*
 	 * Initialize the map to contain one maximal free untouched run.  Mark
 	 * the pages as zeroed if arena_chunk_alloc_internal() returned a zeroed
@@ -727,13 +729,14 @@ arena_chunk_alloc(tsdn_t *tsdn, arena_t *arena)
 static void
 arena_chunk_discard(tsdn_t *tsdn, arena_t *arena, arena_chunk_t *chunk)
 {
-	size_t sn;
+	size_t sn, hugepage;
 	bool committed;
 	chunk_hooks_t chunk_hooks = CHUNK_HOOKS_INITIALIZER;
 
 	chunk_deregister(chunk, &chunk->node);
 
 	sn = extent_node_sn_get(&chunk->node);
+	hugepage = chunk->hugepage;
 	committed = (arena_mapbits_decommitted_get(chunk, map_bias) == 0);
 	if (!committed) {
 		/*
@@ -745,6 +748,14 @@ arena_chunk_discard(tsdn_t *tsdn, arena_t *arena, arena_chunk_t *chunk)
 		chunk_hooks = chunk_hooks_get(tsdn, arena);
 		chunk_hooks.decommit(chunk, chunksize, 0, map_bias << LG_PAGE,
 		    arena->ind);
+	}
+	if (!hugepage) {
+		/*
+		 * Convert chunk back to the default state, so that all
+		 * subsequent chunk allocations start out with chunks that can
+		 * be backed by transparent huge pages.
+		 */
+		pages_huge(chunk, chunksize);
 	}
 
 	chunk_dalloc_cache(tsdn, arena, &chunk_hooks, (void *)chunk, chunksize,
@@ -1681,6 +1692,17 @@ arena_purge_stashed(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 			pageind = arena_miscelm_to_pageind(miscelm);
 			run_size = arena_mapbits_large_size_get(chunk, pageind);
 			npages = run_size >> LG_PAGE;
+
+			/*
+			 * If this is the first run purged within chunk, mark
+			 * the chunk as non-huge.  This will prevent all use of
+			 * transparent huge pages for this chunk until the chunk
+			 * as a whole is deallocated.
+			 */
+			if (chunk->hugepage) {
+				pages_nohuge(chunk, chunksize);
+				chunk->hugepage = false;
+			}
 
 			assert(pageind + npages <= chunk_npages);
 			assert(!arena_mapbits_decommitted_get(chunk, pageind));

@@ -191,6 +191,14 @@ struct arena_chunk_s {
 	extent_node_t		node;
 
 	/*
+	 * True if memory could be backed by transparent huge pages.  This is
+	 * only directly relevant to Linux, since it is the only supported
+	 * platform on which jemalloc interacts with explicit transparent huge
+	 * page controls.
+	 */
+	bool			hugepage;
+
+	/*
 	 * Map of pages within chunk that keeps track of free/large/small.  The
 	 * first map_bias entries are omitted, since the chunk header does not
 	 * need to be tracked in the map.  This omission saves a header page
