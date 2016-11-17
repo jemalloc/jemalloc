@@ -171,7 +171,6 @@ fi
 if test "x$CFLAGS" = "x" ; then
   no_CFLAGS="yes"
   if test "x$GCC" = "xyes" ; then
-dnl    JE_CFLAGS_APPEND([-std=gnu99])
     JE_CFLAGS_APPEND([-std=gnu11])
     if test "x$je_cv_cflags_appended" = "x-std=gnu11" ; then
       AC_DEFINE_UNQUOTED([JEMALLOC_HAS_RESTRICT])
