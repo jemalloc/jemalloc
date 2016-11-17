@@ -1317,6 +1317,36 @@ else
    AC_MSG_ERROR([cannot determine value for LG_PAGE])
 fi
 
+AC_ARG_WITH([lg_hugepage],
+  [AS_HELP_STRING([--with-lg-hugepage=<lg-hugepage>],
+   [Base 2 log of sytem huge page size])],
+  [je_cv_lg_hugepage="${with_lg_hugepage}"],
+  [je_cv_lg_hugepage=""])
+if test "x${je_cv_lg_hugepage}" = "x" ; then
+  dnl Look in /proc/meminfo (Linux-specific) for information on the default huge
+  dnl page size, if any.  The relevant line looks like:
+  dnl
+  dnl   Hugepagesize:       2048 kB
+  if test -e "/proc/meminfo" ; then
+    hpsk=[`cat /proc/meminfo 2>/dev/null | \
+          grep -e '^Hugepagesize:[[:space:]]\+[0-9]\+[[:space:]]kB$' | \
+          awk '{print $2}'`]
+    if test "x${hpsk}" != "x" ; then
+      je_cv_lg_hugepage=10
+      while test "${hpsk}" -gt 1 ; do
+        hpsk="$((hpsk / 2))"
+        je_cv_lg_hugepage="$((je_cv_lg_hugepage + 1))"
+      done
+    fi
+  fi
+
+  dnl Set default if unable to automatically configure.
+  if test "x${je_cv_lg_hugepage}" = "x" ; then
+    je_cv_lg_hugepage=21
+  fi
+fi
+AC_DEFINE_UNQUOTED([LG_HUGEPAGE], [${je_cv_lg_hugepage}])
+
 AC_ARG_WITH([lg_page_sizes],
   [AS_HELP_STRING([--with-lg-page-sizes=<lg-page-sizes>],
    [Base 2 logs of system page sizes to support])],
@@ -1690,6 +1720,8 @@ JE_COMPILABLE([madvise(2)], [
 	madvise((void *)0, 0, 0);
 ], [je_cv_madvise])
 if test "x${je_cv_madvise}" = "xyes" ; then
+  AC_DEFINE([JEMALLOC_HAVE_MADVISE], [ ])
+
   dnl Check for madvise(..., MADV_FREE).
   JE_COMPILABLE([madvise(..., MADV_FREE)], [
 #include <sys/mman.h>
@@ -1710,9 +1742,15 @@ if test "x${je_cv_madvise}" = "xyes" ; then
     AC_DEFINE([JEMALLOC_PURGE_MADVISE_DONTNEED], [ ])
   fi
 
-  if test "x${je_cv_madv_free}" = "xyes" \
-       -o "x${je_cv_madv_dontneed}" = "xyes" ; then
-    AC_DEFINE([JEMALLOC_HAVE_MADVISE], [ ])
+  dnl Check for madvise(..., MADV_[NO]HUGEPAGE).
+  JE_COMPILABLE([madvise(..., MADV_[[NO]]HUGEPAGE)], [
+#include <sys/mman.h>
+], [
+	madvise((void *)0, 0, MADV_HUGEPAGE);
+	madvise((void *)0, 0, MADV_NOHUGEPAGE);
+], [je_cv_thp])
+  if test "x${je_cv_thp}" = "xyes" ; then
+    AC_DEFINE([JEMALLOC_THP], [ ])
   fi
 fi
 

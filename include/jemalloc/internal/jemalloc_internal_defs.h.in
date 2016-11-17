@@ -188,6 +188,13 @@
 #undef LG_PAGE
 
 /*
+ * One huge page is 2^LG_HUGEPAGE bytes.  Note that this is defined even if the
+ * system does not explicitly support huge pages; system calls that require
+ * explicit huge page support are separately configured.
+ */
+#undef LG_HUGEPAGE
+
+/*
  * If defined, adjacent virtual memory mappings with identical attributes
  * automatically coalesce, and they fragment when changes are made to subranges.
  * This is the normal order of things for mmap()/munmap(), but on Windows
@@ -261,6 +268,12 @@
  */
 #undef JEMALLOC_PURGE_MADVISE_FREE
 #undef JEMALLOC_PURGE_MADVISE_DONTNEED
+
+/*
+ * Defined if transparent huge pages are supported via the MADV_[NO]HUGEPAGE
+ * arguments to madvise(2).
+ */
+#undef JEMALLOC_THP
 
 /* Define if operating system has alloca.h header. */
 #undef JEMALLOC_HAS_ALLOCA_H

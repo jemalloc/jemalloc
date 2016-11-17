@@ -324,7 +324,9 @@ opt_zero
 pages_boot
 pages_commit
 pages_decommit
+pages_huge
 pages_map
+pages_nohuge
 pages_purge
 pages_trim
 pages_unmap

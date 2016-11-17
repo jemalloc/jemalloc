@@ -170,7 +170,8 @@ pages_purge(void *addr, size_t size)
 #ifdef _WIN32
 	VirtualAlloc(addr, size, MEM_RESET, PAGE_READWRITE);
 	unzeroed = true;
-#elif defined(JEMALLOC_HAVE_MADVISE)
+#elif (defined(JEMALLOC_PURGE_MADVISE_FREE) || \
+    defined(JEMALLOC_PURGE_MADVISE_DONTNEED))
 #  if defined(JEMALLOC_PURGE_MADVISE_FREE)
 #    define JEMALLOC_MADV_PURGE MADV_FREE
 #    define JEMALLOC_MADV_ZEROS false
@@ -189,6 +190,34 @@ pages_purge(void *addr, size_t size)
 	unzeroed = true;
 #endif
 	return (unzeroed);
+}
+
+bool
+pages_huge(void *addr, size_t size)
+{
+
+	assert(HUGEPAGE_ADDR2BASE(addr) == addr);
+	assert(HUGEPAGE_CEILING(size) == size);
+
+#ifdef JEMALLOC_THP
+	return (madvise(addr, size, MADV_HUGEPAGE) != 0);
+#else
+	return (true);
+#endif
+}
+
+bool
+pages_nohuge(void *addr, size_t size)
+{
+
+	assert(HUGEPAGE_ADDR2BASE(addr) == addr);
+	assert(HUGEPAGE_CEILING(size) == size);
+
+#ifdef JEMALLOC_THP
+	return (madvise(addr, size, MADV_NOHUGEPAGE) != 0);
+#else
+	return (false);
+#endif
 }
 
 #ifdef JEMALLOC_SYSCTL_VM_OVERCOMMIT

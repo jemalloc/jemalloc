@@ -227,6 +227,11 @@ any of the following arguments (not a definitive list) to 'configure':
     --with-lg-page, but its primary use case is for integration with FreeBSD's
     libc, wherein jemalloc is embedded.
 
+--with-lg-hugepage=<lg-hugepage>
+    Specify the base 2 log of the system huge page size.  This option is useful
+    when cross compiling, or when overriding the default for systems that do
+    not explicitly support huge pages.
+
 --with-lg-size-class-group=<lg-size-class-group>
     Specify the base 2 log of how many size classes to use for each doubling in
     size.  By default jemalloc uses <lg-size-class-group>=2, which results in

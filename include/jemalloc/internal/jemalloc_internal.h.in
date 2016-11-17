@@ -138,6 +138,13 @@ static const bool config_cache_oblivious =
     false
 #endif
     ;
+static const bool have_thp =
+#ifdef JEMALLOC_THP
+    true
+#else
+    false
+#endif
+    ;
 
 #if defined(JEMALLOC_C11ATOMICS) && !defined(__cplusplus)
 #include <stdatomic.h>
