@@ -1991,8 +1991,8 @@ je_realloc(void *ptr, size_t size)
 		*tsd_thread_deallocatedp_get(tsd) += old_usize;
 	}
 	UTRACE(ptr, size, ret);
-	JEMALLOC_VALGRIND_REALLOC(true, tsdn, ret, usize, true, ptr, old_usize,
-	    old_rzsize, true, false);
+	JEMALLOC_VALGRIND_REALLOC(maybe, tsdn, ret, usize, maybe, ptr,
+	    old_usize, old_rzsize, maybe, false);
 	witness_assert_lockless(tsdn);
 	return (ret);
 }
@@ -2418,8 +2418,8 @@ je_rallocx(void *ptr, size_t size, int flags)
 		*tsd_thread_deallocatedp_get(tsd) += old_usize;
 	}
 	UTRACE(ptr, size, p);
-	JEMALLOC_VALGRIND_REALLOC(true, tsd_tsdn(tsd), p, usize, false, ptr,
-	    old_usize, old_rzsize, false, zero);
+	JEMALLOC_VALGRIND_REALLOC(maybe, tsd_tsdn(tsd), p, usize, no, ptr,
+	    old_usize, old_rzsize, no, zero);
 	witness_assert_lockless(tsd_tsdn(tsd));
 	return (p);
 label_oom:
@@ -2561,8 +2561,8 @@ je_xallocx(void *ptr, size_t size, size_t extra, int flags)
 		*tsd_thread_allocatedp_get(tsd) += usize;
 		*tsd_thread_deallocatedp_get(tsd) += old_usize;
 	}
-	JEMALLOC_VALGRIND_REALLOC(false, tsd_tsdn(tsd), ptr, usize, false, ptr,
-	    old_usize, old_rzsize, false, zero);
+	JEMALLOC_VALGRIND_REALLOC(no, tsd_tsdn(tsd), ptr, usize, no, ptr,
+	    old_usize, old_rzsize, no, zero);
 label_not_resized:
 	UTRACE(ptr, size, ptr);
 	witness_assert_lockless(tsd_tsdn(tsd));
