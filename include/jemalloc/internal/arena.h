@@ -232,6 +232,15 @@ struct arena_s {
 		void		*extent_hooks_pun;
 	};
 
+	/*
+	 * Next extent size class in a growing series to use when satisfying a
+	 * request via the extent hooks (only if !config_munmap).  This limits
+	 * the number of disjoint virtual memory ranges so that extent merging
+	 * can be effective even if multiple arenas' extent allocation requests
+	 * are highly interleaved.
+	 */
+	pszind_t		extent_grow_next;
+
 	/* Cache of extent structures that were allocated via base_alloc(). */
 	ql_head(extent_t)	extent_cache;
 	malloc_mutex_t		extent_cache_mtx;

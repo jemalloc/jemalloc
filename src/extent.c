@@ -265,6 +265,41 @@ extent_interior_register(tsdn_t *tsdn, rtree_ctx_t *rtree_ctx,
 	}
 }
 
+static void
+extent_gprof_add(tsdn_t *tsdn, const extent_t *extent)
+{
+
+	cassert(config_prof);
+
+	if (opt_prof && extent_active_get(extent)) {
+		size_t nadd = extent_size_get(extent) >> LG_PAGE;
+		size_t cur = atomic_add_zu(&curpages, nadd);
+		size_t high = atomic_read_zu(&highpages);
+		while (cur > high && atomic_cas_zu(&highpages, high, cur)) {
+			/*
+			 * Don't refresh cur, because it may have decreased
+			 * since this thread lost the highpages update race.
+			 */
+			high = atomic_read_zu(&highpages);
+		}
+		if (cur > high && prof_gdump_get_unlocked())
+			prof_gdump(tsdn);
+	}
+}
+
+static void
+extent_gprof_sub(tsdn_t *tsdn, const extent_t *extent)
+{
+
+	cassert(config_prof);
+
+	if (opt_prof && extent_active_get(extent)) {
+		size_t nsub = extent_size_get(extent) >> LG_PAGE;
+		assert(atomic_read_zu(&curpages) >= nsub);
+		atomic_sub_zu(&curpages, nsub);
+	}
+}
+
 static bool
 extent_register(tsdn_t *tsdn, const extent_t *extent)
 {
@@ -280,20 +315,8 @@ extent_register(tsdn_t *tsdn, const extent_t *extent)
 		extent_interior_register(tsdn, rtree_ctx, extent);
 	extent_rtree_release(tsdn, elm_a, elm_b);
 
-	if (config_prof && opt_prof && extent_active_get(extent)) {
-		size_t nadd = extent_size_get(extent) >> LG_PAGE;
-		size_t cur = atomic_add_zu(&curpages, nadd);
-		size_t high = atomic_read_zu(&highpages);
-		while (cur > high && atomic_cas_zu(&highpages, high, cur)) {
-			/*
-			 * Don't refresh cur, because it may have decreased
-			 * since this thread lost the highpages update race.
-			 */
-			high = atomic_read_zu(&highpages);
-		}
-		if (cur > high && prof_gdump_get_unlocked())
-			prof_gdump(tsdn);
-	}
+	if (config_prof)
+		extent_gprof_add(tsdn, extent);
 
 	return (false);
 }
@@ -336,11 +359,8 @@ extent_deregister(tsdn_t *tsdn, extent_t *extent)
 	}
 	extent_rtree_release(tsdn, elm_a, elm_b);
 
-	if (config_prof && opt_prof && extent_active_get(extent)) {
-		size_t nsub = extent_size_get(extent) >> LG_PAGE;
-		assert(atomic_read_zu(&curpages) >= nsub);
-		atomic_sub_zu(&curpages, nsub);
-	}
+	if (config_prof)
+		extent_gprof_sub(tsdn, extent);
 }
 
 /*
@@ -507,14 +527,16 @@ extent_recycle(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
 		extent_usize_set(extent, usize);
 	}
 
-	if (commit && !extent_committed_get(extent) &&
-	    extent_commit_wrapper(tsdn, arena, r_extent_hooks, extent, 0,
-	    extent_size_get(extent))) {
-		if (!locked)
-			malloc_mutex_unlock(tsdn, &arena->extents_mtx);
-		extent_record(tsdn, arena, r_extent_hooks, extent_heaps, cache,
-		    extent);
-		return (NULL);
+	if (*commit && !extent_committed_get(extent)) {
+		if (extent_commit_wrapper(tsdn, arena, r_extent_hooks, extent,
+		    0, extent_size_get(extent))) {
+			if (!locked)
+				malloc_mutex_unlock(tsdn, &arena->extents_mtx);
+			extent_record(tsdn, arena, r_extent_hooks, extent_heaps,
+			    cache, extent);
+			return (NULL);
+		}
+		extent_zeroed_set(extent, true);
 	}
 
 	if (pad != 0)
@@ -591,8 +613,6 @@ extent_alloc_cache_impl(tsdn_t *tsdn, arena_t *arena,
 	extent = extent_recycle(tsdn, arena, r_extent_hooks,
 	    arena->extents_cached, locked, true, new_addr, usize, pad,
 	    alignment, zero, commit, slab);
-	if (extent == NULL)
-		return (NULL);
 	return (extent);
 }
 
@@ -626,9 +646,6 @@ extent_alloc_default_impl(tsdn_t *tsdn, arena_t *arena, void *new_addr,
 
 	ret = extent_alloc_core(tsdn, arena, new_addr, size, alignment, zero,
 	    commit, arena->dss_prec);
-	if (ret == NULL)
-		return (NULL);
-
 	return (ret);
 }
 
@@ -653,6 +670,136 @@ extent_alloc_default(extent_hooks_t *extent_hooks, void *new_addr, size_t size,
 	    alignment, zero, commit));
 }
 
+static void
+extent_retain(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
+    extent_t *extent)
+{
+
+	if (config_stats)
+		arena->stats.retained += extent_size_get(extent);
+	extent_record(tsdn, arena, r_extent_hooks, arena->extents_retained,
+	    false, extent);
+}
+
+/*
+ * If virtual memory is retained, create increasingly larger extents from which
+ * to split requested extents in order to limit the total number of disjoint
+ * virtual memory ranges retained by each arena.
+ */
+static extent_t *
+extent_grow_retained(tsdn_t *tsdn, arena_t *arena,
+    extent_hooks_t **r_extent_hooks, void *new_addr, size_t usize, size_t pad,
+    size_t alignment, bool *zero, bool *commit, bool slab)
+{
+	extent_t *extent;
+	void *ptr;
+	size_t size, alloc_size, alloc_size_min, leadsize, trailsize;
+	bool zeroed, committed;
+
+	/*
+	 * Check whether the next extent size in the series would be large
+	 * enough to satisfy this request.  If no, just bail, so that e.g. a
+	 * series of unsatisfiable allocation requests doesn't cause unused
+	 * extent creation as a side effect.
+	 */
+	size = usize + pad;
+	alloc_size = pind2sz(arena->extent_grow_next);
+	alloc_size_min = size + PAGE_CEILING(alignment) - PAGE;
+	/* Beware size_t wrap-around. */
+	if (alloc_size_min < usize)
+		return (NULL);
+	if (alloc_size < alloc_size_min)
+		return (NULL);
+	extent = extent_alloc(tsdn, arena);
+	if (extent == NULL)
+		return (NULL);
+	zeroed = false;
+	committed = false;
+	ptr = extent_alloc_core(tsdn, arena, new_addr, alloc_size, PAGE,
+	    &zeroed, &committed, arena->dss_prec);
+	extent_init(extent, arena, ptr, alloc_size, alloc_size,
+	    arena_extent_sn_next(arena), false, zeroed, committed, false);
+	if (ptr == NULL || extent_register(tsdn, extent)) {
+		extent_dalloc(tsdn, arena, extent);
+		return (NULL);
+	}
+	/*
+	 * Set the extent as active *after registration so that no gprof-related
+	 * accounting occurs during registration.
+	 */
+	extent_active_set(extent, true);
+
+	leadsize = ALIGNMENT_CEILING((uintptr_t)ptr, PAGE_CEILING(alignment)) -
+	    (uintptr_t)ptr;
+	assert(new_addr == NULL || leadsize == 0);
+	assert(alloc_size >= leadsize + size);
+	trailsize = alloc_size - leadsize - size;
+	if (extent_zeroed_get(extent))
+		*zero = true;
+	if (extent_committed_get(extent))
+		*commit = true;
+
+	/* Split the lead. */
+	if (leadsize != 0) {
+		extent_t *lead = extent;
+		extent = extent_split_wrapper(tsdn, arena, r_extent_hooks, lead,
+		    leadsize, leadsize, size + trailsize, usize + trailsize);
+		if (extent == NULL) {
+			extent_deregister(tsdn, lead);
+			extent_leak(tsdn, arena, r_extent_hooks, false, lead);
+			return (NULL);
+		}
+		extent_retain(tsdn, arena, r_extent_hooks, lead);
+	}
+
+	/* Split the trail. */
+	if (trailsize != 0) {
+		extent_t *trail = extent_split_wrapper(tsdn, arena,
+		    r_extent_hooks, extent, size, usize, trailsize, trailsize);
+		if (trail == NULL) {
+			extent_deregister(tsdn, extent);
+			extent_leak(tsdn, arena, r_extent_hooks, false, extent);
+			return (NULL);
+		}
+		extent_retain(tsdn, arena, r_extent_hooks, trail);
+	} else if (leadsize == 0) {
+		/*
+		 * Splitting causes usize to be set as a side effect, but no
+		 * splitting occurred.
+		 */
+		extent_usize_set(extent, usize);
+	}
+
+	if (*commit && !extent_committed_get(extent)) {
+		if (extent_commit_wrapper(tsdn, arena, r_extent_hooks, extent,
+		    0, extent_size_get(extent))) {
+			extent_retain(tsdn, arena, r_extent_hooks, extent);
+			return (NULL);
+		}
+		extent_zeroed_set(extent, true);
+	}
+
+	if (config_prof) {
+		/* Adjust gprof stats now that extent is final size. */
+		extent_gprof_add(tsdn, extent);
+	}
+	if (pad != 0)
+		extent_addr_randomize(tsdn, extent, alignment);
+	if (slab) {
+		rtree_ctx_t rtree_ctx_fallback;
+		rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn,
+		    &rtree_ctx_fallback);
+
+		extent_slab_set(extent, true);
+		extent_interior_register(tsdn, rtree_ctx, extent);
+	}
+	if (*zero && !extent_zeroed_get(extent))
+		memset(extent_addr_get(extent), 0, extent_usize_get(extent));
+	if (arena->extent_grow_next + 1 < NPSIZES)
+		arena->extent_grow_next++;
+	return (extent);
+}
+
 static extent_t *
 extent_alloc_retained(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, void *new_addr, size_t usize, size_t pad,
@@ -669,6 +816,12 @@ extent_alloc_retained(tsdn_t *tsdn, arena_t *arena,
 	if (extent != NULL && config_stats) {
 		size_t size = usize + pad;
 		arena->stats.retained -= size;
+		if (config_prof)
+			extent_gprof_add(tsdn, extent);
+	}
+	if (!config_munmap && extent == NULL) {
+		extent = extent_grow_retained(tsdn, arena, r_extent_hooks,
+		    new_addr, usize, pad, alignment, zero, commit, slab);
 	}
 
 	return (extent);
@@ -909,6 +1062,8 @@ extent_dalloc_wrapper(tsdn_t *tsdn, arena_t *arena,
 
 	if (config_stats)
 		arena->stats.retained += extent_size_get(extent);
+	if (config_prof)
+		extent_gprof_sub(tsdn, extent);
 
 	extent_record(tsdn, arena, r_extent_hooks, arena->extents_retained,
 	    false, extent);

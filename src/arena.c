@@ -1686,6 +1686,9 @@ arena_new(tsdn_t *tsdn, unsigned ind)
 
 	arena->extent_hooks = (extent_hooks_t *)&extent_hooks_default;
 
+	if (!config_munmap)
+		arena->extent_grow_next = psz2ind(HUGEPAGE);
+
 	ql_new(&arena->extent_cache);
 	if (malloc_mutex_init(&arena->extent_cache_mtx, "arena_extent_cache",
 	    WITNESS_RANK_ARENA_EXTENT_CACHE))
