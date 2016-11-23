@@ -1708,10 +1708,15 @@ dnl Check for os_unfair_lock operations as provided on Darwin.
 
 JE_COMPILABLE([Darwin os_unfair_lock_*()], [
 #include <os/lock.h>
+#include <AvailabilityMacros.h>
 ], [
+	#if MAC_OS_X_VERSION_MIN_REQUIRED < 101200
+	#error "os_unfair_lock is not supported"
+	#else
 	os_unfair_lock lock = OS_UNFAIR_LOCK_INIT;
 	os_unfair_lock_lock(&lock);
 	os_unfair_lock_unlock(&lock);
+	#endif
 ], [je_cv_os_unfair_lock])
 if test "x${je_cv_os_unfair_lock}" = "xyes" ; then
   AC_DEFINE([JEMALLOC_OS_UNFAIR_LOCK], [ ])
