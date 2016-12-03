@@ -431,8 +431,8 @@ arena_decay_backlog_npages_limit(const arena_t *arena)
 static void
 arena_decay_backlog_update_last(arena_t *arena)
 {
-	size_t ndirty_delta = (arena->ndirty > arena->decay.ndirty) ?
-	    arena->ndirty - arena->decay.ndirty : 0;
+	size_t ndirty_delta = (arena->ndirty > arena->decay.nunpurged) ?
+	    arena->ndirty - arena->decay.nunpurged : 0;
 	arena->decay.backlog[SMOOTHSTEP_NSTEPS-1] = ndirty_delta;
 }
 
@@ -491,7 +491,7 @@ arena_decay_epoch_advance_purge(tsdn_t *tsdn, arena_t *arena)
 
 	if (arena->ndirty > ndirty_limit)
 		arena_purge_to_limit(tsdn, arena, ndirty_limit);
-	arena->decay.ndirty = arena->ndirty;
+	arena->decay.nunpurged = arena->ndirty;
 }
 
 static void
@@ -516,7 +516,7 @@ arena_decay_init(arena_t *arena, ssize_t decay_time)
 	nstime_update(&arena->decay.epoch);
 	arena->decay.jitter_state = (uint64_t)(uintptr_t)arena;
 	arena_decay_deadline_init(arena);
-	arena->decay.ndirty = arena->ndirty;
+	arena->decay.nunpurged = arena->ndirty;
 	memset(arena->decay.backlog, 0, SMOOTHSTEP_NSTEPS * sizeof(size_t));
 }
 

@@ -106,7 +106,7 @@ struct arena_decay_s {
 	 * arena->ndirty to determine how many dirty pages, if any, were
 	 * generated.
 	 */
-	size_t			ndirty;
+	size_t			nunpurged;
 	/*
 	 * Trailing log of how many unused dirty pages were generated during
 	 * each of the past SMOOTHSTEP_NSTEPS decay epochs, where the last
