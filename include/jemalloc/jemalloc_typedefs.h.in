@@ -61,7 +61,8 @@ struct extent_hooks_s {
 	extent_dalloc_t		*dalloc;
 	extent_commit_t		*commit;
 	extent_decommit_t	*decommit;
-	extent_purge_t		*purge;
+	extent_purge_t		*purge_lazy;
+	extent_purge_t		*purge_forced;
 	extent_split_t		*split;
 	extent_merge_t		*merge;
 };

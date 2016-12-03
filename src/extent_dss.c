@@ -168,10 +168,20 @@ extent_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
 					extent_dalloc_gap(tsdn, arena, gap);
 				else
 					extent_dalloc(tsdn, arena, gap);
-				if (*zero)
-					memset(ret, 0, size);
 				if (!*commit)
 					*commit = pages_decommit(ret, size);
+				if (*zero && *commit) {
+					extent_hooks_t *extent_hooks =
+					    EXTENT_HOOKS_INITIALIZER;
+					extent_t extent;
+
+					extent_init(&extent, arena, ret, size,
+					    size, 0, true, false, true, false);
+					if (extent_purge_forced_wrapper(tsdn,
+					    arena, &extent_hooks, &extent, 0,
+					    size))
+						memset(ret, 0, size);
+				}
 				return (ret);
 			}
 			/*

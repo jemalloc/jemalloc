@@ -163,33 +163,34 @@ pages_decommit(void *addr, size_t size)
 }
 
 bool
-pages_purge(void *addr, size_t size)
+pages_purge_lazy(void *addr, size_t size)
 {
-	bool unzeroed;
+
+	if (!pages_can_purge_lazy)
+		return (true);
 
 #ifdef _WIN32
 	VirtualAlloc(addr, size, MEM_RESET, PAGE_READWRITE);
-	unzeroed = true;
-#elif (defined(JEMALLOC_PURGE_MADVISE_FREE) || \
-    defined(JEMALLOC_PURGE_MADVISE_DONTNEED))
-#  if defined(JEMALLOC_PURGE_MADVISE_FREE)
-#    define JEMALLOC_MADV_PURGE MADV_FREE
-#    define JEMALLOC_MADV_ZEROS false
-#  elif defined(JEMALLOC_PURGE_MADVISE_DONTNEED)
-#    define JEMALLOC_MADV_PURGE MADV_DONTNEED
-#    define JEMALLOC_MADV_ZEROS true
-#  else
-#    error No madvise(2) flag defined for purging unused dirty pages
-#  endif
-	int err = madvise(addr, size, JEMALLOC_MADV_PURGE);
-	unzeroed = (!JEMALLOC_MADV_ZEROS || err != 0);
-#  undef JEMALLOC_MADV_PURGE
-#  undef JEMALLOC_MADV_ZEROS
+#elif defined(JEMALLOC_PURGE_MADVISE_FREE)
+	madvise(addr, size, MADV_FREE);
 #else
-	/* Last resort no-op. */
-	unzeroed = true;
+	not_reached();
 #endif
-	return (unzeroed);
+	return (false);
+}
+
+bool
+pages_purge_forced(void *addr, size_t size)
+{
+
+	if (!pages_can_purge_forced)
+		return (true);
+
+#if defined(JEMALLOC_PURGE_MADVISE_DONTNEED)
+	return (madvise(addr, size, MADV_DONTNEED) != 0);
+#else
+	not_reached();
+#endif
 }
 
 bool

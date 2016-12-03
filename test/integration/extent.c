@@ -13,7 +13,9 @@ static bool	extent_commit(extent_hooks_t *extent_hooks, void *addr,
     size_t size, size_t offset, size_t length, unsigned arena_ind);
 static bool	extent_decommit(extent_hooks_t *extent_hooks, void *addr,
     size_t size, size_t offset, size_t length, unsigned arena_ind);
-static bool	extent_purge(extent_hooks_t *extent_hooks, void *addr,
+static bool	extent_purge_lazy(extent_hooks_t *extent_hooks, void *addr,
+    size_t size, size_t offset, size_t length, unsigned arena_ind);
+static bool	extent_purge_forced(extent_hooks_t *extent_hooks, void *addr,
     size_t size, size_t offset, size_t length, unsigned arena_ind);
 static bool	extent_split(extent_hooks_t *extent_hooks, void *addr,
     size_t size, size_t size_a, size_t size_b, bool committed,
@@ -27,7 +29,8 @@ static extent_hooks_t hooks = {
 	extent_dalloc,
 	extent_commit,
 	extent_decommit,
-	extent_purge,
+	extent_purge_lazy,
+	extent_purge_forced,
 	extent_split,
 	extent_merge
 };
@@ -42,7 +45,8 @@ static bool did_alloc;
 static bool did_dalloc;
 static bool did_commit;
 static bool did_decommit;
-static bool did_purge;
+static bool did_purge_lazy;
+static bool did_purge_forced;
 static bool tried_split;
 static bool did_split;
 static bool did_merge;
@@ -129,7 +133,7 @@ extent_decommit(extent_hooks_t *extent_hooks, void *addr, size_t size,
 }
 
 static bool
-extent_purge(extent_hooks_t *extent_hooks, void *addr, size_t size,
+extent_purge_lazy(extent_hooks_t *extent_hooks, void *addr, size_t size,
     size_t offset, size_t length, unsigned arena_ind)
 {
 
@@ -138,9 +142,29 @@ extent_purge(extent_hooks_t *extent_hooks, void *addr, size_t size,
 	    offset, length, arena_ind);
 	assert_ptr_eq(extent_hooks, new_hooks,
 	    "extent_hooks should be same as pointer used to set hooks");
-	assert_ptr_eq(extent_hooks->purge, extent_purge, "Wrong hook function");
-	did_purge = true;
-	return (old_hooks->purge(old_hooks, addr, size, offset, length,
+	assert_ptr_eq(extent_hooks->purge_lazy, extent_purge_lazy,
+	    "Wrong hook function");
+	did_purge_lazy = true;
+	return (old_hooks->purge_lazy == NULL ||
+	    old_hooks->purge_lazy(old_hooks, addr, size, offset, length,
+	    arena_ind));
+}
+
+static bool
+extent_purge_forced(extent_hooks_t *extent_hooks, void *addr, size_t size,
+    size_t offset, size_t length, unsigned arena_ind)
+{
+
+	TRACE_HOOK("%s(extent_hooks=%p, addr=%p, size=%zu, offset=%zu, "
+	    "length=%zu arena_ind=%u)\n", __func__, extent_hooks, addr, size,
+	    offset, length, arena_ind);
+	assert_ptr_eq(extent_hooks, new_hooks,
+	    "extent_hooks should be same as pointer used to set hooks");
+	assert_ptr_eq(extent_hooks->purge_forced, extent_purge_forced,
+	    "Wrong hook function");
+	did_purge_forced = true;
+	return (old_hooks->purge_forced == NULL ||
+	    old_hooks->purge_forced(old_hooks, addr, size, offset, length,
 	    arena_ind));
 }
 
@@ -158,8 +182,8 @@ extent_split(extent_hooks_t *extent_hooks, void *addr, size_t size,
 	    "extent_hooks should be same as pointer used to set hooks");
 	assert_ptr_eq(extent_hooks->split, extent_split, "Wrong hook function");
 	tried_split = true;
-	err = old_hooks->split(old_hooks, addr, size, size_a, size_b, committed,
-	    arena_ind);
+	err = (old_hooks->split == NULL || old_hooks->split(old_hooks, addr,
+	    size, size_a, size_b, committed, arena_ind));
 	did_split = !err;
 	return (err);
 }
@@ -177,8 +201,8 @@ extent_merge(extent_hooks_t *extent_hooks, void *addr_a, size_t size_a,
 	assert_ptr_eq(extent_hooks, new_hooks,
 	    "extent_hooks should be same as pointer used to set hooks");
 	assert_ptr_eq(extent_hooks->merge, extent_merge, "Wrong hook function");
-	err = old_hooks->merge(old_hooks, addr_a, size_a, addr_b, size_b,
-	    committed, arena_ind);
+	err = (old_hooks->merge == NULL || old_hooks->merge(old_hooks, addr_a,
+	    size_a, addr_b, size_b, committed, arena_ind));
 	did_merge = !err;
 	return (err);
 }
@@ -216,7 +240,10 @@ TEST_BEGIN(test_extent)
 	    "Unexpected commit error");
 	assert_ptr_ne(old_hooks->decommit, extent_decommit,
 	    "Unexpected decommit error");
-	assert_ptr_ne(old_hooks->purge, extent_purge, "Unexpected purge error");
+	assert_ptr_ne(old_hooks->purge_lazy, extent_purge_lazy,
+	    "Unexpected purge_lazy error");
+	assert_ptr_ne(old_hooks->purge_forced, extent_purge_forced,
+	    "Unexpected purge_forced error");
 	assert_ptr_ne(old_hooks->split, extent_split, "Unexpected split error");
 	assert_ptr_ne(old_hooks->merge, extent_merge, "Unexpected merge error");
 
@@ -240,7 +267,8 @@ TEST_BEGIN(test_extent)
 	assert_ptr_not_null(p, "Unexpected mallocx() error");
 	did_dalloc = false;
 	did_decommit = false;
-	did_purge = false;
+	did_purge_lazy = false;
+	did_purge_forced = false;
 	tried_split = false;
 	did_split = false;
 	xallocx_success_a = (xallocx(p, large0, 0, flags) == large0);
@@ -249,7 +277,8 @@ TEST_BEGIN(test_extent)
 	if (xallocx_success_a) {
 		assert_true(did_dalloc, "Expected dalloc");
 		assert_false(did_decommit, "Unexpected decommit");
-		assert_true(did_purge, "Expected purge");
+		assert_true(did_purge_lazy || did_purge_forced,
+		    "Expected purge");
 	}
 	assert_true(tried_split, "Expected split");
 	dallocx(p, flags);
@@ -300,8 +329,10 @@ TEST_BEGIN(test_extent)
 	    "Unexpected commit error");
 	assert_ptr_eq(old_hooks->decommit, orig_hooks->decommit,
 	    "Unexpected decommit error");
-	assert_ptr_eq(old_hooks->purge, orig_hooks->purge,
-	    "Unexpected purge error");
+	assert_ptr_eq(old_hooks->purge_lazy, orig_hooks->purge_lazy,
+	    "Unexpected purge_lazy error");
+	assert_ptr_eq(old_hooks->purge_forced, orig_hooks->purge_forced,
+	    "Unexpected purge_forced error");
 	assert_ptr_eq(old_hooks->split, orig_hooks->split,
 	    "Unexpected split error");
 	assert_ptr_eq(old_hooks->merge, orig_hooks->merge,

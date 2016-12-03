@@ -1512,7 +1512,8 @@ struct extent_hooks_s {
 	extent_dalloc_t		*dalloc;
 	extent_commit_t		*commit;
 	extent_decommit_t	*decommit;
-	extent_purge_t		*purge;
+	extent_purge_t		*purge_lazy;
+	extent_purge_t		*purge_forced;
 	extent_split_t		*split;
 	extent_merge_t		*merge;
 };]]></programlisting>
@@ -1522,13 +1523,12 @@ struct extent_hooks_s {
         mapped committed memory, in the simplest case followed by deallocation.
         However, there are performance and platform reasons to retain extents
         for later reuse.  Cleanup attempts cascade from deallocation to decommit
-        to purging, which gives the extent management functions opportunities to
-        reject the most permanent cleanup operations in favor of less permanent
-        (and often less costly) operations.  The extent splitting and merging
-        operations can also be opted out of, but this is mainly intended to
-        support platforms on which virtual memory mappings provided by the
-        operating system kernel do not automatically coalesce and split, e.g.
-        Windows.</para>
+        to lazy purging to forced purging, which gives the extent management
+        functions opportunities to reject the most permanent cleanup operations
+        in favor of less permanent (and often less costly) operations.  All
+        operations except allocation can be universally opted out of by setting
+        the hook pointers to <constant>NULL</constant>, or selectively opted out
+        of by returning failure.</para>
 
         <funcsynopsis><funcprototype>
           <funcdef>typedef void *<function>(extent_alloc_t)</function></funcdef>
@@ -1634,21 +1634,24 @@ struct extent_hooks_s {
           <funcdef>typedef bool <function>(extent_purge_t)</function></funcdef>
           <paramdef>extent_hooks_t *<parameter>extent_hooks</parameter></paramdef>
           <paramdef>void *<parameter>addr</parameter></paramdef>
-          <paramdef>size_t<parameter>size</parameter></paramdef>
+          <paramdef>size_t <parameter>size</parameter></paramdef>
           <paramdef>size_t <parameter>offset</parameter></paramdef>
           <paramdef>size_t <parameter>length</parameter></paramdef>
           <paramdef>unsigned <parameter>arena_ind</parameter></paramdef>
         </funcprototype></funcsynopsis>
         <literallayout></literallayout>
         <para>An extent purge function conforms to the
-        <type>extent_purge_t</type> type and optionally discards physical pages
+        <type>extent_purge_t</type> type and discards physical pages
         within the virtual memory mapping associated with an extent at given
         <parameter>addr</parameter> and <parameter>size</parameter> at
         <parameter>offset</parameter> bytes, extending for
         <parameter>length</parameter> on behalf of arena
-        <parameter>arena_ind</parameter>, returning false if pages within the
-        purged virtual memory range will be zero-filled the next time they are
-        accessed.</para>
+        <parameter>arena_ind</parameter>.  A lazy extent purge function can
+        delay purging indefinitely and leave the pages within the purged virtual
+        memory range in an indeterminite state, whereas a forced extent purge
+        function immediately purges, and the pages within the virtual memory
+        range will be zero-filled the next time they are accessed.  If the
+        function returns true, this indicates failure to purge.</para>
 
         <funcsynopsis><funcprototype>
           <funcdef>typedef bool <function>(extent_split_t)</function></funcdef>

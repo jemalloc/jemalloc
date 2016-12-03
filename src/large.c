@@ -110,6 +110,9 @@ large_ralloc_no_move_shrink(tsdn_t *tsdn, extent_t *extent, size_t usize)
 
 	assert(oldusize > usize);
 
+	if (extent_hooks->split == NULL)
+		return (true);
+
 	/* Split excess pages. */
 	if (diff != 0) {
 		extent_t *trail = extent_split_wrapper(tsdn, arena,
@@ -141,6 +144,9 @@ large_ralloc_no_move_expand(tsdn_t *tsdn, extent_t *extent, size_t usize,
 	extent_hooks_t *extent_hooks = extent_hooks_get(arena);
 	size_t trailsize = usize - extent_usize_get(extent);
 	extent_t *trail;
+
+	if (extent_hooks->merge == NULL)
+		return (true);
 
 	if ((trail = arena_extent_cache_alloc(tsdn, arena, &extent_hooks,
 	    extent_past_get(extent), trailsize, CACHELINE, &is_zeroed_trail)) ==

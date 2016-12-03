@@ -179,7 +179,8 @@ extent_merge_wrapper
 extent_past_get
 extent_prof_tctx_get
 extent_prof_tctx_set
-extent_purge_wrapper
+extent_purge_forced_wrapper
+extent_purge_lazy_wrapper
 extent_retained_get
 extent_ring_insert
 extent_ring_remove
@@ -327,7 +328,8 @@ pages_decommit
 pages_huge
 pages_map
 pages_nohuge
-pages_purge
+pages_purge_forced
+pages_purge_lazy
 pages_trim
 pages_unmap
 pind2sz

@@ -198,8 +198,8 @@ struct arena_s {
 
 	/*
 	 * Current count of pages within unused extents that are potentially
-	 * dirty, and for which madvise(... MADV_DONTNEED) has not been called.
-	 * By tracking this, we can institute a limit on how much dirty unused
+	 * dirty, and for which pages_purge_*() has not been called.  By
+	 * tracking this, we can institute a limit on how much dirty unused
 	 * memory is mapped for each arena.
 	 */
 	size_t			ndirty;
