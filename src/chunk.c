@@ -50,9 +50,9 @@ const chunk_hooks_t	chunk_hooks_default = {
  */
 
 static void	chunk_record(tsdn_t *tsdn, arena_t *arena,
-    chunk_hooks_t *chunk_hooks, extent_tree_t *chunks_szad,
-    extent_tree_t *chunks_ad, bool cache, void *chunk, size_t size, bool zeroed,
-    bool committed);
+    chunk_hooks_t *chunk_hooks, extent_tree_t *chunks_szsnad,
+    extent_tree_t *chunks_ad, bool cache, void *chunk, size_t size, size_t sn,
+    bool zeroed, bool committed);
 
 /******************************************************************************/
 
@@ -183,33 +183,35 @@ chunk_deregister(const void *chunk, const extent_node_t *node)
 }
 
 /*
- * Do first-best-fit chunk selection, i.e. select the lowest chunk that best
- * fits.
+ * Do first-best-fit chunk selection, i.e. select the oldest/lowest chunk that
+ * best fits.
  */
 static extent_node_t *
-chunk_first_best_fit(arena_t *arena, extent_tree_t *chunks_szad,
-    extent_tree_t *chunks_ad, size_t size)
+chunk_first_best_fit(arena_t *arena, extent_tree_t *chunks_szsnad, size_t size)
 {
 	extent_node_t key;
 
 	assert(size == CHUNK_CEILING(size));
 
-	extent_node_init(&key, arena, NULL, size, false, false);
-	return (extent_tree_szad_nsearch(chunks_szad, &key));
+	extent_node_init(&key, arena, NULL, size, 0, false, false);
+	return (extent_tree_szsnad_nsearch(chunks_szsnad, &key));
 }
 
 static void *
 chunk_recycle(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
-    extent_tree_t *chunks_szad, extent_tree_t *chunks_ad, bool cache,
-    void *new_addr, size_t size, size_t alignment, bool *zero, bool *commit,
-    bool dalloc_node)
+    extent_tree_t *chunks_szsnad, extent_tree_t *chunks_ad, bool cache,
+    void *new_addr, size_t size, size_t alignment, size_t *sn, bool *zero,
+    bool *commit, bool dalloc_node)
 {
 	void *ret;
 	extent_node_t *node;
 	size_t alloc_size, leadsize, trailsize;
 	bool zeroed, committed;
 
+	assert(CHUNK_CEILING(size) == size);
+	assert(alignment > 0);
 	assert(new_addr == NULL || alignment == chunksize);
+	assert(CHUNK_ADDR2BASE(new_addr) == new_addr);
 	/*
 	 * Cached chunks use the node linkage embedded in their headers, in
 	 * which case dalloc_node is true, and new_addr is non-NULL because
@@ -217,7 +219,7 @@ chunk_recycle(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 	 */
 	assert(dalloc_node || new_addr != NULL);
 
-	alloc_size = CHUNK_CEILING(s2u(size + alignment - chunksize));
+	alloc_size = size + CHUNK_CEILING(alignment) - chunksize;
 	/* Beware size_t wrap-around. */
 	if (alloc_size < size)
 		return (NULL);
@@ -225,12 +227,11 @@ chunk_recycle(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 	chunk_hooks_assure_initialized_locked(tsdn, arena, chunk_hooks);
 	if (new_addr != NULL) {
 		extent_node_t key;
-		extent_node_init(&key, arena, new_addr, alloc_size, false,
+		extent_node_init(&key, arena, new_addr, alloc_size, 0, false,
 		    false);
 		node = extent_tree_ad_search(chunks_ad, &key);
 	} else {
-		node = chunk_first_best_fit(arena, chunks_szad, chunks_ad,
-		    alloc_size);
+		node = chunk_first_best_fit(arena, chunks_szsnad, alloc_size);
 	}
 	if (node == NULL || (new_addr != NULL && extent_node_size_get(node) <
 	    size)) {
@@ -243,6 +244,7 @@ chunk_recycle(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 	assert(extent_node_size_get(node) >= leadsize + size);
 	trailsize = extent_node_size_get(node) - leadsize - size;
 	ret = (void *)((uintptr_t)extent_node_addr_get(node) + leadsize);
+	*sn = extent_node_sn_get(node);
 	zeroed = extent_node_zeroed_get(node);
 	if (zeroed)
 		*zero = true;
@@ -257,13 +259,13 @@ chunk_recycle(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 		return (NULL);
 	}
 	/* Remove node from the tree. */
-	extent_tree_szad_remove(chunks_szad, node);
+	extent_tree_szsnad_remove(chunks_szsnad, node);
 	extent_tree_ad_remove(chunks_ad, node);
 	arena_chunk_cache_maybe_remove(arena, node, cache);
 	if (leadsize != 0) {
 		/* Insert the leading space as a smaller chunk. */
 		extent_node_size_set(node, leadsize);
-		extent_tree_szad_insert(chunks_szad, node);
+		extent_tree_szsnad_insert(chunks_szsnad, node);
 		extent_tree_ad_insert(chunks_ad, node);
 		arena_chunk_cache_maybe_insert(arena, node, cache);
 		node = NULL;
@@ -275,9 +277,9 @@ chunk_recycle(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 			if (dalloc_node && node != NULL)
 				arena_node_dalloc(tsdn, arena, node);
 			malloc_mutex_unlock(tsdn, &arena->chunks_mtx);
-			chunk_record(tsdn, arena, chunk_hooks, chunks_szad,
-			    chunks_ad, cache, ret, size + trailsize, zeroed,
-			    committed);
+			chunk_record(tsdn, arena, chunk_hooks, chunks_szsnad,
+			    chunks_ad, cache, ret, size + trailsize, *sn,
+			    zeroed, committed);
 			return (NULL);
 		}
 		/* Insert the trailing space as a smaller chunk. */
@@ -286,22 +288,22 @@ chunk_recycle(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 			if (node == NULL) {
 				malloc_mutex_unlock(tsdn, &arena->chunks_mtx);
 				chunk_record(tsdn, arena, chunk_hooks,
-				    chunks_szad, chunks_ad, cache, ret, size +
-				    trailsize, zeroed, committed);
+				    chunks_szsnad, chunks_ad, cache, ret, size
+				    + trailsize, *sn, zeroed, committed);
 				return (NULL);
 			}
 		}
 		extent_node_init(node, arena, (void *)((uintptr_t)(ret) + size),
-		    trailsize, zeroed, committed);
-		extent_tree_szad_insert(chunks_szad, node);
+		    trailsize, *sn, zeroed, committed);
+		extent_tree_szsnad_insert(chunks_szsnad, node);
 		extent_tree_ad_insert(chunks_ad, node);
 		arena_chunk_cache_maybe_insert(arena, node, cache);
 		node = NULL;
 	}
 	if (!committed && chunk_hooks->commit(ret, size, 0, size, arena->ind)) {
 		malloc_mutex_unlock(tsdn, &arena->chunks_mtx);
-		chunk_record(tsdn, arena, chunk_hooks, chunks_szad, chunks_ad,
-		    cache, ret, size, zeroed, committed);
+		chunk_record(tsdn, arena, chunk_hooks, chunks_szsnad, chunks_ad,
+		    cache, ret, size, *sn, zeroed, committed);
 		return (NULL);
 	}
 	malloc_mutex_unlock(tsdn, &arena->chunks_mtx);
@@ -385,8 +387,8 @@ chunk_alloc_base(size_t size)
 
 void *
 chunk_alloc_cache(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
-    void *new_addr, size_t size, size_t alignment, bool *zero, bool *commit,
-    bool dalloc_node)
+    void *new_addr, size_t size, size_t alignment, size_t *sn, bool *zero,
+    bool *commit, bool dalloc_node)
 {
 	void *ret;
 
@@ -396,8 +398,8 @@ chunk_alloc_cache(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 	assert((alignment & chunksize_mask) == 0);
 
 	ret = chunk_recycle(tsdn, arena, chunk_hooks,
-	    &arena->chunks_szad_cached, &arena->chunks_ad_cached, true,
-	    new_addr, size, alignment, zero, commit, dalloc_node);
+	    &arena->chunks_szsnad_cached, &arena->chunks_ad_cached, true,
+	    new_addr, size, alignment, sn, zero, commit, dalloc_node);
 	if (ret == NULL)
 		return (NULL);
 	if (config_valgrind)
@@ -451,7 +453,8 @@ chunk_alloc_default(void *new_addr, size_t size, size_t alignment, bool *zero,
 
 static void *
 chunk_alloc_retained(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
-    void *new_addr, size_t size, size_t alignment, bool *zero, bool *commit)
+    void *new_addr, size_t size, size_t alignment, size_t *sn, bool *zero,
+    bool *commit)
 {
 	void *ret;
 
@@ -461,8 +464,8 @@ chunk_alloc_retained(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 	assert((alignment & chunksize_mask) == 0);
 
 	ret = chunk_recycle(tsdn, arena, chunk_hooks,
-	    &arena->chunks_szad_retained, &arena->chunks_ad_retained, false,
-	    new_addr, size, alignment, zero, commit, true);
+	    &arena->chunks_szsnad_retained, &arena->chunks_ad_retained, false,
+	    new_addr, size, alignment, sn, zero, commit, true);
 
 	if (config_stats && ret != NULL)
 		arena->stats.retained -= size;
@@ -472,14 +475,15 @@ chunk_alloc_retained(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 
 void *
 chunk_alloc_wrapper(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
-    void *new_addr, size_t size, size_t alignment, bool *zero, bool *commit)
+    void *new_addr, size_t size, size_t alignment, size_t *sn, bool *zero,
+    bool *commit)
 {
 	void *ret;
 
 	chunk_hooks_assure_initialized(tsdn, arena, chunk_hooks);
 
 	ret = chunk_alloc_retained(tsdn, arena, chunk_hooks, new_addr, size,
-	    alignment, zero, commit);
+	    alignment, sn, zero, commit);
 	if (ret == NULL) {
 		if (chunk_hooks->alloc == chunk_alloc_default) {
 			/* Call directly to propagate tsdn. */
@@ -493,6 +497,8 @@ chunk_alloc_wrapper(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 		if (ret == NULL)
 			return (NULL);
 
+		*sn = arena_extent_sn_next(arena);
+
 		if (config_valgrind && chunk_hooks->alloc !=
 		    chunk_alloc_default)
 			JEMALLOC_VALGRIND_MAKE_MEM_UNDEFINED(ret, chunksize);
@@ -503,8 +509,8 @@ chunk_alloc_wrapper(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 
 static void
 chunk_record(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
-    extent_tree_t *chunks_szad, extent_tree_t *chunks_ad, bool cache,
-    void *chunk, size_t size, bool zeroed, bool committed)
+    extent_tree_t *chunks_szsnad, extent_tree_t *chunks_ad, bool cache,
+    void *chunk, size_t size, size_t sn, bool zeroed, bool committed)
 {
 	bool unzeroed;
 	extent_node_t *node, *prev;
@@ -516,7 +522,7 @@ chunk_record(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 
 	malloc_mutex_lock(tsdn, &arena->chunks_mtx);
 	chunk_hooks_assure_initialized_locked(tsdn, arena, chunk_hooks);
-	extent_node_init(&key, arena, (void *)((uintptr_t)chunk + size), 0,
+	extent_node_init(&key, arena, (void *)((uintptr_t)chunk + size), 0, 0,
 	    false, false);
 	node = extent_tree_ad_nsearch(chunks_ad, &key);
 	/* Try to coalesce forward. */
@@ -528,15 +534,17 @@ chunk_record(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 		/*
 		 * Coalesce chunk with the following address range.  This does
 		 * not change the position within chunks_ad, so only
-		 * remove/insert from/into chunks_szad.
+		 * remove/insert from/into chunks_szsnad.
 		 */
-		extent_tree_szad_remove(chunks_szad, node);
+		extent_tree_szsnad_remove(chunks_szsnad, node);
 		arena_chunk_cache_maybe_remove(arena, node, cache);
 		extent_node_addr_set(node, chunk);
 		extent_node_size_set(node, size + extent_node_size_get(node));
+		if (sn < extent_node_sn_get(node))
+			extent_node_sn_set(node, sn);
 		extent_node_zeroed_set(node, extent_node_zeroed_get(node) &&
 		    !unzeroed);
-		extent_tree_szad_insert(chunks_szad, node);
+		extent_tree_szsnad_insert(chunks_szsnad, node);
 		arena_chunk_cache_maybe_insert(arena, node, cache);
 	} else {
 		/* Coalescing forward failed, so insert a new node. */
@@ -554,10 +562,10 @@ chunk_record(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 			}
 			goto label_return;
 		}
-		extent_node_init(node, arena, chunk, size, !unzeroed,
+		extent_node_init(node, arena, chunk, size, sn, !unzeroed,
 		    committed);
 		extent_tree_ad_insert(chunks_ad, node);
-		extent_tree_szad_insert(chunks_szad, node);
+		extent_tree_szsnad_insert(chunks_szsnad, node);
 		arena_chunk_cache_maybe_insert(arena, node, cache);
 	}
 
@@ -571,19 +579,21 @@ chunk_record(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 		/*
 		 * Coalesce chunk with the previous address range.  This does
 		 * not change the position within chunks_ad, so only
-		 * remove/insert node from/into chunks_szad.
+		 * remove/insert node from/into chunks_szsnad.
 		 */
-		extent_tree_szad_remove(chunks_szad, prev);
+		extent_tree_szsnad_remove(chunks_szsnad, prev);
 		extent_tree_ad_remove(chunks_ad, prev);
 		arena_chunk_cache_maybe_remove(arena, prev, cache);
-		extent_tree_szad_remove(chunks_szad, node);
+		extent_tree_szsnad_remove(chunks_szsnad, node);
 		arena_chunk_cache_maybe_remove(arena, node, cache);
 		extent_node_addr_set(node, extent_node_addr_get(prev));
 		extent_node_size_set(node, extent_node_size_get(prev) +
 		    extent_node_size_get(node));
+		if (extent_node_sn_get(prev) < extent_node_sn_get(node))
+			extent_node_sn_set(node, extent_node_sn_get(prev));
 		extent_node_zeroed_set(node, extent_node_zeroed_get(prev) &&
 		    extent_node_zeroed_get(node));
-		extent_tree_szad_insert(chunks_szad, node);
+		extent_tree_szsnad_insert(chunks_szsnad, node);
 		arena_chunk_cache_maybe_insert(arena, node, cache);
 
 		arena_node_dalloc(tsdn, arena, prev);
@@ -595,7 +605,7 @@ label_return:
 
 void
 chunk_dalloc_cache(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
-    void *chunk, size_t size, bool committed)
+    void *chunk, size_t size, size_t sn, bool committed)
 {
 
 	assert(chunk != NULL);
@@ -603,8 +613,9 @@ chunk_dalloc_cache(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 	assert(size != 0);
 	assert((size & chunksize_mask) == 0);
 
-	chunk_record(tsdn, arena, chunk_hooks, &arena->chunks_szad_cached,
-	    &arena->chunks_ad_cached, true, chunk, size, false, committed);
+	chunk_record(tsdn, arena, chunk_hooks, &arena->chunks_szsnad_cached,
+	    &arena->chunks_ad_cached, true, chunk, size, sn, false,
+	    committed);
 	arena_maybe_purge(tsdn, arena);
 }
 
@@ -627,7 +638,7 @@ chunk_dalloc_default(void *chunk, size_t size, bool committed,
 
 void
 chunk_dalloc_wrapper(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
-    void *chunk, size_t size, bool zeroed, bool committed)
+    void *chunk, size_t size, size_t sn, bool zeroed, bool committed)
 {
 	bool err;
 
@@ -653,8 +664,9 @@ chunk_dalloc_wrapper(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 	}
 	zeroed = !committed || !chunk_hooks->purge(chunk, size, 0, size,
 	    arena->ind);
-	chunk_record(tsdn, arena, chunk_hooks, &arena->chunks_szad_retained,
-	    &arena->chunks_ad_retained, false, chunk, size, zeroed, committed);
+	chunk_record(tsdn, arena, chunk_hooks, &arena->chunks_szsnad_retained,
+	    &arena->chunks_ad_retained, false, chunk, size, sn, zeroed,
+	    committed);
 
 	if (config_stats)
 		arena->stats.retained += size;

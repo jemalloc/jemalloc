@@ -49,7 +49,7 @@ static void
 wrtmessage(void *cbopaque, const char *s)
 {
 
-#if defined(JEMALLOC_HAVE_SYSCALL) && defined(SYS_write)
+#if defined(JEMALLOC_USE_SYSCALL) && defined(SYS_write)
 	/*
 	 * Use syscall(2) rather than write(2) when possible in order to avoid
 	 * the possibility of memory allocation within libc.  This is necessary
@@ -200,7 +200,7 @@ malloc_strtoumax(const char *restrict nptr, char **restrict endptr, int base)
 		p++;
 	}
 	if (neg)
-		ret = -ret;
+		ret = (uintmax_t)(-((intmax_t)ret));
 
 	if (p == ns) {
 		/* No conversion performed. */

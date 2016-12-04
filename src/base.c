@@ -5,7 +5,8 @@
 /* Data. */
 
 static malloc_mutex_t	base_mtx;
-static extent_tree_t	base_avail_szad;
+static size_t		base_extent_sn_next;
+static extent_tree_t	base_avail_szsnad;
 static extent_node_t	*base_nodes;
 static size_t		base_allocated;
 static size_t		base_resident;
@@ -39,6 +40,14 @@ base_node_dalloc(tsdn_t *tsdn, extent_node_t *node)
 	base_nodes = node;
 }
 
+static void
+base_extent_node_init(extent_node_t *node, void *addr, size_t size)
+{
+	size_t sn = atomic_add_z(&base_extent_sn_next, 1) - 1;
+
+	extent_node_init(node, NULL, addr, size, sn, true, true);
+}
+
 static extent_node_t *
 base_chunk_alloc(tsdn_t *tsdn, size_t minsize)
 {
@@ -68,7 +77,7 @@ base_chunk_alloc(tsdn_t *tsdn, size_t minsize)
 			base_resident += PAGE_CEILING(nsize);
 		}
 	}
-	extent_node_init(node, NULL, addr, csize, true, true);
+	base_extent_node_init(node, addr, csize);
 	return (node);
 }
 
@@ -92,12 +101,12 @@ base_alloc(tsdn_t *tsdn, size_t size)
 	csize = CACHELINE_CEILING(size);
 
 	usize = s2u(csize);
-	extent_node_init(&key, NULL, NULL, usize, false, false);
+	extent_node_init(&key, NULL, NULL, usize, 0, false, false);
 	malloc_mutex_lock(tsdn, &base_mtx);
-	node = extent_tree_szad_nsearch(&base_avail_szad, &key);
+	node = extent_tree_szsnad_nsearch(&base_avail_szsnad, &key);
 	if (node != NULL) {
 		/* Use existing space. */
-		extent_tree_szad_remove(&base_avail_szad, node);
+		extent_tree_szsnad_remove(&base_avail_szsnad, node);
 	} else {
 		/* Try to allocate more space. */
 		node = base_chunk_alloc(tsdn, csize);
@@ -111,7 +120,7 @@ base_alloc(tsdn_t *tsdn, size_t size)
 	if (extent_node_size_get(node) > csize) {
 		extent_node_addr_set(node, (void *)((uintptr_t)ret + csize));
 		extent_node_size_set(node, extent_node_size_get(node) - csize);
-		extent_tree_szad_insert(&base_avail_szad, node);
+		extent_tree_szsnad_insert(&base_avail_szsnad, node);
 	} else
 		base_node_dalloc(tsdn, node);
 	if (config_stats) {
@@ -149,7 +158,8 @@ base_boot(void)
 
 	if (malloc_mutex_init(&base_mtx, "base", WITNESS_RANK_BASE))
 		return (true);
-	extent_tree_szad_new(&base_avail_szad);
+	base_extent_sn_next = 0;
+	extent_tree_szsnad_new(&base_avail_szsnad);
 	base_nodes = NULL;
 
 	return (false);

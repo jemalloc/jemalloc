@@ -4,6 +4,33 @@ brevity.  Much more detail can be found in the git revision history:
 
     https://github.com/jemalloc/jemalloc
 
+* 4.4.0 (December 3, 2016)
+
+  New features:
+  - Add configure support for *-*-linux-android.  (@cferris1000, @jasone)
+  - Add the --disable-syscall configure option, for use on systems that place
+    security-motivated limitations on syscall(2).  (@jasone)
+  - Add support for Debian GNU/kFreeBSD.  (@thesam)
+
+  Optimizations:
+  - Add extent serial numbers and use them where appropriate as a sort key that
+    is higher priority than address, so that the allocation policy prefers older
+    extents.  This tends to improve locality (decrease fragmentation) when
+    memory grows downward.  (@jasone)
+  - Refactor madvise(2) configuration so that MADV_FREE is detected and utilized
+    on Linux 4.5 and newer.  (@jasone)
+  - Mark partially purged arena chunks as non-huge-page.  This improves
+    interaction with Linux's transparent huge page functionality.  (@jasone)
+
+  Bug fixes:
+  - Fix size class computations for edge conditions involving extremely large
+    allocations.  This regression was first released in 4.0.0.  (@jasone,
+    @ingvarha)
+  - Remove overly restrictive assertions related to the cactive statistic.  This
+    regression was first released in 4.1.0.  (@jasone)
+  - Implement a more reliable detection scheme for os_unfair_lock on macOS.
+    (@jszakmeister)
+
 * 4.3.1 (November 7, 2016)
 
   Bug fixes:

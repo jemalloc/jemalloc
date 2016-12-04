@@ -16,6 +16,8 @@ void	*pages_trim(void *addr, size_t alloc_size, size_t leadsize,
 bool	pages_commit(void *addr, size_t size);
 bool	pages_decommit(void *addr, size_t size);
 bool	pages_purge(void *addr, size_t size);
+bool	pages_huge(void *addr, size_t size);
+bool	pages_nohuge(void *addr, size_t size);
 void	pages_boot(void);
 
 #endif /* JEMALLOC_H_EXTERNS */

@@ -170,15 +170,16 @@ pages_purge(void *addr, size_t size)
 #ifdef _WIN32
 	VirtualAlloc(addr, size, MEM_RESET, PAGE_READWRITE);
 	unzeroed = true;
-#elif defined(JEMALLOC_HAVE_MADVISE)
-#  ifdef JEMALLOC_PURGE_MADVISE_DONTNEED
-#    define JEMALLOC_MADV_PURGE MADV_DONTNEED
-#    define JEMALLOC_MADV_ZEROS true
-#  elif defined(JEMALLOC_PURGE_MADVISE_FREE)
+#elif (defined(JEMALLOC_PURGE_MADVISE_FREE) || \
+    defined(JEMALLOC_PURGE_MADVISE_DONTNEED))
+#  if defined(JEMALLOC_PURGE_MADVISE_FREE)
 #    define JEMALLOC_MADV_PURGE MADV_FREE
 #    define JEMALLOC_MADV_ZEROS false
+#  elif defined(JEMALLOC_PURGE_MADVISE_DONTNEED)
+#    define JEMALLOC_MADV_PURGE MADV_DONTNEED
+#    define JEMALLOC_MADV_ZEROS true
 #  else
-#    error "No madvise(2) flag defined for purging unused dirty pages."
+#    error No madvise(2) flag defined for purging unused dirty pages
 #  endif
 	int err = madvise(addr, size, JEMALLOC_MADV_PURGE);
 	unzeroed = (!JEMALLOC_MADV_ZEROS || err != 0);
@@ -189,6 +190,34 @@ pages_purge(void *addr, size_t size)
 	unzeroed = true;
 #endif
 	return (unzeroed);
+}
+
+bool
+pages_huge(void *addr, size_t size)
+{
+
+	assert(PAGE_ADDR2BASE(addr) == addr);
+	assert(PAGE_CEILING(size) == size);
+
+#ifdef JEMALLOC_THP
+	return (madvise(addr, size, MADV_HUGEPAGE) != 0);
+#else
+	return (false);
+#endif
+}
+
+bool
+pages_nohuge(void *addr, size_t size)
+{
+
+	assert(PAGE_ADDR2BASE(addr) == addr);
+	assert(PAGE_CEILING(size) == size);
+
+#ifdef JEMALLOC_THP
+	return (madvise(addr, size, MADV_NOHUGEPAGE) != 0);
+#else
+	return (false);
+#endif
 }
 
 #ifdef JEMALLOC_SYSCTL_VM_OVERCOMMIT
@@ -219,7 +248,7 @@ os_overcommits_proc(void)
 	char buf[1];
 	ssize_t nread;
 
-#if defined(JEMALLOC_HAVE_SYSCALL) && defined(SYS_open)
+#if defined(JEMALLOC_USE_SYSCALL) && defined(SYS_open)
 	fd = (int)syscall(SYS_open, "/proc/sys/vm/overcommit_memory", O_RDONLY);
 #else
 	fd = open("/proc/sys/vm/overcommit_memory", O_RDONLY);
@@ -227,13 +256,13 @@ os_overcommits_proc(void)
 	if (fd == -1)
 		return (false); /* Error. */
 
-#if defined(JEMALLOC_HAVE_SYSCALL) && defined(SYS_read)
+#if defined(JEMALLOC_USE_SYSCALL) && defined(SYS_read)
 	nread = (ssize_t)syscall(SYS_read, fd, &buf, sizeof(buf));
 #else
 	nread = read(fd, &buf, sizeof(buf));
 #endif
 
-#if defined(JEMALLOC_HAVE_SYSCALL) && defined(SYS_close)
+#if defined(JEMALLOC_USE_SYSCALL) && defined(SYS_close)
 	syscall(SYS_close, fd);
 #else
 	close(fd);

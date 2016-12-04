@@ -191,6 +191,14 @@ struct arena_chunk_s {
 	extent_node_t		node;
 
 	/*
+	 * True if memory could be backed by transparent huge pages.  This is
+	 * only directly relevant to Linux, since it is the only supported
+	 * platform on which jemalloc interacts with explicit transparent huge
+	 * page controls.
+	 */
+	bool			hugepage;
+
+	/*
 	 * Map of pages within chunk that keeps track of free/large/small.  The
 	 * first map_bias entries are omitted, since the chunk header does not
 	 * need to be tracked in the map.  This omission saves a header page
@@ -374,9 +382,11 @@ struct arena_s {
 
 	dss_prec_t		dss_prec;
 
-
 	/* Extant arena chunks. */
 	ql_head(extent_node_t)	achunks;
+
+	/* Extent serial number generator state. */
+	size_t			extent_sn_next;
 
 	/*
 	 * In order to avoid rapid chunk allocation/deallocation when an arena
@@ -453,9 +463,9 @@ struct arena_s {
 	 * orderings are needed, which is why there are two trees with the same
 	 * contents.
 	 */
-	extent_tree_t		chunks_szad_cached;
+	extent_tree_t		chunks_szsnad_cached;
 	extent_tree_t		chunks_ad_cached;
-	extent_tree_t		chunks_szad_retained;
+	extent_tree_t		chunks_szsnad_retained;
 	extent_tree_t		chunks_ad_retained;
 
 	malloc_mutex_t		chunks_mtx;
@@ -522,13 +532,13 @@ void	arena_chunk_cache_maybe_remove(arena_t *arena, extent_node_t *node,
 extent_node_t	*arena_node_alloc(tsdn_t *tsdn, arena_t *arena);
 void	arena_node_dalloc(tsdn_t *tsdn, arena_t *arena, extent_node_t *node);
 void	*arena_chunk_alloc_huge(tsdn_t *tsdn, arena_t *arena, size_t usize,
-    size_t alignment, bool *zero);
+    size_t alignment, size_t *sn, bool *zero);
 void	arena_chunk_dalloc_huge(tsdn_t *tsdn, arena_t *arena, void *chunk,
-    size_t usize);
+    size_t usize, size_t sn);
 void	arena_chunk_ralloc_huge_similar(tsdn_t *tsdn, arena_t *arena,
     void *chunk, size_t oldsize, size_t usize);
 void	arena_chunk_ralloc_huge_shrink(tsdn_t *tsdn, arena_t *arena,
-    void *chunk, size_t oldsize, size_t usize);
+    void *chunk, size_t oldsize, size_t usize, size_t sn);
 bool	arena_chunk_ralloc_huge_expand(tsdn_t *tsdn, arena_t *arena,
     void *chunk, size_t oldsize, size_t usize, bool *zero);
 ssize_t	arena_lg_dirty_mult_get(tsdn_t *tsdn, arena_t *arena);
@@ -601,6 +611,7 @@ void	arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 unsigned	arena_nthreads_get(arena_t *arena, bool internal);
 void	arena_nthreads_inc(arena_t *arena, bool internal);
 void	arena_nthreads_dec(arena_t *arena, bool internal);
+size_t	arena_extent_sn_next(arena_t *arena);
 arena_t	*arena_new(tsdn_t *tsdn, unsigned ind);
 void	arena_boot(void);
 void	arena_prefork0(tsdn_t *tsdn, arena_t *arena);

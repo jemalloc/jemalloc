@@ -166,6 +166,8 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/math.c \
 	$(srcroot)test/unit/mq.c \
 	$(srcroot)test/unit/mtx.c \
+	$(srcroot)test/unit/pack.c \
+	$(srcroot)test/unit/pages.c \
 	$(srcroot)test/unit/ph.c \
 	$(srcroot)test/unit/prng.c \
 	$(srcroot)test/unit/prof_accum.c \
