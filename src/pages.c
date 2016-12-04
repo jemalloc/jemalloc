@@ -171,7 +171,7 @@ pages_purge(void *addr, size_t size)
 	VirtualAlloc(addr, size, MEM_RESET, PAGE_READWRITE);
 	unzeroed = true;
 #elif (defined(JEMALLOC_PURGE_MADVISE_FREE) || \
-    defined(JEMALLOC_PURGE_MADVISE_FREE))
+    defined(JEMALLOC_PURGE_MADVISE_DONTNEED))
 #  if defined(JEMALLOC_PURGE_MADVISE_FREE)
 #    define JEMALLOC_MADV_PURGE MADV_FREE
 #    define JEMALLOC_MADV_ZEROS false
