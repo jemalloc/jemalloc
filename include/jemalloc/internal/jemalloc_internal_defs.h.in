@@ -66,8 +66,8 @@
  */
 #undef JEMALLOC_OSSPIN
 
-/* Defined if syscall(2) is available. */
-#undef JEMALLOC_HAVE_SYSCALL
+/* Defined if syscall(2) is usable. */
+#undef JEMALLOC_USE_SYSCALL
 
 /*
  * Defined if secure_getenv(3) is available.
