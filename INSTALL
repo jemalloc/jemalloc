@@ -206,6 +206,11 @@ any of the following arguments (not a definitive list) to 'configure':
     most extreme case increases physical memory usage for the 16 KiB size class
     to 20 KiB.
 
+--disable-syscall
+    Disable use of syscall(2) rather than {open,read,write,close}(2).  This is
+    intended as a workaround for systems that place security limitations on
+    syscall(2).
+
 --with-xslroot=<path>
     Specify where to find DocBook XSL stylesheets when building the
     documentation.
