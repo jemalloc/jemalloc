@@ -869,8 +869,7 @@ malloc_slow_flag_init(void)
 	malloc_slow_flags |= (opt_junk_alloc ? flag_opt_junk_alloc : 0)
 	    | (opt_junk_free ? flag_opt_junk_free : 0)
 	    | (opt_zero ? flag_opt_zero : 0)
-	    | (opt_utrace ? flag_opt_utrace : 0)
-	    | (opt_xmalloc ? flag_opt_xmalloc : 0);
+	    | (opt_utrace ? flag_opt_utrace : 0);
 
 	malloc_slow = (malloc_slow_flags != 0);
 }
@@ -1460,7 +1459,7 @@ ialloc_post_check(void *ret, tsdn_t *tsdn, size_t usize, const char *func,
 	assert(!tsdn_null(tsdn) || ret == NULL);
 
 	if (unlikely(ret == NULL)) {
-		if (slow_path && config_xmalloc && unlikely(opt_xmalloc)) {
+		if (config_xmalloc && unlikely(opt_xmalloc)) {
 			malloc_printf("<jemalloc>: Error in %s(): out of "
 			    "memory\n", func);
 			abort();
