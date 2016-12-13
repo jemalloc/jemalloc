@@ -445,7 +445,7 @@ JEMALLOC_INLINE void
 extent_ring_insert(extent_t *sentinel, extent_t *extent)
 {
 
-	qr_meld(sentinel, extent, qr_link);
+	qr_meld(sentinel, extent, extent_t, qr_link);
 }
 
 JEMALLOC_INLINE void
