@@ -4,9 +4,15 @@ matrix:
   include:
     - os: linux
       env: CC=gcc CXX=g++
+    - os: linux
       env: CC=clang CXX=clang++
     - os: linux
       env: CC=gcc CXX=g++ EXTRA_FLAGS=-m32
+      addons:
+        apt:
+          packages:
+          - gcc-multilib
+    - os: linux
       env: CC=clang CXX=clang++ EXTRA_FLAGS=-m32
       addons:
         apt:
@@ -14,6 +20,7 @@ matrix:
           - gcc-multilib
     - os: osx
       env: CC=clang CXX=clang++
+    - os: osx
       env: CC=clang CXX=clang++ EXTRA_FLAGS=-m32
 
 before_script:
