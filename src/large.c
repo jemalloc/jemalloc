@@ -142,6 +142,11 @@ large_ralloc_no_move_expand(tsdn_t *tsdn, extent_t *extent, size_t usize,
 	size_t trailsize = usize - extent_usize_get(extent);
 	extent_t *trail;
 
+	/* Ensure next extent is allocated to this arena */
+	trail = extent_lookup(tsdn, extent_past_get(extent), false);
+	if (!trail || extent_arena_get(trail) != arena)
+		return true;
+
 	if ((trail = arena_extent_cache_alloc(tsdn, arena, &extent_hooks,
 	    extent_past_get(extent), trailsize, CACHELINE, &is_zeroed_trail)) ==
 	    NULL) {
