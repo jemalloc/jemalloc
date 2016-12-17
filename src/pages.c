@@ -64,13 +64,13 @@ pages_map(void *addr, size_t size, bool *commit)
 void
 pages_unmap(void *addr, size_t size)
 {
-
+	
 #ifdef _WIN32
-	if (VirtualFree(addr, 0, MEM_RELEASE) == 0)
+	int test_mem_release = VirtualFree(addr, 0, MEM_RELEASE) == 0;
 #else
-	if (munmap(addr, size) == -1)
+	int test_mem_release = munmap(addr, size) == -1;
 #endif
-	{
+	if (test_mem_release) {
 		char buf[BUFERROR_BUF];
 
 		buferror(get_errno(), buf, sizeof(buf));
