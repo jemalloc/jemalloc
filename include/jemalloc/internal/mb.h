@@ -76,7 +76,7 @@ mb_write(void)
 	    : "memory" /* Clobbers. */
 	    );
 }
-#elif defined(__sparc64__)
+#elif defined(__sparc__) && defined(__arch64__)
 JEMALLOC_INLINE void
 mb_write(void)
 {
