@@ -271,6 +271,9 @@ void	arena_extent_cache_maybe_insert(tsdn_t *tsdn, arena_t *arena,
     extent_t *extent, bool cache);
 void	arena_extent_cache_maybe_remove(tsdn_t *tsdn, arena_t *arena,
     extent_t *extent, bool cache);
+#ifdef JEMALLOC_JET
+size_t	arena_slab_regind(extent_t *slab, szind_t binind, const void *ptr);
+#endif
 extent_t	*arena_extent_alloc_large(tsdn_t *tsdn, arena_t *arena,
     size_t usize, size_t alignment, bool *zero);
 void	arena_extent_dalloc_large(tsdn_t *tsdn, arena_t *arena,

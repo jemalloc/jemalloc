@@ -66,6 +66,7 @@ arena_ralloc_no_move
 arena_reset
 arena_salloc
 arena_sdalloc
+arena_slab_regind
 arena_stats_merge
 arena_tcache_fill_small
 arena_tdata_get

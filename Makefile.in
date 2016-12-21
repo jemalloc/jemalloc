@@ -184,6 +184,7 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/rtree.c \
 	$(srcroot)test/unit/SFMT.c \
 	$(srcroot)test/unit/size_classes.c \
+	$(srcroot)test/unit/slab.c \
 	$(srcroot)test/unit/smoothstep.c \
 	$(srcroot)test/unit/stats.c \
 	$(srcroot)test/unit/ticker.c \

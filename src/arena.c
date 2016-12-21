@@ -138,73 +138,41 @@ arena_slab_reg_alloc(tsdn_t *tsdn, extent_t *slab,
 	return (ret);
 }
 
-JEMALLOC_INLINE_C size_t
-arena_slab_regind(extent_t *slab, const arena_bin_info_t *bin_info,
-    const void *ptr)
+#ifndef JEMALLOC_JET
+JEMALLOC_INLINE_C
+#endif
+size_t
+arena_slab_regind(extent_t *slab, szind_t binind, const void *ptr)
 {
-	size_t diff, interval, shift, regind;
+	size_t diff, regind;
 
 	/* Freeing a pointer outside the slab can cause assertion failure. */
 	assert((uintptr_t)ptr >= (uintptr_t)extent_addr_get(slab));
 	assert((uintptr_t)ptr < (uintptr_t)extent_past_get(slab));
 	/* Freeing an interior pointer can cause assertion failure. */
 	assert(((uintptr_t)ptr - (uintptr_t)extent_addr_get(slab)) %
-	    (uintptr_t)bin_info->reg_size == 0);
+	    (uintptr_t)arena_bin_info[binind].reg_size == 0);
 
-	/*
-	 * Avoid doing division with a variable divisor if possible.  Using
-	 * actual division here can reduce allocator throughput by over 20%!
-	 */
+	/* Avoid doing division with a variable divisor. */
 	diff = (size_t)((uintptr_t)ptr - (uintptr_t)extent_addr_get(slab));
-
-	/* Rescale (factor powers of 2 out of the numerator and denominator). */
-	interval = bin_info->reg_size;
-	shift = ffs_zu(interval) - 1;
-	diff >>= shift;
-	interval >>= shift;
-
-	if (interval == 1) {
-		/* The divisor was a power of 2. */
-		regind = diff;
-	} else {
-		/*
-		 * To divide by a number D that is not a power of two we
-		 * multiply by (2^21 / D) and then right shift by 21 positions.
-		 *
-		 *   X / D
-		 *
-		 * becomes
-		 *
-		 *   (X * interval_invs[D - 3]) >> SIZE_INV_SHIFT
-		 *
-		 * We can omit the first three elements, because we never
-		 * divide by 0, and 1 and 2 are both powers of two, which are
-		 * handled above.
-		 */
-#define	SIZE_INV_SHIFT	((sizeof(size_t) << 3) - LG_SLAB_MAXREGS)
-#define	SIZE_INV(s)	(((ZU(1) << SIZE_INV_SHIFT) / (s)) + 1)
-		static const size_t interval_invs[] = {
-		    SIZE_INV(3),
-		    SIZE_INV(4), SIZE_INV(5), SIZE_INV(6), SIZE_INV(7),
-		    SIZE_INV(8), SIZE_INV(9), SIZE_INV(10), SIZE_INV(11),
-		    SIZE_INV(12), SIZE_INV(13), SIZE_INV(14), SIZE_INV(15),
-		    SIZE_INV(16), SIZE_INV(17), SIZE_INV(18), SIZE_INV(19),
-		    SIZE_INV(20), SIZE_INV(21), SIZE_INV(22), SIZE_INV(23),
-		    SIZE_INV(24), SIZE_INV(25), SIZE_INV(26), SIZE_INV(27),
-		    SIZE_INV(28), SIZE_INV(29), SIZE_INV(30), SIZE_INV(31)
-		};
-
-		if (likely(interval <= ((sizeof(interval_invs) / sizeof(size_t))
-		    + 2))) {
-			regind = (diff * interval_invs[interval - 3]) >>
-			    SIZE_INV_SHIFT;
-		} else
-			regind = diff / interval;
-#undef SIZE_INV
-#undef SIZE_INV_SHIFT
+	switch (binind) {
+#define	REGIND_bin_yes(index, reg_size)					\
+	case index:							\
+		regind = diff / (reg_size);				\
+		assert(diff == regind * (reg_size));			\
+		break;
+#define	REGIND_bin_no(index, reg_size)
+#define	SC(index, lg_grp, lg_delta, ndelta, psz, bin, pgs,		\
+    lg_delta_lookup)							\
+	REGIND_bin_##bin(index, (1U<<lg_grp) + (ndelta<<lg_delta))
+	SIZE_CLASSES
+#undef REGIND_bin_yes
+#undef REGIND_bin_no
+#undef SC
+	default: not_reached();
 	}
-	assert(diff == regind * interval);
-	assert(regind < bin_info->nregs);
+
+	assert(regind < arena_bin_info[binind].nregs);
 
 	return (regind);
 }
@@ -215,7 +183,7 @@ arena_slab_reg_dalloc(tsdn_t *tsdn, extent_t *slab,
 {
 	szind_t binind = slab_data->binind;
 	const arena_bin_info_t *bin_info = &arena_bin_info[binind];
-	size_t regind = arena_slab_regind(slab, bin_info, ptr);
+	size_t regind = arena_slab_regind(slab, binind, ptr);
 
 	assert(slab_data->nfree < bin_info->nregs);
 	/* Freeing an unallocated pointer can cause assertion failure. */
@@ -1021,7 +989,6 @@ arena_bin_malloc_hard(tsdn_t *tsdn, arena_t *arena, arena_bin_t *bin,
 {
 	const arena_bin_info_t *bin_info;
 	extent_t *slab;
-
 
 	bin_info = &arena_bin_info[binind];
 	if (bin->slabcur != NULL) {
