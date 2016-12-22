@@ -83,7 +83,8 @@ extent_alloc(tsdn_t *tsdn, arena_t *arena)
 	extent = ql_last(&arena->extent_cache, ql_link);
 	if (extent == NULL) {
 		malloc_mutex_unlock(tsdn, &arena->extent_cache_mtx);
-		return (base_alloc(tsdn, sizeof(extent_t)));
+		return (base_alloc(tsdn, arena->base, sizeof(extent_t),
+		    QUANTUM));
 	}
 	ql_tail_remove(&arena->extent_cache, extent_t, ql_link);
 	malloc_mutex_unlock(tsdn, &arena->extent_cache_mtx);
@@ -104,22 +105,14 @@ extent_hooks_t *
 extent_hooks_get(arena_t *arena)
 {
 
-	return ((extent_hooks_t *)atomic_read_p(&arena->extent_hooks_pun));
+	return (base_extent_hooks_get(arena->base));
 }
 
 extent_hooks_t *
 extent_hooks_set(arena_t *arena, extent_hooks_t *extent_hooks)
 {
-	extent_hooks_t *old_extent_hooks = extent_hooks_get(arena);
-	union {
-		extent_hooks_t	**h;
-		void		**v;
-	} u;
 
-	u.h = &arena->extent_hooks;
-	atomic_write_p(u.v, extent_hooks);
-
-	return (old_extent_hooks);
+	return (base_extent_hooks_set(arena->base, extent_hooks));
 }
 
 static void
@@ -873,7 +866,7 @@ extent_alloc_wrapper_hard(tsdn_t *tsdn, arena_t *arena,
 		    alignment, zero, commit);
 	} else {
 		addr = (*r_extent_hooks)->alloc(*r_extent_hooks, new_addr, size,
-		    alignment, zero, commit, arena->ind);
+		    alignment, zero, commit, arena_ind_get(arena));
 	}
 	if (addr == NULL) {
 		extent_dalloc(tsdn, arena, extent);
@@ -1071,7 +1064,7 @@ extent_dalloc_wrapper(tsdn_t *tsdn, arena_t *arena,
 		err = ((*r_extent_hooks)->dalloc == NULL ||
 		    (*r_extent_hooks)->dalloc(*r_extent_hooks,
 		    extent_base_get(extent), extent_size_get(extent),
-		    extent_committed_get(extent), arena->ind));
+		    extent_committed_get(extent), arena_ind_get(arena)));
 	}
 
 	if (!err) {
@@ -1088,12 +1081,12 @@ extent_dalloc_wrapper(tsdn_t *tsdn, arena_t *arena,
 	else if ((*r_extent_hooks)->purge_lazy != NULL &&
 	    !(*r_extent_hooks)->purge_lazy(*r_extent_hooks,
 	    extent_base_get(extent), extent_size_get(extent), 0,
-	    extent_size_get(extent), arena->ind))
+	    extent_size_get(extent), arena_ind_get(arena)))
 		zeroed = false;
 	else if ((*r_extent_hooks)->purge_forced != NULL &&
 	    !(*r_extent_hooks)->purge_forced(*r_extent_hooks,
 	    extent_base_get(extent), extent_size_get(extent), 0,
-	    extent_size_get(extent), arena->ind))
+	    extent_size_get(extent), arena_ind_get(arena)))
 		zeroed = true;
 	else
 		zeroed = false;
@@ -1129,7 +1122,7 @@ extent_commit_wrapper(tsdn_t *tsdn, arena_t *arena,
 	extent_hooks_assure_initialized(arena, r_extent_hooks);
 	err = ((*r_extent_hooks)->commit == NULL ||
 	    (*r_extent_hooks)->commit(*r_extent_hooks, extent_base_get(extent),
-	    extent_size_get(extent), offset, length, arena->ind));
+	    extent_size_get(extent), offset, length, arena_ind_get(arena)));
 	extent_committed_set(extent, extent_committed_get(extent) || !err);
 	return (err);
 }
@@ -1157,7 +1150,7 @@ extent_decommit_wrapper(tsdn_t *tsdn, arena_t *arena,
 	err = ((*r_extent_hooks)->decommit == NULL ||
 	    (*r_extent_hooks)->decommit(*r_extent_hooks,
 	    extent_base_get(extent), extent_size_get(extent), offset, length,
-	    arena->ind));
+	    arena_ind_get(arena)));
 	extent_committed_set(extent, extent_committed_get(extent) && err);
 	return (err);
 }
@@ -1189,7 +1182,7 @@ extent_purge_lazy_wrapper(tsdn_t *tsdn, arena_t *arena,
 	return ((*r_extent_hooks)->purge_lazy == NULL ||
 	    (*r_extent_hooks)->purge_lazy(*r_extent_hooks,
 	    extent_base_get(extent), extent_size_get(extent), offset, length,
-	    arena->ind));
+	    arena_ind_get(arena)));
 }
 
 #ifdef PAGES_CAN_PURGE_FORCED
@@ -1219,7 +1212,7 @@ extent_purge_forced_wrapper(tsdn_t *tsdn, arena_t *arena,
 	return ((*r_extent_hooks)->purge_forced == NULL ||
 	    (*r_extent_hooks)->purge_forced(*r_extent_hooks,
 	    extent_base_get(extent), extent_size_get(extent), offset, length,
-	    arena->ind));
+	    arena_ind_get(arena)));
 }
 
 #ifdef JEMALLOC_MAPS_COALESCE
@@ -1280,7 +1273,7 @@ extent_split_wrapper(tsdn_t *tsdn, arena_t *arena,
 
 	if ((*r_extent_hooks)->split(*r_extent_hooks, extent_base_get(extent),
 	    size_a + size_b, size_a, size_b, extent_committed_get(extent),
-	    arena->ind))
+	    arena_ind_get(arena)))
 		goto label_error_d;
 
 	extent_size_set(extent, size_a);
@@ -1348,7 +1341,8 @@ extent_merge_wrapper(tsdn_t *tsdn, arena_t *arena,
 	} else {
 		err = (*r_extent_hooks)->merge(*r_extent_hooks,
 		    extent_base_get(a), extent_size_get(a), extent_base_get(b),
-		    extent_size_get(b), extent_committed_get(a), arena->ind);
+		    extent_size_get(b), extent_committed_get(a),
+		    arena_ind_get(arena));
 	}
 
 	if (err)

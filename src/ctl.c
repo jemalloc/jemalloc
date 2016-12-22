@@ -55,7 +55,7 @@ static void	ctl_arena_stats_amerge(tsdn_t *tsdn, ctl_arena_stats_t *cstats,
 static void	ctl_arena_stats_smerge(ctl_arena_stats_t *sstats,
     ctl_arena_stats_t *astats);
 static void	ctl_arena_refresh(tsdn_t *tsdn, arena_t *arena, unsigned i);
-static bool	ctl_grow(tsdn_t *tsdn);
+static bool	ctl_grow(tsdn_t *tsdn, extent_hooks_t *extent_hooks);
 static void	ctl_refresh(tsdn_t *tsdn);
 static bool	ctl_init(tsdn_t *tsdn);
 static int	ctl_lookup(tsdn_t *tsdn, const char *name,
@@ -174,7 +174,9 @@ CTL_PROTO(stats_arenas_i_retained)
 CTL_PROTO(stats_arenas_i_npurge)
 CTL_PROTO(stats_arenas_i_nmadvise)
 CTL_PROTO(stats_arenas_i_purged)
-CTL_PROTO(stats_arenas_i_metadata)
+CTL_PROTO(stats_arenas_i_base)
+CTL_PROTO(stats_arenas_i_internal)
+CTL_PROTO(stats_arenas_i_resident)
 INDEX_PROTO(stats_arenas_i)
 CTL_PROTO(stats_allocated)
 CTL_PROTO(stats_active)
@@ -392,7 +394,9 @@ static const ctl_named_node_t stats_arenas_i_node[] = {
 	{NAME("npurge"),	CTL(stats_arenas_i_npurge)},
 	{NAME("nmadvise"),	CTL(stats_arenas_i_nmadvise)},
 	{NAME("purged"),	CTL(stats_arenas_i_purged)},
-	{NAME("metadata"),	CTL(stats_arenas_i_metadata)},
+	{NAME("base"),		CTL(stats_arenas_i_base)},
+	{NAME("internal"),	CTL(stats_arenas_i_internal)},
+	{NAME("resident"),	CTL(stats_arenas_i_resident)},
 	{NAME("small"),		CHILD(named, stats_arenas_i_small)},
 	{NAME("large"),		CHILD(named, stats_arenas_i_large)},
 	{NAME("bins"),		CHILD(indexed, stats_arenas_i_bins)},
@@ -500,7 +504,9 @@ ctl_arena_stats_smerge(ctl_arena_stats_t *sstats, ctl_arena_stats_t *astats)
 		sstats->astats.nmadvise += astats->astats.nmadvise;
 		sstats->astats.purged += astats->astats.purged;
 
-		sstats->astats.metadata += astats->astats.metadata;
+		sstats->astats.base += astats->astats.base;
+		sstats->astats.internal += astats->astats.internal;
+		sstats->astats.resident += astats->astats.resident;
 
 		sstats->allocated_small += astats->allocated_small;
 		sstats->nmalloc_small += astats->nmalloc_small;
@@ -556,12 +562,12 @@ ctl_arena_refresh(tsdn_t *tsdn, arena_t *arena, unsigned i)
 }
 
 static bool
-ctl_grow(tsdn_t *tsdn)
+ctl_grow(tsdn_t *tsdn, extent_hooks_t *extent_hooks)
 {
 	ctl_arena_stats_t *astats;
 
 	/* Initialize new arena. */
-	if (arena_init(tsdn, ctl_stats.narenas) == NULL)
+	if (arena_init(tsdn, ctl_stats.narenas, extent_hooks) == NULL)
 		return (true);
 
 	/* Allocate extended arena stats. */
@@ -615,20 +621,17 @@ ctl_refresh(tsdn_t *tsdn)
 	}
 
 	if (config_stats) {
-		size_t base_allocated, base_resident, base_mapped;
-		base_stats_get(tsdn, &base_allocated, &base_resident,
-		    &base_mapped);
 		ctl_stats.allocated =
 		    ctl_stats.arenas[ctl_stats.narenas].allocated_small +
 		    ctl_stats.arenas[ctl_stats.narenas].astats.allocated_large;
 		ctl_stats.active =
 		    (ctl_stats.arenas[ctl_stats.narenas].pactive << LG_PAGE);
-		ctl_stats.metadata = base_allocated +
-		    ctl_stats.arenas[ctl_stats.narenas].astats.metadata;
-		ctl_stats.resident = base_resident +
-		    ((ctl_stats.arenas[ctl_stats.narenas].pactive +
-		    ctl_stats.arenas[ctl_stats.narenas].pdirty) << LG_PAGE);
-		ctl_stats.mapped = base_mapped +
+		ctl_stats.metadata =
+		    ctl_stats.arenas[ctl_stats.narenas].astats.base +
+		    ctl_stats.arenas[ctl_stats.narenas].astats.internal;
+		ctl_stats.resident =
+		    ctl_stats.arenas[ctl_stats.narenas].astats.resident;
+		ctl_stats.mapped =
 		    ctl_stats.arenas[ctl_stats.narenas].astats.mapped;
 		ctl_stats.retained =
 		    ctl_stats.arenas[ctl_stats.narenas].astats.retained;
@@ -1167,7 +1170,7 @@ thread_arena_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
 	if (oldarena == NULL)
 		return (EAGAIN);
 
-	newind = oldind = oldarena->ind;
+	newind = oldind = arena_ind_get(oldarena);
 	WRITE(newind, unsigned);
 	READ(oldind, unsigned);
 	if (newind != oldind) {
@@ -1738,11 +1741,14 @@ arenas_extend_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
     size_t *oldlenp, void *newp, size_t newlen)
 {
 	int ret;
+	extent_hooks_t *extent_hooks;
 	unsigned narenas;
 
 	malloc_mutex_lock(tsd_tsdn(tsd), &ctl_mtx);
-	READONLY();
-	if (ctl_grow(tsd_tsdn(tsd))) {
+
+	extent_hooks = (extent_hooks_t *)&extent_hooks_default;
+	WRITE(extent_hooks, extent_hooks_t *);
+	if (ctl_grow(tsd_tsdn(tsd), extent_hooks)) {
 		ret = EAGAIN;
 		goto label_return;
 	}
@@ -1906,8 +1912,12 @@ CTL_RO_CGEN(config_stats, stats_arenas_i_nmadvise,
     ctl_stats.arenas[mib[2]].astats.nmadvise, uint64_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_purged,
     ctl_stats.arenas[mib[2]].astats.purged, uint64_t)
-CTL_RO_CGEN(config_stats, stats_arenas_i_metadata,
-    ctl_stats.arenas[mib[2]].astats.metadata, size_t)
+CTL_RO_CGEN(config_stats, stats_arenas_i_base,
+    ctl_stats.arenas[mib[2]].astats.base, size_t)
+CTL_RO_CGEN(config_stats, stats_arenas_i_internal,
+    ctl_stats.arenas[mib[2]].astats.internal, size_t)
+CTL_RO_CGEN(config_stats, stats_arenas_i_resident,
+    ctl_stats.arenas[mib[2]].astats.resident, size_t)
 
 CTL_RO_CGEN(config_stats, stats_arenas_i_small_allocated,
     ctl_stats.arenas[mib[2]].allocated_small, size_t)

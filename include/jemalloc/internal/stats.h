@@ -100,8 +100,9 @@ struct arena_stats_s {
 	uint64_t	nmadvise;
 	uint64_t	purged;
 
-	/* Number of bytes currently allocated for internal metadata. */
-	size_t		metadata; /* Protected via atomic_*_zu(). */
+	size_t		base;
+	size_t		internal; /* Protected via atomic_*_zu(). */
+	size_t		resident;
 
 	size_t		allocated_large;
 	uint64_t	nmalloc_large;

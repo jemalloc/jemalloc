@@ -1550,6 +1550,7 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
     arena_stats_t *astats, malloc_bin_stats_t *bstats,
     malloc_large_stats_t *lstats)
 {
+	size_t base_allocated, base_resident, base_mapped;
 	unsigned i;
 
 	cassert(config_stats);
@@ -1558,12 +1559,18 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 	arena_basic_stats_merge_locked(arena, nthreads, dss, decay_time,
 	    nactive, ndirty);
 
-	astats->mapped += arena->stats.mapped;
+	base_stats_get(tsdn, arena->base, &base_allocated, &base_resident,
+	    &base_mapped);
+
+	astats->mapped += base_mapped + arena->stats.mapped;
 	astats->retained += arena->stats.retained;
 	astats->npurge += arena->stats.npurge;
 	astats->nmadvise += arena->stats.nmadvise;
 	astats->purged += arena->stats.purged;
-	astats->metadata += arena_metadata_get(arena);
+	astats->base += base_allocated;
+	astats->internal += arena_internal_get(arena);
+	astats->resident += base_resident + (((arena->nactive + arena->ndirty)
+	    << LG_PAGE));
 	astats->allocated_large += arena->stats.allocated_large;
 	astats->nmalloc_large += arena->stats.nmalloc_large;
 	astats->ndalloc_large += arena->stats.ndalloc_large;
@@ -1625,19 +1632,27 @@ arena_extent_sn_next(arena_t *arena)
 }
 
 arena_t *
-arena_new(tsdn_t *tsdn, unsigned ind)
+arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks)
 {
 	arena_t *arena;
+	base_t *base;
 	unsigned i;
 
-	arena = (arena_t *)base_alloc(tsdn, sizeof(arena_t));
-	if (arena == NULL)
-		return (NULL);
+	if (ind == 0)
+		base = b0get();
+	else {
+		base = base_new(tsdn, ind, extent_hooks);
+		if (base == NULL)
+			return (NULL);
+	}
 
-	arena->ind = ind;
+	arena = (arena_t *)base_alloc(tsdn, base, sizeof(arena_t), CACHELINE);
+	if (arena == NULL)
+		goto label_error;
+
 	arena->nthreads[0] = arena->nthreads[1] = 0;
 	if (malloc_mutex_init(&arena->lock, "arena", WITNESS_RANK_ARENA))
-		return (NULL);
+		goto label_error;
 
 	if (config_stats && config_tcache)
 		ql_new(&arena->tcache_ql);
@@ -1670,7 +1685,7 @@ arena_new(tsdn_t *tsdn, unsigned ind)
 	ql_new(&arena->large);
 	if (malloc_mutex_init(&arena->large_mtx, "arena_large",
 	    WITNESS_RANK_ARENA_LARGE))
-		return (NULL);
+		goto label_error;
 
 	for (i = 0; i < NPSIZES+1; i++) {
 		extent_heap_new(&arena->extents_cached[i]);
@@ -1682,9 +1697,7 @@ arena_new(tsdn_t *tsdn, unsigned ind)
 
 	if (malloc_mutex_init(&arena->extents_mtx, "arena_extents",
 	    WITNESS_RANK_ARENA_EXTENTS))
-		return (NULL);
-
-	arena->extent_hooks = (extent_hooks_t *)&extent_hooks_default;
+		goto label_error;
 
 	if (!config_munmap)
 		arena->extent_grow_next = psz2ind(HUGEPAGE);
@@ -1692,14 +1705,14 @@ arena_new(tsdn_t *tsdn, unsigned ind)
 	ql_new(&arena->extent_cache);
 	if (malloc_mutex_init(&arena->extent_cache_mtx, "arena_extent_cache",
 	    WITNESS_RANK_ARENA_EXTENT_CACHE))
-		return (NULL);
+		goto label_error;
 
 	/* Initialize bins. */
 	for (i = 0; i < NBINS; i++) {
 		arena_bin_t *bin = &arena->bins[i];
 		if (malloc_mutex_init(&bin->lock, "arena_bin",
 		    WITNESS_RANK_ARENA_BIN))
-			return (NULL);
+			goto label_error;
 		bin->slabcur = NULL;
 		extent_heap_new(&bin->slabs_nonfull);
 		extent_init(&bin->slabs_full, arena, NULL, 0, 0, 0, false,
@@ -1708,7 +1721,13 @@ arena_new(tsdn_t *tsdn, unsigned ind)
 			memset(&bin->stats, 0, sizeof(malloc_bin_stats_t));
 	}
 
+	arena->base = base;
+
 	return (arena);
+label_error:
+	if (ind != 0)
+		base_delete(base);
+	return (NULL);
 }
 
 void
@@ -1744,6 +1763,7 @@ arena_prefork3(tsdn_t *tsdn, arena_t *arena)
 {
 	unsigned i;
 
+	base_prefork(tsdn, arena->base);
 	for (i = 0; i < NBINS; i++)
 		malloc_mutex_prefork(tsdn, &arena->bins[i].lock);
 	malloc_mutex_prefork(tsdn, &arena->large_mtx);
@@ -1757,6 +1777,7 @@ arena_postfork_parent(tsdn_t *tsdn, arena_t *arena)
 	malloc_mutex_postfork_parent(tsdn, &arena->large_mtx);
 	for (i = 0; i < NBINS; i++)
 		malloc_mutex_postfork_parent(tsdn, &arena->bins[i].lock);
+	base_postfork_parent(tsdn, arena->base);
 	malloc_mutex_postfork_parent(tsdn, &arena->extent_cache_mtx);
 	malloc_mutex_postfork_parent(tsdn, &arena->extents_mtx);
 	malloc_mutex_postfork_parent(tsdn, &arena->lock);
@@ -1770,6 +1791,7 @@ arena_postfork_child(tsdn_t *tsdn, arena_t *arena)
 	malloc_mutex_postfork_child(tsdn, &arena->large_mtx);
 	for (i = 0; i < NBINS; i++)
 		malloc_mutex_postfork_child(tsdn, &arena->bins[i].lock);
+	base_postfork_child(tsdn, arena->base);
 	malloc_mutex_postfork_child(tsdn, &arena->extent_cache_mtx);
 	malloc_mutex_postfork_child(tsdn, &arena->extents_mtx);
 	malloc_mutex_postfork_child(tsdn, &arena->lock);

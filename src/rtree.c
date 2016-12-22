@@ -72,7 +72,8 @@ static rtree_elm_t *
 rtree_node_alloc(tsdn_t *tsdn, rtree_t *rtree, size_t nelms)
 {
 
-	return ((rtree_elm_t *)base_alloc(tsdn, nelms * sizeof(rtree_elm_t)));
+	return ((rtree_elm_t *)base_alloc(tsdn, b0get(), nelms *
+	    sizeof(rtree_elm_t), CACHELINE));
 }
 #ifdef JEMALLOC_JET
 #undef rtree_node_alloc

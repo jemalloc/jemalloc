@@ -143,9 +143,6 @@ struct arena_bin_s {
 };
 
 struct arena_s {
-	/* This arena's index within the arenas array. */
-	unsigned		ind;
-
 	/*
 	 * Number of threads currently assigned to this arena, synchronized via
 	 * atomic operations.  Each thread has two distinct assignments, one for
@@ -226,12 +223,6 @@ struct arena_s {
 	/* Protects extents_{cached,retained,dirty}. */
 	malloc_mutex_t		extents_mtx;
 
-	/* User-configurable extent hook functions. */
-	union {
-		extent_hooks_t	*extent_hooks;
-		void		*extent_hooks_pun;
-	};
-
 	/*
 	 * Next extent size class in a growing series to use when satisfying a
 	 * request via the extent hooks (only if !config_munmap).  This limits
@@ -247,6 +238,9 @@ struct arena_s {
 
 	/* bins is used to store heaps of free regions. */
 	arena_bin_t		bins[NBINS];
+
+	/* Base allocator, from which arena metadata are allocated. */
+	base_t			*base;
 };
 
 /* Used in conjunction with tsd for fast arena-related context lookup. */
@@ -337,7 +331,7 @@ unsigned	arena_nthreads_get(arena_t *arena, bool internal);
 void	arena_nthreads_inc(arena_t *arena, bool internal);
 void	arena_nthreads_dec(arena_t *arena, bool internal);
 size_t	arena_extent_sn_next(arena_t *arena);
-arena_t	*arena_new(tsdn_t *tsdn, unsigned ind);
+arena_t	*arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks);
 void	arena_boot(void);
 void	arena_prefork0(tsdn_t *tsdn, arena_t *arena);
 void	arena_prefork1(tsdn_t *tsdn, arena_t *arena);
@@ -351,9 +345,10 @@ void	arena_postfork_child(tsdn_t *tsdn, arena_t *arena);
 #ifdef JEMALLOC_H_INLINES
 
 #ifndef JEMALLOC_ENABLE_INLINE
-void	arena_metadata_add(arena_t *arena, size_t size);
-void	arena_metadata_sub(arena_t *arena, size_t size);
-size_t	arena_metadata_get(arena_t *arena);
+unsigned	arena_ind_get(const arena_t *arena);
+void	arena_internal_add(arena_t *arena, size_t size);
+void	arena_internal_sub(arena_t *arena, size_t size);
+size_t	arena_internal_get(arena_t *arena);
 bool	arena_prof_accum_impl(arena_t *arena, uint64_t accumbytes);
 bool	arena_prof_accum_locked(arena_t *arena, uint64_t accumbytes);
 bool	arena_prof_accum(tsdn_t *tsdn, arena_t *arena, uint64_t accumbytes);
@@ -378,25 +373,32 @@ void	arena_sdalloc(tsdn_t *tsdn, extent_t *extent, void *ptr, size_t size,
 
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_ARENA_C_))
 #  ifdef JEMALLOC_ARENA_INLINE_A
-JEMALLOC_INLINE void
-arena_metadata_add(arena_t *arena, size_t size)
+JEMALLOC_INLINE unsigned
+arena_ind_get(const arena_t *arena)
 {
 
-	atomic_add_zu(&arena->stats.metadata, size);
+	return (base_ind_get(arena->base));
 }
 
 JEMALLOC_INLINE void
-arena_metadata_sub(arena_t *arena, size_t size)
+arena_internal_add(arena_t *arena, size_t size)
 {
 
-	atomic_sub_zu(&arena->stats.metadata, size);
+	atomic_add_zu(&arena->stats.internal, size);
+}
+
+JEMALLOC_INLINE void
+arena_internal_sub(arena_t *arena, size_t size)
+{
+
+	atomic_sub_zu(&arena->stats.internal, size);
 }
 
 JEMALLOC_INLINE size_t
-arena_metadata_get(arena_t *arena)
+arena_internal_get(arena_t *arena)
 {
 
-	return (atomic_read_zu(&arena->stats.metadata));
+	return (atomic_read_zu(&arena->stats.internal));
 }
 
 JEMALLOC_INLINE bool
@@ -499,7 +501,7 @@ arena_decay_ticks(tsdn_t *tsdn, arena_t *arena, unsigned nticks)
 	if (unlikely(tsdn_null(tsdn)))
 		return;
 	tsd = tsdn_tsd(tsdn);
-	decay_ticker = decay_ticker_get(tsd, arena->ind);
+	decay_ticker = decay_ticker_get(tsd, arena_ind_get(arena));
 	if (unlikely(decay_ticker == NULL))
 		return;
 	if (unlikely(ticker_ticks(decay_ticker, nticks)))

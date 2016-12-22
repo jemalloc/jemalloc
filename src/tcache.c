@@ -440,8 +440,8 @@ tcaches_create(tsd_t *tsd, unsigned *r_ind)
 	tcaches_t *elm;
 
 	if (tcaches == NULL) {
-		tcaches = base_alloc(tsd_tsdn(tsd), sizeof(tcache_t *) *
-		    (MALLOCX_TCACHE_MAX+1));
+		tcaches = base_alloc(tsd_tsdn(tsd), b0get(), sizeof(tcache_t *)
+		    * (MALLOCX_TCACHE_MAX+1), CACHELINE);
 		if (tcaches == NULL)
 			return (true);
 	}
@@ -510,8 +510,8 @@ tcache_boot(tsdn_t *tsdn)
 	nhbins = size2index(tcache_maxclass) + 1;
 
 	/* Initialize tcache_bin_info. */
-	tcache_bin_info = (tcache_bin_info_t *)base_alloc(tsdn, nhbins *
-	    sizeof(tcache_bin_info_t));
+	tcache_bin_info = (tcache_bin_info_t *)base_alloc(tsdn, b0get(), nhbins
+	    * sizeof(tcache_bin_info_t), CACHELINE);
 	if (tcache_bin_info == NULL)
 		return (true);
 	stack_nelms = 0;

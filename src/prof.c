@@ -2254,7 +2254,8 @@ prof_boot2(tsd_t *tsd)
 		}
 
 		gctx_locks = (malloc_mutex_t *)base_alloc(tsd_tsdn(tsd),
-		    PROF_NCTX_LOCKS * sizeof(malloc_mutex_t));
+		    b0get(), PROF_NCTX_LOCKS * sizeof(malloc_mutex_t),
+		    CACHELINE);
 		if (gctx_locks == NULL)
 			return (true);
 		for (i = 0; i < PROF_NCTX_LOCKS; i++) {
@@ -2264,7 +2265,8 @@ prof_boot2(tsd_t *tsd)
 		}
 
 		tdata_locks = (malloc_mutex_t *)base_alloc(tsd_tsdn(tsd),
-		    PROF_NTDATA_LOCKS * sizeof(malloc_mutex_t));
+		    b0get(), PROF_NTDATA_LOCKS * sizeof(malloc_mutex_t),
+		    CACHELINE);
 		if (tdata_locks == NULL)
 			return (true);
 		for (i = 0; i < PROF_NTDATA_LOCKS; i++) {

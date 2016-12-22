@@ -71,7 +71,7 @@ extent_alloc(extent_hooks_t *extent_hooks, void *new_addr, size_t size,
 	assert_ptr_eq(extent_hooks->alloc, extent_alloc, "Wrong hook function");
 	did_alloc = true;
 	return (old_hooks->alloc(old_hooks, new_addr, size, alignment, zero,
-	    commit, arena_ind));
+	    commit, 0));
 }
 
 static bool
@@ -89,7 +89,7 @@ extent_dalloc(extent_hooks_t *extent_hooks, void *addr, size_t size,
 	did_dalloc = true;
 	if (!do_dalloc)
 		return (true);
-	return (old_hooks->dalloc(old_hooks, addr, size, committed, arena_ind));
+	return (old_hooks->dalloc(old_hooks, addr, size, committed, 0));
 }
 
 static bool
@@ -105,8 +105,7 @@ extent_commit(extent_hooks_t *extent_hooks, void *addr, size_t size,
 	    "extent_hooks should be same as pointer used to set hooks");
 	assert_ptr_eq(extent_hooks->commit, extent_commit,
 	    "Wrong hook function");
-	err = old_hooks->commit(old_hooks, addr, size, offset, length,
-	    arena_ind);
+	err = old_hooks->commit(old_hooks, addr, size, offset, length, 0);
 	did_commit = !err;
 	return (err);
 }
@@ -126,8 +125,7 @@ extent_decommit(extent_hooks_t *extent_hooks, void *addr, size_t size,
 	    "Wrong hook function");
 	if (!do_decommit)
 		return (true);
-	err = old_hooks->decommit(old_hooks, addr, size, offset, length,
-	    arena_ind);
+	err = old_hooks->decommit(old_hooks, addr, size, offset, length, 0);
 	did_decommit = !err;
 	return (err);
 }
@@ -146,8 +144,7 @@ extent_purge_lazy(extent_hooks_t *extent_hooks, void *addr, size_t size,
 	    "Wrong hook function");
 	did_purge_lazy = true;
 	return (old_hooks->purge_lazy == NULL ||
-	    old_hooks->purge_lazy(old_hooks, addr, size, offset, length,
-	    arena_ind));
+	    old_hooks->purge_lazy(old_hooks, addr, size, offset, length, 0));
 }
 
 static bool
@@ -164,8 +161,7 @@ extent_purge_forced(extent_hooks_t *extent_hooks, void *addr, size_t size,
 	    "Wrong hook function");
 	did_purge_forced = true;
 	return (old_hooks->purge_forced == NULL ||
-	    old_hooks->purge_forced(old_hooks, addr, size, offset, length,
-	    arena_ind));
+	    old_hooks->purge_forced(old_hooks, addr, size, offset, length, 0));
 }
 
 static bool
@@ -183,7 +179,7 @@ extent_split(extent_hooks_t *extent_hooks, void *addr, size_t size,
 	assert_ptr_eq(extent_hooks->split, extent_split, "Wrong hook function");
 	tried_split = true;
 	err = (old_hooks->split == NULL || old_hooks->split(old_hooks, addr,
-	    size, size_a, size_b, committed, arena_ind));
+	    size, size_a, size_b, committed, 0));
 	did_split = !err;
 	return (err);
 }
@@ -202,50 +198,22 @@ extent_merge(extent_hooks_t *extent_hooks, void *addr_a, size_t size_a,
 	    "extent_hooks should be same as pointer used to set hooks");
 	assert_ptr_eq(extent_hooks->merge, extent_merge, "Wrong hook function");
 	err = (old_hooks->merge == NULL || old_hooks->merge(old_hooks, addr_a,
-	    size_a, addr_b, size_b, committed, arena_ind));
+	    size_a, addr_b, size_b, committed, 0));
 	did_merge = !err;
 	return (err);
 }
 
-TEST_BEGIN(test_extent)
+static void
+test_extent_body(unsigned arena_ind)
 {
 	void *p;
-	size_t old_size, new_size, large0, large1, large2, sz;
-	unsigned arena_ind;
+	size_t large0, large1, large2, sz;
+	size_t purge_mib[3];
+	size_t purge_miblen;
 	int flags;
-	size_t hooks_mib[3], purge_mib[3];
-	size_t hooks_miblen, purge_miblen;
 	bool xallocx_success_a, xallocx_success_b, xallocx_success_c;
 
-	sz = sizeof(unsigned);
-	assert_d_eq(mallctl("arenas.extend", (void *)&arena_ind, &sz, NULL, 0),
-	    0, "Unexpected mallctl() failure");
 	flags = MALLOCX_ARENA(arena_ind) | MALLOCX_TCACHE_NONE;
-
-	/* Install custom extent hooks. */
-	hooks_miblen = sizeof(hooks_mib)/sizeof(size_t);
-	assert_d_eq(mallctlnametomib("arena.0.extent_hooks", hooks_mib,
-	    &hooks_miblen), 0, "Unexpected mallctlnametomib() failure");
-	hooks_mib[1] = (size_t)arena_ind;
-	old_size = sizeof(extent_hooks_t *);
-	new_size = sizeof(extent_hooks_t *);
-	assert_d_eq(mallctlbymib(hooks_mib, hooks_miblen, (void *)&old_hooks,
-	    &old_size, (void *)&new_hooks, new_size), 0,
-	    "Unexpected extent_hooks error");
-	orig_hooks = old_hooks;
-	assert_ptr_ne(old_hooks->alloc, extent_alloc, "Unexpected alloc error");
-	assert_ptr_ne(old_hooks->dalloc, extent_dalloc,
-	    "Unexpected dalloc error");
-	assert_ptr_ne(old_hooks->commit, extent_commit,
-	    "Unexpected commit error");
-	assert_ptr_ne(old_hooks->decommit, extent_decommit,
-	    "Unexpected decommit error");
-	assert_ptr_ne(old_hooks->purge_lazy, extent_purge_lazy,
-	    "Unexpected purge_lazy error");
-	assert_ptr_ne(old_hooks->purge_forced, extent_purge_forced,
-	    "Unexpected purge_forced error");
-	assert_ptr_ne(old_hooks->split, extent_split, "Unexpected split error");
-	assert_ptr_ne(old_hooks->merge, extent_merge, "Unexpected merge error");
 
 	/* Get large size classes. */
 	sz = sizeof(size_t);
@@ -314,6 +282,45 @@ TEST_BEGIN(test_extent)
 	p = mallocx(42, flags);
 	assert_ptr_not_null(p, "Unexpected mallocx() error");
 	dallocx(p, flags);
+}
+
+TEST_BEGIN(test_extent_manual_hook)
+{
+	unsigned arena_ind;
+	size_t old_size, new_size, sz;
+	size_t hooks_mib[3];
+	size_t hooks_miblen;
+
+	sz = sizeof(unsigned);
+	assert_d_eq(mallctl("arenas.extend", (void *)&arena_ind, &sz, NULL, 0),
+	    0, "Unexpected mallctl() failure");
+
+	/* Install custom extent hooks. */
+	hooks_miblen = sizeof(hooks_mib)/sizeof(size_t);
+	assert_d_eq(mallctlnametomib("arena.0.extent_hooks", hooks_mib,
+	    &hooks_miblen), 0, "Unexpected mallctlnametomib() failure");
+	hooks_mib[1] = (size_t)arena_ind;
+	old_size = sizeof(extent_hooks_t *);
+	new_size = sizeof(extent_hooks_t *);
+	assert_d_eq(mallctlbymib(hooks_mib, hooks_miblen, (void *)&old_hooks,
+	    &old_size, (void *)&new_hooks, new_size), 0,
+	    "Unexpected extent_hooks error");
+	orig_hooks = old_hooks;
+	assert_ptr_ne(old_hooks->alloc, extent_alloc, "Unexpected alloc error");
+	assert_ptr_ne(old_hooks->dalloc, extent_dalloc,
+	    "Unexpected dalloc error");
+	assert_ptr_ne(old_hooks->commit, extent_commit,
+	    "Unexpected commit error");
+	assert_ptr_ne(old_hooks->decommit, extent_decommit,
+	    "Unexpected decommit error");
+	assert_ptr_ne(old_hooks->purge_lazy, extent_purge_lazy,
+	    "Unexpected purge_lazy error");
+	assert_ptr_ne(old_hooks->purge_forced, extent_purge_forced,
+	    "Unexpected purge_forced error");
+	assert_ptr_ne(old_hooks->split, extent_split, "Unexpected split error");
+	assert_ptr_ne(old_hooks->merge, extent_merge, "Unexpected merge error");
+
+	test_extent_body(arena_ind);
 
 	/* Restore extent hooks. */
 	assert_d_eq(mallctlbymib(hooks_mib, hooks_miblen, NULL, NULL,
@@ -340,9 +347,25 @@ TEST_BEGIN(test_extent)
 }
 TEST_END
 
+TEST_BEGIN(test_extent_auto_hook)
+{
+	unsigned arena_ind;
+	size_t new_size, sz;
+
+	sz = sizeof(unsigned);
+	new_size = sizeof(extent_hooks_t *);
+	assert_d_eq(mallctl("arenas.extend", (void *)&arena_ind, &sz,
+	    (void *)&new_hooks, new_size), 0, "Unexpected mallctl() failure");
+
+	test_extent_body(arena_ind);
+}
+TEST_END
+
 int
 main(void)
 {
 
-	return (test(test_extent));
+	return (test(
+	    test_extent_manual_hook,
+	    test_extent_auto_hook));
 }

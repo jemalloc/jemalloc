@@ -304,21 +304,21 @@ malloc_init(void)
  */
 
 static void *
-a0ialloc(size_t size, bool zero, bool is_metadata)
+a0ialloc(size_t size, bool zero, bool is_internal)
 {
 
 	if (unlikely(malloc_init_a0()))
 		return (NULL);
 
 	return (iallocztm(TSDN_NULL, size, size2index(size), zero, NULL,
-	    is_metadata, arena_get(TSDN_NULL, 0, true), true));
+	    is_internal, arena_get(TSDN_NULL, 0, true), true));
 }
 
 static void
-a0idalloc(extent_t *extent, void *ptr, bool is_metadata)
+a0idalloc(extent_t *extent, void *ptr, bool is_internal)
 {
 
-	idalloctm(TSDN_NULL, extent, ptr, false, is_metadata, true);
+	idalloctm(TSDN_NULL, extent, ptr, false, is_internal, true);
 }
 
 void *
@@ -405,7 +405,7 @@ narenas_total_get(void)
 
 /* Create a new arena and insert it into the arenas array at index ind. */
 static arena_t *
-arena_init_locked(tsdn_t *tsdn, unsigned ind)
+arena_init_locked(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks)
 {
 	arena_t *arena;
 
@@ -426,18 +426,18 @@ arena_init_locked(tsdn_t *tsdn, unsigned ind)
 	}
 
 	/* Actually initialize the arena. */
-	arena = arena_new(tsdn, ind);
+	arena = arena_new(tsdn, ind, extent_hooks);
 	arena_set(ind, arena);
 	return (arena);
 }
 
 arena_t *
-arena_init(tsdn_t *tsdn, unsigned ind)
+arena_init(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks)
 {
 	arena_t *arena;
 
 	malloc_mutex_lock(tsdn, &arenas_lock);
-	arena = arena_init_locked(tsdn, ind);
+	arena = arena_init_locked(tsdn, ind, extent_hooks);
 	malloc_mutex_unlock(tsdn, &arenas_lock);
 	return (arena);
 }
@@ -629,7 +629,8 @@ arena_choose_hard(tsd_t *tsd, bool internal)
 				/* Initialize a new arena. */
 				choose[j] = first_null;
 				arena = arena_init_locked(tsd_tsdn(tsd),
-				    choose[j]);
+				    choose[j],
+				    (extent_hooks_t *)&extent_hooks_default);
 				if (arena == NULL) {
 					malloc_mutex_unlock(tsd_tsdn(tsd),
 					    &arenas_lock);
@@ -657,7 +658,7 @@ iarena_cleanup(tsd_t *tsd)
 
 	iarena = tsd_iarena_get(tsd);
 	if (iarena != NULL)
-		arena_unbind(tsd, iarena->ind, true);
+		arena_unbind(tsd, arena_ind_get(iarena), true);
 }
 
 void
@@ -667,7 +668,7 @@ arena_cleanup(tsd_t *tsd)
 
 	arena = tsd_arena_get(tsd);
 	if (arena != NULL)
-		arena_unbind(tsd, arena->ind, false);
+		arena_unbind(tsd, arena_ind_get(arena), false);
 }
 
 void
@@ -1211,7 +1212,7 @@ malloc_init_hard_a0_locked()
 		}
 	}
 	pages_boot();
-	if (base_boot())
+	if (base_boot(TSDN_NULL))
 		return (true);
 	if (extent_boot())
 		return (true);
@@ -1236,7 +1237,8 @@ malloc_init_hard_a0_locked()
 	 * Initialize one arena here.  The rest are lazily created in
 	 * arena_choose_hard().
 	 */
-	if (arena_init(TSDN_NULL, 0) == NULL)
+	if (arena_init(TSDN_NULL, 0, (extent_hooks_t *)&extent_hooks_default) ==
+	    NULL)
 		return (true);
 
 	malloc_init_state = malloc_init_a0_initialized;
@@ -1309,8 +1311,8 @@ malloc_init_hard_finish(tsdn_t *tsdn)
 	narenas_total_set(narenas_auto);
 
 	/* Allocate and initialize arenas. */
-	arenas = (arena_t **)base_alloc(tsdn, sizeof(arena_t *) *
-	    (MALLOCX_ARENA_MAX+1));
+	arenas = (arena_t **)base_alloc(tsdn, a0->base, sizeof(arena_t *) *
+	    (MALLOCX_ARENA_MAX+1), CACHELINE);
 	if (arenas == NULL)
 		return (true);
 	/* Copy the pointer to the one arena that was already initialized. */
@@ -2690,7 +2692,6 @@ _malloc_prefork(void)
 			}
 		}
 	}
-	base_prefork(tsd_tsdn(tsd));
 	for (i = 0; i < narenas; i++) {
 		if ((arena = arena_get(tsd_tsdn(tsd), i, false)) != NULL)
 			arena_prefork3(tsd_tsdn(tsd), arena);
@@ -2719,7 +2720,6 @@ _malloc_postfork(void)
 
 	witness_postfork_parent(tsd);
 	/* Release all mutexes, now that fork() has completed. */
-	base_postfork_parent(tsd_tsdn(tsd));
 	for (i = 0, narenas = narenas_total_get(); i < narenas; i++) {
 		arena_t *arena;
 
@@ -2743,7 +2743,6 @@ jemalloc_postfork_child(void)
 
 	witness_postfork_child(tsd);
 	/* Release all mutexes, now that fork() has completed. */
-	base_postfork_child(tsd_tsdn(tsd));
 	for (i = 0, narenas = narenas_total_get(); i < narenas; i++) {
 		arena_t *arena;
 

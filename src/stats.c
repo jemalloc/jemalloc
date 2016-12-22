@@ -254,7 +254,8 @@ stats_arena_print(void (*write_cb)(void *, const char *), void *cbopaque,
 	unsigned nthreads;
 	const char *dss;
 	ssize_t decay_time;
-	size_t page, pactive, pdirty, mapped, retained, metadata;
+	size_t page, pactive, pdirty, mapped, retained;
+	size_t base, internal, resident;
 	uint64_t npurge, nmadvise, purged;
 	size_t small_allocated;
 	uint64_t small_nmalloc, small_ndalloc, small_nrequests;
@@ -404,14 +405,32 @@ stats_arena_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		    "retained:                %12zu\n", retained);
 	}
 
-	CTL_M2_GET("stats.arenas.0.metadata", i, &metadata, size_t);
+	CTL_M2_GET("stats.arenas.0.base", i, &base, size_t);
 	if (json) {
 		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\t\"metadata\": %zu%s\n", metadata, (bins || large) ?
+		    "\t\t\t\t\"base\": %zu,\n", base);
+	} else {
+		malloc_cprintf(write_cb, cbopaque,
+		    "base:                    %12zu\n", base);
+	}
+
+	CTL_M2_GET("stats.arenas.0.internal", i, &internal, size_t);
+	if (json) {
+		malloc_cprintf(write_cb, cbopaque,
+		    "\t\t\t\t\"internal\": %zu,\n", internal);
+	} else {
+		malloc_cprintf(write_cb, cbopaque,
+		    "internal:                %12zu\n", internal);
+	}
+
+	CTL_M2_GET("stats.arenas.0.resident", i, &resident, size_t);
+	if (json) {
+		malloc_cprintf(write_cb, cbopaque,
+		    "\t\t\t\t\"resident\": %zu%s\n", resident, (bins || large) ?
 		    "," : "");
 	} else {
 		malloc_cprintf(write_cb, cbopaque,
-		    "metadata:                %12zu\n", metadata);
+		    "resident:                %12zu\n", resident);
 	}
 
 	if (bins)
