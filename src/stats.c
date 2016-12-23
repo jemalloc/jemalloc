@@ -407,7 +407,7 @@ stats_arena_print(void (*write_cb)(void *, const char *), void *cbopaque,
 	CTL_M2_GET("stats.arenas.0.metadata", i, &metadata, size_t);
 	if (json) {
 		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\t\"metatata\": %zu%s\n", metadata, (bins || large) ?
+		    "\t\t\t\t\"metadata\": %zu%s\n", metadata, (bins || large) ?
 		    "," : "");
 	} else {
 		malloc_cprintf(write_cb, cbopaque,
@@ -422,7 +422,7 @@ stats_arena_print(void (*write_cb)(void *, const char *), void *cbopaque,
 
 static void
 stats_general_print(void (*write_cb)(void *, const char *), void *cbopaque,
-    bool json, bool merged, bool unmerged)
+    bool json, bool more)
 {
 	const char *cpv;
 	bool bv;
@@ -717,11 +717,11 @@ stats_general_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		    "\t\t\t]\n");
 
 		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t},\n");
+		    "\t\t}%s\n", (config_prof || more) ? "," : "");
 	}
 
 	/* prof. */
-	if (json) {
+	if (config_prof && json) {
 		malloc_cprintf(write_cb, cbopaque,
 		    "\t\t\"prof\": {\n");
 
@@ -747,8 +747,7 @@ stats_general_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		    "\t\t\t\"lg_sample\": %zd\n", ssv);
 
 		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t}%s\n", (config_stats || merged || unmerged) ? "," :
-		    "");
+		    "\t\t}%s\n", more ? "," : "");
 	}
 }
 
@@ -872,8 +871,8 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 	size_t u64sz;
 	bool json = false;
 	bool general = true;
-	bool merged = true;
-	bool unmerged = true;
+	bool merged = config_stats;
+	bool unmerged = config_stats;
 	bool bins = true;
 	bool large = true;
 
@@ -936,8 +935,10 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		    "___ Begin jemalloc statistics ___\n");
 	}
 
-	if (general)
-		stats_general_print(write_cb, cbopaque, json, merged, unmerged);
+	if (general) {
+		bool more = (merged || unmerged);
+		stats_general_print(write_cb, cbopaque, json, more);
+	}
 	if (config_stats) {
 		stats_print_helper(write_cb, cbopaque, json, merged, unmerged,
 		    bins, large);
