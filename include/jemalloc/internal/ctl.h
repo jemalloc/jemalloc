@@ -54,6 +54,7 @@ struct ctl_arena_stats_s {
 };
 
 struct ctl_stats_s {
+	uint64_t		epoch;
 	size_t			allocated;
 	size_t			active;
 	size_t			metadata;

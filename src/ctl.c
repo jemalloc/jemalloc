@@ -10,7 +10,6 @@
  */
 static malloc_mutex_t	ctl_mtx;
 static bool		ctl_initialized;
-static uint64_t		ctl_epoch;
 static ctl_stats_t	*ctl_stats;
 
 /******************************************************************************/
@@ -679,7 +678,7 @@ ctl_refresh(tsdn_t *tsdn)
 		ctl_stats->retained = sstats->astats.retained;
 	}
 
-	ctl_epoch++;
+	ctl_stats->epoch++;
 }
 
 static bool
@@ -725,7 +724,7 @@ ctl_init(tsdn_t *tsdn)
 			}
 		}
 
-		ctl_epoch = 0;
+		ctl_stats->epoch = 0;
 		ctl_refresh(tsdn);
 		ctl_initialized = true;
 	}
@@ -1169,7 +1168,7 @@ epoch_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
 	WRITE(newval, uint64_t);
 	if (newp != NULL)
 		ctl_refresh(tsd_tsdn(tsd));
-	READ(ctl_epoch, uint64_t);
+	READ(ctl_stats->epoch, uint64_t);
 
 	ret = 0;
 label_return:
