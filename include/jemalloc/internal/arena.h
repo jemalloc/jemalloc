@@ -148,9 +148,9 @@ struct arena_s {
 	 * atomic operations.  Each thread has two distinct assignments, one for
 	 * application-serving allocation, and the other for internal metadata
 	 * allocation.  Internal metadata must not be allocated from arenas
-	 * created via the arenas.extend mallctl, because the arena.<i>.reset
-	 * mallctl indiscriminately discards all allocations for the affected
-	 * arena.
+	 * explicitly created via the arenas.create mallctl, because the
+	 * arena.<i>.reset mallctl indiscriminately discards all allocations for
+	 * the affected arena.
 	 *
 	 *   0: Application allocation.
 	 *   1: Internal metadata allocation.

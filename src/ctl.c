@@ -133,7 +133,7 @@ CTL_PROTO(arenas_tcache_max)
 CTL_PROTO(arenas_nbins)
 CTL_PROTO(arenas_nhbins)
 CTL_PROTO(arenas_nlextents)
-CTL_PROTO(arenas_extend)
+CTL_PROTO(arenas_create)
 CTL_PROTO(prof_thread_active_init)
 CTL_PROTO(prof_active)
 CTL_PROTO(prof_dump)
@@ -323,7 +323,7 @@ static const ctl_named_node_t arenas_node[] = {
 	{NAME("bin"),		CHILD(indexed, arenas_bin)},
 	{NAME("nlextents"),	CTL(arenas_nlextents)},
 	{NAME("lextent"),	CHILD(indexed, arenas_lextent)},
-	{NAME("extend"),	CTL(arenas_extend)}
+	{NAME("create"),	CTL(arenas_create)}
 };
 
 static const ctl_named_node_t	prof_node[] = {
@@ -1780,7 +1780,7 @@ arenas_lextent_i_index(tsdn_t *tsdn, const size_t *mib, size_t miblen, size_t i)
 }
 
 static int
-arenas_extend_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
+arenas_create_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
     size_t *oldlenp, void *newp, size_t newlen)
 {
 	int ret;

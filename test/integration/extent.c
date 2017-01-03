@@ -292,7 +292,7 @@ TEST_BEGIN(test_extent_manual_hook)
 	size_t hooks_miblen;
 
 	sz = sizeof(unsigned);
-	assert_d_eq(mallctl("arenas.extend", (void *)&arena_ind, &sz, NULL, 0),
+	assert_d_eq(mallctl("arenas.create", (void *)&arena_ind, &sz, NULL, 0),
 	    0, "Unexpected mallctl() failure");
 
 	/* Install custom extent hooks. */
@@ -354,7 +354,7 @@ TEST_BEGIN(test_extent_auto_hook)
 
 	sz = sizeof(unsigned);
 	new_size = sizeof(extent_hooks_t *);
-	assert_d_eq(mallctl("arenas.extend", (void *)&arena_ind, &sz,
+	assert_d_eq(mallctl("arenas.create", (void *)&arena_ind, &sz,
 	    (void *)&new_hooks, new_size), 0, "Unexpected mallctl() failure");
 
 	test_extent_body(arena_ind);

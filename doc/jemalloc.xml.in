@@ -1457,8 +1457,8 @@ malloc_conf = "xmalloc:true";]]></programlisting>
           <literal>--</literal>
         </term>
         <listitem><para>Discard all of the arena's extant allocations.  This
-        interface can only be used with arenas created via <link
-        linkend="arenas.extend"><mallctl>arenas.extend</mallctl></link>.  None
+        interface can only be used with arenas explicitly created via <link
+        linkend="arenas.create"><mallctl>arenas.create</mallctl></link>.  None
         of the arena's discarded/cached allocations may accessed afterward.  As
         part of this requirement, all thread caches which were used to
         allocate/deallocate in conjunction with the arena must be flushed
@@ -1504,8 +1504,8 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         arena &lt;i&gt;.  The functions must be capable of operating on all
         extant extents associated with arena &lt;i&gt;, usually by passing
         unknown extents to the replaced functions.  In practice, it is feasible
-        to control allocation for arenas created via <link
-        linkend="arenas.extend"><mallctl>arenas.extend</mallctl></link> such
+        to control allocation for arenas explicitly created via <link
+        linkend="arenas.create"><mallctl>arenas.create</mallctl></link> such
         that all extents originate from an application-supplied extent allocator
         (by specifying the custom extent hook functions during arena creation),
         but the automatically created arenas will have already created extents
@@ -1836,15 +1836,15 @@ struct extent_hooks_s {
         class.</para></listitem>
       </varlistentry>
 
-      <varlistentry id="arenas.extend">
+      <varlistentry id="arenas.create">
         <term>
-          <mallctl>arenas.extend</mallctl>
+          <mallctl>arenas.create</mallctl>
           (<type>unsigned</type>, <type>extent_hooks_t *</type>)
           <literal>rw</literal>
         </term>
-        <listitem><para>Extend the array of arenas by appending a new arena with
-        optionally specified extent hooks, and returning the new arena
-        index.</para></listitem>
+        <listitem><para>Explicitly create a new arena outside the range of
+        automatically managed arenas, with optionally specified extent hooks,
+        and return the new arena index.</para></listitem>
       </varlistentry>
 
       <varlistentry id="prof.thread_active_init">

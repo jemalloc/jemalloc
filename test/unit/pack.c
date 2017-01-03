@@ -68,14 +68,14 @@ nregs_per_run_compute(void)
 }
 
 static unsigned
-arenas_extend_mallctl(void)
+arenas_create_mallctl(void)
 {
 	unsigned arena_ind;
 	size_t sz;
 
 	sz = sizeof(arena_ind);
-	assert_d_eq(mallctl("arenas.extend", (void *)&arena_ind, &sz, NULL, 0),
-	    0, "Error in arenas.extend");
+	assert_d_eq(mallctl("arenas.create", (void *)&arena_ind, &sz, NULL, 0),
+	    0, "Error in arenas.create");
 
 	return (arena_ind);
 }
@@ -95,7 +95,7 @@ arena_reset_mallctl(unsigned arena_ind)
 
 TEST_BEGIN(test_pack)
 {
-	unsigned arena_ind = arenas_extend_mallctl();
+	unsigned arena_ind = arenas_create_mallctl();
 	size_t nregs_per_run = nregs_per_run_compute();
 	size_t nregs = nregs_per_run * NSLABS;
 	VARIABLE_ARRAY(void *, ptrs, nregs);

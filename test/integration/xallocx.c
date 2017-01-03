@@ -16,7 +16,7 @@ arena_ind(void)
 
 	if (ind == 0) {
 		size_t sz = sizeof(ind);
-		assert_d_eq(mallctl("arenas.extend", (void *)&ind, &sz, NULL,
+		assert_d_eq(mallctl("arenas.create", (void *)&ind, &sz, NULL,
 		    0), 0, "Unexpected mallctl failure creating arena");
 	}
 

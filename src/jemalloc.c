@@ -533,7 +533,7 @@ arena_tdata_get_hard(tsd_t *tsd, unsigned ind)
 	 * Copy to tdata array.  It's possible that the actual number of arenas
 	 * has increased since narenas_total_get() was called above, but that
 	 * causes no correctness issues unless two threads concurrently execute
-	 * the arenas.extend mallctl, which we trust mallctl synchronization to
+	 * the arenas.create mallctl, which we trust mallctl synchronization to
 	 * prevent.
 	 */
 

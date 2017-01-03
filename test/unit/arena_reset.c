@@ -90,7 +90,7 @@ TEST_BEGIN(test_arena_reset)
 	tsdn_t *tsdn;
 
 	sz = sizeof(unsigned);
-	assert_d_eq(mallctl("arenas.extend", (void *)&arena_ind, &sz, NULL, 0),
+	assert_d_eq(mallctl("arenas.create", (void *)&arena_ind, &sz, NULL, 0),
 	    0, "Unexpected mallctl() failure");
 
 	flags = MALLOCX_ARENA(arena_ind) | MALLOCX_TCACHE_NONE;

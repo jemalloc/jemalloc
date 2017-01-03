@@ -584,14 +584,14 @@ TEST_BEGIN(test_arenas_lextent_constants)
 }
 TEST_END
 
-TEST_BEGIN(test_arenas_extend)
+TEST_BEGIN(test_arenas_create)
 {
 	unsigned narenas_before, arena, narenas_after;
 	size_t sz = sizeof(unsigned);
 
 	assert_d_eq(mallctl("arenas.narenas", (void *)&narenas_before, &sz,
 	    NULL, 0), 0, "Unexpected mallctl() failure");
-	assert_d_eq(mallctl("arenas.extend", (void *)&arena, &sz, NULL, 0), 0,
+	assert_d_eq(mallctl("arenas.create", (void *)&arena, &sz, NULL, 0), 0,
 	    "Unexpected mallctl() failure");
 	assert_d_eq(mallctl("arenas.narenas", (void *)&narenas_after, &sz, NULL,
 	    0), 0, "Unexpected mallctl() failure");
@@ -647,6 +647,6 @@ main(void)
 	    test_arenas_constants,
 	    test_arenas_bin_constants,
 	    test_arenas_lextent_constants,
-	    test_arenas_extend,
+	    test_arenas_create,
 	    test_stats_arenas));
 }
