@@ -61,7 +61,7 @@ struct ctl_stats_s {
 	size_t			mapped;
 	size_t			retained;
 	unsigned		narenas;
-	ctl_arena_stats_t	*arenas;	/* (narenas + 1) elements. */
+	ctl_arena_stats_t	*arenas[1 << MALLOCX_ARENA_BITS];
 };
 
 #endif /* JEMALLOC_H_STRUCTS */

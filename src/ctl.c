@@ -6,12 +6,12 @@
 
 /*
  * ctl_mtx protects the following:
- * - ctl_stats.*
+ * - ctl_stats->*
  */
 static malloc_mutex_t	ctl_mtx;
 static bool		ctl_initialized;
 static uint64_t		ctl_epoch;
-static ctl_stats_t	ctl_stats;
+static ctl_stats_t	*ctl_stats;
 
 /******************************************************************************/
 /* Helpers for named and indexed nodes. */
@@ -455,7 +455,7 @@ stats_arenas_i2a_impl(size_t i, bool compat, bool validate)
 		a = 0;
 		break;
 	default:
-		if (compat && i == ctl_stats.narenas) {
+		if (compat && i == ctl_stats->narenas) {
 			/*
 			 * Provide deprecated backward compatibility for
 			 * accessing the merged stats at index narenas rather
@@ -463,7 +463,7 @@ stats_arenas_i2a_impl(size_t i, bool compat, bool validate)
 			 * removal in 6.0.0.
 			 */
 			a = 0;
-		} else if (validate && i >= ctl_stats.narenas)
+		} else if (validate && i >= ctl_stats->narenas)
 			a = UINT_MAX;
 		else {
 			/*
@@ -471,8 +471,8 @@ stats_arenas_i2a_impl(size_t i, bool compat, bool validate)
 			 * more than one past the range of indices that have
 			 * initialized stats.
 			 */
-			assert(i < ctl_stats.narenas || (!validate && i ==
-			    ctl_stats.narenas));
+			assert(i < ctl_stats->narenas || (!validate && i ==
+			    ctl_stats->narenas));
 			a = (unsigned)i + 1;
 		}
 		break;
@@ -482,10 +482,31 @@ stats_arenas_i2a_impl(size_t i, bool compat, bool validate)
 }
 
 static ctl_arena_stats_t *
+stats_arenas_i_impl(tsdn_t *tsdn, size_t i, bool compat, bool init)
+{
+	ctl_arena_stats_t *ret;
+
+	assert(!compat || !init);
+
+	ret = ctl_stats->arenas[stats_arenas_i2a_impl(i, compat, false)];
+	if (init && ret == NULL) {
+		ret = (ctl_arena_stats_t *)base_alloc(tsdn, b0get(),
+		    sizeof(ctl_arena_stats_t), QUANTUM);
+		if (ret == NULL)
+			return (NULL);
+		ctl_stats->arenas[stats_arenas_i2a_impl(i, compat, false)] =
+		    ret;
+	}
+
+	return (ret);
+}
+
+static ctl_arena_stats_t *
 stats_arenas_i(size_t i)
 {
-
-	return (&ctl_stats.arenas[stats_arenas_i2a_impl(i, true, false)]);
+	ctl_arena_stats_t *ret = stats_arenas_i_impl(TSDN_NULL, i, true, false);
+	assert(ret != NULL);
+	return (ret);
 }
 
 static void
@@ -609,25 +630,15 @@ ctl_arena_refresh(tsdn_t *tsdn, arena_t *arena, unsigned i)
 static bool
 ctl_grow(tsdn_t *tsdn, extent_hooks_t *extent_hooks)
 {
-	ctl_arena_stats_t *astats;
+
+	/* Trigger stats allocation. */
+	if (stats_arenas_i_impl(tsdn, ctl_stats->narenas, false, true) == NULL)
+		return (true);
 
 	/* Initialize new arena. */
-	if (arena_init(tsdn, ctl_stats.narenas, extent_hooks) == NULL)
+	if (arena_init(tsdn, ctl_stats->narenas, extent_hooks) == NULL)
 		return (true);
-
-	/* Allocate extended arena stats. */
-	astats = (ctl_arena_stats_t *)a0malloc((ctl_stats.narenas + 2) *
-	    sizeof(ctl_arena_stats_t));
-	if (astats == NULL)
-		return (true);
-
-	/* Initialize the new astats element. */
-	memcpy(astats, ctl_stats.arenas, (ctl_stats.narenas + 1) *
-	    sizeof(ctl_arena_stats_t));
-	memset(&astats[ctl_stats.narenas + 1], 0, sizeof(ctl_arena_stats_t));
-	a0dalloc(ctl_stats.arenas);
-	ctl_stats.arenas = astats;
-	ctl_stats.narenas++;
+	ctl_stats->narenas++;
 
 	return (false);
 }
@@ -637,7 +648,7 @@ ctl_refresh(tsdn_t *tsdn)
 {
 	unsigned i;
 	ctl_arena_stats_t *sstats = stats_arenas_i(MALLCTL_ARENAS_ALL);
-	VARIABLE_ARRAY(arena_t *, tarenas, ctl_stats.narenas);
+	VARIABLE_ARRAY(arena_t *, tarenas, ctl_stats->narenas);
 
 	/*
 	 * Clear sum stats, since they will be merged into by
@@ -645,10 +656,10 @@ ctl_refresh(tsdn_t *tsdn)
 	 */
 	ctl_arena_clear(sstats);
 
-	for (i = 0; i < ctl_stats.narenas; i++)
+	for (i = 0; i < ctl_stats->narenas; i++)
 		tarenas[i] = arena_get(tsdn, i, false);
 
-	for (i = 0; i < ctl_stats.narenas; i++) {
+	for (i = 0; i < ctl_stats->narenas; i++) {
 		ctl_arena_stats_t *astats = stats_arenas_i(i);
 		bool initialized = (tarenas[i] != NULL);
 
@@ -658,14 +669,14 @@ ctl_refresh(tsdn_t *tsdn)
 	}
 
 	if (config_stats) {
-		ctl_stats.allocated = sstats->allocated_small +
+		ctl_stats->allocated = sstats->allocated_small +
 		    sstats->astats.allocated_large;
-		ctl_stats.active = (sstats->pactive << LG_PAGE);
-		ctl_stats.metadata = sstats->astats.base +
+		ctl_stats->active = (sstats->pactive << LG_PAGE);
+		ctl_stats->metadata = sstats->astats.base +
 		    sstats->astats.internal;
-		ctl_stats.resident = sstats->astats.resident;
-		ctl_stats.mapped = sstats->astats.mapped;
-		ctl_stats.retained = sstats->astats.retained;
+		ctl_stats->resident = sstats->astats.resident;
+		ctl_stats->mapped = sstats->astats.mapped;
+		ctl_stats->retained = sstats->astats.retained;
 	}
 
 	ctl_epoch++;
@@ -678,20 +689,41 @@ ctl_init(tsdn_t *tsdn)
 
 	malloc_mutex_lock(tsdn, &ctl_mtx);
 	if (!ctl_initialized) {
+		ctl_arena_stats_t *sstats;
+		unsigned i;
+
 		/*
-		 * Allocate space for one extra arena stats element, which
-		 * contains summed stats across all arenas.
+		 * Allocate demand-zeroed space for pointers to the full range
+		 * of supported arena indices.
 		 */
-		ctl_stats.narenas = narenas_total_get();
-		ctl_stats.arenas = (ctl_arena_stats_t *)a0malloc(
-		    (ctl_stats.narenas + 1) * sizeof(ctl_arena_stats_t));
-		if (ctl_stats.arenas == NULL) {
+		if (ctl_stats == NULL) {
+			ctl_stats = (ctl_stats_t *)base_alloc(tsdn, b0get(),
+			    sizeof(ctl_stats_t), QUANTUM);
+			if (ctl_stats == NULL) {
+				ret = true;
+				goto label_return;
+			}
+		}
+
+		/*
+		 * Allocate space for the current full range of arenas here
+		 * rather than doing it lazily elsewhere, in order to limit when
+		 * OOM-caused errors can occur.
+		 */
+		if ((sstats = stats_arenas_i_impl(tsdn, MALLCTL_ARENAS_ALL,
+		    false, true)) == NULL) {
 			ret = true;
 			goto label_return;
 		}
-		memset(ctl_stats.arenas, 0, (ctl_stats.narenas + 1) *
-		    sizeof(ctl_arena_stats_t));
-		stats_arenas_i(MALLCTL_ARENAS_ALL)->initialized = true;
+		sstats->initialized = true;
+
+		ctl_stats->narenas = narenas_total_get();
+		for (i = 0; i < ctl_stats->narenas; i++) {
+			if (stats_arenas_i_impl(tsdn, i, false, true) == NULL) {
+				ret = true;
+				goto label_return;
+			}
+		}
 
 		ctl_epoch = 0;
 		ctl_refresh(tsdn);
@@ -1428,7 +1460,7 @@ arena_i_purge(tsdn_t *tsdn, unsigned arena_ind, bool all)
 
 	malloc_mutex_lock(tsdn, &ctl_mtx);
 	{
-		unsigned narenas = ctl_stats.narenas;
+		unsigned narenas = ctl_stats->narenas;
 
 		/*
 		 * Access via index narenas is deprecated, and scheduled for
@@ -1511,7 +1543,7 @@ arena_i_reset_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
 	arena_ind = (unsigned)mib[1];
 	if (config_debug) {
 		malloc_mutex_lock(tsd_tsdn(tsd), &ctl_mtx);
-		assert(arena_ind < ctl_stats.narenas);
+		assert(arena_ind < ctl_stats->narenas);
 		malloc_mutex_unlock(tsd_tsdn(tsd), &ctl_mtx);
 	}
 	assert(arena_ind >= opt_narenas);
@@ -1563,7 +1595,8 @@ arena_i_dss_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
 	 * Access via index narenas is deprecated, and scheduled for removal in
 	 * 6.0.0.
 	 */
-	if (arena_ind == MALLCTL_ARENAS_ALL || arena_ind == ctl_stats.narenas) {
+	if (arena_ind == MALLCTL_ARENAS_ALL || arena_ind ==
+	    ctl_stats->narenas) {
 		if (dss_prec != dss_prec_limit &&
 		    extent_dss_prec_set(dss_prec)) {
 			ret = EFAULT;
@@ -1664,7 +1697,7 @@ arena_i_index(tsdn_t *tsdn, const size_t *mib, size_t miblen, size_t i)
 	const ctl_named_node_t *ret;
 
 	malloc_mutex_lock(tsdn, &ctl_mtx);
-	if (i > ctl_stats.narenas && i != MALLCTL_ARENAS_ALL) {
+	if (i > ctl_stats->narenas && i != MALLCTL_ARENAS_ALL) {
 		ret = NULL;
 		goto label_return;
 	}
@@ -1690,7 +1723,7 @@ arenas_narenas_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
 		ret = EINVAL;
 		goto label_return;
 	}
-	narenas = ctl_stats.narenas;
+	narenas = ctl_stats->narenas;
 	READ(narenas, unsigned);
 
 	ret = 0;
@@ -1708,13 +1741,13 @@ arenas_initialized_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
 
 	malloc_mutex_lock(tsd_tsdn(tsd), &ctl_mtx);
 	READONLY();
-	if (*oldlenp != ctl_stats.narenas * sizeof(bool)) {
+	if (*oldlenp != ctl_stats->narenas * sizeof(bool)) {
 		ret = EINVAL;
-		nread = (*oldlenp < ctl_stats.narenas * sizeof(bool))
-		    ? (unsigned)(*oldlenp / sizeof(bool)) : ctl_stats.narenas;
+		nread = (*oldlenp < ctl_stats->narenas * sizeof(bool))
+		    ? (unsigned)(*oldlenp / sizeof(bool)) : ctl_stats->narenas;
 	} else {
 		ret = 0;
-		nread = ctl_stats.narenas;
+		nread = ctl_stats->narenas;
 	}
 
 	for (i = 0; i < nread; i++)
@@ -1795,7 +1828,7 @@ arenas_create_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
 		ret = EAGAIN;
 		goto label_return;
 	}
-	narenas = ctl_stats.narenas - 1;
+	narenas = ctl_stats->narenas - 1;
 	READ(narenas, unsigned);
 
 	ret = 0;
@@ -1932,12 +1965,12 @@ CTL_RO_NL_CGEN(config_prof, lg_prof_sample, lg_prof_sample, size_t)
 
 /******************************************************************************/
 
-CTL_RO_CGEN(config_stats, stats_allocated, ctl_stats.allocated, size_t)
-CTL_RO_CGEN(config_stats, stats_active, ctl_stats.active, size_t)
-CTL_RO_CGEN(config_stats, stats_metadata, ctl_stats.metadata, size_t)
-CTL_RO_CGEN(config_stats, stats_resident, ctl_stats.resident, size_t)
-CTL_RO_CGEN(config_stats, stats_mapped, ctl_stats.mapped, size_t)
-CTL_RO_CGEN(config_stats, stats_retained, ctl_stats.retained, size_t)
+CTL_RO_CGEN(config_stats, stats_allocated, ctl_stats->allocated, size_t)
+CTL_RO_CGEN(config_stats, stats_active, ctl_stats->active, size_t)
+CTL_RO_CGEN(config_stats, stats_metadata, ctl_stats->metadata, size_t)
+CTL_RO_CGEN(config_stats, stats_resident, ctl_stats->resident, size_t)
+CTL_RO_CGEN(config_stats, stats_mapped, ctl_stats->mapped, size_t)
+CTL_RO_CGEN(config_stats, stats_retained, ctl_stats->retained, size_t)
 
 CTL_RO_GEN(stats_arenas_i_dss, stats_arenas_i(mib[2])->dss, const char *)
 CTL_RO_GEN(stats_arenas_i_decay_time, stats_arenas_i(mib[2])->decay_time,
@@ -2036,7 +2069,7 @@ stats_arenas_i_index(tsdn_t *tsdn, const size_t *mib, size_t miblen, size_t i)
 
 	malloc_mutex_lock(tsdn, &ctl_mtx);
 	a = stats_arenas_i2a_impl(i, true, true);
-	if (a == UINT_MAX || !ctl_stats.arenas[a].initialized) {
+	if (a == UINT_MAX || !ctl_stats->arenas[a]->initialized) {
 		ret = NULL;
 		goto label_return;
 	}
