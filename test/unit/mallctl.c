@@ -402,6 +402,10 @@ TEST_BEGIN(test_arena_i_purge)
 	mib[1] = narenas;
 	assert_d_eq(mallctlbymib(mib, miblen, NULL, NULL, NULL, 0), 0,
 	    "Unexpected mallctlbymib() failure");
+
+	mib[1] = MALLCTL_ARENAS_ALL;
+	assert_d_eq(mallctlbymib(mib, miblen, NULL, NULL, NULL, 0), 0,
+	    "Unexpected mallctlbymib() failure");
 }
 TEST_END
 
@@ -420,6 +424,10 @@ TEST_BEGIN(test_arena_i_decay)
 	assert_d_eq(mallctlnametomib("arena.0.decay", mib, &miblen), 0,
 	    "Unexpected mallctlnametomib() failure");
 	mib[1] = narenas;
+	assert_d_eq(mallctlbymib(mib, miblen, NULL, NULL, NULL, 0), 0,
+	    "Unexpected mallctlbymib() failure");
+
+	mib[1] = MALLCTL_ARENAS_ALL;
 	assert_d_eq(mallctlbymib(mib, miblen, NULL, NULL, NULL, 0), 0,
 	    "Unexpected mallctlbymib() failure");
 }

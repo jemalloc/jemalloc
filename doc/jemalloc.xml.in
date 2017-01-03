@@ -694,12 +694,22 @@ for (i = 0; i < nbins; i++) {
     any.  A name element encoded as <literal>&lt;i&gt;</literal> or
     <literal>&lt;j&gt;</literal> indicates an integer component, where the
     integer varies from 0 to some upper value that must be determined via
-    introspection.  In the case of <mallctl>stats.arenas.&lt;i&gt;.*</mallctl>,
-    <literal>&lt;i&gt;</literal> equal to <link
-    linkend="arenas.narenas"><mallctl>arenas.narenas</mallctl></link> can be
-    used to access the summation of statistics from all arenas.  Take special
-    note of the <link linkend="epoch"><mallctl>epoch</mallctl></link> mallctl,
-    which controls refreshing of cached dynamic statistics.</para>
+    introspection.  In the case of <mallctl>stats.arenas.&lt;i&gt;.*</mallctl>
+    and <mallctl>arena.&lt;i&gt;.{purge,decay,dss}</mallctl>,
+    <literal>&lt;i&gt;</literal> equal to
+    <constant>MALLCTL_ARENAS_ALL</constant> can be used to operate on all arenas
+    or access the summation of statistics from all arenas.  This constant can be
+    utilized either via <function>mallctlnametomib()</function> followed by
+    <function>mallctlbymib()</function>, or via code such as the following:
+    <programlisting language="C"><![CDATA[
+#define STRINGIFY_HELPER(x) #x
+#define STRINGIFY(x) STRINGIFY_HELPER(x)
+
+mallctl("arena." STRINGIFY(MALLCTL_ARENAS_ALL) ".decay",
+    NULL, NULL, NULL, 0);]]></programlisting>
+    Take special note of the
+    <link linkend="epoch"><mallctl>epoch</mallctl></link> mallctl, which
+    controls refreshing of cached dynamic statistics.</para>
 
     <variablelist>
       <varlistentry id="version">
@@ -1422,8 +1432,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
           <literal>--</literal>
         </term>
         <listitem><para>Purge all unused dirty pages for arena &lt;i&gt;, or for
-        all arenas if &lt;i&gt; equals <link
-        linkend="arenas.narenas"><mallctl>arenas.narenas</mallctl></link>.
+        all arenas if &lt;i&gt; equals <constant>MALLCTL_ARENAS_ALL</constant>.
         </para></listitem>
       </varlistentry>
 
@@ -1434,10 +1443,9 @@ malloc_conf = "xmalloc:true";]]></programlisting>
           <literal>--</literal>
         </term>
         <listitem><para>Trigger decay-based purging of unused dirty pages for
-        arena &lt;i&gt;, or for all arenas if &lt;i&gt; equals <link
-        linkend="arenas.narenas"><mallctl>arenas.narenas</mallctl></link>.
-        The proportion of unused dirty pages to be purged depends on the current
-        time; see <link
+        arena &lt;i&gt;, or for all arenas if &lt;i&gt; equals
+        <constant>MALLCTL_ARENAS_ALL</constant>.  The proportion of unused dirty
+        pages to be purged depends on the current time; see <link
         linkend="opt.decay_time"><mallctl>opt.decay_time</mallctl></link> for
         details.</para></listitem>
       </varlistentry>
@@ -1465,9 +1473,8 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         </term>
         <listitem><para>Set the precedence of dss allocation as related to mmap
         allocation for arena &lt;i&gt;, or for all arenas if &lt;i&gt; equals
-        <link
-        linkend="arenas.narenas"><mallctl>arenas.narenas</mallctl></link>.  See
-        <link linkend="opt.dss"><mallctl>opt.dss</mallctl></link> for supported
+        <constant>MALLCTL_ARENAS_ALL</constant>.  See <link
+        linkend="opt.dss"><mallctl>opt.dss</mallctl></link> for supported
         settings.</para></listitem>
       </varlistentry>
 

@@ -54,6 +54,10 @@
  */
 #define	JEMALLOC_ARG_CONCAT(...) __VA_ARGS__
 
+/* cpp macro definition stringification. */
+#define	STRINGIFY_HELPER(x) #x
+#define	STRINGIFY(x) STRINGIFY_HELPER(x)
+
 /*
  * Silence compiler warnings due to uninitialized values.  This is used
  * wherever the compiler fails to recognize that the variable is never used

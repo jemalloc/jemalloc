@@ -841,7 +841,7 @@ stats_print_helper(void (*write_cb)(void *, const char *), void *cbopaque,
 					    "\nMerged arenas stats:\n");
 				}
 				stats_arena_print(write_cb, cbopaque, json,
-				    narenas, bins, large);
+				    MALLCTL_ARENAS_ALL, bins, large);
 				if (json) {
 					malloc_cprintf(write_cb, cbopaque,
 					    "\t\t\t}%s\n", (ninitialized > 1) ?
