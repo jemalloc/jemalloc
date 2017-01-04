@@ -899,7 +899,7 @@ ctl_bymib(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
 		assert(node->nchildren > 0);
 		if (ctl_named_node(node->children) != NULL) {
 			/* Children are named. */
-			if (node->nchildren <= (unsigned)mib[i]) {
+			if (node->nchildren <= mib[i]) {
 				ret = ENOENT;
 				goto label_return;
 			}
@@ -1008,6 +1008,14 @@ ctl_postfork_child(tsdn_t *tsdn)
 		}							\
 		(v) = *(t *)newp;					\
 	}								\
+} while (0)
+
+#define	MIB_UNSIGNED(v, i) do {						\
+	if (mib[i] > UINT_MAX) {					\
+		ret = EFAULT;						\
+		goto label_return;					\
+	}								\
+	v = (unsigned)mib[i];						\
 } while (0)
 
 /*
@@ -1503,10 +1511,12 @@ arena_i_purge_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
     size_t *oldlenp, void *newp, size_t newlen)
 {
 	int ret;
+	unsigned arena_ind;
 
 	READONLY();
 	WRITEONLY();
-	arena_i_purge(tsd_tsdn(tsd), (unsigned)mib[1], true);
+	MIB_UNSIGNED(arena_ind, 1);
+	arena_i_purge(tsd_tsdn(tsd), arena_ind, true);
 
 	ret = 0;
 label_return:
@@ -1518,10 +1528,12 @@ arena_i_decay_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
     size_t *oldlenp, void *newp, size_t newlen)
 {
 	int ret;
+	unsigned arena_ind;
 
 	READONLY();
 	WRITEONLY();
-	arena_i_purge(tsd_tsdn(tsd), (unsigned)mib[1], false);
+	MIB_UNSIGNED(arena_ind, 1);
+	arena_i_purge(tsd_tsdn(tsd), arena_ind, false);
 
 	ret = 0;
 label_return:
@@ -1538,8 +1550,8 @@ arena_i_reset_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
 
 	READONLY();
 	WRITEONLY();
+	MIB_UNSIGNED(arena_ind, 1);
 
-	arena_ind = (unsigned)mib[1];
 	if (config_debug) {
 		malloc_mutex_lock(tsd_tsdn(tsd), &ctl_mtx);
 		assert(arena_ind < ctl_stats->narenas);
@@ -1566,12 +1578,13 @@ arena_i_dss_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
 {
 	int ret;
 	const char *dss = NULL;
-	unsigned arena_ind = (unsigned)mib[1];
+	unsigned arena_ind;
 	dss_prec_t dss_prec_old = dss_prec_limit;
 	dss_prec_t dss_prec = dss_prec_limit;
 
 	malloc_mutex_lock(tsd_tsdn(tsd), &ctl_mtx);
 	WRITE(dss, const char *);
+	MIB_UNSIGNED(arena_ind, 1);
 	if (dss != NULL) {
 		int i;
 		bool match = false;
@@ -1626,9 +1639,10 @@ arena_i_decay_time_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
     size_t *oldlenp, void *newp, size_t newlen)
 {
 	int ret;
-	unsigned arena_ind = (unsigned)mib[1];
+	unsigned arena_ind;
 	arena_t *arena;
 
+	MIB_UNSIGNED(arena_ind, 1);
 	arena = arena_get(tsd_tsdn(tsd), arena_ind, false);
 	if (arena == NULL) {
 		ret = EFAULT;
@@ -1661,10 +1675,11 @@ arena_i_extent_hooks_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
     void *oldp, size_t *oldlenp, void *newp, size_t newlen)
 {
 	int ret;
-	unsigned arena_ind = (unsigned)mib[1];
+	unsigned arena_ind;
 	arena_t *arena;
 
 	malloc_mutex_lock(tsd_tsdn(tsd), &ctl_mtx);
+	MIB_UNSIGNED(arena_ind, 1);
 	if (arena_ind < narenas_total_get() && (arena =
 	    arena_get(tsd_tsdn(tsd), arena_ind, false)) != NULL) {
 		if (newp != NULL) {

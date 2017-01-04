@@ -19,7 +19,7 @@ struct ctl_named_node_s {
 	struct ctl_node_s	node;
 	const char		*name;
 	/* If (nchildren == 0), this is a terminal node. */
-	unsigned		nchildren;
+	size_t			nchildren;
 	const			ctl_node_t *children;
 	int			(*ctl)(tsd_t *, const size_t *, size_t, void *,
 	    size_t *, void *, size_t);
