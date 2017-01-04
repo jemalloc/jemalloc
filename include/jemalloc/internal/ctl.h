@@ -32,7 +32,10 @@ struct ctl_indexed_node_s {
 };
 
 struct ctl_arena_stats_s {
+	unsigned		arena_ind;
 	bool			initialized;
+	ql_elm(ctl_arena_stats_t)	destroyed_link;
+
 	unsigned		nthreads;
 	const char		*dss;
 	ssize_t			decay_time;
@@ -62,7 +65,14 @@ struct ctl_stats_s {
 	size_t			mapped;
 	size_t			retained;
 	unsigned		narenas;
-	ctl_arena_stats_t	*arenas[1 << MALLOCX_ARENA_BITS];
+	ql_head(ctl_arena_stats_t)	destroyed;
+	/*
+	 * Element 0 contains merged stats for extant arenas (accessed via
+	 * MALLCTL_ARENAS_ALL), element 1 contains merged stats for destroyed
+	 * arenas (accessed via MALLCTL_ARENAS_DESTROYED), and the remaining
+	 * MALLOCX_ARENA_MAX+1 elements correspond to arenas.
+	 */
+	ctl_arena_stats_t	*arenas[MALLOCX_ARENA_MAX + 3];
 };
 
 #endif /* JEMALLOC_H_STRUCTS */

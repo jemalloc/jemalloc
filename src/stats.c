@@ -772,7 +772,8 @@ stats_general_print(void (*write_cb)(void *, const char *), void *cbopaque,
 
 static void
 stats_print_helper(void (*write_cb)(void *, const char *), void *cbopaque,
-    bool json, bool merged, bool unmerged, bool bins, bool large)
+    bool json, bool merged, bool destroyed, bool unmerged, bool bins,
+    bool large)
 {
 	size_t allocated, active, metadata, resident, mapped, retained;
 
@@ -808,7 +809,7 @@ stats_print_helper(void (*write_cb)(void *, const char *), void *cbopaque,
 		    allocated, active, metadata, resident, mapped, retained);
 	}
 
-	if (merged || unmerged) {
+	if (merged || destroyed || unmerged) {
 		unsigned narenas;
 
 		if (json) {
@@ -822,6 +823,7 @@ stats_print_helper(void (*write_cb)(void *, const char *), void *cbopaque,
 			size_t miblen = sizeof(mib) / sizeof(size_t);
 			size_t sz;
 			VARIABLE_ARRAY(bool, initialized, narenas);
+			bool destroyed_initialized;
 			unsigned i, j, ninitialized;
 
 			xmallctlnametomib("arena.0.initialized", mib, &miblen);
@@ -833,6 +835,10 @@ stats_print_helper(void (*write_cb)(void *, const char *), void *cbopaque,
 				if (initialized[i])
 					ninitialized++;
 			}
+			mib[1] = MALLCTL_ARENAS_DESTROYED;
+			sz = sizeof(bool);
+			xmallctlbymib(mib, miblen, &destroyed_initialized, &sz,
+			    NULL, 0);
 
 			/* Merged stats. */
 			if (merged && (ninitialized > 1 || !unmerged)) {
@@ -846,6 +852,25 @@ stats_print_helper(void (*write_cb)(void *, const char *), void *cbopaque,
 				}
 				stats_arena_print(write_cb, cbopaque, json,
 				    MALLCTL_ARENAS_ALL, bins, large);
+				if (json) {
+					malloc_cprintf(write_cb, cbopaque,
+					    "\t\t\t}%s\n", (ninitialized > 1) ?
+					    "," : "");
+				}
+			}
+
+			/* Destroyed stats. */
+			if (destroyed_initialized && destroyed) {
+				/* Print destroyed arena stats. */
+				if (json) {
+					malloc_cprintf(write_cb, cbopaque,
+					    "\t\t\t\"destroyed\": {\n");
+				} else {
+					malloc_cprintf(write_cb, cbopaque,
+					    "\nDestroyed arenas stats:\n");
+				}
+				stats_arena_print(write_cb, cbopaque, json,
+				    MALLCTL_ARENAS_DESTROYED, bins, large);
 				if (json) {
 					malloc_cprintf(write_cb, cbopaque,
 					    "\t\t\t}%s\n", (ninitialized > 1) ?
@@ -895,6 +920,7 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 	bool json = false;
 	bool general = true;
 	bool merged = config_stats;
+	bool destroyed = config_stats;
 	bool unmerged = config_stats;
 	bool bins = true;
 	bool large = true;
@@ -935,6 +961,9 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 			case 'm':
 				merged = false;
 				break;
+			case 'd':
+				destroyed = false;
+				break;
 			case 'a':
 				unmerged = false;
 				break;
@@ -963,8 +992,8 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		stats_general_print(write_cb, cbopaque, json, more);
 	}
 	if (config_stats) {
-		stats_print_helper(write_cb, cbopaque, json, merged, unmerged,
-		    bins, large);
+		stats_print_helper(write_cb, cbopaque, json, merged, destroyed,
+		    unmerged, bins, large);
 	}
 
 	if (json) {

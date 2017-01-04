@@ -381,6 +381,15 @@ TEST_BEGIN(test_arena_i_initialized)
 	    "Unexpected mallctl() failure");
 	assert_true(initialized,
 	    "Merged arena statistics should always be initialized");
+
+	/* Equivalent to the above but using mallctl() directly. */
+	sz = sizeof(initialized);
+	assert_d_eq(mallctl(
+	    "arena." STRINGIFY(MALLCTL_ARENAS_ALL) ".initialized",
+	    (void *)&initialized, &sz, NULL, 0), 0,
+	    "Unexpected mallctl() failure");
+	assert_true(initialized,
+	    "Merged arena statistics should always be initialized");
 }
 TEST_END
 

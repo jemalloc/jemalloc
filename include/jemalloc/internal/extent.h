@@ -125,6 +125,8 @@ extent_t	*extent_alloc_wrapper(tsdn_t *tsdn, arena_t *arena,
 void	extent_dalloc_gap(tsdn_t *tsdn, arena_t *arena, extent_t *extent);
 void	extent_dalloc_cache(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, extent_t *extent);
+bool	extent_dalloc_wrapper_try(tsdn_t *tsdn, arena_t *arena,
+    extent_hooks_t **r_extent_hooks, extent_t *extent);
 void	extent_dalloc_wrapper(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, extent_t *extent);
 bool	extent_commit_wrapper(tsdn_t *tsdn, arena_t *arena,

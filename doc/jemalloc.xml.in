@@ -426,13 +426,14 @@ for (i = 0; i < nbins; i++) {
       <function>mallctl*()</function> functions internally, so inconsistent
       statistics can be reported if multiple threads use these functions
       simultaneously.  If <option>--enable-stats</option> is specified during
-      configuration, <quote>m</quote> and <quote>a</quote> can be specified to
-      omit merged arena and per arena statistics, respectively; <quote>b</quote>
-      and <quote>l</quote> can be specified to omit per size class statistics
-      for bins and large objects, respectively.  Unrecognized characters are
-      silently ignored.  Note that thread caching may prevent some statistics
-      from being completely up to date, since extra locking would be required to
-      merge counters that track thread cache operations.</para>
+      configuration, <quote>m</quote>, <quote>d</quote>, and <quote>a</quote>
+      can be specified to omit merged arena, destroyed merged arena, and per
+      arena statistics, respectively; <quote>b</quote> and <quote>l</quote> can
+      be specified to omit per size class statistics for bins and large objects,
+      respectively.  Unrecognized characters are silently ignored.  Note that
+      thread caching may prevent some statistics from being completely up to
+      date, since extra locking would be required to merge counters that track
+      thread cache operations.</para>
 
       <para>The <function>malloc_usable_size()</function> function
       returns the usable size of the allocation pointed to by
@@ -687,18 +688,21 @@ for (i = 0; i < nbins; i++) {
   <refsect1 id="mallctl_namespace">
     <title>MALLCTL NAMESPACE</title>
     <para>The following names are defined in the namespace accessible via the
-    <function>mallctl*()</function> functions.  Value types are
-    specified in parentheses, their readable/writable statuses are encoded as
+    <function>mallctl*()</function> functions.  Value types are specified in
+    parentheses, their readable/writable statuses are encoded as
     <literal>rw</literal>, <literal>r-</literal>, <literal>-w</literal>, or
     <literal>--</literal>, and required build configuration flags follow, if
     any.  A name element encoded as <literal>&lt;i&gt;</literal> or
     <literal>&lt;j&gt;</literal> indicates an integer component, where the
     integer varies from 0 to some upper value that must be determined via
     introspection.  In the case of <mallctl>stats.arenas.&lt;i&gt;.*</mallctl>
-    and <mallctl>arena.&lt;i&gt;.{purge,decay,dss}</mallctl>,
+    and <mallctl>arena.&lt;i&gt;.{initialized,purge,decay,dss}</mallctl>,
     <literal>&lt;i&gt;</literal> equal to
     <constant>MALLCTL_ARENAS_ALL</constant> can be used to operate on all arenas
-    or access the summation of statistics from all arenas.  This constant can be
+    or access the summation of statistics from all arenas; similarly
+    <literal>&lt;i&gt;</literal> equal to
+    <constant>MALLCTL_ARENAS_DESTROYED</constant> can be used to access the
+    summation of statistics from all destroyed arenas.  These constants can be
     utilized either via <function>mallctlnametomib()</function> followed by
     <function>mallctlbymib()</function>, or via code such as the following:
     <programlisting language="C"><![CDATA[
@@ -707,9 +711,9 @@ for (i = 0; i < nbins; i++) {
 
 mallctl("arena." STRINGIFY(MALLCTL_ARENAS_ALL) ".decay",
     NULL, NULL, NULL, 0);]]></programlisting>
-    Take special note of the
-    <link linkend="epoch"><mallctl>epoch</mallctl></link> mallctl, which
-    controls refreshing of cached dynamic statistics.</para>
+    Take special note of the <link
+    linkend="epoch"><mallctl>epoch</mallctl></link> mallctl, which controls
+    refreshing of cached dynamic statistics.</para>
 
     <variablelist>
       <varlistentry id="version">
@@ -1476,6 +1480,25 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         part of this requirement, all thread caches which were used to
         allocate/deallocate in conjunction with the arena must be flushed
         beforehand.</para></listitem>
+      </varlistentry>
+
+      <varlistentry id="arena.i.destroy">
+        <term>
+          <mallctl>arena.&lt;i&gt;.destroy</mallctl>
+          (<type>void</type>)
+          <literal>--</literal>
+        </term>
+        <listitem><para>Destroy the arena.  Discard all of the arena's extant
+        allocations using the same mechanism as for <link
+        linkend="arena.i.reset"><mallctl>arena.&lt;i&gt;.reset</mallctl></link>
+        (with all the same constraints and side effects), merge the arena stats
+        into those accessible at arena index
+        <constant>MALLCTL_ARENAS_DESTROYED</constant>, and then completely
+        discard all metadata associated with the arena.  Future calls to <link
+        linkend="arenas.create"><mallctl>arenas.create</mallctl></link> may
+        recycle the arena index.  Destruction will fail if any threads are
+        currently associated with the arena as a result of calls to <link
+        linkend="thread.arena"><mallctl>thread.arena</mallctl></link>.</para></listitem>
       </varlistentry>
 
       <varlistentry id="arena.i.dss">

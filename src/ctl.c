@@ -48,18 +48,6 @@ static int	n##_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,	\
 static const ctl_named_node_t	*n##_index(tsdn_t *tsdn,		\
     const size_t *mib, size_t miblen, size_t i);
 
-static void	ctl_arena_clear(ctl_arena_stats_t *astats);
-static void	ctl_arena_stats_amerge(tsdn_t *tsdn, ctl_arena_stats_t *cstats,
-    arena_t *arena);
-static void	ctl_arena_stats_smerge(ctl_arena_stats_t *sstats,
-    ctl_arena_stats_t *astats);
-static void	ctl_arena_refresh(tsdn_t *tsdn, arena_t *arena, unsigned i);
-static bool	ctl_grow(tsdn_t *tsdn, extent_hooks_t *extent_hooks);
-static void	ctl_refresh(tsdn_t *tsdn);
-static bool	ctl_init(tsdn_t *tsdn);
-static int	ctl_lookup(tsdn_t *tsdn, const char *name,
-    ctl_node_t const **nodesp, size_t *mibp, size_t *depthp);
-
 CTL_PROTO(version)
 CTL_PROTO(epoch)
 CTL_PROTO(thread_tcache_enabled)
@@ -113,6 +101,7 @@ CTL_PROTO(arena_i_initialized)
 CTL_PROTO(arena_i_purge)
 CTL_PROTO(arena_i_decay)
 CTL_PROTO(arena_i_reset)
+CTL_PROTO(arena_i_destroy)
 CTL_PROTO(arena_i_dss)
 CTL_PROTO(arena_i_decay_time)
 CTL_PROTO(arena_i_extent_hooks)
@@ -274,6 +263,7 @@ static const ctl_named_node_t arena_i_node[] = {
 	{NAME("purge"),		CTL(arena_i_purge)},
 	{NAME("decay"),		CTL(arena_i_decay)},
 	{NAME("reset"),		CTL(arena_i_reset)},
+	{NAME("destroy"),	CTL(arena_i_destroy)},
 	{NAME("dss"),		CTL(arena_i_dss)},
 	{NAME("decay_time"),	CTL(arena_i_decay_time)},
 	{NAME("extent_hooks"),	CTL(arena_i_extent_hooks)}
@@ -452,6 +442,9 @@ stats_arenas_i2a_impl(size_t i, bool compat, bool validate)
 	case MALLCTL_ARENAS_ALL:
 		a = 0;
 		break;
+	case MALLCTL_ARENAS_DESTROYED:
+		a = 1;
+		break;
 	default:
 		if (compat && i == ctl_stats->narenas) {
 			/*
@@ -471,12 +464,19 @@ stats_arenas_i2a_impl(size_t i, bool compat, bool validate)
 			 */
 			assert(i < ctl_stats->narenas || (!validate && i ==
 			    ctl_stats->narenas));
-			a = (unsigned)i + 1;
+			a = (unsigned)i + 2;
 		}
 		break;
 	}
 
 	return (a);
+}
+
+static unsigned
+stats_arenas_i2a(size_t i)
+{
+
+	return (stats_arenas_i2a_impl(i, true, false));
 }
 
 static ctl_arena_stats_t *
@@ -492,10 +492,13 @@ stats_arenas_i_impl(tsdn_t *tsdn, size_t i, bool compat, bool init)
 		    sizeof(ctl_arena_stats_t), QUANTUM);
 		if (ret == NULL)
 			return (NULL);
+		ret->arena_ind = (unsigned)i;
 		ctl_stats->arenas[stats_arenas_i2a_impl(i, compat, false)] =
 		    ret;
 	}
 
+	assert(ret == NULL || stats_arenas_i2a(ret->arena_ind) ==
+	    stats_arenas_i2a(i));
 	return (ret);
 }
 
@@ -553,92 +556,130 @@ ctl_arena_stats_amerge(tsdn_t *tsdn, ctl_arena_stats_t *cstats, arena_t *arena)
 }
 
 static void
-ctl_arena_stats_smerge(ctl_arena_stats_t *sstats, ctl_arena_stats_t *astats)
+ctl_arena_stats_sdmerge(ctl_arena_stats_t *sdstats, ctl_arena_stats_t *astats,
+    bool destroyed)
 {
 	unsigned i;
 
-	sstats->nthreads += astats->nthreads;
-	sstats->pactive += astats->pactive;
-	sstats->pdirty += astats->pdirty;
+	if (!destroyed) {
+		sdstats->nthreads += astats->nthreads;
+		sdstats->pactive += astats->pactive;
+		sdstats->pdirty += astats->pdirty;
+	} else {
+		assert(astats->nthreads == 0);
+		assert(astats->pactive == 0);
+		assert(astats->pdirty == 0);
+	}
 
 	if (config_stats) {
-		sstats->astats.mapped += astats->astats.mapped;
-		sstats->astats.retained += astats->astats.retained;
-		sstats->astats.npurge += astats->astats.npurge;
-		sstats->astats.nmadvise += astats->astats.nmadvise;
-		sstats->astats.purged += astats->astats.purged;
+		if (!destroyed) {
+			sdstats->astats.mapped += astats->astats.mapped;
+			sdstats->astats.retained += astats->astats.retained;
+		}
+		sdstats->astats.npurge += astats->astats.npurge;
+		sdstats->astats.nmadvise += astats->astats.nmadvise;
+		sdstats->astats.purged += astats->astats.purged;
 
-		sstats->astats.base += astats->astats.base;
-		sstats->astats.internal += astats->astats.internal;
-		sstats->astats.resident += astats->astats.resident;
+		if (!destroyed) {
+			sdstats->astats.base += astats->astats.base;
+			sdstats->astats.internal += astats->astats.internal;
+			sdstats->astats.resident += astats->astats.resident;
+		} else
+			assert(astats->astats.internal == 0);
 
-		sstats->allocated_small += astats->allocated_small;
-		sstats->nmalloc_small += astats->nmalloc_small;
-		sstats->ndalloc_small += astats->ndalloc_small;
-		sstats->nrequests_small += astats->nrequests_small;
+		if (!destroyed)
+			sdstats->allocated_small += astats->allocated_small;
+		else
+			assert(astats->allocated_small == 0);
+		sdstats->nmalloc_small += astats->nmalloc_small;
+		sdstats->ndalloc_small += astats->ndalloc_small;
+		sdstats->nrequests_small += astats->nrequests_small;
 
-		sstats->astats.allocated_large +=
-		    astats->astats.allocated_large;
-		sstats->astats.nmalloc_large += astats->astats.nmalloc_large;
-		sstats->astats.ndalloc_large += astats->astats.ndalloc_large;
-		sstats->astats.nrequests_large +=
+		if (!destroyed) {
+			sdstats->astats.allocated_large +=
+			    astats->astats.allocated_large;
+		} else
+			assert(astats->astats.allocated_large == 0);
+		sdstats->astats.nmalloc_large += astats->astats.nmalloc_large;
+		sdstats->astats.ndalloc_large += astats->astats.ndalloc_large;
+		sdstats->astats.nrequests_large +=
 		    astats->astats.nrequests_large;
 
 		for (i = 0; i < NBINS; i++) {
-			sstats->bstats[i].nmalloc += astats->bstats[i].nmalloc;
-			sstats->bstats[i].ndalloc += astats->bstats[i].ndalloc;
-			sstats->bstats[i].nrequests +=
+			sdstats->bstats[i].nmalloc += astats->bstats[i].nmalloc;
+			sdstats->bstats[i].ndalloc += astats->bstats[i].ndalloc;
+			sdstats->bstats[i].nrequests +=
 			    astats->bstats[i].nrequests;
-			sstats->bstats[i].curregs += astats->bstats[i].curregs;
+			if (!destroyed) {
+				sdstats->bstats[i].curregs +=
+				    astats->bstats[i].curregs;
+			} else
+				assert(astats->bstats[i].curregs == 0);
 			if (config_tcache) {
-				sstats->bstats[i].nfills +=
+				sdstats->bstats[i].nfills +=
 				    astats->bstats[i].nfills;
-				sstats->bstats[i].nflushes +=
+				sdstats->bstats[i].nflushes +=
 				    astats->bstats[i].nflushes;
 			}
-			sstats->bstats[i].nslabs += astats->bstats[i].nslabs;
-			sstats->bstats[i].reslabs += astats->bstats[i].reslabs;
-			sstats->bstats[i].curslabs +=
-			    astats->bstats[i].curslabs;
+			sdstats->bstats[i].nslabs += astats->bstats[i].nslabs;
+			sdstats->bstats[i].reslabs += astats->bstats[i].reslabs;
+			if (!destroyed) {
+				sdstats->bstats[i].curslabs +=
+				    astats->bstats[i].curslabs;
+			} else
+				assert(astats->bstats[i].curslabs == 0);
 		}
 
 		for (i = 0; i < NSIZES - NBINS; i++) {
-			sstats->lstats[i].nmalloc += astats->lstats[i].nmalloc;
-			sstats->lstats[i].ndalloc += astats->lstats[i].ndalloc;
-			sstats->lstats[i].nrequests +=
+			sdstats->lstats[i].nmalloc += astats->lstats[i].nmalloc;
+			sdstats->lstats[i].ndalloc += astats->lstats[i].ndalloc;
+			sdstats->lstats[i].nrequests +=
 			    astats->lstats[i].nrequests;
-			sstats->lstats[i].curlextents +=
-			    astats->lstats[i].curlextents;
+			if (!destroyed) {
+				sdstats->lstats[i].curlextents +=
+				    astats->lstats[i].curlextents;
+			} else
+				assert(astats->lstats[i].curlextents == 0);
 		}
 	}
 }
 
 static void
-ctl_arena_refresh(tsdn_t *tsdn, arena_t *arena, unsigned i)
+ctl_arena_refresh(tsdn_t *tsdn, arena_t *arena, ctl_arena_stats_t *sdstats,
+    unsigned i, bool destroyed)
 {
 	ctl_arena_stats_t *astats = stats_arenas_i(i);
-	ctl_arena_stats_t *sstats = stats_arenas_i(MALLCTL_ARENAS_ALL);
 
 	ctl_arena_clear(astats);
 	ctl_arena_stats_amerge(tsdn, astats, arena);
 	/* Merge into sum stats as well. */
-	ctl_arena_stats_smerge(sstats, astats);
+	ctl_arena_stats_sdmerge(sdstats, astats, destroyed);
 }
 
-static bool
-ctl_grow(tsdn_t *tsdn, extent_hooks_t *extent_hooks)
+static unsigned
+ctl_arena_init(tsdn_t *tsdn, extent_hooks_t *extent_hooks)
 {
+	unsigned arena_ind;
+	ctl_arena_stats_t *astats;
+
+	if ((astats = ql_last(&ctl_stats->destroyed, destroyed_link)) != NULL) {
+		ql_remove(&ctl_stats->destroyed, astats, destroyed_link);
+		arena_ind = astats->arena_ind;
+	} else
+		arena_ind = ctl_stats->narenas;
 
 	/* Trigger stats allocation. */
-	if (stats_arenas_i_impl(tsdn, ctl_stats->narenas, false, true) == NULL)
-		return (true);
+	if (stats_arenas_i_impl(tsdn, arena_ind, false, true) == NULL)
+		return (UINT_MAX);
 
 	/* Initialize new arena. */
-	if (arena_init(tsdn, ctl_stats->narenas, extent_hooks) == NULL)
-		return (true);
-	ctl_stats->narenas++;
+	if (arena_init(tsdn, arena_ind, extent_hooks) == NULL)
+		return (UINT_MAX);
 
-	return (false);
+	if (arena_ind == ctl_stats->narenas)
+		ctl_stats->narenas++;
+
+	return (arena_ind);
 }
 
 static void
@@ -663,7 +704,7 @@ ctl_refresh(tsdn_t *tsdn)
 
 		astats->initialized = initialized;
 		if (initialized)
-			ctl_arena_refresh(tsdn, tarenas[i], i);
+			ctl_arena_refresh(tsdn, tarenas[i], sstats, i, false);
 	}
 
 	if (config_stats) {
@@ -687,7 +728,7 @@ ctl_init(tsdn_t *tsdn)
 
 	malloc_mutex_lock(tsdn, &ctl_mtx);
 	if (!ctl_initialized) {
-		ctl_arena_stats_t *sstats;
+		ctl_arena_stats_t *sstats, *dstats;
 		unsigned i;
 
 		/*
@@ -715,6 +756,19 @@ ctl_init(tsdn_t *tsdn)
 		}
 		sstats->initialized = true;
 
+		if ((dstats = stats_arenas_i_impl(tsdn,
+		    MALLCTL_ARENAS_DESTROYED, false, true)) == NULL) {
+			ret = true;
+			goto label_return;
+		}
+		ctl_arena_clear(dstats);
+		/*
+		 * Don't toggle stats for MALLCTL_ARENAS_DESTROYED to
+		 * initialized until an arena is actually destroyed, so that
+		 * arena.<i>.initialized can be used to query whether the stats
+		 * are relevant.
+		 */
+
 		ctl_stats->narenas = narenas_total_get();
 		for (i = 0; i < ctl_stats->narenas; i++) {
 			if (stats_arenas_i_impl(tsdn, i, false, true) == NULL) {
@@ -723,7 +777,7 @@ ctl_init(tsdn_t *tsdn)
 			}
 		}
 
-		ctl_stats->epoch = 0;
+		ql_new(&ctl_stats->destroyed);
 		ctl_refresh(tsdn);
 		ctl_initialized = true;
 	}
@@ -1563,6 +1617,33 @@ label_return:
 }
 
 static int
+arena_i_reset_destroy_helper(tsd_t *tsd, const size_t *mib, size_t miblen,
+    void *oldp, size_t *oldlenp, void *newp, size_t newlen, unsigned *arena_ind,
+    arena_t **arena)
+{
+	int ret;
+
+	READONLY();
+	WRITEONLY();
+	MIB_UNSIGNED(*arena_ind, 1);
+
+	if (*arena_ind < narenas_auto) {
+		ret = EFAULT;
+		goto label_return;
+	}
+
+	*arena = arena_get(tsd_tsdn(tsd), *arena_ind, false);
+	if (*arena == NULL) {
+		ret = EFAULT;
+		goto label_return;
+	}
+
+	ret = 0;
+label_return:
+	return (ret);
+}
+
+static int
 arena_i_reset_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
     size_t *oldlenp, void *newp, size_t newlen)
 {
@@ -1570,26 +1651,51 @@ arena_i_reset_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
 	unsigned arena_ind;
 	arena_t *arena;
 
-	READONLY();
-	WRITEONLY();
-	MIB_UNSIGNED(arena_ind, 1);
+	ret = arena_i_reset_destroy_helper(tsd, mib, miblen, oldp, oldlenp,
+	    newp, newlen, &arena_ind, &arena);
+	if (ret != 0)
+		return (ret);
 
-	if (config_debug) {
-		malloc_mutex_lock(tsd_tsdn(tsd), &ctl_mtx);
-		assert(arena_ind < ctl_stats->narenas);
-		malloc_mutex_unlock(tsd_tsdn(tsd), &ctl_mtx);
-	}
-	assert(arena_ind >= opt_narenas);
+	arena_reset(tsd, arena);
 
-	arena = arena_get(tsd_tsdn(tsd), arena_ind, false);
-	if (arena == NULL) {
+	return (ret);
+}
+
+static int
+arena_i_destroy_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
+    size_t *oldlenp, void *newp, size_t newlen)
+{
+	int ret;
+	unsigned arena_ind;
+	arena_t *arena;
+	ctl_arena_stats_t *dstats, *astats;
+
+	ret = arena_i_reset_destroy_helper(tsd, mib, miblen, oldp, oldlenp,
+	    newp, newlen, &arena_ind, &arena);
+	if (ret != 0)
+		goto label_return;
+
+	if (arena_nthreads_get(arena, false) != 0 || arena_nthreads_get(arena,
+	    true) != 0) {
 		ret = EFAULT;
 		goto label_return;
 	}
 
+	/* Merge stats after resetting and purging arena. */
 	arena_reset(tsd, arena);
+	arena_purge(tsd_tsdn(tsd), arena, true);
+	dstats = stats_arenas_i(MALLCTL_ARENAS_DESTROYED);
+	dstats->initialized = true;
+	ctl_arena_refresh(tsd_tsdn(tsd), arena, dstats, arena_ind, true);
+	/* Destroy arena. */
+	arena_destroy(tsd, arena);
+	astats = stats_arenas_i(arena_ind);
+	astats->initialized = false;
+	/* Record arena index for later recycling via arenas.create. */
+	ql_elm_new(astats, destroyed_link);
+	ql_tail_insert(&ctl_stats->destroyed, astats, destroyed_link);
 
-	ret = 0;
+	assert(ret == 0);
 label_return:
 	return (ret);
 }
@@ -1733,9 +1839,16 @@ arena_i_index(tsdn_t *tsdn, const size_t *mib, size_t miblen, size_t i)
 	const ctl_named_node_t *ret;
 
 	malloc_mutex_lock(tsdn, &ctl_mtx);
-	if (i > ctl_stats->narenas && i != MALLCTL_ARENAS_ALL) {
-		ret = NULL;
-		goto label_return;
+	switch (i) {
+	case MALLCTL_ARENAS_ALL:
+	case MALLCTL_ARENAS_DESTROYED:
+		break;
+	default:
+		if (i > ctl_stats->narenas) {
+			ret = NULL;
+			goto label_return;
+		}
+		break;
 	}
 
 	ret = super_arena_i_node;
@@ -1828,18 +1941,18 @@ arenas_create_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
 {
 	int ret;
 	extent_hooks_t *extent_hooks;
-	unsigned narenas;
+	unsigned arena_ind;
 
 	malloc_mutex_lock(tsd_tsdn(tsd), &ctl_mtx);
 
 	extent_hooks = (extent_hooks_t *)&extent_hooks_default;
 	WRITE(extent_hooks, extent_hooks_t *);
-	if (ctl_grow(tsd_tsdn(tsd), extent_hooks)) {
+	if ((arena_ind = ctl_arena_init(tsd_tsdn(tsd), extent_hooks)) ==
+	    UINT_MAX) {
 		ret = EAGAIN;
 		goto label_return;
 	}
-	narenas = ctl_stats->narenas - 1;
-	READ(narenas, unsigned);
+	READ(arena_ind, unsigned);
 
 	ret = 0;
 label_return:

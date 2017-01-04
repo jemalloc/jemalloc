@@ -1039,11 +1039,11 @@ extent_dalloc_default(extent_hooks_t *extent_hooks, void *addr, size_t size,
 	return (extent_dalloc_default_impl(addr, size));
 }
 
-void
-extent_dalloc_wrapper(tsdn_t *tsdn, arena_t *arena,
+bool
+extent_dalloc_wrapper_try(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, extent_t *extent)
 {
-	bool err, zeroed;
+	bool err;
 
 	assert(extent_base_get(extent) != NULL);
 	assert(extent_size_get(extent) != 0);
@@ -1067,10 +1067,21 @@ extent_dalloc_wrapper(tsdn_t *tsdn, arena_t *arena,
 		    extent_committed_get(extent), arena_ind_get(arena)));
 	}
 
-	if (!err) {
+	if (!err)
 		extent_dalloc(tsdn, arena, extent);
+
+	return (err);
+}
+
+void
+extent_dalloc_wrapper(tsdn_t *tsdn, arena_t *arena,
+    extent_hooks_t **r_extent_hooks, extent_t *extent)
+{
+	bool zeroed;
+
+	if (!extent_dalloc_wrapper_try(tsdn, arena, r_extent_hooks, extent))
 		return;
-	}
+
 	extent_reregister(tsdn, extent);
 	/* Try to decommit; purge if that fails. */
 	if (!extent_committed_get(extent))

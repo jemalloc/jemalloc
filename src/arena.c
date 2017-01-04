@@ -903,6 +903,72 @@ arena_reset(tsd_t *tsd, arena_t *arena)
 	malloc_mutex_unlock(tsd_tsdn(tsd), &arena->lock);
 }
 
+static void
+arena_destroy_retained(tsdn_t *tsdn, arena_t *arena)
+{
+	extent_hooks_t *extent_hooks = extent_hooks_get(arena);
+	size_t i;
+
+	/*
+	 * Iterate over the retained extents and blindly attempt to deallocate
+	 * them.  This gives the extent allocator underlying the extent hooks an
+	 * opportunity to unmap all retained memory without having to keep its
+	 * own metadata structures, but if deallocation fails, that is the
+	 * application's decision/problem.  In practice, retained extents are
+	 * leaked here if !config_munmap unless the application provided custom
+	 * extent hooks, so best practice to either enable munmap (and avoid dss
+	 * for arenas to be destroyed), or provide custom extent hooks that
+	 * either unmap retained extents or track them for later use.
+	 */
+	for (i = 0; i < sizeof(arena->extents_retained)/sizeof(extent_heap_t);
+	    i++) {
+		extent_heap_t *extents = &arena->extents_retained[i];
+		extent_t *extent;
+
+		while ((extent = extent_heap_remove_first(extents)) != NULL) {
+			extent_dalloc_wrapper_try(tsdn, arena, &extent_hooks,
+			    extent);
+		}
+	}
+}
+
+void
+arena_destroy(tsd_t *tsd, arena_t *arena)
+{
+
+	assert(base_ind_get(arena->base) >= narenas_auto);
+	assert(arena_nthreads_get(arena, false) == 0);
+	assert(arena_nthreads_get(arena, true) == 0);
+
+	/*
+	 * No allocations have occurred since arena_reset() was called.
+	 * Furthermore, the caller (arena_i_destroy_ctl()) purged all cached
+	 * extents, so only retained extents may remain.
+	 */
+	assert(arena->ndirty == 0);
+
+	/* Attempt to deallocate retained memory. */
+	arena_destroy_retained(tsd_tsdn(tsd), arena);
+
+	/*
+	 * Remove the arena pointer from the arenas array.  We rely on the fact
+	 * that there is no way for the application to get a dirty read from the
+	 * arenas array unless there is an inherent race in the application
+	 * involving access of an arena being concurrently destroyed.  The
+	 * application must synchronize knowledge of the arena's validity, so as
+	 * long as we use an atomic write to update the arenas array, the
+	 * application will get a clean read any time after it synchronizes
+	 * knowledge that the arena is no longer valid.
+	 */
+	arena_set(base_ind_get(arena->base), NULL);
+
+	/*
+	 * Destroy the base allocator, which manages all metadata ever mapped by
+	 * this arena.
+	 */
+	base_delete(arena->base);
+}
+
 static extent_t *
 arena_slab_alloc_hard(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, const arena_bin_info_t *bin_info)

@@ -44,6 +44,11 @@
  *       0);
  */
 #define	MALLCTL_ARENAS_ALL	4096
+/*
+ * Use as arena index in "stats.arenas.<i>.*" mallctl interfaces to select
+ * destroyed arenas.
+ */
+#define	MALLCTL_ARENAS_DESTROYED	4097
 
 #if defined(__cplusplus) && defined(JEMALLOC_USE_CXX_THROW)
 #  define JEMALLOC_CXX_THROW throw()

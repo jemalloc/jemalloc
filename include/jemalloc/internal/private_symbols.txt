@@ -21,6 +21,7 @@ arena_decay_time_default_get
 arena_decay_time_default_set
 arena_decay_time_get
 arena_decay_time_set
+arena_destroy
 arena_dss_prec_get
 arena_dss_prec_set
 arena_extent_alloc_large
@@ -67,6 +68,7 @@ arena_ralloc_no_move
 arena_reset
 arena_salloc
 arena_sdalloc
+arena_set
 arena_slab_regind
 arena_stats_merge
 arena_tcache_fill_small
@@ -164,6 +166,7 @@ extent_dalloc_cache
 extent_dalloc_gap
 extent_dalloc_mmap
 extent_dalloc_wrapper
+extent_dalloc_wrapper_try
 extent_decommit_wrapper
 extent_dss_boot
 extent_dss_mergeable

@@ -375,7 +375,7 @@ bootstrap_free(void *ptr)
 	a0idalloc(iealloc(NULL, ptr), ptr, false);
 }
 
-static void
+void
 arena_set(unsigned ind, arena_t *arena)
 {
 
