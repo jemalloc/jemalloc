@@ -109,7 +109,7 @@ CTL_PROTO(opt_prof_accum)
 CTL_PROTO(tcache_create)
 CTL_PROTO(tcache_flush)
 CTL_PROTO(tcache_destroy)
-static void	arena_i_purge(tsdn_t *tsdn, unsigned arena_ind, bool all);
+CTL_PROTO(arena_i_initialized)
 CTL_PROTO(arena_i_purge)
 CTL_PROTO(arena_i_decay)
 CTL_PROTO(arena_i_reset)
@@ -124,7 +124,6 @@ INDEX_PROTO(arenas_bin_i)
 CTL_PROTO(arenas_lextent_i_size)
 INDEX_PROTO(arenas_lextent_i)
 CTL_PROTO(arenas_narenas)
-CTL_PROTO(arenas_initialized)
 CTL_PROTO(arenas_decay_time)
 CTL_PROTO(arenas_quantum)
 CTL_PROTO(arenas_page)
@@ -271,6 +270,7 @@ static const ctl_named_node_t	tcache_node[] = {
 };
 
 static const ctl_named_node_t arena_i_node[] = {
+	{NAME("initialized"),	CTL(arena_i_initialized)},
 	{NAME("purge"),		CTL(arena_i_purge)},
 	{NAME("decay"),		CTL(arena_i_decay)},
 	{NAME("reset"),		CTL(arena_i_reset)},
@@ -312,7 +312,6 @@ static const ctl_indexed_node_t arenas_lextent_node[] = {
 
 static const ctl_named_node_t arenas_node[] = {
 	{NAME("narenas"),	CTL(arenas_narenas)},
-	{NAME("initialized"),	CTL(arenas_initialized)},
 	{NAME("decay_time"),	CTL(arenas_decay_time)},
 	{NAME("quantum"),	CTL(arenas_quantum)},
 	{NAME("page"),		CTL(arenas_page)},
@@ -1461,6 +1460,29 @@ label_return:
 
 /******************************************************************************/
 
+static int
+arena_i_initialized_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
+    void *oldp, size_t *oldlenp, void *newp, size_t newlen)
+{
+	int ret;
+	tsdn_t *tsdn = tsd_tsdn(tsd);
+	unsigned arena_ind;
+	bool initialized;
+
+	READONLY();
+	MIB_UNSIGNED(arena_ind, 1);
+
+	malloc_mutex_lock(tsdn, &ctl_mtx);
+	initialized = stats_arenas_i(arena_ind)->initialized;
+	malloc_mutex_unlock(tsdn, &ctl_mtx);
+
+	READ(initialized, bool);
+
+	ret = 0;
+label_return:
+	return (ret);
+}
+
 static void
 arena_i_purge(tsdn_t *tsdn, unsigned arena_ind, bool all)
 {
@@ -1741,32 +1763,6 @@ arenas_narenas_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
 	READ(narenas, unsigned);
 
 	ret = 0;
-label_return:
-	malloc_mutex_unlock(tsd_tsdn(tsd), &ctl_mtx);
-	return (ret);
-}
-
-static int
-arenas_initialized_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
-    size_t *oldlenp, void *newp, size_t newlen)
-{
-	int ret;
-	unsigned nread, i;
-
-	malloc_mutex_lock(tsd_tsdn(tsd), &ctl_mtx);
-	READONLY();
-	if (*oldlenp != ctl_stats->narenas * sizeof(bool)) {
-		ret = EINVAL;
-		nread = (*oldlenp < ctl_stats->narenas * sizeof(bool))
-		    ? (unsigned)(*oldlenp / sizeof(bool)) : ctl_stats->narenas;
-	} else {
-		ret = 0;
-		nread = ctl_stats->narenas;
-	}
-
-	for (i = 0; i < nread; i++)
-		((bool *)oldp)[i] = stats_arenas_i(i)->initialized;
-
 label_return:
 	malloc_mutex_unlock(tsd_tsdn(tsd), &ctl_mtx);
 	return (ret);

@@ -818,14 +818,18 @@ stats_print_helper(void (*write_cb)(void *, const char *), void *cbopaque,
 
 		CTL_GET("arenas.narenas", &narenas, unsigned);
 		{
+			size_t mib[3];
+			size_t miblen = sizeof(mib) / sizeof(size_t);
+			size_t sz;
 			VARIABLE_ARRAY(bool, initialized, narenas);
-			size_t isz;
 			unsigned i, j, ninitialized;
 
-			isz = sizeof(bool) * narenas;
-			xmallctl("arenas.initialized", (void *)initialized,
-			    &isz, NULL, 0);
+			xmallctlnametomib("arena.0.initialized", mib, &miblen);
 			for (i = ninitialized = 0; i < narenas; i++) {
+				mib[1] = i;
+				sz = sizeof(bool);
+				xmallctlbymib(mib, miblen, &initialized[i], &sz,
+				    NULL, 0);
 				if (initialized[i])
 					ninitialized++;
 			}

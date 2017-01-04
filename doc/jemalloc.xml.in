@@ -1253,7 +1253,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         <listitem><para>Get or set the arena associated with the calling
         thread.  If the specified arena was not initialized beforehand (see the
         <link
-        linkend="arenas.initialized"><mallctl>arenas.initialized</mallctl></link>
+        linkend="arena.i.initialized"><mallctl>arena.i.initialized</mallctl></link>
         mallctl), it will be automatically initialized as a side effect of
         calling this interface.</para></listitem>
       </varlistentry>
@@ -1423,6 +1423,19 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         <listitem><para>Flush the specified thread-specific cache (tcache) and
         make the identifier available for use during a future tcache creation.
         </para></listitem>
+      </varlistentry>
+
+      <varlistentry id="arena.i.initialized">
+        <term>
+          <mallctl>arena.&lt;i&gt;.initialized</mallctl>
+          (<type>bool</type>)
+          <literal>r-</literal>
+        </term>
+        <listitem><para>Get whether the specified arena's statistics are
+        initialized (i.e. the arena was initialized prior to the current epoch).
+        This interface can also be nominally used to query whether the merged
+        statistics corresponding to <constant>MALLCTL_ARENAS_ALL</constant> are
+        initialized (always true).</para></listitem>
       </varlistentry>
 
       <varlistentry id="arena.i.purge">
@@ -1713,18 +1726,6 @@ struct extent_hooks_s {
           <literal>r-</literal>
         </term>
         <listitem><para>Current limit on number of arenas.</para></listitem>
-      </varlistentry>
-
-      <varlistentry id="arenas.initialized">
-        <term>
-          <mallctl>arenas.initialized</mallctl>
-          (<type>bool *</type>)
-          <literal>r-</literal>
-        </term>
-        <listitem><para>An array of <link
-        linkend="arenas.narenas"><mallctl>arenas.narenas</mallctl></link>
-        booleans.  Each boolean indicates whether the corresponding arena is
-        initialized.</para></listitem>
       </varlistentry>
 
       <varlistentry id="arenas.decay_time">

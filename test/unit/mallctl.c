@@ -354,6 +354,36 @@ TEST_BEGIN(test_thread_arena)
 }
 TEST_END
 
+TEST_BEGIN(test_arena_i_initialized)
+{
+	unsigned narenas, i;
+	size_t sz;
+	size_t mib[3];
+	size_t miblen = sizeof(mib) / sizeof(size_t);
+	bool initialized;
+
+	sz = sizeof(narenas);
+	assert_d_eq(mallctl("arenas.narenas", (void *)&narenas, &sz, NULL, 0),
+	    0, "Unexpected mallctl() failure");
+
+	assert_d_eq(mallctlnametomib("arena.0.initialized", mib, &miblen), 0,
+	    "Unexpected mallctlnametomib() failure");
+	for (i = 0; i < narenas; i++) {
+		mib[1] = i;
+		sz = sizeof(initialized);
+		assert_d_eq(mallctlbymib(mib, miblen, &initialized, &sz, NULL,
+		    0), 0, "Unexpected mallctl() failure");
+	}
+
+	mib[1] = MALLCTL_ARENAS_ALL;
+	sz = sizeof(initialized);
+	assert_d_eq(mallctlbymib(mib, miblen, &initialized, &sz, NULL, 0), 0,
+	    "Unexpected mallctl() failure");
+	assert_true(initialized,
+	    "Merged arena statistics should always be initialized");
+}
+TEST_END
+
 TEST_BEGIN(test_arena_i_decay_time)
 {
 	ssize_t decay_time, orig_decay_time, prev_decay_time;
@@ -476,23 +506,6 @@ TEST_BEGIN(test_arena_i_dss)
 	    0), 0, "Unexpected mallctl() failure");
 	assert_str_ne(dss_prec_old, "primary",
 	    "Unexpected value for dss precedence");
-}
-TEST_END
-
-TEST_BEGIN(test_arenas_initialized)
-{
-	unsigned narenas;
-	size_t sz = sizeof(narenas);
-
-	assert_d_eq(mallctl("arenas.narenas", (void *)&narenas, &sz, NULL, 0),
-	    0, "Unexpected mallctl() failure");
-	{
-		VARIABLE_ARRAY(bool, initialized, narenas);
-
-		sz = narenas * sizeof(bool);
-		assert_d_eq(mallctl("arenas.initialized", (void *)initialized,
-		    &sz, NULL, 0), 0, "Unexpected mallctl() failure");
-	}
 }
 TEST_END
 
@@ -638,11 +651,11 @@ main(void)
 	    test_tcache_none,
 	    test_tcache,
 	    test_thread_arena,
+	    test_arena_i_initialized,
 	    test_arena_i_decay_time,
 	    test_arena_i_purge,
 	    test_arena_i_decay,
 	    test_arena_i_dss,
-	    test_arenas_initialized,
 	    test_arenas_decay_time,
 	    test_arenas_constants,
 	    test_arenas_bin_constants,
