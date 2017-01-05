@@ -260,7 +260,7 @@ arena_large_reset_stats_cancel(arena_t *arena, size_t usize)
 
 	cassert(config_stats);
 
-	arena->stats.ndalloc_large++;
+	arena->stats.ndalloc_large--;
 	arena->stats.lstats[hindex].ndalloc--;
 }
 
