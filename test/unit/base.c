@@ -1,27 +1,6 @@
 #include "test/jemalloc_test.h"
 
-static void	*extent_alloc_hook(extent_hooks_t *extent_hooks, void *new_addr,
-    size_t size, size_t alignment, bool *zero, bool *commit,
-    unsigned arena_ind);
-static bool	extent_dalloc_hook(extent_hooks_t *extent_hooks, void *addr,
-    size_t size, bool committed, unsigned arena_ind);
-static bool	extent_decommit_hook(extent_hooks_t *extent_hooks, void *addr,
-    size_t size, size_t offset, size_t length, unsigned arena_ind);
-static bool	extent_purge_lazy_hook(extent_hooks_t *extent_hooks, void *addr,
-    size_t size, size_t offset, size_t length, unsigned arena_ind);
-static bool	extent_purge_forced_hook(extent_hooks_t *extent_hooks,
-    void *addr, size_t size, size_t offset, size_t length, unsigned arena_ind);
-
-static extent_hooks_t hooks_not_null = {
-	extent_alloc_hook,
-	extent_dalloc_hook,
-	NULL, /* commit */
-	extent_decommit_hook,
-	extent_purge_lazy_hook,
-	extent_purge_forced_hook,
-	NULL, /* split */
-	NULL /* merge */
-};
+#include "test/extent_hooks.h"
 
 static extent_hooks_t hooks_null = {
 	extent_alloc_hook,
@@ -34,80 +13,16 @@ static extent_hooks_t hooks_null = {
 	NULL /* merge */
 };
 
-static bool	did_alloc;
-static bool	did_dalloc;
-static bool	did_decommit;
-static bool	did_purge_lazy;
-static bool	did_purge_forced;
-
-#if 0
-#  define TRACE_HOOK(fmt, ...) malloc_printf(fmt, __VA_ARGS__)
-#else
-#  define TRACE_HOOK(fmt, ...)
-#endif
-
-static void *
-extent_alloc_hook(extent_hooks_t *extent_hooks, void *new_addr, size_t size,
-    size_t alignment, bool *zero, bool *commit, unsigned arena_ind)
-{
-
-	TRACE_HOOK("%s(extent_hooks=%p, new_addr=%p, size=%zu, alignment=%zu, "
-	    "*zero=%s, *commit=%s, arena_ind=%u)\n", __func__, extent_hooks,
-	    new_addr, size, alignment, *zero ?  "true" : "false", *commit ?
-	    "true" : "false", arena_ind);
-	did_alloc = true;
-	return (extent_hooks_default.alloc(
-	    (extent_hooks_t *)&extent_hooks_default, new_addr, size, alignment,
-	    zero, commit, 0));
-}
-
-static bool
-extent_dalloc_hook(extent_hooks_t *extent_hooks, void *addr, size_t size,
-    bool committed, unsigned arena_ind)
-{
-
-	TRACE_HOOK("%s(extent_hooks=%p, addr=%p, size=%zu, committed=%s, "
-	    "arena_ind=%u)\n", __func__, extent_hooks, addr, size, committed ?
-	    "true" : "false", arena_ind);
-	did_dalloc = true;
-	return (true); /* Cause cascade. */
-}
-
-static bool
-extent_decommit_hook(extent_hooks_t *extent_hooks, void *addr, size_t size,
-    size_t offset, size_t length, unsigned arena_ind)
-{
-
-	TRACE_HOOK("%s(extent_hooks=%p, addr=%p, size=%zu, offset=%zu, "
-	    "length=%zu, arena_ind=%u)\n", __func__, extent_hooks, addr, size,
-	    offset, length, arena_ind);
-	did_decommit = true;
-	return (true); /* Cause cascade. */
-}
-
-static bool
-extent_purge_lazy_hook(extent_hooks_t *extent_hooks, void *addr, size_t size,
-    size_t offset, size_t length, unsigned arena_ind)
-{
-
-	TRACE_HOOK("%s(extent_hooks=%p, addr=%p, size=%zu, offset=%zu, "
-	    "length=%zu arena_ind=%u)\n", __func__, extent_hooks, addr, size,
-	    offset, length, arena_ind);
-	did_purge_lazy = true;
-	return (true); /* Cause cascade. */
-}
-
-static bool
-extent_purge_forced_hook(extent_hooks_t *extent_hooks, void *addr, size_t size,
-    size_t offset, size_t length, unsigned arena_ind)
-{
-
-	TRACE_HOOK("%s(extent_hooks=%p, addr=%p, size=%zu, offset=%zu, "
-	    "length=%zu arena_ind=%u)\n", __func__, extent_hooks, addr, size,
-	    offset, length, arena_ind);
-	did_purge_forced = true;
-	return (true); /* Cause cascade. */
-}
+static extent_hooks_t hooks_not_null = {
+	extent_alloc_hook,
+	extent_dalloc_hook,
+	NULL, /* commit */
+	extent_decommit_hook,
+	extent_purge_lazy_hook,
+	extent_purge_forced_hook,
+	NULL, /* split */
+	NULL /* merge */
+};
 
 TEST_BEGIN(test_base_hooks_default)
 {
@@ -135,12 +50,21 @@ TEST_END
 
 TEST_BEGIN(test_base_hooks_null)
 {
+	extent_hooks_t hooks_orig;
 	tsdn_t *tsdn;
 	base_t *base;
 	size_t allocated0, allocated1, resident, mapped;
 
+	extent_hooks_prep();
+	try_dalloc = false;
+	try_decommit = false;
+	try_purge_lazy = false;
+	try_purge_forced = false;
+	memcpy(&hooks_orig, &hooks, sizeof(extent_hooks_t));
+	memcpy(&hooks, &hooks_null, sizeof(extent_hooks_t));
+
 	tsdn = tsdn_fetch();
-	base = base_new(tsdn, 0, (extent_hooks_t *)&hooks_null);
+	base = base_new(tsdn, 0, &hooks);
 	assert_ptr_not_null(base, "Unexpected base_new() failure");
 
 	base_stats_get(tsdn, base, &allocated0, &resident, &mapped);
@@ -155,20 +79,31 @@ TEST_BEGIN(test_base_hooks_null)
 	    "At least 42 bytes were allocated by base_alloc()");
 
 	base_delete(base);
+
+	memcpy(&hooks, &hooks_orig, sizeof(extent_hooks_t));
 }
 TEST_END
 
 TEST_BEGIN(test_base_hooks_not_null)
 {
+	extent_hooks_t hooks_orig;
 	tsdn_t *tsdn;
 	base_t *base;
 	void *p, *q, *r, *r_exp;
 
+	extent_hooks_prep();
+	try_dalloc = false;
+	try_decommit = false;
+	try_purge_lazy = false;
+	try_purge_forced = false;
+	memcpy(&hooks_orig, &hooks, sizeof(extent_hooks_t));
+	memcpy(&hooks, &hooks_not_null, sizeof(extent_hooks_t));
+
 	tsdn = tsdn_fetch();
 	did_alloc = false;
-	base = base_new(tsdn, 0, (extent_hooks_t *)&hooks_not_null);
+	base = base_new(tsdn, 0, &hooks);
 	assert_ptr_not_null(base, "Unexpected base_new() failure");
-	assert_true(did_alloc, "Expected alloc hook call");
+	assert_true(did_alloc, "Expected alloc");
 
 	/*
 	 * Check for tight packing at specified alignment under simple
@@ -254,12 +189,19 @@ TEST_BEGIN(test_base_hooks_not_null)
 		}
 	}
 
-	did_dalloc = did_decommit = did_purge_lazy = did_purge_forced = false;
+	called_dalloc = called_decommit = called_purge_lazy =
+	    called_purge_forced = false;
 	base_delete(base);
-	assert_true(did_dalloc, "Expected dalloc hook call");
-	assert_true(did_decommit, "Expected decommit hook call");
-	assert_true(did_purge_lazy, "Expected purge_lazy hook call");
-	assert_true(did_purge_forced, "Expected purge_forced hook call");
+	assert_true(called_dalloc, "Expected dalloc call");
+	assert_true(called_decommit, "Expected decommit call");
+	assert_true(called_purge_lazy, "Expected purge_lazy call");
+	assert_true(called_purge_forced, "Expected purge_forced call");
+
+	try_dalloc = true;
+	try_decommit = true;
+	try_purge_lazy = true;
+	try_purge_forced = true;
+	memcpy(&hooks, &hooks_orig, sizeof(extent_hooks_t));
 }
 TEST_END
 
