@@ -639,11 +639,13 @@ arena_dirty_count(tsdn_t *tsdn, arena_t *arena)
 	extent_t *extent;
 	size_t ndirty = 0;
 
-	malloc_mutex_assert_owner(tsdn, &arena->extents_mtx);
+	malloc_mutex_lock(tsdn, &arena->extents_mtx);
 
 	for (extent = qr_next(&arena->extents_dirty, qr_link); extent !=
 	    &arena->extents_dirty; extent = qr_next(extent, qr_link))
 		ndirty += extent_size_get(extent) >> LG_PAGE;
+
+	malloc_mutex_unlock(tsdn, &arena->extents_mtx);
 
 	return (ndirty);
 }
