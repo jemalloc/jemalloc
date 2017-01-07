@@ -211,10 +211,14 @@ arena_nactive_sub(arena_t *arena, size_t sub_pages)
 static void
 arena_large_malloc_stats_update(arena_t *arena, size_t usize)
 {
-	szind_t index = size2index(usize);
-	szind_t hindex = (index >= NBINS) ? index - NBINS : 0;
+	szind_t index, hindex;
 
 	cassert(config_stats);
+
+	if (usize < LARGE_MINCLASS)
+		usize = LARGE_MINCLASS;
+	index = size2index(usize);
+	hindex = (index >= NBINS) ? index - NBINS : 0;
 
 	arena->stats.nmalloc_large++;
 	arena->stats.allocated_large += usize;
@@ -226,10 +230,14 @@ arena_large_malloc_stats_update(arena_t *arena, size_t usize)
 static void
 arena_large_malloc_stats_update_undo(arena_t *arena, size_t usize)
 {
-	szind_t index = size2index(usize);
-	szind_t hindex = (index >= NBINS) ? index - NBINS : 0;
+	szind_t index, hindex;
 
 	cassert(config_stats);
+
+	if (usize < LARGE_MINCLASS)
+		usize = LARGE_MINCLASS;
+	index = size2index(usize);
+	hindex = (index >= NBINS) ? index - NBINS : 0;
 
 	arena->stats.nmalloc_large--;
 	arena->stats.allocated_large -= usize;
@@ -241,10 +249,14 @@ arena_large_malloc_stats_update_undo(arena_t *arena, size_t usize)
 static void
 arena_large_dalloc_stats_update(arena_t *arena, size_t usize)
 {
-	szind_t index = size2index(usize);
-	szind_t hindex = (index >= NBINS) ? index - NBINS : 0;
+	szind_t index, hindex;
 
 	cassert(config_stats);
+
+	if (usize < LARGE_MINCLASS)
+		usize = LARGE_MINCLASS;
+	index = size2index(usize);
+	hindex = (index >= NBINS) ? index - NBINS : 0;
 
 	arena->stats.ndalloc_large++;
 	arena->stats.allocated_large -= usize;
