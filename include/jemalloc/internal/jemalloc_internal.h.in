@@ -176,20 +176,37 @@ static const bool have_thp =
 /*
  * jemalloc can conceptually be broken into components (arena, tcache, etc.),
  * but there are circular dependencies that cannot be broken without
- * substantial performance degradation.  In order to reduce the effect on
- * visual code flow, read the header files in multiple passes, with one of the
- * following cpp variables defined during each pass:
+ * substantial performance degradation.
  *
+ * Historically, we dealt with this by each header into four sections (types,
+ * structs, externs, and inlines), and included each header file multiple times
+ * in this file, picking out the portion we want on each pass using the
+ * following #defines:
  *   JEMALLOC_H_TYPES   : Preprocessor-defined constants and psuedo-opaque data
  *                        types.
  *   JEMALLOC_H_STRUCTS : Data structures.
  *   JEMALLOC_H_EXTERNS : Extern data declarations and function prototypes.
  *   JEMALLOC_H_INLINES : Inline functions.
+ *
+ * We're moving toward a world in which the dependencies are explicit; each file
+ * will #include the headers it depends on (rather than relying on them being
+ * implicitly available via this file including every header file in the
+ * project).
+ *
+ * We're now in an intermediate state: we've broken up the header files to avoid
+ * having to include each one multiple times, but have not yet moved the
+ * dependency information into the header files (i.e. we still rely on the
+ * ordering in this file to ensure all a header's dependencies are available in
+ * its translation unit).  Each component is now broken up into multiple header
+ * files, corresponding to the sections above (e.g. instead of "tsd.h", we now
+ * have "tsd_types.h", "tsd_structs.h", "tsd_externs.h", "tsd_inlines.h").
  */
-/******************************************************************************/
-#define	JEMALLOC_H_TYPES
 
 #include "jemalloc/internal/jemalloc_internal_macros.h"
+
+/******************************************************************************/
+/* TYPES */
+/******************************************************************************/
 
 /* Page size index type. */
 typedef unsigned pszind_t;
@@ -362,69 +379,57 @@ typedef unsigned szind_t;
 #  define VARIABLE_ARRAY(type, name, count) type name[(count)]
 #endif
 
-#include "jemalloc/internal/nstime.h"
-#include "jemalloc/internal/util.h"
-#include "jemalloc/internal/atomic.h"
-#include "jemalloc/internal/spin.h"
-#include "jemalloc/internal/prng.h"
-#include "jemalloc/internal/ticker.h"
-#include "jemalloc/internal/ckh.h"
+#include "jemalloc/internal/nstime_types.h"
+#include "jemalloc/internal/util_types.h"
+#include "jemalloc/internal/spin_types.h"
+#include "jemalloc/internal/prng_types.h"
+#include "jemalloc/internal/ticker_types.h"
+#include "jemalloc/internal/ckh_types.h"
 #include "jemalloc/internal/size_classes.h"
 #include "jemalloc/internal/smoothstep.h"
-#include "jemalloc/internal/stats.h"
-#include "jemalloc/internal/ctl.h"
-#include "jemalloc/internal/witness.h"
-#include "jemalloc/internal/mutex.h"
-#include "jemalloc/internal/tsd.h"
-#include "jemalloc/internal/extent.h"
-#include "jemalloc/internal/base.h"
-#include "jemalloc/internal/arena.h"
-#include "jemalloc/internal/bitmap.h"
-#include "jemalloc/internal/rtree.h"
-#include "jemalloc/internal/pages.h"
-#include "jemalloc/internal/large.h"
-#include "jemalloc/internal/tcache.h"
-#include "jemalloc/internal/hash.h"
-#include "jemalloc/internal/prof.h"
+#include "jemalloc/internal/stats_types.h"
+#include "jemalloc/internal/ctl_types.h"
+#include "jemalloc/internal/witness_types.h"
+#include "jemalloc/internal/mutex_types.h"
+#include "jemalloc/internal/tsd_types.h"
+#include "jemalloc/internal/extent_types.h"
+#include "jemalloc/internal/extent_dss_types.h"
+#include "jemalloc/internal/base_types.h"
+#include "jemalloc/internal/arena_types.h"
+#include "jemalloc/internal/bitmap_types.h"
+#include "jemalloc/internal/rtree_types.h"
+#include "jemalloc/internal/pages_types.h"
+#include "jemalloc/internal/tcache_types.h"
+#include "jemalloc/internal/prof_types.h"
 
-#undef JEMALLOC_H_TYPES
+
 /******************************************************************************/
-#define	JEMALLOC_H_STRUCTS
-
-#include "jemalloc/internal/nstime.h"
-#include "jemalloc/internal/util.h"
-#include "jemalloc/internal/atomic.h"
-#include "jemalloc/internal/spin.h"
-#include "jemalloc/internal/prng.h"
-#include "jemalloc/internal/ticker.h"
-#include "jemalloc/internal/ckh.h"
-#include "jemalloc/internal/size_classes.h"
-#include "jemalloc/internal/smoothstep.h"
-#include "jemalloc/internal/stats.h"
-#include "jemalloc/internal/ctl.h"
-#include "jemalloc/internal/witness.h"
-#include "jemalloc/internal/mutex.h"
-#include "jemalloc/internal/bitmap.h"
-#define	JEMALLOC_ARENA_STRUCTS_A
-#include "jemalloc/internal/arena.h"
-#undef JEMALLOC_ARENA_STRUCTS_A
-#include "jemalloc/internal/extent.h"
-#include "jemalloc/internal/base.h"
-#define	JEMALLOC_ARENA_STRUCTS_B
-#include "jemalloc/internal/arena.h"
-#undef JEMALLOC_ARENA_STRUCTS_B
-#include "jemalloc/internal/rtree.h"
-#include "jemalloc/internal/pages.h"
-#include "jemalloc/internal/large.h"
-#include "jemalloc/internal/tcache.h"
-#include "jemalloc/internal/hash.h"
-#include "jemalloc/internal/prof.h"
-
-#include "jemalloc/internal/tsd.h"
-
-#undef JEMALLOC_H_STRUCTS
+/* STRUCTS */
 /******************************************************************************/
-#define	JEMALLOC_H_EXTERNS
+
+#include "jemalloc/internal/nstime_structs.h"
+#include "jemalloc/internal/spin_structs.h"
+#include "jemalloc/internal/ticker_structs.h"
+#include "jemalloc/internal/ckh_structs.h"
+#include "jemalloc/internal/stats_structs.h"
+#include "jemalloc/internal/ctl_structs.h"
+#include "jemalloc/internal/witness_structs.h"
+#include "jemalloc/internal/mutex_structs.h"
+#include "jemalloc/internal/bitmap_structs.h"
+#include "jemalloc/internal/arena_structs_a.h"
+#include "jemalloc/internal/extent_structs.h"
+#include "jemalloc/internal/extent_dss_structs.h"
+#include "jemalloc/internal/base_structs.h"
+#include "jemalloc/internal/arena_structs_b.h"
+#include "jemalloc/internal/rtree_structs.h"
+#include "jemalloc/internal/tcache_structs.h"
+#include "jemalloc/internal/prof_structs.h"
+#include "jemalloc/internal/tsd_structs.h"
+
+
+/******************************************************************************/
+/* EXTERNS */
+/******************************************************************************/
 
 extern bool	opt_abort;
 extern const char	*opt_junk;
@@ -482,54 +487,42 @@ void	jemalloc_prefork(void);
 void	jemalloc_postfork_parent(void);
 void	jemalloc_postfork_child(void);
 
-#include "jemalloc/internal/nstime.h"
-#include "jemalloc/internal/util.h"
-#include "jemalloc/internal/atomic.h"
-#include "jemalloc/internal/spin.h"
-#include "jemalloc/internal/prng.h"
-#include "jemalloc/internal/ticker.h"
-#include "jemalloc/internal/ckh.h"
-#include "jemalloc/internal/size_classes.h"
-#include "jemalloc/internal/smoothstep.h"
-#include "jemalloc/internal/stats.h"
-#include "jemalloc/internal/ctl.h"
-#include "jemalloc/internal/witness.h"
-#include "jemalloc/internal/mutex.h"
-#include "jemalloc/internal/bitmap.h"
-#include "jemalloc/internal/extent.h"
-#include "jemalloc/internal/base.h"
-#include "jemalloc/internal/arena.h"
-#include "jemalloc/internal/rtree.h"
-#include "jemalloc/internal/pages.h"
-#include "jemalloc/internal/large.h"
-#include "jemalloc/internal/tcache.h"
-#include "jemalloc/internal/hash.h"
-#include "jemalloc/internal/prof.h"
-#include "jemalloc/internal/tsd.h"
+#include "jemalloc/internal/nstime_externs.h"
+#include "jemalloc/internal/util_externs.h"
+#include "jemalloc/internal/atomic_externs.h"
+#include "jemalloc/internal/ckh_externs.h"
+#include "jemalloc/internal/stats_externs.h"
+#include "jemalloc/internal/ctl_externs.h"
+#include "jemalloc/internal/witness_externs.h"
+#include "jemalloc/internal/mutex_externs.h"
+#include "jemalloc/internal/bitmap_externs.h"
+#include "jemalloc/internal/extent_externs.h"
+#include "jemalloc/internal/extent_dss_externs.h"
+#include "jemalloc/internal/extent_mmap_externs.h"
+#include "jemalloc/internal/base_externs.h"
+#include "jemalloc/internal/arena_externs.h"
+#include "jemalloc/internal/rtree_externs.h"
+#include "jemalloc/internal/pages_externs.h"
+#include "jemalloc/internal/large_externs.h"
+#include "jemalloc/internal/tcache_externs.h"
+#include "jemalloc/internal/prof_externs.h"
+#include "jemalloc/internal/tsd_externs.h"
 
-#undef JEMALLOC_H_EXTERNS
 /******************************************************************************/
-#define	JEMALLOC_H_INLINES
+/* INLINES */
+/******************************************************************************/
 
-#include "jemalloc/internal/nstime.h"
-#include "jemalloc/internal/util.h"
-#include "jemalloc/internal/atomic.h"
-#include "jemalloc/internal/spin.h"
-#include "jemalloc/internal/prng.h"
-#include "jemalloc/internal/ticker.h"
-#include "jemalloc/internal/ckh.h"
-#include "jemalloc/internal/size_classes.h"
-#include "jemalloc/internal/smoothstep.h"
-#include "jemalloc/internal/stats.h"
-#include "jemalloc/internal/ctl.h"
-#include "jemalloc/internal/tsd.h"
-#include "jemalloc/internal/witness.h"
-#include "jemalloc/internal/mutex.h"
-#include "jemalloc/internal/rtree.h"
-#include "jemalloc/internal/extent.h"
-#include "jemalloc/internal/base.h"
-#include "jemalloc/internal/pages.h"
-#include "jemalloc/internal/large.h"
+#include "jemalloc/internal/util_inlines.h"
+#include "jemalloc/internal/atomic_inlines.h"
+#include "jemalloc/internal/spin_inlines.h"
+#include "jemalloc/internal/prng_inlines.h"
+#include "jemalloc/internal/ticker_inlines.h"
+#include "jemalloc/internal/tsd_inlines.h"
+#include "jemalloc/internal/witness_inlines.h"
+#include "jemalloc/internal/mutex_inlines.h"
+#include "jemalloc/internal/rtree_inlines.h"
+#include "jemalloc/internal/extent_inlines.h"
+#include "jemalloc/internal/base_inlines.h"
 
 #ifndef JEMALLOC_ENABLE_INLINE
 pszind_t	psz2ind(size_t psz);
@@ -925,14 +918,12 @@ decay_ticker_get(tsd_t *tsd, unsigned ind)
 }
 #endif
 
-#include "jemalloc/internal/bitmap.h"
+#include "jemalloc/internal/bitmap_inlines.h"
 /*
- * Include portions of arena.h interleaved with tcache.h in order to resolve
- * circular dependencies.
+ * Include portions of arena code interleaved with tcache code in order to
+ * resolve circular dependencies.
  */
-#define	JEMALLOC_ARENA_INLINE_A
-#include "jemalloc/internal/arena.h"
-#undef JEMALLOC_ARENA_INLINE_A
+#include "jemalloc/internal/arena_inlines_a.h"
 
 #ifndef JEMALLOC_ENABLE_INLINE
 extent_t	*iealloc(tsdn_t *tsdn, const void *ptr);
@@ -947,11 +938,9 @@ iealloc(tsdn_t *tsdn, const void *ptr)
 }
 #endif
 
-#include "jemalloc/internal/tcache.h"
-#define	JEMALLOC_ARENA_INLINE_B
-#include "jemalloc/internal/arena.h"
-#undef JEMALLOC_ARENA_INLINE_B
-#include "jemalloc/internal/hash.h"
+#include "jemalloc/internal/tcache_inlines.h"
+#include "jemalloc/internal/arena_inlines_b.h"
+#include "jemalloc/internal/hash_inlines.h"
 
 #ifndef JEMALLOC_ENABLE_INLINE
 arena_t	*iaalloc(tsdn_t *tsdn, const void *ptr);
@@ -1211,10 +1200,8 @@ ixalloc(tsdn_t *tsdn, extent_t *extent, void *ptr, size_t oldsize, size_t size,
 }
 #endif
 
-#include "jemalloc/internal/prof.h"
+#include "jemalloc/internal/prof_inlines.h"
 
-#undef JEMALLOC_H_INLINES
-/******************************************************************************/
 
 #ifdef __cplusplus
 }

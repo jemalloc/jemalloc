@@ -1,0 +1,6 @@
+#ifndef JEMALLOC_INTERNAL_SPIN_TYPES_H
+#define JEMALLOC_INTERNAL_SPIN_TYPES_H
+
+typedef struct spin_s spin_t;
+
+#endif /* JEMALLOC_INTERNAL_SPIN_TYPES_H */
