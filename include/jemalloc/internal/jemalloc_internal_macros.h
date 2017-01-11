@@ -1,3 +1,6 @@
+#ifndef JEMALLOC_INTERNAL_MACROS_H
+#define JEMALLOC_INTERNAL_MACROS_H
+
 /*
  * JEMALLOC_ALWAYS_INLINE and JEMALLOC_INLINE are used within header files for
  * functions that are static inline functions if inlining is enabled, and
@@ -55,3 +58,5 @@
 #if !defined(JEMALLOC_HAS_RESTRICT) || defined(__cplusplus)
 #  define restrict
 #endif
+
+#endif /* JEMALLOC_INTERNAL_MACROS_H */
