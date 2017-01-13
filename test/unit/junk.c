@@ -17,7 +17,6 @@ static bool saw_junking;
 static void
 watch_junking(void *p)
 {
-
 	watch_for_junking = p;
 	saw_junking = false;
 }
@@ -55,7 +54,6 @@ large_dalloc_junk_intercept(void *ptr, size_t usize)
 static void
 large_dalloc_maybe_junk_intercept(void *ptr, size_t usize)
 {
-
 	large_dalloc_maybe_junk_orig(ptr, usize);
 	if (ptr == watch_for_junking)
 		saw_junking = true;
@@ -130,7 +128,6 @@ test_junk(size_t sz_min, size_t sz_max)
 
 TEST_BEGIN(test_junk_small)
 {
-
 	test_skip_if(!config_fill);
 	test_junk(1, SMALL_MAXCLASS-1);
 }
@@ -138,7 +135,6 @@ TEST_END
 
 TEST_BEGIN(test_junk_large)
 {
-
 	test_skip_if(!config_fill);
 	test_junk(SMALL_MAXCLASS+1, (1U << (LG_LARGE_MINCLASS+1)));
 }
@@ -147,7 +143,6 @@ TEST_END
 int
 main(void)
 {
-
 	return (test(
 	    test_junk_small,
 	    test_junk_large));

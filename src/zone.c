@@ -47,7 +47,6 @@ static void	zone_force_unlock(malloc_zone_t *zone);
 static size_t
 zone_size(malloc_zone_t *zone, void *ptr)
 {
-
 	/*
 	 * There appear to be places within Darwin (such as setenv(3)) that
 	 * cause calls to this function with pointers that *no* zone owns.  If
@@ -63,14 +62,12 @@ zone_size(malloc_zone_t *zone, void *ptr)
 static void *
 zone_malloc(malloc_zone_t *zone, size_t size)
 {
-
 	return (je_malloc(size));
 }
 
 static void *
 zone_calloc(malloc_zone_t *zone, size_t num, size_t size)
 {
-
 	return (je_calloc(num, size));
 }
 
@@ -87,7 +84,6 @@ zone_valloc(malloc_zone_t *zone, size_t size)
 static void
 zone_free(malloc_zone_t *zone, void *ptr)
 {
-
 	if (ivsalloc(tsdn_fetch(), ptr) != 0) {
 		je_free(ptr);
 		return;
@@ -99,7 +95,6 @@ zone_free(malloc_zone_t *zone, void *ptr)
 static void *
 zone_realloc(malloc_zone_t *zone, void *ptr, size_t size)
 {
-
 	if (ivsalloc(tsdn_fetch(), ptr) != 0)
 		return (je_realloc(ptr, size));
 
@@ -138,7 +133,6 @@ zone_free_definite_size(malloc_zone_t *zone, void *ptr, size_t size)
 static void *
 zone_destroy(malloc_zone_t *zone)
 {
-
 	/* This function should never be called. */
 	not_reached();
 	return (NULL);
@@ -147,7 +141,6 @@ zone_destroy(malloc_zone_t *zone)
 static size_t
 zone_good_size(malloc_zone_t *zone, size_t size)
 {
-
 	if (size == 0)
 		size = 1;
 	return (s2u(size));
@@ -156,7 +149,6 @@ zone_good_size(malloc_zone_t *zone, size_t size)
 static void
 zone_force_lock(malloc_zone_t *zone)
 {
-
 	if (isthreaded)
 		jemalloc_prefork();
 }
@@ -164,7 +156,6 @@ zone_force_lock(malloc_zone_t *zone)
 static void
 zone_force_unlock(malloc_zone_t *zone)
 {
-
 	/*
 	 * Call jemalloc_postfork_child() rather than
 	 * jemalloc_postfork_parent(), because this function is executed by both
@@ -179,7 +170,6 @@ zone_force_unlock(malloc_zone_t *zone)
 static void
 zone_init(void)
 {
-
 	jemalloc_zone.size = (void *)zone_size;
 	jemalloc_zone.malloc = (void *)zone_malloc;
 	jemalloc_zone.calloc = (void *)zone_calloc;
@@ -297,7 +287,6 @@ JEMALLOC_ATTR(constructor)
 void
 zone_register(void)
 {
-
 	/*
 	 * If something else replaced the system default zone allocator, don't
 	 * register jemalloc's.

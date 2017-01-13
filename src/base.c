@@ -30,7 +30,6 @@ base_map(extent_hooks_t *extent_hooks, unsigned ind, size_t size)
 static void
 base_unmap(extent_hooks_t *extent_hooks, unsigned ind, void *addr, size_t size)
 {
-
 	/*
 	 * Cascade through dalloc, decommit, purge_lazy, and purge_forced,
 	 * stopping at first success.  This cascade is performed for consistency
@@ -107,7 +106,6 @@ static void
 base_extent_bump_alloc_post(tsdn_t *tsdn, base_t *base, extent_t *extent,
     size_t gap_size, void *addr, size_t size)
 {
-
 	if (extent_size_get(extent) > 0) {
 		/*
 		 * Compute the index for the largest size class that does not
@@ -202,7 +200,6 @@ base_extent_alloc(tsdn_t *tsdn, base_t *base, size_t size, size_t alignment)
 base_t *
 b0get(void)
 {
-
 	return (b0);
 }
 
@@ -263,7 +260,6 @@ base_delete(base_t *base)
 extent_hooks_t *
 base_extent_hooks_get(base_t *base)
 {
-
 	return ((extent_hooks_t *)atomic_read_p(&base->extent_hooks_pun));
 }
 
@@ -330,7 +326,6 @@ void
 base_stats_get(tsdn_t *tsdn, base_t *base, size_t *allocated, size_t *resident,
     size_t *mapped)
 {
-
 	cassert(config_stats);
 
 	malloc_mutex_lock(tsdn, &base->mtx);
@@ -345,28 +340,24 @@ base_stats_get(tsdn_t *tsdn, base_t *base, size_t *allocated, size_t *resident,
 void
 base_prefork(tsdn_t *tsdn, base_t *base)
 {
-
 	malloc_mutex_prefork(tsdn, &base->mtx);
 }
 
 void
 base_postfork_parent(tsdn_t *tsdn, base_t *base)
 {
-
 	malloc_mutex_postfork_parent(tsdn, &base->mtx);
 }
 
 void
 base_postfork_child(tsdn_t *tsdn, base_t *base)
 {
-
 	malloc_mutex_postfork_child(tsdn, &base->mtx);
 }
 
 bool
 base_boot(tsdn_t *tsdn)
 {
-
 	b0 = base_new(tsdn, 0, (extent_hooks_t *)&extent_hooks_default);
 	return (b0 == NULL);
 }

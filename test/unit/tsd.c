@@ -78,7 +78,6 @@ thd_start(void *arg)
 
 TEST_BEGIN(test_tsd_main_thread)
 {
-
 	thd_start((void *)(uintptr_t)0xa5f3e329);
 }
 TEST_END
@@ -98,7 +97,6 @@ TEST_END
 int
 main(void)
 {
-
 	/* Core tsd bootstrapping must happen prior to data_tsd_boot(). */
 	if (nallocx(1, 0) == 0) {
 		malloc_printf("Initialization error");

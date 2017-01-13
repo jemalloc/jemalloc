@@ -24,7 +24,6 @@ rtree_node_alloc_intercept(tsdn_t *tsdn, rtree_t *rtree, size_t nelms)
 static void
 rtree_node_dalloc_intercept(tsdn_t *tsdn, rtree_t *rtree, rtree_elm_t *node)
 {
-
 	if (rtree != test_rtree) {
 		rtree_node_dalloc_orig(tsdn, rtree, node);
 		return;
@@ -283,7 +282,6 @@ TEST_END
 int
 main(void)
 {
-
 	rtree_node_alloc_orig = rtree_node_alloc;
 	rtree_node_alloc = rtree_node_alloc_intercept;
 	rtree_node_dalloc_orig = rtree_node_dalloc;

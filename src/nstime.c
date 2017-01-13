@@ -5,56 +5,48 @@
 void
 nstime_init(nstime_t *time, uint64_t ns)
 {
-
 	time->ns = ns;
 }
 
 void
 nstime_init2(nstime_t *time, uint64_t sec, uint64_t nsec)
 {
-
 	time->ns = sec * BILLION + nsec;
 }
 
 uint64_t
 nstime_ns(const nstime_t *time)
 {
-
 	return (time->ns);
 }
 
 uint64_t
 nstime_sec(const nstime_t *time)
 {
-
 	return (time->ns / BILLION);
 }
 
 uint64_t
 nstime_nsec(const nstime_t *time)
 {
-
 	return (time->ns % BILLION);
 }
 
 void
 nstime_copy(nstime_t *time, const nstime_t *source)
 {
-
 	*time = *source;
 }
 
 int
 nstime_compare(const nstime_t *a, const nstime_t *b)
 {
-
 	return ((a->ns > b->ns) - (a->ns < b->ns));
 }
 
 void
 nstime_add(nstime_t *time, const nstime_t *addend)
 {
-
 	assert(UINT64_MAX - time->ns >= addend->ns);
 
 	time->ns += addend->ns;
@@ -63,7 +55,6 @@ nstime_add(nstime_t *time, const nstime_t *addend)
 void
 nstime_subtract(nstime_t *time, const nstime_t *subtrahend)
 {
-
 	assert(nstime_compare(time, subtrahend) >= 0);
 
 	time->ns -= subtrahend->ns;
@@ -72,7 +63,6 @@ nstime_subtract(nstime_t *time, const nstime_t *subtrahend)
 void
 nstime_imultiply(nstime_t *time, uint64_t multiplier)
 {
-
 	assert((((time->ns | multiplier) & (UINT64_MAX << (sizeof(uint64_t) <<
 	    2))) == 0) || ((time->ns * multiplier) / multiplier == time->ns));
 
@@ -82,7 +72,6 @@ nstime_imultiply(nstime_t *time, uint64_t multiplier)
 void
 nstime_idivide(nstime_t *time, uint64_t divisor)
 {
-
 	assert(divisor != 0);
 
 	time->ns /= divisor;
@@ -91,7 +80,6 @@ nstime_idivide(nstime_t *time, uint64_t divisor)
 uint64_t
 nstime_divide(const nstime_t *time, const nstime_t *divisor)
 {
-
 	assert(divisor->ns != 0);
 
 	return (time->ns / divisor->ns);
@@ -135,7 +123,6 @@ nstime_get(nstime_t *time)
 static void
 nstime_get(nstime_t *time)
 {
-
 	nstime_init(time, mach_absolute_time());
 }
 #else
@@ -157,7 +144,6 @@ nstime_get(nstime_t *time)
 bool
 nstime_monotonic(void)
 {
-
 	return (NSTIME_MONOTONIC);
 #undef NSTIME_MONOTONIC
 }

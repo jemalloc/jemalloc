@@ -20,21 +20,18 @@ size_t	prng_range_zu(size_t *state, size_t range, bool atomic);
 JEMALLOC_ALWAYS_INLINE uint32_t
 prng_state_next_u32(uint32_t state)
 {
-
 	return ((state * PRNG_A_32) + PRNG_C_32);
 }
 
 JEMALLOC_ALWAYS_INLINE uint64_t
 prng_state_next_u64(uint64_t state)
 {
-
 	return ((state * PRNG_A_64) + PRNG_C_64);
 }
 
 JEMALLOC_ALWAYS_INLINE size_t
 prng_state_next_zu(size_t state)
 {
-
 #if LG_SIZEOF_PTR == 2
 	return ((state * PRNG_A_32) + PRNG_C_32);
 #elif LG_SIZEOF_PTR == 3

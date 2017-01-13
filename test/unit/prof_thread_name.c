@@ -26,7 +26,6 @@ static void
 mallctl_thread_name_set_impl(const char *thread_name, const char *func,
     int line)
 {
-
 	assert_d_eq(mallctl("thread.prof.name", NULL, NULL,
 	    (void *)&thread_name, sizeof(thread_name)), 0,
 	    "%s():%d: Unexpected mallctl failure reading thread.prof.name",
@@ -124,7 +123,6 @@ TEST_END
 int
 main(void)
 {
-
 	return (test(
 	    test_prof_thread_name_validation,
 	    test_prof_thread_name_threaded));

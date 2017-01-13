@@ -121,7 +121,6 @@ TEST_END
 
 TEST_BEGIN(test_mallctl_config)
 {
-
 #define	TEST_MALLCTL_CONFIG(config, t) do {				\
 	t oldval;							\
 	size_t sz = sizeof(oldval);					\
@@ -551,7 +550,6 @@ TEST_END
 
 TEST_BEGIN(test_arenas_constants)
 {
-
 #define	TEST_ARENAS_CONSTANT(t, name, expected) do {			\
 	t name;								\
 	size_t sz = sizeof(t);						\
@@ -571,7 +569,6 @@ TEST_END
 
 TEST_BEGIN(test_arenas_bin_constants)
 {
-
 #define	TEST_ARENAS_BIN_CONSTANT(t, name, expected) do {		\
 	t name;								\
 	size_t sz = sizeof(t);						\
@@ -591,7 +588,6 @@ TEST_END
 
 TEST_BEGIN(test_arenas_lextent_constants)
 {
-
 #define	TEST_ARENAS_LEXTENT_CONSTANT(t, name, expected) do {		\
 	t name;								\
 	size_t sz = sizeof(t);						\
@@ -626,7 +622,6 @@ TEST_END
 
 TEST_BEGIN(test_stats_arenas)
 {
-
 #define	TEST_STATS_ARENAS(t, name) do {					\
 	t name;								\
 	size_t sz = sizeof(t);						\
@@ -647,7 +642,6 @@ TEST_END
 int
 main(void)
 {
-
 	return (test(
 	    test_mallctl_errors,
 	    test_mallctlnametomib_errors,

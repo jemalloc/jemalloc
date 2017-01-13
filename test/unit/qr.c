@@ -238,7 +238,6 @@ TEST_END
 int
 main(void)
 {
-
 	return (test(
 	    test_qr_one,
 	    test_qr_after_insert,

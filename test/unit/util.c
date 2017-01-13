@@ -33,21 +33,18 @@
 
 TEST_BEGIN(test_pow2_ceil_u64)
 {
-
 	TEST_POW2_CEIL(uint64_t, u64, FMTu64);
 }
 TEST_END
 
 TEST_BEGIN(test_pow2_ceil_u32)
 {
-
 	TEST_POW2_CEIL(uint32_t, u32, FMTu32);
 }
 TEST_END
 
 TEST_BEGIN(test_pow2_ceil_zu)
 {
-
 	TEST_POW2_CEIL(size_t, zu, "zu");
 }
 TEST_END
@@ -307,7 +304,6 @@ TEST_END
 int
 main(void)
 {
-
 	return (test(
 	    test_pow2_ceil_u64,
 	    test_pow2_ceil_u32,

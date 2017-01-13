@@ -38,7 +38,6 @@ static void
 mallctl_prof_active_get_impl(bool prof_active_old_expected, const char *func,
     int line)
 {
-
 	mallctl_bool_get("prof.active", prof_active_old_expected, func, line);
 }
 #define	mallctl_prof_active_get(a)					\
@@ -48,7 +47,6 @@ static void
 mallctl_prof_active_set_impl(bool prof_active_old_expected,
     bool prof_active_new, const char *func, int line)
 {
-
 	mallctl_bool_set("prof.active", prof_active_old_expected,
 	    prof_active_new, func, line);
 }
@@ -59,7 +57,6 @@ static void
 mallctl_thread_prof_active_get_impl(bool thread_prof_active_old_expected,
     const char *func, int line)
 {
-
 	mallctl_bool_get("thread.prof.active", thread_prof_active_old_expected,
 	    func, line);
 }
@@ -70,7 +67,6 @@ static void
 mallctl_thread_prof_active_set_impl(bool thread_prof_active_old_expected,
     bool thread_prof_active_new, const char *func, int line)
 {
-
 	mallctl_bool_set("thread.prof.active", thread_prof_active_old_expected,
 	    thread_prof_active_new, func, line);
 }
@@ -96,7 +92,6 @@ prof_sampling_probe_impl(bool expect_sample, const char *func, int line)
 
 TEST_BEGIN(test_prof_active)
 {
-
 	test_skip_if(!config_prof);
 
 	mallctl_prof_active_get(true);
@@ -131,7 +126,6 @@ TEST_END
 int
 main(void)
 {
-
 	return (test(
 	    test_prof_active));
 }

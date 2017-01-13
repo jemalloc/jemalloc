@@ -38,7 +38,6 @@ typedef enum {
 static int
 hash_variant_bits(hash_variant_t variant)
 {
-
 	switch (variant) {
 	case hash_variant_x86_32: return (32);
 	case hash_variant_x86_128: return (128);
@@ -50,7 +49,6 @@ hash_variant_bits(hash_variant_t variant)
 static const char *
 hash_variant_string(hash_variant_t variant)
 {
-
 	switch (variant) {
 	case hash_variant_x86_32: return ("hash_x86_32");
 	case hash_variant_x86_128: return ("hash_x86_128");
@@ -155,21 +153,18 @@ hash_variant_verify(hash_variant_t variant)
 
 TEST_BEGIN(test_hash_x86_32)
 {
-
 	hash_variant_verify(hash_variant_x86_32);
 }
 TEST_END
 
 TEST_BEGIN(test_hash_x86_128)
 {
-
 	hash_variant_verify(hash_variant_x86_128);
 }
 TEST_END
 
 TEST_BEGIN(test_hash_x64_128)
 {
-
 	hash_variant_verify(hash_variant_x64_128);
 }
 TEST_END
@@ -177,7 +172,6 @@ TEST_END
 int
 main(void)
 {
-
 	return (test(
 	    test_hash_x86_32,
 	    test_hash_x86_128,

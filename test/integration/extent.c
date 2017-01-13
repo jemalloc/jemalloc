@@ -176,7 +176,6 @@ TEST_END
 int
 main(void)
 {
-
 	return (test(
 	    test_extent_manual_hook,
 	    test_extent_auto_hook));

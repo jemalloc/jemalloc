@@ -29,7 +29,6 @@ void	prof_free(tsd_t *tsd, const extent_t *extent, const void *ptr,
 JEMALLOC_ALWAYS_INLINE bool
 prof_active_get_unlocked(void)
 {
-
 	/*
 	 * Even if opt_prof is true, sampling can be temporarily disabled by
 	 * setting prof_active to false.  No locking is used when reading
@@ -42,7 +41,6 @@ prof_active_get_unlocked(void)
 JEMALLOC_ALWAYS_INLINE bool
 prof_gdump_get_unlocked(void)
 {
-
 	/*
 	 * No locking is used when reading prof_gdump_val in the fast path, so
 	 * there are no guarantees regarding how long it will take for all
@@ -78,7 +76,6 @@ prof_tdata_get(tsd_t *tsd, bool create)
 JEMALLOC_ALWAYS_INLINE prof_tctx_t *
 prof_tctx_get(tsdn_t *tsdn, const extent_t *extent, const void *ptr)
 {
-
 	cassert(config_prof);
 	assert(ptr != NULL);
 
@@ -89,7 +86,6 @@ JEMALLOC_ALWAYS_INLINE void
 prof_tctx_set(tsdn_t *tsdn, extent_t *extent, const void *ptr, size_t usize,
     prof_tctx_t *tctx)
 {
-
 	cassert(config_prof);
 	assert(ptr != NULL);
 
@@ -100,7 +96,6 @@ JEMALLOC_ALWAYS_INLINE void
 prof_tctx_reset(tsdn_t *tsdn, extent_t *extent, const void *ptr,
     prof_tctx_t *tctx)
 {
-
 	cassert(config_prof);
 	assert(ptr != NULL);
 
@@ -162,7 +157,6 @@ JEMALLOC_ALWAYS_INLINE void
 prof_malloc(tsdn_t *tsdn, extent_t *extent, const void *ptr, size_t usize,
     prof_tctx_t *tctx)
 {
-
 	cassert(config_prof);
 	assert(ptr != NULL);
 	assert(usize == isalloc(tsdn, extent, ptr));

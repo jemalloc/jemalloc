@@ -20,7 +20,6 @@ get_nsizes_impl(const char *cmd)
 static unsigned
 get_nlarge(void)
 {
-
 	return (get_nsizes_impl("arenas.nlextents"));
 }
 
@@ -46,7 +45,6 @@ get_size_impl(const char *cmd, size_t ind)
 static size_t
 get_large_size(size_t ind)
 {
-
 	return (get_size_impl("arenas.lextent.0.size", ind));
 }
 
@@ -58,7 +56,6 @@ get_large_size(size_t ind)
 static void
 purge(void)
 {
-
 	assert_d_eq(mallctl("arena.0.purge", NULL, NULL, NULL, 0), 0,
 	    "Unexpected mallctl error");
 }
@@ -225,7 +222,6 @@ TEST_END
 int
 main(void)
 {
-
 	return (test(
 	    test_overflow,
 	    test_oom,

@@ -411,7 +411,6 @@ label_return:
 void
 ckh_delete(tsd_t *tsd, ckh_t *ckh)
 {
-
 	assert(ckh != NULL);
 
 #ifdef CKH_VERBOSE
@@ -435,7 +434,6 @@ ckh_delete(tsd_t *tsd, ckh_t *ckh)
 size_t
 ckh_count(ckh_t *ckh)
 {
-
 	assert(ckh != NULL);
 
 	return (ckh->count);
@@ -539,14 +537,12 @@ ckh_search(ckh_t *ckh, const void *searchkey, void **key, void **data)
 void
 ckh_string_hash(const void *key, size_t r_hash[2])
 {
-
 	hash(key, strlen((const char *)key), 0x94122f33U, r_hash);
 }
 
 bool
 ckh_string_keycomp(const void *k1, const void *k2)
 {
-
 	assert(k1 != NULL);
 	assert(k2 != NULL);
 
@@ -569,6 +565,5 @@ ckh_pointer_hash(const void *key, size_t r_hash[2])
 bool
 ckh_pointer_keycomp(const void *k1, const void *k2)
 {
-
 	return ((k1 == k2) ? true : false);
 }

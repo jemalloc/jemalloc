@@ -63,7 +63,6 @@ typedef intptr_t ssize_t;
 static int
 isblank(int c)
 {
-
 	return (c == '\t' || c == ' ');
 }
 #endif

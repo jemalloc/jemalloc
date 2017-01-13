@@ -207,19 +207,16 @@ a_attr void	a_prefix##remove(a_ph_type *ph, a_type *phn);
 a_attr void								\
 a_prefix##new(a_ph_type *ph)						\
 {									\
-									\
 	memset(ph, 0, sizeof(ph(a_type)));				\
 }									\
 a_attr bool								\
 a_prefix##empty(a_ph_type *ph)						\
 {									\
-									\
 	return (ph->ph_root == NULL);					\
 }									\
 a_attr a_type *								\
 a_prefix##first(a_ph_type *ph)						\
 {									\
-									\
 	if (ph->ph_root == NULL)					\
 		return (NULL);						\
 	ph_merge_aux(a_type, a_field, ph, a_cmp);			\
@@ -228,7 +225,6 @@ a_prefix##first(a_ph_type *ph)						\
 a_attr void								\
 a_prefix##insert(a_ph_type *ph, a_type *phn)				\
 {									\
-									\
 	memset(&phn->a_field, 0, sizeof(phn(a_type)));			\
 									\
 	/*								\

@@ -178,7 +178,6 @@ TEST_END
 int
 main(void)
 {
-
 	return (test(
 	    test_size_classes,
 	    test_psize_classes,

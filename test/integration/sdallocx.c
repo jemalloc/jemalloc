@@ -50,7 +50,6 @@ TEST_END
 int
 main(void)
 {
-
 	return (test(
 	    test_basic,
 	    test_alignment_and_size));

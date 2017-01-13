@@ -10,7 +10,6 @@
 static void
 purge(void)
 {
-
 	assert_d_eq(mallctl("arena.0.purge", NULL, NULL, NULL, 0), 0,
 	    "Unexpected mallctl error");
 }
@@ -130,7 +129,6 @@ TEST_END
 int
 main(void)
 {
-
 	return (test(
 	    test_alignment_errors,
 	    test_oom_errors,

@@ -88,7 +88,6 @@ tcache_get(tsd_t *tsd, bool create)
 JEMALLOC_ALWAYS_INLINE void
 tcache_event(tsd_t *tsd, tcache_t *tcache)
 {
-
 	if (TCACHE_GC_INCR == 0)
 		return;
 

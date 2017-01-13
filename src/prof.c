@@ -226,7 +226,6 @@ void
 prof_malloc_sample_object(tsdn_t *tsdn, extent_t *extent, const void *ptr,
     size_t usize, prof_tctx_t *tctx)
 {
-
 	prof_tctx_set(tsdn, extent, ptr, usize, tctx);
 
 	malloc_mutex_lock(tsdn, tctx->tdata->lock);
@@ -243,7 +242,6 @@ prof_malloc_sample_object(tsdn_t *tsdn, extent_t *extent, const void *ptr,
 void
 prof_free_sampled_object(tsd_t *tsd, size_t usize, prof_tctx_t *tctx)
 {
-
 	malloc_mutex_lock(tsd_tsdn(tsd), tctx->tdata->lock);
 	assert(tctx->cnts.curobjs > 0);
 	assert(tctx->cnts.curbytes >= usize);
@@ -259,7 +257,6 @@ prof_free_sampled_object(tsd_t *tsd, size_t usize, prof_tctx_t *tctx)
 void
 bt_init(prof_bt_t *bt, void **vec)
 {
-
 	cassert(config_prof);
 
 	bt->vec = vec;
@@ -269,7 +266,6 @@ bt_init(prof_bt_t *bt, void **vec)
 JEMALLOC_INLINE_C void
 prof_enter(tsd_t *tsd, prof_tdata_t *tdata)
 {
-
 	cassert(config_prof);
 	assert(tdata == prof_tdata_get(tsd, false));
 
@@ -284,7 +280,6 @@ prof_enter(tsd_t *tsd, prof_tdata_t *tdata)
 JEMALLOC_INLINE_C void
 prof_leave(tsd_t *tsd, prof_tdata_t *tdata)
 {
-
 	cassert(config_prof);
 	assert(tdata == prof_tdata_get(tsd, false));
 
@@ -326,7 +321,6 @@ prof_backtrace(prof_bt_t *bt)
 static _Unwind_Reason_Code
 prof_unwind_init_callback(struct _Unwind_Context *context, void *arg)
 {
-
 	cassert(config_prof);
 
 	return (_URC_NO_REASON);
@@ -525,7 +519,6 @@ prof_backtrace(prof_bt_t *bt)
 void
 prof_backtrace(prof_bt_t *bt)
 {
-
 	cassert(config_prof);
 	not_reached();
 }
@@ -542,7 +535,6 @@ prof_gctx_mutex_choose(void)
 static malloc_mutex_t *
 prof_tdata_mutex_choose(uint64_t thr_uid)
 {
-
 	return (&tdata_locks[thr_uid % PROF_NTDATA_LOCKS]);
 }
 
@@ -576,7 +568,6 @@ static void
 prof_gctx_try_destroy(tsd_t *tsd, prof_tdata_t *tdata_self, prof_gctx_t *gctx,
     prof_tdata_t *tdata)
 {
-
 	cassert(config_prof);
 
 	/*
@@ -612,7 +603,6 @@ prof_gctx_try_destroy(tsd_t *tsd, prof_tdata_t *tdata_self, prof_gctx_t *gctx,
 static bool
 prof_tctx_should_destroy(tsdn_t *tsdn, prof_tctx_t *tctx)
 {
-
 	malloc_mutex_assert_owner(tsdn, tctx->tdata->lock);
 
 	if (opt_prof_accum)
@@ -627,7 +617,6 @@ prof_tctx_should_destroy(tsdn_t *tsdn, prof_tctx_t *tctx)
 static bool
 prof_gctx_should_destroy(prof_gctx_t *gctx)
 {
-
 	if (opt_prof_accum)
 		return (false);
 	if (!tctx_tree_empty(&gctx->tctxs))
@@ -1044,7 +1033,6 @@ prof_dump_printf(bool propagate_err, const char *format, ...)
 static void
 prof_tctx_merge_tdata(tsdn_t *tsdn, prof_tctx_t *tctx, prof_tdata_t *tdata)
 {
-
 	malloc_mutex_assert_owner(tsdn, tctx->tdata->lock);
 
 	malloc_mutex_lock(tsdn, tctx->gctx->lock);
@@ -1077,7 +1065,6 @@ prof_tctx_merge_tdata(tsdn_t *tsdn, prof_tctx_t *tctx, prof_tdata_t *tdata)
 static void
 prof_tctx_merge_gctx(tsdn_t *tsdn, prof_tctx_t *tctx, prof_gctx_t *gctx)
 {
-
 	malloc_mutex_assert_owner(tsdn, gctx->lock);
 
 	gctx->cnt_summed.curobjs += tctx->dump_cnts.curobjs;
@@ -1173,7 +1160,6 @@ label_return:
 static void
 prof_dump_gctx_prep(tsdn_t *tsdn, prof_gctx_t *gctx, prof_gctx_tree_t *gctxs)
 {
-
 	cassert(config_prof);
 
 	malloc_mutex_lock(tsdn, gctx->lock);
@@ -1421,7 +1407,6 @@ prof_open_maps(const char *format, ...)
 static int
 prof_getpid(void)
 {
-
 #ifdef _WIN32
 	return (GetCurrentProcessId());
 #else
@@ -1491,7 +1476,6 @@ static void
 prof_leakcheck(const prof_cnt_t *cnt_all, size_t leak_ngctx,
     const char *filename)
 {
-
 #ifdef JEMALLOC_PROF
 	/*
 	 * Scaling is equivalent AdjustSamples() in jeprof, but the result may
@@ -1640,7 +1624,6 @@ label_open_close_error:
 static void
 prof_dump_filename(char *filename, char v, uint64_t vseq)
 {
-
 	cassert(config_prof);
 
 	if (vseq != VSEQ_INVALID) {
@@ -1844,7 +1827,6 @@ prof_tdata_init_impl(tsd_t *tsd, uint64_t thr_uid, uint64_t thr_discrim,
 prof_tdata_t *
 prof_tdata_init(tsd_t *tsd)
 {
-
 	return (prof_tdata_init_impl(tsd, prof_thr_uid_alloc(tsd_tsdn(tsd)), 0,
 	    NULL, prof_thread_active_init_get(tsd_tsdn(tsd))));
 }
@@ -1852,7 +1834,6 @@ prof_tdata_init(tsd_t *tsd)
 static bool
 prof_tdata_should_destroy_unlocked(prof_tdata_t *tdata, bool even_if_attached)
 {
-
 	if (tdata->attached && !even_if_attached)
 		return (false);
 	if (ckh_count(&tdata->bt2tctx) != 0)
@@ -1864,7 +1845,6 @@ static bool
 prof_tdata_should_destroy(tsdn_t *tsdn, prof_tdata_t *tdata,
     bool even_if_attached)
 {
-
 	malloc_mutex_assert_owner(tsdn, tdata->lock);
 
 	return (prof_tdata_should_destroy_unlocked(tdata, even_if_attached));
@@ -1874,7 +1854,6 @@ static void
 prof_tdata_destroy_locked(tsd_t *tsd, prof_tdata_t *tdata,
     bool even_if_attached)
 {
-
 	malloc_mutex_assert_owner(tsd_tsdn(tsd), &tdatas_mtx);
 
 	tdata_tree_remove(&tdatas, tdata);
@@ -1893,7 +1872,6 @@ prof_tdata_destroy_locked(tsd_t *tsd, prof_tdata_t *tdata,
 static void
 prof_tdata_destroy(tsd_t *tsd, prof_tdata_t *tdata, bool even_if_attached)
 {
-
 	malloc_mutex_lock(tsd_tsdn(tsd), &tdatas_mtx);
 	prof_tdata_destroy_locked(tsd, tdata, even_if_attached);
 	malloc_mutex_unlock(tsd_tsdn(tsd), &tdatas_mtx);
@@ -2162,7 +2140,6 @@ prof_gdump_set(tsdn_t *tsdn, bool gdump)
 void
 prof_boot0(void)
 {
-
 	cassert(config_prof);
 
 	memcpy(opt_prof_prefix, PROF_PREFIX_DEFAULT,
@@ -2172,7 +2149,6 @@ prof_boot0(void)
 void
 prof_boot1(void)
 {
-
 	cassert(config_prof);
 
 	/*
@@ -2198,7 +2174,6 @@ prof_boot1(void)
 bool
 prof_boot2(tsd_t *tsd)
 {
-
 	cassert(config_prof);
 
 	if (opt_prof) {
@@ -2292,7 +2267,6 @@ prof_boot2(tsd_t *tsd)
 void
 prof_prefork0(tsdn_t *tsdn)
 {
-
 	if (opt_prof) {
 		unsigned i;
 
@@ -2309,7 +2283,6 @@ prof_prefork0(tsdn_t *tsdn)
 void
 prof_prefork1(tsdn_t *tsdn)
 {
-
 	if (opt_prof) {
 		malloc_mutex_prefork(tsdn, &prof_active_mtx);
 		malloc_mutex_prefork(tsdn, &prof_dump_seq_mtx);
@@ -2322,7 +2295,6 @@ prof_prefork1(tsdn_t *tsdn)
 void
 prof_postfork_parent(tsdn_t *tsdn)
 {
-
 	if (opt_prof) {
 		unsigned i;
 
@@ -2345,7 +2317,6 @@ prof_postfork_parent(tsdn_t *tsdn)
 void
 prof_postfork_child(tsdn_t *tsdn)
 {
-
 	if (opt_prof) {
 		unsigned i;
 

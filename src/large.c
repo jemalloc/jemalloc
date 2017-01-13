@@ -6,7 +6,6 @@
 void *
 large_malloc(tsdn_t *tsdn, arena_t *arena, size_t usize, bool zero)
 {
-
 	assert(usize == s2u(usize));
 
 	return (large_palloc(tsdn, arena, usize, CACHELINE, zero));
@@ -67,7 +66,6 @@ large_palloc(tsdn_t *tsdn, arena_t *arena, size_t usize, size_t alignment,
 void
 large_dalloc_junk(void *ptr, size_t usize)
 {
-
 	memset(ptr, JEMALLOC_FREE_JUNK, usize);
 }
 #ifdef JEMALLOC_JET
@@ -83,7 +81,6 @@ large_dalloc_junk_t *large_dalloc_junk = JEMALLOC_N(n_large_dalloc_junk);
 void
 large_dalloc_maybe_junk(void *ptr, size_t usize)
 {
-
 	if (config_fill && have_dss && unlikely(opt_junk_free)) {
 		/*
 		 * Only bother junk filling if the extent isn't about to be
@@ -198,7 +195,6 @@ bool
 large_ralloc_no_move(tsdn_t *tsdn, extent_t *extent, size_t usize_min,
     size_t usize_max, bool zero)
 {
-
 	assert(s2u(extent_usize_get(extent)) == extent_usize_get(extent));
 	/* The following should have been caught by callers. */
 	assert(usize_min > 0 && usize_max <= LARGE_MAXCLASS);
@@ -247,7 +243,6 @@ static void *
 large_ralloc_move_helper(tsdn_t *tsdn, arena_t *arena, size_t usize,
     size_t alignment, bool zero)
 {
-
 	if (alignment <= CACHELINE)
 		return (large_malloc(tsdn, arena, usize, zero));
 	return (large_palloc(tsdn, arena, usize, alignment, zero));
@@ -314,41 +309,35 @@ large_dalloc_impl(tsdn_t *tsdn, extent_t *extent, bool junked_locked)
 void
 large_dalloc_junked_locked(tsdn_t *tsdn, extent_t *extent)
 {
-
 	large_dalloc_impl(tsdn, extent, true);
 }
 
 void
 large_dalloc(tsdn_t *tsdn, extent_t *extent)
 {
-
 	large_dalloc_impl(tsdn, extent, false);
 }
 
 size_t
 large_salloc(tsdn_t *tsdn, const extent_t *extent)
 {
-
 	return (extent_usize_get(extent));
 }
 
 prof_tctx_t *
 large_prof_tctx_get(tsdn_t *tsdn, const extent_t *extent)
 {
-
 	return (extent_prof_tctx_get(extent));
 }
 
 void
 large_prof_tctx_set(tsdn_t *tsdn, extent_t *extent, prof_tctx_t *tctx)
 {
-
 	extent_prof_tctx_set(extent, tctx);
 }
 
 void
 large_prof_tctx_reset(tsdn_t *tsdn, extent_t *extent)
 {
-
 	large_prof_tctx_set(tsdn, extent, (prof_tctx_t *)(uintptr_t)1U);
 }

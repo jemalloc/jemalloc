@@ -10,7 +10,6 @@ void	spin_adaptive(spin_t *spin);
 JEMALLOC_INLINE void
 spin_init(spin_t *spin)
 {
-
 	spin->iteration = 0;
 }
 

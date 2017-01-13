@@ -148,7 +148,6 @@ TEST_END
 static void
 node_remove(heap_t *heap, node_t *node)
 {
-
 	heap_remove(heap, node);
 
 	node->magic = 0;
@@ -283,7 +282,6 @@ TEST_END
 int
 main(void)
 {
-
 	return (test(
 	    test_ph_empty,
 	    test_ph_random));

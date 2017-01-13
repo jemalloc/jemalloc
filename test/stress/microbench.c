@@ -65,7 +65,6 @@ mallocx_free(void)
 
 TEST_BEGIN(test_malloc_vs_mallocx)
 {
-
 	compare_funcs(10*1000*1000, 100*1000*1000, "malloc",
 	    malloc_free, "mallocx", mallocx_free);
 }
@@ -95,7 +94,6 @@ malloc_sdallocx(void)
 
 TEST_BEGIN(test_free_vs_dallocx)
 {
-
 	compare_funcs(10*1000*1000, 100*1000*1000, "free", malloc_free,
 	    "dallocx", malloc_dallocx);
 }
@@ -103,7 +101,6 @@ TEST_END
 
 TEST_BEGIN(test_dallocx_vs_sdallocx)
 {
-
 	compare_funcs(10*1000*1000, 100*1000*1000, "dallocx", malloc_dallocx,
 	    "sdallocx", malloc_sdallocx);
 }
@@ -140,7 +137,6 @@ malloc_sallocx_free(void)
 
 TEST_BEGIN(test_mus_vs_sallocx)
 {
-
 	compare_funcs(10*1000*1000, 100*1000*1000, "malloc_usable_size",
 	    malloc_mus_free, "sallocx", malloc_sallocx_free);
 }
@@ -163,7 +159,6 @@ malloc_nallocx_free(void)
 
 TEST_BEGIN(test_sallocx_vs_nallocx)
 {
-
 	compare_funcs(10*1000*1000, 100*1000*1000, "sallocx",
 	    malloc_sallocx_free, "nallocx", malloc_nallocx_free);
 }
@@ -172,7 +167,6 @@ TEST_END
 int
 main(void)
 {
-
 	return (test(
 	    test_malloc_vs_mallocx,
 	    test_free_vs_dallocx,

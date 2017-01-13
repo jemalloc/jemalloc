@@ -9,7 +9,6 @@ unsigned	base_ind_get(const base_t *base);
 JEMALLOC_INLINE unsigned
 base_ind_get(const base_t *base)
 {
-
 	return (base->ind);
 }
 #endif

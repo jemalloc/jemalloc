@@ -32,7 +32,6 @@ static void		*dss_max;
 static void *
 extent_dss_sbrk(intptr_t increment)
 {
-
 #ifdef JEMALLOC_DSS
 	return (sbrk(increment));
 #else
@@ -55,7 +54,6 @@ extent_dss_prec_get(void)
 bool
 extent_dss_prec_set(dss_prec_t dss_prec)
 {
-
 	if (!have_dss)
 		return (dss_prec != dss_prec_disabled);
 	atomic_write_u(&dss_prec_default, (unsigned)dss_prec);
@@ -208,7 +206,6 @@ label_oom:
 static bool
 extent_in_dss_helper(void *addr, void *max)
 {
-
 	return ((uintptr_t)addr >= (uintptr_t)dss_base && (uintptr_t)addr <
 	    (uintptr_t)max);
 }
@@ -216,7 +213,6 @@ extent_in_dss_helper(void *addr, void *max)
 bool
 extent_in_dss(void *addr)
 {
-
 	cassert(have_dss);
 
 	return (extent_in_dss_helper(addr, atomic_read_p(&dss_max)));
@@ -241,7 +237,6 @@ extent_dss_mergeable(void *addr_a, void *addr_b)
 void
 extent_dss_boot(void)
 {
-
 	cassert(have_dss);
 
 	dss_base = extent_dss_sbrk(0);

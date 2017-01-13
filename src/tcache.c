@@ -26,7 +26,6 @@ static tcaches_t	*tcaches_avail;
 size_t
 tcache_salloc(tsdn_t *tsdn, const void *ptr)
 {
-
 	return (arena_salloc(tsdn, iealloc(tsdn, ptr), ptr));
 }
 
@@ -249,7 +248,6 @@ tcache_bin_flush_large(tsd_t *tsd, tcache_bin_t *tbin, szind_t binind,
 static void
 tcache_arena_associate(tsdn_t *tsdn, tcache_t *tcache, arena_t *arena)
 {
-
 	if (config_stats) {
 		/* Link into list of extant tcaches. */
 		malloc_mutex_lock(tsdn, &arena->lock);
@@ -262,7 +260,6 @@ tcache_arena_associate(tsdn_t *tsdn, tcache_t *tcache, arena_t *arena)
 static void
 tcache_arena_dissociate(tsdn_t *tsdn, tcache_t *tcache, arena_t *arena)
 {
-
 	if (config_stats) {
 		/* Unlink from list of extant tcaches. */
 		malloc_mutex_lock(tsdn, &arena->lock);
@@ -287,7 +284,6 @@ void
 tcache_arena_reassociate(tsdn_t *tsdn, tcache_t *tcache, arena_t *oldarena,
     arena_t *newarena)
 {
-
 	tcache_arena_dissociate(tsdn, tcache, oldarena);
 	tcache_arena_associate(tsdn, tcache, newarena);
 }
@@ -473,7 +469,6 @@ tcaches_create(tsd_t *tsd, unsigned *r_ind)
 static void
 tcaches_elm_flush(tsd_t *tsd, tcaches_t *elm)
 {
-
 	if (elm->tcache == NULL)
 		return;
 	tcache_destroy(tsd, elm->tcache);
@@ -483,7 +478,6 @@ tcaches_elm_flush(tsd_t *tsd, tcaches_t *elm)
 void
 tcaches_flush(tsd_t *tsd, unsigned ind)
 {
-
 	tcaches_elm_flush(tsd, &tcaches[ind]);
 }
 

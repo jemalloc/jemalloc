@@ -33,7 +33,6 @@ arena_bin_index(arena_t *arena, arena_bin_t *bin)
 JEMALLOC_INLINE prof_tctx_t *
 arena_prof_tctx_get(tsdn_t *tsdn, const extent_t *extent, const void *ptr)
 {
-
 	cassert(config_prof);
 	assert(ptr != NULL);
 
@@ -46,7 +45,6 @@ JEMALLOC_INLINE void
 arena_prof_tctx_set(tsdn_t *tsdn, extent_t *extent, const void *ptr,
     size_t usize, prof_tctx_t *tctx)
 {
-
 	cassert(config_prof);
 	assert(ptr != NULL);
 
@@ -58,7 +56,6 @@ JEMALLOC_INLINE void
 arena_prof_tctx_reset(tsdn_t *tsdn, extent_t *extent, const void *ptr,
     prof_tctx_t *tctx)
 {
-
 	cassert(config_prof);
 	assert(ptr != NULL);
 	assert(!extent_slab_get(extent));
@@ -85,7 +82,6 @@ arena_decay_ticks(tsdn_t *tsdn, arena_t *arena, unsigned nticks)
 JEMALLOC_ALWAYS_INLINE void
 arena_decay_tick(tsdn_t *tsdn, arena_t *arena)
 {
-
 	malloc_mutex_assert_not_owner(tsdn, &arena->lock);
 
 	arena_decay_ticks(tsdn, arena, 1);
@@ -95,7 +91,6 @@ JEMALLOC_ALWAYS_INLINE void *
 arena_malloc(tsdn_t *tsdn, arena_t *arena, size_t size, szind_t ind, bool zero,
     tcache_t *tcache, bool slow_path)
 {
-
 	assert(!tsdn_null(tsdn) || tcache == NULL);
 	assert(size != 0);
 
@@ -118,7 +113,6 @@ arena_malloc(tsdn_t *tsdn, arena_t *arena, size_t size, szind_t ind, bool zero,
 JEMALLOC_ALWAYS_INLINE arena_t *
 arena_aalloc(tsdn_t *tsdn, const void *ptr)
 {
-
 	return (extent_arena_get(iealloc(tsdn, ptr)));
 }
 
@@ -142,7 +136,6 @@ JEMALLOC_ALWAYS_INLINE void
 arena_dalloc(tsdn_t *tsdn, extent_t *extent, void *ptr, tcache_t *tcache,
     bool slow_path)
 {
-
 	assert(!tsdn_null(tsdn) || tcache == NULL);
 	assert(ptr != NULL);
 
@@ -176,7 +169,6 @@ JEMALLOC_ALWAYS_INLINE void
 arena_sdalloc(tsdn_t *tsdn, extent_t *extent, void *ptr, size_t size,
     tcache_t *tcache, bool slow_path)
 {
-
 	assert(!tsdn_null(tsdn) || tcache == NULL);
 	assert(ptr != NULL);
 

@@ -347,7 +347,6 @@ TEST_END
 int
 main(void)
 {
-
 	return (test(
 	    test_rb_empty,
 	    test_rb_random));

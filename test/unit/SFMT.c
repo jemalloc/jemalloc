@@ -1596,7 +1596,6 @@ TEST_END
 int
 main(void)
 {
-
 	return (test(
 	    test_gen_rand_32,
 	    test_by_array_32,

@@ -4,7 +4,6 @@
 static unsigned
 hmin(unsigned ha, unsigned hb)
 {
-
 	return (ha < hb ? ha : hb);
 }
 
@@ -71,7 +70,6 @@ rtree_new(rtree_t *rtree, unsigned bits)
 static rtree_elm_t *
 rtree_node_alloc(tsdn_t *tsdn, rtree_t *rtree, size_t nelms)
 {
-
 	return ((rtree_elm_t *)base_alloc(tsdn, b0get(), nelms *
 	    sizeof(rtree_elm_t), CACHELINE));
 }
@@ -88,7 +86,6 @@ rtree_node_alloc_t *rtree_node_alloc = JEMALLOC_N(rtree_node_alloc_impl);
 UNUSED static void
 rtree_node_dalloc(tsdn_t *tsdn, rtree_t *rtree, rtree_elm_t *node)
 {
-
 	/* Nodes are never deleted during normal operation. */
 	not_reached();
 }
@@ -103,7 +100,6 @@ static void
 rtree_delete_subtree(tsdn_t *tsdn, rtree_t *rtree, rtree_elm_t *node,
     unsigned level)
 {
-
 	if (level + 1 < rtree->height) {
 		size_t nchildren, i;
 
@@ -157,7 +153,6 @@ rtree_node_init(tsdn_t *tsdn, rtree_t *rtree, unsigned level,
 rtree_elm_t *
 rtree_subtree_read_hard(tsdn_t *tsdn, rtree_t *rtree, unsigned level)
 {
-
 	return (rtree_node_init(tsdn, rtree, level,
 	    &rtree->levels[level].subtree));
 }
@@ -166,7 +161,6 @@ rtree_elm_t *
 rtree_child_read_hard(tsdn_t *tsdn, rtree_t *rtree, rtree_elm_t *elm,
     unsigned level)
 {
-
 	return (rtree_node_init(tsdn, rtree, level+1, &elm->child));
 }
 

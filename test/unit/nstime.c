@@ -178,7 +178,6 @@ TEST_END
 
 TEST_BEGIN(test_nstime_monotonic)
 {
-
 	nstime_monotonic();
 }
 TEST_END
@@ -211,7 +210,6 @@ TEST_END
 int
 main(void)
 {
-
 	return (test(
 	    test_nstime_init,
 	    test_nstime_init2,

@@ -20,14 +20,12 @@ get_nsizes_impl(const char *cmd)
 static unsigned
 get_nsmall(void)
 {
-
 	return (get_nsizes_impl("arenas.nbins"));
 }
 
 static unsigned
 get_nlarge(void)
 {
-
 	return (get_nsizes_impl("arenas.nlextents"));
 }
 
@@ -53,14 +51,12 @@ get_size_impl(const char *cmd, size_t ind)
 static size_t
 get_small_size(size_t ind)
 {
-
 	return (get_size_impl("arenas.bin.0.size", ind));
 }
 
 static size_t
 get_large_size(size_t ind)
 {
-
 	return (get_size_impl("arenas.lextent.0.size", ind));
 }
 
@@ -164,14 +160,12 @@ do_arena_reset_destroy(const char *name, unsigned arena_ind)
 static void
 do_arena_reset(unsigned arena_ind)
 {
-
 	do_arena_reset_destroy("arena.0.reset", arena_ind);
 }
 
 static void
 do_arena_destroy(unsigned arena_ind)
 {
-
 	do_arena_reset_destroy("arena.0.destroy", arena_ind);
 }
 
@@ -214,7 +208,6 @@ arena_i_initialized(unsigned arena_ind, bool refresh)
 
 TEST_BEGIN(test_arena_destroy_initial)
 {
-
 	assert_false(arena_i_initialized(MALLCTL_ARENAS_DESTROYED, false),
 	    "Destroyed arena stats should not be initialized");
 }
@@ -269,7 +262,6 @@ static bool
 extent_dalloc_unmap(extent_hooks_t *extent_hooks, void *addr, size_t size,
     bool committed, unsigned arena_ind)
 {
-
 	TRACE_HOOK("%s(extent_hooks=%p, addr=%p, size=%zu, committed=%s, "
 	    "arena_ind=%u)\n", __func__, extent_hooks, addr, size, committed ?
 	    "true" : "false", arena_ind);
@@ -338,7 +330,6 @@ TEST_END
 int
 main(void)
 {
-
 	return (test(
 	    test_arena_reset,
 	    test_arena_destroy_initial,

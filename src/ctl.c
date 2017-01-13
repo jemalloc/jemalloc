@@ -18,7 +18,6 @@ static ctl_stats_t	*ctl_stats;
 JEMALLOC_INLINE_C const ctl_named_node_t *
 ctl_named_node(const ctl_node_t *node)
 {
-
 	return ((node->named) ? (const ctl_named_node_t *)node : NULL);
 }
 
@@ -33,7 +32,6 @@ ctl_named_children(const ctl_named_node_t *node, size_t index)
 JEMALLOC_INLINE_C const ctl_indexed_node_t *
 ctl_indexed_node(const ctl_node_t *node)
 {
-
 	return (!node->named ? (const ctl_indexed_node_t *)node : NULL);
 }
 
@@ -475,7 +473,6 @@ stats_arenas_i2a_impl(size_t i, bool compat, bool validate)
 static unsigned
 stats_arenas_i2a(size_t i)
 {
-
 	return (stats_arenas_i2a_impl(i, true, false));
 }
 
@@ -513,7 +510,6 @@ stats_arenas_i(size_t i)
 static void
 ctl_arena_clear(ctl_arena_stats_t *astats)
 {
-
 	astats->nthreads = 0;
 	astats->dss = dss_prec_names[dss_prec_limit];
 	astats->decay_time = -1;
@@ -985,7 +981,6 @@ label_return:
 bool
 ctl_boot(void)
 {
-
 	if (malloc_mutex_init(&ctl_mtx, "ctl", WITNESS_RANK_CTL))
 		return (true);
 
@@ -997,21 +992,18 @@ ctl_boot(void)
 void
 ctl_prefork(tsdn_t *tsdn)
 {
-
 	malloc_mutex_prefork(tsdn, &ctl_mtx);
 }
 
 void
 ctl_postfork_parent(tsdn_t *tsdn)
 {
-
 	malloc_mutex_postfork_parent(tsdn, &ctl_mtx);
 }
 
 void
 ctl_postfork_child(tsdn_t *tsdn)
 {
-
 	malloc_mutex_postfork_child(tsdn, &ctl_mtx);
 }
 
@@ -1540,7 +1532,6 @@ label_return:
 static void
 arena_i_purge(tsdn_t *tsdn, unsigned arena_ind, bool all)
 {
-
 	malloc_mutex_lock(tsdn, &ctl_mtx);
 	{
 		unsigned narenas = ctl_stats->narenas;
@@ -1918,7 +1909,6 @@ CTL_RO_NL_GEN(arenas_bin_i_slab_size, arena_bin_info[mib[2]].slab_size, size_t)
 static const ctl_named_node_t *
 arenas_bin_i_index(tsdn_t *tsdn, const size_t *mib, size_t miblen, size_t i)
 {
-
 	if (i > NBINS)
 		return (NULL);
 	return (super_arenas_bin_i_node);
@@ -1929,7 +1919,6 @@ CTL_RO_NL_GEN(arenas_lextent_i_size, index2size(NBINS+(szind_t)mib[2]), size_t)
 static const ctl_named_node_t *
 arenas_lextent_i_index(tsdn_t *tsdn, const size_t *mib, size_t miblen, size_t i)
 {
-
 	if (i > NSIZES - NBINS)
 		return (NULL);
 	return (super_arenas_lextent_i_node);
@@ -2159,7 +2148,6 @@ static const ctl_named_node_t *
 stats_arenas_i_bins_j_index(tsdn_t *tsdn, const size_t *mib, size_t miblen,
     size_t j)
 {
-
 	if (j > NBINS)
 		return (NULL);
 	return (super_stats_arenas_i_bins_j_node);
@@ -2178,7 +2166,6 @@ static const ctl_named_node_t *
 stats_arenas_i_lextents_j_index(tsdn_t *tsdn, const size_t *mib, size_t miblen,
     size_t j)
 {
-
 	if (j > NSIZES - NBINS)
 		return (NULL);
 	return (super_stats_arenas_i_lextents_j_node);

@@ -69,7 +69,6 @@ extent_alloc_mmap(void *new_addr, size_t size, size_t alignment, bool *zero,
 bool
 extent_dalloc_mmap(void *addr, size_t size)
 {
-
 	if (config_munmap)
 		pages_unmap(addr, size);
 	return (!config_munmap);

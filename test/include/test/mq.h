@@ -46,7 +46,6 @@ a_prefix##init(a_mq_type *mq) {						\
 a_attr void								\
 a_prefix##fini(a_mq_type *mq)						\
 {									\
-									\
 	mtx_fini(&mq->lock);						\
 }									\
 a_attr unsigned								\
