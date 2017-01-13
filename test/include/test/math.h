@@ -305,7 +305,6 @@ pt_chi2(double p, double df, double ln_gamma_df_2)
 JEMALLOC_INLINE double
 pt_gamma(double p, double shape, double scale, double ln_gamma_shape)
 {
-
 	return (pt_chi2(p, shape * 2.0, ln_gamma_shape) * 0.5 * scale);
 }
 #endif

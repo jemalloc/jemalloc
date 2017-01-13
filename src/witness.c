@@ -5,7 +5,6 @@ void
 witness_init(witness_t *witness, const char *name, witness_rank_t rank,
     witness_comp_t *comp, void *opaque)
 {
-
 	witness->name = name;
 	witness->rank = rank;
 	witness->comp = comp;
@@ -41,7 +40,6 @@ witness_lock_error_t *witness_lock_error = JEMALLOC_N(n_witness_lock_error);
 void
 witness_owner_error(const witness_t *witness)
 {
-
 	malloc_printf("<jemalloc>: Should own %s(%u)\n", witness->name,
 	    witness->rank);
 	abort();
@@ -59,7 +57,6 @@ witness_owner_error_t *witness_owner_error = JEMALLOC_N(n_witness_owner_error);
 void
 witness_not_owner_error(const witness_t *witness)
 {
-
 	malloc_printf("<jemalloc>: Should not own %s(%u)\n", witness->name,
 	    witness->rank);
 	abort();
@@ -97,7 +94,6 @@ witness_lockless_error_t *witness_lockless_error =
 void
 witnesses_cleanup(tsd_t *tsd)
 {
-
 	witness_assert_lockless(tsd_tsdn(tsd));
 
 	/* Do nothing. */
@@ -106,14 +102,12 @@ witnesses_cleanup(tsd_t *tsd)
 void
 witness_prefork(tsd_t *tsd)
 {
-
 	tsd_witness_fork_set(tsd, true);
 }
 
 void
 witness_postfork_parent(tsd_t *tsd)
 {
-
 	tsd_witness_fork_set(tsd, false);
 }
 

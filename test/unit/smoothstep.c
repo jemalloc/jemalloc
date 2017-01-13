@@ -98,7 +98,6 @@ TEST_END
 int
 main(void)
 {
-
 	return (test(
 	    test_smoothstep_integral,
 	    test_smoothstep_monotonic,

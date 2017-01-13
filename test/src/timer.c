@@ -3,7 +3,6 @@
 void
 timer_start(timedelta_t *timer)
 {
-
 	nstime_init(&timer->t0, 0);
 	nstime_update(&timer->t0);
 }
@@ -11,7 +10,6 @@ timer_start(timedelta_t *timer)
 void
 timer_stop(timedelta_t *timer)
 {
-
 	nstime_copy(&timer->t1, &timer->t0);
 	nstime_update(&timer->t1);
 }

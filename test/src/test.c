@@ -34,7 +34,6 @@ test_fail(const char *format, ...)
 static const char *
 test_status_string(test_status_t test_status)
 {
-
 	switch (test_status) {
 	case test_status_pass: return "pass";
 	case test_status_skip: return "skip";
@@ -46,7 +45,6 @@ test_status_string(test_status_t test_status)
 void
 p_test_init(const char *name)
 {
-
 	test_count++;
 	test_status = test_status_pass;
 	test_name = name;
@@ -55,7 +53,6 @@ p_test_init(const char *name)
 void
 p_test_fini(void)
 {
-
 	test_counts[test_status]++;
 	malloc_printf("%s: %s\n", test_name, test_status_string(test_status));
 }
@@ -127,7 +124,6 @@ p_test_no_malloc_init(test_t *t, ...)
 void
 p_test_fail(const char *prefix, const char *message)
 {
-
 	malloc_cprintf(NULL, NULL, "%s%s\n", prefix, message);
 	test_status = test_status_fail;
 }

@@ -48,7 +48,6 @@ static char	*x2s(uintmax_t x, bool alt_form, bool uppercase, char *s,
 static void
 wrtmessage(void *cbopaque, const char *s)
 {
-
 #if defined(JEMALLOC_USE_SYSCALL) && defined(SYS_write)
 	/*
 	 * Use syscall(2) rather than write(2) when possible in order to avoid
@@ -74,7 +73,6 @@ JEMALLOC_EXPORT void	(*je_malloc_message)(void *, const char *s);
 void
 malloc_write(const char *s)
 {
-
 	if (je_malloc_message != NULL)
 		je_malloc_message(NULL, s);
 	else
@@ -88,7 +86,6 @@ malloc_write(const char *s)
 int
 buferror(int err, char *buf, size_t buflen)
 {
-
 #ifdef _WIN32
 	FormatMessageA(FORMAT_MESSAGE_FROM_SYSTEM, NULL, err, 0,
 	    (LPSTR)buf, (DWORD)buflen, NULL);
@@ -292,7 +289,6 @@ d2s(intmax_t x, char sign, char *s, size_t *slen_p)
 static char *
 o2s(uintmax_t x, bool alt_form, char *s, size_t *slen_p)
 {
-
 	s = u2s(x, 8, false, s, slen_p);
 	if (alt_form && *s != '0') {
 		s--;
@@ -305,7 +301,6 @@ o2s(uintmax_t x, bool alt_form, char *s, size_t *slen_p)
 static char *
 x2s(uintmax_t x, bool alt_form, bool uppercase, char *s, size_t *slen_p)
 {
-
 	s = u2s(x, 16, uppercase, s, slen_p);
 	if (alt_form) {
 		s -= 2;

@@ -198,7 +198,6 @@ TEST_END
 int
 main(void)
 {
-
 	return (test(
 	    test_ql_empty,
 	    test_ql_tail_insert,

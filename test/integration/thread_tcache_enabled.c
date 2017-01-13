@@ -86,7 +86,6 @@ label_ENOENT:
 
 TEST_BEGIN(test_main_thread)
 {
-
 	thd_start(NULL);
 }
 TEST_END
@@ -103,7 +102,6 @@ TEST_END
 int
 main(void)
 {
-
 	/* Run tests multiple times to check for bad interactions. */
 	return (test(
 	    test_main_thread,

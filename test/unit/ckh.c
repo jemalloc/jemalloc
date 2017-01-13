@@ -206,7 +206,6 @@ TEST_END
 int
 main(void)
 {
-
 	return (test(
 	    test_new_delete,
 	    test_count_insert_search_remove,

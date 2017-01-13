@@ -19,7 +19,6 @@ prof_dump_open_intercept(bool propagate_err, const char *filename)
 static void
 set_prof_active(bool active)
 {
-
 	assert_d_eq(mallctl("prof.active", NULL, NULL, (void *)&active,
 	    sizeof(active)), 0, "Unexpected mallctl failure");
 }
@@ -98,7 +97,6 @@ static bool
 prof_dump_header_intercept(tsdn_t *tsdn, bool propagate_err,
     const prof_cnt_t *cnt_all)
 {
-
 	prof_dump_header_intercepted = true;
 	memcpy(&cnt_all_copy, cnt_all, sizeof(prof_cnt_t));
 
@@ -292,7 +290,6 @@ TEST_END
 int
 main(void)
 {
-
 	/* Intercept dumping prior to running any tests. */
 	prof_dump_open = prof_dump_open_intercept;
 

@@ -85,7 +85,6 @@ TEST_END
 int
 main(void)
 {
-
 	return (test(
 	    test_mq_basic,
 	    test_mq_threaded));

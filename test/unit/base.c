@@ -208,7 +208,6 @@ TEST_END
 int
 main(void)
 {
-
 	return (test(
 	    test_base_hooks_default,
 	    test_base_hooks_null,

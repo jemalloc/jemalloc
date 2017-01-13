@@ -177,7 +177,6 @@ a_attr bool		a_name##tsd_booted = false;
 a_attr bool								\
 a_name##tsd_cleanup_wrapper(void)					\
 {									\
-									\
 	if (a_name##tsd_initialized) {					\
 		a_name##tsd_initialized = false;			\
 		a_cleanup(&a_name##tsd_tls);				\
@@ -187,7 +186,6 @@ a_name##tsd_cleanup_wrapper(void)					\
 a_attr bool								\
 a_name##tsd_boot0(void)							\
 {									\
-									\
 	if (a_cleanup != malloc_tsd_no_cleanup) {			\
 		malloc_tsd_cleanup_register(				\
 		    &a_name##tsd_cleanup_wrapper);			\
@@ -198,39 +196,33 @@ a_name##tsd_boot0(void)							\
 a_attr void								\
 a_name##tsd_boot1(void)							\
 {									\
-									\
 	/* Do nothing. */						\
 }									\
 a_attr bool								\
 a_name##tsd_boot(void)							\
 {									\
-									\
 	return (a_name##tsd_boot0());					\
 }									\
 a_attr bool								\
 a_name##tsd_booted_get(void)						\
 {									\
-									\
 	return (a_name##tsd_booted);					\
 }									\
 a_attr bool								\
 a_name##tsd_get_allocates(void)						\
 {									\
-									\
 	return (false);							\
 }									\
 /* Get/set. */								\
 a_attr a_type *								\
 a_name##tsd_get(bool init)						\
 {									\
-									\
 	assert(a_name##tsd_booted);					\
 	return (&a_name##tsd_tls);					\
 }									\
 a_attr void								\
 a_name##tsd_set(a_type *val)						\
 {									\
-									\
 	assert(a_name##tsd_booted);					\
 	if (likely(&a_name##tsd_tls != val))				\
 		a_name##tsd_tls = (*val);				\
@@ -244,7 +236,6 @@ a_name##tsd_set(a_type *val)						\
 a_attr bool								\
 a_name##tsd_boot0(void)							\
 {									\
-									\
 	if (a_cleanup != malloc_tsd_no_cleanup) {			\
 		if (pthread_key_create(&a_name##tsd_tsd, a_cleanup) !=	\
 		    0)							\
@@ -256,39 +247,33 @@ a_name##tsd_boot0(void)							\
 a_attr void								\
 a_name##tsd_boot1(void)							\
 {									\
-									\
 	/* Do nothing. */						\
 }									\
 a_attr bool								\
 a_name##tsd_boot(void)							\
 {									\
-									\
 	return (a_name##tsd_boot0());					\
 }									\
 a_attr bool								\
 a_name##tsd_booted_get(void)						\
 {									\
-									\
 	return (a_name##tsd_booted);					\
 }									\
 a_attr bool								\
 a_name##tsd_get_allocates(void)						\
 {									\
-									\
 	return (false);							\
 }									\
 /* Get/set. */								\
 a_attr a_type *								\
 a_name##tsd_get(bool init)						\
 {									\
-									\
 	assert(a_name##tsd_booted);					\
 	return (&a_name##tsd_tls);					\
 }									\
 a_attr void								\
 a_name##tsd_set(a_type *val)						\
 {									\
-									\
 	assert(a_name##tsd_booted);					\
 	if (likely(&a_name##tsd_tls != val))				\
 		a_name##tsd_tls = (*val);				\
@@ -331,7 +316,6 @@ a_name##tsd_cleanup_wrapper(void)					\
 a_attr void								\
 a_name##tsd_wrapper_set(a_name##tsd_wrapper_t *wrapper)			\
 {									\
-									\
 	if (!TlsSetValue(a_name##tsd_tsd, (void *)wrapper)) {		\
 		malloc_write("<jemalloc>: Error setting"		\
 		    " TSD for "#a_name"\n");				\
@@ -364,7 +348,6 @@ a_name##tsd_wrapper_get(bool init)					\
 a_attr bool								\
 a_name##tsd_boot0(void)							\
 {									\
-									\
 	a_name##tsd_tsd = TlsAlloc();					\
 	if (a_name##tsd_tsd == TLS_OUT_OF_INDEXES)			\
 		return (true);						\
@@ -394,7 +377,6 @@ a_name##tsd_boot1(void)							\
 a_attr bool								\
 a_name##tsd_boot(void)							\
 {									\
-									\
 	if (a_name##tsd_boot0())					\
 		return (true);						\
 	a_name##tsd_boot1();						\
@@ -403,13 +385,11 @@ a_name##tsd_boot(void)							\
 a_attr bool								\
 a_name##tsd_booted_get(void)						\
 {									\
-									\
 	return (a_name##tsd_booted);					\
 }									\
 a_attr bool								\
 a_name##tsd_get_allocates(void)						\
 {									\
-									\
 	return (true);							\
 }									\
 /* Get/set. */								\
@@ -466,7 +446,6 @@ a_name##tsd_cleanup_wrapper(void *arg)					\
 a_attr void								\
 a_name##tsd_wrapper_set(a_name##tsd_wrapper_t *wrapper)			\
 {									\
-									\
 	if (pthread_setspecific(a_name##tsd_tsd,			\
 	    (void *)wrapper)) {						\
 		malloc_write("<jemalloc>: Error setting"		\
@@ -506,7 +485,6 @@ a_name##tsd_wrapper_get(bool init)					\
 a_attr bool								\
 a_name##tsd_boot0(void)							\
 {									\
-									\
 	if (pthread_key_create(&a_name##tsd_tsd,			\
 	    a_name##tsd_cleanup_wrapper) != 0)				\
 		return (true);						\
@@ -532,7 +510,6 @@ a_name##tsd_boot1(void)							\
 a_attr bool								\
 a_name##tsd_boot(void)							\
 {									\
-									\
 	if (a_name##tsd_boot0())					\
 		return (true);						\
 	a_name##tsd_boot1();						\
@@ -541,13 +518,11 @@ a_name##tsd_boot(void)							\
 a_attr bool								\
 a_name##tsd_booted_get(void)						\
 {									\
-									\
 	return (a_name##tsd_booted);					\
 }									\
 a_attr bool								\
 a_name##tsd_get_allocates(void)						\
 {									\
-									\
 	return (true);							\
 }									\
 /* Get/set. */								\

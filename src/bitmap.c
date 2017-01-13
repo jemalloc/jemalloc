@@ -37,7 +37,6 @@ bitmap_info_init(bitmap_info_t *binfo, size_t nbits)
 static size_t
 bitmap_info_ngroups(const bitmap_info_t *binfo)
 {
-
 	return (binfo->levels[binfo->nlevels].group_offset);
 }
 
@@ -74,7 +73,6 @@ bitmap_init(bitmap_t *bitmap, const bitmap_info_t *binfo)
 void
 bitmap_info_init(bitmap_info_t *binfo, size_t nbits)
 {
-
 	assert(nbits > 0);
 	assert(nbits <= (ZU(1) << LG_BITMAP_MAXBITS));
 
@@ -85,7 +83,6 @@ bitmap_info_init(bitmap_info_t *binfo, size_t nbits)
 static size_t
 bitmap_info_ngroups(const bitmap_info_t *binfo)
 {
-
 	return (binfo->ngroups);
 }
 
@@ -106,6 +103,5 @@ bitmap_init(bitmap_t *bitmap, const bitmap_info_t *binfo)
 size_t
 bitmap_size(const bitmap_info_t *binfo)
 {
-
 	return (bitmap_info_ngroups(binfo) << LG_SIZEOF_BITMAP);
 }

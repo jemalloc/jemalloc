@@ -74,7 +74,6 @@ rtree_ctx_start_level(const rtree_t *rtree, const rtree_ctx_t *rtree_ctx,
 JEMALLOC_ALWAYS_INLINE uintptr_t
 rtree_subkey(rtree_t *rtree, uintptr_t key, unsigned level)
 {
-
 	return ((key >> ((ZU(1) << (LG_SIZEOF_PTR+3)) -
 	    rtree->levels[level].cumbits)) & ((ZU(1) <<
 	    rtree->levels[level].bits) - 1));
@@ -83,7 +82,6 @@ rtree_subkey(rtree_t *rtree, uintptr_t key, unsigned level)
 JEMALLOC_ALWAYS_INLINE bool
 rtree_node_valid(rtree_elm_t *node)
 {
-
 	return ((uintptr_t)node != (uintptr_t)0);
 }
 
@@ -144,7 +142,6 @@ rtree_elm_read(rtree_elm_t *elm, bool dependent)
 JEMALLOC_INLINE void
 rtree_elm_write(rtree_elm_t *elm, const extent_t *extent)
 {
-
 	atomic_write_p(&elm->pun, extent);
 }
 
@@ -408,7 +405,6 @@ JEMALLOC_INLINE void
 rtree_elm_write_acquired(tsdn_t *tsdn, const rtree_t *rtree, rtree_elm_t *elm,
     const extent_t *extent)
 {
-
 	assert(((uintptr_t)extent & (uintptr_t)0x1) == (uintptr_t)0x0);
 	assert(((uintptr_t)elm->pun & (uintptr_t)0x1) == (uintptr_t)0x1);
 
@@ -422,7 +418,6 @@ rtree_elm_write_acquired(tsdn_t *tsdn, const rtree_t *rtree, rtree_elm_t *elm,
 JEMALLOC_INLINE void
 rtree_elm_release(tsdn_t *tsdn, const rtree_t *rtree, rtree_elm_t *elm)
 {
-
 	rtree_elm_write(elm, rtree_elm_read_acquired(tsdn, rtree, elm));
 	if (config_debug)
 		rtree_elm_witness_release(tsdn, rtree, elm);

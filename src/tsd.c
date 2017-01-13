@@ -14,21 +14,18 @@ malloc_tsd_data(, , tsd_t, TSD_INITIALIZER)
 void *
 malloc_tsd_malloc(size_t size)
 {
-
 	return (a0malloc(CACHELINE_CEILING(size)));
 }
 
 void
 malloc_tsd_dalloc(void *wrapper)
 {
-
 	a0dalloc(wrapper);
 }
 
 void
 malloc_tsd_no_cleanup(void *arg)
 {
-
 	not_reached();
 }
 
@@ -61,7 +58,6 @@ _malloc_thread_cleanup(void)
 void
 malloc_tsd_cleanup_register(bool (*f)(void))
 {
-
 	assert(ncleanups < MALLOC_TSD_CLEANUPS_MAX);
 	cleanups[ncleanups] = f;
 	ncleanups++;
@@ -127,7 +123,6 @@ malloc_tsd_boot0(void)
 void
 malloc_tsd_boot1(void)
 {
-
 	tsd_boot1();
 	*tsd_arenas_tdata_bypassp_get(tsd_fetch()) = false;
 }
@@ -136,7 +131,6 @@ malloc_tsd_boot1(void)
 static BOOL WINAPI
 _tls_callback(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 {
-
 	switch (fdwReason) {
 #ifdef JEMALLOC_LAZY_LOCK
 	case DLL_THREAD_ATTACH:
@@ -194,7 +188,6 @@ tsd_init_check_recursion(tsd_init_head_t *head, tsd_init_block_t *block)
 void
 tsd_init_finish(tsd_init_head_t *head, tsd_init_block_t *block)
 {
-
 	malloc_mutex_lock(TSDN_NULL, &head->lock);
 	ql_remove(&head->blocks, block, link);
 	malloc_mutex_unlock(TSDN_NULL, &head->lock);

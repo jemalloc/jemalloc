@@ -14,35 +14,30 @@ static void
 witness_lock_error_intercept(const witness_list_t *witnesses,
     const witness_t *witness)
 {
-
 	saw_lock_error = true;
 }
 
 static void
 witness_owner_error_intercept(const witness_t *witness)
 {
-
 	saw_owner_error = true;
 }
 
 static void
 witness_not_owner_error_intercept(const witness_t *witness)
 {
-
 	saw_not_owner_error = true;
 }
 
 static void
 witness_lockless_error_intercept(const witness_list_t *witnesses)
 {
-
 	saw_lockless_error = true;
 }
 
 static int
 witness_comp(const witness_t *a, void *oa, const witness_t *b, void *ob)
 {
-
 	assert_u_eq(a->rank, b->rank, "Witnesses should have equal rank");
 
 	assert(oa == (void *)a);
@@ -54,7 +49,6 @@ witness_comp(const witness_t *a, void *oa, const witness_t *b, void *ob)
 static int
 witness_comp_reverse(const witness_t *a, void *oa, const witness_t *b, void *ob)
 {
-
 	assert_u_eq(a->rank, b->rank, "Witnesses should have equal rank");
 
 	assert(oa == (void *)a);
@@ -273,7 +267,6 @@ TEST_END
 int
 main(void)
 {
-
 	return (test(
 	    test_witness,
 	    test_witness_comp,

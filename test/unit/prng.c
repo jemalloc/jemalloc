@@ -114,35 +114,30 @@ test_prng_lg_range_zu(bool atomic)
 
 TEST_BEGIN(test_prng_lg_range_u32_nonatomic)
 {
-
 	test_prng_lg_range_u32(false);
 }
 TEST_END
 
 TEST_BEGIN(test_prng_lg_range_u32_atomic)
 {
-
 	test_prng_lg_range_u32(true);
 }
 TEST_END
 
 TEST_BEGIN(test_prng_lg_range_u64_nonatomic)
 {
-
 	test_prng_lg_range_u64();
 }
 TEST_END
 
 TEST_BEGIN(test_prng_lg_range_zu_nonatomic)
 {
-
 	test_prng_lg_range_zu(false);
 }
 TEST_END
 
 TEST_BEGIN(test_prng_lg_range_zu_atomic)
 {
-
 	test_prng_lg_range_zu(true);
 }
 TEST_END
@@ -212,35 +207,30 @@ test_prng_range_zu(bool atomic)
 
 TEST_BEGIN(test_prng_range_u32_nonatomic)
 {
-
 	test_prng_range_u32(false);
 }
 TEST_END
 
 TEST_BEGIN(test_prng_range_u32_atomic)
 {
-
 	test_prng_range_u32(true);
 }
 TEST_END
 
 TEST_BEGIN(test_prng_range_u64_nonatomic)
 {
-
 	test_prng_range_u64();
 }
 TEST_END
 
 TEST_BEGIN(test_prng_range_zu_nonatomic)
 {
-
 	test_prng_range_zu(false);
 }
 TEST_END
 
 TEST_BEGIN(test_prng_range_zu_atomic)
 {
-
 	test_prng_range_zu(true);
 }
 TEST_END
@@ -248,7 +238,6 @@ TEST_END
 int
 main(void)
 {
-
 	return (test(
 	    test_prng_lg_range_u32_nonatomic,
 	    test_prng_lg_range_u32_atomic,

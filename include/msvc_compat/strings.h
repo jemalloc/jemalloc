@@ -17,7 +17,6 @@ static __forceinline int ffsl(long x)
 
 static __forceinline int ffs(int x)
 {
-
 	return (ffsl(x));
 }
 

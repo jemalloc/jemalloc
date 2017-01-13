@@ -24,7 +24,6 @@ prof_dump_open_intercept(bool propagate_err, const char *filename)
 static void *
 alloc_from_permuted_backtrace(unsigned thd_ind, unsigned iteration)
 {
-
 	return (btalloc(1, thd_ind*NALLOCS_PER_THREAD + iteration));
 }
 
@@ -86,7 +85,6 @@ TEST_END
 int
 main(void)
 {
-
 	return (test(
 	    test_idump));
 }

@@ -55,14 +55,12 @@ extent_lookup(tsdn_t *tsdn, const void *ptr, bool dependent)
 JEMALLOC_INLINE arena_t *
 extent_arena_get(const extent_t *extent)
 {
-
 	return (extent->e_arena);
 }
 
 JEMALLOC_INLINE void *
 extent_base_get(const extent_t *extent)
 {
-
 	assert(extent->e_addr == PAGE_ADDR2BASE(extent->e_addr) ||
 	    !extent->e_slab);
 	return (PAGE_ADDR2BASE(extent->e_addr));
@@ -71,7 +69,6 @@ extent_base_get(const extent_t *extent)
 JEMALLOC_INLINE void *
 extent_addr_get(const extent_t *extent)
 {
-
 	assert(extent->e_addr == PAGE_ADDR2BASE(extent->e_addr) ||
 	    !extent->e_slab);
 	return (extent->e_addr);
@@ -80,14 +77,12 @@ extent_addr_get(const extent_t *extent)
 JEMALLOC_INLINE size_t
 extent_size_get(const extent_t *extent)
 {
-
 	return (extent->e_size);
 }
 
 JEMALLOC_INLINE size_t
 extent_usize_get(const extent_t *extent)
 {
-
 	assert(!extent->e_slab);
 	return (extent->e_usize);
 }
@@ -95,14 +90,12 @@ extent_usize_get(const extent_t *extent)
 JEMALLOC_INLINE void *
 extent_before_get(const extent_t *extent)
 {
-
 	return ((void *)((uintptr_t)extent_base_get(extent) - PAGE));
 }
 
 JEMALLOC_INLINE void *
 extent_last_get(const extent_t *extent)
 {
-
 	return ((void *)((uintptr_t)extent_base_get(extent) +
 	    extent_size_get(extent) - PAGE));
 }
@@ -110,7 +103,6 @@ extent_last_get(const extent_t *extent)
 JEMALLOC_INLINE void *
 extent_past_get(const extent_t *extent)
 {
-
 	return ((void *)((uintptr_t)extent_base_get(extent) +
 	    extent_size_get(extent)));
 }
@@ -118,49 +110,42 @@ extent_past_get(const extent_t *extent)
 JEMALLOC_INLINE size_t
 extent_sn_get(const extent_t *extent)
 {
-
 	return (extent->e_sn);
 }
 
 JEMALLOC_INLINE bool
 extent_active_get(const extent_t *extent)
 {
-
 	return (extent->e_active);
 }
 
 JEMALLOC_INLINE bool
 extent_retained_get(const extent_t *extent)
 {
-
 	return (qr_next(extent, qr_link) == extent);
 }
 
 JEMALLOC_INLINE bool
 extent_zeroed_get(const extent_t *extent)
 {
-
 	return (extent->e_zeroed);
 }
 
 JEMALLOC_INLINE bool
 extent_committed_get(const extent_t *extent)
 {
-
 	return (extent->e_committed);
 }
 
 JEMALLOC_INLINE bool
 extent_slab_get(const extent_t *extent)
 {
-
 	return (extent->e_slab);
 }
 
 JEMALLOC_INLINE arena_slab_data_t *
 extent_slab_data_get(extent_t *extent)
 {
-
 	assert(extent->e_slab);
 	return (&extent->e_slab_data);
 }
@@ -168,7 +153,6 @@ extent_slab_data_get(extent_t *extent)
 JEMALLOC_INLINE const arena_slab_data_t *
 extent_slab_data_get_const(const extent_t *extent)
 {
-
 	assert(extent->e_slab);
 	return (&extent->e_slab_data);
 }
@@ -176,7 +160,6 @@ extent_slab_data_get_const(const extent_t *extent)
 JEMALLOC_INLINE prof_tctx_t *
 extent_prof_tctx_get(const extent_t *extent)
 {
-
 	return ((prof_tctx_t *)atomic_read_p(
 	    &((extent_t *)extent)->e_prof_tctx_pun));
 }
@@ -184,21 +167,18 @@ extent_prof_tctx_get(const extent_t *extent)
 JEMALLOC_INLINE void
 extent_arena_set(extent_t *extent, arena_t *arena)
 {
-
 	extent->e_arena = arena;
 }
 
 JEMALLOC_INLINE void
 extent_addr_set(extent_t *extent, void *addr)
 {
-
 	extent->e_addr = addr;
 }
 
 JEMALLOC_INLINE void
 extent_addr_randomize(tsdn_t *tsdn, extent_t *extent, size_t alignment)
 {
-
 	assert(extent_base_get(extent) == extent_addr_get(extent));
 
 	if (alignment < PAGE) {
@@ -219,56 +199,48 @@ extent_addr_randomize(tsdn_t *tsdn, extent_t *extent, size_t alignment)
 JEMALLOC_INLINE void
 extent_size_set(extent_t *extent, size_t size)
 {
-
 	extent->e_size = size;
 }
 
 JEMALLOC_INLINE void
 extent_usize_set(extent_t *extent, size_t usize)
 {
-
 	extent->e_usize = usize;
 }
 
 JEMALLOC_INLINE void
 extent_sn_set(extent_t *extent, size_t sn)
 {
-
 	extent->e_sn = sn;
 }
 
 JEMALLOC_INLINE void
 extent_active_set(extent_t *extent, bool active)
 {
-
 	extent->e_active = active;
 }
 
 JEMALLOC_INLINE void
 extent_zeroed_set(extent_t *extent, bool zeroed)
 {
-
 	extent->e_zeroed = zeroed;
 }
 
 JEMALLOC_INLINE void
 extent_committed_set(extent_t *extent, bool committed)
 {
-
 	extent->e_committed = committed;
 }
 
 JEMALLOC_INLINE void
 extent_slab_set(extent_t *extent, bool slab)
 {
-
 	extent->e_slab = slab;
 }
 
 JEMALLOC_INLINE void
 extent_prof_tctx_set(extent_t *extent, prof_tctx_t *tctx)
 {
-
 	atomic_write_p(&extent->e_prof_tctx_pun, tctx);
 }
 
@@ -277,7 +249,6 @@ extent_init(extent_t *extent, arena_t *arena, void *addr, size_t size,
     size_t usize, size_t sn, bool active, bool zeroed, bool committed,
     bool slab)
 {
-
 	assert(addr == PAGE_ADDR2BASE(addr) || !slab);
 
 	extent_arena_set(extent, arena);
@@ -297,14 +268,12 @@ extent_init(extent_t *extent, arena_t *arena, void *addr, size_t size,
 JEMALLOC_INLINE void
 extent_ring_insert(extent_t *sentinel, extent_t *extent)
 {
-
 	qr_meld(sentinel, extent, extent_t, qr_link);
 }
 
 JEMALLOC_INLINE void
 extent_ring_remove(extent_t *extent)
 {
-
 	qr_remove(extent, qr_link);
 }
 

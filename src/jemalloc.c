@@ -211,7 +211,6 @@ JEMALLOC_ATTR(constructor)
 static void WINAPI
 _init_init_lock(void)
 {
-
 	/*
 	 * If another constructor in the same binary is using mallctl to e.g.
 	 * set up extent hooks, it may end up running before this one, and
@@ -276,14 +275,12 @@ static bool	malloc_init_hard(void);
 JEMALLOC_ALWAYS_INLINE_C bool
 malloc_initialized(void)
 {
-
 	return (malloc_init_state == malloc_init_initialized);
 }
 
 JEMALLOC_ALWAYS_INLINE_C bool
 malloc_init_a0(void)
 {
-
 	if (unlikely(malloc_init_state == malloc_init_uninitialized))
 		return (malloc_init_hard_a0());
 	return (false);
@@ -292,7 +289,6 @@ malloc_init_a0(void)
 JEMALLOC_ALWAYS_INLINE_C bool
 malloc_init(void)
 {
-
 	if (unlikely(!malloc_initialized()) && malloc_init_hard())
 		return (true);
 	return (false);
@@ -306,7 +302,6 @@ malloc_init(void)
 static void *
 a0ialloc(size_t size, bool zero, bool is_internal)
 {
-
 	if (unlikely(malloc_init_a0()))
 		return (NULL);
 
@@ -317,21 +312,18 @@ a0ialloc(size_t size, bool zero, bool is_internal)
 static void
 a0idalloc(extent_t *extent, void *ptr, bool is_internal)
 {
-
 	idalloctm(TSDN_NULL, extent, ptr, false, is_internal, true);
 }
 
 void *
 a0malloc(size_t size)
 {
-
 	return (a0ialloc(size, false, true));
 }
 
 void
 a0dalloc(void *ptr)
 {
-
 	a0idalloc(iealloc(NULL, ptr), ptr, true);
 }
 
@@ -344,7 +336,6 @@ a0dalloc(void *ptr)
 void *
 bootstrap_malloc(size_t size)
 {
-
 	if (unlikely(size == 0))
 		size = 1;
 
@@ -368,7 +359,6 @@ bootstrap_calloc(size_t num, size_t size)
 void
 bootstrap_free(void *ptr)
 {
-
 	if (unlikely(ptr == NULL))
 		return;
 
@@ -378,28 +368,24 @@ bootstrap_free(void *ptr)
 void
 arena_set(unsigned ind, arena_t *arena)
 {
-
 	atomic_write_p((void **)&arenas[ind], arena);
 }
 
 static void
 narenas_total_set(unsigned narenas)
 {
-
 	atomic_write_u(&narenas_total, narenas);
 }
 
 static void
 narenas_total_inc(void)
 {
-
 	atomic_add_u(&narenas_total, 1);
 }
 
 unsigned
 narenas_total_get(void)
 {
-
 	return (atomic_read_u(&narenas_total));
 }
 
@@ -689,7 +675,6 @@ arenas_tdata_cleanup(tsd_t *tsd)
 static void
 stats_print_atexit(void)
 {
-
 	if (config_tcache && config_stats) {
 		tsdn_t *tsdn;
 		unsigned narenas, i;
@@ -737,7 +722,6 @@ stats_print_atexit(void)
 static char *
 secure_getenv(const char *name)
 {
-
 #  ifdef JEMALLOC_HAVE_ISSETUGID
 	if (issetugid() != 0)
 		return (NULL);
@@ -855,7 +839,6 @@ static void
 malloc_conf_error(const char *msg, const char *k, size_t klen, const char *v,
     size_t vlen)
 {
-
 	malloc_printf("<jemalloc>: %s: %.*s:%.*s\n", msg, (int)klen, k,
 	    (int)vlen, v);
 }
@@ -1167,7 +1150,6 @@ malloc_conf_init(void)
 static bool
 malloc_init_hard_needed(void)
 {
-
 	if (malloc_initialized() || (IS_INITIALIZER && malloc_init_state ==
 	    malloc_init_recursible)) {
 		/*
@@ -1197,7 +1179,6 @@ malloc_init_hard_needed(void)
 static bool
 malloc_init_hard_a0_locked()
 {
-
 	malloc_initializer = INITIALIZER;
 
 	if (config_prof)
@@ -1261,7 +1242,6 @@ malloc_init_hard_a0(void)
 static bool
 malloc_init_hard_recursible(void)
 {
-
 	malloc_init_state = malloc_init_recursible;
 
 	ncpus = malloc_ncpus();
@@ -1285,7 +1265,6 @@ malloc_init_hard_recursible(void)
 static bool
 malloc_init_hard_finish(tsdn_t *tsdn)
 {
-
 	if (malloc_mutex_boot())
 		return (true);
 
@@ -1458,7 +1437,6 @@ JEMALLOC_ALWAYS_INLINE_C void
 ialloc_post_check(void *ret, tsdn_t *tsdn, size_t usize, const char *func,
     bool update_errno, bool slow_path)
 {
-
 	assert(!tsdn_null(tsdn) || ret == NULL);
 
 	if (unlikely(ret == NULL)) {
@@ -1617,7 +1595,6 @@ JEMALLOC_EXPORT int JEMALLOC_NOTHROW
 JEMALLOC_ATTR(nonnull(1))
 je_posix_memalign(void **memptr, size_t alignment, size_t size)
 {
-
 	return (imemalign(memptr, alignment, size, sizeof(void *)));
 }
 
@@ -1754,7 +1731,6 @@ JEMALLOC_INLINE_C void
 isfree(tsd_t *tsd, extent_t *extent, void *ptr, size_t usize, tcache_t *tcache,
     bool slow_path)
 {
-
 	witness_assert_lockless(tsd_tsdn(tsd));
 
 	assert(ptr != NULL);
@@ -1850,7 +1826,6 @@ je_realloc(void *ptr, size_t size)
 JEMALLOC_EXPORT void JEMALLOC_NOTHROW
 je_free(void *ptr)
 {
-
 	UTRACE(ptr, 0, 0);
 	if (likely(ptr != NULL)) {
 		tsd_t *tsd = tsd_fetch();
@@ -1959,7 +1934,6 @@ JEMALLOC_ALWAYS_INLINE_C bool
 imallocx_flags_decode(tsd_t *tsd, size_t size, int flags, size_t *usize,
     size_t *alignment, bool *zero, tcache_t **tcache, arena_t **arena)
 {
-
 	if ((flags & MALLOCX_LG_ALIGN_MASK) == 0) {
 		*alignment = 0;
 		*usize = s2u(size);
@@ -2641,7 +2615,6 @@ JEMALLOC_ATTR(constructor)
 static void
 jemalloc_constructor(void)
 {
-
 	malloc_init();
 }
 #endif

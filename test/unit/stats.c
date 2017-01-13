@@ -120,7 +120,6 @@ TEST_END
 void *
 thd_start(void *arg)
 {
-
 	return (NULL);
 }
 
@@ -350,7 +349,6 @@ TEST_END
 int
 main(void)
 {
-
 	return (test(
 	    test_stats_summary,
 	    test_stats_large,

@@ -37,7 +37,6 @@ static int (*pthread_create_fptr)(pthread_t *__restrict, const pthread_attr_t *,
 static void
 pthread_create_once(void)
 {
-
 	pthread_create_fptr = dlsym(RTLD_NEXT, "pthread_create");
 	if (pthread_create_fptr == NULL) {
 		malloc_write("<jemalloc>: Error in dlsym(RTLD_NEXT, "
@@ -71,7 +70,6 @@ JEMALLOC_EXPORT int	_pthread_mutex_init_calloc_cb(pthread_mutex_t *mutex,
 bool
 malloc_mutex_init(malloc_mutex_t *mutex, const char *name, witness_rank_t rank)
 {
-
 #ifdef _WIN32
 #  if _WIN32_WINNT >= 0x0600
 	InitializeSRWLock(&mutex->lock);
@@ -113,21 +111,18 @@ malloc_mutex_init(malloc_mutex_t *mutex, const char *name, witness_rank_t rank)
 void
 malloc_mutex_prefork(tsdn_t *tsdn, malloc_mutex_t *mutex)
 {
-
 	malloc_mutex_lock(tsdn, mutex);
 }
 
 void
 malloc_mutex_postfork_parent(tsdn_t *tsdn, malloc_mutex_t *mutex)
 {
-
 	malloc_mutex_unlock(tsdn, mutex);
 }
 
 void
 malloc_mutex_postfork_child(tsdn_t *tsdn, malloc_mutex_t *mutex)
 {
-
 #ifdef JEMALLOC_MUTEX_INIT_CB
 	malloc_mutex_unlock(tsdn, mutex);
 #else
@@ -144,7 +139,6 @@ malloc_mutex_postfork_child(tsdn_t *tsdn, malloc_mutex_t *mutex)
 bool
 malloc_mutex_boot(void)
 {
-
 #ifdef JEMALLOC_MUTEX_INIT_CB
 	postpone_init = false;
 	while (postponed_mutexes != NULL) {

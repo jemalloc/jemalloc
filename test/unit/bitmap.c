@@ -126,7 +126,6 @@ test_bitmap_initializer_body(const bitmap_info_t *binfo, size_t nbits)
 
 TEST_BEGIN(test_bitmap_initializer)
 {
-
 #define	NB(nbits) {							\
 		if (nbits <= BITMAP_MAXBITS) {				\
 			bitmap_info_t binfo =				\
@@ -339,7 +338,6 @@ TEST_END
 int
 main(void)
 {
-
 	return (test(
 	    test_bitmap_initializer,
 	    test_bitmap_size,

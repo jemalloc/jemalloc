@@ -53,7 +53,6 @@ TEST_END
 int
 main(void)
 {
-
 	return (test(
 	    test_idump));
 }

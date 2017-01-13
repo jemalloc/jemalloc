@@ -12,7 +12,6 @@ TEST_END
 int
 main()
 {
-
 	return (test(
 	    test_basic));
 }

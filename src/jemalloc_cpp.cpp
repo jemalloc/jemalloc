@@ -70,55 +70,47 @@ newImpl(std::size_t size) noexcept(IsNoExcept)
 void *
 operator new(std::size_t size)
 {
-
 	return (newImpl<false>(size));
 }
 
 void *
 operator new[](std::size_t size)
 {
-
 	return (newImpl<false>(size));
 }
 
 void *
 operator new(std::size_t size, const std::nothrow_t&) noexcept
 {
-
 	return (newImpl<true>(size));
 }
 
 void *
 operator new[](std::size_t size, const std::nothrow_t&) noexcept
 {
-
 	return (newImpl<true>(size));
 }
 
 void
 operator delete(void* ptr) noexcept
 {
-
 	je_free(ptr);
 }
 
 void
 operator delete[](void* ptr) noexcept
 {
-
 	je_free(ptr);
 }
 
 void
 operator delete(void* ptr, const std::nothrow_t&) noexcept
 {
-
 	je_free(ptr);
 }
 
 void operator delete[](void* ptr, const std::nothrow_t&) noexcept
 {
-
 	je_free(ptr);
 }
 
@@ -127,13 +119,11 @@ void operator delete[](void* ptr, const std::nothrow_t&) noexcept
 void
 operator delete(void* ptr, std::size_t size) noexcept
 {
-
 	je_sdallocx(ptr, size, /*flags=*/0);
 }
 
 void operator delete[](void* ptr, std::size_t size) noexcept
 {
-
 	je_sdallocx(ptr, size, /*flags=*/0);
 }
 

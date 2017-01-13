@@ -68,7 +68,6 @@ TEST_END
 int
 main(void)
 {
-
 	return (test(
 	    test_ticker_tick,
 	    test_ticker_ticks,
