@@ -118,11 +118,17 @@ void operator delete[](void *ptr, const std::nothrow_t &) noexcept
 void
 operator delete(void *ptr, std::size_t size) noexcept
 {
+	if (unlikely(ptr == nullptr)) {
+		return;
+	}
 	je_sdallocx(ptr, size, /*flags=*/0);
 }
 
 void operator delete[](void *ptr, std::size_t size) noexcept
 {
+	if (unlikely(ptr == nullptr)) {
+		return;
+	}
 	je_sdallocx(ptr, size, /*flags=*/0);
 }
 
