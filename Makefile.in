@@ -179,6 +179,7 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/prof_gdump.c \
 	$(srcroot)test/unit/prof_idump.c \
 	$(srcroot)test/unit/prof_reset.c \
+	$(srcroot)test/unit/prof_tctx.c \
 	$(srcroot)test/unit/prof_thread_name.c \
 	$(srcroot)test/unit/ql.c \
 	$(srcroot)test/unit/qr.c \

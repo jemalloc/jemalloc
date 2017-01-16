@@ -48,11 +48,12 @@ prof_tctx_t	*prof_lookup(tsd_t *tsd, prof_bt_t *bt);
 #ifdef JEMALLOC_JET
 size_t	prof_tdata_count(void);
 size_t	prof_bt_count(void);
-const prof_cnt_t *prof_cnt_all(void);
 typedef int (prof_dump_open_t)(bool, const char *);
 extern prof_dump_open_t *prof_dump_open;
 typedef bool (prof_dump_header_t)(tsdn_t *, bool, const prof_cnt_t *);
 extern prof_dump_header_t *prof_dump_header;
+void	prof_cnt_all(uint64_t *curobjs, uint64_t *curbytes,
+    uint64_t *accumobjs, uint64_t *accumbytes);
 #endif
 void	prof_idump(tsdn_t *tsdn);
 bool	prof_mdump(tsd_t *tsd, const char *filename);
