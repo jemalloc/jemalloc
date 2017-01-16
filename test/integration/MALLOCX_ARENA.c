@@ -11,8 +11,7 @@ static bool have_dss =
     ;
 
 void *
-thd_start(void *arg)
-{
+thd_start(void *arg) {
 	unsigned thread_ind = (unsigned)(uintptr_t)arg;
 	unsigned arena_ind;
 	void *p;
@@ -45,8 +44,7 @@ thd_start(void *arg)
 	return (NULL);
 }
 
-TEST_BEGIN(test_MALLOCX_ARENA)
-{
+TEST_BEGIN(test_MALLOCX_ARENA) {
 	thd_t thds[NTHREADS];
 	unsigned i;
 
@@ -55,14 +53,14 @@ TEST_BEGIN(test_MALLOCX_ARENA)
 		    (void *)(uintptr_t)i);
 	}
 
-	for (i = 0; i < NTHREADS; i++)
+	for (i = 0; i < NTHREADS; i++) {
 		thd_join(thds[i], NULL);
+	}
 }
 TEST_END
 
 int
-main(void)
-{
+main(void) {
 	return (test(
 	    test_MALLOCX_ARENA));
 }

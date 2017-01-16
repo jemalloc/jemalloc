@@ -159,8 +159,9 @@ static const bool config_debug =
 } while (0)
 
 #define	assert_not_implemented(e) do {					\
-	if (!(e))							\
+	if (!(e)) {							\
 		not_implemented();					\
+	}								\
 } while (0)
 
 #ifdef __cplusplus

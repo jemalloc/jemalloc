@@ -1,7 +1,6 @@
 #include "test/jemalloc_test.h"
 
-TEST_BEGIN(test_overflow)
-{
+TEST_BEGIN(test_overflow) {
 	unsigned nlextents;
 	size_t mib[4];
 	size_t sz, miblen, max_size_class;
@@ -41,8 +40,7 @@ TEST_BEGIN(test_overflow)
 TEST_END
 
 int
-main(void)
-{
+main(void) {
 	return (test(
 	    test_overflow));
 }

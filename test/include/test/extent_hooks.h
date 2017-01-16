@@ -73,8 +73,7 @@ static bool did_merge;
 
 static void *
 extent_alloc_hook(extent_hooks_t *extent_hooks, void *new_addr, size_t size,
-    size_t alignment, bool *zero, bool *commit, unsigned arena_ind)
-{
+    size_t alignment, bool *zero, bool *commit, unsigned arena_ind) {
 	void *ret;
 
 	TRACE_HOOK("%s(extent_hooks=%p, new_addr=%p, size=%zu, alignment=%zu, "
@@ -86,8 +85,9 @@ extent_alloc_hook(extent_hooks_t *extent_hooks, void *new_addr, size_t size,
 	assert_ptr_eq(extent_hooks->alloc, extent_alloc_hook,
 	    "Wrong hook function");
 	called_alloc = true;
-	if (!try_alloc)
+	if (!try_alloc) {
 		return (NULL);
+	}
 	ret = default_hooks->alloc(default_hooks, new_addr, size, alignment,
 	    zero, commit, 0);
 	did_alloc = (ret != NULL);
@@ -96,8 +96,7 @@ extent_alloc_hook(extent_hooks_t *extent_hooks, void *new_addr, size_t size,
 
 static bool
 extent_dalloc_hook(extent_hooks_t *extent_hooks, void *addr, size_t size,
-    bool committed, unsigned arena_ind)
-{
+    bool committed, unsigned arena_ind) {
 	bool err;
 
 	TRACE_HOOK("%s(extent_hooks=%p, addr=%p, size=%zu, committed=%s, "
@@ -108,8 +107,9 @@ extent_dalloc_hook(extent_hooks_t *extent_hooks, void *addr, size_t size,
 	assert_ptr_eq(extent_hooks->dalloc, extent_dalloc_hook,
 	    "Wrong hook function");
 	called_dalloc = true;
-	if (!try_dalloc)
+	if (!try_dalloc) {
 		return (true);
+	}
 	err = default_hooks->dalloc(default_hooks, addr, size, committed, 0);
 	did_dalloc = !err;
 	return (err);
@@ -117,8 +117,7 @@ extent_dalloc_hook(extent_hooks_t *extent_hooks, void *addr, size_t size,
 
 static bool
 extent_commit_hook(extent_hooks_t *extent_hooks, void *addr, size_t size,
-    size_t offset, size_t length, unsigned arena_ind)
-{
+    size_t offset, size_t length, unsigned arena_ind) {
 	bool err;
 
 	TRACE_HOOK("%s(extent_hooks=%p, addr=%p, size=%zu, offset=%zu, "
@@ -129,8 +128,9 @@ extent_commit_hook(extent_hooks_t *extent_hooks, void *addr, size_t size,
 	assert_ptr_eq(extent_hooks->commit, extent_commit_hook,
 	    "Wrong hook function");
 	called_commit = true;
-	if (!try_commit)
+	if (!try_commit) {
 		return (true);
+	}
 	err = default_hooks->commit(default_hooks, addr, size, offset, length,
 	    0);
 	did_commit = !err;
@@ -139,8 +139,7 @@ extent_commit_hook(extent_hooks_t *extent_hooks, void *addr, size_t size,
 
 static bool
 extent_decommit_hook(extent_hooks_t *extent_hooks, void *addr, size_t size,
-    size_t offset, size_t length, unsigned arena_ind)
-{
+    size_t offset, size_t length, unsigned arena_ind) {
 	bool err;
 
 	TRACE_HOOK("%s(extent_hooks=%p, addr=%p, size=%zu, offset=%zu, "
@@ -151,8 +150,9 @@ extent_decommit_hook(extent_hooks_t *extent_hooks, void *addr, size_t size,
 	assert_ptr_eq(extent_hooks->decommit, extent_decommit_hook,
 	    "Wrong hook function");
 	called_decommit = true;
-	if (!try_decommit)
+	if (!try_decommit) {
 		return (true);
+	}
 	err = default_hooks->decommit(default_hooks, addr, size, offset, length,
 	    0);
 	did_decommit = !err;
@@ -161,8 +161,7 @@ extent_decommit_hook(extent_hooks_t *extent_hooks, void *addr, size_t size,
 
 static bool
 extent_purge_lazy_hook(extent_hooks_t *extent_hooks, void *addr, size_t size,
-    size_t offset, size_t length, unsigned arena_ind)
-{
+    size_t offset, size_t length, unsigned arena_ind) {
 	bool err;
 
 	TRACE_HOOK("%s(extent_hooks=%p, addr=%p, size=%zu, offset=%zu, "
@@ -173,8 +172,9 @@ extent_purge_lazy_hook(extent_hooks_t *extent_hooks, void *addr, size_t size,
 	assert_ptr_eq(extent_hooks->purge_lazy, extent_purge_lazy_hook,
 	    "Wrong hook function");
 	called_purge_lazy = true;
-	if (!try_purge_lazy)
+	if (!try_purge_lazy) {
 		return (true);
+	}
 	err = default_hooks->purge_lazy == NULL ||
 	    default_hooks->purge_lazy(default_hooks, addr, size, offset, length,
 	    0);
@@ -184,8 +184,7 @@ extent_purge_lazy_hook(extent_hooks_t *extent_hooks, void *addr, size_t size,
 
 static bool
 extent_purge_forced_hook(extent_hooks_t *extent_hooks, void *addr, size_t size,
-    size_t offset, size_t length, unsigned arena_ind)
-{
+    size_t offset, size_t length, unsigned arena_ind) {
 	bool err;
 
 	TRACE_HOOK("%s(extent_hooks=%p, addr=%p, size=%zu, offset=%zu, "
@@ -196,8 +195,9 @@ extent_purge_forced_hook(extent_hooks_t *extent_hooks, void *addr, size_t size,
 	assert_ptr_eq(extent_hooks->purge_forced, extent_purge_forced_hook,
 	    "Wrong hook function");
 	called_purge_forced = true;
-	if (!try_purge_forced)
+	if (!try_purge_forced) {
 		return (true);
+	}
 	err = default_hooks->purge_forced == NULL ||
 	    default_hooks->purge_forced(default_hooks, addr, size, offset,
 	    length, 0);
@@ -207,8 +207,7 @@ extent_purge_forced_hook(extent_hooks_t *extent_hooks, void *addr, size_t size,
 
 static bool
 extent_split_hook(extent_hooks_t *extent_hooks, void *addr, size_t size,
-    size_t size_a, size_t size_b, bool committed, unsigned arena_ind)
-{
+    size_t size_a, size_t size_b, bool committed, unsigned arena_ind) {
 	bool err;
 
 	TRACE_HOOK("%s(extent_hooks=%p, addr=%p, size=%zu, size_a=%zu, "
@@ -220,8 +219,9 @@ extent_split_hook(extent_hooks_t *extent_hooks, void *addr, size_t size,
 	assert_ptr_eq(extent_hooks->split, extent_split_hook,
 	    "Wrong hook function");
 	called_split = true;
-	if (!try_split)
+	if (!try_split) {
 		return (true);
+	}
 	err = (default_hooks->split == NULL ||
 	    default_hooks->split(default_hooks, addr, size, size_a, size_b,
 	    committed, 0));
@@ -231,8 +231,7 @@ extent_split_hook(extent_hooks_t *extent_hooks, void *addr, size_t size,
 
 static bool
 extent_merge_hook(extent_hooks_t *extent_hooks, void *addr_a, size_t size_a,
-    void *addr_b, size_t size_b, bool committed, unsigned arena_ind)
-{
+    void *addr_b, size_t size_b, bool committed, unsigned arena_ind) {
 	bool err;
 
 	TRACE_HOOK("%s(extent_hooks=%p, addr_a=%p, size_a=%zu, addr_b=%p "
@@ -244,8 +243,9 @@ extent_merge_hook(extent_hooks_t *extent_hooks, void *addr_a, size_t size_a,
 	assert_ptr_eq(extent_hooks->merge, extent_merge_hook,
 	    "Wrong hook function");
 	called_merge = true;
-	if (!try_merge)
+	if (!try_merge) {
 		return (true);
+	}
 	err = (default_hooks->merge == NULL ||
 	    default_hooks->merge(default_hooks, addr_a, size_a, addr_b, size_b,
 	    committed, 0));
@@ -254,8 +254,7 @@ extent_merge_hook(extent_hooks_t *extent_hooks, void *addr_a, size_t size_a,
 }
 
 static void
-extent_hooks_prep(void)
-{
+extent_hooks_prep(void) {
 	size_t sz;
 
 	sz = sizeof(default_hooks);

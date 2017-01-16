@@ -87,8 +87,9 @@
 
 /* Use to assert a particular configuration, e.g., cassert(config_debug). */
 #define	cassert(c) do {							\
-	if (unlikely(!(c)))						\
+	if (unlikely(!(c))) {						\
 		not_reached();						\
+	}								\
 } while (0)
 
 #endif /* JEMALLOC_INTERNAL_UTIL_TYPES_H */

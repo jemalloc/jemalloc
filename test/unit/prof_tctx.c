@@ -4,8 +4,7 @@
 const char *malloc_conf = "prof:true,lg_prof_sample:0";
 #endif
 
-TEST_BEGIN(test_prof_realloc)
-{
+TEST_BEGIN(test_prof_realloc) {
 	tsdn_t *tsdn;
 	int flags;
 	void *p, *q;
@@ -50,8 +49,7 @@ TEST_BEGIN(test_prof_realloc)
 TEST_END
 
 int
-main(void)
-{
+main(void) {
 	return test(
 	    test_prof_realloc);
 }

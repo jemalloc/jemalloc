@@ -10,8 +10,7 @@ malloc_tsd_types(data_, data_t)
 malloc_tsd_protos(, data_, data_t)
 
 void
-data_cleanup(void *arg)
-{
+data_cleanup(void *arg) {
 	data_t *data = (data_t *)arg;
 
 	if (!data_cleanup_executed) {
@@ -53,8 +52,7 @@ malloc_tsd_data(, data_, data_t, DATA_INIT)
 malloc_tsd_funcs(, data_, data_t, DATA_INIT, data_cleanup)
 
 static void *
-thd_start(void *arg)
-{
+thd_start(void *arg) {
 	data_t d = (data_t)(uintptr_t)arg;
 	void *p;
 
@@ -76,14 +74,12 @@ thd_start(void *arg)
 	return (NULL);
 }
 
-TEST_BEGIN(test_tsd_main_thread)
-{
+TEST_BEGIN(test_tsd_main_thread) {
 	thd_start((void *)(uintptr_t)0xa5f3e329);
 }
 TEST_END
 
-TEST_BEGIN(test_tsd_sub_thread)
-{
+TEST_BEGIN(test_tsd_sub_thread) {
 	thd_t thd;
 
 	data_cleanup_executed = false;
@@ -95,8 +91,7 @@ TEST_BEGIN(test_tsd_sub_thread)
 TEST_END
 
 int
-main(void)
-{
+main(void) {
 	/* Core tsd bootstrapping must happen prior to data_tsd_boot(). */
 	if (nallocx(1, 0) == 0) {
 		malloc_printf("Initialization error");

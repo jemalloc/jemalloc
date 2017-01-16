@@ -1,7 +1,6 @@
 #include "test/jemalloc_test.h"
 
-TEST_BEGIN(test_stats_summary)
-{
+TEST_BEGIN(test_stats_summary) {
 	size_t sz, allocated, active, resident, mapped;
 	int expected = config_stats ? 0 : ENOENT;
 
@@ -26,8 +25,7 @@ TEST_BEGIN(test_stats_summary)
 }
 TEST_END
 
-TEST_BEGIN(test_stats_large)
-{
+TEST_BEGIN(test_stats_large) {
 	void *p;
 	uint64_t epoch;
 	size_t allocated;
@@ -67,8 +65,7 @@ TEST_BEGIN(test_stats_large)
 }
 TEST_END
 
-TEST_BEGIN(test_stats_arenas_summary)
-{
+TEST_BEGIN(test_stats_arenas_summary) {
 	unsigned arena;
 	void *little, *large;
 	uint64_t epoch;
@@ -118,22 +115,19 @@ TEST_BEGIN(test_stats_arenas_summary)
 TEST_END
 
 void *
-thd_start(void *arg)
-{
+thd_start(void *arg) {
 	return (NULL);
 }
 
 static void
-no_lazy_lock(void)
-{
+no_lazy_lock(void) {
 	thd_t thd;
 
 	thd_create(&thd, thd_start, NULL);
 	thd_join(thd, NULL);
 }
 
-TEST_BEGIN(test_stats_arenas_small)
-{
+TEST_BEGIN(test_stats_arenas_small) {
 	unsigned arena;
 	void *p;
 	size_t sz, allocated;
@@ -183,8 +177,7 @@ TEST_BEGIN(test_stats_arenas_small)
 }
 TEST_END
 
-TEST_BEGIN(test_stats_arenas_large)
-{
+TEST_BEGIN(test_stats_arenas_large) {
 	unsigned arena;
 	void *p;
 	size_t sz, allocated;
@@ -224,8 +217,7 @@ TEST_BEGIN(test_stats_arenas_large)
 }
 TEST_END
 
-TEST_BEGIN(test_stats_arenas_bins)
-{
+TEST_BEGIN(test_stats_arenas_bins) {
 	unsigned arena;
 	void *p;
 	size_t sz, curslabs, curregs;
@@ -299,8 +291,7 @@ TEST_BEGIN(test_stats_arenas_bins)
 }
 TEST_END
 
-TEST_BEGIN(test_stats_arenas_lextents)
-{
+TEST_BEGIN(test_stats_arenas_lextents) {
 	unsigned arena;
 	void *p;
 	uint64_t epoch, nmalloc, ndalloc;
@@ -347,8 +338,7 @@ TEST_BEGIN(test_stats_arenas_lextents)
 TEST_END
 
 int
-main(void)
-{
+main(void) {
 	return (test(
 	    test_stats_summary,
 	    test_stats_large,

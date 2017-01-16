@@ -1,8 +1,7 @@
 #include "test/jemalloc_test.h"
 
 static unsigned
-get_nsizes_impl(const char *cmd)
-{
+get_nsizes_impl(const char *cmd) {
 	unsigned ret;
 	size_t z;
 
@@ -14,14 +13,12 @@ get_nsizes_impl(const char *cmd)
 }
 
 static unsigned
-get_nlarge(void)
-{
+get_nlarge(void) {
 	return (get_nsizes_impl("arenas.nlextents"));
 }
 
 static size_t
-get_size_impl(const char *cmd, size_t ind)
-{
+get_size_impl(const char *cmd, size_t ind) {
 	size_t ret;
 	size_t z;
 	size_t mib[4];
@@ -39,13 +36,11 @@ get_size_impl(const char *cmd, size_t ind)
 }
 
 static size_t
-get_large_size(size_t ind)
-{
+get_large_size(size_t ind) {
 	return (get_size_impl("arenas.lextent.0.size", ind));
 }
 
-TEST_BEGIN(test_grow_and_shrink)
-{
+TEST_BEGIN(test_grow_and_shrink) {
 	void *p, *q;
 	size_t tsz;
 #define	NCYCLES 3
@@ -90,8 +85,7 @@ TEST_BEGIN(test_grow_and_shrink)
 TEST_END
 
 static bool
-validate_fill(const void *p, uint8_t c, size_t offset, size_t len)
-{
+validate_fill(const void *p, uint8_t c, size_t offset, size_t len) {
 	bool ret = false;
 	const uint8_t *buf = (const uint8_t *)p;
 	size_t i;
@@ -109,8 +103,7 @@ validate_fill(const void *p, uint8_t c, size_t offset, size_t len)
 	return (ret);
 }
 
-TEST_BEGIN(test_zero)
-{
+TEST_BEGIN(test_zero) {
 	void *p, *q;
 	size_t psz, qsz, i, j;
 	size_t start_sizes[] = {1, 3*1024, 63*1024, 4095*1024};
@@ -154,8 +147,7 @@ TEST_BEGIN(test_zero)
 }
 TEST_END
 
-TEST_BEGIN(test_align)
-{
+TEST_BEGIN(test_align) {
 	void *p, *q;
 	size_t align;
 #define	MAX_ALIGN (ZU(1) << 25)
@@ -179,8 +171,7 @@ TEST_BEGIN(test_align)
 }
 TEST_END
 
-TEST_BEGIN(test_lg_align_and_zero)
-{
+TEST_BEGIN(test_lg_align_and_zero) {
 	void *p, *q;
 	unsigned lg_align;
 	size_t sz;
@@ -217,8 +208,7 @@ TEST_BEGIN(test_lg_align_and_zero)
 }
 TEST_END
 
-TEST_BEGIN(test_overflow)
-{
+TEST_BEGIN(test_overflow) {
 	size_t largemax;
 	void *p;
 
@@ -245,8 +235,7 @@ TEST_BEGIN(test_overflow)
 TEST_END
 
 int
-main(void)
-{
+main(void) {
 	return (test(
 	    test_grow_and_shrink,
 	    test_zero,

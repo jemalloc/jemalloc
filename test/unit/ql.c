@@ -12,8 +12,7 @@ struct list_s {
 };
 
 static void
-test_empty_list(list_head_t *head)
-{
+test_empty_list(list_head_t *head) {
 	list_t *t;
 	unsigned i;
 
@@ -34,8 +33,7 @@ test_empty_list(list_head_t *head)
 	assert_u_eq(i, 0, "Unexpected element for empty list");
 }
 
-TEST_BEGIN(test_ql_empty)
-{
+TEST_BEGIN(test_ql_empty) {
 	list_head_t head;
 
 	ql_new(&head);
@@ -44,8 +42,7 @@ TEST_BEGIN(test_ql_empty)
 TEST_END
 
 static void
-init_entries(list_t *entries, unsigned nentries)
-{
+init_entries(list_t *entries, unsigned nentries) {
 	unsigned i;
 
 	for (i = 0; i < nentries; i++) {
@@ -55,8 +52,7 @@ init_entries(list_t *entries, unsigned nentries)
 }
 
 static void
-test_entries_list(list_head_t *head, list_t *entries, unsigned nentries)
-{
+test_entries_list(list_head_t *head, list_t *entries, unsigned nentries) {
 	list_t *t;
 	unsigned i;
 
@@ -91,31 +87,31 @@ test_entries_list(list_head_t *head, list_t *entries, unsigned nentries)
 	}
 }
 
-TEST_BEGIN(test_ql_tail_insert)
-{
+TEST_BEGIN(test_ql_tail_insert) {
 	list_head_t head;
 	list_t entries[NENTRIES];
 	unsigned i;
 
 	ql_new(&head);
 	init_entries(entries, sizeof(entries)/sizeof(list_t));
-	for (i = 0; i < NENTRIES; i++)
+	for (i = 0; i < NENTRIES; i++) {
 		ql_tail_insert(&head, &entries[i], link);
+	}
 
 	test_entries_list(&head, entries, NENTRIES);
 }
 TEST_END
 
-TEST_BEGIN(test_ql_tail_remove)
-{
+TEST_BEGIN(test_ql_tail_remove) {
 	list_head_t head;
 	list_t entries[NENTRIES];
 	unsigned i;
 
 	ql_new(&head);
 	init_entries(entries, sizeof(entries)/sizeof(list_t));
-	for (i = 0; i < NENTRIES; i++)
+	for (i = 0; i < NENTRIES; i++) {
 		ql_tail_insert(&head, &entries[i], link);
+	}
 
 	for (i = 0; i < NENTRIES; i++) {
 		test_entries_list(&head, entries, NENTRIES-i);
@@ -125,31 +121,31 @@ TEST_BEGIN(test_ql_tail_remove)
 }
 TEST_END
 
-TEST_BEGIN(test_ql_head_insert)
-{
+TEST_BEGIN(test_ql_head_insert) {
 	list_head_t head;
 	list_t entries[NENTRIES];
 	unsigned i;
 
 	ql_new(&head);
 	init_entries(entries, sizeof(entries)/sizeof(list_t));
-	for (i = 0; i < NENTRIES; i++)
+	for (i = 0; i < NENTRIES; i++) {
 		ql_head_insert(&head, &entries[NENTRIES-i-1], link);
+	}
 
 	test_entries_list(&head, entries, NENTRIES);
 }
 TEST_END
 
-TEST_BEGIN(test_ql_head_remove)
-{
+TEST_BEGIN(test_ql_head_remove) {
 	list_head_t head;
 	list_t entries[NENTRIES];
 	unsigned i;
 
 	ql_new(&head);
 	init_entries(entries, sizeof(entries)/sizeof(list_t));
-	for (i = 0; i < NENTRIES; i++)
+	for (i = 0; i < NENTRIES; i++) {
 		ql_head_insert(&head, &entries[NENTRIES-i-1], link);
+	}
 
 	for (i = 0; i < NENTRIES; i++) {
 		test_entries_list(&head, &entries[i], NENTRIES-i);
@@ -159,8 +155,7 @@ TEST_BEGIN(test_ql_head_remove)
 }
 TEST_END
 
-TEST_BEGIN(test_ql_insert)
-{
+TEST_BEGIN(test_ql_insert) {
 	list_head_t head;
 	list_t entries[8];
 	list_t *a, *b, *c, *d, *e, *f, *g, *h;
@@ -196,8 +191,7 @@ TEST_BEGIN(test_ql_insert)
 TEST_END
 
 int
-main(void)
-{
+main(void) {
 	return (test(
 	    test_ql_empty,
 	    test_ql_tail_insert,

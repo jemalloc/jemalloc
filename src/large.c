@@ -4,8 +4,7 @@
 /******************************************************************************/
 
 void *
-large_malloc(tsdn_t *tsdn, arena_t *arena, size_t usize, bool zero)
-{
+large_malloc(tsdn_t *tsdn, arena_t *arena, size_t usize, bool zero) {
 	assert(usize == s2u(usize));
 
 	return (large_palloc(tsdn, arena, usize, CACHELINE, zero));
@@ -13,8 +12,7 @@ large_malloc(tsdn_t *tsdn, arena_t *arena, size_t usize, bool zero)
 
 void *
 large_palloc(tsdn_t *tsdn, arena_t *arena, size_t usize, size_t alignment,
-    bool zero)
-{
+    bool zero) {
 	size_t ausize;
 	extent_t *extent;
 	bool is_zeroed;
@@ -23,27 +21,31 @@ large_palloc(tsdn_t *tsdn, arena_t *arena, size_t usize, size_t alignment,
 	assert(!tsdn_null(tsdn) || arena != NULL);
 
 	ausize = sa2u(usize, alignment);
-	if (unlikely(ausize == 0 || ausize > LARGE_MAXCLASS))
+	if (unlikely(ausize == 0 || ausize > LARGE_MAXCLASS)) {
 		return (NULL);
+	}
 
 	/*
 	 * Copy zero into is_zeroed and pass the copy to extent_alloc(), so that
 	 * it is possible to make correct junk/zero fill decisions below.
 	 */
 	is_zeroed = zero;
-	if (likely(!tsdn_null(tsdn)))
+	if (likely(!tsdn_null(tsdn))) {
 		arena = arena_choose(tsdn_tsd(tsdn), arena);
+	}
 	if (unlikely(arena == NULL) || (extent = arena_extent_alloc_large(tsdn,
-	    arena, usize, alignment, &is_zeroed)) == NULL)
+	    arena, usize, alignment, &is_zeroed)) == NULL) {
 		return (NULL);
+	}
 
 	/* Insert extent into large. */
 	malloc_mutex_lock(tsdn, &arena->large_mtx);
 	ql_elm_new(extent, ql_link);
 	ql_tail_insert(&arena->large, extent, ql_link);
 	malloc_mutex_unlock(tsdn, &arena->large_mtx);
-	if (config_prof && arena_prof_accum(tsdn, arena, usize))
+	if (config_prof && arena_prof_accum(tsdn, arena, usize)) {
 		prof_idump(tsdn);
+	}
 
 	if (zero || (config_fill && unlikely(opt_zero))) {
 		if (!is_zeroed) {
@@ -64,8 +66,7 @@ large_palloc(tsdn_t *tsdn, arena_t *arena, size_t usize, size_t alignment,
 #define	large_dalloc_junk JEMALLOC_N(n_large_dalloc_junk)
 #endif
 void
-large_dalloc_junk(void *ptr, size_t usize)
-{
+large_dalloc_junk(void *ptr, size_t usize) {
 	memset(ptr, JEMALLOC_FREE_JUNK, usize);
 }
 #ifdef JEMALLOC_JET
@@ -79,15 +80,15 @@ large_dalloc_junk_t *large_dalloc_junk = JEMALLOC_N(n_large_dalloc_junk);
 #define	large_dalloc_maybe_junk JEMALLOC_N(n_large_dalloc_maybe_junk)
 #endif
 void
-large_dalloc_maybe_junk(void *ptr, size_t usize)
-{
+large_dalloc_maybe_junk(void *ptr, size_t usize) {
 	if (config_fill && have_dss && unlikely(opt_junk_free)) {
 		/*
 		 * Only bother junk filling if the extent isn't about to be
 		 * unmapped.
 		 */
-		if (!config_munmap || (have_dss && extent_in_dss(ptr)))
+		if (!config_munmap || (have_dss && extent_in_dss(ptr))) {
 			large_dalloc_junk(ptr, usize);
+		}
 	}
 }
 #ifdef JEMALLOC_JET
@@ -98,8 +99,7 @@ large_dalloc_maybe_junk_t *large_dalloc_maybe_junk =
 #endif
 
 static bool
-large_ralloc_no_move_shrink(tsdn_t *tsdn, extent_t *extent, size_t usize)
-{
+large_ralloc_no_move_shrink(tsdn_t *tsdn, extent_t *extent, size_t usize) {
 	arena_t *arena = extent_arena_get(extent);
 	size_t oldusize = extent_usize_get(extent);
 	extent_hooks_t *extent_hooks = extent_hooks_get(arena);
@@ -107,16 +107,18 @@ large_ralloc_no_move_shrink(tsdn_t *tsdn, extent_t *extent, size_t usize)
 
 	assert(oldusize > usize);
 
-	if (extent_hooks->split == NULL)
+	if (extent_hooks->split == NULL) {
 		return (true);
+	}
 
 	/* Split excess pages. */
 	if (diff != 0) {
 		extent_t *trail = extent_split_wrapper(tsdn, arena,
 		    &extent_hooks, extent, usize + large_pad, usize, diff,
 		    diff);
-		if (trail == NULL)
+		if (trail == NULL) {
 			return (true);
+		}
 
 		if (config_fill && unlikely(opt_junk_free)) {
 			large_dalloc_maybe_junk(extent_addr_get(trail),
@@ -133,8 +135,7 @@ large_ralloc_no_move_shrink(tsdn_t *tsdn, extent_t *extent, size_t usize)
 
 static bool
 large_ralloc_no_move_expand(tsdn_t *tsdn, extent_t *extent, size_t usize,
-    bool zero)
-{
+    bool zero) {
 	arena_t *arena = extent_arena_get(extent);
 	size_t oldusize = extent_usize_get(extent);
 	bool is_zeroed_trail = false;
@@ -142,8 +143,9 @@ large_ralloc_no_move_expand(tsdn_t *tsdn, extent_t *extent, size_t usize,
 	size_t trailsize = usize - extent_usize_get(extent);
 	extent_t *trail;
 
-	if (extent_hooks->merge == NULL)
+	if (extent_hooks->merge == NULL) {
 		return (true);
+	}
 
 	if ((trail = arena_extent_cache_alloc(tsdn, arena, &extent_hooks,
 	    extent_past_get(extent), trailsize, CACHELINE, &is_zeroed_trail)) ==
@@ -151,8 +153,9 @@ large_ralloc_no_move_expand(tsdn_t *tsdn, extent_t *extent, size_t usize,
 		bool commit = true;
 		if ((trail = extent_alloc_wrapper(tsdn, arena, &extent_hooks,
 		    extent_past_get(extent), trailsize, 0, CACHELINE,
-		    &is_zeroed_trail, &commit, false)) == NULL)
+		    &is_zeroed_trail, &commit, false)) == NULL) {
 			return (true);
+		}
 	}
 
 	if (extent_merge_wrapper(tsdn, arena, &extent_hooks, extent, trail)) {
@@ -193,8 +196,7 @@ large_ralloc_no_move_expand(tsdn_t *tsdn, extent_t *extent, size_t usize,
 
 bool
 large_ralloc_no_move(tsdn_t *tsdn, extent_t *extent, size_t usize_min,
-    size_t usize_max, bool zero)
-{
+    size_t usize_max, bool zero) {
 	assert(s2u(extent_usize_get(extent)) == extent_usize_get(extent));
 	/* The following should have been caught by callers. */
 	assert(usize_min > 0 && usize_max <= LARGE_MAXCLASS);
@@ -241,17 +243,16 @@ large_ralloc_no_move(tsdn_t *tsdn, extent_t *extent, size_t usize_min,
 
 static void *
 large_ralloc_move_helper(tsdn_t *tsdn, arena_t *arena, size_t usize,
-    size_t alignment, bool zero)
-{
-	if (alignment <= CACHELINE)
+    size_t alignment, bool zero) {
+	if (alignment <= CACHELINE) {
 		return (large_malloc(tsdn, arena, usize, zero));
+	}
 	return (large_palloc(tsdn, arena, usize, alignment, zero));
 }
 
 void *
 large_ralloc(tsdn_t *tsdn, arena_t *arena, extent_t *extent, size_t usize,
-    size_t alignment, bool zero, tcache_t *tcache)
-{
+    size_t alignment, bool zero, tcache_t *tcache) {
 	void *ret;
 	size_t copysize;
 
@@ -262,8 +263,9 @@ large_ralloc(tsdn_t *tsdn, arena_t *arena, extent_t *extent, size_t usize,
 	    LARGE_MINCLASS);
 
 	/* Try to avoid moving the allocation. */
-	if (!large_ralloc_no_move(tsdn, extent, usize, usize, zero))
+	if (!large_ralloc_no_move(tsdn, extent, usize, usize, zero)) {
 		return (extent_addr_get(extent));
+	}
 
 	/*
 	 * usize and old size are different enough that we need to use a
@@ -271,8 +273,9 @@ large_ralloc(tsdn_t *tsdn, arena_t *arena, extent_t *extent, size_t usize,
 	 * space and copying.
 	 */
 	ret = large_ralloc_move_helper(tsdn, arena, usize, alignment, zero);
-	if (ret == NULL)
+	if (ret == NULL) {
 		return (NULL);
+	}
 
 	copysize = (usize < extent_usize_get(extent)) ? usize :
 	    extent_usize_get(extent);
@@ -288,8 +291,7 @@ large_ralloc(tsdn_t *tsdn, arena_t *arena, extent_t *extent, size_t usize,
  * independent of these considerations.
  */
 static void
-large_dalloc_impl(tsdn_t *tsdn, extent_t *extent, bool junked_locked)
-{
+large_dalloc_impl(tsdn_t *tsdn, extent_t *extent, bool junked_locked) {
 	arena_t *arena;
 
 	arena = extent_arena_get(extent);
@@ -302,42 +304,37 @@ large_dalloc_impl(tsdn_t *tsdn, extent_t *extent, bool junked_locked)
 	}
 	arena_extent_dalloc_large(tsdn, arena, extent, junked_locked);
 
-	if (!junked_locked)
+	if (!junked_locked) {
 		arena_decay_tick(tsdn, arena);
+	}
 }
 
 void
-large_dalloc_junked_locked(tsdn_t *tsdn, extent_t *extent)
-{
+large_dalloc_junked_locked(tsdn_t *tsdn, extent_t *extent) {
 	large_dalloc_impl(tsdn, extent, true);
 }
 
 void
-large_dalloc(tsdn_t *tsdn, extent_t *extent)
-{
+large_dalloc(tsdn_t *tsdn, extent_t *extent) {
 	large_dalloc_impl(tsdn, extent, false);
 }
 
 size_t
-large_salloc(tsdn_t *tsdn, const extent_t *extent)
-{
+large_salloc(tsdn_t *tsdn, const extent_t *extent) {
 	return (extent_usize_get(extent));
 }
 
 prof_tctx_t *
-large_prof_tctx_get(tsdn_t *tsdn, const extent_t *extent)
-{
+large_prof_tctx_get(tsdn_t *tsdn, const extent_t *extent) {
 	return (extent_prof_tctx_get(extent));
 }
 
 void
-large_prof_tctx_set(tsdn_t *tsdn, extent_t *extent, prof_tctx_t *tctx)
-{
+large_prof_tctx_set(tsdn_t *tsdn, extent_t *extent, prof_tctx_t *tctx) {
 	extent_prof_tctx_set(extent, tctx);
 }
 
 void
-large_prof_tctx_reset(tsdn_t *tsdn, extent_t *extent)
-{
+large_prof_tctx_reset(tsdn_t *tsdn, extent_t *extent) {
 	large_prof_tctx_set(tsdn, extent, (prof_tctx_t *)(uintptr_t)1U);
 }

@@ -13,8 +13,7 @@ void	witness_unlock(tsdn_t *tsdn, witness_t *witness);
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_MUTEX_C_))
 /* Helper, not intended for direct use. */
 JEMALLOC_INLINE bool
-witness_owner(tsd_t *tsd, const witness_t *witness)
-{
+witness_owner(tsd_t *tsd, const witness_t *witness) {
 	witness_list_t *witnesses;
 	witness_t *w;
 
@@ -22,90 +21,101 @@ witness_owner(tsd_t *tsd, const witness_t *witness)
 
 	witnesses = tsd_witnessesp_get(tsd);
 	ql_foreach(w, witnesses, link) {
-		if (w == witness)
+		if (w == witness) {
 			return (true);
+		}
 	}
 
 	return (false);
 }
 
 JEMALLOC_INLINE void
-witness_assert_owner(tsdn_t *tsdn, const witness_t *witness)
-{
+witness_assert_owner(tsdn_t *tsdn, const witness_t *witness) {
 	tsd_t *tsd;
 
-	if (!config_debug)
+	if (!config_debug) {
 		return;
+	}
 
-	if (tsdn_null(tsdn))
+	if (tsdn_null(tsdn)) {
 		return;
+	}
 	tsd = tsdn_tsd(tsdn);
-	if (witness->rank == WITNESS_RANK_OMIT)
+	if (witness->rank == WITNESS_RANK_OMIT) {
 		return;
+	}
 
-	if (witness_owner(tsd, witness))
+	if (witness_owner(tsd, witness)) {
 		return;
+	}
 	witness_owner_error(witness);
 }
 
 JEMALLOC_INLINE void
-witness_assert_not_owner(tsdn_t *tsdn, const witness_t *witness)
-{
+witness_assert_not_owner(tsdn_t *tsdn, const witness_t *witness) {
 	tsd_t *tsd;
 	witness_list_t *witnesses;
 	witness_t *w;
 
-	if (!config_debug)
+	if (!config_debug) {
 		return;
+	}
 
-	if (tsdn_null(tsdn))
+	if (tsdn_null(tsdn)) {
 		return;
+	}
 	tsd = tsdn_tsd(tsdn);
-	if (witness->rank == WITNESS_RANK_OMIT)
+	if (witness->rank == WITNESS_RANK_OMIT) {
 		return;
+	}
 
 	witnesses = tsd_witnessesp_get(tsd);
 	ql_foreach(w, witnesses, link) {
-		if (w == witness)
+		if (w == witness) {
 			witness_not_owner_error(witness);
+		}
 	}
 }
 
 JEMALLOC_INLINE void
-witness_assert_lockless(tsdn_t *tsdn)
-{
+witness_assert_lockless(tsdn_t *tsdn) {
 	tsd_t *tsd;
 	witness_list_t *witnesses;
 	witness_t *w;
 
-	if (!config_debug)
+	if (!config_debug) {
 		return;
+	}
 
-	if (tsdn_null(tsdn))
+	if (tsdn_null(tsdn)) {
 		return;
+	}
 	tsd = tsdn_tsd(tsdn);
 
 	witnesses = tsd_witnessesp_get(tsd);
 	w = ql_last(witnesses, link);
-	if (w != NULL)
+	if (w != NULL) {
 		witness_lockless_error(witnesses);
+	}
 }
 
 JEMALLOC_INLINE void
-witness_lock(tsdn_t *tsdn, witness_t *witness)
-{
+witness_lock(tsdn_t *tsdn, witness_t *witness) {
 	tsd_t *tsd;
 	witness_list_t *witnesses;
 	witness_t *w;
 
-	if (!config_debug)
+	if (!config_debug) {
 		return;
+	}
 
-	if (tsdn_null(tsdn))
+	if (tsdn_null(tsdn)) {
 		return;
+	}
 	tsd = tsdn_tsd(tsdn);
-	if (witness->rank == WITNESS_RANK_OMIT)
+	if (witness->rank == WITNESS_RANK_OMIT) {
 		return;
+	}
 
 	witness_assert_not_owner(tsdn, witness);
 
@@ -133,19 +143,21 @@ witness_lock(tsdn_t *tsdn, witness_t *witness)
 }
 
 JEMALLOC_INLINE void
-witness_unlock(tsdn_t *tsdn, witness_t *witness)
-{
+witness_unlock(tsdn_t *tsdn, witness_t *witness) {
 	tsd_t *tsd;
 	witness_list_t *witnesses;
 
-	if (!config_debug)
+	if (!config_debug) {
 		return;
+	}
 
-	if (tsdn_null(tsdn))
+	if (tsdn_null(tsdn)) {
 		return;
+	}
 	tsd = tsdn_tsd(tsdn);
-	if (witness->rank == WITNESS_RANK_OMIT)
+	if (witness->rank == WITNESS_RANK_OMIT) {
 		return;
+	}
 
 	/*
 	 * Check whether owner before removal, rather than relying on
@@ -155,8 +167,9 @@ witness_unlock(tsdn_t *tsdn, witness_t *witness)
 	if (witness_owner(tsd, witness)) {
 		witnesses = tsd_witnessesp_get(tsd);
 		ql_remove(witnesses, witness, link);
-	} else
+	} else {
 		witness_assert_owner(tsdn, witness);
+	}
 }
 #endif
 

@@ -10,22 +10,20 @@ static nstime_t time_mock;
 static bool monotonic_mock;
 
 static bool
-nstime_monotonic_mock(void)
-{
+nstime_monotonic_mock(void) {
 	return (monotonic_mock);
 }
 
 static bool
-nstime_update_mock(nstime_t *time)
-{
+nstime_update_mock(nstime_t *time) {
 	nupdates_mock++;
-	if (monotonic_mock)
+	if (monotonic_mock) {
 		nstime_copy(time, &time_mock);
+	}
 	return (!monotonic_mock);
 }
 
-TEST_BEGIN(test_decay_ticks)
-{
+TEST_BEGIN(test_decay_ticks) {
 	ticker_t *decay_ticker;
 	unsigned tick0, tick1;
 	size_t sz, large0;
@@ -197,8 +195,7 @@ TEST_BEGIN(test_decay_ticks)
 }
 TEST_END
 
-TEST_BEGIN(test_decay_ticker)
-{
+TEST_BEGIN(test_decay_ticker) {
 #define	NPS 1024
 	int flags = (MALLOCX_ARENA(0) | MALLOCX_TCACHE_NONE);
 	void *ps[NPS];
@@ -284,14 +281,14 @@ TEST_BEGIN(test_decay_ticker)
 		nstime_update(&time);
 	} while (nstime_compare(&time, &deadline) <= 0 && npurge1 == npurge0);
 
-	if (config_stats)
+	if (config_stats) {
 		assert_u64_gt(npurge1, npurge0, "Expected purging to occur");
+	}
 #undef NPS
 }
 TEST_END
 
-TEST_BEGIN(test_decay_nonmonotonic)
-{
+TEST_BEGIN(test_decay_nonmonotonic) {
 #define	NPS (SMOOTHSTEP_NSTEPS + 1)
 	int flags = (MALLOCX_ARENA(0) | MALLOCX_TCACHE_NONE);
 	void *ps[NPS];
@@ -343,8 +340,9 @@ TEST_BEGIN(test_decay_nonmonotonic)
 	assert_d_eq(mallctl("stats.arenas.0.npurge", (void *)&npurge1, &sz,
 	    NULL, 0), config_stats ? 0 : ENOENT, "Unexpected mallctl result");
 
-	if (config_stats)
+	if (config_stats) {
 		assert_u64_eq(npurge0, npurge1, "Unexpected purging occurred");
+	}
 
 	nstime_monotonic = nstime_monotonic_orig;
 	nstime_update = nstime_update_orig;
@@ -353,8 +351,7 @@ TEST_BEGIN(test_decay_nonmonotonic)
 TEST_END
 
 int
-main(void)
-{
+main(void) {
 	return (test(
 	    test_decay_ticks,
 	    test_decay_ticker,

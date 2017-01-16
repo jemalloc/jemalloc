@@ -1,7 +1,6 @@
 #include "test/jemalloc_test.h"
 
-TEST_BEGIN(test_arena_slab_regind)
-{
+TEST_BEGIN(test_arena_slab_regind) {
 	szind_t binind;
 
 	for (binind = 0; binind < NBINS; binind++) {
@@ -27,8 +26,7 @@ TEST_BEGIN(test_arena_slab_regind)
 TEST_END
 
 int
-main(void)
-{
+main(void) {
 	return (test(
 	    test_arena_slab_regind));
 }

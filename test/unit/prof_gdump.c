@@ -7,8 +7,7 @@ const char *malloc_conf = "prof:true,prof_active:false,prof_gdump:true";
 static bool did_prof_dump_open;
 
 static int
-prof_dump_open_intercept(bool propagate_err, const char *filename)
-{
+prof_dump_open_intercept(bool propagate_err, const char *filename) {
 	int fd;
 
 	did_prof_dump_open = true;
@@ -19,8 +18,7 @@ prof_dump_open_intercept(bool propagate_err, const char *filename)
 	return (fd);
 }
 
-TEST_BEGIN(test_gdump)
-{
+TEST_BEGIN(test_gdump) {
 	bool active, gdump, gdump_old;
 	void *p, *q, *r, *s;
 	size_t sz;
@@ -74,8 +72,7 @@ TEST_BEGIN(test_gdump)
 TEST_END
 
 int
-main(void)
-{
+main(void) {
 	return (test(
 	    test_gdump));
 }

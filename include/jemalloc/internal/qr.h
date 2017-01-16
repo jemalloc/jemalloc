@@ -25,14 +25,12 @@ struct {								\
 	(a_qrelm)->a_field.qre_prev = (a_qr);				\
 } while (0)
 
-#define	qr_after_insert(a_qrelm, a_qr, a_field)				\
-    do									\
-    {									\
+#define	qr_after_insert(a_qrelm, a_qr, a_field) do {			\
 	(a_qr)->a_field.qre_next = (a_qrelm)->a_field.qre_next;		\
 	(a_qr)->a_field.qre_prev = (a_qrelm);				\
 	(a_qr)->a_field.qre_next->a_field.qre_prev = (a_qr);		\
 	(a_qrelm)->a_field.qre_next = (a_qr);				\
-    } while (0)
+} while (0)
 
 #define	qr_meld(a_qr_a, a_qr_b, a_type, a_field) do {			\
 	a_type *t;							\

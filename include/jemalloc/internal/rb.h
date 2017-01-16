@@ -550,8 +550,7 @@ a_prefix##remove(a_rbt_type *rbtree, a_type *node) {			\
 	        /* Find node's successor, in preparation for swap. */	\
 		pathp->cmp = 1;						\
 		nodep = pathp;						\
-		for (pathp++; pathp->node != NULL;			\
-		  pathp++) {						\
+		for (pathp++; pathp->node != NULL; pathp++) {		\
 		    pathp->cmp = -1;					\
 		    pathp[1].node = rbtn_left_get(a_type, a_field,	\
 		      pathp->node);					\
