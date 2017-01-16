@@ -1530,94 +1530,177 @@ label_return:
 	return (ret);
 }
 
-static bool
-prof_dump(tsd_t *tsd, bool propagate_err, const char *filename, bool leakcheck)
+static void
+prof_dump_prep(tsd_t *tsd, prof_tdata_t *tdata,
+    struct prof_tdata_merge_iter_arg_s *prof_tdata_merge_iter_arg,
+    struct prof_gctx_merge_iter_arg_s *prof_gctx_merge_iter_arg,
+    prof_gctx_tree_t *gctxs)
 {
-	prof_tdata_t *tdata;
-	struct prof_tdata_merge_iter_arg_s prof_tdata_merge_iter_arg;
 	size_t tabind;
 	union {
 		prof_gctx_t	*p;
 		void		*v;
 	} gctx;
-	struct prof_gctx_merge_iter_arg_s prof_gctx_merge_iter_arg;
-	struct prof_gctx_dump_iter_arg_s prof_gctx_dump_iter_arg;
-	prof_gctx_tree_t gctxs;
 
-	cassert(config_prof);
-
-	tdata = prof_tdata_get(tsd, true);
-	if (tdata == NULL)
-		return (true);
-
-	malloc_mutex_lock(tsd_tsdn(tsd), &prof_dump_mtx);
 	prof_enter(tsd, tdata);
 
 	/*
 	 * Put gctx's in limbo and clear their counters in preparation for
 	 * summing.
 	 */
-	gctx_tree_new(&gctxs);
-	for (tabind = 0; !ckh_iter(&bt2gctx, &tabind, NULL, &gctx.v);)
-		prof_dump_gctx_prep(tsd_tsdn(tsd), gctx.p, &gctxs);
+	gctx_tree_new(gctxs);
+	for (tabind = 0; !ckh_iter(&bt2gctx, &tabind, NULL, &gctx.v);) {
+		prof_dump_gctx_prep(tsd_tsdn(tsd), gctx.p, gctxs);
+	}
 
 	/*
 	 * Iterate over tdatas, and for the non-expired ones snapshot their tctx
 	 * stats and merge them into the associated gctx's.
 	 */
-	prof_tdata_merge_iter_arg.tsdn = tsd_tsdn(tsd);
-	memset(&prof_tdata_merge_iter_arg.cnt_all, 0, sizeof(prof_cnt_t));
+	prof_tdata_merge_iter_arg->tsdn = tsd_tsdn(tsd);
+	memset(&prof_tdata_merge_iter_arg->cnt_all, 0, sizeof(prof_cnt_t));
 	malloc_mutex_lock(tsd_tsdn(tsd), &tdatas_mtx);
 	tdata_tree_iter(&tdatas, NULL, prof_tdata_merge_iter,
-	    (void *)&prof_tdata_merge_iter_arg);
+	    (void *)prof_tdata_merge_iter_arg);
 	malloc_mutex_unlock(tsd_tsdn(tsd), &tdatas_mtx);
 
 	/* Merge tctx stats into gctx's. */
-	prof_gctx_merge_iter_arg.tsdn = tsd_tsdn(tsd);
-	prof_gctx_merge_iter_arg.leak_ngctx = 0;
-	gctx_tree_iter(&gctxs, NULL, prof_gctx_merge_iter,
-	    (void *)&prof_gctx_merge_iter_arg);
+	prof_gctx_merge_iter_arg->tsdn = tsd_tsdn(tsd);
+	prof_gctx_merge_iter_arg->leak_ngctx = 0;
+	gctx_tree_iter(gctxs, NULL, prof_gctx_merge_iter,
+	    (void *)prof_gctx_merge_iter_arg);
 
 	prof_leave(tsd, tdata);
+}
 
+static bool
+prof_dump_file(tsd_t *tsd, bool propagate_err, const char *filename,
+    bool leakcheck, prof_tdata_t *tdata,
+    struct prof_tdata_merge_iter_arg_s *prof_tdata_merge_iter_arg,
+    struct prof_gctx_merge_iter_arg_s *prof_gctx_merge_iter_arg,
+    struct prof_gctx_dump_iter_arg_s *prof_gctx_dump_iter_arg,
+    prof_gctx_tree_t *gctxs)
+{
 	/* Create dump file. */
-	if ((prof_dump_fd = prof_dump_open(propagate_err, filename)) == -1)
-		goto label_open_close_error;
+	if ((prof_dump_fd = prof_dump_open(propagate_err, filename)) == -1) {
+		return true;
+	}
 
 	/* Dump profile header. */
 	if (prof_dump_header(tsd_tsdn(tsd), propagate_err,
-	    &prof_tdata_merge_iter_arg.cnt_all))
+	    &prof_tdata_merge_iter_arg->cnt_all)) {
 		goto label_write_error;
+	}
 
 	/* Dump per gctx profile stats. */
-	prof_gctx_dump_iter_arg.tsdn = tsd_tsdn(tsd);
-	prof_gctx_dump_iter_arg.propagate_err = propagate_err;
-	if (gctx_tree_iter(&gctxs, NULL, prof_gctx_dump_iter,
-	    (void *)&prof_gctx_dump_iter_arg) != NULL)
+	prof_gctx_dump_iter_arg->tsdn = tsd_tsdn(tsd);
+	prof_gctx_dump_iter_arg->propagate_err = propagate_err;
+	if (gctx_tree_iter(gctxs, NULL, prof_gctx_dump_iter,
+	    (void *)prof_gctx_dump_iter_arg) != NULL) {
 		goto label_write_error;
+	}
 
 	/* Dump /proc/<pid>/maps if possible. */
-	if (prof_dump_maps(propagate_err))
+	if (prof_dump_maps(propagate_err)) {
 		goto label_write_error;
+	}
 
-	if (prof_dump_close(propagate_err))
-		goto label_open_close_error;
+	if (prof_dump_close(propagate_err)) {
+		return true;
+	}
 
+	return false;
+label_write_error:
+	prof_dump_close(propagate_err);
+	return true;
+}
+
+static bool
+prof_dump(tsd_t *tsd, bool propagate_err, const char *filename, bool leakcheck)
+{
+	prof_tdata_t *tdata;
+	struct prof_tdata_merge_iter_arg_s prof_tdata_merge_iter_arg;
+	struct prof_gctx_merge_iter_arg_s prof_gctx_merge_iter_arg;
+	struct prof_gctx_dump_iter_arg_s prof_gctx_dump_iter_arg;
+	prof_gctx_tree_t gctxs;
+	bool err;
+
+	cassert(config_prof);
+
+	tdata = prof_tdata_get(tsd, true);
+	if (tdata == NULL) {
+		return true;
+	}
+
+	malloc_mutex_lock(tsd_tsdn(tsd), &prof_dump_mtx);
+
+	prof_dump_prep(tsd, tdata, &prof_tdata_merge_iter_arg,
+	    &prof_gctx_merge_iter_arg, &gctxs);
+	err = prof_dump_file(tsd, propagate_err, filename, leakcheck, tdata,
+	    &prof_tdata_merge_iter_arg, &prof_gctx_merge_iter_arg,
+	    &prof_gctx_dump_iter_arg, &gctxs);
 	prof_gctx_finish(tsd, &gctxs);
+
 	malloc_mutex_unlock(tsd_tsdn(tsd), &prof_dump_mtx);
+
+	if (err) {
+		return true;
+	}
 
 	if (leakcheck) {
 		prof_leakcheck(&prof_tdata_merge_iter_arg.cnt_all,
 		    prof_gctx_merge_iter_arg.leak_ngctx, filename);
 	}
-	return (false);
-label_write_error:
-	prof_dump_close(propagate_err);
-label_open_close_error:
-	prof_gctx_finish(tsd, &gctxs);
-	malloc_mutex_unlock(tsd_tsdn(tsd), &prof_dump_mtx);
-	return (true);
+	return false;
 }
+
+#ifdef JEMALLOC_JET
+void
+prof_cnt_all(uint64_t *curobjs, uint64_t *curbytes, uint64_t *accumobjs,
+    uint64_t *accumbytes)
+{
+	tsd_t *tsd;
+	prof_tdata_t *tdata;
+	struct prof_tdata_merge_iter_arg_s prof_tdata_merge_iter_arg;
+	struct prof_gctx_merge_iter_arg_s prof_gctx_merge_iter_arg;
+	prof_gctx_tree_t gctxs;
+
+	tsd = tsd_fetch();
+	tdata = prof_tdata_get(tsd, false);
+	if (tdata == NULL) {
+		if (curobjs != NULL) {
+			*curobjs = 0;
+		}
+		if (curbytes != NULL) {
+			*curbytes = 0;
+		}
+		if (accumobjs != NULL) {
+			*accumobjs = 0;
+		}
+		if (accumbytes != NULL) {
+			*accumbytes = 0;
+		}
+		return;
+	}
+
+	prof_dump_prep(tsd, tdata, &prof_tdata_merge_iter_arg,
+	    &prof_gctx_merge_iter_arg, &gctxs);
+	prof_gctx_finish(tsd, &gctxs);
+
+	if (curobjs != NULL) {
+		*curobjs = prof_tdata_merge_iter_arg.cnt_all.curobjs;
+	}
+	if (curbytes != NULL) {
+		*curbytes = prof_tdata_merge_iter_arg.cnt_all.curbytes;
+	}
+	if (accumobjs != NULL) {
+		*accumobjs = prof_tdata_merge_iter_arg.cnt_all.accumobjs;
+	}
+	if (accumbytes != NULL) {
+		*accumbytes = prof_tdata_merge_iter_arg.cnt_all.accumbytes;
+	}
+}
+#endif
 
 #define	DUMP_FILENAME_BUFSIZE	(PATH_MAX + 1)
 #define	VSEQ_INVALID		UINT64_C(0xffffffffffffffff)
