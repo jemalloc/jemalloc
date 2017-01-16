@@ -15,15 +15,13 @@ static void *watch_for_junking;
 static bool saw_junking;
 
 static void
-watch_junking(void *p)
-{
+watch_junking(void *p) {
 	watch_for_junking = p;
 	saw_junking = false;
 }
 
 static void
-arena_dalloc_junk_small_intercept(void *ptr, const arena_bin_info_t *bin_info)
-{
+arena_dalloc_junk_small_intercept(void *ptr, const arena_bin_info_t *bin_info) {
 	size_t i;
 
 	arena_dalloc_junk_small_orig(ptr, bin_info);
@@ -32,13 +30,13 @@ arena_dalloc_junk_small_intercept(void *ptr, const arena_bin_info_t *bin_info)
 		    "Missing junk fill for byte %zu/%zu of deallocated region",
 		    i, bin_info->reg_size);
 	}
-	if (ptr == watch_for_junking)
+	if (ptr == watch_for_junking) {
 		saw_junking = true;
+	}
 }
 
 static void
-large_dalloc_junk_intercept(void *ptr, size_t usize)
-{
+large_dalloc_junk_intercept(void *ptr, size_t usize) {
 	size_t i;
 
 	large_dalloc_junk_orig(ptr, usize);
@@ -47,21 +45,21 @@ large_dalloc_junk_intercept(void *ptr, size_t usize)
 		    "Missing junk fill for byte %zu/%zu of deallocated region",
 		    i, usize);
 	}
-	if (ptr == watch_for_junking)
+	if (ptr == watch_for_junking) {
 		saw_junking = true;
+	}
 }
 
 static void
-large_dalloc_maybe_junk_intercept(void *ptr, size_t usize)
-{
+large_dalloc_maybe_junk_intercept(void *ptr, size_t usize) {
 	large_dalloc_maybe_junk_orig(ptr, usize);
-	if (ptr == watch_for_junking)
+	if (ptr == watch_for_junking) {
 		saw_junking = true;
+	}
 }
 
 static void
-test_junk(size_t sz_min, size_t sz_max)
-{
+test_junk(size_t sz_min, size_t sz_max) {
 	uint8_t *s;
 	size_t sz_prev, sz, i;
 
@@ -126,23 +124,20 @@ test_junk(size_t sz_min, size_t sz_max)
 	}
 }
 
-TEST_BEGIN(test_junk_small)
-{
+TEST_BEGIN(test_junk_small) {
 	test_skip_if(!config_fill);
 	test_junk(1, SMALL_MAXCLASS-1);
 }
 TEST_END
 
-TEST_BEGIN(test_junk_large)
-{
+TEST_BEGIN(test_junk_large) {
 	test_skip_if(!config_fill);
 	test_junk(SMALL_MAXCLASS+1, (1U << (LG_LARGE_MINCLASS+1)));
 }
 TEST_END
 
 int
-main(void)
-{
+main(void) {
 	return (test(
 	    test_junk_small,
 	    test_junk_large));

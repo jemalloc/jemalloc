@@ -93,8 +93,7 @@
     NB(16384) \
 
 static void
-test_bitmap_initializer_body(const bitmap_info_t *binfo, size_t nbits)
-{
+test_bitmap_initializer_body(const bitmap_info_t *binfo, size_t nbits) {
 	bitmap_info_t binfo_dyn;
 	bitmap_info_init(&binfo_dyn, nbits);
 
@@ -124,8 +123,7 @@ test_bitmap_initializer_body(const bitmap_info_t *binfo, size_t nbits)
 #endif
 }
 
-TEST_BEGIN(test_bitmap_initializer)
-{
+TEST_BEGIN(test_bitmap_initializer) {
 #define	NB(nbits) {							\
 		if (nbits <= BITMAP_MAXBITS) {				\
 			bitmap_info_t binfo =				\
@@ -140,8 +138,7 @@ TEST_END
 
 static size_t
 test_bitmap_size_body(const bitmap_info_t *binfo, size_t nbits,
-    size_t prev_size)
-{
+    size_t prev_size) {
 	size_t size = bitmap_size(binfo);
 	assert_zu_ge(size, (nbits >> 3),
 	    "Bitmap size is smaller than expected");
@@ -149,8 +146,7 @@ test_bitmap_size_body(const bitmap_info_t *binfo, size_t nbits,
 	return (size);
 }
 
-TEST_BEGIN(test_bitmap_size)
-{
+TEST_BEGIN(test_bitmap_size) {
 	size_t nbits, prev_size;
 
 	prev_size = 0;
@@ -171,8 +167,7 @@ TEST_BEGIN(test_bitmap_size)
 TEST_END
 
 static void
-test_bitmap_init_body(const bitmap_info_t *binfo, size_t nbits)
-{
+test_bitmap_init_body(const bitmap_info_t *binfo, size_t nbits) {
 	size_t i;
 	bitmap_t *bitmap = (bitmap_t *)malloc(bitmap_size(binfo));
 	assert_ptr_not_null(bitmap, "Unexpected malloc() failure");
@@ -185,8 +180,7 @@ test_bitmap_init_body(const bitmap_info_t *binfo, size_t nbits)
 	free(bitmap);
 }
 
-TEST_BEGIN(test_bitmap_init)
-{
+TEST_BEGIN(test_bitmap_init) {
 	size_t nbits;
 
 	for (nbits = 1; nbits <= BITMAP_MAXBITS; nbits++) {
@@ -204,21 +198,20 @@ TEST_BEGIN(test_bitmap_init)
 TEST_END
 
 static void
-test_bitmap_set_body(const bitmap_info_t *binfo, size_t nbits)
-{
+test_bitmap_set_body(const bitmap_info_t *binfo, size_t nbits) {
 	size_t i;
 	bitmap_t *bitmap = (bitmap_t *)malloc(bitmap_size(binfo));
 	assert_ptr_not_null(bitmap, "Unexpected malloc() failure");
 	bitmap_init(bitmap, binfo);
 
-	for (i = 0; i < nbits; i++)
+	for (i = 0; i < nbits; i++) {
 		bitmap_set(bitmap, binfo, i);
+	}
 	assert_true(bitmap_full(bitmap, binfo), "All bits should be set");
 	free(bitmap);
 }
 
-TEST_BEGIN(test_bitmap_set)
-{
+TEST_BEGIN(test_bitmap_set) {
 	size_t nbits;
 
 	for (nbits = 1; nbits <= BITMAP_MAXBITS; nbits++) {
@@ -236,26 +229,27 @@ TEST_BEGIN(test_bitmap_set)
 TEST_END
 
 static void
-test_bitmap_unset_body(const bitmap_info_t *binfo, size_t nbits)
-{
+test_bitmap_unset_body(const bitmap_info_t *binfo, size_t nbits) {
 	size_t i;
 	bitmap_t *bitmap = (bitmap_t *)malloc(bitmap_size(binfo));
 	assert_ptr_not_null(bitmap, "Unexpected malloc() failure");
 	bitmap_init(bitmap, binfo);
 
-	for (i = 0; i < nbits; i++)
+	for (i = 0; i < nbits; i++) {
 		bitmap_set(bitmap, binfo, i);
+	}
 	assert_true(bitmap_full(bitmap, binfo), "All bits should be set");
-	for (i = 0; i < nbits; i++)
+	for (i = 0; i < nbits; i++) {
 		bitmap_unset(bitmap, binfo, i);
-	for (i = 0; i < nbits; i++)
+	}
+	for (i = 0; i < nbits; i++) {
 		bitmap_set(bitmap, binfo, i);
+	}
 	assert_true(bitmap_full(bitmap, binfo), "All bits should be set");
 	free(bitmap);
 }
 
-TEST_BEGIN(test_bitmap_unset)
-{
+TEST_BEGIN(test_bitmap_unset) {
 	size_t nbits;
 
 	for (nbits = 1; nbits <= BITMAP_MAXBITS; nbits++) {
@@ -273,8 +267,7 @@ TEST_BEGIN(test_bitmap_unset)
 TEST_END
 
 static void
-test_bitmap_sfu_body(const bitmap_info_t *binfo, size_t nbits)
-{
+test_bitmap_sfu_body(const bitmap_info_t *binfo, size_t nbits) {
 	size_t i;
 	bitmap_t *bitmap = (bitmap_t *)malloc(bitmap_size(binfo));
 	assert_ptr_not_null(bitmap, "Unexpected malloc() failure");
@@ -317,8 +310,7 @@ test_bitmap_sfu_body(const bitmap_info_t *binfo, size_t nbits)
 	free(bitmap);
 }
 
-TEST_BEGIN(test_bitmap_sfu)
-{
+TEST_BEGIN(test_bitmap_sfu) {
 	size_t nbits;
 
 	for (nbits = 1; nbits <= BITMAP_MAXBITS; nbits++) {
@@ -336,8 +328,7 @@ TEST_BEGIN(test_bitmap_sfu)
 TEST_END
 
 int
-main(void)
-{
+main(void) {
 	return (test(
 	    test_bitmap_initializer,
 	    test_bitmap_size,

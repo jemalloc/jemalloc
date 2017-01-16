@@ -8,21 +8,21 @@ void	spin_adaptive(spin_t *spin);
 
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_SPIN_C_))
 JEMALLOC_INLINE void
-spin_init(spin_t *spin)
-{
+spin_init(spin_t *spin) {
 	spin->iteration = 0;
 }
 
 JEMALLOC_INLINE void
-spin_adaptive(spin_t *spin)
-{
+spin_adaptive(spin_t *spin) {
 	volatile uint64_t i;
 
-	for (i = 0; i < (KQU(1) << spin->iteration); i++)
+	for (i = 0; i < (KQU(1) << spin->iteration); i++) {
 		CPU_SPINWAIT;
+	}
 
-	if (spin->iteration < 63)
+	if (spin->iteration < 63) {
 		spin->iteration++;
+	}
 }
 
 #endif

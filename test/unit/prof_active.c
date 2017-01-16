@@ -6,8 +6,7 @@ const char *malloc_conf =
 #endif
 
 static void
-mallctl_bool_get(const char *name, bool expected, const char *func, int line)
-{
+mallctl_bool_get(const char *name, bool expected, const char *func, int line) {
 	bool old;
 	size_t sz;
 
@@ -20,8 +19,7 @@ mallctl_bool_get(const char *name, bool expected, const char *func, int line)
 
 static void
 mallctl_bool_set(const char *name, bool old_expected, bool val_new,
-    const char *func, int line)
-{
+    const char *func, int line) {
 	bool old;
 	size_t sz;
 
@@ -36,8 +34,7 @@ mallctl_bool_set(const char *name, bool old_expected, bool val_new,
 
 static void
 mallctl_prof_active_get_impl(bool prof_active_old_expected, const char *func,
-    int line)
-{
+    int line) {
 	mallctl_bool_get("prof.active", prof_active_old_expected, func, line);
 }
 #define	mallctl_prof_active_get(a)					\
@@ -45,8 +42,7 @@ mallctl_prof_active_get_impl(bool prof_active_old_expected, const char *func,
 
 static void
 mallctl_prof_active_set_impl(bool prof_active_old_expected,
-    bool prof_active_new, const char *func, int line)
-{
+    bool prof_active_new, const char *func, int line) {
 	mallctl_bool_set("prof.active", prof_active_old_expected,
 	    prof_active_new, func, line);
 }
@@ -55,8 +51,7 @@ mallctl_prof_active_set_impl(bool prof_active_old_expected,
 
 static void
 mallctl_thread_prof_active_get_impl(bool thread_prof_active_old_expected,
-    const char *func, int line)
-{
+    const char *func, int line) {
 	mallctl_bool_get("thread.prof.active", thread_prof_active_old_expected,
 	    func, line);
 }
@@ -65,8 +60,7 @@ mallctl_thread_prof_active_get_impl(bool thread_prof_active_old_expected,
 
 static void
 mallctl_thread_prof_active_set_impl(bool thread_prof_active_old_expected,
-    bool thread_prof_active_new, const char *func, int line)
-{
+    bool thread_prof_active_new, const char *func, int line) {
 	mallctl_bool_set("thread.prof.active", thread_prof_active_old_expected,
 	    thread_prof_active_new, func, line);
 }
@@ -74,8 +68,7 @@ mallctl_thread_prof_active_set_impl(bool thread_prof_active_old_expected,
 	mallctl_thread_prof_active_set_impl(a, b, __func__, __LINE__)
 
 static void
-prof_sampling_probe_impl(bool expect_sample, const char *func, int line)
-{
+prof_sampling_probe_impl(bool expect_sample, const char *func, int line) {
 	void *p;
 	size_t expected_backtraces = expect_sample ? 1 : 0;
 
@@ -90,8 +83,7 @@ prof_sampling_probe_impl(bool expect_sample, const char *func, int line)
 #define	prof_sampling_probe(a)						\
 	prof_sampling_probe_impl(a, __func__, __LINE__)
 
-TEST_BEGIN(test_prof_active)
-{
+TEST_BEGIN(test_prof_active) {
 	test_skip_if(!config_prof);
 
 	mallctl_prof_active_get(true);
@@ -124,8 +116,7 @@ TEST_BEGIN(test_prof_active)
 TEST_END
 
 int
-main(void)
-{
+main(void) {
 	return (test(
 	    test_prof_active));
 }

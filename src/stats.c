@@ -34,8 +34,7 @@ bool	opt_stats_print = false;
 
 static void
 stats_arena_bins_print(void (*write_cb)(void *, const char *), void *cbopaque,
-    bool json, bool large, unsigned i)
-{
+    bool json, bool large, unsigned i) {
 	size_t page;
 	bool in_gap, in_gap_prev;
 	unsigned nbins, j;
@@ -144,8 +143,9 @@ stats_arena_bins_print(void (*write_cb)(void *, const char *), void *cbopaque,
 			} else if (milli < 1000) {
 				malloc_snprintf(util, sizeof(util), "0.%zu",
 				    milli);
-			} else
+			} else {
 				malloc_snprintf(util, sizeof(util), "1");
+			}
 
 			if (config_tcache) {
 				malloc_cprintf(write_cb, cbopaque,
@@ -183,8 +183,7 @@ stats_arena_bins_print(void (*write_cb)(void *, const char *), void *cbopaque,
 
 static void
 stats_arena_lextents_print(void (*write_cb)(void *, const char *),
-    void *cbopaque, bool json, unsigned i)
-{
+    void *cbopaque, bool json, unsigned i) {
 	unsigned nbins, nlextents, j;
 	bool in_gap, in_gap_prev;
 
@@ -248,8 +247,7 @@ stats_arena_lextents_print(void (*write_cb)(void *, const char *),
 
 static void
 stats_arena_print(void (*write_cb)(void *, const char *), void *cbopaque,
-    bool json, unsigned i, bool bins, bool large)
-{
+    bool json, unsigned i, bool bins, bool large) {
 	unsigned nthreads;
 	const char *dss;
 	ssize_t decay_time;
@@ -290,8 +288,9 @@ stats_arena_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		if (decay_time >= 0) {
 			malloc_cprintf(write_cb, cbopaque, "decay time: %zd\n",
 			    decay_time);
-		} else
+		} else {
 			malloc_cprintf(write_cb, cbopaque, "decay time: N/A\n");
+		}
 	}
 
 	CTL_M2_GET("stats.arenas.0.pactive", i, &pactive, size_t);
@@ -445,16 +444,17 @@ stats_arena_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		    "resident:                %12zu\n", resident);
 	}
 
-	if (bins)
+	if (bins) {
 		stats_arena_bins_print(write_cb, cbopaque, json, large, i);
-	if (large)
+	}
+	if (large) {
 		stats_arena_lextents_print(write_cb, cbopaque, json, i);
+	}
 }
 
 static void
 stats_general_print(void (*write_cb)(void *, const char *), void *cbopaque,
-    bool json, bool more)
-{
+    bool json, bool more) {
 	const char *cpv;
 	bool bv;
 	unsigned uv;
@@ -473,8 +473,9 @@ stats_general_print(void (*write_cb)(void *, const char *), void *cbopaque,
 	if (json) {
 		malloc_cprintf(write_cb, cbopaque,
 		"\t\t\"version\": \"%s\",\n", cpv);
-	} else
+	} else {
 		malloc_cprintf(write_cb, cbopaque, "Version: %s\n", cpv);
+	}
 
 	/* config. */
 #define	CONFIG_WRITE_BOOL_JSON(n, c)					\
@@ -655,8 +656,9 @@ stats_general_print(void (*write_cb)(void *, const char *), void *cbopaque,
 	if (json) {
 		malloc_cprintf(write_cb, cbopaque,
 		    "\t\t\t\"narenas\": %u,\n", uv);
-	} else
+	} else {
 		malloc_cprintf(write_cb, cbopaque, "Arenas: %u\n", uv);
+	}
 
 	CTL_GET("arenas.decay_time", &ssv, ssize_t);
 	if (json) {
@@ -672,15 +674,17 @@ stats_general_print(void (*write_cb)(void *, const char *), void *cbopaque,
 	if (json) {
 		malloc_cprintf(write_cb, cbopaque,
 		    "\t\t\t\"quantum\": %zu,\n", sv);
-	} else
+	} else {
 		malloc_cprintf(write_cb, cbopaque, "Quantum size: %zu\n", sv);
+	}
 
 	CTL_GET("arenas.page", &sv, size_t);
 	if (json) {
 		malloc_cprintf(write_cb, cbopaque,
 		    "\t\t\t\"page\": %zu,\n", sv);
-	} else
+	} else {
 		malloc_cprintf(write_cb, cbopaque, "Page size: %zu\n", sv);
+	}
 
 	if (je_mallctl("arenas.tcache_max", (void *)&sv, &ssz, NULL, 0) == 0) {
 		if (json) {
@@ -787,8 +791,7 @@ stats_general_print(void (*write_cb)(void *, const char *), void *cbopaque,
 static void
 stats_print_helper(void (*write_cb)(void *, const char *), void *cbopaque,
     bool json, bool merged, bool destroyed, bool unmerged, bool bins,
-    bool large)
-{
+    bool large) {
 	size_t allocated, active, metadata, resident, mapped, retained;
 
 	CTL_GET("stats.allocated", &allocated, size_t);
@@ -846,8 +849,9 @@ stats_print_helper(void (*write_cb)(void *, const char *), void *cbopaque,
 				sz = sizeof(bool);
 				xmallctlbymib(mib, miblen, &initialized[i], &sz,
 				    NULL, 0);
-				if (initialized[i])
+				if (initialized[i]) {
 					ninitialized++;
+				}
 			}
 			mib[1] = MALLCTL_ARENAS_DESTROYED;
 			sz = sizeof(bool);
@@ -934,8 +938,7 @@ stats_print_helper(void (*write_cb)(void *, const char *), void *cbopaque,
 
 void
 stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
-    const char *opts)
-{
+    const char *opts) {
 	int err;
 	uint64_t epoch;
 	size_t u64sz;

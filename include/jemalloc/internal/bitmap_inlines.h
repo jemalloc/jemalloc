@@ -11,8 +11,7 @@ void	bitmap_unset(bitmap_t *bitmap, const bitmap_info_t *binfo, size_t bit);
 
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_BITMAP_C_))
 JEMALLOC_INLINE bool
-bitmap_full(bitmap_t *bitmap, const bitmap_info_t *binfo)
-{
+bitmap_full(bitmap_t *bitmap, const bitmap_info_t *binfo) {
 #ifdef BITMAP_USE_TREE
 	size_t rgoff = binfo->levels[binfo->nlevels].group_offset - 1;
 	bitmap_t rg = bitmap[rgoff];
@@ -22,16 +21,16 @@ bitmap_full(bitmap_t *bitmap, const bitmap_info_t *binfo)
 	size_t i;
 
 	for (i = 0; i < binfo->ngroups; i++) {
-		if (bitmap[i] != 0)
+		if (bitmap[i] != 0) {
 			return (false);
+		}
 	}
 	return (true);
 #endif
 }
 
 JEMALLOC_INLINE bool
-bitmap_get(bitmap_t *bitmap, const bitmap_info_t *binfo, size_t bit)
-{
+bitmap_get(bitmap_t *bitmap, const bitmap_info_t *binfo, size_t bit) {
 	size_t goff;
 	bitmap_t g;
 
@@ -42,8 +41,7 @@ bitmap_get(bitmap_t *bitmap, const bitmap_info_t *binfo, size_t bit)
 }
 
 JEMALLOC_INLINE void
-bitmap_set(bitmap_t *bitmap, const bitmap_info_t *binfo, size_t bit)
-{
+bitmap_set(bitmap_t *bitmap, const bitmap_info_t *binfo, size_t bit) {
 	size_t goff;
 	bitmap_t *gp;
 	bitmap_t g;
@@ -69,8 +67,9 @@ bitmap_set(bitmap_t *bitmap, const bitmap_info_t *binfo, size_t bit)
 			assert(g & (ZU(1) << (bit & BITMAP_GROUP_NBITS_MASK)));
 			g ^= ZU(1) << (bit & BITMAP_GROUP_NBITS_MASK);
 			*gp = g;
-			if (g != 0)
+			if (g != 0) {
 				break;
+			}
 		}
 	}
 #endif
@@ -78,8 +77,7 @@ bitmap_set(bitmap_t *bitmap, const bitmap_info_t *binfo, size_t bit)
 
 /* sfu: set first unset. */
 JEMALLOC_INLINE size_t
-bitmap_sfu(bitmap_t *bitmap, const bitmap_info_t *binfo)
-{
+bitmap_sfu(bitmap_t *bitmap, const bitmap_info_t *binfo) {
 	size_t bit;
 	bitmap_t g;
 	unsigned i;
@@ -109,8 +107,7 @@ bitmap_sfu(bitmap_t *bitmap, const bitmap_info_t *binfo)
 }
 
 JEMALLOC_INLINE void
-bitmap_unset(bitmap_t *bitmap, const bitmap_info_t *binfo, size_t bit)
-{
+bitmap_unset(bitmap_t *bitmap, const bitmap_info_t *binfo, size_t bit) {
 	size_t goff;
 	bitmap_t *gp;
 	bitmap_t g;
@@ -140,8 +137,9 @@ bitmap_unset(bitmap_t *bitmap, const bitmap_info_t *binfo, size_t bit)
 			    == 0);
 			g ^= ZU(1) << (bit & BITMAP_GROUP_NBITS_MASK);
 			*gp = g;
-			if (!propagate)
+			if (!propagate) {
 				break;
+			}
 		}
 	}
 #endif /* BITMAP_USE_TREE */

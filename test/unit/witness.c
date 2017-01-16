@@ -12,32 +12,27 @@ static bool saw_lockless_error;
 
 static void
 witness_lock_error_intercept(const witness_list_t *witnesses,
-    const witness_t *witness)
-{
+    const witness_t *witness) {
 	saw_lock_error = true;
 }
 
 static void
-witness_owner_error_intercept(const witness_t *witness)
-{
+witness_owner_error_intercept(const witness_t *witness) {
 	saw_owner_error = true;
 }
 
 static void
-witness_not_owner_error_intercept(const witness_t *witness)
-{
+witness_not_owner_error_intercept(const witness_t *witness) {
 	saw_not_owner_error = true;
 }
 
 static void
-witness_lockless_error_intercept(const witness_list_t *witnesses)
-{
+witness_lockless_error_intercept(const witness_list_t *witnesses) {
 	saw_lockless_error = true;
 }
 
 static int
-witness_comp(const witness_t *a, void *oa, const witness_t *b, void *ob)
-{
+witness_comp(const witness_t *a, void *oa, const witness_t *b, void *ob) {
 	assert_u_eq(a->rank, b->rank, "Witnesses should have equal rank");
 
 	assert(oa == (void *)a);
@@ -47,8 +42,8 @@ witness_comp(const witness_t *a, void *oa, const witness_t *b, void *ob)
 }
 
 static int
-witness_comp_reverse(const witness_t *a, void *oa, const witness_t *b, void *ob)
-{
+witness_comp_reverse(const witness_t *a, void *oa, const witness_t *b,
+    void *ob) {
 	assert_u_eq(a->rank, b->rank, "Witnesses should have equal rank");
 
 	assert(oa == (void *)a);
@@ -57,8 +52,7 @@ witness_comp_reverse(const witness_t *a, void *oa, const witness_t *b, void *ob)
 	return (-strcmp(a->name, b->name));
 }
 
-TEST_BEGIN(test_witness)
-{
+TEST_BEGIN(test_witness) {
 	witness_t a, b;
 	tsdn_t *tsdn;
 
@@ -85,8 +79,7 @@ TEST_BEGIN(test_witness)
 }
 TEST_END
 
-TEST_BEGIN(test_witness_comp)
-{
+TEST_BEGIN(test_witness_comp) {
 	witness_t a, b, c, d;
 	tsdn_t *tsdn;
 
@@ -135,8 +128,7 @@ TEST_BEGIN(test_witness_comp)
 }
 TEST_END
 
-TEST_BEGIN(test_witness_reversal)
-{
+TEST_BEGIN(test_witness_reversal) {
 	witness_t a, b;
 	tsdn_t *tsdn;
 
@@ -167,8 +159,7 @@ TEST_BEGIN(test_witness_reversal)
 }
 TEST_END
 
-TEST_BEGIN(test_witness_recursive)
-{
+TEST_BEGIN(test_witness_recursive) {
 	witness_t a;
 	tsdn_t *tsdn;
 
@@ -205,8 +196,7 @@ TEST_BEGIN(test_witness_recursive)
 }
 TEST_END
 
-TEST_BEGIN(test_witness_unlock_not_owned)
-{
+TEST_BEGIN(test_witness_unlock_not_owned) {
 	witness_t a;
 	tsdn_t *tsdn;
 
@@ -232,8 +222,7 @@ TEST_BEGIN(test_witness_unlock_not_owned)
 }
 TEST_END
 
-TEST_BEGIN(test_witness_lockful)
-{
+TEST_BEGIN(test_witness_lockful) {
 	witness_t a;
 	tsdn_t *tsdn;
 
@@ -265,8 +254,7 @@ TEST_BEGIN(test_witness_lockful)
 TEST_END
 
 int
-main(void)
-{
+main(void) {
 	return (test(
 	    test_witness,
 	    test_witness_comp,

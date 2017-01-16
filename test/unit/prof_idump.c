@@ -16,8 +16,7 @@ const char *malloc_conf = ""
 static bool did_prof_dump_open;
 
 static int
-prof_dump_open_intercept(bool propagate_err, const char *filename)
-{
+prof_dump_open_intercept(bool propagate_err, const char *filename) {
 	int fd;
 
 	did_prof_dump_open = true;
@@ -28,8 +27,7 @@ prof_dump_open_intercept(bool propagate_err, const char *filename)
 	return (fd);
 }
 
-TEST_BEGIN(test_idump)
-{
+TEST_BEGIN(test_idump) {
 	bool active;
 	void *p;
 
@@ -51,8 +49,7 @@ TEST_BEGIN(test_idump)
 TEST_END
 
 int
-main(void)
-{
+main(void) {
 	return (test(
 	    test_idump));
 }

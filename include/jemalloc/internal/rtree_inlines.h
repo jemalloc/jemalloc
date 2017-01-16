@@ -37,12 +37,12 @@ void	rtree_clear(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
 
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_RTREE_C_))
 JEMALLOC_ALWAYS_INLINE unsigned
-rtree_start_level(const rtree_t *rtree, uintptr_t key)
-{
+rtree_start_level(const rtree_t *rtree, uintptr_t key) {
 	unsigned start_level;
 
-	if (unlikely(key == 0))
+	if (unlikely(key == 0)) {
 		return (rtree->height - 1);
+	}
 
 	start_level = rtree->start_level[(lg_floor(key) + 1) >>
 	    LG_RTREE_BITS_PER_LEVEL];
@@ -52,8 +52,7 @@ rtree_start_level(const rtree_t *rtree, uintptr_t key)
 
 JEMALLOC_ALWAYS_INLINE unsigned
 rtree_ctx_start_level(const rtree_t *rtree, const rtree_ctx_t *rtree_ctx,
-    uintptr_t key)
-{
+    uintptr_t key) {
 	unsigned start_level;
 	uintptr_t key_diff;
 
@@ -72,48 +71,45 @@ rtree_ctx_start_level(const rtree_t *rtree, const rtree_ctx_t *rtree_ctx,
 }
 
 JEMALLOC_ALWAYS_INLINE uintptr_t
-rtree_subkey(rtree_t *rtree, uintptr_t key, unsigned level)
-{
+rtree_subkey(rtree_t *rtree, uintptr_t key, unsigned level) {
 	return ((key >> ((ZU(1) << (LG_SIZEOF_PTR+3)) -
 	    rtree->levels[level].cumbits)) & ((ZU(1) <<
 	    rtree->levels[level].bits) - 1));
 }
 
 JEMALLOC_ALWAYS_INLINE bool
-rtree_node_valid(rtree_elm_t *node)
-{
+rtree_node_valid(rtree_elm_t *node) {
 	return ((uintptr_t)node != (uintptr_t)0);
 }
 
 JEMALLOC_ALWAYS_INLINE rtree_elm_t *
-rtree_child_tryread(rtree_elm_t *elm, bool dependent)
-{
+rtree_child_tryread(rtree_elm_t *elm, bool dependent) {
 	rtree_elm_t *child;
 
 	/* Double-checked read (first read may be stale). */
 	child = elm->child;
-	if (!dependent && !rtree_node_valid(child))
+	if (!dependent && !rtree_node_valid(child)) {
 		child = (rtree_elm_t *)atomic_read_p(&elm->pun);
+	}
 	assert(!dependent || child != NULL);
 	return (child);
 }
 
 JEMALLOC_ALWAYS_INLINE rtree_elm_t *
 rtree_child_read(tsdn_t *tsdn, rtree_t *rtree, rtree_elm_t *elm, unsigned level,
-    bool dependent)
-{
+    bool dependent) {
 	rtree_elm_t *child;
 
 	child = rtree_child_tryread(elm, dependent);
-	if (!dependent && unlikely(!rtree_node_valid(child)))
+	if (!dependent && unlikely(!rtree_node_valid(child))) {
 		child = rtree_child_read_hard(tsdn, rtree, elm, level);
+	}
 	assert(!dependent || child != NULL);
 	return (child);
 }
 
 JEMALLOC_ALWAYS_INLINE extent_t *
-rtree_elm_read(rtree_elm_t *elm, bool dependent)
-{
+rtree_elm_read(rtree_elm_t *elm, bool dependent) {
 	extent_t *extent;
 
 	if (dependent) {
@@ -140,14 +136,12 @@ rtree_elm_read(rtree_elm_t *elm, bool dependent)
 }
 
 JEMALLOC_INLINE void
-rtree_elm_write(rtree_elm_t *elm, const extent_t *extent)
-{
+rtree_elm_write(rtree_elm_t *elm, const extent_t *extent) {
 	atomic_write_p(&elm->pun, extent);
 }
 
 JEMALLOC_ALWAYS_INLINE rtree_elm_t *
-rtree_subtree_tryread(rtree_t *rtree, unsigned level, bool dependent)
-{
+rtree_subtree_tryread(rtree_t *rtree, unsigned level, bool dependent) {
 	rtree_elm_t *subtree;
 
 	/* Double-checked read (first read may be stale). */
@@ -161,21 +155,21 @@ rtree_subtree_tryread(rtree_t *rtree, unsigned level, bool dependent)
 }
 
 JEMALLOC_ALWAYS_INLINE rtree_elm_t *
-rtree_subtree_read(tsdn_t *tsdn, rtree_t *rtree, unsigned level, bool dependent)
-{
+rtree_subtree_read(tsdn_t *tsdn, rtree_t *rtree, unsigned level,
+    bool dependent) {
 	rtree_elm_t *subtree;
 
 	subtree = rtree_subtree_tryread(rtree, level, dependent);
-	if (!dependent && unlikely(!rtree_node_valid(subtree)))
+	if (!dependent && unlikely(!rtree_node_valid(subtree))) {
 		subtree = rtree_subtree_read_hard(tsdn, rtree, level);
+	}
 	assert(!dependent || subtree != NULL);
 	return (subtree);
 }
 
 JEMALLOC_ALWAYS_INLINE rtree_elm_t *
 rtree_elm_lookup(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
-    uintptr_t key, bool dependent, bool init_missing)
-{
+    uintptr_t key, bool dependent, bool init_missing) {
 	uintptr_t subkey;
 	unsigned start_level;
 	rtree_elm_t *node;
@@ -184,9 +178,9 @@ rtree_elm_lookup(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
 
 	if (dependent || init_missing) {
 		if (likely(rtree_ctx->valid)) {
-			if (key == rtree_ctx->key)
+			if (key == rtree_ctx->key) {
 				return (rtree_ctx->elms[rtree->height]);
-			else {
+			} else {
 				unsigned no_ctx_start_level =
 				    rtree_start_level(rtree, key);
 				unsigned ctx_start_level;
@@ -237,8 +231,9 @@ rtree_elm_lookup(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
 	case level:							\
 		assert(level < (RTREE_HEIGHT_MAX-1));			\
 		if (!dependent && unlikely(!rtree_node_valid(node))) {	\
-			if (init_missing)				\
+			if (init_missing) {				\
 				rtree_ctx->valid = false;		\
+			}						\
 			return (NULL);					\
 		}							\
 		subkey = rtree_subkey(rtree, key, level -		\
@@ -255,8 +250,9 @@ rtree_elm_lookup(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
 	case level:							\
 		assert(level == (RTREE_HEIGHT_MAX-1));			\
 		if (!dependent && unlikely(!rtree_node_valid(node))) {	\
-			if (init_missing)				\
+			if (init_missing) {				\
 				rtree_ctx->valid = false;		\
+			}						\
 			return (NULL);					\
 		}							\
 		subkey = rtree_subkey(rtree, key, level -		\
@@ -330,16 +326,16 @@ rtree_elm_lookup(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
 
 JEMALLOC_INLINE bool
 rtree_write(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx, uintptr_t key,
-    const extent_t *extent)
-{
+    const extent_t *extent) {
 	rtree_elm_t *elm;
 
 	assert(extent != NULL); /* Use rtree_clear() for this case. */
 	assert(((uintptr_t)extent & (uintptr_t)0x1) == (uintptr_t)0x0);
 
 	elm = rtree_elm_lookup(tsdn, rtree, rtree_ctx, key, false, true);
-	if (elm == NULL)
+	if (elm == NULL) {
 		return (true);
+	}
 	assert(rtree_elm_read(elm, false) == NULL);
 	rtree_elm_write(elm, extent);
 
@@ -348,27 +344,27 @@ rtree_write(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx, uintptr_t key,
 
 JEMALLOC_ALWAYS_INLINE extent_t *
 rtree_read(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx, uintptr_t key,
-    bool dependent)
-{
+    bool dependent) {
 	rtree_elm_t *elm;
 
 	elm = rtree_elm_lookup(tsdn, rtree, rtree_ctx, key, dependent, false);
-	if (elm == NULL)
+	if (elm == NULL) {
 		return (NULL);
+	}
 
 	return (rtree_elm_read(elm, dependent));
 }
 
 JEMALLOC_INLINE rtree_elm_t *
 rtree_elm_acquire(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
-    uintptr_t key, bool dependent, bool init_missing)
-{
+    uintptr_t key, bool dependent, bool init_missing) {
 	rtree_elm_t *elm;
 
 	elm = rtree_elm_lookup(tsdn, rtree, rtree_ctx, key, dependent,
 	    init_missing);
-	if (!dependent && elm == NULL)
+	if (!dependent && elm == NULL) {
 		return (NULL);
+	}
 	{
 		extent_t *extent;
 		void *s;
@@ -380,52 +376,53 @@ rtree_elm_acquire(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
 		} while (atomic_cas_p(&elm->pun, (void *)extent, s));
 	}
 
-	if (config_debug)
+	if (config_debug) {
 		rtree_elm_witness_acquire(tsdn, rtree, key, elm);
+	}
 
 	return (elm);
 }
 
 JEMALLOC_INLINE extent_t *
-rtree_elm_read_acquired(tsdn_t *tsdn, const rtree_t *rtree, rtree_elm_t *elm)
-{
+rtree_elm_read_acquired(tsdn_t *tsdn, const rtree_t *rtree, rtree_elm_t *elm) {
 	extent_t *extent;
 
 	assert(((uintptr_t)elm->pun & (uintptr_t)0x1) == (uintptr_t)0x1);
 	extent = (extent_t *)((uintptr_t)elm->pun & ~((uintptr_t)0x1));
 	assert(((uintptr_t)extent & (uintptr_t)0x1) == (uintptr_t)0x0);
 
-	if (config_debug)
+	if (config_debug) {
 		rtree_elm_witness_access(tsdn, rtree, elm);
+	}
 
 	return (extent);
 }
 
 JEMALLOC_INLINE void
 rtree_elm_write_acquired(tsdn_t *tsdn, const rtree_t *rtree, rtree_elm_t *elm,
-    const extent_t *extent)
-{
+    const extent_t *extent) {
 	assert(((uintptr_t)extent & (uintptr_t)0x1) == (uintptr_t)0x0);
 	assert(((uintptr_t)elm->pun & (uintptr_t)0x1) == (uintptr_t)0x1);
 
-	if (config_debug)
+	if (config_debug) {
 		rtree_elm_witness_access(tsdn, rtree, elm);
+	}
 
 	elm->pun = (void *)((uintptr_t)extent | (uintptr_t)0x1);
 	assert(rtree_elm_read_acquired(tsdn, rtree, elm) == extent);
 }
 
 JEMALLOC_INLINE void
-rtree_elm_release(tsdn_t *tsdn, const rtree_t *rtree, rtree_elm_t *elm)
-{
+rtree_elm_release(tsdn_t *tsdn, const rtree_t *rtree, rtree_elm_t *elm) {
 	rtree_elm_write(elm, rtree_elm_read_acquired(tsdn, rtree, elm));
-	if (config_debug)
+	if (config_debug) {
 		rtree_elm_witness_release(tsdn, rtree, elm);
+	}
 }
 
 JEMALLOC_INLINE void
-rtree_clear(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx, uintptr_t key)
-{
+rtree_clear(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
+    uintptr_t key) {
 	rtree_elm_t *elm;
 
 	elm = rtree_elm_acquire(tsdn, rtree, rtree_ctx, key, true, false);

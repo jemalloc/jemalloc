@@ -24,8 +24,7 @@ static extent_hooks_t hooks_not_null = {
 	NULL /* merge */
 };
 
-TEST_BEGIN(test_base_hooks_default)
-{
+TEST_BEGIN(test_base_hooks_default) {
 	tsdn_t *tsdn;
 	base_t *base;
 	size_t allocated0, allocated1, resident, mapped;
@@ -52,8 +51,7 @@ TEST_BEGIN(test_base_hooks_default)
 }
 TEST_END
 
-TEST_BEGIN(test_base_hooks_null)
-{
+TEST_BEGIN(test_base_hooks_null) {
 	extent_hooks_t hooks_orig;
 	tsdn_t *tsdn;
 	base_t *base;
@@ -92,8 +90,7 @@ TEST_BEGIN(test_base_hooks_null)
 }
 TEST_END
 
-TEST_BEGIN(test_base_hooks_not_null)
-{
+TEST_BEGIN(test_base_hooks_not_null) {
 	extent_hooks_t hooks_orig;
 	tsdn_t *tsdn;
 	base_t *base;
@@ -214,8 +211,7 @@ TEST_BEGIN(test_base_hooks_not_null)
 TEST_END
 
 int
-main(void)
-{
+main(void) {
 	return (test(
 	    test_base_hooks_default,
 	    test_base_hooks_null,

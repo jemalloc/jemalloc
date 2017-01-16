@@ -21,8 +21,7 @@ tcache_t	*tcaches_get(tsd_t *tsd, unsigned ind);
 
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_TCACHE_C_))
 JEMALLOC_INLINE void
-tcache_flush(void)
-{
+tcache_flush(void) {
 	tsd_t *tsd;
 
 	cassert(config_tcache);
@@ -32,8 +31,7 @@ tcache_flush(void)
 }
 
 JEMALLOC_INLINE bool
-tcache_enabled_get(void)
-{
+tcache_enabled_get(void) {
 	tsd_t *tsd;
 	tcache_enabled_t tcache_enabled;
 
@@ -50,8 +48,7 @@ tcache_enabled_get(void)
 }
 
 JEMALLOC_INLINE void
-tcache_enabled_set(bool enabled)
-{
+tcache_enabled_set(bool enabled) {
 	tsd_t *tsd;
 	tcache_enabled_t tcache_enabled;
 
@@ -62,21 +59,23 @@ tcache_enabled_set(bool enabled)
 	tcache_enabled = (tcache_enabled_t)enabled;
 	tsd_tcache_enabled_set(tsd, tcache_enabled);
 
-	if (!enabled)
+	if (!enabled) {
 		tcache_cleanup(tsd);
+	}
 }
 
 JEMALLOC_ALWAYS_INLINE tcache_t *
-tcache_get(tsd_t *tsd, bool create)
-{
+tcache_get(tsd_t *tsd, bool create) {
 	tcache_t *tcache;
 
-	if (!config_tcache)
+	if (!config_tcache) {
 		return (NULL);
+	}
 
 	tcache = tsd_tcache_get(tsd);
-	if (!create)
+	if (!create) {
 		return (tcache);
+	}
 	if (unlikely(tcache == NULL) && tsd_nominal(tsd)) {
 		tcache = tcache_get_hard(tsd);
 		tsd_tcache_set(tsd, tcache);
@@ -86,18 +85,18 @@ tcache_get(tsd_t *tsd, bool create)
 }
 
 JEMALLOC_ALWAYS_INLINE void
-tcache_event(tsd_t *tsd, tcache_t *tcache)
-{
-	if (TCACHE_GC_INCR == 0)
+tcache_event(tsd_t *tsd, tcache_t *tcache) {
+	if (TCACHE_GC_INCR == 0) {
 		return;
+	}
 
-	if (unlikely(ticker_tick(&tcache->gc_ticker)))
+	if (unlikely(ticker_tick(&tcache->gc_ticker))) {
 		tcache_event_hard(tsd, tcache);
+	}
 }
 
 JEMALLOC_ALWAYS_INLINE void *
-tcache_alloc_easy(tcache_bin_t *tbin, bool *tcache_success)
-{
+tcache_alloc_easy(tcache_bin_t *tbin, bool *tcache_success) {
 	void *ret;
 
 	if (unlikely(tbin->ncached == 0)) {
@@ -116,16 +115,16 @@ tcache_alloc_easy(tcache_bin_t *tbin, bool *tcache_success)
 	ret = *(tbin->avail - tbin->ncached);
 	tbin->ncached--;
 
-	if (unlikely((int)tbin->ncached < tbin->low_water))
+	if (unlikely((int)tbin->ncached < tbin->low_water)) {
 		tbin->low_water = tbin->ncached;
+	}
 
 	return (ret);
 }
 
 JEMALLOC_ALWAYS_INLINE void *
 tcache_alloc_small(tsd_t *tsd, arena_t *arena, tcache_t *tcache, size_t size,
-    szind_t binind, bool zero, bool slow_path)
-{
+    szind_t binind, bool zero, bool slow_path) {
 	void *ret;
 	tcache_bin_t *tbin;
 	bool tcache_success;
@@ -138,13 +137,15 @@ tcache_alloc_small(tsd_t *tsd, arena_t *arena, tcache_t *tcache, size_t size,
 	if (unlikely(!tcache_success)) {
 		bool tcache_hard_success;
 		arena = arena_choose(tsd, arena);
-		if (unlikely(arena == NULL))
+		if (unlikely(arena == NULL)) {
 			return (NULL);
+		}
 
 		ret = tcache_alloc_small_hard(tsd_tsdn(tsd), arena, tcache,
 		    tbin, binind, &tcache_hard_success);
-		if (tcache_hard_success == false)
+		if (tcache_hard_success == false) {
 			return (NULL);
+		}
 	}
 
 	assert(ret);
@@ -162,8 +163,9 @@ tcache_alloc_small(tsd_t *tsd, arena_t *arena, tcache_t *tcache, size_t size,
 			if (unlikely(opt_junk_alloc)) {
 				arena_alloc_junk_small(ret,
 				    &arena_bin_info[binind], false);
-			} else if (unlikely(opt_zero))
+			} else if (unlikely(opt_zero)) {
 				memset(ret, 0, usize);
+			}
 		}
 	} else {
 		if (slow_path && config_fill && unlikely(opt_junk_alloc)) {
@@ -173,18 +175,19 @@ tcache_alloc_small(tsd_t *tsd, arena_t *arena, tcache_t *tcache, size_t size,
 		memset(ret, 0, usize);
 	}
 
-	if (config_stats)
+	if (config_stats) {
 		tbin->tstats.nrequests++;
-	if (config_prof)
+	}
+	if (config_prof) {
 		tcache->prof_accumbytes += usize;
+	}
 	tcache_event(tsd, tcache);
 	return (ret);
 }
 
 JEMALLOC_ALWAYS_INLINE void *
 tcache_alloc_large(tsd_t *tsd, arena_t *arena, tcache_t *tcache, size_t size,
-    szind_t binind, bool zero, bool slow_path)
-{
+    szind_t binind, bool zero, bool slow_path) {
 	void *ret;
 	tcache_bin_t *tbin;
 	bool tcache_success;
@@ -199,12 +202,14 @@ tcache_alloc_large(tsd_t *tsd, arena_t *arena, tcache_t *tcache, size_t size,
 		 * expensive to create one and not use it.
 		 */
 		arena = arena_choose(tsd, arena);
-		if (unlikely(arena == NULL))
+		if (unlikely(arena == NULL)) {
 			return (NULL);
+		}
 
 		ret = large_malloc(tsd_tsdn(tsd), arena, s2u(size), zero);
-		if (ret == NULL)
+		if (ret == NULL) {
 			return (NULL);
+		}
 	} else {
 		size_t usize JEMALLOC_CC_SILENCE_INIT(0);
 
@@ -220,16 +225,20 @@ tcache_alloc_large(tsd_t *tsd, arena_t *arena, tcache_t *tcache, size_t size,
 				if (unlikely(opt_junk_alloc)) {
 					memset(ret, JEMALLOC_ALLOC_JUNK,
 					    usize);
-				} else if (unlikely(opt_zero))
+				} else if (unlikely(opt_zero)) {
 					memset(ret, 0, usize);
+				}
 			}
-		} else
+		} else {
 			memset(ret, 0, usize);
+		}
 
-		if (config_stats)
+		if (config_stats) {
 			tbin->tstats.nrequests++;
-		if (config_prof)
+		}
+		if (config_prof) {
 			tcache->prof_accumbytes += usize;
+		}
 	}
 
 	tcache_event(tsd, tcache);
@@ -238,15 +247,15 @@ tcache_alloc_large(tsd_t *tsd, arena_t *arena, tcache_t *tcache, size_t size,
 
 JEMALLOC_ALWAYS_INLINE void
 tcache_dalloc_small(tsd_t *tsd, tcache_t *tcache, void *ptr, szind_t binind,
-    bool slow_path)
-{
+    bool slow_path) {
 	tcache_bin_t *tbin;
 	tcache_bin_info_t *tbin_info;
 
 	assert(tcache_salloc(tsd_tsdn(tsd), ptr) <= SMALL_MAXCLASS);
 
-	if (slow_path && config_fill && unlikely(opt_junk_free))
+	if (slow_path && config_fill && unlikely(opt_junk_free)) {
 		arena_dalloc_junk_small(ptr, &arena_bin_info[binind]);
+	}
 
 	tbin = &tcache->tbins[binind];
 	tbin_info = &tcache_bin_info[binind];
@@ -263,8 +272,7 @@ tcache_dalloc_small(tsd_t *tsd, tcache_t *tcache, void *ptr, szind_t binind,
 
 JEMALLOC_ALWAYS_INLINE void
 tcache_dalloc_large(tsd_t *tsd, tcache_t *tcache, void *ptr, size_t size,
-    bool slow_path)
-{
+    bool slow_path) {
 	szind_t binind;
 	tcache_bin_t *tbin;
 	tcache_bin_info_t *tbin_info;
@@ -274,8 +282,9 @@ tcache_dalloc_large(tsd_t *tsd, tcache_t *tcache, void *ptr, size_t size,
 
 	binind = size2index(size);
 
-	if (slow_path && config_fill && unlikely(opt_junk_free))
+	if (slow_path && config_fill && unlikely(opt_junk_free)) {
 		large_dalloc_junk(ptr, size);
+	}
 
 	tbin = &tcache->tbins[binind];
 	tbin_info = &tcache_bin_info[binind];
@@ -291,8 +300,7 @@ tcache_dalloc_large(tsd_t *tsd, tcache_t *tcache, void *ptr, size_t size,
 }
 
 JEMALLOC_ALWAYS_INLINE tcache_t *
-tcaches_get(tsd_t *tsd, unsigned ind)
-{
+tcaches_get(tsd_t *tsd, unsigned ind) {
 	tcaches_t *elm = &tcaches[ind];
 	if (unlikely(elm->tcache == NULL)) {
 		elm->tcache = tcache_create(tsd_tsdn(tsd), arena_choose(tsd,

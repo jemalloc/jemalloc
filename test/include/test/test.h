@@ -298,8 +298,7 @@ typedef void (test_t)(void);
 
 #define	TEST_BEGIN(f)							\
 static void								\
-f(void)									\
-{									\
+f(void) {								\
 	p_test_init(#f);
 
 #define	TEST_END							\

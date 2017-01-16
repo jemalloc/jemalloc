@@ -1,8 +1,7 @@
 #include "test/jemalloc_test.h"
 
 static size_t
-get_max_size_class(void)
-{
+get_max_size_class(void) {
 	unsigned nlextents;
 	size_t mib[4];
 	size_t sz, miblen, max_size_class;
@@ -23,8 +22,7 @@ get_max_size_class(void)
 	return (max_size_class);
 }
 
-TEST_BEGIN(test_size_classes)
-{
+TEST_BEGIN(test_size_classes) {
 	size_t size_class, max_size_class;
 	szind_t index, max_index;
 
@@ -80,8 +78,7 @@ TEST_BEGIN(test_size_classes)
 }
 TEST_END
 
-TEST_BEGIN(test_psize_classes)
-{
+TEST_BEGIN(test_psize_classes) {
 	size_t size_class, max_psz;
 	pszind_t pind, max_pind;
 
@@ -136,8 +133,7 @@ TEST_BEGIN(test_psize_classes)
 }
 TEST_END
 
-TEST_BEGIN(test_overflow)
-{
+TEST_BEGIN(test_overflow) {
 	size_t max_size_class, max_psz;
 
 	max_size_class = get_max_size_class();
@@ -176,8 +172,7 @@ TEST_BEGIN(test_overflow)
 TEST_END
 
 int
-main(void)
-{
+main(void) {
 	return (test(
 	    test_size_classes,
 	    test_psize_classes,

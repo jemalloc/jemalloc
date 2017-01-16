@@ -7,8 +7,7 @@ unsigned	base_ind_get(const base_t *base);
 
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_BASE_C_))
 JEMALLOC_INLINE unsigned
-base_ind_get(const base_t *base)
-{
+base_ind_get(const base_t *base) {
 	return (base->ind);
 }
 #endif

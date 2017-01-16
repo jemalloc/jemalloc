@@ -13,8 +13,7 @@ struct ring_s {
 };
 
 static void
-init_entries(ring_t *entries)
-{
+init_entries(ring_t *entries) {
 	unsigned i;
 
 	for (i = 0; i < NENTRIES; i++) {
@@ -24,8 +23,7 @@ init_entries(ring_t *entries)
 }
 
 static void
-test_independent_entries(ring_t *entries)
-{
+test_independent_entries(ring_t *entries) {
 	ring_t *t;
 	unsigned i, j;
 
@@ -61,8 +59,7 @@ test_independent_entries(ring_t *entries)
 	}
 }
 
-TEST_BEGIN(test_qr_one)
-{
+TEST_BEGIN(test_qr_one) {
 	ring_t entries[NENTRIES];
 
 	init_entries(entries);
@@ -71,8 +68,7 @@ TEST_BEGIN(test_qr_one)
 TEST_END
 
 static void
-test_entries_ring(ring_t *entries)
-{
+test_entries_ring(ring_t *entries) {
 	ring_t *t;
 	unsigned i, j;
 
@@ -104,27 +100,27 @@ test_entries_ring(ring_t *entries)
 	}
 }
 
-TEST_BEGIN(test_qr_after_insert)
-{
+TEST_BEGIN(test_qr_after_insert) {
 	ring_t entries[NENTRIES];
 	unsigned i;
 
 	init_entries(entries);
-	for (i = 1; i < NENTRIES; i++)
+	for (i = 1; i < NENTRIES; i++) {
 		qr_after_insert(&entries[i - 1], &entries[i], link);
+	}
 	test_entries_ring(entries);
 }
 TEST_END
 
-TEST_BEGIN(test_qr_remove)
-{
+TEST_BEGIN(test_qr_remove) {
 	ring_t entries[NENTRIES];
 	ring_t *t;
 	unsigned i, j;
 
 	init_entries(entries);
-	for (i = 1; i < NENTRIES; i++)
+	for (i = 1; i < NENTRIES; i++) {
 		qr_after_insert(&entries[i - 1], &entries[i], link);
+	}
 
 	for (i = 0; i < NENTRIES; i++) {
 		j = 0;
@@ -145,15 +141,15 @@ TEST_BEGIN(test_qr_remove)
 }
 TEST_END
 
-TEST_BEGIN(test_qr_before_insert)
-{
+TEST_BEGIN(test_qr_before_insert) {
 	ring_t entries[NENTRIES];
 	ring_t *t;
 	unsigned i, j;
 
 	init_entries(entries);
-	for (i = 1; i < NENTRIES; i++)
+	for (i = 1; i < NENTRIES; i++) {
 		qr_before_insert(&entries[i - 1], &entries[i], link);
+	}
 	for (i = 0; i < NENTRIES; i++) {
 		j = 0;
 		qr_foreach(t, &entries[i], link) {
@@ -184,8 +180,7 @@ TEST_BEGIN(test_qr_before_insert)
 TEST_END
 
 static void
-test_split_entries(ring_t *entries)
-{
+test_split_entries(ring_t *entries) {
 	ring_t *t;
 	unsigned i, j;
 
@@ -206,14 +201,14 @@ test_split_entries(ring_t *entries)
 	}
 }
 
-TEST_BEGIN(test_qr_meld_split)
-{
+TEST_BEGIN(test_qr_meld_split) {
 	ring_t entries[NENTRIES];
 	unsigned i;
 
 	init_entries(entries);
-	for (i = 1; i < NENTRIES; i++)
+	for (i = 1; i < NENTRIES; i++) {
 		qr_after_insert(&entries[i - 1], &entries[i], link);
+	}
 
 	qr_split(&entries[0], &entries[SPLIT_INDEX], ring_t, link);
 	test_split_entries(entries);
@@ -236,8 +231,7 @@ TEST_BEGIN(test_qr_meld_split)
 TEST_END
 
 int
-main(void)
-{
+main(void) {
 	return (test(
 	    test_qr_one,
 	    test_qr_after_insert,

@@ -8,14 +8,12 @@
  * potential OOM on e.g. 32-bit Windows.
  */
 static void
-purge(void)
-{
+purge(void) {
 	assert_d_eq(mallctl("arena.0.purge", NULL, NULL, NULL, 0), 0,
 	    "Unexpected mallctl error");
 }
 
-TEST_BEGIN(test_alignment_errors)
-{
+TEST_BEGIN(test_alignment_errors) {
 	size_t alignment;
 	void *p;
 
@@ -34,8 +32,7 @@ TEST_BEGIN(test_alignment_errors)
 }
 TEST_END
 
-TEST_BEGIN(test_oom_errors)
-{
+TEST_BEGIN(test_oom_errors) {
 	size_t alignment, size;
 	void *p;
 
@@ -73,16 +70,16 @@ TEST_BEGIN(test_oom_errors)
 }
 TEST_END
 
-TEST_BEGIN(test_alignment_and_size)
-{
+TEST_BEGIN(test_alignment_and_size) {
 #define	NITER 4
 	size_t alignment, size, total;
 	unsigned i;
 	int err;
 	void *ps[NITER];
 
-	for (i = 0; i < NITER; i++)
+	for (i = 0; i < NITER; i++) {
 		ps[i] = NULL;
+	}
 
 	for (alignment = 8;
 	    alignment <= MAXALIGN;
@@ -104,8 +101,9 @@ TEST_BEGIN(test_alignment_and_size)
 					    alignment, size, size, buf);
 				}
 				total += malloc_usable_size(ps[i]);
-				if (total >= (MAXALIGN << 1))
+				if (total >= (MAXALIGN << 1)) {
 					break;
+				}
 			}
 			for (i = 0; i < NITER; i++) {
 				if (ps[i] != NULL) {
@@ -121,8 +119,7 @@ TEST_BEGIN(test_alignment_and_size)
 TEST_END
 
 int
-main(void)
-{
+main(void) {
 	return (test(
 	    test_alignment_errors,
 	    test_oom_errors,
