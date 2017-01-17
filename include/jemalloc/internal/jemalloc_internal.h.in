@@ -162,7 +162,6 @@ static const bool have_thp =
 #include <mach/mach_error.h>
 #include <mach/mach_init.h>
 #include <mach/vm_map.h>
-#include <malloc/malloc.h>
 #endif
 
 #include "jemalloc/internal/ph.h"
