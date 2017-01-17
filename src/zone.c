@@ -100,9 +100,24 @@ static void	*zone_memalign(malloc_zone_t *zone, size_t alignment,
 static void	zone_free_definite_size(malloc_zone_t *zone, void *ptr,
     size_t size);
 static void	zone_destroy(malloc_zone_t *zone);
+static unsigned	zone_batch_malloc(struct _malloc_zone_t *zone, size_t size,
+    void **results, unsigned num_requested);
+static void	zone_batch_free(struct _malloc_zone_t *zone,
+    void **to_be_freed, unsigned num_to_be_freed);
+static size_t	zone_pressure_relief(struct _malloc_zone_t *zone, size_t goal);
 static size_t	zone_good_size(malloc_zone_t *zone, size_t size);
+static kern_return_t	zone_enumerator(task_t task, void *data, unsigned type_mask,
+    vm_address_t zone_address, memory_reader_t reader,
+    vm_range_recorder_t recorder);
+static boolean_t	zone_check(malloc_zone_t *zone);
+static void	zone_print(malloc_zone_t *zone, boolean_t verbose);
+static void	zone_log(malloc_zone_t *zone, void *address);
 static void	zone_force_lock(malloc_zone_t *zone);
 static void	zone_force_unlock(malloc_zone_t *zone);
+static void	zone_statistics(malloc_zone_t *zone,
+    malloc_statistics_t *stats);
+static boolean_t	zone_locked(malloc_zone_t *zone);
+static void	zone_reinit_lock(malloc_zone_t *zone);
 
 /******************************************************************************/
 /*
@@ -204,6 +219,39 @@ zone_destroy(malloc_zone_t *zone)
 	not_reached();
 }
 
+static unsigned
+zone_batch_malloc(struct _malloc_zone_t *zone, size_t size, void **results,
+    unsigned num_requested)
+{
+	unsigned i;
+
+	for (i = 0; i < num_requested; i++) {
+		results[i] = je_malloc(size);
+		if (!results[i])
+			break;
+	}
+
+	return i;
+}
+
+static void
+zone_batch_free(struct _malloc_zone_t *zone, void **to_be_freed,
+    unsigned num_to_be_freed)
+{
+	unsigned i;
+
+	for (i = 0; i < num_to_be_freed; i++) {
+		zone_free(zone, to_be_freed[i]);
+		to_be_freed[i] = NULL;
+	}
+}
+
+static size_t
+zone_pressure_relief(struct _malloc_zone_t *zone, size_t goal)
+{
+	return 0;
+}
+
 static size_t
 zone_good_size(malloc_zone_t *zone, size_t size)
 {
@@ -211,6 +259,30 @@ zone_good_size(malloc_zone_t *zone, size_t size)
 	if (size == 0)
 		size = 1;
 	return (s2u(size));
+}
+
+static kern_return_t
+zone_enumerator(task_t task, void *data, unsigned type_mask,
+    vm_address_t zone_address, memory_reader_t reader,
+    vm_range_recorder_t recorder)
+{
+	return KERN_SUCCESS;
+}
+
+static boolean_t
+zone_check(malloc_zone_t *zone)
+{
+	return true;
+}
+
+static void
+zone_print(malloc_zone_t *zone, boolean_t verbose)
+{
+}
+
+static void
+zone_log(malloc_zone_t *zone, void *address)
+{
 }
 
 static void
@@ -237,6 +309,31 @@ zone_force_unlock(malloc_zone_t *zone)
 }
 
 static void
+zone_statistics(malloc_zone_t *zone, malloc_statistics_t *stats)
+{
+	/* We make no effort to actually fill the values */
+	stats->blocks_in_use = 0;
+	stats->size_in_use = 0;
+	stats->max_size_in_use = 0;
+	stats->size_allocated = 0;
+}
+
+static boolean_t
+zone_locked(malloc_zone_t *zone)
+{
+	/* Pretend no lock is being held */
+	return false;
+}
+
+static void
+zone_reinit_lock(malloc_zone_t *zone)
+{
+	/* As of OSX 10.12, this function is only used when force_unlock would
+	 * be used if the zone version were < 9. So just use force_unlock. */
+	zone_force_unlock(zone);
+}
+
+static void
 zone_init(void)
 {
 
@@ -248,23 +345,23 @@ zone_init(void)
 	jemalloc_zone.realloc = zone_realloc;
 	jemalloc_zone.destroy = zone_destroy;
 	jemalloc_zone.zone_name = "jemalloc_zone";
-	jemalloc_zone.batch_malloc = NULL;
-	jemalloc_zone.batch_free = NULL;
+	jemalloc_zone.batch_malloc = zone_batch_malloc;
+	jemalloc_zone.batch_free = zone_batch_free;
 	jemalloc_zone.introspect = &jemalloc_zone_introspect;
-	jemalloc_zone.version = 8;
+	jemalloc_zone.version = 9;
 	jemalloc_zone.memalign = zone_memalign;
 	jemalloc_zone.free_definite_size = zone_free_definite_size;
-	jemalloc_zone.pressure_relief = NULL;
+	jemalloc_zone.pressure_relief = zone_pressure_relief;
 
-	jemalloc_zone_introspect.enumerator = NULL;
+	jemalloc_zone_introspect.enumerator = zone_enumerator;
 	jemalloc_zone_introspect.good_size = zone_good_size;
-	jemalloc_zone_introspect.check = NULL;
-	jemalloc_zone_introspect.print = NULL;
-	jemalloc_zone_introspect.log = NULL;
+	jemalloc_zone_introspect.check = zone_check;
+	jemalloc_zone_introspect.print = zone_print;
+	jemalloc_zone_introspect.log = zone_log;
 	jemalloc_zone_introspect.force_lock = zone_force_lock;
 	jemalloc_zone_introspect.force_unlock = zone_force_unlock;
-	jemalloc_zone_introspect.statistics = NULL;
-	jemalloc_zone_introspect.zone_locked = NULL;
+	jemalloc_zone_introspect.statistics = zone_statistics;
+	jemalloc_zone_introspect.zone_locked = zone_locked;
 	jemalloc_zone_introspect.enable_discharge_checking = NULL;
 	jemalloc_zone_introspect.disable_discharge_checking = NULL;
 	jemalloc_zone_introspect.discharge = NULL;
@@ -273,6 +370,7 @@ zone_init(void)
 #else
 	jemalloc_zone_introspect.enumerate_unavailable_without_blocks = NULL;
 #endif
+	jemalloc_zone_introspect.reinit_lock = zone_reinit_lock;
 }
 
 static malloc_zone_t *
