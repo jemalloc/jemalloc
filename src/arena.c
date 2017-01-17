@@ -895,8 +895,8 @@ arena_destroy_retained(tsdn_t *tsdn, arena_t *arena)
 	 * own metadata structures, but if deallocation fails, that is the
 	 * application's decision/problem.  In practice, retained extents are
 	 * leaked here if !config_munmap unless the application provided custom
-	 * extent hooks, so best practice to either enable munmap (and avoid dss
-	 * for arenas to be destroyed), or provide custom extent hooks that
+	 * extent hooks, so best practice is to either enable munmap (and avoid
+	 * dss for arenas to be destroyed), or provide custom extent hooks that
 	 * either unmap retained extents or track them for later use.
 	 */
 	for (i = 0; i < sizeof(arena->extents_retained)/sizeof(extent_heap_t);
