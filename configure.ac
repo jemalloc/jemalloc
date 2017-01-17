@@ -1774,37 +1774,6 @@ if test "x${enable_zone_allocator}" = "x1" ; then
     AC_MSG_ERROR([--enable-zone-allocator is only supported on Darwin])
   fi
   AC_DEFINE([JEMALLOC_ZONE], [ ])
-
-  dnl The szone version jumped from 3 to 6 between the OS X 10.5.x and 10.6
-  dnl releases.  malloc_zone_t and malloc_introspection_t have new fields in
-  dnl 10.6, which is the only source-level indication of the change.
-  AC_MSG_CHECKING([malloc zone version])
-  AC_DEFUN([JE_ZONE_PROGRAM],
-    [AC_LANG_PROGRAM(
-      [#include <malloc/malloc.h>],
-      [static int foo[[sizeof($1) $2 sizeof(void *) * $3 ? 1 : -1]]]
-    )])
-
-  AC_COMPILE_IFELSE([JE_ZONE_PROGRAM(malloc_zone_t,==,14)],[JEMALLOC_ZONE_VERSION=3],[
-  AC_COMPILE_IFELSE([JE_ZONE_PROGRAM(malloc_zone_t,==,15)],[JEMALLOC_ZONE_VERSION=5],[
-  AC_COMPILE_IFELSE([JE_ZONE_PROGRAM(malloc_zone_t,==,16)],[
-    AC_COMPILE_IFELSE([JE_ZONE_PROGRAM(malloc_introspection_t,==,9)],[JEMALLOC_ZONE_VERSION=6],[
-    AC_COMPILE_IFELSE([JE_ZONE_PROGRAM(malloc_introspection_t,==,13)],[JEMALLOC_ZONE_VERSION=7],[JEMALLOC_ZONE_VERSION=]
-  )])],[
-  AC_COMPILE_IFELSE([JE_ZONE_PROGRAM(malloc_zone_t,==,17)],[JEMALLOC_ZONE_VERSION=8],[
-  AC_COMPILE_IFELSE([JE_ZONE_PROGRAM(malloc_zone_t,>,17)],[JEMALLOC_ZONE_VERSION=9],[JEMALLOC_ZONE_VERSION=]
-  )])])])])
-  if test "x${JEMALLOC_ZONE_VERSION}" = "x"; then
-    AC_MSG_RESULT([unsupported])
-    AC_MSG_ERROR([Unsupported malloc zone version])
-  fi
-  if test "${JEMALLOC_ZONE_VERSION}" = 9; then
-    JEMALLOC_ZONE_VERSION=8
-    AC_MSG_RESULT([> 8])
-  else
-    AC_MSG_RESULT([$JEMALLOC_ZONE_VERSION])
-  fi
-  AC_DEFINE_UNQUOTED(JEMALLOC_ZONE_VERSION, [$JEMALLOC_ZONE_VERSION])
 fi
 
 dnl ============================================================================
