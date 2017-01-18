@@ -39,7 +39,7 @@ stats_arena_bins_print(void (*write_cb)(void *, const char *), void *cbopaque,
     bool json, bool large, bool huge, unsigned i)
 {
 	size_t page;
-	bool config_tcache, in_gap, in_gap_prev;
+	bool in_gap, in_gap_prev;
 	unsigned nbins, j;
 
 	CTL_GET("arenas.page", &page, size_t);
@@ -49,7 +49,6 @@ stats_arena_bins_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		malloc_cprintf(write_cb, cbopaque,
 		    "\t\t\t\t\"bins\": [\n");
 	} else {
-		CTL_GET("config.tcache", &config_tcache, bool);
 		if (config_tcache) {
 			malloc_cprintf(write_cb, cbopaque,
 			    "bins:           size ind    allocated      nmalloc"
@@ -536,7 +535,7 @@ stats_arena_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		    "\t\t\t\t\t\"allocated\": %zu\n", metadata_allocated);
 
 		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\t},\n");
+		    "\t\t\t\t}%s\n", (bins || large || huge) ? "," : "");
 	} else {
 		malloc_cprintf(write_cb, cbopaque,
 		    "metadata: mapped: %zu, allocated: %zu\n",
@@ -838,9 +837,11 @@ stats_general_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		malloc_cprintf(write_cb, cbopaque,
 		    "\t\t\t\"nbins\": %u,\n", nbins);
 
-		CTL_GET("arenas.nhbins", &uv, unsigned);
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\"nhbins\": %u,\n", uv);
+		if (config_tcache) {
+			CTL_GET("arenas.nhbins", &uv, unsigned);
+			malloc_cprintf(write_cb, cbopaque,
+			    "\t\t\t\"nhbins\": %u,\n", uv);
+		}
 
 		malloc_cprintf(write_cb, cbopaque,
 		    "\t\t\t\"bin\": [\n");
@@ -1022,31 +1023,37 @@ stats_print_helper(void (*write_cb)(void *, const char *), void *cbopaque,
 				    narenas, bins, large, huge);
 				if (json) {
 					malloc_cprintf(write_cb, cbopaque,
-					    "\t\t\t}%s\n", (ninitialized > 1) ?
-					    "," : "");
+					    "\t\t\t}%s\n", unmerged ?  "," :
+					    "");
 				}
 			}
 
 			/* Unmerged stats. */
-			for (i = j = 0; i < narenas; i++) {
-				if (initialized[i]) {
-					if (json) {
-						j++;
-						malloc_cprintf(write_cb,
-						    cbopaque,
-						    "\t\t\t\"%u\": {\n", i);
-					} else {
-						malloc_cprintf(write_cb,
-						    cbopaque, "\narenas[%u]:\n",
-						    i);
-					}
-					stats_arena_print(write_cb, cbopaque,
-					    json, i, bins, large, huge);
-					if (json) {
-						malloc_cprintf(write_cb,
-						    cbopaque,
-						    "\t\t\t}%s\n", (j <
-						    ninitialized) ? "," : "");
+			if (unmerged) {
+				for (i = j = 0; i < narenas; i++) {
+					if (initialized[i]) {
+						if (json) {
+							j++;
+							malloc_cprintf(write_cb,
+							    cbopaque,
+							    "\t\t\t\"%u\": {\n",
+							    i);
+						} else {
+							malloc_cprintf(write_cb,
+							    cbopaque,
+							    "\narenas[%u]:\n",
+							    i);
+						}
+						stats_arena_print(write_cb,
+						    cbopaque, json, i, bins,
+						    large, huge);
+						if (json) {
+							malloc_cprintf(write_cb,
+							    cbopaque,
+							    "\t\t\t}%s\n", (j <
+							    ninitialized) ? ","
+							    : "");
+						}
 					}
 				}
 			}
