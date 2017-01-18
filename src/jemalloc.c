@@ -1352,108 +1352,405 @@ malloc_init_hard(void)
  */
 /******************************************************************************/
 /*
- * Begin malloc(3)-compatible functions.
+ * Begin allocation-path internal functions and data structures.
  */
 
-static void *
-ialloc_prof_sample(tsd_t *tsd, size_t usize, szind_t ind, bool zero,
-    prof_tctx_t *tctx, bool slow_path)
-{
-	void *p;
+/*
+ * Settings determined by the documented behavior of the allocation functions.
+ */
+typedef struct static_opts_s static_opts_t;
+struct static_opts_s {
+	/* Whether or not allocations of size 0 should be treated as size 1. */
+	bool bump_empty_alloc;
+	/*
+	 * Whether to assert that allocations are not of size 0 (after any
+	 * bumping).
+	 */
+	bool assert_nonempty_alloc;
 
-	if (tctx == NULL)
-		return (NULL);
-	if (usize <= SMALL_MAXCLASS) {
-		szind_t ind_large = size2index(LARGE_MINCLASS);
-		p = ialloc(tsd, LARGE_MINCLASS, ind_large, zero, slow_path);
-		if (p == NULL)
-			return (NULL);
-		arena_prof_promote(tsd_tsdn(tsd), iealloc(tsd_tsdn(tsd), p), p,
-		    usize);
-	} else
-		p = ialloc(tsd, usize, ind, zero, slow_path);
+	/*
+	 * Whether or not to modify the 'result' argument to malloc in case of
+	 * error.
+	 */
+	bool null_out_result_on_error;
+	/* Whether to set errno when we encounter an error condition. */
+	bool set_errno_on_error;
 
-	return (p);
-}
+	/*
+	 * The minimum valid alignment for functions requesting aligned storage.
+	 */
+	size_t min_alignment;
 
-JEMALLOC_ALWAYS_INLINE_C void *
-ialloc_prof(tsd_t *tsd, size_t usize, szind_t ind, bool zero, bool slow_path)
-{
-	void *p;
-	prof_tctx_t *tctx;
+	/* The error string to use if we oom. */
+	const char *oom_string;
+	/* The error string to use if the passed-in alignment is invalid. */
+	const char *invalid_alignment_string;
 
-	tctx = prof_alloc_prep(tsd, usize, prof_active_get_unlocked(), true);
-	if (unlikely((uintptr_t)tctx != (uintptr_t)1U))
-		p = ialloc_prof_sample(tsd, usize, ind, zero, tctx, slow_path);
-	else
-		p = ialloc(tsd, usize, ind, zero, slow_path);
-	if (unlikely(p == NULL)) {
-		prof_alloc_rollback(tsd, tctx, true);
-		return (NULL);
-	}
-	prof_malloc(tsd_tsdn(tsd), iealloc(tsd_tsdn(tsd), p), p, usize, tctx);
+	/*
+	 * False if we're configured to skip some time-consuming operations.
+	 *
+	 * This isn't really a malloc "behavior", but it acts as a useful
+	 * summary of several other static (or at least, static after program
+	 * initialization) options.
+	 */
+	bool slow;
+};
 
-	return (p);
+JEMALLOC_ALWAYS_INLINE_C void
+static_opts_init(static_opts_t *static_opts) {
+	static_opts->bump_empty_alloc = false;
+	static_opts->assert_nonempty_alloc = false;
+	static_opts->null_out_result_on_error = false;
+	static_opts->set_errno_on_error = false;
+	static_opts->min_alignment = 0;
+	static_opts->oom_string = "";
+	static_opts->invalid_alignment_string = "";
+	static_opts->slow = false;
 }
 
 /*
- * ialloc_body() is inlined so that fast and slow paths are generated separately
- * with statically known slow_path.
- *
- * This function guarantees that *tsdn is non-NULL on success.
+ * These correspond to the macros in jemalloc/jemalloc_macros.h.  Broadly, we
+ * should have one constant here per magic value there.  Note however that the
+ * representations need not be related.
  */
-JEMALLOC_ALWAYS_INLINE_C void *
-ialloc_body(size_t size, bool zero, tsdn_t **tsdn, size_t *usize,
-    bool slow_path)
-{
-	tsd_t *tsd;
-	szind_t ind;
+#define TCACHE_IND_NONE ((unsigned)-1)
+#define TCACHE_IND_AUTOMATIC ((unsigned)-2)
+#define ARENA_IND_AUTOMATIC ((unsigned)-1)
 
-	if (slow_path && unlikely(malloc_init())) {
-		*tsdn = NULL;
-		return (NULL);
-	}
-
-	tsd = tsd_fetch();
-	*tsdn = tsd_tsdn(tsd);
-	witness_assert_lockless(tsd_tsdn(tsd));
-
-	ind = size2index(size);
-	if (unlikely(ind >= NSIZES))
-		return (NULL);
-
-	if (config_stats || (config_prof && opt_prof)) {
-		*usize = index2size(ind);
-		assert(*usize > 0 && *usize <= LARGE_MAXCLASS);
-	}
-
-	if (config_prof && opt_prof)
-		return (ialloc_prof(tsd, *usize, ind, zero, slow_path));
-
-	return (ialloc(tsd, size, ind, zero, slow_path));
-}
+typedef struct dynamic_opts_s dynamic_opts_t;
+struct dynamic_opts_s {
+	void **result;
+	size_t num_items;
+	size_t item_size;
+	size_t alignment;
+	bool zero;
+	unsigned tcache_ind;
+	unsigned arena_ind;
+};
 
 JEMALLOC_ALWAYS_INLINE_C void
-ialloc_post_check(void *ret, tsdn_t *tsdn, size_t usize, const char *func,
-    bool update_errno, bool slow_path)
-{
-	assert(!tsdn_null(tsdn) || ret == NULL);
-
-	if (unlikely(ret == NULL)) {
-		if (slow_path && config_xmalloc && unlikely(opt_xmalloc)) {
-			malloc_printf("<jemalloc>: Error in %s(): out of "
-			    "memory\n", func);
-			abort();
-		}
-		if (update_errno)
-			set_errno(ENOMEM);
-	}
-	if (config_stats && likely(ret != NULL)) {
-		assert(usize == isalloc(tsdn, iealloc(tsdn, ret), ret));
-		*tsd_thread_allocatedp_get(tsdn_tsd(tsdn)) += usize;
-	}
-	witness_assert_lockless(tsdn);
+dynamic_opts_init(dynamic_opts_t *dynamic_opts) {
+	dynamic_opts->result = NULL;
+	dynamic_opts->num_items = 0;
+	dynamic_opts->item_size = 0;
+	dynamic_opts->alignment = 0;
+	dynamic_opts->zero = false;
+	dynamic_opts->tcache_ind = TCACHE_IND_AUTOMATIC;
+	dynamic_opts->arena_ind = ARENA_IND_AUTOMATIC;
 }
+
+/* ind is ignored if dopts->alignment > 0. */
+JEMALLOC_ALWAYS_INLINE_C void *
+imalloc_no_sample(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd,
+    size_t size, size_t usize, szind_t ind) {
+	tcache_t *tcache;
+	arena_t *arena;
+
+	/* Fill in the tcache. */
+	if (dopts->tcache_ind == TCACHE_IND_AUTOMATIC) {
+		tcache = tcache_get(tsd, true);
+	} else if (dopts->tcache_ind == TCACHE_IND_NONE) {
+		tcache = NULL;
+	} else {
+		tcache = tcaches_get(tsd, dopts->tcache_ind);
+	}
+
+	/* Fill in the arena. */
+	if (dopts->arena_ind == ARENA_IND_AUTOMATIC) {
+		/*
+		 * In case of automatic arena management, we defer arena
+		 * computation until as late as we can, hoping to fill the
+		 * allocation out of the tcache.
+		 */
+		arena = NULL;
+	} else {
+		arena = arena_get(tsd_tsdn(tsd), dopts->arena_ind, true);
+	}
+
+	if (unlikely(dopts->alignment != 0)) {
+		return ipalloct(tsd_tsdn(tsd), usize, dopts->alignment,
+		    dopts->zero, tcache, arena);
+	}
+
+	return iallocztm(tsd_tsdn(tsd), size, ind, dopts->zero, tcache, false,
+	    arena, sopts->slow);
+}
+
+JEMALLOC_ALWAYS_INLINE_C void *
+imalloc_sample(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd,
+    size_t usize, szind_t ind) {
+	void *ret;
+
+	/*
+	 * For small allocations, sampling bumps the usize.  If so, we allocate
+	 * from the ind_large bucket.
+	 */
+	szind_t ind_large;
+	size_t bumped_usize = usize;
+
+	if (usize <= SMALL_MAXCLASS) {
+		assert(((dopts->alignment == 0) ? s2u(LARGE_MINCLASS) :
+		    sa2u(LARGE_MINCLASS, dopts->alignment)) == LARGE_MINCLASS);
+		ind_large = size2index(LARGE_MINCLASS);
+		bumped_usize = s2u(LARGE_MINCLASS);
+		ret = imalloc_no_sample(sopts, dopts, tsd, bumped_usize,
+		    bumped_usize, ind_large);
+		if (unlikely(ret == NULL)) {
+			return NULL;
+		}
+		arena_prof_promote(tsd_tsdn(tsd), iealloc(tsd_tsdn(tsd), ret),
+		    ret, usize);
+	} else {
+		ret = imalloc_no_sample(sopts, dopts, tsd, usize, usize, ind);
+	}
+
+	return ret;
+}
+
+/*
+ * Returns true if the allocation will overflow, and false otherwise.  Sets
+ * *size to the product either way.
+ */
+JEMALLOC_ALWAYS_INLINE_C bool
+compute_size_with_overflow(dynamic_opts_t *dopts, size_t *size) {
+	/*
+	 * This function is just num_items * item_size, except that we have to
+	 * check for overflow.
+	 */
+
+	/* A size_t with its high-half bits all set to 1. */
+	const static size_t high_bits = SIZE_T_MAX >> (sizeof(size_t) * 8 / 2);
+
+	*size = dopts->item_size * dopts->num_items;
+
+	if (unlikely(*size == 0)) {
+		return (dopts->num_items != 0 && dopts->item_size != 0);
+	}
+
+	/*
+	 * We got a non-zero size, but we don't know if we overflowed to get
+	 * there.  To avoid having to do a divide, we'll be clever and note that
+	 * if both A and B can be represented in N/2 bits, then their product
+	 * can be represented in N bits (without the possibility of overflow).
+	 */
+	if (likely((high_bits & (dopts->num_items | dopts->item_size)) == 0)) {
+		return false;
+	}
+	if (likely(*size / dopts->item_size == dopts->num_items)) {
+		return false;
+	}
+	return true;
+}
+
+JEMALLOC_ALWAYS_INLINE_C int
+imalloc_body(static_opts_t *sopts, dynamic_opts_t *dopts) {
+	/* Where the actual allocated memory will live. */
+	void *allocation = NULL;
+	/* Filled in by compute_size_with_overflow below. */
+	size_t size = 0;
+	/* We compute a value for this right before allocating. */
+	tsd_t *tsd = NULL;
+	/*
+	 * For unaligned allocations, we need only ind.  For aligned
+	 * allocations, or in case of stats or profiling we need usize.
+	 *
+	 * These are actually dead stores, in that their values are reset before
+	 * any branch on their value is taken.  Sometimes though, it's
+	 * convenient to pass them as arguments before this point.  To avoid
+	 * undefined behavior then, we initialize them with dummy stores.
+	 */
+	szind_t ind = 0;
+	size_t usize = 0;
+
+	/* Initialize (if we can't prove we don't have to). */
+	if (sopts->slow) {
+		if (unlikely(malloc_init())) {
+			goto label_oom;
+		}
+	}
+
+	/* Compute the amount of memory the user wants. */
+	bool overflow = compute_size_with_overflow(dopts, &size);
+	if (unlikely(overflow)) {
+		goto label_oom;
+	}
+
+	/* Validate the user input. */
+	if (sopts->bump_empty_alloc) {
+		if (unlikely(size == 0)) {
+			size = 1;
+		}
+	}
+
+	if (sopts->assert_nonempty_alloc) {
+		assert (size != 0);
+	}
+
+	if (unlikely(dopts->alignment < sopts->min_alignment
+	    || (dopts->alignment & (dopts->alignment - 1)) != 0)) {
+		goto label_invalid_alignment;
+	}
+
+	/* This is the beginning of the "core" algorithm. */
+
+	if (dopts->alignment == 0) {
+		ind = size2index(size);
+		if (unlikely(ind >= NSIZES)) {
+			goto label_oom;
+		}
+		if (config_stats || (config_prof && opt_prof)) {
+			usize = index2size(ind);
+			assert(usize > 0 && usize <= LARGE_MAXCLASS);
+		}
+	} else {
+		usize = sa2u(size, dopts->alignment);
+		if (unlikely(usize == 0 || usize > LARGE_MAXCLASS)) {
+			goto label_oom;
+		}
+	}
+
+	/*
+	 * We always need the tsd, even if we aren't going to use the tcache for
+	 * some reason.  Let's grab it right away.
+	 */
+	tsd = tsd_fetch();
+	witness_assert_lockless(tsd_tsdn(tsd));
+
+
+	/* If profiling is on, get our profiling context. */
+	if (config_prof && opt_prof) {
+		/*
+		 * Note that if we're going down this path, usize must have been
+		 * initialized in the previous if statement.
+		 */
+		prof_tctx_t *tctx = prof_alloc_prep(
+		    tsd, usize, prof_active_get_unlocked(), true);
+		if (likely((uintptr_t)tctx == (uintptr_t)1U)) {
+			allocation = imalloc_no_sample(
+			    sopts, dopts, tsd, usize, usize, ind);
+		} else if ((uintptr_t)tctx > (uintptr_t)1U) {
+			/*
+			 * Note that ind might still be 0 here.  This is fine;
+			 * imalloc_sample ignores ind if dopts->alignment > 0.
+			 */
+			allocation = imalloc_sample(
+			    sopts, dopts, tsd, usize, ind);
+		} else {
+			allocation = NULL;
+		}
+
+		if (unlikely(allocation == NULL)) {
+			prof_alloc_rollback(tsd, tctx, true);
+			goto label_oom;
+		}
+
+		prof_malloc(tsd_tsdn(tsd), iealloc(tsd_tsdn(tsd), allocation),
+		    allocation, usize, tctx);
+
+	} else {
+		/*
+		 * If dopts->alignment > 0, then ind is still 0, but usize was
+		 * computed in the previous if statement.  Down the positive
+		 * alignment path, imalloc_no_sample ind and size (relying only
+		 * on usize).
+		 */
+		allocation = imalloc_no_sample(sopts, dopts, tsd, usize, usize,
+		    ind);
+		if (unlikely(allocation == NULL)) {
+			goto label_oom;
+		}
+	}
+
+	/*
+	 * Allocation has been done at this point.  We still have some
+	 * post-allocation work to do though.
+	 */
+	assert(dopts->alignment == 0
+	    || ((uintptr_t)allocation & (dopts->alignment - 1)) == ZU(0));
+
+	if (config_stats) {
+		assert(usize == isalloc(tsd_tsdn(tsd), iealloc(tsd_tsdn(tsd),
+		    allocation), allocation));
+		*tsd_thread_allocatedp_get(tsd) += usize;
+	}
+
+	if (sopts->slow) {
+		UTRACE(0, size, allocation);
+	}
+
+	witness_assert_lockless(tsd_tsdn(tsd));
+
+
+
+	/* Success! */
+	*dopts->result = allocation;
+	return 0;
+
+label_oom:
+	if (unlikely(sopts->slow) && config_xmalloc && unlikely(opt_xmalloc)) {
+		malloc_write(sopts->oom_string);
+		abort();
+	}
+
+	if (sopts->slow) {
+		UTRACE(NULL, size, NULL);
+	}
+
+	witness_assert_lockless(tsd_tsdn(tsd));
+
+	if (sopts->set_errno_on_error) {
+		set_errno(ENOMEM);
+	}
+
+	if (sopts->null_out_result_on_error) {
+		*dopts->result = NULL;
+	}
+
+	return ENOMEM;
+
+	/*
+	 * This label is only jumped to by one goto; we move it out of line
+	 * anyways to avoid obscuring the non-error paths, and for symmetry with
+	 * the oom case.
+	 */
+label_invalid_alignment:
+	if (config_xmalloc && unlikely(opt_xmalloc)) {
+		malloc_write(sopts->invalid_alignment_string);
+		abort();
+	}
+
+	if (sopts->set_errno_on_error) {
+		set_errno(EINVAL);
+	}
+
+	if (sopts->slow) {
+		UTRACE(NULL, size, NULL);
+	}
+
+	witness_assert_lockless(tsd_tsdn(tsd));
+
+	if (sopts->null_out_result_on_error) {
+		*dopts->result = NULL;
+	}
+
+	return EINVAL;
+}
+
+/* Returns the errno-style error code of the allocation. */
+JEMALLOC_ALWAYS_INLINE_C int
+imalloc(static_opts_t *sopts, dynamic_opts_t *dopts) {
+	if (unlikely(malloc_slow)) {
+		sopts->slow = true;
+		return imalloc_body(sopts, dopts);
+	} else {
+		sopts->slow = false;
+		return imalloc_body(sopts, dopts);
+	}
+}
+/******************************************************************************/
+/*
+ * Begin malloc(3)-compatible functions.
+ */
 
 JEMALLOC_EXPORT JEMALLOC_ALLOCATOR JEMALLOC_RESTRICT_RETURN
 void JEMALLOC_NOTHROW *
@@ -1461,141 +1758,51 @@ JEMALLOC_ATTR(malloc) JEMALLOC_ALLOC_SIZE(1)
 je_malloc(size_t size)
 {
 	void *ret;
-	tsdn_t *tsdn;
-	size_t usize JEMALLOC_CC_SILENCE_INIT(0);
+	static_opts_t sopts;
+	dynamic_opts_t dopts;
 
-	if (size == 0)
-		size = 1;
+	static_opts_init(&sopts);
+	dynamic_opts_init(&dopts);
 
-	if (likely(!malloc_slow)) {
-		ret = ialloc_body(size, false, &tsdn, &usize, false);
-		ialloc_post_check(ret, tsdn, usize, "malloc", true, false);
-	} else {
-		ret = ialloc_body(size, false, &tsdn, &usize, true);
-		ialloc_post_check(ret, tsdn, usize, "malloc", true, true);
-		UTRACE(0, size, ret);
-	}
+	sopts.bump_empty_alloc = true;
+	sopts.null_out_result_on_error = true;
+	sopts.set_errno_on_error = true;
+	sopts.oom_string = "<jemalloc>: Error in malloc(): out of memory\n";
 
-	return (ret);
-}
+	dopts.result = &ret;
+	dopts.num_items = 1;
+	dopts.item_size = size;
 
-static void *
-imemalign_prof_sample(tsd_t *tsd, size_t alignment, size_t usize,
-    prof_tctx_t *tctx)
-{
-	void *p;
+	imalloc(&sopts, &dopts);
 
-	if (tctx == NULL)
-		return (NULL);
-	if (usize <= SMALL_MAXCLASS) {
-		assert(sa2u(LARGE_MINCLASS, alignment) == LARGE_MINCLASS);
-		p = ipalloc(tsd, LARGE_MINCLASS, alignment, false);
-		if (p == NULL)
-			return (NULL);
-		arena_prof_promote(tsd_tsdn(tsd), iealloc(tsd_tsdn(tsd), p), p,
-		    usize);
-	} else
-		p = ipalloc(tsd, usize, alignment, false);
-
-	return (p);
-}
-
-JEMALLOC_ALWAYS_INLINE_C void *
-imemalign_prof(tsd_t *tsd, size_t alignment, size_t usize)
-{
-	void *p;
-	prof_tctx_t *tctx;
-
-	tctx = prof_alloc_prep(tsd, usize, prof_active_get_unlocked(), true);
-	if (unlikely((uintptr_t)tctx != (uintptr_t)1U))
-		p = imemalign_prof_sample(tsd, alignment, usize, tctx);
-	else
-		p = ipalloc(tsd, usize, alignment, false);
-	if (unlikely(p == NULL)) {
-		prof_alloc_rollback(tsd, tctx, true);
-		return (NULL);
-	}
-	prof_malloc(tsd_tsdn(tsd), iealloc(tsd_tsdn(tsd), p), p, usize, tctx);
-
-	return (p);
-}
-
-JEMALLOC_ATTR(nonnull(1))
-static int
-imemalign(void **memptr, size_t alignment, size_t size, size_t min_alignment)
-{
-	int ret;
-	tsd_t *tsd;
-	size_t usize;
-	void *result;
-
-	assert(min_alignment != 0);
-
-	if (unlikely(malloc_init())) {
-		tsd = NULL;
-		result = NULL;
-		goto label_oom;
-	}
-	tsd = tsd_fetch();
-	witness_assert_lockless(tsd_tsdn(tsd));
-	if (size == 0)
-		size = 1;
-
-	/* Make sure that alignment is a large enough power of 2. */
-	if (unlikely(((alignment - 1) & alignment) != 0
-	    || (alignment < min_alignment))) {
-		if (config_xmalloc && unlikely(opt_xmalloc)) {
-			malloc_write("<jemalloc>: Error allocating "
-			    "aligned memory: invalid alignment\n");
-			abort();
-		}
-		result = NULL;
-		ret = EINVAL;
-		goto label_return;
-	}
-
-	usize = sa2u(size, alignment);
-	if (unlikely(usize == 0 || usize > LARGE_MAXCLASS)) {
-		result = NULL;
-		goto label_oom;
-	}
-
-	if (config_prof && opt_prof)
-		result = imemalign_prof(tsd, alignment, usize);
-	else
-		result = ipalloc(tsd, usize, alignment, false);
-	if (unlikely(result == NULL))
-		goto label_oom;
-	assert(((uintptr_t)result & (alignment - 1)) == ZU(0));
-
-	*memptr = result;
-	ret = 0;
-label_return:
-	if (config_stats && likely(result != NULL)) {
-		assert(usize == isalloc(tsd_tsdn(tsd), iealloc(tsd_tsdn(tsd),
-		    result), result));
-		*tsd_thread_allocatedp_get(tsd) += usize;
-	}
-	UTRACE(0, size, result);
-	witness_assert_lockless(tsd_tsdn(tsd));
-	return (ret);
-label_oom:
-	assert(result == NULL);
-	if (config_xmalloc && unlikely(opt_xmalloc)) {
-		malloc_write("<jemalloc>: Error allocating aligned memory: "
-		    "out of memory\n");
-		abort();
-	}
-	ret = ENOMEM;
-	witness_assert_lockless(tsd_tsdn(tsd));
-	goto label_return;
+	return ret;
 }
 
 JEMALLOC_EXPORT int JEMALLOC_NOTHROW
 JEMALLOC_ATTR(nonnull(1))
 je_posix_memalign(void **memptr, size_t alignment, size_t size)
 {
-	return (imemalign(memptr, alignment, size, sizeof(void *)));
+	int ret;
+	static_opts_t sopts;
+	dynamic_opts_t dopts;
+
+	static_opts_init(&sopts);
+	dynamic_opts_init(&dopts);
+
+	sopts.bump_empty_alloc = true;
+	sopts.min_alignment = sizeof(void *);
+	sopts.oom_string =
+	    "<jemalloc>: Error allocating aligned memory: out of memory\n";
+	sopts.invalid_alignment_string =
+	    "<jemalloc>: Error allocating aligned memory: invalid alignment\n";
+
+	dopts.result = memptr;
+	dopts.num_items = 1;
+	dopts.item_size = size;
+	dopts.alignment = alignment;
+
+	ret = imalloc(&sopts, &dopts);
+	return ret;
 }
 
 JEMALLOC_EXPORT JEMALLOC_ALLOCATOR JEMALLOC_RESTRICT_RETURN
@@ -1604,12 +1811,28 @@ JEMALLOC_ATTR(malloc) JEMALLOC_ALLOC_SIZE(2)
 je_aligned_alloc(size_t alignment, size_t size)
 {
 	void *ret;
-	int err;
 
-	if (unlikely((err = imemalign(&ret, alignment, size, 1)) != 0)) {
-		ret = NULL;
-		set_errno(err);
-	}
+	static_opts_t sopts;
+	dynamic_opts_t dopts;
+
+	static_opts_init(&sopts);
+	dynamic_opts_init(&dopts);
+
+	sopts.bump_empty_alloc = true;
+	sopts.null_out_result_on_error = true;
+	sopts.set_errno_on_error = true;
+	sopts.min_alignment = 1;
+	sopts.oom_string =
+	    "<jemalloc>: Error allocating aligned memory: out of memory\n";
+	sopts.invalid_alignment_string =
+	    "<jemalloc>: Error allocating aligned memory: invalid alignment\n";
+
+	dopts.result = &ret;
+	dopts.num_items = 1;
+	dopts.item_size = size;
+	dopts.alignment = alignment;
+
+	imalloc(&sopts, &dopts);
 	return (ret);
 }
 
@@ -1619,35 +1842,25 @@ JEMALLOC_ATTR(malloc) JEMALLOC_ALLOC_SIZE2(1, 2)
 je_calloc(size_t num, size_t size)
 {
 	void *ret;
-	tsdn_t *tsdn;
-	size_t num_size;
-	size_t usize JEMALLOC_CC_SILENCE_INIT(0);
+	static_opts_t sopts;
+	dynamic_opts_t dopts;
 
-	num_size = num * size;
-	if (unlikely(num_size == 0)) {
-		if (num == 0 || size == 0)
-			num_size = 1;
-		else
-			num_size = LARGE_MAXCLASS + 1; /* Trigger OOM. */
-	/*
-	 * Try to avoid division here.  We know that it isn't possible to
-	 * overflow during multiplication if neither operand uses any of the
-	 * most significant half of the bits in a size_t.
-	 */
-	} else if (unlikely(((num | size) & (SIZE_T_MAX << (sizeof(size_t) <<
-	    2))) && (num_size / size != num)))
-		num_size = LARGE_MAXCLASS + 1; /* size_t overflow. */
+	static_opts_init(&sopts);
+	dynamic_opts_init(&dopts);
 
-	if (likely(!malloc_slow)) {
-		ret = ialloc_body(num_size, true, &tsdn, &usize, false);
-		ialloc_post_check(ret, tsdn, usize, "calloc", true, false);
-	} else {
-		ret = ialloc_body(num_size, true, &tsdn, &usize, true);
-		ialloc_post_check(ret, tsdn, usize, "calloc", true, true);
-		UTRACE(0, num_size, ret);
-	}
+	sopts.bump_empty_alloc = true;
+	sopts.null_out_result_on_error = true;
+	sopts.set_errno_on_error = true;
+	sopts.oom_string = "<jemalloc>: Error in calloc(): out of memory\n";
 
-	return (ret);
+	dopts.result = &ret;
+	dopts.num_items = num;
+	dopts.item_size = size;
+	dopts.zero = true;
+
+	imalloc(&sopts, &dopts);
+
+	return ret;
 }
 
 static void *
@@ -1795,11 +2008,7 @@ je_realloc(void *ptr, size_t size)
 		tsdn = tsd_tsdn(tsd);
 	} else {
 		/* realloc(NULL, size) is equivalent to malloc(size). */
-		if (likely(!malloc_slow))
-			ret = ialloc_body(size, false, &tsdn, &usize, false);
-		else
-			ret = ialloc_body(size, false, &tsdn, &usize, true);
-		assert(!tsdn_null(tsdn) || ret == NULL);
+		return je_malloc(size);
 	}
 
 	if (unlikely(ret == NULL)) {
@@ -1852,10 +2061,28 @@ void JEMALLOC_NOTHROW *
 JEMALLOC_ATTR(malloc)
 je_memalign(size_t alignment, size_t size)
 {
-	void *ret JEMALLOC_CC_SILENCE_INIT(NULL);
-	if (unlikely(imemalign(&ret, alignment, size, 1) != 0))
-		ret = NULL;
-	return (ret);
+	void *ret;
+	static_opts_t sopts;
+	dynamic_opts_t dopts;
+
+	static_opts_init(&sopts);
+	dynamic_opts_init(&dopts);
+
+	sopts.bump_empty_alloc = true;
+	sopts.min_alignment = 1;
+	sopts.oom_string =
+	    "<jemalloc>: Error allocating aligned memory: out of memory\n";
+	sopts.invalid_alignment_string =
+	    "<jemalloc>: Error allocating aligned memory: invalid alignment\n";
+	sopts.null_out_result_on_error = true;
+
+	dopts.result = &ret;
+	dopts.num_items = 1;
+	dopts.item_size = size;
+	dopts.alignment = alignment;
+
+	imalloc(&sopts, &dopts);
+	return ret;
 }
 #endif
 
@@ -1865,9 +2092,29 @@ void JEMALLOC_NOTHROW *
 JEMALLOC_ATTR(malloc)
 je_valloc(size_t size)
 {
-	void *ret JEMALLOC_CC_SILENCE_INIT(NULL);
-	if (unlikely(imemalign(&ret, PAGE, size, 1) != 0))
-		ret = NULL;
+	void *ret;
+
+	static_opts_t sopts;
+	dynamic_opts_t dopts;
+
+	static_opts_init(&sopts);
+	dynamic_opts_init(&dopts);
+
+	sopts.bump_empty_alloc = true;
+	sopts.null_out_result_on_error = true;
+	sopts.min_alignment = PAGE;
+	sopts.oom_string =
+	    "<jemalloc>: Error allocating aligned memory: out of memory\n";
+	sopts.invalid_alignment_string =
+	    "<jemalloc>: Error allocating aligned memory: invalid alignment\n";
+
+	dopts.result = &ret;
+	dopts.num_items = 1;
+	dopts.item_size = size;
+	dopts.alignment = PAGE;
+
+	imalloc(&sopts, &dopts);
+
 	return (ret);
 }
 #endif
@@ -1930,183 +2177,49 @@ int	__posix_memalign(void** r, size_t a, size_t s)
  * Begin non-standard functions.
  */
 
-JEMALLOC_ALWAYS_INLINE_C bool
-imallocx_flags_decode(tsd_t *tsd, size_t size, int flags, size_t *usize,
-    size_t *alignment, bool *zero, tcache_t **tcache, arena_t **arena)
-{
-	if ((flags & MALLOCX_LG_ALIGN_MASK) == 0) {
-		*alignment = 0;
-		*usize = s2u(size);
-	} else {
-		*alignment = MALLOCX_ALIGN_GET_SPECIFIED(flags);
-		*usize = sa2u(size, *alignment);
-	}
-	if (unlikely(*usize == 0 || *usize > LARGE_MAXCLASS))
-		return (true);
-	*zero = MALLOCX_ZERO_GET(flags);
-	if ((flags & MALLOCX_TCACHE_MASK) != 0) {
-		if ((flags & MALLOCX_TCACHE_MASK) == MALLOCX_TCACHE_NONE)
-			*tcache = NULL;
-		else
-			*tcache = tcaches_get(tsd, MALLOCX_TCACHE_GET(flags));
-	} else
-		*tcache = tcache_get(tsd, true);
-	if ((flags & MALLOCX_ARENA_MASK) != 0) {
-		unsigned arena_ind = MALLOCX_ARENA_GET(flags);
-		*arena = arena_get(tsd_tsdn(tsd), arena_ind, true);
-		if (unlikely(*arena == NULL))
-			return (true);
-	} else
-		*arena = NULL;
-	return (false);
-}
-
-JEMALLOC_ALWAYS_INLINE_C void *
-imallocx_flags(tsdn_t *tsdn, size_t usize, size_t alignment, bool zero,
-    tcache_t *tcache, arena_t *arena, bool slow_path)
-{
-	szind_t ind;
-
-	if (unlikely(alignment != 0))
-		return (ipalloct(tsdn, usize, alignment, zero, tcache, arena));
-	ind = size2index(usize);
-	assert(ind < NSIZES);
-	return (iallocztm(tsdn, usize, ind, zero, tcache, false, arena,
-	    slow_path));
-}
-
-static void *
-imallocx_prof_sample(tsdn_t *tsdn, size_t usize, size_t alignment, bool zero,
-    tcache_t *tcache, arena_t *arena, bool slow_path)
-{
-	void *p;
-
-	if (usize <= SMALL_MAXCLASS) {
-		assert(((alignment == 0) ? s2u(LARGE_MINCLASS) :
-		    sa2u(LARGE_MINCLASS, alignment)) == LARGE_MINCLASS);
-		p = imallocx_flags(tsdn, LARGE_MINCLASS, alignment, zero,
-		    tcache, arena, slow_path);
-		if (p == NULL)
-			return (NULL);
-		arena_prof_promote(tsdn, iealloc(tsdn, p), p, usize);
-	} else
-		p = imallocx_flags(tsdn, usize, alignment, zero, tcache, arena,
-		    slow_path);
-
-	return (p);
-}
-
-JEMALLOC_ALWAYS_INLINE_C void *
-imallocx_prof(tsd_t *tsd, size_t size, int flags, size_t *usize, bool slow_path)
-{
-	void *p;
-	size_t alignment;
-	bool zero;
-	tcache_t *tcache;
-	arena_t *arena;
-	prof_tctx_t *tctx;
-
-	if (unlikely(imallocx_flags_decode(tsd, size, flags, usize, &alignment,
-	    &zero, &tcache, &arena)))
-		return (NULL);
-	tctx = prof_alloc_prep(tsd, *usize, prof_active_get_unlocked(), true);
-	if (likely((uintptr_t)tctx == (uintptr_t)1U)) {
-		p = imallocx_flags(tsd_tsdn(tsd), *usize, alignment, zero,
-		    tcache, arena, slow_path);
-	} else if ((uintptr_t)tctx > (uintptr_t)1U) {
-		p = imallocx_prof_sample(tsd_tsdn(tsd), *usize, alignment, zero,
-		    tcache, arena, slow_path);
-	} else
-		p = NULL;
-	if (unlikely(p == NULL)) {
-		prof_alloc_rollback(tsd, tctx, true);
-		return (NULL);
-	}
-	prof_malloc(tsd_tsdn(tsd), iealloc(tsd_tsdn(tsd), p), p, *usize, tctx);
-
-	assert(alignment == 0 || ((uintptr_t)p & (alignment - 1)) == ZU(0));
-	return (p);
-}
-
-JEMALLOC_ALWAYS_INLINE_C void *
-imallocx_no_prof(tsd_t *tsd, size_t size, int flags, size_t *usize,
-    bool slow_path)
-{
-	void *p;
-	size_t alignment;
-	bool zero;
-	tcache_t *tcache;
-	arena_t *arena;
-
-	if (unlikely(imallocx_flags_decode(tsd, size, flags, usize, &alignment,
-	    &zero, &tcache, &arena)))
-		return (NULL);
-	p = imallocx_flags(tsd_tsdn(tsd), *usize, alignment, zero, tcache,
-	    arena, slow_path);
-	assert(alignment == 0 || ((uintptr_t)p & (alignment - 1)) == ZU(0));
-	return (p);
-}
-
-/* This function guarantees that *tsdn is non-NULL on success. */
-JEMALLOC_ALWAYS_INLINE_C void *
-imallocx_body(size_t size, int flags, tsdn_t **tsdn, size_t *usize,
-    bool slow_path)
-{
-	tsd_t *tsd;
-
-	if (slow_path && unlikely(malloc_init())) {
-		*tsdn = NULL;
-		return (NULL);
-	}
-
-	tsd = tsd_fetch();
-	*tsdn = tsd_tsdn(tsd);
-	witness_assert_lockless(tsd_tsdn(tsd));
-
-	if (likely(flags == 0)) {
-		szind_t ind = size2index(size);
-		if (unlikely(ind >= NSIZES))
-			return (NULL);
-		if (config_stats || (config_prof && opt_prof)) {
-			*usize = index2size(ind);
-			assert(*usize > 0 && *usize <= LARGE_MAXCLASS);
-		}
-
-		if (config_prof && opt_prof) {
-			return (ialloc_prof(tsd, *usize, ind, false,
-			    slow_path));
-		}
-
-		return (ialloc(tsd, size, ind, false, slow_path));
-	}
-
-	if (config_prof && opt_prof)
-		return (imallocx_prof(tsd, size, flags, usize, slow_path));
-
-	return (imallocx_no_prof(tsd, size, flags, usize, slow_path));
-}
-
 JEMALLOC_EXPORT JEMALLOC_ALLOCATOR JEMALLOC_RESTRICT_RETURN
 void JEMALLOC_NOTHROW *
 JEMALLOC_ATTR(malloc) JEMALLOC_ALLOC_SIZE(1)
 je_mallocx(size_t size, int flags)
 {
-	tsdn_t *tsdn;
-	void *p;
-	size_t usize;
+	void *ret;
+	static_opts_t sopts;
+	dynamic_opts_t dopts;
 
-	assert(size != 0);
+	static_opts_init(&sopts);
+	dynamic_opts_init(&dopts);
 
-	if (likely(!malloc_slow)) {
-		p = imallocx_body(size, flags, &tsdn, &usize, false);
-		ialloc_post_check(p, tsdn, usize, "mallocx", false, false);
-	} else {
-		p = imallocx_body(size, flags, &tsdn, &usize, true);
-		ialloc_post_check(p, tsdn, usize, "mallocx", false, true);
-		UTRACE(0, size, p);
+	sopts.assert_nonempty_alloc = true;
+	sopts.null_out_result_on_error = true;
+	sopts.oom_string = "<jemalloc>: Error in mallocx(): out of memory\n";
+
+	dopts.result = &ret;
+	dopts.num_items = 1;
+	dopts.item_size = size;
+	if (unlikely(flags != 0)) {
+		if ((flags & MALLOCX_LG_ALIGN_MASK) != 0) {
+			dopts.alignment = MALLOCX_ALIGN_GET_SPECIFIED(flags);
+		}
+
+		dopts.zero = MALLOCX_ZERO_GET(flags);
+
+		if ((flags & MALLOCX_TCACHE_MASK) != 0) {
+			if ((flags & MALLOCX_TCACHE_MASK)
+			    == MALLOCX_TCACHE_NONE) {
+				dopts.tcache_ind = TCACHE_IND_NONE;
+			} else {
+				dopts.tcache_ind = MALLOCX_TCACHE_GET(flags);
+			}
+		} else {
+			dopts.tcache_ind = TCACHE_IND_AUTOMATIC;
+		}
+
+		if ((flags & MALLOCX_ARENA_MASK) != 0)
+			dopts.arena_ind = MALLOCX_ARENA_GET(flags);
 	}
 
-	return (p);
+	imalloc(&sopts, &dopts);
+	return ret;
 }
 
 static void *
