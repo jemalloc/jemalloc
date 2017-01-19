@@ -33,16 +33,20 @@ TEST_BEGIN(test_base_hooks_default)
 	tsdn = tsdn_fetch();
 	base = base_new(tsdn, 0, (extent_hooks_t *)&extent_hooks_default);
 
-	base_stats_get(tsdn, base, &allocated0, &resident, &mapped);
-	assert_zu_ge(allocated0, sizeof(base_t),
-	    "Base header should count as allocated");
+	if (config_stats) {
+		base_stats_get(tsdn, base, &allocated0, &resident, &mapped);
+		assert_zu_ge(allocated0, sizeof(base_t),
+		    "Base header should count as allocated");
+	}
 
 	assert_ptr_not_null(base_alloc(tsdn, base, 42, 1),
 	    "Unexpected base_alloc() failure");
 
-	base_stats_get(tsdn, base, &allocated1, &resident, &mapped);
-	assert_zu_ge(allocated1 - allocated0, 42,
-	    "At least 42 bytes were allocated by base_alloc()");
+	if (config_stats) {
+		base_stats_get(tsdn, base, &allocated1, &resident, &mapped);
+		assert_zu_ge(allocated1 - allocated0, 42,
+		    "At least 42 bytes were allocated by base_alloc()");
+	}
 
 	base_delete(base);
 }
@@ -67,16 +71,20 @@ TEST_BEGIN(test_base_hooks_null)
 	base = base_new(tsdn, 0, &hooks);
 	assert_ptr_not_null(base, "Unexpected base_new() failure");
 
-	base_stats_get(tsdn, base, &allocated0, &resident, &mapped);
-	assert_zu_ge(allocated0, sizeof(base_t),
-	    "Base header should count as allocated");
+	if (config_stats) {
+		base_stats_get(tsdn, base, &allocated0, &resident, &mapped);
+		assert_zu_ge(allocated0, sizeof(base_t),
+		    "Base header should count as allocated");
+	}
 
 	assert_ptr_not_null(base_alloc(tsdn, base, 42, 1),
 	    "Unexpected base_alloc() failure");
 
-	base_stats_get(tsdn, base, &allocated1, &resident, &mapped);
-	assert_zu_ge(allocated1 - allocated0, 42,
-	    "At least 42 bytes were allocated by base_alloc()");
+	if (config_stats) {
+		base_stats_get(tsdn, base, &allocated1, &resident, &mapped);
+		assert_zu_ge(allocated1 - allocated0, 42,
+		    "At least 42 bytes were allocated by base_alloc()");
+	}
 
 	base_delete(base);
 

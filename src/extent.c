@@ -820,9 +820,11 @@ extent_alloc_retained(tsdn_t *tsdn, arena_t *arena,
 	extent = extent_recycle(tsdn, arena, r_extent_hooks,
 	    arena->extents_retained, false, false, new_addr, usize, pad,
 	    alignment, zero, commit, slab);
-	if (extent != NULL && config_stats) {
-		size_t size = usize + pad;
-		arena->stats.retained -= size;
+	if (extent != NULL) {
+		if (config_stats) {
+			size_t size = usize + pad;
+			arena->stats.retained -= size;
+		}
 		if (config_prof)
 			extent_gprof_add(tsdn, extent);
 	}
