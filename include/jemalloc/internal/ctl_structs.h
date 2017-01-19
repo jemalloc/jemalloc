@@ -22,18 +22,6 @@ struct ctl_indexed_node_s {
 };
 
 struct ctl_arena_stats_s {
-	unsigned		arena_ind;
-	bool			initialized;
-	ql_elm(ctl_arena_stats_t)	destroyed_link;
-
-	unsigned		nthreads;
-	const char		*dss;
-	ssize_t			decay_time;
-	size_t			pactive;
-	size_t			pdirty;
-
-	/* The remainder are only populated if config_stats is true. */
-
 	arena_stats_t		astats;
 
 	/* Aggregate stats for small size classes, based on bin stats. */
@@ -47,22 +35,42 @@ struct ctl_arena_stats_s {
 };
 
 struct ctl_stats_s {
-	uint64_t		epoch;
 	size_t			allocated;
 	size_t			active;
 	size_t			metadata;
 	size_t			resident;
 	size_t			mapped;
 	size_t			retained;
+};
+
+struct ctl_arena_s {
+	unsigned		arena_ind;
+	bool			initialized;
+	ql_elm(ctl_arena_t)	destroyed_link;
+
+	/* Basic stats, supported even if !config_stats. */
+	unsigned		nthreads;
+	const char		*dss;
+	ssize_t			decay_time;
+	size_t			pactive;
+	size_t			pdirty;
+
+	/* NULL if !config_stats. */
+	ctl_arena_stats_t	*astats;
+};
+
+struct ctl_arenas_s {
+	uint64_t		epoch;
 	unsigned		narenas;
-	ql_head(ctl_arena_stats_t)	destroyed;
+	ql_head(ctl_arena_t)	destroyed;
+
 	/*
-	 * Element 0 contains merged stats for extant arenas (accessed via
-	 * MALLCTL_ARENAS_ALL), element 1 contains merged stats for destroyed
-	 * arenas (accessed via MALLCTL_ARENAS_DESTROYED), and the remaining
-	 * MALLOCX_ARENA_MAX+1 elements correspond to arenas.
+	 * Element 0 corresponds to merged stats for extant arenas (accessed via
+	 * MALLCTL_ARENAS_ALL), element 1 corresponds to merged stats for
+	 * destroyed arenas (accessed via MALLCTL_ARENAS_DESTROYED), and the
+	 * remaining MALLOCX_ARENA_MAX+1 elements correspond to arenas.
 	 */
-	ctl_arena_stats_t	*arenas[MALLOCX_ARENA_MAX + 3];
+	ctl_arena_t		*arenas[MALLOCX_ARENA_MAX + 3];
 };
 
 #endif /* JEMALLOC_INTERNAL_CTL_STRUCTS_H */
