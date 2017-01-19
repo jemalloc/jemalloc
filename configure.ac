@@ -239,7 +239,6 @@ if test "x$GCC" = "xyes" ; then
     fi
   fi
   JE_CFLAGS_ADD([-Wall])
-  JE_CFLAGS_ADD([-Werror=declaration-after-statement])
   JE_CFLAGS_ADD([-Wshorten-64-to-32])
   JE_CFLAGS_ADD([-Wsign-compare])
   JE_CFLAGS_ADD([-pipe])
