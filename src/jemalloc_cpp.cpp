@@ -36,7 +36,7 @@ void *
 newImpl(std::size_t size) noexcept(IsNoExcept) {
 	void *ptr = je_malloc(size);
 	if (likely(ptr != nullptr))
-		return (ptr);
+		return ptr;
 
 	while (ptr == nullptr) {
 		std::new_handler handler;
@@ -62,27 +62,27 @@ newImpl(std::size_t size) noexcept(IsNoExcept) {
 
 	if (ptr == nullptr && !IsNoExcept)
 		std::__throw_bad_alloc();
-	return (ptr);
+	return ptr;
 }
 
 void *
 operator new(std::size_t size) {
-	return (newImpl<false>(size));
+	return newImpl<false>(size);
 }
 
 void *
 operator new[](std::size_t size) {
-	return (newImpl<false>(size));
+	return newImpl<false>(size);
 }
 
 void *
 operator new(std::size_t size, const std::nothrow_t &) noexcept {
-	return (newImpl<true>(size));
+	return newImpl<true>(size);
 }
 
 void *
 operator new[](std::size_t size, const std::nothrow_t &) noexcept {
-	return (newImpl<true>(size));
+	return newImpl<true>(size);
 }
 
 void

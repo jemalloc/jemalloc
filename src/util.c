@@ -87,16 +87,16 @@ buferror(int err, char *buf, size_t buflen) {
 #ifdef _WIN32
 	FormatMessageA(FORMAT_MESSAGE_FROM_SYSTEM, NULL, err, 0,
 	    (LPSTR)buf, (DWORD)buflen, NULL);
-	return (0);
+	return 0;
 #elif defined(__GLIBC__) && defined(_GNU_SOURCE)
 	char *b = strerror_r(err, buf, buflen);
 	if (b != buf) {
 		strncpy(buf, b, buflen);
 		buf[buflen-1] = '\0';
 	}
-	return (0);
+	return 0;
 #else
-	return (strerror_r(err, buf, buflen));
+	return strerror_r(err, buf, buflen);
 #endif
 }
 
@@ -218,7 +218,7 @@ label_return:
 			*endptr = (char *)p;
 		}
 	}
-	return (ret);
+	return ret;
 }
 
 static char *
@@ -260,7 +260,7 @@ u2s(uintmax_t x, unsigned base, bool uppercase, char *s, size_t *slen_p) {
 	}}
 
 	*slen_p = U2S_BUFSIZE - 1 - i;
-	return (&s[i]);
+	return &s[i];
 }
 
 static char *
@@ -288,7 +288,7 @@ d2s(intmax_t x, char sign, char *s, size_t *slen_p) {
 		break;
 	default: not_reached();
 	}
-	return (s);
+	return s;
 }
 
 static char *
@@ -299,7 +299,7 @@ o2s(uintmax_t x, bool alt_form, char *s, size_t *slen_p) {
 		(*slen_p)++;
 		*s = '0';
 	}
-	return (s);
+	return s;
 }
 
 static char *
@@ -310,7 +310,7 @@ x2s(uintmax_t x, bool alt_form, bool uppercase, char *s, size_t *slen_p) {
 		(*slen_p) += 2;
 		memcpy(s, uppercase ? "0X" : "0x", 2);
 	}
-	return (s);
+	return s;
 }
 
 size_t
@@ -593,7 +593,7 @@ malloc_vsnprintf(char *str, size_t size, const char *format, va_list ap) {
 #undef APPEND_S
 #undef APPEND_PADDED_S
 #undef GET_ARG_NUMERIC
-	return (i);
+	return i;
 }
 
 JEMALLOC_FORMAT_PRINTF(3, 4)
@@ -606,7 +606,7 @@ malloc_snprintf(char *str, size_t size, const char *format, ...) {
 	ret = malloc_vsnprintf(str, size, format, ap);
 	va_end(ap);
 
-	return (ret);
+	return ret;
 }
 
 void

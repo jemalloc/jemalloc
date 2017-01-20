@@ -82,12 +82,12 @@ extent_alloc(tsdn_t *tsdn, arena_t *arena) {
 	extent = ql_last(&arena->extent_cache, ql_link);
 	if (extent == NULL) {
 		malloc_mutex_unlock(tsdn, &arena->extent_cache_mtx);
-		return (base_alloc(tsdn, arena->base, sizeof(extent_t),
-		    QUANTUM));
+		return base_alloc(tsdn, arena->base, sizeof(extent_t),
+		    QUANTUM);
 	}
 	ql_tail_remove(&arena->extent_cache, extent_t, ql_link);
 	malloc_mutex_unlock(tsdn, &arena->extent_cache_mtx);
-	return (extent);
+	return extent;
 }
 
 void
@@ -100,12 +100,12 @@ extent_dalloc(tsdn_t *tsdn, arena_t *arena, extent_t *extent) {
 
 extent_hooks_t *
 extent_hooks_get(arena_t *arena) {
-	return (base_extent_hooks_get(arena->base));
+	return base_extent_hooks_get(arena->base);
 }
 
 extent_hooks_t *
 extent_hooks_set(arena_t *arena, extent_hooks_t *extent_hooks) {
-	return (base_extent_hooks_set(arena->base, extent_hooks));
+	return base_extent_hooks_set(arena->base, extent_hooks);
 }
 
 static void
@@ -139,11 +139,11 @@ extent_size_quantize_floor(size_t size) {
 		 * PAGE-spaced size classes, but it's simplest to just handle
 		 * the one case that would cause erroneous results.
 		 */
-		return (size);
+		return size;
 	}
 	ret = pind2sz(pind - 1) + large_pad;
 	assert(ret <= size);
-	return (ret);
+	return ret;
 }
 #ifdef JEMALLOC_JET
 #undef extent_size_quantize_floor
@@ -176,7 +176,7 @@ extent_size_quantize_ceil(size_t size) {
 		 */
 		ret = pind2sz(psz2ind(ret - large_pad + 1)) + large_pad;
 	}
-	return (ret);
+	return ret;
 }
 #ifdef JEMALLOC_JET
 #undef extent_size_quantize_ceil
@@ -217,7 +217,7 @@ extent_rtree_acquire(tsdn_t *tsdn, rtree_ctx_t *rtree_ctx,
 	*r_elm_a = rtree_elm_acquire(tsdn, &extents_rtree, rtree_ctx,
 	    (uintptr_t)extent_base_get(extent), dependent, init_missing);
 	if (!dependent && *r_elm_a == NULL) {
-		return (true);
+		return true;
 	}
 	assert(*r_elm_a != NULL);
 
@@ -227,14 +227,14 @@ extent_rtree_acquire(tsdn_t *tsdn, rtree_ctx_t *rtree_ctx,
 		    init_missing);
 		if (!dependent && *r_elm_b == NULL) {
 			rtree_elm_release(tsdn, &extents_rtree, *r_elm_a);
-			return (true);
+			return true;
 		}
 		assert(*r_elm_b != NULL);
 	} else {
 		*r_elm_b = NULL;
 	}
 
-	return (false);
+	return false;
 }
 
 static void
@@ -308,7 +308,7 @@ extent_register(tsdn_t *tsdn, const extent_t *extent) {
 
 	if (extent_rtree_acquire(tsdn, rtree_ctx, extent, false, true, &elm_a,
 	    &elm_b)) {
-		return (true);
+		return true;
 	}
 	extent_rtree_write_acquired(tsdn, elm_a, elm_b, extent);
 	if (extent_slab_get(extent)) {
@@ -320,7 +320,7 @@ extent_register(tsdn_t *tsdn, const extent_t *extent) {
 		extent_gprof_add(tsdn, extent);
 	}
 
-	return (false);
+	return false;
 }
 
 static void
@@ -378,11 +378,11 @@ extent_first_best_fit(tsdn_t *tsdn, arena_t *arena,
 	for (i = pind; i < NPSIZES+1; i++) {
 		extent_t *extent = extent_heap_first(&extent_heaps[i]);
 		if (extent != NULL) {
-			return (extent);
+			return extent;
 		}
 	}
 
-	return (NULL);
+	return NULL;
 }
 
 static void
@@ -444,7 +444,7 @@ extent_recycle(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
 	alloc_size = size + PAGE_CEILING(alignment) - PAGE;
 	/* Beware size_t wrap-around. */
 	if (alloc_size < usize) {
-		return (NULL);
+		return NULL;
 	}
 	if (!locked) {
 		malloc_mutex_lock(tsdn, &arena->extents_mtx);
@@ -479,7 +479,7 @@ extent_recycle(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
 		if (!locked) {
 			malloc_mutex_unlock(tsdn, &arena->extents_mtx);
 		}
-		return (NULL);
+		return NULL;
 	}
 	extent_heaps_remove(tsdn, extent_heaps, extent);
 	arena_extent_cache_maybe_remove(tsdn, arena, extent, cache);
@@ -508,7 +508,7 @@ extent_recycle(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
 			if (!locked) {
 				malloc_mutex_unlock(tsdn, &arena->extents_mtx);
 			}
-			return (NULL);
+			return NULL;
 		}
 		extent_heaps_insert(tsdn, extent_heaps, lead);
 		arena_extent_cache_maybe_insert(tsdn, arena, lead, cache);
@@ -525,7 +525,7 @@ extent_recycle(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
 			if (!locked) {
 				malloc_mutex_unlock(tsdn, &arena->extents_mtx);
 			}
-			return (NULL);
+			return NULL;
 		}
 		extent_heaps_insert(tsdn, extent_heaps, trail);
 		arena_extent_cache_maybe_insert(tsdn, arena, trail, cache);
@@ -545,7 +545,7 @@ extent_recycle(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
 			}
 			extent_record(tsdn, arena, r_extent_hooks, extent_heaps,
 			    cache, extent);
-			return (NULL);
+			return NULL;
 		}
 		extent_zeroed_set(extent, true);
 	}
@@ -577,7 +577,7 @@ extent_recycle(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
 			}
 		}
 	}
-	return (extent);
+	return extent;
 }
 
 /*
@@ -598,22 +598,22 @@ extent_alloc_core(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
 	if (have_dss && dss_prec == dss_prec_primary && (ret =
 	    extent_alloc_dss(tsdn, arena, new_addr, size, alignment, zero,
 	    commit)) != NULL) {
-		return (ret);
+		return ret;
 	}
 	/* mmap. */
 	if ((ret = extent_alloc_mmap(new_addr, size, alignment, zero, commit))
 	    != NULL) {
-		return (ret);
+		return ret;
 	}
 	/* "secondary" dss. */
 	if (have_dss && dss_prec == dss_prec_secondary && (ret =
 	    extent_alloc_dss(tsdn, arena, new_addr, size, alignment, zero,
 	    commit)) != NULL) {
-		return (ret);
+		return ret;
 	}
 
 	/* All strategies for allocation failed. */
-	return (NULL);
+	return NULL;
 }
 
 static extent_t *
@@ -628,7 +628,7 @@ extent_alloc_cache_impl(tsdn_t *tsdn, arena_t *arena,
 	extent = extent_recycle(tsdn, arena, r_extent_hooks,
 	    arena->extents_cached, locked, true, new_addr, usize, pad,
 	    alignment, zero, commit, slab);
-	return (extent);
+	return extent;
 }
 
 extent_t *
@@ -637,16 +637,16 @@ extent_alloc_cache_locked(tsdn_t *tsdn, arena_t *arena,
     size_t alignment, bool *zero, bool *commit, bool slab) {
 	malloc_mutex_assert_owner(tsdn, &arena->extents_mtx);
 
-	return (extent_alloc_cache_impl(tsdn, arena, r_extent_hooks, true,
-	    new_addr, usize, pad, alignment, zero, commit, slab));
+	return extent_alloc_cache_impl(tsdn, arena, r_extent_hooks, true,
+	    new_addr, usize, pad, alignment, zero, commit, slab);
 }
 
 extent_t *
 extent_alloc_cache(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, void *new_addr, size_t usize, size_t pad,
     size_t alignment, bool *zero, bool *commit, bool slab) {
-	return (extent_alloc_cache_impl(tsdn, arena, r_extent_hooks, false,
-	    new_addr, usize, pad, alignment, zero, commit, slab));
+	return extent_alloc_cache_impl(tsdn, arena, r_extent_hooks, false,
+	    new_addr, usize, pad, alignment, zero, commit, slab);
 }
 
 static void *
@@ -656,7 +656,7 @@ extent_alloc_default_impl(tsdn_t *tsdn, arena_t *arena, void *new_addr,
 
 	ret = extent_alloc_core(tsdn, arena, new_addr, size, alignment, zero,
 	    commit, arena->dss_prec);
-	return (ret);
+	return ret;
 }
 
 static void *
@@ -675,8 +675,8 @@ extent_alloc_default(extent_hooks_t *extent_hooks, void *new_addr, size_t size,
 	 */
 	assert(arena != NULL);
 
-	return (extent_alloc_default_impl(tsdn, arena, new_addr, size,
-	    alignment, zero, commit));
+	return extent_alloc_default_impl(tsdn, arena, new_addr, size,
+	    alignment, zero, commit);
 }
 
 static void
@@ -714,14 +714,14 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena,
 	alloc_size_min = size + PAGE_CEILING(alignment) - PAGE;
 	/* Beware size_t wrap-around. */
 	if (alloc_size_min < usize) {
-		return (NULL);
+		return NULL;
 	}
 	if (alloc_size < alloc_size_min) {
-		return (NULL);
+		return NULL;
 	}
 	extent = extent_alloc(tsdn, arena);
 	if (extent == NULL) {
-		return (NULL);
+		return NULL;
 	}
 	zeroed = false;
 	committed = false;
@@ -731,7 +731,7 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena,
 	    arena_extent_sn_next(arena), false, zeroed, committed, false);
 	if (ptr == NULL || extent_register(tsdn, extent)) {
 		extent_dalloc(tsdn, arena, extent);
-		return (NULL);
+		return NULL;
 	}
 	/*
 	 * Set the extent as active *after registration so that no gprof-related
@@ -759,7 +759,7 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena,
 		if (extent == NULL) {
 			extent_deregister(tsdn, lead);
 			extent_leak(tsdn, arena, r_extent_hooks, false, lead);
-			return (NULL);
+			return NULL;
 		}
 		extent_retain(tsdn, arena, r_extent_hooks, lead);
 	}
@@ -771,7 +771,7 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena,
 		if (trail == NULL) {
 			extent_deregister(tsdn, extent);
 			extent_leak(tsdn, arena, r_extent_hooks, false, extent);
-			return (NULL);
+			return NULL;
 		}
 		extent_retain(tsdn, arena, r_extent_hooks, trail);
 	} else if (leadsize == 0) {
@@ -786,7 +786,7 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena,
 		if (extent_commit_wrapper(tsdn, arena, r_extent_hooks, extent,
 		    0, extent_size_get(extent))) {
 			extent_retain(tsdn, arena, r_extent_hooks, extent);
-			return (NULL);
+			return NULL;
 		}
 		extent_zeroed_set(extent, true);
 	}
@@ -812,7 +812,7 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena,
 	if (arena->extent_grow_next + 1 < NPSIZES) {
 		arena->extent_grow_next++;
 	}
-	return (extent);
+	return extent;
 }
 
 static extent_t *
@@ -841,7 +841,7 @@ extent_alloc_retained(tsdn_t *tsdn, arena_t *arena,
 		    new_addr, usize, pad, alignment, zero, commit, slab);
 	}
 
-	return (extent);
+	return extent;
 }
 
 static extent_t *
@@ -855,7 +855,7 @@ extent_alloc_wrapper_hard(tsdn_t *tsdn, arena_t *arena,
 	size = usize + pad;
 	extent = extent_alloc(tsdn, arena);
 	if (extent == NULL) {
-		return (NULL);
+		return NULL;
 	}
 	if (*r_extent_hooks == &extent_hooks_default) {
 		/* Call directly to propagate tsdn. */
@@ -867,7 +867,7 @@ extent_alloc_wrapper_hard(tsdn_t *tsdn, arena_t *arena,
 	}
 	if (addr == NULL) {
 		extent_dalloc(tsdn, arena, extent);
-		return (NULL);
+		return NULL;
 	}
 	extent_init(extent, arena, addr, size, usize,
 	    arena_extent_sn_next(arena), true, zero, commit, slab);
@@ -876,10 +876,10 @@ extent_alloc_wrapper_hard(tsdn_t *tsdn, arena_t *arena,
 	}
 	if (extent_register(tsdn, extent)) {
 		extent_leak(tsdn, arena, r_extent_hooks, false, extent);
-		return (NULL);
+		return NULL;
 	}
 
-	return (extent);
+	return extent;
 }
 
 extent_t *
@@ -897,25 +897,25 @@ extent_alloc_wrapper(tsdn_t *tsdn, arena_t *arena,
 		    new_addr, usize, pad, alignment, zero, commit, slab);
 	}
 
-	return (extent);
+	return extent;
 }
 
 static bool
 extent_can_coalesce(const extent_t *a, const extent_t *b) {
 	if (extent_arena_get(a) != extent_arena_get(b)) {
-		return (false);
+		return false;
 	}
 	if (extent_active_get(a) != extent_active_get(b)) {
-		return (false);
+		return false;
 	}
 	if (extent_committed_get(a) != extent_committed_get(b)) {
-		return (false);
+		return false;
 	}
 	if (extent_retained_get(a) != extent_retained_get(b)) {
-		return (false);
+		return false;
 	}
 
-	return (true);
+	return true;
 }
 
 static void
@@ -1016,9 +1016,9 @@ extent_dalloc_cache(tsdn_t *tsdn, arena_t *arena,
 static bool
 extent_dalloc_default_impl(void *addr, size_t size) {
 	if (!have_dss || !extent_in_dss(addr)) {
-		return (extent_dalloc_mmap(addr, size));
+		return extent_dalloc_mmap(addr, size);
 	}
-	return (true);
+	return true;
 }
 
 static bool
@@ -1026,7 +1026,7 @@ extent_dalloc_default(extent_hooks_t *extent_hooks, void *addr, size_t size,
     bool committed, unsigned arena_ind) {
 	assert(extent_hooks == &extent_hooks_default);
 
-	return (extent_dalloc_default_impl(addr, size));
+	return extent_dalloc_default_impl(addr, size);
 }
 
 bool
@@ -1060,7 +1060,7 @@ extent_dalloc_wrapper_try(tsdn_t *tsdn, arena_t *arena,
 		extent_dalloc(tsdn, arena, extent);
 	}
 
-	return (err);
+	return err;
 }
 
 void
@@ -1110,8 +1110,8 @@ extent_commit_default(extent_hooks_t *extent_hooks, void *addr, size_t size,
     size_t offset, size_t length, unsigned arena_ind) {
 	assert(extent_hooks == &extent_hooks_default);
 
-	return (pages_commit((void *)((uintptr_t)addr + (uintptr_t)offset),
-	    length));
+	return pages_commit((void *)((uintptr_t)addr + (uintptr_t)offset),
+	    length);
 }
 
 bool
@@ -1125,7 +1125,7 @@ extent_commit_wrapper(tsdn_t *tsdn, arena_t *arena,
 	    (*r_extent_hooks)->commit(*r_extent_hooks, extent_base_get(extent),
 	    extent_size_get(extent), offset, length, arena_ind_get(arena)));
 	extent_committed_set(extent, extent_committed_get(extent) || !err);
-	return (err);
+	return err;
 }
 
 static bool
@@ -1133,8 +1133,8 @@ extent_decommit_default(extent_hooks_t *extent_hooks, void *addr, size_t size,
     size_t offset, size_t length, unsigned arena_ind) {
 	assert(extent_hooks == &extent_hooks_default);
 
-	return (pages_decommit((void *)((uintptr_t)addr + (uintptr_t)offset),
-	    length));
+	return pages_decommit((void *)((uintptr_t)addr + (uintptr_t)offset),
+	    length);
 }
 
 bool
@@ -1150,7 +1150,7 @@ extent_decommit_wrapper(tsdn_t *tsdn, arena_t *arena,
 	    extent_base_get(extent), extent_size_get(extent), offset, length,
 	    arena_ind_get(arena)));
 	extent_committed_set(extent, extent_committed_get(extent) && err);
-	return (err);
+	return err;
 }
 
 #ifdef PAGES_CAN_PURGE_LAZY
@@ -1163,8 +1163,8 @@ extent_purge_lazy_default(extent_hooks_t *extent_hooks, void *addr, size_t size,
 	assert(length != 0);
 	assert((length & PAGE_MASK) == 0);
 
-	return (pages_purge_lazy((void *)((uintptr_t)addr + (uintptr_t)offset),
-	    length));
+	return pages_purge_lazy((void *)((uintptr_t)addr + (uintptr_t)offset),
+	    length);
 }
 #endif
 
@@ -1189,8 +1189,8 @@ extent_purge_forced_default(extent_hooks_t *extent_hooks, void *addr,
 	assert(length != 0);
 	assert((length & PAGE_MASK) == 0);
 
-	return (pages_purge_forced((void *)((uintptr_t)addr +
-	    (uintptr_t)offset), length));
+	return pages_purge_forced((void *)((uintptr_t)addr +
+	    (uintptr_t)offset), length);
 }
 #endif
 
@@ -1211,10 +1211,7 @@ extent_split_default(extent_hooks_t *extent_hooks, void *addr, size_t size,
     size_t size_a, size_t size_b, bool committed, unsigned arena_ind) {
 	assert(extent_hooks == &extent_hooks_default);
 
-	if (!maps_coalesce) {
-		return (true);
-	}
-	return (false);
+	return !maps_coalesce;
 }
 #endif
 
@@ -1232,7 +1229,7 @@ extent_split_wrapper(tsdn_t *tsdn, arena_t *arena,
 	extent_hooks_assure_initialized(arena, r_extent_hooks);
 
 	if ((*r_extent_hooks)->split == NULL) {
-		return (NULL);
+		return NULL;
 	}
 
 	trail = extent_alloc(tsdn, arena);
@@ -1278,7 +1275,7 @@ extent_split_wrapper(tsdn_t *tsdn, arena_t *arena,
 	extent_rtree_release(tsdn, lead_elm_a, lead_elm_b);
 	extent_rtree_release(tsdn, trail_elm_a, trail_elm_b);
 
-	return (trail);
+	return trail;
 label_error_d:
 	extent_rtree_release(tsdn, trail_elm_a, trail_elm_b);
 label_error_c:
@@ -1286,19 +1283,19 @@ label_error_c:
 label_error_b:
 	extent_dalloc(tsdn, arena, trail);
 label_error_a:
-	return (NULL);
+	return NULL;
 }
 
 static bool
 extent_merge_default_impl(void *addr_a, void *addr_b) {
 	if (!maps_coalesce) {
-		return (true);
+		return true;
 	}
 	if (have_dss && !extent_dss_mergeable(addr_a, addr_b)) {
-		return (true);
+		return true;
 	}
 
-	return (false);
+	return false;
 }
 
 #ifdef JEMALLOC_MAPS_COALESCE
@@ -1307,7 +1304,7 @@ extent_merge_default(extent_hooks_t *extent_hooks, void *addr_a, size_t size_a,
     void *addr_b, size_t size_b, bool committed, unsigned arena_ind) {
 	assert(extent_hooks == &extent_hooks_default);
 
-	return (extent_merge_default_impl(addr_a, addr_b));
+	return extent_merge_default_impl(addr_a, addr_b);
 }
 #endif
 
@@ -1322,7 +1319,7 @@ extent_merge_wrapper(tsdn_t *tsdn, arena_t *arena,
 	extent_hooks_assure_initialized(arena, r_extent_hooks);
 
 	if ((*r_extent_hooks)->merge == NULL) {
-		return (true);
+		return true;
 	}
 
 	if (*r_extent_hooks == &extent_hooks_default) {
@@ -1337,7 +1334,7 @@ extent_merge_wrapper(tsdn_t *tsdn, arena_t *arena,
 	}
 
 	if (err) {
-		return (true);
+		return true;
 	}
 
 	/*
@@ -1372,19 +1369,19 @@ extent_merge_wrapper(tsdn_t *tsdn, arena_t *arena,
 
 	extent_dalloc(tsdn, extent_arena_get(b), b);
 
-	return (false);
+	return false;
 }
 
 bool
 extent_boot(void) {
 	if (rtree_new(&extents_rtree, (unsigned)((ZU(1) << (LG_SIZEOF_PTR+3)) -
 	    LG_PAGE))) {
-		return (true);
+		return true;
 	}
 
 	if (have_dss) {
 		extent_dss_boot();
 	}
 
-	return (false);
+	return false;
 }

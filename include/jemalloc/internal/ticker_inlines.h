@@ -23,14 +23,14 @@ ticker_copy(ticker_t *ticker, const ticker_t *other) {
 
 JEMALLOC_INLINE int32_t
 ticker_read(const ticker_t *ticker) {
-	return (ticker->tick);
+	return ticker->tick;
 }
 
 JEMALLOC_INLINE bool
 ticker_ticks(ticker_t *ticker, int32_t nticks) {
 	if (unlikely(ticker->tick < nticks)) {
 		ticker->tick = ticker->nticks;
-		return (true);
+		return true;
 	}
 	ticker->tick -= nticks;
 	return(false);
@@ -38,7 +38,7 @@ ticker_ticks(ticker_t *ticker, int32_t nticks) {
 
 JEMALLOC_INLINE bool
 ticker_tick(ticker_t *ticker) {
-	return (ticker_ticks(ticker, 1));
+	return ticker_ticks(ticker, 1);
 }
 #endif
 

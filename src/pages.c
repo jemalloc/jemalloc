@@ -58,7 +58,7 @@ pages_map(void *addr, size_t size, bool *commit) {
 #endif
 	assert(ret == NULL || (addr == NULL && ret != addr)
 	    || (addr != NULL && ret == addr));
-	return (ret);
+	return ret;
 }
 
 void
@@ -98,12 +98,12 @@ pages_trim(void *addr, size_t alloc_size, size_t leadsize, size_t size,
 		pages_unmap(addr, alloc_size);
 		new_addr = pages_map(ret, size, commit);
 		if (new_addr == ret) {
-			return (ret);
+			return ret;
 		}
 		if (new_addr) {
 			pages_unmap(new_addr, size);
 		}
-		return (NULL);
+		return NULL;
 	}
 #else
 	{
@@ -115,7 +115,7 @@ pages_trim(void *addr, size_t alloc_size, size_t leadsize, size_t size,
 		if (trailsize != 0) {
 			pages_unmap((void *)((uintptr_t)ret + size), trailsize);
 		}
-		return (ret);
+		return ret;
 	}
 #endif
 }
@@ -123,7 +123,7 @@ pages_trim(void *addr, size_t alloc_size, size_t leadsize, size_t size,
 static bool
 pages_commit_impl(void *addr, size_t size, bool commit) {
 	if (os_overcommits) {
-		return (true);
+		return true;
 	}
 
 #ifdef _WIN32
@@ -135,7 +135,7 @@ pages_commit_impl(void *addr, size_t size, bool commit) {
 		void *result = mmap(addr, size, prot, mmap_flags | MAP_FIXED,
 		    -1, 0);
 		if (result == MAP_FAILED) {
-			return (true);
+			return true;
 		}
 		if (result != addr) {
 			/*
@@ -143,27 +143,27 @@ pages_commit_impl(void *addr, size_t size, bool commit) {
 			 * place.
 			 */
 			pages_unmap(result, size);
-			return (true);
+			return true;
 		}
-		return (false);
+		return false;
 	}
 #endif
 }
 
 bool
 pages_commit(void *addr, size_t size) {
-	return (pages_commit_impl(addr, size, true));
+	return pages_commit_impl(addr, size, true);
 }
 
 bool
 pages_decommit(void *addr, size_t size) {
-	return (pages_commit_impl(addr, size, false));
+	return pages_commit_impl(addr, size, false);
 }
 
 bool
 pages_purge_lazy(void *addr, size_t size) {
 	if (!pages_can_purge_lazy) {
-		return (true);
+		return true;
 	}
 
 #ifdef _WIN32
@@ -173,13 +173,13 @@ pages_purge_lazy(void *addr, size_t size) {
 #else
 	not_reached();
 #endif
-	return (false);
+	return false;
 }
 
 bool
 pages_purge_forced(void *addr, size_t size) {
 	if (!pages_can_purge_forced) {
-		return (true);
+		return true;
 	}
 
 #if defined(JEMALLOC_PURGE_MADVISE_DONTNEED)
@@ -197,7 +197,7 @@ pages_huge(void *addr, size_t size) {
 #ifdef JEMALLOC_THP
 	return (madvise(addr, size, MADV_HUGEPAGE) != 0);
 #else
-	return (true);
+	return true;
 #endif
 }
 
@@ -209,7 +209,7 @@ pages_nohuge(void *addr, size_t size) {
 #ifdef JEMALLOC_THP
 	return (madvise(addr, size, MADV_NOHUGEPAGE) != 0);
 #else
-	return (false);
+	return false;
 #endif
 }
 
@@ -221,7 +221,7 @@ os_overcommits_sysctl(void) {
 
 	sz = sizeof(vm_overcommit);
 	if (sysctlbyname("vm.overcommit", &vm_overcommit, &sz, NULL, 0) != 0) {
-		return (false); /* Error. */
+		return false; /* Error. */
 	}
 
 	return ((vm_overcommit & 0x3) == 0);
@@ -246,7 +246,7 @@ os_overcommits_proc(void) {
 	fd = open("/proc/sys/vm/overcommit_memory", O_RDONLY);
 #endif
 	if (fd == -1) {
-		return (false); /* Error. */
+		return false; /* Error. */
 	}
 
 #if defined(JEMALLOC_USE_SYSCALL) && defined(SYS_read)
@@ -262,7 +262,7 @@ os_overcommits_proc(void) {
 #endif
 
 	if (nread < 1) {
-		return (false); /* Error. */
+		return false; /* Error. */
 	}
 	/*
 	 * /proc/sys/vm/overcommit_memory meanings:

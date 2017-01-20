@@ -19,7 +19,7 @@ get_max_size_class(void) {
 	assert_d_eq(mallctlbymib(mib, miblen, (void *)&max_size_class, &sz,
 	    NULL, 0), 0, "Unexpected mallctlbymib() error");
 
-	return (max_size_class);
+	return max_size_class;
 }
 
 TEST_BEGIN(test_size_classes) {
@@ -173,8 +173,8 @@ TEST_END
 
 int
 main(void) {
-	return (test(
+	return test(
 	    test_size_classes,
 	    test_psize_classes,
-	    test_overflow));
+	    test_overflow);
 }

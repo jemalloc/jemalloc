@@ -34,7 +34,7 @@ thd_start(void *arg) {
 	assert_u_eq(arena_ind, main_arena_ind,
 	    "Arena index should be same as for main thread");
 
-	return (NULL);
+	return NULL;
 }
 
 TEST_BEGIN(test_thread_arena) {
@@ -72,6 +72,6 @@ TEST_END
 
 int
 main(void) {
-	return (test(
-	    test_thread_arena));
+	return test(
+	    test_thread_arena);
 }

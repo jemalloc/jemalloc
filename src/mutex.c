@@ -54,7 +54,7 @@ pthread_create(pthread_t *__restrict thread,
 
 	pthread_once(&once_control, pthread_create_once);
 
-	return (pthread_create_fptr(thread, attr, start_routine, arg));
+	return pthread_create_fptr(thread, attr, start_routine, arg);
 }
 #endif
 
@@ -74,7 +74,7 @@ malloc_mutex_init(malloc_mutex_t *mutex, const char *name,
 #  else
 	if (!InitializeCriticalSectionAndSpinCount(&mutex->lock,
 	    _CRT_SPINCOUNT)) {
-		return (true);
+		return true;
 	}
 #  endif
 #elif (defined(JEMALLOC_OS_UNFAIR_LOCK))
@@ -88,26 +88,26 @@ malloc_mutex_init(malloc_mutex_t *mutex, const char *name,
 	} else {
 		if (_pthread_mutex_init_calloc_cb(&mutex->lock,
 		    bootstrap_calloc) != 0) {
-			return (true);
+			return true;
 		}
 	}
 #else
 	pthread_mutexattr_t attr;
 
 	if (pthread_mutexattr_init(&attr) != 0) {
-		return (true);
+		return true;
 	}
 	pthread_mutexattr_settype(&attr, MALLOC_MUTEX_TYPE);
 	if (pthread_mutex_init(&mutex->lock, &attr) != 0) {
 		pthread_mutexattr_destroy(&attr);
-		return (true);
+		return true;
 	}
 	pthread_mutexattr_destroy(&attr);
 #endif
 	if (config_debug) {
 		witness_init(&mutex->witness, name, rank, NULL, NULL);
 	}
-	return (false);
+	return false;
 }
 
 void
@@ -143,10 +143,10 @@ malloc_mutex_boot(void) {
 	while (postponed_mutexes != NULL) {
 		if (_pthread_mutex_init_calloc_cb(&postponed_mutexes->lock,
 		    bootstrap_calloc) != 0) {
-			return (true);
+			return true;
 		}
 		postponed_mutexes = postponed_mutexes->postponed_next;
 	}
 #endif
-	return (false);
+	return false;
 }

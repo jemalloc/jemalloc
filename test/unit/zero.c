@@ -58,7 +58,7 @@ TEST_END
 
 int
 main(void) {
-	return (test(
+	return test(
 	    test_zero_small,
-	    test_zero_large));
+	    test_zero_large);
 }

@@ -149,7 +149,7 @@ prof_tctx_comp(const prof_tctx_t *a, const prof_tctx_t *b) {
 			    b_tctx_uid);
 		}
 	}
-	return (ret);
+	return ret;
 }
 
 rb_gen(static UNUSED, tctx_tree_, prof_tctx_tree_t, prof_tctx_t,
@@ -164,7 +164,7 @@ prof_gctx_comp(const prof_gctx_t *a, const prof_gctx_t *b) {
 	if (ret == 0) {
 		ret = (a_len > b_len) - (a_len < b_len);
 	}
-	return (ret);
+	return ret;
 }
 
 rb_gen(static UNUSED, gctx_tree_, prof_gctx_tree_t, prof_gctx_t, dump_link,
@@ -183,7 +183,7 @@ prof_tdata_comp(const prof_tdata_t *a, const prof_tdata_t *b) {
 
 		ret = ((a_discrim > b_discrim) - (a_discrim < b_discrim));
 	}
-	return (ret);
+	return ret;
 }
 
 rb_gen(static UNUSED, tdata_tree_, prof_tdata_tree_t, prof_tdata_t, tdata_link,
@@ -319,7 +319,7 @@ static _Unwind_Reason_Code
 prof_unwind_init_callback(struct _Unwind_Context *context, void *arg) {
 	cassert(config_prof);
 
-	return (_URC_NO_REASON);
+	return _URC_NO_REASON;
 }
 
 static _Unwind_Reason_Code
@@ -331,15 +331,15 @@ prof_unwind_callback(struct _Unwind_Context *context, void *arg) {
 
 	ip = (void *)_Unwind_GetIP(context);
 	if (ip == NULL) {
-		return (_URC_END_OF_STACK);
+		return _URC_END_OF_STACK;
 	}
 	data->bt->vec[data->bt->len] = ip;
 	data->bt->len++;
 	if (data->bt->len == data->max) {
-		return (_URC_END_OF_STACK);
+		return _URC_END_OF_STACK;
 	}
 
-	return (_URC_NO_REASON);
+	return _URC_NO_REASON;
 }
 
 void
@@ -525,12 +525,12 @@ static malloc_mutex_t *
 prof_gctx_mutex_choose(void) {
 	unsigned ngctxs = atomic_add_u(&cum_gctxs, 1);
 
-	return (&gctx_locks[(ngctxs - 1) % PROF_NCTX_LOCKS]);
+	return &gctx_locks[(ngctxs - 1) % PROF_NCTX_LOCKS];
 }
 
 static malloc_mutex_t *
 prof_tdata_mutex_choose(uint64_t thr_uid) {
-	return (&tdata_locks[thr_uid % PROF_NTDATA_LOCKS]);
+	return &tdata_locks[thr_uid % PROF_NTDATA_LOCKS];
 }
 
 static prof_gctx_t *
@@ -543,7 +543,7 @@ prof_gctx_create(tsdn_t *tsdn, prof_bt_t *bt) {
 	    size2index(size), false, NULL, true, arena_get(TSDN_NULL, 0, true),
 	    true);
 	if (gctx == NULL) {
-		return (NULL);
+		return NULL;
 	}
 	gctx->lock = prof_gctx_mutex_choose();
 	/*
@@ -556,7 +556,7 @@ prof_gctx_create(tsdn_t *tsdn, prof_bt_t *bt) {
 	memcpy(gctx->vec, bt->vec, bt->len * sizeof(void *));
 	gctx->bt.vec = gctx->vec;
 	gctx->bt.len = bt->len;
-	return (gctx);
+	return gctx;
 }
 
 static void
@@ -600,29 +600,29 @@ prof_tctx_should_destroy(tsdn_t *tsdn, prof_tctx_t *tctx) {
 	malloc_mutex_assert_owner(tsdn, tctx->tdata->lock);
 
 	if (opt_prof_accum) {
-		return (false);
+		return false;
 	}
 	if (tctx->cnts.curobjs != 0) {
-		return (false);
+		return false;
 	}
 	if (tctx->prepared) {
-		return (false);
+		return false;
 	}
-	return (true);
+	return true;
 }
 
 static bool
 prof_gctx_should_destroy(prof_gctx_t *gctx) {
 	if (opt_prof_accum) {
-		return (false);
+		return false;
 	}
 	if (!tctx_tree_empty(&gctx->tctxs)) {
-		return (false);
+		return false;
 	}
 	if (gctx->nlimbo != 0) {
-		return (false);
+		return false;
 	}
-	return (true);
+	return true;
 }
 
 static void
@@ -721,7 +721,7 @@ prof_lookup_global(tsd_t *tsd, prof_bt_t *bt, prof_tdata_t *tdata,
 		gctx.p = prof_gctx_create(tsd_tsdn(tsd), bt);
 		if (gctx.v == NULL) {
 			prof_leave(tsd, tdata);
-			return (true);
+			return true;
 		}
 		btkey.p = &gctx.p->bt;
 		if (ckh_insert(tsd, &bt2gctx, btkey.v, gctx.v)) {
@@ -729,7 +729,7 @@ prof_lookup_global(tsd_t *tsd, prof_bt_t *bt, prof_tdata_t *tdata,
 			prof_leave(tsd, tdata);
 			idalloctm(tsd_tsdn(tsd), iealloc(tsd_tsdn(tsd), gctx.v),
 			    gctx.v, NULL, true, true);
-			return (true);
+			return true;
 		}
 		new_gctx = true;
 	} else {
@@ -747,7 +747,7 @@ prof_lookup_global(tsd_t *tsd, prof_bt_t *bt, prof_tdata_t *tdata,
 	*p_btkey = btkey.v;
 	*p_gctx = gctx.p;
 	*p_new_gctx = new_gctx;
-	return (false);
+	return false;
 }
 
 prof_tctx_t *
@@ -763,7 +763,7 @@ prof_lookup(tsd_t *tsd, prof_bt_t *bt) {
 
 	tdata = prof_tdata_get(tsd, false);
 	if (tdata == NULL) {
-		return (NULL);
+		return NULL;
 	}
 
 	malloc_mutex_lock(tsd_tsdn(tsd), tdata->lock);
@@ -783,7 +783,7 @@ prof_lookup(tsd_t *tsd, prof_bt_t *bt) {
 		 */
 		if (prof_lookup_global(tsd, bt, tdata, &btkey, &gctx,
 		    &new_gctx)) {
-			return (NULL);
+			return NULL;
 		}
 
 		/* Link a prof_tctx_t into gctx for this thread. */
@@ -794,7 +794,7 @@ prof_lookup(tsd_t *tsd, prof_bt_t *bt) {
 			if (new_gctx) {
 				prof_gctx_try_destroy(tsd, tdata, gctx, tdata);
 			}
-			return (NULL);
+			return NULL;
 		}
 		ret.p->tdata = tdata;
 		ret.p->thr_uid = tdata->thr_uid;
@@ -813,7 +813,7 @@ prof_lookup(tsd_t *tsd, prof_bt_t *bt) {
 			}
 			idalloctm(tsd_tsdn(tsd), iealloc(tsd_tsdn(tsd), ret.v),
 			    ret.v, NULL, true, true);
-			return (NULL);
+			return NULL;
 		}
 		malloc_mutex_lock(tsd_tsdn(tsd), gctx->lock);
 		ret.p->state = prof_tctx_state_nominal;
@@ -822,7 +822,7 @@ prof_lookup(tsd_t *tsd, prof_bt_t *bt) {
 		malloc_mutex_unlock(tsd_tsdn(tsd), gctx->lock);
 	}
 
-	return (ret.p);
+	return ret.p;
 }
 
 /*
@@ -887,7 +887,7 @@ prof_tdata_count_iter(prof_tdata_tree_t *tdatas, prof_tdata_t *tdata,
 
 	(*tdata_count)++;
 
-	return (NULL);
+	return NULL;
 }
 
 size_t
@@ -901,7 +901,7 @@ prof_tdata_count(void) {
 	    (void *)&tdata_count);
 	malloc_mutex_unlock(tsdn, &tdatas_mtx);
 
-	return (tdata_count);
+	return tdata_count;
 }
 #endif
 
@@ -915,14 +915,14 @@ prof_bt_count(void) {
 	tsd = tsd_fetch();
 	tdata = prof_tdata_get(tsd, false);
 	if (tdata == NULL) {
-		return (0);
+		return 0;
 	}
 
 	malloc_mutex_lock(tsd_tsdn(tsd), &bt2gctx_mtx);
 	bt_count = ckh_count(&bt2gctx);
 	malloc_mutex_unlock(tsd_tsdn(tsd), &bt2gctx_mtx);
 
-	return (bt_count);
+	return bt_count;
 }
 #endif
 
@@ -943,7 +943,7 @@ prof_dump_open(bool propagate_err, const char *filename) {
 		}
 	}
 
-	return (fd);
+	return fd;
 }
 #ifdef JEMALLOC_JET
 #undef prof_dump_open
@@ -971,7 +971,7 @@ prof_dump_flush(bool propagate_err) {
 	}
 	prof_dump_buf_end = 0;
 
-	return (ret);
+	return ret;
 }
 
 static bool
@@ -983,7 +983,7 @@ prof_dump_close(bool propagate_err) {
 	close(prof_dump_fd);
 	prof_dump_fd = -1;
 
-	return (ret);
+	return ret;
 }
 
 static bool
@@ -998,7 +998,7 @@ prof_dump_write(bool propagate_err, const char *s) {
 		/* Flush the buffer if it is full. */
 		if (prof_dump_buf_end == PROF_DUMP_BUFSIZE) {
 			if (prof_dump_flush(propagate_err) && propagate_err) {
-				return (true);
+				return true;
 			}
 		}
 
@@ -1014,7 +1014,7 @@ prof_dump_write(bool propagate_err, const char *s) {
 		i += n;
 	}
 
-	return (false);
+	return false;
 }
 
 JEMALLOC_FORMAT_PRINTF(2, 3)
@@ -1029,7 +1029,7 @@ prof_dump_printf(bool propagate_err, const char *format, ...) {
 	va_end(ap);
 	ret = prof_dump_write(propagate_err, buf);
 
-	return (ret);
+	return ret;
 }
 
 static void
@@ -1093,7 +1093,7 @@ prof_tctx_merge_iter(prof_tctx_tree_t *tctxs, prof_tctx_t *tctx, void *arg) {
 		not_reached();
 	}
 
-	return (NULL);
+	return NULL;
 }
 
 struct prof_tctx_dump_iter_arg_s {
@@ -1120,13 +1120,13 @@ prof_tctx_dump_iter(prof_tctx_tree_t *tctxs, prof_tctx_t *tctx, void *opaque) {
 		    "%"FMTu64"]\n", tctx->thr_uid, tctx->dump_cnts.curobjs,
 		    tctx->dump_cnts.curbytes, tctx->dump_cnts.accumobjs,
 		    tctx->dump_cnts.accumbytes)) {
-			return (tctx);
+			return tctx;
 		}
 		break;
 	default:
 		not_reached();
 	}
-	return (NULL);
+	return NULL;
 }
 
 static prof_tctx_t *
@@ -1152,7 +1152,7 @@ prof_tctx_finish_iter(prof_tctx_tree_t *tctxs, prof_tctx_t *tctx, void *arg) {
 
 	ret = NULL;
 label_return:
-	return (ret);
+	return ret;
 }
 
 static void
@@ -1192,7 +1192,7 @@ prof_gctx_merge_iter(prof_gctx_tree_t *gctxs, prof_gctx_t *gctx, void *opaque) {
 	}
 	malloc_mutex_unlock(arg->tsdn, gctx->lock);
 
-	return (NULL);
+	return NULL;
 }
 
 static void
@@ -1279,7 +1279,7 @@ prof_tdata_merge_iter(prof_tdata_tree_t *tdatas, prof_tdata_t *tdata,
 	}
 	malloc_mutex_unlock(arg->tsdn, tdata->lock);
 
-	return (NULL);
+	return NULL;
 }
 
 static prof_tdata_t *
@@ -1288,7 +1288,7 @@ prof_tdata_dump_iter(prof_tdata_tree_t *tdatas, prof_tdata_t *tdata,
 	bool propagate_err = *(bool *)arg;
 
 	if (!tdata->dumping) {
-		return (NULL);
+		return NULL;
 	}
 
 	if (prof_dump_printf(propagate_err,
@@ -1298,9 +1298,9 @@ prof_tdata_dump_iter(prof_tdata_tree_t *tdatas, prof_tdata_t *tdata,
 	    tdata->cnt_summed.accumbytes,
 	    (tdata->thread_name != NULL) ? " " : "",
 	    (tdata->thread_name != NULL) ? tdata->thread_name : "")) {
-		return (tdata);
+		return tdata;
 	}
-	return (NULL);
+	return NULL;
 }
 
 #ifdef JEMALLOC_JET
@@ -1316,14 +1316,14 @@ prof_dump_header(tsdn_t *tsdn, bool propagate_err, const prof_cnt_t *cnt_all) {
 	    "  t*: %"FMTu64": %"FMTu64" [%"FMTu64": %"FMTu64"]\n",
 	    ((uint64_t)1U << lg_prof_sample), cnt_all->curobjs,
 	    cnt_all->curbytes, cnt_all->accumobjs, cnt_all->accumbytes)) {
-		return (true);
+		return true;
 	}
 
 	malloc_mutex_lock(tsdn, &tdatas_mtx);
 	ret = (tdata_tree_iter(&tdatas, NULL, prof_tdata_dump_iter,
 	    (void *)&propagate_err) != NULL);
 	malloc_mutex_unlock(tsdn, &tdatas_mtx);
-	return (ret);
+	return ret;
 }
 #ifdef JEMALLOC_JET
 #undef prof_dump_header
@@ -1383,7 +1383,7 @@ prof_dump_gctx(tsdn_t *tsdn, bool propagate_err, prof_gctx_t *gctx,
 
 	ret = false;
 label_return:
-	return (ret);
+	return ret;
 }
 
 #ifndef _WIN32
@@ -1399,16 +1399,16 @@ prof_open_maps(const char *format, ...) {
 	va_end(ap);
 	mfd = open(filename, O_RDONLY);
 
-	return (mfd);
+	return mfd;
 }
 #endif
 
 static int
 prof_getpid(void) {
 #ifdef _WIN32
-	return (GetCurrentProcessId());
+	return GetCurrentProcessId();
 #else
-	return (getpid());
+	return getpid();
 #endif
 }
 
@@ -1464,7 +1464,7 @@ label_return:
 	if (mfd != -1) {
 		close(mfd);
 	}
-	return (ret);
+	return ret;
 }
 
 /*
@@ -1524,7 +1524,7 @@ prof_gctx_dump_iter(prof_gctx_tree_t *gctxs, prof_gctx_t *gctx, void *opaque) {
 	ret = NULL;
 label_return:
 	malloc_mutex_unlock(arg->tsdn, gctx->lock);
-	return (ret);
+	return ret;
 }
 
 static void
@@ -1773,13 +1773,13 @@ prof_mdump(tsd_t *tsd, const char *filename) {
 	cassert(config_prof);
 
 	if (!opt_prof || !prof_booted) {
-		return (true);
+		return true;
 	}
 
 	if (filename == NULL) {
 		/* No filename specified, so automatically generate one. */
 		if (opt_prof_prefix[0] == '\0') {
-			return (true);
+			return true;
 		}
 		malloc_mutex_lock(tsd_tsdn(tsd), &prof_dump_seq_mtx);
 		prof_dump_filename(filename_buf, 'm', prof_dump_mseq);
@@ -1787,7 +1787,7 @@ prof_mdump(tsd_t *tsd, const char *filename) {
 		malloc_mutex_unlock(tsd_tsdn(tsd), &prof_dump_seq_mtx);
 		filename = filename_buf;
 	}
-	return (prof_dump(tsd, true, filename, false));
+	return prof_dump(tsd, true, filename, false);
 }
 
 void
@@ -1837,7 +1837,7 @@ prof_bt_keycomp(const void *k1, const void *k2) {
 	cassert(config_prof);
 
 	if (bt1->len != bt2->len) {
-		return (false);
+		return false;
 	}
 	return (memcmp(bt1->vec, bt2->vec, bt1->len * sizeof(void *)) == 0);
 }
@@ -1851,7 +1851,7 @@ prof_thr_uid_alloc(tsdn_t *tsdn) {
 	next_thr_uid++;
 	malloc_mutex_unlock(tsdn, &next_thr_uid_mtx);
 
-	return (thr_uid);
+	return thr_uid;
 }
 
 static prof_tdata_t *
@@ -1866,7 +1866,7 @@ prof_tdata_init_impl(tsd_t *tsd, uint64_t thr_uid, uint64_t thr_discrim,
 	    size2index(sizeof(prof_tdata_t)), false, NULL, true,
 	    arena_get(TSDN_NULL, 0, true), true);
 	if (tdata == NULL) {
-		return (NULL);
+		return NULL;
 	}
 
 	tdata->lock = prof_tdata_mutex_choose(thr_uid);
@@ -1881,7 +1881,7 @@ prof_tdata_init_impl(tsd_t *tsd, uint64_t thr_uid, uint64_t thr_discrim,
 	    prof_bt_keycomp)) {
 		idalloctm(tsd_tsdn(tsd), iealloc(tsd_tsdn(tsd), tdata), tdata,
 		    NULL, true, true);
-		return (NULL);
+		return NULL;
 	}
 
 	tdata->prng_state = (uint64_t)(uintptr_t)tdata;
@@ -1898,24 +1898,24 @@ prof_tdata_init_impl(tsd_t *tsd, uint64_t thr_uid, uint64_t thr_discrim,
 	tdata_tree_insert(&tdatas, tdata);
 	malloc_mutex_unlock(tsd_tsdn(tsd), &tdatas_mtx);
 
-	return (tdata);
+	return tdata;
 }
 
 prof_tdata_t *
 prof_tdata_init(tsd_t *tsd) {
-	return (prof_tdata_init_impl(tsd, prof_thr_uid_alloc(tsd_tsdn(tsd)), 0,
-	    NULL, prof_thread_active_init_get(tsd_tsdn(tsd))));
+	return prof_tdata_init_impl(tsd, prof_thr_uid_alloc(tsd_tsdn(tsd)), 0,
+	    NULL, prof_thread_active_init_get(tsd_tsdn(tsd)));
 }
 
 static bool
 prof_tdata_should_destroy_unlocked(prof_tdata_t *tdata, bool even_if_attached) {
 	if (tdata->attached && !even_if_attached) {
-		return (false);
+		return false;
 	}
 	if (ckh_count(&tdata->bt2tctx) != 0) {
-		return (false);
+		return false;
 	}
-	return (true);
+	return true;
 }
 
 static bool
@@ -1923,7 +1923,7 @@ prof_tdata_should_destroy(tsdn_t *tsdn, prof_tdata_t *tdata,
     bool even_if_attached) {
 	malloc_mutex_assert_owner(tsdn, tdata->lock);
 
-	return (prof_tdata_should_destroy_unlocked(tdata, even_if_attached));
+	return prof_tdata_should_destroy_unlocked(tdata, even_if_attached);
 }
 
 static void
@@ -1985,8 +1985,8 @@ prof_tdata_reinit(tsd_t *tsd, prof_tdata_t *tdata) {
 	bool active = tdata->active;
 
 	prof_tdata_detach(tsd, tdata);
-	return (prof_tdata_init_impl(tsd, thr_uid, thr_discrim, thread_name,
-	    active));
+	return prof_tdata_init_impl(tsd, thr_uid, thr_discrim, thread_name,
+	    active);
 }
 
 static bool
@@ -2003,7 +2003,7 @@ prof_tdata_expire(tsdn_t *tsdn, prof_tdata_t *tdata) {
 	}
 	malloc_mutex_unlock(tsdn, tdata->lock);
 
-	return (destroy_tdata);
+	return destroy_tdata;
 }
 
 static prof_tdata_t *
@@ -2062,7 +2062,7 @@ prof_active_get(tsdn_t *tsdn) {
 	malloc_mutex_lock(tsdn, &prof_active_mtx);
 	prof_active_current = prof_active;
 	malloc_mutex_unlock(tsdn, &prof_active_mtx);
-	return (prof_active_current);
+	return prof_active_current;
 }
 
 bool
@@ -2073,7 +2073,7 @@ prof_active_set(tsdn_t *tsdn, bool active) {
 	prof_active_old = prof_active;
 	prof_active = active;
 	malloc_mutex_unlock(tsdn, &prof_active_mtx);
-	return (prof_active_old);
+	return prof_active_old;
 }
 
 const char *
@@ -2082,7 +2082,7 @@ prof_thread_name_get(tsd_t *tsd) {
 
 	tdata = prof_tdata_get(tsd, true);
 	if (tdata == NULL) {
-		return ("");
+		return "";
 	}
 	return (tdata->thread_name != NULL ? tdata->thread_name : "");
 }
@@ -2093,21 +2093,21 @@ prof_thread_name_alloc(tsdn_t *tsdn, const char *thread_name) {
 	size_t size;
 
 	if (thread_name == NULL) {
-		return (NULL);
+		return NULL;
 	}
 
 	size = strlen(thread_name) + 1;
 	if (size == 1) {
-		return ("");
+		return "";
 	}
 
 	ret = iallocztm(tsdn, size, size2index(size), false, NULL, true,
 	    arena_get(TSDN_NULL, 0, true), true);
 	if (ret == NULL) {
-		return (NULL);
+		return NULL;
 	}
 	memcpy(ret, thread_name, size);
-	return (ret);
+	return ret;
 }
 
 int
@@ -2118,23 +2118,23 @@ prof_thread_name_set(tsd_t *tsd, const char *thread_name) {
 
 	tdata = prof_tdata_get(tsd, true);
 	if (tdata == NULL) {
-		return (EAGAIN);
+		return EAGAIN;
 	}
 
 	/* Validate input. */
 	if (thread_name == NULL) {
-		return (EFAULT);
+		return EFAULT;
 	}
 	for (i = 0; thread_name[i] != '\0'; i++) {
 		char c = thread_name[i];
 		if (!isgraph(c) && !isblank(c)) {
-			return (EFAULT);
+			return EFAULT;
 		}
 	}
 
 	s = prof_thread_name_alloc(tsd_tsdn(tsd), thread_name);
 	if (s == NULL) {
-		return (EAGAIN);
+		return EAGAIN;
 	}
 
 	if (tdata->thread_name != NULL) {
@@ -2145,7 +2145,7 @@ prof_thread_name_set(tsd_t *tsd, const char *thread_name) {
 	if (strlen(s) > 0) {
 		tdata->thread_name = s;
 	}
-	return (0);
+	return 0;
 }
 
 bool
@@ -2154,9 +2154,9 @@ prof_thread_active_get(tsd_t *tsd) {
 
 	tdata = prof_tdata_get(tsd, true);
 	if (tdata == NULL) {
-		return (false);
+		return false;
 	}
-	return (tdata->active);
+	return tdata->active;
 }
 
 bool
@@ -2165,10 +2165,10 @@ prof_thread_active_set(tsd_t *tsd, bool active) {
 
 	tdata = prof_tdata_get(tsd, true);
 	if (tdata == NULL) {
-		return (true);
+		return true;
 	}
 	tdata->active = active;
-	return (false);
+	return false;
 }
 
 bool
@@ -2178,7 +2178,7 @@ prof_thread_active_init_get(tsdn_t *tsdn) {
 	malloc_mutex_lock(tsdn, &prof_thread_active_init_mtx);
 	active_init = prof_thread_active_init;
 	malloc_mutex_unlock(tsdn, &prof_thread_active_init_mtx);
-	return (active_init);
+	return active_init;
 }
 
 bool
@@ -2189,7 +2189,7 @@ prof_thread_active_init_set(tsdn_t *tsdn, bool active_init) {
 	active_init_old = prof_thread_active_init;
 	prof_thread_active_init = active_init;
 	malloc_mutex_unlock(tsdn, &prof_thread_active_init_mtx);
-	return (active_init_old);
+	return active_init_old;
 }
 
 bool
@@ -2199,7 +2199,7 @@ prof_gdump_get(tsdn_t *tsdn) {
 	malloc_mutex_lock(tsdn, &prof_gdump_mtx);
 	prof_gdump_current = prof_gdump_val;
 	malloc_mutex_unlock(tsdn, &prof_gdump_mtx);
-	return (prof_gdump_current);
+	return prof_gdump_current;
 }
 
 bool
@@ -2210,7 +2210,7 @@ prof_gdump_set(tsdn_t *tsdn, bool gdump) {
 	prof_gdump_old = prof_gdump_val;
 	prof_gdump_val = gdump;
 	malloc_mutex_unlock(tsdn, &prof_gdump_mtx);
-	return (prof_gdump_old);
+	return prof_gdump_old;
 }
 
 void
@@ -2257,50 +2257,50 @@ prof_boot2(tsd_t *tsd) {
 		prof_active = opt_prof_active;
 		if (malloc_mutex_init(&prof_active_mtx, "prof_active",
 		    WITNESS_RANK_PROF_ACTIVE)) {
-			return (true);
+			return true;
 		}
 
 		prof_gdump_val = opt_prof_gdump;
 		if (malloc_mutex_init(&prof_gdump_mtx, "prof_gdump",
 		    WITNESS_RANK_PROF_GDUMP)) {
-			return (true);
+			return true;
 		}
 
 		prof_thread_active_init = opt_prof_thread_active_init;
 		if (malloc_mutex_init(&prof_thread_active_init_mtx,
 		    "prof_thread_active_init",
 		    WITNESS_RANK_PROF_THREAD_ACTIVE_INIT)) {
-			return (true);
+			return true;
 		}
 
 		if (ckh_new(tsd, &bt2gctx, PROF_CKH_MINITEMS, prof_bt_hash,
 		    prof_bt_keycomp)) {
-			return (true);
+			return true;
 		}
 		if (malloc_mutex_init(&bt2gctx_mtx, "prof_bt2gctx",
 		    WITNESS_RANK_PROF_BT2GCTX)) {
-			return (true);
+			return true;
 		}
 
 		tdata_tree_new(&tdatas);
 		if (malloc_mutex_init(&tdatas_mtx, "prof_tdatas",
 		    WITNESS_RANK_PROF_TDATAS)) {
-			return (true);
+			return true;
 		}
 
 		next_thr_uid = 0;
 		if (malloc_mutex_init(&next_thr_uid_mtx, "prof_next_thr_uid",
 		    WITNESS_RANK_PROF_NEXT_THR_UID)) {
-			return (true);
+			return true;
 		}
 
 		if (malloc_mutex_init(&prof_dump_seq_mtx, "prof_dump_seq",
 		    WITNESS_RANK_PROF_DUMP_SEQ)) {
-			return (true);
+			return true;
 		}
 		if (malloc_mutex_init(&prof_dump_mtx, "prof_dump",
 		    WITNESS_RANK_PROF_DUMP)) {
-			return (true);
+			return true;
 		}
 
 		if (opt_prof_final && opt_prof_prefix[0] != '\0' &&
@@ -2315,12 +2315,12 @@ prof_boot2(tsd_t *tsd) {
 		    b0get(), PROF_NCTX_LOCKS * sizeof(malloc_mutex_t),
 		    CACHELINE);
 		if (gctx_locks == NULL) {
-			return (true);
+			return true;
 		}
 		for (i = 0; i < PROF_NCTX_LOCKS; i++) {
 			if (malloc_mutex_init(&gctx_locks[i], "prof_gctx",
 			    WITNESS_RANK_PROF_GCTX)) {
-				return (true);
+				return true;
 			}
 		}
 
@@ -2328,12 +2328,12 @@ prof_boot2(tsd_t *tsd) {
 		    b0get(), PROF_NTDATA_LOCKS * sizeof(malloc_mutex_t),
 		    CACHELINE);
 		if (tdata_locks == NULL) {
-			return (true);
+			return true;
 		}
 		for (i = 0; i < PROF_NTDATA_LOCKS; i++) {
 			if (malloc_mutex_init(&tdata_locks[i], "prof_tdata",
 			    WITNESS_RANK_PROF_TDATA)) {
-				return (true);
+				return true;
 			}
 		}
 	}
@@ -2348,7 +2348,7 @@ prof_boot2(tsd_t *tsd) {
 
 	prof_booted = true;
 
-	return (false);
+	return false;
 }
 
 void

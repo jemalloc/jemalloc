@@ -13,7 +13,7 @@ malloc_tsd_data(, , tsd_t, TSD_INITIALIZER)
 
 void *
 malloc_tsd_malloc(size_t size) {
-	return (a0malloc(CACHELINE_CEILING(size)));
+	return a0malloc(CACHELINE_CEILING(size));
 }
 
 void
@@ -109,11 +109,11 @@ malloc_tsd_boot0(void) {
 
 	ncleanups = 0;
 	if (tsd_boot0()) {
-		return (NULL);
+		return NULL;
 	}
 	tsd = tsd_fetch();
 	*tsd_arenas_tdata_bypassp_get(tsd) = true;
-	return (tsd);
+	return tsd;
 }
 
 void
@@ -137,7 +137,7 @@ _tls_callback(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved) {
 	default:
 		break;
 	}
-	return (true);
+	return true;
 }
 
 #ifdef _MSC_VER
@@ -167,7 +167,7 @@ tsd_init_check_recursion(tsd_init_head_t *head, tsd_init_block_t *block) {
 	ql_foreach(iter, &head->blocks, link) {
 		if (iter->thread == self) {
 			malloc_mutex_unlock(TSDN_NULL, &head->lock);
-			return (iter->data);
+			return iter->data;
 		}
 	}
 	/* Insert block into list. */
@@ -175,7 +175,7 @@ tsd_init_check_recursion(tsd_init_head_t *head, tsd_init_block_t *block) {
 	block->thread = self;
 	ql_tail_insert(&head->blocks, block, link);
 	malloc_mutex_unlock(TSDN_NULL, &head->lock);
-	return (NULL);
+	return NULL;
 }
 
 void

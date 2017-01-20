@@ -22,11 +22,11 @@ witness_owner(tsd_t *tsd, const witness_t *witness) {
 	witnesses = tsd_witnessesp_get(tsd);
 	ql_foreach(w, witnesses, link) {
 		if (w == witness) {
-			return (true);
+			return true;
 		}
 	}
 
-	return (false);
+	return false;
 }
 
 JEMALLOC_INLINE void

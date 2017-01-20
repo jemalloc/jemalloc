@@ -26,27 +26,27 @@ int	get_errno(void);
 
 JEMALLOC_ALWAYS_INLINE unsigned
 ffs_llu(unsigned long long bitmap) {
-	return (JEMALLOC_INTERNAL_FFSLL(bitmap));
+	return JEMALLOC_INTERNAL_FFSLL(bitmap);
 }
 
 JEMALLOC_ALWAYS_INLINE unsigned
 ffs_lu(unsigned long bitmap) {
-	return (JEMALLOC_INTERNAL_FFSL(bitmap));
+	return JEMALLOC_INTERNAL_FFSL(bitmap);
 }
 
 JEMALLOC_ALWAYS_INLINE unsigned
 ffs_u(unsigned bitmap) {
-	return (JEMALLOC_INTERNAL_FFS(bitmap));
+	return JEMALLOC_INTERNAL_FFS(bitmap);
 }
 
 JEMALLOC_ALWAYS_INLINE unsigned
 ffs_zu(size_t bitmap) {
 #if LG_SIZEOF_PTR == LG_SIZEOF_INT
-	return (ffs_u(bitmap));
+	return ffs_u(bitmap);
 #elif LG_SIZEOF_PTR == LG_SIZEOF_LONG
-	return (ffs_lu(bitmap));
+	return ffs_lu(bitmap);
 #elif LG_SIZEOF_PTR == LG_SIZEOF_LONG_LONG
-	return (ffs_llu(bitmap));
+	return ffs_llu(bitmap);
 #else
 #error No implementation for size_t ffs()
 #endif
@@ -55,9 +55,9 @@ ffs_zu(size_t bitmap) {
 JEMALLOC_ALWAYS_INLINE unsigned
 ffs_u64(uint64_t bitmap) {
 #if LG_SIZEOF_LONG == 3
-	return (ffs_lu(bitmap));
+	return ffs_lu(bitmap);
 #elif LG_SIZEOF_LONG_LONG == 3
-	return (ffs_llu(bitmap));
+	return ffs_llu(bitmap);
 #else
 #error No implementation for 64-bit ffs()
 #endif
@@ -66,11 +66,11 @@ ffs_u64(uint64_t bitmap) {
 JEMALLOC_ALWAYS_INLINE unsigned
 ffs_u32(uint32_t bitmap) {
 #if LG_SIZEOF_INT == 2
-	return (ffs_u(bitmap));
+	return ffs_u(bitmap);
 #else
 #error No implementation for 32-bit ffs()
 #endif
-	return (ffs_u(bitmap));
+	return ffs_u(bitmap);
 }
 
 JEMALLOC_INLINE uint64_t
@@ -83,7 +83,7 @@ pow2_ceil_u64(uint64_t x) {
 	x |= x >> 16;
 	x |= x >> 32;
 	x++;
-	return (x);
+	return x;
 }
 
 JEMALLOC_INLINE uint32_t
@@ -95,16 +95,16 @@ pow2_ceil_u32(uint32_t x) {
 	x |= x >> 8;
 	x |= x >> 16;
 	x++;
-	return (x);
+	return x;
 }
 
 /* Compute the smallest power of 2 that is >= x. */
 JEMALLOC_INLINE size_t
 pow2_ceil_zu(size_t x) {
 #if (LG_SIZEOF_PTR == 3)
-	return (pow2_ceil_u64(x));
+	return pow2_ceil_u64(x);
 #else
-	return (pow2_ceil_u32(x));
+	return pow2_ceil_u32(x);
 #endif
 }
 
@@ -120,7 +120,7 @@ lg_floor(size_t x) {
 	    : "r"(x)    // Inputs.
 	    );
 	assert(ret < UINT_MAX);
-	return ((unsigned)ret);
+	return (unsigned)ret;
 }
 #elif (defined(_MSC_VER))
 JEMALLOC_INLINE unsigned
@@ -137,7 +137,7 @@ lg_floor(size_t x) {
 #  error "Unsupported type size for lg_floor()"
 #endif
 	assert(ret < UINT_MAX);
-	return ((unsigned)ret);
+	return (unsigned)ret;
 }
 #elif (defined(JEMALLOC_HAVE_BUILTIN_CLZ))
 JEMALLOC_INLINE unsigned
@@ -145,9 +145,9 @@ lg_floor(size_t x) {
 	assert(x != 0);
 
 #if (LG_SIZEOF_PTR == LG_SIZEOF_INT)
-	return (((8 << LG_SIZEOF_PTR) - 1) - __builtin_clz(x));
+	return ((8 << LG_SIZEOF_PTR) - 1) - __builtin_clz(x);
 #elif (LG_SIZEOF_PTR == LG_SIZEOF_LONG)
-	return (((8 << LG_SIZEOF_PTR) - 1) - __builtin_clzl(x));
+	return ((8 << LG_SIZEOF_PTR) - 1) - __builtin_clzl(x);
 #else
 #  error "Unsupported type size for lg_floor()"
 #endif
@@ -166,10 +166,10 @@ lg_floor(size_t x) {
 	x |= (x >> 32);
 #endif
 	if (x == SIZE_T_MAX) {
-		return ((8 << LG_SIZEOF_PTR) - 1);
+		return (8 << LG_SIZEOF_PTR) - 1;
 	}
 	x++;
-	return (ffs_zu(x) - 2);
+	return ffs_zu(x) - 2;
 }
 #endif
 
@@ -187,9 +187,9 @@ set_errno(int errnum) {
 JEMALLOC_INLINE int
 get_errno(void) {
 #ifdef _WIN32
-	return (GetLastError());
+	return GetLastError();
 #else
-	return (errno);
+	return errno;
 #endif
 }
 #endif

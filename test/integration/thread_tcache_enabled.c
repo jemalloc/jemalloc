@@ -77,10 +77,10 @@ thd_start(void *arg) {
 	assert_false(e0, "tcache should be disabled");
 
 	free(malloc(1));
-	return (NULL);
+	return NULL;
 label_ENOENT:
 	test_skip("\"thread.tcache.enabled\" mallctl not available");
-	return (NULL);
+	return NULL;
 }
 
 TEST_BEGIN(test_main_thread) {
@@ -99,10 +99,10 @@ TEST_END
 int
 main(void) {
 	/* Run tests multiple times to check for bad interactions. */
-	return (test(
+	return test(
 	    test_main_thread,
 	    test_subthread,
 	    test_main_thread,
 	    test_subthread,
-	    test_main_thread));
+	    test_main_thread);
 }

@@ -27,6 +27,6 @@ TEST_END
 
 int
 main(void) {
-	return (test(
-	    test_arena_slab_regind));
+	return test(
+	    test_arena_slab_regind);
 }

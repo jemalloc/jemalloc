@@ -37,10 +37,10 @@ hash_get_block_32(const uint32_t *p, int i) {
 		uint32_t ret;
 
 		memcpy(&ret, (uint8_t *)(p + i), sizeof(uint32_t));
-		return (ret);
+		return ret;
 	}
 
-	return (p[i]);
+	return p[i];
 }
 
 JEMALLOC_INLINE uint64_t
@@ -50,10 +50,10 @@ hash_get_block_64(const uint64_t *p, int i) {
 		uint64_t ret;
 
 		memcpy(&ret, (uint8_t *)(p + i), sizeof(uint64_t));
-		return (ret);
+		return ret;
 	}
 
-	return (p[i]);
+	return p[i];
 }
 
 JEMALLOC_INLINE uint32_t
@@ -64,7 +64,7 @@ hash_fmix_32(uint32_t h) {
 	h *= 0xc2b2ae35;
 	h ^= h >> 16;
 
-	return (h);
+	return h;
 }
 
 JEMALLOC_INLINE uint64_t
@@ -75,7 +75,7 @@ hash_fmix_64(uint64_t k) {
 	k *= KQU(0xc4ceb9fe1a85ec53);
 	k ^= k >> 33;
 
-	return (k);
+	return k;
 }
 
 JEMALLOC_INLINE uint32_t
@@ -125,7 +125,7 @@ hash_x86_32(const void *key, int len, uint32_t seed) {
 
 	h1 = hash_fmix_32(h1);
 
-	return (h1);
+	return h1;
 }
 
 UNUSED JEMALLOC_INLINE void

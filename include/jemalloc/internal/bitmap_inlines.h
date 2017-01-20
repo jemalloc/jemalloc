@@ -22,10 +22,10 @@ bitmap_full(bitmap_t *bitmap, const bitmap_info_t *binfo) {
 
 	for (i = 0; i < binfo->ngroups; i++) {
 		if (bitmap[i] != 0) {
-			return (false);
+			return false;
 		}
 	}
-	return (true);
+	return true;
 #endif
 }
 
@@ -37,7 +37,7 @@ bitmap_get(bitmap_t *bitmap, const bitmap_info_t *binfo, size_t bit) {
 	assert(bit < binfo->nbits);
 	goff = bit >> LG_BITMAP_GROUP_NBITS;
 	g = bitmap[goff];
-	return (!(g & (ZU(1) << (bit & BITMAP_GROUP_NBITS_MASK))));
+	return !(g & (ZU(1) << (bit & BITMAP_GROUP_NBITS_MASK)));
 }
 
 JEMALLOC_INLINE void
@@ -103,7 +103,7 @@ bitmap_sfu(bitmap_t *bitmap, const bitmap_info_t *binfo) {
 	bit = (i << LG_BITMAP_GROUP_NBITS) + (bit - 1);
 #endif
 	bitmap_set(bitmap, binfo, bit);
-	return (bit);
+	return bit;
 }
 
 JEMALLOC_INLINE void

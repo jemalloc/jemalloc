@@ -12,7 +12,7 @@ prof_dump_open_intercept(bool propagate_err, const char *filename) {
 	fd = open("/dev/null", O_WRONLY);
 	assert_d_ne(fd, -1, "Unexpected open() failure");
 
-	return (fd);
+	return fd;
 }
 
 static void
@@ -29,7 +29,7 @@ get_lg_prof_sample(void) {
 	assert_d_eq(mallctl("prof.lg_sample", (void *)&lg_prof_sample, &sz,
 	    NULL, 0), 0,
 	    "Unexpected mallctl failure while reading profiling sample rate");
-	return (lg_prof_sample);
+	return lg_prof_sample;
 }
 
 static void
@@ -94,7 +94,7 @@ prof_dump_header_intercept(tsdn_t *tsdn, bool propagate_err,
 	prof_dump_header_intercepted = true;
 	memcpy(&cnt_all_copy, cnt_all, sizeof(prof_cnt_t));
 
-	return (false);
+	return false;
 }
 
 TEST_BEGIN(test_prof_reset_cleanup) {
@@ -181,7 +181,7 @@ thd_start(void *varg) {
 		}
 	}
 
-	return (NULL);
+	return NULL;
 }
 
 TEST_BEGIN(test_prof_reset) {
@@ -283,9 +283,9 @@ main(void) {
 	/* Intercept dumping prior to running any tests. */
 	prof_dump_open = prof_dump_open_intercept;
 
-	return (test(
+	return test(
 	    test_prof_reset_basic,
 	    test_prof_reset_cleanup,
 	    test_prof_reset,
-	    test_xallocx));
+	    test_xallocx);
 }

@@ -295,7 +295,7 @@ if test "x$enable_cxx" = "x1" ; then
 ], [[
 	int *arr = (int *)malloc(sizeof(int) * 42);
 	if (arr == NULL)
-		return (1);
+		return 1;
 ]], [je_cv_libstdcxx])
     if test "x${je_cv_libstdcxx}" = "xno" ; then
       LIBS="${SAVED_LIBS}"
@@ -1659,7 +1659,7 @@ JE_COMPILABLE([C11 atomics], [
     uint64_t x = 1;
     volatile atomic_uint_least64_t *a = (volatile atomic_uint_least64_t *)p;
     uint64_t r = atomic_fetch_add(a, x) + x;
-    return (r == 0);
+    return r == 0;
 ], [je_cv_c11atomics])
 if test "x${je_cv_c11atomics}" = "xyes" ; then
   AC_DEFINE([JEMALLOC_C11ATOMICS])

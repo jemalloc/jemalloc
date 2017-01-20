@@ -95,8 +95,8 @@ TEST_END
 
 int
 main(void) {
-	return (test(
+	return test(
 	    test_smoothstep_integral,
 	    test_smoothstep_monotonic,
-	    test_smoothstep_slope));
+	    test_smoothstep_slope);
 }

@@ -221,7 +221,7 @@ TEST_END
 
 int
 main(void) {
-	return (test(
+	return test(
 	    test_prng_lg_range_u32_nonatomic,
 	    test_prng_lg_range_u32_atomic,
 	    test_prng_lg_range_u64_nonatomic,
@@ -231,5 +231,5 @@ main(void) {
 	    test_prng_range_u32_atomic,
 	    test_prng_range_u64_nonatomic,
 	    test_prng_range_zu_nonatomic,
-	    test_prng_range_zu_atomic));
+	    test_prng_range_zu_atomic);
 }

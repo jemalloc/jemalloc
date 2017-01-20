@@ -22,6 +22,6 @@ TEST_END
 
 int
 main(void) {
-	return (test(
-	    test_pages_huge));
+	return test(
+	    test_pages_huge);
 }

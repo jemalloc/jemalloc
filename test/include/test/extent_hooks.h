@@ -86,12 +86,12 @@ extent_alloc_hook(extent_hooks_t *extent_hooks, void *new_addr, size_t size,
 	    "Wrong hook function");
 	called_alloc = true;
 	if (!try_alloc) {
-		return (NULL);
+		return NULL;
 	}
 	ret = default_hooks->alloc(default_hooks, new_addr, size, alignment,
 	    zero, commit, 0);
 	did_alloc = (ret != NULL);
-	return (ret);
+	return ret;
 }
 
 static bool
@@ -108,11 +108,11 @@ extent_dalloc_hook(extent_hooks_t *extent_hooks, void *addr, size_t size,
 	    "Wrong hook function");
 	called_dalloc = true;
 	if (!try_dalloc) {
-		return (true);
+		return true;
 	}
 	err = default_hooks->dalloc(default_hooks, addr, size, committed, 0);
 	did_dalloc = !err;
-	return (err);
+	return err;
 }
 
 static bool
@@ -129,12 +129,12 @@ extent_commit_hook(extent_hooks_t *extent_hooks, void *addr, size_t size,
 	    "Wrong hook function");
 	called_commit = true;
 	if (!try_commit) {
-		return (true);
+		return true;
 	}
 	err = default_hooks->commit(default_hooks, addr, size, offset, length,
 	    0);
 	did_commit = !err;
-	return (err);
+	return err;
 }
 
 static bool
@@ -151,12 +151,12 @@ extent_decommit_hook(extent_hooks_t *extent_hooks, void *addr, size_t size,
 	    "Wrong hook function");
 	called_decommit = true;
 	if (!try_decommit) {
-		return (true);
+		return true;
 	}
 	err = default_hooks->decommit(default_hooks, addr, size, offset, length,
 	    0);
 	did_decommit = !err;
-	return (err);
+	return err;
 }
 
 static bool
@@ -173,13 +173,13 @@ extent_purge_lazy_hook(extent_hooks_t *extent_hooks, void *addr, size_t size,
 	    "Wrong hook function");
 	called_purge_lazy = true;
 	if (!try_purge_lazy) {
-		return (true);
+		return true;
 	}
 	err = default_hooks->purge_lazy == NULL ||
 	    default_hooks->purge_lazy(default_hooks, addr, size, offset, length,
 	    0);
 	did_purge_lazy = !err;
-	return (err);
+	return err;
 }
 
 static bool
@@ -196,13 +196,13 @@ extent_purge_forced_hook(extent_hooks_t *extent_hooks, void *addr, size_t size,
 	    "Wrong hook function");
 	called_purge_forced = true;
 	if (!try_purge_forced) {
-		return (true);
+		return true;
 	}
 	err = default_hooks->purge_forced == NULL ||
 	    default_hooks->purge_forced(default_hooks, addr, size, offset,
 	    length, 0);
 	did_purge_forced = !err;
-	return (err);
+	return err;
 }
 
 static bool
@@ -220,13 +220,13 @@ extent_split_hook(extent_hooks_t *extent_hooks, void *addr, size_t size,
 	    "Wrong hook function");
 	called_split = true;
 	if (!try_split) {
-		return (true);
+		return true;
 	}
 	err = (default_hooks->split == NULL ||
 	    default_hooks->split(default_hooks, addr, size, size_a, size_b,
 	    committed, 0));
 	did_split = !err;
-	return (err);
+	return err;
 }
 
 static bool
@@ -244,13 +244,13 @@ extent_merge_hook(extent_hooks_t *extent_hooks, void *addr_a, size_t size_a,
 	    "Wrong hook function");
 	called_merge = true;
 	if (!try_merge) {
-		return (true);
+		return true;
 	}
 	err = (default_hooks->merge == NULL ||
 	    default_hooks->merge(default_hooks, addr_a, size_a, addr_b, size_b,
 	    committed, 0));
 	did_merge = !err;
-	return (err);
+	return err;
 }
 
 static void

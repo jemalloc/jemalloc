@@ -41,7 +41,7 @@ thd_start(void *arg) {
 	assert_ptr_not_null(p, "Unexpected mallocx() error");
 	dallocx(p, 0);
 
-	return (NULL);
+	return NULL;
 }
 
 TEST_BEGIN(test_MALLOCX_ARENA) {
@@ -61,6 +61,6 @@ TEST_END
 
 int
 main(void) {
-	return (test(
-	    test_MALLOCX_ARENA));
+	return test(
+	    test_MALLOCX_ARENA);
 }

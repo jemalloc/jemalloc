@@ -41,12 +41,12 @@ binind_compute(void) {
 		assert_d_eq(mallctlbymib(mib, miblen, (void *)&size, &sz, NULL,
 		    0), 0, "Unexpected mallctlbymib failure");
 		if (size == SZ) {
-			return (i);
+			return i;
 		}
 	}
 
 	test_fail("Unable to compute nregs_per_run");
-	return (0);
+	return 0;
 }
 
 static size_t
@@ -63,7 +63,7 @@ nregs_per_run_compute(void) {
 	sz = sizeof(nregs);
 	assert_d_eq(mallctlbymib(mib, miblen, (void *)&nregs, &sz, NULL,
 	    0), 0, "Unexpected mallctlbymib failure");
-	return (nregs);
+	return nregs;
 }
 
 static unsigned
@@ -75,7 +75,7 @@ arenas_create_mallctl(void) {
 	assert_d_eq(mallctl("arenas.create", (void *)&arena_ind, &sz, NULL, 0),
 	    0, "Error in arenas.create");
 
-	return (arena_ind);
+	return arena_ind;
 }
 
 static void
@@ -158,6 +158,6 @@ TEST_END
 
 int
 main(void) {
-	return (test(
-	    test_pack));
+	return test(
+	    test_pack);
 }

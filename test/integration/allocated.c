@@ -91,12 +91,12 @@ thd_start(void *arg) {
 	    "Deallocated memory counter should increase by at least the amount "
 	    "explicitly deallocated");
 
-	return (NULL);
+	return NULL;
 label_ENOENT:
 	assert_false(config_stats,
 	    "ENOENT should only be returned if stats are disabled");
 	test_skip("\"thread.allocated\" mallctl not available");
-	return (NULL);
+	return NULL;
 }
 
 TEST_BEGIN(test_main_thread) {
@@ -115,10 +115,10 @@ TEST_END
 int
 main(void) {
 	/* Run tests multiple times to check for bad interactions. */
-	return (test(
+	return test(
 	    test_main_thread,
 	    test_subthread,
 	    test_main_thread,
 	    test_subthread,
-	    test_main_thread));
+	    test_main_thread);
 }

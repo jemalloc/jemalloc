@@ -218,10 +218,10 @@ a_prefix##empty(a_ph_type *ph) {					\
 a_attr a_type *								\
 a_prefix##first(a_ph_type *ph) {					\
 	if (ph->ph_root == NULL) {					\
-		return (NULL);						\
+		return NULL;						\
 	}								\
 	ph_merge_aux(a_type, a_field, ph, a_cmp);			\
-	return (ph->ph_root);						\
+	return ph->ph_root;						\
 }									\
 a_attr void								\
 a_prefix##insert(a_ph_type *ph, a_type *phn) {				\
@@ -255,7 +255,7 @@ a_prefix##remove_first(a_ph_type *ph) {					\
 	a_type *ret;							\
 									\
 	if (ph->ph_root == NULL) {					\
-		return (NULL);						\
+		return NULL;						\
 	}								\
 	ph_merge_aux(a_type, a_field, ph, a_cmp);			\
 									\
@@ -264,7 +264,7 @@ a_prefix##remove_first(a_ph_type *ph) {					\
 	ph_merge_children(a_type, a_field, ph->ph_root, a_cmp,		\
 	    ph->ph_root);						\
 									\
-	return (ret);							\
+	return ret;							\
 }									\
 a_attr void								\
 a_prefix##remove(a_ph_type *ph, a_type *phn) {				\

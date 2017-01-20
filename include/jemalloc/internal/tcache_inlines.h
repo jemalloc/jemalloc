@@ -44,7 +44,7 @@ tcache_enabled_get(void) {
 		tsd_tcache_enabled_set(tsd, tcache_enabled);
 	}
 
-	return ((bool)tcache_enabled);
+	return (bool)tcache_enabled;
 }
 
 JEMALLOC_INLINE void
@@ -69,19 +69,19 @@ tcache_get(tsd_t *tsd, bool create) {
 	tcache_t *tcache;
 
 	if (!config_tcache) {
-		return (NULL);
+		return NULL;
 	}
 
 	tcache = tsd_tcache_get(tsd);
 	if (!create) {
-		return (tcache);
+		return tcache;
 	}
 	if (unlikely(tcache == NULL) && tsd_nominal(tsd)) {
 		tcache = tcache_get_hard(tsd);
 		tsd_tcache_set(tsd, tcache);
 	}
 
-	return (tcache);
+	return tcache;
 }
 
 JEMALLOC_ALWAYS_INLINE void
@@ -102,7 +102,7 @@ tcache_alloc_easy(tcache_bin_t *tbin, bool *tcache_success) {
 	if (unlikely(tbin->ncached == 0)) {
 		tbin->low_water = -1;
 		*tcache_success = false;
-		return (NULL);
+		return NULL;
 	}
 	/*
 	 * tcache_success (instead of ret) should be checked upon the return of
@@ -119,7 +119,7 @@ tcache_alloc_easy(tcache_bin_t *tbin, bool *tcache_success) {
 		tbin->low_water = tbin->ncached;
 	}
 
-	return (ret);
+	return ret;
 }
 
 JEMALLOC_ALWAYS_INLINE void *
@@ -138,13 +138,13 @@ tcache_alloc_small(tsd_t *tsd, arena_t *arena, tcache_t *tcache, size_t size,
 		bool tcache_hard_success;
 		arena = arena_choose(tsd, arena);
 		if (unlikely(arena == NULL)) {
-			return (NULL);
+			return NULL;
 		}
 
 		ret = tcache_alloc_small_hard(tsd_tsdn(tsd), arena, tcache,
 		    tbin, binind, &tcache_hard_success);
 		if (tcache_hard_success == false) {
-			return (NULL);
+			return NULL;
 		}
 	}
 
@@ -182,7 +182,7 @@ tcache_alloc_small(tsd_t *tsd, arena_t *arena, tcache_t *tcache, size_t size,
 		tcache->prof_accumbytes += usize;
 	}
 	tcache_event(tsd, tcache);
-	return (ret);
+	return ret;
 }
 
 JEMALLOC_ALWAYS_INLINE void *
@@ -203,12 +203,12 @@ tcache_alloc_large(tsd_t *tsd, arena_t *arena, tcache_t *tcache, size_t size,
 		 */
 		arena = arena_choose(tsd, arena);
 		if (unlikely(arena == NULL)) {
-			return (NULL);
+			return NULL;
 		}
 
 		ret = large_malloc(tsd_tsdn(tsd), arena, s2u(size), zero);
 		if (ret == NULL) {
-			return (NULL);
+			return NULL;
 		}
 	} else {
 		size_t usize JEMALLOC_CC_SILENCE_INIT(0);
@@ -242,7 +242,7 @@ tcache_alloc_large(tsd_t *tsd, arena_t *arena, tcache_t *tcache, size_t size,
 	}
 
 	tcache_event(tsd, tcache);
-	return (ret);
+	return ret;
 }
 
 JEMALLOC_ALWAYS_INLINE void
@@ -306,7 +306,7 @@ tcaches_get(tsd_t *tsd, unsigned ind) {
 		elm->tcache = tcache_create(tsd_tsdn(tsd), arena_choose(tsd,
 		    NULL));
 	}
-	return (elm->tcache);
+	return elm->tcache;
 }
 #endif
 

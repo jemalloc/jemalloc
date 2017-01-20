@@ -232,10 +232,10 @@ TEST_END
 
 int
 main(void) {
-	return (test(
+	return test(
 	    test_qr_one,
 	    test_qr_after_insert,
 	    test_qr_remove,
 	    test_qr_before_insert,
-	    test_qr_meld_split));
+	    test_qr_meld_split);
 }

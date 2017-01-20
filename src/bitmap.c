@@ -35,7 +35,7 @@ bitmap_info_init(bitmap_info_t *binfo, size_t nbits) {
 
 static size_t
 bitmap_info_ngroups(const bitmap_info_t *binfo) {
-	return (binfo->levels[binfo->nlevels].group_offset);
+	return binfo->levels[binfo->nlevels].group_offset;
 }
 
 void
@@ -80,7 +80,7 @@ bitmap_info_init(bitmap_info_t *binfo, size_t nbits) {
 
 static size_t
 bitmap_info_ngroups(const bitmap_info_t *binfo) {
-	return (binfo->ngroups);
+	return binfo->ngroups;
 }
 
 void

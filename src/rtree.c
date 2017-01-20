@@ -60,7 +60,7 @@ rtree_new(rtree_t *rtree, unsigned bits) {
 
 	malloc_mutex_init(&rtree->init_lock, "rtree", WITNESS_RANK_RTREE);
 
-	return (false);
+	return false;
 }
 
 #ifdef JEMALLOC_JET
@@ -69,8 +69,8 @@ rtree_new(rtree_t *rtree, unsigned bits) {
 #endif
 static rtree_elm_t *
 rtree_node_alloc(tsdn_t *tsdn, rtree_t *rtree, size_t nelms) {
-	return ((rtree_elm_t *)base_alloc(tsdn, b0get(), nelms *
-	    sizeof(rtree_elm_t), CACHELINE));
+	return (rtree_elm_t *)base_alloc(tsdn, b0get(), nelms *
+	    sizeof(rtree_elm_t), CACHELINE);
 }
 #ifdef JEMALLOC_JET
 #undef rtree_node_alloc
@@ -137,25 +137,25 @@ rtree_node_init(tsdn_t *tsdn, rtree_t *rtree, unsigned level,
 		    rtree->levels[level].bits);
 		if (node == NULL) {
 			malloc_mutex_unlock(tsdn, &rtree->init_lock);
-			return (NULL);
+			return NULL;
 		}
 		atomic_write_p((void **)elmp, node);
 	}
 	malloc_mutex_unlock(tsdn, &rtree->init_lock);
 
-	return (node);
+	return node;
 }
 
 rtree_elm_t *
 rtree_subtree_read_hard(tsdn_t *tsdn, rtree_t *rtree, unsigned level) {
-	return (rtree_node_init(tsdn, rtree, level,
-	    &rtree->levels[level].subtree));
+	return rtree_node_init(tsdn, rtree, level,
+	    &rtree->levels[level].subtree);
 }
 
 rtree_elm_t *
 rtree_child_read_hard(tsdn_t *tsdn, rtree_t *rtree, rtree_elm_t *elm,
     unsigned level) {
-	return (rtree_node_init(tsdn, rtree, level+1, &elm->child));
+	return rtree_node_init(tsdn, rtree, level+1, &elm->child);
 }
 
 static int
@@ -167,7 +167,7 @@ rtree_elm_witness_comp(const witness_t *a, void *oa, const witness_t *b,
 	assert(ka != 0);
 	assert(kb != 0);
 
-	return ((ka > kb) - (ka < kb));
+	return (ka > kb) - (ka < kb);
 }
 
 static witness_t *
@@ -192,7 +192,7 @@ rtree_elm_witness_alloc(tsd_t *tsd, uintptr_t key, const rtree_elm_t *elm) {
 		}
 	}
 	assert(witness != NULL);
-	return (witness);
+	return witness;
 }
 
 static witness_t *
@@ -205,7 +205,7 @@ rtree_elm_witness_find(tsd_t *tsd, const rtree_elm_t *elm) {
 		rtree_elm_witness_t *rew = &witnesses->witnesses[i];
 
 		if (rew->elm == elm) {
-			return (&rew->witness);
+			return &rew->witness;
 		}
 	}
 	not_reached();

@@ -25,7 +25,7 @@ static tcaches_t	*tcaches_avail;
 
 size_t
 tcache_salloc(tsdn_t *tsdn, const void *ptr) {
-	return (arena_salloc(tsdn, iealloc(tsdn, ptr), ptr));
+	return arena_salloc(tsdn, iealloc(tsdn, ptr), ptr);
 }
 
 void
@@ -82,7 +82,7 @@ tcache_alloc_small_hard(tsdn_t *tsdn, arena_t *arena, tcache_t *tcache,
 	}
 	ret = tcache_alloc_easy(tbin, tcache_success);
 
-	return (ret);
+	return ret;
 }
 
 void
@@ -297,13 +297,13 @@ tcache_get_hard(tsd_t *tsd) {
 		if (tsd_nominal(tsd)) {
 			tcache_enabled_set(false); /* Memoize. */
 		}
-		return (NULL);
+		return NULL;
 	}
 	arena = arena_choose(tsd, NULL);
 	if (unlikely(arena == NULL)) {
-		return (NULL);
+		return NULL;
 	}
-	return (tcache_create(tsd_tsdn(tsd), arena));
+	return tcache_create(tsd_tsdn(tsd), arena);
 }
 
 tcache_t *
@@ -323,7 +323,7 @@ tcache_create(tsdn_t *tsdn, arena_t *arena) {
 	tcache = ipallocztm(tsdn, size, CACHELINE, true, NULL, true,
 	    arena_get(TSDN_NULL, 0, true));
 	if (tcache == NULL) {
-		return (NULL);
+		return NULL;
 	}
 
 	tcache_arena_associate(tsdn, tcache, arena);
@@ -343,7 +343,7 @@ tcache_create(tsdn_t *tsdn, arena_t *arena) {
 		    (uintptr_t)stack_offset);
 	}
 
-	return (tcache);
+	return tcache;
 }
 
 static void
@@ -432,20 +432,20 @@ tcaches_create(tsd_t *tsd, unsigned *r_ind) {
 		tcaches = base_alloc(tsd_tsdn(tsd), b0get(), sizeof(tcache_t *)
 		    * (MALLOCX_TCACHE_MAX+1), CACHELINE);
 		if (tcaches == NULL) {
-			return (true);
+			return true;
 		}
 	}
 
 	if (tcaches_avail == NULL && tcaches_past > MALLOCX_TCACHE_MAX) {
-		return (true);
+		return true;
 	}
 	arena = arena_ichoose(tsd, NULL);
 	if (unlikely(arena == NULL)) {
-		return (true);
+		return true;
 	}
 	tcache = tcache_create(tsd_tsdn(tsd), arena);
 	if (tcache == NULL) {
-		return (true);
+		return true;
 	}
 
 	if (tcaches_avail != NULL) {
@@ -460,7 +460,7 @@ tcaches_create(tsd_t *tsd, unsigned *r_ind) {
 		tcaches_past++;
 	}
 
-	return (false);
+	return false;
 }
 
 static void
@@ -503,7 +503,7 @@ tcache_boot(tsdn_t *tsdn) {
 	tcache_bin_info = (tcache_bin_info_t *)base_alloc(tsdn, b0get(), nhbins
 	    * sizeof(tcache_bin_info_t), CACHELINE);
 	if (tcache_bin_info == NULL) {
-		return (true);
+		return true;
 	}
 	stack_nelms = 0;
 	for (i = 0; i < NBINS; i++) {
@@ -525,5 +525,5 @@ tcache_boot(tsdn_t *tsdn) {
 		stack_nelms += tcache_bin_info[i].ncached_max;
 	}
 
-	return (false);
+	return false;
 }

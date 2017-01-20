@@ -198,7 +198,7 @@ TEST_END
 
 int
 main(void) {
-	return (test(
+	return test(
 	    test_nstime_init,
 	    test_nstime_init2,
 	    test_nstime_copy,
@@ -209,5 +209,5 @@ main(void) {
 	    test_nstime_idivide,
 	    test_nstime_divide,
 	    test_nstime_monotonic,
-	    test_nstime_update));
+	    test_nstime_update);
 }

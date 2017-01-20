@@ -138,7 +138,7 @@ TEST_END
 
 int
 main(void) {
-	return (test(
+	return test(
 	    test_junk_small,
-	    test_junk_large));
+	    test_junk_large);
 }

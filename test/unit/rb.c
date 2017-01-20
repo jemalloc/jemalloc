@@ -36,7 +36,7 @@ node_cmp(const node_t *a, const node_t *b) {
 		ret = (((uintptr_t)a) > ((uintptr_t)b))
 		    - (((uintptr_t)a) < ((uintptr_t)b));
 	}
-	return (ret);
+	return ret;
 }
 
 typedef rb_tree(node_t) tree_t;
@@ -73,7 +73,7 @@ tree_recurse(node_t *node, unsigned black_height, unsigned black_depth) {
 	node_t *right_node;
 
 	if (node == NULL) {
-		return (ret);
+		return ret;
 	}
 
 	left_node = rbtn_left_get(node_t, link, node);
@@ -112,7 +112,7 @@ tree_recurse(node_t *node, unsigned black_height, unsigned black_depth) {
 		ret += (black_depth != black_height);
 	}
 
-	return (ret);
+	return ret;
 }
 
 static node_t *
@@ -139,7 +139,7 @@ tree_iterate_cb(tree_t *tree, node_t *node, void *data) {
 
 	(*i)++;
 
-	return (NULL);
+	return NULL;
 }
 
 static unsigned
@@ -149,7 +149,7 @@ tree_iterate(tree_t *tree) {
 	i = 0;
 	tree_iter(tree, NULL, tree_iterate_cb, (void *)&i);
 
-	return (i);
+	return i;
 }
 
 static unsigned
@@ -159,7 +159,7 @@ tree_iterate_reverse(tree_t *tree) {
 	i = 0;
 	tree_reverse_iter(tree, NULL, tree_iterate_cb, (void *)&i);
 
-	return (i);
+	return i;
 }
 
 static void
@@ -201,7 +201,7 @@ remove_iterate_cb(tree_t *tree, node_t *node, void *data) {
 
 	node_remove(tree, node, *nnodes);
 
-	return (ret);
+	return ret;
 }
 
 static node_t *
@@ -211,7 +211,7 @@ remove_reverse_iterate_cb(tree_t *tree, node_t *node, void *data) {
 
 	node_remove(tree, node, *nnodes);
 
-	return (ret);
+	return ret;
 }
 
 static void
@@ -347,7 +347,7 @@ TEST_END
 
 int
 main(void) {
-	return (test(
+	return test(
 	    test_rb_empty,
-	    test_rb_random));
+	    test_rb_random);
 }

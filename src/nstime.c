@@ -14,17 +14,17 @@ nstime_init2(nstime_t *time, uint64_t sec, uint64_t nsec) {
 
 uint64_t
 nstime_ns(const nstime_t *time) {
-	return (time->ns);
+	return time->ns;
 }
 
 uint64_t
 nstime_sec(const nstime_t *time) {
-	return (time->ns / BILLION);
+	return time->ns / BILLION;
 }
 
 uint64_t
 nstime_nsec(const nstime_t *time) {
-	return (time->ns % BILLION);
+	return time->ns % BILLION;
 }
 
 void
@@ -34,7 +34,7 @@ nstime_copy(nstime_t *time, const nstime_t *source) {
 
 int
 nstime_compare(const nstime_t *a, const nstime_t *b) {
-	return ((a->ns > b->ns) - (a->ns < b->ns));
+	return (a->ns > b->ns) - (a->ns < b->ns);
 }
 
 void
@@ -70,7 +70,7 @@ uint64_t
 nstime_divide(const nstime_t *time, const nstime_t *divisor) {
 	assert(divisor->ns != 0);
 
-	return (time->ns / divisor->ns);
+	return time->ns / divisor->ns;
 }
 
 #ifdef _WIN32
@@ -126,7 +126,7 @@ nstime_get(nstime_t *time) {
 #endif
 bool
 nstime_monotonic(void) {
-	return (NSTIME_MONOTONIC);
+	return NSTIME_MONOTONIC;
 #undef NSTIME_MONOTONIC
 }
 #ifdef JEMALLOC_JET
@@ -149,10 +149,10 @@ nstime_update(nstime_t *time) {
 	/* Handle non-monotonic clocks. */
 	if (unlikely(nstime_compare(&old_time, time) > 0)) {
 		nstime_copy(time, &old_time);
-		return (true);
+		return true;
 	}
 
-	return (false);
+	return false;
 }
 #ifdef JEMALLOC_JET
 #undef nstime_update

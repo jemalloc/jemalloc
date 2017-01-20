@@ -143,7 +143,7 @@ test_bitmap_size_body(const bitmap_info_t *binfo, size_t nbits,
 	assert_zu_ge(size, (nbits >> 3),
 	    "Bitmap size is smaller than expected");
 	assert_zu_ge(size, prev_size, "Bitmap size is smaller than expected");
-	return (size);
+	return size;
 }
 
 TEST_BEGIN(test_bitmap_size) {
@@ -329,11 +329,11 @@ TEST_END
 
 int
 main(void) {
-	return (test(
+	return test(
 	    test_bitmap_initializer,
 	    test_bitmap_size,
 	    test_bitmap_init,
 	    test_bitmap_set,
 	    test_bitmap_unset,
-	    test_bitmap_sfu));
+	    test_bitmap_sfu);
 }

@@ -19,7 +19,7 @@ arena_ind(void) {
 		    0), 0, "Unexpected mallctl failure creating arena");
 	}
 
-	return (ind);
+	return ind;
 }
 
 TEST_BEGIN(test_same_size) {
@@ -76,17 +76,17 @@ get_nsizes_impl(const char *cmd) {
 	assert_d_eq(mallctl(cmd, (void *)&ret, &z, NULL, 0), 0,
 	    "Unexpected mallctl(\"%s\", ...) failure", cmd);
 
-	return (ret);
+	return ret;
 }
 
 static unsigned
 get_nsmall(void) {
-	return (get_nsizes_impl("arenas.nbins"));
+	return get_nsizes_impl("arenas.nbins");
 }
 
 static unsigned
 get_nlarge(void) {
-	return (get_nsizes_impl("arenas.nlextents"));
+	return get_nsizes_impl("arenas.nlextents");
 }
 
 static size_t
@@ -104,17 +104,17 @@ get_size_impl(const char *cmd, size_t ind) {
 	assert_d_eq(mallctlbymib(mib, miblen, (void *)&ret, &z, NULL, 0),
 	    0, "Unexpected mallctlbymib([\"%s\", %zu], ...) failure", cmd, ind);
 
-	return (ret);
+	return ret;
 }
 
 static size_t
 get_small_size(size_t ind) {
-	return (get_size_impl("arenas.bin.0.size", ind));
+	return get_size_impl("arenas.bin.0.size", ind);
 }
 
 static size_t
 get_large_size(size_t ind) {
-	return (get_size_impl("arenas.lextent.0.size", ind));
+	return get_size_impl("arenas.lextent.0.size", ind);
 }
 
 TEST_BEGIN(test_size) {
@@ -312,7 +312,7 @@ validate_fill(const void *p, uint8_t c, size_t offset, size_t len) {
 		print_filled_extents(p, c, offset + len);
 	}
 
-	return (err);
+	return err;
 }
 
 static void
@@ -376,7 +376,7 @@ TEST_END
 
 int
 main(void) {
-	return (test(
+	return test(
 	    test_same_size,
 	    test_extra_no_move,
 	    test_no_move_fail,
@@ -384,5 +384,5 @@ main(void) {
 	    test_size_extra_overflow,
 	    test_extra_small,
 	    test_extra_large,
-	    test_zero_large));
+	    test_zero_large);
 }

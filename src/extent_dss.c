@@ -32,10 +32,10 @@ static void		*dss_max;
 static void *
 extent_dss_sbrk(intptr_t increment) {
 #ifdef JEMALLOC_DSS
-	return (sbrk(increment));
+	return sbrk(increment);
 #else
 	not_implemented();
-	return (NULL);
+	return NULL;
 #endif
 }
 
@@ -44,10 +44,10 @@ extent_dss_prec_get(void) {
 	dss_prec_t ret;
 
 	if (!have_dss) {
-		return (dss_prec_disabled);
+		return dss_prec_disabled;
 	}
 	ret = (dss_prec_t)atomic_read_u(&dss_prec_default);
-	return (ret);
+	return ret;
 }
 
 bool
@@ -56,7 +56,7 @@ extent_dss_prec_set(dss_prec_t dss_prec) {
 		return (dss_prec != dss_prec_disabled);
 	}
 	atomic_write_u(&dss_prec_default, (unsigned)dss_prec);
-	return (false);
+	return false;
 }
 
 static void *
@@ -87,10 +87,10 @@ extent_dss_max_update(void *new_addr) {
 	}
 	/* Fixed new_addr can only be supported if it is at the edge of DSS. */
 	if (new_addr != NULL && max_cur != new_addr) {
-		return (NULL);
+		return NULL;
 	}
 
-	return (max_cur);
+	return max_cur;
 }
 
 void *
@@ -107,12 +107,12 @@ extent_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
 	 * interpret a large allocation request as a negative increment.
 	 */
 	if ((intptr_t)size < 0) {
-		return (NULL);
+		return NULL;
 	}
 
 	gap = extent_alloc(tsdn, arena);
 	if (gap == NULL) {
-		return (NULL);
+		return NULL;
 	}
 
 	if (!atomic_read_u(&dss_exhausted)) {
@@ -187,7 +187,7 @@ extent_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
 						memset(ret, 0, size);
 					}
 				}
-				return (ret);
+				return ret;
 			}
 			/*
 			 * Failure, whether due to OOM or a race with a raw
@@ -207,7 +207,7 @@ extent_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
 	}
 label_oom:
 	extent_dalloc(tsdn, arena, gap);
-	return (NULL);
+	return NULL;
 }
 
 static bool
@@ -220,7 +220,7 @@ bool
 extent_in_dss(void *addr) {
 	cassert(have_dss);
 
-	return (extent_in_dss_helper(addr, atomic_read_p(&dss_max)));
+	return extent_in_dss_helper(addr, atomic_read_p(&dss_max));
 }
 
 bool
@@ -231,7 +231,7 @@ extent_dss_mergeable(void *addr_a, void *addr_b) {
 
 	if ((uintptr_t)addr_a < (uintptr_t)dss_base && (uintptr_t)addr_b <
 	    (uintptr_t)dss_base) {
-		return (true);
+		return true;
 	}
 
 	max = atomic_read_p(&dss_max);

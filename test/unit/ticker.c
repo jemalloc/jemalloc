@@ -64,8 +64,8 @@ TEST_END
 
 int
 main(void) {
-	return (test(
+	return test(
 	    test_ticker_tick,
 	    test_ticker_ticks,
-	    test_ticker_copy));
+	    test_ticker_copy);
 }

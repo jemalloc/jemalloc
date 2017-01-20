@@ -36,9 +36,9 @@ ln_gamma(double x) {
 
 	z = 1.0 / (x * x);
 
-	return (f + (x-0.5) * log(x) - x + 0.918938533204673 +
+	return f + (x-0.5) * log(x) - x + 0.918938533204673 +
 	    (((-0.000595238095238 * z + 0.000793650793651) * z -
-	    0.002777777777778) * z + 0.083333333333333) / x);
+	    0.002777777777778) * z + 0.083333333333333) / x;
 }
 
 /*
@@ -60,7 +60,7 @@ i_gamma(double x, double p, double ln_gamma_p) {
 	assert(x >= 0.0);
 
 	if (x == 0.0) {
-		return (0.0);
+		return 0.0;
 	}
 
 	acu = 1.0e-10;
@@ -80,7 +80,7 @@ i_gamma(double x, double p, double ln_gamma_p) {
 			gin += term;
 			if (term <= acu) {
 				gin *= factor / p;
-				return (gin);
+				return gin;
 			}
 		}
 	} else {
@@ -107,7 +107,7 @@ i_gamma(double x, double p, double ln_gamma_p) {
 				dif = fabs(gin - rn);
 				if (dif <= acu && dif <= acu * rn) {
 					gin = 1.0 - factor * gin;
-					return (gin);
+					return gin;
 				}
 				gin = rn;
 			}
@@ -144,7 +144,7 @@ pt_norm(double p) {
 	if (fabs(q) <= 0.425) {
 		/* p close to 1/2. */
 		r = 0.180625 - q * q;
-		return (q * (((((((2.5090809287301226727e3 * r +
+		return q * (((((((2.5090809287301226727e3 * r +
 		    3.3430575583588128105e4) * r + 6.7265770927008700853e4) * r
 		    + 4.5921953931549871457e4) * r + 1.3731693765509461125e4) *
 		    r + 1.9715909503065514427e3) * r + 1.3314166789178437745e2)
@@ -153,7 +153,7 @@ pt_norm(double p) {
 		    2.8729085735721942674e4) * r + 3.9307895800092710610e4) * r
 		    + 2.1213794301586595867e4) * r + 5.3941960214247511077e3) *
 		    r + 6.8718700749205790830e2) * r + 4.2313330701600911252e1)
-		    * r + 1.0));
+		    * r + 1.0);
 	} else {
 		if (q < 0.0) {
 			r = p;
@@ -204,7 +204,7 @@ pt_norm(double p) {
 		if (q < 0.0) {
 			ret = -ret;
 		}
-		return (ret);
+		return ret;
 	}
 }
 
@@ -240,7 +240,7 @@ pt_chi2(double p, double df, double ln_gamma_df_2) {
 		/* Starting approximation for small Chi^2. */
 		ch = pow(p * xx * exp(ln_gamma_df_2 + xx * aa), 1.0 / xx);
 		if (ch - e < 0.0) {
-			return (ch);
+			return ch;
 		}
 	} else {
 		if (df > 0.32) {
@@ -279,7 +279,7 @@ pt_chi2(double p, double df, double ln_gamma_df_2) {
 		q = ch;
 		p1 = 0.5 * ch;
 		if (p1 < 0.0) {
-			return (-1.0);
+			return -1.0;
 		}
 		p2 = p - i_gamma(p1, xx, ln_gamma_df_2);
 		t = p2 * exp(xx * aa + ln_gamma_df_2 + p1 - c * log(ch));
@@ -301,7 +301,7 @@ pt_chi2(double p, double df, double ln_gamma_df_2) {
 		}
 	}
 
-	return (ch);
+	return ch;
 }
 
 /*
@@ -311,6 +311,6 @@ pt_chi2(double p, double df, double ln_gamma_df_2) {
  */
 JEMALLOC_INLINE double
 pt_gamma(double p, double shape, double scale, double ln_gamma_shape) {
-	return (pt_chi2(p, shape * 2.0, ln_gamma_shape) * 0.5 * scale);
+	return pt_chi2(p, shape * 2.0, ln_gamma_shape) * 0.5 * scale;
 }
 #endif
