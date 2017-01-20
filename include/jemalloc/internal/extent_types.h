@@ -3,6 +3,6 @@
 
 typedef struct extent_s extent_t;
 
-#define	EXTENT_HOOKS_INITIALIZER	NULL
+#define EXTENT_HOOKS_INITIALIZER	NULL
 
 #endif /* JEMALLOC_INTERNAL_EXTENT_TYPES_H */

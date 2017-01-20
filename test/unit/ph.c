@@ -3,7 +3,7 @@
 typedef struct node_s node_t;
 
 struct node_s {
-#define	NODE_MAGIC 0x9823af7e
+#define NODE_MAGIC 0x9823af7e
 	uint32_t magic;
 	phn(node_t) link;
 	uint64_t key;
@@ -160,9 +160,9 @@ node_remove_first(heap_t *heap) {
 }
 
 TEST_BEGIN(test_ph_random) {
-#define	NNODES 25
-#define	NBAGS 250
-#define	SEED 42
+#define NNODES 25
+#define NBAGS 250
+#define SEED 42
 	sfmt_t *sfmt;
 	uint64_t bag[NNODES];
 	heap_t heap;

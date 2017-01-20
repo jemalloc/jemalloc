@@ -2,14 +2,14 @@
  * Define simple versions of assertion macros that won't recurse in case
  * of assertion failures in malloc_*printf().
  */
-#define	assert(e) do {							\
+#define assert(e) do {							\
 	if (config_debug && !(e)) {					\
 		malloc_write("<jemalloc>: Failed assertion\n");		\
 		abort();						\
 	}								\
 } while (0)
 
-#define	not_reached() do {						\
+#define not_reached() do {						\
 	if (config_debug) {						\
 		malloc_write("<jemalloc>: Unreachable code reached\n");	\
 		abort();						\
@@ -17,28 +17,28 @@
 	unreachable();							\
 } while (0)
 
-#define	not_implemented() do {						\
+#define not_implemented() do {						\
 	if (config_debug) {						\
 		malloc_write("<jemalloc>: Not implemented\n");		\
 		abort();						\
 	}								\
 } while (0)
 
-#define	JEMALLOC_UTIL_C_
+#define JEMALLOC_UTIL_C_
 #include "jemalloc/internal/jemalloc_internal.h"
 
 /******************************************************************************/
 /* Function prototypes for non-inline static functions. */
 
 static void	wrtmessage(void *cbopaque, const char *s);
-#define	U2S_BUFSIZE	((1U << (LG_SIZEOF_INTMAX_T + 3)) + 1)
+#define U2S_BUFSIZE	((1U << (LG_SIZEOF_INTMAX_T + 3)) + 1)
 static char	*u2s(uintmax_t x, unsigned base, bool uppercase, char *s,
     size_t *slen_p);
-#define	D2S_BUFSIZE	(1 + U2S_BUFSIZE)
+#define D2S_BUFSIZE	(1 + U2S_BUFSIZE)
 static char	*d2s(intmax_t x, char sign, char *s, size_t *slen_p);
-#define	O2S_BUFSIZE	(1 + U2S_BUFSIZE)
+#define O2S_BUFSIZE	(1 + U2S_BUFSIZE)
 static char	*o2s(uintmax_t x, bool alt_form, char *s, size_t *slen_p);
-#define	X2S_BUFSIZE	(2 + U2S_BUFSIZE)
+#define X2S_BUFSIZE	(2 + U2S_BUFSIZE)
 static char	*x2s(uintmax_t x, bool alt_form, bool uppercase, char *s,
     size_t *slen_p);
 
@@ -318,20 +318,20 @@ malloc_vsnprintf(char *str, size_t size, const char *format, va_list ap) {
 	size_t i;
 	const char *f;
 
-#define	APPEND_C(c) do {						\
+#define APPEND_C(c) do {						\
 	if (i < size) {							\
 		str[i] = (c);						\
 	}								\
 	i++;								\
 } while (0)
-#define	APPEND_S(s, slen) do {						\
+#define APPEND_S(s, slen) do {						\
 	if (i < size) {							\
 		size_t cpylen = (slen <= size - i) ? slen : size - i;	\
 		memcpy(&str[i], s, cpylen);				\
 	}								\
 	i += slen;							\
 } while (0)
-#define	APPEND_PADDED_S(s, slen, width, left_justify) do {		\
+#define APPEND_PADDED_S(s, slen, width, left_justify) do {		\
 	/* Left padding. */						\
 	size_t pad_len = (width == -1) ? 0 : ((slen < (size_t)width) ?	\
 	    (size_t)width - slen : 0);					\
@@ -351,7 +351,7 @@ malloc_vsnprintf(char *str, size_t size, const char *format, va_list ap) {
 		}							\
 	}								\
 } while (0)
-#define	GET_ARG_NUMERIC(val, len) do {					\
+#define GET_ARG_NUMERIC(val, len) do {					\
 	switch (len) {							\
 	case '?':							\
 		val = va_arg(ap, int);					\

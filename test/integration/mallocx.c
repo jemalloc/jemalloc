@@ -118,7 +118,7 @@ TEST_BEGIN(test_oom) {
 TEST_END
 
 TEST_BEGIN(test_basic) {
-#define	MAXSZ (((size_t)1) << 23)
+#define MAXSZ (((size_t)1) << 23)
 	size_t sz;
 
 	for (sz = 1; sz < MAXSZ; sz = nallocx(sz, 0) + 1) {
@@ -155,8 +155,8 @@ TEST_BEGIN(test_basic) {
 TEST_END
 
 TEST_BEGIN(test_alignment_and_size) {
-#define	MAXALIGN (((size_t)1) << 23)
-#define	NITER 4
+#define MAXALIGN (((size_t)1) << 23)
+#define NITER 4
 	size_t nsz, rsz, sz, alignment, total;
 	unsigned i;
 	void *ps[NITER];

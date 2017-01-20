@@ -32,13 +32,13 @@
 #endif
 
 /* Size of stack-allocated buffer passed to buferror(). */
-#define	BUFERROR_BUF		64
+#define BUFERROR_BUF		64
 
 /*
  * Size of stack-allocated buffer used by malloc_{,v,vc}printf().  This must be
  * large enough for all possible uses within jemalloc.
  */
-#define	MALLOC_PRINTF_BUFSIZE	4096
+#define MALLOC_PRINTF_BUFSIZE	4096
 
 /* Junk fill patterns. */
 #ifndef JEMALLOC_ALLOC_JUNK
@@ -52,11 +52,11 @@
  * Wrap a cpp argument that contains commas such that it isn't broken up into
  * multiple arguments.
  */
-#define	JEMALLOC_ARG_CONCAT(...) __VA_ARGS__
+#define JEMALLOC_ARG_CONCAT(...) __VA_ARGS__
 
 /* cpp macro definition stringification. */
-#define	STRINGIFY_HELPER(x) #x
-#define	STRINGIFY(x) STRINGIFY_HELPER(x)
+#define STRINGIFY_HELPER(x) #x
+#define STRINGIFY(x) STRINGIFY_HELPER(x)
 
 /*
  * Silence compiler warnings due to uninitialized values.  This is used
@@ -86,7 +86,7 @@
 #include "jemalloc/internal/assert.h"
 
 /* Use to assert a particular configuration, e.g., cassert(config_debug). */
-#define	cassert(c) do {							\
+#define cassert(c) do {							\
 	if (unlikely(!(c))) {						\
 		not_reached();						\
 	}								\

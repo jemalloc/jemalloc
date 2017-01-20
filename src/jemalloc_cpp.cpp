@@ -1,7 +1,7 @@
 #include <mutex>
 #include <new>
 
-#define	JEMALLOC_CPP_CPP_
+#define JEMALLOC_CPP_CPP_
 #include "jemalloc/internal/jemalloc_internal.h"
 
 // All operators in this file are exported.

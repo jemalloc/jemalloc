@@ -1,4 +1,4 @@
-#define	JEMALLOC_LARGE_C_
+#define JEMALLOC_LARGE_C_
 #include "jemalloc/internal/jemalloc_internal.h"
 
 /******************************************************************************/
@@ -63,7 +63,7 @@ large_palloc(tsdn_t *tsdn, arena_t *arena, size_t usize, size_t alignment,
 
 #ifdef JEMALLOC_JET
 #undef large_dalloc_junk
-#define	large_dalloc_junk JEMALLOC_N(n_large_dalloc_junk)
+#define large_dalloc_junk JEMALLOC_N(n_large_dalloc_junk)
 #endif
 void
 large_dalloc_junk(void *ptr, size_t usize) {
@@ -71,13 +71,13 @@ large_dalloc_junk(void *ptr, size_t usize) {
 }
 #ifdef JEMALLOC_JET
 #undef large_dalloc_junk
-#define	large_dalloc_junk JEMALLOC_N(large_dalloc_junk)
+#define large_dalloc_junk JEMALLOC_N(large_dalloc_junk)
 large_dalloc_junk_t *large_dalloc_junk = JEMALLOC_N(n_large_dalloc_junk);
 #endif
 
 #ifdef JEMALLOC_JET
 #undef large_dalloc_maybe_junk
-#define	large_dalloc_maybe_junk JEMALLOC_N(n_large_dalloc_maybe_junk)
+#define large_dalloc_maybe_junk JEMALLOC_N(n_large_dalloc_maybe_junk)
 #endif
 void
 large_dalloc_maybe_junk(void *ptr, size_t usize) {
@@ -93,7 +93,7 @@ large_dalloc_maybe_junk(void *ptr, size_t usize) {
 }
 #ifdef JEMALLOC_JET
 #undef large_dalloc_maybe_junk
-#define	large_dalloc_maybe_junk JEMALLOC_N(large_dalloc_maybe_junk)
+#define large_dalloc_maybe_junk JEMALLOC_N(large_dalloc_maybe_junk)
 large_dalloc_maybe_junk_t *large_dalloc_maybe_junk =
     JEMALLOC_N(n_large_dalloc_maybe_junk);
 #endif

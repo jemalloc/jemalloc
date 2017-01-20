@@ -1,4 +1,4 @@
-#define	JEMALLOC_BASE_C_
+#define JEMALLOC_BASE_C_
 #include "jemalloc/internal/jemalloc_internal.h"
 
 /******************************************************************************/

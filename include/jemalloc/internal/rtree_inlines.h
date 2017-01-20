@@ -225,9 +225,9 @@ rtree_elm_lookup(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
 		    start_level, dependent);
 	}
 
-#define	RTREE_GET_BIAS	(RTREE_HEIGHT_MAX - rtree->height)
+#define RTREE_GET_BIAS	(RTREE_HEIGHT_MAX - rtree->height)
 	switch (start_level + RTREE_GET_BIAS) {
-#define	RTREE_GET_SUBTREE(level)					\
+#define RTREE_GET_SUBTREE(level)					\
 	case level:							\
 		assert(level < (RTREE_HEIGHT_MAX-1));			\
 		if (!dependent && unlikely(!rtree_node_valid(node))) {	\
@@ -246,7 +246,7 @@ rtree_elm_lookup(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
 			    node;					\
 		}							\
 		/* Fall through. */
-#define	RTREE_GET_LEAF(level)						\
+#define RTREE_GET_LEAF(level)						\
 	case level:							\
 		assert(level == (RTREE_HEIGHT_MAX-1));			\
 		if (!dependent && unlikely(!rtree_node_valid(node))) {	\

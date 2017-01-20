@@ -1,9 +1,9 @@
-#define	JEMALLOC_PROF_C_
+#define JEMALLOC_PROF_C_
 #include "jemalloc/internal/jemalloc_internal.h"
 /******************************************************************************/
 
 #ifdef JEMALLOC_PROF_LIBUNWIND
-#define	UNW_LOCAL_ONLY
+#define UNW_LOCAL_ONLY
 #include <libunwind.h>
 #endif
 
@@ -353,7 +353,7 @@ prof_backtrace(prof_bt_t *bt) {
 #elif (defined(JEMALLOC_PROF_GCC))
 void
 prof_backtrace(prof_bt_t *bt) {
-#define	BT_FRAME(i)							\
+#define BT_FRAME(i)							\
 	if ((i) < PROF_BT_MAX) {					\
 		void *p;						\
 		if (__builtin_frame_address(i) == 0) {			\
@@ -928,7 +928,7 @@ prof_bt_count(void) {
 
 #ifdef JEMALLOC_JET
 #undef prof_dump_open
-#define	prof_dump_open JEMALLOC_N(prof_dump_open_impl)
+#define prof_dump_open JEMALLOC_N(prof_dump_open_impl)
 #endif
 static int
 prof_dump_open(bool propagate_err, const char *filename) {
@@ -947,7 +947,7 @@ prof_dump_open(bool propagate_err, const char *filename) {
 }
 #ifdef JEMALLOC_JET
 #undef prof_dump_open
-#define	prof_dump_open JEMALLOC_N(prof_dump_open)
+#define prof_dump_open JEMALLOC_N(prof_dump_open)
 prof_dump_open_t *prof_dump_open = JEMALLOC_N(prof_dump_open_impl);
 #endif
 
@@ -1305,7 +1305,7 @@ prof_tdata_dump_iter(prof_tdata_tree_t *tdatas, prof_tdata_t *tdata,
 
 #ifdef JEMALLOC_JET
 #undef prof_dump_header
-#define	prof_dump_header JEMALLOC_N(prof_dump_header_impl)
+#define prof_dump_header JEMALLOC_N(prof_dump_header_impl)
 #endif
 static bool
 prof_dump_header(tsdn_t *tsdn, bool propagate_err, const prof_cnt_t *cnt_all) {
@@ -1327,7 +1327,7 @@ prof_dump_header(tsdn_t *tsdn, bool propagate_err, const prof_cnt_t *cnt_all) {
 }
 #ifdef JEMALLOC_JET
 #undef prof_dump_header
-#define	prof_dump_header JEMALLOC_N(prof_dump_header)
+#define prof_dump_header JEMALLOC_N(prof_dump_header)
 prof_dump_header_t *prof_dump_header = JEMALLOC_N(prof_dump_header_impl);
 #endif
 
@@ -1696,8 +1696,8 @@ prof_cnt_all(uint64_t *curobjs, uint64_t *curbytes, uint64_t *accumobjs,
 }
 #endif
 
-#define	DUMP_FILENAME_BUFSIZE	(PATH_MAX + 1)
-#define	VSEQ_INVALID		UINT64_C(0xffffffffffffffff)
+#define DUMP_FILENAME_BUFSIZE	(PATH_MAX + 1)
+#define VSEQ_INVALID		UINT64_C(0xffffffffffffffff)
 static void
 prof_dump_filename(char *filename, char v, uint64_t vseq) {
 	cassert(config_prof);

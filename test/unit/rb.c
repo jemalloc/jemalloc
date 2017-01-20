@@ -1,6 +1,6 @@
 #include "test/jemalloc_test.h"
 
-#define	rbtn_black_height(a_type, a_field, a_rbt, r_height) do {	\
+#define rbtn_black_height(a_type, a_field, a_rbt, r_height) do {	\
 	a_type *rbp_bh_t;						\
 	for (rbp_bh_t = (a_rbt)->rbt_root, (r_height) = 0; rbp_bh_t !=	\
 	    NULL; rbp_bh_t = rbtn_left_get(a_type, a_field,		\
@@ -14,7 +14,7 @@
 typedef struct node_s node_t;
 
 struct node_s {
-#define	NODE_MAGIC 0x9823af7e
+#define NODE_MAGIC 0x9823af7e
 	uint32_t magic;
 	rb_node(node_t) link;
 	uint64_t key;
@@ -223,9 +223,9 @@ destroy_cb(node_t *node, void *data) {
 }
 
 TEST_BEGIN(test_rb_random) {
-#define	NNODES 25
-#define	NBAGS 250
-#define	SEED 42
+#define NNODES 25
+#define NBAGS 250
+#define SEED 42
 	sfmt_t *sfmt;
 	uint64_t bag[NNODES];
 	tree_t tree;

@@ -1,4 +1,4 @@
-#define	JEMALLOC_RTREE_C_
+#define JEMALLOC_RTREE_C_
 #include "jemalloc/internal/jemalloc_internal.h"
 
 static unsigned
@@ -65,7 +65,7 @@ rtree_new(rtree_t *rtree, unsigned bits) {
 
 #ifdef JEMALLOC_JET
 #undef rtree_node_alloc
-#define	rtree_node_alloc JEMALLOC_N(rtree_node_alloc_impl)
+#define rtree_node_alloc JEMALLOC_N(rtree_node_alloc_impl)
 #endif
 static rtree_elm_t *
 rtree_node_alloc(tsdn_t *tsdn, rtree_t *rtree, size_t nelms) {
@@ -74,13 +74,13 @@ rtree_node_alloc(tsdn_t *tsdn, rtree_t *rtree, size_t nelms) {
 }
 #ifdef JEMALLOC_JET
 #undef rtree_node_alloc
-#define	rtree_node_alloc JEMALLOC_N(rtree_node_alloc)
+#define rtree_node_alloc JEMALLOC_N(rtree_node_alloc)
 rtree_node_alloc_t *rtree_node_alloc = JEMALLOC_N(rtree_node_alloc_impl);
 #endif
 
 #ifdef JEMALLOC_JET
 #undef rtree_node_dalloc
-#define	rtree_node_dalloc JEMALLOC_N(rtree_node_dalloc_impl)
+#define rtree_node_dalloc JEMALLOC_N(rtree_node_dalloc_impl)
 #endif
 UNUSED static void
 rtree_node_dalloc(tsdn_t *tsdn, rtree_t *rtree, rtree_elm_t *node) {
@@ -89,7 +89,7 @@ rtree_node_dalloc(tsdn_t *tsdn, rtree_t *rtree, rtree_elm_t *node) {
 }
 #ifdef JEMALLOC_JET
 #undef rtree_node_dalloc
-#define	rtree_node_dalloc JEMALLOC_N(rtree_node_dalloc)
+#define rtree_node_dalloc JEMALLOC_N(rtree_node_dalloc)
 rtree_node_dalloc_t *rtree_node_dalloc = JEMALLOC_N(rtree_node_dalloc_impl);
 #endif
 

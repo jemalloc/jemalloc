@@ -9,7 +9,7 @@ static void
 test_zero(size_t sz_min, size_t sz_max) {
 	uint8_t *s;
 	size_t sz_prev, sz, i;
-#define	MAGIC	((uint8_t)0x61)
+#define MAGIC	((uint8_t)0x61)
 
 	sz_prev = 0;
 	s = (uint8_t *)mallocx(sz_min, 0);

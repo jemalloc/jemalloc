@@ -1,6 +1,6 @@
 #include "test/jemalloc_test.h"
 
-#define	TEST_POW2_CEIL(t, suf, pri) do {				\
+#define TEST_POW2_CEIL(t, suf, pri) do {				\
 	unsigned i, pow2;						\
 	t x;								\
 									\
@@ -65,9 +65,9 @@ TEST_BEGIN(test_malloc_strtoumax) {
 		const char *expected_errno_name;
 		uintmax_t expected_x;
 	};
-#define	ERR(e)		e, #e
-#define	KUMAX(x)	((uintmax_t)x##ULL)
-#define	KSMAX(x)	((uintmax_t)(intmax_t)x##LL)
+#define ERR(e)		e, #e
+#define KUMAX(x)	((uintmax_t)x##ULL)
+#define KSMAX(x)	((uintmax_t)(intmax_t)x##LL)
 	struct test_s tests[] = {
 		{"0",		"0",	-1,	ERR(EINVAL),	UINTMAX_MAX},
 		{"0",		"0",	1,	ERR(EINVAL),	UINTMAX_MAX},
@@ -151,11 +151,11 @@ TEST_BEGIN(test_malloc_strtoumax) {
 TEST_END
 
 TEST_BEGIN(test_malloc_snprintf_truncated) {
-#define	BUFLEN	15
+#define BUFLEN	15
 	char buf[BUFLEN];
 	size_t result;
 	size_t len;
-#define	TEST(expected_str_untruncated, ...) do {			\
+#define TEST(expected_str_untruncated, ...) do {			\
 	result = malloc_snprintf(buf, len, __VA_ARGS__);		\
 	assert_d_eq(strncmp(buf, expected_str_untruncated, len-1), 0,	\
 	    "Unexpected string inequality (\"%s\" vs \"%s\")",		\
@@ -183,10 +183,10 @@ TEST_BEGIN(test_malloc_snprintf_truncated) {
 TEST_END
 
 TEST_BEGIN(test_malloc_snprintf) {
-#define	BUFLEN	128
+#define BUFLEN	128
 	char buf[BUFLEN];
 	size_t result;
-#define	TEST(expected_str, ...) do {					\
+#define TEST(expected_str, ...) do {					\
 	result = malloc_snprintf(buf, sizeof(buf), __VA_ARGS__);	\
 	assert_str_eq(buf, expected_str, "Unexpected output");		\
 	assert_zu_eq(result, strlen(expected_str), "Unexpected result");\

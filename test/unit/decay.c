@@ -196,7 +196,7 @@ TEST_BEGIN(test_decay_ticks) {
 TEST_END
 
 TEST_BEGIN(test_decay_ticker) {
-#define	NPS 1024
+#define NPS 1024
 	int flags = (MALLOCX_ARENA(0) | MALLOCX_TCACHE_NONE);
 	void *ps[NPS];
 	uint64_t epoch;
@@ -289,7 +289,7 @@ TEST_BEGIN(test_decay_ticker) {
 TEST_END
 
 TEST_BEGIN(test_decay_nonmonotonic) {
-#define	NPS (SMOOTHSTEP_NSTEPS + 1)
+#define NPS (SMOOTHSTEP_NSTEPS + 1)
 	int flags = (MALLOCX_ARENA(0) | MALLOCX_TCACHE_NONE);
 	void *ps[NPS];
 	uint64_t epoch;

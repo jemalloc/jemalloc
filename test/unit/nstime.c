@@ -1,6 +1,6 @@
 #include "test/jemalloc_test.h"
 
-#define	BILLION	UINT64_C(1000000000)
+#define BILLION	UINT64_C(1000000000)
 
 TEST_BEGIN(test_nstime_init) {
 	nstime_t nst;

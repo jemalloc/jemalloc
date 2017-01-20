@@ -1,7 +1,7 @@
 #include "test/jemalloc_test.h"
 
 /* Number of ring entries, in [2..26]. */
-#define	NENTRIES 9
+#define NENTRIES 9
 
 typedef struct list_s list_t;
 typedef ql_head(list_t) list_head_t;

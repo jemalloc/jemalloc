@@ -320,7 +320,7 @@ test_zero(size_t szmin, size_t szmax) {
 	int flags = MALLOCX_ARENA(arena_ind()) | MALLOCX_ZERO;
 	size_t sz, nsz;
 	void *p;
-#define	FILL_BYTE 0x7aU
+#define FILL_BYTE 0x7aU
 
 	sz = szmax;
 	p = mallocx(sz, flags);

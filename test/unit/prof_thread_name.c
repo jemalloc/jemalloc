@@ -18,7 +18,7 @@ mallctl_thread_name_get_impl(const char *thread_name_expected, const char *func,
 	assert_str_eq(thread_name_old, thread_name_expected,
 	    "%s():%d: Unexpected thread.prof.name value", func, line);
 }
-#define	mallctl_thread_name_get(a)					\
+#define mallctl_thread_name_get(a)					\
 	mallctl_thread_name_get_impl(a, __func__, __LINE__)
 
 static void
@@ -30,7 +30,7 @@ mallctl_thread_name_set_impl(const char *thread_name, const char *func,
 	    func, line);
 	mallctl_thread_name_get_impl(thread_name, func, line);
 }
-#define	mallctl_thread_name_set(a)					\
+#define mallctl_thread_name_set(a)					\
 	mallctl_thread_name_set_impl(a, __func__, __LINE__)
 
 TEST_BEGIN(test_prof_thread_name_validation) {
@@ -72,8 +72,8 @@ TEST_BEGIN(test_prof_thread_name_validation) {
 }
 TEST_END
 
-#define	NTHREADS	4
-#define	NRESET		25
+#define NTHREADS	4
+#define NRESET		25
 static void *
 thd_start(void *varg) {
 	unsigned thd_ind = *(unsigned *)varg;

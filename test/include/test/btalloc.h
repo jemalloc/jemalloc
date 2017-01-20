@@ -1,12 +1,12 @@
 /* btalloc() provides a mechanism for allocating via permuted backtraces. */
 void	*btalloc(size_t size, unsigned bits);
 
-#define	btalloc_n_proto(n)						\
+#define btalloc_n_proto(n)						\
 void	*btalloc_##n(size_t size, unsigned bits);
 btalloc_n_proto(0)
 btalloc_n_proto(1)
 
-#define	btalloc_n_gen(n)						\
+#define btalloc_n_gen(n)						\
 void *									\
 btalloc_##n(size_t size, unsigned bits) {				\
 	void *p;							\

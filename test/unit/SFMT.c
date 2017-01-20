@@ -35,10 +35,10 @@
  */
 #include "test/jemalloc_test.h"
 
-#define	BLOCK_SIZE 10000
-#define	BLOCK_SIZE64 (BLOCK_SIZE / 2)
-#define	COUNT_1 1000
-#define	COUNT_2 700
+#define BLOCK_SIZE 10000
+#define BLOCK_SIZE64 (BLOCK_SIZE / 2)
+#define COUNT_1 1000
+#define COUNT_2 700
 
 static const uint32_t init_gen_rand_32_expected[] = {
 	3440181298U, 1564997079U, 1510669302U, 2930277156U, 1452439940U,

@@ -1,7 +1,7 @@
 #include "test/jemalloc_test.h"
 
-#define	NSENDERS	3
-#define	NMSGS		100000
+#define NSENDERS	3
+#define NMSGS		100000
 
 typedef struct mq_msg_s mq_msg_t;
 struct mq_msg_s {

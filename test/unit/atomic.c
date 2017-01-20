@@ -1,6 +1,6 @@
 #include "test/jemalloc_test.h"
 
-#define	TEST_STRUCT(p, t)						\
+#define TEST_STRUCT(p, t)						\
 struct p##_test_s {							\
 	t	accum0;							\
 	t	x;							\
@@ -8,7 +8,7 @@ struct p##_test_s {							\
 };									\
 typedef struct p##_test_s p##_test_t;
 
-#define	TEST_BODY(p, t, tc, ta, FMT) do {				\
+#define TEST_BODY(p, t, tc, ta, FMT) do {				\
 	const p##_test_t tests[] = {					\
 		{(t)-1, (t)-1, (t)-2},					\
 		{(t)-1, (t) 0, (t)-2},					\

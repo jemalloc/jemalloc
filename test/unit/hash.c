@@ -55,7 +55,7 @@ hash_variant_string(hash_variant_t variant) {
 	}
 }
 
-#define	KEY_SIZE	256
+#define KEY_SIZE	256
 static void
 hash_variant_verify_key(hash_variant_t variant, uint8_t *key) {
 	const int hashbytes = hash_variant_bits(variant) / 8;
@@ -137,7 +137,7 @@ hash_variant_verify_key(hash_variant_t variant, uint8_t *key) {
 
 static void
 hash_variant_verify(hash_variant_t variant) {
-#define	MAX_ALIGN	16
+#define MAX_ALIGN	16
 	uint8_t key[KEY_SIZE + (MAX_ALIGN - 1)];
 	unsigned i;
 

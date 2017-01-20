@@ -1,7 +1,7 @@
 #include "test/jemalloc_test.h"
 
-#define	NTHREADS	2
-#define	NINCRS		2000000
+#define NTHREADS	2
+#define NINCRS		2000000
 
 TEST_BEGIN(test_mtx_basic) {
 	mtx_t mtx;

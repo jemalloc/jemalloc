@@ -26,9 +26,9 @@ void	mq_nanosleep(unsigned ns);
  * does not perform any cleanup of messages, since it knows nothing of their
  * payloads.
  */
-#define	mq_msg(a_mq_msg_type)	ql_elm(a_mq_msg_type)
+#define mq_msg(a_mq_msg_type)	ql_elm(a_mq_msg_type)
 
-#define	mq_gen(a_attr, a_prefix, a_mq_type, a_mq_msg_type, a_field)	\
+#define mq_gen(a_attr, a_prefix, a_mq_type, a_mq_msg_type, a_field)	\
 typedef struct {							\
 	mtx_t			lock;					\
 	ql_head(a_mq_msg_type)	msgs;					\

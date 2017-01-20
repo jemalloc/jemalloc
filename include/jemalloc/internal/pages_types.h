@@ -5,23 +5,23 @@
 #ifdef PAGE_MASK
 #  undef PAGE_MASK
 #endif
-#define	PAGE		((size_t)(1U << LG_PAGE))
-#define	PAGE_MASK	((size_t)(PAGE - 1))
+#define PAGE		((size_t)(1U << LG_PAGE))
+#define PAGE_MASK	((size_t)(PAGE - 1))
 /* Return the page base address for the page containing address a. */
-#define	PAGE_ADDR2BASE(a)						\
+#define PAGE_ADDR2BASE(a)						\
 	((void *)((uintptr_t)(a) & ~PAGE_MASK))
 /* Return the smallest pagesize multiple that is >= s. */
-#define	PAGE_CEILING(s)							\
+#define PAGE_CEILING(s)							\
 	(((s) + PAGE_MASK) & ~PAGE_MASK)
 
 /* Huge page size.  LG_HUGEPAGE is determined by the configure script. */
-#define	HUGEPAGE	((size_t)(1U << LG_HUGEPAGE))
-#define	HUGEPAGE_MASK	((size_t)(HUGEPAGE - 1))
+#define HUGEPAGE	((size_t)(1U << LG_HUGEPAGE))
+#define HUGEPAGE_MASK	((size_t)(HUGEPAGE - 1))
 /* Return the huge page base address for the huge page containing address a. */
-#define	HUGEPAGE_ADDR2BASE(a)						\
+#define HUGEPAGE_ADDR2BASE(a)						\
 	((void *)((uintptr_t)(a) & ~HUGEPAGE_MASK))
 /* Return the smallest pagesize multiple that is >= s. */
-#define	HUGEPAGE_CEILING(s)						\
+#define HUGEPAGE_CEILING(s)						\
 	(((s) + HUGEPAGE_MASK) & ~HUGEPAGE_MASK)
 
 /* PAGES_CAN_PURGE_LAZY is defined if lazy purging is supported. */

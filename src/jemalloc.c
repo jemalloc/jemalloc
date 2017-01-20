@@ -1,4 +1,4 @@
-#define	JEMALLOC_C_
+#define JEMALLOC_C_
 #include "jemalloc/internal/jemalloc_internal.h"
 
 /******************************************************************************/
@@ -84,10 +84,10 @@ static uint8_t	malloc_slow_flags;
 
 JEMALLOC_ALIGNED(CACHELINE)
 const size_t	pind2sz_tab[NPSIZES+1] = {
-#define	PSZ_yes(lg_grp, ndelta, lg_delta)				\
+#define PSZ_yes(lg_grp, ndelta, lg_delta)				\
 	(((ZU(1)<<lg_grp) + (ZU(ndelta)<<lg_delta))),
-#define	PSZ_no(lg_grp, ndelta, lg_delta)
-#define	SC(index, lg_grp, lg_delta, ndelta, psz, bin, pgs, lg_delta_lookup) \
+#define PSZ_no(lg_grp, ndelta, lg_delta)
+#define SC(index, lg_grp, lg_delta, ndelta, psz, bin, pgs, lg_delta_lookup) \
 	PSZ_##psz(lg_grp, ndelta, lg_delta)
 	SIZE_CLASSES
 #undef PSZ_yes
@@ -98,7 +98,7 @@ const size_t	pind2sz_tab[NPSIZES+1] = {
 
 JEMALLOC_ALIGNED(CACHELINE)
 const size_t	index2size_tab[NSIZES] = {
-#define	SC(index, lg_grp, lg_delta, ndelta, psz, bin, pgs, lg_delta_lookup) \
+#define SC(index, lg_grp, lg_delta, ndelta, psz, bin, pgs, lg_delta_lookup) \
 	((ZU(1)<<lg_grp) + (ZU(ndelta)<<lg_delta)),
 	SIZE_CLASSES
 #undef SC
@@ -108,69 +108,69 @@ JEMALLOC_ALIGNED(CACHELINE)
 const uint8_t	size2index_tab[] = {
 #if LG_TINY_MIN == 0
 #warning "Dangerous LG_TINY_MIN"
-#define	S2B_0(i)	i,
+#define S2B_0(i)	i,
 #elif LG_TINY_MIN == 1
 #warning "Dangerous LG_TINY_MIN"
-#define	S2B_1(i)	i,
+#define S2B_1(i)	i,
 #elif LG_TINY_MIN == 2
 #warning "Dangerous LG_TINY_MIN"
-#define	S2B_2(i)	i,
+#define S2B_2(i)	i,
 #elif LG_TINY_MIN == 3
-#define	S2B_3(i)	i,
+#define S2B_3(i)	i,
 #elif LG_TINY_MIN == 4
-#define	S2B_4(i)	i,
+#define S2B_4(i)	i,
 #elif LG_TINY_MIN == 5
-#define	S2B_5(i)	i,
+#define S2B_5(i)	i,
 #elif LG_TINY_MIN == 6
-#define	S2B_6(i)	i,
+#define S2B_6(i)	i,
 #elif LG_TINY_MIN == 7
-#define	S2B_7(i)	i,
+#define S2B_7(i)	i,
 #elif LG_TINY_MIN == 8
-#define	S2B_8(i)	i,
+#define S2B_8(i)	i,
 #elif LG_TINY_MIN == 9
-#define	S2B_9(i)	i,
+#define S2B_9(i)	i,
 #elif LG_TINY_MIN == 10
-#define	S2B_10(i)	i,
+#define S2B_10(i)	i,
 #elif LG_TINY_MIN == 11
-#define	S2B_11(i)	i,
+#define S2B_11(i)	i,
 #else
 #error "Unsupported LG_TINY_MIN"
 #endif
 #if LG_TINY_MIN < 1
-#define	S2B_1(i)	S2B_0(i) S2B_0(i)
+#define S2B_1(i)	S2B_0(i) S2B_0(i)
 #endif
 #if LG_TINY_MIN < 2
-#define	S2B_2(i)	S2B_1(i) S2B_1(i)
+#define S2B_2(i)	S2B_1(i) S2B_1(i)
 #endif
 #if LG_TINY_MIN < 3
-#define	S2B_3(i)	S2B_2(i) S2B_2(i)
+#define S2B_3(i)	S2B_2(i) S2B_2(i)
 #endif
 #if LG_TINY_MIN < 4
-#define	S2B_4(i)	S2B_3(i) S2B_3(i)
+#define S2B_4(i)	S2B_3(i) S2B_3(i)
 #endif
 #if LG_TINY_MIN < 5
-#define	S2B_5(i)	S2B_4(i) S2B_4(i)
+#define S2B_5(i)	S2B_4(i) S2B_4(i)
 #endif
 #if LG_TINY_MIN < 6
-#define	S2B_6(i)	S2B_5(i) S2B_5(i)
+#define S2B_6(i)	S2B_5(i) S2B_5(i)
 #endif
 #if LG_TINY_MIN < 7
-#define	S2B_7(i)	S2B_6(i) S2B_6(i)
+#define S2B_7(i)	S2B_6(i) S2B_6(i)
 #endif
 #if LG_TINY_MIN < 8
-#define	S2B_8(i)	S2B_7(i) S2B_7(i)
+#define S2B_8(i)	S2B_7(i) S2B_7(i)
 #endif
 #if LG_TINY_MIN < 9
-#define	S2B_9(i)	S2B_8(i) S2B_8(i)
+#define S2B_9(i)	S2B_8(i) S2B_8(i)
 #endif
 #if LG_TINY_MIN < 10
-#define	S2B_10(i)	S2B_9(i) S2B_9(i)
+#define S2B_10(i)	S2B_9(i) S2B_9(i)
 #endif
 #if LG_TINY_MIN < 11
-#define	S2B_11(i)	S2B_10(i) S2B_10(i)
+#define S2B_11(i)	S2B_10(i) S2B_10(i)
 #endif
-#define	S2B_no(i)
-#define	SC(index, lg_grp, lg_delta, ndelta, psz, bin, pgs, lg_delta_lookup) \
+#define S2B_no(i)
+#define SC(index, lg_grp, lg_delta, ndelta, psz, bin, pgs, lg_delta_lookup) \
 	S2B_##lg_delta_lookup(index)
 	SIZE_CLASSES
 #undef S2B_3
@@ -928,11 +928,11 @@ malloc_conf_init(void) {
 
 		while (*opts != '\0' && !malloc_conf_next(&opts, &k, &klen, &v,
 		    &vlen)) {
-#define	CONF_MATCH(n)							\
+#define CONF_MATCH(n)							\
 	(sizeof(n)-1 == klen && strncmp(n, k, klen) == 0)
-#define	CONF_MATCH_VALUE(n)						\
+#define CONF_MATCH_VALUE(n)						\
 	(sizeof(n)-1 == vlen && strncmp(n, v, vlen) == 0)
-#define	CONF_HANDLE_BOOL(o, n, cont)					\
+#define CONF_HANDLE_BOOL(o, n, cont)					\
 			if (CONF_MATCH(n)) {				\
 				if (CONF_MATCH_VALUE("true")) {		\
 					o = true;			\
@@ -947,11 +947,11 @@ malloc_conf_init(void) {
 					continue;			\
 				}					\
 			}
-#define	CONF_MIN_no(um, min)	false
-#define	CONF_MIN_yes(um, min)	((um) < (min))
-#define	CONF_MAX_no(um, max)	false
-#define	CONF_MAX_yes(um, max)	((um) > (max))
-#define	CONF_HANDLE_T_U(t, o, n, min, max, check_min, check_max, clip)	\
+#define CONF_MIN_no(um, min)	false
+#define CONF_MIN_yes(um, min)	((um) < (min))
+#define CONF_MAX_no(um, max)	false
+#define CONF_MAX_yes(um, max)	((um) > (max))
+#define CONF_HANDLE_T_U(t, o, n, min, max, check_min, check_max, clip)	\
 			if (CONF_MATCH(n)) {				\
 				uintmax_t um;				\
 				char *end;				\
@@ -989,14 +989,14 @@ malloc_conf_init(void) {
 				}					\
 				continue;				\
 			}
-#define	CONF_HANDLE_UNSIGNED(o, n, min, max, check_min, check_max,	\
+#define CONF_HANDLE_UNSIGNED(o, n, min, max, check_min, check_max,	\
     clip)								\
 			CONF_HANDLE_T_U(unsigned, o, n, min, max,	\
 			    check_min, check_max, clip)
-#define	CONF_HANDLE_SIZE_T(o, n, min, max, check_min, check_max, clip)	\
+#define CONF_HANDLE_SIZE_T(o, n, min, max, check_min, check_max, clip)	\
 			CONF_HANDLE_T_U(size_t, o, n, min, max,		\
 			    check_min, check_max, clip)
-#define	CONF_HANDLE_SSIZE_T(o, n, min, max)				\
+#define CONF_HANDLE_SSIZE_T(o, n, min, max)				\
 			if (CONF_MATCH(n)) {				\
 				long l;					\
 				char *end;				\
@@ -1018,7 +1018,7 @@ malloc_conf_init(void) {
 				}					\
 				continue;				\
 			}
-#define	CONF_HANDLE_CHAR_P(o, n, d)					\
+#define CONF_HANDLE_CHAR_P(o, n, d)					\
 			if (CONF_MATCH(n)) {				\
 				size_t cpylen = (vlen <=		\
 				    sizeof(o)-1) ? vlen :		\
@@ -2119,9 +2119,9 @@ je_valloc(size_t size) {
  * is_malloc(je_malloc) is some macro magic to detect if jemalloc_defs.h has
  * #define je_malloc malloc
  */
-#define	malloc_is_malloc 1
-#define	is_malloc_(a) malloc_is_ ## a
-#define	is_malloc(a) is_malloc_(a)
+#define malloc_is_malloc 1
+#define is_malloc_(a) malloc_is_ ## a
+#define is_malloc(a) is_malloc_(a)
 
 #if ((is_malloc(je_malloc) == 1) && defined(JEMALLOC_GLIBC_MALLOC_HOOK))
 /*
@@ -2147,9 +2147,9 @@ JEMALLOC_EXPORT void *(*__memalign_hook)(size_t alignment, size_t size) =
  * be implemented also, so none of glibc's malloc.o functions are added to the
  * link.
  */
-#define	ALIAS(je_fn)	__attribute__((alias (#je_fn), used))
+#define ALIAS(je_fn)	__attribute__((alias (#je_fn), used))
 /* To force macro expansion of je_ prefix before stringification. */
-#define	PREALIAS(je_fn)  ALIAS(je_fn)
+#define PREALIAS(je_fn)  ALIAS(je_fn)
 void	*__libc_malloc(size_t size) PREALIAS(je_malloc);
 void	__libc_free(void* ptr) PREALIAS(je_free);
 void	*__libc_realloc(void* ptr, size_t size) PREALIAS(je_realloc);

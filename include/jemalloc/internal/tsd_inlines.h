@@ -8,7 +8,7 @@ tsd_t	*tsd_fetch_impl(bool init);
 tsd_t	*tsd_fetch(void);
 tsdn_t	*tsd_tsdn(tsd_t *tsd);
 bool	tsd_nominal(tsd_t *tsd);
-#define	O(n, t, c)							\
+#define O(n, t, c)							\
 t	*tsd_##n##p_get(tsd_t *tsd);					\
 t	tsd_##n##_get(tsd_t *tsd);					\
 void	tsd_##n##_set(tsd_t *tsd, t n);
@@ -64,7 +64,7 @@ tsd_nominal(tsd_t *tsd) {
 	return (tsd->state == tsd_state_nominal);
 }
 
-#define	O(n, t, c)							\
+#define O(n, t, c)							\
 JEMALLOC_ALWAYS_INLINE t *						\
 tsd_##n##p_get(tsd_t *tsd) {						\
 	return &tsd->n;							\

@@ -1,8 +1,8 @@
 #include "test/jemalloc_test.h"
 
 TEST_BEGIN(test_ticker_tick) {
-#define	NREPS 2
-#define	NTICKS 3
+#define NREPS 2
+#define NTICKS 3
 	ticker_t ticker;
 	int32_t i, j;
 
@@ -26,7 +26,7 @@ TEST_BEGIN(test_ticker_tick) {
 TEST_END
 
 TEST_BEGIN(test_ticker_ticks) {
-#define	NTICKS 3
+#define NTICKS 3
 	ticker_t ticker;
 
 	ticker_init(&ticker, NTICKS);
@@ -44,7 +44,7 @@ TEST_BEGIN(test_ticker_ticks) {
 TEST_END
 
 TEST_BEGIN(test_ticker_copy) {
-#define	NTICKS 3
+#define NTICKS 3
 	ticker_t ta, tb;
 
 	ticker_init(&ta, NTICKS);

@@ -1,4 +1,4 @@
-#define	JEMALLOC_WITNESS_C_
+#define JEMALLOC_WITNESS_C_
 #include "jemalloc/internal/jemalloc_internal.h"
 
 void
@@ -12,7 +12,7 @@ witness_init(witness_t *witness, const char *name, witness_rank_t rank,
 
 #ifdef JEMALLOC_JET
 #undef witness_lock_error
-#define	witness_lock_error JEMALLOC_N(n_witness_lock_error)
+#define witness_lock_error JEMALLOC_N(n_witness_lock_error)
 #endif
 void
 witness_lock_error(const witness_list_t *witnesses, const witness_t *witness) {
@@ -27,13 +27,13 @@ witness_lock_error(const witness_list_t *witnesses, const witness_t *witness) {
 }
 #ifdef JEMALLOC_JET
 #undef witness_lock_error
-#define	witness_lock_error JEMALLOC_N(witness_lock_error)
+#define witness_lock_error JEMALLOC_N(witness_lock_error)
 witness_lock_error_t *witness_lock_error = JEMALLOC_N(n_witness_lock_error);
 #endif
 
 #ifdef JEMALLOC_JET
 #undef witness_owner_error
-#define	witness_owner_error JEMALLOC_N(n_witness_owner_error)
+#define witness_owner_error JEMALLOC_N(n_witness_owner_error)
 #endif
 void
 witness_owner_error(const witness_t *witness) {
@@ -43,13 +43,13 @@ witness_owner_error(const witness_t *witness) {
 }
 #ifdef JEMALLOC_JET
 #undef witness_owner_error
-#define	witness_owner_error JEMALLOC_N(witness_owner_error)
+#define witness_owner_error JEMALLOC_N(witness_owner_error)
 witness_owner_error_t *witness_owner_error = JEMALLOC_N(n_witness_owner_error);
 #endif
 
 #ifdef JEMALLOC_JET
 #undef witness_not_owner_error
-#define	witness_not_owner_error JEMALLOC_N(n_witness_not_owner_error)
+#define witness_not_owner_error JEMALLOC_N(n_witness_not_owner_error)
 #endif
 void
 witness_not_owner_error(const witness_t *witness) {
@@ -59,14 +59,14 @@ witness_not_owner_error(const witness_t *witness) {
 }
 #ifdef JEMALLOC_JET
 #undef witness_not_owner_error
-#define	witness_not_owner_error JEMALLOC_N(witness_not_owner_error)
+#define witness_not_owner_error JEMALLOC_N(witness_not_owner_error)
 witness_not_owner_error_t *witness_not_owner_error =
     JEMALLOC_N(n_witness_not_owner_error);
 #endif
 
 #ifdef JEMALLOC_JET
 #undef witness_lockless_error
-#define	witness_lockless_error JEMALLOC_N(n_witness_lockless_error)
+#define witness_lockless_error JEMALLOC_N(n_witness_lockless_error)
 #endif
 void
 witness_lockless_error(const witness_list_t *witnesses) {
@@ -81,7 +81,7 @@ witness_lockless_error(const witness_list_t *witnesses) {
 }
 #ifdef JEMALLOC_JET
 #undef witness_lockless_error
-#define	witness_lockless_error JEMALLOC_N(witness_lockless_error)
+#define witness_lockless_error JEMALLOC_N(witness_lockless_error)
 witness_lockless_error_t *witness_lockless_error =
     JEMALLOC_N(n_witness_lockless_error);
 #endif

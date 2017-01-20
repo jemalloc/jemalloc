@@ -14,7 +14,7 @@ struct tsd_init_head_s {
 };
 #endif
 
-#define	MALLOC_TSD							\
+#define MALLOC_TSD							\
 /*  O(name,			type,			cleanup) */	\
     O(tcache,			tcache_t *,		yes)		\
     O(thread_allocated,		uint64_t,		no)		\
@@ -31,7 +31,7 @@ struct tsd_init_head_s {
     O(rtree_elm_witnesses,	rtree_elm_witness_tsd_t,no)		\
     O(witness_fork,		bool,			no)		\
 
-#define	TSD_INITIALIZER {						\
+#define TSD_INITIALIZER {						\
     tsd_state_uninitialized,						\
     NULL,								\
     0,									\
@@ -51,7 +51,7 @@ struct tsd_init_head_s {
 
 struct tsd_s {
 	tsd_state_t	state;
-#define	O(n, t, c)							\
+#define O(n, t, c)							\
 	t		n;
 MALLOC_TSD
 #undef O

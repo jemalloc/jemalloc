@@ -1,9 +1,9 @@
 #include "test/jemalloc_test.h"
 
 /* Number of ring entries, in [2..26]. */
-#define	NENTRIES 9
+#define NENTRIES 9
 /* Split index, in [1..NENTRIES). */
-#define	SPLIT_INDEX 5
+#define SPLIT_INDEX 5
 
 typedef struct ring_s ring_t;
 

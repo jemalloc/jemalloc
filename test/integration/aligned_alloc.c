@@ -1,6 +1,6 @@
 #include "test/jemalloc_test.h"
 
-#define	MAXALIGN (((size_t)1) << 23)
+#define MAXALIGN (((size_t)1) << 23)
 
 /*
  * On systems which can't merge extents, tests that call this function generate
@@ -79,7 +79,7 @@ TEST_BEGIN(test_oom_errors) {
 TEST_END
 
 TEST_BEGIN(test_alignment_and_size) {
-#define	NITER 4
+#define NITER 4
 	size_t alignment, size, total;
 	unsigned i;
 	void *ps[NITER];

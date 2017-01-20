@@ -1,9 +1,9 @@
 #include "test/jemalloc_test.h"
 
-#define	NTHREADS		4
-#define	NALLOCS_PER_THREAD	50
-#define	DUMP_INTERVAL		1
-#define	BT_COUNT_CHECK_INTERVAL	5
+#define NTHREADS		4
+#define NALLOCS_PER_THREAD	50
+#define DUMP_INTERVAL		1
+#define BT_COUNT_CHECK_INTERVAL	5
 
 #ifdef JEMALLOC_PROF
 const char *malloc_conf =
