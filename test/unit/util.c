@@ -296,12 +296,12 @@ TEST_END
 
 int
 main(void) {
-	return (test(
+	return test(
 	    test_pow2_ceil_u64,
 	    test_pow2_ceil_u32,
 	    test_pow2_ceil_zu,
 	    test_malloc_strtoumax_no_endptr,
 	    test_malloc_strtoumax,
 	    test_malloc_snprintf_truncated,
-	    test_malloc_snprintf));
+	    test_malloc_snprintf);
 }

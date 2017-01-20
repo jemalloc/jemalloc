@@ -41,13 +41,13 @@ rtree_start_level(const rtree_t *rtree, uintptr_t key) {
 	unsigned start_level;
 
 	if (unlikely(key == 0)) {
-		return (rtree->height - 1);
+		return rtree->height - 1;
 	}
 
 	start_level = rtree->start_level[(lg_floor(key) + 1) >>
 	    LG_RTREE_BITS_PER_LEVEL];
 	assert(start_level < rtree->height);
-	return (start_level);
+	return start_level;
 }
 
 JEMALLOC_ALWAYS_INLINE unsigned
@@ -67,7 +67,7 @@ rtree_ctx_start_level(const rtree_t *rtree, const rtree_ctx_t *rtree_ctx,
 	start_level = rtree->start_level[(lg_floor(key_diff) + 1) >>
 	    LG_RTREE_BITS_PER_LEVEL];
 	assert(start_level < rtree->height);
-	return (start_level);
+	return start_level;
 }
 
 JEMALLOC_ALWAYS_INLINE uintptr_t
@@ -92,7 +92,7 @@ rtree_child_tryread(rtree_elm_t *elm, bool dependent) {
 		child = (rtree_elm_t *)atomic_read_p(&elm->pun);
 	}
 	assert(!dependent || child != NULL);
-	return (child);
+	return child;
 }
 
 JEMALLOC_ALWAYS_INLINE rtree_elm_t *
@@ -105,7 +105,7 @@ rtree_child_read(tsdn_t *tsdn, rtree_t *rtree, rtree_elm_t *elm, unsigned level,
 		child = rtree_child_read_hard(tsdn, rtree, elm, level);
 	}
 	assert(!dependent || child != NULL);
-	return (child);
+	return child;
 }
 
 JEMALLOC_ALWAYS_INLINE extent_t *
@@ -132,7 +132,7 @@ rtree_elm_read(rtree_elm_t *elm, bool dependent) {
 	/* Mask the lock bit. */
 	extent = (extent_t *)((uintptr_t)extent & ~((uintptr_t)0x1));
 
-	return (extent);
+	return extent;
 }
 
 JEMALLOC_INLINE void
@@ -151,7 +151,7 @@ rtree_subtree_tryread(rtree_t *rtree, unsigned level, bool dependent) {
 		    &rtree->levels[level].subtree_pun);
 	}
 	assert(!dependent || subtree != NULL);
-	return (subtree);
+	return subtree;
 }
 
 JEMALLOC_ALWAYS_INLINE rtree_elm_t *
@@ -164,7 +164,7 @@ rtree_subtree_read(tsdn_t *tsdn, rtree_t *rtree, unsigned level,
 		subtree = rtree_subtree_read_hard(tsdn, rtree, level);
 	}
 	assert(!dependent || subtree != NULL);
-	return (subtree);
+	return subtree;
 }
 
 JEMALLOC_ALWAYS_INLINE rtree_elm_t *
@@ -179,7 +179,7 @@ rtree_elm_lookup(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
 	if (dependent || init_missing) {
 		if (likely(rtree_ctx->valid)) {
 			if (key == rtree_ctx->key) {
-				return (rtree_ctx->elms[rtree->height]);
+				return rtree_ctx->elms[rtree->height];
 			} else {
 				unsigned no_ctx_start_level =
 				    rtree_start_level(rtree, key);
@@ -234,7 +234,7 @@ rtree_elm_lookup(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
 			if (init_missing) {				\
 				rtree_ctx->valid = false;		\
 			}						\
-			return (NULL);					\
+			return NULL;					\
 		}							\
 		subkey = rtree_subkey(rtree, key, level -		\
 		    RTREE_GET_BIAS);					\
@@ -253,7 +253,7 @@ rtree_elm_lookup(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
 			if (init_missing) {				\
 				rtree_ctx->valid = false;		\
 			}						\
-			return (NULL);					\
+			return NULL;					\
 		}							\
 		subkey = rtree_subkey(rtree, key, level -		\
 		    RTREE_GET_BIAS);					\
@@ -266,7 +266,7 @@ rtree_elm_lookup(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
 			rtree_ctx->elms[level - RTREE_GET_BIAS + 1] =	\
 			    node;					\
 		}							\
-		return (node);
+		return node;
 #if RTREE_HEIGHT_MAX > 1
 	RTREE_GET_SUBTREE(0)
 #endif
@@ -334,12 +334,12 @@ rtree_write(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx, uintptr_t key,
 
 	elm = rtree_elm_lookup(tsdn, rtree, rtree_ctx, key, false, true);
 	if (elm == NULL) {
-		return (true);
+		return true;
 	}
 	assert(rtree_elm_read(elm, false) == NULL);
 	rtree_elm_write(elm, extent);
 
-	return (false);
+	return false;
 }
 
 JEMALLOC_ALWAYS_INLINE extent_t *
@@ -349,10 +349,10 @@ rtree_read(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx, uintptr_t key,
 
 	elm = rtree_elm_lookup(tsdn, rtree, rtree_ctx, key, dependent, false);
 	if (elm == NULL) {
-		return (NULL);
+		return NULL;
 	}
 
-	return (rtree_elm_read(elm, dependent));
+	return rtree_elm_read(elm, dependent);
 }
 
 JEMALLOC_INLINE rtree_elm_t *
@@ -363,7 +363,7 @@ rtree_elm_acquire(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
 	elm = rtree_elm_lookup(tsdn, rtree, rtree_ctx, key, dependent,
 	    init_missing);
 	if (!dependent && elm == NULL) {
-		return (NULL);
+		return NULL;
 	}
 	{
 		extent_t *extent;
@@ -380,7 +380,7 @@ rtree_elm_acquire(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
 		rtree_elm_witness_acquire(tsdn, rtree, key, elm);
 	}
 
-	return (elm);
+	return elm;
 }
 
 JEMALLOC_INLINE extent_t *
@@ -395,7 +395,7 @@ rtree_elm_read_acquired(tsdn_t *tsdn, const rtree_t *rtree, rtree_elm_t *elm) {
 		rtree_elm_witness_access(tsdn, rtree, elm);
 	}
 
-	return (extent);
+	return extent;
 }
 
 JEMALLOC_INLINE void

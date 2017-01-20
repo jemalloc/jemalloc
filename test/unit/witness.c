@@ -38,7 +38,7 @@ witness_comp(const witness_t *a, void *oa, const witness_t *b, void *ob) {
 	assert(oa == (void *)a);
 	assert(ob == (void *)b);
 
-	return (strcmp(a->name, b->name));
+	return strcmp(a->name, b->name);
 }
 
 static int
@@ -49,7 +49,7 @@ witness_comp_reverse(const witness_t *a, void *oa, const witness_t *b,
 	assert(oa == (void *)a);
 	assert(ob == (void *)b);
 
-	return (-strcmp(a->name, b->name));
+	return -strcmp(a->name, b->name);
 }
 
 TEST_BEGIN(test_witness) {
@@ -255,11 +255,11 @@ TEST_END
 
 int
 main(void) {
-	return (test(
+	return test(
 	    test_witness,
 	    test_witness_comp,
 	    test_witness_reversal,
 	    test_witness_recursive,
 	    test_witness_unlock_not_owned,
-	    test_witness_lockful));
+	    test_witness_lockful);
 }

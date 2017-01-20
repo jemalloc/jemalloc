@@ -22,7 +22,7 @@ node_cmp(const node_t *a, const node_t *b) {
 		ret = (((uintptr_t)a) > ((uintptr_t)b))
 		    - (((uintptr_t)a) < ((uintptr_t)b));
 	}
-	return (ret);
+	return ret;
 }
 
 static int
@@ -31,7 +31,7 @@ node_cmp_magic(const node_t *a, const node_t *b) {
 	assert_u32_eq(a->magic, NODE_MAGIC, "Bad magic");
 	assert_u32_eq(b->magic, NODE_MAGIC, "Bad magic");
 
-	return (node_cmp(a, b));
+	return node_cmp(a, b);
 }
 
 typedef ph(node_t) heap_t;
@@ -94,7 +94,7 @@ node_validate(const node_t *node, const node_t *parent) {
 
 	leftmost_child = phn_lchild_get(node_t, link, node);
 	if (leftmost_child == NULL) {
-		return (nnodes);
+		return nnodes;
 	}
 	assert_ptr_eq((void *)phn_prev_get(node_t, link, leftmost_child),
 	    (void *)node, "Leftmost child does not link to node");
@@ -107,7 +107,7 @@ node_validate(const node_t *node, const node_t *parent) {
 		    "sibling's prev doesn't link to sibling");
 		nnodes += node_validate(sibling, node);
 	}
-	return (nnodes);
+	return nnodes;
 }
 
 static unsigned
@@ -133,7 +133,7 @@ label_return:
 	if (false) {
 		heap_print(heap);
 	}
-	return (nnodes);
+	return nnodes;
 }
 
 TEST_BEGIN(test_ph_empty) {
@@ -156,7 +156,7 @@ static node_t *
 node_remove_first(heap_t *heap) {
 	node_t *node = heap_remove_first(heap);
 	node->magic = 0;
-	return (node);
+	return node;
 }
 
 TEST_BEGIN(test_ph_random) {
@@ -281,7 +281,7 @@ TEST_END
 
 int
 main(void) {
-	return (test(
+	return test(
 	    test_ph_empty,
-	    test_ph_random));
+	    test_ph_random);
 }

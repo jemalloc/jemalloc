@@ -552,7 +552,7 @@ ticker_t	*decay_ticker_get(tsd_t *tsd, unsigned ind);
 JEMALLOC_ALWAYS_INLINE pszind_t
 psz2ind(size_t psz) {
 	if (unlikely(psz > LARGE_MAXCLASS)) {
-		return (NPSIZES);
+		return NPSIZES;
 	}
 	{
 		pszind_t x = lg_floor((psz<<1)-1);
@@ -568,14 +568,14 @@ psz2ind(size_t psz) {
 		    ((ZU(1) << LG_SIZE_CLASS_GROUP) - 1);
 
 		pszind_t ind = grp + mod;
-		return (ind);
+		return ind;
 	}
 }
 
 JEMALLOC_INLINE size_t
 pind2sz_compute(pszind_t pind) {
 	if (unlikely(pind == NPSIZES)) {
-		return (LARGE_MAXCLASS + PAGE);
+		return LARGE_MAXCLASS + PAGE;
 	}
 	{
 		size_t grp = pind >> LG_SIZE_CLASS_GROUP;
@@ -590,7 +590,7 @@ pind2sz_compute(pszind_t pind) {
 		size_t mod_size = (mod+1) << lg_delta;
 
 		size_t sz = grp_size + mod_size;
-		return (sz);
+		return sz;
 	}
 }
 
@@ -598,19 +598,19 @@ JEMALLOC_INLINE size_t
 pind2sz_lookup(pszind_t pind) {
 	size_t ret = (size_t)pind2sz_tab[pind];
 	assert(ret == pind2sz_compute(pind));
-	return (ret);
+	return ret;
 }
 
 JEMALLOC_INLINE size_t
 pind2sz(pszind_t pind) {
 	assert(pind < NPSIZES+1);
-	return (pind2sz_lookup(pind));
+	return pind2sz_lookup(pind);
 }
 
 JEMALLOC_INLINE size_t
 psz2u(size_t psz) {
 	if (unlikely(psz > LARGE_MAXCLASS)) {
-		return (LARGE_MAXCLASS + PAGE);
+		return LARGE_MAXCLASS + PAGE;
 	}
 	{
 		size_t x = lg_floor((psz<<1)-1);
@@ -619,14 +619,14 @@ psz2u(size_t psz) {
 		size_t delta = ZU(1) << lg_delta;
 		size_t delta_mask = delta - 1;
 		size_t usize = (psz + delta_mask) & ~delta_mask;
-		return (usize);
+		return usize;
 	}
 }
 
 JEMALLOC_INLINE szind_t
 size2index_compute(size_t size) {
 	if (unlikely(size > LARGE_MAXCLASS)) {
-		return (NSIZES);
+		return NSIZES;
 	}
 #if (NTBINS != 0)
 	if (size <= (ZU(1) << LG_TINY_MAXCLASS)) {
@@ -649,7 +649,7 @@ size2index_compute(size_t size) {
 		    ((ZU(1) << LG_SIZE_CLASS_GROUP) - 1);
 
 		szind_t index = NTBINS + grp + mod;
-		return (index);
+		return index;
 	}
 }
 
@@ -659,7 +659,7 @@ size2index_lookup(size_t size) {
 	{
 		szind_t ret = (size2index_tab[(size-1) >> LG_TINY_MIN]);
 		assert(ret == size2index_compute(size));
-		return (ret);
+		return ret;
 	}
 }
 
@@ -667,9 +667,9 @@ JEMALLOC_ALWAYS_INLINE szind_t
 size2index(size_t size) {
 	assert(size > 0);
 	if (likely(size <= LOOKUP_MAXCLASS)) {
-		return (size2index_lookup(size));
+		return size2index_lookup(size);
 	}
-	return (size2index_compute(size));
+	return size2index_compute(size);
 }
 
 JEMALLOC_INLINE size_t
@@ -694,7 +694,7 @@ index2size_compute(szind_t index) {
 		size_t mod_size = (mod+1) << lg_delta;
 
 		size_t usize = grp_size + mod_size;
-		return (usize);
+		return usize;
 	}
 }
 
@@ -702,19 +702,19 @@ JEMALLOC_ALWAYS_INLINE size_t
 index2size_lookup(szind_t index) {
 	size_t ret = (size_t)index2size_tab[index];
 	assert(ret == index2size_compute(index));
-	return (ret);
+	return ret;
 }
 
 JEMALLOC_ALWAYS_INLINE size_t
 index2size(szind_t index) {
 	assert(index < NSIZES);
-	return (index2size_lookup(index));
+	return index2size_lookup(index);
 }
 
 JEMALLOC_ALWAYS_INLINE size_t
 s2u_compute(size_t size) {
 	if (unlikely(size > LARGE_MAXCLASS)) {
-		return (0);
+		return 0;
 	}
 #if (NTBINS > 0)
 	if (size <= (ZU(1) << LG_TINY_MAXCLASS)) {
@@ -731,7 +731,7 @@ s2u_compute(size_t size) {
 		size_t delta = ZU(1) << lg_delta;
 		size_t delta_mask = delta - 1;
 		size_t usize = (size + delta_mask) & ~delta_mask;
-		return (usize);
+		return usize;
 	}
 }
 
@@ -740,7 +740,7 @@ s2u_lookup(size_t size) {
 	size_t ret = index2size_lookup(size2index_lookup(size));
 
 	assert(ret == s2u_compute(size));
-	return (ret);
+	return ret;
 }
 
 /*
@@ -751,9 +751,9 @@ JEMALLOC_ALWAYS_INLINE size_t
 s2u(size_t size) {
 	assert(size > 0);
 	if (likely(size <= LOOKUP_MAXCLASS)) {
-		return (s2u_lookup(size));
+		return s2u_lookup(size);
 	}
-	return (s2u_compute(size));
+	return s2u_compute(size);
 }
 
 /*
@@ -784,14 +784,14 @@ sa2u(size_t size, size_t alignment) {
 		 */
 		usize = s2u(ALIGNMENT_CEILING(size, alignment));
 		if (usize < LARGE_MINCLASS) {
-			return (usize);
+			return usize;
 		}
 	}
 
 	/* Large size class.  Beware of overflow. */
 
 	if (unlikely(alignment > LARGE_MAXCLASS)) {
-		return (0);
+		return 0;
 	}
 
 	/* Make sure result is a large size class. */
@@ -801,7 +801,7 @@ sa2u(size_t size, size_t alignment) {
 		usize = s2u(size);
 		if (usize < size) {
 			/* size_t overflow. */
-			return (0);
+			return 0;
 		}
 	}
 
@@ -811,9 +811,9 @@ sa2u(size_t size, size_t alignment) {
 	 */
 	if (usize + large_pad + PAGE_CEILING(alignment) - PAGE < usize) {
 		/* size_t overflow. */
-		return (0);
+		return 0;
 	}
-	return (usize);
+	return usize;
 }
 
 /* Choose an arena based on a per-thread value. */
@@ -822,7 +822,7 @@ arena_choose_impl(tsd_t *tsd, arena_t *arena, bool internal) {
 	arena_t *ret;
 
 	if (arena != NULL) {
-		return (arena);
+		return arena;
 	}
 
 	ret = internal ? tsd_iarena_get(tsd) : tsd_arena_get(tsd);
@@ -830,17 +830,17 @@ arena_choose_impl(tsd_t *tsd, arena_t *arena, bool internal) {
 		ret = arena_choose_hard(tsd, internal);
 	}
 
-	return (ret);
+	return ret;
 }
 
 JEMALLOC_INLINE arena_t *
 arena_choose(tsd_t *tsd, arena_t *arena) {
-	return (arena_choose_impl(tsd, arena, false));
+	return arena_choose_impl(tsd, arena, false);
 }
 
 JEMALLOC_INLINE arena_t *
 arena_ichoose(tsd_t *tsd, arena_t *arena) {
-	return (arena_choose_impl(tsd, arena, true));
+	return arena_choose_impl(tsd, arena, true);
 }
 
 JEMALLOC_INLINE arena_tdata_t *
@@ -850,7 +850,7 @@ arena_tdata_get(tsd_t *tsd, unsigned ind, bool refresh_if_missing) {
 
 	if (unlikely(arenas_tdata == NULL)) {
 		/* arenas_tdata hasn't been initialized yet. */
-		return (arena_tdata_get_hard(tsd, ind));
+		return arena_tdata_get_hard(tsd, ind);
 	}
 	if (unlikely(ind >= tsd_narenas_tdata_get(tsd))) {
 		/*
@@ -863,9 +863,9 @@ arena_tdata_get(tsd_t *tsd, unsigned ind, bool refresh_if_missing) {
 
 	tdata = &arenas_tdata[ind];
 	if (likely(tdata != NULL) || !refresh_if_missing) {
-		return (tdata);
+		return tdata;
 	}
-	return (arena_tdata_get_hard(tsd, ind));
+	return arena_tdata_get_hard(tsd, ind);
 }
 
 JEMALLOC_INLINE arena_t *
@@ -882,7 +882,7 @@ arena_get(tsdn_t *tsdn, unsigned ind, bool init_if_missing) {
 			    (extent_hooks_t *)&extent_hooks_default);
 		}
 	}
-	return (ret);
+	return ret;
 }
 
 JEMALLOC_INLINE ticker_t *
@@ -891,9 +891,9 @@ decay_ticker_get(tsd_t *tsd, unsigned ind) {
 
 	tdata = arena_tdata_get(tsd, ind, true);
 	if (unlikely(tdata == NULL)) {
-		return (NULL);
+		return NULL;
 	}
-	return (&tdata->decay_ticker);
+	return &tdata->decay_ticker;
 }
 #endif
 
@@ -911,7 +911,7 @@ extent_t	*iealloc(tsdn_t *tsdn, const void *ptr);
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_C_))
 JEMALLOC_ALWAYS_INLINE extent_t *
 iealloc(tsdn_t *tsdn, const void *ptr) {
-	return (extent_lookup(tsdn, ptr, true));
+	return extent_lookup(tsdn, ptr, true);
 }
 #endif
 
@@ -953,7 +953,7 @@ JEMALLOC_ALWAYS_INLINE arena_t *
 iaalloc(tsdn_t *tsdn, const void *ptr) {
 	assert(ptr != NULL);
 
-	return (arena_aalloc(tsdn, ptr));
+	return arena_aalloc(tsdn, ptr);
 }
 
 /*
@@ -967,7 +967,7 @@ JEMALLOC_ALWAYS_INLINE size_t
 isalloc(tsdn_t *tsdn, const extent_t *extent, const void *ptr) {
 	assert(ptr != NULL);
 
-	return (arena_salloc(tsdn, extent, ptr));
+	return arena_salloc(tsdn, extent, ptr);
 }
 
 JEMALLOC_ALWAYS_INLINE void *
@@ -985,13 +985,13 @@ iallocztm(tsdn_t *tsdn, size_t size, szind_t ind, bool zero, tcache_t *tcache,
 		arena_internal_add(iaalloc(tsdn, ret), isalloc(tsdn,
 		    iealloc(tsdn, ret), ret));
 	}
-	return (ret);
+	return ret;
 }
 
 JEMALLOC_ALWAYS_INLINE void *
 ialloc(tsd_t *tsd, size_t size, szind_t ind, bool zero, bool slow_path) {
-	return (iallocztm(tsd_tsdn(tsd), size, ind, zero, tcache_get(tsd, true),
-	    false, NULL, slow_path));
+	return iallocztm(tsd_tsdn(tsd), size, ind, zero, tcache_get(tsd, true),
+	    false, NULL, slow_path);
 }
 
 JEMALLOC_ALWAYS_INLINE void *
@@ -1011,19 +1011,19 @@ ipallocztm(tsdn_t *tsdn, size_t usize, size_t alignment, bool zero,
 		arena_internal_add(iaalloc(tsdn, ret), isalloc(tsdn,
 		    iealloc(tsdn, ret), ret));
 	}
-	return (ret);
+	return ret;
 }
 
 JEMALLOC_ALWAYS_INLINE void *
 ipalloct(tsdn_t *tsdn, size_t usize, size_t alignment, bool zero,
     tcache_t *tcache, arena_t *arena) {
-	return (ipallocztm(tsdn, usize, alignment, zero, tcache, false, arena));
+	return ipallocztm(tsdn, usize, alignment, zero, tcache, false, arena);
 }
 
 JEMALLOC_ALWAYS_INLINE void *
 ipalloc(tsd_t *tsd, size_t usize, size_t alignment, bool zero) {
-	return (ipallocztm(tsd_tsdn(tsd), usize, alignment, zero,
-	    tcache_get(tsd, true), false, NULL));
+	return ipallocztm(tsd_tsdn(tsd), usize, alignment, zero,
+	    tcache_get(tsd, true), false, NULL);
 }
 
 JEMALLOC_ALWAYS_INLINE size_t
@@ -1040,13 +1040,13 @@ ivsalloc(tsdn_t *tsdn, const void *ptr) {
 	 * */
 	extent = extent_lookup(tsdn, ptr, false);
 	if (extent == NULL) {
-		return (0);
+		return 0;
 	}
 	assert(extent_active_get(extent));
 	/* Only slab members should be looked up via interior pointers. */
 	assert(extent_addr_get(extent) == ptr || extent_slab_get(extent));
 
-	return (isalloc(tsdn, extent, ptr));
+	return isalloc(tsdn, extent, ptr);
 }
 
 JEMALLOC_ALWAYS_INLINE void
@@ -1085,21 +1085,21 @@ iralloct_realign(tsdn_t *tsdn, extent_t *extent, void *ptr, size_t oldsize,
 
 	usize = sa2u(size + extra, alignment);
 	if (unlikely(usize == 0 || usize > LARGE_MAXCLASS)) {
-		return (NULL);
+		return NULL;
 	}
 	p = ipalloct(tsdn, usize, alignment, zero, tcache, arena);
 	if (p == NULL) {
 		if (extra == 0) {
-			return (NULL);
+			return NULL;
 		}
 		/* Try again, without extra this time. */
 		usize = sa2u(size, alignment);
 		if (unlikely(usize == 0 || usize > LARGE_MAXCLASS)) {
-			return (NULL);
+			return NULL;
 		}
 		p = ipalloct(tsdn, usize, alignment, zero, tcache, arena);
 		if (p == NULL) {
-			return (NULL);
+			return NULL;
 		}
 	}
 	/*
@@ -1109,7 +1109,7 @@ iralloct_realign(tsdn_t *tsdn, extent_t *extent, void *ptr, size_t oldsize,
 	copysize = (size < oldsize) ? size : oldsize;
 	memcpy(p, ptr, copysize);
 	isdalloct(tsdn, extent, ptr, oldsize, tcache, true);
-	return (p);
+	return p;
 }
 
 JEMALLOC_ALWAYS_INLINE void *
@@ -1124,19 +1124,19 @@ iralloct(tsdn_t *tsdn, extent_t *extent, void *ptr, size_t oldsize, size_t size,
 		 * Existing object alignment is inadequate; allocate new space
 		 * and copy.
 		 */
-		return (iralloct_realign(tsdn, extent, ptr, oldsize, size, 0,
-		    alignment, zero, tcache, arena));
+		return iralloct_realign(tsdn, extent, ptr, oldsize, size, 0,
+		    alignment, zero, tcache, arena);
 	}
 
-	return (arena_ralloc(tsdn, arena, extent, ptr, oldsize, size, alignment,
-	    zero, tcache));
+	return arena_ralloc(tsdn, arena, extent, ptr, oldsize, size, alignment,
+	    zero, tcache);
 }
 
 JEMALLOC_ALWAYS_INLINE void *
 iralloc(tsd_t *tsd, extent_t *extent, void *ptr, size_t oldsize, size_t size,
     size_t alignment, bool zero) {
-	return (iralloct(tsd_tsdn(tsd), extent, ptr, oldsize, size, alignment,
-	    zero, tcache_get(tsd, true), NULL));
+	return iralloct(tsd_tsdn(tsd), extent, ptr, oldsize, size, alignment,
+	    zero, tcache_get(tsd, true), NULL);
 }
 
 JEMALLOC_ALWAYS_INLINE bool
@@ -1148,11 +1148,11 @@ ixalloc(tsdn_t *tsdn, extent_t *extent, void *ptr, size_t oldsize, size_t size,
 	if (alignment != 0 && ((uintptr_t)ptr & ((uintptr_t)alignment-1))
 	    != 0) {
 		/* Existing object alignment is inadequate. */
-		return (true);
+		return true;
 	}
 
-	return (arena_ralloc_no_move(tsdn, extent, ptr, oldsize, size, extra,
-	    zero));
+	return arena_ralloc_no_move(tsdn, extent, ptr, oldsize, size, extra,
+	    zero);
 }
 #endif
 

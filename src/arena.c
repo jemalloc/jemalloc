@@ -50,8 +50,8 @@ arena_extent_cache_alloc_locked(tsdn_t *tsdn, arena_t *arena,
 
 	malloc_mutex_assert_owner(tsdn, &arena->lock);
 
-	return (extent_alloc_cache(tsdn, arena, r_extent_hooks, new_addr, usize,
-	    pad, alignment, zero, &commit, slab));
+	return extent_alloc_cache(tsdn, arena, r_extent_hooks, new_addr, usize,
+	    pad, alignment, zero, &commit, slab);
 }
 
 extent_t *
@@ -65,7 +65,7 @@ arena_extent_cache_alloc(tsdn_t *tsdn, arena_t *arena,
 	    new_addr, size, 0, alignment, zero, false);
 	malloc_mutex_unlock(tsdn, &arena->lock);
 
-	return (extent);
+	return extent;
 }
 
 static void
@@ -122,7 +122,7 @@ arena_slab_reg_alloc(tsdn_t *tsdn, extent_t *slab,
 	ret = (void *)((uintptr_t)extent_addr_get(slab) +
 	    (uintptr_t)(bin_info->reg_size * regind));
 	slab_data->nfree--;
-	return (ret);
+	return ret;
 }
 
 #ifndef JEMALLOC_JET
@@ -160,7 +160,7 @@ arena_slab_regind(extent_t *slab, szind_t binind, const void *ptr) {
 
 	assert(regind < arena_bin_info[binind].nregs);
 
-	return (regind);
+	return regind;
 }
 
 JEMALLOC_INLINE_C void
@@ -282,7 +282,7 @@ arena_extent_alloc_large_hard(tsdn_t *tsdn, arena_t *arena,
 		malloc_mutex_unlock(tsdn, &arena->lock);
 	}
 
-	return (extent);
+	return extent;
 }
 
 extent_t *
@@ -308,7 +308,7 @@ arena_extent_alloc_large(tsdn_t *tsdn, arena_t *arena, size_t usize,
 		    &extent_hooks, usize, alignment, zero);
 	}
 
-	return (extent);
+	return extent;
 }
 
 void
@@ -409,7 +409,7 @@ arena_decay_backlog_npages_limit(const arena_t *arena) {
 	}
 	npages_limit_backlog = (size_t)(sum >> SMOOTHSTEP_BFP);
 
-	return (npages_limit_backlog);
+	return npages_limit_backlog;
 }
 
 static void
@@ -499,12 +499,12 @@ arena_decay_init(arena_t *arena, ssize_t decay_time) {
 static bool
 arena_decay_time_valid(ssize_t decay_time) {
 	if (decay_time < -1) {
-		return (false);
+		return false;
 	}
 	if (decay_time == -1 || (uint64_t)decay_time <= NSTIME_SEC_MAX) {
-		return (true);
+		return true;
 	}
-	return (false);
+	return false;
 }
 
 ssize_t
@@ -515,13 +515,13 @@ arena_decay_time_get(tsdn_t *tsdn, arena_t *arena) {
 	decay_time = arena->decay.time;
 	malloc_mutex_unlock(tsdn, &arena->lock);
 
-	return (decay_time);
+	return decay_time;
 }
 
 bool
 arena_decay_time_set(tsdn_t *tsdn, arena_t *arena, ssize_t decay_time) {
 	if (!arena_decay_time_valid(decay_time)) {
-		return (true);
+		return true;
 	}
 
 	malloc_mutex_lock(tsdn, &arena->lock);
@@ -537,7 +537,7 @@ arena_decay_time_set(tsdn_t *tsdn, arena_t *arena, ssize_t decay_time) {
 	arena_maybe_purge(tsdn, arena);
 	malloc_mutex_unlock(tsdn, &arena->lock);
 
-	return (false);
+	return false;
 }
 
 static void
@@ -609,7 +609,7 @@ arena_dirty_count(tsdn_t *tsdn, arena_t *arena) {
 
 	malloc_mutex_unlock(tsdn, &arena->extents_mtx);
 
-	return (ndirty);
+	return ndirty;
 }
 
 static size_t
@@ -648,7 +648,7 @@ arena_stash_dirty(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
 	}
 
 	malloc_mutex_unlock(tsdn, &arena->extents_mtx);
-	return (nstashed);
+	return nstashed;
 }
 
 static size_t
@@ -680,7 +680,7 @@ arena_purge_stashed(tsdn_t *tsdn, arena_t *arena,
 		arena->stats.purged += npurged;
 	}
 
-	return (npurged);
+	return npurged;
 }
 
 /*
@@ -757,12 +757,12 @@ static extent_t *
 arena_bin_slabs_nonfull_tryget(arena_bin_t *bin) {
 	extent_t *slab = extent_heap_remove_first(&bin->slabs_nonfull);
 	if (slab == NULL) {
-		return (NULL);
+		return NULL;
 	}
 	if (config_stats) {
 		bin->stats.reslabs++;
 	}
-	return (slab);
+	return slab;
 }
 
 static void
@@ -936,7 +936,7 @@ arena_slab_alloc_hard(tsdn_t *tsdn, arena_t *arena,
 	    bin_info->slab_size, 0, PAGE, &zero, &commit, true);
 	malloc_mutex_lock(tsdn, &arena->lock);
 
-	return (slab);
+	return slab;
 }
 
 static extent_t *
@@ -953,7 +953,7 @@ arena_slab_alloc(tsdn_t *tsdn, arena_t *arena, szind_t binind,
 		slab = arena_slab_alloc_hard(tsdn, arena, &extent_hooks,
 		    bin_info);
 		if (slab == NULL) {
-			return (NULL);
+			return NULL;
 		}
 	}
 	assert(extent_slab_get(slab));
@@ -970,7 +970,7 @@ arena_slab_alloc(tsdn_t *tsdn, arena_t *arena, szind_t binind,
 		arena->stats.mapped += extent_size_get(slab);
 	}
 
-	return (slab);
+	return slab;
 }
 
 static extent_t *
@@ -982,7 +982,7 @@ arena_bin_nonfull_slab_get(tsdn_t *tsdn, arena_t *arena, arena_bin_t *bin,
 	/* Look for a usable slab. */
 	slab = arena_bin_slabs_nonfull_tryget(bin);
 	if (slab != NULL) {
-		return (slab);
+		return slab;
 	}
 	/* No existing slabs have any space available. */
 
@@ -1001,7 +1001,7 @@ arena_bin_nonfull_slab_get(tsdn_t *tsdn, arena_t *arena, arena_bin_t *bin,
 			bin->stats.nslabs++;
 			bin->stats.curslabs++;
 		}
-		return (slab);
+		return slab;
 	}
 
 	/*
@@ -1011,10 +1011,10 @@ arena_bin_nonfull_slab_get(tsdn_t *tsdn, arena_t *arena, arena_bin_t *bin,
 	 */
 	slab = arena_bin_slabs_nonfull_tryget(bin);
 	if (slab != NULL) {
-		return (slab);
+		return slab;
 	}
 
-	return (NULL);
+	return NULL;
 }
 
 /* Re-fill bin->slabcur, then call arena_slab_reg_alloc(). */
@@ -1057,7 +1057,7 @@ arena_bin_malloc_hard(tsdn_t *tsdn, arena_t *arena, arena_bin_t *bin,
 					    bin);
 				}
 			}
-			return (ret);
+			return ret;
 		}
 
 		arena_bin_slabs_full_insert(bin, bin->slabcur);
@@ -1065,13 +1065,13 @@ arena_bin_malloc_hard(tsdn_t *tsdn, arena_t *arena, arena_bin_t *bin,
 	}
 
 	if (slab == NULL) {
-		return (NULL);
+		return NULL;
 	}
 	bin->slabcur = slab;
 
 	assert(extent_slab_data_get(bin->slabcur)->nfree > 0);
 
-	return (arena_slab_reg_alloc(tsdn, slab, bin_info));
+	return arena_slab_reg_alloc(tsdn, slab, bin_info);
 }
 
 void
@@ -1172,7 +1172,7 @@ arena_malloc_small(tsdn_t *tsdn, arena_t *arena, szind_t binind, bool zero) {
 
 	if (ret == NULL) {
 		malloc_mutex_unlock(tsdn, &bin->lock);
-		return (NULL);
+		return NULL;
 	}
 
 	if (config_stats) {
@@ -1203,7 +1203,7 @@ arena_malloc_small(tsdn_t *tsdn, arena_t *arena, szind_t binind, bool zero) {
 	}
 
 	arena_decay_tick(tsdn, arena);
-	return (ret);
+	return ret;
 }
 
 void *
@@ -1215,13 +1215,13 @@ arena_malloc_hard(tsdn_t *tsdn, arena_t *arena, size_t size, szind_t ind,
 		arena = arena_choose(tsdn_tsd(tsdn), arena);
 	}
 	if (unlikely(arena == NULL)) {
-		return (NULL);
+		return NULL;
 	}
 
 	if (likely(size <= SMALL_MAXCLASS)) {
-		return (arena_malloc_small(tsdn, arena, ind, zero));
+		return arena_malloc_small(tsdn, arena, ind, zero);
 	}
-	return (large_malloc(tsdn, arena, index2size(ind), zero));
+	return large_malloc(tsdn, arena, index2size(ind), zero);
 }
 
 void *
@@ -1241,7 +1241,7 @@ arena_palloc(tsdn_t *tsdn, arena_t *arena, size_t usize, size_t alignment,
 			ret = large_palloc(tsdn, arena, usize, alignment, zero);
 		}
 	}
-	return (ret);
+	return ret;
 }
 
 void
@@ -1282,7 +1282,7 @@ arena_prof_demote(tsdn_t *tsdn, extent_t *extent, const void *ptr) {
 
 	assert(isalloc(tsdn, extent, ptr) == LARGE_MINCLASS);
 
-	return (LARGE_MINCLASS);
+	return LARGE_MINCLASS;
 }
 
 void
@@ -1425,7 +1425,7 @@ arena_ralloc_no_move(tsdn_t *tsdn, extent_t *extent, void *ptr, size_t oldsize,
 	assert(extra == 0 || size + extra <= LARGE_MAXCLASS);
 
 	if (unlikely(size > LARGE_MAXCLASS)) {
-		return (true);
+		return true;
 	}
 
 	usize_min = s2u(size);
@@ -1440,31 +1440,31 @@ arena_ralloc_no_move(tsdn_t *tsdn, extent_t *extent, void *ptr, size_t oldsize,
 		if ((usize_max > SMALL_MAXCLASS || size2index(usize_max) !=
 		    size2index(oldsize)) && (size > oldsize || usize_max <
 		    oldsize)) {
-			return (true);
+			return true;
 		}
 
 		arena_decay_tick(tsdn, extent_arena_get(extent));
-		return (false);
+		return false;
 	} else if (oldsize >= LARGE_MINCLASS && usize_max >= LARGE_MINCLASS) {
-		return (large_ralloc_no_move(tsdn, extent, usize_min, usize_max,
-		    zero));
+		return large_ralloc_no_move(tsdn, extent, usize_min, usize_max,
+		    zero);
 	}
 
-	return (true);
+	return true;
 }
 
 static void *
 arena_ralloc_move_helper(tsdn_t *tsdn, arena_t *arena, size_t usize,
     size_t alignment, bool zero, tcache_t *tcache) {
 	if (alignment == 0) {
-		return (arena_malloc(tsdn, arena, usize, size2index(usize),
-		    zero, tcache, true));
+		return arena_malloc(tsdn, arena, usize, size2index(usize),
+		    zero, tcache, true);
 	}
 	usize = sa2u(usize, alignment);
 	if (unlikely(usize == 0 || usize > LARGE_MAXCLASS)) {
-		return (NULL);
+		return NULL;
 	}
-	return (ipalloct(tsdn, usize, alignment, zero, tcache, arena));
+	return ipalloct(tsdn, usize, alignment, zero, tcache, arena);
 }
 
 void *
@@ -1476,20 +1476,20 @@ arena_ralloc(tsdn_t *tsdn, arena_t *arena, extent_t *extent, void *ptr,
 
 	usize = s2u(size);
 	if (unlikely(usize == 0 || size > LARGE_MAXCLASS)) {
-		return (NULL);
+		return NULL;
 	}
 
 	if (likely(usize <= SMALL_MAXCLASS)) {
 		/* Try to avoid moving the allocation. */
 		if (!arena_ralloc_no_move(tsdn, extent, ptr, oldsize, usize, 0,
 		    zero)) {
-			return (ptr);
+			return ptr;
 		}
 	}
 
 	if (oldsize >= LARGE_MINCLASS && usize >= LARGE_MINCLASS) {
-		return (large_ralloc(tsdn, arena, extent, usize, alignment,
-		    zero, tcache));
+		return large_ralloc(tsdn, arena, extent, usize, alignment,
+		    zero, tcache);
 	}
 
 	/*
@@ -1499,7 +1499,7 @@ arena_ralloc(tsdn_t *tsdn, arena_t *arena, extent_t *extent, void *ptr,
 	ret = arena_ralloc_move_helper(tsdn, arena, usize, alignment, zero,
 	    tcache);
 	if (ret == NULL) {
-		return (NULL);
+		return NULL;
 	}
 
 	/*
@@ -1510,7 +1510,7 @@ arena_ralloc(tsdn_t *tsdn, arena_t *arena, extent_t *extent, void *ptr,
 	copysize = (usize < oldsize) ? usize : oldsize;
 	memcpy(ret, ptr, copysize);
 	isdalloct(tsdn, extent, ptr, oldsize, tcache, true);
-	return (ret);
+	return ret;
 }
 
 dss_prec_t
@@ -1520,7 +1520,7 @@ arena_dss_prec_get(tsdn_t *tsdn, arena_t *arena) {
 	malloc_mutex_lock(tsdn, &arena->lock);
 	ret = arena->dss_prec;
 	malloc_mutex_unlock(tsdn, &arena->lock);
-	return (ret);
+	return ret;
 }
 
 bool
@@ -1531,21 +1531,21 @@ arena_dss_prec_set(tsdn_t *tsdn, arena_t *arena, dss_prec_t dss_prec) {
 	malloc_mutex_lock(tsdn, &arena->lock);
 	arena->dss_prec = dss_prec;
 	malloc_mutex_unlock(tsdn, &arena->lock);
-	return (false);
+	return false;
 }
 
 ssize_t
 arena_decay_time_default_get(void) {
-	return ((ssize_t)atomic_read_zu((size_t *)&decay_time_default));
+	return (ssize_t)atomic_read_zu((size_t *)&decay_time_default);
 }
 
 bool
 arena_decay_time_default_set(ssize_t decay_time) {
 	if (!arena_decay_time_valid(decay_time)) {
-		return (true);
+		return true;
 	}
 	atomic_write_zu((size_t *)&decay_time_default, (size_t)decay_time);
-	return (false);
+	return false;
 }
 
 static void
@@ -1642,7 +1642,7 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 
 unsigned
 arena_nthreads_get(arena_t *arena, bool internal) {
-	return (atomic_read_u(&arena->nthreads[internal]));
+	return atomic_read_u(&arena->nthreads[internal]);
 }
 
 void
@@ -1657,7 +1657,7 @@ arena_nthreads_dec(arena_t *arena, bool internal) {
 
 size_t
 arena_extent_sn_next(arena_t *arena) {
-	return (atomic_add_zu(&arena->extent_sn_next, 1) - 1);
+	return atomic_add_zu(&arena->extent_sn_next, 1) - 1;
 }
 
 arena_t *
@@ -1671,7 +1671,7 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 	} else {
 		base = base_new(tsdn, ind, extent_hooks);
 		if (base == NULL) {
-			return (NULL);
+			return NULL;
 		}
 	}
 
@@ -1762,12 +1762,12 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 
 	arena->base = base;
 
-	return (arena);
+	return arena;
 label_error:
 	if (ind != 0) {
 		base_delete(base);
 	}
-	return (NULL);
+	return NULL;
 }
 
 void

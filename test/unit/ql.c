@@ -192,11 +192,11 @@ TEST_END
 
 int
 main(void) {
-	return (test(
+	return test(
 	    test_ql_empty,
 	    test_ql_tail_insert,
 	    test_ql_tail_remove,
 	    test_ql_head_insert,
 	    test_ql_head_remove,
-	    test_ql_insert));
+	    test_ql_insert);
 }

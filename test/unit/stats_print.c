@@ -983,7 +983,7 @@ TEST_END
 
 int
 main(void) {
-	return (test(
+	return test(
 	    test_json_parser,
-	    test_stats_print_json));
+	    test_stats_print_json);
 }

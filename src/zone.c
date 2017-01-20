@@ -135,17 +135,17 @@ zone_size(malloc_zone_t *zone, const void *ptr) {
 	 * not work in practice, we must check all pointers to assure that they
 	 * reside within a mapped extent before determining size.
 	 */
-	return (ivsalloc(tsdn_fetch(), ptr));
+	return ivsalloc(tsdn_fetch(), ptr);
 }
 
 static void *
 zone_malloc(malloc_zone_t *zone, size_t size) {
-	return (je_malloc(size));
+	return je_malloc(size);
 }
 
 static void *
 zone_calloc(malloc_zone_t *zone, size_t num, size_t size) {
-	return (je_calloc(num, size));
+	return je_calloc(num, size);
 }
 
 static void *
@@ -154,7 +154,7 @@ zone_valloc(malloc_zone_t *zone, size_t size) {
 
 	je_posix_memalign(&ret, PAGE, size);
 
-	return (ret);
+	return ret;
 }
 
 static void
@@ -170,10 +170,10 @@ zone_free(malloc_zone_t *zone, void *ptr) {
 static void *
 zone_realloc(malloc_zone_t *zone, void *ptr, size_t size) {
 	if (ivsalloc(tsdn_fetch(), ptr) != 0) {
-		return (je_realloc(ptr, size));
+		return je_realloc(ptr, size);
 	}
 
-	return (realloc(ptr, size));
+	return realloc(ptr, size);
 }
 
 static void *
@@ -182,7 +182,7 @@ zone_memalign(malloc_zone_t *zone, size_t alignment, size_t size) {
 
 	je_posix_memalign(&ret, alignment, size);
 
-	return (ret);
+	return ret;
 }
 
 static void
@@ -240,7 +240,7 @@ zone_good_size(malloc_zone_t *zone, size_t size) {
 	if (size == 0) {
 		size = 1;
 	}
-	return (s2u(size));
+	return s2u(size);
 }
 
 static kern_return_t
@@ -368,10 +368,10 @@ zone_default_get(void) {
 	}
 
 	if (num_zones) {
-		return (zones[0]);
+		return zones[0];
 	}
 
-	return (malloc_default_zone());
+	return malloc_default_zone();
 }
 
 /* As written, this function can only promote jemalloc_zone. */

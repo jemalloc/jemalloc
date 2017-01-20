@@ -13,17 +13,17 @@ get_nsizes_impl(const char *cmd) {
 	assert_d_eq(mallctl(cmd, (void *)&ret, &z, NULL, 0), 0,
 	    "Unexpected mallctl(\"%s\", ...) failure", cmd);
 
-	return (ret);
+	return ret;
 }
 
 static unsigned
 get_nsmall(void) {
-	return (get_nsizes_impl("arenas.nbins"));
+	return get_nsizes_impl("arenas.nbins");
 }
 
 static unsigned
 get_nlarge(void) {
-	return (get_nsizes_impl("arenas.nlextents"));
+	return get_nsizes_impl("arenas.nlextents");
 }
 
 static size_t
@@ -41,17 +41,17 @@ get_size_impl(const char *cmd, size_t ind) {
 	assert_d_eq(mallctlbymib(mib, miblen, (void *)&ret, &z, NULL, 0),
 	    0, "Unexpected mallctlbymib([\"%s\", %zu], ...) failure", cmd, ind);
 
-	return (ret);
+	return ret;
 }
 
 static size_t
 get_small_size(size_t ind) {
-	return (get_size_impl("arenas.bin.0.size", ind));
+	return get_size_impl("arenas.bin.0.size", ind);
 }
 
 static size_t
 get_large_size(size_t ind) {
-	return (get_size_impl("arenas.lextent.0.size", ind));
+	return get_size_impl("arenas.lextent.0.size", ind);
 }
 
 /* Like ivsalloc(), but safe to call on discarded allocations. */
@@ -61,13 +61,13 @@ vsalloc(tsdn_t *tsdn, const void *ptr) {
 
 	extent = extent_lookup(tsdn, ptr, false);
 	if (extent == NULL) {
-		return (0);
+		return 0;
 	}
 	if (!extent_active_get(extent)) {
-		return (0);
+		return 0;
 	}
 
-	return (isalloc(tsdn, extent, ptr));
+	return isalloc(tsdn, extent, ptr);
 }
 
 static unsigned
@@ -77,7 +77,7 @@ do_arena_create(extent_hooks_t *h) {
 	assert_d_eq(mallctl("arenas.create", (void *)&arena_ind, &sz,
 	    (void *)(h != NULL ? &h : NULL), (h != NULL ? sizeof(h) : 0)), 0,
 	    "Unexpected mallctl() failure");
-	return (arena_ind);
+	return arena_ind;
 }
 
 static void
@@ -190,7 +190,7 @@ arena_i_initialized(unsigned arena_ind, bool refresh) {
 	assert_d_eq(mallctlbymib(mib, miblen, (void *)&initialized, &sz, NULL,
 	    0), 0, "Unexpected mallctlbymib() failure");
 
-	return (initialized);
+	return initialized;
 }
 
 TEST_BEGIN(test_arena_destroy_initial) {
@@ -255,11 +255,11 @@ extent_dalloc_unmap(extent_hooks_t *extent_hooks, void *addr, size_t size,
 	    "Wrong hook function");
 	called_dalloc = true;
 	if (!try_dalloc) {
-		return (true);
+		return true;
 	}
 	pages_unmap(addr, size);
 	did_dalloc = true;
-	return (false);
+	return false;
 }
 
 static extent_hooks_t hooks_orig;
@@ -313,9 +313,9 @@ TEST_END
 
 int
 main(void) {
-	return (test(
+	return test(
 	    test_arena_reset,
 	    test_arena_destroy_initial,
 	    test_arena_destroy_hooks_default,
-	    test_arena_destroy_hooks_unmap));
+	    test_arena_destroy_hooks_unmap);
 }

@@ -11,7 +11,7 @@ static bool monotonic_mock;
 
 static bool
 nstime_monotonic_mock(void) {
-	return (monotonic_mock);
+	return monotonic_mock;
 }
 
 static bool
@@ -20,7 +20,7 @@ nstime_update_mock(nstime_t *time) {
 	if (monotonic_mock) {
 		nstime_copy(time, &time_mock);
 	}
-	return (!monotonic_mock);
+	return !monotonic_mock;
 }
 
 TEST_BEGIN(test_decay_ticks) {
@@ -352,8 +352,8 @@ TEST_END
 
 int
 main(void) {
-	return (test(
+	return test(
 	    test_decay_ticks,
 	    test_decay_ticker,
-	    test_decay_nonmonotonic));
+	    test_decay_nonmonotonic);
 }

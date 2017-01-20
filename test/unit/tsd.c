@@ -71,7 +71,7 @@ thd_start(void *arg) {
 	    "Resetting local data should have no effect on tsd");
 
 	free(p);
-	return (NULL);
+	return NULL;
 }
 
 TEST_BEGIN(test_tsd_main_thread) {
@@ -95,11 +95,11 @@ main(void) {
 	/* Core tsd bootstrapping must happen prior to data_tsd_boot(). */
 	if (nallocx(1, 0) == 0) {
 		malloc_printf("Initialization error");
-		return (test_status_fail);
+		return test_status_fail;
 	}
 	data_tsd_boot();
 
-	return (test(
+	return test(
 	    test_tsd_main_thread,
-	    test_tsd_sub_thread));
+	    test_tsd_sub_thread);
 }

@@ -134,8 +134,8 @@ TEST_END
 
 int
 main(void) {
-	return (test(
+	return test(
 	    test_small_extent_size,
 	    test_large_extent_size,
-	    test_monotonic));
+	    test_monotonic);
 }

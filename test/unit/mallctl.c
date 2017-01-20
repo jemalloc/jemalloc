@@ -621,7 +621,7 @@ TEST_END
 
 int
 main(void) {
-	return (test(
+	return test(
 	    test_mallctl_errors,
 	    test_mallctlnametomib_errors,
 	    test_mallctlbymib_errors,
@@ -643,5 +643,5 @@ main(void) {
 	    test_arenas_bin_constants,
 	    test_arenas_lextent_constants,
 	    test_arenas_create,
-	    test_stats_arenas));
+	    test_stats_arenas);
 }

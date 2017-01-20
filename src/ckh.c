@@ -57,11 +57,11 @@ ckh_bucket_search(ckh_t *ckh, size_t bucket, const void *key) {
 	for (i = 0; i < (ZU(1) << LG_CKH_BUCKET_CELLS); i++) {
 		cell = &ckh->tab[(bucket << LG_CKH_BUCKET_CELLS) + i];
 		if (cell->key != NULL && ckh->keycomp(key, cell->key)) {
-			return ((bucket << LG_CKH_BUCKET_CELLS) + i);
+			return (bucket << LG_CKH_BUCKET_CELLS) + i;
 		}
 	}
 
-	return (SIZE_T_MAX);
+	return SIZE_T_MAX;
 }
 
 /*
@@ -79,13 +79,13 @@ ckh_isearch(ckh_t *ckh, const void *key) {
 	bucket = hashes[0] & ((ZU(1) << ckh->lg_curbuckets) - 1);
 	cell = ckh_bucket_search(ckh, bucket, key);
 	if (cell != SIZE_T_MAX) {
-		return (cell);
+		return cell;
 	}
 
 	/* Search secondary bucket. */
 	bucket = hashes[1] & ((ZU(1) << ckh->lg_curbuckets) - 1);
 	cell = ckh_bucket_search(ckh, bucket, key);
-	return (cell);
+	return cell;
 }
 
 JEMALLOC_INLINE_C bool
@@ -107,11 +107,11 @@ ckh_try_bucket_insert(ckh_t *ckh, size_t bucket, const void *key,
 			cell->key = key;
 			cell->data = data;
 			ckh->count++;
-			return (false);
+			return false;
 		}
 	}
 
-	return (true);
+	return true;
 }
 
 /*
@@ -181,12 +181,12 @@ ckh_evict_reloc_insert(ckh_t *ckh, size_t argbucket, void const **argkey,
 		if (tbucket == argbucket) {
 			*argkey = key;
 			*argdata = data;
-			return (true);
+			return true;
 		}
 
 		bucket = tbucket;
 		if (!ckh_try_bucket_insert(ckh, bucket, key, data)) {
-			return (false);
+			return false;
 		}
 	}
 }
@@ -202,19 +202,19 @@ ckh_try_insert(ckh_t *ckh, void const**argkey, void const**argdata) {
 	/* Try to insert in primary bucket. */
 	bucket = hashes[0] & ((ZU(1) << ckh->lg_curbuckets) - 1);
 	if (!ckh_try_bucket_insert(ckh, bucket, key, data)) {
-		return (false);
+		return false;
 	}
 
 	/* Try to insert in secondary bucket. */
 	bucket = hashes[1] & ((ZU(1) << ckh->lg_curbuckets) - 1);
 	if (!ckh_try_bucket_insert(ckh, bucket, key, data)) {
-		return (false);
+		return false;
 	}
 
 	/*
 	 * Try to find a place for this item via iterative eviction/relocation.
 	 */
-	return (ckh_evict_reloc_insert(ckh, bucket, argkey, argdata));
+	return ckh_evict_reloc_insert(ckh, bucket, argkey, argdata);
 }
 
 /*
@@ -234,13 +234,13 @@ ckh_rebuild(ckh_t *ckh, ckhc_t *aTab) {
 			data = aTab[i].data;
 			if (ckh_try_insert(ckh, &key, &data)) {
 				ckh->count = count;
-				return (true);
+				return true;
 			}
 			nins++;
 		}
 	}
 
-	return (false);
+	return false;
 }
 
 static bool
@@ -296,7 +296,7 @@ ckh_grow(tsd_t *tsd, ckh_t *ckh) {
 
 	ret = false;
 label_return:
-	return (ret);
+	return ret;
 }
 
 static void
@@ -403,7 +403,7 @@ ckh_new(tsd_t *tsd, ckh_t *ckh, size_t minitems, ckh_hash_t *hash,
 
 	ret = false;
 label_return:
-	return (ret);
+	return ret;
 }
 
 void
@@ -433,7 +433,7 @@ size_t
 ckh_count(ckh_t *ckh) {
 	assert(ckh != NULL);
 
-	return (ckh->count);
+	return ckh->count;
 }
 
 bool
@@ -450,11 +450,11 @@ ckh_iter(ckh_t *ckh, size_t *tabind, void **key, void **data) {
 				*data = (void *)ckh->tab[i].data;
 			}
 			*tabind = i + 1;
-			return (false);
+			return false;
 		}
 	}
 
-	return (true);
+	return true;
 }
 
 bool
@@ -477,7 +477,7 @@ ckh_insert(tsd_t *tsd, ckh_t *ckh, const void *key, const void *data) {
 
 	ret = false;
 label_return:
-	return (ret);
+	return ret;
 }
 
 bool
@@ -507,10 +507,10 @@ ckh_remove(tsd_t *tsd, ckh_t *ckh, const void *searchkey, void **key,
 			ckh_shrink(tsd, ckh);
 		}
 
-		return (false);
+		return false;
 	}
 
-	return (true);
+	return true;
 }
 
 bool
@@ -527,10 +527,10 @@ ckh_search(ckh_t *ckh, const void *searchkey, void **key, void **data) {
 		if (data != NULL) {
 			*data = (void *)ckh->tab[cell].data;
 		}
-		return (false);
+		return false;
 	}
 
-	return (true);
+	return true;
 }
 
 void
@@ -543,7 +543,7 @@ ckh_string_keycomp(const void *k1, const void *k2) {
 	assert(k1 != NULL);
 	assert(k2 != NULL);
 
-	return (strcmp((char *)k1, (char *)k2) ? false : true);
+	return !strcmp((char *)k1, (char *)k2);
 }
 
 void
@@ -560,5 +560,5 @@ ckh_pointer_hash(const void *key, size_t r_hash[2]) {
 
 bool
 ckh_pointer_keycomp(const void *k1, const void *k2) {
-	return ((k1 == k2) ? true : false);
+	return (k1 == k2);
 }

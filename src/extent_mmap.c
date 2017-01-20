@@ -12,14 +12,14 @@ extent_alloc_mmap_slow(size_t size, size_t alignment, bool *zero,
 	alloc_size = size + alignment - PAGE;
 	/* Beware size_t wrap-around. */
 	if (alloc_size < size) {
-		return (NULL);
+		return NULL;
 	}
 	do {
 		void *pages;
 		size_t leadsize;
 		pages = pages_map(NULL, alloc_size, commit);
 		if (pages == NULL) {
-			return (NULL);
+			return NULL;
 		}
 		leadsize = ALIGNMENT_CEILING((uintptr_t)pages, alignment) -
 		    (uintptr_t)pages;
@@ -28,7 +28,7 @@ extent_alloc_mmap_slow(size_t size, size_t alignment, bool *zero,
 
 	assert(ret != NULL);
 	*zero = true;
-	return (ret);
+	return ret;
 }
 
 void *
@@ -54,18 +54,18 @@ extent_alloc_mmap(void *new_addr, size_t size, size_t alignment, bool *zero,
 
 	ret = pages_map(new_addr, size, commit);
 	if (ret == NULL || ret == new_addr) {
-		return (ret);
+		return ret;
 	}
 	assert(new_addr == NULL);
 	offset = ALIGNMENT_ADDR2OFFSET(ret, alignment);
 	if (offset != 0) {
 		pages_unmap(ret, size);
-		return (extent_alloc_mmap_slow(size, alignment, zero, commit));
+		return extent_alloc_mmap_slow(size, alignment, zero, commit);
 	}
 
 	assert(ret != NULL);
 	*zero = true;
-	return (ret);
+	return ret;
 }
 
 bool
@@ -73,5 +73,5 @@ extent_dalloc_mmap(void *addr, size_t size) {
 	if (config_munmap) {
 		pages_unmap(addr, size);
 	}
-	return (!config_munmap);
+	return !config_munmap;
 }

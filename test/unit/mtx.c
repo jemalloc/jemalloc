@@ -28,7 +28,7 @@ thd_start(void *varg) {
 		arg->x++;
 		mtx_unlock(&arg->mtx);
 	}
-	return (NULL);
+	return NULL;
 }
 
 TEST_BEGIN(test_mtx_race) {
@@ -51,7 +51,7 @@ TEST_END
 
 int
 main(void) {
-	return (test(
+	return test(
 	    test_mtx_basic,
-	    test_mtx_race));
+	    test_mtx_race);
 }

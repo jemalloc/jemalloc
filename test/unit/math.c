@@ -18,7 +18,7 @@ double_eq_rel(double a, double b, double max_rel_err, double max_abs_err) {
 	double rel_err;
 
 	if (fabs(a - b) < max_abs_err) {
-		return (true);
+		return true;
 	}
 	rel_err = (fabs(b) > fabs(a)) ? fabs((a-b)/b) : fabs((a-b)/a);
 	return (rel_err < max_rel_err);
@@ -33,7 +33,7 @@ factorial(unsigned x) {
 		ret *= (uint64_t)i;
 	}
 
-	return (ret);
+	return ret;
 }
 
 TEST_BEGIN(test_ln_gamma_factorial) {
@@ -380,11 +380,11 @@ TEST_END
 
 int
 main(void) {
-	return (test(
+	return test(
 	    test_ln_gamma_factorial,
 	    test_ln_gamma_misc,
 	    test_pt_norm,
 	    test_pt_chi2,
 	    test_pt_gamma_shape,
-	    test_pt_gamma_scale));
+	    test_pt_gamma_scale);
 }

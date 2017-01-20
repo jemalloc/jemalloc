@@ -23,7 +23,7 @@ base_map(extent_hooks_t *extent_hooks, unsigned ind, size_t size) {
 		    &zero, &commit, ind);
 	}
 
-	return (addr);
+	return addr;
 }
 
 static void
@@ -105,7 +105,7 @@ base_extent_bump_alloc_helper(extent_t *extent, size_t *gap_size, size_t size,
 	extent_init(extent, NULL, (void *)((uintptr_t)extent_addr_get(extent) +
 	    *gap_size + size), extent_size_get(extent) - *gap_size - size, 0,
 	    extent_sn_get(extent), true, true, true, false);
-	return (ret);
+	return ret;
 }
 
 static void
@@ -142,7 +142,7 @@ base_extent_bump_alloc(tsdn_t *tsdn, base_t *base, extent_t *extent,
 
 	ret = base_extent_bump_alloc_helper(extent, &gap_size, size, alignment);
 	base_extent_bump_alloc_post(tsdn, base, extent, gap_size, ret, size);
-	return (ret);
+	return ret;
 }
 
 /*
@@ -163,14 +163,14 @@ base_block_alloc(extent_hooks_t *extent_hooks, unsigned ind,
 	block_size = HUGEPAGE_CEILING(header_size + gap_size + usize);
 	block = (base_block_t *)base_map(extent_hooks, ind, block_size);
 	if (block == NULL) {
-		return (NULL);
+		return NULL;
 	}
 	block->size = block_size;
 	block->next = NULL;
 	assert(block_size >= header_size);
 	base_extent_init(extent_sn_next, &block->extent,
 	    (void *)((uintptr_t)block + header_size), block_size - header_size);
-	return (block);
+	return block;
 }
 
 /*
@@ -187,7 +187,7 @@ base_extent_alloc(tsdn_t *tsdn, base_t *base, size_t size, size_t alignment) {
 	block = base_block_alloc(extent_hooks, base_ind_get(base),
 	    &base->extent_sn_next, size, alignment);
 	if (block == NULL) {
-		return (NULL);
+		return NULL;
 	}
 	block->next = base->blocks;
 	base->blocks = block;
@@ -198,12 +198,12 @@ base_extent_alloc(tsdn_t *tsdn, base_t *base, size_t size, size_t alignment) {
 		assert(base->allocated <= base->resident);
 		assert(base->resident <= base->mapped);
 	}
-	return (&block->extent);
+	return &block->extent;
 }
 
 base_t *
 b0get(void) {
-	return (b0);
+	return b0;
 }
 
 base_t *
@@ -217,7 +217,7 @@ base_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 	block = base_block_alloc(extent_hooks, ind, &extent_sn_next,
 	    sizeof(base_t), QUANTUM);
 	if (block == NULL) {
-		return (NULL);
+		return NULL;
 	}
 
 	base_alignment = CACHELINE;
@@ -228,7 +228,7 @@ base_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 	base->extent_hooks = extent_hooks;
 	if (malloc_mutex_init(&base->mtx, "base", WITNESS_RANK_BASE)) {
 		base_unmap(extent_hooks, ind, block, block->size);
-		return (NULL);
+		return NULL;
 	}
 	base->extent_sn_next = extent_sn_next;
 	base->blocks = block;
@@ -245,7 +245,7 @@ base_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 	base_extent_bump_alloc_post(tsdn, base, &block->extent, gap_size, base,
 	    base_size);
 
-	return (base);
+	return base;
 }
 
 void
@@ -262,7 +262,7 @@ base_delete(base_t *base) {
 
 extent_hooks_t *
 base_extent_hooks_get(base_t *base) {
-	return ((extent_hooks_t *)atomic_read_p(&base->extent_hooks_pun));
+	return (extent_hooks_t *)atomic_read_p(&base->extent_hooks_pun);
 }
 
 extent_hooks_t *
@@ -276,7 +276,7 @@ base_extent_hooks_set(base_t *base, extent_hooks_t *extent_hooks) {
 	u.h = &base->extent_hooks;
 	atomic_write_p(u.v, extent_hooks);
 
-	return (old_extent_hooks);
+	return old_extent_hooks;
 }
 
 /*
@@ -319,7 +319,7 @@ base_alloc(tsdn_t *tsdn, base_t *base, size_t size, size_t alignment) {
 	ret = base_extent_bump_alloc(tsdn, base, extent, usize, alignment);
 label_return:
 	malloc_mutex_unlock(tsdn, &base->mtx);
-	return (ret);
+	return ret;
 }
 
 void

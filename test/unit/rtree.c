@@ -18,7 +18,7 @@ rtree_node_alloc_intercept(tsdn_t *tsdn, rtree_t *rtree, size_t nelms) {
 	assert_ptr_not_null(node, "Unexpected calloc() failure");
 	malloc_mutex_lock(tsdn, &rtree->init_lock);
 
-	return (node);
+	return node;
 }
 
 static void
@@ -102,7 +102,7 @@ thd_start(void *varg) {
 
 	free(extent);
 	fini_gen_rand(sfmt);
-	return (NULL);
+	return NULL;
 }
 
 TEST_BEGIN(test_rtree_concurrent) {
@@ -283,10 +283,10 @@ main(void) {
 	rtree_node_dalloc = rtree_node_dalloc_intercept;
 	test_rtree = NULL;
 
-	return (test(
+	return test(
 	    test_rtree_read_empty,
 	    test_rtree_concurrent,
 	    test_rtree_extrema,
 	    test_rtree_bits,
-	    test_rtree_random));
+	    test_rtree_random);
 }

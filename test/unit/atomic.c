@@ -101,10 +101,10 @@ TEST_END
 
 int
 main(void) {
-	return (test(
+	return test(
 	    test_atomic_u64,
 	    test_atomic_u32,
 	    test_atomic_p,
 	    test_atomic_zu,
-	    test_atomic_u));
+	    test_atomic_u);
 }

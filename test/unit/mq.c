@@ -39,7 +39,7 @@ thd_receiver_start(void *arg) {
 		assert_ptr_not_null(msg, "mq_get() should never return NULL");
 		dallocx(msg, 0);
 	}
-	return (NULL);
+	return NULL;
 }
 
 static void *
@@ -55,7 +55,7 @@ thd_sender_start(void *arg) {
 		msg = (mq_msg_t *)p;
 		mq_put(mq, msg);
 	}
-	return (NULL);
+	return NULL;
 }
 
 TEST_BEGIN(test_mq_threaded) {
@@ -82,8 +82,8 @@ TEST_END
 
 int
 main(void) {
-	return (test(
+	return test(
 	    test_mq_basic,
-	    test_mq_threaded));
+	    test_mq_threaded);
 }
 

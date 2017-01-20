@@ -116,7 +116,7 @@ TEST_END
 
 void *
 thd_start(void *arg) {
-	return (NULL);
+	return NULL;
 }
 
 static void
@@ -339,12 +339,12 @@ TEST_END
 
 int
 main(void) {
-	return (test(
+	return test(
 	    test_stats_summary,
 	    test_stats_large,
 	    test_stats_arenas_summary,
 	    test_stats_arenas_small,
 	    test_stats_arenas_large,
 	    test_stats_arenas_bins,
-	    test_stats_arenas_lextents));
+	    test_stats_arenas_lextents);
 }

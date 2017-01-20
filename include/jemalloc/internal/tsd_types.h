@@ -180,7 +180,7 @@ a_name##tsd_cleanup_wrapper(void) {					\
 		a_name##tsd_initialized = false;			\
 		a_cleanup(&a_name##tsd_tls);				\
 	}								\
-	return (a_name##tsd_initialized);				\
+	return a_name##tsd_initialized;					\
 }									\
 a_attr bool								\
 a_name##tsd_boot0(void) {						\
@@ -189,7 +189,7 @@ a_name##tsd_boot0(void) {						\
 		    &a_name##tsd_cleanup_wrapper);			\
 	}								\
 	a_name##tsd_booted = true;					\
-	return (false);							\
+	return false;							\
 }									\
 a_attr void								\
 a_name##tsd_boot1(void) {						\
@@ -197,21 +197,21 @@ a_name##tsd_boot1(void) {						\
 }									\
 a_attr bool								\
 a_name##tsd_boot(void) {						\
-	return (a_name##tsd_boot0());					\
+	return a_name##tsd_boot0();					\
 }									\
 a_attr bool								\
 a_name##tsd_booted_get(void) {						\
-	return (a_name##tsd_booted);					\
+	return a_name##tsd_booted;					\
 }									\
 a_attr bool								\
 a_name##tsd_get_allocates(void) {					\
-	return (false);							\
+	return false;							\
 }									\
 /* Get/set. */								\
 a_attr a_type *								\
 a_name##tsd_get(bool init) {						\
 	assert(a_name##tsd_booted);					\
-	return (&a_name##tsd_tls);					\
+	return &a_name##tsd_tls;					\
 }									\
 a_attr void								\
 a_name##tsd_set(a_type *val) {						\
@@ -232,11 +232,11 @@ a_name##tsd_boot0(void) {						\
 	if (a_cleanup != malloc_tsd_no_cleanup) {			\
 		if (pthread_key_create(&a_name##tsd_tsd, a_cleanup) !=	\
 		    0) {						\
-			return (true);					\
+			return true;					\
 		}							\
 	}								\
 	a_name##tsd_booted = true;					\
-	return (false);							\
+	return false;							\
 }									\
 a_attr void								\
 a_name##tsd_boot1(void) {						\
@@ -244,21 +244,21 @@ a_name##tsd_boot1(void) {						\
 }									\
 a_attr bool								\
 a_name##tsd_boot(void) {						\
-	return (a_name##tsd_boot0());					\
+	return a_name##tsd_boot0();					\
 }									\
 a_attr bool								\
 a_name##tsd_booted_get(void) {						\
-	return (a_name##tsd_booted);					\
+	return a_name##tsd_booted;					\
 }									\
 a_attr bool								\
 a_name##tsd_get_allocates(void) {					\
-	return (false);							\
+	return false;							\
 }									\
 /* Get/set. */								\
 a_attr a_type *								\
 a_name##tsd_get(bool init) {						\
 	assert(a_name##tsd_booted);					\
-	return (&a_name##tsd_tls);					\
+	return &a_name##tsd_tls;					\
 }									\
 a_attr void								\
 a_name##tsd_set(a_type *val) {						\
@@ -289,7 +289,7 @@ a_name##tsd_cleanup_wrapper(void) {					\
 	SetLastError(error);						\
 									\
 	if (wrapper == NULL) {						\
-		return (false);						\
+		return false;						\
 	}								\
 	if (a_cleanup != malloc_tsd_no_cleanup &&			\
 	    wrapper->initialized) {					\
@@ -297,11 +297,11 @@ a_name##tsd_cleanup_wrapper(void) {					\
 		a_cleanup(&wrapper->val);				\
 		if (wrapper->initialized) {				\
 			/* Trigger another cleanup round. */		\
-			return (true);					\
+			return true;					\
 		}							\
 	}								\
 	malloc_tsd_dalloc(wrapper);					\
-	return (false);							\
+	return false;							\
 }									\
 a_attr void								\
 a_name##tsd_wrapper_set(a_name##tsd_wrapper_t *wrapper) {		\
@@ -331,13 +331,13 @@ a_name##tsd_wrapper_get(bool init) {					\
 		}							\
 		a_name##tsd_wrapper_set(wrapper);			\
 	}								\
-	return (wrapper);						\
+	return wrapper;							\
 }									\
 a_attr bool								\
 a_name##tsd_boot0(void) {						\
 	a_name##tsd_tsd = TlsAlloc();					\
 	if (a_name##tsd_tsd == TLS_OUT_OF_INDEXES) {			\
-		return (true);						\
+		return true;						\
 	}								\
 	if (a_cleanup != malloc_tsd_no_cleanup) {			\
 		malloc_tsd_cleanup_register(				\
@@ -345,7 +345,7 @@ a_name##tsd_boot0(void) {						\
 	}								\
 	a_name##tsd_wrapper_set(&a_name##tsd_boot_wrapper);		\
 	a_name##tsd_booted = true;					\
-	return (false);							\
+	return false;							\
 }									\
 a_attr void								\
 a_name##tsd_boot1(void) {						\
@@ -364,18 +364,18 @@ a_name##tsd_boot1(void) {						\
 a_attr bool								\
 a_name##tsd_boot(void) {						\
 	if (a_name##tsd_boot0()) {					\
-		return (true);						\
+		return true;						\
 	}								\
 	a_name##tsd_boot1();						\
-	return (false);							\
+	return false;							\
 }									\
 a_attr bool								\
 a_name##tsd_booted_get(void) {						\
-	return (a_name##tsd_booted);					\
+	return a_name##tsd_booted;					\
 }									\
 a_attr bool								\
 a_name##tsd_get_allocates(void) {					\
-	return (true);							\
+	return true;							\
 }									\
 /* Get/set. */								\
 a_attr a_type *								\
@@ -385,9 +385,9 @@ a_name##tsd_get(bool init) {						\
 	assert(a_name##tsd_booted);					\
 	wrapper = a_name##tsd_wrapper_get(init);			\
 	if (a_name##tsd_get_allocates() && !init && wrapper == NULL) {	\
-		return (NULL);						\
+		return NULL;						\
 	}								\
-	return (&wrapper->val);						\
+	return &wrapper->val;						\
 }									\
 a_attr void								\
 a_name##tsd_set(a_type *val) {						\
@@ -449,7 +449,7 @@ a_name##tsd_wrapper_get(bool init) {					\
 		    tsd_init_check_recursion(&a_name##tsd_init_head,	\
 		    &block);						\
 		if (wrapper) {						\
-			return (wrapper);				\
+			return wrapper;					\
 		}							\
 		wrapper = (a_name##tsd_wrapper_t *)			\
 		    malloc_tsd_malloc(sizeof(a_name##tsd_wrapper_t));	\
@@ -465,17 +465,17 @@ a_name##tsd_wrapper_get(bool init) {					\
 		a_name##tsd_wrapper_set(wrapper);			\
 		tsd_init_finish(&a_name##tsd_init_head, &block);	\
 	}								\
-	return (wrapper);						\
+	return wrapper;							\
 }									\
 a_attr bool								\
 a_name##tsd_boot0(void) {						\
 	if (pthread_key_create(&a_name##tsd_tsd,			\
 	    a_name##tsd_cleanup_wrapper) != 0) {			\
-		return (true);						\
+		return true;						\
 	}								\
 	a_name##tsd_wrapper_set(&a_name##tsd_boot_wrapper);		\
 	a_name##tsd_booted = true;					\
-	return (false);							\
+	return false;							\
 }									\
 a_attr void								\
 a_name##tsd_boot1(void) {						\
@@ -494,18 +494,18 @@ a_name##tsd_boot1(void) {						\
 a_attr bool								\
 a_name##tsd_boot(void) {						\
 	if (a_name##tsd_boot0()) {					\
-		return (true);						\
+		return true;						\
 	}								\
 	a_name##tsd_boot1();						\
-	return (false);							\
+	return false;							\
 }									\
 a_attr bool								\
 a_name##tsd_booted_get(void) {						\
-	return (a_name##tsd_booted);					\
+	return a_name##tsd_booted;					\
 }									\
 a_attr bool								\
 a_name##tsd_get_allocates(void) {					\
-	return (true);							\
+	return true;							\
 }									\
 /* Get/set. */								\
 a_attr a_type *								\
@@ -515,9 +515,9 @@ a_name##tsd_get(bool init) {						\
 	assert(a_name##tsd_booted);					\
 	wrapper = a_name##tsd_wrapper_get(init);			\
 	if (a_name##tsd_get_allocates() && !init && wrapper == NULL) {	\
-		return (NULL);						\
+		return NULL;						\
 	}								\
-	return (&wrapper->val);						\
+	return &wrapper->val;						\
 }									\
 a_attr void								\
 a_name##tsd_set(a_type *val) {						\

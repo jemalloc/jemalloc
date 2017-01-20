@@ -65,7 +65,7 @@ p_test_impl(bool do_malloc_init, test_t *t, va_list ap) {
 		 */
 		if (nallocx(1, 0) == 0) {
 			malloc_printf("Initialization error");
-			return (test_status_fail);
+			return test_status_fail;
 		}
 	}
 
@@ -85,7 +85,7 @@ p_test_impl(bool do_malloc_init, test_t *t, va_list ap) {
 	    test_status_string(test_status_fail),
 	    test_counts[test_status_fail], test_count);
 
-	return (ret);
+	return ret;
 }
 
 test_status_t
@@ -98,7 +98,7 @@ p_test(test_t *t, ...) {
 	ret = p_test_impl(true, t, ap);
 	va_end(ap);
 
-	return (ret);
+	return ret;
 }
 
 test_status_t
@@ -111,7 +111,7 @@ p_test_no_malloc_init(test_t *t, ...) {
 	ret = p_test_impl(false, t, ap);
 	va_end(ap);
 
-	return (ret);
+	return ret;
 }
 
 void

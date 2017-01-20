@@ -29,7 +29,7 @@ tsd_fetch_impl(bool init) {
 	tsd_t *tsd = tsd_get(init);
 
 	if (!init && tsd_get_allocates() && tsd == NULL) {
-		return (NULL);
+		return NULL;
 	}
 	assert(tsd != NULL);
 
@@ -46,17 +46,17 @@ tsd_fetch_impl(bool init) {
 		}
 	}
 
-	return (tsd);
+	return tsd;
 }
 
 JEMALLOC_ALWAYS_INLINE tsd_t *
 tsd_fetch(void) {
-	return (tsd_fetch_impl(true));
+	return tsd_fetch_impl(true);
 }
 
 JEMALLOC_ALWAYS_INLINE tsdn_t *
 tsd_tsdn(tsd_t *tsd) {
-	return ((tsdn_t *)tsd);
+	return (tsdn_t *)tsd;
 }
 
 JEMALLOC_INLINE bool
@@ -67,12 +67,12 @@ tsd_nominal(tsd_t *tsd) {
 #define	O(n, t, c)							\
 JEMALLOC_ALWAYS_INLINE t *						\
 tsd_##n##p_get(tsd_t *tsd) {						\
-	return (&tsd->n);						\
+	return &tsd->n;							\
 }									\
 									\
 JEMALLOC_ALWAYS_INLINE t						\
 tsd_##n##_get(tsd_t *tsd) {						\
-	return (*tsd_##n##p_get(tsd));					\
+	return *tsd_##n##p_get(tsd);					\
 }									\
 									\
 JEMALLOC_ALWAYS_INLINE void						\
@@ -86,22 +86,22 @@ MALLOC_TSD
 JEMALLOC_ALWAYS_INLINE tsdn_t *
 tsdn_fetch(void) {
 	if (!tsd_booted_get()) {
-		return (NULL);
+		return NULL;
 	}
 
-	return (tsd_tsdn(tsd_fetch_impl(false)));
+	return tsd_tsdn(tsd_fetch_impl(false));
 }
 
 JEMALLOC_ALWAYS_INLINE bool
 tsdn_null(const tsdn_t *tsdn) {
-	return (tsdn == NULL);
+	return tsdn == NULL;
 }
 
 JEMALLOC_ALWAYS_INLINE tsd_t *
 tsdn_tsd(tsdn_t *tsdn) {
 	assert(!tsdn_null(tsdn));
 
-	return (&tsdn->tsd);
+	return &tsdn->tsd;
 }
 
 JEMALLOC_ALWAYS_INLINE rtree_ctx_t *
@@ -113,9 +113,9 @@ tsdn_rtree_ctx(tsdn_t *tsdn, rtree_ctx_t *fallback) {
 	if (unlikely(tsdn_null(tsdn))) {
 		static const rtree_ctx_t rtree_ctx = RTREE_CTX_INITIALIZER;
 		memcpy(fallback, &rtree_ctx, sizeof(rtree_ctx_t));
-		return (fallback);
+		return fallback;
 	}
-	return (tsd_rtree_ctxp_get(tsdn_tsd(tsdn)));
+	return tsd_rtree_ctxp_get(tsdn_tsd(tsdn));
 }
 #endif
 

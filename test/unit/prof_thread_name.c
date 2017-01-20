@@ -94,7 +94,7 @@ thd_start(void *varg) {
 	mallctl_thread_name_set(thread_name);
 	mallctl_thread_name_set("");
 
-	return (NULL);
+	return NULL;
 }
 
 TEST_BEGIN(test_prof_thread_name_threaded) {
@@ -118,7 +118,7 @@ TEST_END
 
 int
 main(void) {
-	return (test(
+	return test(
 	    test_prof_thread_name_validation,
-	    test_prof_thread_name_threaded));
+	    test_prof_thread_name_threaded);
 }

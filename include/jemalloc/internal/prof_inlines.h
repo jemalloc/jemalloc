@@ -34,7 +34,7 @@ prof_active_get_unlocked(void) {
 	 * prof_active in the fast path, so there are no guarantees regarding
 	 * how long it will take for all threads to notice state changes.
 	 */
-	return (prof_active);
+	return prof_active;
 }
 
 JEMALLOC_ALWAYS_INLINE bool
@@ -44,7 +44,7 @@ prof_gdump_get_unlocked(void) {
 	 * there are no guarantees regarding how long it will take for all
 	 * threads to notice state changes.
 	 */
-	return (prof_gdump_val);
+	return prof_gdump_val;
 }
 
 JEMALLOC_ALWAYS_INLINE prof_tdata_t *
@@ -67,7 +67,7 @@ prof_tdata_get(tsd_t *tsd, bool create) {
 		assert(tdata == NULL || tdata->attached);
 	}
 
-	return (tdata);
+	return tdata;
 }
 
 JEMALLOC_ALWAYS_INLINE prof_tctx_t *
@@ -75,7 +75,7 @@ prof_tctx_get(tsdn_t *tsdn, const extent_t *extent, const void *ptr) {
 	cassert(config_prof);
 	assert(ptr != NULL);
 
-	return (arena_prof_tctx_get(tsdn, extent, ptr));
+	return arena_prof_tctx_get(tsdn, extent, ptr);
 }
 
 JEMALLOC_ALWAYS_INLINE void
@@ -113,20 +113,20 @@ prof_sample_accum_update(tsd_t *tsd, size_t usize, bool update,
 	}
 
 	if (unlikely(tdata == NULL)) {
-		return (true);
+		return true;
 	}
 
 	if (likely(tdata->bytes_until_sample >= usize)) {
 		if (update) {
 			tdata->bytes_until_sample -= usize;
 		}
-		return (true);
+		return true;
 	} else {
 		/* Compute new sample threshold. */
 		if (update) {
 			prof_sample_threshold_update(tdata);
 		}
-		return (!tdata->active);
+		return !tdata->active;
 	}
 }
 
@@ -147,7 +147,7 @@ prof_alloc_prep(tsd_t *tsd, size_t usize, bool prof_active, bool update) {
 		ret = prof_lookup(tsd, &bt);
 	}
 
-	return (ret);
+	return ret;
 }
 
 JEMALLOC_ALWAYS_INLINE void

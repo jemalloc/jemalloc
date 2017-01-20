@@ -26,7 +26,7 @@ JEMALLOC_INLINE szind_t
 arena_bin_index(arena_t *arena, arena_bin_t *bin) {
 	szind_t binind = (szind_t)(bin - arena->bins);
 	assert(binind < NBINS);
-	return (binind);
+	return binind;
 }
 
 JEMALLOC_INLINE prof_tctx_t *
@@ -35,9 +35,9 @@ arena_prof_tctx_get(tsdn_t *tsdn, const extent_t *extent, const void *ptr) {
 	assert(ptr != NULL);
 
 	if (unlikely(!extent_slab_get(extent))) {
-		return (large_prof_tctx_get(tsdn, extent));
+		return large_prof_tctx_get(tsdn, extent);
 	}
-	return ((prof_tctx_t *)(uintptr_t)1U);
+	return (prof_tctx_t *)(uintptr_t)1U;
 }
 
 JEMALLOC_INLINE void
@@ -94,23 +94,23 @@ arena_malloc(tsdn_t *tsdn, arena_t *arena, size_t size, szind_t ind, bool zero,
 
 	if (likely(tcache != NULL)) {
 		if (likely(size <= SMALL_MAXCLASS)) {
-			return (tcache_alloc_small(tsdn_tsd(tsdn), arena,
-			    tcache, size, ind, zero, slow_path));
+			return tcache_alloc_small(tsdn_tsd(tsdn), arena,
+			    tcache, size, ind, zero, slow_path);
 		}
 		if (likely(size <= tcache_maxclass)) {
-			return (tcache_alloc_large(tsdn_tsd(tsdn), arena,
-			    tcache, size, ind, zero, slow_path));
+			return tcache_alloc_large(tsdn_tsd(tsdn), arena,
+			    tcache, size, ind, zero, slow_path);
 		}
 		/* (size > tcache_maxclass) case falls through. */
 		assert(size > tcache_maxclass);
 	}
 
-	return (arena_malloc_hard(tsdn, arena, size, ind, zero));
+	return arena_malloc_hard(tsdn, arena, size, ind, zero);
 }
 
 JEMALLOC_ALWAYS_INLINE arena_t *
 arena_aalloc(tsdn_t *tsdn, const void *ptr) {
-	return (extent_arena_get(iealloc(tsdn, ptr)));
+	return extent_arena_get(iealloc(tsdn, ptr));
 }
 
 /* Return the size of the allocation pointed to by ptr. */
@@ -126,7 +126,7 @@ arena_salloc(tsdn_t *tsdn, const extent_t *extent, const void *ptr) {
 		ret = large_salloc(tsdn, extent);
 	}
 
-	return (ret);
+	return ret;
 }
 
 JEMALLOC_ALWAYS_INLINE void
