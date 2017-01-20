@@ -30,8 +30,7 @@ static void		*dss_max;
 /******************************************************************************/
 
 static void *
-extent_dss_sbrk(intptr_t increment)
-{
+extent_dss_sbrk(intptr_t increment) {
 #ifdef JEMALLOC_DSS
 	return (sbrk(increment));
 #else
@@ -41,28 +40,27 @@ extent_dss_sbrk(intptr_t increment)
 }
 
 dss_prec_t
-extent_dss_prec_get(void)
-{
+extent_dss_prec_get(void) {
 	dss_prec_t ret;
 
-	if (!have_dss)
+	if (!have_dss) {
 		return (dss_prec_disabled);
+	}
 	ret = (dss_prec_t)atomic_read_u(&dss_prec_default);
 	return (ret);
 }
 
 bool
-extent_dss_prec_set(dss_prec_t dss_prec)
-{
-	if (!have_dss)
+extent_dss_prec_set(dss_prec_t dss_prec) {
+	if (!have_dss) {
 		return (dss_prec != dss_prec_disabled);
+	}
 	atomic_write_u(&dss_prec_default, (unsigned)dss_prec);
 	return (false);
 }
 
 static void *
-extent_dss_max_update(void *new_addr)
-{
+extent_dss_max_update(void *new_addr) {
 	void *max_cur;
 	spin_t spinner;
 
@@ -83,20 +81,21 @@ extent_dss_max_update(void *new_addr)
 			spin_adaptive(&spinner);
 			continue;
 		}
-		if (!atomic_cas_p(&dss_max, max_prev, max_cur))
+		if (!atomic_cas_p(&dss_max, max_prev, max_cur)) {
 			break;
+		}
 	}
 	/* Fixed new_addr can only be supported if it is at the edge of DSS. */
-	if (new_addr != NULL && max_cur != new_addr)
+	if (new_addr != NULL && max_cur != new_addr) {
 		return (NULL);
+	}
 
 	return (max_cur);
 }
 
 void *
 extent_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
-    size_t alignment, bool *zero, bool *commit)
-{
+    size_t alignment, bool *zero, bool *commit) {
 	extent_t *gap;
 
 	cassert(have_dss);
@@ -107,12 +106,14 @@ extent_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
 	 * sbrk() uses a signed increment argument, so take care not to
 	 * interpret a large allocation request as a negative increment.
 	 */
-	if ((intptr_t)size < 0)
+	if ((intptr_t)size < 0) {
 		return (NULL);
+	}
 
 	gap = extent_alloc(tsdn, arena);
-	if (gap == NULL)
+	if (gap == NULL) {
 		return (NULL);
+	}
 
 	if (!atomic_read_u(&dss_exhausted)) {
 		/*
@@ -126,8 +127,9 @@ extent_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
 			intptr_t incr;
 
 			max_cur = extent_dss_max_update(new_addr);
-			if (max_cur == NULL)
+			if (max_cur == NULL) {
 				goto label_oom;
+			}
 
 			/*
 			 * Compute how much gap space (if any) is necessary to
@@ -145,8 +147,9 @@ extent_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
 			}
 			dss_next = (void *)((uintptr_t)ret + size);
 			if ((uintptr_t)ret < (uintptr_t)max_cur ||
-			    (uintptr_t)dss_next < (uintptr_t)max_cur)
+			    (uintptr_t)dss_next < (uintptr_t)max_cur) {
 				goto label_oom; /* Wrap-around. */
+			}
 			incr = gap_size + size;
 
 			/*
@@ -155,19 +158,22 @@ extent_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
 			 * DSS while dss_max is greater than the current DSS
 			 * max reported by sbrk(0).
 			 */
-			if (atomic_cas_p(&dss_max, max_cur, dss_next))
+			if (atomic_cas_p(&dss_max, max_cur, dss_next)) {
 				continue;
+			}
 
 			/* Try to allocate. */
 			dss_prev = extent_dss_sbrk(incr);
 			if (dss_prev == max_cur) {
 				/* Success. */
-				if (gap_size != 0)
+				if (gap_size != 0) {
 					extent_dalloc_gap(tsdn, arena, gap);
-				else
+				} else {
 					extent_dalloc(tsdn, arena, gap);
-				if (!*commit)
+				}
+				if (!*commit) {
 					*commit = pages_decommit(ret, size);
+				}
 				if (*zero && *commit) {
 					extent_hooks_t *extent_hooks =
 					    EXTENT_HOOKS_INITIALIZER;
@@ -177,8 +183,9 @@ extent_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
 					    size, 0, true, false, true, false);
 					if (extent_purge_forced_wrapper(tsdn,
 					    arena, &extent_hooks, &extent, 0,
-					    size))
+					    size)) {
 						memset(ret, 0, size);
+					}
 				}
 				return (ret);
 			}
@@ -204,30 +211,28 @@ label_oom:
 }
 
 static bool
-extent_in_dss_helper(void *addr, void *max)
-{
+extent_in_dss_helper(void *addr, void *max) {
 	return ((uintptr_t)addr >= (uintptr_t)dss_base && (uintptr_t)addr <
 	    (uintptr_t)max);
 }
 
 bool
-extent_in_dss(void *addr)
-{
+extent_in_dss(void *addr) {
 	cassert(have_dss);
 
 	return (extent_in_dss_helper(addr, atomic_read_p(&dss_max)));
 }
 
 bool
-extent_dss_mergeable(void *addr_a, void *addr_b)
-{
+extent_dss_mergeable(void *addr_a, void *addr_b) {
 	void *max;
 
 	cassert(have_dss);
 
 	if ((uintptr_t)addr_a < (uintptr_t)dss_base && (uintptr_t)addr_b <
-	    (uintptr_t)dss_base)
+	    (uintptr_t)dss_base) {
 		return (true);
+	}
 
 	max = atomic_read_p(&dss_max);
 	return (extent_in_dss_helper(addr_a, max) ==
@@ -235,8 +240,7 @@ extent_dss_mergeable(void *addr_a, void *addr_b)
 }
 
 void
-extent_dss_boot(void)
-{
+extent_dss_boot(void) {
 	cassert(have_dss);
 
 	dss_base = extent_dss_sbrk(0);

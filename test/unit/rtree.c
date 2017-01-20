@@ -6,12 +6,12 @@ rtree_node_dalloc_t *rtree_node_dalloc_orig;
 rtree_t *test_rtree;
 
 static rtree_elm_t *
-rtree_node_alloc_intercept(tsdn_t *tsdn, rtree_t *rtree, size_t nelms)
-{
+rtree_node_alloc_intercept(tsdn_t *tsdn, rtree_t *rtree, size_t nelms) {
 	rtree_elm_t *node;
 
-	if (rtree != test_rtree)
+	if (rtree != test_rtree) {
 		return rtree_node_alloc_orig(tsdn, rtree, nelms);
+	}
 
 	malloc_mutex_unlock(tsdn, &rtree->init_lock);
 	node = (rtree_elm_t *)calloc(nelms, sizeof(rtree_elm_t));
@@ -22,8 +22,7 @@ rtree_node_alloc_intercept(tsdn_t *tsdn, rtree_t *rtree, size_t nelms)
 }
 
 static void
-rtree_node_dalloc_intercept(tsdn_t *tsdn, rtree_t *rtree, rtree_elm_t *node)
-{
+rtree_node_dalloc_intercept(tsdn_t *tsdn, rtree_t *rtree, rtree_elm_t *node) {
 	if (rtree != test_rtree) {
 		rtree_node_dalloc_orig(tsdn, rtree, node);
 		return;
@@ -32,8 +31,7 @@ rtree_node_dalloc_intercept(tsdn_t *tsdn, rtree_t *rtree, rtree_elm_t *node)
 	free(node);
 }
 
-TEST_BEGIN(test_rtree_read_empty)
-{
+TEST_BEGIN(test_rtree_read_empty) {
 	tsdn_t *tsdn;
 	unsigned i;
 
@@ -65,8 +63,7 @@ typedef struct {
 } thd_start_arg_t;
 
 static void *
-thd_start(void *varg)
-{
+thd_start(void *varg) {
 	thd_start_arg_t *arg = (thd_start_arg_t *)varg;
 	rtree_ctx_t rtree_ctx = RTREE_CTX_INITIALIZER;
 	sfmt_t *sfmt;
@@ -98,8 +95,9 @@ thd_start(void *varg)
 			    "Unexpected rtree_elm_acquire() failure");
 			rtree_elm_read_acquired(tsdn, &arg->rtree, elm);
 			rtree_elm_release(tsdn, &arg->rtree, elm);
-		} else
+		} else {
 			rtree_read(tsdn, &arg->rtree, &rtree_ctx, key, false);
+		}
 	}
 
 	free(extent);
@@ -107,8 +105,7 @@ thd_start(void *varg)
 	return (NULL);
 }
 
-TEST_BEGIN(test_rtree_concurrent)
-{
+TEST_BEGIN(test_rtree_concurrent) {
 	thd_start_arg_t arg;
 	thd_t thds[NTHREADS];
 	sfmt_t *sfmt;
@@ -123,10 +120,12 @@ TEST_BEGIN(test_rtree_concurrent)
 		assert_false(rtree_new(&arg.rtree, arg.nbits),
 		    "Unexpected rtree_new() failure");
 		arg.seed = gen_rand32(sfmt);
-		for (j = 0; j < NTHREADS; j++)
+		for (j = 0; j < NTHREADS; j++) {
 			thd_create(&thds[j], thd_start, (void *)&arg);
-		for (j = 0; j < NTHREADS; j++)
+		}
+		for (j = 0; j < NTHREADS; j++) {
 			thd_join(thds[j], NULL);
+		}
 		rtree_delete(tsdn, &arg.rtree);
 		test_rtree = NULL;
 	}
@@ -139,8 +138,7 @@ TEST_END
 #undef NITERS
 #undef SEED
 
-TEST_BEGIN(test_rtree_extrema)
-{
+TEST_BEGIN(test_rtree_extrema) {
 	unsigned i;
 	extent_t extent_a, extent_b;
 	tsdn_t *tsdn;
@@ -173,8 +171,7 @@ TEST_BEGIN(test_rtree_extrema)
 }
 TEST_END
 
-TEST_BEGIN(test_rtree_bits)
-{
+TEST_BEGIN(test_rtree_bits) {
 	tsdn_t *tsdn;
 	unsigned i, j, k;
 
@@ -217,8 +214,7 @@ TEST_BEGIN(test_rtree_bits)
 }
 TEST_END
 
-TEST_BEGIN(test_rtree_random)
-{
+TEST_BEGIN(test_rtree_random) {
 	unsigned i;
 	sfmt_t *sfmt;
 	tsdn_t *tsdn;
@@ -280,8 +276,7 @@ TEST_BEGIN(test_rtree_random)
 TEST_END
 
 int
-main(void)
-{
+main(void) {
 	rtree_node_alloc_orig = rtree_node_alloc;
 	rtree_node_alloc = rtree_node_alloc_intercept;
 	rtree_node_dalloc_orig = rtree_node_dalloc;

@@ -31,26 +31,22 @@
 	}								\
 } while (0)
 
-TEST_BEGIN(test_pow2_ceil_u64)
-{
+TEST_BEGIN(test_pow2_ceil_u64) {
 	TEST_POW2_CEIL(uint64_t, u64, FMTu64);
 }
 TEST_END
 
-TEST_BEGIN(test_pow2_ceil_u32)
-{
+TEST_BEGIN(test_pow2_ceil_u32) {
 	TEST_POW2_CEIL(uint32_t, u32, FMTu32);
 }
 TEST_END
 
-TEST_BEGIN(test_pow2_ceil_zu)
-{
+TEST_BEGIN(test_pow2_ceil_zu) {
 	TEST_POW2_CEIL(size_t, zu, "zu");
 }
 TEST_END
 
-TEST_BEGIN(test_malloc_strtoumax_no_endptr)
-{
+TEST_BEGIN(test_malloc_strtoumax_no_endptr) {
 	int err;
 
 	set_errno(0);
@@ -60,8 +56,7 @@ TEST_BEGIN(test_malloc_strtoumax_no_endptr)
 }
 TEST_END
 
-TEST_BEGIN(test_malloc_strtoumax)
-{
+TEST_BEGIN(test_malloc_strtoumax) {
 	struct test_s {
 		const char *input;
 		const char *expected_remainder;
@@ -155,8 +150,7 @@ TEST_BEGIN(test_malloc_strtoumax)
 }
 TEST_END
 
-TEST_BEGIN(test_malloc_snprintf_truncated)
-{
+TEST_BEGIN(test_malloc_snprintf_truncated) {
 #define	BUFLEN	15
 	char buf[BUFLEN];
 	size_t result;
@@ -188,8 +182,7 @@ TEST_BEGIN(test_malloc_snprintf_truncated)
 }
 TEST_END
 
-TEST_BEGIN(test_malloc_snprintf)
-{
+TEST_BEGIN(test_malloc_snprintf) {
 #define	BUFLEN	128
 	char buf[BUFLEN];
 	size_t result;
@@ -302,8 +295,7 @@ TEST_BEGIN(test_malloc_snprintf)
 TEST_END
 
 int
-main(void)
-{
+main(void) {
 	return (test(
 	    test_pow2_ceil_u64,
 	    test_pow2_ceil_u32,

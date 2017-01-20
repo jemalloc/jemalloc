@@ -16,8 +16,7 @@ double	pt_gamma(double p, double shape, double scale, double ln_gamma_shape);
  *   [S14].  Communications of the ACM 9(9):684.
  */
 JEMALLOC_INLINE double
-ln_gamma(double x)
-{
+ln_gamma(double x) {
 	double f, z;
 
 	assert(x > 0.0);
@@ -31,8 +30,9 @@ ln_gamma(double x)
 		}
 		x = z;
 		f = -log(f);
-	} else
+	} else {
 		f = 0.0;
+	}
 
 	z = 1.0 / (x * x);
 
@@ -51,8 +51,7 @@ ln_gamma(double x)
  *   Applied Statistics 19:285-287.
  */
 JEMALLOC_INLINE double
-i_gamma(double x, double p, double ln_gamma_p)
-{
+i_gamma(double x, double p, double ln_gamma_p) {
 	double acu, factor, oflo, gin, term, rn, a, b, an, dif;
 	double pn[6];
 	unsigned i;
@@ -60,8 +59,9 @@ i_gamma(double x, double p, double ln_gamma_p)
 	assert(p > 0.0);
 	assert(x >= 0.0);
 
-	if (x == 0.0)
+	if (x == 0.0) {
 		return (0.0);
+	}
 
 	acu = 1.0e-10;
 	oflo = 1.0e30;
@@ -99,8 +99,9 @@ i_gamma(double x, double p, double ln_gamma_p)
 			b += 2.0;
 			term += 1.0;
 			an = a * term;
-			for (i = 0; i < 2; i++)
+			for (i = 0; i < 2; i++) {
 				pn[i+4] = b * pn[i+2] - an * pn[i];
+			}
 			if (pn[5] != 0.0) {
 				rn = pn[4] / pn[5];
 				dif = fabs(gin - rn);
@@ -110,12 +111,14 @@ i_gamma(double x, double p, double ln_gamma_p)
 				}
 				gin = rn;
 			}
-			for (i = 0; i < 4; i++)
+			for (i = 0; i < 4; i++) {
 				pn[i] = pn[i+2];
+			}
 
 			if (fabs(pn[4]) >= oflo) {
-				for (i = 0; i < 4; i++)
+				for (i = 0; i < 4; i++) {
 					pn[i] /= oflo;
+				}
 			}
 		}
 	}
@@ -132,8 +135,7 @@ i_gamma(double x, double p, double ln_gamma_p)
  *   distribution.  Applied Statistics 37(3):477-484.
  */
 JEMALLOC_INLINE double
-pt_norm(double p)
-{
+pt_norm(double p) {
 	double q, r, ret;
 
 	assert(p > 0.0 && p < 1.0);
@@ -153,10 +155,11 @@ pt_norm(double p)
 		    r + 6.8718700749205790830e2) * r + 4.2313330701600911252e1)
 		    * r + 1.0));
 	} else {
-		if (q < 0.0)
+		if (q < 0.0) {
 			r = p;
-		else
+		} else {
 			r = 1.0 - p;
+		}
 		assert(r > 0.0);
 
 		r = sqrt(-log(r));
@@ -198,8 +201,9 @@ pt_norm(double p)
 			    5.99832206555887937690e-1)
 			    * r + 1.0));
 		}
-		if (q < 0.0)
+		if (q < 0.0) {
 			ret = -ret;
+		}
 		return (ret);
 	}
 }
@@ -219,8 +223,7 @@ pt_norm(double p)
  *   points of the Chi^2 distribution.  Applied Statistics 40(1):233-235.
  */
 JEMALLOC_INLINE double
-pt_chi2(double p, double df, double ln_gamma_df_2)
-{
+pt_chi2(double p, double df, double ln_gamma_df_2) {
 	double e, aa, xx, c, ch, a, q, p1, p2, t, x, b, s1, s2, s3, s4, s5, s6;
 	unsigned i;
 
@@ -236,8 +239,9 @@ pt_chi2(double p, double df, double ln_gamma_df_2)
 	if (df < -1.24 * log(p)) {
 		/* Starting approximation for small Chi^2. */
 		ch = pow(p * xx * exp(ln_gamma_df_2 + xx * aa), 1.0 / xx);
-		if (ch - e < 0.0)
+		if (ch - e < 0.0) {
 			return (ch);
+		}
 	} else {
 		if (df > 0.32) {
 			x = pt_norm(p);
@@ -263,8 +267,9 @@ pt_chi2(double p, double df, double ln_gamma_df_2)
 				    * (13.32 + 3.0 * ch)) / p2;
 				ch -= (1.0 - exp(a + ln_gamma_df_2 + 0.5 * ch +
 				    c * aa) * p2 / p1) / t;
-				if (fabs(q / ch - 1.0) - 0.01 <= 0.0)
+				if (fabs(q / ch - 1.0) - 0.01 <= 0.0) {
 					break;
+				}
 			}
 		}
 	}
@@ -273,8 +278,9 @@ pt_chi2(double p, double df, double ln_gamma_df_2)
 		/* Calculation of seven-term Taylor series. */
 		q = ch;
 		p1 = 0.5 * ch;
-		if (p1 < 0.0)
+		if (p1 < 0.0) {
 			return (-1.0);
+		}
 		p2 = p - i_gamma(p1, xx, ln_gamma_df_2);
 		t = p2 * exp(xx * aa + ln_gamma_df_2 + p1 - c * log(ch));
 		b = t / ch;
@@ -290,8 +296,9 @@ pt_chi2(double p, double df, double ln_gamma_df_2)
 		s6 = (120.0 + c * (346.0 + 127.0 * c)) / 5040.0;
 		ch += t * (1.0 + 0.5 * t * s1 - b * c * (s1 - b * (s2 - b * (s3
 		    - b * (s4 - b * (s5 - b * s6))))));
-		if (fabs(q / ch - 1.0) <= e)
+		if (fabs(q / ch - 1.0) <= e) {
 			break;
+		}
 	}
 
 	return (ch);
@@ -303,8 +310,7 @@ pt_chi2(double p, double df, double ln_gamma_df_2)
  * p.
  */
 JEMALLOC_INLINE double
-pt_gamma(double p, double shape, double scale, double ln_gamma_shape)
-{
+pt_gamma(double p, double shape, double scale, double ln_gamma_shape) {
 	return (pt_chi2(p, shape * 2.0, ln_gamma_shape) * 0.5 * scale);
 }
 #endif

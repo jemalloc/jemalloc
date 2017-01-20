@@ -58,17 +58,18 @@ struct {								\
 	phn_prev_set(a_type, a_field, a_phn1, a_phn0);			\
 	phn0child = phn_lchild_get(a_type, a_field, a_phn0);		\
 	phn_next_set(a_type, a_field, a_phn1, phn0child);		\
-	if (phn0child != NULL)						\
+	if (phn0child != NULL) {					\
 		phn_prev_set(a_type, a_field, phn0child, a_phn1);	\
+	}								\
 	phn_lchild_set(a_type, a_field, a_phn0, a_phn1);		\
 } while (0)
 
 #define	phn_merge(a_type, a_field, a_phn0, a_phn1, a_cmp, r_phn) do {	\
-	if (a_phn0 == NULL)						\
+	if (a_phn0 == NULL) {						\
 		r_phn = a_phn1;						\
-	else if (a_phn1 == NULL)					\
+	} else if (a_phn1 == NULL) {					\
 		r_phn = a_phn0;						\
-	else if (a_cmp(a_phn0, a_phn1) < 0) {				\
+	} else if (a_cmp(a_phn0, a_phn1) < 0) {				\
 		phn_merge_ordered(a_type, a_field, a_phn0, a_phn1,	\
 		    a_cmp);						\
 		r_phn = a_phn0;						\
@@ -95,8 +96,9 @@ struct {								\
 	 */								\
 	if (phn1 != NULL) {						\
 		a_type *phnrest = phn_next_get(a_type, a_field, phn1);	\
-		if (phnrest != NULL)					\
+		if (phnrest != NULL) {					\
 			phn_prev_set(a_type, a_field, phnrest, NULL);	\
+		}							\
 		phn_prev_set(a_type, a_field, phn0, NULL);		\
 		phn_next_set(a_type, a_field, phn0, NULL);		\
 		phn_prev_set(a_type, a_field, phn1, NULL);		\
@@ -150,8 +152,9 @@ struct {								\
 				    NULL);				\
 				phn_merge(a_type, a_field, phn0, phn1,	\
 				    a_cmp, phn0);			\
-				if (head == NULL)			\
+				if (head == NULL) {			\
 					break;				\
+				}					\
 				phn_next_set(a_type, a_field, tail,	\
 				    phn0);				\
 				tail = phn0;				\
@@ -179,9 +182,9 @@ struct {								\
 
 #define	ph_merge_children(a_type, a_field, a_phn, a_cmp, r_phn) do {	\
 	a_type *lchild = phn_lchild_get(a_type, a_field, a_phn);	\
-	if (lchild == NULL)						\
+	if (lchild == NULL) {						\
 		r_phn = NULL;						\
-	else {								\
+	} else {							\
 		ph_merge_siblings(a_type, a_field, lchild, a_cmp,	\
 		    r_phn);						\
 	}								\
@@ -205,26 +208,23 @@ a_attr void	a_prefix##remove(a_ph_type *ph, a_type *phn);
  */
 #define	ph_gen(a_attr, a_prefix, a_ph_type, a_type, a_field, a_cmp)	\
 a_attr void								\
-a_prefix##new(a_ph_type *ph)						\
-{									\
+a_prefix##new(a_ph_type *ph) {						\
 	memset(ph, 0, sizeof(ph(a_type)));				\
 }									\
 a_attr bool								\
-a_prefix##empty(a_ph_type *ph)						\
-{									\
+a_prefix##empty(a_ph_type *ph) {					\
 	return (ph->ph_root == NULL);					\
 }									\
 a_attr a_type *								\
-a_prefix##first(a_ph_type *ph)						\
-{									\
-	if (ph->ph_root == NULL)					\
+a_prefix##first(a_ph_type *ph) {					\
+	if (ph->ph_root == NULL) {					\
 		return (NULL);						\
+	}								\
 	ph_merge_aux(a_type, a_field, ph, a_cmp);			\
 	return (ph->ph_root);						\
 }									\
 a_attr void								\
-a_prefix##insert(a_ph_type *ph, a_type *phn)				\
-{									\
+a_prefix##insert(a_ph_type *ph, a_type *phn) {				\
 	memset(&phn->a_field, 0, sizeof(phn(a_type)));			\
 									\
 	/*								\
@@ -235,9 +235,9 @@ a_prefix##insert(a_ph_type *ph, a_type *phn)				\
 	 * constant-time, whereas eager merging would make insert	\
 	 * O(log n).							\
 	 */								\
-	if (ph->ph_root == NULL)					\
+	if (ph->ph_root == NULL) {					\
 		ph->ph_root = phn;					\
-	else {								\
+	} else {							\
 		phn_next_set(a_type, a_field, phn, phn_next_get(a_type,	\
 		    a_field, ph->ph_root));				\
 		if (phn_next_get(a_type, a_field, ph->ph_root) !=	\
@@ -251,12 +251,12 @@ a_prefix##insert(a_ph_type *ph, a_type *phn)				\
 	}								\
 }									\
 a_attr a_type *								\
-a_prefix##remove_first(a_ph_type *ph)					\
-{									\
+a_prefix##remove_first(a_ph_type *ph) {					\
 	a_type *ret;							\
 									\
-	if (ph->ph_root == NULL)					\
+	if (ph->ph_root == NULL) {					\
 		return (NULL);						\
+	}								\
 	ph_merge_aux(a_type, a_field, ph, a_cmp);			\
 									\
 	ret = ph->ph_root;						\
@@ -267,8 +267,7 @@ a_prefix##remove_first(a_ph_type *ph)					\
 	return (ret);							\
 }									\
 a_attr void								\
-a_prefix##remove(a_ph_type *ph, a_type *phn)				\
-{									\
+a_prefix##remove(a_ph_type *ph, a_type *phn) {				\
 	a_type *replace, *parent;					\
 									\
 	/*								\
@@ -286,8 +285,9 @@ a_prefix##remove(a_ph_type *ph, a_type *phn)				\
 									\
 	/* Get parent (if phn is leftmost child) before mutating. */	\
 	if ((parent = phn_prev_get(a_type, a_field, phn)) != NULL) {	\
-		if (phn_lchild_get(a_type, a_field, parent) != phn)	\
+		if (phn_lchild_get(a_type, a_field, parent) != phn) {	\
 			parent = NULL;					\
+		}							\
 	}								\
 	/* Find a possible replacement node, and link to parent. */	\
 	ph_merge_children(a_type, a_field, phn, a_cmp, replace);	\

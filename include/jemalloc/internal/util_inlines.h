@@ -25,26 +25,22 @@ int	get_errno(void);
 #endif
 
 JEMALLOC_ALWAYS_INLINE unsigned
-ffs_llu(unsigned long long bitmap)
-{
+ffs_llu(unsigned long long bitmap) {
 	return (JEMALLOC_INTERNAL_FFSLL(bitmap));
 }
 
 JEMALLOC_ALWAYS_INLINE unsigned
-ffs_lu(unsigned long bitmap)
-{
+ffs_lu(unsigned long bitmap) {
 	return (JEMALLOC_INTERNAL_FFSL(bitmap));
 }
 
 JEMALLOC_ALWAYS_INLINE unsigned
-ffs_u(unsigned bitmap)
-{
+ffs_u(unsigned bitmap) {
 	return (JEMALLOC_INTERNAL_FFS(bitmap));
 }
 
 JEMALLOC_ALWAYS_INLINE unsigned
-ffs_zu(size_t bitmap)
-{
+ffs_zu(size_t bitmap) {
 #if LG_SIZEOF_PTR == LG_SIZEOF_INT
 	return (ffs_u(bitmap));
 #elif LG_SIZEOF_PTR == LG_SIZEOF_LONG
@@ -57,8 +53,7 @@ ffs_zu(size_t bitmap)
 }
 
 JEMALLOC_ALWAYS_INLINE unsigned
-ffs_u64(uint64_t bitmap)
-{
+ffs_u64(uint64_t bitmap) {
 #if LG_SIZEOF_LONG == 3
 	return (ffs_lu(bitmap));
 #elif LG_SIZEOF_LONG_LONG == 3
@@ -69,8 +64,7 @@ ffs_u64(uint64_t bitmap)
 }
 
 JEMALLOC_ALWAYS_INLINE unsigned
-ffs_u32(uint32_t bitmap)
-{
+ffs_u32(uint32_t bitmap) {
 #if LG_SIZEOF_INT == 2
 	return (ffs_u(bitmap));
 #else
@@ -80,8 +74,7 @@ ffs_u32(uint32_t bitmap)
 }
 
 JEMALLOC_INLINE uint64_t
-pow2_ceil_u64(uint64_t x)
-{
+pow2_ceil_u64(uint64_t x) {
 	x--;
 	x |= x >> 1;
 	x |= x >> 2;
@@ -94,8 +87,7 @@ pow2_ceil_u64(uint64_t x)
 }
 
 JEMALLOC_INLINE uint32_t
-pow2_ceil_u32(uint32_t x)
-{
+pow2_ceil_u32(uint32_t x) {
 	x--;
 	x |= x >> 1;
 	x |= x >> 2;
@@ -108,8 +100,7 @@ pow2_ceil_u32(uint32_t x)
 
 /* Compute the smallest power of 2 that is >= x. */
 JEMALLOC_INLINE size_t
-pow2_ceil_zu(size_t x)
-{
+pow2_ceil_zu(size_t x) {
 #if (LG_SIZEOF_PTR == 3)
 	return (pow2_ceil_u64(x));
 #else
@@ -119,8 +110,7 @@ pow2_ceil_zu(size_t x)
 
 #if (defined(__i386__) || defined(__amd64__) || defined(__x86_64__))
 JEMALLOC_INLINE unsigned
-lg_floor(size_t x)
-{
+lg_floor(size_t x) {
 	size_t ret;
 
 	assert(x != 0);
@@ -134,8 +124,7 @@ lg_floor(size_t x)
 }
 #elif (defined(_MSC_VER))
 JEMALLOC_INLINE unsigned
-lg_floor(size_t x)
-{
+lg_floor(size_t x) {
 	unsigned long ret;
 
 	assert(x != 0);
@@ -152,8 +141,7 @@ lg_floor(size_t x)
 }
 #elif (defined(JEMALLOC_HAVE_BUILTIN_CLZ))
 JEMALLOC_INLINE unsigned
-lg_floor(size_t x)
-{
+lg_floor(size_t x) {
 	assert(x != 0);
 
 #if (LG_SIZEOF_PTR == LG_SIZEOF_INT)
@@ -166,8 +154,7 @@ lg_floor(size_t x)
 }
 #else
 JEMALLOC_INLINE unsigned
-lg_floor(size_t x)
-{
+lg_floor(size_t x) {
 	assert(x != 0);
 
 	x |= (x >> 1);
@@ -178,8 +165,9 @@ lg_floor(size_t x)
 #if (LG_SIZEOF_PTR == 3)
 	x |= (x >> 32);
 #endif
-	if (x == SIZE_T_MAX)
+	if (x == SIZE_T_MAX) {
 		return ((8 << LG_SIZEOF_PTR) - 1);
+	}
 	x++;
 	return (ffs_zu(x) - 2);
 }
@@ -187,8 +175,7 @@ lg_floor(size_t x)
 
 /* Set error code. */
 JEMALLOC_INLINE void
-set_errno(int errnum)
-{
+set_errno(int errnum) {
 #ifdef _WIN32
 	SetLastError(errnum);
 #else
@@ -198,8 +185,7 @@ set_errno(int errnum)
 
 /* Get last error code. */
 JEMALLOC_INLINE int
-get_errno(void)
-{
+get_errno(void) {
 #ifdef _WIN32
 	return (GetLastError());
 #else

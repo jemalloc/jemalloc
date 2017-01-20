@@ -37,8 +37,9 @@
 
 #ifndef assert_not_implemented
 #define	assert_not_implemented(e) do {					\
-	if (unlikely(config_debug && !(e)))				\
+	if (unlikely(config_debug && !(e))) {				\
 		not_implemented();					\
+	}								\
 } while (0)
 #endif
 

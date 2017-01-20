@@ -5,8 +5,7 @@
 #include "test/extent_hooks.h"
 
 static unsigned
-get_nsizes_impl(const char *cmd)
-{
+get_nsizes_impl(const char *cmd) {
 	unsigned ret;
 	size_t z;
 
@@ -18,20 +17,17 @@ get_nsizes_impl(const char *cmd)
 }
 
 static unsigned
-get_nsmall(void)
-{
+get_nsmall(void) {
 	return (get_nsizes_impl("arenas.nbins"));
 }
 
 static unsigned
-get_nlarge(void)
-{
+get_nlarge(void) {
 	return (get_nsizes_impl("arenas.nlextents"));
 }
 
 static size_t
-get_size_impl(const char *cmd, size_t ind)
-{
+get_size_impl(const char *cmd, size_t ind) {
 	size_t ret;
 	size_t z;
 	size_t mib[4];
@@ -49,35 +45,33 @@ get_size_impl(const char *cmd, size_t ind)
 }
 
 static size_t
-get_small_size(size_t ind)
-{
+get_small_size(size_t ind) {
 	return (get_size_impl("arenas.bin.0.size", ind));
 }
 
 static size_t
-get_large_size(size_t ind)
-{
+get_large_size(size_t ind) {
 	return (get_size_impl("arenas.lextent.0.size", ind));
 }
 
 /* Like ivsalloc(), but safe to call on discarded allocations. */
 static size_t
-vsalloc(tsdn_t *tsdn, const void *ptr)
-{
+vsalloc(tsdn_t *tsdn, const void *ptr) {
 	extent_t *extent;
 
 	extent = extent_lookup(tsdn, ptr, false);
-	if (extent == NULL)
+	if (extent == NULL) {
 		return (0);
-	if (!extent_active_get(extent))
+	}
+	if (!extent_active_get(extent)) {
 		return (0);
+	}
 
 	return (isalloc(tsdn, extent, ptr));
 }
 
 static unsigned
-do_arena_create(extent_hooks_t *h)
-{
+do_arena_create(extent_hooks_t *h) {
 	unsigned arena_ind;
 	size_t sz = sizeof(unsigned);
 	assert_d_eq(mallctl("arenas.create", (void *)&arena_ind, &sz,
@@ -87,8 +81,7 @@ do_arena_create(extent_hooks_t *h)
 }
 
 static void
-do_arena_reset_pre(unsigned arena_ind, void ***ptrs, unsigned *nptrs)
-{
+do_arena_reset_pre(unsigned arena_ind, void ***ptrs, unsigned *nptrs) {
 #define	NLARGE	32
 	unsigned nsmall, nlarge, i;
 	size_t sz;
@@ -127,8 +120,7 @@ do_arena_reset_pre(unsigned arena_ind, void ***ptrs, unsigned *nptrs)
 }
 
 static void
-do_arena_reset_post(void **ptrs, unsigned nptrs)
-{
+do_arena_reset_post(void **ptrs, unsigned nptrs) {
 	tsdn_t *tsdn;
 	unsigned i;
 
@@ -144,8 +136,7 @@ do_arena_reset_post(void **ptrs, unsigned nptrs)
 }
 
 static void
-do_arena_reset_destroy(const char *name, unsigned arena_ind)
-{
+do_arena_reset_destroy(const char *name, unsigned arena_ind) {
 	size_t mib[3];
 	size_t miblen;
 
@@ -158,19 +149,16 @@ do_arena_reset_destroy(const char *name, unsigned arena_ind)
 }
 
 static void
-do_arena_reset(unsigned arena_ind)
-{
+do_arena_reset(unsigned arena_ind) {
 	do_arena_reset_destroy("arena.0.reset", arena_ind);
 }
 
 static void
-do_arena_destroy(unsigned arena_ind)
-{
+do_arena_destroy(unsigned arena_ind) {
 	do_arena_reset_destroy("arena.0.destroy", arena_ind);
 }
 
-TEST_BEGIN(test_arena_reset)
-{
+TEST_BEGIN(test_arena_reset) {
 	unsigned arena_ind;
 	void **ptrs;
 	unsigned nptrs;
@@ -183,8 +171,7 @@ TEST_BEGIN(test_arena_reset)
 TEST_END
 
 static bool
-arena_i_initialized(unsigned arena_ind, bool refresh)
-{
+arena_i_initialized(unsigned arena_ind, bool refresh) {
 	bool initialized;
 	size_t mib[3];
 	size_t miblen, sz;
@@ -206,15 +193,13 @@ arena_i_initialized(unsigned arena_ind, bool refresh)
 	return (initialized);
 }
 
-TEST_BEGIN(test_arena_destroy_initial)
-{
+TEST_BEGIN(test_arena_destroy_initial) {
 	assert_false(arena_i_initialized(MALLCTL_ARENAS_DESTROYED, false),
 	    "Destroyed arena stats should not be initialized");
 }
 TEST_END
 
-TEST_BEGIN(test_arena_destroy_hooks_default)
-{
+TEST_BEGIN(test_arena_destroy_hooks_default) {
 	unsigned arena_ind, arena_ind_another, arena_ind_prev;
 	void **ptrs;
 	unsigned nptrs;
@@ -260,8 +245,7 @@ TEST_END
  */
 static bool
 extent_dalloc_unmap(extent_hooks_t *extent_hooks, void *addr, size_t size,
-    bool committed, unsigned arena_ind)
-{
+    bool committed, unsigned arena_ind) {
 	TRACE_HOOK("%s(extent_hooks=%p, addr=%p, size=%zu, committed=%s, "
 	    "arena_ind=%u)\n", __func__, extent_hooks, addr, size, committed ?
 	    "true" : "false", arena_ind);
@@ -270,8 +254,9 @@ extent_dalloc_unmap(extent_hooks_t *extent_hooks, void *addr, size_t size,
 	assert_ptr_eq(extent_hooks->dalloc, extent_dalloc_unmap,
 	    "Wrong hook function");
 	called_dalloc = true;
-	if (!try_dalloc)
+	if (!try_dalloc) {
 		return (true);
+	}
 	pages_unmap(addr, size);
 	did_dalloc = true;
 	return (false);
@@ -290,8 +275,7 @@ static extent_hooks_t hooks_unmap = {
 	extent_merge_hook
 };
 
-TEST_BEGIN(test_arena_destroy_hooks_unmap)
-{
+TEST_BEGIN(test_arena_destroy_hooks_unmap) {
 	unsigned arena_ind;
 	void **ptrs;
 	unsigned nptrs;
@@ -328,8 +312,7 @@ TEST_BEGIN(test_arena_destroy_hooks_unmap)
 TEST_END
 
 int
-main(void)
-{
+main(void) {
 	return (test(
 	    test_arena_reset,
 	    test_arena_destroy_initial,

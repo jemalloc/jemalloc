@@ -25,12 +25,12 @@ malloc_tsd_externs(, tsd_t)
 malloc_tsd_funcs(JEMALLOC_ALWAYS_INLINE, , tsd_t, tsd_initializer, tsd_cleanup)
 
 JEMALLOC_ALWAYS_INLINE tsd_t *
-tsd_fetch_impl(bool init)
-{
+tsd_fetch_impl(bool init) {
 	tsd_t *tsd = tsd_get(init);
 
-	if (!init && tsd_get_allocates() && tsd == NULL)
+	if (!init && tsd_get_allocates() && tsd == NULL) {
 		return (NULL);
+	}
 	assert(tsd != NULL);
 
 	if (unlikely(tsd->state != tsd_state_nominal)) {
@@ -41,47 +41,42 @@ tsd_fetch_impl(bool init)
 		} else if (tsd->state == tsd_state_purgatory) {
 			tsd->state = tsd_state_reincarnated;
 			tsd_set(tsd);
-		} else
+		} else {
 			assert(tsd->state == tsd_state_reincarnated);
+		}
 	}
 
 	return (tsd);
 }
 
 JEMALLOC_ALWAYS_INLINE tsd_t *
-tsd_fetch(void)
-{
+tsd_fetch(void) {
 	return (tsd_fetch_impl(true));
 }
 
 JEMALLOC_ALWAYS_INLINE tsdn_t *
-tsd_tsdn(tsd_t *tsd)
-{
+tsd_tsdn(tsd_t *tsd) {
 	return ((tsdn_t *)tsd);
 }
 
 JEMALLOC_INLINE bool
-tsd_nominal(tsd_t *tsd)
-{
+tsd_nominal(tsd_t *tsd) {
 	return (tsd->state == tsd_state_nominal);
 }
 
 #define	O(n, t, c)							\
 JEMALLOC_ALWAYS_INLINE t *						\
-tsd_##n##p_get(tsd_t *tsd)						\
-{									\
+tsd_##n##p_get(tsd_t *tsd) {						\
 	return (&tsd->n);						\
 }									\
 									\
 JEMALLOC_ALWAYS_INLINE t						\
-tsd_##n##_get(tsd_t *tsd)						\
-{									\
+tsd_##n##_get(tsd_t *tsd) {						\
 	return (*tsd_##n##p_get(tsd));					\
 }									\
 									\
 JEMALLOC_ALWAYS_INLINE void						\
-tsd_##n##_set(tsd_t *tsd, t n)						\
-{									\
+tsd_##n##_set(tsd_t *tsd, t n) {					\
 	assert(tsd->state == tsd_state_nominal);			\
 	tsd->n = n;							\
 }
@@ -89,31 +84,28 @@ MALLOC_TSD
 #undef O
 
 JEMALLOC_ALWAYS_INLINE tsdn_t *
-tsdn_fetch(void)
-{
-	if (!tsd_booted_get())
+tsdn_fetch(void) {
+	if (!tsd_booted_get()) {
 		return (NULL);
+	}
 
 	return (tsd_tsdn(tsd_fetch_impl(false)));
 }
 
 JEMALLOC_ALWAYS_INLINE bool
-tsdn_null(const tsdn_t *tsdn)
-{
+tsdn_null(const tsdn_t *tsdn) {
 	return (tsdn == NULL);
 }
 
 JEMALLOC_ALWAYS_INLINE tsd_t *
-tsdn_tsd(tsdn_t *tsdn)
-{
+tsdn_tsd(tsdn_t *tsdn) {
 	assert(!tsdn_null(tsdn));
 
 	return (&tsdn->tsd);
 }
 
 JEMALLOC_ALWAYS_INLINE rtree_ctx_t *
-tsdn_rtree_ctx(tsdn_t *tsdn, rtree_ctx_t *fallback)
-{
+tsdn_rtree_ctx(tsdn_t *tsdn, rtree_ctx_t *fallback) {
 	/*
 	 * If tsd cannot be accessed, initialize the fallback rtree_ctx and
 	 * return a pointer to it.

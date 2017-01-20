@@ -7,8 +7,7 @@ const char *malloc_conf = "junk:false";
 #include "test/extent_hooks.h"
 
 static void
-test_extent_body(unsigned arena_ind)
-{
+test_extent_body(unsigned arena_ind) {
 	void *p;
 	size_t large0, large1, large2, sz;
 	size_t purge_mib[3];
@@ -67,15 +66,17 @@ test_extent_body(unsigned arena_ind)
 	xallocx_success_b = (xallocx(p, large0, 0, flags) == large0);
 	assert_d_eq(mallctlbymib(purge_mib, purge_miblen, NULL, NULL, NULL, 0),
 	    0, "Unexpected arena.%u.purge error", arena_ind);
-	if (xallocx_success_b)
+	if (xallocx_success_b) {
 		assert_true(did_split, "Expected split");
+	}
 	xallocx_success_c = (xallocx(p, large0 * 2, 0, flags) == large0 * 2);
 	if (did_split) {
 		assert_b_eq(did_decommit, did_commit,
 		    "Expected decommit/commit match");
 	}
-	if (xallocx_success_b && xallocx_success_c)
+	if (xallocx_success_b && xallocx_success_c) {
 		assert_true(did_merge, "Expected merge");
+	}
 	dallocx(p, flags);
 	try_dalloc = true;
 	try_decommit = false;
@@ -86,8 +87,7 @@ test_extent_body(unsigned arena_ind)
 	dallocx(p, flags);
 }
 
-TEST_BEGIN(test_extent_manual_hook)
-{
+TEST_BEGIN(test_extent_manual_hook) {
 	unsigned arena_ind;
 	size_t old_size, new_size, sz;
 	size_t hooks_mib[3];
@@ -155,8 +155,7 @@ TEST_BEGIN(test_extent_manual_hook)
 }
 TEST_END
 
-TEST_BEGIN(test_extent_auto_hook)
-{
+TEST_BEGIN(test_extent_auto_hook) {
 	unsigned arena_ind;
 	size_t new_size, sz;
 	extent_hooks_t *new_hooks;
@@ -174,8 +173,7 @@ TEST_BEGIN(test_extent_auto_hook)
 TEST_END
 
 int
-main(void)
-{
+main(void) {
 	return (test(
 	    test_extent_manual_hook,
 	    test_extent_auto_hook));

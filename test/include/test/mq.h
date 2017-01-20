@@ -37,20 +37,19 @@ typedef struct {							\
 a_attr bool								\
 a_prefix##init(a_mq_type *mq) {						\
 									\
-	if (mtx_init(&mq->lock))					\
+	if (mtx_init(&mq->lock)) {					\
 		return (true);						\
+	}								\
 	ql_new(&mq->msgs);						\
 	mq->count = 0;							\
 	return (false);							\
 }									\
 a_attr void								\
-a_prefix##fini(a_mq_type *mq)						\
-{									\
+a_prefix##fini(a_mq_type *mq) {						\
 	mtx_fini(&mq->lock);						\
 }									\
 a_attr unsigned								\
-a_prefix##count(a_mq_type *mq)						\
-{									\
+a_prefix##count(a_mq_type *mq) {					\
 	unsigned count;							\
 									\
 	mtx_lock(&mq->lock);						\
@@ -59,8 +58,7 @@ a_prefix##count(a_mq_type *mq)						\
 	return (count);							\
 }									\
 a_attr a_mq_msg_type *							\
-a_prefix##tryget(a_mq_type *mq)						\
-{									\
+a_prefix##tryget(a_mq_type *mq) {					\
 	a_mq_msg_type *msg;						\
 									\
 	mtx_lock(&mq->lock);						\
@@ -73,32 +71,33 @@ a_prefix##tryget(a_mq_type *mq)						\
 	return (msg);							\
 }									\
 a_attr a_mq_msg_type *							\
-a_prefix##get(a_mq_type *mq)						\
-{									\
+a_prefix##get(a_mq_type *mq) {						\
 	a_mq_msg_type *msg;						\
 	unsigned ns;							\
 									\
 	msg = a_prefix##tryget(mq);					\
-	if (msg != NULL)						\
+	if (msg != NULL) {						\
 		return (msg);						\
+	}								\
 									\
 	ns = 1;								\
 	while (true) {							\
 		mq_nanosleep(ns);					\
 		msg = a_prefix##tryget(mq);				\
-		if (msg != NULL)					\
+		if (msg != NULL) {					\
 			return (msg);					\
+		}							\
 		if (ns < 1000*1000*1000) {				\
 			/* Double sleep time, up to max 1 second. */	\
 			ns <<= 1;					\
-			if (ns > 1000*1000*1000)			\
+			if (ns > 1000*1000*1000) {			\
 				ns = 1000*1000*1000;			\
+			}						\
 		}							\
 	}								\
 }									\
 a_attr void								\
-a_prefix##put(a_mq_type *mq, a_mq_msg_type *msg)			\
-{									\
+a_prefix##put(a_mq_type *mq, a_mq_msg_type *msg) {			\
 									\
 	mtx_lock(&mq->lock);						\
 	ql_elm_new(msg, a_field);					\

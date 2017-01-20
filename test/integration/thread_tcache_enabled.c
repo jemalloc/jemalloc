@@ -9,8 +9,7 @@ static const bool config_tcache =
     ;
 
 void *
-thd_start(void *arg)
-{
+thd_start(void *arg) {
 	int err;
 	size_t sz;
 	bool e0, e1;
@@ -84,14 +83,12 @@ label_ENOENT:
 	return (NULL);
 }
 
-TEST_BEGIN(test_main_thread)
-{
+TEST_BEGIN(test_main_thread) {
 	thd_start(NULL);
 }
 TEST_END
 
-TEST_BEGIN(test_subthread)
-{
+TEST_BEGIN(test_subthread) {
 	thd_t thd;
 
 	thd_create(&thd, thd_start, NULL);
@@ -100,8 +97,7 @@ TEST_BEGIN(test_subthread)
 TEST_END
 
 int
-main(void)
-{
+main(void) {
 	/* Run tests multiple times to check for bad interactions. */
 	return (test(
 	    test_main_thread,

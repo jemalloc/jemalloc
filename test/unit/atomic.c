@@ -66,8 +66,7 @@ typedef struct p##_test_s p##_test_t;
 } while (0)
 
 TEST_STRUCT(u64, uint64_t)
-TEST_BEGIN(test_atomic_u64)
-{
+TEST_BEGIN(test_atomic_u64) {
 #if !(LG_SIZEOF_PTR == 3 || LG_SIZEOF_INT == 3)
 	test_skip("64-bit atomic operations not supported");
 #else
@@ -77,36 +76,31 @@ TEST_BEGIN(test_atomic_u64)
 TEST_END
 
 TEST_STRUCT(u32, uint32_t)
-TEST_BEGIN(test_atomic_u32)
-{
+TEST_BEGIN(test_atomic_u32) {
 	TEST_BODY(u32, uint32_t, uint32_t, u32, "#"FMTx32);
 }
 TEST_END
 
 TEST_STRUCT(p, void *)
-TEST_BEGIN(test_atomic_p)
-{
+TEST_BEGIN(test_atomic_p) {
 	TEST_BODY(p, void *, uintptr_t, ptr, "p");
 }
 TEST_END
 
 TEST_STRUCT(zu, size_t)
-TEST_BEGIN(test_atomic_zu)
-{
+TEST_BEGIN(test_atomic_zu) {
 	TEST_BODY(zu, size_t, size_t, zu, "#zx");
 }
 TEST_END
 
 TEST_STRUCT(u, unsigned)
-TEST_BEGIN(test_atomic_u)
-{
+TEST_BEGIN(test_atomic_u) {
 	TEST_BODY(u, unsigned, unsigned, u, "#x");
 }
 TEST_END
 
 int
-main(void)
-{
+main(void) {
 	return (test(
 	    test_atomic_u64,
 	    test_atomic_u32,

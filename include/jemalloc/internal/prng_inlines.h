@@ -18,20 +18,17 @@ size_t	prng_range_zu(size_t *state, size_t range, bool atomic);
 
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_PRNG_C_))
 JEMALLOC_ALWAYS_INLINE uint32_t
-prng_state_next_u32(uint32_t state)
-{
+prng_state_next_u32(uint32_t state) {
 	return ((state * PRNG_A_32) + PRNG_C_32);
 }
 
 JEMALLOC_ALWAYS_INLINE uint64_t
-prng_state_next_u64(uint64_t state)
-{
+prng_state_next_u64(uint64_t state) {
 	return ((state * PRNG_A_64) + PRNG_C_64);
 }
 
 JEMALLOC_ALWAYS_INLINE size_t
-prng_state_next_zu(size_t state)
-{
+prng_state_next_zu(size_t state) {
 #if LG_SIZEOF_PTR == 2
 	return ((state * PRNG_A_32) + PRNG_C_32);
 #elif LG_SIZEOF_PTR == 3
@@ -42,8 +39,7 @@ prng_state_next_zu(size_t state)
 }
 
 JEMALLOC_ALWAYS_INLINE uint32_t
-prng_lg_range_u32(uint32_t *state, unsigned lg_range, bool atomic)
-{
+prng_lg_range_u32(uint32_t *state, unsigned lg_range, bool atomic) {
 	uint32_t ret, state1;
 
 	assert(lg_range > 0);
@@ -67,8 +63,7 @@ prng_lg_range_u32(uint32_t *state, unsigned lg_range, bool atomic)
 
 /* 64-bit atomic operations cannot be supported on all relevant platforms. */
 JEMALLOC_ALWAYS_INLINE uint64_t
-prng_lg_range_u64(uint64_t *state, unsigned lg_range)
-{
+prng_lg_range_u64(uint64_t *state, unsigned lg_range) {
 	uint64_t ret, state1;
 
 	assert(lg_range > 0);
@@ -82,8 +77,7 @@ prng_lg_range_u64(uint64_t *state, unsigned lg_range)
 }
 
 JEMALLOC_ALWAYS_INLINE size_t
-prng_lg_range_zu(size_t *state, unsigned lg_range, bool atomic)
-{
+prng_lg_range_zu(size_t *state, unsigned lg_range, bool atomic) {
 	size_t ret, state1;
 
 	assert(lg_range > 0);
@@ -106,8 +100,7 @@ prng_lg_range_zu(size_t *state, unsigned lg_range, bool atomic)
 }
 
 JEMALLOC_ALWAYS_INLINE uint32_t
-prng_range_u32(uint32_t *state, uint32_t range, bool atomic)
-{
+prng_range_u32(uint32_t *state, uint32_t range, bool atomic) {
 	uint32_t ret;
 	unsigned lg_range;
 
@@ -125,8 +118,7 @@ prng_range_u32(uint32_t *state, uint32_t range, bool atomic)
 }
 
 JEMALLOC_ALWAYS_INLINE uint64_t
-prng_range_u64(uint64_t *state, uint64_t range)
-{
+prng_range_u64(uint64_t *state, uint64_t range) {
 	uint64_t ret;
 	unsigned lg_range;
 
@@ -144,8 +136,7 @@ prng_range_u64(uint64_t *state, uint64_t range)
 }
 
 JEMALLOC_ALWAYS_INLINE size_t
-prng_range_zu(size_t *state, size_t range, bool atomic)
-{
+prng_range_zu(size_t *state, size_t range, bool atomic) {
 	size_t ret;
 	unsigned lg_range;
 

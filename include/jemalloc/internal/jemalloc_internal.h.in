@@ -550,10 +550,10 @@ ticker_t	*decay_ticker_get(tsd_t *tsd, unsigned ind);
 
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_C_))
 JEMALLOC_ALWAYS_INLINE pszind_t
-psz2ind(size_t psz)
-{
-	if (unlikely(psz > LARGE_MAXCLASS))
+psz2ind(size_t psz) {
+	if (unlikely(psz > LARGE_MAXCLASS)) {
 		return (NPSIZES);
+	}
 	{
 		pszind_t x = lg_floor((psz<<1)-1);
 		pszind_t shift = (x < LG_SIZE_CLASS_GROUP + LG_PAGE) ? 0 : x -
@@ -573,10 +573,10 @@ psz2ind(size_t psz)
 }
 
 JEMALLOC_INLINE size_t
-pind2sz_compute(pszind_t pind)
-{
-	if (unlikely(pind == NPSIZES))
+pind2sz_compute(pszind_t pind) {
+	if (unlikely(pind == NPSIZES)) {
 		return (LARGE_MAXCLASS + PAGE);
+	}
 	{
 		size_t grp = pind >> LG_SIZE_CLASS_GROUP;
 		size_t mod = pind & ((ZU(1) << LG_SIZE_CLASS_GROUP) - 1);
@@ -595,25 +595,23 @@ pind2sz_compute(pszind_t pind)
 }
 
 JEMALLOC_INLINE size_t
-pind2sz_lookup(pszind_t pind)
-{
+pind2sz_lookup(pszind_t pind) {
 	size_t ret = (size_t)pind2sz_tab[pind];
 	assert(ret == pind2sz_compute(pind));
 	return (ret);
 }
 
 JEMALLOC_INLINE size_t
-pind2sz(pszind_t pind)
-{
+pind2sz(pszind_t pind) {
 	assert(pind < NPSIZES+1);
 	return (pind2sz_lookup(pind));
 }
 
 JEMALLOC_INLINE size_t
-psz2u(size_t psz)
-{
-	if (unlikely(psz > LARGE_MAXCLASS))
+psz2u(size_t psz) {
+	if (unlikely(psz > LARGE_MAXCLASS)) {
 		return (LARGE_MAXCLASS + PAGE);
+	}
 	{
 		size_t x = lg_floor((psz<<1)-1);
 		size_t lg_delta = (x < LG_SIZE_CLASS_GROUP + LG_PAGE + 1) ?
@@ -626,10 +624,10 @@ psz2u(size_t psz)
 }
 
 JEMALLOC_INLINE szind_t
-size2index_compute(size_t size)
-{
-	if (unlikely(size > LARGE_MAXCLASS))
+size2index_compute(size_t size) {
+	if (unlikely(size > LARGE_MAXCLASS)) {
 		return (NSIZES);
+	}
 #if (NTBINS != 0)
 	if (size <= (ZU(1) << LG_TINY_MAXCLASS)) {
 		szind_t lg_tmin = LG_TINY_MAXCLASS - NTBINS + 1;
@@ -656,8 +654,7 @@ size2index_compute(size_t size)
 }
 
 JEMALLOC_ALWAYS_INLINE szind_t
-size2index_lookup(size_t size)
-{
+size2index_lookup(size_t size) {
 	assert(size <= LOOKUP_MAXCLASS);
 	{
 		szind_t ret = (size2index_tab[(size-1) >> LG_TINY_MIN]);
@@ -667,20 +664,20 @@ size2index_lookup(size_t size)
 }
 
 JEMALLOC_ALWAYS_INLINE szind_t
-size2index(size_t size)
-{
+size2index(size_t size) {
 	assert(size > 0);
-	if (likely(size <= LOOKUP_MAXCLASS))
+	if (likely(size <= LOOKUP_MAXCLASS)) {
 		return (size2index_lookup(size));
+	}
 	return (size2index_compute(size));
 }
 
 JEMALLOC_INLINE size_t
-index2size_compute(szind_t index)
-{
+index2size_compute(szind_t index) {
 #if (NTBINS > 0)
-	if (index < NTBINS)
+	if (index < NTBINS) {
 		return (ZU(1) << (LG_TINY_MAXCLASS - NTBINS + 1 + index));
+	}
 #endif
 	{
 		size_t reduced_index = index - NTBINS;
@@ -702,25 +699,23 @@ index2size_compute(szind_t index)
 }
 
 JEMALLOC_ALWAYS_INLINE size_t
-index2size_lookup(szind_t index)
-{
+index2size_lookup(szind_t index) {
 	size_t ret = (size_t)index2size_tab[index];
 	assert(ret == index2size_compute(index));
 	return (ret);
 }
 
 JEMALLOC_ALWAYS_INLINE size_t
-index2size(szind_t index)
-{
+index2size(szind_t index) {
 	assert(index < NSIZES);
 	return (index2size_lookup(index));
 }
 
 JEMALLOC_ALWAYS_INLINE size_t
-s2u_compute(size_t size)
-{
-	if (unlikely(size > LARGE_MAXCLASS))
+s2u_compute(size_t size) {
+	if (unlikely(size > LARGE_MAXCLASS)) {
 		return (0);
+	}
 #if (NTBINS > 0)
 	if (size <= (ZU(1) << LG_TINY_MAXCLASS)) {
 		size_t lg_tmin = LG_TINY_MAXCLASS - NTBINS + 1;
@@ -741,8 +736,7 @@ s2u_compute(size_t size)
 }
 
 JEMALLOC_ALWAYS_INLINE size_t
-s2u_lookup(size_t size)
-{
+s2u_lookup(size_t size) {
 	size_t ret = index2size_lookup(size2index_lookup(size));
 
 	assert(ret == s2u_compute(size));
@@ -754,11 +748,11 @@ s2u_lookup(size_t size)
  * specified size.
  */
 JEMALLOC_ALWAYS_INLINE size_t
-s2u(size_t size)
-{
+s2u(size_t size) {
 	assert(size > 0);
-	if (likely(size <= LOOKUP_MAXCLASS))
+	if (likely(size <= LOOKUP_MAXCLASS)) {
 		return (s2u_lookup(size));
+	}
 	return (s2u_compute(size));
 }
 
@@ -767,8 +761,7 @@ s2u(size_t size)
  * specified size and alignment.
  */
 JEMALLOC_ALWAYS_INLINE size_t
-sa2u(size_t size, size_t alignment)
-{
+sa2u(size_t size, size_t alignment) {
 	size_t usize;
 
 	assert(alignment != 0 && ((alignment - 1) & alignment) == 0);
@@ -790,19 +783,21 @@ sa2u(size_t size, size_t alignment)
 		 *    192 | 11000000 |  64
 		 */
 		usize = s2u(ALIGNMENT_CEILING(size, alignment));
-		if (usize < LARGE_MINCLASS)
+		if (usize < LARGE_MINCLASS) {
 			return (usize);
+		}
 	}
 
 	/* Large size class.  Beware of overflow. */
 
-	if (unlikely(alignment > LARGE_MAXCLASS))
+	if (unlikely(alignment > LARGE_MAXCLASS)) {
 		return (0);
+	}
 
 	/* Make sure result is a large size class. */
-	if (size <= LARGE_MINCLASS)
+	if (size <= LARGE_MINCLASS) {
 		usize = LARGE_MINCLASS;
-	else {
+	} else {
 		usize = s2u(size);
 		if (usize < size) {
 			/* size_t overflow. */
@@ -823,35 +818,33 @@ sa2u(size_t size, size_t alignment)
 
 /* Choose an arena based on a per-thread value. */
 JEMALLOC_INLINE arena_t *
-arena_choose_impl(tsd_t *tsd, arena_t *arena, bool internal)
-{
+arena_choose_impl(tsd_t *tsd, arena_t *arena, bool internal) {
 	arena_t *ret;
 
-	if (arena != NULL)
+	if (arena != NULL) {
 		return (arena);
+	}
 
 	ret = internal ? tsd_iarena_get(tsd) : tsd_arena_get(tsd);
-	if (unlikely(ret == NULL))
+	if (unlikely(ret == NULL)) {
 		ret = arena_choose_hard(tsd, internal);
+	}
 
 	return (ret);
 }
 
 JEMALLOC_INLINE arena_t *
-arena_choose(tsd_t *tsd, arena_t *arena)
-{
+arena_choose(tsd_t *tsd, arena_t *arena) {
 	return (arena_choose_impl(tsd, arena, false));
 }
 
 JEMALLOC_INLINE arena_t *
-arena_ichoose(tsd_t *tsd, arena_t *arena)
-{
+arena_ichoose(tsd_t *tsd, arena_t *arena) {
 	return (arena_choose_impl(tsd, arena, true));
 }
 
 JEMALLOC_INLINE arena_tdata_t *
-arena_tdata_get(tsd_t *tsd, unsigned ind, bool refresh_if_missing)
-{
+arena_tdata_get(tsd_t *tsd, unsigned ind, bool refresh_if_missing) {
 	arena_tdata_t *tdata;
 	arena_tdata_t *arenas_tdata = tsd_arenas_tdata_get(tsd);
 
@@ -869,14 +862,14 @@ arena_tdata_get(tsd_t *tsd, unsigned ind, bool refresh_if_missing)
 	}
 
 	tdata = &arenas_tdata[ind];
-	if (likely(tdata != NULL) || !refresh_if_missing)
+	if (likely(tdata != NULL) || !refresh_if_missing) {
 		return (tdata);
+	}
 	return (arena_tdata_get_hard(tsd, ind));
 }
 
 JEMALLOC_INLINE arena_t *
-arena_get(tsdn_t *tsdn, unsigned ind, bool init_if_missing)
-{
+arena_get(tsdn_t *tsdn, unsigned ind, bool init_if_missing) {
 	arena_t *ret;
 
 	assert(ind <= MALLOCX_ARENA_MAX);
@@ -893,13 +886,13 @@ arena_get(tsdn_t *tsdn, unsigned ind, bool init_if_missing)
 }
 
 JEMALLOC_INLINE ticker_t *
-decay_ticker_get(tsd_t *tsd, unsigned ind)
-{
+decay_ticker_get(tsd_t *tsd, unsigned ind) {
 	arena_tdata_t *tdata;
 
 	tdata = arena_tdata_get(tsd, ind, true);
-	if (unlikely(tdata == NULL))
+	if (unlikely(tdata == NULL)) {
 		return (NULL);
+	}
 	return (&tdata->decay_ticker);
 }
 #endif
@@ -917,8 +910,7 @@ extent_t	*iealloc(tsdn_t *tsdn, const void *ptr);
 
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_C_))
 JEMALLOC_ALWAYS_INLINE extent_t *
-iealloc(tsdn_t *tsdn, const void *ptr)
-{
+iealloc(tsdn_t *tsdn, const void *ptr) {
 	return (extent_lookup(tsdn, ptr, true));
 }
 #endif
@@ -958,8 +950,7 @@ bool	ixalloc(tsdn_t *tsdn, extent_t *extent, void *ptr, size_t oldsize,
 
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_C_))
 JEMALLOC_ALWAYS_INLINE arena_t *
-iaalloc(tsdn_t *tsdn, const void *ptr)
-{
+iaalloc(tsdn_t *tsdn, const void *ptr) {
 	assert(ptr != NULL);
 
 	return (arena_aalloc(tsdn, ptr));
@@ -973,8 +964,7 @@ iaalloc(tsdn_t *tsdn, const void *ptr)
  *   size_t sz = isalloc(tsdn, extent, ptr);
  */
 JEMALLOC_ALWAYS_INLINE size_t
-isalloc(tsdn_t *tsdn, const extent_t *extent, const void *ptr)
-{
+isalloc(tsdn_t *tsdn, const extent_t *extent, const void *ptr) {
 	assert(ptr != NULL);
 
 	return (arena_salloc(tsdn, extent, ptr));
@@ -982,8 +972,7 @@ isalloc(tsdn_t *tsdn, const extent_t *extent, const void *ptr)
 
 JEMALLOC_ALWAYS_INLINE void *
 iallocztm(tsdn_t *tsdn, size_t size, szind_t ind, bool zero, tcache_t *tcache,
-    bool is_internal, arena_t *arena, bool slow_path)
-{
+    bool is_internal, arena_t *arena, bool slow_path) {
 	void *ret;
 
 	assert(size != 0);
@@ -1000,16 +989,14 @@ iallocztm(tsdn_t *tsdn, size_t size, szind_t ind, bool zero, tcache_t *tcache,
 }
 
 JEMALLOC_ALWAYS_INLINE void *
-ialloc(tsd_t *tsd, size_t size, szind_t ind, bool zero, bool slow_path)
-{
+ialloc(tsd_t *tsd, size_t size, szind_t ind, bool zero, bool slow_path) {
 	return (iallocztm(tsd_tsdn(tsd), size, ind, zero, tcache_get(tsd, true),
 	    false, NULL, slow_path));
 }
 
 JEMALLOC_ALWAYS_INLINE void *
 ipallocztm(tsdn_t *tsdn, size_t usize, size_t alignment, bool zero,
-    tcache_t *tcache, bool is_internal, arena_t *arena)
-{
+    tcache_t *tcache, bool is_internal, arena_t *arena) {
 	void *ret;
 
 	assert(usize != 0);
@@ -1029,21 +1016,18 @@ ipallocztm(tsdn_t *tsdn, size_t usize, size_t alignment, bool zero,
 
 JEMALLOC_ALWAYS_INLINE void *
 ipalloct(tsdn_t *tsdn, size_t usize, size_t alignment, bool zero,
-    tcache_t *tcache, arena_t *arena)
-{
+    tcache_t *tcache, arena_t *arena) {
 	return (ipallocztm(tsdn, usize, alignment, zero, tcache, false, arena));
 }
 
 JEMALLOC_ALWAYS_INLINE void *
-ipalloc(tsd_t *tsd, size_t usize, size_t alignment, bool zero)
-{
+ipalloc(tsd_t *tsd, size_t usize, size_t alignment, bool zero) {
 	return (ipallocztm(tsd_tsdn(tsd), usize, alignment, zero,
 	    tcache_get(tsd, true), false, NULL));
 }
 
 JEMALLOC_ALWAYS_INLINE size_t
-ivsalloc(tsdn_t *tsdn, const void *ptr)
-{
+ivsalloc(tsdn_t *tsdn, const void *ptr) {
 	extent_t *extent;
 
 	/*
@@ -1055,8 +1039,9 @@ ivsalloc(tsdn_t *tsdn, const void *ptr)
 	 *   failure.
 	 * */
 	extent = extent_lookup(tsdn, ptr, false);
-	if (extent == NULL)
+	if (extent == NULL) {
 		return (0);
+	}
 	assert(extent_active_get(extent));
 	/* Only slab members should be looked up via interior pointers. */
 	assert(extent_addr_get(extent) == ptr || extent_slab_get(extent));
@@ -1066,8 +1051,7 @@ ivsalloc(tsdn_t *tsdn, const void *ptr)
 
 JEMALLOC_ALWAYS_INLINE void
 idalloctm(tsdn_t *tsdn, extent_t *extent, void *ptr, tcache_t *tcache,
-    bool is_internal, bool slow_path)
-{
+    bool is_internal, bool slow_path) {
 	assert(ptr != NULL);
 	assert(!is_internal || tcache == NULL);
 	assert(!is_internal || arena_ind_get(iaalloc(tsdn, ptr)) <
@@ -1081,41 +1065,42 @@ idalloctm(tsdn_t *tsdn, extent_t *extent, void *ptr, tcache_t *tcache,
 }
 
 JEMALLOC_ALWAYS_INLINE void
-idalloc(tsd_t *tsd, extent_t *extent, void *ptr)
-{
+idalloc(tsd_t *tsd, extent_t *extent, void *ptr) {
 	idalloctm(tsd_tsdn(tsd), extent, ptr, tcache_get(tsd, false), false,
 	    true);
 }
 
 JEMALLOC_ALWAYS_INLINE void
 isdalloct(tsdn_t *tsdn, extent_t *extent, void *ptr, size_t size,
-    tcache_t *tcache, bool slow_path)
-{
+    tcache_t *tcache, bool slow_path) {
 	arena_sdalloc(tsdn, extent, ptr, size, tcache, slow_path);
 }
 
 JEMALLOC_ALWAYS_INLINE void *
 iralloct_realign(tsdn_t *tsdn, extent_t *extent, void *ptr, size_t oldsize,
     size_t size, size_t extra, size_t alignment, bool zero, tcache_t *tcache,
-    arena_t *arena)
-{
+    arena_t *arena) {
 	void *p;
 	size_t usize, copysize;
 
 	usize = sa2u(size + extra, alignment);
-	if (unlikely(usize == 0 || usize > LARGE_MAXCLASS))
+	if (unlikely(usize == 0 || usize > LARGE_MAXCLASS)) {
 		return (NULL);
+	}
 	p = ipalloct(tsdn, usize, alignment, zero, tcache, arena);
 	if (p == NULL) {
-		if (extra == 0)
+		if (extra == 0) {
 			return (NULL);
+		}
 		/* Try again, without extra this time. */
 		usize = sa2u(size, alignment);
-		if (unlikely(usize == 0 || usize > LARGE_MAXCLASS))
+		if (unlikely(usize == 0 || usize > LARGE_MAXCLASS)) {
 			return (NULL);
+		}
 		p = ipalloct(tsdn, usize, alignment, zero, tcache, arena);
-		if (p == NULL)
+		if (p == NULL) {
 			return (NULL);
+		}
 	}
 	/*
 	 * Copy at most size bytes (not size+extra), since the caller has no
@@ -1129,8 +1114,7 @@ iralloct_realign(tsdn_t *tsdn, extent_t *extent, void *ptr, size_t oldsize,
 
 JEMALLOC_ALWAYS_INLINE void *
 iralloct(tsdn_t *tsdn, extent_t *extent, void *ptr, size_t oldsize, size_t size,
-    size_t alignment, bool zero, tcache_t *tcache, arena_t *arena)
-{
+    size_t alignment, bool zero, tcache_t *tcache, arena_t *arena) {
 	assert(ptr != NULL);
 	assert(size != 0);
 
@@ -1150,16 +1134,14 @@ iralloct(tsdn_t *tsdn, extent_t *extent, void *ptr, size_t oldsize, size_t size,
 
 JEMALLOC_ALWAYS_INLINE void *
 iralloc(tsd_t *tsd, extent_t *extent, void *ptr, size_t oldsize, size_t size,
-    size_t alignment, bool zero)
-{
+    size_t alignment, bool zero) {
 	return (iralloct(tsd_tsdn(tsd), extent, ptr, oldsize, size, alignment,
 	    zero, tcache_get(tsd, true), NULL));
 }
 
 JEMALLOC_ALWAYS_INLINE bool
 ixalloc(tsdn_t *tsdn, extent_t *extent, void *ptr, size_t oldsize, size_t size,
-    size_t extra, size_t alignment, bool zero)
-{
+    size_t extra, size_t alignment, bool zero) {
 	assert(ptr != NULL);
 	assert(size != 0);
 

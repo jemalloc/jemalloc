@@ -20,8 +20,7 @@ const char *malloc_conf = "decay_time:-1";
 #define	NSLABS	8
 
 static unsigned
-binind_compute(void)
-{
+binind_compute(void) {
 	size_t sz;
 	unsigned nbins, i;
 
@@ -41,8 +40,9 @@ binind_compute(void)
 		sz = sizeof(size);
 		assert_d_eq(mallctlbymib(mib, miblen, (void *)&size, &sz, NULL,
 		    0), 0, "Unexpected mallctlbymib failure");
-		if (size == SZ)
+		if (size == SZ) {
 			return (i);
+		}
 	}
 
 	test_fail("Unable to compute nregs_per_run");
@@ -50,8 +50,7 @@ binind_compute(void)
 }
 
 static size_t
-nregs_per_run_compute(void)
-{
+nregs_per_run_compute(void) {
 	uint32_t nregs;
 	size_t sz;
 	unsigned binind = binind_compute();
@@ -68,8 +67,7 @@ nregs_per_run_compute(void)
 }
 
 static unsigned
-arenas_create_mallctl(void)
-{
+arenas_create_mallctl(void) {
 	unsigned arena_ind;
 	size_t sz;
 
@@ -81,8 +79,7 @@ arenas_create_mallctl(void)
 }
 
 static void
-arena_reset_mallctl(unsigned arena_ind)
-{
+arena_reset_mallctl(unsigned arena_ind) {
 	size_t mib[3];
 	size_t miblen = sizeof(mib)/sizeof(size_t);
 
@@ -93,8 +90,7 @@ arena_reset_mallctl(unsigned arena_ind)
 	    "Unexpected mallctlbymib() failure");
 }
 
-TEST_BEGIN(test_pack)
-{
+TEST_BEGIN(test_pack) {
 	unsigned arena_ind = arenas_create_mallctl();
 	size_t nregs_per_run = nregs_per_run_compute();
 	size_t nregs = nregs_per_run * NSLABS;
@@ -125,8 +121,9 @@ TEST_BEGIN(test_pack)
 	    i++, offset = (offset + 1) % nregs_per_run) {
 		for (j = 0; j < nregs_per_run; j++) {
 			void *p = ptrs[(i * nregs_per_run) + j];
-			if (offset == j)
+			if (offset == j) {
 				continue;
+			}
 			dallocx(p, MALLOCX_ARENA(arena_ind) |
 			    MALLOCX_TCACHE_NONE);
 		}
@@ -143,8 +140,9 @@ TEST_BEGIN(test_pack)
 		for (j = 0; j < nregs_per_run; j++) {
 			void *p;
 
-			if (offset == j)
+			if (offset == j) {
 				continue;
+			}
 			p = mallocx(SZ, MALLOCX_ARENA(arena_ind) |
 			    MALLOCX_TCACHE_NONE);
 			assert_ptr_eq(p, ptrs[(i * nregs_per_run) + j],
@@ -159,8 +157,7 @@ TEST_BEGIN(test_pack)
 TEST_END
 
 int
-main(void)
-{
+main(void) {
 	return (test(
 	    test_pack));
 }
