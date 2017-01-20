@@ -1,4 +1,4 @@
-#define	JEMALLOC_PAGES_C_
+#define JEMALLOC_PAGES_C_
 #include "jemalloc/internal/jemalloc_internal.h"
 
 #ifdef JEMALLOC_SYSCTL_VM_OVERCOMMIT

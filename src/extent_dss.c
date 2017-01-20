@@ -1,4 +1,4 @@
-#define	JEMALLOC_EXTENT_DSS_C_
+#define JEMALLOC_EXTENT_DSS_C_
 #include "jemalloc/internal/jemalloc_internal.h"
 /******************************************************************************/
 /* Data. */

@@ -1,4 +1,4 @@
-#define	JEMALLOC_MUTEX_C_
+#define JEMALLOC_MUTEX_C_
 #include "jemalloc/internal/jemalloc_internal.h"
 
 #if defined(JEMALLOC_LAZY_LOCK) && !defined(_WIN32)
@@ -6,7 +6,7 @@
 #endif
 
 #ifndef _CRT_SPINCOUNT
-#define	_CRT_SPINCOUNT 4000
+#define _CRT_SPINCOUNT 4000
 #endif
 
 /******************************************************************************/

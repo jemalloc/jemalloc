@@ -1,6 +1,6 @@
 #include "test/jemalloc_test.h"
 
-#define	NBITS_TAB \
+#define NBITS_TAB \
     NB( 1) \
     NB( 2) \
     NB( 3) \
@@ -124,7 +124,7 @@ test_bitmap_initializer_body(const bitmap_info_t *binfo, size_t nbits) {
 }
 
 TEST_BEGIN(test_bitmap_initializer) {
-#define	NB(nbits) {							\
+#define NB(nbits) {							\
 		if (nbits <= BITMAP_MAXBITS) {				\
 			bitmap_info_t binfo =				\
 			    BITMAP_INFO_INITIALIZER(nbits);		\
@@ -155,7 +155,7 @@ TEST_BEGIN(test_bitmap_size) {
 		bitmap_info_init(&binfo, nbits);
 		prev_size = test_bitmap_size_body(&binfo, nbits, prev_size);
 	}
-#define	NB(nbits) {							\
+#define NB(nbits) {							\
 		bitmap_info_t binfo = BITMAP_INFO_INITIALIZER(nbits);	\
 		prev_size = test_bitmap_size_body(&binfo, nbits,	\
 		    prev_size);						\
@@ -188,7 +188,7 @@ TEST_BEGIN(test_bitmap_init) {
 		bitmap_info_init(&binfo, nbits);
 		test_bitmap_init_body(&binfo, nbits);
 	}
-#define	NB(nbits) {							\
+#define NB(nbits) {							\
 		bitmap_info_t binfo = BITMAP_INFO_INITIALIZER(nbits);	\
 		test_bitmap_init_body(&binfo, nbits);			\
 	}
@@ -219,7 +219,7 @@ TEST_BEGIN(test_bitmap_set) {
 		bitmap_info_init(&binfo, nbits);
 		test_bitmap_set_body(&binfo, nbits);
 	}
-#define	NB(nbits) {							\
+#define NB(nbits) {							\
 		bitmap_info_t binfo = BITMAP_INFO_INITIALIZER(nbits);	\
 		test_bitmap_set_body(&binfo, nbits);			\
 	}
@@ -257,7 +257,7 @@ TEST_BEGIN(test_bitmap_unset) {
 		bitmap_info_init(&binfo, nbits);
 		test_bitmap_unset_body(&binfo, nbits);
 	}
-#define	NB(nbits) {							\
+#define NB(nbits) {							\
 		bitmap_info_t binfo = BITMAP_INFO_INITIALIZER(nbits);	\
 		test_bitmap_unset_body(&binfo, nbits);			\
 	}
@@ -318,7 +318,7 @@ TEST_BEGIN(test_bitmap_sfu) {
 		bitmap_info_init(&binfo, nbits);
 		test_bitmap_sfu_body(&binfo, nbits);
 	}
-#define	NB(nbits) {							\
+#define NB(nbits) {							\
 		bitmap_info_t binfo = BITMAP_INFO_INITIALIZER(nbits);	\
 		test_bitmap_sfu_body(&binfo, nbits);			\
 	}

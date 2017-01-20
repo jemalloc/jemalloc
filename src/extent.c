@@ -1,4 +1,4 @@
-#define	JEMALLOC_EXTENT_C_
+#define JEMALLOC_EXTENT_C_
 #include "jemalloc/internal/jemalloc_internal.h"
 
 /******************************************************************************/
@@ -118,7 +118,7 @@ extent_hooks_assure_initialized(arena_t *arena,
 
 #ifdef JEMALLOC_JET
 #undef extent_size_quantize_floor
-#define	extent_size_quantize_floor JEMALLOC_N(n_extent_size_quantize_floor)
+#define extent_size_quantize_floor JEMALLOC_N(n_extent_size_quantize_floor)
 #endif
 size_t
 extent_size_quantize_floor(size_t size) {
@@ -147,14 +147,14 @@ extent_size_quantize_floor(size_t size) {
 }
 #ifdef JEMALLOC_JET
 #undef extent_size_quantize_floor
-#define	extent_size_quantize_floor JEMALLOC_N(extent_size_quantize_floor)
+#define extent_size_quantize_floor JEMALLOC_N(extent_size_quantize_floor)
 extent_size_quantize_t *extent_size_quantize_floor =
     JEMALLOC_N(n_extent_size_quantize_floor);
 #endif
 
 #ifdef JEMALLOC_JET
 #undef extent_size_quantize_ceil
-#define	extent_size_quantize_ceil JEMALLOC_N(n_extent_size_quantize_ceil)
+#define extent_size_quantize_ceil JEMALLOC_N(n_extent_size_quantize_ceil)
 #endif
 size_t
 extent_size_quantize_ceil(size_t size) {
@@ -180,7 +180,7 @@ extent_size_quantize_ceil(size_t size) {
 }
 #ifdef JEMALLOC_JET
 #undef extent_size_quantize_ceil
-#define	extent_size_quantize_ceil JEMALLOC_N(extent_size_quantize_ceil)
+#define extent_size_quantize_ceil JEMALLOC_N(extent_size_quantize_ceil)
 extent_size_quantize_t *extent_size_quantize_ceil =
     JEMALLOC_N(n_extent_size_quantize_ceil);
 #endif

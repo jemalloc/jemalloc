@@ -135,11 +135,11 @@ TEST_BEGIN(test_prof_reset_cleanup) {
 }
 TEST_END
 
-#define	NTHREADS		4
-#define	NALLOCS_PER_THREAD	(1U << 13)
-#define	OBJ_RING_BUF_COUNT	1531
-#define	RESET_INTERVAL		(1U << 10)
-#define	DUMP_INTERVAL		3677
+#define NTHREADS		4
+#define NALLOCS_PER_THREAD	(1U << 13)
+#define OBJ_RING_BUF_COUNT	1531
+#define RESET_INTERVAL		(1U << 10)
+#define DUMP_INTERVAL		3677
 static void *
 thd_start(void *varg) {
 	unsigned thd_ind = *(unsigned *)varg;
@@ -228,7 +228,7 @@ TEST_END
 #undef DUMP_INTERVAL
 
 /* Test sampling at the same allocation site across resets. */
-#define	NITER 10
+#define NITER 10
 TEST_BEGIN(test_xallocx) {
 	size_t lg_prof_sample_orig;
 	unsigned i;

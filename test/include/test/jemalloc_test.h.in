@@ -123,7 +123,7 @@ static const bool config_debug =
 #include "test/test.h"
 #include "test/timer.h"
 #include "test/thd.h"
-#define	MEXP 19937
+#define MEXP 19937
 #include "test/SFMT.h"
 
 /******************************************************************************/
@@ -136,7 +136,7 @@ static const bool config_debug =
 #undef not_implemented
 #undef assert_not_implemented
 
-#define	assert(e) do {							\
+#define assert(e) do {							\
 	if (!(e)) {							\
 		malloc_printf(						\
 		    "<jemalloc>: %s:%d: Failed assertion: \"%s\"\n",	\
@@ -145,20 +145,20 @@ static const bool config_debug =
 	}								\
 } while (0)
 
-#define	not_reached() do {						\
+#define not_reached() do {						\
 	malloc_printf(							\
 	    "<jemalloc>: %s:%d: Unreachable code reached\n",		\
 	    __FILE__, __LINE__);					\
 	abort();							\
 } while (0)
 
-#define	not_implemented() do {						\
+#define not_implemented() do {						\
 	malloc_printf("<jemalloc>: %s:%d: Not implemented\n",		\
 	    __FILE__, __LINE__);					\
 	abort();							\
 } while (0)
 
-#define	assert_not_implemented(e) do {					\
+#define assert_not_implemented(e) do {					\
 	if (!(e)) {							\
 		not_implemented();					\
 	}								\

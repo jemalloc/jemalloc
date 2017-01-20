@@ -1,4 +1,4 @@
-#define	JEMALLOC_TSD_C_
+#define JEMALLOC_TSD_C_
 #include "jemalloc/internal/jemalloc_internal.h"
 
 /******************************************************************************/
@@ -69,10 +69,10 @@ tsd_cleanup(void *arg) {
 		/* Do nothing. */
 		break;
 	case tsd_state_nominal:
-#define	MALLOC_TSD_cleanup_yes(n, t)					\
+#define MALLOC_TSD_cleanup_yes(n, t)					\
 		n##_cleanup(tsd);
-#define	MALLOC_TSD_cleanup_no(n, t)
-#define	O(n, t, c)							\
+#define MALLOC_TSD_cleanup_no(n, t)
+#define O(n, t, c)							\
 		MALLOC_TSD_cleanup_##c(n, t)
 MALLOC_TSD
 #undef MALLOC_TSD_cleanup_yes

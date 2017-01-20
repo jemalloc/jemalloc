@@ -1,4 +1,4 @@
-#define	JEMALLOC_ARENA_C_
+#define JEMALLOC_ARENA_C_
 #include "jemalloc/internal/jemalloc_internal.h"
 
 /******************************************************************************/
@@ -8,10 +8,10 @@ ssize_t		opt_decay_time = DECAY_TIME_DEFAULT;
 static ssize_t	decay_time_default;
 
 const arena_bin_info_t	arena_bin_info[NBINS] = {
-#define	BIN_INFO_bin_yes(reg_size, slab_size, nregs)			\
+#define BIN_INFO_bin_yes(reg_size, slab_size, nregs)			\
 	{reg_size, slab_size, nregs, BITMAP_INFO_INITIALIZER(nregs)},
-#define	BIN_INFO_bin_no(reg_size, slab_size, nregs)
-#define	SC(index, lg_grp, lg_delta, ndelta, psz, bin, pgs,		\
+#define BIN_INFO_bin_no(reg_size, slab_size, nregs)
+#define SC(index, lg_grp, lg_delta, ndelta, psz, bin, pgs,		\
     lg_delta_lookup)							\
 	BIN_INFO_bin_##bin((1U<<lg_grp) + (ndelta<<lg_delta),		\
 	    (pgs << LG_PAGE), (pgs << LG_PAGE) / ((1U<<lg_grp) +	\
@@ -142,13 +142,13 @@ arena_slab_regind(extent_t *slab, szind_t binind, const void *ptr) {
 	/* Avoid doing division with a variable divisor. */
 	diff = (size_t)((uintptr_t)ptr - (uintptr_t)extent_addr_get(slab));
 	switch (binind) {
-#define	REGIND_bin_yes(index, reg_size)					\
+#define REGIND_bin_yes(index, reg_size)					\
 	case index:							\
 		regind = diff / (reg_size);				\
 		assert(diff == regind * (reg_size));			\
 		break;
-#define	REGIND_bin_no(index, reg_size)
-#define	SC(index, lg_grp, lg_delta, ndelta, psz, bin, pgs,		\
+#define REGIND_bin_no(index, reg_size)
+#define SC(index, lg_grp, lg_delta, ndelta, psz, bin, pgs,		\
     lg_delta_lookup)							\
 	REGIND_bin_##bin(index, (1U<<lg_grp) + (ndelta<<lg_delta))
 	SIZE_CLASSES
@@ -389,7 +389,7 @@ arena_decay_deadline_reached(const arena_t *arena, const nstime_t *time) {
 static size_t
 arena_decay_backlog_npages_limit(const arena_t *arena) {
 	static const uint64_t h_steps[] = {
-#define	STEP(step, h, x, y) \
+#define STEP(step, h, x, y) \
 		h,
 		SMOOTHSTEP
 #undef STEP
@@ -1138,7 +1138,7 @@ arena_alloc_junk_small(void *ptr, const arena_bin_info_t *bin_info, bool zero) {
 
 #ifdef JEMALLOC_JET
 #undef arena_dalloc_junk_small
-#define	arena_dalloc_junk_small JEMALLOC_N(n_arena_dalloc_junk_small)
+#define arena_dalloc_junk_small JEMALLOC_N(n_arena_dalloc_junk_small)
 #endif
 void
 arena_dalloc_junk_small(void *ptr, const arena_bin_info_t *bin_info) {
@@ -1146,7 +1146,7 @@ arena_dalloc_junk_small(void *ptr, const arena_bin_info_t *bin_info) {
 }
 #ifdef JEMALLOC_JET
 #undef arena_dalloc_junk_small
-#define	arena_dalloc_junk_small JEMALLOC_N(arena_dalloc_junk_small)
+#define arena_dalloc_junk_small JEMALLOC_N(arena_dalloc_junk_small)
 arena_dalloc_junk_small_t *arena_dalloc_junk_small =
     JEMALLOC_N(n_arena_dalloc_junk_small);
 #endif

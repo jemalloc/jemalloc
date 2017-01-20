@@ -1,5 +1,5 @@
 #ifndef JEMALLOC_INTERNAL_DEFS_H_
-#define	JEMALLOC_INTERNAL_DEFS_H_
+#define JEMALLOC_INTERNAL_DEFS_H_
 /*
  * If JEMALLOC_PREFIX is defined via --with-jemalloc-prefix, it will cause all
  * public APIs to be prefixed.  This makes it possible, with some care, to use

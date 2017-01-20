@@ -1,6 +1,6 @@
 #include "test/jemalloc_test.h"
 
-#define	NTHREADS 10
+#define NTHREADS 10
 
 static bool have_dss =
 #ifdef JEMALLOC_DSS

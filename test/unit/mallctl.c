@@ -115,7 +115,7 @@ TEST_BEGIN(test_mallctlnametomib_short_mib) {
 TEST_END
 
 TEST_BEGIN(test_mallctl_config) {
-#define	TEST_MALLCTL_CONFIG(config, t) do {				\
+#define TEST_MALLCTL_CONFIG(config, t) do {				\
 	t oldval;							\
 	size_t sz = sizeof(oldval);					\
 	assert_d_eq(mallctl("config."#config, (void *)&oldval, &sz,	\
@@ -146,7 +146,7 @@ TEST_END
 TEST_BEGIN(test_mallctl_opt) {
 	bool config_always = true;
 
-#define	TEST_MALLCTL_OPT(t, opt, config) do {				\
+#define TEST_MALLCTL_OPT(t, opt, config) do {				\
 	t oldval;							\
 	size_t sz = sizeof(oldval);					\
 	int expected = config_##config ? 0 : ENOENT;			\
@@ -232,7 +232,7 @@ TEST_BEGIN(test_tcache_none) {
 TEST_END
 
 TEST_BEGIN(test_tcache) {
-#define	NTCACHES	10
+#define NTCACHES	10
 	unsigned tis[NTCACHES];
 	void *ps[NTCACHES];
 	void *qs[NTCACHES];
@@ -534,7 +534,7 @@ TEST_BEGIN(test_arenas_decay_time) {
 TEST_END
 
 TEST_BEGIN(test_arenas_constants) {
-#define	TEST_ARENAS_CONSTANT(t, name, expected) do {			\
+#define TEST_ARENAS_CONSTANT(t, name, expected) do {			\
 	t name;								\
 	size_t sz = sizeof(t);						\
 	assert_d_eq(mallctl("arenas."#name, (void *)&name, &sz, NULL,	\
@@ -552,7 +552,7 @@ TEST_BEGIN(test_arenas_constants) {
 TEST_END
 
 TEST_BEGIN(test_arenas_bin_constants) {
-#define	TEST_ARENAS_BIN_CONSTANT(t, name, expected) do {		\
+#define TEST_ARENAS_BIN_CONSTANT(t, name, expected) do {		\
 	t name;								\
 	size_t sz = sizeof(t);						\
 	assert_d_eq(mallctl("arenas.bin.0."#name, (void *)&name, &sz,	\
@@ -570,7 +570,7 @@ TEST_BEGIN(test_arenas_bin_constants) {
 TEST_END
 
 TEST_BEGIN(test_arenas_lextent_constants) {
-#define	TEST_ARENAS_LEXTENT_CONSTANT(t, name, expected) do {		\
+#define TEST_ARENAS_LEXTENT_CONSTANT(t, name, expected) do {		\
 	t name;								\
 	size_t sz = sizeof(t);						\
 	assert_d_eq(mallctl("arenas.lextent.0."#name, (void *)&name,	\
@@ -602,7 +602,7 @@ TEST_BEGIN(test_arenas_create) {
 TEST_END
 
 TEST_BEGIN(test_stats_arenas) {
-#define	TEST_STATS_ARENAS(t, name) do {					\
+#define TEST_STATS_ARENAS(t, name) do {					\
 	t name;								\
 	size_t sz = sizeof(t);						\
 	assert_d_eq(mallctl("stats.arenas.0."#name, (void *)&name, &sz,	\

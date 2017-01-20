@@ -43,11 +43,11 @@ get_large_size(size_t ind) {
 TEST_BEGIN(test_grow_and_shrink) {
 	void *p, *q;
 	size_t tsz;
-#define	NCYCLES 3
+#define NCYCLES 3
 	unsigned i, j;
-#define	NSZS 1024
+#define NSZS 1024
 	size_t szs[NSZS];
-#define	MAXSZ ZU(12 * 1024 * 1024)
+#define MAXSZ ZU(12 * 1024 * 1024)
 
 	p = mallocx(1, 0);
 	assert_ptr_not_null(p, "Unexpected mallocx() error");
@@ -107,8 +107,8 @@ TEST_BEGIN(test_zero) {
 	void *p, *q;
 	size_t psz, qsz, i, j;
 	size_t start_sizes[] = {1, 3*1024, 63*1024, 4095*1024};
-#define	FILL_BYTE 0xaaU
-#define	RANGE 2048
+#define FILL_BYTE 0xaaU
+#define RANGE 2048
 
 	for (i = 0; i < sizeof(start_sizes)/sizeof(size_t); i++) {
 		size_t start_size = start_sizes[i];
@@ -150,7 +150,7 @@ TEST_END
 TEST_BEGIN(test_align) {
 	void *p, *q;
 	size_t align;
-#define	MAX_ALIGN (ZU(1) << 25)
+#define MAX_ALIGN (ZU(1) << 25)
 
 	align = ZU(1);
 	p = mallocx(1, MALLOCX_ALIGN(align));
@@ -175,8 +175,8 @@ TEST_BEGIN(test_lg_align_and_zero) {
 	void *p, *q;
 	unsigned lg_align;
 	size_t sz;
-#define	MAX_LG_ALIGN 25
-#define	MAX_VALIDATE (ZU(1) << 22)
+#define MAX_LG_ALIGN 25
+#define MAX_VALIDATE (ZU(1) << 22)
 
 	lg_align = 0;
 	p = mallocx(1, MALLOCX_LG_ALIGN(lg_align)|MALLOCX_ZERO);

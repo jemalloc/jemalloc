@@ -82,7 +82,7 @@ do_arena_create(extent_hooks_t *h) {
 
 static void
 do_arena_reset_pre(unsigned arena_ind, void ***ptrs, unsigned *nptrs) {
-#define	NLARGE	32
+#define NLARGE	32
 	unsigned nsmall, nlarge, i;
 	size_t sz;
 	int flags;

@@ -104,7 +104,7 @@ TEST_BEGIN(test_count_insert_search_remove) {
 TEST_END
 
 TEST_BEGIN(test_insert_iter_remove) {
-#define	NITEMS ZU(1000)
+#define NITEMS ZU(1000)
 	tsd_t *tsd;
 	ckh_t ckh;
 	void **p[NITEMS];

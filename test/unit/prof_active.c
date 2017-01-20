@@ -37,7 +37,7 @@ mallctl_prof_active_get_impl(bool prof_active_old_expected, const char *func,
     int line) {
 	mallctl_bool_get("prof.active", prof_active_old_expected, func, line);
 }
-#define	mallctl_prof_active_get(a)					\
+#define mallctl_prof_active_get(a)					\
 	mallctl_prof_active_get_impl(a, __func__, __LINE__)
 
 static void
@@ -46,7 +46,7 @@ mallctl_prof_active_set_impl(bool prof_active_old_expected,
 	mallctl_bool_set("prof.active", prof_active_old_expected,
 	    prof_active_new, func, line);
 }
-#define	mallctl_prof_active_set(a, b)					\
+#define mallctl_prof_active_set(a, b)					\
 	mallctl_prof_active_set_impl(a, b, __func__, __LINE__)
 
 static void
@@ -55,7 +55,7 @@ mallctl_thread_prof_active_get_impl(bool thread_prof_active_old_expected,
 	mallctl_bool_get("thread.prof.active", thread_prof_active_old_expected,
 	    func, line);
 }
-#define	mallctl_thread_prof_active_get(a)				\
+#define mallctl_thread_prof_active_get(a)				\
 	mallctl_thread_prof_active_get_impl(a, __func__, __LINE__)
 
 static void
@@ -64,7 +64,7 @@ mallctl_thread_prof_active_set_impl(bool thread_prof_active_old_expected,
 	mallctl_bool_set("thread.prof.active", thread_prof_active_old_expected,
 	    thread_prof_active_new, func, line);
 }
-#define	mallctl_thread_prof_active_set(a, b)				\
+#define mallctl_thread_prof_active_set(a, b)				\
 	mallctl_thread_prof_active_set_impl(a, b, __func__, __LINE__)
 
 static void
@@ -80,7 +80,7 @@ prof_sampling_probe_impl(bool expect_sample, const char *func, int line) {
 	    "%s():%d: Unexpected backtrace count", func, line);
 	dallocx(p, 0);
 }
-#define	prof_sampling_probe(a)						\
+#define prof_sampling_probe(a)						\
 	prof_sampling_probe_impl(a, __func__, __LINE__)
 
 TEST_BEGIN(test_prof_active) {

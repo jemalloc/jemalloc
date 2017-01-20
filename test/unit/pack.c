@@ -7,9 +7,9 @@ const char *malloc_conf = "decay_time:-1";
  * Size class that is a divisor of the page size, ideally 4+ regions per run.
  */
 #if LG_PAGE <= 14
-#define	SZ	(ZU(1) << (LG_PAGE - 2))
+#define SZ	(ZU(1) << (LG_PAGE - 2))
 #else
-#define	SZ	4096
+#define SZ	4096
 #endif
 
 /*
@@ -17,7 +17,7 @@ const char *malloc_conf = "decay_time:-1";
  * if mmap()ed memory grows downward, downward growth of mmap()ed memory is
  * tested.
  */
-#define	NSLABS	8
+#define NSLABS	8
 
 static unsigned
 binind_compute(void) {

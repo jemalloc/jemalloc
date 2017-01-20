@@ -150,7 +150,7 @@ size_classes() {
   pow2 $((${lg_z} + 3)); ptr_bits=${pow2_result}
   pow2 ${lg_g}; g=${pow2_result}
 
-  echo "#define	SIZE_CLASSES \\"
+  echo "#define SIZE_CLASSES \\"
   echo "  /* index, lg_grp, lg_delta, ndelta, psz, bin, pgs, lg_delta_lookup */ \\"
 
   ntbins=0
@@ -294,7 +294,7 @@ cat <<EOF
  *   LARGE_MAXCLASS: Maximum (large) size class.
  */
 
-#define	LG_SIZE_CLASS_GROUP	${lg_g}
+#define LG_SIZE_CLASS_GROUP	${lg_g}
 
 EOF
 
@@ -306,17 +306,17 @@ for lg_z in ${lg_zarr} ; do
       for lg_p in ${lg_parr} ; do
         echo "#if (LG_SIZEOF_PTR == ${lg_z} && LG_TINY_MIN == ${lg_t} && LG_QUANTUM == ${lg_q} && LG_PAGE == ${lg_p})"
         size_classes ${lg_z} ${lg_q} ${lg_t} ${lg_p} ${lg_g}
-        echo "#define	SIZE_CLASSES_DEFINED"
-        echo "#define	NTBINS			${ntbins}"
-        echo "#define	NLBINS			${nlbins}"
-        echo "#define	NBINS			${nbins}"
-        echo "#define	NSIZES			${nsizes}"
-        echo "#define	NPSIZES			${npsizes}"
-        echo "#define	LG_TINY_MAXCLASS	${lg_tiny_maxclass}"
-        echo "#define	LOOKUP_MAXCLASS		${lookup_maxclass}"
-        echo "#define	SMALL_MAXCLASS		${small_maxclass}"
-        echo "#define	LG_LARGE_MINCLASS	${lg_large_minclass}"
-        echo "#define	LARGE_MAXCLASS		${large_maxclass}"
+        echo "#define SIZE_CLASSES_DEFINED"
+        echo "#define NTBINS			${ntbins}"
+        echo "#define NLBINS			${nlbins}"
+        echo "#define NBINS			${nbins}"
+        echo "#define NSIZES			${nsizes}"
+        echo "#define NPSIZES			${npsizes}"
+        echo "#define LG_TINY_MAXCLASS	${lg_tiny_maxclass}"
+        echo "#define LOOKUP_MAXCLASS		${lookup_maxclass}"
+        echo "#define SMALL_MAXCLASS		${small_maxclass}"
+        echo "#define LG_LARGE_MINCLASS	${lg_large_minclass}"
+        echo "#define LARGE_MAXCLASS		${large_maxclass}"
         echo "#endif"
         echo
       done

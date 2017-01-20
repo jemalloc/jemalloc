@@ -2,18 +2,18 @@
 #define JEMALLOC_INTERNAL_BITMAP_TYPES_H
 
 /* Maximum bitmap bit count is 2^LG_BITMAP_MAXBITS. */
-#define	LG_BITMAP_MAXBITS	LG_SLAB_MAXREGS
-#define	BITMAP_MAXBITS		(ZU(1) << LG_BITMAP_MAXBITS)
+#define LG_BITMAP_MAXBITS	LG_SLAB_MAXREGS
+#define BITMAP_MAXBITS		(ZU(1) << LG_BITMAP_MAXBITS)
 
 typedef struct bitmap_level_s bitmap_level_t;
 typedef struct bitmap_info_s bitmap_info_t;
 typedef unsigned long bitmap_t;
-#define	LG_SIZEOF_BITMAP	LG_SIZEOF_LONG
+#define LG_SIZEOF_BITMAP	LG_SIZEOF_LONG
 
 /* Number of bits per group. */
-#define	LG_BITMAP_GROUP_NBITS		(LG_SIZEOF_BITMAP + 3)
-#define	BITMAP_GROUP_NBITS		(1U << LG_BITMAP_GROUP_NBITS)
-#define	BITMAP_GROUP_NBITS_MASK		(BITMAP_GROUP_NBITS-1)
+#define LG_BITMAP_GROUP_NBITS		(LG_SIZEOF_BITMAP + 3)
+#define BITMAP_GROUP_NBITS		(1U << LG_BITMAP_GROUP_NBITS)
+#define BITMAP_GROUP_NBITS_MASK		(BITMAP_GROUP_NBITS-1)
 
 /*
  * Do some analysis on how big the bitmap is before we use a tree.  For a brute
@@ -25,22 +25,22 @@ typedef unsigned long bitmap_t;
 #endif
 
 /* Number of groups required to store a given number of bits. */
-#define	BITMAP_BITS2GROUPS(nbits)					\
+#define BITMAP_BITS2GROUPS(nbits)					\
     (((nbits) + BITMAP_GROUP_NBITS_MASK) >> LG_BITMAP_GROUP_NBITS)
 
 /*
  * Number of groups required at a particular level for a given number of bits.
  */
-#define	BITMAP_GROUPS_L0(nbits)						\
+#define BITMAP_GROUPS_L0(nbits)						\
     BITMAP_BITS2GROUPS(nbits)
-#define	BITMAP_GROUPS_L1(nbits)						\
+#define BITMAP_GROUPS_L1(nbits)						\
     BITMAP_BITS2GROUPS(BITMAP_BITS2GROUPS(nbits))
-#define	BITMAP_GROUPS_L2(nbits)						\
+#define BITMAP_GROUPS_L2(nbits)						\
     BITMAP_BITS2GROUPS(BITMAP_BITS2GROUPS(BITMAP_BITS2GROUPS((nbits))))
-#define	BITMAP_GROUPS_L3(nbits)						\
+#define BITMAP_GROUPS_L3(nbits)						\
     BITMAP_BITS2GROUPS(BITMAP_BITS2GROUPS(BITMAP_BITS2GROUPS(		\
 	BITMAP_BITS2GROUPS((nbits)))))
-#define	BITMAP_GROUPS_L4(nbits)						\
+#define BITMAP_GROUPS_L4(nbits)						\
     BITMAP_BITS2GROUPS(BITMAP_BITS2GROUPS(BITMAP_BITS2GROUPS(		\
 	BITMAP_BITS2GROUPS(BITMAP_BITS2GROUPS((nbits))))))
 
@@ -48,15 +48,15 @@ typedef unsigned long bitmap_t;
  * Assuming the number of levels, number of groups required for a given number
  * of bits.
  */
-#define	BITMAP_GROUPS_1_LEVEL(nbits)					\
+#define BITMAP_GROUPS_1_LEVEL(nbits)					\
     BITMAP_GROUPS_L0(nbits)
-#define	BITMAP_GROUPS_2_LEVEL(nbits)					\
+#define BITMAP_GROUPS_2_LEVEL(nbits)					\
     (BITMAP_GROUPS_1_LEVEL(nbits) + BITMAP_GROUPS_L1(nbits))
-#define	BITMAP_GROUPS_3_LEVEL(nbits)					\
+#define BITMAP_GROUPS_3_LEVEL(nbits)					\
     (BITMAP_GROUPS_2_LEVEL(nbits) + BITMAP_GROUPS_L2(nbits))
-#define	BITMAP_GROUPS_4_LEVEL(nbits)					\
+#define BITMAP_GROUPS_4_LEVEL(nbits)					\
     (BITMAP_GROUPS_3_LEVEL(nbits) + BITMAP_GROUPS_L3(nbits))
-#define	BITMAP_GROUPS_5_LEVEL(nbits)					\
+#define BITMAP_GROUPS_5_LEVEL(nbits)					\
     (BITMAP_GROUPS_4_LEVEL(nbits) + BITMAP_GROUPS_L4(nbits))
 
 /*
@@ -92,9 +92,9 @@ typedef unsigned long bitmap_t;
  * unused trailing entries in bitmap_info_t structures; the bitmaps themselves
  * are not impacted.
  */
-#define	BITMAP_MAX_LEVELS	5
+#define BITMAP_MAX_LEVELS	5
 
-#define	BITMAP_INFO_INITIALIZER(nbits) {				\
+#define BITMAP_INFO_INITIALIZER(nbits) {				\
 	/* nbits. */							\
 	nbits,								\
 	/* nlevels. */							\
@@ -119,9 +119,9 @@ typedef unsigned long bitmap_t;
 
 #else /* BITMAP_USE_TREE */
 
-#define	BITMAP_GROUPS_MAX	BITMAP_BITS2GROUPS(BITMAP_MAXBITS)
+#define BITMAP_GROUPS_MAX	BITMAP_BITS2GROUPS(BITMAP_MAXBITS)
 
-#define	BITMAP_INFO_INITIALIZER(nbits) {				\
+#define BITMAP_INFO_INITIALIZER(nbits) {				\
 	/* nbits. */							\
 	nbits,								\
 	/* ngroups. */							\

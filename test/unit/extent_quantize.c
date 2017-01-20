@@ -99,7 +99,7 @@ TEST_BEGIN(test_large_extent_size) {
 TEST_END
 
 TEST_BEGIN(test_monotonic) {
-#define	SZ_MAX	ZU(4 * 1024 * 1024)
+#define SZ_MAX	ZU(4 * 1024 * 1024)
 	unsigned i;
 	size_t floor_prev, ceil_prev;
 

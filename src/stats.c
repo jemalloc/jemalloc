@@ -1,12 +1,12 @@
-#define	JEMALLOC_STATS_C_
+#define JEMALLOC_STATS_C_
 #include "jemalloc/internal/jemalloc_internal.h"
 
-#define	CTL_GET(n, v, t) do {						\
+#define CTL_GET(n, v, t) do {						\
 	size_t sz = sizeof(t);						\
 	xmallctl(n, (void *)v, &sz, NULL, 0);				\
 } while (0)
 
-#define	CTL_M2_GET(n, i, v, t) do {					\
+#define CTL_M2_GET(n, i, v, t) do {					\
 	size_t mib[6];							\
 	size_t miblen = sizeof(mib) / sizeof(size_t);			\
 	size_t sz = sizeof(t);						\
@@ -15,7 +15,7 @@
 	xmallctlbymib(mib, miblen, (void *)v, &sz, NULL, 0);		\
 } while (0)
 
-#define	CTL_M2_M4_GET(n, i, j, v, t) do {				\
+#define CTL_M2_M4_GET(n, i, j, v, t) do {				\
 	size_t mib[6];							\
 	size_t miblen = sizeof(mib) / sizeof(size_t);			\
 	size_t sz = sizeof(t);						\
@@ -478,7 +478,7 @@ stats_general_print(void (*write_cb)(void *, const char *), void *cbopaque,
 	}
 
 	/* config. */
-#define	CONFIG_WRITE_BOOL_JSON(n, c)					\
+#define CONFIG_WRITE_BOOL_JSON(n, c)					\
 	if (json) {							\
 		CTL_GET("config."#n, &bv, bool);			\
 		malloc_cprintf(write_cb, cbopaque,			\
@@ -531,7 +531,7 @@ stats_general_print(void (*write_cb)(void *, const char *), void *cbopaque,
 #undef CONFIG_WRITE_BOOL_JSON
 
 	/* opt. */
-#define	OPT_WRITE_BOOL(n, c)						\
+#define OPT_WRITE_BOOL(n, c)						\
 	if (je_mallctl("opt."#n, (void *)&bv, &bsz, NULL, 0) == 0) {	\
 		if (json) {						\
 			malloc_cprintf(write_cb, cbopaque,		\
@@ -542,7 +542,7 @@ stats_general_print(void (*write_cb)(void *, const char *), void *cbopaque,
 			    "  opt."#n": %s\n", bv ? "true" : "false");	\
 		}							\
 	}
-#define	OPT_WRITE_BOOL_MUTABLE(n, m, c) {				\
+#define OPT_WRITE_BOOL_MUTABLE(n, m, c) {				\
 	bool bv2;							\
 	if (je_mallctl("opt."#n, (void *)&bv, &bsz, NULL, 0) == 0 &&	\
 	    je_mallctl(#m, (void *)&bv2, &bsz, NULL, 0) == 0) {		\
@@ -557,7 +557,7 @@ stats_general_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		}							\
 	}								\
 }
-#define	OPT_WRITE_UNSIGNED(n, c)					\
+#define OPT_WRITE_UNSIGNED(n, c)					\
 	if (je_mallctl("opt."#n, (void *)&uv, &usz, NULL, 0) == 0) {	\
 		if (json) {						\
 			malloc_cprintf(write_cb, cbopaque,		\
@@ -567,7 +567,7 @@ stats_general_print(void (*write_cb)(void *, const char *), void *cbopaque,
 			"  opt."#n": %u\n", uv);			\
 		}							\
 	}
-#define	OPT_WRITE_SSIZE_T(n, c)						\
+#define OPT_WRITE_SSIZE_T(n, c)						\
 	if (je_mallctl("opt."#n, (void *)&ssv, &sssz, NULL, 0) == 0) {	\
 		if (json) {						\
 			malloc_cprintf(write_cb, cbopaque,		\
@@ -577,7 +577,7 @@ stats_general_print(void (*write_cb)(void *, const char *), void *cbopaque,
 			    "  opt."#n": %zd\n", ssv);			\
 		}							\
 	}
-#define	OPT_WRITE_SSIZE_T_MUTABLE(n, m, c) {				\
+#define OPT_WRITE_SSIZE_T_MUTABLE(n, m, c) {				\
 	ssize_t ssv2;							\
 	if (je_mallctl("opt."#n, (void *)&ssv, &sssz, NULL, 0) == 0 &&	\
 	    je_mallctl(#m, (void *)&ssv2, &sssz, NULL, 0) == 0) {	\
@@ -591,7 +591,7 @@ stats_general_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		}							\
 	}								\
 }
-#define	OPT_WRITE_CHAR_P(n, c)						\
+#define OPT_WRITE_CHAR_P(n, c)						\
 	if (je_mallctl("opt."#n, (void *)&cpv, &cpsz, NULL, 0) == 0) {	\
 		if (json) {						\
 			malloc_cprintf(write_cb, cbopaque,		\

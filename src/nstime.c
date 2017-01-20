@@ -1,6 +1,6 @@
 #include "jemalloc/internal/jemalloc_internal.h"
 
-#define	BILLION	UINT64_C(1000000000)
+#define BILLION	UINT64_C(1000000000)
 
 void
 nstime_init(nstime_t *time, uint64_t ns) {
@@ -122,7 +122,7 @@ nstime_get(nstime_t *time) {
 
 #ifdef JEMALLOC_JET
 #undef nstime_monotonic
-#define	nstime_monotonic JEMALLOC_N(n_nstime_monotonic)
+#define nstime_monotonic JEMALLOC_N(n_nstime_monotonic)
 #endif
 bool
 nstime_monotonic(void) {
@@ -131,13 +131,13 @@ nstime_monotonic(void) {
 }
 #ifdef JEMALLOC_JET
 #undef nstime_monotonic
-#define	nstime_monotonic JEMALLOC_N(nstime_monotonic)
+#define nstime_monotonic JEMALLOC_N(nstime_monotonic)
 nstime_monotonic_t *nstime_monotonic = JEMALLOC_N(n_nstime_monotonic);
 #endif
 
 #ifdef JEMALLOC_JET
 #undef nstime_update
-#define	nstime_update JEMALLOC_N(n_nstime_update)
+#define nstime_update JEMALLOC_N(n_nstime_update)
 #endif
 bool
 nstime_update(nstime_t *time) {
@@ -156,6 +156,6 @@ nstime_update(nstime_t *time) {
 }
 #ifdef JEMALLOC_JET
 #undef nstime_update
-#define	nstime_update JEMALLOC_N(nstime_update)
+#define nstime_update JEMALLOC_N(nstime_update)
 nstime_update_t *nstime_update = JEMALLOC_N(n_nstime_update);
 #endif

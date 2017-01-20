@@ -79,10 +79,10 @@ cat <<EOF
  *   smootheststep(x) = -20x  + 70x  - 84x  + 35x
  */
 
-#define	SMOOTHSTEP_VARIANT	"${variant}"
-#define	SMOOTHSTEP_NSTEPS	${nsteps}
-#define	SMOOTHSTEP_BFP		${bfp}
-#define	SMOOTHSTEP \\
+#define SMOOTHSTEP_VARIANT	"${variant}"
+#define SMOOTHSTEP_NSTEPS	${nsteps}
+#define SMOOTHSTEP_BFP		${bfp}
+#define SMOOTHSTEP \\
  /* STEP(step, h,                            x,     y) */ \\
 EOF
 

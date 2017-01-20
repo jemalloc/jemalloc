@@ -1,4 +1,4 @@
-#define	JEMALLOC_CTL_C_
+#define JEMALLOC_CTL_C_
 #include "jemalloc/internal/jemalloc_internal.h"
 
 /******************************************************************************/
@@ -36,11 +36,11 @@ ctl_indexed_node(const ctl_node_t *node) {
 /******************************************************************************/
 /* Function prototypes for non-inline static functions. */
 
-#define	CTL_PROTO(n)							\
+#define CTL_PROTO(n)							\
 static int	n##_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,	\
     void *oldp, size_t *oldlenp, void *newp, size_t newlen);
 
-#define	INDEX_PROTO(n)							\
+#define INDEX_PROTO(n)							\
 static const ctl_named_node_t	*n##_index(tsdn_t *tsdn,		\
     const size_t *mib, size_t miblen, size_t i);
 
@@ -173,20 +173,20 @@ CTL_PROTO(stats_retained)
 /* mallctl tree. */
 
 /* Maximum tree depth. */
-#define	CTL_MAX_DEPTH	6
+#define CTL_MAX_DEPTH	6
 
-#define	NAME(n)	{true},	n
-#define	CHILD(t, c)							\
+#define NAME(n)	{true},	n
+#define CHILD(t, c)							\
 	sizeof(c##_node) / sizeof(ctl_##t##_node_t),			\
 	(ctl_node_t *)c##_node,						\
 	NULL
-#define	CTL(c)	0, NULL, c##_ctl
+#define CTL(c)	0, NULL, c##_ctl
 
 /*
  * Only handles internal indexed nodes, since there are currently no external
  * ones.
  */
-#define	INDEX(i)	{false},	i##_index
+#define INDEX(i)	{false},	i##_index
 
 static const ctl_named_node_t	thread_tcache_node[] = {
 	{NAME("enabled"),	CTL(thread_tcache_enabled)},
@@ -1045,21 +1045,21 @@ ctl_postfork_child(tsdn_t *tsdn) {
 /******************************************************************************/
 /* *_ctl() functions. */
 
-#define	READONLY()	do {						\
+#define READONLY()	do {						\
 	if (newp != NULL || newlen != 0) {				\
 		ret = EPERM;						\
 		goto label_return;					\
 	}								\
 } while (0)
 
-#define	WRITEONLY()	do {						\
+#define WRITEONLY()	do {						\
 	if (oldp != NULL || oldlenp != NULL) {				\
 		ret = EPERM;						\
 		goto label_return;					\
 	}								\
 } while (0)
 
-#define	READ_XOR_WRITE()	do {					\
+#define READ_XOR_WRITE()	do {					\
 	if ((oldp != NULL && oldlenp != NULL) && (newp != NULL ||	\
 	    newlen != 0)) {						\
 		ret = EPERM;						\
@@ -1067,7 +1067,7 @@ ctl_postfork_child(tsdn_t *tsdn) {
 	}								\
 } while (0)
 
-#define	READ(v, t)	do {						\
+#define READ(v, t)	do {						\
 	if (oldp != NULL && oldlenp != NULL) {				\
 		if (*oldlenp != sizeof(t)) {				\
 			size_t	copylen = (sizeof(t) <= *oldlenp)	\
@@ -1080,7 +1080,7 @@ ctl_postfork_child(tsdn_t *tsdn) {
 	}								\
 } while (0)
 
-#define	WRITE(v, t)	do {						\
+#define WRITE(v, t)	do {						\
 	if (newp != NULL) {						\
 		if (newlen != sizeof(t)) {				\
 			ret = EINVAL;					\
@@ -1090,7 +1090,7 @@ ctl_postfork_child(tsdn_t *tsdn) {
 	}								\
 } while (0)
 
-#define	MIB_UNSIGNED(v, i) do {						\
+#define MIB_UNSIGNED(v, i) do {						\
 	if (mib[i] > UINT_MAX) {					\
 		ret = EFAULT;						\
 		goto label_return;					\
@@ -1102,7 +1102,7 @@ ctl_postfork_child(tsdn_t *tsdn) {
  * There's a lot of code duplication in the following macros due to limitations
  * in how nested cpp macros are expanded.
  */
-#define	CTL_RO_CLGEN(c, l, n, v, t)					\
+#define CTL_RO_CLGEN(c, l, n, v, t)					\
 static int								\
 n##_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,	\
     size_t *oldlenp, void *newp, size_t newlen) {			\
@@ -1127,7 +1127,7 @@ label_return:								\
 	return ret;							\
 }
 
-#define	CTL_RO_CGEN(c, n, v, t)						\
+#define CTL_RO_CGEN(c, n, v, t)						\
 static int								\
 n##_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,	\
     size_t *oldlenp, void *newp, size_t newlen) {			\
@@ -1148,7 +1148,7 @@ label_return:								\
 	return ret;							\
 }
 
-#define	CTL_RO_GEN(n, v, t)						\
+#define CTL_RO_GEN(n, v, t)						\
 static int								\
 n##_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,	\
     size_t *oldlenp, void *newp, size_t newlen) {			\
@@ -1170,7 +1170,7 @@ label_return:								\
  * ctl_mtx is not acquired, under the assumption that no pertinent data will
  * mutate during the call.
  */
-#define	CTL_RO_NL_CGEN(c, n, v, t)					\
+#define CTL_RO_NL_CGEN(c, n, v, t)					\
 static int								\
 n##_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,	\
     size_t *oldlenp, void *newp, size_t newlen) {			\
@@ -1189,7 +1189,7 @@ label_return:								\
 	return ret;							\
 }
 
-#define	CTL_RO_NL_GEN(n, v, t)						\
+#define CTL_RO_NL_GEN(n, v, t)						\
 static int								\
 n##_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,	\
     size_t *oldlenp, void *newp, size_t newlen) {			\
@@ -1205,7 +1205,7 @@ label_return:								\
 	return ret;							\
 }
 
-#define	CTL_TSD_RO_NL_CGEN(c, n, m, t)					\
+#define CTL_TSD_RO_NL_CGEN(c, n, m, t)					\
 static int								\
 n##_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,	\
     size_t *oldlenp, void *newp, size_t newlen) {			\
@@ -1224,7 +1224,7 @@ label_return:								\
 	return ret;							\
 }
 
-#define	CTL_RO_CONFIG_GEN(n, t)						\
+#define CTL_RO_CONFIG_GEN(n, t)						\
 static int								\
 n##_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,	\
     size_t *oldlenp, void *newp, size_t newlen) {			\

@@ -51,10 +51,10 @@ TEST_BEGIN(test_rtree_read_empty) {
 }
 TEST_END
 
-#define	NTHREADS	8
-#define	MAX_NBITS	18
-#define	NITERS		1000
-#define	SEED		42
+#define NTHREADS	8
+#define MAX_NBITS	18
+#define NITERS		1000
+#define SEED		42
 
 typedef struct {
 	unsigned	nbits;
@@ -218,8 +218,8 @@ TEST_BEGIN(test_rtree_random) {
 	unsigned i;
 	sfmt_t *sfmt;
 	tsdn_t *tsdn;
-#define	NSET 16
-#define	SEED 42
+#define NSET 16
+#define SEED 42
 
 	sfmt = init_gen_rand(SEED);
 	tsdn = tsdn_fetch();
