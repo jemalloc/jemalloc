@@ -141,7 +141,7 @@ chunk_hooks_assure_initialized(tsdn_t *tsdn, arena_t *arena,
 }
 
 bool
-chunk_register(tsdn_t *tsdn, const void *chunk, const extent_node_t *node)
+chunk_register(const void *chunk, const extent_node_t *node, bool *gdump)
 {
 
 	assert(extent_node_addr_get(node) == chunk);
@@ -160,8 +160,7 @@ chunk_register(tsdn_t *tsdn, const void *chunk, const extent_node_t *node)
 			 */
 			high = atomic_read_z(&highchunks);
 		}
-		if (cur > high && prof_gdump_get_unlocked())
-			prof_gdump(tsdn);
+		*gdump = (cur > high && prof_gdump_get_unlocked());
 	}
 
 	return (false);
