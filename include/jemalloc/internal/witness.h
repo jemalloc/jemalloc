@@ -91,10 +91,12 @@ extern witness_not_owner_error_t *witness_not_owner_error;
 void	witness_not_owner_error(const witness_t *witness);
 #endif
 #ifdef JEMALLOC_JET
-typedef void (witness_lockless_error_t)(const witness_list_t *);
-extern witness_lockless_error_t *witness_lockless_error;
+typedef void (witness_lock_depth_error_t)(const witness_list_t *,
+    unsigned depth);
+extern witness_lock_depth_error_t *witness_lock_depth_error;
 #else
-void	witness_lockless_error(const witness_list_t *witnesses);
+void	witness_lock_depth_error(const witness_list_t *witnesses,
+    unsigned depth);
 #endif
 
 void	witnesses_cleanup(tsd_t *tsd);
@@ -111,7 +113,7 @@ void	witness_postfork_child(tsd_t *tsd);
 bool	witness_owner(tsd_t *tsd, const witness_t *witness);
 void	witness_assert_owner(tsdn_t *tsdn, const witness_t *witness);
 void	witness_assert_not_owner(tsdn_t *tsdn, const witness_t *witness);
-void	witness_assert_lockless(tsdn_t *tsdn);
+void	witness_assert_lock_depth(tsdn_t *tsdn, unsigned depth);
 void	witness_lock(tsdn_t *tsdn, witness_t *witness);
 void	witness_unlock(tsdn_t *tsdn, witness_t *witness);
 #endif
@@ -175,9 +177,10 @@ witness_assert_not_owner(tsdn_t *tsdn, const witness_t *witness)
 }
 
 JEMALLOC_INLINE void
-witness_assert_lockless(tsdn_t *tsdn)
+witness_assert_lock_depth(tsdn_t *tsdn, unsigned depth)
 {
 	tsd_t *tsd;
+	unsigned d;
 	witness_list_t *witnesses;
 	witness_t *w;
 
@@ -188,10 +191,16 @@ witness_assert_lockless(tsdn_t *tsdn)
 		return;
 	tsd = tsdn_tsd(tsdn);
 
+	d = 0;
 	witnesses = tsd_witnessesp_get(tsd);
 	w = ql_last(witnesses, link);
-	if (w != NULL)
-		witness_lockless_error(witnesses);
+	if (w != NULL) {
+		ql_foreach(w, witnesses, link) {
+			d++;
+		}
+	}
+	if (d != depth)
+		witness_lock_depth_error(witnesses, depth);
 }
 
 JEMALLOC_INLINE void
