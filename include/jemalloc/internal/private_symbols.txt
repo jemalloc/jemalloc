@@ -612,14 +612,14 @@ valgrind_freelike_block
 valgrind_make_mem_defined
 valgrind_make_mem_noaccess
 valgrind_make_mem_undefined
-witness_assert_lockless
+witness_assert_lock_depth
 witness_assert_not_owner
 witness_assert_owner
 witness_fork_cleanup
 witness_init
 witness_lock
 witness_lock_error
-witness_lockless_error
+witness_lock_depth_error
 witness_not_owner_error
 witness_owner
 witness_owner_error
