@@ -591,7 +591,7 @@ arena_chunk_alloc_internal_hard(tsdn_t *tsdn, arena_t *arena,
 	size_t sn;
 
 	malloc_mutex_unlock(tsdn, &arena->lock);
-	witness_assert_lock_depth(tsdn, 0); /* prof_gdump() requirement. */
+	witness_assert_lockless(tsdn); /* prof_gdump() requirement. */
 
 	chunk = (arena_chunk_t *)chunk_alloc_wrapper(tsdn, arena, chunk_hooks,
 	    NULL, chunksize, chunksize, &sn, zero, commit);
@@ -633,7 +633,7 @@ arena_chunk_alloc_internal(tsdn_t *tsdn, arena_t *arena, bool *zero,
 	size_t sn;
 
 	/* prof_gdump() requirement. */
-	witness_assert_lock_depth(tsdn, 1);
+	witness_assert_depth(tsdn, 1);
 	malloc_mutex_assert_owner(tsdn, &arena->lock);
 
 	chunk = chunk_alloc_cache(tsdn, arena, &chunk_hooks, NULL, chunksize,

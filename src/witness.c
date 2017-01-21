@@ -71,16 +71,16 @@ witness_not_owner_error_t *witness_not_owner_error =
 #endif
 
 #ifdef JEMALLOC_JET
-#undef witness_lock_depth_error
-#define	witness_lock_depth_error JEMALLOC_N(n_witness_lock_depth_error)
+#undef witness_depth_error
+#define witness_depth_error JEMALLOC_N(n_witness_depth_error)
 #endif
 void
-witness_lock_depth_error(const witness_list_t *witnesses, unsigned depth)
-{
+witness_depth_error(const witness_list_t *witnesses,
+    witness_rank_t rank_inclusive, unsigned depth) {
 	witness_t *w;
 
-	malloc_printf("<jemalloc>: Should own %u lock%s:", depth, (depth != 1) ?
-	    "s" : "");
+	malloc_printf("<jemalloc>: Should own %u lock%s of rank >= %u:", depth,
+	    (depth != 1) ?  "s" : "", rank_inclusive);
 	ql_foreach(w, witnesses, link) {
 		malloc_printf(" %s(%u)", w->name, w->rank);
 	}
@@ -88,17 +88,16 @@ witness_lock_depth_error(const witness_list_t *witnesses, unsigned depth)
 	abort();
 }
 #ifdef JEMALLOC_JET
-#undef witness_lock_depth_error
-#define	witness_lock_depth_error JEMALLOC_N(witness_lock_depth_error)
-witness_lock_depth_error_t *witness_lock_depth_error =
-    JEMALLOC_N(n_witness_lock_depth_error);
+#undef witness_depth_error
+#define witness_depth_error JEMALLOC_N(witness_depth_error)
+witness_depth_error_t *witness_depth_error = JEMALLOC_N(n_witness_depth_error);
 #endif
 
 void
 witnesses_cleanup(tsd_t *tsd)
 {
 
-	witness_assert_lock_depth(tsd_tsdn(tsd), 0);
+	witness_assert_lockless(tsd_tsdn(tsd));
 
 	/* Do nothing. */
 }

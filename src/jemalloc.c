@@ -1582,7 +1582,7 @@ ialloc_body(size_t size, bool zero, tsdn_t **tsdn, size_t *usize,
 
 	tsd = tsd_fetch();
 	*tsdn = tsd_tsdn(tsd);
-	witness_assert_lock_depth(tsd_tsdn(tsd), 0);
+	witness_assert_lockless(tsd_tsdn(tsd));
 
 	ind = size2index(size);
 	if (unlikely(ind >= NSIZES))
@@ -1620,7 +1620,7 @@ ialloc_post_check(void *ret, tsdn_t *tsdn, size_t usize, const char *func,
 		assert(usize == isalloc(tsdn, ret, config_prof));
 		*tsd_thread_allocatedp_get(tsdn_tsd(tsdn)) += usize;
 	}
-	witness_assert_lock_depth(tsdn, 0);
+	witness_assert_lockless(tsdn);
 }
 
 JEMALLOC_EXPORT JEMALLOC_ALLOCATOR JEMALLOC_RESTRICT_RETURN
@@ -1705,7 +1705,7 @@ imemalign(void **memptr, size_t alignment, size_t size, size_t min_alignment)
 		goto label_oom;
 	}
 	tsd = tsd_fetch();
-	witness_assert_lock_depth(tsd_tsdn(tsd), 0);
+	witness_assert_lockless(tsd_tsdn(tsd));
 	if (size == 0)
 		size = 1;
 
@@ -1746,7 +1746,7 @@ label_return:
 	UTRACE(0, size, result);
 	JEMALLOC_VALGRIND_MALLOC(result != NULL, tsd_tsdn(tsd), result, usize,
 	    false);
-	witness_assert_lock_depth(tsd_tsdn(tsd), 0);
+	witness_assert_lockless(tsd_tsdn(tsd));
 	return (ret);
 label_oom:
 	assert(result == NULL);
@@ -1756,7 +1756,7 @@ label_oom:
 		abort();
 	}
 	ret = ENOMEM;
-	witness_assert_lock_depth(tsd_tsdn(tsd), 0);
+	witness_assert_lockless(tsd_tsdn(tsd));
 	goto label_return;
 }
 
@@ -1874,7 +1874,7 @@ ifree(tsd_t *tsd, void *ptr, tcache_t *tcache, bool slow_path)
 	size_t usize;
 	UNUSED size_t rzsize JEMALLOC_CC_SILENCE_INIT(0);
 
-	witness_assert_lock_depth(tsd_tsdn(tsd), 0);
+	witness_assert_lockless(tsd_tsdn(tsd));
 
 	assert(ptr != NULL);
 	assert(malloc_initialized() || IS_INITIALIZER);
@@ -1902,7 +1902,7 @@ isfree(tsd_t *tsd, void *ptr, size_t usize, tcache_t *tcache, bool slow_path)
 {
 	UNUSED size_t rzsize JEMALLOC_CC_SILENCE_INIT(0);
 
-	witness_assert_lock_depth(tsd_tsdn(tsd), 0);
+	witness_assert_lockless(tsd_tsdn(tsd));
 
 	assert(ptr != NULL);
 	assert(malloc_initialized() || IS_INITIALIZER);
@@ -1948,7 +1948,7 @@ je_realloc(void *ptr, size_t size)
 		malloc_thread_init();
 		tsd = tsd_fetch();
 
-		witness_assert_lock_depth(tsd_tsdn(tsd), 0);
+		witness_assert_lockless(tsd_tsdn(tsd));
 
 		old_usize = isalloc(tsd_tsdn(tsd), ptr, config_prof);
 		if (config_valgrind && unlikely(in_valgrind)) {
@@ -1995,7 +1995,7 @@ je_realloc(void *ptr, size_t size)
 	UTRACE(ptr, size, ret);
 	JEMALLOC_VALGRIND_REALLOC(maybe, tsdn, ret, usize, maybe, ptr,
 	    old_usize, old_rzsize, maybe, false);
-	witness_assert_lock_depth(tsdn, 0);
+	witness_assert_lockless(tsdn);
 	return (ret);
 }
 
@@ -2006,12 +2006,12 @@ je_free(void *ptr)
 	UTRACE(ptr, 0, 0);
 	if (likely(ptr != NULL)) {
 		tsd_t *tsd = tsd_fetch();
-		witness_assert_lock_depth(tsd_tsdn(tsd), 0);
+		witness_assert_lockless(tsd_tsdn(tsd));
 		if (likely(!malloc_slow))
 			ifree(tsd, ptr, tcache_get(tsd, false), false);
 		else
 			ifree(tsd, ptr, tcache_get(tsd, false), true);
-		witness_assert_lock_depth(tsd_tsdn(tsd), 0);
+		witness_assert_lockless(tsd_tsdn(tsd));
 	}
 }
 
@@ -2240,7 +2240,7 @@ imallocx_body(size_t size, int flags, tsdn_t **tsdn, size_t *usize,
 
 	tsd = tsd_fetch();
 	*tsdn = tsd_tsdn(tsd);
-	witness_assert_lock_depth(tsd_tsdn(tsd), 0);
+	witness_assert_lockless(tsd_tsdn(tsd));
 
 	if (likely(flags == 0)) {
 		szind_t ind = size2index(size);
@@ -2375,7 +2375,7 @@ je_rallocx(void *ptr, size_t size, int flags)
 	assert(malloc_initialized() || IS_INITIALIZER);
 	malloc_thread_init();
 	tsd = tsd_fetch();
-	witness_assert_lock_depth(tsd_tsdn(tsd), 0);
+	witness_assert_lockless(tsd_tsdn(tsd));
 
 	if (unlikely((flags & MALLOCX_ARENA_MASK) != 0)) {
 		unsigned arena_ind = MALLOCX_ARENA_GET(flags);
@@ -2422,7 +2422,7 @@ je_rallocx(void *ptr, size_t size, int flags)
 	UTRACE(ptr, size, p);
 	JEMALLOC_VALGRIND_REALLOC(maybe, tsd_tsdn(tsd), p, usize, no, ptr,
 	    old_usize, old_rzsize, no, zero);
-	witness_assert_lock_depth(tsd_tsdn(tsd), 0);
+	witness_assert_lockless(tsd_tsdn(tsd));
 	return (p);
 label_oom:
 	if (config_xmalloc && unlikely(opt_xmalloc)) {
@@ -2430,7 +2430,7 @@ label_oom:
 		abort();
 	}
 	UTRACE(ptr, size, 0);
-	witness_assert_lock_depth(tsd_tsdn(tsd), 0);
+	witness_assert_lockless(tsd_tsdn(tsd));
 	return (NULL);
 }
 
@@ -2526,7 +2526,7 @@ je_xallocx(void *ptr, size_t size, size_t extra, int flags)
 	assert(malloc_initialized() || IS_INITIALIZER);
 	malloc_thread_init();
 	tsd = tsd_fetch();
-	witness_assert_lock_depth(tsd_tsdn(tsd), 0);
+	witness_assert_lockless(tsd_tsdn(tsd));
 
 	old_usize = isalloc(tsd_tsdn(tsd), ptr, config_prof);
 
@@ -2567,7 +2567,7 @@ je_xallocx(void *ptr, size_t size, size_t extra, int flags)
 	    old_usize, old_rzsize, no, zero);
 label_not_resized:
 	UTRACE(ptr, size, ptr);
-	witness_assert_lock_depth(tsd_tsdn(tsd), 0);
+	witness_assert_lockless(tsd_tsdn(tsd));
 	return (usize);
 }
 
@@ -2582,14 +2582,14 @@ je_sallocx(const void *ptr, int flags)
 	malloc_thread_init();
 
 	tsdn = tsdn_fetch();
-	witness_assert_lock_depth(tsdn, 0);
+	witness_assert_lockless(tsdn);
 
 	if (config_ivsalloc)
 		usize = ivsalloc(tsdn, ptr, config_prof);
 	else
 		usize = isalloc(tsdn, ptr, config_prof);
 
-	witness_assert_lock_depth(tsdn, 0);
+	witness_assert_lockless(tsdn);
 	return (usize);
 }
 
@@ -2603,7 +2603,7 @@ je_dallocx(void *ptr, int flags)
 	assert(malloc_initialized() || IS_INITIALIZER);
 
 	tsd = tsd_fetch();
-	witness_assert_lock_depth(tsd_tsdn(tsd), 0);
+	witness_assert_lockless(tsd_tsdn(tsd));
 	if (unlikely((flags & MALLOCX_TCACHE_MASK) != 0)) {
 		if ((flags & MALLOCX_TCACHE_MASK) == MALLOCX_TCACHE_NONE)
 			tcache = NULL;
@@ -2617,7 +2617,7 @@ je_dallocx(void *ptr, int flags)
 		ifree(tsd, ptr, tcache, false);
 	else
 		ifree(tsd, ptr, tcache, true);
-	witness_assert_lock_depth(tsd_tsdn(tsd), 0);
+	witness_assert_lockless(tsd_tsdn(tsd));
 }
 
 JEMALLOC_ALWAYS_INLINE_C size_t
@@ -2625,13 +2625,13 @@ inallocx(tsdn_t *tsdn, size_t size, int flags)
 {
 	size_t usize;
 
-	witness_assert_lock_depth(tsdn, 0);
+	witness_assert_lockless(tsdn);
 
 	if (likely((flags & MALLOCX_LG_ALIGN_MASK) == 0))
 		usize = s2u(size);
 	else
 		usize = sa2u(size, MALLOCX_ALIGN_GET_SPECIFIED(flags));
-	witness_assert_lock_depth(tsdn, 0);
+	witness_assert_lockless(tsdn);
 	return (usize);
 }
 
@@ -2648,7 +2648,7 @@ je_sdallocx(void *ptr, size_t size, int flags)
 	usize = inallocx(tsd_tsdn(tsd), size, flags);
 	assert(usize == isalloc(tsd_tsdn(tsd), ptr, config_prof));
 
-	witness_assert_lock_depth(tsd_tsdn(tsd), 0);
+	witness_assert_lockless(tsd_tsdn(tsd));
 	if (unlikely((flags & MALLOCX_TCACHE_MASK) != 0)) {
 		if ((flags & MALLOCX_TCACHE_MASK) == MALLOCX_TCACHE_NONE)
 			tcache = NULL;
@@ -2662,7 +2662,7 @@ je_sdallocx(void *ptr, size_t size, int flags)
 		isfree(tsd, ptr, usize, tcache, false);
 	else
 		isfree(tsd, ptr, usize, tcache, true);
-	witness_assert_lock_depth(tsd_tsdn(tsd), 0);
+	witness_assert_lockless(tsd_tsdn(tsd));
 }
 
 JEMALLOC_EXPORT size_t JEMALLOC_NOTHROW
@@ -2678,13 +2678,13 @@ je_nallocx(size_t size, int flags)
 		return (0);
 
 	tsdn = tsdn_fetch();
-	witness_assert_lock_depth(tsdn, 0);
+	witness_assert_lockless(tsdn);
 
 	usize = inallocx(tsdn, size, flags);
 	if (unlikely(usize > HUGE_MAXCLASS))
 		return (0);
 
-	witness_assert_lock_depth(tsdn, 0);
+	witness_assert_lockless(tsdn);
 	return (usize);
 }
 
@@ -2699,9 +2699,9 @@ je_mallctl(const char *name, void *oldp, size_t *oldlenp, void *newp,
 		return (EAGAIN);
 
 	tsd = tsd_fetch();
-	witness_assert_lock_depth(tsd_tsdn(tsd), 0);
+	witness_assert_lockless(tsd_tsdn(tsd));
 	ret = ctl_byname(tsd, name, oldp, oldlenp, newp, newlen);
-	witness_assert_lock_depth(tsd_tsdn(tsd), 0);
+	witness_assert_lockless(tsd_tsdn(tsd));
 	return (ret);
 }
 
@@ -2715,9 +2715,9 @@ je_mallctlnametomib(const char *name, size_t *mibp, size_t *miblenp)
 		return (EAGAIN);
 
 	tsdn = tsdn_fetch();
-	witness_assert_lock_depth(tsdn, 0);
+	witness_assert_lockless(tsdn);
 	ret = ctl_nametomib(tsdn, name, mibp, miblenp);
-	witness_assert_lock_depth(tsdn, 0);
+	witness_assert_lockless(tsdn);
 	return (ret);
 }
 
@@ -2732,9 +2732,9 @@ je_mallctlbymib(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
 		return (EAGAIN);
 
 	tsd = tsd_fetch();
-	witness_assert_lock_depth(tsd_tsdn(tsd), 0);
+	witness_assert_lockless(tsd_tsdn(tsd));
 	ret = ctl_bymib(tsd, mib, miblen, oldp, oldlenp, newp, newlen);
-	witness_assert_lock_depth(tsd_tsdn(tsd), 0);
+	witness_assert_lockless(tsd_tsdn(tsd));
 	return (ret);
 }
 
@@ -2745,9 +2745,9 @@ je_malloc_stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 	tsdn_t *tsdn;
 
 	tsdn = tsdn_fetch();
-	witness_assert_lock_depth(tsdn, 0);
+	witness_assert_lockless(tsdn);
 	stats_print(write_cb, cbopaque, opts);
-	witness_assert_lock_depth(tsdn, 0);
+	witness_assert_lockless(tsdn);
 }
 
 JEMALLOC_EXPORT size_t JEMALLOC_NOTHROW
@@ -2760,14 +2760,14 @@ je_malloc_usable_size(JEMALLOC_USABLE_SIZE_CONST void *ptr)
 	malloc_thread_init();
 
 	tsdn = tsdn_fetch();
-	witness_assert_lock_depth(tsdn, 0);
+	witness_assert_lockless(tsdn);
 
 	if (config_ivsalloc)
 		ret = ivsalloc(tsdn, ptr, config_prof);
 	else
 		ret = (ptr == NULL) ? 0 : isalloc(tsdn, ptr, config_prof);
 
-	witness_assert_lock_depth(tsdn, 0);
+	witness_assert_lockless(tsdn);
 	return (ret);
 }
 
