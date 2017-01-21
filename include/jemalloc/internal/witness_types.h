@@ -13,6 +13,8 @@ typedef int witness_comp_t (const witness_t *, void *, const witness_t *,
  */
 #define WITNESS_RANK_OMIT		0U
 
+#define WITNESS_RANK_MIN		1U
+
 #define WITNESS_RANK_INIT		1U
 #define WITNESS_RANK_CTL		1U
 #define WITNESS_RANK_ARENAS		2U

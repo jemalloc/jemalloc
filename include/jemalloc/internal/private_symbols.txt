@@ -549,13 +549,15 @@ tsdn_fetch
 tsdn_null
 tsdn_rtree_ctx
 tsdn_tsd
+witness_assert_depth
+witness_assert_depth_to_rank
 witness_assert_lockless
 witness_assert_not_owner
 witness_assert_owner
+witness_depth_error
 witness_init
 witness_lock
 witness_lock_error
-witness_lockless_error
 witness_not_owner_error
 witness_owner
 witness_owner_error
