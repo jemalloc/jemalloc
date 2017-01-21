@@ -568,8 +568,8 @@ arena_chunk_init_spare(arena_t *arena)
 }
 
 static bool
-arena_chunk_register(tsdn_t *tsdn, arena_t *arena, arena_chunk_t *chunk,
-    size_t sn, bool zero)
+arena_chunk_register(arena_t *arena, arena_chunk_t *chunk, size_t sn, bool zero,
+    bool *gdump)
 {
 
 	/*
@@ -580,7 +580,7 @@ arena_chunk_register(tsdn_t *tsdn, arena_t *arena, arena_chunk_t *chunk,
 	 */
 	extent_node_init(&chunk->node, arena, chunk, chunksize, sn, zero, true);
 	extent_node_achunk_set(&chunk->node, true);
-	return (chunk_register(tsdn, chunk, &chunk->node));
+	return (chunk_register(chunk, &chunk->node, gdump));
 }
 
 static arena_chunk_t *
@@ -591,6 +591,7 @@ arena_chunk_alloc_internal_hard(tsdn_t *tsdn, arena_t *arena,
 	size_t sn;
 
 	malloc_mutex_unlock(tsdn, &arena->lock);
+	witness_assert_lock_depth(tsdn, 0); /* prof_gdump() requirement. */
 
 	chunk = (arena_chunk_t *)chunk_alloc_wrapper(tsdn, arena, chunk_hooks,
 	    NULL, chunksize, chunksize, &sn, zero, commit);
@@ -603,16 +604,20 @@ arena_chunk_alloc_internal_hard(tsdn_t *tsdn, arena_t *arena,
 			chunk = NULL;
 		}
 	}
-	if (chunk != NULL && arena_chunk_register(tsdn, arena, chunk, sn,
-	    *zero)) {
-		if (!*commit) {
-			/* Undo commit of header. */
-			chunk_hooks->decommit(chunk, chunksize, 0, map_bias <<
-			    LG_PAGE, arena->ind);
+	if (chunk != NULL) {
+		bool gdump;
+		if (arena_chunk_register(arena, chunk, sn, *zero, &gdump)) {
+			if (!*commit) {
+				/* Undo commit of header. */
+				chunk_hooks->decommit(chunk, chunksize, 0,
+				    map_bias << LG_PAGE, arena->ind);
+			}
+			chunk_dalloc_wrapper(tsdn, arena, chunk_hooks,
+			    (void *)chunk, chunksize, sn, *zero, *commit);
+			chunk = NULL;
 		}
-		chunk_dalloc_wrapper(tsdn, arena, chunk_hooks, (void *)chunk,
-		    chunksize, sn, *zero, *commit);
-		chunk = NULL;
+		if (config_prof && opt_prof && gdump)
+			prof_gdump(tsdn);
 	}
 
 	malloc_mutex_lock(tsdn, &arena->lock);
@@ -627,13 +632,23 @@ arena_chunk_alloc_internal(tsdn_t *tsdn, arena_t *arena, bool *zero,
 	chunk_hooks_t chunk_hooks = CHUNK_HOOKS_INITIALIZER;
 	size_t sn;
 
+	/* prof_gdump() requirement. */
+	witness_assert_lock_depth(tsdn, 1);
+	malloc_mutex_assert_owner(tsdn, &arena->lock);
+
 	chunk = chunk_alloc_cache(tsdn, arena, &chunk_hooks, NULL, chunksize,
 	    chunksize, &sn, zero, commit, true);
 	if (chunk != NULL) {
-		if (arena_chunk_register(tsdn, arena, chunk, sn, *zero)) {
+		bool gdump;
+		if (arena_chunk_register(arena, chunk, sn, *zero, &gdump)) {
 			chunk_dalloc_cache(tsdn, arena, &chunk_hooks, chunk,
 			    chunksize, sn, true);
 			return (NULL);
+		}
+		if (config_prof && opt_prof && gdump) {
+			malloc_mutex_unlock(tsdn, &arena->lock);
+			prof_gdump(tsdn);
+			malloc_mutex_lock(tsdn, &arena->lock);
 		}
 	}
 	if (chunk == NULL) {
