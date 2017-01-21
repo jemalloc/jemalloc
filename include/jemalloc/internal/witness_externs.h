@@ -23,10 +23,12 @@ extern witness_not_owner_error_t *witness_not_owner_error;
 void	witness_not_owner_error(const witness_t *witness);
 #endif
 #ifdef JEMALLOC_JET
-typedef void (witness_lockless_error_t)(const witness_list_t *);
-extern witness_lockless_error_t *witness_lockless_error;
+typedef void (witness_depth_error_t)(const witness_list_t *,
+    witness_rank_t rank_inclusive, unsigned depth);
+extern witness_depth_error_t *witness_depth_error;
 #else
-void	witness_lockless_error(const witness_list_t *witnesses);
+void	witness_depth_error(const witness_list_t *witnesses,
+    witness_rank_t rank_inclusive, unsigned depth);
 #endif
 
 void	witnesses_cleanup(tsd_t *tsd);

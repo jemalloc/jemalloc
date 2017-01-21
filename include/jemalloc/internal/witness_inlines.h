@@ -5,6 +5,9 @@
 bool	witness_owner(tsd_t *tsd, const witness_t *witness);
 void	witness_assert_owner(tsdn_t *tsdn, const witness_t *witness);
 void	witness_assert_not_owner(tsdn_t *tsdn, const witness_t *witness);
+void witness_assert_depth_to_rank(tsdn_t *tsdn, witness_rank_t rank_inclusive,
+    unsigned depth);
+void witness_assert_depth(tsdn_t *tsdn, unsigned depth);
 void	witness_assert_lockless(tsdn_t *tsdn);
 void	witness_lock(tsdn_t *tsdn, witness_t *witness);
 void	witness_unlock(tsdn_t *tsdn, witness_t *witness);
@@ -78,8 +81,10 @@ witness_assert_not_owner(tsdn_t *tsdn, const witness_t *witness) {
 }
 
 JEMALLOC_INLINE void
-witness_assert_lockless(tsdn_t *tsdn) {
+witness_assert_depth_to_rank(tsdn_t *tsdn, witness_rank_t rank_inclusive,
+    unsigned depth) {
 	tsd_t *tsd;
+	unsigned d;
 	witness_list_t *witnesses;
 	witness_t *w;
 
@@ -92,11 +97,30 @@ witness_assert_lockless(tsdn_t *tsdn) {
 	}
 	tsd = tsdn_tsd(tsdn);
 
+	d = 0;
 	witnesses = tsd_witnessesp_get(tsd);
 	w = ql_last(witnesses, link);
 	if (w != NULL) {
-		witness_lockless_error(witnesses);
+		ql_reverse_foreach(w, witnesses, link) {
+			if (w->rank < rank_inclusive) {
+				break;
+			}
+			d++;
+		}
 	}
+	if (d != depth) {
+		witness_depth_error(witnesses, rank_inclusive, depth);
+	}
+}
+
+JEMALLOC_INLINE void
+witness_assert_depth(tsdn_t *tsdn, unsigned depth) {
+	witness_assert_depth_to_rank(tsdn, WITNESS_RANK_MIN, depth);
+}
+
+JEMALLOC_INLINE void
+witness_assert_lockless(tsdn_t *tsdn) {
+	witness_assert_depth(tsdn, 0);
 }
 
 JEMALLOC_INLINE void
