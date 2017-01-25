@@ -1652,10 +1652,10 @@ imalloc_body(static_opts_t *sopts, dynamic_opts_t *dopts) {
 		/*
 		 * If dopts->alignment > 0, then ind is still 0, but usize was
 		 * computed in the previous if statement.  Down the positive
-		 * alignment path, imalloc_no_sample ind and size (relying only
-		 * on usize).
+		 * alignment path, imalloc_no_sample ignores ind and size
+		 * (relying only on usize).
 		 */
-		allocation = imalloc_no_sample(sopts, dopts, tsd, usize, usize,
+		allocation = imalloc_no_sample(sopts, dopts, tsd, size, usize,
 		    ind);
 		if (unlikely(allocation == NULL)) {
 			goto label_oom;
