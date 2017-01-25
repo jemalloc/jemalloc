@@ -146,14 +146,6 @@ static const bool have_thp =
 #endif
     ;
 
-#if defined(JEMALLOC_C11ATOMICS) && !defined(__cplusplus)
-#include <stdatomic.h>
-#endif
-
-#ifdef JEMALLOC_ATOMIC9
-#include <machine/atomic.h>
-#endif
-
 #if (defined(JEMALLOC_OSATOMIC) || defined(JEMALLOC_OSSPIN))
 #include <libkern/OSAtomic.h>
 #endif
@@ -199,9 +191,20 @@ static const bool have_thp =
  * its translation unit).  Each component is now broken up into multiple header
  * files, corresponding to the sections above (e.g. instead of "tsd.h", we now
  * have "tsd_types.h", "tsd_structs.h", "tsd_externs.h", "tsd_inlines.h").
+ *
+ * Those files which have been converted to explicitly include their
+ * inter-component dependencies are now in the initial HERMETIC HEADERS
+ * section.  These headers may still rely on this file for system headers and
+ * global jemalloc headers, however.
  */
 
 #include "jemalloc/internal/jemalloc_internal_macros.h"
+
+/******************************************************************************/
+/* HERMETIC HEADERS */
+/******************************************************************************/
+
+#include "jemalloc/internal/atomic.h"
 
 /******************************************************************************/
 /* TYPES */
@@ -380,7 +383,6 @@ typedef unsigned szind_t;
 
 #include "jemalloc/internal/nstime_types.h"
 #include "jemalloc/internal/util_types.h"
-#include "jemalloc/internal/atomic_types.h"
 #include "jemalloc/internal/spin_types.h"
 #include "jemalloc/internal/prng_types.h"
 #include "jemalloc/internal/ticker_types.h"
@@ -489,7 +491,6 @@ void	jemalloc_postfork_child(void);
 
 #include "jemalloc/internal/nstime_externs.h"
 #include "jemalloc/internal/util_externs.h"
-#include "jemalloc/internal/atomic_externs.h"
 #include "jemalloc/internal/ckh_externs.h"
 #include "jemalloc/internal/stats_externs.h"
 #include "jemalloc/internal/ctl_externs.h"
@@ -513,7 +514,6 @@ void	jemalloc_postfork_child(void);
 /******************************************************************************/
 
 #include "jemalloc/internal/util_inlines.h"
-#include "jemalloc/internal/atomic_inlines.h"
 #include "jemalloc/internal/spin_inlines.h"
 #include "jemalloc/internal/prng_inlines.h"
 #include "jemalloc/internal/ticker_inlines.h"

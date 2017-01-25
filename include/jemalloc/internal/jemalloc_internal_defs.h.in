@@ -30,16 +30,13 @@
 #undef LG_VADDR
 
 /* Defined if C11 atomics are available. */
-#undef JEMALLOC_C11ATOMICS
+#undef JEMALLOC_C11_ATOMICS
 
-/* Defined if the equivalent of FreeBSD's atomic(9) functions are available. */
-#undef JEMALLOC_ATOMIC9
+/* Defined if GCC __atomic atomics are available. */
+#undef JEMALLOC_GCC_ATOMIC_ATOMICS
 
-/*
- * Defined if OSAtomic*() functions are available, as provided by Darwin, and
- * documented in the atomic(3) manual page.
- */
-#undef JEMALLOC_OSATOMIC
+/* Defined if GCC __sync atomics are available. */
+#undef JEMALLOC_GCC_SYNC_ATOMICS
 
 /*
  * Defined if __sync_add_and_fetch(uint32_t *, uint32_t) and
