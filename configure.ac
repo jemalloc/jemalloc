@@ -550,7 +550,7 @@ case "${host}" in
 	AC_DEFINE([JEMALLOC_HAS_ALLOCA_H])
 	AC_DEFINE([JEMALLOC_PROC_SYS_VM_OVERCOMMIT_MEMORY], [ ])
 	AC_DEFINE([JEMALLOC_THREADED_INIT], [ ])
-	AC_DEFINE([JEMALLOC_C11ATOMICS])
+	AC_DEFINE([JEMALLOC_C11_ATOMICS])
 	force_tls="0"
 	default_munmap="0"
 	;;
@@ -1730,36 +1730,44 @@ JE_COMPILABLE([C11 atomics], [
     volatile atomic_uint_least64_t *a = (volatile atomic_uint_least64_t *)p;
     uint64_t r = atomic_fetch_add(a, x) + x;
     return r == 0;
-], [je_cv_c11atomics])
-if test "x${je_cv_c11atomics}" = "xyes" ; then
-  AC_DEFINE([JEMALLOC_C11ATOMICS])
+], [je_cv_c11_atomics])
+if test "x${je_cv_c11_atomics}" = "xyes" ; then
+  AC_DEFINE([JEMALLOC_C11_ATOMICS])
 fi
 
 dnl ============================================================================
-dnl Check for atomic(9) operations as provided on FreeBSD.
+dnl Check for GCC-style __atomic atomics.
 
-JE_COMPILABLE([atomic(9)], [
-#include <sys/types.h>
-#include <machine/atomic.h>
-#include <inttypes.h>
+JE_COMPILABLE([GCC __atomic atomics], [
 ], [
-	{
-		uint32_t x32 = 0;
-		volatile uint32_t *x32p = &x32;
-		atomic_fetchadd_32(x32p, 1);
-	}
-	{
-		unsigned long xlong = 0;
-		volatile unsigned long *xlongp = &xlong;
-		atomic_fetchadd_long(xlongp, 1);
-	}
-], [je_cv_atomic9])
-if test "x${je_cv_atomic9}" = "xyes" ; then
-  AC_DEFINE([JEMALLOC_ATOMIC9])
+    int x = 0;
+    int val = 1;
+    int y = __atomic_fetch_add(&x, val, __ATOMIC_RELAXED);
+    int after_add = x;
+    return after_add == 1;
+], [je_cv_gcc_atomic_atomics])
+if test "x${je_cv_gcc_atomic_atomics}" = "xyes" ; then
+  AC_DEFINE([JEMALLOC_GCC_ATOMIC_ATOMICS])
+fi
+
+dnl ============================================================================
+dnl Check for GCC-style __sync atomics.
+
+JE_COMPILABLE([GCC __sync atomics], [
+], [
+    int x = 0;
+    int before_add = __sync_fetch_and_add(&x, 1);
+    int after_add = x;
+    return (before_add == 0) && (after_add == 1);
+], [je_cv_gcc_sync_atomics])
+if test "x${je_cv_gcc_sync_atomics}" = "xyes" ; then
+  AC_DEFINE([JEMALLOC_GCC_SYNC_ATOMICS])
 fi
 
 dnl ============================================================================
 dnl Check for atomic(3) operations as provided on Darwin.
+dnl We need this not for the atomic operations (which are provided above), but
+dnl rather for the OSSpinLock type it exposes.
 
 JE_COMPILABLE([Darwin OSAtomic*()], [
 #include <libkern/OSAtomic.h>
