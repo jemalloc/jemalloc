@@ -710,7 +710,7 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena,
 	 * extent creation as a side effect.
 	 */
 	size = usize + pad;
-	alloc_size = pind2sz(arena->extent_grow_next);
+	alloc_size = pind2sz(atomic_read_u(&arena->extent_grow_next));
 	alloc_size_min = size + PAGE_CEILING(alignment) - PAGE;
 	/* Beware size_t wrap-around. */
 	if (alloc_size_min < usize) {
@@ -809,8 +809,20 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena,
 	if (*zero && !extent_zeroed_get(extent)) {
 		memset(extent_addr_get(extent), 0, extent_usize_get(extent));
 	}
-	if (arena->extent_grow_next + 1 < NPSIZES) {
-		arena->extent_grow_next++;
+	/*
+	 * Increment extent_grow_next, but take care to do so atomically and
+	 * bail out if the increment would exceed the legal range.
+	 */
+	while (true) {
+		pszind_t egn = atomic_read_u(&arena->extent_grow_next);
+
+		if (egn + 1 == NPSIZES) {
+			break;
+		}
+		assert(egn + 1 < NPSIZES);
+		if (!atomic_cas_u(&arena->extent_grow_next, egn, egn + 1)) {
+			break;
+		}
 	}
 	return extent;
 }
