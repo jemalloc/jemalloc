@@ -1476,7 +1476,6 @@ tcache_create_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
 	if (!config_tcache)
 		return (ENOENT);
 
-	malloc_mutex_lock(tsd_tsdn(tsd), &ctl_mtx);
 	READONLY();
 	if (tcaches_create(tsd, &tcache_ind)) {
 		ret = EFAULT;
@@ -1486,8 +1485,7 @@ tcache_create_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
 
 	ret = 0;
 label_return:
-	malloc_mutex_unlock(tsd_tsdn(tsd), &ctl_mtx);
-	return (ret);
+	return ret;
 }
 
 static int
