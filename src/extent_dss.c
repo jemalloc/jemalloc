@@ -143,7 +143,7 @@ extent_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
 			if (gap_size != 0) {
 				extent_init(gap, arena, gap_addr, gap_size,
 				    gap_size, arena_extent_sn_next(arena),
-				    false, false, true, false);
+				    extent_state_active, false, true, false);
 			}
 			dss_next = (void *)((uintptr_t)ret + size);
 			if ((uintptr_t)ret < (uintptr_t)max_cur ||
@@ -180,7 +180,8 @@ extent_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
 					extent_t extent;
 
 					extent_init(&extent, arena, ret, size,
-					    size, 0, true, false, true, false);
+					    size, 0, extent_state_active, false,
+					    true, false);
 					if (extent_purge_forced_wrapper(tsdn,
 					    arena, &extent_hooks, &extent, 0,
 					    size)) {

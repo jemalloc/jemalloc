@@ -170,17 +170,15 @@ tcache_bin_flush_small(tsd_t *tsd, tcache_t *tcache, tcache_bin_t *tbin,
 void
 tcache_bin_flush_large(tsd_t *tsd, tcache_bin_t *tbin, szind_t binind,
     unsigned rem, tcache_t *tcache) {
-	arena_t *arena;
-	void *ptr;
-	unsigned i, nflush, ndeferred;
 	bool merged_stats = false;
 
 	assert(binind < nhbins);
 	assert(rem <= tbin->ncached);
 
-	arena = arena_choose(tsd, NULL);
+	arena_t *arena = arena_choose(tsd, NULL);
 	assert(arena != NULL);
-	for (nflush = tbin->ncached - rem; nflush > 0; nflush = ndeferred) {
+	unsigned nflush = tbin->ncached - rem;
+	while (nflush > 0) {
 		/* Lock the arena associated with the first object. */
 		extent_t *extent = iealloc(tsd_tsdn(tsd), *(tbin->avail - 1));
 		arena_t *locked_arena = extent_arena_get(extent);
@@ -189,7 +187,17 @@ tcache_bin_flush_large(tsd_t *tsd, tcache_bin_t *tbin, szind_t binind,
 		if (config_prof) {
 			idump = false;
 		}
+
 		malloc_mutex_lock(tsd_tsdn(tsd), &locked_arena->lock);
+		for (unsigned i = 0; i < nflush; i++) {
+			void *ptr = *(tbin->avail - 1 - i);
+			assert(ptr != NULL);
+			extent = iealloc(tsd_tsdn(tsd), ptr);
+			if (extent_arena_get(extent) == locked_arena) {
+				large_dalloc_prep_junked_locked(tsd_tsdn(tsd),
+				    extent);
+			}
+		}
 		if ((config_prof || config_stats) && locked_arena == arena) {
 			if (config_prof) {
 				idump = arena_prof_accum_locked(arena,
@@ -205,14 +213,15 @@ tcache_bin_flush_large(tsd_t *tsd, tcache_bin_t *tbin, szind_t binind,
 				tbin->tstats.nrequests = 0;
 			}
 		}
-		ndeferred = 0;
-		for (i = 0; i < nflush; i++) {
-			ptr = *(tbin->avail - 1 - i);
+		malloc_mutex_unlock(tsd_tsdn(tsd), &locked_arena->lock);
+
+		unsigned ndeferred = 0;
+		for (unsigned i = 0; i < nflush; i++) {
+			void *ptr = *(tbin->avail - 1 - i);
 			assert(ptr != NULL);
 			extent = iealloc(tsd_tsdn(tsd), ptr);
 			if (extent_arena_get(extent) == locked_arena) {
-				large_dalloc_junked_locked(tsd_tsdn(tsd),
-				    extent);
+				large_dalloc_finish(tsd_tsdn(tsd), extent);
 			} else {
 				/*
 				 * This object was allocated via a different
@@ -224,12 +233,12 @@ tcache_bin_flush_large(tsd_t *tsd, tcache_bin_t *tbin, szind_t binind,
 				ndeferred++;
 			}
 		}
-		malloc_mutex_unlock(tsd_tsdn(tsd), &locked_arena->lock);
 		if (config_prof && idump) {
 			prof_idump(tsd_tsdn(tsd));
 		}
 		arena_decay_ticks(tsd_tsdn(tsd), locked_arena, nflush -
 		    ndeferred);
+		nflush = ndeferred;
 	}
 	if (config_stats && !merged_stats) {
 		/*

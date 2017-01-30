@@ -1,6 +1,12 @@
 #ifndef JEMALLOC_INTERNAL_EXTENT_STRUCTS_H
 #define JEMALLOC_INTERNAL_EXTENT_STRUCTS_H
 
+typedef enum {
+	extent_state_active   = 0,
+	extent_state_dirty    = 1,
+	extent_state_retained = 2
+} extent_state_t;
+
 /* Extent (span of pages).  Use accessor functions for e_* fields. */
 struct extent_s {
 	/* Arena from which this extent came, if any. */
@@ -32,8 +38,8 @@ struct extent_s {
 	 */
 	size_t			e_sn;
 
-	/* True if extent is active (in use). */
-	bool			e_active;
+	/* Extent state. */
+	extent_state_t		e_state;
 
 	/*
 	 * The zeroed flag is used by extent recycling code to track whether
@@ -67,18 +73,48 @@ struct extent_s {
 	};
 
 	/*
-	 * Linkage for arena's extents_dirty and arena_bin_t's slabs_full rings.
+	 * List linkage, used by a variety of lists:
+	 * - arena_bin_t's slabs_full
+	 * - extents_t's LRU
+	 * - stashed dirty extents
+	 * - arena's large allocations
+	 * - arena's extent structure freelist
 	 */
-	qr(extent_t)		qr_link;
+	ql_elm(extent_t)	ql_link;
 
-	union {
-		/* Linkage for per size class sn/address-ordered heaps. */
-		phn(extent_t)		ph_link;
-
-		/* Linkage for arena's large and extent_cache lists. */
-		ql_elm(extent_t)	ql_link;
-	};
+	/* Linkage for per size class sn/address-ordered heaps. */
+	phn(extent_t)		ph_link;
 };
+typedef ql_head(extent_t) extent_list_t;
 typedef ph(extent_t) extent_heap_t;
+
+/* Quantized collection of extents, with built-in LRU queue. */
+struct extents_s {
+	malloc_mutex_t		mtx;
+
+	/*
+	 * Quantized per size class heaps of extents.
+	 *
+	 * Synchronization: mtx.
+	 */
+	extent_heap_t		heaps[NPSIZES+1];
+
+	/*
+	 * LRU of all extents in heaps.
+	 *
+	 * Synchronization: mtx.
+	 */
+	extent_list_t		lru;
+
+	/*
+	 * Page sum for all extents in heaps.
+	 *
+	 * Synchronization: atomic.
+	 */
+	size_t			npages;
+
+	/* All stored extents must be in the same state. */
+	extent_state_t		state;
+};
 
 #endif /* JEMALLOC_INTERNAL_EXTENT_STRUCTS_H */

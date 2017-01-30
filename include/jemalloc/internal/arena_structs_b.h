@@ -66,8 +66,8 @@ struct arena_decay_s {
 	/*
 	 * Number of dirty pages at beginning of current epoch.  During epoch
 	 * advancement we use the delta between arena->decay.ndirty and
-	 * arena->ndirty to determine how many dirty pages, if any, were
-	 * generated.
+	 * extents_npages_get(&arena->extents_cached) to determine how many
+	 * dirty pages, if any, were generated.
 	 */
 	size_t			nunpurged;
 	/*
@@ -98,8 +98,8 @@ struct arena_bin_s {
 	 */
 	extent_heap_t		slabs_nonfull;
 
-	/* Ring sentinel used to track full slabs. */
-	extent_t		slabs_full;
+	/* List used to track full slabs. */
+	extent_list_t		slabs_full;
 
 	/* Bin statistics. */
 	malloc_bin_stats_t	stats;
@@ -107,84 +107,97 @@ struct arena_bin_s {
 
 struct arena_s {
 	/*
-	 * Number of threads currently assigned to this arena, synchronized via
-	 * atomic operations.  Each thread has two distinct assignments, one for
-	 * application-serving allocation, and the other for internal metadata
-	 * allocation.  Internal metadata must not be allocated from arenas
-	 * explicitly created via the arenas.create mallctl, because the
-	 * arena.<i>.reset mallctl indiscriminately discards all allocations for
-	 * the affected arena.
+	 * Number of threads currently assigned to this arena.  Each thread has
+	 * two distinct assignments, one for application-serving allocation, and
+	 * the other for internal metadata allocation.  Internal metadata must
+	 * not be allocated from arenas explicitly created via the arenas.create
+	 * mallctl, because the arena.<i>.reset mallctl indiscriminately
+	 * discards all allocations for the affected arena.
 	 *
 	 *   0: Application allocation.
 	 *   1: Internal metadata allocation.
+	 *
+	 * Synchronization: atomic.
 	 */
 	unsigned		nthreads[2];
 
 	/*
-	 * There are three classes of arena operations from a locking
-	 * perspective:
-	 * 1) Thread assignment (modifies nthreads) is synchronized via atomics.
-	 * 2) Bin-related operations are protected by bin locks.
-	 * 3) Extent-related operations are protected by this mutex.
+	 * Synchronizes various arena operations, as indicated in field-specific
+	 * comments.
 	 */
 	malloc_mutex_t		lock;
 
+	/* Synchronization: lock. */
 	arena_stats_t		stats;
 	/*
 	 * List of tcaches for extant threads associated with this arena.
 	 * Stats from these are merged incrementally, and at exit if
 	 * opt_stats_print is enabled.
+	 *
+	 * Synchronization: lock.
 	 */
 	ql_head(tcache_t)	tcache_ql;
 
+	/* Synchronization: lock. */
 	uint64_t		prof_accumbytes;
 
 	/*
 	 * PRNG state for cache index randomization of large allocation base
 	 * pointers.
+	 *
+	 * Synchronization: atomic.
 	 */
 	size_t			offset_state;
 
-	/* Extent serial number generator state. */
+	/*
+	 * Extent serial number generator state.
+	 *
+	 * Synchronization: atomic.
+	 */
 	size_t			extent_sn_next;
 
+	/* Synchronization: lock. */
 	dss_prec_t		dss_prec;
 
-	/* True if a thread is currently executing arena_purge_to_limit(). */
-	bool			purging;
+	/*
+	 * 1/0 (true/false) if a thread is currently executing
+	 * arena_purge_to_limit().
+	 *
+	 * Synchronization: atomic.
+	 */
+	unsigned		purging;
 
-	/* Number of pages in active extents. */
+	/*
+	 * Number of pages in active extents.
+	 *
+	 * Synchronization: atomic.
+	 */
 	size_t			nactive;
 
 	/*
-	 * Current count of pages within unused extents that are potentially
-	 * dirty, and for which pages_purge_*() has not been called.  By
-	 * tracking this, we can institute a limit on how much dirty unused
-	 * memory is mapped for each arena.
+	 * Decay-based purging state.
+	 *
+	 * Synchronization: lock.
 	 */
-	size_t			ndirty;
-
-	/* Decay-based purging state. */
 	arena_decay_t		decay;
 
-	/* Extant large allocations. */
-	ql_head(extent_t)	large;
+	/*
+	 * Extant large allocations.
+	 *
+	 * Synchronization: large_mtx.
+	 */
+	extent_list_t		large;
 	/* Synchronizes all large allocation/update/deallocation. */
 	malloc_mutex_t		large_mtx;
 
 	/*
-	 * Heaps of extents that were previously allocated.  These are used when
-	 * allocating extents, in an attempt to re-use address space.
+	 * Collections of extents that were previously allocated.  These are
+	 * used when allocating extents, in an attempt to re-use address space.
+	 *
+	 * Synchronization: internal.
 	 */
-	extent_heap_t		extents_cached[NPSIZES+1];
-	extent_heap_t		extents_retained[NPSIZES+1];
-	/*
-	 * Ring sentinel used to track unused dirty memory.  Dirty memory is
-	 * managed as an LRU of cached extents.
-	 */
-	extent_t		extents_dirty;
-	/* Protects extents_{cached,retained,dirty}. */
-	malloc_mutex_t		extents_mtx;
+	extents_t		extents_cached;
+	extents_t		extents_retained;
 
 	/*
 	 * Next extent size class in a growing series to use when satisfying a
@@ -192,17 +205,31 @@ struct arena_s {
 	 * the number of disjoint virtual memory ranges so that extent merging
 	 * can be effective even if multiple arenas' extent allocation requests
 	 * are highly interleaved.
+	 *
+	 * Synchronization: atomic.
 	 */
 	pszind_t		extent_grow_next;
 
-	/* Cache of extent structures that were allocated via base_alloc(). */
-	ql_head(extent_t)	extent_cache;
-	malloc_mutex_t		extent_cache_mtx;
+	/*
+	 * Freelist of extent structures that were allocated via base_alloc().
+	 *
+	 * Synchronization: extent_freelist_mtx.
+	 */
+	extent_list_t		extent_freelist;
+	malloc_mutex_t		extent_freelist_mtx;
 
-	/* bins is used to store heaps of free regions. */
+	/*
+	 * bins is used to store heaps of free regions.
+	 *
+	 * Synchronization: internal.
+	 */
 	arena_bin_t		bins[NBINS];
 
-	/* Base allocator, from which arena metadata are allocated. */
+	/*
+	 * Base allocator, from which arena metadata are allocated.
+	 *
+	 * Synchronization: internal.
+	 */
 	base_t			*base;
 };
 

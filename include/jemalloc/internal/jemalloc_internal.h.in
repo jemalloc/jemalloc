@@ -979,6 +979,7 @@ iallocztm(tsdn_t *tsdn, size_t size, szind_t ind, bool zero, tcache_t *tcache,
 	assert(!is_internal || tcache == NULL);
 	assert(!is_internal || arena == NULL || arena_ind_get(arena) <
 	    narenas_auto);
+	witness_assert_depth_to_rank(tsdn, WITNESS_RANK_CORE, 0);
 
 	ret = arena_malloc(tsdn, arena, size, ind, zero, tcache, slow_path);
 	if (config_stats && is_internal && likely(ret != NULL)) {
@@ -1004,6 +1005,7 @@ ipallocztm(tsdn_t *tsdn, size_t usize, size_t alignment, bool zero,
 	assert(!is_internal || tcache == NULL);
 	assert(!is_internal || arena == NULL || arena_ind_get(arena) <
 	    narenas_auto);
+	witness_assert_depth_to_rank(tsdn, WITNESS_RANK_CORE, 0);
 
 	ret = arena_palloc(tsdn, arena, usize, alignment, zero, tcache);
 	assert(ALIGNMENT_ADDR2BASE(ret, alignment) == ret);
@@ -1042,7 +1044,7 @@ ivsalloc(tsdn_t *tsdn, const void *ptr) {
 	if (extent == NULL) {
 		return 0;
 	}
-	assert(extent_active_get(extent));
+	assert(extent_state_get(extent) == extent_state_active);
 	/* Only slab members should be looked up via interior pointers. */
 	assert(extent_addr_get(extent) == ptr || extent_slab_get(extent));
 
@@ -1056,6 +1058,7 @@ idalloctm(tsdn_t *tsdn, extent_t *extent, void *ptr, tcache_t *tcache,
 	assert(!is_internal || tcache == NULL);
 	assert(!is_internal || arena_ind_get(iaalloc(tsdn, ptr)) <
 	    narenas_auto);
+	witness_assert_depth_to_rank(tsdn, WITNESS_RANK_CORE, 0);
 	if (config_stats && is_internal) {
 		arena_internal_sub(iaalloc(tsdn, ptr), isalloc(tsdn, extent,
 		    ptr));
@@ -1073,6 +1076,7 @@ idalloc(tsd_t *tsd, extent_t *extent, void *ptr) {
 JEMALLOC_ALWAYS_INLINE void
 isdalloct(tsdn_t *tsdn, extent_t *extent, void *ptr, size_t size,
     tcache_t *tcache, bool slow_path) {
+	witness_assert_depth_to_rank(tsdn, WITNESS_RANK_CORE, 0);
 	arena_sdalloc(tsdn, extent, ptr, size, tcache, slow_path);
 }
 
@@ -1080,6 +1084,7 @@ JEMALLOC_ALWAYS_INLINE void *
 iralloct_realign(tsdn_t *tsdn, extent_t *extent, void *ptr, size_t oldsize,
     size_t size, size_t extra, size_t alignment, bool zero, tcache_t *tcache,
     arena_t *arena) {
+	witness_assert_depth_to_rank(tsdn, WITNESS_RANK_CORE, 0);
 	void *p;
 	size_t usize, copysize;
 
@@ -1117,6 +1122,7 @@ iralloct(tsdn_t *tsdn, extent_t *extent, void *ptr, size_t oldsize, size_t size,
     size_t alignment, bool zero, tcache_t *tcache, arena_t *arena) {
 	assert(ptr != NULL);
 	assert(size != 0);
+	witness_assert_depth_to_rank(tsdn, WITNESS_RANK_CORE, 0);
 
 	if (alignment != 0 && ((uintptr_t)ptr & ((uintptr_t)alignment-1))
 	    != 0) {
@@ -1144,6 +1150,7 @@ ixalloc(tsdn_t *tsdn, extent_t *extent, void *ptr, size_t oldsize, size_t size,
     size_t extra, size_t alignment, bool zero) {
 	assert(ptr != NULL);
 	assert(size != 0);
+	witness_assert_depth_to_rank(tsdn, WITNESS_RANK_CORE, 0);
 
 	if (alignment != 0 && ((uintptr_t)ptr & ((uintptr_t)alignment-1))
 	    != 0) {

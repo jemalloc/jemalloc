@@ -21,9 +21,13 @@ size_t	extent_size_quantize_ceil(size_t size);
 
 ph_proto(, extent_heap_, extent_heap_t, extent_t)
 
-extent_t	*extent_alloc_cache_locked(tsdn_t *tsdn, arena_t *arena,
-    extent_hooks_t **r_extent_hooks, void *new_addr, size_t usize, size_t pad,
-    size_t alignment, bool *zero, bool *commit, bool slab);
+bool extents_init(tsdn_t *tsdn, extents_t *extents, extent_state_t state);
+extent_state_t extents_state_get(const extents_t *extents);
+size_t extents_npages_get(extents_t *extents);
+extent_t *extents_evict(tsdn_t *tsdn, extents_t *extents, size_t npages_min);
+void extents_prefork(tsdn_t *tsdn, extents_t *extents);
+void extents_postfork_parent(tsdn_t *tsdn, extents_t *extents);
+void extents_postfork_child(tsdn_t *tsdn, extents_t *extents);
 extent_t	*extent_alloc_cache(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, void *new_addr, size_t usize, size_t pad,
     size_t alignment, bool *zero, bool *commit, bool slab);
