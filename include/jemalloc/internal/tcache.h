@@ -149,6 +149,9 @@ bool	tcaches_create(tsd_t *tsd, unsigned *r_ind);
 void	tcaches_flush(tsd_t *tsd, unsigned ind);
 void	tcaches_destroy(tsd_t *tsd, unsigned ind);
 bool	tcache_boot(tsdn_t *tsdn);
+void tcache_prefork(tsdn_t *tsdn);
+void tcache_postfork_parent(tsdn_t *tsdn);
+void tcache_postfork_child(tsdn_t *tsdn);
 
 #endif /* JEMALLOC_H_EXTERNS */
 /******************************************************************************/

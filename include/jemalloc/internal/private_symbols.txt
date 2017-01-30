@@ -529,6 +529,9 @@ tcache_flush
 tcache_get
 tcache_get_hard
 tcache_maxclass
+tcache_prefork
+tcache_postfork_child
+tcache_postfork_parent
 tcache_salloc
 tcache_stats_merge
 tcaches
