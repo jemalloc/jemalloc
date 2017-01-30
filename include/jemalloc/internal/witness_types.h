@@ -26,9 +26,17 @@ typedef int witness_comp_t (const witness_t *, void *, const witness_t *,
 #define WITNESS_RANK_PROF_TDATA		7U
 #define WITNESS_RANK_PROF_GCTX		8U
 
+/*
+ * Used as an argument to witness_depth_to_rank() in order to validate depth
+ * excluding non-core locks with lower ranks.  Since the rank argument to
+ * witness_depth_to_rank() is inclusive rather than exclusive, this definition
+ * can have the same value as the minimally ranked core lock.
+ */
+#define WITNESS_RANK_CORE		9U
+
 #define WITNESS_RANK_ARENA		9U
-#define WITNESS_RANK_ARENA_EXTENTS	10U
-#define WITNESS_RANK_ARENA_EXTENT_CACHE	11U
+#define WITNESS_RANK_EXTENTS		10U
+#define WITNESS_RANK_EXTENT_FREELIST	11U
 
 #define WITNESS_RANK_RTREE_ELM		12U
 #define WITNESS_RANK_RTREE		13U

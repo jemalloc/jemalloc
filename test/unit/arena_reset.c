@@ -63,7 +63,7 @@ vsalloc(tsdn_t *tsdn, const void *ptr) {
 	if (extent == NULL) {
 		return 0;
 	}
-	if (!extent_active_get(extent)) {
+	if (extent_state_get(extent) != extent_state_active) {
 		return 0;
 	}
 

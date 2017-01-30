@@ -12,8 +12,7 @@ void	*extent_before_get(const extent_t *extent);
 void	*extent_last_get(const extent_t *extent);
 void	*extent_past_get(const extent_t *extent);
 size_t	extent_sn_get(const extent_t *extent);
-bool	extent_active_get(const extent_t *extent);
-bool	extent_retained_get(const extent_t *extent);
+extent_state_t	extent_state_get(const extent_t *extent);
 bool	extent_zeroed_get(const extent_t *extent);
 bool	extent_committed_get(const extent_t *extent);
 bool	extent_slab_get(const extent_t *extent);
@@ -26,16 +25,19 @@ void	extent_addr_randomize(tsdn_t *tsdn, extent_t *extent, size_t alignment);
 void	extent_size_set(extent_t *extent, size_t size);
 void	extent_usize_set(extent_t *extent, size_t usize);
 void	extent_sn_set(extent_t *extent, size_t sn);
-void	extent_active_set(extent_t *extent, bool active);
+void	extent_state_set(extent_t *extent, extent_state_t state);
 void	extent_zeroed_set(extent_t *extent, bool zeroed);
 void	extent_committed_set(extent_t *extent, bool committed);
 void	extent_slab_set(extent_t *extent, bool slab);
 void	extent_prof_tctx_set(extent_t *extent, prof_tctx_t *tctx);
 void	extent_init(extent_t *extent, arena_t *arena, void *addr,
-    size_t size, size_t usize, size_t sn, bool active, bool zeroed,
+    size_t size, size_t usize, size_t sn, extent_state_t state, bool zeroed,
     bool committed, bool slab);
-void	extent_ring_insert(extent_t *sentinel, extent_t *extent);
-void	extent_ring_remove(extent_t *extent);
+void extent_list_init(extent_list_t *list);
+extent_t *extent_list_first(const extent_list_t *list);
+extent_t *extent_list_last(const extent_list_t *list);
+void extent_list_append(extent_list_t *list, extent_t *extent);
+void extent_list_remove(extent_list_t *list, extent_t *extent);
 int	extent_sn_comp(const extent_t *a, const extent_t *b);
 int	extent_ad_comp(const extent_t *a, const extent_t *b);
 int	extent_snad_comp(const extent_t *a, const extent_t *b);
@@ -103,14 +105,9 @@ extent_sn_get(const extent_t *extent) {
 	return extent->e_sn;
 }
 
-JEMALLOC_INLINE bool
-extent_active_get(const extent_t *extent) {
-	return extent->e_active;
-}
-
-JEMALLOC_INLINE bool
-extent_retained_get(const extent_t *extent) {
-	return (qr_next(extent, qr_link) == extent);
+JEMALLOC_INLINE extent_state_t
+extent_state_get(const extent_t *extent) {
+	return extent->e_state;
 }
 
 JEMALLOC_INLINE bool
@@ -191,8 +188,8 @@ extent_sn_set(extent_t *extent, size_t sn) {
 }
 
 JEMALLOC_INLINE void
-extent_active_set(extent_t *extent, bool active) {
-	extent->e_active = active;
+extent_state_set(extent_t *extent, extent_state_t state) {
+	extent->e_state = state;
 }
 
 JEMALLOC_INLINE void
@@ -217,7 +214,7 @@ extent_prof_tctx_set(extent_t *extent, prof_tctx_t *tctx) {
 
 JEMALLOC_INLINE void
 extent_init(extent_t *extent, arena_t *arena, void *addr, size_t size,
-    size_t usize, size_t sn, bool active, bool zeroed, bool committed,
+    size_t usize, size_t sn, extent_state_t state, bool zeroed, bool committed,
     bool slab) {
 	assert(addr == PAGE_ADDR2BASE(addr) || !slab);
 
@@ -226,24 +223,39 @@ extent_init(extent_t *extent, arena_t *arena, void *addr, size_t size,
 	extent_size_set(extent, size);
 	extent_usize_set(extent, usize);
 	extent_sn_set(extent, sn);
-	extent_active_set(extent, active);
+	extent_state_set(extent, state);
 	extent_zeroed_set(extent, zeroed);
 	extent_committed_set(extent, committed);
 	extent_slab_set(extent, slab);
 	if (config_prof) {
 		extent_prof_tctx_set(extent, NULL);
 	}
-	qr_new(extent, qr_link);
+	ql_elm_new(extent, ql_link);
 }
 
 JEMALLOC_INLINE void
-extent_ring_insert(extent_t *sentinel, extent_t *extent) {
-	qr_meld(sentinel, extent, extent_t, qr_link);
+extent_list_init(extent_list_t *list) {
+	ql_new(list);
+}
+
+JEMALLOC_INLINE extent_t *
+extent_list_first(const extent_list_t *list) {
+	return ql_first(list);
+}
+
+JEMALLOC_INLINE extent_t *
+extent_list_last(const extent_list_t *list) {
+	return ql_last(list, ql_link);
 }
 
 JEMALLOC_INLINE void
-extent_ring_remove(extent_t *extent) {
-	qr_remove(extent, qr_link);
+extent_list_append(extent_list_t *list, extent_t *extent) {
+	ql_tail_insert(list, extent, ql_link);
+}
+
+JEMALLOC_INLINE void
+extent_list_remove(extent_list_t *list, extent_t *extent) {
+	ql_remove(list, extent, ql_link);
 }
 
 JEMALLOC_INLINE int

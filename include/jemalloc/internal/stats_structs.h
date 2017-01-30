@@ -70,9 +70,14 @@ struct malloc_large_stats_s {
 	size_t		curlextents;
 };
 
+/*
+ * Arena stats.  Note that fields marked "derived" are not directly maintained
+ * within the arena code; rather their values are derived during stats merge
+ * requests.
+ */
 struct arena_stats_s {
-	/* Number of bytes currently mapped. */
-	size_t		mapped;
+	/* Number of bytes currently mapped, excluding retained memory. */
+	size_t		mapped; /* Derived. */
 
 	/*
 	 * Number of bytes currently retained as a side effect of munmap() being
@@ -80,7 +85,7 @@ struct arena_stats_s {
 	 * always decommitted or purged), but they are excluded from the mapped
 	 * statistic (above).
 	 */
-	size_t		retained;
+	size_t		retained; /* Derived. */
 
 	/*
 	 * Total number of purge sweeps, total number of madvise calls made,
@@ -91,9 +96,9 @@ struct arena_stats_s {
 	uint64_t	nmadvise;
 	uint64_t	purged;
 
-	size_t		base;
+	size_t		base; /* Derived. */
 	size_t		internal; /* Protected via atomic_*_zu(). */
-	size_t		resident;
+	size_t		resident; /* Derived. */
 
 	size_t		allocated_large;
 	uint64_t	nmalloc_large;
@@ -101,7 +106,7 @@ struct arena_stats_s {
 	uint64_t	nrequests_large;
 
 	/* Number of bytes cached in tcache associated with this arena. */
-	size_t		tcache_bytes;
+	size_t		tcache_bytes; /* Derived. */
 
 	/* One element for each large size class. */
 	malloc_large_stats_t	lstats[NSIZES - NBINS];
