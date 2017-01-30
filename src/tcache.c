@@ -21,6 +21,9 @@ static unsigned		tcaches_past;
 /* Head of singly linked list tracking available tcaches elements. */
 static tcaches_t	*tcaches_avail;
 
+/* Protects tcaches{,_past,_avail}. */
+static malloc_mutex_t	tcaches_mtx;
+
 /******************************************************************************/
 
 size_t
@@ -422,32 +425,56 @@ tcache_stats_merge(tsdn_t *tsdn, tcache_t *tcache, arena_t *arena) {
 	}
 }
 
-bool
-tcaches_create(tsd_t *tsd, unsigned *r_ind) {
-	arena_t *arena;
-	tcache_t *tcache;
-	tcaches_t *elm;
+static bool
+tcaches_create_prep(tsd_t *tsd) {
+	bool err;
+
+	malloc_mutex_lock(tsd_tsdn(tsd), &tcaches_mtx);
 
 	if (tcaches == NULL) {
 		tcaches = base_alloc(tsd_tsdn(tsd), b0get(), sizeof(tcache_t *)
 		    * (MALLOCX_TCACHE_MAX+1), CACHELINE);
 		if (tcaches == NULL) {
-			return true;
+			err = true;
+			goto label_return;
 		}
 	}
 
 	if (tcaches_avail == NULL && tcaches_past > MALLOCX_TCACHE_MAX) {
-		return true;
-	}
-	arena = arena_ichoose(tsd, NULL);
-	if (unlikely(arena == NULL)) {
-		return true;
-	}
-	tcache = tcache_create(tsd_tsdn(tsd), arena);
-	if (tcache == NULL) {
-		return true;
+		err = true;
+		goto label_return;
 	}
 
+	err = false;
+label_return:
+	malloc_mutex_unlock(tsd_tsdn(tsd), &tcaches_mtx);
+	return err;
+}
+
+bool
+tcaches_create(tsd_t *tsd, unsigned *r_ind) {
+	witness_assert_depth(tsd_tsdn(tsd), 0);
+
+	bool err;
+
+	if (tcaches_create_prep(tsd)) {
+		err = true;
+		goto label_return;
+	}
+
+	arena_t *arena = arena_ichoose(tsd, NULL);
+	if (unlikely(arena == NULL)) {
+		err = true;
+		goto label_return;
+	}
+	tcache_t *tcache = tcache_create(tsd_tsdn(tsd), arena);
+	if (tcache == NULL) {
+		err = true;
+		goto label_return;
+	}
+
+	tcaches_t *elm;
+	malloc_mutex_lock(tsd_tsdn(tsd), &tcaches_mtx);
 	if (tcaches_avail != NULL) {
 		elm = tcaches_avail;
 		tcaches_avail = tcaches_avail->next;
@@ -459,12 +486,18 @@ tcaches_create(tsd_t *tsd, unsigned *r_ind) {
 		*r_ind = tcaches_past;
 		tcaches_past++;
 	}
+	malloc_mutex_unlock(tsd_tsdn(tsd), &tcaches_mtx);
 
-	return false;
+	err = false;
+label_return:
+	witness_assert_depth(tsd_tsdn(tsd), 0);
+	return err;
 }
 
 static void
 tcaches_elm_flush(tsd_t *tsd, tcaches_t *elm) {
+	malloc_mutex_assert_owner(tsd_tsdn(tsd), &tcaches_mtx);
+
 	if (elm->tcache == NULL) {
 		return;
 	}
@@ -474,19 +507,25 @@ tcaches_elm_flush(tsd_t *tsd, tcaches_t *elm) {
 
 void
 tcaches_flush(tsd_t *tsd, unsigned ind) {
+	malloc_mutex_lock(tsd_tsdn(tsd), &tcaches_mtx);
 	tcaches_elm_flush(tsd, &tcaches[ind]);
+	malloc_mutex_unlock(tsd_tsdn(tsd), &tcaches_mtx);
 }
 
 void
 tcaches_destroy(tsd_t *tsd, unsigned ind) {
+	malloc_mutex_lock(tsd_tsdn(tsd), &tcaches_mtx);
 	tcaches_t *elm = &tcaches[ind];
 	tcaches_elm_flush(tsd, elm);
 	elm->next = tcaches_avail;
 	tcaches_avail = elm;
+	malloc_mutex_unlock(tsd_tsdn(tsd), &tcaches_mtx);
 }
 
 bool
 tcache_boot(tsdn_t *tsdn) {
+	cassert(config_tcache);
+
 	unsigned i;
 
 	/* If necessary, clamp opt_lg_tcache_max. */
@@ -495,6 +534,10 @@ tcache_boot(tsdn_t *tsdn) {
 		tcache_maxclass = SMALL_MAXCLASS;
 	} else {
 		tcache_maxclass = (ZU(1) << opt_lg_tcache_max);
+	}
+
+	if (malloc_mutex_init(&tcaches_mtx, "tcaches", WITNESS_RANK_TCACHES)) {
+		return true;
 	}
 
 	nhbins = size2index(tcache_maxclass) + 1;
@@ -526,4 +569,25 @@ tcache_boot(tsdn_t *tsdn) {
 	}
 
 	return false;
+}
+
+void
+tcache_prefork(tsdn_t *tsdn) {
+	if (!config_prof && opt_tcache) {
+		malloc_mutex_prefork(tsdn, &tcaches_mtx);
+	}
+}
+
+void
+tcache_postfork_parent(tsdn_t *tsdn) {
+	if (!config_prof && opt_tcache) {
+		malloc_mutex_postfork_parent(tsdn, &tcaches_mtx);
+	}
+}
+
+void
+tcache_postfork_child(tsdn_t *tsdn) {
+	if (!config_prof && opt_tcache) {
+		malloc_mutex_postfork_child(tsdn, &tcaches_mtx);
+	}
 }
