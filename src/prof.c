@@ -2353,7 +2353,7 @@ prof_boot2(tsd_t *tsd) {
 
 void
 prof_prefork0(tsdn_t *tsdn) {
-	if (opt_prof) {
+	if (config_prof && opt_prof) {
 		unsigned i;
 
 		malloc_mutex_prefork(tsdn, &prof_dump_mtx);
@@ -2370,7 +2370,7 @@ prof_prefork0(tsdn_t *tsdn) {
 
 void
 prof_prefork1(tsdn_t *tsdn) {
-	if (opt_prof) {
+	if (config_prof && opt_prof) {
 		malloc_mutex_prefork(tsdn, &prof_active_mtx);
 		malloc_mutex_prefork(tsdn, &prof_dump_seq_mtx);
 		malloc_mutex_prefork(tsdn, &prof_gdump_mtx);
@@ -2381,7 +2381,7 @@ prof_prefork1(tsdn_t *tsdn) {
 
 void
 prof_postfork_parent(tsdn_t *tsdn) {
-	if (opt_prof) {
+	if (config_prof && opt_prof) {
 		unsigned i;
 
 		malloc_mutex_postfork_parent(tsdn,
@@ -2404,7 +2404,7 @@ prof_postfork_parent(tsdn_t *tsdn) {
 
 void
 prof_postfork_child(tsdn_t *tsdn) {
-	if (opt_prof) {
+	if (config_prof && opt_prof) {
 		unsigned i;
 
 		malloc_mutex_postfork_child(tsdn, &prof_thread_active_init_mtx);
