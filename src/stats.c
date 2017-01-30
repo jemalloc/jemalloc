@@ -136,8 +136,16 @@ stats_arena_bins_print(void (*write_cb)(void *, const char *), void *cbopaque,
 			availregs = nregs * curruns;
 			milli = (availregs != 0) ? (1000 * curregs) / availregs
 			    : 1000;
-			assert(milli <= 1000);
-			if (milli < 10) {
+
+			if (milli > 1000) {
+				/*
+				 * Race detected: the counters were read in
+				 * separate mallctl calls and concurrent
+				 * operations happened in between. In this case
+				 * no meaningful utilization can be computed.
+				 */
+				malloc_snprintf(util, sizeof(util), " race");
+			} else if (milli < 10) {
 				malloc_snprintf(util, sizeof(util),
 				    "0.00%zu", milli);
 			} else if (milli < 100) {
@@ -146,8 +154,10 @@ stats_arena_bins_print(void (*write_cb)(void *, const char *), void *cbopaque,
 			} else if (milli < 1000) {
 				malloc_snprintf(util, sizeof(util), "0.%zu",
 				    milli);
-			} else
+			} else {
+				assert(milli == 1000);
 				malloc_snprintf(util, sizeof(util), "1");
+			}
 
 			if (config_tcache) {
 				malloc_cprintf(write_cb, cbopaque,
