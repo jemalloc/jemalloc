@@ -67,7 +67,10 @@ token_error(token_t *token)
 		    token->col);
 		break;
 	}
-	write(STDERR_FILENO, &token->parser->buf[token->pos], token->len);
+	{
+		UNUSED ssize_t err = write(STDERR_FILENO,
+		    &token->parser->buf[token->pos], token->len);
+	}
 	malloc_printf("\n");
 }
 
@@ -135,7 +138,9 @@ parser_tokenize(parser_t *parser)
 		STATE_EXP_DIGITS,
 		STATE_ACCEPT
 	} state = STATE_START;
-	size_t token_pos, token_line, token_col;
+	size_t token_pos JEMALLOC_CC_SILENCE_INIT(0);
+	size_t token_line JEMALLOC_CC_SILENCE_INIT(1);
+	size_t token_col JEMALLOC_CC_SILENCE_INIT(0);
 
 	assert_zu_le(parser->pos, parser->len,
 	    "Position is past end of buffer");
