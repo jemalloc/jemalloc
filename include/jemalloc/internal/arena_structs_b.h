@@ -125,6 +125,13 @@ struct arena_s {
 	 */
 	unsigned		nthreads[2];
 
+	/*
+	 * When percpu_arena is enabled, to amortize the cost of reading /
+	 * updating the current CPU id, track the most recent thread accessing
+	 * this arena, and only read CPU if there is a mismatch.
+	 */
+	tsdn_t		*last_thd;
+
 	/* Synchronization: internal. */
 	arena_stats_t		stats;
 

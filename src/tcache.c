@@ -357,11 +357,7 @@ tcache_create(tsdn_t *tsdn, arena_t *arena) {
 
 static void
 tcache_destroy(tsd_t *tsd, tcache_t *tcache) {
-	arena_t *arena;
 	unsigned i;
-
-	arena = arena_choose(tsd, NULL);
-	tcache_arena_dissociate(tsd_tsdn(tsd), tcache);
 
 	for (i = 0; i < NBINS; i++) {
 		tcache_bin_t *tbin = &tcache->tbins[i];
@@ -380,6 +376,13 @@ tcache_destroy(tsd_t *tsd, tcache_t *tcache) {
 			assert(tbin->tstats.nrequests == 0);
 		}
 	}
+
+	/*
+	 * Get arena after flushing -- when using percpu arena, the associated
+	 * arena could change during flush.
+	 */
+	arena_t *arena = arena_choose(tsd, NULL);
+	tcache_arena_dissociate(tsd_tsdn(tsd), tcache);
 
 	if (config_prof && tcache->prof_accumbytes > 0 &&
 	    arena_prof_accum(tsd_tsdn(tsd), arena, tcache->prof_accumbytes)) {

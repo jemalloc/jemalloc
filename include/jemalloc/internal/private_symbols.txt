@@ -258,6 +258,7 @@ large_salloc
 lg_floor
 lg_prof_sample
 malloc_cprintf
+malloc_getcpu
 malloc_mutex_assert_not_owner
 malloc_mutex_assert_owner
 malloc_mutex_boot
@@ -330,6 +331,9 @@ pages_purge_forced
 pages_purge_lazy
 pages_trim
 pages_unmap
+percpu_arena_choose
+percpu_arena_ind_limit
+percpu_arena_update
 pind2sz
 pind2sz_compute
 pind2sz_lookup

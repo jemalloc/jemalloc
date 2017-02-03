@@ -621,6 +621,7 @@ stats_general_print(void (*write_cb)(void *, const char *), void *cbopaque,
 	OPT_WRITE_BOOL(abort, ",")
 	OPT_WRITE_CHAR_P(dss, ",")
 	OPT_WRITE_UNSIGNED(narenas, ",")
+	OPT_WRITE_CHAR_P(percpu_arena, ",")
 	OPT_WRITE_SSIZE_T_MUTABLE(decay_time, arenas.decay_time, ",")
 	OPT_WRITE_CHAR_P(junk, ",")
 	OPT_WRITE_BOOL(zero, ",")

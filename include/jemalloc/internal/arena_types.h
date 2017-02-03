@@ -19,4 +19,20 @@ typedef struct arena_bin_s arena_bin_t;
 typedef struct arena_s arena_t;
 typedef struct arena_tdata_s arena_tdata_t;
 
+typedef enum {
+	percpu_arena_disabled = 0,
+	percpu_arena = 1,
+	per_phycpu_arena = 2, /* i.e. hyper threads share arena. */
+
+	percpu_arena_mode_limit = 3
+} percpu_arena_mode_t;
+
+#ifdef JEMALLOC_PERCPU_ARENA
+#define PERCPU_ARENA_MODE_DEFAULT	percpu_arena
+#define OPT_PERCPU_ARENA_DEFAULT	"percpu"
+#else
+#define PERCPU_ARENA_MODE_DEFAULT	percpu_arena_disabled
+#define OPT_PERCPU_ARENA_DEFAULT	"disabled"
+#endif
+
 #endif /* JEMALLOC_INTERNAL_ARENA_TYPES_H */
