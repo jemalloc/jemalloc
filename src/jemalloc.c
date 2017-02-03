@@ -1362,6 +1362,8 @@ malloc_init_hard(void) {
  */
 typedef struct static_opts_s static_opts_t;
 struct static_opts_s {
+	/* Whether or not allocation size may overflow. */
+	bool may_overflow;
 	/* Whether or not allocations of size 0 should be treated as size 1. */
 	bool bump_empty_alloc;
 	/*
@@ -1400,6 +1402,7 @@ struct static_opts_s {
 
 JEMALLOC_ALWAYS_INLINE_C void
 static_opts_init(static_opts_t *static_opts) {
+	static_opts->may_overflow = false;
 	static_opts->bump_empty_alloc = false;
 	static_opts->assert_nonempty_alloc = false;
 	static_opts->null_out_result_on_error = false;
@@ -1514,11 +1517,18 @@ imalloc_sample(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd,
  * *size to the product either way.
  */
 JEMALLOC_ALWAYS_INLINE_C bool
-compute_size_with_overflow(dynamic_opts_t *dopts, size_t *size) {
+compute_size_with_overflow(bool may_overflow, dynamic_opts_t *dopts,
+    size_t *size) {
 	/*
-	 * This function is just num_items * item_size, except that we have to
-	 * check for overflow.
+	 * This function is just num_items * item_size, except that we may have
+	 * to check for overflow.
 	 */
+
+	if (!may_overflow) {
+		assert(dopts->num_items == 1);
+		*size = dopts->item_size;
+		return false;
+	}
 
 	/* A size_t with its high-half bits all set to 1. */
 	const static size_t high_bits = SIZE_T_MAX << (sizeof(size_t) * 8 / 2);
@@ -1572,8 +1582,8 @@ imalloc_body(static_opts_t *sopts, dynamic_opts_t *dopts) {
 	}
 
 	/* Compute the amount of memory the user wants. */
-	bool overflow = compute_size_with_overflow(dopts, &size);
-	if (unlikely(overflow)) {
+	if (unlikely(compute_size_with_overflow(sopts->may_overflow, dopts,
+	    &size))) {
 		goto label_oom;
 	}
 
@@ -1843,6 +1853,7 @@ je_calloc(size_t num, size_t size) {
 	static_opts_init(&sopts);
 	dynamic_opts_init(&dopts);
 
+	sopts.may_overflow = true;
 	sopts.bump_empty_alloc = true;
 	sopts.null_out_result_on_error = true;
 	sopts.set_errno_on_error = true;
