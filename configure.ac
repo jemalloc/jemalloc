@@ -1598,6 +1598,15 @@ if test "x$have_secure_getenv" = "x1" ; then
   AC_DEFINE([JEMALLOC_HAVE_SECURE_GETENV], [ ])
 fi
 
+dnl Check if the GNU-specific sched_getcpu function exists.
+AC_CHECK_FUNC([sched_getcpu],
+              [have_sched_getcpu="1"],
+              [have_sched_getcpu="0"]
+             )
+if test "x$have_sched_getcpu" = "x1" ; then
+  AC_DEFINE([JEMALLOC_HAVE_SCHED_GETCPU], [ ])
+fi
+
 dnl Check if the Solaris/BSD issetugid function exists.
 AC_CHECK_FUNC([issetugid],
               [have_issetugid="1"],

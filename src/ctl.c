@@ -72,6 +72,7 @@ CTL_PROTO(config_xmalloc)
 CTL_PROTO(opt_abort)
 CTL_PROTO(opt_dss)
 CTL_PROTO(opt_narenas)
+CTL_PROTO(opt_percpu_arena)
 CTL_PROTO(opt_decay_time)
 CTL_PROTO(opt_stats_print)
 CTL_PROTO(opt_junk)
@@ -229,6 +230,7 @@ static const ctl_named_node_t opt_node[] = {
 	{NAME("abort"),		CTL(opt_abort)},
 	{NAME("dss"),		CTL(opt_dss)},
 	{NAME("narenas"),	CTL(opt_narenas)},
+	{NAME("percpu_arena"),	CTL(opt_percpu_arena)},
 	{NAME("decay_time"),	CTL(opt_decay_time)},
 	{NAME("stats_print"),	CTL(opt_stats_print)},
 	{NAME("junk"),		CTL(opt_junk)},
@@ -1284,6 +1286,7 @@ CTL_RO_CONFIG_GEN(config_xmalloc, bool)
 CTL_RO_NL_GEN(opt_abort, opt_abort, bool)
 CTL_RO_NL_GEN(opt_dss, opt_dss, const char *)
 CTL_RO_NL_GEN(opt_narenas, opt_narenas, unsigned)
+CTL_RO_NL_GEN(opt_percpu_arena, opt_percpu_arena, const char *)
 CTL_RO_NL_GEN(opt_decay_time, opt_decay_time, ssize_t)
 CTL_RO_NL_GEN(opt_stats_print, opt_stats_print, bool)
 CTL_RO_NL_CGEN(config_fill, opt_junk, opt_junk, const char *)
@@ -1317,10 +1320,10 @@ thread_arena_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
 	if (oldarena == NULL) {
 		return EAGAIN;
 	}
-
 	newind = oldind = arena_ind_get(oldarena);
 	WRITE(newind, unsigned);
 	READ(oldind, unsigned);
+
 	if (newind != oldind) {
 		arena_t *newarena;
 
@@ -1328,6 +1331,19 @@ thread_arena_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
 			/* New arena index is out of range. */
 			ret = EFAULT;
 			goto label_return;
+		}
+
+		if (have_percpu_arena &&
+		    (percpu_arena_mode != percpu_arena_disabled)) {
+			if (newind < percpu_arena_ind_limit()) {
+				/*
+				 * If perCPU arena is enabled, thread_arena
+				 * control is not allowed for the auto arena
+				 * range.
+				 */
+				ret = EPERM;
+				goto label_return;
+			}
 		}
 
 		/* Initialize arena if necessary. */

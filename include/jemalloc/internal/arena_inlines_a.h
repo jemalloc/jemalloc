@@ -7,6 +7,7 @@ void	arena_internal_add(arena_t *arena, size_t size);
 void	arena_internal_sub(arena_t *arena, size_t size);
 size_t	arena_internal_get(arena_t *arena);
 bool	arena_prof_accum(tsdn_t *tsdn, arena_t *arena, uint64_t accumbytes);
+void	percpu_arena_update(tsd_t *tsd, unsigned cpu);
 #endif /* JEMALLOC_ENABLE_INLINE */
 
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_ARENA_C_))
@@ -40,6 +41,30 @@ arena_prof_accum(tsdn_t *tsdn, arena_t *arena, uint64_t accumbytes) {
 	}
 
 	return prof_accum_add(tsdn, &arena->prof_accum, accumbytes);
+}
+
+JEMALLOC_INLINE void
+percpu_arena_update(tsd_t *tsd, unsigned cpu) {
+	assert(have_percpu_arena);
+	arena_t *oldarena = tsd_arena_get(tsd);
+	assert(oldarena != NULL);
+	unsigned oldind = arena_ind_get(oldarena);
+
+	if (oldind != cpu) {
+		unsigned newind = cpu;
+		arena_t *newarena = arena_get(tsd_tsdn(tsd), newind, true);
+		assert(newarena != NULL);
+
+		/* Set new arena/tcache associations. */
+		arena_migrate(tsd, oldind, newind);
+		if (config_tcache) {
+			tcache_t *tcache = tsd_tcache_get(tsd);
+			if (tcache) {
+				tcache_arena_reassociate(tsd_tsdn(tsd), tcache,
+				    newarena);
+			}
+		}
+	}
 }
 
 #endif /* (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_ARENA_C_)) */

@@ -56,7 +56,8 @@ static malloc_mutex_t	arenas_lock;
  * arenas.  arenas[narenas_auto..narenas_total) are only used if the application
  * takes some action to create them and allocate from them.
  */
-arena_t			**arenas;
+JEMALLOC_ALIGNED(CACHELINE)
+arena_t			*arenas[MALLOCX_ARENA_MAX + 1];
 static unsigned		narenas_total; /* Use narenas_total_*(). */
 static arena_t		*a0; /* arenas[0]; read-only after initialization. */
 unsigned		narenas_auto; /* Read-only after initialization. */
@@ -542,6 +543,16 @@ label_return:
 arena_t *
 arena_choose_hard(tsd_t *tsd, bool internal) {
 	arena_t *ret JEMALLOC_CC_SILENCE_INIT(NULL);
+
+	if (have_percpu_arena && percpu_arena_mode != percpu_arena_disabled) {
+		unsigned choose = percpu_arena_choose();
+		ret = arena_get(tsd_tsdn(tsd), choose, true);
+		assert(ret != NULL);
+		arena_bind(tsd, arena_ind_get(ret), false);
+		arena_bind(tsd, arena_ind_get(ret), true);
+
+		return ret;
+	}
 
 	if (narenas_auto > 1) {
 		unsigned i, j, choose[2], first_null;
@@ -1095,6 +1106,30 @@ malloc_conf_init(void) {
 				    "lg_tcache_max", -1,
 				    (sizeof(size_t) << 3) - 1)
 			}
+			if (strncmp("percpu_arena", k, klen) == 0) {
+				int i;
+				bool match = false;
+				for (i = 0; i < percpu_arena_mode_limit; i++) {
+					if (strncmp(percpu_arena_mode_names[i],
+						    v, vlen) == 0) {
+						if (!have_percpu_arena) {
+							malloc_conf_error(
+							    "No getcpu support",
+							    k, klen, v, vlen);
+						}
+						percpu_arena_mode = i;
+						opt_percpu_arena =
+						    percpu_arena_mode_names[i];
+						match = true;
+						break;
+					}
+				}
+				if (!match) {
+					malloc_conf_error("Invalid conf value",
+					    k, klen, v, vlen);
+				}
+				continue;
+			}
 			if (config_prof) {
 				CONF_HANDLE_BOOL(opt_prof, "prof", true)
 				CONF_HANDLE_CHAR_P(opt_prof_prefix,
@@ -1204,8 +1239,6 @@ malloc_init_hard_a0_locked() {
 	 * malloc_ncpus().
 	 */
 	narenas_auto = 1;
-	narenas_total_set(narenas_auto);
-	arenas = &a0;
 	memset(arenas, 0, sizeof(arena_t *) * narenas_auto);
 	/*
 	 * Initialize one arena here.  The rest are lazily created in
@@ -1215,7 +1248,7 @@ malloc_init_hard_a0_locked() {
 	    == NULL) {
 		return true;
 	}
-
+	a0 = arena_get(TSDN_NULL, 0, false);
 	malloc_init_state = malloc_init_a0_initialized;
 
 	return false;
@@ -1255,23 +1288,76 @@ malloc_init_hard_recursible(void) {
 	return false;
 }
 
-static bool
-malloc_init_hard_finish(tsdn_t *tsdn) {
-	if (malloc_mutex_boot()) {
-		return true;
+static unsigned
+malloc_narenas_default(void) {
+	assert(ncpus > 0);
+	/*
+	 * For SMP systems, create more than one arena per CPU by
+	 * default.
+	 */
+	if (ncpus > 1) {
+		return ncpus << 2;
+	} else {
+		return 1;
 	}
+}
 
-	if (opt_narenas == 0) {
-		/*
-		 * For SMP systems, create more than one arena per CPU by
-		 * default.
-		 */
-		if (ncpus > 1) {
-			opt_narenas = ncpus << 2;
+static bool
+malloc_init_narenas(void) {
+	assert(ncpus > 0);
+
+	if (percpu_arena_mode != percpu_arena_disabled) {
+		if (!have_percpu_arena || malloc_getcpu() < 0) {
+			percpu_arena_mode = percpu_arena_disabled;
+			malloc_printf("<jemalloc>: perCPU arena getcpu() not "
+			    "available. Setting narenas to %u.\n", opt_narenas ?
+			    opt_narenas : malloc_narenas_default());
+			if (opt_abort) {
+				abort();
+			}
 		} else {
-			opt_narenas = 1;
+			if (ncpus > MALLOCX_ARENA_MAX) {
+				malloc_printf("<jemalloc>: narenas w/ percpu"
+				    "arena beyond limit (%d)\n", ncpus);
+				if (opt_abort) {
+					abort();
+				}
+				return true;
+			}
+			if ((percpu_arena_mode == per_phycpu_arena) &&
+			    (ncpus % 2 != 0)) {
+				malloc_printf("<jemalloc>: invalid "
+				    "configuration -- per physical CPU arena "
+				    "with odd number (%u) of CPUs (no hyper "
+				    "threading?).\n", ncpus);
+				if (opt_abort)
+					abort();
+			}
+			unsigned n = percpu_arena_ind_limit();
+			if (opt_narenas < n) {
+				/*
+				 * If narenas is specified with percpu_arena
+				 * enabled, actual narenas is set as the greater
+				 * of the two. percpu_arena_choose will be free
+				 * to use any of the arenas based on CPU
+				 * id. This is conservative (at a small cost)
+				 * but ensures correctness.
+				 *
+				 * If for some reason the ncpus determined at
+				 * boot is not the actual number (e.g. because
+				 * of affinity setting from numactl), reserving
+				 * narenas this way provides a workaround for
+				 * percpu_arena.
+				 */
+				opt_narenas = n;
+			}
 		}
 	}
+	if (opt_narenas == 0) {
+		opt_narenas = malloc_narenas_default();
+	}
+	assert(opt_narenas > 0);
+
 	narenas_auto = opt_narenas;
 	/*
 	 * Limit the number of arenas to the indexing range of MALLOCX_ARENA().
@@ -1283,14 +1369,13 @@ malloc_init_hard_finish(tsdn_t *tsdn) {
 	}
 	narenas_total_set(narenas_auto);
 
-	/* Allocate and initialize arenas. */
-	arenas = (arena_t **)base_alloc(tsdn, a0->base, sizeof(arena_t *) *
-	    (MALLOCX_ARENA_MAX+1), CACHELINE);
-	if (arenas == NULL) {
+	return false;
+}
+
+static bool
+malloc_init_hard_finish(void) {
+	if (malloc_mutex_boot())
 		return true;
-	}
-	/* Copy the pointer to the one arena that was already initialized. */
-	arena_set(0, a0);
 
 	malloc_init_state = malloc_init_initialized;
 	malloc_slow_flag_init();
@@ -1328,12 +1413,18 @@ malloc_init_hard(void) {
 	}
 	malloc_mutex_lock(tsd_tsdn(tsd), &init_lock);
 
+	/* Need this before prof_boot2 (for allocation). */
+	if (malloc_init_narenas()) {
+		malloc_mutex_unlock(tsd_tsdn(tsd), &init_lock);
+		return true;
+	}
+
 	if (config_prof && prof_boot2(tsd)) {
 		malloc_mutex_unlock(tsd_tsdn(tsd), &init_lock);
 		return true;
 	}
 
-	if (malloc_init_hard_finish(tsd_tsdn(tsd))) {
+	if (malloc_init_hard_finish()) {
 		malloc_mutex_unlock(tsd_tsdn(tsd), &init_lock);
 		return true;
 	}

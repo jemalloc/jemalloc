@@ -145,6 +145,17 @@ static const bool have_thp =
     false
 #endif
     ;
+#ifdef JEMALLOC_HAVE_SCHED_GETCPU
+/* Currently percpu_arena depends on sched_getcpu. */
+#define JEMALLOC_PERCPU_ARENA
+#endif
+static const bool have_percpu_arena =
+#ifdef JEMALLOC_PERCPU_ARENA
+    true
+#else
+    false
+#endif
+    ;
 
 #if (defined(JEMALLOC_OSATOMIC) || defined(JEMALLOC_OSSPIN))
 #include <libkern/OSAtomic.h>
@@ -219,6 +230,9 @@ typedef unsigned pszind_t;
 
 /* Size class index type. */
 typedef unsigned szind_t;
+
+/* Processor / core id type. */
+typedef int malloc_cpuid_t;
 
 /*
  * Flags bits:
@@ -455,7 +469,7 @@ extern unsigned	narenas_auto;
  * Arenas that are used to service external requests.  Not all elements of the
  * arenas array are necessarily used; arenas are created lazily as needed.
  */
-extern arena_t	**arenas;
+extern arena_t	*arenas[];
 
 /*
  * pind2sz_tab encodes the same information as could be computed by
@@ -548,6 +562,10 @@ arena_tdata_t	*arena_tdata_get(tsd_t *tsd, unsigned ind,
     bool refresh_if_missing);
 arena_t	*arena_get(tsdn_t *tsdn, unsigned ind, bool init_if_missing);
 ticker_t	*decay_ticker_get(tsd_t *tsd, unsigned ind);
+malloc_cpuid_t	malloc_getcpu(void);
+unsigned	percpu_arena_choose(void);
+unsigned	percpu_arena_ind_limit(void);
+
 #endif
 
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_C_))
@@ -818,32 +836,53 @@ sa2u(size_t size, size_t alignment) {
 	return usize;
 }
 
-/* Choose an arena based on a per-thread value. */
-JEMALLOC_INLINE arena_t *
-arena_choose_impl(tsd_t *tsd, arena_t *arena, bool internal) {
-	arena_t *ret;
+JEMALLOC_ALWAYS_INLINE malloc_cpuid_t
+malloc_getcpu(void) {
+	assert(have_percpu_arena);
+#if defined(JEMALLOC_HAVE_SCHED_GETCPU)
+	return (malloc_cpuid_t)sched_getcpu();
+#else
+	not_reached();
+	return -1;
+#endif
+}
 
-	if (arena != NULL) {
-		return arena;
+/* Return the chosen arena index based on current cpu. */
+JEMALLOC_ALWAYS_INLINE unsigned
+percpu_arena_choose(void) {
+	unsigned arena_ind;
+	assert(have_percpu_arena && (percpu_arena_mode != percpu_arena_disabled));
+
+	malloc_cpuid_t cpuid = malloc_getcpu();
+	assert(cpuid >= 0);
+	if ((percpu_arena_mode == percpu_arena) ||
+	    ((unsigned)cpuid < ncpus / 2)) {
+		arena_ind = cpuid;
+	} else {
+		assert(percpu_arena_mode == per_phycpu_arena);
+		/* Hyper threads on the same physical CPU share arena. */
+		arena_ind = cpuid - ncpus / 2;
 	}
 
-	ret = internal ? tsd_iarena_get(tsd) : tsd_arena_get(tsd);
-	if (unlikely(ret == NULL)) {
-		ret = arena_choose_hard(tsd, internal);
+	return arena_ind;
+}
+
+/* Return the limit of percpu auto arena range, i.e. arenas[0...ind_limit). */
+JEMALLOC_ALWAYS_INLINE unsigned
+percpu_arena_ind_limit(void) {
+	assert(have_percpu_arena && (percpu_arena_mode != percpu_arena_disabled));
+	if (percpu_arena_mode == per_phycpu_arena && ncpus > 1) {
+		if (ncpus % 2) {
+			/* This likely means a misconfig. */
+			return ncpus / 2 + 1;
+		}
+		return ncpus / 2;
+	} else {
+		return ncpus;
 	}
-
-	return ret;
 }
 
-JEMALLOC_INLINE arena_t *
-arena_choose(tsd_t *tsd, arena_t *arena) {
-	return arena_choose_impl(tsd, arena, false);
-}
 
-JEMALLOC_INLINE arena_t *
-arena_ichoose(tsd_t *tsd, arena_t *arena) {
-	return arena_choose_impl(tsd, arena, true);
-}
 
 JEMALLOC_INLINE arena_tdata_t *
 arena_tdata_get(tsd_t *tsd, unsigned ind, bool refresh_if_missing) {
@@ -912,6 +951,50 @@ extent_t	*iealloc(tsdn_t *tsdn, const void *ptr);
 #endif
 
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_C_))
+/* Choose an arena based on a per-thread value. */
+JEMALLOC_INLINE arena_t *
+arena_choose_impl(tsd_t *tsd, arena_t *arena, bool internal) {
+	arena_t *ret;
+
+	if (arena != NULL) {
+		return arena;
+	}
+
+	ret = internal ? tsd_iarena_get(tsd) : tsd_arena_get(tsd);
+	if (unlikely(ret == NULL)) {
+		ret = arena_choose_hard(tsd, internal);
+	}
+
+	assert(ret != NULL);
+	/*
+	 * Note that for percpu arena, if the current arena is outside of the
+	 * auto percpu arena range, (i.e. thread is assigned to a manually
+	 * managed arena), then percpu arena is skipped.
+	 */
+	if (have_percpu_arena && (percpu_arena_mode != percpu_arena_disabled) &&
+	    (arena_ind_get(ret) < percpu_arena_ind_limit()) &&
+	    (ret->last_thd != tsd_tsdn(tsd))) {
+		unsigned ind = percpu_arena_choose();
+		if (arena_ind_get(ret) != ind) {
+			percpu_arena_update(tsd, ind);
+			ret = tsd_arena_get(tsd);
+		}
+		ret->last_thd = tsd_tsdn(tsd);
+	}
+
+	return ret;
+}
+
+JEMALLOC_INLINE arena_t *
+arena_choose(tsd_t *tsd, arena_t *arena) {
+	return arena_choose_impl(tsd, arena, false);
+}
+
+JEMALLOC_INLINE arena_t *
+arena_ichoose(tsd_t *tsd, arena_t *arena) {
+	return arena_choose_impl(tsd, arena, true);
+}
+
 JEMALLOC_ALWAYS_INLINE extent_t *
 iealloc(tsdn_t *tsdn, const void *ptr) {
 	return extent_lookup(tsdn, ptr, true);

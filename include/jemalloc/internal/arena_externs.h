@@ -13,6 +13,10 @@ extern ssize_t		opt_decay_time;
 
 extern const arena_bin_info_t	arena_bin_info[NBINS];
 
+extern percpu_arena_mode_t	percpu_arena_mode;
+extern const char	*opt_percpu_arena;
+extern const char	*percpu_arena_mode_names[];
+
 void arena_stats_large_nrequests_add(tsdn_t *tsdn, arena_stats_t *arena_stats,
     szind_t szind, uint64_t nrequests);
 void arena_stats_mapped_add(tsdn_t *tsdn, arena_stats_t *arena_stats,

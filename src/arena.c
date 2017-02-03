@@ -4,6 +4,15 @@
 /******************************************************************************/
 /* Data. */
 
+const char	*percpu_arena_mode_names[] = {
+	"disabled",
+	"percpu",
+	"phycpu"
+};
+
+const char	*opt_percpu_arena = OPT_PERCPU_ARENA_DEFAULT;
+percpu_arena_mode_t	percpu_arena_mode = PERCPU_ARENA_MODE_DEFAULT;
+
 ssize_t		opt_decay_time = DECAY_TIME_DEFAULT;
 static ssize_t	decay_time_default;
 
@@ -1629,6 +1638,7 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 	}
 
 	arena->nthreads[0] = arena->nthreads[1] = 0;
+	arena->last_thd = NULL;
 
 	if (config_stats) {
 		if (arena_stats_init(tsdn, &arena->stats)) {
