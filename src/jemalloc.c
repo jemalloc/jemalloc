@@ -1521,7 +1521,7 @@ compute_size_with_overflow(dynamic_opts_t *dopts, size_t *size) {
 	 */
 
 	/* A size_t with its high-half bits all set to 1. */
-	const static size_t high_bits = SIZE_T_MAX >> (sizeof(size_t) * 8 / 2);
+	const static size_t high_bits = SIZE_T_MAX << (sizeof(size_t) * 8 / 2);
 
 	*size = dopts->item_size * dopts->num_items;
 
