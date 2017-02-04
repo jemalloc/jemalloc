@@ -146,16 +146,77 @@ rtree_node_init(tsdn_t *tsdn, rtree_t *rtree, unsigned level,
 	return node;
 }
 
-rtree_elm_t *
-rtree_subtree_read_hard(tsdn_t *tsdn, rtree_t *rtree, unsigned level) {
-	return rtree_node_init(tsdn, rtree, level,
-	    &rtree->levels[level].subtree);
+static unsigned
+rtree_start_level(const rtree_t *rtree, uintptr_t key) {
+	unsigned start_level;
+
+	if (unlikely(key == 0)) {
+		return rtree->height - 1;
+	}
+
+	start_level = rtree->start_level[(lg_floor(key) + 1) >>
+	    LG_RTREE_BITS_PER_LEVEL];
+	assert(start_level < rtree->height);
+	return start_level;
 }
 
-rtree_elm_t *
-rtree_child_read_hard(tsdn_t *tsdn, rtree_t *rtree, rtree_elm_t *elm,
-    unsigned level) {
-	return rtree_node_init(tsdn, rtree, level+1, &elm->child);
+static bool
+rtree_node_valid(rtree_elm_t *node) {
+	return ((uintptr_t)node != (uintptr_t)0);
+}
+
+static rtree_elm_t *
+rtree_child_tryread(rtree_elm_t *elm, bool dependent) {
+	rtree_elm_t *child;
+
+	/* Double-checked read (first read may be stale). */
+	child = elm->child;
+	if (!dependent && !rtree_node_valid(child)) {
+		child = (rtree_elm_t *)atomic_read_p(&elm->pun);
+	}
+	assert(!dependent || child != NULL);
+	return child;
+}
+
+static rtree_elm_t *
+rtree_child_read(tsdn_t *tsdn, rtree_t *rtree, rtree_elm_t *elm, unsigned level,
+    bool dependent) {
+	rtree_elm_t *child;
+
+	child = rtree_child_tryread(elm, dependent);
+	if (!dependent && unlikely(!rtree_node_valid(child))) {
+		child = rtree_node_init(tsdn, rtree, level+1, &elm->child);
+	}
+	assert(!dependent || child != NULL);
+	return child;
+}
+
+static rtree_elm_t *
+rtree_subtree_tryread(rtree_t *rtree, unsigned level, bool dependent) {
+	rtree_elm_t *subtree;
+
+	/* Double-checked read (first read may be stale). */
+	subtree = rtree->levels[level].subtree;
+	if (!dependent && unlikely(!rtree_node_valid(subtree))) {
+		subtree = (rtree_elm_t *)atomic_read_p(
+		    &rtree->levels[level].subtree_pun);
+	}
+	assert(!dependent || subtree != NULL);
+	return subtree;
+}
+
+static rtree_elm_t *
+rtree_subtree_read(tsdn_t *tsdn, rtree_t *rtree, unsigned level,
+    bool dependent) {
+	rtree_elm_t *subtree;
+
+	subtree = rtree_subtree_tryread(rtree, level, dependent);
+	if (!dependent && unlikely(!rtree_node_valid(subtree))) {
+		subtree = rtree_node_init(tsdn, rtree, level,
+		    &rtree->levels[level].subtree);
+	}
+	assert(!dependent || subtree != NULL);
+	return subtree;
 }
 
 rtree_elm_t *
