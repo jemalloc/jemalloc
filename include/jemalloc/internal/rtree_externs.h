@@ -13,6 +13,8 @@ rtree_elm_t	*rtree_subtree_read_hard(tsdn_t *tsdn, rtree_t *rtree,
     unsigned level);
 rtree_elm_t	*rtree_child_read_hard(tsdn_t *tsdn, rtree_t *rtree,
     rtree_elm_t *elm, unsigned level);
+rtree_elm_t *rtree_elm_lookup_hard(tsdn_t *tsdn, rtree_t *rtree,
+    rtree_ctx_t *rtree_ctx, uintptr_t key, bool dependent, bool init_missing);
 void	rtree_elm_witness_acquire(tsdn_t *tsdn, const rtree_t *rtree,
     uintptr_t key, const rtree_elm_t *elm);
 void	rtree_elm_witness_access(tsdn_t *tsdn, const rtree_t *rtree,

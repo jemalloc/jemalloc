@@ -422,6 +422,7 @@ rtree_clear
 rtree_delete
 rtree_elm_acquire
 rtree_elm_lookup
+rtree_elm_lookup_hard
 rtree_elm_read
 rtree_elm_read_acquired
 rtree_elm_release
