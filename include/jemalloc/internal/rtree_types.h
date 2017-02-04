@@ -12,6 +12,7 @@ typedef struct rtree_elm_s rtree_elm_t;
 typedef struct rtree_elm_witness_s rtree_elm_witness_t;
 typedef struct rtree_elm_witness_tsd_s rtree_elm_witness_tsd_t;
 typedef struct rtree_level_s rtree_level_t;
+typedef struct rtree_ctx_cache_elm_s rtree_ctx_cache_elm_t;
 typedef struct rtree_ctx_s rtree_ctx_t;
 typedef struct rtree_s rtree_t;
 
@@ -25,11 +26,12 @@ typedef struct rtree_s rtree_t;
 #define RTREE_HEIGHT_MAX						\
     ((1U << (LG_SIZEOF_PTR+3)) / RTREE_BITS_PER_LEVEL)
 
+/* Number of key/elm pairs to cache. */
+#define RTREE_CTX_NCACHE 2
+
+/* Static initializer for rtree_ctx_t. */
 #define RTREE_CTX_INITIALIZER	{					\
-	false,								\
-	0,								\
-	0,								\
-	{NULL /* C initializes all trailing elements to NULL. */}	\
+	{{0, NULL} /* C initializes all trailing elements to NULL. */}	\
 }
 
 /*

@@ -54,22 +54,13 @@ struct rtree_level_s {
 	unsigned		cumbits;
 };
 
-struct rtree_ctx_s {
-	/* If false, key/elms have not yet been initialized by a lookup. */
-	bool		valid;
-	/* Key that corresponds to the tree path recorded in elms. */
+struct rtree_ctx_cache_elm_s {
 	uintptr_t	key;
-	/* Memoized rtree_start_level(key). */
-	unsigned	start_level;
-	/*
-	 * A path through rtree, driven by key.  Only elements that could
-	 * actually be used for subsequent lookups are initialized, i.e. if
-	 * start_level = rtree_start_level(key) is non-zero, the first
-	 * start_level elements are uninitialized.  The last element contains a
-	 * pointer to the leaf node element that corresponds to key, so that
-	 * exact matches require no tree node offset computation.
-	 */
-	rtree_elm_t	*elms[RTREE_HEIGHT_MAX + 1];
+	rtree_elm_t	*elm;
+};
+
+struct rtree_ctx_s {
+	rtree_ctx_cache_elm_t cache[RTREE_CTX_NCACHE];
 };
 
 struct rtree_s {

@@ -3,8 +3,6 @@
 
 #ifndef JEMALLOC_ENABLE_INLINE
 unsigned	rtree_start_level(const rtree_t *rtree, uintptr_t key);
-unsigned	rtree_ctx_start_level(const rtree_t *rtree,
-    const rtree_ctx_t *rtree_ctx, uintptr_t key);
 uintptr_t	rtree_subkey(rtree_t *rtree, uintptr_t key, unsigned level);
 
 bool	rtree_node_valid(rtree_elm_t *node);
@@ -45,26 +43,6 @@ rtree_start_level(const rtree_t *rtree, uintptr_t key) {
 	}
 
 	start_level = rtree->start_level[(lg_floor(key) + 1) >>
-	    LG_RTREE_BITS_PER_LEVEL];
-	assert(start_level < rtree->height);
-	return start_level;
-}
-
-JEMALLOC_ALWAYS_INLINE unsigned
-rtree_ctx_start_level(const rtree_t *rtree, const rtree_ctx_t *rtree_ctx,
-    uintptr_t key) {
-	unsigned start_level;
-	uintptr_t key_diff;
-
-	/* Compute the difference between old and new lookup keys. */
-	key_diff = key ^ rtree_ctx->key;
-	assert(key_diff != 0); /* Handled in rtree_elm_lookup(). */
-
-	/*
-	 * Compute the last traversal path element at which the keys' paths
-	 * are the same.
-	 */
-	start_level = rtree->start_level[(lg_floor(key_diff) + 1) >>
 	    LG_RTREE_BITS_PER_LEVEL];
 	assert(start_level < rtree->height);
 	return start_level;
@@ -170,103 +148,76 @@ rtree_subtree_read(tsdn_t *tsdn, rtree_t *rtree, unsigned level,
 JEMALLOC_ALWAYS_INLINE rtree_elm_t *
 rtree_elm_lookup(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
     uintptr_t key, bool dependent, bool init_missing) {
-	uintptr_t subkey;
-	unsigned start_level;
-	rtree_elm_t *node;
-
 	assert(!dependent || !init_missing);
 
-	if (dependent || init_missing) {
-		if (likely(rtree_ctx->valid)) {
-			if (key == rtree_ctx->key) {
-				return rtree_ctx->elms[rtree->height];
-			} else {
-				unsigned no_ctx_start_level =
-				    rtree_start_level(rtree, key);
-				unsigned ctx_start_level;
-
-				if (likely(no_ctx_start_level <=
-				    rtree_ctx->start_level && (ctx_start_level =
-				    rtree_ctx_start_level(rtree, rtree_ctx,
-				    key)) >= rtree_ctx->start_level)) {
-					start_level = ctx_start_level;
-					node = rtree_ctx->elms[ctx_start_level];
-				} else {
-					start_level = no_ctx_start_level;
-					node = init_missing ?
-					    rtree_subtree_read(tsdn, rtree,
-					    no_ctx_start_level, dependent) :
-					    rtree_subtree_tryread(rtree,
-					    no_ctx_start_level, dependent);
-					rtree_ctx->start_level =
-					    no_ctx_start_level;
-					rtree_ctx->elms[no_ctx_start_level] =
-					    node;
-				}
-			}
-		} else {
-			unsigned no_ctx_start_level = rtree_start_level(rtree,
-			    key);
-
-			start_level = no_ctx_start_level;
-			node = init_missing ? rtree_subtree_read(tsdn, rtree,
-			    no_ctx_start_level, dependent) :
-			    rtree_subtree_tryread(rtree, no_ctx_start_level,
-			    dependent);
-			rtree_ctx->valid = true;
-			rtree_ctx->start_level = no_ctx_start_level;
-			rtree_ctx->elms[no_ctx_start_level] = node;
+	/*
+	 * Search the remaining cache elements, and on success move the matching
+	 * element to the front.
+	 */
+	if (likely(key != 0)) {
+		if (likely(rtree_ctx->cache[0].key == key)) {
+			return rtree_ctx->cache[0].elm;
 		}
-		rtree_ctx->key = key;
-	} else {
-		start_level = rtree_start_level(rtree, key);
-		node = init_missing ? rtree_subtree_read(tsdn, rtree,
-		    start_level, dependent) : rtree_subtree_tryread(rtree,
-		    start_level, dependent);
+		for (unsigned i = 1; i < RTREE_CTX_NCACHE; i++) {
+			if (rtree_ctx->cache[i].key == key) {
+				/* Reorder. */
+				rtree_elm_t *elm = rtree_ctx->cache[i].elm;
+				memmove(&rtree_ctx->cache[1],
+				    &rtree_ctx->cache[0],
+				    sizeof(rtree_ctx_cache_elm_t) * i);
+				rtree_ctx->cache[0].key = key;
+				rtree_ctx->cache[0].elm = elm;
+
+				return elm;
+			}
+		}
 	}
+
+	unsigned start_level = rtree_start_level(rtree, key);
+	rtree_elm_t *node = init_missing ? rtree_subtree_read(tsdn, rtree,
+	    start_level, dependent) : rtree_subtree_tryread(rtree, start_level,
+	    dependent);
 
 #define RTREE_GET_BIAS	(RTREE_HEIGHT_MAX - rtree->height)
 	switch (start_level + RTREE_GET_BIAS) {
 #define RTREE_GET_SUBTREE(level)					\
-	case level:							\
+	case level: {							\
 		assert(level < (RTREE_HEIGHT_MAX-1));			\
 		if (!dependent && unlikely(!rtree_node_valid(node))) {	\
-			if (init_missing) {				\
-				rtree_ctx->valid = false;		\
-			}						\
 			return NULL;					\
 		}							\
-		subkey = rtree_subkey(rtree, key, level -		\
+		uintptr_t subkey = rtree_subkey(rtree, key, level -	\
 		    RTREE_GET_BIAS);					\
 		node = init_missing ? rtree_child_read(tsdn, rtree,	\
 		    &node[subkey], level - RTREE_GET_BIAS, dependent) :	\
 		    rtree_child_tryread(&node[subkey], dependent);	\
-		if (dependent || init_missing) {			\
-			rtree_ctx->elms[level - RTREE_GET_BIAS + 1] =	\
-			    node;					\
-		}							\
-		/* Fall through. */
+		/* Fall through. */					\
+	}
 #define RTREE_GET_LEAF(level)						\
-	case level:							\
+	case level: {							\
 		assert(level == (RTREE_HEIGHT_MAX-1));			\
 		if (!dependent && unlikely(!rtree_node_valid(node))) {	\
-			if (init_missing) {				\
-				rtree_ctx->valid = false;		\
-			}						\
 			return NULL;					\
 		}							\
-		subkey = rtree_subkey(rtree, key, level -		\
+		uintptr_t subkey = rtree_subkey(rtree, key, level -	\
 		    RTREE_GET_BIAS);					\
 		/*							\
 		 * node is a leaf, so it contains values rather than	\
 		 * child pointers.					\
 		 */							\
 		node = &node[subkey];					\
-		if (dependent || init_missing) {			\
-			rtree_ctx->elms[level - RTREE_GET_BIAS + 1] =	\
-			    node;					\
+		if (likely(key != 0)) {					\
+			if (RTREE_CTX_NCACHE > 1) {			\
+				memmove(&rtree_ctx->cache[1],		\
+				    &rtree_ctx->cache[0],		\
+				    sizeof(rtree_ctx_cache_elm_t) *	\
+				    (RTREE_CTX_NCACHE-1));		\
+			}						\
+			rtree_ctx->cache[0].key = key;			\
+			rtree_ctx->cache[0].elm = node;			\
 		}							\
-		return node;
+		return node;						\
+	}
 #if RTREE_HEIGHT_MAX > 1
 	RTREE_GET_SUBTREE(0)
 #endif
@@ -365,16 +316,14 @@ rtree_elm_acquire(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
 	if (!dependent && elm == NULL) {
 		return NULL;
 	}
-	{
-		extent_t *extent;
-		void *s;
 
-		do {
-			extent = rtree_elm_read(elm, false);
-			/* The least significant bit serves as a lock. */
-			s = (void *)((uintptr_t)extent | (uintptr_t)0x1);
-		} while (atomic_cas_p(&elm->pun, (void *)extent, s));
-	}
+	extent_t *extent;
+	void *s;
+	do {
+		extent = rtree_elm_read(elm, false);
+		/* The least significant bit serves as a lock. */
+		s = (void *)((uintptr_t)extent | (uintptr_t)0x1);
+	} while (atomic_cas_p(&elm->pun, (void *)extent, s));
 
 	if (config_debug) {
 		rtree_elm_witness_acquire(tsdn, rtree, key, elm);

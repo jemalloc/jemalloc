@@ -419,7 +419,6 @@ rtree_child_read
 rtree_child_read_hard
 rtree_child_tryread
 rtree_clear
-rtree_ctx_start_level
 rtree_delete
 rtree_elm_acquire
 rtree_elm_lookup
