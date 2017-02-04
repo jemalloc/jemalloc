@@ -348,7 +348,7 @@ rtree_read(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx, uintptr_t key,
 	rtree_elm_t *elm;
 
 	elm = rtree_elm_lookup(tsdn, rtree, rtree_ctx, key, dependent, false);
-	if (elm == NULL) {
+	if (!dependent && elm == NULL) {
 		return NULL;
 	}
 
