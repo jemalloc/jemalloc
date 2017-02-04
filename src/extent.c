@@ -453,7 +453,7 @@ extent_gdump_sub(tsdn_t *tsdn, const extent_t *extent) {
 }
 
 static bool
-extent_register(tsdn_t *tsdn, const extent_t *extent) {
+extent_register_impl(tsdn_t *tsdn, const extent_t *extent, bool gdump_add) {
 	rtree_ctx_t rtree_ctx_fallback;
 	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
 	rtree_elm_t *elm_a, *elm_b;
@@ -468,11 +468,21 @@ extent_register(tsdn_t *tsdn, const extent_t *extent) {
 	}
 	extent_rtree_release(tsdn, elm_a, elm_b);
 
-	if (config_prof) {
+	if (config_prof && gdump_add) {
 		extent_gdump_add(tsdn, extent);
 	}
 
 	return false;
+}
+
+static bool
+extent_register(tsdn_t *tsdn, const extent_t *extent) {
+	return extent_register_impl(tsdn, extent, true);
+}
+
+static bool
+extent_register_no_gdump_add(tsdn_t *tsdn, const extent_t *extent) {
+	return extent_register_impl(tsdn, extent, false);
 }
 
 static void
@@ -827,17 +837,12 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena,
 	ptr = extent_alloc_core(tsdn, arena, new_addr, alloc_size, PAGE,
 	    &zeroed, &committed, arena->dss_prec);
 	extent_init(extent, arena, ptr, alloc_size, alloc_size,
-	    arena_extent_sn_next(arena), extent_state_retained, zeroed,
+	    arena_extent_sn_next(arena), extent_state_active, zeroed,
 	    committed, false);
-	if (ptr == NULL || extent_register(tsdn, extent)) {
+	if (ptr == NULL || extent_register_no_gdump_add(tsdn, extent)) {
 		extent_dalloc(tsdn, arena, extent);
 		return NULL;
 	}
-	/*
-	 * Set the extent as active *after registration so that no gdump-related
-	 * accounting occurs during registration.
-	 */
-	extent_state_set(extent, extent_state_active);
 
 	leadsize = ALIGNMENT_CEILING((uintptr_t)ptr, PAGE_CEILING(alignment)) -
 	    (uintptr_t)ptr;
