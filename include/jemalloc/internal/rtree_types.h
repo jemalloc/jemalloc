@@ -12,6 +12,7 @@ typedef struct rtree_elm_s rtree_elm_t;
 typedef struct rtree_elm_witness_s rtree_elm_witness_t;
 typedef struct rtree_elm_witness_tsd_s rtree_elm_witness_tsd_t;
 typedef struct rtree_level_s rtree_level_t;
+typedef struct rtree_ctx_cache_elm_s rtree_ctx_cache_elm_t;
 typedef struct rtree_ctx_s rtree_ctx_t;
 typedef struct rtree_s rtree_t;
 
@@ -25,11 +26,24 @@ typedef struct rtree_s rtree_t;
 #define RTREE_HEIGHT_MAX						\
     ((1U << (LG_SIZEOF_PTR+3)) / RTREE_BITS_PER_LEVEL)
 
+/*
+ * Number of leafkey/leaf pairs to cache.  Each entry supports an entire leaf,
+ * so the cache hit rate is typically high even with a small number of entries.
+ * In rare cases extent activity will straddle the boundary between two leaf
+ * nodes.  Furthermore, an arena may use a combination of dss and mmap.  Four
+ * entries covers both of these considerations as long as locality of reference
+ * is high, and/or total memory usage doesn't exceed the range supported by
+ * those entries.  Note that as memory usage grows past the amount that this
+ * cache can directly cover, the cache will become less effective if locality of
+ * reference is low, but the consequence is merely cache misses while traversing
+ * the tree nodes, and the cache will itself suffer cache misses if made overly
+ * large, not to mention the cost of linear search.
+ */
+#define RTREE_CTX_NCACHE 8
+
+/* Static initializer for rtree_ctx_t. */
 #define RTREE_CTX_INITIALIZER	{					\
-	false,								\
-	0,								\
-	0,								\
-	{NULL /* C initializes all trailing elements to NULL. */}	\
+	{{0, NULL} /* C initializes all trailing elements to NULL. */}	\
 }
 
 /*
