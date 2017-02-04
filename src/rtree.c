@@ -158,6 +158,111 @@ rtree_child_read_hard(tsdn_t *tsdn, rtree_t *rtree, rtree_elm_t *elm,
 	return rtree_node_init(tsdn, rtree, level+1, &elm->child);
 }
 
+rtree_elm_t *
+rtree_elm_lookup_hard(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
+    uintptr_t key, bool dependent, bool init_missing) {
+	unsigned start_level = rtree_start_level(rtree, key);
+	rtree_elm_t *node = init_missing ? rtree_subtree_read(tsdn, rtree,
+	    start_level, dependent) : rtree_subtree_tryread(rtree, start_level,
+	    dependent);
+
+#define RTREE_GET_BIAS	(RTREE_HEIGHT_MAX - rtree->height)
+	switch (start_level + RTREE_GET_BIAS) {
+#define RTREE_GET_SUBTREE(level)					\
+	case level: {							\
+		assert(level < (RTREE_HEIGHT_MAX-1));			\
+		if (!dependent && unlikely(!rtree_node_valid(node))) {	\
+			return NULL;					\
+		}							\
+		uintptr_t subkey = rtree_subkey(rtree, key, level -	\
+		    RTREE_GET_BIAS);					\
+		node = init_missing ? rtree_child_read(tsdn, rtree,	\
+		    &node[subkey], level - RTREE_GET_BIAS, dependent) :	\
+		    rtree_child_tryread(&node[subkey], dependent);	\
+		/* Fall through. */					\
+	}
+#define RTREE_GET_LEAF(level)						\
+	case level: {							\
+		assert(level == (RTREE_HEIGHT_MAX-1));			\
+		if (!dependent && unlikely(!rtree_node_valid(node))) {	\
+			return NULL;					\
+		}							\
+		/*							\
+		 * node is a leaf, so it contains values rather than	\
+		 * child pointers.					\
+		 */							\
+		if (likely(key != 0)) {					\
+			if (RTREE_CTX_NCACHE > 1) {			\
+				memmove(&rtree_ctx->cache[1],		\
+				    &rtree_ctx->cache[0],		\
+				    sizeof(rtree_ctx_cache_elm_t) *	\
+				    (RTREE_CTX_NCACHE-1));		\
+			}						\
+			uintptr_t leafkey = rtree_leafkey(rtree, key);	\
+			rtree_ctx->cache[0].leafkey = leafkey;		\
+			rtree_ctx->cache[0].leaf = node;		\
+		}							\
+		uintptr_t subkey = rtree_subkey(rtree, key, level -	\
+		    RTREE_GET_BIAS);					\
+		return &node[subkey];					\
+	}
+#if RTREE_HEIGHT_MAX > 1
+	RTREE_GET_SUBTREE(0)
+#endif
+#if RTREE_HEIGHT_MAX > 2
+	RTREE_GET_SUBTREE(1)
+#endif
+#if RTREE_HEIGHT_MAX > 3
+	RTREE_GET_SUBTREE(2)
+#endif
+#if RTREE_HEIGHT_MAX > 4
+	RTREE_GET_SUBTREE(3)
+#endif
+#if RTREE_HEIGHT_MAX > 5
+	RTREE_GET_SUBTREE(4)
+#endif
+#if RTREE_HEIGHT_MAX > 6
+	RTREE_GET_SUBTREE(5)
+#endif
+#if RTREE_HEIGHT_MAX > 7
+	RTREE_GET_SUBTREE(6)
+#endif
+#if RTREE_HEIGHT_MAX > 8
+	RTREE_GET_SUBTREE(7)
+#endif
+#if RTREE_HEIGHT_MAX > 9
+	RTREE_GET_SUBTREE(8)
+#endif
+#if RTREE_HEIGHT_MAX > 10
+	RTREE_GET_SUBTREE(9)
+#endif
+#if RTREE_HEIGHT_MAX > 11
+	RTREE_GET_SUBTREE(10)
+#endif
+#if RTREE_HEIGHT_MAX > 12
+	RTREE_GET_SUBTREE(11)
+#endif
+#if RTREE_HEIGHT_MAX > 13
+	RTREE_GET_SUBTREE(12)
+#endif
+#if RTREE_HEIGHT_MAX > 14
+	RTREE_GET_SUBTREE(13)
+#endif
+#if RTREE_HEIGHT_MAX > 15
+	RTREE_GET_SUBTREE(14)
+#endif
+#if RTREE_HEIGHT_MAX > 16
+#  error Unsupported RTREE_HEIGHT_MAX
+#endif
+	RTREE_GET_LEAF(RTREE_HEIGHT_MAX-1)
+#undef RTREE_GET_SUBTREE
+#undef RTREE_GET_LEAF
+	default: not_reached();
+	}
+#undef RTREE_GET_BIAS
+	not_reached();
+}
+
 static int
 rtree_elm_witness_comp(const witness_t *a, void *oa, const witness_t *b,
     void *ob) {
