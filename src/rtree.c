@@ -170,17 +170,15 @@ rtree_elm_lookup_hard(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
 		 * node is a leaf, so it contains values rather than	\
 		 * child pointers.					\
 		 */							\
-		if (likely(key != 0)) {					\
-			if (RTREE_CTX_NCACHE > 1) {			\
-				memmove(&rtree_ctx->cache[1],		\
-				    &rtree_ctx->cache[0],		\
-				    sizeof(rtree_ctx_cache_elm_t) *	\
-				    (RTREE_CTX_NCACHE-1));		\
-			}						\
-			uintptr_t leafkey = rtree_leafkey(key);		\
-			rtree_ctx->cache[0].leafkey = leafkey;		\
-			rtree_ctx->cache[0].leaf = node;		\
+		if (RTREE_CTX_NCACHE > 1) {				\
+			memmove(&rtree_ctx->cache[1],			\
+			    &rtree_ctx->cache[0],			\
+			    sizeof(rtree_ctx_cache_elm_t) *		\
+			    (RTREE_CTX_NCACHE-1));			\
 		}							\
+		uintptr_t leafkey = rtree_leafkey(key);			\
+		rtree_ctx->cache[0].leafkey = leafkey;			\
+		rtree_ctx->cache[0].leaf = node;			\
 		uintptr_t subkey = rtree_subkey(key, level);		\
 		return &node[subkey];					\
 	}

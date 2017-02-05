@@ -79,43 +79,41 @@ rtree_elm_write(rtree_elm_t *elm, const extent_t *extent) {
 JEMALLOC_ALWAYS_INLINE rtree_elm_t *
 rtree_elm_lookup(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
     uintptr_t key, bool dependent, bool init_missing) {
+	assert(key != 0);
 	assert(!dependent || !init_missing);
 
-	if (likely(key != 0)) {
-		uintptr_t leafkey = rtree_leafkey(key);
+	uintptr_t leafkey = rtree_leafkey(key);
 #define RTREE_CACHE_CHECK(i) do {					\
-		if (likely(rtree_ctx->cache[i].leafkey == leafkey)) {	\
-			rtree_elm_t *leaf = rtree_ctx->cache[i].leaf;	\
-			if (likely(leaf != NULL)) {			\
-				/* Reorder. */				\
-				memmove(&rtree_ctx->cache[1],		\
-				    &rtree_ctx->cache[0],		\
-				    sizeof(rtree_ctx_cache_elm_t) * i);	\
-				rtree_ctx->cache[0].leafkey = leafkey;	\
-				rtree_ctx->cache[0].leaf = leaf;	\
+	if (likely(rtree_ctx->cache[i].leafkey == leafkey)) {		\
+		rtree_elm_t *leaf = rtree_ctx->cache[i].leaf;		\
+		if (likely(leaf != NULL)) {				\
+			/* Reorder. */					\
+			memmove(&rtree_ctx->cache[1],			\
+			    &rtree_ctx->cache[0],			\
+			    sizeof(rtree_ctx_cache_elm_t) * i);		\
+			rtree_ctx->cache[0].leafkey = leafkey;		\
+			rtree_ctx->cache[0].leaf = leaf;		\
 									\
-				uintptr_t subkey = rtree_subkey(key,	\
-				    RTREE_HEIGHT-1);			\
-				return &leaf[subkey];			\
-			}						\
+			uintptr_t subkey = rtree_subkey(key,		\
+			    RTREE_HEIGHT-1);				\
+			return &leaf[subkey];				\
 		}							\
+	}								\
 } while (0)
-		/* Check the MRU cache entry. */
-		RTREE_CACHE_CHECK(0);
-		/*
-		 * Search the remaining cache elements, and on success move the
-		 * matching element to the front.  Unroll the first iteration to
-		 * avoid calling memmove() (the compiler typically optimizes it
-		 * into raw moves).
-		 */
-		if (RTREE_CTX_NCACHE > 1) {
-			RTREE_CACHE_CHECK(1);
-		}
-		for (unsigned i = 2; i < RTREE_CTX_NCACHE; i++) {
-			RTREE_CACHE_CHECK(i);
-		}
-#undef RTREE_CACHE_CHECK
+	/* Check the MRU cache entry. */
+	RTREE_CACHE_CHECK(0);
+	/*
+	 * Search the remaining cache elements, and on success move the matching
+	 * element to the front.  Unroll the first iteration to avoid calling
+	 * memmove() (the compiler typically optimizes it into raw moves).
+	 */
+	if (RTREE_CTX_NCACHE > 1) {
+		RTREE_CACHE_CHECK(1);
 	}
+	for (unsigned i = 2; i < RTREE_CTX_NCACHE; i++) {
+		RTREE_CACHE_CHECK(i);
+	}
+#undef RTREE_CACHE_CHECK
 
 	return rtree_elm_lookup_hard(tsdn, rtree, rtree_ctx, key, dependent,
 	    init_missing);
