@@ -1,11 +1,6 @@
 #define JEMALLOC_RTREE_C_
 #include "jemalloc/internal/jemalloc_internal.h"
 
-static unsigned
-hmin(unsigned ha, unsigned hb) {
-	return (ha < hb ? ha : hb);
-}
-
 /*
  * Only the most significant bits of keys passed to rtree_{read,write}() are
  * used.
@@ -32,31 +27,23 @@ rtree_new(rtree_t *rtree, unsigned bits) {
 
 	rtree->height = height;
 
+	rtree->root_pun = NULL;
+
 	/* Root level. */
-	rtree->levels[0].subtree = NULL;
 	rtree->levels[0].bits = (height > 1) ? RTREE_BITS_PER_LEVEL :
 	    bits_in_leaf;
 	rtree->levels[0].cumbits = rtree->levels[0].bits;
 	/* Interior levels. */
 	for (i = 1; i < height-1; i++) {
-		rtree->levels[i].subtree = NULL;
 		rtree->levels[i].bits = RTREE_BITS_PER_LEVEL;
 		rtree->levels[i].cumbits = rtree->levels[i-1].cumbits +
 		    RTREE_BITS_PER_LEVEL;
 	}
 	/* Leaf level. */
 	if (height > 1) {
-		rtree->levels[height-1].subtree = NULL;
 		rtree->levels[height-1].bits = bits_in_leaf;
 		rtree->levels[height-1].cumbits = bits;
 	}
-
-	/* Compute lookup table to be used by rtree_[ctx_]start_level(). */
-	for (i = 0; i < RTREE_HEIGHT_MAX; i++) {
-		rtree->start_level[i] = hmin(RTREE_HEIGHT_MAX - 1 - i, height -
-		    1);
-	}
-	rtree->start_level[RTREE_HEIGHT_MAX] = 0;
 
 	malloc_mutex_init(&rtree->init_lock, "rtree", WITNESS_RANK_RTREE);
 
@@ -114,13 +101,8 @@ rtree_delete_subtree(tsdn_t *tsdn, rtree_t *rtree, rtree_elm_t *node,
 
 void
 rtree_delete(tsdn_t *tsdn, rtree_t *rtree) {
-	unsigned i;
-
-	for (i = 0; i < rtree->height; i++) {
-		rtree_elm_t *subtree = rtree->levels[i].subtree;
-		if (subtree != NULL) {
-			rtree_delete_subtree(tsdn, rtree, subtree, i);
-		}
+	if (rtree->root_pun != NULL) {
+		rtree_delete_subtree(tsdn, rtree, rtree->root, 0);
 	}
 }
 #endif
@@ -144,20 +126,6 @@ rtree_node_init(tsdn_t *tsdn, rtree_t *rtree, unsigned level,
 	malloc_mutex_unlock(tsdn, &rtree->init_lock);
 
 	return node;
-}
-
-static unsigned
-rtree_start_level(const rtree_t *rtree, uintptr_t key) {
-	unsigned start_level;
-
-	if (unlikely(key == 0)) {
-		return rtree->height - 1;
-	}
-
-	start_level = rtree->start_level[(lg_floor(key) + 1) >>
-	    LG_RTREE_BITS_PER_LEVEL];
-	assert(start_level < rtree->height);
-	return start_level;
 }
 
 static bool
@@ -192,28 +160,21 @@ rtree_child_read(tsdn_t *tsdn, rtree_t *rtree, rtree_elm_t *elm, unsigned level,
 }
 
 static rtree_elm_t *
-rtree_subtree_tryread(rtree_t *rtree, unsigned level, bool dependent) {
-	rtree_elm_t *subtree;
-
+rtree_subtree_tryread(rtree_t *rtree, bool dependent) {
 	/* Double-checked read (first read may be stale). */
-	subtree = rtree->levels[level].subtree;
+	rtree_elm_t *subtree = rtree->root;
 	if (!dependent && unlikely(!rtree_node_valid(subtree))) {
-		subtree = (rtree_elm_t *)atomic_read_p(
-		    &rtree->levels[level].subtree_pun);
+		subtree = (rtree_elm_t *)atomic_read_p(&rtree->root_pun);
 	}
 	assert(!dependent || subtree != NULL);
 	return subtree;
 }
 
 static rtree_elm_t *
-rtree_subtree_read(tsdn_t *tsdn, rtree_t *rtree, unsigned level,
-    bool dependent) {
-	rtree_elm_t *subtree;
-
-	subtree = rtree_subtree_tryread(rtree, level, dependent);
+rtree_subtree_read(tsdn_t *tsdn, rtree_t *rtree, bool dependent) {
+	rtree_elm_t *subtree = rtree_subtree_tryread(rtree, dependent);
 	if (!dependent && unlikely(!rtree_node_valid(subtree))) {
-		subtree = rtree_node_init(tsdn, rtree, level,
-		    &rtree->levels[level].subtree);
+		subtree = rtree_node_init(tsdn, rtree, 0, &rtree->root);
 	}
 	assert(!dependent || subtree != NULL);
 	return subtree;
@@ -222,13 +183,11 @@ rtree_subtree_read(tsdn_t *tsdn, rtree_t *rtree, unsigned level,
 rtree_elm_t *
 rtree_elm_lookup_hard(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
     uintptr_t key, bool dependent, bool init_missing) {
-	unsigned start_level = rtree_start_level(rtree, key);
 	rtree_elm_t *node = init_missing ? rtree_subtree_read(tsdn, rtree,
-	    start_level, dependent) : rtree_subtree_tryread(rtree, start_level,
-	    dependent);
+	    dependent) : rtree_subtree_tryread(rtree, dependent);
 
 #define RTREE_GET_BIAS	(RTREE_HEIGHT_MAX - rtree->height)
-	switch (start_level + RTREE_GET_BIAS) {
+	switch (RTREE_GET_BIAS) {
 #define RTREE_GET_SUBTREE(level)					\
 	case level: {							\
 		assert(level < (RTREE_HEIGHT_MAX-1));			\
