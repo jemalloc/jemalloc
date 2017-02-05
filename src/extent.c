@@ -1507,8 +1507,7 @@ extent_merge_wrapper(tsdn_t *tsdn, arena_t *arena,
 
 bool
 extent_boot(void) {
-	if (rtree_new(&extents_rtree, (unsigned)((ZU(1) << (LG_SIZEOF_PTR+3)) -
-	    LG_PAGE))) {
+	if (rtree_new(&extents_rtree)) {
 		return true;
 	}
 

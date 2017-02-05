@@ -428,10 +428,12 @@ rtree_elm_witness_acquire
 rtree_elm_witness_release
 rtree_elm_write
 rtree_elm_write_acquired
+rtree_leafkey
 rtree_new
 rtree_node_alloc
 rtree_node_dalloc
 rtree_read
+rtree_subkey
 rtree_write
 s2u
 s2u_compute

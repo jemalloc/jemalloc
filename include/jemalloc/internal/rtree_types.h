@@ -16,17 +16,21 @@ typedef struct rtree_ctx_cache_elm_s rtree_ctx_cache_elm_t;
 typedef struct rtree_ctx_s rtree_ctx_t;
 typedef struct rtree_s rtree_t;
 
-/*
- * RTREE_BITS_PER_LEVEL must be a power of two that is no larger than the
- * machine address width.
- */
-#define LG_RTREE_BITS_PER_LEVEL	4
-#define RTREE_BITS_PER_LEVEL	(1U << LG_RTREE_BITS_PER_LEVEL)
-/* Maximum rtree height. */
-#define RTREE_HEIGHT_MAX						\
-    ((1U << (LG_SIZEOF_PTR+3)) / RTREE_BITS_PER_LEVEL)
+/* Number of high insignificant bits. */
+#define RTREE_NHIB ((1U << (LG_SIZEOF_PTR+3)) - LG_VADDR)
+/* Number of low insigificant bits. */
+#define RTREE_NLIB LG_PAGE
+/* Number of significant bits. */
+#define RTREE_NSB (LG_VADDR - RTREE_NLIB)
+/* Number of levels in radix tree. */
+#define RTREE_HEIGHT (sizeof(rtree_levels)/sizeof(rtree_level_t))
 
-/* Number of key/elm pairs to cache. */
+/*
+ * Number of leafkey/leaf pairs to cache.  Each entry supports an entire leaf,
+ * so the cache hit rate is typically high even with a small number of entries.
+ * Two entries is enough to keep the hit rate high even when an arena uses a
+ * combination of dss and mmap.
+ */
 #define RTREE_CTX_NCACHE 2
 
 /* Static initializer for rtree_ctx_t. */
