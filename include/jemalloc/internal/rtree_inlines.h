@@ -79,17 +79,15 @@ rtree_elm_write(rtree_elm_t *elm, const extent_t *extent) {
 JEMALLOC_ALWAYS_INLINE rtree_elm_t *
 rtree_elm_lookup(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
     uintptr_t key, bool dependent, bool init_missing) {
+	assert(key != 0);
 	assert(!dependent || !init_missing);
 
-	if (likely(key != 0)) {
-		uintptr_t leafkey = rtree_leafkey(key);
-		if (likely(rtree_ctx->cache[0].leafkey == leafkey)) {
-			rtree_elm_t *leaf = rtree_ctx->cache[0].leaf;
-			if (likely(leaf != NULL)) {
-				uintptr_t subkey = rtree_subkey(key,
-				    RTREE_HEIGHT-1);
-				return &leaf[subkey];
-			}
+	uintptr_t leafkey = rtree_leafkey(key);
+	if (likely(rtree_ctx->cache[0].leafkey == leafkey)) {
+		rtree_elm_t *leaf = rtree_ctx->cache[0].leaf;
+		if (likely(leaf != NULL)) {
+			uintptr_t subkey = rtree_subkey(key, RTREE_HEIGHT-1);
+			return &leaf[subkey];
 		}
 	}
 

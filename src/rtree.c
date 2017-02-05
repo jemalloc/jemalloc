@@ -153,22 +153,20 @@ rtree_elm_lookup_hard(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
 	 * element to the front.
 	 */
 	uintptr_t leafkey = rtree_leafkey(key);
-	if (likely(key != 0)) {
-		for (unsigned i = 1; i < RTREE_CTX_NCACHE; i++) {
-			if (likely(rtree_ctx->cache[i].leafkey == leafkey)) {
-				rtree_elm_t *leaf = rtree_ctx->cache[i].leaf;
-				if (likely(leaf != NULL)) {
-					/* Reorder. */
-					memmove(&rtree_ctx->cache[1],
-					    &rtree_ctx->cache[0],
-					    sizeof(rtree_ctx_cache_elm_t) * i);
-					rtree_ctx->cache[0].leafkey = leafkey;
-					rtree_ctx->cache[0].leaf = leaf;
+	for (unsigned i = 1; i < RTREE_CTX_NCACHE; i++) {
+		if (likely(rtree_ctx->cache[i].leafkey == leafkey)) {
+			rtree_elm_t *leaf = rtree_ctx->cache[i].leaf;
+			if (likely(leaf != NULL)) {
+				/* Reorder. */
+				memmove(&rtree_ctx->cache[1],
+				    &rtree_ctx->cache[0],
+				    sizeof(rtree_ctx_cache_elm_t) * i);
+				rtree_ctx->cache[0].leafkey = leafkey;
+				rtree_ctx->cache[0].leaf = leaf;
 
-					uintptr_t subkey = rtree_subkey(key,
-					    RTREE_HEIGHT-1);
-					return &leaf[subkey];
-				}
+				uintptr_t subkey = rtree_subkey(key,
+				    RTREE_HEIGHT-1);
+				return &leaf[subkey];
 			}
 		}
 	}
@@ -195,16 +193,14 @@ rtree_elm_lookup_hard(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
 		 * node is a leaf, so it contains values rather than	\
 		 * child pointers.					\
 		 */							\
-		if (likely(key != 0)) {					\
-			if (RTREE_CTX_NCACHE > 1) {			\
-				memmove(&rtree_ctx->cache[1],		\
-				    &rtree_ctx->cache[0],		\
-				    sizeof(rtree_ctx_cache_elm_t) *	\
-				    (RTREE_CTX_NCACHE-1));		\
-			}						\
-			rtree_ctx->cache[0].leafkey = leafkey;		\
-			rtree_ctx->cache[0].leaf = node;		\
+		if (RTREE_CTX_NCACHE > 1) {				\
+			memmove(&rtree_ctx->cache[1],			\
+			    &rtree_ctx->cache[0],			\
+			    sizeof(rtree_ctx_cache_elm_t) *		\
+			    (RTREE_CTX_NCACHE-1));			\
 		}							\
+		rtree_ctx->cache[0].leafkey = leafkey;			\
+		rtree_ctx->cache[0].leaf = node;			\
 		uintptr_t subkey = rtree_subkey(key, level);		\
 		return &node[subkey];					\
 	}

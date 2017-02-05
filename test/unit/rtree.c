@@ -40,7 +40,7 @@ TEST_BEGIN(test_rtree_read_empty) {
 	rtree_ctx_t rtree_ctx = RTREE_CTX_INITIALIZER;
 	test_rtree = &rtree;
 	assert_false(rtree_new(&rtree), "Unexpected rtree_new() failure");
-	assert_ptr_null(rtree_read(tsdn, &rtree, &rtree_ctx, 0, false),
+	assert_ptr_null(rtree_read(tsdn, &rtree, &rtree_ctx, PAGE, false),
 	    "rtree_read() should return NULL for empty tree");
 	rtree_delete(tsdn, &rtree);
 	test_rtree = NULL;
@@ -139,9 +139,10 @@ TEST_BEGIN(test_rtree_extrema) {
 	test_rtree = &rtree;
 	assert_false(rtree_new(&rtree), "Unexpected rtree_new() failure");
 
-	assert_false(rtree_write(tsdn, &rtree, &rtree_ctx, 0, &extent_a),
+	assert_false(rtree_write(tsdn, &rtree, &rtree_ctx, PAGE, &extent_a),
 	    "Unexpected rtree_write() failure");
-	assert_ptr_eq(rtree_read(tsdn, &rtree, &rtree_ctx, 0, true), &extent_a,
+	assert_ptr_eq(rtree_read(tsdn, &rtree, &rtree_ctx, PAGE, true),
+	    &extent_a,
 	    "rtree_read() should return previously set value");
 
 	assert_false(rtree_write(tsdn, &rtree, &rtree_ctx, ~((uintptr_t)0),
@@ -158,7 +159,8 @@ TEST_END
 TEST_BEGIN(test_rtree_bits) {
 	tsdn_t *tsdn = tsdn_fetch();
 
-	uintptr_t keys[] = {0, 1, (((uintptr_t)1) << LG_PAGE) - 1};
+	uintptr_t keys[] = {PAGE, PAGE + 1,
+	    PAGE + (((uintptr_t)1) << LG_PAGE) - 1};
 
 	extent_t extent;
 	rtree_t rtree;
@@ -180,7 +182,7 @@ TEST_BEGIN(test_rtree_bits) {
 			    "key=%#"FMTxPTR, i, j, keys[i], keys[j]);
 		}
 		assert_ptr_null(rtree_read(tsdn, &rtree, &rtree_ctx,
-		    (((uintptr_t)1) << LG_PAGE), false),
+		    (((uintptr_t)2) << LG_PAGE), false),
 		    "Only leftmost rtree leaf should be set; i=%u", i);
 		rtree_clear(tsdn, &rtree, &rtree_ctx, keys[i]);
 	}
