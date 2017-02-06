@@ -129,21 +129,22 @@ rtree_read(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx, uintptr_t key,
 JEMALLOC_INLINE rtree_elm_t *
 rtree_elm_acquire(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
     uintptr_t key, bool dependent, bool init_missing) {
-	rtree_elm_t *elm;
-
-	elm = rtree_elm_lookup(tsdn, rtree, rtree_ctx, key, dependent,
-	    init_missing);
+	rtree_elm_t *elm = rtree_elm_lookup(tsdn, rtree, rtree_ctx, key,
+	    dependent, init_missing);
 	if (!dependent && elm == NULL) {
 		return NULL;
 	}
 
-	extent_t *extent;
-	void *s;
-	do {
-		extent = rtree_elm_read(elm, false);
+	spin_t spinner = SPIN_INITIALIZER;
+	while (true) {
+		extent_t *extent = rtree_elm_read(elm, false);
 		/* The least significant bit serves as a lock. */
-		s = (void *)((uintptr_t)extent | (uintptr_t)0x1);
-	} while (atomic_cas_p(&elm->pun, (void *)extent, s));
+		void *s = (void *)((uintptr_t)extent | (uintptr_t)0x1);
+		if (!atomic_cas_p(&elm->pun, (void *)extent, s)) {
+			break;
+		}
+		spin_adaptive(&spinner);
+	}
 
 	if (config_debug) {
 		rtree_elm_witness_acquire(tsdn, rtree, key, elm);
