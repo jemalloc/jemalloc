@@ -6,46 +6,11 @@
  * used.
  */
 bool
-rtree_new(rtree_t *rtree, unsigned bits) {
-	unsigned bits_in_leaf, height, i;
-
-	assert(RTREE_HEIGHT_MAX == ((ZU(1) << (LG_SIZEOF_PTR+3)) /
-	    RTREE_BITS_PER_LEVEL));
-	assert(bits > 0 && bits <= (sizeof(uintptr_t) << 3));
-
-	bits_in_leaf = (bits % RTREE_BITS_PER_LEVEL) == 0 ? RTREE_BITS_PER_LEVEL
-	    : (bits % RTREE_BITS_PER_LEVEL);
-	if (bits > bits_in_leaf) {
-		height = 1 + (bits - bits_in_leaf) / RTREE_BITS_PER_LEVEL;
-		if ((height-1) * RTREE_BITS_PER_LEVEL + bits_in_leaf != bits) {
-			height++;
-		}
-	} else {
-		height = 1;
-	}
-	assert((height-1) * RTREE_BITS_PER_LEVEL + bits_in_leaf == bits);
-
-	rtree->height = height;
-
+rtree_new(rtree_t *rtree) {
 	rtree->root_pun = NULL;
-
-	/* Root level. */
-	rtree->levels[0].bits = (height > 1) ? RTREE_BITS_PER_LEVEL :
-	    bits_in_leaf;
-	rtree->levels[0].cumbits = rtree->levels[0].bits;
-	/* Interior levels. */
-	for (i = 1; i < height-1; i++) {
-		rtree->levels[i].bits = RTREE_BITS_PER_LEVEL;
-		rtree->levels[i].cumbits = rtree->levels[i-1].cumbits +
-		    RTREE_BITS_PER_LEVEL;
+	if (malloc_mutex_init(&rtree->init_lock, "rtree", WITNESS_RANK_RTREE)) {
+		return true;
 	}
-	/* Leaf level. */
-	if (height > 1) {
-		rtree->levels[height-1].bits = bits_in_leaf;
-		rtree->levels[height-1].cumbits = bits;
-	}
-
-	malloc_mutex_init(&rtree->init_lock, "rtree", WITNESS_RANK_RTREE);
 
 	return false;
 }
@@ -84,10 +49,10 @@ rtree_node_dalloc_t *rtree_node_dalloc = JEMALLOC_N(rtree_node_dalloc_impl);
 static void
 rtree_delete_subtree(tsdn_t *tsdn, rtree_t *rtree, rtree_elm_t *node,
     unsigned level) {
-	if (level + 1 < rtree->height) {
+	if (level + 1 < RTREE_HEIGHT) {
 		size_t nchildren, i;
 
-		nchildren = ZU(1) << rtree->levels[level].bits;
+		nchildren = ZU(1) << rtree_levels[level].bits;
 		for (i = 0; i < nchildren; i++) {
 			rtree_elm_t *child = node[i].child;
 			if (child != NULL) {
@@ -116,7 +81,7 @@ rtree_node_init(tsdn_t *tsdn, rtree_t *rtree, unsigned level,
 	node = atomic_read_p((void**)elmp);
 	if (node == NULL) {
 		node = rtree_node_alloc(tsdn, rtree, ZU(1) <<
-		    rtree->levels[level].bits);
+		    rtree_levels[level].bits);
 		if (node == NULL) {
 			malloc_mutex_unlock(tsdn, &rtree->init_lock);
 			return NULL;
@@ -186,24 +151,18 @@ rtree_elm_lookup_hard(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
 	rtree_elm_t *node = init_missing ? rtree_subtree_read(tsdn, rtree,
 	    dependent) : rtree_subtree_tryread(rtree, dependent);
 
-#define RTREE_GET_BIAS	(RTREE_HEIGHT_MAX - rtree->height)
-	switch (RTREE_GET_BIAS) {
-#define RTREE_GET_SUBTREE(level)					\
-	case level: {							\
-		assert(level < (RTREE_HEIGHT_MAX-1));			\
+#define RTREE_GET_SUBTREE(level) {					\
+		assert(level < RTREE_HEIGHT-1);				\
 		if (!dependent && unlikely(!rtree_node_valid(node))) {	\
 			return NULL;					\
 		}							\
-		uintptr_t subkey = rtree_subkey(rtree, key, level -	\
-		    RTREE_GET_BIAS);					\
+		uintptr_t subkey = rtree_subkey(key, level);		\
 		node = init_missing ? rtree_child_read(tsdn, rtree,	\
-		    &node[subkey], level - RTREE_GET_BIAS, dependent) :	\
+		    &node[subkey], level, dependent) :			\
 		    rtree_child_tryread(&node[subkey], dependent);	\
-		/* Fall through. */					\
 	}
-#define RTREE_GET_LEAF(level)						\
-	case level: {							\
-		assert(level == (RTREE_HEIGHT_MAX-1));			\
+#define RTREE_GET_LEAF(level) {						\
+		assert(level == RTREE_HEIGHT-1);			\
 		if (!dependent && unlikely(!rtree_node_valid(node))) {	\
 			return NULL;					\
 		}							\
@@ -218,68 +177,27 @@ rtree_elm_lookup_hard(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
 				    sizeof(rtree_ctx_cache_elm_t) *	\
 				    (RTREE_CTX_NCACHE-1));		\
 			}						\
-			uintptr_t leafkey = rtree_leafkey(rtree, key);	\
+			uintptr_t leafkey = rtree_leafkey(key);		\
 			rtree_ctx->cache[0].leafkey = leafkey;		\
 			rtree_ctx->cache[0].leaf = node;		\
 		}							\
-		uintptr_t subkey = rtree_subkey(rtree, key, level -	\
-		    RTREE_GET_BIAS);					\
+		uintptr_t subkey = rtree_subkey(key, level);		\
 		return &node[subkey];					\
 	}
-#if RTREE_HEIGHT_MAX > 1
-	RTREE_GET_SUBTREE(0)
-#endif
-#if RTREE_HEIGHT_MAX > 2
-	RTREE_GET_SUBTREE(1)
-#endif
-#if RTREE_HEIGHT_MAX > 3
-	RTREE_GET_SUBTREE(2)
-#endif
-#if RTREE_HEIGHT_MAX > 4
-	RTREE_GET_SUBTREE(3)
-#endif
-#if RTREE_HEIGHT_MAX > 5
-	RTREE_GET_SUBTREE(4)
-#endif
-#if RTREE_HEIGHT_MAX > 6
-	RTREE_GET_SUBTREE(5)
-#endif
-#if RTREE_HEIGHT_MAX > 7
-	RTREE_GET_SUBTREE(6)
-#endif
-#if RTREE_HEIGHT_MAX > 8
-	RTREE_GET_SUBTREE(7)
-#endif
-#if RTREE_HEIGHT_MAX > 9
-	RTREE_GET_SUBTREE(8)
-#endif
-#if RTREE_HEIGHT_MAX > 10
-	RTREE_GET_SUBTREE(9)
-#endif
-#if RTREE_HEIGHT_MAX > 11
-	RTREE_GET_SUBTREE(10)
-#endif
-#if RTREE_HEIGHT_MAX > 12
-	RTREE_GET_SUBTREE(11)
-#endif
-#if RTREE_HEIGHT_MAX > 13
-	RTREE_GET_SUBTREE(12)
-#endif
-#if RTREE_HEIGHT_MAX > 14
-	RTREE_GET_SUBTREE(13)
-#endif
-#if RTREE_HEIGHT_MAX > 15
-	RTREE_GET_SUBTREE(14)
-#endif
-#if RTREE_HEIGHT_MAX > 16
-#  error Unsupported RTREE_HEIGHT_MAX
-#endif
-	RTREE_GET_LEAF(RTREE_HEIGHT_MAX-1)
+	if (RTREE_HEIGHT > 1) {
+		RTREE_GET_SUBTREE(0)
+	}
+	if (RTREE_HEIGHT > 2) {
+		RTREE_GET_SUBTREE(1)
+	}
+	if (RTREE_HEIGHT > 3) {
+		for (unsigned i = 2; i < RTREE_HEIGHT-1; i++) {
+			RTREE_GET_SUBTREE(i)
+		}
+	}
+	RTREE_GET_LEAF(RTREE_HEIGHT-1)
 #undef RTREE_GET_SUBTREE
 #undef RTREE_GET_LEAF
-	default: not_reached();
-	}
-#undef RTREE_GET_BIAS
 	not_reached();
 }
 
@@ -351,7 +269,7 @@ rtree_elm_witness_dalloc(tsd_t *tsd, witness_t *witness,
 			witness_init(&rew->witness, "rtree_elm",
 			    WITNESS_RANK_RTREE_ELM, rtree_elm_witness_comp,
 			    NULL);
-			    return;
+			return;
 		}
 	}
 	not_reached();

@@ -1,7 +1,29 @@
 #ifndef JEMALLOC_INTERNAL_RTREE_EXTERNS_H
 #define JEMALLOC_INTERNAL_RTREE_EXTERNS_H
 
-bool rtree_new(rtree_t *rtree, unsigned bits);
+/*
+ * Split the bits into one to three partitions depending on number of
+ * significant bits.  It the number of bits does not divide evenly into the
+ * number of levels, place one remainder bit per level starting at the leaf
+ * level.
+ */
+static const rtree_level_t rtree_levels[] = {
+#if RTREE_NSB <= 10
+	{RTREE_NSB, RTREE_NHIB + RTREE_NSB}
+#elif RTREE_NSB <= 36
+	{RTREE_NSB/2, RTREE_NHIB + RTREE_NSB/2},
+	{RTREE_NSB/2 + RTREE_NSB%2, RTREE_NHIB + RTREE_NSB}
+#elif RTREE_NSB <= 52
+	{RTREE_NSB/3, RTREE_NHIB + RTREE_NSB/3},
+	{RTREE_NSB/3 + RTREE_NSB%3/2,
+	    RTREE_NHIB + RTREE_NSB/3*2 + RTREE_NSB%3/2},
+	{RTREE_NSB/3 + RTREE_NSB%3 - RTREE_NSB%3/2, RTREE_NHIB + RTREE_NSB}
+#else
+#  error Unsupported number of significant virtual address bits
+#endif
+};
+
+bool rtree_new(rtree_t *rtree);
 #ifdef JEMALLOC_JET
 typedef rtree_elm_t *(rtree_node_alloc_t)(tsdn_t *, rtree_t *, size_t);
 extern rtree_node_alloc_t *rtree_node_alloc;

@@ -406,6 +406,74 @@ case "${host_cpu}" in
 esac
 AC_DEFINE_UNQUOTED([CPU_SPINWAIT], [$CPU_SPINWAIT])
 
+case "${host_cpu}" in
+  aarch64)
+    AC_MSG_CHECKING([number of significant virtual address bits])
+    LG_VADDR=48
+    AC_MSG_RESULT([$LG_VADDR])
+    ;;
+  x86_64)
+    AC_CACHE_CHECK([number of significant virtual address bits],
+                   [je_cv_lg_vaddr],
+                   AC_RUN_IFELSE([AC_LANG_PROGRAM(
+[[
+#include <stdio.h>
+#ifdef _WIN32
+#include <limits.h>
+#include <intrin.h>
+typedef unsigned __int32 uint32_t;
+#else
+#include <stdint.h>
+#endif
+]], [[
+	uint32_t r[[4]];
+	uint32_t eax_in = 0x80000008U;
+#ifdef _WIN32
+	__cpuid((int *)r, (int)eax_in);
+#else
+	asm volatile ("cpuid"
+	    : "=a" (r[[0]]), "=b" (r[[1]]), "=c" (r[[2]]), "=d" (r[[3]])
+	    : "a" (eax_in), "c" (0)
+	);
+#endif
+	uint32_t eax_out = r[[0]];
+	uint32_t vaddr = ((eax_out & 0x0000ff00U) >> 8);
+	FILE *f = fopen("conftest.out", "w");
+	if (f == NULL) {
+		return 1;
+	}
+	fprintf(f, "%u", vaddr);
+	fclose(f);
+	return 0;
+]])],
+                   [je_cv_lg_vaddr=`cat conftest.out`],
+                   [je_cv_lg_vaddr=error],
+                   [je_cv_lg_vaddr=57]))
+    if test "x${je_cv_lg_vaddr}" != "x" ; then
+      LG_VADDR="${je_cv_lg_vaddr}"
+    fi
+    if test "x${LG_VADDR}" != "xerror" ; then
+      AC_DEFINE_UNQUOTED([LG_VADDR], [$LG_VADDR])
+    else
+      AC_MSG_ERROR([cannot determine number of significant virtual address bits])
+    fi
+    ;;
+  *)
+    AC_MSG_CHECKING([number of significant virtual address bits])
+    if test "x${LG_SIZEOF_PTR}" = "x3" ; then
+      LG_VADDR=64
+    elif test "x${LG_SIZEOF_PTR}" = "x2" ; then
+      LG_VADDR=32
+    elif test "x${LG_SIZEOF_PTR}" = "xLG_SIZEOF_PTR_WIN" ; then
+      LG_VADDR="(1U << (LG_SIZEOF_PTR_WIN+3))"
+    else
+      AC_MSG_ERROR([Unsupported lg(pointer size): ${LG_SIZEOF_PTR}])
+    fi
+    AC_MSG_RESULT([$LG_VADDR])
+    ;;
+esac
+AC_DEFINE_UNQUOTED([LG_VADDR], [$LG_VADDR])
+
 LD_PRELOAD_VAR="LD_PRELOAD"
 so="so"
 importlib="${so}"
