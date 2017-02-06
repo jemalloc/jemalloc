@@ -2,8 +2,8 @@
 #define JEMALLOC_INTERNAL_RTREE_INLINES_H
 
 #ifndef JEMALLOC_ENABLE_INLINE
-uintptr_t rtree_leafkey(rtree_t *rtree, uintptr_t key);
-uintptr_t rtree_subkey(rtree_t *rtree, uintptr_t key, unsigned level);
+uintptr_t rtree_leafkey(uintptr_t key);
+uintptr_t rtree_subkey(uintptr_t key, unsigned level);
 extent_t *rtree_elm_read(rtree_elm_t *elm, bool dependent);
 void rtree_elm_write(rtree_elm_t *elm, const extent_t *extent);
 rtree_elm_t *rtree_elm_lookup(tsdn_t *tsdn, rtree_t *rtree,
@@ -25,21 +25,21 @@ void rtree_clear(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
 
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_RTREE_C_))
 JEMALLOC_ALWAYS_INLINE uintptr_t
-rtree_leafkey(rtree_t *rtree, uintptr_t key) {
+rtree_leafkey(uintptr_t key) {
 	unsigned ptrbits = ZU(1) << (LG_SIZEOF_PTR+3);
-	unsigned cumbits = (rtree->levels[rtree->height-1].cumbits -
-	    rtree->levels[rtree->height-1].bits);
+	unsigned cumbits = (rtree_levels[RTREE_HEIGHT-1].cumbits -
+	    rtree_levels[RTREE_HEIGHT-1].bits);
 	unsigned maskbits = ptrbits - cumbits;
 	uintptr_t mask = ~((ZU(1) << maskbits) - 1);
 	return (key & mask);
 }
 
 JEMALLOC_ALWAYS_INLINE uintptr_t
-rtree_subkey(rtree_t *rtree, uintptr_t key, unsigned level) {
+rtree_subkey(uintptr_t key, unsigned level) {
 	unsigned ptrbits = ZU(1) << (LG_SIZEOF_PTR+3);
-	unsigned cumbits = rtree->levels[level].cumbits;
+	unsigned cumbits = rtree_levels[level].cumbits;
 	unsigned shiftbits = ptrbits - cumbits;
-	unsigned maskbits = rtree->levels[level].bits;
+	unsigned maskbits = rtree_levels[level].bits;
 	unsigned mask = (ZU(1) << maskbits) - 1;
 	return ((key >> shiftbits) & mask);
 }
@@ -82,7 +82,7 @@ rtree_elm_lookup(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
 	assert(!dependent || !init_missing);
 
 	if (likely(key != 0)) {
-		uintptr_t leafkey = rtree_leafkey(rtree, key);
+		uintptr_t leafkey = rtree_leafkey(key);
 #define RTREE_CACHE_CHECK(i) do {					\
 		if (likely(rtree_ctx->cache[i].leafkey == leafkey)) {	\
 			rtree_elm_t *leaf = rtree_ctx->cache[i].leaf;	\
@@ -94,8 +94,8 @@ rtree_elm_lookup(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
 				rtree_ctx->cache[0].leafkey = leafkey;	\
 				rtree_ctx->cache[0].leaf = leaf;	\
 									\
-				uintptr_t subkey = rtree_subkey(rtree,	\
-				    key, rtree->height-1);		\
+				uintptr_t subkey = rtree_subkey(key,	\
+				    RTREE_HEIGHT-1);			\
 				return &leaf[subkey];			\
 			}						\
 		}							\

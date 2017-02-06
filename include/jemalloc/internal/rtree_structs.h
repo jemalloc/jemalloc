@@ -41,12 +41,10 @@ struct rtree_ctx_s {
 };
 
 struct rtree_s {
-	unsigned		height;
 	union {
 		void		*root_pun;
 		rtree_elm_t	*root;
 	};
-	rtree_level_t		levels[RTREE_HEIGHT_MAX];
 	malloc_mutex_t		init_lock;
 };
 
