@@ -1153,10 +1153,8 @@ malloc_init_hard_needed(void) {
 	}
 #ifdef JEMALLOC_THREADED_INIT
 	if (malloc_initializer != NO_INITIALIZER && !IS_INITIALIZER) {
-		spin_t spinner;
-
 		/* Busy-wait until the initializing thread completes. */
-		spin_init(&spinner);
+		spin_t spinner = SPIN_INITIALIZER;
 		do {
 			malloc_mutex_unlock(TSDN_NULL, &init_lock);
 			spin_adaptive(&spinner);

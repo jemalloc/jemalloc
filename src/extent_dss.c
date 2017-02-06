@@ -62,13 +62,12 @@ extent_dss_prec_set(dss_prec_t dss_prec) {
 static void *
 extent_dss_max_update(void *new_addr) {
 	void *max_cur;
-	spin_t spinner;
 
 	/*
 	 * Get the current end of the DSS as max_cur and assure that dss_max is
 	 * up to date.
 	 */
-	spin_init(&spinner);
+	spin_t spinner = SPIN_INITIALIZER;
 	while (true) {
 		void *max_prev = atomic_read_p(&dss_max);
 
