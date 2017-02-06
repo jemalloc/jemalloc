@@ -1035,12 +1035,9 @@ extent_can_coalesce(const extent_t *a, const extent_t *b) {
 }
 
 static bool
-extent_try_coalesce(tsdn_t *tsdn, arena_t *arena,
-    extent_hooks_t **r_extent_hooks, extent_t *a, extent_t *b,
-    extents_t *extents) {
-	if (!extent_can_coalesce(a, b)) {
-		return true;
-	}
+extent_coalesce(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
+    extent_t *a, extent_t *b, extents_t *extents) {
+	assert(extent_can_coalesce(a, b));
 	assert(extent_arena_get(a) == arena);
 	assert(extent_arena_get(b) == arena);
 
@@ -1062,7 +1059,6 @@ extent_try_coalesce(tsdn_t *tsdn, arena_t *arena,
 static void
 extent_record(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
     extents_t *extents, extent_t *extent) {
-	extent_t *prev, *next;
 	rtree_ctx_t rtree_ctx_fallback;
 	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
 
@@ -1090,21 +1086,40 @@ extent_record(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
 		coalesced = false;
 
 		/* Try to coalesce forward. */
-		next = rtree_read(tsdn, &extents_rtree, rtree_ctx,
-		    (uintptr_t)extent_past_get(extent), false);
-		if (next != NULL) {
-			coalesced = !extent_try_coalesce(tsdn, arena,
-			    r_extent_hooks, extent, next, extents);
+		rtree_elm_t *next_elm = rtree_elm_acquire(tsdn, &extents_rtree,
+		    rtree_ctx, (uintptr_t)extent_past_get(extent), false,
+		    false);
+		if (next_elm != NULL) {
+			extent_t *next = rtree_elm_read_acquired(tsdn,
+			    &extents_rtree, next_elm);
+			/*
+			 * extents->mtx only protects against races for
+			 * like-state extents, so call extent_can_coalesce()
+			 * before releasing the next_elm lock.
+			 */
+			bool can_coalesce = (next != NULL &&
+			    extent_can_coalesce(extent, next));
+			rtree_elm_release(tsdn, &extents_rtree, next_elm);
+			if (can_coalesce && !extent_coalesce(tsdn, arena,
+			    r_extent_hooks, extent, next, extents)) {
+				coalesced = true;
+			}
 		}
 
 		/* Try to coalesce backward. */
-		prev = rtree_read(tsdn, &extents_rtree, rtree_ctx,
-		    (uintptr_t)extent_before_get(extent), false);
-		if (prev != NULL) {
-			coalesced = !extent_try_coalesce(tsdn, arena,
-			    r_extent_hooks, prev, extent, extents);
-			if (coalesced) {
+		rtree_elm_t *prev_elm = rtree_elm_acquire(tsdn, &extents_rtree,
+		    rtree_ctx, (uintptr_t)extent_before_get(extent), false,
+		    false);
+		if (prev_elm != NULL) {
+			extent_t *prev = rtree_elm_read_acquired(tsdn,
+			    &extents_rtree, prev_elm);
+			bool can_coalesce = (prev != NULL &&
+			    extent_can_coalesce(prev, extent));
+			rtree_elm_release(tsdn, &extents_rtree, prev_elm);
+			if (can_coalesce && !extent_coalesce(tsdn, arena,
+			    r_extent_hooks, prev, extent, extents)) {
 				extent = prev;
+				coalesced = true;
 			}
 		}
 	} while (coalesced);
