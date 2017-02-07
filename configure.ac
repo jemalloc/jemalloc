@@ -406,6 +406,26 @@ case "${host_cpu}" in
 esac
 AC_DEFINE_UNQUOTED([CPU_SPINWAIT], [$CPU_SPINWAIT])
 
+AC_MSG_CHECKING([number of significant virtual address bits])
+case "${host_cpu}" in
+  x86_64|aarch64)
+    LG_VADDR=48
+    ;;
+  *)
+    if test "x${LG_SIZEOF_PTR}" = "x3" ; then
+      LG_VADDR=64
+    elif test "x${LG_SIZEOF_PTR}" = "x2" ; then
+      LG_VADDR=32
+    elif test "x${LG_SIZEOF_PTR}" = "xLG_SIZEOF_PTR_WIN" ; then
+      LG_VADDR="(1U << (LG_SIZEOF_PTR_WIN+3))"
+    else
+      AC_MSG_ERROR([Unsupported lg(pointer size): ${LG_SIZEOF_PTR}])
+    fi
+    ;;
+esac
+AC_MSG_RESULT([$LG_VADDR])
+AC_DEFINE_UNQUOTED([LG_VADDR], [$LG_VADDR])
+
 LD_PRELOAD_VAR="LD_PRELOAD"
 so="so"
 importlib="${so}"

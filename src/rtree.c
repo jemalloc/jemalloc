@@ -1,64 +1,16 @@
 #define JEMALLOC_RTREE_C_
 #include "jemalloc/internal/jemalloc_internal.h"
 
-static unsigned
-hmin(unsigned ha, unsigned hb) {
-	return (ha < hb ? ha : hb);
-}
-
 /*
  * Only the most significant bits of keys passed to rtree_{read,write}() are
  * used.
  */
 bool
-rtree_new(rtree_t *rtree, unsigned bits) {
-	unsigned bits_in_leaf, height, i;
-
-	assert(RTREE_HEIGHT_MAX == ((ZU(1) << (LG_SIZEOF_PTR+3)) /
-	    RTREE_BITS_PER_LEVEL));
-	assert(bits > 0 && bits <= (sizeof(uintptr_t) << 3));
-
-	bits_in_leaf = (bits % RTREE_BITS_PER_LEVEL) == 0 ? RTREE_BITS_PER_LEVEL
-	    : (bits % RTREE_BITS_PER_LEVEL);
-	if (bits > bits_in_leaf) {
-		height = 1 + (bits - bits_in_leaf) / RTREE_BITS_PER_LEVEL;
-		if ((height-1) * RTREE_BITS_PER_LEVEL + bits_in_leaf != bits) {
-			height++;
-		}
-	} else {
-		height = 1;
+rtree_new(rtree_t *rtree) {
+	rtree->root_pun = NULL;
+	if (malloc_mutex_init(&rtree->init_lock, "rtree", WITNESS_RANK_RTREE)) {
+		return true;
 	}
-	assert((height-1) * RTREE_BITS_PER_LEVEL + bits_in_leaf == bits);
-
-	rtree->height = height;
-
-	/* Root level. */
-	rtree->levels[0].subtree = NULL;
-	rtree->levels[0].bits = (height > 1) ? RTREE_BITS_PER_LEVEL :
-	    bits_in_leaf;
-	rtree->levels[0].cumbits = rtree->levels[0].bits;
-	/* Interior levels. */
-	for (i = 1; i < height-1; i++) {
-		rtree->levels[i].subtree = NULL;
-		rtree->levels[i].bits = RTREE_BITS_PER_LEVEL;
-		rtree->levels[i].cumbits = rtree->levels[i-1].cumbits +
-		    RTREE_BITS_PER_LEVEL;
-	}
-	/* Leaf level. */
-	if (height > 1) {
-		rtree->levels[height-1].subtree = NULL;
-		rtree->levels[height-1].bits = bits_in_leaf;
-		rtree->levels[height-1].cumbits = bits;
-	}
-
-	/* Compute lookup table to be used by rtree_[ctx_]start_level(). */
-	for (i = 0; i < RTREE_HEIGHT_MAX; i++) {
-		rtree->start_level[i] = hmin(RTREE_HEIGHT_MAX - 1 - i, height -
-		    1);
-	}
-	rtree->start_level[RTREE_HEIGHT_MAX] = 0;
-
-	malloc_mutex_init(&rtree->init_lock, "rtree", WITNESS_RANK_RTREE);
 
 	return false;
 }
@@ -97,10 +49,10 @@ rtree_node_dalloc_t *rtree_node_dalloc = JEMALLOC_N(rtree_node_dalloc_impl);
 static void
 rtree_delete_subtree(tsdn_t *tsdn, rtree_t *rtree, rtree_elm_t *node,
     unsigned level) {
-	if (level + 1 < rtree->height) {
+	if (level + 1 < RTREE_HEIGHT) {
 		size_t nchildren, i;
 
-		nchildren = ZU(1) << rtree->levels[level].bits;
+		nchildren = ZU(1) << rtree_levels[level].bits;
 		for (i = 0; i < nchildren; i++) {
 			rtree_elm_t *child = node[i].child;
 			if (child != NULL) {
@@ -114,13 +66,8 @@ rtree_delete_subtree(tsdn_t *tsdn, rtree_t *rtree, rtree_elm_t *node,
 
 void
 rtree_delete(tsdn_t *tsdn, rtree_t *rtree) {
-	unsigned i;
-
-	for (i = 0; i < rtree->height; i++) {
-		rtree_elm_t *subtree = rtree->levels[i].subtree;
-		if (subtree != NULL) {
-			rtree_delete_subtree(tsdn, rtree, subtree, i);
-		}
+	if (rtree->root_pun != NULL) {
+		rtree_delete_subtree(tsdn, rtree, rtree->root, 0);
 	}
 }
 #endif
@@ -134,7 +81,7 @@ rtree_node_init(tsdn_t *tsdn, rtree_t *rtree, unsigned level,
 	node = atomic_read_p((void**)elmp);
 	if (node == NULL) {
 		node = rtree_node_alloc(tsdn, rtree, ZU(1) <<
-		    rtree->levels[level].bits);
+		    rtree_levels[level].bits);
 		if (node == NULL) {
 			malloc_mutex_unlock(tsdn, &rtree->init_lock);
 			return NULL;
@@ -146,16 +93,132 @@ rtree_node_init(tsdn_t *tsdn, rtree_t *rtree, unsigned level,
 	return node;
 }
 
-rtree_elm_t *
-rtree_subtree_read_hard(tsdn_t *tsdn, rtree_t *rtree, unsigned level) {
-	return rtree_node_init(tsdn, rtree, level,
-	    &rtree->levels[level].subtree);
+static bool
+rtree_node_valid(rtree_elm_t *node) {
+	return ((uintptr_t)node != (uintptr_t)0);
+}
+
+static rtree_elm_t *
+rtree_child_tryread(rtree_elm_t *elm, bool dependent) {
+	rtree_elm_t *child;
+
+	/* Double-checked read (first read may be stale). */
+	child = elm->child;
+	if (!dependent && !rtree_node_valid(child)) {
+		child = (rtree_elm_t *)atomic_read_p(&elm->pun);
+	}
+	assert(!dependent || child != NULL);
+	return child;
+}
+
+static rtree_elm_t *
+rtree_child_read(tsdn_t *tsdn, rtree_t *rtree, rtree_elm_t *elm, unsigned level,
+    bool dependent) {
+	rtree_elm_t *child;
+
+	child = rtree_child_tryread(elm, dependent);
+	if (!dependent && unlikely(!rtree_node_valid(child))) {
+		child = rtree_node_init(tsdn, rtree, level+1, &elm->child);
+	}
+	assert(!dependent || child != NULL);
+	return child;
+}
+
+static rtree_elm_t *
+rtree_subtree_tryread(rtree_t *rtree, bool dependent) {
+	/* Double-checked read (first read may be stale). */
+	rtree_elm_t *subtree = rtree->root;
+	if (!dependent && unlikely(!rtree_node_valid(subtree))) {
+		subtree = (rtree_elm_t *)atomic_read_p(&rtree->root_pun);
+	}
+	assert(!dependent || subtree != NULL);
+	return subtree;
+}
+
+static rtree_elm_t *
+rtree_subtree_read(tsdn_t *tsdn, rtree_t *rtree, bool dependent) {
+	rtree_elm_t *subtree = rtree_subtree_tryread(rtree, dependent);
+	if (!dependent && unlikely(!rtree_node_valid(subtree))) {
+		subtree = rtree_node_init(tsdn, rtree, 0, &rtree->root);
+	}
+	assert(!dependent || subtree != NULL);
+	return subtree;
 }
 
 rtree_elm_t *
-rtree_child_read_hard(tsdn_t *tsdn, rtree_t *rtree, rtree_elm_t *elm,
-    unsigned level) {
-	return rtree_node_init(tsdn, rtree, level+1, &elm->child);
+rtree_elm_lookup_hard(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
+    uintptr_t key, bool dependent, bool init_missing) {
+	/*
+	 * Search the remaining cache elements, and on success move the matching
+	 * element to the front.
+	 */
+	uintptr_t leafkey = rtree_leafkey(key);
+	for (unsigned i = 1; i < RTREE_CTX_NCACHE; i++) {
+		if (likely(rtree_ctx->cache[i].leafkey == leafkey)) {
+			rtree_elm_t *leaf = rtree_ctx->cache[i].leaf;
+			if (likely(leaf != NULL)) {
+				/* Reorder. */
+				memmove(&rtree_ctx->cache[1],
+				    &rtree_ctx->cache[0],
+				    sizeof(rtree_ctx_cache_elm_t) * i);
+				rtree_ctx->cache[0].leafkey = leafkey;
+				rtree_ctx->cache[0].leaf = leaf;
+
+				uintptr_t subkey = rtree_subkey(key,
+				    RTREE_HEIGHT-1);
+				return &leaf[subkey];
+			}
+		}
+	}
+
+	rtree_elm_t *node = init_missing ? rtree_subtree_read(tsdn, rtree,
+	    dependent) : rtree_subtree_tryread(rtree, dependent);
+
+#define RTREE_GET_SUBTREE(level) {					\
+		assert(level < RTREE_HEIGHT-1);				\
+		if (!dependent && unlikely(!rtree_node_valid(node))) {	\
+			return NULL;					\
+		}							\
+		uintptr_t subkey = rtree_subkey(key, level);		\
+		node = init_missing ? rtree_child_read(tsdn, rtree,	\
+		    &node[subkey], level, dependent) :			\
+		    rtree_child_tryread(&node[subkey], dependent);	\
+	}
+#define RTREE_GET_LEAF(level) {						\
+		assert(level == RTREE_HEIGHT-1);			\
+		if (!dependent && unlikely(!rtree_node_valid(node))) {	\
+			return NULL;					\
+		}							\
+		/*							\
+		 * node is a leaf, so it contains values rather than	\
+		 * child pointers.					\
+		 */							\
+		if (RTREE_CTX_NCACHE > 1) {				\
+			memmove(&rtree_ctx->cache[1],			\
+			    &rtree_ctx->cache[0],			\
+			    sizeof(rtree_ctx_cache_elm_t) *		\
+			    (RTREE_CTX_NCACHE-1));			\
+		}							\
+		rtree_ctx->cache[0].leafkey = leafkey;			\
+		rtree_ctx->cache[0].leaf = node;			\
+		uintptr_t subkey = rtree_subkey(key, level);		\
+		return &node[subkey];					\
+	}
+	if (RTREE_HEIGHT > 1) {
+		RTREE_GET_SUBTREE(0)
+	}
+	if (RTREE_HEIGHT > 2) {
+		RTREE_GET_SUBTREE(1)
+	}
+	if (RTREE_HEIGHT > 3) {
+		for (unsigned i = 2; i < RTREE_HEIGHT-1; i++) {
+			RTREE_GET_SUBTREE(i)
+		}
+	}
+	RTREE_GET_LEAF(RTREE_HEIGHT-1)
+#undef RTREE_GET_SUBTREE
+#undef RTREE_GET_LEAF
+	not_reached();
 }
 
 static int
@@ -226,7 +289,7 @@ rtree_elm_witness_dalloc(tsd_t *tsd, witness_t *witness,
 			witness_init(&rew->witness, "rtree_elm",
 			    WITNESS_RANK_RTREE_ELM, rtree_elm_witness_comp,
 			    NULL);
-			    return;
+			return;
 		}
 	}
 	not_reached();
