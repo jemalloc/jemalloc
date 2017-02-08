@@ -189,6 +189,7 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/size_classes.c \
 	$(srcroot)test/unit/slab.c \
 	$(srcroot)test/unit/smoothstep.c \
+	$(srcroot)test/unit/spin.c \
 	$(srcroot)test/unit/stats.c \
 	$(srcroot)test/unit/stats_print.c \
 	$(srcroot)test/unit/ticker.c \

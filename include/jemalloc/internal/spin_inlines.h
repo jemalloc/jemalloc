@@ -8,14 +8,19 @@ void	spin_adaptive(spin_t *spin);
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_SPIN_C_))
 JEMALLOC_INLINE void
 spin_adaptive(spin_t *spin) {
-	volatile uint64_t i;
+	volatile uint32_t i;
 
-	for (i = 0; i < (KQU(1) << spin->iteration); i++) {
-		CPU_SPINWAIT;
-	}
-
-	if (spin->iteration < 63) {
+	if (spin->iteration < 5) {
+		for (i = 0; i < (1U << spin->iteration); i++) {
+			CPU_SPINWAIT;
+		}
 		spin->iteration++;
+	} else {
+#ifdef _WIN32
+		SwitchToThread();
+#else
+		sched_yield();
+#endif
 	}
 }
 
