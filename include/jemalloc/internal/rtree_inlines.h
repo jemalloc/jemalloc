@@ -40,7 +40,7 @@ rtree_subkey(uintptr_t key, unsigned level) {
 	unsigned cumbits = rtree_levels[level].cumbits;
 	unsigned shiftbits = ptrbits - cumbits;
 	unsigned maskbits = rtree_levels[level].bits;
-	unsigned mask = (ZU(1) << maskbits) - 1;
+	uintptr_t mask = (ZU(1) << maskbits) - 1;
 	return ((key >> shiftbits) & mask);
 }
 
