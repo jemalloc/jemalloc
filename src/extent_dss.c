@@ -121,35 +121,45 @@ extent_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
 		 * malloc.
 		 */
 		while (true) {
-			void *ret, *max_cur, *gap_addr, *dss_next, *dss_prev;
-			size_t gap_size;
-			intptr_t incr;
-
-			max_cur = extent_dss_max_update(new_addr);
+			void *max_cur = extent_dss_max_update(new_addr);
 			if (max_cur == NULL) {
 				goto label_oom;
 			}
 
 			/*
-			 * Compute how much gap space (if any) is necessary to
-			 * satisfy alignment.  This space can be recycled for
-			 * later use.
+			 * Compute how much page-aligned gap space (if any) is
+			 * necessary to satisfy alignment.  This space can be
+			 * recycled for later use.
 			 */
-			gap_addr = (void *)(PAGE_CEILING((uintptr_t)max_cur));
-			ret = (void *)ALIGNMENT_CEILING((uintptr_t)gap_addr,
-			    PAGE_CEILING(alignment));
-			gap_size = (uintptr_t)ret - (uintptr_t)gap_addr;
-			if (gap_size != 0) {
-				extent_init(gap, arena, gap_addr, gap_size,
-				    gap_size, arena_extent_sn_next(arena),
+			void *gap_addr_page = (void *)(PAGE_CEILING(
+			    (uintptr_t)max_cur));
+			void *ret = (void *)ALIGNMENT_CEILING(
+			    (uintptr_t)gap_addr_page, alignment);
+			size_t gap_size_page = (uintptr_t)ret -
+			    (uintptr_t)gap_addr_page;
+			if (gap_size_page != 0) {
+				extent_init(gap, arena, gap_addr_page,
+				    gap_size_page, gap_size_page,
+				    arena_extent_sn_next(arena),
 				    extent_state_active, false, true, false);
 			}
-			dss_next = (void *)((uintptr_t)ret + size);
+			/*
+			 * Compute the address just past the end of the desired
+			 * allocation space.
+			 */
+			void *dss_next = (void *)((uintptr_t)ret + size);
 			if ((uintptr_t)ret < (uintptr_t)max_cur ||
 			    (uintptr_t)dss_next < (uintptr_t)max_cur) {
 				goto label_oom; /* Wrap-around. */
 			}
-			incr = gap_size + size;
+			/* Compute the increment, including subpage bytes. */
+			void *gap_addr_subpage = max_cur;
+			size_t gap_size_subpage = (uintptr_t)ret -
+			    (uintptr_t)gap_addr_subpage;
+			intptr_t incr = gap_size_subpage + size;
+
+			assert((uintptr_t)max_cur + incr == (uintptr_t)ret +
+			    size);
 
 			/*
 			 * Optimistically update dss_max, and roll back below if
@@ -162,10 +172,10 @@ extent_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
 			}
 
 			/* Try to allocate. */
-			dss_prev = extent_dss_sbrk(incr);
+			void *dss_prev = extent_dss_sbrk(incr);
 			if (dss_prev == max_cur) {
 				/* Success. */
-				if (gap_size != 0) {
+				if (gap_size_page != 0) {
 					extent_dalloc_gap(tsdn, arena, gap);
 				} else {
 					extent_dalloc(tsdn, arena, gap);
