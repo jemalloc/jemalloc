@@ -144,13 +144,11 @@ arena_stats_large_nrequests_add(tsdn_t *tsdn, arena_stats_t *arena_stats,
 void
 arena_basic_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
     const char **dss, ssize_t *decay_time, size_t *nactive, size_t *ndirty) {
-	malloc_mutex_lock(tsdn, &arena->lock);
 	*nthreads += arena_nthreads_get(arena, false);
 	*dss = dss_prec_names[arena_dss_prec_get(arena)];
-	*decay_time = arena->decay.time;
+	*decay_time = arena_decay_time_get(tsdn, arena);
 	*nactive += atomic_read_zu(&arena->nactive);
 	*ndirty += extents_npages_get(&arena->extents_cached);
-	malloc_mutex_unlock(tsdn, &arena->lock);
 }
 
 void
@@ -607,7 +605,7 @@ arena_decay_epoch_advance(tsdn_t *tsdn, arena_t *arena, const nstime_t *time) {
 }
 
 static void
-arena_decay_init(arena_t *arena, ssize_t decay_time) {
+arena_decay_reinit(arena_t *arena, ssize_t decay_time) {
 	arena->decay.time = decay_time;
 	if (decay_time > 0) {
 		nstime_init2(&arena->decay.interval, decay_time, 0);
@@ -620,6 +618,15 @@ arena_decay_init(arena_t *arena, ssize_t decay_time) {
 	arena_decay_deadline_init(arena);
 	arena->decay.nunpurged = extents_npages_get(&arena->extents_cached);
 	memset(arena->decay.backlog, 0, SMOOTHSTEP_NSTEPS * sizeof(size_t));
+}
+
+static bool
+arena_decay_init(arena_t *arena, ssize_t decay_time) {
+	if (malloc_mutex_init(&arena->decay.mtx, "decay", WITNESS_RANK_DECAY)) {
+		return true;
+	}
+	arena_decay_reinit(arena, decay_time);
+	return false;
 }
 
 static bool
@@ -637,9 +644,9 @@ ssize_t
 arena_decay_time_get(tsdn_t *tsdn, arena_t *arena) {
 	ssize_t decay_time;
 
-	malloc_mutex_lock(tsdn, &arena->lock);
+	malloc_mutex_lock(tsdn, &arena->decay.mtx);
 	decay_time = arena->decay.time;
-	malloc_mutex_unlock(tsdn, &arena->lock);
+	malloc_mutex_unlock(tsdn, &arena->decay.mtx);
 
 	return decay_time;
 }
@@ -650,7 +657,7 @@ arena_decay_time_set(tsdn_t *tsdn, arena_t *arena, ssize_t decay_time) {
 		return true;
 	}
 
-	malloc_mutex_lock(tsdn, &arena->lock);
+	malloc_mutex_lock(tsdn, &arena->decay.mtx);
 	/*
 	 * Restart decay backlog from scratch, which may cause many dirty pages
 	 * to be immediately purged.  It would conceptually be possible to map
@@ -659,16 +666,16 @@ arena_decay_time_set(tsdn_t *tsdn, arena_t *arena, ssize_t decay_time) {
 	 * infrequent, either between the {-1, 0, >0} states, or a one-time
 	 * arbitrary change during initial arena configuration.
 	 */
-	arena_decay_init(arena, decay_time);
+	arena_decay_reinit(arena, decay_time);
 	arena_maybe_purge(tsdn, arena);
-	malloc_mutex_unlock(tsdn, &arena->lock);
+	malloc_mutex_unlock(tsdn, &arena->decay.mtx);
 
 	return false;
 }
 
 void
 arena_maybe_purge(tsdn_t *tsdn, arena_t *arena) {
-	malloc_mutex_assert_owner(tsdn, &arena->lock);
+	malloc_mutex_assert_owner(tsdn, &arena->decay.mtx);
 
 	/* Purge all or nothing if the option is disabled. */
 	if (arena->decay.time <= 0) {
@@ -766,7 +773,7 @@ arena_purge_stashed(tsdn_t *tsdn, arena_t *arena,
 static void
 arena_purge_to_limit(tsdn_t *tsdn, arena_t *arena, size_t ndirty_limit) {
 	witness_assert_depth_to_rank(tsdn, WITNESS_RANK_CORE, 1);
-	malloc_mutex_assert_owner(tsdn, &arena->lock);
+	malloc_mutex_assert_owner(tsdn, &arena->decay.mtx);
 
 	if (atomic_cas_u(&arena->purging, 0, 1)) {
 		return;
@@ -778,19 +785,19 @@ arena_purge_to_limit(tsdn_t *tsdn, arena_t *arena, size_t ndirty_limit) {
 
 	extent_list_init(&purge_extents);
 
-	malloc_mutex_unlock(tsdn, &arena->lock);
+	malloc_mutex_unlock(tsdn, &arena->decay.mtx);
 
 	npurge = arena_stash_dirty(tsdn, arena, &extent_hooks, ndirty_limit,
 	    &purge_extents);
 	if (npurge == 0) {
-		malloc_mutex_lock(tsdn, &arena->lock);
+		malloc_mutex_lock(tsdn, &arena->decay.mtx);
 		goto label_return;
 	}
 	npurged = arena_purge_stashed(tsdn, arena, &extent_hooks,
 	    &purge_extents);
 	assert(npurged == npurge);
 
-	malloc_mutex_lock(tsdn, &arena->lock);
+	malloc_mutex_lock(tsdn, &arena->decay.mtx);
 
 	if (config_stats) {
 		arena_stats_lock(tsdn, &arena->stats);
@@ -805,13 +812,13 @@ label_return:
 
 void
 arena_purge(tsdn_t *tsdn, arena_t *arena, bool all) {
-	malloc_mutex_lock(tsdn, &arena->lock);
+	malloc_mutex_lock(tsdn, &arena->decay.mtx);
 	if (all) {
 		arena_purge_to_limit(tsdn, arena, 0);
 	} else {
 		arena_maybe_purge(tsdn, arena);
 	}
-	malloc_mutex_unlock(tsdn, &arena->lock);
+	malloc_mutex_unlock(tsdn, &arena->decay.mtx);
 }
 
 static void
@@ -822,9 +829,9 @@ arena_slab_dalloc(tsdn_t *tsdn, arena_t *arena, extent_t *slab) {
 	extent_dalloc_cache(tsdn, arena, &extent_hooks, slab);
 
 	arena_nactive_sub(arena, npages);
-	malloc_mutex_lock(tsdn, &arena->lock);
+	malloc_mutex_lock(tsdn, &arena->decay.mtx);
 	arena_maybe_purge(tsdn, arena);
-	malloc_mutex_unlock(tsdn, &arena->lock);
+	malloc_mutex_unlock(tsdn, &arena->decay.mtx);
 }
 
 static void
@@ -1641,9 +1648,6 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 	}
 
 	arena->nthreads[0] = arena->nthreads[1] = 0;
-	if (malloc_mutex_init(&arena->lock, "arena", WITNESS_RANK_ARENA)) {
-		goto label_error;
-	}
 
 	if (config_stats) {
 		if (arena_stats_init(tsdn, &arena->stats)) {
@@ -1684,7 +1688,9 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 	atomic_write_u(&arena->purging, 0);
 	atomic_write_zu(&arena->nactive, 0);
 
-	arena_decay_init(arena, arena_decay_time_default_get());
+	if (arena_decay_init(arena, arena_decay_time_default_get())) {
+		goto label_error;
+	}
 
 	extent_list_init(&arena->large);
 	if (malloc_mutex_init(&arena->large_mtx, "arena_large",
@@ -1742,7 +1748,7 @@ arena_boot(void) {
 
 void
 arena_prefork0(tsdn_t *tsdn, arena_t *arena) {
-	malloc_mutex_prefork(tsdn, &arena->lock);
+	malloc_mutex_prefork(tsdn, &arena->decay.mtx);
 	if (config_stats && config_tcache) {
 		malloc_mutex_prefork(tsdn, &arena->tcache_ql_mtx);
 	}
@@ -1782,7 +1788,7 @@ arena_postfork_parent(tsdn_t *tsdn, arena_t *arena) {
 	malloc_mutex_postfork_parent(tsdn, &arena->extent_freelist_mtx);
 	extents_postfork_parent(tsdn, &arena->extents_cached);
 	extents_postfork_parent(tsdn, &arena->extents_retained);
-	malloc_mutex_postfork_parent(tsdn, &arena->lock);
+	malloc_mutex_postfork_parent(tsdn, &arena->decay.mtx);
 	if (config_stats && config_tcache) {
 		malloc_mutex_postfork_parent(tsdn, &arena->tcache_ql_mtx);
 	}
@@ -1800,7 +1806,7 @@ arena_postfork_child(tsdn_t *tsdn, arena_t *arena) {
 	malloc_mutex_postfork_child(tsdn, &arena->extent_freelist_mtx);
 	extents_postfork_child(tsdn, &arena->extents_cached);
 	extents_postfork_child(tsdn, &arena->extents_retained);
-	malloc_mutex_postfork_child(tsdn, &arena->lock);
+	malloc_mutex_postfork_child(tsdn, &arena->decay.mtx);
 	if (config_stats && config_tcache) {
 		malloc_mutex_postfork_child(tsdn, &arena->tcache_ql_mtx);
 	}

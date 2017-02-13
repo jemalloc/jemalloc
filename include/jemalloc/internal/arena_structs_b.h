@@ -37,6 +37,8 @@ struct arena_bin_info_s {
 };
 
 struct arena_decay_s {
+	/* Synchronizes all fields. */
+	malloc_mutex_t		mtx;
 	/*
 	 * Approximate time in seconds from the creation of a set of unused
 	 * dirty pages until an equivalent set of unused dirty pages is purged
@@ -120,12 +122,6 @@ struct arena_s {
 	 * Synchronization: atomic.
 	 */
 	unsigned		nthreads[2];
-
-	/*
-	 * Synchronizes various arena operations, as indicated in field-specific
-	 * comments.
-	 */
-	malloc_mutex_t		lock;
 
 	/* Synchronization: internal. */
 	arena_stats_t		stats;
