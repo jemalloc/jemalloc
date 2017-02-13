@@ -115,6 +115,9 @@ struct extents_s {
 
 	/* All stored extents must be in the same state. */
 	extent_state_t		state;
+
+	/* If true, try to coalesce during extent deallocation. */
+	bool			try_coalesce;
 };
 
 #endif /* JEMALLOC_INTERNAL_EXTENT_STRUCTS_H */
