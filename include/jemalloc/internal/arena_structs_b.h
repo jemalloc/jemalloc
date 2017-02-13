@@ -37,6 +37,8 @@ struct arena_bin_info_s {
 };
 
 struct arena_decay_s {
+	/* Synchronizes all fields. */
+	malloc_mutex_t		mtx;
 	/*
 	 * Approximate time in seconds from the creation of a set of unused
 	 * dirty pages until an equivalent set of unused dirty pages is purged
@@ -121,24 +123,19 @@ struct arena_s {
 	 */
 	unsigned		nthreads[2];
 
-	/*
-	 * Synchronizes various arena operations, as indicated in field-specific
-	 * comments.
-	 */
-	malloc_mutex_t		lock;
-
-	/* Synchronization: lock. */
+	/* Synchronization: atomic. */
 	arena_stats_t		stats;
 	/*
 	 * List of tcaches for extant threads associated with this arena.
 	 * Stats from these are merged incrementally, and at exit if
 	 * opt_stats_print is enabled.
 	 *
-	 * Synchronization: lock.
+	 * Synchronization: tcache_ql_mtx.
 	 */
 	ql_head(tcache_t)	tcache_ql;
+	malloc_mutex_t		tcache_ql_mtx;
 
-	/* Synchronization: lock. */
+	/* Synchronization: atomic. */
 	uint64_t		prof_accumbytes;
 
 	/*
@@ -156,7 +153,7 @@ struct arena_s {
 	 */
 	size_t			extent_sn_next;
 
-	/* Synchronization: lock. */
+	/* Synchronization: atomic. */
 	dss_prec_t		dss_prec;
 
 	/*
@@ -177,7 +174,7 @@ struct arena_s {
 	/*
 	 * Decay-based purging state.
 	 *
-	 * Synchronization: lock.
+	 * Synchronization: internal.
 	 */
 	arena_decay_t		decay;
 

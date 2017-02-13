@@ -108,8 +108,7 @@ tcache_bin_flush_small(tsd_t *tsd, tcache_t *tcache, tcache_bin_t *tbin,
 		arena_bin_t *bin = &bin_arena->bins[binind];
 
 		if (config_prof && bin_arena == arena) {
-			if (arena_prof_accum(tsd_tsdn(tsd), arena,
-			    tcache->prof_accumbytes)) {
+			if (arena_prof_accum(arena, tcache->prof_accumbytes)) {
 				prof_idump(tsd_tsdn(tsd));
 			}
 			tcache->prof_accumbytes = 0;
@@ -188,7 +187,7 @@ tcache_bin_flush_large(tsd_t *tsd, tcache_bin_t *tbin, szind_t binind,
 			idump = false;
 		}
 
-		malloc_mutex_lock(tsd_tsdn(tsd), &locked_arena->lock);
+		malloc_mutex_lock(tsd_tsdn(tsd), &locked_arena->large_mtx);
 		for (unsigned i = 0; i < nflush; i++) {
 			void *ptr = *(tbin->avail - 1 - i);
 			assert(ptr != NULL);
@@ -200,20 +199,18 @@ tcache_bin_flush_large(tsd_t *tsd, tcache_bin_t *tbin, szind_t binind,
 		}
 		if ((config_prof || config_stats) && locked_arena == arena) {
 			if (config_prof) {
-				idump = arena_prof_accum_locked(arena,
+				idump = arena_prof_accum(arena,
 				    tcache->prof_accumbytes);
 				tcache->prof_accumbytes = 0;
 			}
 			if (config_stats) {
 				merged_stats = true;
-				arena->stats.nrequests_large +=
-				    tbin->tstats.nrequests;
-				arena->stats.lstats[binind - NBINS].nrequests +=
-				    tbin->tstats.nrequests;
+				atomic_add_u64(&arena->stats.lstats[binind -
+				    NBINS].nrequests, tbin->tstats.nrequests);
 				tbin->tstats.nrequests = 0;
 			}
 		}
-		malloc_mutex_unlock(tsd_tsdn(tsd), &locked_arena->lock);
+		malloc_mutex_unlock(tsd_tsdn(tsd), &locked_arena->large_mtx);
 
 		unsigned ndeferred = 0;
 		for (unsigned i = 0; i < nflush; i++) {
@@ -245,12 +242,9 @@ tcache_bin_flush_large(tsd_t *tsd, tcache_bin_t *tbin, szind_t binind,
 		 * The flush loop didn't happen to flush to this thread's
 		 * arena, so the stats didn't get merged.  Manually do so now.
 		 */
-		malloc_mutex_lock(tsd_tsdn(tsd), &arena->lock);
-		arena->stats.nrequests_large += tbin->tstats.nrequests;
-		arena->stats.lstats[binind - NBINS].nrequests +=
-		    tbin->tstats.nrequests;
+		atomic_add_u64(&arena->stats.lstats[binind - NBINS].nrequests,
+		    tbin->tstats.nrequests);
 		tbin->tstats.nrequests = 0;
-		malloc_mutex_unlock(tsd_tsdn(tsd), &arena->lock);
 	}
 
 	memmove(tbin->avail - rem, tbin->avail - tbin->ncached, rem *
@@ -265,10 +259,10 @@ static void
 tcache_arena_associate(tsdn_t *tsdn, tcache_t *tcache, arena_t *arena) {
 	if (config_stats) {
 		/* Link into list of extant tcaches. */
-		malloc_mutex_lock(tsdn, &arena->lock);
+		malloc_mutex_lock(tsdn, &arena->tcache_ql_mtx);
 		ql_elm_new(tcache, link);
 		ql_tail_insert(&arena->tcache_ql, tcache, link);
-		malloc_mutex_unlock(tsdn, &arena->lock);
+		malloc_mutex_unlock(tsdn, &arena->tcache_ql_mtx);
 	}
 }
 
@@ -276,7 +270,7 @@ static void
 tcache_arena_dissociate(tsdn_t *tsdn, tcache_t *tcache, arena_t *arena) {
 	if (config_stats) {
 		/* Unlink from list of extant tcaches. */
-		malloc_mutex_lock(tsdn, &arena->lock);
+		malloc_mutex_lock(tsdn, &arena->tcache_ql_mtx);
 		if (config_debug) {
 			bool in_ql = false;
 			tcache_t *iter;
@@ -290,7 +284,7 @@ tcache_arena_dissociate(tsdn_t *tsdn, tcache_t *tcache, arena_t *arena) {
 		}
 		ql_remove(&arena->tcache_ql, tcache, link);
 		tcache_stats_merge(tsdn, tcache, arena);
-		malloc_mutex_unlock(tsdn, &arena->lock);
+		malloc_mutex_unlock(tsdn, &arena->tcache_ql_mtx);
 	}
 }
 
@@ -385,7 +379,7 @@ tcache_destroy(tsd_t *tsd, tcache_t *tcache) {
 	}
 
 	if (config_prof && tcache->prof_accumbytes > 0 &&
-	    arena_prof_accum(tsd_tsdn(tsd), arena, tcache->prof_accumbytes)) {
+	    arena_prof_accum(arena, tcache->prof_accumbytes)) {
 		prof_idump(tsd_tsdn(tsd));
 	}
 
@@ -413,8 +407,6 @@ tcache_stats_merge(tsdn_t *tsdn, tcache_t *tcache, arena_t *arena) {
 
 	cassert(config_stats);
 
-	malloc_mutex_assert_owner(tsdn, &arena->lock);
-
 	/* Merge and reset tcache stats. */
 	for (i = 0; i < NBINS; i++) {
 		arena_bin_t *bin = &arena->bins[i];
@@ -426,10 +418,9 @@ tcache_stats_merge(tsdn_t *tsdn, tcache_t *tcache, arena_t *arena) {
 	}
 
 	for (; i < nhbins; i++) {
-		malloc_large_stats_t *lstats = &arena->stats.lstats[i - NBINS];
 		tcache_bin_t *tbin = &tcache->tbins[i];
-		arena->stats.nrequests_large += tbin->tstats.nrequests;
-		lstats->nrequests += tbin->tstats.nrequests;
+		atomic_add_u64(&arena->stats.lstats[i - NBINS].nrequests,
+		    tbin->tstats.nrequests);
 		tbin->tstats.nrequests = 0;
 	}
 }

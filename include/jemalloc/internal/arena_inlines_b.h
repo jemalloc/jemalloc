@@ -81,7 +81,7 @@ arena_decay_ticks(tsdn_t *tsdn, arena_t *arena, unsigned nticks) {
 
 JEMALLOC_ALWAYS_INLINE void
 arena_decay_tick(tsdn_t *tsdn, arena_t *arena) {
-	malloc_mutex_assert_not_owner(tsdn, &arena->lock);
+	malloc_mutex_assert_not_owner(tsdn, &arena->decay.mtx);
 
 	arena_decay_ticks(tsdn, arena, 1);
 }
