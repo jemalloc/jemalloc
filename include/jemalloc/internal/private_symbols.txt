@@ -485,8 +485,6 @@ ticker_ticks
 tsd_arena_get
 tsd_arena_set
 tsd_arenap_get
-tsd_arenas_tdata_bypass_get
-tsd_arenas_tdata_bypass_set
 tsd_arenas_tdata_bypassp_get
 tsd_arenas_tdata_get
 tsd_arenas_tdata_set
@@ -518,11 +516,7 @@ tsd_nominal
 tsd_prof_tdata_get
 tsd_prof_tdata_set
 tsd_prof_tdatap_get
-tsd_rtree_ctx_get
-tsd_rtree_ctx_set
 tsd_rtree_ctxp_get
-tsd_rtree_elm_witnesses_get
-tsd_rtree_elm_witnesses_set
 tsd_rtree_elm_witnessesp_get
 tsd_set
 tsd_tcache_enabled_get
@@ -543,8 +537,6 @@ tsd_tsdn
 tsd_witness_fork_get
 tsd_witness_fork_set
 tsd_witness_forkp_get
-tsd_witnesses_get
-tsd_witnesses_set
 tsd_witnessesp_get
 tsdn_fetch
 tsdn_null

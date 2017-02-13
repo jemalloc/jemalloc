@@ -8,7 +8,7 @@ tsd_t	*tsd_fetch_impl(bool init);
 tsd_t	*tsd_fetch(void);
 tsdn_t	*tsd_tsdn(tsd_t *tsd);
 bool	tsd_nominal(tsd_t *tsd);
-#define O(n, t, c)							\
+#define O(n, t, gs, c)							\
 t	*tsd_##n##p_get(tsd_t *tsd);					\
 t	tsd_##n##_get(tsd_t *tsd);					\
 void	tsd_##n##_set(tsd_t *tsd, t n);
@@ -64,23 +64,27 @@ tsd_nominal(tsd_t *tsd) {
 	return (tsd->state == tsd_state_nominal);
 }
 
-#define O(n, t, c)							\
-JEMALLOC_ALWAYS_INLINE t *						\
-tsd_##n##p_get(tsd_t *tsd) {						\
-	return &tsd->n;							\
-}									\
-									\
+#define MALLOC_TSD_getset_yes(n, t)					\
 JEMALLOC_ALWAYS_INLINE t						\
 tsd_##n##_get(tsd_t *tsd) {						\
 	return *tsd_##n##p_get(tsd);					\
 }									\
-									\
 JEMALLOC_ALWAYS_INLINE void						\
 tsd_##n##_set(tsd_t *tsd, t n) {					\
 	assert(tsd->state == tsd_state_nominal);			\
 	tsd->n = n;							\
 }
+#define MALLOC_TSD_getset_no(n, t)
+#define O(n, t, gs, c)							\
+JEMALLOC_ALWAYS_INLINE t *						\
+tsd_##n##p_get(tsd_t *tsd) {						\
+	return &tsd->n;							\
+}									\
+									\
+MALLOC_TSD_getset_##gs(n, t)
 MALLOC_TSD
+#undef MALLOC_TSD_getset_yes
+#undef MALLOC_TSD_getset_no
 #undef O
 
 JEMALLOC_ALWAYS_INLINE tsdn_t *

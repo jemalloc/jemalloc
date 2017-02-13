@@ -15,21 +15,23 @@ struct tsd_init_head_s {
 #endif
 
 #define MALLOC_TSD							\
-/*  O(name,			type,			cleanup) */	\
-    O(tcache,			tcache_t *,		yes)		\
-    O(thread_allocated,		uint64_t,		no)		\
-    O(thread_deallocated,	uint64_t,		no)		\
-    O(prof_tdata,		prof_tdata_t *,		yes)		\
-    O(iarena,			arena_t *,		yes)		\
-    O(arena,			arena_t *,		yes)		\
-    O(arenas_tdata,		arena_tdata_t *,	yes)		\
-    O(narenas_tdata,		unsigned,		no)		\
-    O(arenas_tdata_bypass,	bool,			no)		\
-    O(tcache_enabled,		tcache_enabled_t,	no)		\
-    O(rtree_ctx,		rtree_ctx_t,		no)		\
-    O(witnesses,		witness_list_t,		yes)		\
-    O(rtree_elm_witnesses,	rtree_elm_witness_tsd_t,no)		\
-    O(witness_fork,		bool,			no)		\
+/*  O(name,			type,		[gs]et,	cleanup) */	\
+    O(tcache,			tcache_t *,	yes,	yes)		\
+    O(thread_allocated,		uint64_t,	yes,	no)		\
+    O(thread_deallocated,	uint64_t,	yes,	no)		\
+    O(prof_tdata,		prof_tdata_t *,	yes,	yes)		\
+    O(iarena,			arena_t *,	yes,	yes)		\
+    O(arena,			arena_t *,	yes,	yes)		\
+    O(arenas_tdata,		arena_tdata_t *,yes,	yes)		\
+    O(narenas_tdata,		unsigned,	yes,	no)		\
+    O(arenas_tdata_bypass,	bool,		no,	no)		\
+    O(tcache_enabled,		tcache_enabled_t,			\
+						yes,	no)		\
+    O(rtree_ctx,		rtree_ctx_t,	no,	no)		\
+    O(witnesses,		witness_list_t,	no,	yes)		\
+    O(rtree_elm_witnesses,	rtree_elm_witness_tsd_t,		\
+						no,	no)		\
+    O(witness_fork,		bool,		yes,	no)		\
 
 #define TSD_INITIALIZER {						\
     tsd_state_uninitialized,						\
@@ -51,7 +53,7 @@ struct tsd_init_head_s {
 
 struct tsd_s {
 	tsd_state_t	state;
-#define O(n, t, c)							\
+#define O(n, t, gs, c)							\
 	t		n;
 MALLOC_TSD
 #undef O

@@ -72,7 +72,7 @@ tsd_cleanup(void *arg) {
 #define MALLOC_TSD_cleanup_yes(n, t)					\
 		n##_cleanup(tsd);
 #define MALLOC_TSD_cleanup_no(n, t)
-#define O(n, t, c)							\
+#define O(n, t, gs, c)							\
 		MALLOC_TSD_cleanup_##c(n, t)
 MALLOC_TSD
 #undef MALLOC_TSD_cleanup_yes
