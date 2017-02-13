@@ -60,8 +60,8 @@ bool	arena_ralloc_no_move(tsdn_t *tsdn, extent_t *extent, void *ptr,
     size_t oldsize, size_t size, size_t extra, bool zero);
 void	*arena_ralloc(tsdn_t *tsdn, arena_t *arena, extent_t *extent, void *ptr,
     size_t oldsize, size_t size, size_t alignment, bool zero, tcache_t *tcache);
-dss_prec_t	arena_dss_prec_get(tsdn_t *tsdn, arena_t *arena);
-bool	arena_dss_prec_set(tsdn_t *tsdn, arena_t *arena, dss_prec_t dss_prec);
+dss_prec_t	arena_dss_prec_get(arena_t *arena);
+bool	arena_dss_prec_set(arena_t *arena, dss_prec_t dss_prec);
 ssize_t	arena_decay_time_default_get(void);
 bool	arena_decay_time_default_set(ssize_t decay_time);
 void	arena_basic_stats_merge(tsdn_t *tsdn, arena_t *arena,
