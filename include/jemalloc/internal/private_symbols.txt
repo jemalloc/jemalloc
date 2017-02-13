@@ -67,6 +67,7 @@ arena_sdalloc
 arena_set
 arena_slab_regind
 arena_stats_init
+arena_stats_mapped_add
 arena_stats_merge
 arena_tcache_fill_small
 arena_tdata_get
