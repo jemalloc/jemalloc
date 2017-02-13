@@ -263,10 +263,10 @@ static void
 tcache_arena_associate(tsdn_t *tsdn, tcache_t *tcache, arena_t *arena) {
 	if (config_stats) {
 		/* Link into list of extant tcaches. */
-		malloc_mutex_lock(tsdn, &arena->lock);
+		malloc_mutex_lock(tsdn, &arena->tcache_ql_mtx);
 		ql_elm_new(tcache, link);
 		ql_tail_insert(&arena->tcache_ql, tcache, link);
-		malloc_mutex_unlock(tsdn, &arena->lock);
+		malloc_mutex_unlock(tsdn, &arena->tcache_ql_mtx);
 	}
 }
 
@@ -274,7 +274,7 @@ static void
 tcache_arena_dissociate(tsdn_t *tsdn, tcache_t *tcache, arena_t *arena) {
 	if (config_stats) {
 		/* Unlink from list of extant tcaches. */
-		malloc_mutex_lock(tsdn, &arena->lock);
+		malloc_mutex_lock(tsdn, &arena->tcache_ql_mtx);
 		if (config_debug) {
 			bool in_ql = false;
 			tcache_t *iter;
@@ -288,7 +288,7 @@ tcache_arena_dissociate(tsdn_t *tsdn, tcache_t *tcache, arena_t *arena) {
 		}
 		ql_remove(&arena->tcache_ql, tcache, link);
 		tcache_stats_merge(tsdn, tcache, arena);
-		malloc_mutex_unlock(tsdn, &arena->lock);
+		malloc_mutex_unlock(tsdn, &arena->tcache_ql_mtx);
 	}
 }
 
@@ -410,8 +410,6 @@ tcache_stats_merge(tsdn_t *tsdn, tcache_t *tcache, arena_t *arena) {
 	unsigned i;
 
 	cassert(config_stats);
-
-	malloc_mutex_assert_owner(tsdn, &arena->lock);
 
 	/* Merge and reset tcache stats. */
 	for (i = 0; i < NBINS; i++) {

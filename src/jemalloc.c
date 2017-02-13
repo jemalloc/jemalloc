@@ -684,17 +684,12 @@ stats_print_atexit(void) {
 			if (arena != NULL) {
 				tcache_t *tcache;
 
-				/*
-				 * tcache_stats_merge() locks bins, so if any
-				 * code is introduced that acquires both arena
-				 * and bin locks in the opposite order,
-				 * deadlocks may result.
-				 */
-				malloc_mutex_lock(tsdn, &arena->lock);
+				malloc_mutex_lock(tsdn, &arena->tcache_ql_mtx);
 				ql_foreach(tcache, &arena->tcache_ql, link) {
 					tcache_stats_merge(tsdn, tcache, arena);
 				}
-				malloc_mutex_unlock(tsdn, &arena->lock);
+				malloc_mutex_unlock(tsdn,
+				    &arena->tcache_ql_mtx);
 			}
 		}
 	}

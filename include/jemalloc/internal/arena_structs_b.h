@@ -134,9 +134,10 @@ struct arena_s {
 	 * Stats from these are merged incrementally, and at exit if
 	 * opt_stats_print is enabled.
 	 *
-	 * Synchronization: lock.
+	 * Synchronization: tcache_ql_mtx.
 	 */
 	ql_head(tcache_t)	tcache_ql;
+	malloc_mutex_t		tcache_ql_mtx;
 
 	/* Synchronization: atomic. */
 	uint64_t		prof_accumbytes;
