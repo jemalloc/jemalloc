@@ -215,6 +215,7 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 
 		/* tcache_bytes counts currently cached bytes. */
 		astats->tcache_bytes = 0;
+		malloc_mutex_lock(tsdn, &arena->tcache_ql_mtx);
 		ql_foreach(tcache, &arena->tcache_ql, link) {
 			for (i = 0; i < nhbins; i++) {
 				tbin = &tcache->tbins[i];
@@ -222,6 +223,7 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 				    index2size(i);
 			}
 		}
+		malloc_mutex_unlock(tsdn, &arena->tcache_ql_mtx);
 	}
 
 	for (i = 0; i < NBINS; i++) {
@@ -1650,6 +1652,10 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 
 	if (config_stats && config_tcache) {
 		ql_new(&arena->tcache_ql);
+		if (malloc_mutex_init(&arena->tcache_ql_mtx, "tcache_ql",
+		    WITNESS_RANK_TCACHE_QL)) {
+			goto label_error;
+		}
 	}
 
 	if (config_prof) {
@@ -1736,6 +1742,9 @@ arena_boot(void) {
 void
 arena_prefork0(tsdn_t *tsdn, arena_t *arena) {
 	malloc_mutex_prefork(tsdn, &arena->lock);
+	if (config_stats && config_tcache) {
+		malloc_mutex_prefork(tsdn, &arena->tcache_ql_mtx);
+	}
 }
 
 void
@@ -1773,6 +1782,9 @@ arena_postfork_parent(tsdn_t *tsdn, arena_t *arena) {
 	extents_postfork_parent(tsdn, &arena->extents_cached);
 	extents_postfork_parent(tsdn, &arena->extents_retained);
 	malloc_mutex_postfork_parent(tsdn, &arena->lock);
+	if (config_stats && config_tcache) {
+		malloc_mutex_postfork_parent(tsdn, &arena->tcache_ql_mtx);
+	}
 }
 
 void
@@ -1788,4 +1800,7 @@ arena_postfork_child(tsdn_t *tsdn, arena_t *arena) {
 	extents_postfork_child(tsdn, &arena->extents_cached);
 	extents_postfork_child(tsdn, &arena->extents_retained);
 	malloc_mutex_postfork_child(tsdn, &arena->lock);
+	if (config_stats && config_tcache) {
+		malloc_mutex_postfork_child(tsdn, &arena->tcache_ql_mtx);
+	}
 }
