@@ -1020,14 +1020,19 @@ extent_alloc_wrapper(tsdn_t *tsdn, arena_t *arena,
 }
 
 static bool
-extent_can_coalesce(const extent_t *a, const extent_t *b) {
-	if (extent_arena_get(a) != extent_arena_get(b)) {
+extent_can_coalesce(arena_t *arena, extents_t *extents, const extent_t *inner,
+    const extent_t *outer) {
+	assert(extent_arena_get(inner) == arena);
+	if (extent_arena_get(outer) != arena) {
 		return false;
 	}
-	if (extent_state_get(a) != extent_state_get(b)) {
+
+	assert(extent_state_get(inner) == extent_state_active);
+	if (extent_state_get(outer) != extents->state) {
 		return false;
 	}
-	if (extent_committed_get(a) != extent_committed_get(b)) {
+
+	if (extent_committed_get(inner) != extent_committed_get(outer)) {
 		return false;
 	}
 
@@ -1036,24 +1041,21 @@ extent_can_coalesce(const extent_t *a, const extent_t *b) {
 
 static bool
 extent_coalesce(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
-    extent_t *a, extent_t *b, extents_t *extents) {
-	assert(extent_can_coalesce(a, b));
-	assert(extent_arena_get(a) == arena);
-	assert(extent_arena_get(b) == arena);
+    extents_t *extents, extent_t *inner, extent_t *outer, bool forward) {
+	assert(extent_can_coalesce(arena, extents, inner, outer));
 
-	extent_activate_locked(tsdn, arena, extents, a);
-	extent_activate_locked(tsdn, arena, extents, b);
+	extent_activate_locked(tsdn, arena, extents, outer);
 
 	malloc_mutex_unlock(tsdn, &extents->mtx);
-	bool err = extent_merge_wrapper(tsdn, arena, r_extent_hooks, a, b);
+	bool err = extent_merge_wrapper(tsdn, arena, r_extent_hooks,
+	    forward ? inner : outer, forward ? outer : inner);
 	malloc_mutex_lock(tsdn, &extents->mtx);
-	extent_deactivate_locked(tsdn, arena, extents, a);
+
 	if (err) {
-		extent_deactivate_locked(tsdn, arena, extents, b);
-		return true;
+		extent_deactivate_locked(tsdn, arena, extents, outer);
 	}
 
-	return false;
+	return err;
 }
 
 static void
@@ -1075,7 +1077,6 @@ extent_record(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
 	}
 
 	assert(extent_lookup(tsdn, extent_base_get(extent), true) == extent);
-	extent_deactivate_locked(tsdn, arena, extents, extent);
 
 	/*
 	 * Continue attempting to coalesce until failure, to protect against
@@ -1098,10 +1099,10 @@ extent_record(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
 			 * before releasing the next_elm lock.
 			 */
 			bool can_coalesce = (next != NULL &&
-			    extent_can_coalesce(extent, next));
+			    extent_can_coalesce(arena, extents, extent, next));
 			rtree_elm_release(tsdn, &extents_rtree, next_elm);
 			if (can_coalesce && !extent_coalesce(tsdn, arena,
-			    r_extent_hooks, extent, next, extents)) {
+			    r_extent_hooks, extents, extent, next, true)) {
 				coalesced = true;
 			}
 		}
@@ -1114,15 +1115,17 @@ extent_record(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
 			extent_t *prev = rtree_elm_read_acquired(tsdn,
 			    &extents_rtree, prev_elm);
 			bool can_coalesce = (prev != NULL &&
-			    extent_can_coalesce(prev, extent));
+			    extent_can_coalesce(arena, extents, extent, prev));
 			rtree_elm_release(tsdn, &extents_rtree, prev_elm);
 			if (can_coalesce && !extent_coalesce(tsdn, arena,
-			    r_extent_hooks, prev, extent, extents)) {
+			    r_extent_hooks, extents, extent, prev, false)) {
 				extent = prev;
 				coalesced = true;
 			}
 		}
 	} while (coalesced);
+
+	extent_deactivate_locked(tsdn, arena, extents, extent);
 
 	malloc_mutex_unlock(tsdn, &extents->mtx);
 }
