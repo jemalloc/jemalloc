@@ -42,7 +42,7 @@ large_palloc(tsdn_t *tsdn, arena_t *arena, size_t usize, size_t alignment,
 	malloc_mutex_lock(tsdn, &arena->large_mtx);
 	extent_list_append(&arena->large, extent);
 	malloc_mutex_unlock(tsdn, &arena->large_mtx);
-	if (config_prof && arena_prof_accum(tsdn, arena, usize)) {
+	if (config_prof && arena_prof_accum(arena, usize)) {
 		prof_idump(tsdn);
 	}
 

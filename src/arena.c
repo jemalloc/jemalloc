@@ -974,7 +974,7 @@ arena_tcache_fill_small(tsdn_t *tsdn, arena_t *arena, tcache_bin_t *tbin,
 
 	assert(tbin->ncached == 0);
 
-	if (config_prof && arena_prof_accum(tsdn, arena, prof_accumbytes)) {
+	if (config_prof && arena_prof_accum(arena, prof_accumbytes)) {
 		prof_idump(tsdn);
 	}
 	bin = &arena->bins[binind];
@@ -1073,7 +1073,7 @@ arena_malloc_small(tsdn_t *tsdn, arena_t *arena, szind_t binind, bool zero) {
 		bin->stats.curregs++;
 	}
 	malloc_mutex_unlock(tsdn, &bin->lock);
-	if (config_prof && arena_prof_accum(tsdn, arena, usize)) {
+	if (config_prof && arena_prof_accum(arena, usize)) {
 		prof_idump(tsdn);
 	}
 
@@ -1154,13 +1154,12 @@ arena_prof_promote(tsdn_t *tsdn, extent_t *extent, const void *ptr,
 	 * slightly more often than intended as a result of incomplete
 	 * canceling.
 	 */
-	malloc_mutex_lock(tsdn, &arena->lock);
-	if (arena->prof_accumbytes >= LARGE_MINCLASS - usize) {
-		arena->prof_accumbytes -= LARGE_MINCLASS - usize;
-	} else {
-		arena->prof_accumbytes = 0;
-	}
-	malloc_mutex_unlock(tsdn, &arena->lock);
+	uint64_t a0, a1;
+	do {
+		a0 = atomic_read_u64(&arena->prof_accumbytes);
+		a1 = (a0 >= LARGE_MINCLASS - usize) ?  a0 - LARGE_MINCLASS -
+		    usize : 0;
+	} while (atomic_cas_u64(&arena->prof_accumbytes, a0, a1));
 
 	assert(isalloc(tsdn, extent, ptr) == usize);
 }

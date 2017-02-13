@@ -108,8 +108,7 @@ tcache_bin_flush_small(tsd_t *tsd, tcache_t *tcache, tcache_bin_t *tbin,
 		arena_bin_t *bin = &bin_arena->bins[binind];
 
 		if (config_prof && bin_arena == arena) {
-			if (arena_prof_accum(tsd_tsdn(tsd), arena,
-			    tcache->prof_accumbytes)) {
+			if (arena_prof_accum(arena, tcache->prof_accumbytes)) {
 				prof_idump(tsd_tsdn(tsd));
 			}
 			tcache->prof_accumbytes = 0;
@@ -200,7 +199,7 @@ tcache_bin_flush_large(tsd_t *tsd, tcache_bin_t *tbin, szind_t binind,
 		}
 		if ((config_prof || config_stats) && locked_arena == arena) {
 			if (config_prof) {
-				idump = arena_prof_accum_locked(arena,
+				idump = arena_prof_accum(arena,
 				    tcache->prof_accumbytes);
 				tcache->prof_accumbytes = 0;
 			}
@@ -385,7 +384,7 @@ tcache_destroy(tsd_t *tsd, tcache_t *tcache) {
 	}
 
 	if (config_prof && tcache->prof_accumbytes > 0 &&
-	    arena_prof_accum(tsd_tsdn(tsd), arena, tcache->prof_accumbytes)) {
+	    arena_prof_accum(arena, tcache->prof_accumbytes)) {
 		prof_idump(tsd_tsdn(tsd));
 	}
 

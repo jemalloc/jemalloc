@@ -54,8 +54,6 @@ arena_prefork1
 arena_prefork2
 arena_prefork3
 arena_prof_accum
-arena_prof_accum_impl
-arena_prof_accum_locked
 arena_prof_promote
 arena_prof_tctx_get
 arena_prof_tctx_reset
