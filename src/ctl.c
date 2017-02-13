@@ -1767,11 +1767,11 @@ arena_i_dss_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
 	} else {
 		arena_t *arena = arena_get(tsd_tsdn(tsd), arena_ind, false);
 		if (arena == NULL || (dss_prec != dss_prec_limit &&
-		    arena_dss_prec_set(tsd_tsdn(tsd), arena, dss_prec))) {
+		    arena_dss_prec_set(arena, dss_prec))) {
 			ret = EFAULT;
 			goto label_return;
 		}
-		dss_prec_old = arena_dss_prec_get(tsd_tsdn(tsd), arena);
+		dss_prec_old = arena_dss_prec_get(arena);
 	}
 
 	dss = dss_prec_names[dss_prec_old];
