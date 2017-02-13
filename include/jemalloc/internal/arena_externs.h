@@ -15,6 +15,8 @@ extern const arena_bin_info_t	arena_bin_info[NBINS];
 
 void arena_stats_large_nrequests_add(tsdn_t *tsdn, arena_stats_t *arena_stats,
     szind_t szind, uint64_t nrequests);
+void arena_stats_mapped_add(tsdn_t *tsdn, arena_stats_t *arena_stats,
+    size_t size);
 void arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
     const char **dss, ssize_t *decay_time, size_t *nactive, size_t *ndirty,
     arena_stats_t *astats, malloc_bin_stats_t *bstats,

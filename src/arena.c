@@ -93,10 +93,12 @@ static void
 arena_stats_sub_u64(tsdn_t *tsdn, arena_stats_t *arena_stats, uint64_t *p,
     uint64_t x) {
 #ifdef JEMALLOC_ATOMIC_U64
-	atomic_sub_u64(p, x);
+	UNUSED uint64_t r = atomic_sub_u64(p, x);
+	assert(r + x >= r);
 #else
 	malloc_mutex_assert_owner(tsdn, &arena_stats->mtx);
 	*p -= x;
+	assert(*p + x >= *p);
 #endif
 }
 
@@ -125,10 +127,12 @@ static void
 arena_stats_sub_zu(tsdn_t *tsdn, arena_stats_t *arena_stats, size_t *p,
     size_t x) {
 #ifdef JEMALLOC_ATOMIC_U64
-	atomic_sub_zu(p, x);
+	UNUSED size_t r = atomic_sub_zu(p, x);
+	assert(r + x >= r);
 #else
 	malloc_mutex_assert_owner(tsdn, &arena_stats->mtx);
 	*p -= x;
+	assert(*p + x >= *p);
 #endif
 }
 
@@ -138,6 +142,13 @@ arena_stats_large_nrequests_add(tsdn_t *tsdn, arena_stats_t *arena_stats,
 	arena_stats_lock(tsdn, arena_stats);
 	arena_stats_add_u64(tsdn, arena_stats, &arena_stats->lstats[szind -
 	    NBINS].nrequests, nrequests);
+	arena_stats_unlock(tsdn, arena_stats);
+}
+
+void
+arena_stats_mapped_add(tsdn_t *tsdn, arena_stats_t *arena_stats, size_t size) {
+	arena_stats_lock(tsdn, arena_stats);
+	arena_stats_add_zu(tsdn, arena_stats, &arena_stats->mapped, size);
 	arena_stats_unlock(tsdn, arena_stats);
 }
 
@@ -410,22 +421,38 @@ arena_extent_alloc_large(tsdn_t *tsdn, arena_t *arena, size_t usize,
 
 	witness_assert_depth_to_rank(tsdn, WITNESS_RANK_CORE, 0);
 
+	size_t mapped_add;
 	bool commit = true;
 	extent = extent_alloc_cache(tsdn, arena, &extent_hooks, NULL, usize,
 	    large_pad, alignment, zero, &commit, false);
+	size_t size = usize + large_pad;
 	if (extent == NULL) {
 		extent = extent_alloc_wrapper(tsdn, arena, &extent_hooks, NULL,
 		    usize, large_pad, alignment, zero, &commit, false);
+		if (config_stats) {
+			/*
+			 * extent may be NULL on OOM, but in that case
+			 * mapped_add isn't used below, so there's no need to
+			 * conditionlly set it to 0 here.
+			 */
+			mapped_add = size;
+		}
+	} else if (config_stats) {
+		mapped_add = 0;
 	}
 
-	if (config_stats && extent != NULL) {
-		arena_stats_lock(tsdn, &arena->stats);
-		arena_large_malloc_stats_update(tsdn, arena, usize);
-		arena_stats_add_zu(tsdn, &arena->stats, &arena->stats.mapped,
-		    usize);
-		arena_stats_unlock(tsdn, &arena->stats);
+	if (extent != NULL) {
+		if (config_stats) {
+			arena_stats_lock(tsdn, &arena->stats);
+			arena_large_malloc_stats_update(tsdn, arena, usize);
+			if (mapped_add != 0) {
+				arena_stats_add_zu(tsdn, &arena->stats,
+				    &arena->stats.mapped, mapped_add);
+			}
+			arena_stats_unlock(tsdn, &arena->stats);
+		}
+		arena_nactive_add(arena, size >> LG_PAGE);
 	}
-	arena_nactive_add(arena, (usize + large_pad) >> LG_PAGE);
 
 	return extent;
 }
@@ -436,8 +463,6 @@ arena_extent_dalloc_large_prep(tsdn_t *tsdn, arena_t *arena, extent_t *extent) {
 		arena_stats_lock(tsdn, &arena->stats);
 		arena_large_dalloc_stats_update(tsdn, arena,
 		    extent_usize_get(extent));
-		arena_stats_sub_zu(tsdn, &arena->stats, &arena->stats.mapped,
-		    extent_size_get(extent));
 		arena_stats_unlock(tsdn, &arena->stats);
 	}
 	arena_nactive_sub(arena, extent_size_get(extent) >> LG_PAGE);
@@ -459,8 +484,6 @@ arena_extent_ralloc_large_shrink(tsdn_t *tsdn, arena_t *arena, extent_t *extent,
 	if (config_stats) {
 		arena_stats_lock(tsdn, &arena->stats);
 		arena_large_ralloc_stats_update(tsdn, arena, oldusize, usize);
-		arena_stats_sub_zu(tsdn, &arena->stats, &arena->stats.mapped,
-		    udiff);
 		arena_stats_unlock(tsdn, &arena->stats);
 	}
 	arena_nactive_sub(arena, udiff >> LG_PAGE);
@@ -475,8 +498,6 @@ arena_extent_ralloc_large_expand(tsdn_t *tsdn, arena_t *arena, extent_t *extent,
 	if (config_stats) {
 		arena_stats_lock(tsdn, &arena->stats);
 		arena_large_ralloc_stats_update(tsdn, arena, oldusize, usize);
-		arena_stats_add_zu(tsdn, &arena->stats, &arena->stats.mapped,
-		    udiff);
 		arena_stats_unlock(tsdn, &arena->stats);
 	}
 	arena_nactive_add(arena, udiff >> LG_PAGE);
@@ -760,6 +781,8 @@ arena_purge_stashed(tsdn_t *tsdn, arena_t *arena,
 		    nmadvise);
 		arena_stats_add_u64(tsdn, &arena->stats, &arena->stats.purged,
 		    npurged);
+		arena_stats_sub_zu(tsdn, &arena->stats, &arena->stats.mapped,
+		    npurged << LG_PAGE);
 		arena_stats_unlock(tsdn, &arena->stats);
 	}
 
@@ -823,12 +846,11 @@ arena_purge(tsdn_t *tsdn, arena_t *arena, bool all) {
 
 static void
 arena_slab_dalloc(tsdn_t *tsdn, arena_t *arena, extent_t *slab) {
-	extent_hooks_t *extent_hooks = EXTENT_HOOKS_INITIALIZER;
-	size_t npages = extent_size_get(slab) >> LG_PAGE;
+	arena_nactive_sub(arena, extent_size_get(slab) >> LG_PAGE);
 
+	extent_hooks_t *extent_hooks = EXTENT_HOOKS_INITIALIZER;
 	extent_dalloc_cache(tsdn, arena, &extent_hooks, slab);
 
-	arena_nactive_sub(arena, npages);
 	malloc_mutex_lock(tsdn, &arena->decay.mtx);
 	arena_maybe_purge(tsdn, arena);
 	malloc_mutex_unlock(tsdn, &arena->decay.mtx);
@@ -1015,6 +1037,11 @@ arena_slab_alloc_hard(tsdn_t *tsdn, arena_t *arena,
 	slab = extent_alloc_wrapper(tsdn, arena, r_extent_hooks, NULL,
 	    bin_info->slab_size, 0, PAGE, &zero, &commit, true);
 
+	if (config_stats && slab != NULL) {
+		arena_stats_mapped_add(tsdn, &arena->stats,
+		    bin_info->slab_size);
+	}
+
 	return slab;
 }
 
@@ -1037,20 +1064,13 @@ arena_slab_alloc(tsdn_t *tsdn, arena_t *arena, szind_t binind,
 	}
 	assert(extent_slab_get(slab));
 
-	arena_nactive_add(arena, extent_size_get(slab) >> LG_PAGE);
-
 	/* Initialize slab internals. */
 	arena_slab_data_t *slab_data = extent_slab_data_get(slab);
 	slab_data->binind = binind;
 	slab_data->nfree = bin_info->nregs;
 	bitmap_init(slab_data->bitmap, &bin_info->bitmap_info);
 
-	if (config_stats) {
-		arena_stats_lock(tsdn, &arena->stats);
-		arena_stats_add_zu(tsdn, &arena->stats, &arena->stats.mapped,
-		    extent_size_get(slab));
-		arena_stats_unlock(tsdn, &arena->stats);
-	}
+	arena_nactive_add(arena, extent_size_get(slab) >> LG_PAGE);
 
 	return slab;
 }

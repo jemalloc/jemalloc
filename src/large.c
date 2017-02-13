@@ -147,6 +147,7 @@ large_ralloc_no_move_expand(tsdn_t *tsdn, extent_t *extent, size_t usize,
 	bool is_zeroed_trail = false;
 	bool commit = true;
 	extent_t *trail;
+	bool new_mapping;
 	if ((trail = extent_alloc_cache(tsdn, arena, &extent_hooks,
 	    extent_past_get(extent), trailsize, 0, CACHELINE, &is_zeroed_trail,
 	    &commit, false)) == NULL) {
@@ -155,11 +156,22 @@ large_ralloc_no_move_expand(tsdn_t *tsdn, extent_t *extent, size_t usize,
 		    &is_zeroed_trail, &commit, false)) == NULL) {
 			return true;
 		}
+		if (config_stats) {
+			new_mapping = true;
+		}
+	} else {
+		if (config_stats) {
+			new_mapping = false;
+		}
 	}
 
 	if (extent_merge_wrapper(tsdn, arena, &extent_hooks, extent, trail)) {
 		extent_dalloc_wrapper(tsdn, arena, &extent_hooks, trail);
 		return true;
+	}
+
+	if (config_stats && new_mapping) {
+		arena_stats_mapped_add(tsdn, &arena->stats, trailsize);
 	}
 
 	if (zero || (config_fill && unlikely(opt_zero))) {
