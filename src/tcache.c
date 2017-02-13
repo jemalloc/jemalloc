@@ -205,8 +205,6 @@ tcache_bin_flush_large(tsd_t *tsd, tcache_bin_t *tbin, szind_t binind,
 			}
 			if (config_stats) {
 				merged_stats = true;
-				atomic_add_u64(&arena->stats.nrequests_large,
-				    tbin->tstats.nrequests);
 				atomic_add_u64(&arena->stats.lstats[binind -
 				    NBINS].nrequests, tbin->tstats.nrequests);
 				tbin->tstats.nrequests = 0;
@@ -244,8 +242,6 @@ tcache_bin_flush_large(tsd_t *tsd, tcache_bin_t *tbin, szind_t binind,
 		 * The flush loop didn't happen to flush to this thread's
 		 * arena, so the stats didn't get merged.  Manually do so now.
 		 */
-		atomic_add_u64(&arena->stats.nrequests_large,
-		    tbin->tstats.nrequests);
 		atomic_add_u64(&arena->stats.lstats[binind - NBINS].nrequests,
 		    tbin->tstats.nrequests);
 		tbin->tstats.nrequests = 0;
@@ -423,8 +419,6 @@ tcache_stats_merge(tsdn_t *tsdn, tcache_t *tcache, arena_t *arena) {
 
 	for (; i < nhbins; i++) {
 		tcache_bin_t *tbin = &tcache->tbins[i];
-		atomic_add_u64(&arena->stats.nrequests_large,
-		    tbin->tstats.nrequests);
 		atomic_add_u64(&arena->stats.lstats[i - NBINS].nrequests,
 		    tbin->tstats.nrequests);
 		tbin->tstats.nrequests = 0;

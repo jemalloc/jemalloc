@@ -100,10 +100,10 @@ struct arena_stats_s {
 	size_t		internal;
 	size_t		resident; /* Derived. */
 
-	size_t		allocated_large;
-	uint64_t	nmalloc_large;
-	uint64_t	ndalloc_large;
-	uint64_t	nrequests_large;
+	size_t		allocated_large; /* Derived. */
+	uint64_t	nmalloc_large; /* Derived. */
+	uint64_t	ndalloc_large; /* Derived. */
+	uint64_t	nrequests_large; /* Derived. */
 
 	/* Number of bytes cached in tcache associated with this arena. */
 	size_t		tcache_bytes; /* Derived. */

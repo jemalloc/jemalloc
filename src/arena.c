@@ -139,8 +139,6 @@ arena_large_malloc_stats_update(arena_t *arena, size_t usize) {
 	index = size2index(usize);
 	hindex = (index >= NBINS) ? index - NBINS : 0;
 
-	atomic_add_u64(&arena->stats.nmalloc_large, 1);
-	atomic_add_zu(&arena->stats.allocated_large, usize);
 	atomic_add_u64(&arena->stats.lstats[hindex].nmalloc, 1);
 	atomic_add_u64(&arena->stats.lstats[hindex].nrequests, 1);
 	atomic_add_zu(&arena->stats.lstats[hindex].curlextents, 1);
@@ -158,8 +156,6 @@ arena_large_dalloc_stats_update(arena_t *arena, size_t usize) {
 	index = size2index(usize);
 	hindex = (index >= NBINS) ? index - NBINS : 0;
 
-	atomic_add_u64(&arena->stats.ndalloc_large, 1);
-	atomic_sub_zu(&arena->stats.allocated_large, usize);
 	atomic_add_u64(&arena->stats.lstats[hindex].ndalloc, 1);
 	atomic_sub_zu(&arena->stats.lstats[hindex].curlextents, 1);
 }
@@ -171,7 +167,6 @@ arena_large_reset_stats_cancel(arena_t *arena, size_t usize) {
 
 	cassert(config_stats);
 
-	atomic_sub_u64(&arena->stats.ndalloc_large, 1);
 	atomic_sub_u64(&arena->stats.lstats[hindex].ndalloc, 1);
 }
 
@@ -1382,14 +1377,12 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
     const char **dss, ssize_t *decay_time, size_t *nactive, size_t *ndirty,
     arena_stats_t *astats, malloc_bin_stats_t *bstats,
     malloc_large_stats_t *lstats) {
-	size_t base_allocated, base_resident, base_mapped;
-	unsigned i;
-
 	cassert(config_stats);
 
 	arena_basic_stats_merge(tsdn, arena, nthreads, dss, decay_time,
 	    nactive, ndirty);
 
+	size_t base_allocated, base_resident, base_mapped;
 	base_stats_get(tsdn, arena->base, &base_allocated, &base_resident,
 	    &base_mapped);
 
@@ -1403,22 +1396,31 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 	astats->internal += arena_internal_get(arena);
 	astats->resident += base_resident + (((atomic_read_zu(&arena->nactive) +
 	    extents_npages_get(&arena->extents_cached)) << LG_PAGE));
-	astats->allocated_large +=
-	    atomic_read_zu(&arena->stats.allocated_large);
-	astats->nmalloc_large += atomic_read_u64(&arena->stats.nmalloc_large);
-	astats->ndalloc_large += atomic_read_u64(&arena->stats.ndalloc_large);
-	astats->nrequests_large +=
-	    atomic_read_u64(&arena->stats.nrequests_large);
 
-	for (i = 0; i < NSIZES - NBINS; i++) {
-		lstats[i].nmalloc +=
+	astats->allocated_large = 0;
+	astats->nmalloc_large = 0;
+	astats->ndalloc_large = 0;
+	astats->nrequests_large = 0;
+	for (szind_t i = 0; i < NSIZES - NBINS; i++) {
+		uint64_t nmalloc =
 		    atomic_read_u64(&arena->stats.lstats[i].nmalloc);
-		lstats[i].ndalloc +=
+		lstats[i].nmalloc += nmalloc;
+		astats->nmalloc_large += nmalloc;
+
+		uint64_t ndalloc =
 		    atomic_read_u64(&arena->stats.lstats[i].ndalloc);
-		lstats[i].nrequests +=
+		lstats[i].ndalloc += ndalloc;
+		astats->ndalloc_large += ndalloc;
+
+		uint64_t nrequests =
 		    atomic_read_u64(&arena->stats.lstats[i].nrequests);
-		lstats[i].curlextents +=
+		lstats[i].nrequests += nrequests;
+		astats->nrequests_large += nrequests;
+
+		size_t curlextents =
 		    atomic_read_zu(&arena->stats.lstats[i].curlextents);
+		lstats[i].curlextents += curlextents;
+		astats->allocated_large += curlextents * index2size(i);
 	}
 
 	if (config_tcache) {
@@ -1429,7 +1431,7 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 		astats->tcache_bytes = 0;
 		malloc_mutex_lock(tsdn, &arena->tcache_ql_mtx);
 		ql_foreach(tcache, &arena->tcache_ql, link) {
-			for (i = 0; i < nhbins; i++) {
+			for (szind_t i = 0; i < nhbins; i++) {
 				tbin = &tcache->tbins[i];
 				astats->tcache_bytes += tbin->ncached *
 				    index2size(i);
@@ -1438,7 +1440,7 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 		malloc_mutex_unlock(tsdn, &arena->tcache_ql_mtx);
 	}
 
-	for (i = 0; i < NBINS; i++) {
+	for (szind_t i = 0; i < NBINS; i++) {
 		arena_bin_t *bin = &arena->bins[i];
 
 		malloc_mutex_lock(tsdn, &bin->lock);
