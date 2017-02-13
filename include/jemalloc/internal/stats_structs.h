@@ -97,7 +97,7 @@ struct arena_stats_s {
 	uint64_t	purged;
 
 	size_t		base; /* Derived. */
-	size_t		internal; /* Protected via atomic_*_zu(). */
+	size_t		internal;
 	size_t		resident; /* Derived. */
 
 	size_t		allocated_large;
