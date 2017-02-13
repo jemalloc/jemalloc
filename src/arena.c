@@ -1404,23 +1404,16 @@ arena_ralloc(tsdn_t *tsdn, arena_t *arena, extent_t *extent, void *ptr,
 }
 
 dss_prec_t
-arena_dss_prec_get(tsdn_t *tsdn, arena_t *arena) {
-	dss_prec_t ret;
-
-	malloc_mutex_lock(tsdn, &arena->lock);
-	ret = arena->dss_prec;
-	malloc_mutex_unlock(tsdn, &arena->lock);
-	return ret;
+arena_dss_prec_get(arena_t *arena) {
+	return (dss_prec_t)atomic_read_u(&arena->dss_prec);
 }
 
 bool
-arena_dss_prec_set(tsdn_t *tsdn, arena_t *arena, dss_prec_t dss_prec) {
+arena_dss_prec_set(arena_t *arena, dss_prec_t dss_prec) {
 	if (!have_dss) {
 		return (dss_prec != dss_prec_disabled);
 	}
-	malloc_mutex_lock(tsdn, &arena->lock);
-	arena->dss_prec = dss_prec;
-	malloc_mutex_unlock(tsdn, &arena->lock);
+	atomic_write_u(&arena->dss_prec, dss_prec);
 	return false;
 }
 
@@ -1442,7 +1435,7 @@ static void
 arena_basic_stats_merge_locked(arena_t *arena, unsigned *nthreads,
     const char **dss, ssize_t *decay_time, size_t *nactive, size_t *ndirty) {
 	*nthreads += arena_nthreads_get(arena, false);
-	*dss = dss_prec_names[arena->dss_prec];
+	*dss = dss_prec_names[arena_dss_prec_get(arena)];
 	*decay_time = arena->decay.time;
 	*nactive += atomic_read_zu(&arena->nactive);
 	*ndirty += extents_npages_get(&arena->extents_cached);

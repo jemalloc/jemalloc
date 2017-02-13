@@ -156,7 +156,7 @@ struct arena_s {
 	 */
 	size_t			extent_sn_next;
 
-	/* Synchronization: lock. */
+	/* Synchronization: atomic. */
 	dss_prec_t		dss_prec;
 
 	/*
