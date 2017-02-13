@@ -380,6 +380,7 @@ typedef unsigned szind_t;
 
 #include "jemalloc/internal/nstime_types.h"
 #include "jemalloc/internal/util_types.h"
+#include "jemalloc/internal/atomic_types.h"
 #include "jemalloc/internal/spin_types.h"
 #include "jemalloc/internal/prng_types.h"
 #include "jemalloc/internal/ticker_types.h"
@@ -419,10 +420,10 @@ typedef unsigned szind_t;
 #include "jemalloc/internal/extent_structs.h"
 #include "jemalloc/internal/extent_dss_structs.h"
 #include "jemalloc/internal/base_structs.h"
+#include "jemalloc/internal/prof_structs.h"
 #include "jemalloc/internal/arena_structs_b.h"
 #include "jemalloc/internal/rtree_structs.h"
 #include "jemalloc/internal/tcache_structs.h"
-#include "jemalloc/internal/prof_structs.h"
 #include "jemalloc/internal/tsd_structs.h"
 
 
@@ -902,6 +903,7 @@ decay_ticker_get(tsd_t *tsd, unsigned ind) {
  * Include portions of arena code interleaved with tcache code in order to
  * resolve circular dependencies.
  */
+#include "jemalloc/internal/prof_inlines_a.h"
 #include "jemalloc/internal/arena_inlines_a.h"
 
 #ifndef JEMALLOC_ENABLE_INLINE
@@ -1163,8 +1165,7 @@ ixalloc(tsdn_t *tsdn, extent_t *extent, void *ptr, size_t oldsize, size_t size,
 }
 #endif
 
-#include "jemalloc/internal/prof_inlines.h"
-
+#include "jemalloc/internal/prof_inlines_b.h"
 
 #ifdef __cplusplus
 }

@@ -6,8 +6,6 @@ unsigned	arena_ind_get(const arena_t *arena);
 void	arena_internal_add(arena_t *arena, size_t size);
 void	arena_internal_sub(arena_t *arena, size_t size);
 size_t	arena_internal_get(arena_t *arena);
-bool	arena_prof_accum_impl(arena_t *arena, uint64_t accumbytes);
-bool	arena_prof_accum_locked(arena_t *arena, uint64_t accumbytes);
 bool	arena_prof_accum(tsdn_t *tsdn, arena_t *arena, uint64_t accumbytes);
 #endif /* JEMALLOC_ENABLE_INLINE */
 
@@ -34,29 +32,6 @@ arena_internal_get(arena_t *arena) {
 }
 
 JEMALLOC_INLINE bool
-arena_prof_accum_impl(arena_t *arena, uint64_t accumbytes) {
-	cassert(config_prof);
-	assert(prof_interval != 0);
-
-	arena->prof_accumbytes += accumbytes;
-	if (arena->prof_accumbytes >= prof_interval) {
-		arena->prof_accumbytes %= prof_interval;
-		return true;
-	}
-	return false;
-}
-
-JEMALLOC_INLINE bool
-arena_prof_accum_locked(arena_t *arena, uint64_t accumbytes) {
-	cassert(config_prof);
-
-	if (likely(prof_interval == 0)) {
-		return false;
-	}
-	return arena_prof_accum_impl(arena, accumbytes);
-}
-
-JEMALLOC_INLINE bool
 arena_prof_accum(tsdn_t *tsdn, arena_t *arena, uint64_t accumbytes) {
 	cassert(config_prof);
 
@@ -64,14 +39,7 @@ arena_prof_accum(tsdn_t *tsdn, arena_t *arena, uint64_t accumbytes) {
 		return false;
 	}
 
-	{
-		bool ret;
-
-		malloc_mutex_lock(tsdn, &arena->lock);
-		ret = arena_prof_accum_impl(arena, accumbytes);
-		malloc_mutex_unlock(tsdn, &arena->lock);
-		return ret;
-	}
+	return prof_accum_add(tsdn, &arena->prof_accum, accumbytes);
 }
 
 #endif /* (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_ARENA_C_)) */

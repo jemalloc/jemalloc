@@ -138,7 +138,8 @@ struct arena_s {
 	 */
 	ql_head(tcache_t)	tcache_ql;
 
-	/* Synchronization: lock. */
+	/* Synchronization: internal. */
+	prof_accum_t		prof_accum;
 	uint64_t		prof_accumbytes;
 
 	/*
