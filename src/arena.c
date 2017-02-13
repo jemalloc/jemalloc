@@ -1718,11 +1718,12 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 		goto label_error;
 	}
 
-	if (extents_init(tsdn, &arena->extents_cached, extent_state_dirty)) {
+	if (extents_init(tsdn, &arena->extents_cached, extent_state_dirty,
+	    false)) {
 		goto label_error;
 	}
 	if (extents_init(tsdn, &arena->extents_retained,
-	    extent_state_retained)) {
+	    extent_state_retained, true)) {
 		goto label_error;
 	}
 

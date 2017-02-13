@@ -191,7 +191,8 @@ extent_size_quantize_t *extent_size_quantize_ceil =
 ph_gen(, extent_heap_, extent_heap_t, extent_t, ph_link, extent_snad_comp)
 
 bool
-extents_init(tsdn_t *tsdn, extents_t *extents, extent_state_t state) {
+extents_init(tsdn_t *tsdn, extents_t *extents, extent_state_t state,
+    bool try_coalesce) {
 	if (malloc_mutex_init(&extents->mtx, "extents", WITNESS_RANK_EXTENTS)) {
 		return true;
 	}
@@ -201,6 +202,7 @@ extents_init(tsdn_t *tsdn, extents_t *extents, extent_state_t state) {
 	extent_list_init(&extents->lru);
 	extents->npages = 0;
 	extents->state = state;
+	extents->try_coalesce = try_coalesce;
 	return false;
 }
 
@@ -1058,26 +1060,10 @@ extent_coalesce(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
 	return err;
 }
 
-static void
-extent_record(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
-    extents_t *extents, extent_t *extent) {
-	rtree_ctx_t rtree_ctx_fallback;
-	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
-
-	assert(extents_state_get(extents) != extent_state_dirty ||
-	    !extent_zeroed_get(extent));
-
-	malloc_mutex_lock(tsdn, &extents->mtx);
-	extent_hooks_assure_initialized(arena, r_extent_hooks);
-
-	extent_usize_set(extent, 0);
-	if (extent_slab_get(extent)) {
-		extent_interior_deregister(tsdn, rtree_ctx, extent);
-		extent_slab_set(extent, false);
-	}
-
-	assert(extent_lookup(tsdn, extent_base_get(extent), true) == extent);
-
+static extent_t *
+extent_try_coalesce(tsdn_t *tsdn, arena_t *arena,
+    extent_hooks_t **r_extent_hooks, rtree_ctx_t *rtree_ctx, extents_t *extents,
+    extent_t *extent) {
 	/*
 	 * Continue attempting to coalesce until failure, to protect against
 	 * races with other threads that are thwarted by this one.
@@ -1124,6 +1110,34 @@ extent_record(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
 			}
 		}
 	} while (coalesced);
+
+	return extent;
+}
+
+static void
+extent_record(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
+    extents_t *extents, extent_t *extent) {
+	rtree_ctx_t rtree_ctx_fallback;
+	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
+
+	assert(extents_state_get(extents) != extent_state_dirty ||
+	    !extent_zeroed_get(extent));
+
+	malloc_mutex_lock(tsdn, &extents->mtx);
+	extent_hooks_assure_initialized(arena, r_extent_hooks);
+
+	extent_usize_set(extent, 0);
+	if (extent_slab_get(extent)) {
+		extent_interior_deregister(tsdn, rtree_ctx, extent);
+		extent_slab_set(extent, false);
+	}
+
+	assert(extent_lookup(tsdn, extent_base_get(extent), true) == extent);
+
+	if (extents->try_coalesce) {
+		extent = extent_try_coalesce(tsdn, arena, r_extent_hooks,
+		    rtree_ctx, extents, extent);
+	}
 
 	extent_deactivate_locked(tsdn, arena, extents, extent);
 
