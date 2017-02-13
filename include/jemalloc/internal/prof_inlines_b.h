@@ -1,5 +1,5 @@
-#ifndef JEMALLOC_INTERNAL_PROF_INLINES_H
-#define JEMALLOC_INTERNAL_PROF_INLINES_H
+#ifndef JEMALLOC_INTERNAL_PROF_INLINES_B_H
+#define JEMALLOC_INTERNAL_PROF_INLINES_B_H
 
 #ifndef JEMALLOC_ENABLE_INLINE
 bool	prof_active_get_unlocked(void);
@@ -237,4 +237,4 @@ prof_free(tsd_t *tsd, const extent_t *extent, const void *ptr, size_t usize) {
 }
 #endif
 
-#endif /* JEMALLOC_INTERNAL_PROF_INLINES_H */
+#endif /* JEMALLOC_INTERNAL_PROF_INLINES_B_H */

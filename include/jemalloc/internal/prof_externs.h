@@ -55,6 +55,7 @@ extern prof_dump_header_t *prof_dump_header;
 void	prof_cnt_all(uint64_t *curobjs, uint64_t *curbytes,
     uint64_t *accumobjs, uint64_t *accumbytes);
 #endif
+bool prof_accum_init(tsdn_t *tsdn, prof_accum_t *prof_accum);
 void	prof_idump(tsdn_t *tsdn);
 bool	prof_mdump(tsd_t *tsd, const char *filename);
 void	prof_gdump(tsdn_t *tsdn);

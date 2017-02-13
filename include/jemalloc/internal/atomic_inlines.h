@@ -23,7 +23,7 @@
  */
 
 #ifndef JEMALLOC_ENABLE_INLINE
-#  if (LG_SIZEOF_PTR == 3 || LG_SIZEOF_INT == 3)
+#  ifdef JEMALLOC_ATOMIC_U64
 uint64_t	atomic_add_u64(uint64_t *p, uint64_t x);
 uint64_t	atomic_sub_u64(uint64_t *p, uint64_t x);
 bool	atomic_cas_u64(uint64_t *p, uint64_t c, uint64_t s);
@@ -50,7 +50,7 @@ void	atomic_write_u(unsigned *p, unsigned x);
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_ATOMIC_C_))
 /******************************************************************************/
 /* 64-bit operations. */
-#if (LG_SIZEOF_PTR == 3 || LG_SIZEOF_INT == 3)
+#ifdef JEMALLOC_ATOMIC_U64
 #  if (defined(__amd64__) || defined(__x86_64__))
 JEMALLOC_INLINE uint64_t
 atomic_add_u64(uint64_t *p, uint64_t x) {

@@ -54,8 +54,6 @@ arena_prefork1
 arena_prefork2
 arena_prefork3
 arena_prof_accum
-arena_prof_accum_impl
-arena_prof_accum_locked
 arena_prof_promote
 arena_prof_tctx_get
 arena_prof_tctx_reset
@@ -364,6 +362,9 @@ prng_range_zu
 prng_state_next_u32
 prng_state_next_u64
 prng_state_next_zu
+prof_accum_add
+prof_accum_cancel
+prof_accum_init
 prof_active
 prof_active_get
 prof_active_get_unlocked

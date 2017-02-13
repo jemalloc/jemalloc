@@ -1753,6 +1753,20 @@ prof_fdump(void) {
 	prof_dump(tsd, false, filename, opt_prof_leak);
 }
 
+bool
+prof_accum_init(tsdn_t *tsdn, prof_accum_t *prof_accum) {
+	cassert(config_prof);
+
+#ifndef JEMALLOC_ATOMIC_U64
+	if (malloc_mutex_init(&prof_accum->mtx, "prof_accum",
+	    WITNESS_RANK_PROF_ACCUM)) {
+		return true;
+	}
+#endif
+	prof_accum->accumbytes = 0;
+	return false;
+}
+
 void
 prof_idump(tsdn_t *tsdn) {
 	tsd_t *tsd;

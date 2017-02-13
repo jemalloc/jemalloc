@@ -1148,19 +1148,7 @@ arena_prof_promote(tsdn_t *tsdn, extent_t *extent, const void *ptr,
 
 	extent_usize_set(extent, usize);
 
-	/*
-	 * Cancel out as much of the excessive prof_accumbytes increase as
-	 * possible without underflowing.  Interval-triggered dumps occur
-	 * slightly more often than intended as a result of incomplete
-	 * canceling.
-	 */
-	malloc_mutex_lock(tsdn, &arena->lock);
-	if (arena->prof_accumbytes >= LARGE_MINCLASS - usize) {
-		arena->prof_accumbytes -= LARGE_MINCLASS - usize;
-	} else {
-		arena->prof_accumbytes = 0;
-	}
-	malloc_mutex_unlock(tsdn, &arena->lock);
+	prof_accum_cancel(tsdn, &arena->prof_accum, usize);
 
 	assert(isalloc(tsdn, extent, ptr) == usize);
 }
@@ -1574,7 +1562,9 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 	}
 
 	if (config_prof) {
-		arena->prof_accumbytes = 0;
+		if (prof_accum_init(tsdn, &arena->prof_accum)) {
+			goto label_error;
+		}
 	}
 
 	if (config_cache_oblivious) {
