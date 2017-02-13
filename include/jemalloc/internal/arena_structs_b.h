@@ -127,8 +127,9 @@ struct arena_s {
 	 */
 	malloc_mutex_t		lock;
 
-	/* Synchronization: lock. */
+	/* Synchronization: internal. */
 	arena_stats_t		stats;
+
 	/*
 	 * List of tcaches for extant threads associated with this arena.
 	 * Stats from these are merged incrementally, and at exit if
