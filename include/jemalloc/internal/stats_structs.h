@@ -76,6 +76,10 @@ struct malloc_large_stats_s {
  * requests.
  */
 struct arena_stats_s {
+#ifndef JEMALLOC_ATOMIC_U64
+	malloc_mutex_t	mtx;
+#endif
+
 	/* Number of bytes currently mapped, excluding retained memory. */
 	size_t		mapped; /* Derived. */
 
@@ -97,7 +101,7 @@ struct arena_stats_s {
 	uint64_t	purged;
 
 	size_t		base; /* Derived. */
-	size_t		internal; /* Protected via atomic_*_zu(). */
+	size_t		internal;
 	size_t		resident; /* Derived. */
 
 	size_t		allocated_large;

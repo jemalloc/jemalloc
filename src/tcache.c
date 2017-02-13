@@ -188,7 +188,7 @@ tcache_bin_flush_large(tsd_t *tsd, tcache_bin_t *tbin, szind_t binind,
 			idump = false;
 		}
 
-		malloc_mutex_lock(tsd_tsdn(tsd), &locked_arena->lock);
+		malloc_mutex_lock(tsd_tsdn(tsd), &locked_arena->large_mtx);
 		for (unsigned i = 0; i < nflush; i++) {
 			void *ptr = *(tbin->avail - 1 - i);
 			assert(ptr != NULL);
@@ -206,14 +206,13 @@ tcache_bin_flush_large(tsd_t *tsd, tcache_bin_t *tbin, szind_t binind,
 			}
 			if (config_stats) {
 				merged_stats = true;
-				arena->stats.nrequests_large +=
-				    tbin->tstats.nrequests;
-				arena->stats.lstats[binind - NBINS].nrequests +=
-				    tbin->tstats.nrequests;
+				arena_stats_large_nrequests_add(tsd_tsdn(tsd),
+				    &arena->stats, binind,
+				    tbin->tstats.nrequests);
 				tbin->tstats.nrequests = 0;
 			}
 		}
-		malloc_mutex_unlock(tsd_tsdn(tsd), &locked_arena->lock);
+		malloc_mutex_unlock(tsd_tsdn(tsd), &locked_arena->large_mtx);
 
 		unsigned ndeferred = 0;
 		for (unsigned i = 0; i < nflush; i++) {
@@ -245,12 +244,9 @@ tcache_bin_flush_large(tsd_t *tsd, tcache_bin_t *tbin, szind_t binind,
 		 * The flush loop didn't happen to flush to this thread's
 		 * arena, so the stats didn't get merged.  Manually do so now.
 		 */
-		malloc_mutex_lock(tsd_tsdn(tsd), &arena->lock);
-		arena->stats.nrequests_large += tbin->tstats.nrequests;
-		arena->stats.lstats[binind - NBINS].nrequests +=
-		    tbin->tstats.nrequests;
+		arena_stats_large_nrequests_add(tsd_tsdn(tsd), &arena->stats,
+		    binind, tbin->tstats.nrequests);
 		tbin->tstats.nrequests = 0;
-		malloc_mutex_unlock(tsd_tsdn(tsd), &arena->lock);
 	}
 
 	memmove(tbin->avail - rem, tbin->avail - tbin->ncached, rem *
@@ -426,10 +422,9 @@ tcache_stats_merge(tsdn_t *tsdn, tcache_t *tcache, arena_t *arena) {
 	}
 
 	for (; i < nhbins; i++) {
-		malloc_large_stats_t *lstats = &arena->stats.lstats[i - NBINS];
 		tcache_bin_t *tbin = &tcache->tbins[i];
-		arena->stats.nrequests_large += tbin->tstats.nrequests;
-		lstats->nrequests += tbin->tstats.nrequests;
+		arena_stats_large_nrequests_add(tsdn, &arena->stats, i,
+		    tbin->tstats.nrequests);
 		tbin->tstats.nrequests = 0;
 	}
 }
