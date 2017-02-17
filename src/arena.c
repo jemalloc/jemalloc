@@ -850,10 +850,6 @@ arena_slab_dalloc(tsdn_t *tsdn, arena_t *arena, extent_t *slab) {
 
 	extent_hooks_t *extent_hooks = EXTENT_HOOKS_INITIALIZER;
 	extent_dalloc_cache(tsdn, arena, &extent_hooks, slab);
-
-	malloc_mutex_lock(tsdn, &arena->decay.mtx);
-	arena_maybe_purge(tsdn, arena);
-	malloc_mutex_unlock(tsdn, &arena->decay.mtx);
 }
 
 static void
