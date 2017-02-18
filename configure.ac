@@ -1082,7 +1082,9 @@ fi
 if test "x$backtrace_method" = "x" -a "x$enable_prof_libgcc" = "x1" \
      -a "x$GCC" = "xyes" ; then
   AC_CHECK_HEADERS([unwind.h], , [enable_prof_libgcc="0"])
-  AC_CHECK_LIB([gcc], [_Unwind_Backtrace], [JE_APPEND_VS(LIBS, -lgcc)], [enable_prof_libgcc="0"])
+  if test "x${enable_prof_libgcc}" = "x1" ; then
+    AC_CHECK_LIB([gcc], [_Unwind_Backtrace], [JE_APPEND_VS(LIBS, -lgcc)], [enable_prof_libgcc="0"])
+  fi
   if test "x${enable_prof_libgcc}" = "x1" ; then
     backtrace_method="libgcc"
     AC_DEFINE([JEMALLOC_PROF_LIBGCC], [ ])
