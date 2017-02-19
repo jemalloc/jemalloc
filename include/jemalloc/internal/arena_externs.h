@@ -17,6 +17,9 @@ void arena_stats_large_nrequests_add(tsdn_t *tsdn, arena_stats_t *arena_stats,
     szind_t szind, uint64_t nrequests);
 void arena_stats_mapped_add(tsdn_t *tsdn, arena_stats_t *arena_stats,
     size_t size);
+void	arena_basic_stats_merge(tsdn_t *tsdn, arena_t *arena,
+    unsigned *nthreads, const char **dss, ssize_t *decay_time, size_t *nactive,
+    size_t *ndirty);
 void arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
     const char **dss, ssize_t *decay_time, size_t *nactive, size_t *ndirty,
     arena_stats_t *astats, malloc_bin_stats_t *bstats,
@@ -72,9 +75,6 @@ dss_prec_t	arena_dss_prec_get(arena_t *arena);
 bool	arena_dss_prec_set(arena_t *arena, dss_prec_t dss_prec);
 ssize_t	arena_decay_time_default_get(void);
 bool	arena_decay_time_default_set(ssize_t decay_time);
-void	arena_basic_stats_merge(tsdn_t *tsdn, arena_t *arena,
-    unsigned *nthreads, const char **dss, ssize_t *decay_time, size_t *nactive,
-    size_t *ndirty);
 unsigned	arena_nthreads_get(arena_t *arena, bool internal);
 void	arena_nthreads_inc(arena_t *arena, bool internal);
 void	arena_nthreads_dec(arena_t *arena, bool internal);
