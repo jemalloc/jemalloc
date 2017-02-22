@@ -1,11 +1,5 @@
 #include "test/jemalloc_test.h"
 
-const char *malloc_conf = "decay_time:1"
-#ifdef JEMALLOC_TCACHE
-    ",lg_tcache_max:0"
-#endif
-    ;
-
 static nstime_monotonic_t *nstime_monotonic_orig;
 static nstime_update_t *nstime_update_orig;
 

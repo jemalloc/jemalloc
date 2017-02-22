@@ -1,8 +1,5 @@
 #include "test/jemalloc_test.h"
 
-/* Immediately purge to minimize fragmentation. */
-const char *malloc_conf = "decay_time:-1";
-
 /*
  * Size class that is a divisor of the page size, ideally 4+ regions per run.
  */
