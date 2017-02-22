@@ -296,7 +296,6 @@ malloc_tsd_no_cleanup
 malloc_vcprintf
 malloc_vsnprintf
 malloc_write
-mb_write
 narenas_auto
 narenas_total_get
 ncpus
