@@ -1,7 +1,5 @@
 #include "test/jemalloc_test.h"
 
-const char *malloc_conf = "purge:decay,decay_time:1";
-
 static nstime_monotonic_t *nstime_monotonic_orig;
 static nstime_update_t *nstime_update_orig;
 

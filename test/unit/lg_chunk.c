@@ -1,12 +1,5 @@
 #include "test/jemalloc_test.h"
 
-/*
- * Make sure that opt.lg_chunk clamping is sufficient.  In practice, this test
- * program will fail a debug assertion during initialization and abort (rather
- * than the test soft-failing) if clamping is insufficient.
- */
-const char *malloc_conf = "lg_chunk:0";
-
 TEST_BEGIN(test_lg_chunk_clamp)
 {
 	void *p;

@@ -1,9 +1,5 @@
 #include "test/jemalloc_test.h"
 
-#ifdef JEMALLOC_PROF
-const char *malloc_conf = "prof:true,prof_active:false";
-#endif
-
 static void
 mallctl_thread_name_get_impl(const char *thread_name_expected, const char *func,
     int line)
