@@ -1,9 +1,5 @@
 #include "test/jemalloc_test.h"
 
-#ifdef JEMALLOC_FILL
-const char *malloc_conf = "junk:false";
-#endif
-
 static unsigned
 get_nsizes_impl(const char *cmd)
 {

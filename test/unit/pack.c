@@ -1,13 +1,5 @@
 #include "test/jemalloc_test.h"
 
-const char *malloc_conf =
-    /* Use smallest possible chunk size. */
-    "lg_chunk:0"
-    /* Immediately purge to minimize fragmentation. */
-    ",lg_dirty_mult:-1"
-    ",decay_time:-1"
-    ;
-
 /*
  * Size class that is a divisor of the page size, ideally 4+ regions per run.
  */
