@@ -62,7 +62,8 @@ huge_palloc(tsdn_t *tsdn, arena_t *arena, size_t usize, size_t alignment,
 	/* Allocate one or more contiguous chunks for this request. */
 
 	assert(!tsdn_null(tsdn) || arena != NULL);
-	witness_assert_lockless(tsdn); /* prof_gdump() requirement. */
+	/* prof_gdump() requirement. */
+	witness_assert_depth_to_rank(tsdn, WITNESS_RANK_CORE, 0);
 
 	ausize = sa2u(usize, alignment);
 	if (unlikely(ausize == 0 || ausize > HUGE_MAXCLASS))
@@ -149,7 +150,8 @@ huge_ralloc_no_move_similar(tsdn_t *tsdn, void *ptr, size_t oldsize,
 	chunk_hooks_t chunk_hooks = CHUNK_HOOKS_INITIALIZER;
 	bool pre_zeroed, post_zeroed, gdump;
 
-	witness_assert_lockless(tsdn); /* prof_gdump() requirement. */
+	/* prof_gdump() requirement. */
+	witness_assert_depth_to_rank(tsdn, WITNESS_RANK_CORE, 0);
 
 	/* Increase usize to incorporate extra. */
 	for (usize = usize_min; usize < usize_max && (usize_next = s2u(usize+1))
@@ -223,7 +225,8 @@ huge_ralloc_no_move_shrink(tsdn_t *tsdn, void *ptr, size_t oldsize,
 	chunk_hooks = chunk_hooks_get(tsdn, arena);
 
 	assert(oldsize > usize);
-	witness_assert_lockless(tsdn); /* prof_gdump() requirement. */
+	/* prof_gdump() requirement. */
+	witness_assert_depth_to_rank(tsdn, WITNESS_RANK_CORE, 0);
 
 	/* Split excess chunks. */
 	cdiff = CHUNK_CEILING(oldsize) - CHUNK_CEILING(usize);
@@ -278,7 +281,8 @@ huge_ralloc_no_move_expand(tsdn_t *tsdn, void *ptr, size_t oldsize,
 	is_zeroed_subchunk = extent_node_zeroed_get(node);
 	malloc_mutex_unlock(tsdn, &arena->huge_mtx);
 
-	witness_assert_lockless(tsdn); /* prof_gdump() requirement. */
+	/* prof_gdump() requirement. */
+	witness_assert_depth_to_rank(tsdn, WITNESS_RANK_CORE, 0);
 
 	/*
 	 * Use is_zeroed_chunk to detect whether the trailing memory is zeroed,
