@@ -65,6 +65,49 @@ JEMALLOC_EXPORT int	_pthread_mutex_init_calloc_cb(pthread_mutex_t *mutex,
     void *(calloc_cb)(size_t, size_t));
 #endif
 
+void
+malloc_mutex_lock_slow(malloc_mutex_t *mutex) {
+	lock_prof_data_t *data = &mutex->prof_data;
+	bool spin_success = false;
+
+	{//TODO: a smart spin policy
+		if (!malloc_mutex_trylock(mutex)) {
+			spin_success = true;
+			goto label_locked;
+		}
+	}
+
+	nstime_t now, before;
+	uint32_t n_thds;
+	nstime_init(&now, 0);
+	nstime_update(&now);
+	n_thds = atomic_add_u32(&data->n_waiting_thds, 1);
+	/* One last try as above two calls may take quite some cycles. */
+	if (!malloc_mutex_trylock(mutex)) {
+		spin_success = true;
+		atomic_sub_u32(&data->n_waiting_thds, 1);
+		goto label_locked;
+	}
+	nstime_copy(&before, &now);
+	malloc_mutex_lock_final(mutex);
+	atomic_sub_u32(&data->n_waiting_thds, 1);
+	nstime_update(&now);
+	nstime_subtract(&now, &before);
+label_locked:
+	if (spin_success) {
+		data->n_spin_acquired++;
+	} else {
+		data->n_wait_times++;
+		nstime_add(&data->tot_wait_time, &now);
+		if (nstime_compare(&now, &data->max_wait_time)) {
+			nstime_copy(&data->max_wait_time, &now);
+		}
+		if (n_thds > data->max_n_thds) {
+			data->max_n_thds = n_thds;
+		}
+	}
+}
+
 bool
 malloc_mutex_init(malloc_mutex_t *mutex, const char *name,
     witness_rank_t rank) {
