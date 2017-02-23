@@ -55,6 +55,10 @@ typedef int witness_comp_t (const witness_t *, void *, const witness_t *,
 #define WITNESS_RANK_PROF_NEXT_THR_UID	WITNESS_RANK_LEAF
 #define WITNESS_RANK_PROF_THREAD_ACTIVE_INIT	WITNESS_RANK_LEAF
 
-#define WITNESS_INITIALIZER(name, rank) {name, rank, NULL, NULL, {NULL, NULL}}
+#if defined(JEMALLOC_DEBUG)
+#  define WITNESS_INITIALIZER(name, rank) {name, rank, NULL, NULL, {NULL, NULL}}
+#else
+#  define WITNESS_INITIALIZER(name, rank)
+#endif
 
 #endif /* JEMALLOC_INTERNAL_WITNESS_TYPES_H */
