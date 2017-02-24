@@ -115,8 +115,9 @@ chunk_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
 		 * malloc.
 		 */
 		while (true) {
-			void *ret, *cpad, *max_cur, *dss_next, *dss_prev;
-			size_t gap_size, cpad_size;
+			void *ret, *max_cur, *dss_next, *dss_prev;
+			void *gap_addr_chunk, *gap_addr_subchunk;
+			size_t gap_size_chunk, gap_size_subchunk;
 			intptr_t incr;
 
 			max_cur = chunk_dss_max_update(new_addr);
@@ -124,25 +125,32 @@ chunk_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
 				goto label_oom;
 
 			/*
-			 * Calculate how much padding is necessary to
-			 * chunk-align the end of the DSS.
-			 */
-			gap_size = (chunksize - CHUNK_ADDR2OFFSET(dss_max)) &
-			    chunksize_mask;
-			/*
-			 * Compute how much chunk-aligned pad space (if any) is
+			 * Compute how much chunk-aligned gap space (if any) is
 			 * necessary to satisfy alignment.  This space can be
 			 * recycled for later use.
 			 */
-			cpad = (void *)((uintptr_t)dss_max + gap_size);
-			ret = (void *)ALIGNMENT_CEILING((uintptr_t)dss_max,
-			    alignment);
-			cpad_size = (uintptr_t)ret - (uintptr_t)cpad;
+			gap_addr_chunk = (void *)(CHUNK_CEILING(
+			    (uintptr_t)max_cur));
+			ret = (void *)ALIGNMENT_CEILING(
+			    (uintptr_t)gap_addr_chunk, alignment);
+			gap_size_chunk = (uintptr_t)ret -
+			    (uintptr_t)gap_addr_chunk;
+			/*
+			 * Compute the address just past the end of the desired
+			 * allocation space.
+			 */
 			dss_next = (void *)((uintptr_t)ret + size);
-			if ((uintptr_t)ret < (uintptr_t)dss_max ||
-			    (uintptr_t)dss_next < (uintptr_t)dss_max)
+			if ((uintptr_t)ret < (uintptr_t)max_cur ||
+			    (uintptr_t)dss_next < (uintptr_t)max_cur)
 				goto label_oom; /* Wrap-around. */
-			incr = gap_size + cpad_size + size;
+			/* Compute the increment, including subchunk bytes. */
+			gap_addr_subchunk = max_cur;
+			gap_size_subchunk = (uintptr_t)ret -
+			    (uintptr_t)gap_addr_subchunk;
+			incr = gap_size_subchunk + size;
+
+			assert((uintptr_t)max_cur + incr == (uintptr_t)ret +
+			    size);
 
 			/*
 			 * Optimistically update dss_max, and roll back below if
@@ -157,11 +165,12 @@ chunk_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
 			dss_prev = chunk_dss_sbrk(incr);
 			if (dss_prev == max_cur) {
 				/* Success. */
-				if (cpad_size != 0) {
+				if (gap_size_chunk != 0) {
 					chunk_hooks_t chunk_hooks =
 					    CHUNK_HOOKS_INITIALIZER;
 					chunk_dalloc_wrapper(tsdn, arena,
-					    &chunk_hooks, cpad, cpad_size,
+					    &chunk_hooks, gap_addr_chunk,
+					    gap_size_chunk,
 					    arena_extent_sn_next(arena), false,
 					    true);
 				}
