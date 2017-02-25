@@ -141,8 +141,12 @@ nstime_monotonic_t *nstime_monotonic = JEMALLOC_N(n_nstime_monotonic);
 #endif
 bool
 nstime_update(nstime_t *time) {
-	nstime_t old_time;
+	if (nstime_monotonic()) {
+		nstime_get(time);
+		return false;
+	}
 
+	nstime_t old_time;
 	nstime_copy(&old_time, time);
 	nstime_get(time);
 
