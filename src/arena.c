@@ -192,19 +192,7 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 	astats->internal += arena_internal_get(arena);
 	astats->resident += base_resident + (((atomic_read_zu(&arena->nactive) +
 	    extents_npages_get(&arena->extents_cached)) << LG_PAGE));
-	astats->allocated_large += arena_stats_read_zu(tsdn, &arena->stats,
-	    &arena->stats.allocated_large);
-	astats->nmalloc_large += arena_stats_read_u64(tsdn, &arena->stats,
-	    &arena->stats.nmalloc_large);
-	astats->ndalloc_large += arena_stats_read_u64(tsdn, &arena->stats,
-	    &arena->stats.ndalloc_large);
-	astats->nrequests_large += arena_stats_read_u64(tsdn, &arena->stats,
-	    &arena->stats.nrequests_large);
 
-	astats->allocated_large = 0;
-	astats->nmalloc_large = 0;
-	astats->ndalloc_large = 0;
-	astats->nrequests_large = 0;
 	for (szind_t i = 0; i < NSIZES - NBINS; i++) {
 		uint64_t nmalloc = arena_stats_read_u64(tsdn, &arena->stats,
 		    &arena->stats.lstats[i].nmalloc);
@@ -224,7 +212,7 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 		size_t curlextents = arena_stats_read_zu(tsdn,
 		    &arena->stats, &arena->stats.lstats[i].curlextents);
 		lstats[i].curlextents += curlextents;
-		astats->allocated_large += curlextents * index2size(i);
+		astats->allocated_large += curlextents * index2size(NBINS + i);
 	}
 
 	arena_stats_unlock(tsdn, &arena->stats);
