@@ -81,7 +81,7 @@ struct arena_stats_s {
 #endif
 
 	/* Number of bytes currently mapped, excluding retained memory. */
-	size_t		mapped; /* Derived. */
+	size_t		mapped; /* Partially derived. */
 
 	/*
 	 * Number of bytes currently retained as a side effect of munmap() being
