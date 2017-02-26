@@ -3,13 +3,11 @@
 
 /******************************************************************************/
 
-/*
- * Round down to the nearest chunk size that can actually be requested during
- * normal huge allocation.
- */
-JEMALLOC_INLINE_C size_t
-extent_quantize(size_t size)
-{
+#ifndef JEMALLOC_JET
+static
+#endif
+size_t
+extent_size_quantize_floor(size_t size) {
 	size_t ret;
 	szind_t ind;
 
@@ -25,11 +23,32 @@ extent_quantize(size_t size)
 	return (ret);
 }
 
+size_t
+extent_size_quantize_ceil(size_t size) {
+	size_t ret;
+
+	assert(size > 0);
+
+	ret = extent_size_quantize_floor(size);
+	if (ret < size) {
+		/*
+		 * Skip a quantization that may have an adequately large extent,
+		 * because under-sized extents may be mixed in.  This only
+		 * happens when an unusual size is requested, i.e. for aligned
+		 * allocation, and is just one of several places where linear
+		 * search would potentially find sufficiently aligned available
+		 * memory somewhere lower.
+		 */
+		ret = index2size(size2index(ret  + 1));
+	}
+	return ret;
+}
+
 JEMALLOC_INLINE_C int
 extent_sz_comp(const extent_node_t *a, const extent_node_t *b)
 {
-	size_t a_qsize = extent_quantize(extent_node_size_get(a));
-	size_t b_qsize = extent_quantize(extent_node_size_get(b));
+	size_t a_qsize = extent_size_quantize_floor(extent_node_size_get(a));
+	size_t b_qsize = extent_size_quantize_floor(extent_node_size_get(b));
 
 	return ((a_qsize > b_qsize) - (a_qsize < b_qsize));
 }

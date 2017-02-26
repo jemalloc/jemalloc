@@ -75,6 +75,11 @@ typedef rb_tree(extent_node_t) extent_tree_t;
 /******************************************************************************/
 #ifdef JEMALLOC_H_EXTERNS
 
+#ifdef JEMALLOC_JET
+size_t	extent_size_quantize_floor(size_t size);
+#endif
+size_t	extent_size_quantize_ceil(size_t size);
+
 rb_proto(, extent_tree_szsnad_, extent_tree_t, extent_node_t)
 
 rb_proto(, extent_tree_ad_, extent_tree_t, extent_node_t)

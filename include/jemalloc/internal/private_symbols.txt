@@ -223,6 +223,8 @@ extent_node_sn_get
 extent_node_sn_set
 extent_node_zeroed_get
 extent_node_zeroed_set
+extent_size_quantize_ceil
+extent_size_quantize_floor
 extent_tree_ad_destroy
 extent_tree_ad_destroy_recurse
 extent_tree_ad_empty
