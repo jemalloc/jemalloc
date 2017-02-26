@@ -118,9 +118,8 @@ extent_hooks_assure_initialized(arena_t *arena,
 	}
 }
 
-#ifdef JEMALLOC_JET
-#undef extent_size_quantize_floor
-#define extent_size_quantize_floor JEMALLOC_N(n_extent_size_quantize_floor)
+#ifndef JEMALLOC_JET
+static
 #endif
 size_t
 extent_size_quantize_floor(size_t size) {
@@ -129,9 +128,6 @@ extent_size_quantize_floor(size_t size) {
 
 	assert(size > 0);
 	assert((size & PAGE_MASK) == 0);
-
-	assert(size != 0);
-	assert(size == PAGE_CEILING(size));
 
 	pind = psz2ind(size - large_pad + 1);
 	if (pind == 0) {
@@ -147,16 +143,9 @@ extent_size_quantize_floor(size_t size) {
 	assert(ret <= size);
 	return ret;
 }
-#ifdef JEMALLOC_JET
-#undef extent_size_quantize_floor
-#define extent_size_quantize_floor JEMALLOC_N(extent_size_quantize_floor)
-extent_size_quantize_t *extent_size_quantize_floor =
-    JEMALLOC_N(n_extent_size_quantize_floor);
-#endif
 
-#ifdef JEMALLOC_JET
-#undef extent_size_quantize_ceil
-#define extent_size_quantize_ceil JEMALLOC_N(n_extent_size_quantize_ceil)
+#ifndef JEMALLOC_JET
+static
 #endif
 size_t
 extent_size_quantize_ceil(size_t size) {
@@ -180,12 +169,6 @@ extent_size_quantize_ceil(size_t size) {
 	}
 	return ret;
 }
-#ifdef JEMALLOC_JET
-#undef extent_size_quantize_ceil
-#define extent_size_quantize_ceil JEMALLOC_N(extent_size_quantize_ceil)
-extent_size_quantize_t *extent_size_quantize_ceil =
-    JEMALLOC_N(n_extent_size_quantize_ceil);
-#endif
 
 /* Generate pairing heap functions. */
 ph_gen(, extent_heap_, extent_heap_t, extent_t, ph_link, extent_snad_comp)
@@ -258,6 +241,7 @@ extents_first_best_fit_locked(tsdn_t *tsdn, arena_t *arena, extents_t *extents,
 	for (pszind_t i = pind; i < NPSIZES+1; i++) {
 		extent_t *extent = extent_heap_first(&extents->heaps[i]);
 		if (extent != NULL) {
+			assert(extent_size_get(extent) >= size);
 			return extent;
 		}
 	}
