@@ -16,7 +16,6 @@
 #  define JEMALLOC_ALWAYS_INLINE_C static
 #  define JEMALLOC_INLINE
 #  define JEMALLOC_INLINE_C static
-#  define inline
 #else
 #  define JEMALLOC_ENABLE_INLINE
 #  ifdef JEMALLOC_HAVE_ATTR
