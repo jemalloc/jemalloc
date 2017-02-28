@@ -962,20 +962,20 @@ malloc_conf_init(void) {
 					    k, klen, v, vlen);		\
 				} else if (clip) {			\
 					if (CONF_MIN_##check_min(um,	\
-					    (min))) {			\
+					    (t)(min))) {		\
 						o = (t)(min);		\
 					} else if (			\
 					    CONF_MAX_##check_max(um,	\
-					    (max))) {			\
+					    (t)(max))) {		\
 						o = (t)(max);		\
 					} else {			\
 						o = (t)um;		\
 					}				\
 				} else {				\
 					if (CONF_MIN_##check_min(um,	\
-					    (min)) ||			\
+					    (t)(min)) ||		\
 					    CONF_MAX_##check_max(um,	\
-					    (max))) {			\
+					    (t)(max))) {		\
 						malloc_conf_error(	\
 						    "Out-of-range "	\
 						    "conf value",	\
