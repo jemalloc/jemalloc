@@ -1272,6 +1272,9 @@ malloc_conf_init(void)
 				    "lg_tcache_max", -1,
 				    (sizeof(size_t) << 3) - 1)
 			}
+			if (config_thp) {
+				CONF_HANDLE_BOOL(opt_thp, "thp", true)
+			}
 			if (config_prof) {
 				CONF_HANDLE_BOOL(opt_prof, "prof", true)
 				CONF_HANDLE_CHAR_P(opt_prof_prefix,

@@ -84,6 +84,7 @@ CTL_PROTO(config_prof_libgcc)
 CTL_PROTO(config_prof_libunwind)
 CTL_PROTO(config_stats)
 CTL_PROTO(config_tcache)
+CTL_PROTO(config_thp)
 CTL_PROTO(config_tls)
 CTL_PROTO(config_utrace)
 CTL_PROTO(config_valgrind)
@@ -104,6 +105,7 @@ CTL_PROTO(opt_utrace)
 CTL_PROTO(opt_xmalloc)
 CTL_PROTO(opt_tcache)
 CTL_PROTO(opt_lg_tcache_max)
+CTL_PROTO(opt_thp)
 CTL_PROTO(opt_prof)
 CTL_PROTO(opt_prof_prefix)
 CTL_PROTO(opt_prof_active)
@@ -258,6 +260,7 @@ static const ctl_named_node_t	config_node[] = {
 	{NAME("prof_libunwind"), CTL(config_prof_libunwind)},
 	{NAME("stats"),		CTL(config_stats)},
 	{NAME("tcache"),	CTL(config_tcache)},
+	{NAME("thp"),		CTL(config_thp)},
 	{NAME("tls"),		CTL(config_tls)},
 	{NAME("utrace"),	CTL(config_utrace)},
 	{NAME("valgrind"),	CTL(config_valgrind)},
@@ -281,6 +284,7 @@ static const ctl_named_node_t opt_node[] = {
 	{NAME("xmalloc"),	CTL(opt_xmalloc)},
 	{NAME("tcache"),	CTL(opt_tcache)},
 	{NAME("lg_tcache_max"),	CTL(opt_lg_tcache_max)},
+	{NAME("thp"),		CTL(opt_thp)},
 	{NAME("prof"),		CTL(opt_prof)},
 	{NAME("prof_prefix"),	CTL(opt_prof_prefix)},
 	{NAME("prof_active"),	CTL(opt_prof_active)},
@@ -1268,6 +1272,7 @@ CTL_RO_CONFIG_GEN(config_prof_libgcc, bool)
 CTL_RO_CONFIG_GEN(config_prof_libunwind, bool)
 CTL_RO_CONFIG_GEN(config_stats, bool)
 CTL_RO_CONFIG_GEN(config_tcache, bool)
+CTL_RO_CONFIG_GEN(config_thp, bool)
 CTL_RO_CONFIG_GEN(config_tls, bool)
 CTL_RO_CONFIG_GEN(config_utrace, bool)
 CTL_RO_CONFIG_GEN(config_valgrind, bool)
@@ -1291,6 +1296,7 @@ CTL_RO_NL_CGEN(config_utrace, opt_utrace, opt_utrace, bool)
 CTL_RO_NL_CGEN(config_xmalloc, opt_xmalloc, opt_xmalloc, bool)
 CTL_RO_NL_CGEN(config_tcache, opt_tcache, opt_tcache, bool)
 CTL_RO_NL_CGEN(config_tcache, opt_lg_tcache_max, opt_lg_tcache_max, ssize_t)
+CTL_RO_NL_CGEN(config_thp, opt_thp, opt_thp, bool)
 CTL_RO_NL_CGEN(config_prof, opt_prof, opt_prof, bool)
 CTL_RO_NL_CGEN(config_prof, opt_prof_prefix, opt_prof_prefix, const char *)
 CTL_RO_NL_CGEN(config_prof, opt_prof_active, opt_prof_active, bool)

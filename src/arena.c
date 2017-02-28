@@ -4,6 +4,8 @@
 /******************************************************************************/
 /* Data. */
 
+bool		opt_thp = true;
+static bool	thp_initially_huge;
 purge_mode_t	opt_purge = PURGE_DEFAULT;
 const char	*purge_mode_names[] = {
 	"ratio",
@@ -680,7 +682,9 @@ arena_chunk_init_hard(tsdn_t *tsdn, arena_t *arena)
 	if (chunk == NULL)
 		return (NULL);
 
-	chunk->hugepage = true;
+	if (config_thp && opt_thp) {
+		chunk->hugepage = thp_initially_huge;
+	}
 
 	/*
 	 * Initialize the map to contain one maximal free untouched run.  Mark
@@ -745,14 +749,17 @@ arena_chunk_alloc(tsdn_t *tsdn, arena_t *arena)
 static void
 arena_chunk_discard(tsdn_t *tsdn, arena_t *arena, arena_chunk_t *chunk)
 {
-	size_t sn, hugepage;
+	size_t sn;
+	UNUSED bool hugepage JEMALLOC_CC_SILENCE_INIT(false);
 	bool committed;
 	chunk_hooks_t chunk_hooks = CHUNK_HOOKS_INITIALIZER;
 
 	chunk_deregister(chunk, &chunk->node);
 
 	sn = extent_node_sn_get(&chunk->node);
-	hugepage = chunk->hugepage;
+	if (config_thp && opt_thp) {
+		hugepage = chunk->hugepage;
+	}
 	committed = (arena_mapbits_decommitted_get(chunk, map_bias) == 0);
 	if (!committed) {
 		/*
@@ -765,13 +772,16 @@ arena_chunk_discard(tsdn_t *tsdn, arena_t *arena, arena_chunk_t *chunk)
 		chunk_hooks.decommit(chunk, chunksize, 0, map_bias << LG_PAGE,
 		    arena->ind);
 	}
-	if (!hugepage) {
+	if (config_thp && opt_thp && hugepage != thp_initially_huge) {
 		/*
-		 * Convert chunk back to the default state, so that all
-		 * subsequent chunk allocations start out with chunks that can
-		 * be backed by transparent huge pages.
+		 * Convert chunk back to initial THP state, so that all
+		 * subsequent chunk allocations start out in a consistent state.
 		 */
-		pages_huge(chunk, chunksize);
+		if (thp_initially_huge) {
+			pages_huge(chunk, chunksize);
+		} else {
+			pages_nohuge(chunk, chunksize);
+		}
 	}
 
 	chunk_dalloc_cache(tsdn, arena, &chunk_hooks, (void *)chunk, chunksize,
@@ -1711,13 +1721,13 @@ arena_purge_stashed(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 
 			/*
 			 * If this is the first run purged within chunk, mark
-			 * the chunk as non-huge.  This will prevent all use of
-			 * transparent huge pages for this chunk until the chunk
-			 * as a whole is deallocated.
+			 * the chunk as non-THP-capable.  This will prevent all
+			 * use of THPs for this chunk until the chunk as a whole
+			 * is deallocated.
 			 */
-			if (chunk->hugepage) {
-				pages_nohuge(chunk, chunksize);
-				chunk->hugepage = false;
+			if (config_thp && opt_thp && chunk->hugepage) {
+				chunk->hugepage = pages_nohuge(chunk,
+				    chunksize);
 			}
 
 			assert(pageind + npages <= chunk_npages);
@@ -3772,10 +3782,77 @@ bin_info_init(void)
 #undef SC
 }
 
+static void
+init_thp_initially_huge(void) {
+	int fd;
+	char buf[sizeof("[always] madvise never\n")];
+	ssize_t nread;
+	static const char *enabled_states[] = {
+		"[always] madvise never\n",
+		"always [madvise] never\n",
+		"always madvise [never]\n"
+	};
+	static const bool thp_initially_huge_states[] = {
+		true,
+		false,
+		false
+	};
+	unsigned i;
+
+	if (config_debug) {
+		for (i = 0; i < sizeof(enabled_states)/sizeof(const char *);
+		    i++) {
+			assert(sizeof(buf) > strlen(enabled_states[i]));
+		}
+	}
+	assert(sizeof(enabled_states)/sizeof(const char *) ==
+	    sizeof(thp_initially_huge_states)/sizeof(bool));
+
+#if defined(JEMALLOC_USE_SYSCALL) && defined(SYS_open)
+	fd = (int)syscall(SYS_open,
+	    "/sys/kernel/mm/transparent_hugepage/enabled", O_RDONLY);
+#else
+	fd = open("/sys/kernel/mm/transparent_hugepage/enabled", O_RDONLY);
+#endif
+	if (fd == -1) {
+		goto label_error;
+	}
+
+#if defined(JEMALLOC_USE_SYSCALL) && defined(SYS_read)
+	nread = (ssize_t)syscall(SYS_read, fd, &buf, sizeof(buf));
+#else
+	nread = read(fd, &buf, sizeof(buf));
+#endif
+
+#if defined(JEMALLOC_USE_SYSCALL) && defined(SYS_close)
+	syscall(SYS_close, fd);
+#else
+	close(fd);
+#endif
+
+	if (nread < 1) {
+		goto label_error;
+	}
+	for (i = 0; i < sizeof(enabled_states)/sizeof(const char *);
+	    i++) {
+		if (strncmp(buf, enabled_states[i], (size_t)nread) == 0) {
+			thp_initially_huge = thp_initially_huge_states[i];
+			return;
+		}
+	}
+
+label_error:
+	thp_initially_huge = false;
+}
+
 void
 arena_boot(void)
 {
 	unsigned i;
+
+	if (config_thp && opt_thp) {
+		init_thp_initially_huge();
+	}
 
 	arena_lg_dirty_mult_default_set(opt_lg_dirty_mult);
 	arena_decay_time_default_set(opt_decay_time);

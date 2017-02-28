@@ -392,6 +392,7 @@ opt_quarantine
 opt_redzone
 opt_stats_print
 opt_tcache
+opt_thp
 opt_utrace
 opt_xmalloc
 opt_zero
