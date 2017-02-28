@@ -28,6 +28,10 @@ print 'unamestr=`uname`'
 for cc, cxx in possible_compilers:
     for compiler_opts in powerset(possible_compiler_opts):
         for config_opts in powerset(possible_config_opts):
+            if cc is 'clang' \
+              and '-m32' in possible_compiler_opts \
+              and '--enable-prof' in config_opts:
+                continue
             config_line = (
                 './configure '
                 + 'CC="{} {}" '.format(cc, " ".join(compiler_opts))
