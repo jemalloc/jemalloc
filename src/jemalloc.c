@@ -1075,18 +1075,18 @@ malloc_conf_init(void)
 					    k, klen, v, vlen);		\
 				} else if (clip) {			\
 					if (CONF_MIN_##check_min(um,	\
-					    (min)))			\
+					    (t)(min)))			\
 						o = (t)(min);		\
 					else if (CONF_MAX_##check_max(	\
-					    um, (max)))			\
+					    um, (t)(max)))		\
 						o = (t)(max);		\
 					else				\
 						o = (t)um;		\
 				} else {				\
 					if (CONF_MIN_##check_min(um,	\
-					    (min)) ||			\
+					    (t)(min)) ||		\
 					    CONF_MAX_##check_max(um,	\
-					    (max))) {			\
+					    (t)(max))) {		\
 						malloc_conf_error(	\
 						    "Out-of-range "	\
 						    "conf value",	\
@@ -1145,8 +1145,8 @@ malloc_conf_init(void)
 			 * accommodates all these constraints.
 			 */
 			CONF_HANDLE_SIZE_T(opt_lg_chunk, "lg_chunk", LG_PAGE +
-			    LG_SIZE_CLASS_GROUP + 1 + (config_cache_oblivious ||
-			    config_fill ?  1 : 0), (sizeof(size_t) << 3) - 1,
+			    LG_SIZE_CLASS_GROUP + 1 + ((config_cache_oblivious
+			    || config_fill) ? 1 : 0), (sizeof(size_t) << 3) - 1,
 			    yes, yes, true)
 			if (strncmp("dss", k, klen) == 0) {
 				int i;
