@@ -850,6 +850,17 @@ for (i = 0; i < nbins; i++) {
         during build configuration.</para></listitem>
       </varlistentry>
 
+      <varlistentry id="config.thp">
+        <term>
+          <mallctl>config.thp</mallctl>
+          (<type>bool</type>)
+          <literal>r-</literal>
+        </term>
+        <listitem><para><option>--disable-thp</option> was not specified
+        during build configuration, and the system supports transparent huge
+        page manipulation.</para></listitem>
+      </varlistentry>
+
       <varlistentry id="config.tls">
         <term>
           <mallctl>config.tls</mallctl>
@@ -1160,6 +1171,21 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         default unless running inside <ulink
         url="http://valgrind.org/">Valgrind</ulink>, in which case it is
         forcefully disabled.</para></listitem>
+      </varlistentry>
+
+      <varlistentry id="opt.thp">
+        <term>
+          <mallctl>opt.thp</mallctl>
+          (<type>bool</type>)
+          <literal>r-</literal>
+          [<option>--enable-thp</option>]
+        </term>
+        <listitem><para>Transparent huge page (THP) integration
+        enabled/disabled.  When enabled, THPs are explicitly disabled as a side
+        effect of unused dirty page purging for chunks that back small and/or
+        large allocations, because such chunks typically comprise active,
+        unused dirty, and untouched clean pages.  This option is enabled by
+        default.</para></listitem>
       </varlistentry>
 
       <varlistentry id="opt.lg_tcache_max">

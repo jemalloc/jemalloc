@@ -506,6 +506,7 @@ static const size_t	large_pad =
 #endif
     ;
 
+extern bool		opt_thp;
 extern purge_mode_t	opt_purge;
 extern const char	*purge_mode_names[];
 extern ssize_t		opt_lg_dirty_mult;

@@ -157,6 +157,13 @@ any of the following arguments (not a definitive list) to 'configure':
     released in bulk, thus reducing the total number of mutex operations.  See
     the "opt.tcache" option for usage details.
 
+--disable-thp
+    Disable transparent huge page (THP) integration.  On systems with THP
+    support, THPs are explicitly disabled as a side effect of unused dirty page
+    purging for chunks that back small and/or large allocations, because such
+    chunks typically comprise active, unused dirty, and untouched clean
+    pages.
+
 --disable-munmap
     Disable virtual memory deallocation via munmap(2); instead keep track of
     the virtual memory for later use.  munmap() is disabled by default (i.e.

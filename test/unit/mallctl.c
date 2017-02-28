@@ -142,6 +142,7 @@ TEST_BEGIN(test_mallctl_config)
 	TEST_MALLCTL_CONFIG(prof_libunwind, bool);
 	TEST_MALLCTL_CONFIG(stats, bool);
 	TEST_MALLCTL_CONFIG(tcache, bool);
+	TEST_MALLCTL_CONFIG(thp, bool);
 	TEST_MALLCTL_CONFIG(tls, bool);
 	TEST_MALLCTL_CONFIG(utrace, bool);
 	TEST_MALLCTL_CONFIG(valgrind, bool);
@@ -182,6 +183,7 @@ TEST_BEGIN(test_mallctl_opt)
 	TEST_MALLCTL_OPT(bool, xmalloc, xmalloc);
 	TEST_MALLCTL_OPT(bool, tcache, tcache);
 	TEST_MALLCTL_OPT(size_t, lg_tcache_max, tcache);
+	TEST_MALLCTL_OPT(bool, thp, thp);
 	TEST_MALLCTL_OPT(bool, prof, prof);
 	TEST_MALLCTL_OPT(const char *, prof_prefix, prof);
 	TEST_MALLCTL_OPT(bool, prof_active, prof);
