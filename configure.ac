@@ -1503,7 +1503,7 @@ if test "x$abi" != "xpecoff" ; then
   fi
 fi
 
-JE_APPEND_VS(CFLAGS, -D_REENTRANT)
+JE_APPEND_VS(CPPFLAGS, -D_REENTRANT)
 
 dnl Check whether clock_gettime(2) is in libc or librt.
 AC_SEARCH_LIBS([clock_gettime], [rt])
