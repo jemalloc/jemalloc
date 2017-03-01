@@ -943,8 +943,7 @@ ctl_byname(tsd_t *tsd, const char *name, void *oldp, size_t *oldlenp,
 	node = ctl_named_node(nodes[depth-1]);
 	if (node != NULL && node->ctl) {
 		ret = node->ctl(tsd, mib, depth, oldp, oldlenp, newp, newlen);
-	}
-	else {
+	} else {
 		/* The name refers to a partial path through the ctl tree. */
 		ret = ENOENT;
 	}
