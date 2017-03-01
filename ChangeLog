@@ -25,7 +25,7 @@ brevity.  Much more detail can be found in the git revision history:
   - Handle race in per size class utilization computation.  This functionality
     was first released in 4.0.0.  (@interwq)
   - Fix lock order reversal during gdump.  (@jasone)
-  - Fix-refactor tcache synchronization.  This regression was first released in
+  - Fix/refactor tcache synchronization.  This regression was first released in
     4.0.0.  (@jasone)
   - Fix various JSON-formatted malloc_stats_print() bugs.  This functionality
     was first released in 4.3.0.  (@jasone)
