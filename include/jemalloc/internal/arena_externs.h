@@ -39,7 +39,7 @@ void	arena_extent_ralloc_large_shrink(tsdn_t *tsdn, arena_t *arena,
     extent_t *extent, size_t oldsize);
 void	arena_extent_ralloc_large_expand(tsdn_t *tsdn, arena_t *arena,
     extent_t *extent, size_t oldsize);
-ssize_t	arena_decay_time_get(tsdn_t *tsdn, arena_t *arena);
+ssize_t	arena_decay_time_get(arena_t *arena);
 bool	arena_decay_time_set(tsdn_t *tsdn, arena_t *arena, ssize_t decay_time);
 void	arena_purge(tsdn_t *tsdn, arena_t *arena, bool all);
 void	arena_maybe_purge(tsdn_t *tsdn, arena_t *arena);

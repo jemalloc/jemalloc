@@ -157,7 +157,7 @@ arena_basic_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
     const char **dss, ssize_t *decay_time, size_t *nactive, size_t *ndirty) {
 	*nthreads += arena_nthreads_get(arena, false);
 	*dss = dss_prec_names[arena_dss_prec_get(arena)];
-	*decay_time = arena_decay_time_get(tsdn, arena);
+	*decay_time = arena_decay_time_get(arena);
 	*nactive += atomic_read_zu(&arena->nactive);
 	*ndirty += extents_npages_get(&arena->extents_cached);
 }
@@ -491,6 +491,20 @@ arena_extent_ralloc_large_expand(tsdn_t *tsdn, arena_t *arena, extent_t *extent,
 	arena_nactive_add(arena, udiff >> LG_PAGE);
 }
 
+static ssize_t
+arena_decay_time_read(arena_t *arena) {
+	arena_decay_time_t dt;
+	dt.u = atomic_read_zu(&arena->decay.time.u);
+	return dt.s;
+}
+
+static void
+arena_decay_time_write(arena_t *arena, ssize_t decay_time) {
+	arena_decay_time_t dt;
+	dt.s = decay_time;
+	atomic_write_zu(&arena->decay.time.u, dt.u);
+}
+
 static void
 arena_decay_deadline_init(arena_t *arena) {
 	/*
@@ -499,7 +513,7 @@ arena_decay_deadline_init(arena_t *arena) {
 	 */
 	nstime_copy(&arena->decay.deadline, &arena->decay.epoch);
 	nstime_add(&arena->decay.deadline, &arena->decay.interval);
-	if (arena->decay.time > 0) {
+	if (arena_decay_time_read(arena) > 0) {
 		nstime_t jitter;
 
 		nstime_init(&jitter, prng_range_u64(&arena->decay.jitter_state,
@@ -615,7 +629,7 @@ arena_decay_epoch_advance(tsdn_t *tsdn, arena_t *arena, const nstime_t *time) {
 
 static void
 arena_decay_reinit(arena_t *arena, ssize_t decay_time) {
-	arena->decay.time = decay_time;
+	arena_decay_time_write(arena, decay_time);
 	if (decay_time > 0) {
 		nstime_init2(&arena->decay.interval, decay_time, 0);
 		nstime_idivide(&arena->decay.interval, SMOOTHSTEP_NSTEPS);
@@ -650,14 +664,8 @@ arena_decay_time_valid(ssize_t decay_time) {
 }
 
 ssize_t
-arena_decay_time_get(tsdn_t *tsdn, arena_t *arena) {
-	ssize_t decay_time;
-
-	malloc_mutex_lock(tsdn, &arena->decay.mtx);
-	decay_time = arena->decay.time;
-	malloc_mutex_unlock(tsdn, &arena->decay.mtx);
-
-	return decay_time;
+arena_decay_time_get(arena_t *arena) {
+	return arena_decay_time_read(arena);
 }
 
 bool
@@ -687,8 +695,9 @@ arena_maybe_purge(tsdn_t *tsdn, arena_t *arena) {
 	malloc_mutex_assert_owner(tsdn, &arena->decay.mtx);
 
 	/* Purge all or nothing if the option is disabled. */
-	if (arena->decay.time <= 0) {
-		if (arena->decay.time == 0) {
+	ssize_t decay_time = arena_decay_time_read(arena);
+	if (decay_time <= 0) {
+		if (decay_time == 0) {
 			arena_purge_to_limit(tsdn, arena, 0);
 		}
 		return;

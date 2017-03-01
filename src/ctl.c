@@ -1797,7 +1797,7 @@ arena_i_decay_time_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
 	}
 
 	if (oldp != NULL && oldlenp != NULL) {
-		size_t oldval = arena_decay_time_get(tsd_tsdn(tsd), arena);
+		size_t oldval = arena_decay_time_get(arena);
 		READ(oldval, ssize_t);
 	}
 	if (newp != NULL) {
