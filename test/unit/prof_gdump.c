@@ -1,9 +1,5 @@
 #include "test/jemalloc_test.h"
 
-#ifdef JEMALLOC_PROF
-const char *malloc_conf = "prof:true,prof_active:false,prof_gdump:true";
-#endif
-
 static bool did_prof_dump_open;
 
 static int

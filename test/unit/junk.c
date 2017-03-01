@@ -1,13 +1,5 @@
 #include "test/jemalloc_test.h"
 
-#ifdef JEMALLOC_FILL
-#  ifndef JEMALLOC_TEST_JUNK_OPT
-#    define JEMALLOC_TEST_JUNK_OPT "junk:true"
-#  endif
-const char *malloc_conf =
-    "abort:false,zero:false,redzone:true,quarantine:0," JEMALLOC_TEST_JUNK_OPT;
-#endif
-
 static arena_dalloc_junk_small_t *arena_dalloc_junk_small_orig;
 static arena_dalloc_junk_large_t *arena_dalloc_junk_large_orig;
 static huge_dalloc_junk_t *huge_dalloc_junk_orig;

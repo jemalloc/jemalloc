@@ -24,8 +24,10 @@ abs_objroot := @abs_objroot@
 
 # Build parameters.
 CPPFLAGS := @CPPFLAGS@ -I$(srcroot)include -I$(objroot)include
+CONFIGURE_CFLAGS := @CONFIGURE_CFLAGS@
+SPECIFIED_CFLAGS := @SPECIFIED_CFLAGS@
 EXTRA_CFLAGS := @EXTRA_CFLAGS@
-CFLAGS := @CFLAGS@ $(EXTRA_CFLAGS)
+CFLAGS := $(strip $(CONFIGURE_CFLAGS) $(SPECIFIED_CFLAGS) $(EXTRA_CFLAGS))
 LDFLAGS := @LDFLAGS@
 EXTRA_LDFLAGS := @EXTRA_LDFLAGS@
 LIBS := @LIBS@
@@ -156,6 +158,7 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/bitmap.c \
 	$(srcroot)test/unit/ckh.c \
 	$(srcroot)test/unit/decay.c \
+	$(srcroot)test/unit/extent_quantize.c \
 	$(srcroot)test/unit/fork.c \
 	$(srcroot)test/unit/hash.c \
 	$(srcroot)test/unit/junk.c \
@@ -186,6 +189,7 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/size_classes.c \
 	$(srcroot)test/unit/smoothstep.c \
 	$(srcroot)test/unit/stats.c \
+	$(srcroot)test/unit/stats_print.c \
 	$(srcroot)test/unit/ticker.c \
 	$(srcroot)test/unit/nstime.c \
 	$(srcroot)test/unit/tsd.c \

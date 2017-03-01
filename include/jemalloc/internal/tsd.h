@@ -479,13 +479,14 @@ a_name##tsd_wrapper_get(bool init)					\
 									\
 	if (init && unlikely(wrapper == NULL)) {			\
 		tsd_init_block_t block;					\
-		wrapper = tsd_init_check_recursion(			\
-		    &a_name##tsd_init_head, &block);			\
+		wrapper = (a_name##tsd_wrapper_t *)			\
+		    tsd_init_check_recursion(&a_name##tsd_init_head,	\
+		    &block);						\
 		if (wrapper)						\
 		    return (wrapper);					\
 		wrapper = (a_name##tsd_wrapper_t *)			\
 		    malloc_tsd_malloc(sizeof(a_name##tsd_wrapper_t));	\
-		block.data = wrapper;					\
+		block.data = (void *)wrapper;				\
 		if (wrapper == NULL) {					\
 			malloc_write("<jemalloc>: Error allocating"	\
 			    " TSD for "#a_name"\n");			\

@@ -52,8 +52,8 @@ chunk_hooks_t	chunk_hooks_get(tsdn_t *tsdn, arena_t *arena);
 chunk_hooks_t	chunk_hooks_set(tsdn_t *tsdn, arena_t *arena,
     const chunk_hooks_t *chunk_hooks);
 
-bool	chunk_register(tsdn_t *tsdn, const void *chunk,
-    const extent_node_t *node);
+bool	chunk_register(const void *chunk, const extent_node_t *node,
+    bool *gdump);
 void	chunk_deregister(const void *chunk, const extent_node_t *node);
 void	*chunk_alloc_base(size_t size);
 void	*chunk_alloc_cache(tsdn_t *tsdn, arena_t *arena,

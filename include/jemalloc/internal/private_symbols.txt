@@ -223,6 +223,8 @@ extent_node_sn_get
 extent_node_sn_set
 extent_node_zeroed_get
 extent_node_zeroed_set
+extent_size_quantize_ceil
+extent_size_quantize_floor
 extent_tree_ad_destroy
 extent_tree_ad_destroy_recurse
 extent_tree_ad_empty
@@ -390,6 +392,7 @@ opt_quarantine
 opt_redzone
 opt_stats_print
 opt_tcache
+opt_thp
 opt_utrace
 opt_xmalloc
 opt_zero
@@ -529,6 +532,9 @@ tcache_flush
 tcache_get
 tcache_get_hard
 tcache_maxclass
+tcache_postfork_child
+tcache_postfork_parent
+tcache_prefork
 tcache_salloc
 tcache_stats_merge
 tcaches
@@ -612,14 +618,16 @@ valgrind_freelike_block
 valgrind_make_mem_defined
 valgrind_make_mem_noaccess
 valgrind_make_mem_undefined
+witness_assert_depth
+witness_assert_depth_to_rank
 witness_assert_lockless
 witness_assert_not_owner
 witness_assert_owner
+witness_depth_error
 witness_fork_cleanup
 witness_init
 witness_lock
 witness_lock_error
-witness_lockless_error
 witness_not_owner_error
 witness_owner
 witness_owner_error

@@ -141,7 +141,7 @@ chunk_hooks_assure_initialized(tsdn_t *tsdn, arena_t *arena,
 }
 
 bool
-chunk_register(tsdn_t *tsdn, const void *chunk, const extent_node_t *node)
+chunk_register(const void *chunk, const extent_node_t *node, bool *gdump)
 {
 
 	assert(extent_node_addr_get(node) == chunk);
@@ -160,8 +160,7 @@ chunk_register(tsdn_t *tsdn, const void *chunk, const extent_node_t *node)
 			 */
 			high = atomic_read_z(&highchunks);
 		}
-		if (cur > high && prof_gdump_get_unlocked())
-			prof_gdump(tsdn);
+		*gdump = (cur > high && prof_gdump_get_unlocked());
 	}
 
 	return (false);
@@ -189,12 +188,17 @@ chunk_deregister(const void *chunk, const extent_node_t *node)
 static extent_node_t *
 chunk_first_best_fit(arena_t *arena, extent_tree_t *chunks_szsnad, size_t size)
 {
+	extent_node_t *node;
+	size_t qsize;
 	extent_node_t key;
 
 	assert(size == CHUNK_CEILING(size));
 
-	extent_node_init(&key, arena, NULL, size, 0, false, false);
-	return (extent_tree_szsnad_nsearch(chunks_szsnad, &key));
+	qsize = extent_size_quantize_ceil(size);
+	extent_node_init(&key, arena, NULL, qsize, 0, false, false);
+	node = extent_tree_szsnad_nsearch(chunks_szsnad, &key);
+	assert(node == NULL || extent_node_size_get(node) >= size);
+	return node;
 }
 
 static void *

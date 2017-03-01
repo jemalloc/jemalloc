@@ -157,6 +157,13 @@ any of the following arguments (not a definitive list) to 'configure':
     released in bulk, thus reducing the total number of mutex operations.  See
     the "opt.tcache" option for usage details.
 
+--disable-thp
+    Disable transparent huge page (THP) integration.  On systems with THP
+    support, THPs are explicitly disabled as a side effect of unused dirty page
+    purging for chunks that back small and/or large allocations, because such
+    chunks typically comprise active, unused dirty, and untouched clean
+    pages.
+
 --disable-munmap
     Disable virtual memory deallocation via munmap(2); instead keep track of
     the virtual memory for later use.  munmap() is disabled by default (i.e.
@@ -306,17 +313,16 @@ The following environment variables (not a definitive list) impact configure's
 behavior:
 
 CFLAGS="?"
-    Pass these flags to the compiler.  You probably shouldn't define this unless
-    you know what you are doing.  (Use EXTRA_CFLAGS instead.)
+    Pass these flags to the C compiler.  Any flags set by the configure script
+    are prepended, which means explicitly set flags generally take precedence.
+    Take care when specifying flags such as -Werror, because configure tests may
+    be affected in undesirable ways.
 
 EXTRA_CFLAGS="?"
-    Append these flags to CFLAGS.  This makes it possible to add flags such as
-    -Werror, while allowing the configure script to determine what other flags
-    are appropriate for the specified configuration.
-
-    The configure script specifically checks whether an optimization flag (-O*)
-    is specified in EXTRA_CFLAGS, and refrains from specifying an optimization
-    level if it finds that one has already been specified.
+    Append these flags to CFLAGS, without passing them to the compiler during
+    configuration.  This makes it possible to add flags such as -Werror, while
+    allowing the configure script to determine what other flags are appropriate
+    for the specified configuration.
 
 CPPFLAGS="?"
     Pass these flags to the C preprocessor.  Note that CFLAGS is not passed to

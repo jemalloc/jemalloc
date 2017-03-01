@@ -5,11 +5,6 @@
 #define	DUMP_INTERVAL		1
 #define	BT_COUNT_CHECK_INTERVAL	5
 
-#ifdef JEMALLOC_PROF
-const char *malloc_conf =
-    "prof:true,prof_accum:true,prof_active:false,lg_prof_sample:0";
-#endif
-
 static int
 prof_dump_open_intercept(bool propagate_err, const char *filename)
 {

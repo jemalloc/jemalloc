@@ -1,13 +1,7 @@
 #include "test/jemalloc_test.h"
 
+/* Keep in sync with definition in quarantine.sh. */
 #define	QUARANTINE_SIZE		8192
-#define	STRINGIFY_HELPER(x)	#x
-#define	STRINGIFY(x)		STRINGIFY_HELPER(x)
-
-#ifdef JEMALLOC_FILL
-const char *malloc_conf = "abort:false,junk:true,redzone:true,quarantine:"
-    STRINGIFY(QUARANTINE_SIZE);
-#endif
 
 void
 quarantine_clear(void)

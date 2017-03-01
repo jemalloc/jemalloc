@@ -99,6 +99,13 @@ static const bool config_tcache =
     false
 #endif
     ;
+static const bool config_thp =
+#ifdef JEMALLOC_THP
+    true
+#else
+    false
+#endif
+    ;
 static const bool config_tls =
 #ifdef JEMALLOC_TLS
     true
@@ -158,7 +165,6 @@ static const bool config_cache_oblivious =
 #include <mach/mach_error.h>
 #include <mach/mach_init.h>
 #include <mach/vm_map.h>
-#include <malloc/malloc.h>
 #endif
 
 #include "jemalloc/internal/ph.h"

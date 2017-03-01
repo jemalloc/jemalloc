@@ -1,9 +1,5 @@
 #include "test/jemalloc_test.h"
 
-#ifdef JEMALLOC_PROF
-const char *malloc_conf = "prof:true,lg_prof_sample:0";
-#endif
-
 static unsigned
 get_nsizes_impl(const char *cmd)
 {

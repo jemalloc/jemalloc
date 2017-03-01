@@ -15,20 +15,20 @@ huge_node_get(const void *ptr)
 }
 
 static bool
-huge_node_set(tsdn_t *tsdn, const void *ptr, extent_node_t *node)
+huge_node_set(tsdn_t *tsdn, const void *ptr, extent_node_t *node, bool *gdump)
 {
 
 	assert(extent_node_addr_get(node) == ptr);
 	assert(!extent_node_achunk_get(node));
-	return (chunk_register(tsdn, ptr, node));
+	return (chunk_register(ptr, node, gdump));
 }
 
 static void
-huge_node_reset(tsdn_t *tsdn, const void *ptr, extent_node_t *node)
+huge_node_reset(tsdn_t *tsdn, const void *ptr, extent_node_t *node, bool *gdump)
 {
 	bool err;
 
-	err = huge_node_set(tsdn, ptr, node);
+	err = huge_node_set(tsdn, ptr, node, gdump);
 	assert(!err);
 }
 
@@ -57,11 +57,13 @@ huge_palloc(tsdn_t *tsdn, arena_t *arena, size_t usize, size_t alignment,
 	arena_t *iarena;
 	extent_node_t *node;
 	size_t sn;
-	bool is_zeroed;
+	bool is_zeroed, gdump;
 
 	/* Allocate one or more contiguous chunks for this request. */
 
 	assert(!tsdn_null(tsdn) || arena != NULL);
+	/* prof_gdump() requirement. */
+	witness_assert_depth_to_rank(tsdn, WITNESS_RANK_CORE, 0);
 
 	ausize = sa2u(usize, alignment);
 	if (unlikely(ausize == 0 || ausize > HUGE_MAXCLASS))
@@ -91,11 +93,13 @@ huge_palloc(tsdn_t *tsdn, arena_t *arena, size_t usize, size_t alignment,
 
 	extent_node_init(node, arena, ret, usize, sn, is_zeroed, true);
 
-	if (huge_node_set(tsdn, ret, node)) {
+	if (huge_node_set(tsdn, ret, node, &gdump)) {
 		arena_chunk_dalloc_huge(tsdn, arena, ret, usize, sn);
 		idalloctm(tsdn, node, NULL, true, true);
 		return (NULL);
 	}
+	if (config_prof && opt_prof && gdump)
+		prof_gdump(tsdn);
 
 	/* Insert node into huge. */
 	malloc_mutex_lock(tsdn, &arena->huge_mtx);
@@ -144,7 +148,10 @@ huge_ralloc_no_move_similar(tsdn_t *tsdn, void *ptr, size_t oldsize,
 	extent_node_t *node;
 	arena_t *arena;
 	chunk_hooks_t chunk_hooks = CHUNK_HOOKS_INITIALIZER;
-	bool pre_zeroed, post_zeroed;
+	bool pre_zeroed, post_zeroed, gdump;
+
+	/* prof_gdump() requirement. */
+	witness_assert_depth_to_rank(tsdn, WITNESS_RANK_CORE, 0);
 
 	/* Increase usize to incorporate extra. */
 	for (usize = usize_min; usize < usize_max && (usize_next = s2u(usize+1))
@@ -178,10 +185,13 @@ huge_ralloc_no_move_similar(tsdn_t *tsdn, void *ptr, size_t oldsize,
 	huge_node_unset(ptr, node);
 	assert(extent_node_size_get(node) != usize);
 	extent_node_size_set(node, usize);
-	huge_node_reset(tsdn, ptr, node);
+	huge_node_reset(tsdn, ptr, node, &gdump);
 	/* Update zeroed. */
 	extent_node_zeroed_set(node, post_zeroed);
 	malloc_mutex_unlock(tsdn, &arena->huge_mtx);
+	/* gdump without any locks held. */
+	if (config_prof && opt_prof && gdump)
+		prof_gdump(tsdn);
 
 	arena_chunk_ralloc_huge_similar(tsdn, arena, ptr, oldsize, usize);
 
@@ -207,7 +217,7 @@ huge_ralloc_no_move_shrink(tsdn_t *tsdn, void *ptr, size_t oldsize,
 	arena_t *arena;
 	chunk_hooks_t chunk_hooks;
 	size_t cdiff;
-	bool pre_zeroed, post_zeroed;
+	bool pre_zeroed, post_zeroed, gdump;
 
 	node = huge_node_get(ptr);
 	arena = extent_node_arena_get(node);
@@ -215,6 +225,8 @@ huge_ralloc_no_move_shrink(tsdn_t *tsdn, void *ptr, size_t oldsize,
 	chunk_hooks = chunk_hooks_get(tsdn, arena);
 
 	assert(oldsize > usize);
+	/* prof_gdump() requirement. */
+	witness_assert_depth_to_rank(tsdn, WITNESS_RANK_CORE, 0);
 
 	/* Split excess chunks. */
 	cdiff = CHUNK_CEILING(oldsize) - CHUNK_CEILING(usize);
@@ -241,10 +253,13 @@ huge_ralloc_no_move_shrink(tsdn_t *tsdn, void *ptr, size_t oldsize,
 	/* Update the size of the huge allocation. */
 	huge_node_unset(ptr, node);
 	extent_node_size_set(node, usize);
-	huge_node_reset(tsdn, ptr, node);
+	huge_node_reset(tsdn, ptr, node, &gdump);
 	/* Update zeroed. */
 	extent_node_zeroed_set(node, post_zeroed);
 	malloc_mutex_unlock(tsdn, &arena->huge_mtx);
+	/* gdump without any locks held. */
+	if (config_prof && opt_prof && gdump)
+		prof_gdump(tsdn);
 
 	/* Zap the excess chunks. */
 	arena_chunk_ralloc_huge_shrink(tsdn, arena, ptr, oldsize, usize,
@@ -258,13 +273,16 @@ huge_ralloc_no_move_expand(tsdn_t *tsdn, void *ptr, size_t oldsize,
     size_t usize, bool zero) {
 	extent_node_t *node;
 	arena_t *arena;
-	bool is_zeroed_subchunk, is_zeroed_chunk;
+	bool is_zeroed_subchunk, is_zeroed_chunk, gdump;
 
 	node = huge_node_get(ptr);
 	arena = extent_node_arena_get(node);
 	malloc_mutex_lock(tsdn, &arena->huge_mtx);
 	is_zeroed_subchunk = extent_node_zeroed_get(node);
 	malloc_mutex_unlock(tsdn, &arena->huge_mtx);
+
+	/* prof_gdump() requirement. */
+	witness_assert_depth_to_rank(tsdn, WITNESS_RANK_CORE, 0);
 
 	/*
 	 * Use is_zeroed_chunk to detect whether the trailing memory is zeroed,
@@ -280,8 +298,11 @@ huge_ralloc_no_move_expand(tsdn_t *tsdn, void *ptr, size_t oldsize,
 	extent_node_size_set(node, usize);
 	extent_node_zeroed_set(node, extent_node_zeroed_get(node) &&
 	    is_zeroed_chunk);
-	huge_node_reset(tsdn, ptr, node);
+	huge_node_reset(tsdn, ptr, node, &gdump);
 	malloc_mutex_unlock(tsdn, &arena->huge_mtx);
+	/* gdump without any locks held. */
+	if (config_prof && opt_prof && gdump)
+		prof_gdump(tsdn);
 
 	if (zero || (config_fill && unlikely(opt_zero))) {
 		if (!is_zeroed_subchunk) {
