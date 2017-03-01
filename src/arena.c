@@ -259,7 +259,9 @@ arena_extent_cache_dalloc(tsdn_t *tsdn, arena_t *arena,
 	witness_assert_depth_to_rank(tsdn, WITNESS_RANK_CORE, 0);
 
 	extent_dalloc_cache(tsdn, arena, r_extent_hooks, extent);
-	arena_purge(tsdn, arena, false);
+	if (arena_decay_time_get(arena) == 0) {
+		arena_purge(tsdn, arena, true);
+	}
 }
 
 JEMALLOC_INLINE_C void *
@@ -454,13 +456,6 @@ arena_extent_dalloc_large_prep(tsdn_t *tsdn, arena_t *arena, extent_t *extent) {
 		arena_stats_unlock(tsdn, &arena->stats);
 	}
 	arena_nactive_sub(arena, extent_size_get(extent) >> LG_PAGE);
-}
-
-void
-arena_extent_dalloc_large_finish(tsdn_t *tsdn, arena_t *arena,
-    extent_t *extent) {
-	extent_hooks_t *extent_hooks = EXTENT_HOOKS_INITIALIZER;
-	extent_dalloc_cache(tsdn, arena, &extent_hooks, extent);
 }
 
 void
@@ -663,34 +658,7 @@ arena_decay_time_valid(ssize_t decay_time) {
 	return false;
 }
 
-ssize_t
-arena_decay_time_get(arena_t *arena) {
-	return arena_decay_time_read(arena);
-}
-
-bool
-arena_decay_time_set(tsdn_t *tsdn, arena_t *arena, ssize_t decay_time) {
-	if (!arena_decay_time_valid(decay_time)) {
-		return true;
-	}
-
-	malloc_mutex_lock(tsdn, &arena->decay.mtx);
-	/*
-	 * Restart decay backlog from scratch, which may cause many dirty pages
-	 * to be immediately purged.  It would conceptually be possible to map
-	 * the old backlog onto the new backlog, but there is no justification
-	 * for such complexity since decay_time changes are intended to be
-	 * infrequent, either between the {-1, 0, >0} states, or a one-time
-	 * arbitrary change during initial arena configuration.
-	 */
-	arena_decay_reinit(arena, decay_time);
-	arena_maybe_purge(tsdn, arena);
-	malloc_mutex_unlock(tsdn, &arena->decay.mtx);
-
-	return false;
-}
-
-void
+static void
 arena_maybe_purge(tsdn_t *tsdn, arena_t *arena) {
 	malloc_mutex_assert_owner(tsdn, &arena->decay.mtx);
 
@@ -733,6 +701,33 @@ arena_maybe_purge(tsdn_t *tsdn, arena_t *arena) {
 	if (arena_decay_deadline_reached(arena, &time)) {
 		arena_decay_epoch_advance(tsdn, arena, &time);
 	}
+}
+
+ssize_t
+arena_decay_time_get(arena_t *arena) {
+	return arena_decay_time_read(arena);
+}
+
+bool
+arena_decay_time_set(tsdn_t *tsdn, arena_t *arena, ssize_t decay_time) {
+	if (!arena_decay_time_valid(decay_time)) {
+		return true;
+	}
+
+	malloc_mutex_lock(tsdn, &arena->decay.mtx);
+	/*
+	 * Restart decay backlog from scratch, which may cause many dirty pages
+	 * to be immediately purged.  It would conceptually be possible to map
+	 * the old backlog onto the new backlog, but there is no justification
+	 * for such complexity since decay_time changes are intended to be
+	 * infrequent, either between the {-1, 0, >0} states, or a one-time
+	 * arbitrary change during initial arena configuration.
+	 */
+	arena_decay_reinit(arena, decay_time);
+	arena_maybe_purge(tsdn, arena);
+	malloc_mutex_unlock(tsdn, &arena->decay.mtx);
+
+	return false;
 }
 
 static size_t
@@ -846,7 +841,7 @@ arena_slab_dalloc(tsdn_t *tsdn, arena_t *arena, extent_t *slab) {
 	arena_nactive_sub(arena, extent_size_get(slab) >> LG_PAGE);
 
 	extent_hooks_t *extent_hooks = EXTENT_HOOKS_INITIALIZER;
-	extent_dalloc_cache(tsdn, arena, &extent_hooks, slab);
+	arena_extent_cache_dalloc(tsdn, arena, &extent_hooks, slab);
 }
 
 static void

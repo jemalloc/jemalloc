@@ -348,10 +348,113 @@ TEST_BEGIN(test_decay_nonmonotonic) {
 }
 TEST_END
 
+static unsigned
+do_arena_create(ssize_t decay_time) {
+	unsigned arena_ind;
+	size_t sz = sizeof(unsigned);
+	assert_d_eq(mallctl("arenas.create", (void *)&arena_ind, &sz, NULL, 0),
+	    0, "Unexpected mallctl() failure");
+	size_t mib[3];
+	size_t miblen = sizeof(mib)/sizeof(size_t);
+	assert_d_eq(mallctlnametomib("arena.0.decay_time", mib, &miblen), 0,
+	    "Unexpected mallctlnametomib() failure");
+	mib[1] = (size_t)arena_ind;
+	assert_d_eq(mallctlbymib(mib, miblen, NULL, NULL, (void *)&decay_time,
+	    sizeof(decay_time)), 0, "Unexpected mallctlbymib() failure");
+	return arena_ind;
+}
+
+static void
+do_arena_destroy(unsigned arena_ind) {
+	size_t mib[3];
+	size_t miblen = sizeof(mib)/sizeof(size_t);
+	assert_d_eq(mallctlnametomib("arena.0.destroy", mib, &miblen), 0,
+	    "Unexpected mallctlnametomib() failure");
+	mib[1] = (size_t)arena_ind;
+	assert_d_eq(mallctlbymib(mib, miblen, NULL, NULL, NULL, 0), 0,
+	    "Unexpected mallctlbymib() failure");
+}
+
+void
+do_epoch(void) {
+	uint64_t epoch = 1;
+	assert_d_eq(mallctl("epoch", NULL, NULL, (void *)&epoch, sizeof(epoch)),
+	    0, "Unexpected mallctl() failure");
+}
+
+static size_t
+get_arena_pdirty(unsigned arena_ind) {
+	do_epoch();
+	size_t mib[4];
+	size_t miblen = sizeof(mib)/sizeof(size_t);
+	assert_d_eq(mallctlnametomib("stats.arenas.0.pdirty", mib, &miblen), 0,
+	    "Unexpected mallctlnametomib() failure");
+	mib[2] = (size_t)arena_ind;
+	size_t pdirty;
+	size_t sz = sizeof(pdirty);
+	assert_d_eq(mallctlbymib(mib, miblen, (void *)&pdirty, &sz, NULL, 0), 0,
+	    "Unexpected mallctlbymib() failure");
+	return pdirty;
+}
+
+static void *
+do_mallocx(size_t size, int flags) {
+	void *p = mallocx(size, flags);
+	assert_ptr_not_null(p, "Unexpected mallocx() failure");
+	return p;
+}
+
+static void
+generate_dirty(unsigned arena_ind, size_t size) {
+	int flags = MALLOCX_ARENA(arena_ind) | MALLOCX_TCACHE_NONE;
+	void *p = do_mallocx(size, flags);
+	dallocx(p, flags);
+}
+
+TEST_BEGIN(test_decay_now) {
+	unsigned arena_ind = do_arena_create(0);
+	assert_zu_eq(get_arena_pdirty(arena_ind), 0, "Unexpected dirty pages");
+	size_t sizes[] = {16, PAGE<<2, HUGEPAGE<<2};
+	/* Verify that dirty pages never linger after deallocation. */
+	for (unsigned i = 0; i < sizeof(sizes)/sizeof(size_t); i++) {
+		size_t size = sizes[i];
+		generate_dirty(arena_ind, size);
+		assert_zu_eq(get_arena_pdirty(arena_ind), 0,
+		    "Unexpected dirty pages");
+	}
+	do_arena_destroy(arena_ind);
+}
+TEST_END
+
+TEST_BEGIN(test_decay_never) {
+	unsigned arena_ind = do_arena_create(-1);
+	int flags = MALLOCX_ARENA(arena_ind) | MALLOCX_TCACHE_NONE;
+	assert_zu_eq(get_arena_pdirty(arena_ind), 0, "Unexpected dirty pages");
+	size_t sizes[] = {16, PAGE<<2, HUGEPAGE<<2};
+	void *ptrs[sizeof(sizes)/sizeof(size_t)];
+	for (unsigned i = 0; i < sizeof(sizes)/sizeof(size_t); i++) {
+		ptrs[i] = do_mallocx(sizes[i], flags);
+	}
+	/* Verify that each deallocation generates additional dirty pages. */
+	size_t pdirty_prev = get_arena_pdirty(arena_ind);
+	assert_zu_eq(pdirty_prev, 0, "Unexpected dirty pages");
+	for (unsigned i = 0; i < sizeof(sizes)/sizeof(size_t); i++) {
+		dallocx(ptrs[i], flags);
+		size_t pdirty = get_arena_pdirty(arena_ind);
+		assert_zu_gt(pdirty, pdirty_prev,
+		    "Expected dirty pages to increase.");
+		pdirty_prev = pdirty;
+	}
+	do_arena_destroy(arena_ind);
+}
+TEST_END
+
 int
 main(void) {
 	return test(
 	    test_decay_ticks,
 	    test_decay_ticker,
-	    test_decay_nonmonotonic);
+	    test_decay_nonmonotonic,
+	    test_decay_now,
+	    test_decay_never);
 }

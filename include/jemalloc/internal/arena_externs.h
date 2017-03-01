@@ -33,8 +33,6 @@ extent_t	*arena_extent_alloc_large(tsdn_t *tsdn, arena_t *arena,
     size_t usize, size_t alignment, bool *zero);
 void	arena_extent_dalloc_large_prep(tsdn_t *tsdn, arena_t *arena,
     extent_t *extent);
-void	arena_extent_dalloc_large_finish(tsdn_t *tsdn, arena_t *arena,
-    extent_t *extent);
 void	arena_extent_ralloc_large_shrink(tsdn_t *tsdn, arena_t *arena,
     extent_t *extent, size_t oldsize);
 void	arena_extent_ralloc_large_expand(tsdn_t *tsdn, arena_t *arena,
@@ -42,7 +40,6 @@ void	arena_extent_ralloc_large_expand(tsdn_t *tsdn, arena_t *arena,
 ssize_t	arena_decay_time_get(arena_t *arena);
 bool	arena_decay_time_set(tsdn_t *tsdn, arena_t *arena, ssize_t decay_time);
 void	arena_purge(tsdn_t *tsdn, arena_t *arena, bool all);
-void	arena_maybe_purge(tsdn_t *tsdn, arena_t *arena);
 void	arena_reset(tsd_t *tsd, arena_t *arena);
 void	arena_destroy(tsd_t *tsd, arena_t *arena);
 void	arena_tcache_fill_small(tsdn_t *tsdn, arena_t *arena,
