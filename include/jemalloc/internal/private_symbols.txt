@@ -26,7 +26,6 @@ arena_dss_prec_get
 arena_dss_prec_set
 arena_extent_alloc_large
 arena_extent_cache_dalloc
-arena_extent_dalloc_large_finish
 arena_extent_dalloc_large_prep
 arena_extent_ralloc_large_expand
 arena_extent_ralloc_large_shrink
@@ -40,7 +39,6 @@ arena_internal_get
 arena_internal_sub
 arena_malloc
 arena_malloc_hard
-arena_maybe_purge
 arena_migrate
 arena_new
 arena_nthreads_dec
