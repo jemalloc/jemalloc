@@ -1388,7 +1388,7 @@ fi
 
 AC_ARG_WITH([lg_hugepage],
   [AS_HELP_STRING([--with-lg-hugepage=<lg-hugepage>],
-   [Base 2 log of sytem huge page size])],
+   [Base 2 log of system huge page size])],
   [je_cv_lg_hugepage="${with_lg_hugepage}"],
   [je_cv_lg_hugepage=""])
 if test "x${je_cv_lg_hugepage}" = "x" ; then
