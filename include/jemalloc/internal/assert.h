@@ -1,3 +1,6 @@
+#include "jemalloc/internal/malloc_io.h"
+#include "jemalloc/internal/util.h"
+
 /*
  * Define a custom assert() in order to reduce the chances of deadlock during
  * assertion failure.
@@ -43,4 +46,11 @@
 } while (0)
 #endif
 
-
+/* Use to assert a particular configuration, e.g., cassert(config_debug). */
+#ifndef cassert
+#define cassert(c) do {							\
+	if (unlikely(!(c))) {						\
+		not_reached();						\
+	}								\
+} while (0)
+#endif
