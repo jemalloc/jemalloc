@@ -204,7 +204,11 @@ static const bool have_thp =
 /* HERMETIC HEADERS */
 /******************************************************************************/
 
+#include "jemalloc/internal/assert.h"
 #include "jemalloc/internal/atomic.h"
+#include "jemalloc/internal/bit_util.h"
+#include "jemalloc/internal/malloc_io.h"
+#include "jemalloc/internal/util.h"
 
 /******************************************************************************/
 /* TYPES */
@@ -382,7 +386,6 @@ typedef unsigned szind_t;
 #endif
 
 #include "jemalloc/internal/nstime_types.h"
-#include "jemalloc/internal/util_types.h"
 #include "jemalloc/internal/spin_types.h"
 #include "jemalloc/internal/prng_types.h"
 #include "jemalloc/internal/ticker_types.h"
@@ -490,7 +493,6 @@ void	jemalloc_postfork_parent(void);
 void	jemalloc_postfork_child(void);
 
 #include "jemalloc/internal/nstime_externs.h"
-#include "jemalloc/internal/util_externs.h"
 #include "jemalloc/internal/ckh_externs.h"
 #include "jemalloc/internal/stats_externs.h"
 #include "jemalloc/internal/ctl_externs.h"
@@ -513,7 +515,6 @@ void	jemalloc_postfork_child(void);
 /* INLINES */
 /******************************************************************************/
 
-#include "jemalloc/internal/util_inlines.h"
 #include "jemalloc/internal/spin_inlines.h"
 #include "jemalloc/internal/prng_inlines.h"
 #include "jemalloc/internal/ticker_inlines.h"

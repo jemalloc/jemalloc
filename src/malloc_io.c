@@ -1,3 +1,19 @@
+#define JEMALLOC_MALLOC_IO_C_
+#include "jemalloc/internal/jemalloc_internal.h"
+
+#ifdef assert
+#  undef assert
+#endif
+#ifdef not_reached
+#  undef not_reached
+#endif
+#ifdef not_implemented
+#  undef not_implemented
+#endif
+#ifdef assert_not_implemented
+#  undef assert_not_implemented
+#endif
+
 /*
  * Define simple versions of assertion macros that won't recurse in case
  * of assertion failures in malloc_*printf().
@@ -24,22 +40,25 @@
 	}								\
 } while (0)
 
-#define JEMALLOC_UTIL_C_
-#include "jemalloc/internal/jemalloc_internal.h"
+#define assert_not_implemented(e) do {					\
+	if (unlikely(config_debug && !(e))) {				\
+		not_implemented();					\
+	}								\
+} while (0)
 
 /******************************************************************************/
 /* Function prototypes for non-inline static functions. */
 
-static void	wrtmessage(void *cbopaque, const char *s);
-#define U2S_BUFSIZE	((1U << (LG_SIZEOF_INTMAX_T + 3)) + 1)
-static char	*u2s(uintmax_t x, unsigned base, bool uppercase, char *s,
+static void wrtmessage(void *cbopaque, const char *s);
+#define U2S_BUFSIZE ((1U << (LG_SIZEOF_INTMAX_T + 3)) + 1)
+static char *u2s(uintmax_t x, unsigned base, bool uppercase, char *s,
     size_t *slen_p);
-#define D2S_BUFSIZE	(1 + U2S_BUFSIZE)
-static char	*d2s(intmax_t x, char sign, char *s, size_t *slen_p);
-#define O2S_BUFSIZE	(1 + U2S_BUFSIZE)
-static char	*o2s(uintmax_t x, bool alt_form, char *s, size_t *slen_p);
-#define X2S_BUFSIZE	(2 + U2S_BUFSIZE)
-static char	*x2s(uintmax_t x, bool alt_form, bool uppercase, char *s,
+#define D2S_BUFSIZE (1 + U2S_BUFSIZE)
+static char *d2s(intmax_t x, char sign, char *s, size_t *slen_p);
+#define O2S_BUFSIZE (1 + U2S_BUFSIZE)
+static char *o2s(uintmax_t x, bool alt_form, char *s, size_t *slen_p);
+#define X2S_BUFSIZE (2 + U2S_BUFSIZE)
+static char *x2s(uintmax_t x, bool alt_form, bool uppercase, char *s,
     size_t *slen_p);
 
 /******************************************************************************/
@@ -662,4 +681,5 @@ malloc_printf(const char *format, ...) {
 #undef assert
 #undef not_reached
 #undef not_implemented
+#undef assert_not_implemented
 #include "jemalloc/internal/assert.h"

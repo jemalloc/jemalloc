@@ -99,6 +99,7 @@ C_SRCS := $(srcroot)src/jemalloc.c \
 	$(srcroot)src/extent_mmap.c \
 	$(srcroot)src/hash.c \
 	$(srcroot)src/large.c \
+	$(srcroot)src/malloc_io.c \
 	$(srcroot)src/mutex.c \
 	$(srcroot)src/nstime.c \
 	$(srcroot)src/pages.c \
@@ -110,7 +111,6 @@ C_SRCS := $(srcroot)src/jemalloc.c \
 	$(srcroot)src/tcache.c \
 	$(srcroot)src/ticker.c \
 	$(srcroot)src/tsd.c \
-	$(srcroot)src/util.c \
 	$(srcroot)src/witness.c
 ifeq ($(enable_zone_allocator), 1)
 C_SRCS += $(srcroot)src/zone.c
@@ -147,8 +147,8 @@ ifeq (1, $(link_whole_archive))
 C_UTIL_INTEGRATION_SRCS :=
 C_UTIL_CPP_SRCS :=
 else
-C_UTIL_INTEGRATION_SRCS := $(srcroot)src/nstime.c $(srcroot)src/util.c
-C_UTIL_CPP_SRCS := $(srcroot)src/nstime.c $(srcroot)src/util.c
+C_UTIL_INTEGRATION_SRCS := $(srcroot)src/nstime.c $(srcroot)src/malloc_io.c
+C_UTIL_CPP_SRCS := $(srcroot)src/nstime.c $(srcroot)src/malloc_io.c
 endif
 TESTS_UNIT := \
 	$(srcroot)test/unit/a0.c \
@@ -165,6 +165,7 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/junk_alloc.c \
 	$(srcroot)test/unit/junk_free.c \
 	$(srcroot)test/unit/mallctl.c \
+	$(srcroot)test/unit/malloc_io.c \
 	$(srcroot)test/unit/math.c \
 	$(srcroot)test/unit/mq.c \
 	$(srcroot)test/unit/mtx.c \
@@ -193,7 +194,6 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/ticker.c \
 	$(srcroot)test/unit/nstime.c \
 	$(srcroot)test/unit/tsd.c \
-	$(srcroot)test/unit/util.c \
 	$(srcroot)test/unit/witness.c \
 	$(srcroot)test/unit/zero.c
 ifeq (@enable_prof@, 1)
