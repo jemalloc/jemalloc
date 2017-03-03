@@ -715,9 +715,9 @@ arena_stash_dirty(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
 
 	/* Stash extents according to ndirty_limit. */
 	size_t nstashed = 0;
-	for (extent_t *extent = extents_evict(tsdn, &arena->extents_cached,
-	    ndirty_limit); extent != NULL; extent = extents_evict(tsdn,
-	    &arena->extents_cached, ndirty_limit)) {
+	extent_t *extent;
+	while ((extent = extents_evict(tsdn, arena, r_extent_hooks,
+	    &arena->extents_cached, ndirty_limit)) != NULL) {
 		extent_list_append(purge_extents, extent);
 		nstashed += extent_size_get(extent) >> LG_PAGE;
 	}
@@ -943,9 +943,9 @@ arena_destroy_retained(tsdn_t *tsdn, arena_t *arena) {
 	 * either unmap retained extents or track them for later use.
 	 */
 	extent_hooks_t *extent_hooks = extent_hooks_get(arena);
-	for (extent_t *extent = extents_evict(tsdn, &arena->extents_retained,
-	    0); extent != NULL; extent = extents_evict(tsdn,
-	    &arena->extents_retained, 0)) {
+	extent_t *extent;
+	while ((extent = extents_evict(tsdn, arena, &extent_hooks,
+	    &arena->extents_retained, 0)) != NULL) {
 		extent_dalloc_wrapper_try(tsdn, arena, &extent_hooks, extent);
 	}
 }
@@ -1679,12 +1679,24 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 		goto label_error;
 	}
 
+	/*
+	 * Delay coalescing for cached extents despite the disruptive effect on
+	 * memory layout for best-fit extent allocation, since cached extents
+	 * are likely to be reused soon after deallocation, and the cost of
+	 * merging/splitting extents is non-trivial.
+	 */
 	if (extents_init(tsdn, &arena->extents_cached, extent_state_dirty,
-	    false)) {
+	    true)) {
 		goto label_error;
 	}
+	/*
+	 * Coalesce retained extents immediately, in part because they will
+	 * never be evicted (and therefore there's no opportunity for delayed
+	 * coalescing), but also because operations on retained extents are not
+	 * in the critical path.
+	 */
 	if (extents_init(tsdn, &arena->extents_retained,
-	    extent_state_retained, true)) {
+	    extent_state_retained, false)) {
 		goto label_error;
 	}
 
