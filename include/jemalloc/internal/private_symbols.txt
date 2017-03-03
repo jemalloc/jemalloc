@@ -159,8 +159,10 @@ extent_init
 extent_last_get
 extent_list_append
 extent_list_first
+extent_list_init
 extent_list_last
 extent_list_remove
+extent_list_replace
 extent_lookup
 extent_merge_wrapper
 extent_past_get

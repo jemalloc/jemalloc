@@ -37,6 +37,8 @@ void extent_list_init(extent_list_t *list);
 extent_t *extent_list_first(const extent_list_t *list);
 extent_t *extent_list_last(const extent_list_t *list);
 void extent_list_append(extent_list_t *list, extent_t *extent);
+void extent_list_replace(extent_list_t *list, extent_t *to_remove,
+    extent_t *to_insert);
 void extent_list_remove(extent_list_t *list, extent_t *extent);
 int	extent_sn_comp(const extent_t *a, const extent_t *b);
 int	extent_ad_comp(const extent_t *a, const extent_t *b);
@@ -251,6 +253,13 @@ extent_list_last(const extent_list_t *list) {
 JEMALLOC_INLINE void
 extent_list_append(extent_list_t *list, extent_t *extent) {
 	ql_tail_insert(list, extent, ql_link);
+}
+
+JEMALLOC_INLINE void
+extent_list_replace(extent_list_t *list, extent_t *to_remove,
+    extent_t *to_insert) {
+	ql_after_insert(to_remove, to_insert, ql_link);
+	ql_remove(list, to_remove, ql_link);
 }
 
 JEMALLOC_INLINE void
