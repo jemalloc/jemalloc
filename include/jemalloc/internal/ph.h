@@ -198,8 +198,10 @@ struct {								\
 a_attr void	a_prefix##new(a_ph_type *ph);				\
 a_attr bool	a_prefix##empty(a_ph_type *ph);				\
 a_attr a_type	*a_prefix##first(a_ph_type *ph);			\
+a_attr a_type	*a_prefix##any(a_ph_type *ph);				\
 a_attr void	a_prefix##insert(a_ph_type *ph, a_type *phn);		\
 a_attr a_type	*a_prefix##remove_first(a_ph_type *ph);			\
+a_attr a_type	*a_prefix##remove_any(a_ph_type *ph);			\
 a_attr void	a_prefix##remove(a_ph_type *ph, a_type *phn);
 
 /*
@@ -221,6 +223,17 @@ a_prefix##first(a_ph_type *ph) {					\
 		return NULL;						\
 	}								\
 	ph_merge_aux(a_type, a_field, ph, a_cmp);			\
+	return ph->ph_root;						\
+}									\
+a_attr a_type *								\
+a_prefix##any(a_ph_type *ph) {						\
+	if (ph->ph_root == NULL) {					\
+		return NULL;						\
+	}								\
+	a_type *aux = phn_next_get(a_type, a_field, ph->ph_root);	\
+	if (aux != NULL) {						\
+		return aux;						\
+	}								\
 	return ph->ph_root;						\
 }									\
 a_attr void								\
@@ -266,15 +279,52 @@ a_prefix##remove_first(a_ph_type *ph) {					\
 									\
 	return ret;							\
 }									\
+a_attr a_type *								\
+a_prefix##remove_any(a_ph_type *ph) {					\
+	/*								\
+	 * Remove the most recently inserted aux list element, or the	\
+	 * root if the aux list is empty.  This has the effect of	\
+	 * behaving as a LIFO (and insertion/removal is therefore	\
+	 * constant-time) if a_prefix##[remove_]first() are never	\
+	 * called.							\
+	 */								\
+	if (ph->ph_root == NULL) {					\
+		return NULL;						\
+	}								\
+	a_type *ret = phn_next_get(a_type, a_field, ph->ph_root);	\
+	if (ret != NULL) {						\
+		a_type *aux = phn_next_get(a_type, a_field, ret);	\
+		phn_next_set(a_type, a_field, ph->ph_root, aux);	\
+		if (aux != NULL) {					\
+			phn_prev_set(a_type, a_field, aux,		\
+			    ph->ph_root);				\
+		}							\
+		return ret;						\
+	}								\
+	ret = ph->ph_root;						\
+	ph_merge_children(a_type, a_field, ph->ph_root, a_cmp,		\
+	    ph->ph_root);						\
+	return ret;							\
+}									\
 a_attr void								\
 a_prefix##remove(a_ph_type *ph, a_type *phn) {				\
 	a_type *replace, *parent;					\
 									\
-	/*								\
-	 * We can delete from aux list without merging it, but we need	\
-	 * to merge if we are dealing with the root node.		\
-	 */								\
 	if (ph->ph_root == phn) {					\
+		/*							\
+		 * We can delete from aux list without merging it, but	\
+		 * we need to merge if we are dealing with the root	\
+		 * node and it has children.				\
+		 */							\
+		if (phn_lchild_get(a_type, a_field, phn) == NULL) {	\
+			ph->ph_root = phn_next_get(a_type, a_field,	\
+			    phn);					\
+			if (ph->ph_root != NULL) {			\
+				phn_prev_set(a_type, a_field,		\
+				    ph->ph_root, NULL);			\
+			}						\
+			return;						\
+		}							\
 		ph_merge_aux(a_type, a_field, ph, a_cmp);		\
 		if (ph->ph_root == phn) {				\
 			ph_merge_children(a_type, a_field, ph->ph_root,	\
