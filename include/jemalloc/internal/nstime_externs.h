@@ -5,6 +5,7 @@ void	nstime_init(nstime_t *time, uint64_t ns);
 void	nstime_init2(nstime_t *time, uint64_t sec, uint64_t nsec);
 uint64_t	nstime_ns(const nstime_t *time);
 uint64_t	nstime_sec(const nstime_t *time);
+uint64_t	nstime_msec(const nstime_t *time);
 uint64_t	nstime_nsec(const nstime_t *time);
 void	nstime_copy(nstime_t *time, const nstime_t *source);
 int	nstime_compare(const nstime_t *a, const nstime_t *b);
