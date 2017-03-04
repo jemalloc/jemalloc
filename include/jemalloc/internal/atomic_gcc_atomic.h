@@ -1,6 +1,8 @@
 #ifndef JEMALLOC_INTERNAL_ATOMIC_GCC_ATOMIC_H
 #define JEMALLOC_INTERNAL_ATOMIC_GCC_ATOMIC_H
 
+#include "jemalloc/internal/assert.h"
+
 #define ATOMIC_INIT(...) {__VA_ARGS__}
 
 typedef enum {
@@ -25,8 +27,8 @@ atomic_enum_to_builtin(atomic_memory_order_t mo) {
 	case atomic_memory_order_seq_cst:
 		return __ATOMIC_SEQ_CST;
 	}
-	/* Can't actually happen; the switch is exhaustive. */
-	return __ATOMIC_SEQ_CST;
+	/* Can't happen; the switch is exhaustive. */
+	not_reached();
 }
 
 ATOMIC_INLINE void
