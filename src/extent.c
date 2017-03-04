@@ -238,17 +238,20 @@ extents_remove_locked(tsdn_t *tsdn, extents_t *extents, extent_t *extent,
 }
 
 /*
- * Do first-best-fit extent selection, i.e. select the oldest/lowest extent that
- * best fits.
+ * Do {first,any}-best-fit extent selection, i.e. select the oldest/lowest or
+ * any extent that best fits, where {first,any} corresponds to
+ * extents->delay_coalesce={false,true}.
  */
 static extent_t *
-extents_first_best_fit_locked(tsdn_t *tsdn, arena_t *arena, extents_t *extents,
+extents_best_fit_locked(tsdn_t *tsdn, arena_t *arena, extents_t *extents,
     size_t size) {
 	malloc_mutex_assert_owner(tsdn, &extents->mtx);
 
 	pszind_t pind = psz2ind(extent_size_quantize_ceil(size));
 	for (pszind_t i = pind; i < NPSIZES+1; i++) {
-		extent_t *extent = extent_heap_first(&extents->heaps[i]);
+		extent_t *extent = extents->delay_coalesce ?
+		    extent_heap_any(&extents->heaps[i]) :
+		    extent_heap_first(&extents->heaps[i]);
 		if (extent != NULL) {
 			assert(extent_size_get(extent) >= size);
 			return extent;
@@ -620,7 +623,7 @@ extent_recycle_extract(tsdn_t *tsdn, arena_t *arena,
 			extent = NULL;
 		}
 	} else {
-		extent = extents_first_best_fit_locked(tsdn, arena, extents,
+		extent = extents_best_fit_locked(tsdn, arena, extents,
 		    alloc_size);
 	}
 	if (extent == NULL) {
