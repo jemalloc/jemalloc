@@ -145,6 +145,7 @@ CTL_PROTO(stats_arenas_i_bins_j_nflushes)
 CTL_PROTO(stats_arenas_i_bins_j_nslabs)
 CTL_PROTO(stats_arenas_i_bins_j_nreslabs)
 CTL_PROTO(stats_arenas_i_bins_j_curslabs)
+CTL_PROTO(stats_arenas_i_bins_j_lock_data)
 INDEX_PROTO(stats_arenas_i_bins_j)
 CTL_PROTO(stats_arenas_i_lextents_j_nmalloc)
 CTL_PROTO(stats_arenas_i_lextents_j_ndalloc)
@@ -357,7 +358,8 @@ static const ctl_named_node_t stats_arenas_i_bins_j_node[] = {
 	{NAME("nflushes"),	CTL(stats_arenas_i_bins_j_nflushes)},
 	{NAME("nslabs"),	CTL(stats_arenas_i_bins_j_nslabs)},
 	{NAME("nreslabs"),	CTL(stats_arenas_i_bins_j_nreslabs)},
-	{NAME("curslabs"),	CTL(stats_arenas_i_bins_j_curslabs)}
+	{NAME("curslabs"),	CTL(stats_arenas_i_bins_j_curslabs)},
+	{NAME("lock_data"),	CTL(stats_arenas_i_bins_j_lock_data)}
 };
 static const ctl_named_node_t super_stats_arenas_i_bins_j_node[] = {
 	{NAME(""),		CHILD(named, stats_arenas_i_bins_j)}
@@ -726,6 +728,8 @@ ctl_arena_stats_sdmerge(ctl_arena_t *ctl_sdarena, ctl_arena_t *ctl_arena,
 			} else {
 				assert(astats->bstats[i].curslabs == 0);
 			}
+			malloc_lock_prof_merge(&sdstats->bstats[i].lock_data,
+			    &astats->bstats[i].lock_data);
 		}
 
 		for (i = 0; i < NSIZES - NBINS; i++) {
@@ -2333,6 +2337,8 @@ CTL_RO_CGEN(config_stats, stats_arenas_i_bins_j_nreslabs,
     arenas_i(mib[2])->astats->bstats[mib[4]].reslabs, uint64_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_bins_j_curslabs,
     arenas_i(mib[2])->astats->bstats[mib[4]].curslabs, size_t)
+CTL_RO_CGEN(config_stats, stats_arenas_i_bins_j_lock_data,
+    arenas_i(mib[2])->astats->bstats[mib[4]].lock_data, lock_prof_data_t)
 
 static const ctl_named_node_t *
 stats_arenas_i_bins_j_index(tsdn_t *tsdn, const size_t *mib, size_t miblen,

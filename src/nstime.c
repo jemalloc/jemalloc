@@ -1,6 +1,7 @@
 #include "jemalloc/internal/jemalloc_internal.h"
 
 #define BILLION	UINT64_C(1000000000)
+#define MILLION	UINT64_C(1000000)
 
 void
 nstime_init(nstime_t *time, uint64_t ns) {
@@ -15,6 +16,11 @@ nstime_init2(nstime_t *time, uint64_t sec, uint64_t nsec) {
 uint64_t
 nstime_ns(const nstime_t *time) {
 	return time->ns;
+}
+
+uint64_t
+nstime_msec(const nstime_t *time) {
+	return time->ns / MILLION;
 }
 
 uint64_t

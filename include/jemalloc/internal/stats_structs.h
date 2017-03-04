@@ -56,6 +56,8 @@ struct malloc_bin_stats_s {
 
 	/* Current number of slabs in this bin. */
 	size_t		curslabs;
+
+	lock_prof_data_t lock_data;
 };
 
 struct malloc_large_stats_s {

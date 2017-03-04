@@ -32,6 +32,31 @@ bool	opt_stats_print = false;
 
 /******************************************************************************/
 
+/* Calculate x.yyy and output a string (takes a fixed sized char array). */
+static bool
+get_rate_str(uint64_t dividend, uint64_t divisor, char str[6]) {
+	if (divisor == 0 || dividend > divisor) {
+		/* The rate is not supposed to be greater than 1. */
+		return true;
+	}
+	if (dividend > 0) {
+		assert(UINT64_MAX / dividend >= 1000);
+	}
+
+	unsigned n = (unsigned)((dividend * 1000) / divisor);
+	if (n < 10) {
+		malloc_snprintf(str, 6, "0.00%u", n);
+	} else if (n < 100) {
+		malloc_snprintf(str, 6, "0.0%u", n);
+	} else if (n < 1000) {
+		malloc_snprintf(str, 6, "0.%u", n);
+	} else {
+		malloc_snprintf(str, 6, "1");
+	}
+
+	return false;
+}
+
 static void
 stats_arena_bins_print(void (*write_cb)(void *, const char *), void *cbopaque,
     bool json, bool large, unsigned i) {
@@ -51,13 +76,14 @@ stats_arena_bins_print(void (*write_cb)(void *, const char *), void *cbopaque,
 			    "bins:           size ind    allocated      nmalloc"
 			    "      ndalloc    nrequests      curregs"
 			    "     curslabs regs pgs  util       nfills"
-			    "     nflushes     newslabs      reslabs\n");
+			    "     nflushes     newslabs      reslabs"
+			    "   contention     max_wait\n");
 		} else {
 			malloc_cprintf(write_cb, cbopaque,
 			    "bins:           size ind    allocated      nmalloc"
 			    "      ndalloc    nrequests      curregs"
 			    "     curslabs regs pgs  util     newslabs"
-			    "      reslabs\n");
+			    "      reslabs   contention     max_wait\n");
 		}
 	}
 	for (j = 0, in_gap = false; j < nbins; j++) {
@@ -100,6 +126,9 @@ stats_arena_bins_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		    uint64_t);
 		CTL_M2_M4_GET("stats.arenas.0.bins.0.curslabs", i, j, &curslabs,
 		    size_t);
+		lock_prof_data_t lock_data;
+		CTL_M2_M4_GET("stats.arenas.0.bins.0.lock_data", i, j,
+		    &lock_data, lock_prof_data_t);
 
 		if (json) {
 			malloc_cprintf(write_cb, cbopaque,
@@ -127,55 +156,59 @@ stats_arena_bins_print(void (*write_cb)(void *, const char *), void *cbopaque,
 			    curslabs,
 			    (j + 1 < nbins) ? "," : "");
 		} else if (!in_gap) {
-			size_t availregs, milli;
-			char util[6]; /* "x.yyy". */
-
-			availregs = nregs * curslabs;
-			milli = (availregs != 0) ? (1000 * curregs) / availregs
-			    : 1000;
-
-			if (milli > 1000) {
-				/*
-				 * Race detected: the counters were read in
-				 * separate mallctl calls and concurrent
-				 * operations happened in between. In this case
-				 * no meaningful utilization can be computed.
-				 */
-				malloc_snprintf(util, sizeof(util), " race");
-			} else if (milli < 10) {
-				malloc_snprintf(util, sizeof(util),
-				    "0.00%zu", milli);
-			} else if (milli < 100) {
-				malloc_snprintf(util, sizeof(util), "0.0%zu",
-				    milli);
-			} else if (milli < 1000) {
-				malloc_snprintf(util, sizeof(util), "0.%zu",
-				    milli);
-			} else {
-				assert(milli == 1000);
-				malloc_snprintf(util, sizeof(util), "1");
+			size_t availregs = nregs * curslabs;
+			char util[6];
+			if (get_rate_str((uint64_t)curregs, (uint64_t)availregs,
+			    util)) {
+				if (availregs == 0) {
+					malloc_snprintf(util, sizeof(util),
+					    "1");
+				} else if (curregs > availregs) {
+					/*
+					 * Race detected: the counters were read
+					 * in separate mallctl calls and
+					 * concurrent operations happened in
+					 * between. In this case no meaningful
+					 * utilization can be computed.
+					 */
+					malloc_snprintf(util, sizeof(util),
+					    " race");
+				} else {
+					not_reached();
+				}
 			}
+			char rate[6];
+			if (get_rate_str(lock_data.n_wait_times,
+			    lock_data.n_lock_ops, rate)) {
+				if (lock_data.n_lock_ops == 0) {
+					malloc_snprintf(rate, sizeof(rate),
+					    "0");
+				}
+			}
+			uint64_t max_wait = nstime_msec(
+			    &lock_data.max_wait_time);
 
 			if (config_tcache) {
 				malloc_cprintf(write_cb, cbopaque,
 				    "%20zu %3u %12zu %12"FMTu64
 				    " %12"FMTu64" %12"FMTu64" %12zu"
 				    " %12zu %4u %3zu %-5s %12"FMTu64
-				    " %12"FMTu64" %12"FMTu64" %12"FMTu64"\n",
+				    " %12"FMTu64" %12"FMTu64" %12"FMTu64
+				    " %12s %12"FMTu64"\n",
 				    reg_size, j, curregs * reg_size, nmalloc,
 				    ndalloc, nrequests, curregs, curslabs,
 				    nregs, slab_size / page, util, nfills,
-				    nflushes, nslabs, nreslabs);
+				    nflushes, nslabs, nreslabs, rate, max_wait);
 			} else {
 				malloc_cprintf(write_cb, cbopaque,
 				    "%20zu %3u %12zu %12"FMTu64
 				    " %12"FMTu64" %12"FMTu64" %12zu"
 				    " %12zu %4u %3zu %-5s %12"FMTu64
-				    " %12"FMTu64"\n",
+				    " %12"FMTu64" %12s\n",
 				    reg_size, j, curregs * reg_size, nmalloc,
 				    ndalloc, nrequests, curregs, curslabs,
 				    nregs, slab_size / page, util, nslabs,
-				    nreslabs);
+				    nreslabs, rate);
 			}
 		}
 	}

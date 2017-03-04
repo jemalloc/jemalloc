@@ -299,6 +299,7 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 		arena_bin_t *bin = &arena->bins[i];
 
 		malloc_mutex_lock(tsdn, &bin->lock);
+		malloc_lock_prof_read(tsdn, &bstats[i].lock_data, &bin->lock);
 		bstats[i].nmalloc += bin->stats.nmalloc;
 		bstats[i].ndalloc += bin->stats.ndalloc;
 		bstats[i].nrequests += bin->stats.nrequests;

@@ -273,6 +273,7 @@ malloc_mutex_assert_owner
 malloc_mutex_boot
 malloc_mutex_init
 malloc_mutex_lock
+malloc_mutex_lock_slow
 malloc_mutex_postfork_child
 malloc_mutex_postfork_parent
 malloc_mutex_prefork
@@ -302,6 +303,7 @@ nstime_imultiply
 nstime_init
 nstime_init2
 nstime_monotonic
+nstime_msec
 nstime_ns
 nstime_nsec
 nstime_sec
