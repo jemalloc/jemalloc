@@ -89,7 +89,7 @@ arena_stats_add_u64(tsdn_t *tsdn, arena_stats_t *arena_stats, uint64_t *p,
 #endif
 }
 
-static void
+UNUSED static void
 arena_stats_sub_u64(tsdn_t *tsdn, arena_stats_t *arena_stats, uint64_t *p,
     uint64_t x) {
 #ifdef JEMALLOC_ATOMIC_U64
@@ -206,11 +206,12 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 
 		uint64_t nrequests = arena_stats_read_u64(tsdn, &arena->stats,
 		    &arena->stats.lstats[i].nrequests);
-		lstats[i].nrequests += nrequests;
-		astats->nrequests_large += nrequests;
+		lstats[i].nrequests += nmalloc + nrequests;
+		astats->nrequests_large += nmalloc + nrequests;
 
-		size_t curlextents = arena_stats_read_zu(tsdn,
-		    &arena->stats, &arena->stats.lstats[i].curlextents);
+		assert(nmalloc >= ndalloc);
+		assert(nmalloc - ndalloc <= SIZE_T_MAX);
+		size_t curlextents = (size_t)(nmalloc - ndalloc);
 		lstats[i].curlextents += curlextents;
 		astats->allocated_large += curlextents * index2size(NBINS + i);
 	}
@@ -359,10 +360,6 @@ arena_large_malloc_stats_update(tsdn_t *tsdn, arena_t *arena, size_t usize) {
 
 	arena_stats_add_u64(tsdn, &arena->stats,
 	    &arena->stats.lstats[hindex].nmalloc, 1);
-	arena_stats_add_u64(tsdn, &arena->stats,
-	    &arena->stats.lstats[hindex].nrequests, 1);
-	arena_stats_add_zu(tsdn, &arena->stats,
-	    &arena->stats.lstats[hindex].curlextents, 1);
 }
 
 static void
@@ -379,21 +376,6 @@ arena_large_dalloc_stats_update(tsdn_t *tsdn, arena_t *arena, size_t usize) {
 
 	arena_stats_add_u64(tsdn, &arena->stats,
 	    &arena->stats.lstats[hindex].ndalloc, 1);
-	arena_stats_sub_zu(tsdn, &arena->stats,
-	    &arena->stats.lstats[hindex].curlextents, 1);
-}
-
-static void
-arena_large_reset_stats_cancel(tsdn_t *tsdn, arena_t *arena, size_t usize) {
-	szind_t index = size2index(usize);
-	szind_t hindex = (index >= NBINS) ? index - NBINS : 0;
-
-	cassert(config_stats);
-
-	arena_stats_lock(tsdn, &arena->stats);
-	arena_stats_sub_u64(tsdn, &arena->stats,
-	    &arena->stats.lstats[hindex].ndalloc, 1);
-	arena_stats_unlock(tsdn, &arena->stats);
 }
 
 static void
@@ -912,11 +894,6 @@ arena_reset(tsd_t *tsd, arena_t *arena) {
 		}
 		large_dalloc(tsd_tsdn(tsd), extent);
 		malloc_mutex_lock(tsd_tsdn(tsd), &arena->large_mtx);
-		/* Cancel out unwanted effects on stats. */
-		if (config_stats) {
-			arena_large_reset_stats_cancel(tsd_tsdn(tsd), arena,
-			    usize);
-		}
 	}
 	malloc_mutex_unlock(tsd_tsdn(tsd), &arena->large_mtx);
 

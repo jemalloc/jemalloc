@@ -64,10 +64,10 @@ struct malloc_large_stats_s {
 	 * This includes requests served by tcache, though tcache only
 	 * periodically merges into this counter.
 	 */
-	uint64_t	nrequests;
+	uint64_t	nrequests; /* Partially derived. */
 
 	/* Current number of allocations of this size class. */
-	size_t		curlextents;
+	size_t		curlextents; /* Derived. */
 };
 
 /*
