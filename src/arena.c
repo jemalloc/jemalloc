@@ -470,16 +470,12 @@ arena_extent_ralloc_large_expand(tsdn_t *tsdn, arena_t *arena, extent_t *extent,
 
 static ssize_t
 arena_decay_time_read(arena_t *arena) {
-	arena_decay_time_t dt;
-	dt.u = atomic_read_zu(&arena->decay.time.u);
-	return dt.s;
+	return atomic_read_zd(&arena->decay.time);
 }
 
 static void
 arena_decay_time_write(arena_t *arena, ssize_t decay_time) {
-	arena_decay_time_t dt;
-	dt.s = decay_time;
-	atomic_write_zu(&arena->decay.time.u, dt.u);
+	atomic_write_zd(&arena->decay.time, decay_time);
 }
 
 static void
