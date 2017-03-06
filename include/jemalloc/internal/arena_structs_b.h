@@ -36,11 +36,6 @@ struct arena_bin_info_s {
 	bitmap_info_t		bitmap_info;
 };
 
-typedef union {
-	size_t			u; /* Used for atomic operations. */
-	ssize_t			s; /* Time may be negative (means "never"). */
-} arena_decay_time_t;
-
 struct arena_decay_s {
 	/* Synchronizes all non-atomic fields. */
 	malloc_mutex_t		mtx;
@@ -51,7 +46,7 @@ struct arena_decay_s {
 	 *
 	 * Synchronization: atomic.
 	 */
-	arena_decay_time_t	time;
+	ssize_t			time;
 	/* time / SMOOTHSTEP_NSTEPS. */
 	nstime_t		interval;
 	/*
