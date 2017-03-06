@@ -35,6 +35,7 @@ struct tcache_s {
 	uint64_t	prof_accumbytes;/* Cleared after arena_prof_accum(). */
 	ticker_t	gc_ticker;	/* Drives incremental GC. */
 	szind_t		next_gc_bin;	/* Next bin to GC. */
+	arena_t		*arena;		/* Associated arena. */
 	tcache_bin_t	tbins[1];	/* Dynamically sized. */
 	/*
 	 * The pointer stacks associated with tbins follow as a contiguous

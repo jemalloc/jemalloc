@@ -34,7 +34,7 @@ void	tcache_bin_flush_small(tsd_t *tsd, tcache_t *tcache, tcache_bin_t *tbin,
 void	tcache_bin_flush_large(tsd_t *tsd, tcache_bin_t *tbin, szind_t binind,
     unsigned rem, tcache_t *tcache);
 void	tcache_arena_reassociate(tsdn_t *tsdn, tcache_t *tcache,
-    arena_t *oldarena, arena_t *newarena);
+    arena_t *arena);
 tcache_t *tcache_get_hard(tsd_t *tsd);
 tcache_t *tcache_create(tsdn_t *tsdn, arena_t *arena);
 void	tcache_cleanup(tsd_t *tsd);
