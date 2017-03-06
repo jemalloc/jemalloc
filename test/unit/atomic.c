@@ -249,6 +249,13 @@ TEST_BEGIN(test_atomic_zu) {
 }
 TEST_END
 
+TEST_STRUCT(ssize_t, zd);
+TEST_BEGIN(test_atomic_zd) {
+	INTEGER_TEST_BODY(ssize_t, zd);
+}
+TEST_END
+
+
 TEST_STRUCT(unsigned, u);
 TEST_BEGIN(test_atomic_u) {
 	INTEGER_TEST_BODY(unsigned, u);
@@ -262,5 +269,6 @@ main(void) {
 	    test_atomic_u32,
 	    test_atomic_p,
 	    test_atomic_zu,
+	    test_atomic_zd,
 	    test_atomic_u);
 }
