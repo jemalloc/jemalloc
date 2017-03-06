@@ -446,6 +446,7 @@ arena_migrate(tsd_t *tsd, unsigned oldind, unsigned newind) {
 	arena_nthreads_dec(oldarena, false);
 	arena_nthreads_inc(newarena, false);
 	tsd_arena_set(tsd, newarena);
+	tsd_iarena_set(tsd, newarena);
 }
 
 static void

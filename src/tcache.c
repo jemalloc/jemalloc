@@ -99,7 +99,7 @@ tcache_bin_flush_small(tsd_t *tsd, tcache_t *tcache, tcache_bin_t *tbin,
 	assert(binind < NBINS);
 	assert(rem <= tbin->ncached);
 
-	arena = arena_choose(tsd, NULL);
+	arena = tcache->arena;
 	assert(arena != NULL);
 	for (nflush = tbin->ncached - rem; nflush > 0; nflush = ndeferred) {
 		/* Lock the arena bin associated with the first object. */
@@ -175,7 +175,7 @@ tcache_bin_flush_large(tsd_t *tsd, tcache_bin_t *tbin, szind_t binind,
 	assert(binind < nhbins);
 	assert(rem <= tbin->ncached);
 
-	arena_t *arena = arena_choose(tsd, NULL);
+	arena_t *arena = tcache->arena;
 	assert(arena != NULL);
 	unsigned nflush = tbin->ncached - rem;
 	while (nflush > 0) {
@@ -259,6 +259,7 @@ tcache_bin_flush_large(tsd_t *tsd, tcache_bin_t *tbin, szind_t binind,
 
 static void
 tcache_arena_associate(tsdn_t *tsdn, tcache_t *tcache, arena_t *arena) {
+	tcache->arena = arena;
 	if (config_stats) {
 		/* Link into list of extant tcaches. */
 		malloc_mutex_lock(tsdn, &arena->tcache_ql_mtx);
@@ -269,7 +270,8 @@ tcache_arena_associate(tsdn_t *tsdn, tcache_t *tcache, arena_t *arena) {
 }
 
 static void
-tcache_arena_dissociate(tsdn_t *tsdn, tcache_t *tcache, arena_t *arena) {
+tcache_arena_dissociate(tsdn_t *tsdn, tcache_t *tcache) {
+	arena_t *arena = tcache->arena;
 	if (config_stats) {
 		/* Unlink from list of extant tcaches. */
 		malloc_mutex_lock(tsdn, &arena->tcache_ql_mtx);
@@ -291,10 +293,9 @@ tcache_arena_dissociate(tsdn_t *tsdn, tcache_t *tcache, arena_t *arena) {
 }
 
 void
-tcache_arena_reassociate(tsdn_t *tsdn, tcache_t *tcache, arena_t *oldarena,
-    arena_t *newarena) {
-	tcache_arena_dissociate(tsdn, tcache, oldarena);
-	tcache_arena_associate(tsdn, tcache, newarena);
+tcache_arena_reassociate(tsdn_t *tsdn, tcache_t *tcache, arena_t *arena) {
+	tcache_arena_dissociate(tsdn, tcache);
+	tcache_arena_associate(tsdn, tcache, arena);
 }
 
 tcache_t *
@@ -360,7 +361,7 @@ tcache_destroy(tsd_t *tsd, tcache_t *tcache) {
 	unsigned i;
 
 	arena = arena_choose(tsd, NULL);
-	tcache_arena_dissociate(tsd_tsdn(tsd), tcache, arena);
+	tcache_arena_dissociate(tsd_tsdn(tsd), tcache);
 
 	for (i = 0; i < NBINS; i++) {
 		tcache_bin_t *tbin = &tcache->tbins[i];

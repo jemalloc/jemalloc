@@ -123,17 +123,27 @@ generate_dirty(unsigned arena_ind, size_t size) {
 
 TEST_BEGIN(test_decay_ticks) {
 	ticker_t *decay_ticker;
-	unsigned tick0, tick1;
+	unsigned tick0, tick1, arena_ind;
 	size_t sz, large0;
 	void *p;
-
-	decay_ticker = decay_ticker_get(tsd_fetch(), 0);
-	assert_ptr_not_null(decay_ticker,
-	    "Unexpected failure getting decay ticker");
 
 	sz = sizeof(size_t);
 	assert_d_eq(mallctl("arenas.lextent.0.size", (void *)&large0, &sz, NULL,
 	    0), 0, "Unexpected mallctl failure");
+
+	int err;
+	/* Set up a manually managed arena for test. */
+	arena_ind = do_arena_create(0);
+
+	/* Migrate to the new arena, and get the ticker. */
+	unsigned old_arena_ind;
+	size_t sz_arena_ind = sizeof(old_arena_ind);
+	err = mallctl("thread.arena", (void *)&old_arena_ind, &sz_arena_ind,
+		      (void *)&arena_ind, sizeof(arena_ind));
+	assert_d_eq(err, 0, "Unexpected mallctl() failure");
+	decay_ticker = decay_ticker_get(tsd_fetch(), arena_ind);
+	assert_ptr_not_null(decay_ticker,
+	    "Unexpected failure getting decay ticker");
 
 	/*
 	 * Test the standard APIs using a large size class, since we can't
@@ -263,6 +273,12 @@ TEST_BEGIN(test_decay_ticks) {
 		tcache_sizes[0] = large0;
 		tcache_sizes[1] = 1;
 
+		size_t tcache_max, sz_tcache_max;
+		sz_tcache_max = sizeof(tcache_max);
+		err = mallctl("arenas.tcache_max", (void *)&tcache_max,
+		    &sz_tcache_max, NULL, 0);
+		assert_d_eq(err, 0, "Unexpected mallctl() failure");
+
 		sz = sizeof(unsigned);
 		assert_d_eq(mallctl("tcache.create", (void *)&tcache_ind, &sz,
 		    NULL, 0), 0, "Unexpected mallctl failure");
@@ -285,9 +301,17 @@ TEST_BEGIN(test_decay_ticks) {
 			    (void *)&tcache_ind, sizeof(unsigned)), 0,
 			    "Unexpected mallctl failure");
 			tick1 = ticker_read(decay_ticker);
-			assert_u32_ne(tick1, tick0,
-			    "Expected ticker to tick during tcache flush "
-			    "(sz=%zu)", sz);
+
+			/* Will only tick if it's in tcache. */
+			if (sz <= tcache_max) {
+				assert_u32_ne(tick1, tick0,
+				    "Expected ticker to tick during tcache "
+				    "flush (sz=%zu)", sz);
+			} else {
+				assert_u32_eq(tick1, tick0,
+				    "Unexpected ticker tick during tcache "
+				    "flush (sz=%zu)", sz);
+			}
 		}
 	}
 }
