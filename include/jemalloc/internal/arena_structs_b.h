@@ -175,13 +175,6 @@ struct arena_s {
 	size_t			nactive;
 
 	/*
-	 * Decay-based purging state.
-	 *
-	 * Synchronization: lock.
-	 */
-	arena_decay_t		decay;
-
-	/*
 	 * Extant large allocations.
 	 *
 	 * Synchronization: large_mtx.
@@ -198,6 +191,13 @@ struct arena_s {
 	 */
 	extents_t		extents_cached;
 	extents_t		extents_retained;
+
+	/*
+	 * Decay-based purging state.
+	 *
+	 * Synchronization: internal.
+	 */
+	arena_decay_t		decay;
 
 	/*
 	 * True if a thread is currently executing arena_purge_to_limit().
