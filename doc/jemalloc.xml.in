@@ -926,6 +926,24 @@ mallctl("arena." STRINGIFY(MALLCTL_ARENAS_ALL) ".decay",
         number of CPUs, or one if there is a single CPU.</para></listitem>
       </varlistentry>
 
+      <varlistentry id="opt.percpu_arena">
+        <term>
+          <mallctl>opt.percpu_arena</mallctl>
+          (<type>const char *</type>)
+          <literal>r-</literal>
+        </term>
+        <listitem><para>Per CPU arena mode.  Use the <quote>percpu</quote>
+        setting to enable this feature, which uses number of CPUs to determine
+        number of arenas, and bind threads to arenas dynamically based on the
+        CPU the thread runs on currently.  <quote>phycpu</quote> setting uses
+        one arena per physical CPU, which means the two hyper threads on the
+        same CPU share one arena.  Note that no runtime checking regarding the
+        availability of hyper threading is done at the moment.  When set to
+        <quote>disabled</quote>, narenas and thread to arena association will
+        not be impacted by this option.  The default is
+        <quote>percpu</quote>. </para></listitem>
+      </varlistentry>
+
       <varlistentry id="opt.decay_time">
         <term>
           <mallctl>opt.decay_time</mallctl>
