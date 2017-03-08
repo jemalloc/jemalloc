@@ -168,14 +168,6 @@ struct arena_s {
 	dss_prec_t		dss_prec;
 
 	/*
-	 * 1/0 (true/false) if a thread is currently executing
-	 * arena_purge_to_limit().
-	 *
-	 * Synchronization: atomic.
-	 */
-	unsigned		purging;
-
-	/*
 	 * Number of pages in active extents.
 	 *
 	 * Synchronization: atomic.
@@ -206,6 +198,13 @@ struct arena_s {
 	 */
 	extents_t		extents_cached;
 	extents_t		extents_retained;
+
+	/*
+	 * True if a thread is currently executing arena_purge_to_limit().
+	 *
+	 * Synchronization: decay.mtx.
+	 */
+	bool			purging;
 
 	/*
 	 * Next extent size class in a growing series to use when satisfying a

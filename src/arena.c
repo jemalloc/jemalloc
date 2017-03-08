@@ -777,9 +777,10 @@ arena_purge_to_limit(tsdn_t *tsdn, arena_t *arena, size_t ndirty_limit) {
 	witness_assert_depth_to_rank(tsdn, WITNESS_RANK_CORE, 1);
 	malloc_mutex_assert_owner(tsdn, &arena->decay.mtx);
 
-	if (atomic_cas_u(&arena->purging, 0, 1)) {
+	if (arena->purging) {
 		return;
 	}
+	arena->purging = true;
 
 	extent_hooks_t *extent_hooks = extent_hooks_get(arena);
 	size_t npurge, npurged;
@@ -809,7 +810,7 @@ arena_purge_to_limit(tsdn_t *tsdn, arena_t *arena, size_t ndirty_limit) {
 	}
 
 label_return:
-	atomic_write_u(&arena->purging, 0);
+	arena->purging = false;
 }
 
 void
@@ -934,7 +935,6 @@ arena_reset(tsd_t *tsd, arena_t *arena) {
 		malloc_mutex_unlock(tsd_tsdn(tsd), &bin->lock);
 	}
 
-	assert(atomic_read_u(&arena->purging) == 0);
 	atomic_write_zu(&arena->nactive, 0);
 }
 
@@ -1676,7 +1676,6 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 
 	arena->dss_prec = extent_dss_prec_get();
 
-	atomic_write_u(&arena->purging, 0);
 	atomic_write_zu(&arena->nactive, 0);
 
 	if (arena_decay_init(arena, arena_decay_time_default_get())) {
@@ -1709,6 +1708,8 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 	    extent_state_retained, false)) {
 		goto label_error;
 	}
+
+	arena->purging = false;
 
 	if (!config_munmap) {
 		arena->extent_grow_next = psz2ind(HUGEPAGE);
