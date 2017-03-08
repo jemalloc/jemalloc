@@ -1743,29 +1743,39 @@ arena_boot(void) {
 void
 arena_prefork0(tsdn_t *tsdn, arena_t *arena) {
 	malloc_mutex_prefork(tsdn, &arena->decay.mtx);
+}
+
+void
+arena_prefork1(tsdn_t *tsdn, arena_t *arena) {
 	if (config_stats && config_tcache) {
 		malloc_mutex_prefork(tsdn, &arena->tcache_ql_mtx);
 	}
 }
 
 void
-arena_prefork1(tsdn_t *tsdn, arena_t *arena) {
+arena_prefork2(tsdn_t *tsdn, arena_t *arena) {
 	extents_prefork(tsdn, &arena->extents_cached);
 	extents_prefork(tsdn, &arena->extents_retained);
 }
 
 void
-arena_prefork2(tsdn_t *tsdn, arena_t *arena) {
+arena_prefork3(tsdn_t *tsdn, arena_t *arena) {
 	malloc_mutex_prefork(tsdn, &arena->extent_freelist_mtx);
 }
 
 void
-arena_prefork3(tsdn_t *tsdn, arena_t *arena) {
-	unsigned i;
-
+arena_prefork4(tsdn_t *tsdn, arena_t *arena) {
 	base_prefork(tsdn, arena->base);
+}
+
+void
+arena_prefork5(tsdn_t *tsdn, arena_t *arena) {
 	malloc_mutex_prefork(tsdn, &arena->large_mtx);
-	for (i = 0; i < NBINS; i++) {
+}
+
+void
+arena_prefork6(tsdn_t *tsdn, arena_t *arena) {
+	for (unsigned i = 0; i < NBINS; i++) {
 		malloc_mutex_prefork(tsdn, &arena->bins[i].lock);
 	}
 }
