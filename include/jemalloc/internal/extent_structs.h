@@ -109,9 +109,12 @@ struct extents_s {
 	/*
 	 * Page sum for all extents in heaps.
 	 *
-	 * Synchronization: atomic.
+	 * The synchronization here is a little tricky.  Modifications to npages
+	 * must hold mtx, but reads need not (though, a reader who sees npages
+	 * without holding the mutex can't assume anything about the rest of the
+	 * state of the extents_t).
 	 */
-	size_t			npages;
+	atomic_zu_t		npages;
 
 	/* All stored extents must be in the same state. */
 	extent_state_t		state;
