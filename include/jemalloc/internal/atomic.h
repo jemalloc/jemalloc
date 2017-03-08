@@ -45,6 +45,14 @@
 #define ATOMIC_SEQ_CST atomic_memory_order_seq_cst
 
 /*
+ * Not all platforms have 64-bit atomics.  If we do, this #define exposes that
+ * fact.
+ */
+#if (LG_SIZEOF_PTR == 3 || LG_SIZEOF_INT == 3)
+#  define JEMALLOC_ATOMIC_U64
+#endif
+
+/*
  * In order to let us transition atomics usage piecemeal (and reason locally
  * about memory orders), we'll support the previous API for a while.
  */
@@ -104,10 +112,10 @@ JEMALLOC_GENERATE_COMPATABILITY_INT_ATOMICS(ssize_t, zd)
 JEMALLOC_GENERATE_INT_ATOMICS(uint32_t, u32, 2)
 JEMALLOC_GENERATE_COMPATABILITY_INT_ATOMICS(uint32_t, u32)
 
-#  if (LG_SIZEOF_PTR == 3 || LG_SIZEOF_INT == 3)
+#ifdef JEMALLOC_ATOMIC_U64
 JEMALLOC_GENERATE_INT_ATOMICS(uint64_t, u64, 3)
 JEMALLOC_GENERATE_COMPATABILITY_INT_ATOMICS(uint64_t, u64)
-#  endif
+#endif
 
 #undef ATOMIC_INLINE
 
