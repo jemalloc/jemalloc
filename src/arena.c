@@ -78,9 +78,10 @@ arena_stats_unlock(tsdn_t *tsdn, arena_stats_t *arena_stats) {
 }
 
 static uint64_t
-arena_stats_read_u64(tsdn_t *tsdn, arena_stats_t *arena_stats, uint64_t *p) {
+arena_stats_read_u64(tsdn_t *tsdn, arena_stats_t *arena_stats,
+    arena_stats_u64_t *p) {
 #ifdef JEMALLOC_ATOMIC_U64
-	return atomic_read_u64(p);
+	return atomic_load_u64(p, ATOMIC_RELAXED);
 #else
 	malloc_mutex_assert_owner(tsdn, &arena_stats->mtx);
 	return *p;
@@ -88,10 +89,10 @@ arena_stats_read_u64(tsdn_t *tsdn, arena_stats_t *arena_stats, uint64_t *p) {
 }
 
 static void
-arena_stats_add_u64(tsdn_t *tsdn, arena_stats_t *arena_stats, uint64_t *p,
-    uint64_t x) {
+arena_stats_add_u64(tsdn_t *tsdn, arena_stats_t *arena_stats,
+    arena_stats_u64_t *p, uint64_t x) {
 #ifdef JEMALLOC_ATOMIC_U64
-	atomic_add_u64(p, x);
+	atomic_fetch_add_u64(p, x, ATOMIC_RELAXED);
 #else
 	malloc_mutex_assert_owner(tsdn, &arena_stats->mtx);
 	*p += x;
@@ -99,15 +100,30 @@ arena_stats_add_u64(tsdn_t *tsdn, arena_stats_t *arena_stats, uint64_t *p,
 }
 
 UNUSED static void
-arena_stats_sub_u64(tsdn_t *tsdn, arena_stats_t *arena_stats, uint64_t *p,
-    uint64_t x) {
+arena_stats_sub_u64(tsdn_t *tsdn, arena_stats_t *arena_stats,
+    arena_stats_u64_t *p, uint64_t x) {
 #ifdef JEMALLOC_ATOMIC_U64
-	UNUSED uint64_t r = atomic_sub_u64(p, x);
-	assert(r + x >= r);
+	UNUSED uint64_t r = atomic_fetch_sub_u64(p, x, ATOMIC_RELAXED);
+	assert(r - x <= r);
 #else
 	malloc_mutex_assert_owner(tsdn, &arena_stats->mtx);
 	*p -= x;
 	assert(*p + x >= *p);
+#endif
+}
+
+/*
+ * Non-atomically sets *dst += src.  *dst needs external synchronization.
+ * This lets us avoid the cost of a fetch_add when its unnecessary (note that
+ * the types here are atomic).
+ */
+static void
+arena_stats_accum_u64(arena_stats_u64_t *dst, uint64_t src) {
+#ifdef JEMALLOC_ATOMIC_U64
+	uint64_t cur_dst = atomic_load_u64(dst, ATOMIC_RELAXED);
+	atomic_store_u64(dst, src + cur_dst, ATOMIC_RELAXED);
+#else
+	*dst += src;
 #endif
 }
 
@@ -191,12 +207,12 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 	    &arena->stats.mapped);
 	astats->retained += (extents_npages_get(&arena->extents_retained) <<
 	    LG_PAGE);
-	astats->npurge += arena_stats_read_u64(tsdn, &arena->stats,
-	    &arena->stats.npurge);
-	astats->nmadvise += arena_stats_read_u64(tsdn, &arena->stats,
-	    &arena->stats.nmadvise);
-	astats->purged += arena_stats_read_u64(tsdn, &arena->stats,
-	    &arena->stats.purged);
+	arena_stats_accum_u64(&astats->npurge, arena_stats_read_u64(tsdn,
+	    &arena->stats, &arena->stats.npurge));
+	arena_stats_accum_u64(&astats->nmadvise, arena_stats_read_u64(tsdn,
+	    &arena->stats, &arena->stats.nmadvise));
+	arena_stats_accum_u64(&astats->purged, arena_stats_read_u64(tsdn,
+	    &arena->stats, &arena->stats.purged));
 	astats->base += base_allocated;
 	astats->internal += arena_internal_get(arena);
 	astats->resident += base_resident + (((atomic_read_zu(&arena->nactive) +
@@ -205,18 +221,20 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 	for (szind_t i = 0; i < NSIZES - NBINS; i++) {
 		uint64_t nmalloc = arena_stats_read_u64(tsdn, &arena->stats,
 		    &arena->stats.lstats[i].nmalloc);
-		lstats[i].nmalloc += nmalloc;
-		astats->nmalloc_large += nmalloc;
+		arena_stats_accum_u64(&lstats[i].nmalloc, nmalloc);
+		arena_stats_accum_u64(&astats->nmalloc_large, nmalloc);
 
 		uint64_t ndalloc = arena_stats_read_u64(tsdn, &arena->stats,
 		    &arena->stats.lstats[i].ndalloc);
-		lstats[i].ndalloc += ndalloc;
-		astats->ndalloc_large += ndalloc;
+		arena_stats_accum_u64(&lstats[i].ndalloc, ndalloc);
+		arena_stats_accum_u64(&astats->ndalloc_large, ndalloc);
 
 		uint64_t nrequests = arena_stats_read_u64(tsdn, &arena->stats,
 		    &arena->stats.lstats[i].nrequests);
-		lstats[i].nrequests += nmalloc + nrequests;
-		astats->nrequests_large += nmalloc + nrequests;
+		arena_stats_accum_u64(&lstats[i].nrequests,
+		    nmalloc + nrequests);
+		arena_stats_accum_u64(&astats->nrequests_large,
+		    nmalloc + nrequests);
 
 		assert(nmalloc >= ndalloc);
 		assert(nmalloc - ndalloc <= SIZE_T_MAX);

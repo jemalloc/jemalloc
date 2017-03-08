@@ -431,6 +431,33 @@ static const ctl_named_node_t super_root_node[] = {
 
 /******************************************************************************/
 
+/*
+ * Sets *dst + *src non-atomically.  This is safe, since everything is
+ * synchronized by the ctl mutex.
+ */
+static void
+accum_arena_stats_u64(arena_stats_u64_t *dst, arena_stats_u64_t *src) {
+#ifdef JEMALLOC_ATOMIC_U64
+	uint64_t cur_dst = atomic_load_u64(dst, ATOMIC_RELAXED);
+	uint64_t cur_src = atomic_load_u64(src, ATOMIC_RELAXED);
+	atomic_store_u64(dst, cur_dst + cur_src, ATOMIC_RELAXED);
+#else
+	*dst += *src;
+#endif
+}
+
+/* Likewise: with ctl mutex synchronization, reading is simple. */
+static uint64_t
+arena_stats_read_u64(arena_stats_u64_t *p) {
+#ifdef JEMALLOC_ATOMIC_U64
+	return atomic_load_u64(p, ATOMIC_RELAXED);
+#else
+	return *p;
+#endif
+}
+
+/******************************************************************************/
+
 static unsigned
 arenas_i2a_impl(size_t i, bool compat, bool validate) {
 	unsigned a;
@@ -589,9 +616,12 @@ ctl_arena_stats_sdmerge(ctl_arena_t *ctl_sdarena, ctl_arena_t *ctl_arena,
 			sdstats->astats.mapped += astats->astats.mapped;
 			sdstats->astats.retained += astats->astats.retained;
 		}
-		sdstats->astats.npurge += astats->astats.npurge;
-		sdstats->astats.nmadvise += astats->astats.nmadvise;
-		sdstats->astats.purged += astats->astats.purged;
+		accum_arena_stats_u64(&sdstats->astats.npurge,
+		    &astats->astats.npurge);
+		accum_arena_stats_u64(&sdstats->astats.nmadvise,
+		    &astats->astats.nmadvise);
+		accum_arena_stats_u64(&sdstats->astats.purged,
+		    &astats->astats.purged);
 
 		if (!destroyed) {
 			sdstats->astats.base += astats->astats.base;
@@ -616,10 +646,12 @@ ctl_arena_stats_sdmerge(ctl_arena_t *ctl_sdarena, ctl_arena_t *ctl_arena,
 		} else {
 			assert(astats->astats.allocated_large == 0);
 		}
-		sdstats->astats.nmalloc_large += astats->astats.nmalloc_large;
-		sdstats->astats.ndalloc_large += astats->astats.ndalloc_large;
-		sdstats->astats.nrequests_large +=
-		    astats->astats.nrequests_large;
+		accum_arena_stats_u64(&sdstats->astats.nmalloc_large,
+		    &astats->astats.nmalloc_large);
+		accum_arena_stats_u64(&sdstats->astats.ndalloc_large,
+		    &astats->astats.ndalloc_large);
+		accum_arena_stats_u64(&sdstats->astats.nrequests_large,
+		    &astats->astats.nrequests_large);
 
 		if (config_tcache) {
 			sdstats->astats.tcache_bytes +=
@@ -654,10 +686,12 @@ ctl_arena_stats_sdmerge(ctl_arena_t *ctl_sdarena, ctl_arena_t *ctl_arena,
 		}
 
 		for (i = 0; i < NSIZES - NBINS; i++) {
-			sdstats->lstats[i].nmalloc += astats->lstats[i].nmalloc;
-			sdstats->lstats[i].ndalloc += astats->lstats[i].ndalloc;
-			sdstats->lstats[i].nrequests +=
-			    astats->lstats[i].nrequests;
+			accum_arena_stats_u64(&sdstats->lstats[i].nmalloc,
+			    &astats->lstats[i].nmalloc);
+			accum_arena_stats_u64(&sdstats->lstats[i].ndalloc,
+			    &astats->lstats[i].ndalloc);
+			accum_arena_stats_u64(&sdstats->lstats[i].nrequests,
+			    &astats->lstats[i].nrequests);
 			if (!destroyed) {
 				sdstats->lstats[i].curlextents +=
 				    astats->lstats[i].curlextents;
@@ -2139,11 +2173,11 @@ CTL_RO_CGEN(config_stats, stats_arenas_i_mapped,
 CTL_RO_CGEN(config_stats, stats_arenas_i_retained,
     arenas_i(mib[2])->astats->astats.retained, size_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_npurge,
-    arenas_i(mib[2])->astats->astats.npurge, uint64_t)
+    arena_stats_read_u64(&arenas_i(mib[2])->astats->astats.npurge), uint64_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_nmadvise,
-    arenas_i(mib[2])->astats->astats.nmadvise, uint64_t)
+    arena_stats_read_u64(&arenas_i(mib[2])->astats->astats.nmadvise), uint64_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_purged,
-    arenas_i(mib[2])->astats->astats.purged, uint64_t)
+    arena_stats_read_u64(&arenas_i(mib[2])->astats->astats.purged), uint64_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_base,
     arenas_i(mib[2])->astats->astats.base, size_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_internal,
@@ -2164,11 +2198,14 @@ CTL_RO_CGEN(config_stats, stats_arenas_i_small_nrequests,
 CTL_RO_CGEN(config_stats, stats_arenas_i_large_allocated,
     arenas_i(mib[2])->astats->astats.allocated_large, size_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_large_nmalloc,
-    arenas_i(mib[2])->astats->astats.nmalloc_large, uint64_t)
+    arena_stats_read_u64(&arenas_i(mib[2])->astats->astats.nmalloc_large),
+    uint64_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_large_ndalloc,
-    arenas_i(mib[2])->astats->astats.ndalloc_large, uint64_t)
+    arena_stats_read_u64(&arenas_i(mib[2])->astats->astats.ndalloc_large),
+    uint64_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_large_nrequests,
-    arenas_i(mib[2])->astats->astats.nmalloc_large, uint64_t) /* Intentional. */
+    arena_stats_read_u64(&arenas_i(mib[2])->astats->astats.nmalloc_large),
+    uint64_t) /* Intentional. */
 
 CTL_RO_CGEN(config_stats, stats_arenas_i_bins_j_nmalloc,
     arenas_i(mib[2])->astats->bstats[mib[4]].nmalloc, uint64_t)
@@ -2199,11 +2236,14 @@ stats_arenas_i_bins_j_index(tsdn_t *tsdn, const size_t *mib, size_t miblen,
 }
 
 CTL_RO_CGEN(config_stats, stats_arenas_i_lextents_j_nmalloc,
-    arenas_i(mib[2])->astats->lstats[mib[4]].nmalloc, uint64_t)
+    arena_stats_read_u64(&arenas_i(mib[2])->astats->lstats[mib[4]].nmalloc),
+    uint64_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_lextents_j_ndalloc,
-    arenas_i(mib[2])->astats->lstats[mib[4]].ndalloc, uint64_t)
+    arena_stats_read_u64(&arenas_i(mib[2])->astats->lstats[mib[4]].ndalloc),
+    uint64_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_lextents_j_nrequests,
-    arenas_i(mib[2])->astats->lstats[mib[4]].nrequests, uint64_t)
+        arena_stats_read_u64(
+	    &arenas_i(mib[2])->astats->lstats[mib[4]].nrequests), uint64_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_lextents_j_curlextents,
     arenas_i(mib[2])->astats->lstats[mib[4]].curlextents, size_t)
 
