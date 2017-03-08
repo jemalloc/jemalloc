@@ -186,7 +186,7 @@ extents_init(tsdn_t *tsdn, extents_t *extents, extent_state_t state,
 		extent_heap_new(&extents->heaps[i]);
 	}
 	extent_list_init(&extents->lru);
-	extents->npages = 0;
+	atomic_store_zu(&extents->npages, 0, ATOMIC_RELAXED);
 	extents->state = state;
 	extents->delay_coalesce = delay_coalesce;
 	return false;
@@ -199,7 +199,7 @@ extents_state_get(const extents_t *extents) {
 
 size_t
 extents_npages_get(extents_t *extents) {
-	return atomic_read_zu(&extents->npages);
+	return atomic_load_zu(&extents->npages, ATOMIC_RELAXED);
 }
 
 static void
@@ -216,7 +216,15 @@ extents_insert_locked(tsdn_t *tsdn, extents_t *extents, extent_t *extent,
 		extent_list_append(&extents->lru, extent);
 	}
 	size_t npages = size >> LG_PAGE;
-	atomic_add_zu(&extents->npages, npages);
+	/*
+	 * All modifications to npages hold the mutex (as asserted above), so we
+	 * don't need an atomic fetch-add; we can get by with a load followed by
+	 * a store.
+	 */
+	size_t cur_extents_npages =
+	    atomic_load_zu(&extents->npages, ATOMIC_RELAXED);
+	atomic_store_zu(&extents->npages, cur_extents_npages + npages,
+	    ATOMIC_RELAXED);
 }
 
 static void
@@ -233,8 +241,15 @@ extents_remove_locked(tsdn_t *tsdn, extents_t *extents, extent_t *extent,
 		extent_list_remove(&extents->lru, extent);
 	}
 	size_t npages = size >> LG_PAGE;
-	assert(atomic_read_zu(&extents->npages) >= npages);
-	atomic_sub_zu(&extents->npages, size >> LG_PAGE);
+	/*
+	 * As in extents_insert_locked, we hold extents->mtx and so don't need
+	 * atomic operations for updating extents->npages.
+	 */
+	size_t cur_extents_npages =
+	    atomic_load_zu(&extents->npages, ATOMIC_RELAXED);
+	assert(cur_extents_npages >= npages);
+	atomic_store_zu(&extents->npages,
+	    cur_extents_npages - (size >> LG_PAGE), ATOMIC_RELAXED);
 }
 
 /*
@@ -299,7 +314,9 @@ extents_evict(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
 		}
 		/* Check the eviction limit. */
 		size_t npages = extent_size_get(extent) >> LG_PAGE;
-		if (atomic_read_zu(&extents->npages) - npages < npages_min) {
+		size_t extents_npages = atomic_load_zu(&extents->npages,
+		    ATOMIC_RELAXED);
+		if (extents_npages - npages < npages_min) {
 			extent = NULL;
 			goto label_return;
 		}
