@@ -2773,7 +2773,8 @@ _malloc_prefork(void)
 	tcache_prefork(tsd_tsdn(tsd));
 	malloc_mutex_prefork(tsd_tsdn(tsd), &arenas_lock);
 	prof_prefork0(tsd_tsdn(tsd));
-	for (i = 0; i < 3; i++) {
+	/* Break arena prefork into stages to preserve lock order. */
+	for (i = 0; i < 7; i++) {
 		for (j = 0; j < narenas; j++) {
 			if ((arena = arena_get(tsd_tsdn(tsd), j, false)) !=
 			    NULL) {
@@ -2787,14 +2788,21 @@ _malloc_prefork(void)
 				case 2:
 					arena_prefork2(tsd_tsdn(tsd), arena);
 					break;
+				case 3:
+					arena_prefork3(tsd_tsdn(tsd), arena);
+					break;
+				case 4:
+					arena_prefork4(tsd_tsdn(tsd), arena);
+					break;
+				case 5:
+					arena_prefork5(tsd_tsdn(tsd), arena);
+					break;
+				case 6:
+					arena_prefork6(tsd_tsdn(tsd), arena);
+					break;
 				default: not_reached();
 				}
 			}
-		}
-	}
-	for (i = 0; i < narenas; i++) {
-		if ((arena = arena_get(tsd_tsdn(tsd), i, false)) != NULL) {
-			arena_prefork3(tsd_tsdn(tsd), arena);
 		}
 	}
 	prof_prefork1(tsd_tsdn(tsd));

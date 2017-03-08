@@ -51,6 +51,9 @@ arena_prefork0
 arena_prefork1
 arena_prefork2
 arena_prefork3
+arena_prefork4
+arena_prefork5
+arena_prefork6
 arena_prof_accum
 arena_prof_promote
 arena_prof_tctx_get
