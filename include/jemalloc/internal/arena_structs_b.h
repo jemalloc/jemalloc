@@ -40,6 +40,11 @@ struct arena_decay_s {
 	/* Synchronizes all non-atomic fields. */
 	malloc_mutex_t		mtx;
 	/*
+	 * True if a thread is currently purging the extents associated with
+	 * this decay structure.
+	 */
+	bool			purging;
+	/*
 	 * Approximate time in seconds from the creation of a set of unused
 	 * dirty pages until an equivalent set of unused dirty pages is purged
 	 * and/or reused.
@@ -198,13 +203,6 @@ struct arena_s {
 	 * Synchronization: internal.
 	 */
 	arena_decay_t		decay;
-
-	/*
-	 * True if a thread is currently executing arena_purge_to_limit().
-	 *
-	 * Synchronization: decay.mtx.
-	 */
-	bool			purging;
 
 	/*
 	 * Next extent size class in a growing series to use when satisfying a

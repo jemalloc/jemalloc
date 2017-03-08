@@ -663,6 +663,7 @@ arena_decay_init(arena_decay_t *decay, extents_t *extents, ssize_t decay_time) {
 	if (malloc_mutex_init(&decay->mtx, "decay", WITNESS_RANK_DECAY)) {
 		return true;
 	}
+	decay->purging = false;
 	arena_decay_reinit(decay, extents, decay_time);
 	return false;
 }
@@ -812,10 +813,10 @@ arena_purge_to_limit(tsdn_t *tsdn, arena_t *arena, arena_decay_t *decay,
 	witness_assert_depth_to_rank(tsdn, WITNESS_RANK_CORE, 1);
 	malloc_mutex_assert_owner(tsdn, &decay->mtx);
 
-	if (arena->purging) {
+	if (decay->purging) {
 		return;
 	}
-	arena->purging = true;
+	decay->purging = true;
 
 	extent_hooks_t *extent_hooks = extent_hooks_get(arena);
 	size_t npurge, npurged;
@@ -845,7 +846,7 @@ arena_purge_to_limit(tsdn_t *tsdn, arena_t *arena, arena_decay_t *decay,
 	}
 
 label_return:
-	arena->purging = false;
+	decay->purging = false;
 }
 
 void
@@ -1746,8 +1747,6 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 	    arena_decay_time_default_get())) {
 		goto label_error;
 	}
-
-	arena->purging = false;
 
 	if (!config_munmap) {
 		arena->extent_grow_next = psz2ind(HUGEPAGE);
