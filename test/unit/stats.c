@@ -71,7 +71,8 @@ TEST_BEGIN(test_stats_arenas_summary) {
 	size_t sz;
 	int expected = config_stats ? 0 : ENOENT;
 	size_t mapped;
-	uint64_t npurge, nmadvise, purged;
+	uint64_t dirty_npurge, dirty_nmadvise, dirty_purged;
+	uint64_t muzzy_npurge, muzzy_nmadvise, muzzy_purged;
 
 	little = mallocx(SMALL_MAXCLASS, MALLOCX_ARENA(0));
 	assert_ptr_not_null(little, "Unexpected mallocx() failure");
@@ -92,19 +93,34 @@ TEST_BEGIN(test_stats_arenas_summary) {
 	sz = sizeof(size_t);
 	assert_d_eq(mallctl("stats.arenas.0.mapped", (void *)&mapped, &sz, NULL,
 	    0), expected, "Unexepected mallctl() result");
+
 	sz = sizeof(uint64_t);
-	assert_d_eq(mallctl("stats.arenas.0.npurge", (void *)&npurge, &sz, NULL,
-	    0), expected, "Unexepected mallctl() result");
-	assert_d_eq(mallctl("stats.arenas.0.nmadvise", (void *)&nmadvise, &sz,
-	    NULL, 0), expected, "Unexepected mallctl() result");
-	assert_d_eq(mallctl("stats.arenas.0.purged", (void *)&purged, &sz, NULL,
-	    0), expected, "Unexepected mallctl() result");
+	assert_d_eq(mallctl("stats.arenas.0.dirty_npurge",
+	    (void *)&dirty_npurge, &sz, NULL, 0), expected,
+	    "Unexepected mallctl() result");
+	assert_d_eq(mallctl("stats.arenas.0.dirty_nmadvise",
+	    (void *)&dirty_nmadvise, &sz, NULL, 0), expected,
+	    "Unexepected mallctl() result");
+	assert_d_eq(mallctl("stats.arenas.0.dirty_purged",
+	    (void *)&dirty_purged, &sz, NULL, 0), expected,
+	    "Unexepected mallctl() result");
+	assert_d_eq(mallctl("stats.arenas.0.muzzy_npurge",
+	    (void *)&muzzy_npurge, &sz, NULL, 0), expected,
+	    "Unexepected mallctl() result");
+	assert_d_eq(mallctl("stats.arenas.0.muzzy_nmadvise",
+	    (void *)&muzzy_nmadvise, &sz, NULL, 0), expected,
+	    "Unexepected mallctl() result");
+	assert_d_eq(mallctl("stats.arenas.0.muzzy_purged",
+	    (void *)&muzzy_purged, &sz, NULL, 0), expected,
+	    "Unexepected mallctl() result");
 
 	if (config_stats) {
-		assert_u64_gt(npurge, 0,
+		assert_u64_gt(dirty_npurge + muzzy_npurge, 0,
 		    "At least one purge should have occurred");
-		assert_u64_le(nmadvise, purged,
-		    "nmadvise should be no greater than purged");
+		assert_u64_le(dirty_nmadvise, dirty_purged,
+		    "dirty_nmadvise should be no greater than dirty_purged");
+		assert_u64_le(muzzy_nmadvise, muzzy_purged,
+		    "muzzy_nmadvise should be no greater than muzzy_purged");
 	}
 }
 TEST_END

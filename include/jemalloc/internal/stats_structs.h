@@ -77,6 +77,15 @@ struct malloc_large_stats_s {
 	size_t		curlextents; /* Derived. */
 };
 
+struct decay_stats_s {
+	/* Total number of purge sweeps. */
+	arena_stats_u64_t	npurge;
+	/* Total number of madvise calls made. */
+	arena_stats_u64_t	nmadvise;
+	/* Total number of pages purged. */
+	arena_stats_u64_t	purged;
+};
+
 /*
  * Arena stats.  Note that fields marked "derived" are not directly maintained
  * within the arena code; rather their values are derived during stats merge
@@ -84,7 +93,7 @@ struct malloc_large_stats_s {
  */
 struct arena_stats_s {
 #ifndef JEMALLOC_ATOMIC_U64
-	malloc_mutex_t	mtx;
+	malloc_mutex_t		mtx;
 #endif
 
 	/* Number of bytes currently mapped, excluding retained memory. */
@@ -98,14 +107,8 @@ struct arena_stats_s {
 	 */
 	atomic_zu_t		retained; /* Derived. */
 
-	/*
-	 * Total number of purge sweeps, total number of madvise calls made,
-	 * and total pages purged in order to keep dirty unused memory under
-	 * control.
-	 */
-	arena_stats_u64_t	npurge;
-	arena_stats_u64_t	nmadvise;
-	arena_stats_u64_t	purged;
+	decay_stats_t		decay_dirty;
+	decay_stats_t		decay_muzzy;
 
 	atomic_zu_t		base; /* Derived. */
 	atomic_zu_t		internal;

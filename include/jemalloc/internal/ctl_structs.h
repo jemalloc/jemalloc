@@ -51,9 +51,11 @@ struct ctl_arena_s {
 	/* Basic stats, supported even if !config_stats. */
 	unsigned		nthreads;
 	const char		*dss;
-	ssize_t			decay_time;
+	ssize_t			dirty_decay_time;
+	ssize_t			muzzy_decay_time;
 	size_t			pactive;
 	size_t			pdirty;
+	size_t			pmuzzy;
 
 	/* NULL if !config_stats. */
 	ctl_arena_stats_t	*astats;

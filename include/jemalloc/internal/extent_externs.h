@@ -21,20 +21,21 @@ bool extents_init(tsdn_t *tsdn, extents_t *extents, extent_state_t state,
     bool delay_coalesce);
 extent_state_t extents_state_get(const extents_t *extents);
 size_t extents_npages_get(extents_t *extents);
+extent_t *extents_alloc(tsdn_t *tsdn, arena_t *arena,
+    extent_hooks_t **r_extent_hooks, extents_t *extents, void *new_addr,
+    size_t usize, size_t pad, size_t alignment, bool *zero, bool *commit,
+    bool slab);
+void extents_dalloc(tsdn_t *tsdn, arena_t *arena,
+    extent_hooks_t **r_extent_hooks, extents_t *extents, extent_t *extent);
 extent_t *extents_evict(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, extents_t *extents, size_t npages_min);
 void extents_prefork(tsdn_t *tsdn, extents_t *extents);
 void extents_postfork_parent(tsdn_t *tsdn, extents_t *extents);
 void extents_postfork_child(tsdn_t *tsdn, extents_t *extents);
-extent_t	*extent_alloc_cache(tsdn_t *tsdn, arena_t *arena,
-    extent_hooks_t **r_extent_hooks, void *new_addr, size_t usize, size_t pad,
-    size_t alignment, bool *zero, bool *commit, bool slab);
 extent_t	*extent_alloc_wrapper(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, void *new_addr, size_t usize, size_t pad,
     size_t alignment, bool *zero, bool *commit, bool slab);
 void	extent_dalloc_gap(tsdn_t *tsdn, arena_t *arena, extent_t *extent);
-void	extent_dalloc_cache(tsdn_t *tsdn, arena_t *arena,
-    extent_hooks_t **r_extent_hooks, extent_t *extent);
 bool	extent_dalloc_wrapper_try(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, extent_t *extent);
 void	extent_dalloc_wrapper(tsdn_t *tsdn, arena_t *arena,
