@@ -4,7 +4,8 @@
 typedef enum {
 	extent_state_active   = 0,
 	extent_state_dirty    = 1,
-	extent_state_retained = 2
+	extent_state_muzzy    = 2,
+	extent_state_retained = 3
 } extent_state_t;
 
 /* Extent (span of pages).  Use accessor functions for e_* fields. */

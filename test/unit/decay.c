@@ -22,18 +22,28 @@ nstime_update_mock(nstime_t *time) {
 }
 
 static unsigned
-do_arena_create(ssize_t decay_time) {
+do_arena_create(ssize_t dirty_decay_time, ssize_t muzzy_decay_time) {
 	unsigned arena_ind;
 	size_t sz = sizeof(unsigned);
 	assert_d_eq(mallctl("arenas.create", (void *)&arena_ind, &sz, NULL, 0),
 	    0, "Unexpected mallctl() failure");
 	size_t mib[3];
 	size_t miblen = sizeof(mib)/sizeof(size_t);
-	assert_d_eq(mallctlnametomib("arena.0.decay_time", mib, &miblen), 0,
-	    "Unexpected mallctlnametomib() failure");
+
+	assert_d_eq(mallctlnametomib("arena.0.dirty_decay_time", mib, &miblen),
+	    0, "Unexpected mallctlnametomib() failure");
 	mib[1] = (size_t)arena_ind;
-	assert_d_eq(mallctlbymib(mib, miblen, NULL, NULL, (void *)&decay_time,
-	    sizeof(decay_time)), 0, "Unexpected mallctlbymib() failure");
+	assert_d_eq(mallctlbymib(mib, miblen, NULL, NULL,
+	    (void *)&dirty_decay_time,
+	    sizeof(dirty_decay_time)), 0, "Unexpected mallctlbymib() failure");
+
+	assert_d_eq(mallctlnametomib("arena.0.muzzy_decay_time", mib, &miblen),
+	    0, "Unexpected mallctlnametomib() failure");
+	mib[1] = (size_t)arena_ind;
+	assert_d_eq(mallctlbymib(mib, miblen, NULL, NULL,
+	    (void *)&muzzy_decay_time,
+	    sizeof(muzzy_decay_time)), 0, "Unexpected mallctlbymib() failure");
+
 	return arena_ind;
 }
 
@@ -78,11 +88,10 @@ do_decay(unsigned arena_ind) {
 }
 
 static uint64_t
-get_arena_npurge(unsigned arena_ind) {
-	do_epoch();
+get_arena_npurge_impl(const char *mibname, unsigned arena_ind) {
 	size_t mib[4];
 	size_t miblen = sizeof(mib)/sizeof(size_t);
-	assert_d_eq(mallctlnametomib("stats.arenas.0.npurge", mib, &miblen), 0,
+	assert_d_eq(mallctlnametomib(mibname, mib, &miblen), 0,
 	    "Unexpected mallctlnametomib() failure");
 	mib[2] = (size_t)arena_ind;
 	uint64_t npurge = 0;
@@ -90,6 +99,25 @@ get_arena_npurge(unsigned arena_ind) {
 	assert_d_eq(mallctlbymib(mib, miblen, (void *)&npurge, &sz, NULL, 0),
 	    config_stats ? 0 : ENOENT, "Unexpected mallctlbymib() failure");
 	return npurge;
+}
+
+static uint64_t
+get_arena_dirty_npurge(unsigned arena_ind) {
+	do_epoch();
+	return get_arena_npurge_impl("stats.arenas.0.dirty_npurge", arena_ind);
+}
+
+static uint64_t
+get_arena_muzzy_npurge(unsigned arena_ind) {
+	do_epoch();
+	return get_arena_npurge_impl("stats.arenas.0.muzzy_npurge", arena_ind);
+}
+
+static uint64_t
+get_arena_npurge(unsigned arena_ind) {
+	do_epoch();
+	return get_arena_npurge_impl("stats.arenas.0.dirty_npurge", arena_ind) +
+	    get_arena_npurge_impl("stats.arenas.0.muzzy_npurge", arena_ind);
 }
 
 static size_t
@@ -105,6 +133,21 @@ get_arena_pdirty(unsigned arena_ind) {
 	assert_d_eq(mallctlbymib(mib, miblen, (void *)&pdirty, &sz, NULL, 0), 0,
 	    "Unexpected mallctlbymib() failure");
 	return pdirty;
+}
+
+static size_t
+get_arena_pmuzzy(unsigned arena_ind) {
+	do_epoch();
+	size_t mib[4];
+	size_t miblen = sizeof(mib)/sizeof(size_t);
+	assert_d_eq(mallctlnametomib("stats.arenas.0.pmuzzy", mib, &miblen), 0,
+	    "Unexpected mallctlnametomib() failure");
+	mib[2] = (size_t)arena_ind;
+	size_t pmuzzy;
+	size_t sz = sizeof(pmuzzy);
+	assert_d_eq(mallctlbymib(mib, miblen, (void *)&pmuzzy, &sz, NULL, 0), 0,
+	    "Unexpected mallctlbymib() failure");
+	return pmuzzy;
 }
 
 static void *
@@ -133,7 +176,7 @@ TEST_BEGIN(test_decay_ticks) {
 
 	int err;
 	/* Set up a manually managed arena for test. */
-	arena_ind = do_arena_create(0);
+	arena_ind = do_arena_create(0, 0);
 
 	/* Migrate to the new arena, and get the ticker. */
 	unsigned old_arena_ind;
@@ -317,19 +360,66 @@ TEST_BEGIN(test_decay_ticks) {
 }
 TEST_END
 
-TEST_BEGIN(test_decay_ticker) {
-#define NPS 1024
+static void
+decay_ticker_helper(unsigned arena_ind, int flags, bool dirty, ssize_t dt,
+    uint64_t dirty_npurge0, uint64_t muzzy_npurge0, bool terminate_asap) {
 #define NINTERVALS 101
-	ssize_t dt = opt_decay_time;
-	unsigned arena_ind = do_arena_create(dt);
+	nstime_t time, update_interval, decay_time, deadline;
+
+	nstime_init(&time, 0);
+	nstime_update(&time);
+
+	nstime_init2(&decay_time, dt, 0);
+	nstime_copy(&deadline, &time);
+	nstime_add(&deadline, &decay_time);
+
+	nstime_init2(&update_interval, dt, 0);
+	nstime_idivide(&update_interval, NINTERVALS);
+
+	/*
+	 * Keep q's slab from being deallocated during the looping below.  If a
+	 * cached slab were to repeatedly come and go during looping, it could
+	 * prevent the decay backlog ever becoming empty.
+	 */
+	void *p = do_mallocx(1, flags);
+	uint64_t dirty_npurge1, muzzy_npurge1;
+	do {
+		for (unsigned i = 0; i < DECAY_NTICKS_PER_UPDATE / 2;
+		    i++) {
+			void *q = do_mallocx(1, flags);
+			dallocx(q, flags);
+		}
+		dirty_npurge1 = get_arena_dirty_npurge(arena_ind);
+		muzzy_npurge1 = get_arena_muzzy_npurge(arena_ind);
+
+		nstime_add(&time_mock, &update_interval);
+		nstime_update(&time);
+	} while (nstime_compare(&time, &deadline) <= 0 && ((dirty_npurge1 ==
+	    dirty_npurge0 && muzzy_npurge1 == muzzy_npurge0) ||
+	    !terminate_asap));
+	dallocx(p, flags);
+
+	if (config_stats) {
+		assert_u64_gt(dirty_npurge1 + muzzy_npurge1, dirty_npurge0 +
+		    muzzy_npurge0, "Expected purging to occur");
+	}
+#undef NINTERVALS
+}
+
+TEST_BEGIN(test_decay_ticker) {
+#define NPS 2048
+	ssize_t ddt = opt_dirty_decay_time;
+	ssize_t mdt = opt_muzzy_decay_time;
+	unsigned arena_ind = do_arena_create(ddt, mdt);
 	int flags = (MALLOCX_ARENA(arena_ind) | MALLOCX_TCACHE_NONE);
 	void *ps[NPS];
 	size_t large;
 
 	/*
-	 * Allocate a bunch of large objects, pause the clock, deallocate the
-	 * objects, restore the clock, then [md]allocx() in a tight loop while
-	 * advancing time rapidly to verify the ticker triggers purging.
+	 * Allocate a bunch of large objects, pause the clock, deallocate every
+	 * other object (to fragment virtual memory), restore the clock, then
+	 * [md]allocx() in a tight loop while advancing time rapidly to verify
+	 * the ticker triggers purging.
 	 */
 
 	if (config_tcache) {
@@ -346,7 +436,8 @@ TEST_BEGIN(test_decay_ticker) {
 	}
 
 	do_purge(arena_ind);
-	uint64_t npurge0 = get_arena_npurge(arena_ind);
+	uint64_t dirty_npurge0 = get_arena_dirty_npurge(arena_ind);
+	uint64_t muzzy_npurge0 = get_arena_muzzy_npurge(arena_ind);
 
 	for (unsigned i = 0; i < NPS; i++) {
 		ps[i] = do_mallocx(large, flags);
@@ -362,7 +453,7 @@ TEST_BEGIN(test_decay_ticker) {
 	nstime_monotonic = nstime_monotonic_mock;
 	nstime_update = nstime_update_mock;
 
-	for (unsigned i = 0; i < NPS; i++) {
+	for (unsigned i = 0; i < NPS; i += 2) {
 		dallocx(ps[i], flags);
 		unsigned nupdates0 = nupdates_mock;
 		do_decay(arena_ind);
@@ -370,51 +461,16 @@ TEST_BEGIN(test_decay_ticker) {
 		    "Expected nstime_update() to be called");
 	}
 
-	nstime_t time, update_interval, decay_time, deadline;
+	decay_ticker_helper(arena_ind, flags, true, ddt, dirty_npurge0,
+	    muzzy_npurge0, true);
+	decay_ticker_helper(arena_ind, flags, false, ddt+mdt, dirty_npurge0,
+	    muzzy_npurge0, false);
 
-	nstime_init(&time, 0);
-	nstime_update(&time);
-
-	nstime_init2(&decay_time, dt, 0);
-	nstime_copy(&deadline, &time);
-	nstime_add(&deadline, &decay_time);
-
-	nstime_init2(&update_interval, dt, 0);
-	nstime_idivide(&update_interval, NINTERVALS);
-
-	nstime_init2(&decay_time, dt, 0);
-	nstime_copy(&deadline, &time);
-	nstime_add(&deadline, &decay_time);
-
-	/*
-	 * Keep q's slab from being deallocated during the looping below.  If
-	 * a cached slab were to repeatedly come and go during looping, it could
-	 * prevent the decay backlog ever becoming empty.
-	 */
-	void *p = do_mallocx(1, flags);
-	uint64_t npurge1;
-	do {
-		for (unsigned i = 0; i < DECAY_NTICKS_PER_UPDATE / 2; i++) {
-			void *q = do_mallocx(1, flags);
-			dallocx(q, flags);
-		}
-		npurge1 = get_arena_npurge(arena_ind);
-
-		nstime_add(&time_mock, &update_interval);
-		nstime_update(&time);
-	} while (nstime_compare(&time, &deadline) <= 0 && npurge1 == npurge0);
-	dallocx(p, flags);
+	do_arena_destroy(arena_ind);
 
 	nstime_monotonic = nstime_monotonic_orig;
 	nstime_update = nstime_update_orig;
-
-	if (config_stats) {
-		assert_u64_gt(npurge1, npurge0, "Expected purging to occur");
-	}
-
-	do_arena_destroy(arena_ind);
 #undef NPS
-#undef NINTERVALS
 }
 TEST_END
 
@@ -435,8 +491,7 @@ TEST_BEGIN(test_decay_nonmonotonic) {
 	    "Unexpected mallctl failure");
 	do_epoch();
 	sz = sizeof(uint64_t);
-	assert_d_eq(mallctl("stats.arenas.0.npurge", (void *)&npurge0, &sz,
-	    NULL, 0), config_stats ? 0 : ENOENT, "Unexpected mallctl result");
+	npurge0 = get_arena_npurge(0);
 
 	nupdates_mock = 0;
 	nstime_init(&time_mock, 0);
@@ -464,8 +519,7 @@ TEST_BEGIN(test_decay_nonmonotonic) {
 
 	do_epoch();
 	sz = sizeof(uint64_t);
-	assert_d_eq(mallctl("stats.arenas.0.npurge", (void *)&npurge1, &sz,
-	    NULL, 0), config_stats ? 0 : ENOENT, "Unexpected mallctl result");
+	npurge1 = get_arena_npurge(0);
 
 	if (config_stats) {
 		assert_u64_eq(npurge0, npurge1, "Unexpected purging occurred");
@@ -478,24 +532,28 @@ TEST_BEGIN(test_decay_nonmonotonic) {
 TEST_END
 
 TEST_BEGIN(test_decay_now) {
-	unsigned arena_ind = do_arena_create(0);
+	unsigned arena_ind = do_arena_create(0, 0);
 	assert_zu_eq(get_arena_pdirty(arena_ind), 0, "Unexpected dirty pages");
+	assert_zu_eq(get_arena_pmuzzy(arena_ind), 0, "Unexpected muzzy pages");
 	size_t sizes[] = {16, PAGE<<2, HUGEPAGE<<2};
-	/* Verify that dirty pages never linger after deallocation. */
+	/* Verify that dirty/muzzy pages never linger after deallocation. */
 	for (unsigned i = 0; i < sizeof(sizes)/sizeof(size_t); i++) {
 		size_t size = sizes[i];
 		generate_dirty(arena_ind, size);
 		assert_zu_eq(get_arena_pdirty(arena_ind), 0,
 		    "Unexpected dirty pages");
+		assert_zu_eq(get_arena_pmuzzy(arena_ind), 0,
+		    "Unexpected muzzy pages");
 	}
 	do_arena_destroy(arena_ind);
 }
 TEST_END
 
 TEST_BEGIN(test_decay_never) {
-	unsigned arena_ind = do_arena_create(-1);
+	unsigned arena_ind = do_arena_create(-1, -1);
 	int flags = MALLOCX_ARENA(arena_ind) | MALLOCX_TCACHE_NONE;
 	assert_zu_eq(get_arena_pdirty(arena_ind), 0, "Unexpected dirty pages");
+	assert_zu_eq(get_arena_pmuzzy(arena_ind), 0, "Unexpected muzzy pages");
 	size_t sizes[] = {16, PAGE<<2, HUGEPAGE<<2};
 	void *ptrs[sizeof(sizes)/sizeof(size_t)];
 	for (unsigned i = 0; i < sizeof(sizes)/sizeof(size_t); i++) {
@@ -503,12 +561,16 @@ TEST_BEGIN(test_decay_never) {
 	}
 	/* Verify that each deallocation generates additional dirty pages. */
 	size_t pdirty_prev = get_arena_pdirty(arena_ind);
+	size_t pmuzzy_prev = get_arena_pmuzzy(arena_ind);
 	assert_zu_eq(pdirty_prev, 0, "Unexpected dirty pages");
+	assert_zu_eq(pmuzzy_prev, 0, "Unexpected muzzy pages");
 	for (unsigned i = 0; i < sizeof(sizes)/sizeof(size_t); i++) {
 		dallocx(ptrs[i], flags);
 		size_t pdirty = get_arena_pdirty(arena_ind);
+		size_t pmuzzy = get_arena_pmuzzy(arena_ind);
 		assert_zu_gt(pdirty, pdirty_prev,
 		    "Expected dirty pages to increase.");
+		assert_zu_eq(pmuzzy, 0, "Unexpected muzzy pages");
 		pdirty_prev = pdirty;
 	}
 	do_arena_destroy(arena_ind);

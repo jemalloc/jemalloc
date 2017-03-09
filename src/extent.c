@@ -69,6 +69,10 @@ static size_t	highpages;
  */
 
 static void extent_deregister(tsdn_t *tsdn, extent_t *extent);
+static extent_t *extent_recycle(tsdn_t *tsdn, arena_t *arena,
+    extent_hooks_t **r_extent_hooks, extents_t *extents, void *new_addr,
+    size_t usize, size_t pad, size_t alignment, bool *zero, bool *commit,
+    bool slab);
 static extent_t *extent_try_coalesce(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, rtree_ctx_t *rtree_ctx, extents_t *extents,
     extent_t *extent, bool *coalesced);
@@ -294,6 +298,31 @@ extent_try_delayed_coalesce(tsdn_t *tsdn, arena_t *arena,
 }
 
 extent_t *
+extents_alloc(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
+    extents_t *extents, void *new_addr, size_t usize, size_t pad,
+    size_t alignment, bool *zero, bool *commit, bool slab) {
+	assert(usize + pad != 0);
+	assert(alignment != 0);
+	witness_assert_depth_to_rank(tsdn, WITNESS_RANK_CORE, 0);
+
+	return extent_recycle(tsdn, arena, r_extent_hooks, extents, new_addr,
+	    usize, pad, alignment, zero, commit, slab);
+}
+
+void
+extents_dalloc(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
+    extents_t *extents, extent_t *extent) {
+	assert(extent_base_get(extent) != NULL);
+	assert(extent_size_get(extent) != 0);
+	witness_assert_depth_to_rank(tsdn, WITNESS_RANK_CORE, 0);
+
+	extent_addr_set(extent, extent_base_get(extent));
+	extent_zeroed_set(extent, false);
+
+	extent_record(tsdn, arena, r_extent_hooks, extents, extent);
+}
+
+extent_t *
 extents_evict(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
     extents_t *extents, size_t npages_min) {
 	rtree_ctx_t rtree_ctx_fallback;
@@ -340,7 +369,10 @@ extents_evict(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
 	 * concurrent operations.
 	 */
 	switch (extents_state_get(extents)) {
+	case extent_state_active:
+		not_reached();
 	case extent_state_dirty:
+	case extent_state_muzzy:
 		extent_state_set(extent, extent_state_active);
 		break;
 	case extent_state_retained:
@@ -813,19 +845,6 @@ extent_alloc_core(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
 	return NULL;
 }
 
-extent_t *
-extent_alloc_cache(tsdn_t *tsdn, arena_t *arena,
-    extent_hooks_t **r_extent_hooks, void *new_addr, size_t usize, size_t pad,
-    size_t alignment, bool *zero, bool *commit, bool slab) {
-	assert(usize + pad != 0);
-	assert(alignment != 0);
-	witness_assert_depth_to_rank(tsdn, WITNESS_RANK_CORE, 0);
-
-	return extent_recycle(tsdn, arena, r_extent_hooks,
-	    &arena->extents_cached, new_addr, usize, pad, alignment, zero,
-	    commit, slab);
-}
-
 static void *
 extent_alloc_default_impl(tsdn_t *tsdn, arena_t *arena, void *new_addr,
     size_t size, size_t alignment, bool *zero, bool *commit) {
@@ -1206,7 +1225,8 @@ extent_record(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
 	rtree_ctx_t rtree_ctx_fallback;
 	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
 
-	assert(extents_state_get(extents) != extent_state_dirty ||
+	assert((extents_state_get(extents) != extent_state_dirty &&
+	    extents_state_get(extents) != extent_state_muzzy) ||
 	    !extent_zeroed_get(extent));
 
 	malloc_mutex_lock(tsdn, &extents->mtx);
@@ -1242,20 +1262,6 @@ extent_dalloc_gap(tsdn_t *tsdn, arena_t *arena, extent_t *extent) {
 		return;
 	}
 	extent_dalloc_wrapper(tsdn, arena, &extent_hooks, extent);
-}
-
-void
-extent_dalloc_cache(tsdn_t *tsdn, arena_t *arena,
-    extent_hooks_t **r_extent_hooks, extent_t *extent) {
-	assert(extent_base_get(extent) != NULL);
-	assert(extent_size_get(extent) != 0);
-	witness_assert_depth_to_rank(tsdn, WITNESS_RANK_CORE, 0);
-
-	extent_addr_set(extent, extent_base_get(extent));
-	extent_zeroed_set(extent, false);
-
-	extent_record(tsdn, arena, r_extent_hooks, &arena->extents_cached,
-	    extent);
 }
 
 static bool
@@ -1327,16 +1333,17 @@ extent_dalloc_wrapper(tsdn_t *tsdn, arena_t *arena,
 	} else if (!extent_decommit_wrapper(tsdn, arena, r_extent_hooks, extent,
 	    0, extent_size_get(extent))) {
 		zeroed = true;
-	} else if ((*r_extent_hooks)->purge_lazy != NULL &&
-	    !(*r_extent_hooks)->purge_lazy(*r_extent_hooks,
-	    extent_base_get(extent), extent_size_get(extent), 0,
-	    extent_size_get(extent), arena_ind_get(arena))) {
-		zeroed = false;
 	} else if ((*r_extent_hooks)->purge_forced != NULL &&
 	    !(*r_extent_hooks)->purge_forced(*r_extent_hooks,
 	    extent_base_get(extent), extent_size_get(extent), 0,
 	    extent_size_get(extent), arena_ind_get(arena))) {
 		zeroed = true;
+	} else if (extent_state_get(extent) == extent_state_muzzy ||
+	    ((*r_extent_hooks)->purge_lazy != NULL &&
+	    !(*r_extent_hooks)->purge_lazy(*r_extent_hooks,
+	    extent_base_get(extent), extent_size_get(extent), 0,
+	    extent_size_get(extent), arena_ind_get(arena)))) {
+		zeroed = false;
 	} else {
 		zeroed = false;
 	}

@@ -125,7 +125,7 @@ large_ralloc_no_move_shrink(tsdn_t *tsdn, extent_t *extent, size_t usize) {
 			    extent_usize_get(trail));
 		}
 
-		arena_extent_cache_dalloc(tsdn, arena, &extent_hooks, trail);
+		arena_extents_dirty_dalloc(tsdn, arena, &extent_hooks, trail);
 	}
 
 	arena_extent_ralloc_large_shrink(tsdn, arena, extent, oldusize);
@@ -158,9 +158,16 @@ large_ralloc_no_move_expand(tsdn_t *tsdn, extent_t *extent, size_t usize,
 	bool commit = true;
 	extent_t *trail;
 	bool new_mapping;
-	if ((trail = extent_alloc_cache(tsdn, arena, &extent_hooks,
-	    extent_past_get(extent), trailsize, 0, CACHELINE, &is_zeroed_trail,
-	    &commit, false)) == NULL) {
+	if ((trail = extents_alloc(tsdn, arena, &extent_hooks,
+	    &arena->extents_dirty, extent_past_get(extent), trailsize, 0,
+	    CACHELINE, &is_zeroed_trail, &commit, false)) != NULL
+	    || (trail = extents_alloc(tsdn, arena, &extent_hooks,
+	    &arena->extents_muzzy, extent_past_get(extent), trailsize, 0,
+	    CACHELINE, &is_zeroed_trail, &commit, false)) != NULL) {
+		if (config_stats) {
+			new_mapping = false;
+		}
+	} else {
 		if ((trail = extent_alloc_wrapper(tsdn, arena, &extent_hooks,
 		    extent_past_get(extent), trailsize, 0, CACHELINE,
 		    &is_zeroed_trail, &commit, false)) == NULL) {
@@ -168,10 +175,6 @@ large_ralloc_no_move_expand(tsdn_t *tsdn, extent_t *extent, size_t usize,
 		}
 		if (config_stats) {
 			new_mapping = true;
-		}
-	} else {
-		if (config_stats) {
-			new_mapping = false;
 		}
 	}
 
@@ -327,7 +330,7 @@ large_dalloc_prep_impl(tsdn_t *tsdn, arena_t *arena, extent_t *extent,
 static void
 large_dalloc_finish_impl(tsdn_t *tsdn, arena_t *arena, extent_t *extent) {
 	extent_hooks_t *extent_hooks = EXTENT_HOOKS_INITIALIZER;
-	arena_extent_cache_dalloc(tsdn, arena, &extent_hooks, extent);
+	arena_extents_dirty_dalloc(tsdn, arena, &extent_hooks, extent);
 }
 
 void
