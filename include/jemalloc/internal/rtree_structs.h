@@ -2,11 +2,8 @@
 #define JEMALLOC_INTERNAL_RTREE_STRUCTS_H
 
 struct rtree_elm_s {
-	union {
-		void		*pun;
-		rtree_elm_t	*child;
-		extent_t	*extent;
-	};
+	/* Either "rtree_elm_t *child;" or "extent_t *extent;". */
+	atomic_p_t	child_or_extent;
 };
 
 struct rtree_elm_witness_s {
@@ -41,11 +38,9 @@ struct rtree_ctx_s {
 };
 
 struct rtree_s {
-	union {
-		void		*root_pun;
-		rtree_elm_t	*root;
-	};
-	malloc_mutex_t		init_lock;
+	/* An rtree_elm_t *. */
+	atomic_p_t	root;
+	malloc_mutex_t	init_lock;
 };
 
 #endif /* JEMALLOC_INTERNAL_RTREE_STRUCTS_H */

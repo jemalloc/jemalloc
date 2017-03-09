@@ -55,14 +55,16 @@ rtree_elm_read(rtree_elm_t *elm, bool dependent) {
 		 * synchronization, because the rtree update became visible in
 		 * memory before the pointer came into existence.
 		 */
-		extent = elm->extent;
+		extent = (extent_t *)atomic_load_p(&elm->child_or_extent,
+		    ATOMIC_RELAXED);
 	} else {
 		/*
 		 * An arbitrary read, e.g. on behalf of ivsalloc(), may not be
 		 * dependent on a previous rtree write, which means a stale read
 		 * could result if synchronization were omitted here.
 		 */
-		extent = (extent_t *)atomic_read_p(&elm->pun);
+		extent = (extent_t *)atomic_load_p(&elm->child_or_extent,
+		    ATOMIC_ACQUIRE);
 	}
 
 	/* Mask the lock bit. */
@@ -73,7 +75,7 @@ rtree_elm_read(rtree_elm_t *elm, bool dependent) {
 
 JEMALLOC_INLINE void
 rtree_elm_write(rtree_elm_t *elm, const extent_t *extent) {
-	atomic_write_p(&elm->pun, extent);
+	atomic_store_p(&elm->child_or_extent, (void *)extent, ATOMIC_RELEASE);
 }
 
 JEMALLOC_ALWAYS_INLINE rtree_elm_t *
@@ -161,11 +163,18 @@ rtree_elm_acquire(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
 
 	spin_t spinner = SPIN_INITIALIZER;
 	while (true) {
-		extent_t *extent = rtree_elm_read(elm, false);
 		/* The least significant bit serves as a lock. */
-		void *s = (void *)((uintptr_t)extent | (uintptr_t)0x1);
-		if (!atomic_cas_p(&elm->pun, (void *)extent, s)) {
-			break;
+		void *extent_and_lock = atomic_load_p(&elm->child_or_extent,
+		    ATOMIC_RELAXED);
+		if (likely(((uintptr_t)extent_and_lock & (uintptr_t)0x1) == 0))
+		{
+			void *locked = (void *)((uintptr_t)extent_and_lock
+			    | (uintptr_t)0x1);
+			if (likely(atomic_compare_exchange_strong_p(
+			    &elm->child_or_extent, &extent_and_lock, locked,
+			    ATOMIC_ACQUIRE, ATOMIC_RELAXED))) {
+				break;
+			}
 		}
 		spin_adaptive(&spinner);
 	}
@@ -180,9 +189,9 @@ rtree_elm_acquire(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
 JEMALLOC_INLINE extent_t *
 rtree_elm_read_acquired(tsdn_t *tsdn, const rtree_t *rtree, rtree_elm_t *elm) {
 	extent_t *extent;
-
-	assert(((uintptr_t)elm->pun & (uintptr_t)0x1) == (uintptr_t)0x1);
-	extent = (extent_t *)((uintptr_t)elm->pun & ~((uintptr_t)0x1));
+	void *ptr = atomic_load_p(&elm->child_or_extent, ATOMIC_RELAXED);
+	assert(((uintptr_t)ptr & (uintptr_t)0x1) == (uintptr_t)0x1);
+	extent = (extent_t *)((uintptr_t)ptr & ~((uintptr_t)0x1));
 	assert(((uintptr_t)extent & (uintptr_t)0x1) == (uintptr_t)0x0);
 
 	if (config_debug) {
@@ -196,13 +205,14 @@ JEMALLOC_INLINE void
 rtree_elm_write_acquired(tsdn_t *tsdn, const rtree_t *rtree, rtree_elm_t *elm,
     const extent_t *extent) {
 	assert(((uintptr_t)extent & (uintptr_t)0x1) == (uintptr_t)0x0);
-	assert(((uintptr_t)elm->pun & (uintptr_t)0x1) == (uintptr_t)0x1);
+	assert(((uintptr_t)atomic_load_p(&elm->child_or_extent, ATOMIC_RELAXED)
+	    & (uintptr_t)0x1) == (uintptr_t)0x1);
 
 	if (config_debug) {
 		rtree_elm_witness_access(tsdn, rtree, elm);
 	}
-
-	elm->pun = (void *)((uintptr_t)extent | (uintptr_t)0x1);
+	atomic_store_p(&elm->child_or_extent, (void *)((uintptr_t)extent
+	    | (uintptr_t)0x1), ATOMIC_RELEASE);
 	assert(rtree_elm_read_acquired(tsdn, rtree, elm) == extent);
 }
 
