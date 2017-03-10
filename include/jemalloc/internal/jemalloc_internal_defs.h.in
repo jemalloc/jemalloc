@@ -265,12 +265,17 @@
  *
  *   madvise(..., MADV_FREE) : This marks pages as being unused, such that they
  *                             will be discarded rather than swapped out.
- *   madvise(..., MADV_DONTNEED) : This immediately discards pages, such that
- *                                 new pages will be demand-zeroed if the
- *                                 address region is later touched.
+ *   madvise(..., MADV_DONTNEED) : If JEMALLOC_PURGE_MADVISE_DONTNEED_ZEROS is
+ *                                 defined, this immediately discards pages,
+ *                                 such that new pages will be demand-zeroed if
+ *                                 the address region is later touched;
+ *                                 otherwise this behaves similarly to
+ *                                 MADV_FREE, though typically with higher
+ *                                 system overhead.
  */
 #undef JEMALLOC_PURGE_MADVISE_FREE
 #undef JEMALLOC_PURGE_MADVISE_DONTNEED
+#undef JEMALLOC_PURGE_MADVISE_DONTNEED_ZEROS
 
 /*
  * Defined if transparent huge pages are supported via the MADV_[NO]HUGEPAGE
