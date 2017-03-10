@@ -37,7 +37,9 @@
  * next step after purging on Windows anyway, there's no point in adding such
  * complexity.
  */
-#if !defined(_WIN32) && defined(JEMALLOC_PURGE_MADVISE_DONTNEED)
+#if !defined(_WIN32) && ((defined(JEMALLOC_PURGE_MADVISE_DONTNEED) && \
+    defined(JEMALLOC_PURGE_MADVISE_DONTNEED_ZEROS)) || \
+    defined(JEMALLOC_MAPS_COALESCE))
 #  define PAGES_CAN_PURGE_FORCED
 #endif
 
