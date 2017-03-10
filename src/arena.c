@@ -292,8 +292,26 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 				    tbin->ncached * index2size(i));
 			}
 		}
+		malloc_lock_prof_read(tsdn, &astats->tcache_mtx_data,
+		    &arena->tcache_ql_mtx);
 		malloc_mutex_unlock(tsdn, &arena->tcache_ql_mtx);
 	}
+
+#define READ_ARENA_MUTEX_PROF_DATA(mtx, data)				\
+	malloc_mutex_lock(tsdn, &arena->mtx);				\
+	malloc_lock_prof_read(tsdn, &astats->data, &arena->mtx);	\
+	malloc_mutex_unlock(tsdn, &arena->mtx);
+
+	/* Gather per arena mutex profiling data. */
+	READ_ARENA_MUTEX_PROF_DATA(large_mtx, large_mtx_data)
+	READ_ARENA_MUTEX_PROF_DATA(extent_freelist_mtx,
+	    extent_freelist_mtx_data)
+	READ_ARENA_MUTEX_PROF_DATA(extents_cached.mtx,
+	    extents_cached_mtx_data)
+	READ_ARENA_MUTEX_PROF_DATA(extents_retained.mtx,
+	    extents_retained_mtx_data)
+	READ_ARENA_MUTEX_PROF_DATA(decay.mtx, decay_mtx_data)
+#undef READ_ARENA_MUTEX_PROF_DATA
 
 	for (szind_t i = 0; i < NBINS; i++) {
 		arena_bin_t *bin = &arena->bins[i];

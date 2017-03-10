@@ -7,7 +7,7 @@
 } while (0)
 
 #define CTL_M2_GET(n, i, v, t) do {					\
-	size_t mib[6];							\
+	size_t mib[CTL_MAX_DEPTH];					\
 	size_t miblen = sizeof(mib) / sizeof(size_t);			\
 	size_t sz = sizeof(t);						\
 	xmallctlnametomib(n, mib, &miblen);				\
@@ -16,7 +16,7 @@
 } while (0)
 
 #define CTL_M2_M4_GET(n, i, j, v, t) do {				\
-	size_t mib[6];							\
+	size_t mib[CTL_MAX_DEPTH];					\
 	size_t miblen = sizeof(mib) / sizeof(size_t);			\
 	size_t sz = sizeof(t);						\
 	xmallctlnametomib(n, mib, &miblen);				\
@@ -77,13 +77,13 @@ stats_arena_bins_print(void (*write_cb)(void *, const char *), void *cbopaque,
 			    "      ndalloc    nrequests      curregs"
 			    "     curslabs regs pgs  util       nfills"
 			    "     nflushes     newslabs      reslabs"
-			    "   contention     max_wait\n");
+			    "   contention  max_wait_ns\n");
 		} else {
 			malloc_cprintf(write_cb, cbopaque,
 			    "bins:           size ind    allocated      nmalloc"
 			    "      ndalloc    nrequests      curregs"
 			    "     curslabs regs pgs  util     newslabs"
-			    "      reslabs   contention     max_wait\n");
+			    "      reslabs   contention  max_wait_ns\n");
 		}
 	}
 	for (j = 0, in_gap = false; j < nbins; j++) {
@@ -126,9 +126,14 @@ stats_arena_bins_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		    uint64_t);
 		CTL_M2_M4_GET("stats.arenas.0.bins.0.curslabs", i, j, &curslabs,
 		    size_t);
-		lock_prof_data_t lock_data;
-		CTL_M2_M4_GET("stats.arenas.0.bins.0.lock_data", i, j,
-		    &lock_data, lock_prof_data_t);
+
+		uint64_t num_ops, num_wait, max_wait;
+		CTL_M2_M4_GET("stats.arenas.0.bins.0.lock.num_wait", i, j,
+		    &num_wait, uint64_t);
+		CTL_M2_M4_GET("stats.arenas.0.bins.0.lock.max_wait_time", i, j,
+		    &max_wait, uint64_t);
+		CTL_M2_M4_GET("stats.arenas.0.bins.0.lock.num_ops", i, j,
+		    &num_ops, uint64_t);
 
 		if (json) {
 			malloc_cprintf(write_cb, cbopaque,
@@ -178,15 +183,12 @@ stats_arena_bins_print(void (*write_cb)(void *, const char *), void *cbopaque,
 				}
 			}
 			char rate[6];
-			if (get_rate_str(lock_data.n_wait_times,
-			    lock_data.n_lock_ops, rate)) {
-				if (lock_data.n_lock_ops == 0) {
+			if (get_rate_str(num_wait, num_ops, rate)) {
+				if (num_ops == 0) {
 					malloc_snprintf(rate, sizeof(rate),
 					    "0");
 				}
 			}
-			uint64_t max_wait = nstime_msec(
-			    &lock_data.max_wait_time);
 
 			if (config_tcache) {
 				malloc_cprintf(write_cb, cbopaque,
@@ -204,11 +206,11 @@ stats_arena_bins_print(void (*write_cb)(void *, const char *), void *cbopaque,
 				    "%20zu %3u %12zu %12"FMTu64
 				    " %12"FMTu64" %12"FMTu64" %12zu"
 				    " %12zu %4u %3zu %-5s %12"FMTu64
-				    " %12"FMTu64" %12s\n",
+				    " %12"FMTu64" %12s %12"FMTu64"\n",
 				    reg_size, j, curregs * reg_size, nmalloc,
 				    ndalloc, nrequests, curregs, curslabs,
 				    nregs, slab_size / page, util, nslabs,
-				    nreslabs, rate);
+				    nreslabs, rate, max_wait);
 			}
 		}
 	}
@@ -285,6 +287,57 @@ stats_arena_lextents_print(void (*write_cb)(void *, const char *),
 			    "                     ---\n");
 		}
 	}
+}
+
+static void
+gen_ctl_str(char *str, const char *lock, const char *counter) {
+	sprintf(str, "stats.arenas.0.locks.%s.%s", lock, counter);
+}
+
+static void read_arena_lock_stats(unsigned arena_ind,
+    uint64_t results[NUM_ARENA_PROF_LOCKS][NUM_LOCK_PROF_COUNTERS]) {
+	char cmd[128];
+
+	unsigned i, j;
+	for (i = 0; i < NUM_ARENA_PROF_LOCKS; i++) {
+		for (j = 0; j < NUM_LOCK_PROF_COUNTERS; j++) {
+			gen_ctl_str(cmd, arena_lock_names[i],
+			    lock_counter_names[j]);
+			CTL_M2_GET(cmd, arena_ind, &results[i][j], uint64_t);
+		}
+	}
+}
+
+static void
+stats_arena_locks_print(void (*write_cb)(void *, const char *),
+    void *cbopaque, bool json, unsigned arena_ind) {
+	uint64_t lock_stats[NUM_ARENA_PROF_LOCKS][NUM_LOCK_PROF_COUNTERS];
+	read_arena_lock_stats(arena_ind, lock_stats);
+
+	/* Output lock stats. */
+	if (json) {
+		//TODO
+	} else {
+		malloc_cprintf(write_cb, cbopaque,
+		    "                         n_lock_ops       n_waiting"
+		    "      n_spin_acq  n_owner_switch   total_wait_ns"
+		    "     max_wait_ns max_n_wait_thds\n");
+
+		unsigned i, j;
+		for (i = 0; i < NUM_ARENA_PROF_LOCKS; i++) {
+			malloc_cprintf(write_cb, cbopaque,
+			    "%s", arena_lock_names[i]);
+			malloc_cprintf(write_cb, cbopaque, ":%*c",
+			    (int)(18 - strlen(arena_lock_names[i])), ' ');
+
+			for (j = 0; j < NUM_LOCK_PROF_COUNTERS; j++) {
+				malloc_cprintf(write_cb, cbopaque, " %15"FMTu64,
+				    lock_stats[i][j]);
+			}
+			malloc_cprintf(write_cb, cbopaque, "\n");
+		}
+	}
+
 }
 
 static void
@@ -518,6 +571,7 @@ stats_arena_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		    "resident:                %12zu\n", resident);
 	}
 
+	stats_arena_locks_print(write_cb, cbopaque, json, i);
 	if (bins) {
 		stats_arena_bins_print(write_cb, cbopaque, json, large, i);
 	}

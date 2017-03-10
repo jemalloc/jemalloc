@@ -68,49 +68,55 @@ JEMALLOC_EXPORT int	_pthread_mutex_init_calloc_cb(pthread_mutex_t *mutex,
 void
 malloc_mutex_lock_slow(malloc_mutex_t *mutex) {
 	lock_prof_data_t *data = &mutex->prof_data;
-	bool spin_success = false;
 
 	{//TODO: a smart spin policy
 		if (!malloc_mutex_trylock(mutex)) {
-			spin_success = true;
-			goto label_locked;
+			data->n_spin_acquired++;
+			return;
 		}
 	}
 
 	nstime_t now, before;
-	uint32_t n_thds;
 	nstime_init(&now, 0);
 	nstime_update(&now);
-	n_thds = atomic_add_u32(&data->n_waiting_thds, 1);
+	nstime_copy(&before, &now);
+
+	uint32_t n_thds = atomic_add_u32(&data->n_waiting_thds, 1);
 	/* One last try as above two calls may take quite some cycles. */
 	if (!malloc_mutex_trylock(mutex)) {
-		spin_success = true;
 		atomic_sub_u32(&data->n_waiting_thds, 1);
-		goto label_locked;
+		data->n_spin_acquired++;
+		return;
 	}
-	nstime_copy(&before, &now);
+
+	/* True slow path. */
 	malloc_mutex_lock_final(mutex);
 	atomic_sub_u32(&data->n_waiting_thds, 1);
 	nstime_update(&now);
+
+	/* Update more slow-path only counters. */
 	nstime_subtract(&now, &before);
-label_locked:
-	if (spin_success) {
-		data->n_spin_acquired++;
-	} else {
-		data->n_wait_times++;
-		nstime_add(&data->tot_wait_time, &now);
-		if (nstime_compare(&now, &data->max_wait_time)) {
-			nstime_copy(&data->max_wait_time, &now);
-		}
-		if (n_thds > data->max_n_thds) {
-			data->max_n_thds = n_thds;
-		}
+	uint64_t wait_time = nstime_ns(&now);
+	data->n_wait_times++;
+	data->tot_wait_time += wait_time;
+	if (wait_time > data->max_wait_time) {
+		data->max_wait_time = wait_time;
 	}
+	if (n_thds > data->max_n_thds) {
+		data->max_n_thds = n_thds;
+	}
+}
+
+static void
+lock_prof_data_init(lock_prof_data_t *data) {
+	memset(data, 0, sizeof(lock_prof_data_t));
+	data->prev_owner = NULL;
 }
 
 bool
 malloc_mutex_init(malloc_mutex_t *mutex, const char *name,
     witness_rank_t rank) {
+	lock_prof_data_init(&mutex->prof_data);
 #ifdef _WIN32
 #  if _WIN32_WINNT >= 0x0600
 	InitializeSRWLock(&mutex->lock);
