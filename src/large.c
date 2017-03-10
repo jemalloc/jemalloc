@@ -25,9 +25,13 @@ large_palloc(tsdn_t *tsdn, arena_t *arena, size_t usize, size_t alignment,
 		return NULL;
 	}
 
+	if (config_fill && unlikely(opt_zero)) {
+		zero = true;
+	}
 	/*
-	 * Copy zero into is_zeroed and pass the copy to extent_alloc(), so that
-	 * it is possible to make correct junk/zero fill decisions below.
+	 * Copy zero into is_zeroed and pass the copy when allocating the
+	 * extent, so that it is possible to make correct junk/zero fill
+	 * decisions below, even if is_zeroed ends up true when zero is false.
 	 */
 	is_zeroed = zero;
 	if (likely(!tsdn_null(tsdn))) {
@@ -46,11 +50,8 @@ large_palloc(tsdn_t *tsdn, arena_t *arena, size_t usize, size_t alignment,
 		prof_idump(tsdn);
 	}
 
-	if (zero || (config_fill && unlikely(opt_zero))) {
-		if (!is_zeroed) {
-			memset(extent_addr_get(extent), 0,
-			    extent_usize_get(extent));
-		}
+	if (zero) {
+		assert(is_zeroed);
 	} else if (config_fill && unlikely(opt_junk_alloc)) {
 		memset(extent_addr_get(extent), JEMALLOC_ALLOC_JUNK,
 		    extent_usize_get(extent));
@@ -144,7 +145,16 @@ large_ralloc_no_move_expand(tsdn_t *tsdn, extent_t *extent, size_t usize,
 		return true;
 	}
 
-	bool is_zeroed_trail = false;
+	if (config_fill && unlikely(opt_zero)) {
+		zero = true;
+	}
+	/*
+	 * Copy zero into is_zeroed_trail and pass the copy when allocating the
+	 * extent, so that it is possible to make correct junk/zero fill
+	 * decisions below, even if is_zeroed_trail ends up true when zero is
+	 * false.
+	 */
+	bool is_zeroed_trail = zero;
 	bool commit = true;
 	extent_t *trail;
 	bool new_mapping;
@@ -174,7 +184,7 @@ large_ralloc_no_move_expand(tsdn_t *tsdn, extent_t *extent, size_t usize,
 		arena_stats_mapped_add(tsdn, &arena->stats, trailsize);
 	}
 
-	if (zero || (config_fill && unlikely(opt_zero))) {
+	if (zero) {
 		if (config_cache_oblivious) {
 			/*
 			 * Zero the trailing bytes of the original allocation's
@@ -191,10 +201,7 @@ large_ralloc_no_move_expand(tsdn_t *tsdn, extent_t *extent, size_t usize,
 			assert(nzero > 0);
 			memset(zbase, 0, nzero);
 		}
-		if (!is_zeroed_trail) {
-			memset((void *)((uintptr_t)extent_addr_get(extent) +
-			    oldusize), 0, usize - oldusize);
-		}
+		assert(is_zeroed_trail);
 	} else if (config_fill && unlikely(opt_junk_alloc)) {
 		memset((void *)((uintptr_t)extent_addr_get(extent) + oldusize),
 		    JEMALLOC_ALLOC_JUNK, usize - oldusize);

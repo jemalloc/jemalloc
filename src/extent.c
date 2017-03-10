@@ -759,8 +759,11 @@ extent_recycle(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
 
 	if (*zero) {
 		if (!extent_zeroed_get(extent)) {
-			memset(extent_addr_get(extent), 0,
-			    extent_usize_get(extent));
+			if (pages_purge_forced(extent_base_get(extent),
+			    extent_size_get(extent))) {
+				memset(extent_addr_get(extent), 0,
+				    extent_usize_get(extent));
+			}
 		} else if (config_debug) {
 			size_t i;
 			size_t *p = (size_t *)(uintptr_t)
@@ -971,7 +974,11 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena,
 		extent_interior_register(tsdn, rtree_ctx, extent);
 	}
 	if (*zero && !extent_zeroed_get(extent)) {
-		memset(extent_addr_get(extent), 0, extent_usize_get(extent));
+		if (pages_purge_forced(extent_base_get(extent),
+		    extent_size_get(extent))) {
+			memset(extent_addr_get(extent), 0,
+			    extent_usize_get(extent));
+		}
 	}
 	/*
 	 * Increment extent_grow_next, but take care to do so atomically and
