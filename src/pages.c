@@ -19,6 +19,9 @@ static bool	os_overcommits;
 
 void *
 pages_map(void *addr, size_t size, bool *commit) {
+	assert(PAGE_ADDR2BASE(addr) == addr);
+	assert(PAGE_CEILING(size) == size);
+
 	void *ret;
 
 	assert(size != 0);
@@ -63,6 +66,9 @@ pages_map(void *addr, size_t size, bool *commit) {
 
 void
 pages_unmap(void *addr, size_t size) {
+	assert(PAGE_ADDR2BASE(addr) == addr);
+	assert(PAGE_CEILING(size) == size);
+
 #ifdef _WIN32
 	if (VirtualFree(addr, 0, MEM_RELEASE) == 0)
 #else
@@ -122,6 +128,9 @@ pages_trim(void *addr, size_t alloc_size, size_t leadsize, size_t size,
 
 static bool
 pages_commit_impl(void *addr, size_t size, bool commit) {
+	assert(PAGE_ADDR2BASE(addr) == addr);
+	assert(PAGE_CEILING(size) == size);
+
 	if (os_overcommits) {
 		return true;
 	}
@@ -162,6 +171,9 @@ pages_decommit(void *addr, size_t size) {
 
 bool
 pages_purge_lazy(void *addr, size_t size) {
+	assert(PAGE_ADDR2BASE(addr) == addr);
+	assert(PAGE_CEILING(size) == size);
+
 	if (!pages_can_purge_lazy) {
 		return true;
 	}
@@ -181,6 +193,9 @@ pages_purge_lazy(void *addr, size_t size) {
 
 bool
 pages_purge_forced(void *addr, size_t size) {
+	assert(PAGE_ADDR2BASE(addr) == addr);
+	assert(PAGE_CEILING(size) == size);
+
 	if (!pages_can_purge_forced) {
 		return true;
 	}
