@@ -6,10 +6,10 @@ struct lock_prof_data_s {
 	 * Counters touched on the slow path, i.e. when there is lock
 	 * contention.  We update them once we have the lock.
 	 */
-	/* Total time spent waiting on this lock. */
-	nstime_t		tot_wait_time;
-	/* Max time spent on a single lock operation. */
-	nstime_t		max_wait_time;
+	/* Total time (in nano seconds) spent waiting on this lock. */
+	uint64_t		tot_wait_time;
+	/* Max time (in nano seconds) spent on a single lock operation. */
+	uint64_t		max_wait_time;
 	/* # of times have to wait for this lock (after spinning). */
 	uint64_t		n_wait_times;
 	/* # of times acquired the lock through local spinning. */

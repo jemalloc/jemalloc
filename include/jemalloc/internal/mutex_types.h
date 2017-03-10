@@ -28,8 +28,7 @@ typedef struct malloc_mutex_s malloc_mutex_t;
 #    define MALLOC_MUTEX_TRYLOCK(m) (pthread_mutex_trylock(&(m)->lock) != 0)
 #endif
 
-#define LOCK_PROF_DATA_INITIALIZER					\
-    {NSTIME_ZERO_INITIALIZER, NSTIME_ZERO_INITIALIZER, 0, 0, 0, 0, 0, NULL, 0}
+#define LOCK_PROF_DATA_INITIALIZER {0, 0, 0, 0, 0, 0, 0, NULL, 0}
 
 #ifdef _WIN32
 #  define MALLOC_MUTEX_INITIALIZER

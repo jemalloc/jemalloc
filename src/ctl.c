@@ -13,6 +13,24 @@ static bool		ctl_initialized;
 static ctl_stats_t	*ctl_stats;
 static ctl_arenas_t	*ctl_arenas;
 
+const char *arena_lock_names[NUM_ARENA_PROF_LOCKS] = {
+	"large",
+	"extent_freelist",
+	"extents_cached",
+	"extents_retained",
+	"decay",
+	"tcache"
+};
+const char *lock_counter_names[NUM_LOCK_PROF_COUNTERS] = {
+	"num_ops",
+	"num_wait",
+	"num_spin_acq",
+	"num_owner_switch",
+	"total_wait_time",
+	"max_wait_time",
+	"max_num_thds"
+};
+
 /******************************************************************************/
 /* Helpers for named and indexed nodes. */
 
@@ -145,7 +163,6 @@ CTL_PROTO(stats_arenas_i_bins_j_nflushes)
 CTL_PROTO(stats_arenas_i_bins_j_nslabs)
 CTL_PROTO(stats_arenas_i_bins_j_nreslabs)
 CTL_PROTO(stats_arenas_i_bins_j_curslabs)
-CTL_PROTO(stats_arenas_i_bins_j_lock_data)
 INDEX_PROTO(stats_arenas_i_bins_j)
 CTL_PROTO(stats_arenas_i_lextents_j_nmalloc)
 CTL_PROTO(stats_arenas_i_lextents_j_ndalloc)
@@ -179,11 +196,29 @@ CTL_PROTO(stats_resident)
 CTL_PROTO(stats_mapped)
 CTL_PROTO(stats_retained)
 
+#define STATS_LOCKS_CTL_PROTO_GEN(l, n)					\
+CTL_PROTO(stats_arenas_i_##l##_##n##_num_ops)				\
+CTL_PROTO(stats_arenas_i_##l##_##n##_num_wait)				\
+CTL_PROTO(stats_arenas_i_##l##_##n##_num_spin_acq)			\
+CTL_PROTO(stats_arenas_i_##l##_##n##_num_owner_switch)			\
+CTL_PROTO(stats_arenas_i_##l##_##n##_total_wait_time)			\
+CTL_PROTO(stats_arenas_i_##l##_##n##_max_wait_time)			\
+CTL_PROTO(stats_arenas_i_##l##_##n##_max_num_thds)
+
+#define ARENA_LOCKS_CTL_PROTO_GEN(n) STATS_LOCKS_CTL_PROTO_GEN(locks, n)
+ARENA_LOCKS_CTL_PROTO_GEN(large)
+ARENA_LOCKS_CTL_PROTO_GEN(extent_freelist)
+ARENA_LOCKS_CTL_PROTO_GEN(extents_cached)
+ARENA_LOCKS_CTL_PROTO_GEN(extents_retained)
+ARENA_LOCKS_CTL_PROTO_GEN(decay)
+ARENA_LOCKS_CTL_PROTO_GEN(tcache)
+#undef ARENA_LOCKS_CTL_PROTO_GEN
+
+STATS_LOCKS_CTL_PROTO_GEN(bins_j, lock)
+#undef STATS_LOCKS_CTL_PROTO_GEN
+
 /******************************************************************************/
 /* mallctl tree. */
-
-/* Maximum tree depth. */
-#define CTL_MAX_DEPTH	6
 
 #define NAME(n)	{true},	n
 #define CHILD(t, c)							\
@@ -349,6 +384,26 @@ static const ctl_named_node_t stats_arenas_i_large_node[] = {
 	{NAME("nrequests"),	CTL(stats_arenas_i_large_nrequests)}
 };
 
+#define LOCK_PROF_DATA_NODE(prefix, n)					\
+static const ctl_named_node_t prefix##_##n##_node[] = {			\
+	{NAME("num_ops"),						\
+	 CTL(prefix##_##n##_num_ops)},					\
+	{NAME("num_wait"),						\
+	 CTL(prefix##_##n##_num_wait)},					\
+	{NAME("num_spin_acq"),						\
+	 CTL(prefix##_##n##_num_spin_acq)},				\
+	{NAME("num_owner_switch"),					\
+	 CTL(prefix##_##n##_num_owner_switch)},				\
+	{NAME("total_wait_time"),					\
+	 CTL(prefix##_##n##_total_wait_time)},				\
+	{NAME("max_wait_time"),						\
+	 CTL(prefix##_##n##_max_wait_time)},				\
+	{NAME("max_num_thds"),						\
+	 CTL(prefix##_##n##_max_num_thds)}				\
+	/* Note that # of current waiting thread not provided. */	\
+};
+
+LOCK_PROF_DATA_NODE(stats_arenas_i_bins_j, lock)
 static const ctl_named_node_t stats_arenas_i_bins_j_node[] = {
 	{NAME("nmalloc"),	CTL(stats_arenas_i_bins_j_nmalloc)},
 	{NAME("ndalloc"),	CTL(stats_arenas_i_bins_j_ndalloc)},
@@ -359,8 +414,9 @@ static const ctl_named_node_t stats_arenas_i_bins_j_node[] = {
 	{NAME("nslabs"),	CTL(stats_arenas_i_bins_j_nslabs)},
 	{NAME("nreslabs"),	CTL(stats_arenas_i_bins_j_nreslabs)},
 	{NAME("curslabs"),	CTL(stats_arenas_i_bins_j_curslabs)},
-	{NAME("lock_data"),	CTL(stats_arenas_i_bins_j_lock_data)}
+	{NAME("lock"),		CHILD(named, stats_arenas_i_bins_j_lock)}
 };
+
 static const ctl_named_node_t super_stats_arenas_i_bins_j_node[] = {
 	{NAME(""),		CHILD(named, stats_arenas_i_bins_j)}
 };
@@ -382,6 +438,26 @@ static const ctl_named_node_t super_stats_arenas_i_lextents_j_node[] = {
 static const ctl_indexed_node_t stats_arenas_i_lextents_node[] = {
 	{INDEX(stats_arenas_i_lextents_j)}
 };
+
+LOCK_PROF_DATA_NODE(stats_arenas_i_locks, large)
+LOCK_PROF_DATA_NODE(stats_arenas_i_locks, extent_freelist)
+LOCK_PROF_DATA_NODE(stats_arenas_i_locks, extents_cached)
+LOCK_PROF_DATA_NODE(stats_arenas_i_locks, extents_retained)
+LOCK_PROF_DATA_NODE(stats_arenas_i_locks, decay)
+LOCK_PROF_DATA_NODE(stats_arenas_i_locks, tcache)
+
+static const ctl_named_node_t stats_arenas_i_locks_node[] = {
+	{NAME("large"),		CHILD(named, stats_arenas_i_locks_large)},
+	{NAME("extent_freelist"),
+	 CHILD(named, stats_arenas_i_locks_extent_freelist)},
+	{NAME("extents_cached"),
+	 CHILD(named, stats_arenas_i_locks_extents_cached)},
+	{NAME("extents_retained"),
+	 CHILD(named, stats_arenas_i_locks_extents_retained)},
+	{NAME("decay"),		CHILD(named, stats_arenas_i_locks_decay)},
+	{NAME("tcache"),	CHILD(named, stats_arenas_i_locks_tcache)}
+};
+#undef LOCK_PROF_DATA_NODE
 
 static const ctl_named_node_t stats_arenas_i_node[] = {
 	{NAME("nthreads"),	CTL(stats_arenas_i_nthreads)},
@@ -406,7 +482,8 @@ static const ctl_named_node_t stats_arenas_i_node[] = {
 	{NAME("small"),		CHILD(named, stats_arenas_i_small)},
 	{NAME("large"),		CHILD(named, stats_arenas_i_large)},
 	{NAME("bins"),		CHILD(indexed, stats_arenas_i_bins)},
-	{NAME("lextents"),	CHILD(indexed, stats_arenas_i_lextents)}
+	{NAME("lextents"),	CHILD(indexed, stats_arenas_i_lextents)},
+	{NAME("locks"),		CHILD(named, stats_arenas_i_locks)}
 };
 static const ctl_named_node_t super_stats_arenas_i_node[] = {
 	{NAME(""),		CHILD(named, stats_arenas_i)}
@@ -662,6 +739,22 @@ ctl_arena_stats_sdmerge(ctl_arena_t *ctl_sdarena, ctl_arena_t *ctl_arena,
 		    &astats->astats.decay_muzzy.nmadvise);
 		accum_arena_stats_u64(&sdstats->astats.decay_muzzy.purged,
 		    &astats->astats.decay_muzzy.purged);
+
+		malloc_lock_prof_merge(&(sdstats->astats.large_mtx_data),
+		    &(astats->astats.large_mtx_data));
+		malloc_lock_prof_merge(
+		    &(sdstats->astats.extent_freelist_mtx_data),
+		    &(astats->astats.extent_freelist_mtx_data));
+		malloc_lock_prof_merge(
+		    &(sdstats->astats.extents_cached_mtx_data),
+		    &(astats->astats.extents_cached_mtx_data));
+		malloc_lock_prof_merge(
+		    &(sdstats->astats.extents_retained_mtx_data),
+		    &(astats->astats.extents_retained_mtx_data));
+		malloc_lock_prof_merge(&(sdstats->astats.decay_mtx_data),
+		    &(astats->astats.decay_mtx_data));
+		malloc_lock_prof_merge(&(sdstats->astats.tcache_mtx_data),
+		    &(astats->astats.tcache_mtx_data));
 
 		if (!destroyed) {
 			accum_atomic_zu(&sdstats->astats.base,
@@ -2319,6 +2412,41 @@ CTL_RO_CGEN(config_stats, stats_arenas_i_large_nrequests,
     arena_stats_read_u64(&arenas_i(mib[2])->astats->astats.nmalloc_large),
     uint64_t) /* Intentional. */
 
+/* Lock profiling related APIs below. */
+#define ARENAS_LOCK_CTL_GEN(l, s, d)					\
+CTL_RO_CGEN(config_stats, stats_arenas_i_##l##_num_ops,			\
+    arenas_i(mib[2])->astats->s.d.n_lock_ops, uint64_t)			\
+CTL_RO_CGEN(config_stats, stats_arenas_i_##l##_num_wait,		\
+    arenas_i(mib[2])->astats->s.d.n_wait_times, uint64_t)		\
+CTL_RO_CGEN(config_stats, stats_arenas_i_##l##_num_spin_acq,		\
+    arenas_i(mib[2])->astats->s.d.n_spin_acquired, uint64_t)		\
+CTL_RO_CGEN(config_stats, stats_arenas_i_##l##_num_owner_switch,	\
+    arenas_i(mib[2])->astats->s.d.n_owner_switches, uint64_t) 		\
+CTL_RO_CGEN(config_stats, stats_arenas_i_##l##_total_wait_time,		\
+    arenas_i(mib[2])->astats->s.d.tot_wait_time, uint64_t)		\
+CTL_RO_CGEN(config_stats, stats_arenas_i_##l##_max_wait_time,		\
+    arenas_i(mib[2])->astats->s.d.max_wait_time, uint64_t)		\
+CTL_RO_CGEN(config_stats, stats_arenas_i_##l##_max_num_thds,		\
+    arenas_i(mib[2])->astats->s.d.max_n_thds, uint64_t)
+
+#define ARENAS_ASTATS_LOCK_CTL_GEN(l, d)				\
+    ARENAS_LOCK_CTL_GEN(locks_##l, astats, d)
+
+/* arena->large_mtx */
+ARENAS_ASTATS_LOCK_CTL_GEN(large, large_mtx_data)
+/* arena->extent_freelist_mtx */
+ARENAS_ASTATS_LOCK_CTL_GEN(extent_freelist, extent_freelist_mtx_data)
+/* arena->extents_cached.mtx */
+ARENAS_ASTATS_LOCK_CTL_GEN(extents_cached, extents_cached_mtx_data)
+/* arena->extents_retained.mtx */
+ARENAS_ASTATS_LOCK_CTL_GEN(extents_retained, extents_retained_mtx_data)
+/* arena->decay.mtx */
+ARENAS_ASTATS_LOCK_CTL_GEN(decay, decay_mtx_data)
+/* arena->tcache_ql_mtx */
+ARENAS_ASTATS_LOCK_CTL_GEN(tcache, tcache_mtx_data)
+/* arena->bins[j].lock */
+ARENAS_LOCK_CTL_GEN(bins_j_lock, bstats[mib[4]], lock_data)
+
 CTL_RO_CGEN(config_stats, stats_arenas_i_bins_j_nmalloc,
     arenas_i(mib[2])->astats->bstats[mib[4]].nmalloc, uint64_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_bins_j_ndalloc,
@@ -2337,8 +2465,6 @@ CTL_RO_CGEN(config_stats, stats_arenas_i_bins_j_nreslabs,
     arenas_i(mib[2])->astats->bstats[mib[4]].reslabs, uint64_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_bins_j_curslabs,
     arenas_i(mib[2])->astats->bstats[mib[4]].curslabs, size_t)
-CTL_RO_CGEN(config_stats, stats_arenas_i_bins_j_lock_data,
-    arenas_i(mib[2])->astats->bstats[mib[4]].lock_data, lock_prof_data_t)
 
 static const ctl_named_node_t *
 stats_arenas_i_bins_j_index(tsdn_t *tsdn, const size_t *mib, size_t miblen,
