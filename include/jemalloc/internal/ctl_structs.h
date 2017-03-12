@@ -41,6 +41,10 @@ struct ctl_stats_s {
 	size_t			resident;
 	size_t			mapped;
 	size_t			retained;
+
+#define MTX(mutex) lock_prof_data_t mutex##_mtx_data;
+GLOBAL_PROF_MUTEXES
+#undef MTX
 };
 
 struct ctl_arena_s {

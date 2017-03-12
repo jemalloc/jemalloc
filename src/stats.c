@@ -127,6 +127,7 @@ stats_arena_bins_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		CTL_M2_M4_GET("stats.arenas.0.bins.0.curslabs", i, j, &curslabs,
 		    size_t);
 
+		/* Output less info for bin locks to save space. */
 		uint64_t num_ops, num_wait, max_wait;
 		CTL_M2_M4_GET("stats.arenas.0.bins.0.lock.num_wait", i, j,
 		    &num_wait, uint64_t);
@@ -290,8 +291,9 @@ stats_arena_lextents_print(void (*write_cb)(void *, const char *),
 }
 
 static void
-gen_ctl_str(char *str, const char *lock, const char *counter) {
-	sprintf(str, "stats.arenas.0.locks.%s.%s", lock, counter);
+gen_lock_ctl_str(char *str, const char *prefix, const char *lock,
+    const char *counter) {
+	sprintf(str, "stats.%s.%s.%s", prefix, lock, counter);
 }
 
 static void read_arena_lock_stats(unsigned arena_ind,
@@ -301,11 +303,32 @@ static void read_arena_lock_stats(unsigned arena_ind,
 	unsigned i, j;
 	for (i = 0; i < NUM_ARENA_PROF_LOCKS; i++) {
 		for (j = 0; j < NUM_LOCK_PROF_COUNTERS; j++) {
-			gen_ctl_str(cmd, arena_lock_names[i],
-			    lock_counter_names[j]);
+			gen_lock_ctl_str(cmd, "arenas.0.locks",
+			    arena_lock_names[i], lock_counter_names[j]);
 			CTL_M2_GET(cmd, arena_ind, &results[i][j], uint64_t);
 		}
 	}
+}
+
+static void lock_stats_output(void (*write_cb)(void *, const char *),
+    void *cbopaque, const char *name, uint64_t stats[NUM_LOCK_PROF_COUNTERS],
+    bool first_mutex) {
+	if (first_mutex) {
+		/* Print title. */
+		malloc_cprintf(write_cb, cbopaque,
+		    "                           n_lock_ops        n_waiting"
+		    "       n_spin_acq   n_owner_switch    total_wait_ns"
+		    "      max_wait_ns  max_n_wait_thds\n");
+	}
+
+	malloc_cprintf(write_cb, cbopaque, "%s", name);
+	malloc_cprintf(write_cb, cbopaque, ":%*c",
+	    (int)(19 - strlen(name)), ' ');
+
+	for (unsigned i = 0; i < NUM_LOCK_PROF_COUNTERS; i++) {
+		malloc_cprintf(write_cb, cbopaque, " %16"FMTu64, stats[i]);
+	}
+	malloc_cprintf(write_cb, cbopaque, "\n");
 }
 
 static void
@@ -318,23 +341,9 @@ stats_arena_locks_print(void (*write_cb)(void *, const char *),
 	if (json) {
 		//TODO
 	} else {
-		malloc_cprintf(write_cb, cbopaque,
-		    "                         n_lock_ops       n_waiting"
-		    "      n_spin_acq  n_owner_switch   total_wait_ns"
-		    "     max_wait_ns max_n_wait_thds\n");
-
-		unsigned i, j;
-		for (i = 0; i < NUM_ARENA_PROF_LOCKS; i++) {
-			malloc_cprintf(write_cb, cbopaque,
-			    "%s", arena_lock_names[i]);
-			malloc_cprintf(write_cb, cbopaque, ":%*c",
-			    (int)(18 - strlen(arena_lock_names[i])), ' ');
-
-			for (j = 0; j < NUM_LOCK_PROF_COUNTERS; j++) {
-				malloc_cprintf(write_cb, cbopaque, " %15"FMTu64,
-				    lock_stats[i][j]);
-			}
-			malloc_cprintf(write_cb, cbopaque, "\n");
+		for (unsigned i = 0; i < NUM_ARENA_PROF_LOCKS; i++) {
+			lock_stats_output(write_cb, cbopaque,
+			    arena_lock_names[i], lock_stats[i], i == 0);
 		}
 	}
 
@@ -930,6 +939,20 @@ stats_general_print(void (*write_cb)(void *, const char *), void *cbopaque,
 	}
 }
 
+static void read_global_lock_stats(
+    uint64_t results[NUM_GLOBAL_PROF_LOCKS][NUM_LOCK_PROF_COUNTERS]) {
+	char cmd[128];
+
+	unsigned i, j;
+	for (i = 0; i < NUM_GLOBAL_PROF_LOCKS; i++) {
+		for (j = 0; j < NUM_LOCK_PROF_COUNTERS; j++) {
+			gen_lock_ctl_str(cmd, "locks", global_lock_names[i],
+			    lock_counter_names[j]);
+			CTL_GET(cmd, &results[i][j], uint64_t);
+		}
+	}
+}
+
 static void
 stats_print_helper(void (*write_cb)(void *, const char *), void *cbopaque,
     bool json, bool merged, bool destroyed, bool unmerged, bool bins,
@@ -942,6 +965,10 @@ stats_print_helper(void (*write_cb)(void *, const char *), void *cbopaque,
 	CTL_GET("stats.resident", &resident, size_t);
 	CTL_GET("stats.mapped", &mapped, size_t);
 	CTL_GET("stats.retained", &retained, size_t);
+
+	uint64_t lock_stats[NUM_GLOBAL_PROF_LOCKS][NUM_LOCK_PROF_COUNTERS];
+	read_global_lock_stats(lock_stats);
+
 	if (json) {
 		malloc_cprintf(write_cb, cbopaque,
 		    "\t\t\"stats\": {\n");
@@ -966,6 +993,11 @@ stats_print_helper(void (*write_cb)(void *, const char *), void *cbopaque,
 		    "Allocated: %zu, active: %zu, metadata: %zu,"
 		    " resident: %zu, mapped: %zu, retained: %zu\n",
 		    allocated, active, metadata, resident, mapped, retained);
+
+		for (unsigned i = 0; i < NUM_GLOBAL_PROF_LOCKS; i++) {
+			lock_stats_output(write_cb, cbopaque,
+			    global_lock_names[i], lock_stats[i], i == 0);
+		}
 	}
 
 	if (merged || destroyed || unmerged) {

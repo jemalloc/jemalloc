@@ -1,6 +1,11 @@
 #ifndef JEMALLOC_INTERNAL_CTL_TYPES_H
 #define JEMALLOC_INTERNAL_CTL_TYPES_H
 
+#define GLOBAL_PROF_MUTEXES						\
+    MTX(base)								\
+    MTX(ctl)								\
+    MTX(prof)
+
 typedef struct ctl_node_s ctl_node_t;
 typedef struct ctl_named_node_s ctl_named_node_t;
 typedef struct ctl_indexed_node_s ctl_indexed_node_t;

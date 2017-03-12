@@ -106,6 +106,7 @@ bootstrap_calloc
 bootstrap_free
 bootstrap_malloc
 bt_init
+bt2gctx_mtx
 buferror
 ckh_count
 ckh_delete

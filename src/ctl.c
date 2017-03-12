@@ -13,6 +13,12 @@ static bool		ctl_initialized;
 static ctl_stats_t	*ctl_stats;
 static ctl_arenas_t	*ctl_arenas;
 
+const char *global_lock_names[NUM_GLOBAL_PROF_LOCKS] = {
+	"base",
+	"prof",
+	"ctl"
+};
+
 const char *arena_lock_names[NUM_ARENA_PROF_LOCKS] = {
 	"large",
 	"extent_freelist",
@@ -21,6 +27,7 @@ const char *arena_lock_names[NUM_ARENA_PROF_LOCKS] = {
 	"decay",
 	"tcache"
 };
+
 const char *lock_counter_names[NUM_LOCK_PROF_COUNTERS] = {
 	"num_ops",
 	"num_wait",
@@ -196,16 +203,26 @@ CTL_PROTO(stats_resident)
 CTL_PROTO(stats_mapped)
 CTL_PROTO(stats_retained)
 
-#define STATS_LOCKS_CTL_PROTO_GEN(l, n)					\
-CTL_PROTO(stats_arenas_i_##l##_##n##_num_ops)				\
-CTL_PROTO(stats_arenas_i_##l##_##n##_num_wait)				\
-CTL_PROTO(stats_arenas_i_##l##_##n##_num_spin_acq)			\
-CTL_PROTO(stats_arenas_i_##l##_##n##_num_owner_switch)			\
-CTL_PROTO(stats_arenas_i_##l##_##n##_total_wait_time)			\
-CTL_PROTO(stats_arenas_i_##l##_##n##_max_wait_time)			\
-CTL_PROTO(stats_arenas_i_##l##_##n##_max_num_thds)
+#define LOCK_STATS_CTL_PROTO_GEN(n)					\
+CTL_PROTO(stats_##n##_num_ops)						\
+CTL_PROTO(stats_##n##_num_wait)						\
+CTL_PROTO(stats_##n##_num_spin_acq)					\
+CTL_PROTO(stats_##n##_num_owner_switch)					\
+CTL_PROTO(stats_##n##_total_wait_time)					\
+CTL_PROTO(stats_##n##_max_wait_time)					\
+CTL_PROTO(stats_##n##_max_num_thds)
 
-#define ARENA_LOCKS_CTL_PROTO_GEN(n) STATS_LOCKS_CTL_PROTO_GEN(locks, n)
+/* Global locks. */
+LOCK_STATS_CTL_PROTO_GEN(locks_base)
+LOCK_STATS_CTL_PROTO_GEN(locks_prof)
+LOCK_STATS_CTL_PROTO_GEN(locks_ctl)
+
+/* Arena bin locks. */
+LOCK_STATS_CTL_PROTO_GEN(arenas_i_bins_j_lock)
+
+#define ARENA_LOCKS_CTL_PROTO_GEN(n)					\
+    LOCK_STATS_CTL_PROTO_GEN(arenas_i_locks_##n)
+/* Per arena locks. */
 ARENA_LOCKS_CTL_PROTO_GEN(large)
 ARENA_LOCKS_CTL_PROTO_GEN(extent_freelist)
 ARENA_LOCKS_CTL_PROTO_GEN(extents_cached)
@@ -213,9 +230,7 @@ ARENA_LOCKS_CTL_PROTO_GEN(extents_retained)
 ARENA_LOCKS_CTL_PROTO_GEN(decay)
 ARENA_LOCKS_CTL_PROTO_GEN(tcache)
 #undef ARENA_LOCKS_CTL_PROTO_GEN
-
-STATS_LOCKS_CTL_PROTO_GEN(bins_j, lock)
-#undef STATS_LOCKS_CTL_PROTO_GEN
+#undef LOCK_STATS_CTL_PROTO_GEN
 
 /******************************************************************************/
 /* mallctl tree. */
@@ -384,26 +399,27 @@ static const ctl_named_node_t stats_arenas_i_large_node[] = {
 	{NAME("nrequests"),	CTL(stats_arenas_i_large_nrequests)}
 };
 
-#define LOCK_PROF_DATA_NODE(prefix, n)					\
-static const ctl_named_node_t prefix##_##n##_node[] = {			\
+#define LOCK_PROF_DATA_NODE(prefix)					\
+static const ctl_named_node_t stats_##prefix##_node[] = {		\
 	{NAME("num_ops"),						\
-	 CTL(prefix##_##n##_num_ops)},					\
+	 CTL(stats_##prefix##_num_ops)},				\
 	{NAME("num_wait"),						\
-	 CTL(prefix##_##n##_num_wait)},					\
+	 CTL(stats_##prefix##_num_wait)},				\
 	{NAME("num_spin_acq"),						\
-	 CTL(prefix##_##n##_num_spin_acq)},				\
+	 CTL(stats_##prefix##_num_spin_acq)},				\
 	{NAME("num_owner_switch"),					\
-	 CTL(prefix##_##n##_num_owner_switch)},				\
+	 CTL(stats_##prefix##_num_owner_switch)},			\
 	{NAME("total_wait_time"),					\
-	 CTL(prefix##_##n##_total_wait_time)},				\
+	 CTL(stats_##prefix##_total_wait_time)},			\
 	{NAME("max_wait_time"),						\
-	 CTL(prefix##_##n##_max_wait_time)},				\
+	 CTL(stats_##prefix##_max_wait_time)},				\
 	{NAME("max_num_thds"),						\
-	 CTL(prefix##_##n##_max_num_thds)}				\
+	 CTL(stats_##prefix##_max_num_thds)}				\
 	/* Note that # of current waiting thread not provided. */	\
 };
 
-LOCK_PROF_DATA_NODE(stats_arenas_i_bins_j, lock)
+LOCK_PROF_DATA_NODE(arenas_i_bins_j_lock)
+
 static const ctl_named_node_t stats_arenas_i_bins_j_node[] = {
 	{NAME("nmalloc"),	CTL(stats_arenas_i_bins_j_nmalloc)},
 	{NAME("ndalloc"),	CTL(stats_arenas_i_bins_j_ndalloc)},
@@ -439,12 +455,14 @@ static const ctl_indexed_node_t stats_arenas_i_lextents_node[] = {
 	{INDEX(stats_arenas_i_lextents_j)}
 };
 
-LOCK_PROF_DATA_NODE(stats_arenas_i_locks, large)
-LOCK_PROF_DATA_NODE(stats_arenas_i_locks, extent_freelist)
-LOCK_PROF_DATA_NODE(stats_arenas_i_locks, extents_cached)
-LOCK_PROF_DATA_NODE(stats_arenas_i_locks, extents_retained)
-LOCK_PROF_DATA_NODE(stats_arenas_i_locks, decay)
-LOCK_PROF_DATA_NODE(stats_arenas_i_locks, tcache)
+#define ARENA_LOCK_PROF_DATA_NODE(n) LOCK_PROF_DATA_NODE(arenas_i_locks_##n)
+
+ARENA_LOCK_PROF_DATA_NODE(large)
+ARENA_LOCK_PROF_DATA_NODE(extent_freelist)
+ARENA_LOCK_PROF_DATA_NODE(extents_cached)
+ARENA_LOCK_PROF_DATA_NODE(extents_retained)
+ARENA_LOCK_PROF_DATA_NODE(decay)
+ARENA_LOCK_PROF_DATA_NODE(tcache)
 
 static const ctl_named_node_t stats_arenas_i_locks_node[] = {
 	{NAME("large"),		CHILD(named, stats_arenas_i_locks_large)},
@@ -457,7 +475,6 @@ static const ctl_named_node_t stats_arenas_i_locks_node[] = {
 	{NAME("decay"),		CHILD(named, stats_arenas_i_locks_decay)},
 	{NAME("tcache"),	CHILD(named, stats_arenas_i_locks_tcache)}
 };
-#undef LOCK_PROF_DATA_NODE
 
 static const ctl_named_node_t stats_arenas_i_node[] = {
 	{NAME("nthreads"),	CTL(stats_arenas_i_nthreads)},
@@ -493,6 +510,15 @@ static const ctl_indexed_node_t stats_arenas_node[] = {
 	{INDEX(stats_arenas_i)}
 };
 
+LOCK_PROF_DATA_NODE(locks_base)
+LOCK_PROF_DATA_NODE(locks_prof)
+LOCK_PROF_DATA_NODE(locks_ctl)
+static const ctl_named_node_t stats_locks_node[] = {
+	{NAME("base"),		CHILD(named, stats_locks_base)},
+	{NAME("prof"),		CHILD(named, stats_locks_prof)},
+	{NAME("ctl"),		CHILD(named, stats_locks_ctl)}
+};
+
 static const ctl_named_node_t stats_node[] = {
 	{NAME("allocated"),	CTL(stats_allocated)},
 	{NAME("active"),	CTL(stats_active)},
@@ -500,8 +526,10 @@ static const ctl_named_node_t stats_node[] = {
 	{NAME("resident"),	CTL(stats_resident)},
 	{NAME("mapped"),	CTL(stats_mapped)},
 	{NAME("retained"),	CTL(stats_retained)},
+	{NAME("locks"),		CHILD(named, stats_locks)},
 	{NAME("arenas"),	CHILD(indexed, stats_arenas)}
 };
+#undef LOCK_PROF_DATA_NODE
 
 static const ctl_named_node_t	root_node[] = {
 	{NAME("version"),	CTL(version)},
@@ -925,6 +953,17 @@ ctl_refresh(tsdn_t *tsdn) {
 		    &ctl_sarena->astats->astats.mapped, ATOMIC_RELAXED);
 		ctl_stats->retained = atomic_load_zu(
 		    &ctl_sarena->astats->astats.retained, ATOMIC_RELAXED);
+
+#define READ_GLOBAL_MUTEX_PROF_DATA(mtx, data)				\
+    malloc_mutex_lock(tsdn, &mtx);					\
+    malloc_lock_prof_read(tsdn, &ctl_stats->data, &mtx);		\
+    malloc_mutex_unlock(tsdn, &mtx);
+
+		READ_GLOBAL_MUTEX_PROF_DATA(b0get()->mtx, base_mtx_data);
+		READ_GLOBAL_MUTEX_PROF_DATA(bt2gctx_mtx, prof_mtx_data);
+		/* We own ctl mutex already. */
+		malloc_lock_prof_read(tsdn, &ctl_stats->ctl_mtx_data, &ctl_mtx);
+#undef READ_GLOBAL_MUTEX_PROF_DATA
 	}
 	ctl_arenas->epoch++;
 }
@@ -2413,25 +2452,34 @@ CTL_RO_CGEN(config_stats, stats_arenas_i_large_nrequests,
     uint64_t) /* Intentional. */
 
 /* Lock profiling related APIs below. */
-#define ARENAS_LOCK_CTL_GEN(l, s, d)					\
-CTL_RO_CGEN(config_stats, stats_arenas_i_##l##_num_ops,			\
-    arenas_i(mib[2])->astats->s.d.n_lock_ops, uint64_t)			\
-CTL_RO_CGEN(config_stats, stats_arenas_i_##l##_num_wait,		\
-    arenas_i(mib[2])->astats->s.d.n_wait_times, uint64_t)		\
-CTL_RO_CGEN(config_stats, stats_arenas_i_##l##_num_spin_acq,		\
-    arenas_i(mib[2])->astats->s.d.n_spin_acquired, uint64_t)		\
-CTL_RO_CGEN(config_stats, stats_arenas_i_##l##_num_owner_switch,	\
-    arenas_i(mib[2])->astats->s.d.n_owner_switches, uint64_t) 		\
-CTL_RO_CGEN(config_stats, stats_arenas_i_##l##_total_wait_time,		\
-    arenas_i(mib[2])->astats->s.d.tot_wait_time, uint64_t)		\
-CTL_RO_CGEN(config_stats, stats_arenas_i_##l##_max_wait_time,		\
-    arenas_i(mib[2])->astats->s.d.max_wait_time, uint64_t)		\
-CTL_RO_CGEN(config_stats, stats_arenas_i_##l##_max_num_thds,		\
-    arenas_i(mib[2])->astats->s.d.max_n_thds, uint64_t)
+#define RO_LOCK_CTL_GEN(n, l)						\
+CTL_RO_CGEN(config_stats, stats_##n##_num_ops,				\
+    l.n_lock_ops, uint64_t)						\
+CTL_RO_CGEN(config_stats, stats_##n##_num_wait,				\
+    l.n_wait_times, uint64_t)						\
+CTL_RO_CGEN(config_stats, stats_##n##_num_spin_acq,			\
+    l.n_spin_acquired, uint64_t)					\
+CTL_RO_CGEN(config_stats, stats_##n##_num_owner_switch,			\
+    l.n_owner_switches, uint64_t) 					\
+CTL_RO_CGEN(config_stats, stats_##n##_total_wait_time,			\
+    l.tot_wait_time, uint64_t)						\
+CTL_RO_CGEN(config_stats, stats_##n##_max_wait_time,			\
+    l.max_wait_time, uint64_t)						\
+CTL_RO_CGEN(config_stats, stats_##n##_max_num_thds,			\
+    l.max_n_thds, uint64_t)
 
+/* Global lock. */
+#define MTX(mutex) RO_LOCK_CTL_GEN(locks_##mutex, ctl_stats->mutex##_mtx_data)
+GLOBAL_PROF_MUTEXES
+#undef MTX
+
+/* arena->bins[j].lock */
+RO_LOCK_CTL_GEN(arenas_i_bins_j_lock,
+    arenas_i(mib[2])->astats->bstats[mib[4]].lock_data)
+
+/* Per arena locks */
 #define ARENAS_ASTATS_LOCK_CTL_GEN(l, d)				\
-    ARENAS_LOCK_CTL_GEN(locks_##l, astats, d)
-
+    RO_LOCK_CTL_GEN(arenas_i_locks_##l, arenas_i(mib[2])->astats->astats.d)
 /* arena->large_mtx */
 ARENAS_ASTATS_LOCK_CTL_GEN(large, large_mtx_data)
 /* arena->extent_freelist_mtx */
@@ -2444,8 +2492,8 @@ ARENAS_ASTATS_LOCK_CTL_GEN(extents_retained, extents_retained_mtx_data)
 ARENAS_ASTATS_LOCK_CTL_GEN(decay, decay_mtx_data)
 /* arena->tcache_ql_mtx */
 ARENAS_ASTATS_LOCK_CTL_GEN(tcache, tcache_mtx_data)
-/* arena->bins[j].lock */
-ARENAS_LOCK_CTL_GEN(bins_j_lock, bstats[mib[4]], lock_data)
+#undef ARENAS_ASTATS_LOCK_CTL_GEN
+#undef RO_LOCK_CTL_GEN
 
 CTL_RO_CGEN(config_stats, stats_arenas_i_bins_j_nmalloc,
     arenas_i(mib[2])->astats->bstats[mib[4]].nmalloc, uint64_t)

@@ -298,9 +298,9 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 	}
 
 #define READ_ARENA_MUTEX_PROF_DATA(mtx, data)				\
-	malloc_mutex_lock(tsdn, &arena->mtx);				\
-	malloc_lock_prof_read(tsdn, &astats->data, &arena->mtx);	\
-	malloc_mutex_unlock(tsdn, &arena->mtx);
+    malloc_mutex_lock(tsdn, &arena->mtx);				\
+    malloc_lock_prof_read(tsdn, &astats->data, &arena->mtx);		\
+    malloc_mutex_unlock(tsdn, &arena->mtx);
 
 	/* Gather per arena mutex profiling data. */
 	READ_ARENA_MUTEX_PROF_DATA(large_mtx, large_mtx_data)
