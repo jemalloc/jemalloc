@@ -960,7 +960,9 @@ ctl_refresh(tsdn_t *tsdn) {
     malloc_mutex_unlock(tsdn, &mtx);
 
 		READ_GLOBAL_MUTEX_PROF_DATA(b0get()->mtx, base_mtx_data);
-		READ_GLOBAL_MUTEX_PROF_DATA(bt2gctx_mtx, prof_mtx_data);
+		if (config_prof && opt_prof) {
+			READ_GLOBAL_MUTEX_PROF_DATA(bt2gctx_mtx, prof_mtx_data);
+		}
 		/* We own ctl mutex already. */
 		malloc_lock_prof_read(tsdn, &ctl_stats->ctl_mtx_data, &ctl_mtx);
 #undef READ_GLOBAL_MUTEX_PROF_DATA
