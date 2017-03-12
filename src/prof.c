@@ -78,7 +78,8 @@ static malloc_mutex_t	*tdata_locks;
  * structure that knows about all backtraces currently captured.
  */
 static ckh_t		bt2gctx;
-static malloc_mutex_t	bt2gctx_mtx;
+/* Non static to enable profiling. */
+malloc_mutex_t		bt2gctx_mtx;
 
 /*
  * Tree of all extant prof_tdata_t structures, regardless of state,

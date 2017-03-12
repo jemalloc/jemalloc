@@ -1,6 +1,8 @@
 #ifndef JEMALLOC_INTERNAL_PROF_EXTERNS_H
 #define JEMALLOC_INTERNAL_PROF_EXTERNS_H
 
+extern malloc_mutex_t	bt2gctx_mtx;
+
 extern bool	opt_prof;
 extern bool	opt_prof_active;
 extern bool	opt_prof_thread_active_init;
