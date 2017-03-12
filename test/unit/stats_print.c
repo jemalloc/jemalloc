@@ -938,11 +938,16 @@ TEST_BEGIN(test_stats_print_json) {
 		"Ja",
 		"Jb",
 		"Jl",
+		"Jx",
 		"Jbl",
 		"Jal",
 		"Jab",
 		"Jabl",
-		"Jgmdabl",
+		"Jax",
+		"Jbx",
+		"Jlx",
+		"Jablx",
+		"Jgmdablx",
 	};
 	unsigned arena_ind, i;
 

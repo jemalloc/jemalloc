@@ -430,7 +430,8 @@ for (i = 0; i < nbins; i++) {
       can be specified to omit merged arena, destroyed merged arena, and per
       arena statistics, respectively; <quote>b</quote> and <quote>l</quote> can
       be specified to omit per size class statistics for bins and large objects,
-      respectively.  Unrecognized characters are silently ignored.  Note that
+      respectively; <quote>x</quote> can be specified to omit all mutex
+      statistics.  Unrecognized characters are silently ignored.  Note that
       thread caching may prevent some statistics from being completely up to
       date, since extra locking would be required to merge counters that track
       thread cache operations.</para>

@@ -58,6 +58,25 @@ get_rate_str(uint64_t dividend, uint64_t divisor, char str[6]) {
 }
 
 static void
+gen_lock_ctl_str(char *str, const char *prefix, const char *lock,
+    const char *counter) {
+	sprintf(str, "stats.%s.%s.%s", prefix, lock, counter);
+}
+
+static void
+read_arena_bin_lock_stats(unsigned arena_ind, unsigned bin_ind,
+    uint64_t results[NUM_LOCK_PROF_COUNTERS]) {
+	char cmd[128];
+
+	unsigned i;
+	for (i = 0; i < NUM_LOCK_PROF_COUNTERS; i++) {
+		gen_lock_ctl_str(cmd, "arenas.0.bins.0","lock",
+		    lock_counter_names[i]);
+		CTL_M2_M4_GET(cmd, arena_ind, bin_ind, &results[i], uint64_t);
+	}
+}
+
+static void
 stats_arena_bins_print(void (*write_cb)(void *, const char *), void *cbopaque,
     bool json, bool large, unsigned i) {
 	size_t page;
@@ -127,16 +146,10 @@ stats_arena_bins_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		CTL_M2_M4_GET("stats.arenas.0.bins.0.curslabs", i, j, &curslabs,
 		    size_t);
 
-		/* Output less info for bin locks to save space. */
-		uint64_t num_ops, num_wait, max_wait;
-		CTL_M2_M4_GET("stats.arenas.0.bins.0.lock.num_wait", i, j,
-		    &num_wait, uint64_t);
-		CTL_M2_M4_GET("stats.arenas.0.bins.0.lock.max_wait_time", i, j,
-		    &max_wait, uint64_t);
-		CTL_M2_M4_GET("stats.arenas.0.bins.0.lock.num_ops", i, j,
-		    &num_ops, uint64_t);
-
 		if (json) {
+			uint64_t lock_stats[NUM_LOCK_PROF_COUNTERS];
+			read_arena_bin_lock_stats(i, j, lock_stats);
+
 			malloc_cprintf(write_cb, cbopaque,
 			    "\t\t\t\t\t{\n"
 			    "\t\t\t\t\t\t\"nmalloc\": %"FMTu64",\n"
@@ -156,10 +169,21 @@ stats_arena_bins_print(void (*write_cb)(void *, const char *), void *cbopaque,
 			}
 			malloc_cprintf(write_cb, cbopaque,
 			    "\t\t\t\t\t\t\"nreslabs\": %"FMTu64",\n"
-			    "\t\t\t\t\t\t\"curslabs\": %zu\n"
-			    "\t\t\t\t\t}%s\n",
+			    "\t\t\t\t\t\t\"curslabs\": %zu,\n"
+			    "\t\t\t\t\t\t\"lock\": {\n",
 			    nreslabs,
-			    curslabs,
+			    curslabs);
+
+			for (unsigned k = 0; k < NUM_LOCK_PROF_COUNTERS; k++) {
+				malloc_cprintf(write_cb, cbopaque,
+				    "\t\t\t\t\t\t\t\"%s\": %"FMTu64"%s\n",
+				    lock_counter_names[k], lock_stats[k],
+				    k == NUM_LOCK_PROF_COUNTERS - 1 ? "" : ",");
+			}
+
+			malloc_cprintf(write_cb, cbopaque,
+			    "\t\t\t\t\t\t}\n"
+			    "\t\t\t\t\t}%s\n",
 			    (j + 1 < nbins) ? "," : "");
 		} else if (!in_gap) {
 			size_t availregs = nregs * curslabs;
@@ -183,6 +207,16 @@ stats_arena_bins_print(void (*write_cb)(void *, const char *), void *cbopaque,
 					not_reached();
 				}
 			}
+			/* Output less info for bin locks to save space. */
+			uint64_t num_ops, num_wait, max_wait;
+			CTL_M2_M4_GET("stats.arenas.0.bins.0.lock.num_wait",
+			    i, j, &num_wait, uint64_t);
+			CTL_M2_M4_GET(
+			    "stats.arenas.0.bins.0.lock.max_wait_time", i, j,
+			    &max_wait, uint64_t);
+			CTL_M2_M4_GET("stats.arenas.0.bins.0.lock.num_ops",
+			    i, j, &num_ops, uint64_t);
+
 			char rate[6];
 			if (get_rate_str(num_wait, num_ops, rate)) {
 				if (num_ops == 0) {
@@ -291,12 +325,7 @@ stats_arena_lextents_print(void (*write_cb)(void *, const char *),
 }
 
 static void
-gen_lock_ctl_str(char *str, const char *prefix, const char *lock,
-    const char *counter) {
-	sprintf(str, "stats.%s.%s.%s", prefix, lock, counter);
-}
-
-static void read_arena_lock_stats(unsigned arena_ind,
+read_arena_lock_stats(unsigned arena_ind,
     uint64_t results[NUM_ARENA_PROF_LOCKS][NUM_LOCK_PROF_COUNTERS]) {
 	char cmd[128];
 
@@ -310,8 +339,24 @@ static void read_arena_lock_stats(unsigned arena_ind,
 	}
 }
 
-static void lock_stats_output(void (*write_cb)(void *, const char *),
-    void *cbopaque, const char *name, uint64_t stats[NUM_LOCK_PROF_COUNTERS],
+static void
+lock_stats_output_json(void (*write_cb)(void *, const char *), void *cbopaque,
+    const char *name, uint64_t stats[NUM_LOCK_PROF_COUNTERS],
+    const char *json_indent, bool last) {
+
+	malloc_cprintf(write_cb, cbopaque, "%s\"%s\": {\n", json_indent, name);
+	for (unsigned i = 0; i < NUM_LOCK_PROF_COUNTERS; i++) {
+		malloc_cprintf(write_cb, cbopaque, "%s\t\"%s\": %"FMTu64"%s\n",
+		    json_indent, lock_counter_names[i], stats[i],
+		    i < (NUM_LOCK_PROF_COUNTERS - 1) ? "," : "");
+	}
+	malloc_cprintf(write_cb, cbopaque, "%s}%s\n", json_indent,
+	    last ? "" : ",");
+}
+
+static void
+lock_stats_output(void (*write_cb)(void *, const char *), void *cbopaque,
+    const char *name, uint64_t stats[NUM_LOCK_PROF_COUNTERS],
     bool first_mutex) {
 	if (first_mutex) {
 		/* Print title. */
@@ -333,25 +378,31 @@ static void lock_stats_output(void (*write_cb)(void *, const char *),
 
 static void
 stats_arena_locks_print(void (*write_cb)(void *, const char *),
-    void *cbopaque, bool json, unsigned arena_ind) {
+    void *cbopaque, bool json, bool json_end, unsigned arena_ind) {
 	uint64_t lock_stats[NUM_ARENA_PROF_LOCKS][NUM_LOCK_PROF_COUNTERS];
 	read_arena_lock_stats(arena_ind, lock_stats);
 
 	/* Output lock stats. */
 	if (json) {
-		//TODO
+		malloc_cprintf(write_cb, cbopaque, "\t\t\t\t\"locks\": {\n");
+		for (unsigned i = 0; i < NUM_ARENA_PROF_LOCKS; i++) {
+			lock_stats_output_json(write_cb, cbopaque,
+			    arena_lock_names[i], lock_stats[i],
+			    "\t\t\t\t\t", (i == NUM_ARENA_PROF_LOCKS - 1));
+		}
+		malloc_cprintf(write_cb, cbopaque, "\t\t\t\t}%s\n",
+		    json_end ? "" : ",");
 	} else {
 		for (unsigned i = 0; i < NUM_ARENA_PROF_LOCKS; i++) {
 			lock_stats_output(write_cb, cbopaque,
 			    arena_lock_names[i], lock_stats[i], i == 0);
 		}
 	}
-
 }
 
 static void
 stats_arena_print(void (*write_cb)(void *, const char *), void *cbopaque,
-    bool json, unsigned i, bool bins, bool large) {
+    bool json, unsigned i, bool bins, bool large, bool lock) {
 	unsigned nthreads;
 	const char *dss;
 	ssize_t dirty_decay_time, muzzy_decay_time;
@@ -573,14 +624,17 @@ stats_arena_print(void (*write_cb)(void *, const char *), void *cbopaque,
 	CTL_M2_GET("stats.arenas.0.resident", i, &resident, size_t);
 	if (json) {
 		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\t\"resident\": %zu%s\n", resident, (bins || large) ?
-		    "," : "");
+		    "\t\t\t\t\"resident\": %zu%s\n", resident,
+		    (bins || large || lock) ? "," : "");
 	} else {
 		malloc_cprintf(write_cb, cbopaque,
 		    "resident:                %12zu\n", resident);
 	}
 
-	stats_arena_locks_print(write_cb, cbopaque, json, i);
+	if (lock) {
+		stats_arena_locks_print(write_cb, cbopaque, json,
+		    !(bins || large), i);
+	}
 	if (bins) {
 		stats_arena_bins_print(write_cb, cbopaque, json, large, i);
 	}
@@ -956,7 +1010,7 @@ static void read_global_lock_stats(
 static void
 stats_print_helper(void (*write_cb)(void *, const char *), void *cbopaque,
     bool json, bool merged, bool destroyed, bool unmerged, bool bins,
-    bool large) {
+    bool large, bool lock) {
 	size_t allocated, active, metadata, resident, mapped, retained;
 
 	CTL_GET("stats.allocated", &allocated, size_t);
@@ -967,7 +1021,9 @@ stats_print_helper(void (*write_cb)(void *, const char *), void *cbopaque,
 	CTL_GET("stats.retained", &retained, size_t);
 
 	uint64_t lock_stats[NUM_GLOBAL_PROF_LOCKS][NUM_LOCK_PROF_COUNTERS];
-	read_global_lock_stats(lock_stats);
+	if (lock) {
+		read_global_lock_stats(lock_stats);
+	}
 
 	if (json) {
 		malloc_cprintf(write_cb, cbopaque,
@@ -984,19 +1040,31 @@ stats_print_helper(void (*write_cb)(void *, const char *), void *cbopaque,
 		malloc_cprintf(write_cb, cbopaque,
 		    "\t\t\t\"mapped\": %zu,\n", mapped);
 		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\"retained\": %zu\n", retained);
+		    "\t\t\t\"retained\": %zu,\n", retained);
+		if (lock) {
+			malloc_cprintf(write_cb, cbopaque,
+			    "\t\t\t\"locks\": {\n");
 
+			for (unsigned i = 0; i < NUM_GLOBAL_PROF_LOCKS; i++) {
+				lock_stats_output_json(write_cb, cbopaque,
+				    global_lock_names[i], lock_stats[i],
+				    "\t\t\t\t", i == NUM_GLOBAL_PROF_LOCKS - 1);
+			}
+			malloc_cprintf(write_cb, cbopaque, "\t\t\t}\n");
+		}
 		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t}%s\n", (merged || unmerged) ? "," : "");
+		    "\t\t}%s\n", (merged || unmerged || destroyed) ? "," : "");
 	} else {
 		malloc_cprintf(write_cb, cbopaque,
 		    "Allocated: %zu, active: %zu, metadata: %zu,"
 		    " resident: %zu, mapped: %zu, retained: %zu\n",
 		    allocated, active, metadata, resident, mapped, retained);
-
-		for (unsigned i = 0; i < NUM_GLOBAL_PROF_LOCKS; i++) {
-			lock_stats_output(write_cb, cbopaque,
-			    global_lock_names[i], lock_stats[i], i == 0);
+		if (lock) {
+			for (unsigned i = 0; i < NUM_GLOBAL_PROF_LOCKS; i++) {
+				lock_stats_output(write_cb, cbopaque,
+				    global_lock_names[i], lock_stats[i],
+				    i == 0);
+			}
 		}
 	}
 
@@ -1043,7 +1111,7 @@ stats_print_helper(void (*write_cb)(void *, const char *), void *cbopaque,
 					    "\nMerged arenas stats:\n");
 				}
 				stats_arena_print(write_cb, cbopaque, json,
-				    MALLCTL_ARENAS_ALL, bins, large);
+				    MALLCTL_ARENAS_ALL, bins, large, lock);
 				if (json) {
 					malloc_cprintf(write_cb, cbopaque,
 					    "\t\t\t}%s\n",
@@ -1064,7 +1132,8 @@ stats_print_helper(void (*write_cb)(void *, const char *), void *cbopaque,
 					    "\nDestroyed arenas stats:\n");
 				}
 				stats_arena_print(write_cb, cbopaque, json,
-				    MALLCTL_ARENAS_DESTROYED, bins, large);
+				    MALLCTL_ARENAS_DESTROYED, bins, large,
+				    lock);
 				if (json) {
 					malloc_cprintf(write_cb, cbopaque,
 					    "\t\t\t}%s\n", unmerged ?  "," :
@@ -1090,7 +1159,7 @@ stats_print_helper(void (*write_cb)(void *, const char *), void *cbopaque,
 						}
 						stats_arena_print(write_cb,
 						    cbopaque, json, i, bins,
-						    large);
+						    large, lock);
 						if (json) {
 							malloc_cprintf(write_cb,
 							    cbopaque,
@@ -1123,6 +1192,7 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 	bool unmerged = config_stats;
 	bool bins = true;
 	bool large = true;
+	bool lock = true;
 
 	/*
 	 * Refresh stats, in case mallctl() was called by the application.
@@ -1172,6 +1242,9 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 			case 'l':
 				large = false;
 				break;
+			case 'x':
+				lock = false;
+				break;
 			default:;
 			}
 		}
@@ -1187,12 +1260,11 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 	}
 
 	if (general) {
-		bool more = (merged || unmerged);
-		stats_general_print(write_cb, cbopaque, json, more);
+		stats_general_print(write_cb, cbopaque, json, config_stats);
 	}
 	if (config_stats) {
 		stats_print_helper(write_cb, cbopaque, json, merged, destroyed,
-		    unmerged, bins, large);
+		    unmerged, bins, large, lock);
 	}
 
 	if (json) {
