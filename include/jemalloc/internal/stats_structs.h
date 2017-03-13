@@ -88,7 +88,7 @@ struct arena_stats_s {
 #endif
 
 	/* Number of bytes currently mapped, excluding retained memory. */
-	size_t		mapped; /* Partially derived. */
+	atomic_zu_t		mapped; /* Partially derived. */
 
 	/*
 	 * Number of bytes currently retained as a side effect of munmap() being
@@ -96,7 +96,7 @@ struct arena_stats_s {
 	 * always decommitted or purged), but they are excluded from the mapped
 	 * statistic (above).
 	 */
-	size_t		retained; /* Derived. */
+	atomic_zu_t		retained; /* Derived. */
 
 	/*
 	 * Total number of purge sweeps, total number of madvise calls made,
@@ -107,17 +107,17 @@ struct arena_stats_s {
 	arena_stats_u64_t	nmadvise;
 	arena_stats_u64_t	purged;
 
-	size_t			base; /* Derived. */
-	size_t			internal;
-	size_t			resident; /* Derived. */
+	atomic_zu_t		base; /* Derived. */
+	atomic_zu_t		internal;
+	atomic_zu_t		resident; /* Derived. */
 
-	size_t			allocated_large; /* Derived. */
+	atomic_zu_t		allocated_large; /* Derived. */
 	arena_stats_u64_t	nmalloc_large; /* Derived. */
 	arena_stats_u64_t	ndalloc_large; /* Derived. */
 	arena_stats_u64_t	nrequests_large; /* Derived. */
 
 	/* Number of bytes cached in tcache associated with this arena. */
-	size_t		tcache_bytes; /* Derived. */
+	atomic_zu_t		tcache_bytes; /* Derived. */
 
 	/* One element for each large size class. */
 	malloc_large_stats_t	lstats[NSIZES - NBINS];

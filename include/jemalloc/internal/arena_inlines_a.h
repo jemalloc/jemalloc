@@ -19,17 +19,17 @@ arena_ind_get(const arena_t *arena) {
 
 JEMALLOC_INLINE void
 arena_internal_add(arena_t *arena, size_t size) {
-	atomic_add_zu(&arena->stats.internal, size);
+	atomic_fetch_add_zu(&arena->stats.internal, size, ATOMIC_RELAXED);
 }
 
 JEMALLOC_INLINE void
 arena_internal_sub(arena_t *arena, size_t size) {
-	atomic_sub_zu(&arena->stats.internal, size);
+	atomic_fetch_sub_zu(&arena->stats.internal, size, ATOMIC_RELAXED);
 }
 
 JEMALLOC_INLINE size_t
 arena_internal_get(arena_t *arena) {
-	return atomic_read_zu(&arena->stats.internal);
+	return atomic_load_zu(&arena->stats.internal, ATOMIC_RELAXED);
 }
 
 JEMALLOC_INLINE bool

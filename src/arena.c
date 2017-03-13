@@ -128,37 +128,45 @@ arena_stats_accum_u64(arena_stats_u64_t *dst, uint64_t src) {
 }
 
 static size_t
-arena_stats_read_zu(tsdn_t *tsdn, arena_stats_t *arena_stats, size_t *p) {
+arena_stats_read_zu(tsdn_t *tsdn, arena_stats_t *arena_stats, atomic_zu_t *p) {
 #ifdef JEMALLOC_ATOMIC_U64
-	return atomic_read_zu(p);
+	return atomic_load_zu(p, ATOMIC_RELAXED);
 #else
 	malloc_mutex_assert_owner(tsdn, &arena_stats->mtx);
-	return *p;
+	return atomic_load_zu(p, ATOMIC_RELAXED);
 #endif
 }
 
 static void
-arena_stats_add_zu(tsdn_t *tsdn, arena_stats_t *arena_stats, size_t *p,
+arena_stats_add_zu(tsdn_t *tsdn, arena_stats_t *arena_stats, atomic_zu_t *p,
     size_t x) {
 #ifdef JEMALLOC_ATOMIC_U64
-	atomic_add_zu(p, x);
+	atomic_fetch_add_zu(p, x, ATOMIC_RELAXED);
 #else
 	malloc_mutex_assert_owner(tsdn, &arena_stats->mtx);
-	*p += x;
+	size_t cur = atomic_load_zu(p, ATOMIC_RELAXED);
+	atomic_store_zu(p, cur + x, ATOMIC_RELAXED);
 #endif
 }
 
 static void
-arena_stats_sub_zu(tsdn_t *tsdn, arena_stats_t *arena_stats, size_t *p,
+arena_stats_sub_zu(tsdn_t *tsdn, arena_stats_t *arena_stats, atomic_zu_t *p,
     size_t x) {
 #ifdef JEMALLOC_ATOMIC_U64
-	UNUSED size_t r = atomic_sub_zu(p, x);
-	assert(r + x >= r);
+	UNUSED size_t r = atomic_fetch_sub_zu(p, x, ATOMIC_RELAXED);
+	assert(r - x <= r);
 #else
 	malloc_mutex_assert_owner(tsdn, &arena_stats->mtx);
-	*p -= x;
-	assert(*p + x >= *p);
+	size_t cur = atomic_load_zu(p, ATOMIC_RELAXED);
+	atomic_store_zu(p, cur - x, ATOMIC_RELAXED);
 #endif
+}
+
+/* Like the _u64 variant, needs an externally synchronized *dst. */
+static void
+arena_stats_accum_zu(atomic_zu_t *dst, size_t src) {
+	size_t cur_dst = atomic_load_zu(dst, ATOMIC_RELAXED);
+	atomic_store_zu(dst, src + cur_dst, ATOMIC_RELAXED);
 }
 
 void
@@ -203,20 +211,21 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 
 	arena_stats_lock(tsdn, &arena->stats);
 
-	astats->mapped += base_mapped + arena_stats_read_zu(tsdn, &arena->stats,
-	    &arena->stats.mapped);
-	astats->retained += (extents_npages_get(&arena->extents_retained) <<
-	    LG_PAGE);
+	arena_stats_accum_zu(&astats->mapped, base_mapped
+	    + arena_stats_read_zu(tsdn, &arena->stats, &arena->stats.mapped));
+	arena_stats_accum_zu(&astats->retained,
+	    extents_npages_get(&arena->extents_retained) << LG_PAGE);
 	arena_stats_accum_u64(&astats->npurge, arena_stats_read_u64(tsdn,
 	    &arena->stats, &arena->stats.npurge));
 	arena_stats_accum_u64(&astats->nmadvise, arena_stats_read_u64(tsdn,
 	    &arena->stats, &arena->stats.nmadvise));
 	arena_stats_accum_u64(&astats->purged, arena_stats_read_u64(tsdn,
 	    &arena->stats, &arena->stats.purged));
-	astats->base += base_allocated;
-	astats->internal += arena_internal_get(arena);
-	astats->resident += base_resident + (((atomic_read_zu(&arena->nactive) +
-	    extents_npages_get(&arena->extents_cached)) << LG_PAGE));
+	arena_stats_accum_zu(&astats->base, base_allocated);
+	arena_stats_accum_zu(&astats->internal, arena_internal_get(arena));
+	arena_stats_accum_zu(&astats->resident, base_resident
+	    + (((atomic_read_zu(&arena->nactive)
+	    + extents_npages_get(&arena->extents_cached)) << LG_PAGE)));
 
 	for (szind_t i = 0; i < NSIZES - NBINS; i++) {
 		uint64_t nmalloc = arena_stats_read_u64(tsdn, &arena->stats,
@@ -240,7 +249,8 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 		assert(nmalloc - ndalloc <= SIZE_T_MAX);
 		size_t curlextents = (size_t)(nmalloc - ndalloc);
 		lstats[i].curlextents += curlextents;
-		astats->allocated_large += curlextents * index2size(NBINS + i);
+		arena_stats_accum_zu(&astats->allocated_large,
+		    curlextents * index2size(NBINS + i));
 	}
 
 	arena_stats_unlock(tsdn, &arena->stats);
@@ -250,13 +260,13 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 		tcache_t *tcache;
 
 		/* tcache_bytes counts currently cached bytes. */
-		astats->tcache_bytes = 0;
+		atomic_store_zu(&astats->tcache_bytes, 0, ATOMIC_RELAXED);
 		malloc_mutex_lock(tsdn, &arena->tcache_ql_mtx);
 		ql_foreach(tcache, &arena->tcache_ql, link) {
 			for (szind_t i = 0; i < nhbins; i++) {
 				tbin = &tcache->tbins[i];
-				astats->tcache_bytes += tbin->ncached *
-				    index2size(i);
+				arena_stats_accum_zu(&astats->tcache_bytes,
+				    tbin->ncached * index2size(i));
 			}
 		}
 		malloc_mutex_unlock(tsdn, &arena->tcache_ql_mtx);
