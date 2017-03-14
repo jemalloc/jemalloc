@@ -292,14 +292,14 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 				    tbin->ncached * index2size(i));
 			}
 		}
-		malloc_lock_prof_read(tsdn, &astats->tcache_mtx_data,
+		malloc_mutex_prof_read(tsdn, &astats->tcache_mtx_data,
 		    &arena->tcache_ql_mtx);
 		malloc_mutex_unlock(tsdn, &arena->tcache_ql_mtx);
 	}
 
 #define READ_ARENA_MUTEX_PROF_DATA(mtx, data)				\
     malloc_mutex_lock(tsdn, &arena->mtx);				\
-    malloc_lock_prof_read(tsdn, &astats->data, &arena->mtx);		\
+    malloc_mutex_prof_read(tsdn, &astats->data, &arena->mtx);		\
     malloc_mutex_unlock(tsdn, &arena->mtx);
 
 	/* Gather per arena mutex profiling data. */
@@ -317,7 +317,7 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 		arena_bin_t *bin = &arena->bins[i];
 
 		malloc_mutex_lock(tsdn, &bin->lock);
-		malloc_lock_prof_read(tsdn, &bstats[i].lock_data, &bin->lock);
+		malloc_mutex_prof_read(tsdn, &bstats[i].mutex_data, &bin->lock);
 		bstats[i].nmalloc += bin->stats.nmalloc;
 		bstats[i].ndalloc += bin->stats.ndalloc;
 		bstats[i].nrequests += bin->stats.nrequests;

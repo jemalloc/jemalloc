@@ -9,9 +9,9 @@ bool	malloc_mutex_trylock(malloc_mutex_t *mutex);
 void	malloc_mutex_unlock(tsdn_t *tsdn, malloc_mutex_t *mutex);
 void	malloc_mutex_assert_owner(tsdn_t *tsdn, malloc_mutex_t *mutex);
 void	malloc_mutex_assert_not_owner(tsdn_t *tsdn, malloc_mutex_t *mutex);
-void	malloc_lock_prof_read(tsdn_t *tsdn, lock_prof_data_t *data,
+void	malloc_mutex_prof_read(tsdn_t *tsdn, mutex_prof_data_t *data,
     malloc_mutex_t *mutex);
-void	malloc_lock_prof_merge(lock_prof_data_t *sum, lock_prof_data_t *data);
+void	malloc_mutex_prof_merge(mutex_prof_data_t *sum, mutex_prof_data_t *data);
 #endif
 
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_MUTEX_C_))
@@ -28,7 +28,7 @@ malloc_mutex_trylock(malloc_mutex_t *mutex) {
 
 /* Aggregate lock prof data. */
 JEMALLOC_INLINE void
-malloc_lock_prof_merge(lock_prof_data_t *sum, lock_prof_data_t *data) {
+malloc_mutex_prof_merge(mutex_prof_data_t *sum, mutex_prof_data_t *data) {
 	sum->tot_wait_time += data->tot_wait_time;
 	if (data->max_wait_time > sum->max_wait_time) {
 		sum->max_wait_time = data->max_wait_time;
@@ -52,7 +52,7 @@ malloc_mutex_lock(tsdn_t *tsdn, malloc_mutex_t *mutex) {
 			malloc_mutex_lock_slow(mutex);
 		}
 		/* We own the lock now.  Update a few counters. */
-		lock_prof_data_t *data = &mutex->prof_data;
+		mutex_prof_data_t *data = &mutex->prof_data;
 		data->n_lock_ops++;
 		if (data->prev_owner != tsdn) {
 			data->prev_owner = tsdn;
@@ -82,10 +82,10 @@ malloc_mutex_assert_not_owner(tsdn_t *tsdn, malloc_mutex_t *mutex) {
 
 /* Copy the prof data from mutex for processing. */
 JEMALLOC_INLINE void
-malloc_lock_prof_read(tsdn_t *tsdn, lock_prof_data_t *data,
+malloc_mutex_prof_read(tsdn_t *tsdn, mutex_prof_data_t *data,
     malloc_mutex_t *mutex) {
-	lock_prof_data_t *source = &mutex->prof_data;
-	/* Can only read with the lock. */
+	mutex_prof_data_t *source = &mutex->prof_data;
+	/* Can only read holding the mutex. */
 	malloc_mutex_assert_owner(tsdn, mutex);
 
 	*data = *source;
