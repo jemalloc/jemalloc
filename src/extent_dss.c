@@ -139,9 +139,9 @@ extent_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
 			    (uintptr_t)gap_addr_page;
 			if (gap_size_page != 0) {
 				extent_init(gap, arena, gap_addr_page,
-				    gap_size_page, gap_size_page,
+				    gap_size_page, false, NSIZES,
 				    arena_extent_sn_next(arena),
-				    extent_state_active, false, true, false);
+				    extent_state_active, false, true);
 			}
 			/*
 			 * Compute the address just past the end of the desired
@@ -189,8 +189,8 @@ extent_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
 					extent_t extent;
 
 					extent_init(&extent, arena, ret, size,
-					    size, 0, extent_state_active, false,
-					    true, false);
+					    size, false, NSIZES,
+					    extent_state_active, false, true);
 					if (extent_purge_forced_wrapper(tsdn,
 					    arena, &extent_hooks, &extent, 0,
 					    size)) {

@@ -536,8 +536,6 @@ void	jemalloc_postfork_child(void);
 #include "jemalloc/internal/witness_inlines.h"
 #include "jemalloc/internal/mutex_inlines.h"
 #include "jemalloc/internal/rtree_inlines.h"
-#include "jemalloc/internal/extent_inlines.h"
-#include "jemalloc/internal/base_inlines.h"
 
 #ifndef JEMALLOC_ENABLE_INLINE
 pszind_t	psz2ind(size_t psz);
@@ -565,7 +563,6 @@ ticker_t	*decay_ticker_get(tsd_t *tsd, unsigned ind);
 malloc_cpuid_t	malloc_getcpu(void);
 unsigned	percpu_arena_choose(void);
 unsigned	percpu_arena_ind_limit(void);
-
 #endif
 
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_C_))
@@ -882,8 +879,6 @@ percpu_arena_ind_limit(void) {
 	}
 }
 
-
-
 JEMALLOC_INLINE arena_tdata_t *
 arena_tdata_get(tsd_t *tsd, unsigned ind, bool refresh_if_missing) {
 	arena_tdata_t *tdata;
@@ -938,6 +933,8 @@ decay_ticker_get(tsd_t *tsd, unsigned ind) {
 }
 #endif
 
+#include "jemalloc/internal/extent_inlines.h"
+#include "jemalloc/internal/base_inlines.h"
 #include "jemalloc/internal/bitmap_inlines.h"
 /*
  * Include portions of arena code interleaved with tcache code in order to

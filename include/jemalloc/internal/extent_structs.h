@@ -20,10 +20,12 @@ struct extent_s {
 	size_t			e_size;
 
 	/*
-	 * Usable size, typically smaller than extent size due to large_pad or
+	 * Usable size class index for allocations residing in this extent,
+	 * regardless of whether the extent is a slab.  Extent size and usable
+	 * size often differ even for non-slabs, either due to large_pad or
 	 * promotion of sampled small regions.
 	 */
-	size_t			e_usize;
+	szind_t			e_szind;
 
 	/*
 	 * Serial number (potentially non-unique).

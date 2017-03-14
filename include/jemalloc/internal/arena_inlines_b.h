@@ -147,15 +147,15 @@ arena_dalloc(tsdn_t *tsdn, extent_t *extent, void *ptr, tcache_t *tcache,
 			    extent, ptr);
 		}
 	} else {
-		size_t usize = extent_usize_get(extent);
+		szind_t szind = extent_szind_get(extent);
 
-		if (likely(tcache != NULL) && usize <= tcache_maxclass) {
-			if (config_prof && unlikely(usize <= SMALL_MAXCLASS)) {
+		if (likely(tcache != NULL) && szind < nhbins) {
+			if (config_prof && unlikely(szind < NBINS)) {
 				arena_dalloc_promoted(tsdn, extent, ptr,
 				    tcache, slow_path);
 			} else {
 				tcache_dalloc_large(tsdn_tsd(tsdn), tcache,
-				    ptr, usize, slow_path);
+				    ptr, szind, slow_path);
 			}
 		} else {
 			large_dalloc(tsdn, extent);
@@ -169,25 +169,25 @@ arena_sdalloc(tsdn_t *tsdn, extent_t *extent, void *ptr, size_t size,
 	assert(!tsdn_null(tsdn) || tcache == NULL);
 	assert(ptr != NULL);
 
+	szind_t szind = size2index(size);
 	if (likely(extent_slab_get(extent))) {
 		/* Small allocation. */
 		if (likely(tcache != NULL)) {
-			szind_t binind = size2index(size);
-			assert(binind == extent_slab_data_get(extent)->binind);
-			tcache_dalloc_small(tsdn_tsd(tsdn), tcache, ptr, binind,
+			assert(szind == extent_slab_data_get(extent)->binind);
+			tcache_dalloc_small(tsdn_tsd(tsdn), tcache, ptr, szind,
 			    slow_path);
 		} else {
 			arena_dalloc_small(tsdn, extent_arena_get(extent),
 			    extent, ptr);
 		}
 	} else {
-		if (likely(tcache != NULL) && size <= tcache_maxclass) {
-			if (config_prof && unlikely(size <= SMALL_MAXCLASS)) {
+		if (likely(tcache != NULL) && szind < nhbins) {
+			if (config_prof && unlikely(szind < NBINS)) {
 				arena_dalloc_promoted(tsdn, extent, ptr,
 				    tcache, slow_path);
 			} else {
 				tcache_dalloc_large(tsdn_tsd(tsdn), tcache, ptr,
-				    size, slow_path);
+				    szind, slow_path);
 			}
 		} else {
 			large_dalloc(tsdn, extent);
