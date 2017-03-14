@@ -449,25 +449,25 @@ arena_large_ralloc_stats_update(tsdn_t *tsdn, arena_t *arena, size_t oldusize,
 extent_t *
 arena_extent_alloc_large(tsdn_t *tsdn, arena_t *arena, size_t usize,
     size_t alignment, bool *zero) {
-	extent_t *extent;
 	extent_hooks_t *extent_hooks = EXTENT_HOOKS_INITIALIZER;
 
 	witness_assert_depth_to_rank(tsdn, WITNESS_RANK_CORE, 0);
 
+	szind_t szind = size2index(usize);
 	size_t mapped_add;
 	bool commit = true;
-	extent = extents_alloc(tsdn, arena, &extent_hooks,
-	    &arena->extents_dirty, NULL, usize, large_pad, alignment, zero,
-	    &commit, false);
+	extent_t *extent = extents_alloc(tsdn, arena, &extent_hooks,
+	    &arena->extents_dirty, NULL, usize, large_pad, alignment, false,
+	    szind, zero, &commit);
 	if (extent == NULL) {
 		extent = extents_alloc(tsdn, arena, &extent_hooks,
 		    &arena->extents_muzzy, NULL, usize, large_pad, alignment,
-		    zero, &commit, false);
+		    false, szind, zero, &commit);
 	}
 	size_t size = usize + large_pad;
 	if (extent == NULL) {
 		extent = extent_alloc_wrapper(tsdn, arena, &extent_hooks, NULL,
-		    usize, large_pad, alignment, zero, &commit, false);
+		    usize, large_pad, alignment, false, szind, zero, &commit);
 		if (config_stats) {
 			/*
 			 * extent may be NULL on OOM, but in that case
@@ -1133,7 +1133,8 @@ arena_destroy(tsd_t *tsd, arena_t *arena) {
 
 static extent_t *
 arena_slab_alloc_hard(tsdn_t *tsdn, arena_t *arena,
-    extent_hooks_t **r_extent_hooks, const arena_bin_info_t *bin_info) {
+    extent_hooks_t **r_extent_hooks, const arena_bin_info_t *bin_info,
+    szind_t szind) {
 	extent_t *slab;
 	bool zero, commit;
 
@@ -1142,7 +1143,7 @@ arena_slab_alloc_hard(tsdn_t *tsdn, arena_t *arena,
 	zero = false;
 	commit = true;
 	slab = extent_alloc_wrapper(tsdn, arena, r_extent_hooks, NULL,
-	    bin_info->slab_size, 0, PAGE, &zero, &commit, true);
+	    bin_info->slab_size, 0, PAGE, true, szind, &zero, &commit);
 
 	if (config_stats && slab != NULL) {
 		arena_stats_mapped_add(tsdn, &arena->stats,
@@ -1158,19 +1159,20 @@ arena_slab_alloc(tsdn_t *tsdn, arena_t *arena, szind_t binind,
 	witness_assert_depth_to_rank(tsdn, WITNESS_RANK_CORE, 0);
 
 	extent_hooks_t *extent_hooks = EXTENT_HOOKS_INITIALIZER;
+	szind_t szind = size2index(bin_info->reg_size);
 	bool zero = false;
 	bool commit = true;
 	extent_t *slab = extents_alloc(tsdn, arena, &extent_hooks,
-	    &arena->extents_dirty, NULL, bin_info->slab_size, 0, PAGE, &zero,
-	    &commit, true);
+	    &arena->extents_dirty, NULL, bin_info->slab_size, 0, PAGE, true,
+	    binind, &zero, &commit);
 	if (slab == NULL) {
 		slab = extents_alloc(tsdn, arena, &extent_hooks,
 		    &arena->extents_muzzy, NULL, bin_info->slab_size, 0, PAGE,
-		    &zero, &commit, true);
+		    true, binind, &zero, &commit);
 	}
 	if (slab == NULL) {
 		slab = arena_slab_alloc_hard(tsdn, arena, &extent_hooks,
-		    bin_info);
+		    bin_info, szind);
 		if (slab == NULL) {
 			return NULL;
 		}
@@ -1467,7 +1469,7 @@ arena_prof_promote(tsdn_t *tsdn, extent_t *extent, const void *ptr,
 	assert(isalloc(tsdn, extent, ptr) == LARGE_MINCLASS);
 	assert(usize <= SMALL_MAXCLASS);
 
-	extent_usize_set(extent, usize);
+	extent_szind_set(extent, size2index(usize));
 
 	prof_accum_cancel(tsdn, &arena->prof_accum, usize);
 
@@ -1479,7 +1481,7 @@ arena_prof_demote(tsdn_t *tsdn, extent_t *extent, const void *ptr) {
 	cassert(config_prof);
 	assert(ptr != NULL);
 
-	extent_usize_set(extent, LARGE_MINCLASS);
+	extent_szind_set(extent, NBINS);
 
 	assert(isalloc(tsdn, extent, ptr) == LARGE_MINCLASS);
 
@@ -1496,8 +1498,8 @@ arena_dalloc_promoted(tsdn_t *tsdn, extent_t *extent, void *ptr,
 
 	usize = arena_prof_demote(tsdn, extent, ptr);
 	if (usize <= tcache_maxclass) {
-		tcache_dalloc_large(tsdn_tsd(tsdn), tcache, ptr, usize,
-		    slow_path);
+		tcache_dalloc_large(tsdn_tsd(tsdn), tcache, ptr,
+		    size2index(usize), slow_path);
 	} else {
 		large_dalloc(tsdn, extent);
 	}

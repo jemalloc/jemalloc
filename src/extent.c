@@ -71,8 +71,8 @@ static size_t	highpages;
 static void extent_deregister(tsdn_t *tsdn, extent_t *extent);
 static extent_t *extent_recycle(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, extents_t *extents, void *new_addr,
-    size_t usize, size_t pad, size_t alignment, bool *zero, bool *commit,
-    bool slab);
+    size_t usize, size_t pad, size_t alignment, bool slab, szind_t szind,
+    bool *zero, bool *commit);
 static extent_t *extent_try_coalesce(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, rtree_ctx_t *rtree_ctx, extents_t *extents,
     extent_t *extent, bool *coalesced);
@@ -299,14 +299,14 @@ extent_try_delayed_coalesce(tsdn_t *tsdn, arena_t *arena,
 
 extent_t *
 extents_alloc(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
-    extents_t *extents, void *new_addr, size_t usize, size_t pad,
-    size_t alignment, bool *zero, bool *commit, bool slab) {
-	assert(usize + pad != 0);
+    extents_t *extents, void *new_addr, size_t size, size_t pad,
+    size_t alignment, bool slab, szind_t szind, bool *zero, bool *commit) {
+	assert(size + pad != 0);
 	assert(alignment != 0);
 	witness_assert_depth_to_rank(tsdn, WITNESS_RANK_CORE, 0);
 
 	return extent_recycle(tsdn, arena, r_extent_hooks, extents, new_addr,
-	    usize, pad, alignment, zero, commit, slab);
+	    size, pad, alignment, slab, szind, zero, commit);
 }
 
 void
@@ -615,8 +615,8 @@ extent_deregister(tsdn_t *tsdn, extent_t *extent) {
 static extent_t *
 extent_recycle_extract(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, rtree_ctx_t *rtree_ctx, extents_t *extents,
-    bool locked, void *new_addr, size_t usize, size_t pad, size_t alignment,
-    bool *zero, bool *commit) {
+    bool locked, void *new_addr, size_t size, size_t pad, size_t alignment,
+    bool slab, bool *zero, bool *commit) {
 	witness_assert_depth_to_rank(tsdn, WITNESS_RANK_CORE, locked ? 1 : 0);
 	if (locked) {
 		malloc_mutex_assert_owner(tsdn, &extents->mtx);
@@ -639,10 +639,10 @@ extent_recycle_extract(tsdn_t *tsdn, arena_t *arena,
 		assert(alignment <= PAGE);
 	}
 
-	size_t size = usize + pad;
-	size_t alloc_size = size + PAGE_CEILING(alignment) - PAGE;
+	size_t esize = size + pad;
+	size_t alloc_size = esize + PAGE_CEILING(alignment) - PAGE;
 	/* Beware size_t wrap-around. */
-	if (alloc_size < usize) {
+	if (alloc_size < esize) {
 		return NULL;
 	}
 	if (!locked) {
@@ -661,7 +661,7 @@ extent_recycle_extract(tsdn_t *tsdn, arena_t *arena,
 			if (extent != NULL) {
 				assert(extent_base_get(extent) == new_addr);
 				if (extent_arena_get(extent) != arena ||
-				    extent_size_get(extent) < size ||
+				    extent_size_get(extent) < esize ||
 				    extent_state_get(extent) !=
 				    extents_state_get(extents)) {
 					extent = NULL;
@@ -700,21 +700,20 @@ extent_recycle_extract(tsdn_t *tsdn, arena_t *arena,
 static extent_t *
 extent_recycle_split(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, rtree_ctx_t *rtree_ctx, extents_t *extents,
-    void *new_addr, size_t usize, size_t pad, size_t alignment,
-    extent_t *extent) {
-	size_t size = usize + pad;
+    void *new_addr, size_t size, size_t pad, size_t alignment, bool slab,
+    szind_t szind, extent_t *extent) {
+	size_t esize = size + pad;
 	size_t leadsize = ALIGNMENT_CEILING((uintptr_t)extent_base_get(extent),
 	    PAGE_CEILING(alignment)) - (uintptr_t)extent_base_get(extent);
 	assert(new_addr == NULL || leadsize == 0);
-	assert(extent_size_get(extent) >= leadsize + size);
-	size_t trailsize = extent_size_get(extent) - leadsize - size;
+	assert(extent_size_get(extent) >= leadsize + esize);
+	size_t trailsize = extent_size_get(extent) - leadsize - esize;
 
 	/* Split the lead. */
 	if (leadsize != 0) {
 		extent_t *lead = extent;
 		extent = extent_split_wrapper(tsdn, arena, r_extent_hooks,
-		    lead, leadsize, leadsize, size + trailsize, usize +
-		    trailsize);
+		    lead, leadsize, NSIZES, esize + trailsize, szind);
 		if (extent == NULL) {
 			extent_deregister(tsdn, lead);
 			extents_leak(tsdn, arena, r_extent_hooks, extents,
@@ -727,7 +726,7 @@ extent_recycle_split(tsdn_t *tsdn, arena_t *arena,
 	/* Split the trail. */
 	if (trailsize != 0) {
 		extent_t *trail = extent_split_wrapper(tsdn, arena,
-		    r_extent_hooks, extent, size, usize, trailsize, trailsize);
+		    r_extent_hooks, extent, esize, szind, trailsize, NSIZES);
 		if (trail == NULL) {
 			extent_deregister(tsdn, extent);
 			extents_leak(tsdn, arena, r_extent_hooks, extents,
@@ -737,10 +736,10 @@ extent_recycle_split(tsdn_t *tsdn, arena_t *arena,
 		extent_deactivate(tsdn, arena, extents, trail, false);
 	} else if (leadsize == 0) {
 		/*
-		 * Splitting causes usize to be set as a side effect, but no
+		 * Splitting causes szind to be set as a side effect, but no
 		 * splitting occurred.
 		 */
-		extent_usize_set(extent, usize);
+		extent_szind_set(extent, szind);
 	}
 
 	return extent;
@@ -748,24 +747,25 @@ extent_recycle_split(tsdn_t *tsdn, arena_t *arena,
 
 static extent_t *
 extent_recycle(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
-    extents_t *extents, void *new_addr, size_t usize, size_t pad,
-    size_t alignment, bool *zero, bool *commit, bool slab) {
+    extents_t *extents, void *new_addr, size_t size, size_t pad,
+    size_t alignment, bool slab, szind_t szind, bool *zero, bool *commit) {
 	witness_assert_depth_to_rank(tsdn, WITNESS_RANK_CORE, 0);
 	assert(new_addr == NULL || !slab);
 	assert(pad == 0 || !slab);
+	assert(!*zero || !slab);
 
 	rtree_ctx_t rtree_ctx_fallback;
 	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
 
 	extent_t *extent = extent_recycle_extract(tsdn, arena, r_extent_hooks,
-	    rtree_ctx, extents, false, new_addr, usize, pad, alignment, zero,
-	    commit);
+	    rtree_ctx, extents, false, new_addr, size, pad, alignment, slab,
+	    zero, commit);
 	if (extent == NULL) {
 		return NULL;
 	}
 
 	extent = extent_recycle_split(tsdn, arena, r_extent_hooks, rtree_ctx,
-	    extents, new_addr, usize, pad, alignment, extent);
+	    extents, new_addr, size, pad, alignment, slab, szind, extent);
 	if (extent == NULL) {
 		return NULL;
 	}
@@ -790,18 +790,15 @@ extent_recycle(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
 	}
 
 	if (*zero) {
+		void *addr = extent_base_get(extent);
+		size_t size = extent_size_get(extent);
 		if (!extent_zeroed_get(extent)) {
-			if (pages_purge_forced(extent_base_get(extent),
-			    extent_size_get(extent))) {
-				memset(extent_addr_get(extent), 0,
-				    extent_usize_get(extent));
+			if (pages_purge_forced(addr, size)) {
+				memset(addr, 0, size);
 			}
 		} else if (config_debug) {
-			size_t i;
-			size_t *p = (size_t *)(uintptr_t)
-			    extent_addr_get(extent);
-
-			for (i = 0; i < usize / sizeof(size_t); i++) {
+			size_t *p = (size_t *)(uintptr_t)addr;
+			for (size_t i = 0; i < size / sizeof(size_t); i++) {
 				assert(p[i] == 0);
 			}
 		}
@@ -882,12 +879,10 @@ extent_alloc_default(extent_hooks_t *extent_hooks, void *new_addr, size_t size,
  */
 static extent_t *
 extent_grow_retained(tsdn_t *tsdn, arena_t *arena,
-    extent_hooks_t **r_extent_hooks, void *new_addr, size_t usize, size_t pad,
-    size_t alignment, bool *zero, bool *commit, bool slab) {
-	extent_t *extent;
-	void *ptr;
-	size_t size, alloc_size, alloc_size_min, leadsize, trailsize;
-	bool zeroed, committed;
+    extent_hooks_t **r_extent_hooks, void *new_addr, size_t size, size_t pad,
+    size_t alignment, bool slab, szind_t szind, bool *zero, bool *commit) {
+	assert(pad == 0 || !slab);
+	assert(!*zero || !slab);
 
 	/*
 	 * Check whether the next extent size in the series would be large
@@ -895,37 +890,37 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena,
 	 * series of unsatisfiable allocation requests doesn't cause unused
 	 * extent creation as a side effect.
 	 */
-	size = usize + pad;
-	alloc_size = pind2sz(atomic_read_u(&arena->extent_grow_next));
-	alloc_size_min = size + PAGE_CEILING(alignment) - PAGE;
+	size_t esize = size + pad;
+	size_t alloc_size = pind2sz(atomic_read_u(&arena->extent_grow_next));
+	size_t alloc_size_min = esize + PAGE_CEILING(alignment) - PAGE;
 	/* Beware size_t wrap-around. */
-	if (alloc_size_min < usize) {
+	if (alloc_size_min < esize) {
 		return NULL;
 	}
 	if (alloc_size < alloc_size_min) {
 		return NULL;
 	}
-	extent = extent_alloc(tsdn, arena);
+	extent_t *extent = extent_alloc(tsdn, arena);
 	if (extent == NULL) {
 		return NULL;
 	}
-	zeroed = false;
-	committed = false;
-	ptr = extent_alloc_core(tsdn, arena, new_addr, alloc_size, PAGE,
+	bool zeroed = false;
+	bool committed = false;
+	void *ptr = extent_alloc_core(tsdn, arena, new_addr, alloc_size, PAGE,
 	    &zeroed, &committed, arena->dss_prec);
-	extent_init(extent, arena, ptr, alloc_size, alloc_size,
+	extent_init(extent, arena, ptr, alloc_size, false, NSIZES,
 	    arena_extent_sn_next(arena), extent_state_active, zeroed,
-	    committed, false);
+	    committed);
 	if (ptr == NULL || extent_register_no_gdump_add(tsdn, extent)) {
 		extent_dalloc(tsdn, arena, extent);
 		return NULL;
 	}
 
-	leadsize = ALIGNMENT_CEILING((uintptr_t)ptr, PAGE_CEILING(alignment)) -
-	    (uintptr_t)ptr;
+	size_t leadsize = ALIGNMENT_CEILING((uintptr_t)ptr,
+	    PAGE_CEILING(alignment)) - (uintptr_t)ptr;
 	assert(new_addr == NULL || leadsize == 0);
-	assert(alloc_size >= leadsize + size);
-	trailsize = alloc_size - leadsize - size;
+	assert(alloc_size >= leadsize + esize);
+	size_t trailsize = alloc_size - leadsize - esize;
 	if (extent_zeroed_get(extent)) {
 		*zero = true;
 	}
@@ -937,7 +932,7 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena,
 	if (leadsize != 0) {
 		extent_t *lead = extent;
 		extent = extent_split_wrapper(tsdn, arena, r_extent_hooks, lead,
-		    leadsize, leadsize, size + trailsize, usize + trailsize);
+		    leadsize, NSIZES, esize + trailsize, szind);
 		if (extent == NULL) {
 			extent_deregister(tsdn, lead);
 			extents_leak(tsdn, arena, r_extent_hooks, false, lead);
@@ -950,7 +945,7 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena,
 	/* Split the trail. */
 	if (trailsize != 0) {
 		extent_t *trail = extent_split_wrapper(tsdn, arena,
-		    r_extent_hooks, extent, size, usize, trailsize, trailsize);
+		    r_extent_hooks, extent, esize, szind, trailsize, NSIZES);
 		if (trail == NULL) {
 			extent_deregister(tsdn, extent);
 			extents_leak(tsdn, arena, r_extent_hooks,
@@ -961,10 +956,10 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena,
 		    &arena->extents_retained, trail);
 	} else if (leadsize == 0) {
 		/*
-		 * Splitting causes usize to be set as a side effect, but no
+		 * Splitting causes szind to be set as a side effect, but no
 		 * splitting occurred.
 		 */
-		extent_usize_set(extent, usize);
+		extent_szind_set(extent, szind);
 	}
 
 	if (*commit && !extent_committed_get(extent)) {
@@ -993,10 +988,10 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena,
 		extent_interior_register(tsdn, rtree_ctx, extent);
 	}
 	if (*zero && !extent_zeroed_get(extent)) {
-		if (pages_purge_forced(extent_base_get(extent),
-		    extent_size_get(extent))) {
-			memset(extent_addr_get(extent), 0,
-			    extent_usize_get(extent));
+		void *addr = extent_base_get(extent);
+		size_t size = extent_size_get(extent);
+		if (pages_purge_forced(addr, size)) {
+			memset(addr, 0, size);
 		}
 	}
 	/*
@@ -1019,16 +1014,16 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena,
 
 static extent_t *
 extent_alloc_retained(tsdn_t *tsdn, arena_t *arena,
-    extent_hooks_t **r_extent_hooks, void *new_addr, size_t usize, size_t pad,
-    size_t alignment, bool *zero, bool *commit, bool slab) {
+    extent_hooks_t **r_extent_hooks, void *new_addr, size_t size, size_t pad,
+    size_t alignment, bool slab, szind_t szind, bool *zero, bool *commit) {
 	extent_t *extent;
 
-	assert(usize != 0);
+	assert(size != 0);
 	assert(alignment != 0);
 
 	extent = extent_recycle(tsdn, arena, r_extent_hooks,
-	    &arena->extents_retained, new_addr, usize, pad, alignment, zero,
-	    commit, slab);
+	    &arena->extents_retained, new_addr, size, pad, alignment, slab,
+	    szind, zero, commit);
 	if (extent != NULL) {
 		if (config_prof) {
 			extent_gdump_add(tsdn, extent);
@@ -1036,7 +1031,7 @@ extent_alloc_retained(tsdn_t *tsdn, arena_t *arena,
 	}
 	if (!config_munmap && extent == NULL) {
 		extent = extent_grow_retained(tsdn, arena, r_extent_hooks,
-		    new_addr, usize, pad, alignment, zero, commit, slab);
+		    new_addr, size, pad, alignment, slab, szind, zero, commit);
 	}
 
 	return extent;
@@ -1044,32 +1039,28 @@ extent_alloc_retained(tsdn_t *tsdn, arena_t *arena,
 
 static extent_t *
 extent_alloc_wrapper_hard(tsdn_t *tsdn, arena_t *arena,
-    extent_hooks_t **r_extent_hooks, void *new_addr, size_t usize, size_t pad,
-    size_t alignment, bool *zero, bool *commit, bool slab) {
-	extent_t *extent;
-	size_t size;
-	void *addr;
-
-	size = usize + pad;
-	extent = extent_alloc(tsdn, arena);
+    extent_hooks_t **r_extent_hooks, void *new_addr, size_t size, size_t pad,
+    size_t alignment, bool slab, szind_t szind, bool *zero, bool *commit) {
+	size_t esize = size + pad;
+	extent_t *extent = extent_alloc(tsdn, arena);
 	if (extent == NULL) {
 		return NULL;
 	}
+	void *addr;
 	if (*r_extent_hooks == &extent_hooks_default) {
 		/* Call directly to propagate tsdn. */
-		addr = extent_alloc_default_impl(tsdn, arena, new_addr, size,
+		addr = extent_alloc_default_impl(tsdn, arena, new_addr, esize,
 		    alignment, zero, commit);
 	} else {
-		addr = (*r_extent_hooks)->alloc(*r_extent_hooks, new_addr, size,
-		    alignment, zero, commit, arena_ind_get(arena));
+		addr = (*r_extent_hooks)->alloc(*r_extent_hooks, new_addr,
+		    esize, alignment, zero, commit, arena_ind_get(arena));
 	}
 	if (addr == NULL) {
 		extent_dalloc(tsdn, arena, extent);
 		return NULL;
 	}
-	extent_init(extent, arena, addr, size, usize,
-	    arena_extent_sn_next(arena), extent_state_active, zero, commit,
-	    slab);
+	extent_init(extent, arena, addr, esize, slab, szind,
+	    arena_extent_sn_next(arena), extent_state_active, zero, commit);
 	if (pad != 0) {
 		extent_addr_randomize(tsdn, extent, alignment);
 	}
@@ -1084,17 +1075,17 @@ extent_alloc_wrapper_hard(tsdn_t *tsdn, arena_t *arena,
 
 extent_t *
 extent_alloc_wrapper(tsdn_t *tsdn, arena_t *arena,
-    extent_hooks_t **r_extent_hooks, void *new_addr, size_t usize, size_t pad,
-    size_t alignment, bool *zero, bool *commit, bool slab) {
+    extent_hooks_t **r_extent_hooks, void *new_addr, size_t size, size_t pad,
+    size_t alignment, bool slab, szind_t szind, bool *zero, bool *commit) {
 	witness_assert_depth_to_rank(tsdn, WITNESS_RANK_CORE, 0);
 
 	extent_hooks_assure_initialized(arena, r_extent_hooks);
 
 	extent_t *extent = extent_alloc_retained(tsdn, arena, r_extent_hooks,
-	    new_addr, usize, pad, alignment, zero, commit, slab);
+	    new_addr, size, pad, alignment, slab, szind, zero, commit);
 	if (extent == NULL) {
 		extent = extent_alloc_wrapper_hard(tsdn, arena, r_extent_hooks,
-		    new_addr, usize, pad, alignment, zero, commit, slab);
+		    new_addr, size, pad, alignment, slab, szind, zero, commit);
 	}
 
 	return extent;
@@ -1232,7 +1223,7 @@ extent_record(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
 	malloc_mutex_lock(tsdn, &extents->mtx);
 	extent_hooks_assure_initialized(arena, r_extent_hooks);
 
-	extent_usize_set(extent, 0);
+	extent_szind_set(extent, NSIZES);
 	if (extent_slab_get(extent)) {
 		extent_interior_deregister(tsdn, rtree_ctx, extent);
 		extent_slab_set(extent, false);
@@ -1474,7 +1465,7 @@ extent_split_default(extent_hooks_t *extent_hooks, void *addr, size_t size,
 extent_t *
 extent_split_wrapper(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, extent_t *extent, size_t size_a,
-    size_t usize_a, size_t size_b, size_t usize_b) {
+    szind_t szind_a, size_t size_b, szind_t szind_b) {
 	assert(extent_size_get(extent) == size_a + size_b);
 	witness_assert_depth_to_rank(tsdn, WITNESS_RANK_CORE, 0);
 
@@ -1498,9 +1489,9 @@ extent_split_wrapper(tsdn_t *tsdn, arena_t *arena,
 		extent_t lead;
 
 		extent_init(&lead, arena, extent_addr_get(extent), size_a,
-		    usize_a, extent_sn_get(extent), extent_state_get(extent),
-		    extent_zeroed_get(extent), extent_committed_get(extent),
-		    extent_slab_get(extent));
+		    extent_slab_get(extent), szind_a, extent_sn_get(extent),
+		    extent_state_get(extent), extent_zeroed_get(extent),
+		    extent_committed_get(extent));
 
 		if (extent_rtree_acquire(tsdn, rtree_ctx, &lead, false, true,
 		    &lead_elm_a, &lead_elm_b)) {
@@ -1509,9 +1500,9 @@ extent_split_wrapper(tsdn_t *tsdn, arena_t *arena,
 	}
 
 	extent_init(trail, arena, (void *)((uintptr_t)extent_base_get(extent) +
-	    size_a), size_b, usize_b, extent_sn_get(extent),
-	    extent_state_get(extent), extent_zeroed_get(extent),
-	    extent_committed_get(extent), extent_slab_get(extent));
+	    size_a), size_b, extent_slab_get(extent), szind_b,
+	    extent_sn_get(extent), extent_state_get(extent),
+	    extent_zeroed_get(extent), extent_committed_get(extent));
 	if (extent_rtree_acquire(tsdn, rtree_ctx, trail, false, true,
 	    &trail_elm_a, &trail_elm_b)) {
 		goto label_error_c;
@@ -1524,7 +1515,7 @@ extent_split_wrapper(tsdn_t *tsdn, arena_t *arena,
 	}
 
 	extent_size_set(extent, size_a);
-	extent_usize_set(extent, usize_a);
+	extent_szind_set(extent, szind_a);
 
 	extent_rtree_write_acquired(tsdn, lead_elm_a, lead_elm_b, extent);
 	extent_rtree_write_acquired(tsdn, trail_elm_a, trail_elm_b, trail);
@@ -1617,7 +1608,7 @@ extent_merge_wrapper(tsdn_t *tsdn, arena_t *arena,
 	}
 
 	extent_size_set(a, extent_size_get(a) + extent_size_get(b));
-	extent_usize_set(a, extent_usize_get(a) + extent_usize_get(b));
+	extent_szind_set(a, NSIZES);
 	extent_sn_set(a, (extent_sn_get(a) < extent_sn_get(b)) ?
 	    extent_sn_get(a) : extent_sn_get(b));
 	extent_zeroed_set(a, extent_zeroed_get(a) && extent_zeroed_get(b));

@@ -87,8 +87,8 @@ base_extent_init(size_t *extent_sn_next, extent_t *extent, void *addr,
 	sn = *extent_sn_next;
 	(*extent_sn_next)++;
 
-	extent_init(extent, NULL, addr, size, 0, sn, extent_state_active, true,
-	    true, false);
+	extent_init(extent, NULL, addr, size, false, NSIZES, sn,
+	    extent_state_active, true, true);
 }
 
 static void *
@@ -104,8 +104,9 @@ base_extent_bump_alloc_helper(extent_t *extent, size_t *gap_size, size_t size,
 	ret = (void *)((uintptr_t)extent_addr_get(extent) + *gap_size);
 	assert(extent_size_get(extent) >= *gap_size + size);
 	extent_init(extent, NULL, (void *)((uintptr_t)extent_addr_get(extent) +
-	    *gap_size + size), extent_size_get(extent) - *gap_size - size, 0,
-	    extent_sn_get(extent), extent_state_active, true, true, false);
+	    *gap_size + size), extent_size_get(extent) - *gap_size - size,
+	    false, NSIZES, extent_sn_get(extent), extent_state_active, true,
+	    true);
 	return ret;
 }
 

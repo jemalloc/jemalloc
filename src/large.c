@@ -114,15 +114,15 @@ large_ralloc_no_move_shrink(tsdn_t *tsdn, extent_t *extent, size_t usize) {
 	/* Split excess pages. */
 	if (diff != 0) {
 		extent_t *trail = extent_split_wrapper(tsdn, arena,
-		    &extent_hooks, extent, usize + large_pad, usize, diff,
-		    diff);
+		    &extent_hooks, extent, usize + large_pad, size2index(usize),
+		    diff, NSIZES);
 		if (trail == NULL) {
 			return true;
 		}
 
 		if (config_fill && unlikely(opt_junk_free)) {
 			large_dalloc_maybe_junk(extent_addr_get(trail),
-			    extent_usize_get(trail));
+			    extent_size_get(trail));
 		}
 
 		arena_extents_dirty_dalloc(tsdn, arena, &extent_hooks, trail);
@@ -139,7 +139,7 @@ large_ralloc_no_move_expand(tsdn_t *tsdn, extent_t *extent, size_t usize,
 	arena_t *arena = extent_arena_get(extent);
 	size_t oldusize = extent_usize_get(extent);
 	extent_hooks_t *extent_hooks = extent_hooks_get(arena);
-	size_t trailsize = usize - extent_usize_get(extent);
+	size_t trailsize = usize - oldusize;
 
 	if (extent_hooks->merge == NULL) {
 		return true;
@@ -160,17 +160,17 @@ large_ralloc_no_move_expand(tsdn_t *tsdn, extent_t *extent, size_t usize,
 	bool new_mapping;
 	if ((trail = extents_alloc(tsdn, arena, &extent_hooks,
 	    &arena->extents_dirty, extent_past_get(extent), trailsize, 0,
-	    CACHELINE, &is_zeroed_trail, &commit, false)) != NULL
+	    CACHELINE, false, NSIZES, &is_zeroed_trail, &commit)) != NULL
 	    || (trail = extents_alloc(tsdn, arena, &extent_hooks,
 	    &arena->extents_muzzy, extent_past_get(extent), trailsize, 0,
-	    CACHELINE, &is_zeroed_trail, &commit, false)) != NULL) {
+	    CACHELINE, false, NSIZES, &is_zeroed_trail, &commit)) != NULL) {
 		if (config_stats) {
 			new_mapping = false;
 		}
 	} else {
 		if ((trail = extent_alloc_wrapper(tsdn, arena, &extent_hooks,
-		    extent_past_get(extent), trailsize, 0, CACHELINE,
-		    &is_zeroed_trail, &commit, false)) == NULL) {
+		    extent_past_get(extent), trailsize, 0, CACHELINE, false,
+		    NSIZES, &is_zeroed_trail, &commit)) == NULL) {
 			return true;
 		}
 		if (config_stats) {
@@ -182,6 +182,7 @@ large_ralloc_no_move_expand(tsdn_t *tsdn, extent_t *extent, size_t usize,
 		extent_dalloc_wrapper(tsdn, arena, &extent_hooks, trail);
 		return true;
 	}
+	extent_szind_set(extent, size2index(usize));
 
 	if (config_stats && new_mapping) {
 		arena_stats_mapped_add(tsdn, &arena->stats, trailsize);
@@ -218,14 +219,14 @@ large_ralloc_no_move_expand(tsdn_t *tsdn, extent_t *extent, size_t usize,
 bool
 large_ralloc_no_move(tsdn_t *tsdn, extent_t *extent, size_t usize_min,
     size_t usize_max, bool zero) {
-	assert(s2u(extent_usize_get(extent)) == extent_usize_get(extent));
+	size_t oldusize = extent_usize_get(extent);
+
 	/* The following should have been caught by callers. */
 	assert(usize_min > 0 && usize_max <= LARGE_MAXCLASS);
 	/* Both allocation sizes must be large to avoid a move. */
-	assert(extent_usize_get(extent) >= LARGE_MINCLASS && usize_max >=
-	    LARGE_MINCLASS);
+	assert(oldusize >= LARGE_MINCLASS && usize_max >= LARGE_MINCLASS);
 
-	if (usize_max > extent_usize_get(extent)) {
+	if (usize_max > oldusize) {
 		/* Attempt to expand the allocation in-place. */
 		if (!large_ralloc_no_move_expand(tsdn, extent, usize_max,
 		    zero)) {
@@ -233,8 +234,7 @@ large_ralloc_no_move(tsdn_t *tsdn, extent_t *extent, size_t usize_min,
 			return false;
 		}
 		/* Try again, this time with usize_min. */
-		if (usize_min < usize_max && usize_min >
-		    extent_usize_get(extent) &&
+		if (usize_min < usize_max && usize_min > oldusize &&
 		    large_ralloc_no_move_expand(tsdn, extent, usize_min,
 		    zero)) {
 			arena_decay_tick(tsdn, extent_arena_get(extent));
@@ -246,14 +246,13 @@ large_ralloc_no_move(tsdn_t *tsdn, extent_t *extent, size_t usize_min,
 	 * Avoid moving the allocation if the existing extent size accommodates
 	 * the new size.
 	 */
-	if (extent_usize_get(extent) >= usize_min && extent_usize_get(extent) <=
-	    usize_max) {
+	if (oldusize >= usize_min && oldusize <= usize_max) {
 		arena_decay_tick(tsdn, extent_arena_get(extent));
 		return false;
 	}
 
 	/* Attempt to shrink the allocation in-place. */
-	if (extent_usize_get(extent) > usize_max) {
+	if (oldusize > usize_max) {
 		if (!large_ralloc_no_move_shrink(tsdn, extent, usize_max)) {
 			arena_decay_tick(tsdn, extent_arena_get(extent));
 			return false;
@@ -274,14 +273,12 @@ large_ralloc_move_helper(tsdn_t *tsdn, arena_t *arena, size_t usize,
 void *
 large_ralloc(tsdn_t *tsdn, arena_t *arena, extent_t *extent, size_t usize,
     size_t alignment, bool zero, tcache_t *tcache) {
-	void *ret;
-	size_t copysize;
+	size_t oldusize = extent_usize_get(extent);
 
 	/* The following should have been caught by callers. */
 	assert(usize > 0 && usize <= LARGE_MAXCLASS);
 	/* Both allocation sizes must be large to avoid a move. */
-	assert(extent_usize_get(extent) >= LARGE_MINCLASS && usize >=
-	    LARGE_MINCLASS);
+	assert(oldusize >= LARGE_MINCLASS && usize >= LARGE_MINCLASS);
 
 	/* Try to avoid moving the allocation. */
 	if (!large_ralloc_no_move(tsdn, extent, usize, usize, zero)) {
@@ -293,16 +290,16 @@ large_ralloc(tsdn_t *tsdn, arena_t *arena, extent_t *extent, size_t usize,
 	 * different size class.  In that case, fall back to allocating new
 	 * space and copying.
 	 */
-	ret = large_ralloc_move_helper(tsdn, arena, usize, alignment, zero);
+	void *ret = large_ralloc_move_helper(tsdn, arena, usize, alignment,
+	    zero);
 	if (ret == NULL) {
 		return NULL;
 	}
 
-	copysize = (usize < extent_usize_get(extent)) ? usize :
-	    extent_usize_get(extent);
+	size_t copysize = (usize < oldusize) ? usize : oldusize;
 	memcpy(ret, extent_addr_get(extent), copysize);
-	isdalloct(tsdn, extent, extent_addr_get(extent),
-	    extent_usize_get(extent), tcache, true);
+	isdalloct(tsdn, extent, extent_addr_get(extent), oldusize, tcache,
+	    true);
 	return ret;
 }
 

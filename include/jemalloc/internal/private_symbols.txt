@@ -191,8 +191,9 @@ extent_snad_comp
 extent_split_wrapper
 extent_state_get
 extent_state_set
+extent_szind_get
+extent_szind_set
 extent_usize_get
-extent_usize_set
 extent_zeroed_get
 extent_zeroed_set
 extents_alloc

@@ -15,7 +15,7 @@ void	*tcache_alloc_large(tsd_t *tsd, arena_t *arena, tcache_t *tcache,
 void	tcache_dalloc_small(tsd_t *tsd, tcache_t *tcache, void *ptr,
     szind_t binind, bool slow_path);
 void	tcache_dalloc_large(tsd_t *tsd, tcache_t *tcache, void *ptr,
-    size_t size, bool slow_path);
+    szind_t binind, bool slow_path);
 tcache_t	*tcaches_get(tsd_t *tsd, unsigned ind);
 #endif
 
@@ -271,19 +271,16 @@ tcache_dalloc_small(tsd_t *tsd, tcache_t *tcache, void *ptr, szind_t binind,
 }
 
 JEMALLOC_ALWAYS_INLINE void
-tcache_dalloc_large(tsd_t *tsd, tcache_t *tcache, void *ptr, size_t size,
+tcache_dalloc_large(tsd_t *tsd, tcache_t *tcache, void *ptr, szind_t binind,
     bool slow_path) {
-	szind_t binind;
 	tcache_bin_t *tbin;
 	tcache_bin_info_t *tbin_info;
 
 	assert(tcache_salloc(tsd_tsdn(tsd), ptr) > SMALL_MAXCLASS);
 	assert(tcache_salloc(tsd_tsdn(tsd), ptr) <= tcache_maxclass);
 
-	binind = size2index(size);
-
 	if (slow_path && config_fill && unlikely(opt_junk_free)) {
-		large_dalloc_junk(ptr, size);
+		large_dalloc_junk(ptr, index2size(binind));
 	}
 
 	tbin = &tcache->tbins[binind];
