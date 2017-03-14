@@ -384,7 +384,7 @@ arena_slab_regind(extent_t *slab, szind_t binind, const void *ptr) {
 JEMALLOC_INLINE_C void
 arena_slab_reg_dalloc(tsdn_t *tsdn, extent_t *slab,
     arena_slab_data_t *slab_data, void *ptr) {
-	szind_t binind = slab_data->binind;
+	szind_t binind = extent_szind_get(slab);
 	const arena_bin_info_t *bin_info = &arena_bin_info[binind];
 	size_t regind = arena_slab_regind(slab, binind, ptr);
 
@@ -1181,7 +1181,6 @@ arena_slab_alloc(tsdn_t *tsdn, arena_t *arena, szind_t binind,
 
 	/* Initialize slab internals. */
 	arena_slab_data_t *slab_data = extent_slab_data_get(slab);
-	slab_data->binind = binind;
 	slab_data->nfree = bin_info->nregs;
 	bitmap_init(slab_data->bitmap, &bin_info->bitmap_info);
 
@@ -1511,7 +1510,7 @@ arena_dissociate_bin_slab(extent_t *slab, arena_bin_t *bin) {
 	if (slab == bin->slabcur) {
 		bin->slabcur = NULL;
 	} else {
-		szind_t binind = extent_slab_data_get(slab)->binind;
+		szind_t binind = extent_szind_get(slab);
 		const arena_bin_info_t *bin_info = &arena_bin_info[binind];
 
 		/*
@@ -1573,7 +1572,7 @@ static void
 arena_dalloc_bin_locked_impl(tsdn_t *tsdn, arena_t *arena, extent_t *slab,
     void *ptr, bool junked) {
 	arena_slab_data_t *slab_data = extent_slab_data_get(slab);
-	szind_t binind = slab_data->binind;
+	szind_t binind = extent_szind_get(slab);
 	arena_bin_t *bin = &arena->bins[binind];
 	const arena_bin_info_t *bin_info = &arena_bin_info[binind];
 
@@ -1604,7 +1603,8 @@ arena_dalloc_bin_junked_locked(tsdn_t *tsdn, arena_t *arena, extent_t *extent,
 
 static void
 arena_dalloc_bin(tsdn_t *tsdn, arena_t *arena, extent_t *extent, void *ptr) {
-	arena_bin_t *bin = &arena->bins[extent_slab_data_get(extent)->binind];
+	szind_t binind = extent_szind_get(extent);
+	arena_bin_t *bin = &arena->bins[binind];
 
 	malloc_mutex_lock(tsdn, &bin->lock);
 	arena_dalloc_bin_locked_impl(tsdn, arena, extent, ptr, false);

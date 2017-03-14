@@ -117,17 +117,9 @@ arena_aalloc(tsdn_t *tsdn, const void *ptr) {
 /* Return the size of the allocation pointed to by ptr. */
 JEMALLOC_ALWAYS_INLINE size_t
 arena_salloc(tsdn_t *tsdn, const extent_t *extent, const void *ptr) {
-	size_t ret;
-
 	assert(ptr != NULL);
 
-	if (likely(extent_slab_get(extent))) {
-		ret = index2size(extent_slab_data_get_const(extent)->binind);
-	} else {
-		ret = large_salloc(tsdn, extent);
-	}
-
-	return ret;
+	return index2size(extent_szind_get(extent));
 }
 
 JEMALLOC_ALWAYS_INLINE void
@@ -136,19 +128,17 @@ arena_dalloc(tsdn_t *tsdn, extent_t *extent, void *ptr, tcache_t *tcache,
 	assert(!tsdn_null(tsdn) || tcache == NULL);
 	assert(ptr != NULL);
 
+	szind_t szind = extent_szind_get(extent);
 	if (likely(extent_slab_get(extent))) {
 		/* Small allocation. */
 		if (likely(tcache != NULL)) {
-			szind_t binind = extent_slab_data_get(extent)->binind;
-			tcache_dalloc_small(tsdn_tsd(tsdn), tcache, ptr, binind,
+			tcache_dalloc_small(tsdn_tsd(tsdn), tcache, ptr, szind,
 			    slow_path);
 		} else {
 			arena_dalloc_small(tsdn, extent_arena_get(extent),
 			    extent, ptr);
 		}
 	} else {
-		szind_t szind = extent_szind_get(extent);
-
 		if (likely(tcache != NULL) && szind < nhbins) {
 			if (config_prof && unlikely(szind < NBINS)) {
 				arena_dalloc_promoted(tsdn, extent, ptr,
@@ -173,7 +163,6 @@ arena_sdalloc(tsdn_t *tsdn, extent_t *extent, void *ptr, size_t size,
 	if (likely(extent_slab_get(extent))) {
 		/* Small allocation. */
 		if (likely(tcache != NULL)) {
-			assert(szind == extent_slab_data_get(extent)->binind);
 			tcache_dalloc_small(tsdn_tsd(tsdn), tcache, ptr, szind,
 			    slow_path);
 		} else {

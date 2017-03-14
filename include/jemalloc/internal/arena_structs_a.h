@@ -2,9 +2,6 @@
 #define JEMALLOC_INTERNAL_ARENA_STRUCTS_A_H
 
 struct arena_slab_data_s {
-	/* Index of bin this slab is associated with. */
-	szind_t		binind;
-
 	/* Number of free regions in slab. */
 	unsigned	nfree;
 
