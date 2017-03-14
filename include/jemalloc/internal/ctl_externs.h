@@ -4,13 +4,13 @@
 /* Maximum ctl tree depth. */
 #define CTL_MAX_DEPTH	7
 
-#define NUM_GLOBAL_PROF_LOCKS	3
-#define NUM_ARENA_PROF_LOCKS	6
-#define NUM_LOCK_PROF_COUNTERS	7
+#define NUM_GLOBAL_PROF_MUTEXES	3
+#define NUM_ARENA_PROF_MUTEXES	6
+#define NUM_MUTEX_PROF_COUNTERS	7
 
-extern const char *arena_lock_names[NUM_ARENA_PROF_LOCKS];
-extern const char *global_lock_names[NUM_GLOBAL_PROF_LOCKS];
-extern const char *lock_counter_names[NUM_LOCK_PROF_COUNTERS];
+extern const char *arena_mutex_names[NUM_ARENA_PROF_MUTEXES];
+extern const char *global_mutex_names[NUM_GLOBAL_PROF_MUTEXES];
+extern const char *mutex_counter_names[NUM_MUTEX_PROF_COUNTERS];
 
 int	ctl_byname(tsd_t *tsd, const char *name, void *oldp, size_t *oldlenp,
     void *newp, size_t newlen);

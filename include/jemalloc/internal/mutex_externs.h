@@ -14,5 +14,6 @@ void	malloc_mutex_prefork(tsdn_t *tsdn, malloc_mutex_t *mutex);
 void	malloc_mutex_postfork_parent(tsdn_t *tsdn, malloc_mutex_t *mutex);
 void	malloc_mutex_postfork_child(tsdn_t *tsdn, malloc_mutex_t *mutex);
 bool	malloc_mutex_boot(void);
+void	malloc_mutex_prof_data_reset(tsdn_t *tsdn, malloc_mutex_t *mutex);
 
 #endif /* JEMALLOC_INTERNAL_MUTEX_EXTERNS_H */

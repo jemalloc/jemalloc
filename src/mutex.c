@@ -67,7 +67,7 @@ JEMALLOC_EXPORT int	_pthread_mutex_init_calloc_cb(pthread_mutex_t *mutex,
 
 void
 malloc_mutex_lock_slow(malloc_mutex_t *mutex) {
-	lock_prof_data_t *data = &mutex->prof_data;
+	mutex_prof_data_t *data = &mutex->prof_data;
 
 	{//TODO: a smart spin policy
 		if (!malloc_mutex_trylock(mutex)) {
@@ -108,15 +108,21 @@ malloc_mutex_lock_slow(malloc_mutex_t *mutex) {
 }
 
 static void
-lock_prof_data_init(lock_prof_data_t *data) {
-	memset(data, 0, sizeof(lock_prof_data_t));
+mutex_prof_data_init(mutex_prof_data_t *data) {
+	memset(data, 0, sizeof(mutex_prof_data_t));
 	data->prev_owner = NULL;
+}
+
+void
+malloc_mutex_prof_data_reset(tsdn_t *tsdn, malloc_mutex_t *mutex) {
+	malloc_mutex_assert_owner(tsdn, mutex);
+	mutex_prof_data_init(&mutex->prof_data);
 }
 
 bool
 malloc_mutex_init(malloc_mutex_t *mutex, const char *name,
     witness_rank_t rank) {
-	lock_prof_data_init(&mutex->prof_data);
+	mutex_prof_data_init(&mutex->prof_data);
 #ifdef _WIN32
 #  if _WIN32_WINNT >= 0x0600
 	InitializeSRWLock(&mutex->lock);

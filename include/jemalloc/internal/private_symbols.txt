@@ -269,6 +269,7 @@ lg_floor
 lg_prof_sample
 malloc_cprintf
 malloc_getcpu
+malloc_mutex_prof_data_reset
 malloc_mutex_assert_not_owner
 malloc_mutex_assert_owner
 malloc_mutex_boot

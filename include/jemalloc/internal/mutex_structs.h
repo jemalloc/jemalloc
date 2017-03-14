@@ -1,20 +1,20 @@
 #ifndef JEMALLOC_INTERNAL_MUTEX_STRUCTS_H
 #define JEMALLOC_INTERNAL_MUTEX_STRUCTS_H
 
-struct lock_prof_data_s {
+struct mutex_prof_data_s {
 	/*
 	 * Counters touched on the slow path, i.e. when there is lock
 	 * contention.  We update them once we have the lock.
 	 */
-	/* Total time (in nano seconds) spent waiting on this lock. */
+	/* Total time (in nano seconds) spent waiting on this mutex. */
 	uint64_t		tot_wait_time;
 	/* Max time (in nano seconds) spent on a single lock operation. */
 	uint64_t		max_wait_time;
-	/* # of times have to wait for this lock (after spinning). */
+	/* # of times have to wait for this mutex (after spinning). */
 	uint64_t		n_wait_times;
-	/* # of times acquired the lock through local spinning. */
+	/* # of times acquired the mutex through local spinning. */
 	uint64_t		n_spin_acquired;
-	/* Max # of threads waiting for the lock at the same time. */
+	/* Max # of threads waiting for the mutex at the same time. */
 	uint32_t		max_n_thds;
 	/* Current # of threads waiting on the lock.  Atomic synced. */
 	uint32_t		n_waiting_thds;
@@ -25,9 +25,9 @@ struct lock_prof_data_s {
 	 * the lock) so that we have a higher chance of them being on the same
 	 * cacheline.
 	 */
-	/* # of times the new lock holder is different from the previous one. */
+	/* # of times the mutex holder is different than the previous one. */
 	uint64_t		n_owner_switches;
-	/* Previous lock holder, to facilitate n_owner_switches. */
+	/* Previous mutex holder, to facilitate n_owner_switches. */
 	tsdn_t			*prev_owner;
 	/* # of lock() operations in total. */
 	uint64_t		n_lock_ops;
@@ -38,13 +38,13 @@ struct malloc_mutex_s {
 		struct {
 			/*
 			 * prof_data is defined first to reduce cacheline
-			 * bouncing: the data is not touched by the lock holder
+			 * bouncing: the data is not touched by the mutex holder
 			 * during unlocking, while might be modified by
-			 * contenders.  Having it before the lock itself could
+			 * contenders.  Having it before the mutex itself could
 			 * avoid prefetching a modified cacheline (for the
 			 * unlocking thread).
 			 */
-			lock_prof_data_t	prof_data;
+			mutex_prof_data_t	prof_data;
 #ifdef _WIN32
 #  if _WIN32_WINNT >= 0x0600
 			SRWLOCK         	lock;
