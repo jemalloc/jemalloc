@@ -51,6 +51,7 @@ typedef struct rtree_s rtree_t;
  * have a witness_t directly embedded, but that would dramatically bloat the
  * tree.  This must contain enough entries to e.g. coalesce two extents.
  */
+#ifdef JEMALLOC_DEBUG
 #define RTREE_ELM_ACQUIRE_MAX	4
 
 /* Initializers for rtree_elm_witness_tsd_t. */
@@ -67,5 +68,9 @@ typedef struct rtree_s rtree_t;
 		RTREE_ELM_WITNESS_INITIALIZER				\
 	}								\
 }
+#else
+#define RTREE_ELM_ACQUIRE_MAX	0
+#define RTREE_ELM_WITNESS_TSD_INITIALIZER {}
+#endif
 
 #endif /* JEMALLOC_INTERNAL_RTREE_TYPES_H */
