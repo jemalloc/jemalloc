@@ -500,32 +500,39 @@ label_return:
 	return err;
 }
 
-static void
-tcaches_elm_flush(tsd_t *tsd, tcaches_t *elm) {
+static tcache_t *
+tcaches_elm_remove(tsd_t *tsd, tcaches_t *elm) {
 	malloc_mutex_assert_owner(tsd_tsdn(tsd), &tcaches_mtx);
 
 	if (elm->tcache == NULL) {
-		return;
+		return NULL;
 	}
-	tcache_destroy(tsd, elm->tcache);
+	tcache_t *tcache = elm->tcache;
 	elm->tcache = NULL;
+	return tcache;
 }
 
 void
 tcaches_flush(tsd_t *tsd, unsigned ind) {
 	malloc_mutex_lock(tsd_tsdn(tsd), &tcaches_mtx);
-	tcaches_elm_flush(tsd, &tcaches[ind]);
+	tcache_t *tcache = tcaches_elm_remove(tsd, &tcaches[ind]);
 	malloc_mutex_unlock(tsd_tsdn(tsd), &tcaches_mtx);
+	if (tcache != NULL) {
+		tcache_destroy(tsd, tcache);
+	}
 }
 
 void
 tcaches_destroy(tsd_t *tsd, unsigned ind) {
 	malloc_mutex_lock(tsd_tsdn(tsd), &tcaches_mtx);
 	tcaches_t *elm = &tcaches[ind];
-	tcaches_elm_flush(tsd, elm);
+	tcache_t *tcache = tcaches_elm_remove(tsd, elm);
 	elm->next = tcaches_avail;
 	tcaches_avail = elm;
 	malloc_mutex_unlock(tsd_tsdn(tsd), &tcaches_mtx);
+	if (tcache != NULL) {
+		tcache_destroy(tsd, tcache);
+	}
 }
 
 bool
