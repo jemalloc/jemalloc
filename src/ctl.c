@@ -22,10 +22,12 @@ const char *global_mutex_names[NUM_GLOBAL_PROF_MUTEXES] = {
 const char *arena_mutex_names[NUM_ARENA_PROF_MUTEXES] = {
 	"large",
 	"extent_freelist",
-	"extents_cached",
+	"extents_dirty",
+	"extents_muzzy",
 	"extents_retained",
-	"decay",
-	"tcache"
+	"decay_dirty",
+	"decay_muzzy",
+	"tcache_list"
 };
 
 const char *mutex_counter_names[NUM_MUTEX_PROF_COUNTERS] = {
@@ -225,10 +227,12 @@ MUTEX_STATS_CTL_PROTO_GEN(arenas_i_bins_j_mutex)
 /* Per arena mutexes. */
 ARENA_MUTEXES_CTL_PROTO_GEN(large)
 ARENA_MUTEXES_CTL_PROTO_GEN(extent_freelist)
-ARENA_MUTEXES_CTL_PROTO_GEN(extents_cached)
+ARENA_MUTEXES_CTL_PROTO_GEN(extents_dirty)
+ARENA_MUTEXES_CTL_PROTO_GEN(extents_muzzy)
 ARENA_MUTEXES_CTL_PROTO_GEN(extents_retained)
-ARENA_MUTEXES_CTL_PROTO_GEN(decay)
-ARENA_MUTEXES_CTL_PROTO_GEN(tcache)
+ARENA_MUTEXES_CTL_PROTO_GEN(decay_dirty)
+ARENA_MUTEXES_CTL_PROTO_GEN(decay_muzzy)
+ARENA_MUTEXES_CTL_PROTO_GEN(tcache_list)
 #undef ARENA_MUTEXES_CTL_PROTO_GEN
 #undef MUTEX_STATS_CTL_PROTO_GEN
 
@@ -461,21 +465,30 @@ static const ctl_indexed_node_t stats_arenas_i_lextents_node[] = {
 
 ARENA_MUTEX_PROF_DATA_NODE(large)
 ARENA_MUTEX_PROF_DATA_NODE(extent_freelist)
-ARENA_MUTEX_PROF_DATA_NODE(extents_cached)
+ARENA_MUTEX_PROF_DATA_NODE(extents_dirty)
+ARENA_MUTEX_PROF_DATA_NODE(extents_muzzy)
 ARENA_MUTEX_PROF_DATA_NODE(extents_retained)
-ARENA_MUTEX_PROF_DATA_NODE(decay)
-ARENA_MUTEX_PROF_DATA_NODE(tcache)
+ARENA_MUTEX_PROF_DATA_NODE(decay_dirty)
+ARENA_MUTEX_PROF_DATA_NODE(decay_muzzy)
+ARENA_MUTEX_PROF_DATA_NODE(tcache_list)
 
 static const ctl_named_node_t stats_arenas_i_mutexes_node[] = {
-	{NAME("large"),		CHILD(named, stats_arenas_i_mutexes_large)},
+	{NAME("large"),
+	 CHILD(named, stats_arenas_i_mutexes_large)},
 	{NAME("extent_freelist"),
 	 CHILD(named, stats_arenas_i_mutexes_extent_freelist)},
-	{NAME("extents_cached"),
-	 CHILD(named, stats_arenas_i_mutexes_extents_cached)},
+	{NAME("extents_dirty"),
+	 CHILD(named, stats_arenas_i_mutexes_extents_dirty)},
+	{NAME("extents_muzzy"),
+	 CHILD(named, stats_arenas_i_mutexes_extents_muzzy)},
 	{NAME("extents_retained"),
 	 CHILD(named, stats_arenas_i_mutexes_extents_retained)},
-	{NAME("decay"),		CHILD(named, stats_arenas_i_mutexes_decay)},
-	{NAME("tcache"),	CHILD(named, stats_arenas_i_mutexes_tcache)}
+	{NAME("decay_dirty"),
+	 CHILD(named, stats_arenas_i_mutexes_decay_dirty)},
+	{NAME("decay_muzzy"),
+	 CHILD(named, stats_arenas_i_mutexes_decay_muzzy)},
+	{NAME("tcache_list"),
+	 CHILD(named, stats_arenas_i_mutexes_tcache_list)}
 };
 
 static const ctl_named_node_t stats_arenas_i_node[] = {
@@ -777,15 +790,20 @@ ctl_arena_stats_sdmerge(ctl_arena_t *ctl_sdarena, ctl_arena_t *ctl_arena,
 		    &(sdstats->astats.extent_freelist_mtx_data),
 		    &(astats->astats.extent_freelist_mtx_data));
 		malloc_mutex_prof_merge(
-		    &(sdstats->astats.extents_cached_mtx_data),
-		    &(astats->astats.extents_cached_mtx_data));
+		    &(sdstats->astats.extents_dirty_mtx_data),
+		    &(astats->astats.extents_dirty_mtx_data));
+		malloc_mutex_prof_merge(
+		    &(sdstats->astats.extents_muzzy_mtx_data),
+		    &(astats->astats.extents_muzzy_mtx_data));
 		malloc_mutex_prof_merge(
 		    &(sdstats->astats.extents_retained_mtx_data),
 		    &(astats->astats.extents_retained_mtx_data));
-		malloc_mutex_prof_merge(&(sdstats->astats.decay_mtx_data),
-		    &(astats->astats.decay_mtx_data));
-		malloc_mutex_prof_merge(&(sdstats->astats.tcache_mtx_data),
-		    &(astats->astats.tcache_mtx_data));
+		malloc_mutex_prof_merge(&(sdstats->astats.decay_dirty_mtx_data),
+		    &(astats->astats.decay_dirty_mtx_data));
+		malloc_mutex_prof_merge(&(sdstats->astats.decay_muzzy_mtx_data),
+		    &(astats->astats.decay_muzzy_mtx_data));
+		malloc_mutex_prof_merge(&(sdstats->astats.tcache_list_mtx_data),
+		    &(astats->astats.tcache_list_mtx_data));
 
 		if (!destroyed) {
 			accum_atomic_zu(&sdstats->astats.base,
@@ -2479,25 +2497,20 @@ CTL_RO_CGEN(config_stats, stats_##n##_max_num_thds,			\
 GLOBAL_PROF_MUTEXES
 #undef MTX
 
-/* arena->bins[j].lock */
+/* tcache bin mutex */
 RO_MUTEX_CTL_GEN(arenas_i_bins_j_mutex,
     arenas_i(mib[2])->astats->bstats[mib[4]].mutex_data)
-
 /* Per arena mutexes */
 #define ARENAS_ASTATS_MUTEX_CTL_GEN(l, d)				\
     RO_MUTEX_CTL_GEN(arenas_i_mutexes_##l, arenas_i(mib[2])->astats->astats.d)
-/* arena->large_mtx */
 ARENAS_ASTATS_MUTEX_CTL_GEN(large, large_mtx_data)
-/* arena->extent_freelist_mtx */
 ARENAS_ASTATS_MUTEX_CTL_GEN(extent_freelist, extent_freelist_mtx_data)
-/* arena->extents_cached.mtx */
-ARENAS_ASTATS_MUTEX_CTL_GEN(extents_cached, extents_cached_mtx_data)
-/* arena->extents_retained.mtx */
+ARENAS_ASTATS_MUTEX_CTL_GEN(extents_dirty, extents_dirty_mtx_data)
+ARENAS_ASTATS_MUTEX_CTL_GEN(extents_muzzy, extents_muzzy_mtx_data)
 ARENAS_ASTATS_MUTEX_CTL_GEN(extents_retained, extents_retained_mtx_data)
-/* arena->decay.mtx */
-ARENAS_ASTATS_MUTEX_CTL_GEN(decay, decay_mtx_data)
-/* arena->tcache_ql_mtx */
-ARENAS_ASTATS_MUTEX_CTL_GEN(tcache, tcache_mtx_data)
+ARENAS_ASTATS_MUTEX_CTL_GEN(decay_dirty, decay_dirty_mtx_data)
+ARENAS_ASTATS_MUTEX_CTL_GEN(decay_muzzy, decay_muzzy_mtx_data)
+ARENAS_ASTATS_MUTEX_CTL_GEN(tcache_list, tcache_list_mtx_data)
 #undef ARENAS_ASTATS_MUTEX_CTL_GEN
 #undef RO_MUTEX_CTL_GEN
 
@@ -2533,9 +2546,11 @@ stats_mutexes_reset_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
 		}
 		MUTEX_PROF_RESET(arena->large_mtx);
 		MUTEX_PROF_RESET(arena->extent_freelist_mtx);
-		MUTEX_PROF_RESET(arena->extents_cached.mtx);
+		MUTEX_PROF_RESET(arena->extents_dirty.mtx);
+		MUTEX_PROF_RESET(arena->extents_muzzy.mtx);
 		MUTEX_PROF_RESET(arena->extents_retained.mtx);
-		MUTEX_PROF_RESET(arena->decay.mtx);
+		MUTEX_PROF_RESET(arena->decay_dirty.mtx);
+		MUTEX_PROF_RESET(arena->decay_muzzy.mtx);
 		if (config_tcache) {
 			MUTEX_PROF_RESET(arena->tcache_ql_mtx);
 		}

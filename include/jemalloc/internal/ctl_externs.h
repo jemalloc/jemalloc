@@ -5,7 +5,7 @@
 #define CTL_MAX_DEPTH	7
 
 #define NUM_GLOBAL_PROF_MUTEXES	3
-#define NUM_ARENA_PROF_MUTEXES	6
+#define NUM_ARENA_PROF_MUTEXES	8
 #define NUM_MUTEX_PROF_COUNTERS	7
 
 extern const char *arena_mutex_names[NUM_ARENA_PROF_MUTEXES];
