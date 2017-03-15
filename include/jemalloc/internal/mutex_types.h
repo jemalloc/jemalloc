@@ -4,6 +4,12 @@
 typedef struct mutex_prof_data_s mutex_prof_data_t;
 typedef struct malloc_mutex_s malloc_mutex_t;
 
+/*
+ * Based on benchmark results, a fixed spin with this amount of retries works
+ * well for our critical sections.
+ */
+#define MALLOC_MUTEX_MAX_SPIN 250
+
 #ifdef _WIN32
 #  if _WIN32_WINNT >= 0x0600
 #    define MALLOC_MUTEX_LOCK(m)    AcquireSRWLockExclusive(&(m)->lock)
@@ -45,20 +51,10 @@ typedef struct malloc_mutex_s malloc_mutex_t;
      {{{LOCK_PROF_DATA_INITIALIZER, PTHREAD_MUTEX_INITIALIZER, NULL}},	\
       WITNESS_INITIALIZER("mutex", WITNESS_RANK_OMIT)}
 #else
-/* TODO: get rid of adaptive mutex once we do our own spin. */
-#  if (defined(JEMALLOC_HAVE_PTHREAD_MUTEX_ADAPTIVE_NP) &&		\
-       defined(PTHREAD_ADAPTIVE_MUTEX_INITIALIZER_NP))
-#    define MALLOC_MUTEX_TYPE PTHREAD_MUTEX_ADAPTIVE_NP
-#    define MALLOC_MUTEX_INITIALIZER					\
-       {{{LOCK_PROF_DATA_INITIALIZER,					\
-          PTHREAD_ADAPTIVE_MUTEX_INITIALIZER_NP}},			\
-        WITNESS_INITIALIZER("mutex", WITNESS_RANK_OMIT)}
-#  else
 #    define MALLOC_MUTEX_TYPE PTHREAD_MUTEX_DEFAULT
 #    define MALLOC_MUTEX_INITIALIZER					\
        {{{LOCK_PROF_DATA_INITIALIZER, PTHREAD_MUTEX_INITIALIZER}},	\
         WITNESS_INITIALIZER("mutex", WITNESS_RANK_OMIT)}
-#  endif
 #endif
 
 #endif /* JEMALLOC_INTERNAL_MUTEX_TYPES_H */

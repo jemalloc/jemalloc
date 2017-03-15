@@ -69,14 +69,26 @@ void
 malloc_mutex_lock_slow(malloc_mutex_t *mutex) {
 	mutex_prof_data_t *data = &mutex->prof_data;
 
-	{//TODO: a smart spin policy
+	if (ncpus == 1) {
+		goto label_spin_done;
+	}
+
+	int cnt = 0, max_cnt = MALLOC_MUTEX_MAX_SPIN;
+	do {
+		CPU_SPINWAIT;
 		if (!malloc_mutex_trylock(mutex)) {
 			data->n_spin_acquired++;
 			return;
 		}
-	}
+	} while (cnt++ < max_cnt);
 
+	if (!config_stats) {
+		/* Only spin is useful when stats is off. */
+		malloc_mutex_lock_final(mutex);
+		return;
+	}
 	nstime_t now, before;
+label_spin_done:
 	nstime_init(&now, 0);
 	nstime_update(&now);
 	nstime_copy(&before, &now);
