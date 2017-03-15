@@ -292,7 +292,7 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 				    tbin->ncached * index2size(i));
 			}
 		}
-		malloc_mutex_prof_read(tsdn, &astats->tcache_mtx_data,
+		malloc_mutex_prof_read(tsdn, &astats->tcache_list_mtx_data,
 		    &arena->tcache_ql_mtx);
 		malloc_mutex_unlock(tsdn, &arena->tcache_ql_mtx);
 	}
@@ -306,11 +306,14 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 	READ_ARENA_MUTEX_PROF_DATA(large_mtx, large_mtx_data)
 	READ_ARENA_MUTEX_PROF_DATA(extent_freelist_mtx,
 	    extent_freelist_mtx_data)
-	READ_ARENA_MUTEX_PROF_DATA(extents_cached.mtx,
-	    extents_cached_mtx_data)
+	READ_ARENA_MUTEX_PROF_DATA(extents_dirty.mtx,
+	    extents_dirty_mtx_data)
+	READ_ARENA_MUTEX_PROF_DATA(extents_muzzy.mtx,
+	    extents_muzzy_mtx_data)
 	READ_ARENA_MUTEX_PROF_DATA(extents_retained.mtx,
 	    extents_retained_mtx_data)
-	READ_ARENA_MUTEX_PROF_DATA(decay.mtx, decay_mtx_data)
+	READ_ARENA_MUTEX_PROF_DATA(decay_dirty.mtx, decay_dirty_mtx_data)
+	READ_ARENA_MUTEX_PROF_DATA(decay_muzzy.mtx, decay_muzzy_mtx_data)
 #undef READ_ARENA_MUTEX_PROF_DATA
 
 	for (szind_t i = 0; i < NBINS; i++) {

@@ -126,10 +126,12 @@ struct arena_stats_s {
 
 	mutex_prof_data_t large_mtx_data;
 	mutex_prof_data_t extent_freelist_mtx_data;
-	mutex_prof_data_t extents_cached_mtx_data;
+	mutex_prof_data_t extents_dirty_mtx_data;
+	mutex_prof_data_t extents_muzzy_mtx_data;
 	mutex_prof_data_t extents_retained_mtx_data;
-	mutex_prof_data_t decay_mtx_data;
-	mutex_prof_data_t tcache_mtx_data;
+	mutex_prof_data_t decay_dirty_mtx_data;
+	mutex_prof_data_t decay_muzzy_mtx_data;
+	mutex_prof_data_t tcache_list_mtx_data;
 
 	/* One element for each large size class. */
 	malloc_large_stats_t	lstats[NSIZES - NBINS];
