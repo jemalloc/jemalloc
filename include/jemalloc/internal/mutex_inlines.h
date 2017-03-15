@@ -52,11 +52,13 @@ malloc_mutex_lock(tsdn_t *tsdn, malloc_mutex_t *mutex) {
 			malloc_mutex_lock_slow(mutex);
 		}
 		/* We own the lock now.  Update a few counters. */
-		mutex_prof_data_t *data = &mutex->prof_data;
-		data->n_lock_ops++;
-		if (data->prev_owner != tsdn) {
-			data->prev_owner = tsdn;
-			data->n_owner_switches++;
+		if (config_stats) {
+			mutex_prof_data_t *data = &mutex->prof_data;
+			data->n_lock_ops++;
+			if (data->prev_owner != tsdn) {
+				data->prev_owner = tsdn;
+				data->n_owner_switches++;
+			}
 		}
 	}
 	witness_lock(tsdn, &mutex->witness);
