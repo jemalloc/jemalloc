@@ -450,8 +450,8 @@ extent_activate_locked(tsdn_t *tsdn, arena_t *arena, extents_t *extents,
 static bool
 extent_rtree_acquire(tsdn_t *tsdn, rtree_ctx_t *rtree_ctx,
     const extent_t *extent, bool dependent, bool init_missing,
-    rtree_elm_t **r_elm_a, rtree_elm_t **r_elm_b) {
-	*r_elm_a = rtree_elm_acquire(tsdn, &extents_rtree, rtree_ctx,
+    rtree_leaf_elm_t **r_elm_a, rtree_leaf_elm_t **r_elm_b) {
+	*r_elm_a = rtree_leaf_elm_acquire(tsdn, &extents_rtree, rtree_ctx,
 	    (uintptr_t)extent_base_get(extent), dependent, init_missing);
 	if (!dependent && *r_elm_a == NULL) {
 		return true;
@@ -459,11 +459,11 @@ extent_rtree_acquire(tsdn_t *tsdn, rtree_ctx_t *rtree_ctx,
 	assert(*r_elm_a != NULL);
 
 	if (extent_size_get(extent) > PAGE) {
-		*r_elm_b = rtree_elm_acquire(tsdn, &extents_rtree, rtree_ctx,
-		    (uintptr_t)extent_last_get(extent), dependent,
+		*r_elm_b = rtree_leaf_elm_acquire(tsdn, &extents_rtree,
+		    rtree_ctx, (uintptr_t)extent_last_get(extent), dependent,
 		    init_missing);
 		if (!dependent && *r_elm_b == NULL) {
-			rtree_elm_release(tsdn, &extents_rtree, *r_elm_a);
+			rtree_leaf_elm_release(tsdn, &extents_rtree, *r_elm_a);
 			return true;
 		}
 		assert(*r_elm_b != NULL);
@@ -475,19 +475,21 @@ extent_rtree_acquire(tsdn_t *tsdn, rtree_ctx_t *rtree_ctx,
 }
 
 static void
-extent_rtree_write_acquired(tsdn_t *tsdn, rtree_elm_t *elm_a,
-    rtree_elm_t *elm_b, const extent_t *extent) {
-	rtree_elm_write_acquired(tsdn, &extents_rtree, elm_a, extent);
+extent_rtree_write_acquired(tsdn_t *tsdn, rtree_leaf_elm_t *elm_a,
+    rtree_leaf_elm_t *elm_b, const extent_t *extent) {
+	rtree_leaf_elm_write_acquired(tsdn, &extents_rtree, elm_a, extent);
 	if (elm_b != NULL) {
-		rtree_elm_write_acquired(tsdn, &extents_rtree, elm_b, extent);
+		rtree_leaf_elm_write_acquired(tsdn, &extents_rtree, elm_b,
+		    extent);
 	}
 }
 
 static void
-extent_rtree_release(tsdn_t *tsdn, rtree_elm_t *elm_a, rtree_elm_t *elm_b) {
-	rtree_elm_release(tsdn, &extents_rtree, elm_a);
+extent_rtree_release(tsdn_t *tsdn, rtree_leaf_elm_t *elm_a,
+    rtree_leaf_elm_t *elm_b) {
+	rtree_leaf_elm_release(tsdn, &extents_rtree, elm_a);
 	if (elm_b != NULL) {
-		rtree_elm_release(tsdn, &extents_rtree, elm_b);
+		rtree_leaf_elm_release(tsdn, &extents_rtree, elm_b);
 	}
 }
 
@@ -543,7 +545,7 @@ static bool
 extent_register_impl(tsdn_t *tsdn, const extent_t *extent, bool gdump_add) {
 	rtree_ctx_t rtree_ctx_fallback;
 	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
-	rtree_elm_t *elm_a, *elm_b;
+	rtree_leaf_elm_t *elm_a, *elm_b;
 
 	if (extent_rtree_acquire(tsdn, rtree_ctx, extent, false, true, &elm_a,
 	    &elm_b)) {
@@ -596,7 +598,7 @@ static void
 extent_deregister(tsdn_t *tsdn, extent_t *extent) {
 	rtree_ctx_t rtree_ctx_fallback;
 	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
-	rtree_elm_t *elm_a, *elm_b;
+	rtree_leaf_elm_t *elm_a, *elm_b;
 
 	extent_rtree_acquire(tsdn, rtree_ctx, extent, true, false, &elm_a,
 	    &elm_b);
@@ -651,13 +653,13 @@ extent_recycle_extract(tsdn_t *tsdn, arena_t *arena,
 	extent_hooks_assure_initialized(arena, r_extent_hooks);
 	extent_t *extent;
 	if (new_addr != NULL) {
-		rtree_elm_t *elm;
+		rtree_leaf_elm_t *elm;
 
-		elm = rtree_elm_acquire(tsdn, &extents_rtree, rtree_ctx,
+		elm = rtree_leaf_elm_acquire(tsdn, &extents_rtree, rtree_ctx,
 		    (uintptr_t)new_addr, false, false);
 		if (elm != NULL) {
-			extent = rtree_elm_read_acquired(tsdn, &extents_rtree,
-			    elm);
+			extent = rtree_leaf_elm_read_acquired(tsdn,
+			    &extents_rtree, elm);
 			if (extent != NULL) {
 				assert(extent_base_get(extent) == new_addr);
 				if (extent_arena_get(extent) != arena ||
@@ -667,7 +669,7 @@ extent_recycle_extract(tsdn_t *tsdn, arena_t *arena,
 					extent = NULL;
 				}
 			}
-			rtree_elm_release(tsdn, &extents_rtree, elm);
+			rtree_leaf_elm_release(tsdn, &extents_rtree, elm);
 		} else {
 			extent = NULL;
 		}
@@ -1156,11 +1158,11 @@ extent_try_coalesce(tsdn_t *tsdn, arena_t *arena,
 		again = false;
 
 		/* Try to coalesce forward. */
-		rtree_elm_t *next_elm = rtree_elm_acquire(tsdn, &extents_rtree,
-		    rtree_ctx, (uintptr_t)extent_past_get(extent), false,
-		    false);
+		rtree_leaf_elm_t *next_elm = rtree_leaf_elm_acquire(tsdn,
+		    &extents_rtree, rtree_ctx,
+		    (uintptr_t)extent_past_get(extent), false, false);
 		if (next_elm != NULL) {
-			extent_t *next = rtree_elm_read_acquired(tsdn,
+			extent_t *next = rtree_leaf_elm_read_acquired(tsdn,
 			    &extents_rtree, next_elm);
 			/*
 			 * extents->mtx only protects against races for
@@ -1169,7 +1171,7 @@ extent_try_coalesce(tsdn_t *tsdn, arena_t *arena,
 			 */
 			bool can_coalesce = (next != NULL &&
 			    extent_can_coalesce(arena, extents, extent, next));
-			rtree_elm_release(tsdn, &extents_rtree, next_elm);
+			rtree_leaf_elm_release(tsdn, &extents_rtree, next_elm);
 			if (can_coalesce && !extent_coalesce(tsdn, arena,
 			    r_extent_hooks, extents, extent, next, true)) {
 				if (extents->delay_coalesce) {
@@ -1182,15 +1184,15 @@ extent_try_coalesce(tsdn_t *tsdn, arena_t *arena,
 		}
 
 		/* Try to coalesce backward. */
-		rtree_elm_t *prev_elm = rtree_elm_acquire(tsdn, &extents_rtree,
-		    rtree_ctx, (uintptr_t)extent_before_get(extent), false,
-		    false);
+		rtree_leaf_elm_t *prev_elm = rtree_leaf_elm_acquire(tsdn,
+		    &extents_rtree, rtree_ctx,
+		    (uintptr_t)extent_before_get(extent), false, false);
 		if (prev_elm != NULL) {
-			extent_t *prev = rtree_elm_read_acquired(tsdn,
+			extent_t *prev = rtree_leaf_elm_read_acquired(tsdn,
 			    &extents_rtree, prev_elm);
 			bool can_coalesce = (prev != NULL &&
 			    extent_can_coalesce(arena, extents, extent, prev));
-			rtree_elm_release(tsdn, &extents_rtree, prev_elm);
+			rtree_leaf_elm_release(tsdn, &extents_rtree, prev_elm);
 			if (can_coalesce && !extent_coalesce(tsdn, arena,
 			    r_extent_hooks, extents, extent, prev, false)) {
 				extent = prev;
@@ -1472,7 +1474,7 @@ extent_split_wrapper(tsdn_t *tsdn, arena_t *arena,
 	extent_t *trail;
 	rtree_ctx_t rtree_ctx_fallback;
 	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
-	rtree_elm_t *lead_elm_a, *lead_elm_b, *trail_elm_a, *trail_elm_b;
+	rtree_leaf_elm_t *lead_elm_a, *lead_elm_b, *trail_elm_a, *trail_elm_b;
 
 	extent_hooks_assure_initialized(arena, r_extent_hooks);
 
@@ -1590,19 +1592,21 @@ extent_merge_wrapper(tsdn_t *tsdn, arena_t *arena,
 	 */
 	rtree_ctx_t rtree_ctx_fallback;
 	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
-	rtree_elm_t *a_elm_a, *a_elm_b, *b_elm_a, *b_elm_b;
+	rtree_leaf_elm_t *a_elm_a, *a_elm_b, *b_elm_a, *b_elm_b;
 	extent_rtree_acquire(tsdn, rtree_ctx, a, true, false, &a_elm_a,
 	    &a_elm_b);
 	extent_rtree_acquire(tsdn, rtree_ctx, b, true, false, &b_elm_a,
 	    &b_elm_b);
 
 	if (a_elm_b != NULL) {
-		rtree_elm_write_acquired(tsdn, &extents_rtree, a_elm_b, NULL);
-		rtree_elm_release(tsdn, &extents_rtree, a_elm_b);
+		rtree_leaf_elm_write_acquired(tsdn, &extents_rtree, a_elm_b,
+		    NULL);
+		rtree_leaf_elm_release(tsdn, &extents_rtree, a_elm_b);
 	}
 	if (b_elm_b != NULL) {
-		rtree_elm_write_acquired(tsdn, &extents_rtree, b_elm_a, NULL);
-		rtree_elm_release(tsdn, &extents_rtree, b_elm_a);
+		rtree_leaf_elm_write_acquired(tsdn, &extents_rtree, b_elm_a,
+		    NULL);
+		rtree_leaf_elm_release(tsdn, &extents_rtree, b_elm_a);
 	} else {
 		b_elm_b = b_elm_a;
 	}

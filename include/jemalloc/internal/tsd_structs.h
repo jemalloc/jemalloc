@@ -29,7 +29,7 @@ struct tsd_init_head_s {
 						yes,	no)		\
     O(rtree_ctx,		rtree_ctx_t,	no,	no)		\
     O(witnesses,		witness_list_t,	no,	yes)		\
-    O(rtree_elm_witnesses,	rtree_elm_witness_tsd_t,		\
+    O(rtree_leaf_elm_witnesses,	rtree_leaf_elm_witness_tsd_t,		\
 						no,	no)		\
     O(witness_fork,		bool,		yes,	no)		\
 

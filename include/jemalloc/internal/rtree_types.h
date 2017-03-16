@@ -8,9 +8,10 @@
  *******************************************************************************
  */
 
-typedef struct rtree_elm_s rtree_elm_t;
-typedef struct rtree_elm_witness_s rtree_elm_witness_t;
-typedef struct rtree_elm_witness_tsd_s rtree_elm_witness_tsd_t;
+typedef struct rtree_node_elm_s rtree_node_elm_t;
+typedef struct rtree_leaf_elm_s rtree_leaf_elm_t;
+typedef struct rtree_leaf_elm_witness_s rtree_leaf_elm_witness_t;
+typedef struct rtree_leaf_elm_witness_tsd_s rtree_leaf_elm_witness_tsd_t;
 typedef struct rtree_level_s rtree_level_t;
 typedef struct rtree_ctx_cache_elm_s rtree_ctx_cache_elm_t;
 typedef struct rtree_ctx_s rtree_ctx_t;
@@ -23,7 +24,15 @@ typedef struct rtree_s rtree_t;
 /* Number of significant bits. */
 #define RTREE_NSB (LG_VADDR - RTREE_NLIB)
 /* Number of levels in radix tree. */
-#define RTREE_HEIGHT (sizeof(rtree_levels)/sizeof(rtree_level_t))
+#if RTREE_NSB <= 10
+#  define RTREE_HEIGHT 1
+#elif RTREE_NSB <= 36
+#  define RTREE_HEIGHT 2
+#elif RTREE_NSB <= 52
+#  define RTREE_HEIGHT 3
+#else
+#  error Unsupported number of significant virtual address bits
+#endif
 
 /*
  * Number of leafkey/leaf pairs to cache.  Each entry supports an entire leaf,
@@ -47,16 +56,16 @@ typedef struct rtree_s rtree_t;
 
 /*
  * Maximum number of concurrently acquired elements per thread.  This controls
- * how many witness_t structures are embedded in tsd.  Ideally rtree_elm_t would
- * have a witness_t directly embedded, but that would dramatically bloat the
- * tree.  This must contain enough entries to e.g. coalesce two extents.
+ * how many witness_t structures are embedded in tsd.  Ideally rtree_leaf_elm_t
+ * would have a witness_t directly embedded, but that would dramatically bloat
+ * the tree.  This must contain enough entries to e.g. coalesce two extents.
  */
 #define RTREE_ELM_ACQUIRE_MAX	4
 
-/* Initializers for rtree_elm_witness_tsd_t. */
+/* Initializers for rtree_leaf_elm_witness_tsd_t. */
 #define RTREE_ELM_WITNESS_INITIALIZER {					\
 	NULL,								\
-	WITNESS_INITIALIZER("rtree_elm", WITNESS_RANK_RTREE_ELM)	\
+	WITNESS_INITIALIZER("rtree_leaf_elm", WITNESS_RANK_RTREE_ELM)	\
 }
 
 #define RTREE_ELM_WITNESS_TSD_INITIALIZER {				\
