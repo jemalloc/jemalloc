@@ -282,14 +282,12 @@ ckh_grow(tsd_t *tsd, ckh_t *ckh) {
 		ckh->lg_curbuckets = lg_curcells - LG_CKH_BUCKET_CELLS;
 
 		if (!ckh_rebuild(ckh, tab)) {
-			idalloctm(tsd_tsdn(tsd), iealloc(tsd_tsdn(tsd), tab),
-			    tab, NULL, true, true);
+			idalloctm(tsd_tsdn(tsd), tab, NULL, true, true);
 			break;
 		}
 
 		/* Rebuilding failed, so back out partially rebuilt table. */
-		idalloctm(tsd_tsdn(tsd), iealloc(tsd_tsdn(tsd), ckh->tab),
-		    ckh->tab, NULL, true, true);
+		idalloctm(tsd_tsdn(tsd), ckh->tab, NULL, true, true);
 		ckh->tab = tab;
 		ckh->lg_curbuckets = lg_prevbuckets;
 	}
@@ -331,8 +329,7 @@ ckh_shrink(tsd_t *tsd, ckh_t *ckh) {
 	ckh->lg_curbuckets = lg_curcells - LG_CKH_BUCKET_CELLS;
 
 	if (!ckh_rebuild(ckh, tab)) {
-		idalloctm(tsd_tsdn(tsd), iealloc(tsd_tsdn(tsd), tab), tab, NULL,
-		    true, true);
+		idalloctm(tsd_tsdn(tsd), tab, NULL, true, true);
 #ifdef CKH_COUNT
 		ckh->nshrinks++;
 #endif
@@ -340,8 +337,7 @@ ckh_shrink(tsd_t *tsd, ckh_t *ckh) {
 	}
 
 	/* Rebuilding failed, so back out partially rebuilt table. */
-	idalloctm(tsd_tsdn(tsd), iealloc(tsd_tsdn(tsd), ckh->tab), ckh->tab,
-	    NULL, true, true);
+	idalloctm(tsd_tsdn(tsd), ckh->tab, NULL, true, true);
 	ckh->tab = tab;
 	ckh->lg_curbuckets = lg_prevbuckets;
 #ifdef CKH_COUNT
@@ -422,8 +418,7 @@ ckh_delete(tsd_t *tsd, ckh_t *ckh) {
 	    (unsigned long long)ckh->nrelocs);
 #endif
 
-	idalloctm(tsd_tsdn(tsd), iealloc(tsd_tsdn(tsd), ckh->tab), ckh->tab,
-	    NULL, true, true);
+	idalloctm(tsd_tsdn(tsd), ckh->tab, NULL, true, true);
 	if (config_debug) {
 		memset(ckh, JEMALLOC_FREE_JUNK, sizeof(ckh_t));
 	}
