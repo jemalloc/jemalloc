@@ -1767,8 +1767,7 @@ imalloc_body(static_opts_t *sopts, dynamic_opts_t *dopts) {
 	    || ((uintptr_t)allocation & (dopts->alignment - 1)) == ZU(0));
 
 	if (config_stats) {
-		assert(usize == isalloc(tsd_tsdn(tsd), iealloc(tsd_tsdn(tsd),
-		    allocation), allocation));
+		assert(usize == isalloc(tsd_tsdn(tsd), allocation));
 		*tsd_thread_allocatedp_get(tsd) += usize;
 	}
 
@@ -2020,10 +2019,10 @@ ifree(tsd_t *tsd, void *ptr, tcache_t *tcache, bool slow_path) {
 
 	extent = iealloc(tsd_tsdn(tsd), ptr);
 	if (config_prof && opt_prof) {
-		usize = isalloc(tsd_tsdn(tsd), extent, ptr);
+		usize = isalloc(tsd_tsdn(tsd), ptr);
 		prof_free(tsd, extent, ptr, usize);
 	} else if (config_stats) {
-		usize = isalloc(tsd_tsdn(tsd), extent, ptr);
+		usize = isalloc(tsd_tsdn(tsd), ptr);
 	}
 	if (config_stats) {
 		*tsd_thread_deallocatedp_get(tsd) += usize;
@@ -2090,7 +2089,7 @@ je_realloc(void *ptr, size_t size) {
 		witness_assert_lockless(tsd_tsdn(tsd));
 
 		extent = iealloc(tsd_tsdn(tsd), ptr);
-		old_usize = isalloc(tsd_tsdn(tsd), extent, ptr);
+		old_usize = isalloc(tsd_tsdn(tsd), ptr);
 		if (config_prof && opt_prof) {
 			usize = s2u(size);
 			ret = unlikely(usize == 0 || usize > LARGE_MAXCLASS) ?
@@ -2120,7 +2119,7 @@ je_realloc(void *ptr, size_t size) {
 	if (config_stats && likely(ret != NULL)) {
 		tsd_t *tsd;
 
-		assert(usize == isalloc(tsdn, iealloc(tsdn, ret), ret));
+		assert(usize == isalloc(tsdn, ret));
 		tsd = tsdn_tsd(tsdn);
 		*tsd_thread_allocatedp_get(tsd) += usize;
 		*tsd_thread_deallocatedp_get(tsd) += old_usize;
@@ -2375,7 +2374,7 @@ irallocx_prof(tsd_t *tsd, extent_t *old_extent, void *old_ptr, size_t old_usize,
 		 * reallocation.  Therefore, query the actual value of usize.
 		 */
 		extent = old_extent;
-		*usize = isalloc(tsd_tsdn(tsd), extent, p);
+		*usize = isalloc(tsd_tsdn(tsd), p);
 	} else {
 		extent = iealloc(tsd_tsdn(tsd), p);
 	}
@@ -2426,7 +2425,7 @@ je_rallocx(void *ptr, size_t size, int flags) {
 		tcache = tcache_get(tsd, true);
 	}
 
-	old_usize = isalloc(tsd_tsdn(tsd), extent, ptr);
+	old_usize = isalloc(tsd_tsdn(tsd), ptr);
 
 	if (config_prof && opt_prof) {
 		usize = (alignment == 0) ? s2u(size) : sa2u(size, alignment);
@@ -2445,8 +2444,7 @@ je_rallocx(void *ptr, size_t size, int flags) {
 			goto label_oom;
 		}
 		if (config_stats) {
-			usize = isalloc(tsd_tsdn(tsd), iealloc(tsd_tsdn(tsd),
-			    p), p);
+			usize = isalloc(tsd_tsdn(tsd), p);
 		}
 	}
 	assert(alignment == 0 || ((uintptr_t)p & (alignment - 1)) == ZU(0));
@@ -2477,7 +2475,7 @@ ixallocx_helper(tsdn_t *tsdn, extent_t *extent, void *ptr, size_t old_usize,
 	    zero)) {
 		return old_usize;
 	}
-	usize = isalloc(tsdn, extent, ptr);
+	usize = isalloc(tsdn, ptr);
 
 	return usize;
 }
@@ -2562,7 +2560,7 @@ je_xallocx(void *ptr, size_t size, size_t extra, int flags) {
 	witness_assert_lockless(tsd_tsdn(tsd));
 	extent = iealloc(tsd_tsdn(tsd), ptr);
 
-	old_usize = isalloc(tsd_tsdn(tsd), extent, ptr);
+	old_usize = isalloc(tsd_tsdn(tsd), ptr);
 
 	/*
 	 * The API explicitly absolves itself of protecting against (size +
@@ -2616,7 +2614,7 @@ je_sallocx(const void *ptr, int flags) {
 	if (config_ivsalloc) {
 		usize = ivsalloc(tsdn, ptr);
 	} else {
-		usize = isalloc(tsdn, iealloc(tsdn, ptr), ptr);
+		usize = isalloc(tsdn, ptr);
 	}
 
 	witness_assert_lockless(tsdn);
@@ -2679,7 +2677,7 @@ je_sdallocx(void *ptr, size_t size, int flags) {
 	tsd = tsd_fetch();
 	extent = iealloc(tsd_tsdn(tsd), ptr);
 	usize = inallocx(tsd_tsdn(tsd), size, flags);
-	assert(usize == isalloc(tsd_tsdn(tsd), extent, ptr));
+	assert(usize == isalloc(tsd_tsdn(tsd), ptr));
 
 	witness_assert_lockless(tsd_tsdn(tsd));
 	if (unlikely((flags & MALLOCX_TCACHE_MASK) != 0)) {
@@ -2799,8 +2797,7 @@ je_malloc_usable_size(JEMALLOC_USABLE_SIZE_CONST void *ptr) {
 	if (config_ivsalloc) {
 		ret = ivsalloc(tsdn, ptr);
 	} else {
-		ret = (ptr == NULL) ? 0 : isalloc(tsdn, iealloc(tsdn, ptr),
-		    ptr);
+		ret = (ptr == NULL) ? 0 : isalloc(tsdn, ptr);
 	}
 
 	witness_assert_lockless(tsdn);

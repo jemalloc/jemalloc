@@ -1008,7 +1008,7 @@ iealloc(tsdn_t *tsdn, const void *ptr) {
 
 #ifndef JEMALLOC_ENABLE_INLINE
 arena_t	*iaalloc(tsdn_t *tsdn, const void *ptr);
-size_t	isalloc(tsdn_t *tsdn, const extent_t *extent, const void *ptr);
+size_t	isalloc(tsdn_t *tsdn, const void *ptr);
 void	*iallocztm(tsdn_t *tsdn, size_t size, szind_t ind, bool zero,
     tcache_t *tcache, bool is_internal, arena_t *arena, bool slow_path);
 void	*ialloc(tsd_t *tsd, size_t size, szind_t ind, bool zero,
@@ -1043,18 +1043,11 @@ iaalloc(tsdn_t *tsdn, const void *ptr) {
 	return arena_aalloc(tsdn, ptr);
 }
 
-/*
- * Typical usage:
- *   tsdn_t *tsdn = [...]
- *   void *ptr = [...]
- *   extent_t *extent = iealloc(tsdn, ptr);
- *   size_t sz = isalloc(tsdn, extent, ptr);
- */
 JEMALLOC_ALWAYS_INLINE size_t
-isalloc(tsdn_t *tsdn, const extent_t *extent, const void *ptr) {
+isalloc(tsdn_t *tsdn, const void *ptr) {
 	assert(ptr != NULL);
 
-	return arena_salloc(tsdn, extent, ptr);
+	return arena_salloc(tsdn, ptr);
 }
 
 JEMALLOC_ALWAYS_INLINE void *
@@ -1070,8 +1063,7 @@ iallocztm(tsdn_t *tsdn, size_t size, szind_t ind, bool zero, tcache_t *tcache,
 
 	ret = arena_malloc(tsdn, arena, size, ind, zero, tcache, slow_path);
 	if (config_stats && is_internal && likely(ret != NULL)) {
-		arena_internal_add(iaalloc(tsdn, ret), isalloc(tsdn,
-		    iealloc(tsdn, ret), ret));
+		arena_internal_add(iaalloc(tsdn, ret), isalloc(tsdn, ret));
 	}
 	return ret;
 }
@@ -1097,8 +1089,7 @@ ipallocztm(tsdn_t *tsdn, size_t usize, size_t alignment, bool zero,
 	ret = arena_palloc(tsdn, arena, usize, alignment, zero, tcache);
 	assert(ALIGNMENT_ADDR2BASE(ret, alignment) == ret);
 	if (config_stats && is_internal && likely(ret != NULL)) {
-		arena_internal_add(iaalloc(tsdn, ret), isalloc(tsdn,
-		    iealloc(tsdn, ret), ret));
+		arena_internal_add(iaalloc(tsdn, ret), isalloc(tsdn, ret));
 	}
 	return ret;
 }
@@ -1129,8 +1120,7 @@ idalloctm(tsdn_t *tsdn, extent_t *extent, void *ptr, tcache_t *tcache,
 	    narenas_auto);
 	witness_assert_depth_to_rank(tsdn, WITNESS_RANK_CORE, 0);
 	if (config_stats && is_internal) {
-		arena_internal_sub(iaalloc(tsdn, ptr), isalloc(tsdn, extent,
-		    ptr));
+		arena_internal_sub(iaalloc(tsdn, ptr), isalloc(tsdn, ptr));
 	}
 
 	arena_dalloc(tsdn, extent, ptr, tcache, slow_path);

@@ -14,7 +14,7 @@ void	arena_decay_tick(tsdn_t *tsdn, arena_t *arena);
 void	*arena_malloc(tsdn_t *tsdn, arena_t *arena, size_t size, szind_t ind,
     bool zero, tcache_t *tcache, bool slow_path);
 arena_t	*arena_aalloc(tsdn_t *tsdn, const void *ptr);
-size_t arena_salloc(tsdn_t *tsdn, const extent_t *extent, const void *ptr);
+size_t arena_salloc(tsdn_t *tsdn, const void *ptr);
 size_t arena_vsalloc(tsdn_t *tsdn, const void *ptr);
 void	arena_dalloc(tsdn_t *tsdn, extent_t *extent, void *ptr,
     tcache_t *tcache, bool slow_path);
@@ -116,7 +116,7 @@ arena_aalloc(tsdn_t *tsdn, const void *ptr) {
 }
 
 JEMALLOC_ALWAYS_INLINE size_t
-arena_salloc(tsdn_t *tsdn, const extent_t *extent, const void *ptr) {
+arena_salloc(tsdn_t *tsdn, const void *ptr) {
 	assert(ptr != NULL);
 
 	rtree_ctx_t rtree_ctx_fallback;
@@ -125,15 +125,6 @@ arena_salloc(tsdn_t *tsdn, const extent_t *extent, const void *ptr) {
 	szind_t szind = rtree_szind_read(tsdn, &extents_rtree, rtree_ctx,
 	    (uintptr_t)ptr, true);
 	assert(szind != NSIZES);
-
-	if (config_debug && unlikely(extent != NULL)) {
-		rtree_leaf_elm_t elm;
-		rtree_leaf_elm_read(rtree_read(tsdn, &extents_rtree, rtree_ctx,
-		    (uintptr_t)ptr, true), true, &elm);
-
-		assert(extent == rtree_leaf_elm_extent_get(&elm));
-		assert(szind == extent_szind_get(extent));
-	}
 
 	return index2size(szind);
 }

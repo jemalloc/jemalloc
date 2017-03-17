@@ -1029,7 +1029,7 @@ arena_reset(tsd_t *tsd, arena_t *arena) {
 
 		malloc_mutex_unlock(tsd_tsdn(tsd), &arena->large_mtx);
 		if (config_stats || (config_prof && opt_prof)) {
-			usize = isalloc(tsd_tsdn(tsd), extent, ptr);
+			usize = isalloc(tsd_tsdn(tsd), ptr);
 		}
 		/* Remove large allocation from prof sample set. */
 		if (config_prof && opt_prof) {
@@ -1465,7 +1465,7 @@ arena_prof_promote(tsdn_t *tsdn, extent_t *extent, const void *ptr,
 
 	cassert(config_prof);
 	assert(ptr != NULL);
-	assert(isalloc(tsdn, extent, ptr) == LARGE_MINCLASS);
+	assert(isalloc(tsdn, ptr) == LARGE_MINCLASS);
 	assert(usize <= SMALL_MAXCLASS);
 
 	szind_t szind = size2index(usize);
@@ -1477,7 +1477,7 @@ arena_prof_promote(tsdn_t *tsdn, extent_t *extent, const void *ptr,
 
 	prof_accum_cancel(tsdn, &arena->prof_accum, usize);
 
-	assert(isalloc(tsdn, extent, ptr) == usize);
+	assert(isalloc(tsdn, ptr) == usize);
 }
 
 static size_t
@@ -1491,7 +1491,7 @@ arena_prof_demote(tsdn_t *tsdn, extent_t *extent, const void *ptr) {
 	rtree_szind_slab_update(tsdn, &extents_rtree, rtree_ctx, (uintptr_t)ptr,
 	    NBINS, false);
 
-	assert(isalloc(tsdn, extent, ptr) == LARGE_MINCLASS);
+	assert(isalloc(tsdn, ptr) == LARGE_MINCLASS);
 
 	return LARGE_MINCLASS;
 }
