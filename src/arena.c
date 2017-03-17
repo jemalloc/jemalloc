@@ -1468,7 +1468,12 @@ arena_prof_promote(tsdn_t *tsdn, extent_t *extent, const void *ptr,
 	assert(isalloc(tsdn, extent, ptr) == LARGE_MINCLASS);
 	assert(usize <= SMALL_MAXCLASS);
 
-	extent_szind_set(extent, size2index(usize));
+	szind_t szind = size2index(usize);
+	extent_szind_set(extent, szind);
+	rtree_ctx_t rtree_ctx_fallback;
+	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
+	rtree_szind_slab_update(tsdn, &extents_rtree, rtree_ctx, (uintptr_t)ptr,
+	    szind, false);
 
 	prof_accum_cancel(tsdn, &arena->prof_accum, usize);
 
@@ -1481,6 +1486,10 @@ arena_prof_demote(tsdn_t *tsdn, extent_t *extent, const void *ptr) {
 	assert(ptr != NULL);
 
 	extent_szind_set(extent, NBINS);
+	rtree_ctx_t rtree_ctx_fallback;
+	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
+	rtree_szind_slab_update(tsdn, &extents_rtree, rtree_ctx, (uintptr_t)ptr,
+	    NBINS, false);
 
 	assert(isalloc(tsdn, extent, ptr) == LARGE_MINCLASS);
 

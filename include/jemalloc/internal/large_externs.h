@@ -14,8 +14,8 @@ extern large_dalloc_junk_t *large_dalloc_junk;
 typedef void (large_dalloc_maybe_junk_t)(void *, size_t);
 extern large_dalloc_maybe_junk_t *large_dalloc_maybe_junk;
 #else
-void	large_dalloc_junk(void *ptr, size_t usize);
-void	large_dalloc_maybe_junk(void *ptr, size_t usize);
+void	large_dalloc_junk(void *ptr, size_t size);
+void	large_dalloc_maybe_junk(void *ptr, size_t size);
 #endif
 void	large_dalloc_prep_junked_locked(tsdn_t *tsdn, extent_t *extent);
 void	large_dalloc_finish(tsdn_t *tsdn, extent_t *extent);

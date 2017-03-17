@@ -535,7 +535,6 @@ void	jemalloc_postfork_child(void);
 #include "jemalloc/internal/tsd_inlines.h"
 #include "jemalloc/internal/witness_inlines.h"
 #include "jemalloc/internal/mutex_inlines.h"
-#include "jemalloc/internal/rtree_inlines.h"
 
 #ifndef JEMALLOC_ENABLE_INLINE
 pszind_t	psz2ind(size_t psz);
@@ -934,6 +933,7 @@ decay_ticker_get(tsd_t *tsd, unsigned ind) {
 #endif
 
 #include "jemalloc/internal/extent_inlines.h"
+#include "jemalloc/internal/rtree_inlines.h"
 #include "jemalloc/internal/base_inlines.h"
 #include "jemalloc/internal/bitmap_inlines.h"
 /*
@@ -994,7 +994,11 @@ arena_ichoose(tsd_t *tsd, arena_t *arena) {
 
 JEMALLOC_ALWAYS_INLINE extent_t *
 iealloc(tsdn_t *tsdn, const void *ptr) {
-	return extent_lookup(tsdn, ptr, true);
+	rtree_ctx_t rtree_ctx_fallback;
+	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
+
+	return rtree_extent_read(tsdn, &extents_rtree, rtree_ctx,
+	    (uintptr_t)ptr, true);
 }
 #endif
 
@@ -1113,25 +1117,7 @@ ipalloc(tsd_t *tsd, size_t usize, size_t alignment, bool zero) {
 
 JEMALLOC_ALWAYS_INLINE size_t
 ivsalloc(tsdn_t *tsdn, const void *ptr) {
-	extent_t *extent;
-
-	/*
-	 * Return 0 if ptr is not within an extent managed by jemalloc.  This
-	 * function has two extra costs relative to isalloc():
-	 * - The extent_lookup() call cannot claim to be a dependent lookup,
-	 *   which induces rtree lookup load dependencies.
-	 * - The lookup may fail, so there is an extra branch to check for
-	 *   failure.
-	 * */
-	extent = extent_lookup(tsdn, ptr, false);
-	if (extent == NULL) {
-		return 0;
-	}
-	assert(extent_state_get(extent) == extent_state_active);
-	/* Only slab members should be looked up via interior pointers. */
-	assert(extent_addr_get(extent) == ptr || extent_slab_get(extent));
-
-	return isalloc(tsdn, extent, ptr);
+	return arena_vsalloc(tsdn, ptr);
 }
 
 JEMALLOC_ALWAYS_INLINE void
