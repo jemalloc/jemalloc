@@ -53,6 +53,7 @@ static const ctl_named_node_t	*n##_index(tsdn_t *tsdn,		\
 
 CTL_PROTO(version)
 CTL_PROTO(epoch)
+CTL_PROTO(background_thread)
 CTL_PROTO(thread_tcache_enabled)
 CTL_PROTO(thread_tcache_flush)
 CTL_PROTO(thread_prof_name)
@@ -78,6 +79,7 @@ CTL_PROTO(opt_retain)
 CTL_PROTO(opt_dss)
 CTL_PROTO(opt_narenas)
 CTL_PROTO(opt_percpu_arena)
+CTL_PROTO(opt_background_thread)
 CTL_PROTO(opt_dirty_decay_ms)
 CTL_PROTO(opt_muzzy_decay_ms)
 CTL_PROTO(opt_stats_print)
@@ -265,6 +267,7 @@ static const ctl_named_node_t opt_node[] = {
 	{NAME("dss"),		CTL(opt_dss)},
 	{NAME("narenas"),	CTL(opt_narenas)},
 	{NAME("percpu_arena"),	CTL(opt_percpu_arena)},
+	{NAME("background_thread"),	CTL(opt_background_thread)},
 	{NAME("dirty_decay_ms"), CTL(opt_dirty_decay_ms)},
 	{NAME("muzzy_decay_ms"), CTL(opt_muzzy_decay_ms)},
 	{NAME("stats_print"),	CTL(opt_stats_print)},
@@ -501,6 +504,7 @@ static const ctl_named_node_t stats_node[] = {
 static const ctl_named_node_t	root_node[] = {
 	{NAME("version"),	CTL(version)},
 	{NAME("epoch"),		CTL(epoch)},
+	{NAME("background_thread"),	CTL(background_thread)},
 	{NAME("thread"),	CHILD(named, thread)},
 	{NAME("config"),	CHILD(named, config)},
 	{NAME("opt"),		CHILD(named, opt)},
@@ -1445,6 +1449,53 @@ label_return:
 	return ret;
 }
 
+static int
+background_thread_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
+    void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
+	int ret;
+	bool oldval;
+
+	if (!have_background_thread) {
+		return ENOENT;
+	}
+
+	malloc_mutex_lock(tsd_tsdn(tsd), &background_thread_lock);
+	if (newp == NULL) {
+		oldval = background_thread_enabled();
+		READ(oldval, bool);
+	} else {
+		if (newlen != sizeof(bool)) {
+			ret = EINVAL;
+			goto label_return;
+		}
+		oldval = background_thread_enabled();
+		READ(oldval, bool);
+
+		bool newval = *(bool *)newp;
+		if (newval == oldval) {
+			ret = 0;
+			goto label_return;
+		}
+
+		background_thread_enabled_set(tsd_tsdn(tsd), newval);
+		if (newval) {
+			if (background_threads_enable(tsd)) {
+				ret = EFAULT;
+				goto label_return;
+			}
+		} else {
+			if (background_threads_disable(tsd)) {
+				ret = EFAULT;
+				goto label_return;
+			}
+		}
+	}
+	ret = 0;
+label_return:
+	malloc_mutex_unlock(tsd_tsdn(tsd), &background_thread_lock);
+	return ret;
+}
+
 /******************************************************************************/
 
 CTL_RO_CONFIG_GEN(config_cache_oblivious, bool)
@@ -1466,6 +1517,7 @@ CTL_RO_NL_GEN(opt_retain, opt_retain, bool)
 CTL_RO_NL_GEN(opt_dss, opt_dss, const char *)
 CTL_RO_NL_GEN(opt_narenas, opt_narenas, unsigned)
 CTL_RO_NL_GEN(opt_percpu_arena, opt_percpu_arena, const char *)
+CTL_RO_NL_GEN(opt_background_thread, opt_background_thread, bool)
 CTL_RO_NL_GEN(opt_dirty_decay_ms, opt_dirty_decay_ms, ssize_t)
 CTL_RO_NL_GEN(opt_muzzy_decay_ms, opt_muzzy_decay_ms, ssize_t)
 CTL_RO_NL_GEN(opt_stats_print, opt_stats_print, bool)
@@ -1764,7 +1816,8 @@ arena_i_decay(tsdn_t *tsdn, unsigned arena_ind, bool all) {
 
 			for (i = 0; i < narenas; i++) {
 				if (tarenas[i] != NULL) {
-					arena_decay(tsdn, tarenas[i], all);
+					arena_decay(tsdn, tarenas[i], false,
+					    all);
 				}
 			}
 		} else {
@@ -1778,7 +1831,7 @@ arena_i_decay(tsdn_t *tsdn, unsigned arena_ind, bool all) {
 			malloc_mutex_unlock(tsdn, &ctl_mtx);
 
 			if (tarena != NULL) {
-				arena_decay(tsdn, tarena, all);
+				arena_decay(tsdn, tarena, false, all);
 			}
 		}
 	}
@@ -1837,6 +1890,35 @@ label_return:
 	return ret;
 }
 
+static void
+arena_reset_prepare_background_thread(tsd_t *tsd, unsigned arena_ind) {
+	/* Temporarily disable the background thread during arena reset. */
+	if (have_background_thread) {
+		malloc_mutex_lock(tsd_tsdn(tsd), &background_thread_lock);
+		if (background_thread_enabled()) {
+			unsigned ind = arena_ind % ncpus;
+			background_thread_info_t *info =
+			    &background_thread_info[ind];
+			assert(info->started);
+			background_threads_disable_single(tsd, info);
+		}
+	}
+}
+
+static void
+arena_reset_finish_background_thread(tsd_t *tsd, unsigned arena_ind) {
+	if (have_background_thread) {
+		if (background_thread_enabled()) {
+			unsigned ind = arena_ind % ncpus;
+			background_thread_info_t *info =
+			    &background_thread_info[ind];
+			assert(!info->started);
+			background_thread_create(tsd, ind);
+		}
+		malloc_mutex_unlock(tsd_tsdn(tsd), &background_thread_lock);
+	}
+}
+
 static int
 arena_i_reset_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
     size_t *oldlenp, void *newp, size_t newlen) {
@@ -1850,7 +1932,9 @@ arena_i_reset_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
 		return ret;
 	}
 
+	arena_reset_prepare_background_thread(tsd, arena_ind);
 	arena_reset(tsd, arena);
+	arena_reset_finish_background_thread(tsd, arena_ind);
 
 	return ret;
 }
@@ -1875,9 +1959,10 @@ arena_i_destroy_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
 		goto label_return;
 	}
 
+	arena_reset_prepare_background_thread(tsd, arena_ind);
 	/* Merge stats after resetting and purging arena. */
 	arena_reset(tsd, arena);
-	arena_decay(tsd_tsdn(tsd), arena, true);
+	arena_decay(tsd_tsdn(tsd), arena, false, true);
 	ctl_darena = arenas_i(MALLCTL_ARENAS_DESTROYED);
 	ctl_darena->initialized = true;
 	ctl_arena_refresh(tsd_tsdn(tsd), arena, ctl_darena, arena_ind, true);
@@ -1888,6 +1973,7 @@ arena_i_destroy_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
 	/* Record arena index for later recycling via arenas.create. */
 	ql_elm_new(ctl_arena, destroyed_link);
 	ql_tail_insert(&ctl_arenas->destroyed, ctl_arena, destroyed_link);
+	arena_reset_finish_background_thread(tsd, arena_ind);
 
 	assert(ret == 0);
 label_return:

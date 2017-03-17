@@ -301,11 +301,20 @@
 /* glibc memalign hook. */
 #undef JEMALLOC_GLIBC_MEMALIGN_HOOK
 
+/* pthread support */
+#undef JEMALLOC_HAVE_PTHREAD
+
+/* dlsym() support */
+#undef JEMALLOC_HAVE_DLSYM
+
 /* Adaptive mutex support in pthreads. */
 #undef JEMALLOC_HAVE_PTHREAD_MUTEX_ADAPTIVE_NP
 
 /* GNU specific sched_getcpu support */
 #undef JEMALLOC_HAVE_SCHED_GETCPU
+
+/* GNU specific sched_setaffinity support */
+#undef JEMALLOC_HAVE_SCHED_SETAFFINITY
 
 /*
  * If defined, jemalloc symbols are not exported (doesn't work when

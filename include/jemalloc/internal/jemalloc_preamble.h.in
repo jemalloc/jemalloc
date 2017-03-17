@@ -169,4 +169,17 @@ static const bool force_ivsalloc =
 #endif
     ;
 
+#if (defined(JEMALLOC_HAVE_PTHREAD) && defined(JEMALLOC_HAVE_DLSYM)	\
+    && !defined(JEMALLOC_OSSPIN) && !defined(JEMALLOC_OS_UNFAIR_LOCK))
+/* Currently background thread supports pthread only. */
+#define JEMALLOC_BACKGROUND_THREAD
+#endif
+static const bool have_background_thread =
+#ifdef JEMALLOC_BACKGROUND_THREAD
+    true
+#else
+    false
+#endif
+    ;
+
 #endif /* JEMALLOC_PREAMBLE_H */

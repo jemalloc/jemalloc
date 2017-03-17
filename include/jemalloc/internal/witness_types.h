@@ -22,11 +22,15 @@ typedef int witness_comp_t (const witness_t *, void *, const witness_t *,
 #define WITNESS_RANK_TCACHES		2U
 #define WITNESS_RANK_ARENAS		3U
 
-#define WITNESS_RANK_PROF_DUMP		4U
-#define WITNESS_RANK_PROF_BT2GCTX	5U
-#define WITNESS_RANK_PROF_TDATAS	6U
-#define WITNESS_RANK_PROF_TDATA		7U
-#define WITNESS_RANK_PROF_GCTX		8U
+#define WITNESS_RANK_BACKGROUND_THREAD_GLOBAL	4U
+
+#define WITNESS_RANK_PROF_DUMP		5U
+#define WITNESS_RANK_PROF_BT2GCTX	6U
+#define WITNESS_RANK_PROF_TDATAS	7U
+#define WITNESS_RANK_PROF_TDATA		8U
+#define WITNESS_RANK_PROF_GCTX		9U
+
+#define WITNESS_RANK_BACKGROUND_THREAD	10U
 
 /*
  * Used as an argument to witness_assert_depth_to_rank() in order to validate
@@ -34,17 +38,17 @@ typedef int witness_comp_t (const witness_t *, void *, const witness_t *,
  * witness_assert_depth_to_rank() is inclusive rather than exclusive, this
  * definition can have the same value as the minimally ranked core lock.
  */
-#define WITNESS_RANK_CORE		9U
+#define WITNESS_RANK_CORE		11U
 
-#define WITNESS_RANK_DECAY		9U
-#define WITNESS_RANK_TCACHE_QL		10U
-#define WITNESS_RANK_EXTENTS		11U
-#define WITNESS_RANK_EXTENT_FREELIST	12U
+#define WITNESS_RANK_DECAY		11U
+#define WITNESS_RANK_TCACHE_QL		12U
+#define WITNESS_RANK_EXTENTS		13U
+#define WITNESS_RANK_EXTENT_FREELIST	14U
 
-#define WITNESS_RANK_EXTENT_POOL	13U
-#define WITNESS_RANK_RTREE		14U
-#define WITNESS_RANK_BASE		15U
-#define WITNESS_RANK_ARENA_LARGE	16U
+#define WITNESS_RANK_EXTENT_POOL	15U
+#define WITNESS_RANK_RTREE		16U
+#define WITNESS_RANK_BASE		17U
+#define WITNESS_RANK_ARENA_LARGE	18U
 
 #define WITNESS_RANK_LEAF		0xffffffffU
 #define WITNESS_RANK_ARENA_BIN		WITNESS_RANK_LEAF

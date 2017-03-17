@@ -115,8 +115,10 @@ TEST_BEGIN(test_stats_arenas_summary) {
 	    "Unexepected mallctl() result");
 
 	if (config_stats) {
-		assert_u64_gt(dirty_npurge + muzzy_npurge, 0,
-		    "At least one purge should have occurred");
+		if (!background_thread_enabled()) {
+			assert_u64_gt(dirty_npurge + muzzy_npurge, 0,
+			    "At least one purge should have occurred");
+		}
 		assert_u64_le(dirty_nmadvise, dirty_purged,
 		    "dirty_nmadvise should be no greater than dirty_purged");
 		assert_u64_le(muzzy_nmadvise, muzzy_purged,

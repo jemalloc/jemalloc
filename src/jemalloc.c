@@ -420,7 +420,7 @@ arena_init_locked(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 
 	/* Actually initialize the arena. */
 	arena = arena_new(tsdn, ind, extent_hooks);
-	arena_set(ind, arena);
+
 	return arena;
 }
 
@@ -1140,6 +1140,8 @@ malloc_conf_init(void) {
 				}
 				continue;
 			}
+			CONF_HANDLE_BOOL(opt_background_thread,
+			    "background_thread");
 			if (config_prof) {
 				CONF_HANDLE_BOOL(opt_prof, "prof")
 				CONF_HANDLE_CHAR_P(opt_prof_prefix,
@@ -1381,6 +1383,22 @@ malloc_init_narenas(void) {
 }
 
 static bool
+malloc_init_background_threads(tsd_t *tsd) {
+	malloc_mutex_assert_owner(tsd_tsdn(tsd), &init_lock);
+	if (!have_background_thread) {
+		if (opt_background_thread) {
+			malloc_printf("<jemalloc>: option background_thread "
+			    "currently supports pthread only. \n");
+			return true;
+		} else {
+			return false;
+		}
+	}
+
+	return background_threads_init(tsd);
+}
+
+static bool
 malloc_init_hard_finish(void) {
 	if (malloc_mutex_boot())
 		return true;
@@ -1421,8 +1439,8 @@ malloc_init_hard(void) {
 	}
 	malloc_mutex_lock(tsd_tsdn(tsd), &init_lock);
 
-	/* Need this before prof_boot2 (for allocation). */
-	if (malloc_init_narenas()) {
+	/* Initialize narenas before prof_boot2 (for allocation). */
+	if (malloc_init_narenas() || malloc_init_background_threads(tsd)) {
 		malloc_mutex_unlock(tsd_tsdn(tsd), &init_lock);
 		return true;
 	}
@@ -1439,6 +1457,23 @@ malloc_init_hard(void) {
 
 	malloc_mutex_unlock(tsd_tsdn(tsd), &init_lock);
 	malloc_tsd_boot1();
+
+	/* Update TSD after tsd_boot1. */
+	tsd = tsd_fetch();
+	if (opt_background_thread) {
+		assert(have_background_thread);
+		/*
+		 * Need to finish init & unlock first before creating background
+		 * threads (pthread_create depends on malloc).
+		 */
+		malloc_mutex_lock(tsd_tsdn(tsd), &background_thread_lock);
+		bool err = background_thread_create(tsd, 0);
+		malloc_mutex_unlock(tsd_tsdn(tsd), &background_thread_lock);
+		if (err) {
+			return true;
+		}
+	}
+
 	return false;
 }
 
@@ -2970,7 +3005,13 @@ _malloc_prefork(void)
 	ctl_prefork(tsd_tsdn(tsd));
 	tcache_prefork(tsd_tsdn(tsd));
 	malloc_mutex_prefork(tsd_tsdn(tsd), &arenas_lock);
+	if (have_background_thread) {
+		background_thread_prefork0(tsd_tsdn(tsd));
+	}
 	prof_prefork0(tsd_tsdn(tsd));
+	if (have_background_thread) {
+		background_thread_prefork1(tsd_tsdn(tsd));
+	}
 	/* Break arena prefork into stages to preserve lock order. */
 	for (i = 0; i < 7; i++) {
 		for (j = 0; j < narenas; j++) {
@@ -3036,6 +3077,9 @@ _malloc_postfork(void)
 		}
 	}
 	prof_postfork_parent(tsd_tsdn(tsd));
+	if (have_background_thread) {
+		background_thread_postfork_parent(tsd_tsdn(tsd));
+	}
 	malloc_mutex_postfork_parent(tsd_tsdn(tsd), &arenas_lock);
 	tcache_postfork_parent(tsd_tsdn(tsd));
 	ctl_postfork_parent(tsd_tsdn(tsd));
@@ -3060,6 +3104,9 @@ jemalloc_postfork_child(void) {
 		}
 	}
 	prof_postfork_child(tsd_tsdn(tsd));
+	if (have_background_thread) {
+		background_thread_postfork_child(tsd_tsdn(tsd));
+	}
 	malloc_mutex_postfork_child(tsd_tsdn(tsd), &arenas_lock);
 	tcache_postfork_child(tsd_tsdn(tsd));
 	ctl_postfork_child(tsd_tsdn(tsd));
