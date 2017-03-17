@@ -1443,12 +1443,23 @@ dnl ============================================================================
 dnl Configure pthreads.
 
 if test "x$abi" != "xpecoff" ; then
+  AC_DEFINE([JEMALLOC_HAVE_PTHREAD], [ ])
   AC_CHECK_HEADERS([pthread.h], , [AC_MSG_ERROR([pthread.h is missing])])
   dnl Some systems may embed pthreads functionality in libc; check for libpthread
   dnl first, but try libc too before failing.
   AC_CHECK_LIB([pthread], [pthread_create], [JE_APPEND_VS(LIBS, -lpthread)],
                [AC_SEARCH_LIBS([pthread_create], , ,
                                AC_MSG_ERROR([libpthread is missing]))])
+  wrap_syms="${wrap_syms} pthread_create"
+  dnl Check if we have dlsym support.
+  have_dlsym="1"
+  AC_CHECK_HEADERS([dlfcn.h],
+    AC_CHECK_FUNC([dlsym], [],
+      [AC_CHECK_LIB([dl], [dlsym], [LIBS="$LIBS -ldl"], [have_dlsym="0"])]),
+    [have_dlsym="0"])
+  if test "x$have_dlsym" = "x1" ; then
+    AC_DEFINE([JEMALLOC_HAVE_DLSYM], [ ])
+  fi
   JE_COMPILABLE([pthread_atfork(3)], [
 #include <pthread.h>
 ], [
@@ -1563,6 +1574,15 @@ if test "x$have_sched_getcpu" = "x1" ; then
   AC_DEFINE([JEMALLOC_HAVE_SCHED_GETCPU], [ ])
 fi
 
+dnl Check if the GNU-specific sched_setaffinity function exists.
+AC_CHECK_FUNC([sched_setaffinity],
+              [have_sched_setaffinity="1"],
+              [have_sched_setaffinity="0"]
+             )
+if test "x$have_sched_setaffinity" = "x1" ; then
+  AC_DEFINE([JEMALLOC_HAVE_SCHED_SETAFFINITY], [ ])
+fi
+
 dnl Check if the Solaris/BSD issetugid function exists.
 AC_CHECK_FUNC([issetugid],
               [have_issetugid="1"],
@@ -1623,15 +1643,11 @@ if test "x${enable_lazy_lock}" = "x1" -a "x${abi}" = "xpecoff" ; then
   enable_lazy_lock="0"
 fi
 if test "x$enable_lazy_lock" = "x1" ; then
-  if test "x$abi" != "xpecoff" ; then
-    AC_CHECK_HEADERS([dlfcn.h], , [AC_MSG_ERROR([dlfcn.h is missing])])
-    AC_CHECK_FUNC([dlsym], [],
-      [AC_CHECK_LIB([dl], [dlsym], [JE_APPEND_VS(LIBS, -ldl)],
-                    [AC_MSG_ERROR([libdl is missing])])
-      ])
+  if test "x$have_dlsym" = "x1" ; then
+    AC_DEFINE([JEMALLOC_LAZY_LOCK], [ ])
+  else
+    AC_MSG_ERROR([Missing dlsym support: lazy-lock cannot be enabled.])
   fi
-  AC_DEFINE([JEMALLOC_LAZY_LOCK], [ ])
-  wrap_syms="${wrap_syms} pthread_create"
 fi
 AC_SUBST([enable_lazy_lock])
 

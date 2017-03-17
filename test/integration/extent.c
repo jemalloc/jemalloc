@@ -2,6 +2,18 @@
 
 #include "test/extent_hooks.h"
 
+static bool
+check_background_thread_enabled(void) {
+	bool enabled;
+	size_t sz = sizeof(bool);
+	int ret = mallctl("background_thread", (void *)&enabled, &sz, NULL,0);
+	if (ret == ENOENT) {
+		return false;
+	}
+	assert_d_eq(ret, 0, "Unexpected mallctl error");
+	return enabled;
+}
+
 static void
 test_extent_body(unsigned arena_ind) {
 	void *p;
@@ -124,6 +136,7 @@ TEST_BEGIN(test_extent_manual_hook) {
 	assert_ptr_ne(old_hooks->merge, extent_merge_hook,
 	    "Unexpected extent_hooks error");
 
+	test_skip_if(check_background_thread_enabled());
 	test_extent_body(arena_ind);
 
 	/* Restore extent hooks. */
@@ -164,6 +177,7 @@ TEST_BEGIN(test_extent_auto_hook) {
 	assert_d_eq(mallctl("arenas.create", (void *)&arena_ind, &sz,
 	    (void *)&new_hooks, new_size), 0, "Unexpected mallctl() failure");
 
+	test_skip_if(check_background_thread_enabled());
 	test_extent_body(arena_ind);
 }
 TEST_END

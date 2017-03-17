@@ -10,6 +10,18 @@ static nstime_t time_mock;
 static bool monotonic_mock;
 
 static bool
+check_background_thread_enabled(void) {
+	bool enabled;
+	size_t sz = sizeof(bool);
+	int ret = mallctl("background_thread", (void *)&enabled, &sz, NULL,0);
+	if (ret == ENOENT) {
+		return false;
+	}
+	assert_d_eq(ret, 0, "Unexpected mallctl error");
+	return enabled;
+}
+
+static bool
 nstime_monotonic_mock(void) {
 	return monotonic_mock;
 }
@@ -167,6 +179,8 @@ generate_dirty(unsigned arena_ind, size_t size) {
 }
 
 TEST_BEGIN(test_decay_ticks) {
+	test_skip_if(check_background_thread_enabled());
+
 	ticker_t *decay_ticker;
 	unsigned tick0, tick1, arena_ind;
 	size_t sz, large0;
@@ -405,6 +419,7 @@ decay_ticker_helper(unsigned arena_ind, int flags, bool dirty, ssize_t dt,
 }
 
 TEST_BEGIN(test_decay_ticker) {
+	test_skip_if(check_background_thread_enabled());
 #define NPS 2048
 	ssize_t ddt = opt_dirty_decay_ms;
 	ssize_t mdt = opt_muzzy_decay_ms;
@@ -466,6 +481,7 @@ TEST_BEGIN(test_decay_ticker) {
 TEST_END
 
 TEST_BEGIN(test_decay_nonmonotonic) {
+	test_skip_if(check_background_thread_enabled());
 #define NPS (SMOOTHSTEP_NSTEPS + 1)
 	int flags = (MALLOCX_ARENA(0) | MALLOCX_TCACHE_NONE);
 	void *ps[NPS];
@@ -523,6 +539,8 @@ TEST_BEGIN(test_decay_nonmonotonic) {
 TEST_END
 
 TEST_BEGIN(test_decay_now) {
+	test_skip_if(check_background_thread_enabled());
+
 	unsigned arena_ind = do_arena_create(0, 0);
 	assert_zu_eq(get_arena_pdirty(arena_ind), 0, "Unexpected dirty pages");
 	assert_zu_eq(get_arena_pmuzzy(arena_ind), 0, "Unexpected muzzy pages");
@@ -541,6 +559,8 @@ TEST_BEGIN(test_decay_now) {
 TEST_END
 
 TEST_BEGIN(test_decay_never) {
+	test_skip_if(check_background_thread_enabled());
+
 	unsigned arena_ind = do_arena_create(-1, -1);
 	int flags = MALLOCX_ARENA(arena_ind) | MALLOCX_TCACHE_NONE;
 	assert_zu_eq(get_arena_pdirty(arena_ind), 0, "Unexpected dirty pages");

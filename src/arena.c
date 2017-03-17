@@ -9,14 +9,13 @@
 /******************************************************************************/
 /* Data. */
 
-const char	*percpu_arena_mode_names[] = {
+const char *percpu_arena_mode_names[] = {
 	"disabled",
 	"percpu",
 	"phycpu"
 };
-
-const char	*opt_percpu_arena = OPT_PERCPU_ARENA_DEFAULT;
-percpu_arena_mode_t	percpu_arena_mode = PERCPU_ARENA_MODE_DEFAULT;
+const char *opt_percpu_arena = OPT_PERCPU_ARENA_DEFAULT;
+percpu_arena_mode_t percpu_arena_mode = PERCPU_ARENA_MODE_DEFAULT;
 
 ssize_t opt_dirty_decay_ms = DIRTY_DECAY_MS_DEFAULT;
 ssize_t opt_muzzy_decay_ms = MUZZY_DECAY_MS_DEFAULT;
@@ -24,7 +23,7 @@ ssize_t opt_muzzy_decay_ms = MUZZY_DECAY_MS_DEFAULT;
 static atomic_zd_t dirty_decay_ms_default;
 static atomic_zd_t muzzy_decay_ms_default;
 
-const arena_bin_info_t	arena_bin_info[NBINS] = {
+const arena_bin_info_t arena_bin_info[NBINS] = {
 #define BIN_INFO_bin_yes(reg_size, slab_size, nregs)			\
 	{reg_size, slab_size, nregs, BITMAP_INFO_INITIALIZER(nregs)},
 #define BIN_INFO_bin_no(reg_size, slab_size, nregs)
@@ -39,6 +38,13 @@ const arena_bin_info_t	arena_bin_info[NBINS] = {
 #undef SC
 };
 
+const uint64_t h_steps[SMOOTHSTEP_NSTEPS] = {
+#define STEP(step, h, x, y, h_sum)		\
+		h,
+		SMOOTHSTEP
+#undef STEP
+};
+
 /******************************************************************************/
 /*
  * Function prototypes for static functions that are referenced prior to
@@ -47,7 +53,8 @@ const arena_bin_info_t	arena_bin_info[NBINS] = {
 
 static void arena_decay_to_limit(tsdn_t *tsdn, arena_t *arena,
     arena_decay_t *decay, extents_t *extents, bool all, size_t npages_limit);
-static bool arena_decay_dirty(tsdn_t *tsdn, arena_t *arena, bool all);
+static bool arena_decay_dirty(tsdn_t *tsdn, arena_t *arena,
+    bool is_background_thread, bool all);
 static void arena_dalloc_bin_slab(tsdn_t *tsdn, arena_t *arena, extent_t *slab,
     arena_bin_t *bin);
 static void arena_bin_lower_slab(tsdn_t *tsdn, arena_t *arena, extent_t *slab,
@@ -359,7 +366,7 @@ arena_extents_dirty_dalloc(tsdn_t *tsdn, arena_t *arena,
 	extents_dalloc(tsdn, arena, r_extent_hooks, &arena->extents_dirty,
 	    extent);
 	if (arena_dirty_decay_ms_get(arena) == 0) {
-		arena_decay_dirty(tsdn, arena, true);
+		arena_decay_dirty(tsdn, arena, false, true);
 	}
 }
 
@@ -606,12 +613,6 @@ arena_decay_deadline_reached(const arena_decay_t *decay, const nstime_t *time) {
 
 static size_t
 arena_decay_backlog_npages_limit(const arena_decay_t *decay) {
-	static const uint64_t h_steps[] = {
-#define STEP(step, h, x, y) \
-		h,
-		SMOOTHSTEP
-#undef STEP
-	};
 	uint64_t sum;
 	size_t npages_limit_backlog;
 	unsigned i;
@@ -661,16 +662,26 @@ arena_decay_backlog_update(arena_decay_t *decay, extents_t *extents,
 }
 
 static void
+arena_decay_try_purge(tsdn_t *tsdn, arena_t *arena,
+    arena_decay_t *decay, extents_t *extents) {
+	size_t npages_limit = arena_decay_backlog_npages_limit(decay);
+
+	if (extents_npages_get(extents) > npages_limit) {
+		arena_decay_to_limit(tsdn, arena, decay, extents, false,
+		    npages_limit);
+	}
+}
+
+static void
 arena_decay_epoch_advance_helper(arena_decay_t *decay, extents_t *extents,
     const nstime_t *time) {
-	uint64_t nadvance_u64;
-	nstime_t delta;
-
 	assert(arena_decay_deadline_reached(decay, time));
 
+	nstime_t delta;
 	nstime_copy(&delta, time);
 	nstime_subtract(&delta, &decay->epoch);
-	nadvance_u64 = nstime_divide(&delta, &decay->interval);
+
+	uint64_t nadvance_u64 = nstime_divide(&delta, &decay->interval);
 	assert(nadvance_u64 > 0);
 
 	/* Add nadvance_u64 decay intervals to epoch. */
@@ -686,27 +697,19 @@ arena_decay_epoch_advance_helper(arena_decay_t *decay, extents_t *extents,
 }
 
 static void
-arena_decay_epoch_advance_purge(tsdn_t *tsdn, arena_t *arena,
-    arena_decay_t *decay, extents_t *extents) {
-	size_t npages_limit = arena_decay_backlog_npages_limit(decay);
-
-	if (extents_npages_get(extents) > npages_limit) {
-		arena_decay_to_limit(tsdn, arena, decay, extents, false,
-		    npages_limit);
+arena_decay_epoch_advance(tsdn_t *tsdn, arena_t *arena, arena_decay_t *decay,
+    extents_t *extents, const nstime_t *time, bool purge) {
+	arena_decay_epoch_advance_helper(decay, extents, time);
+	if (purge) {
+		arena_decay_try_purge(tsdn, arena, decay, extents);
 	}
+
 	/*
 	 * There may be concurrent ndirty fluctuation between the purge above
 	 * and the nunpurged update below, but this is inconsequential to decay
 	 * machinery correctness.
 	 */
 	decay->nunpurged = extents_npages_get(extents);
-}
-
-static void
-arena_decay_epoch_advance(tsdn_t *tsdn, arena_t *arena, arena_decay_t *decay,
-    extents_t *extents, const nstime_t *time) {
-	arena_decay_epoch_advance_helper(decay, extents, time);
-	arena_decay_epoch_advance_purge(tsdn, arena, decay, extents);
 }
 
 static void
@@ -759,9 +762,9 @@ arena_decay_ms_valid(ssize_t decay_ms) {
 	return false;
 }
 
-static void
+static bool
 arena_maybe_decay(tsdn_t *tsdn, arena_t *arena, arena_decay_t *decay,
-    extents_t *extents) {
+    extents_t *extents, bool is_background_thread) {
 	malloc_mutex_assert_owner(tsdn, &decay->mtx);
 
 	/* Purge all or nothing if the option is disabled. */
@@ -771,7 +774,7 @@ arena_maybe_decay(tsdn_t *tsdn, arena_t *arena, arena_decay_t *decay,
 			arena_decay_to_limit(tsdn, arena, decay, extents, false,
 			    0);
 		}
-		return;
+		return false;
 	}
 
 	nstime_t time;
@@ -799,11 +802,20 @@ arena_maybe_decay(tsdn_t *tsdn, arena_t *arena, arena_decay_t *decay,
 	 * If the deadline has been reached, advance to the current epoch and
 	 * purge to the new limit if necessary.  Note that dirty pages created
 	 * during the current epoch are not subject to purge until a future
-	 * epoch, so as a result purging only happens during epoch advances.
+	 * epoch, so as a result purging only happens during epoch advances, or
+	 * being triggered by background threads (scheduled event).
 	 */
-	if (arena_decay_deadline_reached(decay, &time)) {
-		arena_decay_epoch_advance(tsdn, arena, decay, extents, &time);
+	bool advance_epoch = arena_decay_deadline_reached(decay, &time);
+	if (advance_epoch) {
+		bool should_purge = is_background_thread ||
+		    !background_thread_enabled();
+		arena_decay_epoch_advance(tsdn, arena, decay, extents, &time,
+		    should_purge);
+	} else if (is_background_thread) {
+		arena_decay_try_purge(tsdn, arena, decay, extents);
 	}
+
+	return advance_epoch;
 }
 
 static ssize_t
@@ -838,7 +850,7 @@ arena_decay_ms_set(tsdn_t *tsdn, arena_t *arena, arena_decay_t *decay,
 	 * arbitrary change during initial arena configuration.
 	 */
 	arena_decay_reinit(decay, extents, decay_ms);
-	arena_maybe_decay(tsdn, arena, decay, extents);
+	arena_maybe_decay(tsdn, arena, decay, extents, false);
 	malloc_mutex_unlock(tsdn, &decay->mtx);
 
 	return false;
@@ -974,40 +986,57 @@ arena_decay_to_limit(tsdn_t *tsdn, arena_t *arena, arena_decay_t *decay,
 
 static bool
 arena_decay_impl(tsdn_t *tsdn, arena_t *arena, arena_decay_t *decay,
-    extents_t *extents, bool all) {
+    extents_t *extents, bool is_background_thread, bool all) {
 	if (all) {
 		malloc_mutex_lock(tsdn, &decay->mtx);
 		arena_decay_to_limit(tsdn, arena, decay, extents, all, 0);
-	} else {
-		if (malloc_mutex_trylock(tsdn, &decay->mtx)) {
-			/* No need to wait if another thread is in progress. */
-			return true;
-		}
-		arena_maybe_decay(tsdn, arena, decay, extents);
+		malloc_mutex_unlock(tsdn, &decay->mtx);
+
+		return false;
+	}
+
+	if (malloc_mutex_trylock(tsdn, &decay->mtx)) {
+		/* No need to wait if another thread is in progress. */
+		return true;
+	}
+
+	bool epoch_advanced = arena_maybe_decay(tsdn, arena, decay, extents,
+	    is_background_thread);
+	size_t npages_new;
+	if (epoch_advanced) {
+		/* Backlog is updated on epoch advance. */
+		npages_new = decay->backlog[SMOOTHSTEP_NSTEPS-1];
 	}
 	malloc_mutex_unlock(tsdn, &decay->mtx);
+
+	if (have_background_thread && background_thread_enabled() &&
+	    epoch_advanced && !is_background_thread) {
+		background_thread_interval_check(tsdn, arena, decay, npages_new);
+	}
 
 	return false;
 }
 
 static bool
-arena_decay_dirty(tsdn_t *tsdn, arena_t *arena, bool all) {
+arena_decay_dirty(tsdn_t *tsdn, arena_t *arena, bool is_background_thread,
+    bool all) {
 	return arena_decay_impl(tsdn, arena, &arena->decay_dirty,
-	    &arena->extents_dirty, all);
+	    &arena->extents_dirty, is_background_thread, all);
 }
 
 static bool
-arena_decay_muzzy(tsdn_t *tsdn, arena_t *arena, bool all) {
+arena_decay_muzzy(tsdn_t *tsdn, arena_t *arena, bool is_background_thread,
+    bool all) {
 	return arena_decay_impl(tsdn, arena, &arena->decay_muzzy,
-	    &arena->extents_muzzy, all);
+	    &arena->extents_muzzy, is_background_thread, all);
 }
 
 void
-arena_decay(tsdn_t *tsdn, arena_t *arena, bool all) {
-	if (arena_decay_dirty(tsdn, arena, all)) {
+arena_decay(tsdn_t *tsdn, arena_t *arena, bool is_background_thread, bool all) {
+	if (arena_decay_dirty(tsdn, arena, is_background_thread, all)) {
 		return;
 	}
-	arena_decay_muzzy(tsdn, arena, all);
+	arena_decay_muzzy(tsdn, arena, is_background_thread, all);
 }
 
 static void
@@ -1173,6 +1202,7 @@ arena_destroy(tsd_t *tsd, arena_t *arena) {
 	 * extents, so only retained extents may remain.
 	 */
 	assert(extents_npages_get(&arena->extents_dirty) == 0);
+	assert(extents_npages_get(&arena->extents_muzzy) == 0);
 
 	/* Deallocate retained memory. */
 	arena_destroy_retained(tsd_tsdn(tsd), arena);
@@ -1971,19 +2001,35 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 	}
 
 	arena->base = base;
+	/* Set arena before creating background threads. */
+	arena_set(ind, arena);
 
 	nstime_init(&arena->create_time, 0);
 	nstime_update(&arena->create_time);
 
-	/* We don't support reetrancy for arena 0 bootstrapping. */
-	if (ind != 0 && hooks_arena_new_hook) {
+	/* We don't support reentrancy for arena 0 bootstrapping. */
+	if (ind != 0) {
 		/*
 		 * If we're here, then arena 0 already exists, so bootstrapping
 		 * is done enough that we should have tsd.
 		 */
+		assert(!tsdn_null(tsdn));
 		pre_reentrancy(tsdn_tsd(tsdn));
-		hooks_arena_new_hook();
+		if (hooks_arena_new_hook) {
+			hooks_arena_new_hook();
+		}
 		post_reentrancy(tsdn_tsd(tsdn));
+
+		/* background_thread_create() handles reentrancy internally. */
+		if (have_background_thread) {
+			bool err;
+			malloc_mutex_lock(tsdn, &background_thread_lock);
+			err = background_thread_create(tsdn_tsd(tsdn), ind);
+			malloc_mutex_unlock(tsdn, &background_thread_lock);
+			if (err) {
+				goto label_error;
+			}
+		}
 	}
 
 	return arena;

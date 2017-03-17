@@ -75,7 +75,7 @@ arena_decay_ticks(tsdn_t *tsdn, arena_t *arena, unsigned nticks) {
 		return;
 	}
 	if (unlikely(ticker_ticks(decay_ticker, nticks))) {
-		arena_decay(tsdn, arena, false);
+		arena_decay(tsdn, arena, false, false);
 	}
 }
 
