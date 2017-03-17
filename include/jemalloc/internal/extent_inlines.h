@@ -2,11 +2,11 @@
 #define JEMALLOC_INTERNAL_EXTENT_INLINES_H
 
 #ifndef JEMALLOC_ENABLE_INLINE
-extent_t *extent_lookup(tsdn_t *tsdn, const void *ptr, bool dependent);
 arena_t *extent_arena_get(const extent_t *extent);
 void *extent_base_get(const extent_t *extent);
 void *extent_addr_get(const extent_t *extent);
 size_t extent_size_get(const extent_t *extent);
+szind_t extent_szind_get_maybe_invalid(const extent_t *extent);
 szind_t extent_szind_get(const extent_t *extent);
 size_t extent_usize_get(const extent_t *extent);
 void *extent_before_get(const extent_t *extent);
@@ -47,15 +47,6 @@ int extent_snad_comp(const extent_t *a, const extent_t *b);
 #endif
 
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_EXTENT_C_))
-JEMALLOC_INLINE extent_t *
-extent_lookup(tsdn_t *tsdn, const void *ptr, bool dependent) {
-	rtree_ctx_t rtree_ctx_fallback;
-	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
-
-	return rtree_read(tsdn, &extents_rtree, rtree_ctx, (uintptr_t)ptr,
-	    dependent);
-}
-
 JEMALLOC_INLINE arena_t *
 extent_arena_get(const extent_t *extent) {
 	return extent->e_arena;
@@ -81,9 +72,16 @@ extent_size_get(const extent_t *extent) {
 }
 
 JEMALLOC_INLINE szind_t
-extent_szind_get(const extent_t *extent) {
-	assert(extent->e_szind < NSIZES); /* Never call when "invalid". */
+extent_szind_get_maybe_invalid(const extent_t *extent) {
+	assert(extent->e_szind <= NSIZES);
 	return extent->e_szind;
+}
+
+JEMALLOC_INLINE szind_t
+extent_szind_get(const extent_t *extent) {
+	szind_t szind = extent_szind_get_maybe_invalid(extent);
+	assert(szind < NSIZES); /* Never call when "invalid". */
+	return szind;
 }
 
 JEMALLOC_INLINE size_t

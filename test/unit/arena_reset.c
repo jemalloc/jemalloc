@@ -57,9 +57,16 @@ get_large_size(size_t ind) {
 /* Like ivsalloc(), but safe to call on discarded allocations. */
 static size_t
 vsalloc(tsdn_t *tsdn, const void *ptr) {
-	extent_t *extent;
+	rtree_ctx_t rtree_ctx_fallback;
+	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
 
-	extent = extent_lookup(tsdn, ptr, false);
+	extent_t *extent;
+	szind_t szind;
+	if (rtree_extent_szind_read(tsdn, &extents_rtree, rtree_ctx,
+	    (uintptr_t)ptr, false, &extent, &szind)) {
+		return 0;
+	}
+
 	if (extent == NULL) {
 		return 0;
 	}
@@ -67,7 +74,11 @@ vsalloc(tsdn_t *tsdn, const void *ptr) {
 		return 0;
 	}
 
-	return isalloc(tsdn, extent, ptr);
+	if (szind == NSIZES) {
+		return 0;
+	}
+
+	return index2size(szind);
 }
 
 static unsigned

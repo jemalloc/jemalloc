@@ -54,7 +54,7 @@ bool extent_purge_forced_wrapper(tsdn_t *tsdn, arena_t *arena,
     size_t length);
 extent_t *extent_split_wrapper(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, extent_t *extent, size_t size_a,
-    szind_t szind_a, size_t size_b, szind_t szind_b);
+    szind_t szind_a, bool slab_a, size_t size_b, szind_t szind_b, bool slab_b);
 bool extent_merge_wrapper(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, extent_t *a, extent_t *b);
 

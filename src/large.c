@@ -66,8 +66,8 @@ large_palloc(tsdn_t *tsdn, arena_t *arena, size_t usize, size_t alignment,
 #define large_dalloc_junk JEMALLOC_N(n_large_dalloc_junk)
 #endif
 void
-large_dalloc_junk(void *ptr, size_t usize) {
-	memset(ptr, JEMALLOC_FREE_JUNK, usize);
+large_dalloc_junk(void *ptr, size_t size) {
+	memset(ptr, JEMALLOC_FREE_JUNK, size);
 }
 #ifdef JEMALLOC_JET
 #undef large_dalloc_junk
@@ -80,14 +80,14 @@ large_dalloc_junk_t *large_dalloc_junk = JEMALLOC_N(n_large_dalloc_junk);
 #define large_dalloc_maybe_junk JEMALLOC_N(n_large_dalloc_maybe_junk)
 #endif
 void
-large_dalloc_maybe_junk(void *ptr, size_t usize) {
+large_dalloc_maybe_junk(void *ptr, size_t size) {
 	if (config_fill && have_dss && unlikely(opt_junk_free)) {
 		/*
 		 * Only bother junk filling if the extent isn't about to be
 		 * unmapped.
 		 */
 		if (!config_munmap || (have_dss && extent_in_dss(ptr))) {
-			large_dalloc_junk(ptr, usize);
+			large_dalloc_junk(ptr, size);
 		}
 	}
 }
@@ -115,7 +115,7 @@ large_ralloc_no_move_shrink(tsdn_t *tsdn, extent_t *extent, size_t usize) {
 	if (diff != 0) {
 		extent_t *trail = extent_split_wrapper(tsdn, arena,
 		    &extent_hooks, extent, usize + large_pad, size2index(usize),
-		    diff, NSIZES);
+		    false, diff, NSIZES, false);
 		if (trail == NULL) {
 			return true;
 		}
@@ -182,7 +182,12 @@ large_ralloc_no_move_expand(tsdn_t *tsdn, extent_t *extent, size_t usize,
 		extent_dalloc_wrapper(tsdn, arena, &extent_hooks, trail);
 		return true;
 	}
-	extent_szind_set(extent, size2index(usize));
+	rtree_ctx_t rtree_ctx_fallback;
+	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
+	szind_t szind = size2index(usize);
+	extent_szind_set(extent, szind);
+	rtree_szind_slab_update(tsdn, &extents_rtree, rtree_ctx,
+	    (uintptr_t)extent_addr_get(extent), szind, false);
 
 	if (config_stats && new_mapping) {
 		arena_stats_mapped_add(tsdn, &arena->stats, trailsize);
