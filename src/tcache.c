@@ -28,7 +28,7 @@ static malloc_mutex_t	tcaches_mtx;
 
 size_t
 tcache_salloc(tsdn_t *tsdn, const void *ptr) {
-	return arena_salloc(tsdn, iealloc(tsdn, ptr), ptr);
+	return arena_salloc(tsdn, ptr);
 }
 
 void
