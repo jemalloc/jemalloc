@@ -310,8 +310,8 @@ a0ialloc(size_t size, bool zero, bool is_internal) {
 }
 
 static void
-a0idalloc(extent_t *extent, void *ptr, bool is_internal) {
-	idalloctm(TSDN_NULL, extent, ptr, false, is_internal, true);
+a0idalloc(void *ptr, bool is_internal) {
+	idalloctm(TSDN_NULL, ptr, false, is_internal, true);
 }
 
 void *
@@ -321,7 +321,7 @@ a0malloc(size_t size) {
 
 void
 a0dalloc(void *ptr) {
-	a0idalloc(iealloc(NULL, ptr), ptr, true);
+	a0idalloc(ptr, true);
 }
 
 /*
@@ -358,7 +358,7 @@ bootstrap_free(void *ptr) {
 		return;
 	}
 
-	a0idalloc(iealloc(NULL, ptr), ptr, false);
+	a0idalloc(ptr, false);
 }
 
 void
@@ -2009,17 +2009,15 @@ irealloc_prof(tsd_t *tsd, extent_t *old_extent, void *old_ptr, size_t old_usize,
 
 JEMALLOC_INLINE_C void
 ifree(tsd_t *tsd, void *ptr, tcache_t *tcache, bool slow_path) {
-	extent_t *extent;
-	size_t usize;
-
 	witness_assert_lockless(tsd_tsdn(tsd));
 
 	assert(ptr != NULL);
 	assert(malloc_initialized() || IS_INITIALIZER);
 
-	extent = iealloc(tsd_tsdn(tsd), ptr);
+	size_t usize;
 	if (config_prof && opt_prof) {
 		usize = isalloc(tsd_tsdn(tsd), ptr);
+		extent_t *extent = iealloc(tsd_tsdn(tsd), ptr);
 		prof_free(tsd, extent, ptr, usize);
 	} else if (config_stats) {
 		usize = isalloc(tsd_tsdn(tsd), ptr);
@@ -2029,21 +2027,21 @@ ifree(tsd_t *tsd, void *ptr, tcache_t *tcache, bool slow_path) {
 	}
 
 	if (likely(!slow_path)) {
-		idalloctm(tsd_tsdn(tsd), extent, ptr, tcache, false, false);
+		idalloctm(tsd_tsdn(tsd), ptr, tcache, false, false);
 	} else {
-		idalloctm(tsd_tsdn(tsd), extent, ptr, tcache, false, true);
+		idalloctm(tsd_tsdn(tsd), ptr, tcache, false, true);
 	}
 }
 
 JEMALLOC_INLINE_C void
-isfree(tsd_t *tsd, extent_t *extent, void *ptr, size_t usize, tcache_t *tcache,
-    bool slow_path) {
+isfree(tsd_t *tsd, void *ptr, size_t usize, tcache_t *tcache, bool slow_path) {
 	witness_assert_lockless(tsd_tsdn(tsd));
 
 	assert(ptr != NULL);
 	assert(malloc_initialized() || IS_INITIALIZER);
 
 	if (config_prof && opt_prof) {
+		extent_t *extent = iealloc(tsd_tsdn(tsd), ptr);
 		prof_free(tsd, extent, ptr, usize);
 	}
 	if (config_stats) {
@@ -2051,9 +2049,9 @@ isfree(tsd_t *tsd, extent_t *extent, void *ptr, size_t usize, tcache_t *tcache,
 	}
 
 	if (likely(!slow_path)) {
-		isdalloct(tsd_tsdn(tsd), extent, ptr, usize, tcache, false);
+		isdalloct(tsd_tsdn(tsd), ptr, usize, tcache, false);
 	} else {
-		isdalloct(tsd_tsdn(tsd), extent, ptr, usize, tcache, true);
+		isdalloct(tsd_tsdn(tsd), ptr, usize, tcache, true);
 	}
 }
 
@@ -2668,14 +2666,12 @@ inallocx(tsdn_t *tsdn, size_t size, int flags) {
 JEMALLOC_EXPORT void JEMALLOC_NOTHROW
 je_sdallocx(void *ptr, size_t size, int flags) {
 	tsd_t *tsd;
-	extent_t *extent;
 	size_t usize;
 	tcache_t *tcache;
 
 	assert(ptr != NULL);
 	assert(malloc_initialized() || IS_INITIALIZER);
 	tsd = tsd_fetch();
-	extent = iealloc(tsd_tsdn(tsd), ptr);
 	usize = inallocx(tsd_tsdn(tsd), size, flags);
 	assert(usize == isalloc(tsd_tsdn(tsd), ptr));
 
@@ -2692,9 +2688,9 @@ je_sdallocx(void *ptr, size_t size, int flags) {
 
 	UTRACE(ptr, 0, 0);
 	if (likely(!malloc_slow)) {
-		isfree(tsd, extent, ptr, usize, tcache, false);
+		isfree(tsd, ptr, usize, tcache, false);
 	} else {
-		isfree(tsd, extent, ptr, usize, tcache, true);
+		isfree(tsd, ptr, usize, tcache, true);
 	}
 	witness_assert_lockless(tsd_tsdn(tsd));
 }

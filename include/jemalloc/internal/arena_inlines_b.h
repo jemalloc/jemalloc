@@ -16,10 +16,9 @@ void	*arena_malloc(tsdn_t *tsdn, arena_t *arena, size_t size, szind_t ind,
 arena_t	*arena_aalloc(tsdn_t *tsdn, const void *ptr);
 size_t arena_salloc(tsdn_t *tsdn, const void *ptr);
 size_t arena_vsalloc(tsdn_t *tsdn, const void *ptr);
-void	arena_dalloc(tsdn_t *tsdn, extent_t *extent, void *ptr,
-    tcache_t *tcache, bool slow_path);
-void	arena_sdalloc(tsdn_t *tsdn, extent_t *extent, void *ptr, size_t size,
-    tcache_t *tcache, bool slow_path);
+void	arena_dalloc(tsdn_t *tsdn, void *ptr, tcache_t *tcache, bool slow_path);
+void	arena_sdalloc(tsdn_t *tsdn, void *ptr, size_t size, tcache_t *tcache,
+    bool slow_path);
 #endif
 
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_ARENA_C_))
@@ -163,24 +162,39 @@ arena_vsalloc(tsdn_t *tsdn, const void *ptr) {
 }
 
 JEMALLOC_ALWAYS_INLINE void
-arena_dalloc(tsdn_t *tsdn, extent_t *extent, void *ptr, tcache_t *tcache,
-    bool slow_path) {
+arena_dalloc(tsdn_t *tsdn, void *ptr, tcache_t *tcache, bool slow_path) {
 	assert(!tsdn_null(tsdn) || tcache == NULL);
 	assert(ptr != NULL);
 
-	szind_t szind = extent_szind_get(extent);
-	if (likely(extent_slab_get(extent))) {
+	rtree_ctx_t rtree_ctx_fallback;
+	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
+
+	szind_t szind;
+	bool slab;
+	rtree_szind_slab_read(tsdn, &extents_rtree, rtree_ctx, (uintptr_t)ptr,
+	    true, &szind, &slab);
+
+	if (config_debug) {
+		extent_t *extent = rtree_extent_read(tsdn, &extents_rtree,
+		    rtree_ctx, (uintptr_t)ptr, true);
+		assert(szind == extent_szind_get(extent));
+		assert(slab == extent_slab_get(extent));
+	}
+
+	if (likely(slab)) {
 		/* Small allocation. */
 		if (likely(tcache != NULL)) {
 			tcache_dalloc_small(tsdn_tsd(tsdn), tcache, ptr, szind,
 			    slow_path);
 		} else {
+			extent_t *extent = iealloc(tsdn, ptr);
 			arena_dalloc_small(tsdn, extent_arena_get(extent),
 			    extent, ptr);
 		}
 	} else {
 		if (likely(tcache != NULL) && szind < nhbins) {
 			if (config_prof && unlikely(szind < NBINS)) {
+				extent_t *extent = iealloc(tsdn, ptr);
 				arena_dalloc_promoted(tsdn, extent, ptr,
 				    tcache, slow_path);
 			} else {
@@ -188,30 +202,62 @@ arena_dalloc(tsdn_t *tsdn, extent_t *extent, void *ptr, tcache_t *tcache,
 				    ptr, szind, slow_path);
 			}
 		} else {
+			extent_t *extent = iealloc(tsdn, ptr);
 			large_dalloc(tsdn, extent);
 		}
 	}
 }
 
 JEMALLOC_ALWAYS_INLINE void
-arena_sdalloc(tsdn_t *tsdn, extent_t *extent, void *ptr, size_t size,
-    tcache_t *tcache, bool slow_path) {
+arena_sdalloc(tsdn_t *tsdn, void *ptr, size_t size, tcache_t *tcache,
+    bool slow_path) {
 	assert(!tsdn_null(tsdn) || tcache == NULL);
 	assert(ptr != NULL);
 
-	szind_t szind = size2index(size);
-	if (likely(extent_slab_get(extent))) {
+	szind_t szind;
+	bool slab;
+	if (!config_prof || !opt_prof) {
+		/*
+		 * There is no risk of being confused by a promoted sampled
+		 * object, so base szind and slab on the given size.
+		 */
+		szind = size2index(size);
+		slab = (szind < NBINS);
+	}
+
+	if ((config_prof && opt_prof) || config_debug) {
+		rtree_ctx_t rtree_ctx_fallback;
+		rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn,
+		    &rtree_ctx_fallback);
+
+		rtree_szind_slab_read(tsdn, &extents_rtree, rtree_ctx,
+		    (uintptr_t)ptr, true, &szind, &slab);
+
+		assert(szind == size2index(size));
+		assert((config_prof && opt_prof) || slab == (szind < NBINS));
+
+		if (config_debug) {
+			extent_t *extent = rtree_extent_read(tsdn,
+			    &extents_rtree, rtree_ctx, (uintptr_t)ptr, true);
+			assert(szind == extent_szind_get(extent));
+			assert(slab == extent_slab_get(extent));
+		}
+	}
+
+	if (likely(slab)) {
 		/* Small allocation. */
 		if (likely(tcache != NULL)) {
 			tcache_dalloc_small(tsdn_tsd(tsdn), tcache, ptr, szind,
 			    slow_path);
 		} else {
+			extent_t *extent = iealloc(tsdn, ptr);
 			arena_dalloc_small(tsdn, extent_arena_get(extent),
 			    extent, ptr);
 		}
 	} else {
 		if (likely(tcache != NULL) && szind < nhbins) {
 			if (config_prof && unlikely(szind < NBINS)) {
+				extent_t *extent = iealloc(tsdn, ptr);
 				arena_dalloc_promoted(tsdn, extent, ptr,
 				    tcache, slow_path);
 			} else {
@@ -219,6 +265,7 @@ arena_sdalloc(tsdn_t *tsdn, extent_t *extent, void *ptr, size_t size,
 				    szind, slow_path);
 			}
 		} else {
+			extent_t *extent = iealloc(tsdn, ptr);
 			large_dalloc(tsdn, extent);
 		}
 	}

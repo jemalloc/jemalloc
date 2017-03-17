@@ -389,8 +389,7 @@ tcache_destroy(tsd_t *tsd, tcache_t *tcache) {
 		prof_idump(tsd_tsdn(tsd));
 	}
 
-	idalloctm(tsd_tsdn(tsd), iealloc(tsd_tsdn(tsd), tcache), tcache, NULL,
-	    true, true);
+	idalloctm(tsd_tsdn(tsd), tcache, NULL, true, true);
 }
 
 void
