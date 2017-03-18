@@ -7,9 +7,9 @@ struct mutex_prof_data_s {
 	 * contention.  We update them once we have the lock.
 	 */
 	/* Total time (in nano seconds) spent waiting on this mutex. */
-	uint64_t		tot_wait_time;
+	nstime_t		tot_wait_time;
 	/* Max time (in nano seconds) spent on a single lock operation. */
-	uint64_t		max_wait_time;
+	nstime_t		max_wait_time;
 	/* # of times have to wait for this mutex (after spinning). */
 	uint64_t		n_wait_times;
 	/* # of times acquired the mutex through local spinning. */

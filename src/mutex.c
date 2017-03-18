@@ -68,6 +68,7 @@ JEMALLOC_EXPORT int	_pthread_mutex_init_calloc_cb(pthread_mutex_t *mutex,
 void
 malloc_mutex_lock_slow(malloc_mutex_t *mutex) {
 	mutex_prof_data_t *data = &mutex->prof_data;
+	UNUSED nstime_t before = NSTIME_ZERO_INITIALIZER;
 
 	if (ncpus == 1) {
 		goto label_spin_done;
@@ -87,12 +88,11 @@ malloc_mutex_lock_slow(malloc_mutex_t *mutex) {
 		malloc_mutex_lock_final(mutex);
 		return;
 	}
-	nstime_t now, before;
 label_spin_done:
-	nstime_init(&now, 0);
-	nstime_update(&now);
-	nstime_copy(&before, &now);
-
+	nstime_update(&before);
+	/* Copy before to after to avoid clock skews. */
+	nstime_t after;
+	nstime_copy(&after, &before);
 	uint32_t n_thds = atomic_add_u32(&data->n_waiting_thds, 1);
 	/* One last try as above two calls may take quite some cycles. */
 	if (!malloc_mutex_trylock(mutex)) {
@@ -103,16 +103,18 @@ label_spin_done:
 
 	/* True slow path. */
 	malloc_mutex_lock_final(mutex);
-	atomic_sub_u32(&data->n_waiting_thds, 1);
-	nstime_update(&now);
-
 	/* Update more slow-path only counters. */
-	nstime_subtract(&now, &before);
-	uint64_t wait_time = nstime_ns(&now);
+	atomic_sub_u32(&data->n_waiting_thds, 1);
+	nstime_update(&after);
+
+	nstime_t delta;
+	nstime_copy(&delta, &after);
+	nstime_subtract(&delta, &before);
+
 	data->n_wait_times++;
-	data->tot_wait_time += wait_time;
-	if (wait_time > data->max_wait_time) {
-		data->max_wait_time = wait_time;
+	nstime_add(&data->tot_wait_time, &delta);
+	if (nstime_compare(&data->max_wait_time, &delta) < 0) {
+		nstime_copy(&data->max_wait_time, &delta);
 	}
 	if (n_thds > data->max_n_thds) {
 		data->max_n_thds = n_thds;
