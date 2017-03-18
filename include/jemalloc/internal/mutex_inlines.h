@@ -29,10 +29,11 @@ malloc_mutex_trylock(malloc_mutex_t *mutex) {
 /* Aggregate lock prof data. */
 JEMALLOC_INLINE void
 malloc_mutex_prof_merge(mutex_prof_data_t *sum, mutex_prof_data_t *data) {
-	sum->tot_wait_time += data->tot_wait_time;
-	if (data->max_wait_time > sum->max_wait_time) {
-		sum->max_wait_time = data->max_wait_time;
+	nstime_add(&sum->tot_wait_time, &data->tot_wait_time);
+	if (nstime_compare(&sum->max_wait_time, &data->max_wait_time) < 0) {
+		nstime_copy(&sum->max_wait_time, &data->max_wait_time);
 	}
+
 	sum->n_wait_times += data->n_wait_times;
 	sum->n_spin_acquired += data->n_spin_acquired;
 

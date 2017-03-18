@@ -2485,9 +2485,9 @@ CTL_RO_CGEN(config_stats, stats_##n##_num_spin_acq,			\
 CTL_RO_CGEN(config_stats, stats_##n##_num_owner_switch,			\
     l.n_owner_switches, uint64_t) 					\
 CTL_RO_CGEN(config_stats, stats_##n##_total_wait_time,			\
-    l.tot_wait_time, uint64_t)						\
+    nstime_ns(&l.tot_wait_time), uint64_t)				\
 CTL_RO_CGEN(config_stats, stats_##n##_max_wait_time,			\
-    l.max_wait_time, uint64_t)						\
+    nstime_ns(&l.max_wait_time), uint64_t)				\
 CTL_RO_CGEN(config_stats, stats_##n##_max_num_thds,			\
     l.max_n_thds, uint64_t)
 
