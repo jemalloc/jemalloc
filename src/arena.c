@@ -1033,7 +1033,7 @@ arena_reset(tsd_t *tsd, arena_t *arena) {
 		}
 		/* Remove large allocation from prof sample set. */
 		if (config_prof && opt_prof) {
-			prof_free(tsd, extent, ptr, usize);
+			prof_free(tsd, ptr, usize);
 		}
 		large_dalloc(tsd_tsdn(tsd), extent);
 		malloc_mutex_lock(tsd_tsdn(tsd), &arena->large_mtx);
@@ -1459,19 +1459,21 @@ arena_palloc(tsdn_t *tsdn, arena_t *arena, size_t usize, size_t alignment,
 }
 
 void
-arena_prof_promote(tsdn_t *tsdn, extent_t *extent, const void *ptr,
-    size_t usize) {
-	arena_t *arena = extent_arena_get(extent);
-
+arena_prof_promote(tsdn_t *tsdn, const void *ptr, size_t usize) {
 	cassert(config_prof);
 	assert(ptr != NULL);
 	assert(isalloc(tsdn, ptr) == LARGE_MINCLASS);
 	assert(usize <= SMALL_MAXCLASS);
 
-	szind_t szind = size2index(usize);
-	extent_szind_set(extent, szind);
 	rtree_ctx_t rtree_ctx_fallback;
 	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
+
+	extent_t *extent = rtree_extent_read(tsdn, &extents_rtree, rtree_ctx,
+	    (uintptr_t)ptr, true);
+	arena_t *arena = extent_arena_get(extent);
+
+	szind_t szind = size2index(usize);
+	extent_szind_set(extent, szind);
 	rtree_szind_slab_update(tsdn, &extents_rtree, rtree_ctx, (uintptr_t)ptr,
 	    szind, false);
 
@@ -1497,14 +1499,13 @@ arena_prof_demote(tsdn_t *tsdn, extent_t *extent, const void *ptr) {
 }
 
 void
-arena_dalloc_promoted(tsdn_t *tsdn, extent_t *extent, void *ptr,
-    tcache_t *tcache, bool slow_path) {
-	size_t usize;
-
+arena_dalloc_promoted(tsdn_t *tsdn, void *ptr, tcache_t *tcache,
+    bool slow_path) {
 	cassert(config_prof);
 	assert(opt_prof);
 
-	usize = arena_prof_demote(tsdn, extent, ptr);
+	extent_t *extent = iealloc(tsdn, ptr);
+	size_t usize = arena_prof_demote(tsdn, extent, ptr);
 	if (usize <= tcache_maxclass) {
 		tcache_dalloc_large(tsdn_tsd(tsdn), tcache, ptr,
 		    size2index(usize), slow_path);
@@ -1621,16 +1622,17 @@ arena_dalloc_bin(tsdn_t *tsdn, arena_t *arena, extent_t *extent, void *ptr) {
 }
 
 void
-arena_dalloc_small(tsdn_t *tsdn, arena_t *arena, extent_t *extent, void *ptr) {
+arena_dalloc_small(tsdn_t *tsdn, void *ptr) {
+	extent_t *extent = iealloc(tsdn, ptr);
+	arena_t *arena = extent_arena_get(extent);
+
 	arena_dalloc_bin(tsdn, arena, extent, ptr);
 	arena_decay_tick(tsdn, arena);
 }
 
 bool
-arena_ralloc_no_move(tsdn_t *tsdn, extent_t *extent, void *ptr, size_t oldsize,
-    size_t size, size_t extra, bool zero) {
-	size_t usize_min, usize_max;
-
+arena_ralloc_no_move(tsdn_t *tsdn, void *ptr, size_t oldsize, size_t size,
+    size_t extra, bool zero) {
 	/* Calls with non-zero extra had to clamp extra. */
 	assert(extra == 0 || size + extra <= LARGE_MAXCLASS);
 
@@ -1638,8 +1640,9 @@ arena_ralloc_no_move(tsdn_t *tsdn, extent_t *extent, void *ptr, size_t oldsize,
 		return true;
 	}
 
-	usize_min = s2u(size);
-	usize_max = s2u(size + extra);
+	extent_t *extent = iealloc(tsdn, ptr);
+	size_t usize_min = s2u(size);
+	size_t usize_max = s2u(size + extra);
 	if (likely(oldsize <= SMALL_MAXCLASS && usize_min <= SMALL_MAXCLASS)) {
 		/*
 		 * Avoid moving the allocation if the size class can be left the
@@ -1678,36 +1681,31 @@ arena_ralloc_move_helper(tsdn_t *tsdn, arena_t *arena, size_t usize,
 }
 
 void *
-arena_ralloc(tsdn_t *tsdn, arena_t *arena, extent_t *extent, void *ptr,
-    size_t oldsize, size_t size, size_t alignment, bool zero,
-    tcache_t *tcache) {
-	void *ret;
-	size_t usize, copysize;
-
-	usize = s2u(size);
+arena_ralloc(tsdn_t *tsdn, arena_t *arena, void *ptr, size_t oldsize,
+    size_t size, size_t alignment, bool zero, tcache_t *tcache) {
+	size_t usize = s2u(size);
 	if (unlikely(usize == 0 || size > LARGE_MAXCLASS)) {
 		return NULL;
 	}
 
 	if (likely(usize <= SMALL_MAXCLASS)) {
 		/* Try to avoid moving the allocation. */
-		if (!arena_ralloc_no_move(tsdn, extent, ptr, oldsize, usize, 0,
-		    zero)) {
+		if (!arena_ralloc_no_move(tsdn, ptr, oldsize, usize, 0, zero)) {
 			return ptr;
 		}
 	}
 
 	if (oldsize >= LARGE_MINCLASS && usize >= LARGE_MINCLASS) {
-		return large_ralloc(tsdn, arena, extent, usize, alignment,
-		    zero, tcache);
+		return large_ralloc(tsdn, arena, iealloc(tsdn, ptr), usize,
+		    alignment, zero, tcache);
 	}
 
 	/*
 	 * size and oldsize are different enough that we need to move the
 	 * object.  In that case, fall back to allocating new space and copying.
 	 */
-	ret = arena_ralloc_move_helper(tsdn, arena, usize, alignment, zero,
-	    tcache);
+	void *ret = arena_ralloc_move_helper(tsdn, arena, usize, alignment,
+	    zero, tcache);
 	if (ret == NULL) {
 		return NULL;
 	}
@@ -1717,7 +1715,7 @@ arena_ralloc(tsdn_t *tsdn, arena_t *arena, extent_t *extent, void *ptr,
 	 * ipalloc()/arena_malloc().
 	 */
 
-	copysize = (usize < oldsize) ? usize : oldsize;
+	size_t copysize = (usize < oldsize) ? usize : oldsize;
 	memcpy(ret, ptr, copysize);
 	isdalloct(tsdn, ptr, oldsize, tcache, true);
 	return ret;

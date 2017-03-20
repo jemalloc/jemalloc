@@ -1589,8 +1589,7 @@ imalloc_sample(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd,
 		if (unlikely(ret == NULL)) {
 			return NULL;
 		}
-		arena_prof_promote(tsd_tsdn(tsd), iealloc(tsd_tsdn(tsd), ret),
-		    ret, usize);
+		arena_prof_promote(tsd_tsdn(tsd), ret, usize);
 	} else {
 		ret = imalloc_no_sample(sopts, dopts, tsd, usize, usize, ind);
 	}
@@ -1741,8 +1740,7 @@ imalloc_body(static_opts_t *sopts, dynamic_opts_t *dopts) {
 			goto label_oom;
 		}
 
-		prof_malloc(tsd_tsdn(tsd), iealloc(tsd_tsdn(tsd), allocation),
-		    allocation, usize, tctx);
+		prof_malloc(tsd_tsdn(tsd), allocation, usize, tctx);
 
 	} else {
 		/*
@@ -1955,53 +1953,46 @@ je_calloc(size_t num, size_t size) {
 }
 
 static void *
-irealloc_prof_sample(tsd_t *tsd, extent_t *extent, void *old_ptr,
-    size_t old_usize, size_t usize, prof_tctx_t *tctx) {
+irealloc_prof_sample(tsd_t *tsd, void *old_ptr, size_t old_usize, size_t usize,
+    prof_tctx_t *tctx) {
 	void *p;
 
 	if (tctx == NULL) {
 		return NULL;
 	}
 	if (usize <= SMALL_MAXCLASS) {
-		p = iralloc(tsd, extent, old_ptr, old_usize, LARGE_MINCLASS, 0,
-		    false);
+		p = iralloc(tsd, old_ptr, old_usize, LARGE_MINCLASS, 0, false);
 		if (p == NULL) {
 			return NULL;
 		}
-		arena_prof_promote(tsd_tsdn(tsd), iealloc(tsd_tsdn(tsd), p), p,
-		    usize);
+		arena_prof_promote(tsd_tsdn(tsd), p, usize);
 	} else {
-		p = iralloc(tsd, extent, old_ptr, old_usize, usize, 0, false);
+		p = iralloc(tsd, old_ptr, old_usize, usize, 0, false);
 	}
 
 	return p;
 }
 
 JEMALLOC_ALWAYS_INLINE_C void *
-irealloc_prof(tsd_t *tsd, extent_t *old_extent, void *old_ptr, size_t old_usize,
-    size_t usize) {
+irealloc_prof(tsd_t *tsd, void *old_ptr, size_t old_usize, size_t usize) {
 	void *p;
-	extent_t *extent;
 	bool prof_active;
 	prof_tctx_t *old_tctx, *tctx;
 
 	prof_active = prof_active_get_unlocked();
-	old_tctx = prof_tctx_get(tsd_tsdn(tsd), old_extent, old_ptr);
+	old_tctx = prof_tctx_get(tsd_tsdn(tsd), old_ptr);
 	tctx = prof_alloc_prep(tsd, usize, prof_active, true);
 	if (unlikely((uintptr_t)tctx != (uintptr_t)1U)) {
-		p = irealloc_prof_sample(tsd, old_extent, old_ptr, old_usize,
-		    usize, tctx);
+		p = irealloc_prof_sample(tsd, old_ptr, old_usize, usize, tctx);
 	} else {
-		p = iralloc(tsd, old_extent, old_ptr, old_usize, usize, 0,
-		    false);
+		p = iralloc(tsd, old_ptr, old_usize, usize, 0, false);
 	}
 	if (unlikely(p == NULL)) {
 		prof_alloc_rollback(tsd, tctx, true);
 		return NULL;
 	}
-	extent = (p == old_ptr) ? old_extent : iealloc(tsd_tsdn(tsd), p);
-	prof_realloc(tsd, extent, p, usize, tctx, prof_active, true, old_extent,
-	    old_ptr, old_usize, old_tctx);
+	prof_realloc(tsd, p, usize, tctx, prof_active, true, old_ptr, old_usize,
+	    old_tctx);
 
 	return p;
 }
@@ -2016,8 +2007,7 @@ ifree(tsd_t *tsd, void *ptr, tcache_t *tcache, bool slow_path) {
 	size_t usize;
 	if (config_prof && opt_prof) {
 		usize = isalloc(tsd_tsdn(tsd), ptr);
-		extent_t *extent = iealloc(tsd_tsdn(tsd), ptr);
-		prof_free(tsd, extent, ptr, usize);
+		prof_free(tsd, ptr, usize);
 	} else if (config_stats) {
 		usize = isalloc(tsd_tsdn(tsd), ptr);
 	}
@@ -2040,8 +2030,7 @@ isfree(tsd_t *tsd, void *ptr, size_t usize, tcache_t *tcache, bool slow_path) {
 	assert(malloc_initialized() || IS_INITIALIZER);
 
 	if (config_prof && opt_prof) {
-		extent_t *extent = iealloc(tsd_tsdn(tsd), ptr);
-		prof_free(tsd, extent, ptr, usize);
+		prof_free(tsd, ptr, usize);
 	}
 	if (config_stats) {
 		*tsd_thread_deallocatedp_get(tsd) += usize;
@@ -2077,27 +2066,21 @@ je_realloc(void *ptr, size_t size) {
 	}
 
 	if (likely(ptr != NULL)) {
-		tsd_t *tsd;
-		extent_t *extent;
-
 		assert(malloc_initialized() || IS_INITIALIZER);
-		tsd = tsd_fetch();
+		tsd_t *tsd = tsd_fetch();
 
 		witness_assert_lockless(tsd_tsdn(tsd));
 
-		extent = iealloc(tsd_tsdn(tsd), ptr);
 		old_usize = isalloc(tsd_tsdn(tsd), ptr);
 		if (config_prof && opt_prof) {
 			usize = s2u(size);
 			ret = unlikely(usize == 0 || usize > LARGE_MAXCLASS) ?
-			    NULL : irealloc_prof(tsd, extent, ptr, old_usize,
-			    usize);
+			    NULL : irealloc_prof(tsd, ptr, old_usize, usize);
 		} else {
 			if (config_stats) {
 				usize = s2u(size);
 			}
-			ret = iralloc(tsd, extent, ptr, old_usize, size, 0,
-			    false);
+			ret = iralloc(tsd, ptr, old_usize, size, 0, false);
 		}
 		tsdn = tsd_tsdn(tsd);
 	} else {
@@ -2314,47 +2297,46 @@ je_mallocx(size_t size, int flags) {
 }
 
 static void *
-irallocx_prof_sample(tsdn_t *tsdn, extent_t *extent, void *old_ptr,
-    size_t old_usize, size_t usize, size_t alignment, bool zero,
-    tcache_t *tcache, arena_t *arena, prof_tctx_t *tctx) {
+irallocx_prof_sample(tsdn_t *tsdn, void *old_ptr, size_t old_usize,
+    size_t usize, size_t alignment, bool zero, tcache_t *tcache, arena_t *arena,
+    prof_tctx_t *tctx) {
 	void *p;
 
 	if (tctx == NULL) {
 		return NULL;
 	}
 	if (usize <= SMALL_MAXCLASS) {
-		p = iralloct(tsdn, extent, old_ptr, old_usize, LARGE_MINCLASS,
+		p = iralloct(tsdn, old_ptr, old_usize, LARGE_MINCLASS,
 		    alignment, zero, tcache, arena);
 		if (p == NULL) {
 			return NULL;
 		}
-		arena_prof_promote(tsdn, iealloc(tsdn, p), p, usize);
+		arena_prof_promote(tsdn, p, usize);
 	} else {
-		p = iralloct(tsdn, extent, old_ptr, old_usize, usize, alignment,
-		    zero, tcache, arena);
+		p = iralloct(tsdn, old_ptr, old_usize, usize, alignment, zero,
+		    tcache, arena);
 	}
 
 	return p;
 }
 
 JEMALLOC_ALWAYS_INLINE_C void *
-irallocx_prof(tsd_t *tsd, extent_t *old_extent, void *old_ptr, size_t old_usize,
-    size_t size, size_t alignment, size_t *usize, bool zero, tcache_t *tcache,
+irallocx_prof(tsd_t *tsd, void *old_ptr, size_t old_usize, size_t size,
+    size_t alignment, size_t *usize, bool zero, tcache_t *tcache,
     arena_t *arena) {
 	void *p;
-	extent_t *extent;
 	bool prof_active;
 	prof_tctx_t *old_tctx, *tctx;
 
 	prof_active = prof_active_get_unlocked();
-	old_tctx = prof_tctx_get(tsd_tsdn(tsd), old_extent, old_ptr);
+	old_tctx = prof_tctx_get(tsd_tsdn(tsd), old_ptr);
 	tctx = prof_alloc_prep(tsd, *usize, prof_active, false);
 	if (unlikely((uintptr_t)tctx != (uintptr_t)1U)) {
-		p = irallocx_prof_sample(tsd_tsdn(tsd), old_extent, old_ptr,
-		    old_usize, *usize, alignment, zero, tcache, arena, tctx);
+		p = irallocx_prof_sample(tsd_tsdn(tsd), old_ptr, old_usize,
+		    *usize, alignment, zero, tcache, arena, tctx);
 	} else {
-		p = iralloct(tsd_tsdn(tsd), old_extent, old_ptr, old_usize,
-		    size, alignment, zero, tcache, arena);
+		p = iralloct(tsd_tsdn(tsd), old_ptr, old_usize, size, alignment,
+		    zero, tcache, arena);
 	}
 	if (unlikely(p == NULL)) {
 		prof_alloc_rollback(tsd, tctx, false);
@@ -2370,13 +2352,10 @@ irallocx_prof(tsd_t *tsd, extent_t *old_extent, void *old_ptr, size_t old_usize,
 		 * be the same as the current usize because of in-place large
 		 * reallocation.  Therefore, query the actual value of usize.
 		 */
-		extent = old_extent;
 		*usize = isalloc(tsd_tsdn(tsd), p);
-	} else {
-		extent = iealloc(tsd_tsdn(tsd), p);
 	}
-	prof_realloc(tsd, extent, p, *usize, tctx, prof_active, false,
-	    old_extent, old_ptr, old_usize, old_tctx);
+	prof_realloc(tsd, p, *usize, tctx, prof_active, false, old_ptr,
+	    old_usize, old_tctx);
 
 	return p;
 }
@@ -2387,7 +2366,6 @@ JEMALLOC_ALLOC_SIZE(2)
 je_rallocx(void *ptr, size_t size, int flags) {
 	void *p;
 	tsd_t *tsd;
-	extent_t *extent;
 	size_t usize;
 	size_t old_usize;
 	size_t alignment = MALLOCX_ALIGN_GET(flags);
@@ -2400,7 +2378,6 @@ je_rallocx(void *ptr, size_t size, int flags) {
 	assert(malloc_initialized() || IS_INITIALIZER);
 	tsd = tsd_fetch();
 	witness_assert_lockless(tsd_tsdn(tsd));
-	extent = iealloc(tsd_tsdn(tsd), ptr);
 
 	if (unlikely((flags & MALLOCX_ARENA_MASK) != 0)) {
 		unsigned arena_ind = MALLOCX_ARENA_GET(flags);
@@ -2429,14 +2406,14 @@ je_rallocx(void *ptr, size_t size, int flags) {
 		if (unlikely(usize == 0 || usize > LARGE_MAXCLASS)) {
 			goto label_oom;
 		}
-		p = irallocx_prof(tsd, extent, ptr, old_usize, size, alignment,
-		    &usize, zero, tcache, arena);
+		p = irallocx_prof(tsd, ptr, old_usize, size, alignment, &usize,
+		    zero, tcache, arena);
 		if (unlikely(p == NULL)) {
 			goto label_oom;
 		}
 	} else {
-		p = iralloct(tsd_tsdn(tsd), extent, ptr, old_usize, size,
-		    alignment, zero, tcache, arena);
+		p = iralloct(tsd_tsdn(tsd), ptr, old_usize, size, alignment,
+		    zero, tcache, arena);
 		if (unlikely(p == NULL)) {
 			goto label_oom;
 		}
@@ -2464,12 +2441,11 @@ label_oom:
 }
 
 JEMALLOC_ALWAYS_INLINE_C size_t
-ixallocx_helper(tsdn_t *tsdn, extent_t *extent, void *ptr, size_t old_usize,
-    size_t size, size_t extra, size_t alignment, bool zero) {
+ixallocx_helper(tsdn_t *tsdn, void *ptr, size_t old_usize, size_t size,
+    size_t extra, size_t alignment, bool zero) {
 	size_t usize;
 
-	if (ixalloc(tsdn, extent, ptr, old_usize, size, extra, alignment,
-	    zero)) {
+	if (ixalloc(tsdn, ptr, old_usize, size, extra, alignment, zero)) {
 		return old_usize;
 	}
 	usize = isalloc(tsdn, ptr);
@@ -2478,29 +2454,28 @@ ixallocx_helper(tsdn_t *tsdn, extent_t *extent, void *ptr, size_t old_usize,
 }
 
 static size_t
-ixallocx_prof_sample(tsdn_t *tsdn, extent_t *extent, void *ptr,
-    size_t old_usize, size_t size, size_t extra, size_t alignment, bool zero,
-    prof_tctx_t *tctx) {
+ixallocx_prof_sample(tsdn_t *tsdn, void *ptr, size_t old_usize, size_t size,
+    size_t extra, size_t alignment, bool zero, prof_tctx_t *tctx) {
 	size_t usize;
 
 	if (tctx == NULL) {
 		return old_usize;
 	}
-	usize = ixallocx_helper(tsdn, extent, ptr, old_usize, size, extra,
-	    alignment, zero);
+	usize = ixallocx_helper(tsdn, ptr, old_usize, size, extra, alignment,
+	    zero);
 
 	return usize;
 }
 
 JEMALLOC_ALWAYS_INLINE_C size_t
-ixallocx_prof(tsd_t *tsd, extent_t *extent, void *ptr, size_t old_usize,
-    size_t size, size_t extra, size_t alignment, bool zero) {
+ixallocx_prof(tsd_t *tsd, void *ptr, size_t old_usize, size_t size,
+    size_t extra, size_t alignment, bool zero) {
 	size_t usize_max, usize;
 	bool prof_active;
 	prof_tctx_t *old_tctx, *tctx;
 
 	prof_active = prof_active_get_unlocked();
-	old_tctx = prof_tctx_get(tsd_tsdn(tsd), extent, ptr);
+	old_tctx = prof_tctx_get(tsd_tsdn(tsd), ptr);
 	/*
 	 * usize isn't knowable before ixalloc() returns when extra is non-zero.
 	 * Therefore, compute its maximum possible value and use that in
@@ -2525,18 +2500,18 @@ ixallocx_prof(tsd_t *tsd, extent_t *extent, void *ptr, size_t old_usize,
 	tctx = prof_alloc_prep(tsd, usize_max, prof_active, false);
 
 	if (unlikely((uintptr_t)tctx != (uintptr_t)1U)) {
-		usize = ixallocx_prof_sample(tsd_tsdn(tsd), extent, ptr,
-		    old_usize, size, extra, alignment, zero, tctx);
+		usize = ixallocx_prof_sample(tsd_tsdn(tsd), ptr, old_usize,
+		    size, extra, alignment, zero, tctx);
 	} else {
-		usize = ixallocx_helper(tsd_tsdn(tsd), extent, ptr, old_usize,
-		    size, extra, alignment, zero);
+		usize = ixallocx_helper(tsd_tsdn(tsd), ptr, old_usize, size,
+		    extra, alignment, zero);
 	}
 	if (usize == old_usize) {
 		prof_alloc_rollback(tsd, tctx, false);
 		return usize;
 	}
-	prof_realloc(tsd, extent, ptr, usize, tctx, prof_active, false, extent,
-	    ptr, old_usize, old_tctx);
+	prof_realloc(tsd, ptr, usize, tctx, prof_active, false, ptr, old_usize,
+	    old_tctx);
 
 	return usize;
 }
@@ -2544,7 +2519,6 @@ ixallocx_prof(tsd_t *tsd, extent_t *extent, void *ptr, size_t old_usize,
 JEMALLOC_EXPORT size_t JEMALLOC_NOTHROW
 je_xallocx(void *ptr, size_t size, size_t extra, int flags) {
 	tsd_t *tsd;
-	extent_t *extent;
 	size_t usize, old_usize;
 	size_t alignment = MALLOCX_ALIGN_GET(flags);
 	bool zero = flags & MALLOCX_ZERO;
@@ -2555,7 +2529,6 @@ je_xallocx(void *ptr, size_t size, size_t extra, int flags) {
 	assert(malloc_initialized() || IS_INITIALIZER);
 	tsd = tsd_fetch();
 	witness_assert_lockless(tsd_tsdn(tsd));
-	extent = iealloc(tsd_tsdn(tsd), ptr);
 
 	old_usize = isalloc(tsd_tsdn(tsd), ptr);
 
@@ -2577,11 +2550,11 @@ je_xallocx(void *ptr, size_t size, size_t extra, int flags) {
 	}
 
 	if (config_prof && opt_prof) {
-		usize = ixallocx_prof(tsd, extent, ptr, old_usize, size, extra,
+		usize = ixallocx_prof(tsd, ptr, old_usize, size, extra,
 		    alignment, zero);
 	} else {
-		usize = ixallocx_helper(tsd_tsdn(tsd), extent, ptr, old_usize,
-		    size, extra, alignment, zero);
+		usize = ixallocx_helper(tsd_tsdn(tsd), ptr, old_usize, size,
+		    extra, alignment, zero);
 	}
 	if (unlikely(usize == old_usize)) {
 		goto label_not_resized;

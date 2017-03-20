@@ -222,9 +222,9 @@ prof_alloc_rollback(tsd_t *tsd, prof_tctx_t *tctx, bool updated) {
 }
 
 void
-prof_malloc_sample_object(tsdn_t *tsdn, extent_t *extent, const void *ptr,
-    size_t usize, prof_tctx_t *tctx) {
-	prof_tctx_set(tsdn, extent, ptr, usize, tctx);
+prof_malloc_sample_object(tsdn_t *tsdn, const void *ptr, size_t usize,
+    prof_tctx_t *tctx) {
+	prof_tctx_set(tsdn, ptr, usize, tctx);
 
 	malloc_mutex_lock(tsdn, tctx->tdata->lock);
 	tctx->cnts.curobjs++;
