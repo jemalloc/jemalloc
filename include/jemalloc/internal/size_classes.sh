@@ -40,6 +40,17 @@ lg() {
   done
 }
 
+lg_ceil() {
+  y=$1
+  lg ${y}; lg_floor=${lg_result}
+  pow2 ${lg_floor}; pow2_floor=${pow2_result}
+  if [ ${pow2_floor} -lt ${y} ] ; then
+    lg_ceil_result=$((${lg_floor} + 1))
+  else
+    lg_ceil_result=${lg_floor}
+  fi
+}
+
 reg_size_compute() {
   lg_grp=$1
   lg_delta=$2
@@ -246,12 +257,14 @@ size_classes() {
   done
   echo
   nsizes=${index}
+  lg_ceil ${nsizes}; lg_ceil_nsizes=${lg_ceil_result}
 
   # Defined upon completion:
   # - ntbins
   # - nlbins
   # - nbins
   # - nsizes
+  # - lg_ceil_nsizes
   # - npsizes
   # - lg_tiny_maxclass
   # - lookup_maxclass
@@ -286,6 +299,7 @@ cat <<EOF
  *   NLBINS: Number of bins supported by the lookup table.
  *   NBINS: Number of small size class bins.
  *   NSIZES: Number of size classes.
+ *   LG_CEIL_NSIZES: Number of bits required to store NSIZES.
  *   NPSIZES: Number of size classes that are a multiple of (1U << LG_PAGE).
  *   LG_TINY_MAXCLASS: Lg of maximum tiny size class.
  *   LOOKUP_MAXCLASS: Maximum size class included in lookup table.
@@ -311,6 +325,7 @@ for lg_z in ${lg_zarr} ; do
         echo "#define NLBINS			${nlbins}"
         echo "#define NBINS			${nbins}"
         echo "#define NSIZES			${nsizes}"
+        echo "#define LG_CEIL_NSIZES		${lg_ceil_nsizes}"
         echo "#define NPSIZES			${npsizes}"
         echo "#define LG_TINY_MAXCLASS	${lg_tiny_maxclass}"
         echo "#define LOOKUP_MAXCLASS		${lookup_maxclass}"
