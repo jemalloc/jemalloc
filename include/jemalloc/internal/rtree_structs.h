@@ -6,9 +6,26 @@ struct rtree_node_elm_s {
 };
 
 struct rtree_leaf_elm_s {
-	atomic_p_t	le_extent; /* (extent_t *) */
+#ifdef RTREE_LEAF_COMPACT
+	/*
+	 * Single pointer-width field containing all three leaf element fields.
+	 * For example, on a 64-bit x64 system with 48 significant virtual
+	 * memory address bits, the index, extent, and slab fields are packed as
+	 * such:
+	 *
+	 * x: index
+	 * e: extent
+	 * b: slab
+	 * k: lock
+	 *
+	 *   00000000 xxxxxxxx eeeeeeee [...] eeeeeeee eeee00bk
+	 */
+	atomic_p_t	le_bits;
+#else
+	atomic_p_t	le_extent; /* (extent_t *), lock in low bit */
 	atomic_u_t	le_szind; /* (szind_t) */
 	atomic_b_t	le_slab; /* (bool) */
+#endif
 };
 
 struct rtree_leaf_elm_witness_s {

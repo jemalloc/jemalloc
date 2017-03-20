@@ -33,6 +33,10 @@ typedef struct rtree_s rtree_t;
 #else
 #  error Unsupported number of significant virtual address bits
 #endif
+/* Use compact leaf representation if virtual address encoding allows. */
+#if RTREE_NHIB >= LG_CEIL_NSIZES
+#  define RTREE_LEAF_COMPACT
+#endif
 
 /*
  * Number of leafkey/leaf pairs to cache.  Each entry supports an entire leaf,

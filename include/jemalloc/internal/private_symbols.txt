@@ -419,6 +419,11 @@ rtree_extent_szind_read
 rtree_leaf_alloc
 rtree_leaf_dalloc
 rtree_leaf_elm_acquire
+rtree_leaf_elm_bits_extent_get
+rtree_leaf_elm_bits_locked_get
+rtree_leaf_elm_bits_read
+rtree_leaf_elm_bits_slab_get
+rtree_leaf_elm_bits_szind_get
 rtree_leaf_elm_extent_read
 rtree_leaf_elm_extent_write
 rtree_leaf_elm_lookup
