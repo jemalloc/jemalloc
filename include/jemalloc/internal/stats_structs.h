@@ -124,14 +124,7 @@ struct arena_stats_s {
 	/* Number of bytes cached in tcache associated with this arena. */
 	atomic_zu_t		tcache_bytes; /* Derived. */
 
-	mutex_prof_data_t large_mtx_data;
-	mutex_prof_data_t extent_freelist_mtx_data;
-	mutex_prof_data_t extents_dirty_mtx_data;
-	mutex_prof_data_t extents_muzzy_mtx_data;
-	mutex_prof_data_t extents_retained_mtx_data;
-	mutex_prof_data_t decay_dirty_mtx_data;
-	mutex_prof_data_t decay_muzzy_mtx_data;
-	mutex_prof_data_t tcache_list_mtx_data;
+	mutex_prof_data_t mutex_prof_data[num_arena_prof_mutexes];
 
 	/* One element for each large size class. */
 	malloc_large_stats_t	lstats[NSIZES - NBINS];

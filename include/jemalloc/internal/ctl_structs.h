@@ -42,9 +42,7 @@ struct ctl_stats_s {
 	size_t			mapped;
 	size_t			retained;
 
-#define MTX(mutex) mutex_prof_data_t mutex##_mtx_data;
-	GLOBAL_PROF_MUTEXES
-#undef MTX
+	mutex_prof_data_t	mutex_prof_data[num_global_prof_mutexes];
 };
 
 struct ctl_arena_s {
