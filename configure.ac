@@ -442,6 +442,9 @@ typedef unsigned __int32 uint32_t;
 	if (f == NULL) {
 		return 1;
 	}
+	if (vaddr > (sizeof(void *) << 3)) {
+		vaddr = sizeof(void *) << 3;
+	}
 	fprintf(f, "%u", vaddr);
 	fclose(f);
 	return 0;
