@@ -2153,6 +2153,80 @@ struct extent_hooks_s {
         </para></listitem>
       </varlistentry>
 
+      <varlistentry id="stats.mutexes.ctl">
+        <term>
+          <mallctl>stats.mutexes.ctl.{counter};</mallctl>
+          (<type>counter specific type</type>)
+          <literal>r-</literal>
+          [<option>--enable-stats</option>]
+        </term>
+        <listitem><para>Statistics on <varname>ctl</varname> mutex (global
+        scope; mallctl related).  <mallctl>{counter}</mallctl> is one of the
+        counters below:</para>
+        <varlistentry id="mutex_counters">
+          <listitem><para><varname>num_ops</varname> (<type>uint64_t</type>):
+          Total number of lock acquisition operations on this mutex.</para>
+
+	  <para><varname>num_spin_acq</varname> (<type>uint64_t</type>): Number
+	  of times the mutex was spin-acquired.  When the mutex is currently
+	  locked and cannot be acquired immediately, a short period of
+	  spin-retry within jemalloc will be performed.  Acquired through spin
+	  generally means the contention was lightweight and not causing context
+	  switches.</para>
+
+	  <para><varname>num_wait</varname> (<type>uint64_t</type>): Number of
+	  times the mutex was wait-acquired, which means the mutex contention
+	  was not solved by spin-retry, and blocking operation was likely
+	  involved in order to acquire the mutex.  This event generally implies
+	  higher cost / longer delay, and should be investigated if it happens
+	  often.</para>
+
+	  <para><varname>max_wait_time</varname> (<type>uint64_t</type>):
+	  Maximum length of time in nanoseconds spent on a single wait-acquired
+	  lock operation.  Note that to avoid profiling overhead on the common
+	  path, this does not consider spin-acquired cases.</para>
+
+	  <para><varname>total_wait_time</varname> (<type>uint64_t</type>):
+	  Cumulative time in nanoseconds spent on wait-acquired lock operations.
+	  Similarly, spin-acquired cases are not considered.</para>
+
+	  <para><varname>max_num_thds</varname> (<type>uint32_t</type>): Maximum
+	  number of threads waiting on this mutex simultaneously.  Similarly,
+	  spin-acquired cases are not considered.</para>
+
+	  <para><varname>num_owner_switch</varname> (<type>uint64_t</type>):
+	  Number of times the current mutex owner is different from the previous
+	  one.  This event does not generally imply an issue; rather it is an
+	  indicator of how often the protected data are accessed by different
+	  threads.
+	  </para>
+	  </listitem>
+	</varlistentry>
+	</listitem>
+      </varlistentry>
+
+      <varlistentry id="stats.mutexes.prof">
+        <term>
+          <mallctl>stats.mutexes.prof.{counter}</mallctl>
+	  (<type>counter specific type</type>) <literal>r-</literal>
+          [<option>--enable-stats</option>]
+        </term>
+        <listitem><para>Statistics on <varname>prof</varname> mutex (global
+        scope; profiling related).  <mallctl>{counter}</mallctl> is one of the
+        counters in <link linkend="mutex_counters">mutex profiling
+        counters</link>.</para></listitem>
+      </varlistentry>
+
+      <varlistentry id="stats.mutexes.reset">
+        <term>
+          <mallctl>stats.mutexes.reset</mallctl>
+	  (<type>void</type>) <literal>--</literal>
+          [<option>--enable-stats</option>]
+        </term>
+        <listitem><para>Reset all mutex profile statistics, including global
+        mutexes, arena mutexes and bin mutexes.</para></listitem>
+      </varlistentry>
+
       <varlistentry id="stats.arenas.i.dss">
         <term>
           <mallctl>stats.arenas.&lt;i&gt;.dss</mallctl>
@@ -2547,6 +2621,19 @@ struct extent_hooks_s {
         <listitem><para>Current number of slabs.</para></listitem>
       </varlistentry>
 
+      <varlistentry id="stats.arenas.i.bins.mutex">
+        <term>
+          <mallctl>stats.arenas.&lt;i&gt;.bins.&lt;j&gt;.mutex.{counter}</mallctl>
+          (<type>counter specific type</type>) <literal>r-</literal>
+          [<option>--enable-stats</option>]
+        </term>
+        <listitem><para>Statistics on
+        <varname>arena.&lt;i&gt;.bins.&lt;j&gt;</varname> mutex (arena bin
+        scope; bin operation related).  <mallctl>{counter}</mallctl> is one of
+        the counters in <link linkend="mutex_counters">mutex profiling
+        counters</link>.</para></listitem>
+      </varlistentry>
+
       <varlistentry id="stats.arenas.i.lextents.j.nmalloc">
         <term>
           <mallctl>stats.arenas.&lt;i&gt;.lextents.&lt;j&gt;.nmalloc</mallctl>
@@ -2590,6 +2677,125 @@ struct extent_hooks_s {
         <listitem><para>Current number of large allocations for this size class.
         </para></listitem>
       </varlistentry>
+
+      <varlistentry id="stats.arenas.i.mutexes.large">
+        <term>
+          <mallctl>stats.arenas.&lt;i&gt;.mutexes.large.{counter}</mallctl>
+          (<type>counter specific type</type>) <literal>r-</literal>
+          [<option>--enable-stats</option>]
+        </term>
+        <listitem><para>Statistics on <varname>arena.&lt;i&gt;.large</varname>
+        mutex (arena scope; large allocation related).
+        <mallctl>{counter}</mallctl> is one of the counters in <link
+        linkend="mutex_counters">mutex profiling
+        counters</link>.</para></listitem>
+      </varlistentry>
+
+      <varlistentry id="stats.arenas.i.mutexes.extent_freelist">
+        <term>
+          <mallctl>stats.arenas.&lt;i&gt;.mutexes.extent_freelist.{counter}</mallctl>
+          (<type>counter specific type</type>) <literal>r-</literal>
+          [<option>--enable-stats</option>]
+        </term>
+        <listitem><para>Statistics on <varname>arena.&lt;i&gt;.extent_freelist
+        </varname> mutex (arena scope; extent freelist related).
+        <mallctl>{counter}</mallctl> is one of the counters in <link
+        linkend="mutex_counters">mutex profiling
+        counters</link>.</para></listitem>
+      </varlistentry>
+
+      <varlistentry id="stats.arenas.i.mutexes.extents_dirty">
+        <term>
+          <mallctl>stats.arenas.&lt;i&gt;.mutexes.extents_dirty.{counter}</mallctl>
+          (<type>counter specific type</type>) <literal>r-</literal>
+          [<option>--enable-stats</option>]
+        </term>
+        <listitem><para>Statistics on <varname>arena.&lt;i&gt;.extents_dirty
+        </varname> mutex (arena scope; dirty extents related).
+        <mallctl>{counter}</mallctl> is one of the counters in <link
+        linkend="mutex_counters">mutex profiling
+        counters</link>.</para></listitem>
+      </varlistentry>
+
+      <varlistentry id="stats.arenas.i.mutexes.extents_muzzy">
+        <term>
+          <mallctl>stats.arenas.&lt;i&gt;.mutexes.extents_muzzy.{counter}</mallctl>
+          (<type>counter specific type</type>) <literal>r-</literal>
+          [<option>--enable-stats</option>]
+        </term>
+        <listitem><para>Statistics on <varname>arena.&lt;i&gt;.extents_muzzy
+        </varname> mutex (arena scope; muzzy extents related).
+        <mallctl>{counter}</mallctl> is one of the counters in <link
+        linkend="mutex_counters">mutex profiling
+        counters</link>.</para></listitem>
+      </varlistentry>
+
+      <varlistentry id="stats.arenas.i.mutexes.extents_retained">
+        <term>
+          <mallctl>stats.arenas.&lt;i&gt;.mutexes.extents_retained.{counter}</mallctl>
+          (<type>counter specific type</type>) <literal>r-</literal>
+          [<option>--enable-stats</option>]
+        </term>
+        <listitem><para>Statistics on <varname>arena.&lt;i&gt;.extents_retained
+        </varname> mutex (arena scope; retained extents related).
+        <mallctl>{counter}</mallctl> is one of the counters in <link
+        linkend="mutex_counters">mutex profiling
+        counters</link>.</para></listitem>
+      </varlistentry>
+
+      <varlistentry id="stats.arenas.i.mutexes.decay_dirty">
+        <term>
+          <mallctl>stats.arenas.&lt;i&gt;.mutexes.decay_dirty.{counter}</mallctl>
+          (<type>counter specific type</type>) <literal>r-</literal>
+          [<option>--enable-stats</option>]
+        </term>
+        <listitem><para>Statistics on <varname>arena.&lt;i&gt;.decay_dirty
+        </varname> mutex (arena scope; decay for dirty pages related).
+        <mallctl>{counter}</mallctl> is one of the counters in <link
+        linkend="mutex_counters">mutex profiling
+        counters</link>.</para></listitem>
+      </varlistentry>
+
+      <varlistentry id="stats.arenas.i.mutexes.decay_muzzy">
+        <term>
+          <mallctl>stats.arenas.&lt;i&gt;.mutexes.decay_muzzy.{counter}</mallctl>
+          (<type>counter specific type</type>) <literal>r-</literal>
+          [<option>--enable-stats</option>]
+        </term>
+        <listitem><para>Statistics on <varname>arena.&lt;i&gt;.decay_muzzy
+        </varname> mutex (arena scope; decay for muzzy pages related).
+        <mallctl>{counter}</mallctl> is one of the counters in <link
+        linkend="mutex_counters">mutex profiling
+        counters</link>.</para></listitem>
+      </varlistentry>
+
+      <varlistentry id="stats.arenas.i.mutexes.base">
+        <term>
+          <mallctl>stats.arenas.&lt;i&gt;.mutexes.base.{counter}</mallctl>
+          (<type>counter specific type</type>) <literal>r-</literal>
+          [<option>--enable-stats</option>]
+        </term>
+        <listitem><para>Statistics on <varname>arena.&lt;i&gt;.base</varname>
+        mutex (arena scope; base allocator related).
+        <mallctl>{counter}</mallctl> is one of the counters in <link
+        linkend="mutex_counters">mutex profiling
+        counters</link>.</para></listitem>
+      </varlistentry>
+
+      <varlistentry id="stats.arenas.i.mutexes.tcache_list">
+        <term>
+          <mallctl>stats.arenas.&lt;i&gt;.mutexes.tcache_list.{counter}</mallctl>
+          (<type>counter specific type</type>) <literal>r-</literal>
+          [<option>--enable-stats</option>]
+        </term>
+        <listitem><para>Statistics on
+        <varname>arena.&lt;i&gt;.tcache_list</varname> mutex (arena scope;
+        tcache to arena association related).  This mutex is expected to be
+        accessed less often.  <mallctl>{counter}</mallctl> is one of the
+        counters in <link linkend="mutex_counters">mutex profiling
+        counters</link>.</para></listitem>
+      </varlistentry>
+
     </variablelist>
   </refsect1>
   <refsect1 id="heap_profile_format">
