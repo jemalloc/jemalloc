@@ -6,8 +6,15 @@
  * used.
  */
 bool
-rtree_new(rtree_t *rtree) {
-	atomic_store_p(&rtree->root, NULL, ATOMIC_RELAXED);
+rtree_new(rtree_t *rtree, bool zeroed) {
+#ifdef JEMALLOC_JET
+	if (!zeroed) {
+		memset(rtree, 0, sizeof(rtree_t)); /* Clear root. */
+	}
+#else
+	assert(zeroed);
+#endif
+
 	if (malloc_mutex_init(&rtree->init_lock, "rtree", WITNESS_RANK_RTREE)) {
 		return true;
 	}
@@ -76,6 +83,7 @@ rtree_leaf_dalloc_t *rtree_leaf_dalloc = JEMALLOC_N(rtree_leaf_dalloc_impl);
 #endif
 
 #ifdef JEMALLOC_JET
+#  if RTREE_HEIGHT > 1
 static void
 rtree_delete_subtree(tsdn_t *tsdn, rtree_t *rtree, rtree_node_elm_t *subtree,
     unsigned level) {
@@ -101,25 +109,17 @@ rtree_delete_subtree(tsdn_t *tsdn, rtree_t *rtree, rtree_node_elm_t *subtree,
 		}
 	}
 
-	rtree_node_dalloc(tsdn, rtree, subtree);
+	if (subtree != rtree->root) {
+		rtree_node_dalloc(tsdn, rtree, subtree);
+	}
 }
+#  endif
 
 void
 rtree_delete(tsdn_t *tsdn, rtree_t *rtree) {
-	if (RTREE_HEIGHT > 1) {
-		rtree_node_elm_t *node = (rtree_node_elm_t *)atomic_load_p(
-		    &rtree->root, ATOMIC_RELAXED);
-		if (node != NULL) {
-			rtree_delete_subtree(tsdn, rtree, node, 0);
-		}
-	} else {
-		rtree_leaf_elm_t *leaf =
-		    (rtree_leaf_elm_t *)atomic_load_p(&rtree->root,
-		    ATOMIC_RELAXED);
-		if (leaf != NULL) {
-			rtree_leaf_dalloc(tsdn, rtree, leaf);
-		}
-	}
+#  if RTREE_HEIGHT > 1
+	rtree_delete_subtree(tsdn, rtree, rtree->root, 0);
+#  endif
 }
 #endif
 
@@ -244,70 +244,21 @@ rtree_child_leaf_read(tsdn_t *tsdn, rtree_t *rtree, rtree_node_elm_t *elm,
 	return leaf;
 }
 
-UNUSED static rtree_node_elm_t *
-rtree_root_node_tryread(rtree_t *rtree, bool dependent) {
-	rtree_node_elm_t *node;
-	if (dependent) {
-		node = (rtree_node_elm_t *)atomic_load_p(&rtree->root,
-		    ATOMIC_RELAXED);
-	} else {
-		node = (rtree_node_elm_t *)atomic_load_p(&rtree->root,
-		    ATOMIC_ACQUIRE);
-	}
-	assert(!dependent || node != NULL);
-	return node;
-}
-
-UNUSED static rtree_node_elm_t *
-rtree_root_node_read(tsdn_t *tsdn, rtree_t *rtree, bool dependent) {
-	rtree_node_elm_t *node = rtree_root_node_tryread(rtree, dependent);
-	if (!dependent && unlikely(!rtree_node_valid(node))) {
-		node = rtree_node_init(tsdn, rtree, 0, &rtree->root);
-	}
-	assert(!dependent || node != NULL);
-	return node;
-}
-
-UNUSED static rtree_leaf_elm_t *
-rtree_root_leaf_tryread(rtree_t *rtree, bool dependent) {
-	rtree_leaf_elm_t *leaf;
-	if (dependent) {
-		leaf = (rtree_leaf_elm_t *)atomic_load_p(&rtree->root,
-		    ATOMIC_RELAXED);
-	} else {
-		leaf = (rtree_leaf_elm_t *)atomic_load_p(&rtree->root,
-		    ATOMIC_ACQUIRE);
-	}
-	assert(!dependent || leaf != NULL);
-	return leaf;
-}
-
-UNUSED static rtree_leaf_elm_t *
-rtree_root_leaf_read(tsdn_t *tsdn, rtree_t *rtree, bool dependent) {
-	rtree_leaf_elm_t *leaf = rtree_root_leaf_tryread(rtree, dependent);
-	if (!dependent && unlikely(!rtree_leaf_valid(leaf))) {
-		leaf = rtree_leaf_init(tsdn, rtree, &rtree->root);
-	}
-	assert(!dependent || leaf != NULL);
-	return leaf;
-}
-
 rtree_leaf_elm_t *
 rtree_leaf_elm_lookup_hard(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
     uintptr_t key, bool dependent, bool init_missing) {
 	rtree_node_elm_t *node;
 	rtree_leaf_elm_t *leaf;
 #if RTREE_HEIGHT > 1
-	node = init_missing ? rtree_root_node_read(tsdn, rtree, dependent) :
-	    rtree_root_node_tryread(rtree, dependent);
+	node = rtree->root;
 #else
-	leaf = init_missing ? rtree_root_leaf_read(tsdn, rtree, dependent) :
-	    rtree_root_leaf_tryread(rtree, dependent);
+	leaf = rtree->root;
 #endif
 
 #define RTREE_GET_CHILD(level) {					\
 		assert(level < RTREE_HEIGHT-1);				\
-		if (!dependent && unlikely(!rtree_node_valid(node))) {	\
+		if (level != 0 && !dependent &&				\
+		    unlikely(!rtree_node_valid(node))) {		\
 			return NULL;					\
 		}							\
 		uintptr_t subkey = rtree_subkey(key, level);		\

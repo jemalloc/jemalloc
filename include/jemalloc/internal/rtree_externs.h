@@ -23,7 +23,7 @@ static const rtree_level_t rtree_levels[] = {
 #endif
 };
 
-bool rtree_new(rtree_t *rtree);
+bool rtree_new(rtree_t *rtree, bool zeroed);
 #ifdef JEMALLOC_JET
 typedef rtree_node_elm_t *(rtree_node_alloc_t)(tsdn_t *, rtree_t *, size_t);
 extern rtree_node_alloc_t *rtree_node_alloc;

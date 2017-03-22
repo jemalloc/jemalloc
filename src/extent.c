@@ -1658,7 +1658,7 @@ extent_merge_wrapper(tsdn_t *tsdn, arena_t *arena,
 
 bool
 extent_boot(void) {
-	if (rtree_new(&extents_rtree)) {
+	if (rtree_new(&extents_rtree, true)) {
 		return true;
 	}
 
