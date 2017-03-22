@@ -2,7 +2,6 @@
 #define JEMALLOC_INTERNAL_CTL_TYPES_H
 
 #define GLOBAL_PROF_MUTEXES						\
-    OP(base)								\
     OP(ctl)								\
     OP(prof)
 
@@ -21,6 +20,7 @@ typedef enum {
     OP(extents_retained)						\
     OP(decay_dirty)							\
     OP(decay_muzzy)							\
+    OP(base)								\
     OP(tcache_list)
 
 typedef enum {
