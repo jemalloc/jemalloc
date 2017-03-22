@@ -318,6 +318,8 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 	    arena_prof_mutex_decay_dirty)
 	READ_ARENA_MUTEX_PROF_DATA(decay_muzzy.mtx,
 	    arena_prof_mutex_decay_muzzy)
+	READ_ARENA_MUTEX_PROF_DATA(base->mtx,
+	    arena_prof_mutex_base)
 #undef READ_ARENA_MUTEX_PROF_DATA
 
 	for (szind_t i = 0; i < NBINS; i++) {

@@ -912,8 +912,6 @@ ctl_refresh(tsdn_t *tsdn) {
     malloc_mutex_prof_read(tsdn, &ctl_stats->mutex_prof_data[i], &mtx);	\
     malloc_mutex_unlock(tsdn, &mtx);
 
-		READ_GLOBAL_MUTEX_PROF_DATA(global_prof_mutex_base,
-		    b0get()->mtx);
 		if (config_prof && opt_prof) {
 			READ_GLOBAL_MUTEX_PROF_DATA(global_prof_mutex_prof,
 			    bt2gctx_mtx);
@@ -2460,12 +2458,12 @@ stats_mutexes_reset_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
     malloc_mutex_prof_data_reset(tsdn, &mtx);				\
     malloc_mutex_unlock(tsdn, &mtx);
 
-	/* Global mutexes: base, prof and ctl. */
-	MUTEX_PROF_RESET(b0get()->mtx);
+	/* Global mutexes: ctl and prof. */
+	MUTEX_PROF_RESET(ctl_mtx);
 	if (config_prof && opt_prof) {
 		MUTEX_PROF_RESET(bt2gctx_mtx);
 	}
-	MUTEX_PROF_RESET(ctl_mtx);
+
 
 	/* Per arena mutexes. */
 	unsigned n = narenas_total_get();
@@ -2485,6 +2483,7 @@ stats_mutexes_reset_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
 		if (config_tcache) {
 			MUTEX_PROF_RESET(arena->tcache_ql_mtx);
 		}
+		MUTEX_PROF_RESET(arena->base->mtx);
 
 		for (szind_t i = 0; i < NBINS; i++) {
 			arena_bin_t *bin = &arena->bins[i];
