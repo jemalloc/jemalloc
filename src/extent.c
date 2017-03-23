@@ -256,21 +256,13 @@ extents_remove_locked(tsdn_t *tsdn, extents_t *extents, extent_t *extent,
 	    cur_extents_npages - (size >> LG_PAGE), ATOMIC_RELAXED);
 }
 
-/*
- * Do {first,any}-best-fit extent selection, i.e. select the oldest/lowest or
- * any extent that best fits, where {first,any} corresponds to
- * extents->delay_coalesce={false,true}.
- */
+/* Do any-best-fit extent selection, i.e. select any extent that best fits. */
 static extent_t *
 extents_best_fit_locked(tsdn_t *tsdn, arena_t *arena, extents_t *extents,
     size_t size) {
-	malloc_mutex_assert_owner(tsdn, &extents->mtx);
-
 	pszind_t pind = psz2ind(extent_size_quantize_ceil(size));
 	for (pszind_t i = pind; i < NPSIZES+1; i++) {
-		extent_t *extent = extents->delay_coalesce ?
-		    extent_heap_any(&extents->heaps[i]) :
-		    extent_heap_first(&extents->heaps[i]);
+		extent_t *extent = extent_heap_any(&extents->heaps[i]);
 		if (extent != NULL) {
 			assert(extent_size_get(extent) >= size);
 			return extent;
@@ -278,6 +270,45 @@ extents_best_fit_locked(tsdn_t *tsdn, arena_t *arena, extents_t *extents,
 	}
 
 	return NULL;
+}
+
+/*
+ * Do first-fit extent selection, i.e. select the oldest/lowest extent that is
+ * large enough.
+ */
+static extent_t *
+extents_first_fit_locked(tsdn_t *tsdn, arena_t *arena, extents_t *extents,
+    size_t size) {
+	extent_t *ret = NULL;
+
+	pszind_t pind = psz2ind(extent_size_quantize_ceil(size));
+	for (pszind_t i = pind; i < NPSIZES+1; i++) {
+		extent_t *extent = extent_heap_first(&extents->heaps[i]);
+		if (extent != NULL) {
+			assert(extent_size_get(extent) >= size);
+			if (ret == NULL || extent_snad_comp(extent, ret) < 0) {
+				ret = extent;
+			}
+		}
+	}
+
+	return ret;
+}
+
+/*
+ * Do {best,first}-fit extent selection, where the selection policy choice is
+ * based on extents->delay_coalesce.  Best-fit selection requires less
+ * searching, but its layout policy is less stable and may cause higher virtual
+ * memory fragmentation as a side effect.
+ */
+static extent_t *
+extents_fit_locked(tsdn_t *tsdn, arena_t *arena, extents_t *extents,
+    size_t size) {
+	malloc_mutex_assert_owner(tsdn, &extents->mtx);
+
+	return extents->delay_coalesce ? extents_best_fit_locked(tsdn, arena,
+	    extents, size) : extents_first_fit_locked(tsdn, arena, extents,
+	    size);
 }
 
 static bool
@@ -675,8 +706,7 @@ extent_recycle_extract(tsdn_t *tsdn, arena_t *arena,
 			extent = NULL;
 		}
 	} else {
-		extent = extents_best_fit_locked(tsdn, arena, extents,
-		    alloc_size);
+		extent = extents_fit_locked(tsdn, arena, extents, alloc_size);
 	}
 	if (extent == NULL) {
 		if (!locked) {
