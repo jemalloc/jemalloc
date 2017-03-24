@@ -932,7 +932,6 @@ decay_ticker_get(tsd_t *tsd, unsigned ind) {
 }
 #endif
 
-#include "jemalloc/internal/extent_inlines.h"
 #include "jemalloc/internal/rtree_inlines.h"
 #include "jemalloc/internal/base_inlines.h"
 #include "jemalloc/internal/bitmap_inlines.h"
@@ -942,6 +941,7 @@ decay_ticker_get(tsd_t *tsd, unsigned ind) {
  */
 #include "jemalloc/internal/prof_inlines_a.h"
 #include "jemalloc/internal/arena_inlines_a.h"
+#include "jemalloc/internal/extent_inlines.h"
 
 #ifndef JEMALLOC_ENABLE_INLINE
 extent_t	*iealloc(tsdn_t *tsdn, const void *ptr);
