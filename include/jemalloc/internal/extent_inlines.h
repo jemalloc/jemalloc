@@ -3,20 +3,20 @@
 
 #ifndef JEMALLOC_ENABLE_INLINE
 arena_t *extent_arena_get(const extent_t *extent);
-void *extent_base_get(const extent_t *extent);
-void *extent_addr_get(const extent_t *extent);
-size_t extent_size_get(const extent_t *extent);
 szind_t extent_szind_get_maybe_invalid(const extent_t *extent);
 szind_t extent_szind_get(const extent_t *extent);
 size_t extent_usize_get(const extent_t *extent);
-void *extent_before_get(const extent_t *extent);
-void *extent_last_get(const extent_t *extent);
-void *extent_past_get(const extent_t *extent);
 size_t extent_sn_get(const extent_t *extent);
 extent_state_t extent_state_get(const extent_t *extent);
 bool extent_zeroed_get(const extent_t *extent);
 bool extent_committed_get(const extent_t *extent);
 bool extent_slab_get(const extent_t *extent);
+void *extent_base_get(const extent_t *extent);
+void *extent_addr_get(const extent_t *extent);
+size_t extent_size_get(const extent_t *extent);
+void *extent_before_get(const extent_t *extent);
+void *extent_last_get(const extent_t *extent);
+void *extent_past_get(const extent_t *extent);
 arena_slab_data_t *extent_slab_data_get(extent_t *extent);
 const arena_slab_data_t *extent_slab_data_get_const(const extent_t *extent);
 prof_tctx_t *extent_prof_tctx_get(const extent_t *extent);
@@ -49,32 +49,25 @@ int extent_snad_comp(const extent_t *a, const extent_t *b);
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_EXTENT_C_))
 JEMALLOC_INLINE arena_t *
 extent_arena_get(const extent_t *extent) {
-	return arenas[extent->e_arena_ind];
-}
-
-JEMALLOC_INLINE void *
-extent_base_get(const extent_t *extent) {
-	assert(extent->e_addr == PAGE_ADDR2BASE(extent->e_addr) ||
-	    !extent->e_slab);
-	return PAGE_ADDR2BASE(extent->e_addr);
-}
-
-JEMALLOC_INLINE void *
-extent_addr_get(const extent_t *extent) {
-	assert(extent->e_addr == PAGE_ADDR2BASE(extent->e_addr) ||
-	    !extent->e_slab);
-	return extent->e_addr;
-}
-
-JEMALLOC_INLINE size_t
-extent_size_get(const extent_t *extent) {
-	return extent->e_size;
+	unsigned arena_ind = (unsigned)((extent->e_bits &
+	    EXTENT_BITS_ARENA_MASK) >> EXTENT_BITS_ARENA_SHIFT);
+	/*
+	 * The following check is omitted because we should never actually read
+	 * a NULL arena pointer.
+	 */
+	if (false && arena_ind > MALLOCX_ARENA_MAX) {
+		return NULL;
+	}
+	assert(arena_ind <= MALLOCX_ARENA_MAX);
+	return arenas[arena_ind];
 }
 
 JEMALLOC_INLINE szind_t
 extent_szind_get_maybe_invalid(const extent_t *extent) {
-	assert(extent->e_szind <= NSIZES);
-	return extent->e_szind;
+	szind_t szind = (szind_t)((extent->e_bits & EXTENT_BITS_SZIND_MASK) >>
+	    EXTENT_BITS_SZIND_SHIFT);
+	assert(szind <= NSIZES);
+	return szind;
 }
 
 JEMALLOC_INLINE szind_t
@@ -87,6 +80,55 @@ extent_szind_get(const extent_t *extent) {
 JEMALLOC_INLINE size_t
 extent_usize_get(const extent_t *extent) {
 	return index2size(extent_szind_get(extent));
+}
+
+JEMALLOC_INLINE size_t
+extent_sn_get(const extent_t *extent) {
+	return (size_t)((extent->e_bits & EXTENT_BITS_SN_MASK) >>
+	    EXTENT_BITS_SN_SHIFT);
+}
+
+JEMALLOC_INLINE extent_state_t
+extent_state_get(const extent_t *extent) {
+	return (extent_state_t)((extent->e_bits & EXTENT_BITS_STATE_MASK) >>
+	    EXTENT_BITS_STATE_SHIFT);
+}
+
+JEMALLOC_INLINE bool
+extent_zeroed_get(const extent_t *extent) {
+	return (bool)((extent->e_bits & EXTENT_BITS_ZEROED_MASK) >>
+	    EXTENT_BITS_ZEROED_SHIFT);
+}
+
+JEMALLOC_INLINE bool
+extent_committed_get(const extent_t *extent) {
+	return (bool)((extent->e_bits & EXTENT_BITS_COMMITTED_MASK) >>
+	    EXTENT_BITS_COMMITTED_SHIFT);
+}
+
+JEMALLOC_INLINE bool
+extent_slab_get(const extent_t *extent) {
+	return (bool)((extent->e_bits & EXTENT_BITS_SLAB_MASK) >>
+	    EXTENT_BITS_SLAB_SHIFT);
+}
+
+JEMALLOC_INLINE void *
+extent_base_get(const extent_t *extent) {
+	assert(extent->e_addr == PAGE_ADDR2BASE(extent->e_addr) ||
+	    !extent_slab_get(extent));
+	return PAGE_ADDR2BASE(extent->e_addr);
+}
+
+JEMALLOC_INLINE void *
+extent_addr_get(const extent_t *extent) {
+	assert(extent->e_addr == PAGE_ADDR2BASE(extent->e_addr) ||
+	    !extent_slab_get(extent));
+	return extent->e_addr;
+}
+
+JEMALLOC_INLINE size_t
+extent_size_get(const extent_t *extent) {
+	return extent->e_size;
 }
 
 JEMALLOC_INLINE void *
@@ -106,40 +148,15 @@ extent_past_get(const extent_t *extent) {
 	    extent_size_get(extent));
 }
 
-JEMALLOC_INLINE size_t
-extent_sn_get(const extent_t *extent) {
-	return extent->e_sn;
-}
-
-JEMALLOC_INLINE extent_state_t
-extent_state_get(const extent_t *extent) {
-	return extent->e_state;
-}
-
-JEMALLOC_INLINE bool
-extent_zeroed_get(const extent_t *extent) {
-	return extent->e_zeroed;
-}
-
-JEMALLOC_INLINE bool
-extent_committed_get(const extent_t *extent) {
-	return extent->e_committed;
-}
-
-JEMALLOC_INLINE bool
-extent_slab_get(const extent_t *extent) {
-	return extent->e_slab;
-}
-
 JEMALLOC_INLINE arena_slab_data_t *
 extent_slab_data_get(extent_t *extent) {
-	assert(extent->e_slab);
+	assert(extent_slab_get(extent));
 	return &extent->e_slab_data;
 }
 
 JEMALLOC_INLINE const arena_slab_data_t *
 extent_slab_data_get_const(const extent_t *extent) {
-	assert(extent->e_slab);
+	assert(extent_slab_get(extent));
 	return &extent->e_slab_data;
 }
 
@@ -151,7 +168,10 @@ extent_prof_tctx_get(const extent_t *extent) {
 
 JEMALLOC_INLINE void
 extent_arena_set(extent_t *extent, arena_t *arena) {
-	extent->e_arena_ind = (arena != NULL) ? arena_ind_get(arena) : UINT_MAX;
+	unsigned arena_ind = (arena != NULL) ? arena_ind_get(arena) : ((1U <<
+	    MALLOCX_ARENA_BITS) - 1);
+	extent->e_bits = (extent->e_bits & ~EXTENT_BITS_ARENA_MASK) |
+	    ((uint64_t)arena_ind << EXTENT_BITS_ARENA_SHIFT);
 }
 
 JEMALLOC_INLINE void
@@ -186,32 +206,38 @@ extent_size_set(extent_t *extent, size_t size) {
 JEMALLOC_INLINE void
 extent_szind_set(extent_t *extent, szind_t szind) {
 	assert(szind <= NSIZES); /* NSIZES means "invalid". */
-	extent->e_szind = szind;
+	extent->e_bits = (extent->e_bits & ~EXTENT_BITS_SZIND_MASK) |
+	    ((uint64_t)szind << EXTENT_BITS_SZIND_SHIFT);
 }
 
 JEMALLOC_INLINE void
 extent_sn_set(extent_t *extent, size_t sn) {
-	extent->e_sn = sn;
+	extent->e_bits = (extent->e_bits & ~EXTENT_BITS_SN_MASK) |
+	    ((uint64_t)sn << EXTENT_BITS_SN_SHIFT);
 }
 
 JEMALLOC_INLINE void
 extent_state_set(extent_t *extent, extent_state_t state) {
-	extent->e_state = state;
+	extent->e_bits = (extent->e_bits & ~EXTENT_BITS_STATE_MASK) |
+	    ((uint64_t)state << EXTENT_BITS_STATE_SHIFT);
 }
 
 JEMALLOC_INLINE void
 extent_zeroed_set(extent_t *extent, bool zeroed) {
-	extent->e_zeroed = zeroed;
+	extent->e_bits = (extent->e_bits & ~EXTENT_BITS_ZEROED_MASK) |
+	    ((uint64_t)zeroed << EXTENT_BITS_ZEROED_SHIFT);
 }
 
 JEMALLOC_INLINE void
 extent_committed_set(extent_t *extent, bool committed) {
-	extent->e_committed = committed;
+	extent->e_bits = (extent->e_bits & ~EXTENT_BITS_COMMITTED_MASK) |
+	    ((uint64_t)committed << EXTENT_BITS_COMMITTED_SHIFT);
 }
 
 JEMALLOC_INLINE void
 extent_slab_set(extent_t *extent, bool slab) {
-	extent->e_slab = slab;
+	extent->e_bits = (extent->e_bits & ~EXTENT_BITS_SLAB_MASK) |
+	    ((uint64_t)slab << EXTENT_BITS_SLAB_SHIFT);
 }
 
 JEMALLOC_INLINE void
