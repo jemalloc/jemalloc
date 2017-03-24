@@ -10,8 +10,8 @@ typedef enum {
 
 /* Extent (span of pages).  Use accessor functions for e_* fields. */
 struct extent_s {
-	/* Arena from which this extent came, if any. */
-	arena_t			*e_arena;
+	/* Arena from which this extent came, or UINT_MAX if unassociated. */
+	unsigned		e_arena_ind;
 
 	/* Pointer to the extent that this structure is responsible for. */
 	void			*e_addr;

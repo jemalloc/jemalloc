@@ -49,7 +49,7 @@ int extent_snad_comp(const extent_t *a, const extent_t *b);
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_EXTENT_C_))
 JEMALLOC_INLINE arena_t *
 extent_arena_get(const extent_t *extent) {
-	return extent->e_arena;
+	return arenas[extent->e_arena_ind];
 }
 
 JEMALLOC_INLINE void *
@@ -151,7 +151,7 @@ extent_prof_tctx_get(const extent_t *extent) {
 
 JEMALLOC_INLINE void
 extent_arena_set(extent_t *extent, arena_t *arena) {
-	extent->e_arena = arena;
+	extent->e_arena_ind = (arena != NULL) ? arena_ind_get(arena) : UINT_MAX;
 }
 
 JEMALLOC_INLINE void
