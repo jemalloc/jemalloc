@@ -2,7 +2,13 @@
 #define JEMALLOC_INTERNAL_BITMAP_TYPES_H
 
 /* Maximum bitmap bit count is 2^LG_BITMAP_MAXBITS. */
-#define LG_BITMAP_MAXBITS	LG_SLAB_MAXREGS
+#if LG_SLAB_MAXREGS > LG_CEIL_NSIZES
+/* Maximum bitmap bit count is determined by maximum regions per slab. */
+#  define LG_BITMAP_MAXBITS	LG_SLAB_MAXREGS
+#else
+/* Maximum bitmap bit count is determined by number of extent size classes. */
+#  define LG_BITMAP_MAXBITS	LG_CEIL_NSIZES
+#endif
 #define BITMAP_MAXBITS		(ZU(1) << LG_BITMAP_MAXBITS)
 
 typedef struct bitmap_level_s bitmap_level_t;
