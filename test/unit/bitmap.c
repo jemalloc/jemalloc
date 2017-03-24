@@ -171,12 +171,18 @@ test_bitmap_init_body(const bitmap_info_t *binfo, size_t nbits) {
 	size_t i;
 	bitmap_t *bitmap = (bitmap_t *)malloc(bitmap_size(binfo));
 	assert_ptr_not_null(bitmap, "Unexpected malloc() failure");
-	bitmap_init(bitmap, binfo);
 
+	bitmap_init(bitmap, binfo, false);
 	for (i = 0; i < nbits; i++) {
 		assert_false(bitmap_get(bitmap, binfo, i),
 		    "Bit should be unset");
 	}
+
+	bitmap_init(bitmap, binfo, true);
+	for (i = 0; i < nbits; i++) {
+		assert_true(bitmap_get(bitmap, binfo, i), "Bit should be set");
+	}
+
 	free(bitmap);
 }
 
@@ -202,7 +208,7 @@ test_bitmap_set_body(const bitmap_info_t *binfo, size_t nbits) {
 	size_t i;
 	bitmap_t *bitmap = (bitmap_t *)malloc(bitmap_size(binfo));
 	assert_ptr_not_null(bitmap, "Unexpected malloc() failure");
-	bitmap_init(bitmap, binfo);
+	bitmap_init(bitmap, binfo, false);
 
 	for (i = 0; i < nbits; i++) {
 		bitmap_set(bitmap, binfo, i);
@@ -233,7 +239,7 @@ test_bitmap_unset_body(const bitmap_info_t *binfo, size_t nbits) {
 	size_t i;
 	bitmap_t *bitmap = (bitmap_t *)malloc(bitmap_size(binfo));
 	assert_ptr_not_null(bitmap, "Unexpected malloc() failure");
-	bitmap_init(bitmap, binfo);
+	bitmap_init(bitmap, binfo, false);
 
 	for (i = 0; i < nbits; i++) {
 		bitmap_set(bitmap, binfo, i);
@@ -268,14 +274,22 @@ TEST_END
 
 static void
 test_bitmap_sfu_body(const bitmap_info_t *binfo, size_t nbits) {
-	size_t i;
 	bitmap_t *bitmap = (bitmap_t *)malloc(bitmap_size(binfo));
 	assert_ptr_not_null(bitmap, "Unexpected malloc() failure");
-	bitmap_init(bitmap, binfo);
+	bitmap_init(bitmap, binfo, false);
 
 	/* Iteratively set bits starting at the beginning. */
-	for (i = 0; i < nbits; i++) {
-		assert_zd_eq(bitmap_sfu(bitmap, binfo), i,
+	for (size_t i = 0; i < nbits; i++) {
+		assert_zu_eq(bitmap_ffu(bitmap, binfo, 0), i,
+		    "First unset bit should be just after previous first unset "
+		    "bit");
+		assert_zu_eq(bitmap_ffu(bitmap, binfo, (i > 0) ? i-1 : i), i,
+		    "First unset bit should be just after previous first unset "
+		    "bit");
+		assert_zu_eq(bitmap_ffu(bitmap, binfo, i), i,
+		    "First unset bit should be just after previous first unset "
+		    "bit");
+		assert_zu_eq(bitmap_sfu(bitmap, binfo), i,
 		    "First unset bit should be just after previous first unset "
 		    "bit");
 	}
@@ -285,9 +299,15 @@ test_bitmap_sfu_body(const bitmap_info_t *binfo, size_t nbits) {
 	 * Iteratively unset bits starting at the end, and verify that
 	 * bitmap_sfu() reaches the unset bits.
 	 */
-	for (i = nbits - 1; i < nbits; i--) { /* (nbits..0] */
+	for (size_t i = nbits - 1; i < nbits; i--) { /* (nbits..0] */
 		bitmap_unset(bitmap, binfo, i);
-		assert_zd_eq(bitmap_sfu(bitmap, binfo), i,
+		assert_zu_eq(bitmap_ffu(bitmap, binfo, 0), i,
+		    "First unset bit should the bit previously unset");
+		assert_zu_eq(bitmap_ffu(bitmap, binfo, (i > 0) ? i-1 : i), i,
+		    "First unset bit should the bit previously unset");
+		assert_zu_eq(bitmap_ffu(bitmap, binfo, i), i,
+		    "First unset bit should the bit previously unset");
+		assert_zu_eq(bitmap_sfu(bitmap, binfo), i,
 		    "First unset bit should the bit previously unset");
 		bitmap_unset(bitmap, binfo, i);
 	}
@@ -297,14 +317,29 @@ test_bitmap_sfu_body(const bitmap_info_t *binfo, size_t nbits) {
 	 * Iteratively set bits starting at the beginning, and verify that
 	 * bitmap_sfu() looks past them.
 	 */
-	for (i = 1; i < nbits; i++) {
+	for (size_t i = 1; i < nbits; i++) {
 		bitmap_set(bitmap, binfo, i - 1);
-		assert_zd_eq(bitmap_sfu(bitmap, binfo), i,
+		assert_zu_eq(bitmap_ffu(bitmap, binfo, 0), i,
+		    "First unset bit should be just after the bit previously "
+		    "set");
+		assert_zu_eq(bitmap_ffu(bitmap, binfo, (i > 0) ? i-1 : i), i,
+		    "First unset bit should be just after the bit previously "
+		    "set");
+		assert_zu_eq(bitmap_ffu(bitmap, binfo, i), i,
+		    "First unset bit should be just after the bit previously "
+		    "set");
+		assert_zu_eq(bitmap_sfu(bitmap, binfo), i,
 		    "First unset bit should be just after the bit previously "
 		    "set");
 		bitmap_unset(bitmap, binfo, i);
 	}
-	assert_zd_eq(bitmap_sfu(bitmap, binfo), nbits - 1,
+	assert_zu_eq(bitmap_ffu(bitmap, binfo, 0), nbits - 1,
+	    "First unset bit should be the last bit");
+	assert_zu_eq(bitmap_ffu(bitmap, binfo, (nbits > 1) ? nbits-2 : nbits-1),
+	    nbits - 1, "First unset bit should be the last bit");
+	assert_zu_eq(bitmap_ffu(bitmap, binfo, nbits - 1), nbits - 1,
+	    "First unset bit should be the last bit");
+	assert_zu_eq(bitmap_sfu(bitmap, binfo), nbits - 1,
 	    "First unset bit should be the last bit");
 	assert_true(bitmap_full(bitmap, binfo), "All bits should be set");
 	free(bitmap);
