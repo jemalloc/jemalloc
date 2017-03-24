@@ -94,6 +94,7 @@ base_postfork_child
 base_postfork_parent
 base_prefork
 base_stats_get
+bitmap_ffu
 bitmap_full
 bitmap_get
 bitmap_info_init

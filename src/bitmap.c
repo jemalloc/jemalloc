@@ -39,16 +39,26 @@ bitmap_info_ngroups(const bitmap_info_t *binfo) {
 }
 
 void
-bitmap_init(bitmap_t *bitmap, const bitmap_info_t *binfo) {
+bitmap_init(bitmap_t *bitmap, const bitmap_info_t *binfo, bool fill) {
 	size_t extra;
 	unsigned i;
 
 	/*
 	 * Bits are actually inverted with regard to the external bitmap
-	 * interface, so the bitmap starts out with all 1 bits, except for
-	 * trailing unused bits (if any).  Note that each group uses bit 0 to
-	 * correspond to the first logical bit in the group, so extra bits
-	 * are the most significant bits of the last group.
+	 * interface.
+	 */
+
+	if (fill) {
+		/* The "filled" bitmap starts out with all 0 bits. */
+		memset(bitmap, 0, bitmap_size(binfo));
+		return;
+	}
+
+	/*
+	 * The "empty" bitmap starts out with all 1 bits, except for trailing
+	 * unused bits (if any).  Note that each group uses bit 0 to correspond
+	 * to the first logical bit in the group, so extra bits are the most
+	 * significant bits of the last group.
 	 */
 	memset(bitmap, 0xffU, bitmap_size(binfo));
 	extra = (BITMAP_GROUP_NBITS - (binfo->nbits & BITMAP_GROUP_NBITS_MASK))
@@ -84,8 +94,13 @@ bitmap_info_ngroups(const bitmap_info_t *binfo) {
 }
 
 void
-bitmap_init(bitmap_t *bitmap, const bitmap_info_t *binfo) {
+bitmap_init(bitmap_t *bitmap, const bitmap_info_t *binfo, bool fill) {
 	size_t extra;
+
+	if (fill) {
+		memset(bitmap, 0, bitmap_size(binfo));
+		return;
+	}
 
 	memset(bitmap, 0xffU, bitmap_size(binfo));
 	extra = (BITMAP_GROUP_NBITS - (binfo->nbits & BITMAP_GROUP_NBITS_MASK))

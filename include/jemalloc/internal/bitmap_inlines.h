@@ -2,11 +2,13 @@
 #define JEMALLOC_INTERNAL_BITMAP_INLINES_H
 
 #ifndef JEMALLOC_ENABLE_INLINE
-bool	bitmap_full(bitmap_t *bitmap, const bitmap_info_t *binfo);
-bool	bitmap_get(bitmap_t *bitmap, const bitmap_info_t *binfo, size_t bit);
-void	bitmap_set(bitmap_t *bitmap, const bitmap_info_t *binfo, size_t bit);
-size_t	bitmap_sfu(bitmap_t *bitmap, const bitmap_info_t *binfo);
-void	bitmap_unset(bitmap_t *bitmap, const bitmap_info_t *binfo, size_t bit);
+bool bitmap_full(bitmap_t *bitmap, const bitmap_info_t *binfo);
+bool bitmap_get(bitmap_t *bitmap, const bitmap_info_t *binfo, size_t bit);
+void bitmap_set(bitmap_t *bitmap, const bitmap_info_t *binfo, size_t bit);
+size_t bitmap_ffu(const bitmap_t *bitmap, const bitmap_info_t *binfo,
+    size_t min_bit);
+size_t bitmap_sfu(bitmap_t *bitmap, const bitmap_info_t *binfo);
+void bitmap_unset(bitmap_t *bitmap, const bitmap_info_t *binfo, size_t bit);
 #endif
 
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_BITMAP_C_))
@@ -72,6 +74,64 @@ bitmap_set(bitmap_t *bitmap, const bitmap_info_t *binfo, size_t bit) {
 			}
 		}
 	}
+#endif
+}
+
+/* ffu: find first unset >= bit. */
+JEMALLOC_INLINE size_t
+bitmap_ffu(const bitmap_t *bitmap, const bitmap_info_t *binfo, size_t min_bit) {
+	assert(min_bit < binfo->nbits);
+
+#ifdef BITMAP_USE_TREE
+	unsigned level = binfo->nlevels - 1;
+	size_t lg_bits_per_group = (LG_BITMAP_GROUP_NBITS * (level+1));
+	size_t bits_per_group = 1LU << lg_bits_per_group;
+	size_t bits_per_group_mask = bits_per_group - 1;
+	unsigned group_nmask = (min_bit & bits_per_group_mask) >> (level *
+	    LG_BITMAP_GROUP_NBITS);
+	bitmap_t group_mask = ~((1LU << group_nmask) - 1);
+	bitmap_t group = bitmap[binfo->levels[level].group_offset] & group_mask;
+	if (group == 0LU) {
+		return binfo->nbits;
+	}
+	size_t bit = ffs_lu(group) - 1;
+
+	while (level > 0) {
+		level--;
+
+		lg_bits_per_group = (LG_BITMAP_GROUP_NBITS * (level+1));
+		bits_per_group = 1LU << lg_bits_per_group;
+		bits_per_group_mask = bits_per_group - 1;
+
+		group = bitmap[binfo->levels[level].group_offset + bit];
+		size_t cur_base = bit << lg_bits_per_group;
+		if (cur_base < min_bit) {
+			group_nmask = (min_bit & bits_per_group_mask) >> (level
+			    * LG_BITMAP_GROUP_NBITS);
+			group_mask = ~((1LU << group_nmask) - 1);
+			group &= group_mask;
+		}
+		if (group == 0LU) {
+			return binfo->nbits;
+		}
+		bit = (bit << LG_BITMAP_GROUP_NBITS) + (ffs_lu(group) - 1);
+	}
+	assert(bit < binfo->nbits);
+	return bit;
+#else
+	size_t i = min_bit >> LG_BITMAP_GROUP_NBITS;
+	bitmap_t g = bitmap[i] & ~((1LU << (min_bit & BITMAP_GROUP_NBITS_MASK))
+	    - 1);
+	size_t bit;
+	do {
+		bit = ffs_lu(g);
+		if (bit != 0) {
+			return (i << LG_BITMAP_GROUP_NBITS) + (bit - 1);
+		}
+		i++;
+		g = bitmap[i];
+	} while (i < binfo->ngroups);
+	return binfo->nbits;
 #endif
 }
 

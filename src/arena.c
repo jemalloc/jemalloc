@@ -1210,7 +1210,7 @@ arena_slab_alloc(tsdn_t *tsdn, arena_t *arena, szind_t binind,
 	/* Initialize slab internals. */
 	arena_slab_data_t *slab_data = extent_slab_data_get(slab);
 	slab_data->nfree = bin_info->nregs;
-	bitmap_init(slab_data->bitmap, &bin_info->bitmap_info);
+	bitmap_init(slab_data->bitmap, &bin_info->bitmap_info, false);
 
 	arena_nactive_add(arena, extent_size_get(slab) >> LG_PAGE);
 
