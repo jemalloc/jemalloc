@@ -10,59 +10,84 @@ typedef enum {
 
 /* Extent (span of pages).  Use accessor functions for e_* fields. */
 struct extent_s {
-	/* Arena from which this extent came, or UINT_MAX if unassociated. */
-	unsigned		e_arena_ind;
+	/*
+	 * Bitfield containing several fields:
+	 *
+	 * a: arena_ind
+	 * b: slab
+	 * c: committed
+	 * z: zeroed
+	 * t: state
+	 * i: szind
+	 * n: sn
+	 *
+	 * nnnnnnnn ... nnnnnnni iiiiiiit tzcbaaaa aaaaaaaa
+	 *
+	 * arena_ind: Arena from which this extent came, or all 1 bits if
+	 *            unassociated.
+	 *
+	 * slab: The slab flag indicates whether the extent is used for a slab
+	 *       of small regions.  This helps differentiate small size classes,
+	 *       and it indicates whether interior pointers can be looked up via
+	 *       iealloc().
+	 *
+	 * committed: The committed flag indicates whether physical memory is
+	 *            committed to the extent, whether explicitly or implicitly
+	 *            as on a system that overcommits and satisfies physical
+	 *            memory needs on demand via soft page faults.
+	 *
+	 * zeroed: The zeroed flag is used by extent recycling code to track
+	 *         whether memory is zero-filled.
+	 *
+	 * state: The state flag is an extent_state_t.
+	 *
+	 * szind: The szind flag indicates usable size class index for
+	 *        allocations residing in this extent, regardless of whether the
+	 *        extent is a slab.  Extent size and usable size often differ
+	 *        even for non-slabs, either due to large_pad or promotion of
+	 *        sampled small regions.
+	 *
+	 * sn: Serial number (potentially non-unique).
+	 *
+	 *     Serial numbers may wrap around if JEMALLOC_MUNMAP is defined, but
+	 *     as long as comparison functions fall back on address comparison
+	 *     for equal serial numbers, stable (if imperfect) ordering is
+	 *     maintained.
+	 *
+	 *     Serial numbers may not be unique even in the absence of
+	 *     wrap-around, e.g. when splitting an extent and assigning the same
+	 *     serial number to both resulting adjacent extents.
+	 */
+	uint64_t		e_bits;
+#define EXTENT_BITS_ARENA_SHIFT		0
+#define EXTENT_BITS_ARENA_MASK \
+    (((1U << MALLOCX_ARENA_BITS) - 1) << EXTENT_BITS_ARENA_SHIFT)
+
+#define EXTENT_BITS_SLAB_SHIFT		MALLOCX_ARENA_BITS
+#define EXTENT_BITS_SLAB_MASK		(0x1U << EXTENT_BITS_SLAB_SHIFT)
+
+#define EXTENT_BITS_COMMITTED_SHIFT	(MALLOCX_ARENA_BITS + 1)
+#define EXTENT_BITS_COMMITTED_MASK	(0x1U << EXTENT_BITS_COMMITTED_SHIFT)
+
+#define EXTENT_BITS_ZEROED_SHIFT	(MALLOCX_ARENA_BITS + 2)
+#define EXTENT_BITS_ZEROED_MASK		(0x1U << EXTENT_BITS_ZEROED_SHIFT)
+
+#define EXTENT_BITS_STATE_SHIFT		(MALLOCX_ARENA_BITS + 3)
+#define EXTENT_BITS_STATE_MASK		(0x3U << EXTENT_BITS_STATE_SHIFT)
+
+#define EXTENT_BITS_SZIND_SHIFT		(MALLOCX_ARENA_BITS + 5)
+#define EXTENT_BITS_SZIND_MASK \
+    (((1U << LG_CEIL_NSIZES) - 1) << EXTENT_BITS_SZIND_SHIFT)
+
+#define EXTENT_BITS_SN_SHIFT \
+    (MALLOCX_ARENA_BITS + 5 + LG_CEIL_NSIZES)
+#define EXTENT_BITS_SN_MASK		(UINT64_MAX << EXTENT_BITS_SN_SHIFT)
 
 	/* Pointer to the extent that this structure is responsible for. */
 	void			*e_addr;
 
 	/* Extent size. */
 	size_t			e_size;
-
-	/*
-	 * Usable size class index for allocations residing in this extent,
-	 * regardless of whether the extent is a slab.  Extent size and usable
-	 * size often differ even for non-slabs, either due to large_pad or
-	 * promotion of sampled small regions.
-	 */
-	szind_t			e_szind;
-
-	/*
-	 * Serial number (potentially non-unique).
-	 *
-	 * In principle serial numbers can wrap around on 32-bit systems if
-	 * JEMALLOC_MUNMAP is defined, but as long as comparison functions fall
-	 * back on address comparison for equal serial numbers, stable (if
-	 * imperfect) ordering is maintained.
-	 *
-	 * Serial numbers may not be unique even in the absence of wrap-around,
-	 * e.g. when splitting an extent and assigning the same serial number to
-	 * both resulting adjacent extents.
-	 */
-	size_t			e_sn;
-
-	/* Extent state. */
-	extent_state_t		e_state;
-
-	/*
-	 * The zeroed flag is used by extent recycling code to track whether
-	 * memory is zero-filled.
-	 */
-	bool			e_zeroed;
-
-	/*
-	 * True if physical memory is committed to the extent, whether
-	 * explicitly or implicitly as on a system that overcommits and
-	 * satisfies physical memory needs on demand via soft page faults.
-	 */
-	bool			e_committed;
-
-	/*
-	 * The slab flag indicates whether the extent is used for a slab of
-	 * small regions.  This helps differentiate small size classes, and it
-	 * indicates whether interior pointers can be looked up via iealloc().
-	 */
-	bool			e_slab;
 
 	union {
 		/* Small region slab metadata. */
