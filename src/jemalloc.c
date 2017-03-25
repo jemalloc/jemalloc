@@ -1997,7 +1997,7 @@ irealloc_prof(tsd_t *tsd, void *old_ptr, size_t old_usize, size_t usize) {
 	return p;
 }
 
-JEMALLOC_INLINE_C void
+JEMALLOC_ALWAYS_INLINE_C void
 ifree(tsd_t *tsd, void *ptr, tcache_t *tcache, bool slow_path) {
 	witness_assert_lockless(tsd_tsdn(tsd));
 
@@ -2022,7 +2022,7 @@ ifree(tsd_t *tsd, void *ptr, tcache_t *tcache, bool slow_path) {
 	}
 }
 
-JEMALLOC_INLINE_C void
+JEMALLOC_ALWAYS_INLINE_C void
 isfree(tsd_t *tsd, void *ptr, size_t usize, tcache_t *tcache, bool slow_path) {
 	witness_assert_lockless(tsd_tsdn(tsd));
 
