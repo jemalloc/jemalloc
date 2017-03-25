@@ -273,7 +273,7 @@ TEST_BEGIN(test_bitmap_unset) {
 TEST_END
 
 static void
-test_bitmap_sfu_body(const bitmap_info_t *binfo, size_t nbits) {
+test_bitmap_xfu_body(const bitmap_info_t *binfo, size_t nbits) {
 	bitmap_t *bitmap = (bitmap_t *)malloc(bitmap_size(binfo));
 	assert_ptr_not_null(bitmap, "Unexpected malloc() failure");
 	bitmap_init(bitmap, binfo, false);
@@ -342,20 +342,50 @@ test_bitmap_sfu_body(const bitmap_info_t *binfo, size_t nbits) {
 	assert_zu_eq(bitmap_sfu(bitmap, binfo), nbits - 1,
 	    "First unset bit should be the last bit");
 	assert_true(bitmap_full(bitmap, binfo), "All bits should be set");
+
+	/*
+	 * Bubble a "usu" pattern through the bitmap and verify that
+	 * bitmap_ffu() finds the correct bit for all five min_bit cases.
+	 */
+	if (nbits >= 3) {
+		for (size_t i = 0; i < nbits-2; i++) {
+			bitmap_unset(bitmap, binfo, i);
+			bitmap_unset(bitmap, binfo, i+2);
+			if (i > 0) {
+				assert_zu_eq(bitmap_ffu(bitmap, binfo, i-1), i,
+				    "Unexpected first unset bit");
+			}
+			assert_zu_eq(bitmap_ffu(bitmap, binfo, i), i,
+			    "Unexpected first unset bit");
+			assert_zu_eq(bitmap_ffu(bitmap, binfo, i+1), i+2,
+			    "Unexpected first unset bit");
+			assert_zu_eq(bitmap_ffu(bitmap, binfo, i+2), i+2,
+			    "Unexpected first unset bit");
+			if (i + 3 < nbits) {
+				assert_zu_eq(bitmap_ffu(bitmap, binfo, i+3),
+				    nbits, "Unexpected first unset bit");
+			}
+			assert_zu_eq(bitmap_sfu(bitmap, binfo), i,
+			    "Unexpected first unset bit");
+			assert_zu_eq(bitmap_sfu(bitmap, binfo), i+2,
+			    "Unexpected first unset bit");
+		}
+	}
+
 	free(bitmap);
 }
 
-TEST_BEGIN(test_bitmap_sfu) {
+TEST_BEGIN(test_bitmap_xfu) {
 	size_t nbits;
 
 	for (nbits = 1; nbits <= BITMAP_MAXBITS; nbits++) {
 		bitmap_info_t binfo;
 		bitmap_info_init(&binfo, nbits);
-		test_bitmap_sfu_body(&binfo, nbits);
+		test_bitmap_xfu_body(&binfo, nbits);
 	}
 #define NB(nbits) {							\
 		bitmap_info_t binfo = BITMAP_INFO_INITIALIZER(nbits);	\
-		test_bitmap_sfu_body(&binfo, nbits);			\
+		test_bitmap_xfu_body(&binfo, nbits);			\
 	}
 	NBITS_TAB
 #undef NB
@@ -370,5 +400,5 @@ main(void) {
 	    test_bitmap_init,
 	    test_bitmap_set,
 	    test_bitmap_unset,
-	    test_bitmap_sfu);
+	    test_bitmap_xfu);
 }

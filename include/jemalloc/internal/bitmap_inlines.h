@@ -112,6 +112,19 @@ bitmap_ffu(const bitmap_t *bitmap, const bitmap_info_t *binfo, size_t min_bit) {
 			group &= group_mask;
 		}
 		if (group == 0LU) {
+			/*
+			 * If min_bit is not the first bit in its group, try
+			 * again starting at the first bit of the next group.
+			 * This will only recurse at most once, since on
+			 * recursion, min_bit will be the first bit in its
+			 * group.
+			 */
+			size_t ceil_min_bit = (min_bit +
+			    BITMAP_GROUP_NBITS_MASK) & ~BITMAP_GROUP_NBITS_MASK;
+			if (ceil_min_bit != min_bit && ceil_min_bit <
+			    binfo->nbits) {
+				return bitmap_ffu(bitmap, binfo, ceil_min_bit);
+			}
 			return binfo->nbits;
 		}
 		bit = (bit << LG_BITMAP_GROUP_NBITS) + (ffs_lu(group) - 1);
