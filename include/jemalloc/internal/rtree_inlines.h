@@ -467,10 +467,10 @@ rtree_leaf_elm_release(tsdn_t *tsdn, rtree_t *rtree, rtree_leaf_elm_t *elm) {
 JEMALLOC_INLINE void
 rtree_clear(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
     uintptr_t key) {
-	rtree_leaf_elm_t *elm = rtree_leaf_elm_acquire(tsdn, rtree, rtree_ctx,
-	    key, true, false);
-	rtree_leaf_elm_write(tsdn, rtree, elm, true, NULL, NSIZES, false);
-	rtree_leaf_elm_release(tsdn, rtree, elm);
+	rtree_leaf_elm_t *elm = rtree_read(tsdn, rtree, rtree_ctx, key, true);
+	assert(rtree_leaf_elm_extent_read(tsdn, rtree, elm, false, false) !=
+	    NULL);
+	rtree_leaf_elm_write(tsdn, rtree, elm, false, NULL, NSIZES, false);
 }
 #endif
 
