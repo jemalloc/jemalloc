@@ -325,30 +325,27 @@ rtree_leaf_elm_lookup(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
 	if (likely(rtree_ctx->cache[i].leafkey == leafkey)) {		\
 		rtree_leaf_elm_t *leaf = rtree_ctx->cache[i].leaf;	\
 		if (likely(leaf != NULL)) {				\
-			/* Reorder. */					\
-			memmove(&rtree_ctx->cache[1],			\
-			    &rtree_ctx->cache[0],			\
-			    sizeof(rtree_ctx_cache_elm_t) * i);		\
-			rtree_ctx->cache[0].leafkey = leafkey;		\
-			rtree_ctx->cache[0].leaf = leaf;		\
-									\
+			/* Bubble up by one. */				\
+			if (i > 0) {					\
+				rtree_ctx->cache[i] =			\
+					rtree_ctx->cache[i - 1];	\
+				rtree_ctx->cache[i - 1].leafkey =	\
+					leafkey;			\
+				rtree_ctx->cache[i - 1].leaf = leaf;	\
+			}						\
 			uintptr_t subkey = rtree_subkey(key,		\
 			    RTREE_HEIGHT-1);				\
 			return &leaf[subkey];				\
 		}							\
 	}								\
 } while (0)
-	/* Check the MRU cache entry. */
+	/* Check the first cache entry. */
 	RTREE_CACHE_CHECK(0);
 	/*
 	 * Search the remaining cache elements, and on success move the matching
-	 * element to the front.  Unroll the first iteration to avoid calling
-	 * memmove() (the compiler typically optimizes it into raw moves).
+	 * element up by one slot.
 	 */
-	if (RTREE_CTX_NCACHE > 1) {
-		RTREE_CACHE_CHECK(1);
-	}
-	for (unsigned i = 2; i < RTREE_CTX_NCACHE; i++) {
+	for (unsigned i = 1; i < RTREE_CTX_NCACHE; i++) {
 		RTREE_CACHE_CHECK(i);
 	}
 #undef RTREE_CACHE_CHECK
