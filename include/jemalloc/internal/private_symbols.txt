@@ -439,6 +439,7 @@ rtree_leaf_elm_release
 rtree_leaf_elm_slab_read
 rtree_leaf_elm_slab_write
 rtree_leaf_elm_szind_read
+rtree_leaf_elm_szind_slab_update
 rtree_leaf_elm_szind_write
 rtree_leaf_elm_witness_access
 rtree_leaf_elm_witness_acquire

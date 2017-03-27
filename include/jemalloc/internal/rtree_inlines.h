@@ -26,6 +26,8 @@ void rtree_leaf_elm_slab_write(tsdn_t *tsdn, rtree_t *rtree,
     rtree_leaf_elm_t *elm, bool acquired, bool slab);
 void rtree_leaf_elm_write(tsdn_t *tsdn, rtree_t *rtree, rtree_leaf_elm_t *elm,
     bool acquired, extent_t *extent, szind_t szind, bool slab);
+void rtree_leaf_elm_szind_slab_update(tsdn_t *tsdn, rtree_t *rtree,
+    rtree_leaf_elm_t *elm, szind_t szind, bool slab);
 rtree_leaf_elm_t *rtree_leaf_elm_lookup(tsdn_t *tsdn, rtree_t *rtree,
     rtree_ctx_t *rtree_ctx, uintptr_t key, bool dependent, bool init_missing);
 bool rtree_write(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
@@ -41,12 +43,12 @@ bool rtree_extent_szind_read(tsdn_t *tsdn, rtree_t *rtree,
     szind_t *r_szind);
 bool rtree_szind_slab_read(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
     uintptr_t key, bool dependent, szind_t *r_szind, bool *r_slab);
-void rtree_szind_slab_update(tsdn_t *tsdn, rtree_t *rtree,
-    rtree_ctx_t *rtree_ctx, uintptr_t key, szind_t szind, bool slab);
 rtree_leaf_elm_t *rtree_leaf_elm_acquire(tsdn_t *tsdn, rtree_t *rtree,
     rtree_ctx_t *rtree_ctx, uintptr_t key, bool dependent, bool init_missing);
 void rtree_leaf_elm_release(tsdn_t *tsdn, rtree_t *rtree,
     rtree_leaf_elm_t *elm);
+void rtree_szind_slab_update(tsdn_t *tsdn, rtree_t *rtree,
+    rtree_ctx_t *rtree_ctx, uintptr_t key, szind_t szind, bool slab);
 void rtree_clear(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
     uintptr_t key);
 #endif
@@ -251,12 +253,12 @@ rtree_leaf_elm_slab_write(tsdn_t *tsdn, rtree_t *rtree, rtree_leaf_elm_t *elm,
 JEMALLOC_INLINE void
 rtree_leaf_elm_write(tsdn_t *tsdn, rtree_t *rtree, rtree_leaf_elm_t *elm,
     bool acquired, extent_t *extent, szind_t szind, bool slab) {
-#ifdef RTREE_LEAF_COMPACT
 	if (config_debug && acquired) {
 		rtree_leaf_elm_witness_access(tsdn, rtree, elm);
 	}
 	assert(!slab || szind < NBINS);
 
+#ifdef RTREE_LEAF_COMPACT
 	uintptr_t bits = ((uintptr_t)szind << LG_VADDR) |
 	    ((uintptr_t)extent & (((uintptr_t)0x1 << LG_VADDR) - 1)) |
 	    ((uintptr_t)slab << 1) |
@@ -271,6 +273,44 @@ rtree_leaf_elm_write(tsdn_t *tsdn, rtree_t *rtree, rtree_leaf_elm_t *elm,
 	 * as soon as the extent field is non-NULL.
 	 */
 	rtree_leaf_elm_extent_write(tsdn, rtree, elm, acquired, extent);
+#endif
+}
+
+JEMALLOC_INLINE void
+rtree_leaf_elm_szind_slab_update(tsdn_t *tsdn, rtree_t *rtree,
+    rtree_leaf_elm_t *elm, szind_t szind, bool slab) {
+	assert(!slab || szind < NBINS);
+
+	/*
+	 * The caller implicitly assures that it is the only writer to the szind
+	 * and slab fields, and that the extent field cannot currently change.
+	 */
+#ifdef RTREE_LEAF_COMPACT
+	/*
+	 * Another thread may concurrently acquire the elm, which means that
+	 * even though the szind and slab fields will not be concurrently
+	 * modified by another thread, the fact that the lock is embedded in the
+	 * same word requires that a CAS operation be used here.
+	 */
+	uintptr_t old_bits = rtree_leaf_elm_bits_read(tsdn, rtree, elm, false,
+	    true) & ~((uintptr_t)0x1); /* Mask lock bit. */
+	uintptr_t bits = ((uintptr_t)szind << LG_VADDR) |
+	    ((uintptr_t)rtree_leaf_elm_bits_extent_get(old_bits) &
+	    (((uintptr_t)0x1 << LG_VADDR) - 1)) |
+	    ((uintptr_t)slab << 1);
+	spin_t spinner = SPIN_INITIALIZER;
+	while (true) {
+		if (likely(atomic_compare_exchange_strong_p(&elm->le_bits,
+		    (void **)&old_bits, (void *)bits, ATOMIC_ACQUIRE,
+		    ATOMIC_RELAXED))) {
+			break;
+		}
+		spin_adaptive(&spinner);
+	}
+#else
+	/* No need to lock. */
+	rtree_leaf_elm_slab_write(tsdn, rtree, elm, false, slab);
+	rtree_leaf_elm_szind_write(tsdn, rtree, elm, false, szind);
 #endif
 }
 
@@ -404,16 +444,6 @@ rtree_szind_slab_read(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
 	return false;
 }
 
-JEMALLOC_INLINE void
-rtree_szind_slab_update(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
-    uintptr_t key, szind_t szind, bool slab) {
-	assert(!slab || szind < NBINS);
-
-	rtree_leaf_elm_t *elm = rtree_read(tsdn, rtree, rtree_ctx, key, true);
-	rtree_leaf_elm_slab_write(tsdn, rtree, elm, false, slab);
-	rtree_leaf_elm_szind_write(tsdn, rtree, elm, false, szind);
-}
-
 JEMALLOC_INLINE rtree_leaf_elm_t *
 rtree_leaf_elm_acquire(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
     uintptr_t key, bool dependent, bool init_missing) {
@@ -462,6 +492,15 @@ rtree_leaf_elm_release(tsdn_t *tsdn, rtree_t *rtree, rtree_leaf_elm_t *elm) {
 	if (config_debug) {
 		rtree_leaf_elm_witness_release(tsdn, rtree, elm);
 	}
+}
+
+JEMALLOC_INLINE void
+rtree_szind_slab_update(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
+    uintptr_t key, szind_t szind, bool slab) {
+	assert(!slab || szind < NBINS);
+
+	rtree_leaf_elm_t *elm = rtree_read(tsdn, rtree, rtree_ctx, key, true);
+	rtree_leaf_elm_szind_slab_update(tsdn, rtree, elm, szind, slab);
 }
 
 JEMALLOC_INLINE void
