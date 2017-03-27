@@ -372,6 +372,33 @@ test_bitmap_xfu_body(const bitmap_info_t *binfo, size_t nbits) {
 		}
 	}
 
+	/*
+	 * Unset the last bit, bubble another unset bit through the bitmap, and
+	 * verify that bitmap_ffu() finds the correct bit for all four min_bit
+	 * cases.
+	 */
+	if (nbits >= 3) {
+		bitmap_unset(bitmap, binfo, nbits-1);
+		for (size_t i = 0; i < nbits-1; i++) {
+			bitmap_unset(bitmap, binfo, i);
+			if (i > 0) {
+				assert_zu_eq(bitmap_ffu(bitmap, binfo, i-1), i,
+				    "Unexpected first unset bit");
+			}
+			assert_zu_eq(bitmap_ffu(bitmap, binfo, i), i,
+			    "Unexpected first unset bit");
+			assert_zu_eq(bitmap_ffu(bitmap, binfo, i+1), nbits-1,
+			    "Unexpected first unset bit");
+			assert_zu_eq(bitmap_ffu(bitmap, binfo, nbits-1),
+			    nbits-1, "Unexpected first unset bit");
+
+			assert_zu_eq(bitmap_sfu(bitmap, binfo), i,
+			    "Unexpected first unset bit");
+		}
+		assert_zu_eq(bitmap_sfu(bitmap, binfo), nbits-1,
+		    "Unexpected first unset bit");
+	}
+
 	free(bitmap);
 }
 
