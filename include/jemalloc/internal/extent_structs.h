@@ -20,8 +20,9 @@ struct extent_s {
 	 * t: state
 	 * i: szind
 	 * n: sn
+	 * f: nfree
 	 *
-	 * nnnnnnnn ... nnnnnnni iiiiiiit tzcbaaaa aaaaaaaa
+	 * nnnnnnnn ... nnnnnfff fffffffi iiiiiiit tzcbaaaa aaaaaaaa
 	 *
 	 * arena_ind: Arena from which this extent came, or all 1 bits if
 	 *            unassociated.
@@ -47,6 +48,8 @@ struct extent_s {
 	 *        even for non-slabs, either due to large_pad or promotion of
 	 *        sampled small regions.
 	 *
+	 * nfree: Number of free regions in slab.
+	 *
 	 * sn: Serial number (potentially non-unique).
 	 *
 	 *     Serial numbers may wrap around if JEMALLOC_MUNMAP is defined, but
@@ -61,26 +64,35 @@ struct extent_s {
 	uint64_t		e_bits;
 #define EXTENT_BITS_ARENA_SHIFT		0
 #define EXTENT_BITS_ARENA_MASK \
-    (((1U << MALLOCX_ARENA_BITS) - 1) << EXTENT_BITS_ARENA_SHIFT)
+    (((uint64_t)(1U << MALLOCX_ARENA_BITS) - 1) << EXTENT_BITS_ARENA_SHIFT)
 
 #define EXTENT_BITS_SLAB_SHIFT		MALLOCX_ARENA_BITS
-#define EXTENT_BITS_SLAB_MASK		(0x1U << EXTENT_BITS_SLAB_SHIFT)
+#define EXTENT_BITS_SLAB_MASK \
+    ((uint64_t)0x1U << EXTENT_BITS_SLAB_SHIFT)
 
 #define EXTENT_BITS_COMMITTED_SHIFT	(MALLOCX_ARENA_BITS + 1)
-#define EXTENT_BITS_COMMITTED_MASK	(0x1U << EXTENT_BITS_COMMITTED_SHIFT)
+#define EXTENT_BITS_COMMITTED_MASK \
+    ((uint64_t)0x1U << EXTENT_BITS_COMMITTED_SHIFT)
 
 #define EXTENT_BITS_ZEROED_SHIFT	(MALLOCX_ARENA_BITS + 2)
-#define EXTENT_BITS_ZEROED_MASK		(0x1U << EXTENT_BITS_ZEROED_SHIFT)
+#define EXTENT_BITS_ZEROED_MASK \
+    ((uint64_t)0x1U << EXTENT_BITS_ZEROED_SHIFT)
 
 #define EXTENT_BITS_STATE_SHIFT		(MALLOCX_ARENA_BITS + 3)
-#define EXTENT_BITS_STATE_MASK		(0x3U << EXTENT_BITS_STATE_SHIFT)
+#define EXTENT_BITS_STATE_MASK \
+    ((uint64_t)0x3U << EXTENT_BITS_STATE_SHIFT)
 
 #define EXTENT_BITS_SZIND_SHIFT		(MALLOCX_ARENA_BITS + 5)
 #define EXTENT_BITS_SZIND_MASK \
-    (((1U << LG_CEIL_NSIZES) - 1) << EXTENT_BITS_SZIND_SHIFT)
+    (((uint64_t)(1U << LG_CEIL_NSIZES) - 1) << EXTENT_BITS_SZIND_SHIFT)
+
+#define EXTENT_BITS_NFREE_SHIFT \
+    (MALLOCX_ARENA_BITS + 5 + LG_CEIL_NSIZES)
+#define EXTENT_BITS_NFREE_MASK \
+    ((uint64_t)((1U << (LG_SLAB_MAXREGS + 1)) - 1) << EXTENT_BITS_NFREE_SHIFT)
 
 #define EXTENT_BITS_SN_SHIFT \
-    (MALLOCX_ARENA_BITS + 5 + LG_CEIL_NSIZES)
+    (MALLOCX_ARENA_BITS + 5 + LG_CEIL_NSIZES + (LG_SLAB_MAXREGS + 1))
 #define EXTENT_BITS_SN_MASK		(UINT64_MAX << EXTENT_BITS_SN_SHIFT)
 
 	/* Pointer to the extent that this structure is responsible for. */
@@ -88,17 +100,6 @@ struct extent_s {
 
 	/* Extent size. */
 	size_t			e_size;
-
-	union {
-		/* Small region slab metadata. */
-		arena_slab_data_t	e_slab_data;
-
-		/* Profile counters, used for large objects. */
-		union {
-			void		*e_prof_tctx_pun;
-			prof_tctx_t	*e_prof_tctx;
-		};
-	};
 
 	/*
 	 * List linkage, used by a variety of lists:
@@ -112,6 +113,17 @@ struct extent_s {
 
 	/* Linkage for per size class sn/address-ordered heaps. */
 	phn(extent_t)		ph_link;
+
+	union {
+		/* Small region slab metadata. */
+		arena_slab_data_t	e_slab_data;
+
+		/* Profile counters, used for large objects. */
+		union {
+			void		*e_prof_tctx_pun;
+			prof_tctx_t	*e_prof_tctx;
+		};
+	};
 };
 typedef ql_head(extent_t) extent_list_t;
 typedef ph(extent_t) extent_heap_t;

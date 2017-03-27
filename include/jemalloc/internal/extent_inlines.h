@@ -11,6 +11,7 @@ extent_state_t extent_state_get(const extent_t *extent);
 bool extent_zeroed_get(const extent_t *extent);
 bool extent_committed_get(const extent_t *extent);
 bool extent_slab_get(const extent_t *extent);
+unsigned extent_nfree_get(const extent_t *extent);
 void *extent_base_get(const extent_t *extent);
 void *extent_addr_get(const extent_t *extent);
 size_t extent_size_get(const extent_t *extent);
@@ -25,6 +26,9 @@ void extent_addr_set(extent_t *extent, void *addr);
 void extent_addr_randomize(tsdn_t *tsdn, extent_t *extent, size_t alignment);
 void extent_size_set(extent_t *extent, size_t size);
 void extent_szind_set(extent_t *extent, szind_t szind);
+void extent_nfree_set(extent_t *extent, unsigned nfree);
+void extent_nfree_inc(extent_t *extent);
+void extent_nfree_dec(extent_t *extent);
 void extent_sn_set(extent_t *extent, size_t sn);
 void extent_state_set(extent_t *extent, extent_state_t state);
 void extent_zeroed_set(extent_t *extent, bool zeroed);
@@ -110,6 +114,13 @@ JEMALLOC_INLINE bool
 extent_slab_get(const extent_t *extent) {
 	return (bool)((extent->e_bits & EXTENT_BITS_SLAB_MASK) >>
 	    EXTENT_BITS_SLAB_SHIFT);
+}
+
+JEMALLOC_INLINE unsigned
+extent_nfree_get(const extent_t *extent) {
+	assert(extent_slab_get(extent));
+	return (unsigned)((extent->e_bits & EXTENT_BITS_NFREE_MASK) >>
+	    EXTENT_BITS_NFREE_SHIFT);
 }
 
 JEMALLOC_INLINE void *
@@ -211,6 +222,25 @@ extent_szind_set(extent_t *extent, szind_t szind) {
 }
 
 JEMALLOC_INLINE void
+extent_nfree_set(extent_t *extent, unsigned nfree) {
+	assert(extent_slab_get(extent));
+	extent->e_bits = (extent->e_bits & ~EXTENT_BITS_NFREE_MASK) |
+	    ((uint64_t)nfree << EXTENT_BITS_NFREE_SHIFT);
+}
+
+JEMALLOC_INLINE void
+extent_nfree_inc(extent_t *extent) {
+	assert(extent_slab_get(extent));
+	extent->e_bits += ((uint64_t)1U << EXTENT_BITS_NFREE_SHIFT);
+}
+
+JEMALLOC_INLINE void
+extent_nfree_dec(extent_t *extent) {
+	assert(extent_slab_get(extent));
+	extent->e_bits -= ((uint64_t)1U << EXTENT_BITS_NFREE_SHIFT);
+}
+
+JEMALLOC_INLINE void
 extent_sn_set(extent_t *extent, size_t sn) {
 	extent->e_bits = (extent->e_bits & ~EXTENT_BITS_SN_MASK) |
 	    ((uint64_t)sn << EXTENT_BITS_SN_SHIFT);
@@ -260,10 +290,10 @@ extent_init(extent_t *extent, arena_t *arena, void *addr, size_t size,
 	extent_state_set(extent, state);
 	extent_zeroed_set(extent, zeroed);
 	extent_committed_set(extent, committed);
+	ql_elm_new(extent, ql_link);
 	if (config_prof) {
 		extent_prof_tctx_set(extent, NULL);
 	}
-	ql_elm_new(extent, ql_link);
 }
 
 JEMALLOC_INLINE void
