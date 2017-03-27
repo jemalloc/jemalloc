@@ -83,52 +83,40 @@ bitmap_ffu(const bitmap_t *bitmap, const bitmap_info_t *binfo, size_t min_bit) {
 	assert(min_bit < binfo->nbits);
 
 #ifdef BITMAP_USE_TREE
-	unsigned level = binfo->nlevels - 1;
-	size_t lg_bits_per_group = (LG_BITMAP_GROUP_NBITS * (level+1));
-	size_t bits_per_group = 1LU << lg_bits_per_group;
-	size_t bits_per_group_mask = bits_per_group - 1;
-	unsigned group_nmask = (min_bit & bits_per_group_mask) >> (level *
-	    LG_BITMAP_GROUP_NBITS);
-	bitmap_t group_mask = ~((1LU << group_nmask) - 1);
-	bitmap_t group = bitmap[binfo->levels[level].group_offset] & group_mask;
-	if (group == 0LU) {
-		return binfo->nbits;
-	}
-	size_t bit = ffs_lu(group) - 1;
-
-	while (level > 0) {
-		level--;
-
-		lg_bits_per_group = (LG_BITMAP_GROUP_NBITS * (level+1));
-		bits_per_group = 1LU << lg_bits_per_group;
-		bits_per_group_mask = bits_per_group - 1;
-
-		group = bitmap[binfo->levels[level].group_offset + bit];
-		size_t cur_base = bit << lg_bits_per_group;
-		if (cur_base < min_bit) {
-			group_nmask = (min_bit & bits_per_group_mask) >> (level
-			    * LG_BITMAP_GROUP_NBITS);
-			group_mask = ~((1LU << group_nmask) - 1);
-			group &= group_mask;
-		}
-		if (group == 0LU) {
-			/*
-			 * If min_bit is not the first bit in its group, try
-			 * again starting at the first bit of the next group.
-			 * This will only recurse at most once, since on
-			 * recursion, min_bit will be the first bit in its
-			 * group.
-			 */
-			size_t ceil_min_bit = (min_bit +
-			    BITMAP_GROUP_NBITS_MASK) & ~BITMAP_GROUP_NBITS_MASK;
-			if (ceil_min_bit != min_bit && ceil_min_bit <
-			    binfo->nbits) {
-				return bitmap_ffu(bitmap, binfo, ceil_min_bit);
+	size_t bit = 0;
+	for (unsigned level = binfo->nlevels; level--;) {
+		size_t lg_bits_per_group = (LG_BITMAP_GROUP_NBITS * (level +
+		    1));
+		bitmap_t group = bitmap[binfo->levels[level].group_offset + (bit
+		    >> lg_bits_per_group)];
+		unsigned group_nmask = ((min_bit > bit) ? (min_bit - bit) : 0)
+		    >> (lg_bits_per_group - LG_BITMAP_GROUP_NBITS);
+		assert(group_nmask <= BITMAP_GROUP_NBITS);
+		bitmap_t group_mask = ~((1LU << group_nmask) - 1);
+		bitmap_t group_masked = group & group_mask;
+		if (group_masked == 0LU) {
+			if (group == 0LU) {
+				return binfo->nbits;
 			}
-			return binfo->nbits;
+			/*
+			 * min_bit was preceded by one or more unset bits in
+			 * this group, but there are no other unset bits in this
+			 * group.  Try again starting at the first bit of the
+			 * next sibling.  This will recurse at most once per
+			 * non-root level.
+			 */
+			size_t sib_base = bit + (1U << lg_bits_per_group);
+			assert(sib_base > min_bit);
+			assert(sib_base > bit);
+			if (sib_base >= binfo->nbits) {
+				return binfo->nbits;
+			}
+			return bitmap_ffu(bitmap, binfo, sib_base);
 		}
-		bit = (bit << LG_BITMAP_GROUP_NBITS) + (ffs_lu(group) - 1);
+		bit += (ffs_lu(group_masked) - 1) << (lg_bits_per_group -
+		    LG_BITMAP_GROUP_NBITS);
 	}
+	assert(bit >= min_bit);
 	assert(bit < binfo->nbits);
 	return bit;
 #else
