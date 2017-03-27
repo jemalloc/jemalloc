@@ -94,7 +94,8 @@ extent_alloc(tsdn_t *tsdn, arena_t *arena) {
 	extent = extent_list_last(&arena->extent_freelist);
 	if (extent == NULL) {
 		malloc_mutex_unlock(tsdn, &arena->extent_freelist_mtx);
-		return base_alloc(tsdn, arena->base, sizeof(extent_t), QUANTUM);
+		return base_alloc(tsdn, arena->base, sizeof(extent_t),
+		    CACHELINE);
 	}
 	extent_list_remove(&arena->extent_freelist, extent);
 	malloc_mutex_unlock(tsdn, &arena->extent_freelist_mtx);

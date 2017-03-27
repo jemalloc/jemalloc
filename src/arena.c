@@ -361,13 +361,13 @@ arena_slab_reg_alloc(tsdn_t *tsdn, extent_t *slab,
 	arena_slab_data_t *slab_data = extent_slab_data_get(slab);
 	size_t regind;
 
-	assert(slab_data->nfree > 0);
+	assert(extent_nfree_get(slab) > 0);
 	assert(!bitmap_full(slab_data->bitmap, &bin_info->bitmap_info));
 
 	regind = bitmap_sfu(slab_data->bitmap, &bin_info->bitmap_info);
 	ret = (void *)((uintptr_t)extent_addr_get(slab) +
 	    (uintptr_t)(bin_info->reg_size * regind));
-	slab_data->nfree--;
+	extent_nfree_dec(slab);
 	return ret;
 }
 
@@ -416,12 +416,12 @@ arena_slab_reg_dalloc(tsdn_t *tsdn, extent_t *slab,
 	const arena_bin_info_t *bin_info = &arena_bin_info[binind];
 	size_t regind = arena_slab_regind(slab, binind, ptr);
 
-	assert(slab_data->nfree < bin_info->nregs);
+	assert(extent_nfree_get(slab) < bin_info->nregs);
 	/* Freeing an unallocated pointer can cause assertion failure. */
 	assert(bitmap_get(slab_data->bitmap, &bin_info->bitmap_info, regind));
 
 	bitmap_unset(slab_data->bitmap, &bin_info->bitmap_info, regind);
-	slab_data->nfree++;
+	extent_nfree_inc(slab);
 }
 
 static void
@@ -999,7 +999,7 @@ arena_slab_dalloc(tsdn_t *tsdn, arena_t *arena, extent_t *slab) {
 
 static void
 arena_bin_slabs_nonfull_insert(arena_bin_t *bin, extent_t *slab) {
-	assert(extent_slab_data_get(slab)->nfree > 0);
+	assert(extent_nfree_get(slab) > 0);
 	extent_heap_insert(&bin->slabs_nonfull, slab);
 }
 
@@ -1022,7 +1022,7 @@ arena_bin_slabs_nonfull_tryget(arena_bin_t *bin) {
 
 static void
 arena_bin_slabs_full_insert(arena_bin_t *bin, extent_t *slab) {
-	assert(extent_slab_data_get(slab)->nfree == 0);
+	assert(extent_nfree_get(slab) == 0);
 	extent_list_append(&bin->slabs_full, slab);
 }
 
@@ -1209,7 +1209,7 @@ arena_slab_alloc(tsdn_t *tsdn, arena_t *arena, szind_t binind,
 
 	/* Initialize slab internals. */
 	arena_slab_data_t *slab_data = extent_slab_data_get(slab);
-	slab_data->nfree = bin_info->nregs;
+	extent_nfree_set(slab, bin_info->nregs);
 	bitmap_init(slab_data->bitmap, &bin_info->bitmap_info, false);
 
 	arena_nactive_add(arena, extent_size_get(slab) >> LG_PAGE);
@@ -1277,7 +1277,7 @@ arena_bin_malloc_hard(tsdn_t *tsdn, arena_t *arena, arena_bin_t *bin,
 		 * Another thread updated slabcur while this one ran without the
 		 * bin lock in arena_bin_nonfull_slab_get().
 		 */
-		if (extent_slab_data_get(bin->slabcur)->nfree > 0) {
+		if (extent_nfree_get(bin->slabcur) > 0) {
 			void *ret = arena_slab_reg_alloc(tsdn, bin->slabcur,
 			    bin_info);
 			if (slab != NULL) {
@@ -1290,8 +1290,7 @@ arena_bin_malloc_hard(tsdn_t *tsdn, arena_t *arena, arena_bin_t *bin,
 				 * arena_bin_lower_slab() must be called, as if
 				 * a region were just deallocated from the slab.
 				 */
-				if (extent_slab_data_get(slab)->nfree ==
-				    bin_info->nregs) {
+				if (extent_nfree_get(slab) == bin_info->nregs) {
 					arena_dalloc_bin_slab(tsdn, arena, slab,
 					    bin);
 				} else {
@@ -1311,7 +1310,7 @@ arena_bin_malloc_hard(tsdn_t *tsdn, arena_t *arena, arena_bin_t *bin,
 	}
 	bin->slabcur = slab;
 
-	assert(extent_slab_data_get(bin->slabcur)->nfree > 0);
+	assert(extent_nfree_get(bin->slabcur) > 0);
 
 	return arena_slab_reg_alloc(tsdn, slab, bin_info);
 }
@@ -1333,8 +1332,8 @@ arena_tcache_fill_small(tsdn_t *tsdn, arena_t *arena, tcache_bin_t *tbin,
 	    tbin->lg_fill_div); i < nfill; i++) {
 		extent_t *slab;
 		void *ptr;
-		if ((slab = bin->slabcur) != NULL &&
-		    extent_slab_data_get(slab)->nfree > 0) {
+		if ((slab = bin->slabcur) != NULL && extent_nfree_get(slab) >
+		    0) {
 			ptr = arena_slab_reg_alloc(tsdn, slab,
 			    &arena_bin_info[binind]);
 		} else {
@@ -1405,8 +1404,7 @@ arena_malloc_small(tsdn_t *tsdn, arena_t *arena, szind_t binind, bool zero) {
 	usize = index2size(binind);
 
 	malloc_mutex_lock(tsdn, &bin->lock);
-	if ((slab = bin->slabcur) != NULL && extent_slab_data_get(slab)->nfree >
-	    0) {
+	if ((slab = bin->slabcur) != NULL && extent_nfree_get(slab) > 0) {
 		ret = arena_slab_reg_alloc(tsdn, slab, &arena_bin_info[binind]);
 	} else {
 		ret = arena_bin_malloc_hard(tsdn, arena, bin, binind);
@@ -1582,7 +1580,7 @@ arena_dalloc_bin_slab(tsdn_t *tsdn, arena_t *arena, extent_t *slab,
 static void
 arena_bin_lower_slab(tsdn_t *tsdn, arena_t *arena, extent_t *slab,
     arena_bin_t *bin) {
-	assert(extent_slab_data_get(slab)->nfree > 0);
+	assert(extent_nfree_get(slab) > 0);
 
 	/*
 	 * Make sure that if bin->slabcur is non-NULL, it refers to the
@@ -1592,7 +1590,7 @@ arena_bin_lower_slab(tsdn_t *tsdn, arena_t *arena, extent_t *slab,
 	 */
 	if (bin->slabcur != NULL && extent_snad_comp(bin->slabcur, slab) > 0) {
 		/* Switch slabcur. */
-		if (extent_slab_data_get(bin->slabcur)->nfree > 0) {
+		if (extent_nfree_get(bin->slabcur) > 0) {
 			arena_bin_slabs_nonfull_insert(bin, bin->slabcur);
 		} else {
 			arena_bin_slabs_full_insert(bin, bin->slabcur);
@@ -1619,10 +1617,11 @@ arena_dalloc_bin_locked_impl(tsdn_t *tsdn, arena_t *arena, extent_t *slab,
 	}
 
 	arena_slab_reg_dalloc(tsdn, slab, slab_data, ptr);
-	if (slab_data->nfree == bin_info->nregs) {
+	unsigned nfree = extent_nfree_get(slab);
+	if (nfree == bin_info->nregs) {
 		arena_dissociate_bin_slab(slab, bin);
 		arena_dalloc_bin_slab(tsdn, arena, slab, bin);
-	} else if (slab_data->nfree == 1 && slab != bin->slabcur) {
+	} else if (nfree == 1 && slab != bin->slabcur) {
 		arena_bin_slabs_full_remove(bin, slab);
 		arena_bin_lower_slab(tsdn, arena, slab, bin);
 	}

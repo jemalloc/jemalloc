@@ -175,6 +175,10 @@ extent_list_last
 extent_list_remove
 extent_list_replace
 extent_merge_wrapper
+extent_nfree_dec
+extent_nfree_get
+extent_nfree_inc
+extent_nfree_set
 extent_past_get
 extent_prof_tctx_get
 extent_prof_tctx_set
