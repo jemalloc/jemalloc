@@ -4,9 +4,9 @@
 #ifndef JEMALLOC_ENABLE_INLINE
 void	tcache_event(tsd_t *tsd, tcache_t *tcache);
 void	tcache_flush(void);
-bool	tcache_enabled_get(void);
-tcache_t *tcache_get(tsd_t *tsd, bool create);
-void	tcache_enabled_set(bool enabled);
+bool	tcache_enabled_get(tsd_t *tsd);
+tcache_t *tcache_get(tsd_t *tsd);
+void	tcache_enabled_set(tsd_t *tsd, bool enabled);
 void	*tcache_alloc_easy(tcache_bin_t *tbin, bool *tcache_success);
 void	*tcache_alloc_small(tsd_t *tsd, arena_t *arena, tcache_t *tcache,
     size_t size, szind_t ind, bool zero, bool slow_path);
@@ -20,68 +20,32 @@ tcache_t	*tcaches_get(tsd_t *tsd, unsigned ind);
 #endif
 
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_TCACHE_C_))
-JEMALLOC_INLINE void
-tcache_flush(void) {
-	tsd_t *tsd;
-
-	cassert(config_tcache);
-
-	tsd = tsd_fetch();
-	tcache_cleanup(tsd);
-}
-
 JEMALLOC_INLINE bool
-tcache_enabled_get(void) {
-	tsd_t *tsd;
+tcache_enabled_get(tsd_t *tsd) {
 	tcache_enabled_t tcache_enabled;
 
 	cassert(config_tcache);
 
-	tsd = tsd_fetch();
 	tcache_enabled = tsd_tcache_enabled_get(tsd);
-	if (tcache_enabled == tcache_enabled_default) {
-		tcache_enabled = (tcache_enabled_t)opt_tcache;
-		tsd_tcache_enabled_set(tsd, tcache_enabled);
-	}
+	assert(tcache_enabled != tcache_enabled_default);
 
 	return (bool)tcache_enabled;
 }
 
 JEMALLOC_INLINE void
-tcache_enabled_set(bool enabled) {
-	tsd_t *tsd;
-	tcache_enabled_t tcache_enabled;
-
+tcache_enabled_set(tsd_t *tsd, bool enabled) {
 	cassert(config_tcache);
 
-	tsd = tsd_fetch();
+	tcache_enabled_t old = tsd_tcache_enabled_get(tsd);
 
-	tcache_enabled = (tcache_enabled_t)enabled;
-	tsd_tcache_enabled_set(tsd, tcache_enabled);
-
-	if (!enabled) {
+	if ((old != tcache_enabled_true) && enabled) {
+		tsd_tcache_data_init(tsd);
+	} else if ((old == tcache_enabled_true) && !enabled) {
 		tcache_cleanup(tsd);
 	}
-}
-
-JEMALLOC_ALWAYS_INLINE tcache_t *
-tcache_get(tsd_t *tsd, bool create) {
-	tcache_t *tcache;
-
-	if (!config_tcache) {
-		return NULL;
-	}
-
-	tcache = tsd_tcache_get(tsd);
-	if (!create) {
-		return tcache;
-	}
-	if (unlikely(tcache == NULL) && tsd_nominal(tsd)) {
-		tcache = tcache_get_hard(tsd);
-		tsd_tcache_set(tsd, tcache);
-	}
-
-	return tcache;
+	/* Commit the state last.  Above calls check current state. */
+	tcache_enabled_t tcache_enabled = (tcache_enabled_t)enabled;
+	tsd_tcache_enabled_set(tsd, tcache_enabled);
 }
 
 JEMALLOC_ALWAYS_INLINE void
@@ -300,8 +264,7 @@ JEMALLOC_ALWAYS_INLINE tcache_t *
 tcaches_get(tsd_t *tsd, unsigned ind) {
 	tcaches_t *elm = &tcaches[ind];
 	if (unlikely(elm->tcache == NULL)) {
-		elm->tcache = tcache_create(tsd_tsdn(tsd), arena_choose(tsd,
-		    NULL));
+		elm->tcache = tcache_create_explicit(tsd);
 	}
 	return elm->tcache;
 }

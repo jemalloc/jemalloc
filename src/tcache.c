@@ -4,7 +4,13 @@
 /******************************************************************************/
 /* Data. */
 
-bool	opt_tcache = true;
+bool	opt_tcache =
+#ifdef JEMALLOC_TCACHE
+    true
+#else
+    false
+#endif
+    ;
 ssize_t	opt_lg_tcache_max = LG_TCACHE_MAXCLASS_DEFAULT;
 
 tcache_bin_info_t	*tcache_bin_info;
@@ -78,6 +84,7 @@ tcache_alloc_small_hard(tsdn_t *tsdn, arena_t *arena, tcache_t *tcache,
     tcache_bin_t *tbin, szind_t binind, bool *tcache_success) {
 	void *ret;
 
+	assert(tcache->arena);
 	arena_tcache_fill_small(tsdn, arena, tbin, binind, config_prof ?
 	    tcache->prof_accumbytes : 0);
 	if (config_prof) {
@@ -271,9 +278,11 @@ tcache_bin_flush_large(tsd_t *tsd, tcache_bin_t *tbin, szind_t binind,
 	}
 }
 
-static void
+void
 tcache_arena_associate(tsdn_t *tsdn, tcache_t *tcache, arena_t *arena) {
+	assert(tcache->arena == NULL);
 	tcache->arena = arena;
+
 	if (config_stats) {
 		/* Link into list of extant tcaches. */
 		malloc_mutex_lock(tsdn, &arena->tcache_ql_mtx);
@@ -286,6 +295,7 @@ tcache_arena_associate(tsdn_t *tsdn, tcache_t *tcache, arena_t *arena) {
 static void
 tcache_arena_dissociate(tsdn_t *tsdn, tcache_t *tcache) {
 	arena_t *arena = tcache->arena;
+	assert(arena);
 	if (config_stats) {
 		/* Unlink from list of extant tcaches. */
 		malloc_mutex_lock(tsdn, &arena->tcache_ql_mtx);
@@ -304,6 +314,7 @@ tcache_arena_dissociate(tsdn_t *tsdn, tcache_t *tcache) {
 		tcache_stats_merge(tsdn, tcache, arena);
 		malloc_mutex_unlock(tsdn, &arena->tcache_ql_mtx);
 	}
+	tcache->arena = NULL;
 }
 
 void
@@ -312,49 +323,32 @@ tcache_arena_reassociate(tsdn_t *tsdn, tcache_t *tcache, arena_t *arena) {
 	tcache_arena_associate(tsdn, tcache, arena);
 }
 
-tcache_t *
-tcache_get_hard(tsd_t *tsd) {
-	arena_t *arena;
+bool
+tsd_tcache_enabled_data_init(tsd_t *tsd) {
+	/* Called upon tsd initialization. */
+	tsd_tcache_enabled_set(tsd, (tcache_enabled_t)opt_tcache);
+	if (opt_tcache) {
+		/* Trigger tcache init. */
+		tsd_tcache_data_init(tsd);
+	}
 
-	if (!tcache_enabled_get()) {
-		if (tsd_nominal(tsd)) {
-			tcache_enabled_set(false); /* Memoize. */
-		}
-		return NULL;
-	}
-	arena = arena_choose(tsd, NULL);
-	if (unlikely(arena == NULL)) {
-		return NULL;
-	}
-	return tcache_create(tsd_tsdn(tsd), arena);
+	return false;
 }
 
-tcache_t *
-tcache_create(tsdn_t *tsdn, arena_t *arena) {
-	tcache_t *tcache;
-	size_t size, stack_offset;
-	unsigned i;
-
-	size = offsetof(tcache_t, tbins) + (sizeof(tcache_bin_t) * nhbins);
-	/* Naturally align the pointer stacks. */
-	size = PTR_CEILING(size);
-	stack_offset = size;
-	size += stack_nelms * sizeof(void *);
-	/* Avoid false cacheline sharing. */
-	size = sa2u(size, CACHELINE);
-
-	tcache = ipallocztm(tsdn, size, CACHELINE, true, NULL, true,
-	    arena_get(TSDN_NULL, 0, true));
-	if (tcache == NULL) {
-		return NULL;
-	}
-
-	tcache_arena_associate(tsdn, tcache, arena);
+/* Initialize auto tcache (embedded in TSD). */
+static void
+tcache_init(tsd_t *tsd, tcache_t *tcache, void *avail_stack) {
+	memset(&tcache->link, 0, sizeof(ql_elm(tcache_t)));
+	tcache->prof_accumbytes = 0;
+	tcache->next_gc_bin = 0;
+	tcache->arena = NULL;
 
 	ticker_init(&tcache->gc_ticker, TCACHE_GC_INCR);
 
+	size_t stack_offset = 0;
 	assert((TCACHE_NSLOTS_SMALL_MAX & 1U) == 0);
-	for (i = 0; i < nhbins; i++) {
+	memset(tcache->tbins, 0, sizeof(tcache_bin_t) * nhbins);
+	for (unsigned i = 0; i < nhbins; i++) {
 		tcache->tbins[i].lg_fill_div = 1;
 		stack_offset += tcache_bin_info[i].ncached_max * sizeof(void *);
 		/*
@@ -362,15 +356,90 @@ tcache_create(tsdn_t *tsdn, arena_t *arena) {
 		 * access the slots toward higher addresses (for the benefit of
 		 * prefetch).
 		 */
-		tcache->tbins[i].avail = (void **)((uintptr_t)tcache +
+		tcache->tbins[i].avail = (void **)((uintptr_t)avail_stack +
 		    (uintptr_t)stack_offset);
 	}
+	assert(stack_offset == stack_nelms * sizeof(void *));
+}
+
+/* Initialize auto tcache (embedded in TSD). */
+bool
+tsd_tcache_data_init(tsd_t *tsd) {
+	if (!config_tcache) {
+		return false;
+	}
+
+	tcache_t *tcache = &tsd->tcache;
+	assert(tcache->tbins[0].avail == NULL);
+	size_t size = stack_nelms * sizeof(void *);
+	/* Avoid false cacheline sharing. */
+	size = sa2u(size, CACHELINE);
+
+	/* Manually initialize rcache as we may need it for allocation. */
+	tsd_rtree_ctx_data_init(tsd);
+
+	void *avail_array = ipallocztm(tsd_tsdn(tsd), size, CACHELINE, true,
+	    NULL, true, arena_get(TSDN_NULL, 0, true));
+	if (avail_array == NULL) {
+		return true;
+	}
+
+	tcache_init(tsd, tcache, avail_array);
+	/*
+	 * Initialization is a bit tricky here.  After malloc init is done, all
+	 * threads can rely on arena_choose and associate tcache accordingly.
+	 * However, the thread that does actual malloc bootstrapping relies on
+	 * functional tsd, and it can only rely on a0.  In that case, we
+	 * associate its tcache to a0 temporarily, and later on
+	 * arena_choose_hard() will re-associate properly.
+	 */
+	tcache->arena = NULL;
+	arena_t *arena;
+	if (!malloc_initialized()) {
+		/* If in initialization, assign to a0. */
+		arena = arena_get(tsd_tsdn(tsd), 0, false);
+		tcache_arena_associate(tsd_tsdn(tsd), tcache, arena);
+	} else {
+		arena = arena_choose(tsd, NULL);
+		/* This may happen if thread.tcache.enabled is used. */
+		if (tcache->arena == NULL) {
+			tcache_arena_associate(tsd_tsdn(tsd), tcache, arena);
+		}
+	}
+	assert(arena == tcache->arena);
+
+	return false;
+}
+
+/* Created manual tcache for tcache.create mallctl. */
+tcache_t *
+tcache_create_explicit(tsd_t *tsd) {
+	tcache_t *tcache;
+	size_t size, stack_offset;
+
+	size = sizeof(tcache_t);
+	/* Naturally align the pointer stacks. */
+	size = PTR_CEILING(size);
+	stack_offset = size;
+	size += stack_nelms * sizeof(void *);
+	/* Avoid false cacheline sharing. */
+	size = sa2u(size, CACHELINE);
+
+	tcache = ipallocztm(tsd_tsdn(tsd), size, CACHELINE, true, NULL, true,
+	    arena_get(TSDN_NULL, 0, true));
+	if (tcache == NULL) {
+		return NULL;
+	}
+
+	tcache_init(tsd, tcache,
+	    (void *)((uintptr_t)tcache + (uintptr_t)stack_offset));
+	tcache_arena_associate(tsd_tsdn(tsd), tcache, arena_ichoose(tsd, NULL));
 
 	return tcache;
 }
 
 static void
-tcache_destroy(tsd_t *tsd, tcache_t *tcache) {
+tcache_flush_cache(tsd_t *tsd, tcache_t *tcache) {
 	unsigned i;
 
 	for (i = 0; i < NBINS; i++) {
@@ -381,7 +450,6 @@ tcache_destroy(tsd_t *tsd, tcache_t *tcache) {
 			assert(tbin->tstats.nrequests == 0);
 		}
 	}
-
 	for (; i < nhbins; i++) {
 		tcache_bin_t *tbin = &tcache->tbins[i];
 		tcache_bin_flush_large(tsd, tbin, i, 0, tcache);
@@ -391,32 +459,60 @@ tcache_destroy(tsd_t *tsd, tcache_t *tcache) {
 		}
 	}
 
-	/*
-	 * Get arena after flushing -- when using percpu arena, the associated
-	 * arena could change during flush.
-	 */
-	arena_t *arena = arena_choose(tsd, NULL);
-	tcache_arena_dissociate(tsd_tsdn(tsd), tcache);
-
-	if (config_prof && tcache->prof_accumbytes > 0 &&
+	arena_t *arena = tcache->arena;
+	if (config_prof && arena && tcache->prof_accumbytes > 0 &&
 	    arena_prof_accum(tsd_tsdn(tsd), arena, tcache->prof_accumbytes)) {
 		prof_idump(tsd_tsdn(tsd));
 	}
-
-	idalloctm(tsd_tsdn(tsd), tcache, NULL, true, true);
 }
 
 void
-tcache_cleanup(tsd_t *tsd) {
-	tcache_t *tcache;
+tcache_flush(void) {
+	tsd_t *tsd;
 
+	cassert(config_tcache);
+
+	tsd = tsd_fetch();
+	tcache_flush_cache(tsd, tsd_tcachep_get(tsd));
+}
+
+static void
+tcache_destroy(tsd_t *tsd, tcache_t *tcache, bool tsd_tcache) {
+	tcache_flush_cache(tsd, tcache);
+	tcache_arena_dissociate(tsd_tsdn(tsd), tcache);
+
+	if (tsd_tcache) {
+		/* Release the avail array for the TSD embedded auto tcache. */
+		void *avail_array = (void *)((uintptr_t)tcache->tbins[0].avail -
+		    (uintptr_t)tcache_bin_info[0].ncached_max * sizeof(void *));
+		idalloctm(tsd_tsdn(tsd), avail_array, NULL, true, true);
+	} else {
+		/* Release both the tcache struct and avail array. */
+		idalloctm(tsd_tsdn(tsd), tcache, NULL, true, true);
+	}
+}
+
+/* For auto tcache (embedded in TSD) only. */
+void
+tcache_cleanup(tsd_t *tsd) {
 	if (!config_tcache) {
 		return;
 	}
 
-	if ((tcache = tsd_tcache_get(tsd)) != NULL) {
-		tcache_destroy(tsd, tcache);
-		tsd_tcache_set(tsd, NULL);
+	tcache_t *tcache = tsd_tcachep_get(tsd);
+	if (!tcache_available(tsd)) {
+		assert(tsd_tcache_enabled_get(tsd) == tcache_enabled_false);
+		if (config_debug) {
+			assert(tcache->tbins[0].avail == NULL);
+		}
+		return;
+	}
+	assert(tsd_tcache_enabled_get(tsd) == tcache_enabled_true);
+	assert(tcache->tbins[0].avail != NULL);
+
+	tcache_destroy(tsd, tcache, true);
+	if (config_debug) {
+		tcache->tbins[0].avail = NULL;
 	}
 }
 
@@ -481,12 +577,7 @@ tcaches_create(tsd_t *tsd, unsigned *r_ind) {
 		goto label_return;
 	}
 
-	arena_t *arena = arena_ichoose(tsd, NULL);
-	if (unlikely(arena == NULL)) {
-		err = true;
-		goto label_return;
-	}
-	tcache_t *tcache = tcache_create(tsd_tsdn(tsd), arena);
+	tcache_t *tcache = tcache_create_explicit(tsd);
 	if (tcache == NULL) {
 		err = true;
 		goto label_return;
@@ -531,7 +622,7 @@ tcaches_flush(tsd_t *tsd, unsigned ind) {
 	tcache_t *tcache = tcaches_elm_remove(tsd, &tcaches[ind]);
 	malloc_mutex_unlock(tsd_tsdn(tsd), &tcaches_mtx);
 	if (tcache != NULL) {
-		tcache_destroy(tsd, tcache);
+		tcache_destroy(tsd, tcache, false);
 	}
 }
 
@@ -544,7 +635,7 @@ tcaches_destroy(tsd_t *tsd, unsigned ind) {
 	tcaches_avail = elm;
 	malloc_mutex_unlock(tsd_tsdn(tsd), &tcaches_mtx);
 	if (tcache != NULL) {
-		tcache_destroy(tsd, tcache);
+		tcache_destroy(tsd, tcache, false);
 	}
 }
 

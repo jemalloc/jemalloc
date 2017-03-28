@@ -16,7 +16,7 @@ struct tsd_init_head_s {
 
 #define MALLOC_TSD							\
 /*  O(name,			type,		[gs]et,	init,	cleanup) */ \
-    O(tcache,			tcache_t *,	yes,	no,	yes)	\
+    O(tcache,			tcache_t,	yes,	no,	yes)	\
     O(thread_allocated,		uint64_t,	yes,	no,	no)	\
     O(thread_deallocated,	uint64_t,	yes,	no,	no)	\
     O(prof_tdata,		prof_tdata_t *,	yes,	no,	yes)	\
@@ -26,7 +26,7 @@ struct tsd_init_head_s {
     O(narenas_tdata,		unsigned,	yes,	no,	no)	\
     O(arenas_tdata_bypass,	bool,		no,	no,	no)	\
     O(tcache_enabled,		tcache_enabled_t,			\
-						yes,	no,	no)	\
+						yes,	yes,	no)	\
     O(rtree_ctx,		rtree_ctx_t,	no,	yes,	no)	\
     O(witnesses,		witness_list_t,	no,	no,	yes)	\
     O(rtree_leaf_elm_witnesses,	rtree_leaf_elm_witness_tsd_t,		\
@@ -35,7 +35,7 @@ struct tsd_init_head_s {
 
 #define TSD_INITIALIZER {						\
     tsd_state_uninitialized,						\
-    NULL,								\
+    TCACHE_ZERO_INITIALIZER,						\
     0,									\
     0,									\
     NULL,								\
@@ -69,6 +69,7 @@ struct tsdn_s {
 };
 
 static const tsd_t tsd_initializer = TSD_INITIALIZER;
+UNUSED static const void *malloc_tsd_no_cleanup = (void *)0;
 
 malloc_tsd_types(, tsd_t)
 

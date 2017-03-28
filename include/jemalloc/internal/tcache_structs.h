@@ -36,13 +36,17 @@ struct tcache_s {
 	ticker_t	gc_ticker;	/* Drives incremental GC. */
 	szind_t		next_gc_bin;	/* Next bin to GC. */
 	arena_t		*arena;		/* Associated arena. */
-	tcache_bin_t	tbins[1];	/* Dynamically sized. */
 	/*
 	 * The pointer stacks associated with tbins follow as a contiguous
 	 * array.  During tcache initialization, the avail pointer in each
 	 * element of tbins is initialized to point to the proper offset within
 	 * this array.
 	 */
+#ifdef JEMALLOC_TCACHE
+	tcache_bin_t	tbins[NSIZES];
+#else
+	tcache_bin_t	tbins[0];
+#endif
 };
 
 /* Linkage for list of available (previously used) explicit tcache IDs. */

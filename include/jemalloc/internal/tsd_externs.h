@@ -3,7 +3,6 @@
 
 void	*malloc_tsd_malloc(size_t size);
 void	malloc_tsd_dalloc(void *wrapper);
-void	malloc_tsd_no_cleanup(void *arg);
 void	malloc_tsd_cleanup_register(bool (*f)(void));
 tsd_t	*malloc_tsd_boot0(void);
 void	malloc_tsd_boot1(void);
@@ -13,7 +12,7 @@ void	*tsd_init_check_recursion(tsd_init_head_t *head,
     tsd_init_block_t *block);
 void	tsd_init_finish(tsd_init_head_t *head, tsd_init_block_t *block);
 #endif
-void	tsd_cleanup(void *arg);
-bool	tsd_data_init(void *arg);
+bool tsd_data_init(void *arg);
+void tsd_cleanup(void *arg);
 
 #endif /* JEMALLOC_INTERNAL_TSD_EXTERNS_H */

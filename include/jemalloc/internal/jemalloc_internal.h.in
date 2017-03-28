@@ -488,23 +488,24 @@ extern size_t const	index2size_tab[NSIZES];
  */
 extern uint8_t const	size2index_tab[];
 
-void	*a0malloc(size_t size);
-void	a0dalloc(void *ptr);
-void	*bootstrap_malloc(size_t size);
-void	*bootstrap_calloc(size_t num, size_t size);
-void	bootstrap_free(void *ptr);
-void	arena_set(unsigned ind, arena_t *arena);
-unsigned	narenas_total_get(void);
-arena_t	*arena_init(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks);
-arena_tdata_t	*arena_tdata_get_hard(tsd_t *tsd, unsigned ind);
-arena_t	*arena_choose_hard(tsd_t *tsd, bool internal);
-void	arena_migrate(tsd_t *tsd, unsigned oldind, unsigned newind);
-void	iarena_cleanup(tsd_t *tsd);
-void	arena_cleanup(tsd_t *tsd);
-void	arenas_tdata_cleanup(tsd_t *tsd);
-void	jemalloc_prefork(void);
-void	jemalloc_postfork_parent(void);
-void	jemalloc_postfork_child(void);
+void *a0malloc(size_t size);
+void a0dalloc(void *ptr);
+void *bootstrap_malloc(size_t size);
+void *bootstrap_calloc(size_t num, size_t size);
+void bootstrap_free(void *ptr);
+void arena_set(unsigned ind, arena_t *arena);
+unsigned narenas_total_get(void);
+arena_t *arena_init(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks);
+arena_tdata_t *arena_tdata_get_hard(tsd_t *tsd, unsigned ind);
+arena_t *arena_choose_hard(tsd_t *tsd, bool internal);
+void arena_migrate(tsd_t *tsd, unsigned oldind, unsigned newind);
+void iarena_cleanup(tsd_t *tsd);
+void arena_cleanup(tsd_t *tsd);
+void arenas_tdata_cleanup(tsd_t *tsd);
+void jemalloc_prefork(void);
+void jemalloc_postfork_parent(void);
+void jemalloc_postfork_child(void);
+bool malloc_initialized(void);
 
 #include "jemalloc/internal/nstime_externs.h"
 #include "jemalloc/internal/ckh_externs.h"
@@ -559,6 +560,8 @@ arena_tdata_t	*arena_tdata_get(tsd_t *tsd, unsigned ind,
     bool refresh_if_missing);
 arena_t	*arena_get(tsdn_t *tsdn, unsigned ind, bool init_if_missing);
 ticker_t	*decay_ticker_get(tsd_t *tsd, unsigned ind);
+bool	tcache_available(tsd_t *tsd);
+tcache_t	*tcache_get(tsd_t *tsd);
 malloc_cpuid_t	malloc_getcpu(void);
 unsigned	percpu_arena_choose(void);
 unsigned	percpu_arena_ind_limit(void);
@@ -929,6 +932,38 @@ decay_ticker_get(tsd_t *tsd, unsigned ind) {
 	}
 	return &tdata->decay_ticker;
 }
+
+JEMALLOC_ALWAYS_INLINE bool
+tcache_available(tsd_t *tsd) {
+	cassert(config_tcache);
+
+	/*
+	 * Thread specific auto tcache might be unavailable if: 1) during tcache
+	 * initialization, or 2) disabled through thread.tcache.enabled mallctl
+	 * or config options.  This check covers all cases.
+	 */
+	if (likely(tsd_tcache_enabled_get(tsd) == tcache_enabled_true)) {
+		/* Associated arena == null implies tcache init in progress. */
+		if (tsd_tcachep_get(tsd)->arena != NULL) {
+			assert(tsd_tcachep_get(tsd)->tbins[0].avail != NULL);
+		}
+		return true;
+	}
+
+	return false;
+}
+
+JEMALLOC_ALWAYS_INLINE tcache_t *
+tcache_get(tsd_t *tsd) {
+	if (!config_tcache) {
+		return NULL;
+	}
+	if (!tcache_available(tsd)) {
+		return NULL;
+	}
+
+	return tsd_tcachep_get(tsd);
+}
 #endif
 
 #include "jemalloc/internal/rtree_inlines.h"
@@ -959,9 +994,24 @@ arena_choose_impl(tsd_t *tsd, arena_t *arena, bool internal) {
 	ret = internal ? tsd_iarena_get(tsd) : tsd_arena_get(tsd);
 	if (unlikely(ret == NULL)) {
 		ret = arena_choose_hard(tsd, internal);
+		assert(ret);
+		if (config_tcache && tcache_available(tsd)) {
+			tcache_t *tcache = tcache_get(tsd);
+			if (tcache->arena != NULL) {
+				/* See comments in tcache_data_init().*/
+				assert(tcache->arena ==
+				    arena_get(tsd_tsdn(tsd), 0, false));
+				if (tcache->arena != ret) {
+					tcache_arena_reassociate(tsd_tsdn(tsd),
+					    tcache, ret);
+				}
+			} else {
+				tcache_arena_associate(tsd_tsdn(tsd), tcache,
+				    ret);
+			}
+		}
 	}
 
-	assert(ret != NULL);
 	/*
 	 * Note that for percpu arena, if the current arena is outside of the
 	 * auto percpu arena range, (i.e. thread is assigned to a manually
@@ -1069,8 +1119,8 @@ iallocztm(tsdn_t *tsdn, size_t size, szind_t ind, bool zero, tcache_t *tcache,
 
 JEMALLOC_ALWAYS_INLINE void *
 ialloc(tsd_t *tsd, size_t size, szind_t ind, bool zero, bool slow_path) {
-	return iallocztm(tsd_tsdn(tsd), size, ind, zero, tcache_get(tsd, true),
-	    false, NULL, slow_path);
+	return iallocztm(tsd_tsdn(tsd), size, ind, zero, tcache_get(tsd), false,
+	    NULL, slow_path);
 }
 
 JEMALLOC_ALWAYS_INLINE void *
@@ -1102,7 +1152,7 @@ ipalloct(tsdn_t *tsdn, size_t usize, size_t alignment, bool zero,
 JEMALLOC_ALWAYS_INLINE void *
 ipalloc(tsd_t *tsd, size_t usize, size_t alignment, bool zero) {
 	return ipallocztm(tsd_tsdn(tsd), usize, alignment, zero,
-	    tcache_get(tsd, true), false, NULL);
+	    tcache_get(tsd), false, NULL);
 }
 
 JEMALLOC_ALWAYS_INLINE size_t
@@ -1127,7 +1177,7 @@ idalloctm(tsdn_t *tsdn, void *ptr, tcache_t *tcache, bool is_internal,
 
 JEMALLOC_ALWAYS_INLINE void
 idalloc(tsd_t *tsd, void *ptr) {
-	idalloctm(tsd_tsdn(tsd), ptr, tcache_get(tsd, false), false, true);
+	idalloctm(tsd_tsdn(tsd), ptr, tcache_get(tsd), false, true);
 }
 
 JEMALLOC_ALWAYS_INLINE void
@@ -1199,7 +1249,7 @@ JEMALLOC_ALWAYS_INLINE void *
 iralloc(tsd_t *tsd, void *ptr, size_t oldsize, size_t size, size_t alignment,
     bool zero) {
 	return iralloct(tsd_tsdn(tsd), ptr, oldsize, size, alignment, zero,
-	    tcache_get(tsd, true), NULL);
+	    tcache_get(tsd), NULL);
 }
 
 JEMALLOC_ALWAYS_INLINE bool
