@@ -357,8 +357,10 @@ a_name##tsd_boot1(void) {						\
 		    " TSD for "#a_name"\n");				\
 		abort();						\
 	}								\
-	memcpy(wrapper, &a_name##tsd_boot_wrapper,			\
-	    sizeof(a_name##tsd_wrapper_t));				\
+	a_name##tsd_boot_wrapper.initialized = false;			\
+	a_cleanup(&a_name##tsd_boot_wrapper.val);			\
+	wrapper->initialized = false;					\
+	wrapper->val = a_initializer;					\
 	a_name##tsd_wrapper_set(wrapper);				\
 }									\
 a_attr bool								\
@@ -487,8 +489,10 @@ a_name##tsd_boot1(void) {						\
 		    " TSD for "#a_name"\n");				\
 		abort();						\
 	}								\
-	memcpy(wrapper, &a_name##tsd_boot_wrapper,			\
-	    sizeof(a_name##tsd_wrapper_t));				\
+	a_name##tsd_boot_wrapper.initialized = false;			\
+	a_cleanup(&a_name##tsd_boot_wrapper.val);			\
+	wrapper->initialized = false;					\
+	wrapper->val = a_initializer;					\
 	a_name##tsd_wrapper_set(wrapper);				\
 }									\
 a_attr bool								\

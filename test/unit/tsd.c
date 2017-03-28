@@ -5,6 +5,7 @@
 typedef unsigned int data_t;
 
 static bool data_cleanup_executed;
+static bool data_test_started;
 
 malloc_tsd_types(data_, data_t)
 malloc_tsd_protos(, data_, data_t)
@@ -13,6 +14,9 @@ void
 data_cleanup(void *arg) {
 	data_t *data = (data_t *)arg;
 
+	if (!data_test_started) {
+		return;
+	}
 	if (!data_cleanup_executed) {
 		assert_x_eq(*data, THREAD_DATA,
 		    "Argument passed into cleanup function should match tsd "
@@ -135,7 +139,9 @@ main(void) {
 		malloc_printf("Initialization error");
 		return test_status_fail;
 	}
+	data_test_started = false;
 	data_tsd_boot();
+	data_test_started = true;
 
 	return test(
 	    test_tsd_main_thread,

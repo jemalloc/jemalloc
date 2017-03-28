@@ -273,7 +273,7 @@ static bool	malloc_init_hard(void);
  * Begin miscellaneous support functions.
  */
 
-JEMALLOC_ALWAYS_INLINE_C bool
+bool
 malloc_initialized(void) {
 	return (malloc_init_state == malloc_init_initialized);
 }
@@ -1534,7 +1534,7 @@ imalloc_no_sample(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd,
 
 	/* Fill in the tcache. */
 	if (dopts->tcache_ind == TCACHE_IND_AUTOMATIC) {
-		tcache = tcache_get(tsd, true);
+		tcache = tcache_get(tsd);
 	} else if (dopts->tcache_ind == TCACHE_IND_NONE) {
 		tcache = NULL;
 	} else {
@@ -2054,7 +2054,7 @@ je_realloc(void *ptr, size_t size) {
 			/* realloc(ptr, 0) is equivalent to free(ptr). */
 			UTRACE(ptr, 0, 0);
 			tsd = tsd_fetch();
-			ifree(tsd, ptr, tcache_get(tsd, false), true);
+			ifree(tsd, ptr, tcache_get(tsd), true);
 			return NULL;
 		}
 		size = 1;
@@ -2111,9 +2111,9 @@ je_free(void *ptr) {
 		tsd_t *tsd = tsd_fetch();
 		witness_assert_lockless(tsd_tsdn(tsd));
 		if (likely(!malloc_slow)) {
-			ifree(tsd, ptr, tcache_get(tsd, false), false);
+			ifree(tsd, ptr, tcache_get(tsd), false);
 		} else {
-			ifree(tsd, ptr, tcache_get(tsd, false), true);
+			ifree(tsd, ptr, tcache_get(tsd), true);
 		}
 		witness_assert_lockless(tsd_tsdn(tsd));
 	}
@@ -2391,7 +2391,7 @@ je_rallocx(void *ptr, size_t size, int flags) {
 			tcache = tcaches_get(tsd, MALLOCX_TCACHE_GET(flags));
 		}
 	} else {
-		tcache = tcache_get(tsd, true);
+		tcache = tcache_get(tsd);
 	}
 
 	old_usize = isalloc(tsd_tsdn(tsd), ptr);
@@ -2603,7 +2603,7 @@ je_dallocx(void *ptr, int flags) {
 			tcache = tcaches_get(tsd, MALLOCX_TCACHE_GET(flags));
 		}
 	} else {
-		tcache = tcache_get(tsd, false);
+		tcache = tcache_get(tsd);
 	}
 
 	UTRACE(ptr, 0, 0);
@@ -2650,7 +2650,7 @@ je_sdallocx(void *ptr, size_t size, int flags) {
 			tcache = tcaches_get(tsd, MALLOCX_TCACHE_GET(flags));
 		}
 	} else {
-		tcache = tcache_get(tsd, false);
+		tcache = tcache_get(tsd);
 	}
 
 	UTRACE(ptr, 0, 0);

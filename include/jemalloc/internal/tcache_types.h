@@ -47,4 +47,7 @@ typedef struct tcaches_s tcaches_t;
 #define TCACHE_GC_INCR							\
     ((TCACHE_GC_SWEEP / NBINS) + ((TCACHE_GC_SWEEP / NBINS == 0) ? 0 : 1))
 
+/* Used in TSD static initializer only. Real init in tcache_data_init(). */
+#define TCACHE_ZERO_INITIALIZER {{NULL}}
+
 #endif /* JEMALLOC_INTERNAL_TCACHE_TYPES_H */

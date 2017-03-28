@@ -57,12 +57,10 @@ percpu_arena_update(tsd_t *tsd, unsigned cpu) {
 
 		/* Set new arena/tcache associations. */
 		arena_migrate(tsd, oldind, newind);
-		if (config_tcache) {
-			tcache_t *tcache = tsd_tcache_get(tsd);
-			if (tcache) {
-				tcache_arena_reassociate(tsd_tsdn(tsd), tcache,
-				    newarena);
-			}
+		tcache_t *tcache = tcache_get(tsd);
+		if (config_tcache && tcache) {
+			tcache_arena_reassociate(tsd_tsdn(tsd), tcache,
+			    newarena);
 		}
 	}
 }

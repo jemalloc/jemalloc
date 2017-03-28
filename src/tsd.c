@@ -21,11 +21,6 @@ malloc_tsd_dalloc(void *wrapper) {
 	a0dalloc(wrapper);
 }
 
-void
-malloc_tsd_no_cleanup(void *arg) {
-	not_reached();
-}
-
 #if defined(JEMALLOC_MALLOC_THREAD_CLEANUP) || defined(_WIN32)
 #ifndef _WIN32
 JEMALLOC_EXPORT

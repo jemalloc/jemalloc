@@ -1532,7 +1532,7 @@ thread_arena_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
 		/* Set new arena/tcache associations. */
 		arena_migrate(tsd, oldind, newind);
 		if (config_tcache) {
-			tcache_t *tcache = tsd_tcache_get(tsd);
+			tcache_t *tcache = tsd_tcachep_get(tsd);
 			if (tcache != NULL) {
 				tcache_arena_reassociate(tsd_tsdn(tsd), tcache,
 				    newarena);
@@ -1564,13 +1564,13 @@ thread_tcache_enabled_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
 		return ENOENT;
 	}
 
-	oldval = tcache_enabled_get();
+	oldval = tcache_enabled_get(tsd);
 	if (newp != NULL) {
 		if (newlen != sizeof(bool)) {
 			ret = EINVAL;
 			goto label_return;
 		}
-		tcache_enabled_set(*(bool *)newp);
+		tcache_enabled_set(tsd, *(bool *)newp);
 	}
 	READ(oldval, bool);
 

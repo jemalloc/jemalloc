@@ -321,13 +321,18 @@ rtree_leaf_elm_lookup(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
 	assert(!dependent || !init_missing);
 
 	uintptr_t leafkey = rtree_leafkey(key);
+	assert(leafkey != RTREE_LEAFKEY_INVALID);
+
 #define RTREE_CACHE_CHECK(i) do {					\
 	if (likely(rtree_ctx->cache[i].leafkey == leafkey)) {		\
 		rtree_leaf_elm_t *leaf = rtree_ctx->cache[i].leaf;	\
 		assert(leaf != NULL);					\
 		if (i > 0) {						\
 			/* Bubble up by one. */				\
-			rtree_ctx->cache[i] = rtree_ctx->cache[i - 1];	\
+			rtree_ctx->cache[i].leafkey =			\
+				rtree_ctx->cache[i - 1].leafkey;	\
+			rtree_ctx->cache[i].leaf =			\
+				rtree_ctx->cache[i - 1].leaf;		\
 			rtree_ctx->cache[i - 1].leafkey = leafkey;	\
 			rtree_ctx->cache[i - 1].leaf = leaf;		\
 		}							\
