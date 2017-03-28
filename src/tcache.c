@@ -91,19 +91,23 @@ tcache_alloc_small_hard(tsdn_t *tsdn, arena_t *arena, tcache_t *tcache,
 void
 tcache_bin_flush_small(tsd_t *tsd, tcache_t *tcache, tcache_bin_t *tbin,
     szind_t binind, unsigned rem) {
-	arena_t *arena;
-	void *ptr;
-	unsigned i, nflush, ndeferred;
 	bool merged_stats = false;
 
 	assert(binind < NBINS);
 	assert(rem <= tbin->ncached);
 
-	arena = tcache->arena;
+	arena_t *arena = tcache->arena;
 	assert(arena != NULL);
-	for (nflush = tbin->ncached - rem; nflush > 0; nflush = ndeferred) {
+	unsigned nflush = tbin->ncached - rem;
+	VARIABLE_ARRAY(extent_t *, item_extent, nflush);
+	/* Look up extent once per item. */
+	for (unsigned i = 0 ; i < nflush; i++) {
+		item_extent[i] = iealloc(tsd_tsdn(tsd), *(tbin->avail - 1 - i));
+	}
+
+	while (nflush > 0) {
 		/* Lock the arena bin associated with the first object. */
-		extent_t *extent = iealloc(tsd_tsdn(tsd), *(tbin->avail - 1));
+		extent_t *extent = item_extent[0];
 		arena_t *bin_arena = extent_arena_get(extent);
 		arena_bin_t *bin = &bin_arena->bins[binind];
 
@@ -123,12 +127,12 @@ tcache_bin_flush_small(tsd_t *tsd, tcache_t *tcache, tcache_bin_t *tbin,
 			bin->stats.nrequests += tbin->tstats.nrequests;
 			tbin->tstats.nrequests = 0;
 		}
-		ndeferred = 0;
-		for (i = 0; i < nflush; i++) {
-			ptr = *(tbin->avail - 1 - i);
-			assert(ptr != NULL);
+		unsigned ndeferred = 0;
+		for (unsigned i = 0; i < nflush; i++) {
+			void *ptr = *(tbin->avail - 1 - i);
+			extent = item_extent[i];
+			assert(ptr != NULL && extent != NULL);
 
-			extent = iealloc(tsd_tsdn(tsd), ptr);
 			if (extent_arena_get(extent) == bin_arena) {
 				arena_dalloc_bin_junked_locked(tsd_tsdn(tsd),
 				    bin_arena, extent, ptr);
@@ -140,11 +144,13 @@ tcache_bin_flush_small(tsd_t *tsd, tcache_t *tcache, tcache_bin_t *tbin,
 				 * handled in a future pass.
 				 */
 				*(tbin->avail - 1 - ndeferred) = ptr;
+				item_extent[ndeferred] = extent;
 				ndeferred++;
 			}
 		}
 		malloc_mutex_unlock(tsd_tsdn(tsd), &bin->lock);
 		arena_decay_ticks(tsd_tsdn(tsd), bin_arena, nflush - ndeferred);
+		nflush = ndeferred;
 	}
 	if (config_stats && !merged_stats) {
 		/*
@@ -178,9 +184,15 @@ tcache_bin_flush_large(tsd_t *tsd, tcache_bin_t *tbin, szind_t binind,
 	arena_t *arena = tcache->arena;
 	assert(arena != NULL);
 	unsigned nflush = tbin->ncached - rem;
+	VARIABLE_ARRAY(extent_t *, item_extent, nflush);
+	/* Look up extent once per item. */
+	for (unsigned i = 0 ; i < nflush; i++) {
+		item_extent[i] = iealloc(tsd_tsdn(tsd), *(tbin->avail - 1 - i));
+	}
+
 	while (nflush > 0) {
 		/* Lock the arena associated with the first object. */
-		extent_t *extent = iealloc(tsd_tsdn(tsd), *(tbin->avail - 1));
+		extent_t *extent = item_extent[0];
 		arena_t *locked_arena = extent_arena_get(extent);
 		UNUSED bool idump;
 
@@ -217,8 +229,9 @@ tcache_bin_flush_large(tsd_t *tsd, tcache_bin_t *tbin, szind_t binind,
 		unsigned ndeferred = 0;
 		for (unsigned i = 0; i < nflush; i++) {
 			void *ptr = *(tbin->avail - 1 - i);
-			assert(ptr != NULL);
-			extent = iealloc(tsd_tsdn(tsd), ptr);
+			extent = item_extent[i];
+			assert(ptr != NULL && extent != NULL);
+
 			if (extent_arena_get(extent) == locked_arena) {
 				large_dalloc_finish(tsd_tsdn(tsd), extent);
 			} else {
@@ -229,6 +242,7 @@ tcache_bin_flush_large(tsd_t *tsd, tcache_bin_t *tbin, szind_t binind,
 				 * in a future pass.
 				 */
 				*(tbin->avail - 1 - ndeferred) = ptr;
+				item_extent[ndeferred] = extent;
 				ndeferred++;
 			}
 		}
