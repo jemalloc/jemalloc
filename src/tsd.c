@@ -149,6 +149,15 @@ _tls_callback(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved) {
 	return true;
 }
 
+/*
+ * We need to be able to say "read" here (in the "pragma section"), but have
+ * hooked "read". We won't read for the rest of the file, so we can get away
+ * with unhooking.
+ */
+#ifdef read
+#  undef read
+#endif
+
 #ifdef _MSC_VER
 #  ifdef _M_IX86
 #    pragma comment(linker, "/INCLUDE:__tls_used")

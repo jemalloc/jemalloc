@@ -278,7 +278,7 @@ main(void) {
 	/* Intercept dumping prior to running any tests. */
 	prof_dump_open = prof_dump_open_intercept;
 
-	return test(
+	return test_no_reentrancy(
 	    test_prof_reset_basic,
 	    test_prof_reset_cleanup,
 	    test_prof_reset,
