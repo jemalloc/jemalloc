@@ -8,7 +8,7 @@ tsd_t *tsd_fetch_impl(bool init);
 tsd_t *tsd_fetch(void);
 tsdn_t *tsd_tsdn(tsd_t *tsd);
 bool tsd_nominal(tsd_t *tsd);
-#define O(n, t, gs, c)							\
+#define O(n, t, gs, i, c)						\
 t *tsd_##n##p_get(tsd_t *tsd);						\
 t tsd_##n##_get(tsd_t *tsd);						\
 void tsd_##n##_set(tsd_t *tsd, t n);
@@ -39,9 +39,11 @@ tsd_fetch_impl(bool init) {
 			tsd->state = tsd_state_nominal;
 			/* Trigger cleanup handler registration. */
 			tsd_set(tsd);
+			tsd_data_init(tsd);
 		} else if (tsd->state == tsd_state_purgatory) {
 			tsd->state = tsd_state_reincarnated;
 			tsd_set(tsd);
+			tsd_data_init(tsd);
 		} else {
 			assert(tsd->state == tsd_state_reincarnated);
 		}
@@ -76,7 +78,7 @@ tsd_##n##_set(tsd_t *tsd, t n) {					\
 	tsd->n = n;							\
 }
 #define MALLOC_TSD_getset_no(n, t)
-#define O(n, t, gs, c)							\
+#define O(n, t, gs, i, c)						\
 JEMALLOC_ALWAYS_INLINE t *						\
 tsd_##n##p_get(tsd_t *tsd) {						\
 	return &tsd->n;							\
@@ -121,8 +123,7 @@ tsdn_rtree_ctx(tsdn_t *tsdn, rtree_ctx_t *fallback) {
 	 * return a pointer to it.
 	 */
 	if (unlikely(tsdn_null(tsdn))) {
-		static const rtree_ctx_t rtree_ctx = RTREE_CTX_INITIALIZER;
-		memcpy(fallback, &rtree_ctx, sizeof(rtree_ctx_t));
+		rtree_ctx_data_init(fallback);
 		return fallback;
 	}
 	return tsd_rtree_ctx(tsdn_tsd(tsdn));

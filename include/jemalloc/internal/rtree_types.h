@@ -38,6 +38,9 @@ typedef struct rtree_s rtree_t;
 #  define RTREE_LEAF_COMPACT
 #endif
 
+/* Needed for initialization only. */
+#define RTREE_LEAFKEY_INVALID	((uintptr_t)1)
+
 /*
  * Number of leafkey/leaf pairs to cache.  Each entry supports an entire leaf,
  * so the cache hit rate is typically high even with a small number of entries.
@@ -51,12 +54,13 @@ typedef struct rtree_s rtree_t;
  * the tree nodes, and the cache will itself suffer cache misses if made overly
  * large, not to mention the cost of linear search.
  */
-#define RTREE_CTX_NCACHE 8
+#define RTREE_CTX_NCACHE	8
 
-/* Static initializer for rtree_ctx_t. */
-#define RTREE_CTX_INITIALIZER	{					\
-	{{0, NULL} /* C initializes all trailing elements to NULL. */}	\
-}
+/*
+ * Zero initializer required for tsd initialization only.  Proper initialization
+ * done via rtree_ctx_data_init().
+ */
+#define RTREE_CTX_ZERO_INITIALIZER {{{0}}}
 
 /*
  * Maximum number of concurrently acquired elements per thread.  This controls

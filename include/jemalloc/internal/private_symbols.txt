@@ -424,6 +424,7 @@ prof_thread_name_set
 psz2ind
 psz2u
 rtree_clear
+rtree_ctx_data_init
 rtree_delete
 rtree_extent_read
 rtree_extent_szind_read
@@ -520,6 +521,7 @@ tsd_booted
 tsd_booted_get
 tsd_cleanup
 tsd_cleanup_wrapper
+tsd_data_init
 tsd_fetch
 tsd_fetch_impl
 tsd_get

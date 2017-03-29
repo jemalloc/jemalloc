@@ -14,5 +14,6 @@ void	*tsd_init_check_recursion(tsd_init_head_t *head,
 void	tsd_init_finish(tsd_init_head_t *head, tsd_init_block_t *block);
 #endif
 void	tsd_cleanup(void *arg);
+bool	tsd_data_init(void *arg);
 
 #endif /* JEMALLOC_INTERNAL_TSD_EXTERNS_H */
