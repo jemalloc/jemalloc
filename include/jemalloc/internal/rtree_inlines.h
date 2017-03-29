@@ -324,19 +324,15 @@ rtree_leaf_elm_lookup(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
 #define RTREE_CACHE_CHECK(i) do {					\
 	if (likely(rtree_ctx->cache[i].leafkey == leafkey)) {		\
 		rtree_leaf_elm_t *leaf = rtree_ctx->cache[i].leaf;	\
-		if (likely(leaf != NULL)) {				\
+		assert(leaf != NULL);					\
+		if (i > 0) {						\
 			/* Bubble up by one. */				\
-			if (i > 0) {					\
-				rtree_ctx->cache[i] =			\
-					rtree_ctx->cache[i - 1];	\
-				rtree_ctx->cache[i - 1].leafkey =	\
-					leafkey;			\
-				rtree_ctx->cache[i - 1].leaf = leaf;	\
-			}						\
-			uintptr_t subkey = rtree_subkey(key,		\
-			    RTREE_HEIGHT-1);				\
-			return &leaf[subkey];				\
+			rtree_ctx->cache[i] = rtree_ctx->cache[i - 1];	\
+			rtree_ctx->cache[i - 1].leafkey = leafkey;	\
+			rtree_ctx->cache[i - 1].leaf = leaf;		\
 		}							\
+		uintptr_t subkey = rtree_subkey(key, RTREE_HEIGHT-1);	\
+		return &leaf[subkey];					\
 	}								\
 } while (0)
 	/* Check the first cache entry. */
