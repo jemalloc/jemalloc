@@ -39,7 +39,7 @@ typedef struct rtree_s rtree_t;
 #endif
 
 /* Needed for initialization only. */
-#define RTREE_LEAFKEY_INVALID	((uintptr_t)1)
+#define RTREE_LEAFKEY_INVALID ((uintptr_t)1)
 
 /*
  * Number of leafkey/leaf pairs to cache.  Each entry supports an entire leaf,
@@ -54,7 +54,7 @@ typedef struct rtree_s rtree_t;
  * the tree nodes, and the cache will itself suffer cache misses if made overly
  * large, not to mention the cost of linear search.
  */
-#define RTREE_CTX_NCACHE	8
+#define RTREE_CTX_NCACHE 8
 
 /*
  * Zero initializer required for tsd initialization only.  Proper initialization
@@ -68,7 +68,7 @@ typedef struct rtree_s rtree_t;
  * would have a witness_t directly embedded, but that would dramatically bloat
  * the tree.  This must contain enough entries to e.g. coalesce two extents.
  */
-#define RTREE_ELM_ACQUIRE_MAX	4
+#define RTREE_ELM_ACQUIRE_MAX 4
 
 /* Initializers for rtree_leaf_elm_witness_tsd_t. */
 #define RTREE_ELM_WITNESS_INITIALIZER {					\
