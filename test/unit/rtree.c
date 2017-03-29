@@ -68,7 +68,8 @@ TEST_BEGIN(test_rtree_read_empty) {
 	tsdn = tsdn_fetch();
 
 	rtree_t *rtree = &test_rtree;
-	rtree_ctx_t rtree_ctx = RTREE_CTX_INITIALIZER;
+	rtree_ctx_t rtree_ctx;
+	rtree_ctx_data_init(&rtree_ctx);
 	assert_false(rtree_new(rtree, false), "Unexpected rtree_new() failure");
 	assert_ptr_null(rtree_extent_read(tsdn, rtree, &rtree_ctx, PAGE,
 	    false), "rtree_extent_read() should return NULL for empty tree");
@@ -89,7 +90,8 @@ typedef struct {
 static void *
 thd_start(void *varg) {
 	thd_start_arg_t *arg = (thd_start_arg_t *)varg;
-	rtree_ctx_t rtree_ctx = RTREE_CTX_INITIALIZER;
+	rtree_ctx_t rtree_ctx;
+	rtree_ctx_data_init(&rtree_ctx);
 	sfmt_t *sfmt;
 	extent_t *extent;
 	tsdn_t *tsdn;
@@ -173,7 +175,8 @@ TEST_BEGIN(test_rtree_extrema) {
 	tsdn_t *tsdn = tsdn_fetch();
 
 	rtree_t *rtree = &test_rtree;
-	rtree_ctx_t rtree_ctx = RTREE_CTX_INITIALIZER;
+	rtree_ctx_t rtree_ctx;
+	rtree_ctx_data_init(&rtree_ctx);
 	assert_false(rtree_new(rtree, false), "Unexpected rtree_new() failure");
 
 	assert_false(rtree_write(tsdn, rtree, &rtree_ctx, PAGE, &extent_a,
@@ -207,8 +210,8 @@ TEST_BEGIN(test_rtree_bits) {
 	    extent_state_active, false, false);
 
 	rtree_t *rtree = &test_rtree;
-	rtree_ctx_t rtree_ctx = RTREE_CTX_INITIALIZER;
-
+	rtree_ctx_t rtree_ctx;
+	rtree_ctx_data_init(&rtree_ctx);
 	assert_false(rtree_new(rtree, false), "Unexpected rtree_new() failure");
 
 	for (unsigned i = 0; i < sizeof(keys)/sizeof(uintptr_t); i++) {
@@ -240,7 +243,8 @@ TEST_BEGIN(test_rtree_random) {
 	tsdn_t *tsdn = tsdn_fetch();
 	uintptr_t keys[NSET];
 	rtree_t *rtree = &test_rtree;
-	rtree_ctx_t rtree_ctx = RTREE_CTX_INITIALIZER;
+	rtree_ctx_t rtree_ctx;
+	rtree_ctx_data_init(&rtree_ctx);
 
 	extent_t extent;
 	extent_init(&extent, NULL, NULL, 0, false, NSIZES, 0,

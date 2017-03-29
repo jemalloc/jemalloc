@@ -60,6 +60,23 @@ malloc_tsd_cleanup_register(bool (*f)(void)) {
 	ncleanups++;
 }
 
+bool
+tsd_data_init(void *arg) {
+	tsd_t *tsd = (tsd_t *)arg;
+#define MALLOC_TSD_init_yes(n, t)					\
+	if (n##_data_init(&tsd->n)) {					\
+		return true;						\
+	}
+#define MALLOC_TSD_init_no(n, t)
+#define O(n, t, gs, i, c)						\
+	MALLOC_TSD_init_##i(n, t)
+MALLOC_TSD
+#undef MALLOC_TSD_init_yes
+#undef MALLOC_TSD_init_no
+#undef O
+	return false;
+}
+
 void
 tsd_cleanup(void *arg) {
 	tsd_t *tsd = (tsd_t *)arg;
@@ -72,7 +89,7 @@ tsd_cleanup(void *arg) {
 #define MALLOC_TSD_cleanup_yes(n, t)					\
 		n##_cleanup(tsd);
 #define MALLOC_TSD_cleanup_no(n, t)
-#define O(n, t, gs, c)							\
+#define O(n, t, gs, i, c)						\
 		MALLOC_TSD_cleanup_##c(n, t)
 MALLOC_TSD
 #undef MALLOC_TSD_cleanup_yes
