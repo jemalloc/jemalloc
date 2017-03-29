@@ -98,6 +98,7 @@ C_SRCS := $(srcroot)src/jemalloc.c \
 	$(srcroot)src/extent_dss.c \
 	$(srcroot)src/extent_mmap.c \
 	$(srcroot)src/hash.c \
+	$(srcroot)src/hooks.c \
 	$(srcroot)src/large.c \
 	$(srcroot)src/malloc_io.c \
 	$(srcroot)src/mutex.c \
@@ -161,6 +162,7 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/extent_quantize.c \
 	$(srcroot)test/unit/fork.c \
 	$(srcroot)test/unit/hash.c \
+	$(srcroot)test/unit/hooks.c \
 	$(srcroot)test/unit/junk.c \
 	$(srcroot)test/unit/junk_alloc.c \
 	$(srcroot)test/unit/junk_free.c \

@@ -76,6 +76,6 @@ TEST_END
 
 int
 main(void) {
-	return test(
+	return test_no_reentrancy(
 	    test_idump);
 }

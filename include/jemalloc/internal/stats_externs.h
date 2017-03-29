@@ -3,7 +3,7 @@
 
 extern bool	opt_stats_print;
 
-void	stats_print(void (*write)(void *, const char *), void *cbopaque,
+void	stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
     const char *opts);
 
 #endif /* JEMALLOC_INTERNAL_STATS_EXTERNS_H */

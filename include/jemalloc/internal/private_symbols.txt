@@ -232,6 +232,7 @@ hash_rotl_64
 hash_x64_128
 hash_x86_128
 hash_x86_32
+hooks_libc_hook
 iaalloc
 ialloc
 iallocztm
