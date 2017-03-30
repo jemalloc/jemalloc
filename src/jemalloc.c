@@ -422,13 +422,7 @@ arena_init(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 
 static void
 arena_bind(tsd_t *tsd, unsigned ind, bool internal) {
-	arena_t *arena;
-
-	if (!tsd_nominal(tsd)) {
-		return;
-	}
-
-	arena = arena_get(tsd_tsdn(tsd), ind, false);
+	arena_t *arena = arena_get(tsd_tsdn(tsd), ind, false);
 	arena_nthreads_inc(arena, internal);
 
 	if (internal) {
@@ -455,6 +449,7 @@ arena_unbind(tsd_t *tsd, unsigned ind, bool internal) {
 
 	arena = arena_get(tsd_tsdn(tsd), ind, false);
 	arena_nthreads_dec(arena, internal);
+
 	if (internal) {
 		tsd_iarena_set(tsd, NULL);
 	} else {

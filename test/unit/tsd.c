@@ -90,6 +90,44 @@ TEST_BEGIN(test_tsd_sub_thread) {
 }
 TEST_END
 
+static void *
+thd_start_reincarnated(void *arg) {
+	tsd_t *tsd = tsd_fetch();
+	assert(tsd);
+
+	void *p = malloc(1);
+	assert_ptr_not_null(p, "Unexpected malloc() failure");
+
+	/* Manually trigger reincarnation. */
+	assert_ptr_not_null(tsd->arena, "Should have tsd arena set.");
+	tsd_cleanup((void *)tsd);
+	assert_ptr_null(tsd->arena, "TSD arena should have been cleared.");
+	assert_u_eq(tsd->state, tsd_state_purgatory,
+	    "TSD state should be purgatory\n");
+
+	free(p);
+	assert_u_eq(tsd->state, tsd_state_reincarnated,
+	    "TSD state should be reincarnated\n");
+	p = mallocx(1, MALLOCX_TCACHE_NONE);
+	assert_ptr_not_null(p, "Unexpected malloc() failure");
+	assert_ptr_not_null(tsd->arena,
+	    "Should have tsd arena set after reincarnation.");
+
+	free(p);
+	tsd_cleanup((void *)tsd);
+	assert_ptr_null(tsd->arena,
+	    "TSD arena should have been cleared after 2nd cleanup.");
+
+	return NULL;
+}
+
+TEST_BEGIN(test_tsd_reincarnation) {
+	thd_t thd;
+	thd_create(&thd, thd_start_reincarnated, NULL);
+	thd_join(thd, NULL);
+}
+TEST_END
+
 int
 main(void) {
 	/* Core tsd bootstrapping must happen prior to data_tsd_boot(). */
@@ -101,5 +139,6 @@ main(void) {
 
 	return test(
 	    test_tsd_main_thread,
-	    test_tsd_sub_thread);
+	    test_tsd_sub_thread,
+	    test_tsd_reincarnation);
 }

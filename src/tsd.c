@@ -86,6 +86,12 @@ tsd_cleanup(void *arg) {
 		/* Do nothing. */
 		break;
 	case tsd_state_nominal:
+	case tsd_state_reincarnated:
+		/*
+		 * Reincarnated means another destructor deallocated memory
+		 * after this destructor was called.  Reset state to
+		 * tsd_state_purgatory and request another callback.
+		 */
 #define MALLOC_TSD_cleanup_yes(n, t)					\
 		n##_cleanup(tsd);
 #define MALLOC_TSD_cleanup_no(n, t)
@@ -105,15 +111,6 @@ MALLOC_TSD
 		 * wouldn't cause re-creation of the tsd.  This time, do
 		 * nothing, and do not request another callback.
 		 */
-		break;
-	case tsd_state_reincarnated:
-		/*
-		 * Another destructor deallocated memory after this destructor
-		 * was called.  Reset state to tsd_state_purgatory and request
-		 * another callback.
-		 */
-		tsd->state = tsd_state_purgatory;
-		tsd_set(tsd);
 		break;
 	default:
 		not_reached();

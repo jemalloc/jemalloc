@@ -74,7 +74,8 @@ tsd_##n##_get(tsd_t *tsd) {						\
 }									\
 JEMALLOC_ALWAYS_INLINE void						\
 tsd_##n##_set(tsd_t *tsd, t n) {					\
-	assert(tsd->state == tsd_state_nominal);			\
+	assert(tsd->state == tsd_state_nominal ||			\
+	    tsd->state == tsd_state_reincarnated);			\
 	tsd->n = n;							\
 }
 #define MALLOC_TSD_getset_no(n, t)
