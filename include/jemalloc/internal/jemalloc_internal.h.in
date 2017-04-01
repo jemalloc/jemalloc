@@ -1013,6 +1013,11 @@ arena_choose_impl(tsd_t *tsd, arena_t *arena, bool internal) {
 		return arena;
 	}
 
+	/* During reentrancy, arena 0 is the safest bet. */
+	if (*tsd_reentrancy_levelp_get(tsd) > 1) {
+		return arena_get(tsd_tsdn(tsd), 0, true);
+	}
+
 	ret = internal ? tsd_iarena_get(tsd) : tsd_arena_get(tsd);
 	if (unlikely(ret == NULL)) {
 		ret = arena_choose_hard(tsd, internal);
@@ -1193,7 +1198,9 @@ idalloctm(tsdn_t *tsdn, void *ptr, tcache_t *tcache, bool is_internal,
 	if (config_stats && is_internal) {
 		arena_internal_sub(iaalloc(tsdn, ptr), isalloc(tsdn, ptr));
 	}
-
+	if (!is_internal && *tsd_reentrancy_levelp_get(tsdn_tsd(tsdn)) != 0) {
+		tcache = NULL;
+	}
 	arena_dalloc(tsdn, ptr, tcache, slow_path);
 }
 

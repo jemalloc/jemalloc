@@ -65,7 +65,8 @@ struct tsd_init_head_s {
     O(witnesses,		witness_list_t,	no,	no,	yes)	\
     O(rtree_leaf_elm_witnesses,	rtree_leaf_elm_witness_tsd_t,		\
 						no,	no,	no)	\
-    O(witness_fork,		bool,		yes,	no,	no)
+    O(witness_fork,		bool,		yes,	no,	no)	\
+    O(reentrancy_level,		int,		no,	no,	no)
 
 #define TSD_INITIALIZER {						\
     tsd_state_uninitialized,						\
@@ -82,7 +83,8 @@ struct tsd_init_head_s {
     TCACHE_ZERO_INITIALIZER,						\
     ql_head_initializer(witnesses),					\
     RTREE_ELM_WITNESS_TSD_INITIALIZER,					\
-    false								\
+    false,								\
+    0									\
 }
 
 struct tsd_s {

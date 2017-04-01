@@ -232,6 +232,7 @@ hash_rotl_64
 hash_x64_128
 hash_x86_128
 hash_x86_32
+hooks_arena_new_hook
 hooks_libc_hook
 iaalloc
 ialloc
@@ -537,6 +538,9 @@ tsd_init_head
 tsd_narenas_tdata_get
 tsd_narenas_tdata_set
 tsd_narenas_tdatap_get
+tsd_reentrancy_level_get
+tsd_reentrancy_level_set
+tsd_reentrancy_levelp_get
 tsd_wrapper_get
 tsd_wrapper_set
 tsd_nominal
