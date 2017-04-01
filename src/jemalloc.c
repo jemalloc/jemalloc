@@ -1656,6 +1656,14 @@ imalloc_body(static_opts_t *sopts, dynamic_opts_t *dopts) {
 	szind_t ind = 0;
 	size_t usize = 0;
 
+	/*
+	 * For reentrancy checking, we get the old reentrancy level from tsd and
+	 * reset it once we're done.  In case of early bailout though, we never
+	 * bother getting the old level, so we shouldn't try to reset it.  This
+	 * is indicated by leaving the pointer as NULL.
+	 */
+	int *reentrancy_level = NULL;
+
 	/* Initialize (if we can't prove we don't have to). */
 	if (sopts->slow) {
 		if (unlikely(malloc_init())) {
@@ -1708,7 +1716,27 @@ imalloc_body(static_opts_t *sopts, dynamic_opts_t *dopts) {
 	 * some reason.  Let's grab it right away.
 	 */
 	tsd = tsd_fetch();
-	witness_assert_lockless(tsd_tsdn(tsd));
+
+	/*
+	 * If we need to handle reentrancy, we can do it out of a
+	 * known-initialized arena (i.e. arena 0).
+	 */
+	reentrancy_level = tsd_reentrancy_levelp_get(tsd);
+	++*reentrancy_level;
+	if (*reentrancy_level == 1) {
+		witness_assert_lockless(tsd_tsdn(tsd));
+	}
+	if (unlikely(*reentrancy_level > 1)) {
+		/*
+		 * We should never specify particular arenas or tcaches from
+		 * within our internal allocations.
+		 */
+		assert(dopts->tcache_ind == TCACHE_IND_AUTOMATIC);
+		assert(dopts->arena_ind = ARENA_IND_AUTOMATIC);
+		dopts->tcache_ind = TCACHE_IND_NONE;
+		/* We know that arena 0 has already been initialized. */
+		dopts->arena_ind = 0;
+	}
 
 	/* If profiling is on, get our profiling context. */
 	if (config_prof && opt_prof) {
@@ -1769,9 +1797,15 @@ imalloc_body(static_opts_t *sopts, dynamic_opts_t *dopts) {
 		UTRACE(0, size, allocation);
 	}
 
-	witness_assert_lockless(tsd_tsdn(tsd));
-
 	/* Success! */
+	if (*reentrancy_level == 1) {
+		witness_assert_lockless(tsd_tsdn(tsd));
+	}
+	/*
+	 * If we got here, we never bailed out on a failure path, so
+	 * reentrancy_level is non-null.
+	 */
+	--*reentrancy_level;
 	*dopts->result = allocation;
 	return 0;
 
@@ -1793,6 +1827,10 @@ label_oom:
 
 	if (sopts->null_out_result_on_error) {
 		*dopts->result = NULL;
+	}
+
+	if (reentrancy_level != NULL) {
+		--*reentrancy_level;
 	}
 
 	return ENOMEM;
@@ -1820,6 +1858,10 @@ label_invalid_alignment:
 
 	if (sopts->null_out_result_on_error) {
 		*dopts->result = NULL;
+	}
+
+	if (reentrancy_level != NULL) {
+		--*reentrancy_level;
 	}
 
 	return EINVAL;
@@ -1996,7 +2038,9 @@ irealloc_prof(tsd_t *tsd, void *old_ptr, size_t old_usize, size_t usize) {
 
 JEMALLOC_ALWAYS_INLINE_C void
 ifree(tsd_t *tsd, void *ptr, tcache_t *tcache, bool slow_path) {
-	witness_assert_lockless(tsd_tsdn(tsd));
+	if (*tsd_reentrancy_levelp_get(tsd) == 0) {
+		witness_assert_lockless(tsd_tsdn(tsd));
+	}
 
 	assert(ptr != NULL);
 	assert(malloc_initialized() || IS_INITIALIZER);
@@ -2021,7 +2065,9 @@ ifree(tsd_t *tsd, void *ptr, tcache_t *tcache, bool slow_path) {
 
 JEMALLOC_ALWAYS_INLINE_C void
 isfree(tsd_t *tsd, void *ptr, size_t usize, tcache_t *tcache, bool slow_path) {
-	witness_assert_lockless(tsd_tsdn(tsd));
+	if (*tsd_reentrancy_levelp_get(tsd) == 0) {
+		witness_assert_lockless(tsd_tsdn(tsd));
+	}
 
 	assert(ptr != NULL);
 	assert(malloc_initialized() || IS_INITIALIZER);
@@ -2056,7 +2102,11 @@ je_realloc(void *ptr, size_t size) {
 			/* realloc(ptr, 0) is equivalent to free(ptr). */
 			UTRACE(ptr, 0, 0);
 			tsd = tsd_fetch();
-			ifree(tsd, ptr, tcache_get(tsd), true);
+			tcache_t *tcache = NULL;
+			if (likely(*tsd_reentrancy_levelp_get(tsd) == 0)) {
+				tcache = tcache_get(tsd);
+			}
+			ifree(tsd, ptr, tcache, true);
 			return NULL;
 		}
 		size = 1;
@@ -2111,13 +2161,21 @@ je_free(void *ptr) {
 	UTRACE(ptr, 0, 0);
 	if (likely(ptr != NULL)) {
 		tsd_t *tsd = tsd_fetch();
-		witness_assert_lockless(tsd_tsdn(tsd));
-		if (likely(!malloc_slow)) {
-			ifree(tsd, ptr, tcache_get(tsd), false);
-		} else {
-			ifree(tsd, ptr, tcache_get(tsd), true);
+		if (*tsd_reentrancy_levelp_get(tsd) == 0) {
+			witness_assert_lockless(tsd_tsdn(tsd));
 		}
-		witness_assert_lockless(tsd_tsdn(tsd));
+		tcache_t *tcache = NULL;
+		if (likely(*tsd_reentrancy_levelp_get(tsd) == 0)) {
+			tcache = tcache_get(tsd);
+		}
+		if (likely(!malloc_slow)) {
+			ifree(tsd, ptr, tcache, false);
+		} else {
+			ifree(tsd, ptr, tcache, true);
+		}
+		if (*tsd_reentrancy_levelp_get(tsd) == 0) {
+			witness_assert_lockless(tsd_tsdn(tsd));
+		}
 	}
 }
 
@@ -2599,13 +2657,19 @@ je_dallocx(void *ptr, int flags) {
 	tsd = tsd_fetch();
 	witness_assert_lockless(tsd_tsdn(tsd));
 	if (unlikely((flags & MALLOCX_TCACHE_MASK) != 0)) {
+		/* Not allowed to be reentrant and specify a custom tcache. */
+		assert(*tsd_reentrancy_levelp_get(tsd) == 0);
 		if ((flags & MALLOCX_TCACHE_MASK) == MALLOCX_TCACHE_NONE) {
 			tcache = NULL;
 		} else {
 			tcache = tcaches_get(tsd, MALLOCX_TCACHE_GET(flags));
 		}
 	} else {
-		tcache = tcache_get(tsd);
+		if (likely(*tsd_reentrancy_levelp_get(tsd) == 0)) {
+			tcache = tcache_get(tsd);
+		} else {
+			tcache = NULL;
+		}
 	}
 
 	UTRACE(ptr, 0, 0);
@@ -2646,13 +2710,19 @@ je_sdallocx(void *ptr, size_t size, int flags) {
 
 	witness_assert_lockless(tsd_tsdn(tsd));
 	if (unlikely((flags & MALLOCX_TCACHE_MASK) != 0)) {
+		/* Not allowed to be reentrant and specify a custom tcache. */
+		assert(*tsd_reentrancy_levelp_get(tsd) == 0);
 		if ((flags & MALLOCX_TCACHE_MASK) == MALLOCX_TCACHE_NONE) {
 			tcache = NULL;
 		} else {
 			tcache = tcaches_get(tsd, MALLOCX_TCACHE_GET(flags));
 		}
 	} else {
-		tcache = tcache_get(tsd);
+		if (likely(*tsd_reentrancy_levelp_get(tsd) == 0)) {
+			tcache = tcache_get(tsd);
+		} else {
+			tcache = NULL;
+		}
 	}
 
 	UTRACE(ptr, 0, 0);

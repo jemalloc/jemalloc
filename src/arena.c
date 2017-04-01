@@ -1946,6 +1946,19 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 
 	arena->base = base;
 
+	/* We don't support reetrancy for arena 0 bootstrapping. */
+	if (ind != 0 && hooks_arena_new_hook) {
+		/*
+		 * If we're here, then arena 0 already exists, so bootstrapping
+		 * is done enough that we should have tsd.
+		 */
+		int *reentrancy_level = tsd_reentrancy_levelp_get(tsdn_tsd(
+		    tsdn));
+		++*reentrancy_level;
+		hooks_arena_new_hook();
+		--*reentrancy_level;
+	}
+
 	return arena;
 label_error:
 	if (ind != 0) {

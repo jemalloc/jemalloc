@@ -79,7 +79,6 @@ thd_start(void *arg) {
 }
 
 TEST_BEGIN(test_tsd_main_thread) {
-	test_skip_if(test_is_reentrant());
 	thd_start((void *)(uintptr_t)0xa5f3e329);
 }
 TEST_END
@@ -144,7 +143,7 @@ main(void) {
 	data_tsd_boot();
 	data_test_started = true;
 
-	return test(
+	return test_no_reentrancy(
 	    test_tsd_main_thread,
 	    test_tsd_sub_thread,
 	    test_tsd_reincarnation);

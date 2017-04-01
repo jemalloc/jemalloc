@@ -351,7 +351,7 @@ TEST_END
 
 int
 main(void) {
-	return test(
+	return test_no_reentrancy(
 	    test_stats_summary,
 	    test_stats_large,
 	    test_stats_arenas_summary,

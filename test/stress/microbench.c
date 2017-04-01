@@ -156,7 +156,7 @@ TEST_END
 
 int
 main(void) {
-	return test(
+	return test_no_reentrancy(
 	    test_malloc_vs_mallocx,
 	    test_free_vs_dallocx,
 	    test_dallocx_vs_sdallocx,

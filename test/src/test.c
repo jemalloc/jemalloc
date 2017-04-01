@@ -10,31 +10,56 @@ static const char *	test_name = "";
 /* Reentrancy testing helpers. */
 
 #define NUM_REENTRANT_ALLOCS 20
-static bool reentrant = false;
-static bool hook_ran = false;
-static void *to_free[NUM_REENTRANT_ALLOCS];
+typedef enum {
+	non_reentrant = 0,
+	libc_reentrant = 1,
+	arena_new_reentrant = 2
+} reentrancy_t;
+static reentrancy_t reentrancy;
+
+static bool libc_hook_ran = false;
+static bool arena_new_hook_ran = false;
+
+static const char *
+reentrancy_t_str(reentrancy_t r) {
+	switch (r) {
+	case non_reentrant:
+		return "non-reentrant";
+	case libc_reentrant:
+		return "libc-reentrant";
+	case arena_new_reentrant:
+		return "arena_new-reentrant";
+	default:
+		unreachable();
+	}
+}
 
 static void
-reentrancy_hook() {
-	hook_ran = true;
-	hooks_libc_hook = NULL;
+do_hook(bool *hook_ran, void (**hook)()) {
+	*hook_ran = true;
+	*hook = NULL;
 
-	void *to_free_local[NUM_REENTRANT_ALLOCS];
 	size_t alloc_size = 1;
 	for (int i = 0; i < NUM_REENTRANT_ALLOCS; i++) {
-		to_free[i] = malloc(alloc_size);
-		to_free_local[i] = malloc(alloc_size);
+		free(malloc(alloc_size));
 		alloc_size *= 2;
 	}
-	for (int i = 0; i < NUM_REENTRANT_ALLOCS; i++) {
-		free(to_free_local[i]);
-	}
+}
+
+static void
+libc_reentrancy_hook() {
+	do_hook(&libc_hook_ran, &hooks_libc_hook);
+}
+
+static void
+arena_new_reentrancy_hook() {
+	do_hook(&arena_new_hook_ran, &hooks_arena_new_hook);
 }
 
 /* Actual test infrastructure. */
 bool
 test_is_reentrant() {
-	return reentrant;
+	return reentrancy != non_reentrant;
 }
 
 JEMALLOC_FORMAT_PRINTF(1, 2)
@@ -81,9 +106,8 @@ p_test_init(const char *name) {
 void
 p_test_fini(void) {
 	test_counts[test_status]++;
-	malloc_printf("%s: %s (%s)\n", test_name,
-	    test_status_string(test_status),
-	    reentrant ? "reentrant" : "non-reentrant");
+	malloc_printf("%s (%s): %s\n", test_name, reentrancy_t_str(reentrancy),
+	    test_status_string(test_status));
 }
 
 static test_status_t
@@ -106,24 +130,28 @@ p_test_impl(bool do_malloc_init, bool do_reentrant, test_t *t, va_list ap) {
 	ret = test_status_pass;
 	for (; t != NULL; t = va_arg(ap, test_t *)) {
 		/* Non-reentrant run. */
-		reentrant = false;
+		reentrancy = non_reentrant;
+		hooks_arena_new_hook = hooks_libc_hook = NULL;
 		t();
 		if (test_status > ret) {
 			ret = test_status;
 		}
 		/* Reentrant run. */
 		if (do_reentrant) {
-			reentrant = true;
-			hooks_libc_hook = &reentrancy_hook;
+			reentrancy = libc_reentrant;
+			hooks_arena_new_hook = NULL;
+			hooks_libc_hook = &libc_reentrancy_hook;
 			t();
 			if (test_status > ret) {
 				ret = test_status;
 			}
-			if (hook_ran) {
-				hook_ran = false;
-				for (int i = 0; i < NUM_REENTRANT_ALLOCS; i++) {
-					free(to_free[i]);
-				}
+
+			reentrancy = arena_new_reentrant;
+			hooks_libc_hook = NULL;
+			hooks_arena_new_hook = &arena_new_reentrancy_hook;
+			t();
+			if (test_status > ret) {
+				ret = test_status;
 			}
 		}
 	}

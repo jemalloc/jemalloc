@@ -1,8 +1,8 @@
 #ifndef JEMALLOC_INTERNAL_HOOKS_H
 #define JEMALLOC_INTERNAL_HOOKS_H
 
-extern void (*hooks_arena_new_hook)();
-extern void (*hooks_libc_hook)();
+extern JEMALLOC_EXPORT void (*hooks_arena_new_hook)();
+extern JEMALLOC_EXPORT void (*hooks_libc_hook)();
 
 #define JEMALLOC_HOOK(fn, hook) ((void)(hook != NULL && (hook(), 0)), fn)
 
