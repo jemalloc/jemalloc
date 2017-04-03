@@ -1399,7 +1399,7 @@ label_return:
 	return ret;
 }
 
-#ifndef _WIN32
+#if !defined(__CloudABI__) && !defined(_WIN32)
 JEMALLOC_FORMAT_PRINTF(1, 2)
 static int
 prof_open_maps(const char *format, ...) {
@@ -1433,7 +1433,7 @@ prof_dump_maps(bool propagate_err) {
 	cassert(config_prof);
 #ifdef __FreeBSD__
 	mfd = prof_open_maps("/proc/curproc/map");
-#elif defined(_WIN32)
+#elif defined(__CloudABI__) || defined(_WIN32)
 	mfd = -1; // Not implemented
 #else
 	{
