@@ -35,6 +35,9 @@
 #include <sys/types.h>
 
 #include <limits.h>
+#ifndef PATH_MAX
+#  define PATH_MAX 1024
+#endif
 #ifndef SIZE_T_MAX
 #  define SIZE_T_MAX	SIZE_MAX
 #endif
@@ -53,7 +56,6 @@
 #ifdef _MSC_VER
 #  include <io.h>
 typedef intptr_t ssize_t;
-#  define PATH_MAX 1024
 #  define STDERR_FILENO 2
 #  define __func__ __FUNCTION__
 #  ifdef JEMALLOC_HAS_RESTRICT
