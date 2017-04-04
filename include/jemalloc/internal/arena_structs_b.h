@@ -166,7 +166,7 @@ struct arena_s {
 	 *
 	 * Synchronization: atomic.
 	 */
-	size_t			offset_state;
+	atomic_zu_t		offset_state;
 
 	/*
 	 * Extent serial number generator state.

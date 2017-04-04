@@ -6,14 +6,15 @@ uint32_t	prng_state_next_u32(uint32_t state);
 uint64_t	prng_state_next_u64(uint64_t state);
 size_t	prng_state_next_zu(size_t state);
 
-uint32_t	prng_lg_range_u32(uint32_t *state, unsigned lg_range,
+uint32_t	prng_lg_range_u32(atomic_u32_t *state, unsigned lg_range,
     bool atomic);
 uint64_t	prng_lg_range_u64(uint64_t *state, unsigned lg_range);
-size_t	prng_lg_range_zu(size_t *state, unsigned lg_range, bool atomic);
+size_t	prng_lg_range_zu(atomic_zu_t *state, unsigned lg_range, bool atomic);
 
-uint32_t	prng_range_u32(uint32_t *state, uint32_t range, bool atomic);
+uint32_t	prng_range_u32(atomic_u32_t *state, uint32_t range,
+    bool atomic);
 uint64_t	prng_range_u64(uint64_t *state, uint64_t range);
-size_t	prng_range_zu(size_t *state, size_t range, bool atomic);
+size_t	prng_range_zu(atomic_zu_t *state, size_t range, bool atomic);
 #endif
 
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_PRNG_C_))
@@ -39,22 +40,22 @@ prng_state_next_zu(size_t state) {
 }
 
 JEMALLOC_ALWAYS_INLINE uint32_t
-prng_lg_range_u32(uint32_t *state, unsigned lg_range, bool atomic) {
-	uint32_t ret, state1;
+prng_lg_range_u32(atomic_u32_t *state, unsigned lg_range, bool atomic) {
+	uint32_t ret, state0, state1;
 
 	assert(lg_range > 0);
 	assert(lg_range <= 32);
 
-	if (atomic) {
-		uint32_t state0;
+	state0 = atomic_load_u32(state, ATOMIC_RELAXED);
 
+	if (atomic) {
 		do {
-			state0 = atomic_read_u32(state);
 			state1 = prng_state_next_u32(state0);
-		} while (atomic_cas_u32(state, state0, state1));
+		} while (!atomic_compare_exchange_weak_u32(state, &state0,
+		    state1, ATOMIC_RELAXED, ATOMIC_RELAXED));
 	} else {
-		state1 = prng_state_next_u32(*state);
-		*state = state1;
+		state1 = prng_state_next_u32(state0);
+		atomic_store_u32(state, state1, ATOMIC_RELAXED);
 	}
 	ret = state1 >> (32 - lg_range);
 
@@ -77,22 +78,22 @@ prng_lg_range_u64(uint64_t *state, unsigned lg_range) {
 }
 
 JEMALLOC_ALWAYS_INLINE size_t
-prng_lg_range_zu(size_t *state, unsigned lg_range, bool atomic) {
-	size_t ret, state1;
+prng_lg_range_zu(atomic_zu_t *state, unsigned lg_range, bool atomic) {
+	size_t ret, state0, state1;
 
 	assert(lg_range > 0);
 	assert(lg_range <= ZU(1) << (3 + LG_SIZEOF_PTR));
 
-	if (atomic) {
-		size_t state0;
+	state0 = atomic_load_zu(state, ATOMIC_RELAXED);
 
+	if (atomic) {
 		do {
-			state0 = atomic_read_zu(state);
 			state1 = prng_state_next_zu(state0);
-		} while (atomic_cas_zu(state, state0, state1));
+		} while (atomic_compare_exchange_weak_zu(state, &state0,
+		    state1, ATOMIC_RELAXED, ATOMIC_RELAXED));
 	} else {
-		state1 = prng_state_next_zu(*state);
-		*state = state1;
+		state1 = prng_state_next_zu(state0);
+		atomic_store_zu(state, state1, ATOMIC_RELAXED);
 	}
 	ret = state1 >> ((ZU(1) << (3 + LG_SIZEOF_PTR)) - lg_range);
 
@@ -100,7 +101,7 @@ prng_lg_range_zu(size_t *state, unsigned lg_range, bool atomic) {
 }
 
 JEMALLOC_ALWAYS_INLINE uint32_t
-prng_range_u32(uint32_t *state, uint32_t range, bool atomic) {
+prng_range_u32(atomic_u32_t *state, uint32_t range, bool atomic) {
 	uint32_t ret;
 	unsigned lg_range;
 
@@ -136,7 +137,7 @@ prng_range_u64(uint64_t *state, uint64_t range) {
 }
 
 JEMALLOC_ALWAYS_INLINE size_t
-prng_range_zu(size_t *state, size_t range, bool atomic) {
+prng_range_zu(atomic_zu_t *state, size_t range, bool atomic) {
 	size_t ret;
 	unsigned lg_range;
 
