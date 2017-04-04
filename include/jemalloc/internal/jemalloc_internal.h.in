@@ -469,7 +469,7 @@ extern unsigned	narenas_auto;
  * Arenas that are used to service external requests.  Not all elements of the
  * arenas array are necessarily used; arenas are created lazily as needed.
  */
-extern arena_t	*arenas[];
+extern atomic_p_t arenas[];
 
 /*
  * pind2sz_tab encodes the same information as could be computed by
@@ -909,10 +909,9 @@ arena_get(tsdn_t *tsdn, unsigned ind, bool init_if_missing) {
 
 	assert(ind <= MALLOCX_ARENA_MAX);
 
-	ret = arenas[ind];
+	ret = (arena_t *)atomic_load_p(&arenas[ind], ATOMIC_ACQUIRE);
 	if (unlikely(ret == NULL)) {
-		ret = (arena_t *)atomic_read_p((void **)&arenas[ind]);
-		if (init_if_missing && unlikely(ret == NULL)) {
+		if (init_if_missing) {
 			ret = arena_init(tsdn, ind,
 			    (extent_hooks_t *)&extent_hooks_default);
 		}

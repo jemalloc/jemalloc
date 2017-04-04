@@ -63,7 +63,7 @@ extent_arena_get(const extent_t *extent) {
 		return NULL;
 	}
 	assert(arena_ind <= MALLOCX_ARENA_MAX);
-	return arenas[arena_ind];
+	return (arena_t *)atomic_load_p(&arenas[arena_ind], ATOMIC_ACQUIRE);
 }
 
 JEMALLOC_INLINE szind_t

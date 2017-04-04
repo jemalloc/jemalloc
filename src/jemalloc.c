@@ -55,10 +55,12 @@ static malloc_mutex_t	arenas_lock;
  * arenas[0..narenas_auto) are used for automatic multiplexing of threads and
  * arenas.  arenas[narenas_auto..narenas_total) are only used if the application
  * takes some action to create them and allocate from them.
+ *
+ * Points to an arena_t.
  */
 JEMALLOC_ALIGNED(CACHELINE)
-arena_t			*arenas[MALLOCX_ARENA_MAX + 1];
-static unsigned		narenas_total; /* Use narenas_total_*(). */
+atomic_p_t		arenas[MALLOCX_ARENA_MAX + 1];
+static atomic_u_t	narenas_total; /* Use narenas_total_*(). */
 static arena_t		*a0; /* arenas[0]; read-only after initialization. */
 unsigned		narenas_auto; /* Read-only after initialization. */
 
@@ -363,22 +365,22 @@ bootstrap_free(void *ptr) {
 
 void
 arena_set(unsigned ind, arena_t *arena) {
-	atomic_write_p((void **)&arenas[ind], arena);
+	atomic_store_p(&arenas[ind], arena, ATOMIC_RELEASE);
 }
 
 static void
 narenas_total_set(unsigned narenas) {
-	atomic_write_u(&narenas_total, narenas);
+	atomic_store_u(&narenas_total, narenas, ATOMIC_RELEASE);
 }
 
 static void
 narenas_total_inc(void) {
-	atomic_add_u(&narenas_total, 1);
+	atomic_fetch_add_u(&narenas_total, 1, ATOMIC_RELEASE);
 }
 
 unsigned
 narenas_total_get(void) {
-	return atomic_read_u(&narenas_total);
+	return atomic_load_u(&narenas_total, ATOMIC_ACQUIRE);
 }
 
 /* Create a new arena and insert it into the arenas array at index ind. */
