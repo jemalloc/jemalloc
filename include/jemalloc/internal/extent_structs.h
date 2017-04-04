@@ -118,11 +118,11 @@ struct extent_s {
 		/* Small region slab metadata. */
 		arena_slab_data_t	e_slab_data;
 
-		/* Profile counters, used for large objects. */
-		union {
-			void		*e_prof_tctx_pun;
-			prof_tctx_t	*e_prof_tctx;
-		};
+		/*
+		 * Profile counters, used for large objects.  Points to a
+		 * prof_tctx_t.
+		 */
+		atomic_p_t		e_prof_tctx;
 	};
 };
 typedef ql_head(extent_t) extent_list_t;
