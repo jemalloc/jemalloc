@@ -64,7 +64,7 @@ bool
 tsd_data_init(void *arg) {
 	tsd_t *tsd = (tsd_t *)arg;
 #define MALLOC_TSD_init_yes(n, t)					\
-	if (n##_data_init(&tsd->n)) {					\
+	if (tsd_##n##_data_init(tsd)) {					\
 		return true;						\
 	}
 #define MALLOC_TSD_init_no(n, t)

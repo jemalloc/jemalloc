@@ -43,6 +43,7 @@ void rtree_leaf_elm_witness_access(tsdn_t *tsdn, const rtree_t *rtree,
     const rtree_leaf_elm_t *elm);
 void rtree_leaf_elm_witness_release(tsdn_t *tsdn, const rtree_t *rtree,
     const rtree_leaf_elm_t *elm);
-bool rtree_ctx_data_init(rtree_ctx_t *ctx);
+void rtree_ctx_data_init(rtree_ctx_t *ctx);
+bool tsd_rtree_ctx_data_init(tsd_t *tsd);
 
 #endif /* JEMALLOC_INTERNAL_RTREE_EXTERNS_H */
