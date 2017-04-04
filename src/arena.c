@@ -1863,8 +1863,8 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 		 * cost of test repeatability.  For debug builds, instead use a
 		 * deterministic seed.
 		 */
-		arena->offset_state = config_debug ? ind :
-		    (size_t)(uintptr_t)arena;
+		atomic_store_zu(&arena->offset_state, config_debug ? ind :
+		    (size_t)(uintptr_t)arena, ATOMIC_RELAXED);
 	}
 
 	arena->extent_sn_next = 0;
