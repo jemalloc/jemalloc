@@ -173,8 +173,8 @@ extent_slab_data_get_const(const extent_t *extent) {
 
 JEMALLOC_INLINE prof_tctx_t *
 extent_prof_tctx_get(const extent_t *extent) {
-	return (prof_tctx_t *)atomic_read_p(
-	    &((extent_t *)extent)->e_prof_tctx_pun);
+	return (prof_tctx_t *)atomic_load_p(&extent->e_prof_tctx,
+	    ATOMIC_ACQUIRE);
 }
 
 JEMALLOC_INLINE void
@@ -272,7 +272,7 @@ extent_slab_set(extent_t *extent, bool slab) {
 
 JEMALLOC_INLINE void
 extent_prof_tctx_set(extent_t *extent, prof_tctx_t *tctx) {
-	atomic_write_p(&extent->e_prof_tctx_pun, tctx);
+	atomic_store_p(&extent->e_prof_tctx, tctx, ATOMIC_RELEASE);
 }
 
 JEMALLOC_INLINE void
