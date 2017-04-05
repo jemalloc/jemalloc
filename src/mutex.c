@@ -93,10 +93,11 @@ label_spin_done:
 	/* Copy before to after to avoid clock skews. */
 	nstime_t after;
 	nstime_copy(&after, &before);
-	uint32_t n_thds = atomic_add_u32(&data->n_waiting_thds, 1);
+	uint32_t n_thds = atomic_fetch_add_u32(&data->n_waiting_thds, 1,
+	    ATOMIC_RELAXED) + 1;
 	/* One last try as above two calls may take quite some cycles. */
 	if (!malloc_mutex_trylock(mutex)) {
-		atomic_sub_u32(&data->n_waiting_thds, 1);
+		atomic_fetch_sub_u32(&data->n_waiting_thds, 1, ATOMIC_RELAXED);
 		data->n_spin_acquired++;
 		return;
 	}
@@ -104,7 +105,7 @@ label_spin_done:
 	/* True slow path. */
 	malloc_mutex_lock_final(mutex);
 	/* Update more slow-path only counters. */
-	atomic_sub_u32(&data->n_waiting_thds, 1);
+	atomic_fetch_sub_u32(&data->n_waiting_thds, 1, ATOMIC_RELAXED);
 	nstime_update(&after);
 
 	nstime_t delta;
