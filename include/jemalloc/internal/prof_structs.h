@@ -18,8 +18,10 @@ typedef struct {
 struct prof_accum_s {
 #ifndef JEMALLOC_ATOMIC_U64
 	malloc_mutex_t	mtx;
-#endif
 	uint64_t	accumbytes;
+#else
+	atomic_u64_t	accumbytes;
+#endif
 };
 
 struct prof_cnt_s {

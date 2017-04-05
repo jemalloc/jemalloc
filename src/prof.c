@@ -1758,8 +1758,10 @@ prof_accum_init(tsdn_t *tsdn, prof_accum_t *prof_accum) {
 	    WITNESS_RANK_PROF_ACCUM)) {
 		return true;
 	}
-#endif
 	prof_accum->accumbytes = 0;
+#else
+	atomic_store_u64(&prof_accum->accumbytes, 0, ATOMIC_RELAXED);
+#endif
 	return false;
 }
 
