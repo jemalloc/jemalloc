@@ -17,7 +17,6 @@
 
 #define DO_TESTS(t, ta, val1, val2, val3) do {				\
 	t val;								\
-	t raw_atomic;							\
 	t expected;							\
 	bool success;							\
 	/* This (along with the load below) also tests ATOMIC_LOAD. */	\
@@ -81,37 +80,11 @@
 	}								\
 									\
 									\
-	/* Previous atomics API. */					\
-									\
-	/* Read. */							\
-	raw_atomic = val1;						\
-	val = atomic_read_##ta(&raw_atomic);				\
-	assert_##ta##_eq(val1, val, "Read failed");			\
-									\
-	/* Write. */							\
-	raw_atomic = val1;						\
-	atomic_write_##ta(&raw_atomic, val2);				\
-	assert_##ta##_eq(val2, raw_atomic, "Write failed");		\
-									\
-	/* CAS. */							\
-	raw_atomic = val1;						\
-	success = !atomic_cas_##ta(&raw_atomic, val2, val3);		\
-	assert_b_eq(val1 == val2, success, 				\
-	    "CAS did the wrong state update");				\
-	val = raw_atomic;						\
-	if (success) {							\
-		assert_##ta##_eq(val3, val,				\
-		    "Successful CAS should update atomic");		\
-	} else {							\
-		assert_##ta##_eq(val1, val,				\
-		    "Unsuccessful CAS should not update atomic");	\
-	}								\
 } while (0)
 
 #define DO_INTEGER_TESTS(t, ta, val1, val2) do {			\
 	atomic_##ta##_t atom;						\
 	t val;								\
-	t raw_atomic;							\
 									\
 	/* Fetch-add. */						\
 	atomic_store_##ta(&atom, val1, ATOMIC_RELAXED);			\
@@ -157,24 +130,6 @@
 	val = atomic_load_##ta(&atom, ATOMIC_RELAXED);			\
 	assert_##ta##_eq(val1 ^ val2, val,				\
 	    "Fetch-xor should update atomic");				\
-									\
-	/* Previous atomics API. */					\
-									\
-	/* Add. */							\
-	raw_atomic = val1;						\
-	val = atomic_add_##ta(&raw_atomic, val2);			\
-	assert_##ta##_eq(val1 + val2, val,				\
-	    "atomic_add should return new value");			\
-	assert_##ta##_eq(val1 + val2, raw_atomic,			\
-	    "atomic_add should update atomic");				\
-									\
-	/* Sub. */							\
-	raw_atomic = val1;						\
-	val = atomic_sub_##ta(&raw_atomic, val2);			\
-	assert_##ta##_eq(val1 - val2, val,				\
-	    "atomic_sub should return new value");			\
-	assert_##ta##_eq(val1 - val2, raw_atomic,			\
-	    "atomic_add should update atomic");				\
 } while (0)
 
 #define TEST_STRUCT(t, ta)						\
