@@ -22,15 +22,16 @@ prof_accum_add(tsdn_t *tsdn, prof_accum_t *prof_accum, uint64_t accumbytes) {
 	 * avoids rate-limiting allocation.
 	 */
 #ifdef JEMALLOC_ATOMIC_U64
+	a0 = atomic_load_u64(&prof_accum->accumbytes, ATOMIC_RELAXED);
 	do {
-		a0 = atomic_read_u64(&prof_accum->accumbytes);
 		a1 = a0 + accumbytes;
 		assert(a1 >= a0);
 		overflow = (a1 >= prof_interval);
 		if (overflow) {
 			a1 %= prof_interval;
 		}
-	} while (atomic_cas_u64(&prof_accum->accumbytes, a0, a1));
+	} while (!atomic_compare_exchange_weak_u64(&prof_accum->accumbytes, &a0,
+	    a1, ATOMIC_RELAXED, ATOMIC_RELAXED));
 #else
 	malloc_mutex_lock(tsdn, &prof_accum->mtx);
 	a0 = prof_accum->accumbytes;
@@ -57,11 +58,12 @@ prof_accum_cancel(tsdn_t *tsdn, prof_accum_t *prof_accum, size_t usize) {
 	 */
 	uint64_t a0, a1;
 #ifdef JEMALLOC_ATOMIC_U64
+	a0 = atomic_load_u64(&prof_accum->accumbytes, ATOMIC_RELAXED);
 	do {
-		a0 = atomic_read_u64(&prof_accum->accumbytes);
 		a1 = (a0 >= LARGE_MINCLASS - usize) ?  a0 - (LARGE_MINCLASS -
 		    usize) : 0;
-	} while (atomic_cas_u64(&prof_accum->accumbytes, a0, a1));
+	} while (!atomic_compare_exchange_weak_u64(&prof_accum->accumbytes, &a0,
+	    a1, ATOMIC_RELAXED, ATOMIC_RELAXED));
 #else
 	malloc_mutex_lock(tsdn, &prof_accum->mtx);
 	a0 = prof_accum->accumbytes;
