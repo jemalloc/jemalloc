@@ -18,14 +18,15 @@ const char	*dss_prec_names[] = {
  * guarantee that sizeof(dss_prec_t) is the same as sizeof(unsigned), and we use
  * atomic operations to synchronize the setting.
  */
-static unsigned		dss_prec_default = (unsigned)DSS_PREC_DEFAULT;
+static atomic_u_t	dss_prec_default = ATOMIC_INIT(
+    (unsigned)DSS_PREC_DEFAULT);
 
 /* Base address of the DSS. */
 static void		*dss_base;
 /* Atomic boolean indicating whether the DSS is exhausted. */
-static unsigned		dss_exhausted;
+static atomic_b_t	dss_exhausted;
 /* Atomic current upper limit on DSS addresses. */
-static void		*dss_max;
+static atomic_p_t	dss_max;
 
 /******************************************************************************/
 
@@ -46,7 +47,7 @@ extent_dss_prec_get(void) {
 	if (!have_dss) {
 		return dss_prec_disabled;
 	}
-	ret = (dss_prec_t)atomic_read_u(&dss_prec_default);
+	ret = (dss_prec_t)atomic_load_u(&dss_prec_default, ATOMIC_ACQUIRE);
 	return ret;
 }
 
@@ -55,7 +56,7 @@ extent_dss_prec_set(dss_prec_t dss_prec) {
 	if (!have_dss) {
 		return (dss_prec != dss_prec_disabled);
 	}
-	atomic_write_u(&dss_prec_default, (unsigned)dss_prec);
+	atomic_store_u(&dss_prec_default, (unsigned)dss_prec, ATOMIC_RELEASE);
 	return false;
 }
 
@@ -69,7 +70,7 @@ extent_dss_max_update(void *new_addr) {
 	 */
 	spin_t spinner = SPIN_INITIALIZER;
 	while (true) {
-		void *max_prev = atomic_read_p(&dss_max);
+		void *max_prev = atomic_load_p(&dss_max, ATOMIC_RELAXED);
 
 		max_cur = extent_dss_sbrk(0);
 		if ((uintptr_t)max_prev > (uintptr_t)max_cur) {
@@ -80,7 +81,8 @@ extent_dss_max_update(void *new_addr) {
 			spin_adaptive(&spinner);
 			continue;
 		}
-		if (!atomic_cas_p(&dss_max, max_prev, max_cur)) {
+		if (atomic_compare_exchange_weak_p(&dss_max, &max_prev,
+		    max_cur, ATOMIC_ACQ_REL, ATOMIC_RELAXED)) {
 			break;
 		}
 	}
@@ -114,7 +116,7 @@ extent_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
 		return NULL;
 	}
 
-	if (!atomic_read_u(&dss_exhausted)) {
+	if (!atomic_load_b(&dss_exhausted, ATOMIC_ACQUIRE)) {
 		/*
 		 * The loop is necessary to recover from races with other
 		 * threads that are using the DSS for something other than
@@ -167,7 +169,8 @@ extent_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
 			 * DSS while dss_max is greater than the current DSS
 			 * max reported by sbrk(0).
 			 */
-			if (atomic_cas_p(&dss_max, max_cur, dss_next)) {
+			if (!atomic_compare_exchange_weak_p(&dss_max, &max_cur,
+			    dss_next, ATOMIC_ACQ_REL, ATOMIC_RELAXED)) {
 				continue;
 			}
 
@@ -207,10 +210,12 @@ extent_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
 			 * succeeded since this invocation started, in which
 			 * case rollback is not necessary.
 			 */
-			atomic_cas_p(&dss_max, dss_next, max_cur);
+			atomic_compare_exchange_strong_p(&dss_max, &dss_next,
+			    max_cur, ATOMIC_ACQ_REL, ATOMIC_RELAXED);
 			if (dss_prev == (void *)-1) {
 				/* OOM. */
-				atomic_write_u(&dss_exhausted, (unsigned)true);
+				atomic_store_b(&dss_exhausted, true,
+				    ATOMIC_RELEASE);
 				goto label_oom;
 			}
 		}
@@ -230,7 +235,8 @@ bool
 extent_in_dss(void *addr) {
 	cassert(have_dss);
 
-	return extent_in_dss_helper(addr, atomic_read_p(&dss_max));
+	return extent_in_dss_helper(addr, atomic_load_p(&dss_max,
+	    ATOMIC_ACQUIRE));
 }
 
 bool
@@ -244,7 +250,7 @@ extent_dss_mergeable(void *addr_a, void *addr_b) {
 		return true;
 	}
 
-	max = atomic_read_p(&dss_max);
+	max = atomic_load_p(&dss_max, ATOMIC_ACQUIRE);
 	return (extent_in_dss_helper(addr_a, max) ==
 	    extent_in_dss_helper(addr_b, max));
 }
@@ -254,8 +260,8 @@ extent_dss_boot(void) {
 	cassert(have_dss);
 
 	dss_base = extent_dss_sbrk(0);
-	dss_exhausted = (unsigned)(dss_base == (void *)-1);
-	dss_max = dss_base;
+	atomic_store_b(&dss_exhausted, dss_base == (void *)-1, ATOMIC_RELAXED);
+	atomic_store_p(&dss_max, dss_base, ATOMIC_RELAXED);
 }
 
 /******************************************************************************/
