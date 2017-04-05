@@ -63,7 +63,7 @@ size_t		lg_prof_sample;
  * creating/destroying mutexes.
  */
 static malloc_mutex_t	*gctx_locks;
-static unsigned		cum_gctxs; /* Atomic counter. */
+static atomic_u_t	cum_gctxs; /* Atomic counter. */
 
 /*
  * Table of mutexes that are shared among tdata's.  No operations require
@@ -524,7 +524,7 @@ prof_backtrace(prof_bt_t *bt) {
 
 static malloc_mutex_t *
 prof_gctx_mutex_choose(void) {
-	unsigned ngctxs = atomic_add_u(&cum_gctxs, 1);
+	unsigned ngctxs = atomic_fetch_add_u(&cum_gctxs, 1, ATOMIC_RELAXED);
 
 	return &gctx_locks[(ngctxs - 1) % PROF_NCTX_LOCKS];
 }
