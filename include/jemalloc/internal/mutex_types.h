@@ -35,7 +35,8 @@ typedef struct malloc_mutex_s malloc_mutex_t;
 #endif
 
 #define LOCK_PROF_DATA_INITIALIZER					\
-    {NSTIME_ZERO_INITIALIZER, NSTIME_ZERO_INITIALIZER, 0, 0, 0, 0, 0, NULL, 0}
+    {NSTIME_ZERO_INITIALIZER, NSTIME_ZERO_INITIALIZER, 0, 0, 0,		\
+	    ATOMIC_INIT(0), 0, NULL, 0}
 
 #ifdef _WIN32
 #  define MALLOC_MUTEX_INITIALIZER

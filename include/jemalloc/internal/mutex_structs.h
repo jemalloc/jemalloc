@@ -17,7 +17,7 @@ struct mutex_prof_data_s {
 	/* Max # of threads waiting for the mutex at the same time. */
 	uint32_t		max_n_thds;
 	/* Current # of threads waiting on the lock.  Atomic synced. */
-	uint32_t		n_waiting_thds;
+	atomic_u32_t		n_waiting_thds;
 
 	/*
 	 * Data touched on the fast path.  These are modified right after we

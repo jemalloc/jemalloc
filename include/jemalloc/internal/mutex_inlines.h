@@ -40,7 +40,12 @@ malloc_mutex_prof_merge(mutex_prof_data_t *sum, mutex_prof_data_t *data) {
 	if (sum->max_n_thds < data->max_n_thds) {
 		sum->max_n_thds = data->max_n_thds;
 	}
-	sum->n_waiting_thds += data->n_waiting_thds;
+	uint32_t cur_n_waiting_thds = atomic_load_u32(&sum->n_waiting_thds,
+	    ATOMIC_RELAXED);
+	uint32_t new_n_waiting_thds = cur_n_waiting_thds + atomic_load_u32(
+	    &data->n_waiting_thds, ATOMIC_RELAXED);
+	atomic_store_u32(&sum->n_waiting_thds, new_n_waiting_thds,
+	    ATOMIC_RELAXED);
 	sum->n_owner_switches += data->n_owner_switches;
 	sum->n_lock_ops += data->n_lock_ops;
 }
@@ -91,9 +96,14 @@ malloc_mutex_prof_read(tsdn_t *tsdn, mutex_prof_data_t *data,
 	/* Can only read holding the mutex. */
 	malloc_mutex_assert_owner(tsdn, mutex);
 
+	/*
+	 * Not *really* allowed (we shouldn't be doing non-atomic loads of
+	 * atomic data), but the mutex protection makes this safe, and writing
+	 * a member-for-member copy is tedious for this situation.
+	 */
 	*data = *source;
 	/* n_wait_thds is not reported (modified w/o locking). */
-	data->n_waiting_thds = 0;
+	atomic_store_u32(&data->n_waiting_thds, 0, ATOMIC_RELAXED);
 }
 
 #endif
