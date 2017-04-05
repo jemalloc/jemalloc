@@ -62,8 +62,8 @@ const extent_hooks_t	extent_hooks_default = {
 };
 
 /* Used exclusively for gdump triggering. */
-static size_t	curpages;
-static size_t	highpages;
+static atomic_zu_t curpages;
+static atomic_zu_t highpages;
 
 /******************************************************************************/
 /*
@@ -566,14 +566,16 @@ extent_gdump_add(tsdn_t *tsdn, const extent_t *extent) {
 
 	if (opt_prof && extent_state_get(extent) == extent_state_active) {
 		size_t nadd = extent_size_get(extent) >> LG_PAGE;
-		size_t cur = atomic_add_zu(&curpages, nadd);
-		size_t high = atomic_read_zu(&highpages);
-		while (cur > high && atomic_cas_zu(&highpages, high, cur)) {
+		size_t cur = atomic_fetch_add_zu(&curpages, nadd,
+		    ATOMIC_RELAXED) + nadd;
+		size_t high = atomic_load_zu(&highpages, ATOMIC_RELAXED);
+		while (cur > high && !atomic_compare_exchange_weak_zu(
+		    &highpages, &high, cur, ATOMIC_RELAXED, ATOMIC_RELAXED)) {
 			/*
 			 * Don't refresh cur, because it may have decreased
 			 * since this thread lost the highpages update race.
+			 * Note that high is updated in case of CAS failure.
 			 */
-			high = atomic_read_zu(&highpages);
 		}
 		if (cur > high && prof_gdump_get_unlocked()) {
 			prof_gdump(tsdn);
@@ -587,8 +589,8 @@ extent_gdump_sub(tsdn_t *tsdn, const extent_t *extent) {
 
 	if (opt_prof && extent_state_get(extent) == extent_state_active) {
 		size_t nsub = extent_size_get(extent) >> LG_PAGE;
-		assert(atomic_read_zu(&curpages) >= nsub);
-		atomic_sub_zu(&curpages, nsub);
+		assert(atomic_load_zu(&curpages, ATOMIC_RELAXED) >= nsub);
+		atomic_fetch_sub_zu(&curpages, nsub, ATOMIC_RELAXED);
 	}
 }
 
