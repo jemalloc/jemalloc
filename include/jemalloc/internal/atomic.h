@@ -52,69 +52,24 @@
 #  define JEMALLOC_ATOMIC_U64
 #endif
 
-/*
- * In order to let us transition atomics usage piecemeal (and reason locally
- * about memory orders), we'll support the previous API for a while.
- */
-#define JEMALLOC_GENERATE_COMPATABILITY_ATOMICS(type, short_type)	\
-ATOMIC_INLINE type							\
-atomic_read_##short_type(type *p) {					\
-	return atomic_load_##short_type ((atomic_##short_type##_t *)p,	\
-	    ATOMIC_SEQ_CST);						\
-}									\
-									\
-ATOMIC_INLINE void							\
-atomic_write_##short_type(type *p, const type val) {			\
-	atomic_store_##short_type((atomic_##short_type##_t *)p,		\
-	    (type)val, ATOMIC_SEQ_CST);					\
-}									\
-ATOMIC_INLINE bool							\
-atomic_cas_##short_type(type *p, type c, type s) {			\
-	/* Note the '!' -- atomic_cas inverts the usual semantics. */	\
-	return !atomic_compare_exchange_strong_##short_type(		\
-	    (atomic_##short_type##_t *)p, &c, s, ATOMIC_SEQ_CST,	\
-	    ATOMIC_SEQ_CST);						\
-}
-
-#define JEMALLOC_GENERATE_COMPATABILITY_INT_ATOMICS(type, short_type)	\
-JEMALLOC_GENERATE_COMPATABILITY_ATOMICS(type, short_type)		\
-									\
-ATOMIC_INLINE type							\
-atomic_add_##short_type(type *p, type x) {				\
-	return atomic_fetch_add_##short_type(				\
-	    (atomic_##short_type##_t *)p, x, ATOMIC_SEQ_CST) + x;	\
-}									\
-ATOMIC_INLINE type							\
-atomic_sub_##short_type(type *p, type x) {				\
-	return atomic_fetch_sub_##short_type(				\
-	    (atomic_##short_type##_t *)p, x, ATOMIC_SEQ_CST) - x;	\
-}
-
 JEMALLOC_GENERATE_ATOMICS(void *, p, LG_SIZEOF_PTR)
-JEMALLOC_GENERATE_COMPATABILITY_ATOMICS(void *, p)
 
 /*
  * There's no actual guarantee that sizeof(bool) == 1, but it's true on the only
  * platform that actually needs to know the size, MSVC.
  */
 JEMALLOC_GENERATE_ATOMICS(bool, b, 0)
-JEMALLOC_GENERATE_COMPATABILITY_ATOMICS(bool, b)
 
 JEMALLOC_GENERATE_INT_ATOMICS(unsigned, u, LG_SIZEOF_INT)
-JEMALLOC_GENERATE_COMPATABILITY_INT_ATOMICS(unsigned, u)
 
 JEMALLOC_GENERATE_INT_ATOMICS(size_t, zu, LG_SIZEOF_PTR)
-JEMALLOC_GENERATE_COMPATABILITY_INT_ATOMICS(size_t, zu)
 
 JEMALLOC_GENERATE_INT_ATOMICS(ssize_t, zd, LG_SIZEOF_PTR)
-JEMALLOC_GENERATE_COMPATABILITY_INT_ATOMICS(ssize_t, zd)
 
 JEMALLOC_GENERATE_INT_ATOMICS(uint32_t, u32, 2)
-JEMALLOC_GENERATE_COMPATABILITY_INT_ATOMICS(uint32_t, u32)
 
 #ifdef JEMALLOC_ATOMIC_U64
 JEMALLOC_GENERATE_INT_ATOMICS(uint64_t, u64, 3)
-JEMALLOC_GENERATE_COMPATABILITY_INT_ATOMICS(uint64_t, u64)
 #endif
 
 #undef ATOMIC_INLINE
