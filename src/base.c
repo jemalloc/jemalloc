@@ -227,7 +227,7 @@ base_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 	base = (base_t *)base_extent_bump_alloc_helper(&block->extent,
 	    &gap_size, base_size, base_alignment);
 	base->ind = ind;
-	base->extent_hooks = extent_hooks;
+	atomic_store_p(&base->extent_hooks, extent_hooks, ATOMIC_RELAXED);
 	if (malloc_mutex_init(&base->mtx, "base", WITNESS_RANK_BASE)) {
 		base_unmap(extent_hooks, ind, block, block->size);
 		return NULL;
@@ -264,20 +264,14 @@ base_delete(base_t *base) {
 
 extent_hooks_t *
 base_extent_hooks_get(base_t *base) {
-	return (extent_hooks_t *)atomic_read_p(&base->extent_hooks_pun);
+	return (extent_hooks_t *)atomic_load_p(&base->extent_hooks,
+	    ATOMIC_ACQUIRE);
 }
 
 extent_hooks_t *
 base_extent_hooks_set(base_t *base, extent_hooks_t *extent_hooks) {
 	extent_hooks_t *old_extent_hooks = base_extent_hooks_get(base);
-	union {
-		extent_hooks_t	**h;
-		void		**v;
-	} u;
-
-	u.h = &base->extent_hooks;
-	atomic_write_p(u.v, extent_hooks);
-
+	atomic_store_p(&base->extent_hooks, extent_hooks, ATOMIC_RELEASE);
 	return old_extent_hooks;
 }
 
