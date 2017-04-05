@@ -13,10 +13,11 @@ const char	*percpu_arena_mode_names[] = {
 const char	*opt_percpu_arena = OPT_PERCPU_ARENA_DEFAULT;
 percpu_arena_mode_t	percpu_arena_mode = PERCPU_ARENA_MODE_DEFAULT;
 
-ssize_t		opt_dirty_decay_time = DIRTY_DECAY_TIME_DEFAULT;
-ssize_t		opt_muzzy_decay_time = MUZZY_DECAY_TIME_DEFAULT;
-static ssize_t	dirty_decay_time_default;
-static ssize_t	muzzy_decay_time_default;
+ssize_t opt_dirty_decay_time = DIRTY_DECAY_TIME_DEFAULT;
+ssize_t opt_muzzy_decay_time = MUZZY_DECAY_TIME_DEFAULT;
+
+static atomic_zd_t dirty_decay_time_default;
+static atomic_zd_t muzzy_decay_time_default;
 
 const arena_bin_info_t	arena_bin_info[NBINS] = {
 #define BIN_INFO_bin_yes(reg_size, slab_size, nregs)			\
@@ -197,7 +198,7 @@ arena_basic_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 	*dss = dss_prec_names[arena_dss_prec_get(arena)];
 	*dirty_decay_time = arena_dirty_decay_time_get(arena);
 	*muzzy_decay_time = arena_muzzy_decay_time_get(arena);
-	*nactive += atomic_read_zu(&arena->nactive);
+	*nactive += atomic_load_zu(&arena->nactive, ATOMIC_RELAXED);
 	*ndirty += extents_npages_get(&arena->extents_dirty);
 	*nmuzzy += extents_npages_get(&arena->extents_muzzy);
 }
@@ -246,7 +247,7 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 	arena_stats_accum_zu(&astats->base, base_allocated);
 	arena_stats_accum_zu(&astats->internal, arena_internal_get(arena));
 	arena_stats_accum_zu(&astats->resident, base_resident +
-	    (((atomic_read_zu(&arena->nactive) +
+	    (((atomic_load_zu(&arena->nactive, ATOMIC_RELAXED) +
 	    extents_npages_get(&arena->extents_dirty) +
 	    extents_npages_get(&arena->extents_muzzy)) << LG_PAGE)));
 
@@ -426,13 +427,13 @@ arena_slab_reg_dalloc(tsdn_t *tsdn, extent_t *slab,
 
 static void
 arena_nactive_add(arena_t *arena, size_t add_pages) {
-	atomic_add_zu(&arena->nactive, add_pages);
+	atomic_fetch_add_zu(&arena->nactive, add_pages, ATOMIC_RELAXED);
 }
 
 static void
 arena_nactive_sub(arena_t *arena, size_t sub_pages) {
-	assert(atomic_read_zu(&arena->nactive) >= sub_pages);
-	atomic_sub_zu(&arena->nactive, sub_pages);
+	assert(atomic_load_zu(&arena->nactive, ATOMIC_RELAXED) >= sub_pages);
+	atomic_fetch_sub_zu(&arena->nactive, sub_pages, ATOMIC_RELAXED);
 }
 
 static void
@@ -1100,7 +1101,7 @@ arena_reset(tsd_t *tsd, arena_t *arena) {
 		malloc_mutex_unlock(tsd_tsdn(tsd), &bin->lock);
 	}
 
-	atomic_write_zu(&arena->nactive, 0);
+	atomic_store_zu(&arena->nactive, 0, ATOMIC_RELAXED);
 }
 
 static void
@@ -1750,7 +1751,7 @@ arena_ralloc(tsdn_t *tsdn, arena_t *arena, void *ptr, size_t oldsize,
 
 dss_prec_t
 arena_dss_prec_get(arena_t *arena) {
-	return (dss_prec_t)atomic_read_u((unsigned *)&arena->dss_prec);
+	return (dss_prec_t)atomic_load_u(&arena->dss_prec, ATOMIC_ACQUIRE);
 }
 
 bool
@@ -1758,13 +1759,13 @@ arena_dss_prec_set(arena_t *arena, dss_prec_t dss_prec) {
 	if (!have_dss) {
 		return (dss_prec != dss_prec_disabled);
 	}
-	atomic_write_u((unsigned *)&arena->dss_prec, dss_prec);
+	atomic_store_u(&arena->dss_prec, (unsigned)dss_prec, ATOMIC_RELEASE);
 	return false;
 }
 
 ssize_t
 arena_dirty_decay_time_default_get(void) {
-	return (ssize_t)atomic_read_zu((size_t *)&dirty_decay_time_default);
+	return atomic_load_zd(&dirty_decay_time_default, ATOMIC_RELAXED);
 }
 
 bool
@@ -1772,14 +1773,13 @@ arena_dirty_decay_time_default_set(ssize_t decay_time) {
 	if (!arena_decay_time_valid(decay_time)) {
 		return true;
 	}
-	atomic_write_zu((size_t *)&dirty_decay_time_default,
-	    (size_t)decay_time);
+	atomic_store_zd(&dirty_decay_time_default, decay_time, ATOMIC_RELAXED);
 	return false;
 }
 
 ssize_t
 arena_muzzy_decay_time_default_get(void) {
-	return (ssize_t)atomic_read_zu((size_t *)&muzzy_decay_time_default);
+	return atomic_load_zd(&muzzy_decay_time_default, ATOMIC_RELAXED);
 }
 
 bool
@@ -1787,29 +1787,28 @@ arena_muzzy_decay_time_default_set(ssize_t decay_time) {
 	if (!arena_decay_time_valid(decay_time)) {
 		return true;
 	}
-	atomic_write_zu((size_t *)&muzzy_decay_time_default,
-	    (size_t)decay_time);
+	atomic_store_zd(&muzzy_decay_time_default, decay_time, ATOMIC_RELAXED);
 	return false;
 }
 
 unsigned
 arena_nthreads_get(arena_t *arena, bool internal) {
-	return atomic_read_u(&arena->nthreads[internal]);
+	return atomic_load_u(&arena->nthreads[internal], ATOMIC_RELAXED);
 }
 
 void
 arena_nthreads_inc(arena_t *arena, bool internal) {
-	atomic_add_u(&arena->nthreads[internal], 1);
+	atomic_fetch_add_u(&arena->nthreads[internal], 1, ATOMIC_RELAXED);
 }
 
 void
 arena_nthreads_dec(arena_t *arena, bool internal) {
-	atomic_sub_u(&arena->nthreads[internal], 1);
+	atomic_fetch_sub_u(&arena->nthreads[internal], 1, ATOMIC_RELAXED);
 }
 
 size_t
 arena_extent_sn_next(arena_t *arena) {
-	return atomic_add_zu(&arena->extent_sn_next, 1) - 1;
+	return atomic_fetch_add_zu(&arena->extent_sn_next, 1, ATOMIC_RELAXED);
 }
 
 arena_t *
@@ -1832,7 +1831,8 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 		goto label_error;
 	}
 
-	arena->nthreads[0] = arena->nthreads[1] = 0;
+	atomic_store_u(&arena->nthreads[0], 0, ATOMIC_RELAXED);
+	atomic_store_u(&arena->nthreads[1], 0, ATOMIC_RELAXED);
 	arena->last_thd = NULL;
 
 	if (config_stats) {
@@ -1867,11 +1867,12 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 		    (size_t)(uintptr_t)arena, ATOMIC_RELAXED);
 	}
 
-	arena->extent_sn_next = 0;
+	atomic_store_zu(&arena->extent_sn_next, 0, ATOMIC_RELAXED);
 
-	arena->dss_prec = extent_dss_prec_get();
+	atomic_store_u(&arena->dss_prec, (unsigned)extent_dss_prec_get(),
+	    ATOMIC_RELAXED);
 
-	atomic_write_zu(&arena->nactive, 0);
+	atomic_store_zu(&arena->nactive, 0, ATOMIC_RELAXED);
 
 	extent_list_init(&arena->large);
 	if (malloc_mutex_init(&arena->large_mtx, "arena_large",
@@ -1918,7 +1919,8 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 	}
 
 	if (!config_munmap) {
-		arena->extent_grow_next = psz2ind(HUGEPAGE);
+		atomic_store_u(&arena->extent_grow_next, psz2ind(HUGEPAGE),
+		    ATOMIC_RELAXED);
 	}
 
 	extent_list_init(&arena->extent_freelist);

@@ -913,7 +913,8 @@ extent_alloc_default_impl(tsdn_t *tsdn, arena_t *arena, void *new_addr,
 	void *ret;
 
 	ret = extent_alloc_core(tsdn, arena, new_addr, size, alignment, zero,
-	    commit, arena->dss_prec);
+	    commit, (dss_prec_t)atomic_load_u(&arena->dss_prec,
+	    ATOMIC_RELAXED));
 	return ret;
 }
 
@@ -956,7 +957,8 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena,
 	 * extent creation as a side effect.
 	 */
 	size_t esize = size + pad;
-	size_t alloc_size = pind2sz(atomic_read_u(&arena->extent_grow_next));
+	size_t alloc_size = pind2sz(atomic_load_u(&arena->extent_grow_next,
+	    ATOMIC_RELAXED));
 	size_t alloc_size_min = esize + PAGE_CEILING(alignment) - PAGE;
 	/* Beware size_t wrap-around. */
 	if (alloc_size_min < esize) {
@@ -972,7 +974,8 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena,
 	bool zeroed = false;
 	bool committed = false;
 	void *ptr = extent_alloc_core(tsdn, arena, new_addr, alloc_size, PAGE,
-	    &zeroed, &committed, arena->dss_prec);
+	    &zeroed, &committed, (dss_prec_t)atomic_load_u(&arena->dss_prec,
+	    ATOMIC_RELAXED));
 	extent_init(extent, arena, ptr, alloc_size, false, NSIZES,
 	    arena_extent_sn_next(arena), extent_state_active, zeroed,
 	    committed);
@@ -1078,14 +1081,14 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena,
 	 * Increment extent_grow_next, but take care to do so atomically and
 	 * bail out if the increment would exceed the legal range.
 	 */
+	pszind_t egn = atomic_load_u(&arena->extent_grow_next, ATOMIC_RELAXED);
 	while (true) {
-		pszind_t egn = atomic_read_u(&arena->extent_grow_next);
-
 		if (egn + 1 == NPSIZES) {
 			break;
 		}
 		assert(egn + 1 < NPSIZES);
-		if (!atomic_cas_u(&arena->extent_grow_next, egn, egn + 1)) {
+		if (atomic_compare_exchange_weak_u(&arena->extent_grow_next,
+		    &egn, egn + 1, ATOMIC_RELAXED, ATOMIC_RELAXED)) {
 			break;
 		}
 	}

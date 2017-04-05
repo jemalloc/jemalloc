@@ -134,7 +134,7 @@ struct arena_s {
 	 *
 	 * Synchronization: atomic.
 	 */
-	unsigned		nthreads[2];
+	atomic_u_t		nthreads[2];
 
 	/*
 	 * When percpu_arena is enabled, to amortize the cost of reading /
@@ -173,17 +173,21 @@ struct arena_s {
 	 *
 	 * Synchronization: atomic.
 	 */
-	size_t			extent_sn_next;
+	atomic_zu_t		extent_sn_next;
 
-	/* Synchronization: atomic. */
-	dss_prec_t		dss_prec;
+	/*
+	 * Represents a dss_prec_t, but atomically.
+	 *
+	 * Synchronization: atomic.
+	 */
+	atomic_u_t		dss_prec;
 
 	/*
 	 * Number of pages in active extents.
 	 *
 	 * Synchronization: atomic.
 	 */
-	size_t			nactive;
+	atomic_zu_t		nactive;
 
 	/*
 	 * Extant large allocations.
@@ -222,7 +226,7 @@ struct arena_s {
 	 *
 	 * Synchronization: atomic.
 	 */
-	pszind_t		extent_grow_next;
+	atomic_u_t		extent_grow_next;
 
 	/*
 	 * Freelist of extent structures that were allocated via base_alloc().
