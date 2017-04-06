@@ -6,6 +6,9 @@ typedef struct tcache_bin_s tcache_bin_t;
 typedef struct tcache_s tcache_t;
 typedef struct tcaches_s tcaches_t;
 
+/* ncached is cast to this type for comparison. */
+typedef int32_t low_water_t;
+
 /*
  * tcache pointers close to NULL are used to encode state information that is
  * used for two purposes: preventing thread caching on a per thread basis and
@@ -48,9 +51,9 @@ typedef struct tcaches_s tcaches_t;
     ((TCACHE_GC_SWEEP / NBINS) + ((TCACHE_GC_SWEEP / NBINS == 0) ? 0 : 1))
 
 /* Used in TSD static initializer only. Real init in tcache_data_init(). */
-#define TCACHE_ZERO_INITIALIZER {{NULL}}
+#define TCACHE_ZERO_INITIALIZER {0}
 
 /* Used in TSD static initializer only. Will be initialized to opt_tcache. */
-#define TCACHE_ENABLED_DEFAULT false
+#define TCACHE_ENABLED_ZERO_INITIALIZER false
 
 #endif /* JEMALLOC_INTERNAL_TCACHE_TYPES_H */

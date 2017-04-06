@@ -287,8 +287,14 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 		atomic_store_zu(&astats->tcache_bytes, 0, ATOMIC_RELAXED);
 		malloc_mutex_lock(tsdn, &arena->tcache_ql_mtx);
 		ql_foreach(tcache, &arena->tcache_ql, link) {
-			for (szind_t i = 0; i < nhbins; i++) {
-				tbin = &tcache->tbins[i];
+			szind_t i = 0;
+			for (; i < NBINS; i++) {
+				tbin = tcache_small_bin_get(tcache, i);
+				arena_stats_accum_zu(&astats->tcache_bytes,
+				    tbin->ncached * index2size(i));
+			}
+			for (; i < nhbins; i++) {
+				tbin = tcache_large_bin_get(tcache, i);
 				arena_stats_accum_zu(&astats->tcache_bytes,
 				    tbin->ncached * index2size(i));
 			}
@@ -1317,8 +1323,8 @@ arena_bin_malloc_hard(tsdn_t *tsdn, arena_t *arena, arena_bin_t *bin,
 }
 
 void
-arena_tcache_fill_small(tsdn_t *tsdn, arena_t *arena, tcache_bin_t *tbin,
-    szind_t binind, uint64_t prof_accumbytes) {
+arena_tcache_fill_small(tsdn_t *tsdn, arena_t *arena, tcache_t *tcache,
+    tcache_bin_t *tbin, szind_t binind, uint64_t prof_accumbytes) {
 	unsigned i, nfill;
 	arena_bin_t *bin;
 
@@ -1330,7 +1336,7 @@ arena_tcache_fill_small(tsdn_t *tsdn, arena_t *arena, tcache_bin_t *tbin,
 	bin = &arena->bins[binind];
 	malloc_mutex_lock(tsdn, &bin->lock);
 	for (i = 0, nfill = (tcache_bin_info[binind].ncached_max >>
-	    tbin->lg_fill_div); i < nfill; i++) {
+	    tcache->lg_fill_div[binind]); i < nfill; i++) {
 		extent_t *slab;
 		void *ptr;
 		if ((slab = bin->slabcur) != NULL && extent_nfree_get(slab) >

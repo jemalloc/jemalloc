@@ -73,7 +73,7 @@ tcache_alloc_easy(tcache_bin_t *tbin, bool *tcache_success) {
 	ret = *(tbin->avail - tbin->ncached);
 	tbin->ncached--;
 
-	if (unlikely((int)tbin->ncached < tbin->low_water)) {
+	if (unlikely((low_water_t)tbin->ncached < tbin->low_water)) {
 		tbin->low_water = tbin->ncached;
 	}
 
@@ -89,7 +89,7 @@ tcache_alloc_small(tsd_t *tsd, arena_t *arena, tcache_t *tcache, size_t size,
 	size_t usize JEMALLOC_CC_SILENCE_INIT(0);
 
 	assert(binind < NBINS);
-	tbin = &tcache->tbins[binind];
+	tbin = tcache_small_bin_get(tcache, binind);
 	ret = tcache_alloc_easy(tbin, &tcache_success);
 	assert(tcache_success == (ret != NULL));
 	if (unlikely(!tcache_success)) {
@@ -150,8 +150,8 @@ tcache_alloc_large(tsd_t *tsd, arena_t *arena, tcache_t *tcache, size_t size,
 	tcache_bin_t *tbin;
 	bool tcache_success;
 
-	assert(binind < nhbins);
-	tbin = &tcache->tbins[binind];
+	assert(binind >= NBINS &&binind < nhbins);
+	tbin = tcache_large_bin_get(tcache, binind);
 	ret = tcache_alloc_easy(tbin, &tcache_success);
 	assert(tcache_success == (ret != NULL));
 	if (unlikely(!tcache_success)) {
@@ -215,7 +215,7 @@ tcache_dalloc_small(tsd_t *tsd, tcache_t *tcache, void *ptr, szind_t binind,
 		arena_dalloc_junk_small(ptr, &arena_bin_info[binind]);
 	}
 
-	tbin = &tcache->tbins[binind];
+	tbin = tcache_small_bin_get(tcache, binind);
 	tbin_info = &tcache_bin_info[binind];
 	if (unlikely(tbin->ncached == tbin_info->ncached_max)) {
 		tcache_bin_flush_small(tsd, tcache, tbin, binind,
@@ -241,7 +241,7 @@ tcache_dalloc_large(tsd_t *tsd, tcache_t *tcache, void *ptr, szind_t binind,
 		large_dalloc_junk(ptr, index2size(binind));
 	}
 
-	tbin = &tcache->tbins[binind];
+	tbin = tcache_large_bin_get(tcache, binind);
 	tbin_info = &tcache_bin_info[binind];
 	if (unlikely(tbin->ncached == tbin_info->ncached_max)) {
 		tcache_bin_flush_large(tsd, tbin, binind,
