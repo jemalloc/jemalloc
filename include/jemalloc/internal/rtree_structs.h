@@ -53,9 +53,6 @@ struct rtree_ctx_cache_elm_s {
 };
 
 struct rtree_ctx_s {
-#ifndef _MSC_VER
-	JEMALLOC_ALIGNED(CACHELINE)
-#endif
 	rtree_ctx_cache_elm_t	cache[RTREE_CTX_NCACHE];
 };
 

@@ -17,12 +17,14 @@ typedef struct tsdn_s tsdn_t;
 
 #define TSDN_NULL	((tsdn_t *)0)
 
-typedef enum {
-	tsd_state_uninitialized,
-	tsd_state_nominal,
-	tsd_state_purgatory,
-	tsd_state_reincarnated
-} tsd_state_t;
+enum {
+	tsd_state_uninitialized = 0,
+	tsd_state_nominal = 1,
+	tsd_state_purgatory = 2,
+	tsd_state_reincarnated = 3
+};
+/* Manually limit tsd_state_t to a single byte. */
+typedef uint8_t tsd_state_t;
 
 /*
  * TLS/TSD-agnostic macro-based implementation of thread-specific data.  There

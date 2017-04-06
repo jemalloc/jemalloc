@@ -14,19 +14,54 @@ struct tsd_init_head_s {
 };
 #endif
 
+/*
+ * Thread-Specific-Data layout
+ * --- data accessed on tcache fast path: state, rtree_ctx, stats, prof ---
+ * s: state
+ * e: tcache_enabled
+ * m: thread_allocated (config_stats)
+ * f: thread_deallocated (config_stats)
+ * p: prof_tdata (config_prof)
+ * c: rtree_ctx (rtree cache accessed on deallocation)
+ * t: tcache
+ * --- data not accessed on tcache fast path: arena related fields ---
+ * d: arenas_tdata_bypass
+ * r: narenas_tdata
+ * x: blank space (1 byte)
+ * i: iarena
+ * a: arena
+ * o: arenas_tdata
+ * Loading TSD data is on the critical path of basically all malloc operations.
+ * In particular, tcache and rtree_ctx rely on hot CPU cache to be effective.
+ * Use a compact layout to reduce cache footprint.
+ * +--- 64-bit and 64B cacheline; 1B each letter; First byte on the left. ---+
+ * |----------------------------  1st cacheline  ----------------------------|
+ * | sedxrrrr mmmmmmmm ffffffff pppppppp [c * 32  ........ ........ .......] |
+ * |----------------------------  2nd cacheline  ----------------------------|
+ * | [c * 64  ........ ........ ........ ........ ........ ........ .......] |
+ * |----------------------------  3nd cacheline  ----------------------------|
+ * | [c * 32  ........ ........ .......] iiiiiiii aaaaaaaa oooooooo [t...... |
+ * +-------------------------------------------------------------------------+
+ * Note: the entire tcache is embedded into TSD and spans multiple cachelines.
+ *
+ * The last 3 members (i, a and o) before tcache isn't really needed on tcache
+ * fast path.  However we have a number of unused tcache bins and witnesses
+ * (never touched unless config_debug) at the end of tcache, so we place them
+ * there to avoid breaking the cachelines and possibly paging in an extra page.
+ */
 #define MALLOC_TSD							\
 /*  O(name,			type,		[gs]et,	init,	cleanup) */ \
-    O(tcache,			tcache_t,	yes,	no,	yes)	\
+    O(tcache_enabled,		bool,		yes,	yes,	no)	\
+    O(arenas_tdata_bypass,	bool,		no,	no,	no)	\
+    O(narenas_tdata,		uint32_t,	yes,	no,	no)	\
     O(thread_allocated,		uint64_t,	yes,	no,	no)	\
     O(thread_deallocated,	uint64_t,	yes,	no,	no)	\
     O(prof_tdata,		prof_tdata_t *,	yes,	no,	yes)	\
+    O(rtree_ctx,		rtree_ctx_t,	no,	yes,	no)	\
     O(iarena,			arena_t *,	yes,	no,	yes)	\
     O(arena,			arena_t *,	yes,	no,	yes)	\
     O(arenas_tdata,		arena_tdata_t *,yes,	no,	yes)	\
-    O(narenas_tdata,		unsigned,	yes,	no,	no)	\
-    O(arenas_tdata_bypass,	bool,		no,	no,	no)	\
-    O(tcache_enabled,		bool,		yes,	yes,	no)	\
-    O(rtree_ctx,		rtree_ctx_t,	no,	yes,	no)	\
+    O(tcache,			tcache_t,	yes,	no,	yes)	\
     O(witnesses,		witness_list_t,	no,	no,	yes)	\
     O(rtree_leaf_elm_witnesses,	rtree_leaf_elm_witness_tsd_t,		\
 						no,	no,	no)	\
@@ -34,17 +69,17 @@ struct tsd_init_head_s {
 
 #define TSD_INITIALIZER {						\
     tsd_state_uninitialized,						\
-    TCACHE_ZERO_INITIALIZER,						\
-    0,									\
-    0,									\
-    NULL,								\
-    NULL,								\
-    NULL,								\
-    NULL,								\
-    0,									\
+    TCACHE_ENABLED_ZERO_INITIALIZER,					\
     false,								\
-    TCACHE_ENABLED_DEFAULT,						\
+    0,									\
+    0,									\
+    0,									\
+    NULL,								\
     RTREE_CTX_ZERO_INITIALIZER,						\
+    NULL,								\
+    NULL,								\
+    NULL,								\
+    TCACHE_ZERO_INITIALIZER,						\
     ql_head_initializer(witnesses),					\
     RTREE_ELM_WITNESS_TSD_INITIALIZER,					\
     false								\
