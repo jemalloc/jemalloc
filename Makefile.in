@@ -243,7 +243,9 @@ TESTS_CPP_OBJS := $(TESTS_INTEGRATION_CPP_OBJS)
 
 .PHONY: all dist build_doc_html build_doc_man build_doc
 .PHONY: install_bin install_include install_lib
+.PHONY: uninstall_bin uninstall_include uninstall_lib
 .PHONY: install_doc_html install_doc_man install_doc install
+.PHONY: uninstall_doc_html uninstall_doc_man uninstall_doc uninstall
 .PHONY: tests check clean distclean relclean
 
 .SECONDARY : $(TESTS_OBJS) $(TESTS_CPP_OBJS)
@@ -373,12 +375,20 @@ install_bin:
 	$(INSTALL) -m 755 $$b $(BINDIR); \
 done
 
+uninstall_bin:
+	rm -f $(BINDIR)/jemalloc-config
+	rm -f $(BINDIR)/jemalloc.sh
+	rm -f $(BINDIR)/jeprof
+
 install_include:
 	$(INSTALL) -d $(INCLUDEDIR)/jemalloc
 	@for h in $(C_HDRS); do \
 	echo "$(INSTALL) -m 644 $$h $(INCLUDEDIR)/jemalloc"; \
 	$(INSTALL) -m 644 $$h $(INCLUDEDIR)/jemalloc; \
 done
+
+uninstall_include:
+	rm -rf $(INCLUDEDIR)/jemalloc
 
 install_lib_shared: $(DSOS)
 	$(INSTALL) -d $(LIBDIR)
@@ -403,12 +413,36 @@ done
 
 install_lib: install_lib_shared install_lib_static install_lib_pc
 
+uninstall_lib_shared:
+	rm -f $(LIBDIR)/$(LIBJEMALLOC).$(SOREV)
+ifneq ($(SOREV),$(SO))
+	rm -f $(LIBDIR)/$(LIBJEMALLOC).$(SO)
+endif
+
+uninstall_lib_static:
+ifeq ($(IMPORTLIB),$(SO))
+	rm -f $(LIBDIR)/$(LIBJEMALLOC).$(A)
+endif
+ifdef PIC_CFLAGS
+	rm -f $(LIBDIR)/$(LIBJEMALLOC)_pic.$(A)
+else
+	rm -f $(LIBDIR)/$(LIBJEMALLOC)_s.$(A)
+endif
+
+uninstall_lib_pc: 
+	rm -f $(LIBDIR)/pkgconfig/jemalloc.pc
+
+uninstall_lib: uninstall_lib_shared uninstall_lib_static uninstall_lib_pc
+
 install_doc_html:
 	$(INSTALL) -d $(DATADIR)/doc/jemalloc$(install_suffix)
 	@for d in $(DOCS_HTML); do \
 	echo "$(INSTALL) -m 644 $$d $(DATADIR)/doc/jemalloc$(install_suffix)"; \
 	$(INSTALL) -m 644 $$d $(DATADIR)/doc/jemalloc$(install_suffix); \
 done
+
+uninstall_doc_html:
+	rm -rf $(DATADIR)/doc/jemalloc$(install_suffix)
 
 install_doc_man:
 	$(INSTALL) -d $(MANDIR)/man3
@@ -417,9 +451,16 @@ install_doc_man:
 	$(INSTALL) -m 644 $$d $(MANDIR)/man3; \
 done
 
+uninstall_doc_man:
+	rm -f $(MANDIR)/man3/jemalloc$(install_suffix).3
+
 install_doc: install_doc_html install_doc_man
 
+uninstall_doc: uninstall_doc_html uninstall_doc_man
+
 install: install_bin install_include install_lib install_doc
+
+uninstall: uninstall_bin uninstall_include uninstall_lib uninstall_doc
 
 tests_unit: $(TESTS_UNIT:$(srcroot)%.c=$(objroot)%$(EXE))
 tests_integration: $(TESTS_INTEGRATION:$(srcroot)%.c=$(objroot)%$(EXE)) $(TESTS_INTEGRATION_CPP:$(srcroot)%.cpp=$(objroot)%$(EXE))
