@@ -326,7 +326,7 @@ tcache_arena_reassociate(tsdn_t *tsdn, tcache_t *tcache, arena_t *arena) {
 bool
 tsd_tcache_enabled_data_init(tsd_t *tsd) {
 	/* Called upon tsd initialization. */
-	tsd_tcache_enabled_set(tsd, (tcache_enabled_t)opt_tcache);
+	tsd_tcache_enabled_set(tsd, opt_tcache);
 	if (opt_tcache) {
 		/* Trigger tcache init. */
 		tsd_tcache_data_init(tsd);
@@ -501,13 +501,13 @@ tcache_cleanup(tsd_t *tsd) {
 
 	tcache_t *tcache = tsd_tcachep_get(tsd);
 	if (!tcache_available(tsd)) {
-		assert(tsd_tcache_enabled_get(tsd) == tcache_enabled_false);
+		assert(tsd_tcache_enabled_get(tsd) == false);
 		if (config_debug) {
 			assert(tcache->tbins[0].avail == NULL);
 		}
 		return;
 	}
-	assert(tsd_tcache_enabled_get(tsd) == tcache_enabled_true);
+	assert(tsd_tcache_enabled_get(tsd));
 	assert(tcache->tbins[0].avail != NULL);
 
 	tcache_destroy(tsd, tcache, true);
