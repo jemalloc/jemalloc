@@ -96,16 +96,25 @@ witnesses_cleanup(tsd_t *tsd) {
 
 void
 witness_prefork(tsd_t *tsd) {
+	if (!config_debug) {
+		return;
+	}
 	tsd_witness_fork_set(tsd, true);
 }
 
 void
 witness_postfork_parent(tsd_t *tsd) {
+	if (!config_debug) {
+		return;
+	}
 	tsd_witness_fork_set(tsd, false);
 }
 
 void
 witness_postfork_child(tsd_t *tsd) {
+	if (!config_debug) {
+		return;
+	}
 #ifndef JEMALLOC_MUTEX_INIT_CB
 	witness_list_t *witnesses;
 
