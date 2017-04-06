@@ -1,12 +1,6 @@
 #ifndef JEMALLOC_INTERNAL_TCACHE_STRUCTS_H
 #define JEMALLOC_INTERNAL_TCACHE_STRUCTS_H
 
-typedef enum {
-	tcache_enabled_false   = 0, /* Enable cast to/from bool. */
-	tcache_enabled_true    = 1,
-	tcache_enabled_default = 2
-} tcache_enabled_t;
-
 /*
  * Read-only information associated with each element of tcache_t's tbins array
  * is stored separately, mainly to reduce memory usage.

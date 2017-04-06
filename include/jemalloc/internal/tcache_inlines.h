@@ -22,30 +22,24 @@ tcache_t	*tcaches_get(tsd_t *tsd, unsigned ind);
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_TCACHE_C_))
 JEMALLOC_INLINE bool
 tcache_enabled_get(tsd_t *tsd) {
-	tcache_enabled_t tcache_enabled;
-
 	cassert(config_tcache);
 
-	tcache_enabled = tsd_tcache_enabled_get(tsd);
-	assert(tcache_enabled != tcache_enabled_default);
-
-	return (bool)tcache_enabled;
+	return tsd_tcache_enabled_get(tsd);
 }
 
 JEMALLOC_INLINE void
 tcache_enabled_set(tsd_t *tsd, bool enabled) {
 	cassert(config_tcache);
 
-	tcache_enabled_t old = tsd_tcache_enabled_get(tsd);
+	bool was_enabled = tsd_tcache_enabled_get(tsd);
 
-	if ((old != tcache_enabled_true) && enabled) {
+	if (!was_enabled && enabled) {
 		tsd_tcache_data_init(tsd);
-	} else if ((old == tcache_enabled_true) && !enabled) {
+	} else if (was_enabled && !enabled) {
 		tcache_cleanup(tsd);
 	}
 	/* Commit the state last.  Above calls check current state. */
-	tcache_enabled_t tcache_enabled = (tcache_enabled_t)enabled;
-	tsd_tcache_enabled_set(tsd, tcache_enabled);
+	tsd_tcache_enabled_set(tsd, enabled);
 }
 
 JEMALLOC_ALWAYS_INLINE void

@@ -50,4 +50,7 @@ typedef struct tcaches_s tcaches_t;
 /* Used in TSD static initializer only. Real init in tcache_data_init(). */
 #define TCACHE_ZERO_INITIALIZER {{NULL}}
 
+/* Used in TSD static initializer only. Will be initialized to opt_tcache. */
+#define TCACHE_ENABLED_DEFAULT false
+
 #endif /* JEMALLOC_INTERNAL_TCACHE_TYPES_H */

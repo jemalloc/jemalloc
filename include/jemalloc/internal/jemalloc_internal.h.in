@@ -942,7 +942,7 @@ tcache_available(tsd_t *tsd) {
 	 * initialization, or 2) disabled through thread.tcache.enabled mallctl
 	 * or config options.  This check covers all cases.
 	 */
-	if (likely(tsd_tcache_enabled_get(tsd) == tcache_enabled_true)) {
+	if (likely(tsd_tcache_enabled_get(tsd) == true)) {
 		/* Associated arena == null implies tcache init in progress. */
 		if (tsd_tcachep_get(tsd)->arena != NULL) {
 			assert(tsd_tcachep_get(tsd)->tbins[0].avail != NULL);

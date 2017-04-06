@@ -25,8 +25,7 @@ struct tsd_init_head_s {
     O(arenas_tdata,		arena_tdata_t *,yes,	no,	yes)	\
     O(narenas_tdata,		unsigned,	yes,	no,	no)	\
     O(arenas_tdata_bypass,	bool,		no,	no,	no)	\
-    O(tcache_enabled,		tcache_enabled_t,			\
-						yes,	yes,	no)	\
+    O(tcache_enabled,		bool,		yes,	yes,	no)	\
     O(rtree_ctx,		rtree_ctx_t,	no,	yes,	no)	\
     O(witnesses,		witness_list_t,	no,	no,	yes)	\
     O(rtree_leaf_elm_witnesses,	rtree_leaf_elm_witness_tsd_t,		\
@@ -44,7 +43,7 @@ struct tsd_init_head_s {
     NULL,								\
     0,									\
     false,								\
-    tcache_enabled_default,						\
+    TCACHE_ENABLED_DEFAULT,						\
     RTREE_CTX_ZERO_INITIALIZER,						\
     ql_head_initializer(witnesses),					\
     RTREE_ELM_WITNESS_TSD_INITIALIZER,					\
