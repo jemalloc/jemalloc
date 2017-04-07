@@ -590,7 +590,7 @@ prof_gctx_try_destroy(tsd_t *tsd, prof_tdata_t *tdata_self, prof_gctx_t *gctx,
 		prof_leave(tsd, tdata_self);
 		/* Destroy gctx. */
 		malloc_mutex_unlock(tsd_tsdn(tsd), gctx->lock);
-		idalloctm(tsd_tsdn(tsd), gctx, NULL, true, true);
+		idalloctm(tsd_tsdn(tsd), gctx, NULL, NULL, true, true);
 	} else {
 		/*
 		 * Compensate for increment in prof_tctx_destroy() or
@@ -704,7 +704,7 @@ prof_tctx_destroy(tsd_t *tsd, prof_tctx_t *tctx) {
 	}
 
 	if (destroy_tctx) {
-		idalloctm(tsd_tsdn(tsd), tctx, NULL, true, true);
+		idalloctm(tsd_tsdn(tsd), tctx, NULL, NULL, true, true);
 	}
 }
 
@@ -736,8 +736,8 @@ prof_lookup_global(tsd_t *tsd, prof_bt_t *bt, prof_tdata_t *tdata,
 			if (ckh_insert(tsd, &bt2gctx, btkey.v, gctx.v)) {
 				/* OOM. */
 				prof_leave(tsd, tdata);
-				idalloctm(tsd_tsdn(tsd), gctx.v, NULL, true,
-				    true);
+				idalloctm(tsd_tsdn(tsd), gctx.v, NULL, NULL,
+				    true, true);
 				return true;
 			}
 			new_gctx = true;
@@ -761,7 +761,8 @@ prof_lookup_global(tsd_t *tsd, prof_bt_t *bt, prof_tdata_t *tdata,
 
 		if (tgctx.v != NULL) {
 			/* Lost race to insert. */
-			idalloctm(tsd_tsdn(tsd), tgctx.v, NULL, true, true);
+			idalloctm(tsd_tsdn(tsd), tgctx.v, NULL, NULL, true,
+			    true);
 		}
 	}
 	prof_leave(tsd, tdata);
@@ -833,7 +834,7 @@ prof_lookup(tsd_t *tsd, prof_bt_t *bt) {
 			if (new_gctx) {
 				prof_gctx_try_destroy(tsd, tdata, gctx, tdata);
 			}
-			idalloctm(tsd_tsdn(tsd), ret.v, NULL, true, true);
+			idalloctm(tsd_tsdn(tsd), ret.v, NULL, NULL, true, true);
 			return NULL;
 		}
 		malloc_mutex_lock(tsd_tsdn(tsd), gctx->lock);
@@ -1245,7 +1246,7 @@ prof_gctx_finish(tsd_t *tsd, prof_gctx_tree_t *gctxs) {
 					tctx_tree_remove(&gctx->tctxs,
 					    to_destroy);
 					idalloctm(tsd_tsdn(tsd), to_destroy,
-					    NULL, true, true);
+					    NULL, NULL, true, true);
 				} else {
 					next = NULL;
 				}
@@ -1915,7 +1916,7 @@ prof_tdata_init_impl(tsd_t *tsd, uint64_t thr_uid, uint64_t thr_discrim,
 
 	if (ckh_new(tsd, &tdata->bt2tctx, PROF_CKH_MINITEMS, prof_bt_hash,
 	    prof_bt_keycomp)) {
-		idalloctm(tsd_tsdn(tsd), tdata, NULL, true, true);
+		idalloctm(tsd_tsdn(tsd), tdata, NULL, NULL, true, true);
 		return NULL;
 	}
 
@@ -1971,10 +1972,11 @@ prof_tdata_destroy_locked(tsd_t *tsd, prof_tdata_t *tdata,
 	assert(prof_tdata_should_destroy_unlocked(tdata, even_if_attached));
 
 	if (tdata->thread_name != NULL) {
-		idalloctm(tsd_tsdn(tsd), tdata->thread_name, NULL, true, true);
+		idalloctm(tsd_tsdn(tsd), tdata->thread_name, NULL, NULL, true,
+		    true);
 	}
 	ckh_delete(tsd, &tdata->bt2tctx);
-	idalloctm(tsd_tsdn(tsd), tdata, NULL, true, true);
+	idalloctm(tsd_tsdn(tsd), tdata, NULL, NULL, true, true);
 }
 
 static void
@@ -2171,7 +2173,8 @@ prof_thread_name_set(tsd_t *tsd, const char *thread_name) {
 	}
 
 	if (tdata->thread_name != NULL) {
-		idalloctm(tsd_tsdn(tsd), tdata->thread_name, NULL, true, true);
+		idalloctm(tsd_tsdn(tsd), tdata->thread_name, NULL, NULL, true,
+		    true);
 		tdata->thread_name = NULL;
 	}
 	if (strlen(s) > 0) {

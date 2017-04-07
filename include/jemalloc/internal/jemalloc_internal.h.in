@@ -1095,8 +1095,8 @@ void *ipalloct(tsdn_t *tsdn, size_t usize, size_t alignment, bool zero,
     tcache_t *tcache, arena_t *arena);
 void *ipalloc(tsd_t *tsd, size_t usize, size_t alignment, bool zero);
 size_t ivsalloc(tsdn_t *tsdn, const void *ptr);
-void idalloctm(tsdn_t *tsdn, void *ptr, tcache_t *tcache, bool is_internal,
-    bool slow_path);
+void idalloctm(tsdn_t *tsdn, void *ptr, tcache_t *tcache,
+    dalloc_ctx_t *dalloc_ctx, bool is_internal, bool slow_path);
 void idalloc(tsd_t *tsd, void *ptr);
 void isdalloct(tsdn_t *tsdn, void *ptr, size_t size, tcache_t *tcache,
     bool slow_path);
@@ -1188,8 +1188,8 @@ ivsalloc(tsdn_t *tsdn, const void *ptr) {
 }
 
 JEMALLOC_ALWAYS_INLINE void
-idalloctm(tsdn_t *tsdn, void *ptr, tcache_t *tcache, bool is_internal,
-    bool slow_path) {
+idalloctm(tsdn_t *tsdn, void *ptr, tcache_t *tcache, dalloc_ctx_t *dalloc_ctx,
+    bool is_internal, bool slow_path) {
 	assert(ptr != NULL);
 	assert(!is_internal || tcache == NULL);
 	assert(!is_internal || arena_ind_get(iaalloc(tsdn, ptr)) <
@@ -1201,12 +1201,12 @@ idalloctm(tsdn_t *tsdn, void *ptr, tcache_t *tcache, bool is_internal,
 	if (!is_internal && *tsd_reentrancy_levelp_get(tsdn_tsd(tsdn)) != 0) {
 		tcache = NULL;
 	}
-	arena_dalloc(tsdn, ptr, tcache, slow_path);
+	arena_dalloc(tsdn, ptr, tcache, dalloc_ctx, slow_path);
 }
 
 JEMALLOC_ALWAYS_INLINE void
 idalloc(tsd_t *tsd, void *ptr) {
-	idalloctm(tsd_tsdn(tsd), ptr, tcache_get(tsd), false, true);
+	idalloctm(tsd_tsdn(tsd), ptr, tcache_get(tsd), NULL, false, true);
 }
 
 JEMALLOC_ALWAYS_INLINE void
