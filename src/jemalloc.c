@@ -313,7 +313,7 @@ a0ialloc(size_t size, bool zero, bool is_internal) {
 
 static void
 a0idalloc(void *ptr, bool is_internal) {
-	idalloctm(TSDN_NULL, ptr, false, is_internal, true);
+	idalloctm(TSDN_NULL, ptr, NULL, NULL, is_internal, true);
 }
 
 void *
@@ -2045,21 +2045,29 @@ ifree(tsd_t *tsd, void *ptr, tcache_t *tcache, bool slow_path) {
 	assert(ptr != NULL);
 	assert(malloc_initialized() || IS_INITIALIZER);
 
+	dalloc_ctx_t dalloc_ctx;
+	rtree_ctx_t *rtree_ctx = tsd_rtree_ctx(tsd);
+	rtree_szind_slab_read(tsd_tsdn(tsd), &extents_rtree, rtree_ctx,
+	    (uintptr_t)ptr, true, &dalloc_ctx.szind, &dalloc_ctx.slab);
+	assert(dalloc_ctx.szind != NSIZES);
+
 	size_t usize;
 	if (config_prof && opt_prof) {
-		usize = isalloc(tsd_tsdn(tsd), ptr);
+		usize = index2size(dalloc_ctx.szind);
 		prof_free(tsd, ptr, usize);
 	} else if (config_stats) {
-		usize = isalloc(tsd_tsdn(tsd), ptr);
+		usize = index2size(dalloc_ctx.szind);
 	}
 	if (config_stats) {
 		*tsd_thread_deallocatedp_get(tsd) += usize;
 	}
 
 	if (likely(!slow_path)) {
-		idalloctm(tsd_tsdn(tsd), ptr, tcache, false, false);
+		idalloctm(tsd_tsdn(tsd), ptr, tcache, &dalloc_ctx, false,
+		    false);
 	} else {
-		idalloctm(tsd_tsdn(tsd), ptr, tcache, false, true);
+		idalloctm(tsd_tsdn(tsd), ptr, tcache, &dalloc_ctx, false,
+		    true);
 	}
 }
 
