@@ -1662,7 +1662,7 @@ imalloc_body(static_opts_t *sopts, dynamic_opts_t *dopts) {
 	 * bother getting the old level, so we shouldn't try to reset it.  This
 	 * is indicated by leaving the pointer as NULL.
 	 */
-	int *reentrancy_level = NULL;
+	int8_t *reentrancy_level = NULL;
 
 	/* Initialize (if we can't prove we don't have to). */
 	if (sopts->slow) {
