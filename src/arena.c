@@ -1958,7 +1958,7 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 		 * If we're here, then arena 0 already exists, so bootstrapping
 		 * is done enough that we should have tsd.
 		 */
-		int *reentrancy_level = tsd_reentrancy_levelp_get(tsdn_tsd(
+		int8_t *reentrancy_level = tsd_reentrancy_levelp_get(tsdn_tsd(
 		    tsdn));
 		++*reentrancy_level;
 		hooks_arena_new_hook();
