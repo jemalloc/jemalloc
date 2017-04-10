@@ -1,6 +1,8 @@
 #ifndef JEMALLOC_INTERNAL_EXTENT_EXTERNS_H
 #define JEMALLOC_INTERNAL_EXTENT_EXTERNS_H
 
+#include "jemalloc/internal/ph.h"
+
 extern rtree_t			extents_rtree;
 extern const extent_hooks_t	extent_hooks_default;
 

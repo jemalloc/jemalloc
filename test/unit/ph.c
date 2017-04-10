@@ -1,5 +1,7 @@
 #include "test/jemalloc_test.h"
 
+#include "jemalloc/internal/ph.h"
+
 typedef struct node_s node_t;
 
 struct node_s {
