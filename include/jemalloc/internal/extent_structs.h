@@ -1,6 +1,8 @@
 #ifndef JEMALLOC_INTERNAL_EXTENT_STRUCTS_H
 #define JEMALLOC_INTERNAL_EXTENT_STRUCTS_H
 
+#include "jemalloc/internal/ph.h"
+
 typedef enum {
 	extent_state_active   = 0,
 	extent_state_dirty    = 1,
