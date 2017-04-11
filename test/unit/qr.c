@@ -1,5 +1,7 @@
 #include "test/jemalloc_test.h"
 
+#include "jemalloc/internal/qr.h"
+
 /* Number of ring entries, in [2..26]. */
 #define NENTRIES 9
 /* Split index, in [1..NENTRIES). */
