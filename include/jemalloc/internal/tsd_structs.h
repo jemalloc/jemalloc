@@ -1,6 +1,8 @@
 #ifndef JEMALLOC_INTERNAL_TSD_STRUCTS_H
 #define JEMALLOC_INTERNAL_TSD_STRUCTS_H
 
+#include "jemalloc/internal/ql.h"
+
 #if (!defined(JEMALLOC_MALLOC_THREAD_CLEANUP) && !defined(JEMALLOC_TLS) && \
     !defined(_WIN32))
 struct tsd_init_block_s {

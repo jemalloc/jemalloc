@@ -1,6 +1,8 @@
 #ifndef JEMALLOC_INTERNAL_CTL_STRUCTS_H
 #define JEMALLOC_INTERNAL_CTL_STRUCTS_H
 
+#include "jemalloc/internal/ql.h"
+
 struct ctl_node_s {
 	bool			named;
 };

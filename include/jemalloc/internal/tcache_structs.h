@@ -1,6 +1,8 @@
 #ifndef JEMALLOC_INTERNAL_TCACHE_STRUCTS_H
 #define JEMALLOC_INTERNAL_TCACHE_STRUCTS_H
 
+#include "jemalloc/internal/ql.h"
+
 /*
  * Read-only information associated with each element of tcache_t's tbins array
  * is stored separately, mainly to reduce memory usage.

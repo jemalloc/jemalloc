@@ -1,5 +1,8 @@
 #ifndef JEMALLOC_INTERNAL_ARENA_STRUCTS_B_H
 #define JEMALLOC_INTERNAL_ARENA_STRUCTS_B_H
+
+#include "jemalloc/internal/ql.h"
+
 /*
  * Read-only information associated with each element of arena_t's bins array
  * is stored separately, partly to reduce memory usage (only one copy, rather
