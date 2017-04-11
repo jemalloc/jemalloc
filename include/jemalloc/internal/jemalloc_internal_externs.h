@@ -1,6 +1,8 @@
 #ifndef JEMALLOC_INTERNAL_EXTERNS_H
 #define JEMALLOC_INTERNAL_EXTERNS_H
 
+#include "jemalloc/internal/atomic.h"
+
 extern bool	opt_abort;
 extern const char	*opt_junk;
 extern bool	opt_junk_alloc;

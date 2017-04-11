@@ -1,6 +1,8 @@
 #ifndef JEMALLOC_INTERNAL_RTREE_STRUCTS_H
 #define JEMALLOC_INTERNAL_RTREE_STRUCTS_H
 
+#include "jemalloc/internal/atomic.h"
+
 struct rtree_node_elm_s {
 	atomic_p_t	child; /* (rtree_{node,leaf}_elm_t *) */
 };
