@@ -1,6 +1,8 @@
 #ifndef JEMALLOC_INTERNAL_HASH_INLINES_H
 #define JEMALLOC_INTERNAL_HASH_INLINES_H
 
+#include "jemalloc/internal/assert.h"
+
 /*
  * The following hash function is based on MurmurHash3, placed into the public
  * domain by Austin Appleby.  See https://github.com/aappleby/smhasher for
