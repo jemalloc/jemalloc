@@ -22,6 +22,10 @@
 #ifndef RB_H_
 #define RB_H_
 
+#ifndef __PGI
+#define RB_COMPACT
+#endif
+
 #ifdef RB_COMPACT
 /* Node structure. */
 #define rb_node(a_type)							\

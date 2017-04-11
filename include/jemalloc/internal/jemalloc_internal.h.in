@@ -180,10 +180,6 @@ static const bool have_percpu_arena =
 #include <mach/vm_map.h>
 #endif
 
-#ifndef __PGI
-#define RB_COMPACT
-#endif
-#include "jemalloc/internal/rb.h"
 #include "jemalloc/internal/qr.h"
 #include "jemalloc/internal/ql.h"
 
