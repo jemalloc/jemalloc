@@ -1,5 +1,7 @@
 #include "test/jemalloc_test.h"
 
+#include "jemalloc/internal/util.h"
+
 typedef enum {
 	TOKEN_TYPE_NONE,
 	TOKEN_TYPE_ERROR,

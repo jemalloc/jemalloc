@@ -1,6 +1,8 @@
 #ifndef JEMALLOC_INTERNAL_TCACHE_INLINES_H
 #define JEMALLOC_INTERNAL_TCACHE_INLINES_H
 
+#include "jemalloc/internal/util.h"
+
 #ifndef JEMALLOC_ENABLE_INLINE
 void	tcache_event(tsd_t *tsd, tcache_t *tcache);
 void	tcache_flush(void);

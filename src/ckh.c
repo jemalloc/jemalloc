@@ -39,6 +39,7 @@
 #include "jemalloc/internal/jemalloc_internal_includes.h"
 
 #include "jemalloc/internal/malloc_io.h"
+#include "jemalloc/internal/util.h"
 
 /******************************************************************************/
 /* Function prototypes for non-inline static functions. */

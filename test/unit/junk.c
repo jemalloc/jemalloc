@@ -1,5 +1,7 @@
 #include "test/jemalloc_test.h"
 
+#include "jemalloc/internal/util.h"
+
 static arena_dalloc_junk_small_t *arena_dalloc_junk_small_orig;
 static large_dalloc_junk_t *large_dalloc_junk_orig;
 static large_dalloc_maybe_junk_t *large_dalloc_maybe_junk_orig;
