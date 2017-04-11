@@ -304,7 +304,7 @@ large_ralloc(tsdn_t *tsdn, arena_t *arena, extent_t *extent, size_t usize,
 
 	size_t copysize = (usize < oldusize) ? usize : oldusize;
 	memcpy(ret, extent_addr_get(extent), copysize);
-	isdalloct(tsdn, extent_addr_get(extent), oldusize, tcache, true);
+	isdalloct(tsdn, extent_addr_get(extent), oldusize, tcache, NULL, true);
 	return ret;
 }
 

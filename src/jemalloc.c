@@ -2083,17 +2083,26 @@ isfree(tsd_t *tsd, void *ptr, size_t usize, tcache_t *tcache, bool slow_path) {
 	assert(ptr != NULL);
 	assert(malloc_initialized() || IS_INITIALIZER);
 
+	dalloc_ctx_t dalloc_ctx, *ctx;
 	if (config_prof && opt_prof) {
+		rtree_ctx_t *rtree_ctx = tsd_rtree_ctx(tsd);
+		rtree_szind_slab_read(tsd_tsdn(tsd), &extents_rtree, rtree_ctx,
+		    (uintptr_t)ptr, true, &dalloc_ctx.szind, &dalloc_ctx.slab);
+		assert(dalloc_ctx.szind == size2index(usize));
 		prof_free(tsd, ptr, usize);
+		ctx = &dalloc_ctx;
+	} else {
+		ctx = NULL;
 	}
+
 	if (config_stats) {
 		*tsd_thread_deallocatedp_get(tsd) += usize;
 	}
 
 	if (likely(!slow_path)) {
-		isdalloct(tsd_tsdn(tsd), ptr, usize, tcache, false);
+		isdalloct(tsd_tsdn(tsd), ptr, usize, tcache, ctx, false);
 	} else {
-		isdalloct(tsd_tsdn(tsd), ptr, usize, tcache, true);
+		isdalloct(tsd_tsdn(tsd), ptr, usize, tcache, ctx, true);
 	}
 }
 

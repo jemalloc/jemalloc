@@ -19,7 +19,7 @@ void arena_dalloc(tsdn_t *tsdn, void *ptr, tcache_t *tcache,
     dalloc_ctx_t *dalloc_ctx, bool slow_path);
 void arena_sdalloc_no_tcache(tsdn_t *tsdn, void *ptr, size_t size);
 void arena_sdalloc(tsdn_t *tsdn, void *ptr, size_t size, tcache_t *tcache,
-    bool slow_path);
+    dalloc_ctx_t *dalloc_ctx, bool slow_path);
 #endif
 
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_ARENA_C_))
@@ -293,7 +293,7 @@ arena_sdalloc_no_tcache(tsdn_t *tsdn, void *ptr, size_t size) {
 
 JEMALLOC_ALWAYS_INLINE void
 arena_sdalloc(tsdn_t *tsdn, void *ptr, size_t size, tcache_t *tcache,
-    bool slow_path) {
+    dalloc_ctx_t *dalloc_ctx, bool slow_path) {
 	assert(!tsdn_null(tsdn) || tcache == NULL);
 	assert(ptr != NULL);
 	assert(size <= LARGE_MAXCLASS);
@@ -305,7 +305,22 @@ arena_sdalloc(tsdn_t *tsdn, void *ptr, size_t size, tcache_t *tcache,
 
 	szind_t szind;
 	bool slab;
-	if (!config_prof || !opt_prof) {
+	UNUSED dalloc_ctx_t local_ctx;
+	if (config_prof && opt_prof) {
+		if (dalloc_ctx == NULL) {
+			/* Uncommon case and should be a static check. */
+			rtree_ctx_t rtree_ctx_fallback;
+			rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn,
+			    &rtree_ctx_fallback);
+			rtree_szind_slab_read(tsdn, &extents_rtree, rtree_ctx,
+			    (uintptr_t)ptr, true, &local_ctx.szind,
+			    &local_ctx.slab);
+			assert(local_ctx.szind == size2index(size));
+			dalloc_ctx = &local_ctx;
+		}
+		slab = dalloc_ctx->slab;
+		szind = dalloc_ctx->szind;
+	} else {
 		/*
 		 * There is no risk of being confused by a promoted sampled
 		 * object, so base szind and slab on the given size.
@@ -314,21 +329,14 @@ arena_sdalloc(tsdn_t *tsdn, void *ptr, size_t size, tcache_t *tcache,
 		slab = (szind < NBINS);
 	}
 
-	if ((config_prof && opt_prof) || config_debug) {
+	if (config_debug) {
 		rtree_ctx_t *rtree_ctx = tsd_rtree_ctx(tsdn_tsd(tsdn));
-
 		rtree_szind_slab_read(tsdn, &extents_rtree, rtree_ctx,
 		    (uintptr_t)ptr, true, &szind, &slab);
-
-		assert(szind == size2index(size));
-		assert((config_prof && opt_prof) || slab == (szind < NBINS));
-
-		if (config_debug) {
-			extent_t *extent = rtree_extent_read(tsdn,
-			    &extents_rtree, rtree_ctx, (uintptr_t)ptr, true);
-			assert(szind == extent_szind_get(extent));
-			assert(slab == extent_slab_get(extent));
-		}
+		extent_t *extent = rtree_extent_read(tsdn,
+		    &extents_rtree, rtree_ctx, (uintptr_t)ptr, true);
+		assert(szind == extent_szind_get(extent));
+		assert(slab == extent_slab_get(extent));
 	}
 
 	if (likely(slab)) {
