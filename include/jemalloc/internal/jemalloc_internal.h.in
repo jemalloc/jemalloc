@@ -180,8 +180,6 @@ static const bool have_percpu_arena =
 #include <mach/vm_map.h>
 #endif
 
-#include "jemalloc/internal/ql.h"
-
 /*
  * jemalloc can conceptually be broken into components (arena, tcache, etc.),
  * but there are circular dependencies that cannot be broken without

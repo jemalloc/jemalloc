@@ -1,6 +1,8 @@
 #ifndef JEMALLOC_INTERNAL_WITNESS_INLINES_H
 #define JEMALLOC_INTERNAL_WITNESS_INLINES_H
 
+#include "jemalloc/internal/ql.h"
+
 #ifndef JEMALLOC_ENABLE_INLINE
 bool	witness_owner(tsd_t *tsd, const witness_t *witness);
 void	witness_assert_owner(tsdn_t *tsdn, const witness_t *witness);

@@ -1,6 +1,8 @@
 #ifndef JEMALLOC_INTERNAL_TSD_TYPES_H
 #define JEMALLOC_INTERNAL_TSD_TYPES_H
 
+#include "jemalloc/internal/ql.h"
+
 /* Maximum number of malloc_tsd users with cleanup functions. */
 #define MALLOC_TSD_CLEANUPS_MAX	2
 

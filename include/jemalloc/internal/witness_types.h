@@ -1,6 +1,8 @@
 #ifndef JEMALLOC_INTERNAL_WITNESS_TYPES_H
 #define JEMALLOC_INTERNAL_WITNESS_TYPES_H
 
+#include "jemalloc/internal/ql.h"
+
 typedef struct witness_s witness_t;
 typedef unsigned witness_rank_t;
 typedef ql_head(witness_t) witness_list_t;

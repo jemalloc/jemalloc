@@ -1,6 +1,8 @@
 #ifndef JEMALLOC_INTERNAL_EXTENT_INLINES_H
 #define JEMALLOC_INTERNAL_EXTENT_INLINES_H
 
+#include "jemalloc/internal/ql.h"
+
 #ifndef JEMALLOC_ENABLE_INLINE
 arena_t *extent_arena_get(const extent_t *extent);
 szind_t extent_szind_get_maybe_invalid(const extent_t *extent);

@@ -2,6 +2,7 @@
 #define JEMALLOC_INTERNAL_EXTENT_STRUCTS_H
 
 #include "jemalloc/internal/ph.h"
+#include "jemalloc/internal/ql.h"
 
 typedef enum {
 	extent_state_active   = 0,
