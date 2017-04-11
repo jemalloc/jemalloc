@@ -43,8 +43,8 @@ extern "C" {
 #ifdef JEMALLOC_UNIT_TEST
 #  define JEMALLOC_JET
 #  define JEMALLOC_MANGLE
-#  include "jemalloc/internal/jemalloc_internal.h"
-
+#  include "jemalloc/internal/jemalloc_preamble.h"
+#  include "jemalloc/internal/jemalloc_internal_includes.h"
 
 /******************************************************************************/
 /*
@@ -96,7 +96,8 @@ static const bool config_debug =
 #  include "jemalloc/jemalloc_protos_jet.h"
 
 #  define JEMALLOC_JET
-#  include "jemalloc/internal/jemalloc_internal.h"
+#  include "jemalloc/internal/jemalloc_preamble.h"
+#  include "jemalloc/internal/jemalloc_internal_includes.h"
 #  include "jemalloc/internal/public_unnamespace.h"
 #  undef JEMALLOC_JET
 

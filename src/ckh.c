@@ -35,7 +35,8 @@
  *
  ******************************************************************************/
 #define JEMALLOC_CKH_C_
-#include "jemalloc/internal/jemalloc_internal.h"
+#include "jemalloc/internal/jemalloc_preamble.h"
+#include "jemalloc/internal/jemalloc_internal_includes.h"
 
 /******************************************************************************/
 /* Function prototypes for non-inline static functions. */

@@ -1,5 +1,6 @@
 #define JEMALLOC_MUTEX_C_
-#include "jemalloc/internal/jemalloc_internal.h"
+#include "jemalloc/internal/jemalloc_preamble.h"
+#include "jemalloc/internal/jemalloc_internal_includes.h"
 
 #if defined(JEMALLOC_LAZY_LOCK) && !defined(_WIN32)
 #include <dlfcn.h>
