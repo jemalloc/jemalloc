@@ -1,6 +1,8 @@
 #ifndef JEMALLOC_INTERNAL_BITMAP_INLINES_H
 #define JEMALLOC_INTERNAL_BITMAP_INLINES_H
 
+#include "jemalloc/internal/bit_util.h"
+
 #ifndef JEMALLOC_ENABLE_INLINE
 bool bitmap_full(bitmap_t *bitmap, const bitmap_info_t *binfo);
 bool bitmap_get(bitmap_t *bitmap, const bitmap_info_t *binfo, size_t bit);

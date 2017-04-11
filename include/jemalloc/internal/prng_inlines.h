@@ -2,6 +2,7 @@
 #define JEMALLOC_INTERNAL_PRNG_INLINES_H
 
 #include "jemalloc/internal/atomic.h"
+#include "jemalloc/internal/bit_util.h"
 
 #ifndef JEMALLOC_ENABLE_INLINE
 uint32_t	prng_state_next_u32(uint32_t state);

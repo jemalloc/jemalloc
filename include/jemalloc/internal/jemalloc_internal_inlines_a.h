@@ -2,6 +2,7 @@
 #define JEMALLOC_INTERNAL_INLINES_A_H
 
 #include "jemalloc/internal/atomic.h"
+#include "jemalloc/internal/bit_util.h"
 
 #ifndef JEMALLOC_ENABLE_INLINE
 pszind_t psz2ind(size_t psz);
