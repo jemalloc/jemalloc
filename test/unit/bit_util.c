@@ -1,5 +1,7 @@
 #include "test/jemalloc_test.h"
 
+#include "jemalloc/internal/bit_util.h"
+
 #define TEST_POW2_CEIL(t, suf, pri) do {				\
 	unsigned i, pow2;						\
 	t x;								\

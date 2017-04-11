@@ -41,7 +41,6 @@
 /******************************************************************************/
 
 #include "jemalloc/internal/assert.h"
-#include "jemalloc/internal/bit_util.h"
 #include "jemalloc/internal/malloc_io.h"
 #include "jemalloc/internal/util.h"
 
