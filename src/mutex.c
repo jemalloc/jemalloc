@@ -2,6 +2,8 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/jemalloc_internal_includes.h"
 
+#include "jemalloc/internal/malloc_io.h"
+
 #if defined(JEMALLOC_LAZY_LOCK) && !defined(_WIN32)
 #include <dlfcn.h>
 #endif
