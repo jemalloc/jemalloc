@@ -2,8 +2,14 @@
 #define JEMALLOC_INTERNAL_H
 
 #ifdef __cplusplus
-extern "C" {
+#  define CPP_PROLOGUE extern "C" {
+#  define CPP_EPILOGUE }
+#else
+#  define CPP_PROLOGUE
+#  define CPP_EPILOGUE
 #endif
+
+CPP_PROLOGUE
 
 #include "jemalloc_internal_defs.h"
 #include "jemalloc/internal/jemalloc_internal_decls.h"
@@ -1300,8 +1306,6 @@ ixalloc(tsdn_t *tsdn, void *ptr, size_t oldsize, size_t size, size_t extra,
 
 #include "jemalloc/internal/prof_inlines_b.h"
 
-#ifdef __cplusplus
-}
-#endif
+CPP_EPILOGUE
 
 #endif /* JEMALLOC_INTERNAL_H */
