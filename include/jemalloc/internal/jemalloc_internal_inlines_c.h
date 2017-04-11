@@ -18,7 +18,7 @@ void idalloctm(tsdn_t *tsdn, void *ptr, tcache_t *tcache,
     dalloc_ctx_t *dalloc_ctx, bool is_internal, bool slow_path);
 void idalloc(tsd_t *tsd, void *ptr);
 void isdalloct(tsdn_t *tsdn, void *ptr, size_t size, tcache_t *tcache,
-    bool slow_path);
+    dalloc_ctx_t *dalloc_ctx, bool slow_path);
 void *iralloct_realign(tsdn_t *tsdn, void *ptr, size_t oldsize, size_t size,
     size_t extra, size_t alignment, bool zero, tcache_t *tcache,
     arena_t *arena);
@@ -129,10 +129,10 @@ idalloc(tsd_t *tsd, void *ptr) {
 }
 
 JEMALLOC_ALWAYS_INLINE void
-isdalloct(tsdn_t *tsdn, void *ptr, size_t size,
-    tcache_t *tcache, bool slow_path) {
+isdalloct(tsdn_t *tsdn, void *ptr, size_t size, tcache_t *tcache,
+    dalloc_ctx_t *dalloc_ctx, bool slow_path) {
 	witness_assert_depth_to_rank(tsdn, WITNESS_RANK_CORE, 0);
-	arena_sdalloc(tsdn, ptr, size, tcache, slow_path);
+	arena_sdalloc(tsdn, ptr, size, tcache, dalloc_ctx, slow_path);
 }
 
 JEMALLOC_ALWAYS_INLINE void *
@@ -168,7 +168,7 @@ iralloct_realign(tsdn_t *tsdn, void *ptr, size_t oldsize, size_t size,
 	 */
 	copysize = (size < oldsize) ? size : oldsize;
 	memcpy(p, ptr, copysize);
-	isdalloct(tsdn, ptr, oldsize, tcache, true);
+	isdalloct(tsdn, ptr, oldsize, tcache, NULL, true);
 	return p;
 }
 

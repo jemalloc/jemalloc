@@ -1752,7 +1752,7 @@ arena_ralloc(tsdn_t *tsdn, arena_t *arena, void *ptr, size_t oldsize,
 
 	size_t copysize = (usize < oldsize) ? usize : oldsize;
 	memcpy(ret, ptr, copysize);
-	isdalloct(tsdn, ptr, oldsize, tcache, true);
+	isdalloct(tsdn, ptr, oldsize, tcache, NULL, true);
 	return ret;
 }
 
