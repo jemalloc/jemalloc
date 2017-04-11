@@ -2,7 +2,8 @@
 #include <new>
 
 #define JEMALLOC_CPP_CPP_
-#include "jemalloc/internal/jemalloc_internal.h"
+#include "jemalloc/internal/jemalloc_preamble.h"
+#include "jemalloc/internal/jemalloc_internal_includes.h"
 
 // All operators in this file are exported.
 

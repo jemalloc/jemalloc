@@ -1,5 +1,6 @@
 #define JEMALLOC_STATS_C_
-#include "jemalloc/internal/jemalloc_internal.h"
+#include "jemalloc/internal/jemalloc_preamble.h"
+#include "jemalloc/internal/jemalloc_internal_includes.h"
 
 const char *global_mutex_names[num_global_prof_mutexes] = {
 #define OP(mtx) #mtx,
