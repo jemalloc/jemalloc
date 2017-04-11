@@ -1,6 +1,8 @@
 #ifndef JEMALLOC_INTERNAL_CTL_EXTERNS_H
 #define JEMALLOC_INTERNAL_CTL_EXTERNS_H
 
+#include "jemalloc/internal/malloc_io.h"
+
 /* Maximum ctl tree depth. */
 #define CTL_MAX_DEPTH	7
 

@@ -2,6 +2,8 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/jemalloc_internal_includes.h"
 
+#include "jemalloc/internal/malloc_io.h"
+
 #ifdef JEMALLOC_SYSCTL_VM_OVERCOMMIT
 #include <sys/sysctl.h>
 #endif
