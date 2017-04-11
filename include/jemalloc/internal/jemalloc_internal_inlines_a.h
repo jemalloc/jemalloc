@@ -1,6 +1,8 @@
 #ifndef JEMALLOC_INTERNAL_INLINES_A_H
 #define JEMALLOC_INTERNAL_INLINES_A_H
 
+#include "jemalloc/internal/atomic.h"
+
 #ifndef JEMALLOC_ENABLE_INLINE
 pszind_t psz2ind(size_t psz);
 size_t pind2sz_compute(pszind_t pind);

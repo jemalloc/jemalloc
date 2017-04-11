@@ -1,6 +1,7 @@
 #ifndef JEMALLOC_INTERNAL_EXTENT_STRUCTS_H
 #define JEMALLOC_INTERNAL_EXTENT_STRUCTS_H
 
+#include "jemalloc/internal/atomic.h"
 #include "jemalloc/internal/ph.h"
 #include "jemalloc/internal/ql.h"
 

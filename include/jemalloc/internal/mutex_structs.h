@@ -1,6 +1,8 @@
 #ifndef JEMALLOC_INTERNAL_MUTEX_STRUCTS_H
 #define JEMALLOC_INTERNAL_MUTEX_STRUCTS_H
 
+#include "jemalloc/internal/atomic.h"
+
 struct mutex_prof_data_s {
 	/*
 	 * Counters touched on the slow path, i.e. when there is lock
