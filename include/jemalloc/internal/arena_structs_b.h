@@ -260,8 +260,8 @@ struct arena_tdata_s {
 	ticker_t		decay_ticker;
 };
 
-/* Used to pass rtree lookup context down the deallocation path. */
-struct dalloc_ctx_s {
+/* Used to pass rtree lookup context down the path. */
+struct alloc_ctx_s {
 	szind_t szind;
 	bool slab;
 };

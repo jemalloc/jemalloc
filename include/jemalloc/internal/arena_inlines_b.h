@@ -3,9 +3,10 @@
 
 #ifndef JEMALLOC_ENABLE_INLINE
 szind_t arena_bin_index(arena_t *arena, arena_bin_t *bin);
-prof_tctx_t *arena_prof_tctx_get(tsdn_t *tsdn, const void *ptr);
+prof_tctx_t *arena_prof_tctx_get(tsdn_t *tsdn, const void *ptr,
+    alloc_ctx_t *ctx);
 void arena_prof_tctx_set(tsdn_t *tsdn, const void *ptr, size_t usize,
-    prof_tctx_t *tctx);
+    alloc_ctx_t *ctx, prof_tctx_t *tctx);
 void arena_prof_tctx_reset(tsdn_t *tsdn, const void *ptr, prof_tctx_t *tctx);
 void arena_decay_ticks(tsdn_t *tsdn, arena_t *arena, unsigned nticks);
 void arena_decay_tick(tsdn_t *tsdn, arena_t *arena);
@@ -16,10 +17,10 @@ size_t arena_salloc(tsdn_t *tsdn, const void *ptr);
 size_t arena_vsalloc(tsdn_t *tsdn, const void *ptr);
 void arena_dalloc_no_tcache(tsdn_t *tsdn, void *ptr);
 void arena_dalloc(tsdn_t *tsdn, void *ptr, tcache_t *tcache,
-    dalloc_ctx_t *dalloc_ctx, bool slow_path);
+    alloc_ctx_t *alloc_ctx, bool slow_path);
 void arena_sdalloc_no_tcache(tsdn_t *tsdn, void *ptr, size_t size);
 void arena_sdalloc(tsdn_t *tsdn, void *ptr, size_t size, tcache_t *tcache,
-    dalloc_ctx_t *dalloc_ctx, bool slow_path);
+    alloc_ctx_t *alloc_ctx, bool slow_path);
 #endif
 
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_ARENA_C_))
@@ -30,27 +31,41 @@ arena_bin_index(arena_t *arena, arena_bin_t *bin) {
 	return binind;
 }
 
-JEMALLOC_INLINE prof_tctx_t *
-arena_prof_tctx_get(tsdn_t *tsdn, const void *ptr) {
+JEMALLOC_ALWAYS_INLINE prof_tctx_t *
+arena_prof_tctx_get(tsdn_t *tsdn, const void *ptr, alloc_ctx_t *alloc_ctx) {
 	cassert(config_prof);
 	assert(ptr != NULL);
 
-	const extent_t *extent = iealloc(tsdn, ptr);
-	if (unlikely(!extent_slab_get(extent))) {
-		return large_prof_tctx_get(tsdn, extent);
+	/* Static check. */
+	if (alloc_ctx == NULL) {
+		const extent_t *extent = iealloc(tsdn, ptr);
+		if (unlikely(!extent_slab_get(extent))) {
+			return large_prof_tctx_get(tsdn, extent);
+		}
+	} else {
+		if (unlikely(!alloc_ctx->slab)) {
+			return large_prof_tctx_get(tsdn, iealloc(tsdn, ptr));
+		}
 	}
 	return (prof_tctx_t *)(uintptr_t)1U;
 }
 
-JEMALLOC_INLINE void
+JEMALLOC_ALWAYS_INLINE void
 arena_prof_tctx_set(tsdn_t *tsdn, const void *ptr, size_t usize,
-    prof_tctx_t *tctx) {
+    alloc_ctx_t *alloc_ctx, prof_tctx_t *tctx) {
 	cassert(config_prof);
 	assert(ptr != NULL);
 
-	extent_t *extent = iealloc(tsdn, ptr);
-	if (unlikely(!extent_slab_get(extent))) {
-		large_prof_tctx_set(tsdn, extent, tctx);
+	/* Static check. */
+	if (alloc_ctx == NULL) {
+		extent_t *extent = iealloc(tsdn, ptr);
+		if (unlikely(!extent_slab_get(extent))) {
+			large_prof_tctx_set(tsdn, extent, tctx);
+		}
+	} else {
+		if (unlikely(!alloc_ctx->slab)) {
+			large_prof_tctx_set(tsdn, iealloc(tsdn, ptr), tctx);
+		}
 	}
 }
 
@@ -196,7 +211,7 @@ arena_dalloc_no_tcache(tsdn_t *tsdn, void *ptr) {
 
 JEMALLOC_ALWAYS_INLINE void
 arena_dalloc(tsdn_t *tsdn, void *ptr, tcache_t *tcache,
-    dalloc_ctx_t *dalloc_ctx, bool slow_path) {
+    alloc_ctx_t *alloc_ctx, bool slow_path) {
 	assert(!tsdn_null(tsdn) || tcache == NULL);
 	assert(ptr != NULL);
 
@@ -208,9 +223,9 @@ arena_dalloc(tsdn_t *tsdn, void *ptr, tcache_t *tcache,
 	szind_t szind;
 	bool slab;
 	rtree_ctx_t *rtree_ctx;
-	if (dalloc_ctx != NULL) {
-		szind = dalloc_ctx->szind;
-		slab = dalloc_ctx->slab;
+	if (alloc_ctx != NULL) {
+		szind = alloc_ctx->szind;
+		slab = alloc_ctx->slab;
 		assert(szind != NSIZES);
 	} else {
 		rtree_ctx = tsd_rtree_ctx(tsdn_tsd(tsdn));
@@ -293,7 +308,7 @@ arena_sdalloc_no_tcache(tsdn_t *tsdn, void *ptr, size_t size) {
 
 JEMALLOC_ALWAYS_INLINE void
 arena_sdalloc(tsdn_t *tsdn, void *ptr, size_t size, tcache_t *tcache,
-    dalloc_ctx_t *dalloc_ctx, bool slow_path) {
+    alloc_ctx_t *alloc_ctx, bool slow_path) {
 	assert(!tsdn_null(tsdn) || tcache == NULL);
 	assert(ptr != NULL);
 	assert(size <= LARGE_MAXCLASS);
@@ -305,9 +320,9 @@ arena_sdalloc(tsdn_t *tsdn, void *ptr, size_t size, tcache_t *tcache,
 
 	szind_t szind;
 	bool slab;
-	UNUSED dalloc_ctx_t local_ctx;
+	UNUSED alloc_ctx_t local_ctx;
 	if (config_prof && opt_prof) {
-		if (dalloc_ctx == NULL) {
+		if (alloc_ctx == NULL) {
 			/* Uncommon case and should be a static check. */
 			rtree_ctx_t rtree_ctx_fallback;
 			rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn,
@@ -316,10 +331,10 @@ arena_sdalloc(tsdn_t *tsdn, void *ptr, size_t size, tcache_t *tcache,
 			    (uintptr_t)ptr, true, &local_ctx.szind,
 			    &local_ctx.slab);
 			assert(local_ctx.szind == size2index(size));
-			dalloc_ctx = &local_ctx;
+			alloc_ctx = &local_ctx;
 		}
-		slab = dalloc_ctx->slab;
-		szind = dalloc_ctx->szind;
+		slab = alloc_ctx->slab;
+		szind = alloc_ctx->szind;
 	} else {
 		/*
 		 * There is no risk of being confused by a promoted sampled
