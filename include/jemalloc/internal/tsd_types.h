@@ -20,11 +20,15 @@ typedef struct tsdn_s tsdn_t;
 #define TSDN_NULL	((tsdn_t *)0)
 
 enum {
-	tsd_state_uninitialized = 0,
-	tsd_state_nominal = 1,
+	tsd_state_nominal = 0, /* Common case --> jnz. */
+	tsd_state_nominal_slow = 1, /* Initialized but on slow path. */
+	/* the above 2 nominal states should be lower values. */
+	tsd_state_nominal_max = 1, /* used for comparison only. */
 	tsd_state_purgatory = 2,
-	tsd_state_reincarnated = 3
+	tsd_state_reincarnated = 3,
+	tsd_state_uninitialized = 4
 };
+
 /* Manually limit tsd_state_t to a single byte. */
 typedef uint8_t tsd_state_t;
 

@@ -76,7 +76,7 @@ typedef enum {
 static malloc_init_t	malloc_init_state = malloc_init_uninitialized;
 
 /* False should be the common case.  Set to true to trigger initialization. */
-static bool	malloc_slow = true;
+bool			malloc_slow = true;
 
 /* When malloc_slow is true, set the corresponding bits for sanity check. */
 enum {
@@ -1539,7 +1539,13 @@ imalloc_no_sample(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd,
 
 	/* Fill in the tcache. */
 	if (dopts->tcache_ind == TCACHE_IND_AUTOMATIC) {
-		tcache = tcache_get(tsd);
+		if (likely(!sopts->slow)) {
+			/* Getting tcache ptr unconditionally. */
+			tcache = tsd_tcachep_get(tsd);
+			assert(tcache == tcache_get(tsd));
+		} else {
+			tcache = tcache_get(tsd);
+		}
 	} else if (dopts->tcache_ind == TCACHE_IND_NONE) {
 		tcache = NULL;
 	} else {
@@ -1640,13 +1646,11 @@ compute_size_with_overflow(bool may_overflow, dynamic_opts_t *dopts,
 }
 
 JEMALLOC_ALWAYS_INLINE_C int
-imalloc_body(static_opts_t *sopts, dynamic_opts_t *dopts) {
+imalloc_body(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd) {
 	/* Where the actual allocated memory will live. */
 	void *allocation = NULL;
 	/* Filled in by compute_size_with_overflow below. */
 	size_t size = 0;
-	/* We compute a value for this right before allocating. */
-	tsd_t *tsd = NULL;
 	/*
 	 * For unaligned allocations, we need only ind.  For aligned
 	 * allocations, or in case of stats or profiling we need usize.
@@ -1666,13 +1670,6 @@ imalloc_body(static_opts_t *sopts, dynamic_opts_t *dopts) {
 	 * is indicated by leaving the pointer as NULL.
 	 */
 	int8_t *reentrancy_level = NULL;
-
-	/* Initialize (if we can't prove we don't have to). */
-	if (sopts->slow) {
-		if (unlikely(malloc_init())) {
-			goto label_oom;
-		}
-	}
 
 	/* Compute the amount of memory the user wants. */
 	if (unlikely(compute_size_with_overflow(sopts->may_overflow, dopts,
@@ -1714,11 +1711,6 @@ imalloc_body(static_opts_t *sopts, dynamic_opts_t *dopts) {
 		}
 	}
 
-	/*
-	 * We always need the tsd, even if we aren't going to use the tcache for
-	 * some reason.  Let's grab it right away.
-	 */
-	tsd = tsd_fetch();
 
 	/*
 	 * If we need to handle reentrancy, we can do it out of a
@@ -1752,11 +1744,7 @@ imalloc_body(static_opts_t *sopts, dynamic_opts_t *dopts) {
 
 		alloc_ctx_t alloc_ctx;
 		if (likely((uintptr_t)tctx == (uintptr_t)1U)) {
-			if (usize > SMALL_MAXCLASS) {
-				alloc_ctx.slab = false;
-			} else {
-				alloc_ctx.slab = true;
-			}
+			alloc_ctx.slab = (usize <= SMALL_MAXCLASS);
 			allocation = imalloc_no_sample(
 			    sopts, dopts, tsd, usize, usize, ind);
 		} else if ((uintptr_t)tctx > (uintptr_t)1U) {
@@ -1879,12 +1867,29 @@ label_invalid_alignment:
 /* Returns the errno-style error code of the allocation. */
 JEMALLOC_ALWAYS_INLINE_C int
 imalloc(static_opts_t *sopts, dynamic_opts_t *dopts) {
-	if (unlikely(malloc_slow)) {
-		sopts->slow = true;
-		return imalloc_body(sopts, dopts);
-	} else {
+	if (unlikely(!malloc_initialized()) && unlikely(malloc_init())) {
+		if (config_xmalloc && unlikely(opt_xmalloc)) {
+			malloc_write(sopts->oom_string);
+			abort();
+		}
+		UTRACE(NULL, size, NULL);
+		set_errno(ENOMEM);
+		*dopts->result = NULL;
+
+		return ENOMEM;
+	}
+
+	/* We always need the tsd.  Let's grab it right away. */
+	tsd_t *tsd = tsd_fetch();
+	assert(tsd);
+	if (likely(tsd_fast(tsd))) {
+		/* Fast and common path. */
+		tsd_assert_fast(tsd);
 		sopts->slow = false;
-		return imalloc_body(sopts, dopts);
+		return imalloc_body(sopts, dopts, tsd);
+	} else {
+		sopts->slow = true;
+		return imalloc_body(sopts, dopts, tsd);
 	}
 }
 /******************************************************************************/
@@ -2198,13 +2203,23 @@ je_free(void *ptr) {
 		if (*tsd_reentrancy_levelp_get(tsd) == 0) {
 			witness_assert_lockless(tsd_tsdn(tsd));
 		}
-		tcache_t *tcache = NULL;
-		if (likely(*tsd_reentrancy_levelp_get(tsd) == 0)) {
-			tcache = tcache_get(tsd);
-		}
-		if (likely(!malloc_slow)) {
+		tcache_t *tcache;
+		if (likely(tsd_fast(tsd))) {
+			tsd_assert_fast(tsd);
+			if (likely(*tsd_reentrancy_levelp_get(tsd) == 0)) {
+				/* Getting tcache ptr unconditionally. */
+				tcache = tsd_tcachep_get(tsd);
+				assert(tcache == tcache_get(tsd));
+			} else {
+				tcache = NULL;
+			}
 			ifree(tsd, ptr, tcache, false);
 		} else {
+			if (likely(*tsd_reentrancy_levelp_get(tsd) == 0)) {
+				tcache = tcache_get(tsd);
+			} else {
+				tcache = NULL;
+			}
 			ifree(tsd, ptr, tcache, true);
 		}
 		if (*tsd_reentrancy_levelp_get(tsd) == 0) {
@@ -2699,6 +2714,7 @@ je_dallocx(void *ptr, int flags) {
 	assert(malloc_initialized() || IS_INITIALIZER);
 
 	tsd = tsd_fetch();
+	bool fast = tsd_fast(tsd);
 	witness_assert_lockless(tsd_tsdn(tsd));
 	if (unlikely((flags & MALLOCX_TCACHE_MASK) != 0)) {
 		/* Not allowed to be reentrant and specify a custom tcache. */
@@ -2710,14 +2726,20 @@ je_dallocx(void *ptr, int flags) {
 		}
 	} else {
 		if (likely(*tsd_reentrancy_levelp_get(tsd) == 0)) {
-			tcache = tcache_get(tsd);
+			if (likely(fast)) {
+				tcache = tsd_tcachep_get(tsd);
+				assert(tcache == tcache_get(tsd));
+			} else {
+				tcache = tcache_get(tsd);
+			}
 		} else {
 			tcache = NULL;
 		}
 	}
 
 	UTRACE(ptr, 0, 0);
-	if (likely(!malloc_slow)) {
+	if (likely(fast)) {
+		tsd_assert_fast(tsd);
 		ifree(tsd, ptr, tcache, false);
 	} else {
 		ifree(tsd, ptr, tcache, true);
@@ -2749,6 +2771,7 @@ je_sdallocx(void *ptr, size_t size, int flags) {
 	assert(ptr != NULL);
 	assert(malloc_initialized() || IS_INITIALIZER);
 	tsd = tsd_fetch();
+	bool fast = tsd_fast(tsd);
 	usize = inallocx(tsd_tsdn(tsd), size, flags);
 	assert(usize == isalloc(tsd_tsdn(tsd), ptr));
 
@@ -2763,14 +2786,20 @@ je_sdallocx(void *ptr, size_t size, int flags) {
 		}
 	} else {
 		if (likely(*tsd_reentrancy_levelp_get(tsd) == 0)) {
-			tcache = tcache_get(tsd);
+			if (likely(fast)) {
+				tcache = tsd_tcachep_get(tsd);
+				assert(tcache == tcache_get(tsd));
+			} else {
+				tcache = tcache_get(tsd);
+			}
 		} else {
 			tcache = NULL;
 		}
 	}
 
 	UTRACE(ptr, 0, 0);
-	if (likely(!malloc_slow)) {
+	if (likely(fast)) {
+		tsd_assert_fast(tsd);
 		isfree(tsd, ptr, usize, tcache, false);
 	} else {
 		isfree(tsd, ptr, usize, tcache, true);

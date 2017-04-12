@@ -40,6 +40,7 @@ tcache_enabled_set(tsd_t *tsd, bool enabled) {
 	}
 	/* Commit the state last.  Above calls check current state. */
 	tsd_tcache_enabled_set(tsd, enabled);
+	tsd_slow_update(tsd);
 }
 
 JEMALLOC_ALWAYS_INLINE void

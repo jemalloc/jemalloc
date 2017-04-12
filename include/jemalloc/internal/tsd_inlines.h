@@ -19,11 +19,53 @@ bool tsdn_null(const tsdn_t *tsdn);
 tsd_t *tsdn_tsd(tsdn_t *tsdn);
 rtree_ctx_t *tsd_rtree_ctx(tsd_t *tsd);
 rtree_ctx_t *tsdn_rtree_ctx(tsdn_t *tsdn, rtree_ctx_t *fallback);
+bool tsd_fast(tsd_t *tsd);
+void tsd_assert_fast(tsd_t *tsd);
 #endif
 
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_TSD_C_))
 malloc_tsd_externs(, tsd_t)
 malloc_tsd_funcs(JEMALLOC_ALWAYS_INLINE, , tsd_t, tsd_initializer, tsd_cleanup)
+
+#define MALLOC_TSD_getset_yes(n, t)					\
+JEMALLOC_ALWAYS_INLINE t						\
+tsd_##n##_get(tsd_t *tsd) {						\
+	return *tsd_##n##p_get(tsd);					\
+}									\
+JEMALLOC_ALWAYS_INLINE void						\
+tsd_##n##_set(tsd_t *tsd, t n) {					\
+	assert(tsd->state == tsd_state_nominal ||			\
+	    tsd->state == tsd_state_nominal_slow ||			\
+	    tsd->state == tsd_state_reincarnated);			\
+	tsd->n = n;							\
+}
+#define MALLOC_TSD_getset_no(n, t)
+#define O(n, t, gs, i, c)						\
+JEMALLOC_ALWAYS_INLINE t *						\
+tsd_##n##p_get(tsd_t *tsd) {						\
+	return &tsd->n;							\
+}									\
+									\
+MALLOC_TSD_getset_##gs(n, t)
+MALLOC_TSD
+#undef MALLOC_TSD_getset_yes
+#undef MALLOC_TSD_getset_no
+#undef O
+
+JEMALLOC_ALWAYS_INLINE void
+tsd_assert_fast(tsd_t *tsd) {
+	assert(!malloc_slow && tsd_tcache_enabled_get(tsd));
+}
+
+JEMALLOC_ALWAYS_INLINE bool
+tsd_fast(tsd_t *tsd) {
+	bool fast = (tsd->state == tsd_state_nominal);
+	if (fast) {
+		tsd_assert_fast(tsd);
+	}
+
+	return fast;
+}
 
 JEMALLOC_ALWAYS_INLINE tsd_t *
 tsd_fetch_impl(bool init) {
@@ -35,19 +77,10 @@ tsd_fetch_impl(bool init) {
 	assert(tsd != NULL);
 
 	if (unlikely(tsd->state != tsd_state_nominal)) {
-		if (tsd->state == tsd_state_uninitialized) {
-			tsd->state = tsd_state_nominal;
-			/* Trigger cleanup handler registration. */
-			tsd_set(tsd);
-			tsd_data_init(tsd);
-		} else if (tsd->state == tsd_state_purgatory) {
-			tsd->state = tsd_state_reincarnated;
-			tsd_set(tsd);
-			tsd_data_init(tsd);
-		} else {
-			assert(tsd->state == tsd_state_reincarnated);
-		}
+		return tsd_fetch_slow(tsd);
 	}
+	assert(tsd_fast(tsd));
+	tsd_assert_fast(tsd);
 
 	return tsd;
 }
@@ -64,32 +97,8 @@ tsd_tsdn(tsd_t *tsd) {
 
 JEMALLOC_INLINE bool
 tsd_nominal(tsd_t *tsd) {
-	return (tsd->state == tsd_state_nominal);
+	return (tsd->state <= tsd_state_nominal_max);
 }
-
-#define MALLOC_TSD_getset_yes(n, t)					\
-JEMALLOC_ALWAYS_INLINE t						\
-tsd_##n##_get(tsd_t *tsd) {						\
-	return *tsd_##n##p_get(tsd);					\
-}									\
-JEMALLOC_ALWAYS_INLINE void						\
-tsd_##n##_set(tsd_t *tsd, t n) {					\
-	assert(tsd->state == tsd_state_nominal ||			\
-	    tsd->state == tsd_state_reincarnated);			\
-	tsd->n = n;							\
-}
-#define MALLOC_TSD_getset_no(n, t)
-#define O(n, t, gs, i, c)						\
-JEMALLOC_ALWAYS_INLINE t *						\
-tsd_##n##p_get(tsd_t *tsd) {						\
-	return &tsd->n;							\
-}									\
-									\
-MALLOC_TSD_getset_##gs(n, t)
-MALLOC_TSD
-#undef MALLOC_TSD_getset_yes
-#undef MALLOC_TSD_getset_no
-#undef O
 
 JEMALLOC_ALWAYS_INLINE tsdn_t *
 tsdn_fetch(void) {
