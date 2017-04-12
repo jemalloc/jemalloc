@@ -14,5 +14,7 @@ void	tsd_init_finish(tsd_init_head_t *head, tsd_init_block_t *block);
 #endif
 bool tsd_data_init(void *arg);
 void tsd_cleanup(void *arg);
+tsd_t *tsd_fetch_slow(tsd_t *tsd);
+void tsd_slow_update(tsd_t *tsd);
 
 #endif /* JEMALLOC_INTERNAL_TSD_EXTERNS_H */

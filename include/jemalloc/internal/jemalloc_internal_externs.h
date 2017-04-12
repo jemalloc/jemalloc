@@ -3,6 +3,10 @@
 
 #include "jemalloc/internal/atomic.h"
 
+/* TSD checks this to set thread local slow state accordingly. */
+extern bool	malloc_slow;
+
+/* Run-time options. */
 extern bool	opt_abort;
 extern const char	*opt_junk;
 extern bool	opt_junk_alloc;

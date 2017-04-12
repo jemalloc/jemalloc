@@ -289,6 +289,7 @@ malloc_mutex_postfork_parent
 malloc_mutex_prefork
 malloc_mutex_unlock
 malloc_printf
+malloc_slow
 malloc_snprintf
 malloc_strtoumax
 malloc_tsd_boot0
@@ -526,6 +527,7 @@ tsd_cleanup
 tsd_cleanup_wrapper
 tsd_fetch
 tsd_fetch_impl
+tsd_fetch_slow
 tsd_get
 tsd_get_allocates
 tsd_iarena_get
@@ -541,6 +543,7 @@ tsd_narenas_tdatap_get
 tsd_reentrancy_level_get
 tsd_reentrancy_level_set
 tsd_reentrancy_levelp_get
+tsd_slow_update
 tsd_wrapper_get
 tsd_wrapper_set
 tsd_nominal

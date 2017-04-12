@@ -12,6 +12,40 @@ malloc_tsd_data(, , tsd_t, TSD_INITIALIZER)
 
 /******************************************************************************/
 
+void
+tsd_slow_update(tsd_t *tsd) {
+	if (tsd_nominal(tsd)) {
+		if (malloc_slow || !tsd->tcache_enabled) {
+			tsd->state = tsd_state_nominal_slow;
+		} else {
+			tsd->state = tsd_state_nominal;
+		}
+	}
+}
+
+tsd_t *
+tsd_fetch_slow(tsd_t *tsd) {
+	if (tsd->state == tsd_state_nominal_slow) {
+		/* On slow path but no work needed. */
+		assert(malloc_slow || !tsd_tcache_enabled_get(tsd) ||
+		    *tsd_arenas_tdata_bypassp_get(tsd));
+	} else if (tsd->state == tsd_state_uninitialized) {
+		tsd->state = tsd_state_nominal;
+		tsd_slow_update(tsd);
+		/* Trigger cleanup handler registration. */
+		tsd_set(tsd);
+		tsd_data_init(tsd);
+	} else if (tsd->state == tsd_state_purgatory) {
+		tsd->state = tsd_state_reincarnated;
+		tsd_set(tsd);
+		tsd_data_init(tsd);
+	} else {
+		assert(tsd->state == tsd_state_reincarnated);
+	}
+
+	return tsd;
+}
+
 void *
 malloc_tsd_malloc(size_t size) {
 	return a0malloc(CACHELINE_CEILING(size));
@@ -82,6 +116,7 @@ tsd_cleanup(void *arg) {
 		/* Do nothing. */
 		break;
 	case tsd_state_nominal:
+	case tsd_state_nominal_slow:
 	case tsd_state_reincarnated:
 		/*
 		 * Reincarnated means another destructor deallocated memory
@@ -129,7 +164,10 @@ malloc_tsd_boot0(void) {
 void
 malloc_tsd_boot1(void) {
 	tsd_boot1();
-	*tsd_arenas_tdata_bypassp_get(tsd_fetch()) = false;
+	tsd_t *tsd = tsd_fetch();
+	/* malloc_slow has been set properly.  Update tsd_slow. */
+	tsd_slow_update(tsd);
+	*tsd_arenas_tdata_bypassp_get(tsd) = false;
 }
 
 #ifdef _WIN32

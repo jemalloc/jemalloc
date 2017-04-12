@@ -64,7 +64,7 @@ struct tsd_init_head_s {
     O(iarena,			arena_t *,	yes,	no,	yes)	\
     O(arena,			arena_t *,	yes,	no,	yes)	\
     O(arenas_tdata,		arena_tdata_t *,yes,	no,	yes)	\
-    O(tcache,			tcache_t,	yes,	no,	yes)	\
+    O(tcache,			tcache_t,	no,	no,	yes)	\
     O(witnesses,		witness_list_t,	no,	no,	yes)	\
     O(rtree_leaf_elm_witnesses,	rtree_leaf_elm_witness_tsd_t,		\
 						no,	no,	no)	\
