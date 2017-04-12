@@ -15,7 +15,8 @@ malloc_tsd_data(, , tsd_t, TSD_INITIALIZER)
 void
 tsd_slow_update(tsd_t *tsd) {
 	if (tsd_nominal(tsd)) {
-		if (malloc_slow || !tsd->tcache_enabled) {
+		if (malloc_slow || !tsd->tcache_enabled ||
+		    tsd_reentrancy_level_get(tsd) > 0) {
 			tsd->state = tsd_state_nominal_slow;
 		} else {
 			tsd->state = tsd_state_nominal;
@@ -28,6 +29,7 @@ tsd_fetch_slow(tsd_t *tsd) {
 	if (tsd->state == tsd_state_nominal_slow) {
 		/* On slow path but no work needed. */
 		assert(malloc_slow || !tsd_tcache_enabled_get(tsd) ||
+		    tsd_reentrancy_level_get(tsd) > 0 ||
 		    *tsd_arenas_tdata_bypassp_get(tsd));
 	} else if (tsd->state == tsd_state_uninitialized) {
 		tsd->state = tsd_state_nominal;

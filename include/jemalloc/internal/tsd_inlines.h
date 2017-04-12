@@ -20,7 +20,7 @@ tsd_t *tsdn_tsd(tsdn_t *tsdn);
 rtree_ctx_t *tsd_rtree_ctx(tsd_t *tsd);
 rtree_ctx_t *tsdn_rtree_ctx(tsdn_t *tsdn, rtree_ctx_t *fallback);
 bool tsd_fast(tsd_t *tsd);
-void tsd_assert_fast(tsd_t *tsd);
+bool tsd_assert_fast(tsd_t *tsd);
 #endif
 
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_TSD_C_))
@@ -52,9 +52,11 @@ MALLOC_TSD
 #undef MALLOC_TSD_getset_no
 #undef O
 
-JEMALLOC_ALWAYS_INLINE void
+JEMALLOC_ALWAYS_INLINE bool
 tsd_assert_fast(tsd_t *tsd) {
-	assert(!malloc_slow && tsd_tcache_enabled_get(tsd));
+	assert(!malloc_slow && tsd_tcache_enabled_get(tsd) &&
+	    tsd_reentrancy_level_get(tsd) == 0);
+	return true;
 }
 
 JEMALLOC_ALWAYS_INLINE bool

@@ -55,7 +55,7 @@ struct tsd_init_head_s {
 /*  O(name,			type,		[gs]et,	init,	cleanup) */ \
     O(tcache_enabled,		bool,		yes,	yes,	no)	\
     O(arenas_tdata_bypass,	bool,		no,	no,	no)	\
-    O(reentrancy_level,		int8_t,		no,	no,	no)	\
+    O(reentrancy_level,		int8_t,		yes,	no,	no)	\
     O(narenas_tdata,		uint32_t,	yes,	no,	no)	\
     O(thread_allocated,		uint64_t,	yes,	no,	no)	\
     O(thread_deallocated,	uint64_t,	yes,	no,	no)	\
