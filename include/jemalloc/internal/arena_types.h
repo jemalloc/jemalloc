@@ -19,7 +19,7 @@ typedef struct arena_decay_s arena_decay_t;
 typedef struct arena_bin_s arena_bin_t;
 typedef struct arena_s arena_t;
 typedef struct arena_tdata_s arena_tdata_t;
-typedef struct dalloc_ctx_s dalloc_ctx_t;
+typedef struct alloc_ctx_s alloc_ctx_t;
 
 typedef enum {
 	percpu_arena_disabled = 0,

@@ -1064,12 +1064,19 @@ arena_reset(tsd_t *tsd, arena_t *arena) {
 		size_t usize;
 
 		malloc_mutex_unlock(tsd_tsdn(tsd), &arena->large_mtx);
+		alloc_ctx_t alloc_ctx;
+		rtree_ctx_t *rtree_ctx = tsd_rtree_ctx(tsd);
+		rtree_szind_slab_read(tsd_tsdn(tsd), &extents_rtree, rtree_ctx,
+		    (uintptr_t)ptr, true, &alloc_ctx.szind, &alloc_ctx.slab);
+		assert(alloc_ctx.szind != NSIZES);
+
 		if (config_stats || (config_prof && opt_prof)) {
-			usize = isalloc(tsd_tsdn(tsd), ptr);
+			usize = index2size(alloc_ctx.szind);
+			assert(usize == isalloc(tsd_tsdn(tsd), ptr));
 		}
 		/* Remove large allocation from prof sample set. */
 		if (config_prof && opt_prof) {
-			prof_free(tsd, ptr, usize);
+			prof_free(tsd, ptr, usize, &alloc_ctx);
 		}
 		large_dalloc(tsd_tsdn(tsd), extent);
 		malloc_mutex_lock(tsd_tsdn(tsd), &arena->large_mtx);

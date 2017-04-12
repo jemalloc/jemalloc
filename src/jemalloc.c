@@ -1749,7 +1749,14 @@ imalloc_body(static_opts_t *sopts, dynamic_opts_t *dopts) {
 		 */
 		prof_tctx_t *tctx = prof_alloc_prep(
 		    tsd, usize, prof_active_get_unlocked(), true);
+
+		alloc_ctx_t alloc_ctx;
 		if (likely((uintptr_t)tctx == (uintptr_t)1U)) {
+			if (usize > SMALL_MAXCLASS) {
+				alloc_ctx.slab = false;
+			} else {
+				alloc_ctx.slab = true;
+			}
 			allocation = imalloc_no_sample(
 			    sopts, dopts, tsd, usize, usize, ind);
 		} else if ((uintptr_t)tctx > (uintptr_t)1U) {
@@ -1759,6 +1766,7 @@ imalloc_body(static_opts_t *sopts, dynamic_opts_t *dopts) {
 			 */
 			allocation = imalloc_sample(
 			    sopts, dopts, tsd, usize, ind);
+			alloc_ctx.slab = false;
 		} else {
 			allocation = NULL;
 		}
@@ -1767,9 +1775,7 @@ imalloc_body(static_opts_t *sopts, dynamic_opts_t *dopts) {
 			prof_alloc_rollback(tsd, tctx, true);
 			goto label_oom;
 		}
-
-		prof_malloc(tsd_tsdn(tsd), allocation, usize, tctx);
-
+		prof_malloc(tsd_tsdn(tsd), allocation, usize, &alloc_ctx, tctx);
 	} else {
 		/*
 		 * If dopts->alignment > 0, then ind is still 0, but usize was
@@ -2016,13 +2022,14 @@ irealloc_prof_sample(tsd_t *tsd, void *old_ptr, size_t old_usize, size_t usize,
 }
 
 JEMALLOC_ALWAYS_INLINE_C void *
-irealloc_prof(tsd_t *tsd, void *old_ptr, size_t old_usize, size_t usize) {
+irealloc_prof(tsd_t *tsd, void *old_ptr, size_t old_usize, size_t usize,
+   alloc_ctx_t *alloc_ctx) {
 	void *p;
 	bool prof_active;
 	prof_tctx_t *old_tctx, *tctx;
 
 	prof_active = prof_active_get_unlocked();
-	old_tctx = prof_tctx_get(tsd_tsdn(tsd), old_ptr);
+	old_tctx = prof_tctx_get(tsd_tsdn(tsd), old_ptr, alloc_ctx);
 	tctx = prof_alloc_prep(tsd, usize, prof_active, true);
 	if (unlikely((uintptr_t)tctx != (uintptr_t)1U)) {
 		p = irealloc_prof_sample(tsd, old_ptr, old_usize, usize, tctx);
@@ -2048,28 +2055,28 @@ ifree(tsd_t *tsd, void *ptr, tcache_t *tcache, bool slow_path) {
 	assert(ptr != NULL);
 	assert(malloc_initialized() || IS_INITIALIZER);
 
-	dalloc_ctx_t dalloc_ctx;
+	alloc_ctx_t alloc_ctx;
 	rtree_ctx_t *rtree_ctx = tsd_rtree_ctx(tsd);
 	rtree_szind_slab_read(tsd_tsdn(tsd), &extents_rtree, rtree_ctx,
-	    (uintptr_t)ptr, true, &dalloc_ctx.szind, &dalloc_ctx.slab);
-	assert(dalloc_ctx.szind != NSIZES);
+	    (uintptr_t)ptr, true, &alloc_ctx.szind, &alloc_ctx.slab);
+	assert(alloc_ctx.szind != NSIZES);
 
 	size_t usize;
 	if (config_prof && opt_prof) {
-		usize = index2size(dalloc_ctx.szind);
-		prof_free(tsd, ptr, usize);
+		usize = index2size(alloc_ctx.szind);
+		prof_free(tsd, ptr, usize, &alloc_ctx);
 	} else if (config_stats) {
-		usize = index2size(dalloc_ctx.szind);
+		usize = index2size(alloc_ctx.szind);
 	}
 	if (config_stats) {
 		*tsd_thread_deallocatedp_get(tsd) += usize;
 	}
 
 	if (likely(!slow_path)) {
-		idalloctm(tsd_tsdn(tsd), ptr, tcache, &dalloc_ctx, false,
+		idalloctm(tsd_tsdn(tsd), ptr, tcache, &alloc_ctx, false,
 		    false);
 	} else {
-		idalloctm(tsd_tsdn(tsd), ptr, tcache, &dalloc_ctx, false,
+		idalloctm(tsd_tsdn(tsd), ptr, tcache, &alloc_ctx, false,
 		    true);
 	}
 }
@@ -2083,14 +2090,14 @@ isfree(tsd_t *tsd, void *ptr, size_t usize, tcache_t *tcache, bool slow_path) {
 	assert(ptr != NULL);
 	assert(malloc_initialized() || IS_INITIALIZER);
 
-	dalloc_ctx_t dalloc_ctx, *ctx;
+	alloc_ctx_t alloc_ctx, *ctx;
 	if (config_prof && opt_prof) {
 		rtree_ctx_t *rtree_ctx = tsd_rtree_ctx(tsd);
 		rtree_szind_slab_read(tsd_tsdn(tsd), &extents_rtree, rtree_ctx,
-		    (uintptr_t)ptr, true, &dalloc_ctx.szind, &dalloc_ctx.slab);
-		assert(dalloc_ctx.szind == size2index(usize));
-		prof_free(tsd, ptr, usize);
-		ctx = &dalloc_ctx;
+		    (uintptr_t)ptr, true, &alloc_ctx.szind, &alloc_ctx.slab);
+		assert(alloc_ctx.szind == size2index(usize));
+		ctx = &alloc_ctx;
+		prof_free(tsd, ptr, usize, ctx);
 	} else {
 		ctx = NULL;
 	}
@@ -2138,11 +2145,18 @@ je_realloc(void *ptr, size_t size) {
 
 		witness_assert_lockless(tsd_tsdn(tsd));
 
-		old_usize = isalloc(tsd_tsdn(tsd), ptr);
+		alloc_ctx_t alloc_ctx;
+		rtree_ctx_t *rtree_ctx = tsd_rtree_ctx(tsd);
+		rtree_szind_slab_read(tsd_tsdn(tsd), &extents_rtree, rtree_ctx,
+		    (uintptr_t)ptr, true, &alloc_ctx.szind, &alloc_ctx.slab);
+		assert(alloc_ctx.szind != NSIZES);
+		old_usize = index2size(alloc_ctx.szind);
+		assert(old_usize == isalloc(tsd_tsdn(tsd), ptr));
 		if (config_prof && opt_prof) {
 			usize = s2u(size);
 			ret = unlikely(usize == 0 || usize > LARGE_MAXCLASS) ?
-			    NULL : irealloc_prof(tsd, ptr, old_usize, usize);
+			    NULL : irealloc_prof(tsd, ptr, old_usize, usize,
+			    &alloc_ctx);
 		} else {
 			if (config_stats) {
 				usize = s2u(size);
@@ -2398,13 +2412,13 @@ irallocx_prof_sample(tsdn_t *tsdn, void *old_ptr, size_t old_usize,
 JEMALLOC_ALWAYS_INLINE_C void *
 irallocx_prof(tsd_t *tsd, void *old_ptr, size_t old_usize, size_t size,
     size_t alignment, size_t *usize, bool zero, tcache_t *tcache,
-    arena_t *arena) {
+    arena_t *arena, alloc_ctx_t *alloc_ctx) {
 	void *p;
 	bool prof_active;
 	prof_tctx_t *old_tctx, *tctx;
 
 	prof_active = prof_active_get_unlocked();
-	old_tctx = prof_tctx_get(tsd_tsdn(tsd), old_ptr);
+	old_tctx = prof_tctx_get(tsd_tsdn(tsd), old_ptr, alloc_ctx);
 	tctx = prof_alloc_prep(tsd, *usize, prof_active, false);
 	if (unlikely((uintptr_t)tctx != (uintptr_t)1U)) {
 		p = irallocx_prof_sample(tsd_tsdn(tsd), old_ptr, old_usize,
@@ -2474,15 +2488,20 @@ je_rallocx(void *ptr, size_t size, int flags) {
 		tcache = tcache_get(tsd);
 	}
 
-	old_usize = isalloc(tsd_tsdn(tsd), ptr);
-
+	alloc_ctx_t alloc_ctx;
+	rtree_ctx_t *rtree_ctx = tsd_rtree_ctx(tsd);
+	rtree_szind_slab_read(tsd_tsdn(tsd), &extents_rtree, rtree_ctx,
+	    (uintptr_t)ptr, true, &alloc_ctx.szind, &alloc_ctx.slab);
+	assert(alloc_ctx.szind != NSIZES);
+	old_usize = index2size(alloc_ctx.szind);
+	assert(old_usize == isalloc(tsd_tsdn(tsd), ptr));
 	if (config_prof && opt_prof) {
 		usize = (alignment == 0) ? s2u(size) : sa2u(size, alignment);
 		if (unlikely(usize == 0 || usize > LARGE_MAXCLASS)) {
 			goto label_oom;
 		}
 		p = irallocx_prof(tsd, ptr, old_usize, size, alignment, &usize,
-		    zero, tcache, arena);
+		    zero, tcache, arena, &alloc_ctx);
 		if (unlikely(p == NULL)) {
 			goto label_oom;
 		}
@@ -2544,13 +2563,13 @@ ixallocx_prof_sample(tsdn_t *tsdn, void *ptr, size_t old_usize, size_t size,
 
 JEMALLOC_ALWAYS_INLINE_C size_t
 ixallocx_prof(tsd_t *tsd, void *ptr, size_t old_usize, size_t size,
-    size_t extra, size_t alignment, bool zero) {
+    size_t extra, size_t alignment, bool zero, alloc_ctx_t *alloc_ctx) {
 	size_t usize_max, usize;
 	bool prof_active;
 	prof_tctx_t *old_tctx, *tctx;
 
 	prof_active = prof_active_get_unlocked();
-	old_tctx = prof_tctx_get(tsd_tsdn(tsd), ptr);
+	old_tctx = prof_tctx_get(tsd_tsdn(tsd), ptr, alloc_ctx);
 	/*
 	 * usize isn't knowable before ixalloc() returns when extra is non-zero.
 	 * Therefore, compute its maximum possible value and use that in
@@ -2605,8 +2624,13 @@ je_xallocx(void *ptr, size_t size, size_t extra, int flags) {
 	tsd = tsd_fetch();
 	witness_assert_lockless(tsd_tsdn(tsd));
 
-	old_usize = isalloc(tsd_tsdn(tsd), ptr);
-
+	alloc_ctx_t alloc_ctx;
+	rtree_ctx_t *rtree_ctx = tsd_rtree_ctx(tsd);
+	rtree_szind_slab_read(tsd_tsdn(tsd), &extents_rtree, rtree_ctx,
+	    (uintptr_t)ptr, true, &alloc_ctx.szind, &alloc_ctx.slab);
+	assert(alloc_ctx.szind != NSIZES);
+	old_usize = index2size(alloc_ctx.szind);
+	assert(old_usize == isalloc(tsd_tsdn(tsd), ptr));
 	/*
 	 * The API explicitly absolves itself of protecting against (size +
 	 * extra) numerical overflow, but we may need to clamp extra to avoid
@@ -2626,7 +2650,7 @@ je_xallocx(void *ptr, size_t size, size_t extra, int flags) {
 
 	if (config_prof && opt_prof) {
 		usize = ixallocx_prof(tsd, ptr, old_usize, size, extra,
-		    alignment, zero);
+		    alignment, zero, &alloc_ctx);
 	} else {
 		usize = ixallocx_helper(tsd_tsdn(tsd), ptr, old_usize, size,
 		    extra, alignment, zero);
