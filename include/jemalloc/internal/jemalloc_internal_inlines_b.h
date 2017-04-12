@@ -16,7 +16,7 @@ arena_choose_impl(tsd_t *tsd, arena_t *arena, bool internal) {
 	}
 
 	/* During reentrancy, arena 0 is the safest bet. */
-	if (*tsd_reentrancy_levelp_get(tsd) > 1) {
+	if (unlikely(tsd_reentrancy_level_get(tsd) > 0)) {
 		return arena_get(tsd_tsdn(tsd), 0, true);
 	}
 

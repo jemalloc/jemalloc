@@ -1663,13 +1663,8 @@ imalloc_body(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd) {
 	szind_t ind = 0;
 	size_t usize = 0;
 
-	/*
-	 * For reentrancy checking, we get the old reentrancy level from tsd and
-	 * reset it once we're done.  In case of early bailout though, we never
-	 * bother getting the old level, so we shouldn't try to reset it.  This
-	 * is indicated by leaving the pointer as NULL.
-	 */
-	int8_t *reentrancy_level = NULL;
+	/* Reentrancy is only checked on slow path. */
+	int8_t reentrancy_level;
 
 	/* Compute the amount of memory the user wants. */
 	if (unlikely(compute_size_with_overflow(sopts->may_overflow, dopts,
@@ -1716,12 +1711,11 @@ imalloc_body(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd) {
 	 * If we need to handle reentrancy, we can do it out of a
 	 * known-initialized arena (i.e. arena 0).
 	 */
-	reentrancy_level = tsd_reentrancy_levelp_get(tsd);
-	++*reentrancy_level;
-	if (*reentrancy_level == 1) {
+	reentrancy_level = tsd_reentrancy_level_get(tsd);
+	if (reentrancy_level == 0) {
 		witness_assert_lockless(tsd_tsdn(tsd));
 	}
-	if (unlikely(*reentrancy_level > 1)) {
+	if (sopts->slow && unlikely(reentrancy_level > 0)) {
 		/*
 		 * We should never specify particular arenas or tcaches from
 		 * within our internal allocations.
@@ -1795,14 +1789,9 @@ imalloc_body(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd) {
 	}
 
 	/* Success! */
-	if (*reentrancy_level == 1) {
+	if (reentrancy_level == 0) {
 		witness_assert_lockless(tsd_tsdn(tsd));
 	}
-	/*
-	 * If we got here, we never bailed out on a failure path, so
-	 * reentrancy_level is non-null.
-	 */
-	--*reentrancy_level;
 	*dopts->result = allocation;
 	return 0;
 
@@ -1824,10 +1813,6 @@ label_oom:
 
 	if (sopts->null_out_result_on_error) {
 		*dopts->result = NULL;
-	}
-
-	if (reentrancy_level != NULL) {
-		--*reentrancy_level;
 	}
 
 	return ENOMEM;
@@ -1855,10 +1840,6 @@ label_invalid_alignment:
 
 	if (sopts->null_out_result_on_error) {
 		*dopts->result = NULL;
-	}
-
-	if (reentrancy_level != NULL) {
-		--*reentrancy_level;
 	}
 
 	return EINVAL;
@@ -2053,8 +2034,11 @@ irealloc_prof(tsd_t *tsd, void *old_ptr, size_t old_usize, size_t usize,
 
 JEMALLOC_ALWAYS_INLINE_C void
 ifree(tsd_t *tsd, void *ptr, tcache_t *tcache, bool slow_path) {
-	if (*tsd_reentrancy_levelp_get(tsd) == 0) {
+	assert(slow_path || tsd_assert_fast(tsd));
+	if (tsd_reentrancy_level_get(tsd) == 0) {
 		witness_assert_lockless(tsd_tsdn(tsd));
+	} else {
+		assert(slow_path);
 	}
 
 	assert(ptr != NULL);
@@ -2088,8 +2072,11 @@ ifree(tsd_t *tsd, void *ptr, tcache_t *tcache, bool slow_path) {
 
 JEMALLOC_ALWAYS_INLINE_C void
 isfree(tsd_t *tsd, void *ptr, size_t usize, tcache_t *tcache, bool slow_path) {
-	if (*tsd_reentrancy_levelp_get(tsd) == 0) {
+	assert(slow_path || tsd_assert_fast(tsd));
+	if (tsd_reentrancy_level_get(tsd) == 0) {
 		witness_assert_lockless(tsd_tsdn(tsd));
+	} else {
+		assert(slow_path);
 	}
 
 	assert(ptr != NULL);
@@ -2129,14 +2116,14 @@ je_realloc(void *ptr, size_t size) {
 
 	if (unlikely(size == 0)) {
 		if (ptr != NULL) {
-			tsd_t *tsd;
-
 			/* realloc(ptr, 0) is equivalent to free(ptr). */
 			UTRACE(ptr, 0, 0);
-			tsd = tsd_fetch();
-			tcache_t *tcache = NULL;
-			if (likely(*tsd_reentrancy_levelp_get(tsd) == 0)) {
+			tcache_t *tcache;
+			tsd_t *tsd = tsd_fetch();
+			if (tsd_reentrancy_level_get(tsd) == 0) {
 				tcache = tcache_get(tsd);
+			} else {
+				tcache = NULL;
 			}
 			ifree(tsd, ptr, tcache, true);
 			return NULL;
@@ -2200,29 +2187,25 @@ je_free(void *ptr) {
 	UTRACE(ptr, 0, 0);
 	if (likely(ptr != NULL)) {
 		tsd_t *tsd = tsd_fetch();
-		if (*tsd_reentrancy_levelp_get(tsd) == 0) {
+		if (tsd_reentrancy_level_get(tsd) == 0) {
 			witness_assert_lockless(tsd_tsdn(tsd));
 		}
+
 		tcache_t *tcache;
 		if (likely(tsd_fast(tsd))) {
 			tsd_assert_fast(tsd);
-			if (likely(*tsd_reentrancy_levelp_get(tsd) == 0)) {
-				/* Getting tcache ptr unconditionally. */
-				tcache = tsd_tcachep_get(tsd);
-				assert(tcache == tcache_get(tsd));
-			} else {
-				tcache = NULL;
-			}
+			/* Unconditionally get tcache ptr on fast path. */
+			tcache = tsd_tcachep_get(tsd);
 			ifree(tsd, ptr, tcache, false);
 		} else {
-			if (likely(*tsd_reentrancy_levelp_get(tsd) == 0)) {
+			if (likely(tsd_reentrancy_level_get(tsd) == 0)) {
 				tcache = tcache_get(tsd);
 			} else {
 				tcache = NULL;
 			}
 			ifree(tsd, ptr, tcache, true);
 		}
-		if (*tsd_reentrancy_levelp_get(tsd) == 0) {
+		if (tsd_reentrancy_level_get(tsd) == 0) {
 			witness_assert_lockless(tsd_tsdn(tsd));
 		}
 	}
@@ -2707,33 +2690,32 @@ je_sallocx(const void *ptr, int flags) {
 
 JEMALLOC_EXPORT void JEMALLOC_NOTHROW
 je_dallocx(void *ptr, int flags) {
-	tsd_t *tsd;
-	tcache_t *tcache;
-
 	assert(ptr != NULL);
 	assert(malloc_initialized() || IS_INITIALIZER);
 
-	tsd = tsd_fetch();
+	tsd_t *tsd = tsd_fetch();
 	bool fast = tsd_fast(tsd);
 	witness_assert_lockless(tsd_tsdn(tsd));
+
+	tcache_t *tcache;
 	if (unlikely((flags & MALLOCX_TCACHE_MASK) != 0)) {
 		/* Not allowed to be reentrant and specify a custom tcache. */
-		assert(*tsd_reentrancy_levelp_get(tsd) == 0);
+		assert(tsd_reentrancy_level_get(tsd) == 0);
 		if ((flags & MALLOCX_TCACHE_MASK) == MALLOCX_TCACHE_NONE) {
 			tcache = NULL;
 		} else {
 			tcache = tcaches_get(tsd, MALLOCX_TCACHE_GET(flags));
 		}
 	} else {
-		if (likely(*tsd_reentrancy_levelp_get(tsd) == 0)) {
-			if (likely(fast)) {
-				tcache = tsd_tcachep_get(tsd);
-				assert(tcache == tcache_get(tsd));
-			} else {
-				tcache = tcache_get(tsd);
-			}
+		if (likely(fast)) {
+			tcache = tsd_tcachep_get(tsd);
+			assert(tcache == tcache_get(tsd));
 		} else {
-			tcache = NULL;
+			if (likely(tsd_reentrancy_level_get(tsd) == 0)) {
+				tcache = tcache_get(tsd);
+			}  else {
+				tcache = NULL;
+			}
 		}
 	}
 
@@ -2749,10 +2731,9 @@ je_dallocx(void *ptr, int flags) {
 
 JEMALLOC_ALWAYS_INLINE_C size_t
 inallocx(tsdn_t *tsdn, size_t size, int flags) {
-	size_t usize;
-
 	witness_assert_lockless(tsdn);
 
+	size_t usize;
 	if (likely((flags & MALLOCX_LG_ALIGN_MASK) == 0)) {
 		usize = s2u(size);
 	} else {
@@ -2764,36 +2745,34 @@ inallocx(tsdn_t *tsdn, size_t size, int flags) {
 
 JEMALLOC_EXPORT void JEMALLOC_NOTHROW
 je_sdallocx(void *ptr, size_t size, int flags) {
-	tsd_t *tsd;
-	size_t usize;
-	tcache_t *tcache;
-
 	assert(ptr != NULL);
 	assert(malloc_initialized() || IS_INITIALIZER);
-	tsd = tsd_fetch();
-	bool fast = tsd_fast(tsd);
-	usize = inallocx(tsd_tsdn(tsd), size, flags);
-	assert(usize == isalloc(tsd_tsdn(tsd), ptr));
 
+	tsd_t *tsd = tsd_fetch();
+	bool fast = tsd_fast(tsd);
+	size_t usize = inallocx(tsd_tsdn(tsd), size, flags);
+	assert(usize == isalloc(tsd_tsdn(tsd), ptr));
 	witness_assert_lockless(tsd_tsdn(tsd));
+
+	tcache_t *tcache;
 	if (unlikely((flags & MALLOCX_TCACHE_MASK) != 0)) {
 		/* Not allowed to be reentrant and specify a custom tcache. */
-		assert(*tsd_reentrancy_levelp_get(tsd) == 0);
+		assert(tsd_reentrancy_level_get(tsd) == 0);
 		if ((flags & MALLOCX_TCACHE_MASK) == MALLOCX_TCACHE_NONE) {
 			tcache = NULL;
 		} else {
 			tcache = tcaches_get(tsd, MALLOCX_TCACHE_GET(flags));
 		}
 	} else {
-		if (likely(*tsd_reentrancy_levelp_get(tsd) == 0)) {
-			if (likely(fast)) {
-				tcache = tsd_tcachep_get(tsd);
-				assert(tcache == tcache_get(tsd));
-			} else {
-				tcache = tcache_get(tsd);
-			}
+		if (likely(fast)) {
+			tcache = tsd_tcachep_get(tsd);
+			assert(tcache == tcache_get(tsd));
 		} else {
-			tcache = NULL;
+			if (likely(tsd_reentrancy_level_get(tsd) == 0)) {
+				tcache = tcache_get(tsd);
+			} else {
+				tcache = NULL;
+			}
 		}
 	}
 

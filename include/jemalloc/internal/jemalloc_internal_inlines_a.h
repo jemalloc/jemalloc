@@ -33,6 +33,8 @@ tcache_t *tcache_get(tsd_t *tsd);
 malloc_cpuid_t malloc_getcpu(void);
 unsigned percpu_arena_choose(void);
 unsigned percpu_arena_ind_limit(void);
+void pre_reentrancy(tsd_t *tsd);
+void post_reentrancy(tsd_t *tsd);
 #endif
 
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_C_))
@@ -445,6 +447,27 @@ tcache_get(tsd_t *tsd) {
 
 	return tsd_tcachep_get(tsd);
 }
+
+JEMALLOC_INLINE void
+pre_reentrancy(tsd_t *tsd) {
+	bool fast = tsd_fast(tsd);
+	++*tsd_reentrancy_levelp_get(tsd);
+	if (fast) {
+		/* Prepare slow path for reentrancy. */
+		tsd_slow_update(tsd);
+		assert(tsd->state == tsd_state_nominal_slow);
+	}
+}
+
+JEMALLOC_INLINE void
+post_reentrancy(tsd_t *tsd) {
+	int8_t *reentrancy_level = tsd_reentrancy_levelp_get(tsd);
+	assert(*reentrancy_level > 0);
+	if (--*reentrancy_level == 0) {
+		tsd_slow_update(tsd);
+	}
+}
+
 #endif
 
 #endif /* JEMALLOC_INTERNAL_INLINES_A_H */
