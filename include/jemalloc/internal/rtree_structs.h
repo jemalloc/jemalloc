@@ -55,7 +55,10 @@ struct rtree_ctx_cache_elm_s {
 };
 
 struct rtree_ctx_s {
+	/* Direct mapped cache. */
 	rtree_ctx_cache_elm_t	cache[RTREE_CTX_NCACHE];
+	/* L2 LRU cache. */
+	rtree_ctx_cache_elm_t	l2_cache[RTREE_CTX_NCACHE_L2];
 };
 
 struct rtree_s {

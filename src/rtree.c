@@ -256,6 +256,16 @@ rtree_leaf_elm_lookup_hard(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
 	leaf = rtree->root;
 #endif
 
+	if (config_debug) {
+		uintptr_t leafkey = rtree_leafkey(key);
+		for (unsigned i = 0; i < RTREE_CTX_NCACHE; i++) {
+			assert(rtree_ctx->cache[i].leafkey != leafkey);
+		}
+		for (unsigned i = 0; i < RTREE_CTX_NCACHE_L2; i++) {
+			assert(rtree_ctx->l2_cache[i].leafkey != leafkey);
+		}
+	}
+
 #define RTREE_GET_CHILD(level) {					\
 		assert(level < RTREE_HEIGHT-1);				\
 		if (level != 0 && !dependent &&				\
@@ -277,20 +287,30 @@ rtree_leaf_elm_lookup_hard(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
 			    dependent);					\
 		}							\
 	}
+	/*
+	 * Cache replacement upon hard lookup (i.e. L1 & L2 rtree cache miss):
+	 * (1) evict last entry in L2 cache; (2) move the collision slot from L1
+	 * cache down to L2; and 3) fill L1.
+	 */
 #define RTREE_GET_LEAF(level) {						\
 		assert(level == RTREE_HEIGHT-1);			\
 		if (!dependent && unlikely(!rtree_leaf_valid(leaf))) {	\
 			return NULL;					\
 		}							\
-		if (RTREE_CTX_NCACHE > 1) {				\
-			memmove(&rtree_ctx->cache[1],			\
-			    &rtree_ctx->cache[0],			\
+		if (RTREE_CTX_NCACHE_L2 > 1) {				\
+			memmove(&rtree_ctx->l2_cache[1],		\
+			    &rtree_ctx->l2_cache[0],			\
 			    sizeof(rtree_ctx_cache_elm_t) *		\
-			    (RTREE_CTX_NCACHE-1));			\
+			    (RTREE_CTX_NCACHE_L2 - 1));			\
 		}							\
+		size_t slot = rtree_cache_direct_map(key);		\
+		rtree_ctx->l2_cache[0].leafkey =			\
+		    rtree_ctx->cache[slot].leafkey;			\
+		rtree_ctx->l2_cache[0].leaf =				\
+		    rtree_ctx->cache[slot].leaf;			\
 		uintptr_t leafkey = rtree_leafkey(key);			\
-		rtree_ctx->cache[0].leafkey = leafkey;			\
-		rtree_ctx->cache[0].leaf = leaf;			\
+		rtree_ctx->cache[slot].leafkey = leafkey;		\
+		rtree_ctx->cache[slot].leaf = leaf;			\
 		uintptr_t subkey = rtree_subkey(key, level);		\
 		return &leaf[subkey];					\
 	}
@@ -430,6 +450,11 @@ void
 rtree_ctx_data_init(rtree_ctx_t *ctx) {
 	for (unsigned i = 0; i < RTREE_CTX_NCACHE; i++) {
 		rtree_ctx_cache_elm_t *cache = &ctx->cache[i];
+		cache->leafkey = RTREE_LEAFKEY_INVALID;
+		cache->leaf = NULL;
+	}
+	for (unsigned i = 0; i < RTREE_CTX_NCACHE_L2; i++) {
+		rtree_ctx_cache_elm_t *cache = &ctx->l2_cache[i];
 		cache->leafkey = RTREE_LEAFKEY_INVALID;
 		cache->leaf = NULL;
 	}
