@@ -42,19 +42,25 @@ typedef struct rtree_s rtree_t;
 #define RTREE_LEAFKEY_INVALID ((uintptr_t)1)
 
 /*
- * Number of leafkey/leaf pairs to cache.  Each entry supports an entire leaf,
- * so the cache hit rate is typically high even with a small number of entries.
- * In rare cases extent activity will straddle the boundary between two leaf
- * nodes.  Furthermore, an arena may use a combination of dss and mmap.  Four
- * entries covers both of these considerations as long as locality of reference
- * is high, and/or total memory usage doesn't exceed the range supported by
- * those entries.  Note that as memory usage grows past the amount that this
- * cache can directly cover, the cache will become less effective if locality of
- * reference is low, but the consequence is merely cache misses while traversing
- * the tree nodes, and the cache will itself suffer cache misses if made overly
- * large, not to mention the cost of linear search.
+ * Number of leafkey/leaf pairs to cache in L1 and L2 level respectively.  Each
+ * entry supports an entire leaf, so the cache hit rate is typically high even
+ * with a small number of entries.  In rare cases extent activity will straddle
+ * the boundary between two leaf nodes.  Furthermore, an arena may use a
+ * combination of dss and mmap.  Note that as memory usage grows past the amount
+ * that this cache can directly cover, the cache will become less effective if
+ * locality of reference is low, but the consequence is merely cache misses
+ * while traversing the tree nodes.
+ *
+ * The L1 direct mapped cache offers consistent and low cost on cache hit.
+ * However collision could affect hit rate negatively.  This is resolved by
+ * combining with a L2 LRU cache, which requires linear search and re-ordering
+ * on access but suffers no collision.  Note that, the cache will itself suffer
+ * cache misses if made overly large, plus the cost of linear search in the LRU
+ * cache.
  */
-#define RTREE_CTX_NCACHE 8
+#define RTREE_CTX_LG_NCACHE 4
+#define RTREE_CTX_NCACHE (1 << RTREE_CTX_LG_NCACHE)
+#define RTREE_CTX_NCACHE_L2 8
 
 /*
  * Zero initializer required for tsd initialization only.  Proper initialization

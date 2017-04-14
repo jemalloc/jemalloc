@@ -64,6 +64,15 @@ rtree_leafkey(uintptr_t key) {
 	return (key & mask);
 }
 
+JEMALLOC_ALWAYS_INLINE size_t
+rtree_cache_direct_map(uintptr_t key) {
+	unsigned ptrbits = ZU(1) << (LG_SIZEOF_PTR+3);
+	unsigned cumbits = (rtree_levels[RTREE_HEIGHT-1].cumbits -
+	    rtree_levels[RTREE_HEIGHT-1].bits);
+	unsigned maskbits = ptrbits - cumbits;
+	return (size_t)((key >> maskbits) & (RTREE_CTX_NCACHE - 1));
+}
+
 JEMALLOC_ALWAYS_INLINE uintptr_t
 rtree_subkey(uintptr_t key, unsigned level) {
 	unsigned ptrbits = ZU(1) << (LG_SIZEOF_PTR+3);
@@ -320,36 +329,54 @@ rtree_leaf_elm_lookup(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
 	assert(key != 0);
 	assert(!dependent || !init_missing);
 
+	size_t slot = rtree_cache_direct_map(key);
 	uintptr_t leafkey = rtree_leafkey(key);
 	assert(leafkey != RTREE_LEAFKEY_INVALID);
 
-#define RTREE_CACHE_CHECK(i) do {					\
-	if (likely(rtree_ctx->cache[i].leafkey == leafkey)) {		\
-		rtree_leaf_elm_t *leaf = rtree_ctx->cache[i].leaf;	\
+	/* Fast path: L1 direct mapped cache. */
+	if (likely(rtree_ctx->cache[slot].leafkey == leafkey)) {
+		rtree_leaf_elm_t *leaf = rtree_ctx->cache[slot].leaf;
+		assert(leaf != NULL);
+		uintptr_t subkey = rtree_subkey(key, RTREE_HEIGHT-1);
+		return &leaf[subkey];
+	}
+	/*
+	 * Search the L2 LRU cache.  On hit, swap the matching element into the
+	 * slot in L1 cache, and move the position in L2 up by 1.
+	 */
+#define RTREE_CACHE_CHECK_L2(i) do {					\
+	if (likely(rtree_ctx->l2_cache[i].leafkey == leafkey)) {	\
+		rtree_leaf_elm_t *leaf = rtree_ctx->l2_cache[i].leaf;	\
 		assert(leaf != NULL);					\
 		if (i > 0) {						\
 			/* Bubble up by one. */				\
-			rtree_ctx->cache[i].leafkey =			\
-				rtree_ctx->cache[i - 1].leafkey;	\
-			rtree_ctx->cache[i].leaf =			\
-				rtree_ctx->cache[i - 1].leaf;		\
-			rtree_ctx->cache[i - 1].leafkey = leafkey;	\
-			rtree_ctx->cache[i - 1].leaf = leaf;		\
+			rtree_ctx->l2_cache[i].leafkey =		\
+				rtree_ctx->l2_cache[i - 1].leafkey;	\
+			rtree_ctx->l2_cache[i].leaf =			\
+				rtree_ctx->l2_cache[i - 1].leaf;	\
+			rtree_ctx->l2_cache[i - 1].leafkey =		\
+			    rtree_ctx->cache[slot].leafkey;		\
+			rtree_ctx->l2_cache[i - 1].leaf =		\
+			    rtree_ctx->cache[slot].leaf;		\
+		} else {						\
+			rtree_ctx->l2_cache[0].leafkey =		\
+			    rtree_ctx->cache[slot].leafkey;		\
+			rtree_ctx->l2_cache[0].leaf =			\
+			    rtree_ctx->cache[slot].leaf;		\
 		}							\
+		rtree_ctx->cache[slot].leafkey = leafkey;		\
+		rtree_ctx->cache[slot].leaf = leaf;			\
 		uintptr_t subkey = rtree_subkey(key, RTREE_HEIGHT-1);	\
 		return &leaf[subkey];					\
 	}								\
 } while (0)
 	/* Check the first cache entry. */
-	RTREE_CACHE_CHECK(0);
-	/*
-	 * Search the remaining cache elements, and on success move the matching
-	 * element up by one slot.
-	 */
-	for (unsigned i = 1; i < RTREE_CTX_NCACHE; i++) {
-		RTREE_CACHE_CHECK(i);
+	RTREE_CACHE_CHECK_L2(0);
+	/* Search the remaining cache elements. */
+	for (unsigned i = 1; i < RTREE_CTX_NCACHE_L2; i++) {
+		RTREE_CACHE_CHECK_L2(i);
 	}
-#undef RTREE_CACHE_CHECK
+#undef RTREE_CACHE_CHECK_L2
 
 	return rtree_leaf_elm_lookup_hard(tsdn, rtree, rtree_ctx, key,
 	    dependent, init_missing);

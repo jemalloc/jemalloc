@@ -310,6 +310,7 @@ prof_leave(tsd_t *tsd, prof_tdata_t *tdata) {
 }
 
 #ifdef JEMALLOC_PROF_LIBUNWIND
+JEMALLOC_ALIGNED(CACHELINE)
 void
 prof_backtrace(prof_bt_t *bt) {
 	int nframes;
