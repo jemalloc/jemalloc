@@ -360,7 +360,6 @@ pages_map
 pages_nohuge
 pages_purge_forced
 pages_purge_lazy
-pages_trim
 pages_unmap
 percpu_arena_choose
 percpu_arena_ind_limit

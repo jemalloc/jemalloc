@@ -1220,7 +1220,9 @@ malloc_init_hard_a0_locked() {
 			}
 		}
 	}
-	pages_boot();
+	if (pages_boot()) {
+		return true;
+	}
 	if (base_boot(TSDN_NULL)) {
 		return true;
 	}

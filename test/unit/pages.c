@@ -7,7 +7,7 @@ TEST_BEGIN(test_pages_huge) {
 
 	alloc_size = HUGEPAGE * 2 - PAGE;
 	commit = true;
-	pages = pages_map(NULL, alloc_size, &commit);
+	pages = pages_map(NULL, alloc_size, PAGE, &commit);
 	assert_ptr_not_null(pages, "Unexpected pages_map() error");
 
 	hugepage = (void *)(ALIGNMENT_CEILING((uintptr_t)pages, HUGEPAGE));
