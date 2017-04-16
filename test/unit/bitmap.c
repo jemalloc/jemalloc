@@ -103,8 +103,24 @@ test_bitmap_initializer_body(const bitmap_info_t *binfo, size_t nbits) {
 	assert_zu_eq(binfo->nbits, binfo_dyn.nbits,
 	    "Unexpected difference between static and dynamic initialization, "
 	    "nbits=%zu", nbits);
+#ifdef BITMAP_USE_TREE
+	assert_u_eq(binfo->nlevels, binfo_dyn.nlevels,
+	    "Unexpected difference between static and dynamic initialization, "
+	    "nbits=%zu", nbits);
+	{
+		unsigned i;
+
+		for (i = 0; i < binfo->nlevels; i++) {
+			assert_zu_eq(binfo->levels[i].group_offset,
+			    binfo_dyn.levels[i].group_offset,
+			    "Unexpected difference between static and dynamic "
+			    "initialization, nbits=%zu, level=%u", nbits, i);
+		}
+	}
+#else
 	assert_zu_eq(binfo->ngroups, binfo_dyn.ngroups,
 	    "Unexpected difference between static and dynamic initialization");
+#endif
 }
 
 TEST_BEGIN(test_bitmap_initializer) {
