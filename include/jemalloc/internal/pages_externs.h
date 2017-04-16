@@ -16,16 +16,14 @@ static const bool pages_can_purge_forced =
 #endif
     ;
 
-void	*pages_map(void *addr, size_t size, bool *commit);
+void	*pages_map(void *addr, size_t size, size_t alignment, bool *commit);
 void	pages_unmap(void *addr, size_t size);
-void	*pages_trim(void *addr, size_t alloc_size, size_t leadsize,
-    size_t size, bool *commit);
 bool	pages_commit(void *addr, size_t size);
 bool	pages_decommit(void *addr, size_t size);
 bool	pages_purge_lazy(void *addr, size_t size);
 bool	pages_purge_forced(void *addr, size_t size);
 bool	pages_huge(void *addr, size_t size);
 bool	pages_nohuge(void *addr, size_t size);
-void	pages_boot(void);
+bool	pages_boot(void);
 
 #endif /* JEMALLOC_INTERNAL_PAGES_EXTERNS_H */

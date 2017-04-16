@@ -9,6 +9,9 @@
 /******************************************************************************/
 /* Data. */
 
+/* Actual operating system page size, detected during bootstrap, <= PAGE. */
+static size_t	os_page;
+
 #ifndef _WIN32
 #  define PAGES_PROT_COMMIT (PROT_READ | PROT_WRITE)
 #  define PAGES_PROT_DECOMMIT (PROT_NONE)
@@ -17,20 +20,26 @@ static int	mmap_flags;
 static bool	os_overcommits;
 
 /******************************************************************************/
+/*
+ * Function prototypes for static functions that are referenced prior to
+ * definition.
+ */
 
-void *
-pages_map(void *addr, size_t size, bool *commit) {
-	assert(PAGE_ADDR2BASE(addr) == addr);
-	assert(PAGE_CEILING(size) == size);
+static void os_pages_unmap(void *addr, size_t size);
 
-	void *ret;
+/******************************************************************************/
 
+static void *
+os_pages_map(void *addr, size_t size, size_t alignment, bool *commit) {
+	assert(ALIGNMENT_ADDR2BASE(addr, os_page) == addr);
+	assert(ALIGNMENT_CEILING(size, os_page) == size);
 	assert(size != 0);
 
 	if (os_overcommits) {
 		*commit = true;
 	}
 
+	void *ret;
 #ifdef _WIN32
 	/*
 	 * If VirtualAlloc can't allocate at the given address when one is
@@ -56,19 +65,48 @@ pages_map(void *addr, size_t size, bool *commit) {
 		/*
 		 * We succeeded in mapping memory, but not in the right place.
 		 */
-		pages_unmap(ret, size);
+		os_pages_unmap(ret, size);
 		ret = NULL;
 	}
 #endif
-	assert(ret == NULL || (addr == NULL && ret != addr)
-	    || (addr != NULL && ret == addr));
+	assert(ret == NULL || (addr == NULL && ret != addr) || (addr != NULL &&
+	    ret == addr));
 	return ret;
 }
 
-void
-pages_unmap(void *addr, size_t size) {
-	assert(PAGE_ADDR2BASE(addr) == addr);
-	assert(PAGE_CEILING(size) == size);
+static void *
+os_pages_trim(void *addr, size_t alloc_size, size_t leadsize, size_t size,
+    bool *commit) {
+	void *ret = (void *)((uintptr_t)addr + leadsize);
+
+	assert(alloc_size >= leadsize + size);
+#ifdef _WIN32
+	os_pages_unmap(addr, alloc_size);
+	void *new_addr = os_pages_map(ret, size, PAGE, commit);
+	if (new_addr == ret) {
+		return ret;
+	}
+	if (new_addr != NULL) {
+		os_pages_unmap(new_addr, size);
+	}
+	return NULL;
+#else
+	size_t trailsize = alloc_size - leadsize - size;
+
+	if (leadsize != 0) {
+		os_pages_unmap(addr, leadsize);
+	}
+	if (trailsize != 0) {
+		os_pages_unmap((void *)((uintptr_t)ret + size), trailsize);
+	}
+	return ret;
+#endif
+}
+
+static void
+os_pages_unmap(void *addr, size_t size) {
+	assert(ALIGNMENT_ADDR2BASE(addr, os_page) == addr);
+	assert(ALIGNMENT_CEILING(size, os_page) == size);
 
 #ifdef _WIN32
 	if (VirtualFree(addr, 0, MEM_RELEASE) == 0)
@@ -81,50 +119,80 @@ pages_unmap(void *addr, size_t size) {
 		buferror(get_errno(), buf, sizeof(buf));
 		malloc_printf("<jemalloc>: Error in "
 #ifdef _WIN32
-		              "VirtualFree"
+		    "VirtualFree"
 #else
-		              "munmap"
+		    "munmap"
 #endif
-		              "(): %s\n", buf);
+		    "(): %s\n", buf);
 		if (opt_abort) {
 			abort();
 		}
 	}
 }
 
-void *
-pages_trim(void *addr, size_t alloc_size, size_t leadsize, size_t size,
-    bool *commit) {
-	void *ret = (void *)((uintptr_t)addr + leadsize);
-
-	assert(alloc_size >= leadsize + size);
-#ifdef _WIN32
-	{
-		void *new_addr;
-
-		pages_unmap(addr, alloc_size);
-		new_addr = pages_map(ret, size, commit);
-		if (new_addr == ret) {
-			return ret;
-		}
-		if (new_addr) {
-			pages_unmap(new_addr, size);
-		}
+static void *
+pages_map_slow(size_t size, size_t alignment, bool *commit) {
+	size_t alloc_size = size + alignment - os_page;
+	/* Beware size_t wrap-around. */
+	if (alloc_size < size) {
 		return NULL;
 	}
-#else
-	{
-		size_t trailsize = alloc_size - leadsize - size;
 
-		if (leadsize != 0) {
-			pages_unmap(addr, leadsize);
+	void *ret;
+	do {
+		void *pages = os_pages_map(NULL, alloc_size, alignment, commit);
+		if (pages == NULL) {
+			return NULL;
 		}
-		if (trailsize != 0) {
-			pages_unmap((void *)((uintptr_t)ret + size), trailsize);
-		}
+		size_t leadsize = ALIGNMENT_CEILING((uintptr_t)pages, alignment)
+		    - (uintptr_t)pages;
+		ret = os_pages_trim(pages, alloc_size, leadsize, size, commit);
+	} while (ret == NULL);
+
+	assert(ret != NULL);
+	assert(PAGE_ADDR2BASE(ret) == ret);
+	return ret;
+}
+
+void *
+pages_map(void *addr, size_t size, size_t alignment, bool *commit) {
+	assert(alignment >= PAGE);
+	assert(ALIGNMENT_ADDR2BASE(addr, alignment) == addr);
+
+	/*
+	 * Ideally, there would be a way to specify alignment to mmap() (like
+	 * NetBSD has), but in the absence of such a feature, we have to work
+	 * hard to efficiently create aligned mappings.  The reliable, but
+	 * slow method is to create a mapping that is over-sized, then trim the
+	 * excess.  However, that always results in one or two calls to
+	 * os_pages_unmap(), and it can leave holes in the process's virtual
+	 * memory map if memory grows downward.
+	 *
+	 * Optimistically try mapping precisely the right amount before falling
+	 * back to the slow method, with the expectation that the optimistic
+	 * approach works most of the time.
+	 */
+
+	void *ret = os_pages_map(addr, size, os_page, commit);
+	if (ret == NULL || ret == addr) {
 		return ret;
 	}
-#endif
+	assert(addr == NULL);
+	if (ALIGNMENT_ADDR2OFFSET(ret, alignment) != 0) {
+		os_pages_unmap(ret, size);
+		return pages_map_slow(size, alignment, commit);
+	}
+
+	assert(PAGE_ADDR2BASE(ret) == ret);
+	return ret;
+}
+
+void
+pages_unmap(void *addr, size_t size) {
+	assert(PAGE_ADDR2BASE(addr) == addr);
+	assert(PAGE_CEILING(size) == size);
+
+	os_pages_unmap(addr, size);
 }
 
 static bool
@@ -152,7 +220,7 @@ pages_commit_impl(void *addr, size_t size, bool commit) {
 			 * We succeeded in mapping memory, but not in the right
 			 * place.
 			 */
-			pages_unmap(result, size);
+			os_pages_unmap(result, size);
 			return true;
 		}
 		return false;
@@ -236,6 +304,21 @@ pages_nohuge(void *addr, size_t size) {
 #endif
 }
 
+static size_t
+os_page_detect(void) {
+#ifdef _WIN32
+	SYSTEM_INFO si;
+	GetSystemInfo(&si);
+	return si.dwPageSize;
+#else
+	long result = sysconf(_SC_PAGESIZE);
+	if (result == -1) {
+		return LG_PAGE;
+	}
+	return (size_t)result;
+#endif
+}
+
 #ifdef JEMALLOC_SYSCTL_VM_OVERCOMMIT
 static bool
 os_overcommits_sysctl(void) {
@@ -297,8 +380,17 @@ os_overcommits_proc(void) {
 }
 #endif
 
-void
+bool
 pages_boot(void) {
+	os_page = os_page_detect();
+	if (os_page > PAGE) {
+		malloc_write("<jemalloc>: Unsupported system page size\n");
+		if (opt_abort) {
+			abort();
+		}
+		return true;
+	}
+
 #ifndef _WIN32
 	mmap_flags = MAP_PRIVATE | MAP_ANON;
 #endif
@@ -315,4 +407,6 @@ pages_boot(void) {
 #else
 	os_overcommits = false;
 #endif
+
+	return false;
 }

@@ -6,7 +6,7 @@
 #if LG_PAGE <= 14
 #define SZ	(ZU(1) << (LG_PAGE - 2))
 #else
-#define SZ	4096
+#define SZ	ZU(4096)
 #endif
 
 /*
