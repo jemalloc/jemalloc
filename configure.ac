@@ -557,7 +557,9 @@ case "${host}" in
 	AC_DEFINE([JEMALLOC_THREADED_INIT], [ ])
 	AC_DEFINE([JEMALLOC_C11_ATOMICS])
 	force_tls="0"
-	default_munmap="0"
+	if "${LG_SIZEOF_PTR}" = "3"; then
+	  default_munmap="0"
+	fi
 	;;
   *-*-linux* | *-*-kfreebsd*)
 	dnl syscall(2) and secure_getenv(3) are exposed by _GNU_SOURCE.
@@ -568,7 +570,9 @@ case "${host}" in
 	AC_DEFINE([JEMALLOC_PROC_SYS_VM_OVERCOMMIT_MEMORY], [ ])
 	AC_DEFINE([JEMALLOC_THREADED_INIT], [ ])
 	AC_DEFINE([JEMALLOC_USE_CXX_THROW], [ ])
-	default_munmap="0"
+	if "${LG_SIZEOF_PTR}" = "3"; then
+	  default_munmap="0"
+	fi
 	;;
   *-*-netbsd*)
 	AC_MSG_CHECKING([ABI])
