@@ -1,6 +1,8 @@
 #ifndef JEMALLOC_INTERNAL_RTREE_INLINES_H
 #define JEMALLOC_INTERNAL_RTREE_INLINES_H
 
+#include "jemalloc/internal/spin.h"
+
 #ifndef JEMALLOC_ENABLE_INLINE
 uintptr_t rtree_leafkey(uintptr_t key);
 uintptr_t rtree_subkey(uintptr_t key, unsigned level);
