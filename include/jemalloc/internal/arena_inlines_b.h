@@ -1,6 +1,8 @@
 #ifndef JEMALLOC_INTERNAL_ARENA_INLINES_B_H
 #define JEMALLOC_INTERNAL_ARENA_INLINES_B_H
 
+#include "jemalloc/internal/jemalloc_internal_types.h"
+
 #ifndef JEMALLOC_ENABLE_INLINE
 szind_t arena_bin_index(arena_t *arena, arena_bin_t *bin);
 prof_tctx_t *arena_prof_tctx_get(tsdn_t *tsdn, const void *ptr,

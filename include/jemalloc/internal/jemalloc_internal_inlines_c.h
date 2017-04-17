@@ -1,6 +1,8 @@
 #ifndef JEMALLOC_INTERNAL_INLINES_C_H
 #define JEMALLOC_INTERNAL_INLINES_C_H
 
+#include "jemalloc/internal/jemalloc_internal_types.h"
+
 #ifndef JEMALLOC_ENABLE_INLINE
 arena_t *iaalloc(tsdn_t *tsdn, const void *ptr);
 size_t isalloc(tsdn_t *tsdn, const void *ptr);
