@@ -2,6 +2,7 @@
 #define JEMALLOC_INTERNAL_MUTEX_STRUCTS_H
 
 #include "jemalloc/internal/atomic.h"
+#include "jemalloc/internal/nstime.h"
 
 struct mutex_prof_data_s {
 	/*

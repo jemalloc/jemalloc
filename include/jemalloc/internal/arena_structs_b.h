@@ -2,6 +2,7 @@
 #define JEMALLOC_INTERNAL_ARENA_STRUCTS_B_H
 
 #include "jemalloc/internal/atomic.h"
+#include "jemalloc/internal/nstime.h"
 #include "jemalloc/internal/ql.h"
 
 /*
