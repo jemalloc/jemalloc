@@ -17,6 +17,8 @@ unsigned extent_nfree_get(const extent_t *extent);
 void *extent_base_get(const extent_t *extent);
 void *extent_addr_get(const extent_t *extent);
 size_t extent_size_get(const extent_t *extent);
+size_t extent_esn_get(const extent_t *extent);
+size_t extent_bsize_get(const extent_t *extent);
 void *extent_before_get(const extent_t *extent);
 void *extent_last_get(const extent_t *extent);
 void *extent_past_get(const extent_t *extent);
@@ -27,6 +29,8 @@ void extent_arena_set(extent_t *extent, arena_t *arena);
 void extent_addr_set(extent_t *extent, void *addr);
 void extent_addr_randomize(tsdn_t *tsdn, extent_t *extent, size_t alignment);
 void extent_size_set(extent_t *extent, size_t size);
+void extent_esn_set(extent_t *extent, size_t esn);
+void extent_bsize_set(extent_t *extent, size_t bsize);
 void extent_szind_set(extent_t *extent, szind_t szind);
 void extent_nfree_set(extent_t *extent, unsigned nfree);
 void extent_nfree_inc(extent_t *extent);
@@ -40,6 +44,7 @@ void extent_prof_tctx_set(extent_t *extent, prof_tctx_t *tctx);
 void extent_init(extent_t *extent, arena_t *arena, void *addr, size_t size,
     bool slab, szind_t szind, size_t sn, extent_state_t state, bool zeroed,
     bool committed);
+void extent_binit(extent_t *extent, void *addr, size_t size, size_t sn);
 void extent_list_init(extent_list_t *list);
 extent_t *extent_list_first(const extent_list_t *list);
 extent_t *extent_list_last(const extent_list_t *list);
@@ -141,7 +146,17 @@ extent_addr_get(const extent_t *extent) {
 
 JEMALLOC_INLINE size_t
 extent_size_get(const extent_t *extent) {
-	return extent->e_size;
+	return (extent->e_size_esn & EXTENT_SIZE_MASK);
+}
+
+JEMALLOC_INLINE size_t
+extent_esn_get(const extent_t *extent) {
+	return (extent->e_size_esn & EXTENT_ESN_MASK);
+}
+
+JEMALLOC_INLINE size_t
+extent_bsize_get(const extent_t *extent) {
+	return extent->e_bsize;
 }
 
 JEMALLOC_INLINE void *
@@ -213,7 +228,19 @@ extent_addr_randomize(tsdn_t *tsdn, extent_t *extent, size_t alignment) {
 
 JEMALLOC_INLINE void
 extent_size_set(extent_t *extent, size_t size) {
-	extent->e_size = size;
+	assert((size & ~EXTENT_SIZE_MASK) == 0);
+	extent->e_size_esn = size | (extent->e_size_esn & ~EXTENT_SIZE_MASK);
+}
+
+JEMALLOC_INLINE void
+extent_esn_set(extent_t *extent, size_t esn) {
+	extent->e_size_esn = (extent->e_size_esn & ~EXTENT_ESN_MASK) | (esn &
+	    EXTENT_ESN_MASK);
+}
+
+JEMALLOC_INLINE void
+extent_bsize_set(extent_t *extent, size_t bsize) {
+	extent->e_bsize = bsize;
 }
 
 JEMALLOC_INLINE void
@@ -296,6 +323,19 @@ extent_init(extent_t *extent, arena_t *arena, void *addr, size_t size,
 	if (config_prof) {
 		extent_prof_tctx_set(extent, NULL);
 	}
+}
+
+JEMALLOC_INLINE void
+extent_binit(extent_t *extent, void *addr, size_t bsize, size_t sn) {
+	extent_arena_set(extent, NULL);
+	extent_addr_set(extent, addr);
+	extent_bsize_set(extent, bsize);
+	extent_slab_set(extent, false);
+	extent_szind_set(extent, NSIZES);
+	extent_sn_set(extent, sn);
+	extent_state_set(extent, extent_state_active);
+	extent_zeroed_set(extent, true);
+	extent_committed_set(extent, true);
 }
 
 JEMALLOC_INLINE void

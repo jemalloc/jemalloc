@@ -154,10 +154,10 @@ TEST_BEGIN(test_base_hooks_not_null) {
 	 * that the first block's remaining space is considered for subsequent
 	 * allocation.
 	 */
-	assert_zu_ge(extent_size_get(&base->blocks->extent), QUANTUM,
+	assert_zu_ge(extent_bsize_get(&base->blocks->extent), QUANTUM,
 	    "Remainder insufficient for test");
 	/* Use up all but one quantum of block. */
-	while (extent_size_get(&base->blocks->extent) > QUANTUM) {
+	while (extent_bsize_get(&base->blocks->extent) > QUANTUM) {
 		p = base_alloc(tsdn, base, QUANTUM, QUANTUM);
 		assert_ptr_not_null(p, "Unexpected base_alloc() failure");
 	}
