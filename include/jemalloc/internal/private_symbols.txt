@@ -160,8 +160,11 @@ extent_dss_boot
 extent_dss_mergeable
 extent_dss_prec_get
 extent_dss_prec_set
+extent_ead_comp
+extent_esn_comp
 extent_esn_get
 extent_esn_set
+extent_esnead_comp
 extent_heap_empty
 extent_heap_first
 extent_heap_insert

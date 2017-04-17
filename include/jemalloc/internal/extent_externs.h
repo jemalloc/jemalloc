@@ -1,6 +1,7 @@
 #ifndef JEMALLOC_INTERNAL_EXTENT_EXTERNS_H
 #define JEMALLOC_INTERNAL_EXTENT_EXTERNS_H
 
+#include "jemalloc/internal/rb.h"
 #include "jemalloc/internal/ph.h"
 
 extern rtree_t			extents_rtree;
@@ -17,6 +18,7 @@ size_t extent_size_quantize_floor(size_t size);
 size_t extent_size_quantize_ceil(size_t size);
 #endif
 
+rb_proto(, extent_avail_, extent_tree_t, extent_t)
 ph_proto(, extent_heap_, extent_heap_t, extent_t)
 
 bool extents_init(tsdn_t *tsdn, extents_t *extents, extent_state_t state,

@@ -53,8 +53,10 @@ void extent_list_replace(extent_list_t *list, extent_t *to_remove,
     extent_t *to_insert);
 void extent_list_remove(extent_list_t *list, extent_t *extent);
 int extent_sn_comp(const extent_t *a, const extent_t *b);
+int extent_esn_comp(const extent_t *a, const extent_t *b);
 int extent_ad_comp(const extent_t *a, const extent_t *b);
 int extent_snad_comp(const extent_t *a, const extent_t *b);
+int extent_esnead_comp(const extent_t *a, const extent_t *b);
 #endif
 
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_EXTENT_C_))
@@ -379,11 +381,27 @@ extent_sn_comp(const extent_t *a, const extent_t *b) {
 }
 
 JEMALLOC_INLINE int
+extent_esn_comp(const extent_t *a, const extent_t *b) {
+	size_t a_esn = extent_esn_get(a);
+	size_t b_esn = extent_esn_get(b);
+
+	return (a_esn > b_esn) - (a_esn < b_esn);
+}
+
+JEMALLOC_INLINE int
 extent_ad_comp(const extent_t *a, const extent_t *b) {
 	uintptr_t a_addr = (uintptr_t)extent_addr_get(a);
 	uintptr_t b_addr = (uintptr_t)extent_addr_get(b);
 
 	return (a_addr > b_addr) - (a_addr < b_addr);
+}
+
+JEMALLOC_INLINE int
+extent_ead_comp(const extent_t *a, const extent_t *b) {
+	uintptr_t a_eaddr = (uintptr_t)a;
+	uintptr_t b_eaddr = (uintptr_t)b;
+
+	return (a_eaddr > b_eaddr) - (a_eaddr < b_eaddr);
 }
 
 JEMALLOC_INLINE int
@@ -396,6 +414,19 @@ extent_snad_comp(const extent_t *a, const extent_t *b) {
 	}
 
 	ret = extent_ad_comp(a, b);
+	return ret;
+}
+
+JEMALLOC_INLINE int
+extent_esnead_comp(const extent_t *a, const extent_t *b) {
+	int ret;
+
+	ret = extent_esn_comp(a, b);
+	if (ret != 0) {
+		return ret;
+	}
+
+	ret = extent_ead_comp(a, b);
 	return ret;
 }
 #endif

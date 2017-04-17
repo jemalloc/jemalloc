@@ -2,8 +2,9 @@
 #define JEMALLOC_INTERNAL_EXTENT_STRUCTS_H
 
 #include "jemalloc/internal/atomic.h"
-#include "jemalloc/internal/ph.h"
 #include "jemalloc/internal/ql.h"
+#include "jemalloc/internal/rb.h"
+#include "jemalloc/internal/ph.h"
 
 typedef enum {
 	extent_state_active   = 0,
@@ -117,15 +118,18 @@ struct extent_s {
 		size_t			e_bsize;
 	};
 
-	/*
-	 * List linkage, used by a variety of lists:
-	 * - arena_bin_t's slabs_full
-	 * - extents_t's LRU
-	 * - stashed dirty extents
-	 * - arena's large allocations
-	 * - arena's extent structure freelist
-	 */
-	ql_elm(extent_t)	ql_link;
+	union {
+		/*
+		 * List linkage, used by a variety of lists:
+		 * - arena_bin_t's slabs_full
+		 * - extents_t's LRU
+		 * - stashed dirty extents
+		 * - arena's large allocations
+		 */
+		ql_elm(extent_t)	ql_link;
+		/* Red-black tree linkage, used by arena's extent_avail. */
+		rb_node(extent_t)	rb_link;
+	};
 
 	/* Linkage for per size class sn/address-ordered heaps. */
 	phn(extent_t)		ph_link;
@@ -142,6 +146,7 @@ struct extent_s {
 	};
 };
 typedef ql_head(extent_t) extent_list_t;
+typedef rb_tree(extent_t) extent_tree_t;
 typedef ph(extent_t) extent_heap_t;
 
 /* Quantized collection of extents, with built-in LRU queue. */

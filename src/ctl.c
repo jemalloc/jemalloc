@@ -2475,7 +2475,7 @@ stats_mutexes_reset_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
 			continue;
 		}
 		MUTEX_PROF_RESET(arena->large_mtx);
-		MUTEX_PROF_RESET(arena->extent_freelist_mtx);
+		MUTEX_PROF_RESET(arena->extent_avail_mtx);
 		MUTEX_PROF_RESET(arena->extents_dirty.mtx);
 		MUTEX_PROF_RESET(arena->extents_muzzy.mtx);
 		MUTEX_PROF_RESET(arena->extents_retained.mtx);

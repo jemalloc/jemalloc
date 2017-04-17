@@ -233,12 +233,13 @@ struct arena_s {
 	atomic_u_t		extent_grow_next;
 
 	/*
-	 * Freelist of extent structures that were allocated via base_alloc().
+	 * Available extent structures that were allocated via
+	 * base_alloc_extent().
 	 *
-	 * Synchronization: extent_freelist_mtx.
+	 * Synchronization: extent_avail_mtx.
 	 */
-	extent_list_t		extent_freelist;
-	malloc_mutex_t		extent_freelist_mtx;
+	extent_tree_t		extent_avail;
+	malloc_mutex_t		extent_avail_mtx;
 
 	/*
 	 * bins is used to store heaps of free regions.
