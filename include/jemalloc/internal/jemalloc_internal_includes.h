@@ -40,7 +40,6 @@
 /* TYPES */
 /******************************************************************************/
 
-#include "jemalloc/internal/jemalloc_internal_types.h"
 #include "jemalloc/internal/nstime_types.h"
 #include "jemalloc/internal/spin_types.h"
 #include "jemalloc/internal/prng_types.h"

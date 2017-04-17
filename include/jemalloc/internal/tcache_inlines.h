@@ -1,6 +1,7 @@
 #ifndef JEMALLOC_INTERNAL_TCACHE_INLINES_H
 #define JEMALLOC_INTERNAL_TCACHE_INLINES_H
 
+#include "jemalloc/internal/jemalloc_internal_types.h"
 #include "jemalloc/internal/util.h"
 
 #ifndef JEMALLOC_ENABLE_INLINE

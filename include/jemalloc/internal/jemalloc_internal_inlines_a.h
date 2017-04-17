@@ -3,6 +3,7 @@
 
 #include "jemalloc/internal/atomic.h"
 #include "jemalloc/internal/bit_util.h"
+#include "jemalloc/internal/jemalloc_internal_types.h"
 
 #ifndef JEMALLOC_ENABLE_INLINE
 pszind_t psz2ind(size_t psz);
