@@ -591,7 +591,7 @@ case "${host}" in
 	JE_APPEND_VS(LIBS, -lposix4 -lsocket -lnsl)
 	;;
   *-ibm-aix*)
-	if "$LG_SIZEOF_PTR" = "8"; then
+	if "${LG_SIZEOF_PTR}" = "3"; then
 	  dnl 64bit AIX
 	  LD_PRELOAD_VAR="LDR_PRELOAD64"
 	else
