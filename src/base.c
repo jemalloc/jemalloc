@@ -31,14 +31,14 @@ static void
 base_unmap(extent_hooks_t *extent_hooks, unsigned ind, void *addr,
     size_t size) {
 	/*
-	 * Cascade through dalloc, decommit, purge_lazy, and purge_forced,
+	 * Cascade through dalloc, decommit, purge_forced, and purge_lazy,
 	 * stopping at first success.  This cascade is performed for consistency
 	 * with the cascade in extent_dalloc_wrapper() because an application's
 	 * custom hooks may not support e.g. dalloc.  This function is only ever
 	 * called as a side effect of arena destruction, so although it might
 	 * seem pointless to do anything besides dalloc here, the application
-	 * may in fact want the end state of all associated virtual memory to in
-	 * some consistent-but-allocated state.
+	 * may in fact want the end state of all associated virtual memory to be
+	 * in some consistent-but-allocated state.
 	 */
 	if (extent_hooks == &extent_hooks_default) {
 		if (!extent_dalloc_mmap(addr, size)) {
@@ -47,10 +47,10 @@ base_unmap(extent_hooks_t *extent_hooks, unsigned ind, void *addr,
 		if (!pages_decommit(addr, size)) {
 			return;
 		}
-		if (!pages_purge_lazy(addr, size)) {
+		if (!pages_purge_forced(addr, size)) {
 			return;
 		}
-		if (!pages_purge_forced(addr, size)) {
+		if (!pages_purge_lazy(addr, size)) {
 			return;
 		}
 		/* Nothing worked.  This should never happen. */
@@ -66,14 +66,14 @@ base_unmap(extent_hooks_t *extent_hooks, unsigned ind, void *addr,
 		    ind)) {
 			return;
 		}
-		if (extent_hooks->purge_lazy != NULL &&
-		    !extent_hooks->purge_lazy(extent_hooks, addr, size, 0, size,
-		    ind)) {
-			return;
-		}
 		if (extent_hooks->purge_forced != NULL &&
 		    !extent_hooks->purge_forced(extent_hooks, addr, size, 0,
 		    size, ind)) {
+			return;
+		}
+		if (extent_hooks->purge_lazy != NULL &&
+		    !extent_hooks->purge_lazy(extent_hooks, addr, size, 0, size,
+		    ind)) {
 			return;
 		}
 		/* Nothing worked.  That's the application's problem. */
