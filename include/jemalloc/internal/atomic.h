@@ -3,8 +3,6 @@
 
 #define ATOMIC_INLINE static inline
 
-CPP_PROLOGUE
-
 #if defined(JEMALLOC_GCC_ATOMIC_ATOMICS)
 #  include "jemalloc/internal/atomic_gcc_atomic.h"
 #elif defined(JEMALLOC_GCC_SYNC_ATOMICS)
@@ -75,7 +73,5 @@ JEMALLOC_GENERATE_INT_ATOMICS(uint64_t, u64, 3)
 #endif
 
 #undef ATOMIC_INLINE
-
-CPP_EPILOGUE
 
 #endif /* JEMALLOC_INTERNAL_ATOMIC_H */

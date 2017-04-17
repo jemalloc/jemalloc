@@ -36,8 +36,6 @@
  * global jemalloc definitions, however.
  */
 
-CPP_PROLOGUE
-
 /******************************************************************************/
 /* HERMETIC HEADERS */
 /******************************************************************************/
@@ -148,7 +146,5 @@ CPP_PROLOGUE
 #include "jemalloc/internal/hash_inlines.h"
 #include "jemalloc/internal/jemalloc_internal_inlines_c.h"
 #include "jemalloc/internal/prof_inlines_b.h"
-
-CPP_EPILOGUE
 
 #endif /* JEMALLOC_INTERNAL_INCLUDES_H */

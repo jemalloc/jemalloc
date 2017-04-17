@@ -2,8 +2,16 @@
 #include <new>
 
 #define JEMALLOC_CPP_CPP_
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/jemalloc_internal_includes.h"
+
+#ifdef __cplusplus
+}
+#endif
 
 // All operators in this file are exported.
 
