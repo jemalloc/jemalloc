@@ -155,19 +155,33 @@ base_extent_bump_alloc(tsdn_t *tsdn, base_t *base, extent_t *extent,
  */
 static base_block_t *
 base_block_alloc(extent_hooks_t *extent_hooks, unsigned ind,
-    size_t *extent_sn_next, size_t size, size_t alignment) {
-	base_block_t *block;
-	size_t usize, header_size, gap_size, block_size;
-
+    pszind_t *pind_last, size_t *extent_sn_next, size_t size,
+    size_t alignment) {
 	alignment = ALIGNMENT_CEILING(alignment, QUANTUM);
-	usize = ALIGNMENT_CEILING(size, alignment);
-	header_size = sizeof(base_block_t);
-	gap_size = ALIGNMENT_CEILING(header_size, alignment) - header_size;
-	block_size = HUGEPAGE_CEILING(header_size + gap_size + usize);
-	block = (base_block_t *)base_map(extent_hooks, ind, block_size);
+	size_t usize = ALIGNMENT_CEILING(size, alignment);
+	size_t header_size = sizeof(base_block_t);
+	size_t gap_size = ALIGNMENT_CEILING(header_size, alignment) -
+	    header_size;
+	/*
+	 * Create increasingly larger blocks in order to limit the total number
+	 * of disjoint virtual memory ranges.  Choose the next size in the page
+	 * size class series (skipping size classes that are not a multiple of
+	 * HUGEPAGE), or a size large enough to satisfy the requested size and
+	 * alignment, whichever is larger.
+	 */
+	size_t min_block_size = HUGEPAGE_CEILING(psz2u(header_size + gap_size +
+	    usize));
+	pszind_t pind_next = (*pind_last + 1 < NPSIZES) ? *pind_last + 1 :
+	    *pind_last;
+	size_t next_block_size = HUGEPAGE_CEILING(pind2sz(pind_next));
+	size_t block_size = (min_block_size > next_block_size) ? min_block_size
+	    : next_block_size;
+	base_block_t *block = (base_block_t *)base_map(extent_hooks, ind,
+	    block_size);
 	if (block == NULL) {
 		return NULL;
 	}
+	*pind_last = psz2ind(block_size);
 	block->size = block_size;
 	block->next = NULL;
 	assert(block_size >= header_size);
@@ -182,13 +196,11 @@ base_block_alloc(extent_hooks_t *extent_hooks, unsigned ind,
  */
 static extent_t *
 base_extent_alloc(tsdn_t *tsdn, base_t *base, size_t size, size_t alignment) {
-	extent_hooks_t *extent_hooks = base_extent_hooks_get(base);
-	base_block_t *block;
-
 	malloc_mutex_assert_owner(tsdn, &base->mtx);
 
-	block = base_block_alloc(extent_hooks, base_ind_get(base),
-	    &base->extent_sn_next, size, alignment);
+	extent_hooks_t *extent_hooks = base_extent_hooks_get(base);
+	base_block_t *block = base_block_alloc(extent_hooks, base_ind_get(base),
+	    &base->pind_last, &base->extent_sn_next, size, alignment);
 	if (block == NULL) {
 		return NULL;
 	}
@@ -211,21 +223,18 @@ b0get(void) {
 
 base_t *
 base_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
-	base_t *base;
-	size_t extent_sn_next, base_alignment, base_size, gap_size;
-	base_block_t *block;
-	szind_t i;
-
-	extent_sn_next = 0;
-	block = base_block_alloc(extent_hooks, ind, &extent_sn_next,
-	    sizeof(base_t), QUANTUM);
+	pszind_t pind_last = 0;
+	size_t extent_sn_next = 0;
+	base_block_t *block = base_block_alloc(extent_hooks, ind, &pind_last,
+	    &extent_sn_next, sizeof(base_t), QUANTUM);
 	if (block == NULL) {
 		return NULL;
 	}
 
-	base_alignment = CACHELINE;
-	base_size = ALIGNMENT_CEILING(sizeof(base_t), base_alignment);
-	base = (base_t *)base_extent_bump_alloc_helper(&block->extent,
+	size_t gap_size;
+	size_t base_alignment = CACHELINE;
+	size_t base_size = ALIGNMENT_CEILING(sizeof(base_t), base_alignment);
+	base_t *base = (base_t *)base_extent_bump_alloc_helper(&block->extent,
 	    &gap_size, base_size, base_alignment);
 	base->ind = ind;
 	atomic_store_p(&base->extent_hooks, extent_hooks, ATOMIC_RELAXED);
@@ -233,9 +242,10 @@ base_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 		base_unmap(extent_hooks, ind, block, block->size);
 		return NULL;
 	}
+	base->pind_last = pind_last;
 	base->extent_sn_next = extent_sn_next;
 	base->blocks = block;
-	for (i = 0; i < NSIZES; i++) {
+	for (szind_t i = 0; i < NSIZES; i++) {
 		extent_heap_new(&base->avail[i]);
 	}
 	if (config_stats) {

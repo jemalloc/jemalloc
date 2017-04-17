@@ -21,10 +21,17 @@ struct base_s {
 	 * User-configurable extent hook functions.  Points to an
 	 * extent_hooks_t.
 	 */
-	atomic_p_t extent_hooks;
+	atomic_p_t	extent_hooks;
 
 	/* Protects base_alloc() and base_stats_get() operations. */
 	malloc_mutex_t	mtx;
+
+	/*
+	 * Most recent size class in the series of increasingly large base
+	 * extents.  Logarithmic spacing between subsequent allocations ensures
+	 * that the total number of distinct mappings remains small.
+	 */
+	pszind_t	pind_last;
 
 	/* Serial number generation state. */
 	size_t		extent_sn_next;
