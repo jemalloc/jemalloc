@@ -23,8 +23,8 @@ struct extent_s {
 	 * z: zeroed
 	 * t: state
 	 * i: szind
-	 * n: sn
 	 * f: nfree
+	 * n: sn
 	 *
 	 * nnnnnnnn ... nnnnnfff fffffffi iiiiiiit tzcbaaaa aaaaaaaa
 	 *
@@ -102,8 +102,20 @@ struct extent_s {
 	/* Pointer to the extent that this structure is responsible for. */
 	void			*e_addr;
 
-	/* Extent size. */
-	size_t			e_size;
+	union {
+		/*
+		 * Extent size and serial number associated with the extent
+		 * structure (different than the serial number for the extent at
+		 * e_addr).
+		 *
+		 * ssssssss [...] ssssssss ssssnnnn nnnnnnnn
+		 */
+		size_t			e_size_esn;
+	#define EXTENT_SIZE_MASK	((size_t)~(PAGE-1))
+	#define EXTENT_ESN_MASK		((size_t)PAGE-1)
+		/* Base extent size, which may not be a multiple of PAGE. */
+		size_t			e_bsize;
+	};
 
 	/*
 	 * List linkage, used by a variety of lists:

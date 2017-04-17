@@ -88,8 +88,7 @@ base_extent_init(size_t *extent_sn_next, extent_t *extent, void *addr,
 	sn = *extent_sn_next;
 	(*extent_sn_next)++;
 
-	extent_init(extent, NULL, addr, size, false, NSIZES, sn,
-	    extent_state_active, true, true);
+	extent_binit(extent, addr, size, sn);
 }
 
 static void *
@@ -103,23 +102,22 @@ base_extent_bump_alloc_helper(extent_t *extent, size_t *gap_size, size_t size,
 	*gap_size = ALIGNMENT_CEILING((uintptr_t)extent_addr_get(extent),
 	    alignment) - (uintptr_t)extent_addr_get(extent);
 	ret = (void *)((uintptr_t)extent_addr_get(extent) + *gap_size);
-	assert(extent_size_get(extent) >= *gap_size + size);
-	extent_init(extent, NULL, (void *)((uintptr_t)extent_addr_get(extent) +
-	    *gap_size + size), extent_size_get(extent) - *gap_size - size,
-	    false, NSIZES, extent_sn_get(extent), extent_state_active, true,
-	    true);
+	assert(extent_bsize_get(extent) >= *gap_size + size);
+	extent_binit(extent, (void *)((uintptr_t)extent_addr_get(extent) +
+	    *gap_size + size), extent_bsize_get(extent) - *gap_size - size,
+	    extent_sn_get(extent));
 	return ret;
 }
 
 static void
 base_extent_bump_alloc_post(tsdn_t *tsdn, base_t *base, extent_t *extent,
     size_t gap_size, void *addr, size_t size) {
-	if (extent_size_get(extent) > 0) {
+	if (extent_bsize_get(extent) > 0) {
 		/*
 		 * Compute the index for the largest size class that does not
 		 * exceed extent's size.
 		 */
-		szind_t index_floor = size2index(extent_size_get(extent) + 1) -
+		szind_t index_floor = size2index(extent_bsize_get(extent) + 1) -
 		    1;
 		extent_heap_insert(&base->avail[index_floor], extent);
 	}
@@ -286,28 +284,16 @@ base_extent_hooks_set(base_t *base, extent_hooks_t *extent_hooks) {
 	return old_extent_hooks;
 }
 
-/*
- * base_alloc() returns zeroed memory, which is always demand-zeroed for the
- * auto arenas, in order to make multi-page sparse data structures such as radix
- * tree nodes efficient with respect to physical memory usage.  Upon success a
- * pointer to at least size bytes with specified alignment is returned.  Note
- * that size is rounded up to the nearest multiple of alignment to avoid false
- * sharing.
- */
-void *
-base_alloc(tsdn_t *tsdn, base_t *base, size_t size, size_t alignment) {
-	void *ret;
-	size_t usize, asize;
-	szind_t i;
-	extent_t *extent;
-
+static void *
+base_alloc_impl(tsdn_t *tsdn, base_t *base, size_t size, size_t alignment,
+    size_t *esn) {
 	alignment = QUANTUM_CEILING(alignment);
-	usize = ALIGNMENT_CEILING(size, alignment);
-	asize = usize + alignment - QUANTUM;
+	size_t usize = ALIGNMENT_CEILING(size, alignment);
+	size_t asize = usize + alignment - QUANTUM;
 
-	extent = NULL;
+	extent_t *extent = NULL;
 	malloc_mutex_lock(tsdn, &base->mtx);
-	for (i = size2index(asize); i < NSIZES; i++) {
+	for (szind_t i = size2index(asize); i < NSIZES; i++) {
 		extent = extent_heap_remove_first(&base->avail[i]);
 		if (extent != NULL) {
 			/* Use existing space. */
@@ -318,15 +304,44 @@ base_alloc(tsdn_t *tsdn, base_t *base, size_t size, size_t alignment) {
 		/* Try to allocate more space. */
 		extent = base_extent_alloc(tsdn, base, usize, alignment);
 	}
+	void *ret;
 	if (extent == NULL) {
 		ret = NULL;
 		goto label_return;
 	}
 
 	ret = base_extent_bump_alloc(tsdn, base, extent, usize, alignment);
+	if (esn != NULL) {
+		*esn = extent_sn_get(extent);
+	}
 label_return:
 	malloc_mutex_unlock(tsdn, &base->mtx);
 	return ret;
+}
+
+/*
+ * base_alloc() returns zeroed memory, which is always demand-zeroed for the
+ * auto arenas, in order to make multi-page sparse data structures such as radix
+ * tree nodes efficient with respect to physical memory usage.  Upon success a
+ * pointer to at least size bytes with specified alignment is returned.  Note
+ * that size is rounded up to the nearest multiple of alignment to avoid false
+ * sharing.
+ */
+void *
+base_alloc(tsdn_t *tsdn, base_t *base, size_t size, size_t alignment) {
+	return base_alloc_impl(tsdn, base, size, alignment, NULL);
+}
+
+extent_t *
+base_alloc_extent(tsdn_t *tsdn, base_t *base) {
+	size_t esn;
+	extent_t *extent = base_alloc_impl(tsdn, base, sizeof(extent_t),
+	    CACHELINE, &esn);
+	if (extent == NULL) {
+		return NULL;
+	}
+	extent_esn_set(extent, esn);
+	return extent;
 }
 
 void

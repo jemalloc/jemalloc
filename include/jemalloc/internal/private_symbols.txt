@@ -86,6 +86,7 @@ b0get
 base_alloc
 base_boot
 base_delete
+base_extent_alloc
 base_extent_hooks_get
 base_extent_hooks_set
 base_ind_get
@@ -143,6 +144,9 @@ extent_arena_set
 extent_base_get
 extent_before_get
 extent_boot
+extent_binit
+extent_bsize_get
+extent_bsize_set
 extent_commit_wrapper
 extent_committed_get
 extent_committed_set
@@ -156,6 +160,8 @@ extent_dss_boot
 extent_dss_mergeable
 extent_dss_prec_get
 extent_dss_prec_set
+extent_esn_get
+extent_esn_set
 extent_heap_empty
 extent_heap_first
 extent_heap_insert
