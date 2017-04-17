@@ -40,7 +40,6 @@
 /* TYPES */
 /******************************************************************************/
 
-#include "jemalloc/internal/spin_types.h"
 #include "jemalloc/internal/prng_types.h"
 #include "jemalloc/internal/ticker_types.h"
 #include "jemalloc/internal/ckh_types.h"
@@ -65,7 +64,6 @@
 /* STRUCTS */
 /******************************************************************************/
 
-#include "jemalloc/internal/spin_structs.h"
 #include "jemalloc/internal/ticker_structs.h"
 #include "jemalloc/internal/ckh_structs.h"
 #include "jemalloc/internal/witness_structs.h"
@@ -110,7 +108,6 @@
 /* INLINES */
 /******************************************************************************/
 
-#include "jemalloc/internal/spin_inlines.h"
 #include "jemalloc/internal/prng_inlines.h"
 #include "jemalloc/internal/ticker_inlines.h"
 #include "jemalloc/internal/tsd_inlines.h"
