@@ -14,7 +14,7 @@ typedef enum {
 
 #define ARENA_PROF_MUTEXES						\
     OP(large)								\
-    OP(extent_freelist)							\
+    OP(extent_avail)							\
     OP(extents_dirty)							\
     OP(extents_muzzy)							\
     OP(extents_retained)						\

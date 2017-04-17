@@ -2691,14 +2691,14 @@ struct extent_hooks_s {
         counters</link>.</para></listitem>
       </varlistentry>
 
-      <varlistentry id="stats.arenas.i.mutexes.extent_freelist">
+      <varlistentry id="stats.arenas.i.mutexes.extent_avail">
         <term>
-          <mallctl>stats.arenas.&lt;i&gt;.mutexes.extent_freelist.{counter}</mallctl>
+          <mallctl>stats.arenas.&lt;i&gt;.mutexes.extent_avail.{counter}</mallctl>
           (<type>counter specific type</type>) <literal>r-</literal>
           [<option>--enable-stats</option>]
         </term>
-        <listitem><para>Statistics on <varname>arena.&lt;i&gt;.extent_freelist
-        </varname> mutex (arena scope; extent freelist related).
+        <listitem><para>Statistics on <varname>arena.&lt;i&gt;.extent_avail
+        </varname> mutex (arena scope; extent avail related).
         <mallctl>{counter}</mallctl> is one of the counters in <link
         linkend="mutex_counters">mutex profiling
         counters</link>.</para></listitem>

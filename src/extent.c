@@ -88,20 +88,21 @@ static void extent_record(tsdn_t *tsdn, arena_t *arena,
 
 /******************************************************************************/
 
+rb_gen(UNUSED, extent_avail_, extent_tree_t, extent_t, rb_link,
+    extent_esnead_comp)
+
 extent_t *
 extent_alloc(tsdn_t *tsdn, arena_t *arena) {
-	extent_t *extent;
-
 	witness_assert_depth_to_rank(tsdn, WITNESS_RANK_CORE, 0);
 
-	malloc_mutex_lock(tsdn, &arena->extent_freelist_mtx);
-	extent = extent_list_last(&arena->extent_freelist);
+	malloc_mutex_lock(tsdn, &arena->extent_avail_mtx);
+	extent_t *extent = extent_avail_first(&arena->extent_avail);
 	if (extent == NULL) {
-		malloc_mutex_unlock(tsdn, &arena->extent_freelist_mtx);
+		malloc_mutex_unlock(tsdn, &arena->extent_avail_mtx);
 		return base_alloc_extent(tsdn, arena->base);
 	}
-	extent_list_remove(&arena->extent_freelist, extent);
-	malloc_mutex_unlock(tsdn, &arena->extent_freelist_mtx);
+	extent_avail_remove(&arena->extent_avail, extent);
+	malloc_mutex_unlock(tsdn, &arena->extent_avail_mtx);
 	return extent;
 }
 
@@ -109,9 +110,9 @@ void
 extent_dalloc(tsdn_t *tsdn, arena_t *arena, extent_t *extent) {
 	witness_assert_depth_to_rank(tsdn, WITNESS_RANK_CORE, 0);
 
-	malloc_mutex_lock(tsdn, &arena->extent_freelist_mtx);
-	extent_list_append(&arena->extent_freelist, extent);
-	malloc_mutex_unlock(tsdn, &arena->extent_freelist_mtx);
+	malloc_mutex_lock(tsdn, &arena->extent_avail_mtx);
+	extent_avail_insert(&arena->extent_avail, extent);
+	malloc_mutex_unlock(tsdn, &arena->extent_avail_mtx);
 }
 
 extent_hooks_t *

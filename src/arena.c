@@ -314,8 +314,8 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 
 	/* Gather per arena mutex profiling data. */
 	READ_ARENA_MUTEX_PROF_DATA(large_mtx, arena_prof_mutex_large);
-	READ_ARENA_MUTEX_PROF_DATA(extent_freelist_mtx,
-	    arena_prof_mutex_extent_freelist)
+	READ_ARENA_MUTEX_PROF_DATA(extent_avail_mtx,
+	    arena_prof_mutex_extent_avail)
 	READ_ARENA_MUTEX_PROF_DATA(extents_dirty.mtx,
 	    arena_prof_mutex_extents_dirty)
 	READ_ARENA_MUTEX_PROF_DATA(extents_muzzy.mtx,
@@ -1937,8 +1937,8 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 		    ATOMIC_RELAXED);
 	}
 
-	extent_list_init(&arena->extent_freelist);
-	if (malloc_mutex_init(&arena->extent_freelist_mtx, "extent_freelist",
+	extent_avail_new(&arena->extent_avail);
+	if (malloc_mutex_init(&arena->extent_avail_mtx, "extent_avail",
 	    WITNESS_RANK_EXTENT_FREELIST)) {
 		goto label_error;
 	}
@@ -2007,7 +2007,7 @@ arena_prefork2(tsdn_t *tsdn, arena_t *arena) {
 
 void
 arena_prefork3(tsdn_t *tsdn, arena_t *arena) {
-	malloc_mutex_prefork(tsdn, &arena->extent_freelist_mtx);
+	malloc_mutex_prefork(tsdn, &arena->extent_avail_mtx);
 }
 
 void
@@ -2036,7 +2036,7 @@ arena_postfork_parent(tsdn_t *tsdn, arena_t *arena) {
 	}
 	malloc_mutex_postfork_parent(tsdn, &arena->large_mtx);
 	base_postfork_parent(tsdn, arena->base);
-	malloc_mutex_postfork_parent(tsdn, &arena->extent_freelist_mtx);
+	malloc_mutex_postfork_parent(tsdn, &arena->extent_avail_mtx);
 	extents_postfork_parent(tsdn, &arena->extents_dirty);
 	extents_postfork_parent(tsdn, &arena->extents_muzzy);
 	extents_postfork_parent(tsdn, &arena->extents_retained);
@@ -2056,7 +2056,7 @@ arena_postfork_child(tsdn_t *tsdn, arena_t *arena) {
 	}
 	malloc_mutex_postfork_child(tsdn, &arena->large_mtx);
 	base_postfork_child(tsdn, arena->base);
-	malloc_mutex_postfork_child(tsdn, &arena->extent_freelist_mtx);
+	malloc_mutex_postfork_child(tsdn, &arena->extent_avail_mtx);
 	extents_postfork_child(tsdn, &arena->extents_dirty);
 	extents_postfork_child(tsdn, &arena->extents_muzzy);
 	extents_postfork_child(tsdn, &arena->extents_retained);
