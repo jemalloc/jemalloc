@@ -74,12 +74,10 @@ static const bool config_debug =
 /* Hermetic headers. */
 #  include "jemalloc/internal/assert.h"
 #  include "jemalloc/internal/malloc_io.h"
+#  include "jemalloc/internal/nstime.h"
 #  include "jemalloc/internal/util.h"
 
 /* Non-hermetic headers. */
-#  include "jemalloc/internal/nstime_types.h"
-#  include "jemalloc/internal/nstime_structs.h"
-#  include "jemalloc/internal/nstime_externs.h"
 #  include "jemalloc/internal/qr.h"
 #  include "jemalloc/internal/ql.h"
 

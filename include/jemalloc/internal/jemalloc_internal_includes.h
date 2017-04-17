@@ -40,7 +40,6 @@
 /* TYPES */
 /******************************************************************************/
 
-#include "jemalloc/internal/nstime_types.h"
 #include "jemalloc/internal/spin_types.h"
 #include "jemalloc/internal/prng_types.h"
 #include "jemalloc/internal/ticker_types.h"
@@ -66,7 +65,6 @@
 /* STRUCTS */
 /******************************************************************************/
 
-#include "jemalloc/internal/nstime_structs.h"
 #include "jemalloc/internal/spin_structs.h"
 #include "jemalloc/internal/ticker_structs.h"
 #include "jemalloc/internal/ckh_structs.h"
@@ -90,7 +88,6 @@
 /******************************************************************************/
 
 #include "jemalloc/internal/jemalloc_internal_externs.h"
-#include "jemalloc/internal/nstime_externs.h"
 #include "jemalloc/internal/ckh_externs.h"
 #include "jemalloc/internal/stats_externs.h"
 #include "jemalloc/internal/ctl_externs.h"

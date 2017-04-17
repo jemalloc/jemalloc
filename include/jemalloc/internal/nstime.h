@@ -1,7 +1,15 @@
-#ifndef JEMALLOC_INTERNAL_NSTIME_EXTERNS_H
-#define JEMALLOC_INTERNAL_NSTIME_EXTERNS_H
+#ifndef JEMALLOC_INTERNAL_NSTIME_H
+#define JEMALLOC_INTERNAL_NSTIME_H
 
-void	nstime_init(nstime_t *time, uint64_t ns);
+/* Maximum supported number of seconds (~584 years). */
+#define NSTIME_SEC_MAX KQU(18446744072)
+#define NSTIME_ZERO_INITIALIZER {0}
+
+typedef struct {
+	uint64_t ns;
+} nstime_t;
+
+void nstime_init(nstime_t *time, uint64_t ns);
 void	nstime_init2(nstime_t *time, uint64_t sec, uint64_t nsec);
 uint64_t	nstime_ns(const nstime_t *time);
 uint64_t	nstime_sec(const nstime_t *time);
@@ -24,4 +32,5 @@ bool	nstime_monotonic(void);
 bool	nstime_update(nstime_t *time);
 #endif
 
-#endif /* JEMALLOC_INTERNAL_NSTIME_EXTERNS_H */
+
+#endif /* JEMALLOC_INTERNAL_NSTIME_H */
