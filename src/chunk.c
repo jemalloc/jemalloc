@@ -250,9 +250,9 @@ chunk_recycle(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 	ret = (void *)((uintptr_t)extent_node_addr_get(node) + leadsize);
 	*sn = extent_node_sn_get(node);
 	zeroed = extent_node_zeroed_get(node);
-	if (zeroed)
-		*zero = true;
 	committed = extent_node_committed_get(node);
+	if (zeroed && committed)
+		*zero = true;
 	if (committed)
 		*commit = true;
 	/* Split the lead. */
@@ -304,7 +304,8 @@ chunk_recycle(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 		arena_chunk_cache_maybe_insert(arena, node, cache);
 		node = NULL;
 	}
-	if (!committed && chunk_hooks->commit(ret, size, 0, size, arena->ind)) {
+	if (*commit && !committed && chunk_hooks->commit(ret, size, 0, size,
+	    arena->ind)) {
 		malloc_mutex_unlock(tsdn, &arena->chunks_mtx);
 		chunk_record(tsdn, arena, chunk_hooks, chunks_szsnad, chunks_ad,
 		    cache, ret, size, *sn, zeroed, committed);
