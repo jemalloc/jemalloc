@@ -124,19 +124,21 @@ stats_arena_bins_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		malloc_cprintf(write_cb, cbopaque,
 		    "\t\t\t\t\"bins\": [\n");
 	} else {
+		char *mutex_counters = "   n_lock_ops    n_waiting"
+		    "   n_spin_acq  max_wait_ns\n";
 		if (config_tcache) {
 			malloc_cprintf(write_cb, cbopaque,
 			    "bins:           size ind    allocated      nmalloc"
 			    "      ndalloc    nrequests      curregs"
 			    "     curslabs regs pgs  util       nfills"
-			    "     nflushes     newslabs      reslabs"
-			    "   contention  max_wait_ns\n");
+			    "     nflushes     newslabs      reslabs%s",
+			    mutex ? mutex_counters : "\n");
 		} else {
 			malloc_cprintf(write_cb, cbopaque,
 			    "bins:           size ind    allocated      nmalloc"
 			    "      ndalloc    nrequests      curregs"
 			    "     curslabs regs pgs  util     newslabs"
-			    "      reslabs   contention  max_wait_ns\n");
+			    "      reslabs%s", mutex ? mutex_counters : "\n");
 		}
 	}
 	for (j = 0, in_gap = false; j < nbins; j++) {
@@ -243,6 +245,10 @@ stats_arena_bins_print(void (*write_cb)(void *, const char *), void *cbopaque,
 			    &max_wait, uint64_t);
 			CTL_M2_M4_GET("stats.arenas.0.bins.0.mutex.num_ops",
 			    i, j, &num_ops, uint64_t);
+			uint64_t mutex_stats[num_mutex_prof_counters];
+			if (mutex) {
+				read_arena_bin_mutex_stats(i, j, mutex_stats);
+			}
 
 			char rate[6];
 			if (get_rate_str(num_wait, num_ops, rate)) {
@@ -257,22 +263,32 @@ stats_arena_bins_print(void (*write_cb)(void *, const char *), void *cbopaque,
 				    "%20zu %3u %12zu %12"FMTu64
 				    " %12"FMTu64" %12"FMTu64" %12zu"
 				    " %12zu %4u %3zu %-5s %12"FMTu64
-				    " %12"FMTu64" %12"FMTu64" %12"FMTu64
-				    " %12s %12"FMTu64"\n",
+				    " %12"FMTu64" %12"FMTu64" %12"FMTu64,
 				    reg_size, j, curregs * reg_size, nmalloc,
 				    ndalloc, nrequests, curregs, curslabs,
 				    nregs, slab_size / page, util, nfills,
-				    nflushes, nslabs, nreslabs, rate, max_wait);
+				    nflushes, nslabs, nreslabs);
 			} else {
 				malloc_cprintf(write_cb, cbopaque,
 				    "%20zu %3u %12zu %12"FMTu64
 				    " %12"FMTu64" %12"FMTu64" %12zu"
 				    " %12zu %4u %3zu %-5s %12"FMTu64
-				    " %12"FMTu64" %12s %12"FMTu64"\n",
+				    " %12"FMTu64,
 				    reg_size, j, curregs * reg_size, nmalloc,
 				    ndalloc, nrequests, curregs, curslabs,
 				    nregs, slab_size / page, util, nslabs,
-				    nreslabs, rate, max_wait);
+				    nreslabs);
+			}
+			if (mutex) {
+				malloc_cprintf(write_cb, cbopaque,
+				    " %12"FMTu64" %12"FMTu64" %12"FMTu64
+				    " %12"FMTu64"\n",
+				    mutex_stats[mutex_counter_num_ops],
+				    mutex_stats[mutex_counter_num_wait],
+				    mutex_stats[mutex_counter_num_spin_acq],
+				    mutex_stats[mutex_counter_max_wait_time]);
+			} else {
+				malloc_cprintf(write_cb, cbopaque, "\n");
 			}
 		}
 	}
