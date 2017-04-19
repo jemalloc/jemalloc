@@ -1,5 +1,7 @@
 #include "test/jemalloc_test.h"
 
+#include "jemalloc/internal/ticker.h"
+
 TEST_BEGIN(test_ticker_tick) {
 #define NREPS 2
 #define NTICKS 3

@@ -2,6 +2,7 @@
 #define JEMALLOC_INTERNAL_TCACHE_STRUCTS_H
 
 #include "jemalloc/internal/ql.h"
+#include "jemalloc/internal/ticker.h"
 
 /*
  * Read-only information associated with each element of tcache_t's tbins array

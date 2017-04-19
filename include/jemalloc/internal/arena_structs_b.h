@@ -4,6 +4,7 @@
 #include "jemalloc/internal/atomic.h"
 #include "jemalloc/internal/nstime.h"
 #include "jemalloc/internal/ql.h"
+#include "jemalloc/internal/ticker.h"
 
 /*
  * Read-only information associated with each element of arena_t's bins array
