@@ -1,6 +1,7 @@
 #ifndef JEMALLOC_INTERNAL_RTREE_INLINES_H
 #define JEMALLOC_INTERNAL_RTREE_INLINES_H
 
+#include "jemalloc/internal/size_classes.h"
 #include "jemalloc/internal/spin.h"
 
 JEMALLOC_ALWAYS_INLINE uintptr_t

@@ -2,6 +2,7 @@
 #define JEMALLOC_INTERNAL_TCACHE_STRUCTS_H
 
 #include "jemalloc/internal/ql.h"
+#include "jemalloc/internal/size_classes.h"
 #include "jemalloc/internal/ticker.h"
 
 /*

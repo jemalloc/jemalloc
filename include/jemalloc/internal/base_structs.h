@@ -1,6 +1,9 @@
 #ifndef JEMALLOC_INTERNAL_BASE_STRUCTS_H
 #define JEMALLOC_INTERNAL_BASE_STRUCTS_H
 
+#include "jemalloc/internal/jemalloc_internal_types.h"
+#include "jemalloc/internal/size_classes.h"
+
 /* Embedded at the beginning of every block of base-managed virtual memory. */
 struct base_block_s {
 	/* Total size of block's virtual memory mapping. */

@@ -5,6 +5,7 @@
 #include "jemalloc/internal/ql.h"
 #include "jemalloc/internal/rb.h"
 #include "jemalloc/internal/ph.h"
+#include "jemalloc/internal/size_classes.h"
 
 typedef enum {
 	extent_state_active   = 0,

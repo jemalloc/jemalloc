@@ -1,6 +1,8 @@
 #ifndef JEMALLOC_INTERNAL_RTREE_TYPES_H
 #define JEMALLOC_INTERNAL_RTREE_TYPES_H
 
+#include "jemalloc/internal/size_classes.h"
+
 /*
  * This radix tree implementation is tailored to the singular purpose of
  * associating metadata with extents that are currently owned by jemalloc.

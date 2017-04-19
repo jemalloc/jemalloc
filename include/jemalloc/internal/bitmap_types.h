@@ -1,6 +1,8 @@
 #ifndef JEMALLOC_INTERNAL_BITMAP_TYPES_H
 #define JEMALLOC_INTERNAL_BITMAP_TYPES_H
 
+#include "jemalloc/internal/size_classes.h"
+
 /* Maximum bitmap bit count is 2^LG_BITMAP_MAXBITS. */
 #if LG_SLAB_MAXREGS > LG_CEIL_NSIZES
 /* Maximum bitmap bit count is determined by maximum regions per slab. */
