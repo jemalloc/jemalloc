@@ -15,7 +15,9 @@ extent_alloc_mmap(void *new_addr, size_t size, size_t alignment, bool *zero,
 		return NULL;
 	}
 	assert(ret != NULL);
-	*zero = true;
+	if (*commit) {
+		*zero = true;
+	}
 	return ret;
 }
 

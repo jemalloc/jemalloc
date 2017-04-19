@@ -829,11 +829,15 @@ extent_recycle(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
 	rtree_ctx_t rtree_ctx_fallback;
 	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
 
+	bool committed = false;
 	extent_t *extent = extent_recycle_extract(tsdn, arena, r_extent_hooks,
 	    rtree_ctx, extents, false, new_addr, size, pad, alignment, slab,
-	    zero, commit);
+	    zero, &committed);
 	if (extent == NULL) {
 		return NULL;
+	}
+	if (committed) {
+		*commit = true;
 	}
 
 	extent = extent_recycle_split(tsdn, arena, r_extent_hooks, rtree_ctx,
@@ -996,7 +1000,7 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena,
 	assert(new_addr == NULL || leadsize == 0);
 	assert(alloc_size >= leadsize + esize);
 	size_t trailsize = alloc_size - leadsize - esize;
-	if (extent_zeroed_get(extent)) {
+	if (extent_zeroed_get(extent) && extent_committed_get(extent)) {
 		*zero = true;
 	}
 	if (extent_committed_get(extent)) {
