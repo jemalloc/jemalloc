@@ -40,7 +40,6 @@
 /* TYPES */
 /******************************************************************************/
 
-#include "jemalloc/internal/ticker_types.h"
 #include "jemalloc/internal/ckh_types.h"
 #include "jemalloc/internal/size_classes.h"
 #include "jemalloc/internal/smoothstep.h"
@@ -63,7 +62,6 @@
 /* STRUCTS */
 /******************************************************************************/
 
-#include "jemalloc/internal/ticker_structs.h"
 #include "jemalloc/internal/ckh_structs.h"
 #include "jemalloc/internal/witness_structs.h"
 #include "jemalloc/internal/mutex_structs.h"
@@ -107,7 +105,6 @@
 /* INLINES */
 /******************************************************************************/
 
-#include "jemalloc/internal/ticker_inlines.h"
 #include "jemalloc/internal/tsd_inlines.h"
 #include "jemalloc/internal/witness_inlines.h"
 #include "jemalloc/internal/mutex_inlines.h"

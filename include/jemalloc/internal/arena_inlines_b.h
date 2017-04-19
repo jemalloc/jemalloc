@@ -2,6 +2,7 @@
 #define JEMALLOC_INTERNAL_ARENA_INLINES_B_H
 
 #include "jemalloc/internal/jemalloc_internal_types.h"
+#include "jemalloc/internal/ticker.h"
 
 static inline szind_t
 arena_bin_index(arena_t *arena, arena_bin_t *bin) {

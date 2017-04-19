@@ -1,5 +1,18 @@
-#ifndef JEMALLOC_INTERNAL_TICKER_INLINES_H
-#define JEMALLOC_INTERNAL_TICKER_INLINES_H
+#ifndef JEMALLOC_INTERNAL_TICKER_H
+#define JEMALLOC_INTERNAL_TICKER_H
+
+/**
+ * A ticker makes it easy to count-down events until some limit.  You
+ * ticker_init the ticker to trigger every nticks events.  You then notify it
+ * that an event has occurred with calls to ticker_tick (or that nticks events
+ * have occurred with a call to ticker_ticks), which will return true (and reset
+ * the counter) if the countdown hit zero.
+ */
+
+typedef struct {
+	int32_t tick;
+	int32_t nticks;
+} ticker_t;
 
 static inline void
 ticker_init(ticker_t *ticker, int32_t nticks) {
@@ -32,4 +45,4 @@ ticker_tick(ticker_t *ticker) {
 	return ticker_ticks(ticker, 1);
 }
 
-#endif /* JEMALLOC_INTERNAL_TICKER_INLINES_H */
+#endif /* JEMALLOC_INTERNAL_TICKER_H */
