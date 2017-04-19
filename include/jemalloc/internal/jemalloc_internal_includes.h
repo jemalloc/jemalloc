@@ -40,7 +40,6 @@
 /* TYPES */
 /******************************************************************************/
 
-#include "jemalloc/internal/prng_types.h"
 #include "jemalloc/internal/ticker_types.h"
 #include "jemalloc/internal/ckh_types.h"
 #include "jemalloc/internal/size_classes.h"
@@ -108,7 +107,6 @@
 /* INLINES */
 /******************************************************************************/
 
-#include "jemalloc/internal/prng_inlines.h"
 #include "jemalloc/internal/ticker_inlines.h"
 #include "jemalloc/internal/tsd_inlines.h"
 #include "jemalloc/internal/witness_inlines.h"
