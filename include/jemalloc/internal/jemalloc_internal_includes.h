@@ -40,7 +40,6 @@
 /* TYPES */
 /******************************************************************************/
 
-#include "jemalloc/internal/smoothstep.h"
 #include "jemalloc/internal/stats_types.h"
 #include "jemalloc/internal/ctl_types.h"
 #include "jemalloc/internal/witness_types.h"
