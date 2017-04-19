@@ -40,7 +40,6 @@
 /* TYPES */
 /******************************************************************************/
 
-#include "jemalloc/internal/ckh_types.h"
 #include "jemalloc/internal/size_classes.h"
 #include "jemalloc/internal/smoothstep.h"
 #include "jemalloc/internal/stats_types.h"
@@ -62,7 +61,6 @@
 /* STRUCTS */
 /******************************************************************************/
 
-#include "jemalloc/internal/ckh_structs.h"
 #include "jemalloc/internal/witness_structs.h"
 #include "jemalloc/internal/mutex_structs.h"
 #include "jemalloc/internal/stats_structs.h"
@@ -83,7 +81,6 @@
 /******************************************************************************/
 
 #include "jemalloc/internal/jemalloc_internal_externs.h"
-#include "jemalloc/internal/ckh_externs.h"
 #include "jemalloc/internal/stats_externs.h"
 #include "jemalloc/internal/ctl_externs.h"
 #include "jemalloc/internal/witness_externs.h"
