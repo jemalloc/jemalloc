@@ -2,6 +2,7 @@
 #define JEMALLOC_INTERNAL_ARENA_INLINES_B_H
 
 #include "jemalloc/internal/jemalloc_internal_types.h"
+#include "jemalloc/internal/size_classes.h"
 #include "jemalloc/internal/ticker.h"
 
 static inline szind_t

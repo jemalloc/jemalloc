@@ -40,7 +40,6 @@
 /* TYPES */
 /******************************************************************************/
 
-#include "jemalloc/internal/size_classes.h"
 #include "jemalloc/internal/smoothstep.h"
 #include "jemalloc/internal/stats_types.h"
 #include "jemalloc/internal/ctl_types.h"

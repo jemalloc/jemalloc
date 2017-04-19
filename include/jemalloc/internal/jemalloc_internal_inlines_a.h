@@ -4,6 +4,7 @@
 #include "jemalloc/internal/atomic.h"
 #include "jemalloc/internal/bit_util.h"
 #include "jemalloc/internal/jemalloc_internal_types.h"
+#include "jemalloc/internal/size_classes.h"
 #include "jemalloc/internal/ticker.h"
 
 JEMALLOC_ALWAYS_INLINE pszind_t

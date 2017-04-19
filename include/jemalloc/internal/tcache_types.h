@@ -1,6 +1,8 @@
 #ifndef JEMALLOC_INTERNAL_TCACHE_TYPES_H
 #define JEMALLOC_INTERNAL_TCACHE_TYPES_H
 
+#include "jemalloc/internal/size_classes.h"
+
 typedef struct tcache_bin_info_s tcache_bin_info_t;
 typedef struct tcache_bin_s tcache_bin_t;
 typedef struct tcache_s tcache_t;

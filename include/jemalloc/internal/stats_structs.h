@@ -2,6 +2,7 @@
 #define JEMALLOC_INTERNAL_STATS_STRUCTS_H
 
 #include "jemalloc/internal/atomic.h"
+#include "jemalloc/internal/size_classes.h"
 
 #ifdef JEMALLOC_ATOMIC_U64
 typedef atomic_u64_t arena_stats_u64_t;

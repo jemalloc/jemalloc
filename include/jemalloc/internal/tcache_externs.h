@@ -1,6 +1,8 @@
 #ifndef JEMALLOC_INTERNAL_TCACHE_EXTERNS_H
 #define JEMALLOC_INTERNAL_TCACHE_EXTERNS_H
 
+#include "jemalloc/internal/size_classes.h"
+
 extern bool	opt_tcache;
 extern ssize_t	opt_lg_tcache_max;
 
