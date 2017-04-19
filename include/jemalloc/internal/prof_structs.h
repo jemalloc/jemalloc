@@ -1,6 +1,7 @@
 #ifndef JEMALLOC_INTERNAL_PROF_STRUCTS_H
 #define JEMALLOC_INTERNAL_PROF_STRUCTS_H
 
+#include "jemalloc/internal/prng.h"
 #include "jemalloc/internal/rb.h"
 
 struct prof_bt_s {

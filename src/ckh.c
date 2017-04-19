@@ -40,6 +40,7 @@
 
 #include "jemalloc/internal/assert.h"
 #include "jemalloc/internal/malloc_io.h"
+#include "jemalloc/internal/prng.h"
 #include "jemalloc/internal/util.h"
 
 /******************************************************************************/
