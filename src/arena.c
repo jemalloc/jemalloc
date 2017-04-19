@@ -3811,6 +3811,9 @@ init_thp_initially_huge(void) {
 #if defined(JEMALLOC_USE_SYSCALL) && defined(SYS_open)
 	fd = (int)syscall(SYS_open,
 	    "/sys/kernel/mm/transparent_hugepage/enabled", O_RDONLY);
+#elif defined(JEMALLOC_USE_SYSCALL) && defined(SYS_openat)
+	fd = (int)syscall(SYS_openat,
+	    AT_FDCWD, "/sys/kernel/mm/transparent_hugepage/enabled", O_RDONLY);
 #else
 	fd = open("/sys/kernel/mm/transparent_hugepage/enabled", O_RDONLY);
 #endif

@@ -250,6 +250,9 @@ os_overcommits_proc(void)
 
 #if defined(JEMALLOC_USE_SYSCALL) && defined(SYS_open)
 	fd = (int)syscall(SYS_open, "/proc/sys/vm/overcommit_memory", O_RDONLY);
+#elif defined(JEMALLOC_USE_SYSCALL) && defined(SYS_openat)
+	fd = (int)syscall(SYS_openat,
+	    AT_FDCWD, "/proc/sys/vm/overcommit_memory", O_RDONLY);
 #else
 	fd = open("/proc/sys/vm/overcommit_memory", O_RDONLY);
 #endif
