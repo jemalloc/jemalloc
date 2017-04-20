@@ -4,6 +4,7 @@
 #include "jemalloc/internal/jemalloc_internal_types.h"
 #include "jemalloc/internal/ql.h"
 #include "jemalloc/internal/size_classes.h"
+#include "jemalloc/internal/stats.h"
 
 struct ctl_node_s {
 	bool			named;

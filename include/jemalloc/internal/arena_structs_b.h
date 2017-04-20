@@ -7,6 +7,7 @@
 #include "jemalloc/internal/ql.h"
 #include "jemalloc/internal/size_classes.h"
 #include "jemalloc/internal/smoothstep.h"
+#include "jemalloc/internal/stats.h"
 #include "jemalloc/internal/ticker.h"
 
 /*

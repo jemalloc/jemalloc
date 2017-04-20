@@ -2,6 +2,7 @@
 #define JEMALLOC_INTERNAL_ARENA_EXTERNS_H
 
 #include "jemalloc/internal/size_classes.h"
+#include "jemalloc/internal/stats.h"
 
 static const size_t	large_pad =
 #ifdef JEMALLOC_CACHE_OBLIVIOUS
