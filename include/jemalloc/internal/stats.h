@@ -1,9 +1,21 @@
-#ifndef JEMALLOC_INTERNAL_STATS_STRUCTS_H
-#define JEMALLOC_INTERNAL_STATS_STRUCTS_H
+#ifndef JEMALLOC_INTERNAL_STATS_H
+#define JEMALLOC_INTERNAL_STATS_H
 
 #include "jemalloc/internal/atomic.h"
 #include "jemalloc/internal/size_classes.h"
 
+/* The opt.stats_print storage. */
+extern bool opt_stats_print;
+
+/* Implements je_malloc_stats_print. */
+void stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
+    const char *opts);
+
+/*
+ * In those architectures that support 64-bit atomics, we use atomic updates for
+ * our 64-bit values.  Otherwise, we use a plain uint64_t and synchronize
+ * externally.
+ */
 #ifdef JEMALLOC_ATOMIC_U64
 typedef atomic_u64_t arena_stats_u64_t;
 #else
@@ -11,15 +23,15 @@ typedef atomic_u64_t arena_stats_u64_t;
 typedef uint64_t arena_stats_u64_t;
 #endif
 
-struct tcache_bin_stats_s {
+typedef struct tcache_bin_stats_s {
 	/*
 	 * Number of allocation requests that corresponded to the size of this
 	 * bin.
 	 */
 	uint64_t	nrequests;
-};
+} tcache_bin_stats_t;
 
-struct malloc_bin_stats_s {
+typedef struct malloc_bin_stats_s {
 	/*
 	 * Total number of allocation/deallocation requests served directly by
 	 * the bin.  Note that tcache may allocate an object, then recycle it
@@ -61,9 +73,9 @@ struct malloc_bin_stats_s {
 	size_t		curslabs;
 
 	mutex_prof_data_t mutex_data;
-};
+} malloc_bin_stats_t;
 
-struct malloc_large_stats_s {
+typedef struct malloc_large_stats_s {
 	/*
 	 * Total number of allocation/deallocation requests served directly by
 	 * the arena.
@@ -80,23 +92,23 @@ struct malloc_large_stats_s {
 
 	/* Current number of allocations of this size class. */
 	size_t		curlextents; /* Derived. */
-};
+} malloc_large_stats_t;
 
-struct decay_stats_s {
+typedef struct decay_stats_s {
 	/* Total number of purge sweeps. */
 	arena_stats_u64_t	npurge;
 	/* Total number of madvise calls made. */
 	arena_stats_u64_t	nmadvise;
 	/* Total number of pages purged. */
 	arena_stats_u64_t	purged;
-};
+} decay_stats_t;
 
 /*
  * Arena stats.  Note that fields marked "derived" are not directly maintained
  * within the arena code; rather their values are derived during stats merge
  * requests.
  */
-struct arena_stats_s {
+typedef struct arena_stats_s {
 #ifndef JEMALLOC_ATOMIC_U64
 	malloc_mutex_t		mtx;
 #endif
@@ -131,6 +143,6 @@ struct arena_stats_s {
 
 	/* One element for each large size class. */
 	malloc_large_stats_t	lstats[NSIZES - NBINS];
-};
+} arena_stats_t;
 
-#endif /* JEMALLOC_INTERNAL_STATS_STRUCTS_H */
+#endif /* JEMALLOC_INTERNAL_STATS_H */
