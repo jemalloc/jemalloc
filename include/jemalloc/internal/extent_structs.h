@@ -2,6 +2,7 @@
 #define JEMALLOC_INTERNAL_EXTENT_STRUCTS_H
 
 #include "jemalloc/internal/atomic.h"
+#include "jemalloc/internal/bitmap.h"
 #include "jemalloc/internal/ql.h"
 #include "jemalloc/internal/rb.h"
 #include "jemalloc/internal/ph.h"

@@ -48,7 +48,6 @@
 #include "jemalloc/internal/extent_dss_types.h"
 #include "jemalloc/internal/base_types.h"
 #include "jemalloc/internal/arena_types.h"
-#include "jemalloc/internal/bitmap_types.h"
 #include "jemalloc/internal/rtree_types.h"
 #include "jemalloc/internal/pages_types.h"
 #include "jemalloc/internal/tcache_types.h"
@@ -61,7 +60,6 @@
 #include "jemalloc/internal/witness_structs.h"
 #include "jemalloc/internal/mutex_structs.h"
 #include "jemalloc/internal/ctl_structs.h"
-#include "jemalloc/internal/bitmap_structs.h"
 #include "jemalloc/internal/arena_structs_a.h"
 #include "jemalloc/internal/extent_structs.h"
 #include "jemalloc/internal/extent_dss_structs.h"
@@ -80,7 +78,6 @@
 #include "jemalloc/internal/ctl_externs.h"
 #include "jemalloc/internal/witness_externs.h"
 #include "jemalloc/internal/mutex_externs.h"
-#include "jemalloc/internal/bitmap_externs.h"
 #include "jemalloc/internal/extent_externs.h"
 #include "jemalloc/internal/extent_dss_externs.h"
 #include "jemalloc/internal/extent_mmap_externs.h"
@@ -103,7 +100,6 @@
 #include "jemalloc/internal/jemalloc_internal_inlines_a.h"
 #include "jemalloc/internal/rtree_inlines.h"
 #include "jemalloc/internal/base_inlines.h"
-#include "jemalloc/internal/bitmap_inlines.h"
 /*
  * Include portions of arena code interleaved with tcache code in order to
  * resolve circular dependencies.
