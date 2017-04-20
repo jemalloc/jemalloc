@@ -70,6 +70,12 @@ arena_ichoose(tsd_t *tsd, arena_t *arena) {
 	return arena_choose_impl(tsd, arena, true);
 }
 
+JEMALLOC_INLINE bool
+arena_is_auto(arena_t *arena) {
+	assert(narenas_auto > 0);
+	return (arena_ind_get(arena) < narenas_auto);
+}
+
 JEMALLOC_ALWAYS_INLINE extent_t *
 iealloc(tsdn_t *tsdn, const void *ptr) {
 	rtree_ctx_t rtree_ctx_fallback;

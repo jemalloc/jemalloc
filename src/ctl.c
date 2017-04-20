@@ -1846,13 +1846,8 @@ arena_i_reset_destroy_helper(tsd_t *tsd, const size_t *mib, size_t miblen,
 	WRITEONLY();
 	MIB_UNSIGNED(*arena_ind, 1);
 
-	if (*arena_ind < narenas_auto) {
-		ret = EFAULT;
-		goto label_return;
-	}
-
 	*arena = arena_get(tsd_tsdn(tsd), *arena_ind, false);
-	if (*arena == NULL) {
+	if (*arena == NULL || arena_is_auto(*arena)) {
 		ret = EFAULT;
 		goto label_return;
 	}

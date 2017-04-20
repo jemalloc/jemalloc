@@ -24,6 +24,7 @@ size_t sa2u(size_t size, size_t alignment);
 arena_t *arena_choose_impl(tsd_t *tsd, arena_t *arena, bool internal);
 arena_t *arena_choose(tsd_t *tsd, arena_t *arena);
 arena_t *arena_ichoose(tsd_t *tsd, arena_t *arena);
+bool arena_is_auto(arena_t *arena);
 arena_tdata_t *arena_tdata_get(tsd_t *tsd, unsigned ind,
     bool refresh_if_missing);
 arena_t *arena_get(tsdn_t *tsdn, unsigned ind, bool init_if_missing);
