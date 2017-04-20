@@ -54,8 +54,7 @@ iallocztm(tsdn_t *tsdn, size_t size, szind_t ind, bool zero, tcache_t *tcache,
 
 	assert(size != 0);
 	assert(!is_internal || tcache == NULL);
-	assert(!is_internal || arena == NULL || arena_ind_get(arena) <
-	    narenas_auto);
+	assert(!is_internal || arena == NULL || arena_is_auto(arena));
 	witness_assert_depth_to_rank(tsdn, WITNESS_RANK_CORE, 0);
 
 	ret = arena_malloc(tsdn, arena, size, ind, zero, tcache, slow_path);
@@ -79,8 +78,7 @@ ipallocztm(tsdn_t *tsdn, size_t usize, size_t alignment, bool zero,
 	assert(usize != 0);
 	assert(usize == sa2u(usize, alignment));
 	assert(!is_internal || tcache == NULL);
-	assert(!is_internal || arena == NULL || arena_ind_get(arena) <
-	    narenas_auto);
+	assert(!is_internal || arena == NULL || arena_is_auto(arena));
 	witness_assert_depth_to_rank(tsdn, WITNESS_RANK_CORE, 0);
 
 	ret = arena_palloc(tsdn, arena, usize, alignment, zero, tcache);
@@ -113,8 +111,7 @@ idalloctm(tsdn_t *tsdn, void *ptr, tcache_t *tcache, alloc_ctx_t *alloc_ctx,
     bool is_internal, bool slow_path) {
 	assert(ptr != NULL);
 	assert(!is_internal || tcache == NULL);
-	assert(!is_internal || arena_ind_get(iaalloc(tsdn, ptr)) <
-	    narenas_auto);
+	assert(!is_internal || arena_is_auto(iaalloc(tsdn, ptr)));
 	witness_assert_depth_to_rank(tsdn, WITNESS_RANK_CORE, 0);
 	if (config_stats && is_internal) {
 		arena_internal_sub(iaalloc(tsdn, ptr), isalloc(tsdn, ptr));

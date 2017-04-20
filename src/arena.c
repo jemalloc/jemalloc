@@ -1032,13 +1032,24 @@ arena_bin_slabs_nonfull_tryget(arena_bin_t *bin) {
 }
 
 static void
-arena_bin_slabs_full_insert(arena_bin_t *bin, extent_t *slab) {
+arena_bin_slabs_full_insert(arena_t *arena, arena_bin_t *bin, extent_t *slab) {
 	assert(extent_nfree_get(slab) == 0);
+	/*
+	 *  Tracking extents is required by arena_reset, which is not allowed
+	 *  for auto arenas.  Bypass this step to avoid touching the extent
+	 *  linkage (often results in cache misses) for auto arenas.
+	 */
+	if (arena_is_auto(arena)) {
+		return;
+	}
 	extent_list_append(&bin->slabs_full, slab);
 }
 
 static void
-arena_bin_slabs_full_remove(arena_bin_t *bin, extent_t *slab) {
+arena_bin_slabs_full_remove(arena_t *arena, arena_bin_t *bin, extent_t *slab) {
+	if (arena_is_auto(arena)) {
+		return;
+	}
 	extent_list_remove(&bin->slabs_full, slab);
 }
 
@@ -1106,7 +1117,7 @@ arena_reset(tsd_t *tsd, arena_t *arena) {
 		}
 		for (slab = extent_list_first(&bin->slabs_full); slab != NULL;
 		    slab = extent_list_first(&bin->slabs_full)) {
-			arena_bin_slabs_full_remove(bin, slab);
+			arena_bin_slabs_full_remove(arena, bin, slab);
 			malloc_mutex_unlock(tsd_tsdn(tsd), &bin->lock);
 			arena_slab_dalloc(tsd_tsdn(tsd), arena, slab);
 			malloc_mutex_lock(tsd_tsdn(tsd), &bin->lock);
@@ -1285,8 +1296,8 @@ arena_bin_malloc_hard(tsdn_t *tsdn, arena_t *arena, arena_bin_t *bin,
 	extent_t *slab;
 
 	bin_info = &arena_bin_info[binind];
-	if (bin->slabcur != NULL) {
-		arena_bin_slabs_full_insert(bin, bin->slabcur);
+	if (!arena_is_auto(arena) && bin->slabcur != NULL) {
+		arena_bin_slabs_full_insert(arena, bin, bin->slabcur);
 		bin->slabcur = NULL;
 	}
 	slab = arena_bin_nonfull_slab_get(tsdn, arena, bin, binind);
@@ -1319,7 +1330,7 @@ arena_bin_malloc_hard(tsdn_t *tsdn, arena_t *arena, arena_bin_t *bin,
 			return ret;
 		}
 
-		arena_bin_slabs_full_insert(bin, bin->slabcur);
+		arena_bin_slabs_full_insert(arena, bin, bin->slabcur);
 		bin->slabcur = NULL;
 	}
 
@@ -1559,7 +1570,7 @@ arena_dalloc_promoted(tsdn_t *tsdn, void *ptr, tcache_t *tcache,
 }
 
 static void
-arena_dissociate_bin_slab(extent_t *slab, arena_bin_t *bin) {
+arena_dissociate_bin_slab(arena_t *arena, extent_t *slab, arena_bin_t *bin) {
 	/* Dissociate slab from bin. */
 	if (slab == bin->slabcur) {
 		bin->slabcur = NULL;
@@ -1573,7 +1584,7 @@ arena_dissociate_bin_slab(extent_t *slab, arena_bin_t *bin) {
 		 * into the non-full slabs heap.
 		 */
 		if (bin_info->nregs == 1) {
-			arena_bin_slabs_full_remove(bin, slab);
+			arena_bin_slabs_full_remove(arena, bin, slab);
 		} else {
 			arena_bin_slabs_nonfull_remove(bin, slab);
 		}
@@ -1611,7 +1622,7 @@ arena_bin_lower_slab(tsdn_t *tsdn, arena_t *arena, extent_t *slab,
 		if (extent_nfree_get(bin->slabcur) > 0) {
 			arena_bin_slabs_nonfull_insert(bin, bin->slabcur);
 		} else {
-			arena_bin_slabs_full_insert(bin, bin->slabcur);
+			arena_bin_slabs_full_insert(arena, bin, bin->slabcur);
 		}
 		bin->slabcur = slab;
 		if (config_stats) {
@@ -1637,10 +1648,10 @@ arena_dalloc_bin_locked_impl(tsdn_t *tsdn, arena_t *arena, extent_t *slab,
 	arena_slab_reg_dalloc(tsdn, slab, slab_data, ptr);
 	unsigned nfree = extent_nfree_get(slab);
 	if (nfree == bin_info->nregs) {
-		arena_dissociate_bin_slab(slab, bin);
+		arena_dissociate_bin_slab(arena, slab, bin);
 		arena_dalloc_bin_slab(tsdn, arena, slab, bin);
 	} else if (nfree == 1 && slab != bin->slabcur) {
-		arena_bin_slabs_full_remove(bin, slab);
+		arena_bin_slabs_full_remove(arena, bin, slab);
 		arena_bin_lower_slab(tsdn, arena, slab, bin);
 	}
 
