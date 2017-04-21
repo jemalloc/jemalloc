@@ -7,13 +7,7 @@
 /******************************************************************************/
 /* Data. */
 
-bool	opt_tcache =
-#ifdef JEMALLOC_TCACHE
-    true
-#else
-    false
-#endif
-    ;
+bool	opt_tcache = true;
 ssize_t	opt_lg_tcache_max = LG_TCACHE_MAXCLASS_DEFAULT;
 
 tcache_bin_info_t	*tcache_bin_info;
@@ -93,7 +87,7 @@ tcache_alloc_small_hard(tsdn_t *tsdn, arena_t *arena, tcache_t *tcache,
     tcache_bin_t *tbin, szind_t binind, bool *tcache_success) {
 	void *ret;
 
-	assert(tcache->arena);
+	assert(tcache->arena != NULL);
 	arena_tcache_fill_small(tsdn, arena, tcache, tbin, binind,
 	    config_prof ? tcache->prof_accumbytes : 0);
 	if (config_prof) {
@@ -304,7 +298,7 @@ tcache_arena_associate(tsdn_t *tsdn, tcache_t *tcache, arena_t *arena) {
 static void
 tcache_arena_dissociate(tsdn_t *tsdn, tcache_t *tcache) {
 	arena_t *arena = tcache->arena;
-	assert(arena);
+	assert(arena != NULL);
 	if (config_stats) {
 		/* Unlink from list of extant tcaches. */
 		malloc_mutex_lock(tsdn, &arena->tcache_ql_mtx);
@@ -383,10 +377,6 @@ tcache_init(tsd_t *tsd, tcache_t *tcache, void *avail_stack) {
 /* Initialize auto tcache (embedded in TSD). */
 bool
 tsd_tcache_data_init(tsd_t *tsd) {
-	if (!config_tcache) {
-		return false;
-	}
-
 	tcache_t *tcache = &tsd->tcache;
 	assert(tcache_small_bin_get(tcache, 0)->avail == NULL);
 	size_t size = stack_nelms * sizeof(void *);
@@ -458,9 +448,9 @@ tcache_create_explicit(tsd_t *tsd) {
 
 static void
 tcache_flush_cache(tsd_t *tsd, tcache_t *tcache) {
-	unsigned i;
+	assert(tcache->arena != NULL);
 
-	for (i = 0; i < NBINS; i++) {
+	for (unsigned i = 0; i < NBINS; i++) {
 		tcache_bin_t *tbin = tcache_small_bin_get(tcache, i);
 		tcache_bin_flush_small(tsd, tcache, tbin, i, 0);
 
@@ -468,7 +458,7 @@ tcache_flush_cache(tsd_t *tsd, tcache_t *tcache) {
 			assert(tbin->tstats.nrequests == 0);
 		}
 	}
-	for (; i < nhbins; i++) {
+	for (unsigned i = NBINS; i < nhbins; i++) {
 		tcache_bin_t *tbin = tcache_large_bin_get(tcache, i);
 		tcache_bin_flush_large(tsd, tbin, i, 0, tcache);
 
@@ -477,20 +467,17 @@ tcache_flush_cache(tsd_t *tsd, tcache_t *tcache) {
 		}
 	}
 
-	arena_t *arena = tcache->arena;
-	if (config_prof && arena && tcache->prof_accumbytes > 0 &&
-	    arena_prof_accum(tsd_tsdn(tsd), arena, tcache->prof_accumbytes)) {
+	if (config_prof && tcache->prof_accumbytes > 0 &&
+	    arena_prof_accum(tsd_tsdn(tsd), tcache->arena,
+	    tcache->prof_accumbytes)) {
 		prof_idump(tsd_tsdn(tsd));
 	}
 }
 
 void
 tcache_flush(void) {
-	tsd_t *tsd;
-
-	cassert(config_tcache);
-
-	tsd = tsd_fetch();
+	tsd_t *tsd = tsd_fetch();
+	assert(tcache_available(tsd));
 	tcache_flush_cache(tsd, tsd_tcachep_get(tsd));
 }
 
@@ -514,10 +501,6 @@ tcache_destroy(tsd_t *tsd, tcache_t *tcache, bool tsd_tcache) {
 /* For auto tcache (embedded in TSD) only. */
 void
 tcache_cleanup(tsd_t *tsd) {
-	if (!config_tcache) {
-		return;
-	}
-
 	tcache_t *tcache = tsd_tcachep_get(tsd);
 	if (!tcache_available(tsd)) {
 		assert(tsd_tcache_enabled_get(tsd) == false);
@@ -660,10 +643,6 @@ tcaches_destroy(tsd_t *tsd, unsigned ind) {
 
 bool
 tcache_boot(tsdn_t *tsdn) {
-	cassert(config_tcache);
-
-	unsigned i;
-
 	/* If necessary, clamp opt_lg_tcache_max. */
 	if (opt_lg_tcache_max < 0 || (ZU(1) << opt_lg_tcache_max) <
 	    SMALL_MAXCLASS) {
@@ -685,6 +664,7 @@ tcache_boot(tsdn_t *tsdn) {
 		return true;
 	}
 	stack_nelms = 0;
+	unsigned i;
 	for (i = 0; i < NBINS; i++) {
 		if ((arena_bin_info[i].nregs << 1) <= TCACHE_NSLOTS_SMALL_MIN) {
 			tcache_bin_info[i].ncached_max =

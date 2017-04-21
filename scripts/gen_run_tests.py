@@ -18,7 +18,7 @@ possible_config_opts = [
     '--enable-debug',
     '--enable-prof',
     '--disable-stats',
-    '--disable-tcache',
+    '--with-malloc-conf=tcache:false',
 ]
 
 print 'set -e'

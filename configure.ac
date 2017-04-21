@@ -1137,22 +1137,6 @@ if test "x$enable_prof" = "x1" ; then
 fi
 AC_SUBST([enable_prof])
 
-dnl Enable thread-specific caching by default.
-AC_ARG_ENABLE([tcache],
-  [AS_HELP_STRING([--disable-tcache], [Disable per thread caches])],
-[if test "x$enable_tcache" = "xno" ; then
-  enable_tcache="0"
-else
-  enable_tcache="1"
-fi
-],
-[enable_tcache="1"]
-)
-if test "x$enable_tcache" = "x1" ; then
-  AC_DEFINE([JEMALLOC_TCACHE], [ ])
-fi
-AC_SUBST([enable_tcache])
-
 dnl Indicate whether adjacent virtual memory mappings automatically coalesce
 dnl (and fragment on demand).
 if test "x${maps_coalesce}" = "x1" ; then
@@ -2181,7 +2165,6 @@ AC_MSG_RESULT([prof               : ${enable_prof}])
 AC_MSG_RESULT([prof-libunwind     : ${enable_prof_libunwind}])
 AC_MSG_RESULT([prof-libgcc        : ${enable_prof_libgcc}])
 AC_MSG_RESULT([prof-gcc           : ${enable_prof_gcc}])
-AC_MSG_RESULT([tcache             : ${enable_tcache}])
 AC_MSG_RESULT([fill               : ${enable_fill}])
 AC_MSG_RESULT([utrace             : ${enable_utrace}])
 AC_MSG_RESULT([xmalloc            : ${enable_xmalloc}])

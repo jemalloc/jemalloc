@@ -83,7 +83,7 @@ TEST_BEGIN(test_stats_arenas_summary) {
 	dallocx(large, 0);
 
 	assert_d_eq(mallctl("thread.tcache.flush", NULL, NULL, NULL, 0),
-	    config_tcache ? 0 : ENOENT, "Unexpected mallctl() result");
+	    opt_tcache ? 0 : EFAULT, "Unexpected mallctl() result");
 	assert_d_eq(mallctl("arena.0.purge", NULL, NULL, NULL, 0), 0,
 	    "Unexpected mallctl() failure");
 
@@ -150,7 +150,7 @@ TEST_BEGIN(test_stats_arenas_small) {
 	assert_ptr_not_null(p, "Unexpected mallocx() failure");
 
 	assert_d_eq(mallctl("thread.tcache.flush", NULL, NULL, NULL, 0),
-	    config_tcache ? 0 : ENOENT, "Unexpected mallctl() result");
+	    opt_tcache ? 0 : EFAULT, "Unexpected mallctl() result");
 
 	assert_d_eq(mallctl("epoch", NULL, NULL, (void *)&epoch, sizeof(epoch)),
 	    0, "Unexpected mallctl() failure");
@@ -230,6 +230,10 @@ TEST_BEGIN(test_stats_arenas_bins) {
 	uint64_t nslabs, nreslabs;
 	int expected = config_stats ? 0 : ENOENT;
 
+	/* Make sure allocation below isn't satisfied by tcache. */
+	assert_d_eq(mallctl("thread.tcache.flush", NULL, NULL, NULL, 0),
+	    opt_tcache ? 0 : EFAULT, "Unexpected mallctl() result");
+
 	unsigned arena_ind, old_arena_ind;
 	sz = sizeof(unsigned);
 	assert_d_eq(mallctl("arenas.create", (void *)&arena_ind, &sz, NULL, 0),
@@ -243,7 +247,7 @@ TEST_BEGIN(test_stats_arenas_bins) {
 	assert_ptr_not_null(p, "Unexpected malloc() failure");
 
 	assert_d_eq(mallctl("thread.tcache.flush", NULL, NULL, NULL, 0),
-	    config_tcache ? 0 : ENOENT, "Unexpected mallctl() result");
+	    opt_tcache ? 0 : EFAULT, "Unexpected mallctl() result");
 
 	assert_d_eq(mallctl("epoch", NULL, NULL, (void *)&epoch, sizeof(epoch)),
 	    0, "Unexpected mallctl() failure");
@@ -266,11 +270,11 @@ TEST_BEGIN(test_stats_arenas_bins) {
 
 	sz = sizeof(uint64_t);
 	gen_mallctl_str(cmd, "nfills", arena_ind);
-	assert_d_eq(mallctl(cmd, (void *)&nfills, &sz, NULL, 0),
-	    config_tcache ? expected : ENOENT, "Unexpected mallctl() result");
+	assert_d_eq(mallctl(cmd, (void *)&nfills, &sz, NULL, 0), expected,
+	    "Unexpected mallctl() result");
 	gen_mallctl_str(cmd, "nflushes", arena_ind);
-	assert_d_eq(mallctl(cmd, (void *)&nflushes, &sz, NULL, 0),
-	    config_tcache ? expected : ENOENT, "Unexpected mallctl() result");
+	assert_d_eq(mallctl(cmd, (void *)&nflushes, &sz, NULL, 0), expected,
+	    "Unexpected mallctl() result");
 
 	gen_mallctl_str(cmd, "nslabs", arena_ind);
 	assert_d_eq(mallctl(cmd, (void *)&nslabs, &sz, NULL, 0), expected,
@@ -292,7 +296,7 @@ TEST_BEGIN(test_stats_arenas_bins) {
 		    "nrequests should be greater than zero");
 		assert_zu_gt(curregs, 0,
 		    "allocated should be greater than zero");
-		if (config_tcache) {
+		if (opt_tcache) {
 			assert_u64_gt(nfills, 0,
 			    "At least one fill should have occurred");
 			assert_u64_gt(nflushes, 0,

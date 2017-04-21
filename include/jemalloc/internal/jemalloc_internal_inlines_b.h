@@ -24,7 +24,7 @@ arena_choose_impl(tsd_t *tsd, arena_t *arena, bool internal) {
 	if (unlikely(ret == NULL)) {
 		ret = arena_choose_hard(tsd, internal);
 		assert(ret);
-		if (config_tcache && tcache_available(tsd)) {
+		if (tcache_available(tsd)) {
 			tcache_t *tcache = tcache_get(tsd);
 			if (tcache->arena != NULL) {
 				/* See comments in tcache_data_init().*/

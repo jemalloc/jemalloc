@@ -6,7 +6,6 @@
 
 #ifndef JEMALLOC_ENABLE_INLINE
 void	tcache_event(tsd_t *tsd, tcache_t *tcache);
-void	tcache_flush(void);
 bool	tcache_enabled_get(tsd_t *tsd);
 tcache_t *tcache_get(tsd_t *tsd);
 void	tcache_enabled_set(tsd_t *tsd, bool enabled);
@@ -25,15 +24,11 @@ tcache_t	*tcaches_get(tsd_t *tsd, unsigned ind);
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_TCACHE_C_))
 JEMALLOC_INLINE bool
 tcache_enabled_get(tsd_t *tsd) {
-	cassert(config_tcache);
-
 	return tsd_tcache_enabled_get(tsd);
 }
 
 JEMALLOC_INLINE void
 tcache_enabled_set(tsd_t *tsd, bool enabled) {
-	cassert(config_tcache);
-
 	bool was_enabled = tsd_tcache_enabled_get(tsd);
 
 	if (!was_enabled && enabled) {

@@ -43,7 +43,6 @@ for t in $@; do
     # per test shell script to ignore the @JEMALLOC_CPREFIX@ detail).
     $(enable_fill=@enable_fill@ \
       enable_prof=@enable_prof@ \
-      enable_tcache=@enable_tcache@ \
       . @srcroot@${t}.sh && \
       export_malloc_conf && \
       ${t}@exe@ @abs_srcroot@ @abs_objroot@)
