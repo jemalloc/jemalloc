@@ -24,11 +24,11 @@ script:
 
 # The 'default' configuration is gcc, on linux, with no compiler or configure
 # flags.  We also test with clang, -m32, --enable-debug, --enable-prof,
-# --disable-stats, and --disable-tcache.  To avoid abusing travis though, we
-# don't test all 2**7 = 128 possible combinations of these; instead, we only
-# test combinations of up to 2 'unusual' settings, under the hope that bugs
-# involving interactions of such settings are rare.
-# things at once, for C(7, 0) + C(7, 1) + C(7, 2) = 29
+# --disable-stats, and --with-malloc-conf=tcache:false.  To avoid abusing
+# travis though, we don't test all 2**7 = 128 possible combinations of these;
+# instead, we only test combinations of up to 2 'unusual' settings, under the
+# hope that bugs involving interactions of such settings are rare.
+# Things at once, for C(7, 0) + C(7, 1) + C(7, 2) = 29
 MAX_UNUSUAL_OPTIONS = 2
 
 os_default = 'linux'
@@ -40,7 +40,10 @@ compilers_unusual = 'CC=clang CXX=clang++'
 compiler_flag_unusuals = ['-m32']
 
 configure_flag_unusuals = [
-    '--enable-debug', '--enable-prof', '--disable-stats', '--disable-tcache',
+    '--enable-debug',
+    '--enable-prof',
+    '--disable-stats',
+    '--with-malloc-conf=tcache:false',
 ]
 
 all_unusuals = (

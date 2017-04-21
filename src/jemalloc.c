@@ -682,7 +682,7 @@ arenas_tdata_cleanup(tsd_t *tsd) {
 
 static void
 stats_print_atexit(void) {
-	if (config_tcache && config_stats) {
+	if (config_stats) {
 		tsdn_t *tsdn;
 		unsigned narenas, i;
 
@@ -1106,12 +1106,9 @@ malloc_conf_init(void) {
 			if (config_xmalloc) {
 				CONF_HANDLE_BOOL(opt_xmalloc, "xmalloc", true)
 			}
-			if (config_tcache) {
-				CONF_HANDLE_BOOL(opt_tcache, "tcache", true)
-				CONF_HANDLE_SSIZE_T(opt_lg_tcache_max,
-				    "lg_tcache_max", -1,
-				    (sizeof(size_t) << 3) - 1)
-			}
+			CONF_HANDLE_BOOL(opt_tcache, "tcache", true)
+			CONF_HANDLE_SSIZE_T(opt_lg_tcache_max, "lg_tcache_max",
+			    -1, (sizeof(size_t) << 3) - 1)
 			if (strncmp("percpu_arena", k, klen) == 0) {
 				int i;
 				bool match = false;
@@ -1236,7 +1233,7 @@ malloc_init_hard_a0_locked() {
 		prof_boot1();
 	}
 	arena_boot();
-	if (config_tcache && tcache_boot(TSDN_NULL)) {
+	if (tcache_boot(TSDN_NULL)) {
 		return true;
 	}
 	if (malloc_mutex_init(&arenas_lock, "arenas", WITNESS_RANK_ARENAS)) {

@@ -1,29 +1,11 @@
 #include "test/jemalloc_test.h"
 
-static const bool config_tcache =
-#ifdef JEMALLOC_TCACHE
-    true
-#else
-    false
-#endif
-    ;
-
 void *
 thd_start(void *arg) {
-	int err;
-	size_t sz;
 	bool e0, e1;
-
-	sz = sizeof(bool);
-	if ((err = mallctl("thread.tcache.enabled", (void *)&e0, &sz, NULL,
-	    0))) {
-		if (err == ENOENT) {
-			assert_false(config_tcache,
-			    "ENOENT should only be returned if tcache is "
-			    "disabled");
-		}
-		goto label_ENOENT;
-	}
+	size_t sz = sizeof(bool);
+	assert_d_eq(mallctl("thread.tcache.enabled", (void *)&e0, &sz, NULL,
+	    0), 0, "Unexpected mallctl failure");
 
 	if (e0) {
 		e1 = false;
@@ -78,7 +60,6 @@ thd_start(void *arg) {
 
 	free(malloc(1));
 	return NULL;
-label_ENOENT:
 	test_skip("\"thread.tcache.enabled\" mallctl not available");
 	return NULL;
 }

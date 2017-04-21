@@ -155,13 +155,6 @@
 #undef JEMALLOC_PROF_GCC
 
 /*
- * JEMALLOC_TCACHE enables a thread-specific caching layer for small objects.
- * This makes it possible to allocate/deallocate objects without any locking
- * when the cache is in the steady state.
- */
-#undef JEMALLOC_TCACHE
-
-/*
  * JEMALLOC_DSS enables use of sbrk(2) to allocate extents from the data storage
  * segment (DSS).
  */

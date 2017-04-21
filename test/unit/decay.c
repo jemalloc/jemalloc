@@ -174,16 +174,15 @@ TEST_BEGIN(test_decay_ticks) {
 	assert_d_eq(mallctl("arenas.lextent.0.size", (void *)&large0, &sz, NULL,
 	    0), 0, "Unexpected mallctl failure");
 
-	int err;
 	/* Set up a manually managed arena for test. */
 	arena_ind = do_arena_create(0, 0);
 
 	/* Migrate to the new arena, and get the ticker. */
 	unsigned old_arena_ind;
 	size_t sz_arena_ind = sizeof(old_arena_ind);
-	err = mallctl("thread.arena", (void *)&old_arena_ind, &sz_arena_ind,
-		      (void *)&arena_ind, sizeof(arena_ind));
-	assert_d_eq(err, 0, "Unexpected mallctl() failure");
+	assert_d_eq(mallctl("thread.arena", (void *)&old_arena_ind,
+	    &sz_arena_ind, (void *)&arena_ind, sizeof(arena_ind)), 0,
+	    "Unexpected mallctl() failure");
 	decay_ticker = decay_ticker_get(tsd_fetch(), arena_ind);
 	assert_ptr_not_null(decay_ticker,
 	    "Unexpected failure getting decay ticker");
@@ -310,51 +309,48 @@ TEST_BEGIN(test_decay_ticks) {
 	 * Test tcache fill/flush interactions for large and small size classes,
 	 * using an explicit tcache.
 	 */
-	if (config_tcache) {
-		unsigned tcache_ind, i;
-		size_t tcache_sizes[2];
-		tcache_sizes[0] = large0;
-		tcache_sizes[1] = 1;
+	unsigned tcache_ind, i;
+	size_t tcache_sizes[2];
+	tcache_sizes[0] = large0;
+	tcache_sizes[1] = 1;
 
-		size_t tcache_max, sz_tcache_max;
-		sz_tcache_max = sizeof(tcache_max);
-		err = mallctl("arenas.tcache_max", (void *)&tcache_max,
-		    &sz_tcache_max, NULL, 0);
-		assert_d_eq(err, 0, "Unexpected mallctl() failure");
+	size_t tcache_max, sz_tcache_max;
+	sz_tcache_max = sizeof(tcache_max);
+	assert_d_eq(mallctl("arenas.tcache_max", (void *)&tcache_max,
+	    &sz_tcache_max, NULL, 0), 0, "Unexpected mallctl() failure");
 
-		sz = sizeof(unsigned);
-		assert_d_eq(mallctl("tcache.create", (void *)&tcache_ind, &sz,
-		    NULL, 0), 0, "Unexpected mallctl failure");
+	sz = sizeof(unsigned);
+	assert_d_eq(mallctl("tcache.create", (void *)&tcache_ind, &sz,
+	    NULL, 0), 0, "Unexpected mallctl failure");
 
-		for (i = 0; i < sizeof(tcache_sizes) / sizeof(size_t); i++) {
-			sz = tcache_sizes[i];
+	for (i = 0; i < sizeof(tcache_sizes) / sizeof(size_t); i++) {
+		sz = tcache_sizes[i];
 
-			/* tcache fill. */
-			tick0 = ticker_read(decay_ticker);
-			p = mallocx(sz, MALLOCX_TCACHE(tcache_ind));
-			assert_ptr_not_null(p, "Unexpected mallocx() failure");
-			tick1 = ticker_read(decay_ticker);
+		/* tcache fill. */
+		tick0 = ticker_read(decay_ticker);
+		p = mallocx(sz, MALLOCX_TCACHE(tcache_ind));
+		assert_ptr_not_null(p, "Unexpected mallocx() failure");
+		tick1 = ticker_read(decay_ticker);
+		assert_u32_ne(tick1, tick0,
+		    "Expected ticker to tick during tcache fill "
+		    "(sz=%zu)", sz);
+		/* tcache flush. */
+		dallocx(p, MALLOCX_TCACHE(tcache_ind));
+		tick0 = ticker_read(decay_ticker);
+		assert_d_eq(mallctl("tcache.flush", NULL, NULL,
+		    (void *)&tcache_ind, sizeof(unsigned)), 0,
+		    "Unexpected mallctl failure");
+		tick1 = ticker_read(decay_ticker);
+
+		/* Will only tick if it's in tcache. */
+		if (sz <= tcache_max) {
 			assert_u32_ne(tick1, tick0,
-			    "Expected ticker to tick during tcache fill "
-			    "(sz=%zu)", sz);
-			/* tcache flush. */
-			dallocx(p, MALLOCX_TCACHE(tcache_ind));
-			tick0 = ticker_read(decay_ticker);
-			assert_d_eq(mallctl("tcache.flush", NULL, NULL,
-			    (void *)&tcache_ind, sizeof(unsigned)), 0,
-			    "Unexpected mallctl failure");
-			tick1 = ticker_read(decay_ticker);
-
-			/* Will only tick if it's in tcache. */
-			if (sz <= tcache_max) {
-				assert_u32_ne(tick1, tick0,
-				    "Expected ticker to tick during tcache "
-				    "flush (sz=%zu)", sz);
-			} else {
-				assert_u32_eq(tick1, tick0,
-				    "Unexpected ticker tick during tcache "
-				    "flush (sz=%zu)", sz);
-			}
+			    "Expected ticker to tick during tcache "
+			    "flush (sz=%zu)", sz);
+		} else {
+			assert_u32_eq(tick1, tick0,
+			    "Unexpected ticker tick during tcache "
+			    "flush (sz=%zu)", sz);
 		}
 	}
 }
@@ -422,18 +418,11 @@ TEST_BEGIN(test_decay_ticker) {
 	 * the ticker triggers purging.
 	 */
 
-	if (config_tcache) {
-		size_t tcache_max;
-
-		size_t sz = sizeof(size_t);
-		assert_d_eq(mallctl("arenas.tcache_max", (void *)&tcache_max,
-		    &sz, NULL, 0), 0, "Unexpected mallctl failure");
-		large = nallocx(tcache_max + 1, flags);
-	}  else {
-		size_t sz = sizeof(size_t);
-		assert_d_eq(mallctl("arenas.lextent.0.size", &large, &sz, NULL,
-		    0), 0, "Unexpected mallctl failure");
-	}
+	size_t tcache_max;
+	size_t sz = sizeof(size_t);
+	assert_d_eq(mallctl("arenas.tcache_max", (void *)&tcache_max, &sz, NULL,
+	    0), 0, "Unexpected mallctl failure");
+	large = nallocx(tcache_max + 1, flags);
 
 	do_purge(arena_ind);
 	uint64_t dirty_npurge0 = get_arena_dirty_npurge(arena_ind);

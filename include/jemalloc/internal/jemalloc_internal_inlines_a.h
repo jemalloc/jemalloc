@@ -322,7 +322,8 @@ malloc_getcpu(void) {
 JEMALLOC_ALWAYS_INLINE unsigned
 percpu_arena_choose(void) {
 	unsigned arena_ind;
-	assert(have_percpu_arena && (percpu_arena_mode != percpu_arena_disabled));
+	assert(have_percpu_arena && (percpu_arena_mode !=
+	    percpu_arena_disabled));
 
 	malloc_cpuid_t cpuid = malloc_getcpu();
 	assert(cpuid >= 0);
@@ -419,19 +420,16 @@ tcache_large_bin_get(tcache_t *tcache, szind_t binind) {
 
 JEMALLOC_ALWAYS_INLINE bool
 tcache_available(tsd_t *tsd) {
-	cassert(config_tcache);
-
 	/*
 	 * Thread specific auto tcache might be unavailable if: 1) during tcache
 	 * initialization, or 2) disabled through thread.tcache.enabled mallctl
 	 * or config options.  This check covers all cases.
 	 */
-	if (likely(tsd_tcache_enabled_get(tsd) == true)) {
-		/* Associated arena == null implies tcache init in progress. */
-		if (tsd_tcachep_get(tsd)->arena != NULL) {
-			assert(tcache_small_bin_get(tsd_tcachep_get(tsd),
-			    0)->avail != NULL);
-		}
+	if (likely(tsd_tcache_enabled_get(tsd))) {
+		/* Associated arena == NULL implies tcache init in progress. */
+		assert(tsd_tcachep_get(tsd)->arena == NULL ||
+		    tcache_small_bin_get(tsd_tcachep_get(tsd), 0)->avail !=
+		    NULL);
 		return true;
 	}
 
@@ -440,9 +438,6 @@ tcache_available(tsd_t *tsd) {
 
 JEMALLOC_ALWAYS_INLINE tcache_t *
 tcache_get(tsd_t *tsd) {
-	if (!config_tcache) {
-		return NULL;
-	}
 	if (!tcache_available(tsd)) {
 		return NULL;
 	}

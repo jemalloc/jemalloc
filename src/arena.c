@@ -283,31 +283,27 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 
 	arena_stats_unlock(tsdn, &arena->stats);
 
-	if (config_tcache) {
-		tcache_bin_t *tbin;
-		tcache_t *tcache;
-
-		/* tcache_bytes counts currently cached bytes. */
-		atomic_store_zu(&astats->tcache_bytes, 0, ATOMIC_RELAXED);
-		malloc_mutex_lock(tsdn, &arena->tcache_ql_mtx);
-		ql_foreach(tcache, &arena->tcache_ql, link) {
-			szind_t i = 0;
-			for (; i < NBINS; i++) {
-				tbin = tcache_small_bin_get(tcache, i);
-				arena_stats_accum_zu(&astats->tcache_bytes,
-				    tbin->ncached * index2size(i));
-			}
-			for (; i < nhbins; i++) {
-				tbin = tcache_large_bin_get(tcache, i);
-				arena_stats_accum_zu(&astats->tcache_bytes,
-				    tbin->ncached * index2size(i));
-			}
+	/* tcache_bytes counts currently cached bytes. */
+	atomic_store_zu(&astats->tcache_bytes, 0, ATOMIC_RELAXED);
+	malloc_mutex_lock(tsdn, &arena->tcache_ql_mtx);
+	tcache_t *tcache;
+	ql_foreach(tcache, &arena->tcache_ql, link) {
+		szind_t i = 0;
+		for (; i < NBINS; i++) {
+			tcache_bin_t *tbin = tcache_small_bin_get(tcache, i);
+			arena_stats_accum_zu(&astats->tcache_bytes,
+			    tbin->ncached * index2size(i));
 		}
-		malloc_mutex_prof_read(tsdn,
-		    &astats->mutex_prof_data[arena_prof_mutex_tcache_list],
-		    &arena->tcache_ql_mtx);
-		malloc_mutex_unlock(tsdn, &arena->tcache_ql_mtx);
+		for (; i < nhbins; i++) {
+			tcache_bin_t *tbin = tcache_large_bin_get(tcache, i);
+			arena_stats_accum_zu(&astats->tcache_bytes,
+			    tbin->ncached * index2size(i));
+		}
 	}
+	malloc_mutex_prof_read(tsdn,
+	    &astats->mutex_prof_data[arena_prof_mutex_tcache_list],
+	    &arena->tcache_ql_mtx);
+	malloc_mutex_unlock(tsdn, &arena->tcache_ql_mtx);
 
 #define READ_ARENA_MUTEX_PROF_DATA(mtx, ind)				\
     malloc_mutex_lock(tsdn, &arena->mtx);				\
@@ -342,10 +338,8 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 		bstats[i].ndalloc += bin->stats.ndalloc;
 		bstats[i].nrequests += bin->stats.nrequests;
 		bstats[i].curregs += bin->stats.curregs;
-		if (config_tcache) {
-			bstats[i].nfills += bin->stats.nfills;
-			bstats[i].nflushes += bin->stats.nflushes;
-		}
+		bstats[i].nfills += bin->stats.nfills;
+		bstats[i].nflushes += bin->stats.nflushes;
 		bstats[i].nslabs += bin->stats.nslabs;
 		bstats[i].reslabs += bin->stats.reslabs;
 		bstats[i].curslabs += bin->stats.curslabs;
@@ -1856,9 +1850,7 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 		if (arena_stats_init(tsdn, &arena->stats)) {
 			goto label_error;
 		}
-	}
 
-	if (config_stats && config_tcache) {
 		ql_new(&arena->tcache_ql);
 		if (malloc_mutex_init(&arena->tcache_ql_mtx, "tcache_ql",
 		    WITNESS_RANK_TCACHE_QL)) {
@@ -1996,7 +1988,7 @@ arena_prefork0(tsdn_t *tsdn, arena_t *arena) {
 
 void
 arena_prefork1(tsdn_t *tsdn, arena_t *arena) {
-	if (config_stats && config_tcache) {
+	if (config_stats) {
 		malloc_mutex_prefork(tsdn, &arena->tcache_ql_mtx);
 	}
 }
@@ -2045,7 +2037,7 @@ arena_postfork_parent(tsdn_t *tsdn, arena_t *arena) {
 	extents_postfork_parent(tsdn, &arena->extents_retained);
 	malloc_mutex_postfork_parent(tsdn, &arena->decay_dirty.mtx);
 	malloc_mutex_postfork_parent(tsdn, &arena->decay_muzzy.mtx);
-	if (config_stats && config_tcache) {
+	if (config_stats) {
 		malloc_mutex_postfork_parent(tsdn, &arena->tcache_ql_mtx);
 	}
 }
@@ -2065,7 +2057,7 @@ arena_postfork_child(tsdn_t *tsdn, arena_t *arena) {
 	extents_postfork_child(tsdn, &arena->extents_retained);
 	malloc_mutex_postfork_child(tsdn, &arena->decay_dirty.mtx);
 	malloc_mutex_postfork_child(tsdn, &arena->decay_muzzy.mtx);
-	if (config_stats && config_tcache) {
+	if (config_stats) {
 		malloc_mutex_postfork_child(tsdn, &arena->tcache_ql_mtx);
 	}
 }

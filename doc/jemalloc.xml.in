@@ -510,13 +510,12 @@ for (i = 0; i < nbins; i++) {
     sense to reduce the number of arenas if an application does not make much
     use of the allocation functions.</para>
 
-    <para>In addition to multiple arenas, unless
-    <option>--disable-tcache</option> is specified during configuration, this
-    allocator supports thread-specific caching, in order to make it possible to
-    completely avoid synchronization for most allocation requests.  Such caching
-    allows very fast allocation in the common case, but it increases memory
-    usage and fragmentation, since a bounded number of objects can remain
-    allocated in each thread cache.</para>
+    <para>In addition to multiple arenas, this allocator supports
+    thread-specific caching, in order to make it possible to completely avoid
+    synchronization for most allocation requests.  Such caching allows very fast
+    allocation in the common case, but it increases memory usage and
+    fragmentation, since a bounded number of objects can remain allocated in
+    each thread cache.</para>
 
     <para>Memory is conceptually broken into extents.  Extents are always
     aligned to multiples of the page size.  This alignment makes it possible to
@@ -839,16 +838,6 @@ mallctl("arena." STRINGIFY(MALLCTL_ARENAS_ALL) ".decay",
         build configuration.</para></listitem>
       </varlistentry>
 
-      <varlistentry id="config.tcache">
-        <term>
-          <mallctl>config.tcache</mallctl>
-          (<type>bool</type>)
-          <literal>r-</literal>
-        </term>
-        <listitem><para><option>--disable-tcache</option> was not specified
-        during build configuration.</para></listitem>
-      </varlistentry>
-
       <varlistentry id="config.tls">
         <term>
           <mallctl>config.tls</mallctl>
@@ -1095,7 +1084,6 @@ malloc_conf = "xmalloc:true";]]></programlisting>
           <mallctl>opt.tcache</mallctl>
           (<type>bool</type>)
           <literal>r-</literal>
-          [<option>--enable-tcache</option>]
         </term>
         <listitem><para>Thread-specific caching (tcache) enabled/disabled.  When
         there are multiple threads, each thread uses a tcache for objects up to
@@ -1112,7 +1100,6 @@ malloc_conf = "xmalloc:true";]]></programlisting>
           <mallctl>opt.lg_tcache_max</mallctl>
           (<type>size_t</type>)
           <literal>r-</literal>
-          [<option>--enable-tcache</option>]
         </term>
         <listitem><para>Maximum size class (log base 2) to cache in the
         thread-specific cache (tcache).  At a minimum, all small size classes
@@ -1370,7 +1357,6 @@ malloc_conf = "xmalloc:true";]]></programlisting>
           <mallctl>thread.tcache.enabled</mallctl>
           (<type>bool</type>)
           <literal>rw</literal>
-          [<option>--enable-tcache</option>]
         </term>
         <listitem><para>Enable/disable calling thread's tcache.  The tcache is
         implicitly flushed as a side effect of becoming
@@ -1384,7 +1370,6 @@ malloc_conf = "xmalloc:true";]]></programlisting>
           <mallctl>thread.tcache.flush</mallctl>
           (<type>void</type>)
           <literal>--</literal>
-          [<option>--enable-tcache</option>]
         </term>
         <listitem><para>Flush calling thread's thread-specific cache (tcache).
         This interface releases all cached objects and internal data structures
@@ -1440,7 +1425,6 @@ malloc_conf = "xmalloc:true";]]></programlisting>
           <mallctl>tcache.create</mallctl>
           (<type>unsigned</type>)
           <literal>r-</literal>
-          [<option>--enable-tcache</option>]
         </term>
         <listitem><para>Create an explicit thread-specific cache (tcache) and
         return an identifier that can be passed to the <link
@@ -1457,7 +1441,6 @@ malloc_conf = "xmalloc:true";]]></programlisting>
           <mallctl>tcache.flush</mallctl>
           (<type>unsigned</type>)
           <literal>-w</literal>
-          [<option>--enable-tcache</option>]
         </term>
         <listitem><para>Flush the specified thread-specific cache (tcache).  The
         same considerations apply to this interface as to <link
@@ -1471,7 +1454,6 @@ malloc_conf = "xmalloc:true";]]></programlisting>
           <mallctl>tcache.destroy</mallctl>
           (<type>unsigned</type>)
           <literal>-w</literal>
-          [<option>--enable-tcache</option>]
         </term>
         <listitem><para>Flush the specified thread-specific cache (tcache) and
         make the identifier available for use during a future tcache creation.
@@ -1873,7 +1855,6 @@ struct extent_hooks_s {
           <mallctl>arenas.tcache_max</mallctl>
           (<type>size_t</type>)
           <literal>r-</literal>
-          [<option>--enable-tcache</option>]
         </term>
         <listitem><para>Maximum thread-cached size class.</para></listitem>
       </varlistentry>
@@ -1892,7 +1873,6 @@ struct extent_hooks_s {
           <mallctl>arenas.nhbins</mallctl>
           (<type>unsigned</type>)
           <literal>r-</literal>
-          [<option>--enable-tcache</option>]
         </term>
         <listitem><para>Total number of thread cache bin size
         classes.</para></listitem>
@@ -2575,7 +2555,6 @@ struct extent_hooks_s {
           <mallctl>stats.arenas.&lt;i&gt;.bins.&lt;j&gt;.nfills</mallctl>
           (<type>uint64_t</type>)
           <literal>r-</literal>
-          [<option>--enable-stats</option> <option>--enable-tcache</option>]
         </term>
         <listitem><para>Cumulative number of tcache fills.</para></listitem>
       </varlistentry>
@@ -2585,7 +2564,6 @@ struct extent_hooks_s {
           <mallctl>stats.arenas.&lt;i&gt;.bins.&lt;j&gt;.nflushes</mallctl>
           (<type>uint64_t</type>)
           <literal>r-</literal>
-          [<option>--enable-stats</option> <option>--enable-tcache</option>]
         </term>
         <listitem><para>Cumulative number of tcache flushes.</para></listitem>
       </varlistentry>
