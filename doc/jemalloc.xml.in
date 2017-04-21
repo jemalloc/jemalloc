@@ -838,16 +838,6 @@ mallctl("arena." STRINGIFY(MALLCTL_ARENAS_ALL) ".decay",
         build configuration.</para></listitem>
       </varlistentry>
 
-      <varlistentry id="config.tls">
-        <term>
-          <mallctl>config.tls</mallctl>
-          (<type>bool</type>)
-          <literal>r-</literal>
-        </term>
-        <listitem><para><option>--disable-tls</option> was not specified during
-        build configuration.</para></listitem>
-      </varlistentry>
-
       <varlistentry id="config.utrace">
         <term>
           <mallctl>config.utrace</mallctl>

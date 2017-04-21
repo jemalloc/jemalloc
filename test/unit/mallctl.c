@@ -136,7 +136,6 @@ TEST_BEGIN(test_mallctl_config) {
 	TEST_MALLCTL_CONFIG(prof_libgcc, bool);
 	TEST_MALLCTL_CONFIG(prof_libunwind, bool);
 	TEST_MALLCTL_CONFIG(stats, bool);
-	TEST_MALLCTL_CONFIG(tls, bool);
 	TEST_MALLCTL_CONFIG(utrace, bool);
 	TEST_MALLCTL_CONFIG(xmalloc, bool);
 
