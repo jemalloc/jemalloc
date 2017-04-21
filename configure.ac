@@ -1401,12 +1401,6 @@ AC_ARG_WITH([lg_page_sizes],
    [Base 2 logs of system page sizes to support])],
   [LG_PAGE_SIZES="$with_lg_page_sizes"], [LG_PAGE_SIZES="$LG_PAGE"])
 
-AC_ARG_WITH([lg_size_class_group],
-  [AS_HELP_STRING([--with-lg-size-class-group=<lg-size-class-group>],
-   [Base 2 log of size classes per doubling])],
-  [LG_SIZE_CLASS_GROUP="$with_lg_size_class_group"],
-  [LG_SIZE_CLASS_GROUP="2"])
-
 dnl ============================================================================
 dnl jemalloc configuration.
 dnl 
@@ -2022,7 +2016,7 @@ AC_CONFIG_COMMANDS([include/jemalloc/internal/public_unnamespace.h], [
 ])
 AC_CONFIG_COMMANDS([include/jemalloc/internal/size_classes.h], [
   mkdir -p "${objroot}include/jemalloc/internal"
-  "${SHELL}" "${srcdir}/include/jemalloc/internal/size_classes.sh" "${LG_QUANTA}" ${LG_TINY_MIN} "${LG_PAGE_SIZES}" ${LG_SIZE_CLASS_GROUP} > "${objroot}include/jemalloc/internal/size_classes.h"
+  "${SHELL}" "${srcdir}/include/jemalloc/internal/size_classes.sh" "${LG_QUANTA}" ${LG_TINY_MIN} "${LG_PAGE_SIZES}" 2 > "${objroot}include/jemalloc/internal/size_classes.h"
 ], [
   SHELL="${SHELL}"
   srcdir="${srcdir}"
@@ -2030,7 +2024,6 @@ AC_CONFIG_COMMANDS([include/jemalloc/internal/size_classes.h], [
   LG_QUANTA="${LG_QUANTA}"
   LG_TINY_MIN=${LG_TINY_MIN}
   LG_PAGE_SIZES="${LG_PAGE_SIZES}"
-  LG_SIZE_CLASS_GROUP=${LG_SIZE_CLASS_GROUP}
 ])
 AC_CONFIG_COMMANDS([include/jemalloc/jemalloc_protos_jet.h], [
   mkdir -p "${objroot}include/jemalloc"
