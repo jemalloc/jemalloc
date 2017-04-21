@@ -2678,12 +2678,14 @@ je_sallocx(const void *ptr, int flags) {
 	tsdn_t *tsdn;
 
 	assert(malloc_initialized() || IS_INITIALIZER);
+	assert(ptr != NULL);
 
 	tsdn = tsdn_fetch();
 	witness_assert_lockless(tsdn);
 
-	if (config_ivsalloc) {
+	if (config_debug || force_ivsalloc) {
 		usize = ivsalloc(tsdn, ptr);
+		assert(force_ivsalloc || usize != 0);
 	} else {
 		usize = isalloc(tsdn, ptr);
 	}
@@ -2885,10 +2887,15 @@ je_malloc_usable_size(JEMALLOC_USABLE_SIZE_CONST void *ptr) {
 	tsdn = tsdn_fetch();
 	witness_assert_lockless(tsdn);
 
-	if (config_ivsalloc) {
-		ret = ivsalloc(tsdn, ptr);
+	if (unlikely(ptr == NULL)) {
+		ret = 0;
 	} else {
-		ret = (ptr == NULL) ? 0 : isalloc(tsdn, ptr);
+		if (config_debug || force_ivsalloc) {
+			ret = ivsalloc(tsdn, ptr);
+			assert(force_ivsalloc || ret != 0);
+		} else {
+			ret = isalloc(tsdn, ptr);
+		}
 	}
 
 	witness_assert_lockless(tsdn);
