@@ -10,10 +10,36 @@ malloc_mutex_lock_final(malloc_mutex_t *mutex) {
 	MALLOC_MUTEX_LOCK(mutex);
 }
 
+static inline bool
+malloc_mutex_trylock_final(malloc_mutex_t *mutex) {
+	return MALLOC_MUTEX_TRYLOCK(mutex);
+}
+
+static inline void
+mutex_owner_stats_update(tsdn_t *tsdn, malloc_mutex_t *mutex) {
+	if (config_stats) {
+		mutex_prof_data_t *data = &mutex->prof_data;
+		data->n_lock_ops++;
+		if (data->prev_owner != tsdn) {
+			data->prev_owner = tsdn;
+			data->n_owner_switches++;
+		}
+	}
+}
+
 /* Trylock: return false if the lock is successfully acquired. */
 static inline bool
-malloc_mutex_trylock(malloc_mutex_t *mutex) {
-	return MALLOC_MUTEX_TRYLOCK(mutex);
+malloc_mutex_trylock(tsdn_t *tsdn, malloc_mutex_t *mutex) {
+	witness_assert_not_owner(tsdn, &mutex->witness);
+	if (isthreaded) {
+		if (malloc_mutex_trylock_final(mutex)) {
+			return true;
+		}
+		mutex_owner_stats_update(tsdn, mutex);
+	}
+	witness_lock(tsdn, &mutex->witness);
+
+	return false;
 }
 
 /* Aggregate lock prof data. */
@@ -44,18 +70,10 @@ static inline void
 malloc_mutex_lock(tsdn_t *tsdn, malloc_mutex_t *mutex) {
 	witness_assert_not_owner(tsdn, &mutex->witness);
 	if (isthreaded) {
-		if (malloc_mutex_trylock(mutex)) {
+		if (malloc_mutex_trylock_final(mutex)) {
 			malloc_mutex_lock_slow(mutex);
 		}
-		/* We own the lock now.  Update a few counters. */
-		if (config_stats) {
-			mutex_prof_data_t *data = &mutex->prof_data;
-			data->n_lock_ops++;
-			if (data->prev_owner != tsdn) {
-				data->prev_owner = tsdn;
-				data->n_owner_switches++;
-			}
-		}
+		mutex_owner_stats_update(tsdn, mutex);
 	}
 	witness_lock(tsdn, &mutex->witness);
 }

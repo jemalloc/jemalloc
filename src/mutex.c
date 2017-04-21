@@ -81,7 +81,7 @@ malloc_mutex_lock_slow(malloc_mutex_t *mutex) {
 	int cnt = 0, max_cnt = MALLOC_MUTEX_MAX_SPIN;
 	do {
 		CPU_SPINWAIT;
-		if (!malloc_mutex_trylock(mutex)) {
+		if (!malloc_mutex_trylock_final(mutex)) {
 			data->n_spin_acquired++;
 			return;
 		}
@@ -100,7 +100,7 @@ label_spin_done:
 	uint32_t n_thds = atomic_fetch_add_u32(&data->n_waiting_thds, 1,
 	    ATOMIC_RELAXED) + 1;
 	/* One last try as above two calls may take quite some cycles. */
-	if (!malloc_mutex_trylock(mutex)) {
+	if (!malloc_mutex_trylock_final(mutex)) {
 		atomic_fetch_sub_u32(&data->n_waiting_thds, 1, ATOMIC_RELAXED);
 		data->n_spin_acquired++;
 		return;
