@@ -5,42 +5,6 @@
 #include "jemalloc/internal/bit_util.h"
 #include "jemalloc/internal/jemalloc_internal_types.h"
 
-#ifndef JEMALLOC_ENABLE_INLINE
-pszind_t psz2ind(size_t psz);
-size_t pind2sz_compute(pszind_t pind);
-size_t pind2sz_lookup(pszind_t pind);
-size_t pind2sz(pszind_t pind);
-size_t psz2u(size_t psz);
-szind_t size2index_compute(size_t size);
-szind_t size2index_lookup(size_t size);
-szind_t size2index(size_t size);
-size_t index2size_compute(szind_t index);
-size_t index2size_lookup(szind_t index);
-size_t index2size(szind_t index);
-size_t s2u_compute(size_t size);
-size_t s2u_lookup(size_t size);
-size_t s2u(size_t size);
-size_t sa2u(size_t size, size_t alignment);
-arena_t *arena_choose_impl(tsd_t *tsd, arena_t *arena, bool internal);
-arena_t *arena_choose(tsd_t *tsd, arena_t *arena);
-arena_t *arena_ichoose(tsd_t *tsd, arena_t *arena);
-bool arena_is_auto(arena_t *arena);
-arena_tdata_t *arena_tdata_get(tsd_t *tsd, unsigned ind,
-    bool refresh_if_missing);
-arena_t *arena_get(tsdn_t *tsdn, unsigned ind, bool init_if_missing);
-ticker_t *decay_ticker_get(tsd_t *tsd, unsigned ind);
-bool tcache_available(tsd_t *tsd);
-tcache_bin_t *tcache_small_bin_get(tcache_t *tcache, szind_t binind);
-tcache_bin_t *tcache_large_bin_get(tcache_t *tcache, szind_t binind);
-tcache_t *tcache_get(tsd_t *tsd);
-malloc_cpuid_t malloc_getcpu(void);
-unsigned percpu_arena_choose(void);
-unsigned percpu_arena_ind_limit(void);
-void pre_reentrancy(tsd_t *tsd);
-void post_reentrancy(tsd_t *tsd);
-#endif
-
-#if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_C_))
 JEMALLOC_ALWAYS_INLINE pszind_t
 psz2ind(size_t psz) {
 	if (unlikely(psz > LARGE_MAXCLASS)) {
@@ -64,7 +28,7 @@ psz2ind(size_t psz) {
 	}
 }
 
-JEMALLOC_INLINE size_t
+static inline size_t
 pind2sz_compute(pszind_t pind) {
 	if (unlikely(pind == NPSIZES)) {
 		return LARGE_MAXCLASS + PAGE;
@@ -86,20 +50,20 @@ pind2sz_compute(pszind_t pind) {
 	}
 }
 
-JEMALLOC_INLINE size_t
+static inline size_t
 pind2sz_lookup(pszind_t pind) {
 	size_t ret = (size_t)pind2sz_tab[pind];
 	assert(ret == pind2sz_compute(pind));
 	return ret;
 }
 
-JEMALLOC_INLINE size_t
+static inline size_t
 pind2sz(pszind_t pind) {
 	assert(pind < NPSIZES+1);
 	return pind2sz_lookup(pind);
 }
 
-JEMALLOC_INLINE size_t
+static inline size_t
 psz2u(size_t psz) {
 	if (unlikely(psz > LARGE_MAXCLASS)) {
 		return LARGE_MAXCLASS + PAGE;
@@ -115,7 +79,7 @@ psz2u(size_t psz) {
 	}
 }
 
-JEMALLOC_INLINE szind_t
+static inline szind_t
 size2index_compute(size_t size) {
 	if (unlikely(size > LARGE_MAXCLASS)) {
 		return NSIZES;
@@ -164,7 +128,7 @@ size2index(size_t size) {
 	return size2index_compute(size);
 }
 
-JEMALLOC_INLINE size_t
+static inline size_t
 index2size_compute(szind_t index) {
 #if (NTBINS > 0)
 	if (index < NTBINS) {
@@ -355,7 +319,7 @@ percpu_arena_ind_limit(void) {
 	}
 }
 
-JEMALLOC_INLINE arena_tdata_t *
+static inline arena_tdata_t *
 arena_tdata_get(tsd_t *tsd, unsigned ind, bool refresh_if_missing) {
 	arena_tdata_t *tdata;
 	arena_tdata_t *arenas_tdata = tsd_arenas_tdata_get(tsd);
@@ -380,7 +344,7 @@ arena_tdata_get(tsd_t *tsd, unsigned ind, bool refresh_if_missing) {
 	return arena_tdata_get_hard(tsd, ind);
 }
 
-JEMALLOC_INLINE arena_t *
+static inline arena_t *
 arena_get(tsdn_t *tsdn, unsigned ind, bool init_if_missing) {
 	arena_t *ret;
 
@@ -396,7 +360,7 @@ arena_get(tsdn_t *tsdn, unsigned ind, bool init_if_missing) {
 	return ret;
 }
 
-JEMALLOC_INLINE ticker_t *
+static inline ticker_t *
 decay_ticker_get(tsd_t *tsd, unsigned ind) {
 	arena_tdata_t *tdata;
 
@@ -446,7 +410,7 @@ tcache_get(tsd_t *tsd) {
 	return tsd_tcachep_get(tsd);
 }
 
-JEMALLOC_INLINE void
+static inline void
 pre_reentrancy(tsd_t *tsd) {
 	bool fast = tsd_fast(tsd);
 	++*tsd_reentrancy_levelp_get(tsd);
@@ -457,7 +421,7 @@ pre_reentrancy(tsd_t *tsd) {
 	}
 }
 
-JEMALLOC_INLINE void
+static inline void
 post_reentrancy(tsd_t *tsd) {
 	int8_t *reentrancy_level = tsd_reentrancy_levelp_get(tsd);
 	assert(*reentrancy_level > 0);
@@ -465,7 +429,5 @@ post_reentrancy(tsd_t *tsd) {
 		tsd_slow_update(tsd);
 	}
 }
-
-#endif
 
 #endif /* JEMALLOC_INTERNAL_INLINES_A_H */

@@ -3,36 +3,6 @@
 
 #include "jemalloc/internal/jemalloc_internal_types.h"
 
-#ifndef JEMALLOC_ENABLE_INLINE
-arena_t *iaalloc(tsdn_t *tsdn, const void *ptr);
-size_t isalloc(tsdn_t *tsdn, const void *ptr);
-void *iallocztm(tsdn_t *tsdn, size_t size, szind_t ind, bool zero,
-    tcache_t *tcache, bool is_internal, arena_t *arena, bool slow_path);
-void *ialloc(tsd_t *tsd, size_t size, szind_t ind, bool zero,
-    bool slow_path);
-void *ipallocztm(tsdn_t *tsdn, size_t usize, size_t alignment, bool zero,
-    tcache_t *tcache, bool is_internal, arena_t *arena);
-void *ipalloct(tsdn_t *tsdn, size_t usize, size_t alignment, bool zero,
-    tcache_t *tcache, arena_t *arena);
-void *ipalloc(tsd_t *tsd, size_t usize, size_t alignment, bool zero);
-size_t ivsalloc(tsdn_t *tsdn, const void *ptr);
-void idalloctm(tsdn_t *tsdn, void *ptr, tcache_t *tcache,
-    alloc_ctx_t *alloc_ctx, bool is_internal, bool slow_path);
-void idalloc(tsd_t *tsd, void *ptr);
-void isdalloct(tsdn_t *tsdn, void *ptr, size_t size, tcache_t *tcache,
-    alloc_ctx_t *alloc_ctx, bool slow_path);
-void *iralloct_realign(tsdn_t *tsdn, void *ptr, size_t oldsize, size_t size,
-    size_t extra, size_t alignment, bool zero, tcache_t *tcache,
-    arena_t *arena);
-void *iralloct(tsdn_t *tsdn, void *ptr, size_t oldsize, size_t size,
-    size_t alignment, bool zero, tcache_t *tcache, arena_t *arena);
-void *iralloc(tsd_t *tsd, void *ptr, size_t oldsize, size_t size,
-    size_t alignment, bool zero);
-bool ixalloc(tsdn_t *tsdn, void *ptr, size_t oldsize, size_t size, size_t extra,
-    size_t alignment, bool zero);
-#endif
-
-#if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_C_))
 JEMALLOC_ALWAYS_INLINE arena_t *
 iaalloc(tsdn_t *tsdn, const void *ptr) {
 	assert(ptr != NULL);
@@ -214,6 +184,5 @@ ixalloc(tsdn_t *tsdn, void *ptr, size_t oldsize, size_t size, size_t extra,
 
 	return arena_ralloc_no_move(tsdn, ptr, oldsize, size, extra, zero);
 }
-#endif
 
 #endif /* JEMALLOC_INTERNAL_INLINES_C_H */

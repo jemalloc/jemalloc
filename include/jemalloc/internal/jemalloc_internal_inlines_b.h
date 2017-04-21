@@ -1,13 +1,8 @@
 #ifndef JEMALLOC_INTERNAL_INLINES_B_H
 #define JEMALLOC_INTERNAL_INLINES_B_H
 
-#ifndef JEMALLOC_ENABLE_INLINE
-extent_t	*iealloc(tsdn_t *tsdn, const void *ptr);
-#endif
-
-#if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_C_))
 /* Choose an arena based on a per-thread value. */
-JEMALLOC_INLINE arena_t *
+static inline arena_t *
 arena_choose_impl(tsd_t *tsd, arena_t *arena, bool internal) {
 	arena_t *ret;
 
@@ -60,17 +55,17 @@ arena_choose_impl(tsd_t *tsd, arena_t *arena, bool internal) {
 	return ret;
 }
 
-JEMALLOC_INLINE arena_t *
+static inline arena_t *
 arena_choose(tsd_t *tsd, arena_t *arena) {
 	return arena_choose_impl(tsd, arena, false);
 }
 
-JEMALLOC_INLINE arena_t *
+static inline arena_t *
 arena_ichoose(tsd_t *tsd, arena_t *arena) {
 	return arena_choose_impl(tsd, arena, true);
 }
 
-JEMALLOC_INLINE bool
+static inline bool
 arena_is_auto(arena_t *arena) {
 	assert(narenas_auto > 0);
 	return (arena_ind_get(arena) < narenas_auto);
@@ -84,6 +79,5 @@ iealloc(tsdn_t *tsdn, const void *ptr) {
 	return rtree_extent_read(tsdn, &extents_rtree, rtree_ctx,
 	    (uintptr_t)ptr, true);
 }
-#endif
 
 #endif /* JEMALLOC_INTERNAL_INLINES_B_H */

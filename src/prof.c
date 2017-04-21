@@ -145,7 +145,7 @@ static char	*prof_thread_name_alloc(tsdn_t *tsdn, const char *thread_name);
 /******************************************************************************/
 /* Red-black trees. */
 
-JEMALLOC_INLINE_C int
+static int
 prof_tctx_comp(const prof_tctx_t *a, const prof_tctx_t *b) {
 	uint64_t a_thr_uid = a->thr_uid;
 	uint64_t b_thr_uid = b->thr_uid;
@@ -168,7 +168,7 @@ prof_tctx_comp(const prof_tctx_t *a, const prof_tctx_t *b) {
 rb_gen(static UNUSED, tctx_tree_, prof_tctx_tree_t, prof_tctx_t,
     tctx_link, prof_tctx_comp)
 
-JEMALLOC_INLINE_C int
+static int
 prof_gctx_comp(const prof_gctx_t *a, const prof_gctx_t *b) {
 	unsigned a_len = a->bt.len;
 	unsigned b_len = b->bt.len;
@@ -183,7 +183,7 @@ prof_gctx_comp(const prof_gctx_t *a, const prof_gctx_t *b) {
 rb_gen(static UNUSED, gctx_tree_, prof_gctx_tree_t, prof_gctx_t, dump_link,
     prof_gctx_comp)
 
-JEMALLOC_INLINE_C int
+static int
 prof_tdata_comp(const prof_tdata_t *a, const prof_tdata_t *b) {
 	int ret;
 	uint64_t a_uid = a->thr_uid;
@@ -273,7 +273,7 @@ bt_init(prof_bt_t *bt, void **vec) {
 	bt->len = 0;
 }
 
-JEMALLOC_INLINE_C void
+static void
 prof_enter(tsd_t *tsd, prof_tdata_t *tdata) {
 	cassert(config_prof);
 	assert(tdata == prof_tdata_get(tsd, false));
@@ -286,7 +286,7 @@ prof_enter(tsd_t *tsd, prof_tdata_t *tdata) {
 	malloc_mutex_lock(tsd_tsdn(tsd), &bt2gctx_mtx);
 }
 
-JEMALLOC_INLINE_C void
+static void
 prof_leave(tsd_t *tsd, prof_tdata_t *tdata) {
 	cassert(config_prof);
 	assert(tdata == prof_tdata_get(tsd, false));
@@ -1884,7 +1884,7 @@ prof_bt_keycomp(const void *k1, const void *k2) {
 	return (memcmp(bt1->vec, bt2->vec, bt1->len * sizeof(void *)) == 0);
 }
 
-JEMALLOC_INLINE_C uint64_t
+static uint64_t
 prof_thr_uid_alloc(tsdn_t *tsdn) {
 	uint64_t thr_uid;
 

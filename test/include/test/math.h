@@ -1,12 +1,3 @@
-#ifndef JEMALLOC_ENABLE_INLINE
-double	ln_gamma(double x);
-double	i_gamma(double x, double p, double ln_gamma_p);
-double	pt_norm(double p);
-double	pt_chi2(double p, double df, double ln_gamma_df_2);
-double	pt_gamma(double p, double shape, double scale, double ln_gamma_shape);
-#endif
-
-#if (defined(JEMALLOC_ENABLE_INLINE) || defined(MATH_C_))
 /*
  * Compute the natural log of Gamma(x), accurate to 10 decimal places.
  *
@@ -15,7 +6,7 @@ double	pt_gamma(double p, double shape, double scale, double ln_gamma_shape);
  *   Pike, M.C., I.D. Hill (1966) Algorithm 291: Logarithm of Gamma function
  *   [S14].  Communications of the ACM 9(9):684.
  */
-JEMALLOC_INLINE double
+static inline double
 ln_gamma(double x) {
 	double f, z;
 
@@ -50,7 +41,7 @@ ln_gamma(double x) {
  *   Bhattacharjee, G.P. (1970) Algorithm AS 32: The incomplete Gamma integral.
  *   Applied Statistics 19:285-287.
  */
-JEMALLOC_INLINE double
+static inline double
 i_gamma(double x, double p, double ln_gamma_p) {
 	double acu, factor, oflo, gin, term, rn, a, b, an, dif;
 	double pn[6];
@@ -134,7 +125,7 @@ i_gamma(double x, double p, double ln_gamma_p) {
  *   Wichura, M.J. (1988) Algorithm AS 241: The percentage points of the normal
  *   distribution.  Applied Statistics 37(3):477-484.
  */
-JEMALLOC_INLINE double
+static inline double
 pt_norm(double p) {
 	double q, r, ret;
 
@@ -222,7 +213,7 @@ pt_norm(double p) {
  *   Shea, B.L. (1991) Algorithm AS R85: A remark on AS 91: The percentage
  *   points of the Chi^2 distribution.  Applied Statistics 40(1):233-235.
  */
-JEMALLOC_INLINE double
+static inline double
 pt_chi2(double p, double df, double ln_gamma_df_2) {
 	double e, aa, xx, c, ch, a, q, p1, p2, t, x, b, s1, s2, s3, s4, s5, s6;
 	unsigned i;
@@ -309,8 +300,7 @@ pt_chi2(double p, double df, double ln_gamma_df_2) {
  * compute the upper limit on the definite integral from [0..z] that satisfies
  * p.
  */
-JEMALLOC_INLINE double
+static inline double
 pt_gamma(double p, double shape, double scale, double ln_gamma_shape) {
 	return pt_chi2(p, shape * 2.0, ln_gamma_shape) * 0.5 * scale;
 }
-#endif

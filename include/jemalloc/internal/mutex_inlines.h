@@ -5,31 +5,19 @@
 
 void	malloc_mutex_lock_slow(malloc_mutex_t *mutex);
 
-#ifndef JEMALLOC_ENABLE_INLINE
-void	malloc_mutex_lock(tsdn_t *tsdn, malloc_mutex_t *mutex);
-bool	malloc_mutex_trylock(malloc_mutex_t *mutex);
-void	malloc_mutex_unlock(tsdn_t *tsdn, malloc_mutex_t *mutex);
-void	malloc_mutex_assert_owner(tsdn_t *tsdn, malloc_mutex_t *mutex);
-void	malloc_mutex_assert_not_owner(tsdn_t *tsdn, malloc_mutex_t *mutex);
-void	malloc_mutex_prof_read(tsdn_t *tsdn, mutex_prof_data_t *data,
-    malloc_mutex_t *mutex);
-void	malloc_mutex_prof_merge(mutex_prof_data_t *sum, mutex_prof_data_t *data);
-#endif
-
-#if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_MUTEX_C_))
-JEMALLOC_INLINE void
+static inline void
 malloc_mutex_lock_final(malloc_mutex_t *mutex) {
 	MALLOC_MUTEX_LOCK(mutex);
 }
 
 /* Trylock: return false if the lock is successfully acquired. */
-JEMALLOC_INLINE bool
+static inline bool
 malloc_mutex_trylock(malloc_mutex_t *mutex) {
 	return MALLOC_MUTEX_TRYLOCK(mutex);
 }
 
 /* Aggregate lock prof data. */
-JEMALLOC_INLINE void
+static inline void
 malloc_mutex_prof_merge(mutex_prof_data_t *sum, mutex_prof_data_t *data) {
 	nstime_add(&sum->tot_wait_time, &data->tot_wait_time);
 	if (nstime_compare(&sum->max_wait_time, &data->max_wait_time) < 0) {
@@ -52,7 +40,7 @@ malloc_mutex_prof_merge(mutex_prof_data_t *sum, mutex_prof_data_t *data) {
 	sum->n_lock_ops += data->n_lock_ops;
 }
 
-JEMALLOC_INLINE void
+static inline void
 malloc_mutex_lock(tsdn_t *tsdn, malloc_mutex_t *mutex) {
 	witness_assert_not_owner(tsdn, &mutex->witness);
 	if (isthreaded) {
@@ -72,7 +60,7 @@ malloc_mutex_lock(tsdn_t *tsdn, malloc_mutex_t *mutex) {
 	witness_lock(tsdn, &mutex->witness);
 }
 
-JEMALLOC_INLINE void
+static inline void
 malloc_mutex_unlock(tsdn_t *tsdn, malloc_mutex_t *mutex) {
 	witness_unlock(tsdn, &mutex->witness);
 	if (isthreaded) {
@@ -80,18 +68,18 @@ malloc_mutex_unlock(tsdn_t *tsdn, malloc_mutex_t *mutex) {
 	}
 }
 
-JEMALLOC_INLINE void
+static inline void
 malloc_mutex_assert_owner(tsdn_t *tsdn, malloc_mutex_t *mutex) {
 	witness_assert_owner(tsdn, &mutex->witness);
 }
 
-JEMALLOC_INLINE void
+static inline void
 malloc_mutex_assert_not_owner(tsdn_t *tsdn, malloc_mutex_t *mutex) {
 	witness_assert_not_owner(tsdn, &mutex->witness);
 }
 
 /* Copy the prof data from mutex for processing. */
-JEMALLOC_INLINE void
+static inline void
 malloc_mutex_prof_read(tsdn_t *tsdn, mutex_prof_data_t *data,
     malloc_mutex_t *mutex) {
 	mutex_prof_data_t *source = &mutex->prof_data;
@@ -107,7 +95,5 @@ malloc_mutex_prof_read(tsdn_t *tsdn, mutex_prof_data_t *data,
 	/* n_wait_thds is not reported (modified w/o locking). */
 	atomic_store_u32(&data->n_waiting_thds, 0, ATOMIC_RELAXED);
 }
-
-#endif
 
 #endif /* JEMALLOC_INTERNAL_MUTEX_INLINES_H */

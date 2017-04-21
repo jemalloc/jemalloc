@@ -3,30 +3,7 @@
 
 #include "jemalloc/internal/jemalloc_internal_types.h"
 
-#ifndef JEMALLOC_ENABLE_INLINE
-szind_t arena_bin_index(arena_t *arena, arena_bin_t *bin);
-prof_tctx_t *arena_prof_tctx_get(tsdn_t *tsdn, const void *ptr,
-    alloc_ctx_t *ctx);
-void arena_prof_tctx_set(tsdn_t *tsdn, const void *ptr, size_t usize,
-    alloc_ctx_t *ctx, prof_tctx_t *tctx);
-void arena_prof_tctx_reset(tsdn_t *tsdn, const void *ptr, prof_tctx_t *tctx);
-void arena_decay_ticks(tsdn_t *tsdn, arena_t *arena, unsigned nticks);
-void arena_decay_tick(tsdn_t *tsdn, arena_t *arena);
-void *arena_malloc(tsdn_t *tsdn, arena_t *arena, size_t size, szind_t ind,
-    bool zero, tcache_t *tcache, bool slow_path);
-arena_t *arena_aalloc(tsdn_t *tsdn, const void *ptr);
-size_t arena_salloc(tsdn_t *tsdn, const void *ptr);
-size_t arena_vsalloc(tsdn_t *tsdn, const void *ptr);
-void arena_dalloc_no_tcache(tsdn_t *tsdn, void *ptr);
-void arena_dalloc(tsdn_t *tsdn, void *ptr, tcache_t *tcache,
-    alloc_ctx_t *alloc_ctx, bool slow_path);
-void arena_sdalloc_no_tcache(tsdn_t *tsdn, void *ptr, size_t size);
-void arena_sdalloc(tsdn_t *tsdn, void *ptr, size_t size, tcache_t *tcache,
-    alloc_ctx_t *alloc_ctx, bool slow_path);
-#endif
-
-#if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_ARENA_C_))
-JEMALLOC_INLINE szind_t
+static inline szind_t
 arena_bin_index(arena_t *arena, arena_bin_t *bin) {
 	szind_t binind = (szind_t)(bin - arena->bins);
 	assert(binind < NBINS);
@@ -71,7 +48,7 @@ arena_prof_tctx_set(tsdn_t *tsdn, const void *ptr, size_t usize,
 	}
 }
 
-JEMALLOC_INLINE void
+static inline void
 arena_prof_tctx_reset(tsdn_t *tsdn, const void *ptr, prof_tctx_t *tctx) {
 	cassert(config_prof);
 	assert(ptr != NULL);
@@ -182,7 +159,7 @@ arena_vsalloc(tsdn_t *tsdn, const void *ptr) {
 	return index2size(szind);
 }
 
-JEMALLOC_INLINE void
+static inline void
 arena_dalloc_no_tcache(tsdn_t *tsdn, void *ptr) {
 	assert(ptr != NULL);
 
@@ -264,7 +241,7 @@ arena_dalloc(tsdn_t *tsdn, void *ptr, tcache_t *tcache,
 	}
 }
 
-JEMALLOC_INLINE void
+static inline void
 arena_sdalloc_no_tcache(tsdn_t *tsdn, void *ptr, size_t size) {
 	assert(ptr != NULL);
 	assert(size <= LARGE_MAXCLASS);
@@ -376,5 +353,4 @@ arena_sdalloc(tsdn_t *tsdn, void *ptr, size_t size, tcache_t *tcache,
 	}
 }
 
-#endif /* (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_ARENA_C_)) */
 #endif /* JEMALLOC_INTERNAL_ARENA_INLINES_B_H */

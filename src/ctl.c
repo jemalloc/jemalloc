@@ -21,19 +21,19 @@ static ctl_arenas_t	*ctl_arenas;
 /******************************************************************************/
 /* Helpers for named and indexed nodes. */
 
-JEMALLOC_INLINE_C const ctl_named_node_t *
+static const ctl_named_node_t *
 ctl_named_node(const ctl_node_t *node) {
 	return ((node->named) ? (const ctl_named_node_t *)node : NULL);
 }
 
-JEMALLOC_INLINE_C const ctl_named_node_t *
+static const ctl_named_node_t *
 ctl_named_children(const ctl_named_node_t *node, size_t index) {
 	const ctl_named_node_t *children = ctl_named_node(node->children);
 
 	return (children ? &children[index] : NULL);
 }
 
-JEMALLOC_INLINE_C const ctl_indexed_node_t *
+static const ctl_indexed_node_t *
 ctl_indexed_node(const ctl_node_t *node) {
 	return (!node->named ? (const ctl_indexed_node_t *)node : NULL);
 }

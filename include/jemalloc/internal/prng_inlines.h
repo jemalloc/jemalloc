@@ -4,23 +4,6 @@
 #include "jemalloc/internal/atomic.h"
 #include "jemalloc/internal/bit_util.h"
 
-#ifndef JEMALLOC_ENABLE_INLINE
-uint32_t	prng_state_next_u32(uint32_t state);
-uint64_t	prng_state_next_u64(uint64_t state);
-size_t	prng_state_next_zu(size_t state);
-
-uint32_t	prng_lg_range_u32(atomic_u32_t *state, unsigned lg_range,
-    bool atomic);
-uint64_t	prng_lg_range_u64(uint64_t *state, unsigned lg_range);
-size_t	prng_lg_range_zu(atomic_zu_t *state, unsigned lg_range, bool atomic);
-
-uint32_t	prng_range_u32(atomic_u32_t *state, uint32_t range,
-    bool atomic);
-uint64_t	prng_range_u64(uint64_t *state, uint64_t range);
-size_t	prng_range_zu(atomic_zu_t *state, size_t range, bool atomic);
-#endif
-
-#if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_PRNG_C_))
 JEMALLOC_ALWAYS_INLINE uint32_t
 prng_state_next_u32(uint32_t state) {
 	return (state * PRNG_A_32) + PRNG_C_32;
@@ -156,6 +139,5 @@ prng_range_zu(atomic_zu_t *state, size_t range, bool atomic) {
 
 	return ret;
 }
-#endif
 
 #endif /* JEMALLOC_INTERNAL_PRNG_INLINES_H */

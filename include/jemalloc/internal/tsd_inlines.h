@@ -1,29 +1,6 @@
 #ifndef JEMALLOC_INTERNAL_TSD_INLINES_H
 #define JEMALLOC_INTERNAL_TSD_INLINES_H
 
-#ifndef JEMALLOC_ENABLE_INLINE
-malloc_tsd_protos(JEMALLOC_ATTR(unused), , tsd_t)
-
-tsd_t *tsd_fetch_impl(bool init);
-tsd_t *tsd_fetch(void);
-tsdn_t *tsd_tsdn(tsd_t *tsd);
-bool tsd_nominal(tsd_t *tsd);
-#define O(n, t, gs, i, c)						\
-t *tsd_##n##p_get(tsd_t *tsd);						\
-t tsd_##n##_get(tsd_t *tsd);						\
-void tsd_##n##_set(tsd_t *tsd, t n);
-MALLOC_TSD
-#undef O
-tsdn_t *tsdn_fetch(void);
-bool tsdn_null(const tsdn_t *tsdn);
-tsd_t *tsdn_tsd(tsdn_t *tsdn);
-rtree_ctx_t *tsd_rtree_ctx(tsd_t *tsd);
-rtree_ctx_t *tsdn_rtree_ctx(tsdn_t *tsdn, rtree_ctx_t *fallback);
-bool tsd_fast(tsd_t *tsd);
-bool tsd_assert_fast(tsd_t *tsd);
-#endif
-
-#if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_TSD_C_))
 malloc_tsd_externs(, tsd_t)
 malloc_tsd_funcs(JEMALLOC_ALWAYS_INLINE, , tsd_t, tsd_initializer, tsd_cleanup)
 
@@ -97,7 +74,7 @@ tsd_tsdn(tsd_t *tsd) {
 	return (tsdn_t *)tsd;
 }
 
-JEMALLOC_INLINE bool
+static inline bool
 tsd_nominal(tsd_t *tsd) {
 	return (tsd->state <= tsd_state_nominal_max);
 }
@@ -140,6 +117,5 @@ tsdn_rtree_ctx(tsdn_t *tsdn, rtree_ctx_t *fallback) {
 	}
 	return tsd_rtree_ctx(tsdn_tsd(tsdn));
 }
-#endif
 
 #endif /* JEMALLOC_INTERNAL_TSD_INLINES_H */
