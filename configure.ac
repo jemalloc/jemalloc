@@ -1670,26 +1670,13 @@ if test "x$enable_lazy_lock" = "x1" ; then
 fi
 AC_SUBST([enable_lazy_lock])
 
-AC_ARG_ENABLE([tls],
-  [AS_HELP_STRING([--disable-tls], [Disable thread-local storage (__thread keyword)])],
-if test "x$enable_tls" = "xno" ; then
+dnl Automatically configure TLS.
+if test "x${force_tls}" = "x1" ; then
+  enable_tls="1"
+elif test "x${force_tls}" = "x0" ; then
   enable_tls="0"
 else
   enable_tls="1"
-fi
-,
-enable_tls=""
-)
-if test "x${enable_tls}" = "x" ; then
-  if test "x${force_tls}" = "x1" ; then
-    AC_MSG_RESULT([Forcing TLS to avoid allocator/threading bootstrap issues])
-    enable_tls="1"
-  elif test "x${force_tls}" = "x0" ; then
-    AC_MSG_RESULT([Forcing no TLS to avoid allocator/threading bootstrap issues])
-    enable_tls="0"
-  else
-    enable_tls="1"
-  fi
 fi
 if test "x${enable_tls}" = "x1" ; then
 AC_MSG_CHECKING([for TLS])
@@ -1709,12 +1696,7 @@ else
 fi
 AC_SUBST([enable_tls])
 if test "x${enable_tls}" = "x1" ; then
-  if test "x${force_tls}" = "x0" ; then
-    AC_MSG_WARN([TLS enabled despite being marked unusable on this platform])
-  fi
   AC_DEFINE_UNQUOTED([JEMALLOC_TLS], [ ])
-elif test "x${force_tls}" = "x1" ; then
-  AC_MSG_WARN([TLS disabled despite being marked critical on this platform])
 fi
 
 dnl ============================================================================
@@ -2170,7 +2152,6 @@ AC_MSG_RESULT([utrace             : ${enable_utrace}])
 AC_MSG_RESULT([xmalloc            : ${enable_xmalloc}])
 AC_MSG_RESULT([munmap             : ${enable_munmap}])
 AC_MSG_RESULT([lazy_lock          : ${enable_lazy_lock}])
-AC_MSG_RESULT([tls                : ${enable_tls}])
 AC_MSG_RESULT([cache-oblivious    : ${enable_cache_oblivious}])
 AC_MSG_RESULT([cxx                : ${enable_cxx}])
 AC_MSG_RESULT([===============================================================================])
