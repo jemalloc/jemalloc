@@ -285,6 +285,7 @@ cat <<EOF
  * This header file defines:
  *
  *   LG_SIZE_CLASS_GROUP: Lg of size class count for each size doubling.
+ *   LG_TINY_MIN: Lg of minimum size class to support.
  *   SIZE_CLASSES: Complete table of SC(index, lg_grp, lg_delta, ndelta, psz,
  *                 bin, pgs, lg_delta_lookup) tuples.
  *     index: Size class index.
@@ -310,6 +311,7 @@ cat <<EOF
  */
 
 #define LG_SIZE_CLASS_GROUP	${lg_g}
+#define LG_TINY_MIN		${lg_tmin}
 
 EOF
 

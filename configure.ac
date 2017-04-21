@@ -1296,13 +1296,6 @@ else
   fi
 fi
 
-AC_ARG_WITH([lg_tiny_min],
-  [AS_HELP_STRING([--with-lg-tiny-min=<lg-tiny-min>],
-   [Base 2 log of minimum tiny size class to support])],
-  [LG_TINY_MIN="$with_lg_tiny_min"],
-  [LG_TINY_MIN="3"])
-AC_DEFINE_UNQUOTED([LG_TINY_MIN], [$LG_TINY_MIN])
-
 AC_ARG_WITH([lg_quantum],
   [AS_HELP_STRING([--with-lg-quantum=<lg-quantum>],
    [Base 2 log of minimum allocation alignment])],
@@ -2016,13 +2009,12 @@ AC_CONFIG_COMMANDS([include/jemalloc/internal/public_unnamespace.h], [
 ])
 AC_CONFIG_COMMANDS([include/jemalloc/internal/size_classes.h], [
   mkdir -p "${objroot}include/jemalloc/internal"
-  "${SHELL}" "${srcdir}/include/jemalloc/internal/size_classes.sh" "${LG_QUANTA}" ${LG_TINY_MIN} "${LG_PAGE_SIZES}" 2 > "${objroot}include/jemalloc/internal/size_classes.h"
+  "${SHELL}" "${srcdir}/include/jemalloc/internal/size_classes.sh" "${LG_QUANTA}" 3 "${LG_PAGE_SIZES}" 2 > "${objroot}include/jemalloc/internal/size_classes.h"
 ], [
   SHELL="${SHELL}"
   srcdir="${srcdir}"
   objroot="${objroot}"
   LG_QUANTA="${LG_QUANTA}"
-  LG_TINY_MIN=${LG_TINY_MIN}
   LG_PAGE_SIZES="${LG_PAGE_SIZES}"
 ])
 AC_CONFIG_COMMANDS([include/jemalloc/jemalloc_protos_jet.h], [
