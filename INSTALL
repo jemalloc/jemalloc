@@ -220,35 +220,6 @@ any of the following arguments (not a definitive list) to 'configure':
     when cross compiling, or when overriding the default for systems that do
     not explicitly support huge pages.
 
---with-lg-size-class-group=<lg-size-class-group>
-    Specify the base 2 log of how many size classes to use for each doubling in
-    size.  By default jemalloc uses <lg-size-class-group>=2, which results in
-    e.g. the following size classes:
-
-      [...], 64,
-      80, 96, 112, 128,
-      160, [...]
-
-    <lg-size-class-group>=3 results in e.g. the following size classes:
-
-      [...], 64,
-      72, 80, 88, 96, 104, 112, 120, 128,
-      144, [...]
-
-    The minimal <lg-size-class-group>=0 causes jemalloc to only provide size
-    classes that are powers of 2:
-
-      [...],
-      64,
-      128,
-      256,
-      [...]
-
-    An implementation detail currently limits the total number of small size
-    classes to 255, and a compilation error will result if the
-    <lg-size-class-group> you specify cannot be supported.  The limit is
-    roughly <lg-size-class-group>=4, depending on page size.
-
 --with-lg-quantum=<lg-quantum>
     Specify the base 2 log of the minimum allocation alignment.  jemalloc needs
     to know the minimum alignment that meets the following C standard
@@ -272,8 +243,7 @@ any of the following arguments (not a definitive list) to 'configure':
     this allocator noncompliance means that it is generally safe in practice to
     let jemalloc's minimum alignment follow glibc's lead.  If you specify
     --with-lg-quantum=3 during configuration, jemalloc will provide additional
-    size classes that are not 16-byte-aligned (24, 40, and 56, assuming
-    --with-lg-size-class-group=2).
+    size classes that are not 16-byte-aligned (24, 40, and 56).
 
 --with-lg-tiny-min=<lg-tiny-min>
     Specify the base 2 log of the minimum tiny size class to support.  Tiny
