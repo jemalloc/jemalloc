@@ -312,4 +312,7 @@
 /* config.malloc_conf options string. */
 #undef JEMALLOC_CONFIG_MALLOC_CONF
 
+/* If defined, jemalloc takes the malloc/free/etc. symbol names. */
+#undef JEMALLOC_IS_MALLOC
+
 #endif /* JEMALLOC_INTERNAL_DEFS_H_ */

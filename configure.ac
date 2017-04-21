@@ -241,6 +241,7 @@ if test "x$GCC" = "xyes" ; then
   JE_CFLAGS_ADD([-Wall])
   JE_CFLAGS_ADD([-Wshorten-64-to-32])
   JE_CFLAGS_ADD([-Wsign-compare])
+  JE_CFLAGS_ADD([-Wundef])
   JE_CFLAGS_ADD([-pipe])
   JE_CFLAGS_ADD([-g3])
 elif test "x$je_cv_msvc" = "xyes" ; then
@@ -824,7 +825,9 @@ else
   JEMALLOC_PREFIX="je_"
 fi]
 )
-if test "x$JEMALLOC_PREFIX" != "x" ; then
+if test "x$JEMALLOC_PREFIX" = "x" ; then
+  AC_DEFINE([JEMALLOC_IS_MALLOC])
+else
   JEMALLOC_CPREFIX=`echo ${JEMALLOC_PREFIX} | tr "a-z" "A-Z"`
   AC_DEFINE_UNQUOTED([JEMALLOC_PREFIX], ["$JEMALLOC_PREFIX"])
   AC_DEFINE_UNQUOTED([JEMALLOC_CPREFIX], ["$JEMALLOC_CPREFIX"])

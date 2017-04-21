@@ -2285,15 +2285,7 @@ je_valloc(size_t size) {
 }
 #endif
 
-/*
- * is_malloc(je_malloc) is some macro magic to detect if jemalloc_defs.h has
- * #define je_malloc malloc
- */
-#define malloc_is_malloc 1
-#define is_malloc_(a) malloc_is_ ## a
-#define is_malloc(a) is_malloc_(a)
-
-#if ((is_malloc(je_malloc) == 1) && defined(JEMALLOC_GLIBC_MALLOC_HOOK))
+#if defined(JEMALLOC_IS_MALLOC) && defined(JEMALLOC_GLIBC_MALLOC_HOOK)
 /*
  * glibc provides the RTLD_DEEPBIND flag for dlopen which can make it possible
  * to inconsistently reference libc's malloc(3)-compatible functions

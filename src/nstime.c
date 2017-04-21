@@ -96,7 +96,7 @@ nstime_get(nstime_t *time) {
 
 	nstime_init(time, ticks_100ns * 100);
 }
-#elif JEMALLOC_HAVE_CLOCK_MONOTONIC_COARSE
+#elif defined(JEMALLOC_HAVE_CLOCK_MONOTONIC_COARSE)
 #  define NSTIME_MONOTONIC true
 static void
 nstime_get(nstime_t *time) {
@@ -105,7 +105,7 @@ nstime_get(nstime_t *time) {
 	clock_gettime(CLOCK_MONOTONIC_COARSE, &ts);
 	nstime_init2(time, ts.tv_sec, ts.tv_nsec);
 }
-#elif JEMALLOC_HAVE_CLOCK_MONOTONIC
+#elif defined(JEMALLOC_HAVE_CLOCK_MONOTONIC)
 #  define NSTIME_MONOTONIC true
 static void
 nstime_get(nstime_t *time) {
@@ -114,7 +114,7 @@ nstime_get(nstime_t *time) {
 	clock_gettime(CLOCK_MONOTONIC, &ts);
 	nstime_init2(time, ts.tv_sec, ts.tv_nsec);
 }
-#elif JEMALLOC_HAVE_MACH_ABSOLUTE_TIME
+#elif defined(JEMALLOC_HAVE_MACH_ABSOLUTE_TIME)
 #  define NSTIME_MONOTONIC true
 static void
 nstime_get(nstime_t *time) {
