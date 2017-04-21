@@ -40,7 +40,6 @@ void	operator delete[](void *ptr, std::size_t size) noexcept;
 #endif
 
 template <bool IsNoExcept>
-JEMALLOC_INLINE
 void *
 newImpl(std::size_t size) noexcept(IsNoExcept) {
 	void *ptr = je_malloc(size);

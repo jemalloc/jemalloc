@@ -359,7 +359,7 @@ arena_extents_dirty_dalloc(tsdn_t *tsdn, arena_t *arena,
 	}
 }
 
-JEMALLOC_INLINE_C void *
+static void *
 arena_slab_reg_alloc(tsdn_t *tsdn, extent_t *slab,
     const arena_bin_info_t *bin_info) {
 	void *ret;
@@ -377,7 +377,7 @@ arena_slab_reg_alloc(tsdn_t *tsdn, extent_t *slab,
 }
 
 #ifndef JEMALLOC_JET
-JEMALLOC_INLINE_C
+static
 #endif
 size_t
 arena_slab_regind(extent_t *slab, szind_t binind, const void *ptr) {
@@ -414,7 +414,7 @@ arena_slab_regind(extent_t *slab, szind_t binind, const void *ptr) {
 	return regind;
 }
 
-JEMALLOC_INLINE_C void
+static void
 arena_slab_reg_dalloc(tsdn_t *tsdn, extent_t *slab,
     arena_slab_data_t *slab_data, void *ptr) {
 	szind_t binind = extent_szind_get(slab);

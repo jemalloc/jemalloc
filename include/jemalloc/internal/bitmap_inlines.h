@@ -3,18 +3,7 @@
 
 #include "jemalloc/internal/bit_util.h"
 
-#ifndef JEMALLOC_ENABLE_INLINE
-bool bitmap_full(bitmap_t *bitmap, const bitmap_info_t *binfo);
-bool bitmap_get(bitmap_t *bitmap, const bitmap_info_t *binfo, size_t bit);
-void bitmap_set(bitmap_t *bitmap, const bitmap_info_t *binfo, size_t bit);
-size_t bitmap_ffu(const bitmap_t *bitmap, const bitmap_info_t *binfo,
-    size_t min_bit);
-size_t bitmap_sfu(bitmap_t *bitmap, const bitmap_info_t *binfo);
-void bitmap_unset(bitmap_t *bitmap, const bitmap_info_t *binfo, size_t bit);
-#endif
-
-#if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_BITMAP_C_))
-JEMALLOC_INLINE bool
+static inline bool
 bitmap_full(bitmap_t *bitmap, const bitmap_info_t *binfo) {
 #ifdef BITMAP_USE_TREE
 	size_t rgoff = binfo->levels[binfo->nlevels].group_offset - 1;
@@ -33,7 +22,7 @@ bitmap_full(bitmap_t *bitmap, const bitmap_info_t *binfo) {
 #endif
 }
 
-JEMALLOC_INLINE bool
+static inline bool
 bitmap_get(bitmap_t *bitmap, const bitmap_info_t *binfo, size_t bit) {
 	size_t goff;
 	bitmap_t g;
@@ -44,7 +33,7 @@ bitmap_get(bitmap_t *bitmap, const bitmap_info_t *binfo, size_t bit) {
 	return !(g & (ZU(1) << (bit & BITMAP_GROUP_NBITS_MASK)));
 }
 
-JEMALLOC_INLINE void
+static inline void
 bitmap_set(bitmap_t *bitmap, const bitmap_info_t *binfo, size_t bit) {
 	size_t goff;
 	bitmap_t *gp;
@@ -80,7 +69,7 @@ bitmap_set(bitmap_t *bitmap, const bitmap_info_t *binfo, size_t bit) {
 }
 
 /* ffu: find first unset >= bit. */
-JEMALLOC_INLINE size_t
+static inline size_t
 bitmap_ffu(const bitmap_t *bitmap, const bitmap_info_t *binfo, size_t min_bit) {
 	assert(min_bit < binfo->nbits);
 
@@ -139,7 +128,7 @@ bitmap_ffu(const bitmap_t *bitmap, const bitmap_info_t *binfo, size_t min_bit) {
 }
 
 /* sfu: set first unset. */
-JEMALLOC_INLINE size_t
+static inline size_t
 bitmap_sfu(bitmap_t *bitmap, const bitmap_info_t *binfo) {
 	size_t bit;
 	bitmap_t g;
@@ -169,7 +158,7 @@ bitmap_sfu(bitmap_t *bitmap, const bitmap_info_t *binfo) {
 	return bit;
 }
 
-JEMALLOC_INLINE void
+static inline void
 bitmap_unset(bitmap_t *bitmap, const bitmap_info_t *binfo, size_t bit) {
 	size_t goff;
 	bitmap_t *gp;
@@ -207,7 +196,5 @@ bitmap_unset(bitmap_t *bitmap, const bitmap_info_t *binfo, size_t bit) {
 	}
 #endif /* BITMAP_USE_TREE */
 }
-
-#endif
 
 #endif /* JEMALLOC_INTERNAL_BITMAP_INLINES_H */

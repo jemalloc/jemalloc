@@ -288,7 +288,7 @@ malloc_initialized(void) {
 	return (malloc_init_state == malloc_init_initialized);
 }
 
-JEMALLOC_ALWAYS_INLINE_C bool
+JEMALLOC_ALWAYS_INLINE bool
 malloc_init_a0(void) {
 	if (unlikely(malloc_init_state == malloc_init_uninitialized)) {
 		return malloc_init_hard_a0();
@@ -296,7 +296,7 @@ malloc_init_a0(void) {
 	return false;
 }
 
-JEMALLOC_ALWAYS_INLINE_C bool
+JEMALLOC_ALWAYS_INLINE bool
 malloc_init(void) {
 	if (unlikely(!malloc_initialized()) && malloc_init_hard()) {
 		return true;
@@ -1490,7 +1490,7 @@ struct static_opts_s {
 	bool slow;
 };
 
-JEMALLOC_ALWAYS_INLINE_C void
+JEMALLOC_ALWAYS_INLINE void
 static_opts_init(static_opts_t *static_opts) {
 	static_opts->may_overflow = false;
 	static_opts->bump_empty_alloc = false;
@@ -1523,7 +1523,7 @@ struct dynamic_opts_s {
 	unsigned arena_ind;
 };
 
-JEMALLOC_ALWAYS_INLINE_C void
+JEMALLOC_ALWAYS_INLINE void
 dynamic_opts_init(dynamic_opts_t *dynamic_opts) {
 	dynamic_opts->result = NULL;
 	dynamic_opts->num_items = 0;
@@ -1535,7 +1535,7 @@ dynamic_opts_init(dynamic_opts_t *dynamic_opts) {
 }
 
 /* ind is ignored if dopts->alignment > 0. */
-JEMALLOC_ALWAYS_INLINE_C void *
+JEMALLOC_ALWAYS_INLINE void *
 imalloc_no_sample(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd,
     size_t size, size_t usize, szind_t ind) {
 	tcache_t *tcache;
@@ -1577,7 +1577,7 @@ imalloc_no_sample(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd,
 	    arena, sopts->slow);
 }
 
-JEMALLOC_ALWAYS_INLINE_C void *
+JEMALLOC_ALWAYS_INLINE void *
 imalloc_sample(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd,
     size_t usize, szind_t ind) {
 	void *ret;
@@ -1611,7 +1611,7 @@ imalloc_sample(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd,
  * Returns true if the allocation will overflow, and false otherwise.  Sets
  * *size to the product either way.
  */
-JEMALLOC_ALWAYS_INLINE_C bool
+JEMALLOC_ALWAYS_INLINE bool
 compute_size_with_overflow(bool may_overflow, dynamic_opts_t *dopts,
     size_t *size) {
 	/*
@@ -1649,7 +1649,7 @@ compute_size_with_overflow(bool may_overflow, dynamic_opts_t *dopts,
 	return true;
 }
 
-JEMALLOC_ALWAYS_INLINE_C int
+JEMALLOC_ALWAYS_INLINE int
 imalloc_body(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd) {
 	/* Where the actual allocated memory will live. */
 	void *allocation = NULL;
@@ -1850,7 +1850,7 @@ label_invalid_alignment:
 }
 
 /* Returns the errno-style error code of the allocation. */
-JEMALLOC_ALWAYS_INLINE_C int
+JEMALLOC_ALWAYS_INLINE int
 imalloc(static_opts_t *sopts, dynamic_opts_t *dopts) {
 	if (unlikely(!malloc_initialized()) && unlikely(malloc_init())) {
 		if (config_xmalloc && unlikely(opt_xmalloc)) {
@@ -2011,7 +2011,7 @@ irealloc_prof_sample(tsd_t *tsd, void *old_ptr, size_t old_usize, size_t usize,
 	return p;
 }
 
-JEMALLOC_ALWAYS_INLINE_C void *
+JEMALLOC_ALWAYS_INLINE void *
 irealloc_prof(tsd_t *tsd, void *old_ptr, size_t old_usize, size_t usize,
    alloc_ctx_t *alloc_ctx) {
 	void *p;
@@ -2036,7 +2036,7 @@ irealloc_prof(tsd_t *tsd, void *old_ptr, size_t old_usize, size_t usize,
 	return p;
 }
 
-JEMALLOC_ALWAYS_INLINE_C void
+JEMALLOC_ALWAYS_INLINE void
 ifree(tsd_t *tsd, void *ptr, tcache_t *tcache, bool slow_path) {
 	assert(slow_path || tsd_assert_fast(tsd));
 	if (tsd_reentrancy_level_get(tsd) == 0) {
@@ -2074,7 +2074,7 @@ ifree(tsd_t *tsd, void *ptr, tcache_t *tcache, bool slow_path) {
 	}
 }
 
-JEMALLOC_ALWAYS_INLINE_C void
+JEMALLOC_ALWAYS_INLINE void
 isfree(tsd_t *tsd, void *ptr, size_t usize, tcache_t *tcache, bool slow_path) {
 	assert(slow_path || tsd_assert_fast(tsd));
 	if (tsd_reentrancy_level_get(tsd) == 0) {
@@ -2403,7 +2403,7 @@ irallocx_prof_sample(tsdn_t *tsdn, void *old_ptr, size_t old_usize,
 	return p;
 }
 
-JEMALLOC_ALWAYS_INLINE_C void *
+JEMALLOC_ALWAYS_INLINE void *
 irallocx_prof(tsd_t *tsd, void *old_ptr, size_t old_usize, size_t size,
     size_t alignment, size_t *usize, bool zero, tcache_t *tcache,
     arena_t *arena, alloc_ctx_t *alloc_ctx) {
@@ -2528,7 +2528,7 @@ label_oom:
 	return NULL;
 }
 
-JEMALLOC_ALWAYS_INLINE_C size_t
+JEMALLOC_ALWAYS_INLINE size_t
 ixallocx_helper(tsdn_t *tsdn, void *ptr, size_t old_usize, size_t size,
     size_t extra, size_t alignment, bool zero) {
 	size_t usize;
@@ -2555,7 +2555,7 @@ ixallocx_prof_sample(tsdn_t *tsdn, void *ptr, size_t old_usize, size_t size,
 	return usize;
 }
 
-JEMALLOC_ALWAYS_INLINE_C size_t
+JEMALLOC_ALWAYS_INLINE size_t
 ixallocx_prof(tsd_t *tsd, void *ptr, size_t old_usize, size_t size,
     size_t extra, size_t alignment, bool zero, alloc_ctx_t *alloc_ctx) {
 	size_t usize_max, usize;
@@ -2727,7 +2727,7 @@ je_dallocx(void *ptr, int flags) {
 	witness_assert_lockless(tsd_tsdn(tsd));
 }
 
-JEMALLOC_ALWAYS_INLINE_C size_t
+JEMALLOC_ALWAYS_INLINE size_t
 inallocx(tsdn_t *tsdn, size_t size, int flags) {
 	witness_assert_lockless(tsdn);
 

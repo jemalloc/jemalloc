@@ -1,14 +1,7 @@
 #ifndef JEMALLOC_INTERNAL_PROF_INLINES_A_H
 #define JEMALLOC_INTERNAL_PROF_INLINES_A_H
 
-#ifndef JEMALLOC_ENABLE_INLINE
-bool prof_accum_add(tsdn_t *tsdn, prof_accum_t *prof_accum,
-    uint64_t accumbytes);
-void prof_accum_cancel(tsdn_t *tsdn, prof_accum_t *prof_accum, size_t usize);
-#endif
-
-#if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_PROF_C_))
-JEMALLOC_INLINE bool
+static inline bool
 prof_accum_add(tsdn_t *tsdn, prof_accum_t *prof_accum, uint64_t accumbytes) {
 	cassert(config_prof);
 
@@ -46,7 +39,7 @@ prof_accum_add(tsdn_t *tsdn, prof_accum_t *prof_accum, uint64_t accumbytes) {
 	return overflow;
 }
 
-JEMALLOC_INLINE void
+static inline void
 prof_accum_cancel(tsdn_t *tsdn, prof_accum_t *prof_accum, size_t usize) {
 	cassert(config_prof);
 
@@ -73,6 +66,5 @@ prof_accum_cancel(tsdn_t *tsdn, prof_accum_t *prof_accum, size_t usize) {
 	malloc_mutex_unlock(tsdn, &prof_accum->mtx);
 #endif
 }
-#endif
 
 #endif /* JEMALLOC_INTERNAL_PROF_INLINES_A_H */

@@ -1,29 +1,6 @@
 #ifndef JEMALLOC_INTERNAL_PROF_INLINES_B_H
 #define JEMALLOC_INTERNAL_PROF_INLINES_B_H
 
-#ifndef JEMALLOC_ENABLE_INLINE
-bool	prof_active_get_unlocked(void);
-bool	prof_gdump_get_unlocked(void);
-prof_tdata_t	*prof_tdata_get(tsd_t *tsd, bool create);
-prof_tctx_t	*prof_tctx_get(tsdn_t *tsdn, const void *ptr,
-    alloc_ctx_t *alloc_ctx);
-void	prof_tctx_set(tsdn_t *tsdn, const void *ptr, size_t usize,
-    alloc_ctx_t *alloc_ctx, prof_tctx_t *tctx);
-void	prof_tctx_reset(tsdn_t *tsdn, const void *ptr, prof_tctx_t *tctx);
-bool	prof_sample_accum_update(tsd_t *tsd, size_t usize, bool update,
-    prof_tdata_t **tdata_out);
-prof_tctx_t	*prof_alloc_prep(tsd_t *tsd, size_t usize, bool prof_active,
-    bool update);
-void	prof_malloc(tsdn_t *tsdn, const void *ptr, size_t usize,
-    alloc_ctx_t *alloc_ctx, prof_tctx_t *tctx);
-void	prof_realloc(tsd_t *tsd, const void *ptr, size_t usize,
-    prof_tctx_t *tctx, bool prof_active, bool updated, const void *old_ptr,
-    size_t old_usize, prof_tctx_t *old_tctx);
-void	prof_free(tsd_t *tsd, const void *ptr, size_t usize,
-    alloc_ctx_t *alloc_ctx);
-#endif
-
-#if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_PROF_C_))
 JEMALLOC_ALWAYS_INLINE bool
 prof_active_get_unlocked(void) {
 	/*
@@ -231,6 +208,5 @@ prof_free(tsd_t *tsd, const void *ptr, size_t usize, alloc_ctx_t *alloc_ctx) {
 		prof_free_sampled_object(tsd, usize, tctx);
 	}
 }
-#endif
 
 #endif /* JEMALLOC_INTERNAL_PROF_INLINES_B_H */

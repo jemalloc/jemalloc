@@ -4,30 +4,12 @@
 #include "jemalloc/internal/jemalloc_internal_types.h"
 #include "jemalloc/internal/util.h"
 
-#ifndef JEMALLOC_ENABLE_INLINE
-void	tcache_event(tsd_t *tsd, tcache_t *tcache);
-bool	tcache_enabled_get(tsd_t *tsd);
-tcache_t *tcache_get(tsd_t *tsd);
-void	tcache_enabled_set(tsd_t *tsd, bool enabled);
-void	*tcache_alloc_easy(tcache_bin_t *tbin, bool *tcache_success);
-void	*tcache_alloc_small(tsd_t *tsd, arena_t *arena, tcache_t *tcache,
-    size_t size, szind_t ind, bool zero, bool slow_path);
-void	*tcache_alloc_large(tsd_t *tsd, arena_t *arena, tcache_t *tcache,
-    size_t size, szind_t ind, bool zero, bool slow_path);
-void	tcache_dalloc_small(tsd_t *tsd, tcache_t *tcache, void *ptr,
-    szind_t binind, bool slow_path);
-void	tcache_dalloc_large(tsd_t *tsd, tcache_t *tcache, void *ptr,
-    szind_t binind, bool slow_path);
-tcache_t	*tcaches_get(tsd_t *tsd, unsigned ind);
-#endif
-
-#if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_TCACHE_C_))
-JEMALLOC_INLINE bool
+static inline bool
 tcache_enabled_get(tsd_t *tsd) {
 	return tsd_tcache_enabled_get(tsd);
 }
 
-JEMALLOC_INLINE void
+static inline void
 tcache_enabled_set(tsd_t *tsd, bool enabled) {
 	bool was_enabled = tsd_tcache_enabled_get(tsd);
 
@@ -261,6 +243,5 @@ tcaches_get(tsd_t *tsd, unsigned ind) {
 	}
 	return elm->tcache;
 }
-#endif
 
 #endif /* JEMALLOC_INTERNAL_TCACHE_INLINES_H */

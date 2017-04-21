@@ -3,21 +3,8 @@
 
 #include "jemalloc/internal/ql.h"
 
-#ifndef JEMALLOC_ENABLE_INLINE
-bool	witness_owner(tsd_t *tsd, const witness_t *witness);
-void	witness_assert_owner(tsdn_t *tsdn, const witness_t *witness);
-void	witness_assert_not_owner(tsdn_t *tsdn, const witness_t *witness);
-void witness_assert_depth_to_rank(tsdn_t *tsdn, witness_rank_t rank_inclusive,
-    unsigned depth);
-void witness_assert_depth(tsdn_t *tsdn, unsigned depth);
-void	witness_assert_lockless(tsdn_t *tsdn);
-void	witness_lock(tsdn_t *tsdn, witness_t *witness);
-void	witness_unlock(tsdn_t *tsdn, witness_t *witness);
-#endif
-
-#if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_MUTEX_C_))
 /* Helper, not intended for direct use. */
-JEMALLOC_INLINE bool
+static inline bool
 witness_owner(tsd_t *tsd, const witness_t *witness) {
 	witness_list_t *witnesses;
 	witness_t *w;
@@ -34,7 +21,7 @@ witness_owner(tsd_t *tsd, const witness_t *witness) {
 	return false;
 }
 
-JEMALLOC_INLINE void
+static inline void
 witness_assert_owner(tsdn_t *tsdn, const witness_t *witness) {
 	tsd_t *tsd;
 
@@ -56,7 +43,7 @@ witness_assert_owner(tsdn_t *tsdn, const witness_t *witness) {
 	witness_owner_error(witness);
 }
 
-JEMALLOC_INLINE void
+static inline void
 witness_assert_not_owner(tsdn_t *tsdn, const witness_t *witness) {
 	tsd_t *tsd;
 	witness_list_t *witnesses;
@@ -82,7 +69,7 @@ witness_assert_not_owner(tsdn_t *tsdn, const witness_t *witness) {
 	}
 }
 
-JEMALLOC_INLINE void
+static inline void
 witness_assert_depth_to_rank(tsdn_t *tsdn, witness_rank_t rank_inclusive,
     unsigned depth) {
 	tsd_t *tsd;
@@ -115,17 +102,17 @@ witness_assert_depth_to_rank(tsdn_t *tsdn, witness_rank_t rank_inclusive,
 	}
 }
 
-JEMALLOC_INLINE void
+static inline void
 witness_assert_depth(tsdn_t *tsdn, unsigned depth) {
 	witness_assert_depth_to_rank(tsdn, WITNESS_RANK_MIN, depth);
 }
 
-JEMALLOC_INLINE void
+static inline void
 witness_assert_lockless(tsdn_t *tsdn) {
 	witness_assert_depth(tsdn, 0);
 }
 
-JEMALLOC_INLINE void
+static inline void
 witness_lock(tsdn_t *tsdn, witness_t *witness) {
 	tsd_t *tsd;
 	witness_list_t *witnesses;
@@ -168,7 +155,7 @@ witness_lock(tsdn_t *tsdn, witness_t *witness) {
 	ql_tail_insert(witnesses, witness, link);
 }
 
-JEMALLOC_INLINE void
+static inline void
 witness_unlock(tsdn_t *tsdn, witness_t *witness) {
 	tsd_t *tsd;
 	witness_list_t *witnesses;
@@ -197,6 +184,5 @@ witness_unlock(tsdn_t *tsdn, witness_t *witness) {
 		witness_assert_owner(tsdn, witness);
 	}
 }
-#endif
 
 #endif /* JEMALLOC_INTERNAL_WITNESS_INLINES_H */
