@@ -47,7 +47,7 @@ const arena_bin_info_t	arena_bin_info[NBINS] = {
 
 static void arena_decay_to_limit(tsdn_t *tsdn, arena_t *arena,
     arena_decay_t *decay, extents_t *extents, bool all, size_t npages_limit);
-static void arena_decay_dirty(tsdn_t *tsdn, arena_t *arena, bool all);
+static bool arena_decay_dirty(tsdn_t *tsdn, arena_t *arena, bool all);
 static void arena_dalloc_bin_slab(tsdn_t *tsdn, arena_t *arena, extent_t *slab,
     arena_bin_t *bin);
 static void arena_bin_lower_slab(tsdn_t *tsdn, arena_t *arena, extent_t *slab,
@@ -965,33 +965,41 @@ arena_decay_to_limit(tsdn_t *tsdn, arena_t *arena, arena_decay_t *decay,
 	decay->purging = false;
 }
 
-static void
+static bool
 arena_decay_impl(tsdn_t *tsdn, arena_t *arena, arena_decay_t *decay,
     extents_t *extents, bool all) {
-	malloc_mutex_lock(tsdn, &decay->mtx);
 	if (all) {
+		malloc_mutex_lock(tsdn, &decay->mtx);
 		arena_decay_to_limit(tsdn, arena, decay, extents, all, 0);
 	} else {
+		if (malloc_mutex_trylock(tsdn, &decay->mtx)) {
+			/* No need to wait if another thread is in progress. */
+			return true;
+		}
 		arena_maybe_decay(tsdn, arena, decay, extents);
 	}
 	malloc_mutex_unlock(tsdn, &decay->mtx);
+
+	return false;
 }
 
-static void
+static bool
 arena_decay_dirty(tsdn_t *tsdn, arena_t *arena, bool all) {
-	arena_decay_impl(tsdn, arena, &arena->decay_dirty,
+	return arena_decay_impl(tsdn, arena, &arena->decay_dirty,
 	    &arena->extents_dirty, all);
 }
 
-static void
+static bool
 arena_decay_muzzy(tsdn_t *tsdn, arena_t *arena, bool all) {
-	arena_decay_impl(tsdn, arena, &arena->decay_muzzy,
+	return arena_decay_impl(tsdn, arena, &arena->decay_muzzy,
 	    &arena->extents_muzzy, all);
 }
 
 void
 arena_decay(tsdn_t *tsdn, arena_t *arena, bool all) {
-	arena_decay_dirty(tsdn, arena, all);
+	if (arena_decay_dirty(tsdn, arena, all)) {
+		return;
+	}
 	arena_decay_muzzy(tsdn, arena, all);
 }
 
