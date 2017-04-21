@@ -132,13 +132,6 @@ static const bool config_xmalloc =
     false
 #endif
     ;
-static const bool config_ivsalloc =
-#ifdef JEMALLOC_IVSALLOC
-    true
-#else
-    false
-#endif
-    ;
 static const bool config_cache_oblivious =
 #ifdef JEMALLOC_CACHE_OBLIVIOUS
     true
@@ -159,6 +152,17 @@ static const bool have_thp =
 #endif
 static const bool have_percpu_arena =
 #ifdef JEMALLOC_PERCPU_ARENA
+    true
+#else
+    false
+#endif
+    ;
+/*
+ * Undocumented, and not recommended; the application should take full
+ * responsibility for tracking provenance.
+ */
+static const bool force_ivsalloc =
+#ifdef JEMALLOC_FORCE_IVSALLOC
     true
 #else
     false

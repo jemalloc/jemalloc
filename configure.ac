@@ -958,7 +958,7 @@ fi
 dnl Do not compile with debugging by default.
 AC_ARG_ENABLE([debug],
   [AS_HELP_STRING([--enable-debug],
-                  [Build debugging code (implies --enable-ivsalloc)])],
+                  [Build debugging code])],
 [if test "x$enable_debug" = "xno" ; then
   enable_debug="0"
 else
@@ -972,25 +972,8 @@ if test "x$enable_debug" = "x1" ; then
 fi
 if test "x$enable_debug" = "x1" ; then
   AC_DEFINE([JEMALLOC_DEBUG], [ ])
-  enable_ivsalloc="1"
 fi
 AC_SUBST([enable_debug])
-
-dnl Do not validate pointers by default.
-AC_ARG_ENABLE([ivsalloc],
-  [AS_HELP_STRING([--enable-ivsalloc],
-                  [Validate pointers passed through the public API])],
-[if test "x$enable_ivsalloc" = "xno" ; then
-  enable_ivsalloc="0"
-else
-  enable_ivsalloc="1"
-fi
-],
-[enable_ivsalloc="0"]
-)
-if test "x$enable_ivsalloc" = "x1" ; then
-  AC_DEFINE([JEMALLOC_IVSALLOC], [ ])
-fi
 
 dnl Only optimize if not debugging.
 if test "x$enable_debug" = "x0" ; then
