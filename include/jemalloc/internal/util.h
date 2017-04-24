@@ -26,11 +26,7 @@
  * wherever the compiler fails to recognize that the variable is never used
  * uninitialized.
  */
-#ifdef JEMALLOC_CC_SILENCE
-#  define JEMALLOC_CC_SILENCE_INIT(v) = v
-#else
-#  define JEMALLOC_CC_SILENCE_INIT(v)
-#endif
+#define JEMALLOC_CC_SILENCE_INIT(v) = v
 
 #ifdef __GNUC__
 #  define likely(x)   __builtin_expect(!!(x), 1)
