@@ -258,12 +258,10 @@ if test "x$je_cv_cray" = "xyes" ; then
     JE_CFLAGS_ADD([-hipa2])
     JE_CFLAGS_ADD([-hnognu])
   fi
-  if test "x$enable_cc_silence" != "xno" ; then
-    dnl ignore unreachable code warning
-    JE_CFLAGS_ADD([-hnomessage=128])
-    dnl ignore redefinition of "malloc", "free", etc warning
-    JE_CFLAGS_ADD([-hnomessage=1357])
-  fi
+  dnl ignore unreachable code warning
+  JE_CFLAGS_ADD([-hnomessage=128])
+  dnl ignore redefinition of "malloc", "free", etc warning
+  JE_CFLAGS_ADD([-hnomessage=1357])
 fi
 AC_SUBST([CONFIGURE_CFLAGS])
 AC_SUBST([SPECIFIED_CFLAGS])
@@ -941,22 +939,6 @@ cfghdrs_out="${cfghdrs_out} test/include/test/jemalloc_test_defs.h"
 cfghdrs_tup="include/jemalloc/jemalloc_defs.h:include/jemalloc/jemalloc_defs.h.in"
 cfghdrs_tup="${cfghdrs_tup} include/jemalloc/internal/jemalloc_internal_defs.h:include/jemalloc/internal/jemalloc_internal_defs.h.in"
 cfghdrs_tup="${cfghdrs_tup} test/include/test/jemalloc_test_defs.h:test/include/test/jemalloc_test_defs.h.in"
-
-dnl Silence irrelevant compiler warnings by default.
-AC_ARG_ENABLE([cc-silence],
-  [AS_HELP_STRING([--disable-cc-silence],
-                  [Do not silence irrelevant compiler warnings])],
-[if test "x$enable_cc_silence" = "xno" ; then
-  enable_cc_silence="0"
-else
-  enable_cc_silence="1"
-fi
-],
-[enable_cc_silence="1"]
-)
-if test "x$enable_cc_silence" = "x1" ; then
-  AC_DEFINE([JEMALLOC_CC_SILENCE], [ ])
-fi
 
 dnl Do not compile with debugging by default.
 AC_ARG_ENABLE([debug],
@@ -2110,7 +2092,6 @@ AC_MSG_RESULT([                   : ${JEMALLOC_PRIVATE_NAMESPACE}])
 AC_MSG_RESULT([install_suffix     : ${install_suffix}])
 AC_MSG_RESULT([malloc_conf        : ${config_malloc_conf}])
 AC_MSG_RESULT([autogen            : ${enable_autogen}])
-AC_MSG_RESULT([cc-silence         : ${enable_cc_silence}])
 AC_MSG_RESULT([debug              : ${enable_debug}])
 AC_MSG_RESULT([code-coverage      : ${enable_code_coverage}])
 AC_MSG_RESULT([stats              : ${enable_stats}])

@@ -10,11 +10,7 @@
 #  define inline _inline
 #endif
 
-#ifdef JEMALLOC_CC_SILENCE
-#  define UNUSED JEMALLOC_ATTR(unused)
-#else
-#  define UNUSED
-#endif
+#define UNUSED JEMALLOC_ATTR(unused)
 
 #define ZU(z)	((size_t)z)
 #define ZD(z)	((ssize_t)z)
