@@ -127,9 +127,6 @@
 /* Non-empty if the tls_model attribute is supported. */
 #undef JEMALLOC_TLS_MODEL
 
-/* JEMALLOC_CODE_COVERAGE enables test code coverage analysis. */
-#undef JEMALLOC_CODE_COVERAGE
-
 /*
  * JEMALLOC_DEBUG enables assertions and other sanity checks, and disables
  * inline functions.
