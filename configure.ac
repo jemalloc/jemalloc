@@ -558,7 +558,7 @@ case "${host}" in
 	AC_DEFINE([JEMALLOC_THREADED_INIT], [ ])
 	AC_DEFINE([JEMALLOC_C11_ATOMICS])
 	force_tls="0"
-	if "${LG_SIZEOF_PTR}" = "3"; then
+	if test "${LG_SIZEOF_PTR}" = "3"; then
 	  default_munmap="0"
 	fi
 	;;
@@ -571,7 +571,7 @@ case "${host}" in
 	AC_DEFINE([JEMALLOC_PROC_SYS_VM_OVERCOMMIT_MEMORY], [ ])
 	AC_DEFINE([JEMALLOC_THREADED_INIT], [ ])
 	AC_DEFINE([JEMALLOC_USE_CXX_THROW], [ ])
-	if "${LG_SIZEOF_PTR}" = "3"; then
+	if test "${LG_SIZEOF_PTR}" = "3"; then
 	  default_munmap="0"
 	fi
 	;;
@@ -596,7 +596,7 @@ case "${host}" in
 	JE_APPEND_VS(LIBS, -lposix4 -lsocket -lnsl)
 	;;
   *-ibm-aix*)
-	if "${LG_SIZEOF_PTR}" = "3"; then
+	if test "${LG_SIZEOF_PTR}" = "3"; then
 	  dnl 64bit AIX
 	  LD_PRELOAD_VAR="LDR_PRELOAD64"
 	else
