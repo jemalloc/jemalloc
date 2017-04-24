@@ -783,31 +783,6 @@ AC_CHECK_FUNC([valloc],
 	      [AC_DEFINE([JEMALLOC_OVERRIDE_VALLOC], [ ])
 	       public_syms="${public_syms} valloc"])
 
-dnl Do not compute test code coverage by default.
-GCOV_FLAGS=
-AC_ARG_ENABLE([code-coverage],
-  [AS_HELP_STRING([--enable-code-coverage],
-   [Enable code coverage])],
-[if test "x$enable_code_coverage" = "xno" ; then
-  enable_code_coverage="0"
-else
-  enable_code_coverage="1"
-fi
-],
-[enable_code_coverage="0"]
-)
-if test "x$enable_code_coverage" = "x1" ; then
-  deoptimize="no"
-  echo "$CFLAGS $EXTRA_CFLAGS" | grep '\-O' >/dev/null || deoptimize="yes"
-  if test "x${deoptimize}" = "xyes" ; then
-    JE_CFLAGS_ADD([-O0])
-  fi
-  JE_CFLAGS_ADD([-fprofile-arcs -ftest-coverage])
-  EXTRA_LDFLAGS="$EXTRA_LDFLAGS -fprofile-arcs -ftest-coverage"
-  AC_DEFINE([JEMALLOC_CODE_COVERAGE], [ ])
-fi
-AC_SUBST([enable_code_coverage])
-
 dnl Perform no name mangling by default.
 AC_ARG_WITH([mangling],
   [AS_HELP_STRING([--with-mangling=<map>], [Mangle symbols in <map>])],
@@ -2093,7 +2068,6 @@ AC_MSG_RESULT([install_suffix     : ${install_suffix}])
 AC_MSG_RESULT([malloc_conf        : ${config_malloc_conf}])
 AC_MSG_RESULT([autogen            : ${enable_autogen}])
 AC_MSG_RESULT([debug              : ${enable_debug}])
-AC_MSG_RESULT([code-coverage      : ${enable_code_coverage}])
 AC_MSG_RESULT([stats              : ${enable_stats}])
 AC_MSG_RESULT([prof               : ${enable_prof}])
 AC_MSG_RESULT([prof-libunwind     : ${enable_prof_libunwind}])
