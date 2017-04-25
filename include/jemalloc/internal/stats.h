@@ -139,7 +139,7 @@ typedef struct arena_stats_s {
 	/* Number of bytes cached in tcache associated with this arena. */
 	atomic_zu_t		tcache_bytes; /* Derived. */
 
-	mutex_prof_data_t mutex_prof_data[num_arena_prof_mutexes];
+	mutex_prof_data_t mutex_prof_data[mutex_prof_num_arena_mutexes];
 
 	/* One element for each large size class. */
 	malloc_large_stats_t	lstats[NSIZES - NBINS];
