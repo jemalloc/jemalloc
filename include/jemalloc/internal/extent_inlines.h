@@ -1,6 +1,7 @@
 #ifndef JEMALLOC_INTERNAL_EXTENT_INLINES_H
 #define JEMALLOC_INTERNAL_EXTENT_INLINES_H
 
+#include "jemalloc/internal/pages.h"
 #include "jemalloc/internal/prng.h"
 #include "jemalloc/internal/ql.h"
 

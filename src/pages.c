@@ -1,5 +1,8 @@
 #define JEMALLOC_PAGES_C_
 #include "jemalloc/internal/jemalloc_preamble.h"
+
+#include "jemalloc/internal/pages.h"
+
 #include "jemalloc/internal/jemalloc_internal_includes.h"
 
 #include "jemalloc/internal/assert.h"
