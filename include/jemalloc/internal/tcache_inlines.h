@@ -201,8 +201,11 @@ tcache_dalloc_small(tsd_t *tsd, tcache_t *tcache, void *ptr, szind_t binind,
 	tbin = tcache_small_bin_get(tcache, binind);
 	tbin_info = &tcache_bin_info[binind];
 	if (unlikely(tbin->ncached == tbin_info->ncached_max)) {
-		tcache_bin_flush_small(tsd, tcache, tbin, binind,
-		    (tbin_info->ncached_max >> 1));
+		if (tcache_bin_try_flush_small(tsd, tcache, tbin, binind,
+		    (tbin_info->ncached_max >> 1)) == 0) {
+			tcache_bin_flush_small(tsd, tcache, tbin, binind,
+			    (tbin_info->ncached_max >> 1));
+		}
 	}
 	assert(tbin->ncached < tbin_info->ncached_max);
 	tbin->ncached++;
@@ -227,8 +230,11 @@ tcache_dalloc_large(tsd_t *tsd, tcache_t *tcache, void *ptr, szind_t binind,
 	tbin = tcache_large_bin_get(tcache, binind);
 	tbin_info = &tcache_bin_info[binind];
 	if (unlikely(tbin->ncached == tbin_info->ncached_max)) {
-		tcache_bin_flush_large(tsd, tcache, tbin, binind,
-		    (tbin_info->ncached_max >> 1));
+		if (tcache_bin_try_flush_large(tsd, tcache, tbin, binind,
+		    (tbin_info->ncached_max >> 1)) == 0) {
+			tcache_bin_flush_large(tsd, tcache, tbin, binind,
+			    (tbin_info->ncached_max >> 1));
+		}
 	}
 	assert(tbin->ncached < tbin_info->ncached_max);
 	tbin->ncached++;
