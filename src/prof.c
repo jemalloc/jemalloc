@@ -4,6 +4,7 @@
 
 #include "jemalloc/internal/assert.h"
 #include "jemalloc/internal/ckh.h"
+#include "jemalloc/internal/hash.h"
 #include "jemalloc/internal/malloc_io.h"
 
 /******************************************************************************/

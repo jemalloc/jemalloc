@@ -107,7 +107,6 @@
 #include "jemalloc/internal/jemalloc_internal_inlines_b.h"
 #include "jemalloc/internal/tcache_inlines.h"
 #include "jemalloc/internal/arena_inlines_b.h"
-#include "jemalloc/internal/hash_inlines.h"
 #include "jemalloc/internal/jemalloc_internal_inlines_c.h"
 #include "jemalloc/internal/prof_inlines_b.h"
 

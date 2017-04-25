@@ -1,5 +1,5 @@
-#ifndef JEMALLOC_INTERNAL_HASH_INLINES_H
-#define JEMALLOC_INTERNAL_HASH_INLINES_H
+#ifndef JEMALLOC_INTERNAL_HASH_H
+#define JEMALLOC_INTERNAL_HASH_H
 
 #include "jemalloc/internal/assert.h"
 
@@ -315,4 +315,4 @@ hash(const void *key, size_t len, const uint32_t seed, size_t r_hash[2]) {
 #endif
 }
 
-#endif /* JEMALLOC_INTERNAL_HASH_INLINES_H */
+#endif /* JEMALLOC_INTERNAL_HASH_H */
