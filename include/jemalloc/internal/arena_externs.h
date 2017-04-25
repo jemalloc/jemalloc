@@ -1,6 +1,7 @@
 #ifndef JEMALLOC_INTERNAL_ARENA_EXTERNS_H
 #define JEMALLOC_INTERNAL_ARENA_EXTERNS_H
 
+#include "jemalloc/internal/pages.h"
 #include "jemalloc/internal/size_classes.h"
 #include "jemalloc/internal/stats.h"
 

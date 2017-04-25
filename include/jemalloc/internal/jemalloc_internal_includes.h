@@ -48,7 +48,6 @@
 #include "jemalloc/internal/base_types.h"
 #include "jemalloc/internal/arena_types.h"
 #include "jemalloc/internal/rtree_types.h"
-#include "jemalloc/internal/pages_types.h"
 #include "jemalloc/internal/tcache_types.h"
 #include "jemalloc/internal/prof_types.h"
 
@@ -81,7 +80,6 @@
 #include "jemalloc/internal/base_externs.h"
 #include "jemalloc/internal/arena_externs.h"
 #include "jemalloc/internal/rtree_externs.h"
-#include "jemalloc/internal/pages_externs.h"
 #include "jemalloc/internal/large_externs.h"
 #include "jemalloc/internal/tcache_externs.h"
 #include "jemalloc/internal/prof_externs.h"
