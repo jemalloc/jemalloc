@@ -1111,21 +1111,10 @@ if test "x${maps_coalesce}" = "x1" ; then
   AC_DEFINE([JEMALLOC_MAPS_COALESCE], [ ])
 fi
 
-dnl Enable VM deallocation via munmap() by default.
-AC_ARG_ENABLE([munmap],
-  [AS_HELP_STRING([--disable-munmap], [Disable VM deallocation via munmap(2)])],
-[if test "x$enable_munmap" = "xno" ; then
-  enable_munmap="0"
-else
-  enable_munmap="1"
-fi
-],
-[enable_munmap="${default_munmap}"]
-)
-if test "x$enable_munmap" = "x1" ; then
+dnl Indicate whether to use munmap() by default.
+if test "x$default_munmap" = "x1" ; then
   AC_DEFINE([JEMALLOC_MUNMAP], [ ])
 fi
-AC_SUBST([enable_munmap])
 
 dnl Enable allocation from DSS if supported by the OS.
 have_dss="1"
@@ -2102,7 +2091,6 @@ AC_MSG_RESULT([prof-gcc           : ${enable_prof_gcc}])
 AC_MSG_RESULT([fill               : ${enable_fill}])
 AC_MSG_RESULT([utrace             : ${enable_utrace}])
 AC_MSG_RESULT([xmalloc            : ${enable_xmalloc}])
-AC_MSG_RESULT([munmap             : ${enable_munmap}])
 AC_MSG_RESULT([lazy_lock          : ${enable_lazy_lock}])
 AC_MSG_RESULT([cache-oblivious    : ${enable_cache_oblivious}])
 AC_MSG_RESULT([cxx                : ${enable_cxx}])

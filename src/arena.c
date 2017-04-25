@@ -1143,7 +1143,7 @@ arena_destroy_retained(tsdn_t *tsdn, arena_t *arena) {
 	 * opportunity to unmap all retained memory without having to keep its
 	 * own metadata structures, but if deallocation fails, that is the
 	 * application's decision/problem.  In practice, retained extents are
-	 * leaked here if !config_munmap unless the application provided custom
+	 * leaked here if !opt_munmap unless the application provided custom
 	 * extent hooks, so best practice is to either enable munmap (and avoid
 	 * dss for arenas to be destroyed), or provide custom extent hooks that
 	 * either unmap retained extents or track them for later use.
@@ -1947,7 +1947,7 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 		goto label_error;
 	}
 
-	if (!config_munmap) {
+	if (!opt_munmap) {
 		atomic_store_u(&arena->extent_grow_next, psz2ind(HUGEPAGE),
 		    ATOMIC_RELAXED);
 	}

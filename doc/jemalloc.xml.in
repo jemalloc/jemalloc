@@ -788,16 +788,6 @@ mallctl("arena." STRINGIFY(MALLCTL_ARENAS_ALL) ".decay",
         during build configuration.</para></listitem>
       </varlistentry>
 
-      <varlistentry id="config.munmap">
-        <term>
-          <mallctl>config.munmap</mallctl>
-          (<type>bool</type>)
-          <literal>r-</literal>
-        </term>
-        <listitem><para><option>--enable-munmap</option> was specified during
-        build configuration.</para></listitem>
-      </varlistentry>
-
       <varlistentry id="config.prof">
         <term>
           <mallctl>config.prof</mallctl>
@@ -870,6 +860,28 @@ mallctl("arena." STRINGIFY(MALLCTL_ARENAS_ALL) ".decay",
         <manvolnum>3</manvolnum></citerefentry> in these cases.  This option is
         disabled by default unless <option>--enable-debug</option> is
         specified during configuration, in which case it is enabled by default.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry id="opt.munmap">
+        <term>
+          <mallctl>opt.munmap</mallctl>
+          (<type>bool</type>)
+          <literal>r-</literal>
+        </term>
+        <listitem><para>If true, call
+        <citerefentry><refentrytitle>munmap</refentrytitle>
+        <manvolnum>2</manvolnum></citerefentry> or equivalent rather than
+        retaining unused virtual memory (see <link
+        linkend="stats.retained">stats.retained</link> for related details).
+        This option is enabled by default unless it is known to trigger
+        platform-specific performance problems, e.g. for [64-bit] Linux, which
+        has a quirk in its virtual memory allocation algorithm that causes
+        semi-permanent VM map holes under normal jemalloc operation.  Although
+        <citerefentry><refentrytitle>munmap</refentrytitle>
+        <manvolnum>2</manvolnum></citerefentry> causes issues on 32-bit Linux as
+        well, it is not disabled by default due to the practical possibility of
+        address space exhaustion.
         </para></listitem>
       </varlistentry>
 
@@ -2114,9 +2126,9 @@ struct extent_hooks_s {
         <listitem><para>Total number of bytes in virtual memory mappings that
         were retained rather than being returned to the operating system via
         e.g. <citerefentry><refentrytitle>munmap</refentrytitle>
-        <manvolnum>2</manvolnum></citerefentry>.  Retained virtual memory is
-        typically untouched, decommitted, or purged, so it has no strongly
-        associated physical memory (see <link
+        <manvolnum>2</manvolnum></citerefentry> or similar.  Retained virtual
+        memory is typically untouched, decommitted, or purged, so it has no
+        strongly associated physical memory (see <link
         linkend="arena.i.extent_hooks">extent hooks</link> for details).
         Retained memory is excluded from mapped memory statistics, e.g. <link
         linkend="stats.mapped"><mallctl>stats.mapped</mallctl></link>.

@@ -93,7 +93,7 @@ large_dalloc_maybe_junk(void *ptr, size_t size) {
 		 * Only bother junk filling if the extent isn't about to be
 		 * unmapped.
 		 */
-		if (!config_munmap || (have_dss && extent_in_dss(ptr))) {
+		if (!opt_munmap || (have_dss && extent_in_dss(ptr))) {
 			large_dalloc_junk(ptr, size);
 		}
 	}

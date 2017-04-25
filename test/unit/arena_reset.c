@@ -251,8 +251,8 @@ TEST_BEGIN(test_arena_destroy_hooks_default) {
 TEST_END
 
 /*
- * Actually unmap extents, regardless of config_munmap, so that attempts to
- * access a destroyed arena's memory will segfault.
+ * Actually unmap extents, regardless of opt_munmap, so that attempts to access
+ * a destroyed arena's memory will segfault.
  */
 static bool
 extent_dalloc_unmap(extent_hooks_t *extent_hooks, void *addr, size_t size,

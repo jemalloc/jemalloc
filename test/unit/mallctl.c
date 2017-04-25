@@ -131,7 +131,6 @@ TEST_BEGIN(test_mallctl_config) {
 	TEST_MALLCTL_CONFIG(fill, bool);
 	TEST_MALLCTL_CONFIG(lazy_lock, bool);
 	TEST_MALLCTL_CONFIG(malloc_conf, const char *);
-	TEST_MALLCTL_CONFIG(munmap, bool);
 	TEST_MALLCTL_CONFIG(prof, bool);
 	TEST_MALLCTL_CONFIG(prof_libgcc, bool);
 	TEST_MALLCTL_CONFIG(prof_libunwind, bool);
@@ -158,6 +157,7 @@ TEST_BEGIN(test_mallctl_opt) {
 } while (0)
 
 	TEST_MALLCTL_OPT(bool, abort, always);
+	TEST_MALLCTL_OPT(bool, munmap, always);
 	TEST_MALLCTL_OPT(const char *, dss, always);
 	TEST_MALLCTL_OPT(unsigned, narenas, always);
 	TEST_MALLCTL_OPT(const char *, percpu_arena, always);

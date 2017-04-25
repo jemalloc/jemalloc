@@ -707,7 +707,6 @@ stats_general_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		    "config.malloc_conf: \"%s\"\n", config_malloc_conf);
 	}
 
-	CONFIG_WRITE_BOOL_JSON(munmap, ",")
 	CONFIG_WRITE_BOOL_JSON(prof, ",")
 	CONFIG_WRITE_BOOL_JSON(prof_libgcc, ",")
 	CONFIG_WRITE_BOOL_JSON(prof_libunwind, ",")
@@ -801,6 +800,7 @@ stats_general_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		    "Run-time option settings:\n");
 	}
 	OPT_WRITE_BOOL(abort, ",")
+	OPT_WRITE_BOOL(munmap, ",")
 	OPT_WRITE_CHAR_P(dss, ",")
 	OPT_WRITE_UNSIGNED(narenas, ",")
 	OPT_WRITE_CHAR_P(percpu_arena, ",")
