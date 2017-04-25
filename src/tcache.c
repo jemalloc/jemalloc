@@ -215,7 +215,7 @@ tcache_bin_flush_large(tsd_t *tsd, tcache_bin_t *tbin, szind_t binind,
 		for (unsigned i = 0; i < nflush; i++) {
 			void *ptr = *(tbin->avail - 1 - i);
 			assert(ptr != NULL);
-			extent = iealloc(tsd_tsdn(tsd), ptr);
+			extent = item_extent[i];
 			if (extent_arena_get(extent) == locked_arena) {
 				large_dalloc_prep_junked_locked(tsd_tsdn(tsd),
 				    extent);
