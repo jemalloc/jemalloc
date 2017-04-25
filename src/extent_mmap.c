@@ -5,6 +5,17 @@
 #include "jemalloc/internal/assert.h"
 
 /******************************************************************************/
+/* Data. */
+
+bool	opt_munmap =
+#ifdef JEMALLOC_MUNMAP
+    true
+#else
+    false
+#endif
+    ;
+
+/******************************************************************************/
 
 void *
 extent_alloc_mmap(void *new_addr, size_t size, size_t alignment, bool *zero,
@@ -23,8 +34,8 @@ extent_alloc_mmap(void *new_addr, size_t size, size_t alignment, bool *zero,
 
 bool
 extent_dalloc_mmap(void *addr, size_t size) {
-	if (config_munmap) {
+	if (opt_munmap) {
 		pages_unmap(addr, size);
 	}
-	return !config_munmap;
+	return !opt_munmap;
 }

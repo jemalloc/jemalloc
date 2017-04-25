@@ -947,7 +947,7 @@ malloc_conf_init(void) {
 	(sizeof(n)-1 == klen && strncmp(n, k, klen) == 0)
 #define CONF_MATCH_VALUE(n)						\
 	(sizeof(n)-1 == vlen && strncmp(n, v, vlen) == 0)
-#define CONF_HANDLE_BOOL(o, n, cont)					\
+#define CONF_HANDLE_BOOL(o, n)						\
 			if (CONF_MATCH(n)) {				\
 				if (CONF_MATCH_VALUE("true")) {		\
 					o = true;			\
@@ -958,9 +958,7 @@ malloc_conf_init(void) {
 					    "Invalid conf value",	\
 					    k, klen, v, vlen);		\
 				}					\
-				if (cont) {				\
-					continue;			\
-				}					\
+				continue;				\
 			}
 #define CONF_MIN_no(um, min)	false
 #define CONF_MIN_yes(um, min)	((um) < (min))
@@ -1043,7 +1041,8 @@ malloc_conf_init(void) {
 				continue;				\
 			}
 
-			CONF_HANDLE_BOOL(opt_abort, "abort", true)
+			CONF_HANDLE_BOOL(opt_abort, "abort")
+			CONF_HANDLE_BOOL(opt_munmap, "munmap")
 			if (strncmp("dss", k, klen) == 0) {
 				int i;
 				bool match = false;
@@ -1074,7 +1073,7 @@ malloc_conf_init(void) {
 			    "dirty_decay_time", -1, NSTIME_SEC_MAX);
 			CONF_HANDLE_SSIZE_T(opt_muzzy_decay_time,
 			    "muzzy_decay_time", -1, NSTIME_SEC_MAX);
-			CONF_HANDLE_BOOL(opt_stats_print, "stats_print", true)
+			CONF_HANDLE_BOOL(opt_stats_print, "stats_print")
 			if (config_fill) {
 				if (CONF_MATCH("junk")) {
 					if (CONF_MATCH_VALUE("true")) {
@@ -1100,15 +1099,15 @@ malloc_conf_init(void) {
 					}
 					continue;
 				}
-				CONF_HANDLE_BOOL(opt_zero, "zero", true)
+				CONF_HANDLE_BOOL(opt_zero, "zero")
 			}
 			if (config_utrace) {
-				CONF_HANDLE_BOOL(opt_utrace, "utrace", true)
+				CONF_HANDLE_BOOL(opt_utrace, "utrace")
 			}
 			if (config_xmalloc) {
-				CONF_HANDLE_BOOL(opt_xmalloc, "xmalloc", true)
+				CONF_HANDLE_BOOL(opt_xmalloc, "xmalloc")
 			}
-			CONF_HANDLE_BOOL(opt_tcache, "tcache", true)
+			CONF_HANDLE_BOOL(opt_tcache, "tcache")
 			CONF_HANDLE_SSIZE_T(opt_lg_tcache_max, "lg_tcache_max",
 			    -1, (sizeof(size_t) << 3) - 1)
 			if (strncmp("percpu_arena", k, klen) == 0) {
@@ -1136,27 +1135,22 @@ malloc_conf_init(void) {
 				continue;
 			}
 			if (config_prof) {
-				CONF_HANDLE_BOOL(opt_prof, "prof", true)
+				CONF_HANDLE_BOOL(opt_prof, "prof")
 				CONF_HANDLE_CHAR_P(opt_prof_prefix,
 				    "prof_prefix", "jeprof")
-				CONF_HANDLE_BOOL(opt_prof_active, "prof_active",
-				    true)
+				CONF_HANDLE_BOOL(opt_prof_active, "prof_active")
 				CONF_HANDLE_BOOL(opt_prof_thread_active_init,
-				    "prof_thread_active_init", true)
+				    "prof_thread_active_init")
 				CONF_HANDLE_SIZE_T(opt_lg_prof_sample,
 				    "lg_prof_sample", 0, (sizeof(uint64_t) << 3)
 				    - 1, no, yes, true)
-				CONF_HANDLE_BOOL(opt_prof_accum, "prof_accum",
-				    true)
+				CONF_HANDLE_BOOL(opt_prof_accum, "prof_accum")
 				CONF_HANDLE_SSIZE_T(opt_lg_prof_interval,
 				    "lg_prof_interval", -1,
 				    (sizeof(uint64_t) << 3) - 1)
-				CONF_HANDLE_BOOL(opt_prof_gdump, "prof_gdump",
-				    true)
-				CONF_HANDLE_BOOL(opt_prof_final, "prof_final",
-				    true)
-				CONF_HANDLE_BOOL(opt_prof_leak, "prof_leak",
-				    true)
+				CONF_HANDLE_BOOL(opt_prof_gdump, "prof_gdump")
+				CONF_HANDLE_BOOL(opt_prof_final, "prof_final")
+				CONF_HANDLE_BOOL(opt_prof_leak, "prof_leak")
 			}
 			malloc_conf_error("Invalid conf pair", k, klen, v,
 			    vlen);

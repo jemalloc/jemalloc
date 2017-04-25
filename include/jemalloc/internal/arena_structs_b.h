@@ -230,10 +230,10 @@ struct arena_s {
 
 	/*
 	 * Next extent size class in a growing series to use when satisfying a
-	 * request via the extent hooks (only if !config_munmap).  This limits
-	 * the number of disjoint virtual memory ranges so that extent merging
-	 * can be effective even if multiple arenas' extent allocation requests
-	 * are highly interleaved.
+	 * request via the extent hooks (only if !opt_munmap).  This limits the
+	 * number of disjoint virtual memory ranges so that extent merging can
+	 * be effective even if multiple arenas' extent allocation requests are
+	 * highly interleaved.
 	 *
 	 * Synchronization: atomic.
 	 */

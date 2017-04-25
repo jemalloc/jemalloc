@@ -192,9 +192,10 @@
 #undef JEMALLOC_MAPS_COALESCE
 
 /*
- * If defined, use munmap() to unmap freed extents, rather than storing them for
- * later reuse.  This is disabled by default on Linux because common sequences
- * of mmap()/munmap() calls will cause virtual memory map holes.
+ * If defined, use munmap() to unmap freed extents by default, rather than
+ * storing them for later reuse.  This is disabled on 64-bit Linux because
+ * common sequences of mmap()/munmap() calls will cause virtual memory map
+ * holes.
  */
 #undef JEMALLOC_MUNMAP
 
