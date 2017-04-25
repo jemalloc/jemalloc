@@ -3,6 +3,7 @@
 #include "jemalloc/internal/jemalloc_internal_includes.h"
 
 #include "jemalloc/internal/assert.h"
+#include "jemalloc/internal/ctl.h"
 #include "jemalloc/internal/nstime.h"
 #include "jemalloc/internal/size_classes.h"
 #include "jemalloc/internal/util.h"
@@ -193,12 +194,12 @@ CTL_PROTO(stats_##n##_max_num_thds)
 
 /* Global mutexes. */
 #define OP(mtx) MUTEX_STATS_CTL_PROTO_GEN(mutexes_##mtx)
-GLOBAL_PROF_MUTEXES
+MUTEX_PROF_GLOBAL_MUTEXES
 #undef OP
 
 /* Per arena mutexes. */
 #define OP(mtx) MUTEX_STATS_CTL_PROTO_GEN(arenas_i_mutexes_##mtx)
-ARENA_PROF_MUTEXES
+MUTEX_PROF_ARENA_MUTEXES
 #undef OP
 
 /* Arena bin mutexes. */
@@ -429,12 +430,12 @@ static const ctl_indexed_node_t stats_arenas_i_lextents_node[] = {
 };
 
 #define OP(mtx)  MUTEX_PROF_DATA_NODE(arenas_i_mutexes_##mtx)
-ARENA_PROF_MUTEXES
+MUTEX_PROF_ARENA_MUTEXES
 #undef OP
 
 static const ctl_named_node_t stats_arenas_i_mutexes_node[] = {
 #define OP(mtx) {NAME(#mtx), CHILD(named, stats_arenas_i_mutexes_##mtx)},
-ARENA_PROF_MUTEXES
+MUTEX_PROF_ARENA_MUTEXES
 #undef OP
 };
 
@@ -473,12 +474,12 @@ static const ctl_indexed_node_t stats_arenas_node[] = {
 };
 
 #define OP(mtx) MUTEX_PROF_DATA_NODE(mutexes_##mtx)
-GLOBAL_PROF_MUTEXES
+MUTEX_PROF_GLOBAL_MUTEXES
 #undef OP
 
 static const ctl_named_node_t stats_mutexes_node[] = {
 #define OP(mtx) {NAME(#mtx), CHILD(named, stats_mutexes_##mtx)},
-GLOBAL_PROF_MUTEXES
+MUTEX_PROF_GLOBAL_MUTEXES
 #undef OP
 	{NAME("reset"),		CTL(stats_mutexes_reset)}
 };
@@ -737,7 +738,7 @@ ctl_arena_stats_sdmerge(ctl_arena_t *ctl_sdarena, ctl_arena_t *ctl_arena,
 		        arena_prof_mutex_##mtx]),			\
 		    &(astats->astats.mutex_prof_data[			\
 		        arena_prof_mutex_##mtx]));
-ARENA_PROF_MUTEXES
+MUTEX_PROF_ARENA_MUTEXES
 #undef OP
 		if (!destroyed) {
 			accum_atomic_zu(&sdstats->astats.base,
@@ -2401,13 +2402,13 @@ CTL_RO_CGEN(config_stats, stats_##n##_max_num_thds,			\
 #define OP(mtx)								\
     RO_MUTEX_CTL_GEN(mutexes_##mtx,					\
         ctl_stats->mutex_prof_data[global_prof_mutex_##mtx])
-GLOBAL_PROF_MUTEXES
+MUTEX_PROF_GLOBAL_MUTEXES
 #undef OP
 
 /* Per arena mutexes */
 #define OP(mtx) RO_MUTEX_CTL_GEN(arenas_i_mutexes_##mtx,		\
     arenas_i(mib[2])->astats->astats.mutex_prof_data[arena_prof_mutex_##mtx])
-ARENA_PROF_MUTEXES
+MUTEX_PROF_ARENA_MUTEXES
 #undef OP
 
 /* tcache bin mutex */
