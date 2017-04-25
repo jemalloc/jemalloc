@@ -45,14 +45,16 @@ tcache_event_hard(tsd_t *tsd, tcache_t *tcache) {
 	} else {
 		tbin = tcache_large_bin_get(tcache, binind);
 	}
+	bool repeat_bin;
 	if (tbin->low_water > 0) {
 		/*
 		 * Flush (ceiling) 3/4 of the objects below the low water mark.
 		 */
+		unsigned nflushed;
 		if (binind < NBINS) {
-			tcache_bin_flush_small(tsd, tcache, tbin, binind,
-			    tbin->ncached - tbin->low_water + (tbin->low_water
-			    >> 2));
+			nflushed = tcache_bin_try_flush_small(tsd, tcache, tbin,
+			    binind, tbin->ncached - tbin->low_water +
+			    (tbin->low_water >> 2));
 			/*
 			 * Reduce fill count by 2X.  Limit lg_fill_div such that
 			 * the fill count is always at least 1.
@@ -63,23 +65,29 @@ tcache_event_hard(tsd_t *tsd, tcache_t *tcache) {
 				tcache->lg_fill_div[binind]++;
 			}
 		} else {
-			tcache_bin_flush_large(tsd, tbin, binind, tbin->ncached
-			    - tbin->low_water + (tbin->low_water >> 2), tcache);
+			nflushed = tcache_bin_try_flush_large(tsd, tcache, tbin,
+			    binind, tbin->ncached - tbin->low_water +
+			    (tbin->low_water >> 2));
 		}
-	} else if (tbin->low_water < 0) {
-		/*
-		 * Increase fill count by 2X for small bins.  Make sure
-		 * lg_fill_div stays greater than 0.
-		 */
-		if (binind < NBINS && tcache->lg_fill_div[binind] > 1) {
-			tcache->lg_fill_div[binind]--;
+		repeat_bin = (nflushed == 0);
+	} else {
+		if (tbin->low_water < 0) {
+			/*
+			 * Increase fill count by 2X for small bins.  Make sure
+			 * lg_fill_div stays greater than 0.
+			 */
+			if (binind < NBINS && tcache->lg_fill_div[binind] > 1) {
+				tcache->lg_fill_div[binind]--;
+			}
 		}
+		repeat_bin = false;
 	}
-	tbin->low_water = tbin->ncached;
-
-	tcache->next_gc_bin++;
-	if (tcache->next_gc_bin == nhbins) {
-		tcache->next_gc_bin = 0;
+	if (!repeat_bin) {
+		tcache->next_gc_bin++;
+		if (tcache->next_gc_bin == nhbins) {
+			tcache->next_gc_bin = 0;
+		}
+		tbin->low_water = tbin->ncached;
 	}
 }
 
@@ -99,11 +107,9 @@ tcache_alloc_small_hard(tsdn_t *tsdn, arena_t *arena, tcache_t *tcache,
 	return ret;
 }
 
-void
-tcache_bin_flush_small(tsd_t *tsd, tcache_t *tcache, tcache_bin_t *tbin,
-    szind_t binind, unsigned rem) {
-	bool merged_stats = false;
-
+static unsigned
+tcache_bin_flush_small_impl(tsd_t *tsd, tcache_t *tcache, tcache_bin_t *tbin,
+    szind_t binind, unsigned rem, bool must_flush) {
 	assert(binind < NBINS);
 	assert(rem <= tbin->ncached);
 
@@ -116,9 +122,12 @@ tcache_bin_flush_small(tsd_t *tsd, tcache_t *tcache, tcache_bin_t *tbin,
 		item_extent[i] = iealloc(tsd_tsdn(tsd), *(tbin->avail - 1 - i));
 	}
 
+	bool merged_stats = false;
+	unsigned nflushed = 0;
+	unsigned nskipped = 0;
 	while (nflush > 0) {
 		/* Lock the arena bin associated with the first object. */
-		extent_t *extent = item_extent[0];
+		extent_t *extent = item_extent[nskipped];
 		arena_t *bin_arena = extent_arena_get(extent);
 		arena_bin_t *bin = &bin_arena->bins[binind];
 
@@ -130,7 +139,16 @@ tcache_bin_flush_small(tsd_t *tsd, tcache_t *tcache, tcache_bin_t *tbin,
 			tcache->prof_accumbytes = 0;
 		}
 
-		malloc_mutex_lock(tsd_tsdn(tsd), &bin->lock);
+		if (must_flush) {
+			malloc_mutex_lock(tsd_tsdn(tsd), &bin->lock);
+		} else {
+			/* Make best effort to flush w/o blocking. */
+			if (malloc_mutex_trylock(tsd_tsdn(tsd), &bin->lock)) {
+				nskipped++;
+				nflush--;
+				continue;
+			}
+		}
 		if (config_stats && bin_arena == arena) {
 			assert(!merged_stats);
 			merged_stats = true;
@@ -139,7 +157,7 @@ tcache_bin_flush_small(tsd_t *tsd, tcache_t *tcache, tcache_bin_t *tbin,
 			tbin->tstats.nrequests = 0;
 		}
 		unsigned ndeferred = 0;
-		for (unsigned i = 0; i < nflush; i++) {
+		for (unsigned i = nskipped; i < nflush; i++) {
 			void *ptr = *(tbin->avail - 1 - i);
 			extent = item_extent[i];
 			assert(ptr != NULL && extent != NULL);
@@ -154,13 +172,14 @@ tcache_bin_flush_small(tsd_t *tsd, tcache_t *tcache, tcache_bin_t *tbin,
 				 * locked.  Stash the object, so that it can be
 				 * handled in a future pass.
 				 */
-				*(tbin->avail - 1 - ndeferred) = ptr;
-				item_extent[ndeferred] = extent;
+				*(tbin->avail - 1 - ndeferred - nskipped) = ptr;
+				item_extent[ndeferred + nskipped] = extent;
 				ndeferred++;
 			}
 		}
 		malloc_mutex_unlock(tsd_tsdn(tsd), &bin->lock);
 		arena_decay_ticks(tsd_tsdn(tsd), bin_arena, nflush - ndeferred);
+		nflushed += nflush - ndeferred;
 		nflush = ndeferred;
 	}
 	if (config_stats && !merged_stats) {
@@ -169,26 +188,49 @@ tcache_bin_flush_small(tsd_t *tsd, tcache_t *tcache, tcache_bin_t *tbin,
 		 * arena, so the stats didn't get merged.  Manually do so now.
 		 */
 		arena_bin_t *bin = &arena->bins[binind];
-		malloc_mutex_lock(tsd_tsdn(tsd), &bin->lock);
-		bin->stats.nflushes++;
-		bin->stats.nrequests += tbin->tstats.nrequests;
-		tbin->tstats.nrequests = 0;
-		malloc_mutex_unlock(tsd_tsdn(tsd), &bin->lock);
+		if (must_flush) {
+			malloc_mutex_lock(tsd_tsdn(tsd), &bin->lock);
+		}
+		if (must_flush ||
+		    !malloc_mutex_trylock(tsd_tsdn(tsd), &bin->lock)) {
+			malloc_mutex_assert_owner(tsd_tsdn(tsd), &bin->lock);
+			bin->stats.nflushes++;
+			bin->stats.nrequests += tbin->tstats.nrequests;
+			tbin->tstats.nrequests = 0;
+			malloc_mutex_unlock(tsd_tsdn(tsd), &bin->lock);
+		}
 	}
+	assert(nflushed == tbin->ncached - rem - nskipped);
+	assert(nskipped == 0 || !must_flush);
 
-	memmove(tbin->avail - rem, tbin->avail - tbin->ncached, rem *
-	    sizeof(void *));
-	tbin->ncached = rem;
+	if (nflushed > 0) {
+		memmove(tbin->avail - (rem + nskipped), tbin->avail -
+		    tbin->ncached, rem * sizeof(void *));
+	}
+	tbin->ncached = rem + nskipped;
 	if ((low_water_t)tbin->ncached < tbin->low_water) {
 		tbin->low_water = tbin->ncached;
 	}
+
+	return nflushed;
 }
 
 void
-tcache_bin_flush_large(tsd_t *tsd, tcache_bin_t *tbin, szind_t binind,
-    unsigned rem, tcache_t *tcache) {
-	bool merged_stats = false;
+tcache_bin_flush_small(tsd_t *tsd, tcache_t *tcache, tcache_bin_t *tbin,
+    szind_t binind, unsigned rem) {
+	tcache_bin_flush_small_impl(tsd, tcache, tbin, binind, rem, true);
+}
 
+unsigned
+tcache_bin_try_flush_small(tsd_t *tsd, tcache_t *tcache, tcache_bin_t *tbin,
+    szind_t binind, unsigned rem) {
+	return tcache_bin_flush_small_impl(tsd, tcache, tbin, binind, rem,
+	    false);
+}
+
+static unsigned
+tcache_bin_flush_large_impl(tsd_t *tsd, tcache_t *tcache, tcache_bin_t *tbin,
+    szind_t binind, unsigned rem, bool must_flush) {
 	assert(binind < nhbins);
 	assert(rem <= tbin->ncached);
 
@@ -201,18 +243,31 @@ tcache_bin_flush_large(tsd_t *tsd, tcache_bin_t *tbin, szind_t binind,
 		item_extent[i] = iealloc(tsd_tsdn(tsd), *(tbin->avail - 1 - i));
 	}
 
+	bool merged_stats = false;
+	unsigned nflushed = 0;
+	unsigned nskipped = 0;
 	while (nflush > 0) {
 		/* Lock the arena associated with the first object. */
-		extent_t *extent = item_extent[0];
+		extent_t *extent = item_extent[nskipped];
 		arena_t *locked_arena = extent_arena_get(extent);
 		UNUSED bool idump;
 
 		if (config_prof) {
 			idump = false;
 		}
+		if (must_flush) {
+			malloc_mutex_lock(tsd_tsdn(tsd), &locked_arena->large_mtx);
+		} else {
+			/* Make best effort to flush w/o blocking. */
+			if (malloc_mutex_trylock(tsd_tsdn(tsd),
+			    &locked_arena->large_mtx)) {
+				nskipped++;
+				nflush--;
+				continue;
+			}
+		}
 
-		malloc_mutex_lock(tsd_tsdn(tsd), &locked_arena->large_mtx);
-		for (unsigned i = 0; i < nflush; i++) {
+		for (unsigned i = nskipped; i < nflush; i++) {
 			void *ptr = *(tbin->avail - 1 - i);
 			assert(ptr != NULL);
 			extent = item_extent[i];
@@ -238,7 +293,7 @@ tcache_bin_flush_large(tsd_t *tsd, tcache_bin_t *tbin, szind_t binind,
 		malloc_mutex_unlock(tsd_tsdn(tsd), &locked_arena->large_mtx);
 
 		unsigned ndeferred = 0;
-		for (unsigned i = 0; i < nflush; i++) {
+		for (unsigned i = nskipped; i < nflush; i++) {
 			void *ptr = *(tbin->avail - 1 - i);
 			extent = item_extent[i];
 			assert(ptr != NULL && extent != NULL);
@@ -252,8 +307,8 @@ tcache_bin_flush_large(tsd_t *tsd, tcache_bin_t *tbin, szind_t binind,
 				 * Stash the object, so that it can be handled
 				 * in a future pass.
 				 */
-				*(tbin->avail - 1 - ndeferred) = ptr;
-				item_extent[ndeferred] = extent;
+				*(tbin->avail - 1 - ndeferred - nskipped) = ptr;
+				item_extent[ndeferred + nskipped] = extent;
 				ndeferred++;
 			}
 		}
@@ -262,6 +317,7 @@ tcache_bin_flush_large(tsd_t *tsd, tcache_bin_t *tbin, szind_t binind,
 		}
 		arena_decay_ticks(tsd_tsdn(tsd), locked_arena, nflush -
 		    ndeferred);
+		nflushed += nflush - ndeferred;
 		nflush = ndeferred;
 	}
 	if (config_stats && !merged_stats) {
@@ -274,12 +330,31 @@ tcache_bin_flush_large(tsd_t *tsd, tcache_bin_t *tbin, szind_t binind,
 		tbin->tstats.nrequests = 0;
 	}
 
-	memmove(tbin->avail - rem, tbin->avail - tbin->ncached, rem *
-	    sizeof(void *));
-	tbin->ncached = rem;
+	assert(nflushed == tbin->ncached - rem - nskipped);
+	assert(nskipped == 0 || !must_flush);
+
+	if (nflushed > 0) {
+		memmove(tbin->avail - (rem + nskipped), tbin->avail -
+		    tbin->ncached, rem * sizeof(void *));
+	}
+	tbin->ncached = rem + nskipped;
 	if ((low_water_t)tbin->ncached < tbin->low_water) {
 		tbin->low_water = tbin->ncached;
 	}
+	return nflushed;
+}
+
+void
+tcache_bin_flush_large(tsd_t *tsd, tcache_t *tcache, tcache_bin_t *tbin,
+    szind_t binind, unsigned rem) {
+	tcache_bin_flush_large_impl(tsd, tcache, tbin, binind, rem, true);
+}
+
+unsigned
+tcache_bin_try_flush_large(tsd_t *tsd, tcache_t *tcache, tcache_bin_t *tbin,
+    szind_t binind, unsigned rem) {
+	return tcache_bin_flush_large_impl(tsd, tcache, tbin, binind, rem,
+	    false);
 }
 
 void
@@ -461,7 +536,7 @@ tcache_flush_cache(tsd_t *tsd, tcache_t *tcache) {
 	}
 	for (unsigned i = NBINS; i < nhbins; i++) {
 		tcache_bin_t *tbin = tcache_large_bin_get(tcache, i);
-		tcache_bin_flush_large(tsd, tbin, i, 0, tcache);
+		tcache_bin_flush_large(tsd, tcache, tbin, i, 0);
 
 		if (config_stats) {
 			assert(tbin->tstats.nrequests == 0);
