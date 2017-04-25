@@ -1641,30 +1641,30 @@ label_write_error:
 static bool
 prof_dump(tsd_t *tsd, bool propagate_err, const char *filename,
     bool leakcheck) {
-	prof_tdata_t *tdata;
-	struct prof_tdata_merge_iter_arg_s prof_tdata_merge_iter_arg;
-	struct prof_gctx_merge_iter_arg_s prof_gctx_merge_iter_arg;
-	struct prof_gctx_dump_iter_arg_s prof_gctx_dump_iter_arg;
-	prof_gctx_tree_t gctxs;
-	bool err;
-
 	cassert(config_prof);
+	assert(tsd->reentrancy_level == 0);
 
-	tdata = prof_tdata_get(tsd, true);
+	prof_tdata_t * tdata = prof_tdata_get(tsd, true);
 	if (tdata == NULL) {
 		return true;
 	}
 
+	pre_reentrancy(tsd);
 	malloc_mutex_lock(tsd_tsdn(tsd), &prof_dump_mtx);
 
+	prof_gctx_tree_t gctxs;
+	struct prof_tdata_merge_iter_arg_s prof_tdata_merge_iter_arg;
+	struct prof_gctx_merge_iter_arg_s prof_gctx_merge_iter_arg;
+	struct prof_gctx_dump_iter_arg_s prof_gctx_dump_iter_arg;
 	prof_dump_prep(tsd, tdata, &prof_tdata_merge_iter_arg,
 	    &prof_gctx_merge_iter_arg, &gctxs);
-	err = prof_dump_file(tsd, propagate_err, filename, leakcheck, tdata,
+	bool err = prof_dump_file(tsd, propagate_err, filename, leakcheck, tdata,
 	    &prof_tdata_merge_iter_arg, &prof_gctx_merge_iter_arg,
 	    &prof_gctx_dump_iter_arg, &gctxs);
 	prof_gctx_finish(tsd, &gctxs);
 
 	malloc_mutex_unlock(tsd_tsdn(tsd), &prof_dump_mtx);
+	post_reentrancy(tsd);
 
 	if (err) {
 		return true;
@@ -1757,6 +1757,7 @@ prof_fdump(void) {
 		return;
 	}
 	tsd = tsd_fetch();
+	assert(tsd->reentrancy_level == 0);
 
 	malloc_mutex_lock(tsd_tsdn(tsd), &prof_dump_seq_mtx);
 	prof_dump_filename(filename, 'f', VSEQ_INVALID);
@@ -1791,6 +1792,10 @@ prof_idump(tsdn_t *tsdn) {
 		return;
 	}
 	tsd = tsdn_tsd(tsdn);
+	if (tsd->reentrancy_level > 0) {
+		return;
+	}
+
 	tdata = prof_tdata_get(tsd, false);
 	if (tdata == NULL) {
 		return;
@@ -1812,14 +1817,13 @@ prof_idump(tsdn_t *tsdn) {
 
 bool
 prof_mdump(tsd_t *tsd, const char *filename) {
-	char filename_buf[DUMP_FILENAME_BUFSIZE];
-
 	cassert(config_prof);
+	assert(tsd->reentrancy_level == 0);
 
 	if (!opt_prof || !prof_booted) {
 		return true;
 	}
-
+	char filename_buf[DUMP_FILENAME_BUFSIZE];
 	if (filename == NULL) {
 		/* No filename specified, so automatically generate one. */
 		if (opt_prof_prefix[0] == '\0') {
@@ -1845,6 +1849,10 @@ prof_gdump(tsdn_t *tsdn) {
 		return;
 	}
 	tsd = tsdn_tsd(tsdn);
+	if (tsd->reentrancy_level > 0) {
+		return;
+	}
+
 	tdata = prof_tdata_get(tsd, false);
 	if (tdata == NULL) {
 		return;
