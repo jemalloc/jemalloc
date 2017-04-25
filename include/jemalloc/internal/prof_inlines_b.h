@@ -96,6 +96,9 @@ prof_sample_accum_update(tsd_t *tsd, size_t usize, bool update,
 		}
 		return true;
 	} else {
+		if (tsd->reentrancy_level > 0) {
+			return true;
+		}
 		/* Compute new sample threshold. */
 		if (update) {
 			prof_sample_threshold_update(tdata);
