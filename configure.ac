@@ -517,7 +517,7 @@ dnl
 dnl Define cpp macros in CPPFLAGS, rather than doing AC_DEFINE(macro), since the
 dnl definitions need to be seen before any headers are included, which is a pain
 dnl to make happen otherwise.
-default_munmap="1"
+default_retain="0"
 maps_coalesce="1"
 case "${host}" in
   *-*-darwin* | *-*-ios*)
@@ -557,7 +557,7 @@ case "${host}" in
 	AC_DEFINE([JEMALLOC_C11_ATOMICS])
 	force_tls="0"
 	if test "${LG_SIZEOF_PTR}" = "3"; then
-	  default_munmap="0"
+	  default_retain="1"
 	fi
 	;;
   *-*-linux* | *-*-kfreebsd*)
@@ -570,7 +570,7 @@ case "${host}" in
 	AC_DEFINE([JEMALLOC_THREADED_INIT], [ ])
 	AC_DEFINE([JEMALLOC_USE_CXX_THROW], [ ])
 	if test "${LG_SIZEOF_PTR}" = "3"; then
-	  default_munmap="0"
+	  default_retain="1"
 	fi
 	;;
   *-*-netbsd*)
@@ -1086,9 +1086,9 @@ if test "x${maps_coalesce}" = "x1" ; then
   AC_DEFINE([JEMALLOC_MAPS_COALESCE], [ ])
 fi
 
-dnl Indicate whether to use munmap() by default.
-if test "x$default_munmap" = "x1" ; then
-  AC_DEFINE([JEMALLOC_MUNMAP], [ ])
+dnl Indicate whether to retain memory (rather than using) munmap()) by default.
+if test "x$default_retain" = "x1" ; then
+  AC_DEFINE([JEMALLOC_RETAIN], [ ])
 fi
 
 dnl Enable allocation from DSS if supported by the OS.

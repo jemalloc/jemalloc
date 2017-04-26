@@ -74,7 +74,7 @@ CTL_PROTO(config_stats)
 CTL_PROTO(config_utrace)
 CTL_PROTO(config_xmalloc)
 CTL_PROTO(opt_abort)
-CTL_PROTO(opt_munmap)
+CTL_PROTO(opt_retain)
 CTL_PROTO(opt_dss)
 CTL_PROTO(opt_narenas)
 CTL_PROTO(opt_percpu_arena)
@@ -260,7 +260,7 @@ static const ctl_named_node_t	config_node[] = {
 
 static const ctl_named_node_t opt_node[] = {
 	{NAME("abort"),		CTL(opt_abort)},
-	{NAME("munmap"),	CTL(opt_munmap)},
+	{NAME("retain"),	CTL(opt_retain)},
 	{NAME("dss"),		CTL(opt_dss)},
 	{NAME("narenas"),	CTL(opt_narenas)},
 	{NAME("percpu_arena"),	CTL(opt_percpu_arena)},
@@ -1455,7 +1455,7 @@ CTL_RO_CONFIG_GEN(config_xmalloc, bool)
 /******************************************************************************/
 
 CTL_RO_NL_GEN(opt_abort, opt_abort, bool)
-CTL_RO_NL_GEN(opt_munmap, opt_munmap, bool)
+CTL_RO_NL_GEN(opt_retain, opt_retain, bool)
 CTL_RO_NL_GEN(opt_dss, opt_dss, const char *)
 CTL_RO_NL_GEN(opt_narenas, opt_narenas, unsigned)
 CTL_RO_NL_GEN(opt_percpu_arena, opt_percpu_arena, const char *)

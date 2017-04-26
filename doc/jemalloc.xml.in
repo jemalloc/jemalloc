@@ -863,25 +863,26 @@ mallctl("arena." STRINGIFY(MALLCTL_ARENAS_ALL) ".decay",
         </para></listitem>
       </varlistentry>
 
-      <varlistentry id="opt.munmap">
+      <varlistentry id="opt.retain">
         <term>
-          <mallctl>opt.munmap</mallctl>
+          <mallctl>opt.retain</mallctl>
           (<type>bool</type>)
           <literal>r-</literal>
         </term>
-        <listitem><para>If true, call
+        <listitem><para>If true, retain unused virtual memory for later reuse
+        rather than discarding it by calling
         <citerefentry><refentrytitle>munmap</refentrytitle>
-        <manvolnum>2</manvolnum></citerefentry> or equivalent rather than
-        retaining unused virtual memory (see <link
+        <manvolnum>2</manvolnum></citerefentry> or equivalent (see <link
         linkend="stats.retained">stats.retained</link> for related details).
-        This option is enabled by default unless it is known to trigger
+        This option is disabled by default unless discarding virtual memory is
+        known to trigger
         platform-specific performance problems, e.g. for [64-bit] Linux, which
         has a quirk in its virtual memory allocation algorithm that causes
         semi-permanent VM map holes under normal jemalloc operation.  Although
         <citerefentry><refentrytitle>munmap</refentrytitle>
         <manvolnum>2</manvolnum></citerefentry> causes issues on 32-bit Linux as
-        well, it is not disabled by default due to the practical possibility of
-        address space exhaustion.
+        well, retaining virtual memory for 32-bit Linux is disabled by default
+        due to the practical possibility of address space exhaustion.
         </para></listitem>
       </varlistentry>
 

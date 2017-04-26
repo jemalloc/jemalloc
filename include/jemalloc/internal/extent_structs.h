@@ -59,10 +59,9 @@ struct extent_s {
 	 *
 	 * sn: Serial number (potentially non-unique).
 	 *
-	 *     Serial numbers may wrap around if JEMALLOC_MUNMAP is defined, but
-	 *     as long as comparison functions fall back on address comparison
-	 *     for equal serial numbers, stable (if imperfect) ordering is
-	 *     maintained.
+	 *     Serial numbers may wrap around if !opt_retain, but as long as
+	 *     comparison functions fall back on address comparison for equal
+	 *     serial numbers, stable (if imperfect) ordering is maintained.
 	 *
 	 *     Serial numbers may not be unique even in the absence of
 	 *     wrap-around, e.g. when splitting an extent and assigning the same

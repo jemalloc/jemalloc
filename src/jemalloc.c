@@ -1043,7 +1043,7 @@ malloc_conf_init(void) {
 			}
 
 			CONF_HANDLE_BOOL(opt_abort, "abort")
-			CONF_HANDLE_BOOL(opt_munmap, "munmap")
+			CONF_HANDLE_BOOL(opt_retain, "retain")
 			if (strncmp("dss", k, klen) == 0) {
 				int i;
 				bool match = false;

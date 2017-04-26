@@ -117,10 +117,9 @@ typedef struct arena_stats_s {
 	atomic_zu_t		mapped; /* Partially derived. */
 
 	/*
-	 * Number of bytes currently retained as a side effect of munmap() being
-	 * disabled/bypassed.  Retained bytes are technically mapped (though
-	 * always decommitted or purged), but they are excluded from the mapped
-	 * statistic (above).
+	 * Number of unused virtual memory bytes currently retained.  Retained
+	 * bytes are technically mapped (though always decommitted or purged),
+	 * but they are excluded from the mapped statistic (above).
 	 */
 	atomic_zu_t		retained; /* Derived. */
 
