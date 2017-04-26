@@ -1123,7 +1123,7 @@ extent_alloc_retained(tsdn_t *tsdn, arena_t *arena,
 			extent_gdump_add(tsdn, extent);
 		}
 	}
-	if (!opt_munmap && extent == NULL) {
+	if (opt_retain && extent == NULL) {
 		extent = extent_grow_retained(tsdn, arena, r_extent_hooks,
 		    new_addr, size, pad, alignment, slab, szind, zero, commit);
 	}

@@ -7,8 +7,8 @@
 /******************************************************************************/
 /* Data. */
 
-bool	opt_munmap =
-#ifdef JEMALLOC_MUNMAP
+bool	opt_retain =
+#ifdef JEMALLOC_RETAIN
     true
 #else
     false
@@ -34,8 +34,8 @@ extent_alloc_mmap(void *new_addr, size_t size, size_t alignment, bool *zero,
 
 bool
 extent_dalloc_mmap(void *addr, size_t size) {
-	if (opt_munmap) {
+	if (!opt_retain) {
 		pages_unmap(addr, size);
 	}
-	return !opt_munmap;
+	return opt_retain;
 }

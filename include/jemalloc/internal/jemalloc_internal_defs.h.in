@@ -192,12 +192,12 @@
 #undef JEMALLOC_MAPS_COALESCE
 
 /*
- * If defined, use munmap() to unmap freed extents by default, rather than
- * storing them for later reuse.  This is disabled on 64-bit Linux because
+ * If defined, retain memory for later reuse by default rather than using e.g.
+ * munmap() to unmap freed extents.  This is enabled on 64-bit Linux because
  * common sequences of mmap()/munmap() calls will cause virtual memory map
  * holes.
  */
-#undef JEMALLOC_MUNMAP
+#undef JEMALLOC_RETAIN
 
 /* TLS is used to map arenas and magazine caches to threads. */
 #undef JEMALLOC_TLS

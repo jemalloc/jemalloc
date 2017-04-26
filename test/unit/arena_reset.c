@@ -251,7 +251,7 @@ TEST_BEGIN(test_arena_destroy_hooks_default) {
 TEST_END
 
 /*
- * Actually unmap extents, regardless of opt_munmap, so that attempts to access
+ * Actually unmap extents, regardless of opt_retain, so that attempts to access
  * a destroyed arena's memory will segfault.
  */
 static bool
