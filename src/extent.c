@@ -19,6 +19,8 @@ static void	*extent_alloc_default(extent_hooks_t *extent_hooks,
     unsigned arena_ind);
 static bool	extent_dalloc_default(extent_hooks_t *extent_hooks, void *addr,
     size_t size, bool committed, unsigned arena_ind);
+static void	extent_destroy_default(extent_hooks_t *extent_hooks, void *addr,
+    size_t size, bool committed, unsigned arena_ind);
 static bool	extent_commit_default(extent_hooks_t *extent_hooks, void *addr,
     size_t size, size_t offset, size_t length, unsigned arena_ind);
 static bool	extent_decommit_default(extent_hooks_t *extent_hooks,
@@ -43,6 +45,7 @@ static bool	extent_merge_default(extent_hooks_t *extent_hooks, void *addr_a,
 const extent_hooks_t	extent_hooks_default = {
 	extent_alloc_default,
 	extent_dalloc_default,
+	extent_destroy_default,
 	extent_commit_default,
 	extent_decommit_default
 #ifdef PAGES_CAN_PURGE_LAZY
@@ -1366,7 +1369,7 @@ extent_dalloc_default(extent_hooks_t *extent_hooks, void *addr, size_t size,
 	return extent_dalloc_default_impl(addr, size);
 }
 
-bool
+static bool
 extent_dalloc_wrapper_try(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, extent_t *extent) {
 	bool err;
@@ -1441,6 +1444,48 @@ extent_dalloc_wrapper(tsdn_t *tsdn, arena_t *arena,
 
 	extent_record(tsdn, arena, r_extent_hooks, &arena->extents_retained,
 	    extent);
+}
+
+static void
+extent_destroy_default_impl(void *addr, size_t size) {
+	if (!have_dss || !extent_in_dss(addr)) {
+		pages_unmap(addr, size);
+	}
+}
+
+static void
+extent_destroy_default(extent_hooks_t *extent_hooks, void *addr, size_t size,
+    bool committed, unsigned arena_ind) {
+	assert(extent_hooks == &extent_hooks_default);
+
+	extent_destroy_default_impl(addr, size);
+}
+
+void
+extent_destroy_wrapper(tsdn_t *tsdn, arena_t *arena,
+    extent_hooks_t **r_extent_hooks, extent_t *extent) {
+	assert(extent_base_get(extent) != NULL);
+	assert(extent_size_get(extent) != 0);
+	witness_assert_depth_to_rank(tsdn, WITNESS_RANK_CORE, 0);
+
+	/* Deregister first to avoid a race with other allocating threads. */
+	extent_deregister(tsdn, extent);
+
+	extent_addr_set(extent, extent_base_get(extent));
+
+	extent_hooks_assure_initialized(arena, r_extent_hooks);
+	/* Try to destroy; silently fail otherwise. */
+	if (*r_extent_hooks == &extent_hooks_default) {
+		/* Call directly to propagate tsdn. */
+		extent_destroy_default_impl(extent_base_get(extent),
+		    extent_size_get(extent));
+	} else if ((*r_extent_hooks)->destroy != NULL) {
+		(*r_extent_hooks)->destroy(*r_extent_hooks,
+		    extent_base_get(extent), extent_size_get(extent),
+		    extent_committed_get(extent), arena_ind_get(arena));
+	}
+
+	extent_dalloc(tsdn, arena, extent);
 }
 
 static bool

@@ -8,6 +8,8 @@ static void	*extent_alloc_hook(extent_hooks_t *extent_hooks, void *new_addr,
     unsigned arena_ind);
 static bool	extent_dalloc_hook(extent_hooks_t *extent_hooks, void *addr,
     size_t size, bool committed, unsigned arena_ind);
+static void	extent_destroy_hook(extent_hooks_t *extent_hooks, void *addr,
+    size_t size, bool committed, unsigned arena_ind);
 static bool	extent_commit_hook(extent_hooks_t *extent_hooks, void *addr,
     size_t size, size_t offset, size_t length, unsigned arena_ind);
 static bool	extent_decommit_hook(extent_hooks_t *extent_hooks, void *addr,
@@ -27,6 +29,7 @@ static extent_hooks_t *default_hooks;
 static extent_hooks_t hooks = {
 	extent_alloc_hook,
 	extent_dalloc_hook,
+	extent_destroy_hook,
 	extent_commit_hook,
 	extent_decommit_hook,
 	extent_purge_lazy_hook,
@@ -38,6 +41,7 @@ static extent_hooks_t hooks = {
 /* Control whether hook functions pass calls through to default hooks. */
 static bool try_alloc = true;
 static bool try_dalloc = true;
+static bool try_destroy = true;
 static bool try_commit = true;
 static bool try_decommit = true;
 static bool try_purge_lazy = true;
@@ -48,6 +52,7 @@ static bool try_merge = true;
 /* Set to false prior to operations, then introspect after operations. */
 static bool called_alloc;
 static bool called_dalloc;
+static bool called_destroy;
 static bool called_commit;
 static bool called_decommit;
 static bool called_purge_lazy;
@@ -58,6 +63,7 @@ static bool called_merge;
 /* Set to false prior to operations, then introspect after operations. */
 static bool did_alloc;
 static bool did_dalloc;
+static bool did_destroy;
 static bool did_commit;
 static bool did_decommit;
 static bool did_purge_lazy;
@@ -113,6 +119,24 @@ extent_dalloc_hook(extent_hooks_t *extent_hooks, void *addr, size_t size,
 	err = default_hooks->dalloc(default_hooks, addr, size, committed, 0);
 	did_dalloc = !err;
 	return err;
+}
+
+static void
+extent_destroy_hook(extent_hooks_t *extent_hooks, void *addr, size_t size,
+    bool committed, unsigned arena_ind) {
+	TRACE_HOOK("%s(extent_hooks=%p, addr=%p, size=%zu, committed=%s, "
+	    "arena_ind=%u)\n", __func__, extent_hooks, addr, size, committed ?
+	    "true" : "false", arena_ind);
+	assert_ptr_eq(extent_hooks, &hooks,
+	    "extent_hooks should be same as pointer used to set hooks");
+	assert_ptr_eq(extent_hooks->destroy, extent_destroy_hook,
+	    "Wrong hook function");
+	called_destroy = true;
+	if (!try_destroy) {
+		return;
+	}
+	default_hooks->destroy(default_hooks, addr, size, committed, 0);
+	did_destroy = true;
 }
 
 static bool

@@ -5,6 +5,7 @@
 static extent_hooks_t hooks_null = {
 	extent_alloc_hook,
 	NULL, /* dalloc */
+	NULL, /* destroy */
 	NULL, /* commit */
 	NULL, /* decommit */
 	NULL, /* purge_lazy */
@@ -16,6 +17,7 @@ static extent_hooks_t hooks_null = {
 static extent_hooks_t hooks_not_null = {
 	extent_alloc_hook,
 	extent_dalloc_hook,
+	extent_destroy_hook,
 	NULL, /* commit */
 	extent_decommit_hook,
 	extent_purge_lazy_hook,
@@ -59,6 +61,7 @@ TEST_BEGIN(test_base_hooks_null) {
 
 	extent_hooks_prep();
 	try_dalloc = false;
+	try_destroy = true;
 	try_decommit = false;
 	try_purge_lazy = false;
 	try_purge_forced = false;
@@ -98,6 +101,7 @@ TEST_BEGIN(test_base_hooks_not_null) {
 
 	extent_hooks_prep();
 	try_dalloc = false;
+	try_destroy = true;
 	try_decommit = false;
 	try_purge_lazy = false;
 	try_purge_forced = false;
@@ -194,15 +198,17 @@ TEST_BEGIN(test_base_hooks_not_null) {
 		}
 	}
 
-	called_dalloc = called_decommit = called_purge_lazy =
+	called_dalloc = called_destroy = called_decommit = called_purge_lazy =
 	    called_purge_forced = false;
 	base_delete(base);
 	assert_true(called_dalloc, "Expected dalloc call");
+	assert_true(!called_destroy, "Unexpected destroy call");
 	assert_true(called_decommit, "Expected decommit call");
 	assert_true(called_purge_lazy, "Expected purge_lazy call");
 	assert_true(called_purge_forced, "Expected purge_forced call");
 
 	try_dalloc = true;
+	try_destroy = true;
 	try_decommit = true;
 	try_purge_lazy = true;
 	try_purge_forced = true;
