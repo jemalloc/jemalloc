@@ -107,7 +107,7 @@ tcache_alloc_small_hard(tsdn_t *tsdn, arena_t *arena, tcache_t *tcache,
 	return ret;
 }
 
-static unsigned
+static inline unsigned
 tcache_bin_flush_small_impl(tsd_t *tsd, tcache_t *tcache, tcache_bin_t *tbin,
     szind_t binind, unsigned rem, bool must_flush) {
 	assert(binind < NBINS);
@@ -228,7 +228,7 @@ tcache_bin_try_flush_small(tsd_t *tsd, tcache_t *tcache, tcache_bin_t *tbin,
 	    false);
 }
 
-static unsigned
+static inline unsigned
 tcache_bin_flush_large_impl(tsd_t *tsd, tcache_t *tcache, tcache_bin_t *tbin,
     szind_t binind, unsigned rem, bool must_flush) {
 	assert(binind < nhbins);
