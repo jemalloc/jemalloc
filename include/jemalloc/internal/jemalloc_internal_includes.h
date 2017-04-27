@@ -26,8 +26,8 @@
  * dependency information into the header files (i.e. we still rely on the
  * ordering in this file to ensure all a header's dependencies are available in
  * its translation unit).  Each component is now broken up into multiple header
- * files, corresponding to the sections above (e.g. instead of "tsd.h", we now
- * have "tsd_types.h", "tsd_structs.h", "tsd_externs.h", "tsd_inlines.h").
+ * files, corresponding to the sections above (e.g. instead of "foo.h", we now
+ * have "foo_types.h", "foo_structs.h", "foo_externs.h", "foo_inlines.h").
  *
  * Those files which have been converted to explicitly include their
  * inter-component dependencies are now in the initial HERMETIC HEADERS
@@ -42,7 +42,6 @@
 
 #include "jemalloc/internal/witness_types.h"
 #include "jemalloc/internal/mutex_types.h"
-#include "jemalloc/internal/tsd_types.h"
 #include "jemalloc/internal/extent_types.h"
 #include "jemalloc/internal/extent_dss_types.h"
 #include "jemalloc/internal/base_types.h"
@@ -65,7 +64,6 @@
 #include "jemalloc/internal/arena_structs_b.h"
 #include "jemalloc/internal/rtree_structs.h"
 #include "jemalloc/internal/tcache_structs.h"
-#include "jemalloc/internal/tsd_structs.h"
 
 /******************************************************************************/
 /* EXTERNS */
@@ -83,13 +81,11 @@
 #include "jemalloc/internal/large_externs.h"
 #include "jemalloc/internal/tcache_externs.h"
 #include "jemalloc/internal/prof_externs.h"
-#include "jemalloc/internal/tsd_externs.h"
 
 /******************************************************************************/
 /* INLINES */
 /******************************************************************************/
 
-#include "jemalloc/internal/tsd_inlines.h"
 #include "jemalloc/internal/witness_inlines.h"
 #include "jemalloc/internal/mutex_inlines.h"
 #include "jemalloc/internal/jemalloc_internal_inlines_a.h"

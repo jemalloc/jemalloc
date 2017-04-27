@@ -453,14 +453,11 @@ tcache_init(tsd_t *tsd, tcache_t *tcache, void *avail_stack) {
 /* Initialize auto tcache (embedded in TSD). */
 bool
 tsd_tcache_data_init(tsd_t *tsd) {
-	tcache_t *tcache = &tsd->tcache;
+	tcache_t *tcache = tsd_tcachep_get_unsafe(tsd);
 	assert(tcache_small_bin_get(tcache, 0)->avail == NULL);
 	size_t size = stack_nelms * sizeof(void *);
 	/* Avoid false cacheline sharing. */
 	size = sa2u(size, CACHELINE);
-
-	/* Manually initialize rcache as we may need it for allocation. */
-	tsd_rtree_ctx_data_init(tsd);
 
 	void *avail_array = ipallocztm(tsd_tsdn(tsd), size, CACHELINE, true,
 	    NULL, true, arena_get(TSDN_NULL, 0, true));

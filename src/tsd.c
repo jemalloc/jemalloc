@@ -10,14 +10,38 @@
 static unsigned ncleanups;
 static malloc_tsd_cleanup_t cleanups[MALLOC_TSD_CLEANUPS_MAX];
 
-malloc_tsd_data(, , tsd_t, TSD_INITIALIZER)
+#ifdef JEMALLOC_MALLOC_THREAD_CLEANUP
+__thread tsd_t JEMALLOC_TLS_MODEL tsd_tls = TSD_INITIALIZER;
+__thread bool JEMALLOC_TLS_MODEL tsd_initialized = false;
+bool tsd_booted = false;
+#elif (defined(JEMALLOC_TLS))
+__thread tsd_t JEMALLOC_TLS_MODEL tsd_tls = TSD_INITIALIZER;
+pthread_key_t tsd_tsd;
+bool tsd_booted = false;
+#elif (defined(_WIN32))
+DWORD tsd_tsd;
+tsd_wrapper_t tsd_boot_wrapper = {false, TSD_INITIALIZER};
+bool tsd_booted = false;
+#else
+pthread_key_t tsd_tsd;
+tsd_init_head_t	tsd_init_head = {
+	ql_head_initializer(blocks),
+	MALLOC_MUTEX_INITIALIZER
+};
+tsd_wrapper_t tsd_boot_wrapper = {
+	false,
+	TSD_INITIALIZER
+};
+bool tsd_booted = false;
+#endif
+
 
 /******************************************************************************/
 
 void
 tsd_slow_update(tsd_t *tsd) {
 	if (tsd_nominal(tsd)) {
-		if (malloc_slow || !tsd->tcache_enabled ||
+		if (malloc_slow || !tsd_tcache_enabled_get(tsd) ||
 		    tsd_reentrancy_level_get(tsd) > 0) {
 			tsd->state = tsd_state_nominal_slow;
 		} else {
@@ -97,18 +121,26 @@ malloc_tsd_cleanup_register(bool (*f)(void)) {
 bool
 tsd_data_init(void *arg) {
 	tsd_t *tsd = (tsd_t *)arg;
-#define MALLOC_TSD_init_yes(n, t)					\
-	if (tsd_##n##_data_init(tsd)) {					\
-		return true;						\
+	/*
+	 * We initialize the rtree context first (before the tcache), since the
+	 * tcache initialization depends on it.
+	 */
+	rtree_ctx_data_init(tsd_rtree_ctxp_get_unsafe(tsd));
+
+	if (tsd_tcache_enabled_data_init(tsd)) {
+		return true;
 	}
-#define MALLOC_TSD_init_no(n, t)
-#define O(n, t, gs, i, c)						\
-	MALLOC_TSD_init_##i(n, t)
-MALLOC_TSD
-#undef MALLOC_TSD_init_yes
-#undef MALLOC_TSD_init_no
-#undef O
 	return false;
+}
+
+static void
+tsd_do_data_cleanup(tsd_t *tsd) {
+	prof_tdata_cleanup(tsd);
+	iarena_cleanup(tsd);
+	arena_cleanup(tsd);
+	arenas_tdata_cleanup(tsd);
+	tcache_cleanup(tsd);
+	witnesses_cleanup(tsd);
 }
 
 void
@@ -127,15 +159,7 @@ tsd_cleanup(void *arg) {
 		 * after this destructor was called.  Reset state to
 		 * tsd_state_purgatory and request another callback.
 		 */
-#define MALLOC_TSD_cleanup_yes(n, t)					\
-		n##_cleanup(tsd);
-#define MALLOC_TSD_cleanup_no(n, t)
-#define O(n, t, gs, i, c)						\
-		MALLOC_TSD_cleanup_##c(n, t)
-MALLOC_TSD
-#undef MALLOC_TSD_cleanup_yes
-#undef MALLOC_TSD_cleanup_no
-#undef O
+		tsd_do_data_cleanup(tsd);
 		tsd->state = tsd_state_purgatory;
 		tsd_set(tsd);
 		break;
@@ -150,6 +174,13 @@ MALLOC_TSD
 	default:
 		not_reached();
 	}
+#ifdef JEMALLOC_JET
+	test_callback_t test_callback = *tsd_test_callbackp_get_unsafe(tsd);
+	int *data = tsd_test_datap_get_unsafe(tsd);
+	if (test_callback != NULL) {
+		test_callback(data);
+	}
+#endif
 }
 
 tsd_t *

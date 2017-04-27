@@ -1,7 +1,7 @@
 #ifndef JEMALLOC_INTERNAL_CKH_H
 #define JEMALLOC_INTERNAL_CKH_H
 
-#include "jemalloc/internal/tsd_types.h"
+#include "jemalloc/internal/tsd.h"
 
 /* Cuckoo hashing implementation.  Skip to the end for the interface. */
 

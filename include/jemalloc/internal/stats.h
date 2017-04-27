@@ -2,6 +2,9 @@
 #define JEMALLOC_INTERNAL_STATS_H
 
 #include "jemalloc/internal/atomic.h"
+#include "jemalloc/internal/mutex_prof.h"
+#include "jemalloc/internal/mutex_types.h"
+#include "jemalloc/internal/mutex_structs.h"
 #include "jemalloc/internal/size_classes.h"
 
 /* The opt.stats_print storage. */

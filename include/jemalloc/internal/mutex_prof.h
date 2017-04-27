@@ -3,6 +3,7 @@
 
 #include "jemalloc/internal/atomic.h"
 #include "jemalloc/internal/nstime.h"
+#include "jemalloc/internal/tsd_types.h"
 
 #define MUTEX_PROF_GLOBAL_MUTEXES					\
     OP(ctl)								\

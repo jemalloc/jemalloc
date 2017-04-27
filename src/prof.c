@@ -1642,7 +1642,7 @@ static bool
 prof_dump(tsd_t *tsd, bool propagate_err, const char *filename,
     bool leakcheck) {
 	cassert(config_prof);
-	assert(tsd->reentrancy_level == 0);
+	assert(tsd_reentrancy_level_get(tsd) == 0);
 
 	prof_tdata_t * tdata = prof_tdata_get(tsd, true);
 	if (tdata == NULL) {
@@ -1757,7 +1757,7 @@ prof_fdump(void) {
 		return;
 	}
 	tsd = tsd_fetch();
-	assert(tsd->reentrancy_level == 0);
+	assert(tsd_reentrancy_level_get(tsd) == 0);
 
 	malloc_mutex_lock(tsd_tsdn(tsd), &prof_dump_seq_mtx);
 	prof_dump_filename(filename, 'f', VSEQ_INVALID);
@@ -1792,7 +1792,7 @@ prof_idump(tsdn_t *tsdn) {
 		return;
 	}
 	tsd = tsdn_tsd(tsdn);
-	if (tsd->reentrancy_level > 0) {
+	if (tsd_reentrancy_level_get(tsd) > 0) {
 		return;
 	}
 
@@ -1818,7 +1818,7 @@ prof_idump(tsdn_t *tsdn) {
 bool
 prof_mdump(tsd_t *tsd, const char *filename) {
 	cassert(config_prof);
-	assert(tsd->reentrancy_level == 0);
+	assert(tsd_reentrancy_level_get(tsd) == 0);
 
 	if (!opt_prof || !prof_booted) {
 		return true;
@@ -1849,7 +1849,7 @@ prof_gdump(tsdn_t *tsdn) {
 		return;
 	}
 	tsd = tsdn_tsd(tsdn);
-	if (tsd->reentrancy_level > 0) {
+	if (tsd_reentrancy_level_get(tsd) > 0) {
 		return;
 	}
 

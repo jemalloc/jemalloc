@@ -1,6 +1,8 @@
 #ifndef JEMALLOC_INTERNAL_TICKER_H
 #define JEMALLOC_INTERNAL_TICKER_H
 
+#include "jemalloc/internal/util.h"
+
 /**
  * A ticker makes it easy to count-down events until some limit.  You
  * ticker_init the ticker to trigger every nticks events.  You then notify it
