@@ -461,10 +461,3 @@ rtree_ctx_data_init(rtree_ctx_t *ctx) {
 		cache->leaf = NULL;
 	}
 }
-
-bool
-tsd_rtree_ctx_data_init(tsd_t *tsd) {
-	rtree_ctx_data_init(&tsd->rtree_ctx);
-
-	return false;
-}

@@ -2035,7 +2035,9 @@ irealloc_prof(tsd_t *tsd, void *old_ptr, size_t old_usize, size_t usize,
 
 JEMALLOC_ALWAYS_INLINE void
 ifree(tsd_t *tsd, void *ptr, tcache_t *tcache, bool slow_path) {
-	assert(slow_path || tsd_assert_fast(tsd));
+	if (!slow_path) {
+		tsd_assert_fast(tsd);
+	}
 	if (tsd_reentrancy_level_get(tsd) == 0) {
 		witness_assert_lockless(tsd_tsdn(tsd));
 	} else {
@@ -2073,7 +2075,9 @@ ifree(tsd_t *tsd, void *ptr, tcache_t *tcache, bool slow_path) {
 
 JEMALLOC_ALWAYS_INLINE void
 isfree(tsd_t *tsd, void *ptr, size_t usize, tcache_t *tcache, bool slow_path) {
-	assert(slow_path || tsd_assert_fast(tsd));
+	if (!slow_path) {
+		tsd_assert_fast(tsd);
+	}
 	if (tsd_reentrancy_level_get(tsd) == 0) {
 		witness_assert_lockless(tsd_tsdn(tsd));
 	} else {

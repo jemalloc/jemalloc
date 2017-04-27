@@ -2,6 +2,7 @@
 #define JEMALLOC_INTERNAL_MUTEX_INLINES_H
 
 #include "jemalloc/internal/nstime.h"
+#include "jemalloc/internal/tsd_types.h"
 
 void	malloc_mutex_lock_slow(malloc_mutex_t *mutex);
 

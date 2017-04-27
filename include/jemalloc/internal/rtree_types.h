@@ -12,11 +12,7 @@
 
 typedef struct rtree_node_elm_s rtree_node_elm_t;
 typedef struct rtree_leaf_elm_s rtree_leaf_elm_t;
-typedef struct rtree_leaf_elm_witness_s rtree_leaf_elm_witness_t;
-typedef struct rtree_leaf_elm_witness_tsd_s rtree_leaf_elm_witness_tsd_t;
 typedef struct rtree_level_s rtree_level_t;
-typedef struct rtree_ctx_cache_elm_s rtree_ctx_cache_elm_t;
-typedef struct rtree_ctx_s rtree_ctx_t;
 typedef struct rtree_s rtree_t;
 
 /* Number of high insignificant bits. */

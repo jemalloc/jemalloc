@@ -1,6 +1,8 @@
 #ifndef JEMALLOC_INTERNAL_MUTEX_EXTERNS_H
 #define JEMALLOC_INTERNAL_MUTEX_EXTERNS_H
 
+#include "jemalloc/internal/tsd_types.h"
+
 #ifdef JEMALLOC_LAZY_LOCK
 extern bool isthreaded;
 #else
