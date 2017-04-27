@@ -278,6 +278,7 @@ static extent_hooks_t hooks_orig;
 static extent_hooks_t hooks_unmap = {
 	extent_alloc_hook,
 	extent_dalloc_unmap, /* dalloc */
+	extent_destroy_hook,
 	extent_commit_hook,
 	extent_decommit_hook,
 	extent_purge_lazy_hook,

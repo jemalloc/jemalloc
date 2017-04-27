@@ -154,8 +154,8 @@ extent_dalloc
 extent_dalloc_gap
 extent_dalloc_mmap
 extent_dalloc_wrapper
-extent_dalloc_wrapper_try
 extent_decommit_wrapper
+extent_destroy_wrapper
 extent_dss_boot
 extent_dss_mergeable
 extent_dss_prec_get

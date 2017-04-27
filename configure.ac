@@ -1086,7 +1086,7 @@ if test "x${maps_coalesce}" = "x1" ; then
   AC_DEFINE([JEMALLOC_MAPS_COALESCE], [ ])
 fi
 
-dnl Indicate whether to retain memory (rather than using) munmap()) by default.
+dnl Indicate whether to retain memory (rather than using munmap()) by default.
 if test "x$default_retain" = "x1" ; then
   AC_DEFINE([JEMALLOC_RETAIN], [ ])
 fi

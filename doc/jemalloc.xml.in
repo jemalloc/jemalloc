@@ -1605,6 +1605,7 @@ typedef extent_hooks_s extent_hooks_t;
 struct extent_hooks_s {
 	extent_alloc_t		*alloc;
 	extent_dalloc_t		*dalloc;
+	extent_destroy_t	*destroy;
 	extent_commit_t		*commit;
 	extent_decommit_t	*decommit;
 	extent_purge_t		*purge_lazy;
@@ -1680,6 +1681,25 @@ struct extent_hooks_s {
         deallocation; the virtual memory mapping associated with the extent
         remains mapped, in the same commit state, and available for future use,
         in which case it will be automatically retained for later reuse.</para>
+
+        <funcsynopsis><funcprototype>
+          <funcdef>typedef void <function>(extent_destroy_t)</function></funcdef>
+          <paramdef>extent_hooks_t *<parameter>extent_hooks</parameter></paramdef>
+          <paramdef>void *<parameter>addr</parameter></paramdef>
+          <paramdef>size_t <parameter>size</parameter></paramdef>
+          <paramdef>bool <parameter>committed</parameter></paramdef>
+          <paramdef>unsigned <parameter>arena_ind</parameter></paramdef>
+        </funcprototype></funcsynopsis>
+        <literallayout></literallayout>
+        <para>
+        An extent destruction function conforms to the
+        <type>extent_destroy_t</type> type and unconditionally destroys an
+        extent at given <parameter>addr</parameter> and
+        <parameter>size</parameter> with
+        <parameter>committed</parameter>/decommited memory as indicated, on
+        behalf of arena <parameter>arena_ind</parameter>.  This function may be
+        called to destroy retained extents during arena destruction (see <link
+        linkend="arena.i.destroy"><mallctl>arena.&lt;i&gt;.destroy</mallctl></link>).</para>
 
         <funcsynopsis><funcprototype>
           <funcdef>typedef bool <function>(extent_commit_t)</function></funcdef>
