@@ -30,4 +30,11 @@
 #  define restrict
 #endif
 
+/* Various function pointers are statick and immutable except during testing. */
+#ifdef JEMALLOC_JET
+#  define JET_MUTABLE
+#else
+#  define JET_MUTABLE const
+#endif
+
 #endif /* JEMALLOC_INTERNAL_MACROS_H */
