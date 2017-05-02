@@ -14,12 +14,9 @@ witness_init(witness_t *witness, const char *name, witness_rank_t rank,
 	witness->opaque = opaque;
 }
 
-#ifdef JEMALLOC_JET
-#undef witness_lock_error
-#define witness_lock_error JEMALLOC_N(n_witness_lock_error)
-#endif
-void
-witness_lock_error(const witness_list_t *witnesses, const witness_t *witness) {
+static void
+witness_lock_error_impl(const witness_list_t *witnesses,
+    const witness_t *witness) {
 	witness_t *w;
 
 	malloc_printf("<jemalloc>: Lock rank order reversal:");
@@ -29,51 +26,28 @@ witness_lock_error(const witness_list_t *witnesses, const witness_t *witness) {
 	malloc_printf(" %s(%u)\n", witness->name, witness->rank);
 	abort();
 }
-#ifdef JEMALLOC_JET
-#undef witness_lock_error
-#define witness_lock_error JEMALLOC_N(witness_lock_error)
-witness_lock_error_t *witness_lock_error = JEMALLOC_N(n_witness_lock_error);
-#endif
+witness_lock_error_t *JET_MUTABLE witness_lock_error = witness_lock_error_impl;
 
-#ifdef JEMALLOC_JET
-#undef witness_owner_error
-#define witness_owner_error JEMALLOC_N(n_witness_owner_error)
-#endif
-void
-witness_owner_error(const witness_t *witness) {
+static void
+witness_owner_error_impl(const witness_t *witness) {
 	malloc_printf("<jemalloc>: Should own %s(%u)\n", witness->name,
 	    witness->rank);
 	abort();
 }
-#ifdef JEMALLOC_JET
-#undef witness_owner_error
-#define witness_owner_error JEMALLOC_N(witness_owner_error)
-witness_owner_error_t *witness_owner_error = JEMALLOC_N(n_witness_owner_error);
-#endif
+witness_owner_error_t *JET_MUTABLE witness_owner_error =
+    witness_owner_error_impl;
 
-#ifdef JEMALLOC_JET
-#undef witness_not_owner_error
-#define witness_not_owner_error JEMALLOC_N(n_witness_not_owner_error)
-#endif
-void
-witness_not_owner_error(const witness_t *witness) {
+static void
+witness_not_owner_error_impl(const witness_t *witness) {
 	malloc_printf("<jemalloc>: Should not own %s(%u)\n", witness->name,
 	    witness->rank);
 	abort();
 }
-#ifdef JEMALLOC_JET
-#undef witness_not_owner_error
-#define witness_not_owner_error JEMALLOC_N(witness_not_owner_error)
-witness_not_owner_error_t *witness_not_owner_error =
-    JEMALLOC_N(n_witness_not_owner_error);
-#endif
+witness_not_owner_error_t *JET_MUTABLE witness_not_owner_error =
+    witness_not_owner_error_impl;
 
-#ifdef JEMALLOC_JET
-#undef witness_depth_error
-#define witness_depth_error JEMALLOC_N(n_witness_depth_error)
-#endif
-void
-witness_depth_error(const witness_list_t *witnesses,
+static void
+witness_depth_error_impl(const witness_list_t *witnesses,
     witness_rank_t rank_inclusive, unsigned depth) {
 	witness_t *w;
 
@@ -85,11 +59,8 @@ witness_depth_error(const witness_list_t *witnesses,
 	malloc_printf("\n");
 	abort();
 }
-#ifdef JEMALLOC_JET
-#undef witness_depth_error
-#define witness_depth_error JEMALLOC_N(witness_depth_error)
-witness_depth_error_t *witness_depth_error = JEMALLOC_N(n_witness_depth_error);
-#endif
+witness_depth_error_t *JET_MUTABLE witness_depth_error =
+    witness_depth_error_impl;
 
 void
 witnesses_cleanup(tsd_t *tsd) {

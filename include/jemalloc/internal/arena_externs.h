@@ -59,12 +59,10 @@ void	arena_tcache_fill_small(tsdn_t *tsdn, arena_t *arena, tcache_t *tcache,
     tcache_bin_t *tbin, szind_t binind, uint64_t prof_accumbytes);
 void	arena_alloc_junk_small(void *ptr, const arena_bin_info_t *bin_info,
     bool zero);
-#ifdef JEMALLOC_JET
+
 typedef void (arena_dalloc_junk_small_t)(void *, const arena_bin_info_t *);
-extern arena_dalloc_junk_small_t *arena_dalloc_junk_small;
-#else
-void	arena_dalloc_junk_small(void *ptr, const arena_bin_info_t *bin_info);
-#endif
+extern arena_dalloc_junk_small_t *JET_MUTABLE arena_dalloc_junk_small;
+
 void	*arena_malloc_hard(tsdn_t *tsdn, arena_t *arena, size_t size,
     szind_t ind, bool zero);
 void	*arena_palloc(tsdn_t *tsdn, arena_t *arena, size_t usize,

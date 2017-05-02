@@ -68,26 +68,14 @@ large_palloc(tsdn_t *tsdn, arena_t *arena, size_t usize, size_t alignment,
 	return extent_addr_get(extent);
 }
 
-#ifdef JEMALLOC_JET
-#undef large_dalloc_junk
-#define large_dalloc_junk JEMALLOC_N(n_large_dalloc_junk)
-#endif
-void
-large_dalloc_junk(void *ptr, size_t size) {
+static void
+large_dalloc_junk_impl(void *ptr, size_t size) {
 	memset(ptr, JEMALLOC_FREE_JUNK, size);
 }
-#ifdef JEMALLOC_JET
-#undef large_dalloc_junk
-#define large_dalloc_junk JEMALLOC_N(large_dalloc_junk)
-large_dalloc_junk_t *large_dalloc_junk = JEMALLOC_N(n_large_dalloc_junk);
-#endif
+large_dalloc_junk_t *JET_MUTABLE large_dalloc_junk = large_dalloc_junk_impl;
 
-#ifdef JEMALLOC_JET
-#undef large_dalloc_maybe_junk
-#define large_dalloc_maybe_junk JEMALLOC_N(n_large_dalloc_maybe_junk)
-#endif
-void
-large_dalloc_maybe_junk(void *ptr, size_t size) {
+static void
+large_dalloc_maybe_junk_impl(void *ptr, size_t size) {
 	if (config_fill && have_dss && unlikely(opt_junk_free)) {
 		/*
 		 * Only bother junk filling if the extent isn't about to be
@@ -98,12 +86,8 @@ large_dalloc_maybe_junk(void *ptr, size_t size) {
 		}
 	}
 }
-#ifdef JEMALLOC_JET
-#undef large_dalloc_maybe_junk
-#define large_dalloc_maybe_junk JEMALLOC_N(large_dalloc_maybe_junk)
-large_dalloc_maybe_junk_t *large_dalloc_maybe_junk =
-    JEMALLOC_N(n_large_dalloc_maybe_junk);
-#endif
+large_dalloc_maybe_junk_t *JET_MUTABLE large_dalloc_maybe_junk =
+    large_dalloc_maybe_junk_impl;
 
 static bool
 large_ralloc_no_move_shrink(tsdn_t *tsdn, extent_t *extent, size_t usize) {

@@ -1407,20 +1407,12 @@ arena_alloc_junk_small(void *ptr, const arena_bin_info_t *bin_info, bool zero) {
 	}
 }
 
-#ifdef JEMALLOC_JET
-#undef arena_dalloc_junk_small
-#define arena_dalloc_junk_small JEMALLOC_N(n_arena_dalloc_junk_small)
-#endif
-void
-arena_dalloc_junk_small(void *ptr, const arena_bin_info_t *bin_info) {
+static void
+arena_dalloc_junk_small_impl(void *ptr, const arena_bin_info_t *bin_info) {
 	memset(ptr, JEMALLOC_FREE_JUNK, bin_info->reg_size);
 }
-#ifdef JEMALLOC_JET
-#undef arena_dalloc_junk_small
-#define arena_dalloc_junk_small JEMALLOC_N(arena_dalloc_junk_small)
-arena_dalloc_junk_small_t *arena_dalloc_junk_small =
-    JEMALLOC_N(n_arena_dalloc_junk_small);
-#endif
+arena_dalloc_junk_small_t *JET_MUTABLE arena_dalloc_junk_small =
+    arena_dalloc_junk_small_impl;
 
 static void *
 arena_malloc_small(tsdn_t *tsdn, arena_t *arena, szind_t binind, bool zero) {

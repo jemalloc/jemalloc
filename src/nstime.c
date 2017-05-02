@@ -131,27 +131,15 @@ nstime_get(nstime_t *time) {
 }
 #endif
 
-#ifdef JEMALLOC_JET
-#undef nstime_monotonic
-#define nstime_monotonic JEMALLOC_N(n_nstime_monotonic)
-#endif
-bool
-nstime_monotonic(void) {
+static bool
+nstime_monotonic_impl(void) {
 	return NSTIME_MONOTONIC;
 #undef NSTIME_MONOTONIC
 }
-#ifdef JEMALLOC_JET
-#undef nstime_monotonic
-#define nstime_monotonic JEMALLOC_N(nstime_monotonic)
-nstime_monotonic_t *nstime_monotonic = JEMALLOC_N(n_nstime_monotonic);
-#endif
+nstime_monotonic_t *JET_MUTABLE nstime_monotonic = nstime_monotonic_impl;
 
-#ifdef JEMALLOC_JET
-#undef nstime_update
-#define nstime_update JEMALLOC_N(n_nstime_update)
-#endif
-bool
-nstime_update(nstime_t *time) {
+static bool
+nstime_update_impl(nstime_t *time) {
 	nstime_t old_time;
 
 	nstime_copy(&old_time, time);
@@ -165,8 +153,4 @@ nstime_update(nstime_t *time) {
 
 	return false;
 }
-#ifdef JEMALLOC_JET
-#undef nstime_update
-#define nstime_update JEMALLOC_N(nstime_update)
-nstime_update_t *nstime_update = JEMALLOC_N(n_nstime_update);
-#endif
+nstime_update_t *JET_MUTABLE nstime_update = nstime_update_impl;

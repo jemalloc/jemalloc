@@ -25,65 +25,35 @@ rtree_new(rtree_t *rtree, bool zeroed) {
 	return false;
 }
 
-#ifdef JEMALLOC_JET
-#undef rtree_node_alloc
-#define rtree_node_alloc JEMALLOC_N(rtree_node_alloc_impl)
-#endif
 static rtree_node_elm_t *
-rtree_node_alloc(tsdn_t *tsdn, rtree_t *rtree, size_t nelms) {
+rtree_node_alloc_impl(tsdn_t *tsdn, rtree_t *rtree, size_t nelms) {
 	return (rtree_node_elm_t *)base_alloc(tsdn, b0get(), nelms *
 	    sizeof(rtree_node_elm_t), CACHELINE);
 }
-#ifdef JEMALLOC_JET
-#undef rtree_node_alloc
-#define rtree_node_alloc JEMALLOC_N(rtree_node_alloc)
-rtree_node_alloc_t *rtree_node_alloc = JEMALLOC_N(rtree_node_alloc_impl);
-#endif
+rtree_node_alloc_t *JET_MUTABLE rtree_node_alloc = rtree_node_alloc_impl;
 
-#ifdef JEMALLOC_JET
-#undef rtree_node_dalloc
-#define rtree_node_dalloc JEMALLOC_N(rtree_node_dalloc_impl)
-#endif
-UNUSED static void
-rtree_node_dalloc(tsdn_t *tsdn, rtree_t *rtree, rtree_node_elm_t *node) {
+static void
+rtree_node_dalloc_impl(tsdn_t *tsdn, rtree_t *rtree, rtree_node_elm_t *node) {
 	/* Nodes are never deleted during normal operation. */
 	not_reached();
 }
-#ifdef JEMALLOC_JET
-#undef rtree_node_dalloc
-#define rtree_node_dalloc JEMALLOC_N(rtree_node_dalloc)
-rtree_node_dalloc_t *rtree_node_dalloc = JEMALLOC_N(rtree_node_dalloc_impl);
-#endif
+UNUSED rtree_node_dalloc_t *JET_MUTABLE rtree_node_dalloc =
+    rtree_node_dalloc_impl;
 
-#ifdef JEMALLOC_JET
-#undef rtree_leaf_alloc
-#define rtree_leaf_alloc JEMALLOC_N(rtree_leaf_alloc_impl)
-#endif
 static rtree_leaf_elm_t *
-rtree_leaf_alloc(tsdn_t *tsdn, rtree_t *rtree, size_t nelms) {
+rtree_leaf_alloc_impl(tsdn_t *tsdn, rtree_t *rtree, size_t nelms) {
 	return (rtree_leaf_elm_t *)base_alloc(tsdn, b0get(), nelms *
 	    sizeof(rtree_leaf_elm_t), CACHELINE);
 }
-#ifdef JEMALLOC_JET
-#undef rtree_leaf_alloc
-#define rtree_leaf_alloc JEMALLOC_N(rtree_leaf_alloc)
-rtree_leaf_alloc_t *rtree_leaf_alloc = JEMALLOC_N(rtree_leaf_alloc_impl);
-#endif
+rtree_leaf_alloc_t *JET_MUTABLE rtree_leaf_alloc = rtree_leaf_alloc_impl;
 
-#ifdef JEMALLOC_JET
-#undef rtree_leaf_dalloc
-#define rtree_leaf_dalloc JEMALLOC_N(rtree_leaf_dalloc_impl)
-#endif
-UNUSED static void
-rtree_leaf_dalloc(tsdn_t *tsdn, rtree_t *rtree, rtree_leaf_elm_t *leaf) {
+static void
+rtree_leaf_dalloc_impl(tsdn_t *tsdn, rtree_t *rtree, rtree_leaf_elm_t *leaf) {
 	/* Leaves are never deleted during normal operation. */
 	not_reached();
 }
-#ifdef JEMALLOC_JET
-#undef rtree_leaf_dalloc
-#define rtree_leaf_dalloc JEMALLOC_N(rtree_leaf_dalloc)
-rtree_leaf_dalloc_t *rtree_leaf_dalloc = JEMALLOC_N(rtree_leaf_dalloc_impl);
-#endif
+UNUSED rtree_leaf_dalloc_t *JET_MUTABLE rtree_leaf_dalloc =
+    rtree_leaf_dalloc_impl;
 
 #ifdef JEMALLOC_JET
 #  if RTREE_HEIGHT > 1

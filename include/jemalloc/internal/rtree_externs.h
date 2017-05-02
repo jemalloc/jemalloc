@@ -24,15 +24,19 @@ static const rtree_level_t rtree_levels[] = {
 };
 
 bool rtree_new(rtree_t *rtree, bool zeroed);
-#ifdef JEMALLOC_JET
+
 typedef rtree_node_elm_t *(rtree_node_alloc_t)(tsdn_t *, rtree_t *, size_t);
-extern rtree_node_alloc_t *rtree_node_alloc;
+extern rtree_node_alloc_t *JET_MUTABLE rtree_node_alloc;
+
 typedef rtree_leaf_elm_t *(rtree_leaf_alloc_t)(tsdn_t *, rtree_t *, size_t);
-extern rtree_leaf_alloc_t *rtree_leaf_alloc;
+extern rtree_leaf_alloc_t *JET_MUTABLE rtree_leaf_alloc;
+
 typedef void (rtree_node_dalloc_t)(tsdn_t *, rtree_t *, rtree_node_elm_t *);
-extern rtree_node_dalloc_t *rtree_node_dalloc;
+extern rtree_node_dalloc_t *JET_MUTABLE rtree_node_dalloc;
+
 typedef void (rtree_leaf_dalloc_t)(tsdn_t *, rtree_t *, rtree_leaf_elm_t *);
-extern rtree_leaf_dalloc_t *rtree_leaf_dalloc;
+extern rtree_leaf_dalloc_t *JET_MUTABLE rtree_leaf_dalloc;
+#ifdef JEMALLOC_JET
 void rtree_delete(tsdn_t *tsdn, rtree_t *rtree);
 #endif
 rtree_leaf_elm_t *rtree_leaf_elm_lookup_hard(tsdn_t *tsdn, rtree_t *rtree,

@@ -932,9 +932,7 @@ prof_tdata_count(void) {
 
 	return tdata_count;
 }
-#endif
 
-#ifdef JEMALLOC_JET
 size_t
 prof_bt_count(void) {
 	size_t bt_count;
@@ -955,12 +953,8 @@ prof_bt_count(void) {
 }
 #endif
 
-#ifdef JEMALLOC_JET
-#undef prof_dump_open
-#define prof_dump_open JEMALLOC_N(prof_dump_open_impl)
-#endif
 static int
-prof_dump_open(bool propagate_err, const char *filename) {
+prof_dump_open_impl(bool propagate_err, const char *filename) {
 	int fd;
 
 	fd = creat(filename, 0644);
@@ -974,11 +968,7 @@ prof_dump_open(bool propagate_err, const char *filename) {
 
 	return fd;
 }
-#ifdef JEMALLOC_JET
-#undef prof_dump_open
-#define prof_dump_open JEMALLOC_N(prof_dump_open)
-prof_dump_open_t *prof_dump_open = JEMALLOC_N(prof_dump_open_impl);
-#endif
+prof_dump_open_t *JET_MUTABLE prof_dump_open = prof_dump_open_impl;
 
 static bool
 prof_dump_flush(bool propagate_err) {
@@ -1331,12 +1321,9 @@ prof_tdata_dump_iter(prof_tdata_tree_t *tdatas, prof_tdata_t *tdata,
 	return NULL;
 }
 
-#ifdef JEMALLOC_JET
-#undef prof_dump_header
-#define prof_dump_header JEMALLOC_N(prof_dump_header_impl)
-#endif
 static bool
-prof_dump_header(tsdn_t *tsdn, bool propagate_err, const prof_cnt_t *cnt_all) {
+prof_dump_header_impl(tsdn_t *tsdn, bool propagate_err,
+    const prof_cnt_t *cnt_all) {
 	bool ret;
 
 	if (prof_dump_printf(propagate_err,
@@ -1353,11 +1340,7 @@ prof_dump_header(tsdn_t *tsdn, bool propagate_err, const prof_cnt_t *cnt_all) {
 	malloc_mutex_unlock(tsdn, &tdatas_mtx);
 	return ret;
 }
-#ifdef JEMALLOC_JET
-#undef prof_dump_header
-#define prof_dump_header JEMALLOC_N(prof_dump_header)
-prof_dump_header_t *prof_dump_header = JEMALLOC_N(prof_dump_header_impl);
-#endif
+prof_dump_header_t *JET_MUTABLE prof_dump_header = prof_dump_header_impl;
 
 static bool
 prof_dump_gctx(tsdn_t *tsdn, bool propagate_err, prof_gctx_t *gctx,
