@@ -251,17 +251,16 @@ rtree_leaf_elm_szind_slab_update(tsdn_t *tsdn, rtree_t *rtree,
 	 * modified by another thread, the fact that the lock is embedded in the
 	 * same word requires that a CAS operation be used here.
 	 */
-	uintptr_t old_bits = rtree_leaf_elm_bits_read(tsdn, rtree, elm, false,
-	    true) & ~((uintptr_t)0x1); /* Mask lock bit. */
-	uintptr_t bits = ((uintptr_t)szind << LG_VADDR) |
-	    ((uintptr_t)rtree_leaf_elm_bits_extent_get(old_bits) &
-	    (((uintptr_t)0x1 << LG_VADDR) - 1)) |
-	    ((uintptr_t)slab << 1);
 	spin_t spinner = SPIN_INITIALIZER;
 	while (true) {
+		void *old_bits = (void *)(rtree_leaf_elm_bits_read(tsdn, rtree,
+		    elm, false, true) & ~((uintptr_t)0x1)); /* Mask lock bit. */
+		void *bits = (void *)(((uintptr_t)szind << LG_VADDR) |
+		    ((uintptr_t)rtree_leaf_elm_bits_extent_get(
+		    (uintptr_t)old_bits) & (((uintptr_t)0x1 << LG_VADDR) - 1)) |
+		    ((uintptr_t)slab << 1));
 		if (likely(atomic_compare_exchange_strong_p(&elm->le_bits,
-		    (void **)&old_bits, (void *)bits, ATOMIC_ACQUIRE,
-		    ATOMIC_RELAXED))) {
+		    &old_bits, bits, ATOMIC_ACQUIRE, ATOMIC_RELAXED))) {
 			break;
 		}
 		spin_adaptive(&spinner);
