@@ -1349,10 +1349,14 @@ AC_ARG_WITH([version],
    [Version string])],
   [
     echo "${with_version}" | grep ['^[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+-g[0-9a-f]\+$'] 2>&1 1>/dev/null
-    if test $? -ne 0 ; then
-      AC_MSG_ERROR([${with_version} does not match <major>.<minor>.<bugfix>-<nrev>-g<gid>])
+    if test $? -eq 0 ; then
+      echo "$with_version" > "${objroot}VERSION"
+    else
+      echo "${with_version}" | grep ['^VERSION$'] 2>&1 1>/dev/null
+      if test $? -ne 0 ; then
+        AC_MSG_ERROR([${with_version} does not match <major>.<minor>.<bugfix>-<nrev>-g<gid> or VERSION])
+      fi
     fi
-    echo "$with_version" > "${objroot}VERSION"
   ], [
     dnl Set VERSION if source directory is inside a git repository.
     if test "x`test ! \"${srcroot}\" && cd \"${srcroot}\"; git rev-parse --is-inside-work-tree 2>/dev/null`" = "xtrue" ; then
