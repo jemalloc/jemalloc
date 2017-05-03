@@ -886,7 +886,6 @@ cfgoutputs_tup="${cfgoutputs_tup} test/include/test/jemalloc_test.h:test/include
 cfghdrs_in="include/jemalloc/jemalloc_defs.h.in"
 cfghdrs_in="${cfghdrs_in} include/jemalloc/internal/jemalloc_internal_defs.h.in"
 cfghdrs_in="${cfghdrs_in} include/jemalloc/internal/private_namespace.sh"
-cfghdrs_in="${cfghdrs_in} include/jemalloc/internal/private_unnamespace.sh"
 cfghdrs_in="${cfghdrs_in} include/jemalloc/internal/private_symbols.txt"
 cfghdrs_in="${cfghdrs_in} include/jemalloc/internal/public_namespace.sh"
 cfghdrs_in="${cfghdrs_in} include/jemalloc/internal/public_unnamespace.sh"
@@ -899,7 +898,6 @@ cfghdrs_in="${cfghdrs_in} test/include/test/jemalloc_test_defs.h.in"
 cfghdrs_out="include/jemalloc/jemalloc_defs.h"
 cfghdrs_out="${cfghdrs_out} include/jemalloc/jemalloc${install_suffix}.h"
 cfghdrs_out="${cfghdrs_out} include/jemalloc/internal/private_namespace.h"
-cfghdrs_out="${cfghdrs_out} include/jemalloc/internal/private_unnamespace.h"
 cfghdrs_out="${cfghdrs_out} include/jemalloc/internal/public_symbols.txt"
 cfghdrs_out="${cfghdrs_out} include/jemalloc/internal/public_namespace.h"
 cfghdrs_out="${cfghdrs_out} include/jemalloc/internal/public_unnamespace.h"
@@ -1909,13 +1907,6 @@ dnl Define commands that generate output files.
 AC_CONFIG_COMMANDS([include/jemalloc/internal/private_namespace.h], [
   mkdir -p "${objroot}include/jemalloc/internal"
   "${srcdir}/include/jemalloc/internal/private_namespace.sh" "${srcdir}/include/jemalloc/internal/private_symbols.txt" > "${objroot}include/jemalloc/internal/private_namespace.h"
-], [
-  srcdir="${srcdir}"
-  objroot="${objroot}"
-])
-AC_CONFIG_COMMANDS([include/jemalloc/internal/private_unnamespace.h], [
-  mkdir -p "${objroot}include/jemalloc/internal"
-  "${srcdir}/include/jemalloc/internal/private_unnamespace.sh" "${srcdir}/include/jemalloc/internal/private_symbols.txt" > "${objroot}include/jemalloc/internal/private_unnamespace.h"
 ], [
   srcdir="${srcdir}"
   objroot="${objroot}"
