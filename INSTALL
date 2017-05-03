@@ -35,9 +35,20 @@ any of the following arguments (not a definitive list) to 'configure':
     will cause files to be installed into /usr/local/include, /usr/local/lib,
     and /usr/local/man.
 
---with-version=<major>.<minor>.<bugfix>-<nrev>-g<gid>
-    Use the specified version string rather than trying to generate one (if in
-    a git repository) or use existing the VERSION file (if present).
+--with-version=(<major>.<minor>.<bugfix>-<nrev>-g<gid>|VERSION)
+    The VERSION file is mandatory for successful configuration, and the
+    following steps are taken to assure its presence:
+    1) If --with-version=<major>.<minor>.<bugfix>-<nrev>-g<gid> is specified,
+       generate VERSION using the specified value.
+    2) If --with-version is not specified in either form and the source
+       directory is inside a git repository, try to generate VERSION via 'git
+       describe' invocations that pattern-match release tags.
+    3) If VERSION is missing, generate it with a bogus version:
+       0.0.0-0-g0000000000000000000000000000000000000000
+
+    Note that --with-version=VERSION bypasses (1) and (2), which simplifies
+    VERSION configuration when embedding a jemalloc release into another
+    project's git repository.
 
 --with-rpath=<colon-separated-rpath>
     Embed one or more library paths, so that libjemalloc can find the libraries
