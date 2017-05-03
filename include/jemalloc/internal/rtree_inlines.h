@@ -54,7 +54,7 @@ rtree_leaf_elm_bits_read(tsdn_t *tsdn, rtree_t *rtree, rtree_leaf_elm_t *elm,
 	}
 
 	return (uintptr_t)atomic_load_p(&elm->le_bits, dependent
-	    ?  ATOMIC_RELAXED : ATOMIC_ACQUIRE);
+	    ? ATOMIC_RELAXED : ATOMIC_ACQUIRE);
 }
 
 JEMALLOC_ALWAYS_INLINE extent_t *
@@ -143,8 +143,8 @@ rtree_leaf_elm_slab_read(tsdn_t *tsdn, rtree_t *rtree, rtree_leaf_elm_t *elm,
 }
 
 static inline void
-rtree_leaf_elm_extent_write(tsdn_t *tsdn, rtree_t *rtree, rtree_leaf_elm_t *elm,
-    bool acquired, extent_t *extent) {
+rtree_leaf_elm_extent_lock_write(tsdn_t *tsdn, rtree_t *rtree,
+    rtree_leaf_elm_t *elm, bool acquired, extent_t *extent, bool lock) {
 	if (config_debug && acquired) {
 		rtree_leaf_elm_witness_access(tsdn, rtree, elm);
 	}
@@ -156,10 +156,10 @@ rtree_leaf_elm_extent_write(tsdn_t *tsdn, rtree_t *rtree, rtree_leaf_elm_t *elm,
 	uintptr_t bits = ((uintptr_t)rtree_leaf_elm_bits_szind_get(old_bits) <<
 	    LG_VADDR) | ((uintptr_t)extent & (((uintptr_t)0x1 << LG_VADDR) - 1))
 	    | ((uintptr_t)rtree_leaf_elm_bits_slab_get(old_bits) << 1) |
-	    (uintptr_t)acquired;
+	    (uintptr_t)lock;
 	atomic_store_p(&elm->le_bits, (void *)bits, ATOMIC_RELEASE);
 #else
-	if (acquired) {
+	if (lock) {
 		/* Overlay lock bit. */
 		extent = (extent_t *)((uintptr_t)extent | (uintptr_t)0x1);
 	}
@@ -222,7 +222,6 @@ rtree_leaf_elm_write(tsdn_t *tsdn, rtree_t *rtree, rtree_leaf_elm_t *elm,
 	    ((uintptr_t)extent & (((uintptr_t)0x1 << LG_VADDR) - 1)) |
 	    ((uintptr_t)slab << 1) |
 	    (uintptr_t)acquired;
-
 	atomic_store_p(&elm->le_bits, (void *)bits, ATOMIC_RELEASE);
 #else
 	rtree_leaf_elm_slab_write(tsdn, rtree, elm, acquired, slab);
@@ -231,7 +230,8 @@ rtree_leaf_elm_write(tsdn_t *tsdn, rtree_t *rtree, rtree_leaf_elm_t *elm,
 	 * Write extent last, since the element is atomically considered valid
 	 * as soon as the extent field is non-NULL.
 	 */
-	rtree_leaf_elm_extent_write(tsdn, rtree, elm, acquired, extent);
+	rtree_leaf_elm_extent_lock_write(tsdn, rtree, elm, acquired, extent,
+	    acquired);
 #endif
 }
 
@@ -463,7 +463,8 @@ static inline void
 rtree_leaf_elm_release(tsdn_t *tsdn, rtree_t *rtree, rtree_leaf_elm_t *elm) {
 	extent_t *extent = rtree_leaf_elm_extent_read(tsdn, rtree, elm, true,
 	    true);
-	rtree_leaf_elm_extent_write(tsdn, rtree, elm, false, extent);
+	rtree_leaf_elm_extent_lock_write(tsdn, rtree, elm, true, extent, false);
+
 	if (config_debug) {
 		rtree_leaf_elm_witness_release(tsdn, rtree, elm);
 	}
