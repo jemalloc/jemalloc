@@ -38,7 +38,13 @@
  * want the inclusion of hooks to happen early, so that we hook as much as
  * possible.
  */
-#include "jemalloc/internal/private_namespace.h"
+#ifndef JEMALLOC_NO_PRIVATE_NAMESPACE
+#  ifndef JEMALLOC_JET
+#    include "jemalloc/internal/private_namespace.h"
+#  else
+#    include "jemalloc/internal/private_namespace_jet.h"
+#  endif
+#endif
 #include "jemalloc/internal/hooks.h"
 
 static const bool config_debug =

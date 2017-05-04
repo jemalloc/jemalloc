@@ -2299,33 +2299,44 @@ je_valloc(size_t size) {
 JEMALLOC_EXPORT void (*__free_hook)(void *ptr) = je_free;
 JEMALLOC_EXPORT void *(*__malloc_hook)(size_t size) = je_malloc;
 JEMALLOC_EXPORT void *(*__realloc_hook)(void *ptr, size_t size) = je_realloc;
-# ifdef JEMALLOC_GLIBC_MEMALIGN_HOOK
+#  ifdef JEMALLOC_GLIBC_MEMALIGN_HOOK
 JEMALLOC_EXPORT void *(*__memalign_hook)(size_t alignment, size_t size) =
     je_memalign;
-# endif
+#  endif
 
-#ifdef CPU_COUNT
+#  ifdef CPU_COUNT
 /*
  * To enable static linking with glibc, the libc specific malloc interface must
  * be implemented also, so none of glibc's malloc.o functions are added to the
  * link.
  */
-#define ALIAS(je_fn)	__attribute__((alias (#je_fn), used))
+#    define ALIAS(je_fn)	__attribute__((alias (#je_fn), used))
 /* To force macro expansion of je_ prefix before stringification. */
-#define PREALIAS(je_fn)  ALIAS(je_fn)
-void	*__libc_malloc(size_t size) PREALIAS(je_malloc);
-void	__libc_free(void* ptr) PREALIAS(je_free);
-void	*__libc_realloc(void* ptr, size_t size) PREALIAS(je_realloc);
-void	*__libc_calloc(size_t n, size_t size) PREALIAS(je_calloc);
-void	*__libc_memalign(size_t align, size_t s) PREALIAS(je_memalign);
-void	*__libc_valloc(size_t size) PREALIAS(je_valloc);
-int	__posix_memalign(void** r, size_t a, size_t s)
-    PREALIAS(je_posix_memalign);
-#undef PREALIAS
-#undef ALIAS
-
-#endif
-
+#    define PREALIAS(je_fn)	ALIAS(je_fn)
+#    ifdef JEMALLOC_OVERRIDE___LIBC_CALLOC
+void *__libc_calloc(size_t n, size_t size) PREALIAS(je_calloc);
+#    endif
+#    ifdef JEMALLOC_OVERRIDE___LIBC_FREE
+void __libc_free(void* ptr) PREALIAS(je_free);
+#    endif
+#    ifdef JEMALLOC_OVERRIDE___LIBC_MALLOC
+void *__libc_malloc(size_t size) PREALIAS(je_malloc);
+#    endif
+#    ifdef JEMALLOC_OVERRIDE___LIBC_MEMALIGN
+void *__libc_memalign(size_t align, size_t s) PREALIAS(je_memalign);
+#    endif
+#    ifdef JEMALLOC_OVERRIDE___LIBC_REALLOC
+void *__libc_realloc(void* ptr, size_t size) PREALIAS(je_realloc);
+#    endif
+#    ifdef JEMALLOC_OVERRIDE___LIBC_VALLOC
+void *__libc_valloc(size_t size) PREALIAS(je_valloc);
+#    endif
+#    ifdef JEMALLOC_OVERRIDE___POSIX_MEMALIGN
+int __posix_memalign(void** r, size_t a, size_t s) PREALIAS(je_posix_memalign);
+#    endif
+#    undef PREALIAS
+#    undef ALIAS
+#  endif
 #endif
 
 /*

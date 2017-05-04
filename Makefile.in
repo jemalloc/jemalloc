@@ -68,6 +68,8 @@ TEST_LD_MODE = @TEST_LD_MODE@
 MKLIB = @MKLIB@
 AR = @AR@
 ARFLAGS = @ARFLAGS@
+DUMP_SYMS = @DUMP_SYMS@
+AWK := @AWK@
 CC_MM = @CC_MM@
 LM := @LM@
 INSTALL = @INSTALL@
@@ -224,10 +226,15 @@ TESTS_STRESS := $(srcroot)test/stress/microbench.c
 
 TESTS := $(TESTS_UNIT) $(TESTS_INTEGRATION) $(TESTS_INTEGRATION_CPP) $(TESTS_STRESS)
 
+PRIVATE_NAMESPACE_HDRS := $(objroot)include/jemalloc/internal/private_namespace.h $(objroot)include/jemalloc/internal/private_namespace_jet.h
+C_SYM_OBJS := $(C_SRCS:$(srcroot)%.c=$(objroot)%.sym.$(O))
+C_SYMS := $(C_SRCS:$(srcroot)%.c=$(objroot)%.sym)
 C_OBJS := $(C_SRCS:$(srcroot)%.c=$(objroot)%.$(O))
 CPP_OBJS := $(CPP_SRCS:$(srcroot)%.cpp=$(objroot)%.$(O))
 C_PIC_OBJS := $(C_SRCS:$(srcroot)%.c=$(objroot)%.pic.$(O))
 CPP_PIC_OBJS := $(CPP_SRCS:$(srcroot)%.cpp=$(objroot)%.pic.$(O))
+C_JET_SYM_OBJS := $(C_SRCS:$(srcroot)%.c=$(objroot)%.jet.sym.$(O))
+C_JET_SYMS := $(C_SRCS:$(srcroot)%.c=$(objroot)%.jet.sym)
 C_JET_OBJS := $(C_SRCS:$(srcroot)%.c=$(objroot)%.jet.$(O))
 C_TESTLIB_UNIT_OBJS := $(C_TESTLIB_SRCS:$(srcroot)%.c=$(objroot)%.unit.$(O))
 C_TESTLIB_INTEGRATION_OBJS := $(C_TESTLIB_SRCS:$(srcroot)%.c=$(objroot)%.integration.$(O))
@@ -268,24 +275,32 @@ build_doc: $(DOCS)
 # Include generated dependency files.
 #
 ifdef CC_MM
+-include $(C_SYM_OBJS:%.$(O)=%.d)
 -include $(C_OBJS:%.$(O)=%.d)
 -include $(CPP_OBJS:%.$(O)=%.d)
 -include $(C_PIC_OBJS:%.$(O)=%.d)
 -include $(CPP_PIC_OBJS:%.$(O)=%.d)
+-include $(C_JET_SYM_OBJS:%.$(O)=%.d)
 -include $(C_JET_OBJS:%.$(O)=%.d)
 -include $(C_TESTLIB_OBJS:%.$(O)=%.d)
 -include $(TESTS_OBJS:%.$(O)=%.d)
 -include $(TESTS_CPP_OBJS:%.$(O)=%.d)
 endif
 
+$(C_SYM_OBJS): $(objroot)src/%.sym.$(O): $(srcroot)src/%.c
+$(C_SYM_OBJS): CPPFLAGS += -DJEMALLOC_NO_PRIVATE_NAMESPACE
+$(C_SYMS): $(objroot)src/%.sym: $(objroot)src/%.sym.$(O)
 $(C_OBJS): $(objroot)src/%.$(O): $(srcroot)src/%.c
 $(CPP_OBJS): $(objroot)src/%.$(O): $(srcroot)src/%.cpp
 $(C_PIC_OBJS): $(objroot)src/%.pic.$(O): $(srcroot)src/%.c
 $(C_PIC_OBJS): CFLAGS += $(PIC_CFLAGS)
 $(CPP_PIC_OBJS): $(objroot)src/%.pic.$(O): $(srcroot)src/%.cpp
 $(CPP_PIC_OBJS): CXXFLAGS += $(PIC_CFLAGS)
+$(C_JET_SYM_OBJS): $(objroot)src/%.jet.sym.$(O): $(srcroot)src/%.c
+$(C_JET_SYM_OBJS): CPPFLAGS += -DJEMALLOC_JET -DJEMALLOC_NO_PRIVATE_NAMESPACE
+$(C_JET_SYMS): $(objroot)src/%.jet.sym: $(objroot)src/%.jet.sym.$(O)
 $(C_JET_OBJS): $(objroot)src/%.jet.$(O): $(srcroot)src/%.c
-$(C_JET_OBJS): CFLAGS += -DJEMALLOC_JET
+$(C_JET_OBJS): CPPFLAGS += -DJEMALLOC_JET
 $(C_TESTLIB_UNIT_OBJS): $(objroot)test/src/%.unit.$(O): $(srcroot)test/src/%.c
 $(C_TESTLIB_UNIT_OBJS): CPPFLAGS += -DJEMALLOC_UNIT_TEST
 $(C_TESTLIB_INTEGRATION_OBJS): $(objroot)test/src/%.integration.$(O): $(srcroot)test/src/%.c
@@ -303,24 +318,41 @@ $(TESTS_CPP_OBJS): $(objroot)test/%.$(O): $(srcroot)test/%.cpp
 $(TESTS_OBJS): CPPFLAGS += -I$(srcroot)test/include -I$(objroot)test/include
 $(TESTS_CPP_OBJS): CPPFLAGS += -I$(srcroot)test/include -I$(objroot)test/include
 ifneq ($(IMPORTLIB),$(SO))
-$(CPP_OBJS) $(C_OBJS) $(C_JET_OBJS): CPPFLAGS += -DDLLEXPORT
+$(CPP_OBJS) $(C_SYM_OBJS) $(C_OBJS) $(C_JET_SYM_OBJS) $(C_JET_OBJS): CPPFLAGS += -DDLLEXPORT
 endif
 
-ifndef CC_MM
 # Dependencies.
+ifndef CC_MM
 HEADER_DIRS = $(srcroot)include/jemalloc/internal \
 	$(objroot)include/jemalloc $(objroot)include/jemalloc/internal
-HEADERS = $(wildcard $(foreach dir,$(HEADER_DIRS),$(dir)/*.h))
-$(C_OBJS) $(CPP_OBJS) $(C_PIC_OBJS) $(CPP_PIC_OBJS) $(C_JET_OBJS) $(C_TESTLIB_OBJS) $(TESTS_OBJS): $(HEADERS)
+HEADERS = $(filter-out $(PRIVATE_NAMESPACE_HDRS),$(wildcard $(foreach dir,$(HEADER_DIRS),$(dir)/*.h)))
+$(C_SYM_OBJS) $(C_OBJS) $(CPP_OBJS) $(C_PIC_OBJS) $(CPP_PIC_OBJS) $(C_JET_SYM_OBJS) $(C_JET_OBJS) $(C_TESTLIB_OBJS) $(TESTS_OBJS) $(TESTS_CPP_OBJS): $(HEADERS)
 $(TESTS_OBJS) $(TESTS_CPP_OBJS): $(objroot)test/include/test/jemalloc_test.h
 endif
 
-$(C_OBJS) $(C_PIC_OBJS) $(C_JET_OBJS) $(C_TESTLIB_OBJS) $(TESTS_OBJS): %.$(O):
+$(C_OBJS) $(CPP_OBJS) $(C_PIC_OBJS) $(CPP_PIC_OBJS) $(C_TESTLIB_INTEGRATION_OBJS) $(C_UTIL_INTEGRATION_OBJS) $(TESTS_INTEGRATION_OBJS) $(TESTS_INTEGRATION_CPP_OBJS): $(objroot)include/jemalloc/internal/private_namespace.h
+$(C_JET_OBJS) $(C_TESTLIB_UNIT_OBJS) $(C_TESTLIB_STRESS_OBJS) $(TESTS_UNIT_OBJS) $(TESTS_STRESS_OBJS): $(objroot)include/jemalloc/internal/private_namespace_jet.h
+
+$(C_SYM_OBJS) $(C_OBJS) $(C_PIC_OBJS) $(C_JET_SYM_OBJS) $(C_JET_OBJS) $(C_TESTLIB_OBJS) $(TESTS_OBJS): %.$(O):
 	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) -c $(CPPFLAGS) $(CTARGET) $<
 ifdef CC_MM
 	@$(CC) -MM $(CPPFLAGS) -MT $@ -o $(@:%.$(O)=%.d) $<
 endif
+
+$(C_SYMS): %.sym:
+	@mkdir -p $(@D)
+	$(DUMP_SYMS) $< | $(AWK) -f $(objroot)include/jemalloc/internal/private_symbols.awk > $@
+
+$(C_JET_SYMS): %.sym:
+	@mkdir -p $(@D)
+	$(DUMP_SYMS) $< | $(AWK) -f $(objroot)include/jemalloc/internal/private_symbols_jet.awk > $@
+
+$(objroot)include/jemalloc/internal/private_namespace.h: $(C_SYMS)
+	$(SHELL) $(objdir)include/jemalloc/internal/private_namespace.sh $^ > $@
+
+$(objroot)include/jemalloc/internal/private_namespace_jet.h: $(C_JET_SYMS)
+	$(SHELL) $(objdir)include/jemalloc/internal/private_namespace.sh $^ > $@
 
 $(CPP_OBJS) $(CPP_PIC_OBJS) $(TESTS_CPP_OBJS): %.$(O):
 	@mkdir -p $(@D)
@@ -347,7 +379,7 @@ $(STATIC_LIBS):
 	@mkdir -p $(@D)
 	$(AR) $(ARFLAGS)@AROUT@ $+
 
-$(objroot)test/unit/%$(EXE): $(objroot)test/unit/%.$(O) $(TESTS_UNIT_LINK_OBJS) $(C_JET_OBJS) $(C_TESTLIB_UNIT_OBJS)
+$(objroot)test/unit/%$(EXE): $(objroot)test/unit/%.$(O) $(C_JET_OBJS) $(C_TESTLIB_UNIT_OBJS)
 	@mkdir -p $(@D)
 	$(CC) $(LDTARGET) $(filter %.$(O),$^) $(call RPATH,$(objroot)lib) $(LDFLAGS) $(filter-out -lm,$(LIBS)) $(LM) $(EXTRA_LDFLAGS)
 
@@ -452,16 +484,23 @@ stress: tests_stress stress_dir
 check: check_unit check_integration check_integration_decay check_integration_prof
 
 clean:
+	rm -f $(PRIVATE_NAMESPACE_HDRS)
+	rm -f $(C_SYM_OBJS)
+	rm -f $(C_SYMS)
 	rm -f $(C_OBJS)
 	rm -f $(CPP_OBJS)
 	rm -f $(C_PIC_OBJS)
 	rm -f $(CPP_PIC_OBJS)
+	rm -f $(C_JET_SYM_OBJS)
+	rm -f $(C_JET_SYMS)
 	rm -f $(C_JET_OBJS)
 	rm -f $(C_TESTLIB_OBJS)
+	rm -f $(C_SYM_OBJS:%.$(O)=%.d)
 	rm -f $(C_OBJS:%.$(O)=%.d)
 	rm -f $(CPP_OBJS:%.$(O)=%.d)
 	rm -f $(C_PIC_OBJS:%.$(O)=%.d)
 	rm -f $(CPP_PIC_OBJS:%.$(O)=%.d)
+	rm -f $(C_JET_SYM_OBJS:%.$(O)=%.d)
 	rm -f $(C_JET_OBJS:%.$(O)=%.d)
 	rm -f $(C_TESTLIB_OBJS:%.$(O)=%.d)
 	rm -f $(TESTS_OBJS:%.$(O)=%$(EXE))
