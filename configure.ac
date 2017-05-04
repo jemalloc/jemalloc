@@ -510,6 +510,8 @@ AN_PROGRAM([ar], [AC_PROG_AR])
 AC_DEFUN([AC_PROG_AR], [AC_CHECK_TOOL(AR, ar, :)])
 AC_PROG_AR
 
+AC_PROG_AWK
+
 dnl Platform-specific settings.  abi and RPATH can probably be determined
 dnl programmatically, but doing so is error-prone, which makes it generally
 dnl not worth the trouble.
@@ -519,6 +521,8 @@ dnl definitions need to be seen before any headers are included, which is a pain
 dnl to make happen otherwise.
 default_retain="0"
 maps_coalesce="1"
+DUMP_SYMS="nm -a"
+SYM_PREFIX=""
 case "${host}" in
   *-*-darwin* | *-*-ios*)
 	abi="macho"
@@ -530,6 +534,7 @@ case "${host}" in
 	DSO_LDFLAGS='-shared -Wl,-install_name,$(LIBDIR)/$(@F)'
 	SOREV="${rev}.${so}"
 	sbrk_deprecated="1"
+	SYM_PREFIX="_"
 	;;
   *-*-freebsd*)
 	abi="elf"
@@ -624,6 +629,7 @@ case "${host}" in
 	  DSO_LDFLAGS="-shared"
 	  link_whole_archive="1"
 	fi
+	DUMP_SYMS="dumpbin /SYMBOLS"
 	a="lib"
 	libprefix=""
 	SOREV="${so}"
@@ -671,6 +677,7 @@ AC_SUBST([TEST_LD_MODE])
 AC_SUBST([MKLIB])
 AC_SUBST([ARFLAGS])
 AC_SUBST([AROUT])
+AC_SUBST([DUMP_SYMS])
 AC_SUBST([CC_MM])
 
 dnl Determine whether libm must be linked to use e.g. log(3).
@@ -773,16 +780,6 @@ AC_PROG_RANLIB
 AC_PATH_PROG([LD], [ld], [false], [$PATH])
 AC_PATH_PROG([AUTOCONF], [autoconf], [false], [$PATH])
 
-public_syms="malloc_conf malloc_message malloc calloc posix_memalign aligned_alloc realloc free mallocx rallocx xallocx sallocx dallocx sdallocx nallocx mallctl mallctlnametomib mallctlbymib malloc_stats_print malloc_usable_size"
-
-dnl Check for allocator-related functions that should be wrapped.
-AC_CHECK_FUNC([memalign],
-	      [AC_DEFINE([JEMALLOC_OVERRIDE_MEMALIGN], [ ])
-	       public_syms="${public_syms} memalign"])
-AC_CHECK_FUNC([valloc],
-	      [AC_DEFINE([JEMALLOC_OVERRIDE_VALLOC], [ ])
-	       public_syms="${public_syms} valloc"])
-
 dnl Perform no name mangling by default.
 AC_ARG_WITH([mangling],
   [AS_HELP_STRING([--with-mangling=<map>], [Mangle symbols in <map>])],
@@ -813,6 +810,49 @@ AC_ARG_WITH([export],
   AC_DEFINE([JEMALLOC_EXPORT],[])
 fi]
 )
+
+public_syms="aligned_alloc calloc dallocx free mallctl mallctlbymib mallctlnametomib malloc malloc_conf malloc_message malloc_stats_print malloc_usable_size mallocx nallocx posix_memalign rallocx realloc sallocx sdallocx xallocx"
+dnl Check for additional platform-specific public API functions.
+AC_CHECK_FUNC([memalign],
+	      [AC_DEFINE([JEMALLOC_OVERRIDE_MEMALIGN], [ ])
+	       public_syms="${public_syms} memalign"])
+AC_CHECK_FUNC([valloc],
+	      [AC_DEFINE([JEMALLOC_OVERRIDE_VALLOC], [ ])
+	       public_syms="${public_syms} valloc"])
+
+dnl Check for allocator-related functions that should be wrapped.
+wrap_syms=
+if test "x${JEMALLOC_PREFIX}" = "x" ; then
+  AC_CHECK_FUNC([__libc_calloc],
+		[AC_DEFINE([JEMALLOC_OVERRIDE___LIBC_CALLOC], [ ])
+		 wrap_syms="${wrap_syms} __libc_calloc"])
+  AC_CHECK_FUNC([__libc_free],
+		[AC_DEFINE([JEMALLOC_OVERRIDE___LIBC_FREE], [ ])
+		 wrap_syms="${wrap_syms} __libc_free"])
+  AC_CHECK_FUNC([__libc_malloc],
+		[AC_DEFINE([JEMALLOC_OVERRIDE___LIBC_MALLOC], [ ])
+		 wrap_syms="${wrap_syms} __libc_malloc"])
+  AC_CHECK_FUNC([__libc_memalign],
+		[AC_DEFINE([JEMALLOC_OVERRIDE___LIBC_MEMALIGN], [ ])
+		 wrap_syms="${wrap_syms} __libc_memalign"])
+  AC_CHECK_FUNC([__libc_realloc],
+		[AC_DEFINE([JEMALLOC_OVERRIDE___LIBC_REALLOC], [ ])
+		 wrap_syms="${wrap_syms} __libc_realloc"])
+  AC_CHECK_FUNC([__libc_valloc],
+		[AC_DEFINE([JEMALLOC_OVERRIDE___LIBC_VALLOC], [ ])
+		 wrap_syms="${wrap_syms} __libc_valloc"])
+  AC_CHECK_FUNC([__posix_memalign],
+		[AC_DEFINE([JEMALLOC_OVERRIDE___POSIX_MEMALIGN], [ ])
+		 wrap_syms="${wrap_syms} __posix_memalign"])
+fi
+
+case "${host}" in
+  *-*-mingw* | *-*-cygwin*)
+    wrap_syms="${wrap_syms} tls_callback"
+    ;;
+  *)
+    ;;
+esac
 
 dnl Mangle library-private APIs.
 AC_ARG_WITH([private_namespace],
@@ -885,8 +925,8 @@ cfgoutputs_tup="${cfgoutputs_tup} test/include/test/jemalloc_test.h:test/include
 
 cfghdrs_in="include/jemalloc/jemalloc_defs.h.in"
 cfghdrs_in="${cfghdrs_in} include/jemalloc/internal/jemalloc_internal_defs.h.in"
+cfghdrs_in="${cfghdrs_in} include/jemalloc/internal/private_symbols.sh"
 cfghdrs_in="${cfghdrs_in} include/jemalloc/internal/private_namespace.sh"
-cfghdrs_in="${cfghdrs_in} include/jemalloc/internal/private_symbols.txt"
 cfghdrs_in="${cfghdrs_in} include/jemalloc/internal/public_namespace.sh"
 cfghdrs_in="${cfghdrs_in} include/jemalloc/internal/public_unnamespace.sh"
 cfghdrs_in="${cfghdrs_in} include/jemalloc/internal/size_classes.sh"
@@ -897,7 +937,8 @@ cfghdrs_in="${cfghdrs_in} test/include/test/jemalloc_test_defs.h.in"
 
 cfghdrs_out="include/jemalloc/jemalloc_defs.h"
 cfghdrs_out="${cfghdrs_out} include/jemalloc/jemalloc${install_suffix}.h"
-cfghdrs_out="${cfghdrs_out} include/jemalloc/internal/private_namespace.h"
+cfghdrs_out="${cfghdrs_out} include/jemalloc/internal/private_symbols.awk"
+cfghdrs_out="${cfghdrs_out} include/jemalloc/internal/private_symbols_jet.awk"
 cfghdrs_out="${cfghdrs_out} include/jemalloc/internal/public_symbols.txt"
 cfghdrs_out="${cfghdrs_out} include/jemalloc/internal/public_namespace.h"
 cfghdrs_out="${cfghdrs_out} include/jemalloc/internal/public_unnamespace.h"
@@ -1541,6 +1582,7 @@ AC_CHECK_FUNC([_malloc_thread_cleanup],
              )
 if test "x$have__malloc_thread_cleanup" = "x1" ; then
   AC_DEFINE([JEMALLOC_MALLOC_THREAD_CLEANUP], [ ])
+  wrap_syms="${wrap_syms} _malloc_thread_cleanup"
   force_tls="1"
 fi
 
@@ -1553,6 +1595,7 @@ AC_CHECK_FUNC([_pthread_mutex_init_calloc_cb],
              )
 if test "x$have__pthread_mutex_init_calloc_cb" = "x1" ; then
   AC_DEFINE([JEMALLOC_MUTEX_INIT_CB])
+  wrap_syms="${wrap_syms} _malloc_prefork _malloc_postfork"
 fi
 
 dnl Disable lazy locking by default.
@@ -1588,6 +1631,7 @@ if test "x$enable_lazy_lock" = "x1" ; then
       ])
   fi
   AC_DEFINE([JEMALLOC_LAZY_LOCK], [ ])
+  wrap_syms="${wrap_syms} pthread_create"
 fi
 AC_SUBST([enable_lazy_lock])
 
@@ -1870,7 +1914,10 @@ extern void *(* __realloc_hook)(void *ptr, size_t size);
   if (__free_hook && ptr) __free_hook(ptr);
 ], [je_cv_glibc_malloc_hook])
 if test "x${je_cv_glibc_malloc_hook}" = "xyes" ; then
-  AC_DEFINE([JEMALLOC_GLIBC_MALLOC_HOOK], [ ])
+  if test "x${JEMALLOC_PREFIX}" = "x" ; then
+    AC_DEFINE([JEMALLOC_GLIBC_MALLOC_HOOK], [ ])
+    wrap_syms="${wrap_syms} __free_hook __malloc_hook __realloc_hook"
+  fi
 fi
 
 JE_COMPILABLE([glibc memalign hook], [
@@ -1882,7 +1929,10 @@ extern void *(* __memalign_hook)(size_t alignment, size_t size);
   if (__memalign_hook) ptr = __memalign_hook(16, 7);
 ], [je_cv_glibc_memalign_hook])
 if test "x${je_cv_glibc_memalign_hook}" = "xyes" ; then
-  AC_DEFINE([JEMALLOC_GLIBC_MEMALIGN_HOOK], [ ])
+  if test "x${JEMALLOC_PREFIX}" = "x" ; then
+    AC_DEFINE([JEMALLOC_GLIBC_MEMALIGN_HOOK], [ ])
+    wrap_syms="${wrap_syms} __memalign_hook"
+  fi
 fi
 
 JE_COMPILABLE([pthreads adaptive mutexes], [
@@ -1904,13 +1954,6 @@ AC_HEADER_STDBOOL
 dnl ============================================================================
 dnl Define commands that generate output files.
 
-AC_CONFIG_COMMANDS([include/jemalloc/internal/private_namespace.h], [
-  mkdir -p "${objroot}include/jemalloc/internal"
-  "${srcdir}/include/jemalloc/internal/private_namespace.sh" "${srcdir}/include/jemalloc/internal/private_symbols.txt" > "${objroot}include/jemalloc/internal/private_namespace.h"
-], [
-  srcdir="${srcdir}"
-  objroot="${objroot}"
-])
 AC_CONFIG_COMMANDS([include/jemalloc/internal/public_symbols.txt], [
   f="${objroot}include/jemalloc/internal/public_symbols.txt"
   mkdir -p "${objroot}include/jemalloc/internal"
@@ -1933,6 +1976,31 @@ AC_CONFIG_COMMANDS([include/jemalloc/internal/public_symbols.txt], [
   mangling_map="${mangling_map}"
   public_syms="${public_syms}"
   JEMALLOC_PREFIX="${JEMALLOC_PREFIX}"
+])
+AC_CONFIG_COMMANDS([include/jemalloc/internal/private_symbols.awk], [
+  f="${objroot}include/jemalloc/internal/private_symbols.awk"
+  mkdir -p "${objroot}include/jemalloc/internal"
+  export_syms=`for sym in ${public_syms}; do echo "${JEMALLOC_PREFIX}${sym}"; done; for sym in ${wrap_syms}; do echo "${sym}"; done;`
+  "${srcdir}/include/jemalloc/internal/private_symbols.sh" "${SYM_PREFIX}" ${export_syms} > "${objroot}include/jemalloc/internal/private_symbols.awk"
+], [
+  srcdir="${srcdir}"
+  objroot="${objroot}"
+  public_syms="${public_syms}"
+  wrap_syms="${wrap_syms}"
+  SYM_PREFIX="${SYM_PREFIX}"
+  JEMALLOC_PREFIX="${JEMALLOC_PREFIX}"
+])
+AC_CONFIG_COMMANDS([include/jemalloc/internal/private_symbols_jet.awk], [
+  f="${objroot}include/jemalloc/internal/private_symbols_jet.awk"
+  mkdir -p "${objroot}include/jemalloc/internal"
+  export_syms=`for sym in ${public_syms}; do echo "jet_${sym}"; done; for sym in ${wrap_syms}; do echo "${sym}"; done;`
+  "${srcdir}/include/jemalloc/internal/private_symbols.sh" "${SYM_PREFIX}" ${export_syms} > "${objroot}include/jemalloc/internal/private_symbols_jet.awk"
+], [
+  srcdir="${srcdir}"
+  objroot="${objroot}"
+  public_syms="${public_syms}"
+  wrap_syms="${wrap_syms}"
+  SYM_PREFIX="${SYM_PREFIX}"
 ])
 AC_CONFIG_COMMANDS([include/jemalloc/internal/public_namespace.h], [
   mkdir -p "${objroot}include/jemalloc/internal"

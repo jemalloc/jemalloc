@@ -9,6 +9,18 @@
 #undef JEMALLOC_CPREFIX
 
 /*
+ * Define overrides for non-standard allocator-related functions if they are
+ * present on the system.
+ */
+#undef JEMALLOC_OVERRIDE___LIBC_CALLOC
+#undef JEMALLOC_OVERRIDE___LIBC_FREE
+#undef JEMALLOC_OVERRIDE___LIBC_MALLOC
+#undef JEMALLOC_OVERRIDE___LIBC_MEMALIGN
+#undef JEMALLOC_OVERRIDE___LIBC_REALLOC
+#undef JEMALLOC_OVERRIDE___LIBC_VALLOC
+#undef JEMALLOC_OVERRIDE___POSIX_MEMALIGN
+
+/*
  * JEMALLOC_PRIVATE_NAMESPACE is used as a prefix for all library-private APIs.
  * For shared libraries, symbol visibility mechanisms prevent these symbols
  * from being exported, but for static libraries, naming collisions are a real
