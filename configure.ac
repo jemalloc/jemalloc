@@ -1187,6 +1187,9 @@ AC_SUBST([enable_cache_oblivious])
 
 
 
+dnl optimization level can impact whether __builtin_unreachable works
+SAVED_CFLAGS="${CFLAGS}"
+JE_CFLAGS_APPEND(["${EXTRA_CFLAGS}"])
 JE_COMPILABLE([a program using __builtin_unreachable], [
 void foo (void) {
   __builtin_unreachable();
@@ -1201,6 +1204,7 @@ if test "x${je_cv_gcc_builtin_unreachable}" = "xyes" ; then
 else
   AC_DEFINE([JEMALLOC_INTERNAL_UNREACHABLE], [abort])
 fi
+CFLAGS="${SAVED_CFLAGS}"
 
 dnl ============================================================================
 dnl Check for  __builtin_ffsl(), then ffsl(3), and fail if neither are found.
