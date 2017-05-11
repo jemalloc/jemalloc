@@ -33,7 +33,7 @@ for cc, cxx in possible_compilers:
               and '--enable-prof' in config_opts:
                 continue
             config_line = (
-                './configure '
+                'EXTRA_CFLAGS=-Werror EXTRA_CXXFLAGS=-Werror ./configure '
                 + 'CC="{} {}" '.format(cc, " ".join(compiler_opts))
                 + 'CXX="{} {}" '.format(cxx, " ".join(compiler_opts))
                 + " ".join(config_opts)
