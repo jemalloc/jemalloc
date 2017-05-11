@@ -249,8 +249,8 @@ bitmap_ffu(const bitmap_t *bitmap, const bitmap_info_t *binfo, size_t min_bit) {
 		    1));
 		bitmap_t group = bitmap[binfo->levels[level].group_offset + (bit
 		    >> lg_bits_per_group)];
-		unsigned group_nmask = ((min_bit > bit) ? (min_bit - bit) : 0)
-		    >> (lg_bits_per_group - LG_BITMAP_GROUP_NBITS);
+		unsigned group_nmask = (unsigned)(((min_bit > bit) ? (min_bit -
+		    bit) : 0) >> (lg_bits_per_group - LG_BITMAP_GROUP_NBITS));
 		assert(group_nmask <= BITMAP_GROUP_NBITS);
 		bitmap_t group_mask = ~((1LU << group_nmask) - 1);
 		bitmap_t group_masked = group & group_mask;
@@ -265,7 +265,7 @@ bitmap_ffu(const bitmap_t *bitmap, const bitmap_info_t *binfo, size_t min_bit) {
 			 * next sibling.  This will recurse at most once per
 			 * non-root level.
 			 */
-			size_t sib_base = bit + (1U << lg_bits_per_group);
+			size_t sib_base = bit + (ZU(1) << lg_bits_per_group);
 			assert(sib_base > min_bit);
 			assert(sib_base > bit);
 			if (sib_base >= binfo->nbits) {
@@ -273,8 +273,8 @@ bitmap_ffu(const bitmap_t *bitmap, const bitmap_info_t *binfo, size_t min_bit) {
 			}
 			return bitmap_ffu(bitmap, binfo, sib_base);
 		}
-		bit += (ffs_lu(group_masked) - 1) << (lg_bits_per_group -
-		    LG_BITMAP_GROUP_NBITS);
+		bit += ((size_t)(ffs_lu(group_masked) - 1)) <<
+		    (lg_bits_per_group - LG_BITMAP_GROUP_NBITS);
 	}
 	assert(bit >= min_bit);
 	assert(bit < binfo->nbits);
