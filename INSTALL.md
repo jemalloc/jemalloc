@@ -18,16 +18,19 @@ would create a dependency on xsltproc in packaged releases, hence the
 requirement to either run 'make dist' or avoid installing docs via the various
 install_* targets documented below.
 
-=== Advanced configuration =====================================================
+
+## Advanced configuration
 
 The 'configure' script supports numerous options that allow control of which
 functionality is enabled, where jemalloc is installed, etc.  Optionally, pass
 any of the following arguments (not a definitive list) to 'configure':
 
---help
+* `--help`
+
     Print a definitive list of options.
 
---prefix=<install-root-dir>
+* `--prefix=<install-root-dir>`
+
     Set the base directory in which to install.  For example:
 
         ./configure --prefix=/usr/local
@@ -35,7 +38,8 @@ any of the following arguments (not a definitive list) to 'configure':
     will cause files to be installed into /usr/local/include, /usr/local/lib,
     and /usr/local/man.
 
---with-version=(<major>.<minor>.<bugfix>-<nrev>-g<gid>|VERSION)
+* `--with-version=(<major>.<minor>.<bugfix>-<nrev>-g<gid>|VERSION)`
+
     The VERSION file is mandatory for successful configuration, and the
     following steps are taken to assure its presence:
     1) If --with-version=<major>.<minor>.<bugfix>-<nrev>-g<gid> is specified,
@@ -50,11 +54,13 @@ any of the following arguments (not a definitive list) to 'configure':
     VERSION configuration when embedding a jemalloc release into another
     project's git repository.
 
---with-rpath=<colon-separated-rpath>
+* `--with-rpath=<colon-separated-rpath>`
+
     Embed one or more library paths, so that libjemalloc can find the libraries
     it is linked to.  This works only on ELF-based systems.
 
---with-mangling=<map>
+* `--with-mangling=<map>`
+
     Mangle public symbols specified in <map> which is a comma-separated list of
     name:mangled pairs.
 
@@ -67,7 +73,8 @@ any of the following arguments (not a definitive list) to 'configure':
     --with-jemalloc-prefix, and mangled symbols are then ignored when applying
     the prefix.
 
---with-jemalloc-prefix=<prefix>
+* `--with-jemalloc-prefix=<prefix>`
+
     Prefix all public APIs with <prefix>.  For example, if <prefix> is
     "prefix_", API changes like the following occur:
 
@@ -83,39 +90,46 @@ any of the following arguments (not a definitive list) to 'configure':
     jemalloc overlays the default malloc zone, but makes no attempt to actually
     replace the "malloc", "calloc", etc. symbols.
 
---without-export
+* `--without-export`
+
     Don't export public APIs.  This can be useful when building jemalloc as a
     static library, or to avoid exporting public APIs when using the zone
     allocator on OSX.
 
---with-private-namespace=<prefix>
+* `--with-private-namespace=<prefix>`
+
     Prefix all library-private APIs with <prefix>je_.  For shared libraries,
     symbol visibility mechanisms prevent these symbols from being exported, but
     for static libraries, naming collisions are a real possibility.  By
     default, <prefix> is empty, which results in a symbol prefix of je_ .
 
---with-install-suffix=<suffix>
+* `--with-install-suffix=<suffix>`
+
     Append <suffix> to the base name of all installed files, such that multiple
     versions of jemalloc can coexist in the same installation directory.  For
     example, libjemalloc.so.0 becomes libjemalloc<suffix>.so.0.
 
---with-malloc-conf=<malloc_conf>
-    Embed <malloc_conf> as a run-time options string that is processed prior to
+* `--with-malloc-conf=<malloc_conf>`
+
+    Embed `<malloc_conf>` as a run-time options string that is processed prior to
     the malloc_conf global variable, the /etc/malloc.conf symlink, and the
     MALLOC_CONF environment variable.  For example, to change the default decay
     time to 30 seconds:
 
       --with-malloc-conf=decay_time:30
 
---enable-debug
+* `--enable-debug`
+
     Enable assertions and validation code.  This incurs a substantial
     performance hit, but is very useful during application development.
 
---disable-stats
+* `--disable-stats`
+
     Disable statistics gathering functionality.  See the "opt.stats_print"
     option documentation for usage details.
 
---enable-prof
+* `--enable-prof`
+
     Enable heap profiling and leak detection functionality.  See the "opt.prof"
     option documentation for usage details.  When enabled, there are several
     approaches to backtracing, and the configure script chooses the first one
@@ -125,45 +139,55 @@ any of the following arguments (not a definitive list) to 'configure':
     + libgcc         (unless --disable-prof-libgcc)
     + gcc intrinsics (unless --disable-prof-gcc)
 
---enable-prof-libunwind
+* `--enable-prof-libunwind`
+
     Use the libunwind library (http://www.nongnu.org/libunwind/) for stack
     backtracing.
 
---disable-prof-libgcc
+* `--disable-prof-libgcc`
+
     Disable the use of libgcc's backtracing functionality.
 
---disable-prof-gcc
+* `--disable-prof-gcc`
+
     Disable the use of gcc intrinsics for backtracing.
 
---with-static-libunwind=<libunwind.a>
+* `--with-static-libunwind=<libunwind.a>`
+
     Statically link against the specified libunwind.a rather than dynamically
     linking with -lunwind.
 
---disable-fill
+* `--disable-fill`
+
     Disable support for junk/zero filling of memory.  See the "opt.junk" and
     "opt.zero" option documentation for usage details.
 
---disable-zone-allocator
+* `--disable-zone-allocator`
+
     Disable zone allocator for Darwin.  This means jemalloc won't be hooked as
     the default allocator on OSX/iOS.
 
---enable-utrace
+* `--enable-utrace`
+
     Enable utrace(2)-based allocation tracing.  This feature is not broadly
     portable (FreeBSD has it, but Linux and OS X do not).
 
---enable-xmalloc
+* `--enable-xmalloc`
+
     Enable support for optional immediate termination due to out-of-memory
     errors, as is commonly implemented by "xmalloc" wrapper function for malloc.
     See the "opt.xmalloc" option documentation for usage details.
 
---enable-lazy-lock
+* `--enable-lazy-lock`
+
     Enable code that wraps pthread_create() to detect when an application
     switches from single-threaded to multi-threaded mode, so that it can avoid
     mutex locking/unlocking operations while in single-threaded mode.  In
     practice, this feature usually has little impact on performance unless
     thread-specific caching is disabled.
 
---disable-cache-oblivious
+* `--disable-cache-oblivious`
+
     Disable cache-oblivious large allocation alignment for large allocation
     requests with no alignment constraints.  If this feature is disabled, all
     large allocations are page-aligned as an implementation artifact, which can
@@ -172,20 +196,24 @@ any of the following arguments (not a definitive list) to 'configure':
     most extreme case increases physical memory usage for the 16 KiB size class
     to 20 KiB.
 
---disable-syscall
+* `--disable-syscall`
+
     Disable use of syscall(2) rather than {open,read,write,close}(2).  This is
     intended as a workaround for systems that place security limitations on
     syscall(2).
 
---disable-cxx
+* `--disable-cxx`
+
     Disable C++ integration.  This will cause new and delete operator
     implementations to be omitted.
 
---with-xslroot=<path>
+* `--with-xslroot=<path>`
+
     Specify where to find DocBook XSL stylesheets when building the
     documentation.
 
---with-lg-page=<lg-page>
+* `--with-lg-page=<lg-page>`
+
     Specify the base 2 log of the allocator page size, which must in turn be at
     least as large as the system page size.  By default the configure script
     determines the host's page size and sets the allocator page size equal to
@@ -193,23 +221,26 @@ any of the following arguments (not a definitive list) to 'configure':
     system page size may change between configuration and execution, e.g. when
     cross compiling.
 
---with-lg-page-sizes=<lg-page-sizes>
+* `--with-lg-page-sizes=<lg-page-sizes>`
+
     Specify the comma-separated base 2 logs of the page sizes to support.  This
     option may be useful when cross-compiling in combination with
-    --with-lg-page, but its primary use case is for integration with FreeBSD's
+    `--with-lg-page`, but its primary use case is for integration with FreeBSD's
     libc, wherein jemalloc is embedded.
 
---with-lg-hugepage=<lg-hugepage>
+* `--with-lg-hugepage=<lg-hugepage>`
+
     Specify the base 2 log of the system huge page size.  This option is useful
     when cross compiling, or when overriding the default for systems that do
     not explicitly support huge pages.
 
---with-lg-quantum=<lg-quantum>
+* `--with-lg-quantum=<lg-quantum>`
+
     Specify the base 2 log of the minimum allocation alignment.  jemalloc needs
     to know the minimum alignment that meets the following C standard
     requirement (quoted from the April 12, 2011 draft of the C11 standard):
 
-      The pointer returned if the allocation succeeds is suitably aligned so
+    >  The pointer returned if the allocation succeeds is suitably aligned so
       that it may be assigned to a pointer to any type of object with a
       fundamental alignment requirement and then used to access such an object
       or an array of such objects in the space allocated [...]
@@ -220,44 +251,50 @@ any of the following arguments (not a definitive list) to 'configure':
     <lg-quantum>.  On most modern architectures, this mandates 16-byte
     alignment (<lg-quantum>=4), but the glibc developers chose not to meet this
     requirement for performance reasons.  An old discussion can be found at
-    https://sourceware.org/bugzilla/show_bug.cgi?id=206 .  Unlike glibc,
+    <https://sourceware.org/bugzilla/show_bug.cgi?id=206> .  Unlike glibc,
     jemalloc does follow the C standard by default (caveat: jemalloc
     technically cheats for size classes smaller than the quantum), but the fact
     that Linux systems already work around this allocator noncompliance means
     that it is generally safe in practice to let jemalloc's minimum alignment
-    follow glibc's lead.  If you specify --with-lg-quantum=3 during
+    follow glibc's lead.  If you specify `--with-lg-quantum=3` during
     configuration, jemalloc will provide additional size classes that are not
     16-byte-aligned (24, 40, and 56).
 
 The following environment variables (not a definitive list) impact configure's
 behavior:
 
-CFLAGS="?"
-CXXFLAGS="?"
+* `CFLAGS="?"`
+* `CXXFLAGS="?"`
+
     Pass these flags to the C/C++ compiler.  Any flags set by the configure
     script are prepended, which means explicitly set flags generally take
     precedence.  Take care when specifying flags such as -Werror, because
     configure tests may be affected in undesirable ways.
 
-EXTRA_CFLAGS="?"
-EXTRA_CXXFLAGS="?"
+* `EXTRA_CFLAGS="?"`
+* `EXTRA_CXXFLAGS="?"`
+
     Append these flags to CFLAGS/CXXFLAGS, without passing them to the
     compiler(s) during configuration.  This makes it possible to add flags such
     as -Werror, while allowing the configure script to determine what other
     flags are appropriate for the specified configuration.
 
-CPPFLAGS="?"
+* `CPPFLAGS="?"`
+
     Pass these flags to the C preprocessor.  Note that CFLAGS is not passed to
     'cpp' when 'configure' is looking for include files, so you must use
     CPPFLAGS instead if you need to help 'configure' find header files.
 
-LD_LIBRARY_PATH="?"
+* `LD_LIBRARY_PATH="?"`
+
     'ld' uses this colon-separated list to find libraries.
 
-LDFLAGS="?"
+* `LDFLAGS="?"`
+
     Pass these flags when linking.
 
-PATH="?"
+* `PATH="?"`
+
     'configure' uses this to find programs.
 
 In some cases it may be necessary to work around configuration results that do
@@ -269,7 +306,8 @@ e.g.:
 
     echo "je_cv_madv_free=no" > config.cache && ./configure -C
 
-=== Advanced compilation =======================================================
+
+## Advanced compilation
 
 To build only parts of jemalloc, use the following targets:
 
@@ -297,40 +335,51 @@ To clean up build results to varying degrees, use the following make targets:
     distclean
     relclean
 
-=== Advanced installation ======================================================
+
+## Advanced installation
 
 Optionally, define make variables when invoking make, including (not
 exclusively):
 
-INCLUDEDIR="?"
+* `INCLUDEDIR="?"`
+
     Use this as the installation prefix for header files.
 
-LIBDIR="?"
+* `LIBDIR="?"`
+
     Use this as the installation prefix for libraries.
 
-MANDIR="?"
+* `MANDIR="?"`
+
     Use this as the installation prefix for man pages.
 
-DESTDIR="?"
+* `DESTDIR="?"`
+
     Prepend DESTDIR to INCLUDEDIR, LIBDIR, DATADIR, and MANDIR.  This is useful
     when installing to a different path than was specified via --prefix.
 
-CC="?"
+* `CC="?"`
+
     Use this to invoke the C compiler.
 
-CFLAGS="?"
+* `CFLAGS="?"`
+
     Pass these flags to the compiler.
 
-CPPFLAGS="?"
+* `CPPFLAGS="?"`
+
     Pass these flags to the C preprocessor.
 
-LDFLAGS="?"
+* `LDFLAGS="?"`
+
     Pass these flags when linking.
 
-PATH="?"
+* `PATH="?"`
+
     Use this to search for programs used during configuration and building.
 
-=== Development ================================================================
+
+## Development
 
 If you intend to make non-trivial changes to jemalloc, use the 'autogen.sh'
 script rather than 'configure'.  This re-generates 'configure', enables
@@ -347,7 +396,8 @@ directory, issue configuration and build commands:
     ../configure --enable-autogen
     make
 
-=== Documentation ==============================================================
+
+## Documentation
 
 The manual page is generated in both html and roff formats.  Any web browser
 can be used to view the html manual.  The roff manual page can be formatted
