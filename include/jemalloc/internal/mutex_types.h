@@ -1,7 +1,6 @@
 #ifndef JEMALLOC_INTERNAL_MUTEX_TYPES_H
 #define JEMALLOC_INTERNAL_MUTEX_TYPES_H
 
-typedef struct mutex_prof_data_s mutex_prof_data_t;
 typedef struct malloc_mutex_s malloc_mutex_t;
 
 /*
