@@ -50,7 +50,7 @@ typedef enum {
 	mutex_prof_num_counters
 } mutex_prof_counter_ind_t;
 
-typedef struct mutex_prof_data_s {
+typedef struct {
 	/*
 	 * Counters touched on the slow path, i.e. when there is lock
 	 * contention.  We update them once we have the lock.
