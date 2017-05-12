@@ -181,6 +181,9 @@ CTL_PROTO(stats_arenas_i_resident)
 INDEX_PROTO(stats_arenas_i)
 CTL_PROTO(stats_allocated)
 CTL_PROTO(stats_active)
+CTL_PROTO(stats_background_thread_num_threads)
+CTL_PROTO(stats_background_thread_num_runs)
+CTL_PROTO(stats_background_thread_run_interval)
 CTL_PROTO(stats_metadata)
 CTL_PROTO(stats_resident)
 CTL_PROTO(stats_mapped)
@@ -478,6 +481,12 @@ static const ctl_indexed_node_t stats_arenas_node[] = {
 	{INDEX(stats_arenas_i)}
 };
 
+static const ctl_named_node_t stats_background_thread_node[] = {
+	{NAME("num_threads"),	CTL(stats_background_thread_num_threads)},
+	{NAME("num_runs"),	CTL(stats_background_thread_num_runs)},
+	{NAME("run_interval"),	CTL(stats_background_thread_run_interval)}
+};
+
 #define OP(mtx) MUTEX_PROF_DATA_NODE(mutexes_##mtx)
 MUTEX_PROF_GLOBAL_MUTEXES
 #undef OP
@@ -497,6 +506,8 @@ static const ctl_named_node_t stats_node[] = {
 	{NAME("resident"),	CTL(stats_resident)},
 	{NAME("mapped"),	CTL(stats_mapped)},
 	{NAME("retained"),	CTL(stats_retained)},
+	{NAME("background_thread"),
+	 CHILD(named, stats_background_thread)},
 	{NAME("mutexes"),	CHILD(named, stats_mutexes)},
 	{NAME("arenas"),	CHILD(indexed, stats_arenas)}
 };
@@ -873,6 +884,16 @@ ctl_arena_init(tsdn_t *tsdn, extent_hooks_t *extent_hooks) {
 }
 
 static void
+ctl_background_thread_stats_read(tsdn_t *tsdn) {
+	background_thread_stats_t *stats = &ctl_stats->background_thread;
+	if (!have_background_thread ||
+	    background_thread_stats_read(tsdn, stats)) {
+		memset(stats, 0, sizeof(background_thread_stats_t));
+		nstime_init(&stats->run_interval, 0);
+	}
+}
+
+static void
 ctl_refresh(tsdn_t *tsdn) {
 	unsigned i;
 	ctl_arena_t *ctl_sarena = arenas_i(MALLCTL_ARENAS_ALL);
@@ -914,6 +935,8 @@ ctl_refresh(tsdn_t *tsdn) {
 		    &ctl_sarena->astats->astats.mapped, ATOMIC_RELAXED);
 		ctl_stats->retained = atomic_load_zu(
 		    &ctl_sarena->astats->astats.retained, ATOMIC_RELAXED);
+
+		ctl_background_thread_stats_read(tsdn);
 
 #define READ_GLOBAL_MUTEX_PROF_DATA(i, mtx)				\
     malloc_mutex_lock(tsdn, &mtx);					\
@@ -2402,6 +2425,13 @@ CTL_RO_CGEN(config_stats, stats_metadata, ctl_stats->metadata, size_t)
 CTL_RO_CGEN(config_stats, stats_resident, ctl_stats->resident, size_t)
 CTL_RO_CGEN(config_stats, stats_mapped, ctl_stats->mapped, size_t)
 CTL_RO_CGEN(config_stats, stats_retained, ctl_stats->retained, size_t)
+
+CTL_RO_CGEN(config_stats, stats_background_thread_num_threads,
+    ctl_stats->background_thread.num_threads, size_t)
+CTL_RO_CGEN(config_stats, stats_background_thread_num_runs,
+    ctl_stats->background_thread.num_runs, uint64_t)
+CTL_RO_CGEN(config_stats, stats_background_thread_run_interval,
+    nstime_ns(&ctl_stats->background_thread.run_interval), uint64_t)
 
 CTL_RO_GEN(stats_arenas_i_dss, arenas_i(mib[2])->dss, const char *)
 CTL_RO_GEN(stats_arenas_i_dirty_decay_ms, arenas_i(mib[2])->dirty_decay_ms,

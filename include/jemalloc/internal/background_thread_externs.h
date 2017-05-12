@@ -19,6 +19,8 @@ void background_thread_prefork0(tsdn_t *tsdn);
 void background_thread_prefork1(tsdn_t *tsdn);
 void background_thread_postfork_parent(tsdn_t *tsdn);
 void background_thread_postfork_child(tsdn_t *tsdn);
+bool background_thread_stats_read(tsdn_t *tsdn,
+    background_thread_stats_t *stats);
 
 #if defined(JEMALLOC_BACKGROUND_THREAD) || defined(JEMALLOC_LAZY_LOCK)
 extern int (*pthread_create_fptr)(pthread_t *__restrict, const pthread_attr_t *,
