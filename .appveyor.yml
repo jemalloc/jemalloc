@@ -36,7 +36,7 @@ install:
 build_script:
   - bash -c "autoconf"
   - bash -c "./configure $CONFIG_FLAGS"
-  - mingw32-make -j3
+  - mingw32-make
   - file lib/jemalloc.dll
-  - mingw32-make -j3 tests
+  - mingw32-make tests
   - mingw32-make -k check
