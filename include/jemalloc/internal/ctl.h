@@ -52,6 +52,7 @@ typedef struct ctl_stats_s {
 	size_t mapped;
 	size_t retained;
 
+	background_thread_stats_t background_thread;
 	mutex_prof_data_t mutex_prof_data[mutex_prof_num_global_mutexes];
 } ctl_stats_t;
 

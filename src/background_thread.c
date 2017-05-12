@@ -36,8 +36,21 @@ void background_thread_prefork0(tsdn_t *tsdn) NOT_REACHED
 void background_thread_prefork1(tsdn_t *tsdn) NOT_REACHED
 void background_thread_postfork_parent(tsdn_t *tsdn) NOT_REACHED
 void background_thread_postfork_child(tsdn_t *tsdn) NOT_REACHED
+bool background_thread_stats_read(tsdn_t *tsdn,
+    background_thread_stats_t *stats) NOT_REACHED
 #undef NOT_REACHED
 #else
+
+static void
+background_thread_info_reinit(background_thread_info_t *info) {
+	nstime_init(&info->next_wakeup, 0);
+	info->npages_to_purge_new = 0;
+	if (config_stats) {
+		info->tot_n_runs = 0;
+		nstime_init(&info->tot_sleep_time, 0);
+	}
+}
+
 bool
 background_threads_init(tsd_t *tsd) {
 	assert(have_background_thread);
@@ -68,8 +81,7 @@ background_threads_init(tsd_t *tsd) {
 			return true;
 		}
 		info->started = false;
-		nstime_init(&info->next_wakeup, 0);
-		info->npages_to_purge_new = 0;
+		background_thread_info_reinit(info);
 	}
 
 	return false;
@@ -248,33 +260,49 @@ background_work(tsdn_t *tsdn, unsigned ind) {
 	malloc_mutex_lock(tsdn, &info->mtx);
 	while (info->started) {
 		uint64_t interval = background_work_once(tsdn, ind);
+		if (config_stats) {
+			info->tot_n_runs++;
+		}
 		info->npages_to_purge_new = 0;
+
+		struct timeval tv;
+		gettimeofday(&tv, NULL);
+		nstime_t before_sleep;
+		nstime_init2(&before_sleep, tv.tv_sec, tv.tv_usec * 1000);
 
 		if (interval == BACKGROUND_THREAD_INDEFINITE_SLEEP) {
 			nstime_init(&info->next_wakeup,
 			    BACKGROUND_THREAD_INDEFINITE_SLEEP);
 			ret = pthread_cond_wait(&info->cond, &info->mtx.lock);
 			assert(ret == 0);
-			continue;
+		} else {
+			assert(interval >= BACKGROUND_THREAD_MIN_INTERVAL_NS &&
+			    interval <= BACKGROUND_THREAD_INDEFINITE_SLEEP);
+			nstime_init(&info->next_wakeup, 0);
+			nstime_update(&info->next_wakeup);
+			nstime_iadd(&info->next_wakeup, interval);
+
+			nstime_t ts_wakeup;
+			nstime_copy(&ts_wakeup, &before_sleep);
+			nstime_iadd(&ts_wakeup, interval);
+			struct timespec ts;
+			ts.tv_sec = (size_t)nstime_sec(&ts_wakeup);
+			ts.tv_nsec = (size_t)nstime_nsec(&ts_wakeup);
+
+			ret = pthread_cond_timedwait(&info->cond,
+			    &info->mtx.lock, &ts);
+			assert(ret == ETIMEDOUT || ret == 0);
 		}
 
-		assert(interval >= BACKGROUND_THREAD_MIN_INTERVAL_NS &&
-		    interval <= BACKGROUND_THREAD_INDEFINITE_SLEEP);
-		nstime_init(&info->next_wakeup, 0);
-		nstime_update(&info->next_wakeup);
-		info->next_wakeup.ns += interval;
-
-		nstime_t ts_wakeup;
-		struct timeval tv;
-		gettimeofday(&tv, NULL);
-		nstime_init2(&ts_wakeup, tv.tv_sec,
-		    tv.tv_usec * 1000 + interval);
-		struct timespec ts;
-		ts.tv_sec = (size_t)nstime_sec(&ts_wakeup);
-		ts.tv_nsec = (size_t)nstime_nsec(&ts_wakeup);
-		ret = pthread_cond_timedwait(&info->cond, &info->mtx.lock,
-		    &ts);
-		assert(ret == ETIMEDOUT || ret == 0);
+		if (config_stats) {
+			gettimeofday(&tv, NULL);
+			nstime_t after_sleep;
+			nstime_init2(&after_sleep, tv.tv_sec, tv.tv_usec * 1000);
+			if (nstime_compare(&after_sleep, &before_sleep) > 0) {
+				nstime_subtract(&after_sleep, &before_sleep);
+				nstime_add(&info->tot_sleep_time, &after_sleep);
+			}
+		}
 	}
 	malloc_mutex_unlock(tsdn, &info->mtx);
 }
@@ -332,6 +360,7 @@ background_thread_create(tsd_t *tsd, unsigned arena_ind) {
 	assert(info->started == false);
 	if (err == 0) {
 		info->started = true;
+		background_thread_info_reinit(info);
 		n_background_threads++;
 	}
 	malloc_mutex_unlock(tsd_tsdn(tsd), &info->mtx);
@@ -538,6 +567,36 @@ background_thread_postfork_child(tsdn_t *tsdn) {
 	malloc_mutex_lock(tsdn, &background_thread_lock);
 	background_thread_postfork_init(tsdn);
 	malloc_mutex_unlock(tsdn, &background_thread_lock);
+}
+
+bool
+background_thread_stats_read(tsdn_t *tsdn, background_thread_stats_t *stats) {
+	assert(config_stats);
+	malloc_mutex_lock(tsdn, &background_thread_lock);
+	if (!background_thread_enabled()) {
+		malloc_mutex_unlock(tsdn, &background_thread_lock);
+		return true;
+	}
+
+	stats->num_threads = n_background_threads;
+	uint64_t num_runs = 0;
+	nstime_init(&stats->run_interval, 0);
+	for (unsigned i = 0; i < ncpus; i++) {
+		background_thread_info_t *info = &background_thread_info[i];
+		malloc_mutex_lock(tsdn, &info->mtx);
+		if (info->started) {
+			num_runs += info->tot_n_runs;
+			nstime_add(&stats->run_interval, &info->tot_sleep_time);
+		}
+		malloc_mutex_unlock(tsdn, &info->mtx);
+	}
+	stats->num_runs = num_runs;
+	if (num_runs > 0) {
+		nstime_idivide(&stats->run_interval, num_runs);
+	}
+	malloc_mutex_unlock(tsdn, &background_thread_lock);
+
+	return false;
 }
 
 #undef BACKGROUND_THREAD_NPAGES_THRESHOLD

@@ -1013,6 +1013,8 @@ stats_print_helper(void (*write_cb)(void *, const char *), void *cbopaque,
     bool json, bool merged, bool destroyed, bool unmerged, bool bins,
     bool large, bool mutex) {
 	size_t allocated, active, metadata, resident, mapped, retained;
+	size_t num_background_threads;
+	uint64_t background_thread_num_runs, background_thread_run_interval;
 
 	CTL_GET("stats.allocated", &allocated, size_t);
 	CTL_GET("stats.active", &active, size_t);
@@ -1024,6 +1026,19 @@ stats_print_helper(void (*write_cb)(void *, const char *), void *cbopaque,
 	uint64_t mutex_stats[mutex_prof_num_global_mutexes][mutex_prof_num_counters];
 	if (mutex) {
 		read_global_mutex_stats(mutex_stats);
+	}
+
+	if (have_background_thread) {
+		CTL_GET("stats.background_thread.num_threads",
+		    &num_background_threads, size_t);
+		CTL_GET("stats.background_thread.num_runs",
+		    &background_thread_num_runs, uint64_t);
+		CTL_GET("stats.background_thread.run_interval",
+		    &background_thread_run_interval, uint64_t);
+	} else {
+		num_background_threads = 0;
+		background_thread_num_runs = 0;
+		background_thread_run_interval = 0;
 	}
 
 	if (json) {
@@ -1041,7 +1056,21 @@ stats_print_helper(void (*write_cb)(void *, const char *), void *cbopaque,
 		malloc_cprintf(write_cb, cbopaque,
 		    "\t\t\t\"mapped\": %zu,\n", mapped);
 		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\"retained\": %zu%s\n", retained, mutex ? "," : "");
+		    "\t\t\t\"retained\": %zu,\n", retained);
+
+		malloc_cprintf(write_cb, cbopaque,
+		    "\t\t\t\"background_thread\": {\n");
+		malloc_cprintf(write_cb, cbopaque,
+		    "\t\t\t\t\"num_threads\": %zu,\n", num_background_threads);
+		malloc_cprintf(write_cb, cbopaque,
+		    "\t\t\t\t\"num_runs\": %"FMTu64",\n",
+		    background_thread_num_runs);
+		malloc_cprintf(write_cb, cbopaque,
+		    "\t\t\t\t\"run_interval\": %"FMTu64"\n",
+		    background_thread_run_interval);
+		malloc_cprintf(write_cb, cbopaque, "\t\t\t}%s\n",
+		    mutex ? "," : "");
+
 		if (mutex) {
 			malloc_cprintf(write_cb, cbopaque,
 			    "\t\t\t\"mutexes\": {\n");
@@ -1061,6 +1090,15 @@ stats_print_helper(void (*write_cb)(void *, const char *), void *cbopaque,
 		    "Allocated: %zu, active: %zu, metadata: %zu,"
 		    " resident: %zu, mapped: %zu, retained: %zu\n",
 		    allocated, active, metadata, resident, mapped, retained);
+
+		if (have_background_thread && num_background_threads > 0) {
+			malloc_cprintf(write_cb, cbopaque,
+			    "Background threads: %zu, num_runs: %"FMTu64", "
+			    "run_interval: %"FMTu64" ns\n",
+			    num_background_threads,
+			    background_thread_num_runs,
+			    background_thread_run_interval);
+		}
 		if (mutex) {
 			mutex_prof_global_ind_t i;
 			for (i = 0; i < mutex_prof_num_global_mutexes; i++) {

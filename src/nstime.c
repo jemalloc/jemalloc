@@ -56,10 +56,24 @@ nstime_add(nstime_t *time, const nstime_t *addend) {
 }
 
 void
+nstime_iadd(nstime_t *time, uint64_t addend) {
+	assert(UINT64_MAX - time->ns >= addend);
+
+	time->ns += addend;
+}
+
+void
 nstime_subtract(nstime_t *time, const nstime_t *subtrahend) {
 	assert(nstime_compare(time, subtrahend) >= 0);
 
 	time->ns -= subtrahend->ns;
+}
+
+void
+nstime_isubtract(nstime_t *time, uint64_t subtrahend) {
+	assert(time->ns >= subtrahend);
+
+	time->ns -= subtrahend;
 }
 
 void
