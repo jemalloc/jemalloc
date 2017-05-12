@@ -6,6 +6,7 @@
 #include "jemalloc/internal/tsd_types.h"
 
 #define MUTEX_PROF_GLOBAL_MUTEXES					\
+    OP(background_thread)						\
     OP(ctl)								\
     OP(prof)
 

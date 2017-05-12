@@ -947,6 +947,15 @@ ctl_refresh(tsdn_t *tsdn) {
 			READ_GLOBAL_MUTEX_PROF_DATA(global_prof_mutex_prof,
 			    bt2gctx_mtx);
 		}
+		if (have_background_thread) {
+			READ_GLOBAL_MUTEX_PROF_DATA(
+			    global_prof_mutex_background_thread,
+			    background_thread_lock);
+		} else {
+			memset(&ctl_stats->mutex_prof_data[
+			    global_prof_mutex_background_thread], 0,
+			    sizeof(mutex_prof_data_t));
+		}
 		/* We own ctl mutex already. */
 		malloc_mutex_prof_read(tsdn,
 		    &ctl_stats->mutex_prof_data[global_prof_mutex_ctl],
@@ -2557,6 +2566,9 @@ stats_mutexes_reset_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
 
 	/* Global mutexes: ctl and prof. */
 	MUTEX_PROF_RESET(ctl_mtx);
+	if (have_background_thread) {
+		MUTEX_PROF_RESET(background_thread_lock);
+	}
 	if (config_prof && opt_prof) {
 		MUTEX_PROF_RESET(bt2gctx_mtx);
 	}
