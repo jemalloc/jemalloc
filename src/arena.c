@@ -860,11 +860,15 @@ arena_stash_decayed(tsdn_t *tsdn, arena_t *arena,
 	/* Stash extents according to npages_limit. */
 	size_t nstashed = 0;
 	extent_t *extent;
+
+	malloc_mutex_lock(tsdn, &extents->mtx);
 	while ((extent = extents_evict(tsdn, arena, r_extent_hooks, extents,
 	    npages_limit)) != NULL) {
 		extent_list_append(decay_extents, extent);
 		nstashed += extent_size_get(extent) >> LG_PAGE;
 	}
+	malloc_mutex_unlock(tsdn, &extents->mtx);
+
 	return nstashed;
 }
 
@@ -1148,8 +1152,19 @@ arena_destroy_retained(tsdn_t *tsdn, arena_t *arena) {
 	 */
 	extent_hooks_t *extent_hooks = extent_hooks_get(arena);
 	extent_t *extent;
+	extent_list_t all_extents;
+	extent_list_init(&all_extents);
+
+	malloc_mutex_lock(tsdn, &arena->extents_retained.mtx);
 	while ((extent = extents_evict(tsdn, arena, &extent_hooks,
 	    &arena->extents_retained, 0)) != NULL) {
+		extent_list_append(&all_extents, extent);
+	}
+	malloc_mutex_unlock(tsdn, &arena->extents_retained.mtx);
+
+	for (extent = extent_list_first(&all_extents); extent !=
+	    NULL; extent = extent_list_first(&all_extents)) {
+		extent_list_remove(&all_extents, extent);
 		extent_destroy_wrapper(tsdn, arena, &extent_hooks, extent);
 	}
 }

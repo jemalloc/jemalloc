@@ -387,7 +387,7 @@ extents_evict(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
 	rtree_ctx_t rtree_ctx_fallback;
 	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
 
-	malloc_mutex_lock(tsdn, &extents->mtx);
+	malloc_mutex_assert_owner(tsdn, &extents->mtx);
 
 	/*
 	 * Get the LRU coalesced extent, if any.  If coalescing was delayed,
@@ -442,7 +442,6 @@ extents_evict(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
 	}
 
 label_return:
-	malloc_mutex_unlock(tsdn, &extents->mtx);
 	return extent;
 }
 
