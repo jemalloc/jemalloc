@@ -13,10 +13,10 @@ extent_arena_get(const extent_t *extent) {
 	 * The following check is omitted because we should never actually read
 	 * a NULL arena pointer.
 	 */
-	if (false && arena_ind > MALLOCX_ARENA_MAX) {
+	if (false && arena_ind >= MALLOCX_ARENA_LIMIT) {
 		return NULL;
 	}
-	assert(arena_ind <= MALLOCX_ARENA_MAX);
+	assert(arena_ind < MALLOCX_ARENA_LIMIT);
 	return (arena_t *)atomic_load_p(&arenas[arena_ind], ATOMIC_ACQUIRE);
 }
 

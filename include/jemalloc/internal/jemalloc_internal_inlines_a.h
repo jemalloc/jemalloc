@@ -350,7 +350,7 @@ static inline arena_t *
 arena_get(tsdn_t *tsdn, unsigned ind, bool init_if_missing) {
 	arena_t *ret;
 
-	assert(ind <= MALLOCX_ARENA_MAX);
+	assert(ind < MALLOCX_ARENA_LIMIT);
 
 	ret = (arena_t *)atomic_load_p(&arenas[ind], ATOMIC_ACQUIRE);
 	if (unlikely(ret == NULL)) {
