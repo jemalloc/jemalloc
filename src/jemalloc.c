@@ -70,7 +70,7 @@ static malloc_mutex_t	arenas_lock;
  * Points to an arena_t.
  */
 JEMALLOC_ALIGNED(CACHELINE)
-atomic_p_t		arenas[MALLOCX_ARENA_MAX + 1];
+atomic_p_t		arenas[MALLOCX_ARENA_LIMIT];
 static atomic_u_t	narenas_total; /* Use narenas_total_*(). */
 static arena_t		*a0; /* arenas[0]; read-only after initialization. */
 unsigned		narenas_auto; /* Read-only after initialization. */
@@ -400,7 +400,7 @@ arena_init_locked(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 	arena_t *arena;
 
 	assert(ind <= narenas_total_get());
-	if (ind > MALLOCX_ARENA_MAX) {
+	if (ind >= MALLOCX_ARENA_LIMIT) {
 		return NULL;
 	}
 	if (ind == narenas_total_get()) {
@@ -1318,7 +1318,7 @@ malloc_init_narenas(void) {
 				abort();
 			}
 		} else {
-			if (ncpus > MALLOCX_ARENA_MAX) {
+			if (ncpus >= MALLOCX_ARENA_LIMIT) {
 				malloc_printf("<jemalloc>: narenas w/ percpu"
 				    "arena beyond limit (%d)\n", ncpus);
 				if (opt_abort) {
@@ -1364,8 +1364,8 @@ malloc_init_narenas(void) {
 	/*
 	 * Limit the number of arenas to the indexing range of MALLOCX_ARENA().
 	 */
-	if (narenas_auto > MALLOCX_ARENA_MAX) {
-		narenas_auto = MALLOCX_ARENA_MAX;
+	if (narenas_auto >= MALLOCX_ARENA_LIMIT) {
+		narenas_auto = MALLOCX_ARENA_LIMIT - 1;
 		malloc_printf("<jemalloc>: Reducing narenas to limit (%d)\n",
 		    narenas_auto);
 	}

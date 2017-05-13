@@ -83,9 +83,9 @@ typedef struct ctl_arenas_s {
 	 * Element 0 corresponds to merged stats for extant arenas (accessed via
 	 * MALLCTL_ARENAS_ALL), element 1 corresponds to merged stats for
 	 * destroyed arenas (accessed via MALLCTL_ARENAS_DESTROYED), and the
-	 * remaining MALLOCX_ARENA_MAX+1 elements correspond to arenas.
+	 * remaining MALLOCX_ARENA_LIMIT elements correspond to arenas.
 	 */
-	ctl_arena_t *arenas[MALLOCX_ARENA_MAX + 3];
+	ctl_arena_t *arenas[2 + MALLOCX_ARENA_LIMIT];
 } ctl_arenas_t;
 
 int ctl_byname(tsd_t *tsd, const char *name, void *oldp, size_t *oldlenp,
