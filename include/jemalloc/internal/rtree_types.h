@@ -66,27 +66,4 @@ typedef struct rtree_s rtree_t;
  */
 #define RTREE_CTX_ZERO_INITIALIZER {{{0}}}
 
-/*
- * Maximum number of concurrently acquired elements per thread.  This controls
- * how many witness_t structures are embedded in tsd.  Ideally rtree_leaf_elm_t
- * would have a witness_t directly embedded, but that would dramatically bloat
- * the tree.  This must contain enough entries to e.g. coalesce two extents.
- */
-#define RTREE_ELM_ACQUIRE_MAX 4
-
-/* Initializers for rtree_leaf_elm_witness_tsd_t. */
-#define RTREE_ELM_WITNESS_INITIALIZER {					\
-	NULL,								\
-	WITNESS_INITIALIZER("rtree_leaf_elm", WITNESS_RANK_RTREE_ELM)	\
-}
-
-#define RTREE_ELM_WITNESS_TSD_INITIALIZER {				\
-	{								\
-		RTREE_ELM_WITNESS_INITIALIZER,				\
-		RTREE_ELM_WITNESS_INITIALIZER,				\
-		RTREE_ELM_WITNESS_INITIALIZER,				\
-		RTREE_ELM_WITNESS_INITIALIZER				\
-	}								\
-}
-
 #endif /* JEMALLOC_INTERNAL_RTREE_TYPES_H */

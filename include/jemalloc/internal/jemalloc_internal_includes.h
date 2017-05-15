@@ -56,6 +56,7 @@
 
 #include "jemalloc/internal/witness_structs.h"
 #include "jemalloc/internal/mutex_structs.h"
+#include "jemalloc/internal/mutex_pool_structs.h"
 #include "jemalloc/internal/arena_structs_a.h"
 #include "jemalloc/internal/extent_structs.h"
 #include "jemalloc/internal/extent_dss_structs.h"
@@ -88,6 +89,7 @@
 
 #include "jemalloc/internal/witness_inlines.h"
 #include "jemalloc/internal/mutex_inlines.h"
+#include "jemalloc/internal/mutex_pool_inlines.h"
 #include "jemalloc/internal/jemalloc_internal_inlines_a.h"
 #include "jemalloc/internal/rtree_inlines.h"
 #include "jemalloc/internal/base_inlines.h"
