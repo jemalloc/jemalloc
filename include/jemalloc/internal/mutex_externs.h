@@ -11,7 +11,7 @@ extern bool isthreaded;
 #endif
 
 bool	malloc_mutex_init(malloc_mutex_t *mutex, const char *name,
-    witness_rank_t rank);
+    witness_rank_t rank, malloc_mutex_lock_order_t lock_order);
 void	malloc_mutex_prefork(tsdn_t *tsdn, malloc_mutex_t *mutex);
 void	malloc_mutex_postfork_parent(tsdn_t *tsdn, malloc_mutex_t *mutex);
 void	malloc_mutex_postfork_child(tsdn_t *tsdn, malloc_mutex_t *mutex);

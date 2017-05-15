@@ -1199,7 +1199,8 @@ label_return:
 
 bool
 ctl_boot(void) {
-	if (malloc_mutex_init(&ctl_mtx, "ctl", WITNESS_RANK_CTL)) {
+	if (malloc_mutex_init(&ctl_mtx, "ctl", WITNESS_RANK_CTL,
+	    malloc_mutex_rank_exclusive)) {
 		return true;
 	}
 
