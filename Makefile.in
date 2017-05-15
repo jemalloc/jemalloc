@@ -349,10 +349,10 @@ $(C_JET_SYMS): %.sym:
 	$(DUMP_SYMS) $< | $(AWK) -f $(objroot)include/jemalloc/internal/private_symbols_jet.awk > $@
 
 $(objroot)include/jemalloc/internal/private_namespace.h: $(C_SYMS)
-	$(SHELL) $(objdir)include/jemalloc/internal/private_namespace.sh $^ > $@
+	$(SHELL) $(srcroot)include/jemalloc/internal/private_namespace.sh $^ > $@
 
 $(objroot)include/jemalloc/internal/private_namespace_jet.h: $(C_JET_SYMS)
-	$(SHELL) $(objdir)include/jemalloc/internal/private_namespace.sh $^ > $@
+	$(SHELL) $(srcroot)include/jemalloc/internal/private_namespace.sh $^ > $@
 
 $(CPP_OBJS) $(CPP_PIC_OBJS) $(TESTS_CPP_OBJS): %.$(O):
 	@mkdir -p $(@D)
