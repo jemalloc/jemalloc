@@ -1754,7 +1754,7 @@ prof_accum_init(tsdn_t *tsdn, prof_accum_t *prof_accum) {
 
 #ifndef JEMALLOC_ATOMIC_U64
 	if (malloc_mutex_init(&prof_accum->mtx, "prof_accum",
-	    WITNESS_RANK_PROF_ACCUM)) {
+	    WITNESS_RANK_PROF_ACCUM, malloc_mutex_rank_exclusive)) {
 		return true;
 	}
 	prof_accum->accumbytes = 0;
@@ -2289,20 +2289,21 @@ prof_boot2(tsd_t *tsd) {
 
 		prof_active = opt_prof_active;
 		if (malloc_mutex_init(&prof_active_mtx, "prof_active",
-		    WITNESS_RANK_PROF_ACTIVE)) {
+		    WITNESS_RANK_PROF_ACTIVE, malloc_mutex_rank_exclusive)) {
 			return true;
 		}
 
 		prof_gdump_val = opt_prof_gdump;
 		if (malloc_mutex_init(&prof_gdump_mtx, "prof_gdump",
-		    WITNESS_RANK_PROF_GDUMP)) {
+		    WITNESS_RANK_PROF_GDUMP, malloc_mutex_rank_exclusive)) {
 			return true;
 		}
 
 		prof_thread_active_init = opt_prof_thread_active_init;
 		if (malloc_mutex_init(&prof_thread_active_init_mtx,
 		    "prof_thread_active_init",
-		    WITNESS_RANK_PROF_THREAD_ACTIVE_INIT)) {
+		    WITNESS_RANK_PROF_THREAD_ACTIVE_INIT,
+		    malloc_mutex_rank_exclusive)) {
 			return true;
 		}
 
@@ -2311,28 +2312,28 @@ prof_boot2(tsd_t *tsd) {
 			return true;
 		}
 		if (malloc_mutex_init(&bt2gctx_mtx, "prof_bt2gctx",
-		    WITNESS_RANK_PROF_BT2GCTX)) {
+		    WITNESS_RANK_PROF_BT2GCTX, malloc_mutex_rank_exclusive)) {
 			return true;
 		}
 
 		tdata_tree_new(&tdatas);
 		if (malloc_mutex_init(&tdatas_mtx, "prof_tdatas",
-		    WITNESS_RANK_PROF_TDATAS)) {
+		    WITNESS_RANK_PROF_TDATAS, malloc_mutex_rank_exclusive)) {
 			return true;
 		}
 
 		next_thr_uid = 0;
 		if (malloc_mutex_init(&next_thr_uid_mtx, "prof_next_thr_uid",
-		    WITNESS_RANK_PROF_NEXT_THR_UID)) {
+		    WITNESS_RANK_PROF_NEXT_THR_UID, malloc_mutex_rank_exclusive)) {
 			return true;
 		}
 
 		if (malloc_mutex_init(&prof_dump_seq_mtx, "prof_dump_seq",
-		    WITNESS_RANK_PROF_DUMP_SEQ)) {
+		    WITNESS_RANK_PROF_DUMP_SEQ, malloc_mutex_rank_exclusive)) {
 			return true;
 		}
 		if (malloc_mutex_init(&prof_dump_mtx, "prof_dump",
-		    WITNESS_RANK_PROF_DUMP)) {
+		    WITNESS_RANK_PROF_DUMP, malloc_mutex_rank_exclusive)) {
 			return true;
 		}
 
@@ -2352,7 +2353,8 @@ prof_boot2(tsd_t *tsd) {
 		}
 		for (i = 0; i < PROF_NCTX_LOCKS; i++) {
 			if (malloc_mutex_init(&gctx_locks[i], "prof_gctx",
-			    WITNESS_RANK_PROF_GCTX)) {
+			    WITNESS_RANK_PROF_GCTX,
+			    malloc_mutex_rank_exclusive)) {
 				return true;
 			}
 		}
@@ -2365,7 +2367,8 @@ prof_boot2(tsd_t *tsd) {
 		}
 		for (i = 0; i < PROF_NTDATA_LOCKS; i++) {
 			if (malloc_mutex_init(&tdata_locks[i], "prof_tdata",
-			    WITNESS_RANK_PROF_TDATA)) {
+			    WITNESS_RANK_PROF_TDATA,
+			    malloc_mutex_rank_exclusive)) {
 				return true;
 			}
 		}

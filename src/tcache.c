@@ -649,7 +649,8 @@ tcache_boot(tsdn_t *tsdn) {
 		tcache_maxclass = (ZU(1) << opt_lg_tcache_max);
 	}
 
-	if (malloc_mutex_init(&tcaches_mtx, "tcaches", WITNESS_RANK_TCACHES)) {
+	if (malloc_mutex_init(&tcaches_mtx, "tcaches", WITNESS_RANK_TCACHES,
+	    malloc_mutex_rank_exclusive)) {
 		return true;
 	}
 

@@ -195,7 +195,8 @@ ph_gen(, extent_heap_, extent_heap_t, extent_t, ph_link, extent_snad_comp)
 bool
 extents_init(tsdn_t *tsdn, extents_t *extents, extent_state_t state,
     bool delay_coalesce) {
-	if (malloc_mutex_init(&extents->mtx, "extents", WITNESS_RANK_EXTENTS)) {
+	if (malloc_mutex_init(&extents->mtx, "extents", WITNESS_RANK_EXTENTS,
+	    malloc_mutex_rank_exclusive)) {
 		return true;
 	}
 	for (unsigned i = 0; i < NPSIZES+1; i++) {

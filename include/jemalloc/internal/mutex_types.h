@@ -3,6 +3,16 @@
 
 typedef struct malloc_mutex_s malloc_mutex_t;
 
+typedef enum {
+	/* Can only acquire one mutex of a given witness rank at a time. */
+	malloc_mutex_rank_exclusive,
+	/*
+	 * Can acquire multiple mutexes of the same witness rank, but in
+	 * address-ascending order only.
+	 */
+	malloc_mutex_address_ordered
+} malloc_mutex_lock_order_t;
+
 /*
  * Based on benchmark results, a fixed spin with this amount of retries works
  * well for our critical sections.

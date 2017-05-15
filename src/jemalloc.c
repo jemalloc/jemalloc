@@ -235,7 +235,8 @@ _init_init_lock(void) {
 	 * doing anything.
 	 */
 	if (!init_lock_initialized) {
-		malloc_mutex_init(&init_lock, "init", WITNESS_RANK_INIT);
+		malloc_mutex_init(&init_lock, "init", WITNESS_RANK_INIT,
+		    malloc_mutex_rank_exclusive);
 	}
 	init_lock_initialized = true;
 }
@@ -1237,7 +1238,8 @@ malloc_init_hard_a0_locked() {
 	if (tcache_boot(TSDN_NULL)) {
 		return true;
 	}
-	if (malloc_mutex_init(&arenas_lock, "arenas", WITNESS_RANK_ARENAS)) {
+	if (malloc_mutex_init(&arenas_lock, "arenas", WITNESS_RANK_ARENAS,
+	    malloc_mutex_rank_exclusive)) {
 		return true;
 	}
 	/*

@@ -238,7 +238,8 @@ base_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 	    &gap_size, base_size, base_alignment);
 	base->ind = ind;
 	atomic_store_p(&base->extent_hooks, extent_hooks, ATOMIC_RELAXED);
-	if (malloc_mutex_init(&base->mtx, "base", WITNESS_RANK_BASE)) {
+	if (malloc_mutex_init(&base->mtx, "base", WITNESS_RANK_BASE,
+	    malloc_mutex_rank_exclusive)) {
 		base_unmap(extent_hooks, ind, block, block->size);
 		return NULL;
 	}

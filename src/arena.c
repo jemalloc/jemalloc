@@ -64,7 +64,7 @@ arena_stats_init(tsdn_t *tsdn, arena_stats_t *arena_stats) {
 	}
 #ifndef JEMALLOC_ATOMIC_U64
 	if (malloc_mutex_init(&arena_stats->mtx, "arena_stats",
-	    WITNESS_RANK_ARENA_STATS)) {
+	    WITNESS_RANK_ARENA_STATS, malloc_mutex_rank_exclusive)) {
 		return true;
 	}
 #endif
@@ -734,7 +734,8 @@ arena_decay_init(arena_decay_t *decay, extents_t *extents, ssize_t decay_ms,
 			assert(((char *)decay)[i] == 0);
 		}
 	}
-	if (malloc_mutex_init(&decay->mtx, "decay", WITNESS_RANK_DECAY)) {
+	if (malloc_mutex_init(&decay->mtx, "decay", WITNESS_RANK_DECAY,
+	    malloc_mutex_rank_exclusive)) {
 		return true;
 	}
 	decay->purging = false;
@@ -1869,7 +1870,7 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 
 		ql_new(&arena->tcache_ql);
 		if (malloc_mutex_init(&arena->tcache_ql_mtx, "tcache_ql",
-		    WITNESS_RANK_TCACHE_QL)) {
+		    WITNESS_RANK_TCACHE_QL, malloc_mutex_rank_exclusive)) {
 			goto label_error;
 		}
 	}
@@ -1901,7 +1902,7 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 
 	extent_list_init(&arena->large);
 	if (malloc_mutex_init(&arena->large_mtx, "arena_large",
-	    WITNESS_RANK_ARENA_LARGE)) {
+	    WITNESS_RANK_ARENA_LARGE, malloc_mutex_rank_exclusive)) {
 		goto label_error;
 	}
 
@@ -1950,7 +1951,7 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 
 	extent_avail_new(&arena->extent_avail);
 	if (malloc_mutex_init(&arena->extent_avail_mtx, "extent_avail",
-	    WITNESS_RANK_EXTENT_FREELIST)) {
+	    WITNESS_RANK_EXTENT_FREELIST, malloc_mutex_rank_exclusive)) {
 		goto label_error;
 	}
 
@@ -1958,7 +1959,7 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 	for (i = 0; i < NBINS; i++) {
 		arena_bin_t *bin = &arena->bins[i];
 		if (malloc_mutex_init(&bin->lock, "arena_bin",
-		    WITNESS_RANK_ARENA_BIN)) {
+		    WITNESS_RANK_ARENA_BIN, malloc_mutex_rank_exclusive)) {
 			goto label_error;
 		}
 		bin->slabcur = NULL;

@@ -138,9 +138,25 @@ malloc_mutex_prof_data_reset(tsdn_t *tsdn, malloc_mutex_t *mutex) {
 	mutex_prof_data_init(&mutex->prof_data);
 }
 
+static int
+mutex_addr_comp(const witness_t *witness1, void *mutex1,
+    const witness_t *witness2, void *mutex2) {
+	assert(mutex1 != NULL);
+	assert(mutex2 != NULL);
+	uintptr_t mu1int = (uintptr_t)mutex1;
+	uintptr_t mu2int = (uintptr_t)mutex2;
+	if (mu1int < mu2int) {
+		return -1;
+	} else if (mu1int == mu2int) {
+		return 0;
+	} else {
+		return 1;
+	}
+}
+
 bool
 malloc_mutex_init(malloc_mutex_t *mutex, const char *name,
-    witness_rank_t rank) {
+    witness_rank_t rank, malloc_mutex_lock_order_t lock_order) {
 	mutex_prof_data_init(&mutex->prof_data);
 #ifdef _WIN32
 #  if _WIN32_WINNT >= 0x0600
@@ -179,7 +195,13 @@ malloc_mutex_init(malloc_mutex_t *mutex, const char *name,
 	pthread_mutexattr_destroy(&attr);
 #endif
 	if (config_debug) {
-		witness_init(&mutex->witness, name, rank, NULL, NULL);
+		mutex->lock_order = lock_order;
+		if (lock_order == malloc_mutex_address_ordered) {
+			witness_init(&mutex->witness, name, rank,
+			    mutex_addr_comp, &mutex);
+		} else {
+			witness_init(&mutex->witness, name, rank, NULL, NULL);
+		}
 	}
 	return false;
 }
@@ -200,7 +222,7 @@ malloc_mutex_postfork_child(tsdn_t *tsdn, malloc_mutex_t *mutex) {
 	malloc_mutex_unlock(tsdn, mutex);
 #else
 	if (malloc_mutex_init(mutex, mutex->witness.name,
-	    mutex->witness.rank)) {
+	    mutex->witness.rank, mutex->lock_order)) {
 		malloc_printf("<jemalloc>: Error re-initializing mutex in "
 		    "child\n");
 		if (opt_abort) {

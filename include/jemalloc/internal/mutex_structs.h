@@ -40,12 +40,14 @@ struct malloc_mutex_s {
 		 * memory cost.
 		 */
 #if !defined(JEMALLOC_DEBUG)
-		witness_t		witness;
+		witness_t			witness;
+		malloc_mutex_lock_order_t	lock_order;
 #endif
 	};
 
 #if defined(JEMALLOC_DEBUG)
-	witness_t		witness;
+	witness_t			witness;
+	malloc_mutex_lock_order_t	lock_order;
 #endif
 };
 
