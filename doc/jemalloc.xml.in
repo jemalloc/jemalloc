@@ -737,6 +737,25 @@ mallctl("arena." STRINGIFY(MALLCTL_ARENAS_ALL) ".decay",
         detecting whether another thread caused a refresh.</para></listitem>
       </varlistentry>
 
+      <varlistentry id="background_thread">
+        <term>
+          <mallctl>background_thread</mallctl>
+          (<type>bool</type>)
+          <literal>rw</literal>
+        </term>
+        <listitem><para>Enable/disable internal background worker threads.  When
+        set to true, background threads are created on demand (the number of
+        background threads will be no more than the number of CPUs or active
+        arenas).  Threads run periodically, and handle <link
+        linkend="arena.i.decay">purging</link> asynchronously.  When switching
+        off, background threads are terminated synchronously.  See <link
+        linkend="stats.background_thread.num_threads"><mallctl>stats.background_thread</mallctl></link>
+        for related stats.  <link
+        linkend="opt.background_thread"><mallctl>opt.background_thread</mallctl></link>
+        can be used to set the default option.  This option is only available on
+        selected pthread-based platforms.</para></listitem>
+      </varlistentry>
+
       <varlistentry id="config.cache_oblivious">
         <term>
           <mallctl>config.cache_oblivious</mallctl>
@@ -935,6 +954,18 @@ mallctl("arena." STRINGIFY(MALLCTL_ARENAS_ALL) ".decay",
         <quote>disabled</quote>, narenas and thread to arena association will
         not be impacted by this option.  The default is
         <quote>percpu</quote>. </para></listitem>
+      </varlistentry>
+
+      <varlistentry id="opt.background_thread">
+        <term>
+          <mallctl>opt.background_thread</mallctl>
+          (<type>const bool</type>)
+          <literal>r-</literal>
+        </term>
+        <listitem><para>Internal background worker threads enabled/disabled. See
+        <link linkend="background_thread">background_thread</link> for dynamic
+        control options and details.  This option is disabled by
+        default.</para></listitem>
       </varlistentry>
 
       <varlistentry id="opt.dirty_decay_ms">
@@ -2158,6 +2189,39 @@ struct extent_hooks_s {
         </para></listitem>
       </varlistentry>
 
+      <varlistentry id="stats.background_thread.num_threads">
+        <term>
+          <mallctl>stats.background_thread.num_threads</mallctl>
+          (<type>size_t</type>)
+          <literal>r-</literal>
+          [<option>--enable-stats</option>]
+        </term>
+        <listitem><para> Number of <link linkend="background_thread">background
+        threads</link> running currently.</para></listitem>
+      </varlistentry>
+
+      <varlistentry id="stats.background_thread.num_runs">
+        <term>
+          <mallctl>stats.background_thread.num_runs</mallctl>
+          (<type>uint64_t</type>)
+          <literal>r-</literal>
+          [<option>--enable-stats</option>]
+        </term>
+        <listitem><para> Total number of runs from all <link
+        linkend="background_thread">background threads</link>.</para></listitem>
+      </varlistentry>
+
+      <varlistentry id="stats.background_thread.run_interval">
+        <term>
+          <mallctl>stats.background_thread.run_interval</mallctl>
+          (<type>uint64_t</type>)
+          <literal>r-</literal>
+          [<option>--enable-stats</option>]
+        </term>
+        <listitem><para> Average run interval in nanoseconds of <link
+        linkend="background_thread">background threads</link>.</para></listitem>
+      </varlistentry>
+
       <varlistentry id="stats.mutexes.ctl">
         <term>
           <mallctl>stats.mutexes.ctl.{counter};</mallctl>
@@ -2208,6 +2272,20 @@ struct extent_hooks_s {
 	  </listitem>
 	</varlistentry>
 	</listitem>
+      </varlistentry>
+
+      <varlistentry id="stats.mutexes.background_thread">
+        <term>
+          <mallctl>stats.mutexes.background_thread.{counter}</mallctl>
+	  (<type>counter specific type</type>) <literal>r-</literal>
+          [<option>--enable-stats</option>]
+        </term>
+        <listitem><para>Statistics on <varname>background_thread</varname> mutex
+        (global scope; <link
+        linkend="background_thread"><mallctl>background_thread</mallctl></link>
+        related).  <mallctl>{counter}</mallctl> is one of the counters in <link
+        linkend="mutex_counters">mutex profiling
+        counters</link>.</para></listitem>
       </varlistentry>
 
       <varlistentry id="stats.mutexes.prof">
