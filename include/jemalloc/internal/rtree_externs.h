@@ -41,11 +41,5 @@ void rtree_delete(tsdn_t *tsdn, rtree_t *rtree);
 #endif
 rtree_leaf_elm_t *rtree_leaf_elm_lookup_hard(tsdn_t *tsdn, rtree_t *rtree,
     rtree_ctx_t *rtree_ctx, uintptr_t key, bool dependent, bool init_missing);
-void rtree_leaf_elm_witness_acquire(tsdn_t *tsdn, const rtree_t *rtree,
-    uintptr_t key, const rtree_leaf_elm_t *elm);
-void rtree_leaf_elm_witness_access(tsdn_t *tsdn, const rtree_t *rtree,
-    const rtree_leaf_elm_t *elm);
-void rtree_leaf_elm_witness_release(tsdn_t *tsdn, const rtree_t *rtree,
-    const rtree_leaf_elm_t *elm);
 
 #endif /* JEMALLOC_INTERNAL_RTREE_EXTERNS_H */

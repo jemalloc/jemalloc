@@ -2,6 +2,7 @@
 #define JEMALLOC_INTERNAL_RTREE_STRUCTS_H
 
 #include "jemalloc/internal/atomic.h"
+#include "jemalloc/internal/mutex_pool_structs.h"
 
 struct rtree_node_elm_s {
 	atomic_p_t	child; /* (rtree_{node,leaf}_elm_t *) */
@@ -18,13 +19,12 @@ struct rtree_leaf_elm_s {
 	 * x: index
 	 * e: extent
 	 * b: slab
-	 * k: lock
 	 *
-	 *   00000000 xxxxxxxx eeeeeeee [...] eeeeeeee eeee00bk
+	 *   00000000 xxxxxxxx eeeeeeee [...] eeeeeeee eeee000b
 	 */
 	atomic_p_t	le_bits;
 #else
-	atomic_p_t	le_extent; /* (extent_t *), lock in low bit */
+	atomic_p_t	le_extent; /* (extent_t *) */
 	atomic_u_t	le_szind; /* (szind_t) */
 	atomic_b_t	le_slab; /* (bool) */
 #endif

@@ -7,7 +7,6 @@
 #include "jemalloc/internal/prof_types.h"
 #include "jemalloc/internal/ql.h"
 #include "jemalloc/internal/rtree_ctx.h"
-#include "jemalloc/internal/rtree_witness.h"
 #include "jemalloc/internal/tcache_types.h"
 #include "jemalloc/internal/tcache_structs.h"
 #include "jemalloc/internal/util.h"
@@ -76,7 +75,6 @@ typedef void (*test_callback_t)(int *);
     O(arenas_tdata,		arena_tdata_t *)			\
     O(tcache,			tcache_t)				\
     O(witnesses,		witness_list_t)				\
-    O(rtree_leaf_elm_witnesses,	rtree_leaf_elm_witness_tsd_t)		\
     O(witness_fork,		bool)					\
     MALLOC_TEST_TSD
 
@@ -95,7 +93,6 @@ typedef void (*test_callback_t)(int *);
     NULL,								\
     TCACHE_ZERO_INITIALIZER,						\
     ql_head_initializer(witnesses),					\
-    RTREE_ELM_WITNESS_TSD_INITIALIZER,					\
     false								\
     MALLOC_TEST_TSD_INITIALIZER						\
 }
