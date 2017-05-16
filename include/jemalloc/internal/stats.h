@@ -145,6 +145,9 @@ typedef struct arena_stats_s {
 
 	/* One element for each large size class. */
 	malloc_large_stats_t	lstats[NSIZES - NBINS];
+
+	/* Arena uptime. */
+	nstime_t		uptime;
 } arena_stats_t;
 
 #endif /* JEMALLOC_INTERNAL_STATS_H */

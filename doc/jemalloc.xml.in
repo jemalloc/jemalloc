@@ -2280,6 +2280,18 @@ struct extent_hooks_s {
         arena.</para></listitem>
       </varlistentry>
 
+      <varlistentry id="stats.arenas.i.uptime">
+        <term>
+          <mallctl>stats.arenas.&lt;i&gt;.uptime</mallctl>
+          (<type>uint64_t</type>)
+          <literal>r-</literal>
+        </term>
+        <listitem><para>Time elapsed (in nanoseconds) since the arena was
+        created.  If &lt;i&gt; equals <constant>0</constant> or
+        <constant>MALLCTL_ARENAS_ALL</constant>, this is the uptime since malloc
+        initialization.</para></listitem>
+      </varlistentry>
+
       <varlistentry id="stats.arenas.i.pactive">
         <term>
           <mallctl>stats.arenas.&lt;i&gt;.pactive</mallctl>

@@ -261,6 +261,8 @@ struct arena_s {
 	 * Synchronization: internal.
 	 */
 	base_t			*base;
+	/* Used to determine uptime.  Read-only after initialization. */
+	nstime_t		create_time;
 };
 
 /* Used in conjunction with tsd for fast arena-related context lookup. */
