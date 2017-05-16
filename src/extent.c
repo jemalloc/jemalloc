@@ -252,7 +252,8 @@ static void
 extents_remove_locked(tsdn_t *tsdn, extents_t *extents, extent_t *extent,
     bool preserve_lru) {
 	malloc_mutex_assert_owner(tsdn, &extents->mtx);
-	assert(extent_state_get(extent) == extents->state);
+	assert((extent_state_get(extent) != extent_state_dirty) ==
+	    (extents_state_get(extents) != extent_state_dirty));
 
 	size_t size = extent_size_get(extent);
 	size_t psz = extent_size_quantize_floor(size);
@@ -500,7 +501,8 @@ static void
 extent_activate_locked(tsdn_t *tsdn, arena_t *arena, extents_t *extents,
     extent_t *extent, bool preserve_lru) {
 	assert(extent_arena_get(extent) == arena);
-	assert(extent_state_get(extent) == extents_state_get(extents));
+	assert((extent_state_get(extent) != extent_state_dirty) ==
+	    (extents_state_get(extents) != extent_state_dirty));
 
 	extents_remove_locked(tsdn, extents, extent, preserve_lru);
 	extent_state_set(extent, extent_state_active);
