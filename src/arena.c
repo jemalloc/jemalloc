@@ -330,6 +330,10 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 	    arena_prof_mutex_base)
 #undef READ_ARENA_MUTEX_PROF_DATA
 
+	nstime_copy(&astats->uptime, &arena->create_time);
+	nstime_update(&astats->uptime);
+	nstime_subtract(&astats->uptime, &arena->create_time);
+
 	for (szind_t i = 0; i < NBINS; i++) {
 		arena_bin_t *bin = &arena->bins[i];
 
@@ -1964,6 +1968,9 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 	}
 
 	arena->base = base;
+
+	nstime_init(&arena->create_time, 0);
+	nstime_update(&arena->create_time);
 
 	/* We don't support reetrancy for arena 0 bootstrapping. */
 	if (ind != 0 && hooks_arena_new_hook) {

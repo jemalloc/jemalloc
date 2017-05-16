@@ -421,6 +421,7 @@ stats_arena_print(void (*write_cb)(void *, const char *), void *cbopaque,
 	size_t large_allocated;
 	uint64_t large_nmalloc, large_ndalloc, large_nrequests;
 	size_t tcache_bytes;
+	uint64_t uptime;
 
 	CTL_GET("arenas.page", &page, size_t);
 
@@ -431,6 +432,15 @@ stats_arena_print(void (*write_cb)(void *, const char *), void *cbopaque,
 	} else {
 		malloc_cprintf(write_cb, cbopaque,
 		    "assigned threads: %u\n", nthreads);
+	}
+
+	CTL_M2_GET("stats.arenas.0.uptime", i, &uptime, uint64_t);
+	if (json) {
+		malloc_cprintf(write_cb, cbopaque,
+		    "\t\t\t\t\"uptime_ns\": %"FMTu64",\n", uptime);
+	} else {
+		malloc_cprintf(write_cb, cbopaque,
+		    "uptime: %"FMTu64"\n", uptime);
 	}
 
 	CTL_M2_GET("stats.arenas.0.dss", i, &dss, const char *);

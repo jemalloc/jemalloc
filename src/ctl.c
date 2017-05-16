@@ -157,6 +157,7 @@ CTL_PROTO(stats_arenas_i_lextents_j_nrequests)
 CTL_PROTO(stats_arenas_i_lextents_j_curlextents)
 INDEX_PROTO(stats_arenas_i_lextents_j)
 CTL_PROTO(stats_arenas_i_nthreads)
+CTL_PROTO(stats_arenas_i_uptime)
 CTL_PROTO(stats_arenas_i_dss)
 CTL_PROTO(stats_arenas_i_dirty_decay_time)
 CTL_PROTO(stats_arenas_i_muzzy_decay_time)
@@ -441,6 +442,7 @@ MUTEX_PROF_ARENA_MUTEXES
 
 static const ctl_named_node_t stats_arenas_i_node[] = {
 	{NAME("nthreads"),	CTL(stats_arenas_i_nthreads)},
+	{NAME("uptime"),	CTL(stats_arenas_i_uptime)},
 	{NAME("dss"),		CTL(stats_arenas_i_dss)},
 	{NAME("dirty_decay_time"), CTL(stats_arenas_i_dirty_decay_time)},
 	{NAME("muzzy_decay_time"), CTL(stats_arenas_i_muzzy_decay_time)},
@@ -777,6 +779,10 @@ MUTEX_PROF_ARENA_MUTEXES
 
 		accum_atomic_zu(&sdstats->astats.tcache_bytes,
 		    &astats->astats.tcache_bytes);
+
+		if (ctl_arena->arena_ind == 0) {
+			sdstats->astats.uptime = astats->astats.uptime;
+		}
 
 		for (i = 0; i < NBINS; i++) {
 			sdstats->bstats[i].nmalloc += astats->bstats[i].nmalloc;
@@ -2317,6 +2323,8 @@ CTL_RO_GEN(stats_arenas_i_dirty_decay_time, arenas_i(mib[2])->dirty_decay_time,
 CTL_RO_GEN(stats_arenas_i_muzzy_decay_time, arenas_i(mib[2])->muzzy_decay_time,
     ssize_t)
 CTL_RO_GEN(stats_arenas_i_nthreads, arenas_i(mib[2])->nthreads, unsigned)
+CTL_RO_GEN(stats_arenas_i_uptime,
+    nstime_ns(&arenas_i(mib[2])->astats->astats.uptime), uint64_t)
 CTL_RO_GEN(stats_arenas_i_pactive, arenas_i(mib[2])->pactive, size_t)
 CTL_RO_GEN(stats_arenas_i_pdirty, arenas_i(mib[2])->pdirty, size_t)
 CTL_RO_GEN(stats_arenas_i_pmuzzy, arenas_i(mib[2])->pmuzzy, size_t)
