@@ -41,6 +41,9 @@
 #ifndef SIZE_T_MAX
 #  define SIZE_T_MAX	SIZE_MAX
 #endif
+#ifndef SSIZE_MAX
+#  define SSIZE_MAX	((ssize_t)(SIZE_T_MAX >> 1))
+#endif
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stdio.h>

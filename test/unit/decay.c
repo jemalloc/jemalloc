@@ -24,7 +24,7 @@ nstime_update_mock(nstime_t *time) {
 }
 
 static unsigned
-do_arena_create(ssize_t dirty_decay_time, ssize_t muzzy_decay_time) {
+do_arena_create(ssize_t dirty_decay_ms, ssize_t muzzy_decay_ms) {
 	unsigned arena_ind;
 	size_t sz = sizeof(unsigned);
 	assert_d_eq(mallctl("arenas.create", (void *)&arena_ind, &sz, NULL, 0),
@@ -32,19 +32,19 @@ do_arena_create(ssize_t dirty_decay_time, ssize_t muzzy_decay_time) {
 	size_t mib[3];
 	size_t miblen = sizeof(mib)/sizeof(size_t);
 
-	assert_d_eq(mallctlnametomib("arena.0.dirty_decay_time", mib, &miblen),
+	assert_d_eq(mallctlnametomib("arena.0.dirty_decay_ms", mib, &miblen),
 	    0, "Unexpected mallctlnametomib() failure");
 	mib[1] = (size_t)arena_ind;
 	assert_d_eq(mallctlbymib(mib, miblen, NULL, NULL,
-	    (void *)&dirty_decay_time,
-	    sizeof(dirty_decay_time)), 0, "Unexpected mallctlbymib() failure");
+	    (void *)&dirty_decay_ms, sizeof(dirty_decay_ms)), 0,
+	    "Unexpected mallctlbymib() failure");
 
-	assert_d_eq(mallctlnametomib("arena.0.muzzy_decay_time", mib, &miblen),
+	assert_d_eq(mallctlnametomib("arena.0.muzzy_decay_ms", mib, &miblen),
 	    0, "Unexpected mallctlnametomib() failure");
 	mib[1] = (size_t)arena_ind;
 	assert_d_eq(mallctlbymib(mib, miblen, NULL, NULL,
-	    (void *)&muzzy_decay_time,
-	    sizeof(muzzy_decay_time)), 0, "Unexpected mallctlbymib() failure");
+	    (void *)&muzzy_decay_ms, sizeof(muzzy_decay_ms)), 0,
+	    "Unexpected mallctlbymib() failure");
 
 	return arena_ind;
 }
@@ -362,14 +362,14 @@ static void
 decay_ticker_helper(unsigned arena_ind, int flags, bool dirty, ssize_t dt,
     uint64_t dirty_npurge0, uint64_t muzzy_npurge0, bool terminate_asap) {
 #define NINTERVALS 101
-	nstime_t time, update_interval, decay_time, deadline;
+	nstime_t time, update_interval, decay_ms, deadline;
 
 	nstime_init(&time, 0);
 	nstime_update(&time);
 
-	nstime_init2(&decay_time, dt, 0);
+	nstime_init2(&decay_ms, dt, 0);
 	nstime_copy(&deadline, &time);
-	nstime_add(&deadline, &decay_time);
+	nstime_add(&deadline, &decay_ms);
 
 	nstime_init2(&update_interval, dt, 0);
 	nstime_idivide(&update_interval, NINTERVALS);
@@ -406,8 +406,8 @@ decay_ticker_helper(unsigned arena_ind, int flags, bool dirty, ssize_t dt,
 
 TEST_BEGIN(test_decay_ticker) {
 #define NPS 2048
-	ssize_t ddt = opt_dirty_decay_time;
-	ssize_t mdt = opt_muzzy_decay_time;
+	ssize_t ddt = opt_dirty_decay_ms;
+	ssize_t mdt = opt_muzzy_decay_ms;
 	unsigned arena_ind = do_arena_create(ddt, mdt);
 	int flags = (MALLOCX_ARENA(arena_ind) | MALLOCX_TCACHE_NONE);
 	void *ps[NPS];

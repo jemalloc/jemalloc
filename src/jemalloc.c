@@ -1070,10 +1070,14 @@ malloc_conf_init(void) {
 			}
 			CONF_HANDLE_UNSIGNED(opt_narenas, "narenas", 1,
 			    UINT_MAX, yes, no, false)
-			CONF_HANDLE_SSIZE_T(opt_dirty_decay_time,
-			    "dirty_decay_time", -1, NSTIME_SEC_MAX);
-			CONF_HANDLE_SSIZE_T(opt_muzzy_decay_time,
-			    "muzzy_decay_time", -1, NSTIME_SEC_MAX);
+			CONF_HANDLE_SSIZE_T(opt_dirty_decay_ms,
+			    "dirty_decay_ms", -1, NSTIME_SEC_MAX * KQU(1000) <
+			    QU(SSIZE_MAX) ? NSTIME_SEC_MAX * KQU(1000) :
+			    SSIZE_MAX);
+			CONF_HANDLE_SSIZE_T(opt_muzzy_decay_ms,
+			    "muzzy_decay_ms", -1, NSTIME_SEC_MAX * KQU(1000) <
+			    QU(SSIZE_MAX) ? NSTIME_SEC_MAX * KQU(1000) :
+			    SSIZE_MAX);
 			CONF_HANDLE_BOOL(opt_stats_print, "stats_print")
 			if (config_fill) {
 				if (CONF_MATCH("junk")) {
