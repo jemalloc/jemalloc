@@ -56,11 +56,11 @@ struct arena_decay_s {
 	 */
 	bool			purging;
 	/*
-	 * Approximate time in seconds from the creation of a set of unused
+	 * Approximate time in milliseconds from the creation of a set of unused
 	 * dirty pages until an equivalent set of unused dirty pages is purged
 	 * and/or reused.
 	 */
-	atomic_zd_t		time;
+	atomic_zd_t		time_ms;
 	/* time / SMOOTHSTEP_NSTEPS. */
 	nstime_t		interval;
 	/*

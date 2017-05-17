@@ -161,8 +161,8 @@ TEST_BEGIN(test_mallctl_opt) {
 	TEST_MALLCTL_OPT(const char *, dss, always);
 	TEST_MALLCTL_OPT(unsigned, narenas, always);
 	TEST_MALLCTL_OPT(const char *, percpu_arena, always);
-	TEST_MALLCTL_OPT(ssize_t, dirty_decay_time, always);
-	TEST_MALLCTL_OPT(ssize_t, muzzy_decay_time, always);
+	TEST_MALLCTL_OPT(ssize_t, dirty_decay_ms, always);
+	TEST_MALLCTL_OPT(ssize_t, muzzy_decay_ms, always);
 	TEST_MALLCTL_OPT(bool, stats_print, always);
 	TEST_MALLCTL_OPT(const char *, junk, fill);
 	TEST_MALLCTL_OPT(bool, zero, fill);
@@ -398,68 +398,66 @@ TEST_BEGIN(test_arena_i_initialized) {
 }
 TEST_END
 
-TEST_BEGIN(test_arena_i_dirty_decay_time) {
-	ssize_t dirty_decay_time, orig_dirty_decay_time, prev_dirty_decay_time;
+TEST_BEGIN(test_arena_i_dirty_decay_ms) {
+	ssize_t dirty_decay_ms, orig_dirty_decay_ms, prev_dirty_decay_ms;
 	size_t sz = sizeof(ssize_t);
 
-	assert_d_eq(mallctl("arena.0.dirty_decay_time",
-	    (void *)&orig_dirty_decay_time, &sz, NULL, 0), 0,
+	assert_d_eq(mallctl("arena.0.dirty_decay_ms",
+	    (void *)&orig_dirty_decay_ms, &sz, NULL, 0), 0,
 	    "Unexpected mallctl() failure");
 
-	dirty_decay_time = -2;
-	assert_d_eq(mallctl("arena.0.dirty_decay_time", NULL, NULL,
-	    (void *)&dirty_decay_time, sizeof(ssize_t)), EFAULT,
+	dirty_decay_ms = -2;
+	assert_d_eq(mallctl("arena.0.dirty_decay_ms", NULL, NULL,
+	    (void *)&dirty_decay_ms, sizeof(ssize_t)), EFAULT,
 	    "Unexpected mallctl() success");
 
-	dirty_decay_time = 0x7fffffff;
-	assert_d_eq(mallctl("arena.0.dirty_decay_time", NULL, NULL,
-	    (void *)&dirty_decay_time, sizeof(ssize_t)), 0,
+	dirty_decay_ms = 0x7fffffff;
+	assert_d_eq(mallctl("arena.0.dirty_decay_ms", NULL, NULL,
+	    (void *)&dirty_decay_ms, sizeof(ssize_t)), 0,
 	    "Unexpected mallctl() failure");
 
-	for (prev_dirty_decay_time = dirty_decay_time, dirty_decay_time = -1;
-	    dirty_decay_time < 20; prev_dirty_decay_time = dirty_decay_time,
-	    dirty_decay_time++) {
-		ssize_t old_dirty_decay_time;
+	for (prev_dirty_decay_ms = dirty_decay_ms, dirty_decay_ms = -1;
+	    dirty_decay_ms < 20; prev_dirty_decay_ms = dirty_decay_ms,
+	    dirty_decay_ms++) {
+		ssize_t old_dirty_decay_ms;
 
-		assert_d_eq(mallctl("arena.0.dirty_decay_time",
-		    (void *)&old_dirty_decay_time, &sz,
-		    (void *)&dirty_decay_time, sizeof(ssize_t)), 0,
-		    "Unexpected mallctl() failure");
-		assert_zd_eq(old_dirty_decay_time, prev_dirty_decay_time,
-		    "Unexpected old arena.0.dirty_decay_time");
+		assert_d_eq(mallctl("arena.0.dirty_decay_ms",
+		    (void *)&old_dirty_decay_ms, &sz, (void *)&dirty_decay_ms,
+		    sizeof(ssize_t)), 0, "Unexpected mallctl() failure");
+		assert_zd_eq(old_dirty_decay_ms, prev_dirty_decay_ms,
+		    "Unexpected old arena.0.dirty_decay_ms");
 	}
 }
 TEST_END
 
-TEST_BEGIN(test_arena_i_muzzy_decay_time) {
-	ssize_t muzzy_decay_time, orig_muzzy_decay_time, prev_muzzy_decay_time;
+TEST_BEGIN(test_arena_i_muzzy_decay_ms) {
+	ssize_t muzzy_decay_ms, orig_muzzy_decay_ms, prev_muzzy_decay_ms;
 	size_t sz = sizeof(ssize_t);
 
-	assert_d_eq(mallctl("arena.0.muzzy_decay_time",
-	    (void *)&orig_muzzy_decay_time, &sz, NULL, 0), 0,
+	assert_d_eq(mallctl("arena.0.muzzy_decay_ms",
+	    (void *)&orig_muzzy_decay_ms, &sz, NULL, 0), 0,
 	    "Unexpected mallctl() failure");
 
-	muzzy_decay_time = -2;
-	assert_d_eq(mallctl("arena.0.muzzy_decay_time", NULL, NULL,
-	    (void *)&muzzy_decay_time, sizeof(ssize_t)), EFAULT,
+	muzzy_decay_ms = -2;
+	assert_d_eq(mallctl("arena.0.muzzy_decay_ms", NULL, NULL,
+	    (void *)&muzzy_decay_ms, sizeof(ssize_t)), EFAULT,
 	    "Unexpected mallctl() success");
 
-	muzzy_decay_time = 0x7fffffff;
-	assert_d_eq(mallctl("arena.0.muzzy_decay_time", NULL, NULL,
-	    (void *)&muzzy_decay_time, sizeof(ssize_t)), 0,
+	muzzy_decay_ms = 0x7fffffff;
+	assert_d_eq(mallctl("arena.0.muzzy_decay_ms", NULL, NULL,
+	    (void *)&muzzy_decay_ms, sizeof(ssize_t)), 0,
 	    "Unexpected mallctl() failure");
 
-	for (prev_muzzy_decay_time = muzzy_decay_time, muzzy_decay_time = -1;
-	    muzzy_decay_time < 20; prev_muzzy_decay_time = muzzy_decay_time,
-	    muzzy_decay_time++) {
-		ssize_t old_muzzy_decay_time;
+	for (prev_muzzy_decay_ms = muzzy_decay_ms, muzzy_decay_ms = -1;
+	    muzzy_decay_ms < 20; prev_muzzy_decay_ms = muzzy_decay_ms,
+	    muzzy_decay_ms++) {
+		ssize_t old_muzzy_decay_ms;
 
-		assert_d_eq(mallctl("arena.0.muzzy_decay_time",
-		    (void *)&old_muzzy_decay_time, &sz,
-		    (void *)&muzzy_decay_time, sizeof(ssize_t)), 0,
-		    "Unexpected mallctl() failure");
-		assert_zd_eq(old_muzzy_decay_time, prev_muzzy_decay_time,
-		    "Unexpected old arena.0.muzzy_decay_time");
+		assert_d_eq(mallctl("arena.0.muzzy_decay_ms",
+		    (void *)&old_muzzy_decay_ms, &sz, (void *)&muzzy_decay_ms,
+		    sizeof(ssize_t)), 0, "Unexpected mallctl() failure");
+		assert_zd_eq(old_muzzy_decay_ms, prev_muzzy_decay_ms,
+		    "Unexpected old arena.0.muzzy_decay_ms");
 	}
 }
 TEST_END
@@ -555,68 +553,66 @@ TEST_BEGIN(test_arena_i_dss) {
 }
 TEST_END
 
-TEST_BEGIN(test_arenas_dirty_decay_time) {
-	ssize_t dirty_decay_time, orig_dirty_decay_time, prev_dirty_decay_time;
+TEST_BEGIN(test_arenas_dirty_decay_ms) {
+	ssize_t dirty_decay_ms, orig_dirty_decay_ms, prev_dirty_decay_ms;
 	size_t sz = sizeof(ssize_t);
 
-	assert_d_eq(mallctl("arenas.dirty_decay_time",
-	    (void *)&orig_dirty_decay_time, &sz, NULL, 0), 0,
+	assert_d_eq(mallctl("arenas.dirty_decay_ms",
+	    (void *)&orig_dirty_decay_ms, &sz, NULL, 0), 0,
 	    "Unexpected mallctl() failure");
 
-	dirty_decay_time = -2;
-	assert_d_eq(mallctl("arenas.dirty_decay_time", NULL, NULL,
-	    (void *)&dirty_decay_time, sizeof(ssize_t)), EFAULT,
+	dirty_decay_ms = -2;
+	assert_d_eq(mallctl("arenas.dirty_decay_ms", NULL, NULL,
+	    (void *)&dirty_decay_ms, sizeof(ssize_t)), EFAULT,
 	    "Unexpected mallctl() success");
 
-	dirty_decay_time = 0x7fffffff;
-	assert_d_eq(mallctl("arenas.dirty_decay_time", NULL, NULL,
-	    (void *)&dirty_decay_time, sizeof(ssize_t)), 0,
+	dirty_decay_ms = 0x7fffffff;
+	assert_d_eq(mallctl("arenas.dirty_decay_ms", NULL, NULL,
+	    (void *)&dirty_decay_ms, sizeof(ssize_t)), 0,
 	    "Expected mallctl() failure");
 
-	for (prev_dirty_decay_time = dirty_decay_time, dirty_decay_time = -1;
-	    dirty_decay_time < 20; prev_dirty_decay_time = dirty_decay_time,
-	    dirty_decay_time++) {
-		ssize_t old_dirty_decay_time;
+	for (prev_dirty_decay_ms = dirty_decay_ms, dirty_decay_ms = -1;
+	    dirty_decay_ms < 20; prev_dirty_decay_ms = dirty_decay_ms,
+	    dirty_decay_ms++) {
+		ssize_t old_dirty_decay_ms;
 
-		assert_d_eq(mallctl("arenas.dirty_decay_time",
-		    (void *)&old_dirty_decay_time, &sz,
-		    (void *)&dirty_decay_time, sizeof(ssize_t)), 0,
-		    "Unexpected mallctl() failure");
-		assert_zd_eq(old_dirty_decay_time, prev_dirty_decay_time,
-		    "Unexpected old arenas.dirty_decay_time");
+		assert_d_eq(mallctl("arenas.dirty_decay_ms",
+		    (void *)&old_dirty_decay_ms, &sz, (void *)&dirty_decay_ms,
+		    sizeof(ssize_t)), 0, "Unexpected mallctl() failure");
+		assert_zd_eq(old_dirty_decay_ms, prev_dirty_decay_ms,
+		    "Unexpected old arenas.dirty_decay_ms");
 	}
 }
 TEST_END
 
-TEST_BEGIN(test_arenas_muzzy_decay_time) {
-	ssize_t muzzy_decay_time, orig_muzzy_decay_time, prev_muzzy_decay_time;
+TEST_BEGIN(test_arenas_muzzy_decay_ms) {
+	ssize_t muzzy_decay_ms, orig_muzzy_decay_ms, prev_muzzy_decay_ms;
 	size_t sz = sizeof(ssize_t);
 
-	assert_d_eq(mallctl("arenas.muzzy_decay_time",
-	    (void *)&orig_muzzy_decay_time, &sz, NULL, 0), 0,
+	assert_d_eq(mallctl("arenas.muzzy_decay_ms",
+	    (void *)&orig_muzzy_decay_ms, &sz, NULL, 0), 0,
 	    "Unexpected mallctl() failure");
 
-	muzzy_decay_time = -2;
-	assert_d_eq(mallctl("arenas.muzzy_decay_time", NULL, NULL,
-	    (void *)&muzzy_decay_time, sizeof(ssize_t)), EFAULT,
+	muzzy_decay_ms = -2;
+	assert_d_eq(mallctl("arenas.muzzy_decay_ms", NULL, NULL,
+	    (void *)&muzzy_decay_ms, sizeof(ssize_t)), EFAULT,
 	    "Unexpected mallctl() success");
 
-	muzzy_decay_time = 0x7fffffff;
-	assert_d_eq(mallctl("arenas.muzzy_decay_time", NULL, NULL,
-	    (void *)&muzzy_decay_time, sizeof(ssize_t)), 0,
+	muzzy_decay_ms = 0x7fffffff;
+	assert_d_eq(mallctl("arenas.muzzy_decay_ms", NULL, NULL,
+	    (void *)&muzzy_decay_ms, sizeof(ssize_t)), 0,
 	    "Expected mallctl() failure");
 
-	for (prev_muzzy_decay_time = muzzy_decay_time, muzzy_decay_time = -1;
-	    muzzy_decay_time < 20; prev_muzzy_decay_time = muzzy_decay_time,
-	    muzzy_decay_time++) {
-		ssize_t old_muzzy_decay_time;
+	for (prev_muzzy_decay_ms = muzzy_decay_ms, muzzy_decay_ms = -1;
+	    muzzy_decay_ms < 20; prev_muzzy_decay_ms = muzzy_decay_ms,
+	    muzzy_decay_ms++) {
+		ssize_t old_muzzy_decay_ms;
 
-		assert_d_eq(mallctl("arenas.muzzy_decay_time",
-		    (void *)&old_muzzy_decay_time, &sz,
-		    (void *)&muzzy_decay_time, sizeof(ssize_t)), 0,
-		    "Unexpected mallctl() failure");
-		assert_zd_eq(old_muzzy_decay_time, prev_muzzy_decay_time,
-		    "Unexpected old arenas.muzzy_decay_time");
+		assert_d_eq(mallctl("arenas.muzzy_decay_ms",
+		    (void *)&old_muzzy_decay_ms, &sz, (void *)&muzzy_decay_ms,
+		    sizeof(ssize_t)), 0, "Unexpected mallctl() failure");
+		assert_zd_eq(old_muzzy_decay_ms, prev_muzzy_decay_ms,
+		    "Unexpected old arenas.muzzy_decay_ms");
 	}
 }
 TEST_END
@@ -699,8 +695,8 @@ TEST_BEGIN(test_stats_arenas) {
 
 	TEST_STATS_ARENAS(unsigned, nthreads);
 	TEST_STATS_ARENAS(const char *, dss);
-	TEST_STATS_ARENAS(ssize_t, dirty_decay_time);
-	TEST_STATS_ARENAS(ssize_t, muzzy_decay_time);
+	TEST_STATS_ARENAS(ssize_t, dirty_decay_ms);
+	TEST_STATS_ARENAS(ssize_t, muzzy_decay_ms);
 	TEST_STATS_ARENAS(size_t, pactive);
 	TEST_STATS_ARENAS(size_t, pdirty);
 
@@ -723,13 +719,13 @@ main(void) {
 	    test_tcache,
 	    test_thread_arena,
 	    test_arena_i_initialized,
-	    test_arena_i_dirty_decay_time,
-	    test_arena_i_muzzy_decay_time,
+	    test_arena_i_dirty_decay_ms,
+	    test_arena_i_muzzy_decay_ms,
 	    test_arena_i_purge,
 	    test_arena_i_decay,
 	    test_arena_i_dss,
-	    test_arenas_dirty_decay_time,
-	    test_arenas_muzzy_decay_time,
+	    test_arenas_dirty_decay_ms,
+	    test_arenas_muzzy_decay_ms,
 	    test_arenas_constants,
 	    test_arenas_bin_constants,
 	    test_arenas_lextent_constants,

@@ -116,7 +116,7 @@ any of the following arguments (not a definitive list) to 'configure':
     MALLOC_CONF environment variable.  For example, to change the default decay
     time to 30 seconds:
 
-      --with-malloc-conf=decay_time:30
+      --with-malloc-conf=decay_ms:30000
 
 * `--enable-debug`
 

@@ -13,8 +13,8 @@ static const size_t	large_pad =
 #endif
     ;
 
-extern ssize_t		opt_dirty_decay_time;
-extern ssize_t		opt_muzzy_decay_time;
+extern ssize_t		opt_dirty_decay_ms;
+extern ssize_t		opt_muzzy_decay_ms;
 
 extern const arena_bin_info_t	arena_bin_info[NBINS];
 
@@ -27,10 +27,10 @@ void arena_stats_large_nrequests_add(tsdn_t *tsdn, arena_stats_t *arena_stats,
 void arena_stats_mapped_add(tsdn_t *tsdn, arena_stats_t *arena_stats,
     size_t size);
 void	arena_basic_stats_merge(tsdn_t *tsdn, arena_t *arena,
-    unsigned *nthreads, const char **dss, ssize_t *dirty_decay_time,
-    ssize_t *muzzy_decay_time, size_t *nactive, size_t *ndirty, size_t *nmuzzy);
+    unsigned *nthreads, const char **dss, ssize_t *dirty_decay_ms,
+    ssize_t *muzzy_decay_ms, size_t *nactive, size_t *ndirty, size_t *nmuzzy);
 void arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
-    const char **dss, ssize_t *dirty_decay_time, ssize_t *muzzy_decay_time,
+    const char **dss, ssize_t *dirty_decay_ms, ssize_t *muzzy_decay_ms,
     size_t *nactive, size_t *ndirty, size_t *nmuzzy, arena_stats_t *astats,
     malloc_bin_stats_t *bstats, malloc_large_stats_t *lstats);
 void	arena_extents_dirty_dalloc(tsdn_t *tsdn, arena_t *arena,
@@ -46,12 +46,10 @@ void	arena_extent_ralloc_large_shrink(tsdn_t *tsdn, arena_t *arena,
     extent_t *extent, size_t oldsize);
 void	arena_extent_ralloc_large_expand(tsdn_t *tsdn, arena_t *arena,
     extent_t *extent, size_t oldsize);
-ssize_t arena_dirty_decay_time_get(arena_t *arena);
-bool arena_dirty_decay_time_set(tsdn_t *tsdn, arena_t *arena,
-    ssize_t decay_time);
-ssize_t arena_muzzy_decay_time_get(arena_t *arena);
-bool arena_muzzy_decay_time_set(tsdn_t *tsdn, arena_t *arena,
-    ssize_t decay_time);
+ssize_t arena_dirty_decay_ms_get(arena_t *arena);
+bool arena_dirty_decay_ms_set(tsdn_t *tsdn, arena_t *arena, ssize_t decay_ms);
+ssize_t arena_muzzy_decay_ms_get(arena_t *arena);
+bool arena_muzzy_decay_ms_set(tsdn_t *tsdn, arena_t *arena, ssize_t decay_ms);
 void arena_decay(tsdn_t *tsdn, arena_t *arena, bool all);
 void	arena_reset(tsd_t *tsd, arena_t *arena);
 void	arena_destroy(tsd_t *tsd, arena_t *arena);
@@ -79,10 +77,10 @@ void *arena_ralloc(tsdn_t *tsdn, arena_t *arena, void *ptr, size_t oldsize,
     size_t size, size_t alignment, bool zero, tcache_t *tcache);
 dss_prec_t	arena_dss_prec_get(arena_t *arena);
 bool	arena_dss_prec_set(arena_t *arena, dss_prec_t dss_prec);
-ssize_t arena_dirty_decay_time_default_get(void);
-bool arena_dirty_decay_time_default_set(ssize_t decay_time);
-ssize_t arena_muzzy_decay_time_default_get(void);
-bool arena_muzzy_decay_time_default_set(ssize_t decay_time);
+ssize_t arena_dirty_decay_ms_default_get(void);
+bool arena_dirty_decay_ms_default_set(ssize_t decay_ms);
+ssize_t arena_muzzy_decay_ms_default_get(void);
+bool arena_muzzy_decay_ms_default_set(ssize_t decay_ms);
 unsigned	arena_nthreads_get(arena_t *arena, bool internal);
 void	arena_nthreads_inc(arena_t *arena, bool internal);
 void	arena_nthreads_dec(arena_t *arena, bool internal);

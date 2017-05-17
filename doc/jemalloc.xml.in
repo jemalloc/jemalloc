@@ -937,15 +937,15 @@ mallctl("arena." STRINGIFY(MALLCTL_ARENAS_ALL) ".decay",
         <quote>percpu</quote>. </para></listitem>
       </varlistentry>
 
-      <varlistentry id="opt.dirty_decay_time">
+      <varlistentry id="opt.dirty_decay_ms">
         <term>
-          <mallctl>opt.dirty_decay_time</mallctl>
+          <mallctl>opt.dirty_decay_ms</mallctl>
           (<type>ssize_t</type>)
           <literal>r-</literal>
         </term>
-        <listitem><para>Approximate time in seconds from the creation of a set
-        of unused dirty pages until an equivalent set of unused dirty pages is
-        purged (i.e. converted to muzzy via e.g.
+        <listitem><para>Approximate time in milliseconds from the creation of a
+        set of unused dirty pages until an equivalent set of unused dirty pages
+        is purged (i.e. converted to muzzy via e.g.
         <function>madvise(<parameter>...</parameter><parameter><constant>MADV_FREE</constant></parameter>)</function>
         if supported by the operating system, or converted to clean otherwise)
         and/or reused.  Dirty pages are defined as previously having been
@@ -955,35 +955,35 @@ mallctl("arena." STRINGIFY(MALLCTL_ARENAS_ALL) ".decay",
         zero purge rate.  A decay time of 0 causes all unused dirty pages to be
         purged immediately upon creation.  A decay time of -1 disables purging.
         The default decay time is 10 seconds.  See <link
-        linkend="arenas.dirty_decay_time"><mallctl>arenas.dirty_decay_time</mallctl></link>
+        linkend="arenas.dirty_decay_ms"><mallctl>arenas.dirty_decay_ms</mallctl></link>
         and <link
-        linkend="arena.i.muzzy_decay_time"><mallctl>arena.&lt;i&gt;.muzzy_decay_time</mallctl></link>
+        linkend="arena.i.muzzy_decay_ms"><mallctl>arena.&lt;i&gt;.muzzy_decay_ms</mallctl></link>
         for related dynamic control options.  See <link
-        linkend="opt.muzzy_decay_time"><mallctl>opt.muzzy_decay_time</mallctl></link>
+        linkend="opt.muzzy_decay_ms"><mallctl>opt.muzzy_decay_ms</mallctl></link>
         for a description of muzzy pages.</para></listitem>
       </varlistentry>
 
-      <varlistentry id="opt.muzzy_decay_time">
+      <varlistentry id="opt.muzzy_decay_ms">
         <term>
-          <mallctl>opt.muzzy_decay_time</mallctl>
+          <mallctl>opt.muzzy_decay_ms</mallctl>
           (<type>ssize_t</type>)
           <literal>r-</literal>
         </term>
-        <listitem><para>Approximate time in seconds from the creation of a set
-        of unused muzzy pages until an equivalent set of unused muzzy pages is
-        purged (i.e. converted to clean) and/or reused.  Muzzy pages are defined
-        as previously having been unused dirty pages that were subsequently
-        purged in a manner that left them subject to the reclamation whims of
-        the operating system (e.g.
+        <listitem><para>Approximate time in milliseconds from the creation of a
+        set of unused muzzy pages until an equivalent set of unused muzzy pages
+        is purged (i.e. converted to clean) and/or reused.  Muzzy pages are
+        defined as previously having been unused dirty pages that were
+        subsequently purged in a manner that left them subject to the
+        reclamation whims of the operating system (e.g.
         <function>madvise(<parameter>...</parameter><parameter><constant>MADV_FREE</constant></parameter>)</function>),
         and therefore in an indeterminate state.  The pages are incrementally
         purged according to a sigmoidal decay curve that starts and ends with
         zero purge rate.  A decay time of 0 causes all unused muzzy pages to be
         purged immediately upon creation.  A decay time of -1 disables purging.
         The default decay time is 10 seconds.  See <link
-        linkend="arenas.muzzy_decay_time"><mallctl>arenas.muzzy_decay_time</mallctl></link>
+        linkend="arenas.muzzy_decay_ms"><mallctl>arenas.muzzy_decay_ms</mallctl></link>
         and <link
-        linkend="arena.i.muzzy_decay_time"><mallctl>arena.&lt;i&gt;.muzzy_decay_time</mallctl></link>
+        linkend="arena.i.muzzy_decay_ms"><mallctl>arena.&lt;i&gt;.muzzy_decay_ms</mallctl></link>
         for related dynamic control options.</para></listitem>
       </varlistentry>
 
@@ -1486,9 +1486,9 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         for arena &lt;i&gt;, or for all arenas if &lt;i&gt; equals
         <constant>MALLCTL_ARENAS_ALL</constant>.  The proportion of unused
         dirty/muzzy pages to be purged depends on the current time; see <link
-        linkend="opt.dirty_decay_time"><mallctl>opt.dirty_decay_time</mallctl></link>
+        linkend="opt.dirty_decay_ms"><mallctl>opt.dirty_decay_ms</mallctl></link>
         and <link
-        linkend="opt.muzzy_decay_time"><mallctl>opt.muzy_decay_time</mallctl></link>
+        linkend="opt.muzzy_decay_ms"><mallctl>opt.muzy_decay_ms</mallctl></link>
         for details.</para></listitem>
       </varlistentry>
 
@@ -1550,35 +1550,35 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         settings.</para></listitem>
       </varlistentry>
 
-      <varlistentry id="arena.i.dirty_decay_time">
+      <varlistentry id="arena.i.dirty_decay_ms">
         <term>
-          <mallctl>arena.&lt;i&gt;.dirty_decay_time</mallctl>
+          <mallctl>arena.&lt;i&gt;.dirty_decay_ms</mallctl>
           (<type>ssize_t</type>)
           <literal>rw</literal>
         </term>
-        <listitem><para>Current per-arena approximate time in seconds from the
-        creation of a set of unused dirty pages until an equivalent set of
+        <listitem><para>Current per-arena approximate time in milliseconds from
+        the creation of a set of unused dirty pages until an equivalent set of
         unused dirty pages is purged and/or reused.  Each time this interface is
         set, all currently unused dirty pages are considered to have fully
         decayed, which causes immediate purging of all unused dirty pages unless
         the decay time is set to -1 (i.e. purging disabled).  See <link
-        linkend="opt.dirty_decay_time"><mallctl>opt.dirty_decay_time</mallctl></link>
+        linkend="opt.dirty_decay_ms"><mallctl>opt.dirty_decay_ms</mallctl></link>
         for additional information.</para></listitem>
       </varlistentry>
 
-      <varlistentry id="arena.i.muzzy_decay_time">
+      <varlistentry id="arena.i.muzzy_decay_ms">
         <term>
-          <mallctl>arena.&lt;i&gt;.muzzy_decay_time</mallctl>
+          <mallctl>arena.&lt;i&gt;.muzzy_decay_ms</mallctl>
           (<type>ssize_t</type>)
           <literal>rw</literal>
         </term>
-        <listitem><para>Current per-arena approximate time in seconds from the
-        creation of a set of unused muzzy pages until an equivalent set of
+        <listitem><para>Current per-arena approximate time in milliseconds from
+        the creation of a set of unused muzzy pages until an equivalent set of
         unused muzzy pages is purged and/or reused.  Each time this interface is
         set, all currently unused muzzy pages are considered to have fully
         decayed, which causes immediate purging of all unused muzzy pages unless
         the decay time is set to -1 (i.e. purging disabled).  See <link
-        linkend="opt.muzzy_decay_time"><mallctl>opt.muzzy_decay_time</mallctl></link>
+        linkend="opt.muzzy_decay_ms"><mallctl>opt.muzzy_decay_ms</mallctl></link>
         for additional information.</para></listitem>
       </varlistentry>
 
@@ -1825,33 +1825,35 @@ struct extent_hooks_s {
         <listitem><para>Current limit on number of arenas.</para></listitem>
       </varlistentry>
 
-      <varlistentry id="arenas.dirty_decay_time">
+      <varlistentry id="arenas.dirty_decay_ms">
         <term>
-          <mallctl>arenas.dirty_decay_time</mallctl>
+          <mallctl>arenas.dirty_decay_ms</mallctl>
           (<type>ssize_t</type>)
           <literal>rw</literal>
         </term>
-        <listitem><para>Current default per-arena approximate time in seconds
-        from the creation of a set of unused dirty pages until an equivalent set
-        of unused dirty pages is purged and/or reused, used to initialize <link
-        linkend="arena.i.dirty_decay_time"><mallctl>arena.&lt;i&gt;.dirty_decay_time</mallctl></link>
+        <listitem><para>Current default per-arena approximate time in
+        milliseconds from the creation of a set of unused dirty pages until an
+        equivalent set of unused dirty pages is purged and/or reused, used to
+        initialize <link
+        linkend="arena.i.dirty_decay_ms"><mallctl>arena.&lt;i&gt;.dirty_decay_ms</mallctl></link>
         during arena creation.  See <link
-        linkend="opt.dirty_decay_time"><mallctl>opt.dirty_decay_time</mallctl></link>
+        linkend="opt.dirty_decay_ms"><mallctl>opt.dirty_decay_ms</mallctl></link>
         for additional information.</para></listitem>
       </varlistentry>
 
-      <varlistentry id="arenas.muzzy_decay_time">
+      <varlistentry id="arenas.muzzy_decay_ms">
         <term>
-          <mallctl>arenas.muzzy_decay_time</mallctl>
+          <mallctl>arenas.muzzy_decay_ms</mallctl>
           (<type>ssize_t</type>)
           <literal>rw</literal>
         </term>
-        <listitem><para>Current default per-arena approximate time in seconds
-        from the creation of a set of unused muzzy pages until an equivalent set
-        of unused muzzy pages is purged and/or reused, used to initialize <link
-        linkend="arena.i.muzzy_decay_time"><mallctl>arena.&lt;i&gt;.muzzy_decay_time</mallctl></link>
+        <listitem><para>Current default per-arena approximate time in
+        milliseconds from the creation of a set of unused muzzy pages until an
+        equivalent set of unused muzzy pages is purged and/or reused, used to
+        initialize <link
+        linkend="arena.i.muzzy_decay_ms"><mallctl>arena.&lt;i&gt;.muzzy_decay_ms</mallctl></link>
         during arena creation.  See <link
-        linkend="opt.muzzy_decay_time"><mallctl>opt.muzzy_decay_time</mallctl></link>
+        linkend="opt.muzzy_decay_ms"><mallctl>opt.muzzy_decay_ms</mallctl></link>
         for additional information.</para></listitem>
       </varlistentry>
 
@@ -2244,29 +2246,29 @@ struct extent_hooks_s {
         </para></listitem>
       </varlistentry>
 
-      <varlistentry id="stats.arenas.i.dirty_decay_time">
+      <varlistentry id="stats.arenas.i.dirty_decay_ms">
         <term>
-          <mallctl>stats.arenas.&lt;i&gt;.dirty_decay_time</mallctl>
+          <mallctl>stats.arenas.&lt;i&gt;.dirty_decay_ms</mallctl>
           (<type>ssize_t</type>)
           <literal>r-</literal>
         </term>
-        <listitem><para>Approximate time in seconds from the creation of a set
-        of unused dirty pages until an equivalent set of unused dirty pages is
-        purged and/or reused.  See <link
-        linkend="opt.dirty_decay_time"><mallctl>opt.dirty_decay_time</mallctl></link>
+        <listitem><para>Approximate time in milliseconds from the creation of a
+        set of unused dirty pages until an equivalent set of unused dirty pages
+        is purged and/or reused.  See <link
+        linkend="opt.dirty_decay_ms"><mallctl>opt.dirty_decay_ms</mallctl></link>
         for details.</para></listitem>
       </varlistentry>
 
-      <varlistentry id="stats.arenas.i.muzzy_decay_time">
+      <varlistentry id="stats.arenas.i.muzzy_decay_ms">
         <term>
-          <mallctl>stats.arenas.&lt;i&gt;.muzzy_decay_time</mallctl>
+          <mallctl>stats.arenas.&lt;i&gt;.muzzy_decay_ms</mallctl>
           (<type>ssize_t</type>)
           <literal>r-</literal>
         </term>
-        <listitem><para>Approximate time in seconds from the creation of a set
-        of unused muzzy pages until an equivalent set of unused muzzy pages is
-        purged and/or reused.  See <link
-        linkend="opt.muzzy_decay_time"><mallctl>opt.muzzy_decay_time</mallctl></link>
+        <listitem><para>Approximate time in milliseconds from the creation of a
+        set of unused muzzy pages until an equivalent set of unused muzzy pages
+        is purged and/or reused.  See <link
+        linkend="opt.muzzy_decay_ms"><mallctl>opt.muzzy_decay_ms</mallctl></link>
         for details.</para></listitem>
       </varlistentry>
 
@@ -2298,7 +2300,7 @@ struct extent_hooks_s {
         <listitem><para>Number of pages within unused extents that are
         potentially dirty, and for which <function>madvise()</function> or
         similar has not been called.  See <link
-        linkend="opt.dirty_decay_time"><mallctl>opt.dirty_decay_time</mallctl></link>
+        linkend="opt.dirty_decay_ms"><mallctl>opt.dirty_decay_ms</mallctl></link>
         for a description of dirty pages.</para></listitem>
       </varlistentry>
 
@@ -2310,7 +2312,7 @@ struct extent_hooks_s {
         </term>
         <listitem><para>Number of pages within unused extents that are muzzy.
         See <link
-        linkend="opt.muzzy_decay_time"><mallctl>opt.muzzy_decay_time</mallctl></link>
+        linkend="opt.muzzy_decay_ms"><mallctl>opt.muzzy_decay_ms</mallctl></link>
         for a description of muzzy pages.</para></listitem>
       </varlistentry>
 

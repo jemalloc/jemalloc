@@ -475,8 +475,8 @@ ifeq ($(enable_prof), 1)
 	$(MALLOC_CONF)="prof:true,prof_active:false" $(SHELL) $(objroot)test/test.sh $(TESTS_INTEGRATION:$(srcroot)%.c=$(objroot)%) $(TESTS_INTEGRATION_CPP:$(srcroot)%.cpp=$(objroot)%)
 endif
 check_integration_decay: tests_integration check_integration_dir
-	$(MALLOC_CONF)="dirty_decay_time:-1,muzzy_decay_time:-1" $(SHELL) $(objroot)test/test.sh $(TESTS_INTEGRATION:$(srcroot)%.c=$(objroot)%) $(TESTS_INTEGRATION_CPP:$(srcroot)%.cpp=$(objroot)%)
-	$(MALLOC_CONF)="dirty_decay_time:0,muzzy_decay_time:0" $(SHELL) $(objroot)test/test.sh $(TESTS_INTEGRATION:$(srcroot)%.c=$(objroot)%) $(TESTS_INTEGRATION_CPP:$(srcroot)%.cpp=$(objroot)%)
+	$(MALLOC_CONF)="dirty_decay_ms:-1,muzzy_decay_ms:-1" $(SHELL) $(objroot)test/test.sh $(TESTS_INTEGRATION:$(srcroot)%.c=$(objroot)%) $(TESTS_INTEGRATION_CPP:$(srcroot)%.cpp=$(objroot)%)
+	$(MALLOC_CONF)="dirty_decay_ms:0,muzzy_decay_ms:0" $(SHELL) $(objroot)test/test.sh $(TESTS_INTEGRATION:$(srcroot)%.c=$(objroot)%) $(TESTS_INTEGRATION_CPP:$(srcroot)%.cpp=$(objroot)%)
 check_integration: tests_integration check_integration_dir
 	$(SHELL) $(objroot)test/test.sh $(TESTS_INTEGRATION:$(srcroot)%.c=$(objroot)%) $(TESTS_INTEGRATION_CPP:$(srcroot)%.cpp=$(objroot)%)
 stress: tests_stress stress_dir

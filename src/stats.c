@@ -411,7 +411,7 @@ stats_arena_print(void (*write_cb)(void *, const char *), void *cbopaque,
     bool json, unsigned i, bool bins, bool large, bool mutex) {
 	unsigned nthreads;
 	const char *dss;
-	ssize_t dirty_decay_time, muzzy_decay_time;
+	ssize_t dirty_decay_ms, muzzy_decay_ms;
 	size_t page, pactive, pdirty, pmuzzy, mapped, retained;
 	size_t base, internal, resident;
 	uint64_t dirty_npurge, dirty_nmadvise, dirty_purged;
@@ -442,9 +442,9 @@ stats_arena_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		    "dss allocation precedence: %s\n", dss);
 	}
 
-	CTL_M2_GET("stats.arenas.0.dirty_decay_time", i, &dirty_decay_time,
+	CTL_M2_GET("stats.arenas.0.dirty_decay_ms", i, &dirty_decay_ms,
 	    ssize_t);
-	CTL_M2_GET("stats.arenas.0.muzzy_decay_time", i, &muzzy_decay_time,
+	CTL_M2_GET("stats.arenas.0.muzzy_decay_ms", i, &muzzy_decay_ms,
 	    ssize_t);
 	CTL_M2_GET("stats.arenas.0.pactive", i, &pactive, size_t);
 	CTL_M2_GET("stats.arenas.0.pdirty", i, &pdirty, size_t);
@@ -459,9 +459,9 @@ stats_arena_print(void (*write_cb)(void *, const char *), void *cbopaque,
 	CTL_M2_GET("stats.arenas.0.muzzy_purged", i, &muzzy_purged, uint64_t);
 	if (json) {
 		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\t\"dirty_decay_time\": %zd,\n", dirty_decay_time);
+		    "\t\t\t\t\"dirty_decay_ms\": %zd,\n", dirty_decay_ms);
 		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\t\"muzzy_decay_time\": %zd,\n", muzzy_decay_time);
+		    "\t\t\t\t\"muzzy_decay_ms\": %zd,\n", muzzy_decay_ms);
 		malloc_cprintf(write_cb, cbopaque,
 		    "\t\t\t\t\"pactive\": %zu,\n", pactive);
 		malloc_cprintf(write_cb, cbopaque,
@@ -484,10 +484,10 @@ stats_arena_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		malloc_cprintf(write_cb, cbopaque,
 		    "decaying:  time       npages       sweeps     madvises"
 		    "       purged\n");
-		if (dirty_decay_time >= 0) {
+		if (dirty_decay_ms >= 0) {
 			malloc_cprintf(write_cb, cbopaque,
 			    "   dirty: %5zd %12zu %12"FMTu64" %12"FMTu64" %12"
-			    FMTu64"\n", dirty_decay_time, pdirty, dirty_npurge,
+			    FMTu64"\n", dirty_decay_ms, pdirty, dirty_npurge,
 			    dirty_nmadvise, dirty_purged);
 		} else {
 			malloc_cprintf(write_cb, cbopaque,
@@ -495,10 +495,10 @@ stats_arena_print(void (*write_cb)(void *, const char *), void *cbopaque,
 			    FMTu64"\n", pdirty, dirty_npurge, dirty_nmadvise,
 			    dirty_purged);
 		}
-		if (muzzy_decay_time >= 0) {
+		if (muzzy_decay_ms >= 0) {
 			malloc_cprintf(write_cb, cbopaque,
 			    "   muzzy: %5zd %12zu %12"FMTu64" %12"FMTu64" %12"
-			    FMTu64"\n", muzzy_decay_time, pmuzzy, muzzy_npurge,
+			    FMTu64"\n", muzzy_decay_ms, pmuzzy, muzzy_npurge,
 			    muzzy_nmadvise, muzzy_purged);
 		} else {
 			malloc_cprintf(write_cb, cbopaque,
@@ -806,10 +806,8 @@ stats_general_print(void (*write_cb)(void *, const char *), void *cbopaque,
 	OPT_WRITE_CHAR_P(dss, ",")
 	OPT_WRITE_UNSIGNED(narenas, ",")
 	OPT_WRITE_CHAR_P(percpu_arena, ",")
-	OPT_WRITE_SSIZE_T_MUTABLE(dirty_decay_time, arenas.dirty_decay_time,
-	    ",")
-	OPT_WRITE_SSIZE_T_MUTABLE(muzzy_decay_time, arenas.muzzy_decay_time,
-	    ",")
+	OPT_WRITE_SSIZE_T_MUTABLE(dirty_decay_ms, arenas.dirty_decay_ms, ",")
+	OPT_WRITE_SSIZE_T_MUTABLE(muzzy_decay_ms, arenas.muzzy_decay_ms, ",")
 	OPT_WRITE_CHAR_P(junk, ",")
 	OPT_WRITE_BOOL(zero, ",")
 	OPT_WRITE_BOOL(utrace, ",")
@@ -857,24 +855,14 @@ stats_general_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		malloc_cprintf(write_cb, cbopaque, "Arenas: %u\n", uv);
 	}
 
-	CTL_GET("arenas.dirty_decay_time", &ssv, ssize_t);
 	if (json) {
+		CTL_GET("arenas.dirty_decay_ms", &ssv, ssize_t);
 		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\"dirty_decay_time\": %zd,\n", ssv);
-	} else {
-		malloc_cprintf(write_cb, cbopaque,
-		    "Unused dirty page decay time: %zd%s\n", ssv, (ssv < 0) ?
-		    " (no decay)" : "");
-	}
+		    "\t\t\t\"dirty_decay_ms\": %zd,\n", ssv);
 
-	CTL_GET("arenas.muzzy_decay_time", &ssv, ssize_t);
-	if (json) {
+		CTL_GET("arenas.muzzy_decay_ms", &ssv, ssize_t);
 		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\"muzzy_decay_time\": %zd,\n", ssv);
-	} else {
-		malloc_cprintf(write_cb, cbopaque,
-		    "Unused muzzy page decay time: %zd%s\n", ssv, (ssv < 0) ?
-		    " (no decay)" : "");
+		    "\t\t\t\"muzzy_decay_ms\": %zd,\n", ssv);
 	}
 
 	CTL_GET("arenas.quantum", &sv, size_t);
