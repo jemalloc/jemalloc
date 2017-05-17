@@ -227,6 +227,7 @@ TESTS_STRESS := $(srcroot)test/stress/microbench.c
 TESTS := $(TESTS_UNIT) $(TESTS_INTEGRATION) $(TESTS_INTEGRATION_CPP) $(TESTS_STRESS)
 
 PRIVATE_NAMESPACE_HDRS := $(objroot)include/jemalloc/internal/private_namespace.h $(objroot)include/jemalloc/internal/private_namespace_jet.h
+PRIVATE_NAMESPACE_GEN_HDRS := $(PRIVATE_NAMESPACE_HDRS:%.h=%.gen.h)
 C_SYM_OBJS := $(C_SRCS:$(srcroot)%.c=$(objroot)%.sym.$(O))
 C_SYMS := $(C_SRCS:$(srcroot)%.c=$(objroot)%.sym)
 C_OBJS := $(C_SRCS:$(srcroot)%.c=$(objroot)%.$(O))
@@ -254,7 +255,7 @@ TESTS_CPP_OBJS := $(TESTS_INTEGRATION_CPP_OBJS)
 .PHONY: install_doc_html install_doc_man install_doc install
 .PHONY: tests check clean distclean relclean
 
-.SECONDARY : $(TESTS_OBJS) $(TESTS_CPP_OBJS)
+.SECONDARY : $(PRIVATE_NAMESPACE_GEN_HDRS) $(TESTS_OBJS) $(TESTS_CPP_OBJS)
 
 # Default target.
 all: build_lib
@@ -348,11 +349,14 @@ $(C_JET_SYMS): %.sym:
 	@mkdir -p $(@D)
 	$(DUMP_SYMS) $< | $(AWK) -f $(objroot)include/jemalloc/internal/private_symbols_jet.awk > $@
 
-$(objroot)include/jemalloc/internal/private_namespace.h: $(C_SYMS)
+$(objroot)include/jemalloc/internal/private_namespace.gen.h: $(C_SYMS)
 	$(SHELL) $(srcroot)include/jemalloc/internal/private_namespace.sh $^ > $@
 
-$(objroot)include/jemalloc/internal/private_namespace_jet.h: $(C_JET_SYMS)
+$(objroot)include/jemalloc/internal/private_namespace_jet.gen.h: $(C_JET_SYMS)
 	$(SHELL) $(srcroot)include/jemalloc/internal/private_namespace.sh $^ > $@
+
+%.h: %.gen.h
+	@if ! `cmp -s $< $@` ; then echo "cp $< $<"; cp $< $@ ; fi
 
 $(CPP_OBJS) $(CPP_PIC_OBJS) $(TESTS_CPP_OBJS): %.$(O):
 	@mkdir -p $(@D)
@@ -485,6 +489,7 @@ check: check_unit check_integration check_integration_decay check_integration_pr
 
 clean:
 	rm -f $(PRIVATE_NAMESPACE_HDRS)
+	rm -f $(PRIVATE_NAMESPACE_GEN_HDRS)
 	rm -f $(C_SYM_OBJS)
 	rm -f $(C_SYMS)
 	rm -f $(C_OBJS)
