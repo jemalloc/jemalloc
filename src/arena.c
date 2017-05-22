@@ -367,6 +367,8 @@ arena_extents_dirty_dalloc(tsdn_t *tsdn, arena_t *arena,
 	    extent);
 	if (arena_dirty_decay_ms_get(arena) == 0) {
 		arena_decay_dirty(tsdn, arena, false, true);
+	} else {
+		arena_background_thread_inactivity_check(tsdn, arena);
 	}
 }
 
@@ -919,6 +921,8 @@ arena_decay_stashed(tsdn_t *tsdn, arena_t *arena,
 			    extent_size_get(extent))) {
 				extents_dalloc(tsdn, arena, r_extent_hooks,
 				    &arena->extents_muzzy, extent);
+				arena_background_thread_inactivity_check(tsdn,
+				    arena);
 				break;
 			}
 			/* Fall through. */
