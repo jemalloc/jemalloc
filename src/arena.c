@@ -639,6 +639,17 @@ arena_decay_backlog_update_last(arena_decay_t *decay, extents_t *extents) {
 	size_t ndirty_delta = (ndirty > decay->nunpurged) ? ndirty -
 	    decay->nunpurged : 0;
 	decay->backlog[SMOOTHSTEP_NSTEPS-1] = ndirty_delta;
+
+	if (config_debug) {
+		if (ndirty > decay->ceil_npages) {
+			decay->ceil_npages = ndirty;
+		}
+		size_t npages_limit = arena_decay_backlog_npages_limit(decay);
+		assert(decay->ceil_npages >= npages_limit);
+		if (decay->ceil_npages > npages_limit) {
+			decay->ceil_npages = npages_limit;
+		}
+	}
 }
 
 static void
@@ -664,11 +675,9 @@ arena_decay_backlog_update(arena_decay_t *decay, extents_t *extents,
 }
 
 static void
-arena_decay_try_purge(tsdn_t *tsdn, arena_t *arena,
-    arena_decay_t *decay, extents_t *extents) {
-	size_t npages_limit = arena_decay_backlog_npages_limit(decay);
-
-	if (extents_npages_get(extents) > npages_limit) {
+arena_decay_try_purge(tsdn_t *tsdn, arena_t *arena, arena_decay_t *decay,
+    extents_t *extents, size_t current_npages, size_t npages_limit) {
+	if (current_npages > npages_limit) {
 		arena_decay_to_limit(tsdn, arena, decay, extents, false,
 		    npages_limit);
 	}
@@ -702,16 +711,20 @@ static void
 arena_decay_epoch_advance(tsdn_t *tsdn, arena_t *arena, arena_decay_t *decay,
     extents_t *extents, const nstime_t *time, bool purge) {
 	arena_decay_epoch_advance_helper(decay, extents, time);
-	if (purge) {
-		arena_decay_try_purge(tsdn, arena, decay, extents);
-	}
 
+	size_t current_npages = extents_npages_get(extents);
+	size_t npages_limit = arena_decay_backlog_npages_limit(decay);
+	if (purge) {
+		arena_decay_try_purge(tsdn, arena, decay, extents,
+		    current_npages, npages_limit);
+	}
 	/*
 	 * There may be concurrent ndirty fluctuation between the purge above
 	 * and the nunpurged update below, but this is inconsequential to decay
 	 * machinery correctness.
 	 */
-	decay->nunpurged = extents_npages_get(extents);
+	decay->nunpurged = (npages_limit > current_npages) ? npages_limit :
+	    current_npages;
 }
 
 static void
@@ -727,7 +740,7 @@ arena_decay_reinit(arena_decay_t *decay, extents_t *extents, ssize_t decay_ms) {
 	nstime_update(&decay->epoch);
 	decay->jitter_state = (uint64_t)(uintptr_t)decay;
 	arena_decay_deadline_init(decay);
-	decay->nunpurged = extents_npages_get(extents);
+	decay->nunpurged = 0;
 	memset(decay->backlog, 0, SMOOTHSTEP_NSTEPS * sizeof(size_t));
 }
 
@@ -738,6 +751,7 @@ arena_decay_init(arena_decay_t *decay, extents_t *extents, ssize_t decay_ms,
 		for (size_t i = 0; i < sizeof(arena_decay_t); i++) {
 			assert(((char *)decay)[i] == 0);
 		}
+		decay->ceil_npages = 0;
 	}
 	if (malloc_mutex_init(&decay->mtx, "decay", WITNESS_RANK_DECAY,
 	    malloc_mutex_rank_exclusive)) {
@@ -814,7 +828,9 @@ arena_maybe_decay(tsdn_t *tsdn, arena_t *arena, arena_decay_t *decay,
 		arena_decay_epoch_advance(tsdn, arena, decay, extents, &time,
 		    should_purge);
 	} else if (is_background_thread) {
-		arena_decay_try_purge(tsdn, arena, decay, extents);
+		arena_decay_try_purge(tsdn, arena, decay, extents,
+		    extents_npages_get(extents),
+		    arena_decay_backlog_npages_limit(decay));
 	}
 
 	return advance_epoch;
