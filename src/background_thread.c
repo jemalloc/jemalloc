@@ -42,8 +42,8 @@ bool background_thread_stats_read(tsdn_t *tsdn,
 #else
 
 static void
-background_thread_info_reinit(background_thread_info_t *info) {
-	nstime_init(&info->next_wakeup, 0);
+background_thread_info_reinit(tsdn_t *tsdn, background_thread_info_t *info) {
+	background_thread_wakeup_time_set(tsdn, info, 0);
 	info->npages_to_purge_new = 0;
 	if (config_stats) {
 		info->tot_n_runs = 0;
@@ -80,8 +80,10 @@ background_threads_init(tsd_t *tsd) {
 		if (pthread_cond_init(&info->cond, NULL)) {
 			return true;
 		}
+		malloc_mutex_lock(tsd_tsdn(tsd), &info->mtx);
 		info->started = false;
-		background_thread_info_reinit(info);
+		background_thread_info_reinit(tsd_tsdn(tsd), info);
+		malloc_mutex_unlock(tsd_tsdn(tsd), &info->mtx);
 	}
 
 	return false;
@@ -106,7 +108,6 @@ set_current_thread_affinity(UNUSED int cpu) {
 #define BILLION UINT64_C(1000000000)
 /* Minimal sleep interval 100 ms. */
 #define BACKGROUND_THREAD_MIN_INTERVAL_NS (BILLION / 10)
-#define BACKGROUND_THREAD_INDEFINITE_SLEEP UINT64_MAX
 
 static inline size_t
 decay_npurge_after_interval(arena_decay_t *decay, size_t interval) {
@@ -258,6 +259,8 @@ background_work(tsdn_t *tsdn, unsigned ind) {
 	background_thread_info_t *info = &background_thread_info[ind];
 
 	malloc_mutex_lock(tsdn, &info->mtx);
+	background_thread_wakeup_time_set(tsdn, info,
+	    BACKGROUND_THREAD_INDEFINITE_SLEEP);
 	while (info->started) {
 		uint64_t interval = background_work_once(tsdn, ind);
 		if (config_stats) {
@@ -266,21 +269,27 @@ background_work(tsdn_t *tsdn, unsigned ind) {
 		info->npages_to_purge_new = 0;
 
 		struct timeval tv;
+		/* Specific clock required by timedwait. */
 		gettimeofday(&tv, NULL);
 		nstime_t before_sleep;
 		nstime_init2(&before_sleep, tv.tv_sec, tv.tv_usec * 1000);
 
 		if (interval == BACKGROUND_THREAD_INDEFINITE_SLEEP) {
-			nstime_init(&info->next_wakeup,
-			    BACKGROUND_THREAD_INDEFINITE_SLEEP);
+			assert(background_thread_indefinite_sleep(info));
 			ret = pthread_cond_wait(&info->cond, &info->mtx.lock);
 			assert(ret == 0);
 		} else {
 			assert(interval >= BACKGROUND_THREAD_MIN_INTERVAL_NS &&
 			    interval <= BACKGROUND_THREAD_INDEFINITE_SLEEP);
-			nstime_init(&info->next_wakeup, 0);
-			nstime_update(&info->next_wakeup);
-			nstime_iadd(&info->next_wakeup, interval);
+			/* We need malloc clock (can be different from tv). */
+			nstime_t next_wakeup;
+			nstime_init(&next_wakeup, 0);
+			nstime_update(&next_wakeup);
+			nstime_iadd(&next_wakeup, interval);
+			assert(nstime_ns(&next_wakeup) <
+			    BACKGROUND_THREAD_INDEFINITE_SLEEP);
+			background_thread_wakeup_time_set(tsdn, info,
+			    nstime_ns(&next_wakeup));
 
 			nstime_t ts_wakeup;
 			nstime_copy(&ts_wakeup, &before_sleep);
@@ -289,9 +298,12 @@ background_work(tsdn_t *tsdn, unsigned ind) {
 			ts.tv_sec = (size_t)nstime_sec(&ts_wakeup);
 			ts.tv_nsec = (size_t)nstime_nsec(&ts_wakeup);
 
+			assert(!background_thread_indefinite_sleep(info));
 			ret = pthread_cond_timedwait(&info->cond,
 			    &info->mtx.lock, &ts);
 			assert(ret == ETIMEDOUT || ret == 0);
+			background_thread_wakeup_time_set(tsdn, info,
+			    BACKGROUND_THREAD_INDEFINITE_SLEEP);
 		}
 
 		if (config_stats) {
@@ -304,6 +316,7 @@ background_work(tsdn_t *tsdn, unsigned ind) {
 			}
 		}
 	}
+	background_thread_wakeup_time_set(tsdn, info, 0);
 	malloc_mutex_unlock(tsdn, &info->mtx);
 }
 
@@ -360,7 +373,7 @@ background_thread_create(tsd_t *tsd, unsigned arena_ind) {
 	assert(info->started == false);
 	if (err == 0) {
 		info->started = true;
-		background_thread_info_reinit(info);
+		background_thread_info_reinit(tsd_tsdn(tsd), info);
 		n_background_threads++;
 	}
 	malloc_mutex_unlock(tsd_tsdn(tsd), &info->mtx);
@@ -465,6 +478,7 @@ background_thread_interval_check(tsdn_t *tsdn, arena_t *arena,
 	if (!info->started) {
 		goto label_done;
 	}
+	assert(background_thread_enabled());
 	if (malloc_mutex_trylock(tsdn, &decay->mtx)) {
 		goto label_done;
 	}
@@ -474,14 +488,14 @@ background_thread_interval_check(tsdn_t *tsdn, arena_t *arena,
 		/* Purging is eagerly done or disabled currently. */
 		goto label_done_unlock2;
 	}
-	if (nstime_compare(&info->next_wakeup, &decay->epoch) <= 0) {
-		goto label_done_unlock2;
-	}
-
 	uint64_t decay_interval_ns = nstime_ns(&decay->interval);
 	assert(decay_interval_ns > 0);
+
 	nstime_t diff;
-	nstime_copy(&diff, &info->next_wakeup);
+	nstime_init(&diff, background_thread_wakeup_time_get(info));
+	if (nstime_compare(&diff, &decay->epoch) <= 0) {
+		goto label_done_unlock2;
+	}
 	nstime_subtract(&diff, &decay->epoch);
 	if (nstime_ns(&diff) < BACKGROUND_THREAD_MIN_INTERVAL_NS) {
 		goto label_done_unlock2;
@@ -508,9 +522,19 @@ background_thread_interval_check(tsdn_t *tsdn, arena_t *arena,
 		info->npages_to_purge_new += npurge_new;
 	}
 
-	if (info->npages_to_purge_new > BACKGROUND_THREAD_NPAGES_THRESHOLD ||
-	    (nstime_ns(&info->next_wakeup) ==
-	    BACKGROUND_THREAD_INDEFINITE_SLEEP && info->npages_to_purge_new > 0)) {
+	bool should_signal;
+	if (info->npages_to_purge_new > BACKGROUND_THREAD_NPAGES_THRESHOLD) {
+		should_signal = true;
+	} else if (unlikely(background_thread_indefinite_sleep(info)) &&
+	    (extents_npages_get(&arena->extents_dirty) > 0 ||
+	    extents_npages_get(&arena->extents_muzzy) > 0 ||
+	    info->npages_to_purge_new > 0)) {
+		should_signal = true;
+	} else {
+		should_signal = false;
+	}
+
+	if (should_signal) {
 		info->npages_to_purge_new = 0;
 		pthread_cond_signal(&info->cond);
 	}
@@ -602,7 +626,6 @@ background_thread_stats_read(tsdn_t *tsdn, background_thread_stats_t *stats) {
 #undef BACKGROUND_THREAD_NPAGES_THRESHOLD
 #undef BILLION
 #undef BACKGROUND_THREAD_MIN_INTERVAL_NS
-#undef BACKGROUND_THREAD_INDEFINITE_SLEEP
 
 #endif /* defined(JEMALLOC_BACKGROUND_THREAD) */
 

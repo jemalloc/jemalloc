@@ -1,15 +1,22 @@
 #ifndef JEMALLOC_INTERNAL_BACKGROUND_THREAD_STRUCTS_H
 #define JEMALLOC_INTERNAL_BACKGROUND_THREAD_STRUCTS_H
 
+/* This file really combines "structs" and "types", but only transitionally. */
+
+#define BACKGROUND_THREAD_INDEFINITE_SLEEP UINT64_MAX
+
 struct background_thread_info_s {
-	malloc_mutex_t		mtx;
 #ifdef JEMALLOC_BACKGROUND_THREAD
 	/* Background thread is pthread specific. */
-	pthread_cond_t		cond;
 	pthread_t		thread;
+	pthread_cond_t		cond;
+#endif
+	malloc_mutex_t		mtx;
 	/* Whether the thread has been created. */
 	bool			started;
-	/* Next scheduled wakeup time (absolute time). */
+	/* When true, it means no wakeup scheduled. */
+	atomic_b_t		indefinite_sleep;
+	/* Next scheduled wakeup time (absolute time in ns). */
 	nstime_t		next_wakeup;
 	/*
 	 *  Since the last background thread run, newly added number of pages
@@ -22,7 +29,6 @@ struct background_thread_info_s {
 	uint64_t		tot_n_runs;
 	/* Stats: total sleep time since started. */
 	nstime_t		tot_sleep_time;
-#endif /* ifdef JEMALLOC_BACKGROUND_THREAD */
 };
 typedef struct background_thread_info_s background_thread_info_t;
 
