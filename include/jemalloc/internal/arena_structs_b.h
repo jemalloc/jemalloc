@@ -103,6 +103,8 @@ struct arena_decay_s {
 	 *
 	 * Synchronization: Same as associated arena's stats field. */
 	decay_stats_t		*stats;
+	/* Peak number of pages in associated extents.  Used for debug only. */
+	uint64_t		ceil_npages;
 };
 
 struct arena_bin_s {
