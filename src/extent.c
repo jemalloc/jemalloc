@@ -149,7 +149,8 @@ extent_lock_from_addr(tsdn_t *tsdn, rtree_ctx_t *rtree_ctx, void *addr) {
 
 extent_t *
 extent_alloc(tsdn_t *tsdn, arena_t *arena) {
-	witness_assert_depth_to_rank(tsdn, WITNESS_RANK_CORE, 0);
+	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
+	    WITNESS_RANK_CORE, 0);
 
 	malloc_mutex_lock(tsdn, &arena->extent_avail_mtx);
 	extent_t *extent = extent_avail_first(&arena->extent_avail);
@@ -164,7 +165,8 @@ extent_alloc(tsdn_t *tsdn, arena_t *arena) {
 
 void
 extent_dalloc(tsdn_t *tsdn, arena_t *arena, extent_t *extent) {
-	witness_assert_depth_to_rank(tsdn, WITNESS_RANK_CORE, 0);
+	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
+	    WITNESS_RANK_CORE, 0);
 
 	malloc_mutex_lock(tsdn, &arena->extent_avail_mtx);
 	extent_avail_insert(&arena->extent_avail, extent);
@@ -415,7 +417,8 @@ extents_alloc(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
     size_t alignment, bool slab, szind_t szind, bool *zero, bool *commit) {
 	assert(size + pad != 0);
 	assert(alignment != 0);
-	witness_assert_depth_to_rank(tsdn, WITNESS_RANK_CORE, 0);
+	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
+	    WITNESS_RANK_CORE, 0);
 
 	return extent_recycle(tsdn, arena, r_extent_hooks, extents, new_addr,
 	    size, pad, alignment, slab, szind, zero, commit);
@@ -426,7 +429,8 @@ extents_dalloc(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
     extents_t *extents, extent_t *extent) {
 	assert(extent_base_get(extent) != NULL);
 	assert(extent_size_get(extent) != 0);
-	witness_assert_depth_to_rank(tsdn, WITNESS_RANK_CORE, 0);
+	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
+	    WITNESS_RANK_CORE, 0);
 
 	extent_addr_set(extent, extent_base_get(extent));
 	extent_zeroed_set(extent, false);
@@ -607,7 +611,8 @@ static void
 extent_gdump_add(tsdn_t *tsdn, const extent_t *extent) {
 	cassert(config_prof);
 	/* prof_gdump() requirement. */
-	witness_assert_depth_to_rank(tsdn, WITNESS_RANK_CORE, 0);
+	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
+	    WITNESS_RANK_CORE, 0);
 
 	if (opt_prof && extent_state_get(extent) == extent_state_active) {
 		size_t nadd = extent_size_get(extent) >> LG_PAGE;
@@ -730,7 +735,8 @@ extent_recycle_extract(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, rtree_ctx_t *rtree_ctx, extents_t *extents,
     bool locked, void *new_addr, size_t size, size_t pad, size_t alignment,
     bool slab, bool *zero, bool *commit) {
-	witness_assert_depth_to_rank(tsdn, WITNESS_RANK_CORE, locked ? 1 : 0);
+	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
+	    WITNESS_RANK_CORE, locked ? 1 : 0);
 	if (locked) {
 		malloc_mutex_assert_owner(tsdn, &extents->mtx);
 	}
@@ -869,7 +875,8 @@ static extent_t *
 extent_recycle(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
     extents_t *extents, void *new_addr, size_t size, size_t pad,
     size_t alignment, bool slab, szind_t szind, bool *zero, bool *commit) {
-	witness_assert_depth_to_rank(tsdn, WITNESS_RANK_CORE, 0);
+	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
+	    WITNESS_RANK_CORE, 0);
 	assert(new_addr == NULL || !slab);
 	assert(pad == 0 || !slab);
 	assert(!*zero || !slab);
@@ -1219,7 +1226,8 @@ extent_t *
 extent_alloc_wrapper(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, void *new_addr, size_t size, size_t pad,
     size_t alignment, bool slab, szind_t szind, bool *zero, bool *commit) {
-	witness_assert_depth_to_rank(tsdn, WITNESS_RANK_CORE, 0);
+	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
+	    WITNESS_RANK_CORE, 0);
 
 	extent_hooks_assure_initialized(arena, r_extent_hooks);
 
@@ -1385,7 +1393,8 @@ void
 extent_dalloc_gap(tsdn_t *tsdn, arena_t *arena, extent_t *extent) {
 	extent_hooks_t *extent_hooks = EXTENT_HOOKS_INITIALIZER;
 
-	witness_assert_depth_to_rank(tsdn, WITNESS_RANK_CORE, 0);
+	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
+	    WITNESS_RANK_CORE, 0);
 
 	if (extent_register(tsdn, extent)) {
 		extents_leak(tsdn, arena, &extent_hooks,
@@ -1418,7 +1427,8 @@ extent_dalloc_wrapper_try(tsdn_t *tsdn, arena_t *arena,
 
 	assert(extent_base_get(extent) != NULL);
 	assert(extent_size_get(extent) != 0);
-	witness_assert_depth_to_rank(tsdn, WITNESS_RANK_CORE, 0);
+	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
+	    WITNESS_RANK_CORE, 0);
 
 	extent_addr_set(extent, extent_base_get(extent));
 
@@ -1445,7 +1455,8 @@ extent_dalloc_wrapper_try(tsdn_t *tsdn, arena_t *arena,
 void
 extent_dalloc_wrapper(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, extent_t *extent) {
-	witness_assert_depth_to_rank(tsdn, WITNESS_RANK_CORE, 0);
+	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
+	    WITNESS_RANK_CORE, 0);
 
 	/*
 	 * Deregister first to avoid a race with other allocating threads, and
@@ -1508,7 +1519,8 @@ extent_destroy_wrapper(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, extent_t *extent) {
 	assert(extent_base_get(extent) != NULL);
 	assert(extent_size_get(extent) != 0);
-	witness_assert_depth_to_rank(tsdn, WITNESS_RANK_CORE, 0);
+	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
+	    WITNESS_RANK_CORE, 0);
 
 	/* Deregister first to avoid a race with other allocating threads. */
 	extent_deregister(tsdn, extent);
@@ -1543,7 +1555,8 @@ bool
 extent_commit_wrapper(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, extent_t *extent, size_t offset,
     size_t length) {
-	witness_assert_depth_to_rank(tsdn, WITNESS_RANK_CORE, 0);
+	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
+	    WITNESS_RANK_CORE, 0);
 
 	extent_hooks_assure_initialized(arena, r_extent_hooks);
 	bool err = ((*r_extent_hooks)->commit == NULL ||
@@ -1566,7 +1579,8 @@ bool
 extent_decommit_wrapper(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, extent_t *extent, size_t offset,
     size_t length) {
-	witness_assert_depth_to_rank(tsdn, WITNESS_RANK_CORE, 0);
+	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
+	    WITNESS_RANK_CORE, 0);
 
 	extent_hooks_assure_initialized(arena, r_extent_hooks);
 
@@ -1597,7 +1611,8 @@ bool
 extent_purge_lazy_wrapper(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, extent_t *extent, size_t offset,
     size_t length) {
-	witness_assert_depth_to_rank(tsdn, WITNESS_RANK_CORE, 0);
+	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
+	    WITNESS_RANK_CORE, 0);
 
 	extent_hooks_assure_initialized(arena, r_extent_hooks);
 	return ((*r_extent_hooks)->purge_lazy == NULL ||
@@ -1625,7 +1640,8 @@ bool
 extent_purge_forced_wrapper(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, extent_t *extent, size_t offset,
     size_t length) {
-	witness_assert_depth_to_rank(tsdn, WITNESS_RANK_CORE, 0);
+	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
+	    WITNESS_RANK_CORE, 0);
 
 	extent_hooks_assure_initialized(arena, r_extent_hooks);
 	return ((*r_extent_hooks)->purge_forced == NULL ||
@@ -1649,7 +1665,8 @@ extent_split_wrapper(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, extent_t *extent, size_t size_a,
     szind_t szind_a, bool slab_a, size_t size_b, szind_t szind_b, bool slab_b) {
 	assert(extent_size_get(extent) == size_a + size_b);
-	witness_assert_depth_to_rank(tsdn, WITNESS_RANK_CORE, 0);
+	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
+	    WITNESS_RANK_CORE, 0);
 
 	extent_hooks_assure_initialized(arena, r_extent_hooks);
 
@@ -1742,7 +1759,8 @@ extent_merge_default(extent_hooks_t *extent_hooks, void *addr_a, size_t size_a,
 bool
 extent_merge_wrapper(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, extent_t *a, extent_t *b) {
-	witness_assert_depth_to_rank(tsdn, WITNESS_RANK_CORE, 0);
+	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
+	    WITNESS_RANK_CORE, 0);
 
 	extent_hooks_assure_initialized(arena, r_extent_hooks);
 

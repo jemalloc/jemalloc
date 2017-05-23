@@ -140,7 +140,7 @@ tsd_do_data_cleanup(tsd_t *tsd) {
 	arena_cleanup(tsd);
 	arenas_tdata_cleanup(tsd);
 	tcache_cleanup(tsd);
-	witnesses_cleanup(tsd);
+	witnesses_cleanup(tsd_witness_tsdp_get_unsafe(tsd));
 }
 
 void

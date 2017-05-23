@@ -40,7 +40,6 @@
 /* TYPES */
 /******************************************************************************/
 
-#include "jemalloc/internal/witness_types.h"
 #include "jemalloc/internal/mutex_types.h"
 #include "jemalloc/internal/extent_types.h"
 #include "jemalloc/internal/extent_dss_types.h"
@@ -54,7 +53,6 @@
 /* STRUCTS */
 /******************************************************************************/
 
-#include "jemalloc/internal/witness_structs.h"
 #include "jemalloc/internal/mutex_structs.h"
 #include "jemalloc/internal/mutex_pool_structs.h"
 #include "jemalloc/internal/arena_structs_a.h"
@@ -72,7 +70,6 @@
 /******************************************************************************/
 
 #include "jemalloc/internal/jemalloc_internal_externs.h"
-#include "jemalloc/internal/witness_externs.h"
 #include "jemalloc/internal/mutex_externs.h"
 #include "jemalloc/internal/extent_externs.h"
 #include "jemalloc/internal/extent_dss_externs.h"
@@ -89,7 +86,6 @@
 /* INLINES */
 /******************************************************************************/
 
-#include "jemalloc/internal/witness_inlines.h"
 #include "jemalloc/internal/mutex_inlines.h"
 #include "jemalloc/internal/mutex_pool_inlines.h"
 #include "jemalloc/internal/jemalloc_internal_inlines_a.h"

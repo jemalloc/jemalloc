@@ -10,8 +10,7 @@
 #include "jemalloc/internal/tcache_types.h"
 #include "jemalloc/internal/tcache_structs.h"
 #include "jemalloc/internal/util.h"
-#include "jemalloc/internal/witness_types.h"
-#include "jemalloc/internal/witness_structs.h"
+#include "jemalloc/internal/witness.h"
 
 /*
  * Thread-Specific-Data layout
@@ -52,30 +51,29 @@
 typedef void (*test_callback_t)(int *);
 #  define MALLOC_TSD_TEST_DATA_INIT 0x72b65c10
 #  define MALLOC_TEST_TSD \
-    O(test_data,		int)					\
-    O(test_callback,		test_callback_t)
+    O(test_data,		int,			int)		\
+    O(test_callback,		test_callback_t,	int)
 #  define MALLOC_TEST_TSD_INITIALIZER , MALLOC_TSD_TEST_DATA_INIT, NULL
 #else
 #  define MALLOC_TEST_TSD
 #  define MALLOC_TEST_TSD_INITIALIZER
 #endif
 
+/*  O(name,			type,			nullable type */
 #define MALLOC_TSD							\
-/*  O(name,			type) */ 				\
-    O(tcache_enabled,		bool)					\
-    O(arenas_tdata_bypass,	bool)					\
-    O(reentrancy_level,		int8_t)					\
-    O(narenas_tdata,		uint32_t)				\
-    O(thread_allocated,		uint64_t)				\
-    O(thread_deallocated,	uint64_t)				\
-    O(prof_tdata,		prof_tdata_t *)				\
-    O(rtree_ctx,		rtree_ctx_t)				\
-    O(iarena,			arena_t *)				\
-    O(arena,			arena_t *)				\
-    O(arenas_tdata,		arena_tdata_t *)			\
-    O(tcache,			tcache_t)				\
-    O(witnesses,		witness_list_t)				\
-    O(witness_fork,		bool)					\
+    O(tcache_enabled,		bool,			bool)		\
+    O(arenas_tdata_bypass,	bool,			bool)		\
+    O(reentrancy_level,		int8_t,			int8_t)		\
+    O(narenas_tdata,		uint32_t,		uint32_t)	\
+    O(thread_allocated,		uint64_t,		uint64_t)	\
+    O(thread_deallocated,	uint64_t,		uint64_t)	\
+    O(prof_tdata,		prof_tdata_t *,		prof_tdata_t *)	\
+    O(rtree_ctx,		rtree_ctx_t,		rtree_ctx_t)	\
+    O(iarena,			arena_t *,		arena_t *)	\
+    O(arena,			arena_t *,		arena_t *)	\
+    O(arenas_tdata,		arena_tdata_t *,	arena_tdata_t *)\
+    O(tcache,			tcache_t,		tcache_t)	\
+    O(witness_tsd,              witness_tsd_t,		witness_tsdn_t)	\
     MALLOC_TEST_TSD
 
 #define TSD_INITIALIZER {						\
@@ -92,8 +90,7 @@ typedef void (*test_callback_t)(int *);
     NULL,								\
     NULL,								\
     TCACHE_ZERO_INITIALIZER,						\
-    ql_head_initializer(witnesses),					\
-    false								\
+    WITNESS_TSD_INITIALIZER						\
     MALLOC_TEST_TSD_INITIALIZER						\
 }
 
@@ -119,7 +116,7 @@ struct tsd_s {
 	 * setters below.
 	 */
 	tsd_state_t	state;
-#define O(n, t)								\
+#define O(n, t, nt)							\
 	t use_a_getter_or_setter_instead_##n;
 MALLOC_TSD
 #undef O
@@ -135,6 +132,22 @@ struct tsdn_s {
 	tsd_t tsd;
 };
 #define TSDN_NULL ((tsdn_t *)0)
+JEMALLOC_ALWAYS_INLINE tsdn_t *
+tsd_tsdn(tsd_t *tsd) {
+	return (tsdn_t *)tsd;
+}
+
+JEMALLOC_ALWAYS_INLINE bool
+tsdn_null(const tsdn_t *tsdn) {
+	return tsdn == NULL;
+}
+
+JEMALLOC_ALWAYS_INLINE tsd_t *
+tsdn_tsd(tsdn_t *tsdn) {
+	assert(!tsdn_null(tsdn));
+
+	return &tsdn->tsd;
+}
 
 void *malloc_tsd_malloc(size_t size);
 void malloc_tsd_dalloc(void *wrapper);
@@ -166,7 +179,7 @@ void tsd_slow_update(tsd_t *tsd);
  * foo.  This omits some safety checks, and so can be used during tsd
  * initialization and cleanup.
  */
-#define O(n, t)								\
+#define O(n, t, nt)							\
 JEMALLOC_ALWAYS_INLINE t *						\
 tsd_##n##p_get_unsafe(tsd_t *tsd) {					\
 	return &tsd->use_a_getter_or_setter_instead_##n;		\
@@ -175,7 +188,7 @@ MALLOC_TSD
 #undef O
 
 /* tsd_foop_get(tsd) returns a pointer to the thread-local instance of foo. */
-#define O(n, t)								\
+#define O(n, t, nt)							\
 JEMALLOC_ALWAYS_INLINE t *						\
 tsd_##n##p_get(tsd_t *tsd) {						\
 	assert(tsd->state == tsd_state_nominal ||			\
@@ -186,8 +199,24 @@ tsd_##n##p_get(tsd_t *tsd) {						\
 MALLOC_TSD
 #undef O
 
+/*
+ * tsdn_foop_get(tsdn) returns either the thread-local instance of foo (if tsdn
+ * isn't NULL), or NULL (if tsdn is NULL), cast to the nullable pointer type.
+ */
+#define O(n, t, nt)							\
+JEMALLOC_ALWAYS_INLINE nt *						\
+tsdn_##n##p_get(tsdn_t *tsdn) {						\
+	if (tsdn_null(tsdn)) {						\
+		return NULL;						\
+	}								\
+	tsd_t *tsd = tsdn_tsd(tsdn);					\
+	return (nt *)tsd_##n##p_get(tsd);				\
+}
+MALLOC_TSD
+#undef O
+
 /* tsd_foo_get(tsd) returns the value of the thread-local instance of foo. */
-#define O(n, t)								\
+#define O(n, t, nt)							\
 JEMALLOC_ALWAYS_INLINE t						\
 tsd_##n##_get(tsd_t *tsd) {						\
 	return *tsd_##n##p_get(tsd);					\
@@ -196,7 +225,7 @@ MALLOC_TSD
 #undef O
 
 /* tsd_foo_set(tsd, val) updates the thread-local instance of foo to be val. */
-#define O(n, t)								\
+#define O(n, t, nt)							\
 JEMALLOC_ALWAYS_INLINE void						\
 tsd_##n##_set(tsd_t *tsd, t val) {					\
 	*tsd_##n##p_get(tsd) = val;					\
@@ -243,11 +272,6 @@ tsd_fetch(void) {
 	return tsd_fetch_impl(true);
 }
 
-JEMALLOC_ALWAYS_INLINE tsdn_t *
-tsd_tsdn(tsd_t *tsd) {
-	return (tsdn_t *)tsd;
-}
-
 static inline bool
 tsd_nominal(tsd_t *tsd) {
 	return (tsd->state <= tsd_state_nominal_max);
@@ -260,18 +284,6 @@ tsdn_fetch(void) {
 	}
 
 	return tsd_tsdn(tsd_fetch_impl(false));
-}
-
-JEMALLOC_ALWAYS_INLINE bool
-tsdn_null(const tsdn_t *tsdn) {
-	return tsdn == NULL;
-}
-
-JEMALLOC_ALWAYS_INLINE tsd_t *
-tsdn_tsd(tsdn_t *tsdn) {
-	assert(!tsdn_null(tsdn));
-
-	return &tsdn->tsd;
 }
 
 JEMALLOC_ALWAYS_INLINE rtree_ctx_t *
