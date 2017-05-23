@@ -3,6 +3,7 @@
 
 #include "jemalloc/internal/jemalloc_internal_types.h"
 #include "jemalloc/internal/mutex.h"
+#include "jemalloc/internal/rtree.h"
 #include "jemalloc/internal/size_classes.h"
 #include "jemalloc/internal/ticker.h"
 

@@ -1,8 +1,132 @@
-#ifndef JEMALLOC_INTERNAL_RTREE_INLINES_H
-#define JEMALLOC_INTERNAL_RTREE_INLINES_H
+#ifndef JEMALLOC_INTERNAL_RTREE_H
+#define JEMALLOC_INTERNAL_RTREE_H
 
+#include "jemalloc/internal/atomic.h"
+#include "jemalloc/internal/mutex.h"
+#include "jemalloc/internal/rtree_tsd.h"
 #include "jemalloc/internal/size_classes.h"
-#include "jemalloc/internal/spin.h"
+#include "jemalloc/internal/tsd.h"
+
+/*
+ * This radix tree implementation is tailored to the singular purpose of
+ * associating metadata with extents that are currently owned by jemalloc.
+ *
+ *******************************************************************************
+ */
+
+/* Number of high insignificant bits. */
+#define RTREE_NHIB ((1U << (LG_SIZEOF_PTR+3)) - LG_VADDR)
+/* Number of low insigificant bits. */
+#define RTREE_NLIB LG_PAGE
+/* Number of significant bits. */
+#define RTREE_NSB (LG_VADDR - RTREE_NLIB)
+/* Number of levels in radix tree. */
+#if RTREE_NSB <= 10
+#  define RTREE_HEIGHT 1
+#elif RTREE_NSB <= 36
+#  define RTREE_HEIGHT 2
+#elif RTREE_NSB <= 52
+#  define RTREE_HEIGHT 3
+#else
+#  error Unsupported number of significant virtual address bits
+#endif
+/* Use compact leaf representation if virtual address encoding allows. */
+#if RTREE_NHIB >= LG_CEIL_NSIZES
+#  define RTREE_LEAF_COMPACT
+#endif
+
+/* Needed for initialization only. */
+#define RTREE_LEAFKEY_INVALID ((uintptr_t)1)
+
+typedef struct rtree_node_elm_s rtree_node_elm_t;
+struct rtree_node_elm_s {
+	atomic_p_t	child; /* (rtree_{node,leaf}_elm_t *) */
+};
+
+struct rtree_leaf_elm_s {
+#ifdef RTREE_LEAF_COMPACT
+	/*
+	 * Single pointer-width field containing all three leaf element fields.
+	 * For example, on a 64-bit x64 system with 48 significant virtual
+	 * memory address bits, the index, extent, and slab fields are packed as
+	 * such:
+	 *
+	 * x: index
+	 * e: extent
+	 * b: slab
+	 *
+	 *   00000000 xxxxxxxx eeeeeeee [...] eeeeeeee eeee000b
+	 */
+	atomic_p_t	le_bits;
+#else
+	atomic_p_t	le_extent; /* (extent_t *) */
+	atomic_u_t	le_szind; /* (szind_t) */
+	atomic_b_t	le_slab; /* (bool) */
+#endif
+};
+
+typedef struct rtree_level_s rtree_level_t;
+struct rtree_level_s {
+	/* Number of key bits distinguished by this level. */
+	unsigned		bits;
+	/*
+	 * Cumulative number of key bits distinguished by traversing to
+	 * corresponding tree level.
+	 */
+	unsigned		cumbits;
+};
+
+typedef struct rtree_s rtree_t;
+struct rtree_s {
+	malloc_mutex_t		init_lock;
+	/* Number of elements based on rtree_levels[0].bits. */
+#if RTREE_HEIGHT > 1
+	rtree_node_elm_t	root[1U << (RTREE_NSB/RTREE_HEIGHT)];
+#else
+	rtree_leaf_elm_t	root[1U << (RTREE_NSB/RTREE_HEIGHT)];
+#endif
+};
+
+/*
+ * Split the bits into one to three partitions depending on number of
+ * significant bits.  It the number of bits does not divide evenly into the
+ * number of levels, place one remainder bit per level starting at the leaf
+ * level.
+ */
+static const rtree_level_t rtree_levels[] = {
+#if RTREE_HEIGHT == 1
+	{RTREE_NSB, RTREE_NHIB + RTREE_NSB}
+#elif RTREE_HEIGHT == 2
+	{RTREE_NSB/2, RTREE_NHIB + RTREE_NSB/2},
+	{RTREE_NSB/2 + RTREE_NSB%2, RTREE_NHIB + RTREE_NSB}
+#elif RTREE_HEIGHT == 3
+	{RTREE_NSB/3, RTREE_NHIB + RTREE_NSB/3},
+	{RTREE_NSB/3 + RTREE_NSB%3/2,
+	    RTREE_NHIB + RTREE_NSB/3*2 + RTREE_NSB%3/2},
+	{RTREE_NSB/3 + RTREE_NSB%3 - RTREE_NSB%3/2, RTREE_NHIB + RTREE_NSB}
+#else
+#  error Unsupported rtree height
+#endif
+};
+
+bool rtree_new(rtree_t *rtree, bool zeroed);
+
+typedef rtree_node_elm_t *(rtree_node_alloc_t)(tsdn_t *, rtree_t *, size_t);
+extern rtree_node_alloc_t *JET_MUTABLE rtree_node_alloc;
+
+typedef rtree_leaf_elm_t *(rtree_leaf_alloc_t)(tsdn_t *, rtree_t *, size_t);
+extern rtree_leaf_alloc_t *JET_MUTABLE rtree_leaf_alloc;
+
+typedef void (rtree_node_dalloc_t)(tsdn_t *, rtree_t *, rtree_node_elm_t *);
+extern rtree_node_dalloc_t *JET_MUTABLE rtree_node_dalloc;
+
+typedef void (rtree_leaf_dalloc_t)(tsdn_t *, rtree_t *, rtree_leaf_elm_t *);
+extern rtree_leaf_dalloc_t *JET_MUTABLE rtree_leaf_dalloc;
+#ifdef JEMALLOC_JET
+void rtree_delete(tsdn_t *tsdn, rtree_t *rtree);
+#endif
+rtree_leaf_elm_t *rtree_leaf_elm_lookup_hard(tsdn_t *tsdn, rtree_t *rtree,
+    rtree_ctx_t *rtree_ctx, uintptr_t key, bool dependent, bool init_missing);
 
 JEMALLOC_ALWAYS_INLINE uintptr_t
 rtree_leafkey(uintptr_t key) {
@@ -347,4 +471,4 @@ rtree_clear(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
 	rtree_leaf_elm_write(tsdn, rtree, elm, NULL, NSIZES, false);
 }
 
-#endif /* JEMALLOC_INTERNAL_RTREE_INLINES_H */
+#endif /* JEMALLOC_INTERNAL_RTREE_H */

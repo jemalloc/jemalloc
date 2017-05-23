@@ -1,5 +1,7 @@
 #include "test/jemalloc_test.h"
 
+#include "jemalloc/internal/rtree.h"
+
 rtree_node_alloc_t *rtree_node_alloc_orig;
 rtree_node_dalloc_t *rtree_node_dalloc_orig;
 rtree_leaf_alloc_t *rtree_leaf_alloc_orig;
