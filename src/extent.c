@@ -4,6 +4,7 @@
 
 #include "jemalloc/internal/assert.h"
 #include "jemalloc/internal/extent_dss.h"
+#include "jemalloc/internal/extent_mmap.h"
 #include "jemalloc/internal/ph.h"
 #include "jemalloc/internal/rtree.h"
 #include "jemalloc/internal/mutex.h"

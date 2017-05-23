@@ -6,6 +6,7 @@
 #include "jemalloc/internal/atomic.h"
 #include "jemalloc/internal/ctl.h"
 #include "jemalloc/internal/extent_dss.h"
+#include "jemalloc/internal/extent_mmap.h"
 #include "jemalloc/internal/jemalloc_internal_types.h"
 #include "jemalloc/internal/malloc_io.h"
 #include "jemalloc/internal/mutex.h"
