@@ -2,6 +2,7 @@
 #define JEMALLOC_INTERNAL_EXTENT_EXTERNS_H
 
 #include "jemalloc/internal/mutex.h"
+#include "jemalloc/internal/mutex_pool.h"
 #include "jemalloc/internal/ph.h"
 #include "jemalloc/internal/rb.h"
 #include "jemalloc/internal/rtree.h"

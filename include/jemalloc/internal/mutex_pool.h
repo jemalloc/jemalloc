@@ -1,17 +1,21 @@
-#ifndef JEMALLOC_INTERNAL_MUTEX_POOL_INLINES_H
-#define JEMALLOC_INTERNAL_MUTEX_POOL_INLINES_H
+#ifndef JEMALLOC_INTERNAL_MUTEX_POOL_H
+#define JEMALLOC_INTERNAL_MUTEX_POOL_H
 
 #include "jemalloc/internal/hash.h"
 #include "jemalloc/internal/mutex.h"
-#include "jemalloc/internal/mutex_pool_structs.h"
 #include "jemalloc/internal/witness.h"
 
-/*
- * This file really combines "inlines" and "externs", but only transitionally.
- */
+/* We do mod reductions by this value, so it should be kept a power of 2. */
+#define MUTEX_POOL_SIZE 256
+
+typedef struct mutex_pool_s mutex_pool_t;
+struct mutex_pool_s {
+	malloc_mutex_t mutexes[MUTEX_POOL_SIZE];
+};
 
 bool mutex_pool_init(mutex_pool_t *pool, const char *name, witness_rank_t rank);
 
+/* Internal helper - not meant to be called outside this module. */
 static inline malloc_mutex_t *
 mutex_pool_mutex(mutex_pool_t *pool, uintptr_t key) {
 	size_t hash_result[2];
@@ -87,4 +91,4 @@ mutex_pool_assert_owner(tsdn_t *tsdn, mutex_pool_t *pool, uintptr_t key) {
 	malloc_mutex_assert_owner(tsdn, mutex_pool_mutex(pool, key));
 }
 
-#endif /* JEMALLOC_INTERNAL_MUTEX_POOL_INLINES_H */
+#endif /* JEMALLOC_INTERNAL_MUTEX_POOL_H */

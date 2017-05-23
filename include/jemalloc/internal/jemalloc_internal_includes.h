@@ -50,7 +50,6 @@
 /* STRUCTS */
 /******************************************************************************/
 
-#include "jemalloc/internal/mutex_pool_structs.h"
 #include "jemalloc/internal/arena_structs_a.h"
 #include "jemalloc/internal/extent_structs.h"
 #include "jemalloc/internal/base_structs.h"
@@ -76,7 +75,6 @@
 /* INLINES */
 /******************************************************************************/
 
-#include "jemalloc/internal/mutex_pool_inlines.h"
 #include "jemalloc/internal/jemalloc_internal_inlines_a.h"
 #include "jemalloc/internal/base_inlines.h"
 /*
