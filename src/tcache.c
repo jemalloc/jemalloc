@@ -568,7 +568,7 @@ label_return:
 
 bool
 tcaches_create(tsd_t *tsd, unsigned *r_ind) {
-	witness_assert_depth(tsd_tsdn(tsd), 0);
+	witness_assert_depth(tsdn_witness_tsdp_get(tsd_tsdn(tsd)), 0);
 
 	bool err;
 
@@ -600,7 +600,7 @@ tcaches_create(tsd_t *tsd, unsigned *r_ind) {
 
 	err = false;
 label_return:
-	witness_assert_depth(tsd_tsdn(tsd), 0);
+	witness_assert_depth(tsdn_witness_tsdp_get(tsd_tsdn(tsd)), 0);
 	return err;
 }
 

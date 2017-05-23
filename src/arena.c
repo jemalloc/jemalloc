@@ -361,7 +361,8 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 void
 arena_extents_dirty_dalloc(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, extent_t *extent) {
-	witness_assert_depth_to_rank(tsdn, WITNESS_RANK_CORE, 0);
+	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
+	    WITNESS_RANK_CORE, 0);
 
 	extents_dalloc(tsdn, arena, r_extent_hooks, &arena->extents_dirty,
 	    extent);
@@ -497,7 +498,8 @@ arena_extent_alloc_large(tsdn_t *tsdn, arena_t *arena, size_t usize,
     size_t alignment, bool *zero) {
 	extent_hooks_t *extent_hooks = EXTENT_HOOKS_INITIALIZER;
 
-	witness_assert_depth_to_rank(tsdn, WITNESS_RANK_CORE, 0);
+	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
+	    WITNESS_RANK_CORE, 0);
 
 	szind_t szind = size2index(usize);
 	size_t mapped_add;
@@ -892,7 +894,8 @@ static size_t
 arena_stash_decayed(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, extents_t *extents, size_t npages_limit,
     extent_list_t *decay_extents) {
-	witness_assert_depth_to_rank(tsdn, WITNESS_RANK_CORE, 0);
+	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
+	    WITNESS_RANK_CORE, 0);
 
 	/* Stash extents according to npages_limit. */
 	size_t nstashed = 0;
@@ -978,7 +981,8 @@ arena_decay_stashed(tsdn_t *tsdn, arena_t *arena,
 static void
 arena_decay_to_limit(tsdn_t *tsdn, arena_t *arena, arena_decay_t *decay,
     extents_t *extents, bool all, size_t npages_limit) {
-	witness_assert_depth_to_rank(tsdn, WITNESS_RANK_CORE, 1);
+	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
+	    WITNESS_RANK_CORE, 1);
 	malloc_mutex_assert_owner(tsdn, &decay->mtx);
 
 	if (decay->purging) {
@@ -1253,7 +1257,8 @@ arena_slab_alloc_hard(tsdn_t *tsdn, arena_t *arena,
 	extent_t *slab;
 	bool zero, commit;
 
-	witness_assert_depth_to_rank(tsdn, WITNESS_RANK_CORE, 0);
+	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
+	    WITNESS_RANK_CORE, 0);
 
 	zero = false;
 	commit = true;
@@ -1271,7 +1276,8 @@ arena_slab_alloc_hard(tsdn_t *tsdn, arena_t *arena,
 static extent_t *
 arena_slab_alloc(tsdn_t *tsdn, arena_t *arena, szind_t binind,
     const arena_bin_info_t *bin_info) {
-	witness_assert_depth_to_rank(tsdn, WITNESS_RANK_CORE, 0);
+	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
+	    WITNESS_RANK_CORE, 0);
 
 	extent_hooks_t *extent_hooks = EXTENT_HOOKS_INITIALIZER;
 	szind_t szind = size2index(bin_info->reg_size);

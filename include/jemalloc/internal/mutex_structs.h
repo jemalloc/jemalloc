@@ -3,8 +3,7 @@
 
 #include "jemalloc/internal/atomic.h"
 #include "jemalloc/internal/mutex_prof.h"
-#include "jemalloc/internal/witness_types.h"
-#include "jemalloc/internal/witness_structs.h"
+#include "jemalloc/internal/witness.h"
 
 struct malloc_mutex_s {
 	union {
