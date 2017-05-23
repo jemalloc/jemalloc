@@ -952,8 +952,8 @@ mallctl("arena." STRINGIFY(MALLCTL_ARENAS_ALL) ".decay",
         same CPU share one arena.  Note that no runtime checking regarding the
         availability of hyper threading is done at the moment.  When set to
         <quote>disabled</quote>, narenas and thread to arena association will
-        not be impacted by this option.  The default is
-        <quote>percpu</quote>. </para></listitem>
+        not be impacted by this option.  The default is <quote>disabled</quote>.
+        </para></listitem>
       </varlistentry>
 
       <varlistentry id="opt.background_thread">
