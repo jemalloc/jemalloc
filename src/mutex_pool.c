@@ -3,6 +3,8 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/jemalloc_internal_includes.h"
 
+#include "jemalloc/internal/mutex.h"
+
 bool
 mutex_pool_init(mutex_pool_t *pool, const char *name, witness_rank_t rank) {
 	for (int i = 0; i < MUTEX_POOL_SIZE; ++i) {

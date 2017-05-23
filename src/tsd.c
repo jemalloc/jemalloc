@@ -3,6 +3,7 @@
 #include "jemalloc/internal/jemalloc_internal_includes.h"
 
 #include "jemalloc/internal/assert.h"
+#include "jemalloc/internal/mutex.h"
 
 /******************************************************************************/
 /* Data. */
@@ -23,6 +24,17 @@ DWORD tsd_tsd;
 tsd_wrapper_t tsd_boot_wrapper = {false, TSD_INITIALIZER};
 bool tsd_booted = false;
 #else
+
+/*
+ * This contains a mutex, but it's pretty convenient to allow the mutex code to
+ * have a dependency on tsd.  So we define the struct here, and only refer to it
+ * by pointer in the header.
+ */
+struct tsd_init_head_s {
+	ql_head(tsd_init_block_t) blocks;
+	malloc_mutex_t lock;
+};
+
 pthread_key_t tsd_tsd;
 tsd_init_head_t	tsd_init_head = {
 	ql_head_initializer(blocks),

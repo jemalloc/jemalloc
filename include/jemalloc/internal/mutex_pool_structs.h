@@ -1,6 +1,8 @@
 #ifndef JEMALLOC_INTERNAL_MUTEX_POOL_STRUCTS_H
 #define JEMALLOC_INTERNAL_MUTEX_POOL_STRUCTS_H
 
+#include "jemalloc/internal/mutex.h"
+
 /* This file really combines "structs" and "types", but only transitionally. */
 
 /* We do mod reductions by this value, so it should be kept a power of 2. */
