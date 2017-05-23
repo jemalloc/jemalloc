@@ -2,6 +2,7 @@
 #include "test/jemalloc_test.h"
 #endif
 
+#include "jemalloc/internal/extent_mmap.h"
 #include "jemalloc/internal/rtree.h"
 
 #include "test/extent_hooks.h"
