@@ -20,6 +20,10 @@ possible_config_opts = [
     '--disable-stats',
     '--with-malloc-conf=tcache:false',
 ]
+possible_malloc_conf_opts = [
+    'tcache:false',
+    'dss:primary',
+]
 
 print 'set -e'
 print 'autoconf'
@@ -28,21 +32,26 @@ print 'unamestr=`uname`'
 for cc, cxx in possible_compilers:
     for compiler_opts in powerset(possible_compiler_opts):
         for config_opts in powerset(possible_config_opts):
-            if cc is 'clang' \
-              and '-m32' in possible_compiler_opts \
-              and '--enable-prof' in config_opts:
-                continue
-            config_line = (
-                'EXTRA_CFLAGS=-Werror EXTRA_CXXFLAGS=-Werror ./configure '
-                + 'CC="{} {}" '.format(cc, " ".join(compiler_opts))
-                + 'CXX="{} {}" '.format(cxx, " ".join(compiler_opts))
-                + " ".join(config_opts)
-            )
-            # Heap profiling is not supported on OS X.
-            if '--enable-prof' in config_opts:
-                print 'if [[ "$unamestr" != "Darwin" ]]; then'
-            print config_line
-            print "make clean"
-            print "make -j" + str(MAKE_J_VAL) + " check"
-            if '--enable-prof' in config_opts:
-                print 'fi'
+            for malloc_conf_opts in powerset(possible_malloc_conf_opts):
+                if cc is 'clang' \
+                  and '-m32' in possible_compiler_opts \
+                  and '--enable-prof' in config_opts:
+                    continue
+                config_line = (
+                    'EXTRA_CFLAGS=-Werror EXTRA_CXXFLAGS=-Werror ./configure '
+                    + 'CC="{} {}" '.format(cc, " ".join(compiler_opts))
+                    + 'CXX="{} {}" '.format(cxx, " ".join(compiler_opts))
+                    + " ".join(config_opts) + (' --with-malloc-conf=' +
+                    ",".join(malloc_conf_opts) if len(malloc_conf_opts) > 0
+                    else '')
+                )
+                # Heap profiling and dss are not supported on OS X.
+                darwin_unsupported = ('--enable-prof' in config_opts or \
+                  'dss:primary' in malloc_conf_opts)
+                if darwin_unsupported:
+                    print 'if [[ "$unamestr" != "Darwin" ]]; then'
+                print config_line
+                print "make clean"
+                print "make -j" + str(MAKE_J_VAL) + " check"
+                if darwin_unsupported:
+                    print 'fi'
