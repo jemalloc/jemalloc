@@ -10,11 +10,8 @@ struct tsd_init_block_s {
 	void *data;
 };
 
+/* Defined in tsd.c, to allow the mutex headers to have tsd dependencies. */
 typedef struct tsd_init_head_s tsd_init_head_t;
-struct tsd_init_head_s {
-	ql_head(tsd_init_block_t) blocks;
-	malloc_mutex_t lock;
-};
 
 typedef struct {
 	bool initialized;

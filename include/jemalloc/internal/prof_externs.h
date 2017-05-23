@@ -1,6 +1,8 @@
 #ifndef JEMALLOC_INTERNAL_PROF_EXTERNS_H
 #define JEMALLOC_INTERNAL_PROF_EXTERNS_H
 
+#include "jemalloc/internal/mutex.h"
+
 extern malloc_mutex_t	bt2gctx_mtx;
 
 extern bool	opt_prof;

@@ -2,7 +2,7 @@
 #define JEMALLOC_INTERNAL_MUTEX_POOL_INLINES_H
 
 #include "jemalloc/internal/hash.h"
-#include "jemalloc/internal/mutex_inlines.h"
+#include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/mutex_pool_structs.h"
 #include "jemalloc/internal/witness.h"
 

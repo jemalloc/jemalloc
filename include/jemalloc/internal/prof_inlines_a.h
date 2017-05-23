@@ -1,6 +1,8 @@
 #ifndef JEMALLOC_INTERNAL_PROF_INLINES_A_H
 #define JEMALLOC_INTERNAL_PROF_INLINES_A_H
 
+#include "jemalloc/internal/mutex.h"
+
 static inline bool
 prof_accum_add(tsdn_t *tsdn, prof_accum_t *prof_accum, uint64_t accumbytes) {
 	cassert(config_prof);
