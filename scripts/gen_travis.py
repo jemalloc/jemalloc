@@ -43,12 +43,16 @@ configure_flag_unusuals = [
     '--enable-debug',
     '--enable-prof',
     '--disable-stats',
-    '--with-malloc-conf=tcache:false',
+]
+
+malloc_conf_unusuals = [
+    'tcache:false',
+    'dss:primary',
 ]
 
 all_unusuals = (
     [os_unusual] + [compilers_unusual] + compiler_flag_unusuals
-    + configure_flag_unusuals
+    + configure_flag_unusuals + malloc_conf_unusuals
 )
 
 unusual_combinations_to_test = []
@@ -70,6 +74,14 @@ for unusual_combination in unusual_combinations_to_test:
 
     configure_flags = [
         x for x in unusual_combination if x in configure_flag_unusuals]
+
+    malloc_conf = [
+        x for x in unusual_combination if x in malloc_conf_unusuals]
+    # Filter out an unsupported configuration - dss on OS X.
+    if os == 'osx' and 'dss:primary' in malloc_conf:
+        continue
+    if len(malloc_conf) > 0:
+        configure_flags.append('--with-malloc-conf=' + ",".join(malloc_conf))
 
     # Filter out an unsupported configuration - heap profiling on OS X.
     if os == 'osx' and '--enable-prof' in configure_flags:
