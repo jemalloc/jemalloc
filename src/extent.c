@@ -3,6 +3,7 @@
 #include "jemalloc/internal/jemalloc_internal_includes.h"
 
 #include "jemalloc/internal/assert.h"
+#include "jemalloc/internal/extent_dss.h"
 #include "jemalloc/internal/ph.h"
 #include "jemalloc/internal/rtree.h"
 #include "jemalloc/internal/mutex.h"

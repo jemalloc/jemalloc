@@ -41,7 +41,6 @@
 /******************************************************************************/
 
 #include "jemalloc/internal/extent_types.h"
-#include "jemalloc/internal/extent_dss_types.h"
 #include "jemalloc/internal/base_types.h"
 #include "jemalloc/internal/arena_types.h"
 #include "jemalloc/internal/tcache_types.h"
@@ -54,7 +53,6 @@
 #include "jemalloc/internal/mutex_pool_structs.h"
 #include "jemalloc/internal/arena_structs_a.h"
 #include "jemalloc/internal/extent_structs.h"
-#include "jemalloc/internal/extent_dss_structs.h"
 #include "jemalloc/internal/base_structs.h"
 #include "jemalloc/internal/prof_structs.h"
 #include "jemalloc/internal/arena_structs_b.h"
@@ -67,7 +65,6 @@
 
 #include "jemalloc/internal/jemalloc_internal_externs.h"
 #include "jemalloc/internal/extent_externs.h"
-#include "jemalloc/internal/extent_dss_externs.h"
 #include "jemalloc/internal/extent_mmap_externs.h"
 #include "jemalloc/internal/base_externs.h"
 #include "jemalloc/internal/arena_externs.h"

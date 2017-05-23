@@ -3,6 +3,7 @@
 
 #include "jemalloc/internal/atomic.h"
 #include "jemalloc/internal/bitmap.h"
+#include "jemalloc/internal/extent_dss.h"
 #include "jemalloc/internal/jemalloc_internal_types.h"
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/nstime.h"
