@@ -2,7 +2,7 @@
 #define JEMALLOC_INTERNAL_EXTENT_INLINES_H
 
 #include "jemalloc/internal/mutex.h"
-#include "jemalloc/internal/mutex_pool_inlines.h"
+#include "jemalloc/internal/mutex_pool.h"
 #include "jemalloc/internal/pages.h"
 #include "jemalloc/internal/prng.h"
 #include "jemalloc/internal/ql.h"
