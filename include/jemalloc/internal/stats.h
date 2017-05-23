@@ -3,9 +3,9 @@
 
 #include "jemalloc/internal/atomic.h"
 #include "jemalloc/internal/mutex_prof.h"
-#include "jemalloc/internal/mutex_types.h"
-#include "jemalloc/internal/mutex_structs.h"
+#include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/size_classes.h"
+#include "jemalloc/internal/stats_tsd.h"
 
 /* The opt.stats_print storage. */
 extern bool opt_stats_print;
@@ -25,14 +25,6 @@ typedef atomic_u64_t arena_stats_u64_t;
 /* Must hold the arena stats mutex while reading atomically. */
 typedef uint64_t arena_stats_u64_t;
 #endif
-
-typedef struct tcache_bin_stats_s {
-	/*
-	 * Number of allocation requests that corresponded to the size of this
-	 * bin.
-	 */
-	uint64_t	nrequests;
-} tcache_bin_stats_t;
 
 typedef struct malloc_bin_stats_s {
 	/*

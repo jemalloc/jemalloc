@@ -2,7 +2,7 @@
 #define JEMALLOC_INTERNAL_RTREE_STRUCTS_H
 
 #include "jemalloc/internal/atomic.h"
-#include "jemalloc/internal/mutex_pool_structs.h"
+#include "jemalloc/internal/mutex.h"
 
 struct rtree_node_elm_s {
 	atomic_p_t	child; /* (rtree_{node,leaf}_elm_t *) */

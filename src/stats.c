@@ -4,6 +4,7 @@
 
 #include "jemalloc/internal/assert.h"
 #include "jemalloc/internal/ctl.h"
+#include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/mutex_prof.h"
 
 const char *global_mutex_names[mutex_prof_num_global_mutexes] = {

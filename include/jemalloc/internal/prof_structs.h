@@ -2,6 +2,7 @@
 #define JEMALLOC_INTERNAL_PROF_STRUCTS_H
 
 #include "jemalloc/internal/ckh.h"
+#include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/prng.h"
 #include "jemalloc/internal/rb.h"
 

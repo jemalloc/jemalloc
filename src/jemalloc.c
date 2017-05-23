@@ -7,6 +7,7 @@
 #include "jemalloc/internal/ctl.h"
 #include "jemalloc/internal/jemalloc_internal_types.h"
 #include "jemalloc/internal/malloc_io.h"
+#include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/size_classes.h"
 #include "jemalloc/internal/spin.h"
 #include "jemalloc/internal/ticker.h"
