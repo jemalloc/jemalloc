@@ -29,12 +29,7 @@ typedef enum {
 	percpu_arena_mode_limit = 3
 } percpu_arena_mode_t;
 
-#ifdef JEMALLOC_PERCPU_ARENA
-#define PERCPU_ARENA_MODE_DEFAULT	percpu_arena
-#define OPT_PERCPU_ARENA_DEFAULT	"percpu"
-#else
 #define PERCPU_ARENA_MODE_DEFAULT	percpu_arena_disabled
 #define OPT_PERCPU_ARENA_DEFAULT	"disabled"
-#endif
 
 #endif /* JEMALLOC_INTERNAL_ARENA_TYPES_H */
