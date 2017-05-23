@@ -1755,7 +1755,7 @@ imalloc_body(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd) {
 	 */
 	reentrancy_level = tsd_reentrancy_level_get(tsd);
 	if (reentrancy_level == 0) {
-		witness_assert_lockless(tsd_tsdn(tsd));
+		witness_assert_lockless(tsdn_witness_tsdp_get(tsd_tsdn(tsd)));
 	}
 	if (sopts->slow && unlikely(reentrancy_level > 0)) {
 		/*
@@ -1832,7 +1832,7 @@ imalloc_body(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd) {
 
 	/* Success! */
 	if (reentrancy_level == 0) {
-		witness_assert_lockless(tsd_tsdn(tsd));
+		witness_assert_lockless(tsdn_witness_tsdp_get(tsd_tsdn(tsd)));
 	}
 	*dopts->result = allocation;
 	return 0;
@@ -1847,7 +1847,7 @@ label_oom:
 		UTRACE(NULL, size, NULL);
 	}
 
-	witness_assert_lockless(tsd_tsdn(tsd));
+	witness_assert_lockless(tsdn_witness_tsdp_get(tsd_tsdn(tsd)));
 
 	if (sopts->set_errno_on_error) {
 		set_errno(ENOMEM);
@@ -1878,7 +1878,7 @@ label_invalid_alignment:
 		UTRACE(NULL, size, NULL);
 	}
 
-	witness_assert_lockless(tsd_tsdn(tsd));
+	witness_assert_lockless(tsdn_witness_tsdp_get(tsd_tsdn(tsd)));
 
 	if (sopts->null_out_result_on_error) {
 		*dopts->result = NULL;
@@ -2080,7 +2080,7 @@ ifree(tsd_t *tsd, void *ptr, tcache_t *tcache, bool slow_path) {
 		tsd_assert_fast(tsd);
 	}
 	if (tsd_reentrancy_level_get(tsd) == 0) {
-		witness_assert_lockless(tsd_tsdn(tsd));
+		witness_assert_lockless(tsdn_witness_tsdp_get(tsd_tsdn(tsd)));
 	} else {
 		assert(slow_path);
 	}
@@ -2120,7 +2120,7 @@ isfree(tsd_t *tsd, void *ptr, size_t usize, tcache_t *tcache, bool slow_path) {
 		tsd_assert_fast(tsd);
 	}
 	if (tsd_reentrancy_level_get(tsd) == 0) {
-		witness_assert_lockless(tsd_tsdn(tsd));
+		witness_assert_lockless(tsdn_witness_tsdp_get(tsd_tsdn(tsd)));
 	} else {
 		assert(slow_path);
 	}
@@ -2181,7 +2181,7 @@ je_realloc(void *ptr, size_t size) {
 		assert(malloc_initialized() || IS_INITIALIZER);
 		tsd_t *tsd = tsd_fetch();
 
-		witness_assert_lockless(tsd_tsdn(tsd));
+		witness_assert_lockless(tsdn_witness_tsdp_get(tsd_tsdn(tsd)));
 
 		alloc_ctx_t alloc_ctx;
 		rtree_ctx_t *rtree_ctx = tsd_rtree_ctx(tsd);
@@ -2224,7 +2224,7 @@ je_realloc(void *ptr, size_t size) {
 		*tsd_thread_deallocatedp_get(tsd) += old_usize;
 	}
 	UTRACE(ptr, size, ret);
-	witness_assert_lockless(tsdn);
+	witness_assert_lockless(tsdn_witness_tsdp_get(tsdn));
 	return ret;
 }
 
@@ -2234,7 +2234,8 @@ je_free(void *ptr) {
 	if (likely(ptr != NULL)) {
 		tsd_t *tsd = tsd_fetch();
 		if (tsd_reentrancy_level_get(tsd) == 0) {
-			witness_assert_lockless(tsd_tsdn(tsd));
+			witness_assert_lockless(tsdn_witness_tsdp_get(tsd_tsdn(
+			    tsd)));
 		}
 
 		tcache_t *tcache;
@@ -2252,7 +2253,8 @@ je_free(void *ptr) {
 			ifree(tsd, ptr, tcache, true);
 		}
 		if (tsd_reentrancy_level_get(tsd) == 0) {
-			witness_assert_lockless(tsd_tsdn(tsd));
+			witness_assert_lockless(tsdn_witness_tsdp_get(tsd_tsdn(
+			    tsd)));
 		}
 	}
 }
@@ -2513,7 +2515,7 @@ je_rallocx(void *ptr, size_t size, int flags) {
 	assert(size != 0);
 	assert(malloc_initialized() || IS_INITIALIZER);
 	tsd = tsd_fetch();
-	witness_assert_lockless(tsd_tsdn(tsd));
+	witness_assert_lockless(tsdn_witness_tsdp_get(tsd_tsdn(tsd)));
 
 	if (unlikely((flags & MALLOCX_ARENA_MASK) != 0)) {
 		unsigned arena_ind = MALLOCX_ARENA_GET(flags);
@@ -2569,7 +2571,7 @@ je_rallocx(void *ptr, size_t size, int flags) {
 		*tsd_thread_deallocatedp_get(tsd) += old_usize;
 	}
 	UTRACE(ptr, size, p);
-	witness_assert_lockless(tsd_tsdn(tsd));
+	witness_assert_lockless(tsdn_witness_tsdp_get(tsd_tsdn(tsd)));
 	return p;
 label_oom:
 	if (config_xmalloc && unlikely(opt_xmalloc)) {
@@ -2577,7 +2579,7 @@ label_oom:
 		abort();
 	}
 	UTRACE(ptr, size, 0);
-	witness_assert_lockless(tsd_tsdn(tsd));
+	witness_assert_lockless(tsdn_witness_tsdp_get(tsd_tsdn(tsd)));
 	return NULL;
 }
 
@@ -2669,7 +2671,7 @@ je_xallocx(void *ptr, size_t size, size_t extra, int flags) {
 	assert(SIZE_T_MAX - size >= extra);
 	assert(malloc_initialized() || IS_INITIALIZER);
 	tsd = tsd_fetch();
-	witness_assert_lockless(tsd_tsdn(tsd));
+	witness_assert_lockless(tsdn_witness_tsdp_get(tsd_tsdn(tsd)));
 
 	alloc_ctx_t alloc_ctx;
 	rtree_ctx_t *rtree_ctx = tsd_rtree_ctx(tsd);
@@ -2712,7 +2714,7 @@ je_xallocx(void *ptr, size_t size, size_t extra, int flags) {
 	}
 label_not_resized:
 	UTRACE(ptr, size, ptr);
-	witness_assert_lockless(tsd_tsdn(tsd));
+	witness_assert_lockless(tsdn_witness_tsdp_get(tsd_tsdn(tsd)));
 	return usize;
 }
 
@@ -2726,7 +2728,7 @@ je_sallocx(const void *ptr, int flags) {
 	assert(ptr != NULL);
 
 	tsdn = tsdn_fetch();
-	witness_assert_lockless(tsdn);
+	witness_assert_lockless(tsdn_witness_tsdp_get(tsdn));
 
 	if (config_debug || force_ivsalloc) {
 		usize = ivsalloc(tsdn, ptr);
@@ -2735,7 +2737,7 @@ je_sallocx(const void *ptr, int flags) {
 		usize = isalloc(tsdn, ptr);
 	}
 
-	witness_assert_lockless(tsdn);
+	witness_assert_lockless(tsdn_witness_tsdp_get(tsdn));
 	return usize;
 }
 
@@ -2746,7 +2748,7 @@ je_dallocx(void *ptr, int flags) {
 
 	tsd_t *tsd = tsd_fetch();
 	bool fast = tsd_fast(tsd);
-	witness_assert_lockless(tsd_tsdn(tsd));
+	witness_assert_lockless(tsdn_witness_tsdp_get(tsd_tsdn(tsd)));
 
 	tcache_t *tcache;
 	if (unlikely((flags & MALLOCX_TCACHE_MASK) != 0)) {
@@ -2777,12 +2779,12 @@ je_dallocx(void *ptr, int flags) {
 	} else {
 		ifree(tsd, ptr, tcache, true);
 	}
-	witness_assert_lockless(tsd_tsdn(tsd));
+	witness_assert_lockless(tsdn_witness_tsdp_get(tsd_tsdn(tsd)));
 }
 
 JEMALLOC_ALWAYS_INLINE size_t
 inallocx(tsdn_t *tsdn, size_t size, int flags) {
-	witness_assert_lockless(tsdn);
+	witness_assert_lockless(tsdn_witness_tsdp_get(tsdn));
 
 	size_t usize;
 	if (likely((flags & MALLOCX_LG_ALIGN_MASK) == 0)) {
@@ -2790,7 +2792,7 @@ inallocx(tsdn_t *tsdn, size_t size, int flags) {
 	} else {
 		usize = sa2u(size, MALLOCX_ALIGN_GET_SPECIFIED(flags));
 	}
-	witness_assert_lockless(tsdn);
+	witness_assert_lockless(tsdn_witness_tsdp_get(tsdn));
 	return usize;
 }
 
@@ -2803,7 +2805,7 @@ je_sdallocx(void *ptr, size_t size, int flags) {
 	bool fast = tsd_fast(tsd);
 	size_t usize = inallocx(tsd_tsdn(tsd), size, flags);
 	assert(usize == isalloc(tsd_tsdn(tsd), ptr));
-	witness_assert_lockless(tsd_tsdn(tsd));
+	witness_assert_lockless(tsdn_witness_tsdp_get(tsd_tsdn(tsd)));
 
 	tcache_t *tcache;
 	if (unlikely((flags & MALLOCX_TCACHE_MASK) != 0)) {
@@ -2834,7 +2836,7 @@ je_sdallocx(void *ptr, size_t size, int flags) {
 	} else {
 		isfree(tsd, ptr, usize, tcache, true);
 	}
-	witness_assert_lockless(tsd_tsdn(tsd));
+	witness_assert_lockless(tsdn_witness_tsdp_get(tsd_tsdn(tsd)));
 }
 
 JEMALLOC_EXPORT size_t JEMALLOC_NOTHROW
@@ -2850,14 +2852,14 @@ je_nallocx(size_t size, int flags) {
 	}
 
 	tsdn = tsdn_fetch();
-	witness_assert_lockless(tsdn);
+	witness_assert_lockless(tsdn_witness_tsdp_get(tsdn));
 
 	usize = inallocx(tsdn, size, flags);
 	if (unlikely(usize > LARGE_MAXCLASS)) {
 		return 0;
 	}
 
-	witness_assert_lockless(tsdn);
+	witness_assert_lockless(tsdn_witness_tsdp_get(tsdn));
 	return usize;
 }
 
@@ -2872,9 +2874,9 @@ je_mallctl(const char *name, void *oldp, size_t *oldlenp, void *newp,
 	}
 
 	tsd = tsd_fetch();
-	witness_assert_lockless(tsd_tsdn(tsd));
+	witness_assert_lockless(tsdn_witness_tsdp_get(tsd_tsdn(tsd)));
 	ret = ctl_byname(tsd, name, oldp, oldlenp, newp, newlen);
-	witness_assert_lockless(tsd_tsdn(tsd));
+	witness_assert_lockless(tsdn_witness_tsdp_get(tsd_tsdn(tsd)));
 	return ret;
 }
 
@@ -2888,9 +2890,9 @@ je_mallctlnametomib(const char *name, size_t *mibp, size_t *miblenp) {
 	}
 
 	tsdn = tsdn_fetch();
-	witness_assert_lockless(tsdn);
+	witness_assert_lockless(tsdn_witness_tsdp_get(tsdn));
 	ret = ctl_nametomib(tsdn, name, mibp, miblenp);
-	witness_assert_lockless(tsdn);
+	witness_assert_lockless(tsdn_witness_tsdp_get(tsdn));
 	return ret;
 }
 
@@ -2905,9 +2907,9 @@ je_mallctlbymib(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
 	}
 
 	tsd = tsd_fetch();
-	witness_assert_lockless(tsd_tsdn(tsd));
+	witness_assert_lockless(tsdn_witness_tsdp_get(tsd_tsdn(tsd)));
 	ret = ctl_bymib(tsd, mib, miblen, oldp, oldlenp, newp, newlen);
-	witness_assert_lockless(tsd_tsdn(tsd));
+	witness_assert_lockless(tsdn_witness_tsdp_get(tsd_tsdn(tsd)));
 	return ret;
 }
 
@@ -2917,9 +2919,9 @@ je_malloc_stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 	tsdn_t *tsdn;
 
 	tsdn = tsdn_fetch();
-	witness_assert_lockless(tsdn);
+	witness_assert_lockless(tsdn_witness_tsdp_get(tsdn));
 	stats_print(write_cb, cbopaque, opts);
-	witness_assert_lockless(tsdn);
+	witness_assert_lockless(tsdn_witness_tsdp_get(tsdn));
 }
 
 JEMALLOC_EXPORT size_t JEMALLOC_NOTHROW
@@ -2930,7 +2932,7 @@ je_malloc_usable_size(JEMALLOC_USABLE_SIZE_CONST void *ptr) {
 	assert(malloc_initialized() || IS_INITIALIZER);
 
 	tsdn = tsdn_fetch();
-	witness_assert_lockless(tsdn);
+	witness_assert_lockless(tsdn_witness_tsdp_get(tsdn));
 
 	if (unlikely(ptr == NULL)) {
 		ret = 0;
@@ -2943,7 +2945,7 @@ je_malloc_usable_size(JEMALLOC_USABLE_SIZE_CONST void *ptr) {
 		}
 	}
 
-	witness_assert_lockless(tsdn);
+	witness_assert_lockless(tsdn_witness_tsdp_get(tsdn));
 	return ret;
 }
 
@@ -3000,7 +3002,7 @@ _malloc_prefork(void)
 
 	narenas = narenas_total_get();
 
-	witness_prefork(tsd);
+	witness_prefork(tsd_witness_tsdp_get(tsd));
 	/* Acquire all mutexes in a safe order. */
 	ctl_prefork(tsd_tsdn(tsd));
 	tcache_prefork(tsd_tsdn(tsd));
@@ -3067,7 +3069,7 @@ _malloc_postfork(void)
 
 	tsd = tsd_fetch();
 
-	witness_postfork_parent(tsd);
+	witness_postfork_parent(tsd_witness_tsdp_get(tsd));
 	/* Release all mutexes, now that fork() has completed. */
 	for (i = 0, narenas = narenas_total_get(); i < narenas; i++) {
 		arena_t *arena;
@@ -3094,7 +3096,7 @@ jemalloc_postfork_child(void) {
 
 	tsd = tsd_fetch();
 
-	witness_postfork_child(tsd);
+	witness_postfork_child(tsd_witness_tsdp_get(tsd));
 	/* Release all mutexes, now that fork() has completed. */
 	for (i = 0, narenas = narenas_total_get(); i < narenas; i++) {
 		arena_t *arena;

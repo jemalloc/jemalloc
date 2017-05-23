@@ -4,6 +4,7 @@
 #include "jemalloc/internal/hash.h"
 #include "jemalloc/internal/mutex_inlines.h"
 #include "jemalloc/internal/mutex_pool_structs.h"
+#include "jemalloc/internal/witness.h"
 
 /*
  * This file really combines "inlines" and "externs", but only transitionally.

@@ -31,14 +31,14 @@ mutex_owner_stats_update(tsdn_t *tsdn, malloc_mutex_t *mutex) {
 /* Trylock: return false if the lock is successfully acquired. */
 static inline bool
 malloc_mutex_trylock(tsdn_t *tsdn, malloc_mutex_t *mutex) {
-	witness_assert_not_owner(tsdn, &mutex->witness);
+	witness_assert_not_owner(tsdn_witness_tsdp_get(tsdn), &mutex->witness);
 	if (isthreaded) {
 		if (malloc_mutex_trylock_final(mutex)) {
 			return true;
 		}
 		mutex_owner_stats_update(tsdn, mutex);
 	}
-	witness_lock(tsdn, &mutex->witness);
+	witness_lock(tsdn_witness_tsdp_get(tsdn), &mutex->witness);
 
 	return false;
 }
@@ -69,19 +69,19 @@ malloc_mutex_prof_merge(mutex_prof_data_t *sum, mutex_prof_data_t *data) {
 
 static inline void
 malloc_mutex_lock(tsdn_t *tsdn, malloc_mutex_t *mutex) {
-	witness_assert_not_owner(tsdn, &mutex->witness);
+	witness_assert_not_owner(tsdn_witness_tsdp_get(tsdn), &mutex->witness);
 	if (isthreaded) {
 		if (malloc_mutex_trylock_final(mutex)) {
 			malloc_mutex_lock_slow(mutex);
 		}
 		mutex_owner_stats_update(tsdn, mutex);
 	}
-	witness_lock(tsdn, &mutex->witness);
+	witness_lock(tsdn_witness_tsdp_get(tsdn), &mutex->witness);
 }
 
 static inline void
 malloc_mutex_unlock(tsdn_t *tsdn, malloc_mutex_t *mutex) {
-	witness_unlock(tsdn, &mutex->witness);
+	witness_unlock(tsdn_witness_tsdp_get(tsdn), &mutex->witness);
 	if (isthreaded) {
 		MALLOC_MUTEX_UNLOCK(mutex);
 	}
@@ -89,12 +89,12 @@ malloc_mutex_unlock(tsdn_t *tsdn, malloc_mutex_t *mutex) {
 
 static inline void
 malloc_mutex_assert_owner(tsdn_t *tsdn, malloc_mutex_t *mutex) {
-	witness_assert_owner(tsdn, &mutex->witness);
+	witness_assert_owner(tsdn_witness_tsdp_get(tsdn), &mutex->witness);
 }
 
 static inline void
 malloc_mutex_assert_not_owner(tsdn_t *tsdn, malloc_mutex_t *mutex) {
-	witness_assert_not_owner(tsdn, &mutex->witness);
+	witness_assert_not_owner(tsdn_witness_tsdp_get(tsdn), &mutex->witness);
 }
 
 /* Copy the prof data from mutex for processing. */

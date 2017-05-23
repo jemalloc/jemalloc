@@ -63,38 +63,38 @@ witness_depth_error_t *JET_MUTABLE witness_depth_error =
     witness_depth_error_impl;
 
 void
-witnesses_cleanup(tsd_t *tsd) {
-	witness_assert_lockless(tsd_tsdn(tsd));
+witnesses_cleanup(witness_tsd_t *witness_tsd) {
+	witness_assert_lockless(witness_tsd_tsdn(witness_tsd));
 
 	/* Do nothing. */
 }
 
 void
-witness_prefork(tsd_t *tsd) {
+witness_prefork(witness_tsd_t *witness_tsd) {
 	if (!config_debug) {
 		return;
 	}
-	tsd_witness_fork_set(tsd, true);
+	witness_tsd->forking = true;
 }
 
 void
-witness_postfork_parent(tsd_t *tsd) {
+witness_postfork_parent(witness_tsd_t *witness_tsd) {
 	if (!config_debug) {
 		return;
 	}
-	tsd_witness_fork_set(tsd, false);
+	witness_tsd->forking = false;
 }
 
 void
-witness_postfork_child(tsd_t *tsd) {
+witness_postfork_child(witness_tsd_t *witness_tsd) {
 	if (!config_debug) {
 		return;
 	}
 #ifndef JEMALLOC_MUTEX_INIT_CB
 	witness_list_t *witnesses;
 
-	witnesses = tsd_witnessesp_get(tsd);
+	witnesses = &witness_tsd->witnesses;
 	ql_new(witnesses);
 #endif
-	tsd_witness_fork_set(tsd, false);
+	witness_tsd->forking = false;
 }
