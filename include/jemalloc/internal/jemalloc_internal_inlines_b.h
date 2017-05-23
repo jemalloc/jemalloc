@@ -1,6 +1,8 @@
 #ifndef JEMALLOC_INTERNAL_INLINES_B_H
 #define JEMALLOC_INTERNAL_INLINES_B_H
 
+#include "jemalloc/internal/rtree.h"
+
 /* Choose an arena based on a per-thread value. */
 static inline arena_t *
 arena_choose_impl(tsd_t *tsd, arena_t *arena, bool internal) {

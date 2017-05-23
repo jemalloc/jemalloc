@@ -2,6 +2,8 @@
 #include "test/jemalloc_test.h"
 #endif
 
+#include "jemalloc/internal/rtree.h"
+
 #include "test/extent_hooks.h"
 
 static unsigned

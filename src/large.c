@@ -4,6 +4,7 @@
 
 #include "jemalloc/internal/assert.h"
 #include "jemalloc/internal/mutex.h"
+#include "jemalloc/internal/rtree.h"
 #include "jemalloc/internal/util.h"
 
 /******************************************************************************/

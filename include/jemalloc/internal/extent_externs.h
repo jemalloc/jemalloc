@@ -4,6 +4,7 @@
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/ph.h"
 #include "jemalloc/internal/rb.h"
+#include "jemalloc/internal/rtree.h"
 
 extern rtree_t			extents_rtree;
 extern const extent_hooks_t	extent_hooks_default;

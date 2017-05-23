@@ -6,7 +6,7 @@
 #include "jemalloc/internal/jemalloc_internal_externs.h"
 #include "jemalloc/internal/prof_types.h"
 #include "jemalloc/internal/ql.h"
-#include "jemalloc/internal/rtree_ctx.h"
+#include "jemalloc/internal/rtree_tsd.h"
 #include "jemalloc/internal/tcache_types.h"
 #include "jemalloc/internal/tcache_structs.h"
 #include "jemalloc/internal/util.h"
