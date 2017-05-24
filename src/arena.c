@@ -964,7 +964,7 @@ arena_decay_stashed(tsdn_t *tsdn, arena_t *arena,
 		arena_stats_add_u64(tsdn, &arena->stats, &decay->stats->purged,
 		    npurged);
 		arena_stats_sub_zu(tsdn, &arena->stats, &arena->stats.mapped,
-		    nunmapped);
+		    nunmapped << LG_PAGE);
 		arena_stats_unlock(tsdn, &arena->stats);
 	}
 
