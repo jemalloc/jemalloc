@@ -1,14 +1,18 @@
 #!/usr/bin/env python
 
 from itertools import combinations
+from os import uname
+from multiprocessing import cpu_count
+
+nparallel = cpu_count() * 2
+
+uname = uname()[0]
 
 def powerset(items):
     result = []
     for i in xrange(len(items) + 1):
         result += combinations(items, i)
     return result
-
-MAKE_J_VAL = 32
 
 possible_compilers = [('gcc', 'g++'), ('clang', 'clang++')]
 possible_compiler_opts = [
@@ -28,8 +32,11 @@ possible_malloc_conf_opts = [
 
 print 'set -e'
 print 'autoconf'
-print 'unamestr=`uname`'
+print 'rm -rf run_tests.out'
+print 'mkdir run_tests.out'
+print 'cd run_tests.out'
 
+ind = 0
 for cc, cxx in possible_compilers:
     for compiler_opts in powerset(possible_compiler_opts):
         for config_opts in powerset(possible_config_opts):
@@ -39,9 +46,10 @@ for cc, cxx in possible_compilers:
                   and '--enable-prof' in config_opts:
                     continue
                 config_line = (
-                    'EXTRA_CFLAGS=-Werror EXTRA_CXXFLAGS=-Werror ./configure '
+                    'EXTRA_CFLAGS=-Werror EXTRA_CXXFLAGS=-Werror '
                     + 'CC="{} {}" '.format(cc, " ".join(compiler_opts))
                     + 'CXX="{} {}" '.format(cxx, " ".join(compiler_opts))
+                    + '../../configure '
                     + " ".join(config_opts) + (' --with-malloc-conf=' +
                     ",".join(malloc_conf_opts) if len(malloc_conf_opts) > 0
                     else '')
@@ -52,14 +60,38 @@ for cc, cxx in possible_compilers:
                 # Heap profiling and dss are not supported on OS X.
                 darwin_unsupported = ('--enable-prof' in config_opts or \
                   'dss:primary' in malloc_conf_opts)
-                if linux_supported:
-                    print 'if [[ "$unamestr" = "Linux" ]]; then'
-                elif darwin_unsupported:
-                    print 'if [[ "$unamestr" != "Darwin" ]]; then'
+                if uname is 'Linux' and linux_supported \
+                  or uname is not 'Darwin' \
+                  or not darwin_unsupported:
+                    print """cat <<EOF > run_test_%(ind)d.sh
+#!/bin/sh
 
-                print config_line
-                print "make clean"
-                print "make -j" + str(MAKE_J_VAL) + " check"
+set -e
 
-                if linux_supported or darwin_unsupported:
-                    print 'fi'
+abort() {
+    echo "==> Error" >> run_test.log
+    echo "Error; see run_tests.out/run_test_%(ind)d.out/run_test.log"
+    exit 255 # Special exit code tells xargs to terminate.
+}
+
+# Environment variables are not supported.
+run_cmd() {
+    echo "==> \$@" >> run_test.log
+    \$@ >> run_test.log 2>&1 || abort
+}
+
+echo "=> run_test_%(ind)d: %(config_line)s"
+mkdir run_test_%(ind)d.out
+cd run_test_%(ind)d.out
+
+echo "==> %(config_line)s" >> run_test.log
+%(config_line)s >> run_test.log 2>&1 || abort
+
+run_cmd make all tests
+run_cmd make check
+run_cmd make distclean
+EOF
+chmod 755 run_test_%(ind)d.sh""" % {'ind': ind, 'config_line': config_line}
+                    ind += 1
+
+print 'for i in `seq 0 %(last_ind)d` ; do echo run_test_${i}.sh ; done | xargs -P %(nparallel)d -n 1 sh' % {'last_ind': ind-1, 'nparallel': nparallel}
