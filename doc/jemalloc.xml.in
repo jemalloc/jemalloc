@@ -874,7 +874,25 @@ mallctl("arena." STRINGIFY(MALLCTL_ARENAS_ALL) ".decay",
           <literal>r-</literal>
         </term>
         <listitem><para>Abort-on-warning enabled/disabled.  If true, most
-        warnings are fatal.  The process will call
+        warnings are fatal.  Note that runtime option warnings are not included
+        (see <link
+        linkend="opt.abort_conf"><mallctl>opt.abort_conf</mallctl></link> for
+        that). The process will call
+        <citerefentry><refentrytitle>abort</refentrytitle>
+        <manvolnum>3</manvolnum></citerefentry> in these cases.  This option is
+        disabled by default unless <option>--enable-debug</option> is
+        specified during configuration, in which case it is enabled by default.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry id="opt.abort_conf">
+        <term>
+          <mallctl>opt.abort_conf</mallctl>
+          (<type>bool</type>)
+          <literal>r-</literal>
+        </term>
+        <listitem><para>Abort-on-invalid-configuration enabled/disabled.  If
+        true, invalid runtime options are fatal.  The process will call
         <citerefentry><refentrytitle>abort</refentrytitle>
         <manvolnum>3</manvolnum></citerefentry> in these cases.  This option is
         disabled by default unless <option>--enable-debug</option> is

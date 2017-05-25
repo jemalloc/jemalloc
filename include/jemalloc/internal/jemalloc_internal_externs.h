@@ -6,23 +6,24 @@
 #include "jemalloc/internal/tsd_types.h"
 
 /* TSD checks this to set thread local slow state accordingly. */
-extern bool	malloc_slow;
+extern bool malloc_slow;
 
 /* Run-time options. */
-extern bool	opt_abort;
-extern const char	*opt_junk;
-extern bool	opt_junk_alloc;
-extern bool	opt_junk_free;
-extern bool	opt_utrace;
-extern bool	opt_xmalloc;
-extern bool	opt_zero;
-extern unsigned	opt_narenas;
+extern bool opt_abort;
+extern bool opt_abort_conf;
+extern const char *opt_junk;
+extern bool opt_junk_alloc;
+extern bool opt_junk_free;
+extern bool opt_utrace;
+extern bool opt_xmalloc;
+extern bool opt_zero;
+extern unsigned opt_narenas;
 
 /* Number of CPUs. */
-extern unsigned	ncpus;
+extern unsigned ncpus;
 
 /* Number of arenas used for automatic multiplexing of threads and arenas. */
-extern unsigned	narenas_auto;
+extern unsigned narenas_auto;
 
 /*
  * Arenas that are used to service external requests.  Not all elements of the
@@ -34,18 +35,18 @@ extern atomic_p_t arenas[];
  * pind2sz_tab encodes the same information as could be computed by
  * pind2sz_compute().
  */
-extern size_t const	pind2sz_tab[NPSIZES+1];
+extern size_t const pind2sz_tab[NPSIZES+1];
 /*
  * index2size_tab encodes the same information as could be computed (at
  * unacceptable cost in some code paths) by index2size_compute().
  */
-extern size_t const	index2size_tab[NSIZES];
+extern size_t const index2size_tab[NSIZES];
 /*
  * size2index_tab is a compact lookup table that rounds request sizes up to
  * size classes.  In order to reduce cache footprint, the table is compressed,
  * and all accesses are via size2index().
  */
-extern uint8_t const	size2index_tab[];
+extern uint8_t const size2index_tab[];
 
 void *a0malloc(size_t size);
 void a0dalloc(void *ptr);

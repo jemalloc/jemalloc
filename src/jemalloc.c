@@ -29,6 +29,13 @@ bool	opt_abort =
     false
 #endif
     ;
+bool	opt_abort_conf =
+#ifdef JEMALLOC_DEBUG
+    true
+#else
+    false
+#endif
+    ;
 const char	*opt_junk =
 #if (defined(JEMALLOC_DEBUG) && defined(JEMALLOC_FILL))
     "true"
@@ -273,6 +280,9 @@ typedef struct {
 #else
 #  define UTRACE(a, b, c)
 #endif
+
+/* Whether encountered any invalid config options. */
+static bool had_conf_error = false;
 
 /******************************************************************************/
 /*
@@ -847,6 +857,10 @@ malloc_conf_error(const char *msg, const char *k, size_t klen, const char *v,
     size_t vlen) {
 	malloc_printf("<jemalloc>: %s: %.*s:%.*s\n", msg, (int)klen, k,
 	    (int)vlen, v);
+	had_conf_error = true;
+	if (opt_abort_conf) {
+		abort();
+	}
 }
 
 static void
@@ -1045,6 +1059,10 @@ malloc_conf_init(void) {
 			}
 
 			CONF_HANDLE_BOOL(opt_abort, "abort")
+			CONF_HANDLE_BOOL(opt_abort_conf, "abort_conf")
+			if (opt_abort_conf && had_conf_error) {
+				abort();
+			}
 			CONF_HANDLE_BOOL(opt_retain, "retain")
 			if (strncmp("dss", k, klen) == 0) {
 				int i;
