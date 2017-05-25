@@ -83,16 +83,14 @@ cat <<EOF
 #define SMOOTHSTEP_NSTEPS	${nsteps}
 #define SMOOTHSTEP_BFP		${bfp}
 #define SMOOTHSTEP \\
- /* STEP(step, h,                            x,     y,                 h_sum) */ \\
+ /* STEP(step, h,                            x,     y) */ \\
 EOF
 
 s=1
-h_sum=0
 while [ $s -le $nsteps ] ; do
   $variant ${s}
   x=`echo ${xprec} k ${s} ${nsteps} / p | dc | tr -d '\\\\\n' | sed -e 's#^\.#0.#g'`
-  h_sum=$((h_sum+h))
-  printf '    STEP(%4d, UINT64_C(0x%016x), %s, %s, UINT64_C(0x%016x)) \\\n' ${s} ${h} ${x} ${y} ${h_sum}
+  printf '    STEP(%4d, UINT64_C(0x%016x), %s, %s) \\\n' ${s} ${h} ${x} ${y}
 
   s=$((s+1))
 done
