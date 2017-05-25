@@ -1,7 +1,7 @@
 #include "test/jemalloc_test.h"
 
 static const uint64_t smoothstep_tab[] = {
-#define STEP(step, h, x, y, h_sum)		\
+#define STEP(step, h, x, y)			\
 	h,
 	SMOOTHSTEP
 #undef STEP

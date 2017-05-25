@@ -40,7 +40,7 @@ const arena_bin_info_t arena_bin_info[NBINS] = {
 };
 
 const uint64_t h_steps[SMOOTHSTEP_NSTEPS] = {
-#define STEP(step, h, x, y, h_sum)		\
+#define STEP(step, h, x, y)			\
 		h,
 		SMOOTHSTEP
 #undef STEP
