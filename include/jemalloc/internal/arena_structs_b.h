@@ -238,9 +238,10 @@ struct arena_s {
 	 * be effective even if multiple arenas' extent allocation requests are
 	 * highly interleaved.
 	 *
-	 * Synchronization: atomic.
+	 * Synchronization: extent_grow_mtx
 	 */
-	atomic_u_t		extent_grow_next;
+	pszind_t		extent_grow_next;
+	malloc_mutex_t		extent_grow_mtx;
 
 	/*
 	 * Available extent structures that were allocated via

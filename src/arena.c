@@ -2001,14 +2001,15 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 		goto label_error;
 	}
 
-	if (opt_retain) {
-		atomic_store_u(&arena->extent_grow_next, psz2ind(HUGEPAGE),
-		    ATOMIC_RELAXED);
+	arena->extent_grow_next = psz2ind(HUGEPAGE);
+	if (malloc_mutex_init(&arena->extent_grow_mtx, "extent_grow",
+	    WITNESS_RANK_EXTENT_GROW, malloc_mutex_rank_exclusive)) {
+		goto label_error;
 	}
 
 	extent_avail_new(&arena->extent_avail);
 	if (malloc_mutex_init(&arena->extent_avail_mtx, "extent_avail",
-	    WITNESS_RANK_EXTENT_FREELIST, malloc_mutex_rank_exclusive)) {
+	    WITNESS_RANK_EXTENT_AVAIL, malloc_mutex_rank_exclusive)) {
 		goto label_error;
 	}
 
