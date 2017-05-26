@@ -189,6 +189,7 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/ql.c \
 	$(srcroot)test/unit/qr.c \
 	$(srcroot)test/unit/rb.c \
+	$(srcroot)test/unit/retained.c \
 	$(srcroot)test/unit/rtree.c \
 	$(srcroot)test/unit/SFMT.c \
 	$(srcroot)test/unit/size_classes.c \
