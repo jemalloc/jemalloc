@@ -80,6 +80,8 @@ TEST_BEGIN(test_background_thread_running) {
 
 	test_repeat_background_thread_ctl(false);
 	test_switch_background_thread_ctl(true);
+	assert_b_eq(info->started, true,
+	    "Background_thread did not start.\n");
 
 	nstime_t start, now;
 	nstime_init(&start, 0);
@@ -99,9 +101,9 @@ TEST_BEGIN(test_background_thread_running) {
 		nstime_init(&now, 0);
 		nstime_update(&now);
 		nstime_subtract(&now, &start);
-		assert_u64_lt(nstime_sec(&now), 10,
-		    "Background threads did not run for 10 seconds.");
-		usleep(10000);
+		assert_u64_lt(nstime_sec(&now), 1000,
+		    "Background threads did not run for 1000 seconds.");
+		sleep(1);
 	}
 	test_switch_background_thread_ctl(false);
 #endif
