@@ -1046,8 +1046,13 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena,
 	extent_init(extent, arena, ptr, alloc_size, false, NSIZES,
 	    arena_extent_sn_next(arena), extent_state_active, zeroed,
 	    committed);
-	if (ptr == NULL || extent_register_no_gdump_add(tsdn, extent)) {
+	if (ptr == NULL) {
 		extent_dalloc(tsdn, arena, extent);
+		return NULL;
+	}
+	if (extent_register_no_gdump_add(tsdn, extent)) {
+		extents_leak(tsdn, arena, r_extent_hooks,
+		    &arena->extents_retained, extent);
 		return NULL;
 	}
 
@@ -1070,7 +1075,8 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena,
 		    leadsize, NSIZES, false, esize + trailsize, szind, slab);
 		if (extent == NULL) {
 			extent_deregister(tsdn, lead);
-			extents_leak(tsdn, arena, r_extent_hooks, false, lead);
+			extents_leak(tsdn, arena, r_extent_hooks,
+			    &arena->extents_retained, lead);
 			return NULL;
 		}
 		extent_record(tsdn, arena, r_extent_hooks,
