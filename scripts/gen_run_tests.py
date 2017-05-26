@@ -60,9 +60,9 @@ for cc, cxx in possible_compilers:
                 # Heap profiling and dss are not supported on OS X.
                 darwin_unsupported = ('--enable-prof' in config_opts or \
                   'dss:primary' in malloc_conf_opts)
-                if uname is 'Linux' and linux_supported \
-                  or uname is not 'Darwin' \
-                  or not darwin_unsupported:
+                if (uname == 'Linux' and linux_supported) \
+                  or (not linux_supported and (uname != 'Darwin' or \
+                  not darwin_unsupported)):
                     print """cat <<EOF > run_test_%(ind)d.sh
 #!/bin/sh
 
