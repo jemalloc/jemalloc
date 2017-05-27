@@ -724,7 +724,7 @@ stats_print_atexit(void) {
 			}
 		}
 	}
-	je_malloc_stats_print(NULL, NULL, NULL);
+	je_malloc_stats_print(NULL, NULL, opt_stats_print_opts);
 }
 
 /*
@@ -775,6 +775,31 @@ malloc_ncpus(void) {
 	result = sysconf(_SC_NPROCESSORS_ONLN);
 #endif
 	return ((result == -1) ? 1 : (unsigned)result);
+}
+
+static void
+init_opt_stats_print_opts(const char *v, size_t vlen) {
+	size_t opts_len = strlen(opt_stats_print_opts);
+	assert(opts_len <= stats_print_tot_num_options);
+
+	for (size_t i = 0; i < vlen; i++) {
+		switch (v[i]) {
+#define OPTION(o, v, d, s) case o: break;
+			STATS_PRINT_OPTIONS
+#undef OPTION
+		default: continue;
+		}
+
+		if (strchr(opt_stats_print_opts, v[i]) != NULL) {
+			/* Ignore repeated. */
+			continue;
+		}
+
+		opt_stats_print_opts[opts_len++] = v[i];
+		opt_stats_print_opts[opts_len] = '\0';
+		assert(opts_len <= stats_print_tot_num_options);
+	}
+	assert(opts_len == strlen(opt_stats_print_opts));
 }
 
 static bool
@@ -1099,6 +1124,10 @@ malloc_conf_init(void) {
 			    QU(SSIZE_MAX) ? NSTIME_SEC_MAX * KQU(1000) :
 			    SSIZE_MAX);
 			CONF_HANDLE_BOOL(opt_stats_print, "stats_print")
+			if (CONF_MATCH("stats_print_opts")) {
+				init_opt_stats_print_opts(v, vlen);
+				continue;
+			}
 			if (config_fill) {
 				if (CONF_MATCH("junk")) {
 					if (CONF_MATCH_VALUE("true")) {
