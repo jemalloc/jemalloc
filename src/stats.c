@@ -46,7 +46,8 @@ const char *arena_mutex_names[mutex_prof_num_arena_mutexes] = {
 /******************************************************************************/
 /* Data. */
 
-bool	opt_stats_print = false;
+bool opt_stats_print = false;
+char opt_stats_print_opts[stats_print_tot_num_options+1] = "";
 
 /******************************************************************************/
 
@@ -838,12 +839,16 @@ stats_general_print(void (*write_cb)(void *, const char *), void *cbopaque,
 	OPT_WRITE_BOOL(prof_gdump, ",")
 	OPT_WRITE_BOOL(prof_final, ",")
 	OPT_WRITE_BOOL(prof_leak, ",")
-	/*
-	 * stats_print is always emitted, so as long as stats_print comes last
-	 * it's safe to unconditionally omit the comma here (rather than having
-	 * to conditionally omit it elsewhere depending on configuration).
-	 */
-	OPT_WRITE_BOOL(stats_print, "")
+	OPT_WRITE_BOOL(stats_print, ",")
+	if (json || opt_stats_print) {
+		/*
+		 * stats_print_opts is always emitted for JSON, so as long as it
+		 * comes last it's safe to unconditionally omit the comma here
+		 * (rather than having to conditionally omit it elsewhere
+		 * depending on configuration).
+		 */
+		OPT_WRITE_CHAR_P(stats_print_opts, "")
+	}
 	if (json) {
 		malloc_cprintf(write_cb, cbopaque,
 		    "\t\t},\n");
@@ -1228,14 +1233,9 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 	int err;
 	uint64_t epoch;
 	size_t u64sz;
-	bool json = false;
-	bool general = true;
-	bool merged = config_stats;
-	bool destroyed = config_stats;
-	bool unmerged = config_stats;
-	bool bins = true;
-	bool large = true;
-	bool mutex = true;
+#define OPTION(o, v, d, s) bool v = d;
+	STATS_PRINT_OPTIONS
+#undef OPTION
 
 	/*
 	 * Refresh stats, in case mallctl() was called by the application.
@@ -1260,34 +1260,11 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 	}
 
 	if (opts != NULL) {
-		unsigned i;
-
-		for (i = 0; opts[i] != '\0'; i++) {
+		for (unsigned i = 0; opts[i] != '\0'; i++) {
 			switch (opts[i]) {
-			case 'J':
-				json = true;
-				break;
-			case 'g':
-				general = false;
-				break;
-			case 'm':
-				merged = false;
-				break;
-			case 'd':
-				destroyed = false;
-				break;
-			case 'a':
-				unmerged = false;
-				break;
-			case 'b':
-				bins = false;
-				break;
-			case 'l':
-				large = false;
-				break;
-			case 'x':
-				mutex = false;
-				break;
+#define OPTION(o, v, d, s) case o: v = s; break;
+				STATS_PRINT_OPTIONS
+#undef OPTION
 			default:;
 			}
 		}

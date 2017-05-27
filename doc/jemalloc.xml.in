@@ -410,6 +410,8 @@ for (i = 0; i < nbins; i++) {
 	/* Do something with bin_size... */
 }]]></programlisting></para>
 
+      <varlistentry id="malloc_stats_print_opts">
+      </varlistentry>
       <para>The <function>malloc_stats_print()</function> function writes
       summary statistics via the <parameter>write_cb</parameter> callback
       function pointer and <parameter>cbopaque</parameter> data passed to
@@ -1046,7 +1048,9 @@ mallctl("arena." STRINGIFY(MALLCTL_ARENAS_ALL) ".decay",
         enabled, the <function>malloc_stats_print()</function>
         function is called at program exit via an
         <citerefentry><refentrytitle>atexit</refentrytitle>
-        <manvolnum>3</manvolnum></citerefentry> function.  If
+        <manvolnum>3</manvolnum></citerefentry> function.  <link
+        linkend="opt.stats_print_opts"><mallctl>opt.stats_print_opts</mallctl></link>
+        can be combined to specify output options. If
         <option>--enable-stats</option> is specified during configuration, this
         has the potential to cause deadlock for a multi-threaded process that
         exits while one or more threads are executing in the memory allocation
@@ -1059,6 +1063,23 @@ mallctl("arena." STRINGIFY(MALLCTL_ARENAS_ALL) ".decay",
         functionality).  Therefore, this option should only be used with care;
         it is primarily intended as a performance tuning aid during application
         development.  This option is disabled by default.</para></listitem>
+      </varlistentry>
+
+      <varlistentry id="opt.stats_print_opts">
+        <term>
+          <mallctl>opt.stats_print_opts</mallctl>
+          (<type>const char *</type>)
+          <literal>r-</literal>
+        </term>
+        <listitem><para>Options (the <parameter>opts</parameter> string) to pass
+        to the <function>malloc_stats_print()</function> at exit (enabled
+        through <link
+        linkend="opt.stats_print"><mallctl>opt.stats_print</mallctl></link>). See
+        available options in <link
+        linkend="malloc_stats_print_opts"><function>malloc_stats_print()</function></link>.
+        Has no effect unless <link
+        linkend="opt.stats_print"><mallctl>opt.stats_print</mallctl></link> is
+        enabled.  The default is <quote></quote>.</para></listitem>
       </varlistentry>
 
       <varlistentry id="opt.junk">
