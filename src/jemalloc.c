@@ -878,13 +878,21 @@ malloc_conf_next(char const **opts_p, char const **k_p, size_t *klen_p,
 }
 
 static void
+malloc_abort_invalid_conf(void) {
+	assert(opt_abort_conf);
+	malloc_printf("<jemalloc>: Abort (abort_conf:true) on invalid conf "
+	    "value (see above).\n");
+	abort();
+}
+
+static void
 malloc_conf_error(const char *msg, const char *k, size_t klen, const char *v,
     size_t vlen) {
 	malloc_printf("<jemalloc>: %s: %.*s:%.*s\n", msg, (int)klen, k,
 	    (int)vlen, v);
 	had_conf_error = true;
 	if (opt_abort_conf) {
-		abort();
+		malloc_abort_invalid_conf();
 	}
 }
 
@@ -1086,7 +1094,7 @@ malloc_conf_init(void) {
 			CONF_HANDLE_BOOL(opt_abort, "abort")
 			CONF_HANDLE_BOOL(opt_abort_conf, "abort_conf")
 			if (opt_abort_conf && had_conf_error) {
-				abort();
+				malloc_abort_invalid_conf();
 			}
 			CONF_HANDLE_BOOL(opt_retain, "retain")
 			if (strncmp("dss", k, klen) == 0) {
