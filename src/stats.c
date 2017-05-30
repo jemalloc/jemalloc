@@ -131,7 +131,7 @@ stats_arena_bins_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		    "\t\t\t\t\"bins\": [\n");
 	} else {
 		char *mutex_counters = "   n_lock_ops    n_waiting"
-		    "   n_spin_acq  max_wait_ns\n";
+		    "   n_spin_acq  total_wait_ns  max_wait_ns\n";
 		malloc_cprintf(write_cb, cbopaque,
 		    "bins:           size ind    allocated      nmalloc"
 		    "      ndalloc    nrequests      curregs     curslabs regs"
@@ -221,26 +221,9 @@ stats_arena_bins_print(void (*write_cb)(void *, const char *), void *cbopaque,
 					not_reached();
 				}
 			}
-			/* Output less info for bin mutexes to save space. */
-			uint64_t num_ops, num_wait, max_wait;
-			CTL_M2_M4_GET("stats.arenas.0.bins.0.mutex.num_wait",
-			    i, j, &num_wait, uint64_t);
-			CTL_M2_M4_GET(
-			    "stats.arenas.0.bins.0.mutex.max_wait_time", i, j,
-			    &max_wait, uint64_t);
-			CTL_M2_M4_GET("stats.arenas.0.bins.0.mutex.num_ops",
-			    i, j, &num_ops, uint64_t);
 			uint64_t mutex_stats[mutex_prof_num_counters];
 			if (mutex) {
 				read_arena_bin_mutex_stats(i, j, mutex_stats);
-			}
-
-			char rate[6];
-			if (get_rate_str(num_wait, num_ops, rate)) {
-				if (num_ops == 0) {
-					malloc_snprintf(rate, sizeof(rate),
-					    "0");
-				}
 			}
 
 			malloc_cprintf(write_cb, cbopaque, "%20zu %3u %12zu %12"
@@ -250,13 +233,16 @@ stats_arena_bins_print(void (*write_cb)(void *, const char *), void *cbopaque,
 			    nmalloc, ndalloc, nrequests, curregs, curslabs,
 			    nregs, slab_size / page, util, nfills, nflushes,
 			    nslabs, nreslabs);
+
+			/* Output less info for bin mutexes to save space. */
 			if (mutex) {
 				malloc_cprintf(write_cb, cbopaque,
 				    " %12"FMTu64" %12"FMTu64" %12"FMTu64
-				    " %12"FMTu64"\n",
+				    " %14"FMTu64" %12"FMTu64"\n",
 				    mutex_stats[mutex_counter_num_ops],
 				    mutex_stats[mutex_counter_num_wait],
 				    mutex_stats[mutex_counter_num_spin_acq],
+				    mutex_stats[mutex_counter_total_wait_time],
 				    mutex_stats[mutex_counter_max_wait_time]);
 			} else {
 				malloc_cprintf(write_cb, cbopaque, "\n");
