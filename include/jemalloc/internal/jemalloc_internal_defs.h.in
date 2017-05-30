@@ -269,8 +269,8 @@
 #undef JEMALLOC_PURGE_MADVISE_DONTNEED_ZEROS
 
 /*
- * Defined if transparent huge pages are supported via the MADV_[NO]HUGEPAGE
- * arguments to madvise(2).
+ * Defined if transparent huge pages (THPs) are supported via the
+ * MADV_[NO]HUGEPAGE arguments to madvise(2), and THP support is enabled.
  */
 #undef JEMALLOC_THP
 
