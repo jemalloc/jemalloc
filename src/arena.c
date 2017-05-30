@@ -637,15 +637,14 @@ arena_decay_backlog_npages_limit(const arena_decay_t *decay) {
 }
 
 static void
-arena_decay_backlog_update_last(arena_decay_t *decay, extents_t *extents) {
-	size_t ndirty = extents_npages_get(extents);
-	size_t ndirty_delta = (ndirty > decay->nunpurged) ? ndirty -
-	    decay->nunpurged : 0;
-	decay->backlog[SMOOTHSTEP_NSTEPS-1] = ndirty_delta;
+arena_decay_backlog_update_last(arena_decay_t *decay, size_t current_npages) {
+	size_t npages_delta = (current_npages > decay->nunpurged) ?
+	    current_npages - decay->nunpurged : 0;
+	decay->backlog[SMOOTHSTEP_NSTEPS-1] = npages_delta;
 
 	if (config_debug) {
-		if (ndirty > decay->ceil_npages) {
-			decay->ceil_npages = ndirty;
+		if (current_npages > decay->ceil_npages) {
+			decay->ceil_npages = current_npages;
 		}
 		size_t npages_limit = arena_decay_backlog_npages_limit(decay);
 		assert(decay->ceil_npages >= npages_limit);
@@ -656,8 +655,8 @@ arena_decay_backlog_update_last(arena_decay_t *decay, extents_t *extents) {
 }
 
 static void
-arena_decay_backlog_update(arena_decay_t *decay, extents_t *extents,
-    uint64_t nadvance_u64) {
+arena_decay_backlog_update(arena_decay_t *decay, uint64_t nadvance_u64,
+    size_t current_npages) {
 	if (nadvance_u64 >= SMOOTHSTEP_NSTEPS) {
 		memset(decay->backlog, 0, (SMOOTHSTEP_NSTEPS-1) *
 		    sizeof(size_t));
@@ -674,7 +673,7 @@ arena_decay_backlog_update(arena_decay_t *decay, extents_t *extents,
 		}
 	}
 
-	arena_decay_backlog_update_last(decay, extents);
+	arena_decay_backlog_update_last(decay, current_npages);
 }
 
 static void
@@ -687,8 +686,8 @@ arena_decay_try_purge(tsdn_t *tsdn, arena_t *arena, arena_decay_t *decay,
 }
 
 static void
-arena_decay_epoch_advance_helper(arena_decay_t *decay, extents_t *extents,
-    const nstime_t *time) {
+arena_decay_epoch_advance_helper(arena_decay_t *decay, const nstime_t *time,
+    size_t current_npages) {
 	assert(arena_decay_deadline_reached(decay, time));
 
 	nstime_t delta;
@@ -707,25 +706,20 @@ arena_decay_epoch_advance_helper(arena_decay_t *decay, extents_t *extents,
 	arena_decay_deadline_init(decay);
 
 	/* Update the backlog. */
-	arena_decay_backlog_update(decay, extents, nadvance_u64);
+	arena_decay_backlog_update(decay, nadvance_u64, current_npages);
 }
 
 static void
 arena_decay_epoch_advance(tsdn_t *tsdn, arena_t *arena, arena_decay_t *decay,
     extents_t *extents, const nstime_t *time, bool purge) {
-	arena_decay_epoch_advance_helper(decay, extents, time);
-
 	size_t current_npages = extents_npages_get(extents);
+	arena_decay_epoch_advance_helper(decay, time, current_npages);
+
 	size_t npages_limit = arena_decay_backlog_npages_limit(decay);
 	if (purge) {
 		arena_decay_try_purge(tsdn, arena, decay, extents,
 		    current_npages, npages_limit);
 	}
-	/*
-	 * There may be concurrent ndirty fluctuation between the purge above
-	 * and the nunpurged update below, but this is inconsequential to decay
-	 * machinery correctness.
-	 */
 	decay->nunpurged = (npages_limit > current_npages) ? npages_limit :
 	    current_npages;
 }
