@@ -5,6 +5,7 @@
 #include "jemalloc/internal/assert.h"
 #include "jemalloc/internal/extent_mmap.h"
 #include "jemalloc/internal/mutex.h"
+#include "jemalloc/internal/sz.h"
 
 /******************************************************************************/
 /* Data. */
@@ -121,8 +122,8 @@ base_extent_bump_alloc_post(tsdn_t *tsdn, base_t *base, extent_t *extent,
 		 * Compute the index for the largest size class that does not
 		 * exceed extent's size.
 		 */
-		szind_t index_floor = size2index(extent_bsize_get(extent) + 1) -
-		    1;
+		szind_t index_floor =
+		    sz_size2index(extent_bsize_get(extent) + 1) - 1;
 		extent_heap_insert(&base->avail[index_floor], extent);
 	}
 
@@ -171,11 +172,11 @@ base_block_alloc(extent_hooks_t *extent_hooks, unsigned ind,
 	 * HUGEPAGE), or a size large enough to satisfy the requested size and
 	 * alignment, whichever is larger.
 	 */
-	size_t min_block_size = HUGEPAGE_CEILING(psz2u(header_size + gap_size +
-	    usize));
+	size_t min_block_size = HUGEPAGE_CEILING(sz_psz2u(header_size + gap_size
+	    + usize));
 	pszind_t pind_next = (*pind_last + 1 < NPSIZES) ? *pind_last + 1 :
 	    *pind_last;
-	size_t next_block_size = HUGEPAGE_CEILING(pind2sz(pind_next));
+	size_t next_block_size = HUGEPAGE_CEILING(sz_pind2sz(pind_next));
 	size_t block_size = (min_block_size > next_block_size) ? min_block_size
 	    : next_block_size;
 	base_block_t *block = (base_block_t *)base_map(extent_hooks, ind,
@@ -183,7 +184,7 @@ base_block_alloc(extent_hooks_t *extent_hooks, unsigned ind,
 	if (block == NULL) {
 		return NULL;
 	}
-	*pind_last = psz2ind(block_size);
+	*pind_last = sz_psz2ind(block_size);
 	block->size = block_size;
 	block->next = NULL;
 	assert(block_size >= header_size);
@@ -304,7 +305,7 @@ base_alloc_impl(tsdn_t *tsdn, base_t *base, size_t size, size_t alignment,
 
 	extent_t *extent = NULL;
 	malloc_mutex_lock(tsdn, &base->mtx);
-	for (szind_t i = size2index(asize); i < NSIZES; i++) {
+	for (szind_t i = sz_size2index(asize); i < NSIZES; i++) {
 		extent = extent_heap_remove_first(&base->avail[i]);
 		if (extent != NULL) {
 			/* Use existing space. */

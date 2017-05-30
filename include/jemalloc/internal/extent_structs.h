@@ -53,7 +53,7 @@ struct extent_s {
 	 * szind: The szind flag indicates usable size class index for
 	 *        allocations residing in this extent, regardless of whether the
 	 *        extent is a slab.  Extent size and usable size often differ
-	 *        even for non-slabs, either due to large_pad or promotion of
+	 *        even for non-slabs, either due to sz_large_pad or promotion of
 	 *        sampled small regions.
 	 *
 	 * nfree: Number of free regions in slab.

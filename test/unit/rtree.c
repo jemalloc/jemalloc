@@ -86,7 +86,8 @@ TEST_END
 TEST_BEGIN(test_rtree_extrema) {
 	extent_t extent_a, extent_b;
 	extent_init(&extent_a, NULL, NULL, LARGE_MINCLASS, false,
-	    size2index(LARGE_MINCLASS), 0, extent_state_active, false, false);
+	    sz_size2index(LARGE_MINCLASS), 0, extent_state_active, false,
+	    false);
 	extent_init(&extent_b, NULL, NULL, 0, false, NSIZES, 0,
 	    extent_state_active, false, false);
 

@@ -1,8 +1,6 @@
 #ifndef JEMALLOC_INTERNAL_ARENA_TYPES_H
 #define JEMALLOC_INTERNAL_ARENA_TYPES_H
 
-#define LARGE_MINCLASS		(ZU(1) << LG_LARGE_MINCLASS)
-
 /* Maximum number of regions in one slab. */
 #define LG_SLAB_MAXREGS		(LG_PAGE - LG_TINY_MIN)
 #define SLAB_MAXREGS		(1U << LG_SLAB_MAXREGS)

@@ -31,23 +31,6 @@ extern unsigned narenas_auto;
  */
 extern atomic_p_t arenas[];
 
-/*
- * pind2sz_tab encodes the same information as could be computed by
- * pind2sz_compute().
- */
-extern size_t const pind2sz_tab[NPSIZES+1];
-/*
- * index2size_tab encodes the same information as could be computed (at
- * unacceptable cost in some code paths) by index2size_compute().
- */
-extern size_t const index2size_tab[NSIZES];
-/*
- * size2index_tab is a compact lookup table that rounds request sizes up to
- * size classes.  In order to reduce cache footprint, the table is compressed,
- * and all accesses are via size2index().
- */
-extern uint8_t const size2index_tab[];
-
 void *a0malloc(size_t size);
 void a0dalloc(void *ptr);
 void *bootstrap_malloc(size_t size);

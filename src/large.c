@@ -12,7 +12,7 @@
 
 void *
 large_malloc(tsdn_t *tsdn, arena_t *arena, size_t usize, bool zero) {
-	assert(usize == s2u(usize));
+	assert(usize == sz_s2u(usize));
 
 	return large_palloc(tsdn, arena, usize, CACHELINE, zero);
 }
@@ -27,7 +27,7 @@ large_palloc(tsdn_t *tsdn, arena_t *arena, size_t usize, size_t alignment,
 
 	assert(!tsdn_null(tsdn) || arena != NULL);
 
-	ausize = sa2u(usize, alignment);
+	ausize = sz_sa2u(usize, alignment);
 	if (unlikely(ausize == 0 || ausize > LARGE_MAXCLASS)) {
 		return NULL;
 	}
@@ -97,7 +97,7 @@ large_ralloc_no_move_shrink(tsdn_t *tsdn, extent_t *extent, size_t usize) {
 	arena_t *arena = extent_arena_get(extent);
 	size_t oldusize = extent_usize_get(extent);
 	extent_hooks_t *extent_hooks = extent_hooks_get(arena);
-	size_t diff = extent_size_get(extent) - (usize + large_pad);
+	size_t diff = extent_size_get(extent) - (usize + sz_large_pad);
 
 	assert(oldusize > usize);
 
@@ -108,8 +108,8 @@ large_ralloc_no_move_shrink(tsdn_t *tsdn, extent_t *extent, size_t usize) {
 	/* Split excess pages. */
 	if (diff != 0) {
 		extent_t *trail = extent_split_wrapper(tsdn, arena,
-		    &extent_hooks, extent, usize + large_pad, size2index(usize),
-		    false, diff, NSIZES, false);
+		    &extent_hooks, extent, usize + sz_large_pad,
+		    sz_size2index(usize), false, diff, NSIZES, false);
 		if (trail == NULL) {
 			return true;
 		}
@@ -178,7 +178,7 @@ large_ralloc_no_move_expand(tsdn_t *tsdn, extent_t *extent, size_t usize,
 	}
 	rtree_ctx_t rtree_ctx_fallback;
 	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
-	szind_t szind = size2index(usize);
+	szind_t szind = sz_size2index(usize);
 	extent_szind_set(extent, szind);
 	rtree_szind_slab_update(tsdn, &extents_rtree, rtree_ctx,
 	    (uintptr_t)extent_addr_get(extent), szind, false);
