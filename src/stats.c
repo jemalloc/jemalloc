@@ -725,6 +725,7 @@ stats_general_print(void (*write_cb)(void *, const char *), void *cbopaque,
 	CONFIG_WRITE_BOOL_JSON(prof_libgcc, ",")
 	CONFIG_WRITE_BOOL_JSON(prof_libunwind, ",")
 	CONFIG_WRITE_BOOL_JSON(stats, ",")
+	CONFIG_WRITE_BOOL_JSON(thp, ",")
 	CONFIG_WRITE_BOOL_JSON(utrace, ",")
 	CONFIG_WRITE_BOOL_JSON(xmalloc, "")
 

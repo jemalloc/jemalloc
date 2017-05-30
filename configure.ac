@@ -1792,10 +1792,28 @@ if test "x${je_cv_madvise}" = "xyes" ; then
 	madvise((void *)0, 0, MADV_HUGEPAGE);
 	madvise((void *)0, 0, MADV_NOHUGEPAGE);
 ], [je_cv_thp])
-  if test "x${je_cv_thp}" = "xyes" ; then
-    AC_DEFINE([JEMALLOC_THP], [ ])
-  fi
 fi
+
+dnl Enable transparent huge page support by default.
+AC_ARG_ENABLE([thp],
+  [AS_HELP_STRING([--disable-thp],
+                  [Disable transparent huge page support])],
+[if test "x$enable_thp" = "xno" -o "x${je_cv_thp}" != "xyes" ; then
+  enable_thp="0"
+else
+  enable_thp="1"
+fi
+],
+[if test "x${je_cv_thp}" = "xyes" ; then
+  enable_thp="1"
+else
+  enable_thp="0"
+fi
+])
+if test "x$enable_thp" = "x1" ; then
+  AC_DEFINE([JEMALLOC_THP], [ ])
+fi
+AC_SUBST([enable_thp])
 
 dnl ============================================================================
 dnl Check whether __sync_{add,sub}_and_fetch() are available despite
@@ -2141,6 +2159,7 @@ AC_MSG_RESULT([prof               : ${enable_prof}])
 AC_MSG_RESULT([prof-libunwind     : ${enable_prof_libunwind}])
 AC_MSG_RESULT([prof-libgcc        : ${enable_prof_libgcc}])
 AC_MSG_RESULT([prof-gcc           : ${enable_prof_gcc}])
+AC_MSG_RESULT([thp                : ${enable_thp}])
 AC_MSG_RESULT([fill               : ${enable_fill}])
 AC_MSG_RESULT([utrace             : ${enable_utrace}])
 AC_MSG_RESULT([xmalloc            : ${enable_xmalloc}])

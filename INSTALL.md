@@ -157,6 +157,11 @@ any of the following arguments (not a definitive list) to 'configure':
     Statically link against the specified libunwind.a rather than dynamically
     linking with -lunwind.
 
+* `--disable-thp`
+
+    Disable transparent huge page (THP) integration.  This option can be useful
+    when cross compiling.
+
 * `--disable-fill`
 
     Disable support for junk/zero filling of memory.  See the "opt.junk" and
@@ -224,7 +229,7 @@ any of the following arguments (not a definitive list) to 'configure':
 * `--with-lg-page-sizes=<lg-page-sizes>`
 
     Specify the comma-separated base 2 logs of the page sizes to support.  This
-    option may be useful when cross-compiling in combination with
+    option may be useful when cross compiling in combination with
     `--with-lg-page`, but its primary use case is for integration with FreeBSD's
     libc, wherein jemalloc is embedded.
 
