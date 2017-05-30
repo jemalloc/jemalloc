@@ -1,5 +1,7 @@
 #include "test/jemalloc_test.h"
 
+#include "jemalloc/internal/spin.h"
+
 static unsigned		arena_ind;
 static size_t		sz;
 static size_t		esz;
@@ -100,7 +102,7 @@ TEST_BEGIN(test_retained) {
 
 	arena_ind = do_arena_create(NULL);
 	sz = nallocx(HUGEPAGE, 0);
-	esz = sz + large_pad;
+	esz = sz + sz_large_pad;
 
 	atomic_store_u(&epoch, 0, ATOMIC_RELAXED);
 
@@ -136,9 +138,9 @@ TEST_BEGIN(test_retained) {
 		arena_t *arena = arena_get(tsdn_fetch(), arena_ind, false);
 		size_t usable = 0;
 		size_t fragmented = 0;
-		for (pszind_t pind = psz2ind(HUGEPAGE); pind <
+		for (pszind_t pind = sz_psz2ind(HUGEPAGE); pind <
 		    arena->extent_grow_next; pind++) {
-			size_t psz = pind2sz(pind);
+			size_t psz = sz_pind2sz(pind);
 			size_t psz_fragmented = psz % esz;
 			size_t psz_usable = psz - psz_fragmented;
 			/*

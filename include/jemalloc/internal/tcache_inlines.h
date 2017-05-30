@@ -3,6 +3,7 @@
 
 #include "jemalloc/internal/jemalloc_internal_types.h"
 #include "jemalloc/internal/size_classes.h"
+#include "jemalloc/internal/sz.h"
 #include "jemalloc/internal/ticker.h"
 #include "jemalloc/internal/util.h"
 
@@ -95,7 +96,7 @@ tcache_alloc_small(tsd_t *tsd, arena_t *arena, tcache_t *tcache, size_t size,
 	 * statement are all static.
 	 */
 	if (config_prof || (slow_path && config_fill) || unlikely(zero)) {
-		usize = index2size(binind);
+		usize = sz_index2size(binind);
 		assert(tcache_salloc(tsd_tsdn(tsd), ret) == usize);
 	}
 
@@ -147,7 +148,7 @@ tcache_alloc_large(tsd_t *tsd, arena_t *arena, tcache_t *tcache, size_t size,
 			return NULL;
 		}
 
-		ret = large_malloc(tsd_tsdn(tsd), arena, s2u(size), zero);
+		ret = large_malloc(tsd_tsdn(tsd), arena, sz_s2u(size), zero);
 		if (ret == NULL) {
 			return NULL;
 		}
@@ -157,7 +158,7 @@ tcache_alloc_large(tsd_t *tsd, arena_t *arena, tcache_t *tcache, size_t size,
 		/* Only compute usize on demand */
 		if (config_prof || (slow_path && config_fill) ||
 		    unlikely(zero)) {
-			usize = index2size(binind);
+			usize = sz_index2size(binind);
 			assert(usize <= tcache_maxclass);
 		}
 
@@ -221,7 +222,7 @@ tcache_dalloc_large(tsd_t *tsd, tcache_t *tcache, void *ptr, szind_t binind,
 	assert(tcache_salloc(tsd_tsdn(tsd), ptr) <= tcache_maxclass);
 
 	if (slow_path && config_fill && unlikely(opt_junk_free)) {
-		large_dalloc_junk(ptr, index2size(binind));
+		large_dalloc_junk(ptr, sz_index2size(binind));
 	}
 
 	tbin = tcache_large_bin_get(tcache, binind);

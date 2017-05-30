@@ -6,6 +6,7 @@
 #include "jemalloc/internal/pages.h"
 #include "jemalloc/internal/prng.h"
 #include "jemalloc/internal/ql.h"
+#include "jemalloc/internal/sz.h"
 
 static inline void
 extent_lock(tsdn_t *tsdn, extent_t *extent) {
@@ -65,7 +66,7 @@ extent_szind_get(const extent_t *extent) {
 
 static inline size_t
 extent_usize_get(const extent_t *extent) {
-	return index2size(extent_szind_get(extent));
+	return sz_index2size(extent_szind_get(extent));
 }
 
 static inline size_t

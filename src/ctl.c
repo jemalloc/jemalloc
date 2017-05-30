@@ -701,7 +701,7 @@ ctl_arena_stats_amerge(tsdn_t *tsdn, ctl_arena_t *ctl_arena, arena_t *arena) {
 		for (i = 0; i < NBINS; i++) {
 			ctl_arena->astats->allocated_small +=
 			    ctl_arena->astats->bstats[i].curregs *
-			    index2size(i);
+			    sz_index2size(i);
 			ctl_arena->astats->nmalloc_small +=
 			    ctl_arena->astats->bstats[i].nmalloc;
 			ctl_arena->astats->ndalloc_small +=
@@ -2274,7 +2274,8 @@ arenas_bin_i_index(tsdn_t *tsdn, const size_t *mib, size_t miblen, size_t i) {
 }
 
 CTL_RO_NL_GEN(arenas_nlextents, NSIZES - NBINS, unsigned)
-CTL_RO_NL_GEN(arenas_lextent_i_size, index2size(NBINS+(szind_t)mib[2]), size_t)
+CTL_RO_NL_GEN(arenas_lextent_i_size, sz_index2size(NBINS+(szind_t)mib[2]),
+    size_t)
 static const ctl_named_node_t *
 arenas_lextent_i_index(tsdn_t *tsdn, const size_t *mib, size_t miblen,
     size_t i) {

@@ -1,6 +1,8 @@
 #ifndef JEMALLOC_INTERNAL_PROF_INLINES_B_H
 #define JEMALLOC_INTERNAL_PROF_INLINES_B_H
 
+#include "jemalloc/internal/sz.h"
+
 JEMALLOC_ALWAYS_INLINE bool
 prof_active_get_unlocked(void) {
 	/*
@@ -113,7 +115,7 @@ prof_alloc_prep(tsd_t *tsd, size_t usize, bool prof_active, bool update) {
 	prof_tdata_t *tdata;
 	prof_bt_t bt;
 
-	assert(usize == s2u(usize));
+	assert(usize == sz_s2u(usize));
 
 	if (!prof_active || likely(prof_sample_accum_update(tsd, usize, update,
 	    &tdata))) {

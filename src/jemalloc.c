@@ -13,6 +13,7 @@
 #include "jemalloc/internal/rtree.h"
 #include "jemalloc/internal/size_classes.h"
 #include "jemalloc/internal/spin.h"
+#include "jemalloc/internal/sz.h"
 #include "jemalloc/internal/ticker.h"
 #include "jemalloc/internal/util.h"
 
@@ -106,110 +107,6 @@ enum {
 	flag_opt_xmalloc	= (1U << 4)
 };
 static uint8_t	malloc_slow_flags;
-
-JEMALLOC_ALIGNED(CACHELINE)
-const size_t	pind2sz_tab[NPSIZES+1] = {
-#define PSZ_yes(lg_grp, ndelta, lg_delta)				\
-	(((ZU(1)<<lg_grp) + (ZU(ndelta)<<lg_delta))),
-#define PSZ_no(lg_grp, ndelta, lg_delta)
-#define SC(index, lg_grp, lg_delta, ndelta, psz, bin, pgs, lg_delta_lookup) \
-	PSZ_##psz(lg_grp, ndelta, lg_delta)
-	SIZE_CLASSES
-#undef PSZ_yes
-#undef PSZ_no
-#undef SC
-	(LARGE_MAXCLASS + PAGE)
-};
-
-JEMALLOC_ALIGNED(CACHELINE)
-const size_t	index2size_tab[NSIZES] = {
-#define SC(index, lg_grp, lg_delta, ndelta, psz, bin, pgs, lg_delta_lookup) \
-	((ZU(1)<<lg_grp) + (ZU(ndelta)<<lg_delta)),
-	SIZE_CLASSES
-#undef SC
-};
-
-JEMALLOC_ALIGNED(CACHELINE)
-const uint8_t	size2index_tab[] = {
-#if LG_TINY_MIN == 0
-#warning "Dangerous LG_TINY_MIN"
-#define S2B_0(i)	i,
-#elif LG_TINY_MIN == 1
-#warning "Dangerous LG_TINY_MIN"
-#define S2B_1(i)	i,
-#elif LG_TINY_MIN == 2
-#warning "Dangerous LG_TINY_MIN"
-#define S2B_2(i)	i,
-#elif LG_TINY_MIN == 3
-#define S2B_3(i)	i,
-#elif LG_TINY_MIN == 4
-#define S2B_4(i)	i,
-#elif LG_TINY_MIN == 5
-#define S2B_5(i)	i,
-#elif LG_TINY_MIN == 6
-#define S2B_6(i)	i,
-#elif LG_TINY_MIN == 7
-#define S2B_7(i)	i,
-#elif LG_TINY_MIN == 8
-#define S2B_8(i)	i,
-#elif LG_TINY_MIN == 9
-#define S2B_9(i)	i,
-#elif LG_TINY_MIN == 10
-#define S2B_10(i)	i,
-#elif LG_TINY_MIN == 11
-#define S2B_11(i)	i,
-#else
-#error "Unsupported LG_TINY_MIN"
-#endif
-#if LG_TINY_MIN < 1
-#define S2B_1(i)	S2B_0(i) S2B_0(i)
-#endif
-#if LG_TINY_MIN < 2
-#define S2B_2(i)	S2B_1(i) S2B_1(i)
-#endif
-#if LG_TINY_MIN < 3
-#define S2B_3(i)	S2B_2(i) S2B_2(i)
-#endif
-#if LG_TINY_MIN < 4
-#define S2B_4(i)	S2B_3(i) S2B_3(i)
-#endif
-#if LG_TINY_MIN < 5
-#define S2B_5(i)	S2B_4(i) S2B_4(i)
-#endif
-#if LG_TINY_MIN < 6
-#define S2B_6(i)	S2B_5(i) S2B_5(i)
-#endif
-#if LG_TINY_MIN < 7
-#define S2B_7(i)	S2B_6(i) S2B_6(i)
-#endif
-#if LG_TINY_MIN < 8
-#define S2B_8(i)	S2B_7(i) S2B_7(i)
-#endif
-#if LG_TINY_MIN < 9
-#define S2B_9(i)	S2B_8(i) S2B_8(i)
-#endif
-#if LG_TINY_MIN < 10
-#define S2B_10(i)	S2B_9(i) S2B_9(i)
-#endif
-#if LG_TINY_MIN < 11
-#define S2B_11(i)	S2B_10(i) S2B_10(i)
-#endif
-#define S2B_no(i)
-#define SC(index, lg_grp, lg_delta, ndelta, psz, bin, pgs, lg_delta_lookup) \
-	S2B_##lg_delta_lookup(index)
-	SIZE_CLASSES
-#undef S2B_3
-#undef S2B_4
-#undef S2B_5
-#undef S2B_6
-#undef S2B_7
-#undef S2B_8
-#undef S2B_9
-#undef S2B_10
-#undef S2B_11
-#undef S2B_no
-#undef SC
-};
 
 #ifdef JEMALLOC_THREADED_INIT
 /* Used to let the initializing thread recursively allocate. */
@@ -333,7 +230,7 @@ a0ialloc(size_t size, bool zero, bool is_internal) {
 		return NULL;
 	}
 
-	return iallocztm(TSDN_NULL, size, size2index(size), zero, NULL,
+	return iallocztm(TSDN_NULL, size, sz_size2index(size), zero, NULL,
 	    is_internal, arena_get(TSDN_NULL, 0, true), true);
 }
 
@@ -1687,10 +1584,11 @@ imalloc_sample(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd,
 	size_t bumped_usize = usize;
 
 	if (usize <= SMALL_MAXCLASS) {
-		assert(((dopts->alignment == 0) ? s2u(LARGE_MINCLASS) :
-		    sa2u(LARGE_MINCLASS, dopts->alignment)) == LARGE_MINCLASS);
-		ind_large = size2index(LARGE_MINCLASS);
-		bumped_usize = s2u(LARGE_MINCLASS);
+		assert(((dopts->alignment == 0) ? sz_s2u(LARGE_MINCLASS) :
+		    sz_sa2u(LARGE_MINCLASS, dopts->alignment))
+		    == LARGE_MINCLASS);
+		ind_large = sz_size2index(LARGE_MINCLASS);
+		bumped_usize = sz_s2u(LARGE_MINCLASS);
 		ret = imalloc_no_sample(sopts, dopts, tsd, bumped_usize,
 		    bumped_usize, ind_large);
 		if (unlikely(ret == NULL)) {
@@ -1792,16 +1690,16 @@ imalloc_body(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd) {
 	/* This is the beginning of the "core" algorithm. */
 
 	if (dopts->alignment == 0) {
-		ind = size2index(size);
+		ind = sz_size2index(size);
 		if (unlikely(ind >= NSIZES)) {
 			goto label_oom;
 		}
 		if (config_stats || (config_prof && opt_prof)) {
-			usize = index2size(ind);
+			usize = sz_index2size(ind);
 			assert(usize > 0 && usize <= LARGE_MAXCLASS);
 		}
 	} else {
-		usize = sa2u(size, dopts->alignment);
+		usize = sz_sa2u(size, dopts->alignment);
 		if (unlikely(usize == 0 || usize > LARGE_MAXCLASS)) {
 			goto label_oom;
 		}
@@ -2155,10 +2053,10 @@ ifree(tsd_t *tsd, void *ptr, tcache_t *tcache, bool slow_path) {
 
 	size_t usize;
 	if (config_prof && opt_prof) {
-		usize = index2size(alloc_ctx.szind);
+		usize = sz_index2size(alloc_ctx.szind);
 		prof_free(tsd, ptr, usize, &alloc_ctx);
 	} else if (config_stats) {
-		usize = index2size(alloc_ctx.szind);
+		usize = sz_index2size(alloc_ctx.szind);
 	}
 	if (config_stats) {
 		*tsd_thread_deallocatedp_get(tsd) += usize;
@@ -2192,7 +2090,7 @@ isfree(tsd_t *tsd, void *ptr, size_t usize, tcache_t *tcache, bool slow_path) {
 		rtree_ctx_t *rtree_ctx = tsd_rtree_ctx(tsd);
 		rtree_szind_slab_read(tsd_tsdn(tsd), &extents_rtree, rtree_ctx,
 		    (uintptr_t)ptr, true, &alloc_ctx.szind, &alloc_ctx.slab);
-		assert(alloc_ctx.szind == size2index(usize));
+		assert(alloc_ctx.szind == sz_size2index(usize));
 		ctx = &alloc_ctx;
 		prof_free(tsd, ptr, usize, ctx);
 	} else {
@@ -2247,16 +2145,16 @@ je_realloc(void *ptr, size_t size) {
 		rtree_szind_slab_read(tsd_tsdn(tsd), &extents_rtree, rtree_ctx,
 		    (uintptr_t)ptr, true, &alloc_ctx.szind, &alloc_ctx.slab);
 		assert(alloc_ctx.szind != NSIZES);
-		old_usize = index2size(alloc_ctx.szind);
+		old_usize = sz_index2size(alloc_ctx.szind);
 		assert(old_usize == isalloc(tsd_tsdn(tsd), ptr));
 		if (config_prof && opt_prof) {
-			usize = s2u(size);
+			usize = sz_s2u(size);
 			ret = unlikely(usize == 0 || usize > LARGE_MAXCLASS) ?
 			    NULL : irealloc_prof(tsd, ptr, old_usize, usize,
 			    &alloc_ctx);
 		} else {
 			if (config_stats) {
-				usize = s2u(size);
+				usize = sz_s2u(size);
 			}
 			ret = iralloc(tsd, ptr, old_usize, size, 0, false);
 		}
@@ -2601,10 +2499,11 @@ je_rallocx(void *ptr, size_t size, int flags) {
 	rtree_szind_slab_read(tsd_tsdn(tsd), &extents_rtree, rtree_ctx,
 	    (uintptr_t)ptr, true, &alloc_ctx.szind, &alloc_ctx.slab);
 	assert(alloc_ctx.szind != NSIZES);
-	old_usize = index2size(alloc_ctx.szind);
+	old_usize = sz_index2size(alloc_ctx.szind);
 	assert(old_usize == isalloc(tsd_tsdn(tsd), ptr));
 	if (config_prof && opt_prof) {
-		usize = (alignment == 0) ? s2u(size) : sa2u(size, alignment);
+		usize = (alignment == 0) ?
+		    sz_s2u(size) : sz_sa2u(size, alignment);
 		if (unlikely(usize == 0 || usize > LARGE_MAXCLASS)) {
 			goto label_oom;
 		}
@@ -2685,10 +2584,10 @@ ixallocx_prof(tsd_t *tsd, void *ptr, size_t old_usize, size_t size,
 	 * prof_realloc() will use the actual usize to decide whether to sample.
 	 */
 	if (alignment == 0) {
-		usize_max = s2u(size+extra);
+		usize_max = sz_s2u(size+extra);
 		assert(usize_max > 0 && usize_max <= LARGE_MAXCLASS);
 	} else {
-		usize_max = sa2u(size+extra, alignment);
+		usize_max = sz_sa2u(size+extra, alignment);
 		if (unlikely(usize_max == 0 || usize_max > LARGE_MAXCLASS)) {
 			/*
 			 * usize_max is out of range, and chances are that
@@ -2737,7 +2636,7 @@ je_xallocx(void *ptr, size_t size, size_t extra, int flags) {
 	rtree_szind_slab_read(tsd_tsdn(tsd), &extents_rtree, rtree_ctx,
 	    (uintptr_t)ptr, true, &alloc_ctx.szind, &alloc_ctx.slab);
 	assert(alloc_ctx.szind != NSIZES);
-	old_usize = index2size(alloc_ctx.szind);
+	old_usize = sz_index2size(alloc_ctx.szind);
 	assert(old_usize == isalloc(tsd_tsdn(tsd), ptr));
 	/*
 	 * The API explicitly absolves itself of protecting against (size +
@@ -2847,9 +2746,9 @@ inallocx(tsdn_t *tsdn, size_t size, int flags) {
 
 	size_t usize;
 	if (likely((flags & MALLOCX_LG_ALIGN_MASK) == 0)) {
-		usize = s2u(size);
+		usize = sz_s2u(size);
 	} else {
-		usize = sa2u(size, MALLOCX_ALIGN_GET_SPECIFIED(flags));
+		usize = sz_sa2u(size, MALLOCX_ALIGN_GET_SPECIFIED(flags));
 	}
 	witness_assert_lockless(tsdn_witness_tsdp_get(tsdn));
 	return usize;

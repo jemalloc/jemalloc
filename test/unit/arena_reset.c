@@ -81,7 +81,7 @@ vsalloc(tsdn_t *tsdn, const void *ptr) {
 		return 0;
 	}
 
-	return index2size(szind);
+	return sz_index2size(szind);
 }
 
 static unsigned

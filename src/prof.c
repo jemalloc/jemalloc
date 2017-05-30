@@ -556,7 +556,7 @@ prof_gctx_create(tsdn_t *tsdn, prof_bt_t *bt) {
 	 */
 	size_t size = offsetof(prof_gctx_t, vec) + (bt->len * sizeof(void *));
 	prof_gctx_t *gctx = (prof_gctx_t *)iallocztm(tsdn, size,
-	    size2index(size), false, NULL, true, arena_get(TSDN_NULL, 0, true),
+	    sz_size2index(size), false, NULL, true, arena_get(TSDN_NULL, 0, true),
 	    true);
 	if (gctx == NULL) {
 		return NULL;
@@ -819,7 +819,7 @@ prof_lookup(tsd_t *tsd, prof_bt_t *bt) {
 
 		/* Link a prof_tctx_t into gctx for this thread. */
 		ret.v = iallocztm(tsd_tsdn(tsd), sizeof(prof_tctx_t),
-		    size2index(sizeof(prof_tctx_t)), false, NULL, true,
+		    sz_size2index(sizeof(prof_tctx_t)), false, NULL, true,
 		    arena_ichoose(tsd, NULL), true);
 		if (ret.p == NULL) {
 			if (new_gctx) {
@@ -1899,7 +1899,7 @@ prof_tdata_init_impl(tsd_t *tsd, uint64_t thr_uid, uint64_t thr_discrim,
 
 	/* Initialize an empty cache for this thread. */
 	tdata = (prof_tdata_t *)iallocztm(tsd_tsdn(tsd), sizeof(prof_tdata_t),
-	    size2index(sizeof(prof_tdata_t)), false, NULL, true,
+	    sz_size2index(sizeof(prof_tdata_t)), false, NULL, true,
 	    arena_get(TSDN_NULL, 0, true), true);
 	if (tdata == NULL) {
 		return NULL;
@@ -2135,7 +2135,7 @@ prof_thread_name_alloc(tsdn_t *tsdn, const char *thread_name) {
 		return "";
 	}
 
-	ret = iallocztm(tsdn, size, size2index(size), false, NULL, true,
+	ret = iallocztm(tsdn, size, sz_size2index(size), false, NULL, true,
 	    arena_get(TSDN_NULL, 0, true), true);
 	if (ret == NULL) {
 		return NULL;

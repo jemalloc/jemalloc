@@ -5,6 +5,7 @@
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/rtree.h"
 #include "jemalloc/internal/size_classes.h"
+#include "jemalloc/internal/sz.h"
 #include "jemalloc/internal/ticker.h"
 
 static inline szind_t
@@ -127,7 +128,7 @@ arena_salloc(tsdn_t *tsdn, const void *ptr) {
 	    (uintptr_t)ptr, true);
 	assert(szind != NSIZES);
 
-	return index2size(szind);
+	return sz_index2size(szind);
 }
 
 JEMALLOC_ALWAYS_INLINE size_t
@@ -160,7 +161,7 @@ arena_vsalloc(tsdn_t *tsdn, const void *ptr) {
 
 	assert(szind != NSIZES);
 
-	return index2size(szind);
+	return sz_index2size(szind);
 }
 
 static inline void
@@ -257,7 +258,7 @@ arena_sdalloc_no_tcache(tsdn_t *tsdn, void *ptr, size_t size) {
 		 * There is no risk of being confused by a promoted sampled
 		 * object, so base szind and slab on the given size.
 		 */
-		szind = size2index(size);
+		szind = sz_size2index(size);
 		slab = (szind < NBINS);
 	}
 
@@ -269,7 +270,7 @@ arena_sdalloc_no_tcache(tsdn_t *tsdn, void *ptr, size_t size) {
 		rtree_szind_slab_read(tsdn, &extents_rtree, rtree_ctx,
 		    (uintptr_t)ptr, true, &szind, &slab);
 
-		assert(szind == size2index(size));
+		assert(szind == sz_size2index(size));
 		assert((config_prof && opt_prof) || slab == (szind < NBINS));
 
 		if (config_debug) {
@@ -313,7 +314,7 @@ arena_sdalloc(tsdn_t *tsdn, void *ptr, size_t size, tcache_t *tcache,
 			rtree_szind_slab_read(tsdn, &extents_rtree, rtree_ctx,
 			    (uintptr_t)ptr, true, &local_ctx.szind,
 			    &local_ctx.slab);
-			assert(local_ctx.szind == size2index(size));
+			assert(local_ctx.szind == sz_size2index(size));
 			alloc_ctx = &local_ctx;
 		}
 		slab = alloc_ctx->slab;
@@ -323,7 +324,7 @@ arena_sdalloc(tsdn_t *tsdn, void *ptr, size_t size, tcache_t *tcache,
 		 * There is no risk of being confused by a promoted sampled
 		 * object, so base szind and slab on the given size.
 		 */
-		szind = size2index(size);
+		szind = sz_size2index(size);
 		slab = (szind < NBINS);
 	}
 

@@ -2,6 +2,7 @@
 #define JEMALLOC_INTERNAL_INLINES_C_H
 
 #include "jemalloc/internal/jemalloc_internal_types.h"
+#include "jemalloc/internal/sz.h"
 #include "jemalloc/internal/witness.h"
 
 JEMALLOC_ALWAYS_INLINE arena_t *
@@ -48,7 +49,7 @@ ipallocztm(tsdn_t *tsdn, size_t usize, size_t alignment, bool zero,
 	void *ret;
 
 	assert(usize != 0);
-	assert(usize == sa2u(usize, alignment));
+	assert(usize == sz_sa2u(usize, alignment));
 	assert(!is_internal || tcache == NULL);
 	assert(!is_internal || arena == NULL || arena_is_auto(arena));
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
@@ -118,7 +119,7 @@ iralloct_realign(tsdn_t *tsdn, void *ptr, size_t oldsize, size_t size,
 	void *p;
 	size_t usize, copysize;
 
-	usize = sa2u(size + extra, alignment);
+	usize = sz_sa2u(size + extra, alignment);
 	if (unlikely(usize == 0 || usize > LARGE_MAXCLASS)) {
 		return NULL;
 	}
@@ -128,7 +129,7 @@ iralloct_realign(tsdn_t *tsdn, void *ptr, size_t oldsize, size_t size,
 			return NULL;
 		}
 		/* Try again, without extra this time. */
-		usize = sa2u(size, alignment);
+		usize = sz_sa2u(size, alignment);
 		if (unlikely(usize == 0 || usize > LARGE_MAXCLASS)) {
 			return NULL;
 		}

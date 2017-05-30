@@ -220,7 +220,7 @@ extent_size_quantize_floor(size_t size) {
 	assert(size > 0);
 	assert((size & PAGE_MASK) == 0);
 
-	pind = psz2ind(size - large_pad + 1);
+	pind = sz_psz2ind(size - sz_large_pad + 1);
 	if (pind == 0) {
 		/*
 		 * Avoid underflow.  This short-circuit would also do the right
@@ -230,7 +230,7 @@ extent_size_quantize_floor(size_t size) {
 		 */
 		return size;
 	}
-	ret = pind2sz(pind - 1) + large_pad;
+	ret = sz_pind2sz(pind - 1) + sz_large_pad;
 	assert(ret <= size);
 	return ret;
 }
@@ -243,7 +243,7 @@ extent_size_quantize_ceil(size_t size) {
 	size_t ret;
 
 	assert(size > 0);
-	assert(size - large_pad <= LARGE_MAXCLASS);
+	assert(size - sz_large_pad <= LARGE_MAXCLASS);
 	assert((size & PAGE_MASK) == 0);
 
 	ret = extent_size_quantize_floor(size);
@@ -256,7 +256,8 @@ extent_size_quantize_ceil(size_t size) {
 		 * search would potentially find sufficiently aligned available
 		 * memory somewhere lower.
 		 */
-		ret = pind2sz(psz2ind(ret - large_pad + 1)) + large_pad;
+		ret = sz_pind2sz(sz_psz2ind(ret - sz_large_pad + 1)) +
+		    sz_large_pad;
 	}
 	return ret;
 }
@@ -300,7 +301,7 @@ extents_insert_locked(tsdn_t *tsdn, extents_t *extents, extent_t *extent,
 
 	size_t size = extent_size_get(extent);
 	size_t psz = extent_size_quantize_floor(size);
-	pszind_t pind = psz2ind(psz);
+	pszind_t pind = sz_psz2ind(psz);
 	if (extent_heap_empty(&extents->heaps[pind])) {
 		bitmap_unset(extents->bitmap, &extents_bitmap_info,
 		    (size_t)pind);
@@ -329,7 +330,7 @@ extents_remove_locked(tsdn_t *tsdn, extents_t *extents, extent_t *extent,
 
 	size_t size = extent_size_get(extent);
 	size_t psz = extent_size_quantize_floor(size);
-	pszind_t pind = psz2ind(psz);
+	pszind_t pind = sz_psz2ind(psz);
 	extent_heap_remove(&extents->heaps[pind], extent);
 	if (extent_heap_empty(&extents->heaps[pind])) {
 		bitmap_set(extents->bitmap, &extents_bitmap_info,
@@ -354,7 +355,7 @@ extents_remove_locked(tsdn_t *tsdn, extents_t *extents, extent_t *extent,
 static extent_t *
 extents_best_fit_locked(tsdn_t *tsdn, arena_t *arena, extents_t *extents,
     size_t size) {
-	pszind_t pind = psz2ind(extent_size_quantize_ceil(size));
+	pszind_t pind = sz_psz2ind(extent_size_quantize_ceil(size));
 	pszind_t i = (pszind_t)bitmap_ffu(extents->bitmap, &extents_bitmap_info,
 	    (size_t)pind);
 	if (i < NPSIZES+1) {
@@ -376,7 +377,7 @@ extents_first_fit_locked(tsdn_t *tsdn, arena_t *arena, extents_t *extents,
     size_t size) {
 	extent_t *ret = NULL;
 
-	pszind_t pind = psz2ind(extent_size_quantize_ceil(size));
+	pszind_t pind = sz_psz2ind(extent_size_quantize_ceil(size));
 	for (pszind_t i = (pszind_t)bitmap_ffu(extents->bitmap,
 	    &extents_bitmap_info, (size_t)pind); i < NPSIZES+1; i =
 	    (pszind_t)bitmap_ffu(extents->bitmap, &extents_bitmap_info,
@@ -1040,7 +1041,7 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena,
 	 * satisfy this request.
 	 */
 	pszind_t egn_skip = 0;
-	size_t alloc_size = pind2sz(arena->extent_grow_next + egn_skip);
+	size_t alloc_size = sz_pind2sz(arena->extent_grow_next + egn_skip);
 	while (alloc_size < alloc_size_min) {
 		egn_skip++;
 		if (arena->extent_grow_next + egn_skip == NPSIZES) {
@@ -1048,7 +1049,7 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena,
 			goto label_err;
 		}
 		assert(arena->extent_grow_next + egn_skip < NPSIZES);
-		alloc_size = pind2sz(arena->extent_grow_next + egn_skip);
+		alloc_size = sz_pind2sz(arena->extent_grow_next + egn_skip);
 	}
 
 	extent_t *extent = extent_alloc(tsdn, arena);
@@ -1369,7 +1370,7 @@ extent_try_coalesce(tsdn_t *tsdn, arena_t *arena,
 			extent_unlock(tsdn, prev);
 
 			if (can_coalesce && !extent_coalesce(tsdn, arena,
-			    r_extent_hooks, extents, extent, prev, false, 
+			    r_extent_hooks, extents, extent, prev, false,
 			    growing_retained)) {
 				extent = prev;
 				if (extents->delay_coalesce) {

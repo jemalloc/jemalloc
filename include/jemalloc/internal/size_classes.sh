@@ -334,6 +334,7 @@ for lg_z in ${lg_zarr} ; do
         echo "#define LOOKUP_MAXCLASS		${lookup_maxclass}"
         echo "#define SMALL_MAXCLASS		${small_maxclass}"
         echo "#define LG_LARGE_MINCLASS	${lg_large_minclass}"
+        echo "#define LARGE_MINCLASS		(ZU(1) << LG_LARGE_MINCLASS)"
         echo "#define LARGE_MAXCLASS		${large_maxclass}"
         echo "#endif"
         echo

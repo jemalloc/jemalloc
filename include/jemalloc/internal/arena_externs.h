@@ -6,14 +6,6 @@
 #include "jemalloc/internal/size_classes.h"
 #include "jemalloc/internal/stats.h"
 
-static const size_t large_pad =
-#ifdef JEMALLOC_CACHE_OBLIVIOUS
-    PAGE
-#else
-    0
-#endif
-    ;
-
 extern ssize_t opt_dirty_decay_ms;
 extern ssize_t opt_muzzy_decay_ms;
 
