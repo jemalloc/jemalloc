@@ -1409,7 +1409,7 @@ prof_open_maps(const char *format, ...) {
 	va_start(ap, format);
 	malloc_vsnprintf(filename, sizeof(filename), format, ap);
 	va_end(ap);
-	mfd = open(filename, O_RDONLY);
+	mfd = open(filename, O_RDONLY | O_CLOEXEC);
 
 	return mfd;
 }
