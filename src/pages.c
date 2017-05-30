@@ -353,12 +353,13 @@ os_overcommits_proc(void) {
 	ssize_t nread;
 
 #if defined(JEMALLOC_USE_SYSCALL) && defined(SYS_open)
-	fd = (int)syscall(SYS_open, "/proc/sys/vm/overcommit_memory", O_RDONLY);
+	fd = (int)syscall(SYS_open, "/proc/sys/vm/overcommit_memory", O_RDONLY |
+	    O_CLOEXEC);
 #elif defined(JEMALLOC_USE_SYSCALL) && defined(SYS_openat)
 	fd = (int)syscall(SYS_openat,
-	    AT_FDCWD, "/proc/sys/vm/overcommit_memory", O_RDONLY);
+	    AT_FDCWD, "/proc/sys/vm/overcommit_memory", O_RDONLY | O_CLOEXEC);
 #else
-	fd = open("/proc/sys/vm/overcommit_memory", O_RDONLY);
+	fd = open("/proc/sys/vm/overcommit_memory", O_RDONLY | O_CLOEXEC);
 #endif
 	if (fd == -1) {
 		return false; /* Error. */
