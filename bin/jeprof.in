@@ -2892,21 +2892,21 @@ sub RemoveUninterestingFrames {
   my %skip = ();
   my $skip_regexp = 'NOMATCH';
   if ($main::profile_type eq 'heap' || $main::profile_type eq 'growth') {
-    foreach my $name ('calloc',
+    foreach my $name ('@JEMALLOC_PREFIX@calloc',
                       'cfree',
-                      'malloc',
-                      'free',
-                      'memalign',
-                      'posix_memalign',
-                      'aligned_alloc',
+                      '@JEMALLOC_PREFIX@malloc',
+                      '@JEMALLOC_PREFIX@free',
+                      '@JEMALLOC_PREFIX@memalign',
+                      '@JEMALLOC_PREFIX@posix_memalign',
+                      '@JEMALLOC_PREFIX@aligned_alloc',
                       'pvalloc',
-                      'valloc',
-                      'realloc',
-                      'mallocx', # jemalloc
-                      'rallocx', # jemalloc
-                      'xallocx', # jemalloc
-                      'dallocx', # jemalloc
-                      'sdallocx', # jemalloc
+                      '@JEMALLOC_PREFIX@valloc',
+                      '@JEMALLOC_PREFIX@realloc',
+                      '@JEMALLOC_PREFIX@mallocx',
+                      '@JEMALLOC_PREFIX@rallocx',
+                      '@JEMALLOC_PREFIX@xallocx',
+                      '@JEMALLOC_PREFIX@dallocx',
+                      '@JEMALLOC_PREFIX@sdallocx',
                       'tc_calloc',
                       'tc_cfree',
                       'tc_malloc',
