@@ -2601,8 +2601,11 @@ struct extent_hooks_s {
           <literal>r-</literal>
           [<option>--enable-stats</option>]
         </term>
-        <listitem><para>Cumulative number of allocation requests served by
-        small bins.</para></listitem>
+        <listitem><para>Cumulative number of times a small allocation was
+        requested from the arena's bins, whether to fill the relevant tcache if
+        <link linkend="opt.tcache"><mallctl>opt.tcache</mallctl></link> is
+        enabled, or to directly satisfy an allocation request
+        otherwise.</para></listitem>
       </varlistentry>
 
       <varlistentry id="stats.arenas.i.small.ndalloc">
@@ -2612,8 +2615,11 @@ struct extent_hooks_s {
           <literal>r-</literal>
           [<option>--enable-stats</option>]
         </term>
-        <listitem><para>Cumulative number of small objects returned to bins.
-        </para></listitem>
+        <listitem><para>Cumulative number of times a small allocation was
+        returned to the arena's bins, whether to flush the relevant tcache if
+        <link linkend="opt.tcache"><mallctl>opt.tcache</mallctl></link> is
+        enabled, or to directly deallocate an allocation
+        otherwise.</para></listitem>
       </varlistentry>
 
       <varlistentry id="stats.arenas.i.small.nrequests">
@@ -2623,8 +2629,8 @@ struct extent_hooks_s {
           <literal>r-</literal>
           [<option>--enable-stats</option>]
         </term>
-        <listitem><para>Cumulative number of small allocation requests.
-        </para></listitem>
+        <listitem><para>Cumulative number of allocation requests satisfied by
+        all bin size classes.</para></listitem>
       </varlistentry>
 
       <varlistentry id="stats.arenas.i.large.allocated">
@@ -2645,8 +2651,11 @@ struct extent_hooks_s {
           <literal>r-</literal>
           [<option>--enable-stats</option>]
         </term>
-        <listitem><para>Cumulative number of large allocation requests served
-        directly by the arena.</para></listitem>
+        <listitem><para>Cumulative number of times a large extent was allocated
+        from the arena, whether to fill the relevant tcache if <link
+        linkend="opt.tcache"><mallctl>opt.tcache</mallctl></link> is enabled and
+        the size class is within the range being cached, or to directly satisfy
+        an allocation request otherwise.</para></listitem>
       </varlistentry>
 
       <varlistentry id="stats.arenas.i.large.ndalloc">
@@ -2656,8 +2665,11 @@ struct extent_hooks_s {
           <literal>r-</literal>
           [<option>--enable-stats</option>]
         </term>
-        <listitem><para>Cumulative number of large deallocation requests served
-        directly by the arena.</para></listitem>
+        <listitem><para>Cumulative number of times a large extent was returned
+        to the arena, whether to flush the relevant tcache if <link
+        linkend="opt.tcache"><mallctl>opt.tcache</mallctl></link> is enabled and
+        the size class is within the range being cached, or to directly
+        deallocate an allocation otherwise.</para></listitem>
       </varlistentry>
 
       <varlistentry id="stats.arenas.i.large.nrequests">
@@ -2667,8 +2679,8 @@ struct extent_hooks_s {
           <literal>r-</literal>
           [<option>--enable-stats</option>]
         </term>
-        <listitem><para>Cumulative number of large allocation requests.
-        </para></listitem>
+        <listitem><para>Cumulative number of allocation requests satisfied by
+        all large size classes.</para></listitem>
       </varlistentry>
 
       <varlistentry id="stats.arenas.i.bins.j.nmalloc">
@@ -2678,8 +2690,11 @@ struct extent_hooks_s {
           <literal>r-</literal>
           [<option>--enable-stats</option>]
         </term>
-        <listitem><para>Cumulative number of allocations served by bin.
-        </para></listitem>
+        <listitem><para>Cumulative number of times a bin region of the
+        corresponding size class was allocated from the arena, whether to fill
+        the relevant tcache if <link
+        linkend="opt.tcache"><mallctl>opt.tcache</mallctl></link> is enabled, or
+        to directly satisfy an allocation request otherwise.</para></listitem>
       </varlistentry>
 
       <varlistentry id="stats.arenas.i.bins.j.ndalloc">
@@ -2689,8 +2704,11 @@ struct extent_hooks_s {
           <literal>r-</literal>
           [<option>--enable-stats</option>]
         </term>
-        <listitem><para>Cumulative number of allocations returned to bin.
-        </para></listitem>
+        <listitem><para>Cumulative number of times a bin region of the
+        corresponding size class was returned to the arena, whether to flush the
+        relevant tcache if <link
+        linkend="opt.tcache"><mallctl>opt.tcache</mallctl></link> is enabled, or
+        to directly deallocate an allocation otherwise.</para></listitem>
       </varlistentry>
 
       <varlistentry id="stats.arenas.i.bins.j.nrequests">
@@ -2700,8 +2718,8 @@ struct extent_hooks_s {
           <literal>r-</literal>
           [<option>--enable-stats</option>]
         </term>
-        <listitem><para>Cumulative number of allocation
-        requests.</para></listitem>
+        <listitem><para>Cumulative number of allocation requests satisfied by
+        bin regions of the corresponding size class.</para></listitem>
       </varlistentry>
 
       <varlistentry id="stats.arenas.i.bins.j.curregs">
@@ -2784,8 +2802,12 @@ struct extent_hooks_s {
           <literal>r-</literal>
           [<option>--enable-stats</option>]
         </term>
-        <listitem><para>Cumulative number of allocation requests for this size
-        class served directly by the arena.</para></listitem>
+        <listitem><para>Cumulative number of times a large extent of the
+        corresponding size class was allocated from the arena, whether to fill
+        the relevant tcache if <link
+        linkend="opt.tcache"><mallctl>opt.tcache</mallctl></link> is enabled and
+        the size class is within the range being cached, or to directly satisfy
+        an allocation request otherwise.</para></listitem>
       </varlistentry>
 
       <varlistentry id="stats.arenas.i.lextents.j.ndalloc">
@@ -2795,8 +2817,12 @@ struct extent_hooks_s {
           <literal>r-</literal>
           [<option>--enable-stats</option>]
         </term>
-        <listitem><para>Cumulative number of deallocation requests for this
-        size class served directly by the arena.</para></listitem>
+        <listitem><para>Cumulative number of times a large extent of the
+        corresponding size class was returned to the arena, whether to flush the
+        relevant tcache if <link
+        linkend="opt.tcache"><mallctl>opt.tcache</mallctl></link> is enabled and
+        the size class is within the range being cached, or to directly
+        deallocate an allocation otherwise.</para></listitem>
       </varlistentry>
 
       <varlistentry id="stats.arenas.i.lextents.j.nrequests">
@@ -2806,8 +2832,8 @@ struct extent_hooks_s {
           <literal>r-</literal>
           [<option>--enable-stats</option>]
         </term>
-        <listitem><para>Cumulative number of allocation requests for this size
-        class.</para></listitem>
+        <listitem><para>Cumulative number of allocation requests satisfied by
+        large extents of the corresponding size class.</para></listitem>
       </varlistentry>
 
       <varlistentry id="stats.arenas.i.lextents.j.curlextents">
