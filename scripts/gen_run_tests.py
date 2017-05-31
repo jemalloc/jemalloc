@@ -31,6 +31,7 @@ possible_malloc_conf_opts = [
 ]
 
 print 'set -e'
+print 'if [ -f Makefile ] ; then make relclean ; fi'
 print 'autoconf'
 print 'rm -rf run_tests.out'
 print 'mkdir run_tests.out'
