@@ -8,7 +8,6 @@ extern size_t n_background_threads;
 extern background_thread_info_t *background_thread_info;
 
 bool background_thread_create(tsd_t *tsd, unsigned arena_ind);
-bool background_threads_init(tsd_t *tsd);
 bool background_threads_enable(tsd_t *tsd);
 bool background_threads_disable(tsd_t *tsd);
 bool background_threads_disable_single(tsd_t *tsd,
@@ -22,10 +21,11 @@ void background_thread_postfork_child(tsdn_t *tsdn);
 bool background_thread_stats_read(tsdn_t *tsdn,
     background_thread_stats_t *stats);
 
-#if defined(JEMALLOC_BACKGROUND_THREAD) || defined(JEMALLOC_LAZY_LOCK)
-extern int (*pthread_create_fptr)(pthread_t *__restrict, const pthread_attr_t *,
+#ifdef JEMALLOC_PTHREAD_CREATE_WRAPPER
+extern int pthread_create_wrapper(pthread_t *__restrict, const pthread_attr_t *,
     void *(*)(void *), void *__restrict);
-void *load_pthread_create_fptr(void);
 #endif
+bool background_thread_boot0(void);
+bool background_thread_boot1(tsdn_t *tsdn);
 
 #endif /* JEMALLOC_INTERNAL_BACKGROUND_THREAD_EXTERNS_H */

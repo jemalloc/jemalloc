@@ -11,9 +11,8 @@ extern ssize_t opt_muzzy_decay_ms;
 
 extern const arena_bin_info_t arena_bin_info[NBINS];
 
-extern percpu_arena_mode_t percpu_arena_mode;
-extern const char	*opt_percpu_arena;
-extern const char	*percpu_arena_mode_names[];
+extern percpu_arena_mode_t opt_percpu_arena;
+extern const char *percpu_arena_mode_names[];
 
 extern const uint64_t h_steps[SMOOTHSTEP_NSTEPS];
 

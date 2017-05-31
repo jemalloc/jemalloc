@@ -463,7 +463,7 @@ arena_t *
 arena_choose_hard(tsd_t *tsd, bool internal) {
 	arena_t *ret JEMALLOC_CC_SILENCE_INIT(NULL);
 
-	if (have_percpu_arena && percpu_arena_mode != percpu_arena_disabled) {
+	if (have_percpu_arena && PERCPU_ARENA_ENABLED(opt_percpu_arena)) {
 		unsigned choose = percpu_arena_choose();
 		ret = arena_get(tsd_tsdn(tsd), choose, true);
 		assert(ret != NULL);
@@ -1100,17 +1100,16 @@ malloc_conf_init(void) {
 			if (strncmp("percpu_arena", k, klen) == 0) {
 				int i;
 				bool match = false;
-				for (i = 0; i < percpu_arena_mode_limit; i++) {
+				for (i = percpu_arena_mode_names_base; i <
+				    percpu_arena_mode_names_limit; i++) {
 					if (strncmp(percpu_arena_mode_names[i],
-						    v, vlen) == 0) {
+					    v, vlen) == 0) {
 						if (!have_percpu_arena) {
 							malloc_conf_error(
 							    "No getcpu support",
 							    k, klen, v, vlen);
 						}
-						percpu_arena_mode = i;
-						opt_percpu_arena =
-						    percpu_arena_mode_names[i];
+						opt_percpu_arena = i;
 						match = true;
 						break;
 					}
@@ -1276,6 +1275,10 @@ malloc_init_hard_recursible(void) {
 	}
 #endif
 
+	if (background_thread_boot0()) {
+		return true;
+	}
+
 	return false;
 }
 
@@ -1293,13 +1296,25 @@ malloc_narenas_default(void) {
 	}
 }
 
+static percpu_arena_mode_t
+percpu_arena_as_initialized(percpu_arena_mode_t mode) {
+	assert(!malloc_initialized());
+	assert(mode <= percpu_arena_disabled);
+
+	if (mode != percpu_arena_disabled) {
+		mode += percpu_arena_mode_enabled_base;
+	}
+
+	return mode;
+}
+
 static bool
 malloc_init_narenas(void) {
 	assert(ncpus > 0);
 
-	if (percpu_arena_mode != percpu_arena_disabled) {
+	if (opt_percpu_arena != percpu_arena_disabled) {
 		if (!have_percpu_arena || malloc_getcpu() < 0) {
-			percpu_arena_mode = percpu_arena_disabled;
+			opt_percpu_arena = percpu_arena_disabled;
 			malloc_printf("<jemalloc>: perCPU arena getcpu() not "
 			    "available. Setting narenas to %u.\n", opt_narenas ?
 			    opt_narenas : malloc_narenas_default());
@@ -1315,8 +1330,9 @@ malloc_init_narenas(void) {
 				}
 				return true;
 			}
-			if ((percpu_arena_mode == per_phycpu_arena) &&
-			    (ncpus % 2 != 0)) {
+			/* NB: opt_percpu_arena isn't fully initialized yet. */
+			if (percpu_arena_as_initialized(opt_percpu_arena) ==
+			    per_phycpu_arena && ncpus % 2 != 0) {
 				malloc_printf("<jemalloc>: invalid "
 				    "configuration -- per physical CPU arena "
 				    "with odd number (%u) of CPUs (no hyper "
@@ -1324,7 +1340,8 @@ malloc_init_narenas(void) {
 				if (opt_abort)
 					abort();
 			}
-			unsigned n = percpu_arena_ind_limit();
+			unsigned n = percpu_arena_ind_limit(
+			    percpu_arena_as_initialized(opt_percpu_arena));
 			if (opt_narenas < n) {
 				/*
 				 * If narenas is specified with percpu_arena
@@ -1363,26 +1380,16 @@ malloc_init_narenas(void) {
 	return false;
 }
 
-static bool
-malloc_init_background_threads(tsd_t *tsd) {
-	malloc_mutex_assert_owner(tsd_tsdn(tsd), &init_lock);
-	if (!have_background_thread) {
-		if (opt_background_thread) {
-			malloc_printf("<jemalloc>: option background_thread "
-			    "currently supports pthread only. \n");
-			return true;
-		} else {
-			return false;
-		}
-	}
-
-	return background_threads_init(tsd);
+static void
+malloc_init_percpu(void) {
+	opt_percpu_arena = percpu_arena_as_initialized(opt_percpu_arena);
 }
 
 static bool
 malloc_init_hard_finish(void) {
-	if (malloc_mutex_boot())
+	if (malloc_mutex_boot()) {
 		return true;
+	}
 
 	malloc_init_state = malloc_init_initialized;
 	malloc_slow_flag_init();
@@ -1421,7 +1428,7 @@ malloc_init_hard(void) {
 	malloc_mutex_lock(tsd_tsdn(tsd), &init_lock);
 
 	/* Initialize narenas before prof_boot2 (for allocation). */
-	if (malloc_init_narenas() || malloc_init_background_threads(tsd)) {
+	if (malloc_init_narenas() || background_thread_boot1(tsd_tsdn(tsd))) {
 		malloc_mutex_unlock(tsd_tsdn(tsd), &init_lock);
 		return true;
 	}
@@ -1430,6 +1437,8 @@ malloc_init_hard(void) {
 		malloc_mutex_unlock(tsd_tsdn(tsd), &init_lock);
 		return true;
 	}
+
+	malloc_init_percpu();
 
 	if (malloc_init_hard_finish()) {
 		malloc_mutex_unlock(tsd_tsdn(tsd), &init_lock);

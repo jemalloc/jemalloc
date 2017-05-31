@@ -3,6 +3,10 @@
 
 /* This file really combines "structs" and "types", but only transitionally. */
 
+#if defined(JEMALLOC_BACKGROUND_THREAD) || defined(JEMALLOC_LAZY_LOCK)
+#  define JEMALLOC_PTHREAD_CREATE_WRAPPER
+#endif
+
 #define BACKGROUND_THREAD_INDEFINITE_SLEEP UINT64_MAX
 
 struct background_thread_info_s {

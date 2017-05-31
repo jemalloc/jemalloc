@@ -327,18 +327,18 @@ TEST_END
 
 TEST_BEGIN(test_thread_arena) {
 	unsigned old_arena_ind, new_arena_ind, narenas;
-	const char *opt_percpu_arena;
 
-	size_t sz = sizeof(opt_percpu_arena);
-	assert_d_eq(mallctl("opt.percpu_arena", &opt_percpu_arena, &sz, NULL,
-	    0), 0, "Unexpected mallctl() failure");
+	const char *opa;
+	size_t sz = sizeof(opa);
+	assert_d_eq(mallctl("opt.percpu_arena", &opa, &sz, NULL, 0), 0,
+	    "Unexpected mallctl() failure");
 
 	sz = sizeof(unsigned);
 	assert_d_eq(mallctl("arenas.narenas", (void *)&narenas, &sz, NULL, 0),
 	    0, "Unexpected mallctl() failure");
 	assert_u_eq(narenas, opt_narenas, "Number of arenas incorrect");
 
-	if (strcmp(opt_percpu_arena, "disabled") == 0) {
+	if (strcmp(opa, "disabled") == 0) {
 		new_arena_ind = narenas - 1;
 		assert_d_eq(mallctl("thread.arena", (void *)&old_arena_ind, &sz,
 		    (void *)&new_arena_ind, sizeof(unsigned)), 0,
@@ -350,7 +350,7 @@ TEST_BEGIN(test_thread_arena) {
 	} else {
 		assert_d_eq(mallctl("thread.arena", (void *)&old_arena_ind, &sz,
 		    NULL, 0), 0, "Unexpected mallctl() failure");
-		new_arena_ind = percpu_arena_ind_limit() - 1;
+		new_arena_ind = percpu_arena_ind_limit(opt_percpu_arena) - 1;
 		if (old_arena_ind != new_arena_ind) {
 			assert_d_eq(mallctl("thread.arena",
 			    (void *)&old_arena_ind, &sz, (void *)&new_arena_ind,

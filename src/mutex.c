@@ -27,21 +27,11 @@ static malloc_mutex_t	*postponed_mutexes = NULL;
  */
 
 #if defined(JEMALLOC_LAZY_LOCK) && !defined(_WIN32)
-static void
-pthread_create_once(void) {
-	pthread_create_fptr = load_pthread_create_fptr();
-	assert(isthreaded);
-}
-
 JEMALLOC_EXPORT int
 pthread_create(pthread_t *__restrict thread,
     const pthread_attr_t *__restrict attr, void *(*start_routine)(void *),
     void *__restrict arg) {
-	static pthread_once_t once_control = PTHREAD_ONCE_INIT;
-
-	pthread_once(&once_control, pthread_create_once);
-
-	return pthread_create_fptr(thread, attr, start_routine, arg);
+	return pthread_create_wrapper(thread, attr, start_routine, arg);
 }
 #endif
 
