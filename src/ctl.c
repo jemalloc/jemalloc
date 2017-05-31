@@ -1559,7 +1559,8 @@ CTL_RO_NL_GEN(opt_abort_conf, opt_abort_conf, bool)
 CTL_RO_NL_GEN(opt_retain, opt_retain, bool)
 CTL_RO_NL_GEN(opt_dss, opt_dss, const char *)
 CTL_RO_NL_GEN(opt_narenas, opt_narenas, unsigned)
-CTL_RO_NL_GEN(opt_percpu_arena, opt_percpu_arena, const char *)
+CTL_RO_NL_GEN(opt_percpu_arena, percpu_arena_mode_names[opt_percpu_arena],
+    const char *)
 CTL_RO_NL_GEN(opt_background_thread, opt_background_thread, bool)
 CTL_RO_NL_GEN(opt_dirty_decay_ms, opt_dirty_decay_ms, ssize_t)
 CTL_RO_NL_GEN(opt_muzzy_decay_ms, opt_muzzy_decay_ms, ssize_t)
@@ -1610,8 +1611,8 @@ thread_arena_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
 		}
 
 		if (have_percpu_arena &&
-		    (percpu_arena_mode != percpu_arena_disabled)) {
-			if (newind < percpu_arena_ind_limit()) {
+		    PERCPU_ARENA_ENABLED(opt_percpu_arena)) {
+			if (newind < percpu_arena_ind_limit(opt_percpu_arena)) {
 				/*
 				 * If perCPU arena is enabled, thread_arena
 				 * control is not allowed for the auto arena

@@ -21,17 +21,17 @@ malloc_getcpu(void) {
 /* Return the chosen arena index based on current cpu. */
 JEMALLOC_ALWAYS_INLINE unsigned
 percpu_arena_choose(void) {
-	unsigned arena_ind;
-	assert(have_percpu_arena && (percpu_arena_mode !=
-	    percpu_arena_disabled));
+	assert(have_percpu_arena && PERCPU_ARENA_ENABLED(opt_percpu_arena));
 
 	malloc_cpuid_t cpuid = malloc_getcpu();
 	assert(cpuid >= 0);
-	if ((percpu_arena_mode == percpu_arena) ||
-	    ((unsigned)cpuid < ncpus / 2)) {
+
+	unsigned arena_ind;
+	if ((opt_percpu_arena == percpu_arena) || ((unsigned)cpuid < ncpus /
+	    2)) {
 		arena_ind = cpuid;
 	} else {
-		assert(percpu_arena_mode == per_phycpu_arena);
+		assert(opt_percpu_arena == per_phycpu_arena);
 		/* Hyper threads on the same physical CPU share arena. */
 		arena_ind = cpuid - ncpus / 2;
 	}
@@ -41,9 +41,9 @@ percpu_arena_choose(void) {
 
 /* Return the limit of percpu auto arena range, i.e. arenas[0...ind_limit). */
 JEMALLOC_ALWAYS_INLINE unsigned
-percpu_arena_ind_limit(void) {
-	assert(have_percpu_arena && (percpu_arena_mode != percpu_arena_disabled));
-	if (percpu_arena_mode == per_phycpu_arena && ncpus > 1) {
+percpu_arena_ind_limit(percpu_arena_mode_t mode) {
+	assert(have_percpu_arena && PERCPU_ARENA_ENABLED(mode));
+	if (mode == per_phycpu_arena && ncpus > 1) {
 		if (ncpus % 2) {
 			/* This likely means a misconfig. */
 			return ncpus / 2 + 1;

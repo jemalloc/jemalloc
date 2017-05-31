@@ -25,7 +25,6 @@ background_thread_info_t *background_thread_info;
 #ifndef JEMALLOC_BACKGROUND_THREAD
 #define NOT_REACHED { not_reached(); }
 bool background_thread_create(tsd_t *tsd, unsigned arena_ind) NOT_REACHED
-bool background_threads_init(tsd_t *tsd) NOT_REACHED
 bool background_threads_enable(tsd_t *tsd) NOT_REACHED
 bool background_threads_disable(tsd_t *tsd) NOT_REACHED
 bool background_threads_disable_single(tsd_t *tsd,
@@ -51,44 +50,6 @@ background_thread_info_reinit(tsdn_t *tsdn, background_thread_info_t *info) {
 		info->tot_n_runs = 0;
 		nstime_init(&info->tot_sleep_time, 0);
 	}
-}
-
-bool
-background_threads_init(tsd_t *tsd) {
-	assert(have_background_thread);
-	assert(narenas_total_get() > 0);
-
-	background_thread_enabled_set(tsd_tsdn(tsd), opt_background_thread);
-	if (malloc_mutex_init(&background_thread_lock,
-	    "background_thread_global",
-	    WITNESS_RANK_BACKGROUND_THREAD_GLOBAL,
-	    malloc_mutex_rank_exclusive)) {
-		return true;
-	}
-	background_thread_info = (background_thread_info_t *)base_alloc(
-	    tsd_tsdn(tsd), b0get(), ncpus * sizeof(background_thread_info_t),
-	    CACHELINE);
-	if (background_thread_info == NULL) {
-		return true;
-	}
-
-	for (unsigned i = 0; i < ncpus; i++) {
-		background_thread_info_t *info = &background_thread_info[i];
-		if (malloc_mutex_init(&info->mtx, "background_thread",
-		    WITNESS_RANK_BACKGROUND_THREAD,
-		    malloc_mutex_rank_exclusive)) {
-			return true;
-		}
-		if (pthread_cond_init(&info->cond, NULL)) {
-			return true;
-		}
-		malloc_mutex_lock(tsd_tsdn(tsd), &info->mtx);
-		info->started = false;
-		background_thread_info_reinit(tsd_tsdn(tsd), info);
-		malloc_mutex_unlock(tsd_tsdn(tsd), &info->mtx);
-	}
-
-	return false;
 }
 
 static inline bool
@@ -363,12 +324,11 @@ background_thread_create(tsd_t *tsd, unsigned arena_ind) {
 
 	pre_reentrancy(tsd);
 	int err;
-	load_pthread_create_fptr();
 	/*
 	 * To avoid complications (besides reentrancy), create internal
 	 * background threads with the underlying pthread_create.
 	 */
-	if ((err = pthread_create_fptr(&info->thread, NULL,
+	if ((err = pthread_create_wrapper(&info->thread, NULL,
 	    background_thread_entry, (void *)thread_ind)) != 0) {
 		malloc_printf("<jemalloc>: arena %u background thread creation "
 		    "failed (%d).\n", arena_ind, err);
@@ -638,28 +598,84 @@ background_thread_stats_read(tsdn_t *tsdn, background_thread_stats_t *stats) {
 
 #endif /* defined(JEMALLOC_BACKGROUND_THREAD) */
 
-#if defined(JEMALLOC_BACKGROUND_THREAD) || defined(JEMALLOC_LAZY_LOCK)
+#ifdef JEMALLOC_PTHREAD_CREATE_WRAPPER
 #include <dlfcn.h>
 
-int (*pthread_create_fptr)(pthread_t *__restrict, const pthread_attr_t *,
+static int (*pthread_create_fptr)(pthread_t *__restrict, const pthread_attr_t *,
     void *(*)(void *), void *__restrict);
 
-void *
-load_pthread_create_fptr(void) {
-	if (pthread_create_fptr) {
-		return pthread_create_fptr;
-	}
+static void
+pthread_create_wrapper_once(void) {
 #ifdef JEMALLOC_LAZY_LOCK
 	isthreaded = true;
 #endif
+}
+
+int
+pthread_create_wrapper(pthread_t *__restrict thread, const pthread_attr_t *attr,
+    void *(*start_routine)(void *), void *__restrict arg) {
+	static pthread_once_t once_control = PTHREAD_ONCE_INIT;
+
+	pthread_once(&once_control, pthread_create_wrapper_once);
+
+	return pthread_create_fptr(thread, attr, start_routine, arg);
+}
+#endif
+
+bool
+background_thread_boot0(void) {
+	if (!have_background_thread && opt_background_thread) {
+		malloc_printf("<jemalloc>: option background_thread currently "
+		    "supports pthread only. \n");
+		return true;
+	}
+
+#ifdef JEMALLOC_PTHREAD_CREATE_WRAPPER
 	pthread_create_fptr = dlsym(RTLD_NEXT, "pthread_create");
 	if (pthread_create_fptr == NULL) {
 		malloc_write("<jemalloc>: Error in dlsym(RTLD_NEXT, "
 		    "\"pthread_create\")\n");
 		abort();
 	}
-
-	return pthread_create_fptr;
+#endif
+	return false;
 }
 
+bool
+background_thread_boot1(tsdn_t *tsdn) {
+#ifdef JEMALLOC_BACKGROUND_THREAD
+	assert(have_background_thread);
+	assert(narenas_total_get() > 0);
+
+	background_thread_enabled_set(tsdn, opt_background_thread);
+	if (malloc_mutex_init(&background_thread_lock,
+	    "background_thread_global",
+	    WITNESS_RANK_BACKGROUND_THREAD_GLOBAL,
+	    malloc_mutex_rank_exclusive)) {
+		return true;
+	}
+	background_thread_info = (background_thread_info_t *)base_alloc(tsdn,
+	    b0get(), ncpus * sizeof(background_thread_info_t), CACHELINE);
+	if (background_thread_info == NULL) {
+		return true;
+	}
+
+	for (unsigned i = 0; i < ncpus; i++) {
+		background_thread_info_t *info = &background_thread_info[i];
+		if (malloc_mutex_init(&info->mtx, "background_thread",
+		    WITNESS_RANK_BACKGROUND_THREAD,
+		    malloc_mutex_rank_exclusive)) {
+			return true;
+		}
+		if (pthread_cond_init(&info->cond, NULL)) {
+			return true;
+		}
+		malloc_mutex_lock(tsdn, &info->mtx);
+		info->started = false;
+		background_thread_info_reinit(tsdn, info);
+		malloc_mutex_unlock(tsdn, &info->mtx);
+	}
 #endif
+
+	return false;
+}

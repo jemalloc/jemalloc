@@ -13,13 +13,18 @@
 /******************************************************************************/
 /* Data. */
 
+/*
+ * Define names for both unininitialized and initialized phases, so that
+ * options and mallctl processing are straightforward.
+ */
 const char *percpu_arena_mode_names[] = {
+	"percpu",
+	"phycpu",
 	"disabled",
 	"percpu",
 	"phycpu"
 };
-const char *opt_percpu_arena = OPT_PERCPU_ARENA_DEFAULT;
-percpu_arena_mode_t percpu_arena_mode = PERCPU_ARENA_MODE_DEFAULT;
+percpu_arena_mode_t opt_percpu_arena = PERCPU_ARENA_DEFAULT;
 
 ssize_t opt_dirty_decay_ms = DIRTY_DECAY_MS_DEFAULT;
 ssize_t opt_muzzy_decay_ms = MUZZY_DECAY_MS_DEFAULT;

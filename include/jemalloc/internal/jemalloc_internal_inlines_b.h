@@ -43,9 +43,10 @@ arena_choose_impl(tsd_t *tsd, arena_t *arena, bool internal) {
 	 * auto percpu arena range, (i.e. thread is assigned to a manually
 	 * managed arena), then percpu arena is skipped.
 	 */
-	if (have_percpu_arena && (percpu_arena_mode != percpu_arena_disabled) &&
-	    !internal && (arena_ind_get(ret) < percpu_arena_ind_limit()) &&
-	    (ret->last_thd != tsd_tsdn(tsd))) {
+	if (have_percpu_arena && PERCPU_ARENA_ENABLED(opt_percpu_arena) &&
+	    !internal && (arena_ind_get(ret) <
+	    percpu_arena_ind_limit(opt_percpu_arena)) && (ret->last_thd !=
+	    tsd_tsdn(tsd))) {
 		unsigned ind = percpu_arena_choose();
 		if (arena_ind_get(ret) != ind) {
 			percpu_arena_update(tsd, ind);
