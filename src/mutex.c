@@ -30,7 +30,7 @@ static malloc_mutex_t	*postponed_mutexes = NULL;
 static void
 pthread_create_once(void) {
 	pthread_create_fptr = load_pthread_create_fptr();
-	isthreaded = true;
+	assert(isthreaded);
 }
 
 JEMALLOC_EXPORT int
