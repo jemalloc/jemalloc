@@ -356,8 +356,8 @@ ckh_shrink(tsd_t *tsd, ckh_t *ckh) {
 }
 
 bool
-ckh_new(tsd_t *tsd, ckh_t *ckh, size_t minitems, ckh_hash_t *hash,
-    ckh_keycomp_t *keycomp) {
+ckh_new(tsd_t *tsd, arena_t *arena, ckh_t *ckh, size_t minitems,
+    ckh_hash_t *hash, ckh_keycomp_t *keycomp) {
 	bool ret;
 	size_t mincells, usize;
 	unsigned lg_mincells;
@@ -401,7 +401,7 @@ ckh_new(tsd_t *tsd, ckh_t *ckh, size_t minitems, ckh_hash_t *hash,
 		goto label_return;
 	}
 	ckh->tab = (ckhc_t *)ipallocztm(tsd_tsdn(tsd), usize, CACHELINE, true,
-	    NULL, true, arena_ichoose(tsd, NULL));
+	    NULL, true, (arena != NULL) ? arena : arena_ichoose(tsd, NULL));
 	if (ckh->tab == NULL) {
 		ret = true;
 		goto label_return;
