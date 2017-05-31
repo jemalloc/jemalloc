@@ -1397,6 +1397,18 @@ malloc_init_hard_finish(void) {
 	return false;
 }
 
+static void
+malloc_init_hard_cleanup(tsdn_t *tsdn, bool reentrancy_set) {
+	malloc_mutex_assert_owner(tsdn, &init_lock);
+	malloc_mutex_unlock(tsdn, &init_lock);
+	if (reentrancy_set) {
+		assert(!tsdn_null(tsdn));
+		tsd_t *tsd = tsdn_tsd(tsdn);
+		assert(tsd_reentrancy_level_get(tsd) > 0);
+		post_reentrancy(tsd);
+	}
+}
+
 static bool
 malloc_init_hard(void) {
 	tsd_t *tsd;
@@ -1405,15 +1417,18 @@ malloc_init_hard(void) {
 	_init_init_lock();
 #endif
 	malloc_mutex_lock(TSDN_NULL, &init_lock);
+
+#define UNLOCK_RETURN(tsdn, ret, reentrancy)		\
+	malloc_init_hard_cleanup(tsdn, reentrancy);	\
+	return ret;
+
 	if (!malloc_init_hard_needed()) {
-		malloc_mutex_unlock(TSDN_NULL, &init_lock);
-		return false;
+		UNLOCK_RETURN(TSDN_NULL, false, false)
 	}
 
 	if (malloc_init_state != malloc_init_a0_initialized &&
 	    malloc_init_hard_a0_locked()) {
-		malloc_mutex_unlock(TSDN_NULL, &init_lock);
-		return true;
+		UNLOCK_RETURN(TSDN_NULL, true, false)
 	}
 
 	malloc_mutex_unlock(TSDN_NULL, &init_lock);
@@ -1425,29 +1440,27 @@ malloc_init_hard(void) {
 	if (malloc_init_hard_recursible()) {
 		return true;
 	}
-	malloc_mutex_lock(tsd_tsdn(tsd), &init_lock);
 
+	malloc_mutex_lock(tsd_tsdn(tsd), &init_lock);
+	/* Set reentrancy level to 1 during init. */
+	pre_reentrancy(tsd);
 	/* Initialize narenas before prof_boot2 (for allocation). */
 	if (malloc_init_narenas() || background_thread_boot1(tsd_tsdn(tsd))) {
-		malloc_mutex_unlock(tsd_tsdn(tsd), &init_lock);
-		return true;
+		UNLOCK_RETURN(tsd_tsdn(tsd), true, true)
 	}
-
 	if (config_prof && prof_boot2(tsd)) {
-		malloc_mutex_unlock(tsd_tsdn(tsd), &init_lock);
-		return true;
+		UNLOCK_RETURN(tsd_tsdn(tsd), true, true)
 	}
 
 	malloc_init_percpu();
 
 	if (malloc_init_hard_finish()) {
-		malloc_mutex_unlock(tsd_tsdn(tsd), &init_lock);
-		return true;
+		UNLOCK_RETURN(tsd_tsdn(tsd), true, true)
 	}
-
+	post_reentrancy(tsd);
 	malloc_mutex_unlock(tsd_tsdn(tsd), &init_lock);
-	malloc_tsd_boot1();
 
+	malloc_tsd_boot1();
 	/* Update TSD after tsd_boot1. */
 	tsd = tsd_fetch();
 	if (opt_background_thread) {
@@ -1463,7 +1476,7 @@ malloc_init_hard(void) {
 			return true;
 		}
 	}
-
+#undef UNLOCK_RETURN
 	return false;
 }
 
