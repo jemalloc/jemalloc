@@ -96,12 +96,15 @@ test_junk(size_t sz_min, size_t sz_max) {
 			t = (uint8_t *)rallocx(s, sz+1, 0);
 			assert_ptr_not_null((void *)t,
 			    "Unexpected rallocx() failure");
-			assert_ptr_ne(s, t, "Unexpected in-place rallocx()");
 			assert_zu_ge(sallocx(t, 0), sz+1,
 			    "Unexpectedly small rallocx() result");
-			assert_true(!opt_junk_free || saw_junking,
-			    "Expected region of size %zu to be junk-filled",
-			    sz);
+			if (!background_thread_enabled()) {
+				assert_ptr_ne(s, t,
+				    "Unexpected in-place rallocx()");
+				assert_true(!opt_junk_free || saw_junking,
+				    "Expected region of size %zu to be "
+				    "junk-filled", sz);
+			}
 			s = t;
 		}
 	}

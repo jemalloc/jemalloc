@@ -49,6 +49,7 @@ malloc_conf_unusuals = [
     'tcache:false',
     'dss:primary',
     'percpu_arena:percpu',
+    'background_thread:true',
 ]
 
 all_unusuals = (
@@ -80,7 +81,8 @@ for unusual_combination in unusual_combinations_to_test:
         x for x in unusual_combination if x in malloc_conf_unusuals]
     # Filter out unsupported configurations on OS X.
     if os == 'osx' and ('dss:primary' in malloc_conf or \
-      'percpu_arena:percpu' in malloc_conf):
+      'percpu_arena:percpu' in malloc_conf or 'background_thread:true' \
+      in malloc_conf):
         continue
     if len(malloc_conf) > 0:
         configure_flags.append('--with-malloc-conf=' + ",".join(malloc_conf))

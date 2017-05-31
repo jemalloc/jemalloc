@@ -28,6 +28,7 @@ possible_malloc_conf_opts = [
     'tcache:false',
     'dss:primary',
     'percpu_arena:percpu',
+    'background_thread:true',
 ]
 
 print 'set -e'
@@ -57,7 +58,8 @@ for cc, cxx in possible_compilers:
                 )
 
                 # Per CPU arenas are only supported on Linux.
-                linux_supported = ('percpu_arena:percpu' in malloc_conf_opts)
+                linux_supported = ('percpu_arena:percpu' in malloc_conf_opts \
+                  or 'background_thread:true' in malloc_conf_opts)
                 # Heap profiling and dss are not supported on OS X.
                 darwin_unsupported = ('--enable-prof' in config_opts or \
                   'dss:primary' in malloc_conf_opts)
