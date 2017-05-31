@@ -41,6 +41,8 @@ bool background_thread_stats_read(tsdn_t *tsdn,
 #undef NOT_REACHED
 #else
 
+static bool background_thread_enabled_at_fork;
+
 static void
 background_thread_info_reinit(tsdn_t *tsdn, background_thread_info_t *info) {
 	background_thread_wakeup_time_set(tsdn, info, 0);
@@ -548,10 +550,11 @@ void
 background_thread_prefork0(tsdn_t *tsdn) {
 	malloc_mutex_prefork(tsdn, &background_thread_lock);
 	if (background_thread_enabled()) {
+		background_thread_enabled_at_fork = true;
 		background_thread_enabled_set(tsdn, false);
 		background_threads_disable(tsdn_tsd(tsdn));
-		/* Enable again to re-create threads after fork. */
-		background_thread_enabled_set(tsdn, true);
+	} else {
+		background_thread_enabled_at_fork = false;
 	}
 	assert(n_background_threads == 0);
 }
@@ -565,7 +568,9 @@ background_thread_prefork1(tsdn_t *tsdn) {
 
 static void
 background_thread_postfork_init(tsdn_t *tsdn) {
-	if (background_thread_enabled()) {
+	assert(n_background_threads == 0);
+	if (background_thread_enabled_at_fork) {
+		background_thread_enabled_set(tsdn, true);
 		background_threads_enable(tsdn_tsd(tsdn));
 	}
 }
