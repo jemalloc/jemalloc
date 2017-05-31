@@ -364,7 +364,11 @@ background_thread_create(tsd_t *tsd, unsigned arena_ind) {
 	pre_reentrancy(tsd);
 	int err;
 	load_pthread_create_fptr();
-	if ((err = pthread_create(&info->thread, NULL,
+	/*
+	 * To avoid complications (besides reentrancy), create internal
+	 * background threads with the underlying pthread_create.
+	 */
+	if ((err = pthread_create_fptr(&info->thread, NULL,
 	    background_thread_entry, (void *)thread_ind)) != 0) {
 		malloc_printf("<jemalloc>: arena %u background thread creation "
 		    "failed (%d).\n", arena_ind, err);
@@ -645,7 +649,9 @@ load_pthread_create_fptr(void) {
 	if (pthread_create_fptr) {
 		return pthread_create_fptr;
 	}
-
+#ifdef JEMALLOC_LAZY_LOCK
+	isthreaded = true;
+#endif
 	pthread_create_fptr = dlsym(RTLD_NEXT, "pthread_create");
 	if (pthread_create_fptr == NULL) {
 		malloc_write("<jemalloc>: Error in dlsym(RTLD_NEXT, "
