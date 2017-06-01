@@ -210,12 +210,12 @@ TEST_BEGIN(test_manpage_example) {
 TEST_END
 
 TEST_BEGIN(test_tcache_none) {
-	void *p0, *q, *p1;
+	test_skip_if(!opt_tcache);
 
 	/* Allocate p and q. */
-	p0 = mallocx(42, 0);
+	void *p0 = mallocx(42, 0);
 	assert_ptr_not_null(p0, "Unexpected mallocx() failure");
-	q = mallocx(42, 0);
+	void *q = mallocx(42, 0);
 	assert_ptr_not_null(q, "Unexpected mallocx() failure");
 
 	/* Deallocate p and q, but bypass the tcache for q. */
@@ -223,7 +223,7 @@ TEST_BEGIN(test_tcache_none) {
 	dallocx(q, MALLOCX_TCACHE_NONE);
 
 	/* Make sure that tcache-based allocation returns p, not q. */
-	p1 = mallocx(42, 0);
+	void *p1 = mallocx(42, 0);
 	assert_ptr_not_null(p1, "Unexpected mallocx() failure");
 	assert_ptr_eq(p0, p1, "Expected tcache to allocate cached region");
 
