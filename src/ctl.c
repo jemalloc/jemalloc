@@ -1499,6 +1499,7 @@ background_thread_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
 	if (!have_background_thread) {
 		return ENOENT;
 	}
+	background_thread_ctl_init(tsd_tsdn(tsd));
 
 	malloc_mutex_lock(tsd_tsdn(tsd), &background_thread_lock);
 	if (newp == NULL) {
