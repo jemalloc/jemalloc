@@ -317,34 +317,38 @@ background_thread_create(tsd_t *tsd, unsigned arena_ind) {
 	bool need_new_thread;
 	malloc_mutex_lock(tsd_tsdn(tsd), &info->mtx);
 	need_new_thread = background_thread_enabled() && !info->started;
+	if (need_new_thread) {
+		info->started = true;
+		background_thread_info_reinit(tsd_tsdn(tsd), info);
+		n_background_threads++;
+	}
 	malloc_mutex_unlock(tsd_tsdn(tsd), &info->mtx);
 	if (!need_new_thread) {
 		return false;
 	}
 
 	pre_reentrancy(tsd);
-	int err;
 	/*
 	 * To avoid complications (besides reentrancy), create internal
 	 * background threads with the underlying pthread_create.
 	 */
-	if ((err = pthread_create_wrapper(&info->thread, NULL,
-	    background_thread_entry, (void *)thread_ind)) != 0) {
-		malloc_printf("<jemalloc>: arena %u background thread creation "
-		    "failed (%d).\n", arena_ind, err);
-	}
+	int err = pthread_create_wrapper(&info->thread, NULL,
+	    background_thread_entry, (void *)thread_ind);
 	post_reentrancy(tsd);
 
-	malloc_mutex_lock(tsd_tsdn(tsd), &info->mtx);
-	assert(info->started == false);
-	if (err == 0) {
-		info->started = true;
-		background_thread_info_reinit(tsd_tsdn(tsd), info);
-		n_background_threads++;
-	}
-	malloc_mutex_unlock(tsd_tsdn(tsd), &info->mtx);
+	if (err != 0) {
+		malloc_printf("<jemalloc>: arena %u background thread creation "
+		    "failed (%d).\n", arena_ind, err);
+		malloc_mutex_lock(tsd_tsdn(tsd), &info->mtx);
+		info->started = false;
+		n_background_threads--;
+		malloc_mutex_unlock(tsd_tsdn(tsd), &info->mtx);
 
-	return (err != 0);
+		return true;
+	}
+	assert(info->started);
+
+	return false;
 }
 
 bool
