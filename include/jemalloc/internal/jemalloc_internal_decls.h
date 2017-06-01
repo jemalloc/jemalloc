@@ -7,9 +7,11 @@
 #  include "msvc_compat/windows_extra.h"
 
 #else
-#  include <sys/param.h>
+#  ifndef __CloudABI__
+#    include <sys/param.h>
+#  endif
 #  include <sys/mman.h>
-#  if !defined(__pnacl__) && !defined(__native_client__)
+#  if !defined(__CloudABI__) && !defined(__pnacl__) && !defined(__native_client__)
 #    include <sys/syscall.h>
 #    if !defined(SYS_write) && defined(__NR_write)
 #      define SYS_write __NR_write
@@ -38,6 +40,9 @@
 #include <sys/types.h>
 
 #include <limits.h>
+#ifndef PATH_MAX
+#  define PATH_MAX 1024
+#endif
 #ifndef SIZE_T_MAX
 #  define SIZE_T_MAX	SIZE_MAX
 #endif
@@ -59,7 +64,6 @@
 #ifdef _MSC_VER
 #  include <io.h>
 typedef intptr_t ssize_t;
-#  define PATH_MAX 1024
 #  define STDERR_FILENO 2
 #  define __func__ __FUNCTION__
 #  ifdef JEMALLOC_HAS_RESTRICT
