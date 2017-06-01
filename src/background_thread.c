@@ -22,6 +22,29 @@ background_thread_info_t *background_thread_info;
 
 /******************************************************************************/
 
+#ifdef JEMALLOC_PTHREAD_CREATE_WRAPPER
+#include <dlfcn.h>
+
+static int (*pthread_create_fptr)(pthread_t *__restrict, const pthread_attr_t *,
+    void *(*)(void *), void *__restrict);
+static pthread_once_t once_control = PTHREAD_ONCE_INIT;
+
+static void
+pthread_create_wrapper_once(void) {
+#ifdef JEMALLOC_LAZY_LOCK
+	isthreaded = true;
+#endif
+}
+
+int
+pthread_create_wrapper(pthread_t *__restrict thread, const pthread_attr_t *attr,
+    void *(*start_routine)(void *), void *__restrict arg) {
+	pthread_once(&once_control, pthread_create_wrapper_once);
+
+	return pthread_create_fptr(thread, attr, start_routine, arg);
+}
+#endif /* JEMALLOC_PTHREAD_CREATE_WRAPPER */
+
 #ifndef JEMALLOC_BACKGROUND_THREAD
 #define NOT_REACHED { not_reached(); }
 bool background_thread_create(tsd_t *tsd, unsigned arena_ind) NOT_REACHED
@@ -37,6 +60,7 @@ void background_thread_postfork_parent(tsdn_t *tsdn) NOT_REACHED
 void background_thread_postfork_child(tsdn_t *tsdn) NOT_REACHED
 bool background_thread_stats_read(tsdn_t *tsdn,
     background_thread_stats_t *stats) NOT_REACHED
+void background_thread_ctl_init(tsdn_t *tsdn) NOT_REACHED
 #undef NOT_REACHED
 #else
 
@@ -600,31 +624,19 @@ background_thread_stats_read(tsdn_t *tsdn, background_thread_stats_t *stats) {
 #undef BILLION
 #undef BACKGROUND_THREAD_MIN_INTERVAL_NS
 
-#endif /* defined(JEMALLOC_BACKGROUND_THREAD) */
-
-#ifdef JEMALLOC_PTHREAD_CREATE_WRAPPER
-#include <dlfcn.h>
-
-static int (*pthread_create_fptr)(pthread_t *__restrict, const pthread_attr_t *,
-    void *(*)(void *), void *__restrict);
-
-static void
-pthread_create_wrapper_once(void) {
-#ifdef JEMALLOC_LAZY_LOCK
-	isthreaded = true;
-#endif
-}
-
-int
-pthread_create_wrapper(pthread_t *__restrict thread, const pthread_attr_t *attr,
-    void *(*start_routine)(void *), void *__restrict arg) {
-	static pthread_once_t once_control = PTHREAD_ONCE_INIT;
-
+/*
+ * When lazy lock is enabled, we need to make sure setting isthreaded before
+ * taking any background_thread locks.  This is called early in ctl (instead of
+ * wait for the pthread_create calls to trigger) because the mutex is required
+ * before creating background threads.
+ */
+void
+background_thread_ctl_init(tsdn_t *tsdn) {
+	malloc_mutex_assert_not_owner(tsdn, &background_thread_lock);
 	pthread_once(&once_control, pthread_create_wrapper_once);
-
-	return pthread_create_fptr(thread, attr, start_routine, arg);
 }
-#endif
+
+#endif /* defined(JEMALLOC_BACKGROUND_THREAD) */
 
 bool
 background_thread_boot0(void) {
@@ -658,6 +670,10 @@ background_thread_boot1(tsdn_t *tsdn) {
 	    malloc_mutex_rank_exclusive)) {
 		return true;
 	}
+	if (opt_background_thread) {
+		background_thread_ctl_init(tsdn);
+	}
+
 	background_thread_info = (background_thread_info_t *)base_alloc(tsdn,
 	    b0get(), ncpus * sizeof(background_thread_info_t), CACHELINE);
 	if (background_thread_info == NULL) {

@@ -20,6 +20,7 @@ void background_thread_postfork_parent(tsdn_t *tsdn);
 void background_thread_postfork_child(tsdn_t *tsdn);
 bool background_thread_stats_read(tsdn_t *tsdn,
     background_thread_stats_t *stats);
+void background_thread_ctl_init(tsdn_t *tsdn);
 
 #ifdef JEMALLOC_PTHREAD_CREATE_WRAPPER
 extern int pthread_create_wrapper(pthread_t *__restrict, const pthread_attr_t *,
