@@ -2154,7 +2154,7 @@ arena_i_extent_hooks_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
 			extent_hooks_t *new_extent_hooks
 			    JEMALLOC_CC_SILENCE_INIT(NULL);
 			WRITE(new_extent_hooks, extent_hooks_t *);
-			old_extent_hooks = extent_hooks_set(arena,
+			old_extent_hooks = extent_hooks_set(tsd, arena,
 			    new_extent_hooks);
 			READ(old_extent_hooks, extent_hooks_t *);
 		} else {
