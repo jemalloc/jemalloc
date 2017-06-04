@@ -1013,8 +1013,6 @@ extent_alloc_default(extent_hooks_t *extent_hooks, void *new_addr, size_t size,
 	tsdn_t *tsdn;
 	arena_t *arena;
 
-	assert(extent_hooks == &extent_hooks_default);
-
 	tsdn = tsdn_fetch();
 	arena = arena_get(tsdn, arena_ind, false);
 	/*
@@ -1457,8 +1455,6 @@ extent_dalloc_default_impl(void *addr, size_t size) {
 static bool
 extent_dalloc_default(extent_hooks_t *extent_hooks, void *addr, size_t size,
     bool committed, unsigned arena_ind) {
-	assert(extent_hooks == &extent_hooks_default);
-
 	return extent_dalloc_default_impl(addr, size);
 }
 
@@ -1551,8 +1547,6 @@ extent_destroy_default_impl(void *addr, size_t size) {
 static void
 extent_destroy_default(extent_hooks_t *extent_hooks, void *addr, size_t size,
     bool committed, unsigned arena_ind) {
-	assert(extent_hooks == &extent_hooks_default);
-
 	extent_destroy_default_impl(addr, size);
 }
 
@@ -1587,8 +1581,6 @@ extent_destroy_wrapper(tsdn_t *tsdn, arena_t *arena,
 static bool
 extent_commit_default(extent_hooks_t *extent_hooks, void *addr, size_t size,
     size_t offset, size_t length, unsigned arena_ind) {
-	assert(extent_hooks == &extent_hooks_default);
-
 	return pages_commit((void *)((uintptr_t)addr + (uintptr_t)offset),
 	    length);
 }
@@ -1619,8 +1611,6 @@ extent_commit_wrapper(tsdn_t *tsdn, arena_t *arena,
 static bool
 extent_decommit_default(extent_hooks_t *extent_hooks, void *addr, size_t size,
     size_t offset, size_t length, unsigned arena_ind) {
-	assert(extent_hooks == &extent_hooks_default);
-
 	return pages_decommit((void *)((uintptr_t)addr + (uintptr_t)offset),
 	    length);
 }
@@ -1646,7 +1636,6 @@ extent_decommit_wrapper(tsdn_t *tsdn, arena_t *arena,
 static bool
 extent_purge_lazy_default(extent_hooks_t *extent_hooks, void *addr, size_t size,
     size_t offset, size_t length, unsigned arena_ind) {
-	assert(extent_hooks == &extent_hooks_default);
 	assert(addr != NULL);
 	assert((offset & PAGE_MASK) == 0);
 	assert(length != 0);
@@ -1683,7 +1672,6 @@ extent_purge_lazy_wrapper(tsdn_t *tsdn, arena_t *arena,
 static bool
 extent_purge_forced_default(extent_hooks_t *extent_hooks, void *addr,
     size_t size, size_t offset, size_t length, unsigned arena_ind) {
-	assert(extent_hooks == &extent_hooks_default);
 	assert(addr != NULL);
 	assert((offset & PAGE_MASK) == 0);
 	assert(length != 0);
@@ -1720,8 +1708,6 @@ extent_purge_forced_wrapper(tsdn_t *tsdn, arena_t *arena,
 static bool
 extent_split_default(extent_hooks_t *extent_hooks, void *addr, size_t size,
     size_t size_a, size_t size_b, bool committed, unsigned arena_ind) {
-	assert(extent_hooks == &extent_hooks_default);
-
 	return !maps_coalesce;
 }
 #endif
@@ -1825,8 +1811,6 @@ extent_merge_default_impl(void *addr_a, void *addr_b) {
 static bool
 extent_merge_default(extent_hooks_t *extent_hooks, void *addr_a, size_t size_a,
     void *addr_b, size_t size_b, bool committed, unsigned arena_ind) {
-	assert(extent_hooks == &extent_hooks_default);
-
 	return extent_merge_default_impl(addr_a, addr_b);
 }
 #endif
