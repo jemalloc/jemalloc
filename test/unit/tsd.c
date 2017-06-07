@@ -106,8 +106,8 @@ thd_start_reincarnated(void *arg) {
 	    "TSD state should be reincarnated\n");
 	p = mallocx(1, MALLOCX_TCACHE_NONE);
 	assert_ptr_not_null(p, "Unexpected malloc() failure");
-	assert_ptr_not_null(*tsd_arenap_get_unsafe(tsd),
-	    "Should have tsd arena set after reincarnation.");
+	assert_ptr_null(*tsd_arenap_get_unsafe(tsd),
+	    "Should not have tsd arena set after reincarnation.");
 
 	free(p);
 	tsd_cleanup((void *)tsd);

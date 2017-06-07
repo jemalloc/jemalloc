@@ -63,6 +63,45 @@ tsd_slow_update(tsd_t *tsd) {
 	}
 }
 
+static bool
+tsd_data_init(tsd_t *tsd) {
+	/*
+	 * We initialize the rtree context first (before the tcache), since the
+	 * tcache initialization depends on it.
+	 */
+	rtree_ctx_data_init(tsd_rtree_ctxp_get_unsafe(tsd));
+
+	return tsd_tcache_enabled_data_init(tsd);
+}
+
+static void
+assert_tsd_data_cleanup_done(tsd_t *tsd) {
+	assert(!tsd_nominal(tsd));
+	assert(*tsd_arenap_get_unsafe(tsd) == NULL);
+	assert(*tsd_iarenap_get_unsafe(tsd) == NULL);
+	assert(*tsd_arenas_tdata_bypassp_get_unsafe(tsd) == true);
+	assert(*tsd_arenas_tdatap_get_unsafe(tsd) == NULL);
+	assert(*tsd_tcache_enabledp_get_unsafe(tsd) == false);
+	assert(*tsd_prof_tdatap_get_unsafe(tsd) == NULL);
+}
+
+static bool
+tsd_data_init_nocleanup(tsd_t *tsd) {
+	assert(tsd->state == tsd_state_reincarnated);
+	/*
+	 * During reincarnation, there is no guarantee that the cleanup function
+	 * will be called (deallocation may happen after all tsd destructors).
+	 * We set up tsd in a way that no cleanup is needed.
+	 */
+	rtree_ctx_data_init(tsd_rtree_ctxp_get_unsafe(tsd));
+	*tsd_arenas_tdata_bypassp_get(tsd) = true;
+	*tsd_tcache_enabledp_get_unsafe(tsd) = false;
+	*tsd_reentrancy_levelp_get(tsd) = 1;
+	assert_tsd_data_cleanup_done(tsd);
+
+	return false;
+}
+
 tsd_t *
 tsd_fetch_slow(tsd_t *tsd) {
 	if (tsd->state == tsd_state_nominal_slow) {
@@ -79,7 +118,7 @@ tsd_fetch_slow(tsd_t *tsd) {
 	} else if (tsd->state == tsd_state_purgatory) {
 		tsd->state = tsd_state_reincarnated;
 		tsd_set(tsd);
-		tsd_data_init(tsd);
+		tsd_data_init_nocleanup(tsd);
 	} else {
 		assert(tsd->state == tsd_state_reincarnated);
 	}
@@ -131,21 +170,6 @@ malloc_tsd_cleanup_register(bool (*f)(void)) {
 	ncleanups++;
 }
 
-bool
-tsd_data_init(void *arg) {
-	tsd_t *tsd = (tsd_t *)arg;
-	/*
-	 * We initialize the rtree context first (before the tcache), since the
-	 * tcache initialization depends on it.
-	 */
-	rtree_ctx_data_init(tsd_rtree_ctxp_get_unsafe(tsd));
-
-	if (tsd_tcache_enabled_data_init(tsd)) {
-		return true;
-	}
-	return false;
-}
-
 static void
 tsd_do_data_cleanup(tsd_t *tsd) {
 	prof_tdata_cleanup(tsd);
@@ -164,14 +188,16 @@ tsd_cleanup(void *arg) {
 	case tsd_state_uninitialized:
 		/* Do nothing. */
 		break;
-	case tsd_state_nominal:
-	case tsd_state_nominal_slow:
 	case tsd_state_reincarnated:
 		/*
 		 * Reincarnated means another destructor deallocated memory
-		 * after this destructor was called.  Reset state to
-		 * tsd_state_purgatory and request another callback.
+		 * after the destructor was called.  Cleanup isn't required but
+		 * is still called for testing and completeness.
 		 */
+		assert_tsd_data_cleanup_done(tsd);
+		/* Fall through. */
+	case tsd_state_nominal:
+	case tsd_state_nominal_slow:
 		tsd_do_data_cleanup(tsd);
 		tsd->state = tsd_state_purgatory;
 		tsd_set(tsd);

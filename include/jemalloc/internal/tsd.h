@@ -154,7 +154,6 @@ void malloc_tsd_dalloc(void *wrapper);
 void malloc_tsd_cleanup_register(bool (*f)(void));
 tsd_t *malloc_tsd_boot0(void);
 void malloc_tsd_boot1(void);
-bool tsd_data_init(void *arg);
 void tsd_cleanup(void *arg);
 tsd_t *tsd_fetch_slow(tsd_t *tsd);
 void tsd_slow_update(tsd_t *tsd);
@@ -228,6 +227,7 @@ MALLOC_TSD
 #define O(n, t, nt)							\
 JEMALLOC_ALWAYS_INLINE void						\
 tsd_##n##_set(tsd_t *tsd, t val) {					\
+	assert(tsd->state != tsd_state_reincarnated);			\
 	*tsd_##n##p_get(tsd) = val;					\
 }
 MALLOC_TSD
