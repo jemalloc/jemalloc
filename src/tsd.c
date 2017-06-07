@@ -103,7 +103,16 @@ tsd_data_init_nocleanup(tsd_t *tsd) {
 }
 
 tsd_t *
-tsd_fetch_slow(tsd_t *tsd) {
+tsd_fetch_slow(tsd_t *tsd, bool internal) {
+	if (internal) {
+		/* For internal background threads use only. */
+		assert(tsd->state == tsd_state_uninitialized);
+		tsd->state = tsd_state_reincarnated;
+		tsd_set(tsd);
+		tsd_data_init_nocleanup(tsd);
+		return tsd;
+	}
+
 	if (tsd->state == tsd_state_nominal_slow) {
 		/* On slow path but no work needed. */
 		assert(malloc_slow || !tsd_tcache_enabled_get(tsd) ||

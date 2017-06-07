@@ -316,12 +316,11 @@ background_thread_entry(void *ind_arg) {
 		set_current_thread_affinity((int)thread_ind);
 	}
 	/*
-	 * Start periodic background work.  We avoid fetching tsd to keep the
-	 * background thread "outside", since there may be side effects, for
-	 * example triggering new arena creation (which in turn triggers
-	 * background thread creation).
+	 * Start periodic background work.  We use internal tsd which avoids
+	 * side effects, for example triggering new arena creation (which in
+	 * turn triggers another background thread creation).
 	 */
-	background_work(TSDN_NULL, thread_ind);
+	background_work(tsd_tsdn(tsd_internal_fetch()), thread_ind);
 	assert(pthread_equal(pthread_self(),
 	    background_thread_info[thread_ind].thread));
 
