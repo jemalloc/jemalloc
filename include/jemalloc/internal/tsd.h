@@ -155,7 +155,7 @@ void malloc_tsd_cleanup_register(bool (*f)(void));
 tsd_t *malloc_tsd_boot0(void);
 void malloc_tsd_boot1(void);
 void tsd_cleanup(void *arg);
-tsd_t *tsd_fetch_slow(tsd_t *tsd);
+tsd_t *tsd_fetch_slow(tsd_t *tsd, bool internal);
 void tsd_slow_update(tsd_t *tsd);
 
 /*
@@ -250,7 +250,7 @@ tsd_fast(tsd_t *tsd) {
 }
 
 JEMALLOC_ALWAYS_INLINE tsd_t *
-tsd_fetch_impl(bool init) {
+tsd_fetch_impl(bool init, bool internal) {
 	tsd_t *tsd = tsd_get(init);
 
 	if (!init && tsd_get_allocates() && tsd == NULL) {
@@ -259,7 +259,7 @@ tsd_fetch_impl(bool init) {
 	assert(tsd != NULL);
 
 	if (unlikely(tsd->state != tsd_state_nominal)) {
-		return tsd_fetch_slow(tsd);
+		return tsd_fetch_slow(tsd, internal);
 	}
 	assert(tsd_fast(tsd));
 	tsd_assert_fast(tsd);
@@ -268,8 +268,13 @@ tsd_fetch_impl(bool init) {
 }
 
 JEMALLOC_ALWAYS_INLINE tsd_t *
+tsd_internal_fetch(void) {
+	return tsd_fetch_impl(true, true);
+}
+
+JEMALLOC_ALWAYS_INLINE tsd_t *
 tsd_fetch(void) {
-	return tsd_fetch_impl(true);
+	return tsd_fetch_impl(true, false);
 }
 
 static inline bool
@@ -283,7 +288,7 @@ tsdn_fetch(void) {
 		return NULL;
 	}
 
-	return tsd_tsdn(tsd_fetch_impl(false));
+	return tsd_tsdn(tsd_fetch_impl(false, false));
 }
 
 JEMALLOC_ALWAYS_INLINE rtree_ctx_t *
