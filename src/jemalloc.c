@@ -70,7 +70,7 @@ unsigned	opt_narenas = 0;
 unsigned	ncpus;
 
 /* Protects arenas initialization. */
-static malloc_mutex_t	arenas_lock;
+malloc_mutex_t arenas_lock;
 /*
  * Arenas that are used to service external requests.  Not all elements of the
  * arenas array are necessarily used; arenas are created lazily as needed.
@@ -335,6 +335,25 @@ arena_init_locked(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 	return arena;
 }
 
+static void
+arena_new_create_background_thread(tsdn_t *tsdn, unsigned ind) {
+	if (ind == 0) {
+		return;
+	}
+	/* background_thread_create() handles reentrancy internally. */
+	if (have_background_thread) {
+		bool err;
+		malloc_mutex_lock(tsdn, &background_thread_lock);
+		err = background_thread_create(tsdn_tsd(tsdn), ind);
+		malloc_mutex_unlock(tsdn, &background_thread_lock);
+		if (err) {
+			malloc_printf("<jemalloc>: error in background thread "
+				      "creation for arena %u. Abort.\n", ind);
+			abort();
+		}
+	}
+}
+
 arena_t *
 arena_init(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 	arena_t *arena;
@@ -342,6 +361,9 @@ arena_init(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 	malloc_mutex_lock(tsdn, &arenas_lock);
 	arena = arena_init_locked(tsdn, ind, extent_hooks);
 	malloc_mutex_unlock(tsdn, &arenas_lock);
+
+	arena_new_create_background_thread(tsdn, ind);
+
 	return arena;
 }
 
@@ -475,6 +497,7 @@ arena_choose_hard(tsd_t *tsd, bool internal) {
 
 	if (narenas_auto > 1) {
 		unsigned i, j, choose[2], first_null;
+		bool is_new_arena[2];
 
 		/*
 		 * Determine binding for both non-internal and internal
@@ -486,6 +509,7 @@ arena_choose_hard(tsd_t *tsd, bool internal) {
 
 		for (j = 0; j < 2; j++) {
 			choose[j] = 0;
+			is_new_arena[j] = false;
 		}
 
 		first_null = narenas_auto;
@@ -545,6 +569,7 @@ arena_choose_hard(tsd_t *tsd, bool internal) {
 					    &arenas_lock);
 					return NULL;
 				}
+				is_new_arena[j] = true;
 				if (!!j == internal) {
 					ret = arena;
 				}
@@ -552,6 +577,15 @@ arena_choose_hard(tsd_t *tsd, bool internal) {
 			arena_bind(tsd, choose[j], !!j);
 		}
 		malloc_mutex_unlock(tsd_tsdn(tsd), &arenas_lock);
+
+		for (j = 0; j < 2; j++) {
+			if (is_new_arena[j]) {
+				assert(choose[j] > 0);
+				arena_new_create_background_thread(
+				    tsd_tsdn(tsd), choose[j]);
+			}
+		}
+
 	} else {
 		ret = arena_get(tsd_tsdn(tsd), 0, false);
 		arena_bind(tsd, 0, false);

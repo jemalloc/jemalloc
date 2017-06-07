@@ -1501,6 +1501,7 @@ background_thread_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
 	}
 	background_thread_ctl_init(tsd_tsdn(tsd));
 
+	malloc_mutex_lock(tsd_tsdn(tsd), &ctl_mtx);
 	malloc_mutex_lock(tsd_tsdn(tsd), &background_thread_lock);
 	if (newp == NULL) {
 		oldval = background_thread_enabled();
@@ -1535,6 +1536,8 @@ background_thread_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
 	ret = 0;
 label_return:
 	malloc_mutex_unlock(tsd_tsdn(tsd), &background_thread_lock);
+	malloc_mutex_unlock(tsd_tsdn(tsd), &ctl_mtx);
+
 	return ret;
 }
 

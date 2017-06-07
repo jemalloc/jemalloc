@@ -2050,17 +2050,6 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 			hooks_arena_new_hook();
 		}
 		post_reentrancy(tsdn_tsd(tsdn));
-
-		/* background_thread_create() handles reentrancy internally. */
-		if (have_background_thread) {
-			bool err;
-			malloc_mutex_lock(tsdn, &background_thread_lock);
-			err = background_thread_create(tsdn_tsd(tsdn), ind);
-			malloc_mutex_unlock(tsdn, &background_thread_lock);
-			if (err) {
-				goto label_error;
-			}
-		}
 	}
 
 	return arena;

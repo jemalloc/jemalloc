@@ -15,6 +15,7 @@ extern percpu_arena_mode_t opt_percpu_arena;
 extern const char *percpu_arena_mode_names[];
 
 extern const uint64_t h_steps[SMOOTHSTEP_NSTEPS];
+extern malloc_mutex_t arenas_lock;
 
 void arena_stats_large_nrequests_add(tsdn_t *tsdn, arena_stats_t *arena_stats,
     szind_t szind, uint64_t nrequests);
