@@ -352,12 +352,15 @@ background_thread_create(tsd_t *tsd, unsigned arena_ind) {
 	}
 
 	pre_reentrancy(tsd);
+	malloc_mutex_unlock(tsd_tsdn(tsd), &background_thread_lock);
 	/*
 	 * To avoid complications (besides reentrancy), create internal
-	 * background threads with the underlying pthread_create.
+	 * background threads with the underlying pthread_create, and drop
+	 * background_thread_lock (pthread_create may take internal locks).
 	 */
 	int err = pthread_create_wrapper(&info->thread, NULL,
 	    background_thread_entry, (void *)thread_ind);
+	malloc_mutex_lock(tsd_tsdn(tsd), &background_thread_lock);
 	post_reentrancy(tsd);
 
 	if (err != 0) {
