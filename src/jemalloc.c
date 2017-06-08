@@ -1930,7 +1930,7 @@ imalloc(static_opts_t *sopts, dynamic_opts_t *dopts) {
 			malloc_write(sopts->oom_string);
 			abort();
 		}
-		UTRACE(NULL, size, NULL);
+		UTRACE(NULL, dopts->num_items * dopts->item_size, NULL);
 		set_errno(ENOMEM);
 		*dopts->result = NULL;
 
