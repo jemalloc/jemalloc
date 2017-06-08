@@ -108,7 +108,6 @@ enum {
 typedef uint8_t tsd_state_t;
 
 /* The actual tsd. */
-typedef struct tsd_s tsd_t;
 struct tsd_s {
 	/*
 	 * The contents should be treated as totally opaque outside the tsd
@@ -127,7 +126,6 @@ MALLOC_TSD
  * between tsd_t and tsdn_t, where tsdn_t is "nullable" and has to be
  * explicitly converted to tsd_t, which is non-nullable.
  */
-typedef struct tsdn_s tsdn_t;
 struct tsdn_s {
 	tsd_t tsd;
 };
