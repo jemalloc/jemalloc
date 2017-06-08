@@ -67,8 +67,8 @@ typedef struct {
 /******************************************************************************/
 
 /* Lifetime management.  Minitems is the initial capacity. */
-bool ckh_new(tsd_t *tsd, ckh_t *ckh, size_t minitems, ckh_hash_t *hash,
-    ckh_keycomp_t *keycomp);
+bool ckh_new(tsd_t *tsd, arena_t *arena, ckh_t *ckh, size_t minitems,
+    ckh_hash_t *hash, ckh_keycomp_t *keycomp);
 void ckh_delete(tsd_t *tsd, ckh_t *ckh);
 
 /* Get the number of elements in the set. */

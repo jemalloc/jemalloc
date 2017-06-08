@@ -1913,8 +1913,8 @@ prof_tdata_init_impl(tsd_t *tsd, uint64_t thr_uid, uint64_t thr_discrim,
 	tdata->expired = false;
 	tdata->tctx_uid_next = 0;
 
-	if (ckh_new(tsd, &tdata->bt2tctx, PROF_CKH_MINITEMS, prof_bt_hash,
-	    prof_bt_keycomp)) {
+	if (ckh_new(tsd, NULL, &tdata->bt2tctx,
+	    PROF_CKH_MINITEMS, prof_bt_hash, prof_bt_keycomp)){
 		idalloctm(tsd_tsdn(tsd), tdata, NULL, NULL, true, true);
 		return NULL;
 	}
@@ -2308,8 +2308,8 @@ prof_boot2(tsd_t *tsd) {
 			return true;
 		}
 
-		if (ckh_new(tsd, &bt2gctx, PROF_CKH_MINITEMS, prof_bt_hash,
-		    prof_bt_keycomp)) {
+		if (ckh_new(tsd, arena_get(tsd_tsdn(tsd), 0, false), &bt2gctx,
+		    PROF_CKH_MINITEMS, prof_bt_hash, prof_bt_keycomp)) {
 			return true;
 		}
 		if (malloc_mutex_init(&bt2gctx_mtx, "prof_bt2gctx",
