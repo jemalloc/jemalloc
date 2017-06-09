@@ -317,6 +317,11 @@
 #undef JEMALLOC_HAVE_SCHED_SETAFFINITY
 
 /*
+ * If defined, all the features necessary for background threads are present.
+ */
+#undef JEMALLOC_BACKGROUND_THREAD
+
+/*
  * If defined, jemalloc symbols are not exported (doesn't work when
  * JEMALLOC_PREFIX is not defined).
  */

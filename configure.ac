@@ -1452,6 +1452,7 @@ if test "x$abi" != "xpecoff" ; then
                [AC_SEARCH_LIBS([pthread_create], , ,
                                AC_MSG_ERROR([libpthread is missing]))])
   wrap_syms="${wrap_syms} pthread_create"
+  have_pthread="1"
   dnl Check if we have dlsym support.
   have_dlsym="1"
   AC_CHECK_HEADERS([dlfcn.h],
@@ -1931,6 +1932,15 @@ if test "x${enable_zone_allocator}" = "x1" ; then
     AC_MSG_ERROR([--enable-zone-allocator is only supported on Darwin])
   fi
   AC_DEFINE([JEMALLOC_ZONE], [ ])
+fi
+
+dnl ============================================================================
+dnl Enable background threads if possible.
+
+if test "x${have_pthread}" = "x1" -a "x${have_dlsym}" = "x1" \
+    -a "x${je_cv_os_unfair_lock}" != "xyes" \
+    -a "x${je_cv_osspin}" != "xyes" ; then
+  AC_DEFINE([JEMALLOC_BACKGROUND_THREAD])
 fi
 
 dnl ============================================================================
