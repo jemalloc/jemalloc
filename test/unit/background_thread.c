@@ -80,7 +80,7 @@ TEST_BEGIN(test_background_thread_running) {
 
 	test_repeat_background_thread_ctl(false);
 	test_switch_background_thread_ctl(true);
-	assert_b_eq(info->started, true,
+	assert_b_eq(info->state, background_thread_started,
 	    "Background_thread did not start.\n");
 
 	nstime_t start, now;

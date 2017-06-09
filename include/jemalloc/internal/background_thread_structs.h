@@ -9,6 +9,13 @@
 
 #define BACKGROUND_THREAD_INDEFINITE_SLEEP UINT64_MAX
 
+typedef enum {
+	background_thread_stopped,
+	background_thread_started,
+	/* Thread waits on the global lock when paused (for arena_reset). */
+	background_thread_paused,
+} background_thread_state_t;
+
 struct background_thread_info_s {
 #ifdef JEMALLOC_BACKGROUND_THREAD
 	/* Background thread is pthread specific. */
@@ -16,10 +23,7 @@ struct background_thread_info_s {
 	pthread_cond_t		cond;
 #endif
 	malloc_mutex_t		mtx;
-	/* Whether the thread has been created. */
-	bool			started;
-	/* Pause execution (for arena reset / destroy). */
-	bool			pause;
+	background_thread_state_t	state;
 	/* When true, it means no wakeup scheduled. */
 	atomic_b_t		indefinite_sleep;
 	/* Next scheduled wakeup time (absolute time in ns). */

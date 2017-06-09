@@ -1948,9 +1948,9 @@ arena_reset_prepare_background_thread(tsd_t *tsd, unsigned arena_ind) {
 			unsigned ind = arena_ind % ncpus;
 			background_thread_info_t *info =
 			    &background_thread_info[ind];
-			assert(info->started && !info->pause);
+			assert(info->state == background_thread_started);
 			malloc_mutex_lock(tsd_tsdn(tsd), &info->mtx);
-			info->pause = true;
+			info->state = background_thread_paused;
 			malloc_mutex_unlock(tsd_tsdn(tsd), &info->mtx);
 		}
 	}
@@ -1963,9 +1963,9 @@ arena_reset_finish_background_thread(tsd_t *tsd, unsigned arena_ind) {
 			unsigned ind = arena_ind % ncpus;
 			background_thread_info_t *info =
 			    &background_thread_info[ind];
-			assert(info->started && info->pause);
+			assert(info->state = background_thread_paused);
 			malloc_mutex_lock(tsd_tsdn(tsd), &info->mtx);
-			info->pause = false;
+			info->state = background_thread_started;
 			malloc_mutex_unlock(tsd_tsdn(tsd), &info->mtx);
 		}
 		malloc_mutex_unlock(tsd_tsdn(tsd), &background_thread_lock);
