@@ -635,7 +635,9 @@ background_thread_stats_read(tsdn_t *tsdn, background_thread_stats_t *stats) {
 void
 background_thread_ctl_init(tsdn_t *tsdn) {
 	malloc_mutex_assert_not_owner(tsdn, &background_thread_lock);
+#ifdef JEMALLOC_PTHREAD_CREATE_WRAPPER
 	pthread_once(&once_control, pthread_create_wrapper_once);
+#endif
 }
 
 #endif /* defined(JEMALLOC_BACKGROUND_THREAD) */
