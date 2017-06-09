@@ -350,24 +350,38 @@ check_background_thread_creation(tsd_t *tsd, unsigned *n_created,
 		}
 		background_thread_info_t *info = &background_thread_info[i];
 		malloc_mutex_lock(tsd_tsdn(tsd), &info->mtx);
-		if (info->started) {
-			pre_reentrancy(tsd);
-			int err = pthread_create_wrapper(&info->thread, NULL,
-			    background_thread_entry, (void *)(uintptr_t)i);
-			post_reentrancy(tsd);
 
-			if (err == 0) {
-				(*n_created)++;
-				created_threads[i] = true;
-			} else {
-				malloc_printf("<jemalloc>: background thread "
-				    "creation failed (%d)\n", err);
-				if (opt_abort) {
-					abort();
-				}
+		bool create = info->started;
+		malloc_mutex_unlock(tsd_tsdn(tsd), &info->mtx);
+		if (!create) {
+			continue;
+		}
+
+		/*
+		 * To avoid deadlock with prefork handlers (which waits for the
+		 * mutex held here), unlock before calling pthread_create().
+		 */
+		malloc_mutex_unlock(tsd_tsdn(tsd),
+		    &background_thread_info[0].mtx);
+		pre_reentrancy(tsd);
+		int err = pthread_create_wrapper(&info->thread, NULL,
+		    background_thread_entry, (void *)(uintptr_t)i);
+		post_reentrancy(tsd);
+		malloc_mutex_lock(tsd_tsdn(tsd),
+		    &background_thread_info[0].mtx);
+
+		if (err == 0) {
+			(*n_created)++;
+			created_threads[i] = true;
+		} else {
+			malloc_printf("<jemalloc>: background thread "
+			    "creation failed (%d)\n", err);
+			if (opt_abort) {
+				abort();
 			}
 		}
-		malloc_mutex_unlock(tsd_tsdn(tsd), &info->mtx);
+		/* Since we unlocked and may miss signals, restart. */
+		i = 1;
 	}
 }
 
@@ -643,14 +657,7 @@ label_done:
 void
 background_thread_prefork0(tsdn_t *tsdn) {
 	malloc_mutex_prefork(tsdn, &background_thread_lock);
-	if (background_thread_enabled()) {
-		background_thread_enabled_at_fork = true;
-		background_thread_enabled_set(tsdn, false);
-		background_threads_disable(tsdn_tsd(tsdn));
-	} else {
-		background_thread_enabled_at_fork = false;
-	}
-	assert(n_background_threads == 0);
+	background_thread_enabled_at_fork = background_thread_enabled();
 }
 
 void
@@ -660,22 +667,12 @@ background_thread_prefork1(tsdn_t *tsdn) {
 	}
 }
 
-static void
-background_thread_postfork_init(tsdn_t *tsdn) {
-	assert(n_background_threads == 0);
-	if (background_thread_enabled_at_fork) {
-		background_thread_enabled_set(tsdn, true);
-		background_threads_enable(tsdn_tsd(tsdn));
-	}
-}
-
 void
 background_thread_postfork_parent(tsdn_t *tsdn) {
 	for (unsigned i = 0; i < ncpus; i++) {
 		malloc_mutex_postfork_parent(tsdn,
 		    &background_thread_info[i].mtx);
 	}
-	background_thread_postfork_init(tsdn);
 	malloc_mutex_postfork_parent(tsdn, &background_thread_lock);
 }
 
@@ -686,9 +683,23 @@ background_thread_postfork_child(tsdn_t *tsdn) {
 		    &background_thread_info[i].mtx);
 	}
 	malloc_mutex_postfork_child(tsdn, &background_thread_lock);
+	if (!background_thread_enabled_at_fork) {
+		return;
+	}
 
+	/* Clear background_thread state (reset to disabled for child). */
 	malloc_mutex_lock(tsdn, &background_thread_lock);
-	background_thread_postfork_init(tsdn);
+	n_background_threads = 0;
+	background_thread_enabled_set(tsdn, false);
+	for (unsigned i = 0; i < ncpus; i++) {
+		background_thread_info_t *info = &background_thread_info[i];
+		malloc_mutex_lock(tsdn, &info->mtx);
+		info->started = false;
+		int ret = pthread_cond_init(&info->cond, NULL);
+		assert(ret == 0);
+		background_thread_info_init(tsdn, info);
+		malloc_mutex_unlock(tsdn, &info->mtx);
+	}
 	malloc_mutex_unlock(tsdn, &background_thread_lock);
 }
 

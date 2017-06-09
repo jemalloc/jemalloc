@@ -340,7 +340,6 @@ arena_new_create_background_thread(tsdn_t *tsdn, unsigned ind) {
 	if (ind == 0) {
 		return;
 	}
-	/* background_thread_create() handles reentrancy internally. */
 	if (have_background_thread) {
 		bool err;
 		malloc_mutex_lock(tsdn, &background_thread_lock);
