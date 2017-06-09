@@ -750,7 +750,10 @@ mallctl("arena." STRINGIFY(MALLCTL_ARENAS_ALL) ".decay",
         background threads will be no more than the number of CPUs or active
         arenas).  Threads run periodically, and handle <link
         linkend="arena.i.decay">purging</link> asynchronously.  When switching
-        off, background threads are terminated synchronously.  See <link
+        off, background threads are terminated synchronously.  Note that after
+        <citerefentry><refentrytitle>fork</refentrytitle><manvolnum>2</manvolnum></citerefentry>
+        function, the state in the child process will be disabled regardless
+        the state in parent process. See <link
         linkend="stats.background_thread.num_threads"><mallctl>stats.background_thread</mallctl></link>
         for related stats.  <link
         linkend="opt.background_thread"><mallctl>opt.background_thread</mallctl></link>
