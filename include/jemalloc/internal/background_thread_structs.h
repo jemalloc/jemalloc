@@ -18,6 +18,8 @@ struct background_thread_info_s {
 	malloc_mutex_t		mtx;
 	/* Whether the thread has been created. */
 	bool			started;
+	/* Pause execution (for arena reset / destroy). */
+	bool			pause;
 	/* When true, it means no wakeup scheduled. */
 	atomic_b_t		indefinite_sleep;
 	/* Next scheduled wakeup time (absolute time in ns). */
