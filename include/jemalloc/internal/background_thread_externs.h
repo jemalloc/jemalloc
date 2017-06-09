@@ -10,8 +10,6 @@ extern background_thread_info_t *background_thread_info;
 bool background_thread_create(tsd_t *tsd, unsigned arena_ind);
 bool background_threads_enable(tsd_t *tsd);
 bool background_threads_disable(tsd_t *tsd);
-bool background_threads_disable_single(tsd_t *tsd,
-    background_thread_info_t *info);
 void background_thread_interval_check(tsdn_t *tsdn, arena_t *arena,
     arena_decay_t *decay, size_t npages_new);
 void background_thread_prefork0(tsdn_t *tsdn);
