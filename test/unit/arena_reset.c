@@ -134,16 +134,24 @@ do_arena_reset_pre(unsigned arena_ind, void ***ptrs, unsigned *nptrs) {
 }
 
 static void
-do_arena_reset_post(void **ptrs, unsigned nptrs) {
+do_arena_reset_post(void **ptrs, unsigned nptrs, unsigned arena_ind) {
 	tsdn_t *tsdn;
 	unsigned i;
 
 	tsdn = tsdn_fetch();
 
+	if (have_background_thread) {
+		malloc_mutex_lock(tsdn,
+		    &background_thread_info[arena_ind % ncpus].mtx);
+	}
 	/* Verify allocations no longer exist. */
 	for (i = 0; i < nptrs; i++) {
 		assert_zu_eq(vsalloc(tsdn, ptrs[i]), 0,
 		    "Allocation should no longer exist");
+	}
+	if (have_background_thread) {
+		malloc_mutex_unlock(tsdn,
+		    &background_thread_info[arena_ind % ncpus].mtx);
 	}
 
 	free(ptrs);
@@ -180,7 +188,7 @@ TEST_BEGIN(test_arena_reset) {
 	arena_ind = do_arena_create(NULL);
 	do_arena_reset_pre(arena_ind, &ptrs, &nptrs);
 	do_arena_reset(arena_ind);
-	do_arena_reset_post(ptrs, nptrs);
+	do_arena_reset_post(ptrs, nptrs, arena_ind);
 }
 TEST_END
 
@@ -239,7 +247,7 @@ TEST_BEGIN(test_arena_destroy_hooks_default) {
 	assert_true(arena_i_initialized(MALLCTL_ARENAS_DESTROYED, false),
 	    "Destroyed arena stats should be initialized");
 
-	do_arena_reset_post(ptrs, nptrs);
+	do_arena_reset_post(ptrs, nptrs, arena_ind);
 
 	arena_ind_prev = arena_ind;
 	arena_ind = do_arena_create(NULL);
@@ -247,7 +255,7 @@ TEST_BEGIN(test_arena_destroy_hooks_default) {
 	assert_u_eq(arena_ind, arena_ind_prev,
 	    "Arena index should have been recycled");
 	do_arena_destroy(arena_ind);
-	do_arena_reset_post(ptrs, nptrs);
+	do_arena_reset_post(ptrs, nptrs, arena_ind);
 
 	do_arena_destroy(arena_ind_another);
 }
@@ -320,7 +328,7 @@ TEST_BEGIN(test_arena_destroy_hooks_unmap) {
 	assert_true(arena_i_initialized(MALLCTL_ARENAS_DESTROYED, false),
 	    "Destroyed arena stats should be initialized");
 
-	do_arena_reset_post(ptrs, nptrs);
+	do_arena_reset_post(ptrs, nptrs, arena_ind);
 
 	memcpy(&hooks, &hooks_orig, sizeof(extent_hooks_t));
 }
