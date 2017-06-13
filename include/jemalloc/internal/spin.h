@@ -1,51 +1,36 @@
-/******************************************************************************/
-#ifdef JEMALLOC_H_TYPES
+#ifndef JEMALLOC_INTERNAL_SPIN_H
+#define JEMALLOC_INTERNAL_SPIN_H
 
-typedef struct spin_s spin_t;
+#ifdef JEMALLOC_SPIN_C_
+#  define SPIN_INLINE extern inline
+#else
+#  define SPIN_INLINE inline
+#endif
 
-#endif /* JEMALLOC_H_TYPES */
-/******************************************************************************/
-#ifdef JEMALLOC_H_STRUCTS
+#define SPIN_INITIALIZER {0U}
 
-struct spin_s {
+typedef struct {
 	unsigned iteration;
-};
+} spin_t;
 
-#endif /* JEMALLOC_H_STRUCTS */
-/******************************************************************************/
-#ifdef JEMALLOC_H_EXTERNS
+SPIN_INLINE void
+spin_adaptive(spin_t *spin) {
+	volatile uint32_t i;
 
-#endif /* JEMALLOC_H_EXTERNS */
-/******************************************************************************/
-#ifdef JEMALLOC_H_INLINES
-
-#ifndef JEMALLOC_ENABLE_INLINE
-void	spin_init(spin_t *spin);
-void	spin_adaptive(spin_t *spin);
-#endif
-
-#if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_SPIN_C_))
-JEMALLOC_INLINE void
-spin_init(spin_t *spin)
-{
-
-	spin->iteration = 0;
-}
-
-JEMALLOC_INLINE void
-spin_adaptive(spin_t *spin)
-{
-	volatile uint64_t i;
-
-	for (i = 0; i < (KQU(1) << spin->iteration); i++)
-		CPU_SPINWAIT;
-
-	if (spin->iteration < 63)
+	if (spin->iteration < 5) {
+		for (i = 0; i < (1U << spin->iteration); i++) {
+			CPU_SPINWAIT;
+		}
 		spin->iteration++;
+	} else {
+#ifdef _WIN32
+		SwitchToThread();
+#else
+		sched_yield();
+#endif
+	}
 }
 
-#endif
+#undef SPIN_INLINE
 
-#endif /* JEMALLOC_H_INLINES */
-/******************************************************************************/
-
+#endif /* JEMALLOC_INTERNAL_SPIN_H */

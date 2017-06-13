@@ -12,7 +12,8 @@ matrix:
 before_script:
   - autoconf
   - ./configure ${COMPILER_FLAGS:+ \
-      CC="$CC $COMPILER_FLAGS" } \
+      CC="$CC $COMPILER_FLAGS" \
+      CXX="$CXX $COMPILER_FLAGS" } \
       $CONFIGURE_FLAGS
   - make -j3
   - make -j3 tests
@@ -23,28 +24,37 @@ script:
 
 # The 'default' configuration is gcc, on linux, with no compiler or configure
 # flags.  We also test with clang, -m32, --enable-debug, --enable-prof,
-# --disable-stats, and --disable-tcache.  To avoid abusing travis though, we
-# don't test all 2**7 = 128 possible combinations of these; instead, we only
-# test combinations of up to 2 'unusual' settings, under the hope that bugs
-# involving interactions of such settings are rare.
-# things at once, for C(7, 0) + C(7, 1) + C(7, 2) = 29
+# --disable-stats, and --with-malloc-conf=tcache:false.  To avoid abusing
+# travis though, we don't test all 2**7 = 128 possible combinations of these;
+# instead, we only test combinations of up to 2 'unusual' settings, under the
+# hope that bugs involving interactions of such settings are rare.
+# Things at once, for C(7, 0) + C(7, 1) + C(7, 2) = 29
 MAX_UNUSUAL_OPTIONS = 2
 
 os_default = 'linux'
 os_unusual = 'osx'
 
-compilers_default = 'CC=gcc'
-compilers_unusual = 'CC=clang'
+compilers_default = 'CC=gcc CXX=g++'
+compilers_unusual = 'CC=clang CXX=clang++'
 
 compiler_flag_unusuals = ['-m32']
 
 configure_flag_unusuals = [
-    '--enable-debug', '--enable-prof', '--disable-stats', '--disable-tcache',
+    '--enable-debug',
+    '--enable-prof',
+    '--disable-stats',
+]
+
+malloc_conf_unusuals = [
+    'tcache:false',
+    'dss:primary',
+    'percpu_arena:percpu',
+    'background_thread:true',
 ]
 
 all_unusuals = (
     [os_unusual] + [compilers_unusual] + compiler_flag_unusuals
-    + configure_flag_unusuals
+    + configure_flag_unusuals + malloc_conf_unusuals
 )
 
 unusual_combinations_to_test = []
@@ -67,11 +77,23 @@ for unusual_combination in unusual_combinations_to_test:
     configure_flags = [
         x for x in unusual_combination if x in configure_flag_unusuals]
 
+    malloc_conf = [
+        x for x in unusual_combination if x in malloc_conf_unusuals]
+    # Filter out unsupported configurations on OS X.
+    if os == 'osx' and ('dss:primary' in malloc_conf or \
+      'percpu_arena:percpu' in malloc_conf or 'background_thread:true' \
+      in malloc_conf):
+        continue
+    if len(malloc_conf) > 0:
+        configure_flags.append('--with-malloc-conf=' + ",".join(malloc_conf))
+
     # Filter out an unsupported configuration - heap profiling on OS X.
     if os == 'osx' and '--enable-prof' in configure_flags:
         continue
 
-    env_string = '{} COMPILER_FLAGS="{}" CONFIGURE_FLAGS="{}"'.format(
+    # We get some spurious errors when -Warray-bounds is enabled.
+    env_string = ('{} COMPILER_FLAGS="{}" CONFIGURE_FLAGS="{}" '
+	'EXTRA_CFLAGS="-Werror -Wno-array-bounds"').format(
         compilers, " ".join(compiler_flags), " ".join(configure_flags))
 
     include_rows += '    - os: %s\n' % os

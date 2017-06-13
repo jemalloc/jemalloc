@@ -1,5 +1,7 @@
 #include "test/jemalloc_test.h"
 
+#include "jemalloc/internal/util.h"
+
 typedef enum {
 	TOKEN_TYPE_NONE,
 	TOKEN_TYPE_ERROR,
@@ -39,8 +41,7 @@ struct parser_s {
 
 static void
 token_init(token_t *token, parser_t *parser, token_type_t token_type,
-    size_t pos, size_t len, size_t line, size_t col)
-{
+    size_t pos, size_t len, size_t line, size_t col) {
 	token->parser = parser;
 	token->token_type = token_type;
 	token->pos = pos;
@@ -50,8 +51,7 @@ token_init(token_t *token, parser_t *parser, token_type_t token_type,
 }
 
 static void
-token_error(token_t *token)
-{
+token_error(token_t *token) {
 	if (!token->parser->verbose) {
 		return;
 	}
@@ -67,16 +67,13 @@ token_error(token_t *token)
 		    token->col);
 		break;
 	}
-	{
-		UNUSED ssize_t err = write(STDERR_FILENO,
-		    &token->parser->buf[token->pos], token->len);
-	}
+	UNUSED ssize_t err = write(STDERR_FILENO,
+	    &token->parser->buf[token->pos], token->len);
 	malloc_printf("\n");
 }
 
 static void
-parser_init(parser_t *parser, bool verbose)
-{
+parser_init(parser_t *parser, bool verbose) {
 	parser->verbose = verbose;
 	parser->buf = NULL;
 	parser->len = 0;
@@ -86,16 +83,14 @@ parser_init(parser_t *parser, bool verbose)
 }
 
 static void
-parser_fini(parser_t *parser)
-{
+parser_fini(parser_t *parser) {
 	if (parser->buf != NULL) {
 		dallocx(parser->buf, MALLOCX_TCACHE_NONE);
 	}
 }
 
 static bool
-parser_append(parser_t *parser, const char *str)
-{
+parser_append(parser_t *parser, const char *str) {
 	size_t len = strlen(str);
 	char *buf = (parser->buf == NULL) ? mallocx(len + 1,
 	    MALLOCX_TCACHE_NONE) : rallocx(parser->buf, parser->len + len + 1,
@@ -110,8 +105,7 @@ parser_append(parser_t *parser, const char *str)
 }
 
 static bool
-parser_tokenize(parser_t *parser)
-{
+parser_tokenize(parser_t *parser) {
 	enum {
 		STATE_START,
 		STATE_EOI,
@@ -672,8 +666,7 @@ static bool	parser_parse_array(parser_t *parser);
 static bool	parser_parse_object(parser_t *parser);
 
 static bool
-parser_parse_value(parser_t *parser)
-{
+parser_parse_value(parser_t *parser) {
 	switch (parser->token.token_type) {
 	case TOKEN_TYPE_NULL:
 	case TOKEN_TYPE_FALSE:
@@ -692,8 +685,7 @@ parser_parse_value(parser_t *parser)
 }
 
 static bool
-parser_parse_pair(parser_t *parser)
-{
+parser_parse_pair(parser_t *parser) {
 	assert_d_eq(parser->token.token_type, TOKEN_TYPE_STRING,
 	    "Pair should start with string");
 	if (parser_tokenize(parser)) {
@@ -711,8 +703,7 @@ parser_parse_pair(parser_t *parser)
 }
 
 static bool
-parser_parse_values(parser_t *parser)
-{
+parser_parse_values(parser_t *parser) {
 	if (parser_parse_value(parser)) {
 		return true;
 	}
@@ -739,8 +730,7 @@ parser_parse_values(parser_t *parser)
 }
 
 static bool
-parser_parse_array(parser_t *parser)
-{
+parser_parse_array(parser_t *parser) {
 	assert_d_eq(parser->token.token_type, TOKEN_TYPE_LBRACKET,
 	    "Array should start with [");
 	if (parser_tokenize(parser)) {
@@ -756,8 +746,7 @@ parser_parse_array(parser_t *parser)
 }
 
 static bool
-parser_parse_pairs(parser_t *parser)
-{
+parser_parse_pairs(parser_t *parser) {
 	assert_d_eq(parser->token.token_type, TOKEN_TYPE_STRING,
 	    "Object should start with string");
 	if (parser_parse_pair(parser)) {
@@ -792,8 +781,7 @@ parser_parse_pairs(parser_t *parser)
 }
 
 static bool
-parser_parse_object(parser_t *parser)
-{
+parser_parse_object(parser_t *parser) {
 	assert_d_eq(parser->token.token_type, TOKEN_TYPE_LBRACE,
 	    "Object should start with {");
 	if (parser_tokenize(parser)) {
@@ -811,8 +799,7 @@ parser_parse_object(parser_t *parser)
 }
 
 static bool
-parser_parse(parser_t *parser)
-{
+parser_parse(parser_t *parser) {
 	if (parser_tokenize(parser)) {
 		goto label_error;
 	}
@@ -836,8 +823,7 @@ label_error:
 	return true;
 }
 
-TEST_BEGIN(test_json_parser)
-{
+TEST_BEGIN(test_json_parser) {
 	size_t i;
 	const char *invalid_inputs[] = {
 		/* Tokenizer error case tests. */
@@ -934,41 +920,40 @@ TEST_BEGIN(test_json_parser)
 TEST_END
 
 void
-write_cb(void *opaque, const char *str)
-{
+write_cb(void *opaque, const char *str) {
 	parser_t *parser = (parser_t *)opaque;
 	if (parser_append(parser, str)) {
 		test_fail("Unexpected input appending failure");
 	}
 }
 
-TEST_BEGIN(test_stats_print_json)
-{
+TEST_BEGIN(test_stats_print_json) {
 	const char *opts[] = {
 		"J",
 		"Jg",
 		"Jm",
+		"Jd",
+		"Jmd",
+		"Jgd",
 		"Jgm",
+		"Jgmd",
 		"Ja",
 		"Jb",
-		"Jab",
 		"Jl",
-		"Jal",
+		"Jx",
 		"Jbl",
+		"Jal",
+		"Jab",
 		"Jabl",
-		"Jh",
-		"Jah",
-		"Jbh",
-		"Jabh",
-		"Jlh",
-		"Jalh",
-		"Jblh",
-		"Jablh",
-		"Jgmablh",
+		"Jax",
+		"Jbx",
+		"Jlx",
+		"Jablx",
+		"Jgmdablx",
 	};
 	unsigned arena_ind, i;
 
-	for (i = 0; i < 2; i++) {
+	for (i = 0; i < 3; i++) {
 		unsigned j;
 
 		switch (i) {
@@ -976,8 +961,18 @@ TEST_BEGIN(test_stats_print_json)
 			break;
 		case 1: {
 			size_t sz = sizeof(arena_ind);
-			assert_d_eq(mallctl("arenas.extend", (void *)&arena_ind,
+			assert_d_eq(mallctl("arenas.create", (void *)&arena_ind,
 			    &sz, NULL, 0), 0, "Unexpected mallctl failure");
+			break;
+		} case 2: {
+			size_t mib[3];
+			size_t miblen = sizeof(mib)/sizeof(size_t);
+			assert_d_eq(mallctlnametomib("arena.0.destroy",
+			    mib, &miblen), 0,
+			    "Unexpected mallctlnametomib failure");
+			mib[1] = arena_ind;
+			assert_d_eq(mallctlbymib(mib, miblen, NULL, NULL, NULL,
+			    0), 0, "Unexpected mallctlbymib failure");
 			break;
 		} default:
 			not_reached();
@@ -997,9 +992,8 @@ TEST_BEGIN(test_stats_print_json)
 TEST_END
 
 int
-main(void)
-{
-	return (test(
+main(void) {
+	return test(
 	    test_json_parser,
-	    test_stats_print_json));
+	    test_stats_print_json);
 }

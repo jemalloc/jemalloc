@@ -41,16 +41,15 @@ for t in $@; do
     # execute the test.  This allows the shell script to set MALLOC_CONF, which
     # is then used to set @JEMALLOC_CPREFIX@MALLOC_CONF (thus allowing the
     # per test shell script to ignore the @JEMALLOC_CPREFIX@ detail).
-    $(enable_fill=@enable_fill@ \
-      enable_prof=@enable_prof@ \
-      enable_tcache=@enable_tcache@ \
-      . @srcroot@${t}.sh && \
-      export_malloc_conf && \
-      ${t}@exe@ @abs_srcroot@ @abs_objroot@)
+    enable_fill=@enable_fill@ \
+    enable_prof=@enable_prof@ \
+    . @srcroot@${t}.sh && \
+    export_malloc_conf && \
+    $JEMALLOC_TEST_PREFIX ${t}@exe@ @abs_srcroot@ @abs_objroot@
   else
-    $(export MALLOC_CONF= && \
-      export_malloc_conf &&
-      ${t}@exe@ @abs_srcroot@ @abs_objroot@)
+    export MALLOC_CONF= && \
+    export_malloc_conf && \
+    $JEMALLOC_TEST_PREFIX ${t}@exe@ @abs_srcroot@ @abs_objroot@
   fi
   result_code=$?
   case ${result_code} in
@@ -64,7 +63,8 @@ for t in $@; do
       fail_count=$((fail_count+1))
       ;;
     *)
-      echo "Test harness error" 1>&2
+      echo "Test harness error: ${t} w/ MALLOC_CONF=\"${MALLOC_CONF}\"" 1>&2
+      echo "Use prefix to debug, e.g. JEMALLOC_TEST_PREFIX=\"gdb --args\" sh test/test.sh ${t}" 1>&2
       exit 1
   esac
 done

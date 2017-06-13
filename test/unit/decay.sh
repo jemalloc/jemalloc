@@ -1,3 +1,3 @@
 #!/bin/sh
 
-export MALLOC_CONF="purge:decay,decay_time:1"
+export MALLOC_CONF="dirty_decay_ms:1000,muzzy_decay_ms:1000,lg_tcache_max:0"

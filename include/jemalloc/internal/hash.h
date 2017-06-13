@@ -1,109 +1,76 @@
+#ifndef JEMALLOC_INTERNAL_HASH_H
+#define JEMALLOC_INTERNAL_HASH_H
+
+#include "jemalloc/internal/assert.h"
+
 /*
  * The following hash function is based on MurmurHash3, placed into the public
  * domain by Austin Appleby.  See https://github.com/aappleby/smhasher for
  * details.
  */
-/******************************************************************************/
-#ifdef JEMALLOC_H_TYPES
 
-#endif /* JEMALLOC_H_TYPES */
-/******************************************************************************/
-#ifdef JEMALLOC_H_STRUCTS
-
-#endif /* JEMALLOC_H_STRUCTS */
-/******************************************************************************/
-#ifdef JEMALLOC_H_EXTERNS
-
-#endif /* JEMALLOC_H_EXTERNS */
-/******************************************************************************/
-#ifdef JEMALLOC_H_INLINES
-
-#ifndef JEMALLOC_ENABLE_INLINE
-uint32_t	hash_x86_32(const void *key, int len, uint32_t seed);
-void	hash_x86_128(const void *key, const int len, uint32_t seed,
-    uint64_t r_out[2]);
-void	hash_x64_128(const void *key, const int len, const uint32_t seed,
-    uint64_t r_out[2]);
-void	hash(const void *key, size_t len, const uint32_t seed,
-    size_t r_hash[2]);
-#endif
-
-#if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_HASH_C_))
 /******************************************************************************/
 /* Internal implementation. */
-JEMALLOC_INLINE uint32_t
-hash_rotl_32(uint32_t x, int8_t r)
-{
-
+static inline uint32_t
+hash_rotl_32(uint32_t x, int8_t r) {
 	return ((x << r) | (x >> (32 - r)));
 }
 
-JEMALLOC_INLINE uint64_t
-hash_rotl_64(uint64_t x, int8_t r)
-{
-
+static inline uint64_t
+hash_rotl_64(uint64_t x, int8_t r) {
 	return ((x << r) | (x >> (64 - r)));
 }
 
-JEMALLOC_INLINE uint32_t
-hash_get_block_32(const uint32_t *p, int i)
-{
-
+static inline uint32_t
+hash_get_block_32(const uint32_t *p, int i) {
 	/* Handle unaligned read. */
 	if (unlikely((uintptr_t)p & (sizeof(uint32_t)-1)) != 0) {
 		uint32_t ret;
 
 		memcpy(&ret, (uint8_t *)(p + i), sizeof(uint32_t));
-		return (ret);
+		return ret;
 	}
 
-	return (p[i]);
+	return p[i];
 }
 
-JEMALLOC_INLINE uint64_t
-hash_get_block_64(const uint64_t *p, int i)
-{
-
+static inline uint64_t
+hash_get_block_64(const uint64_t *p, int i) {
 	/* Handle unaligned read. */
 	if (unlikely((uintptr_t)p & (sizeof(uint64_t)-1)) != 0) {
 		uint64_t ret;
 
 		memcpy(&ret, (uint8_t *)(p + i), sizeof(uint64_t));
-		return (ret);
+		return ret;
 	}
 
-	return (p[i]);
+	return p[i];
 }
 
-JEMALLOC_INLINE uint32_t
-hash_fmix_32(uint32_t h)
-{
-
+static inline uint32_t
+hash_fmix_32(uint32_t h) {
 	h ^= h >> 16;
 	h *= 0x85ebca6b;
 	h ^= h >> 13;
 	h *= 0xc2b2ae35;
 	h ^= h >> 16;
 
-	return (h);
+	return h;
 }
 
-JEMALLOC_INLINE uint64_t
-hash_fmix_64(uint64_t k)
-{
-
+static inline uint64_t
+hash_fmix_64(uint64_t k) {
 	k ^= k >> 33;
 	k *= KQU(0xff51afd7ed558ccd);
 	k ^= k >> 33;
 	k *= KQU(0xc4ceb9fe1a85ec53);
 	k ^= k >> 33;
 
-	return (k);
+	return k;
 }
 
-JEMALLOC_INLINE uint32_t
-hash_x86_32(const void *key, int len, uint32_t seed)
-{
+static inline uint32_t
+hash_x86_32(const void *key, int len, uint32_t seed) {
 	const uint8_t *data = (const uint8_t *) key;
 	const int nblocks = len / 4;
 
@@ -149,13 +116,12 @@ hash_x86_32(const void *key, int len, uint32_t seed)
 
 	h1 = hash_fmix_32(h1);
 
-	return (h1);
+	return h1;
 }
 
-UNUSED JEMALLOC_INLINE void
+UNUSED static inline void
 hash_x86_128(const void *key, const int len, uint32_t seed,
-    uint64_t r_out[2])
-{
+    uint64_t r_out[2]) {
 	const uint8_t * data = (const uint8_t *) key;
 	const int nblocks = len / 16;
 
@@ -254,10 +220,9 @@ hash_x86_128(const void *key, const int len, uint32_t seed,
 	r_out[1] = (((uint64_t) h4) << 32) | h3;
 }
 
-UNUSED JEMALLOC_INLINE void
+UNUSED static inline void
 hash_x64_128(const void *key, const int len, const uint32_t seed,
-    uint64_t r_out[2])
-{
+    uint64_t r_out[2]) {
 	const uint8_t *data = (const uint8_t *) key;
 	const int nblocks = len / 16;
 
@@ -334,10 +299,8 @@ hash_x64_128(const void *key, const int len, const uint32_t seed,
 
 /******************************************************************************/
 /* API. */
-JEMALLOC_INLINE void
-hash(const void *key, size_t len, const uint32_t seed, size_t r_hash[2])
-{
-
+static inline void
+hash(const void *key, size_t len, const uint32_t seed, size_t r_hash[2]) {
 	assert(len <= INT_MAX); /* Unfortunate implementation limitation. */
 
 #if (LG_SIZEOF_PTR == 3 && !defined(JEMALLOC_BIG_ENDIAN))
@@ -351,7 +314,5 @@ hash(const void *key, size_t len, const uint32_t seed, size_t r_hash[2])
 	}
 #endif
 }
-#endif
 
-#endif /* JEMALLOC_H_INLINES */
-/******************************************************************************/
+#endif /* JEMALLOC_INTERNAL_HASH_H */
