@@ -1066,9 +1066,18 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena,
 	}
 	bool zeroed = false;
 	bool committed = false;
-	void *ptr = extent_alloc_core(tsdn, arena, NULL, alloc_size, PAGE,
-	    &zeroed, &committed, (dss_prec_t)atomic_load_u(&arena->dss_prec,
-	    ATOMIC_RELAXED));
+
+	void *ptr;
+	if (*r_extent_hooks == &extent_hooks_default) {
+		ptr = extent_alloc_core(tsdn, arena, NULL, alloc_size, PAGE,
+		    &zeroed, &committed, (dss_prec_t)atomic_load_u(
+		    &arena->dss_prec, ATOMIC_RELAXED));
+	} else {
+		ptr = (*r_extent_hooks)->alloc(*r_extent_hooks, NULL,
+		    alloc_size, PAGE, &zeroed, &committed,
+		    arena_ind_get(arena));
+	}
+
 	extent_init(extent, arena, ptr, alloc_size, false, NSIZES,
 	    arena_extent_sn_next(arena), extent_state_active, zeroed,
 	    committed);
