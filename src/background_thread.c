@@ -20,6 +20,9 @@ size_t n_background_threads;
 /* Thread info per-index. */
 background_thread_info_t *background_thread_info;
 
+/* False if no necessary runtime support. */
+bool can_enable_background_thread;
+
 /******************************************************************************/
 
 #ifdef JEMALLOC_PTHREAD_CREATE_WRAPPER
@@ -785,9 +788,14 @@ background_thread_boot0(void) {
 #ifdef JEMALLOC_PTHREAD_CREATE_WRAPPER
 	pthread_create_fptr = dlsym(RTLD_NEXT, "pthread_create");
 	if (pthread_create_fptr == NULL) {
-		malloc_write("<jemalloc>: Error in dlsym(RTLD_NEXT, "
-		    "\"pthread_create\")\n");
-		abort();
+		can_enable_background_thread = false;
+		if (config_lazy_lock || opt_background_thread) {
+			malloc_write("<jemalloc>: Error in dlsym(RTLD_NEXT, "
+			    "\"pthread_create\")\n");
+			abort();
+		}
+	} else {
+		can_enable_background_thread = true;
 	}
 #endif
 	return false;
