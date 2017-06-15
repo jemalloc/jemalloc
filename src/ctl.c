@@ -1696,7 +1696,7 @@ thread_tcache_flush_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
 	READONLY();
 	WRITEONLY();
 
-	tcache_flush();
+	tcache_flush(tsd);
 
 	ret = 0;
 label_return:
