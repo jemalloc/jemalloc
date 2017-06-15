@@ -2264,7 +2264,15 @@ JEMALLOC_EXPORT void JEMALLOC_NOTHROW
 je_free(void *ptr) {
 	UTRACE(ptr, 0, 0);
 	if (likely(ptr != NULL)) {
-		tsd_t *tsd = tsd_fetch();
+		/*
+		 * We avoid setting up tsd fully (e.g. tcache, arena binding)
+		 * based on only free() calls -- other activities trigger the
+		 * minimal to full transition.  This is because free() may
+		 * happen during thread shutdown after tls deallocation: if a
+		 * thread never had any malloc activities until then, a
+		 * fully-setup tsd won't be destructed properly.
+		 */
+		tsd_t *tsd = tsd_fetch_min();
 		check_entry_exit_locking(tsd_tsdn(tsd));
 
 		tcache_t *tcache;
