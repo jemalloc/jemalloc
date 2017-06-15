@@ -725,12 +725,13 @@ arena_decay_epoch_advance(tsdn_t *tsdn, arena_t *arena, arena_decay_t *decay,
 	arena_decay_epoch_advance_helper(decay, time, current_npages);
 
 	size_t npages_limit = arena_decay_backlog_npages_limit(decay);
+	/* We may unlock decay->mtx when try_purge(). Finish logging first. */
+	decay->nunpurged = (npages_limit > current_npages) ? npages_limit :
+	    current_npages;
 	if (purge) {
 		arena_decay_try_purge(tsdn, arena, decay, extents,
 		    current_npages, npages_limit);
 	}
-	decay->nunpurged = (npages_limit > current_npages) ? npages_limit :
-	    current_npages;
 }
 
 static void
