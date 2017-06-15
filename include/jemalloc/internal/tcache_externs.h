@@ -48,7 +48,7 @@ void tcache_arena_associate(tsdn_t *tsdn, tcache_t *tcache, arena_t *arena);
 void tcache_prefork(tsdn_t *tsdn);
 void tcache_postfork_parent(tsdn_t *tsdn);
 void tcache_postfork_child(tsdn_t *tsdn);
-void tcache_flush(void);
+void tcache_flush(tsd_t *tsd);
 bool tsd_tcache_data_init(tsd_t *tsd);
 bool tsd_tcache_enabled_data_init(tsd_t *tsd);
 
