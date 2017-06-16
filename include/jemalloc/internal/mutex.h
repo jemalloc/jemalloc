@@ -35,10 +35,6 @@ struct malloc_mutex_s {
 #  else
 			CRITICAL_SECTION	lock;
 #  endif
-#elif (defined(JEMALLOC_OS_UNFAIR_LOCK))
-			os_unfair_lock		lock;
-#elif (defined(JEMALLOC_OSSPIN))
-			OSSpinLock		lock;
 #elif (defined(JEMALLOC_MUTEX_INIT_CB))
 			pthread_mutex_t		lock;
 			malloc_mutex_t		*postponed_next;
@@ -80,14 +76,6 @@ struct malloc_mutex_s {
 #    define MALLOC_MUTEX_UNLOCK(m)  LeaveCriticalSection(&(m)->lock)
 #    define MALLOC_MUTEX_TRYLOCK(m) (!TryEnterCriticalSection(&(m)->lock))
 #  endif
-#elif (defined(JEMALLOC_OS_UNFAIR_LOCK))
-#    define MALLOC_MUTEX_LOCK(m)    os_unfair_lock_lock(&(m)->lock)
-#    define MALLOC_MUTEX_UNLOCK(m)  os_unfair_lock_unlock(&(m)->lock)
-#    define MALLOC_MUTEX_TRYLOCK(m) (!os_unfair_lock_trylock(&(m)->lock))
-#elif (defined(JEMALLOC_OSSPIN))
-#    define MALLOC_MUTEX_LOCK(m)    OSSpinLockLock(&(m)->lock)
-#    define MALLOC_MUTEX_UNLOCK(m)  OSSpinLockUnlock(&(m)->lock)
-#    define MALLOC_MUTEX_TRYLOCK(m) (!OSSpinLockTry(&(m)->lock))
 #else
 #    define MALLOC_MUTEX_LOCK(m)    pthread_mutex_lock(&(m)->lock)
 #    define MALLOC_MUTEX_UNLOCK(m)  pthread_mutex_unlock(&(m)->lock)
@@ -100,14 +88,6 @@ struct malloc_mutex_s {
 
 #ifdef _WIN32
 #  define MALLOC_MUTEX_INITIALIZER
-#elif (defined(JEMALLOC_OS_UNFAIR_LOCK))
-#  define MALLOC_MUTEX_INITIALIZER					\
-     {{{LOCK_PROF_DATA_INITIALIZER, OS_UNFAIR_LOCK_INIT}},		\
-      WITNESS_INITIALIZER("mutex", WITNESS_RANK_OMIT)}
-#elif (defined(JEMALLOC_OSSPIN))
-#  define MALLOC_MUTEX_INITIALIZER					\
-     {{{LOCK_PROF_DATA_INITIALIZER, 0}},				\
-      WITNESS_INITIALIZER("mutex", WITNESS_RANK_OMIT)}
 #elif (defined(JEMALLOC_MUTEX_INIT_CB))
 #  define MALLOC_MUTEX_INITIALIZER					\
      {{{LOCK_PROF_DATA_INITIALIZER, PTHREAD_MUTEX_INITIALIZER, NULL}},	\
