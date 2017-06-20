@@ -2133,6 +2133,23 @@ void
 arena_postfork_child(tsdn_t *tsdn, arena_t *arena) {
 	unsigned i;
 
+	atomic_store_u(&arena->nthreads[0], 0, ATOMIC_RELAXED);
+	atomic_store_u(&arena->nthreads[1], 0, ATOMIC_RELAXED);
+	if (tsd_arena_get(tsdn_tsd(tsdn)) == arena) {
+		arena_nthreads_inc(arena, false);
+	}
+	if (tsd_iarena_get(tsdn_tsd(tsdn)) == arena) {
+		arena_nthreads_inc(arena, true);
+	}
+	if (config_stats) {
+		ql_new(&arena->tcache_ql);
+		tcache_t *tcache = tcache_get(tsdn_tsd(tsdn));
+		if (tcache != NULL && tcache->arena == arena) {
+			ql_elm_new(tcache, link);
+			ql_tail_insert(&arena->tcache_ql, tcache, link);
+		}
+	}
+
 	for (i = 0; i < NBINS; i++) {
 		malloc_mutex_postfork_child(tsdn, &arena->bins[i].lock);
 	}
