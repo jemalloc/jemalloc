@@ -1073,9 +1073,12 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena,
 		    &zeroed, &committed, (dss_prec_t)atomic_load_u(
 		    &arena->dss_prec, ATOMIC_RELAXED));
 	} else {
+		assert(!tsdn_null(tsdn));
+		pre_reentrancy(tsdn_tsd(tsdn));
 		ptr = (*r_extent_hooks)->alloc(*r_extent_hooks, NULL,
 		    alloc_size, PAGE, &zeroed, &committed,
 		    arena_ind_get(arena));
+		post_reentrancy(tsdn_tsd(tsdn));
 	}
 
 	extent_init(extent, arena, ptr, alloc_size, false, NSIZES,
@@ -1247,8 +1250,11 @@ extent_alloc_wrapper_hard(tsdn_t *tsdn, arena_t *arena,
 		addr = extent_alloc_default_impl(tsdn, arena, new_addr, esize,
 		    alignment, zero, commit);
 	} else {
+		assert(!tsdn_null(tsdn));
+		pre_reentrancy(tsdn_tsd(tsdn));
 		addr = (*r_extent_hooks)->alloc(*r_extent_hooks, new_addr,
 		    esize, alignment, zero, commit, arena_ind_get(arena));
+		post_reentrancy(tsdn_tsd(tsdn));
 	}
 	if (addr == NULL) {
 		extent_dalloc(tsdn, arena, extent);
@@ -1486,10 +1492,13 @@ extent_dalloc_wrapper_try(tsdn_t *tsdn, arena_t *arena,
 		err = extent_dalloc_default_impl(extent_base_get(extent),
 		    extent_size_get(extent));
 	} else {
+		assert(!tsdn_null(tsdn));
+		pre_reentrancy(tsdn_tsd(tsdn));
 		err = ((*r_extent_hooks)->dalloc == NULL ||
 		    (*r_extent_hooks)->dalloc(*r_extent_hooks,
 		    extent_base_get(extent), extent_size_get(extent),
 		    extent_committed_get(extent), arena_ind_get(arena)));
+		post_reentrancy(tsdn_tsd(tsdn));
 	}
 
 	if (!err) {
@@ -1515,6 +1524,10 @@ extent_dalloc_wrapper(tsdn_t *tsdn, arena_t *arena,
 	}
 
 	extent_reregister(tsdn, extent);
+	if (*r_extent_hooks != &extent_hooks_default) {
+		assert(!tsdn_null(tsdn));
+		pre_reentrancy(tsdn_tsd(tsdn));
+	}
 	/* Try to decommit; purge if that fails. */
 	bool zeroed;
 	if (!extent_committed_get(extent)) {
@@ -1535,6 +1548,9 @@ extent_dalloc_wrapper(tsdn_t *tsdn, arena_t *arena,
 		zeroed = false;
 	} else {
 		zeroed = false;
+	}
+	if (*r_extent_hooks != &extent_hooks_default) {
+		post_reentrancy(tsdn_tsd(tsdn));
 	}
 	extent_zeroed_set(extent, zeroed);
 
@@ -1579,9 +1595,12 @@ extent_destroy_wrapper(tsdn_t *tsdn, arena_t *arena,
 		extent_destroy_default_impl(extent_base_get(extent),
 		    extent_size_get(extent));
 	} else if ((*r_extent_hooks)->destroy != NULL) {
+		assert(!tsdn_null(tsdn));
+		pre_reentrancy(tsdn_tsd(tsdn));
 		(*r_extent_hooks)->destroy(*r_extent_hooks,
 		    extent_base_get(extent), extent_size_get(extent),
 		    extent_committed_get(extent), arena_ind_get(arena));
+		post_reentrancy(tsdn_tsd(tsdn));
 	}
 
 	extent_dalloc(tsdn, arena, extent);
@@ -1602,9 +1621,16 @@ extent_commit_impl(tsdn_t *tsdn, arena_t *arena,
 	    WITNESS_RANK_CORE, growing_retained ? 1 : 0);
 
 	extent_hooks_assure_initialized(arena, r_extent_hooks);
+	if (*r_extent_hooks != &extent_hooks_default) {
+		assert(!tsdn_null(tsdn));
+		pre_reentrancy(tsdn_tsd(tsdn));
+	}
 	bool err = ((*r_extent_hooks)->commit == NULL ||
 	    (*r_extent_hooks)->commit(*r_extent_hooks, extent_base_get(extent),
 	    extent_size_get(extent), offset, length, arena_ind_get(arena)));
+	if (*r_extent_hooks != &extent_hooks_default) {
+		post_reentrancy(tsdn_tsd(tsdn));
+	}
 	extent_committed_set(extent, extent_committed_get(extent) || !err);
 	return err;
 }
@@ -1633,10 +1659,17 @@ extent_decommit_wrapper(tsdn_t *tsdn, arena_t *arena,
 
 	extent_hooks_assure_initialized(arena, r_extent_hooks);
 
+	if (*r_extent_hooks != &extent_hooks_default) {
+		assert(!tsdn_null(tsdn));
+		pre_reentrancy(tsdn_tsd(tsdn));
+	}
 	bool err = ((*r_extent_hooks)->decommit == NULL ||
 	    (*r_extent_hooks)->decommit(*r_extent_hooks,
 	    extent_base_get(extent), extent_size_get(extent), offset, length,
 	    arena_ind_get(arena)));
+	if (*r_extent_hooks != &extent_hooks_default) {
+		post_reentrancy(tsdn_tsd(tsdn));
+	}
 	extent_committed_set(extent, extent_committed_get(extent) && err);
 	return err;
 }
@@ -1663,10 +1696,23 @@ extent_purge_lazy_impl(tsdn_t *tsdn, arena_t *arena,
 	    WITNESS_RANK_CORE, growing_retained ? 1 : 0);
 
 	extent_hooks_assure_initialized(arena, r_extent_hooks);
-	return ((*r_extent_hooks)->purge_lazy == NULL ||
-	    (*r_extent_hooks)->purge_lazy(*r_extent_hooks,
+
+	if ((*r_extent_hooks)->purge_lazy == NULL) {
+		return true;
+	}
+
+	if (*r_extent_hooks != &extent_hooks_default) {
+		assert(!tsdn_null(tsdn));
+		pre_reentrancy(tsdn_tsd(tsdn));
+	}
+	bool err = (*r_extent_hooks)->purge_lazy(*r_extent_hooks,
 	    extent_base_get(extent), extent_size_get(extent), offset, length,
-	    arena_ind_get(arena)));
+	    arena_ind_get(arena));
+	if (*r_extent_hooks != &extent_hooks_default) {
+		post_reentrancy(tsdn_tsd(tsdn));
+	}
+
+	return err;
 }
 
 bool
@@ -1699,10 +1745,21 @@ extent_purge_forced_impl(tsdn_t *tsdn, arena_t *arena,
 	    WITNESS_RANK_CORE, growing_retained ? 1 : 0);
 
 	extent_hooks_assure_initialized(arena, r_extent_hooks);
-	return ((*r_extent_hooks)->purge_forced == NULL ||
-	    (*r_extent_hooks)->purge_forced(*r_extent_hooks,
+
+	if ((*r_extent_hooks)->purge_forced == NULL) {
+		return true;
+	}
+	if (*r_extent_hooks != &extent_hooks_default) {
+		assert(!tsdn_null(tsdn));
+		pre_reentrancy(tsdn_tsd(tsdn));
+	}
+	bool err = (*r_extent_hooks)->purge_forced(*r_extent_hooks,
 	    extent_base_get(extent), extent_size_get(extent), offset, length,
-	    arena_ind_get(arena)));
+	    arena_ind_get(arena));
+	if (*r_extent_hooks != &extent_hooks_default) {
+		post_reentrancy(tsdn_tsd(tsdn));
+	}
+	return err;
 }
 
 bool
@@ -1771,9 +1828,17 @@ extent_split_impl(tsdn_t *tsdn, arena_t *arena,
 
 	extent_lock2(tsdn, extent, trail);
 
-	if ((*r_extent_hooks)->split(*r_extent_hooks, extent_base_get(extent),
+	if (*r_extent_hooks != &extent_hooks_default) {
+		assert(!tsdn_null(tsdn));
+		pre_reentrancy(tsdn_tsd(tsdn));
+	}
+	bool err = (*r_extent_hooks)->split(*r_extent_hooks, extent_base_get(extent),
 	    size_a + size_b, size_a, size_b, extent_committed_get(extent),
-	    arena_ind_get(arena))) {
+	    arena_ind_get(arena));
+	if (*r_extent_hooks != &extent_hooks_default) {
+		post_reentrancy(tsdn_tsd(tsdn));
+	}
+	if (err) {
 		goto label_error_c;
 	}
 
@@ -1843,10 +1908,13 @@ extent_merge_impl(tsdn_t *tsdn, arena_t *arena,
 		err = extent_merge_default_impl(extent_base_get(a),
 		    extent_base_get(b));
 	} else {
+		assert(!tsdn_null(tsdn));
+		pre_reentrancy(tsdn_tsd(tsdn));
 		err = (*r_extent_hooks)->merge(*r_extent_hooks,
 		    extent_base_get(a), extent_size_get(a), extent_base_get(b),
 		    extent_size_get(b), extent_committed_get(a),
 		    arena_ind_get(arena));
+		post_reentrancy(tsdn_tsd(tsdn));
 	}
 
 	if (err) {

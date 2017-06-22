@@ -1257,7 +1257,7 @@ arena_destroy(tsd_t *tsd, arena_t *arena) {
 	 * Destroy the base allocator, which manages all metadata ever mapped by
 	 * this arena.
 	 */
-	base_delete(arena->base);
+	base_delete(tsd_tsdn(tsd), arena->base);
 }
 
 static extent_t *
@@ -2061,7 +2061,7 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 	return arena;
 label_error:
 	if (ind != 0) {
-		base_delete(base);
+		base_delete(tsdn, base);
 	}
 	return NULL;
 }
