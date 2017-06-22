@@ -61,7 +61,8 @@ const uint64_t h_steps[SMOOTHSTEP_NSTEPS] = {
  */
 
 static void arena_decay_to_limit(tsdn_t *tsdn, arena_t *arena,
-    arena_decay_t *decay, extents_t *extents, bool all, size_t npages_limit);
+    arena_decay_t *decay, extents_t *extents, bool all, size_t npages_limit,
+    bool is_background_thread);
 static bool arena_decay_dirty(tsdn_t *tsdn, arena_t *arena,
     bool is_background_thread, bool all);
 static void arena_dalloc_bin_slab(tsdn_t *tsdn, arena_t *arena, extent_t *slab,
@@ -378,7 +379,7 @@ arena_extents_dirty_dalloc(tsdn_t *tsdn, arena_t *arena,
 	if (arena_dirty_decay_ms_get(arena) == 0) {
 		arena_decay_dirty(tsdn, arena, false, true);
 	} else {
-		arena_background_thread_inactivity_check(tsdn, arena);
+		arena_background_thread_inactivity_check(tsdn, arena, false);
 	}
 }
 
@@ -687,10 +688,11 @@ arena_decay_backlog_update(arena_decay_t *decay, uint64_t nadvance_u64,
 
 static void
 arena_decay_try_purge(tsdn_t *tsdn, arena_t *arena, arena_decay_t *decay,
-    extents_t *extents, size_t current_npages, size_t npages_limit) {
+    extents_t *extents, size_t current_npages, size_t npages_limit,
+    bool is_background_thread) {
 	if (current_npages > npages_limit) {
 		arena_decay_to_limit(tsdn, arena, decay, extents, false,
-		    npages_limit);
+		    npages_limit, is_background_thread);
 	}
 }
 
@@ -720,7 +722,7 @@ arena_decay_epoch_advance_helper(arena_decay_t *decay, const nstime_t *time,
 
 static void
 arena_decay_epoch_advance(tsdn_t *tsdn, arena_t *arena, arena_decay_t *decay,
-    extents_t *extents, const nstime_t *time, bool purge) {
+    extents_t *extents, const nstime_t *time, bool is_background_thread) {
 	size_t current_npages = extents_npages_get(extents);
 	arena_decay_epoch_advance_helper(decay, time, current_npages);
 
@@ -728,9 +730,10 @@ arena_decay_epoch_advance(tsdn_t *tsdn, arena_t *arena, arena_decay_t *decay,
 	/* We may unlock decay->mtx when try_purge(). Finish logging first. */
 	decay->nunpurged = (npages_limit > current_npages) ? npages_limit :
 	    current_npages;
-	if (purge) {
+
+	if (!background_thread_enabled() || is_background_thread) {
 		arena_decay_try_purge(tsdn, arena, decay, extents,
-		    current_npages, npages_limit);
+		    current_npages, npages_limit, is_background_thread);
 	}
 }
 
@@ -795,7 +798,7 @@ arena_maybe_decay(tsdn_t *tsdn, arena_t *arena, arena_decay_t *decay,
 	if (decay_ms <= 0) {
 		if (decay_ms == 0) {
 			arena_decay_to_limit(tsdn, arena, decay, extents, false,
-			    0);
+			    0, is_background_thread);
 		}
 		return false;
 	}
@@ -830,14 +833,13 @@ arena_maybe_decay(tsdn_t *tsdn, arena_t *arena, arena_decay_t *decay,
 	 */
 	bool advance_epoch = arena_decay_deadline_reached(decay, &time);
 	if (advance_epoch) {
-		bool should_purge = is_background_thread ||
-		    !background_thread_enabled();
 		arena_decay_epoch_advance(tsdn, arena, decay, extents, &time,
-		    should_purge);
+		    is_background_thread);
 	} else if (is_background_thread) {
 		arena_decay_try_purge(tsdn, arena, decay, extents,
 		    extents_npages_get(extents),
-		    arena_decay_backlog_npages_limit(decay));
+		    arena_decay_backlog_npages_limit(decay),
+		    is_background_thread);
 	}
 
 	return advance_epoch;
@@ -916,7 +918,7 @@ arena_stash_decayed(tsdn_t *tsdn, arena_t *arena,
 static size_t
 arena_decay_stashed(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, arena_decay_t *decay, extents_t *extents,
-    bool all, extent_list_t *decay_extents) {
+    bool all, extent_list_t *decay_extents, bool is_background_thread) {
 	UNUSED size_t nmadvise, nunmapped;
 	size_t npurged;
 
@@ -946,7 +948,7 @@ arena_decay_stashed(tsdn_t *tsdn, arena_t *arena,
 				extents_dalloc(tsdn, arena, r_extent_hooks,
 				    &arena->extents_muzzy, extent);
 				arena_background_thread_inactivity_check(tsdn,
-				    arena);
+				    arena, is_background_thread);
 				break;
 			}
 			/* Fall through. */
@@ -985,7 +987,8 @@ arena_decay_stashed(tsdn_t *tsdn, arena_t *arena,
  */
 static void
 arena_decay_to_limit(tsdn_t *tsdn, arena_t *arena, arena_decay_t *decay,
-    extents_t *extents, bool all, size_t npages_limit) {
+    extents_t *extents, bool all, size_t npages_limit,
+    bool is_background_thread) {
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, 1);
 	malloc_mutex_assert_owner(tsdn, &decay->mtx);
@@ -1005,7 +1008,8 @@ arena_decay_to_limit(tsdn_t *tsdn, arena_t *arena, arena_decay_t *decay,
 	    npages_limit, &decay_extents);
 	if (npurge != 0) {
 		UNUSED size_t npurged = arena_decay_stashed(tsdn, arena,
-		    &extent_hooks, decay, extents, all, &decay_extents);
+		    &extent_hooks, decay, extents, all, &decay_extents,
+		    is_background_thread);
 		assert(npurged == npurge);
 	}
 
@@ -1018,7 +1022,8 @@ arena_decay_impl(tsdn_t *tsdn, arena_t *arena, arena_decay_t *decay,
     extents_t *extents, bool is_background_thread, bool all) {
 	if (all) {
 		malloc_mutex_lock(tsdn, &decay->mtx);
-		arena_decay_to_limit(tsdn, arena, decay, extents, all, 0);
+		arena_decay_to_limit(tsdn, arena, decay, extents, all, 0,
+		    is_background_thread);
 		malloc_mutex_unlock(tsdn, &decay->mtx);
 
 		return false;
