@@ -1633,7 +1633,7 @@ prof_dump(tsd_t *tsd, bool propagate_err, const char *filename,
 		return true;
 	}
 
-	pre_reentrancy(tsd);
+	pre_reentrancy(tsd, NULL);
 	malloc_mutex_lock(tsd_tsdn(tsd), &prof_dump_mtx);
 
 	prof_gctx_tree_t gctxs;

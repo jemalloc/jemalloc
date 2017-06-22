@@ -316,7 +316,7 @@ background_threads_disable_single(tsd_t *tsd, background_thread_info_t *info) {
 		    &background_thread_lock);
 	}
 
-	pre_reentrancy(tsd);
+	pre_reentrancy(tsd, NULL);
 	malloc_mutex_lock(tsd_tsdn(tsd), &info->mtx);
 	bool has_thread;
 	assert(info->state != background_thread_paused);
@@ -408,7 +408,7 @@ label_restart:
 		 */
 		malloc_mutex_unlock(tsd_tsdn(tsd), &background_thread_lock);
 
-		pre_reentrancy(tsd);
+		pre_reentrancy(tsd, NULL);
 		int err = background_thread_create_signals_masked(&info->thread,
 		    NULL, background_thread_entry, (void *)(uintptr_t)i);
 		post_reentrancy(tsd);
@@ -555,7 +555,7 @@ background_thread_create(tsd_t *tsd, unsigned arena_ind) {
 		return false;
 	}
 
-	pre_reentrancy(tsd);
+	pre_reentrancy(tsd, NULL);
 	/*
 	 * To avoid complications (besides reentrancy), create internal
 	 * background threads with the underlying pthread_create.

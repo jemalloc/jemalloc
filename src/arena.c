@@ -2051,7 +2051,7 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 		 * is done enough that we should have tsd.
 		 */
 		assert(!tsdn_null(tsdn));
-		pre_reentrancy(tsdn_tsd(tsdn));
+		pre_reentrancy(tsdn_tsd(tsdn), arena);
 		if (hooks_arena_new_hook) {
 			hooks_arena_new_hook();
 		}

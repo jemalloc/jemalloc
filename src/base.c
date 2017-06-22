@@ -25,11 +25,12 @@ base_map(tsdn_t *tsdn, extent_hooks_t *extent_hooks, unsigned ind, size_t size) 
 	if (extent_hooks == &extent_hooks_default) {
 		addr = extent_alloc_mmap(NULL, size, PAGE, &zero, &commit);
 	} else {
-		assert(!tsdn_null(tsdn));
-		pre_reentrancy(tsdn_tsd(tsdn));
+		/* No arena context as we are creating new arenas. */
+		tsd_t *tsd = tsdn_null(tsdn) ? tsd_fetch() : tsdn_tsd(tsdn);
+		pre_reentrancy(tsd, NULL);
 		addr = extent_hooks->alloc(extent_hooks, NULL, size, PAGE,
 		    &zero, &commit, ind);
-		post_reentrancy(tsdn_tsd(tsdn));
+		post_reentrancy(tsd);
 	}
 
 	return addr;
@@ -64,8 +65,8 @@ base_unmap(tsdn_t *tsdn, extent_hooks_t *extent_hooks, unsigned ind, void *addr,
 		/* Nothing worked.  This should never happen. */
 		not_reached();
 	} else {
-		assert(!tsdn_null(tsdn));
-		pre_reentrancy(tsdn_tsd(tsdn));
+		tsd_t *tsd = tsdn_null(tsdn) ? tsd_fetch() : tsdn_tsd(tsdn);
+		pre_reentrancy(tsd, NULL);
 		if (extent_hooks->dalloc != NULL &&
 		    !extent_hooks->dalloc(extent_hooks, addr, size, true,
 		    ind)) {
@@ -88,7 +89,7 @@ base_unmap(tsdn_t *tsdn, extent_hooks_t *extent_hooks, unsigned ind, void *addr,
 		}
 		/* Nothing worked.  That's the application's problem. */
 	label_done:
-		post_reentrancy(tsdn_tsd(tsdn));
+		post_reentrancy(tsd);
 		return;
 	}
 }
