@@ -27,11 +27,10 @@ static extent_hooks_t hooks_not_null = {
 };
 
 TEST_BEGIN(test_base_hooks_default) {
-	tsdn_t *tsdn;
 	base_t *base;
 	size_t allocated0, allocated1, resident, mapped;
 
-	tsdn = tsdn_fetch();
+	tsdn_t *tsdn = tsd_tsdn(tsd_fetch());
 	base = base_new(tsdn, 0, (extent_hooks_t *)&extent_hooks_default);
 
 	if (config_stats) {
@@ -49,13 +48,12 @@ TEST_BEGIN(test_base_hooks_default) {
 		    "At least 42 bytes were allocated by base_alloc()");
 	}
 
-	base_delete(base);
+	base_delete(tsdn, base);
 }
 TEST_END
 
 TEST_BEGIN(test_base_hooks_null) {
 	extent_hooks_t hooks_orig;
-	tsdn_t *tsdn;
 	base_t *base;
 	size_t allocated0, allocated1, resident, mapped;
 
@@ -68,7 +66,7 @@ TEST_BEGIN(test_base_hooks_null) {
 	memcpy(&hooks_orig, &hooks, sizeof(extent_hooks_t));
 	memcpy(&hooks, &hooks_null, sizeof(extent_hooks_t));
 
-	tsdn = tsdn_fetch();
+	tsdn_t *tsdn = tsd_tsdn(tsd_fetch());
 	base = base_new(tsdn, 0, &hooks);
 	assert_ptr_not_null(base, "Unexpected base_new() failure");
 
@@ -87,7 +85,7 @@ TEST_BEGIN(test_base_hooks_null) {
 		    "At least 42 bytes were allocated by base_alloc()");
 	}
 
-	base_delete(base);
+	base_delete(tsdn, base);
 
 	memcpy(&hooks, &hooks_orig, sizeof(extent_hooks_t));
 }
@@ -95,7 +93,6 @@ TEST_END
 
 TEST_BEGIN(test_base_hooks_not_null) {
 	extent_hooks_t hooks_orig;
-	tsdn_t *tsdn;
 	base_t *base;
 	void *p, *q, *r, *r_exp;
 
@@ -108,7 +105,7 @@ TEST_BEGIN(test_base_hooks_not_null) {
 	memcpy(&hooks_orig, &hooks, sizeof(extent_hooks_t));
 	memcpy(&hooks, &hooks_not_null, sizeof(extent_hooks_t));
 
-	tsdn = tsdn_fetch();
+	tsdn_t *tsdn = tsd_tsdn(tsd_fetch());
 	did_alloc = false;
 	base = base_new(tsdn, 0, &hooks);
 	assert_ptr_not_null(base, "Unexpected base_new() failure");
@@ -200,7 +197,7 @@ TEST_BEGIN(test_base_hooks_not_null) {
 
 	called_dalloc = called_destroy = called_decommit = called_purge_lazy =
 	    called_purge_forced = false;
-	base_delete(base);
+	base_delete(tsdn, base);
 	assert_true(called_dalloc, "Expected dalloc call");
 	assert_true(!called_destroy, "Unexpected destroy call");
 	assert_true(called_decommit, "Expected decommit call");
