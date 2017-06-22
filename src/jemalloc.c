@@ -1476,7 +1476,7 @@ malloc_init_hard(void) {
 
 	malloc_mutex_lock(tsd_tsdn(tsd), &init_lock);
 	/* Set reentrancy level to 1 during init. */
-	pre_reentrancy(tsd);
+	pre_reentrancy(tsd, NULL);
 	/* Initialize narenas before prof_boot2 (for allocation). */
 	if (malloc_init_narenas() || background_thread_boot1(tsd_tsdn(tsd))) {
 		UNLOCK_RETURN(tsd_tsdn(tsd), true, true)
