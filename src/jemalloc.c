@@ -2918,16 +2918,15 @@ je_mallctl(const char *name, void *oldp, size_t *oldlenp, void *newp,
 JEMALLOC_EXPORT int JEMALLOC_NOTHROW
 je_mallctlnametomib(const char *name, size_t *mibp, size_t *miblenp) {
 	int ret;
-	tsdn_t *tsdn;
 
 	if (unlikely(malloc_init())) {
 		return EAGAIN;
 	}
 
-	tsdn = tsdn_fetch();
-	check_entry_exit_locking(tsdn);
-	ret = ctl_nametomib(tsdn, name, mibp, miblenp);
-	check_entry_exit_locking(tsdn);
+	tsd_t *tsd = tsd_fetch();
+	check_entry_exit_locking(tsd_tsdn(tsd));
+	ret = ctl_nametomib(tsd, name, mibp, miblenp);
+	check_entry_exit_locking(tsd_tsdn(tsd));
 	return ret;
 }
 
