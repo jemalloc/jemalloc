@@ -111,6 +111,13 @@ static const bool config_stats =
     false
 #endif
     ;
+static const bool config_sized_alloc_region =
+#ifdef JEMALLOC_SIZED_ALLOC_REGION
+    true
+#else
+    false
+#endif
+    ;
 static const bool config_thp =
 #ifdef JEMALLOC_THP
     true

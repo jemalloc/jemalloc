@@ -58,6 +58,7 @@ static const bool pages_can_purge_forced =
 #endif
     ;
 
+/* addr may be NULL, alignment must be at least PAGE, commit may not be NULL. */
 void *pages_map(void *addr, size_t size, size_t alignment, bool *commit);
 void pages_unmap(void *addr, size_t size);
 bool pages_commit(void *addr, size_t size);
