@@ -499,7 +499,9 @@ static void *
 background_thread_entry(void *ind_arg) {
 	unsigned thread_ind = (unsigned)(uintptr_t)ind_arg;
 	assert(thread_ind < ncpus);
-
+#ifdef JEMALLOC_HAVE_PTHREAD_SETNAME_NP
+	pthread_setname_np(pthread_self(), "jemalloc_bg_thd");
+#endif
 	if (opt_percpu_arena != percpu_arena_disabled) {
 		set_current_thread_affinity((int)thread_ind);
 	}

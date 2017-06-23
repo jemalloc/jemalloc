@@ -1470,6 +1470,15 @@ if test "x$abi" != "xpecoff" ; then
   if test "x${je_cv_pthread_atfork}" = "xyes" ; then
     AC_DEFINE([JEMALLOC_HAVE_PTHREAD_ATFORK], [ ])
   fi
+  dnl Check if pthread_setname_np is available with the expected API.
+  JE_COMPILABLE([pthread_setname_np(3)], [
+#include <pthread.h>
+], [
+  pthread_setname_np(pthread_self(), "setname_test");
+], [je_cv_pthread_setname_np])
+  if test "x${je_cv_pthread_setname_np}" = "xyes" ; then
+    AC_DEFINE([JEMALLOC_HAVE_PTHREAD_SETNAME_NP], [ ])
+  fi
 fi
 
 JE_APPEND_VS(CPPFLAGS, -D_REENTRANT)
