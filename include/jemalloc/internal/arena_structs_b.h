@@ -122,13 +122,17 @@ struct arena_bin_s {
 	extent_t		*slabcur;
 
 	/*
-	 * Heap of non-full slabs.  This heap is used to assure that new
-	 * allocations come from the non-full slab that is oldest/lowest in
+	 * Heaps of non-empty, non-full slabs.  This heap is used to ensure that
+	 * new allocations come from the non-full slab that is oldest/lowest in
 	 * memory.
+	 * When picking an extent to allocate from, we prefer slabs from the
+	 * sized alloc region, but always prefer active slabs to non-active
+	 * ones.
 	 */
-	extent_heap_t		slabs_nonfull;
+	extent_heap_t		slabs_sized_alloc_region_nonfull;
+	extent_heap_t		slabs_other_nonfull;
 
-	/* List used to track full slabs. */
+	/* List used to track full slabs (regardless of their origin). */
 	extent_list_t		slabs_full;
 
 	/* Bin statistics. */
@@ -273,12 +277,6 @@ struct arena_s {
 /* Used in conjunction with tsd for fast arena-related context lookup. */
 struct arena_tdata_s {
 	ticker_t		decay_ticker;
-};
-
-/* Used to pass rtree lookup context down the path. */
-struct alloc_ctx_s {
-	szind_t szind;
-	bool slab;
 };
 
 #endif /* JEMALLOC_INTERNAL_ARENA_STRUCTS_B_H */

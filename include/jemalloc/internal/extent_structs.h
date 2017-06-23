@@ -8,6 +8,7 @@
 #include "jemalloc/internal/rb.h"
 #include "jemalloc/internal/ph.h"
 #include "jemalloc/internal/size_classes.h"
+#include "jemalloc/internal/sized_alloc_region.h"
 
 typedef enum {
 	extent_state_active   = 0,
@@ -156,11 +157,21 @@ struct extents_s {
 	malloc_mutex_t		mtx;
 
 	/*
-	 * Quantized per size class heaps of extents.
+	 * Heaps of extents in the sized alloc region.  For suitably-sized
+	 * requests, we prefer allocating from here over heaps_other.
 	 *
 	 * Synchronization: mtx.
 	 */
-	extent_heap_t		heaps[NPSIZES+1];
+	extent_heap_t		heaps_sized_alloc_region[
+	    SIZED_ALLOC_REGION_NUM_SCS];
+
+	/*
+	 * Quantized per size class heaps of extents from outside the sized
+	 * alloc region.
+	 *
+	 * Synchronization: mtx.
+	 */
+	extent_heap_t		heaps_other[NPSIZES+1];
 
 	/*
 	 * Bitmap for which set bits correspond to non-empty heaps.

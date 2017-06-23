@@ -112,6 +112,7 @@ C_SRCS := $(srcroot)src/jemalloc.c \
 	$(srcroot)src/prof.c \
 	$(srcroot)src/rtree.c \
 	$(srcroot)src/stats.c \
+	$(srcroot)src/sized_alloc_region.c \
 	$(srcroot)src/sz.c \
 	$(srcroot)src/tcache.c \
 	$(srcroot)src/ticker.c \
@@ -195,6 +196,7 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/rtree.c \
 	$(srcroot)test/unit/SFMT.c \
 	$(srcroot)test/unit/size_classes.c \
+	$(srcroot)test/unit/sized_alloc_region.c \
 	$(srcroot)test/unit/slab.c \
 	$(srcroot)test/unit/smoothstep.c \
 	$(srcroot)test/unit/spin.c \

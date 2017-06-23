@@ -28,6 +28,7 @@ possible_malloc_conf_opts = [
     'dss:primary',
     'percpu_arena:percpu',
     'background_thread:true',
+    'sized_alloc_region:true',
 ]
 
 print 'set -e'

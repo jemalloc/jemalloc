@@ -13,6 +13,7 @@
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/rtree.h"
 #include "jemalloc/internal/size_classes.h"
+#include "jemalloc/internal/sized_alloc_region.h"
 #include "jemalloc/internal/spin.h"
 #include "jemalloc/internal/sz.h"
 #include "jemalloc/internal/ticker.h"
@@ -1184,6 +1185,10 @@ malloc_conf_init(void) {
 					continue;
 				}
 			}
+			CONF_HANDLE_BOOL(opt_sized_alloc_region,
+			    "sized_alloc_region");
+			CONF_HANDLE_SSIZE_T(opt_sized_alloc_region_lg_sc_size,
+			    "sized_alloc_region_lg_sc_size", 20, 40);
 			malloc_conf_error("Invalid conf pair", k, klen, v,
 			    vlen);
 #undef CONF_MATCH
@@ -1520,6 +1525,10 @@ malloc_init_hard(void) {
 		if (err) {
 			return true;
 		}
+	}
+
+	if (opt_sized_alloc_region) {
+		sized_alloc_region_init(&sized_alloc_region_global);
 	}
 #undef UNLOCK_RETURN
 	return false;
@@ -2155,9 +2164,25 @@ ifree(tsd_t *tsd, void *ptr, tcache_t *tcache, bool slow_path) {
 	assert(malloc_initialized() || IS_INITIALIZER);
 
 	alloc_ctx_t alloc_ctx;
-	rtree_ctx_t *rtree_ctx = tsd_rtree_ctx(tsd);
-	rtree_szind_slab_read(tsd_tsdn(tsd), &extents_rtree, rtree_ctx,
-	    (uintptr_t)ptr, true, &alloc_ctx.szind, &alloc_ctx.slab);
+	bool alloc_ctx_found = false;
+
+	/*
+	 * It's safe to do lookups on a zero-initialized sized_alloc-region.
+	 * This lets us dodge an additional branch on opt_sized_alloc_region
+	 * when it's enabled, and doesn't cost us an extra one when it's
+	 * disabled.
+	 */
+	alloc_ctx_found = sized_alloc_region_lookup(&sized_alloc_region_global,
+	    ptr, &alloc_ctx);
+	if (likely(alloc_ctx_found)) {
+		log("sized_alloc.lookup.hit", "ptr: %p", ptr);
+	} else {
+		log("sized_alloc.lookup.miss", "ptr: %p", ptr);
+		rtree_ctx_t *rtree_ctx = tsd_rtree_ctx(tsd);
+		rtree_szind_slab_read(tsd_tsdn(tsd), &extents_rtree, rtree_ctx,
+		    (uintptr_t)ptr, true, &alloc_ctx.szind, &alloc_ctx.slab);
+	}
+
 	assert(alloc_ctx.szind != NSIZES);
 
 	size_t usize;
