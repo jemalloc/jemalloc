@@ -66,6 +66,8 @@ void background_thread_ctl_init(tsdn_t *tsdn) NOT_REACHED
 #else
 
 static bool background_thread_enabled_at_fork;
+static bool t0_initialized;
+static pthread_cond_t t0_init_cond;
 
 static void
 background_thread_info_init(tsdn_t *tsdn, background_thread_info_t *info) {
@@ -228,8 +230,10 @@ background_thread_sleep(tsdn_t *tsdn, background_thread_info_t *info,
 	int ret;
 	if (interval == BACKGROUND_THREAD_INDEFINITE_SLEEP) {
 		assert(background_thread_indefinite_sleep(info));
+		witness_unlock(tsdn_witness_tsdp_get(tsdn), &info->mtx.witness);
 		ret = pthread_cond_wait(&info->cond, &info->mtx.lock);
 		assert(ret == 0);
+		witness_lock(tsdn_witness_tsdp_get(tsdn), &info->mtx.witness);
 	} else {
 		assert(interval >= BACKGROUND_THREAD_MIN_INTERVAL_NS &&
 		    interval <= BACKGROUND_THREAD_INDEFINITE_SLEEP);
@@ -251,8 +255,10 @@ background_thread_sleep(tsdn_t *tsdn, background_thread_info_t *info,
 		ts.tv_nsec = (size_t)nstime_nsec(&ts_wakeup);
 
 		assert(!background_thread_indefinite_sleep(info));
+		witness_unlock(tsdn_witness_tsdp_get(tsdn), &info->mtx.witness);
 		ret = pthread_cond_timedwait(&info->cond, &info->mtx.lock, &ts);
 		assert(ret == ETIMEDOUT || ret == 0);
+		witness_lock(tsdn_witness_tsdp_get(tsdn), &info->mtx.witness);
 		background_thread_wakeup_time_set(tsdn, info,
 		    BACKGROUND_THREAD_INDEFINITE_SLEEP);
 	}
@@ -347,38 +353,6 @@ background_threads_disable_single(tsd_t *tsd, background_thread_info_t *info) {
 
 static void *background_thread_entry(void *ind_arg);
 
-static int
-background_thread_create_signals_masked(pthread_t *thread,
-    const pthread_attr_t *attr, void *(*start_routine)(void *), void *arg) {
-	/*
-	 * Mask signals during thread creation so that the thread inherits
-	 * an empty signal set.
-	 */
-	sigset_t set;
-	sigemptyset(&set);
-	sigset_t oldset;
-	int mask_err = pthread_sigmask(SIG_SETMASK, &set, &oldset);
-	if (mask_err != 0) {
-		return mask_err;
-	}
-	int create_err = pthread_create_wrapper(thread, attr, start_routine,
-	    arg);
-	/*
-	 * Restore the signal mask.  Failure to restore the signal mask here
-	 * changes program behavior.
-	 */
-	int restore_err = pthread_sigmask(SIG_SETMASK, &oldset, NULL);
-	if (restore_err != 0) {
-		malloc_printf("<jemalloc>: background thread creation "
-		    "failed (%d), and signal mask restoration failed "
-		    "(%d)\n", create_err, restore_err);
-		if (opt_abort) {
-			abort();
-		}
-	}
-	return create_err;
-}
-
 static void
 check_background_thread_creation(tsd_t *tsd, unsigned *n_created,
     bool *created_threads) {
@@ -409,8 +383,8 @@ label_restart:
 		malloc_mutex_unlock(tsd_tsdn(tsd), &background_thread_lock);
 
 		pre_reentrancy(tsd, NULL);
-		int err = background_thread_create_signals_masked(&info->thread,
-		    NULL, background_thread_entry, (void *)(uintptr_t)i);
+		int err = pthread_create_wrapper(&info->thread, NULL,
+		    background_thread_entry, (void *)(uintptr_t)i);
 		post_reentrancy(tsd);
 
 		if (err == 0) {
@@ -502,15 +476,32 @@ background_thread_entry(void *ind_arg) {
 #ifdef JEMALLOC_HAVE_PTHREAD_SETNAME_NP
 	pthread_setname_np(pthread_self(), "jemalloc_bg_thd");
 #endif
+	sigset_t set;
+	sigemptyset(&set);
+	int mask_err = pthread_sigmask(SIG_SETMASK, &set, NULL);
+	if (mask_err) {
+		malloc_printf("<jemalloc>: background thread signal mask failed"
+		    "(%d)\n", mask_err);
+		if (opt_abort) {
+			abort();
+		}
+	}
 	if (opt_percpu_arena != percpu_arena_disabled) {
 		set_current_thread_affinity((int)thread_ind);
+	}
+	tsd_t *tsd = tsd_internal_fetch();
+	if (thread_ind == 0) {
+		malloc_mutex_lock(tsd_tsdn(tsd), &background_thread_lock);
+		t0_initialized = true;
+		pthread_cond_signal(&t0_init_cond);
+		malloc_mutex_unlock(tsd_tsdn(tsd), &background_thread_lock);
 	}
 	/*
 	 * Start periodic background work.  We use internal tsd which avoids
 	 * side effects, for example triggering new arena creation (which in
 	 * turn triggers another background thread creation).
 	 */
-	background_work(tsd_internal_fetch(), thread_ind);
+	background_work(tsd, thread_ind);
 	assert(pthread_equal(pthread_self(),
 	    background_thread_info[thread_ind].thread));
 
@@ -557,12 +548,13 @@ background_thread_create(tsd_t *tsd, unsigned arena_ind) {
 		return false;
 	}
 
+	t0_initialized = false;
 	pre_reentrancy(tsd, NULL);
 	/*
 	 * To avoid complications (besides reentrancy), create internal
 	 * background threads with the underlying pthread_create.
 	 */
-	int err = background_thread_create_signals_masked(&info->thread, NULL,
+	int err = pthread_create_wrapper(&info->thread, NULL,
 	    background_thread_entry, (void *)thread_ind);
 	post_reentrancy(tsd);
 
@@ -575,6 +567,16 @@ background_thread_create(tsd_t *tsd, unsigned arena_ind) {
 		malloc_mutex_unlock(tsd_tsdn(tsd), &info->mtx);
 
 		return true;
+	}
+	/* Sync and wait for thread 0 to finish initialization. */
+	while (t0_initialized == false) {
+		witness_unlock(tsdn_witness_tsdp_get(tsd_tsdn(tsd)),
+		    &background_thread_lock.witness);
+		int ret = pthread_cond_wait(&t0_init_cond,
+		    &(background_thread_lock.lock));
+		assert(ret == 0);
+		witness_lock(tsdn_witness_tsdp_get(tsd_tsdn(tsd)),
+		    &background_thread_lock.witness);
 	}
 
 	return false;
@@ -749,6 +751,7 @@ background_thread_postfork_child(tsdn_t *tsdn) {
 	malloc_mutex_lock(tsdn, &background_thread_lock);
 	n_background_threads = 0;
 	background_thread_enabled_set(tsdn, false);
+	pthread_cond_init(&t0_init_cond, NULL);
 	for (unsigned i = 0; i < ncpus; i++) {
 		background_thread_info_t *info = &background_thread_info[i];
 		malloc_mutex_lock(tsdn, &info->mtx);
@@ -858,6 +861,9 @@ background_thread_boot1(tsdn_t *tsdn) {
 		return true;
 	}
 
+	if (pthread_cond_init(&t0_init_cond, NULL)) {
+		return true;
+	}
 	for (unsigned i = 0; i < ncpus; i++) {
 		background_thread_info_t *info = &background_thread_info[i];
 		/* Thread mutex is rank_inclusive because of thread0. */
