@@ -355,7 +355,7 @@ background_thread_create_signals_masked(pthread_t *thread,
 	 * an empty signal set.
 	 */
 	sigset_t set;
-	sigemptyset(&set);
+	sigfillset(&set);
 	sigset_t oldset;
 	int mask_err = pthread_sigmask(SIG_SETMASK, &set, &oldset);
 	if (mask_err != 0) {
