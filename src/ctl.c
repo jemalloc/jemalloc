@@ -9,6 +9,7 @@
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/nstime.h"
 #include "jemalloc/internal/size_classes.h"
+#include "jemalloc/internal/sized_alloc_region.h"
 #include "jemalloc/internal/util.h"
 
 /******************************************************************************/
@@ -105,6 +106,7 @@ CTL_PROTO(opt_prof_gdump)
 CTL_PROTO(opt_prof_final)
 CTL_PROTO(opt_prof_leak)
 CTL_PROTO(opt_prof_accum)
+CTL_PROTO(opt_sized_alloc_region)
 CTL_PROTO(tcache_create)
 CTL_PROTO(tcache_flush)
 CTL_PROTO(tcache_destroy)
@@ -298,7 +300,8 @@ static const ctl_named_node_t opt_node[] = {
 	{NAME("prof_gdump"),	CTL(opt_prof_gdump)},
 	{NAME("prof_final"),	CTL(opt_prof_final)},
 	{NAME("prof_leak"),	CTL(opt_prof_leak)},
-	{NAME("prof_accum"),	CTL(opt_prof_accum)}
+	{NAME("prof_accum"),	CTL(opt_prof_accum)},
+	{NAME("sized_alloc_region"),	CTL(opt_sized_alloc_region)}
 };
 
 static const ctl_named_node_t	tcache_node[] = {
@@ -1578,6 +1581,7 @@ CTL_RO_NL_GEN(opt_dirty_decay_ms, opt_dirty_decay_ms, ssize_t)
 CTL_RO_NL_GEN(opt_muzzy_decay_ms, opt_muzzy_decay_ms, ssize_t)
 CTL_RO_NL_GEN(opt_stats_print, opt_stats_print, bool)
 CTL_RO_NL_GEN(opt_stats_print_opts, opt_stats_print_opts, const char *)
+CTL_RO_NL_GEN(opt_sized_alloc_region, opt_sized_alloc_region, bool)
 CTL_RO_NL_CGEN(config_fill, opt_junk, opt_junk, const char *)
 CTL_RO_NL_CGEN(config_fill, opt_zero, opt_zero, bool)
 CTL_RO_NL_CGEN(config_utrace, opt_utrace, opt_utrace, bool)

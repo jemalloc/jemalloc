@@ -9,6 +9,7 @@
 #include "jemalloc/internal/rtree.h"
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/mutex_pool.h"
+#include "jemalloc/internal/sized_alloc_region.h"
 
 /******************************************************************************/
 /* Data. */
@@ -965,14 +966,27 @@ extent_recycle(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
  * memory, in which case *zero is toggled to true.  arena_extent_alloc() takes
  * advantage of this to avoid demanding zeroed extents, but taking advantage of
  * them if they are returned.
+ *
+ * The caller can specify szind == NSIZES to indicate "don't know" (forgoing the
+ * possiblity of using the sized-alloc region), in which case it and slab are
+ * ignored.
  */
 static void *
 extent_alloc_core(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
-    size_t alignment, bool *zero, bool *commit, dss_prec_t dss_prec) {
+    bool slab, szind_t szind, size_t alignment, bool *zero, bool *commit,
+    dss_prec_t dss_prec) {
 	void *ret;
 
 	assert(size != 0);
 	assert(alignment != 0);
+
+	/* The sized-alloc region. */
+	if (config_sized_alloc_region && alignment == PAGE
+	    && szind < SIZED_ALLOC_REGION_NUM_SCS && slab && new_addr == NULL
+	    && ((ret = sized_alloc_region_bump_alloc(&sized_alloc_region_global,
+		size, szind, slab, zero, commit)) != NULL)) {
+		return ret;
+	}
 
 	/* "primary" dss. */
 	if (have_dss && dss_prec == dss_prec_primary && (ret =
@@ -1001,8 +1015,8 @@ extent_alloc_default_impl(tsdn_t *tsdn, arena_t *arena, void *new_addr,
     size_t size, size_t alignment, bool *zero, bool *commit) {
 	void *ret;
 
-	ret = extent_alloc_core(tsdn, arena, new_addr, size, alignment, zero,
-	    commit, (dss_prec_t)atomic_load_u(&arena->dss_prec,
+	ret = extent_alloc_core(tsdn, arena, new_addr, size, NSIZES, false,
+	    alignment, zero, commit, (dss_prec_t)atomic_load_u(&arena->dss_prec,
 	    ATOMIC_RELAXED));
 	return ret;
 }
@@ -1081,8 +1095,8 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena,
 
 	void *ptr;
 	if (*r_extent_hooks == &extent_hooks_default) {
-		ptr = extent_alloc_core(tsdn, arena, NULL, alloc_size, PAGE,
-		    &zeroed, &committed, (dss_prec_t)atomic_load_u(
+		ptr = extent_alloc_core(tsdn, arena, NULL, alloc_size, slab,
+		    szind, PAGE, &zeroed, &committed, (dss_prec_t)atomic_load_u(
 		    &arena->dss_prec, ATOMIC_RELAXED));
 	} else {
 		extent_hook_pre_reentrancy(tsdn, arena);
@@ -1317,6 +1331,15 @@ extent_can_coalesce(arena_t *arena, extents_t *extents, const extent_t *inner,
 	}
 
 	if (extent_committed_get(inner) != extent_committed_get(outer)) {
+		return false;
+	}
+
+	if (sized_alloc_region_lookup(&sized_alloc_region_global,
+	    extent_base_get(inner), NULL)) {
+		return false;
+	}
+	if (sized_alloc_region_lookup(&sized_alloc_region_global,
+	    extent_base_get(outer), NULL)) {
 		return false;
 	}
 

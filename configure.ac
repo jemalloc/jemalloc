@@ -1121,6 +1121,22 @@ if test "x$enable_prof" = "x1" ; then
 fi
 AC_SUBST([enable_prof])
 
+dnl Do not enable the sized alloc region by default.
+AC_ARG_ENABLE([sized-alloc-region],
+  [AS_HELP_STRING([--enable-sized-alloc-region], [Enable sized alloc region])],
+[if test "x$enable_sized_alloc_region" = "xno" ; then
+  enable_sized_alloc_region="0"
+else
+  enable_sized_alloc_region="1"
+fi
+],
+[enable_sized_alloc_region="0"]
+)
+if test "x$enable_sized_alloc_region" = "x1" ; then
+  AC_DEFINE([JEMALLOC_SIZED_ALLOC_REGION], [ ])
+fi
+AC_SUBST(enable_sized_alloc_region)
+
 dnl Indicate whether adjacent virtual memory mappings automatically coalesce
 dnl (and fragment on demand).
 if test "x${maps_coalesce}" = "x1" ; then
