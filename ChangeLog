@@ -4,6 +4,41 @@ brevity.  Much more detail can be found in the git revision history:
 
     https://github.com/jemalloc/jemalloc
 
+* 5.0.1 (July 1, 2017)
+
+  This bugfix release fixes several issues, most of which are obscure enough
+  that typical applications are not impacted.
+
+  Bug fixes:
+  - Update decay->nunpurged before purging, in order to avoid potential update
+    races and subsequent incorrect purging volume.  (@interwq)
+  - Only abort on dlsym(3) error if the failure impacts an enabled feature (lazy
+    locking and/or background threads).  This mitigates an initialization
+    failure bug for which we still do not have a clear reproduction test case.
+    (@interwq)
+  - Modify tsd management so that it neither crashes nor leaks if a thread's
+    only allocation activity is to call free() after TLS destructors have been
+    executed.  This behavior was observed when operating with GNU libc, and is
+    unlikely to be an issue with other libc implementations.  (@interwq)
+  - Mask signals during background thread creation.  This prevents signals from
+    being inadvertently delivered to background threads.  (@jasone,
+    @davidgoldblatt, @interwq)
+  - Avoid inactivity checks within background threads, in order to prevent
+    recursive mutex acquisition.  (@interwq)
+  - Fix extent_grow_retained() to use the specified hooks when the
+    arena.<i>.extent_hooks mallctl is used to override the default hooks.
+    (@interwq)
+  - Add missing reentrancy support for custom extent hooks which allocate.
+    (@interwq)
+  - Post-fork(2), re-initialize the list of tcaches associated with each arena
+    to contain no tcaches except the forking thread's.  (@interwq)
+  - Add missing post-fork(2) mutex reinitialization for extent_grow_mtx.  This
+    fixes potential deadlocks after fork(2).  (@interwq)
+  - Enforce minimum autoconf version (currently 2.68), since 2.63 is known to
+    generate corrupt configure scripts.  (@jasone)
+  - Ensure that the configured page size (--with-lg-page) is no larger than the
+    configured huge page size (--with-lg-hugepage).  (@jasone)
+
 * 5.0.0 (June 13, 2017)
 
   Unlike all previous jemalloc releases, this release does not use naturally
