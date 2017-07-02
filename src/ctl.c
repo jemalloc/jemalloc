@@ -622,7 +622,7 @@ arenas_i2a(size_t i) {
 }
 
 static ctl_arena_t *
-arenas_i_impl(tsdn_t *tsdn, size_t i, bool compat, bool init) {
+arenas_i_impl(tsd_t *tsd, size_t i, bool compat, bool init) {
 	ctl_arena_t *ret;
 
 	assert(!compat || !init);
@@ -635,15 +635,15 @@ arenas_i_impl(tsdn_t *tsdn, size_t i, bool compat, bool init) {
 				ctl_arena_stats_t	astats;
 			};
 			struct container_s *cont =
-			    (struct container_s *)base_alloc(tsdn, b0get(),
-			    sizeof(struct container_s), QUANTUM);
+			    (struct container_s *)base_alloc(tsd_tsdn(tsd),
+			    b0get(), sizeof(struct container_s), QUANTUM);
 			if (cont == NULL) {
 				return NULL;
 			}
 			ret = &cont->ctl_arena;
 			ret->astats = &cont->astats;
 		} else {
-			ret = (ctl_arena_t *)base_alloc(tsdn, b0get(),
+			ret = (ctl_arena_t *)base_alloc(tsd_tsdn(tsd), b0get(),
 			    sizeof(ctl_arena_t), QUANTUM);
 			if (ret == NULL) {
 				return NULL;
@@ -659,7 +659,7 @@ arenas_i_impl(tsdn_t *tsdn, size_t i, bool compat, bool init) {
 
 static ctl_arena_t *
 arenas_i(size_t i) {
-	ctl_arena_t *ret = arenas_i_impl(TSDN_NULL, i, true, false);
+	ctl_arena_t *ret = arenas_i_impl(tsd_fetch(), i, true, false);
 	assert(ret != NULL);
 	return ret;
 }
@@ -863,7 +863,7 @@ ctl_arena_refresh(tsdn_t *tsdn, arena_t *arena, ctl_arena_t *ctl_sdarena,
 }
 
 static unsigned
-ctl_arena_init(tsdn_t *tsdn, extent_hooks_t *extent_hooks) {
+ctl_arena_init(tsd_t *tsd, extent_hooks_t *extent_hooks) {
 	unsigned arena_ind;
 	ctl_arena_t *ctl_arena;
 
@@ -876,12 +876,12 @@ ctl_arena_init(tsdn_t *tsdn, extent_hooks_t *extent_hooks) {
 	}
 
 	/* Trigger stats allocation. */
-	if (arenas_i_impl(tsdn, arena_ind, false, true) == NULL) {
+	if (arenas_i_impl(tsd, arena_ind, false, true) == NULL) {
 		return UINT_MAX;
 	}
 
 	/* Initialize new arena. */
-	if (arena_init(tsdn, arena_ind, extent_hooks) == NULL) {
+	if (arena_init(tsd_tsdn(tsd), arena_ind, extent_hooks) == NULL) {
 		return UINT_MAX;
 	}
 
@@ -975,8 +975,9 @@ ctl_refresh(tsdn_t *tsdn) {
 }
 
 static bool
-ctl_init(tsdn_t *tsdn) {
+ctl_init(tsd_t *tsd) {
 	bool ret;
+	tsdn_t *tsdn = tsd_tsdn(tsd);
 
 	malloc_mutex_lock(tsdn, &ctl_mtx);
 	if (!ctl_initialized) {
@@ -1010,14 +1011,14 @@ ctl_init(tsdn_t *tsdn) {
 		 * here rather than doing it lazily elsewhere, in order
 		 * to limit when OOM-caused errors can occur.
 		 */
-		if ((ctl_sarena = arenas_i_impl(tsdn, MALLCTL_ARENAS_ALL, false,
+		if ((ctl_sarena = arenas_i_impl(tsd, MALLCTL_ARENAS_ALL, false,
 		    true)) == NULL) {
 			ret = true;
 			goto label_return;
 		}
 		ctl_sarena->initialized = true;
 
-		if ((ctl_darena = arenas_i_impl(tsdn, MALLCTL_ARENAS_DESTROYED,
+		if ((ctl_darena = arenas_i_impl(tsd, MALLCTL_ARENAS_DESTROYED,
 		    false, true)) == NULL) {
 			ret = true;
 			goto label_return;
@@ -1031,7 +1032,7 @@ ctl_init(tsdn_t *tsdn) {
 
 		ctl_arenas->narenas = narenas_total_get();
 		for (i = 0; i < ctl_arenas->narenas; i++) {
-			if (arenas_i_impl(tsdn, i, false, true) == NULL) {
+			if (arenas_i_impl(tsd, i, false, true) == NULL) {
 				ret = true;
 				goto label_return;
 			}
@@ -1156,7 +1157,7 @@ ctl_byname(tsd_t *tsd, const char *name, void *oldp, size_t *oldlenp,
 	size_t mib[CTL_MAX_DEPTH];
 	const ctl_named_node_t *node;
 
-	if (!ctl_initialized && ctl_init(tsd_tsdn(tsd))) {
+	if (!ctl_initialized && ctl_init(tsd)) {
 		ret = EAGAIN;
 		goto label_return;
 	}
@@ -1180,15 +1181,15 @@ label_return:
 }
 
 int
-ctl_nametomib(tsdn_t *tsdn, const char *name, size_t *mibp, size_t *miblenp) {
+ctl_nametomib(tsd_t *tsd, const char *name, size_t *mibp, size_t *miblenp) {
 	int ret;
 
-	if (!ctl_initialized && ctl_init(tsdn)) {
+	if (!ctl_initialized && ctl_init(tsd)) {
 		ret = EAGAIN;
 		goto label_return;
 	}
 
-	ret = ctl_lookup(tsdn, name, NULL, mibp, miblenp);
+	ret = ctl_lookup(tsd_tsdn(tsd), name, NULL, mibp, miblenp);
 label_return:
 	return(ret);
 }
@@ -1200,7 +1201,7 @@ ctl_bymib(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
 	const ctl_named_node_t *node;
 	size_t i;
 
-	if (!ctl_initialized && ctl_init(tsd_tsdn(tsd))) {
+	if (!ctl_initialized && ctl_init(tsd)) {
 		ret = EAGAIN;
 		goto label_return;
 	}
@@ -1522,6 +1523,13 @@ background_thread_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
 
 		background_thread_enabled_set(tsd_tsdn(tsd), newval);
 		if (newval) {
+			if (!can_enable_background_thread) {
+				malloc_printf("<jemalloc>: Error in dlsym("
+			            "RTLD_NEXT, \"pthread_create\"). Cannot "
+				    "enable background_thread\n");
+				ret = EFAULT;
+				goto label_return;
+			}
 			if (background_threads_enable(tsd)) {
 				ret = EFAULT;
 				goto label_return;
@@ -1689,7 +1697,7 @@ thread_tcache_flush_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
 	READONLY();
 	WRITEONLY();
 
-	tcache_flush();
+	tcache_flush(tsd);
 
 	ret = 0;
 label_return:
@@ -1963,7 +1971,7 @@ arena_reset_finish_background_thread(tsd_t *tsd, unsigned arena_ind) {
 			unsigned ind = arena_ind % ncpus;
 			background_thread_info_t *info =
 			    &background_thread_info[ind];
-			assert(info->state = background_thread_paused);
+			assert(info->state == background_thread_paused);
 			malloc_mutex_lock(tsd_tsdn(tsd), &info->mtx);
 			info->state = background_thread_started;
 			malloc_mutex_unlock(tsd_tsdn(tsd), &info->mtx);
@@ -2305,8 +2313,7 @@ arenas_create_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
 
 	extent_hooks = (extent_hooks_t *)&extent_hooks_default;
 	WRITE(extent_hooks, extent_hooks_t *);
-	if ((arena_ind = ctl_arena_init(tsd_tsdn(tsd), extent_hooks)) ==
-	    UINT_MAX) {
+	if ((arena_ind = ctl_arena_init(tsd, extent_hooks)) == UINT_MAX) {
 		ret = EAGAIN;
 		goto label_return;
 	}

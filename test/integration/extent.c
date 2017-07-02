@@ -39,10 +39,13 @@ test_extent_body(unsigned arena_ind) {
 	assert_d_eq(mallctlnametomib("arena.0.purge", purge_mib, &purge_miblen),
 	    0, "Unexpected mallctlnametomib() failure");
 	purge_mib[1] = (size_t)arena_ind;
+	called_alloc = false;
+	try_alloc = true;
 	try_dalloc = false;
 	try_decommit = false;
 	p = mallocx(large0 * 2, flags);
 	assert_ptr_not_null(p, "Unexpected mallocx() error");
+	assert_true(called_alloc, "Expected alloc call");
 	called_dalloc = false;
 	called_decommit = false;
 	did_purge_lazy = false;

@@ -1,4 +1,5 @@
 dnl Process this file with autoconf to produce a configure script.
+AC_PREREQ(2.68)
 AC_INIT([Makefile.in])
 
 AC_CONFIG_AUX_DIR([build-aux])
@@ -1373,6 +1374,10 @@ if test "x${je_cv_lg_hugepage}" = "x" ; then
     je_cv_lg_hugepage=21
   fi
 fi
+if test "x${LG_PAGE}" != "xundefined" -a \
+        "${je_cv_lg_hugepage}" -lt "${LG_PAGE}" ; then
+  AC_MSG_ERROR([Huge page size (2^${je_cv_lg_hugepage}) must be at least page size (2^${LG_PAGE})])
+fi
 AC_DEFINE_UNQUOTED([LG_HUGEPAGE], [${je_cv_lg_hugepage}])
 
 AC_ARG_WITH([lg_page_sizes],
@@ -1469,6 +1474,15 @@ if test "x$abi" != "xpecoff" ; then
 ], [je_cv_pthread_atfork])
   if test "x${je_cv_pthread_atfork}" = "xyes" ; then
     AC_DEFINE([JEMALLOC_HAVE_PTHREAD_ATFORK], [ ])
+  fi
+  dnl Check if pthread_setname_np is available with the expected API.
+  JE_COMPILABLE([pthread_setname_np(3)], [
+#include <pthread.h>
+], [
+  pthread_setname_np(pthread_self(), "setname_test");
+], [je_cv_pthread_setname_np])
+  if test "x${je_cv_pthread_setname_np}" = "xyes" ; then
+    AC_DEFINE([JEMALLOC_HAVE_PTHREAD_SETNAME_NP], [ ])
   fi
 fi
 

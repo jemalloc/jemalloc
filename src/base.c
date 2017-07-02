@@ -15,7 +15,7 @@ static base_t	*b0;
 /******************************************************************************/
 
 static void *
-base_map(extent_hooks_t *extent_hooks, unsigned ind, size_t size) {
+base_map(tsdn_t *tsdn, extent_hooks_t *extent_hooks, unsigned ind, size_t size) {
 	void *addr;
 	bool zero = true;
 	bool commit = true;
@@ -25,15 +25,19 @@ base_map(extent_hooks_t *extent_hooks, unsigned ind, size_t size) {
 	if (extent_hooks == &extent_hooks_default) {
 		addr = extent_alloc_mmap(NULL, size, PAGE, &zero, &commit);
 	} else {
+		/* No arena context as we are creating new arenas. */
+		tsd_t *tsd = tsdn_null(tsdn) ? tsd_fetch() : tsdn_tsd(tsdn);
+		pre_reentrancy(tsd, NULL);
 		addr = extent_hooks->alloc(extent_hooks, NULL, size, PAGE,
 		    &zero, &commit, ind);
+		post_reentrancy(tsd);
 	}
 
 	return addr;
 }
 
 static void
-base_unmap(extent_hooks_t *extent_hooks, unsigned ind, void *addr,
+base_unmap(tsdn_t *tsdn, extent_hooks_t *extent_hooks, unsigned ind, void *addr,
     size_t size) {
 	/*
 	 * Cascade through dalloc, decommit, purge_forced, and purge_lazy,
@@ -61,27 +65,32 @@ base_unmap(extent_hooks_t *extent_hooks, unsigned ind, void *addr,
 		/* Nothing worked.  This should never happen. */
 		not_reached();
 	} else {
+		tsd_t *tsd = tsdn_null(tsdn) ? tsd_fetch() : tsdn_tsd(tsdn);
+		pre_reentrancy(tsd, NULL);
 		if (extent_hooks->dalloc != NULL &&
 		    !extent_hooks->dalloc(extent_hooks, addr, size, true,
 		    ind)) {
-			return;
+			goto label_done;
 		}
 		if (extent_hooks->decommit != NULL &&
 		    !extent_hooks->decommit(extent_hooks, addr, size, 0, size,
 		    ind)) {
-			return;
+			goto label_done;
 		}
 		if (extent_hooks->purge_forced != NULL &&
 		    !extent_hooks->purge_forced(extent_hooks, addr, size, 0,
 		    size, ind)) {
-			return;
+			goto label_done;
 		}
 		if (extent_hooks->purge_lazy != NULL &&
 		    !extent_hooks->purge_lazy(extent_hooks, addr, size, 0, size,
 		    ind)) {
-			return;
+			goto label_done;
 		}
 		/* Nothing worked.  That's the application's problem. */
+	label_done:
+		post_reentrancy(tsd);
+		return;
 	}
 }
 
@@ -157,7 +166,7 @@ base_extent_bump_alloc(tsdn_t *tsdn, base_t *base, extent_t *extent,
  * On success a pointer to the initialized base_block_t header is returned.
  */
 static base_block_t *
-base_block_alloc(extent_hooks_t *extent_hooks, unsigned ind,
+base_block_alloc(tsdn_t *tsdn, extent_hooks_t *extent_hooks, unsigned ind,
     pszind_t *pind_last, size_t *extent_sn_next, size_t size,
     size_t alignment) {
 	alignment = ALIGNMENT_CEILING(alignment, QUANTUM);
@@ -179,7 +188,7 @@ base_block_alloc(extent_hooks_t *extent_hooks, unsigned ind,
 	size_t next_block_size = HUGEPAGE_CEILING(sz_pind2sz(pind_next));
 	size_t block_size = (min_block_size > next_block_size) ? min_block_size
 	    : next_block_size;
-	base_block_t *block = (base_block_t *)base_map(extent_hooks, ind,
+	base_block_t *block = (base_block_t *)base_map(tsdn, extent_hooks, ind,
 	    block_size);
 	if (block == NULL) {
 		return NULL;
@@ -207,8 +216,9 @@ base_extent_alloc(tsdn_t *tsdn, base_t *base, size_t size, size_t alignment) {
 	 * called.
 	 */
 	malloc_mutex_unlock(tsdn, &base->mtx);
-	base_block_t *block = base_block_alloc(extent_hooks, base_ind_get(base),
-	    &base->pind_last, &base->extent_sn_next, size, alignment);
+	base_block_t *block = base_block_alloc(tsdn, extent_hooks,
+	    base_ind_get(base), &base->pind_last, &base->extent_sn_next, size,
+	    alignment);
 	malloc_mutex_lock(tsdn, &base->mtx);
 	if (block == NULL) {
 		return NULL;
@@ -234,8 +244,8 @@ base_t *
 base_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 	pszind_t pind_last = 0;
 	size_t extent_sn_next = 0;
-	base_block_t *block = base_block_alloc(extent_hooks, ind, &pind_last,
-	    &extent_sn_next, sizeof(base_t), QUANTUM);
+	base_block_t *block = base_block_alloc(tsdn, extent_hooks, ind,
+	    &pind_last, &extent_sn_next, sizeof(base_t), QUANTUM);
 	if (block == NULL) {
 		return NULL;
 	}
@@ -249,7 +259,7 @@ base_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 	atomic_store_p(&base->extent_hooks, extent_hooks, ATOMIC_RELAXED);
 	if (malloc_mutex_init(&base->mtx, "base", WITNESS_RANK_BASE,
 	    malloc_mutex_rank_exclusive)) {
-		base_unmap(extent_hooks, ind, block, block->size);
+		base_unmap(tsdn, extent_hooks, ind, block, block->size);
 		return NULL;
 	}
 	base->pind_last = pind_last;
@@ -272,13 +282,13 @@ base_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 }
 
 void
-base_delete(base_t *base) {
+base_delete(tsdn_t *tsdn, base_t *base) {
 	extent_hooks_t *extent_hooks = base_extent_hooks_get(base);
 	base_block_t *next = base->blocks;
 	do {
 		base_block_t *block = next;
 		next = block->next;
-		base_unmap(extent_hooks, base_ind_get(base), block,
+		base_unmap(tsdn, extent_hooks, base_ind_get(base), block,
 		    block->size);
 	} while (next != NULL);
 }

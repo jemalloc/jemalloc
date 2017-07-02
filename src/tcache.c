@@ -474,8 +474,7 @@ tcache_flush_cache(tsd_t *tsd, tcache_t *tcache) {
 }
 
 void
-tcache_flush(void) {
-	tsd_t *tsd = tsd_fetch();
+tcache_flush(tsd_t *tsd) {
 	assert(tcache_available(tsd));
 	tcache_flush_cache(tsd, tsd_tcachep_get(tsd));
 }

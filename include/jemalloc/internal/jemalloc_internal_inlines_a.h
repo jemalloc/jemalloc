@@ -146,7 +146,10 @@ tcache_get(tsd_t *tsd) {
 }
 
 static inline void
-pre_reentrancy(tsd_t *tsd) {
+pre_reentrancy(tsd_t *tsd, arena_t *arena) {
+	/* arena is the current context.  Reentry from a0 is not allowed. */
+	assert(arena != arena_get(tsd_tsdn(tsd), 0, false));
+
 	bool fast = tsd_fast(tsd);
 	++*tsd_reentrancy_levelp_get(tsd);
 	if (fast) {

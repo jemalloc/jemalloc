@@ -20,6 +20,9 @@ size_t n_background_threads;
 /* Thread info per-index. */
 background_thread_info_t *background_thread_info;
 
+/* False if no necessary runtime support. */
+bool can_enable_background_thread;
+
 /******************************************************************************/
 
 #ifdef JEMALLOC_PTHREAD_CREATE_WRAPPER
@@ -313,7 +316,7 @@ background_threads_disable_single(tsd_t *tsd, background_thread_info_t *info) {
 		    &background_thread_lock);
 	}
 
-	pre_reentrancy(tsd);
+	pre_reentrancy(tsd, NULL);
 	malloc_mutex_lock(tsd_tsdn(tsd), &info->mtx);
 	bool has_thread;
 	assert(info->state != background_thread_paused);
@@ -344,6 +347,38 @@ background_threads_disable_single(tsd_t *tsd, background_thread_info_t *info) {
 
 static void *background_thread_entry(void *ind_arg);
 
+static int
+background_thread_create_signals_masked(pthread_t *thread,
+    const pthread_attr_t *attr, void *(*start_routine)(void *), void *arg) {
+	/*
+	 * Mask signals during thread creation so that the thread inherits
+	 * an empty signal set.
+	 */
+	sigset_t set;
+	sigfillset(&set);
+	sigset_t oldset;
+	int mask_err = pthread_sigmask(SIG_SETMASK, &set, &oldset);
+	if (mask_err != 0) {
+		return mask_err;
+	}
+	int create_err = pthread_create_wrapper(thread, attr, start_routine,
+	    arg);
+	/*
+	 * Restore the signal mask.  Failure to restore the signal mask here
+	 * changes program behavior.
+	 */
+	int restore_err = pthread_sigmask(SIG_SETMASK, &oldset, NULL);
+	if (restore_err != 0) {
+		malloc_printf("<jemalloc>: background thread creation "
+		    "failed (%d), and signal mask restoration failed "
+		    "(%d)\n", create_err, restore_err);
+		if (opt_abort) {
+			abort();
+		}
+	}
+	return create_err;
+}
+
 static void
 check_background_thread_creation(tsd_t *tsd, unsigned *n_created,
     bool *created_threads) {
@@ -373,9 +408,9 @@ label_restart:
 		 */
 		malloc_mutex_unlock(tsd_tsdn(tsd), &background_thread_lock);
 
-		pre_reentrancy(tsd);
-		int err = pthread_create_wrapper(&info->thread, NULL,
-		    background_thread_entry, (void *)(uintptr_t)i);
+		pre_reentrancy(tsd, NULL);
+		int err = background_thread_create_signals_masked(&info->thread,
+		    NULL, background_thread_entry, (void *)(uintptr_t)i);
 		post_reentrancy(tsd);
 
 		if (err == 0) {
@@ -464,7 +499,9 @@ static void *
 background_thread_entry(void *ind_arg) {
 	unsigned thread_ind = (unsigned)(uintptr_t)ind_arg;
 	assert(thread_ind < ncpus);
-
+#ifdef JEMALLOC_HAVE_PTHREAD_SETNAME_NP
+	pthread_setname_np(pthread_self(), "jemalloc_bg_thd");
+#endif
 	if (opt_percpu_arena != percpu_arena_disabled) {
 		set_current_thread_affinity((int)thread_ind);
 	}
@@ -520,12 +557,12 @@ background_thread_create(tsd_t *tsd, unsigned arena_ind) {
 		return false;
 	}
 
-	pre_reentrancy(tsd);
+	pre_reentrancy(tsd, NULL);
 	/*
 	 * To avoid complications (besides reentrancy), create internal
 	 * background threads with the underlying pthread_create.
 	 */
-	int err = pthread_create_wrapper(&info->thread, NULL,
+	int err = background_thread_create_signals_masked(&info->thread, NULL,
 	    background_thread_entry, (void *)thread_ind);
 	post_reentrancy(tsd);
 
@@ -785,9 +822,14 @@ background_thread_boot0(void) {
 #ifdef JEMALLOC_PTHREAD_CREATE_WRAPPER
 	pthread_create_fptr = dlsym(RTLD_NEXT, "pthread_create");
 	if (pthread_create_fptr == NULL) {
-		malloc_write("<jemalloc>: Error in dlsym(RTLD_NEXT, "
-		    "\"pthread_create\")\n");
-		abort();
+		can_enable_background_thread = false;
+		if (config_lazy_lock || opt_background_thread) {
+			malloc_write("<jemalloc>: Error in dlsym(RTLD_NEXT, "
+			    "\"pthread_create\")\n");
+			abort();
+		}
+	} else {
+		can_enable_background_thread = true;
 	}
 #endif
 	return false;

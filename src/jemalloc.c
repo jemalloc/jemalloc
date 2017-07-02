@@ -1476,7 +1476,7 @@ malloc_init_hard(void) {
 
 	malloc_mutex_lock(tsd_tsdn(tsd), &init_lock);
 	/* Set reentrancy level to 1 during init. */
-	pre_reentrancy(tsd);
+	pre_reentrancy(tsd, NULL);
 	/* Initialize narenas before prof_boot2 (for allocation). */
 	if (malloc_init_narenas() || background_thread_boot1(tsd_tsdn(tsd))) {
 		UNLOCK_RETURN(tsd_tsdn(tsd), true, true)
@@ -1799,7 +1799,7 @@ imalloc_body(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd) {
 		 */
 		assert(dopts->tcache_ind == TCACHE_IND_AUTOMATIC ||
 		    dopts->tcache_ind == TCACHE_IND_NONE);
-		assert(dopts->arena_ind = ARENA_IND_AUTOMATIC);
+		assert(dopts->arena_ind == ARENA_IND_AUTOMATIC);
 		dopts->tcache_ind = TCACHE_IND_NONE;
 		/* We know that arena 0 has already been initialized. */
 		dopts->arena_ind = 0;
@@ -2264,7 +2264,15 @@ JEMALLOC_EXPORT void JEMALLOC_NOTHROW
 je_free(void *ptr) {
 	UTRACE(ptr, 0, 0);
 	if (likely(ptr != NULL)) {
-		tsd_t *tsd = tsd_fetch();
+		/*
+		 * We avoid setting up tsd fully (e.g. tcache, arena binding)
+		 * based on only free() calls -- other activities trigger the
+		 * minimal to full transition.  This is because free() may
+		 * happen during thread shutdown after tls deallocation: if a
+		 * thread never had any malloc activities until then, a
+		 * fully-setup tsd won't be destructed properly.
+		 */
+		tsd_t *tsd = tsd_fetch_min();
 		check_entry_exit_locking(tsd_tsdn(tsd));
 
 		tcache_t *tcache;
@@ -2910,16 +2918,15 @@ je_mallctl(const char *name, void *oldp, size_t *oldlenp, void *newp,
 JEMALLOC_EXPORT int JEMALLOC_NOTHROW
 je_mallctlnametomib(const char *name, size_t *mibp, size_t *miblenp) {
 	int ret;
-	tsdn_t *tsdn;
 
 	if (unlikely(malloc_init())) {
 		return EAGAIN;
 	}
 
-	tsdn = tsdn_fetch();
-	check_entry_exit_locking(tsdn);
-	ret = ctl_nametomib(tsdn, name, mibp, miblenp);
-	check_entry_exit_locking(tsdn);
+	tsd_t *tsd = tsd_fetch();
+	check_entry_exit_locking(tsd_tsdn(tsd));
+	ret = ctl_nametomib(tsd, name, mibp, miblenp);
+	check_entry_exit_locking(tsd_tsdn(tsd));
 	return ret;
 }
 
@@ -3042,7 +3049,7 @@ _malloc_prefork(void)
 		background_thread_prefork1(tsd_tsdn(tsd));
 	}
 	/* Break arena prefork into stages to preserve lock order. */
-	for (i = 0; i < 7; i++) {
+	for (i = 0; i < 8; i++) {
 		for (j = 0; j < narenas; j++) {
 			if ((arena = arena_get(tsd_tsdn(tsd), j, false)) !=
 			    NULL) {
@@ -3067,6 +3074,9 @@ _malloc_prefork(void)
 					break;
 				case 6:
 					arena_prefork6(tsd_tsdn(tsd), arena);
+					break;
+				case 7:
+					arena_prefork7(tsd_tsdn(tsd), arena);
 					break;
 				default: not_reached();
 				}
