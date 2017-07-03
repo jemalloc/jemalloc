@@ -22,7 +22,7 @@ brevity.  Much more detail can be found in the git revision history:
     unlikely to be an issue with other libc implementations.  (@interwq)
   - Mask signals during background thread creation.  This prevents signals from
     being inadvertently delivered to background threads.  (@jasone,
-    @davidgoldblatt, @interwq)
+    @davidtgoldblatt, @interwq)
   - Avoid inactivity checks within background threads, in order to prevent
     recursive mutex acquisition.  (@interwq)
   - Fix extent_grow_retained() to use the specified hooks when the
