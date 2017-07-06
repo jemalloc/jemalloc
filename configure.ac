@@ -630,7 +630,13 @@ case "${host}" in
 	  DSO_LDFLAGS="-shared"
 	  link_whole_archive="1"
 	fi
-	DUMP_SYMS="dumpbin /SYMBOLS"
+	case "${host}" in
+	  *-*-cygwin*)
+	    DUMP_SYMS="dumpbin /SYMBOLS"
+	    ;;
+	  *)
+	    ;;
+	esac
 	a="lib"
 	libprefix=""
 	SOREV="${so}"
