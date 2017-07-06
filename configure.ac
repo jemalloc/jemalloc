@@ -511,6 +511,11 @@ AN_PROGRAM([ar], [AC_PROG_AR])
 AC_DEFUN([AC_PROG_AR], [AC_CHECK_TOOL(AR, ar, :)])
 AC_PROG_AR
 
+AN_MAKEVAR([NM], [AC_PROG_NM])
+AN_PROGRAM([nm], [AC_PROG_NM])
+AC_DEFUN([AC_PROG_NM], [AC_CHECK_TOOL(NM, nm, :)])
+AC_PROG_NM
+
 AC_PROG_AWK
 
 dnl Platform-specific settings.  abi and RPATH can probably be determined
@@ -522,7 +527,7 @@ dnl definitions need to be seen before any headers are included, which is a pain
 dnl to make happen otherwise.
 default_retain="0"
 maps_coalesce="1"
-DUMP_SYMS="nm -a"
+DUMP_SYMS="${NM} -a"
 SYM_PREFIX=""
 case "${host}" in
   *-*-darwin* | *-*-ios*)
