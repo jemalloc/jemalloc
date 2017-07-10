@@ -89,6 +89,7 @@ JEMALLOC_ATTR(weak_import);
 static malloc_zone_t *default_zone, *purgeable_zone;
 static malloc_zone_t jemalloc_zone;
 static struct malloc_introspection_t jemalloc_zone_introspect;
+static pid_t zone_force_lock_pid = -1;
 
 /******************************************************************************/
 /* Function prototypes for non-inline static functions. */
@@ -270,6 +271,12 @@ zone_log(malloc_zone_t *zone, void *address) {
 static void
 zone_force_lock(malloc_zone_t *zone) {
 	if (isthreaded) {
+		/*
+		 * See the note in zone_force_unlock, below, to see why we need
+		 * this.
+		 */
+		assert(zone_force_lock_pid == -1);
+		zone_force_lock_pid = getpid();
 		jemalloc_prefork();
 	}
 }
@@ -277,14 +284,25 @@ zone_force_lock(malloc_zone_t *zone) {
 static void
 zone_force_unlock(malloc_zone_t *zone) {
 	/*
-	 * Call jemalloc_postfork_child() rather than
-	 * jemalloc_postfork_parent(), because this function is executed by both
-	 * parent and child.  The parent can tolerate having state
-	 * reinitialized, but the child cannot unlock mutexes that were locked
-	 * by the parent.
+	 * zone_force_lock and zone_force_unlock are the entry points to the
+	 * forking machinery on OS X.  The tricky thing is, the child is not
+	 * allowed to unlock mutexes locked in the parent, even if owned by the
+	 * forking thread (and the mutex type we use in OS X will fail an assert
+	 * if we try).  In the child, we can get away with reinitializing all
+	 * the mutexes, which has the effect of unlocking them.  In the parent,
+	 * doing this would mean we wouldn't wake any waiters blocked on the
+	 * mutexes we unlock.  So, we record the pid of the current thread in
+	 * zone_force_lock, and use that to detect if we're in the parent or
+	 * child here, to decide which unlock logic we need.
 	 */
 	if (isthreaded) {
-		jemalloc_postfork_child();
+		assert(zone_force_lock_pid != -1);
+		if (getpid() == zone_force_lock_pid) {
+			jemalloc_postfork_parent();
+		} else {
+			jemalloc_postfork_child();
+		}
+		zone_force_lock_pid = -1;
 	}
 }
 
