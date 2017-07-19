@@ -238,6 +238,12 @@
 #undef JEMALLOC_CACHE_OBLIVIOUS
 
 /*
+ * If defined, enable logging facilities.  We make this a configure option to
+ * avoid taking extra branches everywhere.
+ */
+#undef JEMALLOC_LOG
+
+/*
  * Darwin (OS X) uses zones to work around Mach-O symbol override shortcomings.
  */
 #undef JEMALLOC_ZONE

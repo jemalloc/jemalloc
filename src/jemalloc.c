@@ -8,6 +8,7 @@
 #include "jemalloc/internal/extent_dss.h"
 #include "jemalloc/internal/extent_mmap.h"
 #include "jemalloc/internal/jemalloc_internal_types.h"
+#include "jemalloc/internal/log.h"
 #include "jemalloc/internal/malloc_io.h"
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/rtree.h"
@@ -1173,6 +1174,16 @@ malloc_conf_init(void) {
 				CONF_HANDLE_BOOL(opt_prof_final, "prof_final")
 				CONF_HANDLE_BOOL(opt_prof_leak, "prof_leak")
 			}
+			if (config_log) {
+				if (CONF_MATCH("log_vars")) {
+					size_t cpylen = (
+					    vlen <= sizeof(log_var_names) ?
+					    vlen : sizeof(log_var_names) - 1);
+					strncpy(log_var_names, v, cpylen);
+					log_var_names[cpylen] = '\0';
+					continue;
+				}
+			}
 			malloc_conf_error("Invalid conf pair", k, klen, v,
 			    vlen);
 #undef CONF_MATCH
@@ -1189,6 +1200,7 @@ malloc_conf_init(void) {
 #undef CONF_HANDLE_CHAR_P
 		}
 	}
+	atomic_store_b(&log_init_done, true, ATOMIC_RELEASE);
 }
 
 static bool

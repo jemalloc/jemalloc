@@ -102,6 +102,7 @@ C_SRCS := $(srcroot)src/jemalloc.c \
 	$(srcroot)src/hash.c \
 	$(srcroot)src/hooks.c \
 	$(srcroot)src/large.c \
+	$(srcroot)src/log.c \
 	$(srcroot)src/malloc_io.c \
 	$(srcroot)src/mutex.c \
 	$(srcroot)src/mutex_pool.c \
@@ -171,6 +172,7 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/junk.c \
 	$(srcroot)test/unit/junk_alloc.c \
 	$(srcroot)test/unit/junk_free.c \
+	$(srcroot)test/unit/log.c \
 	$(srcroot)test/unit/mallctl.c \
 	$(srcroot)test/unit/malloc_io.c \
 	$(srcroot)test/unit/math.c \

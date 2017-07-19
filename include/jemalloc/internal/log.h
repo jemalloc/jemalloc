@@ -1,0 +1,89 @@
+#ifndef JEMALLOC_INTERNAL_LOG_H
+#define JEMALLOC_INTERNAL_LOG_H
+
+#include "jemalloc/internal/atomic.h"
+#include "jemalloc/internal/mutex.h"
+
+#ifdef JEMALLOC_LOG
+#  define JEMALLOC_LOG_BUFSIZE 1000
+#else
+#  define JEMALLOC_LOG_BUFSIZE 1
+#endif
+
+/*
+ * The log_vars malloc_conf option is a '|'-delimited list of log_var name
+ * segments to log.  The log_var names are themselves hierarchical, with '.' as
+ * the delimiter (a "segment" is just a prefix in the log namespace).  So, if
+ * you have:
+ *
+ * static log_var_t log_arena = LOG_VAR_INIT("arena"); // 1
+ * static log_var_t log_arena_a = LOG_VAR_INIT("arena.a"); // 2
+ * static log_var_t log_arena_b = LOG_VAR_INIT("arena.b"); // 3
+ * static log_var_t log_arena_a_a = LOG_VAR_INIT("arena.a.a"); // 4
+ * static_log_var_t log_extent_a = LOG_VAR_INIT("extent.a"); // 5
+ * static_log_var_t log_extent_b = LOG_VAR_INIT("extent.b"); // 6
+ *
+ * And your malloc_conf option is "log_vars=arena.a|extent", then log_vars 2, 4,
+ * 5, and 6 will be enabled.  You can enable logging from all log vars by
+ * writing "log_vars=.".
+ *
+ * You can then log by writing:
+ *   log(log_var, "format string -- my int is %d", my_int);
+ *
+ * None of this should be regarded as a stable API for right now.  It's intended
+ * as a debugging interface, to let us keep around some of our printf-debugging
+ * statements.
+ */
+
+extern char log_var_names[JEMALLOC_LOG_BUFSIZE];
+extern atomic_b_t log_init_done;
+
+typedef struct log_var_s log_var_t;
+struct log_var_s {
+	/*
+	 * Lowest bit is "inited", second lowest is "enabled".  Putting them in
+	 * a single word lets us avoid any fences on weak architectures.
+	 */
+	atomic_u_t state;
+	const char *name;
+};
+
+#define LOG_NOT_INITIALIZED 0U
+#define LOG_INITIALIZED_NOT_ENABLED 1U
+#define LOG_ENABLED 2U
+
+#define LOG_VAR_INIT(name_str) {ATOMIC_INIT(LOG_NOT_INITIALIZED), name_str}
+
+/*
+ * Returns the value we should assume for state (which is not necessarily
+ * accurate; if logging is done before logging has finished initializing, then
+ * we default to doing the safe thing by logging everything).
+ */
+unsigned log_var_update_state(log_var_t *log_var);
+
+/* We factor out the metadata management to allow us to test more easily. */
+#define log_do_begin(log_var)						\
+if (config_log) {							\
+	unsigned log_state = atomic_load_u(&(log_var).state,		\
+	    ATOMIC_RELAXED);						\
+	if (unlikely(log_state == LOG_NOT_INITIALIZED)) {		\
+		log_state = log_var_update_state(&(log_var));		\
+		assert(log_state != LOG_NOT_INITIALIZED);		\
+	}								\
+	if (log_state == LOG_ENABLED) {					\
+		{
+			/* User code executes here. */
+#define log_do_end(log_var)						\
+		}							\
+	}								\
+}
+
+#define log(log_var, format, ...)					\
+do {									\
+	log_do_begin(log_var)						\
+		malloc_printf("%s: " format "\n",			\
+		    (log_var).name, __VA_ARGS__);			\
+	log_do_end(log_var)						\
+} while (0)
+
+#endif /* JEMALLOC_INTERNAL_LOG_H */
