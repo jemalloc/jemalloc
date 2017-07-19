@@ -146,6 +146,17 @@ static const bool config_cache_oblivious =
     false
 #endif
     ;
+/*
+ * Undocumented, for jemalloc development use only at the moment.  See the note
+ * in jemalloc/internal/log.h.
+ */
+static const bool config_log =
+#ifdef JEMALLOC_LOG
+    true
+#else
+    false
+#endif
+    ;
 #ifdef JEMALLOC_HAVE_SCHED_GETCPU
 /* Currently percpu_arena depends on sched_getcpu. */
 #define JEMALLOC_PERCPU_ARENA

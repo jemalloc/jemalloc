@@ -1226,6 +1226,21 @@ if test "x$enable_cache_oblivious" = "x1" ; then
 fi
 AC_SUBST([enable_cache_oblivious])
 
+dnl Do not log by default.
+AC_ARG_ENABLE([log],
+  [AS_HELP_STRING([--enable-log], [Support debug logging])],
+[if test "x$enable_log" = "xno" ; then
+  enable_log="0"
+else
+  enable_log="1"
+fi
+],
+[enable_log="0"]
+)
+if test "x$enable_log" = "x1" ; then
+  AC_DEFINE([JEMALLOC_LOG], [ ])
+fi
+AC_SUBST([enable_log])
 
 
 JE_COMPILABLE([a program using __builtin_unreachable], [
@@ -2188,6 +2203,7 @@ AC_MSG_RESULT([thp                : ${enable_thp}])
 AC_MSG_RESULT([fill               : ${enable_fill}])
 AC_MSG_RESULT([utrace             : ${enable_utrace}])
 AC_MSG_RESULT([xmalloc            : ${enable_xmalloc}])
+AC_MSG_RESULT([log                : ${enable_log}])
 AC_MSG_RESULT([lazy_lock          : ${enable_lazy_lock}])
 AC_MSG_RESULT([cache-oblivious    : ${enable_cache_oblivious}])
 AC_MSG_RESULT([cxx                : ${enable_cxx}])
