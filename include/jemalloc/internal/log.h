@@ -30,6 +30,12 @@
  * You can then log by writing:
  *   log(log_var, "format string -- my int is %d", my_int);
  *
+ * The namespaces currently in use:
+ *   core.[malloc|free|posix_memalign|...].[entry|exit]:
+ *       The entry/exit points of the functions publicly exposed by jemalloc.
+ *       The "entry" variants try to log arguments to the functions, and the
+ *       "exit" ones try to log return values.
+ *
  * None of this should be regarded as a stable API for right now.  It's intended
  * as a debugging interface, to let us keep around some of our printf-debugging
  * statements.
