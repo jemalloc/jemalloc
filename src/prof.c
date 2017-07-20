@@ -1409,7 +1409,13 @@ prof_open_maps(const char *format, ...) {
 	va_start(ap, format);
 	malloc_vsnprintf(filename, sizeof(filename), format, ap);
 	va_end(ap);
+
+#if defined(O_CLOEXEC)
 	mfd = open(filename, O_RDONLY | O_CLOEXEC);
+#else
+	mfd = open(filename, O_RDONLY);
+	fcntl(mfd, F_SETFD, fcntl(mfd, F_GETFD) | FD_CLOEXEC);
+#endif
 
 	return mfd;
 }

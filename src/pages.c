@@ -353,14 +353,31 @@ os_overcommits_proc(void) {
 	ssize_t nread;
 
 #if defined(JEMALLOC_USE_SYSCALL) && defined(SYS_open)
-	fd = (int)syscall(SYS_open, "/proc/sys/vm/overcommit_memory", O_RDONLY |
-	    O_CLOEXEC);
+	#if defined(O_CLOEXEC)
+		fd = (int)syscall(SYS_open, "/proc/sys/vm/overcommit_memory", O_RDONLY |
+			O_CLOEXEC);
+	#else
+		fd = (int)syscall(SYS_open, "/proc/sys/vm/overcommit_memory", O_RDONLY);
+		fcntl(fd, F_SETFD, fcntl(fd, F_GETFD) | FD_CLOEXEC);
+	#endif
 #elif defined(JEMALLOC_USE_SYSCALL) && defined(SYS_openat)
-	fd = (int)syscall(SYS_openat,
-	    AT_FDCWD, "/proc/sys/vm/overcommit_memory", O_RDONLY | O_CLOEXEC);
+	#if defined(O_CLOEXEC)
+		fd = (int)syscall(SYS_openat,
+			AT_FDCWD, "/proc/sys/vm/overcommit_memory", O_RDONLY | O_CLOEXEC);
+	#else
+		fd = (int)syscall(SYS_openat,
+			AT_FDCWD, "/proc/sys/vm/overcommit_memory", O_RDONLY);
+		fcntl(fd, F_SETFD, fcntl(fd, F_GETFD) | FD_CLOEXEC);
+	#endif
 #else
-	fd = open("/proc/sys/vm/overcommit_memory", O_RDONLY | O_CLOEXEC);
+	#if defined(O_CLOEXEC)
+		fd = open("/proc/sys/vm/overcommit_memory", O_RDONLY | O_CLOEXEC);
+	#else
+		fd = open("/proc/sys/vm/overcommit_memory", O_RDONLY);
+		fcntl(fd, F_SETFD, fcntl(fd, F_GETFD) | FD_CLOEXEC);
+	#endif
 #endif
+
 	if (fd == -1) {
 		return false; /* Error. */
 	}
