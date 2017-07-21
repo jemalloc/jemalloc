@@ -2364,7 +2364,7 @@ je_free(void *ptr) {
 		}
 		check_entry_exit_locking(tsd_tsdn(tsd));
 	}
-	log(log_core_free_exit, "%s", "");
+	log(log_core_free_exit, "");
 }
 
 /*
@@ -2957,7 +2957,7 @@ je_dallocx(void *ptr, int flags) {
 	}
 	check_entry_exit_locking(tsd_tsdn(tsd));
 
-	log(log_core_dallocx_exit, "%s", "");
+	log(log_core_dallocx_exit, "");
 }
 
 JEMALLOC_ALWAYS_INLINE size_t
@@ -3024,7 +3024,7 @@ je_sdallocx(void *ptr, size_t size, int flags) {
 	}
 	check_entry_exit_locking(tsd_tsdn(tsd));
 
-	log(log_core_sdallocx_exit, "%s", "");
+	log(log_core_sdallocx_exit, "");
 }
 
 JEMALLOC_EXPORT size_t JEMALLOC_NOTHROW
@@ -3083,7 +3083,7 @@ je_mallctl(const char *name, void *oldp, size_t *oldlenp, void *newp,
 	check_entry_exit_locking(tsd_tsdn(tsd));
 	ret = ctl_byname(tsd, name, oldp, oldlenp, newp, newlen);
 	check_entry_exit_locking(tsd_tsdn(tsd));
-	
+
 	log(log_core_mallctl_exit, "result: %d", ret);
 	return ret;
 }
@@ -3124,7 +3124,7 @@ je_mallctlbymib(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
 	static log_var_t log_core_mallctlbymib_exit = LOG_VAR_INIT(
 	    "core.mallctlbymib.exit");
 
-	log(log_core_mallctlbymib_entry, "%s", "");
+	log(log_core_mallctlbymib_entry, "");
 
 
 	if (unlikely(malloc_init())) {
@@ -3150,13 +3150,13 @@ je_malloc_stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 	static log_var_t log_core_malloc_stats_print_exit = LOG_VAR_INIT(
 	    "core.malloc_stats_print.exit");
 
-	log(log_core_malloc_stats_print_entry, "%s", "");
+	log(log_core_malloc_stats_print_entry, "");
 
 	tsdn = tsdn_fetch();
 	check_entry_exit_locking(tsdn);
 	stats_print(write_cb, cbopaque, opts);
 	check_entry_exit_locking(tsdn);
-	log(log_core_malloc_stats_print_exit, "%s", "");
+	log(log_core_malloc_stats_print_exit, "");
 }
 
 JEMALLOC_EXPORT size_t JEMALLOC_NOTHROW

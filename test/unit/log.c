@@ -170,13 +170,25 @@ TEST_BEGIN(test_logs_if_no_init) {
 }
 TEST_END
 
+/*
+ * This really just checks to make sure that this usage compiles; we don't have
+ * any test code to run.
+ */
+TEST_BEGIN(test_log_only_format_string) {
+	if (false) {
+		static log_var_t l = LOG_VAR_INIT("str");
+		log(l, "No arguments follow this format string.");
+	}
+}
+TEST_END
+
 int
 main(void) {
-
 	return test(
 	    test_log_disabled,
 	    test_log_enabled_direct,
 	    test_log_enabled_indirect,
 	    test_log_enabled_global,
-	    test_logs_if_no_init);
+	    test_logs_if_no_init,
+	    test_log_only_format_string);
 }
