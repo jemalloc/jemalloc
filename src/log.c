@@ -3,7 +3,7 @@
 
 #include "jemalloc/internal/log.h"
 
-char log_var_names[JEMALLOC_LOG_BUFSIZE];
+char log_var_names[JEMALLOC_LOG_VAR_BUFSIZE];
 atomic_b_t log_init_done = ATOMIC_INIT(false);
 
 /*
@@ -59,7 +59,7 @@ log_var_update_state(log_var_t *log_var) {
 	while (true) {
 		const char *segment_end = log_var_extract_segment(
 		    segment_begin);
-		assert(segment_end < log_var_names + JEMALLOC_LOG_BUFSIZE);
+		assert(segment_end < log_var_names + JEMALLOC_LOG_VAR_BUFSIZE);
 		if (log_var_matches_segment(segment_begin, segment_end,
 		    log_var_begin, log_var_end)) {
 			atomic_store_u(&log_var->state, LOG_ENABLED,
