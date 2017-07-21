@@ -1414,7 +1414,9 @@ prof_open_maps(const char *format, ...) {
 	mfd = open(filename, O_RDONLY | O_CLOEXEC);
 #else
 	mfd = open(filename, O_RDONLY);
-	fcntl(mfd, F_SETFD, fcntl(mfd, F_GETFD) | FD_CLOEXEC);
+	if (mfd != -1) {
+		fcntl(mfd, F_SETFD, fcntl(mfd, F_GETFD) | FD_CLOEXEC);
+	}
 #endif
 
 	return mfd;

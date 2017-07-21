@@ -358,7 +358,9 @@ os_overcommits_proc(void) {
 			O_CLOEXEC);
 	#else
 		fd = (int)syscall(SYS_open, "/proc/sys/vm/overcommit_memory", O_RDONLY);
-		fcntl(fd, F_SETFD, fcntl(fd, F_GETFD) | FD_CLOEXEC);
+		if (fd != -1) {
+			fcntl(fd, F_SETFD, fcntl(fd, F_GETFD) | FD_CLOEXEC);
+		}
 	#endif
 #elif defined(JEMALLOC_USE_SYSCALL) && defined(SYS_openat)
 	#if defined(O_CLOEXEC)
@@ -367,14 +369,18 @@ os_overcommits_proc(void) {
 	#else
 		fd = (int)syscall(SYS_openat,
 			AT_FDCWD, "/proc/sys/vm/overcommit_memory", O_RDONLY);
-		fcntl(fd, F_SETFD, fcntl(fd, F_GETFD) | FD_CLOEXEC);
+		if (fd != -1) {
+			fcntl(fd, F_SETFD, fcntl(fd, F_GETFD) | FD_CLOEXEC);
+		}
 	#endif
 #else
 	#if defined(O_CLOEXEC)
 		fd = open("/proc/sys/vm/overcommit_memory", O_RDONLY | O_CLOEXEC);
 	#else
 		fd = open("/proc/sys/vm/overcommit_memory", O_RDONLY);
-		fcntl(fd, F_SETFD, fcntl(fd, F_GETFD) | FD_CLOEXEC);
+		if (fd != -1) {
+			fcntl(fd, F_SETFD, fcntl(fd, F_GETFD) | FD_CLOEXEC);
+		}
 	#endif
 #endif
 
