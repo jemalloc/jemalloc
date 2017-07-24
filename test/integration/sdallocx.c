@@ -49,7 +49,7 @@ TEST_END
 
 int
 main(void) {
-	return test(
+	return test_no_reentrancy(
 	    test_basic,
 	    test_alignment_and_size);
 }
