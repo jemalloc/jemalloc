@@ -112,9 +112,10 @@ log_impl_varargs(const char *name, ...) {
 	malloc_write(buf);
 }
 
-/* Call as log(log_var, "format_string %d", arg_for_format_string); */
-#define log(log_var, ...)						\
+/* Call as log("log.var.str", "format_string %d", arg_for_format_string); */
+#define log(log_var_str, ...)						\
 do {									\
+	static log_var_t log_var = LOG_VAR_INIT(log_var_str);		\
 	log_do_begin(log_var)						\
 		log_impl_varargs((log_var).name, __VA_ARGS__);		\
 	log_do_end(log_var)						\
