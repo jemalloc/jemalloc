@@ -22,7 +22,6 @@ possible_config_opts = [
     '--enable-debug',
     '--enable-prof',
     '--disable-stats',
-    '--with-malloc-conf=tcache:false',
 ]
 possible_malloc_conf_opts = [
     'tcache:false',
