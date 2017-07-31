@@ -2194,17 +2194,37 @@ isfree(tsd_t *tsd, void *ptr, size_t usize, tcache_t *tcache, bool slow_path) {
 	assert(malloc_initialized() || IS_INITIALIZER);
 
 	alloc_ctx_t alloc_ctx, *ctx;
-	if (config_prof && opt_prof) {
+	if (!config_cache_oblivious && ((uintptr_t)ptr & PAGE_MASK) != 0) {
+		/*
+		 * When cache_oblivious is disabled and ptr is not page aligned,
+		 * the allocation was not sampled -- usize can be used to
+		 * determine szind directly.
+		 */
+		alloc_ctx.szind = sz_size2index(usize);
+		alloc_ctx.slab = true;
+		ctx = &alloc_ctx;
+		if (config_debug) {
+			alloc_ctx_t dbg_ctx;
+			rtree_ctx_t *rtree_ctx = tsd_rtree_ctx(tsd);
+			rtree_szind_slab_read(tsd_tsdn(tsd), &extents_rtree,
+			    rtree_ctx, (uintptr_t)ptr, true, &dbg_ctx.szind,
+			    &dbg_ctx.slab);
+			assert(dbg_ctx.szind == alloc_ctx.szind);
+			assert(dbg_ctx.slab == alloc_ctx.slab);
+		}
+	} else if (config_prof && opt_prof) {
 		rtree_ctx_t *rtree_ctx = tsd_rtree_ctx(tsd);
 		rtree_szind_slab_read(tsd_tsdn(tsd), &extents_rtree, rtree_ctx,
 		    (uintptr_t)ptr, true, &alloc_ctx.szind, &alloc_ctx.slab);
 		assert(alloc_ctx.szind == sz_size2index(usize));
 		ctx = &alloc_ctx;
-		prof_free(tsd, ptr, usize, ctx);
 	} else {
 		ctx = NULL;
 	}
 
+	if (config_prof && opt_prof) {
+		prof_free(tsd, ptr, usize, ctx);
+	}
 	if (config_stats) {
 		*tsd_thread_deallocatedp_get(tsd) += usize;
 	}
