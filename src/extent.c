@@ -171,6 +171,29 @@ extent_lock_from_addr(tsdn_t *tsdn, rtree_ctx_t *rtree_ctx, void *addr) {
 	return ret;
 }
 
+/*
+ * The effect of this function is slightly weaker than the name implies.  In
+ * fact, it only makes the extent's memory dumpable if we were the ones to make
+ * it undumpable (as opposed to a user extent hook).  See the note on the
+ * "dumpable" bit in extent_t.
+ */
+static void
+extent_ensure_dumpable(extent_t *extent) {
+	if (extent != NULL && !extent_dumpable_get(extent)) {
+		pages_dodump(extent_base_get(extent), extent_size_get(extent));
+		extent_dumpable_set(extent, true);
+	}
+}
+
+static void
+extent_prevent_dumpable(extent_t *extent) {
+	if (extent != NULL && extent_dumpable_get(extent)) {
+		pages_dontdump(extent_base_get(extent),
+		    extent_size_get(extent));
+		extent_dumpable_set(extent, false);
+	}
+}
+
 extent_t *
 extent_alloc(tsdn_t *tsdn, arena_t *arena) {
 	malloc_mutex_lock(tsdn, &arena->extent_avail_mtx);
@@ -449,8 +472,11 @@ extents_alloc(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, 0);
 
-	return extent_recycle(tsdn, arena, r_extent_hooks, extents, new_addr,
-	    size, pad, alignment, slab, szind, zero, commit, false);
+	extent_t *extent = extent_recycle(tsdn, arena, r_extent_hooks, extents,
+	    new_addr, size, pad, alignment, slab, szind, zero, commit, false);
+	extent_ensure_dumpable(extent);
+
+	return extent;
 }
 
 void
@@ -1094,7 +1120,8 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena,
 
 	extent_init(extent, arena, ptr, alloc_size, false, NSIZES,
 	    arena_extent_sn_next(arena), extent_state_active, zeroed,
-	    committed);
+	    committed, true);
+
 	if (ptr == NULL) {
 		extent_dalloc(tsdn, arena, extent);
 		goto label_err;
@@ -1103,6 +1130,20 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena,
 		extents_leak(tsdn, arena, r_extent_hooks,
 		    &arena->extents_retained, extent, true);
 		goto label_err;
+	}
+
+	/*
+	 * When core-dumping, the Linux kernel will include the whole address
+	 * space in its core dumps, even pages we haven't touched yet.  This can
+	 * increase the size of core dumps, and the amount of time it takes to
+	 * create them.  To avoid these costs, we'll try to set the memory as
+	 * undumpable until we're ready to use it.
+	 * If we got the memory from user extent hooks, this is potentially
+	 * unsafe (see the note on the dumpable bit in extent_t), so we leave it
+	 * as is.
+	 */
+	if (*r_extent_hooks == &extent_hooks_default) {
+		extent_prevent_dumpable(extent);
 	}
 
 	size_t leadsize = ALIGNMENT_CEILING((uintptr_t)ptr,
@@ -1271,7 +1312,8 @@ extent_alloc_wrapper_hard(tsdn_t *tsdn, arena_t *arena,
 		return NULL;
 	}
 	extent_init(extent, arena, addr, esize, slab, szind,
-	    arena_extent_sn_next(arena), extent_state_active, zero, commit);
+	    arena_extent_sn_next(arena), extent_state_active, zero, commit,
+	    true);
 	if (pad != 0) {
 		extent_addr_randomize(tsdn, extent, alignment);
 	}
@@ -1309,6 +1351,7 @@ extent_alloc_wrapper(tsdn_t *tsdn, arena_t *arena,
 		    new_addr, size, pad, alignment, slab, szind, zero, commit);
 	}
 
+	extent_ensure_dumpable(extent);
 	return extent;
 }
 
@@ -1789,6 +1832,13 @@ extent_split_default(extent_hooks_t *extent_hooks, void *addr, size_t size,
 }
 #endif
 
+/*
+ * Accepts the extent to split, and the characteristics of each side of the
+ * split.  The 'a' parameters go with the 'lead' of the resulting pair of
+ * extents (the lower addressed portion of the split), and the 'b' parameters go
+ * with the trail (the higher addressed portion).  This makes 'extent' the lead,
+ * and returns the trail (except in case of error).
+ */
 static extent_t *
 extent_split_impl(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, extent_t *extent, size_t size_a,
@@ -1812,7 +1862,7 @@ extent_split_impl(tsdn_t *tsdn, arena_t *arena,
 	extent_init(trail, arena, (void *)((uintptr_t)extent_base_get(extent) +
 	    size_a), size_b, slab_b, szind_b, extent_sn_get(extent),
 	    extent_state_get(extent), extent_zeroed_get(extent),
-	    extent_committed_get(extent));
+	    extent_committed_get(extent), extent_dumpable_get(extent));
 
 	rtree_ctx_t rtree_ctx_fallback;
 	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
@@ -1823,7 +1873,7 @@ extent_split_impl(tsdn_t *tsdn, arena_t *arena,
 		extent_init(&lead, arena, extent_addr_get(extent), size_a,
 		    slab_a, szind_a, extent_sn_get(extent),
 		    extent_state_get(extent), extent_zeroed_get(extent),
-		    extent_committed_get(extent));
+		    extent_committed_get(extent), true);
 
 		extent_rtree_leaf_elms_lookup(tsdn, rtree_ctx, &lead, false,
 		    true, &lead_elm_a, &lead_elm_b);
@@ -1928,6 +1978,11 @@ extent_merge_impl(tsdn_t *tsdn, arena_t *arena,
 
 	if (err) {
 		return true;
+	}
+
+	if (extent_dumpable_get(a) || extent_dumpable_get(b)) {
+		extent_ensure_dumpable(a);
+		extent_ensure_dumpable(b);
 	}
 
 	/*

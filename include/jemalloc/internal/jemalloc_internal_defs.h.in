@@ -283,6 +283,11 @@
  */
 #undef JEMALLOC_THP
 
+/*
+ * Defined if MADV_DO[NT]DUMP is supported to madvise.
+ */
+#undef JEMALLOC_MADVISE_DONTDUMP
+
 /* Define if operating system has alloca.h header. */
 #undef JEMALLOC_HAS_ALLOCA_H
 
