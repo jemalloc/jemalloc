@@ -56,7 +56,6 @@
     <ClCompile Include="..\..\..\..\src\prng.c" />
     <ClCompile Include="..\..\..\..\src\prof.c" />
     <ClCompile Include="..\..\..\..\src\rtree.c" />
-    <ClCompile Include="..\..\..\..\src\spin.c" />
     <ClCompile Include="..\..\..\..\src\stats.c" />
     <ClCompile Include="..\..\..\..\src\sz.c" />
     <ClCompile Include="..\..\..\..\src\tcache.c" />
