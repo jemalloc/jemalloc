@@ -1,19 +1,13 @@
 #ifndef JEMALLOC_INTERNAL_SPIN_H
 #define JEMALLOC_INTERNAL_SPIN_H
 
-#ifdef JEMALLOC_SPIN_C_
-#  define SPIN_INLINE extern inline
-#else
-#  define SPIN_INLINE inline
-#endif
-
 #define SPIN_INITIALIZER {0U}
 
 typedef struct {
 	unsigned iteration;
 } spin_t;
 
-SPIN_INLINE void
+static inline void
 spin_adaptive(spin_t *spin) {
 	volatile uint32_t i;
 

@@ -112,7 +112,6 @@ C_SRCS := $(srcroot)src/jemalloc.c \
 	$(srcroot)src/prof.c \
 	$(srcroot)src/rtree.c \
 	$(srcroot)src/stats.c \
-	$(srcroot)src/spin.c \
 	$(srcroot)src/sz.c \
 	$(srcroot)src/tcache.c \
 	$(srcroot)src/ticker.c \
