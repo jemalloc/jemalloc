@@ -8,6 +8,7 @@
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/rtree.h"
 #include "jemalloc/internal/size_classes.h"
+#include "jemalloc/internal/sized_alloc_region.h"
 #include "jemalloc/internal/util.h"
 
 /******************************************************************************/
@@ -1084,18 +1085,35 @@ arena_slab_dalloc(tsdn_t *tsdn, arena_t *arena, extent_t *slab) {
 static void
 arena_bin_slabs_nonfull_insert(arena_bin_t *bin, extent_t *slab) {
 	assert(extent_nfree_get(slab) > 0);
-	extent_heap_insert(&bin->slabs_nonfull, slab);
+	if (extent_in_sized_alloc_region(slab)) {
+		extent_heap_insert(&bin->slabs_sized_alloc_region_nonfull,
+		    slab);
+	} else {
+		extent_heap_insert(&bin->slabs_other_nonfull, slab);
+	}
 }
 
 static void
 arena_bin_slabs_nonfull_remove(arena_bin_t *bin, extent_t *slab) {
-	extent_heap_remove(&bin->slabs_nonfull, slab);
+	if (extent_in_sized_alloc_region(slab)) {
+		extent_heap_remove(&bin->slabs_sized_alloc_region_nonfull,
+		    slab);
+	} else {
+		extent_heap_remove(&bin->slabs_other_nonfull, slab);
+	}
 }
 
 static extent_t *
 arena_bin_slabs_nonfull_tryget(arena_bin_t *bin) {
-	extent_t *slab = extent_heap_remove_first(&bin->slabs_nonfull);
+	/* Prefer sized-alloc-region slabs. */
+	extent_t *slab = extent_heap_remove_first(
+	    &bin->slabs_sized_alloc_region_nonfull);
+	/* If that failed, try some other active slab. */
 	if (slab == NULL) {
+		slab = extent_heap_remove_first(&bin->slabs_other_nonfull);
+	}
+	if (slab == NULL) {
+		/* Both attempts failed. */
 		return NULL;
 	}
 	if (config_stats) {
@@ -1182,8 +1200,14 @@ arena_reset(tsd_t *tsd, arena_t *arena) {
 			arena_slab_dalloc(tsd_tsdn(tsd), arena, slab);
 			malloc_mutex_lock(tsd_tsdn(tsd), &bin->lock);
 		}
-		while ((slab = extent_heap_remove_first(&bin->slabs_nonfull)) !=
-		    NULL) {
+		/*
+		 * You might think we need to clear out the sized alloc region
+		 * slabs here, as well.  But, we limit those to the auto-arenas,
+		 * which should never be reset.
+		 */
+		assert(extent_heap_empty(&bin->slabs_sized_alloc_region_nonfull));
+		while ((slab = extent_heap_remove_first(
+		    &bin->slabs_other_nonfull)) != NULL) {
 			malloc_mutex_unlock(tsd_tsdn(tsd), &bin->lock);
 			arena_slab_dalloc(tsd_tsdn(tsd), arena, slab);
 			malloc_mutex_lock(tsd_tsdn(tsd), &bin->lock);
@@ -2030,7 +2054,8 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 			goto label_error;
 		}
 		bin->slabcur = NULL;
-		extent_heap_new(&bin->slabs_nonfull);
+		extent_heap_new(&bin->slabs_sized_alloc_region_nonfull);
+		extent_heap_new(&bin->slabs_other_nonfull);
 		extent_list_init(&bin->slabs_full);
 		if (config_stats) {
 			memset(&bin->stats, 0, sizeof(malloc_bin_stats_t));

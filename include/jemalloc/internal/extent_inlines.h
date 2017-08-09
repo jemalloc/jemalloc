@@ -6,6 +6,7 @@
 #include "jemalloc/internal/pages.h"
 #include "jemalloc/internal/prng.h"
 #include "jemalloc/internal/ql.h"
+#include "jemalloc/internal/sized_alloc_region.h"
 #include "jemalloc/internal/sz.h"
 
 static inline void
@@ -49,6 +50,19 @@ extent_arena_get(const extent_t *extent) {
 	return (arena_t *)atomic_load_p(&arenas[arena_ind], ATOMIC_ACQUIRE);
 }
 
+static inline bool
+extent_slab_get(const extent_t *extent) {
+	return (bool)((extent->e_bits & EXTENT_BITS_SLAB_MASK) >>
+	    EXTENT_BITS_SLAB_SHIFT);
+}
+
+static inline void *
+extent_addr_get(const extent_t *extent) {
+	assert(extent->e_addr == PAGE_ADDR2BASE(extent->e_addr) ||
+	    !extent_slab_get(extent));
+	return extent->e_addr;
+}
+
 static inline szind_t
 extent_szind_get_maybe_invalid(const extent_t *extent) {
 	szind_t szind = (szind_t)((extent->e_bits & EXTENT_BITS_SZIND_MASK) >>
@@ -61,6 +75,13 @@ static inline szind_t
 extent_szind_get(const extent_t *extent) {
 	szind_t szind = extent_szind_get_maybe_invalid(extent);
 	assert(szind < NSIZES); /* Never call when "invalid". */
+	if (config_debug) {
+		alloc_ctx_t alloc_ctx;
+		if (sized_alloc_region_lookup(&sized_alloc_region_global,
+		    extent_addr_get(extent), &alloc_ctx)) {
+			assert(szind == alloc_ctx.szind);
+		}
+	}
 	return szind;
 }
 
@@ -93,12 +114,6 @@ extent_committed_get(const extent_t *extent) {
 	    EXTENT_BITS_COMMITTED_SHIFT);
 }
 
-static inline bool
-extent_slab_get(const extent_t *extent) {
-	return (bool)((extent->e_bits & EXTENT_BITS_SLAB_MASK) >>
-	    EXTENT_BITS_SLAB_SHIFT);
-}
-
 static inline unsigned
 extent_nfree_get(const extent_t *extent) {
 	assert(extent_slab_get(extent));
@@ -111,13 +126,6 @@ extent_base_get(const extent_t *extent) {
 	assert(extent->e_addr == PAGE_ADDR2BASE(extent->e_addr) ||
 	    !extent_slab_get(extent));
 	return PAGE_ADDR2BASE(extent->e_addr);
-}
-
-static inline void *
-extent_addr_get(const extent_t *extent) {
-	assert(extent->e_addr == PAGE_ADDR2BASE(extent->e_addr) ||
-	    !extent_slab_get(extent));
-	return extent->e_addr;
 }
 
 static inline size_t
@@ -402,6 +410,12 @@ extent_esnead_comp(const extent_t *a, const extent_t *b) {
 
 	ret = extent_ead_comp(a, b);
 	return ret;
+}
+
+static inline bool
+extent_in_sized_alloc_region(const extent_t *extent) {
+	return sized_alloc_region_lookup(&sized_alloc_region_global,
+	    extent_addr_get(extent), NULL);
 }
 
 #endif /* JEMALLOC_INTERNAL_EXTENT_INLINES_H */
