@@ -307,12 +307,12 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 	ql_foreach(tcache, &arena->tcache_ql, link) {
 		szind_t i = 0;
 		for (; i < NBINS; i++) {
-			tcache_bin_t *tbin = tcache_small_bin_get(tcache, i);
+			cache_bin_t *tbin = tcache_small_bin_get(tcache, i);
 			arena_stats_accum_zu(&astats->tcache_bytes,
 			    tbin->ncached * sz_index2size(i));
 		}
 		for (; i < nhbins; i++) {
-			tcache_bin_t *tbin = tcache_large_bin_get(tcache, i);
+			cache_bin_t *tbin = tcache_large_bin_get(tcache, i);
 			arena_stats_accum_zu(&astats->tcache_bytes,
 			    tbin->ncached * sz_index2size(i));
 		}
@@ -1420,7 +1420,7 @@ arena_bin_malloc_hard(tsdn_t *tsdn, arena_t *arena, arena_bin_t *bin,
 
 void
 arena_tcache_fill_small(tsdn_t *tsdn, arena_t *arena, tcache_t *tcache,
-    tcache_bin_t *tbin, szind_t binind, uint64_t prof_accumbytes) {
+    cache_bin_t *tbin, szind_t binind, uint64_t prof_accumbytes) {
 	unsigned i, nfill;
 	arena_bin_t *bin;
 
