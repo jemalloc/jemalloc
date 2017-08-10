@@ -50,7 +50,7 @@ void arena_decay(tsdn_t *tsdn, arena_t *arena, bool is_background_thread,
 void arena_reset(tsd_t *tsd, arena_t *arena);
 void arena_destroy(tsd_t *tsd, arena_t *arena);
 void arena_tcache_fill_small(tsdn_t *tsdn, arena_t *arena, tcache_t *tcache,
-    tcache_bin_t *tbin, szind_t binind, uint64_t prof_accumbytes);
+    cache_bin_t *tbin, szind_t binind, uint64_t prof_accumbytes);
 void arena_alloc_junk_small(void *ptr, const arena_bin_info_t *bin_info,
     bool zero);
 

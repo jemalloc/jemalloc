@@ -3,13 +3,8 @@
 
 #include "jemalloc/internal/size_classes.h"
 
-typedef struct tcache_bin_info_s tcache_bin_info_t;
-typedef struct tcache_bin_s tcache_bin_t;
 typedef struct tcache_s tcache_t;
 typedef struct tcaches_s tcaches_t;
-
-/* ncached is cast to this type for comparison. */
-typedef int32_t low_water_t;
 
 /*
  * tcache pointers close to NULL are used to encode state information that is

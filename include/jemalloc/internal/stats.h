@@ -5,7 +5,6 @@
 #include "jemalloc/internal/mutex_prof.h"
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/size_classes.h"
-#include "jemalloc/internal/stats_tsd.h"
 
 /*  OPTION(opt,		var_name,	default,	set_value_to) */
 #define STATS_PRINT_OPTIONS						\
