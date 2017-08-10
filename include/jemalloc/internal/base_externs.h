@@ -1,6 +1,8 @@
 #ifndef JEMALLOC_INTERNAL_BASE_EXTERNS_H
 #define JEMALLOC_INTERNAL_BASE_EXTERNS_H
 
+extern bool opt_metadata_thp;
+
 base_t *b0get(void);
 base_t *base_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks);
 void base_delete(tsdn_t *tsdn, base_t *base);

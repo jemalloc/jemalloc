@@ -25,6 +25,8 @@ static int	mmap_flags;
 #endif
 static bool	os_overcommits;
 
+bool thp_state_madvise;
+
 /******************************************************************************/
 /*
  * Function prototypes for static functions that are referenced prior to
@@ -291,7 +293,7 @@ pages_huge(void *addr, size_t size) {
 	assert(HUGEPAGE_ADDR2BASE(addr) == addr);
 	assert(HUGEPAGE_CEILING(size) == size);
 
-#ifdef JEMALLOC_THP
+#ifdef JEMALLOC_HAVE_MADVISE_HUGE
 	return (madvise(addr, size, MADV_HUGEPAGE) != 0);
 #else
 	return true;
@@ -303,7 +305,7 @@ pages_nohuge(void *addr, size_t size) {
 	assert(HUGEPAGE_ADDR2BASE(addr) == addr);
 	assert(HUGEPAGE_CEILING(size) == size);
 
-#ifdef JEMALLOC_THP
+#ifdef JEMALLOC_HAVE_MADVISE_HUGE
 	return (madvise(addr, size, MADV_NOHUGEPAGE) != 0);
 #else
 	return false;
@@ -413,6 +415,51 @@ os_overcommits_proc(void) {
 }
 #endif
 
+static void
+init_thp_state(void) {
+#ifndef JEMALLOC_HAVE_MADVISE_HUGE
+	if (opt_metadata_thp && opt_abort) {
+		malloc_write("<jemalloc>: no MADV_HUGEPAGE support\n");
+		abort();
+	}
+	goto label_error;
+#endif
+	static const char madvise_state[] = "always [madvise] never\n";
+	char buf[sizeof(madvise_state)];
+
+#if defined(JEMALLOC_USE_SYSCALL) && defined(SYS_open)
+	int fd = (int)syscall(SYS_open,
+	    "/sys/kernel/mm/transparent_hugepage/enabled", O_RDONLY);
+#else
+	int fd = open("/sys/kernel/mm/transparent_hugepage/enabled", O_RDONLY);
+#endif
+	if (fd == -1) {
+		goto label_error;
+	}
+
+#if defined(JEMALLOC_USE_SYSCALL) && defined(SYS_read)
+	ssize_t nread = (ssize_t)syscall(SYS_read, fd, &buf, sizeof(buf));
+#else
+	ssize_t nread = read(fd, &buf, sizeof(buf));
+#endif
+
+#if defined(JEMALLOC_USE_SYSCALL) && defined(SYS_close)
+	syscall(SYS_close, fd);
+#else
+	close(fd);
+#endif
+
+	if (nread < 1) {
+		goto label_error;
+	}
+	if (strncmp(buf, madvise_state, (size_t)nread) == 0) {
+		thp_state_madvise = true;
+		return;
+	}
+label_error:
+	thp_state_madvise = false;
+}
+
 bool
 pages_boot(void) {
 	os_page = os_page_detect();
@@ -440,6 +487,8 @@ pages_boot(void) {
 #else
 	os_overcommits = false;
 #endif
+
+	init_thp_state();
 
 	return false;
 }

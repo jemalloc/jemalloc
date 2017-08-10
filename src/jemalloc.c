@@ -1055,6 +1055,7 @@ malloc_conf_init(void) {
 			if (opt_abort_conf && had_conf_error) {
 				malloc_abort_invalid_conf();
 			}
+			CONF_HANDLE_BOOL(opt_metadata_thp, "metadata_thp")
 			CONF_HANDLE_BOOL(opt_retain, "retain")
 			if (strncmp("dss", k, klen) == 0) {
 				int i;

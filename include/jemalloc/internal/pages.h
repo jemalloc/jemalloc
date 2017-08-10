@@ -58,6 +58,9 @@ static const bool pages_can_purge_forced =
 #endif
     ;
 
+/* Whether transparent huge page state is "madvise". */
+extern bool thp_state_madvise;
+
 void *pages_map(void *addr, size_t size, size_t alignment, bool *commit);
 void pages_unmap(void *addr, size_t size);
 bool pages_commit(void *addr, size_t size);
