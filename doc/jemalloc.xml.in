@@ -916,6 +916,18 @@ mallctl("arena." STRINGIFY(MALLCTL_ARENAS_ALL) ".decay",
         </para></listitem>
       </varlistentry>
 
+      <varlistentry id="opt.metadata_thp">
+        <term>
+          <mallctl>opt.metadata_thp</mallctl>
+          (<type>bool</type>)
+          <literal>r-</literal>
+        </term>
+        <listitem><para>If true, allow jemalloc to use transparent huge page
+        (THP) for internal metadata (see <link
+        linkend="stats.metadata">stats.metadata</link> for details).  This
+        option is disabled by default.</para></listitem>
+      </varlistentry>
+
       <varlistentry id="opt.retain">
         <term>
           <mallctl>opt.retain</mallctl>
@@ -2187,7 +2199,10 @@ struct extent_hooks_s {
         metadata structures (see <link
         linkend="stats.arenas.i.base"><mallctl>stats.arenas.&lt;i&gt;.base</mallctl></link>)
         and internal allocations (see <link
-        linkend="stats.arenas.i.internal"><mallctl>stats.arenas.&lt;i&gt;.internal</mallctl></link>).</para></listitem>
+        linkend="stats.arenas.i.internal"><mallctl>stats.arenas.&lt;i&gt;.internal</mallctl></link>).
+        Transparent huge page (enabled with <link
+        linkend="opt.metadata_thp">opt.metadata_thp</link>) usage is not
+        considered.</para></listitem>
       </varlistentry>
 
       <varlistentry id="stats.resident">

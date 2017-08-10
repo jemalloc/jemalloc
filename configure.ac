@@ -1824,6 +1824,9 @@ if test "x${je_cv_madvise}" = "xyes" ; then
 	madvise((void *)0, 0, MADV_HUGEPAGE);
 	madvise((void *)0, 0, MADV_NOHUGEPAGE);
 ], [je_cv_thp])
+  if test "x${je_cv_thp}" = "xyes" ; then
+    AC_DEFINE([JEMALLOC_HAVE_MADVISE_HUGE], [ ])
+  fi
 fi
 
 dnl Enable transparent huge page support by default.

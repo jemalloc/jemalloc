@@ -80,6 +80,7 @@ CTL_PROTO(config_utrace)
 CTL_PROTO(config_xmalloc)
 CTL_PROTO(opt_abort)
 CTL_PROTO(opt_abort_conf)
+CTL_PROTO(opt_metadata_thp)
 CTL_PROTO(opt_retain)
 CTL_PROTO(opt_dss)
 CTL_PROTO(opt_narenas)
@@ -274,6 +275,7 @@ static const ctl_named_node_t	config_node[] = {
 static const ctl_named_node_t opt_node[] = {
 	{NAME("abort"),		CTL(opt_abort)},
 	{NAME("abort_conf"),	CTL(opt_abort_conf)},
+	{NAME("metadata_thp"),	CTL(opt_metadata_thp)},
 	{NAME("retain"),	CTL(opt_retain)},
 	{NAME("dss"),		CTL(opt_dss)},
 	{NAME("narenas"),	CTL(opt_narenas)},
@@ -1568,6 +1570,7 @@ CTL_RO_CONFIG_GEN(config_xmalloc, bool)
 
 CTL_RO_NL_GEN(opt_abort, opt_abort, bool)
 CTL_RO_NL_GEN(opt_abort_conf, opt_abort_conf, bool)
+CTL_RO_NL_GEN(opt_metadata_thp, opt_metadata_thp, bool)
 CTL_RO_NL_GEN(opt_retain, opt_retain, bool)
 CTL_RO_NL_GEN(opt_dss, opt_dss, const char *)
 CTL_RO_NL_GEN(opt_narenas, opt_narenas, unsigned)

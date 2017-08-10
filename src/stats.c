@@ -802,6 +802,7 @@ stats_general_print(void (*write_cb)(void *, const char *), void *cbopaque,
 	}
 	OPT_WRITE_BOOL(abort, ",")
 	OPT_WRITE_BOOL(abort_conf, ",")
+	OPT_WRITE_BOOL(metadata_thp, ",")
 	OPT_WRITE_BOOL(retain, ",")
 	OPT_WRITE_CHAR_P(dss, ",")
 	OPT_WRITE_UNSIGNED(narenas, ",")

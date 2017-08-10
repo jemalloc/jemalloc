@@ -10,7 +10,9 @@
 /******************************************************************************/
 /* Data. */
 
-static base_t	*b0;
+static base_t *b0;
+
+bool opt_metadata_thp = METADATA_THP_DEFAULT;
 
 /******************************************************************************/
 
@@ -20,17 +22,24 @@ base_map(tsdn_t *tsdn, extent_hooks_t *extent_hooks, unsigned ind, size_t size) 
 	bool zero = true;
 	bool commit = true;
 
+	/* We use hugepage sizes regardless of opt_metadata_thp. */
 	assert(size == HUGEPAGE_CEILING(size));
-
+	size_t alignment = opt_metadata_thp ? HUGEPAGE : PAGE;
 	if (extent_hooks == &extent_hooks_default) {
-		addr = extent_alloc_mmap(NULL, size, PAGE, &zero, &commit);
+		addr = extent_alloc_mmap(NULL, size, alignment, &zero, &commit);
 	} else {
 		/* No arena context as we are creating new arenas. */
 		tsd_t *tsd = tsdn_null(tsdn) ? tsd_fetch() : tsdn_tsd(tsdn);
 		pre_reentrancy(tsd, NULL);
-		addr = extent_hooks->alloc(extent_hooks, NULL, size, PAGE,
+		addr = extent_hooks->alloc(extent_hooks, NULL, size, alignment,
 		    &zero, &commit, ind);
 		post_reentrancy(tsd);
+	}
+
+	if (addr != NULL && opt_metadata_thp && thp_state_madvise) {
+		assert(((uintptr_t)addr & HUGEPAGE_MASK) == 0 &&
+		    (size & HUGEPAGE_MASK) == 0);
+		pages_huge(addr, size);
 	}
 
 	return addr;
@@ -51,16 +60,16 @@ base_unmap(tsdn_t *tsdn, extent_hooks_t *extent_hooks, unsigned ind, void *addr,
 	 */
 	if (extent_hooks == &extent_hooks_default) {
 		if (!extent_dalloc_mmap(addr, size)) {
-			return;
+			goto label_done;
 		}
 		if (!pages_decommit(addr, size)) {
-			return;
+			goto label_done;
 		}
 		if (!pages_purge_forced(addr, size)) {
-			return;
+			goto label_done;
 		}
 		if (!pages_purge_lazy(addr, size)) {
-			return;
+			goto label_done;
 		}
 		/* Nothing worked.  This should never happen. */
 		not_reached();
@@ -70,27 +79,33 @@ base_unmap(tsdn_t *tsdn, extent_hooks_t *extent_hooks, unsigned ind, void *addr,
 		if (extent_hooks->dalloc != NULL &&
 		    !extent_hooks->dalloc(extent_hooks, addr, size, true,
 		    ind)) {
-			goto label_done;
+			goto label_post_reentrancy;
 		}
 		if (extent_hooks->decommit != NULL &&
 		    !extent_hooks->decommit(extent_hooks, addr, size, 0, size,
 		    ind)) {
-			goto label_done;
+			goto label_post_reentrancy;
 		}
 		if (extent_hooks->purge_forced != NULL &&
 		    !extent_hooks->purge_forced(extent_hooks, addr, size, 0,
 		    size, ind)) {
-			goto label_done;
+			goto label_post_reentrancy;
 		}
 		if (extent_hooks->purge_lazy != NULL &&
 		    !extent_hooks->purge_lazy(extent_hooks, addr, size, 0, size,
 		    ind)) {
-			goto label_done;
+			goto label_post_reentrancy;
 		}
 		/* Nothing worked.  That's the application's problem. */
-	label_done:
+	label_post_reentrancy:
 		post_reentrancy(tsd);
-		return;
+	}
+label_done:
+	if (opt_metadata_thp && thp_state_madvise) {
+		/* Set NOHUGEPAGE after unmap to avoid kernel defrag. */
+		assert(((uintptr_t)addr & HUGEPAGE_MASK) == 0 &&
+		    (size & HUGEPAGE_MASK) == 0);
+		pages_nohuge(addr, size);
 	}
 }
 
