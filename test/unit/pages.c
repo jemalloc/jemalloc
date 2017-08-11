@@ -11,7 +11,7 @@ TEST_BEGIN(test_pages_huge) {
 	assert_ptr_not_null(pages, "Unexpected pages_map() error");
 
 	hugepage = (void *)(ALIGNMENT_CEILING((uintptr_t)pages, HUGEPAGE));
-	assert_b_ne(pages_huge(hugepage, HUGEPAGE), config_thp,
+	assert_b_ne(pages_huge(hugepage, HUGEPAGE), have_madvise_huge,
 	    "Unexpected pages_huge() result");
 	assert_false(pages_nohuge(hugepage, HUGEPAGE),
 	    "Unexpected pages_nohuge() result");
