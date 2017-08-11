@@ -61,6 +61,13 @@ static const bool have_dss =
     false
 #endif
     ;
+static const bool have_madvise_huge =
+#ifdef JEMALLOC_HAVE_MADVISE_HUGE
+    true
+#else
+    false
+#endif
+    ;
 static const bool config_fill =
 #ifdef JEMALLOC_FILL
     true

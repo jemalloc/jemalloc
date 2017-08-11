@@ -417,13 +417,14 @@ os_overcommits_proc(void) {
 
 static void
 init_thp_state(void) {
-#ifndef JEMALLOC_HAVE_MADVISE_HUGE
-	if (opt_metadata_thp && opt_abort) {
-		malloc_write("<jemalloc>: no MADV_HUGEPAGE support\n");
-		abort();
+	if (!have_madvise_huge) {
+		if (opt_metadata_thp && opt_abort) {
+			malloc_write("<jemalloc>: no MADV_HUGEPAGE support\n");
+			abort();
+		}
+		goto label_error;
 	}
-	goto label_error;
-#endif
+
 	static const char madvise_state[] = "always [madvise] never\n";
 	char buf[sizeof(madvise_state)];
 
