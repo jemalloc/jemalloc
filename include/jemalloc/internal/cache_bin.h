@@ -1,6 +1,19 @@
 #ifndef JEMALLOC_INTERNAL_CACHE_BIN_H
 #define JEMALLOC_INTERNAL_CACHE_BIN_H
 
+#include "jemalloc/internal/ql.h"
+
+/*
+ * The cache_bins are the mechanism that the tcache and the arena use to
+ * communicate.  The tcache fills from and flushes to the arena by passing a
+ * cache_bin_t to fill/flush.  When the arena needs to pull stats from the
+ * tcaches associated with it, it does so by iterating over its
+ * cache_bin_array_descriptor_t objects and reading out per-bin stats it
+ * contains.  This makes it so that the arena need not know about the existence
+ * of the tcache at all.
+ */
+
+
 /*
  * The count of the number of cached allocations in a bin.  We make this signed
  * so that negative numbers can encode "invalid" states (e.g. a low water mark
@@ -51,6 +64,26 @@ struct cache_bin_s {
 	void **avail;
 };
 
+typedef struct cache_bin_array_descriptor_s cache_bin_array_descriptor_t;
+struct cache_bin_array_descriptor_s {
+	/*
+	 * The arena keeps a list of the cache bins associated with it, for
+	 * stats collection.
+	 */
+	ql_elm(cache_bin_array_descriptor_t) link;
+	/* Pointers to the tcache bins. */
+	cache_bin_t *bins_small;
+	cache_bin_t *bins_large;
+};
+
+static inline void
+cache_bin_array_descriptor_init(cache_bin_array_descriptor_t *descriptor,
+    cache_bin_t *bins_small, cache_bin_t *bins_large) {
+	ql_elm_new(descriptor, link);
+	descriptor->bins_small = bins_small;
+	descriptor->bins_large = bins_large;
+}
+
 JEMALLOC_ALWAYS_INLINE void *
 cache_alloc_easy(cache_bin_t *bin, bool *success) {
 	void *ret;
@@ -76,7 +109,6 @@ cache_alloc_easy(cache_bin_t *bin, bool *success) {
 	}
 
 	return ret;
-
 }
 
 #endif /* JEMALLOC_INTERNAL_CACHE_BIN_H */

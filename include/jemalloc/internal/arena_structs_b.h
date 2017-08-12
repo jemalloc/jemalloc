@@ -162,14 +162,15 @@ struct arena_s {
 	arena_stats_t		stats;
 
 	/*
-	 * List of tcaches for extant threads associated with this arena.
-	 * Stats from these are merged incrementally, and at exit if
-	 * opt_stats_print is enabled.
+	 * Lists of tcaches and cache_bin_array_descriptors for extant threads
+	 * associated with this arena.  Stats from these are merged
+	 * incrementally, and at exit if opt_stats_print is enabled.
 	 *
 	 * Synchronization: tcache_ql_mtx.
 	 */
-	ql_head(tcache_t)	tcache_ql;
-	malloc_mutex_t		tcache_ql_mtx;
+	ql_head(tcache_t)			tcache_ql;
+	ql_head(cache_bin_array_descriptor_t)	cache_bin_array_descriptor_ql;
+	malloc_mutex_t				tcache_ql_mtx;
 
 	/* Synchronization: internal. */
 	prof_accum_t		prof_accum;
