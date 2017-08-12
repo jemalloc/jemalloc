@@ -291,8 +291,15 @@ tcache_arena_associate(tsdn_t *tsdn, tcache_t *tcache, arena_t *arena) {
 	if (config_stats) {
 		/* Link into list of extant tcaches. */
 		malloc_mutex_lock(tsdn, &arena->tcache_ql_mtx);
+
 		ql_elm_new(tcache, link);
 		ql_tail_insert(&arena->tcache_ql, tcache, link);
+		cache_bin_array_descriptor_init(
+		    &tcache->cache_bin_array_descriptor, tcache->bins_small,
+		    tcache->bins_large);
+		ql_tail_insert(&arena->cache_bin_array_descriptor_ql,
+		    &tcache->cache_bin_array_descriptor, link);
+
 		malloc_mutex_unlock(tsdn, &arena->tcache_ql_mtx);
 	}
 }
@@ -316,6 +323,8 @@ tcache_arena_dissociate(tsdn_t *tsdn, tcache_t *tcache) {
 			assert(in_ql);
 		}
 		ql_remove(&arena->tcache_ql, tcache, link);
+		ql_remove(&arena->cache_bin_array_descriptor_ql,
+		    &tcache->cache_bin_array_descriptor, link);
 		tcache_stats_merge(tsdn, tcache, arena);
 		malloc_mutex_unlock(tsdn, &arena->tcache_ql_mtx);
 	}

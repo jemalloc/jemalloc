@@ -303,16 +303,16 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 	/* tcache_bytes counts currently cached bytes. */
 	atomic_store_zu(&astats->tcache_bytes, 0, ATOMIC_RELAXED);
 	malloc_mutex_lock(tsdn, &arena->tcache_ql_mtx);
-	tcache_t *tcache;
-	ql_foreach(tcache, &arena->tcache_ql, link) {
+	cache_bin_array_descriptor_t *descriptor;
+	ql_foreach(descriptor, &arena->cache_bin_array_descriptor_ql, link) {
 		szind_t i = 0;
 		for (; i < NBINS; i++) {
-			cache_bin_t *tbin = tcache_small_bin_get(tcache, i);
+			cache_bin_t *tbin = &descriptor->bins_small[i];
 			arena_stats_accum_zu(&astats->tcache_bytes,
 			    tbin->ncached * sz_index2size(i));
 		}
 		for (; i < nhbins; i++) {
-			cache_bin_t *tbin = tcache_large_bin_get(tcache, i);
+			cache_bin_t *tbin = &descriptor->bins_large[i];
 			arena_stats_accum_zu(&astats->tcache_bytes,
 			    tbin->ncached * sz_index2size(i));
 		}
