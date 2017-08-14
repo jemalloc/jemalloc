@@ -17,7 +17,7 @@
 /*
  * The count of the number of cached allocations in a bin.  We make this signed
  * so that negative numbers can encode "invalid" states (e.g. a low water mark
- * for a bin that has never been filled).
+ * of -1 for a cache that has been depleted).
  */
 typedef int32_t cache_bin_sz_t;
 
