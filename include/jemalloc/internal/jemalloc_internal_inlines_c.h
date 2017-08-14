@@ -5,6 +5,24 @@
 #include "jemalloc/internal/sz.h"
 #include "jemalloc/internal/witness.h"
 
+/*
+ * Translating the names of the 'i' functions:
+ *   Abbreviations used in the first part of the function name (before
+ *   alloc/dalloc) describe what that function accomplishes:
+ *     a: arena (query)
+ *     s: size (query, or sized deallocation)
+ *     e: extent (query)
+ *     p: aligned (allocates)
+ *     vs: size (query, without knowing that the pointer is into the heap)
+ *     r: rallocx implementation
+ *     x: xallocx implementation
+ *   Abbreviations used in the second part of the function name (after
+ *   alloc/dalloc) describe the arguments it takes
+ *     z: whether to return zeroed memory
+ *     t: accepts a tcache_t * parameter
+ *     m: accepts an arena_t * parameter
+ */
+
 JEMALLOC_ALWAYS_INLINE arena_t *
 iaalloc(tsdn_t *tsdn, const void *ptr) {
 	assert(ptr != NULL);
