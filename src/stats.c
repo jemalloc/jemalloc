@@ -802,11 +802,11 @@ stats_general_print(void (*write_cb)(void *, const char *), void *cbopaque,
 	}
 	OPT_WRITE_BOOL(abort, ",")
 	OPT_WRITE_BOOL(abort_conf, ",")
-	OPT_WRITE_BOOL(metadata_thp, ",")
 	OPT_WRITE_BOOL(retain, ",")
 	OPT_WRITE_CHAR_P(dss, ",")
 	OPT_WRITE_UNSIGNED(narenas, ",")
 	OPT_WRITE_CHAR_P(percpu_arena, ",")
+	OPT_WRITE_CHAR_P(metadata_thp, ",")
 	OPT_WRITE_BOOL_MUTABLE(background_thread, background_thread, ",")
 	OPT_WRITE_SSIZE_T_MUTABLE(dirty_decay_ms, arenas.dirty_decay_ms, ",")
 	OPT_WRITE_SSIZE_T_MUTABLE(muzzy_decay_ms, arenas.muzzy_decay_ms, ",")

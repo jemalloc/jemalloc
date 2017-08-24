@@ -1055,7 +1055,23 @@ malloc_conf_init(void) {
 			if (opt_abort_conf && had_conf_error) {
 				malloc_abort_invalid_conf();
 			}
-			CONF_HANDLE_BOOL(opt_metadata_thp, "metadata_thp")
+			if (strncmp("metadata_thp", k, klen) == 0) {
+				int i;
+				bool match = false;
+				for (i = 0; i < metadata_thp_mode_limit; i++) {
+					if (strncmp(metadata_thp_mode_names[i],
+					    v, vlen) == 0) {
+						opt_metadata_thp = i;
+						match = true;
+						break;
+					}
+				}
+				if (!match) {
+					malloc_conf_error("Invalid conf value",
+					    k, klen, v, vlen);
+				}
+				continue;
+			}
 			CONF_HANDLE_BOOL(opt_retain, "retain")
 			if (strncmp("dss", k, klen) == 0) {
 				int i;

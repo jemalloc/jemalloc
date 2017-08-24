@@ -12,7 +12,13 @@
 
 static base_t *b0;
 
-bool opt_metadata_thp = METADATA_THP_DEFAULT;
+metadata_thp_mode_t opt_metadata_thp = METADATA_THP_DEFAULT;
+
+const char *metadata_thp_mode_names[] = {
+	"disabled",
+	"auto",
+	"always"
+};
 
 /******************************************************************************/
 
@@ -24,7 +30,7 @@ base_map(tsdn_t *tsdn, extent_hooks_t *extent_hooks, unsigned ind, size_t size) 
 
 	/* We use hugepage sizes regardless of opt_metadata_thp. */
 	assert(size == HUGEPAGE_CEILING(size));
-	size_t alignment = opt_metadata_thp ? HUGEPAGE : PAGE;
+	size_t alignment = metadata_thp_enabled() ? HUGEPAGE : PAGE;
 	if (extent_hooks == &extent_hooks_default) {
 		addr = extent_alloc_mmap(NULL, size, alignment, &zero, &commit);
 	} else {
@@ -34,12 +40,6 @@ base_map(tsdn_t *tsdn, extent_hooks_t *extent_hooks, unsigned ind, size_t size) 
 		addr = extent_hooks->alloc(extent_hooks, NULL, size, alignment,
 		    &zero, &commit, ind);
 		post_reentrancy(tsd);
-	}
-
-	if (addr != NULL && opt_metadata_thp && thp_state_madvise) {
-		assert(((uintptr_t)addr & HUGEPAGE_MASK) == 0 &&
-		    (size & HUGEPAGE_MASK) == 0);
-		pages_huge(addr, size);
 	}
 
 	return addr;
@@ -101,7 +101,7 @@ base_unmap(tsdn_t *tsdn, extent_hooks_t *extent_hooks, unsigned ind, void *addr,
 		post_reentrancy(tsd);
 	}
 label_done:
-	if (opt_metadata_thp && thp_state_madvise) {
+	if (metadata_thp_enabled() && thp_state_madvise) {
 		/* Set NOHUGEPAGE after unmap to avoid kernel defrag. */
 		assert(((uintptr_t)addr & HUGEPAGE_MASK) == 0 &&
 		    (size & HUGEPAGE_MASK) == 0);
@@ -181,8 +181,8 @@ base_extent_bump_alloc(tsdn_t *tsdn, base_t *base, extent_t *extent,
  * On success a pointer to the initialized base_block_t header is returned.
  */
 static base_block_t *
-base_block_alloc(tsdn_t *tsdn, extent_hooks_t *extent_hooks, unsigned ind,
-    pszind_t *pind_last, size_t *extent_sn_next, size_t size,
+base_block_alloc(tsdn_t *tsdn, base_t *base, extent_hooks_t *extent_hooks,
+    unsigned ind, pszind_t *pind_last, size_t *extent_sn_next, size_t size,
     size_t alignment) {
 	alignment = ALIGNMENT_CEILING(alignment, QUANTUM);
 	size_t usize = ALIGNMENT_CEILING(size, alignment);
@@ -208,6 +208,26 @@ base_block_alloc(tsdn_t *tsdn, extent_hooks_t *extent_hooks, unsigned ind,
 	if (block == NULL) {
 		return NULL;
 	}
+
+	if (metadata_thp_enabled() && thp_state_madvise) {
+		void *addr = (void *)block;
+		assert(((uintptr_t)addr & HUGEPAGE_MASK) == 0 &&
+		    (block_size & HUGEPAGE_MASK) == 0);
+		/* base == NULL indicates this is a new base. */
+		if (base != NULL || opt_metadata_thp == metadata_thp_always) {
+			/* Use hugepage for the new block. */
+			pages_huge(addr, block_size);
+		}
+		if (base != NULL && opt_metadata_thp == metadata_thp_auto) {
+			/* Make the first block THP lazily. */
+			base_block_t *first_block = base->blocks;
+			if (first_block->next == NULL) {
+				assert((first_block->size & HUGEPAGE_MASK) == 0);
+				pages_huge(first_block, first_block->size);
+			}
+		}
+	}
+
 	*pind_last = sz_psz2ind(block_size);
 	block->size = block_size;
 	block->next = NULL;
@@ -231,7 +251,7 @@ base_extent_alloc(tsdn_t *tsdn, base_t *base, size_t size, size_t alignment) {
 	 * called.
 	 */
 	malloc_mutex_unlock(tsdn, &base->mtx);
-	base_block_t *block = base_block_alloc(tsdn, extent_hooks,
+	base_block_t *block = base_block_alloc(tsdn, base, extent_hooks,
 	    base_ind_get(base), &base->pind_last, &base->extent_sn_next, size,
 	    alignment);
 	malloc_mutex_lock(tsdn, &base->mtx);
@@ -259,7 +279,7 @@ base_t *
 base_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 	pszind_t pind_last = 0;
 	size_t extent_sn_next = 0;
-	base_block_t *block = base_block_alloc(tsdn, extent_hooks, ind,
+	base_block_t *block = base_block_alloc(tsdn, NULL, extent_hooks, ind,
 	    &pind_last, &extent_sn_next, sizeof(base_t), QUANTUM);
 	if (block == NULL) {
 		return NULL;

@@ -1570,7 +1570,8 @@ CTL_RO_CONFIG_GEN(config_xmalloc, bool)
 
 CTL_RO_NL_GEN(opt_abort, opt_abort, bool)
 CTL_RO_NL_GEN(opt_abort_conf, opt_abort_conf, bool)
-CTL_RO_NL_GEN(opt_metadata_thp, opt_metadata_thp, bool)
+CTL_RO_NL_GEN(opt_metadata_thp, metadata_thp_mode_names[opt_metadata_thp],
+    const char *)
 CTL_RO_NL_GEN(opt_retain, opt_retain, bool)
 CTL_RO_NL_GEN(opt_dss, opt_dss, const char *)
 CTL_RO_NL_GEN(opt_narenas, opt_narenas, unsigned)
