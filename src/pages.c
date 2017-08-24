@@ -418,7 +418,7 @@ os_overcommits_proc(void) {
 static void
 init_thp_state(void) {
 	if (!have_madvise_huge) {
-		if (opt_metadata_thp && opt_abort) {
+		if (metadata_thp_enabled() && opt_abort) {
 			malloc_write("<jemalloc>: no MADV_HUGEPAGE support\n");
 			abort();
 		}

@@ -1,7 +1,8 @@
 #ifndef JEMALLOC_INTERNAL_BASE_EXTERNS_H
 #define JEMALLOC_INTERNAL_BASE_EXTERNS_H
 
-extern bool opt_metadata_thp;
+extern metadata_thp_mode_t opt_metadata_thp;
+extern const char *metadata_thp_mode_names[];
 
 base_t *b0get(void);
 base_t *base_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks);

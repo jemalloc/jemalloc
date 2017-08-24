@@ -919,13 +919,15 @@ mallctl("arena." STRINGIFY(MALLCTL_ARENAS_ALL) ".decay",
       <varlistentry id="opt.metadata_thp">
         <term>
           <mallctl>opt.metadata_thp</mallctl>
-          (<type>bool</type>)
+          (<type>const char *</type>)
           <literal>r-</literal>
         </term>
-        <listitem><para>If true, allow jemalloc to use transparent huge page
-        (THP) for internal metadata (see <link
-        linkend="stats.metadata">stats.metadata</link> for details).  This
-        option is disabled by default.</para></listitem>
+        <listitem><para>Controls whether to allow jemalloc to use transparent
+        huge page (THP) for internal metadata (see <link
+        linkend="stats.metadata">stats.metadata</link>).  <quote>always</quote>
+        allows such usage.  <quote>auto</quote> uses no THP initially, but may
+        begin to do so when metadata usage reaches certain level.  The default
+        is <quote>disabled</quote>.</para></listitem>
       </varlistentry>
 
       <varlistentry id="opt.retain">
