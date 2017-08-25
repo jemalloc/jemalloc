@@ -50,6 +50,8 @@ struct base_s {
 	size_t		allocated;
 	size_t		resident;
 	size_t		mapped;
+	/* Number of THP regions touched. */
+	size_t		n_thp;
 };
 
 #endif /* JEMALLOC_INTERNAL_BASE_STRUCTS_H */

@@ -2207,6 +2207,20 @@ struct extent_hooks_s {
         considered.</para></listitem>
       </varlistentry>
 
+      <varlistentry id="stats.metadata_thp">
+        <term>
+          <mallctl>stats.metadata_thp</mallctl>
+          (<type>size_t</type>)
+          <literal>r-</literal>
+          [<option>--enable-stats</option>]
+        </term>
+        <listitem><para>Number of transparent huge pages (THP) used for
+        metadata.  See <link
+        linkend="stats.metadata"><mallctl>stats.metadata</mallctl></link> and
+        <link linkend="opt.metadata_thp">opt.metadata_thp</link>) for
+        details.</para></listitem>
+      </varlistentry>
+
       <varlistentry id="stats.resident">
         <term>
           <mallctl>stats.resident</mallctl>
@@ -2521,6 +2535,18 @@ struct extent_hooks_s {
         Internal allocations differ from application-originated allocations in
         that they are for internal use, and that they are omitted from heap
         profiles.</para></listitem>
+      </varlistentry>
+
+      <varlistentry id="stats.arenas.i.metadata_thp">
+        <term>
+          <mallctl>stats.arenas.&lt;i&gt;.metadata_thp</mallctl>
+          (<type>size_t</type>)
+          <literal>r-</literal>
+          [<option>--enable-stats</option>]
+        </term>
+        <listitem><para>Number of transparent huge pages (THP) used for
+        metadata.  See <link linkend="opt.metadata_thp">opt.metadata_thp</link>
+        for details.</para></listitem>
       </varlistentry>
 
       <varlistentry id="stats.arenas.i.resident">
