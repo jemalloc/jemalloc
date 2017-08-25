@@ -22,6 +22,11 @@ const char *metadata_thp_mode_names[] = {
 
 /******************************************************************************/
 
+static inline bool
+metadata_thp_madvise(void) {
+	return (metadata_thp_enabled() && thp_state_madvise);
+}
+
 static void *
 base_map(tsdn_t *tsdn, extent_hooks_t *extent_hooks, unsigned ind, size_t size) {
 	void *addr;
@@ -101,7 +106,7 @@ base_unmap(tsdn_t *tsdn, extent_hooks_t *extent_hooks, unsigned ind, void *addr,
 		post_reentrancy(tsd);
 	}
 label_done:
-	if (metadata_thp_enabled() && thp_state_madvise) {
+	if (metadata_thp_madvise()) {
 		/* Set NOHUGEPAGE after unmap to avoid kernel defrag. */
 		assert(((uintptr_t)addr & HUGEPAGE_MASK) == 0 &&
 		    (size & HUGEPAGE_MASK) == 0);
@@ -118,6 +123,13 @@ base_extent_init(size_t *extent_sn_next, extent_t *extent, void *addr,
 	(*extent_sn_next)++;
 
 	extent_binit(extent, addr, size, sn);
+}
+
+static bool
+base_is_single_block(base_t *base) {
+	assert(base->blocks != NULL &&
+	    (base->blocks->size & HUGEPAGE_MASK) == 0);
+	return (base->blocks->next == NULL);
 }
 
 static void *
@@ -155,12 +167,20 @@ base_extent_bump_alloc_post(tsdn_t *tsdn, base_t *base, extent_t *extent,
 		base->allocated += size;
 		/*
 		 * Add one PAGE to base_resident for every page boundary that is
-		 * crossed by the new allocation.
+		 * crossed by the new allocation. Adjust n_thp similarly when
+		 * metadata_thp is enabled.
 		 */
 		base->resident += PAGE_CEILING((uintptr_t)addr + size) -
 		    PAGE_CEILING((uintptr_t)addr - gap_size);
 		assert(base->allocated <= base->resident);
 		assert(base->resident <= base->mapped);
+		if (metadata_thp_madvise() && (!base_is_single_block(base) ||
+		    opt_metadata_thp == metadata_thp_always)) {
+			base->n_thp += (HUGEPAGE_CEILING((uintptr_t)addr + size)
+			    - HUGEPAGE_CEILING((uintptr_t)addr - gap_size)) >>
+			    LG_HUGEPAGE;
+			assert(base->mapped >= base->n_thp << LG_HUGEPAGE);
+		}
 	}
 }
 
@@ -209,7 +229,7 @@ base_block_alloc(tsdn_t *tsdn, base_t *base, extent_hooks_t *extent_hooks,
 		return NULL;
 	}
 
-	if (metadata_thp_enabled() && thp_state_madvise) {
+	if (metadata_thp_madvise()) {
 		void *addr = (void *)block;
 		assert(((uintptr_t)addr & HUGEPAGE_MASK) == 0 &&
 		    (block_size & HUGEPAGE_MASK) == 0);
@@ -218,12 +238,15 @@ base_block_alloc(tsdn_t *tsdn, base_t *base, extent_hooks_t *extent_hooks,
 			/* Use hugepage for the new block. */
 			pages_huge(addr, block_size);
 		}
-		if (base != NULL && opt_metadata_thp == metadata_thp_auto) {
+		if (base != NULL && base_is_single_block(base) &&
+		    opt_metadata_thp == metadata_thp_auto) {
 			/* Make the first block THP lazily. */
 			base_block_t *first_block = base->blocks;
-			if (first_block->next == NULL) {
-				assert((first_block->size & HUGEPAGE_MASK) == 0);
-				pages_huge(first_block, first_block->size);
+			assert((first_block->size & HUGEPAGE_MASK) == 0);
+			pages_huge(first_block, first_block->size);
+			if (config_stats) {
+				assert(base->n_thp == 0);
+				base->n_thp += first_block->size >> LG_HUGEPAGE;
 			}
 		}
 	}
@@ -264,8 +287,15 @@ base_extent_alloc(tsdn_t *tsdn, base_t *base, size_t size, size_t alignment) {
 		base->allocated += sizeof(base_block_t);
 		base->resident += PAGE_CEILING(sizeof(base_block_t));
 		base->mapped += block->size;
+		if (metadata_thp_madvise()) {
+			assert(!base_is_single_block(base));
+			assert(base->n_thp > 0);
+			base->n_thp += HUGEPAGE_CEILING(sizeof(base_block_t)) >>
+			    LG_HUGEPAGE;
+		}
 		assert(base->allocated <= base->resident);
 		assert(base->resident <= base->mapped);
+		assert(base->n_thp << LG_HUGEPAGE <= base->mapped);
 	}
 	return &block->extent;
 }
@@ -307,8 +337,12 @@ base_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 		base->allocated = sizeof(base_block_t);
 		base->resident = PAGE_CEILING(sizeof(base_block_t));
 		base->mapped = block->size;
+		base->n_thp = (opt_metadata_thp == metadata_thp_always) &&
+		    metadata_thp_madvise() ? HUGEPAGE_CEILING(sizeof(base_block_t))
+		    >> LG_HUGEPAGE : 0;
 		assert(base->allocated <= base->resident);
 		assert(base->resident <= base->mapped);
+		assert(base->n_thp << LG_HUGEPAGE <= base->mapped);
 	}
 	base_extent_bump_alloc_post(tsdn, base, &block->extent, gap_size, base,
 	    base_size);
@@ -403,7 +437,7 @@ base_alloc_extent(tsdn_t *tsdn, base_t *base) {
 
 void
 base_stats_get(tsdn_t *tsdn, base_t *base, size_t *allocated, size_t *resident,
-    size_t *mapped) {
+    size_t *mapped, size_t *n_thp) {
 	cassert(config_stats);
 
 	malloc_mutex_lock(tsdn, &base->mtx);
@@ -412,6 +446,7 @@ base_stats_get(tsdn_t *tsdn, base_t *base, size_t *allocated, size_t *resident,
 	*allocated = base->allocated;
 	*resident = base->resident;
 	*mapped = base->mapped;
+	*n_thp = base->n_thp;
 	malloc_mutex_unlock(tsdn, &base->mtx);
 }
 

@@ -401,7 +401,7 @@ stats_arena_print(void (*write_cb)(void *, const char *), void *cbopaque,
 	const char *dss;
 	ssize_t dirty_decay_ms, muzzy_decay_ms;
 	size_t page, pactive, pdirty, pmuzzy, mapped, retained;
-	size_t base, internal, resident;
+	size_t base, internal, resident, metadata_thp;
 	uint64_t dirty_npurge, dirty_nmadvise, dirty_purged;
 	uint64_t muzzy_npurge, muzzy_nmadvise, muzzy_purged;
 	size_t small_allocated;
@@ -611,6 +611,15 @@ stats_arena_print(void (*write_cb)(void *, const char *), void *cbopaque,
 	} else {
 		malloc_cprintf(write_cb, cbopaque,
 		    "internal:                %12zu\n", internal);
+	}
+
+	CTL_M2_GET("stats.arenas.0.metadata_thp", i, &metadata_thp, size_t);
+	if (json) {
+		malloc_cprintf(write_cb, cbopaque,
+		    "\t\t\t\t\"metadata_thp\": %zu,\n", metadata_thp);
+	} else {
+		malloc_cprintf(write_cb, cbopaque,
+		    "metadata_thp:            %12zu\n", metadata_thp);
 	}
 
 	CTL_M2_GET("stats.arenas.0.tcache_bytes", i, &tcache_bytes, size_t);
@@ -1007,13 +1016,15 @@ static void
 stats_print_helper(void (*write_cb)(void *, const char *), void *cbopaque,
     bool json, bool merged, bool destroyed, bool unmerged, bool bins,
     bool large, bool mutex) {
-	size_t allocated, active, metadata, resident, mapped, retained;
+	size_t allocated, active, metadata, metadata_thp, resident, mapped,
+	    retained;
 	size_t num_background_threads;
 	uint64_t background_thread_num_runs, background_thread_run_interval;
 
 	CTL_GET("stats.allocated", &allocated, size_t);
 	CTL_GET("stats.active", &active, size_t);
 	CTL_GET("stats.metadata", &metadata, size_t);
+	CTL_GET("stats.metadata_thp", &metadata_thp, size_t);
 	CTL_GET("stats.resident", &resident, size_t);
 	CTL_GET("stats.mapped", &mapped, size_t);
 	CTL_GET("stats.retained", &retained, size_t);
@@ -1046,6 +1057,8 @@ stats_print_helper(void (*write_cb)(void *, const char *), void *cbopaque,
 		    "\t\t\t\"active\": %zu,\n", active);
 		malloc_cprintf(write_cb, cbopaque,
 		    "\t\t\t\"metadata\": %zu,\n", metadata);
+		malloc_cprintf(write_cb, cbopaque,
+		    "\t\t\t\"metadata_thp\": %zu,\n", metadata_thp);
 		malloc_cprintf(write_cb, cbopaque,
 		    "\t\t\t\"resident\": %zu,\n", resident);
 		malloc_cprintf(write_cb, cbopaque,
@@ -1082,9 +1095,10 @@ stats_print_helper(void (*write_cb)(void *, const char *), void *cbopaque,
 		    "\t\t}%s\n", (merged || unmerged || destroyed) ? "," : "");
 	} else {
 		malloc_cprintf(write_cb, cbopaque,
-		    "Allocated: %zu, active: %zu, metadata: %zu,"
+		    "Allocated: %zu, active: %zu, metadata: %zu (n_thp %zu),"
 		    " resident: %zu, mapped: %zu, retained: %zu\n",
-		    allocated, active, metadata, resident, mapped, retained);
+		    allocated, active, metadata, metadata_thp, resident, mapped,
+		    retained);
 
 		if (have_background_thread && num_background_threads > 0) {
 			malloc_cprintf(write_cb, cbopaque,
