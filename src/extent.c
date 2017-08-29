@@ -723,6 +723,13 @@ extent_reregister(tsdn_t *tsdn, extent_t *extent) {
 	assert(!err);
 }
 
+/*
+ * Removes all pointers to the given extent from the global rtree indices for
+ * its interior.  This is relevant for slab extents, for which we need to do
+ * metadata lookups at places other than the head of the extent.  We deregister
+ * on the interior, then, when an extent moves from being an active slab to an
+ * inactive state.
+ */
 static void
 extent_interior_deregister(tsdn_t *tsdn, rtree_ctx_t *rtree_ctx,
     extent_t *extent) {
@@ -737,6 +744,9 @@ extent_interior_deregister(tsdn_t *tsdn, rtree_ctx_t *rtree_ctx,
 	}
 }
 
+/*
+ * Removes all pointers to the given extent from the global rtree.
+ */
 static void
 extent_deregister(tsdn_t *tsdn, extent_t *extent) {
 	rtree_ctx_t rtree_ctx_fallback;
@@ -760,6 +770,10 @@ extent_deregister(tsdn_t *tsdn, extent_t *extent) {
 	}
 }
 
+/*
+ * Tries to find and remove an extent from extents that can be used for the
+ * given allocation request.
+ */
 static extent_t *
 extent_recycle_extract(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, rtree_ctx_t *rtree_ctx, extents_t *extents,
@@ -832,6 +846,12 @@ extent_recycle_extract(tsdn_t *tsdn, arena_t *arena,
 	return extent;
 }
 
+/*
+ * This fulfills the indicated allocation request out of the given extent (which
+ * the caller should have ensured was big enough).  If there's any unused space
+ * before or after the resulting allocation, that space is given its own extent
+ * and put back into extents.
+ */
 static extent_t *
 extent_recycle_split(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, rtree_ctx_t *rtree_ctx, extents_t *extents,
@@ -892,6 +912,10 @@ extent_recycle_split(tsdn_t *tsdn, arena_t *arena,
 	return extent;
 }
 
+/*
+ * Tries to satisfy the given allocation request by reusing one of the extents
+ * in the given extents_t.
+ */
 static extent_t *
 extent_recycle(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
     extents_t *extents, void *new_addr, size_t size, size_t pad,
@@ -1442,6 +1466,10 @@ extent_try_coalesce(tsdn_t *tsdn, arena_t *arena,
 	return extent;
 }
 
+/*
+ * Does the metadata management portions of putting an unused extent into the
+ * given extents_t (coalesces, deregisters slab interiors, the heap operations).
+ */
 static void
 extent_record(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
     extents_t *extents, extent_t *extent, bool growing_retained) {
@@ -1800,6 +1828,13 @@ extent_split_default(extent_hooks_t *extent_hooks, void *addr, size_t size,
 }
 #endif
 
+/*
+ * Accepts the extent to split, and the characteristics of each side of the
+ * split.  The 'a' parameters go with the 'lead' of the resulting pair of
+ * extents (the lower addressed portion of the split), and the 'b' parameters go
+ * with the trail (the higher addressed portion).  This makes 'extent' the lead,
+ * and returns the trail (except in case of error).
+ */
 static extent_t *
 extent_split_impl(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, extent_t *extent, size_t size_a,
