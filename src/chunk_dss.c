@@ -20,6 +20,8 @@ static unsigned		dss_prec_default = (unsigned)DSS_PREC_DEFAULT;
 
 /* Base address of the DSS. */
 static void		*dss_base;
+/* Atomic boolean indicating whether a thread is currently extending DSS. */
+static unsigned     dss_extending;
 /* Atomic boolean indicating whether the DSS is exhausted. */
 static unsigned		dss_exhausted;
 /* Atomic current upper limit on DSS addresses. */
@@ -63,34 +65,38 @@ chunk_dss_prec_set(dss_prec_t dss_prec)
 static void *
 chunk_dss_max_update(void *new_addr)
 {
-	void *max_cur;
-	spin_t spinner;
+	void *max_cur = chunk_dss_sbrk(0);
 
-	/*
-	 * Get the current end of the DSS as max_cur and assure that dss_max is
-	 * up to date.
-	 */
-	spin_init(&spinner);
-	while (true) {
-		void *max_prev = atomic_read_p(&dss_max);
-
-		max_cur = chunk_dss_sbrk(0);
-		if ((uintptr_t)max_prev > (uintptr_t)max_cur) {
-			/*
-			 * Another thread optimistically updated dss_max.  Wait
-			 * for it to finish.
-			 */
-			spin_adaptive(&spinner);
-			continue;
-		}
-		if (!atomic_cas_p(&dss_max, max_prev, max_cur))
-			break;
+	if (max_cur == (void *)-1) {
+		return NULL;
 	}
+	atomic_write_p(&dss_max, max_cur);
+
 	/* Fixed new_addr can only be supported if it is at the edge of DSS. */
 	if (new_addr != NULL && max_cur != new_addr)
 		return (NULL);
 
 	return (max_cur);
+}
+
+static void
+chunk_dss_extending_start(void) {
+	spin_t spinner;
+
+	spin_init(&spinner);
+	while (true) {
+		unsigned expected = 0;
+		if (!atomic_cas_u(&dss_extending, expected, 1)) {
+			break;
+		}
+		spin_adaptive(&spinner);
+	}
+}
+
+static void
+chunk_dss_extending_finish(void) {
+	assert(atomic_read_u(&dss_extending));
+	atomic_write_u(&dss_extending, 0);
 }
 
 void *
@@ -108,6 +114,7 @@ chunk_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
 	if ((intptr_t)size < 0)
 		return (NULL);
 
+	chunk_dss_extending_start();
 	if (!atomic_read_u(&dss_exhausted)) {
 		/*
 		 * The loop is necessary to recover from races with other
@@ -152,19 +159,14 @@ chunk_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
 			assert((uintptr_t)max_cur + incr == (uintptr_t)ret +
 			    size);
 
-			/*
-			 * Optimistically update dss_max, and roll back below if
-			 * sbrk() fails.  No other thread will try to extend the
-			 * DSS while dss_max is greater than the current DSS
-			 * max reported by sbrk(0).
-			 */
-			if (atomic_cas_p(&dss_max, max_cur, dss_next))
-				continue;
-
 			/* Try to allocate. */
 			dss_prev = chunk_dss_sbrk(incr);
 			if (dss_prev == max_cur) {
 				/* Success. */
+
+				atomic_write_p(&dss_max, dss_next);
+				chunk_dss_extending_finish();
+
 				if (gap_size_chunk != 0) {
 					chunk_hooks_t chunk_hooks =
 					    CHUNK_HOOKS_INITIALIZER;
@@ -186,13 +188,8 @@ chunk_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
 
 			/*
 			 * Failure, whether due to OOM or a race with a raw
-			 * sbrk() call from outside the allocator.  Try to roll
-			 * back optimistic dss_max update; if rollback fails,
-			 * it's due to another caller of this function having
-			 * succeeded since this invocation started, in which
-			 * case rollback is not necessary.
+			 * sbrk() call from outside the allocator.
 			 */
-			atomic_cas_p(&dss_max, dss_next, max_cur);
 			if (dss_prev == (void *)-1) {
 				/* OOM. */
 				atomic_write_u(&dss_exhausted, (unsigned)true);
@@ -201,6 +198,7 @@ chunk_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
 		}
 	}
 label_oom:
+	chunk_dss_extending_finish();
 	return (NULL);
 }
 
@@ -240,6 +238,7 @@ chunk_dss_boot(void)
 	cassert(have_dss);
 
 	dss_base = chunk_dss_sbrk(0);
+	atomic_write_u(&dss_extending, 0);
 	dss_exhausted = (unsigned)(dss_base == (void *)-1);
 	dss_max = dss_base;
 }
