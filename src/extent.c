@@ -847,6 +847,103 @@ extent_recycle_extract(tsdn_t *tsdn, arena_t *arena,
 }
 
 /*
+ * Given an allocation request and an extent guaranteed to be able to satisfy
+ * it, this splits off lead and trail extents, leaving extent pointing to an
+ * extent satisfying the allocation.
+ * This function doesn't put lead or trail into any extents_t; it's the caller's
+ * job to ensure that they can be reused.
+ */
+typedef enum {
+	/*
+	 * Split successfully.  lead, extent, and trail, are modified to extents
+	 * describing the ranges before, in, and after the given allocation.
+	 */
+	extent_split_interior_ok,
+	/*
+	 * The extent can't satisfy the given allocation request.  None of the
+	 * input extent_t *s are touched.
+	 */
+	extent_split_interior_cant_alloc,
+	/*
+	 * In a potentially invalid state.  Must leak (if *to_leak is non-NULL),
+	 * and salvage what's still salvageable (if *to_salvage is non-NULL).
+	 * None of lead, extent, or trail are valid.
+	 */
+	extent_split_interior_error
+} extent_split_interior_result_t;
+
+static extent_split_interior_result_t
+extent_split_interior(tsdn_t *tsdn, arena_t *arena,
+    extent_hooks_t **r_extent_hooks, rtree_ctx_t *rtree_ctx,
+    /* The result of splitting, in case of success. */
+    extent_t **extent, extent_t **lead, extent_t **trail,
+    /* The mess to clean up, in case of error. */
+    extent_t **to_leak, extent_t **to_salvage,
+    void *new_addr, size_t size, size_t pad, size_t alignment, bool slab,
+    szind_t szind, bool growing_retained) {
+	size_t esize = size + pad;
+	size_t leadsize = ALIGNMENT_CEILING((uintptr_t)extent_base_get(*extent),
+	    PAGE_CEILING(alignment)) - (uintptr_t)extent_base_get(*extent);
+	assert(new_addr == NULL || leadsize == 0);
+	if (extent_size_get(*extent) < leadsize + esize) {
+		return extent_split_interior_cant_alloc;
+	}
+	size_t trailsize = extent_size_get(*extent) - leadsize - esize;
+
+	*lead = NULL;
+	*trail = NULL;
+	*to_leak = NULL;
+	*to_salvage = NULL;
+
+	/* Split the lead. */
+	if (leadsize != 0) {
+		*lead = *extent;
+		*extent = extent_split_impl(tsdn, arena, r_extent_hooks,
+		    *lead, leadsize, NSIZES, false, esize + trailsize, szind,
+		    slab, growing_retained);
+		if (*extent == NULL) {
+			*to_leak = *lead;
+			*lead = NULL;
+			return extent_split_interior_error;
+		}
+	}
+
+	/* Split the trail. */
+	if (trailsize != 0) {
+		*trail = extent_split_impl(tsdn, arena, r_extent_hooks, *extent,
+		    esize, szind, slab, trailsize, NSIZES, false,
+		    growing_retained);
+		if (*trail == NULL) {
+			*to_leak = *extent;
+			*to_salvage = *lead;
+			*lead = NULL;
+			*extent = NULL;
+			return extent_split_interior_error;
+		}
+	}
+
+	if (leadsize == 0 && trailsize == 0) {
+		/*
+		 * Splitting causes szind to be set as a side effect, but no
+		 * splitting occurred.
+		 */
+		extent_szind_set(*extent, szind);
+		if (szind != NSIZES) {
+			rtree_szind_slab_update(tsdn, &extents_rtree, rtree_ctx,
+			    (uintptr_t)extent_addr_get(*extent), szind, slab);
+			if (slab && extent_size_get(*extent) > PAGE) {
+				rtree_szind_slab_update(tsdn, &extents_rtree,
+				    rtree_ctx,
+				    (uintptr_t)extent_past_get(*extent) -
+				    (uintptr_t)PAGE, szind, slab);
+			}
+		}
+	}
+
+	return extent_split_interior_ok;
+}
+
+/*
  * This fulfills the indicated allocation request out of the given extent (which
  * the caller should have ensured was big enough).  If there's any unused space
  * before or after the resulting allocation, that space is given its own extent
@@ -857,59 +954,40 @@ extent_recycle_split(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, rtree_ctx_t *rtree_ctx, extents_t *extents,
     void *new_addr, size_t size, size_t pad, size_t alignment, bool slab,
     szind_t szind, extent_t *extent, bool growing_retained) {
-	size_t esize = size + pad;
-	size_t leadsize = ALIGNMENT_CEILING((uintptr_t)extent_base_get(extent),
-	    PAGE_CEILING(alignment)) - (uintptr_t)extent_base_get(extent);
-	assert(new_addr == NULL || leadsize == 0);
-	assert(extent_size_get(extent) >= leadsize + esize);
-	size_t trailsize = extent_size_get(extent) - leadsize - esize;
+	extent_t *lead;
+	extent_t *trail;
+	extent_t *to_leak;
+	extent_t *to_salvage;
 
-	/* Split the lead. */
-	if (leadsize != 0) {
-		extent_t *lead = extent;
-		extent = extent_split_impl(tsdn, arena, r_extent_hooks,
-		    lead, leadsize, NSIZES, false, esize + trailsize, szind,
-		    slab, growing_retained);
-		if (extent == NULL) {
-			extent_deregister(tsdn, lead);
-			extents_leak(tsdn, arena, r_extent_hooks, extents,
-			    lead, growing_retained);
-			return NULL;
-		}
-		extent_deactivate(tsdn, arena, extents, lead, false);
-	}
+	extent_split_interior_result_t result = extent_split_interior(
+	    tsdn, arena, r_extent_hooks, rtree_ctx, &extent, &lead, &trail,
+	    &to_leak, &to_salvage, new_addr, size, pad, alignment, slab, szind,
+	    growing_retained);
 
-	/* Split the trail. */
-	if (trailsize != 0) {
-		extent_t *trail = extent_split_impl(tsdn, arena,
-		    r_extent_hooks, extent, esize, szind, slab, trailsize,
-		    NSIZES, false, growing_retained);
-		if (trail == NULL) {
-			extent_deregister(tsdn, extent);
-			extents_leak(tsdn, arena, r_extent_hooks, extents,
-			    extent, growing_retained);
-			return NULL;
+	if (result == extent_split_interior_ok) {
+		if (lead != NULL) {
+			extent_deactivate(tsdn, arena, extents, lead, false);
 		}
-		extent_deactivate(tsdn, arena, extents, trail, false);
-	} else if (leadsize == 0) {
+		if (trail != NULL) {
+			extent_deactivate(tsdn, arena, extents, trail, false);
+		}
+		return extent;
+	} else {
 		/*
-		 * Splitting causes szind to be set as a side effect, but no
-		 * splitting occurred.
+		 * We should have picked an extent that was large enough to
+		 * fulfill our allocation request.
 		 */
-		extent_szind_set(extent, szind);
-		if (szind != NSIZES) {
-			rtree_szind_slab_update(tsdn, &extents_rtree, rtree_ctx,
-			    (uintptr_t)extent_addr_get(extent), szind, slab);
-			if (slab && extent_size_get(extent) > PAGE) {
-				rtree_szind_slab_update(tsdn, &extents_rtree,
-				    rtree_ctx,
-				    (uintptr_t)extent_past_get(extent) -
-				    (uintptr_t)PAGE, szind, slab);
-			}
+		assert(result == extent_split_interior_error);
+		if (to_salvage != NULL) {
+			extent_deregister(tsdn, to_salvage);
 		}
+		if (to_leak != NULL) {
+			extents_leak(tsdn, arena, r_extent_hooks, extents,
+			    to_leak, growing_retained);
+		}
+		return NULL;
 	}
-
-	return extent;
+	unreachable();
 }
 
 /*
@@ -1140,10 +1218,6 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena,
 		goto label_err;
 	}
 
-	size_t leadsize = ALIGNMENT_CEILING((uintptr_t)ptr,
-	    PAGE_CEILING(alignment)) - (uintptr_t)ptr;
-	assert(alloc_size >= leadsize + esize);
-	size_t trailsize = alloc_size - leadsize - esize;
 	if (extent_zeroed_get(extent) && extent_committed_get(extent)) {
 		*zero = true;
 	}
@@ -1151,54 +1225,48 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena,
 		*commit = true;
 	}
 
-	/* Split the lead. */
-	if (leadsize != 0) {
-		extent_t *lead = extent;
-		extent = extent_split_impl(tsdn, arena, r_extent_hooks, lead,
-		    leadsize, NSIZES, false, esize + trailsize, szind, slab,
-		    true);
-		if (extent == NULL) {
-			extent_deregister(tsdn, lead);
-			extents_leak(tsdn, arena, r_extent_hooks,
+	rtree_ctx_t rtree_ctx_fallback;
+	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
+
+	extent_t *lead;
+	extent_t *trail;
+	extent_t *to_leak;
+	extent_t *to_salvage;
+	extent_split_interior_result_t result = extent_split_interior(
+	    tsdn, arena, r_extent_hooks, rtree_ctx, &extent, &lead, &trail,
+	    &to_leak, &to_salvage, NULL, size, pad, alignment, slab, szind,
+	    true);
+
+	if (result == extent_split_interior_ok) {
+		if (lead != NULL) {
+			extent_record(tsdn, arena, r_extent_hooks,
 			    &arena->extents_retained, lead, true);
-			goto label_err;
 		}
-		extent_record(tsdn, arena, r_extent_hooks,
-		    &arena->extents_retained, lead, true);
-	}
-
-	/* Split the trail. */
-	if (trailsize != 0) {
-		extent_t *trail = extent_split_impl(tsdn, arena, r_extent_hooks,
-		    extent, esize, szind, slab, trailsize, NSIZES, false, true);
-		if (trail == NULL) {
-			extent_deregister(tsdn, extent);
-			extents_leak(tsdn, arena, r_extent_hooks,
-			    &arena->extents_retained, extent, true);
-			goto label_err;
+		if (trail != NULL) {
+			extent_record(tsdn, arena, r_extent_hooks,
+			    &arena->extents_retained, trail, true);
 		}
-		extent_record(tsdn, arena, r_extent_hooks,
-		    &arena->extents_retained, trail, true);
-	} else if (leadsize == 0) {
+	} else {
 		/*
-		 * Splitting causes szind to be set as a side effect, but no
-		 * splitting occurred.
+		 * We should have allocated a sufficiently large extent; the
+		 * cant_alloc case should not occur.
 		 */
-		rtree_ctx_t rtree_ctx_fallback;
-		rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn,
-		    &rtree_ctx_fallback);
-
-		extent_szind_set(extent, szind);
-		if (szind != NSIZES) {
-			rtree_szind_slab_update(tsdn, &extents_rtree, rtree_ctx,
-			    (uintptr_t)extent_addr_get(extent), szind, slab);
-			if (slab && extent_size_get(extent) > PAGE) {
-				rtree_szind_slab_update(tsdn, &extents_rtree,
-				    rtree_ctx,
-				    (uintptr_t)extent_past_get(extent) -
-				    (uintptr_t)PAGE, szind, slab);
-			}
+		assert(result == extent_split_interior_error);
+		if (to_leak != NULL) {
+			extent_deregister(tsdn, to_leak);
+			extents_leak(tsdn, arena, r_extent_hooks,
+			    &arena->extents_retained, to_leak, true);
+			goto label_err;
 		}
+		/*
+		 * Note: we don't handle the non-NULL to_salvage case at all.
+		 * This maintains the behavior that was present when the
+		 * refactor pulling extent_split_interior into a helper function
+		 * was added.  I think this is actually a bug (we leak both the
+		 * memory and the extent_t in that case), but since this code is
+		 * getting deleted very shortly (in a subsequent commit),
+		 * ensuring correctness down this path isn't worth the effort.
+		 */
 	}
 
 	if (*commit && !extent_committed_get(extent)) {
