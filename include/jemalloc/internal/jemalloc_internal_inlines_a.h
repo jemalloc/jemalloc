@@ -151,6 +151,7 @@ pre_reentrancy(tsd_t *tsd, arena_t *arena) {
 	assert(arena != arena_get(tsd_tsdn(tsd), 0, false));
 
 	bool fast = tsd_fast(tsd);
+	assert(tsd_reentrancy_level_get(tsd) < INT8_MAX);
 	++*tsd_reentrancy_levelp_get(tsd);
 	if (fast) {
 		/* Prepare slow path for reentrancy. */
