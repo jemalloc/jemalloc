@@ -1150,16 +1150,12 @@ extent_hook_post_reentrancy(tsdn_t *tsdn) {
 	post_reentrancy(tsd);
 }
 
-/*
- * If virtual memory is retained, create increasingly larger extents from which
- * to split requested extents in order to limit the total number of disjoint
- * virtual memory ranges retained by each arena.
- */
 static extent_t *
-extent_grow_retained(tsdn_t *tsdn, arena_t *arena,
-    extent_hooks_t **r_extent_hooks, size_t size, size_t pad, size_t alignment,
-    bool slab, szind_t szind, bool *zero, bool *commit) {
-	malloc_mutex_assert_owner(tsdn, &arena->extent_grow_mtx);
+extent_eden_alloc_expand(tsdn_t *tsdn, arena_t *arena,
+    extent_hooks_t **r_extent_hooks, rtree_ctx_t *rtree_ctx, size_t size,
+    size_t pad, size_t alignment, bool slab, szind_t szind, bool *zero,
+    bool *commit) {
+	malloc_mutex_assert_owner(tsdn, &arena->extent_eden_mtx);
 	assert(pad == 0 || !slab);
 	assert(!*zero || !slab);
 
@@ -1167,27 +1163,27 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena,
 	size_t alloc_size_min = esize + PAGE_CEILING(alignment) - PAGE;
 	/* Beware size_t wrap-around. */
 	if (alloc_size_min < esize) {
-		goto label_err;
+		return NULL;
 	}
 	/*
 	 * Find the next extent size in the series that would be large enough to
 	 * satisfy this request.
 	 */
 	pszind_t egn_skip = 0;
-	size_t alloc_size = sz_pind2sz(arena->extent_grow_next + egn_skip);
+	size_t alloc_size = sz_pind2sz(arena->extent_eden_grow_next + egn_skip);
 	while (alloc_size < alloc_size_min) {
 		egn_skip++;
-		if (arena->extent_grow_next + egn_skip == NPSIZES) {
-			/* Outside legal range. */
-			goto label_err;
+		if (arena->extent_eden_grow_next + egn_skip == NPSIZES) {
+			return NULL;
 		}
-		assert(arena->extent_grow_next + egn_skip < NPSIZES);
-		alloc_size = sz_pind2sz(arena->extent_grow_next + egn_skip);
+		assert(arena->extent_eden_grow_next + egn_skip < NPSIZES);
+		alloc_size = sz_pind2sz(arena->extent_eden_grow_next
+		    + egn_skip);
 	}
 
 	extent_t *extent = extent_alloc(tsdn, arena);
 	if (extent == NULL) {
-		goto label_err;
+		return NULL;
 	}
 	bool zeroed = false;
 	bool committed = false;
@@ -1205,17 +1201,18 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena,
 		extent_hook_post_reentrancy(tsdn);
 	}
 
+	if (ptr == NULL) {
+		return NULL;
+	}
+
 	extent_init(extent, arena, ptr, alloc_size, false, NSIZES,
 	    arena_extent_sn_next(arena), extent_state_active, zeroed,
 	    committed);
-	if (ptr == NULL) {
-		extent_dalloc(tsdn, arena, extent);
-		goto label_err;
-	}
+
 	if (extent_register_no_gdump_add(tsdn, extent)) {
 		extents_leak(tsdn, arena, r_extent_hooks,
 		    &arena->extents_retained, extent, true);
-		goto label_err;
+		return NULL;
 	}
 
 	if (extent_zeroed_get(extent) && extent_committed_get(extent)) {
@@ -1225,71 +1222,128 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena,
 		*commit = true;
 	}
 
+	/*
+	 * Increment extent_eden_grow_next if doing so wouldn't exceed the legal
+	 * range.
+	 */
+	if (arena->extent_eden_grow_next + egn_skip + 1 < NPSIZES) {
+		arena->extent_eden_grow_next += egn_skip + 1;
+	} else {
+		arena->extent_eden_grow_next = NPSIZES - 1;
+	}
+
+	return extent;
+}
+
+/*
+ * If virtual memory is retained, we allocate from the "eden" region of the
+ * arena.  This creates mappings of exponentially increasing size from which
+ * we can split memory for newly requested extents.  This strategy limits the
+ * total number of disjoint virtual memory ranges retained by each arena, which
+ * both helps merging to be effective, and also helps us avoid any kernel limits
+ * on the number of mappings allowed.  This is the last fallback on the slow
+ * path (when opt_retain is true), only used if we can't find a range to reuse.
+ *
+ * This always unlocks arena->extent_eden_mtx, which must be held upon entry.
+ */
+static extent_t *
+extent_eden_alloc(tsdn_t *tsdn, arena_t *arena,
+    extent_hooks_t **r_extent_hooks, size_t size, size_t pad, size_t alignment,
+    bool slab, szind_t szind, bool *zero, bool *commit) {
+	malloc_mutex_assert_owner(tsdn, &arena->extent_eden_mtx);
+	assert(pad == 0 || !slab);
+	assert(!*zero || !slab);
+
 	rtree_ctx_t rtree_ctx_fallback;
 	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
 
 	extent_t *lead;
+	extent_t *extent = arena->extent_eden;
 	extent_t *trail;
 	extent_t *to_leak;
 	extent_t *to_salvage;
+
+	if (extent == NULL) {
+		extent = extent_eden_alloc_expand(tsdn, arena, r_extent_hooks,
+		    rtree_ctx, size, pad, alignment, slab, szind, zero, commit);
+		if (extent == NULL) {
+			malloc_mutex_unlock(tsdn, &arena->extent_eden_mtx);
+			return NULL;
+		}
+	}
+
 	extent_split_interior_result_t result = extent_split_interior(
 	    tsdn, arena, r_extent_hooks, rtree_ctx, &extent, &lead, &trail,
 	    &to_leak, &to_salvage, NULL, size, pad, alignment, slab, szind,
 	    true);
 
-	if (result == extent_split_interior_ok) {
-		if (lead != NULL) {
-			extent_record(tsdn, arena, r_extent_hooks,
-			    &arena->extents_retained, lead, true);
-		}
-		if (trail != NULL) {
-			extent_record(tsdn, arena, r_extent_hooks,
-			    &arena->extents_retained, trail, true);
-		}
-	} else {
+	/*
+	 * We couldn't allocate; either because the grow region was NULL, or
+	 * because it was too small to fulfill the allocation.  We'll have to
+	 * create a new one.
+	 */
+	if (result == extent_split_interior_cant_alloc) {
+		assert(size + pad > extent_size_get(extent)
+		    || alignment > PAGE);
 		/*
-		 * We should have allocated a sufficiently large extent; the
-		 * cant_alloc case should not occur.
+		 * If we were the ones who allocated extent, then we should have
+		 * ensured that it was big enough to satisfy the request.
 		 */
-		assert(result == extent_split_interior_error);
+		assert(arena->extent_eden != NULL);
+
+		extent_t *new_extent = extent_eden_alloc_expand(tsdn, arena,
+		    r_extent_hooks, rtree_ctx, size, pad, alignment, slab, szind,
+		    zero, commit);
+		if (new_extent == NULL) {
+			malloc_mutex_unlock(tsdn, &arena->extent_eden_mtx);
+			return NULL;
+		} else {
+			extent_record(tsdn, arena, r_extent_hooks,
+			    &arena->extents_retained, extent, true);
+			extent = new_extent;
+		}
+
+		result = extent_split_interior(tsdn, arena, r_extent_hooks,
+		    rtree_ctx, &extent, &lead, &trail, &to_leak, &to_salvage,
+		    NULL, size, pad, alignment, slab, szind, true);
+	}
+
+	/*
+	 * If we couldn't allocate from the original region, we should have
+	 * created a new one that is definitely large enough to be able to split
+	 * out the allocation.
+	 */
+	assert(result != extent_split_interior_cant_alloc);
+
+	if (result == extent_split_interior_error) {
+		arena->extent_eden = to_salvage;
+		malloc_mutex_unlock(tsdn, &arena->extent_eden_mtx);
 		if (to_leak != NULL) {
 			extent_deregister(tsdn, to_leak);
 			extents_leak(tsdn, arena, r_extent_hooks,
 			    &arena->extents_retained, to_leak, true);
-			goto label_err;
 		}
-		/*
-		 * Note: we don't handle the non-NULL to_salvage case at all.
-		 * This maintains the behavior that was present when the
-		 * refactor pulling extent_split_interior into a helper function
-		 * was added.  I think this is actually a bug (we leak both the
-		 * memory and the extent_t in that case), but since this code is
-		 * getting deleted very shortly (in a subsequent commit),
-		 * ensuring correctness down this path isn't worth the effort.
-		 */
+		return NULL;
 	}
 
+	assert(result == extent_split_interior_ok);
+
+	assert(lead == NULL || alignment > PAGE);
+	arena->extent_eden = trail;
+	if (lead != NULL) {
+		extent_record(tsdn, arena, r_extent_hooks,
+		    &arena->extents_retained, lead, true);
+	}
+	malloc_mutex_unlock(tsdn, &arena->extent_eden_mtx);
 	if (*commit && !extent_committed_get(extent)) {
-		if (extent_commit_impl(tsdn, arena, r_extent_hooks, extent, 0,
-		    extent_size_get(extent), true)) {
+		if (extent_commit_impl(tsdn, arena, r_extent_hooks,
+		    extent, 0, extent_size_get(extent), true)) {
 			extent_record(tsdn, arena, r_extent_hooks,
 			    &arena->extents_retained, extent, true);
-			goto label_err;
+			return NULL;
 		}
 		extent_zeroed_set(extent, true);
 	}
-
-	/*
-	 * Increment extent_grow_next if doing so wouldn't exceed the legal
-	 * range.
-	 */
-	if (arena->extent_grow_next + egn_skip + 1 < NPSIZES) {
-		arena->extent_grow_next += egn_skip + 1;
-	} else {
-		arena->extent_grow_next = NPSIZES - 1;
-	}
-	/* All opportunities for failure are past. */
-	malloc_mutex_unlock(tsdn, &arena->extent_grow_mtx);
 
 	if (config_prof) {
 		/* Adjust gdump stats now that extent is final size. */
@@ -1299,10 +1353,6 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena,
 		extent_addr_randomize(tsdn, extent, alignment);
 	}
 	if (slab) {
-		rtree_ctx_t rtree_ctx_fallback;
-		rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn,
-		    &rtree_ctx_fallback);
-
 		extent_slab_set(extent, true);
 		extent_interior_register(tsdn, rtree_ctx, extent, szind);
 	}
@@ -1315,9 +1365,6 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena,
 	}
 
 	return extent;
-label_err:
-	malloc_mutex_unlock(tsdn, &arena->extent_grow_mtx);
-	return NULL;
 }
 
 static extent_t *
@@ -1327,24 +1374,24 @@ extent_alloc_retained(tsdn_t *tsdn, arena_t *arena,
 	assert(size != 0);
 	assert(alignment != 0);
 
-	malloc_mutex_lock(tsdn, &arena->extent_grow_mtx);
+	malloc_mutex_lock(tsdn, &arena->extent_eden_mtx);
 
 	extent_t *extent = extent_recycle(tsdn, arena, r_extent_hooks,
 	    &arena->extents_retained, new_addr, size, pad, alignment, slab,
 	    szind, zero, commit, true);
 	if (extent != NULL) {
-		malloc_mutex_unlock(tsdn, &arena->extent_grow_mtx);
+		malloc_mutex_unlock(tsdn, &arena->extent_eden_mtx);
 		if (config_prof) {
 			extent_gdump_add(tsdn, extent);
 		}
 	} else if (opt_retain && new_addr == NULL) {
-		extent = extent_grow_retained(tsdn, arena, r_extent_hooks, size,
+		extent = extent_eden_alloc(tsdn, arena, r_extent_hooks, size,
 		    pad, alignment, slab, szind, zero, commit);
-		/* extent_grow_retained() always releases extent_grow_mtx. */
+		/* extent_eden_alloc() always releases extent_eden_mtx. */
 	} else {
-		malloc_mutex_unlock(tsdn, &arena->extent_grow_mtx);
+		malloc_mutex_unlock(tsdn, &arena->extent_eden_mtx);
 	}
-	malloc_mutex_assert_not_owner(tsdn, &arena->extent_grow_mtx);
+	malloc_mutex_assert_not_owner(tsdn, &arena->extent_eden_mtx);
 
 	return extent;
 }
