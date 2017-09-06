@@ -1036,7 +1036,7 @@ mallctl("arena." STRINGIFY(MALLCTL_ARENAS_ALL) ".decay",
         The default decay time is 10 seconds.  See <link
         linkend="arenas.dirty_decay_ms"><mallctl>arenas.dirty_decay_ms</mallctl></link>
         and <link
-        linkend="arena.i.muzzy_decay_ms"><mallctl>arena.&lt;i&gt;.muzzy_decay_ms</mallctl></link>
+        linkend="arena.i.dirty_decay_ms"><mallctl>arena.&lt;i&gt;.dirty_decay_ms</mallctl></link>
         for related dynamic control options.  See <link
         linkend="opt.muzzy_decay_ms"><mallctl>opt.muzzy_decay_ms</mallctl></link>
         for a description of muzzy pages.</para></listitem>
