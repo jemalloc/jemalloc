@@ -1,4 +1,4 @@
-#include <mutex>
+//#include <mutex>
 #include <new>
 
 #define JEMALLOC_CPP_CPP_
@@ -48,8 +48,8 @@ handleOOM(std::size_t size, bool nothrow) {
 		std::new_handler handler;
 		// GCC-4.8 and clang 4.0 do not have std::get_new_handler.
 		{
-			static std::mutex mtx;
-			std::lock_guard<std::mutex> lock(mtx);
+//			static std::mutex mtx;
+//			std::lock_guard<std::mutex> lock(mtx);
 
 			handler = std::set_new_handler(nullptr);
 			std::set_new_handler(handler);
@@ -66,8 +66,9 @@ handleOOM(std::size_t size, bool nothrow) {
 		ptr = je_malloc(size);
 	}
 
-	if (ptr == nullptr && !nothrow)
-		std::__throw_bad_alloc();
+	if (ptr == nullptr && !nothrow) {
+		throw std::bad_alloc();
+	}
 	return ptr;
 }
 
