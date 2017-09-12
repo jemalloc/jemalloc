@@ -312,6 +312,28 @@ pages_nohuge(void *addr, size_t size) {
 #endif
 }
 
+bool
+pages_dontdump(void *addr, size_t size) {
+	assert(PAGE_ADDR2BASE(addr) == addr);
+	assert(PAGE_CEILING(size) == size);
+#ifdef JEMALLOC_DONTDUMP
+	return madvise(addr, size, MADV_DONTDUMP) != 0;
+#else
+	return true;
+#endif
+}
+
+bool
+pages_dodump(void *addr, size_t size) {
+	assert(PAGE_ADDR2BASE(addr) == addr);
+	assert(PAGE_CEILING(size) == size);
+#ifdef JEMALLOC_DONTDUMP
+	return madvise(addr, size, MADV_DODUMP) != 0;
+#else
+	return true;
+#endif
+}
+
 static size_t
 os_page_detect(void) {
 #ifdef _WIN32
