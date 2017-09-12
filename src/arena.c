@@ -1936,6 +1936,7 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 		}
 
 		ql_new(&arena->tcache_ql);
+		ql_new(&arena->cache_bin_array_descriptor_ql);
 		if (malloc_mutex_init(&arena->tcache_ql_mtx, "tcache_ql",
 		    WITNESS_RANK_TCACHE_QL, malloc_mutex_rank_exclusive)) {
 			goto label_error;
@@ -2155,10 +2156,16 @@ arena_postfork_child(tsdn_t *tsdn, arena_t *arena) {
 	}
 	if (config_stats) {
 		ql_new(&arena->tcache_ql);
+		ql_new(&arena->cache_bin_array_descriptor_ql);
 		tcache_t *tcache = tcache_get(tsdn_tsd(tsdn));
 		if (tcache != NULL && tcache->arena == arena) {
 			ql_elm_new(tcache, link);
 			ql_tail_insert(&arena->tcache_ql, tcache, link);
+			cache_bin_array_descriptor_init(
+			    &tcache->cache_bin_array_descriptor,
+			    tcache->bins_small, tcache->bins_large);
+			ql_tail_insert(&arena->cache_bin_array_descriptor_ql,
+			    &tcache->cache_bin_array_descriptor, link);
 		}
 	}
 
