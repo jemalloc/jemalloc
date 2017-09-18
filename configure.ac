@@ -1845,6 +1845,17 @@ if test "x${je_cv_madvise}" = "xyes" ; then
     AC_DEFINE([JEMALLOC_PURGE_MADVISE_DONTNEED], [ ])
   fi
 
+  dnl Check for madvise(..., MADV_DO[NT]DUMP).
+  JE_COMPILABLE([madvise(..., MADV_DO[[NT]]DUMP)], [
+#include <sys/mman.h>
+], [
+	madvise((void *)0, 0, MADV_DONTDUMP);
+	madvise((void *)0, 0, MADV_DODUMP);
+], [je_cv_madv_dontdump])
+  if test "x${je_cv_madv_dontdump}" = "xyes" ; then
+    AC_DEFINE([JEMALLOC_MADVISE_DONTDUMP], [ ])
+  fi
+ 
   dnl Check for madvise(..., MADV_[NO]HUGEPAGE).
   JE_COMPILABLE([madvise(..., MADV_[[NO]]HUGEPAGE)], [
 #include <sys/mman.h>
