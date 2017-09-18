@@ -69,6 +69,8 @@ bool pages_purge_lazy(void *addr, size_t size);
 bool pages_purge_forced(void *addr, size_t size);
 bool pages_huge(void *addr, size_t size);
 bool pages_nohuge(void *addr, size_t size);
+bool pages_dontdump(void *addr, size_t size);
+bool pages_dodump(void *addr, size_t size);
 bool pages_boot(void);
 
 #endif /* JEMALLOC_INTERNAL_PAGES_EXTERNS_H */
