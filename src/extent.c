@@ -449,8 +449,10 @@ extents_alloc(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, 0);
 
-	return extent_recycle(tsdn, arena, r_extent_hooks, extents, new_addr,
-	    size, pad, alignment, slab, szind, zero, commit, false);
+	extent_t *extent = extent_recycle(tsdn, arena, r_extent_hooks, extents,
+	    new_addr, size, pad, alignment, slab, szind, zero, commit, false);
+	assert(extent == NULL || extent_dumpable_get(extent));
+	return extent;
 }
 
 void
@@ -458,6 +460,7 @@ extents_dalloc(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
     extents_t *extents, extent_t *extent) {
 	assert(extent_base_get(extent) != NULL);
 	assert(extent_size_get(extent) != 0);
+	assert(extent_dumpable_get(extent));
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, 0);
 
@@ -1207,7 +1210,7 @@ extent_eden_alloc_expand(tsdn_t *tsdn, arena_t *arena,
 
 	extent_init(extent, arena, ptr, alloc_size, false, NSIZES,
 	    arena_extent_sn_next(arena), extent_state_active, zeroed,
-	    committed);
+	    committed, true);
 
 	if (extent_register_no_gdump_add(tsdn, extent)) {
 		extents_leak(tsdn, arena, r_extent_hooks,
@@ -1421,7 +1424,8 @@ extent_alloc_wrapper_hard(tsdn_t *tsdn, arena_t *arena,
 		return NULL;
 	}
 	extent_init(extent, arena, addr, esize, slab, szind,
-	    arena_extent_sn_next(arena), extent_state_active, zero, commit);
+	    arena_extent_sn_next(arena), extent_state_active, zero, commit,
+	    true);
 	if (pad != 0) {
 		extent_addr_randomize(tsdn, extent, alignment);
 	}
@@ -1459,6 +1463,7 @@ extent_alloc_wrapper(tsdn_t *tsdn, arena_t *arena,
 		    new_addr, size, pad, alignment, slab, szind, zero, commit);
 	}
 
+	assert(extent == NULL || extent_dumpable_get(extent));
 	return extent;
 }
 
@@ -1683,6 +1688,7 @@ extent_dalloc_wrapper_try(tsdn_t *tsdn, arena_t *arena,
 void
 extent_dalloc_wrapper(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, extent_t *extent) {
+	assert(extent_dumpable_get(extent));
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, 0);
 
@@ -1973,7 +1979,7 @@ extent_split_impl(tsdn_t *tsdn, arena_t *arena,
 	extent_init(trail, arena, (void *)((uintptr_t)extent_base_get(extent) +
 	    size_a), size_b, slab_b, szind_b, extent_sn_get(extent),
 	    extent_state_get(extent), extent_zeroed_get(extent),
-	    extent_committed_get(extent));
+	    extent_committed_get(extent), extent_dumpable_get(extent));
 
 	rtree_ctx_t rtree_ctx_fallback;
 	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
@@ -1984,7 +1990,7 @@ extent_split_impl(tsdn_t *tsdn, arena_t *arena,
 		extent_init(&lead, arena, extent_addr_get(extent), size_a,
 		    slab_a, szind_a, extent_sn_get(extent),
 		    extent_state_get(extent), extent_zeroed_get(extent),
-		    extent_committed_get(extent));
+		    extent_committed_get(extent), extent_dumpable_get(extent));
 
 		extent_rtree_leaf_elms_lookup(tsdn, rtree_ctx, &lead, false,
 		    true, &lead_elm_a, &lead_elm_b);
