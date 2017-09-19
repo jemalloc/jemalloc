@@ -171,6 +171,37 @@ extent_lock_from_addr(tsdn_t *tsdn, rtree_ctx_t *rtree_ctx, void *addr) {
 	return ret;
 }
 
+/*
+ * The effect of this function is slightly weaker than the name implies.  In
+ * fact, it only makes the extent's memory dumpable if we were the ones to make
+ * it undumpable (as opposed to a user extent hook).  See the note on the
+ * "dumpable" bit in extent_t.
+ */
+static bool
+extent_ensure_dumpable(extent_t *extent) {
+	if (!extent_dumpable_get(extent)) {
+		bool err = pages_dodump(extent_base_get(extent),
+		    extent_size_get(extent));
+		extent_dumpable_set(extent, !err);
+		return err;
+	}
+	return false;
+}
+
+/*
+ * The caller shouldn't care if we failed to set dumpability, since that
+ * strictly decreases the amount of work needed.  Therefore, we don't return the
+ * error status.
+ */
+static void
+extent_prevent_dumpable(extent_t *extent) {
+	if (extent_dumpable_get(extent)) {
+		bool err = pages_dontdump(extent_base_get(extent),
+		    extent_size_get(extent));
+		extent_dumpable_set(extent, err);
+	}
+}
+
 extent_t *
 extent_alloc(tsdn_t *tsdn, arena_t *arena) {
 	malloc_mutex_lock(tsdn, &arena->extent_avail_mtx);
@@ -1190,18 +1221,21 @@ extent_eden_alloc_expand(tsdn_t *tsdn, arena_t *arena,
 	}
 	bool zeroed = false;
 	bool committed = false;
+	bool needs_nodump;
 
 	void *ptr;
 	if (*r_extent_hooks == &extent_hooks_default) {
 		ptr = extent_alloc_core(tsdn, arena, NULL, alloc_size, PAGE,
 		    &zeroed, &committed, (dss_prec_t)atomic_load_u(
 		    &arena->dss_prec, ATOMIC_RELAXED));
+		needs_nodump = true;
 	} else {
 		extent_hook_pre_reentrancy(tsdn, arena);
 		ptr = (*r_extent_hooks)->alloc(*r_extent_hooks, NULL,
 		    alloc_size, PAGE, &zeroed, &committed,
 		    arena_ind_get(arena));
 		extent_hook_post_reentrancy(tsdn);
+		needs_nodump = false;
 	}
 
 	if (ptr == NULL) {
@@ -1211,6 +1245,10 @@ extent_eden_alloc_expand(tsdn_t *tsdn, arena_t *arena,
 	extent_init(extent, arena, ptr, alloc_size, false, NSIZES,
 	    arena_extent_sn_next(arena), extent_state_active, zeroed,
 	    committed, true);
+
+	if (needs_nodump) {
+		extent_prevent_dumpable(extent);
+	}
 
 	if (extent_register_no_gdump_add(tsdn, extent)) {
 		extents_leak(tsdn, arena, r_extent_hooks,
@@ -1301,8 +1339,25 @@ extent_eden_alloc(tsdn_t *tsdn, arena_t *arena,
 			malloc_mutex_unlock(tsdn, &arena->extent_eden_mtx);
 			return NULL;
 		} else {
-			extent_record(tsdn, arena, r_extent_hooks,
-			    &arena->extents_retained, extent, true);
+			/*
+			 * For simplicity, we toggle dumpability at the OS-level
+			 * while holding the lock (dropping it means we might
+			 * over-consume virtual memory in race conditions after
+			 * a highly aligned allocation request.  Since this
+			 * stops being an issue once an application reaches
+			 * steady state, this should be fine.
+			 */
+			if (extent_ensure_dumpable(extent)) {
+				/*
+				 * We should never let the user touch an
+				 * undumpable extent.
+				 */
+				extents_leak(tsdn, arena, r_extent_hooks,
+				    &arena->extents_retained, extent, true);
+			} else {
+				extent_record(tsdn, arena, r_extent_hooks,
+				    &arena->extents_retained, extent, true);
+			}
 			extent = new_extent;
 		}
 
@@ -1334,10 +1389,18 @@ extent_eden_alloc(tsdn_t *tsdn, arena_t *arena,
 	assert(lead == NULL || alignment > PAGE);
 	arena->extent_eden = trail;
 	if (lead != NULL) {
-		extent_record(tsdn, arena, r_extent_hooks,
-		    &arena->extents_retained, lead, true);
+		if (extent_ensure_dumpable(lead)) {
+			extents_leak(tsdn, arena, r_extent_hooks,
+			    &arena->extents_retained, extent, true);
+		} else {
+			extent_record(tsdn, arena, r_extent_hooks,
+			    &arena->extents_retained, lead, true);
+		}
 	}
 	malloc_mutex_unlock(tsdn, &arena->extent_eden_mtx);
+	if (extent_ensure_dumpable(extent)) {
+		return NULL;
+	}
 	if (*commit && !extent_committed_get(extent)) {
 		if (extent_commit_impl(tsdn, arena, r_extent_hooks,
 		    extent, 0, extent_size_get(extent), true)) {
@@ -1347,7 +1410,6 @@ extent_eden_alloc(tsdn_t *tsdn, arena_t *arena,
 		}
 		extent_zeroed_set(extent, true);
 	}
-
 	if (config_prof) {
 		/* Adjust gdump stats now that extent is final size. */
 		extent_gdump_add(tsdn, extent);
