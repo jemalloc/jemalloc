@@ -2072,6 +2072,25 @@ if test "x${je_cv_pthread_mutex_adaptive_np}" = "xyes" ; then
   AC_DEFINE([JEMALLOC_HAVE_PTHREAD_MUTEX_ADAPTIVE_NP], [ ])
 fi
 
+JE_CFLAGS_SAVE()
+JE_CFLAGS_ADD([-D_GNU_SOURCE])
+JE_CFLAGS_ADD([-Werror])
+JE_CFLAGS_ADD([-herror_on_warning])
+JE_COMPILABLE([strerror_r returns char with gnu source], [
+#include <errno.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+], [
+  char *buffer = (char *) malloc(100);
+  char *error = strerror_r(EINVAL, buffer, 100);
+  printf("%s\n", error);
+], [je_cv_strerror_r_returns_char_with_gnu_source])
+JE_CFLAGS_RESTORE()
+if test "x${je_cv_strerror_r_returns_char_with_gnu_source}" = "xyes" ; then
+  AC_DEFINE([JEMALLOC_STRERROR_R_RETURNS_CHAR_WITH_GNU_SOURCE], [ ])
+fi
+
 dnl ============================================================================
 dnl Check for typedefs, structures, and compiler characteristics.
 AC_HEADER_STDBOOL
