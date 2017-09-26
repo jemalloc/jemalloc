@@ -27,6 +27,9 @@ static bool	os_overcommits;
 
 bool thp_state_madvise;
 
+/* Runtime support for lazy purge. Irrelevant when !pages_can_purge_lazy. */
+static bool pages_can_purge_lazy_runtime = true;
+
 /******************************************************************************/
 /*
  * Function prototypes for static functions that are referenced prior to
@@ -252,6 +255,13 @@ pages_purge_lazy(void *addr, size_t size) {
 	assert(PAGE_CEILING(size) == size);
 
 	if (!pages_can_purge_lazy) {
+		return true;
+	}
+	if (!pages_can_purge_lazy_runtime) {
+		/*
+		 * Built with lazy purge enabled, but detected it was not
+		 * supported on the current system.
+		 */
 		return true;
 	}
 
@@ -490,6 +500,20 @@ pages_boot(void) {
 #endif
 
 	init_thp_state();
+
+	/* Detect lazy purge runtime support. */
+	if (pages_can_purge_lazy) {
+		bool committed = false;
+		void *madv_free_page = os_pages_map(NULL, PAGE, PAGE, &committed);
+		if (madv_free_page == NULL) {
+			return true;
+		}
+		assert(pages_can_purge_lazy_runtime);
+		if (pages_purge_lazy(madv_free_page, PAGE)) {
+			pages_can_purge_lazy_runtime = false;
+		}
+		os_pages_unmap(madv_free_page, PAGE);
+	}
 
 	return false;
 }
