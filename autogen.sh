@@ -1,17 +1,16 @@
 #!/bin/sh
 
-for i in autoconf; do
-    echo "$i"
-    $i
-    if [ $? -ne 0 ]; then
-	echo "Error $? in $i"
-	exit 1
-    fi
-done
+which autoconf
+returncode=$?
+if [ $returncode -ne 0 ]; then
+    echo "Error $returncode in autoconf"
+    exit $returncode 
+fi
 
 echo "./configure --enable-autogen $@"
 ./configure --enable-autogen $@
-if [ $? -ne 0 ]; then
-    echo "Error $? in ./configure"
-    exit 1
+returncode=$?
+if [ $returncode -ne 0 ]; then
+    echo "Error $returncode in ./confinure"
+    exit $returncode 
 fi
