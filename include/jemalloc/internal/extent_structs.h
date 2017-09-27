@@ -5,7 +5,6 @@
 #include "jemalloc/internal/bitmap.h"
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/ql.h"
-#include "jemalloc/internal/rb.h"
 #include "jemalloc/internal/ph.h"
 #include "jemalloc/internal/size_classes.h"
 
@@ -120,20 +119,19 @@ struct extent_s {
 		size_t			e_bsize;
 	};
 
-	union {
-		/*
-		 * List linkage, used by a variety of lists:
-		 * - arena_bin_t's slabs_full
-		 * - extents_t's LRU
-		 * - stashed dirty extents
-		 * - arena's large allocations
-		 */
-		ql_elm(extent_t)	ql_link;
-		/* Red-black tree linkage, used by arena's extent_avail. */
-		rb_node(extent_t)	rb_link;
-	};
+	/*
+	 * List linkage, used by a variety of lists:
+	 * - arena_bin_t's slabs_full
+	 * - extents_t's LRU
+	 * - stashed dirty extents
+	 * - arena's large allocations
+	 */
+	ql_elm(extent_t)	ql_link;
 
-	/* Linkage for per size class sn/address-ordered heaps. */
+	/* 
+	 * Linkage for per size class sn/address-ordered heaps, and
+	 * for extent_avail
+	 */
 	phn(extent_t)		ph_link;
 
 	union {
@@ -148,7 +146,7 @@ struct extent_s {
 	};
 };
 typedef ql_head(extent_t) extent_list_t;
-typedef rb_tree(extent_t) extent_tree_t;
+typedef ph(extent_t) extent_tree_t;
 typedef ph(extent_t) extent_heap_t;
 
 /* Quantized collection of extents, with built-in LRU queue. */

@@ -117,7 +117,7 @@ static void extent_record(tsdn_t *tsdn, arena_t *arena,
 
 /******************************************************************************/
 
-rb_gen(UNUSED, extent_avail_, extent_tree_t, extent_t, rb_link,
+ph_gen(UNUSED, extent_avail_, extent_tree_t, extent_t, ph_link,
     extent_esnead_comp)
 
 typedef enum {
