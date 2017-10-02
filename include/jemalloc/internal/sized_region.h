@@ -70,7 +70,8 @@ sized_region_lookup(sized_region_t *region, void *p, alloc_ctx_t *alloc_ctx) {
 	uintptr_t addr_offset = addr - region->start;
 
 	if (unlikely(addr_offset >= region->size)) {
-		LOG("sized_region.lookup.miss", "ptr is %p", p);
+		LOG("sized_region.lookup.miss", "region is %p, ptr is %p",
+		    region, p);
 		return false;
 	}
 	if (alloc_ctx != NULL) {
@@ -78,8 +79,9 @@ sized_region_lookup(sized_region_t *region, void *p, alloc_ctx_t *alloc_ctx) {
 		    addr_offset >> opt_lg_sized_region_size);
 		alloc_ctx->slab = true;
 	}
-	LOG("sized_region.lookup.hit", "ptr is %p, szind is %d, slab is %d",
-	    p, (int)(addr_offset >> opt_lg_sized_region_size), (int)true);
+	LOG("sized_region.lookup.hit", "region is %p, ptr is %p, szind is %d, "
+	    "slab is %d", region, p,
+	    (int)(addr_offset >> opt_lg_sized_region_size), (int)true);
 
 	return true;
 }
@@ -98,8 +100,8 @@ sized_region_alloc(sized_region_t *region, size_t size, szind_t szind,
 	if (region->size == 0 || szind >= SIZED_REGION_NUM_SCS) {
 		LOG("sized_region.alloc.failure.invalid",
 		    "Can't alloc in given state: "
-		    "region size is %p, szind is %d", (void *)region->size,
-		    szind);
+		    "region is %p, region size is %p, szind is %d", region,
+		    (void *)region->size, szind);
 		return NULL;
 	}
 
@@ -119,8 +121,9 @@ sized_region_alloc(sized_region_t *region, size_t size, szind_t szind,
 		new_size = cur + size;
 		if (new_size > sc_size) {
 			LOG("sized_region.alloc.failure.exhausted",
-			    "Allocation for szind %d, size %zu, would exhaust "
-			    "region space", (int)szind, size);
+			    "region is %p, szind is %d, sc_size is %p, "
+			    "cur size is %p, size is %p", region, (int)szind,
+			    (void *)sc_size, (void *)cur, (void *)size);
 			return NULL;
 		}
 	} while (!atomic_compare_exchange_weak_zu(
@@ -131,8 +134,8 @@ sized_region_alloc(sized_region_t *region, size_t size, szind_t szind,
 	if (*commit && !region->committed) {
 		if (pages_commit(ret, size)) {
 			LOG("sized_region.alloc.failure.commit",
-			    "Couldn't commit at %p of size %p",
-			    ret, (void *)size);
+			    "region is %p, ret is %p, size is %p",
+			    region, ret, (void *)size);
 			/* Just leak the virtual address space here. */
 			return NULL;
 		}
@@ -141,8 +144,8 @@ sized_region_alloc(sized_region_t *region, size_t size, szind_t szind,
 	}
 	/* We get our memory straight from the OS, and never reuse it. */
 	*zero = true;
-	LOG("sized_region.alloc.success", "Allocated at %p of size %p "
-	    "for size class %d", ret, (void *)size, (int)szind);
+	LOG("sized_region.alloc.success", "region is %p, ret is %p, "
+	    "size is %p, szind is %d", region, ret, (void *)size, (int)szind);
 	return ret;
 }
 

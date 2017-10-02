@@ -1085,18 +1085,32 @@ arena_slab_dalloc(tsdn_t *tsdn, arena_t *arena, extent_t *slab) {
 static void
 arena_bin_slabs_nonfull_insert(arena_bin_t *bin, extent_t *slab) {
 	assert(extent_nfree_get(slab) > 0);
-	extent_heap_insert(&bin->slabs_nonfull, slab);
+	if (extent_in_sized_region(slab)) {
+		extent_heap_insert(&bin->slabs_nonfull_sized, slab);
+	} else {
+		extent_heap_insert(&bin->slabs_nonfull_unsized, slab);
+	}
 }
 
 static void
 arena_bin_slabs_nonfull_remove(arena_bin_t *bin, extent_t *slab) {
-	extent_heap_remove(&bin->slabs_nonfull, slab);
+	if (extent_in_sized_region(slab)) {
+		extent_heap_remove(&bin->slabs_nonfull_sized, slab);
+	} else {
+		extent_heap_remove(&bin->slabs_nonfull_unsized, slab);
+	}
 }
 
 static extent_t *
 arena_bin_slabs_nonfull_tryget(arena_bin_t *bin) {
-	extent_t *slab = extent_heap_remove_first(&bin->slabs_nonfull);
+	/* Prefer sized-region slabs. */
+	extent_t *slab = extent_heap_remove_first(&bin->slabs_nonfull_sized);
+	/* If that failed, try a slab from elsewhere. */
 	if (slab == NULL) {
+		slab = extent_heap_remove_first(&bin->slabs_nonfull_unsized);
+	}
+	if (slab == NULL) {
+		/* Both attempts failed. */
 		return NULL;
 	}
 	if (config_stats) {
@@ -1183,8 +1197,14 @@ arena_reset(tsd_t *tsd, arena_t *arena) {
 			arena_slab_dalloc(tsd_tsdn(tsd), arena, slab);
 			malloc_mutex_lock(tsd_tsdn(tsd), &bin->lock);
 		}
-		while ((slab = extent_heap_remove_first(&bin->slabs_nonfull)) !=
-		    NULL) {
+		/*
+		 * You might think we need to clear out the sized alloc region
+		 * slabs here, as well.  But, we limit those to the auto-arenas,
+		 * which should never be reset.
+		 */
+		assert(extent_heap_empty(&bin->slabs_nonfull_sized));
+		while ((slab = extent_heap_remove_first(
+		    &bin->slabs_nonfull_unsized)) != NULL) {
 			malloc_mutex_unlock(tsd_tsdn(tsd), &bin->lock);
 			arena_slab_dalloc(tsd_tsdn(tsd), arena, slab);
 			malloc_mutex_lock(tsd_tsdn(tsd), &bin->lock);
@@ -1294,9 +1314,56 @@ arena_slab_alloc(tsdn_t *tsdn, arena_t *arena, szind_t binind,
 	szind_t szind = sz_size2index(bin_info->reg_size);
 	bool zero = false;
 	bool commit = true;
-	extent_t *slab = extents_alloc_unsized(tsdn, arena, &extent_hooks,
-	    &arena->extents_dirty, NULL, bin_info->slab_size, 0, PAGE, true,
-	    binind, &zero, &commit);
+	extent_t *slab = NULL;
+	if (opt_sized_regions && arena_is_auto(arena)
+	    && binind < SIZED_REGION_NUM_SCS) {
+		/*
+		 * We don't need to check the extent hooks, since sized region
+		 * memory may be regarded as pre-allocated, just as we don't
+		 * leak retained memory when extent hooks change.
+		 */
+
+		/* First try dirty. */
+		slab = extents_alloc_sized(tsdn, arena, &extent_hooks,
+		    &arena->extents_dirty, NULL, bin_info->slab_size, 0, PAGE,
+		    true, binind, &zero, &commit);
+		/* Then muzzy. */
+		if (slab == NULL) {
+			slab = extents_alloc_sized(tsdn, arena, &extent_hooks,
+			    &arena->extents_muzzy, NULL, bin_info->slab_size, 0,
+			    PAGE, true, binind, &zero, &commit);
+		}
+		/* Then retained. */
+		if (slab == NULL) {
+			slab = extents_alloc_sized(tsdn, arena, &extent_hooks,
+			    &arena->extents_muzzy, NULL, bin_info->slab_size, 0,
+			    PAGE, true, binind, &zero, &commit);
+			if (config_stats && slab != NULL) {
+				arena_stats_mapped_add(tsdn, &arena->stats,
+				    bin_info->slab_size);
+			}
+		}
+		/* Allocate new as the last fallback. */
+		if (slab == NULL) {
+			slab = extent_alloc_sized(tsdn, arena, &extent_hooks,
+			    NULL, bin_info->slab_size, 0, PAGE, true, binind,
+			    &zero, &commit);
+			if (config_stats && slab != NULL) {
+				arena_stats_mapped_add(tsdn, &arena->stats,
+				    bin_info->slab_size);
+			}
+		}
+	}
+	/*
+	 * Sized regions are disabled, or else all attempts at allocating
+	 * failed (maybe we've exhausted the sized region).  Fall back to unsized
+	 * extents.
+	 */
+	if (slab == NULL) {
+		slab = extents_alloc_unsized(tsdn, arena, &extent_hooks,
+		    &arena->extents_dirty, NULL, bin_info->slab_size, 0, PAGE,
+		    true, binind, &zero, &commit);
+	}
 	if (slab == NULL) {
 		slab = extents_alloc_unsized(tsdn, arena, &extent_hooks,
 		    &arena->extents_muzzy, NULL, bin_info->slab_size, 0, PAGE,
@@ -1388,9 +1455,9 @@ arena_bin_malloc_hard(tsdn_t *tsdn, arena_t *arena, arena_bin_t *bin,
 				/*
 				 * arena_slab_alloc() may have allocated slab,
 				 * or it may have been pulled from
-				 * slabs_nonfull.  Therefore it is unsafe to
-				 * make any assumptions about how slab has
-				 * previously been used, and
+				 * slabs_nonfull_[sized|unsized].  Therefore it
+				 * is unsafe to make any assumptions about how
+				 * slab has previously been used, and
 				 * arena_bin_lower_slab() must be called, as if
 				 * a region were just deallocated from the slab.
 				 */
@@ -1673,6 +1740,21 @@ arena_dalloc_bin_slab(tsdn_t *tsdn, arena_t *arena, extent_t *slab,
 	}
 }
 
+static bool
+arena_bin_should_lower_slab(extent_t *cur, extent_t *candidate) {
+	assert(cur != NULL);
+	assert(candidate != NULL);
+	assert(extent_slab_get(cur));
+	assert(extent_slab_get(candidate));
+
+	/* We want to prefer sized slabs to unsized ones. */
+	if (extent_in_sized_region(cur) != extent_in_sized_region(candidate)) {
+		return extent_in_sized_region(candidate);
+	}
+
+	return extent_snad_comp(cur, candidate) > 0;
+}
+
 static void
 arena_bin_lower_slab(tsdn_t *tsdn, arena_t *arena, extent_t *slab,
     arena_bin_t *bin) {
@@ -1684,7 +1766,8 @@ arena_bin_lower_slab(tsdn_t *tsdn, arena_t *arena, extent_t *slab,
 	 * than proactively keeping it pointing at the oldest/lowest non-full
 	 * slab.
 	 */
-	if (bin->slabcur != NULL && extent_snad_comp(bin->slabcur, slab) > 0) {
+	if (bin->slabcur != NULL
+	    && arena_bin_should_lower_slab(bin->slabcur, slab)) {
 		/* Switch slabcur. */
 		if (extent_nfree_get(bin->slabcur) > 0) {
 			arena_bin_slabs_nonfull_insert(bin, bin->slabcur);
@@ -2032,7 +2115,8 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 			goto label_error;
 		}
 		bin->slabcur = NULL;
-		extent_heap_new(&bin->slabs_nonfull);
+		extent_heap_new(&bin->slabs_nonfull_sized);
+		extent_heap_new(&bin->slabs_nonfull_unsized);
 		extent_list_init(&bin->slabs_full);
 		if (config_stats) {
 			memset(&bin->stats, 0, sizeof(malloc_bin_stats_t));

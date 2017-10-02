@@ -1549,6 +1549,9 @@ malloc_init_hard(void) {
 		}
 	}
 #undef UNLOCK_RETURN
+	if (opt_sized_regions) {
+		sized_region_init(&sized_region_global);
+	}
 	return false;
 }
 
@@ -2182,9 +2185,19 @@ ifree(tsd_t *tsd, void *ptr, tcache_t *tcache, bool slow_path) {
 	assert(malloc_initialized() || IS_INITIALIZER);
 
 	alloc_ctx_t alloc_ctx;
-	rtree_ctx_t *rtree_ctx = tsd_rtree_ctx(tsd);
-	rtree_szind_slab_read(tsd_tsdn(tsd), &extents_rtree, rtree_ctx,
-	    (uintptr_t)ptr, true, &alloc_ctx.szind, &alloc_ctx.slab);
+	/*
+	 * It's safe to do lookups on a zero-initialized sized region.  This
+	 * way, we can fold the (implicit) branch on opt_sized_regions into the
+	 * lookup in the sized regions; the lookups will always fail.
+	 */
+	bool in_sized_region = sized_region_lookup(&sized_region_global, ptr,
+	    &alloc_ctx);
+	if (unlikely(!in_sized_region)) {
+		rtree_ctx_t *rtree_ctx = tsd_rtree_ctx(tsd);
+		rtree_szind_slab_read(tsd_tsdn(tsd), &extents_rtree, rtree_ctx,
+		    (uintptr_t)ptr, true, &alloc_ctx.szind, &alloc_ctx.slab);
+	}
+
 	assert(alloc_ctx.szind != NSIZES);
 
 	size_t usize;

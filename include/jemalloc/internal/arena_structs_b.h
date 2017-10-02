@@ -122,13 +122,16 @@ struct arena_bin_s {
 	extent_t		*slabcur;
 
 	/*
-	 * Heap of non-full slabs.  This heap is used to assure that new
+	 * Heaps of non-full slabs.  These heaps are used to assure that new
 	 * allocations come from the non-full slab that is oldest/lowest in
-	 * memory.
+	 * memory.  The _sized heap contains extents from the sized alloc
+	 * region, whereas the _unsized one contains all others.  We prefer the
+	 * sized-region ones over the unsized ones where we can.
 	 */
-	extent_heap_t		slabs_nonfull;
+	extent_heap_t		slabs_nonfull_sized;
+	extent_heap_t		slabs_nonfull_unsized;
 
-	/* List used to track full slabs. */
+	/* List used to track full slabs (regardless of their origin). */
 	extent_list_t		slabs_full;
 
 	/* Bin statistics. */

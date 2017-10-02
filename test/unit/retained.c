@@ -176,6 +176,11 @@ TEST_END
 
 int
 main(void) {
+	/*
+	 * This test is very VM-intensive; we want to leave as much as we can
+	 * outside of the sized region in 32-bit mode.
+	 */
+	opt_lg_sized_region_size = 20;
 	return test(
 	    test_retained);
 }

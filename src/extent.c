@@ -120,6 +120,8 @@ static void extent_record(tsdn_t *tsdn, arena_t *arena,
 ph_gen(UNUSED, extent_avail_, extent_tree_t, extent_t, ph_link,
     extent_esnead_comp)
 
+/******************************************************************************/
+
 typedef enum {
 	lock_result_success,
 	lock_result_failure,
@@ -186,6 +188,7 @@ extent_alloc(tsdn_t *tsdn, arena_t *arena) {
 
 void
 extent_dalloc(tsdn_t *tsdn, arena_t *arena, extent_t *extent) {
+	assert(!extent_in_sized_region(extent));
 	malloc_mutex_lock(tsdn, &arena->extent_avail_mtx);
 	extent_avail_insert(&arena->extent_avail, extent);
 	malloc_mutex_unlock(tsdn, &arena->extent_avail_mtx);
@@ -282,8 +285,11 @@ extents_init(tsdn_t *tsdn, extents_t *extents, extent_state_t state,
 	    malloc_mutex_rank_exclusive)) {
 		return true;
 	}
+	for (unsigned i = 0; i < SIZED_REGION_NUM_SCS; i++) {
+		extent_heap_new(&extents->heaps_sized[i]);
+	}
 	for (unsigned i = 0; i < NPSIZES+1; i++) {
-		extent_heap_new(&extents->heaps[i]);
+		extent_heap_new(&extents->heaps_unsized[i]);
 	}
 	bitmap_init(extents->bitmap, &extents_bitmap_info, true);
 	extent_list_init(&extents->lru);
@@ -312,11 +318,22 @@ extents_insert_locked(tsdn_t *tsdn, extents_t *extents, extent_t *extent,
 	size_t size = extent_size_get(extent);
 	size_t psz = extent_size_quantize_floor(size);
 	pszind_t pind = sz_psz2ind(psz);
-	if (extent_heap_empty(&extents->heaps[pind])) {
-		bitmap_unset(extents->bitmap, &extents_bitmap_info,
-		    (size_t)pind);
+
+	/* We can't allow extents from sized and unsized areas to mix. */
+	alloc_ctx_t alloc_ctx;
+	if (extent_sized_region_lookup(extent, &alloc_ctx)) {
+		assert(psz == arena_bin_info[alloc_ctx.szind].slab_size);
+		extent_heap_insert(&extents->heaps_sized[alloc_ctx.szind],
+		    extent);
+	} else {
+		extent_heap_t *extent_heap = &extents->heaps_unsized[pind];
+		if (extent_heap_empty(extent_heap)) {
+			bitmap_unset(extents->bitmap, &extents_bitmap_info,
+			    (size_t)pind);
+		}
+		extent_heap_insert(extent_heap, extent);
 	}
-	extent_heap_insert(&extents->heaps[pind], extent);
+
 	if (!preserve_lru) {
 		extent_list_append(&extents->lru, extent);
 	}
@@ -341,11 +358,24 @@ extents_remove_locked(tsdn_t *tsdn, extents_t *extents, extent_t *extent,
 	size_t size = extent_size_get(extent);
 	size_t psz = extent_size_quantize_floor(size);
 	pszind_t pind = sz_psz2ind(psz);
-	extent_heap_remove(&extents->heaps[pind], extent);
-	if (extent_heap_empty(&extents->heaps[pind])) {
-		bitmap_set(extents->bitmap, &extents_bitmap_info,
-		    (size_t)pind);
+	/*
+	 * As in insert, the logic changes if the extent is from the sized
+	 * region.
+	 */
+	alloc_ctx_t alloc_ctx;
+	if (extent_sized_region_lookup(extent, &alloc_ctx)) {
+		assert(psz == arena_bin_info[alloc_ctx.szind].slab_size);
+		extent_heap_remove(&extents->heaps_sized[alloc_ctx.szind],
+		    extent);
+	} else {
+		extent_heap_t *extent_heap = &extents->heaps_unsized[pind];
+		extent_heap_remove(extent_heap, extent);
+		if (extent_heap_empty(extent_heap)) {
+			bitmap_set(extents->bitmap, &extents_bitmap_info,
+			    (size_t)pind);
+		}
 	}
+
 	if (!preserve_lru) {
 		extent_list_remove(&extents->lru, extent);
 	}
@@ -361,16 +391,32 @@ extents_remove_locked(tsdn_t *tsdn, extents_t *extents, extent_t *extent,
 	    cur_extents_npages - (size >> LG_PAGE), ATOMIC_RELAXED);
 }
 
+/*
+ * Attempt to select an extent from the sized-alloc region.  Unlike the unsized
+ * case, we don't bother with a best vs. first fit decision, since we don't
+ * merge sized region extents.  This decays to a slab-like strategy, and since
+ * we purge on a per-extent basis, fragmentation does not affect RSS.
+ */
+static extent_t *
+extents_fit_sized_locked(tsdn_t *tsdn, extents_t *extents, szind_t szind) {
+	malloc_mutex_assert_owner(tsdn, &extents->mtx);
+	assert(szind < SIZED_REGION_NUM_SCS);
+
+	if (extent_heap_empty(&extents->heaps_sized[szind])) {
+		return NULL;
+	}
+	return extent_heap_any(&extents->heaps_sized[szind]);
+}
+
 /* Do any-best-fit extent selection, i.e. select any extent that best fits. */
 static extent_t *
-extents_best_fit_locked(tsdn_t *tsdn, arena_t *arena, extents_t *extents,
-    size_t size) {
+extents_best_fit_locked(tsdn_t *tsdn, extents_t *extents, size_t size) {
 	pszind_t pind = sz_psz2ind(extent_size_quantize_ceil(size));
 	pszind_t i = (pszind_t)bitmap_ffu(extents->bitmap, &extents_bitmap_info,
 	    (size_t)pind);
 	if (i < NPSIZES+1) {
-		assert(!extent_heap_empty(&extents->heaps[i]));
-		extent_t *extent = extent_heap_any(&extents->heaps[i]);
+		assert(!extent_heap_empty(&extents->heaps_unsized[i]));
+		extent_t *extent = extent_heap_any(&extents->heaps_unsized[i]);
 		assert(extent_size_get(extent) >= size);
 		return extent;
 	}
@@ -383,8 +429,7 @@ extents_best_fit_locked(tsdn_t *tsdn, arena_t *arena, extents_t *extents,
  * large enough.
  */
 static extent_t *
-extents_first_fit_locked(tsdn_t *tsdn, arena_t *arena, extents_t *extents,
-    size_t size) {
+extents_first_fit_locked(tsdn_t *tsdn, extents_t *extents, size_t size) {
 	extent_t *ret = NULL;
 
 	pszind_t pind = sz_psz2ind(extent_size_quantize_ceil(size));
@@ -392,8 +437,9 @@ extents_first_fit_locked(tsdn_t *tsdn, arena_t *arena, extents_t *extents,
 	    &extents_bitmap_info, (size_t)pind); i < NPSIZES+1; i =
 	    (pszind_t)bitmap_ffu(extents->bitmap, &extents_bitmap_info,
 	    (size_t)i+1)) {
-		assert(!extent_heap_empty(&extents->heaps[i]));
-		extent_t *extent = extent_heap_first(&extents->heaps[i]);
+		assert(!extent_heap_empty(&extents->heaps_unsized[i]));
+		extent_t *extent = extent_heap_first(
+		    &extents->heaps_unsized[i]);
 		assert(extent_size_get(extent) >= size);
 		if (ret == NULL || extent_snad_comp(extent, ret) < 0) {
 			ret = extent;
@@ -414,13 +460,11 @@ extents_first_fit_locked(tsdn_t *tsdn, arena_t *arena, extents_t *extents,
  * memory fragmentation as a side effect.
  */
 static extent_t *
-extents_fit_locked(tsdn_t *tsdn, arena_t *arena, extents_t *extents,
-    size_t size) {
+extents_fit_unsized_locked(tsdn_t *tsdn, extents_t *extents, size_t size) {
 	malloc_mutex_assert_owner(tsdn, &extents->mtx);
 
-	return extents->delay_coalesce ? extents_best_fit_locked(tsdn, arena,
-	    extents, size) : extents_first_fit_locked(tsdn, arena, extents,
-	    size);
+	return extents->delay_coalesce ? extents_best_fit_locked(tsdn, extents,
+	    size) : extents_first_fit_locked(tsdn, extents, size);
 }
 
 static bool
@@ -442,9 +486,9 @@ extent_try_delayed_coalesce(tsdn_t *tsdn, arena_t *arena,
 
 extent_t *
 extents_alloc_unsized(tsdn_t *tsdn, arena_t *arena,
-    extent_hooks_t **r_extent_hooks,
-    extents_t *extents, void *new_addr, size_t size, size_t pad,
-    size_t alignment, bool slab, szind_t szind, bool *zero, bool *commit) {
+    extent_hooks_t **r_extent_hooks, extents_t *extents, void *new_addr,
+    size_t size, size_t pad, size_t alignment, bool slab, szind_t szind,
+    bool *zero, bool *commit) {
 	assert(size + pad != 0);
 	assert(alignment != 0);
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
@@ -774,6 +818,79 @@ extent_deregister(tsdn_t *tsdn, extent_t *extent) {
 	}
 }
 
+extent_t *
+extents_alloc_sized(tsdn_t *tsdn, arena_t *arena,
+    extent_hooks_t **r_extent_hooks, extents_t *extents, void *new_addr,
+    size_t size, size_t pad, size_t alignment, bool slab, szind_t szind,
+    bool *zero, bool *commit) {
+	/*
+	 * Having arguments whose values we assert are constant (instead of just
+	 * making them implicit) keeps the sized and unsized interfaces uniform.
+	 */
+	assert(new_addr == NULL);
+	assert(size > 0);
+	assert(pad == 0);
+	assert(alignment == PAGE);
+	assert(slab);
+	assert(szind < SIZED_REGION_NUM_SCS);
+	assert(!*zero);
+	assert(*commit);
+
+	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
+	    WITNESS_RANK_CORE, 0);
+
+	rtree_ctx_t rtree_ctx_fallback;
+	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
+
+	malloc_mutex_lock(tsdn, &extents->mtx);
+	extent_t *extent = extents_fit_sized_locked(tsdn, extents, szind);
+	if (extent == NULL) {
+		malloc_mutex_unlock(tsdn, &extents->mtx);
+		return NULL;
+	}
+	extent_activate_locked(tsdn, arena, extents, extent, false);
+	malloc_mutex_unlock(tsdn, &extents->mtx);
+
+	if (*commit && !extent_committed_get(extent)) {
+		/*
+		 * Note that we use pages_commit rather than the extent hooks,
+		 * since the sized region was not allocated with extent hooks.
+		 */
+		if (pages_commit(extent_base_get(extent),
+		    extent_size_get(extent))) {
+			extent_record(tsdn, arena, r_extent_hooks, extents,
+			    extent, false);
+			return NULL;
+		}
+		extent_zeroed_set(extent, true);
+	}
+	if (extent_zeroed_get(extent)) {
+		*zero = true;
+	}
+
+	extent_slab_set(extent, true);
+	extent_szind_set(extent, szind);
+
+	/* Register the extent in the rtree, to accomodate non-sized lookups. */
+	rtree_szind_slab_update(tsdn, &extents_rtree, rtree_ctx,
+	    (uintptr_t)extent_base_get(extent), szind, slab);
+	if (extent_size_get(extent) > PAGE) {
+		rtree_szind_slab_update(tsdn, &extents_rtree, rtree_ctx,
+		    (uintptr_t)extent_past_get(extent) - (uintptr_t)PAGE,
+		    szind, slab);
+	}
+	extent_interior_register(tsdn, rtree_ctx, extent, szind);
+
+	/*
+	 * If at some point we start allowing zeroed slab allocations, we should
+	 * handle that here as we do in extent_recycle.
+	 */
+
+	assert(extent_state_get(extent) == extent_state_active);
+
+	return extent;
+}
+
 /*
  * Tries to find and remove an extent from extents that can be used for the
  * given allocation request.
@@ -830,7 +947,7 @@ extent_recycle_extract(tsdn_t *tsdn, arena_t *arena,
 			extent_unlock(tsdn, unlock_extent);
 		}
 	} else {
-		extent = extents_fit_locked(tsdn, arena, extents, alloc_size);
+		extent = extents_fit_unsized_locked(tsdn, extents, alloc_size);
 	}
 	if (extent == NULL) {
 		malloc_mutex_unlock(tsdn, &extents->mtx);
@@ -1422,10 +1539,58 @@ extent_alloc_wrapper(tsdn_t *tsdn, arena_t *arena,
 	return extent;
 }
 
+extent_t *
+extent_alloc_sized(tsdn_t *tsdn, arena_t *arena,
+    extent_hooks_t **r_extent_hooks, void *new_addr, size_t size, size_t pad,
+    size_t alignment, bool slab, szind_t szind, bool *zero, bool *commit) {
+	/*
+	 * We assert the values here (instead of omitting them) so that we can
+	 * match the API of extent_alloc_wrapper.
+	 */
+	assert(arena_is_auto(arena));
+	assert(new_addr == NULL);
+	assert(size == arena_bin_info[szind].slab_size);
+	assert(pad == 0);
+	assert(alignment == PAGE);
+	assert(slab);
+	assert(szind < SIZED_REGION_NUM_SCS);
+	assert(*commit);
+
+	extent_t *extent = extent_alloc(tsdn, arena);
+	if (extent == NULL) {
+		return NULL;
+	}
+
+	void *addr = sized_region_alloc(&sized_region_global, size, szind, slab,
+	    zero, commit);
+	if (addr == NULL) {
+		extent_dalloc(tsdn, arena, extent);
+		return NULL;
+	}
+	extent_init(extent, arena, addr, size, slab, szind,
+	    arena_extent_sn_next(arena), extent_state_active, zero, commit,
+	    true);
+	if (extent_register(tsdn, extent)) {
+		extents_leak(tsdn, arena, r_extent_hooks,
+		    &arena->extents_retained, extent, false);
+		return NULL;
+	}
+	return extent;
+}
+
 static bool
 extent_can_coalesce(arena_t *arena, extents_t *extents, const extent_t *inner,
     const extent_t *outer) {
 	assert(extent_arena_get(inner) == arena);
+
+	/*
+	 * For now, never coalesce sized extents.  It's possible we ought to one
+	 * day, either to batch system calls or to reduce metadata consumption.
+	 */
+	if (extent_in_sized_region(inner) || extent_in_sized_region(outer)) {
+		return false;
+	}
+
 	if (extent_arena_get(outer) != arena) {
 		return false;
 	}
@@ -1447,6 +1612,8 @@ extent_coalesce(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
     extents_t *extents, extent_t *inner, extent_t *outer, bool forward,
     bool growing_retained) {
 	assert(extent_can_coalesce(arena, extents, inner, outer));
+	assert(!extent_in_sized_region(inner));
+	assert(!extent_in_sized_region(outer));
 
 	if (forward && extents->delay_coalesce) {
 		/*
@@ -1620,7 +1787,14 @@ extent_dalloc_wrapper_try(tsdn_t *tsdn, arena_t *arena,
 
 	extent_hooks_assure_initialized(arena, r_extent_hooks);
 	/* Try to deallocate. */
-	if (*r_extent_hooks == &extent_hooks_default) {
+	if (extent_in_sized_region(extent)) {
+		/*
+		 * We never want to fully deallocate sized region addresses
+		 * (which the OS cannot safely return to us for another purpose,
+		 * and which are a finite resource).
+		 */
+		err = true;
+	} else if (*r_extent_hooks == &extent_hooks_default) {
 		/* Call directly to propagate tsdn. */
 		err = extent_dalloc_default_impl(extent_base_get(extent),
 		    extent_size_get(extent));
@@ -2027,6 +2201,10 @@ extent_merge_impl(tsdn_t *tsdn, arena_t *arena,
     bool growing_retained) {
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, growing_retained ? 1 : 0);
+
+	if (extent_in_sized_region(a) || extent_in_sized_region(b)) {
+		return true;
+	}
 
 	extent_hooks_assure_initialized(arena, r_extent_hooks);
 

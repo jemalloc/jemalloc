@@ -5,8 +5,6 @@
 
 #include "jemalloc/internal/log.h"
 
-extern sized_region_t sized_region_global;
-
 /* Disabled by default. */
 bool opt_sized_regions = false;
 
@@ -37,11 +35,11 @@ sized_region_init(sized_region_t *region) {
 	if (mem != NULL) {
 		region->start = (uintptr_t)mem;
 		region->size = size;
-		LOG("sized_region.init.success", "start is %p, size is %zu",
-		    mem, size);
+		LOG("sized_region.init.success", "region is %p, start is %p, "
+		    "size is %zu", region, mem, size);
 	} else {
-		LOG("sized_region.init.failure", "attempted size was %zu",
-		    size);
+		LOG("sized_region.init.failure", "region is %p, "
+		    "attempted size was %zu", region, size);
 	}
 }
 

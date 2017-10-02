@@ -6,6 +6,7 @@
 #include "jemalloc/internal/pages.h"
 #include "jemalloc/internal/prng.h"
 #include "jemalloc/internal/ql.h"
+#include "jemalloc/internal/sized_region.h"
 #include "jemalloc/internal/sz.h"
 
 static inline void
@@ -47,26 +48,6 @@ extent_arena_get(const extent_t *extent) {
 	}
 	assert(arena_ind < MALLOCX_ARENA_LIMIT);
 	return (arena_t *)atomic_load_p(&arenas[arena_ind], ATOMIC_ACQUIRE);
-}
-
-static inline szind_t
-extent_szind_get_maybe_invalid(const extent_t *extent) {
-	szind_t szind = (szind_t)((extent->e_bits & EXTENT_BITS_SZIND_MASK) >>
-	    EXTENT_BITS_SZIND_SHIFT);
-	assert(szind <= NSIZES);
-	return szind;
-}
-
-static inline szind_t
-extent_szind_get(const extent_t *extent) {
-	szind_t szind = extent_szind_get_maybe_invalid(extent);
-	assert(szind < NSIZES); /* Never call when "invalid". */
-	return szind;
-}
-
-static inline size_t
-extent_usize_get(const extent_t *extent) {
-	return sz_index2size(extent_szind_get(extent));
 }
 
 static inline size_t
@@ -126,9 +107,47 @@ extent_addr_get(const extent_t *extent) {
 	return extent->e_addr;
 }
 
+static inline bool
+extent_sized_region_lookup(const extent_t *extent, alloc_ctx_t *alloc_ctx) {
+	return sized_region_lookup(&sized_region_global,
+	    extent_addr_get(extent), alloc_ctx);
+}
+
+static inline bool
+extent_in_sized_region(const extent_t *extent) {
+	return extent_sized_region_lookup(extent, NULL);
+}
+
+static inline szind_t
+extent_szind_get_maybe_invalid(const extent_t *extent) {
+	szind_t szind = (szind_t)((extent->e_bits & EXTENT_BITS_SZIND_MASK) >>
+	    EXTENT_BITS_SZIND_SHIFT);
+	assert(szind <= NSIZES);
+	if (config_debug && szind < NSIZES) {
+		alloc_ctx_t alloc_ctx;
+		if (sized_region_lookup(&sized_region_global,
+		    extent_addr_get(extent), &alloc_ctx)) {
+			assert(szind == alloc_ctx.szind);
+		}
+	}
+	return szind;
+}
+
+static inline szind_t
+extent_szind_get(const extent_t *extent) {
+	szind_t szind = extent_szind_get_maybe_invalid(extent);
+	assert(szind < NSIZES); /* Never call when "invalid". */
+	return szind;
+}
+
 static inline size_t
 extent_size_get(const extent_t *extent) {
 	return (extent->e_size_esn & EXTENT_SIZE_MASK);
+}
+
+static inline size_t
+extent_usize_get(const extent_t *extent) {
+	return sz_index2size(extent_szind_get(extent));
 }
 
 static inline size_t
@@ -360,8 +379,18 @@ extent_list_remove(extent_list_t *list, extent_t *extent) {
 	ql_remove(list, extent, ql_link);
 }
 
+/*
+ * Throughout the comparison functions, we assert that we're not comparing a
+ * sized extent against an unsized one.  This is a highly useful invariant to
+ * maintain, since it is never correct to use a sized extent to satisfy an
+ * allocation of a different size.  Segregating those extents wherever possible
+ * helps ensure this.
+ */
+
 static inline int
 extent_sn_comp(const extent_t *a, const extent_t *b) {
+	assert(extent_in_sized_region(a) == extent_in_sized_region(b));
+
 	size_t a_sn = extent_sn_get(a);
 	size_t b_sn = extent_sn_get(b);
 
@@ -370,6 +399,8 @@ extent_sn_comp(const extent_t *a, const extent_t *b) {
 
 static inline int
 extent_esn_comp(const extent_t *a, const extent_t *b) {
+	assert(extent_in_sized_region(a) == extent_in_sized_region(b));
+
 	size_t a_esn = extent_esn_get(a);
 	size_t b_esn = extent_esn_get(b);
 
@@ -386,6 +417,8 @@ extent_ad_comp(const extent_t *a, const extent_t *b) {
 
 static inline int
 extent_ead_comp(const extent_t *a, const extent_t *b) {
+	assert(extent_in_sized_region(a) == extent_in_sized_region(b));
+
 	uintptr_t a_eaddr = (uintptr_t)a;
 	uintptr_t b_eaddr = (uintptr_t)b;
 
@@ -395,6 +428,8 @@ extent_ead_comp(const extent_t *a, const extent_t *b) {
 static inline int
 extent_snad_comp(const extent_t *a, const extent_t *b) {
 	int ret;
+
+	assert(extent_in_sized_region(a) == extent_in_sized_region(b));
 
 	ret = extent_sn_comp(a, b);
 	if (ret != 0) {
@@ -408,6 +443,8 @@ extent_snad_comp(const extent_t *a, const extent_t *b) {
 static inline int
 extent_esnead_comp(const extent_t *a, const extent_t *b) {
 	int ret;
+
+	assert(extent_in_sized_region(a) == extent_in_sized_region(b));
 
 	ret = extent_esn_comp(a, b);
 	if (ret != 0) {
