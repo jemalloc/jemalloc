@@ -2126,7 +2126,7 @@ arena_prefork6(tsdn_t *tsdn, arena_t *arena) {
 void
 arena_prefork7(tsdn_t *tsdn, arena_t *arena) {
 	for (unsigned i = 0; i < NBINS; i++) {
-		malloc_mutex_prefork(tsdn, &arena->bins[i].lock);
+		bin_prefork(tsdn, &arena->bins[i]);
 	}
 }
 
@@ -2135,7 +2135,7 @@ arena_postfork_parent(tsdn_t *tsdn, arena_t *arena) {
 	unsigned i;
 
 	for (i = 0; i < NBINS; i++) {
-		malloc_mutex_postfork_parent(tsdn, &arena->bins[i].lock);
+		bin_postfork_parent(tsdn, &arena->bins[i]);
 	}
 	malloc_mutex_postfork_parent(tsdn, &arena->large_mtx);
 	base_postfork_parent(tsdn, arena->base);
@@ -2179,7 +2179,7 @@ arena_postfork_child(tsdn_t *tsdn, arena_t *arena) {
 	}
 
 	for (i = 0; i < NBINS; i++) {
-		malloc_mutex_postfork_child(tsdn, &arena->bins[i].lock);
+		bin_postfork_child(tsdn, &arena->bins[i]);
 	}
 	malloc_mutex_postfork_child(tsdn, &arena->large_mtx);
 	base_postfork_child(tsdn, arena->base);
