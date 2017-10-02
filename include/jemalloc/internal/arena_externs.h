@@ -1,6 +1,7 @@
 #ifndef JEMALLOC_INTERNAL_ARENA_EXTERNS_H
 #define JEMALLOC_INTERNAL_ARENA_EXTERNS_H
 
+#include "jemalloc/internal/bin.h"
 #include "jemalloc/internal/extent_dss.h"
 #include "jemalloc/internal/pages.h"
 #include "jemalloc/internal/size_classes.h"
@@ -8,8 +9,6 @@
 
 extern ssize_t opt_dirty_decay_ms;
 extern ssize_t opt_muzzy_decay_ms;
-
-extern const arena_bin_info_t arena_bin_info[NBINS];
 
 extern percpu_arena_mode_t opt_percpu_arena;
 extern const char *percpu_arena_mode_names[];
@@ -51,10 +50,10 @@ void arena_reset(tsd_t *tsd, arena_t *arena);
 void arena_destroy(tsd_t *tsd, arena_t *arena);
 void arena_tcache_fill_small(tsdn_t *tsdn, arena_t *arena, tcache_t *tcache,
     cache_bin_t *tbin, szind_t binind, uint64_t prof_accumbytes);
-void arena_alloc_junk_small(void *ptr, const arena_bin_info_t *bin_info,
+void arena_alloc_junk_small(void *ptr, const bin_info_t *bin_info,
     bool zero);
 
-typedef void (arena_dalloc_junk_small_t)(void *, const arena_bin_info_t *);
+typedef void (arena_dalloc_junk_small_t)(void *, const bin_info_t *);
 extern arena_dalloc_junk_small_t *JET_MUTABLE arena_dalloc_junk_small;
 
 void *arena_malloc_hard(tsdn_t *tsdn, arena_t *arena, size_t size,

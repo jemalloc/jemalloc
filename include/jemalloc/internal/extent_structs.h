@@ -143,7 +143,7 @@ struct extent_s {
 
 	/*
 	 * List linkage, used by a variety of lists:
-	 * - arena_bin_t's slabs_full
+	 * - bin_t's slabs_full
 	 * - extents_t's LRU
 	 * - stashed dirty extents
 	 * - arena's large allocations

@@ -93,6 +93,7 @@ C_SRCS := $(srcroot)src/jemalloc.c \
 	$(srcroot)src/arena.c \
 	$(srcroot)src/background_thread.c \
 	$(srcroot)src/base.c \
+	$(srcroot)src/bin.c \
 	$(srcroot)src/bitmap.c \
 	$(srcroot)src/ckh.c \
 	$(srcroot)src/ctl.c \

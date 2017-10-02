@@ -2,6 +2,7 @@
 #define JEMALLOC_INTERNAL_ARENA_STRUCTS_B_H
 
 #include "jemalloc/internal/atomic.h"
+#include "jemalloc/internal/bin.h"
 #include "jemalloc/internal/bitmap.h"
 #include "jemalloc/internal/extent_dss.h"
 #include "jemalloc/internal/jemalloc_internal_types.h"
@@ -12,42 +13,6 @@
 #include "jemalloc/internal/smoothstep.h"
 #include "jemalloc/internal/stats.h"
 #include "jemalloc/internal/ticker.h"
-
-/*
- * Read-only information associated with each element of arena_t's bins array
- * is stored separately, partly to reduce memory usage (only one copy, rather
- * than one per arena), but mainly to avoid false cacheline sharing.
- *
- * Each slab has the following layout:
- *
- *   /--------------------\
- *   | region 0           |
- *   |--------------------|
- *   | region 1           |
- *   |--------------------|
- *   | ...                |
- *   | ...                |
- *   | ...                |
- *   |--------------------|
- *   | region nregs-1     |
- *   \--------------------/
- */
-struct arena_bin_info_s {
-	/* Size of regions in a slab for this bin's size class. */
-	size_t			reg_size;
-
-	/* Total size of a slab for this bin's size class. */
-	size_t			slab_size;
-
-	/* Total number of regions in a slab for this bin's size class. */
-	uint32_t		nregs;
-
-	/*
-	 * Metadata used to manipulate bitmaps for slabs associated with this
-	 * bin.
-	 */
-	bitmap_info_t		bitmap_info;
-};
 
 struct arena_decay_s {
 	/* Synchronizes all non-atomic fields. */
@@ -107,32 +72,6 @@ struct arena_decay_s {
 	decay_stats_t		*stats;
 	/* Peak number of pages in associated extents.  Used for debug only. */
 	uint64_t		ceil_npages;
-};
-
-struct arena_bin_s {
-	/* All operations on arena_bin_t fields require lock ownership. */
-	malloc_mutex_t		lock;
-
-	/*
-	 * Current slab being used to service allocations of this bin's size
-	 * class.  slabcur is independent of slabs_{nonfull,full}; whenever
-	 * slabcur is reassigned, the previous slab must be deallocated or
-	 * inserted into slabs_{nonfull,full}.
-	 */
-	extent_t		*slabcur;
-
-	/*
-	 * Heap of non-full slabs.  This heap is used to assure that new
-	 * allocations come from the non-full slab that is oldest/lowest in
-	 * memory.
-	 */
-	extent_heap_t		slabs_nonfull;
-
-	/* List used to track full slabs. */
-	extent_list_t		slabs_full;
-
-	/* Bin statistics. */
-	malloc_bin_stats_t	stats;
 };
 
 struct arena_s {
@@ -264,7 +203,7 @@ struct arena_s {
 	 *
 	 * Synchronization: internal.
 	 */
-	arena_bin_t		bins[NBINS];
+	bin_t			bins[NBINS];
 
 	/*
 	 * Base allocator, from which arena metadata are allocated.

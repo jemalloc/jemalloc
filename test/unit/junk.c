@@ -15,7 +15,7 @@ watch_junking(void *p) {
 }
 
 static void
-arena_dalloc_junk_small_intercept(void *ptr, const arena_bin_info_t *bin_info) {
+arena_dalloc_junk_small_intercept(void *ptr, const bin_info_t *bin_info) {
 	size_t i;
 
 	arena_dalloc_junk_small_orig(ptr, bin_info);
