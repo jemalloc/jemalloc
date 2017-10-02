@@ -2,6 +2,7 @@
 #include "jemalloc/internal/jemalloc_internal_includes.h"
 
 #include "jemalloc/internal/bin.h"
+#include "jemalloc/internal/witness.h"
 
 const bin_info_t bin_infos[NBINS] = {
 #define BIN_INFO_bin_yes(reg_size, slab_size, nregs)			\
@@ -18,4 +19,17 @@ const bin_info_t bin_infos[NBINS] = {
 #undef SC
 };
 
-
+bool
+bin_init(bin_t *bin) {
+	if (malloc_mutex_init(&bin->lock, "arena_bin", WITNESS_RANK_BIN,
+	    malloc_mutex_rank_exclusive)) {
+		return true;
+	}
+	bin->slabcur = NULL;
+	extent_heap_new(&bin->slabs_nonfull);
+	extent_list_init(&bin->slabs_full);
+	if (config_stats) {
+		memset(&bin->stats, 0, sizeof(malloc_bin_stats_t));
+	}
+	return false;
+}
