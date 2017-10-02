@@ -13,6 +13,7 @@
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/rtree.h"
 #include "jemalloc/internal/size_classes.h"
+#include "jemalloc/internal/sized_region.h"
 #include "jemalloc/internal/spin.h"
 #include "jemalloc/internal/sz.h"
 #include "jemalloc/internal/ticker.h"
@@ -1173,6 +1174,10 @@ malloc_conf_init(void) {
 			}
 			CONF_HANDLE_BOOL(opt_background_thread,
 			    "background_thread");
+			CONF_HANDLE_BOOL(opt_sized_regions,
+			    "sized_regions");
+			CONF_HANDLE_SSIZE_T(opt_lg_sized_region_size,
+			    "lg_sized_region_size", 20, 40);
 			if (config_prof) {
 				CONF_HANDLE_BOOL(opt_prof, "prof")
 				CONF_HANDLE_CHAR_P(opt_prof_prefix,
