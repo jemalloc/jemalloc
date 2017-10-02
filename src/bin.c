@@ -21,7 +21,7 @@ const bin_info_t bin_infos[NBINS] = {
 
 bool
 bin_init(bin_t *bin) {
-	if (malloc_mutex_init(&bin->lock, "arena_bin", WITNESS_RANK_BIN,
+	if (malloc_mutex_init(&bin->lock, "bin", WITNESS_RANK_BIN,
 	    malloc_mutex_rank_exclusive)) {
 		return true;
 	}
@@ -32,4 +32,19 @@ bin_init(bin_t *bin) {
 		memset(&bin->stats, 0, sizeof(malloc_bin_stats_t));
 	}
 	return false;
+}
+
+void
+bin_prefork(tsdn_t *tsdn, bin_t *bin) {
+	malloc_mutex_prefork(tsdn, &bin->lock);
+}
+
+void
+bin_postfork_parent(tsdn_t *tsdn, bin_t *bin) {
+	malloc_mutex_postfork_parent(tsdn, &bin->lock);
+}
+
+void
+bin_postfork_child(tsdn_t *tsdn, bin_t *bin) {
+	malloc_mutex_postfork_child(tsdn, &bin->lock);
 }

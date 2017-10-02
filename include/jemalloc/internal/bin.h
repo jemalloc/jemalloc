@@ -80,5 +80,8 @@ struct bin_s {
 
 /* Returns true on error. */
 bool bin_init(bin_t *bin);
+void bin_prefork(tsdn_t *tsdn, bin_t *bin);
+void bin_postfork_parent(tsdn_t *tsdn, bin_t *bin);
+void bin_postfork_child(tsdn_t *tsdn, bin_t *bin);
 
 #endif /* JEMALLOC_INTERNAL_BIN_H */
