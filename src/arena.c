@@ -2042,16 +2042,9 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 
 	/* Initialize bins. */
 	for (i = 0; i < NBINS; i++) {
-		bin_t *bin = &arena->bins[i];
-		if (malloc_mutex_init(&bin->lock, "arena_bin",
-		    WITNESS_RANK_ARENA_BIN, malloc_mutex_rank_exclusive)) {
+		bool err = bin_init(&arena->bins[i]);
+		if (err) {
 			goto label_error;
-		}
-		bin->slabcur = NULL;
-		extent_heap_new(&bin->slabs_nonfull);
-		extent_list_init(&bin->slabs_full);
-		if (config_stats) {
-			memset(&bin->stats, 0, sizeof(malloc_bin_stats_t));
 		}
 	}
 

@@ -78,4 +78,7 @@ struct bin_s {
 	malloc_bin_stats_t	stats;
 };
 
+/* Returns true on error. */
+bool bin_init(bin_t *bin);
+
 #endif /* JEMALLOC_INTERNAL_BIN_H */
