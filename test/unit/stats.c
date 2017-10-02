@@ -245,7 +245,7 @@ TEST_BEGIN(test_stats_arenas_bins) {
 	    (void *)&arena_ind, sizeof(arena_ind)), 0,
 	    "Unexpected mallctl() failure");
 
-	p = malloc(arena_bin_info[0].reg_size);
+	p = malloc(bin_infos[0].reg_size);
 	assert_ptr_not_null(p, "Unexpected malloc() failure");
 
 	assert_d_eq(mallctl("thread.tcache.flush", NULL, NULL, NULL, 0),

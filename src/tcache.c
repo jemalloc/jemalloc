@@ -121,7 +121,7 @@ tcache_bin_flush_small(tsd_t *tsd, tcache_t *tcache, cache_bin_t *tbin,
 		/* Lock the arena bin associated with the first object. */
 		extent_t *extent = item_extent[0];
 		arena_t *bin_arena = extent_arena_get(extent);
-		arena_bin_t *bin = &bin_arena->bins[binind];
+		bin_t *bin = &bin_arena->bins[binind];
 
 		if (config_prof && bin_arena == arena) {
 			if (arena_prof_accum(tsd_tsdn(tsd), arena,
@@ -169,7 +169,7 @@ tcache_bin_flush_small(tsd_t *tsd, tcache_t *tcache, cache_bin_t *tbin,
 		 * The flush loop didn't happen to flush to this thread's
 		 * arena, so the stats didn't get merged.  Manually do so now.
 		 */
-		arena_bin_t *bin = &arena->bins[binind];
+		bin_t *bin = &arena->bins[binind];
 		malloc_mutex_lock(tsd_tsdn(tsd), &bin->lock);
 		bin->stats.nflushes++;
 		bin->stats.nrequests += tbin->tstats.nrequests;
@@ -533,7 +533,7 @@ tcache_stats_merge(tsdn_t *tsdn, tcache_t *tcache, arena_t *arena) {
 
 	/* Merge and reset tcache stats. */
 	for (i = 0; i < NBINS; i++) {
-		arena_bin_t *bin = &arena->bins[i];
+		bin_t *bin = &arena->bins[i];
 		cache_bin_t *tbin = tcache_small_bin_get(tcache, i);
 		malloc_mutex_lock(tsdn, &bin->lock);
 		bin->stats.nrequests += tbin->tstats.nrequests;
@@ -674,13 +674,13 @@ tcache_boot(tsdn_t *tsdn) {
 	stack_nelms = 0;
 	unsigned i;
 	for (i = 0; i < NBINS; i++) {
-		if ((arena_bin_info[i].nregs << 1) <= TCACHE_NSLOTS_SMALL_MIN) {
+		if ((bin_infos[i].nregs << 1) <= TCACHE_NSLOTS_SMALL_MIN) {
 			tcache_bin_info[i].ncached_max =
 			    TCACHE_NSLOTS_SMALL_MIN;
-		} else if ((arena_bin_info[i].nregs << 1) <=
+		} else if ((bin_infos[i].nregs << 1) <=
 		    TCACHE_NSLOTS_SMALL_MAX) {
 			tcache_bin_info[i].ncached_max =
-			    (arena_bin_info[i].nregs << 1);
+			    (bin_infos[i].nregs << 1);
 		} else {
 			tcache_bin_info[i].ncached_max =
 			    TCACHE_NSLOTS_SMALL_MAX;

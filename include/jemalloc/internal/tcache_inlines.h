@@ -1,6 +1,7 @@
 #ifndef JEMALLOC_INTERNAL_TCACHE_INLINES_H
 #define JEMALLOC_INTERNAL_TCACHE_INLINES_H
 
+#include "jemalloc/internal/bin.h"
 #include "jemalloc/internal/jemalloc_internal_types.h"
 #include "jemalloc/internal/size_classes.h"
 #include "jemalloc/internal/sz.h"
@@ -76,16 +77,15 @@ tcache_alloc_small(tsd_t *tsd, arena_t *arena, tcache_t *tcache, size_t size,
 	if (likely(!zero)) {
 		if (slow_path && config_fill) {
 			if (unlikely(opt_junk_alloc)) {
-				arena_alloc_junk_small(ret,
-				    &arena_bin_info[binind], false);
+				arena_alloc_junk_small(ret, &bin_infos[binind],
+				    false);
 			} else if (unlikely(opt_zero)) {
 				memset(ret, 0, usize);
 			}
 		}
 	} else {
 		if (slow_path && config_fill && unlikely(opt_junk_alloc)) {
-			arena_alloc_junk_small(ret, &arena_bin_info[binind],
-			    true);
+			arena_alloc_junk_small(ret, &bin_infos[binind], true);
 		}
 		memset(ret, 0, usize);
 	}
@@ -169,7 +169,7 @@ tcache_dalloc_small(tsd_t *tsd, tcache_t *tcache, void *ptr, szind_t binind,
 	assert(tcache_salloc(tsd_tsdn(tsd), ptr) <= SMALL_MAXCLASS);
 
 	if (slow_path && config_fill && unlikely(opt_junk_free)) {
-		arena_dalloc_junk_small(ptr, &arena_bin_info[binind]);
+		arena_dalloc_junk_small(ptr, &bin_infos[binind]);
 	}
 
 	bin = tcache_small_bin_get(tcache, binind);
