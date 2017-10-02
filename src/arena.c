@@ -337,20 +337,7 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 	nstime_subtract(&astats->uptime, &arena->create_time);
 
 	for (szind_t i = 0; i < NBINS; i++) {
-		bin_t *bin = &arena->bins[i];
-
-		malloc_mutex_lock(tsdn, &bin->lock);
-		malloc_mutex_prof_read(tsdn, &bstats[i].mutex_data, &bin->lock);
-		bstats[i].nmalloc += bin->stats.nmalloc;
-		bstats[i].ndalloc += bin->stats.ndalloc;
-		bstats[i].nrequests += bin->stats.nrequests;
-		bstats[i].curregs += bin->stats.curregs;
-		bstats[i].nfills += bin->stats.nfills;
-		bstats[i].nflushes += bin->stats.nflushes;
-		bstats[i].nslabs += bin->stats.nslabs;
-		bstats[i].reslabs += bin->stats.reslabs;
-		bstats[i].curslabs += bin->stats.curslabs;
-		malloc_mutex_unlock(tsdn, &bin->lock);
+		bin_stats_merge(tsdn, &bstats[i], &arena->bins[i]);
 	}
 }
 

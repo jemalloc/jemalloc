@@ -6,6 +6,12 @@
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/size_classes.h"
 
+/*
+ * The synchronization for stats counters may piggyback on existing
+ * synchronization in the associated data.  Therefore, the merging functions for
+ * a module's stats will lie in the module, instead of with the stats.
+ */
+
 /*  OPTION(opt,		var_name,	default,	set_value_to) */
 #define STATS_PRINT_OPTIONS						\
     OPTION('J',		json,		false,		true)		\
