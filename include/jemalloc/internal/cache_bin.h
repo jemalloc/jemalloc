@@ -85,7 +85,7 @@ cache_bin_array_descriptor_init(cache_bin_array_descriptor_t *descriptor,
 }
 
 JEMALLOC_ALWAYS_INLINE void *
-cache_alloc_easy(cache_bin_t *bin, bool *success) {
+cache_bin_alloc_easy(cache_bin_t *bin, bool *success) {
 	void *ret;
 
 	if (unlikely(bin->ncached == 0)) {

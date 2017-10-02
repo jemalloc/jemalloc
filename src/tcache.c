@@ -95,7 +95,7 @@ tcache_alloc_small_hard(tsdn_t *tsdn, arena_t *arena, tcache_t *tcache,
 	if (config_prof) {
 		tcache->prof_accumbytes = 0;
 	}
-	ret = cache_alloc_easy(tbin, tcache_success);
+	ret = cache_bin_alloc_easy(tbin, tcache_success);
 
 	return ret;
 }
