@@ -1192,7 +1192,7 @@ malloc_conf_init(void) {
 				CONF_HANDLE_BOOL(opt_prof_leak, "prof_leak")
 			}
 			if (config_log) {
-				if (CONF_MATCH("log_vars")) {
+				if (CONF_MATCH("log")) {
 					size_t cpylen = (
 					    vlen <= sizeof(log_var_names) ?
 					    vlen : sizeof(log_var_names) - 1);
@@ -1991,7 +1991,7 @@ je_malloc(size_t size) {
 	static_opts_t sopts;
 	dynamic_opts_t dopts;
 
-	log("core.malloc.entry", "size: %zu", size);
+	LOG("core.malloc.entry", "size: %zu", size);
 
 	static_opts_init(&sopts);
 	dynamic_opts_init(&dopts);
@@ -2007,7 +2007,7 @@ je_malloc(size_t size) {
 
 	imalloc(&sopts, &dopts);
 
-	log("core.malloc.exit", "result: %p", ret);
+	LOG("core.malloc.exit", "result: %p", ret);
 
 	return ret;
 }
@@ -2019,7 +2019,7 @@ je_posix_memalign(void **memptr, size_t alignment, size_t size) {
 	static_opts_t sopts;
 	dynamic_opts_t dopts;
 
-	log("core.posix_memalign.entry", "mem ptr: %p, alignment: %zu, "
+	LOG("core.posix_memalign.entry", "mem ptr: %p, alignment: %zu, "
 	    "size: %zu", memptr, alignment, size);
 
 	static_opts_init(&sopts);
@@ -2039,7 +2039,7 @@ je_posix_memalign(void **memptr, size_t alignment, size_t size) {
 
 	ret = imalloc(&sopts, &dopts);
 
-	log("core.posix_memalign.exit", "result: %d, alloc ptr: %p", ret,
+	LOG("core.posix_memalign.exit", "result: %d, alloc ptr: %p", ret,
 	    *memptr);
 
 	return ret;
@@ -2054,7 +2054,7 @@ je_aligned_alloc(size_t alignment, size_t size) {
 	static_opts_t sopts;
 	dynamic_opts_t dopts;
 
-	log("core.aligned_alloc.entry", "alignment: %zu, size: %zu\n",
+	LOG("core.aligned_alloc.entry", "alignment: %zu, size: %zu\n",
 	    alignment, size);
 
 	static_opts_init(&sopts);
@@ -2076,7 +2076,7 @@ je_aligned_alloc(size_t alignment, size_t size) {
 
 	imalloc(&sopts, &dopts);
 
-	log("core.aligned_alloc.exit", "result: %p", ret);
+	LOG("core.aligned_alloc.exit", "result: %p", ret);
 
 	return ret;
 }
@@ -2089,7 +2089,7 @@ je_calloc(size_t num, size_t size) {
 	static_opts_t sopts;
 	dynamic_opts_t dopts;
 
-	log("core.calloc.entry", "num: %zu, size: %zu\n", num, size);
+	LOG("core.calloc.entry", "num: %zu, size: %zu\n", num, size);
 
 	static_opts_init(&sopts);
 	dynamic_opts_init(&dopts);
@@ -2107,7 +2107,7 @@ je_calloc(size_t num, size_t size) {
 
 	imalloc(&sopts, &dopts);
 
-	log("core.calloc.exit", "result: %p", ret);
+	LOG("core.calloc.exit", "result: %p", ret);
 
 	return ret;
 }
@@ -2262,7 +2262,7 @@ je_realloc(void *ptr, size_t size) {
 	size_t usize JEMALLOC_CC_SILENCE_INIT(0);
 	size_t old_usize = 0;
 
-	log("core.realloc.entry", "ptr: %p, size: %zu\n", ptr, size);
+	LOG("core.realloc.entry", "ptr: %p, size: %zu\n", ptr, size);
 
 	if (unlikely(size == 0)) {
 		if (ptr != NULL) {
@@ -2277,7 +2277,7 @@ je_realloc(void *ptr, size_t size) {
 			}
 			ifree(tsd, ptr, tcache, true);
 
-			log("core.realloc.exit", "result: %p", NULL);
+			LOG("core.realloc.exit", "result: %p", NULL);
 			return NULL;
 		}
 		size = 1;
@@ -2311,7 +2311,7 @@ je_realloc(void *ptr, size_t size) {
 	} else {
 		/* realloc(NULL, size) is equivalent to malloc(size). */
 		void *ret = je_malloc(size);
-		log("core.realloc.exit", "result: %p", ret);
+		LOG("core.realloc.exit", "result: %p", ret);
 		return ret;
 	}
 
@@ -2334,13 +2334,13 @@ je_realloc(void *ptr, size_t size) {
 	UTRACE(ptr, size, ret);
 	check_entry_exit_locking(tsdn);
 
-	log("core.realloc.exit", "result: %p", ret);
+	LOG("core.realloc.exit", "result: %p", ret);
 	return ret;
 }
 
 JEMALLOC_EXPORT void JEMALLOC_NOTHROW
 je_free(void *ptr) {
-	log("core.free.entry", "ptr: %p", ptr);
+	LOG("core.free.entry", "ptr: %p", ptr);
 
 	UTRACE(ptr, 0, 0);
 	if (likely(ptr != NULL)) {
@@ -2371,7 +2371,7 @@ je_free(void *ptr) {
 		}
 		check_entry_exit_locking(tsd_tsdn(tsd));
 	}
-	log("core.free.exit", "");
+	LOG("core.free.exit", "");
 }
 
 /*
@@ -2391,7 +2391,7 @@ je_memalign(size_t alignment, size_t size) {
 	static_opts_t sopts;
 	dynamic_opts_t dopts;
 
-	log("core.memalign.entry", "alignment: %zu, size: %zu\n", alignment,
+	LOG("core.memalign.entry", "alignment: %zu, size: %zu\n", alignment,
 	    size);
 
 	static_opts_init(&sopts);
@@ -2412,7 +2412,7 @@ je_memalign(size_t alignment, size_t size) {
 
 	imalloc(&sopts, &dopts);
 
-	log("core.memalign.exit", "result: %p", ret);
+	LOG("core.memalign.exit", "result: %p", ret);
 	return ret;
 }
 #endif
@@ -2427,7 +2427,7 @@ je_valloc(size_t size) {
 	static_opts_t sopts;
 	dynamic_opts_t dopts;
 
-	log("core.valloc.entry", "size: %zu\n", size);
+	LOG("core.valloc.entry", "size: %zu\n", size);
 
 	static_opts_init(&sopts);
 	dynamic_opts_init(&dopts);
@@ -2447,7 +2447,7 @@ je_valloc(size_t size) {
 
 	imalloc(&sopts, &dopts);
 
-	log("core.valloc.exit", "result: %p\n", ret);
+	LOG("core.valloc.exit", "result: %p\n", ret);
 	return ret;
 }
 #endif
@@ -2521,7 +2521,7 @@ je_mallocx(size_t size, int flags) {
 	static_opts_t sopts;
 	dynamic_opts_t dopts;
 
-	log("core.mallocx.entry", "size: %zu, flags: %d", size, flags);
+	LOG("core.mallocx.entry", "size: %zu, flags: %d", size, flags);
 
 	static_opts_init(&sopts);
 	dynamic_opts_init(&dopts);
@@ -2557,7 +2557,7 @@ je_mallocx(size_t size, int flags) {
 
 	imalloc(&sopts, &dopts);
 
-	log("core.mallocx.exit", "result: %p", ret);
+	LOG("core.mallocx.exit", "result: %p", ret);
 	return ret;
 }
 
@@ -2638,7 +2638,7 @@ je_rallocx(void *ptr, size_t size, int flags) {
 	arena_t *arena;
 	tcache_t *tcache;
 
-	log("core.rallocx.entry", "ptr: %p, size: %zu, flags: %d", ptr,
+	LOG("core.rallocx.entry", "ptr: %p, size: %zu, flags: %d", ptr,
 	    size, flags);
 
 
@@ -2705,7 +2705,7 @@ je_rallocx(void *ptr, size_t size, int flags) {
 	UTRACE(ptr, size, p);
 	check_entry_exit_locking(tsd_tsdn(tsd));
 
-	log("core.rallocx.exit", "result: %p", p);
+	LOG("core.rallocx.exit", "result: %p", p);
 	return p;
 label_oom:
 	if (config_xmalloc && unlikely(opt_xmalloc)) {
@@ -2715,7 +2715,7 @@ label_oom:
 	UTRACE(ptr, size, 0);
 	check_entry_exit_locking(tsd_tsdn(tsd));
 
-	log("core.rallocx.exit", "result: %p", NULL);
+	LOG("core.rallocx.exit", "result: %p", NULL);
 	return NULL;
 }
 
@@ -2802,7 +2802,7 @@ je_xallocx(void *ptr, size_t size, size_t extra, int flags) {
 	size_t alignment = MALLOCX_ALIGN_GET(flags);
 	bool zero = flags & MALLOCX_ZERO;
 
-	log("core.xallocx.entry", "ptr: %p, size: %zu, extra: %zu, "
+	LOG("core.xallocx.entry", "ptr: %p, size: %zu, extra: %zu, "
 	    "flags: %d", ptr, size, extra, flags);
 
 	assert(ptr != NULL);
@@ -2855,7 +2855,7 @@ label_not_resized:
 	UTRACE(ptr, size, ptr);
 	check_entry_exit_locking(tsd_tsdn(tsd));
 
-	log("core.xallocx.exit", "result: %zu", usize);
+	LOG("core.xallocx.exit", "result: %zu", usize);
 	return usize;
 }
 
@@ -2865,7 +2865,7 @@ je_sallocx(const void *ptr, int flags) {
 	size_t usize;
 	tsdn_t *tsdn;
 
-	log("core.sallocx.entry", "ptr: %p, flags: %d", ptr, flags);
+	LOG("core.sallocx.entry", "ptr: %p, flags: %d", ptr, flags);
 
 	assert(malloc_initialized() || IS_INITIALIZER);
 	assert(ptr != NULL);
@@ -2882,13 +2882,13 @@ je_sallocx(const void *ptr, int flags) {
 
 	check_entry_exit_locking(tsdn);
 
-	log("core.sallocx.exit", "result: %zu", usize);
+	LOG("core.sallocx.exit", "result: %zu", usize);
 	return usize;
 }
 
 JEMALLOC_EXPORT void JEMALLOC_NOTHROW
 je_dallocx(void *ptr, int flags) {
-	log("core.dallocx.entry", "ptr: %p, flags: %d", ptr, flags);
+	LOG("core.dallocx.entry", "ptr: %p, flags: %d", ptr, flags);
 
 	assert(ptr != NULL);
 	assert(malloc_initialized() || IS_INITIALIZER);
@@ -2928,7 +2928,7 @@ je_dallocx(void *ptr, int flags) {
 	}
 	check_entry_exit_locking(tsd_tsdn(tsd));
 
-	log("core.dallocx.exit", "");
+	LOG("core.dallocx.exit", "");
 }
 
 JEMALLOC_ALWAYS_INLINE size_t
@@ -2950,7 +2950,7 @@ je_sdallocx(void *ptr, size_t size, int flags) {
 	assert(ptr != NULL);
 	assert(malloc_initialized() || IS_INITIALIZER);
 
-	log("core.sdallocx.entry", "ptr: %p, size: %zu, flags: %d", ptr,
+	LOG("core.sdallocx.entry", "ptr: %p, size: %zu, flags: %d", ptr,
 	    size, flags);
 
 	tsd_t *tsd = tsd_fetch();
@@ -2990,7 +2990,7 @@ je_sdallocx(void *ptr, size_t size, int flags) {
 	}
 	check_entry_exit_locking(tsd_tsdn(tsd));
 
-	log("core.sdallocx.exit", "");
+	LOG("core.sdallocx.exit", "");
 }
 
 JEMALLOC_EXPORT size_t JEMALLOC_NOTHROW
@@ -3002,7 +3002,7 @@ je_nallocx(size_t size, int flags) {
 	assert(size != 0);
 
 	if (unlikely(malloc_init())) {
-		log("core.nallocx.exit", "result: %zu", ZU(0));
+		LOG("core.nallocx.exit", "result: %zu", ZU(0));
 		return 0;
 	}
 
@@ -3011,12 +3011,12 @@ je_nallocx(size_t size, int flags) {
 
 	usize = inallocx(tsdn, size, flags);
 	if (unlikely(usize > LARGE_MAXCLASS)) {
-		log("core.nallocx.exit", "result: %zu", ZU(0));
+		LOG("core.nallocx.exit", "result: %zu", ZU(0));
 		return 0;
 	}
 
 	check_entry_exit_locking(tsdn);
-	log("core.nallocx.exit", "result: %zu", usize);
+	LOG("core.nallocx.exit", "result: %zu", usize);
 	return usize;
 }
 
@@ -3026,10 +3026,10 @@ je_mallctl(const char *name, void *oldp, size_t *oldlenp, void *newp,
 	int ret;
 	tsd_t *tsd;
 
-	log("core.mallctl.entry", "name: %s", name);
+	LOG("core.mallctl.entry", "name: %s", name);
 
 	if (unlikely(malloc_init())) {
-		log("core.mallctl.exit", "result: %d", EAGAIN);
+		LOG("core.mallctl.exit", "result: %d", EAGAIN);
 		return EAGAIN;
 	}
 
@@ -3038,7 +3038,7 @@ je_mallctl(const char *name, void *oldp, size_t *oldlenp, void *newp,
 	ret = ctl_byname(tsd, name, oldp, oldlenp, newp, newlen);
 	check_entry_exit_locking(tsd_tsdn(tsd));
 
-	log("core.mallctl.exit", "result: %d", ret);
+	LOG("core.mallctl.exit", "result: %d", ret);
 	return ret;
 }
 
@@ -3046,10 +3046,10 @@ JEMALLOC_EXPORT int JEMALLOC_NOTHROW
 je_mallctlnametomib(const char *name, size_t *mibp, size_t *miblenp) {
 	int ret;
 
-	log("core.mallctlnametomib.entry", "name: %s", name);
+	LOG("core.mallctlnametomib.entry", "name: %s", name);
 
 	if (unlikely(malloc_init())) {
-		log("core.mallctlnametomib.exit", "result: %d", EAGAIN);
+		LOG("core.mallctlnametomib.exit", "result: %d", EAGAIN);
 		return EAGAIN;
 	}
 
@@ -3058,7 +3058,7 @@ je_mallctlnametomib(const char *name, size_t *mibp, size_t *miblenp) {
 	ret = ctl_nametomib(tsd, name, mibp, miblenp);
 	check_entry_exit_locking(tsd_tsdn(tsd));
 
-	log("core.mallctlnametomib.exit", "result: %d", ret);
+	LOG("core.mallctlnametomib.exit", "result: %d", ret);
 	return ret;
 }
 
@@ -3068,10 +3068,10 @@ je_mallctlbymib(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
 	int ret;
 	tsd_t *tsd;
 
-	log("core.mallctlbymib.entry", "");
+	LOG("core.mallctlbymib.entry", "");
 
 	if (unlikely(malloc_init())) {
-		log("core.mallctlbymib.exit", "result: %d", EAGAIN);
+		LOG("core.mallctlbymib.exit", "result: %d", EAGAIN);
 		return EAGAIN;
 	}
 
@@ -3079,7 +3079,7 @@ je_mallctlbymib(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
 	check_entry_exit_locking(tsd_tsdn(tsd));
 	ret = ctl_bymib(tsd, mib, miblen, oldp, oldlenp, newp, newlen);
 	check_entry_exit_locking(tsd_tsdn(tsd));
-	log("core.mallctlbymib.exit", "result: %d", ret);
+	LOG("core.mallctlbymib.exit", "result: %d", ret);
 	return ret;
 }
 
@@ -3088,13 +3088,13 @@ je_malloc_stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
     const char *opts) {
 	tsdn_t *tsdn;
 
-	log("core.malloc_stats_print.entry", "");
+	LOG("core.malloc_stats_print.entry", "");
 
 	tsdn = tsdn_fetch();
 	check_entry_exit_locking(tsdn);
 	stats_print(write_cb, cbopaque, opts);
 	check_entry_exit_locking(tsdn);
-	log("core.malloc_stats_print.exit", "");
+	LOG("core.malloc_stats_print.exit", "");
 }
 
 JEMALLOC_EXPORT size_t JEMALLOC_NOTHROW
@@ -3102,7 +3102,7 @@ je_malloc_usable_size(JEMALLOC_USABLE_SIZE_CONST void *ptr) {
 	size_t ret;
 	tsdn_t *tsdn;
 
-	log("core.malloc_usable_size.entry", "ptr: %p", ptr);
+	LOG("core.malloc_usable_size.entry", "ptr: %p", ptr);
 
 	assert(malloc_initialized() || IS_INITIALIZER);
 
@@ -3121,7 +3121,7 @@ je_malloc_usable_size(JEMALLOC_USABLE_SIZE_CONST void *ptr) {
 	}
 
 	check_entry_exit_locking(tsdn);
-	log("core.malloc_usable_size.exit", "result: %zu", ret);
+	LOG("core.malloc_usable_size.exit", "result: %zu", ret);
 	return ret;
 }
 

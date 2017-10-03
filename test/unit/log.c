@@ -176,7 +176,7 @@ TEST_END
  */
 TEST_BEGIN(test_log_only_format_string) {
 	if (false) {
-		log("log_str", "No arguments follow this format string.");
+		LOG("log_str", "No arguments follow this format string.");
 	}
 }
 TEST_END
