@@ -14,30 +14,21 @@
 #define JEMALLOC_LOG_BUFSIZE 4096
 
 /*
- * The log_vars malloc_conf option is a '|'-delimited list of log_var name
- * segments to log.  The log_var names are themselves hierarchical, with '.' as
+ * The log malloc_conf option is a '|'-delimited list of log_var name segments
+ * which should be logged.  The names are themselves hierarchical, with '.' as
  * the delimiter (a "segment" is just a prefix in the log namespace).  So, if
  * you have:
  *
- * static log_var_t log_arena = LOG_VAR_INIT("arena"); // 1
- * static log_var_t log_arena_a = LOG_VAR_INIT("arena.a"); // 2
- * static log_var_t log_arena_b = LOG_VAR_INIT("arena.b"); // 3
- * static log_var_t log_arena_a_a = LOG_VAR_INIT("arena.a.a"); // 4
- * static_log_var_t log_extent_a = LOG_VAR_INIT("extent.a"); // 5
- * static_log_var_t log_extent_b = LOG_VAR_INIT("extent.b"); // 6
+ * log("arena", "log msg for arena"); // 1
+ * log("arena.a", "log msg for arena.a"); // 2
+ * log("arena.b", "log msg for arena.b"); // 3
+ * log("arena.a.a", "log msg for arena.a.a"); // 4
+ * log("extent.a", "log msg for extent.a"); // 5
+ * log("extent.b", "log msg for extent.b"); // 6
  *
- * And your malloc_conf option is "log_vars=arena.a|extent", then log_vars 2, 4,
- * 5, and 6 will be enabled.  You can enable logging from all log vars by
- * writing "log_vars=.".
- *
- * You can then log by writing:
- *   log(log_var, "format string -- my int is %d", my_int);
- *
- * The namespaces currently in use:
- *   core.[malloc|free|posix_memalign|...].[entry|exit]:
- *       The entry/exit points of the functions publicly exposed by jemalloc.
- *       The "entry" variants try to log arguments to the functions, and the
- *       "exit" ones try to log return values.
+ * And your malloc_conf option is "log=arena.a|extent", then lines 2, 4, 5, and
+ * 6 will print at runtime.  You can enable logging from all log vars by
+ * writing "log=.".
  *
  * None of this should be regarded as a stable API for right now.  It's intended
  * as a debugging interface, to let us keep around some of our printf-debugging
@@ -113,7 +104,7 @@ log_impl_varargs(const char *name, ...) {
 }
 
 /* Call as log("log.var.str", "format_string %d", arg_for_format_string); */
-#define log(log_var_str, ...)						\
+#define LOG(log_var_str, ...)						\
 do {									\
 	static log_var_t log_var = LOG_VAR_INIT(log_var_str);		\
 	log_do_begin(log_var)						\
