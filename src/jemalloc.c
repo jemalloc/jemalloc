@@ -1522,6 +1522,8 @@ malloc_init_hard(void) {
 	post_reentrancy(tsd);
 	malloc_mutex_unlock(tsd_tsdn(tsd), &init_lock);
 
+	witness_assert_lockless(witness_tsd_tsdn(
+	    tsd_witness_tsdp_get_unsafe(tsd)));
 	malloc_tsd_boot1();
 	/* Update TSD after tsd_boot1. */
 	tsd = tsd_fetch();
@@ -1529,8 +1531,11 @@ malloc_init_hard(void) {
 		assert(have_background_thread);
 		/*
 		 * Need to finish init & unlock first before creating background
-		 * threads (pthread_create depends on malloc).
+		 * threads (pthread_create depends on malloc).  ctl_init (which
+		 * sets isthreaded) needs to be called without holding any lock.
 		 */
+		background_thread_ctl_init(tsd_tsdn(tsd));
+
 		malloc_mutex_lock(tsd_tsdn(tsd), &background_thread_lock);
 		bool err = background_thread_create(tsd, 0);
 		malloc_mutex_unlock(tsd_tsdn(tsd), &background_thread_lock);
