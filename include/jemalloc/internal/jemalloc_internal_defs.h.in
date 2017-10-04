@@ -33,6 +33,8 @@
  * order to yield to another virtual CPU.
  */
 #undef CPU_SPINWAIT
+/* 1 if CPU_SPINWAIT is defined, 0 otherwise. */
+#undef HAVE_CPU_SPINWAIT
 
 /*
  * Number of significant bits in virtual addresses.  This may be less than the
