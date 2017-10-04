@@ -381,6 +381,7 @@ dnl CPU-specific settings.
 CPU_SPINWAIT=""
 case "${host_cpu}" in
   i686|x86_64)
+	HAVE_CPU_SPINWAIT=1
 	if test "x${je_cv_msvc}" = "xyes" ; then
 	    AC_CACHE_VAL([je_cv_pause_msvc],
 	      [JE_COMPILABLE([pause instruction MSVC], [],
@@ -399,13 +400,11 @@ case "${host_cpu}" in
 	    fi
 	fi
 	;;
-  powerpc*)
-	AC_DEFINE_UNQUOTED([HAVE_ALTIVEC], [ ])
-	CPU_SPINWAIT='__asm__ volatile("or 31,31,31")'
-	;;
   *)
+	HAVE_CPU_SPINWAIT=0
 	;;
 esac
+AC_DEFINE_UNQUOTED([HAVE_CPU_SPINWAIT], [$HAVE_CPU_SPINWAIT])
 AC_DEFINE_UNQUOTED([CPU_SPINWAIT], [$CPU_SPINWAIT])
 
 case "${host_cpu}" in

@@ -4,6 +4,7 @@
 
 #include "jemalloc/internal/assert.h"
 #include "jemalloc/internal/malloc_io.h"
+#include "jemalloc/internal/spin.h"
 
 #ifndef _CRT_SPINCOUNT
 #define _CRT_SPINCOUNT 4000
@@ -53,7 +54,7 @@ malloc_mutex_lock_slow(malloc_mutex_t *mutex) {
 
 	int cnt = 0, max_cnt = MALLOC_MUTEX_MAX_SPIN;
 	do {
-		CPU_SPINWAIT;
+		spin_cpu_spinwait();
 		if (!malloc_mutex_trylock_final(mutex)) {
 			data->n_spin_acquired++;
 			return;
