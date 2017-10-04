@@ -848,9 +848,6 @@ background_thread_boot1(tsdn_t *tsdn) {
 	    malloc_mutex_rank_exclusive)) {
 		return true;
 	}
-	if (opt_background_thread) {
-		background_thread_ctl_init(tsdn);
-	}
 
 	background_thread_info = (background_thread_info_t *)base_alloc(tsdn,
 	    b0get(), ncpus * sizeof(background_thread_info_t), CACHELINE);
