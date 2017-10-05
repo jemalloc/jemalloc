@@ -269,7 +269,13 @@ pages_purge_lazy(void *addr, size_t size) {
 	VirtualAlloc(addr, size, MEM_RESET, PAGE_READWRITE);
 	return false;
 #elif defined(JEMALLOC_PURGE_MADVISE_FREE)
-	return (madvise(addr, size, MADV_FREE) != 0);
+	return (madvise(addr, size,
+#  ifdef MADV_FREE
+	    MADV_FREE
+#  else
+	    JEMALLOC_MADV_FREE
+#  endif
+	    ) != 0);
 #elif defined(JEMALLOC_PURGE_MADVISE_DONTNEED) && \
     !defined(JEMALLOC_PURGE_MADVISE_DONTNEED_ZEROS)
 	return (madvise(addr, size, MADV_DONTNEED) != 0);
