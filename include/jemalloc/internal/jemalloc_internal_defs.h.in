@@ -285,6 +285,9 @@
 #undef JEMALLOC_PURGE_MADVISE_DONTNEED
 #undef JEMALLOC_PURGE_MADVISE_DONTNEED_ZEROS
 
+/* Defined if madvise(2) is available but MADV_FREE is not (x86 Linux only). */
+#undef JEMALLOC_DEFINE_MADVISE_FREE
+
 /*
  * Defined if transparent huge pages (THPs) are supported via the
  * MADV_[NO]HUGEPAGE arguments to madvise(2), and THP support is enabled.

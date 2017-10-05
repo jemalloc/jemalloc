@@ -1824,6 +1824,15 @@ if test "x${je_cv_madvise}" = "xyes" ; then
 ], [je_cv_madv_free])
   if test "x${je_cv_madv_free}" = "xyes" ; then
     AC_DEFINE([JEMALLOC_PURGE_MADVISE_FREE], [ ])
+  elif test "x${je_cv_madvise}" = "xyes" ; then
+    case "${host_cpu}" in i686|x86_64)
+        case "${host}" in *-*-linux*)
+            AC_DEFINE([JEMALLOC_PURGE_MADVISE_FREE], [ ])
+            AC_DEFINE([JEMALLOC_DEFINE_MADVISE_FREE], [ ])
+	    ;;
+        esac
+        ;;
+    esac
   fi
 
   dnl Check for madvise(..., MADV_DONTNEED).
