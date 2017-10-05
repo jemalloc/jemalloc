@@ -126,10 +126,58 @@ base_extent_init(size_t *extent_sn_next, extent_t *extent, void *addr,
 }
 
 static bool
-base_is_single_block(base_t *base) {
-	assert(base->blocks != NULL &&
-	    (base->blocks->size & HUGEPAGE_MASK) == 0);
-	return (base->blocks->next == NULL);
+base_auto_thp_triggered(base_t *base, bool with_new_block) {
+	assert(opt_metadata_thp == metadata_thp_auto);
+	base_block_t *b1 = base->blocks;
+	assert(b1 != NULL);
+
+	base_block_t *b2 = b1->next;
+	if (base_ind_get(base) != 0) {
+		return with_new_block ? true: b2 != NULL;
+	}
+
+	base_block_t *b3 = (b2 != NULL) ? b2->next : NULL;
+	return with_new_block ? b2 != NULL : b3 != NULL;
+}
+
+static void
+base_auto_thp_switch(base_t *base) {
+	assert(opt_metadata_thp == metadata_thp_auto);
+
+	base_block_t *b1 = base->blocks;
+	assert(b1 != NULL);
+	base_block_t *b2 = b1->next;
+
+	/* Called when adding a new block. */
+	bool should_switch;
+	if (base_ind_get(base) != 0) {
+		/* Makes the switch on the 2nd block. */
+		should_switch = (b2 == NULL);
+	} else {
+		/*
+		 * a0 switches to thp on the 3rd block, since rtree nodes are
+		 * allocated from a0 base, which takes an entire block on init.
+		 */
+		base_block_t *b3 = (b2 != NULL) ? b2->next :
+			NULL;
+		should_switch = (b2 != NULL) && (b3 == NULL);
+	}
+	if (!should_switch) {
+		return;
+	}
+
+	assert(base->n_thp == 0);
+	/* Make the initial blocks THP lazily. */
+	base_block_t *block = base->blocks;
+	while (block != NULL) {
+		assert((block->size & HUGEPAGE_MASK) == 0);
+		pages_huge(block, block->size);
+		if (config_stats) {
+			base->n_thp += block->size >> LG_HUGEPAGE;
+		}
+		block = block->next;
+		assert(block == NULL || (base_ind_get(base) == 0));
+	}
 }
 
 static void *
@@ -174,8 +222,8 @@ base_extent_bump_alloc_post(tsdn_t *tsdn, base_t *base, extent_t *extent,
 		    PAGE_CEILING((uintptr_t)addr - gap_size);
 		assert(base->allocated <= base->resident);
 		assert(base->resident <= base->mapped);
-		if (metadata_thp_madvise() && (!base_is_single_block(base) ||
-		    opt_metadata_thp == metadata_thp_always)) {
+		if (metadata_thp_madvise() && (opt_metadata_thp ==
+		    metadata_thp_always || base_auto_thp_triggered(base, false))) {
 			base->n_thp += (HUGEPAGE_CEILING((uintptr_t)addr + size)
 			    - HUGEPAGE_CEILING((uintptr_t)addr - gap_size)) >>
 			    LG_HUGEPAGE;
@@ -233,21 +281,15 @@ base_block_alloc(tsdn_t *tsdn, base_t *base, extent_hooks_t *extent_hooks,
 		void *addr = (void *)block;
 		assert(((uintptr_t)addr & HUGEPAGE_MASK) == 0 &&
 		    (block_size & HUGEPAGE_MASK) == 0);
-		/* base == NULL indicates this is a new base. */
-		if (base != NULL || opt_metadata_thp == metadata_thp_always) {
-			/* Use hugepage for the new block. */
+		if (opt_metadata_thp == metadata_thp_always) {
 			pages_huge(addr, block_size);
-		}
-		if (base != NULL && base_is_single_block(base) &&
-		    opt_metadata_thp == metadata_thp_auto) {
-			/* Make the first block THP lazily. */
-			base_block_t *first_block = base->blocks;
-			assert((first_block->size & HUGEPAGE_MASK) == 0);
-			pages_huge(first_block, first_block->size);
-			if (config_stats) {
-				assert(base->n_thp == 0);
-				base->n_thp += first_block->size >> LG_HUGEPAGE;
+		} else if (opt_metadata_thp == metadata_thp_auto &&
+		    base != NULL) {
+			/* base != NULL indicates this is not a new base. */
+			if (base_auto_thp_triggered(base, true)) {
+				pages_huge(addr, block_size);
 			}
+			base_auto_thp_switch(base);
 		}
 	}
 
@@ -287,8 +329,9 @@ base_extent_alloc(tsdn_t *tsdn, base_t *base, size_t size, size_t alignment) {
 		base->allocated += sizeof(base_block_t);
 		base->resident += PAGE_CEILING(sizeof(base_block_t));
 		base->mapped += block->size;
-		if (metadata_thp_madvise()) {
-			assert(!base_is_single_block(base));
+		if (metadata_thp_madvise() &&
+		    !(opt_metadata_thp == metadata_thp_auto
+		      && !base_auto_thp_triggered(base, false))) {
 			assert(base->n_thp > 0);
 			base->n_thp += HUGEPAGE_CEILING(sizeof(base_block_t)) >>
 			    LG_HUGEPAGE;
