@@ -30,19 +30,20 @@ bool can_enable_background_thread;
 
 static int (*pthread_create_fptr)(pthread_t *__restrict, const pthread_attr_t *,
     void *(*)(void *), void *__restrict);
-static pthread_once_t once_control = PTHREAD_ONCE_INIT;
 
 static void
-pthread_create_wrapper_once(void) {
+pthread_create_wrapper_init(void) {
 #ifdef JEMALLOC_LAZY_LOCK
-	isthreaded = true;
+	if (!isthreaded) {
+		isthreaded = true;
+	}
 #endif
 }
 
 int
 pthread_create_wrapper(pthread_t *__restrict thread, const pthread_attr_t *attr,
     void *(*start_routine)(void *), void *__restrict arg) {
-	pthread_once(&once_control, pthread_create_wrapper_once);
+	pthread_create_wrapper_init();
 
 	return pthread_create_fptr(thread, attr, start_routine, arg);
 }
@@ -805,7 +806,7 @@ void
 background_thread_ctl_init(tsdn_t *tsdn) {
 	malloc_mutex_assert_not_owner(tsdn, &background_thread_lock);
 #ifdef JEMALLOC_PTHREAD_CREATE_WRAPPER
-	pthread_once(&once_control, pthread_create_wrapper_once);
+	pthread_create_wrapper_init();
 #endif
 }
 
