@@ -1010,9 +1010,12 @@ mallctl("arena." STRINGIFY(MALLCTL_ARENAS_ALL) ".decay",
           (<type>const bool</type>)
           <literal>r-</literal>
         </term>
-        <listitem><para>Internal background worker threads enabled/disabled. See
-        <link linkend="background_thread">background_thread</link> for dynamic
-        control options and details.  This option is disabled by
+        <listitem><para>Internal background worker threads enabled/disabled.
+        Because of potential circular dependencies, enabling background thread
+        using this option may cause crash or deadlock during initialization. For
+        a reliable way to use this feature, see <link
+        linkend="background_thread">background_thread</link> for dynamic control
+        options and details.  This option is disabled by
         default.</para></listitem>
       </varlistentry>
 
