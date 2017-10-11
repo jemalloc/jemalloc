@@ -289,6 +289,11 @@
 #undef JEMALLOC_DEFINE_MADVISE_FREE
 
 /*
+ * Defined if MADV_DO[NT]DUMP is supported as an argument to madvise.
+ */
+#undef JEMALLOC_MADVISE_DONTDUMP
+
+/*
  * Defined if transparent huge pages (THPs) are supported via the
  * MADV_[NO]HUGEPAGE arguments to madvise(2), and THP support is enabled.
  */

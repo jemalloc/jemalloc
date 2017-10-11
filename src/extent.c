@@ -171,6 +171,37 @@ extent_lock_from_addr(tsdn_t *tsdn, rtree_ctx_t *rtree_ctx, void *addr) {
 	return ret;
 }
 
+/*
+ * The effect of this function is slightly weaker than the name implies.  In
+ * fact, it only makes the extent's memory dumpable if we were the ones to make
+ * it undumpable (as opposed to a user extent hook).  See the note on the
+ * "dumpable" bit in extent_t.
+ */
+static bool
+extent_ensure_dumpable(extent_t *extent) {
+	if (!extent_dumpable_get(extent)) {
+		bool err = pages_dodump(extent_base_get(extent),
+		    extent_size_get(extent));
+		extent_dumpable_set(extent, !err);
+		return err;
+	}
+	return false;
+}
+
+/*
+ * The caller shouldn't care if we failed to set dumpability, since that
+ * strictly decreases the amount of work needed.  Therefore, we don't return the
+ * error status.
+ */
+static void
+extent_prevent_dumpable(extent_t *extent) {
+	if (extent_dumpable_get(extent)) {
+		bool err = pages_dontdump(extent_base_get(extent),
+		    extent_size_get(extent));
+		extent_dumpable_set(extent, err);
+	}
+}
+
 extent_t *
 extent_alloc(tsdn_t *tsdn, arena_t *arena) {
 	malloc_mutex_lock(tsdn, &arena->extent_avail_mtx);
@@ -449,8 +480,10 @@ extents_alloc(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, 0);
 
-	return extent_recycle(tsdn, arena, r_extent_hooks, extents, new_addr,
-	    size, pad, alignment, slab, szind, zero, commit, false);
+	extent_t *extent = extent_recycle(tsdn, arena, r_extent_hooks, extents,
+	    new_addr, size, pad, alignment, slab, szind, zero, commit, false);
+	assert(extent == NULL || extent_dumpable_get(extent));
+	return extent;
 }
 
 void
@@ -458,6 +491,7 @@ extents_dalloc(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
     extents_t *extents, extent_t *extent) {
 	assert(extent_base_get(extent) != NULL);
 	assert(extent_size_get(extent) != 0);
+	assert(extent_dumpable_get(extent));
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, 0);
 
@@ -723,6 +757,13 @@ extent_reregister(tsdn_t *tsdn, extent_t *extent) {
 	assert(!err);
 }
 
+/*
+ * Removes all pointers to the given extent from the global rtree indices for
+ * its interior.  This is relevant for slab extents, for which we need to do
+ * metadata lookups at places other than the head of the extent.  We deregister
+ * on the interior, then, when an extent moves from being an active slab to an
+ * inactive state.
+ */
 static void
 extent_interior_deregister(tsdn_t *tsdn, rtree_ctx_t *rtree_ctx,
     extent_t *extent) {
@@ -737,6 +778,9 @@ extent_interior_deregister(tsdn_t *tsdn, rtree_ctx_t *rtree_ctx,
 	}
 }
 
+/*
+ * Removes all pointers to the given extent from the global rtree.
+ */
 static void
 extent_deregister(tsdn_t *tsdn, extent_t *extent) {
 	rtree_ctx_t rtree_ctx_fallback;
@@ -760,6 +804,10 @@ extent_deregister(tsdn_t *tsdn, extent_t *extent) {
 	}
 }
 
+/*
+ * Tries to find and remove an extent from extents that can be used for the
+ * given allocation request.
+ */
 static extent_t *
 extent_recycle_extract(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, rtree_ctx_t *rtree_ctx, extents_t *extents,
@@ -832,66 +880,154 @@ extent_recycle_extract(tsdn_t *tsdn, arena_t *arena,
 	return extent;
 }
 
-static extent_t *
-extent_recycle_split(tsdn_t *tsdn, arena_t *arena,
-    extent_hooks_t **r_extent_hooks, rtree_ctx_t *rtree_ctx, extents_t *extents,
+/*
+ * Given an allocation request and an extent guaranteed to be able to satisfy
+ * it, this splits off lead and trail extents, leaving extent pointing to an
+ * extent satisfying the allocation.
+ * This function doesn't put lead or trail into any extents_t; it's the caller's
+ * job to ensure that they can be reused.
+ */
+typedef enum {
+	/*
+	 * Split successfully.  lead, extent, and trail, are modified to extents
+	 * describing the ranges before, in, and after the given allocation.
+	 */
+	extent_split_interior_ok,
+	/*
+	 * The extent can't satisfy the given allocation request.  None of the
+	 * input extent_t *s are touched.
+	 */
+	extent_split_interior_cant_alloc,
+	/*
+	 * In a potentially invalid state.  Must leak (if *to_leak is non-NULL),
+	 * and salvage what's still salvageable (if *to_salvage is non-NULL).
+	 * None of lead, extent, or trail are valid.
+	 */
+	extent_split_interior_error
+} extent_split_interior_result_t;
+
+static extent_split_interior_result_t
+extent_split_interior(tsdn_t *tsdn, arena_t *arena,
+    extent_hooks_t **r_extent_hooks, rtree_ctx_t *rtree_ctx,
+    /* The result of splitting, in case of success. */
+    extent_t **extent, extent_t **lead, extent_t **trail,
+    /* The mess to clean up, in case of error. */
+    extent_t **to_leak, extent_t **to_salvage,
     void *new_addr, size_t size, size_t pad, size_t alignment, bool slab,
-    szind_t szind, extent_t *extent, bool growing_retained) {
+    szind_t szind, bool growing_retained) {
 	size_t esize = size + pad;
-	size_t leadsize = ALIGNMENT_CEILING((uintptr_t)extent_base_get(extent),
-	    PAGE_CEILING(alignment)) - (uintptr_t)extent_base_get(extent);
+	size_t leadsize = ALIGNMENT_CEILING((uintptr_t)extent_base_get(*extent),
+	    PAGE_CEILING(alignment)) - (uintptr_t)extent_base_get(*extent);
 	assert(new_addr == NULL || leadsize == 0);
-	assert(extent_size_get(extent) >= leadsize + esize);
-	size_t trailsize = extent_size_get(extent) - leadsize - esize;
+	if (extent_size_get(*extent) < leadsize + esize) {
+		return extent_split_interior_cant_alloc;
+	}
+	size_t trailsize = extent_size_get(*extent) - leadsize - esize;
+
+	*lead = NULL;
+	*trail = NULL;
+	*to_leak = NULL;
+	*to_salvage = NULL;
 
 	/* Split the lead. */
 	if (leadsize != 0) {
-		extent_t *lead = extent;
-		extent = extent_split_impl(tsdn, arena, r_extent_hooks,
-		    lead, leadsize, NSIZES, false, esize + trailsize, szind,
+		*lead = *extent;
+		*extent = extent_split_impl(tsdn, arena, r_extent_hooks,
+		    *lead, leadsize, NSIZES, false, esize + trailsize, szind,
 		    slab, growing_retained);
-		if (extent == NULL) {
-			extent_deregister(tsdn, lead);
-			extents_leak(tsdn, arena, r_extent_hooks, extents,
-			    lead, growing_retained);
-			return NULL;
+		if (*extent == NULL) {
+			*to_leak = *lead;
+			*lead = NULL;
+			return extent_split_interior_error;
 		}
-		extent_deactivate(tsdn, arena, extents, lead, false);
 	}
 
 	/* Split the trail. */
 	if (trailsize != 0) {
-		extent_t *trail = extent_split_impl(tsdn, arena,
-		    r_extent_hooks, extent, esize, szind, slab, trailsize,
-		    NSIZES, false, growing_retained);
-		if (trail == NULL) {
-			extent_deregister(tsdn, extent);
-			extents_leak(tsdn, arena, r_extent_hooks, extents,
-			    extent, growing_retained);
-			return NULL;
+		*trail = extent_split_impl(tsdn, arena, r_extent_hooks, *extent,
+		    esize, szind, slab, trailsize, NSIZES, false,
+		    growing_retained);
+		if (*trail == NULL) {
+			*to_leak = *extent;
+			*to_salvage = *lead;
+			*lead = NULL;
+			*extent = NULL;
+			return extent_split_interior_error;
 		}
-		extent_deactivate(tsdn, arena, extents, trail, false);
-	} else if (leadsize == 0) {
+	}
+
+	if (leadsize == 0 && trailsize == 0) {
 		/*
 		 * Splitting causes szind to be set as a side effect, but no
 		 * splitting occurred.
 		 */
-		extent_szind_set(extent, szind);
+		extent_szind_set(*extent, szind);
 		if (szind != NSIZES) {
 			rtree_szind_slab_update(tsdn, &extents_rtree, rtree_ctx,
-			    (uintptr_t)extent_addr_get(extent), szind, slab);
-			if (slab && extent_size_get(extent) > PAGE) {
+			    (uintptr_t)extent_addr_get(*extent), szind, slab);
+			if (slab && extent_size_get(*extent) > PAGE) {
 				rtree_szind_slab_update(tsdn, &extents_rtree,
 				    rtree_ctx,
-				    (uintptr_t)extent_past_get(extent) -
+				    (uintptr_t)extent_past_get(*extent) -
 				    (uintptr_t)PAGE, szind, slab);
 			}
 		}
 	}
 
-	return extent;
+	return extent_split_interior_ok;
 }
 
+/*
+ * This fulfills the indicated allocation request out of the given extent (which
+ * the caller should have ensured was big enough).  If there's any unused space
+ * before or after the resulting allocation, that space is given its own extent
+ * and put back into extents.
+ */
+static extent_t *
+extent_recycle_split(tsdn_t *tsdn, arena_t *arena,
+    extent_hooks_t **r_extent_hooks, rtree_ctx_t *rtree_ctx, extents_t *extents,
+    void *new_addr, size_t size, size_t pad, size_t alignment, bool slab,
+    szind_t szind, extent_t *extent, bool growing_retained) {
+	extent_t *lead;
+	extent_t *trail;
+	extent_t *to_leak;
+	extent_t *to_salvage;
+
+	extent_split_interior_result_t result = extent_split_interior(
+	    tsdn, arena, r_extent_hooks, rtree_ctx, &extent, &lead, &trail,
+	    &to_leak, &to_salvage, new_addr, size, pad, alignment, slab, szind,
+	    growing_retained);
+
+	if (result == extent_split_interior_ok) {
+		if (lead != NULL) {
+			extent_deactivate(tsdn, arena, extents, lead, false);
+		}
+		if (trail != NULL) {
+			extent_deactivate(tsdn, arena, extents, trail, false);
+		}
+		return extent;
+	} else {
+		/*
+		 * We should have picked an extent that was large enough to
+		 * fulfill our allocation request.
+		 */
+		assert(result == extent_split_interior_error);
+		if (to_salvage != NULL) {
+			extent_deregister(tsdn, to_salvage);
+		}
+		if (to_leak != NULL) {
+			extents_leak(tsdn, arena, r_extent_hooks, extents,
+			    to_leak, growing_retained);
+		}
+		return NULL;
+	}
+	unreachable();
+}
+
+/*
+ * Tries to satisfy the given allocation request by reusing one of the extents
+ * in the given extents_t.
+ */
 static extent_t *
 extent_recycle(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
     extents_t *extents, void *new_addr, size_t size, size_t pad,
@@ -1048,16 +1184,12 @@ extent_hook_post_reentrancy(tsdn_t *tsdn) {
 	post_reentrancy(tsd);
 }
 
-/*
- * If virtual memory is retained, create increasingly larger extents from which
- * to split requested extents in order to limit the total number of disjoint
- * virtual memory ranges retained by each arena.
- */
 static extent_t *
-extent_grow_retained(tsdn_t *tsdn, arena_t *arena,
-    extent_hooks_t **r_extent_hooks, size_t size, size_t pad, size_t alignment,
-    bool slab, szind_t szind, bool *zero, bool *commit) {
-	malloc_mutex_assert_owner(tsdn, &arena->extent_grow_mtx);
+extent_eden_alloc_expand(tsdn_t *tsdn, arena_t *arena,
+    extent_hooks_t **r_extent_hooks, rtree_ctx_t *rtree_ctx, size_t size,
+    size_t pad, size_t alignment, bool slab, szind_t szind, bool *zero,
+    bool *commit) {
+	malloc_mutex_assert_owner(tsdn, &arena->extent_eden_mtx);
 	assert(pad == 0 || !slab);
 	assert(!*zero || !slab);
 
@@ -1065,61 +1197,65 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena,
 	size_t alloc_size_min = esize + PAGE_CEILING(alignment) - PAGE;
 	/* Beware size_t wrap-around. */
 	if (alloc_size_min < esize) {
-		goto label_err;
+		return NULL;
 	}
 	/*
 	 * Find the next extent size in the series that would be large enough to
 	 * satisfy this request.
 	 */
 	pszind_t egn_skip = 0;
-	size_t alloc_size = sz_pind2sz(arena->extent_grow_next + egn_skip);
+	size_t alloc_size = sz_pind2sz(arena->extent_eden_grow_next + egn_skip);
 	while (alloc_size < alloc_size_min) {
 		egn_skip++;
-		if (arena->extent_grow_next + egn_skip == NPSIZES) {
-			/* Outside legal range. */
-			goto label_err;
+		if (arena->extent_eden_grow_next + egn_skip == NPSIZES) {
+			return NULL;
 		}
-		assert(arena->extent_grow_next + egn_skip < NPSIZES);
-		alloc_size = sz_pind2sz(arena->extent_grow_next + egn_skip);
+		assert(arena->extent_eden_grow_next + egn_skip < NPSIZES);
+		alloc_size = sz_pind2sz(arena->extent_eden_grow_next
+		    + egn_skip);
 	}
 
 	extent_t *extent = extent_alloc(tsdn, arena);
 	if (extent == NULL) {
-		goto label_err;
+		return NULL;
 	}
 	bool zeroed = false;
 	bool committed = false;
+	bool needs_nodump;
 
 	void *ptr;
 	if (*r_extent_hooks == &extent_hooks_default) {
 		ptr = extent_alloc_core(tsdn, arena, NULL, alloc_size, PAGE,
 		    &zeroed, &committed, (dss_prec_t)atomic_load_u(
 		    &arena->dss_prec, ATOMIC_RELAXED));
+		needs_nodump = true;
 	} else {
 		extent_hook_pre_reentrancy(tsdn, arena);
 		ptr = (*r_extent_hooks)->alloc(*r_extent_hooks, NULL,
 		    alloc_size, PAGE, &zeroed, &committed,
 		    arena_ind_get(arena));
 		extent_hook_post_reentrancy(tsdn);
+		needs_nodump = false;
+	}
+
+	if (ptr == NULL) {
+		return NULL;
 	}
 
 	extent_init(extent, arena, ptr, alloc_size, false, NSIZES,
 	    arena_extent_sn_next(arena), extent_state_active, zeroed,
-	    committed);
-	if (ptr == NULL) {
-		extent_dalloc(tsdn, arena, extent);
-		goto label_err;
+	    committed, true);
+
+	if (needs_nodump) {
+		extent_prevent_dumpable(extent);
 	}
+
 	if (extent_register_no_gdump_add(tsdn, extent)) {
 		extents_leak(tsdn, arena, r_extent_hooks,
 		    &arena->extents_retained, extent, true);
-		goto label_err;
+		return NULL;
 	}
 
-	size_t leadsize = ALIGNMENT_CEILING((uintptr_t)ptr,
-	    PAGE_CEILING(alignment)) - (uintptr_t)ptr;
-	assert(alloc_size >= leadsize + esize);
-	size_t trailsize = alloc_size - leadsize - esize;
 	if (extent_zeroed_get(extent) && extent_committed_get(extent)) {
 		*zero = true;
 	}
@@ -1127,78 +1263,153 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena,
 		*commit = true;
 	}
 
-	/* Split the lead. */
-	if (leadsize != 0) {
-		extent_t *lead = extent;
-		extent = extent_split_impl(tsdn, arena, r_extent_hooks, lead,
-		    leadsize, NSIZES, false, esize + trailsize, szind, slab,
-		    true);
+	/*
+	 * Increment extent_eden_grow_next if doing so wouldn't exceed the legal
+	 * range.
+	 */
+	if (arena->extent_eden_grow_next + egn_skip + 1 < NPSIZES) {
+		arena->extent_eden_grow_next += egn_skip + 1;
+	} else {
+		arena->extent_eden_grow_next = NPSIZES - 1;
+	}
+
+	return extent;
+}
+
+/*
+ * If virtual memory is retained, we allocate from the "eden" region of the
+ * arena.  This creates mappings of exponentially increasing size from which
+ * we can split memory for newly requested extents.  This strategy limits the
+ * total number of disjoint virtual memory ranges retained by each arena, which
+ * both helps merging to be effective, and also helps us avoid any kernel limits
+ * on the number of mappings allowed.  This is the last fallback on the slow
+ * path (when opt_retain is true), only used if we can't find a range to reuse.
+ *
+ * This always unlocks arena->extent_eden_mtx, which must be held upon entry.
+ */
+static extent_t *
+extent_eden_alloc(tsdn_t *tsdn, arena_t *arena,
+    extent_hooks_t **r_extent_hooks, size_t size, size_t pad, size_t alignment,
+    bool slab, szind_t szind, bool *zero, bool *commit) {
+	malloc_mutex_assert_owner(tsdn, &arena->extent_eden_mtx);
+	assert(pad == 0 || !slab);
+	assert(!*zero || !slab);
+
+	rtree_ctx_t rtree_ctx_fallback;
+	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
+
+	extent_t *lead;
+	extent_t *extent = arena->extent_eden;
+	extent_t *trail;
+	extent_t *to_leak;
+	extent_t *to_salvage;
+
+	if (extent == NULL) {
+		extent = extent_eden_alloc_expand(tsdn, arena, r_extent_hooks,
+		    rtree_ctx, size, pad, alignment, slab, szind, zero, commit);
 		if (extent == NULL) {
-			extent_deregister(tsdn, lead);
-			extents_leak(tsdn, arena, r_extent_hooks,
-			    &arena->extents_retained, lead, true);
-			goto label_err;
+			malloc_mutex_unlock(tsdn, &arena->extent_eden_mtx);
+			return NULL;
 		}
-		extent_record(tsdn, arena, r_extent_hooks,
-		    &arena->extents_retained, lead, true);
 	}
 
-	/* Split the trail. */
-	if (trailsize != 0) {
-		extent_t *trail = extent_split_impl(tsdn, arena, r_extent_hooks,
-		    extent, esize, szind, slab, trailsize, NSIZES, false, true);
-		if (trail == NULL) {
-			extent_deregister(tsdn, extent);
-			extents_leak(tsdn, arena, r_extent_hooks,
-			    &arena->extents_retained, extent, true);
-			goto label_err;
-		}
-		extent_record(tsdn, arena, r_extent_hooks,
-		    &arena->extents_retained, trail, true);
-	} else if (leadsize == 0) {
+	extent_split_interior_result_t result = extent_split_interior(
+	    tsdn, arena, r_extent_hooks, rtree_ctx, &extent, &lead, &trail,
+	    &to_leak, &to_salvage, NULL, size, pad, alignment, slab, szind,
+	    true);
+
+	/*
+	 * We couldn't allocate; either because the grow region was NULL, or
+	 * because it was too small to fulfill the allocation.  We'll have to
+	 * create a new one.
+	 */
+	if (result == extent_split_interior_cant_alloc) {
+		assert(size + pad > extent_size_get(extent)
+		    || alignment > PAGE);
 		/*
-		 * Splitting causes szind to be set as a side effect, but no
-		 * splitting occurred.
+		 * If we were the ones who allocated extent, then we should have
+		 * ensured that it was big enough to satisfy the request.
 		 */
-		rtree_ctx_t rtree_ctx_fallback;
-		rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn,
-		    &rtree_ctx_fallback);
+		assert(arena->extent_eden != NULL);
 
-		extent_szind_set(extent, szind);
-		if (szind != NSIZES) {
-			rtree_szind_slab_update(tsdn, &extents_rtree, rtree_ctx,
-			    (uintptr_t)extent_addr_get(extent), szind, slab);
-			if (slab && extent_size_get(extent) > PAGE) {
-				rtree_szind_slab_update(tsdn, &extents_rtree,
-				    rtree_ctx,
-				    (uintptr_t)extent_past_get(extent) -
-				    (uintptr_t)PAGE, szind, slab);
+		extent_t *new_extent = extent_eden_alloc_expand(tsdn, arena,
+		    r_extent_hooks, rtree_ctx, size, pad, alignment, slab, szind,
+		    zero, commit);
+		if (new_extent == NULL) {
+			malloc_mutex_unlock(tsdn, &arena->extent_eden_mtx);
+			return NULL;
+		} else {
+			/*
+			 * For simplicity, we toggle dumpability at the OS-level
+			 * while holding the lock (dropping it means we might
+			 * over-consume virtual memory in race conditions after
+			 * a highly aligned allocation request.  Since this
+			 * stops being an issue once an application reaches
+			 * steady state, this should be fine.
+			 */
+			if (extent_ensure_dumpable(extent)) {
+				/*
+				 * We should never let the user touch an
+				 * undumpable extent.
+				 */
+				extents_leak(tsdn, arena, r_extent_hooks,
+				    &arena->extents_retained, extent, true);
+			} else {
+				extent_record(tsdn, arena, r_extent_hooks,
+				    &arena->extents_retained, extent, true);
 			}
+			extent = new_extent;
 		}
-	}
 
-	if (*commit && !extent_committed_get(extent)) {
-		if (extent_commit_impl(tsdn, arena, r_extent_hooks, extent, 0,
-		    extent_size_get(extent), true)) {
-			extent_record(tsdn, arena, r_extent_hooks,
-			    &arena->extents_retained, extent, true);
-			goto label_err;
-		}
-		extent_zeroed_set(extent, true);
+		result = extent_split_interior(tsdn, arena, r_extent_hooks,
+		    rtree_ctx, &extent, &lead, &trail, &to_leak, &to_salvage,
+		    NULL, size, pad, alignment, slab, szind, true);
 	}
 
 	/*
-	 * Increment extent_grow_next if doing so wouldn't exceed the legal
-	 * range.
+	 * If we couldn't allocate from the original region, we should have
+	 * created a new one that is definitely large enough to be able to split
+	 * out the allocation.
 	 */
-	if (arena->extent_grow_next + egn_skip + 1 < NPSIZES) {
-		arena->extent_grow_next += egn_skip + 1;
-	} else {
-		arena->extent_grow_next = NPSIZES - 1;
-	}
-	/* All opportunities for failure are past. */
-	malloc_mutex_unlock(tsdn, &arena->extent_grow_mtx);
+	assert(result != extent_split_interior_cant_alloc);
 
+	if (result == extent_split_interior_error) {
+		arena->extent_eden = to_salvage;
+		malloc_mutex_unlock(tsdn, &arena->extent_eden_mtx);
+		if (to_leak != NULL) {
+			extent_deregister(tsdn, to_leak);
+			extents_leak(tsdn, arena, r_extent_hooks,
+			    &arena->extents_retained, to_leak, true);
+		}
+		return NULL;
+	}
+
+	assert(result == extent_split_interior_ok);
+
+	assert(lead == NULL || alignment > PAGE);
+	arena->extent_eden = trail;
+	if (lead != NULL) {
+		if (extent_ensure_dumpable(lead)) {
+			extents_leak(tsdn, arena, r_extent_hooks,
+			    &arena->extents_retained, extent, true);
+		} else {
+			extent_record(tsdn, arena, r_extent_hooks,
+			    &arena->extents_retained, lead, true);
+		}
+	}
+	malloc_mutex_unlock(tsdn, &arena->extent_eden_mtx);
+	if (extent_ensure_dumpable(extent)) {
+		return NULL;
+	}
+	if (*commit && !extent_committed_get(extent)) {
+		if (extent_commit_impl(tsdn, arena, r_extent_hooks,
+		    extent, 0, extent_size_get(extent), true)) {
+			extent_record(tsdn, arena, r_extent_hooks,
+			    &arena->extents_retained, extent, true);
+			return NULL;
+		}
+		extent_zeroed_set(extent, true);
+	}
 	if (config_prof) {
 		/* Adjust gdump stats now that extent is final size. */
 		extent_gdump_add(tsdn, extent);
@@ -1207,10 +1418,6 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena,
 		extent_addr_randomize(tsdn, extent, alignment);
 	}
 	if (slab) {
-		rtree_ctx_t rtree_ctx_fallback;
-		rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn,
-		    &rtree_ctx_fallback);
-
 		extent_slab_set(extent, true);
 		extent_interior_register(tsdn, rtree_ctx, extent, szind);
 	}
@@ -1223,9 +1430,6 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena,
 	}
 
 	return extent;
-label_err:
-	malloc_mutex_unlock(tsdn, &arena->extent_grow_mtx);
-	return NULL;
 }
 
 static extent_t *
@@ -1235,24 +1439,24 @@ extent_alloc_retained(tsdn_t *tsdn, arena_t *arena,
 	assert(size != 0);
 	assert(alignment != 0);
 
-	malloc_mutex_lock(tsdn, &arena->extent_grow_mtx);
+	malloc_mutex_lock(tsdn, &arena->extent_eden_mtx);
 
 	extent_t *extent = extent_recycle(tsdn, arena, r_extent_hooks,
 	    &arena->extents_retained, new_addr, size, pad, alignment, slab,
 	    szind, zero, commit, true);
 	if (extent != NULL) {
-		malloc_mutex_unlock(tsdn, &arena->extent_grow_mtx);
+		malloc_mutex_unlock(tsdn, &arena->extent_eden_mtx);
 		if (config_prof) {
 			extent_gdump_add(tsdn, extent);
 		}
 	} else if (opt_retain && new_addr == NULL) {
-		extent = extent_grow_retained(tsdn, arena, r_extent_hooks, size,
+		extent = extent_eden_alloc(tsdn, arena, r_extent_hooks, size,
 		    pad, alignment, slab, szind, zero, commit);
-		/* extent_grow_retained() always releases extent_grow_mtx. */
+		/* extent_eden_alloc() always releases extent_eden_mtx. */
 	} else {
-		malloc_mutex_unlock(tsdn, &arena->extent_grow_mtx);
+		malloc_mutex_unlock(tsdn, &arena->extent_eden_mtx);
 	}
-	malloc_mutex_assert_not_owner(tsdn, &arena->extent_grow_mtx);
+	malloc_mutex_assert_not_owner(tsdn, &arena->extent_eden_mtx);
 
 	return extent;
 }
@@ -1282,7 +1486,8 @@ extent_alloc_wrapper_hard(tsdn_t *tsdn, arena_t *arena,
 		return NULL;
 	}
 	extent_init(extent, arena, addr, esize, slab, szind,
-	    arena_extent_sn_next(arena), extent_state_active, zero, commit);
+	    arena_extent_sn_next(arena), extent_state_active, zero, commit,
+	    true);
 	if (pad != 0) {
 		extent_addr_randomize(tsdn, extent, alignment);
 	}
@@ -1320,6 +1525,7 @@ extent_alloc_wrapper(tsdn_t *tsdn, arena_t *arena,
 		    new_addr, size, pad, alignment, slab, szind, zero, commit);
 	}
 
+	assert(extent == NULL || extent_dumpable_get(extent));
 	return extent;
 }
 
@@ -1442,6 +1648,10 @@ extent_try_coalesce(tsdn_t *tsdn, arena_t *arena,
 	return extent;
 }
 
+/*
+ * Does the metadata management portions of putting an unused extent into the
+ * given extents_t (coalesces, deregisters slab interiors, the heap operations).
+ */
 static void
 extent_record(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
     extents_t *extents, extent_t *extent, bool growing_retained) {
@@ -1540,6 +1750,7 @@ extent_dalloc_wrapper_try(tsdn_t *tsdn, arena_t *arena,
 void
 extent_dalloc_wrapper(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, extent_t *extent) {
+	assert(extent_dumpable_get(extent));
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, 0);
 
@@ -1800,6 +2011,13 @@ extent_split_default(extent_hooks_t *extent_hooks, void *addr, size_t size,
 }
 #endif
 
+/*
+ * Accepts the extent to split, and the characteristics of each side of the
+ * split.  The 'a' parameters go with the 'lead' of the resulting pair of
+ * extents (the lower addressed portion of the split), and the 'b' parameters go
+ * with the trail (the higher addressed portion).  This makes 'extent' the lead,
+ * and returns the trail (except in case of error).
+ */
 static extent_t *
 extent_split_impl(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, extent_t *extent, size_t size_a,
@@ -1823,7 +2041,7 @@ extent_split_impl(tsdn_t *tsdn, arena_t *arena,
 	extent_init(trail, arena, (void *)((uintptr_t)extent_base_get(extent) +
 	    size_a), size_b, slab_b, szind_b, extent_sn_get(extent),
 	    extent_state_get(extent), extent_zeroed_get(extent),
-	    extent_committed_get(extent));
+	    extent_committed_get(extent), extent_dumpable_get(extent));
 
 	rtree_ctx_t rtree_ctx_fallback;
 	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
@@ -1834,7 +2052,7 @@ extent_split_impl(tsdn_t *tsdn, arena_t *arena,
 		extent_init(&lead, arena, extent_addr_get(extent), size_a,
 		    slab_a, szind_a, extent_sn_get(extent),
 		    extent_state_get(extent), extent_zeroed_get(extent),
-		    extent_committed_get(extent));
+		    extent_committed_get(extent), extent_dumpable_get(extent));
 
 		extent_rtree_leaf_elms_lookup(tsdn, rtree_ctx, &lead, false,
 		    true, &lead_elm_a, &lead_elm_b);
