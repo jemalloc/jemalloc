@@ -196,9 +196,16 @@ extent_addr_randomize(tsdn_t *tsdn, extent_t *extent, size_t alignment) {
 	if (alignment < PAGE) {
 		unsigned lg_range = LG_PAGE -
 		    lg_floor(CACHELINE_CEILING(alignment));
-		size_t r =
-		    prng_lg_range_zu(&extent_arena_get(extent)->offset_state,
-		    lg_range, true);
+		size_t r;
+		if (!tsdn_null(tsdn)) {
+			tsd_t *tsd = tsdn_tsd(tsdn);
+			r = (size_t)prng_lg_range_u64(
+			    tsd_offset_statep_get(tsd), lg_range);
+		} else {
+			r = prng_lg_range_zu(
+			    &extent_arena_get(extent)->offset_state,
+			    lg_range, true);
+		}
 		uintptr_t random_offset = ((uintptr_t)r) << (LG_PAGE -
 		    lg_range);
 		extent->e_addr = (void *)((uintptr_t)extent->e_addr +
