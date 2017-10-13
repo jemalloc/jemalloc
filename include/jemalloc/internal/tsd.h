@@ -65,6 +65,7 @@ typedef void (*test_callback_t)(int *);
     O(arenas_tdata_bypass,	bool,			bool)		\
     O(reentrancy_level,		int8_t,			int8_t)		\
     O(narenas_tdata,		uint32_t,		uint32_t)	\
+    O(offset_state,		uint64_t,		uint64_t)	\
     O(thread_allocated,		uint64_t,		uint64_t)	\
     O(thread_deallocated,	uint64_t,		uint64_t)	\
     O(prof_tdata,		prof_tdata_t *,		prof_tdata_t *)	\
@@ -80,6 +81,7 @@ typedef void (*test_callback_t)(int *);
     tsd_state_uninitialized,						\
     TCACHE_ENABLED_ZERO_INITIALIZER,					\
     false,								\
+    0,									\
     0,									\
     0,									\
     0,									\
