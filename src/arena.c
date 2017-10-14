@@ -515,11 +515,11 @@ arena_extent_alloc_large(tsdn_t *tsdn, arena_t *arena, size_t usize,
 	szind_t szind = sz_size2index(usize);
 	size_t mapped_add;
 	bool commit = true;
-	extent_t *extent = extents_alloc(tsdn, arena, &extent_hooks,
+	extent_t *extent = extents_alloc_unsized(tsdn, arena, &extent_hooks,
 	    &arena->extents_dirty, NULL, usize, sz_large_pad, alignment, false,
 	    szind, zero, &commit);
 	if (extent == NULL) {
-		extent = extents_alloc(tsdn, arena, &extent_hooks,
+		extent = extents_alloc_unsized(tsdn, arena, &extent_hooks,
 		    &arena->extents_muzzy, NULL, usize, sz_large_pad, alignment,
 		    false, szind, zero, &commit);
 	}
@@ -1294,11 +1294,11 @@ arena_slab_alloc(tsdn_t *tsdn, arena_t *arena, szind_t binind,
 	szind_t szind = sz_size2index(bin_info->reg_size);
 	bool zero = false;
 	bool commit = true;
-	extent_t *slab = extents_alloc(tsdn, arena, &extent_hooks,
+	extent_t *slab = extents_alloc_unsized(tsdn, arena, &extent_hooks,
 	    &arena->extents_dirty, NULL, bin_info->slab_size, 0, PAGE, true,
 	    binind, &zero, &commit);
 	if (slab == NULL) {
-		slab = extents_alloc(tsdn, arena, &extent_hooks,
+		slab = extents_alloc_unsized(tsdn, arena, &extent_hooks,
 		    &arena->extents_muzzy, NULL, bin_info->slab_size, 0, PAGE,
 		    true, binind, &zero, &commit);
 	}

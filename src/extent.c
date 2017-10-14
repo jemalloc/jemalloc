@@ -441,7 +441,8 @@ extent_try_delayed_coalesce(tsdn_t *tsdn, arena_t *arena,
 }
 
 extent_t *
-extents_alloc(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
+extents_alloc_unsized(tsdn_t *tsdn, arena_t *arena,
+    extent_hooks_t **r_extent_hooks,
     extents_t *extents, void *new_addr, size_t size, size_t pad,
     size_t alignment, bool slab, szind_t szind, bool *zero, bool *commit) {
 	assert(size + pad != 0);
