@@ -131,7 +131,8 @@ stats_arena_bins_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		    "\t\t\t\t\"bins\": [\n");
 	} else {
 		char *mutex_counters = "   n_lock_ops    n_waiting"
-		    "   n_spin_acq  total_wait_ns  max_wait_ns\n";
+		    "   n_spin_acq n_owner_switch  total_wait_ns"
+		    "  max_wait_ns max_n_thds\n";
 		malloc_cprintf(write_cb, cbopaque,
 		    "bins:           size ind    allocated      nmalloc"
 		    "      ndalloc    nrequests      curregs     curslabs regs"
@@ -234,16 +235,18 @@ stats_arena_bins_print(void (*write_cb)(void *, const char *), void *cbopaque,
 			    nregs, slab_size / page, util, nfills, nflushes,
 			    nslabs, nreslabs);
 
-			/* Output less info for bin mutexes to save space. */
 			if (mutex) {
 				malloc_cprintf(write_cb, cbopaque,
 				    " %12"FMTu64" %12"FMTu64" %12"FMTu64
-				    " %14"FMTu64" %12"FMTu64"\n",
+				    " %14"FMTu64" %14"FMTu64" %12"FMTu64
+				    " %10"FMTu64"\n",
 				    mutex_stats[mutex_counter_num_ops],
 				    mutex_stats[mutex_counter_num_wait],
 				    mutex_stats[mutex_counter_num_spin_acq],
+				    mutex_stats[mutex_counter_num_owner_switch],
 				    mutex_stats[mutex_counter_total_wait_time],
-				    mutex_stats[mutex_counter_max_wait_time]);
+				    mutex_stats[mutex_counter_max_wait_time],
+				    mutex_stats[mutex_counter_max_num_thds]);
 			} else {
 				malloc_cprintf(write_cb, cbopaque, "\n");
 			}
