@@ -5,6 +5,7 @@
 #include "jemalloc/internal/assert.h"
 #include "jemalloc/internal/atomic.h"
 #include "jemalloc/internal/log.h"
+#include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/pages.h"
 
 /*
@@ -21,6 +22,18 @@
 /* The number of size classes to put in the sized_region. */
 #define SIZED_REGION_NUM_SCS NBINS
 
+typedef struct sized_region_bin_s sized_region_bin_t;
+struct JEMALLOC_ALIGNED(CACHELINE) sized_region_bin_s {
+	/*
+	 * We play a little fast and loose with memory orders for these two,
+	 * since we can rely on the OS to maintain its own invariants, and since
+	 * updates to dumpable are protected by dumpable_mtx.
+	 */
+	atomic_zu_t used;
+	atomic_zu_t dumpable;
+	malloc_mutex_t dumpable_mtx;
+};
+
 typedef struct sized_region_s sized_region_t;
 struct sized_region_s {
 	JEMALLOC_ALIGNED(CACHELINE)
@@ -34,9 +47,12 @@ struct sized_region_s {
 	size_t size;
 	bool committed;
 
-	/* How much space is used in each size class. */
-	JEMALLOC_ALIGNED(CACHELINE)
-	atomic_zu_t size_class_space_used[SIZED_REGION_NUM_SCS];
+	/*
+	 * Note that this is cacheline-aligned because of the struct definition,
+	 * and so we need not align further to avoid sharing a cacheline with
+	 * the metadata above.
+	 */
+	sized_region_bin_t bins[SIZED_REGION_NUM_SCS];
 };
 
 /* Whether this feature is enabled. */
@@ -57,6 +73,8 @@ void sized_region_init(sized_region_t *region);
  */
 void sized_region_destroy(sized_region_t *region);
 #endif
+bool sized_region_expand_dumpable(tsdn_t *tsdn, sized_region_t *region,
+    size_t size, szind_t szind);
 
 /*
  * Returns true if we found the address.  If alloc_ctx is non-null, we fill it
@@ -91,8 +109,8 @@ sized_region_lookup(sized_region_t *region, void *p, alloc_ctx_t *alloc_ctx) {
  * initialization failed.
  */
 static inline void *
-sized_region_alloc(sized_region_t *region, size_t size, szind_t szind,
-    bool slab, bool *zero, bool *commit) {
+sized_region_alloc(tsdn_t *tsdn, sized_region_t *region, size_t size,
+    szind_t szind, bool slab, bool *zero, bool *commit) {
 	assert(PAGE_CEILING(size) == size);
 	/* Only slab allocations allowed in the sized-alloc region. */
 	assert(slab);
@@ -114,10 +132,13 @@ sized_region_alloc(sized_region_t *region, size_t size, szind_t szind,
 	 * space.  For extra safety (and simplicity while debugging), we use a
 	 * CAS loop instead of a fetch-add.
 	 */
-	size_t cur = atomic_load_zu(&region->size_class_space_used[szind],
+	size_t cur = atomic_load_zu(&region->bins[szind].used,
 	    ATOMIC_RELAXED);
 	size_t new_size;
 	do {
+		sized_region_bin_t *bin = &region->bins[szind];
+		size_t dumpable = atomic_load_zu(&bin->dumpable,
+		    ATOMIC_RELAXED);
 		new_size = cur + size;
 		if (new_size > sc_size) {
 			LOG("sized_region.alloc.failure.exhausted",
@@ -126,9 +147,15 @@ sized_region_alloc(sized_region_t *region, size_t size, szind_t szind,
 			    (void *)sc_size, (void *)cur, (void *)size);
 			return NULL;
 		}
+		if (new_size > dumpable) {
+			if (sized_region_expand_dumpable(tsdn, region, size,
+			    szind)) {
+				return NULL;
+			}
+		}
 	} while (!atomic_compare_exchange_weak_zu(
-	    &region->size_class_space_used[szind], &cur, new_size,
-	    ATOMIC_RELAXED, ATOMIC_RELAXED));
+	    &region->bins[szind].used, &cur, new_size, ATOMIC_RELAXED,
+	    ATOMIC_RELAXED));
 
 	void *ret = (void *)(region->start + (szind * sc_size) + cur);
 	if (*commit && !region->committed) {

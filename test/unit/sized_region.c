@@ -14,8 +14,8 @@ TEST_BEGIN(test_lookup) {
 			bool commit = false;
 
 			size_t size = PAGE * (alloc + 1);
-			void *ptr = sized_region_alloc(&region, size, sc, true,
-			    &zero, &commit);
+			void *ptr = sized_region_alloc(TSDN_NULL, &region, size,
+			    sc, true, &zero, &commit);
 			allocs[sc][alloc] = ptr;
 			assert_true(zero, "Got non-zero alloc.");
 			assert_ptr_not_null(ptr, "Unexpected null alloc.");
@@ -59,13 +59,13 @@ TEST_BEGIN(test_overflow) {
 	    i++) {
 		bool zero = false;
 		bool commit = false;
-		sized_region_alloc(&region, 100 * PAGE, sc, true, &zero,
-		    &commit);
+		sized_region_alloc(TSDN_NULL, &region, 100 * PAGE, sc, true,
+		    &zero, &commit);
 	}
 	bool zero = false;
 	bool commit = false;
-	void *ptr = sized_region_alloc(&region, 100 * PAGE, sc, true, &zero,
-	    &commit);
+	void *ptr = sized_region_alloc(TSDN_NULL, &region, 100 * PAGE, sc, true,
+	    &zero, &commit);
 	assert_ptr_null(ptr, "Kept allocating even after space exhausted.");
 
 	sized_region_destroy(&region);
@@ -81,7 +81,8 @@ TEST_BEGIN(test_zero_init) {
 	memset(&region, 0, sizeof(region));
 	bool zero = false;
 	bool commit = false;
-	void *ptr = sized_region_alloc(&region, PAGE, 0, true, &zero, &commit);
+	void *ptr = sized_region_alloc(TSDN_NULL, &region, PAGE, 0, true, &zero,
+	    &commit);
 	assert_ptr_null(ptr, "Zero-initialized region should not allocate.");
 }
 TEST_END

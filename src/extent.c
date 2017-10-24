@@ -1561,8 +1561,8 @@ extent_alloc_sized(tsdn_t *tsdn, arena_t *arena,
 		return NULL;
 	}
 
-	void *addr = sized_region_alloc(&sized_region_global, size, szind, slab,
-	    zero, commit);
+	void *addr = sized_region_alloc(tsdn, &sized_region_global, size, szind,
+	    slab, zero, commit);
 	if (addr == NULL) {
 		extent_dalloc(tsdn, arena, extent);
 		return NULL;
