@@ -10,6 +10,9 @@
 
 #ifdef JEMALLOC_SYSCTL_VM_OVERCOMMIT
 #include <sys/sysctl.h>
+#ifdef __FreeBSD__
+#include <vm/vm_param.h>
+#endif
 #endif
 
 /******************************************************************************/
@@ -375,9 +378,19 @@ os_overcommits_sysctl(void) {
 	size_t sz;
 
 	sz = sizeof(vm_overcommit);
+#if defined(__FreeBSD__) && defined(VM_OVERCOMMIT)
+	int mib[2];
+
+	mib[0] = CTL_VM;
+	mib[1] = VM_OVERCOMMIT;
+	if (sysctl(mib, 2, &vm_overcommit, &sz, NULL, 0) != 0) {
+		return false; /* Error. */
+	}
+#else
 	if (sysctlbyname("vm.overcommit", &vm_overcommit, &sz, NULL, 0) != 0) {
 		return false; /* Error. */
 	}
+#endif
 
 	return ((vm_overcommit & 0x3) == 0);
 }
