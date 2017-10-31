@@ -1019,7 +1019,7 @@ MUTEX_PROF_COUNTERS
 static void
 stats_print_helper(void (*write_cb)(void *, const char *), void *cbopaque,
     bool json, bool merged, bool destroyed, bool unmerged, bool bins,
-    bool large, bool mutex) {
+    bool large, bool mutex, bool sized_regions) {
 	size_t allocated, active, metadata, metadata_thp, resident, mapped,
 	    retained;
 	size_t num_background_threads;
@@ -1081,7 +1081,28 @@ stats_print_helper(void (*write_cb)(void *, const char *), void *cbopaque,
 		    "\t\t\t\t\"run_interval\": %"FMTu64"\n",
 		    background_thread_run_interval);
 		malloc_cprintf(write_cb, cbopaque, "\t\t\t}%s\n",
-		    mutex ? "," : "");
+		    (sized_regions || mutex) ? "," : "");
+
+		if (sized_regions) {
+			malloc_cprintf(write_cb, cbopaque,
+			    "\t\t\t\"sized_regions\": [\n");
+			for (int i = 0; i < SIZED_REGION_NUM_SCS; i++) {
+				size_t consumed;
+				CTL_M2_GET("stats.sized_regions.0.consumed",
+				    i, &consumed, size_t);
+				size_t dumpable;
+				CTL_M2_GET("stats.sized_regions.0.dumpable",
+				    i, &dumpable, size_t);
+
+				malloc_cprintf(write_cb, cbopaque,
+				    "\t\t\t\t"
+				    "{\"consumed\": %zu, \"dumpable\": %zu}"
+				    "%s\n", consumed, dumpable,
+				    i + 1 < SIZED_REGION_NUM_SCS ? "," : "");
+			}
+			malloc_cprintf(write_cb, cbopaque, "\t\t\t]%s\n",
+			    mutex ? "," : "");
+		}
 
 		if (mutex) {
 			malloc_cprintf(write_cb, cbopaque,
@@ -1111,6 +1132,22 @@ stats_print_helper(void (*write_cb)(void *, const char *), void *cbopaque,
 			    num_background_threads,
 			    background_thread_num_runs,
 			    background_thread_run_interval);
+		}
+		if (sized_regions) {
+			malloc_cprintf(write_cb, cbopaque,
+			    "Sized region index        consumed        "
+			    "dumpable\n");
+			for (int i = 0; i < SIZED_REGION_NUM_SCS; i++) {
+				size_t consumed;
+				CTL_M2_GET("stats.sized_regions.0.consumed",
+				    i, &consumed, size_t);
+				size_t dumpable;
+				CTL_M2_GET("stats.sized_regions.0.dumpable",
+				    i, &dumpable, size_t);
+				malloc_cprintf(write_cb, cbopaque,
+				    "%18d%16zu%16zu\n", i, consumed, dumpable);
+			}
+			malloc_cprintf(write_cb, cbopaque, "\n");
 		}
 		if (mutex) {
 			mutex_prof_global_ind_t i;
@@ -1290,7 +1327,7 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 	}
 	if (config_stats) {
 		stats_print_helper(write_cb, cbopaque, json, merged, destroyed,
-		    unmerged, bins, large, mutex);
+		    unmerged, bins, large, mutex, sized_regions);
 	}
 
 	if (json) {

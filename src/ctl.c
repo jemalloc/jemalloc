@@ -195,6 +195,9 @@ CTL_PROTO(stats_active)
 CTL_PROTO(stats_background_thread_num_threads)
 CTL_PROTO(stats_background_thread_num_runs)
 CTL_PROTO(stats_background_thread_run_interval)
+CTL_PROTO(stats_sized_regions_i_consumed)
+CTL_PROTO(stats_sized_regions_i_dumpable)
+INDEX_PROTO(stats_sized_regions_i)
 CTL_PROTO(stats_metadata)
 CTL_PROTO(stats_metadata_thp)
 CTL_PROTO(stats_resident)
@@ -518,6 +521,17 @@ MUTEX_PROF_GLOBAL_MUTEXES
 };
 #undef MUTEX_PROF_DATA_NODE
 
+static const ctl_named_node_t stats_sized_regions_i_node[] = {
+	{NAME("consumed"),	CTL(stats_sized_regions_i_consumed)},
+	{NAME("dumpable"),	CTL(stats_sized_regions_i_dumpable)}
+};
+static const ctl_named_node_t super_stats_sized_regions_i_node[] = {
+	{NAME(""),		CHILD(named, stats_sized_regions_i)}
+};
+static const ctl_indexed_node_t stats_sized_regions_node[] = {
+	{INDEX(stats_sized_regions_i)}
+};
+
 static const ctl_named_node_t stats_node[] = {
 	{NAME("allocated"),	CTL(stats_allocated)},
 	{NAME("active"),	CTL(stats_active)},
@@ -528,6 +542,7 @@ static const ctl_named_node_t stats_node[] = {
 	{NAME("retained"),	CTL(stats_retained)},
 	{NAME("background_thread"),
 	 CHILD(named, stats_background_thread)},
+	{NAME("sized_regions"),	CHILD(indexed, stats_sized_regions)},
 	{NAME("mutexes"),	CHILD(named, stats_mutexes)},
 	{NAME("arenas"),	CHILD(indexed, stats_arenas)}
 };
@@ -2490,6 +2505,21 @@ CTL_RO_CGEN(config_stats, stats_background_thread_num_runs,
     ctl_stats->background_thread.num_runs, uint64_t)
 CTL_RO_CGEN(config_stats, stats_background_thread_run_interval,
     nstime_ns(&ctl_stats->background_thread.run_interval), uint64_t)
+
+CTL_RO_CGEN(config_stats, stats_sized_regions_i_consumed,
+    atomic_load_zu(&sized_region_global.bins[mib[2]].used, ATOMIC_RELAXED),
+    size_t)
+CTL_RO_CGEN(config_stats, stats_sized_regions_i_dumpable,
+    atomic_load_zu(&sized_region_global.bins[mib[2]].dumpable, ATOMIC_RELAXED),
+    size_t)
+static const ctl_named_node_t *
+stats_sized_regions_i_index(tsdn_t *tsdn, const size_t *mib, size_t miblen,
+    size_t i) {
+	if (i >= SIZED_REGION_NUM_SCS) {
+		return NULL;
+	}
+	return super_stats_sized_regions_i_node;
+}
 
 CTL_RO_GEN(stats_arenas_i_dss, arenas_i(mib[2])->dss, const char *)
 CTL_RO_GEN(stats_arenas_i_dirty_decay_ms, arenas_i(mib[2])->dirty_decay_ms,
