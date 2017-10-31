@@ -125,42 +125,45 @@ base_extent_init(size_t *extent_sn_next, extent_t *extent, void *addr,
 	extent_binit(extent, addr, size, sn);
 }
 
+static size_t
+base_get_num_blocks(base_t *base, bool with_new_block) {
+	base_block_t *b = base->blocks;
+	assert(b != NULL);
+
+	size_t n_blocks = with_new_block ? 2 : 1;
+	while (b->next != NULL) {
+		n_blocks++;
+		b = b->next;
+	}
+
+	return n_blocks;
+}
+
 static bool
 base_auto_thp_triggered(base_t *base, bool with_new_block) {
 	assert(opt_metadata_thp == metadata_thp_auto);
-	base_block_t *b1 = base->blocks;
-	assert(b1 != NULL);
 
-	base_block_t *b2 = b1->next;
 	if (base_ind_get(base) != 0) {
-		return with_new_block ? true: b2 != NULL;
+		return base_get_num_blocks(base, with_new_block) >=
+		    BASE_AUTO_THP_THRESHOLD;
 	}
 
-	base_block_t *b3 = (b2 != NULL) ? b2->next : NULL;
-	return with_new_block ? b2 != NULL : b3 != NULL;
+	return base_get_num_blocks(base, with_new_block) >=
+	    BASE_AUTO_THP_THRESHOLD_A0;
 }
 
 static void
 base_auto_thp_switch(base_t *base) {
 	assert(opt_metadata_thp == metadata_thp_auto);
 
-	base_block_t *b1 = base->blocks;
-	assert(b1 != NULL);
-	base_block_t *b2 = b1->next;
-
 	/* Called when adding a new block. */
 	bool should_switch;
 	if (base_ind_get(base) != 0) {
-		/* Makes the switch on the 2nd block. */
-		should_switch = (b2 == NULL);
+		should_switch = (base_get_num_blocks(base, true) ==
+		    BASE_AUTO_THP_THRESHOLD);
 	} else {
-		/*
-		 * a0 switches to thp on the 3rd block, since rtree nodes are
-		 * allocated from a0 base, which takes an entire block on init.
-		 */
-		base_block_t *b3 = (b2 != NULL) ? b2->next :
-			NULL;
-		should_switch = (b2 != NULL) && (b3 == NULL);
+		should_switch = (base_get_num_blocks(base, true) ==
+		    BASE_AUTO_THP_THRESHOLD_A0);
 	}
 	if (!should_switch) {
 		return;
