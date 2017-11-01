@@ -87,6 +87,14 @@ static void
 read_arena_bin_mutex_stats(unsigned arena_ind, unsigned bin_ind,
     uint64_t results[mutex_prof_num_counters]) {
 	char cmd[MUTEX_CTL_STR_MAX_LENGTH];
+	/*
+	 * Some of the mallctls we call may not fill in all our data; we use
+	 * 64-bit integers for everything, but some fields we request are
+	 * 32-bit.  As a quick hack let's memset, which will make things look OK
+	 * on little-endian machines.  We should fix things "for real" though.
+	 * This is tracked at https://github.com/jemalloc/jemalloc/issues/1063 .
+	 */
+	memset(results, 0, sizeof(uint64_t) * mutex_prof_num_counters);
 #define OP(c, t)							\
     gen_mutex_ctl_str(cmd, MUTEX_CTL_STR_MAX_LENGTH,			\
         "arenas.0.bins.0","mutex", #c);					\
