@@ -227,9 +227,11 @@ gen_mallctl_str(char *cmd, char *name, unsigned arena_ind) {
 
 TEST_BEGIN(test_stats_arenas_bins) {
 	void *p;
-	size_t sz, curslabs, curregs;
+	size_t sz, curregs;
+	size_t curslabs, curslabs_sized, curslabs_unsized;
 	uint64_t epoch, nmalloc, ndalloc, nrequests, nfills, nflushes;
-	uint64_t nslabs, nreslabs;
+	uint64_t nslabs, nslabs_sized, nslabs_unsized;
+	uint64_t nreslabs, nreslabs_sized, nreslabs_unsized;
 	int expected = config_stats ? 0 : ENOENT;
 
 	/* Make sure allocation below isn't satisfied by tcache. */
@@ -281,12 +283,32 @@ TEST_BEGIN(test_stats_arenas_bins) {
 	gen_mallctl_str(cmd, "nslabs", arena_ind);
 	assert_d_eq(mallctl(cmd, (void *)&nslabs, &sz, NULL, 0), expected,
 	    "Unexpected mallctl() result");
+	gen_mallctl_str(cmd, "nslabs_sized", arena_ind);
+	assert_d_eq(mallctl(cmd, (void *)&nslabs_sized, &sz, NULL, 0), expected,
+	    "Unexpected mallctl() result");
+	gen_mallctl_str(cmd, "nslabs_unsized", arena_ind);
+	assert_d_eq(mallctl(cmd, (void *)&nslabs_unsized, &sz, NULL, 0),
+	    expected, "Unexpected mallctl() result");
+
 	gen_mallctl_str(cmd, "nreslabs", arena_ind);
 	assert_d_eq(mallctl(cmd, (void *)&nreslabs, &sz, NULL, 0), expected,
 	    "Unexpected mallctl() result");
+	gen_mallctl_str(cmd, "nreslabs_sized", arena_ind);
+	assert_d_eq(mallctl(cmd, (void *)&nreslabs_sized, &sz, NULL, 0), expected,
+	    "Unexpected mallctl() result");
+	gen_mallctl_str(cmd, "nreslabs_unsized", arena_ind);
+	assert_d_eq(mallctl(cmd, (void *)&nreslabs_unsized, &sz, NULL, 0), expected,
+	    "Unexpected mallctl() result");
+
 	sz = sizeof(size_t);
 	gen_mallctl_str(cmd, "curslabs", arena_ind);
 	assert_d_eq(mallctl(cmd, (void *)&curslabs, &sz, NULL, 0), expected,
+	    "Unexpected mallctl() result");
+	gen_mallctl_str(cmd, "curslabs_sized", arena_ind);
+	assert_d_eq(mallctl(cmd, (void *)&curslabs_sized, &sz, NULL, 0), expected,
+	    "Unexpected mallctl() result");
+	gen_mallctl_str(cmd, "curslabs_unsized", arena_ind);
+	assert_d_eq(mallctl(cmd, (void *)&curslabs_unsized, &sz, NULL, 0), expected,
 	    "Unexpected mallctl() result");
 
 	if (config_stats) {
@@ -306,8 +328,12 @@ TEST_BEGIN(test_stats_arenas_bins) {
 		}
 		assert_u64_gt(nslabs, 0,
 		    "At least one slab should have been allocated");
+		assert_u64_eq(nslabs, nslabs_sized + nslabs_unsized,
+		    "nslabs should be the sum of sized and unsized");
 		assert_zu_gt(curslabs, 0,
 		    "At least one slab should be currently allocated");
+		assert_u64_eq(curslabs, curslabs_sized + curslabs_unsized,
+		    "curslabs should be the sum of sized and unsized");
 	}
 
 	dallocx(p, 0);

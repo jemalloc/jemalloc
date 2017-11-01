@@ -141,22 +141,51 @@ stats_arena_bins_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		char *mutex_counters = "   n_lock_ops    n_waiting"
 		    "   n_spin_acq n_owner_switch  total_wait_ns"
 		    "  max_wait_ns max_n_thds\n";
+		/*
+		 * Since these need to be kept in sync with the formatting in
+		 * the table rows output down below, we keep track of each field
+		 * size here.
+		 */
 		malloc_cprintf(write_cb, cbopaque,
-		    "bins:           size ind    allocated      nmalloc"
-		    "      ndalloc    nrequests      curregs     curslabs regs"
-		    " pgs  util       nfills     nflushes     newslabs"
-		    "      reslabs%s", mutex ? mutex_counters : "\n");
+		    "bins:"			/* 5 chars */
+		    "           size"		/* 15 chars */
+		    " ind"			/* 4 chars */
+		    "    allocated"		/* 13 chars */
+		    "      nmalloc"		/* 13 chars */
+		    "      ndalloc"		/* 13 chars */
+		    "    nrequests"		/* 13 chars */
+		    "      curregs"		/* 13 chars */
+		    "     curslabs"		/* 13 chars */
+		    "    curslabs_sized"	/* 18 chars */
+		    "  curslabs_unsized"	/* 18 chars */
+		    " regs"			/* 5 chars */
+		    " pgs"			/* 4 chars */
+		    "  util"			/* 5 chars */
+		    "       nfills"		/* 13 chars */
+		    "     nflushes"		/* 13 chars */
+		    "     newslabs"		/* 13 chars */
+		    "      newslabs_sized"	/* 20 chars */
+		    "    newslabs_unsized"	/* 20 chars */
+		    "      reslabs"		/* 13 chars */
+		    "     reslabs_sized"	/* 18 chars */
+		    "   reslabs_unsized"	/* 18 chars */
+		    "%s",
+		    mutex ? mutex_counters : "\n");
 	}
 	for (j = 0, in_gap = false; j < nbins; j++) {
-		uint64_t nslabs;
+		uint64_t nslabs, nslabs_sized, nslabs_unsized;
 		size_t reg_size, slab_size, curregs;
-		size_t curslabs;
+		size_t curslabs, curslabs_sized, curslabs_unsized;
 		uint32_t nregs;
 		uint64_t nmalloc, ndalloc, nrequests, nfills, nflushes;
-		uint64_t nreslabs;
+		uint64_t nreslabs, nreslabs_sized, nreslabs_unsized;
 
 		CTL_M2_M4_GET("stats.arenas.0.bins.0.nslabs", i, j, &nslabs,
 		    uint64_t);
+		CTL_M2_M4_GET("stats.arenas.0.bins.0.nslabs_sized", i, j,
+		    &nslabs_sized, uint64_t);
+		CTL_M2_M4_GET("stats.arenas.0.bins.0.nslabs_unsized", i, j,
+		    &nslabs_unsized, uint64_t);
 		in_gap_prev = in_gap;
 		in_gap = (nslabs == 0);
 
@@ -183,8 +212,16 @@ stats_arena_bins_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		    uint64_t);
 		CTL_M2_M4_GET("stats.arenas.0.bins.0.nreslabs", i, j, &nreslabs,
 		    uint64_t);
+		CTL_M2_M4_GET("stats.arenas.0.bins.0.nreslabs_sized", i, j,
+		    &nreslabs_sized, uint64_t);
+		CTL_M2_M4_GET("stats.arenas.0.bins.0.nreslabs_unsized", i, j,
+		    &nreslabs_unsized, uint64_t);
 		CTL_M2_M4_GET("stats.arenas.0.bins.0.curslabs", i, j, &curslabs,
 		    size_t);
+		CTL_M2_M4_GET("stats.arenas.0.bins.0.curslabs_sized", i, j,
+		    &curslabs_sized, size_t);
+		CTL_M2_M4_GET("stats.arenas.0.bins.0.curslabs_unsized", i, j,
+		    &curslabs_unsized, size_t);
 
 		if (json) {
 			malloc_cprintf(write_cb, cbopaque,
@@ -195,10 +232,20 @@ stats_arena_bins_print(void (*write_cb)(void *, const char *), void *cbopaque,
 			    "\t\t\t\t\t\t\"nrequests\": %"FMTu64",\n"
 			    "\t\t\t\t\t\t\"nfills\": %"FMTu64",\n"
 			    "\t\t\t\t\t\t\"nflushes\": %"FMTu64",\n"
+			    "\t\t\t\t\t\t\"newslabs\": %"FMTu64",\n"
+			    "\t\t\t\t\t\t\"newslabs_sized\": %"FMTu64",\n"
+			    "\t\t\t\t\t\t\"newslabs_unsized\": %"FMTu64",\n"
 			    "\t\t\t\t\t\t\"nreslabs\": %"FMTu64",\n"
-			    "\t\t\t\t\t\t\"curslabs\": %zu%s\n",
+			    "\t\t\t\t\t\t\"nreslabs_sized\": %"FMTu64",\n"
+			    "\t\t\t\t\t\t\"nreslabs_unsized\": %"FMTu64",\n"
+			    "\t\t\t\t\t\t\"curslabs\": %zu,\n"
+			    "\t\t\t\t\t\t\"curslabs_sized\": %zu,\n"
+			    "\t\t\t\t\t\t\"curslabs_unsized\": %zu%s\n",
 			    nmalloc, ndalloc, curregs, nrequests, nfills,
-			    nflushes, nreslabs, curslabs, mutex ? "," : "");
+			    nflushes, nslabs, nslabs_sized, nslabs_unsized,
+			    nreslabs, nreslabs_sized, nreslabs_unsized,
+			    curslabs, curslabs_sized, curslabs_unsized,
+			    mutex ? "," : "");
 			if (mutex) {
 				uint64_t mutex_stats[mutex_prof_num_counters];
 				read_arena_bin_mutex_stats(i, j, mutex_stats);
@@ -235,13 +282,34 @@ stats_arena_bins_print(void (*write_cb)(void *, const char *), void *cbopaque,
 				read_arena_bin_mutex_stats(i, j, mutex_stats);
 			}
 
-			malloc_cprintf(write_cb, cbopaque, "%20zu %3u %12zu %12"
-			    FMTu64" %12"FMTu64" %12"FMTu64" %12zu %12zu %4u"
-			    " %3zu %-5s %12"FMTu64" %12"FMTu64" %12"FMTu64
-			    " %12"FMTu64, reg_size, j, curregs * reg_size,
-			    nmalloc, ndalloc, nrequests, curregs, curslabs,
-			    nregs, slab_size / page, util, nfills, nflushes,
-			    nslabs, nreslabs);
+			malloc_cprintf(write_cb, cbopaque,
+			    "%20zu" /* (bins field +) size */
+			    "%4u" /* ind */
+			    "%13zu" /* allocated */
+			    "%13"FMTu64 /* nmalloc */
+			    "%13"FMTu64 /* ndalloc */
+			    "%13"FMTu64 /* nrequests */
+			    "%13zu" /* curregs */
+			    "%13zu" /* curslabs */
+			    "%18zu" /* curslabs_sized */
+			    "%18zu" /* curslabs_unsized */
+			    "%5u" /* regs */
+			    "%4zu" /* pgs */
+			    "%-6s" /* util */
+			    "%13"FMTu64 /* nfills */
+			    "%13"FMTu64 /* nflushes */
+			    "%13"FMTu64 /* newslabs */
+			    "%20"FMTu64 /* newslabs_sized */
+			    "%20"FMTu64 /* newslabs_unsized */
+			    "%13"FMTu64 /* reslabs */
+			    "%18"FMTu64 /* reslabs_sized */
+			    "%18"FMTu64, /* reslabs_unsized */
+			    reg_size, j, curregs * reg_size, nmalloc, ndalloc,
+			    nrequests, curregs, curslabs, curslabs_sized,
+			    curslabs_unsized, nregs, slab_size / page, util,
+			    nfills, nflushes, nslabs, nslabs_sized,
+			    nslabs_unsized, nreslabs, nreslabs_sized,
+			    nreslabs_unsized);
 
 			if (mutex) {
 				malloc_cprintf(write_cb, cbopaque,

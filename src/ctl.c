@@ -160,8 +160,14 @@ CTL_PROTO(stats_arenas_i_bins_j_curregs)
 CTL_PROTO(stats_arenas_i_bins_j_nfills)
 CTL_PROTO(stats_arenas_i_bins_j_nflushes)
 CTL_PROTO(stats_arenas_i_bins_j_nslabs)
+CTL_PROTO(stats_arenas_i_bins_j_nslabs_sized)
+CTL_PROTO(stats_arenas_i_bins_j_nslabs_unsized)
 CTL_PROTO(stats_arenas_i_bins_j_nreslabs)
+CTL_PROTO(stats_arenas_i_bins_j_nreslabs_sized)
+CTL_PROTO(stats_arenas_i_bins_j_nreslabs_unsized)
 CTL_PROTO(stats_arenas_i_bins_j_curslabs)
+CTL_PROTO(stats_arenas_i_bins_j_curslabs_sized)
+CTL_PROTO(stats_arenas_i_bins_j_curslabs_unsized)
 INDEX_PROTO(stats_arenas_i_bins_j)
 CTL_PROTO(stats_arenas_i_lextents_j_nmalloc)
 CTL_PROTO(stats_arenas_i_lextents_j_ndalloc)
@@ -430,8 +436,19 @@ static const ctl_named_node_t stats_arenas_i_bins_j_node[] = {
 	{NAME("nfills"),	CTL(stats_arenas_i_bins_j_nfills)},
 	{NAME("nflushes"),	CTL(stats_arenas_i_bins_j_nflushes)},
 	{NAME("nslabs"),	CTL(stats_arenas_i_bins_j_nslabs)},
+	{NAME("nslabs_sized"),	CTL(stats_arenas_i_bins_j_nslabs_sized)},
+	{NAME("nslabs_unsized"),
+		CTL(stats_arenas_i_bins_j_nslabs_unsized)},
 	{NAME("nreslabs"),	CTL(stats_arenas_i_bins_j_nreslabs)},
+	{NAME("nreslabs_sized"),
+		CTL(stats_arenas_i_bins_j_nreslabs_sized)},
+	{NAME("nreslabs_unsized"),
+		CTL(stats_arenas_i_bins_j_nreslabs_unsized)},
 	{NAME("curslabs"),	CTL(stats_arenas_i_bins_j_curslabs)},
+	{NAME("curslabs_sized"),
+		CTL(stats_arenas_i_bins_j_curslabs_sized)},
+	{NAME("curslabs_unsized"),
+		CTL(stats_arenas_i_bins_j_curslabs_unsized)},
 	{NAME("mutex"),		CHILD(named, stats_arenas_i_bins_j_mutex)}
 };
 
@@ -850,13 +867,22 @@ MUTEX_PROF_ARENA_MUTEXES
 			sdstats->bstats[i].nfills += astats->bstats[i].nfills;
 			sdstats->bstats[i].nflushes +=
 			    astats->bstats[i].nflushes;
-			sdstats->bstats[i].nslabs += astats->bstats[i].nslabs;
-			sdstats->bstats[i].reslabs += astats->bstats[i].reslabs;
-			if (!destroyed) {
-				sdstats->bstats[i].curslabs +=
-				    astats->bstats[i].curslabs;
-			} else {
-				assert(astats->bstats[i].curslabs == 0);
+			sdstats->bstats[i].nslabs_sized +=
+			    astats->bstats[i].nslabs_sized;
+			sdstats->bstats[i].nslabs_unsized +=
+			    astats->bstats[i].nslabs_unsized;
+			sdstats->bstats[i].reslabs_sized
+			    += astats->bstats[i].reslabs_sized;
+			sdstats->bstats[i].reslabs_unsized
+			    += astats->bstats[i].reslabs_unsized;
+			sdstats->bstats[i].curslabs_sized
+			    += astats->bstats[i].curslabs_sized;
+			sdstats->bstats[i].curslabs_unsized
+			    += astats->bstats[i].curslabs_unsized;
+			if (destroyed) {
+				assert(astats->bstats[i].curslabs_sized == 0);
+				assert(
+				    astats->bstats[i].curslabs_unsized == 0);
 			}
 			malloc_mutex_prof_merge(&sdstats->bstats[i].mutex_data,
 			    &astats->bstats[i].mutex_data);
@@ -2695,12 +2721,30 @@ CTL_RO_CGEN(config_stats, stats_arenas_i_bins_j_nfills,
     arenas_i(mib[2])->astats->bstats[mib[4]].nfills, uint64_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_bins_j_nflushes,
     arenas_i(mib[2])->astats->bstats[mib[4]].nflushes, uint64_t)
+/* nslabs. */
 CTL_RO_CGEN(config_stats, stats_arenas_i_bins_j_nslabs,
-    arenas_i(mib[2])->astats->bstats[mib[4]].nslabs, uint64_t)
+    arenas_i(mib[2])->astats->bstats[mib[4]].nslabs_sized
+    + arenas_i(mib[2])->astats->bstats[mib[4]].nslabs_unsized, uint64_t)
+CTL_RO_CGEN(config_stats, stats_arenas_i_bins_j_nslabs_sized,
+    arenas_i(mib[2])->astats->bstats[mib[4]].nslabs_sized, uint64_t)
+CTL_RO_CGEN(config_stats, stats_arenas_i_bins_j_nslabs_unsized,
+    arenas_i(mib[2])->astats->bstats[mib[4]].nslabs_unsized, uint64_t)
+/* reslabs. */
 CTL_RO_CGEN(config_stats, stats_arenas_i_bins_j_nreslabs,
-    arenas_i(mib[2])->astats->bstats[mib[4]].reslabs, uint64_t)
+    arenas_i(mib[2])->astats->bstats[mib[4]].reslabs_sized
+    + arenas_i(mib[2])->astats->bstats[mib[4]].reslabs_unsized, uint64_t)
+CTL_RO_CGEN(config_stats, stats_arenas_i_bins_j_nreslabs_sized,
+    arenas_i(mib[2])->astats->bstats[mib[4]].reslabs_sized, uint64_t)
+CTL_RO_CGEN(config_stats, stats_arenas_i_bins_j_nreslabs_unsized,
+    arenas_i(mib[2])->astats->bstats[mib[4]].reslabs_unsized, uint64_t)
+/* curslabs. */
 CTL_RO_CGEN(config_stats, stats_arenas_i_bins_j_curslabs,
-    arenas_i(mib[2])->astats->bstats[mib[4]].curslabs, size_t)
+    arenas_i(mib[2])->astats->bstats[mib[4]].curslabs_sized
+    + arenas_i(mib[2])->astats->bstats[mib[4]].curslabs_unsized, size_t)
+CTL_RO_CGEN(config_stats, stats_arenas_i_bins_j_curslabs_sized,
+    arenas_i(mib[2])->astats->bstats[mib[4]].curslabs_sized, size_t)
+CTL_RO_CGEN(config_stats, stats_arenas_i_bins_j_curslabs_unsized,
+    arenas_i(mib[2])->astats->bstats[mib[4]].curslabs_unsized, size_t)
 
 static const ctl_named_node_t *
 stats_arenas_i_bins_j_index(tsdn_t *tsdn, const size_t *mib, size_t miblen,

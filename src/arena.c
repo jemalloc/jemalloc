@@ -362,10 +362,46 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 		bstats[i].curregs += bin->stats.curregs;
 		bstats[i].nfills += bin->stats.nfills;
 		bstats[i].nflushes += bin->stats.nflushes;
-		bstats[i].nslabs += bin->stats.nslabs;
-		bstats[i].reslabs += bin->stats.reslabs;
-		bstats[i].curslabs += bin->stats.curslabs;
+		bstats[i].nslabs_sized += bin->stats.nslabs_sized;
+		bstats[i].nslabs_unsized += bin->stats.nslabs_unsized;
+		bstats[i].reslabs_sized += bin->stats.reslabs_sized;
+		bstats[i].reslabs_unsized += bin->stats.reslabs_unsized;
+		bstats[i].curslabs_sized += bin->stats.curslabs_sized;
+		bstats[i].curslabs_unsized += bin->stats.curslabs_unsized;
 		malloc_mutex_unlock(tsdn, &bin->lock);
+	}
+}
+
+static void
+arena_bin_stats_nslabs_inc(arena_bin_t *bin, extent_t *slab, int64_t inc) {
+	if (config_stats) {
+		if (extent_in_sized_region(slab)) {
+			bin->stats.nslabs_sized += inc;
+		} else {
+			bin->stats.nslabs_unsized += inc;
+		}
+	}
+}
+
+static void
+arena_bin_stats_reslabs_inc(arena_bin_t *bin, extent_t *slab, int64_t inc) {
+	if (config_stats) {
+		if (extent_in_sized_region(slab)) {
+			bin->stats.reslabs_sized += inc;
+		} else {
+			bin->stats.reslabs_unsized += inc;
+		}
+	}
+}
+
+static void
+arena_bin_stats_curslabs_inc(arena_bin_t *bin, extent_t *slab, int64_t inc) {
+	if (config_stats) {
+		if (extent_in_sized_region(slab)) {
+			bin->stats.curslabs_sized += inc;
+		} else {
+			bin->stats.curslabs_unsized += inc;
+		}
 	}
 }
 
@@ -1105,18 +1141,19 @@ static extent_t *
 arena_bin_slabs_nonfull_tryget(arena_bin_t *bin) {
 	/* Prefer sized-region slabs. */
 	extent_t *slab = extent_heap_remove_first(&bin->slabs_nonfull_sized);
+	if (slab != NULL) {
+		arena_bin_stats_reslabs_inc(bin, slab, 1);
+		return slab;
+	}
+
 	/* If that failed, try a slab from elsewhere. */
-	if (slab == NULL) {
-		slab = extent_heap_remove_first(&bin->slabs_nonfull_unsized);
+	slab = extent_heap_remove_first(&bin->slabs_nonfull_unsized);
+	if (slab != NULL) {
+		arena_bin_stats_reslabs_inc(bin, slab, 1);
+		return slab;
 	}
-	if (slab == NULL) {
-		/* Both attempts failed. */
-		return NULL;
-	}
-	if (config_stats) {
-		bin->stats.reslabs++;
-	}
-	return slab;
+	/* Both attempts failed. */
+	return NULL;
 }
 
 static void
@@ -1218,7 +1255,8 @@ arena_reset(tsd_t *tsd, arena_t *arena) {
 		}
 		if (config_stats) {
 			bin->stats.curregs = 0;
-			bin->stats.curslabs = 0;
+			bin->stats.curslabs_sized = 0;
+			bin->stats.curslabs_unsized = 0;
 		}
 		malloc_mutex_unlock(tsd_tsdn(tsd), &bin->lock);
 	}
@@ -1410,10 +1448,8 @@ arena_bin_nonfull_slab_get(tsdn_t *tsdn, arena_t *arena, arena_bin_t *bin,
 	/********************************/
 	malloc_mutex_lock(tsdn, &bin->lock);
 	if (slab != NULL) {
-		if (config_stats) {
-			bin->stats.nslabs++;
-			bin->stats.curslabs++;
-		}
+		arena_bin_stats_nslabs_inc(bin, slab, 1);
+		arena_bin_stats_curslabs_inc(bin, slab, 1);
 		return slab;
 	}
 
@@ -1735,9 +1771,7 @@ arena_dalloc_bin_slab(tsdn_t *tsdn, arena_t *arena, extent_t *slab,
 	arena_slab_dalloc(tsdn, arena, slab);
 	/****************************/
 	malloc_mutex_lock(tsdn, &bin->lock);
-	if (config_stats) {
-		bin->stats.curslabs--;
-	}
+	arena_bin_stats_curslabs_inc(bin, slab, -1);
 }
 
 static bool
@@ -1775,9 +1809,7 @@ arena_bin_lower_slab(tsdn_t *tsdn, arena_t *arena, extent_t *slab,
 			arena_bin_slabs_full_insert(arena, bin, bin->slabcur);
 		}
 		bin->slabcur = slab;
-		if (config_stats) {
-			bin->stats.reslabs++;
-		}
+		arena_bin_stats_reslabs_inc(bin, slab, 1);
 	} else {
 		arena_bin_slabs_nonfull_insert(bin, slab);
 	}

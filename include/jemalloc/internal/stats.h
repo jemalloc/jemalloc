@@ -75,16 +75,19 @@ typedef struct malloc_bin_stats_s {
 	uint64_t	nflushes;
 
 	/* Total number of slabs created for this bin's size class. */
-	uint64_t	nslabs;
+	uint64_t	nslabs_sized;
+	uint64_t	nslabs_unsized;
 
 	/*
 	 * Total number of slabs reused by extracting them from the slabs heap
 	 * for this bin's size class.
 	 */
-	uint64_t	reslabs;
+	uint64_t	reslabs_sized;
+	uint64_t	reslabs_unsized;
 
 	/* Current number of slabs in this bin. */
-	size_t		curslabs;
+	size_t		curslabs_sized;
+	size_t		curslabs_unsized;
 
 	mutex_prof_data_t mutex_data;
 } malloc_bin_stats_t;
