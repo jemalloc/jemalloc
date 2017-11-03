@@ -33,9 +33,9 @@ base_map(tsdn_t *tsdn, extent_hooks_t *extent_hooks, unsigned ind, size_t size) 
 	bool zero = true;
 	bool commit = true;
 
-	/* We use hugepage sizes regardless of opt_metadata_thp. */
+	/* Use huge page sizes and alignment regardless of opt_metadata_thp. */
 	assert(size == HUGEPAGE_CEILING(size));
-	size_t alignment = metadata_thp_enabled() ? HUGEPAGE : PAGE;
+	size_t alignment = HUGEPAGE;
 	if (extent_hooks == &extent_hooks_default) {
 		addr = extent_alloc_mmap(NULL, size, alignment, &zero, &commit);
 	} else {
