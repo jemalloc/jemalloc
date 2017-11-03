@@ -1886,6 +1886,33 @@ arena_muzzy_decay_ms_default_set(ssize_t decay_ms) {
 	return false;
 }
 
+bool
+arena_retain_grow_limit_get_set(tsd_t *tsd, arena_t *arena, size_t *old_limit,
+    size_t *new_limit) {
+	assert(opt_retain);
+
+	pszind_t new_ind JEMALLOC_CC_SILENCE_INIT(0);
+	if (new_limit != NULL) {
+		size_t limit = *new_limit;
+		/* Grow no more than the new limit. */
+		if ((new_ind = sz_psz2ind(limit + 1) - 1) >
+		     EXTENT_GROW_MAX_PIND) {
+			return true;
+		}
+	}
+
+	malloc_mutex_lock(tsd_tsdn(tsd), &arena->extent_grow_mtx);
+	if (old_limit != NULL) {
+		*old_limit = sz_pind2sz(arena->retain_grow_limit);
+	}
+	if (new_limit != NULL) {
+		arena->retain_grow_limit = new_ind;
+	}
+	malloc_mutex_unlock(tsd_tsdn(tsd), &arena->extent_grow_mtx);
+
+	return false;
+}
+
 unsigned
 arena_nthreads_get(arena_t *arena, bool internal) {
 	return atomic_load_u(&arena->nthreads[internal], ATOMIC_RELAXED);
@@ -2013,6 +2040,7 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 	}
 
 	arena->extent_grow_next = sz_psz2ind(HUGEPAGE);
+	arena->retain_grow_limit = EXTENT_GROW_MAX_PIND;
 	if (malloc_mutex_init(&arena->extent_grow_mtx, "extent_grow",
 	    WITNESS_RANK_EXTENT_GROW, malloc_mutex_rank_exclusive)) {
 		goto label_error;

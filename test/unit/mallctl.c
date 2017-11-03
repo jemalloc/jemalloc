@@ -556,6 +556,54 @@ TEST_BEGIN(test_arena_i_dss) {
 }
 TEST_END
 
+TEST_BEGIN(test_arena_i_retain_grow_limit) {
+	size_t old_limit, new_limit, default_limit;
+	size_t mib[3];
+	size_t miblen;
+
+	bool retain_enabled;
+	size_t sz = sizeof(retain_enabled);
+	assert_d_eq(mallctl("opt.retain", &retain_enabled, &sz, NULL, 0),
+	    0, "Unexpected mallctl() failure");
+	test_skip_if(!retain_enabled);
+
+	sz = sizeof(default_limit);
+	miblen = sizeof(mib)/sizeof(size_t);
+	assert_d_eq(mallctlnametomib("arena.0.retain_grow_limit", mib, &miblen),
+	    0, "Unexpected mallctlnametomib() error");
+
+	assert_d_eq(mallctlbymib(mib, miblen, &default_limit, &sz, NULL, 0), 0,
+	    "Unexpected mallctl() failure");
+	assert_zu_eq(default_limit, sz_pind2sz(EXTENT_GROW_MAX_PIND),
+	    "Unexpected default for retain_grow_limit");
+
+	new_limit = PAGE - 1;
+	assert_d_eq(mallctlbymib(mib, miblen, NULL, NULL, &new_limit,
+	    sizeof(new_limit)), EFAULT, "Unexpected mallctl() success");
+
+	new_limit = PAGE + 1;
+	assert_d_eq(mallctlbymib(mib, miblen, NULL, NULL, &new_limit,
+	    sizeof(new_limit)), 0, "Unexpected mallctl() failure");
+	assert_d_eq(mallctlbymib(mib, miblen, &old_limit, &sz, NULL, 0), 0,
+	    "Unexpected mallctl() failure");
+	assert_zu_eq(old_limit, PAGE,
+	    "Unexpected value for retain_grow_limit");
+
+	/* Expect grow less than psize class 10. */
+	new_limit = sz_pind2sz(10) - 1;
+	assert_d_eq(mallctlbymib(mib, miblen, NULL, NULL, &new_limit,
+	    sizeof(new_limit)), 0, "Unexpected mallctl() failure");
+	assert_d_eq(mallctlbymib(mib, miblen, &old_limit, &sz, NULL, 0), 0,
+	    "Unexpected mallctl() failure");
+	assert_zu_eq(old_limit, sz_pind2sz(9),
+	    "Unexpected value for retain_grow_limit");
+
+	/* Restore to default. */
+	assert_d_eq(mallctlbymib(mib, miblen, NULL, NULL, &default_limit,
+	    sizeof(default_limit)), 0, "Unexpected mallctl() failure");
+}
+TEST_END
+
 TEST_BEGIN(test_arenas_dirty_decay_ms) {
 	ssize_t dirty_decay_ms, orig_dirty_decay_ms, prev_dirty_decay_ms;
 	size_t sz = sizeof(ssize_t);
@@ -727,6 +775,7 @@ main(void) {
 	    test_arena_i_purge,
 	    test_arena_i_decay,
 	    test_arena_i_dss,
+	    test_arena_i_retain_grow_limit,
 	    test_arenas_dirty_decay_ms,
 	    test_arenas_muzzy_decay_ms,
 	    test_arenas_constants,

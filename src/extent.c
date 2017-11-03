@@ -1284,13 +1284,14 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena,
 	}
 
 	/*
-	 * Increment extent_grow_next if doing so wouldn't exceed the legal
+	 * Increment extent_grow_next if doing so wouldn't exceed the allowed
 	 * range.
 	 */
-	if (arena->extent_grow_next + egn_skip + 1 < NPSIZES) {
+	if (arena->extent_grow_next + egn_skip + 1 <=
+	    arena->retain_grow_limit) {
 		arena->extent_grow_next += egn_skip + 1;
 	} else {
-		arena->extent_grow_next = NPSIZES - 1;
+		arena->extent_grow_next = arena->retain_grow_limit;
 	}
 	/* All opportunities for failure are past. */
 	malloc_mutex_unlock(tsdn, &arena->extent_grow_mtx);
