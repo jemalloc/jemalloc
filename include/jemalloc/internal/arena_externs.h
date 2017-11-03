@@ -77,6 +77,8 @@ ssize_t arena_dirty_decay_ms_default_get(void);
 bool arena_dirty_decay_ms_default_set(ssize_t decay_ms);
 ssize_t arena_muzzy_decay_ms_default_get(void);
 bool arena_muzzy_decay_ms_default_set(ssize_t decay_ms);
+bool arena_retain_grow_limit_get_set(tsd_t *tsd, arena_t *arena,
+    size_t *old_limit, size_t *new_limit);
 unsigned arena_nthreads_get(arena_t *arena, bool internal);
 void arena_nthreads_inc(arena_t *arena, bool internal);
 void arena_nthreads_dec(arena_t *arena, bool internal);

@@ -118,6 +118,7 @@ CTL_PROTO(arena_i_dss)
 CTL_PROTO(arena_i_dirty_decay_ms)
 CTL_PROTO(arena_i_muzzy_decay_ms)
 CTL_PROTO(arena_i_extent_hooks)
+CTL_PROTO(arena_i_retain_grow_limit)
 INDEX_PROTO(arena_i)
 CTL_PROTO(arenas_bin_i_size)
 CTL_PROTO(arenas_bin_i_nregs)
@@ -320,7 +321,8 @@ static const ctl_named_node_t arena_i_node[] = {
 	{NAME("dss"),		CTL(arena_i_dss)},
 	{NAME("dirty_decay_ms"), CTL(arena_i_dirty_decay_ms)},
 	{NAME("muzzy_decay_ms"), CTL(arena_i_muzzy_decay_ms)},
-	{NAME("extent_hooks"),	CTL(arena_i_extent_hooks)}
+	{NAME("extent_hooks"),	CTL(arena_i_extent_hooks)},
+	{NAME("retain_grow_limit"),	CTL(arena_i_retain_grow_limit)}
 };
 static const ctl_named_node_t super_arena_i_node[] = {
 	{NAME(""),		CHILD(named, arena_i)}
@@ -2199,6 +2201,42 @@ label_return:
 	return ret;
 }
 
+static int
+arena_i_retain_grow_limit_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
+    void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
+	int ret;
+	unsigned arena_ind;
+	arena_t *arena;
+
+	if (!opt_retain) {
+		/* Only relevant when retain is enabled. */
+		return ENOENT;
+	}
+
+	malloc_mutex_lock(tsd_tsdn(tsd), &ctl_mtx);
+	MIB_UNSIGNED(arena_ind, 1);
+	if (arena_ind < narenas_total_get() && (arena =
+	    arena_get(tsd_tsdn(tsd), arena_ind, false)) != NULL) {
+		size_t old_limit, new_limit;
+		if (newp != NULL) {
+			WRITE(new_limit, size_t);
+		}
+		bool err = arena_retain_grow_limit_get_set(tsd, arena,
+		    &old_limit, newp != NULL ? &new_limit : NULL);
+		if (!err) {
+			READ(old_limit, size_t);
+			ret = 0;
+		} else {
+			ret = EFAULT;
+		}
+	} else {
+		ret = EFAULT;
+	}
+label_return:
+	malloc_mutex_unlock(tsd_tsdn(tsd), &ctl_mtx);
+	return ret;
+}
+
 static const ctl_named_node_t *
 arena_i_index(tsdn_t *tsdn, const size_t *mib, size_t miblen, size_t i) {
 	const ctl_named_node_t *ret;
@@ -2260,7 +2298,7 @@ arenas_decay_ms_ctl_impl(tsd_t *tsd, const size_t *mib, size_t miblen,
 			ret = EINVAL;
 			goto label_return;
 		}
-		if (dirty ?  arena_dirty_decay_ms_default_set(*(ssize_t *)newp)
+		if (dirty ? arena_dirty_decay_ms_default_set(*(ssize_t *)newp)
 		    : arena_muzzy_decay_ms_default_set(*(ssize_t *)newp)) {
 			ret = EFAULT;
 			goto label_return;

@@ -1683,6 +1683,22 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         for additional information.</para></listitem>
       </varlistentry>
 
+      <varlistentry id="arena.i.retain_grow_limit">
+        <term>
+          <mallctl>arena.&lt;i&gt;.retain_grow_limit</mallctl>
+          (<type>size_t</type>)
+          <literal>rw</literal>
+        </term>
+        <listitem><para>Maximum size to grow retained region (only relevant when
+        <link linkend="opt.retain"><mallctl>opt.retain</mallctl></link> is
+        enabled).  This controls the maximum increment to expand virtual memory,
+        or allocation through <link
+        linkend="arena.i.extent_hooks"><mallctl>arena.&lt;i&gt;extent_hooks</mallctl></link>.
+        In particular, if customized extent hooks reserve physical memory
+        (e.g. 1G huge pages), this is useful to control the allocation hook's
+        input size.  The default is no limit.</para></listitem>
+      </varlistentry>
+
       <varlistentry id="arena.i.extent_hooks">
         <term>
           <mallctl>arena.&lt;i&gt;.extent_hooks</mallctl>

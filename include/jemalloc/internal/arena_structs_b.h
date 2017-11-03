@@ -240,9 +240,14 @@ struct arena_s {
 	 * be effective even if multiple arenas' extent allocation requests are
 	 * highly interleaved.
 	 *
+	 * retain_grow_limit is the max allowed size ind to expand (unless the
+	 * required size is greater).  Default is no limit, and controlled
+	 * through mallctl only.
+	 *
 	 * Synchronization: extent_grow_mtx
 	 */
 	pszind_t		extent_grow_next;
+	pszind_t		retain_grow_limit;
 	malloc_mutex_t		extent_grow_mtx;
 
 	/*
