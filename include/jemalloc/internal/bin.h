@@ -4,7 +4,7 @@
 #include "jemalloc/internal/extent_types.h"
 #include "jemalloc/internal/extent_structs.h"
 #include "jemalloc/internal/mutex.h"
-#include "jemalloc/internal/stats.h"
+#include "jemalloc/internal/bin_stats.h"
 
 /*
  * A bin contains a set of extents that are currently being used for slab
@@ -75,7 +75,7 @@ struct bin_s {
 	extent_list_t		slabs_full;
 
 	/* Bin statistics. */
-	malloc_bin_stats_t	stats;
+	bin_stats_t	stats;
 };
 
 /* Initializes a bin to empty.  Returns true on error. */
@@ -88,7 +88,7 @@ void bin_postfork_child(tsdn_t *tsdn, bin_t *bin);
 
 /* Stats. */
 static inline void
-bin_stats_merge(tsdn_t *tsdn, malloc_bin_stats_t *dst_bin_stats, bin_t *bin) {
+bin_stats_merge(tsdn_t *tsdn, bin_stats_t *dst_bin_stats, bin_t *bin) {
 	malloc_mutex_lock(tsdn, &bin->lock);
 	malloc_mutex_prof_read(tsdn, &dst_bin_stats->mutex_data, &bin->lock);
 	dst_bin_stats->nmalloc += bin->stats.nmalloc;

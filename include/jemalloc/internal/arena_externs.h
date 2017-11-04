@@ -16,17 +16,13 @@ extern const char *percpu_arena_mode_names[];
 extern const uint64_t h_steps[SMOOTHSTEP_NSTEPS];
 extern malloc_mutex_t arenas_lock;
 
-void arena_stats_large_nrequests_add(tsdn_t *tsdn, arena_stats_t *arena_stats,
-    szind_t szind, uint64_t nrequests);
-void arena_stats_mapped_add(tsdn_t *tsdn, arena_stats_t *arena_stats,
-    size_t size);
 void arena_basic_stats_merge(tsdn_t *tsdn, arena_t *arena,
     unsigned *nthreads, const char **dss, ssize_t *dirty_decay_ms,
     ssize_t *muzzy_decay_ms, size_t *nactive, size_t *ndirty, size_t *nmuzzy);
 void arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
     const char **dss, ssize_t *dirty_decay_ms, ssize_t *muzzy_decay_ms,
     size_t *nactive, size_t *ndirty, size_t *nmuzzy, arena_stats_t *astats,
-    malloc_bin_stats_t *bstats, malloc_large_stats_t *lstats);
+    bin_stats_t *bstats, arena_stats_large_t *lstats);
 void arena_extents_dirty_dalloc(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, extent_t *extent);
 #ifdef JEMALLOC_JET

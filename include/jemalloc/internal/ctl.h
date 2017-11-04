@@ -40,8 +40,8 @@ typedef struct ctl_arena_stats_s {
 	uint64_t ndalloc_small;
 	uint64_t nrequests_small;
 
-	malloc_bin_stats_t bstats[NBINS];
-	malloc_large_stats_t lstats[NSIZES - NBINS];
+	bin_stats_t bstats[NBINS];
+	arena_stats_large_t lstats[NSIZES - NBINS];
 } ctl_arena_stats_t;
 
 typedef struct ctl_stats_s {
