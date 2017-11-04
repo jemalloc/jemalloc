@@ -1,6 +1,7 @@
 #ifndef JEMALLOC_INTERNAL_ARENA_STRUCTS_B_H
 #define JEMALLOC_INTERNAL_ARENA_STRUCTS_B_H
 
+#include "jemalloc/internal/arena_stats.h"
 #include "jemalloc/internal/atomic.h"
 #include "jemalloc/internal/bin.h"
 #include "jemalloc/internal/bitmap.h"
@@ -11,7 +12,6 @@
 #include "jemalloc/internal/ql.h"
 #include "jemalloc/internal/size_classes.h"
 #include "jemalloc/internal/smoothstep.h"
-#include "jemalloc/internal/stats.h"
 #include "jemalloc/internal/ticker.h"
 
 struct arena_decay_s {
@@ -69,7 +69,7 @@ struct arena_decay_s {
 	 * arena and ctl code.
 	 *
 	 * Synchronization: Same as associated arena's stats field. */
-	decay_stats_t		*stats;
+	arena_stats_decay_t	*stats;
 	/* Peak number of pages in associated extents.  Used for debug only. */
 	uint64_t		ceil_npages;
 };

@@ -57,145 +57,6 @@ static void arena_bin_lower_slab(tsdn_t *tsdn, arena_t *arena, extent_t *slab,
 
 /******************************************************************************/
 
-static bool
-arena_stats_init(tsdn_t *tsdn, arena_stats_t *arena_stats) {
-	if (config_debug) {
-		for (size_t i = 0; i < sizeof(arena_stats_t); i++) {
-			assert(((char *)arena_stats)[i] == 0);
-		}
-	}
-#ifndef JEMALLOC_ATOMIC_U64
-	if (malloc_mutex_init(&arena_stats->mtx, "arena_stats",
-	    WITNESS_RANK_ARENA_STATS, malloc_mutex_rank_exclusive)) {
-		return true;
-	}
-#endif
-	/* Memory is zeroed, so there is no need to clear stats. */
-	return false;
-}
-
-static void
-arena_stats_lock(tsdn_t *tsdn, arena_stats_t *arena_stats) {
-#ifndef JEMALLOC_ATOMIC_U64
-	malloc_mutex_lock(tsdn, &arena_stats->mtx);
-#endif
-}
-
-static void
-arena_stats_unlock(tsdn_t *tsdn, arena_stats_t *arena_stats) {
-#ifndef JEMALLOC_ATOMIC_U64
-	malloc_mutex_unlock(tsdn, &arena_stats->mtx);
-#endif
-}
-
-static uint64_t
-arena_stats_read_u64(tsdn_t *tsdn, arena_stats_t *arena_stats,
-    arena_stats_u64_t *p) {
-#ifdef JEMALLOC_ATOMIC_U64
-	return atomic_load_u64(p, ATOMIC_RELAXED);
-#else
-	malloc_mutex_assert_owner(tsdn, &arena_stats->mtx);
-	return *p;
-#endif
-}
-
-static void
-arena_stats_add_u64(tsdn_t *tsdn, arena_stats_t *arena_stats,
-    arena_stats_u64_t *p, uint64_t x) {
-#ifdef JEMALLOC_ATOMIC_U64
-	atomic_fetch_add_u64(p, x, ATOMIC_RELAXED);
-#else
-	malloc_mutex_assert_owner(tsdn, &arena_stats->mtx);
-	*p += x;
-#endif
-}
-
-UNUSED static void
-arena_stats_sub_u64(tsdn_t *tsdn, arena_stats_t *arena_stats,
-    arena_stats_u64_t *p, uint64_t x) {
-#ifdef JEMALLOC_ATOMIC_U64
-	UNUSED uint64_t r = atomic_fetch_sub_u64(p, x, ATOMIC_RELAXED);
-	assert(r - x <= r);
-#else
-	malloc_mutex_assert_owner(tsdn, &arena_stats->mtx);
-	*p -= x;
-	assert(*p + x >= *p);
-#endif
-}
-
-/*
- * Non-atomically sets *dst += src.  *dst needs external synchronization.
- * This lets us avoid the cost of a fetch_add when its unnecessary (note that
- * the types here are atomic).
- */
-static void
-arena_stats_accum_u64(arena_stats_u64_t *dst, uint64_t src) {
-#ifdef JEMALLOC_ATOMIC_U64
-	uint64_t cur_dst = atomic_load_u64(dst, ATOMIC_RELAXED);
-	atomic_store_u64(dst, src + cur_dst, ATOMIC_RELAXED);
-#else
-	*dst += src;
-#endif
-}
-
-static size_t
-arena_stats_read_zu(tsdn_t *tsdn, arena_stats_t *arena_stats, atomic_zu_t *p) {
-#ifdef JEMALLOC_ATOMIC_U64
-	return atomic_load_zu(p, ATOMIC_RELAXED);
-#else
-	malloc_mutex_assert_owner(tsdn, &arena_stats->mtx);
-	return atomic_load_zu(p, ATOMIC_RELAXED);
-#endif
-}
-
-static void
-arena_stats_add_zu(tsdn_t *tsdn, arena_stats_t *arena_stats, atomic_zu_t *p,
-    size_t x) {
-#ifdef JEMALLOC_ATOMIC_U64
-	atomic_fetch_add_zu(p, x, ATOMIC_RELAXED);
-#else
-	malloc_mutex_assert_owner(tsdn, &arena_stats->mtx);
-	size_t cur = atomic_load_zu(p, ATOMIC_RELAXED);
-	atomic_store_zu(p, cur + x, ATOMIC_RELAXED);
-#endif
-}
-
-static void
-arena_stats_sub_zu(tsdn_t *tsdn, arena_stats_t *arena_stats, atomic_zu_t *p,
-    size_t x) {
-#ifdef JEMALLOC_ATOMIC_U64
-	UNUSED size_t r = atomic_fetch_sub_zu(p, x, ATOMIC_RELAXED);
-	assert(r - x <= r);
-#else
-	malloc_mutex_assert_owner(tsdn, &arena_stats->mtx);
-	size_t cur = atomic_load_zu(p, ATOMIC_RELAXED);
-	atomic_store_zu(p, cur - x, ATOMIC_RELAXED);
-#endif
-}
-
-/* Like the _u64 variant, needs an externally synchronized *dst. */
-static void
-arena_stats_accum_zu(atomic_zu_t *dst, size_t src) {
-	size_t cur_dst = atomic_load_zu(dst, ATOMIC_RELAXED);
-	atomic_store_zu(dst, src + cur_dst, ATOMIC_RELAXED);
-}
-
-void
-arena_stats_large_nrequests_add(tsdn_t *tsdn, arena_stats_t *arena_stats,
-    szind_t szind, uint64_t nrequests) {
-	arena_stats_lock(tsdn, arena_stats);
-	arena_stats_add_u64(tsdn, arena_stats, &arena_stats->lstats[szind -
-	    NBINS].nrequests, nrequests);
-	arena_stats_unlock(tsdn, arena_stats);
-}
-
-void
-arena_stats_mapped_add(tsdn_t *tsdn, arena_stats_t *arena_stats, size_t size) {
-	arena_stats_lock(tsdn, arena_stats);
-	arena_stats_add_zu(tsdn, arena_stats, &arena_stats->mapped, size);
-	arena_stats_unlock(tsdn, arena_stats);
-}
-
 void
 arena_basic_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
     const char **dss, ssize_t *dirty_decay_ms, ssize_t *muzzy_decay_ms,
@@ -213,7 +74,7 @@ void
 arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
     const char **dss, ssize_t *dirty_decay_ms, ssize_t *muzzy_decay_ms,
     size_t *nactive, size_t *ndirty, size_t *nmuzzy, arena_stats_t *astats,
-    malloc_bin_stats_t *bstats, malloc_large_stats_t *lstats) {
+    bin_stats_t *bstats, arena_stats_large_t *lstats) {
 	cassert(config_stats);
 
 	arena_basic_stats_merge(tsdn, arena, nthreads, dss, dirty_decay_ms,
@@ -729,7 +590,7 @@ arena_decay_reinit(arena_decay_t *decay, extents_t *extents, ssize_t decay_ms) {
 
 static bool
 arena_decay_init(arena_decay_t *decay, extents_t *extents, ssize_t decay_ms,
-    decay_stats_t *stats) {
+    arena_stats_decay_t *stats) {
 	if (config_debug) {
 		for (size_t i = 0; i < sizeof(arena_decay_t); i++) {
 			assert(((char *)decay)[i] == 0);
