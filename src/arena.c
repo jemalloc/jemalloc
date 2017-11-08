@@ -62,7 +62,7 @@ const uint64_t h_steps[SMOOTHSTEP_NSTEPS] = {
 
 static void arena_decay_to_limit(tsdn_t *tsdn, arena_t *arena,
     arena_decay_t *decay, extents_t *extents, bool all, size_t npages_limit,
-    bool is_background_thread);
+    size_t npages_decay_max, bool is_background_thread);
 static bool arena_decay_dirty(tsdn_t *tsdn, arena_t *arena,
     bool is_background_thread, bool all);
 static void arena_dalloc_bin_slab(tsdn_t *tsdn, arena_t *arena, extent_t *slab,
@@ -693,7 +693,8 @@ arena_decay_try_purge(tsdn_t *tsdn, arena_t *arena, arena_decay_t *decay,
     bool is_background_thread) {
 	if (current_npages > npages_limit) {
 		arena_decay_to_limit(tsdn, arena, decay, extents, false,
-		    npages_limit, is_background_thread);
+		    npages_limit, current_npages - npages_limit,
+		    is_background_thread);
 	}
 }
 
@@ -799,7 +800,8 @@ arena_maybe_decay(tsdn_t *tsdn, arena_t *arena, arena_decay_t *decay,
 	if (decay_ms <= 0) {
 		if (decay_ms == 0) {
 			arena_decay_to_limit(tsdn, arena, decay, extents, false,
-			    0, is_background_thread);
+			    0, extents_npages_get(extents),
+			    is_background_thread);
 		}
 		return false;
 	}
@@ -901,15 +903,16 @@ arena_muzzy_decay_ms_set(tsdn_t *tsdn, arena_t *arena,
 static size_t
 arena_stash_decayed(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, extents_t *extents, size_t npages_limit,
-    extent_list_t *decay_extents) {
+	size_t npages_decay_max, extent_list_t *decay_extents) {
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, 0);
 
 	/* Stash extents according to npages_limit. */
 	size_t nstashed = 0;
 	extent_t *extent;
-	while ((extent = extents_evict(tsdn, arena, r_extent_hooks, extents,
-	    npages_limit)) != NULL) {
+	while (nstashed < npages_decay_max &&
+	    (extent = extents_evict(tsdn, arena, r_extent_hooks, extents,
+	    npages_limit, npages_decay_max - nstashed)) != NULL) {
 		extent_list_append(decay_extents, extent);
 		nstashed += extent_size_get(extent) >> LG_PAGE;
 	}
@@ -983,12 +986,15 @@ arena_decay_stashed(tsdn_t *tsdn, arena_t *arena,
 }
 
 /*
- * npages_limit: Decay as many dirty extents as possible without violating the
- * invariant: (extents_npages_get(extents) >= npages_limit)
+ * npages_limit: Decay at most npages_decay_max pages without violating the
+ * invariant: (extents_npages_get(extents) >= npages_limit).  We need an upper
+ * bound on number of pages in order to prevent unbounded growth (namely in
+ * stashed), otherwise unbounded new pages could be added to extents during the
+ * current decay run, so that the purging thread never finishes.
  */
 static void
 arena_decay_to_limit(tsdn_t *tsdn, arena_t *arena, arena_decay_t *decay,
-    extents_t *extents, bool all, size_t npages_limit,
+    extents_t *extents, bool all, size_t npages_limit, size_t npages_decay_max,
     bool is_background_thread) {
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, 1);
@@ -1006,7 +1012,7 @@ arena_decay_to_limit(tsdn_t *tsdn, arena_t *arena, arena_decay_t *decay,
 	extent_list_init(&decay_extents);
 
 	size_t npurge = arena_stash_decayed(tsdn, arena, &extent_hooks, extents,
-	    npages_limit, &decay_extents);
+	    npages_limit, npages_decay_max, &decay_extents);
 	if (npurge != 0) {
 		UNUSED size_t npurged = arena_decay_stashed(tsdn, arena,
 		    &extent_hooks, decay, extents, all, &decay_extents,
@@ -1024,7 +1030,7 @@ arena_decay_impl(tsdn_t *tsdn, arena_t *arena, arena_decay_t *decay,
 	if (all) {
 		malloc_mutex_lock(tsdn, &decay->mtx);
 		arena_decay_to_limit(tsdn, arena, decay, extents, all, 0,
-		    is_background_thread);
+		    extents_npages_get(extents), is_background_thread);
 		malloc_mutex_unlock(tsdn, &decay->mtx);
 
 		return false;
@@ -1220,7 +1226,7 @@ arena_destroy_retained(tsdn_t *tsdn, arena_t *arena) {
 	extent_hooks_t *extent_hooks = extent_hooks_get(arena);
 	extent_t *extent;
 	while ((extent = extents_evict(tsdn, arena, &extent_hooks,
-	    &arena->extents_retained, 0)) != NULL) {
+	    &arena->extents_retained, 0, SIZE_MAX)) != NULL) {
 		extent_destroy_wrapper(tsdn, arena, &extent_hooks, extent);
 	}
 }
