@@ -472,7 +472,7 @@ extents_dalloc(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
 
 extent_t *
 extents_evict(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
-    extents_t *extents, size_t npages_min) {
+    extents_t *extents, size_t npages_min, size_t npages_max) {
 	rtree_ctx_t rtree_ctx_fallback;
 	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
 
@@ -493,7 +493,8 @@ extents_evict(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
 		size_t npages = extent_size_get(extent) >> LG_PAGE;
 		size_t extents_npages = atomic_load_zu(&extents->npages,
 		    ATOMIC_RELAXED);
-		if (extents_npages - npages < npages_min) {
+		if (extents_npages - npages < npages_min ||
+		    npages > npages_max) {
 			extent = NULL;
 			goto label_return;
 		}
