@@ -30,6 +30,8 @@ struct base_s {
 	/* Protects base_alloc() and base_stats_get() operations. */
 	malloc_mutex_t	mtx;
 
+	/* Using THP when true (metadata_thp auto mode). */
+	bool		auto_thp_switched;
 	/*
 	 * Most recent size class in the series of increasingly large base
 	 * extents.  Logarithmic spacing between subsequent allocations ensures
