@@ -139,23 +139,13 @@ base_get_num_blocks(base_t *base, bool with_new_block) {
 	return n_blocks;
 }
 
-static bool
-base_auto_thp_triggered(base_t *base, bool with_new_block) {
-	assert(opt_metadata_thp == metadata_thp_auto);
-
-	if (base_ind_get(base) != 0) {
-		return base_get_num_blocks(base, with_new_block) >=
-		    BASE_AUTO_THP_THRESHOLD;
-	}
-
-	return base_get_num_blocks(base, with_new_block) >=
-	    BASE_AUTO_THP_THRESHOLD_A0;
-}
-
 static void
-base_auto_thp_switch(base_t *base) {
+base_auto_thp_switch(tsdn_t *tsdn, base_t *base) {
 	assert(opt_metadata_thp == metadata_thp_auto);
-
+	malloc_mutex_assert_owner(tsdn, &base->mtx);
+	if (base->auto_thp_switched) {
+		return;
+	}
 	/* Called when adding a new block. */
 	bool should_switch;
 	if (base_ind_get(base) != 0) {
@@ -169,14 +159,16 @@ base_auto_thp_switch(base_t *base) {
 		return;
 	}
 
-	assert(base->n_thp == 0);
+	base->auto_thp_switched = true;
+	assert(!config_stats || base->n_thp == 0);
 	/* Make the initial blocks THP lazily. */
 	base_block_t *block = base->blocks;
 	while (block != NULL) {
 		assert((block->size & HUGEPAGE_MASK) == 0);
 		pages_huge(block, block->size);
 		if (config_stats) {
-			base->n_thp += block->size >> LG_HUGEPAGE;
+			base->n_thp += HUGEPAGE_CEILING(block->size -
+			    extent_bsize_get(&block->extent)) >> LG_HUGEPAGE;
 		}
 		block = block->next;
 		assert(block == NULL || (base_ind_get(base) == 0));
@@ -226,7 +218,7 @@ base_extent_bump_alloc_post(tsdn_t *tsdn, base_t *base, extent_t *extent,
 		assert(base->allocated <= base->resident);
 		assert(base->resident <= base->mapped);
 		if (metadata_thp_madvise() && (opt_metadata_thp ==
-		    metadata_thp_always || base_auto_thp_triggered(base, false))) {
+		    metadata_thp_always || base->auto_thp_switched)) {
 			base->n_thp += (HUGEPAGE_CEILING((uintptr_t)addr + size)
 			    - HUGEPAGE_CEILING((uintptr_t)addr - gap_size)) >>
 			    LG_HUGEPAGE;
@@ -289,10 +281,12 @@ base_block_alloc(tsdn_t *tsdn, base_t *base, extent_hooks_t *extent_hooks,
 		} else if (opt_metadata_thp == metadata_thp_auto &&
 		    base != NULL) {
 			/* base != NULL indicates this is not a new base. */
-			if (base_auto_thp_triggered(base, true)) {
+			malloc_mutex_lock(tsdn, &base->mtx);
+			base_auto_thp_switch(tsdn, base);
+			if (base->auto_thp_switched) {
 				pages_huge(addr, block_size);
 			}
-			base_auto_thp_switch(base);
+			malloc_mutex_unlock(tsdn, &base->mtx);
 		}
 	}
 
@@ -334,7 +328,7 @@ base_extent_alloc(tsdn_t *tsdn, base_t *base, size_t size, size_t alignment) {
 		base->mapped += block->size;
 		if (metadata_thp_madvise() &&
 		    !(opt_metadata_thp == metadata_thp_auto
-		      && !base_auto_thp_triggered(base, false))) {
+		      && !base->auto_thp_switched)) {
 			assert(base->n_thp > 0);
 			base->n_thp += HUGEPAGE_CEILING(sizeof(base_block_t)) >>
 			    LG_HUGEPAGE;
@@ -376,6 +370,7 @@ base_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 	base->pind_last = pind_last;
 	base->extent_sn_next = extent_sn_next;
 	base->blocks = block;
+	base->auto_thp_switched = false;
 	for (szind_t i = 0; i < NSIZES; i++) {
 		extent_heap_new(&base->avail[i]);
 	}
