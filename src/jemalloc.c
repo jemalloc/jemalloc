@@ -1146,6 +1146,9 @@ malloc_conf_init(void) {
 				CONF_HANDLE_BOOL(opt_xmalloc, "xmalloc")
 			}
 			CONF_HANDLE_BOOL(opt_tcache, "tcache")
+			CONF_HANDLE_SIZE_T(opt_lg_extent_max_active_fit,
+			    "lg_extent_max_active_fit", 0,
+			    (sizeof(size_t) << 3), yes, yes, false)
 			CONF_HANDLE_SSIZE_T(opt_lg_tcache_max, "lg_tcache_max",
 			    -1, (sizeof(size_t) << 3) - 1)
 			if (strncmp("percpu_arena", k, klen) == 0) {
