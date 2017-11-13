@@ -370,7 +370,7 @@ extents_best_fit_locked(tsdn_t *tsdn, arena_t *arena, extents_t *extents,
 	    (size_t)pind);
 	if (i < NPSIZES+1) {
 		assert(!extent_heap_empty(&extents->heaps[i]));
-		extent_t *extent = extent_heap_any(&extents->heaps[i]);
+		extent_t *extent = extent_heap_first(&extents->heaps[i]);
 		assert(extent_size_get(extent) >= size);
 		return extent;
 	}
