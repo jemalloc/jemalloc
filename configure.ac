@@ -850,7 +850,7 @@ AC_ARG_WITH([export],
 fi]
 )
 
-public_syms="aligned_alloc calloc dallocx free mallctl mallctlbymib mallctlnametomib malloc malloc_conf malloc_message malloc_stats_print malloc_usable_size mallocx nallocx posix_memalign rallocx realloc sallocx sdallocx xallocx"
+public_syms="aligned_alloc calloc dallocx free mallctl mallctlbymib mallctlnametomib malloc malloc_conf malloc_message malloc_stats_print malloc_usable_size mallocx smallocx nallocx posix_memalign rallocx realloc sallocx sdallocx xallocx"
 dnl Check for additional platform-specific public API functions.
 AC_CHECK_FUNC([memalign],
 	      [AC_DEFINE([JEMALLOC_OVERRIDE_MEMALIGN], [ ])
@@ -1042,6 +1042,22 @@ if test "x$enable_stats" = "x1" ; then
   AC_DEFINE([JEMALLOC_STATS], [ ])
 fi
 AC_SUBST([enable_stats])
+
+dnl Do not enable smallocx by default.
+AC_ARG_ENABLE([experimental_smallocx],
+  [AS_HELP_STRING([--enable-experimental-smallocx], [Enable experimental smallocx API])],
+[if test "x$enable_experimental_smallocx" = "xno" ; then
+enable_experimental_smallocx="0"
+else
+enable_experimental_smallocx="1"
+fi
+],
+[enable_experimental_smallocx="0"]
+)
+if test "x$enable_experimental_smallocx" = "x1" ; then
+  AC_DEFINE([JEMALLOC_EXPERIMENTAL_SMALLOCX_API])
+fi
+AC_SUBST([enable_experimental_smallocx])
 
 dnl Do not enable profiling by default.
 AC_ARG_ENABLE([prof],
@@ -2281,6 +2297,7 @@ AC_MSG_RESULT([malloc_conf        : ${config_malloc_conf}])
 AC_MSG_RESULT([autogen            : ${enable_autogen}])
 AC_MSG_RESULT([debug              : ${enable_debug}])
 AC_MSG_RESULT([stats              : ${enable_stats}])
+AC_MSG_RESULT([experimetal_smallocx : ${enable_experimental_smallocx}])
 AC_MSG_RESULT([prof               : ${enable_prof}])
 AC_MSG_RESULT([prof-libunwind     : ${enable_prof_libunwind}])
 AC_MSG_RESULT([prof-libgcc        : ${enable_prof_libgcc}])

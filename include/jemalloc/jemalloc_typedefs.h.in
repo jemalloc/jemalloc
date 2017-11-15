@@ -75,3 +75,10 @@ struct extent_hooks_s {
 	extent_split_t		*split;
 	extent_merge_t		*merge;
 };
+
+#ifdef JEMALLOC_EXPERIMENTAL_SMALLOCX_API
+typedef struct {
+	void *ptr;
+	size_t size;
+} smallocx_return_t;
+#endif

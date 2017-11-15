@@ -1747,6 +1747,11 @@ struct static_opts_s {
 	 * initialization) options.
 	 */
 	bool slow;
+	/*
+	 * Return size
+	 *
+	 */
+	bool usize;
 };
 
 JEMALLOC_ALWAYS_INLINE void
@@ -1760,6 +1765,7 @@ static_opts_init(static_opts_t *static_opts) {
 	static_opts->oom_string = "";
 	static_opts->invalid_alignment_string = "";
 	static_opts->slow = false;
+	static_opts->usize = false;
 }
 
 /*
@@ -1774,6 +1780,7 @@ static_opts_init(static_opts_t *static_opts) {
 typedef struct dynamic_opts_s dynamic_opts_t;
 struct dynamic_opts_s {
 	void **result;
+	size_t usize;
 	size_t num_items;
 	size_t item_size;
 	size_t alignment;
@@ -1785,6 +1792,7 @@ struct dynamic_opts_s {
 JEMALLOC_ALWAYS_INLINE void
 dynamic_opts_init(dynamic_opts_t *dynamic_opts) {
 	dynamic_opts->result = NULL;
+	dynamic_opts->usize = 0;
 	dynamic_opts->num_items = 0;
 	dynamic_opts->item_size = 0;
 	dynamic_opts->alignment = 0;
@@ -1960,13 +1968,15 @@ imalloc_body(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd) {
 		if (unlikely(ind >= SC_NSIZES)) {
 			goto label_oom;
 		}
-		if (config_stats || (config_prof && opt_prof)) {
+		if (config_stats || (config_prof && opt_prof) || sopts->usize) {
 			usize = sz_index2size(ind);
+			dopts->usize = usize;
 			assert(usize > 0 && usize
 			    <= SC_LARGE_MAXCLASS);
 		}
 	} else {
 		usize = sz_sa2u(size, dopts->alignment);
+		dopts->usize = usize;
 		if (unlikely(usize == 0
 		    || usize > SC_LARGE_MAXCLASS)) {
 			goto label_oom;
@@ -2758,6 +2768,71 @@ int __posix_memalign(void** r, size_t a, size_t s) PREALIAS(je_posix_memalign);
 /*
  * Begin non-standard functions.
  */
+
+#ifdef JEMALLOC_EXPERIMENTAL_SMALLOCX_API
+JEMALLOC_EXPORT JEMALLOC_ALLOCATOR JEMALLOC_RESTRICT_RETURN
+smallocx_return_t JEMALLOC_NOTHROW
+/*
+ * The attribute JEMALLOC_ATTR(malloc) cannot be used due to:
+ *  - https://gcc.gnu.org/bugzilla/show_bug.cgi?id=86488
+ */
+  je_smallocx(size_t size, int flags) {
+	/*
+	 * Note: the attribute JEMALLOC_ALLOC_SIZE(1) cannot be
+	 * used here because it makes writing beyond the `size`
+	 * of the `ptr` undefined behavior, but the objective
+	 * of this function is to allow writing beyond `size`
+	 * up to `smallocx_return_t::size`.
+	 */
+	smallocx_return_t ret;
+	static_opts_t sopts;
+	dynamic_opts_t dopts;
+
+	LOG("core.smallocx.entry", "size: %zu, flags: %d", size, flags);
+
+	static_opts_init(&sopts);
+	dynamic_opts_init(&dopts);
+
+	sopts.assert_nonempty_alloc = true;
+	sopts.null_out_result_on_error = true;
+	sopts.oom_string = "<jemalloc>: Error in mallocx(): out of memory\n";
+	sopts.usize = true;
+
+	dopts.result = &ret.ptr;
+	dopts.num_items = 1;
+	dopts.item_size = size;
+	if (unlikely(flags != 0)) {
+		if ((flags & MALLOCX_LG_ALIGN_MASK) != 0) {
+			dopts.alignment = MALLOCX_ALIGN_GET_SPECIFIED(flags);
+		}
+
+		dopts.zero = MALLOCX_ZERO_GET(flags);
+
+		if ((flags & MALLOCX_TCACHE_MASK) != 0) {
+			if ((flags & MALLOCX_TCACHE_MASK)
+			    == MALLOCX_TCACHE_NONE) {
+				dopts.tcache_ind = TCACHE_IND_NONE;
+			} else {
+				dopts.tcache_ind = MALLOCX_TCACHE_GET(flags);
+			}
+		} else {
+			dopts.tcache_ind = TCACHE_IND_AUTOMATIC;
+		}
+
+		if ((flags & MALLOCX_ARENA_MASK) != 0)
+			dopts.arena_ind = MALLOCX_ARENA_GET(flags);
+	}
+
+
+
+	imalloc(&sopts, &dopts);
+	assert(dopts.usize == je_nallocx(size, flags));
+	ret.size = dopts.usize;
+
+	LOG("core.smallocx.exit", "result: %p, size: %zu", ret.ptr, ret.size);
+	return ret;
+}
+#endif
 
 JEMALLOC_EXPORT JEMALLOC_ALLOCATOR JEMALLOC_RESTRICT_RETURN
 void JEMALLOC_NOTHROW *
