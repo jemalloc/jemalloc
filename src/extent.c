@@ -1586,8 +1586,22 @@ extent_record(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
 	if (!extents->delay_coalesce) {
 		extent = extent_try_coalesce(tsdn, arena, r_extent_hooks,
 		    rtree_ctx, extents, extent, NULL, growing_retained);
+	} else if (extent_size_get(extent) >= LARGE_MINCLASS) {
+		/* Always coalesce large extents eagerly. */
+		bool coalesced;
+		size_t prev_size;
+		do {
+			prev_size = extent_size_get(extent);
+			assert(extent_state_get(extent) == extent_state_active);
+			extent = extent_try_coalesce(tsdn, arena,
+			    r_extent_hooks, rtree_ctx, extents, extent,
+			    &coalesced, growing_retained);
+			if (coalesced) {
+				extent_list_remove(&extents->lru, extent);
+			}
+		} while (coalesced &&
+		    extent_size_get(extent) >= prev_size + LARGE_MINCLASS);
 	}
-
 	extent_deactivate_locked(tsdn, arena, extents, extent, false);
 
 	malloc_mutex_unlock(tsdn, &extents->mtx);
