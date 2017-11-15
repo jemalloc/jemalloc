@@ -356,6 +356,11 @@ extent_list_append(extent_list_t *list, extent_t *extent) {
 }
 
 static inline void
+extent_list_prepend(extent_list_t *list, extent_t *extent) {
+	ql_head_insert(list, extent, ql_link);
+}
+
+static inline void
 extent_list_replace(extent_list_t *list, extent_t *to_remove,
     extent_t *to_insert) {
 	ql_after_insert(to_remove, to_insert, ql_link);

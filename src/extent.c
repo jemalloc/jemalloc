@@ -1458,13 +1458,12 @@ extent_coalesce(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
     bool growing_retained) {
 	assert(extent_can_coalesce(arena, extents, inner, outer));
 
-	if (forward && extents->delay_coalesce) {
+	if (extents->delay_coalesce) {
 		/*
-		 * The extent that remains after coalescing must occupy the
-		 * outer extent's position in the LRU.  For forward coalescing,
-		 * swap the inner extent into the LRU.
+		 * Remove outer from the LRU list so that it won't be show up in
+		 * decay through extents_evict.
 		 */
-		extent_list_replace(&extents->lru, outer, inner);
+		extent_list_remove(&extents->lru, outer);
 	}
 	extent_activate_locked(tsdn, arena, extents, outer,
 	    extents->delay_coalesce);
@@ -1474,9 +1473,16 @@ extent_coalesce(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
 	    forward ? inner : outer, forward ? outer : inner, growing_retained);
 	malloc_mutex_lock(tsdn, &extents->mtx);
 
+	if (!err && extents->delay_coalesce) {
+		if (forward) {
+			extent_list_prepend(&extents->lru, inner);
+		} else {
+			extent_list_prepend(&extents->lru, outer);
+		}
+	}
 	if (err) {
-		if (forward && extents->delay_coalesce) {
-			extent_list_replace(&extents->lru, inner, outer);
+		if (extents->delay_coalesce) {
+			extent_list_prepend(&extents->lru, outer);
 		}
 		extent_deactivate_locked(tsdn, arena, extents, outer,
 		    extents->delay_coalesce);
