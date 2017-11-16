@@ -791,7 +791,7 @@ static extent_t *
 extent_recycle_extract(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, rtree_ctx_t *rtree_ctx, extents_t *extents,
     void *new_addr, size_t size, size_t pad, size_t alignment, bool slab,
-    bool *zero, bool *commit, bool growing_retained) {
+    bool growing_retained) {
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, growing_retained ? 1 : 0);
 	assert(alignment > 0);
@@ -848,13 +848,6 @@ extent_recycle_extract(tsdn_t *tsdn, arena_t *arena,
 
 	extent_activate_locked(tsdn, arena, extents, extent, false);
 	malloc_mutex_unlock(tsdn, &extents->mtx);
-
-	if (extent_zeroed_get(extent)) {
-		*zero = true;
-	}
-	if (extent_committed_get(extent)) {
-		*commit = true;
-	}
 
 	return extent;
 }
@@ -1021,15 +1014,11 @@ extent_recycle(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
 	rtree_ctx_t rtree_ctx_fallback;
 	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
 
-	bool committed = false;
 	extent_t *extent = extent_recycle_extract(tsdn, arena, r_extent_hooks,
-	    rtree_ctx, extents, new_addr, size, pad, alignment, slab, zero,
-	    &committed, growing_retained);
+	    rtree_ctx, extents, new_addr, size, pad, alignment, slab,
+	    growing_retained);
 	if (extent == NULL) {
 		return NULL;
-	}
-	if (committed) {
-		*commit = true;
 	}
 
 	extent = extent_recycle_split(tsdn, arena, r_extent_hooks, rtree_ctx,
@@ -1047,6 +1036,13 @@ extent_recycle(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
 			return NULL;
 		}
 		extent_zeroed_set(extent, true);
+	}
+
+	if (extent_committed_get(extent)) {
+		*commit = true;
+	}
+	if (extent_zeroed_get(extent)) {
+		*zero = true;
 	}
 
 	if (pad != 0) {
