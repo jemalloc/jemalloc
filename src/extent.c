@@ -995,6 +995,7 @@ extent_recycle_split(tsdn_t *tsdn, arena_t *arena,
 			extent_deregister(tsdn, to_salvage);
 		}
 		if (to_leak != NULL) {
+			extent_deregister(tsdn, to_leak);
 			extents_leak(tsdn, arena, r_extent_hooks, extents,
 			    to_leak, growing_retained);
 		}
