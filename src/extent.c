@@ -988,9 +988,12 @@ extent_recycle_split(tsdn_t *tsdn, arena_t *arena,
 			extent_deregister(tsdn, to_salvage);
 		}
 		if (to_leak != NULL) {
+			void *leak = extent_base_get(to_leak);
 			extent_deregister(tsdn, to_leak);
 			extents_leak(tsdn, arena, r_extent_hooks, extents,
 			    to_leak, growing_retained);
+			assert(extent_lock_from_addr(tsdn, rtree_ctx, leak)
+			    == NULL);
 		}
 		return NULL;
 	}
