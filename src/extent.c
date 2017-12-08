@@ -761,7 +761,7 @@ extent_interior_deregister(tsdn_t *tsdn, rtree_ctx_t *rtree_ctx,
  * Removes all pointers to the given extent from the global rtree.
  */
 static void
-extent_deregister(tsdn_t *tsdn, extent_t *extent) {
+extent_deregister_impl(tsdn_t *tsdn, extent_t *extent, bool gdump) {
 	rtree_ctx_t rtree_ctx_fallback;
 	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
 	rtree_leaf_elm_t *elm_a, *elm_b;
@@ -778,9 +778,19 @@ extent_deregister(tsdn_t *tsdn, extent_t *extent) {
 
 	extent_unlock(tsdn, extent);
 
-	if (config_prof) {
+	if (config_prof && gdump) {
 		extent_gdump_sub(tsdn, extent);
 	}
+}
+
+static void
+extent_deregister(tsdn_t *tsdn, extent_t *extent) {
+	extent_deregister_impl(tsdn, extent, true);
+}
+
+static void
+extent_deregister_no_gdump_sub(tsdn_t *tsdn, extent_t *extent) {
+	extent_deregister_impl(tsdn, extent, false);
 }
 
 /*
@@ -989,7 +999,7 @@ extent_recycle_split(tsdn_t *tsdn, arena_t *arena,
 		}
 		if (to_leak != NULL) {
 			void *leak = extent_base_get(to_leak);
-			extent_deregister(tsdn, to_leak);
+			extent_deregister_no_gdump_sub(tsdn, to_leak);
 			extents_leak(tsdn, arena, r_extent_hooks, extents,
 			    to_leak, growing_retained);
 			assert(extent_lock_from_addr(tsdn, rtree_ctx, leak)
@@ -1267,7 +1277,7 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena,
 		 */
 		assert(result == extent_split_interior_error);
 		if (to_leak != NULL) {
-			extent_deregister(tsdn, to_leak);
+			extent_deregister_no_gdump_sub(tsdn, to_leak);
 			extents_leak(tsdn, arena, r_extent_hooks,
 			    &arena->extents_retained, to_leak, true);
 			goto label_err;
