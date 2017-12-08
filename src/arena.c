@@ -912,7 +912,7 @@ arena_stash_decayed(tsdn_t *tsdn, arena_t *arena,
 	extent_t *extent;
 	while (nstashed < npages_decay_max &&
 	    (extent = extents_evict(tsdn, arena, r_extent_hooks, extents,
-	    npages_limit, npages_decay_max - nstashed)) != NULL) {
+	    npages_limit)) != NULL) {
 		extent_list_append(decay_extents, extent);
 		nstashed += extent_size_get(extent) >> LG_PAGE;
 	}
@@ -1226,7 +1226,7 @@ arena_destroy_retained(tsdn_t *tsdn, arena_t *arena) {
 	extent_hooks_t *extent_hooks = extent_hooks_get(arena);
 	extent_t *extent;
 	while ((extent = extents_evict(tsdn, arena, &extent_hooks,
-	    &arena->extents_retained, 0, SIZE_MAX)) != NULL) {
+	    &arena->extents_retained, 0)) != NULL) {
 		extent_destroy_wrapper(tsdn, arena, &extent_hooks, extent);
 	}
 }
