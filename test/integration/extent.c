@@ -140,7 +140,7 @@ test_manual_hook_body(void) {
 	assert_ptr_ne(old_hooks->merge, extent_merge_hook,
 	    "Unexpected extent_hooks error");
 
-	if (check_background_thread_enabled()) {
+	if (!check_background_thread_enabled()) {
 		test_extent_body(arena_ind);
 	}
 
