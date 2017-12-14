@@ -142,11 +142,11 @@ TEST_BEGIN(test_overflow) {
 	max_size_class = get_max_size_class();
 	max_psz = max_size_class + PAGE;
 
-	assert_u_eq(sz_size2index(max_size_class+1), NSIZES,
+	assert_u_eq(sz_size2index(max_size_class+1), SC_NSIZES,
 	    "sz_size2index() should return NSIZES on overflow");
-	assert_u_eq(sz_size2index(ZU(PTRDIFF_MAX)+1), NSIZES,
+	assert_u_eq(sz_size2index(ZU(PTRDIFF_MAX)+1), SC_NSIZES,
 	    "sz_size2index() should return NSIZES on overflow");
-	assert_u_eq(sz_size2index(SIZE_T_MAX), NSIZES,
+	assert_u_eq(sz_size2index(SIZE_T_MAX), SC_NSIZES,
 	    "sz_size2index() should return NSIZES on overflow");
 
 	assert_zu_eq(sz_s2u(max_size_class+1), 0,
@@ -156,12 +156,15 @@ TEST_BEGIN(test_overflow) {
 	assert_zu_eq(sz_s2u(SIZE_T_MAX), 0,
 	    "sz_s2u() should return 0 on overflow");
 
-	assert_u_eq(sz_psz2ind(max_size_class+1), NPSIZES,
+	assert_u_eq(sz_psz2ind(max_size_class+1), sc_data_global.npsizes,
 	    "sz_psz2ind() should return NPSIZES on overflow");
-	assert_u_eq(sz_psz2ind(ZU(PTRDIFF_MAX)+1), NPSIZES,
+	assert_u_eq(sz_psz2ind(ZU(PTRDIFF_MAX)+1), sc_data_global.npsizes,
 	    "sz_psz2ind() should return NPSIZES on overflow");
-	assert_u_eq(sz_psz2ind(SIZE_T_MAX), NPSIZES,
+	assert_u_eq(sz_psz2ind(SIZE_T_MAX), sc_data_global.npsizes,
 	    "sz_psz2ind() should return NPSIZES on overflow");
+
+	assert_u_le(sc_data_global.npsizes, SC_NPSIZES_MAX,
+	    "Dynamic value of npsizes is higher than static bound.");
 
 	assert_zu_eq(sz_psz2u(max_size_class+1), max_psz,
 	    "sz_psz2u() should return (LARGE_MAXCLASS + PAGE) for unsupported"

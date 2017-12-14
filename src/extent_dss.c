@@ -154,7 +154,7 @@ extent_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
 			    (uintptr_t)gap_addr_page;
 			if (gap_size_page != 0) {
 				extent_init(gap, arena, gap_addr_page,
-				    gap_size_page, false, NSIZES,
+				    gap_size_page, false, SC_NSIZES,
 				    arena_extent_sn_next(arena),
 				    extent_state_active, false, true, true);
 			}
@@ -198,7 +198,7 @@ extent_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
 					extent_t extent;
 
 					extent_init(&extent, arena, ret, size,
-					    size, false, NSIZES,
+					    size, false, SC_NSIZES,
 					    extent_state_active, false, true,
 					    true);
 					if (extent_purge_forced_wrapper(tsdn,

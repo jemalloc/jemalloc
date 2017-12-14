@@ -4,7 +4,7 @@
 
 #include "jemalloc/internal/assert.h"
 #include "jemalloc/internal/mutex.h"
-#include "jemalloc/internal/size_classes.h"
+#include "jemalloc/internal/sc.h"
 
 /******************************************************************************/
 /* Data. */
@@ -41,7 +41,7 @@ tcache_event_hard(tsd_t *tsd, tcache_t *tcache) {
 	szind_t binind = tcache->next_gc_bin;
 
 	cache_bin_t *tbin;
-	if (binind < NBINS) {
+	if (binind < SC_NBINS) {
 		tbin = tcache_small_bin_get(tcache, binind);
 	} else {
 		tbin = tcache_large_bin_get(tcache, binind);
@@ -50,7 +50,7 @@ tcache_event_hard(tsd_t *tsd, tcache_t *tcache) {
 		/*
 		 * Flush (ceiling) 3/4 of the objects below the low water mark.
 		 */
-		if (binind < NBINS) {
+		if (binind < SC_NBINS) {
 			tcache_bin_flush_small(tsd, tcache, tbin, binind,
 			    tbin->ncached - tbin->low_water + (tbin->low_water
 			    >> 2));
@@ -72,7 +72,7 @@ tcache_event_hard(tsd_t *tsd, tcache_t *tcache) {
 		 * Increase fill count by 2X for small bins.  Make sure
 		 * lg_fill_div stays greater than 0.
 		 */
-		if (binind < NBINS && tcache->lg_fill_div[binind] > 1) {
+		if (binind < SC_NBINS && tcache->lg_fill_div[binind] > 1) {
 			tcache->lg_fill_div[binind]--;
 		}
 	}
@@ -105,7 +105,7 @@ tcache_bin_flush_small(tsd_t *tsd, tcache_t *tcache, cache_bin_t *tbin,
     szind_t binind, unsigned rem) {
 	bool merged_stats = false;
 
-	assert(binind < NBINS);
+	assert(binind < SC_NBINS);
 	assert((cache_bin_sz_t)rem <= tbin->ncached);
 
 	arena_t *arena = tcache->arena;
@@ -369,10 +369,10 @@ tcache_init(tsd_t *tsd, tcache_t *tcache, void *avail_stack) {
 
 	size_t stack_offset = 0;
 	assert((TCACHE_NSLOTS_SMALL_MAX & 1U) == 0);
-	memset(tcache->bins_small, 0, sizeof(cache_bin_t) * NBINS);
-	memset(tcache->bins_large, 0, sizeof(cache_bin_t) * (nhbins - NBINS));
+	memset(tcache->bins_small, 0, sizeof(cache_bin_t) * SC_NBINS);
+	memset(tcache->bins_large, 0, sizeof(cache_bin_t) * (nhbins - SC_NBINS));
 	unsigned i = 0;
-	for (; i < NBINS; i++) {
+	for (; i < SC_NBINS; i++) {
 		tcache->lg_fill_div[i] = 1;
 		stack_offset += tcache_bin_info[i].ncached_max * sizeof(void *);
 		/*
@@ -464,7 +464,7 @@ static void
 tcache_flush_cache(tsd_t *tsd, tcache_t *tcache) {
 	assert(tcache->arena != NULL);
 
-	for (unsigned i = 0; i < NBINS; i++) {
+	for (unsigned i = 0; i < SC_NBINS; i++) {
 		cache_bin_t *tbin = tcache_small_bin_get(tcache, i);
 		tcache_bin_flush_small(tsd, tcache, tbin, i, 0);
 
@@ -472,7 +472,7 @@ tcache_flush_cache(tsd_t *tsd, tcache_t *tcache) {
 			assert(tbin->tstats.nrequests == 0);
 		}
 	}
-	for (unsigned i = NBINS; i < nhbins; i++) {
+	for (unsigned i = SC_NBINS; i < nhbins; i++) {
 		cache_bin_t *tbin = tcache_large_bin_get(tcache, i);
 		tcache_bin_flush_large(tsd, tbin, i, 0, tcache);
 
@@ -538,7 +538,7 @@ tcache_stats_merge(tsdn_t *tsdn, tcache_t *tcache, arena_t *arena) {
 	cassert(config_stats);
 
 	/* Merge and reset tcache stats. */
-	for (i = 0; i < NBINS; i++) {
+	for (i = 0; i < SC_NBINS; i++) {
 		bin_t *bin = &arena->bins[i];
 		cache_bin_t *tbin = tcache_small_bin_get(tcache, i);
 		malloc_mutex_lock(tsdn, &bin->lock);
@@ -658,8 +658,8 @@ bool
 tcache_boot(tsdn_t *tsdn) {
 	/* If necessary, clamp opt_lg_tcache_max. */
 	if (opt_lg_tcache_max < 0 || (ZU(1) << opt_lg_tcache_max) <
-	    SMALL_MAXCLASS) {
-		tcache_maxclass = SMALL_MAXCLASS;
+	    sc_data_global.small_maxclass) {
+		tcache_maxclass = sc_data_global.small_maxclass;
 	} else {
 		tcache_maxclass = (ZU(1) << opt_lg_tcache_max);
 	}
@@ -679,7 +679,7 @@ tcache_boot(tsdn_t *tsdn) {
 	}
 	stack_nelms = 0;
 	unsigned i;
-	for (i = 0; i < NBINS; i++) {
+	for (i = 0; i < SC_NBINS; i++) {
 		if ((bin_infos[i].nregs << 1) <= TCACHE_NSLOTS_SMALL_MIN) {
 			tcache_bin_info[i].ncached_max =
 			    TCACHE_NSLOTS_SMALL_MIN;

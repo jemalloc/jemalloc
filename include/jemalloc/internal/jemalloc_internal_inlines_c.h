@@ -142,7 +142,7 @@ iralloct_realign(tsdn_t *tsdn, void *ptr, size_t oldsize, size_t size,
 	size_t usize, copysize;
 
 	usize = sz_sa2u(size, alignment);
-	if (unlikely(usize == 0 || usize > LARGE_MAXCLASS)) {
+	if (unlikely(usize == 0 || usize > sc_data_global.large_maxclass)) {
 		return NULL;
 	}
 	p = ipalloct(tsdn, usize, alignment, zero, tcache, arena);
