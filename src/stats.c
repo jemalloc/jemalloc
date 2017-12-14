@@ -822,6 +822,7 @@ stats_general_print(void (*write_cb)(void *, const char *), void *cbopaque,
 	OPT_WRITE_BOOL_MUTABLE(background_thread, background_thread, ",")
 	OPT_WRITE_SSIZE_T_MUTABLE(dirty_decay_ms, arenas.dirty_decay_ms, ",")
 	OPT_WRITE_SSIZE_T_MUTABLE(muzzy_decay_ms, arenas.muzzy_decay_ms, ",")
+	OPT_WRITE_UNSIGNED(lg_extent_max_active_fit, ",")
 	OPT_WRITE_CHAR_P(junk, ",")
 	OPT_WRITE_BOOL(zero, ",")
 	OPT_WRITE_BOOL(utrace, ",")
@@ -856,7 +857,9 @@ stats_general_print(void (*write_cb)(void *, const char *), void *cbopaque,
 
 #undef OPT_WRITE_BOOL
 #undef OPT_WRITE_BOOL_MUTABLE
+#undef OPT_WRITE_UNSIGNED
 #undef OPT_WRITE_SSIZE_T
+#undef OPT_WRITE_SSIZE_T_MUTABLE
 #undef OPT_WRITE_CHAR_P
 
 	/* arenas. */
