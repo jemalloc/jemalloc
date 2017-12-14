@@ -2,11 +2,12 @@
 #define JEMALLOC_INTERNAL_EXTENT_STRUCTS_H
 
 #include "jemalloc/internal/atomic.h"
+#include "jemalloc/internal/bit_util.h"
 #include "jemalloc/internal/bitmap.h"
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/ql.h"
 #include "jemalloc/internal/ph.h"
-#include "jemalloc/internal/size_classes.h"
+#include "jemalloc/internal/sc.h"
 
 typedef enum {
 	extent_state_active   = 0,
@@ -112,7 +113,7 @@ struct extent_s {
 #define EXTENT_BITS_STATE_SHIFT  (EXTENT_BITS_ZEROED_WIDTH + EXTENT_BITS_ZEROED_SHIFT)
 #define EXTENT_BITS_STATE_MASK  MASK(EXTENT_BITS_STATE_WIDTH, EXTENT_BITS_STATE_SHIFT)
 
-#define EXTENT_BITS_SZIND_WIDTH  LG_CEIL_NSIZES
+#define EXTENT_BITS_SZIND_WIDTH  LG_CEIL(SC_NSIZES)
 #define EXTENT_BITS_SZIND_SHIFT  (EXTENT_BITS_STATE_WIDTH + EXTENT_BITS_STATE_SHIFT)
 #define EXTENT_BITS_SZIND_MASK  MASK(EXTENT_BITS_SZIND_WIDTH, EXTENT_BITS_SZIND_SHIFT)
 
@@ -180,14 +181,14 @@ struct extents_s {
 	 *
 	 * Synchronization: mtx.
 	 */
-	extent_heap_t		heaps[NPSIZES+1];
+	extent_heap_t		heaps[SC_NPSIZES_MAX + 1];
 
 	/*
 	 * Bitmap for which set bits correspond to non-empty heaps.
 	 *
 	 * Synchronization: mtx.
 	 */
-	bitmap_t		bitmap[BITMAP_GROUPS(NPSIZES+1)];
+	bitmap_t		bitmap[BITMAP_GROUPS(SC_NPSIZES_MAX + 1)];
 
 	/*
 	 * LRU of all extents in heaps.

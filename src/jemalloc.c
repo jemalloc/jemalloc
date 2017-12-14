@@ -13,7 +13,7 @@
 #include "jemalloc/internal/malloc_io.h"
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/rtree.h"
-#include "jemalloc/internal/size_classes.h"
+#include "jemalloc/internal/sc.h"
 #include "jemalloc/internal/spin.h"
 #include "jemalloc/internal/sz.h"
 #include "jemalloc/internal/ticker.h"
@@ -1158,7 +1158,8 @@ malloc_conf_init(void) {
 			/* Experimental feature.  Will be documented later.*/
 			CONF_HANDLE_SIZE_T(opt_huge_threshold,
 			    "experimental_huge_threshold",
-			    LARGE_MINCLASS, LARGE_MAXCLASS, yes, yes, false)
+			    sc_data_global.large_minclass,
+			    sc_data_global.large_maxclass, yes, yes, false)
 			CONF_HANDLE_SIZE_T(opt_lg_extent_max_active_fit,
 			    "lg_extent_max_active_fit", 0,
 			    (sizeof(size_t) << 3), yes, yes, false)
@@ -1293,6 +1294,10 @@ malloc_init_hard_needed(void) {
 static bool
 malloc_init_hard_a0_locked() {
 	malloc_initializer = INITIALIZER;
+
+	sc_boot();
+	sz_boot(&sc_data_global);
+	bin_boot(&sc_data_global);
 
 	if (config_prof) {
 		prof_boot0();
@@ -1747,12 +1752,13 @@ imalloc_sample(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd,
 	szind_t ind_large;
 	size_t bumped_usize = usize;
 
-	if (usize <= SMALL_MAXCLASS) {
-		assert(((dopts->alignment == 0) ? sz_s2u(LARGE_MINCLASS) :
-		    sz_sa2u(LARGE_MINCLASS, dopts->alignment))
-		    == LARGE_MINCLASS);
-		ind_large = sz_size2index(LARGE_MINCLASS);
-		bumped_usize = sz_s2u(LARGE_MINCLASS);
+	if (usize <= sc_data_global.small_maxclass) {
+		assert(((dopts->alignment == 0) ?
+		    sz_s2u(sc_data_global.large_minclass) :
+		    sz_sa2u(sc_data_global.large_minclass, dopts->alignment))
+			== sc_data_global.large_minclass);
+		ind_large = sz_size2index(sc_data_global.large_minclass);
+		bumped_usize = sz_s2u(sc_data_global.large_minclass);
 		ret = imalloc_no_sample(sopts, dopts, tsd, bumped_usize,
 		    bumped_usize, ind_large);
 		if (unlikely(ret == NULL)) {
@@ -1855,16 +1861,18 @@ imalloc_body(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd) {
 
 	if (dopts->alignment == 0) {
 		ind = sz_size2index(size);
-		if (unlikely(ind >= NSIZES)) {
+		if (unlikely(ind >= SC_NSIZES)) {
 			goto label_oom;
 		}
 		if (config_stats || (config_prof && opt_prof)) {
 			usize = sz_index2size(ind);
-			assert(usize > 0 && usize <= LARGE_MAXCLASS);
+			assert(usize > 0 && usize
+			    <= sc_data_global.large_maxclass);
 		}
 	} else {
 		usize = sz_sa2u(size, dopts->alignment);
-		if (unlikely(usize == 0 || usize > LARGE_MAXCLASS)) {
+		if (unlikely(usize == 0
+		    || usize > sc_data_global.large_maxclass)) {
 			goto label_oom;
 		}
 	}
@@ -1900,7 +1908,8 @@ imalloc_body(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd) {
 
 		alloc_ctx_t alloc_ctx;
 		if (likely((uintptr_t)tctx == (uintptr_t)1U)) {
-			alloc_ctx.slab = (usize <= SMALL_MAXCLASS);
+			alloc_ctx.slab = (usize
+			    <= sc_data_global.small_maxclass);
 			allocation = imalloc_no_sample(
 			    sopts, dopts, tsd, usize, usize, ind);
 		} else if ((uintptr_t)tctx > (uintptr_t)1U) {
@@ -2198,9 +2207,9 @@ irealloc_prof_sample(tsd_t *tsd, void *old_ptr, size_t old_usize, size_t usize,
 	if (tctx == NULL) {
 		return NULL;
 	}
-	if (usize <= SMALL_MAXCLASS) {
-		p = iralloc(tsd, old_ptr, old_usize, LARGE_MINCLASS, 0, false,
-		    hook_args);
+	if (usize <= sc_data_global.small_maxclass) {
+		p = iralloc(tsd, old_ptr, old_usize,
+		    sc_data_global.large_minclass, 0, false, hook_args);
 		if (p == NULL) {
 			return NULL;
 		}
@@ -2257,7 +2266,7 @@ ifree(tsd_t *tsd, void *ptr, tcache_t *tcache, bool slow_path) {
 	rtree_ctx_t *rtree_ctx = tsd_rtree_ctx(tsd);
 	rtree_szind_slab_read(tsd_tsdn(tsd), &extents_rtree, rtree_ctx,
 	    (uintptr_t)ptr, true, &alloc_ctx.szind, &alloc_ctx.slab);
-	assert(alloc_ctx.szind != NSIZES);
+	assert(alloc_ctx.szind != SC_NSIZES);
 
 	size_t usize;
 	if (config_prof && opt_prof) {
@@ -2384,12 +2393,13 @@ je_realloc(void *ptr, size_t arg_size) {
 		rtree_ctx_t *rtree_ctx = tsd_rtree_ctx(tsd);
 		rtree_szind_slab_read(tsd_tsdn(tsd), &extents_rtree, rtree_ctx,
 		    (uintptr_t)ptr, true, &alloc_ctx.szind, &alloc_ctx.slab);
-		assert(alloc_ctx.szind != NSIZES);
+		assert(alloc_ctx.szind != SC_NSIZES);
 		old_usize = sz_index2size(alloc_ctx.szind);
 		assert(old_usize == isalloc(tsd_tsdn(tsd), ptr));
 		if (config_prof && opt_prof) {
 			usize = sz_s2u(size);
-			if (unlikely(usize == 0 || usize > LARGE_MAXCLASS)) {
+			if (unlikely(usize == 0
+			    || usize > sc_data_global.large_maxclass)) {
 				ret = NULL;
 			} else {
 				ret = irealloc_prof(tsd, ptr, old_usize, usize,
@@ -2702,9 +2712,10 @@ irallocx_prof_sample(tsdn_t *tsdn, void *old_ptr, size_t old_usize,
 	if (tctx == NULL) {
 		return NULL;
 	}
-	if (usize <= SMALL_MAXCLASS) {
-		p = iralloct(tsdn, old_ptr, old_usize, LARGE_MINCLASS,
-		    alignment, zero, tcache, arena, hook_args);
+	if (usize <= sc_data_global.small_maxclass) {
+		p = iralloct(tsdn, old_ptr, old_usize,
+		    sc_data_global.large_minclass, alignment, zero, tcache,
+		    arena, hook_args);
 		if (p == NULL) {
 			return NULL;
 		}
@@ -2804,7 +2815,7 @@ je_rallocx(void *ptr, size_t size, int flags) {
 	rtree_ctx_t *rtree_ctx = tsd_rtree_ctx(tsd);
 	rtree_szind_slab_read(tsd_tsdn(tsd), &extents_rtree, rtree_ctx,
 	    (uintptr_t)ptr, true, &alloc_ctx.szind, &alloc_ctx.slab);
-	assert(alloc_ctx.szind != NSIZES);
+	assert(alloc_ctx.szind != SC_NSIZES);
 	old_usize = sz_index2size(alloc_ctx.szind);
 	assert(old_usize == isalloc(tsd_tsdn(tsd), ptr));
 
@@ -2813,7 +2824,8 @@ je_rallocx(void *ptr, size_t size, int flags) {
 	if (config_prof && opt_prof) {
 		usize = (alignment == 0) ?
 		    sz_s2u(size) : sz_sa2u(size, alignment);
-		if (unlikely(usize == 0 || usize > LARGE_MAXCLASS)) {
+		if (unlikely(usize == 0
+		    || usize > sc_data_global.large_maxclass)) {
 			goto label_oom;
 		}
 		p = irallocx_prof(tsd, ptr, old_usize, size, alignment, &usize,
@@ -2898,17 +2910,19 @@ ixallocx_prof(tsd_t *tsd, void *ptr, size_t old_usize, size_t size,
 	 */
 	if (alignment == 0) {
 		usize_max = sz_s2u(size+extra);
-		assert(usize_max > 0 && usize_max <= LARGE_MAXCLASS);
+		assert(usize_max > 0
+		    && usize_max <= sc_data_global.large_maxclass);
 	} else {
 		usize_max = sz_sa2u(size+extra, alignment);
-		if (unlikely(usize_max == 0 || usize_max > LARGE_MAXCLASS)) {
+		if (unlikely(usize_max == 0
+		    || usize_max > sc_data_global.large_maxclass)) {
 			/*
 			 * usize_max is out of range, and chances are that
 			 * allocation will fail, but use the maximum possible
 			 * value and carry on with prof_alloc_prep(), just in
 			 * case allocation succeeds.
 			 */
-			usize_max = LARGE_MAXCLASS;
+			usize_max = sc_data_global.large_maxclass;
 		}
 	}
 	tctx = prof_alloc_prep(tsd, usize_max, prof_active, false);
@@ -2951,24 +2965,24 @@ je_xallocx(void *ptr, size_t size, size_t extra, int flags) {
 	rtree_ctx_t *rtree_ctx = tsd_rtree_ctx(tsd);
 	rtree_szind_slab_read(tsd_tsdn(tsd), &extents_rtree, rtree_ctx,
 	    (uintptr_t)ptr, true, &alloc_ctx.szind, &alloc_ctx.slab);
-	assert(alloc_ctx.szind != NSIZES);
+	assert(alloc_ctx.szind != SC_NSIZES);
 	old_usize = sz_index2size(alloc_ctx.szind);
 	assert(old_usize == isalloc(tsd_tsdn(tsd), ptr));
 	/*
 	 * The API explicitly absolves itself of protecting against (size +
 	 * extra) numerical overflow, but we may need to clamp extra to avoid
-	 * exceeding LARGE_MAXCLASS.
+	 * exceeding sc_data_global.large_maxclass.
 	 *
 	 * Ordinarily, size limit checking is handled deeper down, but here we
 	 * have to check as part of (size + extra) clamping, since we need the
 	 * clamped value in the above helper functions.
 	 */
-	if (unlikely(size > LARGE_MAXCLASS)) {
+	if (unlikely(size > sc_data_global.large_maxclass)) {
 		usize = old_usize;
 		goto label_not_resized;
 	}
-	if (unlikely(LARGE_MAXCLASS - size < extra)) {
-		extra = LARGE_MAXCLASS - size;
+	if (unlikely(sc_data_global.large_maxclass - size < extra)) {
+		extra = sc_data_global.large_maxclass - size;
 	}
 
 	if (config_prof && opt_prof) {
@@ -3155,7 +3169,7 @@ je_nallocx(size_t size, int flags) {
 	check_entry_exit_locking(tsdn);
 
 	usize = inallocx(tsdn, size, flags);
-	if (unlikely(usize > LARGE_MAXCLASS)) {
+	if (unlikely(usize > sc_data_global.large_maxclass)) {
 		LOG("core.nallocx.exit", "result: %zu", ZU(0));
 		return 0;
 	}

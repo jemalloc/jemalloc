@@ -581,7 +581,7 @@ TEST_BEGIN(test_arena_i_retain_grow_limit) {
 
 	assert_d_eq(mallctlbymib(mib, miblen, &default_limit, &sz, NULL, 0), 0,
 	    "Unexpected mallctl() failure");
-	assert_zu_eq(default_limit, sz_pind2sz(EXTENT_GROW_MAX_PIND),
+	assert_zu_eq(default_limit, sz_pind2sz(sc_data_global.npsizes - 1),
 	    "Unexpected default for retain_grow_limit");
 
 	new_limit = PAGE - 1;
@@ -686,8 +686,8 @@ TEST_BEGIN(test_arenas_constants) {
 
 	TEST_ARENAS_CONSTANT(size_t, quantum, QUANTUM);
 	TEST_ARENAS_CONSTANT(size_t, page, PAGE);
-	TEST_ARENAS_CONSTANT(unsigned, nbins, NBINS);
-	TEST_ARENAS_CONSTANT(unsigned, nlextents, NSIZES - NBINS);
+	TEST_ARENAS_CONSTANT(unsigned, nbins, SC_NBINS);
+	TEST_ARENAS_CONSTANT(unsigned, nlextents, SC_NSIZES - SC_NBINS);
 
 #undef TEST_ARENAS_CONSTANT
 }
@@ -720,7 +720,8 @@ TEST_BEGIN(test_arenas_lextent_constants) {
 	assert_zu_eq(name, expected, "Incorrect "#name" size");		\
 } while (0)
 
-	TEST_ARENAS_LEXTENT_CONSTANT(size_t, size, LARGE_MINCLASS);
+	TEST_ARENAS_LEXTENT_CONSTANT(size_t, size,
+	    sc_data_global.large_minclass);
 
 #undef TEST_ARENAS_LEXTENT_CONSTANT
 }

@@ -2,7 +2,6 @@
 #define JEMALLOC_INTERNAL_EXTERNS_H
 
 #include "jemalloc/internal/atomic.h"
-#include "jemalloc/internal/size_classes.h"
 #include "jemalloc/internal/tsd_types.h"
 
 /* TSD checks this to set thread local slow state accordingly. */

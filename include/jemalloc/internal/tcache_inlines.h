@@ -3,7 +3,7 @@
 
 #include "jemalloc/internal/bin.h"
 #include "jemalloc/internal/jemalloc_internal_types.h"
-#include "jemalloc/internal/size_classes.h"
+#include "jemalloc/internal/sc.h"
 #include "jemalloc/internal/sz.h"
 #include "jemalloc/internal/ticker.h"
 #include "jemalloc/internal/util.h"
@@ -46,7 +46,7 @@ tcache_alloc_small(tsd_t *tsd, arena_t *arena, tcache_t *tcache,
 	bool tcache_success;
 	size_t usize JEMALLOC_CC_SILENCE_INIT(0);
 
-	assert(binind < NBINS);
+	assert(binind < SC_NBINS);
 	bin = tcache_small_bin_get(tcache, binind);
 	ret = cache_bin_alloc_easy(bin, &tcache_success);
 	assert(tcache_success == (ret != NULL));
@@ -107,7 +107,7 @@ tcache_alloc_large(tsd_t *tsd, arena_t *arena, tcache_t *tcache, size_t size,
 	cache_bin_t *bin;
 	bool tcache_success;
 
-	assert(binind >= NBINS &&binind < nhbins);
+	assert(binind >= SC_NBINS &&binind < nhbins);
 	bin = tcache_large_bin_get(tcache, binind);
 	ret = cache_bin_alloc_easy(bin, &tcache_success);
 	assert(tcache_success == (ret != NULL));
@@ -166,7 +166,8 @@ tcache_dalloc_small(tsd_t *tsd, tcache_t *tcache, void *ptr, szind_t binind,
 	cache_bin_t *bin;
 	cache_bin_info_t *bin_info;
 
-	assert(tcache_salloc(tsd_tsdn(tsd), ptr) <= SMALL_MAXCLASS);
+	assert(tcache_salloc(tsd_tsdn(tsd), ptr)
+	    <= sc_data_global.small_maxclass);
 
 	if (slow_path && config_fill && unlikely(opt_junk_free)) {
 		arena_dalloc_junk_small(ptr, &bin_infos[binind]);
@@ -191,7 +192,8 @@ tcache_dalloc_large(tsd_t *tsd, tcache_t *tcache, void *ptr, szind_t binind,
 	cache_bin_t *bin;
 	cache_bin_info_t *bin_info;
 
-	assert(tcache_salloc(tsd_tsdn(tsd), ptr) > SMALL_MAXCLASS);
+	assert(tcache_salloc(tsd_tsdn(tsd), ptr)
+	    > sc_data_global.small_maxclass);
 	assert(tcache_salloc(tsd_tsdn(tsd), ptr) <= tcache_maxclass);
 
 	if (slow_path && config_fill && unlikely(opt_junk_free)) {

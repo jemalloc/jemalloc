@@ -162,4 +162,72 @@ lg_floor(size_t x) {
 
 #undef BIT_UTIL_INLINE
 
+/* A compile-time version of lg_ceil */
+#define LG_CEIL(x) (							\
+    (x) <= (1ULL << 0ULL) ? 0 :						\
+    (x) <= (1ULL << 1ULL) ? 1 :						\
+    (x) <= (1ULL << 2ULL) ? 2 :						\
+    (x) <= (1ULL << 3ULL) ? 3 :						\
+    (x) <= (1ULL << 4ULL) ? 4 :						\
+    (x) <= (1ULL << 5ULL) ? 5 :						\
+    (x) <= (1ULL << 6ULL) ? 6 :						\
+    (x) <= (1ULL << 7ULL) ? 7 :						\
+    (x) <= (1ULL << 8ULL) ? 8 :						\
+    (x) <= (1ULL << 9ULL) ? 9 :						\
+    (x) <= (1ULL << 10ULL) ? 10 :					\
+    (x) <= (1ULL << 11ULL) ? 11 :					\
+    (x) <= (1ULL << 12ULL) ? 12 :					\
+    (x) <= (1ULL << 13ULL) ? 13 :					\
+    (x) <= (1ULL << 14ULL) ? 14 :					\
+    (x) <= (1ULL << 15ULL) ? 15 :					\
+    (x) <= (1ULL << 16ULL) ? 16 :					\
+    (x) <= (1ULL << 17ULL) ? 17 :					\
+    (x) <= (1ULL << 18ULL) ? 18 :					\
+    (x) <= (1ULL << 19ULL) ? 19 :					\
+    (x) <= (1ULL << 20ULL) ? 20 :					\
+    (x) <= (1ULL << 21ULL) ? 21 :					\
+    (x) <= (1ULL << 22ULL) ? 22 :					\
+    (x) <= (1ULL << 23ULL) ? 23 :					\
+    (x) <= (1ULL << 24ULL) ? 24 :					\
+    (x) <= (1ULL << 25ULL) ? 25 :					\
+    (x) <= (1ULL << 26ULL) ? 26 :					\
+    (x) <= (1ULL << 27ULL) ? 27 :					\
+    (x) <= (1ULL << 28ULL) ? 28 :					\
+    (x) <= (1ULL << 29ULL) ? 29 :					\
+    (x) <= (1ULL << 30ULL) ? 30 :					\
+    (x) <= (1ULL << 31ULL) ? 31 :					\
+    (x) <= (1ULL << 32ULL) ? 32 :					\
+    (x) <= (1ULL << 33ULL) ? 33 :					\
+    (x) <= (1ULL << 34ULL) ? 34 :					\
+    (x) <= (1ULL << 35ULL) ? 35 :					\
+    (x) <= (1ULL << 36ULL) ? 36 :					\
+    (x) <= (1ULL << 37ULL) ? 37 :					\
+    (x) <= (1ULL << 38ULL) ? 38 :					\
+    (x) <= (1ULL << 39ULL) ? 39 :					\
+    (x) <= (1ULL << 40ULL) ? 40 :					\
+    (x) <= (1ULL << 41ULL) ? 41 :					\
+    (x) <= (1ULL << 42ULL) ? 42 :					\
+    (x) <= (1ULL << 43ULL) ? 43 :					\
+    (x) <= (1ULL << 44ULL) ? 44 :					\
+    (x) <= (1ULL << 45ULL) ? 45 :					\
+    (x) <= (1ULL << 46ULL) ? 46 :					\
+    (x) <= (1ULL << 47ULL) ? 47 :					\
+    (x) <= (1ULL << 48ULL) ? 48 :					\
+    (x) <= (1ULL << 49ULL) ? 49 :					\
+    (x) <= (1ULL << 50ULL) ? 50 :					\
+    (x) <= (1ULL << 51ULL) ? 51 :					\
+    (x) <= (1ULL << 52ULL) ? 52 :					\
+    (x) <= (1ULL << 53ULL) ? 53 :					\
+    (x) <= (1ULL << 54ULL) ? 54 :					\
+    (x) <= (1ULL << 55ULL) ? 55 :					\
+    (x) <= (1ULL << 56ULL) ? 56 :					\
+    (x) <= (1ULL << 57ULL) ? 57 :					\
+    (x) <= (1ULL << 58ULL) ? 58 :					\
+    (x) <= (1ULL << 59ULL) ? 59 :					\
+    (x) <= (1ULL << 60ULL) ? 60 :					\
+    (x) <= (1ULL << 61ULL) ? 61 :					\
+    (x) <= (1ULL << 62ULL) ? 62 :					\
+    (x) <= (1ULL << 63ULL) ? 63 :					\
+    64)
+
 #endif /* JEMALLOC_INTERNAL_BIT_UTIL_H */

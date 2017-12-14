@@ -8,7 +8,7 @@
 #include "jemalloc/internal/extent_mmap.h"
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/nstime.h"
-#include "jemalloc/internal/size_classes.h"
+#include "jemalloc/internal/sc.h"
 #include "jemalloc/internal/util.h"
 
 /******************************************************************************/
@@ -710,9 +710,9 @@ ctl_arena_clear(ctl_arena_t *ctl_arena) {
 		ctl_arena->astats->nmalloc_small = 0;
 		ctl_arena->astats->ndalloc_small = 0;
 		ctl_arena->astats->nrequests_small = 0;
-		memset(ctl_arena->astats->bstats, 0, NBINS *
+		memset(ctl_arena->astats->bstats, 0, SC_NBINS *
 		    sizeof(bin_stats_t));
-		memset(ctl_arena->astats->lstats, 0, (NSIZES - NBINS) *
+		memset(ctl_arena->astats->lstats, 0, (SC_NSIZES - SC_NBINS) *
 		    sizeof(arena_stats_large_t));
 	}
 }
@@ -729,7 +729,7 @@ ctl_arena_stats_amerge(tsdn_t *tsdn, ctl_arena_t *ctl_arena, arena_t *arena) {
 		    &ctl_arena->astats->astats, ctl_arena->astats->bstats,
 		    ctl_arena->astats->lstats);
 
-		for (i = 0; i < NBINS; i++) {
+		for (i = 0; i < SC_NBINS; i++) {
 			ctl_arena->astats->allocated_small +=
 			    ctl_arena->astats->bstats[i].curregs *
 			    sz_index2size(i);
@@ -841,7 +841,7 @@ MUTEX_PROF_ARENA_MUTEXES
 			sdstats->astats.uptime = astats->astats.uptime;
 		}
 
-		for (i = 0; i < NBINS; i++) {
+		for (i = 0; i < SC_NBINS; i++) {
 			sdstats->bstats[i].nmalloc += astats->bstats[i].nmalloc;
 			sdstats->bstats[i].ndalloc += astats->bstats[i].ndalloc;
 			sdstats->bstats[i].nrequests +=
@@ -867,7 +867,7 @@ MUTEX_PROF_ARENA_MUTEXES
 			    &astats->bstats[i].mutex_data);
 		}
 
-		for (i = 0; i < NSIZES - NBINS; i++) {
+		for (i = 0; i < SC_NSIZES - SC_NBINS; i++) {
 			ctl_accum_arena_stats_u64(&sdstats->lstats[i].nmalloc,
 			    &astats->lstats[i].nmalloc);
 			ctl_accum_arena_stats_u64(&sdstats->lstats[i].ndalloc,
@@ -2433,7 +2433,7 @@ arenas_muzzy_decay_ms_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
 CTL_RO_NL_GEN(arenas_quantum, QUANTUM, size_t)
 CTL_RO_NL_GEN(arenas_page, PAGE, size_t)
 CTL_RO_NL_GEN(arenas_tcache_max, tcache_maxclass, size_t)
-CTL_RO_NL_GEN(arenas_nbins, NBINS, unsigned)
+CTL_RO_NL_GEN(arenas_nbins, SC_NBINS, unsigned)
 CTL_RO_NL_GEN(arenas_nhbins, nhbins, unsigned)
 CTL_RO_NL_GEN(arenas_bin_i_size, bin_infos[mib[2]].reg_size, size_t)
 CTL_RO_NL_GEN(arenas_bin_i_nregs, bin_infos[mib[2]].nregs, uint32_t)
@@ -2441,19 +2441,19 @@ CTL_RO_NL_GEN(arenas_bin_i_slab_size, bin_infos[mib[2]].slab_size, size_t)
 static const ctl_named_node_t *
 arenas_bin_i_index(tsdn_t *tsdn, const size_t *mib,
     size_t miblen, size_t i) {
-	if (i > NBINS) {
+	if (i > SC_NBINS) {
 		return NULL;
 	}
 	return super_arenas_bin_i_node;
 }
 
-CTL_RO_NL_GEN(arenas_nlextents, NSIZES - NBINS, unsigned)
-CTL_RO_NL_GEN(arenas_lextent_i_size, sz_index2size(NBINS+(szind_t)mib[2]),
+CTL_RO_NL_GEN(arenas_nlextents, SC_NSIZES - SC_NBINS, unsigned)
+CTL_RO_NL_GEN(arenas_lextent_i_size, sz_index2size(SC_NBINS+(szind_t)mib[2]),
     size_t)
 static const ctl_named_node_t *
 arenas_lextent_i_index(tsdn_t *tsdn, const size_t *mib,
     size_t miblen, size_t i) {
-	if (i > NSIZES - NBINS) {
+	if (i > SC_NSIZES - SC_NBINS) {
 		return NULL;
 	}
 	return super_arenas_lextent_i_node;
@@ -2818,7 +2818,7 @@ stats_mutexes_reset_ctl(tsd_t *tsd, const size_t *mib,
 		MUTEX_PROF_RESET(arena->tcache_ql_mtx);
 		MUTEX_PROF_RESET(arena->base->mtx);
 
-		for (szind_t i = 0; i < NBINS; i++) {
+		for (szind_t i = 0; i < SC_NBINS; i++) {
 			bin_t *bin = &arena->bins[i];
 			MUTEX_PROF_RESET(bin->lock);
 		}
@@ -2849,7 +2849,7 @@ CTL_RO_CGEN(config_stats, stats_arenas_i_bins_j_curslabs,
 static const ctl_named_node_t *
 stats_arenas_i_bins_j_index(tsdn_t *tsdn, const size_t *mib,
     size_t miblen, size_t j) {
-	if (j > NBINS) {
+	if (j > SC_NBINS) {
 		return NULL;
 	}
 	return super_stats_arenas_i_bins_j_node;
@@ -2870,7 +2870,7 @@ CTL_RO_CGEN(config_stats, stats_arenas_i_lextents_j_curlextents,
 static const ctl_named_node_t *
 stats_arenas_i_lextents_j_index(tsdn_t *tsdn, const size_t *mib,
     size_t miblen, size_t j) {
-	if (j > NSIZES - NBINS) {
+	if (j > SC_NSIZES - SC_NBINS) {
 		return NULL;
 	}
 	return super_stats_arenas_i_lextents_j_node;

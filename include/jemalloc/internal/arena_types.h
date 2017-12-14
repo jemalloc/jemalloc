@@ -1,8 +1,10 @@
 #ifndef JEMALLOC_INTERNAL_ARENA_TYPES_H
 #define JEMALLOC_INTERNAL_ARENA_TYPES_H
 
+#include "jemalloc/internal/sc.h"
+
 /* Maximum number of regions in one slab. */
-#define LG_SLAB_MAXREGS		(LG_PAGE - LG_TINY_MIN)
+#define LG_SLAB_MAXREGS		(LG_PAGE - SC_LG_TINY_MIN)
 #define SLAB_MAXREGS		(1U << LG_SLAB_MAXREGS)
 
 /* Default decay times in milliseconds. */

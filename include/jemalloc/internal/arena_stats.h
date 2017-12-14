@@ -4,7 +4,7 @@
 #include "jemalloc/internal/atomic.h"
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/mutex_prof.h"
-#include "jemalloc/internal/size_classes.h"
+#include "jemalloc/internal/sc.h"
 
 JEMALLOC_DIAGNOSTIC_DISABLE_SPURIOUS
 
@@ -90,7 +90,7 @@ struct arena_stats_s {
 	mutex_prof_data_t mutex_prof_data[mutex_prof_num_arena_mutexes];
 
 	/* One element for each large size class. */
-	arena_stats_large_t	lstats[NSIZES - NBINS];
+	arena_stats_large_t	lstats[SC_NSIZES - SC_NBINS];
 
 	/* Arena uptime. */
 	nstime_t		uptime;
@@ -225,7 +225,7 @@ arena_stats_large_nrequests_add(tsdn_t *tsdn, arena_stats_t *arena_stats,
     szind_t szind, uint64_t nrequests) {
 	arena_stats_lock(tsdn, arena_stats);
 	arena_stats_add_u64(tsdn, arena_stats, &arena_stats->lstats[szind -
-	    NBINS].nrequests, nrequests);
+	    SC_NBINS].nrequests, nrequests);
 	arena_stats_unlock(tsdn, arena_stats);
 }
 

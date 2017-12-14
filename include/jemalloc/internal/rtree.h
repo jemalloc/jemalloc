@@ -4,7 +4,7 @@
 #include "jemalloc/internal/atomic.h"
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/rtree_tsd.h"
-#include "jemalloc/internal/size_classes.h"
+#include "jemalloc/internal/sc.h"
 #include "jemalloc/internal/tsd.h"
 
 /*
@@ -31,7 +31,7 @@
 #  error Unsupported number of significant virtual address bits
 #endif
 /* Use compact leaf representation if virtual address encoding allows. */
-#if RTREE_NHIB >= LG_CEIL_NSIZES
+#if RTREE_NHIB >= LG_CEIL(SC_NSIZES)
 #  define RTREE_LEAF_COMPACT
 #endif
 
@@ -261,7 +261,7 @@ rtree_leaf_elm_extent_write(tsdn_t *tsdn, rtree_t *rtree,
 static inline void
 rtree_leaf_elm_szind_write(tsdn_t *tsdn, rtree_t *rtree,
     rtree_leaf_elm_t *elm, szind_t szind) {
-	assert(szind <= NSIZES);
+	assert(szind <= SC_NSIZES);
 
 #ifdef RTREE_LEAF_COMPACT
 	uintptr_t old_bits = rtree_leaf_elm_bits_read(tsdn, rtree, elm,
@@ -313,7 +313,7 @@ rtree_leaf_elm_write(tsdn_t *tsdn, rtree_t *rtree,
 static inline void
 rtree_leaf_elm_szind_slab_update(tsdn_t *tsdn, rtree_t *rtree,
     rtree_leaf_elm_t *elm, szind_t szind, bool slab) {
-	assert(!slab || szind < NBINS);
+	assert(!slab || szind < SC_NBINS);
 
 	/*
 	 * The caller implicitly assures that it is the only writer to the szind
@@ -429,7 +429,7 @@ rtree_szind_read(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
 	rtree_leaf_elm_t *elm = rtree_read(tsdn, rtree, rtree_ctx, key,
 	    dependent);
 	if (!dependent && elm == NULL) {
-		return NSIZES;
+		return SC_NSIZES;
 	}
 	return rtree_leaf_elm_szind_read(tsdn, rtree, elm, dependent);
 }
@@ -474,7 +474,7 @@ rtree_szind_slab_read(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
 static inline void
 rtree_szind_slab_update(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
     uintptr_t key, szind_t szind, bool slab) {
-	assert(!slab || szind < NBINS);
+	assert(!slab || szind < SC_NBINS);
 
 	rtree_leaf_elm_t *elm = rtree_read(tsdn, rtree, rtree_ctx, key, true);
 	rtree_leaf_elm_szind_slab_update(tsdn, rtree, elm, szind, slab);
@@ -486,7 +486,7 @@ rtree_clear(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
 	rtree_leaf_elm_t *elm = rtree_read(tsdn, rtree, rtree_ctx, key, true);
 	assert(rtree_leaf_elm_extent_read(tsdn, rtree, elm, false) !=
 	    NULL);
-	rtree_leaf_elm_write(tsdn, rtree, elm, NULL, NSIZES, false);
+	rtree_leaf_elm_write(tsdn, rtree, elm, NULL, SC_NSIZES, false);
 }
 
 #endif /* JEMALLOC_INTERNAL_RTREE_H */

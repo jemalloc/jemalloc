@@ -77,7 +77,7 @@ vsalloc(tsdn_t *tsdn, const void *ptr) {
 		return 0;
 	}
 
-	if (szind == NSIZES) {
+	if (szind == SC_NSIZES) {
 		return 0;
 	}
 

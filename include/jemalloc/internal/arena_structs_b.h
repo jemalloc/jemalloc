@@ -10,7 +10,7 @@
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/nstime.h"
 #include "jemalloc/internal/ql.h"
-#include "jemalloc/internal/size_classes.h"
+#include "jemalloc/internal/sc.h"
 #include "jemalloc/internal/smoothstep.h"
 #include "jemalloc/internal/ticker.h"
 
@@ -203,7 +203,7 @@ struct arena_s {
 	 *
 	 * Synchronization: internal.
 	 */
-	bin_t			bins[NBINS];
+	bin_t			bins[SC_NBINS];
 
 	/*
 	 * Base allocator, from which arena metadata are allocated.

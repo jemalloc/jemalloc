@@ -123,13 +123,14 @@ test_junk(size_t sz_min, size_t sz_max) {
 
 TEST_BEGIN(test_junk_small) {
 	test_skip_if(!config_fill);
-	test_junk(1, SMALL_MAXCLASS-1);
+	test_junk(1, sc_data_global.small_maxclass - 1);
 }
 TEST_END
 
 TEST_BEGIN(test_junk_large) {
 	test_skip_if(!config_fill);
-	test_junk(SMALL_MAXCLASS+1, (1U << (LG_LARGE_MINCLASS+1)));
+	test_junk(sc_data_global.small_maxclass + 1,
+	    (1U << (sc_data_global.lg_large_minclass + 1)));
 }
 TEST_END
 

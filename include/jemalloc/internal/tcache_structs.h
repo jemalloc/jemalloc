@@ -1,9 +1,9 @@
 #ifndef JEMALLOC_INTERNAL_TCACHE_STRUCTS_H
 #define JEMALLOC_INTERNAL_TCACHE_STRUCTS_H
 
-#include "jemalloc/internal/ql.h"
-#include "jemalloc/internal/size_classes.h"
 #include "jemalloc/internal/cache_bin.h"
+#include "jemalloc/internal/ql.h"
+#include "jemalloc/internal/sc.h"
 #include "jemalloc/internal/ticker.h"
 
 /* Various uses of this struct need it to be a named type. */
@@ -25,7 +25,7 @@ struct tcache_s {
 	 * During tcache initialization, the avail pointer in each element of
 	 * tbins is initialized to point to the proper offset within this array.
 	 */
-	cache_bin_t	bins_small[NBINS];
+	cache_bin_t	bins_small[SC_NBINS];
 
 	/*
 	 * This data is less hot; we can be a little less careful with our
@@ -50,13 +50,13 @@ struct tcache_s {
 	/* Next bin to GC. */
 	szind_t		next_gc_bin;
 	/* For small bins, fill (ncached_max >> lg_fill_div). */
-	uint8_t		lg_fill_div[NBINS];
+	uint8_t		lg_fill_div[SC_NBINS];
 	/*
 	 * We put the cache bins for large size classes at the end of the
 	 * struct, since some of them might not get used.  This might end up
 	 * letting us avoid touching an extra page if we don't have to.
 	 */
-	cache_bin_t	bins_large[NSIZES-NBINS];
+	cache_bin_t	bins_large[SC_NSIZES-SC_NBINS];
 };
 
 /* Linkage for list of available (previously used) explicit tcache IDs. */
