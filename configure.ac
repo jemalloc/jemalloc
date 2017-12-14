@@ -9,8 +9,8 @@ dnl Custom macro definitions.
 
 dnl JE_CONCAT_VVV(r, a, b)
 dnl
-dnl Set $r to the concatenation of $a and $b, with a space separating them iff
-dnl both $a and $b are non-emty.
+dnl Set $r to the concatenation of $a and $b, with a space separating them if
+dnl both $a and $b are non-empty.
 AC_DEFUN([JE_CONCAT_VVV],
 if test "x[$]{$2}" = "x" -o "x[$]{$3}" = "x" ; then
   $1="[$]{$2}[$]{$3}"
@@ -21,7 +21,7 @@ fi
 
 dnl JE_APPEND_VS(a, b)
 dnl
-dnl Set $a to the concatenation of $a and b, with a space separating them iff
+dnl Set $a to the concatenation of $a and b, with a space separating them if
 dnl both $a and b are non-empty.
 AC_DEFUN([JE_APPEND_VS],
   T_APPEND_V=$2
