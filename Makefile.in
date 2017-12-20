@@ -97,6 +97,7 @@ C_SRCS := $(srcroot)src/jemalloc.c \
 	$(srcroot)src/bitmap.c \
 	$(srcroot)src/ckh.c \
 	$(srcroot)src/ctl.c \
+	$(srcroot)src/div.c \
 	$(srcroot)src/extent.c \
 	$(srcroot)src/extent_dss.c \
 	$(srcroot)src/extent_mmap.c \
@@ -165,6 +166,7 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/bitmap.c \
 	$(srcroot)test/unit/ckh.c \
 	$(srcroot)test/unit/decay.c \
+	$(srcroot)test/unit/div.c \
 	$(srcroot)test/unit/extent_quantize.c \
 	$(srcroot)test/unit/fork.c \
 	$(srcroot)test/unit/hash.c \

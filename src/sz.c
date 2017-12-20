@@ -26,7 +26,8 @@ const size_t sz_index2size_tab[NSIZES] = {
 JEMALLOC_ALIGNED(CACHELINE)
 const uint8_t sz_size2index_tab[] = {
 #if LG_TINY_MIN == 0
-#warning "Dangerous LG_TINY_MIN"
+/* The div module doesn't support division by 1. */
+#error "Unsupported LG_TINY_MIN"
 #define S2B_0(i)	i,
 #elif LG_TINY_MIN == 1
 #warning "Dangerous LG_TINY_MIN"
