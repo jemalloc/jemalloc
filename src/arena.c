@@ -3,6 +3,7 @@
 #include "jemalloc/internal/jemalloc_internal_includes.h"
 
 #include "jemalloc/internal/assert.h"
+#include "jemalloc/internal/div.h"
 #include "jemalloc/internal/extent_dss.h"
 #include "jemalloc/internal/extent_mmap.h"
 #include "jemalloc/internal/mutex.h"
@@ -38,6 +39,8 @@ const uint64_t h_steps[SMOOTHSTEP_NSTEPS] = {
 		SMOOTHSTEP
 #undef STEP
 };
+
+static div_info_t arena_binind_div_info[NBINS];
 
 /******************************************************************************/
 /*
@@ -247,24 +250,10 @@ arena_slab_regind(extent_t *slab, szind_t binind, const void *ptr) {
 	assert(((uintptr_t)ptr - (uintptr_t)extent_addr_get(slab)) %
 	    (uintptr_t)bin_infos[binind].reg_size == 0);
 
-	/* Avoid doing division with a variable divisor. */
 	diff = (size_t)((uintptr_t)ptr - (uintptr_t)extent_addr_get(slab));
-	switch (binind) {
-#define REGIND_bin_yes(index, reg_size)					\
-	case index:							\
-		regind = diff / (reg_size);				\
-		assert(diff == regind * (reg_size));			\
-		break;
-#define REGIND_bin_no(index, reg_size)
-#define SC(index, lg_grp, lg_delta, ndelta, psz, bin, pgs,		\
-    lg_delta_lookup)							\
-	REGIND_bin_##bin(index, (1U<<lg_grp) + (ndelta<<lg_delta))
-	SIZE_CLASSES
-#undef REGIND_bin_yes
-#undef REGIND_bin_no
-#undef SC
-	default: not_reached();
-	}
+
+	/* Avoid doing division with a variable divisor. */
+	regind = div_compute(&arena_binind_div_info[binind], diff);
 
 	assert(regind < bin_infos[binind].nregs);
 
@@ -1929,6 +1918,16 @@ void
 arena_boot(void) {
 	arena_dirty_decay_ms_default_set(opt_dirty_decay_ms);
 	arena_muzzy_decay_ms_default_set(opt_muzzy_decay_ms);
+#define REGIND_bin_yes(index, reg_size) 				\
+	div_init(&arena_binind_div_info[(index)], (reg_size));
+#define REGIND_bin_no(index, reg_size)
+#define SC(index, lg_grp, lg_delta, ndelta, psz, bin, pgs,		\
+    lg_delta_lookup)							\
+	REGIND_bin_##bin(index, (1U<<lg_grp) + (ndelta << lg_delta))
+	SIZE_CLASSES
+#undef REGIND_bin_yes
+#undef REGIND_bin_no
+#undef SC
 }
 
 void
