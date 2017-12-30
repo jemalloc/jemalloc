@@ -85,34 +85,38 @@ gen_mutex_ctl_str(char *str, size_t buf_len, const char *prefix,
 
 static void
 read_arena_bin_mutex_stats(unsigned arena_ind, unsigned bin_ind,
-    uint64_t results[mutex_prof_num_counters]) {
+    uint64_t results_uint64_t[mutex_prof_num_uint64_t_counters],
+	uint32_t results_uint32_t[mutex_prof_num_uint32_t_counters]) {
 	char cmd[MUTEX_CTL_STR_MAX_LENGTH];
 #define OP(c, t)							\
     gen_mutex_ctl_str(cmd, MUTEX_CTL_STR_MAX_LENGTH,			\
         "arenas.0.bins.0","mutex", #c);					\
     CTL_M2_M4_GET(cmd, arena_ind, bin_ind,				\
-        (t *)&results[mutex_counter_##c], t);
-MUTEX_PROF_COUNTERS
+        (t *)&results_##t[mutex_counter_##c], t);
+	MUTEX_PROF_COUNTERS
 #undef OP
 }
 
 static void
 mutex_stats_output_json(void (*write_cb)(void *, const char *), void *cbopaque,
-    const char *name, uint64_t stats[mutex_prof_num_counters],
+    const char *name, uint64_t stats_uint64_t[mutex_prof_num_uint64_t_counters],
+    uint32_t stats_uint32_t[mutex_prof_num_uint32_t_counters],
     const char *json_indent, bool last) {
 	malloc_cprintf(write_cb, cbopaque, "%s\"%s\": {\n", json_indent, name);
 
-	mutex_prof_counter_ind_t k = 0;
+	mutex_prof_uint64_t_counter_ind_t k_uint64_t = 0;
+	mutex_prof_uint32_t_counter_ind_t k_uint32_t = 0;
 	char *fmt_str[2] = {"%s\t\"%s\": %"FMTu32"%s\n",
 	    "%s\t\"%s\": %"FMTu64"%s\n"};
 #define OP(c, t)							\
 	malloc_cprintf(write_cb, cbopaque,				\
 	    fmt_str[sizeof(t) / sizeof(uint32_t) - 1], 			\
-	    json_indent, #c, (t)stats[mutex_counter_##c],		\
-	    (++k == mutex_prof_num_counters) ? "" : ",");
-MUTEX_PROF_COUNTERS
+	    json_indent, #c, (t)stats_##t[mutex_counter_##c],		\
+	    (++k_##t && k_uint32_t == mutex_prof_num_uint32_t_counters) ? "" : ",");
+	MUTEX_PROF_COUNTERS
 #undef OP
-	malloc_cprintf(write_cb, cbopaque, "%s}%s\n", json_indent,
+
+malloc_cprintf(write_cb, cbopaque, "%s}%s\n", json_indent,
 	    last ? "" : ",");
 }
 
@@ -192,10 +196,11 @@ stats_arena_bins_print(void (*write_cb)(void *, const char *), void *cbopaque,
 			    nmalloc, ndalloc, curregs, nrequests, nfills,
 			    nflushes, nreslabs, curslabs, mutex ? "," : "");
 			if (mutex) {
-				uint64_t mutex_stats[mutex_prof_num_counters];
-				read_arena_bin_mutex_stats(i, j, mutex_stats);
+				uint64_t mutex_stats_64[mutex_prof_num_uint64_t_counters];
+				uint32_t mutex_stats_32[mutex_prof_num_uint32_t_counters];
+				read_arena_bin_mutex_stats(i, j, mutex_stats_64, mutex_stats_32);
 				mutex_stats_output_json(write_cb, cbopaque,
-				    "mutex", mutex_stats, "\t\t\t\t\t\t", true);
+				    "mutex", mutex_stats_64, mutex_stats_32, "\t\t\t\t\t\t", true);
 			}
 			malloc_cprintf(write_cb, cbopaque,
 			    "\t\t\t\t\t}%s\n",
@@ -222,9 +227,10 @@ stats_arena_bins_print(void (*write_cb)(void *, const char *), void *cbopaque,
 					not_reached();
 				}
 			}
-			uint64_t mutex_stats[mutex_prof_num_counters];
+			uint64_t mutex_stats_64[mutex_prof_num_uint64_t_counters];
+			uint32_t mutex_stats_32[mutex_prof_num_uint32_t_counters];
 			if (mutex) {
-				read_arena_bin_mutex_stats(i, j, mutex_stats);
+				read_arena_bin_mutex_stats(i, j, mutex_stats_64, mutex_stats_32);
 			}
 
 			malloc_cprintf(write_cb, cbopaque, "%20zu %3u %12zu %12"
@@ -239,14 +245,14 @@ stats_arena_bins_print(void (*write_cb)(void *, const char *), void *cbopaque,
 				malloc_cprintf(write_cb, cbopaque,
 				    " %12"FMTu64" %12"FMTu64" %12"FMTu64
 				    " %14"FMTu64" %14"FMTu64" %12"FMTu64
-				    " %10"FMTu64"\n",
-				    mutex_stats[mutex_counter_num_ops],
-				    mutex_stats[mutex_counter_num_wait],
-				    mutex_stats[mutex_counter_num_spin_acq],
-				    mutex_stats[mutex_counter_num_owner_switch],
-				    mutex_stats[mutex_counter_total_wait_time],
-				    mutex_stats[mutex_counter_max_wait_time],
-				    mutex_stats[mutex_counter_max_num_thds]);
+				    " %10"FMTu32"\n",
+					mutex_stats_64[mutex_counter_num_ops],
+					mutex_stats_64[mutex_counter_num_wait],
+					mutex_stats_64[mutex_counter_num_spin_acq],
+					mutex_stats_64[mutex_counter_num_owner_switch],
+					mutex_stats_64[mutex_counter_total_wait_time],
+					mutex_stats_64[mutex_counter_max_wait_time],
+					mutex_stats_32[mutex_counter_max_num_thds]);
 			} else {
 				malloc_cprintf(write_cb, cbopaque, "\n");
 			}
@@ -329,7 +335,8 @@ stats_arena_lextents_print(void (*write_cb)(void *, const char *),
 
 static void
 read_arena_mutex_stats(unsigned arena_ind,
-    uint64_t results[mutex_prof_num_arena_mutexes][mutex_prof_num_counters]) {
+    uint64_t results_uint64_t[mutex_prof_num_arena_mutexes][mutex_prof_num_uint64_t_counters],
+	uint32_t results_uint32_t[mutex_prof_num_arena_mutexes][mutex_prof_num_uint32_t_counters]) {
 	char cmd[MUTEX_CTL_STR_MAX_LENGTH];
 
 	mutex_prof_arena_ind_t i;
@@ -338,7 +345,7 @@ read_arena_mutex_stats(unsigned arena_ind,
 		gen_mutex_ctl_str(cmd, MUTEX_CTL_STR_MAX_LENGTH,	\
 		    "arenas.0.mutexes",	arena_mutex_names[i], #c);	\
 		CTL_M2_GET(cmd, arena_ind,				\
-		    (t *)&results[i][mutex_counter_##c], t);
+		    (t *)&results_##t[i][mutex_counter_##c], t);
 MUTEX_PROF_COUNTERS
 #undef OP
 	}
@@ -346,7 +353,8 @@ MUTEX_PROF_COUNTERS
 
 static void
 mutex_stats_output(void (*write_cb)(void *, const char *), void *cbopaque,
-    const char *name, uint64_t stats[mutex_prof_num_counters],
+    const char *name, uint64_t stats_uint64_t[mutex_prof_num_uint64_t_counters],
+    uint32_t stats_uint32_t[mutex_prof_num_uint32_t_counters],
     bool first_mutex) {
 	if (first_mutex) {
 		/* Print title. */
@@ -364,7 +372,7 @@ mutex_stats_output(void (*write_cb)(void *, const char *), void *cbopaque,
 #define OP(c, t)							\
 	malloc_cprintf(write_cb, cbopaque,				\
 	    fmt_str[sizeof(t) / sizeof(uint32_t) - 1],			\
-	    (t)stats[mutex_counter_##c]);
+	    (t)stats_##t[mutex_counter_##c]);
 MUTEX_PROF_COUNTERS
 #undef OP
 	malloc_cprintf(write_cb, cbopaque, "\n");
@@ -373,8 +381,9 @@ MUTEX_PROF_COUNTERS
 static void
 stats_arena_mutexes_print(void (*write_cb)(void *, const char *),
     void *cbopaque, bool json, bool json_end, unsigned arena_ind) {
-	uint64_t mutex_stats[mutex_prof_num_arena_mutexes][mutex_prof_num_counters];
-	read_arena_mutex_stats(arena_ind, mutex_stats);
+	uint64_t mutex_stats_64[mutex_prof_num_arena_mutexes][mutex_prof_num_uint64_t_counters];
+	uint32_t mutex_stats_32[mutex_prof_num_arena_mutexes][mutex_prof_num_uint32_t_counters];
+	read_arena_mutex_stats(arena_ind, mutex_stats_64, mutex_stats_32);
 
 	/* Output mutex stats. */
 	if (json) {
@@ -383,7 +392,7 @@ stats_arena_mutexes_print(void (*write_cb)(void *, const char *),
 		last_mutex = mutex_prof_num_arena_mutexes - 1;
 		for (i = 0; i < mutex_prof_num_arena_mutexes; i++) {
 			mutex_stats_output_json(write_cb, cbopaque,
-			    arena_mutex_names[i], mutex_stats[i],
+			    arena_mutex_names[i], mutex_stats_64[i], mutex_stats_32[i],
 			    "\t\t\t\t\t", (i == last_mutex));
 		}
 		malloc_cprintf(write_cb, cbopaque, "\t\t\t\t}%s\n",
@@ -392,7 +401,7 @@ stats_arena_mutexes_print(void (*write_cb)(void *, const char *),
 		mutex_prof_arena_ind_t i;
 		for (i = 0; i < mutex_prof_num_arena_mutexes; i++) {
 			mutex_stats_output(write_cb, cbopaque,
-			    arena_mutex_names[i], mutex_stats[i], i == 0);
+			    arena_mutex_names[i], mutex_stats_64[i],  mutex_stats_32[i], i == 0);
 		}
 	}
 }
@@ -1004,7 +1013,8 @@ stats_general_print(void (*write_cb)(void *, const char *), void *cbopaque,
 
 static void
 read_global_mutex_stats(
-    uint64_t results[mutex_prof_num_global_mutexes][mutex_prof_num_counters]) {
+    uint64_t results_uint64_t[mutex_prof_num_global_mutexes][mutex_prof_num_uint64_t_counters],
+	uint32_t results_uint32_t[mutex_prof_num_global_mutexes][mutex_prof_num_uint32_t_counters]) {
 	char cmd[MUTEX_CTL_STR_MAX_LENGTH];
 
 	mutex_prof_global_ind_t i;
@@ -1012,7 +1022,7 @@ read_global_mutex_stats(
 #define OP(c, t)							\
 		gen_mutex_ctl_str(cmd, MUTEX_CTL_STR_MAX_LENGTH,	\
 		    "mutexes", global_mutex_names[i], #c);		\
-		CTL_GET(cmd, (t *)&results[i][mutex_counter_##c], t);
+		CTL_GET(cmd, (t *)&results_##t[i][mutex_counter_##c], t);
 MUTEX_PROF_COUNTERS
 #undef OP
 	}
@@ -1035,9 +1045,10 @@ stats_print_helper(void (*write_cb)(void *, const char *), void *cbopaque,
 	CTL_GET("stats.mapped", &mapped, size_t);
 	CTL_GET("stats.retained", &retained, size_t);
 
-	uint64_t mutex_stats[mutex_prof_num_global_mutexes][mutex_prof_num_counters];
+	uint64_t mutex_stats_uint64_t[mutex_prof_num_global_mutexes][mutex_prof_num_uint64_t_counters];
+	uint32_t mutex_stats_uint32_t[mutex_prof_num_global_mutexes][mutex_prof_num_uint32_t_counters];
 	if (mutex) {
-		read_global_mutex_stats(mutex_stats);
+		read_global_mutex_stats(mutex_stats_uint64_t, mutex_stats_uint32_t);
 	}
 
 	if (have_background_thread) {
@@ -1091,7 +1102,7 @@ stats_print_helper(void (*write_cb)(void *, const char *), void *cbopaque,
 			mutex_prof_global_ind_t i;
 			for (i = 0; i < mutex_prof_num_global_mutexes; i++) {
 				mutex_stats_output_json(write_cb, cbopaque,
-				    global_mutex_names[i], mutex_stats[i],
+				    global_mutex_names[i], mutex_stats_uint64_t[i], mutex_stats_uint32_t[i],
 				    "\t\t\t\t",
 				    i == mutex_prof_num_global_mutexes - 1);
 			}
@@ -1118,7 +1129,7 @@ stats_print_helper(void (*write_cb)(void *, const char *), void *cbopaque,
 			mutex_prof_global_ind_t i;
 			for (i = 0; i < mutex_prof_num_global_mutexes; i++) {
 				mutex_stats_output(write_cb, cbopaque,
-				    global_mutex_names[i], mutex_stats[i],
+				    global_mutex_names[i], mutex_stats_uint64_t[i], mutex_stats_uint32_t[i],
 				    i == 0);
 			}
 		}
