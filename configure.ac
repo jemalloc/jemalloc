@@ -1430,11 +1430,6 @@ if test "x${LG_PAGE}" != "xundefined" -a \
 fi
 AC_DEFINE_UNQUOTED([LG_HUGEPAGE], [${je_cv_lg_hugepage}])
 
-AC_ARG_WITH([lg_page_sizes],
-  [AS_HELP_STRING([--with-lg-page-sizes=<lg-page-sizes>],
-   [Base 2 logs of system page sizes to support])],
-  [LG_PAGE_SIZES="$with_lg_page_sizes"], [LG_PAGE_SIZES="$LG_PAGE"])
-
 dnl ============================================================================
 dnl jemalloc configuration.
 dnl
