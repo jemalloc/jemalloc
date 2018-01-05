@@ -221,13 +221,6 @@ any of the following arguments (not a definitive list) to 'configure':
     system page size may change between configuration and execution, e.g. when
     cross compiling.
 
-* `--with-lg-page-sizes=<lg-page-sizes>`
-
-    Specify the comma-separated base 2 logs of the page sizes to support.  This
-    option may be useful when cross compiling in combination with
-    `--with-lg-page`, but its primary use case is for integration with FreeBSD's
-    libc, wherein jemalloc is embedded.
-
 * `--with-lg-hugepage=<lg-hugepage>`
 
     Specify the base 2 log of the system huge page size.  This option is useful
