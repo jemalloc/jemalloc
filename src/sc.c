@@ -221,12 +221,6 @@ size_classes(
 	sc_data->large_maxclass = large_maxclass;
 }
 
-/*
- * Defined later (after size_classes.h becomes visible), but called during
- * initialization.
- */
-static void sc_data_assert(sc_data_t *sc_data);
-
 void
 sc_data_init(sc_data_t *sc_data) {
 	assert(!sc_data->initialized);
@@ -237,65 +231,9 @@ sc_data_init(sc_data_t *sc_data) {
 	    lg_max_lookup, LG_PAGE, 2);
 
 	sc_data->initialized = true;
-
-	sc_data_assert(sc_data);
 }
 
 void
 sc_boot() {
 	sc_data_init(&sc_data_global);
-}
-
-/*
- * We don't include size_classes.h until this point, to ensure only the asserts
- * can see it.
- */
-#include "jemalloc/internal/size_classes.h"
-
-static void
-sc_assert(sc_t *sc, int index, int lg_base, int lg_delta, int ndelta, int psz,
-    int bin, int pgs, int lg_delta_lookup) {
-	assert(sc->index == index);
-	assert(sc->lg_base == lg_base);
-	assert(sc->lg_delta == lg_delta);
-	assert(sc->ndelta == ndelta);
-	assert(sc->psz == psz);
-	assert(sc->bin == bin);
-	assert(sc->pgs == pgs);
-	assert(sc->lg_delta_lookup == lg_delta_lookup);
-}
-
-static void
-sc_data_assert(sc_data_t *sc_data) {
-	assert(SC_NTINY == NTBINS);
-	assert(SC_NSIZES == NSIZES);
-	assert(SC_NBINS == NBINS);
-	assert(NPSIZES <= SC_NPSIZES_MAX);
-	assert(sc_data->ntiny == NTBINS);
-	assert(sc_data->nlbins == NLBINS);
-	assert(sc_data->nbins == NBINS);
-	assert(sc_data->nsizes == NSIZES);
-	assert(sc_data->lg_ceil_nsizes == LG_CEIL_NSIZES);
-	assert(sc_data->npsizes == NPSIZES);
-#if NTBINS > 0
-	assert(sc_data->lg_tiny_maxclass == LG_TINY_MAXCLASS);
-#else
-	assert(sc_data->lg_tiny_maxclass == -1);
-#endif
-	assert(sc_data->lookup_maxclass == LOOKUP_MAXCLASS);
-	assert(sc_data->small_maxclass == SMALL_MAXCLASS);
-	assert(sc_data->lg_large_minclass == LG_LARGE_MINCLASS);
-	assert(sc_data->large_minclass == LARGE_MINCLASS);
-	assert(sc_data->large_maxclass == LARGE_MAXCLASS);
-	assert(sc_data->initialized);
-#define no 0
-#define yes 1
-#define SC(index, lg_base, lg_delta, ndelta, psz, bin, pgs,		\
-    lg_delta_lookup)							\
-	sc_assert(&sc_data->sc[index], index, lg_base, lg_delta,	\
-	    ndelta, psz, bin, pgs, lg_delta_lookup);
-	SIZE_CLASSES
-#undef no
-#undef yes
-#undef SC
 }
