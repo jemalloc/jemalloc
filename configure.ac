@@ -968,7 +968,6 @@ cfghdrs_in="${cfghdrs_in} include/jemalloc/internal/private_symbols.sh"
 cfghdrs_in="${cfghdrs_in} include/jemalloc/internal/private_namespace.sh"
 cfghdrs_in="${cfghdrs_in} include/jemalloc/internal/public_namespace.sh"
 cfghdrs_in="${cfghdrs_in} include/jemalloc/internal/public_unnamespace.sh"
-cfghdrs_in="${cfghdrs_in} include/jemalloc/internal/size_classes.sh"
 cfghdrs_in="${cfghdrs_in} include/jemalloc/jemalloc_rename.sh"
 cfghdrs_in="${cfghdrs_in} include/jemalloc/jemalloc_mangle.sh"
 cfghdrs_in="${cfghdrs_in} include/jemalloc/jemalloc.sh"
@@ -981,7 +980,6 @@ cfghdrs_out="${cfghdrs_out} include/jemalloc/internal/private_symbols_jet.awk"
 cfghdrs_out="${cfghdrs_out} include/jemalloc/internal/public_symbols.txt"
 cfghdrs_out="${cfghdrs_out} include/jemalloc/internal/public_namespace.h"
 cfghdrs_out="${cfghdrs_out} include/jemalloc/internal/public_unnamespace.h"
-cfghdrs_out="${cfghdrs_out} include/jemalloc/internal/size_classes.h"
 cfghdrs_out="${cfghdrs_out} include/jemalloc/jemalloc_protos_jet.h"
 cfghdrs_out="${cfghdrs_out} include/jemalloc/jemalloc_rename.h"
 cfghdrs_out="${cfghdrs_out} include/jemalloc/jemalloc_mangle.h"
@@ -2176,16 +2174,6 @@ AC_CONFIG_COMMANDS([include/jemalloc/internal/public_unnamespace.h], [
 ], [
   srcdir="${srcdir}"
   objroot="${objroot}"
-])
-AC_CONFIG_COMMANDS([include/jemalloc/internal/size_classes.h], [
-  mkdir -p "${objroot}include/jemalloc/internal"
-  "${SHELL}" "${srcdir}/include/jemalloc/internal/size_classes.sh" "${LG_QUANTA}" 3 "${LG_PAGE_SIZES}" 2 > "${objroot}include/jemalloc/internal/size_classes.h"
-], [
-  SHELL="${SHELL}"
-  srcdir="${srcdir}"
-  objroot="${objroot}"
-  LG_QUANTA="${LG_QUANTA}"
-  LG_PAGE_SIZES="${LG_PAGE_SIZES}"
 ])
 AC_CONFIG_COMMANDS([include/jemalloc/jemalloc_protos_jet.h], [
   mkdir -p "${objroot}include/jemalloc"
