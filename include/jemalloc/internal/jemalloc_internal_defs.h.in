@@ -358,4 +358,9 @@
 /* If defined, jemalloc takes the malloc/free/etc. symbol names. */
 #undef JEMALLOC_IS_MALLOC
 
+/*
+ * Defined if strerror_r returns char * if _GNU_SOURCE is defined.
+ */
+#undef JEMALLOC_STRERROR_R_RETURNS_CHAR_WITH_GNU_SOURCE
+
 #endif /* JEMALLOC_INTERNAL_DEFS_H_ */

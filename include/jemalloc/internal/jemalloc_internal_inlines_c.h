@@ -45,8 +45,10 @@ iallocztm(tsdn_t *tsdn, size_t size, szind_t ind, bool zero, tcache_t *tcache,
 	assert(size != 0);
 	assert(!is_internal || tcache == NULL);
 	assert(!is_internal || arena == NULL || arena_is_auto(arena));
-	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
-	    WITNESS_RANK_CORE, 0);
+	if (!tsdn_null(tsdn) && tsd_reentrancy_level_get(tsdn_tsd(tsdn)) == 0) {
+		witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
+		    WITNESS_RANK_CORE, 0);
+	}
 
 	ret = arena_malloc(tsdn, arena, size, ind, zero, tcache, slow_path);
 	if (config_stats && is_internal && likely(ret != NULL)) {
@@ -109,7 +111,8 @@ idalloctm(tsdn_t *tsdn, void *ptr, tcache_t *tcache, alloc_ctx_t *alloc_ctx,
 	if (config_stats && is_internal) {
 		arena_internal_sub(iaalloc(tsdn, ptr), isalloc(tsdn, ptr));
 	}
-	if (!is_internal && tsd_reentrancy_level_get(tsdn_tsd(tsdn)) != 0) {
+	if (!is_internal && !tsdn_null(tsdn) &&
+	    tsd_reentrancy_level_get(tsdn_tsd(tsdn)) != 0) {
 		assert(tcache == NULL);
 	}
 	arena_dalloc(tsdn, ptr, tcache, alloc_ctx, slow_path);

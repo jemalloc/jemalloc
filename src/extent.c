@@ -363,6 +363,43 @@ extents_remove_locked(tsdn_t *tsdn, extents_t *extents, extent_t *extent,
 	    cur_extents_npages - (size >> LG_PAGE), ATOMIC_RELAXED);
 }
 
+/*
+ * Find an extent with size [min_size, max_size) to satisfy the alignment
+ * requirement.  For each size, try only the first extent in the heap.
+ */
+static extent_t *
+extents_fit_alignment(extents_t *extents, size_t min_size, size_t max_size,
+    size_t alignment) {
+        pszind_t pind = sz_psz2ind(extent_size_quantize_ceil(min_size));
+        pszind_t pind_max = sz_psz2ind(extent_size_quantize_ceil(max_size));
+
+	for (pszind_t i = (pszind_t)bitmap_ffu(extents->bitmap,
+	    &extents_bitmap_info, (size_t)pind); i < pind_max; i =
+	    (pszind_t)bitmap_ffu(extents->bitmap, &extents_bitmap_info,
+	    (size_t)i+1)) {
+		assert(i < NPSIZES);
+		assert(!extent_heap_empty(&extents->heaps[i]));
+		extent_t *extent = extent_heap_first(&extents->heaps[i]);
+		uintptr_t base = (uintptr_t)extent_base_get(extent);
+		size_t candidate_size = extent_size_get(extent);
+		assert(candidate_size >= min_size);
+
+		uintptr_t next_align = ALIGNMENT_CEILING((uintptr_t)base,
+		    PAGE_CEILING(alignment));
+		if (base > next_align || base + candidate_size <= next_align) {
+			/* Overflow or not crossing the next alignment. */
+			continue;
+		}
+
+		size_t leadsize = next_align - base;
+		if (candidate_size - leadsize >= min_size) {
+			return extent;
+		}
+	}
+
+	return NULL;
+}
+
 /* Do any-best-fit extent selection, i.e. select any extent that best fits. */
 static extent_t *
 extents_best_fit_locked(tsdn_t *tsdn, arena_t *arena, extents_t *extents,
@@ -424,12 +461,30 @@ extents_first_fit_locked(tsdn_t *tsdn, arena_t *arena, extents_t *extents,
  */
 static extent_t *
 extents_fit_locked(tsdn_t *tsdn, arena_t *arena, extents_t *extents,
-    size_t size) {
+    size_t esize, size_t alignment) {
 	malloc_mutex_assert_owner(tsdn, &extents->mtx);
 
-	return extents->delay_coalesce ? extents_best_fit_locked(tsdn, arena,
-	    extents, size) : extents_first_fit_locked(tsdn, arena, extents,
-	    size);
+	size_t max_size = esize + PAGE_CEILING(alignment) - PAGE;
+	/* Beware size_t wrap-around. */
+	if (max_size < esize) {
+		return NULL;
+	}
+
+	extent_t *extent = extents->delay_coalesce ?
+	    extents_best_fit_locked(tsdn, arena, extents, max_size) :
+	    extents_first_fit_locked(tsdn, arena, extents, max_size);
+
+	if (alignment > PAGE && extent == NULL) {
+		/*
+		 * max_size guarantees the alignment requirement but is rather
+		 * pessimistic.  Next we try to satisfy the aligned allocation
+		 * with sizes in [esize, max_size).
+		 */
+		extent = extents_fit_alignment(extents, esize, max_size,
+		    alignment);
+	}
+
+	return extent;
 }
 
 static bool
@@ -821,11 +876,6 @@ extent_recycle_extract(tsdn_t *tsdn, arena_t *arena,
 	}
 
 	size_t esize = size + pad;
-	size_t alloc_size = esize + PAGE_CEILING(alignment) - PAGE;
-	/* Beware size_t wrap-around. */
-	if (alloc_size < esize) {
-		return NULL;
-	}
 	malloc_mutex_lock(tsdn, &extents->mtx);
 	extent_hooks_assure_initialized(arena, r_extent_hooks);
 	extent_t *extent;
@@ -847,7 +897,8 @@ extent_recycle_extract(tsdn_t *tsdn, arena_t *arena,
 			extent_unlock(tsdn, unlock_extent);
 		}
 	} else {
-		extent = extents_fit_locked(tsdn, arena, extents, alloc_size);
+		extent = extents_fit_locked(tsdn, arena, extents, esize,
+		    alignment);
 	}
 	if (extent == NULL) {
 		malloc_mutex_unlock(tsdn, &extents->mtx);
