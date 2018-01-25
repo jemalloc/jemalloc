@@ -65,10 +65,13 @@ BIT_UTIL_INLINE uint64_t
 pow2_ceil_u64(uint64_t x) {
 #if (defined(__amd64__) || defined(__x86_64__))
 	size_t ret;
+	if(unlikely(x <= 1)) {
+		return x;
+	}
 	asm ("bsrq %1, %0"
-	    : "=r"(ret) // Outputs.
-	    : "r"(x-1)    // Inputs.
-	    );
+			: "=r"(ret) // Outputs.
+			: "r"(x-1)    // Inputs.
+		);
 	return 1ULL << (ret + 1);
 #else
 	x--;
