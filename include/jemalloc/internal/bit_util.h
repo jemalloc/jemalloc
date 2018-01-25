@@ -63,6 +63,14 @@ ffs_u32(uint32_t bitmap) {
 
 BIT_UTIL_INLINE uint64_t
 pow2_ceil_u64(uint64_t x) {
+#if (defined(__i386__) || defined(__amd64__) || defined(__x86_64__))
+	size_t ret;
+	asm ("bsrq %1, %0"
+	    : "=r"(ret) // Outputs.
+	    : "r"(x-1)    // Inputs.
+	    );
+	return 1ULL << (ret + 1);
+#else
 	x--;
 	x |= x >> 1;
 	x |= x >> 2;
@@ -72,6 +80,7 @@ pow2_ceil_u64(uint64_t x) {
 	x |= x >> 32;
 	x++;
 	return x;
+#endif
 }
 
 BIT_UTIL_INLINE uint32_t
