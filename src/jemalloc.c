@@ -3161,6 +3161,15 @@ static void
 jemalloc_constructor(void) {
 	malloc_init();
 }
+
+JEMALLOC_ATTR(destructor)
+static void
+jemalloc_destructor(void)
+{
+    pthread_setspecific(tsd_tsd, NULL);
+    pthread_key_delete(tsd_tsd);
+}
+
 #endif
 
 #ifndef JEMALLOC_MUTEX_INIT_CB
