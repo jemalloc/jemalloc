@@ -319,6 +319,8 @@ extents_insert_locked(tsdn_t *tsdn, extents_t *extents, extent_t *extent,
 		    (size_t)pind);
 	}
 	extent_heap_insert(&extents->heaps[pind], extent);
+	extent_t *first_extent = extent_heap_first(&extents->heaps[pind]);
+    extents->lowest_sn_heaps[pind] = extent_sn_get(first_extent);
 	if (!preserve_lru) {
 		extent_list_append(&extents->lru, extent);
 	}
@@ -347,6 +349,9 @@ extents_remove_locked(tsdn_t *tsdn, extents_t *extents, extent_t *extent,
 	if (extent_heap_empty(&extents->heaps[pind])) {
 		bitmap_set(extents->bitmap, &extents_bitmap_info,
 		    (size_t)pind);
+	} else {
+		extent_t *first_extent = extent_heap_first(&extents->heaps[pind]);
+	    extents->lowest_sn_heaps[pind] = extent_sn_get(first_extent);
 	}
 	if (!preserve_lru) {
 		extent_list_remove(&extents->lru, extent);
@@ -424,6 +429,27 @@ extents_best_fit_locked(tsdn_t *tsdn, arena_t *arena, extents_t *extents,
 	return NULL;
 }
 
+static int
+extent_sncachedad_comp(extents_t *extents, pszind_t a, pszind_t b) {
+	int ret;
+
+	size_t a_esn = extents->lowest_sn_heaps[a];
+	size_t b_esn = extents->lowest_sn_heaps[b];
+
+	ret = (a_esn > b_esn) - (a_esn < b_esn);
+
+	if (ret != 0) {
+		return ret;
+	}
+
+	extent_t *ae = extent_heap_first(&extents->heaps[a]);
+	extent_t *be = extent_heap_first(&extents->heaps[b]);
+
+	ret = extent_ad_comp(ae, be);
+
+	return ret;
+}
+
 /*
  * Do first-fit extent selection, i.e. select the oldest/lowest extent that is
  * large enough.
@@ -432,6 +458,8 @@ static extent_t *
 extents_first_fit_locked(tsdn_t *tsdn, arena_t *arena, extents_t *extents,
     size_t size) {
 	extent_t *ret = NULL;
+	pszind_t index_lowest;
+	bool found = false;
 
 	pszind_t pind = sz_psz2ind(extent_size_quantize_ceil(size));
 	for (pszind_t i = (pszind_t)bitmap_ffu(extents->bitmap,
@@ -439,10 +467,11 @@ extents_first_fit_locked(tsdn_t *tsdn, arena_t *arena, extents_t *extents,
 	    (pszind_t)bitmap_ffu(extents->bitmap, &extents_bitmap_info,
 	    (size_t)i+1)) {
 		assert(!extent_heap_empty(&extents->heaps[i]));
-		extent_t *extent = extent_heap_first(&extents->heaps[i]);
-		assert(extent_size_get(extent) >= size);
-		if (ret == NULL || extent_snad_comp(extent, ret) < 0) {
-			ret = extent;
+		if(!found || extent_sncachedad_comp(extents, i, index_lowest) < 0) {
+			index_lowest = i;
+			if(!found) {
+				found = true;
+			}
 		}
 		if (i == NPSIZES) {
 			break;
@@ -450,7 +479,9 @@ extents_first_fit_locked(tsdn_t *tsdn, arena_t *arena, extents_t *extents,
 		assert(i < NPSIZES);
 	}
 
-	return ret;
+	ret = found ? extent_heap_first(&extents->heaps[index_lowest]) : NULL;
+
+    return ret;
 }
 
 /*

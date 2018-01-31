@@ -183,6 +183,11 @@ struct extents_s {
 	extent_heap_t		heaps[NPSIZES+1];
 
 	/*
+	 * lowest/oldest sn of extent_t in heap
+	 */
+	size_t      lowest_sn_heaps[NPSIZES+1];
+
+	/*
 	 * Bitmap for which set bits correspond to non-empty heaps.
 	 *
 	 * Synchronization: mtx.
