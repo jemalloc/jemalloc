@@ -38,9 +38,11 @@
     <ClCompile Include="..\..\..\..\src\arena.c" />
     <ClCompile Include="..\..\..\..\src\background_thread.c" />
     <ClCompile Include="..\..\..\..\src\base.c" />
+    <ClCompile Include="..\..\..\..\src\bin.c" />
     <ClCompile Include="..\..\..\..\src\bitmap.c" />
     <ClCompile Include="..\..\..\..\src\ckh.c" />
     <ClCompile Include="..\..\..\..\src\ctl.c" />
+    <ClCompile Include="..\..\..\..\src\div.c" />
     <ClCompile Include="..\..\..\..\src\extent.c" />
     <ClCompile Include="..\..\..\..\src\extent_dss.c" />
     <ClCompile Include="..\..\..\..\src\extent_mmap.c" />
