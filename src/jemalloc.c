@@ -1152,9 +1152,8 @@ malloc_conf_init(void) {
 			CONF_HANDLE_SSIZE_T(opt_lg_tcache_max, "lg_tcache_max",
 			    -1, (sizeof(size_t) << 3) - 1)
 			if (strncmp("percpu_arena", k, klen) == 0) {
-				int i;
 				bool match = false;
-				for (i = percpu_arena_mode_names_base; i <
+				for (int i = percpu_arena_mode_names_base; i <
 				    percpu_arena_mode_names_limit; i++) {
 					if (strncmp(percpu_arena_mode_names[i],
 					    v, vlen) == 0) {
@@ -1203,6 +1202,27 @@ malloc_conf_init(void) {
 					log_var_names[cpylen] = '\0';
 					continue;
 				}
+			}
+			if (CONF_MATCH("thp")) {
+				bool match = false;
+				for (int i = 0; i < thp_mode_names_limit; i++) {
+					if (strncmp(thp_mode_names[i],v, vlen)
+					    == 0) {
+						if (!have_madvise_huge) {
+							malloc_conf_error(
+							    "No THP support",
+							    k, klen, v, vlen);
+						}
+						opt_thp = i;
+						match = true;
+						break;
+					}
+				}
+				if (!match) {
+					malloc_conf_error("Invalid conf value",
+					    k, klen, v, vlen);
+				}
+				continue;
 			}
 			malloc_conf_error("Invalid conf pair", k, klen, v,
 			    vlen);
