@@ -1217,6 +1217,28 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         default maximum is 32 KiB (2^15).</para></listitem>
       </varlistentry>
 
+      <varlistentry id="opt.thp">
+        <term>
+          <mallctl>opt.thp</mallctl>
+          (<type>const char *</type>)
+          <literal>r-</literal>
+        </term>
+        <listitem><para>Transparent hugepage (THP) mode. Settings "always",
+        "never" and "default" are available if THP is supported by the operating
+        system.  The "always" setting enables transparent hugepage for all user
+        memory mappings with
+        <parameter><constant>MADV_HUGEPAGE</constant></parameter>; "never"
+        ensures no transparent hugepage with
+        <parameter><constant>MADV_NOHUGEPAGE</constant></parameter>; the default
+        setting "default" makes no changes.  Note that: this option does not
+        affect THP for jemalloc internal metadata (see <link
+        linkend="opt.metadata_thp"><mallctl>opt.metadata_thp</mallctl></link>);
+        in addition, for arenas with customized <link
+        linkend="arena.i.extent_hooks"><mallctl>extent_hooks</mallctl></link>,
+        this option is bypassed as it is implemented as part of the default
+        extent hooks.</para></listitem>
+      </varlistentry>
+
       <varlistentry id="opt.prof">
         <term>
           <mallctl>opt.prof</mallctl>
