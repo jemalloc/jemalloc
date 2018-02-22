@@ -89,7 +89,6 @@ void arena_prefork5(tsdn_t *tsdn, arena_t *arena);
 void arena_prefork6(tsdn_t *tsdn, arena_t *arena);
 void arena_prefork7(tsdn_t *tsdn, arena_t *arena);
 void arena_prefork8(tsdn_t *tsdn, arena_t *arena);
-void arena_prefork9(tsdn_t *tsdn, arena_t *arena);
 void arena_postfork_parent(tsdn_t *tsdn, arena_t *arena);
 void arena_postfork_child(tsdn_t *tsdn, arena_t *arena);
 

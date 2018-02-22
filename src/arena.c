@@ -182,11 +182,11 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 	READ_ARENA_MUTEX_PROF_DATA(large_mtx, arena_prof_mutex_large);
 	READ_ARENA_MUTEX_PROF_DATA(extent_avail_mtx,
 	    arena_prof_mutex_extent_avail)
-	READ_ARENA_MUTEX_PROF_DATA(extents_dirty.mtx,
+	READ_ARENA_MUTEX_PROF_DATA(extents_dirty.bitmap_mtx,
 	    arena_prof_mutex_extents_dirty)
-	READ_ARENA_MUTEX_PROF_DATA(extents_muzzy.mtx,
+	READ_ARENA_MUTEX_PROF_DATA(extents_muzzy.bitmap_mtx,
 	    arena_prof_mutex_extents_muzzy)
-	READ_ARENA_MUTEX_PROF_DATA(extents_retained.mtx,
+	READ_ARENA_MUTEX_PROF_DATA(extents_retained.bitmap_mtx,
 	    arena_prof_mutex_extents_retained)
 	mutex_pool_prof_read(tsdn,
 	  &astats->mutex_prof_data[arena_prof_mutex_extents_pool],
@@ -1958,40 +1958,33 @@ arena_prefork2(tsdn_t *tsdn, arena_t *arena) {
 
 void
 arena_prefork3(tsdn_t *tsdn, arena_t *arena) {
-	extents_prefork1(tsdn, &arena->extents_dirty);
-	extents_prefork1(tsdn, &arena->extents_muzzy);
-	extents_prefork1(tsdn, &arena->extents_retained);
-}
-
-void
-arena_prefork4(tsdn_t *tsdn, arena_t *arena) {
 	malloc_mutex_prefork(tsdn, &arena->extent_avail_mtx);
 }
 
 void
-arena_prefork5(tsdn_t *tsdn, arena_t *arena) {
+arena_prefork4(tsdn_t *tsdn, arena_t *arena) {
 	base_prefork(tsdn, arena->base);
 }
 
 void
-arena_prefork6(tsdn_t *tsdn, arena_t *arena) {
+arena_prefork5(tsdn_t *tsdn, arena_t *arena) {
 	malloc_mutex_prefork(tsdn, &arena->large_mtx);
 }
 
 void
-arena_prefork7(tsdn_t *tsdn, arena_t *arena) {
+arena_prefork6(tsdn_t *tsdn, arena_t *arena) {
 	mutex_pool_prefork(tsdn, &arena->extents_mutex_pool);
 }
 
 void
-arena_prefork8(tsdn_t *tsdn, arena_t *arena) {
-	extents_prefork2(tsdn, &arena->extents_dirty);
-	extents_prefork2(tsdn, &arena->extents_muzzy);
-	extents_prefork2(tsdn, &arena->extents_retained);
+arena_prefork7(tsdn_t *tsdn, arena_t *arena) {
+	extents_prefork(tsdn, &arena->extents_dirty);
+	extents_prefork(tsdn, &arena->extents_muzzy);
+	extents_prefork(tsdn, &arena->extents_retained);
 }
 
 void
-arena_prefork9(tsdn_t *tsdn, arena_t *arena) {
+arena_prefork8(tsdn_t *tsdn, arena_t *arena) {
 	for (unsigned i = 0; i < NBINS; i++) {
 		bin_prefork(tsdn, &arena->bins[i]);
 	}

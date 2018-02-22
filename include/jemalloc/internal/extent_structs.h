@@ -173,8 +173,6 @@ typedef ph(extent_t) extent_heap_t;
 
 /* Quantized collection of extents, with built-in LRU queue. */
 struct extents_s {
-	malloc_mutex_t		mtx;
-
 	/*
 	 * Quantized per size class heaps of extents.
 	 *
