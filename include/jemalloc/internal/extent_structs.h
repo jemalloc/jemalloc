@@ -185,9 +185,10 @@ struct extents_s {
 	/*
 	 * Bitmap for which set bits correspond to non-empty heaps.
 	 *
-	 * Synchronization: mtx.
+	 * Synchronization: bitmap_mtx.
 	 */
 	bitmap_t		bitmap[BITMAP_GROUPS(NPSIZES+1)];
+	malloc_mutex_t		bitmap_mtx;
 
 	/*
 	 * LRU of all extents in heaps.

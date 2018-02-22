@@ -1950,9 +1950,9 @@ arena_prefork2(tsdn_t *tsdn, arena_t *arena) {
 
 void
 arena_prefork3(tsdn_t *tsdn, arena_t *arena) {
-	extents_prefork(tsdn, &arena->extents_dirty);
-	extents_prefork(tsdn, &arena->extents_muzzy);
-	extents_prefork(tsdn, &arena->extents_retained);
+	extents_prefork1(tsdn, &arena->extents_dirty);
+	extents_prefork1(tsdn, &arena->extents_muzzy);
+	extents_prefork1(tsdn, &arena->extents_retained);
 }
 
 void
@@ -1972,6 +1972,13 @@ arena_prefork6(tsdn_t *tsdn, arena_t *arena) {
 
 void
 arena_prefork7(tsdn_t *tsdn, arena_t *arena) {
+	extents_prefork2(tsdn, &arena->extents_dirty);
+	extents_prefork2(tsdn, &arena->extents_muzzy);
+	extents_prefork2(tsdn, &arena->extents_retained);
+}
+
+void
+arena_prefork8(tsdn_t *tsdn, arena_t *arena) {
 	for (unsigned i = 0; i < NBINS; i++) {
 		bin_prefork(tsdn, &arena->bins[i]);
 	}

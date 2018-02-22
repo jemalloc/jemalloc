@@ -288,6 +288,11 @@ extents_init(tsdn_t *tsdn, extents_t *extents, extent_state_t state,
 		extent_heap_new(&extents->heaps[i]);
 	}
 	bitmap_init(extents->bitmap, &extents_bitmap_info, true);
+	if (malloc_mutex_init(&extents->bitmap_mtx, "bitmap_extents",
+			      WITNESS_RANK_EXTENTS_BITMAP,
+			      malloc_mutex_rank_exclusive)) {
+		return true;
+        }
 	extent_list_init(&extents->lru);
 	atomic_store_zu(&extents->npages, 0, ATOMIC_RELAXED);
 	extents->state = state;
@@ -315,8 +320,10 @@ extents_insert_locked(tsdn_t *tsdn, extents_t *extents, extent_t *extent,
 	size_t psz = extent_size_quantize_floor(size);
 	pszind_t pind = sz_psz2ind(psz);
 	if (extent_heap_empty(&extents->heaps[pind])) {
+		malloc_mutex_lock(tsdn, &extents->bitmap_mtx);
 		bitmap_unset(extents->bitmap, &extents_bitmap_info,
 		    (size_t)pind);
+		malloc_mutex_unlock(tsdn, &extents->bitmap_mtx);
 	}
 	extent_heap_insert(&extents->heaps[pind], extent);
 	if (!preserve_lru) {
@@ -338,8 +345,10 @@ extents_remove_locked(tsdn_t *tsdn, extents_t *extents, extent_t *extent,
 	pszind_t pind = sz_psz2ind(psz);
 	extent_heap_remove(&extents->heaps[pind], extent);
 	if (extent_heap_empty(&extents->heaps[pind])) {
+		malloc_mutex_lock(tsdn, &extents->bitmap_mtx);
 		bitmap_set(extents->bitmap, &extents_bitmap_info,
 		    (size_t)pind);
+		malloc_mutex_unlock(tsdn, &extents->bitmap_mtx);
 	}
 	if (!preserve_lru) {
 		extent_list_remove(&extents->lru, extent);
@@ -364,8 +373,8 @@ extents_fit_alignment(extents_t *extents, size_t min_size, size_t max_size,
 	    (pszind_t)bitmap_ffu(extents->bitmap, &extents_bitmap_info,
 	    (size_t)i+1)) {
 		assert(i < NPSIZES);
-		assert(!extent_heap_empty(&extents->heaps[i]));
 		extent_t *extent = extent_heap_first(&extents->heaps[i]);
+		if (!extent) continue;
 		uintptr_t base = (uintptr_t)extent_base_get(extent);
 		size_t candidate_size = extent_size_get(extent);
 		assert(candidate_size >= min_size);
@@ -393,7 +402,7 @@ extents_best_fit_locked(tsdn_t *tsdn, arena_t *arena, extents_t *extents,
 	pszind_t pind = sz_psz2ind(extent_size_quantize_ceil(size));
 	pszind_t i = (pszind_t)bitmap_ffu(extents->bitmap, &extents_bitmap_info,
 	    (size_t)pind);
-	if (i < NPSIZES+1) {
+	while (i < NPSIZES+1) {
 		/*
 		 * In order to reduce fragmentation, avoid reusing and splitting
 		 * large extents for much smaller sizes.
@@ -401,8 +410,13 @@ extents_best_fit_locked(tsdn_t *tsdn, arena_t *arena, extents_t *extents,
 		if ((sz_pind2sz(i) >> opt_lg_extent_max_active_fit) > size) {
 			return NULL;
 		}
-		assert(!extent_heap_empty(&extents->heaps[i]));
 		extent_t *extent = extent_heap_first(&extents->heaps[i]);
+		if (!extent) {
+			if (i >= NPSIZES) return NULL;
+			i = (pszind_t)bitmap_ffu(extents->bitmap, &extents_bitmap_info,
+						 (size_t)pind + 1);
+			continue;
+		}
 		assert(extent_size_get(extent) >= size);
 		return extent;
 	}
@@ -424,8 +438,8 @@ extents_first_fit_locked(tsdn_t *tsdn, arena_t *arena, extents_t *extents,
 	    &extents_bitmap_info, (size_t)pind); i < NPSIZES+1; i =
 	    (pszind_t)bitmap_ffu(extents->bitmap, &extents_bitmap_info,
 	    (size_t)i+1)) {
-		assert(!extent_heap_empty(&extents->heaps[i]));
 		extent_t *extent = extent_heap_first(&extents->heaps[i]);
+		if (!extent) continue;
 		assert(extent_size_get(extent) >= size);
 		if (ret == NULL || extent_snad_comp(extent, ret) < 0) {
 			ret = extent;
@@ -603,18 +617,25 @@ extents_leak(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
 }
 
 void
-extents_prefork(tsdn_t *tsdn, extents_t *extents) {
+extents_prefork1(tsdn_t *tsdn, extents_t *extents) {
 	malloc_mutex_prefork(tsdn, &extents->mtx);
+}
+
+void
+extents_prefork2(tsdn_t *tsdn, extents_t *extents) {
+	malloc_mutex_prefork(tsdn, &extents->bitmap_mtx);
 }
 
 void
 extents_postfork_parent(tsdn_t *tsdn, extents_t *extents) {
 	malloc_mutex_postfork_parent(tsdn, &extents->mtx);
+	malloc_mutex_postfork_parent(tsdn, &extents->bitmap_mtx);
 }
 
 void
 extents_postfork_child(tsdn_t *tsdn, extents_t *extents) {
 	malloc_mutex_postfork_child(tsdn, &extents->mtx);
+	malloc_mutex_postfork_child(tsdn, &extents->bitmap_mtx);
 }
 
 static void
