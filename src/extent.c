@@ -67,6 +67,12 @@ static bool extent_merge_default(extent_hooks_t *extent_hooks, void *addr_a,
 static bool extent_merge_impl(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, extent_t *a, extent_t *b,
     bool growing_retained);
+static void
+extent_activate_locked(tsdn_t *tsdn, arena_t *arena, extents_t *extents,
+                       extent_t *extent);
+static void
+extent_deactivate_locked(tsdn_t *tsdn, arena_t *arena, extents_t *extents,
+                         extent_t *extent);
 
 const extent_hooks_t	extent_hooks_default = {
 	extent_alloc_default,
@@ -357,10 +363,11 @@ extents_remove_locked(tsdn_t *tsdn, extents_t *extents, extent_t *extent) {
  * requirement.  For each size, try only the first extent in the heap.
  */
 static extent_t *
-extents_fit_alignment(extents_t *extents, size_t min_size, size_t max_size,
-    size_t alignment) {
-        pszind_t pind = sz_psz2ind(extent_size_quantize_ceil(min_size));
-        pszind_t pind_max = sz_psz2ind(extent_size_quantize_ceil(max_size));
+extents_fit_alignment(tsdn_t *tsdn, arena_t * arena, extents_t *extents,
+		      size_t min_size, size_t max_size,
+		      size_t alignment) {
+	pszind_t pind = sz_psz2ind(extent_size_quantize_ceil(min_size));
+	pszind_t pind_max = sz_psz2ind(extent_size_quantize_ceil(max_size));
 
 	for (pszind_t i = (pszind_t)bitmap_ffu(extents->bitmap,
 	    &extents_bitmap_info, (size_t)pind); i < pind_max; i =
@@ -382,6 +389,7 @@ extents_fit_alignment(extents_t *extents, size_t min_size, size_t max_size,
 
 		size_t leadsize = next_align - base;
 		if (candidate_size - leadsize >= min_size) {
+			extent_activate_locked(tsdn, arena, extents, extent);
 			return extent;
 		}
 	}
@@ -412,6 +420,7 @@ extents_best_fit_locked(tsdn_t *tsdn, arena_t *arena, extents_t *extents,
 			continue;
 		}
 		assert(extent_size_get(extent) >= size);
+		extent_activate_locked(tsdn, arena, extents, extent);
 		return extent;
 	}
 
@@ -436,6 +445,10 @@ extents_first_fit_locked(tsdn_t *tsdn, arena_t *arena, extents_t *extents,
 		if (!extent) continue;
 		assert(extent_size_get(extent) >= size);
 		if (ret == NULL || extent_snad_comp(extent, ret) < 0) {
+			extent_activate_locked(tsdn, arena, extents, extent);
+			if (ret) {
+				extent_deactivate_locked(tsdn, arena, extents, ret);
+			}
 			ret = extent;
 		}
 		if (i == NPSIZES) {
@@ -474,8 +487,8 @@ extents_fit_locked(tsdn_t *tsdn, arena_t *arena, extents_t *extents,
 		 * pessimistic.  Next we try to satisfy the aligned allocation
 		 * with sizes in [esize, max_size).
 		 */
-		extent = extents_fit_alignment(extents, esize, max_size,
-		    alignment);
+		extent = extents_fit_alignment(tsdn, arena, extents, esize, 
+				max_size, alignment);
 	}
 
 	return extent;
@@ -902,16 +915,14 @@ extent_recycle_extract(tsdn_t *tsdn, arena_t *arena,
 			}
 			extent_unlock(tsdn, unlock_extent);
 		}
+		if (extent) {
+			extent_activate_locked(tsdn, arena, extents, extent);
+		}
 	} else {
 		extent = extents_fit_locked(tsdn, arena, extents, esize,
 		    alignment);
 	}
-	if (extent == NULL) {
-		malloc_mutex_unlock(tsdn, &extents->mtx);
-		return NULL;
-	}
 
-	extent_activate_locked(tsdn, arena, extents, extent);
 	malloc_mutex_unlock(tsdn, &extents->mtx);
 
 	return extent;
