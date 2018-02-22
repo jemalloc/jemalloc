@@ -30,6 +30,27 @@ mutex_pool_assert_not_held(tsdn_t *tsdn, mutex_pool_t *pool) {
 	}
 }
 
+static inline void
+mutex_pool_prefork(tsdn_t *tsdn, mutex_pool_t *pool) {
+	for (int i = 0; i < MUTEX_POOL_SIZE; i++) {
+		malloc_mutex_prefork(tsdn, &pool->mutexes[i]);
+	}
+}
+
+static inline void
+mutex_pool_postfork_parent(tsdn_t *tsdn, mutex_pool_t *pool) {
+	for (int i = 0; i < MUTEX_POOL_SIZE; i++) {
+		malloc_mutex_postfork_parent(tsdn, &pool->mutexes[i]);
+	}
+}
+
+static inline void
+mutex_pool_postfork_child(tsdn_t *tsdn, mutex_pool_t *pool) {
+	for (int i = 0; i < MUTEX_POOL_SIZE; i++) {
+		malloc_mutex_postfork_child(tsdn, &pool->mutexes[i]);
+	}
+}
+
 /*
  * Note that a mutex pool doesn't work exactly the way an embdedded mutex would.
  * You're not allowed to acquire mutexes in the pool one at a time.  You have to
