@@ -286,6 +286,7 @@ extents_init(tsdn_t *tsdn, extents_t *extents, extent_state_t state,
 	}
 	for (unsigned i = 0; i < NPSIZES+1; i++) {
 		extent_heap_new(&extents->heaps[i]);
+		extent_list_init(&extents->lru[i]);
 	}
 	bitmap_init(extents->bitmap, &extents_bitmap_info, true);
 	if (malloc_mutex_init(&extents->bitmap_mtx, "bitmap_extents",
@@ -293,7 +294,6 @@ extents_init(tsdn_t *tsdn, extents_t *extents, extent_state_t state,
 			      malloc_mutex_rank_exclusive)) {
 		return true;
         }
-	extent_list_init(&extents->lru);
 	atomic_store_zu(&extents->npages, 0, ATOMIC_RELAXED);
 	extents->state = state;
 	extents->delay_coalesce = delay_coalesce;
@@ -325,7 +325,7 @@ extents_insert_locked(tsdn_t *tsdn, extents_t *extents, extent_t *extent) {
 		malloc_mutex_unlock(tsdn, &extents->bitmap_mtx);
 	}
 	extent_heap_insert(&extents->heaps[pind], extent);
-	extent_list_append(&extents->lru, extent);
+	extent_list_append(&extents->lru[pind], extent);
 	size_t npages = size >> LG_PAGE;
 	atomic_fetch_add_zu(&extents->npages, npages,
 	    ATOMIC_RELAXED);
@@ -346,7 +346,7 @@ extents_remove_locked(tsdn_t *tsdn, extents_t *extents, extent_t *extent) {
 		    (size_t)pind);
 		malloc_mutex_unlock(tsdn, &extents->bitmap_mtx);
 	}
-	extent_list_remove(&extents->lru, extent);
+	extent_list_remove(&extents->lru[pind], extent);
 	size_t npages = size >> LG_PAGE;
 	assert(atomic_load_zu(&extents->npages, ATOMIC_RELAXED) >= npages);
 	atomic_fetch_sub_zu(&extents->npages, npages, ATOMIC_RELAXED);
@@ -541,11 +541,15 @@ extents_evict(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
 	 * the loop will iterate until the LRU extent is fully coalesced.
 	 */
 	extent_t *extent;
+	int lists = NPSIZES;
 	while (true) {
 		/* Get the LRU extent, if any. */
-		extent = extent_list_first(&extents->lru);
+		extent = extent_list_first(&extents->lru[lists]);
 		if (extent == NULL) {
-			goto label_return;
+			if (lists == 0)
+				goto label_return;
+			lists--;
+			continue;
 		}
 		/* Check the eviction limit. */
 		size_t extents_npages = atomic_load_zu(&extents->npages,
@@ -567,6 +571,7 @@ extents_evict(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
 		 * The LRU extent was just coalesced and the result placed in
 		 * the LRU at its neighbor's position.  Start over.
 		 */
+		lists = NPSIZES;
 	}
 
 	/*

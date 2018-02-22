@@ -191,11 +191,11 @@ struct extents_s {
 	malloc_mutex_t		bitmap_mtx;
 
 	/*
-	 * LRU of all extents in heaps.
+	 * LRU of extents in each individual heap, matching heaps array above.
 	 *
 	 * Synchronization: mtx.
 	 */
-	extent_list_t		lru;
+	extent_list_t		lru[NPSIZES+1];
 
 	/*
 	 * Page sum for all extents in heaps.
