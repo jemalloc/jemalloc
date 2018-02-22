@@ -178,7 +178,7 @@ struct extents_s {
 	/*
 	 * Quantized per size class heaps of extents.
 	 *
-	 * Synchronization: mtx.
+	 * Synchronization: arena->extent_mutex_pool.
 	 */
 	extent_heap_t		heaps[NPSIZES+1];
 
@@ -193,7 +193,7 @@ struct extents_s {
 	/*
 	 * LRU of extents in each individual heap, matching heaps array above.
 	 *
-	 * Synchronization: mtx.
+	 * Synchronization: arena->extent_mutex_pool.
 	 */
 	extent_list_t		lru[NPSIZES+1];
 

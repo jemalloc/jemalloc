@@ -3199,7 +3199,7 @@ _malloc_prefork(void)
 		background_thread_prefork1(tsd_tsdn(tsd));
 	}
 	/* Break arena prefork into stages to preserve lock order. */
-	for (i = 0; i < 9; i++) {
+	for (i = 0; i < 10; i++) {
 		for (j = 0; j < narenas; j++) {
 			if ((arena = arena_get(tsd_tsdn(tsd), j, false)) !=
 			    NULL) {
@@ -3230,6 +3230,9 @@ _malloc_prefork(void)
 					break;
 				case 8:
 					arena_prefork8(tsd_tsdn(tsd), arena);
+					break;
+				case 9:
+					arena_prefork9(tsd_tsdn(tsd), arena);
 					break;
 				default: not_reached();
 				}
