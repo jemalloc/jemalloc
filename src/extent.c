@@ -323,14 +323,7 @@ extents_insert_locked(tsdn_t *tsdn, extents_t *extents, extent_t *extent,
 		extent_list_append(&extents->lru, extent);
 	}
 	size_t npages = size >> LG_PAGE;
-	/*
-	 * All modifications to npages hold the mutex (as asserted above), so we
-	 * don't need an atomic fetch-add; we can get by with a load followed by
-	 * a store.
-	 */
-	size_t cur_extents_npages =
-	    atomic_load_zu(&extents->npages, ATOMIC_RELAXED);
-	atomic_store_zu(&extents->npages, cur_extents_npages + npages,
+	atomic_fetch_add_zu(&extents->npages, npages,
 	    ATOMIC_RELAXED);
 }
 
@@ -352,15 +345,8 @@ extents_remove_locked(tsdn_t *tsdn, extents_t *extents, extent_t *extent,
 		extent_list_remove(&extents->lru, extent);
 	}
 	size_t npages = size >> LG_PAGE;
-	/*
-	 * As in extents_insert_locked, we hold extents->mtx and so don't need
-	 * atomic operations for updating extents->npages.
-	 */
-	size_t cur_extents_npages =
-	    atomic_load_zu(&extents->npages, ATOMIC_RELAXED);
-	assert(cur_extents_npages >= npages);
-	atomic_store_zu(&extents->npages,
-	    cur_extents_npages - (size >> LG_PAGE), ATOMIC_RELAXED);
+	assert(atomic_load_zu(&extents->npages, ATOMIC_RELAXED) >= npages);
+	atomic_fetch_sub_zu(&extents->npages, npages, ATOMIC_RELAXED);
 }
 
 /*
