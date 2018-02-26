@@ -197,5 +197,12 @@ static const bool have_background_thread =
     false
 #endif
     ;
+static const bool have_deterministic_sched =
+#ifdef JEMALLOC_DETERMINISTIC_SCHED
+    true
+#else
+    false
+#endif
+    ;
 
 #endif /* JEMALLOC_PREAMBLE_H */

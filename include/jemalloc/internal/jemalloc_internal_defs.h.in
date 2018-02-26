@@ -347,6 +347,11 @@
 #undef JEMALLOC_BACKGROUND_THREAD
 
 /*
+ * If defined, all the features necessary for deterministic sched are present.
+ */
+#undef JEMALLOC_DETERMINISTIC_SCHED
+
+/*
  * If defined, jemalloc symbols are not exported (doesn't work when
  * JEMALLOC_PREFIX is not defined).
  */

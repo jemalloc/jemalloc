@@ -5,6 +5,7 @@
 #include "jemalloc/internal/mutex_prof.h"
 #include "jemalloc/internal/tsd.h"
 #include "jemalloc/internal/witness.h"
+#include "jemalloc/internal/deterministic.h"
 
 typedef enum {
 	/* Can only acquire one mutex of a given witness rank at a time. */
@@ -61,6 +62,9 @@ struct malloc_mutex_s {
 #if defined(JEMALLOC_DEBUG)
 	witness_t			witness;
 	malloc_mutex_lock_order_t	lock_order;
+#endif
+#if defined(JEMALLOC_DETERMINISTIC_SCHED)
+	waitlist_t *waiters;
 #endif
 };
 
@@ -161,15 +165,17 @@ mutex_owner_stats_update(tsdn_t *tsdn, malloc_mutex_t *mutex) {
 /* Trylock: return false if the lock is successfully acquired. */
 static inline bool
 malloc_mutex_trylock(tsdn_t *tsdn, malloc_mutex_t *mutex) {
+	det_before_shared();
 	witness_assert_not_owner(tsdn_witness_tsdp_get(tsdn), &mutex->witness);
 	if (isthreaded) {
 		if (malloc_mutex_trylock_final(mutex)) {
+			det_after_shared();
 			return true;
 		}
 		mutex_owner_stats_update(tsdn, mutex);
 	}
 	witness_lock(tsdn_witness_tsdp_get(tsdn), &mutex->witness);
-
+	det_after_shared();
 	return false;
 }
 
@@ -201,9 +207,28 @@ static inline void
 malloc_mutex_lock(tsdn_t *tsdn, malloc_mutex_t *mutex) {
 	witness_assert_not_owner(tsdn_witness_tsdp_get(tsdn), &mutex->witness);
 	if (isthreaded) {
+#if !defined(JEMALLOC_DETERMINISTIC_SCHED)
 		if (malloc_mutex_trylock_final(mutex)) {
 			malloc_mutex_lock_slow(mutex);
 		}
+#else /* JEMALLOC_DETERMINISTIC_SCHED */
+		if (det_active()) {
+			while (true) {
+				det_before_shared();
+				bool res = !malloc_mutex_trylock_final(mutex);
+				if (!res) {
+					det_wait(&mutex->waiters);
+				} else {
+					det_after_shared();
+					break;
+				}
+			}
+		} else {
+			if (malloc_mutex_trylock_final(mutex)) {
+				malloc_mutex_lock_slow(mutex);
+			}
+		}
+#endif /* JEMALLOC_DETERMINISTIC_SCHED */
 		mutex_owner_stats_update(tsdn, mutex);
 	}
 	witness_lock(tsdn_witness_tsdp_get(tsdn), &mutex->witness);
@@ -213,7 +238,15 @@ static inline void
 malloc_mutex_unlock(tsdn_t *tsdn, malloc_mutex_t *mutex) {
 	witness_unlock(tsdn_witness_tsdp_get(tsdn), &mutex->witness);
 	if (isthreaded) {
+
+#if defined(JEMALLOC_DETERMINISTIC_SCHED)
+		det_before_shared();
 		MALLOC_MUTEX_UNLOCK(mutex);
+		det_wake(&mutex->waiters);
+		det_after_shared();
+#else
+		MALLOC_MUTEX_UNLOCK(mutex);
+#endif
 	}
 }
 

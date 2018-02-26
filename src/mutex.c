@@ -179,6 +179,9 @@ malloc_mutex_init(malloc_mutex_t *mutex, const char *name,
 			witness_init(&mutex->witness, name, rank, NULL, NULL);
 		}
 	}
+#if defined(JEMALLOC_DETERMINISTIC_SCHED)
+	mutex->waiters = NULL;
+#endif
 	return false;
 }
 

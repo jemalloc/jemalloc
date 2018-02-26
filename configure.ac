@@ -1521,6 +1521,13 @@ if test "x$abi" != "xpecoff" ; then
   if test "x${je_cv_pthread_setname_np}" = "xyes" ; then
     AC_DEFINE([JEMALLOC_HAVE_PTHREAD_SETNAME_NP], [ ])
   fi
+  dnl Check if pthread_tryjoin_np is available
+  JE_COMPILABLE([pthread_tryjoin_np(3)], [
+#include <pthread.h>
+], [
+  void* ret;
+  pthread_tryjoin_np(pthread_self(), &ret);
+], [je_cv_pthread_tryjoin_np])
 fi
 
 JE_APPEND_VS(CPPFLAGS, -D_REENTRANT)
@@ -1857,7 +1864,7 @@ if test "x${je_cv_madvise}" = "xyes" ; then
   if test "x${je_cv_madv_dontdump}" = "xyes" ; then
     AC_DEFINE([JEMALLOC_MADVISE_DONTDUMP], [ ])
   fi
- 
+
   dnl Check for madvise(..., MADV_[NO]HUGEPAGE).
   JE_COMPILABLE([madvise(..., MADV_[[NO]]HUGEPAGE)], [
 #include <sys/mman.h>
@@ -2021,6 +2028,16 @@ if test "x${have_pthread}" = "x1" -a "x${have_dlsym}" = "x1" \
     -a "x${je_cv_os_unfair_lock}" != "xyes" \
     -a "x${je_cv_osspin}" != "xyes" ; then
   AC_DEFINE([JEMALLOC_BACKGROUND_THREAD])
+fi
+
+dnl ============================================================================
+dnl Enable deterministic scheduling if possible.
+
+if test "x${have_pthread}" = "x1" -a "x${enable_debug}" == "x1" \
+    -a "x${je_cv_os_unfair_lock}" != "xyes" \
+    -a "x${je_cv_osspin}" != "xyes" \
+    -a "x${je_cv_pthread_tryjoin_np}" = "xyes"; then
+  AC_DEFINE([JEMALLOC_DETERMINISTIC_SCHED])
 fi
 
 dnl ============================================================================

@@ -2,6 +2,7 @@
 #define JEMALLOC_INTERNAL_ATOMIC_GCC_ATOMIC_H
 
 #include "jemalloc/internal/assert.h"
+#include "jemalloc/internal/deterministic.h"
 
 #define ATOMIC_INIT(...) {__VA_ARGS__}
 
@@ -46,22 +47,28 @@ ATOMIC_INLINE type							\
 atomic_load_##short_type(const atomic_##short_type##_t *a,		\
     atomic_memory_order_t mo) {						\
 	type result;							\
+	det_before_shared();						\
 	__atomic_load(&a->repr, &result, atomic_enum_to_builtin(mo));	\
+	det_after_shared();						\
 	return result;							\
 }									\
 									\
 ATOMIC_INLINE void							\
 atomic_store_##short_type(atomic_##short_type##_t *a, type val,		\
     atomic_memory_order_t mo) {						\
+	det_before_shared();						\
 	__atomic_store(&a->repr, &val, atomic_enum_to_builtin(mo));	\
+	det_after_shared();						\
 }									\
 									\
 ATOMIC_INLINE type							\
 atomic_exchange_##short_type(atomic_##short_type##_t *a, type val,	\
     atomic_memory_order_t mo) {						\
 	type result;							\
+	det_before_shared();						\
 	__atomic_exchange(&a->repr, &val, &result,			\
 	    atomic_enum_to_builtin(mo));				\
+	det_after_shared();						\
 	return result;							\
 }									\
 									\
@@ -69,19 +76,25 @@ ATOMIC_INLINE bool							\
 atomic_compare_exchange_weak_##short_type(atomic_##short_type##_t *a,	\
     type *expected, type desired, atomic_memory_order_t success_mo,	\
     atomic_memory_order_t failure_mo) {					\
-	return __atomic_compare_exchange(&a->repr, expected, &desired,	\
-	    true, atomic_enum_to_builtin(success_mo),			\
+	det_before_shared();						\
+	bool res = __atomic_compare_exchange(&a->repr, expected,	\
+	    &desired, true, atomic_enum_to_builtin(success_mo),		\
 	    atomic_enum_to_builtin(failure_mo));			\
+	det_after_shared();						\
+	return res;							\
 }									\
 									\
 ATOMIC_INLINE bool							\
 atomic_compare_exchange_strong_##short_type(atomic_##short_type##_t *a,	\
     type *expected, type desired, atomic_memory_order_t success_mo,	\
     atomic_memory_order_t failure_mo) {					\
-	return __atomic_compare_exchange(&a->repr, expected, &desired,	\
-	    false,							\
+	det_before_shared();						\
+	bool res = __atomic_compare_exchange(&a->repr, expected,	\
+	    &desired, false,						\
 	    atomic_enum_to_builtin(success_mo),				\
 	    atomic_enum_to_builtin(failure_mo));			\
+	det_after_shared();						\
+	return res;							\
 }
 
 
@@ -92,36 +105,51 @@ JEMALLOC_GENERATE_ATOMICS(type, short_type, /* unused */ lg_size)	\
 ATOMIC_INLINE type							\
 atomic_fetch_add_##short_type(atomic_##short_type##_t *a, type val,	\
     atomic_memory_order_t mo) {						\
-	return __atomic_fetch_add(&a->repr, val,			\
+	det_before_shared();						\
+	type res =  __atomic_fetch_add(&a->repr, val,			\
 	    atomic_enum_to_builtin(mo));				\
+	det_after_shared();						\
+	return res;							\
 }									\
 									\
 ATOMIC_INLINE type							\
 atomic_fetch_sub_##short_type(atomic_##short_type##_t *a, type val,	\
     atomic_memory_order_t mo) {						\
-	return __atomic_fetch_sub(&a->repr, val,			\
+	det_before_shared();						\
+	type res =  __atomic_fetch_sub(&a->repr, val,			\
 	    atomic_enum_to_builtin(mo));				\
+	det_after_shared();						\
+	return res;							\
 }									\
 									\
 ATOMIC_INLINE type							\
 atomic_fetch_and_##short_type(atomic_##short_type##_t *a, type val,	\
     atomic_memory_order_t mo) {						\
-	return __atomic_fetch_and(&a->repr, val,			\
+	det_before_shared();						\
+	type res = __atomic_fetch_and(&a->repr, val,			\
 	    atomic_enum_to_builtin(mo));				\
+	det_after_shared();						\
+	return res;							\
 }									\
 									\
 ATOMIC_INLINE type							\
 atomic_fetch_or_##short_type(atomic_##short_type##_t *a, type val,	\
     atomic_memory_order_t mo) {						\
-	return __atomic_fetch_or(&a->repr, val,				\
+	det_before_shared();						\
+	type res =  __atomic_fetch_or(&a->repr, val,			\
 	    atomic_enum_to_builtin(mo));				\
+	det_after_shared();						\
+	return res;							\
 }									\
 									\
 ATOMIC_INLINE type							\
 atomic_fetch_xor_##short_type(atomic_##short_type##_t *a, type val,	\
     atomic_memory_order_t mo) {						\
-	return __atomic_fetch_xor(&a->repr, val,			\
+	det_before_shared();						\
+	type res =  __atomic_fetch_xor(&a->repr, val,			\
 	    atomic_enum_to_builtin(mo));				\
+	det_after_shared();						\
+	return res;							\
 }
 
 #endif /* JEMALLOC_INTERNAL_ATOMIC_GCC_ATOMIC_H */
