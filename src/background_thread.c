@@ -600,7 +600,8 @@ background_threads_enable(tsd_t *tsd) {
 		    arena_get(tsd_tsdn(tsd), i, false) == NULL) {
 			continue;
 		}
-		background_thread_info_t *info = &background_thread_info[i];
+		background_thread_info_t *info = &background_thread_info[
+		    i % ncpus];
 		malloc_mutex_lock(tsd_tsdn(tsd), &info->mtx);
 		assert(info->state == background_thread_stopped);
 		background_thread_init(tsd, info);
