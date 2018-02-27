@@ -162,6 +162,7 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/arena_reset.c \
 	$(srcroot)test/unit/atomic.c \
 	$(srcroot)test/unit/background_thread.c \
+	$(srcroot)test/unit/background_thread_enable.c \
 	$(srcroot)test/unit/base.c \
 	$(srcroot)test/unit/bitmap.c \
 	$(srcroot)test/unit/ckh.c \
