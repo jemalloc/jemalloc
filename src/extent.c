@@ -286,6 +286,7 @@ extents_init(tsdn_t *tsdn, extents_t *extents, extent_state_t state,
 	}
 	for (unsigned i = 0; i < NPSIZES+1; i++) {
 		extent_heap_new(&extents->heaps[i]);
+		extents->lowest_sn_known[i] = false;
 	}
 	bitmap_init(extents->bitmap, &extents_bitmap_info, true);
 	extent_list_init(&extents->lru);
@@ -314,13 +315,18 @@ extents_insert_locked(tsdn_t *tsdn, extents_t *extents, extent_t *extent,
 	size_t size = extent_size_get(extent);
 	size_t psz = extent_size_quantize_floor(size);
 	pszind_t pind = sz_psz2ind(psz);
+	size_t extent_sn = extent_sn_get(extent);
 	if (extent_heap_empty(&extents->heaps[pind])) {
 		bitmap_unset(extents->bitmap, &extents_bitmap_info,
 		    (size_t)pind);
+		extents->lowest_sn_heaps[pind] = extent_sn;
+		extents->lowest_sn_known[pind] = true;
 	}
 	extent_heap_insert(&extents->heaps[pind], extent);
-	extent_t *first_extent = extent_heap_first(&extents->heaps[pind]);
-	extents->lowest_sn_heaps[pind] = extent_sn_get(first_extent);
+	if (extents->lowest_sn_known[pind]
+			&& extent_sn < extents->lowest_sn_heaps[pind]) {
+		extents->lowest_sn_heaps[pind] = extent_sn;
+	}
 	if (!preserve_lru) {
 		extent_list_append(&extents->lru, extent);
 	}
@@ -345,13 +351,13 @@ extents_remove_locked(tsdn_t *tsdn, extents_t *extents, extent_t *extent,
 	size_t size = extent_size_get(extent);
 	size_t psz = extent_size_quantize_floor(size);
 	pszind_t pind = sz_psz2ind(psz);
+	size_t extent_sn = extent_sn_get(extent);
 	extent_heap_remove(&extents->heaps[pind], extent);
 	if (extent_heap_empty(&extents->heaps[pind])) {
 		bitmap_set(extents->bitmap, &extents_bitmap_info,
 		    (size_t)pind);
-	} else {
-		extent_t *first_extent = extent_heap_first(&extents->heaps[pind]);
-		extents->lowest_sn_heaps[pind] = extent_sn_get(first_extent);
+	} else if (extents->lowest_sn_heaps[pind] == extent_sn) {
+		extents->lowest_sn_known[pind] = false;
 	}
 
 	if (!preserve_lru) {
@@ -433,6 +439,18 @@ extents_best_fit_locked(tsdn_t *tsdn, arena_t *arena, extents_t *extents,
 static int
 extent_sncachedad_comp(extents_t *extents, pszind_t a, pszind_t b) {
 	int ret;
+	extent_t *ae = NULL;
+	extent_t *be = NULL;
+#define OP(extents, pind)												\
+	if(unlikely(!extents->lowest_sn_known[pind])) 								\
+	{																	\
+		pind##e  = extent_heap_first(&extents->heaps[pind]); 	\
+		extents->lowest_sn_heaps[pind] = extent_sn_get(pind##e);			\
+		extents->lowest_sn_known[pind] = true;							\
+	}
+	OP(extents, a);
+	OP(extents, b);
+#undef OP
 
 	size_t a_esn = extents->lowest_sn_heaps[a];
 	size_t b_esn = extents->lowest_sn_heaps[b];
@@ -443,8 +461,8 @@ extent_sncachedad_comp(extents_t *extents, pszind_t a, pszind_t b) {
 		return ret;
 	}
 
-	extent_t *ae = extent_heap_first(&extents->heaps[a]);
-	extent_t *be = extent_heap_first(&extents->heaps[b]);
+	ae = ae != NULL ? ae : extent_heap_first(&extents->heaps[a]);
+	be = be != NULL ? be : extent_heap_first(&extents->heaps[b]);
 
 	ret = extent_ad_comp(ae, be);
 

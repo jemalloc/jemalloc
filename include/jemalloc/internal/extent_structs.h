@@ -188,6 +188,10 @@ struct extents_s {
 	size_t      lowest_sn_heaps[NPSIZES+1];
 
 	/*
+	 * Flag to indicate if lowest sn is known
+	 */
+	bool	lowest_sn_known[NPSIZES+1];
+	/*
 	 * Bitmap for which set bits correspond to non-empty heaps.
 	 *
 	 * Synchronization: mtx.
