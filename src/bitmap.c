@@ -67,7 +67,7 @@ bitmap_init(bitmap_t *bitmap, const bitmap_info_t *binfo, bool fill) {
 	extra = (BITMAP_GROUP_NBITS - (binfo->nbits & BITMAP_GROUP_NBITS_MASK))
 	    & BITMAP_GROUP_NBITS_MASK;
 	if (extra != 0) {
-		bitmap[binfo->levels[1].group_offset - 1] >>= extra;
+		((unsigned long*)bitmap)[binfo->levels[1].group_offset - 1] >>= extra;
 	}
 	for (i = 1; i < binfo->nlevels; i++) {
 		size_t group_count = binfo->levels[i].group_offset -
@@ -75,7 +75,7 @@ bitmap_init(bitmap_t *bitmap, const bitmap_info_t *binfo, bool fill) {
 		extra = (BITMAP_GROUP_NBITS - (group_count &
 		    BITMAP_GROUP_NBITS_MASK)) & BITMAP_GROUP_NBITS_MASK;
 		if (extra != 0) {
-			bitmap[binfo->levels[i+1].group_offset - 1] >>= extra;
+			((unsigned long*)bitmap)[binfo->levels[i+1].group_offset - 1] >>= extra;
 		}
 	}
 }
@@ -109,7 +109,7 @@ bitmap_init(bitmap_t *bitmap, const bitmap_info_t *binfo, bool fill) {
 	extra = (BITMAP_GROUP_NBITS - (binfo->nbits & BITMAP_GROUP_NBITS_MASK))
 	    & BITMAP_GROUP_NBITS_MASK;
 	if (extra != 0) {
-		bitmap[binfo->ngroups - 1] >>= extra;
+		((unsigned long*)bitmap)[binfo->ngroups - 1] >>= extra;
 	}
 }
 
