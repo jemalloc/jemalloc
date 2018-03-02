@@ -4,6 +4,7 @@
 
 #include "jemalloc/internal/assert.h"
 #include "jemalloc/internal/ctl.h"
+#include "jemalloc/internal/emitter.h"
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/mutex_prof.h"
 
@@ -1289,15 +1290,17 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		}
 	}
 
-	if (json) {
-		malloc_cprintf(write_cb, cbopaque,
-		    "{\n"
-		    "\t\"jemalloc\": {\n");
-	} else {
-		malloc_cprintf(write_cb, cbopaque,
-		    "___ Begin jemalloc statistics ___\n");
-	}
+	emitter_t emitter;
+	emitter_init(&emitter,
+	    json ? emitter_output_json : emitter_output_table, write_cb,
+	    cbopaque);
+	emitter_begin(&emitter);
+	emitter_table_printf(&emitter, "___ Begin jemalloc statistics ___\n");
+	emitter_json_dict_begin(&emitter, "jemalloc");
 
+	if (json) {
+		malloc_cprintf(write_cb, cbopaque, "\n");
+	}
 	if (general) {
 		stats_general_print(write_cb, cbopaque, json, config_stats);
 	}
@@ -1306,12 +1309,7 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		    unmerged, bins, large, mutex);
 	}
 
-	if (json) {
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t}\n"
-		    "}\n");
-	} else {
-		malloc_cprintf(write_cb, cbopaque,
-		    "--- End jemalloc statistics ---\n");
-	}
+	emitter_json_dict_end(&emitter); /* Closes the "jemalloc" dict. */
+	emitter_table_printf(&emitter, "--- End jemalloc statistics ---\n");
+	emitter_end(&emitter);
 }
