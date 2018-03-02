@@ -217,6 +217,10 @@ emit_types(emitter_t *emitter) {
 	emitter_kv(emitter, "k6", "K6", emitter_type_string, &str);
 	emitter_kv(emitter, "k7", "K7", emitter_type_uint32, &u32);
 	emitter_kv(emitter, "k8", "K8", emitter_type_uint64, &u64);
+	/*
+	 * We don't test the title type, since it's only used for tables.  It's
+	 * tested in the emitter_table_row tests.
+	 */
 	emitter_end(emitter);
 }
 
@@ -339,6 +343,63 @@ TEST_BEGIN(test_json_arr) {
 }
 TEST_END
 
+static void
+emit_table_row(emitter_t *emitter) {
+	emitter_begin(emitter);
+	emitter_row_t row;
+	emitter_col_t abc = {emitter_justify_left, 10, emitter_type_title};
+	abc.str_val = "ABC title";
+	emitter_col_t def = {emitter_justify_right, 15, emitter_type_title};
+	def.str_val = "DEF title";
+	emitter_col_t ghi = {emitter_justify_right, 5, emitter_type_title};
+	ghi.str_val = "GHI";
+
+	emitter_row_init(&row);
+	emitter_col_init(&abc, &row);
+	emitter_col_init(&def, &row);
+	emitter_col_init(&ghi, &row);
+
+	emitter_table_row(emitter, &row);
+
+	abc.type = emitter_type_int;
+	def.type = emitter_type_bool;
+	ghi.type = emitter_type_int;
+
+	abc.int_val = 123;
+	def.bool_val = true;
+	ghi.int_val = 456;
+	emitter_table_row(emitter, &row);
+
+	abc.int_val = 789;
+	def.bool_val = false;
+	ghi.int_val = 1011;
+	emitter_table_row(emitter, &row);
+
+	abc.type = emitter_type_string;
+	abc.str_val = "a string";
+	def.bool_val = false;
+	ghi.type = emitter_type_title;
+	ghi.str_val = "ghi";
+	emitter_table_row(emitter, &row);
+
+	emitter_end(emitter);
+}
+
+static const char *table_row_json =
+"{\n"
+"}\n";
+
+static const char *table_row_table =
+"ABC title       DEF title  GHI\n"
+"123                  true  456\n"
+"789                 false 1011\n"
+"\"a string\"          false  ghi\n";
+
+TEST_BEGIN(test_table_row) {
+	assert_emit_output(&emit_table_row, table_row_json, table_row_table);
+}
+TEST_END
+
 int
 main(void) {
 	return test_no_reentrancy(
@@ -347,5 +408,6 @@ main(void) {
 	    test_nested_dict,
 	    test_types,
 	    test_modal,
-	    test_json_arr);
+	    test_json_arr,
+	    test_table_row);
 }

@@ -1,6 +1,8 @@
 #ifndef JEMALLOC_INTERNAL_EMITTER_H
 #define JEMALLOC_INTERNAL_EMITTER_H
 
+#include "jemalloc/internal/ql.h"
+
 typedef enum emitter_output_e emitter_output_t;
 enum emitter_output_e {
 	emitter_output_json,
@@ -25,7 +27,49 @@ enum emitter_type_e {
 	emitter_type_size,
 	emitter_type_ssize,
 	emitter_type_string,
+	/*
+	 * A title is a column title in a table; it's just a string, but it's
+	 * not quoted.
+	 */
+	emitter_type_title,
 };
+
+typedef struct emitter_col_s emitter_col_t;
+struct emitter_col_s {
+	/* Filled in by the user. */
+	emitter_justify_t justify;
+	int width;
+	emitter_type_t type;
+	union {
+		bool bool_val;
+		int int_val;
+		unsigned unsigned_val;
+		uint32_t uint32_val;
+		uint64_t uint64_val;
+		size_t size_val;
+		ssize_t ssize_val;
+		const char *str_val;
+	};
+
+	/* Filled in by initialization. */
+	ql_elm(emitter_col_t) link;
+};
+
+typedef struct emitter_row_s emitter_row_t;
+struct emitter_row_s {
+	ql_head(emitter_col_t) cols;
+};
+
+static inline void
+emitter_row_init(emitter_row_t *row) {
+	ql_new(&row->cols);
+}
+
+static inline void
+emitter_col_init(emitter_col_t *col, emitter_row_t *row) {
+	ql_elm_new(col, link);
+	ql_tail_insert(&row->cols, col, link);
+}
 
 typedef struct emitter_s emitter_t;
 struct emitter_s {
@@ -141,12 +185,6 @@ emitter_print_value(emitter_t *emitter, emitter_justify_t justify, int width,
 		 * anywhere near the fmt size.
 		 */
 		assert(str_written < BUF_SIZE);
-
-		/*
-		 * We don't support justified quoted string primitive values for
-		 * now. Fortunately, we don't want to emit them.
-		 */
-
 		emitter_gen_fmt(fmt, FMT_SIZE, "s", justify, width);
 		emitter_printf(emitter, fmt, buf);
 		break;
@@ -155,6 +193,9 @@ emitter_print_value(emitter_t *emitter, emitter_justify_t justify, int width,
 		break;
 	case emitter_type_uint64:
 		EMIT_SIMPLE(uint64_t, FMTu64)
+		break;
+	case emitter_type_title:
+		EMIT_SIMPLE(char *const, "s");
 		break;
 	default:
 		unreachable();
@@ -376,6 +417,19 @@ emitter_json_arr_value(emitter_t *emitter, emitter_type_t value_type,
 		emitter_print_value(emitter, emitter_justify_none, -1,
 		    value_type, value);
 	}
+}
+
+static inline void
+emitter_table_row(emitter_t *emitter, emitter_row_t *row) {
+	if (emitter->output != emitter_output_table) {
+		return;
+	}
+	emitter_col_t *col;
+	ql_foreach(col, &row->cols, link) {
+		emitter_print_value(emitter, col->justify, col->width,
+		    col->type, (const void *)&col->bool_val);
+	}
+	emitter_table_printf(emitter, "\n");
 }
 
 #endif /* JEMALLOC_INTERNAL_EMITTER_H */
