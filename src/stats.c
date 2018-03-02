@@ -89,13 +89,70 @@ read_arena_bin_mutex_stats(unsigned arena_ind, unsigned bin_ind,
     uint64_t results_uint64_t[mutex_prof_num_uint64_t_counters],
 	uint32_t results_uint32_t[mutex_prof_num_uint32_t_counters]) {
 	char cmd[MUTEX_CTL_STR_MAX_LENGTH];
-#define OP(c, t)							\
+#define OP(c, t, human)							\
     gen_mutex_ctl_str(cmd, MUTEX_CTL_STR_MAX_LENGTH,			\
         "arenas.0.bins.0","mutex", #c);					\
     CTL_M2_M4_GET(cmd, arena_ind, bin_ind,				\
         (t *)&results_##t[mutex_counter_##c], t);
 	MUTEX_PROF_COUNTERS
 #undef OP
+}
+
+static void
+mutex_stats_init_row(emitter_row_t *row, const char *table_name,
+    emitter_col_t *name,
+    emitter_col_t col_uint64_t[mutex_prof_num_uint64_t_counters],
+    emitter_col_t col_uint32_t[mutex_prof_num_uint32_t_counters]) {
+	mutex_prof_uint64_t_counter_ind_t k_uint64_t = 0;
+	mutex_prof_uint32_t_counter_ind_t k_uint32_t = 0;
+
+	emitter_col_t *col;
+
+	emitter_row_init(row);
+	emitter_col_init(name, row);
+	name->justify = emitter_justify_left;
+	name->width = 21;
+	name->type = emitter_type_title;
+	name->str_val = table_name;
+
+#define WIDTH_uint32_t 12
+#define WIDTH_uint64_t 16
+#define OP(counter, counter_type, human)				\
+	col = &col_##counter_type[k_##counter_type];			\
+	++k_##counter_type;						\
+	emitter_col_init(col, row);					\
+	col->justify = emitter_justify_right;				\
+	col->width = WIDTH_##counter_type;				\
+	col->type = emitter_type_title;					\
+	col->str_val = human;
+	MUTEX_PROF_COUNTERS
+#undef OP
+#undef WIDTH_uint32_t
+#undef WIDTH_uint64_t
+}
+
+static void
+mutex_stats_emit(emitter_t *emitter, emitter_row_t *row,
+    emitter_col_t col_uint64_t[mutex_prof_num_uint64_t_counters],
+    emitter_col_t col_uint32_t[mutex_prof_num_uint32_t_counters]) {
+	emitter_table_row(emitter, row);
+
+	mutex_prof_uint64_t_counter_ind_t k_uint64_t = 0;
+	mutex_prof_uint32_t_counter_ind_t k_uint32_t = 0;
+
+	emitter_col_t *col;
+
+#define EMITTER_TYPE_uint32_t emitter_type_uint32
+#define EMITTER_TYPE_uint64_t emitter_type_uint64
+#define OP(counter, type, human)					\
+	col = &col_##type[k_##type];						\
+	++k_##type;							\
+	emitter_json_kv(emitter, #counter, EMITTER_TYPE_##type,		\
+	    (const void *)&col->bool_val);
+	MUTEX_PROF_COUNTERS;
+#undef OP
+#undef EMITTER_TYPE_uint32_t
+#undef EMITTER_TYPE_uint64_t
 }
 
 static void
@@ -109,7 +166,7 @@ mutex_stats_output_json(void (*write_cb)(void *, const char *), void *cbopaque,
 	mutex_prof_uint32_t_counter_ind_t k_uint32_t = 0;
 	char *fmt_str[2] = {"%s\t\"%s\": %"FMTu32"%s\n",
 	    "%s\t\"%s\": %"FMTu64"%s\n"};
-#define OP(c, t)							\
+#define OP(c, t, human)							\
 	malloc_cprintf(write_cb, cbopaque,				\
 	    fmt_str[sizeof(t) / sizeof(uint32_t) - 1], 			\
 	    json_indent, #c, (t)stats_##t[mutex_counter_##c],		\
@@ -342,7 +399,7 @@ read_arena_mutex_stats(unsigned arena_ind,
 
 	mutex_prof_arena_ind_t i;
 	for (i = 0; i < mutex_prof_num_arena_mutexes; i++) {
-#define OP(c, t)							\
+#define OP(c, t, human)							\
 		gen_mutex_ctl_str(cmd, MUTEX_CTL_STR_MAX_LENGTH,	\
 		    "arenas.0.mutexes",	arena_mutex_names[i], #c);	\
 		CTL_M2_GET(cmd, arena_ind,				\
@@ -370,7 +427,7 @@ mutex_stats_output(void (*write_cb)(void *, const char *), void *cbopaque,
 	    (int)(20 - strlen(name)), ' ');
 
 	char *fmt_str[2] = {"%12"FMTu32, "%16"FMTu64};
-#define OP(c, t)							\
+#define OP(c, t, human)							\
 	malloc_cprintf(write_cb, cbopaque,				\
 	    fmt_str[sizeof(t) / sizeof(uint32_t) - 1],			\
 	    (t)stats_##t[mutex_counter_##c]);
@@ -906,20 +963,26 @@ stats_general_print(emitter_t *emitter) {
 }
 
 static void
-read_global_mutex_stats(
-    uint64_t results_uint64_t[mutex_prof_num_global_mutexes][mutex_prof_num_uint64_t_counters],
-	uint32_t results_uint32_t[mutex_prof_num_global_mutexes][mutex_prof_num_uint32_t_counters]) {
+mutex_stats_read_global(const char *name, emitter_col_t *col_name,
+    emitter_col_t col_uint64_t[mutex_prof_num_uint64_t_counters],
+    emitter_col_t col_uint32_t[mutex_prof_num_uint32_t_counters]) {
 	char cmd[MUTEX_CTL_STR_MAX_LENGTH];
 
-	mutex_prof_global_ind_t i;
-	for (i = 0; i < mutex_prof_num_global_mutexes; i++) {
-#define OP(c, t)							\
-		gen_mutex_ctl_str(cmd, MUTEX_CTL_STR_MAX_LENGTH,	\
-		    "mutexes", global_mutex_names[i], #c);		\
-		CTL_GET(cmd, (t *)&results_##t[i][mutex_counter_##c], t);
-MUTEX_PROF_COUNTERS
+	col_name->str_val = name;
+
+	emitter_col_t *dst;
+#define EMITTER_TYPE_uint32_t emitter_type_uint32
+#define EMITTER_TYPE_uint64_t emitter_type_uint64
+#define OP(counter, counter_type, human)				\
+	dst = &col_##counter_type[mutex_counter_##counter];		\
+	dst->type = EMITTER_TYPE_##counter_type;			\
+	gen_mutex_ctl_str(cmd, MUTEX_CTL_STR_MAX_LENGTH,		\
+	    "mutexes", name, #counter);					\
+	CTL_GET(cmd, (counter_type *)&dst->bool_val, counter_type);
+	MUTEX_PROF_COUNTERS
 #undef OP
-	}
+#undef EMITTER_TYPE_uint32_t
+#undef EMITTER_TYPE_uint64_t
 }
 
 static void
@@ -945,12 +1008,6 @@ stats_print_helper(emitter_t *emitter, bool merged, bool destroyed,
 	CTL_GET("stats.resident", &resident, size_t);
 	CTL_GET("stats.mapped", &mapped, size_t);
 	CTL_GET("stats.retained", &retained, size_t);
-
-	uint64_t mutex_stats_uint64_t[mutex_prof_num_global_mutexes][mutex_prof_num_uint64_t_counters];
-	uint32_t mutex_stats_uint32_t[mutex_prof_num_global_mutexes][mutex_prof_num_uint32_t_counters];
-	if (mutex) {
-		read_global_mutex_stats(mutex_stats_uint64_t, mutex_stats_uint32_t);
-	}
 
 	if (have_background_thread) {
 		CTL_GET("stats.background_thread.num_threads",
@@ -996,29 +1053,26 @@ stats_print_helper(emitter_t *emitter, bool merged, bool destroyed,
 	    num_background_threads, background_thread_num_runs,
 	    background_thread_run_interval);
 
-	if (json) {
-		if (mutex) {
-			malloc_cprintf(write_cb, cbopaque, ",\n");
-			malloc_cprintf(write_cb, cbopaque,
-			    "\t\t\t\"mutexes\": {\n");
-			mutex_prof_global_ind_t i;
-			for (i = 0; i < mutex_prof_num_global_mutexes; i++) {
-				mutex_stats_output_json(write_cb, cbopaque,
-				    global_mutex_names[i], mutex_stats_uint64_t[i], mutex_stats_uint32_t[i],
-				    "\t\t\t\t",
-				    i == mutex_prof_num_global_mutexes - 1);
-			}
-			malloc_cprintf(write_cb, cbopaque, "\t\t\t}");
+	if (mutex) {
+		emitter_row_t row;
+		emitter_col_t name;
+		emitter_col_t col64[mutex_prof_num_uint64_t_counters];
+		emitter_col_t col32[mutex_prof_num_uint32_t_counters];
+
+		mutex_stats_init_row(&row, "", &name, col64, col32);
+
+		emitter_table_row(emitter, &row);
+		emitter_json_dict_begin(emitter, "mutexes");
+
+		for (int i = 0; i < mutex_prof_num_global_mutexes; i++) {
+			mutex_stats_read_global(global_mutex_names[i], &name,
+			    col64, col32);
+			emitter_json_dict_begin(emitter, global_mutex_names[i]);
+			mutex_stats_emit(emitter, &row, col64, col32);
+			emitter_json_dict_end(emitter);
 		}
-	} else {
-		if (mutex) {
-			mutex_prof_global_ind_t i;
-			for (i = 0; i < mutex_prof_num_global_mutexes; i++) {
-				mutex_stats_output(write_cb, cbopaque,
-				    global_mutex_names[i], mutex_stats_uint64_t[i], mutex_stats_uint32_t[i],
-				    i == 0);
-			}
-		}
+
+		emitter_json_dict_end(emitter); /* Close "mutexes". */
 	}
 
 	emitter_json_dict_end(emitter); /* Close "stats". */
