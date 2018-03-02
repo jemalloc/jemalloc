@@ -797,118 +797,100 @@ stats_general_print(emitter_t *emitter, bool more) {
 #undef OPT_WRITE_SSIZE_T_MUTABLE
 #undef OPT_WRITE_CHAR_P
 
-	if (json) {
-		malloc_cprintf(write_cb, cbopaque,
-		    ",\n");
-	}
-
 	/* arenas. */
-	if (json) {
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\"arenas\": {\n");
-	}
+	/*
+	 * The json output sticks arena info into an "arenas" dict; the table
+	 * output puts them at the top-level.
+	 */
+	emitter_json_dict_begin(emitter, "arenas");
 
 	CTL_GET("arenas.narenas", &uv, unsigned);
-	if (json) {
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\"narenas\": %u,\n", uv);
-	} else {
-		malloc_cprintf(write_cb, cbopaque, "Arenas: %u\n", uv);
-	}
+	emitter_kv(emitter, "narenas", "Arenas", emitter_type_unsigned, &uv);
 
-	if (json) {
-		CTL_GET("arenas.dirty_decay_ms", &ssv, ssize_t);
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\"dirty_decay_ms\": %zd,\n", ssv);
+	/*
+	 * Decay settings are emitted only in json mode; in table mode, they're
+	 * emitted as notes with the opt output, above.
+	 */
+	CTL_GET("arenas.dirty_decay_ms", &ssv, ssize_t);
+	emitter_json_kv(emitter, "dirty_decay_ms", emitter_type_ssize, &ssv);
 
-		CTL_GET("arenas.muzzy_decay_ms", &ssv, ssize_t);
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\"muzzy_decay_ms\": %zd,\n", ssv);
-	}
+	CTL_GET("arenas.muzzy_decay_ms", &ssv, ssize_t);
+	emitter_json_kv(emitter, "muzzy_decay_ms", emitter_type_ssize, &ssv);
 
 	CTL_GET("arenas.quantum", &sv, size_t);
-	if (json) {
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\"quantum\": %zu,\n", sv);
-	} else {
-		malloc_cprintf(write_cb, cbopaque, "Quantum size: %zu\n", sv);
-	}
+	emitter_kv(emitter, "quantum", "Quantum size", emitter_type_size, &sv);
 
 	CTL_GET("arenas.page", &sv, size_t);
-	if (json) {
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\"page\": %zu,\n", sv);
-	} else {
-		malloc_cprintf(write_cb, cbopaque, "Page size: %zu\n", sv);
-	}
+	emitter_kv(emitter, "page", "Page size", emitter_type_size, &sv);
 
 	if (je_mallctl("arenas.tcache_max", (void *)&sv, &ssz, NULL, 0) == 0) {
-		if (json) {
-			malloc_cprintf(write_cb, cbopaque,
-			    "\t\t\t\"tcache_max\": %zu,\n", sv);
-		} else {
-			malloc_cprintf(write_cb, cbopaque,
-			    "Maximum thread-cached size class: %zu\n", sv);
-		}
+		emitter_kv(emitter, "tcache_max",
+		    "Maximum thread-cached size class", emitter_type_size, &sv);
 	}
 
-	if (json) {
-		unsigned nbins, nlextents, i;
+	unsigned nbins;
+	CTL_GET("arenas.nbins", &nbins, unsigned);
+	emitter_kv(emitter, "nbins", "Number of bin size classes",
+	    emitter_type_unsigned, &nbins);
 
-		CTL_GET("arenas.nbins", &nbins, unsigned);
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\"nbins\": %u,\n", nbins);
+	unsigned nhbins;
+	CTL_GET("arenas.nhbins", &nhbins, unsigned);
+	emitter_kv(emitter, "nhbins", "Number of thread-cache bin size classes",
+	    emitter_type_unsigned, &nhbins);
 
-		CTL_GET("arenas.nhbins", &uv, unsigned);
-		malloc_cprintf(write_cb, cbopaque, "\t\t\t\"nhbins\": %u,\n",
-		    uv);
-
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\"bin\": [\n");
-		for (i = 0; i < nbins; i++) {
-			malloc_cprintf(write_cb, cbopaque,
-			    "\t\t\t\t{\n");
+	/*
+	 * We do enough mallctls in a loop that we actually want to omit them
+	 * (not just omit the printing).
+	 */
+	if (emitter->output == emitter_output_json) {
+		emitter_json_arr_begin(emitter, "bin");
+		for (unsigned i = 0; i < nbins; i++) {
+			emitter_json_arr_obj_begin(emitter);
 
 			CTL_M2_GET("arenas.bin.0.size", i, &sv, size_t);
-			malloc_cprintf(write_cb, cbopaque,
-			    "\t\t\t\t\t\"size\": %zu,\n", sv);
+			emitter_json_kv(emitter, "size", emitter_type_size,
+			    &sv);
 
 			CTL_M2_GET("arenas.bin.0.nregs", i, &u32v, uint32_t);
-			malloc_cprintf(write_cb, cbopaque,
-			    "\t\t\t\t\t\"nregs\": %"FMTu32",\n", u32v);
+			emitter_json_kv(emitter, "nregs", emitter_type_uint32,
+			    &u32v);
 
 			CTL_M2_GET("arenas.bin.0.slab_size", i, &sv, size_t);
-			malloc_cprintf(write_cb, cbopaque,
-			    "\t\t\t\t\t\"slab_size\": %zu\n", sv);
+			emitter_json_kv(emitter, "slab_size", emitter_type_size,
+			    &sv);
 
-			malloc_cprintf(write_cb, cbopaque,
-			    "\t\t\t\t}%s\n", (i + 1 < nbins) ? "," : "");
+			emitter_json_arr_obj_end(emitter);
 		}
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t],\n");
+		emitter_json_arr_end(emitter); /* Close "bin". */
+	}
 
-		CTL_GET("arenas.nlextents", &nlextents, unsigned);
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\"nlextents\": %u,\n", nlextents);
+	unsigned nlextents;
+	CTL_GET("arenas.nlextents", &nlextents, unsigned);
+	emitter_kv(emitter, "nlextents", "Number of large size classes",
+	    emitter_type_unsigned, &nlextents);
 
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\"lextent\": [\n");
-		for (i = 0; i < nlextents; i++) {
-			malloc_cprintf(write_cb, cbopaque,
-			    "\t\t\t\t{\n");
+	if (emitter->output == emitter_output_json) {
+		emitter_json_arr_begin(emitter, "lextent");
+		for (unsigned i = 0; i < nlextents; i++) {
+			emitter_json_arr_obj_begin(emitter);
 
 			CTL_M2_GET("arenas.lextent.0.size", i, &sv, size_t);
-			malloc_cprintf(write_cb, cbopaque,
-			    "\t\t\t\t\t\"size\": %zu\n", sv);
+			emitter_json_kv(emitter, "size", emitter_type_size,
+			    &sv);
 
-			malloc_cprintf(write_cb, cbopaque,
-			    "\t\t\t\t}%s\n", (i + 1 < nlextents) ? "," : "");
+			emitter_json_arr_obj_end(emitter);
 		}
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t]\n");
+		emitter_json_arr_end(emitter); /* Close "lextent". */
+	}
 
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t}%s\n", (config_prof || more) ? "," : "");
+	emitter_json_dict_end(emitter); /* Close "arenas" */
+
+	if (json) {
+		if (more || config_prof) {
+			malloc_cprintf(write_cb, cbopaque, ",\n");
+		} else {
+			malloc_cprintf(write_cb, cbopaque, "\n");
+		}
 	}
 
 	/* prof. */
