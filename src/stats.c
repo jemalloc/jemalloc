@@ -923,9 +923,16 @@ MUTEX_PROF_COUNTERS
 }
 
 static void
-stats_print_helper(void (*write_cb)(void *, const char *), void *cbopaque,
-    bool json, bool merged, bool destroyed, bool unmerged, bool bins,
-    bool large, bool mutex) {
+stats_print_helper(emitter_t *emitter, bool merged, bool destroyed,
+    bool unmerged, bool bins, bool large, bool mutex) {
+	/*
+	 * These should be deleted.  We keep them around for a while, to aid in
+	 * the transition to the emitter code.
+	 */
+	void (*write_cb)(void *, const char *) = emitter->write_cb;
+	void *cbopaque = emitter->cbopaque;
+	bool json = (emitter->output == emitter_output_json);
+
 	size_t allocated, active, metadata, metadata_thp, resident, mapped,
 	    retained;
 	size_t num_background_threads;
@@ -1204,8 +1211,8 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		malloc_cprintf(write_cb, cbopaque, "\n");
 	}
 	if (config_stats) {
-		stats_print_helper(write_cb, cbopaque, json, merged, destroyed,
-		    unmerged, bins, large, mutex);
+		stats_print_helper(&emitter, merged, destroyed, unmerged,
+		    bins, large, mutex);
 	}
 
 	emitter_json_dict_end(&emitter); /* Closes the "jemalloc" dict. */
