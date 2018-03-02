@@ -797,6 +797,33 @@ stats_general_print(emitter_t *emitter, bool more) {
 #undef OPT_WRITE_SSIZE_T_MUTABLE
 #undef OPT_WRITE_CHAR_P
 
+	/* prof. */
+	if (config_prof) {
+		emitter_dict_begin(emitter, "prof", "Profiling settings");
+
+		CTL_GET("prof.thread_active_init", &bv, bool);
+		emitter_kv(emitter, "thread_active_init",
+		    "prof.thread_active_emit", emitter_type_bool, &bv);
+
+		CTL_GET("prof.active", &bv, bool);
+		emitter_kv(emitter, "active", "prof.active", emitter_type_bool,
+		    &bv);
+
+		CTL_GET("prof.gdump", &bv, bool);
+		emitter_kv(emitter, "gdump", "prof.gdump", emitter_type_bool,
+		    &bv);
+
+		CTL_GET("prof.interval", &u64v, uint64_t);
+		emitter_kv(emitter, "interval", "prof.interval",
+		    emitter_type_uint64, &u64v);
+
+		CTL_GET("prof.lg_sample", &ssv, ssize_t);
+		emitter_kv(emitter, "lg_sample", "prof.lg_sample",
+		    emitter_type_ssize, &ssv);
+
+		emitter_dict_end(emitter); /* Close "prof". */
+	}
+
 	/* arenas. */
 	/*
 	 * The json output sticks arena info into an "arenas" dict; the table
@@ -886,41 +913,11 @@ stats_general_print(emitter_t *emitter, bool more) {
 	emitter_json_dict_end(emitter); /* Close "arenas" */
 
 	if (json) {
-		if (more || config_prof) {
+		if (more) {
 			malloc_cprintf(write_cb, cbopaque, ",\n");
 		} else {
 			malloc_cprintf(write_cb, cbopaque, "\n");
 		}
-	}
-
-	/* prof. */
-	if (config_prof && json) {
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\"prof\": {\n");
-
-		CTL_GET("prof.thread_active_init", &bv, bool);
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\"thread_active_init\": %s,\n", bv ? "true" :
-		    "false");
-
-		CTL_GET("prof.active", &bv, bool);
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\"active\": %s,\n", bv ? "true" : "false");
-
-		CTL_GET("prof.gdump", &bv, bool);
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\"gdump\": %s,\n", bv ? "true" : "false");
-
-		CTL_GET("prof.interval", &u64v, uint64_t);
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\"interval\": %"FMTu64",\n", u64v);
-
-		CTL_GET("prof.lg_sample", &ssv, ssize_t);
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\"lg_sample\": %zd\n", ssv);
-
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t}%s\n", more ? "," : "");
 	}
 }
 
