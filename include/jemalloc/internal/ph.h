@@ -217,6 +217,14 @@ a_attr bool								\
 a_prefix##empty(a_ph_type *ph) {					\
 	return (ph->ph_root == NULL);					\
 }									\
+a_attr bool								\
+a_prefix##first_after_remove(a_ph_type *ph, a_type *phn) {	\
+	return (ph->ph_root == phn && phn_lchild_get(a_type, a_field, phn) != NULL);	\
+}									\
+a_attr a_type *								\
+a_prefix##get_first(a_ph_type *ph) {	\
+	return ph->ph_root; 					\
+}									\
 a_attr a_type *								\
 a_prefix##first(a_ph_type *ph) {					\
 	if (ph->ph_root == NULL) {					\

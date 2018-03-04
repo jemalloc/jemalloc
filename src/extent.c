@@ -352,12 +352,20 @@ extents_remove_locked(tsdn_t *tsdn, extents_t *extents, extent_t *extent,
 	size_t psz = extent_size_quantize_floor(size);
 	pszind_t pind = sz_psz2ind(psz);
 	size_t extent_sn = extent_sn_get(extent);
+	bool first = extent_heap_first_after_remove(
+												&extents->heaps[pind], extent);
 	extent_heap_remove(&extents->heaps[pind], extent);
 	if (extent_heap_empty(&extents->heaps[pind])) {
 		bitmap_set(extents->bitmap, &extents_bitmap_info,
 		    (size_t)pind);
 	} else if (extents->lowest_sn_heaps[pind] == extent_sn) {
-		extents->lowest_sn_known[pind] = false;
+		if (first) {
+			extents->lowest_sn_heaps[pind] = extent_sn_get(
+					extent_heap_get_first(&extents->heaps[pind]));
+		}
+		else {
+			extents->lowest_sn_known[pind] = false;
+		}
 	}
 
 	if (!preserve_lru) {
@@ -441,13 +449,15 @@ extent_sncachedad_comp(extents_t *extents, pszind_t a, pszind_t b) {
 	int ret;
 	extent_t *ae = NULL;
 	extent_t *be = NULL;
-#define OP(extents, pind)												\
-	if(unlikely(!extents->lowest_sn_known[pind])) 								\
-	{																	\
-		pind##e  = extent_heap_first(&extents->heaps[pind]); 	\
-		extents->lowest_sn_heaps[pind] = extent_sn_get(pind##e);			\
-		extents->lowest_sn_known[pind] = true;							\
-	}
+#define OP(extents, pind) do {											\
+		if(unlikely(!extents->lowest_sn_known[pind])) 							\
+		{																\
+			pind##e  = extent_heap_first(&extents->heaps[pind]); 		\
+			extents->lowest_sn_heaps[pind] = extent_sn_get(pind##e);	\
+			extents->lowest_sn_known[pind] = true;						\
+		}																\
+} while(0)
+
 	OP(extents, a);
 	OP(extents, b);
 #undef OP
@@ -461,8 +471,16 @@ extent_sncachedad_comp(extents_t *extents, pszind_t a, pszind_t b) {
 		return ret;
 	}
 
-	ae = ae != NULL ? ae : extent_heap_first(&extents->heaps[a]);
-	be = be != NULL ? be : extent_heap_first(&extents->heaps[b]);
+#define OP(extents, pind) do {											\
+		if(!pind##e) 							\
+		{																\
+			pind##e  = extent_heap_first(&extents->heaps[pind]); 		\
+		}																\
+} while(0)
+
+	OP(extents, a);
+	OP(extents, b);
+#undef OP
 
 	ret = extent_ad_comp(ae, be);
 
