@@ -852,16 +852,6 @@ mallctl("arena." STRINGIFY(MALLCTL_ARENAS_ALL) ".decay",
         build configuration.</para></listitem>
       </varlistentry>
 
-      <varlistentry id="config.thp">
-        <term>
-          <mallctl>config.thp</mallctl>
-          (<type>bool</type>)
-          <literal>r-</literal>
-        </term>
-        <listitem><para><option>--disable-thp</option> was not specified
-        during build configuration, and the system supports transparent huge
-        page manipulation.</para></listitem>
-      </varlistentry>
 
       <varlistentry id="config.utrace">
         <term>
