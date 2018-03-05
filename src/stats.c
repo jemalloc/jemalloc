@@ -465,8 +465,8 @@ stats_arena_mutexes_print(void (*write_cb)(void *, const char *),
 }
 
 static void
-stats_arena_print(void (*write_cb)(void *, const char *), void *cbopaque,
-    bool json, unsigned i, bool bins, bool large, bool mutex) {
+stats_arena_print(emitter_t *emitter, unsigned i, bool bins, bool large,
+    bool mutex) {
 	unsigned nthreads;
 	const char *dss;
 	ssize_t dirty_decay_ms, muzzy_decay_ms;
@@ -480,6 +480,11 @@ stats_arena_print(void (*write_cb)(void *, const char *), void *cbopaque,
 	uint64_t large_nmalloc, large_ndalloc, large_nrequests;
 	size_t tcache_bytes;
 	uint64_t uptime;
+
+	/* These should be removed once the emitter conversion is done. */
+	void (*write_cb)(void *, const char *) = emitter->write_cb;
+	void *cbopaque = emitter->cbopaque;
+	bool json = (emitter->output == emitter_output_json);
 
 	if (json) {
 		malloc_cprintf(write_cb, cbopaque, "\n");
@@ -996,10 +1001,6 @@ stats_print_helper(emitter_t *emitter, bool merged, bool destroyed,
 	 * These should be deleted.  We keep them around for a while, to aid in
 	 * the transition to the emitter code.
 	 */
-	void (*write_cb)(void *, const char *) = emitter->write_cb;
-	void *cbopaque = emitter->cbopaque;
-	bool json = (emitter->output == emitter_output_json);
-
 	size_t allocated, active, metadata, metadata_thp, resident, mapped,
 	    retained;
 	size_t num_background_threads;
@@ -1114,8 +1115,8 @@ stats_print_helper(emitter_t *emitter, bool merged, bool destroyed,
 			/* Print merged arena stats. */
 			emitter_table_printf(emitter, "Merged arenas stats:\n");
 			emitter_json_dict_begin(emitter, "merged");
-			stats_arena_print(write_cb, cbopaque, json,
-			    MALLCTL_ARENAS_ALL, bins, large, mutex);
+			stats_arena_print(emitter, MALLCTL_ARENAS_ALL, bins,
+			    large, mutex);
 			emitter_json_dict_end(emitter); /* Close "merged". */
 		}
 
@@ -1125,9 +1126,8 @@ stats_print_helper(emitter_t *emitter, bool merged, bool destroyed,
 			emitter_table_printf(emitter,
 			    "Destroyed arenas stats:\n");
 			emitter_json_dict_begin(emitter, "destroyed");
-			stats_arena_print(write_cb, cbopaque, json,
-			    MALLCTL_ARENAS_DESTROYED, bins, large,
-			    mutex);
+			stats_arena_print(emitter, MALLCTL_ARENAS_DESTROYED,
+			    bins, large, mutex);
 			emitter_json_dict_end(emitter); /* Close "destroyed". */
 		}
 
@@ -1142,8 +1142,7 @@ stats_print_helper(emitter_t *emitter, bool merged, bool destroyed,
 					    arena_ind_str);
 					emitter_table_printf(emitter,
 					    "arenas[%s]:\n", arena_ind_str);
-					stats_arena_print(write_cb,
-					    cbopaque, json, i, bins,
+					stats_arena_print(emitter, i, bins,
 					    large, mutex);
 					/* Close "<arena-ind>". */
 					emitter_json_dict_end(emitter);
