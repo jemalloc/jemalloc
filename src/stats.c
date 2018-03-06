@@ -720,77 +720,53 @@ stats_arena_print(emitter_t *emitter, unsigned i, bool bins, bool large,
 	alloc_count_nrequests.uint64_val = small_nrequests + large_nrequests;
 	emitter_table_row(emitter, &alloc_count_row);
 
-	if (json) {
-		malloc_cprintf(write_cb, cbopaque, ",\n");
-	}
+	emitter_row_t mem_count_row;
+	emitter_row_init(&mem_count_row);
 
-	if (!json) {
-		malloc_cprintf(write_cb, cbopaque,
-		    "active:                  %12zu\n", pactive * page);
-	}
+	emitter_col_t mem_count_title;
+	emitter_col_init(&mem_count_title, &mem_count_row);
+	mem_count_title.justify = emitter_justify_left;
+	mem_count_title.width = 25;
+	mem_count_title.type = emitter_type_title;
+	mem_count_title.str_val = "";
 
-	CTL_M2_GET("stats.arenas.0.mapped", i, &mapped, size_t);
-	if (json) {
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\t\"mapped\": %zu,\n", mapped);
-	} else {
-		malloc_cprintf(write_cb, cbopaque,
-		    "mapped:                  %12zu\n", mapped);
-	}
+	emitter_col_t mem_count_val;
+	emitter_col_init(&mem_count_val, &mem_count_row);
+	mem_count_val.justify = emitter_justify_right;
+	mem_count_val.width = 12;
+	mem_count_val.type = emitter_type_title;
+	mem_count_val.str_val = "";
 
-	CTL_M2_GET("stats.arenas.0.retained", i, &retained, size_t);
-	if (json) {
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\t\"retained\": %zu,\n", retained);
-	} else {
-		malloc_cprintf(write_cb, cbopaque,
-		    "retained:                %12zu\n", retained);
-	}
+	emitter_table_row(emitter, &mem_count_row);
+	mem_count_val.type = emitter_type_size;
 
-	CTL_M2_GET("stats.arenas.0.base", i, &base, size_t);
-	if (json) {
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\t\"base\": %zu,\n", base);
-	} else {
-		malloc_cprintf(write_cb, cbopaque,
-		    "base:                    %12zu\n", base);
-	}
+	/* Active count in bytes is emitted only in table mode. */
+	mem_count_title.str_val = "active:";
+	mem_count_val.size_val = pactive * page;
+	emitter_table_row(emitter, &mem_count_row);
 
-	CTL_M2_GET("stats.arenas.0.internal", i, &internal, size_t);
-	if (json) {
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\t\"internal\": %zu,\n", internal);
-	} else {
-		malloc_cprintf(write_cb, cbopaque,
-		    "internal:                %12zu\n", internal);
-	}
+#define GET_AND_EMIT_MEM_STAT(stat)					\
+	CTL_M2_GET("stats.arenas.0."#stat, i, &stat, size_t);		\
+	emitter_json_kv(emitter, #stat, emitter_type_size, &stat);	\
+	mem_count_title.str_val = #stat":";				\
+	mem_count_val.size_val = stat;					\
+	emitter_table_row(emitter, &mem_count_row);
 
-	CTL_M2_GET("stats.arenas.0.metadata_thp", i, &metadata_thp, size_t);
-	if (json) {
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\t\"metadata_thp\": %zu,\n", metadata_thp);
-	} else {
-		malloc_cprintf(write_cb, cbopaque,
-		    "metadata_thp:            %12zu\n", metadata_thp);
-	}
+	GET_AND_EMIT_MEM_STAT(mapped)
+	GET_AND_EMIT_MEM_STAT(retained)
+	GET_AND_EMIT_MEM_STAT(base)
+	GET_AND_EMIT_MEM_STAT(internal)
+	GET_AND_EMIT_MEM_STAT(metadata_thp)
+	GET_AND_EMIT_MEM_STAT(tcache_bytes)
+	GET_AND_EMIT_MEM_STAT(resident)
+#undef GET_AND_EMIT_MEM_STAT
 
-	CTL_M2_GET("stats.arenas.0.tcache_bytes", i, &tcache_bytes, size_t);
 	if (json) {
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\t\"tcache\": %zu,\n", tcache_bytes);
-	} else {
-		malloc_cprintf(write_cb, cbopaque,
-		    "tcache:                  %12zu\n", tcache_bytes);
-	}
-
-	CTL_M2_GET("stats.arenas.0.resident", i, &resident, size_t);
-	if (json) {
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\t\"resident\": %zu%s\n", resident,
-		    (bins || large || mutex) ? "," : "");
-	} else {
-		malloc_cprintf(write_cb, cbopaque,
-		    "resident:                %12zu\n", resident);
+		if (bins || large || mutex) {
+			malloc_cprintf(write_cb, cbopaque, ",\n");
+		} else {
+			malloc_cprintf(write_cb, cbopaque, "\n");
+		}
 	}
 
 	if (mutex) {
