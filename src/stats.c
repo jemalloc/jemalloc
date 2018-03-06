@@ -543,7 +543,6 @@ stats_arena_print(emitter_t *emitter, unsigned i, bool bins, bool large,
 	emitter_json_kv(emitter, "muzzy_purged", emitter_type_uint64,
 	    &muzzy_purged);
 
-
 	/* Table-style emission. */
 	emitter_col_t decay_type;
 	emitter_col_init(&decay_type, &decay_row);
@@ -640,76 +639,91 @@ stats_arena_print(emitter_t *emitter, unsigned i, bool bins, bool large,
 
 	emitter_table_row(emitter, &decay_row);
 
+	/* Small / large / total allocation counts. */
+	emitter_row_t alloc_count_row;
+	emitter_row_init(&alloc_count_row);
+
+	emitter_col_t alloc_count_title;
+	emitter_col_init(&alloc_count_title, &alloc_count_row);
+	alloc_count_title.justify = emitter_justify_left;
+	alloc_count_title.width = 25;
+	alloc_count_title.type = emitter_type_title;
+	alloc_count_title.str_val = "";
+
+	emitter_col_t alloc_count_allocated;
+	emitter_col_init(&alloc_count_allocated, &alloc_count_row);
+	alloc_count_allocated.justify = emitter_justify_right;
+	alloc_count_allocated.width = 12;
+	alloc_count_allocated.type = emitter_type_title;
+	alloc_count_allocated.str_val = "allocated";
+
+	emitter_col_t alloc_count_nmalloc;
+	emitter_col_init(&alloc_count_nmalloc, &alloc_count_row);
+	alloc_count_nmalloc.justify = emitter_justify_right;
+	alloc_count_nmalloc.width = 12;
+	alloc_count_nmalloc.type = emitter_type_title;
+	alloc_count_nmalloc.str_val = "nmalloc";
+
+	emitter_col_t alloc_count_ndalloc;
+	emitter_col_init(&alloc_count_ndalloc, &alloc_count_row);
+	alloc_count_ndalloc.justify = emitter_justify_right;
+	alloc_count_ndalloc.width = 12;
+	alloc_count_ndalloc.type = emitter_type_title;
+	alloc_count_ndalloc.str_val = "ndalloc";
+
+	emitter_col_t alloc_count_nrequests;
+	emitter_col_init(&alloc_count_nrequests, &alloc_count_row);
+	alloc_count_nrequests.justify = emitter_justify_right;
+	alloc_count_nrequests.width = 12;
+	alloc_count_nrequests.type = emitter_type_title;
+	alloc_count_nrequests.str_val = "nrequests";
+
+	emitter_table_row(emitter, &alloc_count_row);
+
+#define GET_AND_EMIT_ALLOC_STAT(small_or_large, name, valtype)		\
+	CTL_M2_GET("stats.arenas.0." #small_or_large "." #name, i,	\
+	    &small_or_large##_##name, valtype##_t);			\
+	emitter_json_kv(emitter, #name, emitter_type_##valtype,		\
+	    &small_or_large##_##name);					\
+	alloc_count_##name.type = emitter_type_##valtype;		\
+	alloc_count_##name.valtype##_val = small_or_large##_##name;
+
+	emitter_json_dict_begin(emitter, "small");
+	alloc_count_title.str_val = "small:";
+
+	GET_AND_EMIT_ALLOC_STAT(small, allocated, size)
+	GET_AND_EMIT_ALLOC_STAT(small, nmalloc, uint64)
+	GET_AND_EMIT_ALLOC_STAT(small, ndalloc, uint64)
+	GET_AND_EMIT_ALLOC_STAT(small, nrequests, uint64)
+
+	emitter_table_row(emitter, &alloc_count_row);
+	emitter_json_dict_end(emitter); /* Close "small". */
+
+	emitter_json_dict_begin(emitter, "large");
+	alloc_count_title.str_val = "large:";
+
+	GET_AND_EMIT_ALLOC_STAT(large, allocated, size)
+	GET_AND_EMIT_ALLOC_STAT(large, nmalloc, uint64)
+	GET_AND_EMIT_ALLOC_STAT(large, ndalloc, uint64)
+	GET_AND_EMIT_ALLOC_STAT(large, nrequests, uint64)
+
+	emitter_table_row(emitter, &alloc_count_row);
+	emitter_json_dict_end(emitter); /* Close "large". */
+
+#undef GET_AND_EMIT_ALLOC_STAT
+
+	/* Aggregated small + large stats are emitter only in table mode. */
+	alloc_count_title.str_val = "total:";
+	alloc_count_allocated.size_val = small_allocated + large_allocated;
+	alloc_count_nmalloc.uint64_val = small_nmalloc + large_nmalloc;
+	alloc_count_ndalloc.uint64_val = small_ndalloc + large_ndalloc;
+	alloc_count_nrequests.uint64_val = small_nrequests + large_nrequests;
+	emitter_table_row(emitter, &alloc_count_row);
+
 	if (json) {
 		malloc_cprintf(write_cb, cbopaque, ",\n");
 	}
 
-	CTL_M2_GET("stats.arenas.0.small.allocated", i, &small_allocated,
-	    size_t);
-	CTL_M2_GET("stats.arenas.0.small.nmalloc", i, &small_nmalloc, uint64_t);
-	CTL_M2_GET("stats.arenas.0.small.ndalloc", i, &small_ndalloc, uint64_t);
-	CTL_M2_GET("stats.arenas.0.small.nrequests", i, &small_nrequests,
-	    uint64_t);
-	if (json) {
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\t\"small\": {\n");
-
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\t\t\"allocated\": %zu,\n", small_allocated);
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\t\t\"nmalloc\": %"FMTu64",\n", small_nmalloc);
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\t\t\"ndalloc\": %"FMTu64",\n", small_ndalloc);
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\t\t\"nrequests\": %"FMTu64"\n", small_nrequests);
-
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\t},\n");
-	} else {
-		malloc_cprintf(write_cb, cbopaque,
-		    "                            allocated      nmalloc"
-		    "      ndalloc    nrequests\n");
-		malloc_cprintf(write_cb, cbopaque,
-		    "small:                   %12zu %12"FMTu64" %12"FMTu64
-		    " %12"FMTu64"\n",
-		    small_allocated, small_nmalloc, small_ndalloc,
-		    small_nrequests);
-	}
-
-	CTL_M2_GET("stats.arenas.0.large.allocated", i, &large_allocated,
-	    size_t);
-	CTL_M2_GET("stats.arenas.0.large.nmalloc", i, &large_nmalloc, uint64_t);
-	CTL_M2_GET("stats.arenas.0.large.ndalloc", i, &large_ndalloc, uint64_t);
-	CTL_M2_GET("stats.arenas.0.large.nrequests", i, &large_nrequests,
-	    uint64_t);
-	if (json) {
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\t\"large\": {\n");
-
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\t\t\"allocated\": %zu,\n", large_allocated);
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\t\t\"nmalloc\": %"FMTu64",\n", large_nmalloc);
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\t\t\"ndalloc\": %"FMTu64",\n", large_ndalloc);
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\t\t\"nrequests\": %"FMTu64"\n", large_nrequests);
-
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\t},\n");
-	} else {
-		malloc_cprintf(write_cb, cbopaque,
-		    "large:                   %12zu %12"FMTu64" %12"FMTu64
-		    " %12"FMTu64"\n",
-		    large_allocated, large_nmalloc, large_ndalloc,
-		    large_nrequests);
-		malloc_cprintf(write_cb, cbopaque,
-		    "total:                   %12zu %12"FMTu64" %12"FMTu64
-		    " %12"FMTu64"\n",
-		    small_allocated + large_allocated, small_nmalloc +
-		    large_nmalloc, small_ndalloc + large_ndalloc,
-		    small_nrequests + large_nrequests);
-	}
 	if (!json) {
 		malloc_cprintf(write_cb, cbopaque,
 		    "active:                  %12zu\n", pactive * page);
