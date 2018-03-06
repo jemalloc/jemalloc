@@ -1231,9 +1231,6 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 	if (general) {
 		stats_general_print(&emitter);
 	}
-	if (json) {
-		malloc_cprintf(write_cb, cbopaque, "\n");
-	}
 	if (config_stats) {
 		stats_print_helper(&emitter, merged, destroyed, unmerged,
 		    bins, large, mutex);
