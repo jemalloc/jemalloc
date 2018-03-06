@@ -263,7 +263,6 @@ TEST_BEGIN(test_ph_random) {
 				node_t *prev = NULL;
 				for (k = 0; k < j; k++) {
 					node_t *node = heap_first(&heap);
-					bool first = heap_first_after_remove(&heap, node);
 					assert_u_eq(heap_validate(&heap), j - k,
 					    "Incorrect node count");
 					if (prev != NULL) {
@@ -272,10 +271,10 @@ TEST_BEGIN(test_ph_random) {
 						    "Bad removal order");
 					}
 					node_remove(&heap, node);
-					if(first)
+					if(heap_root_first(&heap))
 					{
-						assert_ptr_eq(heap_get_first(&heap), heap_first(&heap) ,
-								"Node not first node");
+						assert_ptr_eq( (&heap)->ph_root, heap_first(&heap) ,
+								"Root not first node");
 					}
 					assert_u_eq(heap_validate(&heap), j - k
 					    - 1, "Incorrect node count");

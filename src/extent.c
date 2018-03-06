@@ -352,18 +352,15 @@ extents_remove_locked(tsdn_t *tsdn, extents_t *extents, extent_t *extent,
 	size_t psz = extent_size_quantize_floor(size);
 	pszind_t pind = sz_psz2ind(psz);
 	size_t extent_sn = extent_sn_get(extent);
-	bool first = extent_heap_first_after_remove(
-												&extents->heaps[pind], extent);
 	extent_heap_remove(&extents->heaps[pind], extent);
 	if (extent_heap_empty(&extents->heaps[pind])) {
 		bitmap_set(extents->bitmap, &extents_bitmap_info,
 		    (size_t)pind);
 	} else if (extents->lowest_sn_heaps[pind] == extent_sn) {
-		if (first) {
+		if (extent_heap_root_first(&extents->heaps[pind])) {
 			extents->lowest_sn_heaps[pind] = extent_sn_get(
-					extent_heap_get_first(&extents->heaps[pind]));
-		}
-		else {
+					extent_heap_first(&extents->heaps[pind]));
+		} else {
 			extents->lowest_sn_known[pind] = false;
 		}
 	}
@@ -450,8 +447,7 @@ extent_sncachedad_comp(extents_t *extents, pszind_t a, pszind_t b) {
 	extent_t *ae = NULL;
 	extent_t *be = NULL;
 #define OP(extents, pind) do {											\
-		if(unlikely(!extents->lowest_sn_known[pind])) 							\
-		{																\
+		if(!extents->lowest_sn_known[pind]) {					\
 			pind##e  = extent_heap_first(&extents->heaps[pind]); 		\
 			extents->lowest_sn_heaps[pind] = extent_sn_get(pind##e);	\
 			extents->lowest_sn_known[pind] = true;						\
@@ -472,8 +468,7 @@ extent_sncachedad_comp(extents_t *extents, pszind_t a, pszind_t b) {
 	}
 
 #define OP(extents, pind) do {											\
-		if(!pind##e) 							\
-		{																\
+		if(!pind##e) {													\
 			pind##e  = extent_heap_first(&extents->heaps[pind]); 		\
 		}																\
 } while(0)
