@@ -486,38 +486,19 @@ stats_arena_print(emitter_t *emitter, unsigned i, bool bins, bool large,
 	void *cbopaque = emitter->cbopaque;
 	bool json = (emitter->output == emitter_output_json);
 
-	if (json) {
-		malloc_cprintf(write_cb, cbopaque, "\n");
-	}
-
 	CTL_GET("arenas.page", &page, size_t);
 
 	CTL_M2_GET("stats.arenas.0.nthreads", i, &nthreads, unsigned);
-	if (json) {
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\t\"nthreads\": %u,\n", nthreads);
-	} else {
-		malloc_cprintf(write_cb, cbopaque,
-		    "assigned threads: %u\n", nthreads);
-	}
+	emitter_kv(emitter, "nthreads", "assigned threads",
+	    emitter_type_unsigned, &nthreads);
 
 	CTL_M2_GET("stats.arenas.0.uptime", i, &uptime, uint64_t);
-	if (json) {
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\t\"uptime_ns\": %"FMTu64",\n", uptime);
-	} else {
-		malloc_cprintf(write_cb, cbopaque,
-		    "uptime: %"FMTu64"\n", uptime);
-	}
+	emitter_kv(emitter, "uptime_ns", "uptime", emitter_type_uint64,
+	    &uptime);
 
 	CTL_M2_GET("stats.arenas.0.dss", i, &dss, const char *);
-	if (json) {
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\t\"dss\": \"%s\",\n", dss);
-	} else {
-		malloc_cprintf(write_cb, cbopaque,
-		    "dss allocation precedence: %s\n", dss);
-	}
+	emitter_kv(emitter, "dss", "dss allocation precedence",
+	    emitter_type_string, &dss);
 
 	CTL_M2_GET("stats.arenas.0.dirty_decay_ms", i, &dirty_decay_ms,
 	    ssize_t);
@@ -534,55 +515,133 @@ stats_arena_print(emitter_t *emitter, unsigned i, bool bins, bool large,
 	CTL_M2_GET("stats.arenas.0.muzzy_nmadvise", i, &muzzy_nmadvise,
 	    uint64_t);
 	CTL_M2_GET("stats.arenas.0.muzzy_purged", i, &muzzy_purged, uint64_t);
-	if (json) {
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\t\"dirty_decay_ms\": %zd,\n", dirty_decay_ms);
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\t\"muzzy_decay_ms\": %zd,\n", muzzy_decay_ms);
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\t\"pactive\": %zu,\n", pactive);
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\t\"pdirty\": %zu,\n", pdirty);
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\t\"pmuzzy\": %zu,\n", pmuzzy);
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\t\"dirty_npurge\": %"FMTu64",\n", dirty_npurge);
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\t\"dirty_nmadvise\": %"FMTu64",\n", dirty_nmadvise);
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\t\"dirty_purged\": %"FMTu64",\n", dirty_purged);
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\t\"muzzy_npurge\": %"FMTu64",\n", muzzy_npurge);
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\t\"muzzy_nmadvise\": %"FMTu64",\n", muzzy_nmadvise);
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\t\"muzzy_purged\": %"FMTu64",\n", muzzy_purged);
+
+	emitter_row_t decay_row;
+	emitter_row_init(&decay_row);
+
+	/* JSON-style emission. */
+	emitter_json_kv(emitter, "dirty_decay_ms", emitter_type_ssize,
+	    &dirty_decay_ms);
+	emitter_json_kv(emitter, "muzzy_decay_ms", emitter_type_ssize,
+	    &muzzy_decay_ms);
+
+	emitter_json_kv(emitter, "pactive", emitter_type_size, &pactive);
+	emitter_json_kv(emitter, "pdirty", emitter_type_size, &pdirty);
+	emitter_json_kv(emitter, "pmuzzy", emitter_type_size, &pmuzzy);
+
+	emitter_json_kv(emitter, "dirty_npurge", emitter_type_uint64,
+	    &dirty_npurge);
+	emitter_json_kv(emitter, "dirty_nmadvise", emitter_type_uint64,
+	    &dirty_nmadvise);
+	emitter_json_kv(emitter, "dirty_purged", emitter_type_uint64,
+	    &dirty_purged);
+
+	emitter_json_kv(emitter, "muzzy_npurge", emitter_type_uint64,
+	    &muzzy_npurge);
+	emitter_json_kv(emitter, "muzzy_nmadvise", emitter_type_uint64,
+	    &muzzy_nmadvise);
+	emitter_json_kv(emitter, "muzzy_purged", emitter_type_uint64,
+	    &muzzy_purged);
+
+
+	/* Table-style emission. */
+	emitter_col_t decay_type;
+	emitter_col_init(&decay_type, &decay_row);
+	decay_type.justify = emitter_justify_right;
+	decay_type.width = 9;
+	decay_type.type = emitter_type_title;
+	decay_type.str_val = "decaying:";
+
+	emitter_col_t decay_time;
+	emitter_col_init(&decay_time, &decay_row);
+	decay_time.justify = emitter_justify_right;
+	decay_time.width = 6;
+	decay_time.type = emitter_type_title;
+	decay_time.str_val = "time";
+
+	emitter_col_t decay_npages;
+	emitter_col_init(&decay_npages, &decay_row);
+	decay_npages.justify = emitter_justify_right;
+	decay_npages.width = 13;
+	decay_npages.type = emitter_type_title;
+	decay_npages.str_val = "npages";
+
+	emitter_col_t decay_sweeps;
+	emitter_col_init(&decay_sweeps, &decay_row);
+	decay_sweeps.justify = emitter_justify_right;
+	decay_sweeps.width = 13;
+	decay_sweeps.type = emitter_type_title;
+	decay_sweeps.str_val = "sweeps";
+
+	emitter_col_t decay_madvises;
+	emitter_col_init(&decay_madvises, &decay_row);
+	decay_madvises.justify = emitter_justify_right;
+	decay_madvises.width = 13;
+	decay_madvises.type = emitter_type_title;
+	decay_madvises.str_val = "madvises";
+
+	emitter_col_t decay_purged;
+	emitter_col_init(&decay_purged, &decay_row);
+	decay_purged.justify = emitter_justify_right;
+	decay_purged.width = 13;
+	decay_purged.type = emitter_type_title;
+	decay_purged.str_val = "purged";
+
+	/* Title row. */
+	emitter_table_row(emitter, &decay_row);
+
+	/* Dirty row. */
+	decay_type.str_val = "dirty:";
+
+	if (dirty_decay_ms >= 0) {
+		decay_time.type = emitter_type_ssize;
+		decay_time.ssize_val = dirty_decay_ms;
 	} else {
-		malloc_cprintf(write_cb, cbopaque,
-		    "decaying:  time       npages       sweeps     madvises"
-		    "       purged\n");
-		if (dirty_decay_ms >= 0) {
-			malloc_cprintf(write_cb, cbopaque,
-			    "   dirty: %5zd %12zu %12"FMTu64" %12"FMTu64" %12"
-			    FMTu64"\n", dirty_decay_ms, pdirty, dirty_npurge,
-			    dirty_nmadvise, dirty_purged);
-		} else {
-			malloc_cprintf(write_cb, cbopaque,
-			    "   dirty:   N/A %12zu %12"FMTu64" %12"FMTu64" %12"
-			    FMTu64"\n", pdirty, dirty_npurge, dirty_nmadvise,
-			    dirty_purged);
-		}
-		if (muzzy_decay_ms >= 0) {
-			malloc_cprintf(write_cb, cbopaque,
-			    "   muzzy: %5zd %12zu %12"FMTu64" %12"FMTu64" %12"
-			    FMTu64"\n", muzzy_decay_ms, pmuzzy, muzzy_npurge,
-			    muzzy_nmadvise, muzzy_purged);
-		} else {
-			malloc_cprintf(write_cb, cbopaque,
-			    "   muzzy:   N/A %12zu %12"FMTu64" %12"FMTu64" %12"
-			    FMTu64"\n", pmuzzy, muzzy_npurge, muzzy_nmadvise,
-			    muzzy_purged);
-		}
+		decay_time.type = emitter_type_title;
+		decay_time.str_val = "N/A";
+	}
+
+	decay_npages.type = emitter_type_size;
+	decay_npages.size_val = pdirty;
+
+	decay_sweeps.type = emitter_type_uint64;
+	decay_sweeps.uint64_val = dirty_npurge;
+
+	decay_madvises.type = emitter_type_uint64;
+	decay_madvises.uint64_val = dirty_nmadvise;
+
+	decay_purged.type = emitter_type_uint64;
+	decay_purged.uint64_val = dirty_purged;
+
+	emitter_table_row(emitter, &decay_row);
+
+	/* Muzzy row. */
+	decay_type.str_val = "muzzy:";
+
+	if (muzzy_decay_ms >= 0) {
+		decay_time.type = emitter_type_ssize;
+		decay_time.ssize_val = muzzy_decay_ms;
+	} else {
+		decay_time.type = emitter_type_title;
+		decay_time.str_val = "N/A";
+	}
+
+	decay_npages.type = emitter_type_size;
+	decay_npages.size_val = pmuzzy;
+
+	decay_sweeps.type = emitter_type_uint64;
+	decay_sweeps.uint64_val = muzzy_npurge;
+
+	decay_madvises.type = emitter_type_uint64;
+	decay_madvises.uint64_val = muzzy_nmadvise;
+
+	decay_purged.type = emitter_type_uint64;
+	decay_purged.uint64_val = muzzy_purged;
+
+	emitter_table_row(emitter, &decay_row);
+
+	if (json) {
+		malloc_cprintf(write_cb, cbopaque, ",\n");
 	}
 
 	CTL_M2_GET("stats.arenas.0.small.allocated", i, &small_allocated,
