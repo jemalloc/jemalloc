@@ -85,21 +85,7 @@ gen_mutex_ctl_str(char *str, size_t buf_len, const char *prefix,
 }
 
 static void
-read_arena_bin_mutex_stats(unsigned arena_ind, unsigned bin_ind,
-    uint64_t results_uint64_t[mutex_prof_num_uint64_t_counters],
-	uint32_t results_uint32_t[mutex_prof_num_uint32_t_counters]) {
-	char cmd[MUTEX_CTL_STR_MAX_LENGTH];
-#define OP(c, t, human)							\
-    gen_mutex_ctl_str(cmd, MUTEX_CTL_STR_MAX_LENGTH,			\
-        "arenas.0.bins.0","mutex", #c);					\
-    CTL_M2_M4_GET(cmd, arena_ind, bin_ind,				\
-        (t *)&results_##t[mutex_counter_##c], t);
-	MUTEX_PROF_COUNTERS
-#undef OP
-}
-
-static void
-mutex_stats_init_row(emitter_row_t *row, const char *table_name,
+mutex_stats_init_cols(emitter_row_t *row, const char *table_name,
     emitter_col_t *name,
     emitter_col_t col_uint64_t[mutex_prof_num_uint64_t_counters],
     emitter_col_t col_uint32_t[mutex_prof_num_uint32_t_counters]) {
@@ -108,12 +94,13 @@ mutex_stats_init_row(emitter_row_t *row, const char *table_name,
 
 	emitter_col_t *col;
 
-	emitter_row_init(row);
-	emitter_col_init(name, row);
-	name->justify = emitter_justify_left;
-	name->width = 21;
-	name->type = emitter_type_title;
-	name->str_val = table_name;
+	if (name != NULL) {
+		emitter_col_init(name, row);
+		name->justify = emitter_justify_left;
+		name->width = 21;
+		name->type = emitter_type_title;
+		name->str_val = table_name;
+	}
 
 #define WIDTH_uint32_t 12
 #define WIDTH_uint64_t 16
@@ -175,13 +162,40 @@ mutex_stats_read_arena(unsigned arena_ind, mutex_prof_arena_ind_t mutex_ind,
 	    (counter_type *)&dst->bool_val, counter_type);
 	MUTEX_PROF_COUNTERS
 #undef OP
+#undef EMITTER_TYPE_uint32_t
+#undef EMITTER_TYPE_uint64_t
 }
 
+static void
+mutex_stats_read_arena_bin(unsigned arena_ind, unsigned bin_ind,
+    emitter_col_t col_uint64_t[mutex_prof_num_uint64_t_counters],
+    emitter_col_t col_uint32_t[mutex_prof_num_uint32_t_counters]) {
+	char cmd[MUTEX_CTL_STR_MAX_LENGTH];
+	emitter_col_t *dst;
+
+#define EMITTER_TYPE_uint32_t emitter_type_uint32
+#define EMITTER_TYPE_uint64_t emitter_type_uint64
+#define OP(counter, counter_type, human)				\
+	dst = &col_##counter_type[mutex_counter_##counter];		\
+	dst->type = EMITTER_TYPE_##counter_type;			\
+	gen_mutex_ctl_str(cmd, MUTEX_CTL_STR_MAX_LENGTH,		\
+	    "arenas.0.bins.0","mutex", #counter);			\
+	CTL_M2_M4_GET(cmd, arena_ind, bin_ind,				\
+	    (counter_type *)&dst->bool_val, counter_type);
+	MUTEX_PROF_COUNTERS
+#undef OP
+#undef EMITTER_TYPE_uint32_t
+#undef EMITTER_TYPE_uint64_t
+}
+
+/* "row" can be NULL to avoid emitting in table mode. */
 static void
 mutex_stats_emit(emitter_t *emitter, emitter_row_t *row,
     emitter_col_t col_uint64_t[mutex_prof_num_uint64_t_counters],
     emitter_col_t col_uint32_t[mutex_prof_num_uint32_t_counters]) {
-	emitter_table_row(emitter, row);
+	if (row != NULL) {
+		emitter_table_row(emitter, row);
+	}
 
 	mutex_prof_uint64_t_counter_ind_t k_uint64_t = 0;
 	mutex_prof_uint32_t_counter_ind_t k_uint32_t = 0;
@@ -202,31 +216,7 @@ mutex_stats_emit(emitter_t *emitter, emitter_row_t *row,
 }
 
 static void
-mutex_stats_output_json(void (*write_cb)(void *, const char *), void *cbopaque,
-    const char *name, uint64_t stats_uint64_t[mutex_prof_num_uint64_t_counters],
-    uint32_t stats_uint32_t[mutex_prof_num_uint32_t_counters],
-    const char *json_indent, bool last) {
-	malloc_cprintf(write_cb, cbopaque, "%s\"%s\": {\n", json_indent, name);
-
-	mutex_prof_uint64_t_counter_ind_t k_uint64_t = 0;
-	mutex_prof_uint32_t_counter_ind_t k_uint32_t = 0;
-	char *fmt_str[2] = {"%s\t\"%s\": %"FMTu32"%s\n",
-	    "%s\t\"%s\": %"FMTu64"%s\n"};
-#define OP(c, t, human)							\
-	malloc_cprintf(write_cb, cbopaque,				\
-	    fmt_str[sizeof(t) / sizeof(uint32_t) - 1], 			\
-	    json_indent, #c, (t)stats_##t[mutex_counter_##c],		\
-	    (++k_##t && k_uint32_t == mutex_prof_num_uint32_t_counters) ? "" : ",");
-	MUTEX_PROF_COUNTERS
-#undef OP
-
-malloc_cprintf(write_cb, cbopaque, "%s}%s\n", json_indent,
-	    last ? "" : ",");
-}
-
-static void
-stats_arena_bins_print(void (*write_cb)(void *, const char *), void *cbopaque,
-    bool json, bool large, bool mutex, unsigned i) {
+stats_arena_bins_print(emitter_t *emitter, bool mutex, unsigned i) {
 	size_t page;
 	bool in_gap, in_gap_prev;
 	unsigned nbins, j;
@@ -234,19 +224,71 @@ stats_arena_bins_print(void (*write_cb)(void *, const char *), void *cbopaque,
 	CTL_GET("arenas.page", &page, size_t);
 
 	CTL_GET("arenas.nbins", &nbins, unsigned);
-	if (json) {
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\t\"bins\": [\n");
-	} else {
-		char *mutex_counters = "   n_lock_ops    n_waiting"
-		    "   n_spin_acq n_owner_switch  total_wait_ns"
-		    "  max_wait_ns max_n_thds\n";
-		malloc_cprintf(write_cb, cbopaque,
-		    "bins:           size ind    allocated      nmalloc"
-		    "      ndalloc    nrequests      curregs     curslabs regs"
-		    " pgs  util       nfills     nflushes     newslabs"
-		    "      reslabs%s", mutex ? mutex_counters : "\n");
+
+	emitter_row_t header_row;
+	emitter_row_init(&header_row);
+
+	emitter_row_t row;
+	emitter_row_init(&row);
+#define COL(name, left_or_right, col_width, etype)			\
+	emitter_col_t col_##name;					\
+	emitter_col_init(&col_##name, &row);				\
+	col_##name.justify = emitter_justify_##left_or_right;		\
+	col_##name.width = col_width;					\
+	col_##name.type = emitter_type_##etype;				\
+	emitter_col_t header_col_##name;				\
+	emitter_col_init(&header_col_##name, &header_row);		\
+	header_col_##name.justify = emitter_justify_##left_or_right;	\
+	header_col_##name.width = col_width;				\
+	header_col_##name.type = emitter_type_title;			\
+	header_col_##name.str_val = #name;
+
+	COL(size, right, 20, size)
+	COL(ind, right, 4, unsigned)
+	COL(allocated, right, 13, uint64)
+	COL(nmalloc, right, 13, uint64)
+	COL(ndalloc, right, 13, uint64)
+	COL(nrequests, right, 13, uint64)
+	COL(curregs, right, 13, size)
+	COL(curslabs, right, 13, size)
+	COL(regs, right, 5, unsigned)
+	COL(pgs, right, 4, size)
+	/* To buffer a right- and left-justified column. */
+	COL(justify_spacer, right, 1, title)
+	COL(util, right, 6, title)
+	COL(nfills, right, 13, uint64)
+	COL(nflushes, right, 13, uint64)
+	COL(nslabs, right, 13, uint64)
+	COL(nreslabs, right, 13, uint64)
+#undef COL
+
+	/* Don't want to actually print the name. */
+	header_col_justify_spacer.str_val = " ";
+	col_justify_spacer.str_val = " ";
+
+
+	emitter_col_t col_mutex64[mutex_prof_num_uint64_t_counters];
+	emitter_col_t col_mutex32[mutex_prof_num_uint32_t_counters];
+
+	emitter_col_t header_mutex64[mutex_prof_num_uint64_t_counters];
+	emitter_col_t header_mutex32[mutex_prof_num_uint32_t_counters];
+
+	if (mutex) {
+		mutex_stats_init_cols(&row, NULL, NULL, col_mutex64,
+		    col_mutex32);
+		mutex_stats_init_cols(&header_row, NULL, NULL, header_mutex64,
+		    header_mutex32);
 	}
+
+	/*
+	 * We print a "bins:" header as part of the table row; we need to adjust
+	 * the header size column to compensate.
+	 */
+	header_col_size.width -=5;
+	emitter_table_printf(emitter, "bins:");
+	emitter_table_row(emitter, &header_row);
+	emitter_json_arr_begin(emitter, "bins");
+
 	for (j = 0, in_gap = false; j < nbins; j++) {
 		uint64_t nslabs;
 		size_t reg_size, slab_size, curregs;
@@ -260,8 +302,8 @@ stats_arena_bins_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		in_gap_prev = in_gap;
 		in_gap = (nslabs == 0);
 
-		if (!json && in_gap_prev && !in_gap) {
-			malloc_cprintf(write_cb, cbopaque,
+		if (in_gap_prev && !in_gap) {
+			emitter_table_printf(emitter,
 			    "                     ---\n");
 		}
 
@@ -286,90 +328,82 @@ stats_arena_bins_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		CTL_M2_M4_GET("stats.arenas.0.bins.0.curslabs", i, j, &curslabs,
 		    size_t);
 
-		if (json) {
-			malloc_cprintf(write_cb, cbopaque,
-			    "\t\t\t\t\t{\n"
-			    "\t\t\t\t\t\t\"nmalloc\": %"FMTu64",\n"
-			    "\t\t\t\t\t\t\"ndalloc\": %"FMTu64",\n"
-			    "\t\t\t\t\t\t\"curregs\": %zu,\n"
-			    "\t\t\t\t\t\t\"nrequests\": %"FMTu64",\n"
-			    "\t\t\t\t\t\t\"nfills\": %"FMTu64",\n"
-			    "\t\t\t\t\t\t\"nflushes\": %"FMTu64",\n"
-			    "\t\t\t\t\t\t\"nreslabs\": %"FMTu64",\n"
-			    "\t\t\t\t\t\t\"curslabs\": %zu%s\n",
-			    nmalloc, ndalloc, curregs, nrequests, nfills,
-			    nflushes, nreslabs, curslabs, mutex ? "," : "");
-			if (mutex) {
-				uint64_t mutex_stats_64[mutex_prof_num_uint64_t_counters];
-				uint32_t mutex_stats_32[mutex_prof_num_uint32_t_counters];
-				read_arena_bin_mutex_stats(i, j, mutex_stats_64, mutex_stats_32);
-				mutex_stats_output_json(write_cb, cbopaque,
-				    "mutex", mutex_stats_64, mutex_stats_32, "\t\t\t\t\t\t", true);
-			}
-			malloc_cprintf(write_cb, cbopaque,
-			    "\t\t\t\t\t}%s\n",
-			    (j + 1 < nbins) ? "," : "");
-		} else if (!in_gap) {
-			size_t availregs = nregs * curslabs;
-			char util[6];
-			if (get_rate_str((uint64_t)curregs, (uint64_t)availregs,
-			    util)) {
-				if (availregs == 0) {
-					malloc_snprintf(util, sizeof(util),
-					    "1");
-				} else if (curregs > availregs) {
-					/*
-					 * Race detected: the counters were read
-					 * in separate mallctl calls and
-					 * concurrent operations happened in
-					 * between. In this case no meaningful
-					 * utilization can be computed.
-					 */
-					malloc_snprintf(util, sizeof(util),
-					    " race");
-				} else {
-					not_reached();
-				}
-			}
-			uint64_t mutex_stats_64[mutex_prof_num_uint64_t_counters];
-			uint32_t mutex_stats_32[mutex_prof_num_uint32_t_counters];
-			if (mutex) {
-				read_arena_bin_mutex_stats(i, j, mutex_stats_64, mutex_stats_32);
-			}
+		if (mutex) {
+			mutex_stats_read_arena_bin(i, j, col_mutex64,
+			    col_mutex32);
+		}
 
-			malloc_cprintf(write_cb, cbopaque, "%20zu %3u %12zu %12"
-			    FMTu64" %12"FMTu64" %12"FMTu64" %12zu %12zu %4u"
-			    " %3zu %-5s %12"FMTu64" %12"FMTu64" %12"FMTu64
-			    " %12"FMTu64, reg_size, j, curregs * reg_size,
-			    nmalloc, ndalloc, nrequests, curregs, curslabs,
-			    nregs, slab_size / page, util, nfills, nflushes,
-			    nslabs, nreslabs);
+		emitter_json_arr_obj_begin(emitter);
+		emitter_json_kv(emitter, "nmalloc", emitter_type_uint64,
+		    &nmalloc);
+		emitter_json_kv(emitter, "ndalloc", emitter_type_uint64,
+		    &ndalloc);
+		emitter_json_kv(emitter, "curregs", emitter_type_size,
+		    &curregs);
+		emitter_json_kv(emitter, "nrequests", emitter_type_uint64,
+		    &nrequests);
+		emitter_json_kv(emitter, "nfills", emitter_type_uint64,
+		    &nfills);
+		emitter_json_kv(emitter, "nflushes", emitter_type_uint64,
+		    &nflushes);
+		emitter_json_kv(emitter, "nreslabs", emitter_type_uint64,
+		    &nreslabs);
+		emitter_json_kv(emitter, "curslabs", emitter_type_size,
+		    &curslabs);
+		if (mutex) {
+			emitter_json_dict_begin(emitter, "mutex");
+			mutex_stats_emit(emitter, NULL, col_mutex64,
+			    col_mutex32);
+			emitter_json_dict_end(emitter);
+		}
+		emitter_json_arr_obj_end(emitter);
 
-			if (mutex) {
-				malloc_cprintf(write_cb, cbopaque,
-				    " %12"FMTu64" %12"FMTu64" %12"FMTu64
-				    " %14"FMTu64" %14"FMTu64" %12"FMTu64
-				    " %10"FMTu32"\n",
-					mutex_stats_64[mutex_counter_num_ops],
-					mutex_stats_64[mutex_counter_num_wait],
-					mutex_stats_64[mutex_counter_num_spin_acq],
-					mutex_stats_64[mutex_counter_num_owner_switch],
-					mutex_stats_64[mutex_counter_total_wait_time],
-					mutex_stats_64[mutex_counter_max_wait_time],
-					mutex_stats_32[mutex_counter_max_num_thds]);
+		size_t availregs = nregs * curslabs;
+		char util[6];
+		if (get_rate_str((uint64_t)curregs, (uint64_t)availregs, util))
+		{
+			if (availregs == 0) {
+				malloc_snprintf(util, sizeof(util), "1");
+			} else if (curregs > availregs) {
+				/*
+				 * Race detected: the counters were read in
+				 * separate mallctl calls and concurrent
+				 * operations happened in between.  In this case
+				 * no meaningful utilization can be computed.
+				 */
+				malloc_snprintf(util, sizeof(util), " race");
 			} else {
-				malloc_cprintf(write_cb, cbopaque, "\n");
+				not_reached();
 			}
 		}
+
+		col_size.size_val = reg_size;
+		col_ind.unsigned_val = j;
+		col_allocated.size_val = curregs * reg_size;
+		col_nmalloc.uint64_val = nmalloc;
+		col_ndalloc.uint64_val = ndalloc;
+		col_nrequests.uint64_val = nrequests;
+		col_curregs.size_val = curregs;
+		col_curslabs.size_val = curslabs;
+		col_regs.unsigned_val = nregs;
+		col_pgs.size_val = slab_size / page;
+		col_util.str_val = util;
+		col_nfills.uint64_val = nfills;
+		col_nflushes.uint64_val = nflushes;
+		col_nslabs.uint64_val = nslabs;
+		col_nreslabs.uint64_val = nreslabs;
+
+		/*
+		 * Note that mutex columns were initialized above, if mutex ==
+		 * true.
+		 */
+
+		emitter_table_row(emitter, &row);
 	}
-	if (json) {
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\t]%s\n", large ? "," : "");
-	} else {
-		if (in_gap) {
-			malloc_cprintf(write_cb, cbopaque,
-			    "                     ---\n");
-		}
+	emitter_json_arr_end(emitter); /* Close "bins". */
+
+	if (in_gap) {
+		emitter_table_printf(emitter, "                     ---\n");
 	}
 }
 
@@ -444,7 +478,8 @@ stats_arena_mutexes_print(emitter_t *emitter, unsigned arena_ind) {
 	emitter_col_t col64[mutex_prof_num_uint64_t_counters];
 	emitter_col_t col32[mutex_prof_num_uint32_t_counters];
 
-	mutex_stats_init_row(&row, "", &col_name, col64, col32);
+	emitter_row_init(&row);
+	mutex_stats_init_cols(&row, "", &col_name, col64, col32);
 
 	emitter_json_dict_begin(emitter, "mutexes");
 	emitter_table_row(emitter, &row);
@@ -761,19 +796,17 @@ stats_arena_print(emitter_t *emitter, unsigned i, bool bins, bool large,
 	if (mutex) {
 		stats_arena_mutexes_print(emitter, i);
 	}
+	if (bins) {
+		stats_arena_bins_print(emitter, mutex, i);
+	}
 
 	/* Emitter conversion point. */
 	if (json) {
-		if (bins || large) {
+		if (large) {
 			malloc_cprintf(write_cb, cbopaque, ",\n");
 		} else {
 			malloc_cprintf(write_cb, cbopaque, "\n");
 		}
-	}
-
-	if (bins) {
-		stats_arena_bins_print(write_cb, cbopaque, json, large, mutex,
-		    i);
 	}
 	if (large) {
 		stats_arena_lextents_print(write_cb, cbopaque, json, i);
@@ -1088,7 +1121,8 @@ stats_print_helper(emitter_t *emitter, bool merged, bool destroyed,
 		emitter_col_t col64[mutex_prof_num_uint64_t_counters];
 		emitter_col_t col32[mutex_prof_num_uint32_t_counters];
 
-		mutex_stats_init_row(&row, "", &name, col64, col32);
+		emitter_row_init(&row);
+		mutex_stats_init_cols(&row, "", &name, col64, col32);
 
 		emitter_table_row(emitter, &row);
 		emitter_json_dict_begin(emitter, "mutexes");
