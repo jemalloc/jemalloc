@@ -1,7 +1,7 @@
 #ifndef JEMALLOC_INTERNAL_ATOMIC_H
 #define JEMALLOC_INTERNAL_ATOMIC_H
 
-#define ATOMIC_INLINE static inline
+#define ATOMIC_INLINE JEMALLOC_ALWAYS_INLINE
 
 #if defined(JEMALLOC_GCC_ATOMIC_ATOMICS)
 #  include "jemalloc/internal/atomic_gcc_atomic.h"
