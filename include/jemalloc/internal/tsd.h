@@ -107,9 +107,6 @@ enum {
 	tsd_state_uninitialized = 5
 };
 
-/* Manually limit tsd_state_t to a single byte. */
-typedef uint8_t tsd_state_t;
-
 /* The actual tsd. */
 struct tsd_s {
 	/*
@@ -117,12 +114,24 @@ struct tsd_s {
 	 * module.  Access any thread-local state through the getters and
 	 * setters below.
 	 */
-	tsd_state_t	state;
+
+	/* We manually limit the state to just a single byte. */
+	uint8_t state;
 #define O(n, t, nt)							\
 	t use_a_getter_or_setter_instead_##n;
 MALLOC_TSD
 #undef O
 };
+
+JEMALLOC_ALWAYS_INLINE uint8_t
+tsd_state_get(tsd_t *tsd) {
+	return tsd->state;
+}
+
+JEMALLOC_ALWAYS_INLINE void
+tsd_state_set(tsd_t *tsd, uint8_t state) {
+	tsd->state = state;
+}
 
 /*
  * Wrapper around tsd_t that makes it possible to avoid implicit conversion
@@ -191,10 +200,10 @@ MALLOC_TSD
 #define O(n, t, nt)							\
 JEMALLOC_ALWAYS_INLINE t *						\
 tsd_##n##p_get(tsd_t *tsd) {						\
-	assert(tsd->state == tsd_state_nominal ||			\
-	    tsd->state == tsd_state_nominal_slow ||			\
-	    tsd->state == tsd_state_reincarnated ||			\
-	    tsd->state == tsd_state_minimal_initialized);		\
+	assert(tsd_state_get(tsd) == tsd_state_nominal ||		\
+	    tsd_state_get(tsd) == tsd_state_nominal_slow ||		\
+	    tsd_state_get(tsd) == tsd_state_reincarnated ||		\
+	    tsd_state_get(tsd) == tsd_state_minimal_initialized);	\
 	return tsd_##n##p_get_unsafe(tsd);				\
 }
 MALLOC_TSD
@@ -229,8 +238,8 @@ MALLOC_TSD
 #define O(n, t, nt)							\
 JEMALLOC_ALWAYS_INLINE void						\
 tsd_##n##_set(tsd_t *tsd, t val) {					\
-	assert(tsd->state != tsd_state_reincarnated &&			\
-	    tsd->state != tsd_state_minimal_initialized);		\
+	assert(tsd_state_get(tsd) != tsd_state_reincarnated &&		\
+	    tsd_state_get(tsd) != tsd_state_minimal_initialized);	\
 	*tsd_##n##p_get(tsd) = val;					\
 }
 MALLOC_TSD
@@ -244,7 +253,7 @@ tsd_assert_fast(tsd_t *tsd) {
 
 JEMALLOC_ALWAYS_INLINE bool
 tsd_fast(tsd_t *tsd) {
-	bool fast = (tsd->state == tsd_state_nominal);
+	bool fast = (tsd_state_get(tsd) == tsd_state_nominal);
 	if (fast) {
 		tsd_assert_fast(tsd);
 	}
@@ -261,7 +270,7 @@ tsd_fetch_impl(bool init, bool minimal) {
 	}
 	assert(tsd != NULL);
 
-	if (unlikely(tsd->state != tsd_state_nominal)) {
+	if (unlikely(tsd_state_get(tsd) != tsd_state_nominal)) {
 		return tsd_fetch_slow(tsd, minimal);
 	}
 	assert(tsd_fast(tsd));
@@ -281,7 +290,7 @@ JEMALLOC_ALWAYS_INLINE tsd_t *
 tsd_internal_fetch(void) {
 	tsd_t *tsd = tsd_fetch_min();
 	/* Use reincarnated state to prevent full initialization. */
-	tsd->state = tsd_state_reincarnated;
+	tsd_state_set(tsd, tsd_state_reincarnated);
 
 	return tsd;
 }
@@ -293,7 +302,7 @@ tsd_fetch(void) {
 
 static inline bool
 tsd_nominal(tsd_t *tsd) {
-	return (tsd->state <= tsd_state_nominal_max);
+	return (tsd_state_get(tsd) <= tsd_state_nominal_max);
 }
 
 JEMALLOC_ALWAYS_INLINE tsdn_t *

@@ -98,11 +98,11 @@ thd_start_reincarnated(void *arg) {
 	tsd_cleanup((void *)tsd);
 	assert_ptr_null(*tsd_arenap_get_unsafe(tsd),
 	    "TSD arena should have been cleared.");
-	assert_u_eq(tsd->state, tsd_state_purgatory,
+	assert_u_eq(tsd_state_get(tsd), tsd_state_purgatory,
 	    "TSD state should be purgatory\n");
 
 	free(p);
-	assert_u_eq(tsd->state, tsd_state_reincarnated,
+	assert_u_eq(tsd_state_get(tsd), tsd_state_reincarnated,
 	    "TSD state should be reincarnated\n");
 	p = mallocx(1, MALLOCX_TCACHE_NONE);
 	assert_ptr_not_null(p, "Unexpected malloc() failure");
