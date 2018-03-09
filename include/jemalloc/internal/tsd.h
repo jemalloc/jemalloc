@@ -78,7 +78,7 @@ typedef void (*test_callback_t)(int *);
     MALLOC_TEST_TSD
 
 #define TSD_INITIALIZER {						\
-    tsd_state_uninitialized,						\
+    ATOMIC_INIT(tsd_state_uninitialized),				\
     TCACHE_ENABLED_ZERO_INITIALIZER,					\
     false,								\
     0,									\
@@ -116,7 +116,7 @@ struct tsd_s {
 	 */
 
 	/* We manually limit the state to just a single byte. */
-	uint8_t state;
+	atomic_u8_t state;
 #define O(n, t, nt)							\
 	t use_a_getter_or_setter_instead_##n;
 MALLOC_TSD
@@ -125,12 +125,18 @@ MALLOC_TSD
 
 JEMALLOC_ALWAYS_INLINE uint8_t
 tsd_state_get(tsd_t *tsd) {
-	return tsd->state;
+	/*
+	 * This should be atomic.  Unfortunately, compilers right now can't tell
+	 * that this can be done as a memory comparison, and forces a load into
+	 * a register that hurts fast-path performance.
+	 */
+	/* return atomic_load_u8(&tsd->state, ATOMIC_RELAXED); */
+	return *(uint8_t *)&tsd->state;
 }
 
 JEMALLOC_ALWAYS_INLINE void
 tsd_state_set(tsd_t *tsd, uint8_t state) {
-	tsd->state = state;
+	atomic_store_u8(&tsd->state, state, ATOMIC_RELAXED);
 }
 
 /*
