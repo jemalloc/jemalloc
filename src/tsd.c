@@ -56,9 +56,9 @@ tsd_slow_update(tsd_t *tsd) {
 	if (tsd_nominal(tsd)) {
 		if (malloc_slow || !tsd_tcache_enabled_get(tsd) ||
 		    tsd_reentrancy_level_get(tsd) > 0) {
-			tsd->state = tsd_state_nominal_slow;
+			tsd_state_set(tsd, tsd_state_nominal_slow);
 		} else {
-			tsd->state = tsd_state_nominal;
+			tsd_state_set(tsd, tsd_state_nominal);
 		}
 	}
 }
@@ -97,8 +97,8 @@ assert_tsd_data_cleanup_done(tsd_t *tsd) {
 
 static bool
 tsd_data_init_nocleanup(tsd_t *tsd) {
-	assert(tsd->state == tsd_state_reincarnated ||
-	    tsd->state == tsd_state_minimal_initialized);
+	assert(tsd_state_get(tsd) == tsd_state_reincarnated ||
+	    tsd_state_get(tsd) == tsd_state_minimal_initialized);
 	/*
 	 * During reincarnation, there is no guarantee that the cleanup function
 	 * will be called (deallocation may happen after all tsd destructors).
@@ -117,27 +117,27 @@ tsd_t *
 tsd_fetch_slow(tsd_t *tsd, bool minimal) {
 	assert(!tsd_fast(tsd));
 
-	if (tsd->state == tsd_state_nominal_slow) {
+	if (tsd_state_get(tsd) == tsd_state_nominal_slow) {
 		/* On slow path but no work needed. */
 		assert(malloc_slow || !tsd_tcache_enabled_get(tsd) ||
 		    tsd_reentrancy_level_get(tsd) > 0 ||
 		    *tsd_arenas_tdata_bypassp_get(tsd));
-	} else if (tsd->state == tsd_state_uninitialized) {
+	} else if (tsd_state_get(tsd) == tsd_state_uninitialized) {
 		if (!minimal) {
-			tsd->state = tsd_state_nominal;
+			tsd_state_set(tsd, tsd_state_nominal);
 			tsd_slow_update(tsd);
 			/* Trigger cleanup handler registration. */
 			tsd_set(tsd);
 			tsd_data_init(tsd);
 		} else {
-			tsd->state = tsd_state_minimal_initialized;
+			tsd_state_set(tsd, tsd_state_minimal_initialized);
 			tsd_set(tsd);
 			tsd_data_init_nocleanup(tsd);
 		}
-	} else if (tsd->state == tsd_state_minimal_initialized) {
+	} else if (tsd_state_get(tsd) == tsd_state_minimal_initialized) {
 		if (!minimal) {
 			/* Switch to fully initialized. */
-			tsd->state = tsd_state_nominal;
+			tsd_state_set(tsd, tsd_state_nominal);
 			assert(*tsd_reentrancy_levelp_get(tsd) >= 1);
 			(*tsd_reentrancy_levelp_get(tsd))--;
 			tsd_slow_update(tsd);
@@ -145,12 +145,12 @@ tsd_fetch_slow(tsd_t *tsd, bool minimal) {
 		} else {
 			assert_tsd_data_cleanup_done(tsd);
 		}
-	} else if (tsd->state == tsd_state_purgatory) {
-		tsd->state = tsd_state_reincarnated;
+	} else if (tsd_state_get(tsd) == tsd_state_purgatory) {
+		tsd_state_set(tsd, tsd_state_reincarnated);
 		tsd_set(tsd);
 		tsd_data_init_nocleanup(tsd);
 	} else {
-		assert(tsd->state == tsd_state_reincarnated);
+		assert(tsd_state_get(tsd) == tsd_state_reincarnated);
 	}
 
 	return tsd;
@@ -214,7 +214,7 @@ void
 tsd_cleanup(void *arg) {
 	tsd_t *tsd = (tsd_t *)arg;
 
-	switch (tsd->state) {
+	switch (tsd_state_get(tsd)) {
 	case tsd_state_uninitialized:
 		/* Do nothing. */
 		break;
@@ -232,7 +232,7 @@ tsd_cleanup(void *arg) {
 	case tsd_state_nominal:
 	case tsd_state_nominal_slow:
 		tsd_do_data_cleanup(tsd);
-		tsd->state = tsd_state_purgatory;
+		tsd_state_set(tsd, tsd_state_purgatory);
 		tsd_set(tsd);
 		break;
 	case tsd_state_purgatory:

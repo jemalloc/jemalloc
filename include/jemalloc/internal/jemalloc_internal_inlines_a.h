@@ -156,7 +156,7 @@ pre_reentrancy(tsd_t *tsd, arena_t *arena) {
 	if (fast) {
 		/* Prepare slow path for reentrancy. */
 		tsd_slow_update(tsd);
-		assert(tsd->state == tsd_state_nominal_slow);
+		assert(tsd_state_get(tsd) == tsd_state_nominal_slow);
 	}
 }
 
