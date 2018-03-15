@@ -868,19 +868,19 @@ stats_general_print(emitter_t *emitter) {
 
 	/* opt. */
 #define OPT_WRITE(name, var, size, emitter_type)			\
-	if (je_mallctl("opt."#name, (void *)&var, &size, NULL, 0) ==	\
+	if (je_mallctl("opt."name, (void *)&var, &size, NULL, 0) ==	\
 	    0) {							\
-		emitter_kv(emitter, #name, "opt."#name, emitter_type,	\
+		emitter_kv(emitter, name, "opt."name, emitter_type,	\
 		    &var);						\
 	}
 
 #define OPT_WRITE_MUTABLE(name, var1, var2, size, emitter_type,		\
     altname)								\
-	if (je_mallctl("opt."#name, (void *)&var1, &size, NULL, 0) ==	\
-	    0 && je_mallctl(#altname, (void *)&var2, &size, NULL, 0)	\
+	if (je_mallctl("opt."name, (void *)&var1, &size, NULL, 0) ==	\
+	    0 && je_mallctl(altname, (void *)&var2, &size, NULL, 0)	\
 	    == 0) {							\
-		emitter_kv_note(emitter, #name, "opt."#name,		\
-		    emitter_type, &var1, #altname, emitter_type,	\
+		emitter_kv_note(emitter, name, "opt."name,		\
+		    emitter_type, &var1, altname, emitter_type,		\
 		    &var2);						\
 	}
 
@@ -902,36 +902,37 @@ stats_general_print(emitter_t *emitter) {
 
 	emitter_dict_begin(emitter, "opt", "Run-time option settings");
 
-	OPT_WRITE_BOOL(abort)
-	OPT_WRITE_BOOL(abort_conf)
-	OPT_WRITE_BOOL(retain)
-	OPT_WRITE_CHAR_P(dss)
-	OPT_WRITE_UNSIGNED(narenas)
-	OPT_WRITE_CHAR_P(percpu_arena)
-	OPT_WRITE_CHAR_P(metadata_thp)
-	OPT_WRITE_BOOL_MUTABLE(background_thread, background_thread)
-	OPT_WRITE_SSIZE_T_MUTABLE(dirty_decay_ms, arenas.dirty_decay_ms)
-	OPT_WRITE_SSIZE_T_MUTABLE(muzzy_decay_ms, arenas.muzzy_decay_ms)
-	OPT_WRITE_UNSIGNED(lg_extent_max_active_fit)
-	OPT_WRITE_CHAR_P(junk)
-	OPT_WRITE_BOOL(zero)
-	OPT_WRITE_BOOL(utrace)
-	OPT_WRITE_BOOL(xmalloc)
-	OPT_WRITE_BOOL(tcache)
-	OPT_WRITE_SSIZE_T(lg_tcache_max)
-	OPT_WRITE_CHAR_P(thp)
-	OPT_WRITE_BOOL(prof)
-	OPT_WRITE_CHAR_P(prof_prefix)
-	OPT_WRITE_BOOL_MUTABLE(prof_active, prof.active)
-	OPT_WRITE_BOOL_MUTABLE(prof_thread_active_init, prof.thread_active_init)
-	OPT_WRITE_SSIZE_T_MUTABLE(lg_prof_sample, prof.lg_sample)
-	OPT_WRITE_BOOL(prof_accum)
-	OPT_WRITE_SSIZE_T(lg_prof_interval)
-	OPT_WRITE_BOOL(prof_gdump)
-	OPT_WRITE_BOOL(prof_final)
-	OPT_WRITE_BOOL(prof_leak)
-	OPT_WRITE_BOOL(stats_print)
-	OPT_WRITE_CHAR_P(stats_print_opts)
+	OPT_WRITE_BOOL("abort")
+	OPT_WRITE_BOOL("abort_conf")
+	OPT_WRITE_BOOL("retain")
+	OPT_WRITE_CHAR_P("dss")
+	OPT_WRITE_UNSIGNED("narenas")
+	OPT_WRITE_CHAR_P("percpu_arena")
+	OPT_WRITE_CHAR_P("metadata_thp")
+	OPT_WRITE_BOOL_MUTABLE("background_thread", "background_thread")
+	OPT_WRITE_SSIZE_T_MUTABLE("dirty_decay_ms", "arenas.dirty_decay_ms")
+	OPT_WRITE_SSIZE_T_MUTABLE("muzzy_decay_ms", "arenas.muzzy_decay_ms")
+	OPT_WRITE_UNSIGNED("lg_extent_max_active_fit")
+	OPT_WRITE_CHAR_P("junk")
+	OPT_WRITE_BOOL("zero")
+	OPT_WRITE_BOOL("utrace")
+	OPT_WRITE_BOOL("xmalloc")
+	OPT_WRITE_BOOL("tcache")
+	OPT_WRITE_SSIZE_T("lg_tcache_max")
+	OPT_WRITE_CHAR_P("thp")
+	OPT_WRITE_BOOL("prof")
+	OPT_WRITE_CHAR_P("prof_prefix")
+	OPT_WRITE_BOOL_MUTABLE("prof_active", "prof.active")
+	OPT_WRITE_BOOL_MUTABLE("prof_thread_active_init",
+	    "prof.thread_active_init")
+	OPT_WRITE_SSIZE_T_MUTABLE("lg_prof_sample", "prof.lg_sample")
+	OPT_WRITE_BOOL("prof_accum")
+	OPT_WRITE_SSIZE_T("lg_prof_interval")
+	OPT_WRITE_BOOL("prof_gdump")
+	OPT_WRITE_BOOL("prof_final")
+	OPT_WRITE_BOOL("prof_leak")
+	OPT_WRITE_BOOL("stats_print")
+	OPT_WRITE_CHAR_P("stats_print_opts")
 
 	emitter_dict_end(emitter);
 
