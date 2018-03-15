@@ -950,7 +950,7 @@ stats_general_print(emitter_t *emitter) {
 
 		CTL_GET("prof.thread_active_init", &bv, bool);
 		emitter_kv(emitter, "thread_active_init",
-		    "prof.thread_active_emit", emitter_type_bool, &bv);
+		    "prof.thread_active_init", emitter_type_bool, &bv);
 
 		CTL_GET("prof.active", &bv, bool);
 		emitter_kv(emitter, "active", "prof.active", emitter_type_bool,
