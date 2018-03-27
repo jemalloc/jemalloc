@@ -33,18 +33,3 @@ bin_init(bin_t *bin) {
 	}
 	return false;
 }
-
-void
-bin_prefork(tsdn_t *tsdn, bin_t *bin) {
-	malloc_mutex_prefork(tsdn, &bin->lock);
-}
-
-void
-bin_postfork_parent(tsdn_t *tsdn, bin_t *bin) {
-	malloc_mutex_postfork_parent(tsdn, &bin->lock);
-}
-
-void
-bin_postfork_child(tsdn_t *tsdn, bin_t *bin) {
-	malloc_mutex_postfork_child(tsdn, &bin->lock);
-}

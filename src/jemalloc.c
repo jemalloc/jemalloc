@@ -3192,8 +3192,6 @@ _malloc_prefork(void)
 #endif
 {
 	tsd_t *tsd;
-	unsigned i, j, narenas;
-	arena_t *arena;
 
 #ifdef JEMALLOC_MUTEX_INIT_CB
 	if (!malloc_initialized()) {
@@ -3204,56 +3202,12 @@ _malloc_prefork(void)
 
 	tsd = tsd_fetch();
 
-	narenas = narenas_total_get();
-
-	witness_prefork(tsd_witness_tsdp_get(tsd));
 	/* Acquire all mutexes in a safe order. */
-	ctl_prefork(tsd_tsdn(tsd));
-	tcache_prefork(tsd_tsdn(tsd));
-	malloc_mutex_prefork(tsd_tsdn(tsd), &arenas_lock);
+	witness_prefork(tsd_witness_tsdp_get(tsd));
 	if (have_background_thread) {
-		background_thread_prefork0(tsd_tsdn(tsd));
+		background_thread_prefork(tsd_tsdn(tsd));
 	}
-	prof_prefork0(tsd_tsdn(tsd));
-	if (have_background_thread) {
-		background_thread_prefork1(tsd_tsdn(tsd));
-	}
-	/* Break arena prefork into stages to preserve lock order. */
-	for (i = 0; i < 8; i++) {
-		for (j = 0; j < narenas; j++) {
-			if ((arena = arena_get(tsd_tsdn(tsd), j, false)) !=
-			    NULL) {
-				switch (i) {
-				case 0:
-					arena_prefork0(tsd_tsdn(tsd), arena);
-					break;
-				case 1:
-					arena_prefork1(tsd_tsdn(tsd), arena);
-					break;
-				case 2:
-					arena_prefork2(tsd_tsdn(tsd), arena);
-					break;
-				case 3:
-					arena_prefork3(tsd_tsdn(tsd), arena);
-					break;
-				case 4:
-					arena_prefork4(tsd_tsdn(tsd), arena);
-					break;
-				case 5:
-					arena_prefork5(tsd_tsdn(tsd), arena);
-					break;
-				case 6:
-					arena_prefork6(tsd_tsdn(tsd), arena);
-					break;
-				case 7:
-					arena_prefork7(tsd_tsdn(tsd), arena);
-					break;
-				default: not_reached();
-				}
-			}
-		}
-	}
-	prof_prefork1(tsd_tsdn(tsd));
+	malloc_mutex_prefork(tsd_tsdn(tsd),  &arenas_lock);
 }
 
 #ifndef JEMALLOC_MUTEX_INIT_CB
@@ -3265,7 +3219,6 @@ _malloc_postfork(void)
 #endif
 {
 	tsd_t *tsd;
-	unsigned i, narenas;
 
 #ifdef JEMALLOC_MUTEX_INIT_CB
 	if (!malloc_initialized()) {
@@ -3277,21 +3230,7 @@ _malloc_postfork(void)
 	tsd = tsd_fetch();
 
 	witness_postfork_parent(tsd_witness_tsdp_get(tsd));
-	/* Release all mutexes, now that fork() has completed. */
-	for (i = 0, narenas = narenas_total_get(); i < narenas; i++) {
-		arena_t *arena;
-
-		if ((arena = arena_get(tsd_tsdn(tsd), i, false)) != NULL) {
-			arena_postfork_parent(tsd_tsdn(tsd), arena);
-		}
-	}
-	prof_postfork_parent(tsd_tsdn(tsd));
-	if (have_background_thread) {
-		background_thread_postfork_parent(tsd_tsdn(tsd));
-	}
 	malloc_mutex_postfork_parent(tsd_tsdn(tsd), &arenas_lock);
-	tcache_postfork_parent(tsd_tsdn(tsd));
-	ctl_postfork_parent(tsd_tsdn(tsd));
 }
 
 void
@@ -3304,6 +3243,7 @@ jemalloc_postfork_child(void) {
 	tsd = tsd_fetch();
 
 	witness_postfork_child(tsd_witness_tsdp_get(tsd));
+	malloc_mutex_postfork_child(tsd_tsdn(tsd), &arenas_lock);
 	/* Release all mutexes, now that fork() has completed. */
 	for (i = 0, narenas = narenas_total_get(); i < narenas; i++) {
 		arena_t *arena;
@@ -3312,13 +3252,9 @@ jemalloc_postfork_child(void) {
 			arena_postfork_child(tsd_tsdn(tsd), arena);
 		}
 	}
-	prof_postfork_child(tsd_tsdn(tsd));
 	if (have_background_thread) {
 		background_thread_postfork_child(tsd_tsdn(tsd));
 	}
-	malloc_mutex_postfork_child(tsd_tsdn(tsd), &arenas_lock);
-	tcache_postfork_child(tsd_tsdn(tsd));
-	ctl_postfork_child(tsd_tsdn(tsd));
 }
 
 /******************************************************************************/

@@ -616,21 +616,6 @@ extents_leak(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
 	extent_dalloc(tsdn, arena, extent);
 }
 
-void
-extents_prefork(tsdn_t *tsdn, extents_t *extents) {
-	malloc_mutex_prefork(tsdn, &extents->mtx);
-}
-
-void
-extents_postfork_parent(tsdn_t *tsdn, extents_t *extents) {
-	malloc_mutex_postfork_parent(tsdn, &extents->mtx);
-}
-
-void
-extents_postfork_child(tsdn_t *tsdn, extents_t *extents) {
-	malloc_mutex_postfork_child(tsdn, &extents->mtx);
-}
-
 static void
 extent_deactivate_locked(tsdn_t *tsdn, arena_t *arena, extents_t *extents,
     extent_t *extent, bool preserve_lru) {

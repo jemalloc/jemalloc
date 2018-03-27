@@ -39,9 +39,6 @@ void extents_dalloc(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, extents_t *extents, extent_t *extent);
 extent_t *extents_evict(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, extents_t *extents, size_t npages_min);
-void extents_prefork(tsdn_t *tsdn, extents_t *extents);
-void extents_postfork_parent(tsdn_t *tsdn, extents_t *extents);
-void extents_postfork_child(tsdn_t *tsdn, extents_t *extents);
 extent_t *extent_alloc_wrapper(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, void *new_addr, size_t size, size_t pad,
     size_t alignment, bool slab, szind_t szind, bool *zero, bool *commit);

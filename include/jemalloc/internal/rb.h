@@ -48,6 +48,10 @@ struct {								\
     a_type *rbt_root;							\
 }
 
+#define RB_INITIALIZER {						\
+	NULL										\
+}
+
 /* Left accessors. */
 #define rbtn_left_get(a_type, a_field, a_node)				\
     ((a_node)->a_field.rbn_left)

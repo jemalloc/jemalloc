@@ -81,11 +81,6 @@ struct bin_s {
 /* Initializes a bin to empty.  Returns true on error. */
 bool bin_init(bin_t *bin);
 
-/* Forking. */
-void bin_prefork(tsdn_t *tsdn, bin_t *bin);
-void bin_postfork_parent(tsdn_t *tsdn, bin_t *bin);
-void bin_postfork_child(tsdn_t *tsdn, bin_t *bin);
-
 /* Stats. */
 static inline void
 bin_stats_merge(tsdn_t *tsdn, bin_stats_t *dst_bin_stats, bin_t *bin) {

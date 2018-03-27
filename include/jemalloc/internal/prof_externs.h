@@ -83,10 +83,6 @@ bool prof_gdump_set(tsdn_t *tsdn, bool active);
 void prof_boot0(void);
 void prof_boot1(void);
 bool prof_boot2(tsd_t *tsd);
-void prof_prefork0(tsdn_t *tsdn);
-void prof_prefork1(tsdn_t *tsdn);
-void prof_postfork_parent(tsdn_t *tsdn);
-void prof_postfork_child(tsdn_t *tsdn);
 void prof_sample_threshold_update(prof_tdata_t *tdata);
 
 #endif /* JEMALLOC_INTERNAL_PROF_EXTERNS_H */

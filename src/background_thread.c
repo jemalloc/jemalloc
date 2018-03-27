@@ -715,34 +715,12 @@ label_done:
 }
 
 void
-background_thread_prefork0(tsdn_t *tsdn) {
-	malloc_mutex_prefork(tsdn, &background_thread_lock);
+background_thread_prefork(tsdn_t *tsdn) {
 	background_thread_enabled_at_fork = background_thread_enabled();
 }
 
 void
-background_thread_prefork1(tsdn_t *tsdn) {
-	for (unsigned i = 0; i < ncpus; i++) {
-		malloc_mutex_prefork(tsdn, &background_thread_info[i].mtx);
-	}
-}
-
-void
-background_thread_postfork_parent(tsdn_t *tsdn) {
-	for (unsigned i = 0; i < ncpus; i++) {
-		malloc_mutex_postfork_parent(tsdn,
-		    &background_thread_info[i].mtx);
-	}
-	malloc_mutex_postfork_parent(tsdn, &background_thread_lock);
-}
-
-void
 background_thread_postfork_child(tsdn_t *tsdn) {
-	for (unsigned i = 0; i < ncpus; i++) {
-		malloc_mutex_postfork_child(tsdn,
-		    &background_thread_info[i].mtx);
-	}
-	malloc_mutex_postfork_child(tsdn, &background_thread_lock);
 	if (!background_thread_enabled_at_fork) {
 		return;
 	}

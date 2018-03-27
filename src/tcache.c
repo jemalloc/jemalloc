@@ -694,24 +694,3 @@ tcache_boot(tsdn_t *tsdn) {
 
 	return false;
 }
-
-void
-tcache_prefork(tsdn_t *tsdn) {
-	if (!config_prof && opt_tcache) {
-		malloc_mutex_prefork(tsdn, &tcaches_mtx);
-	}
-}
-
-void
-tcache_postfork_parent(tsdn_t *tsdn) {
-	if (!config_prof && opt_tcache) {
-		malloc_mutex_postfork_parent(tsdn, &tcaches_mtx);
-	}
-}
-
-void
-tcache_postfork_child(tsdn_t *tsdn) {
-	if (!config_prof && opt_tcache) {
-		malloc_mutex_postfork_child(tsdn, &tcaches_mtx);
-	}
-}

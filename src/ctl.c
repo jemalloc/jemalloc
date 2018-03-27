@@ -1270,21 +1270,6 @@ ctl_boot(void) {
 	return false;
 }
 
-void
-ctl_prefork(tsdn_t *tsdn) {
-	malloc_mutex_prefork(tsdn, &ctl_mtx);
-}
-
-void
-ctl_postfork_parent(tsdn_t *tsdn) {
-	malloc_mutex_postfork_parent(tsdn, &ctl_mtx);
-}
-
-void
-ctl_postfork_child(tsdn_t *tsdn) {
-	malloc_mutex_postfork_child(tsdn, &ctl_mtx);
-}
-
 /******************************************************************************/
 /* *_ctl() functions. */
 

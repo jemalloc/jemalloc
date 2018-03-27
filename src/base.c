@@ -492,21 +492,6 @@ base_stats_get(tsdn_t *tsdn, base_t *base, size_t *allocated, size_t *resident,
 	malloc_mutex_unlock(tsdn, &base->mtx);
 }
 
-void
-base_prefork(tsdn_t *tsdn, base_t *base) {
-	malloc_mutex_prefork(tsdn, &base->mtx);
-}
-
-void
-base_postfork_parent(tsdn_t *tsdn, base_t *base) {
-	malloc_mutex_postfork_parent(tsdn, &base->mtx);
-}
-
-void
-base_postfork_child(tsdn_t *tsdn, base_t *base) {
-	malloc_mutex_postfork_child(tsdn, &base->mtx);
-}
-
 bool
 base_boot(tsdn_t *tsdn) {
 	b0 = base_new(tsdn, 0, (extent_hooks_t *)&extent_hooks_default);

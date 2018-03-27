@@ -80,15 +80,6 @@ void arena_nthreads_dec(arena_t *arena, bool internal);
 size_t arena_extent_sn_next(arena_t *arena);
 arena_t *arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks);
 void arena_boot(void);
-void arena_prefork0(tsdn_t *tsdn, arena_t *arena);
-void arena_prefork1(tsdn_t *tsdn, arena_t *arena);
-void arena_prefork2(tsdn_t *tsdn, arena_t *arena);
-void arena_prefork3(tsdn_t *tsdn, arena_t *arena);
-void arena_prefork4(tsdn_t *tsdn, arena_t *arena);
-void arena_prefork5(tsdn_t *tsdn, arena_t *arena);
-void arena_prefork6(tsdn_t *tsdn, arena_t *arena);
-void arena_prefork7(tsdn_t *tsdn, arena_t *arena);
-void arena_postfork_parent(tsdn_t *tsdn, arena_t *arena);
 void arena_postfork_child(tsdn_t *tsdn, arena_t *arena);
 
 #endif /* JEMALLOC_INTERNAL_ARENA_EXTERNS_H */

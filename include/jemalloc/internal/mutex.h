@@ -5,6 +5,7 @@
 #include "jemalloc/internal/mutex_prof.h"
 #include "jemalloc/internal/tsd.h"
 #include "jemalloc/internal/witness.h"
+#include "jemalloc/internal/rb.h"
 
 typedef enum {
 	/* Can only acquire one mutex of a given witness rank at a time. */
@@ -45,6 +46,7 @@ struct malloc_mutex_s {
 #else
 			pthread_mutex_t		lock;
 #endif
+			rb_node(malloc_mutex_t)		rb_link;
 		};
 		/*
 		 * We only touch witness when configured w/ debug.  However we
@@ -64,6 +66,7 @@ struct malloc_mutex_s {
 #endif
 };
 
+typedef rb_tree(malloc_mutex_t) malloc_mutex_tree_t;
 /*
  * Based on benchmark results, a fixed spin with this amount of retries works
  * well for our critical sections.
@@ -128,10 +131,12 @@ extern bool isthreaded;
 
 bool malloc_mutex_init(malloc_mutex_t *mutex, const char *name,
     witness_rank_t rank, malloc_mutex_lock_order_t lock_order);
-void malloc_mutex_prefork(tsdn_t *tsdn, malloc_mutex_t *mutex);
-void malloc_mutex_postfork_parent(tsdn_t *tsdn, malloc_mutex_t *mutex);
-void malloc_mutex_postfork_child(tsdn_t *tsdn, malloc_mutex_t *mutex);
+void malloc_mutex_prefork(tsdn_t *tsdn, malloc_mutex_t * arena_lock);
+void malloc_mutex_postfork_parent(tsdn_t *tsdn, malloc_mutex_t * arena_lock);
+void malloc_mutex_postfork_child(tsdn_t *tsdn, malloc_mutex_t * arena_lock);
+
 bool malloc_mutex_boot(void);
+void malloc_mutex_rbtree_remove(tsdn_t *tsdn, malloc_mutex_t * mutex);
 void malloc_mutex_prof_data_reset(tsdn_t *tsdn, malloc_mutex_t *mutex);
 
 void malloc_mutex_lock_slow(malloc_mutex_t *mutex);
