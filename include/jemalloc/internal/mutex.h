@@ -47,6 +47,7 @@ struct malloc_mutex_s {
 			pthread_mutex_t		lock;
 #endif
 			rb_node(malloc_mutex_t)		rb_link;
+			witness_rank_t		rank;
 		};
 		/*
 		 * We only touch witness when configured w/ debug.  However we

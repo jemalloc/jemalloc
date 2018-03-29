@@ -135,15 +135,17 @@ mutex_addr_comp(const witness_t *witness1, void *mutex1,
 
 static int
 malloc_mutex_rank_comp(const malloc_mutex_t *a, const malloc_mutex_t *b) {
-	int ret = (a->witness.rank > b->witness.rank) - (a->witness.rank < b->witness.rank);
+	int ret = (a->rank > b->rank) - (a->rank < b->rank);
 	if(ret != 0) {
 		return ret;
 	}
-	if(a->witness.comp != NULL && a->witness.comp == b->witness.comp) {
-		ret = a->witness.comp(&a->witness, a->witness.opaque, &b->witness, b->witness.opaque);
-	}
-	if(ret != 0) {
-		return ret;
+	if (config_debug) {
+		if(a->witness.comp != NULL && a->witness.comp == b->witness.comp) {
+			ret = a->witness.comp(&(a->witness), a->witness.opaque, &(b->witness), b->witness.opaque);
+		}
+		if(ret != 0) {
+			return ret;
+		}
 	}
 	return (a > b) - (a < b);
 }
@@ -154,7 +156,6 @@ rb_gen(static UNUSED, malloc_mutex_tree_, malloc_mutex_tree_t, malloc_mutex_t,
 static bool
 malloc_mutex_init_internal(malloc_mutex_t *mutex, const char *name,
     witness_rank_t rank, malloc_mutex_lock_order_t lock_order, bool child_fork) {
-
 	mutex_prof_data_init(&mutex->prof_data);
 #ifdef _WIN32
 #  if _WIN32_WINNT >= 0x0600
@@ -192,6 +193,7 @@ malloc_mutex_init_internal(malloc_mutex_t *mutex, const char *name,
 	}
 	pthread_mutexattr_destroy(&attr);
 #endif
+	mutex->rank = rank;
 	if (config_debug) {
 		mutex->lock_order = lock_order;
 		if (lock_order == malloc_mutex_address_ordered) {
@@ -248,7 +250,7 @@ malloc_mutex_postfork_unlock_iter(malloc_mutex_tree_t * rbt, malloc_mutex_t * mu
 static malloc_mutex_t *
 malloc_mutex_postfork_init_iter(malloc_mutex_tree_t * rbt, malloc_mutex_t * mutex, void * tsdn) {
 	if (malloc_mutex_init_internal(mutex, mutex->witness.name,
-	    mutex->witness.rank, mutex->lock_order, true)) {
+	    mutex->rank, mutex->lock_order, true)) {
 		malloc_printf("<jemalloc>: Error re-initializing mutex in "
 		    "child\n");
 		if (opt_abort) {
@@ -260,38 +262,22 @@ malloc_mutex_postfork_init_iter(malloc_mutex_tree_t * rbt, malloc_mutex_t * mute
 
 void
 malloc_mutex_postfork_parent(tsdn_t *tsdn, malloc_mutex_t * arenas_lock) {
-	malloc_mutex_tree_reverse_iter(&rbtmutexes_top_half, NULL, malloc_mutex_postfork_unlock_iter, tsdn);
-
-	malloc_mutex_lock(TSDN_NULL, &rbt_mtx);
-
-	//arenas unlock allows new arenas to be added with new
-	//mutexes, which modifies rbtmutexes_bottom_half tree, so we need to be
-	//inside lock
-	malloc_mutex_unlock(tsdn, arenas_lock);
 	malloc_mutex_tree_reverse_iter(&rbtmutexes_bottom_half, NULL, malloc_mutex_postfork_unlock_iter, tsdn);
-
-	malloc_mutex_unlock(TSDN_NULL, &rbt_mtx);
+	malloc_mutex_unlock(tsdn, arenas_lock);
+	malloc_mutex_tree_reverse_iter(&rbtmutexes_top_half, NULL, malloc_mutex_postfork_unlock_iter, tsdn);
 }
 
 void
 malloc_mutex_postfork_child(tsdn_t *tsdn, malloc_mutex_t * arenas_lock) {
-	malloc_mutex_init_internal(&rbt_mtx, rbt_mtx.witness.name,
-			rbt_mtx.witness.rank, rbt_mtx.lock_order, true);
 #ifdef JEMALLOC_MUTEX_INIT_CB
-	malloc_mutex_tree_iter(&rbtmutexes_top_half, NULL, malloc_mutex_postfork_unlock_iter, tsdn);
-
-	malloc_mutex_lock(TSDN_NULL, &rbt_mtx);
+	malloc_mutex_tree_reverse_iter(&rbtmutexes_bottom_half, NULL, malloc_mutex_postfork_unlock_iter, tsdn);
 	malloc_mutex_unlock(tsdn, arenas_lock);
-	malloc_mutex_tree_iter(&rbtmutexes_bottom_half, NULL, malloc_mutex_postfork_unlock_iter, tsdn);
-	malloc_mutex_unlock(TSDN_NULL, &rbt_mtx);
+	malloc_mutex_tree_reverse_iter(&rbtmutexes_top_half, NULL, malloc_mutex_postfork_unlock_iter, tsdn);
 #else
-	malloc_mutex_tree_iter(&rbtmutexes_top_half, NULL, malloc_mutex_postfork_init_iter, tsdn);
-
-	malloc_mutex_lock(TSDN_NULL, &rbt_mtx);
+	malloc_mutex_tree_reverse_iter(&rbtmutexes_bottom_half, NULL, malloc_mutex_postfork_init_iter, tsdn);
 	malloc_mutex_init_internal(arenas_lock, arenas_lock->witness.name,
-			arenas_lock->witness.rank, arenas_lock->lock_order, true);
-	malloc_mutex_tree_iter(&rbtmutexes_bottom_half, NULL, malloc_mutex_postfork_init_iter, tsdn);
-	malloc_mutex_unlock(TSDN_NULL, &rbt_mtx);
+			arenas_lock->rank, arenas_lock->lock_order, true);
+	malloc_mutex_tree_reverse_iter(&rbtmutexes_top_half, NULL, malloc_mutex_postfork_init_iter, tsdn);
 #endif
 }
 
@@ -307,13 +293,12 @@ malloc_mutex_boot(void) {
 		postponed_mutexes = postponed_mutexes->postponed_next;
 	}
 #endif
-	malloc_mutex_init_internal(&rbt_mtx, "mutex_rbtree_mtx", WITNESS_RANK_OMIT,
-			malloc_mutex_rank_exclusive, true);
 	return false;
 }
 
 void malloc_mutex_rbtree_remove(tsdn_t *tsdn, malloc_mutex_t * mutex) {
-	malloc_mutex_lock(TSDN_NULL, &rbt_mtx);
+	/* right now this is called with arenas_lock held from arena_detroy so rbt_mtx lock
+	 * is unnecessary */
 #define OP(tree, mutex) do {	\
 		malloc_mutex_t * tmp = malloc_mutex_tree_search(&tree, mutex);	\
 		if(tmp == mutex) {	\
@@ -323,5 +308,4 @@ void malloc_mutex_rbtree_remove(tsdn_t *tsdn, malloc_mutex_t * mutex) {
 	OP(rbtmutexes_top_half, mutex);
 	OP(rbtmutexes_bottom_half, mutex);
 #undef OP
-	malloc_mutex_unlock(TSDN_NULL, &rbt_mtx);	\
 }

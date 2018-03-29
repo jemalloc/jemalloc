@@ -1066,10 +1066,22 @@ arena_destroy(tsd_t *tsd, arena_t *arena) {
 	assert(extents_npages_get(&arena->extents_dirty) == 0);
 	assert(extents_npages_get(&arena->extents_muzzy) == 0);
 
+	/* deregister all area mutexes before base_delete destroy them all */
 	malloc_mutex_rbtree_remove(tsd_tsdn(tsd), &arena->tcache_ql_mtx);
 	malloc_mutex_rbtree_remove(tsd_tsdn(tsd), &arena->large_mtx);
 	malloc_mutex_rbtree_remove(tsd_tsdn(tsd), &arena->extent_grow_mtx);
 	malloc_mutex_rbtree_remove(tsd_tsdn(tsd), &arena->extent_avail_mtx);
+
+	for (int i = 0; i < NBINS; i++) {
+		malloc_mutex_rbtree_remove(tsd_tsdn(tsd), &(arena->bins[i].lock));
+	}
+
+	malloc_mutex_rbtree_remove(tsd_tsdn(tsd), &(arena->extents_dirty.mtx));
+	malloc_mutex_rbtree_remove(tsd_tsdn(tsd), &(arena->extents_muzzy.mtx));
+	malloc_mutex_rbtree_remove(tsd_tsdn(tsd), &(arena->extents_retained.mtx));
+
+	malloc_mutex_rbtree_remove(tsd_tsdn(tsd), &(arena->decay_dirty.mtx));
+	malloc_mutex_rbtree_remove(tsd_tsdn(tsd), &(arena->decay_muzzy.mtx));
 
 	/* Deallocate retained memory. */
 	arena_destroy_retained(tsd_tsdn(tsd), arena);

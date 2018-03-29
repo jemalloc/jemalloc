@@ -396,6 +396,7 @@ void
 base_delete(tsdn_t *tsdn, base_t *base) {
 	extent_hooks_t *extent_hooks = base_extent_hooks_get(base);
 	base_block_t *next = base->blocks;
+	malloc_mutex_rbtree_remove(tsdn, &base->mtx);
 	do {
 		base_block_t *block = next;
 		next = block->next;
