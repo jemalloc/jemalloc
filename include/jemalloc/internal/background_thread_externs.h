@@ -2,9 +2,11 @@
 #define JEMALLOC_INTERNAL_BACKGROUND_THREAD_EXTERNS_H
 
 extern bool opt_background_thread;
+extern size_t opt_max_background_threads;
 extern malloc_mutex_t background_thread_lock;
 extern atomic_b_t background_thread_enabled_state;
 extern size_t n_background_threads;
+extern size_t max_background_threads;
 extern background_thread_info_t *background_thread_info;
 extern bool can_enable_background_thread;
 

@@ -8,6 +8,7 @@
 #endif
 
 #define BACKGROUND_THREAD_INDEFINITE_SLEEP UINT64_MAX
+#define MAX_BACKGROUND_THREAD_LIMIT MALLOCX_ARENA_LIMIT
 
 typedef enum {
 	background_thread_stopped,
