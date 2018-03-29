@@ -57,6 +57,7 @@ static const ctl_named_node_t	*n##_index(tsdn_t *tsdn,		\
 CTL_PROTO(version)
 CTL_PROTO(epoch)
 CTL_PROTO(background_thread)
+CTL_PROTO(max_background_threads)
 CTL_PROTO(thread_tcache_enabled)
 CTL_PROTO(thread_tcache_flush)
 CTL_PROTO(thread_prof_name)
@@ -85,6 +86,7 @@ CTL_PROTO(opt_dss)
 CTL_PROTO(opt_narenas)
 CTL_PROTO(opt_percpu_arena)
 CTL_PROTO(opt_background_thread)
+CTL_PROTO(opt_max_background_threads)
 CTL_PROTO(opt_dirty_decay_ms)
 CTL_PROTO(opt_muzzy_decay_ms)
 CTL_PROTO(opt_stats_print)
@@ -284,6 +286,7 @@ static const ctl_named_node_t opt_node[] = {
 	{NAME("narenas"),	CTL(opt_narenas)},
 	{NAME("percpu_arena"),	CTL(opt_percpu_arena)},
 	{NAME("background_thread"),	CTL(opt_background_thread)},
+	{NAME("max_background_threads"),	CTL(opt_max_background_threads)},
 	{NAME("dirty_decay_ms"), CTL(opt_dirty_decay_ms)},
 	{NAME("muzzy_decay_ms"), CTL(opt_muzzy_decay_ms)},
 	{NAME("stats_print"),	CTL(opt_stats_print)},
@@ -535,6 +538,7 @@ static const ctl_named_node_t	root_node[] = {
 	{NAME("version"),	CTL(version)},
 	{NAME("epoch"),		CTL(epoch)},
 	{NAME("background_thread"),	CTL(background_thread)},
+	{NAME("max_background_threads"),	CTL(max_background_threads)},
 	{NAME("thread"),	CHILD(named, thread)},
 	{NAME("config"),	CHILD(named, config)},
 	{NAME("opt"),		CHILD(named, opt)},
@@ -1564,6 +1568,71 @@ label_return:
 	return ret;
 }
 
+static int
+max_background_threads_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
+    void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
+	int ret;
+	size_t oldval;
+
+	if (!have_background_thread) {
+		return ENOENT;
+	}
+	background_thread_ctl_init(tsd_tsdn(tsd));
+
+	malloc_mutex_lock(tsd_tsdn(tsd), &ctl_mtx);
+	malloc_mutex_lock(tsd_tsdn(tsd), &background_thread_lock);
+	if (newp == NULL) {
+		oldval = max_background_threads;
+		READ(oldval, size_t);
+	} else {
+		if (newlen != sizeof(size_t)) {
+			ret = EINVAL;
+			goto label_return;
+		}
+		oldval = max_background_threads;
+		READ(oldval, size_t);
+
+		size_t newval = *(size_t *)newp;
+		if (newval == oldval) {
+			ret = 0;
+			goto label_return;
+		}
+		if (newval > opt_max_background_threads) {
+			ret = EINVAL;
+			goto label_return;
+		}
+
+		if (background_thread_enabled()) {
+			if (!can_enable_background_thread) {
+				malloc_printf("<jemalloc>: Error in dlsym("
+			            "RTLD_NEXT, \"pthread_create\"). Cannot "
+				    "enable background_thread\n");
+				ret = EFAULT;
+				goto label_return;
+			}
+			background_thread_enabled_set(tsd_tsdn(tsd), false);
+			if (background_threads_disable(tsd)) {
+				ret = EFAULT;
+				goto label_return;
+			}
+			max_background_threads = newval;
+			background_thread_enabled_set(tsd_tsdn(tsd), true);
+			if (background_threads_enable(tsd)) {
+				ret = EFAULT;
+				goto label_return;
+			}
+		} else {
+			max_background_threads = newval;
+		}
+	}
+	ret = 0;
+label_return:
+	malloc_mutex_unlock(tsd_tsdn(tsd), &background_thread_lock);
+	malloc_mutex_unlock(tsd_tsdn(tsd), &ctl_mtx);
+
+	return ret;
+}
+
 /******************************************************************************/
 
 CTL_RO_CONFIG_GEN(config_cache_oblivious, bool)
@@ -1590,6 +1659,7 @@ CTL_RO_NL_GEN(opt_narenas, opt_narenas, unsigned)
 CTL_RO_NL_GEN(opt_percpu_arena, percpu_arena_mode_names[opt_percpu_arena],
     const char *)
 CTL_RO_NL_GEN(opt_background_thread, opt_background_thread, bool)
+CTL_RO_NL_GEN(opt_max_background_threads, opt_max_background_threads, size_t)
 CTL_RO_NL_GEN(opt_dirty_decay_ms, opt_dirty_decay_ms, ssize_t)
 CTL_RO_NL_GEN(opt_muzzy_decay_ms, opt_muzzy_decay_ms, ssize_t)
 CTL_RO_NL_GEN(opt_stats_print, opt_stats_print, bool)

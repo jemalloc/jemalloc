@@ -761,6 +761,18 @@ mallctl("arena." STRINGIFY(MALLCTL_ARENAS_ALL) ".decay",
         selected pthread-based platforms.</para></listitem>
       </varlistentry>
 
+      <varlistentry id="max_background_threads">
+        <term>
+          <mallctl>max_background_threads</mallctl>
+          (<type>size_t</type>)
+          <literal>rw</literal>
+        </term>
+        <listitem><para>Maximum number of background worker threads that will
+        be created.  This value is capped at <link
+        linkend="opt.max_background_threads"><mallctl>opt.max_background_threads</mallctl></link> at
+        startup.</para></listitem>
+      </varlistentry>
+
       <varlistentry id="config.cache_oblivious">
         <term>
           <mallctl>config.cache_oblivious</mallctl>
@@ -1007,6 +1019,17 @@ mallctl("arena." STRINGIFY(MALLCTL_ARENAS_ALL) ".decay",
         linkend="background_thread">background_thread</link> for dynamic control
         options and details.  This option is disabled by
         default.</para></listitem>
+      </varlistentry>
+
+      <varlistentry id="opt.max_background_threads">
+        <term>
+          <mallctl>opt.max_background_threads</mallctl>
+          (<type>const size_t</type>)
+          <literal>r-</literal>
+        </term>
+        <listitem><para>Maximum number of background threads that will be created
+        if <link linkend="background_thread">background_thread</link> is set.
+        Defaults to number of cpus.</para></listitem>
       </varlistentry>
 
       <varlistentry id="opt.dirty_decay_ms">
