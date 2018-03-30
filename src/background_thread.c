@@ -380,34 +380,28 @@ background_thread_create_signals_masked(pthread_t *thread,
 	return create_err;
 }
 
-static void
+static bool
 check_background_thread_creation(tsd_t *tsd, unsigned *n_created,
     bool *created_threads) {
+	bool ret = false;
 	if (likely(*n_created == n_background_threads)) {
-		return;
+		return ret;
 	}
 
-	malloc_mutex_unlock(tsd_tsdn(tsd), &background_thread_info[0].mtx);
-label_restart:
-	malloc_mutex_lock(tsd_tsdn(tsd), &background_thread_lock);
+	tsdn_t *tsdn = tsd_tsdn(tsd);
+	malloc_mutex_unlock(tsdn, &background_thread_info[0].mtx);
 	for (unsigned i = 1; i < ncpus; i++) {
 		if (created_threads[i]) {
 			continue;
 		}
 		background_thread_info_t *info = &background_thread_info[i];
-		malloc_mutex_lock(tsd_tsdn(tsd), &info->mtx);
+		malloc_mutex_lock(tsdn, &info->mtx);
 		assert(info->state != background_thread_paused);
 		bool create = (info->state == background_thread_started);
-		malloc_mutex_unlock(tsd_tsdn(tsd), &info->mtx);
+		malloc_mutex_unlock(tsdn, &info->mtx);
 		if (!create) {
 			continue;
 		}
-
-		/*
-		 * To avoid deadlock with prefork handlers (which waits for the
-		 * mutex held here), unlock before calling pthread_create().
-		 */
-		malloc_mutex_unlock(tsd_tsdn(tsd), &background_thread_lock);
 
 		pre_reentrancy(tsd, NULL);
 		int err = background_thread_create_signals_masked(&info->thread,
@@ -424,11 +418,13 @@ label_restart:
 				abort();
 			}
 		}
-		/* Restart since we unlocked. */
-		goto label_restart;
+		/* Return to restart the loop since we unlocked. */
+		ret = true;
+		break;
 	}
-	malloc_mutex_lock(tsd_tsdn(tsd), &background_thread_info[0].mtx);
-	malloc_mutex_unlock(tsd_tsdn(tsd), &background_thread_lock);
+	malloc_mutex_lock(tsdn, &background_thread_info[0].mtx);
+
+	return ret;
 }
 
 static void
@@ -446,8 +442,10 @@ background_thread0_work(tsd_t *tsd) {
 		    &background_thread_info[0])) {
 			continue;
 		}
-		check_background_thread_creation(tsd, &n_created,
-		    (bool *)&created_threads);
+		if (check_background_thread_creation(tsd, &n_created,
+		    (bool *)&created_threads)) {
+			continue;
+		}
 		background_work_sleep_once(tsd_tsdn(tsd),
 		    &background_thread_info[0], 0);
 	}
@@ -464,8 +462,13 @@ background_thread0_work(tsd_t *tsd) {
 			background_threads_disable_single(tsd, info);
 		} else {
 			malloc_mutex_lock(tsd_tsdn(tsd), &info->mtx);
-			/* Clear in case the thread wasn't created. */
-			info->state = background_thread_stopped;
+			if (info->state != background_thread_stopped) {
+				/* The thread was not created. */
+				assert(info->state ==
+				    background_thread_started);
+				n_background_threads--;
+				info->state = background_thread_stopped;
+			}
 			malloc_mutex_unlock(tsd_tsdn(tsd), &info->mtx);
 		}
 	}
@@ -593,6 +596,8 @@ background_threads_enable(tsd_t *tsd) {
 		marked[i] = false;
 	}
 	nmarked = 0;
+	/* Thread 0 is required and created at the end. */
+	marked[0] = true;
 	/* Mark the threads we need to create for thread 0. */
 	unsigned n = narenas_total_get();
 	for (i = 1; i < n; i++) {
