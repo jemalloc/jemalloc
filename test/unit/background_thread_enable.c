@@ -24,6 +24,9 @@ TEST_BEGIN(test_deferred) {
 	size_t sz_b = sizeof(bool);
 	assert_d_eq(mallctl("background_thread", NULL, NULL, &enable, sz_b), 0,
 	    "Failed to enable background threads");
+	enable = false;
+	assert_d_eq(mallctl("background_thread", NULL, NULL, &enable, sz_b), 0,
+	    "Failed to disable background threads");
 }
 TEST_END
 
