@@ -1067,7 +1067,13 @@ arena_destroy(tsd_t *tsd, arena_t *arena) {
 	assert(extents_npages_get(&arena->extents_muzzy) == 0);
 
 	/* deregister all area mutexes before base_delete destroy them all */
-	malloc_mutex_rbtree_remove(tsd_tsdn(tsd), &arena->tcache_ql_mtx);
+	if(config_stats)
+	{
+#ifndef JEMALLOC_ATOMIC_U64
+		malloc_mutex_rbtree_remove(tsd_tsdn(tsd), &(arena->stats.mtx));
+#endif
+		malloc_mutex_rbtree_remove(tsd_tsdn(tsd), &arena->tcache_ql_mtx);
+	}
 	malloc_mutex_rbtree_remove(tsd_tsdn(tsd), &arena->large_mtx);
 	malloc_mutex_rbtree_remove(tsd_tsdn(tsd), &arena->extent_grow_mtx);
 	malloc_mutex_rbtree_remove(tsd_tsdn(tsd), &arena->extent_avail_mtx);

@@ -23,7 +23,6 @@ static malloc_mutex_t	*postponed_mutexes = NULL;
 
 static malloc_mutex_tree_t rbtmutexes_top_half = RB_INITIALIZER;
 static malloc_mutex_tree_t rbtmutexes_bottom_half = RB_INITIALIZER;
-static malloc_mutex_t rbt_mtx = MALLOC_MUTEX_INITIALIZER;
 /******************************************************************************/
 /*
  * We intercept pthread_create() calls in order to toggle isthreaded if the
@@ -204,7 +203,6 @@ malloc_mutex_init_internal(malloc_mutex_t *mutex, const char *name,
 		}
 	}
 	if(!child_fork) {
-		malloc_mutex_lock(TSDN_NULL, &rbt_mtx);
 #define OP(cmp_less_op, tree) do { \
 			bool cond = cmp_less_op ? (rank < WITNESS_RANK_ARENAS) : (rank > WITNESS_RANK_ARENAS); \
 			if(cond) { 	\
@@ -217,7 +215,6 @@ malloc_mutex_init_internal(malloc_mutex_t *mutex, const char *name,
 		OP(true, rbtmutexes_top_half);
 		OP(false, rbtmutexes_bottom_half);
 #undef OP
-		malloc_mutex_unlock(TSDN_NULL, &rbt_mtx);
 	}
 	return false;
 }
@@ -247,6 +244,7 @@ malloc_mutex_postfork_unlock_iter(malloc_mutex_tree_t * rbt, malloc_mutex_t * mu
 	return NULL;
 }
 
+#ifndef JEMALLOC_MUTEX_INIT_CB
 static malloc_mutex_t *
 malloc_mutex_postfork_init_iter(malloc_mutex_tree_t * rbt, malloc_mutex_t * mutex, void * tsdn) {
 	if (malloc_mutex_init_internal(mutex, mutex->witness.name,
@@ -259,6 +257,7 @@ malloc_mutex_postfork_init_iter(malloc_mutex_tree_t * rbt, malloc_mutex_t * mute
 	}
 	return NULL;
 }
+#endif
 
 void
 malloc_mutex_postfork_parent(tsdn_t *tsdn, malloc_mutex_t * arenas_lock) {
