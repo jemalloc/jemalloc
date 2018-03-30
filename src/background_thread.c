@@ -56,9 +56,7 @@ bool background_threads_enable(tsd_t *tsd) NOT_REACHED
 bool background_threads_disable(tsd_t *tsd) NOT_REACHED
 void background_thread_interval_check(tsdn_t *tsdn, arena_t *arena,
     arena_decay_t *decay, size_t npages_new) NOT_REACHED
-void background_thread_prefork0(tsdn_t *tsdn) NOT_REACHED
-void background_thread_prefork1(tsdn_t *tsdn) NOT_REACHED
-void background_thread_postfork_parent(tsdn_t *tsdn) NOT_REACHED
+void background_thread_prefork(tsdn_t *tsdn) NOT_REACHED
 void background_thread_postfork_child(tsdn_t *tsdn) NOT_REACHED
 bool background_thread_stats_read(tsdn_t *tsdn,
     background_thread_stats_t *stats) NOT_REACHED

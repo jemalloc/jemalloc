@@ -1074,6 +1074,12 @@ arena_destroy(tsd_t *tsd, arena_t *arena) {
 #endif
 		malloc_mutex_rbtree_remove(tsd_tsdn(tsd), &arena->tcache_ql_mtx);
 	}
+	if(config_prof)
+	{
+#ifndef JEMALLOC_ATOMIC_U64
+		malloc_mutex_rbtree_remove(tsd_tsdn(tsd),&arena->prof_accum.mtx);
+#endif
+	}
 	malloc_mutex_rbtree_remove(tsd_tsdn(tsd), &arena->large_mtx);
 	malloc_mutex_rbtree_remove(tsd_tsdn(tsd), &arena->extent_grow_mtx);
 	malloc_mutex_rbtree_remove(tsd_tsdn(tsd), &arena->extent_avail_mtx);
