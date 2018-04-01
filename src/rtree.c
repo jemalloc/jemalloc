@@ -92,6 +92,7 @@ rtree_delete_subtree(tsdn_t *tsdn, rtree_t *rtree, rtree_node_elm_t *subtree,
 
 void
 rtree_delete(tsdn_t *tsdn, rtree_t *rtree) {
+	malloc_mutex_rbtree_remove(tsdn, &rtree->init_lock);
 #  if RTREE_HEIGHT > 1
 	rtree_delete_subtree(tsdn, rtree, rtree->root, 0);
 #  endif

@@ -203,17 +203,13 @@ malloc_mutex_init_internal(malloc_mutex_t *mutex, const char *name,
 		}
 	}
 	if(!child_fork) {
-#define OP(cmp_less_op, tree) do { \
-			bool cond = cmp_less_op ? (rank < WITNESS_RANK_ARENAS) : (rank > WITNESS_RANK_ARENAS); \
+#define OP(cond, mutex, tree) do { \
 			if(cond) { 	\
-				malloc_mutex_t * tmp = malloc_mutex_tree_search(&tree, mutex);	\
-				if(mutex != tmp) {	\
 					malloc_mutex_tree_insert(&tree, mutex);	\
-				}	\
 			}	\
 		} while(0)
-		OP(true, rbtmutexes_top_half);
-		OP(false, rbtmutexes_bottom_half);
+		OP(rank < WITNESS_RANK_ARENAS, mutex, rbtmutexes_top_half);
+		OP(rank > WITNESS_RANK_ARENAS, mutex, rbtmutexes_bottom_half);
 #undef OP
 	}
 	return false;
@@ -296,15 +292,12 @@ malloc_mutex_boot(void) {
 }
 
 void malloc_mutex_rbtree_remove(tsdn_t *tsdn, malloc_mutex_t * mutex) {
-	/* right now this is called with arenas_lock held from arena_detroy so rbt_mtx lock
-	 * is unnecessary */
-#define OP(tree, mutex) do {	\
-		malloc_mutex_t * tmp = malloc_mutex_tree_search(&tree, mutex);	\
-		if(tmp == mutex) {	\
+#define OP(cond, mutex, tree) do { \
+		if(cond) { 	\
 			malloc_mutex_tree_remove(&tree, mutex);	\
 		}	\
 	} while(0)
-	OP(rbtmutexes_top_half, mutex);
-	OP(rbtmutexes_bottom_half, mutex);
+	OP(mutex->rank < WITNESS_RANK_ARENAS, mutex, rbtmutexes_top_half);
+	OP(mutex->rank > WITNESS_RANK_ARENAS, mutex, rbtmutexes_bottom_half);
 #undef OP
 }
