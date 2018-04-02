@@ -26,6 +26,7 @@ typedef enum {
     OP(decay_dirty)							\
     OP(decay_muzzy)							\
     OP(base)								\
+    OP(extents_pool)							\
     OP(tcache_list)
 
 typedef enum {

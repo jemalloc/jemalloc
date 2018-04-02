@@ -30,6 +30,45 @@ mutex_pool_assert_not_held(tsdn_t *tsdn, mutex_pool_t *pool) {
 	}
 }
 
+static inline void
+mutex_pool_prefork(tsdn_t *tsdn, mutex_pool_t *pool) {
+	for (int i = 0; i < MUTEX_POOL_SIZE; i++) {
+		malloc_mutex_prefork(tsdn, &pool->mutexes[i]);
+	}
+}
+
+static inline void
+mutex_pool_postfork_parent(tsdn_t *tsdn, mutex_pool_t *pool) {
+	for (int i = 0; i < MUTEX_POOL_SIZE; i++) {
+		malloc_mutex_postfork_parent(tsdn, &pool->mutexes[i]);
+	}
+}
+
+static inline void
+mutex_pool_postfork_child(tsdn_t *tsdn, mutex_pool_t *pool) {
+	for (int i = 0; i < MUTEX_POOL_SIZE; i++) {
+		malloc_mutex_postfork_child(tsdn, &pool->mutexes[i]);
+	}
+}
+
+static inline void
+mutex_pool_prof_read(tsdn_t *tsdn, mutex_prof_data_t *total,
+		     mutex_pool_t *pool) {
+	malloc_mutex_lock(tsdn, &pool->mutexes[0]);
+	malloc_mutex_prof_read(tsdn, total, &pool->mutexes[0]);
+	malloc_mutex_unlock(tsdn, &pool->mutexes[0]);
+
+	for (int i = 1; i < MUTEX_POOL_SIZE; i++) {
+		mutex_prof_data_t data;
+
+		malloc_mutex_lock(tsdn, &pool->mutexes[i]);
+		malloc_mutex_prof_read(tsdn, &data, &pool->mutexes[i]);
+		malloc_mutex_unlock(tsdn, &pool->mutexes[i]);
+
+		malloc_mutex_prof_merge(total, &data);
+	}
+}
+
 /*
  * Note that a mutex pool doesn't work exactly the way an embdedded mutex would.
  * You're not allowed to acquire mutexes in the pool one at a time.  You have to
@@ -39,27 +78,26 @@ mutex_pool_assert_not_held(tsdn_t *tsdn, mutex_pool_t *pool) {
 
 static inline void
 mutex_pool_lock(tsdn_t *tsdn, mutex_pool_t *pool, uintptr_t key) {
-	mutex_pool_assert_not_held(tsdn, pool);
 
 	malloc_mutex_t *mutex = mutex_pool_mutex(pool, key);
+	malloc_mutex_assert_not_owner(tsdn, mutex);
 	malloc_mutex_lock(tsdn, mutex);
 }
 
 static inline void
 mutex_pool_unlock(tsdn_t *tsdn, mutex_pool_t *pool, uintptr_t key) {
 	malloc_mutex_t *mutex = mutex_pool_mutex(pool, key);
+	malloc_mutex_assert_owner(tsdn, mutex);
 	malloc_mutex_unlock(tsdn, mutex);
-
-	mutex_pool_assert_not_held(tsdn, pool);
 }
 
 static inline void
 mutex_pool_lock2(tsdn_t *tsdn, mutex_pool_t *pool, uintptr_t key1,
     uintptr_t key2) {
-	mutex_pool_assert_not_held(tsdn, pool);
-
 	malloc_mutex_t *mutex1 = mutex_pool_mutex(pool, key1);
 	malloc_mutex_t *mutex2 = mutex_pool_mutex(pool, key2);
+	malloc_mutex_assert_not_owner(tsdn, mutex1);
+	malloc_mutex_assert_not_owner(tsdn, mutex2);
 	if ((uintptr_t)mutex1 < (uintptr_t)mutex2) {
 		malloc_mutex_lock(tsdn, mutex1);
 		malloc_mutex_lock(tsdn, mutex2);
@@ -76,14 +114,14 @@ mutex_pool_unlock2(tsdn_t *tsdn, mutex_pool_t *pool, uintptr_t key1,
     uintptr_t key2) {
 	malloc_mutex_t *mutex1 = mutex_pool_mutex(pool, key1);
 	malloc_mutex_t *mutex2 = mutex_pool_mutex(pool, key2);
+	malloc_mutex_assert_owner(tsdn, mutex1);
+	malloc_mutex_assert_owner(tsdn, mutex2);
 	if (mutex1 == mutex2) {
 		malloc_mutex_unlock(tsdn, mutex1);
 	} else {
 		malloc_mutex_unlock(tsdn, mutex1);
 		malloc_mutex_unlock(tsdn, mutex2);
 	}
-
-	mutex_pool_assert_not_held(tsdn, pool);
 }
 
 static inline void

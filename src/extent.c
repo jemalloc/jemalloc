@@ -67,6 +67,12 @@ static bool extent_merge_default(extent_hooks_t *extent_hooks, void *addr_a,
 static bool extent_merge_impl(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, extent_t *a, extent_t *b,
     bool growing_retained);
+static void
+extent_activate_locked(tsdn_t *tsdn, arena_t *arena, extents_t *extents,
+                       extent_t *extent);
+static void
+extent_deactivate(tsdn_t *tsdn, arena_t *arena, extents_t *extents,
+                         extent_t *extent);
 
 const extent_hooks_t	extent_hooks_default = {
 	extent_alloc_default,
@@ -280,15 +286,16 @@ ph_gen(, extent_heap_, extent_heap_t, extent_t, ph_link, extent_snad_comp)
 bool
 extents_init(tsdn_t *tsdn, extents_t *extents, extent_state_t state,
     bool delay_coalesce) {
-	if (malloc_mutex_init(&extents->mtx, "extents", WITNESS_RANK_EXTENTS,
-	    malloc_mutex_rank_exclusive)) {
-		return true;
-	}
 	for (unsigned i = 0; i < NPSIZES+1; i++) {
 		extent_heap_new(&extents->heaps[i]);
+		extent_list_init(&extents->lru[i]);
 	}
 	bitmap_init(extents->bitmap, &extents_bitmap_info, true);
-	extent_list_init(&extents->lru);
+	if (malloc_mutex_init(&extents->bitmap_mtx, "bitmap_extents",
+			      WITNESS_RANK_EXTENTS_BITMAP,
+			      malloc_mutex_rank_exclusive)) {
+		return true;
+        }
 	atomic_store_zu(&extents->npages, 0, ATOMIC_RELAXED);
 	extents->state = state;
 	extents->delay_coalesce = delay_coalesce;
@@ -306,38 +313,29 @@ extents_npages_get(extents_t *extents) {
 }
 
 static void
-extents_insert_locked(tsdn_t *tsdn, extents_t *extents, extent_t *extent,
-    bool preserve_lru) {
-	malloc_mutex_assert_owner(tsdn, &extents->mtx);
-	assert(extent_state_get(extent) == extents->state);
-
+extents_insert_locked(tsdn_t *tsdn, arena_t *arena, extents_t *extents, extent_t *extent) {
 	size_t size = extent_size_get(extent);
 	size_t psz = extent_size_quantize_floor(size);
 	pszind_t pind = sz_psz2ind(psz);
+	mutex_pool_lock(tsdn, &arena->extents_mutex_pool, pind);
 	if (extent_heap_empty(&extents->heaps[pind])) {
+		malloc_mutex_lock(tsdn, &extents->bitmap_mtx);
 		bitmap_unset(extents->bitmap, &extents_bitmap_info,
 		    (size_t)pind);
+		malloc_mutex_unlock(tsdn, &extents->bitmap_mtx);
 	}
+	extent_state_set(extent, extents_state_get(extents));
 	extent_heap_insert(&extents->heaps[pind], extent);
-	if (!preserve_lru) {
-		extent_list_append(&extents->lru, extent);
-	}
+	extent_list_append(&extents->lru[pind], extent);
+
 	size_t npages = size >> LG_PAGE;
-	/*
-	 * All modifications to npages hold the mutex (as asserted above), so we
-	 * don't need an atomic fetch-add; we can get by with a load followed by
-	 * a store.
-	 */
-	size_t cur_extents_npages =
-	    atomic_load_zu(&extents->npages, ATOMIC_RELAXED);
-	atomic_store_zu(&extents->npages, cur_extents_npages + npages,
+	atomic_fetch_add_zu(&extents->npages, npages,
 	    ATOMIC_RELAXED);
+	mutex_pool_unlock(tsdn, &arena->extents_mutex_pool, pind);
 }
 
 static void
-extents_remove_locked(tsdn_t *tsdn, extents_t *extents, extent_t *extent,
-    bool preserve_lru) {
-	malloc_mutex_assert_owner(tsdn, &extents->mtx);
+extents_remove_locked(tsdn_t *tsdn, arena_t *arena, extents_t *extents, extent_t *extent) {
 	assert(extent_state_get(extent) == extents->state);
 
 	size_t size = extent_size_get(extent);
@@ -345,22 +343,16 @@ extents_remove_locked(tsdn_t *tsdn, extents_t *extents, extent_t *extent,
 	pszind_t pind = sz_psz2ind(psz);
 	extent_heap_remove(&extents->heaps[pind], extent);
 	if (extent_heap_empty(&extents->heaps[pind])) {
+		malloc_mutex_lock(tsdn, &extents->bitmap_mtx);
 		bitmap_set(extents->bitmap, &extents_bitmap_info,
 		    (size_t)pind);
+		malloc_mutex_unlock(tsdn, &extents->bitmap_mtx);
 	}
-	if (!preserve_lru) {
-		extent_list_remove(&extents->lru, extent);
-	}
+	extent_list_remove(&extents->lru[pind], extent);
+
 	size_t npages = size >> LG_PAGE;
-	/*
-	 * As in extents_insert_locked, we hold extents->mtx and so don't need
-	 * atomic operations for updating extents->npages.
-	 */
-	size_t cur_extents_npages =
-	    atomic_load_zu(&extents->npages, ATOMIC_RELAXED);
-	assert(cur_extents_npages >= npages);
-	atomic_store_zu(&extents->npages,
-	    cur_extents_npages - (size >> LG_PAGE), ATOMIC_RELAXED);
+	assert(atomic_load_zu(&extents->npages, ATOMIC_RELAXED) >= npages);
+	atomic_fetch_sub_zu(&extents->npages, npages, ATOMIC_RELAXED);
 }
 
 /*
@@ -368,18 +360,23 @@ extents_remove_locked(tsdn_t *tsdn, extents_t *extents, extent_t *extent,
  * requirement.  For each size, try only the first extent in the heap.
  */
 static extent_t *
-extents_fit_alignment(extents_t *extents, size_t min_size, size_t max_size,
-    size_t alignment) {
-        pszind_t pind = sz_psz2ind(extent_size_quantize_ceil(min_size));
-        pszind_t pind_max = sz_psz2ind(extent_size_quantize_ceil(max_size));
+extents_fit_alignment(tsdn_t *tsdn, arena_t * arena, extents_t *extents,
+		      size_t min_size, size_t max_size,
+		      size_t alignment) {
+	pszind_t pind = sz_psz2ind(extent_size_quantize_ceil(min_size));
+	pszind_t pind_max = sz_psz2ind(extent_size_quantize_ceil(max_size));
 
 	for (pszind_t i = (pszind_t)bitmap_ffu(extents->bitmap,
 	    &extents_bitmap_info, (size_t)pind); i < pind_max; i =
 	    (pszind_t)bitmap_ffu(extents->bitmap, &extents_bitmap_info,
 	    (size_t)i+1)) {
 		assert(i < NPSIZES);
-		assert(!extent_heap_empty(&extents->heaps[i]));
+		mutex_pool_lock(tsdn, &arena->extents_mutex_pool, i);
 		extent_t *extent = extent_heap_first(&extents->heaps[i]);
+		if (!extent) {
+			mutex_pool_unlock(tsdn, &arena->extents_mutex_pool, i);
+			continue;
+		}
 		uintptr_t base = (uintptr_t)extent_base_get(extent);
 		size_t candidate_size = extent_size_get(extent);
 		assert(candidate_size >= min_size);
@@ -388,13 +385,17 @@ extents_fit_alignment(extents_t *extents, size_t min_size, size_t max_size,
 		    PAGE_CEILING(alignment));
 		if (base > next_align || base + candidate_size <= next_align) {
 			/* Overflow or not crossing the next alignment. */
+			mutex_pool_unlock(tsdn, &arena->extents_mutex_pool, i);
 			continue;
 		}
 
 		size_t leadsize = next_align - base;
 		if (candidate_size - leadsize >= min_size) {
+			extent_activate_locked(tsdn, arena, extents, extent);
+			mutex_pool_unlock(tsdn, &arena->extents_mutex_pool, i);
 			return extent;
 		}
+		mutex_pool_unlock(tsdn, &arena->extents_mutex_pool, i);
 	}
 
 	return NULL;
@@ -407,7 +408,7 @@ extents_best_fit_locked(tsdn_t *tsdn, arena_t *arena, extents_t *extents,
 	pszind_t pind = sz_psz2ind(extent_size_quantize_ceil(size));
 	pszind_t i = (pszind_t)bitmap_ffu(extents->bitmap, &extents_bitmap_info,
 	    (size_t)pind);
-	if (i < NPSIZES+1) {
+	while (i < NPSIZES+1) {
 		/*
 		 * In order to reduce fragmentation, avoid reusing and splitting
 		 * large extents for much smaller sizes.
@@ -415,9 +416,18 @@ extents_best_fit_locked(tsdn_t *tsdn, arena_t *arena, extents_t *extents,
 		if ((sz_pind2sz(i) >> opt_lg_extent_max_active_fit) > size) {
 			return NULL;
 		}
-		assert(!extent_heap_empty(&extents->heaps[i]));
+		mutex_pool_lock(tsdn, &arena->extents_mutex_pool, i);
 		extent_t *extent = extent_heap_first(&extents->heaps[i]);
+		if (!extent) {
+			mutex_pool_unlock(tsdn, &arena->extents_mutex_pool, i);
+			if (i >= NPSIZES) return NULL;
+			i = (pszind_t)bitmap_ffu(extents->bitmap, &extents_bitmap_info,
+					(size_t)pind + 1);
+			continue;
+		}
 		assert(extent_size_get(extent) >= size);
+		extent_activate_locked(tsdn, arena, extents, extent);
+		mutex_pool_unlock(tsdn, &arena->extents_mutex_pool, i);
 		return extent;
 	}
 
@@ -438,11 +448,22 @@ extents_first_fit_locked(tsdn_t *tsdn, arena_t *arena, extents_t *extents,
 	    &extents_bitmap_info, (size_t)pind); i < NPSIZES+1; i =
 	    (pszind_t)bitmap_ffu(extents->bitmap, &extents_bitmap_info,
 	    (size_t)i+1)) {
-		assert(!extent_heap_empty(&extents->heaps[i]));
+		mutex_pool_lock(tsdn, &arena->extents_mutex_pool, i);
 		extent_t *extent = extent_heap_first(&extents->heaps[i]);
+		if (!extent) {
+			mutex_pool_unlock(tsdn, &arena->extents_mutex_pool, i);
+			continue;
+		}
 		assert(extent_size_get(extent) >= size);
 		if (ret == NULL || extent_snad_comp(extent, ret) < 0) {
+			extent_activate_locked(tsdn, arena, extents, extent);
+			mutex_pool_unlock(tsdn, &arena->extents_mutex_pool, i);
+			if (ret) {
+				extent_deactivate(tsdn, arena, extents, ret);
+			}
 			ret = extent;
+		} else {
+			mutex_pool_unlock(tsdn, &arena->extents_mutex_pool, i);
 		}
 		if (i == NPSIZES) {
 			break;
@@ -462,8 +483,6 @@ extents_first_fit_locked(tsdn_t *tsdn, arena_t *arena, extents_t *extents,
 static extent_t *
 extents_fit_locked(tsdn_t *tsdn, arena_t *arena, extents_t *extents,
     size_t esize, size_t alignment) {
-	malloc_mutex_assert_owner(tsdn, &extents->mtx);
-
 	size_t max_size = esize + PAGE_CEILING(alignment) - PAGE;
 	/* Beware size_t wrap-around. */
 	if (max_size < esize) {
@@ -471,8 +490,8 @@ extents_fit_locked(tsdn_t *tsdn, arena_t *arena, extents_t *extents,
 	}
 
 	extent_t *extent = extents->delay_coalesce ?
-	    extents_best_fit_locked(tsdn, arena, extents, max_size) :
-	    extents_first_fit_locked(tsdn, arena, extents, max_size);
+		extents_best_fit_locked(tsdn, arena, extents, max_size) :
+		extents_first_fit_locked(tsdn, arena, extents, max_size);
 
 	if (alignment > PAGE && extent == NULL) {
 		/*
@@ -480,8 +499,8 @@ extents_fit_locked(tsdn_t *tsdn, arena_t *arena, extents_t *extents,
 		 * pessimistic.  Next we try to satisfy the aligned allocation
 		 * with sizes in [esize, max_size).
 		 */
-		extent = extents_fit_alignment(extents, esize, max_size,
-		    alignment);
+		extent = extents_fit_alignment(tsdn, arena, extents, esize,
+				max_size, alignment);
 	}
 
 	return extent;
@@ -500,7 +519,7 @@ extent_try_delayed_coalesce(tsdn_t *tsdn, arena_t *arena,
 	if (!coalesced) {
 		return true;
 	}
-	extents_insert_locked(tsdn, extents, extent, true);
+	extents_insert_locked(tsdn, arena, extents, extent);
 	return false;
 }
 
@@ -540,27 +559,33 @@ extents_evict(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
 	rtree_ctx_t rtree_ctx_fallback;
 	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
 
-	malloc_mutex_lock(tsdn, &extents->mtx);
-
 	/*
 	 * Get the LRU coalesced extent, if any.  If coalescing was delayed,
 	 * the loop will iterate until the LRU extent is fully coalesced.
 	 */
 	extent_t *extent;
+	int lists = NPSIZES;
 	while (true) {
 		/* Get the LRU extent, if any. */
-		extent = extent_list_first(&extents->lru);
+		mutex_pool_lock(tsdn, &arena->extents_mutex_pool, lists);
+		extent = extent_list_first(&extents->lru[lists]);
 		if (extent == NULL) {
-			goto label_return;
+			mutex_pool_unlock(tsdn, &arena->extents_mutex_pool, lists);
+			if (lists == 0)
+				goto label_return;
+			lists--;
+			continue;
 		}
 		/* Check the eviction limit. */
 		size_t extents_npages = atomic_load_zu(&extents->npages,
 		    ATOMIC_RELAXED);
 		if (extents_npages <= npages_min) {
+			mutex_pool_unlock(tsdn, &arena->extents_mutex_pool, lists);
 			extent = NULL;
 			goto label_return;
 		}
-		extents_remove_locked(tsdn, extents, extent, false);
+		extents_remove_locked(tsdn, arena, extents, extent);
+		mutex_pool_unlock(tsdn, &arena->extents_mutex_pool, lists);
 		if (!extents->delay_coalesce) {
 			break;
 		}
@@ -573,6 +598,7 @@ extents_evict(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
 		 * The LRU extent was just coalesced and the result placed in
 		 * the LRU at its neighbor's position.  Start over.
 		 */
+		lists = NPSIZES;
 	}
 
 	/*
@@ -594,7 +620,6 @@ extents_evict(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
 	}
 
 label_return:
-	malloc_mutex_unlock(tsdn, &extents->mtx);
 	return extent;
 }
 
@@ -618,45 +643,36 @@ extents_leak(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
 
 void
 extents_prefork(tsdn_t *tsdn, extents_t *extents) {
-	malloc_mutex_prefork(tsdn, &extents->mtx);
+	malloc_mutex_prefork(tsdn, &extents->bitmap_mtx);
 }
 
 void
 extents_postfork_parent(tsdn_t *tsdn, extents_t *extents) {
-	malloc_mutex_postfork_parent(tsdn, &extents->mtx);
+	malloc_mutex_postfork_parent(tsdn, &extents->bitmap_mtx);
 }
 
 void
 extents_postfork_child(tsdn_t *tsdn, extents_t *extents) {
-	malloc_mutex_postfork_child(tsdn, &extents->mtx);
-}
-
-static void
-extent_deactivate_locked(tsdn_t *tsdn, arena_t *arena, extents_t *extents,
-    extent_t *extent, bool preserve_lru) {
-	assert(extent_arena_get(extent) == arena);
-	assert(extent_state_get(extent) == extent_state_active);
-
-	extent_state_set(extent, extents_state_get(extents));
-	extents_insert_locked(tsdn, extents, extent, preserve_lru);
+	malloc_mutex_postfork_child(tsdn, &extents->bitmap_mtx);
 }
 
 static void
 extent_deactivate(tsdn_t *tsdn, arena_t *arena, extents_t *extents,
-    extent_t *extent, bool preserve_lru) {
-	malloc_mutex_lock(tsdn, &extents->mtx);
-	extent_deactivate_locked(tsdn, arena, extents, extent, preserve_lru);
-	malloc_mutex_unlock(tsdn, &extents->mtx);
+    extent_t *extent) {
+	assert(extent_arena_get(extent) == arena);
+	assert(extent_state_get(extent) == extent_state_active);
+
+	extents_insert_locked(tsdn, arena, extents, extent);
 }
 
 static void
 extent_activate_locked(tsdn_t *tsdn, arena_t *arena, extents_t *extents,
-    extent_t *extent, bool preserve_lru) {
+    extent_t *extent) {
 	assert(extent_arena_get(extent) == arena);
 	assert(extent_state_get(extent) == extents_state_get(extents));
 
-	extents_remove_locked(tsdn, extents, extent, preserve_lru);
-	extent_state_set(extent, extent_state_active);
+	extents_remove_locked(tsdn, arena, extents, extent);
+        extent_state_set(extent, extent_state_active);
 }
 
 static bool
@@ -876,7 +892,6 @@ extent_recycle_extract(tsdn_t *tsdn, arena_t *arena,
 	}
 
 	size_t esize = size + pad;
-	malloc_mutex_lock(tsdn, &extents->mtx);
 	extent_hooks_assure_initialized(arena, r_extent_hooks);
 	extent_t *extent;
 	if (new_addr != NULL) {
@@ -896,17 +911,26 @@ extent_recycle_extract(tsdn_t *tsdn, arena_t *arena,
 			}
 			extent_unlock(tsdn, unlock_extent);
 		}
+		if (extent) {
+			size_t size = extent_size_get(extent);
+			size_t psz = extent_size_quantize_floor(size);
+			pszind_t pind = sz_psz2ind(psz);
+			mutex_pool_lock(tsdn, &arena->extents_mutex_pool, pind);
+			/* Can race with other recycle_extract, double check
+			 * that extent is still valid.
+			 */
+			if (extent_size_get(extent) == size &&
+                            extent_state_get(extent) == extents_state_get(extents)) {
+				extent_activate_locked(tsdn, arena, extents, extent);
+			} else {
+				extent = NULL;
+			}
+			mutex_pool_unlock(tsdn, &arena->extents_mutex_pool, pind);
+		}
 	} else {
 		extent = extents_fit_locked(tsdn, arena, extents, esize,
 		    alignment);
 	}
-	if (extent == NULL) {
-		malloc_mutex_unlock(tsdn, &extents->mtx);
-		return NULL;
-	}
-
-	extent_activate_locked(tsdn, arena, extents, extent, false);
-	malloc_mutex_unlock(tsdn, &extents->mtx);
 
 	return extent;
 }
@@ -1031,10 +1055,10 @@ extent_recycle_split(tsdn_t *tsdn, arena_t *arena,
 
 	if (result == extent_split_interior_ok) {
 		if (lead != NULL) {
-			extent_deactivate(tsdn, arena, extents, lead, false);
+			extent_deactivate(tsdn, arena, extents, lead);
 		}
 		if (trail != NULL) {
-			extent_deactivate(tsdn, arena, extents, trail, false);
+			extent_deactivate(tsdn, arena, extents, trail);
 		}
 		return extent;
 	} else {
@@ -1511,40 +1535,37 @@ extent_can_coalesce(arena_t *arena, extents_t *extents, const extent_t *inner,
 	return true;
 }
 
+static void
+extent_heap_lock2(tsdn_t *tsdn, arena_t *arena, extent_t *extent1, extent_t *extent2, pszind_t* pind1, pszind_t* pind2) {
+	size_t size1 = extent_size_get(extent1);
+	size_t psz1 = extent_size_quantize_floor(size1);
+	*pind1 = sz_psz2ind(psz1);
+	size_t size2 = extent_size_get(extent2);
+	size_t psz2 = extent_size_quantize_floor(size2);
+	*pind2 = sz_psz2ind(psz2);
+
+	mutex_pool_lock2(tsdn, &arena->extents_mutex_pool, *pind1, *pind2);
+}
+
+static void
+extent_heap_unlock2(tsdn_t *tsdn, arena_t *arena, pszind_t pind1, pszind_t pind2) {
+	mutex_pool_unlock2(tsdn, &arena->extents_mutex_pool, pind1, pind2);
+}
+
 static bool
 extent_coalesce(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
     extents_t *extents, extent_t *inner, extent_t *outer, bool forward,
-    bool growing_retained) {
+    bool growing_retained, pszind_t pind1, pszind_t pind2) {
 	assert(extent_can_coalesce(arena, extents, inner, outer));
 
-	if (extents->delay_coalesce) {
-		/*
-		 * Remove outer from the LRU list so that it won't be show up in
-		 * decay through extents_evict.
-		 */
-		extent_list_remove(&extents->lru, outer);
-	}
-	extent_activate_locked(tsdn, arena, extents, outer,
-	    extents->delay_coalesce);
+	extent_activate_locked(tsdn, arena, extents, outer);
 
-	malloc_mutex_unlock(tsdn, &extents->mtx);
+	extent_heap_unlock2(tsdn, arena, pind1, pind2);
 	bool err = extent_merge_impl(tsdn, arena, r_extent_hooks,
 	    forward ? inner : outer, forward ? outer : inner, growing_retained);
-	malloc_mutex_lock(tsdn, &extents->mtx);
 
-	if (!err && extents->delay_coalesce) {
-		if (forward) {
-			extent_list_prepend(&extents->lru, inner);
-		} else {
-			extent_list_prepend(&extents->lru, outer);
-		}
-	}
 	if (err) {
-		if (extents->delay_coalesce) {
-			extent_list_prepend(&extents->lru, outer);
-		}
-		extent_deactivate_locked(tsdn, arena, extents, outer,
-		    extents->delay_coalesce);
+		extent_deactivate(tsdn, arena, extents, outer);
 	}
 
 	return err;
@@ -1559,15 +1580,20 @@ extent_try_coalesce(tsdn_t *tsdn, arena_t *arena,
 	 * races with other threads that are thwarted by this one.
 	 */
 	bool again;
+        if (coalesced) {
+          *coalesced = false;
+        }
 	do {
 		again = false;
+		pszind_t pind1, pind2;
 
 		/* Try to coalesce forward. */
 		extent_t *next = extent_lock_from_addr(tsdn, rtree_ctx,
 		    extent_past_get(extent));
 		if (next != NULL) {
+                  extent_heap_lock2(tsdn, arena, next, extent, &pind1, &pind2);
 			/*
-			 * extents->mtx only protects against races for
+			 * extent_heap_lock2 only protects against races for
 			 * like-state extents, so call extent_can_coalesce()
 			 * before releasing next's pool lock.
 			 */
@@ -1576,15 +1602,19 @@ extent_try_coalesce(tsdn_t *tsdn, arena_t *arena,
 
 			extent_unlock(tsdn, next);
 
-			if (can_coalesce && !extent_coalesce(tsdn, arena,
-			    r_extent_hooks, extents, extent, next, true,
-			    growing_retained)) {
-				if (extents->delay_coalesce) {
-					/* Do minimal coalescing. */
-					*coalesced = true;
-					return extent;
+			if (can_coalesce) {
+				if (!extent_coalesce(tsdn, arena,
+				    r_extent_hooks, extents, extent, next, true,
+				    growing_retained, pind1, pind2)) {
+					if (extents->delay_coalesce) {
+						/* Do minimal coalescing. */
+						*coalesced = true;
+						return extent;
+					}
+					again = true;
 				}
-				again = true;
+			} else {
+				extent_heap_unlock2(tsdn, arena, pind1, pind2);
 			}
 		}
 
@@ -1592,27 +1622,29 @@ extent_try_coalesce(tsdn_t *tsdn, arena_t *arena,
 		extent_t *prev = extent_lock_from_addr(tsdn, rtree_ctx,
 		    extent_before_get(extent));
 		if (prev != NULL) {
+			extent_heap_lock2(tsdn, arena, prev, extent, &pind1, &pind2);
 			bool can_coalesce = extent_can_coalesce(arena, extents,
 			    extent, prev);
 			extent_unlock(tsdn, prev);
 
-			if (can_coalesce && !extent_coalesce(tsdn, arena,
-			    r_extent_hooks, extents, extent, prev, false,
-			    growing_retained)) {
-				extent = prev;
-				if (extents->delay_coalesce) {
-					/* Do minimal coalescing. */
-					*coalesced = true;
-					return extent;
+			if (can_coalesce) {
+				if (!extent_coalesce(tsdn, arena,
+				    r_extent_hooks, extents, extent, prev, false,
+				    growing_retained, pind1, pind2)) {
+					extent = prev;
+					if (extents->delay_coalesce) {
+						/* Do minimal coalescing. */
+						*coalesced = true;
+						return extent;
+					}
+					again = true;
 				}
-				again = true;
+			} else {
+				extent_heap_unlock2(tsdn, arena, pind1, pind2);
 			}
 		}
 	} while (again);
 
-	if (extents->delay_coalesce) {
-		*coalesced = false;
-	}
 	return extent;
 }
 
@@ -1630,7 +1662,6 @@ extent_record(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
 	    extents_state_get(extents) != extent_state_muzzy) ||
 	    !extent_zeroed_get(extent));
 
-	malloc_mutex_lock(tsdn, &extents->mtx);
 	extent_hooks_assure_initialized(arena, r_extent_hooks);
 
 	extent_szind_set(extent, NSIZES);
@@ -1655,15 +1686,10 @@ extent_record(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
 			extent = extent_try_coalesce(tsdn, arena,
 			    r_extent_hooks, rtree_ctx, extents, extent,
 			    &coalesced, growing_retained);
-			if (coalesced) {
-				extent_list_remove(&extents->lru, extent);
-			}
 		} while (coalesced &&
 		    extent_size_get(extent) >= prev_size + LARGE_MINCLASS);
 	}
-	extent_deactivate_locked(tsdn, arena, extents, extent, false);
-
-	malloc_mutex_unlock(tsdn, &extents->mtx);
+	extent_deactivate(tsdn, arena, extents, extent);
 }
 
 void

@@ -182,12 +182,15 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 	READ_ARENA_MUTEX_PROF_DATA(large_mtx, arena_prof_mutex_large);
 	READ_ARENA_MUTEX_PROF_DATA(extent_avail_mtx,
 	    arena_prof_mutex_extent_avail)
-	READ_ARENA_MUTEX_PROF_DATA(extents_dirty.mtx,
+	READ_ARENA_MUTEX_PROF_DATA(extents_dirty.bitmap_mtx,
 	    arena_prof_mutex_extents_dirty)
-	READ_ARENA_MUTEX_PROF_DATA(extents_muzzy.mtx,
+	READ_ARENA_MUTEX_PROF_DATA(extents_muzzy.bitmap_mtx,
 	    arena_prof_mutex_extents_muzzy)
-	READ_ARENA_MUTEX_PROF_DATA(extents_retained.mtx,
+	READ_ARENA_MUTEX_PROF_DATA(extents_retained.bitmap_mtx,
 	    arena_prof_mutex_extents_retained)
+	mutex_pool_prof_read(tsdn,
+	  &astats->mutex_prof_data[arena_prof_mutex_extents_pool],
+	  &arena->extents_mutex_pool);
 	READ_ARENA_MUTEX_PROF_DATA(decay_dirty.mtx,
 	    arena_prof_mutex_decay_dirty)
 	READ_ARENA_MUTEX_PROF_DATA(decay_muzzy.mtx,
@@ -1795,6 +1798,11 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 		}
 	}
 
+        if (mutex_pool_init(&arena->extents_mutex_pool, "extents_mutex_pool",
+                            WITNESS_RANK_EXTENT_HEAPS)) {
+          goto label_error;
+        }
+
 	if (config_prof) {
 		if (prof_accum_init(tsdn, &arena->prof_accum)) {
 			goto label_error;
@@ -1950,28 +1958,33 @@ arena_prefork2(tsdn_t *tsdn, arena_t *arena) {
 
 void
 arena_prefork3(tsdn_t *tsdn, arena_t *arena) {
+	malloc_mutex_prefork(tsdn, &arena->extent_avail_mtx);
+}
+
+void
+arena_prefork4(tsdn_t *tsdn, arena_t *arena) {
+	base_prefork(tsdn, arena->base);
+}
+
+void
+arena_prefork5(tsdn_t *tsdn, arena_t *arena) {
+	malloc_mutex_prefork(tsdn, &arena->large_mtx);
+}
+
+void
+arena_prefork6(tsdn_t *tsdn, arena_t *arena) {
+	mutex_pool_prefork(tsdn, &arena->extents_mutex_pool);
+}
+
+void
+arena_prefork7(tsdn_t *tsdn, arena_t *arena) {
 	extents_prefork(tsdn, &arena->extents_dirty);
 	extents_prefork(tsdn, &arena->extents_muzzy);
 	extents_prefork(tsdn, &arena->extents_retained);
 }
 
 void
-arena_prefork4(tsdn_t *tsdn, arena_t *arena) {
-	malloc_mutex_prefork(tsdn, &arena->extent_avail_mtx);
-}
-
-void
-arena_prefork5(tsdn_t *tsdn, arena_t *arena) {
-	base_prefork(tsdn, arena->base);
-}
-
-void
-arena_prefork6(tsdn_t *tsdn, arena_t *arena) {
-	malloc_mutex_prefork(tsdn, &arena->large_mtx);
-}
-
-void
-arena_prefork7(tsdn_t *tsdn, arena_t *arena) {
+arena_prefork8(tsdn_t *tsdn, arena_t *arena) {
 	for (unsigned i = 0; i < NBINS; i++) {
 		bin_prefork(tsdn, &arena->bins[i]);
 	}
@@ -1984,6 +1997,7 @@ arena_postfork_parent(tsdn_t *tsdn, arena_t *arena) {
 	for (i = 0; i < NBINS; i++) {
 		bin_postfork_parent(tsdn, &arena->bins[i]);
 	}
+	mutex_pool_postfork_parent(tsdn, &arena->extents_mutex_pool);
 	malloc_mutex_postfork_parent(tsdn, &arena->large_mtx);
 	base_postfork_parent(tsdn, arena->base);
 	malloc_mutex_postfork_parent(tsdn, &arena->extent_avail_mtx);
@@ -2028,6 +2042,7 @@ arena_postfork_child(tsdn_t *tsdn, arena_t *arena) {
 	for (i = 0; i < NBINS; i++) {
 		bin_postfork_child(tsdn, &arena->bins[i]);
 	}
+	mutex_pool_postfork_child(tsdn, &arena->extents_mutex_pool);
 	malloc_mutex_postfork_child(tsdn, &arena->large_mtx);
 	base_postfork_child(tsdn, arena->base);
 	malloc_mutex_postfork_child(tsdn, &arena->extent_avail_mtx);

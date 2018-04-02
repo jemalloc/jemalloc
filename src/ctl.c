@@ -2675,9 +2675,9 @@ stats_mutexes_reset_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
 		}
 		MUTEX_PROF_RESET(arena->large_mtx);
 		MUTEX_PROF_RESET(arena->extent_avail_mtx);
-		MUTEX_PROF_RESET(arena->extents_dirty.mtx);
-		MUTEX_PROF_RESET(arena->extents_muzzy.mtx);
-		MUTEX_PROF_RESET(arena->extents_retained.mtx);
+		MUTEX_PROF_RESET(arena->extents_dirty.bitmap_mtx);
+		MUTEX_PROF_RESET(arena->extents_muzzy.bitmap_mtx);
+		MUTEX_PROF_RESET(arena->extents_retained.bitmap_mtx);
 		MUTEX_PROF_RESET(arena->decay_dirty.mtx);
 		MUTEX_PROF_RESET(arena->decay_muzzy.mtx);
 		MUTEX_PROF_RESET(arena->tcache_ql_mtx);

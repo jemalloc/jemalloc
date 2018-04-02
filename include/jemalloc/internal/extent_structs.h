@@ -173,28 +173,27 @@ typedef ph(extent_t) extent_heap_t;
 
 /* Quantized collection of extents, with built-in LRU queue. */
 struct extents_s {
-	malloc_mutex_t		mtx;
-
 	/*
 	 * Quantized per size class heaps of extents.
 	 *
-	 * Synchronization: mtx.
+	 * Synchronization: arena->extent_mutex_pool.
 	 */
 	extent_heap_t		heaps[NPSIZES+1];
 
 	/*
 	 * Bitmap for which set bits correspond to non-empty heaps.
 	 *
-	 * Synchronization: mtx.
+	 * Synchronization: bitmap_mtx.
 	 */
 	bitmap_t		bitmap[BITMAP_GROUPS(NPSIZES+1)];
+	malloc_mutex_t		bitmap_mtx;
 
 	/*
-	 * LRU of all extents in heaps.
+	 * LRU of extents in each individual heap, matching heaps array above.
 	 *
-	 * Synchronization: mtx.
+	 * Synchronization: arena->extent_mutex_pool.
 	 */
-	extent_list_t		lru;
+	extent_list_t		lru[NPSIZES+1];
 
 	/*
 	 * Page sum for all extents in heaps.

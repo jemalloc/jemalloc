@@ -8,6 +8,7 @@
 #include "jemalloc/internal/extent_dss.h"
 #include "jemalloc/internal/jemalloc_internal_types.h"
 #include "jemalloc/internal/mutex.h"
+#include "jemalloc/internal/mutex_pool.h"
 #include "jemalloc/internal/nstime.h"
 #include "jemalloc/internal/ql.h"
 #include "jemalloc/internal/size_classes.h"
@@ -157,11 +158,12 @@ struct arena_s {
 	 * Collections of extents that were previously allocated.  These are
 	 * used when allocating extents, in an attempt to re-use address space.
 	 *
-	 * Synchronization: internal.
+	 * Synchronization: internal, extents_mutex_pool.
 	 */
 	extents_t		extents_dirty;
 	extents_t		extents_muzzy;
 	extents_t		extents_retained;
+	mutex_pool_t		extents_mutex_pool;
 
 	/*
 	 * Decay-based purging state, responsible for scheduling extent state
