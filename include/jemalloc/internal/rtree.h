@@ -460,8 +460,14 @@ rtree_szind_slab_read(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
 	if (!dependent && elm == NULL) {
 		return true;
 	}
+#ifdef RTREE_LEAF_COMPACT
+	uintptr_t bits = rtree_leaf_elm_bits_read(tsdn, rtree, elm, dependent);
+	*r_szind = rtree_leaf_elm_bits_szind_get(bits);
+	*r_slab = rtree_leaf_elm_bits_slab_get(bits);
+#else
 	*r_szind = rtree_leaf_elm_szind_read(tsdn, rtree, elm, dependent);
 	*r_slab = rtree_leaf_elm_slab_read(tsdn, rtree, elm, dependent);
+#endif
 	return false;
 }
 
