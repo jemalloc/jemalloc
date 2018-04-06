@@ -154,7 +154,7 @@ TEST_BEGIN(test_alignment_and_size) {
 	const char *percpu_arena;
 	size_t sz = sizeof(percpu_arena);
 
-	if(mallctl("opt.percpu_arena", &percpu_arena, &sz, NULL, 0) ||
+	if(mallctl("opt.percpu_arena", (void *)&percpu_arena, &sz, NULL, 0) ||
 	    strcmp(percpu_arena, "disabled") != 0) {
 		test_skip("test_alignment_and_size skipped: "
 		    "not working with percpu arena.");
