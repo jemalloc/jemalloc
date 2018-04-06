@@ -1442,7 +1442,7 @@ extent_alloc_wrapper_hard(tsdn_t *tsdn, arena_t *arena,
 		return NULL;
 	}
 	extent_init(extent, arena, addr, esize, slab, szind,
-	    arena_extent_sn_next(arena), extent_state_active, zero, commit,
+	    arena_extent_sn_next(arena), extent_state_active, *zero, *commit,
 	    true);
 	if (pad != 0) {
 		extent_addr_randomize(tsdn, extent, alignment);
