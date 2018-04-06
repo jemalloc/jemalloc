@@ -436,7 +436,6 @@ static bool
 os_overcommits_proc(void) {
 	int fd;
 	char buf[1];
-	ssize_t nread;
 
 #if defined(JEMALLOC_USE_SYSCALL) && defined(SYS_open)
 	#if defined(O_CLOEXEC)
@@ -474,12 +473,7 @@ os_overcommits_proc(void) {
 		return false; /* Error. */
 	}
 
-#if defined(JEMALLOC_USE_SYSCALL) && defined(SYS_read)
-	nread = (ssize_t)syscall(SYS_read, fd, &buf, sizeof(buf));
-#else
-	nread = read(fd, &buf, sizeof(buf));
-#endif
-
+	ssize_t nread = malloc_read_fd(fd, &buf, sizeof(buf));
 #if defined(JEMALLOC_USE_SYSCALL) && defined(SYS_close)
 	syscall(SYS_close, fd);
 #else
@@ -543,12 +537,7 @@ init_thp_state(void) {
 		goto label_error;
 	}
 
-#if defined(JEMALLOC_USE_SYSCALL) && defined(SYS_read)
-	ssize_t nread = (ssize_t)syscall(SYS_read, fd, &buf, sizeof(buf));
-#else
-	ssize_t nread = read(fd, &buf, sizeof(buf));
-#endif
-
+	ssize_t nread = malloc_read_fd(fd, &buf, sizeof(buf));
 #if defined(JEMALLOC_USE_SYSCALL) && defined(SYS_close)
 	syscall(SYS_close, fd);
 #else
