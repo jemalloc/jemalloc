@@ -4,17 +4,6 @@
 #include "jemalloc/internal/sz.h"
 
 JEMALLOC_ALWAYS_INLINE bool
-prof_active_get_unlocked(void) {
-	/*
-	 * Even if opt_prof is true, sampling can be temporarily disabled by
-	 * setting prof_active to false.  No locking is used when reading
-	 * prof_active in the fast path, so there are no guarantees regarding
-	 * how long it will take for all threads to notice state changes.
-	 */
-	return prof_active;
-}
-
-JEMALLOC_ALWAYS_INLINE bool
 prof_gdump_get_unlocked(void) {
 	/*
 	 * No locking is used when reading prof_gdump_val in the fast path, so
