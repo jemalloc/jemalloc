@@ -334,7 +334,7 @@ TEST_BEGIN(test_thread_arena) {
 
 	const char *opa;
 	size_t sz = sizeof(opa);
-	assert_d_eq(mallctl("opt.percpu_arena", &opa, &sz, NULL, 0), 0,
+	assert_d_eq(mallctl("opt.percpu_arena", (void *)&opa, &sz, NULL, 0), 0,
 	    "Unexpected mallctl() failure");
 
 	sz = sizeof(unsigned);
