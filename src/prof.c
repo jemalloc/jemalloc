@@ -1780,7 +1780,7 @@ prof_idump(tsdn_t *tsdn) {
 
 	cassert(config_prof);
 
-	if (!prof_booted || tsdn_null(tsdn)) {
+	if (!prof_booted || tsdn_null(tsdn) || !prof_active_get_unlocked()) {
 		return;
 	}
 	tsd = tsdn_tsd(tsdn);
@@ -1837,7 +1837,7 @@ prof_gdump(tsdn_t *tsdn) {
 
 	cassert(config_prof);
 
-	if (!prof_booted || tsdn_null(tsdn)) {
+	if (!prof_booted || tsdn_null(tsdn) || !prof_active_get_unlocked()) {
 		return;
 	}
 	tsd = tsdn_tsd(tsdn);
