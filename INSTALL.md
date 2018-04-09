@@ -157,11 +157,6 @@ any of the following arguments (not a definitive list) to 'configure':
     Statically link against the specified libunwind.a rather than dynamically
     linking with -lunwind.
 
-* `--disable-thp`
-
-    Disable transparent huge page (THP) integration.  This option can be useful
-    when cross compiling.
-
 * `--disable-fill`
 
     Disable support for junk/zero filling of memory.  See the "opt.junk" and
