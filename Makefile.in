@@ -102,7 +102,6 @@ C_SRCS := $(srcroot)src/jemalloc.c \
 	$(srcroot)src/extent_dss.c \
 	$(srcroot)src/extent_mmap.c \
 	$(srcroot)src/hash.c \
-	$(srcroot)src/hooks.c \
 	$(srcroot)src/large.c \
 	$(srcroot)src/log.c \
 	$(srcroot)src/malloc_io.c \
@@ -116,6 +115,7 @@ C_SRCS := $(srcroot)src/jemalloc.c \
 	$(srcroot)src/stats.c \
 	$(srcroot)src/sz.c \
 	$(srcroot)src/tcache.c \
+	$(srcroot)src/test_hooks.c \
 	$(srcroot)src/ticker.c \
 	$(srcroot)src/tsd.c \
 	$(srcroot)src/witness.c
@@ -172,7 +172,6 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/extent_quantize.c \
 	$(srcroot)test/unit/fork.c \
 	$(srcroot)test/unit/hash.c \
-	$(srcroot)test/unit/hooks.c \
 	$(srcroot)test/unit/junk.c \
 	$(srcroot)test/unit/junk_alloc.c \
 	$(srcroot)test/unit/junk_free.c \
@@ -205,6 +204,7 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/spin.c \
 	$(srcroot)test/unit/stats.c \
 	$(srcroot)test/unit/stats_print.c \
+	$(srcroot)test/unit/test_hooks.c \
 	$(srcroot)test/unit/ticker.c \
 	$(srcroot)test/unit/nstime.c \
 	$(srcroot)test/unit/tsd.c \

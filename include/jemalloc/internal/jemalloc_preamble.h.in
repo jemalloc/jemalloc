@@ -45,7 +45,7 @@
 #    include "jemalloc/internal/private_namespace_jet.h"
 #  endif
 #endif
-#include "jemalloc/internal/hooks.h"
+#include "jemalloc/internal/test_hooks.h"
 
 #ifdef JEMALLOC_DEFINE_MADVISE_FREE
 #  define JEMALLOC_MADV_FREE 8

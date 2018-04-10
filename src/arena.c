@@ -1900,8 +1900,8 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 		 */
 		assert(!tsdn_null(tsdn));
 		pre_reentrancy(tsdn_tsd(tsdn), arena);
-		if (hooks_arena_new_hook) {
-			hooks_arena_new_hook();
+		if (test_hooks_arena_new_hook) {
+			test_hooks_arena_new_hook();
 		}
 		post_reentrancy(tsdn_tsd(tsdn));
 	}
