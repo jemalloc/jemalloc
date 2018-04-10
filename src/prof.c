@@ -23,7 +23,7 @@
  */
 #undef _Unwind_Backtrace
 #include <unwind.h>
-#define _Unwind_Backtrace JEMALLOC_HOOK(_Unwind_Backtrace, hooks_libc_hook)
+#define _Unwind_Backtrace JEMALLOC_HOOK(_Unwind_Backtrace, test_hooks_libc_hook)
 #endif
 
 /******************************************************************************/
