@@ -174,7 +174,7 @@ malloc_mutex_init(malloc_mutex_t *mutex, const char *name,
 		mutex->lock_order = lock_order;
 		if (lock_order == malloc_mutex_address_ordered) {
 			witness_init(&mutex->witness, name, rank,
-			    mutex_addr_comp, &mutex);
+			    mutex_addr_comp, mutex);
 		} else {
 			witness_init(&mutex->witness, name, rank, NULL, NULL);
 		}
