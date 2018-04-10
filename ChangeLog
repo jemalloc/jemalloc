@@ -515,7 +515,7 @@ brevity.  Much more detail can be found in the git revision history:
   these fixes, xallocx() now tries harder to partially fulfill requests for
   optional extra space.  Note that a couple of minor heap profiling
   optimizations are included, but these are better thought of as performance
-  fixes that were integral to disovering most of the other bugs.
+  fixes that were integral to discovering most of the other bugs.
 
   Optimizations:
   - Avoid a chunk metadata read in arena_prof_tctx_set(), since it is in the
