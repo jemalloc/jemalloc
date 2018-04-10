@@ -7,6 +7,7 @@
 #include "jemalloc/internal/ctl.h"
 #include "jemalloc/internal/extent_dss.h"
 #include "jemalloc/internal/extent_mmap.h"
+#include "jemalloc/internal/hook.h"
 #include "jemalloc/internal/jemalloc_internal_types.h"
 #include "jemalloc/internal/log.h"
 #include "jemalloc/internal/malloc_io.h"
@@ -1311,6 +1312,7 @@ malloc_init_hard_a0_locked() {
 	    malloc_mutex_rank_exclusive)) {
 		return true;
 	}
+	hook_boot();
 	/*
 	 * Create enough scaffolding to allow recursive allocation in
 	 * malloc_ncpus().
