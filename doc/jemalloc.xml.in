@@ -1792,7 +1792,9 @@ struct extent_hooks_s {
         in favor of less permanent (and often less costly) operations.  All
         operations except allocation can be universally opted out of by setting
         the hook pointers to <constant>NULL</constant>, or selectively opted out
-        of by returning failure.</para>
+        of by returning failure.  Note that once the extent hook is set, the
+        structure is accessed directly by the associated arenas, so it must
+        remain valid for the entire lifetime of the arenas.</para>
 
         <funcsynopsis><funcprototype>
           <funcdef>typedef void *<function>(extent_alloc_t)</function></funcdef>
