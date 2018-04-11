@@ -804,6 +804,26 @@ background_thread_stats_read(tsdn_t *tsdn, background_thread_stats_t *stats) {
 #undef BILLION
 #undef BACKGROUND_THREAD_MIN_INTERVAL_NS
 
+static bool
+pthread_create_fptr_init(void) {
+	if (pthread_create_fptr != NULL) {
+		return false;
+	}
+	pthread_create_fptr = dlsym(RTLD_NEXT, "pthread_create");
+	if (pthread_create_fptr == NULL) {
+		can_enable_background_thread = false;
+		if (config_lazy_lock || opt_background_thread) {
+			malloc_write("<jemalloc>: Error in dlsym(RTLD_NEXT, "
+			    "\"pthread_create\")\n");
+			abort();
+		}
+	} else {
+		can_enable_background_thread = true;
+	}
+
+	return false;
+}
+
 /*
  * When lazy lock is enabled, we need to make sure setting isthreaded before
  * taking any background_thread locks.  This is called early in ctl (instead of
@@ -814,6 +834,7 @@ void
 background_thread_ctl_init(tsdn_t *tsdn) {
 	malloc_mutex_assert_not_owner(tsdn, &background_thread_lock);
 #ifdef JEMALLOC_PTHREAD_CREATE_WRAPPER
+	pthread_create_fptr_init();
 	pthread_create_wrapper_init();
 #endif
 }
@@ -827,18 +848,10 @@ background_thread_boot0(void) {
 		    "supports pthread only\n");
 		return true;
 	}
-
 #ifdef JEMALLOC_PTHREAD_CREATE_WRAPPER
-	pthread_create_fptr = dlsym(RTLD_NEXT, "pthread_create");
-	if (pthread_create_fptr == NULL) {
-		can_enable_background_thread = false;
-		if (config_lazy_lock || opt_background_thread) {
-			malloc_write("<jemalloc>: Error in dlsym(RTLD_NEXT, "
-			    "\"pthread_create\")\n");
-			abort();
-		}
-	} else {
-		can_enable_background_thread = true;
+	if ((config_lazy_lock || opt_background_thread) &&
+	    pthread_create_fptr_init()) {
+		return true;
 	}
 #endif
 	return false;
