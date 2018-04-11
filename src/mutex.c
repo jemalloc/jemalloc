@@ -138,15 +138,7 @@ malloc_mutex_rank_comp(const malloc_mutex_t *a, const malloc_mutex_t *b) {
 	if(ret != 0) {
 		return ret;
 	}
-	if (config_debug) {
-		if(a->witness.comp != NULL && a->witness.comp == b->witness.comp) {
-			ret = a->witness.comp(&(a->witness), a->witness.opaque, &(b->witness), b->witness.opaque);
-		}
-		if(ret != 0) {
-			return ret;
-		}
-	}
-	return (a > b) - (a < b);
+	return mutex_addr_comp(NULL, (void *) a, NULL, (void *) b);
 }
 
 rb_gen(static UNUSED, malloc_mutex_tree_, malloc_mutex_tree_t, malloc_mutex_t,
@@ -197,7 +189,7 @@ malloc_mutex_init_internal(malloc_mutex_t *mutex, const char *name,
 		mutex->lock_order = lock_order;
 		if (lock_order == malloc_mutex_address_ordered) {
 			witness_init(&mutex->witness, name, rank,
-					mutex_addr_comp, child_fork ? mutex->witness.opaque : &mutex);
+			    mutex_addr_comp, mutex);
 		} else {
 			witness_init(&mutex->witness, name, rank, NULL, NULL);
 		}

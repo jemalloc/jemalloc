@@ -1175,6 +1175,10 @@ malloc_conf_init(void) {
 			}
 			CONF_HANDLE_BOOL(opt_background_thread,
 			    "background_thread");
+			CONF_HANDLE_SIZE_T(opt_max_background_threads,
+					   "max_background_threads", 1,
+					   opt_max_background_threads, yes, yes,
+					   true);
 			if (config_prof) {
 				CONF_HANDLE_BOOL(opt_prof, "prof")
 				CONF_HANDLE_CHAR_P(opt_prof_prefix,

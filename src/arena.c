@@ -864,7 +864,7 @@ arena_decay_impl(tsdn_t *tsdn, arena_t *arena, arena_decay_t *decay,
 
 	bool epoch_advanced = arena_maybe_decay(tsdn, arena, decay, extents,
 	    is_background_thread);
-	size_t npages_new;
+	UNUSED size_t npages_new;
 	if (epoch_advanced) {
 		/* Backlog is updated on epoch advance. */
 		npages_new = decay->backlog[SMOOTHSTEP_NSTEPS-1];
@@ -873,7 +873,8 @@ arena_decay_impl(tsdn_t *tsdn, arena_t *arena, arena_decay_t *decay,
 
 	if (have_background_thread && background_thread_enabled() &&
 	    epoch_advanced && !is_background_thread) {
-		background_thread_interval_check(tsdn, arena, decay, npages_new);
+		background_thread_interval_check(tsdn, arena, decay,
+		    npages_new);
 	}
 
 	return false;
