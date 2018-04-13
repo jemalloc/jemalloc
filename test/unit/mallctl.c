@@ -174,6 +174,7 @@ TEST_BEGIN(test_mallctl_opt) {
 	TEST_MALLCTL_OPT(bool, tcache, always);
 	TEST_MALLCTL_OPT(size_t, lg_extent_max_active_fit, always);
 	TEST_MALLCTL_OPT(size_t, lg_tcache_max, always);
+	TEST_MALLCTL_OPT(const char *, thp, always);
 	TEST_MALLCTL_OPT(bool, prof, prof);
 	TEST_MALLCTL_OPT(const char *, prof_prefix, prof);
 	TEST_MALLCTL_OPT(bool, prof_active, prof);
@@ -333,7 +334,7 @@ TEST_BEGIN(test_thread_arena) {
 
 	const char *opa;
 	size_t sz = sizeof(opa);
-	assert_d_eq(mallctl("opt.percpu_arena", &opa, &sz, NULL, 0), 0,
+	assert_d_eq(mallctl("opt.percpu_arena", (void *)&opa, &sz, NULL, 0), 0,
 	    "Unexpected mallctl() failure");
 
 	sz = sizeof(unsigned);

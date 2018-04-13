@@ -162,11 +162,13 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/arena_reset.c \
 	$(srcroot)test/unit/atomic.c \
 	$(srcroot)test/unit/background_thread.c \
+	$(srcroot)test/unit/background_thread_enable.c \
 	$(srcroot)test/unit/base.c \
 	$(srcroot)test/unit/bitmap.c \
 	$(srcroot)test/unit/ckh.c \
 	$(srcroot)test/unit/decay.c \
 	$(srcroot)test/unit/div.c \
+	$(srcroot)test/unit/emitter.c \
 	$(srcroot)test/unit/extent_quantize.c \
 	$(srcroot)test/unit/fork.c \
 	$(srcroot)test/unit/hash.c \

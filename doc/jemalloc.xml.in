@@ -761,6 +761,18 @@ mallctl("arena." STRINGIFY(MALLCTL_ARENAS_ALL) ".decay",
         selected pthread-based platforms.</para></listitem>
       </varlistentry>
 
+      <varlistentry id="max_background_threads">
+        <term>
+          <mallctl>max_background_threads</mallctl>
+          (<type>size_t</type>)
+          <literal>rw</literal>
+        </term>
+        <listitem><para>Maximum number of background worker threads that will
+        be created.  This value is capped at <link
+        linkend="opt.max_background_threads"><mallctl>opt.max_background_threads</mallctl></link> at
+        startup.</para></listitem>
+      </varlistentry>
+
       <varlistentry id="config.cache_oblivious">
         <term>
           <mallctl>config.cache_oblivious</mallctl>
@@ -852,16 +864,6 @@ mallctl("arena." STRINGIFY(MALLCTL_ARENAS_ALL) ".decay",
         build configuration.</para></listitem>
       </varlistentry>
 
-      <varlistentry id="config.thp">
-        <term>
-          <mallctl>config.thp</mallctl>
-          (<type>bool</type>)
-          <literal>r-</literal>
-        </term>
-        <listitem><para><option>--disable-thp</option> was not specified
-        during build configuration, and the system supports transparent huge
-        page manipulation.</para></listitem>
-      </varlistentry>
 
       <varlistentry id="config.utrace">
         <term>
@@ -1017,6 +1019,17 @@ mallctl("arena." STRINGIFY(MALLCTL_ARENAS_ALL) ".decay",
         linkend="background_thread">background_thread</link> for dynamic control
         options and details.  This option is disabled by
         default.</para></listitem>
+      </varlistentry>
+
+      <varlistentry id="opt.max_background_threads">
+        <term>
+          <mallctl>opt.max_background_threads</mallctl>
+          (<type>const size_t</type>)
+          <literal>r-</literal>
+        </term>
+        <listitem><para>Maximum number of background threads that will be created
+        if <link linkend="background_thread">background_thread</link> is set.
+        Defaults to number of cpus.</para></listitem>
       </varlistentry>
 
       <varlistentry id="opt.dirty_decay_ms">
@@ -1225,6 +1238,28 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         thread-specific cache (tcache).  At a minimum, all small size classes
         are cached, and at a maximum all large size classes are cached.  The
         default maximum is 32 KiB (2^15).</para></listitem>
+      </varlistentry>
+
+      <varlistentry id="opt.thp">
+        <term>
+          <mallctl>opt.thp</mallctl>
+          (<type>const char *</type>)
+          <literal>r-</literal>
+        </term>
+        <listitem><para>Transparent hugepage (THP) mode. Settings "always",
+        "never" and "default" are available if THP is supported by the operating
+        system.  The "always" setting enables transparent hugepage for all user
+        memory mappings with
+        <parameter><constant>MADV_HUGEPAGE</constant></parameter>; "never"
+        ensures no transparent hugepage with
+        <parameter><constant>MADV_NOHUGEPAGE</constant></parameter>; the default
+        setting "default" makes no changes.  Note that: this option does not
+        affect THP for jemalloc internal metadata (see <link
+        linkend="opt.metadata_thp"><mallctl>opt.metadata_thp</mallctl></link>);
+        in addition, for arenas with customized <link
+        linkend="arena.i.extent_hooks"><mallctl>extent_hooks</mallctl></link>,
+        this option is bypassed as it is implemented as part of the default
+        extent hooks.</para></listitem>
       </varlistentry>
 
       <varlistentry id="opt.prof">
@@ -1757,7 +1792,9 @@ struct extent_hooks_s {
         in favor of less permanent (and often less costly) operations.  All
         operations except allocation can be universally opted out of by setting
         the hook pointers to <constant>NULL</constant>, or selectively opted out
-        of by returning failure.</para>
+        of by returning failure.  Note that once the extent hook is set, the
+        structure is accessed directly by the associated arenas, so it must
+        remain valid for the entire lifetime of the arenas.</para>
 
         <funcsynopsis><funcprototype>
           <funcdef>typedef void *<function>(extent_alloc_t)</function></funcdef>

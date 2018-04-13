@@ -57,6 +57,7 @@ static const ctl_named_node_t	*n##_index(tsdn_t *tsdn,		\
 CTL_PROTO(version)
 CTL_PROTO(epoch)
 CTL_PROTO(background_thread)
+CTL_PROTO(max_background_threads)
 CTL_PROTO(thread_tcache_enabled)
 CTL_PROTO(thread_tcache_flush)
 CTL_PROTO(thread_prof_name)
@@ -75,7 +76,6 @@ CTL_PROTO(config_prof)
 CTL_PROTO(config_prof_libgcc)
 CTL_PROTO(config_prof_libunwind)
 CTL_PROTO(config_stats)
-CTL_PROTO(config_thp)
 CTL_PROTO(config_utrace)
 CTL_PROTO(config_xmalloc)
 CTL_PROTO(opt_abort)
@@ -86,6 +86,7 @@ CTL_PROTO(opt_dss)
 CTL_PROTO(opt_narenas)
 CTL_PROTO(opt_percpu_arena)
 CTL_PROTO(opt_background_thread)
+CTL_PROTO(opt_max_background_threads)
 CTL_PROTO(opt_dirty_decay_ms)
 CTL_PROTO(opt_muzzy_decay_ms)
 CTL_PROTO(opt_stats_print)
@@ -95,6 +96,7 @@ CTL_PROTO(opt_zero)
 CTL_PROTO(opt_utrace)
 CTL_PROTO(opt_xmalloc)
 CTL_PROTO(opt_tcache)
+CTL_PROTO(opt_thp)
 CTL_PROTO(opt_lg_extent_max_active_fit)
 CTL_PROTO(opt_lg_tcache_max)
 CTL_PROTO(opt_prof)
@@ -271,7 +273,6 @@ static const ctl_named_node_t	config_node[] = {
 	{NAME("prof_libgcc"),	CTL(config_prof_libgcc)},
 	{NAME("prof_libunwind"), CTL(config_prof_libunwind)},
 	{NAME("stats"),		CTL(config_stats)},
-	{NAME("thp"),		CTL(config_thp)},
 	{NAME("utrace"),	CTL(config_utrace)},
 	{NAME("xmalloc"),	CTL(config_xmalloc)}
 };
@@ -285,6 +286,7 @@ static const ctl_named_node_t opt_node[] = {
 	{NAME("narenas"),	CTL(opt_narenas)},
 	{NAME("percpu_arena"),	CTL(opt_percpu_arena)},
 	{NAME("background_thread"),	CTL(opt_background_thread)},
+	{NAME("max_background_threads"),	CTL(opt_max_background_threads)},
 	{NAME("dirty_decay_ms"), CTL(opt_dirty_decay_ms)},
 	{NAME("muzzy_decay_ms"), CTL(opt_muzzy_decay_ms)},
 	{NAME("stats_print"),	CTL(opt_stats_print)},
@@ -294,6 +296,7 @@ static const ctl_named_node_t opt_node[] = {
 	{NAME("utrace"),	CTL(opt_utrace)},
 	{NAME("xmalloc"),	CTL(opt_xmalloc)},
 	{NAME("tcache"),	CTL(opt_tcache)},
+	{NAME("thp"),		CTL(opt_thp)},
 	{NAME("lg_extent_max_active_fit"), CTL(opt_lg_extent_max_active_fit)},
 	{NAME("lg_tcache_max"),	CTL(opt_lg_tcache_max)},
 	{NAME("prof"),		CTL(opt_prof)},
@@ -535,6 +538,7 @@ static const ctl_named_node_t	root_node[] = {
 	{NAME("version"),	CTL(version)},
 	{NAME("epoch"),		CTL(epoch)},
 	{NAME("background_thread"),	CTL(background_thread)},
+	{NAME("max_background_threads"),	CTL(max_background_threads)},
 	{NAME("thread"),	CHILD(named, thread)},
 	{NAME("config"),	CHILD(named, config)},
 	{NAME("opt"),		CHILD(named, opt)},
@@ -1564,6 +1568,71 @@ label_return:
 	return ret;
 }
 
+static int
+max_background_threads_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
+    void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
+	int ret;
+	size_t oldval;
+
+	if (!have_background_thread) {
+		return ENOENT;
+	}
+	background_thread_ctl_init(tsd_tsdn(tsd));
+
+	malloc_mutex_lock(tsd_tsdn(tsd), &ctl_mtx);
+	malloc_mutex_lock(tsd_tsdn(tsd), &background_thread_lock);
+	if (newp == NULL) {
+		oldval = max_background_threads;
+		READ(oldval, size_t);
+	} else {
+		if (newlen != sizeof(size_t)) {
+			ret = EINVAL;
+			goto label_return;
+		}
+		oldval = max_background_threads;
+		READ(oldval, size_t);
+
+		size_t newval = *(size_t *)newp;
+		if (newval == oldval) {
+			ret = 0;
+			goto label_return;
+		}
+		if (newval > opt_max_background_threads) {
+			ret = EINVAL;
+			goto label_return;
+		}
+
+		if (background_thread_enabled()) {
+			if (!can_enable_background_thread) {
+				malloc_printf("<jemalloc>: Error in dlsym("
+			            "RTLD_NEXT, \"pthread_create\"). Cannot "
+				    "enable background_thread\n");
+				ret = EFAULT;
+				goto label_return;
+			}
+			background_thread_enabled_set(tsd_tsdn(tsd), false);
+			if (background_threads_disable(tsd)) {
+				ret = EFAULT;
+				goto label_return;
+			}
+			max_background_threads = newval;
+			background_thread_enabled_set(tsd_tsdn(tsd), true);
+			if (background_threads_enable(tsd)) {
+				ret = EFAULT;
+				goto label_return;
+			}
+		} else {
+			max_background_threads = newval;
+		}
+	}
+	ret = 0;
+label_return:
+	malloc_mutex_unlock(tsd_tsdn(tsd), &background_thread_lock);
+	malloc_mutex_unlock(tsd_tsdn(tsd), &ctl_mtx);
+
+	return ret;
+}
+
 /******************************************************************************/
 
 CTL_RO_CONFIG_GEN(config_cache_oblivious, bool)
@@ -1575,7 +1644,6 @@ CTL_RO_CONFIG_GEN(config_prof, bool)
 CTL_RO_CONFIG_GEN(config_prof_libgcc, bool)
 CTL_RO_CONFIG_GEN(config_prof_libunwind, bool)
 CTL_RO_CONFIG_GEN(config_stats, bool)
-CTL_RO_CONFIG_GEN(config_thp, bool)
 CTL_RO_CONFIG_GEN(config_utrace, bool)
 CTL_RO_CONFIG_GEN(config_xmalloc, bool)
 
@@ -1591,6 +1659,7 @@ CTL_RO_NL_GEN(opt_narenas, opt_narenas, unsigned)
 CTL_RO_NL_GEN(opt_percpu_arena, percpu_arena_mode_names[opt_percpu_arena],
     const char *)
 CTL_RO_NL_GEN(opt_background_thread, opt_background_thread, bool)
+CTL_RO_NL_GEN(opt_max_background_threads, opt_max_background_threads, size_t)
 CTL_RO_NL_GEN(opt_dirty_decay_ms, opt_dirty_decay_ms, ssize_t)
 CTL_RO_NL_GEN(opt_muzzy_decay_ms, opt_muzzy_decay_ms, ssize_t)
 CTL_RO_NL_GEN(opt_stats_print, opt_stats_print, bool)
@@ -1600,6 +1669,7 @@ CTL_RO_NL_CGEN(config_fill, opt_zero, opt_zero, bool)
 CTL_RO_NL_CGEN(config_utrace, opt_utrace, opt_utrace, bool)
 CTL_RO_NL_CGEN(config_xmalloc, opt_xmalloc, opt_xmalloc, bool)
 CTL_RO_NL_GEN(opt_tcache, opt_tcache, bool)
+CTL_RO_NL_GEN(opt_thp, thp_mode_names[opt_thp], const char *)
 CTL_RO_NL_GEN(opt_lg_extent_max_active_fit, opt_lg_extent_max_active_fit,
     size_t)
 CTL_RO_NL_GEN(opt_lg_tcache_max, opt_lg_tcache_max, ssize_t)
@@ -2181,20 +2251,41 @@ arena_i_extent_hooks_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
 
 	malloc_mutex_lock(tsd_tsdn(tsd), &ctl_mtx);
 	MIB_UNSIGNED(arena_ind, 1);
-	if (arena_ind < narenas_total_get() && (arena =
-	    arena_get(tsd_tsdn(tsd), arena_ind, false)) != NULL) {
-		if (newp != NULL) {
-			extent_hooks_t *old_extent_hooks;
-			extent_hooks_t *new_extent_hooks
-			    JEMALLOC_CC_SILENCE_INIT(NULL);
-			WRITE(new_extent_hooks, extent_hooks_t *);
-			old_extent_hooks = extent_hooks_set(tsd, arena,
-			    new_extent_hooks);
+	if (arena_ind < narenas_total_get()) {
+		extent_hooks_t *old_extent_hooks;
+		arena = arena_get(tsd_tsdn(tsd), arena_ind, false);
+		if (arena == NULL) {
+			if (arena_ind >= narenas_auto) {
+				ret = EFAULT;
+				goto label_return;
+			}
+			old_extent_hooks =
+			    (extent_hooks_t *)&extent_hooks_default;
 			READ(old_extent_hooks, extent_hooks_t *);
+			if (newp != NULL) {
+				/* Initialize a new arena as a side effect. */
+				extent_hooks_t *new_extent_hooks
+				    JEMALLOC_CC_SILENCE_INIT(NULL);
+				WRITE(new_extent_hooks, extent_hooks_t *);
+				arena = arena_init(tsd_tsdn(tsd), arena_ind,
+				    new_extent_hooks);
+				if (arena == NULL) {
+					ret = EFAULT;
+					goto label_return;
+				}
+			}
 		} else {
-			extent_hooks_t *old_extent_hooks =
-			    extent_hooks_get(arena);
-			READ(old_extent_hooks, extent_hooks_t *);
+			if (newp != NULL) {
+				extent_hooks_t *new_extent_hooks
+				    JEMALLOC_CC_SILENCE_INIT(NULL);
+				WRITE(new_extent_hooks, extent_hooks_t *);
+				old_extent_hooks = extent_hooks_set(tsd, arena,
+				    new_extent_hooks);
+				READ(old_extent_hooks, extent_hooks_t *);
+			} else {
+				old_extent_hooks = extent_hooks_get(arena);
+				READ(old_extent_hooks, extent_hooks_t *);
+			}
 		}
 	} else {
 		ret = EFAULT;
