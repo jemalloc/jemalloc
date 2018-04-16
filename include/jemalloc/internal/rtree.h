@@ -208,8 +208,8 @@ rtree_leaf_elm_bits_slab_get(uintptr_t bits) {
 #  endif
 
 JEMALLOC_ALWAYS_INLINE extent_t *
-rtree_leaf_elm_extent_read(tsdn_t *tsdn, rtree_t *rtree, rtree_leaf_elm_t *elm,
-    bool dependent) {
+rtree_leaf_elm_extent_read(UNUSED tsdn_t *tsdn, UNUSED rtree_t *rtree,
+    rtree_leaf_elm_t *elm, bool dependent) {
 #ifdef RTREE_LEAF_COMPACT
 	uintptr_t bits = rtree_leaf_elm_bits_read(tsdn, rtree, elm, dependent);
 	return rtree_leaf_elm_bits_extent_get(bits);
@@ -221,8 +221,8 @@ rtree_leaf_elm_extent_read(tsdn_t *tsdn, rtree_t *rtree, rtree_leaf_elm_t *elm,
 }
 
 JEMALLOC_ALWAYS_INLINE szind_t
-rtree_leaf_elm_szind_read(tsdn_t *tsdn, rtree_t *rtree, rtree_leaf_elm_t *elm,
-    bool dependent) {
+rtree_leaf_elm_szind_read(UNUSED tsdn_t *tsdn, UNUSED rtree_t *rtree,
+    rtree_leaf_elm_t *elm, bool dependent) {
 #ifdef RTREE_LEAF_COMPACT
 	uintptr_t bits = rtree_leaf_elm_bits_read(tsdn, rtree, elm, dependent);
 	return rtree_leaf_elm_bits_szind_get(bits);
@@ -233,8 +233,8 @@ rtree_leaf_elm_szind_read(tsdn_t *tsdn, rtree_t *rtree, rtree_leaf_elm_t *elm,
 }
 
 JEMALLOC_ALWAYS_INLINE bool
-rtree_leaf_elm_slab_read(tsdn_t *tsdn, rtree_t *rtree, rtree_leaf_elm_t *elm,
-    bool dependent) {
+rtree_leaf_elm_slab_read(UNUSED tsdn_t *tsdn, UNUSED rtree_t *rtree,
+    rtree_leaf_elm_t *elm, bool dependent) {
 #ifdef RTREE_LEAF_COMPACT
 	uintptr_t bits = rtree_leaf_elm_bits_read(tsdn, rtree, elm, dependent);
 	return rtree_leaf_elm_bits_slab_get(bits);
@@ -245,8 +245,8 @@ rtree_leaf_elm_slab_read(tsdn_t *tsdn, rtree_t *rtree, rtree_leaf_elm_t *elm,
 }
 
 static inline void
-rtree_leaf_elm_extent_write(tsdn_t *tsdn, rtree_t *rtree, rtree_leaf_elm_t *elm,
-    extent_t *extent) {
+rtree_leaf_elm_extent_write(UNUSED tsdn_t *tsdn, UNUSED rtree_t *rtree,
+    rtree_leaf_elm_t *elm, extent_t *extent) {
 #ifdef RTREE_LEAF_COMPACT
 	uintptr_t old_bits = rtree_leaf_elm_bits_read(tsdn, rtree, elm, true);
 	uintptr_t bits = ((uintptr_t)rtree_leaf_elm_bits_szind_get(old_bits) <<
@@ -259,8 +259,8 @@ rtree_leaf_elm_extent_write(tsdn_t *tsdn, rtree_t *rtree, rtree_leaf_elm_t *elm,
 }
 
 static inline void
-rtree_leaf_elm_szind_write(tsdn_t *tsdn, rtree_t *rtree, rtree_leaf_elm_t *elm,
-    szind_t szind) {
+rtree_leaf_elm_szind_write(UNUSED tsdn_t *tsdn, UNUSED rtree_t *rtree,
+    rtree_leaf_elm_t *elm, szind_t szind) {
 	assert(szind <= NSIZES);
 
 #ifdef RTREE_LEAF_COMPACT
@@ -277,8 +277,8 @@ rtree_leaf_elm_szind_write(tsdn_t *tsdn, rtree_t *rtree, rtree_leaf_elm_t *elm,
 }
 
 static inline void
-rtree_leaf_elm_slab_write(tsdn_t *tsdn, rtree_t *rtree, rtree_leaf_elm_t *elm,
-     bool slab) {
+rtree_leaf_elm_slab_write(UNUSED tsdn_t *tsdn, UNUSED rtree_t *rtree,
+    rtree_leaf_elm_t *elm, bool slab) {
 #ifdef RTREE_LEAF_COMPACT
 	uintptr_t old_bits = rtree_leaf_elm_bits_read(tsdn, rtree, elm,
 	    true);

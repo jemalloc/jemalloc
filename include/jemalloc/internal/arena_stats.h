@@ -95,7 +95,7 @@ struct arena_stats_s {
 };
 
 static inline bool
-arena_stats_init(tsdn_t *tsdn, arena_stats_t *arena_stats) {
+arena_stats_init(UNUSED tsdn_t *tsdn, arena_stats_t *arena_stats) {
 	if (config_debug) {
 		for (size_t i = 0; i < sizeof(arena_stats_t); i++) {
 			assert(((char *)arena_stats)[i] == 0);

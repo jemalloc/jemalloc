@@ -195,8 +195,8 @@ base_extent_bump_alloc_helper(extent_t *extent, size_t *gap_size, size_t size,
 }
 
 static void
-base_extent_bump_alloc_post(tsdn_t *tsdn, base_t *base, extent_t *extent,
-    size_t gap_size, void *addr, size_t size) {
+base_extent_bump_alloc_post(base_t *base, extent_t *extent, size_t gap_size,
+    void *addr, size_t size) {
 	if (extent_bsize_get(extent) > 0) {
 		/*
 		 * Compute the index for the largest size class that does not
@@ -229,13 +229,13 @@ base_extent_bump_alloc_post(tsdn_t *tsdn, base_t *base, extent_t *extent,
 }
 
 static void *
-base_extent_bump_alloc(tsdn_t *tsdn, base_t *base, extent_t *extent,
-    size_t size, size_t alignment) {
+base_extent_bump_alloc(base_t *base, extent_t *extent, size_t size,
+    size_t alignment) {
 	void *ret;
 	size_t gap_size;
 
 	ret = base_extent_bump_alloc_helper(extent, &gap_size, size, alignment);
-	base_extent_bump_alloc_post(tsdn, base, extent, gap_size, ret, size);
+	base_extent_bump_alloc_post(base, extent, gap_size, ret, size);
 	return ret;
 }
 
@@ -386,7 +386,7 @@ base_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 		assert(base->resident <= base->mapped);
 		assert(base->n_thp << LG_HUGEPAGE <= base->mapped);
 	}
-	base_extent_bump_alloc_post(tsdn, base, &block->extent, gap_size, base,
+	base_extent_bump_alloc_post(base, &block->extent, gap_size, base,
 	    base_size);
 
 	return base;
@@ -443,7 +443,7 @@ base_alloc_impl(tsdn_t *tsdn, base_t *base, size_t size, size_t alignment,
 		goto label_return;
 	}
 
-	ret = base_extent_bump_alloc(tsdn, base, extent, usize, alignment);
+	ret = base_extent_bump_alloc(base, extent, usize, alignment);
 	if (esn != NULL) {
 		*esn = extent_sn_get(extent);
 	}
