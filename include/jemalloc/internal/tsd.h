@@ -67,6 +67,7 @@ typedef void (*test_callback_t)(int *);
     O(narenas_tdata,		uint32_t,		uint32_t)	\
     O(thread_allocated,		uint64_t,		uint64_t)	\
     O(thread_deallocated,	uint64_t,		uint64_t)	\
+    O(thread_peakused,		int64_t,		int64_t)	\
     O(prof_tdata,		prof_tdata_t *,		prof_tdata_t *)	\
     O(rtree_ctx,		rtree_ctx_t,		rtree_ctx_t)	\
     O(iarena,			arena_t *,		arena_t *)	\

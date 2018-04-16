@@ -66,6 +66,8 @@ CTL_PROTO(thread_allocated)
 CTL_PROTO(thread_allocatedp)
 CTL_PROTO(thread_deallocated)
 CTL_PROTO(thread_deallocatedp)
+CTL_PROTO(thread_peakused)
+CTL_PROTO(thread_peakusedp)
 CTL_PROTO(config_cache_oblivious)
 CTL_PROTO(config_debug)
 CTL_PROTO(config_fill)
@@ -252,6 +254,8 @@ static const ctl_named_node_t	thread_node[] = {
 	{NAME("allocatedp"),	CTL(thread_allocatedp)},
 	{NAME("deallocated"),	CTL(thread_deallocated)},
 	{NAME("deallocatedp"),	CTL(thread_deallocatedp)},
+	{NAME("peakused"),	CTL(thread_peakused)},
+	{NAME("peakusedp"),	CTL(thread_peakusedp)},
 	{NAME("tcache"),	CHILD(named, thread_tcache)},
 	{NAME("prof"),		CHILD(named, thread_prof)}
 };
@@ -1662,6 +1666,10 @@ CTL_TSD_RO_NL_CGEN(config_stats, thread_deallocated, tsd_thread_deallocated_get,
     uint64_t)
 CTL_TSD_RO_NL_CGEN(config_stats, thread_deallocatedp,
     tsd_thread_deallocatedp_get, uint64_t *)
+CTL_TSD_RO_NL_CGEN(config_stats, thread_peakused, tsd_thread_peakused_get,
+    int64_t)
+CTL_TSD_RO_NL_CGEN(config_stats, thread_peakusedp, tsd_thread_peakusedp_get,
+    int64_t *)
 
 static int
 thread_tcache_enabled_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
