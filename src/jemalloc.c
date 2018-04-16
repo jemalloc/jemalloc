@@ -2893,7 +2893,7 @@ label_not_resized:
 
 JEMALLOC_EXPORT size_t JEMALLOC_NOTHROW
 JEMALLOC_ATTR(pure)
-je_sallocx(const void *ptr, int flags) {
+je_sallocx(const void *ptr, UNUSED int flags) {
 	size_t usize;
 	tsdn_t *tsdn;
 
