@@ -247,7 +247,7 @@ emitter_begin(emitter_t *emitter) {
 		emitter_nest_inc(emitter);
 	} else {
 		// tabular init
-		emitter_printf(emitter, "");
+		emitter_printf(emitter, "%s", "");
 	}
 }
 
