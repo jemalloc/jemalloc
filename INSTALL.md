@@ -265,6 +265,15 @@ any of the following arguments (not a definitive list) to 'configure':
     configuration, jemalloc will provide additional size classes that are not
     16-byte-aligned (24, 40, and 56).
 
+* `--disable-initial-exec-tls`
+
+    Disable the initial-exec TLS model for jemalloc's internal thread-local
+    storage (on those platforms that support explicit settings).  This can allow
+    jemalloc to be dynamically loaded after program starup (e.g. using dlopen).
+    Note that in this case, there will be two malloc implementations operating
+    in the same process, which will almost certainly result in confusing runtime
+    crashes if pointers leak from one implementation to the other.
+
 The following environment variables (not a definitive list) impact configure's
 behavior:
 
