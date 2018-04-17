@@ -1319,21 +1319,19 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena,
 		 * cant_alloc case should not occur.
 		 */
 		assert(result == extent_split_interior_error);
+		if (to_salvage != NULL) {
+			if (config_prof) {
+				extent_gdump_add(tsdn, to_salvage);
+			}
+			extent_record(tsdn, arena, r_extent_hooks,
+			    &arena->extents_retained, to_salvage, true);
+		}
 		if (to_leak != NULL) {
 			extent_deregister_no_gdump_sub(tsdn, to_leak);
 			extents_leak(tsdn, arena, r_extent_hooks,
 			    &arena->extents_retained, to_leak, true);
-			goto label_err;
 		}
-		/*
-		 * Note: we don't handle the non-NULL to_salvage case at all.
-		 * This maintains the behavior that was present when the
-		 * refactor pulling extent_split_interior into a helper function
-		 * was added.  I think this is actually a bug (we leak both the
-		 * memory and the extent_t in that case), but since this code is
-		 * getting deleted very shortly (in a subsequent commit),
-		 * ensuring correctness down this path isn't worth the effort.
-		 */
+		goto label_err;
 	}
 
 	if (*commit && !extent_committed_get(extent)) {
