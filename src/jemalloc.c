@@ -849,10 +849,8 @@ malloc_conf_error(const char *msg, const char *k, size_t klen, const char *v,
     size_t vlen) {
 	malloc_printf("<jemalloc>: %s: %.*s:%.*s\n", msg, (int)klen, k,
 	    (int)vlen, v);
+	/* If abort_conf is set, error out after processing all options. */
 	had_conf_error = true;
-	if (opt_abort_conf) {
-		malloc_abort_invalid_conf();
-	}
 }
 
 static void
@@ -1052,9 +1050,6 @@ malloc_conf_init(void) {
 
 			CONF_HANDLE_BOOL(opt_abort, "abort")
 			CONF_HANDLE_BOOL(opt_abort_conf, "abort_conf")
-			if (opt_abort_conf && had_conf_error) {
-				malloc_abort_invalid_conf();
-			}
 			if (strncmp("metadata_thp", k, klen) == 0) {
 				int i;
 				bool match = false;
@@ -1242,6 +1237,9 @@ malloc_conf_init(void) {
 #undef CONF_HANDLE_SIZE_T
 #undef CONF_HANDLE_SSIZE_T
 #undef CONF_HANDLE_CHAR_P
+		}
+		if (opt_abort_conf && had_conf_error) {
+			malloc_abort_invalid_conf();
 		}
 	}
 	atomic_store_b(&log_init_done, true, ATOMIC_RELEASE);
