@@ -398,7 +398,10 @@ check_background_thread_creation(tsd_t *tsd, unsigned *n_created,
 		}
 		background_thread_info_t *info = &background_thread_info[i];
 		malloc_mutex_lock(tsdn, &info->mtx);
-		assert(info->state != background_thread_paused);
+		/*
+		 * In case of the background_thread_paused state because of
+		 * arena reset, delay the creation.
+		 */
 		bool create = (info->state == background_thread_started);
 		malloc_mutex_unlock(tsdn, &info->mtx);
 		if (!create) {
