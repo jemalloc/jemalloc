@@ -18,7 +18,7 @@
  * hook is called.  If it is moved, then the alloc hook is called on the new
  * location, and then the free hook is called on the old location.
  *
- * (We omit no-ops, like free(NULL), etc.).
+ * If we return NULL from OOM, then usize might not be trustworthy.
  *
  * Reentrancy:
  *   Is not protected against.  If your hooks allocate, then the hooks will be

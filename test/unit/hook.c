@@ -38,6 +38,12 @@ assert_args_raw(uintptr_t *args_raw_expected, int nargs) {
 }
 
 static void
+reset() {
+	call_count = 0;
+	reset_args();
+}
+
+static void
 test_alloc_hook(void *extra, hook_alloc_t type, void *result,
     uintptr_t result_raw, uintptr_t args_raw[3]) {
 	call_count++;
@@ -171,10 +177,124 @@ TEST_BEGIN(test_hooks_remove) {
 }
 TEST_END
 
+TEST_BEGIN(test_hooks_alloc_simple) {
+	/* "Simple" in the sense that we're not in a realloc variant. */
+
+	hooks_t hooks = {&test_alloc_hook, NULL, NULL};
+	void *handle = hook_install(TSDN_NULL, &hooks, (void *)123);
+	assert_ptr_ne(handle, NULL, "Hook installation failed");
+
+	/* Stop malloc from being optimized away. */
+	volatile int err;
+	void *volatile ptr;
+
+	/* malloc */
+	reset();
+	ptr = malloc(1);
+	assert_d_eq(call_count, 1, "Hook not called");
+	assert_ptr_eq(arg_extra, (void *)123, "Wrong extra");
+	assert_d_eq(arg_type, (int)hook_alloc_malloc, "Wrong hook type");
+	assert_ptr_eq(ptr, arg_result, "Wrong result");
+	assert_u64_eq((uintptr_t)ptr, (uintptr_t)arg_result_raw,
+	    "Wrong raw result");
+	assert_u64_eq((uintptr_t)1, arg_args_raw[0], "Wrong argument");
+	free(ptr);
+
+	/* posix_memalign */
+	reset();
+	err = posix_memalign((void **)&ptr, 1024, 1);
+	assert_d_eq(call_count, 1, "Hook not called");
+	assert_ptr_eq(arg_extra, (void *)123, "Wrong extra");
+	assert_d_eq(arg_type, (int)hook_alloc_posix_memalign,
+	    "Wrong hook type");
+	assert_ptr_eq(ptr, arg_result, "Wrong result");
+	assert_u64_eq((uintptr_t)err, (uintptr_t)arg_result_raw,
+	    "Wrong raw result");
+	assert_u64_eq((uintptr_t)&ptr, arg_args_raw[0], "Wrong argument");
+	assert_u64_eq((uintptr_t)1024, arg_args_raw[1], "Wrong argument");
+	assert_u64_eq((uintptr_t)1, arg_args_raw[2], "Wrong argument");
+	free(ptr);
+
+	/* aligned_alloc */
+	reset();
+	ptr = aligned_alloc(1024, 1);
+	assert_d_eq(call_count, 1, "Hook not called");
+	assert_ptr_eq(arg_extra, (void *)123, "Wrong extra");
+	assert_d_eq(arg_type, (int)hook_alloc_aligned_alloc,
+	    "Wrong hook type");
+	assert_ptr_eq(ptr, arg_result, "Wrong result");
+	assert_u64_eq((uintptr_t)ptr, (uintptr_t)arg_result_raw,
+	    "Wrong raw result");
+	assert_u64_eq((uintptr_t)1024, arg_args_raw[0], "Wrong argument");
+	assert_u64_eq((uintptr_t)1, arg_args_raw[1], "Wrong argument");
+	free(ptr);
+
+	/* calloc */
+	reset();
+	ptr = calloc(11, 13);
+	assert_d_eq(call_count, 1, "Hook not called");
+	assert_ptr_eq(arg_extra, (void *)123, "Wrong extra");
+	assert_d_eq(arg_type, (int)hook_alloc_calloc, "Wrong hook type");
+	assert_ptr_eq(ptr, arg_result, "Wrong result");
+	assert_u64_eq((uintptr_t)ptr, (uintptr_t)arg_result_raw,
+	    "Wrong raw result");
+	assert_u64_eq((uintptr_t)11, arg_args_raw[0], "Wrong argument");
+	assert_u64_eq((uintptr_t)13, arg_args_raw[1], "Wrong argument");
+	free(ptr);
+
+	/* memalign */
+#ifdef JEMALLOC_OVERRIDE_MEMALIGN
+	reset();
+	ptr = memalign(1024, 1);
+	assert_d_eq(call_count, 1, "Hook not called");
+	assert_ptr_eq(arg_extra, (void *)123, "Wrong extra");
+	assert_d_eq(arg_type, (int)hook_alloc_memalign, "Wrong hook type");
+	assert_ptr_eq(ptr, arg_result, "Wrong result");
+	assert_u64_eq((uintptr_t)ptr, (uintptr_t)arg_result_raw,
+	    "Wrong raw result");
+	assert_u64_eq((uintptr_t)1024, arg_args_raw[0], "Wrong argument");
+	assert_u64_eq((uintptr_t)1, arg_args_raw[1], "Wrong argument");
+	free(ptr);
+#endif /* JEMALLOC_OVERRIDE_MEMALIGN */
+
+	/* valloc */
+#ifdef JEMALLOC_OVERRIDE_VALLOC
+	reset();
+	ptr = valloc(1);
+	assert_d_eq(call_count, 1, "Hook not called");
+	assert_ptr_eq(arg_extra, (void *)123, "Wrong extra");
+	assert_d_eq(arg_type, (int)hook_alloc_valloc, "Wrong hook type");
+	assert_ptr_eq(ptr, arg_result, "Wrong result");
+	assert_u64_eq((uintptr_t)ptr, (uintptr_t)arg_result_raw,
+	    "Wrong raw result");
+	assert_u64_eq((uintptr_t)1, arg_args_raw[0], "Wrong argument");
+	free(ptr);
+#endif /* JEMALLOC_OVERRIDE_VALLOC */
+
+	/* mallocx */
+	reset();
+	ptr = mallocx(1, MALLOCX_LG_ALIGN(10));
+	assert_d_eq(call_count, 1, "Hook not called");
+	assert_ptr_eq(arg_extra, (void *)123, "Wrong extra");
+	assert_d_eq(arg_type, (int)hook_alloc_mallocx, "Wrong hook type");
+	assert_ptr_eq(ptr, arg_result, "Wrong result");
+	assert_u64_eq((uintptr_t)ptr, (uintptr_t)arg_result_raw,
+	    "Wrong raw result");
+	assert_u64_eq((uintptr_t)1, arg_args_raw[0], "Wrong argument");
+	assert_u64_eq((uintptr_t)MALLOCX_LG_ALIGN(10), arg_args_raw[1],
+	    "Wrong flags");
+	free(ptr);
+
+	hook_remove(TSDN_NULL, handle);
+}
+TEST_END
+
 int
 main(void) {
-	return test(
+	/* We assert on call counts. */
+	return test_no_reentrancy(
 	    test_hooks_basic,
 	    test_hooks_null,
-	    test_hooks_remove);
+	    test_hooks_remove,
+	    test_hooks_alloc_simple);
 }

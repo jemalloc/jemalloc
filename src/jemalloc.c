@@ -2038,6 +2038,14 @@ je_malloc(size_t size) {
 	dopts.item_size = size;
 
 	imalloc(&sopts, &dopts);
+	/*
+	 * Note that this branch gets optimized away -- it immediately follows
+	 * the check on tsd_fast that sets sopts.slow.
+	 */
+	if (sopts.slow) {
+		uintptr_t args[3] = {size};
+		hook_invoke_alloc(hook_alloc_malloc, ret, (uintptr_t)ret, args);
+	}
 
 	LOG("core.malloc.exit", "result: %p", ret);
 
@@ -2070,6 +2078,12 @@ je_posix_memalign(void **memptr, size_t alignment, size_t size) {
 	dopts.alignment = alignment;
 
 	ret = imalloc(&sopts, &dopts);
+	if (sopts.slow) {
+		uintptr_t args[3] = {(uintptr_t)memptr, (uintptr_t)alignment,
+			(uintptr_t)size};
+		hook_invoke_alloc(hook_alloc_posix_memalign, *memptr,
+		    (uintptr_t)ret, args);
+	}
 
 	LOG("core.posix_memalign.exit", "result: %d, alloc ptr: %p", ret,
 	    *memptr);
@@ -2107,6 +2121,11 @@ je_aligned_alloc(size_t alignment, size_t size) {
 	dopts.alignment = alignment;
 
 	imalloc(&sopts, &dopts);
+	if (sopts.slow) {
+		uintptr_t args[3] = {(uintptr_t)alignment, (uintptr_t)size};
+		hook_invoke_alloc(hook_alloc_aligned_alloc, ret,
+		    (uintptr_t)ret, args);
+	}
 
 	LOG("core.aligned_alloc.exit", "result: %p", ret);
 
@@ -2138,6 +2157,10 @@ je_calloc(size_t num, size_t size) {
 	dopts.zero = true;
 
 	imalloc(&sopts, &dopts);
+	if (sopts.slow) {
+		uintptr_t args[3] = {(uintptr_t)num, (uintptr_t)size};
+		hook_invoke_alloc(hook_alloc_calloc, ret, (uintptr_t)ret, args);
+	}
 
 	LOG("core.calloc.exit", "result: %p", ret);
 
@@ -2307,6 +2330,7 @@ je_realloc(void *ptr, size_t size) {
 			} else {
 				tcache = NULL;
 			}
+
 			ifree(tsd, ptr, tcache, true);
 
 			LOG("core.realloc.exit", "result: %p", NULL);
@@ -2330,9 +2354,12 @@ je_realloc(void *ptr, size_t size) {
 		assert(old_usize == isalloc(tsd_tsdn(tsd), ptr));
 		if (config_prof && opt_prof) {
 			usize = sz_s2u(size);
-			ret = unlikely(usize == 0 || usize > LARGE_MAXCLASS) ?
-			    NULL : irealloc_prof(tsd, ptr, old_usize, usize,
-			    &alloc_ctx);
+			if (unlikely(usize == 0 || usize > LARGE_MAXCLASS)) {
+				ret = NULL;
+			} else {
+				ret = irealloc_prof(tsd, ptr, old_usize, usize,
+				    &alloc_ctx);
+			}
 		} else {
 			if (config_stats) {
 				usize = sz_s2u(size);
@@ -2342,8 +2369,23 @@ je_realloc(void *ptr, size_t size) {
 		tsdn = tsd_tsdn(tsd);
 	} else {
 		/* realloc(NULL, size) is equivalent to malloc(size). */
-		void *ret = je_malloc(size);
-		LOG("core.realloc.exit", "result: %p", ret);
+		static_opts_t sopts;
+		dynamic_opts_t dopts;
+
+		static_opts_init(&sopts);
+		dynamic_opts_init(&dopts);
+
+		sopts.bump_empty_alloc = true;
+		sopts.null_out_result_on_error = true;
+		sopts.set_errno_on_error = true;
+		sopts.oom_string =
+		    "<jemalloc>: Error in realloc(): out of memory\n";
+
+		dopts.result = &ret;
+		dopts.num_items = 1;
+		dopts.item_size = size;
+
+		imalloc(&sopts, &dopts);
 		return ret;
 	}
 
@@ -2443,6 +2485,11 @@ je_memalign(size_t alignment, size_t size) {
 	dopts.alignment = alignment;
 
 	imalloc(&sopts, &dopts);
+	if (sopts.slow) {
+		uintptr_t args[3] = {alignment, size};
+		hook_invoke_alloc(hook_alloc_memalign, ret, (uintptr_t)ret,
+		    args);
+	}
 
 	LOG("core.memalign.exit", "result: %p", ret);
 	return ret;
@@ -2478,6 +2525,10 @@ je_valloc(size_t size) {
 	dopts.alignment = PAGE;
 
 	imalloc(&sopts, &dopts);
+	if (sopts.slow) {
+		uintptr_t args[3] = {size};
+		hook_invoke_alloc(hook_alloc_valloc, ret, (uintptr_t)ret, args);
+	}
 
 	LOG("core.valloc.exit", "result: %p\n", ret);
 	return ret;
@@ -2588,6 +2639,11 @@ je_mallocx(size_t size, int flags) {
 	}
 
 	imalloc(&sopts, &dopts);
+	if (sopts.slow) {
+		uintptr_t args[3] = {size, flags};
+		hook_invoke_alloc(hook_alloc_mallocx, ret, (uintptr_t)ret,
+		    args);
+	}
 
 	LOG("core.mallocx.exit", "result: %p", ret);
 	return ret;
