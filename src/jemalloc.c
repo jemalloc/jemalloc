@@ -2441,6 +2441,8 @@ je_free(void *ptr) {
 			} else {
 				tcache = NULL;
 			}
+			uintptr_t args_raw[3] = {(uintptr_t)ptr};
+			hook_invoke_dalloc(hook_dalloc_free, ptr, args_raw);
 			ifree(tsd, ptr, tcache, true);
 		}
 		check_entry_exit_locking(tsd_tsdn(tsd));
@@ -3012,6 +3014,8 @@ je_dallocx(void *ptr, int flags) {
 		tsd_assert_fast(tsd);
 		ifree(tsd, ptr, tcache, false);
 	} else {
+		uintptr_t args_raw[3] = {(uintptr_t)ptr, flags};
+		hook_invoke_dalloc(hook_dalloc_dallocx, ptr, args_raw);
 		ifree(tsd, ptr, tcache, true);
 	}
 	check_entry_exit_locking(tsd_tsdn(tsd));
@@ -3074,6 +3078,8 @@ je_sdallocx(void *ptr, size_t size, int flags) {
 		tsd_assert_fast(tsd);
 		isfree(tsd, ptr, usize, tcache, false);
 	} else {
+		uintptr_t args_raw[3] = {(uintptr_t)ptr, size, flags};
+		hook_invoke_dalloc(hook_dalloc_sdallocx, ptr, args_raw);
 		isfree(tsd, ptr, usize, tcache, true);
 	}
 	check_entry_exit_locking(tsd_tsdn(tsd));
