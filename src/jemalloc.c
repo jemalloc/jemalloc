@@ -2311,11 +2311,12 @@ isfree(tsd_t *tsd, void *ptr, size_t usize, tcache_t *tcache, bool slow_path) {
 JEMALLOC_EXPORT JEMALLOC_ALLOCATOR JEMALLOC_RESTRICT_RETURN
 void JEMALLOC_NOTHROW *
 JEMALLOC_ALLOC_SIZE(2)
-je_realloc(void *ptr, size_t size) {
+je_realloc(void *ptr, size_t arg_size) {
 	void *ret;
 	tsdn_t *tsdn JEMALLOC_CC_SILENCE_INIT(NULL);
 	size_t usize JEMALLOC_CC_SILENCE_INIT(0);
 	size_t old_usize = 0;
+	size_t size = arg_size;
 
 	LOG("core.realloc.entry", "ptr: %p, size: %zu\n", ptr, size);
 
@@ -2330,6 +2331,9 @@ je_realloc(void *ptr, size_t size) {
 			} else {
 				tcache = NULL;
 			}
+
+			uintptr_t args[3] = {(uintptr_t)ptr, size};
+			hook_invoke_dalloc(hook_dalloc_realloc, ptr, args);
 
 			ifree(tsd, ptr, tcache, true);
 
@@ -2386,6 +2390,12 @@ je_realloc(void *ptr, size_t size) {
 		dopts.item_size = size;
 
 		imalloc(&sopts, &dopts);
+		if (sopts.slow) {
+			uintptr_t args[3] = {(uintptr_t)ptr, arg_size};
+			hook_invoke_alloc(hook_alloc_realloc, ret,
+			    (uintptr_t)ret, args);
+		}
+
 		return ret;
 	}
 

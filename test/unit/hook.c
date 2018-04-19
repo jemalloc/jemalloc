@@ -179,7 +179,6 @@ TEST_END
 
 TEST_BEGIN(test_hooks_alloc_simple) {
 	/* "Simple" in the sense that we're not in a realloc variant. */
-
 	hooks_t hooks = {&test_alloc_hook, NULL, NULL};
 	void *handle = hook_install(TSDN_NULL, &hooks, (void *)123);
 	assert_ptr_ne(handle, NULL, "Hook installation failed");
@@ -364,6 +363,54 @@ TEST_BEGIN(test_hooks_expand_simple) {
 }
 TEST_END
 
+TEST_BEGIN(test_hooks_realloc_as_malloc_or_free) {
+	hooks_t hooks = {&test_alloc_hook, &test_dalloc_hook,
+		&test_expand_hook};
+	void *handle = hook_install(TSDN_NULL, &hooks, (void *)123);
+	assert_ptr_ne(handle, NULL, "Hook installation failed");
+
+	void *volatile ptr;
+
+	/* realloc(NULL, size) as malloc */
+	reset();
+	ptr = realloc(NULL, 1);
+	assert_d_eq(call_count, 1, "Hook not called");
+	assert_ptr_eq(arg_extra, (void *)123, "Wrong extra");
+	assert_d_eq(arg_type, (int)hook_alloc_realloc, "Wrong hook type");
+	assert_ptr_eq(ptr, arg_result, "Wrong result");
+	assert_u64_eq((uintptr_t)ptr, (uintptr_t)arg_result_raw,
+	    "Wrong raw result");
+	assert_u64_eq((uintptr_t)NULL, arg_args_raw[0], "Wrong argument");
+	assert_u64_eq((uintptr_t)1, arg_args_raw[1], "Wrong argument");
+	free(ptr);
+
+	/* realloc(ptr, 0) as free */
+	ptr = malloc(1);
+	reset();
+	realloc(ptr, 0);
+	assert_d_eq(call_count, 1, "Hook not called");
+	assert_ptr_eq(arg_extra, (void *)123, "Wrong extra");
+	assert_d_eq(arg_type, (int)hook_dalloc_realloc, "Wrong hook type");
+	assert_ptr_eq(ptr, arg_address, "Wrong pointer freed");
+	assert_u64_eq((uintptr_t)ptr, arg_args_raw[0], "Wrong raw arg");
+	assert_u64_eq((uintptr_t)0, arg_args_raw[1], "Wrong raw arg");
+
+	/* realloc(NULL, 0) as malloc(0) */
+	reset();
+	ptr = realloc(NULL, 0);
+	assert_d_eq(call_count, 1, "Hook not called");
+	assert_ptr_eq(arg_extra, (void *)123, "Wrong extra");
+	assert_d_eq(arg_type, (int)hook_alloc_realloc, "Wrong hook type");
+	assert_ptr_eq(ptr, arg_result, "Wrong result");
+	assert_u64_eq((uintptr_t)ptr, (uintptr_t)arg_result_raw,
+	    "Wrong raw result");
+	assert_u64_eq((uintptr_t)NULL, arg_args_raw[0], "Wrong argument");
+	assert_u64_eq((uintptr_t)0, arg_args_raw[1], "Wrong argument");
+	free(ptr);
+
+	hook_remove(TSDN_NULL, handle);
+}
+TEST_END
 
 int
 main(void) {
@@ -374,5 +421,6 @@ main(void) {
 	    test_hooks_remove,
 	    test_hooks_alloc_simple,
 	    test_hooks_dalloc_simple,
-	    test_hooks_expand_simple);
+	    test_hooks_expand_simple,
+	    test_hooks_realloc_as_malloc_or_free);
 }
