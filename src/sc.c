@@ -2,6 +2,8 @@
 
 #include "jemalloc/internal/assert.h"
 #include "jemalloc/internal/bit_util.h"
+#include "jemalloc/internal/bitmap.h"
+#include "jemalloc/internal/pages.h"
 #include "jemalloc/internal/sc.h"
 
 /*
@@ -238,6 +240,46 @@ sc_data_init(sc_data_t *sc_data) {
 	    lg_max_lookup, LG_PAGE, 2);
 
 	sc_data->initialized = true;
+}
+
+static void
+sc_data_update_sc_slab_size(sc_t *sc, size_t reg_size, size_t pgs_guess) {
+	size_t min_pgs = reg_size / PAGE;
+	if (reg_size % PAGE != 0) {
+		min_pgs++;
+	}
+	/*
+	 * BITMAP_MAXBITS is actually determined by putting the smallest
+	 * possible size-class on one page, so this can never be 0.
+	 */
+	size_t max_pgs = BITMAP_MAXBITS * reg_size / PAGE;
+
+	assert(min_pgs <= max_pgs);
+	assert(min_pgs > 0);
+	assert(max_pgs >= 1);
+	if (pgs_guess < min_pgs) {
+		sc->pgs = (int)min_pgs;
+	} else if (pgs_guess > max_pgs) {
+		sc->pgs = (int)max_pgs;
+	} else {
+		sc->pgs = (int)pgs_guess;
+	}
+}
+
+void
+sc_data_update_slab_size(sc_data_t *data, size_t begin, size_t end, int pgs) {
+	assert(data->initialized);
+	for (int i = 0; i < data->nsizes; i++) {
+		sc_t *sc = &data->sc[i];
+		if (!sc->bin) {
+			break;
+		}
+		size_t reg_size = reg_size_compute(sc->lg_base, sc->lg_delta,
+		    sc->ndelta);
+		if (begin <= reg_size && reg_size <= end) {
+			sc_data_update_sc_slab_size(sc, reg_size, pgs);
+		}
+	}
 }
 
 void
