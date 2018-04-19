@@ -289,6 +289,53 @@ TEST_BEGIN(test_hooks_alloc_simple) {
 }
 TEST_END
 
+TEST_BEGIN(test_hooks_dalloc_simple) {
+	/* "Simple" in the sense that we're not in a realloc variant. */
+	hooks_t hooks = {NULL, &test_dalloc_hook, NULL};
+	void *handle = hook_install(TSDN_NULL, &hooks, (void *)123);
+	assert_ptr_ne(handle, NULL, "Hook installation failed");
+
+	void *volatile ptr;
+
+	/* free() */
+	reset();
+	ptr = malloc(1);
+	free(ptr);
+	assert_d_eq(call_count, 1, "Hook not called");
+	assert_ptr_eq(arg_extra, (void *)123, "Wrong extra");
+	assert_d_eq(arg_type, (int)hook_dalloc_free, "Wrong hook type");
+	assert_ptr_eq(ptr, arg_address, "Wrong pointer freed");
+	assert_u64_eq((uintptr_t)ptr, arg_args_raw[0], "Wrong raw arg");
+
+	/* dallocx() */
+	reset();
+	ptr = malloc(1);
+	dallocx(ptr, MALLOCX_TCACHE_NONE);
+	assert_d_eq(call_count, 1, "Hook not called");
+	assert_ptr_eq(arg_extra, (void *)123, "Wrong extra");
+	assert_d_eq(arg_type, (int)hook_dalloc_dallocx, "Wrong hook type");
+	assert_ptr_eq(ptr, arg_address, "Wrong pointer freed");
+	assert_u64_eq((uintptr_t)ptr, arg_args_raw[0], "Wrong raw arg");
+	assert_u64_eq((uintptr_t)MALLOCX_TCACHE_NONE, arg_args_raw[1],
+	    "Wrong raw arg");
+
+	/* sdallocx() */
+	reset();
+	ptr = malloc(1);
+	sdallocx(ptr, 1, MALLOCX_TCACHE_NONE);
+	assert_d_eq(call_count, 1, "Hook not called");
+	assert_ptr_eq(arg_extra, (void *)123, "Wrong extra");
+	assert_d_eq(arg_type, (int)hook_dalloc_sdallocx, "Wrong hook type");
+	assert_ptr_eq(ptr, arg_address, "Wrong pointer freed");
+	assert_u64_eq((uintptr_t)ptr, arg_args_raw[0], "Wrong raw arg");
+	assert_u64_eq((uintptr_t)1, arg_args_raw[1], "Wrong raw arg");
+	assert_u64_eq((uintptr_t)MALLOCX_TCACHE_NONE, arg_args_raw[2],
+	    "Wrong raw arg");
+
+	hook_remove(TSDN_NULL, handle);
+}
+TEST_END
+
 int
 main(void) {
 	/* We assert on call counts. */
@@ -296,5 +343,6 @@ main(void) {
 	    test_hooks_basic,
 	    test_hooks_null,
 	    test_hooks_remove,
-	    test_hooks_alloc_simple);
+	    test_hooks_alloc_simple,
+	    test_hooks_dalloc_simple);
 }
