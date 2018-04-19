@@ -16,6 +16,7 @@ struct hooks_internal_s {
 seq_define(hooks_internal_t, hooks)
 
 #define HOOKS_MAX 4
+static atomic_u_t nhooks = ATOMIC_INIT(0);
 static seq_hooks_t hooks[HOOKS_MAX];
 static malloc_mutex_t hooks_mu;
 
@@ -37,6 +38,9 @@ hook_install_locked(hooks_t *to_install, void *extra) {
 			hooks_internal.extra = extra;
 			hooks_internal.in_use = true;
 			seq_store_hooks(&hooks[i], &hooks_internal);
+			atomic_store_u(&nhooks,
+			    atomic_load_u(&nhooks, ATOMIC_RELAXED) + 1,
+			    ATOMIC_RELAXED);
 			return &hooks[i];
 		}
 	}
@@ -64,6 +68,8 @@ hook_remove_locked(seq_hooks_t *to_remove) {
 	assert(hooks_internal.in_use);
 	hooks_internal.in_use = false;
 	seq_store_hooks(to_remove, &hooks_internal);
+	atomic_store_u(&nhooks, atomic_load_u(&nhooks, ATOMIC_RELAXED) - 1,
+	    ATOMIC_RELAXED);
 }
 
 void
@@ -99,6 +105,9 @@ for (int for_each_hook_counter = 0;					\
 void
 hook_invoke_alloc(hook_alloc_t type, void *result, uintptr_t result_raw,
     uintptr_t args_raw[3]) {
+	if (likely(atomic_load_u(&nhooks, ATOMIC_RELAXED) == 0)) {
+		return;
+	}
 	hooks_internal_t hook;
 	FOR_EACH_HOOK_BEGIN(&hook)
 		hook_alloc h = hook.hooks.alloc_hook;
@@ -110,6 +119,9 @@ hook_invoke_alloc(hook_alloc_t type, void *result, uintptr_t result_raw,
 
 void
 hook_invoke_dalloc(hook_dalloc_t type, void *address, uintptr_t args_raw[3]) {
+	if (likely(atomic_load_u(&nhooks, ATOMIC_RELAXED) == 0)) {
+		return;
+	}
 	hooks_internal_t hook;
 	FOR_EACH_HOOK_BEGIN(&hook)
 		hook_dalloc h = hook.hooks.dalloc_hook;
@@ -122,6 +134,9 @@ hook_invoke_dalloc(hook_dalloc_t type, void *address, uintptr_t args_raw[3]) {
 void
 hook_invoke_expand(hook_expand_t type, void *address, size_t old_usize,
     size_t new_usize, uintptr_t result_raw, uintptr_t args_raw[4]) {
+	if (likely(atomic_load_u(&nhooks, ATOMIC_RELAXED) == 0)) {
+		return;
+	}
 	hooks_internal_t hook;
 	FOR_EACH_HOOK_BEGIN(&hook)
 		hook_expand h = hook.hooks.expand_hook;
