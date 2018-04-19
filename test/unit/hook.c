@@ -336,6 +336,35 @@ TEST_BEGIN(test_hooks_dalloc_simple) {
 }
 TEST_END
 
+TEST_BEGIN(test_hooks_expand_simple) {
+	/* "Simple" in the sense that we're not in a realloc variant. */
+	hooks_t hooks = {NULL, NULL, &test_expand_hook};
+	void *handle = hook_install(TSDN_NULL, &hooks, (void *)123);
+	assert_ptr_ne(handle, NULL, "Hook installation failed");
+
+	void *volatile ptr;
+
+	/* xallocx() */
+	reset();
+	ptr = malloc(1);
+	size_t new_usize = xallocx(ptr, 100, 200, MALLOCX_TCACHE_NONE);
+	assert_d_eq(call_count, 1, "Hook not called");
+	assert_ptr_eq(arg_extra, (void *)123, "Wrong extra");
+	assert_d_eq(arg_type, (int)hook_expand_xallocx, "Wrong hook type");
+	assert_ptr_eq(ptr, arg_address, "Wrong pointer expanded");
+	assert_u64_eq(arg_old_usize, nallocx(1, 0), "Wrong old usize");
+	assert_u64_eq(arg_new_usize, sallocx(ptr, 0), "Wrong new usize");
+	assert_u64_eq(new_usize, arg_result_raw, "Wrong result");
+	assert_u64_eq((uintptr_t)ptr, arg_args_raw[0], "Wrong arg");
+	assert_u64_eq(100, arg_args_raw[1], "Wrong arg");
+	assert_u64_eq(200, arg_args_raw[2], "Wrong arg");
+	assert_u64_eq(MALLOCX_TCACHE_NONE, arg_args_raw[3], "Wrong arg");
+
+	hook_remove(TSDN_NULL, handle);
+}
+TEST_END
+
+
 int
 main(void) {
 	/* We assert on call counts. */
@@ -344,5 +373,6 @@ main(void) {
 	    test_hooks_null,
 	    test_hooks_remove,
 	    test_hooks_alloc_simple,
-	    test_hooks_dalloc_simple);
+	    test_hooks_dalloc_simple,
+	    test_hooks_expand_simple);
 }

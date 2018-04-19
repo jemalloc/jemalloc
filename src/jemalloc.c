@@ -2942,6 +2942,12 @@ je_xallocx(void *ptr, size_t size, size_t extra, int flags) {
 		*tsd_thread_deallocatedp_get(tsd) += old_usize;
 	}
 label_not_resized:
+	if (unlikely(!tsd_fast(tsd))) {
+		uintptr_t args[4] = {(uintptr_t)ptr, size, extra, flags};
+		hook_invoke_expand(hook_expand_xallocx, ptr, old_usize,
+		    usize, (uintptr_t)usize, args);
+	}
+
 	UTRACE(ptr, size, ptr);
 	check_entry_exit_locking(tsd_tsdn(tsd));
 
