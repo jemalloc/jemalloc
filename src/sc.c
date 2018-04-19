@@ -4,6 +4,13 @@
 #include "jemalloc/internal/bit_util.h"
 #include "jemalloc/internal/sc.h"
 
+/*
+ * This module computes the size classes used to satisfy allocations.  The logic
+ * here was ported more or less line-by-line from a shell script, and because of
+ * that is not the most idiomatic C.  Eventually we should fix this, but for now
+ * at least the damage is compartmentalized to this file.
+ */
+
 sc_data_t sc_data_global;
 
 static size_t
