@@ -16,9 +16,13 @@
  *
  * For realloc and rallocx, if the expansion happens in place, the expansion
  * hook is called.  If it is moved, then the alloc hook is called on the new
- * location, and then the free hook is called on the old location.
+ * location, and then the free hook is called on the old location (i.e. both
+ * hooks are invoked in between the alloc and the dalloc).
  *
- * If we return NULL from OOM, then usize might not be trustworthy.
+ * If we return NULL from OOM, then usize might not be trustworthy.  Calling
+ * realloc(NULL, size) only calls the alloc hook, and calling realloc(ptr, 0)
+ * only calls the free hook.  (Calling realloc(NULL, 0) is treated as malloc(0),
+ * and only calls the alloc hook).
  *
  * Reentrancy:
  *   Is not protected against.  If your hooks allocate, then the hooks will be
