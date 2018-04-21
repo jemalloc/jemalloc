@@ -765,6 +765,49 @@ init_opt_stats_print_opts(const char *v, size_t vlen) {
 }
 
 static bool
+malloc_conf_slab_sizes_next(const char **slab_size_segment_cur,
+    size_t *vlen_left, size_t *slab_start, size_t *slab_end, size_t *pgs) {
+	const char *cur = *slab_size_segment_cur;
+	char *end;
+	uintmax_t um;
+
+	set_errno(0);
+
+	/* First number, then '-' */
+	um = malloc_strtoumax(cur, &end, 0);
+	if (get_errno() != 0 || *end != '-') {
+		return true;
+	}
+	*slab_start = (size_t)um;
+	cur = end + 1;
+
+	/* Second number, then ':' */
+	um = malloc_strtoumax(cur, &end, 0);
+	if (get_errno() != 0 || *end != ':') {
+		return true;
+	}
+	*slab_end = (size_t)um;
+	cur = end + 1;
+
+	/* Last number */
+	um = malloc_strtoumax(cur, &end, 0);
+	if (get_errno() != 0) {
+		return true;
+	}
+	*pgs = (size_t)um;
+
+	/* Consume the separator if there is one. */
+	if (*end == '|') {
+		end++;
+	}
+
+	*vlen_left -= end - *slab_size_segment_cur;
+	*slab_size_segment_cur = end;
+
+	return false;
+}
+
+static bool
 malloc_conf_next(char const **opts_p, char const **k_p, size_t *klen_p,
     char const **v_p, size_t *vlen_p) {
 	bool accept;
@@ -1192,6 +1235,31 @@ malloc_conf_init(void) {
 					   "max_background_threads", 1,
 					   opt_max_background_threads, yes, yes,
 					   true);
+			if (CONF_MATCH("slab_sizes")) {
+				bool err;
+				const char *slab_size_segment_cur = v;
+				size_t vlen_left = vlen;
+				do {
+					size_t slab_start;
+					size_t slab_end;
+					size_t pgs;
+					err = malloc_conf_slab_sizes_next(
+					    &slab_size_segment_cur,
+					    &vlen_left, &slab_start, &slab_end,
+					    &pgs);
+					if (!err) {
+						sc_data_update_slab_size(
+						    &sc_data_global, slab_start,
+						    slab_end, (int)pgs);
+					} else {
+						malloc_conf_error(
+						    "Invalid settings for "
+						    "slab_sizes", k, klen, v,
+						    vlen);
+					}
+				} while (!err && vlen_left > 0);
+				continue;
+			}
 			if (config_prof) {
 				CONF_HANDLE_BOOL(opt_prof, "prof")
 				CONF_HANDLE_CHAR_P(opt_prof_prefix,
