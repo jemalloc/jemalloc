@@ -1295,14 +1295,21 @@ static bool
 malloc_init_hard_a0_locked() {
 	malloc_initializer = INITIALIZER;
 
+	/*
+	 * Ordering here is somewhat tricky; we need sc_boot() first, since that
+	 * determines what the size classes will be, and then
+	 * malloc_conf_init(), since any slab size tweaking will need to be done
+	 * before sz_boot and bin_boot, which assume that the values they read
+	 * out of sc_data_global are final.
+	 */
 	sc_boot();
+	malloc_conf_init();
 	sz_boot(&sc_data_global);
 	bin_boot(&sc_data_global);
 
 	if (config_prof) {
 		prof_boot0();
 	}
-	malloc_conf_init();
 	if (opt_stats_print) {
 		/* Print statistics at exit. */
 		if (atexit(stats_print_atexit) != 0) {
