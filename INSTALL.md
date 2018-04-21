@@ -338,6 +338,7 @@ To install only parts of jemalloc, use the following targets:
     install_include
     install_lib_shared
     install_lib_static
+    install_lib_pc
     install_lib
     install_doc_html
     install_doc_man
