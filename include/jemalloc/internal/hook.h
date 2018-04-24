@@ -106,6 +106,37 @@ struct hooks_s {
 };
 
 /*
+ * Begin implementation details; everything above this point might one day live
+ * in a public API.  Everything below this point never will.
+ */
+
+/*
+ * The realloc pathways haven't gotten any refactoring love in a while, and it's
+ * fairly difficult to pass information from the entry point to the hooks.  We
+ * put the informaiton the hooks will need into a struct to encapsulate
+ * everything.
+ *
+ * Much of these pathways are force-inlined, so that the compiler can avoid
+ * materializing this struct until we hit an extern arena function.  For fairly
+ * goofy reasons, *many* of the realloc paths hit an extern arena function.
+ * These paths are cold enough that it doesn't matter; eventually, we should
+ * rewrite the realloc code to make the expand-in-place and the
+ * free-then-realloc paths more orthogonal, at which point we don't need to
+ * spread the hook logic all over the place.
+ */
+typedef struct hook_ralloc_args_s hook_ralloc_args_t;
+struct hook_ralloc_args_s {
+	/* I.e. as opposed to rallocx. */
+	bool is_realloc;
+	/*
+	 * The expand hook takes 4 arguments, even if only 3 are actually used;
+	 * we add an extra one in case the user decides to memcpy without
+	 * looking too closely at the hooked function.
+	 */
+	uintptr_t args[4];
+};
+
+/*
  * Returns an opaque handle to be used when removing the hook.  NULL means that
  * we couldn't install the hook.
  */

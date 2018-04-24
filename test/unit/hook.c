@@ -412,6 +412,115 @@ TEST_BEGIN(test_hooks_realloc_as_malloc_or_free) {
 }
 TEST_END
 
+static void
+do_realloc_test(void *(*ralloc)(void *, size_t, int), int flags,
+    int expand_type, int dalloc_type) {
+	hooks_t hooks = {&test_alloc_hook, &test_dalloc_hook,
+		&test_expand_hook};
+	void *handle = hook_install(TSDN_NULL, &hooks, (void *)123);
+	assert_ptr_ne(handle, NULL, "Hook installation failed");
+
+	void *volatile ptr;
+	void *volatile ptr2;
+
+	/* Realloc in-place, small. */
+	ptr = malloc(129);
+	reset();
+	ptr2 = ralloc(ptr, 130, flags);
+	assert_ptr_eq(ptr, ptr2, "Small realloc moved");
+
+	assert_d_eq(call_count, 1, "Hook not called");
+	assert_ptr_eq(arg_extra, (void *)123, "Wrong extra");
+	assert_d_eq(arg_type, expand_type, "Wrong hook type");
+	assert_ptr_eq(ptr, arg_address, "Wrong address");
+	assert_u64_eq((uintptr_t)ptr, (uintptr_t)arg_result_raw,
+	    "Wrong raw result");
+	assert_u64_eq((uintptr_t)ptr, arg_args_raw[0], "Wrong argument");
+	assert_u64_eq((uintptr_t)130, arg_args_raw[1], "Wrong argument");
+	free(ptr);
+
+	/*
+	 * Realloc in-place, large.  Since we can't guarantee the large case
+	 * across all platforms, we stay resilient to moving results.
+	 */
+	ptr = malloc(2 * 1024 * 1024);
+	free(ptr);
+	ptr2 = malloc(1 * 1024 * 1024);
+	reset();
+	ptr = ralloc(ptr2, 2 * 1024 * 1024, flags);
+	/* ptr is the new address, ptr2 is the old address. */
+	if (ptr == ptr2) {
+		assert_d_eq(call_count, 1, "Hook not called");
+		assert_d_eq(arg_type, expand_type, "Wrong hook type");
+	} else {
+		assert_d_eq(call_count, 2, "Wrong hooks called");
+		assert_ptr_eq(ptr, arg_result, "Wrong address");
+		assert_d_eq(arg_type, dalloc_type, "Wrong hook type");
+	}
+	assert_ptr_eq(arg_extra, (void *)123, "Wrong extra");
+	assert_ptr_eq(ptr2, arg_address, "Wrong address");
+	assert_u64_eq((uintptr_t)ptr, (uintptr_t)arg_result_raw,
+	    "Wrong raw result");
+	assert_u64_eq((uintptr_t)ptr2, arg_args_raw[0], "Wrong argument");
+	assert_u64_eq((uintptr_t)2 * 1024 * 1024, arg_args_raw[1],
+	    "Wrong argument");
+	free(ptr);
+
+	/* Realloc with move, small. */
+	ptr = malloc(8);
+	reset();
+	ptr2 = ralloc(ptr, 128, flags);
+	assert_ptr_ne(ptr, ptr2, "Small realloc didn't move");
+
+	assert_d_eq(call_count, 2, "Hook not called");
+	assert_ptr_eq(arg_extra, (void *)123, "Wrong extra");
+	assert_d_eq(arg_type, dalloc_type, "Wrong hook type");
+	assert_ptr_eq(ptr, arg_address, "Wrong address");
+	assert_ptr_eq(ptr2, arg_result, "Wrong address");
+	assert_u64_eq((uintptr_t)ptr2, (uintptr_t)arg_result_raw,
+	    "Wrong raw result");
+	assert_u64_eq((uintptr_t)ptr, arg_args_raw[0], "Wrong argument");
+	assert_u64_eq((uintptr_t)128, arg_args_raw[1], "Wrong argument");
+	free(ptr2);
+
+	/* Realloc with move, large. */
+	ptr = malloc(1);
+	reset();
+	ptr2 = ralloc(ptr, 2 * 1024 * 1024, flags);
+	assert_ptr_ne(ptr, ptr2, "Large realloc didn't move");
+
+	assert_d_eq(call_count, 2, "Hook not called");
+	assert_ptr_eq(arg_extra, (void *)123, "Wrong extra");
+	assert_d_eq(arg_type, dalloc_type, "Wrong hook type");
+	assert_ptr_eq(ptr, arg_address, "Wrong address");
+	assert_ptr_eq(ptr2, arg_result, "Wrong address");
+	assert_u64_eq((uintptr_t)ptr2, (uintptr_t)arg_result_raw,
+	    "Wrong raw result");
+	assert_u64_eq((uintptr_t)ptr, arg_args_raw[0], "Wrong argument");
+	assert_u64_eq((uintptr_t)2 * 1024 * 1024, arg_args_raw[1],
+	    "Wrong argument");
+	free(ptr2);
+
+	hook_remove(TSDN_NULL, handle);
+}
+
+static void *
+realloc_wrapper(void *ptr, size_t size, UNUSED int flags) {
+	return realloc(ptr, size);
+}
+
+TEST_BEGIN(test_hooks_realloc) {
+	do_realloc_test(&realloc_wrapper, 0, hook_expand_realloc,
+	    hook_dalloc_realloc);
+}
+TEST_END
+
+TEST_BEGIN(test_hooks_rallocx) {
+	do_realloc_test(&rallocx, MALLOCX_TCACHE_NONE, hook_expand_rallocx,
+	    hook_dalloc_rallocx);
+}
+TEST_END
+
 int
 main(void) {
 	/* We assert on call counts. */
@@ -422,5 +531,7 @@ main(void) {
 	    test_hooks_alloc_simple,
 	    test_hooks_dalloc_simple,
 	    test_hooks_expand_simple,
-	    test_hooks_realloc_as_malloc_or_free);
+	    test_hooks_realloc_as_malloc_or_free,
+	    test_hooks_realloc,
+	    test_hooks_rallocx);
 }

@@ -270,10 +270,12 @@ large_ralloc_move_helper(tsdn_t *tsdn, arena_t *arena, size_t usize,
 }
 
 void *
-large_ralloc(tsdn_t *tsdn, arena_t *arena, extent_t *extent, size_t usize,
-    size_t alignment, bool zero, tcache_t *tcache) {
-	size_t oldusize = extent_usize_get(extent);
+large_ralloc(tsdn_t *tsdn, arena_t *arena, void *ptr, size_t usize,
+    size_t alignment, bool zero, tcache_t *tcache,
+    hook_ralloc_args_t *hook_args) {
+	extent_t *extent = iealloc(tsdn, ptr);
 
+	size_t oldusize = extent_usize_get(extent);
 	/* The following should have been caught by callers. */
 	assert(usize > 0 && usize <= LARGE_MAXCLASS);
 	/* Both allocation sizes must be large to avoid a move. */
@@ -281,6 +283,9 @@ large_ralloc(tsdn_t *tsdn, arena_t *arena, extent_t *extent, size_t usize,
 
 	/* Try to avoid moving the allocation. */
 	if (!large_ralloc_no_move(tsdn, extent, usize, usize, zero)) {
+		hook_invoke_expand(hook_args->is_realloc
+		    ? hook_expand_realloc : hook_expand_rallocx, ptr, oldusize,
+		    usize, (uintptr_t)ptr, hook_args->args);
 		return extent_addr_get(extent);
 	}
 
@@ -294,6 +299,12 @@ large_ralloc(tsdn_t *tsdn, arena_t *arena, extent_t *extent, size_t usize,
 	if (ret == NULL) {
 		return NULL;
 	}
+
+	hook_invoke_alloc(hook_args->is_realloc
+	    ? hook_alloc_realloc : hook_alloc_rallocx, ret, (uintptr_t)ret,
+	    hook_args->args);
+	hook_invoke_dalloc(hook_args->is_realloc
+	    ? hook_dalloc_realloc : hook_dalloc_rallocx, ptr, hook_args->args);
 
 	size_t copysize = (usize < oldusize) ? usize : oldusize;
 	memcpy(ret, extent_addr_get(extent), copysize);

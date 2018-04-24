@@ -3,6 +3,7 @@
 
 #include "jemalloc/internal/bin.h"
 #include "jemalloc/internal/extent_dss.h"
+#include "jemalloc/internal/hook.h"
 #include "jemalloc/internal/pages.h"
 #include "jemalloc/internal/size_classes.h"
 #include "jemalloc/internal/stats.h"
@@ -65,7 +66,8 @@ void arena_dalloc_small(tsdn_t *tsdn, void *ptr);
 bool arena_ralloc_no_move(tsdn_t *tsdn, void *ptr, size_t oldsize, size_t size,
     size_t extra, bool zero);
 void *arena_ralloc(tsdn_t *tsdn, arena_t *arena, void *ptr, size_t oldsize,
-    size_t size, size_t alignment, bool zero, tcache_t *tcache);
+    size_t size, size_t alignment, bool zero, tcache_t *tcache,
+    hook_ralloc_args_t *hook_args);
 dss_prec_t arena_dss_prec_get(arena_t *arena);
 bool arena_dss_prec_set(arena_t *arena, dss_prec_t dss_prec);
 ssize_t arena_dirty_decay_ms_default_get(void);

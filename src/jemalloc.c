@@ -2169,20 +2169,22 @@ je_calloc(size_t num, size_t size) {
 
 static void *
 irealloc_prof_sample(tsd_t *tsd, void *old_ptr, size_t old_usize, size_t usize,
-    prof_tctx_t *tctx) {
+    prof_tctx_t *tctx, hook_ralloc_args_t *hook_args) {
 	void *p;
 
 	if (tctx == NULL) {
 		return NULL;
 	}
 	if (usize <= SMALL_MAXCLASS) {
-		p = iralloc(tsd, old_ptr, old_usize, LARGE_MINCLASS, 0, false);
+		p = iralloc(tsd, old_ptr, old_usize, LARGE_MINCLASS, 0, false,
+		    hook_args);
 		if (p == NULL) {
 			return NULL;
 		}
 		arena_prof_promote(tsd_tsdn(tsd), p, usize);
 	} else {
-		p = iralloc(tsd, old_ptr, old_usize, usize, 0, false);
+		p = iralloc(tsd, old_ptr, old_usize, usize, 0, false,
+		    hook_args);
 	}
 
 	return p;
@@ -2190,7 +2192,7 @@ irealloc_prof_sample(tsd_t *tsd, void *old_ptr, size_t old_usize, size_t usize,
 
 JEMALLOC_ALWAYS_INLINE void *
 irealloc_prof(tsd_t *tsd, void *old_ptr, size_t old_usize, size_t usize,
-   alloc_ctx_t *alloc_ctx) {
+   alloc_ctx_t *alloc_ctx, hook_ralloc_args_t *hook_args) {
 	void *p;
 	bool prof_active;
 	prof_tctx_t *old_tctx, *tctx;
@@ -2199,9 +2201,11 @@ irealloc_prof(tsd_t *tsd, void *old_ptr, size_t old_usize, size_t usize,
 	old_tctx = prof_tctx_get(tsd_tsdn(tsd), old_ptr, alloc_ctx);
 	tctx = prof_alloc_prep(tsd, usize, prof_active, true);
 	if (unlikely((uintptr_t)tctx != (uintptr_t)1U)) {
-		p = irealloc_prof_sample(tsd, old_ptr, old_usize, usize, tctx);
+		p = irealloc_prof_sample(tsd, old_ptr, old_usize, usize, tctx,
+		    hook_args);
 	} else {
-		p = iralloc(tsd, old_ptr, old_usize, usize, 0, false);
+		p = iralloc(tsd, old_ptr, old_usize, usize, 0, false,
+		    hook_args);
 	}
 	if (unlikely(p == NULL)) {
 		prof_alloc_rollback(tsd, tctx, true);
@@ -2349,6 +2353,10 @@ je_realloc(void *ptr, size_t arg_size) {
 
 		check_entry_exit_locking(tsd_tsdn(tsd));
 
+
+		hook_ralloc_args_t hook_args = {true, {(uintptr_t)ptr,
+			(uintptr_t)arg_size, 0, 0}};
+
 		alloc_ctx_t alloc_ctx;
 		rtree_ctx_t *rtree_ctx = tsd_rtree_ctx(tsd);
 		rtree_szind_slab_read(tsd_tsdn(tsd), &extents_rtree, rtree_ctx,
@@ -2362,13 +2370,14 @@ je_realloc(void *ptr, size_t arg_size) {
 				ret = NULL;
 			} else {
 				ret = irealloc_prof(tsd, ptr, old_usize, usize,
-				    &alloc_ctx);
+				    &alloc_ctx, &hook_args);
 			}
 		} else {
 			if (config_stats) {
 				usize = sz_s2u(size);
 			}
-			ret = iralloc(tsd, ptr, old_usize, size, 0, false);
+			ret = iralloc(tsd, ptr, old_usize, size, 0, false,
+			    &hook_args);
 		}
 		tsdn = tsd_tsdn(tsd);
 	} else {
@@ -2664,7 +2673,7 @@ je_mallocx(size_t size, int flags) {
 static void *
 irallocx_prof_sample(tsdn_t *tsdn, void *old_ptr, size_t old_usize,
     size_t usize, size_t alignment, bool zero, tcache_t *tcache, arena_t *arena,
-    prof_tctx_t *tctx) {
+    prof_tctx_t *tctx, hook_ralloc_args_t *hook_args) {
 	void *p;
 
 	if (tctx == NULL) {
@@ -2672,14 +2681,14 @@ irallocx_prof_sample(tsdn_t *tsdn, void *old_ptr, size_t old_usize,
 	}
 	if (usize <= SMALL_MAXCLASS) {
 		p = iralloct(tsdn, old_ptr, old_usize, LARGE_MINCLASS,
-		    alignment, zero, tcache, arena);
+		    alignment, zero, tcache, arena, hook_args);
 		if (p == NULL) {
 			return NULL;
 		}
 		arena_prof_promote(tsdn, p, usize);
 	} else {
 		p = iralloct(tsdn, old_ptr, old_usize, usize, alignment, zero,
-		    tcache, arena);
+		    tcache, arena, hook_args);
 	}
 
 	return p;
@@ -2688,7 +2697,7 @@ irallocx_prof_sample(tsdn_t *tsdn, void *old_ptr, size_t old_usize,
 JEMALLOC_ALWAYS_INLINE void *
 irallocx_prof(tsd_t *tsd, void *old_ptr, size_t old_usize, size_t size,
     size_t alignment, size_t *usize, bool zero, tcache_t *tcache,
-    arena_t *arena, alloc_ctx_t *alloc_ctx) {
+    arena_t *arena, alloc_ctx_t *alloc_ctx, hook_ralloc_args_t *hook_args) {
 	void *p;
 	bool prof_active;
 	prof_tctx_t *old_tctx, *tctx;
@@ -2698,10 +2707,10 @@ irallocx_prof(tsd_t *tsd, void *old_ptr, size_t old_usize, size_t size,
 	tctx = prof_alloc_prep(tsd, *usize, prof_active, false);
 	if (unlikely((uintptr_t)tctx != (uintptr_t)1U)) {
 		p = irallocx_prof_sample(tsd_tsdn(tsd), old_ptr, old_usize,
-		    *usize, alignment, zero, tcache, arena, tctx);
+		    *usize, alignment, zero, tcache, arena, tctx, hook_args);
 	} else {
 		p = iralloct(tsd_tsdn(tsd), old_ptr, old_usize, size, alignment,
-		    zero, tcache, arena);
+		    zero, tcache, arena, hook_args);
 	}
 	if (unlikely(p == NULL)) {
 		prof_alloc_rollback(tsd, tctx, false);
@@ -2775,6 +2784,9 @@ je_rallocx(void *ptr, size_t size, int flags) {
 	assert(alloc_ctx.szind != NSIZES);
 	old_usize = sz_index2size(alloc_ctx.szind);
 	assert(old_usize == isalloc(tsd_tsdn(tsd), ptr));
+
+	hook_ralloc_args_t hook_args = {false, {(uintptr_t)ptr, size, flags,
+		0}};
 	if (config_prof && opt_prof) {
 		usize = (alignment == 0) ?
 		    sz_s2u(size) : sz_sa2u(size, alignment);
@@ -2782,13 +2794,13 @@ je_rallocx(void *ptr, size_t size, int flags) {
 			goto label_oom;
 		}
 		p = irallocx_prof(tsd, ptr, old_usize, size, alignment, &usize,
-		    zero, tcache, arena, &alloc_ctx);
+		    zero, tcache, arena, &alloc_ctx, &hook_args);
 		if (unlikely(p == NULL)) {
 			goto label_oom;
 		}
 	} else {
 		p = iralloct(tsd_tsdn(tsd), ptr, old_usize, size, alignment,
-		    zero, tcache, arena);
+		    zero, tcache, arena, &hook_args);
 		if (unlikely(p == NULL)) {
 			goto label_oom;
 		}
