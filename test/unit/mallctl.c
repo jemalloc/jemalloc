@@ -773,6 +773,43 @@ TEST_BEGIN(test_stats_arenas) {
 }
 TEST_END
 
+static void
+alloc_hook(void *extra, UNUSED hook_alloc_t type, UNUSED void *result,
+    UNUSED uintptr_t result_raw, UNUSED uintptr_t args_raw[3]) {
+	*(bool *)extra = true;
+}
+
+static void
+dalloc_hook(void *extra, UNUSED hook_dalloc_t type,
+    UNUSED void *address, UNUSED uintptr_t args_raw[3]) {
+	*(bool *)extra = true;
+}
+
+TEST_BEGIN(test_hooks) {
+	bool hook_called = false;
+	hooks_t hooks = {&alloc_hook, &dalloc_hook, NULL, &hook_called};
+	void *handle = NULL;
+	size_t sz = sizeof(handle);
+	int err = mallctl("experimental.hooks.install", &handle, &sz, &hooks,
+	    sizeof(hooks));
+	assert_d_eq(err, 0, "Hook installation failed");
+	assert_ptr_ne(handle, NULL, "Hook installation gave null handle");
+	void *ptr = mallocx(1, 0);
+	assert_true(hook_called, "Alloc hook not called");
+	hook_called = false;
+	free(ptr);
+	assert_true(hook_called, "Free hook not called");
+
+	err = mallctl("experimental.hooks.remove", NULL, NULL, &handle,
+	    sizeof(handle));
+	assert_d_eq(err, 0, "Hook removal failed");
+	hook_called = false;
+	ptr = mallocx(1, 0);
+	free(ptr);
+	assert_false(hook_called, "Hook called after removal");
+}
+TEST_END
+
 int
 main(void) {
 	return test(
@@ -801,5 +838,6 @@ main(void) {
 	    test_arenas_lextent_constants,
 	    test_arenas_create,
 	    test_arenas_lookup,
-	    test_stats_arenas);
+	    test_stats_arenas,
+	    test_hooks);
 }
