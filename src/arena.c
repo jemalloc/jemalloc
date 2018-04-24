@@ -1630,7 +1630,8 @@ arena_ralloc_move_helper(tsdn_t *tsdn, arena_t *arena, size_t usize,
 
 void *
 arena_ralloc(tsdn_t *tsdn, arena_t *arena, void *ptr, size_t oldsize,
-    size_t size, size_t alignment, bool zero, tcache_t *tcache) {
+    size_t size, size_t alignment, bool zero, tcache_t *tcache,
+    hook_ralloc_args_t *hook_args) {
 	size_t usize = sz_s2u(size);
 	if (unlikely(usize == 0 || size > LARGE_MAXCLASS)) {
 		return NULL;
@@ -1639,13 +1640,17 @@ arena_ralloc(tsdn_t *tsdn, arena_t *arena, void *ptr, size_t oldsize,
 	if (likely(usize <= SMALL_MAXCLASS)) {
 		/* Try to avoid moving the allocation. */
 		if (!arena_ralloc_no_move(tsdn, ptr, oldsize, usize, 0, zero)) {
+			hook_invoke_expand(hook_args->is_realloc
+			    ? hook_expand_realloc : hook_expand_rallocx,
+			    ptr, oldsize, usize, (uintptr_t)ptr,
+			    hook_args->args);
 			return ptr;
 		}
 	}
 
 	if (oldsize >= LARGE_MINCLASS && usize >= LARGE_MINCLASS) {
-		return large_ralloc(tsdn, arena, iealloc(tsdn, ptr), usize,
-		    alignment, zero, tcache);
+		return large_ralloc(tsdn, arena, ptr, usize,
+		    alignment, zero, tcache, hook_args);
 	}
 
 	/*
@@ -1658,11 +1663,16 @@ arena_ralloc(tsdn_t *tsdn, arena_t *arena, void *ptr, size_t oldsize,
 		return NULL;
 	}
 
+	hook_invoke_alloc(hook_args->is_realloc
+	    ? hook_alloc_realloc : hook_alloc_rallocx, ret, (uintptr_t)ret,
+	    hook_args->args);
+	hook_invoke_dalloc(hook_args->is_realloc
+	    ? hook_dalloc_realloc : hook_dalloc_rallocx, ptr, hook_args->args);
+
 	/*
 	 * Junk/zero-filling were already done by
 	 * ipalloc()/arena_malloc().
 	 */
-
 	size_t copysize = (usize < oldsize) ? usize : oldsize;
 	memcpy(ret, ptr, copysize);
 	isdalloct(tsdn, ptr, oldsize, tcache, NULL, true);
