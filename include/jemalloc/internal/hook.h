@@ -103,6 +103,7 @@ struct hooks_s {
 	hook_alloc alloc_hook;
 	hook_dalloc dalloc_hook;
 	hook_expand expand_hook;
+	void *extra;
 };
 
 /*
@@ -142,7 +143,7 @@ struct hook_ralloc_args_s {
  */
 bool hook_boot();
 
-void *hook_install(tsdn_t *tsdn, hooks_t *hooks, void *extra);
+void *hook_install(tsdn_t *tsdn, hooks_t *hooks);
 /* Uninstalls the hook with the handle previously returned from hook_install. */
 void hook_remove(tsdn_t *tsdn, void *opaque);
 

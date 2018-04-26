@@ -9,7 +9,6 @@
 typedef struct hooks_internal_s hooks_internal_t;
 struct hooks_internal_s {
 	hooks_t hooks;
-	void *extra;
 	bool in_use;
 };
 
@@ -27,7 +26,7 @@ hook_boot() {
 }
 
 static void *
-hook_install_locked(hooks_t *to_install, void *extra) {
+hook_install_locked(hooks_t *to_install) {
 	hooks_internal_t hooks_internal;
 	for (int i = 0; i < HOOKS_MAX; i++) {
 		bool success = seq_try_load_hooks(&hooks_internal, &hooks[i]);
@@ -35,7 +34,6 @@ hook_install_locked(hooks_t *to_install, void *extra) {
 		assert(success);
 		if (!hooks_internal.in_use) {
 			hooks_internal.hooks = *to_install;
-			hooks_internal.extra = extra;
 			hooks_internal.in_use = true;
 			seq_store_hooks(&hooks[i], &hooks_internal);
 			atomic_store_u(&nhooks,
@@ -48,9 +46,9 @@ hook_install_locked(hooks_t *to_install, void *extra) {
 }
 
 void *
-hook_install(tsdn_t *tsdn, hooks_t *to_install, void *extra) {
+hook_install(tsdn_t *tsdn, hooks_t *to_install) {
 	malloc_mutex_lock(tsdn, &hooks_mu);
-	void *ret = hook_install_locked(to_install, extra);
+	void *ret = hook_install_locked(to_install);
 	if (ret != NULL) {
 		tsd_global_slow_inc(tsdn);
 	}
@@ -112,7 +110,7 @@ hook_invoke_alloc(hook_alloc_t type, void *result, uintptr_t result_raw,
 	FOR_EACH_HOOK_BEGIN(&hook)
 		hook_alloc h = hook.hooks.alloc_hook;
 		if (h != NULL) {
-			h(hook.extra, type, result, result_raw, args_raw);
+			h(hook.hooks.extra, type, result, result_raw, args_raw);
 		}
 	FOR_EACH_HOOK_END
 }
@@ -126,7 +124,7 @@ hook_invoke_dalloc(hook_dalloc_t type, void *address, uintptr_t args_raw[3]) {
 	FOR_EACH_HOOK_BEGIN(&hook)
 		hook_dalloc h = hook.hooks.dalloc_hook;
 		if (h != NULL) {
-			h(hook.extra, type, address, args_raw);
+			h(hook.hooks.extra, type, address, args_raw);
 		}
 	FOR_EACH_HOOK_END
 }
@@ -141,7 +139,7 @@ hook_invoke_expand(hook_expand_t type, void *address, size_t old_usize,
 	FOR_EACH_HOOK_BEGIN(&hook)
 		hook_expand h = hook.hooks.expand_hook;
 		if (h != NULL) {
-			h(hook.extra, type, address, old_usize, new_usize,
+			h(hook.hooks.extra, type, address, old_usize, new_usize,
 			    result_raw, args_raw);
 		}
 	FOR_EACH_HOOK_END
