@@ -81,8 +81,9 @@ test_expand_hook(void *extra, hook_expand_t type, void *address,
 TEST_BEGIN(test_hooks_basic) {
 	/* Just verify that the record their arguments correctly. */
 	hooks_t hooks = {
-		&test_alloc_hook, &test_dalloc_hook, &test_expand_hook};
-	void *handle = hook_install(TSDN_NULL, &hooks, (void *)111);
+		&test_alloc_hook, &test_dalloc_hook, &test_expand_hook,
+		(void *)111};
+	void *handle = hook_install(TSDN_NULL, &hooks);
 	uintptr_t args_raw[4] = {10, 20, 30, 40};
 
 	/* Alloc */
@@ -124,15 +125,15 @@ TEST_END
 
 TEST_BEGIN(test_hooks_null) {
 	/* Null hooks should be ignored, not crash. */
-	hooks_t hooks1 = {NULL, NULL, NULL};
-	hooks_t hooks2 = {&test_alloc_hook, NULL, NULL};
-	hooks_t hooks3 = {NULL, &test_dalloc_hook, NULL};
-	hooks_t hooks4 = {NULL, NULL, &test_expand_hook};
+	hooks_t hooks1 = {NULL, NULL, NULL, NULL};
+	hooks_t hooks2 = {&test_alloc_hook, NULL, NULL, NULL};
+	hooks_t hooks3 = {NULL, &test_dalloc_hook, NULL, NULL};
+	hooks_t hooks4 = {NULL, NULL, &test_expand_hook, NULL};
 
-	void *handle1 = hook_install(TSDN_NULL, &hooks1, NULL);
-	void *handle2 = hook_install(TSDN_NULL, &hooks2, NULL);
-	void *handle3 = hook_install(TSDN_NULL, &hooks3, NULL);
-	void *handle4 = hook_install(TSDN_NULL, &hooks4, NULL);
+	void *handle1 = hook_install(TSDN_NULL, &hooks1);
+	void *handle2 = hook_install(TSDN_NULL, &hooks2);
+	void *handle3 = hook_install(TSDN_NULL, &hooks3);
+	void *handle4 = hook_install(TSDN_NULL, &hooks4);
 
 	assert_ptr_ne(handle1, NULL, "Hook installation failed");
 	assert_ptr_ne(handle2, NULL, "Hook installation failed");
@@ -161,8 +162,8 @@ TEST_BEGIN(test_hooks_null) {
 TEST_END
 
 TEST_BEGIN(test_hooks_remove) {
-	hooks_t hooks = {&test_alloc_hook, NULL, NULL};
-	void *handle = hook_install(TSDN_NULL, &hooks, NULL);
+	hooks_t hooks = {&test_alloc_hook, NULL, NULL, NULL};
+	void *handle = hook_install(TSDN_NULL, &hooks);
 	assert_ptr_ne(handle, NULL, "Hook installation failed");
 	call_count = 0;
 	uintptr_t args_raw[4] = {10, 20, 30, 40};
@@ -179,8 +180,8 @@ TEST_END
 
 TEST_BEGIN(test_hooks_alloc_simple) {
 	/* "Simple" in the sense that we're not in a realloc variant. */
-	hooks_t hooks = {&test_alloc_hook, NULL, NULL};
-	void *handle = hook_install(TSDN_NULL, &hooks, (void *)123);
+	hooks_t hooks = {&test_alloc_hook, NULL, NULL, (void *)123};
+	void *handle = hook_install(TSDN_NULL, &hooks);
 	assert_ptr_ne(handle, NULL, "Hook installation failed");
 
 	/* Stop malloc from being optimized away. */
@@ -290,8 +291,8 @@ TEST_END
 
 TEST_BEGIN(test_hooks_dalloc_simple) {
 	/* "Simple" in the sense that we're not in a realloc variant. */
-	hooks_t hooks = {NULL, &test_dalloc_hook, NULL};
-	void *handle = hook_install(TSDN_NULL, &hooks, (void *)123);
+	hooks_t hooks = {NULL, &test_dalloc_hook, NULL, (void *)123};
+	void *handle = hook_install(TSDN_NULL, &hooks);
 	assert_ptr_ne(handle, NULL, "Hook installation failed");
 
 	void *volatile ptr;
@@ -337,8 +338,8 @@ TEST_END
 
 TEST_BEGIN(test_hooks_expand_simple) {
 	/* "Simple" in the sense that we're not in a realloc variant. */
-	hooks_t hooks = {NULL, NULL, &test_expand_hook};
-	void *handle = hook_install(TSDN_NULL, &hooks, (void *)123);
+	hooks_t hooks = {NULL, NULL, &test_expand_hook, (void *)123};
+	void *handle = hook_install(TSDN_NULL, &hooks);
 	assert_ptr_ne(handle, NULL, "Hook installation failed");
 
 	void *volatile ptr;
@@ -365,8 +366,8 @@ TEST_END
 
 TEST_BEGIN(test_hooks_realloc_as_malloc_or_free) {
 	hooks_t hooks = {&test_alloc_hook, &test_dalloc_hook,
-		&test_expand_hook};
-	void *handle = hook_install(TSDN_NULL, &hooks, (void *)123);
+		&test_expand_hook, (void *)123};
+	void *handle = hook_install(TSDN_NULL, &hooks);
 	assert_ptr_ne(handle, NULL, "Hook installation failed");
 
 	void *volatile ptr;
@@ -416,8 +417,8 @@ static void
 do_realloc_test(void *(*ralloc)(void *, size_t, int), int flags,
     int expand_type, int dalloc_type) {
 	hooks_t hooks = {&test_alloc_hook, &test_dalloc_hook,
-		&test_expand_hook};
-	void *handle = hook_install(TSDN_NULL, &hooks, (void *)123);
+		&test_expand_hook, (void *)123};
+	void *handle = hook_install(TSDN_NULL, &hooks);
 	assert_ptr_ne(handle, NULL, "Hook installation failed");
 
 	void *volatile ptr;
