@@ -629,6 +629,10 @@ arenas_tdata_cleanup(tsd_t *tsd) {
 	}
 }
 
+JEMALLOC_EXPORT void JEMALLOC_NOTHROW
+je_malloc_stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
+    const char *opts);
+
 static void
 stats_print_atexit(void) {
 	if (config_stats) {
