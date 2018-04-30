@@ -73,11 +73,9 @@ JEMALLOC_ALWAYS_INLINE bool
 prof_active_get_unlocked(void) {
 	/*
 	 * Even if opt_prof is true, sampling can be temporarily disabled by
-	 * setting prof_active to false.  No locking is used when reading
-	 * prof_active in the fast path, so there are no guarantees regarding
-	 * how long it will take for all threads to notice state changes.
+	 * setting prof_active to false.
 	 */
-	return prof_active;
+	return atomic_load_b(&prof_active, ATOMIC_ACQUIRE);
 }
 
 #endif /* JEMALLOC_INTERNAL_PROF_INLINES_A_H */

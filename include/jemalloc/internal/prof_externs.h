@@ -22,7 +22,7 @@ extern char	opt_prof_prefix[
     1];
 
 /* Accessed via prof_active_[gs]et{_unlocked,}(). */
-extern bool	prof_active;
+extern atomic_b_t	prof_active;
 
 /* Accessed via prof_gdump_[gs]et{_unlocked,}(). */
 extern bool	prof_gdump_val;

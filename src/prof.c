@@ -49,8 +49,7 @@ char		opt_prof_prefix[
  * Initialized as opt_prof_active, and accessed via
  * prof_active_[gs]et{_unlocked,}().
  */
-bool			prof_active;
-static malloc_mutex_t	prof_active_mtx;
+atomic_b_t			prof_active;
 
 /*
  * Initialized as opt_prof_thread_active_init, and accessed via
@@ -2100,23 +2099,12 @@ prof_tdata_cleanup(tsd_t *tsd) {
 
 bool
 prof_active_get(tsdn_t *tsdn) {
-	bool prof_active_current;
-
-	malloc_mutex_lock(tsdn, &prof_active_mtx);
-	prof_active_current = prof_active;
-	malloc_mutex_unlock(tsdn, &prof_active_mtx);
-	return prof_active_current;
+	return atomic_load_b(&prof_active, ATOMIC_ACQUIRE);
 }
 
 bool
 prof_active_set(tsdn_t *tsdn, bool active) {
-	bool prof_active_old;
-
-	malloc_mutex_lock(tsdn, &prof_active_mtx);
-	prof_active_old = prof_active;
-	prof_active = active;
-	malloc_mutex_unlock(tsdn, &prof_active_mtx);
-	return prof_active_old;
+	return atomic_exchange_b(&prof_active, active, ATOMIC_ACQ_REL);
 }
 
 const char *
@@ -2297,11 +2285,7 @@ prof_boot2(tsd_t *tsd) {
 
 		lg_prof_sample = opt_lg_prof_sample;
 
-		prof_active = opt_prof_active;
-		if (malloc_mutex_init(&prof_active_mtx, "prof_active",
-		    WITNESS_RANK_PROF_ACTIVE, malloc_mutex_rank_exclusive)) {
-			return true;
-		}
+		atomic_store_b(&prof_active, opt_prof_active, ATOMIC_RELEASE);
 
 		prof_gdump_val = opt_prof_gdump;
 		if (malloc_mutex_init(&prof_gdump_mtx, "prof_gdump",
@@ -2417,7 +2401,6 @@ prof_prefork0(tsdn_t *tsdn) {
 void
 prof_prefork1(tsdn_t *tsdn) {
 	if (config_prof && opt_prof) {
-		malloc_mutex_prefork(tsdn, &prof_active_mtx);
 		malloc_mutex_prefork(tsdn, &prof_dump_seq_mtx);
 		malloc_mutex_prefork(tsdn, &prof_gdump_mtx);
 		malloc_mutex_prefork(tsdn, &next_thr_uid_mtx);
@@ -2435,7 +2418,6 @@ prof_postfork_parent(tsdn_t *tsdn) {
 		malloc_mutex_postfork_parent(tsdn, &next_thr_uid_mtx);
 		malloc_mutex_postfork_parent(tsdn, &prof_gdump_mtx);
 		malloc_mutex_postfork_parent(tsdn, &prof_dump_seq_mtx);
-		malloc_mutex_postfork_parent(tsdn, &prof_active_mtx);
 		for (i = 0; i < PROF_NCTX_LOCKS; i++) {
 			malloc_mutex_postfork_parent(tsdn, &gctx_locks[i]);
 		}
@@ -2457,7 +2439,6 @@ prof_postfork_child(tsdn_t *tsdn) {
 		malloc_mutex_postfork_child(tsdn, &next_thr_uid_mtx);
 		malloc_mutex_postfork_child(tsdn, &prof_gdump_mtx);
 		malloc_mutex_postfork_child(tsdn, &prof_dump_seq_mtx);
-		malloc_mutex_postfork_child(tsdn, &prof_active_mtx);
 		for (i = 0; i < PROF_NCTX_LOCKS; i++) {
 			malloc_mutex_postfork_child(tsdn, &gctx_locks[i]);
 		}
