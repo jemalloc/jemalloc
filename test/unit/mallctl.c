@@ -1,5 +1,6 @@
 #include "test/jemalloc_test.h"
 
+#include "jemalloc/internal/hook.h"
 #include "jemalloc/internal/util.h"
 
 TEST_BEGIN(test_mallctl_errors) {
@@ -810,6 +811,42 @@ TEST_BEGIN(test_hooks) {
 }
 TEST_END
 
+TEST_BEGIN(test_hooks_exhaustion) {
+	bool hook_called = false;
+	hooks_t hooks = {&alloc_hook, &dalloc_hook, NULL, &hook_called};
+
+	void *handle;
+	void *handles[HOOK_MAX];
+	size_t sz = sizeof(handle);
+	int err;
+	for (int i = 0; i < HOOK_MAX; i++) {
+		handle = NULL;
+		err = mallctl("experimental.hooks.install", &handle, &sz,
+		    &hooks, sizeof(hooks));
+		assert_d_eq(err, 0, "Error installation hooks");
+		assert_ptr_ne(handle, NULL, "Got NULL handle");
+		handles[i] = handle;
+	}
+	err = mallctl("experimental.hooks.install", &handle, &sz, &hooks,
+	    sizeof(hooks));
+	assert_d_eq(err, EAGAIN, "Should have failed hook installation");
+	for (int i = 0; i < HOOK_MAX; i++) {
+		err = mallctl("experimental.hooks.remove", NULL, NULL,
+		    &handles[i], sizeof(handles[i]));
+		assert_d_eq(err, 0, "Hook removal failed");
+	}
+	/* Insertion failed, but then we removed some; it should work now. */
+	handle = NULL;
+	err = mallctl("experimental.hooks.install", &handle, &sz, &hooks,
+	    sizeof(hooks));
+	assert_d_eq(err, 0, "Hook insertion failed");
+	assert_ptr_ne(handle, NULL, "Got NULL handle");
+	err = mallctl("experimental.hooks.remove", NULL, NULL, &handle,
+	    sizeof(handle));
+	assert_d_eq(err, 0, "Hook removal failed");
+}
+TEST_END
+
 int
 main(void) {
 	return test(
@@ -839,5 +876,6 @@ main(void) {
 	    test_arenas_create,
 	    test_arenas_lookup,
 	    test_stats_arenas,
-	    test_hooks);
+	    test_hooks,
+	    test_hooks_exhaustion);
 }

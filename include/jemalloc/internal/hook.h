@@ -46,6 +46,8 @@
  *   order.
  */
 
+#define HOOK_MAX 4
+
 enum hook_alloc_e {
 	hook_alloc_malloc,
 	hook_alloc_posix_memalign,
