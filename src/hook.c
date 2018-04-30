@@ -14,9 +14,8 @@ struct hooks_internal_s {
 
 seq_define(hooks_internal_t, hooks)
 
-#define HOOKS_MAX 4
 static atomic_u_t nhooks = ATOMIC_INIT(0);
-static seq_hooks_t hooks[HOOKS_MAX];
+static seq_hooks_t hooks[HOOK_MAX];
 static malloc_mutex_t hooks_mu;
 
 bool
@@ -28,7 +27,7 @@ hook_boot() {
 static void *
 hook_install_locked(hooks_t *to_install) {
 	hooks_internal_t hooks_internal;
-	for (int i = 0; i < HOOKS_MAX; i++) {
+	for (int i = 0; i < HOOK_MAX; i++) {
 		bool success = seq_try_load_hooks(&hooks_internal, &hooks[i]);
 		/* We hold mu; no concurrent access. */
 		assert(success);
@@ -74,7 +73,7 @@ void
 hook_remove(tsdn_t *tsdn, void *opaque) {
 	if (config_debug) {
 		char *hooks_begin = (char *)&hooks[0];
-		char *hooks_end = (char *)&hooks[HOOKS_MAX];
+		char *hooks_end = (char *)&hooks[HOOK_MAX];
 		char *hook = (char *)opaque;
 		assert(hooks_begin <= hook && hook < hooks_end
 		    && (hook - hooks_begin) % sizeof(seq_hooks_t) == 0);
@@ -87,7 +86,7 @@ hook_remove(tsdn_t *tsdn, void *opaque) {
 
 #define FOR_EACH_HOOK_BEGIN(hooks_internal_ptr)				\
 for (int for_each_hook_counter = 0;					\
-    for_each_hook_counter < HOOKS_MAX;					\
+    for_each_hook_counter < HOOK_MAX;					\
     for_each_hook_counter++) {						\
 	bool for_each_hook_success = seq_try_load_hooks(		\
 	    (hooks_internal_ptr), &hooks[for_each_hook_counter]);	\
