@@ -2130,6 +2130,15 @@ struct extent_hooks_s {
         and return the new arena index.</para></listitem>
       </varlistentry>
 
+      <varlistentry id="arenas.lookup">
+        <term>
+          <mallctl>arenas.lookup</mallctl>
+          (<type>unsigned</type>, <type>void*</type>)
+          <literal>rw</literal>
+        </term>
+        <listitem><para>Index of the arena to which an allocation belongs to.</para></listitem>
+      </varlistentry>
+
       <varlistentry id="prof.thread_active_init">
         <term>
           <mallctl>prof.thread_active_init</mallctl>

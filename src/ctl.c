@@ -139,6 +139,7 @@ CTL_PROTO(arenas_nbins)
 CTL_PROTO(arenas_nhbins)
 CTL_PROTO(arenas_nlextents)
 CTL_PROTO(arenas_create)
+CTL_PROTO(arenas_lookup)
 CTL_PROTO(prof_thread_active_init)
 CTL_PROTO(prof_active)
 CTL_PROTO(prof_dump)
@@ -373,7 +374,8 @@ static const ctl_named_node_t arenas_node[] = {
 	{NAME("bin"),		CHILD(indexed, arenas_bin)},
 	{NAME("nlextents"),	CTL(arenas_nlextents)},
 	{NAME("lextent"),	CHILD(indexed, arenas_lextent)},
-	{NAME("create"),	CTL(arenas_create)}
+	{NAME("create"),	CTL(arenas_create)},
+	{NAME("lookup"),	CTL(arenas_lookup)}
 };
 
 static const ctl_named_node_t	prof_node[] = {
@@ -2463,6 +2465,36 @@ arenas_create_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
 		ret = EAGAIN;
 		goto label_return;
 	}
+	READ(arena_ind, unsigned);
+
+	ret = 0;
+label_return:
+	malloc_mutex_unlock(tsd_tsdn(tsd), &ctl_mtx);
+	return ret;
+}
+
+static int
+arenas_lookup_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
+    size_t *oldlenp, void *newp, size_t newlen) {
+	int ret;
+	unsigned arena_ind;
+	void *ptr;
+	extent_t *extent;
+	arena_t *arena;
+
+	ptr = NULL;
+	ret = EINVAL;
+	malloc_mutex_lock(tsd_tsdn(tsd), &ctl_mtx);
+	WRITE(ptr, void *);
+	extent = iealloc(tsd_tsdn(tsd), ptr);
+	if (extent == NULL)
+		goto label_return;
+
+	arena = extent_arena_get(extent);
+	if (arena == NULL)
+		goto label_return;
+
+	arena_ind = arena_ind_get(arena);
 	READ(arena_ind, unsigned);
 
 	ret = 0;
