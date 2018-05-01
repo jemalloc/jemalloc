@@ -738,6 +738,22 @@ TEST_BEGIN(test_arenas_create) {
 }
 TEST_END
 
+TEST_BEGIN(test_arenas_lookup) {
+	unsigned arena, arena1;
+	void *ptr;
+	size_t sz = sizeof(unsigned);
+
+	assert_d_eq(mallctl("arenas.create", (void *)&arena, &sz, NULL, 0), 0,
+	    "Unexpected mallctl() failure");
+	ptr = mallocx(42, MALLOCX_ARENA(arena) | MALLOCX_TCACHE_NONE);
+	assert_ptr_not_null(ptr, "Unexpected mallocx() failure");
+	assert_d_eq(mallctl("arenas.lookup", &arena1, &sz, &ptr, sizeof(ptr)),
+	    0, "Unexpected mallctl() failure");
+	assert_u_eq(arena, arena1, "Unexpected arena index");
+	dallocx(ptr, 0);
+}
+TEST_END
+
 TEST_BEGIN(test_stats_arenas) {
 #define TEST_STATS_ARENAS(t, name) do {					\
 	t name;								\
@@ -784,5 +800,6 @@ main(void) {
 	    test_arenas_bin_constants,
 	    test_arenas_lextent_constants,
 	    test_arenas_create,
+	    test_arenas_lookup,
 	    test_stats_arenas);
 }
