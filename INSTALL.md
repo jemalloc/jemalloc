@@ -269,7 +269,7 @@ any of the following arguments (not a definitive list) to 'configure':
 
     Disable the initial-exec TLS model for jemalloc's internal thread-local
     storage (on those platforms that support explicit settings).  This can allow
-    jemalloc to be dynamically loaded after program starup (e.g. using dlopen).
+    jemalloc to be dynamically loaded after program startup (e.g. using dlopen).
     Note that in this case, there will be two malloc implementations operating
     in the same process, which will almost certainly result in confusing runtime
     crashes if pointers leak from one implementation to the other.
