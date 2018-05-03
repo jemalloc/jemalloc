@@ -1378,8 +1378,8 @@ label_return:								\
 
 #define CTL_RO_CGEN(c, n, v, t)						\
 static int								\
-n##_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,	\
-    size_t *oldlenp, void *newp, size_t newlen) {			\
+n##_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, \
+    void *oldp, size_t *oldlenp, void *newp, size_t newlen) {			\
 	int ret;							\
 	t oldval;							\
 									\
@@ -1421,8 +1421,8 @@ label_return:								\
  */
 #define CTL_RO_NL_CGEN(c, n, v, t)					\
 static int								\
-n##_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,	\
-    size_t *oldlenp, void *newp, size_t newlen) {			\
+n##_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, \
+    void *oldp, size_t *oldlenp, void *newp, size_t newlen) {			\
 	int ret;							\
 	t oldval;							\
 									\
@@ -1440,8 +1440,8 @@ label_return:								\
 
 #define CTL_RO_NL_GEN(n, v, t)						\
 static int								\
-n##_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,	\
-    size_t *oldlenp, void *newp, size_t newlen) {			\
+n##_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, \
+    void *oldp, size_t *oldlenp, void *newp, size_t newlen) {			\
 	int ret;							\
 	t oldval;							\
 									\
@@ -1475,8 +1475,8 @@ label_return:								\
 
 #define CTL_RO_CONFIG_GEN(n, t)						\
 static int								\
-n##_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,	\
-    size_t *oldlenp, void *newp, size_t newlen) {			\
+n##_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, \
+    void *oldp, size_t *oldlenp, void *newp, size_t newlen) {			\
 	int ret;							\
 	t oldval;							\
 									\
@@ -1494,8 +1494,8 @@ label_return:								\
 CTL_RO_NL_GEN(version, JEMALLOC_VERSION, const char *)
 
 static int
-epoch_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
-    size_t *oldlenp, void *newp, size_t newlen) {
+epoch_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
+    void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
 	int ret;
 	UNUSED uint64_t newval;
 
@@ -1513,8 +1513,9 @@ label_return:
 }
 
 static int
-background_thread_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
-    void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
+background_thread_ctl(tsd_t *tsd, const size_t *mib,
+    size_t miblen, void *oldp, size_t *oldlenp,
+    void *newp, size_t newlen) {
 	int ret;
 	bool oldval;
 
@@ -1571,8 +1572,9 @@ label_return:
 }
 
 static int
-max_background_threads_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
-    void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
+max_background_threads_ctl(tsd_t *tsd, const size_t *mib,
+    size_t miblen, void *oldp, size_t *oldlenp, void *newp,
+    size_t newlen) {
 	int ret;
 	size_t oldval;
 
@@ -1690,8 +1692,8 @@ CTL_RO_NL_CGEN(config_prof, opt_prof_leak, opt_prof_leak, bool)
 /******************************************************************************/
 
 static int
-thread_arena_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
-    size_t *oldlenp, void *newp, size_t newlen) {
+thread_arena_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
+    void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
 	int ret;
 	arena_t *oldarena;
 	unsigned newind, oldind;
@@ -1755,8 +1757,9 @@ CTL_TSD_RO_NL_CGEN(config_stats, thread_deallocatedp,
     tsd_thread_deallocatedp_get, uint64_t *)
 
 static int
-thread_tcache_enabled_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
-    void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
+thread_tcache_enabled_ctl(tsd_t *tsd, const size_t *mib,
+    size_t miblen, void *oldp, size_t *oldlenp, void *newp,
+    size_t newlen) {
 	int ret;
 	bool oldval;
 
@@ -1776,8 +1779,9 @@ label_return:
 }
 
 static int
-thread_tcache_flush_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
-    void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
+thread_tcache_flush_ctl(tsd_t *tsd, const size_t *mib,
+    size_t miblen, void *oldp, size_t *oldlenp, void *newp,
+    size_t newlen) {
 	int ret;
 
 	if (!tcache_available(tsd)) {
@@ -1796,8 +1800,9 @@ label_return:
 }
 
 static int
-thread_prof_name_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
-    size_t *oldlenp, void *newp, size_t newlen) {
+thread_prof_name_ctl(tsd_t *tsd, const size_t *mib,
+    size_t miblen, void *oldp, size_t *oldlenp, void *newp,
+    size_t newlen) {
 	int ret;
 
 	if (!config_prof) {
@@ -1827,8 +1832,9 @@ label_return:
 }
 
 static int
-thread_prof_active_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
-    size_t *oldlenp, void *newp, size_t newlen) {
+thread_prof_active_ctl(tsd_t *tsd, const size_t *mib,
+    size_t miblen, void *oldp, size_t *oldlenp, void *newp,
+    size_t newlen) {
 	int ret;
 	bool oldval;
 
@@ -1857,8 +1863,8 @@ label_return:
 /******************************************************************************/
 
 static int
-tcache_create_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
-    size_t *oldlenp, void *newp, size_t newlen) {
+tcache_create_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
+    void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
 	int ret;
 	unsigned tcache_ind;
 
@@ -1875,8 +1881,8 @@ label_return:
 }
 
 static int
-tcache_flush_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
-    size_t *oldlenp, void *newp, size_t newlen) {
+tcache_flush_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
+    void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
 	int ret;
 	unsigned tcache_ind;
 
@@ -1895,8 +1901,8 @@ label_return:
 }
 
 static int
-tcache_destroy_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
-    size_t *oldlenp, void *newp, size_t newlen) {
+tcache_destroy_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
+    void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
 	int ret;
 	unsigned tcache_ind;
 
@@ -2300,8 +2306,9 @@ label_return:
 }
 
 static int
-arena_i_retain_grow_limit_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
-    void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
+arena_i_retain_grow_limit_ctl(tsd_t *tsd, const size_t *mib,
+    size_t miblen, void *oldp, size_t *oldlenp, void *newp,
+    size_t newlen) {
 	int ret;
 	unsigned arena_ind;
 	arena_t *arena;
@@ -2336,7 +2343,8 @@ label_return:
 }
 
 static const ctl_named_node_t *
-arena_i_index(tsdn_t *tsdn, const size_t *mib, size_t miblen, size_t i) {
+arena_i_index(tsdn_t *tsdn, const size_t *mib, size_t miblen,
+    size_t i) {
 	const ctl_named_node_t *ret;
 
 	malloc_mutex_lock(tsdn, &ctl_mtx);
@@ -2361,8 +2369,8 @@ label_return:
 /******************************************************************************/
 
 static int
-arenas_narenas_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
-    size_t *oldlenp, void *newp, size_t newlen) {
+arenas_narenas_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
+    void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
 	int ret;
 	unsigned narenas;
 
@@ -2382,8 +2390,9 @@ label_return:
 }
 
 static int
-arenas_decay_ms_ctl_impl(tsd_t *tsd, const size_t *mib, size_t miblen,
-    void *oldp, size_t *oldlenp, void *newp, size_t newlen, bool dirty) {
+arenas_decay_ms_ctl_impl(tsd_t *tsd, const size_t *mib,
+    size_t miblen, void *oldp, size_t *oldlenp, void *newp,
+    size_t newlen, bool dirty) {
 	int ret;
 
 	if (oldp != NULL && oldlenp != NULL) {
@@ -2431,7 +2440,8 @@ CTL_RO_NL_GEN(arenas_bin_i_size, bin_infos[mib[2]].reg_size, size_t)
 CTL_RO_NL_GEN(arenas_bin_i_nregs, bin_infos[mib[2]].nregs, uint32_t)
 CTL_RO_NL_GEN(arenas_bin_i_slab_size, bin_infos[mib[2]].slab_size, size_t)
 static const ctl_named_node_t *
-arenas_bin_i_index(tsdn_t *tsdn, const size_t *mib, size_t miblen, size_t i) {
+arenas_bin_i_index(tsdn_t *tsdn, const size_t *mib,
+    size_t miblen, size_t i) {
 	if (i > NBINS) {
 		return NULL;
 	}
@@ -2442,8 +2452,8 @@ CTL_RO_NL_GEN(arenas_nlextents, NSIZES - NBINS, unsigned)
 CTL_RO_NL_GEN(arenas_lextent_i_size, sz_index2size(NBINS+(szind_t)mib[2]),
     size_t)
 static const ctl_named_node_t *
-arenas_lextent_i_index(tsdn_t *tsdn, const size_t *mib, size_t miblen,
-    size_t i) {
+arenas_lextent_i_index(tsdn_t *tsdn, const size_t *mib,
+    size_t miblen, size_t i) {
 	if (i > NSIZES - NBINS) {
 		return NULL;
 	}
@@ -2451,8 +2461,8 @@ arenas_lextent_i_index(tsdn_t *tsdn, const size_t *mib, size_t miblen,
 }
 
 static int
-arenas_create_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
-    size_t *oldlenp, void *newp, size_t newlen) {
+arenas_create_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
+    void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
 	int ret;
 	extent_hooks_t *extent_hooks;
 	unsigned arena_ind;
@@ -2474,8 +2484,9 @@ label_return:
 }
 
 static int
-arenas_lookup_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
-    size_t *oldlenp, void *newp, size_t newlen) {
+arenas_lookup_ctl(tsd_t *tsd, const size_t *mib,
+    size_t miblen, void *oldp, size_t *oldlenp, void *newp,
+    size_t newlen) {
 	int ret;
 	unsigned arena_ind;
 	void *ptr;
@@ -2506,8 +2517,9 @@ label_return:
 /******************************************************************************/
 
 static int
-prof_thread_active_init_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
-    void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
+prof_thread_active_init_ctl(tsd_t *tsd, const size_t *mib,
+    size_t miblen, void *oldp, size_t *oldlenp, void *newp,
+    size_t newlen) {
 	int ret;
 	bool oldval;
 
@@ -2533,8 +2545,8 @@ label_return:
 }
 
 static int
-prof_active_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
-    size_t *oldlenp, void *newp, size_t newlen) {
+prof_active_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
+    void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
 	int ret;
 	bool oldval;
 
@@ -2559,8 +2571,8 @@ label_return:
 }
 
 static int
-prof_dump_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
-    size_t *oldlenp, void *newp, size_t newlen) {
+prof_dump_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
+    void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
 	int ret;
 	const char *filename = NULL;
 
@@ -2582,8 +2594,8 @@ label_return:
 }
 
 static int
-prof_gdump_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
-    size_t *oldlenp, void *newp, size_t newlen) {
+prof_gdump_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
+    void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
 	int ret;
 	bool oldval;
 
@@ -2608,8 +2620,8 @@ label_return:
 }
 
 static int
-prof_reset_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
-    size_t *oldlenp, void *newp, size_t newlen) {
+prof_reset_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
+    void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
 	int ret;
 	size_t lg_sample = lg_prof_sample;
 
@@ -2765,8 +2777,9 @@ RO_MUTEX_CTL_GEN(arenas_i_bins_j_mutex,
 
 /* Resets all mutex stats, including global, arena and bin mutexes. */
 static int
-stats_mutexes_reset_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
-    void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
+stats_mutexes_reset_ctl(tsd_t *tsd, const size_t *mib,
+    size_t miblen, void *oldp, size_t *oldlenp,
+    void *newp, size_t newlen) {
 	if (!config_stats) {
 		return ENOENT;
 	}
@@ -2835,8 +2848,8 @@ CTL_RO_CGEN(config_stats, stats_arenas_i_bins_j_curslabs,
     arenas_i(mib[2])->astats->bstats[mib[4]].curslabs, size_t)
 
 static const ctl_named_node_t *
-stats_arenas_i_bins_j_index(tsdn_t *tsdn, const size_t *mib, size_t miblen,
-    size_t j) {
+stats_arenas_i_bins_j_index(tsdn_t *tsdn, const size_t *mib,
+    size_t miblen, size_t j) {
 	if (j > NBINS) {
 		return NULL;
 	}
@@ -2856,8 +2869,8 @@ CTL_RO_CGEN(config_stats, stats_arenas_i_lextents_j_curlextents,
     arenas_i(mib[2])->astats->lstats[mib[4]].curlextents, size_t)
 
 static const ctl_named_node_t *
-stats_arenas_i_lextents_j_index(tsdn_t *tsdn, const size_t *mib, size_t miblen,
-    size_t j) {
+stats_arenas_i_lextents_j_index(tsdn_t *tsdn, const size_t *mib,
+    size_t miblen, size_t j) {
 	if (j > NSIZES - NBINS) {
 		return NULL;
 	}
@@ -2865,7 +2878,8 @@ stats_arenas_i_lextents_j_index(tsdn_t *tsdn, const size_t *mib, size_t miblen,
 }
 
 static const ctl_named_node_t *
-stats_arenas_i_index(tsdn_t *tsdn, const size_t *mib, size_t miblen, size_t i) {
+stats_arenas_i_index(tsdn_t *tsdn, const size_t *mib,
+    size_t miblen, size_t i) {
 	const ctl_named_node_t *ret;
 	size_t a;
 

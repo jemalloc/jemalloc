@@ -12,6 +12,10 @@
 static unsigned ncleanups;
 static malloc_tsd_cleanup_t cleanups[MALLOC_TSD_CLEANUPS_MAX];
 
+/* TSD_INITIALIZER triggers "-Wmissing-field-initializer" */
+JEMALLOC_DIAGNOSTIC_PUSH
+JEMALLOC_DIAGNOSTIC_IGNORE_MISSING_STRUCT_FIELD_INITIALIZERS
+
 #ifdef JEMALLOC_MALLOC_THREAD_CLEANUP
 __thread tsd_t JEMALLOC_TLS_MODEL tsd_tls = TSD_INITIALIZER;
 __thread bool JEMALLOC_TLS_MODEL tsd_initialized = false;
@@ -41,6 +45,7 @@ tsd_init_head_t	tsd_init_head = {
 	ql_head_initializer(blocks),
 	MALLOC_MUTEX_INITIALIZER
 };
+
 tsd_wrapper_t tsd_boot_wrapper = {
 	false,
 	TSD_INITIALIZER
@@ -48,6 +53,7 @@ tsd_wrapper_t tsd_boot_wrapper = {
 bool tsd_booted = false;
 #endif
 
+JEMALLOC_DIAGNOSTIC_POP
 
 /******************************************************************************/
 

@@ -242,6 +242,7 @@ if test "x$GCC" = "xyes" ; then
     fi
   fi
   JE_CFLAGS_ADD([-Wall])
+  JE_CFLAGS_ADD([-Wextra])
   JE_CFLAGS_ADD([-Wshorten-64-to-32])
   JE_CFLAGS_ADD([-Wsign-compare])
   JE_CFLAGS_ADD([-Wundef])
@@ -289,6 +290,7 @@ if test "x$enable_cxx" = "x1" ; then
   AX_CXX_COMPILE_STDCXX([14], [noext], [optional])
   if test "x${HAVE_CXX14}" = "x1" ; then
     JE_CXXFLAGS_ADD([-Wall])
+    JE_CXXFLAGS_ADD([-Wextra])
     JE_CXXFLAGS_ADD([-g3])
 
     SAVED_LIBS="${LIBS}"

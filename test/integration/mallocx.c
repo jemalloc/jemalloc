@@ -51,6 +51,16 @@ purge(void) {
 	    "Unexpected mallctl error");
 }
 
+/*
+ * GCC "-Walloc-size-larger-than" warning detects when one of the memory
+ * allocation functions is called with a size larger than the maximum size that
+ * they support. Here we want to explicitly test that the allocation functions
+ * do indeed fail properly when this is the case, which triggers the warning.
+ * Therefore we disable the warning for these tests.
+ */
+JEMALLOC_DIAGNOSTIC_PUSH
+JEMALLOC_DIAGNOSTIC_IGNORE_ALLOC_SIZE_LARGER_THAN
+
 TEST_BEGIN(test_overflow) {
 	size_t largemax;
 
@@ -112,6 +122,9 @@ TEST_BEGIN(test_oom) {
 #endif
 }
 TEST_END
+
+/* Re-enable the "-Walloc-size-larger-than=" warning */
+JEMALLOC_DIAGNOSTIC_POP
 
 TEST_BEGIN(test_basic) {
 #define MAXSZ (((size_t)1) << 23)

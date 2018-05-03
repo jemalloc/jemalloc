@@ -4,7 +4,8 @@
 #include "jemalloc/internal/mutex.h"
 
 static inline bool
-prof_accum_add(tsdn_t *tsdn, prof_accum_t *prof_accum, uint64_t accumbytes) {
+prof_accum_add(tsdn_t *tsdn, prof_accum_t *prof_accum,
+    uint64_t accumbytes) {
 	cassert(config_prof);
 
 	bool overflow;
@@ -42,7 +43,8 @@ prof_accum_add(tsdn_t *tsdn, prof_accum_t *prof_accum, uint64_t accumbytes) {
 }
 
 static inline void
-prof_accum_cancel(tsdn_t *tsdn, prof_accum_t *prof_accum, size_t usize) {
+prof_accum_cancel(tsdn_t *tsdn, prof_accum_t *prof_accum,
+    size_t usize) {
 	cassert(config_prof);
 
 	/*

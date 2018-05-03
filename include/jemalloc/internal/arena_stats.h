@@ -6,6 +6,8 @@
 #include "jemalloc/internal/mutex_prof.h"
 #include "jemalloc/internal/size_classes.h"
 
+JEMALLOC_DIAGNOSTIC_DISABLE_SPURIOUS
+
 /*
  * In those architectures that support 64-bit atomics, we use atomic updates for
  * our 64-bit values.  Otherwise, we use a plain uint64_t and synchronize
@@ -95,7 +97,7 @@ struct arena_stats_s {
 };
 
 static inline bool
-arena_stats_init(UNUSED tsdn_t *tsdn, arena_stats_t *arena_stats) {
+arena_stats_init(tsdn_t *tsdn, arena_stats_t *arena_stats) {
 	if (config_debug) {
 		for (size_t i = 0; i < sizeof(arena_stats_t); i++) {
 			assert(((char *)arena_stats)[i] == 0);
@@ -147,11 +149,11 @@ arena_stats_add_u64(tsdn_t *tsdn, arena_stats_t *arena_stats,
 #endif
 }
 
-UNUSED static inline void
+static inline void
 arena_stats_sub_u64(tsdn_t *tsdn, arena_stats_t *arena_stats,
     arena_stats_u64_t *p, uint64_t x) {
 #ifdef JEMALLOC_ATOMIC_U64
-	UNUSED uint64_t r = atomic_fetch_sub_u64(p, x, ATOMIC_RELAXED);
+	uint64_t r = atomic_fetch_sub_u64(p, x, ATOMIC_RELAXED);
 	assert(r - x <= r);
 #else
 	malloc_mutex_assert_owner(tsdn, &arena_stats->mtx);
@@ -176,7 +178,8 @@ arena_stats_accum_u64(arena_stats_u64_t *dst, uint64_t src) {
 }
 
 static inline size_t
-arena_stats_read_zu(tsdn_t *tsdn, arena_stats_t *arena_stats, atomic_zu_t *p) {
+arena_stats_read_zu(tsdn_t *tsdn, arena_stats_t *arena_stats,
+    atomic_zu_t *p) {
 #ifdef JEMALLOC_ATOMIC_U64
 	return atomic_load_zu(p, ATOMIC_RELAXED);
 #else
@@ -186,8 +189,8 @@ arena_stats_read_zu(tsdn_t *tsdn, arena_stats_t *arena_stats, atomic_zu_t *p) {
 }
 
 static inline void
-arena_stats_add_zu(tsdn_t *tsdn, arena_stats_t *arena_stats, atomic_zu_t *p,
-    size_t x) {
+arena_stats_add_zu(tsdn_t *tsdn, arena_stats_t *arena_stats,
+    atomic_zu_t *p, size_t x) {
 #ifdef JEMALLOC_ATOMIC_U64
 	atomic_fetch_add_zu(p, x, ATOMIC_RELAXED);
 #else
@@ -198,10 +201,10 @@ arena_stats_add_zu(tsdn_t *tsdn, arena_stats_t *arena_stats, atomic_zu_t *p,
 }
 
 static inline void
-arena_stats_sub_zu(tsdn_t *tsdn, arena_stats_t *arena_stats, atomic_zu_t *p,
-    size_t x) {
+arena_stats_sub_zu(tsdn_t *tsdn, arena_stats_t *arena_stats,
+    atomic_zu_t *p, size_t x) {
 #ifdef JEMALLOC_ATOMIC_U64
-	UNUSED size_t r = atomic_fetch_sub_zu(p, x, ATOMIC_RELAXED);
+	size_t r = atomic_fetch_sub_zu(p, x, ATOMIC_RELAXED);
 	assert(r - x <= r);
 #else
 	malloc_mutex_assert_owner(tsdn, &arena_stats->mtx);
@@ -232,6 +235,5 @@ arena_stats_mapped_add(tsdn_t *tsdn, arena_stats_t *arena_stats, size_t size) {
 	arena_stats_add_zu(tsdn, arena_stats, &arena_stats->mapped, size);
 	arena_stats_unlock(tsdn, arena_stats);
 }
-
 
 #endif /* JEMALLOC_INTERNAL_ARENA_STATS_H */
