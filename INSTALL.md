@@ -260,6 +260,14 @@ any of the following arguments (not a definitive list) to 'configure':
     configuration, jemalloc will provide additional size classes that are not
     16-byte-aligned (24, 40, and 56).
 
+* `--with-lg-vaddr=<lg-vaddr>`
+
+    Specify the number of significant virtual address bits. jemalloc uses
+    pointer tagging if the pointer size is bigger than the required size for
+    virtual addresses. By default the configure script determines this via CPUID
+    information on x86_64 and uses default values for other architectures. This
+    option may be useful when cross compiling.
+
 * `--disable-initial-exec-tls`
 
     Disable the initial-exec TLS model for jemalloc's internal thread-local
