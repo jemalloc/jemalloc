@@ -412,12 +412,12 @@ AC_DEFINE_UNQUOTED([CPU_SPINWAIT], [$CPU_SPINWAIT])
 case "${host_cpu}" in
   aarch64)
     AC_MSG_CHECKING([number of significant virtual address bits])
-    if test "x${ac_cv_sizeof_void_p}" = "x4" ; then
+    if test "x${LG_SIZEOF_PTR}" = "x2" ; then
       #aarch64 ILP32
       LG_VADDR=32
     else
-      #aarch64 LP64
-      LG_VADDR=48
+      #aarch64 LP64 allows to use the upper 8 bits for tagging
+      LG_VADDR=56
     fi
     AC_MSG_RESULT([$LG_VADDR])
     ;;
