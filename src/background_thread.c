@@ -4,6 +4,8 @@
 
 #include "jemalloc/internal/assert.h"
 
+JEMALLOC_DIAGNOSTIC_DISABLE_SPURIOUS
+
 /******************************************************************************/
 /* Data. */
 
@@ -78,7 +80,7 @@ background_thread_info_init(tsdn_t *tsdn, background_thread_info_t *info) {
 }
 
 static inline bool
-set_current_thread_affinity(UNUSED int cpu) {
+set_current_thread_affinity(int cpu) {
 #if defined(JEMALLOC_HAVE_SCHED_SETAFFINITY)
 	cpu_set_t cpuset;
 	CPU_ZERO(&cpuset);

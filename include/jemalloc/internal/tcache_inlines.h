@@ -40,7 +40,7 @@ tcache_event(tsd_t *tsd, tcache_t *tcache) {
 
 JEMALLOC_ALWAYS_INLINE void *
 tcache_alloc_small(tsd_t *tsd, arena_t *arena, tcache_t *tcache,
-    UNUSED size_t size, szind_t binind, bool zero, bool slow_path) {
+    size_t size, szind_t binind, bool zero, bool slow_path) {
 	void *ret;
 	cache_bin_t *bin;
 	bool tcache_success;

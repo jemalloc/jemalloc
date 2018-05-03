@@ -347,11 +347,11 @@ static void
 emit_table_row(emitter_t *emitter) {
 	emitter_begin(emitter);
 	emitter_row_t row;
-	emitter_col_t abc = {emitter_justify_left, 10, emitter_type_title};
+	emitter_col_t abc = {emitter_justify_left, 10, emitter_type_title, {0}, {0, 0}};
 	abc.str_val = "ABC title";
-	emitter_col_t def = {emitter_justify_right, 15, emitter_type_title};
+	emitter_col_t def = {emitter_justify_right, 15, emitter_type_title, {0}, {0, 0}};
 	def.str_val = "DEF title";
-	emitter_col_t ghi = {emitter_justify_right, 5, emitter_type_title};
+	emitter_col_t ghi = {emitter_justify_right, 5, emitter_type_title, {0}, {0, 0}};
 	ghi.str_val = "GHI";
 
 	emitter_row_init(&row);

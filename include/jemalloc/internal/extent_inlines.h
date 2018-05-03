@@ -190,7 +190,7 @@ extent_addr_set(extent_t *extent, void *addr) {
 }
 
 static inline void
-extent_addr_randomize(UNUSED tsdn_t *tsdn, extent_t *extent, size_t alignment) {
+extent_addr_randomize(tsdn_t *tsdn, extent_t *extent, size_t alignment) {
 	assert(extent_base_get(extent) == extent_addr_get(extent));
 
 	if (alignment < PAGE) {

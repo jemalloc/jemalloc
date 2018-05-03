@@ -11,6 +11,8 @@
 #include "jemalloc/internal/size_classes.h"
 #include "jemalloc/internal/util.h"
 
+JEMALLOC_DIAGNOSTIC_DISABLE_SPURIOUS
+
 /******************************************************************************/
 /* Data. */
 
@@ -65,7 +67,7 @@ static void arena_bin_lower_slab(tsdn_t *tsdn, arena_t *arena, extent_t *slab,
 /******************************************************************************/
 
 void
-arena_basic_stats_merge(UNUSED tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
+arena_basic_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
     const char **dss, ssize_t *dirty_decay_ms, ssize_t *muzzy_decay_ms,
     size_t *nactive, size_t *ndirty, size_t *nmuzzy) {
 	*nthreads += arena_nthreads_get(arena, false);
@@ -752,7 +754,7 @@ static size_t
 arena_decay_stashed(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, arena_decay_t *decay, extents_t *extents,
     bool all, extent_list_t *decay_extents, bool is_background_thread) {
-	UNUSED size_t nmadvise, nunmapped;
+	size_t nmadvise, nunmapped;
 	size_t npurged;
 
 	if (config_stats) {
@@ -843,7 +845,7 @@ arena_decay_to_limit(tsdn_t *tsdn, arena_t *arena, arena_decay_t *decay,
 	size_t npurge = arena_stash_decayed(tsdn, arena, &extent_hooks, extents,
 	    npages_limit, npages_decay_max, &decay_extents);
 	if (npurge != 0) {
-		UNUSED size_t npurged = arena_decay_stashed(tsdn, arena,
+		size_t npurged = arena_decay_stashed(tsdn, arena,
 		    &extent_hooks, decay, extents, all, &decay_extents,
 		    is_background_thread);
 		assert(npurged == npurge);
@@ -872,7 +874,7 @@ arena_decay_impl(tsdn_t *tsdn, arena_t *arena, arena_decay_t *decay,
 
 	bool epoch_advanced = arena_maybe_decay(tsdn, arena, decay, extents,
 	    is_background_thread);
-	UNUSED size_t npages_new;
+	size_t npages_new;
 	if (epoch_advanced) {
 		/* Backlog is updated on epoch advance. */
 		npages_new = decay->backlog[SMOOTHSTEP_NSTEPS-1];
@@ -1508,7 +1510,7 @@ arena_dalloc_bin_slab(tsdn_t *tsdn, arena_t *arena, extent_t *slab,
 }
 
 static void
-arena_bin_lower_slab(UNUSED tsdn_t *tsdn, arena_t *arena, extent_t *slab,
+arena_bin_lower_slab(tsdn_t *tsdn, arena_t *arena, extent_t *slab,
     bin_t *bin) {
 	assert(extent_nfree_get(slab) > 0);
 

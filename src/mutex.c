@@ -46,7 +46,7 @@ JEMALLOC_EXPORT int	_pthread_mutex_init_calloc_cb(pthread_mutex_t *mutex,
 void
 malloc_mutex_lock_slow(malloc_mutex_t *mutex) {
 	mutex_prof_data_t *data = &mutex->prof_data;
-	UNUSED nstime_t before = NSTIME_ZERO_INITIALIZER;
+	nstime_t before = NSTIME_ZERO_INITIALIZER;
 
 	if (ncpus == 1) {
 		goto label_spin_done;

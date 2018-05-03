@@ -970,6 +970,14 @@ malloc_conf_init(void) {
 				}					\
 				continue;				\
 			}
+      /*
+       * One of the CONF_MIN macros below expands, in one of the use points,
+       * to "unsigned integer < 0", which is always false, triggering the
+       * GCC -Wtype-limits warning, which we disable here and re-enable below.
+       */
+      JEMALLOC_DIAGNOSTIC_PUSH
+      JEMALLOC_DIAGNOSTIC_IGNORE_TYPE_LIMITS
+
 #define CONF_MIN_no(um, min)	false
 #define CONF_MIN_yes(um, min)	((um) < (min))
 #define CONF_MAX_no(um, max)	false
@@ -1246,6 +1254,8 @@ malloc_conf_init(void) {
 #undef CONF_HANDLE_SIZE_T
 #undef CONF_HANDLE_SSIZE_T
 #undef CONF_HANDLE_CHAR_P
+    /* Re-enable diagnostic "-Wtype-limits" */
+    JEMALLOC_DIAGNOSTIC_POP
 		}
 		if (opt_abort_conf && had_conf_error) {
 			malloc_abort_invalid_conf();
@@ -2992,7 +3002,7 @@ label_not_resized:
 
 JEMALLOC_EXPORT size_t JEMALLOC_NOTHROW
 JEMALLOC_ATTR(pure)
-je_sallocx(const void *ptr, UNUSED int flags) {
+je_sallocx(const void *ptr, int flags) {
 	size_t usize;
 	tsdn_t *tsdn;
 

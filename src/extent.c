@@ -119,8 +119,12 @@ static void extent_record(tsdn_t *tsdn, arena_t *arena,
 
 /******************************************************************************/
 
-ph_gen(UNUSED, extent_avail_, extent_tree_t, extent_t, ph_link,
+#define ATTR_NONE /* does nothing */
+
+ph_gen(ATTR_NONE, extent_avail_, extent_tree_t, extent_t, ph_link,
     extent_esnead_comp)
+
+#undef ATTR_NONE
 
 typedef enum {
 	lock_result_success,

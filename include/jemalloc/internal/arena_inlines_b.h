@@ -49,7 +49,7 @@ arena_prof_tctx_get(tsdn_t *tsdn, const void *ptr, alloc_ctx_t *alloc_ctx) {
 }
 
 JEMALLOC_ALWAYS_INLINE void
-arena_prof_tctx_set(tsdn_t *tsdn, const void *ptr, UNUSED size_t usize,
+arena_prof_tctx_set(tsdn_t *tsdn, const void *ptr, size_t usize,
     alloc_ctx_t *alloc_ctx, prof_tctx_t *tctx) {
 	cassert(config_prof);
 	assert(ptr != NULL);
@@ -68,7 +68,7 @@ arena_prof_tctx_set(tsdn_t *tsdn, const void *ptr, UNUSED size_t usize,
 }
 
 static inline void
-arena_prof_tctx_reset(tsdn_t *tsdn, const void *ptr, UNUSED prof_tctx_t *tctx) {
+arena_prof_tctx_reset(tsdn_t *tsdn, const void *ptr, prof_tctx_t *tctx) {
 	cassert(config_prof);
 	assert(ptr != NULL);
 
@@ -318,7 +318,7 @@ arena_sdalloc(tsdn_t *tsdn, void *ptr, size_t size, tcache_t *tcache,
 
 	szind_t szind;
 	bool slab;
-	UNUSED alloc_ctx_t local_ctx;
+	alloc_ctx_t local_ctx;
 	if (config_prof && opt_prof) {
 		if (alloc_ctx == NULL) {
 			/* Uncommon case and should be a static check. */

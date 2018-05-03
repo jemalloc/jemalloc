@@ -206,7 +206,7 @@ tcache_bin_flush_large(tsd_t *tsd, cache_bin_t *tbin, szind_t binind,
 		/* Lock the arena associated with the first object. */
 		extent_t *extent = item_extent[0];
 		arena_t *locked_arena = extent_arena_get(extent);
-		UNUSED bool idump;
+		bool idump;
 
 		if (config_prof) {
 			idump = false;
