@@ -159,7 +159,7 @@ matrix:
       env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--with-jemalloc-prefix=_rjem_ --enable-debug --enable-prof" EXTRA_CFLAGS="-Werror -Wno-array-bounds" NO_TESTS=1
 
 before_script:
-  - autogen.sh
+  - ./autogen.sh
   - ./configure ${COMPILER_FLAGS:+       CC="$CC $COMPILER_FLAGS"       CXX="$CXX $COMPILER_FLAGS" }       $CONFIGURE_FLAGS
   - make -j3
   - if [[ -z "${NO_TESTS}" ]]; then make -j3 tests; fi
