@@ -1,8 +1,13 @@
 #!/usr/bin/env python
 
+import sys
 from itertools import combinations
 from os import uname
 from multiprocessing import cpu_count
+
+# Later, we want to test extended vaddr support.  Apparently, the "real" way of
+# checking this is flaky on OS X.
+bits_64 = sys.maxsize > 2**32
 
 nparallel = cpu_count() * 2
 
@@ -23,6 +28,9 @@ possible_config_opts = [
     '--enable-prof',
     '--disable-stats',
 ]
+if bits_64:
+    possible_config_opts.append('--with-lg-vaddr=56')
+
 possible_malloc_conf_opts = [
     'tcache:false',
     'dss:primary',
