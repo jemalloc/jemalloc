@@ -262,11 +262,10 @@ any of the following arguments (not a definitive list) to 'configure':
 
 * `--with-lg-vaddr=<lg-vaddr>`
 
-    Specify the number of significant virtual address bits. jemalloc uses
-    pointer tagging if the pointer size is bigger than the required size for
-    virtual addresses. By default the configure script determines this via CPUID
-    information on x86_64 and uses default values for other architectures. This
-    option may be useful when cross compiling.
+    Specify the number of significant virtual address bits.  By default, the
+    configure script attempts to detect virtual address size on those platforms
+    where it knows how, and picks a default otherwise.  This option may be
+    useful when cross-compiling.
 
 * `--disable-initial-exec-tls`
 
