@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+from __future__ import print_function
 from itertools import combinations
 
 travis_template = """\
@@ -104,4 +105,4 @@ for unusual_combination in unusual_combinations_to_test:
 	include_rows += '          packages:\n'
 	include_rows += '            - gcc-multilib\n'
 
-print travis_template % include_rows
+print(travis_template % include_rows)
