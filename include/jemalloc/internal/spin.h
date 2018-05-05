@@ -9,7 +9,7 @@ typedef struct {
 
 static inline void
 spin_cpu_spinwait() {
-#  if HAVE_CPU_SPINWAIT
+#  if defined(HAVE_CPU_SPINWAIT) && HAVE_CPU_SPINWAIT == 1
 	CPU_SPINWAIT;
 #  else
 	volatile int x = 0;
