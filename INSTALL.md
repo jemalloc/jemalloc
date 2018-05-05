@@ -9,15 +9,8 @@ If building from unpackaged developer sources, the simplest command sequence
 that might work is:
 
     ./autogen.sh
-    make dist
     make
     make install
-
-Note that documentation is not built by the default target because doing so
-would create a dependency on xsltproc in packaged releases, hence the
-requirement to either run 'make dist' or avoid installing docs via the various
-install_* targets documented below.
-
 
 ## Advanced configuration
 

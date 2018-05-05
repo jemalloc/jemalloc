@@ -465,7 +465,7 @@ install_doc_man:
 	$(INSTALL) -m 644 $$d $(MANDIR)/man3; \
 done
 
-install_doc: install_doc_html install_doc_man
+install_doc: build_doc install_doc_html install_doc_man
 
 install: install_bin install_include install_lib install_doc
 
