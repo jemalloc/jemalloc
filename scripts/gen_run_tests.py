@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+from __future__ import print_function
 import sys
 from itertools import combinations
 from os import uname
@@ -38,12 +39,12 @@ possible_malloc_conf_opts = [
     'background_thread:true',
 ]
 
-print 'set -e'
-print 'if [ -f Makefile ] ; then make relclean ; fi'
-print 'autoconf'
-print 'rm -rf run_tests.out'
-print 'mkdir run_tests.out'
-print 'cd run_tests.out'
+print('set -e')
+print('if [ -f Makefile ] ; then make relclean ; fi')
+print('autoconf')
+print('rm -rf run_tests.out')
+print('mkdir run_tests.out')
+print('cd run_tests.out')
 
 ind = 0
 for cc, cxx in possible_compilers:
@@ -73,7 +74,7 @@ for cc, cxx in possible_compilers:
                 if (uname == 'Linux' and linux_supported) \
                   or (not linux_supported and (uname != 'Darwin' or \
                   not darwin_unsupported)):
-                    print """cat <<EOF > run_test_%(ind)d.sh
+                    print("""cat <<EOF > run_test_%(ind)d.sh
 #!/bin/sh
 
 set -e
@@ -101,7 +102,7 @@ run_cmd make all tests
 run_cmd make check
 run_cmd make distclean
 EOF
-chmod 755 run_test_%(ind)d.sh""" % {'ind': ind, 'config_line': config_line}
+chmod 755 run_test_%(ind)d.sh""" % {'ind': ind, 'config_line': config_line})
                     ind += 1
 
-print 'for i in `seq 0 %(last_ind)d` ; do echo run_test_${i}.sh ; done | xargs -P %(nparallel)d -n 1 sh' % {'last_ind': ind-1, 'nparallel': nparallel}
+print('for i in `seq 0 %(last_ind)d` ; do echo run_test_${i}.sh ; done | xargs -P %(nparallel)d -n 1 sh' % {'last_ind': ind-1, 'nparallel': nparallel})
