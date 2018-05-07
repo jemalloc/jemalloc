@@ -64,6 +64,11 @@ for cc, cxx in possible_compilers:
                     else '')
                 )
 
+                # We don't want to test large vaddr spaces in 32-bit mode.
+		if ('-m32' in compiler_opts and '--with-lg-vaddr=56' in
+                  config_opts):
+		    continue
+
                 # Per CPU arenas are only supported on Linux.
                 linux_supported = ('percpu_arena:percpu' in malloc_conf_opts \
                   or 'background_thread:true' in malloc_conf_opts)
