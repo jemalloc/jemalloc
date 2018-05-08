@@ -4,12 +4,13 @@
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/mutex_pool.h"
 #include "jemalloc/internal/ph.h"
-#include "jemalloc/internal/rb.h"
 #include "jemalloc/internal/rtree.h"
 
-extern rtree_t			extents_rtree;
-extern const extent_hooks_t	extent_hooks_default;
-extern mutex_pool_t		extent_mutex_pool;
+extern size_t opt_lg_extent_max_active_fit;
+
+extern rtree_t extents_rtree;
+extern const extent_hooks_t extent_hooks_default;
+extern mutex_pool_t extent_mutex_pool;
 
 extent_t *extent_alloc(tsdn_t *tsdn, arena_t *arena);
 void extent_dalloc(tsdn_t *tsdn, arena_t *arena, extent_t *extent);

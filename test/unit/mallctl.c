@@ -157,6 +157,8 @@ TEST_BEGIN(test_mallctl_opt) {
 } while (0)
 
 	TEST_MALLCTL_OPT(bool, abort, always);
+	TEST_MALLCTL_OPT(bool, abort_conf, always);
+	TEST_MALLCTL_OPT(const char *, metadata_thp, always);
 	TEST_MALLCTL_OPT(bool, retain, always);
 	TEST_MALLCTL_OPT(const char *, dss, always);
 	TEST_MALLCTL_OPT(unsigned, narenas, always);
@@ -170,7 +172,9 @@ TEST_BEGIN(test_mallctl_opt) {
 	TEST_MALLCTL_OPT(bool, utrace, utrace);
 	TEST_MALLCTL_OPT(bool, xmalloc, xmalloc);
 	TEST_MALLCTL_OPT(bool, tcache, always);
+	TEST_MALLCTL_OPT(size_t, lg_extent_max_active_fit, always);
 	TEST_MALLCTL_OPT(size_t, lg_tcache_max, always);
+	TEST_MALLCTL_OPT(const char *, thp, always);
 	TEST_MALLCTL_OPT(bool, prof, prof);
 	TEST_MALLCTL_OPT(const char *, prof_prefix, prof);
 	TEST_MALLCTL_OPT(bool, prof_active, prof);
@@ -330,7 +334,7 @@ TEST_BEGIN(test_thread_arena) {
 
 	const char *opa;
 	size_t sz = sizeof(opa);
-	assert_d_eq(mallctl("opt.percpu_arena", &opa, &sz, NULL, 0), 0,
+	assert_d_eq(mallctl("opt.percpu_arena", (void *)&opa, &sz, NULL, 0), 0,
 	    "Unexpected mallctl() failure");
 
 	sz = sizeof(unsigned);
@@ -554,6 +558,54 @@ TEST_BEGIN(test_arena_i_dss) {
 }
 TEST_END
 
+TEST_BEGIN(test_arena_i_retain_grow_limit) {
+	size_t old_limit, new_limit, default_limit;
+	size_t mib[3];
+	size_t miblen;
+
+	bool retain_enabled;
+	size_t sz = sizeof(retain_enabled);
+	assert_d_eq(mallctl("opt.retain", &retain_enabled, &sz, NULL, 0),
+	    0, "Unexpected mallctl() failure");
+	test_skip_if(!retain_enabled);
+
+	sz = sizeof(default_limit);
+	miblen = sizeof(mib)/sizeof(size_t);
+	assert_d_eq(mallctlnametomib("arena.0.retain_grow_limit", mib, &miblen),
+	    0, "Unexpected mallctlnametomib() error");
+
+	assert_d_eq(mallctlbymib(mib, miblen, &default_limit, &sz, NULL, 0), 0,
+	    "Unexpected mallctl() failure");
+	assert_zu_eq(default_limit, sz_pind2sz(EXTENT_GROW_MAX_PIND),
+	    "Unexpected default for retain_grow_limit");
+
+	new_limit = PAGE - 1;
+	assert_d_eq(mallctlbymib(mib, miblen, NULL, NULL, &new_limit,
+	    sizeof(new_limit)), EFAULT, "Unexpected mallctl() success");
+
+	new_limit = PAGE + 1;
+	assert_d_eq(mallctlbymib(mib, miblen, NULL, NULL, &new_limit,
+	    sizeof(new_limit)), 0, "Unexpected mallctl() failure");
+	assert_d_eq(mallctlbymib(mib, miblen, &old_limit, &sz, NULL, 0), 0,
+	    "Unexpected mallctl() failure");
+	assert_zu_eq(old_limit, PAGE,
+	    "Unexpected value for retain_grow_limit");
+
+	/* Expect grow less than psize class 10. */
+	new_limit = sz_pind2sz(10) - 1;
+	assert_d_eq(mallctlbymib(mib, miblen, NULL, NULL, &new_limit,
+	    sizeof(new_limit)), 0, "Unexpected mallctl() failure");
+	assert_d_eq(mallctlbymib(mib, miblen, &old_limit, &sz, NULL, 0), 0,
+	    "Unexpected mallctl() failure");
+	assert_zu_eq(old_limit, sz_pind2sz(9),
+	    "Unexpected value for retain_grow_limit");
+
+	/* Restore to default. */
+	assert_d_eq(mallctlbymib(mib, miblen, NULL, NULL, &default_limit,
+	    sizeof(default_limit)), 0, "Unexpected mallctl() failure");
+}
+TEST_END
+
 TEST_BEGIN(test_arenas_dirty_decay_ms) {
 	ssize_t dirty_decay_ms, orig_dirty_decay_ms, prev_dirty_decay_ms;
 	size_t sz = sizeof(ssize_t);
@@ -645,10 +697,10 @@ TEST_BEGIN(test_arenas_bin_constants) {
 	assert_zu_eq(name, expected, "Incorrect "#name" size");		\
 } while (0)
 
-	TEST_ARENAS_BIN_CONSTANT(size_t, size, arena_bin_info[0].reg_size);
-	TEST_ARENAS_BIN_CONSTANT(uint32_t, nregs, arena_bin_info[0].nregs);
+	TEST_ARENAS_BIN_CONSTANT(size_t, size, bin_infos[0].reg_size);
+	TEST_ARENAS_BIN_CONSTANT(uint32_t, nregs, bin_infos[0].nregs);
 	TEST_ARENAS_BIN_CONSTANT(size_t, slab_size,
-	    arena_bin_info[0].slab_size);
+	    bin_infos[0].slab_size);
 
 #undef TEST_ARENAS_BIN_CONSTANT
 }
@@ -683,6 +735,22 @@ TEST_BEGIN(test_arenas_create) {
 	assert_u_eq(narenas_before+1, narenas_after,
 	    "Unexpected number of arenas before versus after extension");
 	assert_u_eq(arena, narenas_after-1, "Unexpected arena index");
+}
+TEST_END
+
+TEST_BEGIN(test_arenas_lookup) {
+	unsigned arena, arena1;
+	void *ptr;
+	size_t sz = sizeof(unsigned);
+
+	assert_d_eq(mallctl("arenas.create", (void *)&arena, &sz, NULL, 0), 0,
+	    "Unexpected mallctl() failure");
+	ptr = mallocx(42, MALLOCX_ARENA(arena) | MALLOCX_TCACHE_NONE);
+	assert_ptr_not_null(ptr, "Unexpected mallocx() failure");
+	assert_d_eq(mallctl("arenas.lookup", &arena1, &sz, &ptr, sizeof(ptr)),
+	    0, "Unexpected mallctl() failure");
+	assert_u_eq(arena, arena1, "Unexpected arena index");
+	dallocx(ptr, 0);
 }
 TEST_END
 
@@ -725,11 +793,13 @@ main(void) {
 	    test_arena_i_purge,
 	    test_arena_i_decay,
 	    test_arena_i_dss,
+	    test_arena_i_retain_grow_limit,
 	    test_arenas_dirty_decay_ms,
 	    test_arenas_muzzy_decay_ms,
 	    test_arenas_constants,
 	    test_arenas_bin_constants,
 	    test_arenas_lextent_constants,
 	    test_arenas_create,
+	    test_arenas_lookup,
 	    test_stats_arenas);
 }

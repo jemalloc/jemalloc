@@ -6,10 +6,10 @@ TEST_BEGIN(test_arena_slab_regind) {
 	for (binind = 0; binind < NBINS; binind++) {
 		size_t regind;
 		extent_t slab;
-		const arena_bin_info_t *bin_info = &arena_bin_info[binind];
+		const bin_info_t *bin_info = &bin_infos[binind];
 		extent_init(&slab, NULL, mallocx(bin_info->slab_size,
 		    MALLOCX_LG_ALIGN(LG_PAGE)), bin_info->slab_size, true,
-		    binind, 0, extent_state_active, false, true);
+		    binind, 0, extent_state_active, false, true, true);
 		assert_ptr_not_null(extent_addr_get(&slab),
 		    "Unexpected malloc() failure");
 		for (regind = 0; regind < bin_info->nregs; regind++) {

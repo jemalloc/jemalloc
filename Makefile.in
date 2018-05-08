@@ -24,7 +24,7 @@ abs_srcroot := @abs_srcroot@
 abs_objroot := @abs_objroot@
 
 # Build parameters.
-CPPFLAGS := @CPPFLAGS@ -I$(srcroot)include -I$(objroot)include
+CPPFLAGS := @CPPFLAGS@ -I$(objroot)include -I$(srcroot)include
 CONFIGURE_CFLAGS := @CONFIGURE_CFLAGS@
 SPECIFIED_CFLAGS := @SPECIFIED_CFLAGS@
 EXTRA_CFLAGS := @EXTRA_CFLAGS@
@@ -93,15 +93,18 @@ C_SRCS := $(srcroot)src/jemalloc.c \
 	$(srcroot)src/arena.c \
 	$(srcroot)src/background_thread.c \
 	$(srcroot)src/base.c \
+	$(srcroot)src/bin.c \
 	$(srcroot)src/bitmap.c \
 	$(srcroot)src/ckh.c \
 	$(srcroot)src/ctl.c \
+	$(srcroot)src/div.c \
 	$(srcroot)src/extent.c \
 	$(srcroot)src/extent_dss.c \
 	$(srcroot)src/extent_mmap.c \
 	$(srcroot)src/hash.c \
 	$(srcroot)src/hooks.c \
 	$(srcroot)src/large.c \
+	$(srcroot)src/log.c \
 	$(srcroot)src/malloc_io.c \
 	$(srcroot)src/mutex.c \
 	$(srcroot)src/mutex_pool.c \
@@ -111,7 +114,6 @@ C_SRCS := $(srcroot)src/jemalloc.c \
 	$(srcroot)src/prof.c \
 	$(srcroot)src/rtree.c \
 	$(srcroot)src/stats.c \
-	$(srcroot)src/spin.c \
 	$(srcroot)src/sz.c \
 	$(srcroot)src/tcache.c \
 	$(srcroot)src/ticker.c \
@@ -160,10 +162,13 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/arena_reset.c \
 	$(srcroot)test/unit/atomic.c \
 	$(srcroot)test/unit/background_thread.c \
+	$(srcroot)test/unit/background_thread_enable.c \
 	$(srcroot)test/unit/base.c \
 	$(srcroot)test/unit/bitmap.c \
 	$(srcroot)test/unit/ckh.c \
 	$(srcroot)test/unit/decay.c \
+	$(srcroot)test/unit/div.c \
+	$(srcroot)test/unit/emitter.c \
 	$(srcroot)test/unit/extent_quantize.c \
 	$(srcroot)test/unit/fork.c \
 	$(srcroot)test/unit/hash.c \
@@ -171,6 +176,7 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/junk.c \
 	$(srcroot)test/unit/junk_alloc.c \
 	$(srcroot)test/unit/junk_free.c \
+	$(srcroot)test/unit/log.c \
 	$(srcroot)test/unit/mallctl.c \
 	$(srcroot)test/unit/malloc_io.c \
 	$(srcroot)test/unit/math.c \

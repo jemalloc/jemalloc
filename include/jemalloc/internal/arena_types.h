@@ -12,9 +12,7 @@
 #define DECAY_NTICKS_PER_UPDATE	1000
 
 typedef struct arena_slab_data_s arena_slab_data_t;
-typedef struct arena_bin_info_s arena_bin_info_t;
 typedef struct arena_decay_s arena_decay_t;
-typedef struct arena_bin_s arena_bin_t;
 typedef struct arena_s arena_t;
 typedef struct arena_tdata_s arena_tdata_t;
 typedef struct alloc_ctx_s alloc_ctx_t;

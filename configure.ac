@@ -10,7 +10,7 @@ dnl Custom macro definitions.
 dnl JE_CONCAT_VVV(r, a, b)
 dnl
 dnl Set $r to the concatenation of $a and $b, with a space separating them iff
-dnl both $a and $b are non-emty.
+dnl both $a and $b are non-empty.
 AC_DEFUN([JE_CONCAT_VVV],
 if test "x[$]{$2}" = "x" -o "x[$]{$3}" = "x" ; then
   $1="[$]{$2}[$]{$3}"
@@ -76,6 +76,7 @@ AC_MSG_CHECKING([whether compiler supports $1])
 T_CONFIGURE_CXXFLAGS="${CONFIGURE_CXXFLAGS}"
 JE_APPEND_VS(CONFIGURE_CXXFLAGS, $1)
 JE_CONCAT_VVV(CXXFLAGS, CONFIGURE_CXXFLAGS, SPECIFIED_CXXFLAGS)
+AC_LANG_PUSH([C++])
 AC_COMPILE_IFELSE([AC_LANG_PROGRAM(
 [[
 ]], [[
@@ -87,6 +88,7 @@ AC_COMPILE_IFELSE([AC_LANG_PROGRAM(
               AC_MSG_RESULT([no])
               [CONFIGURE_CXXFLAGS="${T_CONFIGURE_CXXFLAGS}"]
 )
+AC_LANG_POP([C++])
 JE_CONCAT_VVV(CXXFLAGS, CONFIGURE_CXXFLAGS, SPECIFIED_CXXFLAGS)
 ])
 
@@ -243,6 +245,7 @@ if test "x$GCC" = "xyes" ; then
   JE_CFLAGS_ADD([-Wshorten-64-to-32])
   JE_CFLAGS_ADD([-Wsign-compare])
   JE_CFLAGS_ADD([-Wundef])
+  JE_CFLAGS_ADD([-Wno-format-zero-length])
   JE_CFLAGS_ADD([-pipe])
   JE_CFLAGS_ADD([-g3])
 elif test "x$je_cv_msvc" = "xyes" ; then
@@ -380,6 +383,7 @@ dnl CPU-specific settings.
 CPU_SPINWAIT=""
 case "${host_cpu}" in
   i686|x86_64)
+	HAVE_CPU_SPINWAIT=1
 	if test "x${je_cv_msvc}" = "xyes" ; then
 	    AC_CACHE_VAL([je_cv_pause_msvc],
 	      [JE_COMPILABLE([pause instruction MSVC], [],
@@ -398,25 +402,36 @@ case "${host_cpu}" in
 	    fi
 	fi
 	;;
-  powerpc*)
-	AC_DEFINE_UNQUOTED([HAVE_ALTIVEC], [ ])
-	CPU_SPINWAIT='__asm__ volatile("or 31,31,31")'
-	;;
   *)
+	HAVE_CPU_SPINWAIT=0
 	;;
 esac
+AC_DEFINE_UNQUOTED([HAVE_CPU_SPINWAIT], [$HAVE_CPU_SPINWAIT])
 AC_DEFINE_UNQUOTED([CPU_SPINWAIT], [$CPU_SPINWAIT])
+
+AC_ARG_WITH([lg_vaddr],
+  [AS_HELP_STRING([--with-lg-vaddr=<lg-vaddr>], [Number of significant virtual address bits])],
+  [LG_VADDR="$with_lg_vaddr"], [LG_VADDR="detect"])
 
 case "${host_cpu}" in
   aarch64)
-    AC_MSG_CHECKING([number of significant virtual address bits])
-    LG_VADDR=48
-    AC_MSG_RESULT([$LG_VADDR])
+    if test "x$LG_VADDR" = "xdetect"; then
+      AC_MSG_CHECKING([number of significant virtual address bits])
+      if test "x${LG_SIZEOF_PTR}" = "x2" ; then
+        #aarch64 ILP32
+        LG_VADDR=32
+      else
+        #aarch64 LP64
+        LG_VADDR=48
+      fi
+      AC_MSG_RESULT([$LG_VADDR])
+    fi
     ;;
   x86_64)
-    AC_CACHE_CHECK([number of significant virtual address bits],
-                   [je_cv_lg_vaddr],
-                   AC_RUN_IFELSE([AC_LANG_PROGRAM(
+    if test "x$LG_VADDR" = "xdetect"; then
+      AC_CACHE_CHECK([number of significant virtual address bits],
+                     [je_cv_lg_vaddr],
+                     AC_RUN_IFELSE([AC_LANG_PROGRAM(
 [[
 #include <stdio.h>
 #ifdef _WIN32
@@ -453,27 +468,30 @@ typedef unsigned __int32 uint32_t;
                    [je_cv_lg_vaddr=`cat conftest.out`],
                    [je_cv_lg_vaddr=error],
                    [je_cv_lg_vaddr=57]))
-    if test "x${je_cv_lg_vaddr}" != "x" ; then
-      LG_VADDR="${je_cv_lg_vaddr}"
-    fi
-    if test "x${LG_VADDR}" != "xerror" ; then
-      AC_DEFINE_UNQUOTED([LG_VADDR], [$LG_VADDR])
-    else
-      AC_MSG_ERROR([cannot determine number of significant virtual address bits])
+      if test "x${je_cv_lg_vaddr}" != "x" ; then
+        LG_VADDR="${je_cv_lg_vaddr}"
+      fi
+      if test "x${LG_VADDR}" != "xerror" ; then
+        AC_DEFINE_UNQUOTED([LG_VADDR], [$LG_VADDR])
+      else
+        AC_MSG_ERROR([cannot determine number of significant virtual address bits])
+      fi
     fi
     ;;
   *)
-    AC_MSG_CHECKING([number of significant virtual address bits])
-    if test "x${LG_SIZEOF_PTR}" = "x3" ; then
-      LG_VADDR=64
-    elif test "x${LG_SIZEOF_PTR}" = "x2" ; then
-      LG_VADDR=32
-    elif test "x${LG_SIZEOF_PTR}" = "xLG_SIZEOF_PTR_WIN" ; then
-      LG_VADDR="(1U << (LG_SIZEOF_PTR_WIN+3))"
-    else
-      AC_MSG_ERROR([Unsupported lg(pointer size): ${LG_SIZEOF_PTR}])
+    if test "x$LG_VADDR" = "xdetect"; then
+      AC_MSG_CHECKING([number of significant virtual address bits])
+      if test "x${LG_SIZEOF_PTR}" = "x3" ; then
+        LG_VADDR=64
+      elif test "x${LG_SIZEOF_PTR}" = "x2" ; then
+        LG_VADDR=32
+      elif test "x${LG_SIZEOF_PTR}" = "xLG_SIZEOF_PTR_WIN" ; then
+        LG_VADDR="(1U << (LG_SIZEOF_PTR_WIN+3))"
+      else
+        AC_MSG_ERROR([Unsupported lg(pointer size): ${LG_SIZEOF_PTR}])
+      fi
+      AC_MSG_RESULT([$LG_VADDR])
     fi
-    AC_MSG_RESULT([$LG_VADDR])
     ;;
 esac
 AC_DEFINE_UNQUOTED([LG_VADDR], [$LG_VADDR])
@@ -561,7 +579,7 @@ case "${host}" in
 	dnl syscall(2) and secure_getenv(3) are exposed by _GNU_SOURCE.
 	JE_APPEND_VS(CPPFLAGS, -D_GNU_SOURCE)
 	abi="elf"
-	AC_DEFINE([JEMALLOC_PURGE_MADVISE_DONTNEED_ZEROS])
+	AC_DEFINE([JEMALLOC_PURGE_MADVISE_DONTNEED_ZEROS], [ ])
 	AC_DEFINE([JEMALLOC_HAS_ALLOCA_H])
 	AC_DEFINE([JEMALLOC_PROC_SYS_VM_OVERCOMMIT_MEMORY], [ ])
 	AC_DEFINE([JEMALLOC_THREADED_INIT], [ ])
@@ -571,11 +589,11 @@ case "${host}" in
 	  default_retain="1"
 	fi
 	;;
-  *-*-linux* | *-*-kfreebsd*)
+  *-*-linux*)
 	dnl syscall(2) and secure_getenv(3) are exposed by _GNU_SOURCE.
 	JE_APPEND_VS(CPPFLAGS, -D_GNU_SOURCE)
 	abi="elf"
-	AC_DEFINE([JEMALLOC_PURGE_MADVISE_DONTNEED_ZEROS])
+	AC_DEFINE([JEMALLOC_PURGE_MADVISE_DONTNEED_ZEROS], [ ])
 	AC_DEFINE([JEMALLOC_HAS_ALLOCA_H])
 	AC_DEFINE([JEMALLOC_PROC_SYS_VM_OVERCOMMIT_MEMORY], [ ])
 	AC_DEFINE([JEMALLOC_THREADED_INIT], [ ])
@@ -583,6 +601,15 @@ case "${host}" in
 	if test "${LG_SIZEOF_PTR}" = "3"; then
 	  default_retain="1"
 	fi
+	;;
+  *-*-kfreebsd*)
+	dnl syscall(2) and secure_getenv(3) are exposed by _GNU_SOURCE.
+	JE_APPEND_VS(CPPFLAGS, -D_GNU_SOURCE)
+	abi="elf"
+	AC_DEFINE([JEMALLOC_HAS_ALLOCA_H])
+	AC_DEFINE([JEMALLOC_SYSCTL_VM_OVERCOMMIT], [ ])
+	AC_DEFINE([JEMALLOC_THREADED_INIT], [ ])
+	AC_DEFINE([JEMALLOC_USE_CXX_THROW], [ ])
 	;;
   *-*-netbsd*)
 	AC_MSG_CHECKING([ABI])
@@ -722,12 +749,9 @@ JE_COMPILABLE([tls_model attribute], [],
                foo = 0;],
               [je_cv_tls_model])
 JE_CFLAGS_RESTORE()
-if test "x${je_cv_tls_model}" = "xyes" ; then
-  AC_DEFINE([JEMALLOC_TLS_MODEL],
-            [__attribute__((tls_model("initial-exec")))])
-else
-  AC_DEFINE([JEMALLOC_TLS_MODEL], [ ])
-fi
+dnl (Setting of JEMALLOC_TLS_MODEL is done later, after we've checked for
+dnl --disable-initial-exec-tls)
+
 dnl Check for alloc_size attribute support.
 JE_CFLAGS_SAVE()
 JE_CFLAGS_ADD([-Werror])
@@ -1237,6 +1261,21 @@ if test "x$enable_cache_oblivious" = "x1" ; then
 fi
 AC_SUBST([enable_cache_oblivious])
 
+dnl Do not log by default.
+AC_ARG_ENABLE([log],
+  [AS_HELP_STRING([--enable-log], [Support debug logging])],
+[if test "x$enable_log" = "xno" ; then
+  enable_log="0"
+else
+  enable_log="1"
+fi
+],
+[enable_log="0"]
+)
+if test "x$enable_log" = "x1" ; then
+  AC_DEFINE([JEMALLOC_LOG], [ ])
+fi
+AC_SUBST([enable_log])
 
 
 JE_COMPILABLE([a program using __builtin_unreachable], [
@@ -1800,6 +1839,15 @@ if test "x${je_cv_madvise}" = "xyes" ; then
 ], [je_cv_madv_free])
   if test "x${je_cv_madv_free}" = "xyes" ; then
     AC_DEFINE([JEMALLOC_PURGE_MADVISE_FREE], [ ])
+  elif test "x${je_cv_madvise}" = "xyes" ; then
+    case "${host_cpu}" in i686|x86_64)
+        case "${host}" in *-*-linux*)
+            AC_DEFINE([JEMALLOC_PURGE_MADVISE_FREE], [ ])
+            AC_DEFINE([JEMALLOC_DEFINE_MADVISE_FREE], [ ])
+	    ;;
+        esac
+        ;;
+    esac
   fi
 
   dnl Check for madvise(..., MADV_DONTNEED).
@@ -1812,6 +1860,17 @@ if test "x${je_cv_madvise}" = "xyes" ; then
     AC_DEFINE([JEMALLOC_PURGE_MADVISE_DONTNEED], [ ])
   fi
 
+  dnl Check for madvise(..., MADV_DO[NT]DUMP).
+  JE_COMPILABLE([madvise(..., MADV_DO[[NT]]DUMP)], [
+#include <sys/mman.h>
+], [
+	madvise((void *)0, 0, MADV_DONTDUMP);
+	madvise((void *)0, 0, MADV_DODUMP);
+], [je_cv_madv_dontdump])
+  if test "x${je_cv_madv_dontdump}" = "xyes" ; then
+    AC_DEFINE([JEMALLOC_MADVISE_DONTDUMP], [ ])
+  fi
+ 
   dnl Check for madvise(..., MADV_[NO]HUGEPAGE).
   JE_COMPILABLE([madvise(..., MADV_[[NO]]HUGEPAGE)], [
 #include <sys/mman.h>
@@ -1819,28 +1878,16 @@ if test "x${je_cv_madvise}" = "xyes" ; then
 	madvise((void *)0, 0, MADV_HUGEPAGE);
 	madvise((void *)0, 0, MADV_NOHUGEPAGE);
 ], [je_cv_thp])
+case "${host_cpu}" in
+  arm*)
+    ;;
+  *)
+  if test "x${je_cv_thp}" = "xyes" ; then
+    AC_DEFINE([JEMALLOC_HAVE_MADVISE_HUGE], [ ])
+  fi
+  ;;
+esac
 fi
-
-dnl Enable transparent huge page support by default.
-AC_ARG_ENABLE([thp],
-  [AS_HELP_STRING([--disable-thp],
-                  [Disable transparent huge page support])],
-[if test "x$enable_thp" = "xno" -o "x${je_cv_thp}" != "xyes" ; then
-  enable_thp="0"
-else
-  enable_thp="1"
-fi
-],
-[if test "x${je_cv_thp}" = "xyes" ; then
-  enable_thp="1"
-else
-  enable_thp="0"
-fi
-])
-if test "x$enable_thp" = "x1" ; then
-  AC_DEFINE([JEMALLOC_THP], [ ])
-fi
-AC_SUBST([enable_thp])
 
 dnl ============================================================================
 dnl Check whether __sync_{add,sub}_and_fetch() are available despite
@@ -1960,6 +2007,29 @@ if test "x${enable_zone_allocator}" = "x1" ; then
 fi
 
 dnl ============================================================================
+dnl Use initial-exec TLS by default.
+AC_ARG_ENABLE([initial-exec-tls],
+  [AS_HELP_STRING([--disable-initial-exec-tls],
+                  [Disable the initial-exec tls model])],
+[if test "x$enable_initial_exec_tls" = "xno" ; then
+  enable_initial_exec_tls="0"
+else
+  enable_initial_exec_tls="1"
+fi
+],
+[enable_initial_exec_tls="1"]
+)
+AC_SUBST([enable_initial_exec_tls])
+
+if test "x${je_cv_tls_model}" = "xyes" -a \
+       "x${enable_initial_exec_tls}" = "x1" ; then
+  AC_DEFINE([JEMALLOC_TLS_MODEL],
+            [__attribute__((tls_model("initial-exec")))])
+else
+  AC_DEFINE([JEMALLOC_TLS_MODEL], [ ])
+fi
+
+dnl ============================================================================
 dnl Enable background threads if possible.
 
 if test "x${have_pthread}" = "x1" -a "x${have_dlsym}" = "x1" \
@@ -2015,6 +2085,25 @@ JE_COMPILABLE([pthreads adaptive mutexes], [
 ], [je_cv_pthread_mutex_adaptive_np])
 if test "x${je_cv_pthread_mutex_adaptive_np}" = "xyes" ; then
   AC_DEFINE([JEMALLOC_HAVE_PTHREAD_MUTEX_ADAPTIVE_NP], [ ])
+fi
+
+JE_CFLAGS_SAVE()
+JE_CFLAGS_ADD([-D_GNU_SOURCE])
+JE_CFLAGS_ADD([-Werror])
+JE_CFLAGS_ADD([-herror_on_warning])
+JE_COMPILABLE([strerror_r returns char with gnu source], [
+#include <errno.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+], [
+  char *buffer = (char *) malloc(100);
+  char *error = strerror_r(EINVAL, buffer, 100);
+  printf("%s\n", error);
+], [je_cv_strerror_r_returns_char_with_gnu_source])
+JE_CFLAGS_RESTORE()
+if test "x${je_cv_strerror_r_returns_char_with_gnu_source}" = "xyes" ; then
+  AC_DEFINE([JEMALLOC_STRERROR_R_RETURNS_CHAR_WITH_GNU_SOURCE], [ ])
 fi
 
 dnl ============================================================================
@@ -2195,10 +2284,10 @@ AC_MSG_RESULT([prof               : ${enable_prof}])
 AC_MSG_RESULT([prof-libunwind     : ${enable_prof_libunwind}])
 AC_MSG_RESULT([prof-libgcc        : ${enable_prof_libgcc}])
 AC_MSG_RESULT([prof-gcc           : ${enable_prof_gcc}])
-AC_MSG_RESULT([thp                : ${enable_thp}])
 AC_MSG_RESULT([fill               : ${enable_fill}])
 AC_MSG_RESULT([utrace             : ${enable_utrace}])
 AC_MSG_RESULT([xmalloc            : ${enable_xmalloc}])
+AC_MSG_RESULT([log                : ${enable_log}])
 AC_MSG_RESULT([lazy_lock          : ${enable_lazy_lock}])
 AC_MSG_RESULT([cache-oblivious    : ${enable_cache_oblivious}])
 AC_MSG_RESULT([cxx                : ${enable_cxx}])

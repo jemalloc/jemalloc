@@ -67,7 +67,7 @@ token_error(token_t *token) {
 		    token->col);
 		break;
 	}
-	UNUSED ssize_t err = write(STDERR_FILENO,
+	UNUSED ssize_t err = malloc_write_fd(STDERR_FILENO,
 	    &token->parser->buf[token->pos], token->len);
 	malloc_printf("\n");
 }

@@ -8,13 +8,6 @@
 #include "jemalloc/internal/sz.h"
 #include "jemalloc/internal/ticker.h"
 
-static inline szind_t
-arena_bin_index(arena_t *arena, arena_bin_t *bin) {
-	szind_t binind = (szind_t)(bin - arena->bins);
-	assert(binind < NBINS);
-	return binind;
-}
-
 JEMALLOC_ALWAYS_INLINE prof_tctx_t *
 arena_prof_tctx_get(tsdn_t *tsdn, const void *ptr, alloc_ctx_t *alloc_ctx) {
 	cassert(config_prof);
@@ -35,7 +28,7 @@ arena_prof_tctx_get(tsdn_t *tsdn, const void *ptr, alloc_ctx_t *alloc_ctx) {
 }
 
 JEMALLOC_ALWAYS_INLINE void
-arena_prof_tctx_set(tsdn_t *tsdn, const void *ptr, size_t usize,
+arena_prof_tctx_set(tsdn_t *tsdn, const void *ptr, UNUSED size_t usize,
     alloc_ctx_t *alloc_ctx, prof_tctx_t *tctx) {
 	cassert(config_prof);
 	assert(ptr != NULL);
@@ -54,7 +47,7 @@ arena_prof_tctx_set(tsdn_t *tsdn, const void *ptr, size_t usize,
 }
 
 static inline void
-arena_prof_tctx_reset(tsdn_t *tsdn, const void *ptr, prof_tctx_t *tctx) {
+arena_prof_tctx_reset(tsdn_t *tsdn, const void *ptr, UNUSED prof_tctx_t *tctx) {
 	cassert(config_prof);
 	assert(ptr != NULL);
 

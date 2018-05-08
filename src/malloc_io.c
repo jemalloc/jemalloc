@@ -70,20 +70,7 @@ static char *x2s(uintmax_t x, bool alt_form, bool uppercase, char *s,
 /* malloc_message() setup. */
 static void
 wrtmessage(void *cbopaque, const char *s) {
-#if defined(JEMALLOC_USE_SYSCALL) && defined(SYS_write)
-	/*
-	 * Use syscall(2) rather than write(2) when possible in order to avoid
-	 * the possibility of memory allocation within libc.  This is necessary
-	 * on FreeBSD; most operating systems do not have this problem though.
-	 *
-	 * syscall() returns long or int, depending on platform, so capture the
-	 * unused result in the widest plausible type to avoid compiler
-	 * warnings.
-	 */
-	UNUSED long result = syscall(SYS_write, STDERR_FILENO, s, strlen(s));
-#else
-	UNUSED ssize_t result = write(STDERR_FILENO, s, strlen(s));
-#endif
+	malloc_write_fd(STDERR_FILENO, s, strlen(s));
 }
 
 JEMALLOC_EXPORT void	(*je_malloc_message)(void *, const char *s);
@@ -111,7 +98,7 @@ buferror(int err, char *buf, size_t buflen) {
 	FormatMessageA(FORMAT_MESSAGE_FROM_SYSTEM, NULL, err, 0,
 	    (LPSTR)buf, (DWORD)buflen, NULL);
 	return 0;
-#elif defined(__GLIBC__) && defined(_GNU_SOURCE)
+#elif defined(JEMALLOC_STRERROR_R_RETURNS_CHAR_WITH_GNU_SOURCE) && defined(_GNU_SOURCE)
 	char *b = strerror_r(err, buf, buflen);
 	if (b != buf) {
 		strncpy(buf, b, buflen);

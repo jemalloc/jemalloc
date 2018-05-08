@@ -94,6 +94,12 @@ extent_committed_get(const extent_t *extent) {
 }
 
 static inline bool
+extent_dumpable_get(const extent_t *extent) {
+	return (bool)((extent->e_bits & EXTENT_BITS_DUMPABLE_MASK) >>
+	    EXTENT_BITS_DUMPABLE_SHIFT);
+}
+
+static inline bool
 extent_slab_get(const extent_t *extent) {
 	return (bool)((extent->e_bits & EXTENT_BITS_SLAB_MASK) >>
 	    EXTENT_BITS_SLAB_SHIFT);
@@ -184,15 +190,22 @@ extent_addr_set(extent_t *extent, void *addr) {
 }
 
 static inline void
-extent_addr_randomize(tsdn_t *tsdn, extent_t *extent, size_t alignment) {
+extent_addr_randomize(UNUSED tsdn_t *tsdn, extent_t *extent, size_t alignment) {
 	assert(extent_base_get(extent) == extent_addr_get(extent));
 
 	if (alignment < PAGE) {
 		unsigned lg_range = LG_PAGE -
 		    lg_floor(CACHELINE_CEILING(alignment));
-		size_t r =
-		    prng_lg_range_zu(&extent_arena_get(extent)->offset_state,
-		    lg_range, true);
+		size_t r;
+		if (!tsdn_null(tsdn)) {
+			tsd_t *tsd = tsdn_tsd(tsdn);
+			r = (size_t)prng_lg_range_u64(
+			    tsd_offset_statep_get(tsd), lg_range);
+		} else {
+			r = prng_lg_range_zu(
+			    &extent_arena_get(extent)->offset_state,
+			    lg_range, true);
+		}
 		uintptr_t random_offset = ((uintptr_t)r) << (LG_PAGE -
 		    lg_range);
 		extent->e_addr = (void *)((uintptr_t)extent->e_addr +
@@ -270,6 +283,12 @@ extent_committed_set(extent_t *extent, bool committed) {
 }
 
 static inline void
+extent_dumpable_set(extent_t *extent, bool dumpable) {
+	extent->e_bits = (extent->e_bits & ~EXTENT_BITS_DUMPABLE_MASK) |
+	    ((uint64_t)dumpable << EXTENT_BITS_DUMPABLE_SHIFT);
+}
+
+static inline void
 extent_slab_set(extent_t *extent, bool slab) {
 	extent->e_bits = (extent->e_bits & ~EXTENT_BITS_SLAB_MASK) |
 	    ((uint64_t)slab << EXTENT_BITS_SLAB_SHIFT);
@@ -283,7 +302,7 @@ extent_prof_tctx_set(extent_t *extent, prof_tctx_t *tctx) {
 static inline void
 extent_init(extent_t *extent, arena_t *arena, void *addr, size_t size,
     bool slab, szind_t szind, size_t sn, extent_state_t state, bool zeroed,
-    bool committed) {
+    bool committed, bool dumpable) {
 	assert(addr == PAGE_ADDR2BASE(addr) || !slab);
 
 	extent_arena_set(extent, arena);
@@ -295,6 +314,7 @@ extent_init(extent_t *extent, arena_t *arena, void *addr, size_t size,
 	extent_state_set(extent, state);
 	extent_zeroed_set(extent, zeroed);
 	extent_committed_set(extent, committed);
+	extent_dumpable_set(extent, dumpable);
 	ql_elm_new(extent, ql_link);
 	if (config_prof) {
 		extent_prof_tctx_set(extent, NULL);
@@ -312,6 +332,7 @@ extent_binit(extent_t *extent, void *addr, size_t bsize, size_t sn) {
 	extent_state_set(extent, extent_state_active);
 	extent_zeroed_set(extent, true);
 	extent_committed_set(extent, true);
+	extent_dumpable_set(extent, true);
 }
 
 static inline void
@@ -332,6 +353,11 @@ extent_list_last(const extent_list_t *list) {
 static inline void
 extent_list_append(extent_list_t *list, extent_t *extent) {
 	ql_tail_insert(list, extent, ql_link);
+}
+
+static inline void
+extent_list_prepend(extent_list_t *list, extent_t *extent) {
+	ql_head_insert(list, extent, ql_link);
 }
 
 static inline void

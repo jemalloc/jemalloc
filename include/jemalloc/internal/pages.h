@@ -58,6 +58,20 @@ static const bool pages_can_purge_forced =
 #endif
     ;
 
+typedef enum {
+	thp_mode_default       = 0, /* Do not change hugepage settings. */
+	thp_mode_always        = 1, /* Always set MADV_HUGEPAGE. */
+	thp_mode_never         = 2, /* Always set MADV_NOHUGEPAGE. */
+
+	thp_mode_names_limit   = 3, /* Used for option processing. */
+	thp_mode_not_supported = 3  /* No THP support detected. */
+} thp_mode_t;
+
+#define THP_MODE_DEFAULT thp_mode_default
+extern thp_mode_t opt_thp;
+extern thp_mode_t init_system_thp_mode; /* Initial system wide state. */
+extern const char *thp_mode_names[];
+
 void *pages_map(void *addr, size_t size, size_t alignment, bool *commit);
 void pages_unmap(void *addr, size_t size);
 bool pages_commit(void *addr, size_t size);
@@ -66,6 +80,9 @@ bool pages_purge_lazy(void *addr, size_t size);
 bool pages_purge_forced(void *addr, size_t size);
 bool pages_huge(void *addr, size_t size);
 bool pages_nohuge(void *addr, size_t size);
+bool pages_dontdump(void *addr, size_t size);
+bool pages_dodump(void *addr, size_t size);
 bool pages_boot(void);
+void pages_set_thp_state (void *ptr, size_t size);
 
 #endif /* JEMALLOC_INTERNAL_PAGES_EXTERNS_H */

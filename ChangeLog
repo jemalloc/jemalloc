@@ -4,6 +4,123 @@ brevity.  Much more detail can be found in the git revision history:
 
     https://github.com/jemalloc/jemalloc
 
+* 5.1.0 (May 4th, 2018)
+
+  This release is primarily about fine-tuning, ranging from several new features
+  to numerous notable performance and portability enhancements.  The release and
+  prior dev versions have been running in multiple large scale applications for
+  months, and the cumulative improvements are substantial in many cases.
+
+  Given the long and successful production runs, this release is likely a good
+  candidate for applications to upgrade, from both jemalloc 5.0 and before.  For
+  performance-critical applications, the newly added TUNING.md provides
+  guidelines on jemalloc tuning.
+
+  New features:
+  - Implement transparent huge page support for internal metadata.  (@interwq)
+  - Add opt.thp to allow enabling / disabling transparent huge pages for all
+    mappings.  (@interwq)
+  - Add maximum background thread count option.  (@djwatson)
+  - Allow prof_active to control opt.lg_prof_interval and prof.gdump.
+    (@interwq)
+  - Allow arena index lookup based on allocation addresses via mallctl.
+    (@lionkov)
+  - Allow disabling initial-exec TLS model.  (@davidtgoldblatt, @KenMacD)
+  - Add opt.lg_extent_max_active_fit to set the max ratio between the size of
+    the active extent selected (to split off from) and the size of the requested
+    allocation.  (@interwq, @davidtgoldblatt)
+  - Add retain_grow_limit to set the max size when growing virtual address
+    space.  (@interwq)
+  - Add mallctl interfaces:
+    + arena.<i>.retain_grow_limit  (@interwq)
+    + arenas.lookup  (@lionkov)
+    + max_background_threads  (@djwatson)
+    + opt.lg_extent_max_active_fit  (@interwq)
+    + opt.max_background_threads  (@djwatson)
+    + opt.metadata_thp  (@interwq)
+    + opt.thp  (@interwq)
+    + stats.metadata_thp  (@interwq)
+
+  Portability improvements:
+  - Support GNU/kFreeBSD configuration.  (@paravoid)
+  - Support m68k, nios2 and SH3 architectures.  (@paravoid)
+  - Fall back to FD_CLOEXEC when O_CLOEXEC is unavailable.  (@zonyitoo)
+  - Fix symbol listing for cross-compiling.  (@tamird)
+  - Fix high bits computation on ARM.  (@davidtgoldblatt, @paravoid)
+  - Disable the CPU_SPINWAIT macro for Power.  (@davidtgoldblatt, @marxin)
+  - Fix MSVC 2015 & 2017 builds.  (@rustyx)
+  - Improve RISC-V support.  (@EdSchouten)
+  - Set name mangling script in strict mode.  (@nicolov)
+  - Avoid MADV_HUGEPAGE on ARM.  (@marxin)
+  - Modify configure to determine return value of strerror_r.
+    (@davidtgoldblatt, @cferris1000)
+  - Make sure CXXFLAGS is tested with CPP compiler.  (@nehaljwani)
+  - Fix 32-bit build on MSVC.  (@rustyx)
+  - Fix external symbol on MSVC.  (@maksqwe)
+  - Avoid a printf format specifier warning.  (@jasone)
+  - Add configure option --disable-initial-exec-tls which can allow jemalloc to
+    be dynamically loaded after program startup.  (@davidtgoldblatt, @KenMacD)
+  - AArch64: Add ILP32 support.  (@cmuellner)
+  - Add --with-lg-vaddr configure option to support cross compiling.
+    (@cmuellner, @davidtgoldblatt)
+
+  Optimizations and refactors:
+  - Improve active extent fit with extent_max_active_fit.  This considerably
+    reduces fragmentation over time and improves virtual memory and metadata
+    usage.  (@davidtgoldblatt, @interwq)
+  - Eagerly coalesce large extents to reduce fragmentation.  (@interwq)
+  - sdallocx: only read size info when page aligned (i.e. possibly sampled),
+    which speeds up the sized deallocation path significantly.  (@interwq)
+  - Avoid attempting new mappings for in place expansion with retain, since
+    it rarely succeeds in practice and causes high overhead.  (@interwq)
+  - Refactor OOM handling in newImpl.  (@wqfish)
+  - Add internal fine-grained logging functionality for debugging use.
+    (@davidtgoldblatt)
+  - Refactor arena / tcache interactions.  (@davidtgoldblatt)
+  - Refactor extent management with dumpable flag.  (@davidtgoldblatt)
+  - Add runtime detection of lazy purging.  (@interwq)
+  - Use pairing heap instead of red-black tree for extents_avail.  (@djwatson)
+  - Use sysctl on startup in FreeBSD.  (@trasz)
+  - Use thread local prng state instead of atomic.  (@djwatson)
+  - Make decay to always purge one more extent than before, because in
+    practice large extents are usually the ones that cross the decay threshold.
+    Purging the additional extent helps save memory as well as reduce VM
+    fragmentation.  (@interwq)
+  - Fast division by dynamic values.  (@davidtgoldblatt)
+  - Improve the fit for aligned allocation.  (@interwq, @edwinsmith)
+  - Refactor extent_t bitpacking.  (@rkmisra)
+  - Optimize the generated assembly for ticker operations.  (@davidtgoldblatt)
+  - Convert stats printing to use a structured text emitter.  (@davidtgoldblatt)
+  - Remove preserve_lru feature for extents management.  (@djwatson)
+  - Consolidate two memory loads into one on the fast deallocation path.
+    (@davidtgoldblatt, @interwq)
+
+  Bug fixes (most of the issues are only relevant to jemalloc 5.0):
+  - Fix deadlock with multithreaded fork in OS X.  (@davidtgoldblatt)
+  - Validate returned file descriptor before use.  (@zonyitoo)
+  - Fix a few background thread initialization and shutdown issues.  (@interwq)
+  - Fix an extent coalesce + decay race by taking both coalescing extents off
+    the LRU list.  (@interwq)
+  - Fix potentially unbound increase during decay, caused by one thread keep
+    stashing memory to purge while other threads generating new pages.  The
+    number of pages to purge is checked to prevent this.  (@interwq)
+  - Fix a FreeBSD bootstrap assertion.  (@strejda, @interwq)
+  - Handle 32 bit mutex counters.  (@rkmisra)
+  - Fix a indexing bug when creating background threads.  (@davidtgoldblatt,
+    @binliu19)
+  - Fix arguments passed to extent_init.  (@yuleniwo, @interwq)
+  - Fix addresses used for ordering mutexes.  (@rkmisra)
+  - Fix abort_conf processing during bootstrap.  (@interwq)
+  - Fix include path order for out-of-tree builds.  (@cmuellner)
+
+  Incompatible changes:
+  - Remove --disable-thp.  (@interwq)
+  - Remove mallctl interfaces:
+    + config.thp  (@interwq)
+
+  Documentation:
+  - Add TUNING.md.  (@interwq, @davidtgoldblatt, @djwatson)
+
 * 5.0.1 (July 1, 2017)
 
   This bugfix release fixes several issues, most of which are obscure enough
@@ -22,7 +139,7 @@ brevity.  Much more detail can be found in the git revision history:
     unlikely to be an issue with other libc implementations.  (@interwq)
   - Mask signals during background thread creation.  This prevents signals from
     being inadvertently delivered to background threads.  (@jasone,
-    @davidgoldblatt, @interwq)
+    @davidtgoldblatt, @interwq)
   - Avoid inactivity checks within background threads, in order to prevent
     recursive mutex acquisition.  (@interwq)
   - Fix extent_grow_retained() to use the specified hooks when the
@@ -515,7 +632,7 @@ brevity.  Much more detail can be found in the git revision history:
   these fixes, xallocx() now tries harder to partially fulfill requests for
   optional extra space.  Note that a couple of minor heap profiling
   optimizations are included, but these are better thought of as performance
-  fixes that were integral to disovering most of the other bugs.
+  fixes that were integral to discovering most of the other bugs.
 
   Optimizations:
   - Avoid a chunk metadata read in arena_prof_tctx_set(), since it is in the

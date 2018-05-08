@@ -25,7 +25,7 @@ static inline bool
 arena_prof_accum(tsdn_t *tsdn, arena_t *arena, uint64_t accumbytes) {
 	cassert(config_prof);
 
-	if (likely(prof_interval == 0)) {
+	if (likely(prof_interval == 0 || !prof_active_get_unlocked())) {
 		return false;
 	}
 

@@ -1,8 +1,13 @@
 #!/usr/bin/env python
 
+import sys
 from itertools import combinations
 from os import uname
 from multiprocessing import cpu_count
+
+# Later, we want to test extended vaddr support.  Apparently, the "real" way of
+# checking this is flaky on OS X.
+bits_64 = sys.maxsize > 2**32
 
 nparallel = cpu_count() * 2
 
@@ -22,8 +27,10 @@ possible_config_opts = [
     '--enable-debug',
     '--enable-prof',
     '--disable-stats',
-    '--with-malloc-conf=tcache:false',
 ]
+if bits_64:
+    possible_config_opts.append('--with-lg-vaddr=56')
+
 possible_malloc_conf_opts = [
     'tcache:false',
     'dss:primary',
@@ -56,6 +63,11 @@ for cc, cxx in possible_compilers:
                     ",".join(malloc_conf_opts) if len(malloc_conf_opts) > 0
                     else '')
                 )
+
+                # We don't want to test large vaddr spaces in 32-bit mode.
+		if ('-m32' in compiler_opts and '--with-lg-vaddr=56' in
+                  config_opts):
+		    continue
 
                 # Per CPU arenas are only supported on Linux.
                 linux_supported = ('percpu_arena:percpu' in malloc_conf_opts \

@@ -151,9 +151,17 @@ TEST_BEGIN(test_basic) {
 TEST_END
 
 TEST_BEGIN(test_alignment_and_size) {
+	const char *percpu_arena;
+	size_t sz = sizeof(percpu_arena);
+
+	if(mallctl("opt.percpu_arena", (void *)&percpu_arena, &sz, NULL, 0) ||
+	    strcmp(percpu_arena, "disabled") != 0) {
+		test_skip("test_alignment_and_size skipped: "
+		    "not working with percpu arena.");
+	};
 #define MAXALIGN (((size_t)1) << 23)
 #define NITER 4
-	size_t nsz, rsz, sz, alignment, total;
+	size_t nsz, rsz, alignment, total;
 	unsigned i;
 	void *ps[NITER];
 

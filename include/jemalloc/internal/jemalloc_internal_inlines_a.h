@@ -106,16 +106,16 @@ decay_ticker_get(tsd_t *tsd, unsigned ind) {
 	return &tdata->decay_ticker;
 }
 
-JEMALLOC_ALWAYS_INLINE tcache_bin_t *
+JEMALLOC_ALWAYS_INLINE cache_bin_t *
 tcache_small_bin_get(tcache_t *tcache, szind_t binind) {
 	assert(binind < NBINS);
-	return &tcache->tbins_small[binind];
+	return &tcache->bins_small[binind];
 }
 
-JEMALLOC_ALWAYS_INLINE tcache_bin_t *
+JEMALLOC_ALWAYS_INLINE cache_bin_t *
 tcache_large_bin_get(tcache_t *tcache, szind_t binind) {
 	assert(binind >= NBINS &&binind < nhbins);
-	return &tcache->tbins_large[binind - NBINS];
+	return &tcache->bins_large[binind - NBINS];
 }
 
 JEMALLOC_ALWAYS_INLINE bool
@@ -151,6 +151,7 @@ pre_reentrancy(tsd_t *tsd, arena_t *arena) {
 	assert(arena != arena_get(tsd_tsdn(tsd), 0, false));
 
 	bool fast = tsd_fast(tsd);
+	assert(tsd_reentrancy_level_get(tsd) < INT8_MAX);
 	++*tsd_reentrancy_levelp_get(tsd);
 	if (fast) {
 		/* Prepare slow path for reentrancy. */

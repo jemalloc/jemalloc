@@ -761,6 +761,18 @@ mallctl("arena." STRINGIFY(MALLCTL_ARENAS_ALL) ".decay",
         selected pthread-based platforms.</para></listitem>
       </varlistentry>
 
+      <varlistentry id="max_background_threads">
+        <term>
+          <mallctl>max_background_threads</mallctl>
+          (<type>size_t</type>)
+          <literal>rw</literal>
+        </term>
+        <listitem><para>Maximum number of background worker threads that will
+        be created.  This value is capped at <link
+        linkend="opt.max_background_threads"><mallctl>opt.max_background_threads</mallctl></link> at
+        startup.</para></listitem>
+      </varlistentry>
+
       <varlistentry id="config.cache_oblivious">
         <term>
           <mallctl>config.cache_oblivious</mallctl>
@@ -852,16 +864,6 @@ mallctl("arena." STRINGIFY(MALLCTL_ARENAS_ALL) ".decay",
         build configuration.</para></listitem>
       </varlistentry>
 
-      <varlistentry id="config.thp">
-        <term>
-          <mallctl>config.thp</mallctl>
-          (<type>bool</type>)
-          <literal>r-</literal>
-        </term>
-        <listitem><para><option>--disable-thp</option> was not specified
-        during build configuration, and the system supports transparent huge
-        page manipulation.</para></listitem>
-      </varlistentry>
 
       <varlistentry id="config.utrace">
         <term>
@@ -914,6 +916,20 @@ mallctl("arena." STRINGIFY(MALLCTL_ARENAS_ALL) ".decay",
         disabled by default unless <option>--enable-debug</option> is
         specified during configuration, in which case it is enabled by default.
         </para></listitem>
+      </varlistentry>
+
+      <varlistentry id="opt.metadata_thp">
+        <term>
+          <mallctl>opt.metadata_thp</mallctl>
+          (<type>const char *</type>)
+          <literal>r-</literal>
+        </term>
+        <listitem><para>Controls whether to allow jemalloc to use transparent
+        huge page (THP) for internal metadata (see <link
+        linkend="stats.metadata">stats.metadata</link>).  <quote>always</quote>
+        allows such usage.  <quote>auto</quote> uses no THP initially, but may
+        begin to do so when metadata usage reaches certain level.  The default
+        is <quote>disabled</quote>.</para></listitem>
       </varlistentry>
 
       <varlistentry id="opt.retain">
@@ -996,10 +1012,24 @@ mallctl("arena." STRINGIFY(MALLCTL_ARENAS_ALL) ".decay",
           (<type>const bool</type>)
           <literal>r-</literal>
         </term>
-        <listitem><para>Internal background worker threads enabled/disabled. See
-        <link linkend="background_thread">background_thread</link> for dynamic
-        control options and details.  This option is disabled by
+        <listitem><para>Internal background worker threads enabled/disabled.
+        Because of potential circular dependencies, enabling background thread
+        using this option may cause crash or deadlock during initialization. For
+        a reliable way to use this feature, see <link
+        linkend="background_thread">background_thread</link> for dynamic control
+        options and details.  This option is disabled by
         default.</para></listitem>
+      </varlistentry>
+
+      <varlistentry id="opt.max_background_threads">
+        <term>
+          <mallctl>opt.max_background_threads</mallctl>
+          (<type>const size_t</type>)
+          <literal>r-</literal>
+        </term>
+        <listitem><para>Maximum number of background threads that will be created
+        if <link linkend="background_thread">background_thread</link> is set.
+        Defaults to number of cpus.</para></listitem>
       </varlistentry>
 
       <varlistentry id="opt.dirty_decay_ms">
@@ -1022,7 +1052,7 @@ mallctl("arena." STRINGIFY(MALLCTL_ARENAS_ALL) ".decay",
         The default decay time is 10 seconds.  See <link
         linkend="arenas.dirty_decay_ms"><mallctl>arenas.dirty_decay_ms</mallctl></link>
         and <link
-        linkend="arena.i.muzzy_decay_ms"><mallctl>arena.&lt;i&gt;.muzzy_decay_ms</mallctl></link>
+        linkend="arena.i.dirty_decay_ms"><mallctl>arena.&lt;i&gt;.dirty_decay_ms</mallctl></link>
         for related dynamic control options.  See <link
         linkend="opt.muzzy_decay_ms"><mallctl>opt.muzzy_decay_ms</mallctl></link>
         for a description of muzzy pages.</para></listitem>
@@ -1050,6 +1080,22 @@ mallctl("arena." STRINGIFY(MALLCTL_ARENAS_ALL) ".decay",
         and <link
         linkend="arena.i.muzzy_decay_ms"><mallctl>arena.&lt;i&gt;.muzzy_decay_ms</mallctl></link>
         for related dynamic control options.</para></listitem>
+      </varlistentry>
+
+      <varlistentry id="opt.lg_extent_max_active_fit">
+        <term>
+          <mallctl>opt.lg_extent_max_active_fit</mallctl>
+          (<type>size_t</type>)
+          <literal>r-</literal>
+        </term>
+        <listitem><para>When reusing dirty extents, this determines the (log
+        base 2 of the) maximum ratio between the size of the active extent
+        selected (to split off from) and the size of the requested allocation.
+        This prevents the splitting of large active extents for smaller
+        allocations, which can reduce fragmentation over the long run
+        (especially for non-active extents).  Lower value may reduce
+        fragmentation, at the cost of extra active extents.  The default value
+        is 6, which gives a maximum ratio of 64 (2^6).</para></listitem>
       </varlistentry>
 
       <varlistentry id="opt.stats_print">
@@ -1192,6 +1238,28 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         thread-specific cache (tcache).  At a minimum, all small size classes
         are cached, and at a maximum all large size classes are cached.  The
         default maximum is 32 KiB (2^15).</para></listitem>
+      </varlistentry>
+
+      <varlistentry id="opt.thp">
+        <term>
+          <mallctl>opt.thp</mallctl>
+          (<type>const char *</type>)
+          <literal>r-</literal>
+        </term>
+        <listitem><para>Transparent hugepage (THP) mode. Settings "always",
+        "never" and "default" are available if THP is supported by the operating
+        system.  The "always" setting enables transparent hugepage for all user
+        memory mappings with
+        <parameter><constant>MADV_HUGEPAGE</constant></parameter>; "never"
+        ensures no transparent hugepage with
+        <parameter><constant>MADV_NOHUGEPAGE</constant></parameter>; the default
+        setting "default" makes no changes.  Note that: this option does not
+        affect THP for jemalloc internal metadata (see <link
+        linkend="opt.metadata_thp"><mallctl>opt.metadata_thp</mallctl></link>);
+        in addition, for arenas with customized <link
+        linkend="arena.i.extent_hooks"><mallctl>extent_hooks</mallctl></link>,
+        this option is bypassed as it is implemented as part of the default
+        extent hooks.</para></listitem>
       </varlistentry>
 
       <varlistentry id="opt.prof">
@@ -1666,6 +1734,22 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         for additional information.</para></listitem>
       </varlistentry>
 
+      <varlistentry id="arena.i.retain_grow_limit">
+        <term>
+          <mallctl>arena.&lt;i&gt;.retain_grow_limit</mallctl>
+          (<type>size_t</type>)
+          <literal>rw</literal>
+        </term>
+        <listitem><para>Maximum size to grow retained region (only relevant when
+        <link linkend="opt.retain"><mallctl>opt.retain</mallctl></link> is
+        enabled).  This controls the maximum increment to expand virtual memory,
+        or allocation through <link
+        linkend="arena.i.extent_hooks"><mallctl>arena.&lt;i&gt;extent_hooks</mallctl></link>.
+        In particular, if customized extent hooks reserve physical memory
+        (e.g. 1G huge pages), this is useful to control the allocation hook's
+        input size.  The default is no limit.</para></listitem>
+      </varlistentry>
+
       <varlistentry id="arena.i.extent_hooks">
         <term>
           <mallctl>arena.&lt;i&gt;.extent_hooks</mallctl>
@@ -1708,7 +1792,9 @@ struct extent_hooks_s {
         in favor of less permanent (and often less costly) operations.  All
         operations except allocation can be universally opted out of by setting
         the hook pointers to <constant>NULL</constant>, or selectively opted out
-        of by returning failure.</para>
+        of by returning failure.  Note that once the extent hook is set, the
+        structure is accessed directly by the associated arenas, so it must
+        remain valid for the entire lifetime of the arenas.</para>
 
         <funcsynopsis><funcprototype>
           <funcdef>typedef void *<function>(extent_alloc_t)</function></funcdef>
@@ -2044,6 +2130,15 @@ struct extent_hooks_s {
         and return the new arena index.</para></listitem>
       </varlistentry>
 
+      <varlistentry id="arenas.lookup">
+        <term>
+          <mallctl>arenas.lookup</mallctl>
+          (<type>unsigned</type>, <type>void*</type>)
+          <literal>rw</literal>
+        </term>
+        <listitem><para>Index of the arena to which an allocation belongs to.</para></listitem>
+      </varlistentry>
+
       <varlistentry id="prof.thread_active_init">
         <term>
           <mallctl>prof.thread_active_init</mallctl>
@@ -2187,7 +2282,24 @@ struct extent_hooks_s {
         metadata structures (see <link
         linkend="stats.arenas.i.base"><mallctl>stats.arenas.&lt;i&gt;.base</mallctl></link>)
         and internal allocations (see <link
-        linkend="stats.arenas.i.internal"><mallctl>stats.arenas.&lt;i&gt;.internal</mallctl></link>).</para></listitem>
+        linkend="stats.arenas.i.internal"><mallctl>stats.arenas.&lt;i&gt;.internal</mallctl></link>).
+        Transparent huge page (enabled with <link
+        linkend="opt.metadata_thp">opt.metadata_thp</link>) usage is not
+        considered.</para></listitem>
+      </varlistentry>
+
+      <varlistentry id="stats.metadata_thp">
+        <term>
+          <mallctl>stats.metadata_thp</mallctl>
+          (<type>size_t</type>)
+          <literal>r-</literal>
+          [<option>--enable-stats</option>]
+        </term>
+        <listitem><para>Number of transparent huge pages (THP) used for
+        metadata.  See <link
+        linkend="stats.metadata"><mallctl>stats.metadata</mallctl></link> and
+        <link linkend="opt.metadata_thp">opt.metadata_thp</link>) for
+        details.</para></listitem>
       </varlistentry>
 
       <varlistentry id="stats.resident">
@@ -2504,6 +2616,18 @@ struct extent_hooks_s {
         Internal allocations differ from application-originated allocations in
         that they are for internal use, and that they are omitted from heap
         profiles.</para></listitem>
+      </varlistentry>
+
+      <varlistentry id="stats.arenas.i.metadata_thp">
+        <term>
+          <mallctl>stats.arenas.&lt;i&gt;.metadata_thp</mallctl>
+          (<type>size_t</type>)
+          <literal>r-</literal>
+          [<option>--enable-stats</option>]
+        </term>
+        <listitem><para>Number of transparent huge pages (THP) used for
+        metadata.  See <link linkend="opt.metadata_thp">opt.metadata_thp</link>
+        for details.</para></listitem>
       </varlistentry>
 
       <varlistentry id="stats.arenas.i.resident">

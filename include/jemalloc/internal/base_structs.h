@@ -30,6 +30,8 @@ struct base_s {
 	/* Protects base_alloc() and base_stats_get() operations. */
 	malloc_mutex_t	mtx;
 
+	/* Using THP when true (metadata_thp auto mode). */
+	bool		auto_thp_switched;
 	/*
 	 * Most recent size class in the series of increasingly large base
 	 * extents.  Logarithmic spacing between subsequent allocations ensures
@@ -50,6 +52,8 @@ struct base_s {
 	size_t		allocated;
 	size_t		resident;
 	size_t		mapped;
+	/* Number of THP regions touched. */
+	size_t		n_thp;
 };
 
 #endif /* JEMALLOC_INTERNAL_BASE_STRUCTS_H */

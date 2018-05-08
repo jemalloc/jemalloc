@@ -266,6 +266,8 @@ extent_merge_hook(extent_hooks_t *extent_hooks, void *addr_a, size_t size_a,
 	    "extent_hooks should be same as pointer used to set hooks");
 	assert_ptr_eq(extent_hooks->merge, extent_merge_hook,
 	    "Wrong hook function");
+	assert_ptr_eq((void *)((uintptr_t)addr_a + size_a), addr_b,
+	    "Extents not mergeable");
 	called_merge = true;
 	if (!try_merge) {
 		return true;

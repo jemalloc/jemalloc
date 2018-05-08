@@ -178,9 +178,21 @@ rtree_leaf_elm_bits_read(tsdn_t *tsdn, rtree_t *rtree, rtree_leaf_elm_t *elm,
 
 JEMALLOC_ALWAYS_INLINE extent_t *
 rtree_leaf_elm_bits_extent_get(uintptr_t bits) {
+#    ifdef __aarch64__
+	/*
+	 * aarch64 doesn't sign extend the highest virtual address bit to set
+	 * the higher ones.  Instead, the high bits gets zeroed.
+	 */
+	uintptr_t high_bit_mask = ((uintptr_t)1 << LG_VADDR) - 1;
+	/* Mask off the slab bit. */
+	uintptr_t low_bit_mask = ~(uintptr_t)1;
+	uintptr_t mask = high_bit_mask & low_bit_mask;
+	return (extent_t *)(bits & mask);
+#    else
 	/* Restore sign-extended high bits, mask slab bit. */
 	return (extent_t *)((uintptr_t)((intptr_t)(bits << RTREE_NHIB) >>
 	    RTREE_NHIB) & ~((uintptr_t)0x1));
+#    endif
 }
 
 JEMALLOC_ALWAYS_INLINE szind_t
@@ -196,8 +208,8 @@ rtree_leaf_elm_bits_slab_get(uintptr_t bits) {
 #  endif
 
 JEMALLOC_ALWAYS_INLINE extent_t *
-rtree_leaf_elm_extent_read(tsdn_t *tsdn, rtree_t *rtree, rtree_leaf_elm_t *elm,
-    bool dependent) {
+rtree_leaf_elm_extent_read(UNUSED tsdn_t *tsdn, UNUSED rtree_t *rtree,
+    rtree_leaf_elm_t *elm, bool dependent) {
 #ifdef RTREE_LEAF_COMPACT
 	uintptr_t bits = rtree_leaf_elm_bits_read(tsdn, rtree, elm, dependent);
 	return rtree_leaf_elm_bits_extent_get(bits);
@@ -209,8 +221,8 @@ rtree_leaf_elm_extent_read(tsdn_t *tsdn, rtree_t *rtree, rtree_leaf_elm_t *elm,
 }
 
 JEMALLOC_ALWAYS_INLINE szind_t
-rtree_leaf_elm_szind_read(tsdn_t *tsdn, rtree_t *rtree, rtree_leaf_elm_t *elm,
-    bool dependent) {
+rtree_leaf_elm_szind_read(UNUSED tsdn_t *tsdn, UNUSED rtree_t *rtree,
+    rtree_leaf_elm_t *elm, bool dependent) {
 #ifdef RTREE_LEAF_COMPACT
 	uintptr_t bits = rtree_leaf_elm_bits_read(tsdn, rtree, elm, dependent);
 	return rtree_leaf_elm_bits_szind_get(bits);
@@ -221,8 +233,8 @@ rtree_leaf_elm_szind_read(tsdn_t *tsdn, rtree_t *rtree, rtree_leaf_elm_t *elm,
 }
 
 JEMALLOC_ALWAYS_INLINE bool
-rtree_leaf_elm_slab_read(tsdn_t *tsdn, rtree_t *rtree, rtree_leaf_elm_t *elm,
-    bool dependent) {
+rtree_leaf_elm_slab_read(UNUSED tsdn_t *tsdn, UNUSED rtree_t *rtree,
+    rtree_leaf_elm_t *elm, bool dependent) {
 #ifdef RTREE_LEAF_COMPACT
 	uintptr_t bits = rtree_leaf_elm_bits_read(tsdn, rtree, elm, dependent);
 	return rtree_leaf_elm_bits_slab_get(bits);
@@ -233,8 +245,8 @@ rtree_leaf_elm_slab_read(tsdn_t *tsdn, rtree_t *rtree, rtree_leaf_elm_t *elm,
 }
 
 static inline void
-rtree_leaf_elm_extent_write(tsdn_t *tsdn, rtree_t *rtree, rtree_leaf_elm_t *elm,
-    extent_t *extent) {
+rtree_leaf_elm_extent_write(UNUSED tsdn_t *tsdn, UNUSED rtree_t *rtree,
+    rtree_leaf_elm_t *elm, extent_t *extent) {
 #ifdef RTREE_LEAF_COMPACT
 	uintptr_t old_bits = rtree_leaf_elm_bits_read(tsdn, rtree, elm, true);
 	uintptr_t bits = ((uintptr_t)rtree_leaf_elm_bits_szind_get(old_bits) <<
@@ -247,8 +259,8 @@ rtree_leaf_elm_extent_write(tsdn_t *tsdn, rtree_t *rtree, rtree_leaf_elm_t *elm,
 }
 
 static inline void
-rtree_leaf_elm_szind_write(tsdn_t *tsdn, rtree_t *rtree, rtree_leaf_elm_t *elm,
-    szind_t szind) {
+rtree_leaf_elm_szind_write(UNUSED tsdn_t *tsdn, UNUSED rtree_t *rtree,
+    rtree_leaf_elm_t *elm, szind_t szind) {
 	assert(szind <= NSIZES);
 
 #ifdef RTREE_LEAF_COMPACT
@@ -265,8 +277,8 @@ rtree_leaf_elm_szind_write(tsdn_t *tsdn, rtree_t *rtree, rtree_leaf_elm_t *elm,
 }
 
 static inline void
-rtree_leaf_elm_slab_write(tsdn_t *tsdn, rtree_t *rtree, rtree_leaf_elm_t *elm,
-     bool slab) {
+rtree_leaf_elm_slab_write(UNUSED tsdn_t *tsdn, UNUSED rtree_t *rtree,
+    rtree_leaf_elm_t *elm, bool slab) {
 #ifdef RTREE_LEAF_COMPACT
 	uintptr_t old_bits = rtree_leaf_elm_bits_read(tsdn, rtree, elm,
 	    true);
@@ -448,8 +460,14 @@ rtree_szind_slab_read(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
 	if (!dependent && elm == NULL) {
 		return true;
 	}
+#ifdef RTREE_LEAF_COMPACT
+	uintptr_t bits = rtree_leaf_elm_bits_read(tsdn, rtree, elm, dependent);
+	*r_szind = rtree_leaf_elm_bits_szind_get(bits);
+	*r_slab = rtree_leaf_elm_bits_slab_get(bits);
+#else
 	*r_szind = rtree_leaf_elm_szind_read(tsdn, rtree, elm, dependent);
 	*r_slab = rtree_leaf_elm_slab_read(tsdn, rtree, elm, dependent);
+#endif
 	return false;
 }
 

@@ -61,7 +61,7 @@ sz_psz2ind(size_t psz) {
 		pszind_t lg_delta = (x < LG_SIZE_CLASS_GROUP + LG_PAGE + 1) ?
 		    LG_PAGE : x - LG_SIZE_CLASS_GROUP - 1;
 
-		size_t delta_inverse_mask = ZD(-1) << lg_delta;
+		size_t delta_inverse_mask = ZU(-1) << lg_delta;
 		pszind_t mod = ((((psz-1) & delta_inverse_mask) >> lg_delta)) &
 		    ((ZU(1) << LG_SIZE_CLASS_GROUP) - 1);
 
@@ -142,7 +142,7 @@ sz_size2index_compute(size_t size) {
 		szind_t lg_delta = (x < LG_SIZE_CLASS_GROUP + LG_QUANTUM + 1)
 		    ? LG_QUANTUM : x - LG_SIZE_CLASS_GROUP - 1;
 
-		size_t delta_inverse_mask = ZD(-1) << lg_delta;
+		size_t delta_inverse_mask = ZU(-1) << lg_delta;
 		szind_t mod = ((((size-1) & delta_inverse_mask) >> lg_delta)) &
 		    ((ZU(1) << LG_SIZE_CLASS_GROUP) - 1);
 

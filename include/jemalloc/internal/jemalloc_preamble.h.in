@@ -47,6 +47,10 @@
 #endif
 #include "jemalloc/internal/hooks.h"
 
+#ifdef JEMALLOC_DEFINE_MADVISE_FREE
+#  define JEMALLOC_MADV_FREE 8
+#endif
+
 static const bool config_debug =
 #ifdef JEMALLOC_DEBUG
     true
@@ -56,6 +60,13 @@ static const bool config_debug =
     ;
 static const bool have_dss =
 #ifdef JEMALLOC_DSS
+    true
+#else
+    false
+#endif
+    ;
+static const bool have_madvise_huge =
+#ifdef JEMALLOC_HAVE_MADVISE_HUGE
     true
 #else
     false
@@ -111,13 +122,6 @@ static const bool config_stats =
     false
 #endif
     ;
-static const bool config_thp =
-#ifdef JEMALLOC_THP
-    true
-#else
-    false
-#endif
-    ;
 static const bool config_tls =
 #ifdef JEMALLOC_TLS
     true
@@ -141,6 +145,17 @@ static const bool config_xmalloc =
     ;
 static const bool config_cache_oblivious =
 #ifdef JEMALLOC_CACHE_OBLIVIOUS
+    true
+#else
+    false
+#endif
+    ;
+/*
+ * Undocumented, for jemalloc development use only at the moment.  See the note
+ * in jemalloc/internal/log.h.
+ */
+static const bool config_log =
+#ifdef JEMALLOC_LOG
     true
 #else
     false
