@@ -143,14 +143,27 @@ matrix:
       env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--with-malloc-conf=dss:primary,background_thread:true" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--with-malloc-conf=percpu_arena:percpu,background_thread:true" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
-
+    - os: linux
+      env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--with-jemalloc-prefix=_rjem_" EXTRA_CFLAGS="-Werror -Wno-array-bounds" NO_TESTS=1
+    - os: osx
+      env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--with-jemalloc-prefix=_rjem_" EXTRA_CFLAGS="-Werror -Wno-array-bounds" NO_TESTS=1
+    - os: linux
+      env: CC=clang CXX=clang++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--with-jemalloc-prefix=_rjem_" EXTRA_CFLAGS="-Werror -Wno-array-bounds" NO_TESTS=1
+    - os: linux
+      env: CC=gcc CXX=g++ COMPILER_FLAGS="-m32" CONFIGURE_FLAGS="--with-jemalloc-prefix=_rjem_" EXTRA_CFLAGS="-Werror -Wno-array-bounds" NO_TESTS=1
+      addons:
+        apt:
+          packages:
+            - gcc-multilib
+    - os: linux
+      env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--with-jemalloc-prefix=_rjem_ --enable-debug --enable-prof" EXTRA_CFLAGS="-Werror -Wno-array-bounds" NO_TESTS=1
 
 before_script:
-  - autoconf
+  - ./autogen.sh
   - ./configure ${COMPILER_FLAGS:+       CC="$CC $COMPILER_FLAGS"       CXX="$CXX $COMPILER_FLAGS" }       $CONFIGURE_FLAGS
   - make -j3
-  - make -j3 tests
+  - if [[ -z "${NO_TESTS}" ]]; then make -j3 tests; fi
 
 script:
-  - make check
+  - if [[ -z "${NO_TESTS}" ]]; then make check; fi
 
