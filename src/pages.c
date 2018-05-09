@@ -261,7 +261,7 @@ pages_decommit(void *addr, size_t size) {
 
 bool
 pages_purge_lazy(void *addr, size_t size) {
-	assert(PAGE_ADDR2BASE(addr) == addr);
+	assert(ALIGNMENT_ADDR2BASE(addr, os_page) == addr);
 	assert(PAGE_CEILING(size) == size);
 
 	if (!pages_can_purge_lazy) {
