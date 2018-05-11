@@ -110,6 +110,20 @@ p_test_fini(void) {
 	    test_status_string(test_status));
 }
 
+static void
+check_global_slow(test_status_t *status) {
+#ifdef JEMALLOC_UNIT_TEST
+	/*
+	 * This check needs to peek into tsd internals, which is why it's only
+	 * exposed in unit tests.
+	 */
+	if (tsd_global_slow()) {
+		malloc_printf("Testing increased global slow count\n");
+		*status = test_status_fail;
+	}
+#endif
+}
+
 static test_status_t
 p_test_impl(bool do_malloc_init, bool do_reentrant, test_t *t, va_list ap) {
 	test_status_t ret;
@@ -136,6 +150,7 @@ p_test_impl(bool do_malloc_init, bool do_reentrant, test_t *t, va_list ap) {
 		if (test_status > ret) {
 			ret = test_status;
 		}
+		check_global_slow(&ret);
 		/* Reentrant run. */
 		if (do_reentrant) {
 			reentrancy = libc_reentrant;
@@ -145,6 +160,7 @@ p_test_impl(bool do_malloc_init, bool do_reentrant, test_t *t, va_list ap) {
 			if (test_status > ret) {
 				ret = test_status;
 			}
+			check_global_slow(&ret);
 
 			reentrancy = arena_new_reentrant;
 			test_hooks_libc_hook = NULL;
@@ -153,6 +169,7 @@ p_test_impl(bool do_malloc_init, bool do_reentrant, test_t *t, va_list ap) {
 			if (test_status > ret) {
 				ret = test_status;
 			}
+			check_global_slow(&ret);
 		}
 	}
 

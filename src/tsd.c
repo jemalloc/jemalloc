@@ -141,7 +141,7 @@ tsd_local_slow(tsd_t *tsd) {
 	    || tsd_reentrancy_level_get(tsd) > 0;
 }
 
-static bool
+bool
 tsd_global_slow() {
 	return atomic_load_u32(&tsd_global_slow_count, ATOMIC_RELAXED) > 0;
 }

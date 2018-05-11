@@ -117,6 +117,7 @@ void tsd_slow_update(tsd_t *tsd);
  */
 void tsd_global_slow_inc(tsdn_t *tsdn);
 void tsd_global_slow_dec(tsdn_t *tsdn);
+bool tsd_global_slow();
 
 enum {
 	/* Common case --> jnz. */
