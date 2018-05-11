@@ -107,6 +107,13 @@ enum {
 	tsd_state_uninitialized = 5
 };
 
+/*
+ * Some TSD accesses can only be done in a nominal state.  To enforce this, we
+ * wrap TSD member access in a function that asserts on TSD state, and mangle
+ * field names to prevent touching them accidentally.
+ */
+#define TSD_MANGLE(n) cant_access_tsd_items_directly_use_a_getter_or_setter_##n
+
 /* The actual tsd. */
 struct tsd_s {
 	/*
@@ -118,7 +125,7 @@ struct tsd_s {
 	/* We manually limit the state to just a single byte. */
 	atomic_u8_t state;
 #define O(n, t, nt)							\
-	t use_a_getter_or_setter_instead_##n;
+	t TSD_MANGLE(n);
 MALLOC_TSD
 #undef O
 };
@@ -197,7 +204,7 @@ void tsd_slow_update(tsd_t *tsd);
 #define O(n, t, nt)							\
 JEMALLOC_ALWAYS_INLINE t *						\
 tsd_##n##p_get_unsafe(tsd_t *tsd) {					\
-	return &tsd->use_a_getter_or_setter_instead_##n;		\
+	return &tsd->TSD_MANGLE(n);					\
 }
 MALLOC_TSD
 #undef O
