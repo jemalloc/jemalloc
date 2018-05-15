@@ -25,9 +25,9 @@
  * and only calls the alloc hook).
  *
  * Reentrancy:
- *   Is not protected against.  If your hooks allocate, then the hooks will be
- *   called again.  Note that you can guard against this with a thread-local
- *   "in_hook" bool.
+ *   Reentrancy is guarded against from within the hook implementation.  If you
+ *   call allocator functions from within a hook, the hooks will not be invoked
+ *   again.
  * Threading:
  *   The installation of a hook synchronizes with all its uses.  If you can
  *   prove the installation of a hook happens-before a jemalloc entry point,

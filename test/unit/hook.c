@@ -26,6 +26,45 @@ reset_args() {
 }
 
 static void
+alloc_free_size(size_t sz) {
+	void *ptr = mallocx(1, 0);
+	free(ptr);
+	ptr = mallocx(1, 0);
+	free(ptr);
+	ptr = mallocx(1, MALLOCX_TCACHE_NONE);
+	dallocx(ptr, MALLOCX_TCACHE_NONE);
+}
+
+/*
+ * We want to support a degree of user reentrancy.  This tests a variety of
+ * allocation scenarios.
+ */
+static void
+be_reentrant() {
+	/* Let's make sure the tcache is non-empty if enabled. */
+	alloc_free_size(1);
+	alloc_free_size(1024);
+	alloc_free_size(64 * 1024);
+	alloc_free_size(256 * 1024);
+	alloc_free_size(1024 * 1024);
+
+	/* Some reallocation. */
+	void *ptr = mallocx(129, 0);
+	ptr = rallocx(ptr, 130, 0);
+	free(ptr);
+
+	ptr = mallocx(2 * 1024 * 1024, 0);
+	free(ptr);
+	ptr = mallocx(1 * 1024 * 1024, 0);
+	ptr = rallocx(ptr, 2 * 1024 * 1024, 0);
+	free(ptr);
+
+	ptr = mallocx(1, 0);
+	ptr = rallocx(ptr, 1000, 0);
+	free(ptr);
+}
+
+static void
 set_args_raw(uintptr_t *args_raw, int nargs) {
 	memcpy(arg_args_raw, args_raw, sizeof(uintptr_t) * nargs);
 }
@@ -52,6 +91,7 @@ test_alloc_hook(void *extra, hook_alloc_t type, void *result,
 	arg_result = result;
 	arg_result_raw = result_raw;
 	set_args_raw(args_raw, 3);
+	be_reentrant();
 }
 
 static void
@@ -62,6 +102,7 @@ test_dalloc_hook(void *extra, hook_dalloc_t type, void *address,
 	arg_type = (int)type;
 	arg_address = address;
 	set_args_raw(args_raw, 3);
+	be_reentrant();
 }
 
 static void
@@ -76,6 +117,7 @@ test_expand_hook(void *extra, hook_expand_t type, void *address,
 	arg_new_usize = new_usize;
 	arg_result_raw = result_raw;
 	set_args_raw(args_raw, 4);
+	be_reentrant();
 }
 
 TEST_BEGIN(test_hooks_basic) {

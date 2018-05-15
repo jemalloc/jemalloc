@@ -66,6 +66,7 @@ typedef ql_elm(tsd_t) tsd_link_t;
 #define MALLOC_TSD							\
     O(tcache_enabled,		bool,			bool)		\
     O(arenas_tdata_bypass,	bool,			bool)		\
+    O(in_hook,			bool,			bool)		\
     O(reentrancy_level,		int8_t,			int8_t)		\
     O(narenas_tdata,		uint32_t,		uint32_t)	\
     O(offset_state,		uint64_t,		uint64_t)	\
@@ -84,6 +85,7 @@ typedef ql_elm(tsd_t) tsd_link_t;
 #define TSD_INITIALIZER {						\
     ATOMIC_INIT(tsd_state_uninitialized),				\
     TCACHE_ENABLED_ZERO_INITIALIZER,					\
+    false,								\
     false,								\
     0,									\
     0,									\
