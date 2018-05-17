@@ -696,35 +696,35 @@ stats_arena_print(emitter_t *emitter, unsigned i, bool bins, bool large,
 	emitter_col_t alloc_count_title;
 	emitter_col_init(&alloc_count_title, &alloc_count_row);
 	alloc_count_title.justify = emitter_justify_left;
-	alloc_count_title.width = 25;
+	alloc_count_title.width = 21;
 	alloc_count_title.type = emitter_type_title;
 	alloc_count_title.str_val = "";
 
 	emitter_col_t alloc_count_allocated;
 	emitter_col_init(&alloc_count_allocated, &alloc_count_row);
 	alloc_count_allocated.justify = emitter_justify_right;
-	alloc_count_allocated.width = 12;
+	alloc_count_allocated.width = 16;
 	alloc_count_allocated.type = emitter_type_title;
 	alloc_count_allocated.str_val = "allocated";
 
 	emitter_col_t alloc_count_nmalloc;
 	emitter_col_init(&alloc_count_nmalloc, &alloc_count_row);
 	alloc_count_nmalloc.justify = emitter_justify_right;
-	alloc_count_nmalloc.width = 12;
+	alloc_count_nmalloc.width = 16;
 	alloc_count_nmalloc.type = emitter_type_title;
 	alloc_count_nmalloc.str_val = "nmalloc";
 
 	emitter_col_t alloc_count_ndalloc;
 	emitter_col_init(&alloc_count_ndalloc, &alloc_count_row);
 	alloc_count_ndalloc.justify = emitter_justify_right;
-	alloc_count_ndalloc.width = 12;
+	alloc_count_ndalloc.width = 16;
 	alloc_count_ndalloc.type = emitter_type_title;
 	alloc_count_ndalloc.str_val = "ndalloc";
 
 	emitter_col_t alloc_count_nrequests;
 	emitter_col_init(&alloc_count_nrequests, &alloc_count_row);
 	alloc_count_nrequests.justify = emitter_justify_right;
-	alloc_count_nrequests.width = 12;
+	alloc_count_nrequests.width = 16;
 	alloc_count_nrequests.type = emitter_type_title;
 	alloc_count_nrequests.str_val = "nrequests";
 
@@ -776,14 +776,14 @@ stats_arena_print(emitter_t *emitter, unsigned i, bool bins, bool large,
 	emitter_col_t mem_count_title;
 	emitter_col_init(&mem_count_title, &mem_count_row);
 	mem_count_title.justify = emitter_justify_left;
-	mem_count_title.width = 25;
+	mem_count_title.width = 21;
 	mem_count_title.type = emitter_type_title;
 	mem_count_title.str_val = "";
 
 	emitter_col_t mem_count_val;
 	emitter_col_init(&mem_count_val, &mem_count_row);
 	mem_count_val.justify = emitter_justify_right;
-	mem_count_val.width = 12;
+	mem_count_val.width = 16;
 	mem_count_val.type = emitter_type_title;
 	mem_count_val.str_val = "";
 
