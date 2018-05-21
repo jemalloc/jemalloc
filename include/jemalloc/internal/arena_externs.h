@@ -17,6 +17,9 @@ extern const char *percpu_arena_mode_names[];
 extern const uint64_t h_steps[SMOOTHSTEP_NSTEPS];
 extern malloc_mutex_t arenas_lock;
 
+extern size_t opt_huge_threshold;
+extern size_t huge_threshold;
+
 void arena_basic_stats_merge(tsdn_t *tsdn, arena_t *arena,
     unsigned *nthreads, const char **dss, ssize_t *dirty_decay_ms,
     ssize_t *muzzy_decay_ms, size_t *nactive, size_t *ndirty, size_t *nmuzzy);
@@ -81,6 +84,8 @@ void arena_nthreads_inc(arena_t *arena, bool internal);
 void arena_nthreads_dec(arena_t *arena, bool internal);
 size_t arena_extent_sn_next(arena_t *arena);
 arena_t *arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks);
+bool arena_init_huge(void);
+arena_t *arena_choose_huge(tsd_t *tsd);
 void arena_boot(void);
 void arena_prefork0(tsdn_t *tsdn, arena_t *arena);
 void arena_prefork1(tsdn_t *tsdn, arena_t *arena);

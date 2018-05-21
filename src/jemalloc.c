@@ -327,7 +327,7 @@ arena_init_locked(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 	 */
 	arena = arena_get(tsdn, ind, false);
 	if (arena != NULL) {
-		assert(ind < narenas_auto);
+		assert(arena_is_auto(arena));
 		return arena;
 	}
 
@@ -1142,11 +1142,15 @@ malloc_conf_init(void) {
 				CONF_HANDLE_BOOL(opt_xmalloc, "xmalloc")
 			}
 			CONF_HANDLE_BOOL(opt_tcache, "tcache")
+			CONF_HANDLE_SSIZE_T(opt_lg_tcache_max, "lg_tcache_max",
+			    -1, (sizeof(size_t) << 3) - 1)
+
+			CONF_HANDLE_SIZE_T(opt_huge_threshold, "huge_threshold",
+			    LARGE_MINCLASS, LARGE_MAXCLASS, yes, yes, false)
 			CONF_HANDLE_SIZE_T(opt_lg_extent_max_active_fit,
 			    "lg_extent_max_active_fit", 0,
 			    (sizeof(size_t) << 3), yes, yes, false)
-			CONF_HANDLE_SSIZE_T(opt_lg_tcache_max, "lg_tcache_max",
-			    -1, (sizeof(size_t) << 3) - 1)
+
 			if (strncmp("percpu_arena", k, klen) == 0) {
 				bool match = false;
 				for (int i = percpu_arena_mode_names_base; i <
@@ -1465,6 +1469,9 @@ malloc_init_narenas(void) {
 		    narenas_auto);
 	}
 	narenas_total_set(narenas_auto);
+	if (arena_init_huge()) {
+		narenas_total_inc();
+	}
 
 	return false;
 }

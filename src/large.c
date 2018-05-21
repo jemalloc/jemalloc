@@ -42,7 +42,7 @@ large_palloc(tsdn_t *tsdn, arena_t *arena, size_t usize, size_t alignment,
 	 */
 	is_zeroed = zero;
 	if (likely(!tsdn_null(tsdn))) {
-		arena = arena_choose(tsdn_tsd(tsdn), arena);
+		arena = arena_choose_maybe_huge(tsdn_tsd(tsdn), arena, usize);
 	}
 	if (unlikely(arena == NULL) || (extent = arena_extent_alloc_large(tsdn,
 	    arena, usize, alignment, &is_zeroed)) == NULL) {
