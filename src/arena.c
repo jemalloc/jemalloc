@@ -42,6 +42,10 @@ const uint64_t h_steps[SMOOTHSTEP_NSTEPS] = {
 
 static div_info_t arena_binind_div_info[NBINS];
 
+size_t opt_huge_threshold = HUGE_THRESHOLD_DEFAULT;
+size_t huge_threshold = HUGE_THRESHOLD_DEFAULT;
+static unsigned huge_arena_ind;
+
 /******************************************************************************/
 /*
  * Function prototypes for static functions that are referenced prior to
@@ -1378,7 +1382,7 @@ arena_malloc_hard(tsdn_t *tsdn, arena_t *arena, size_t size, szind_t ind,
 	assert(!tsdn_null(tsdn) || arena != NULL);
 
 	if (likely(!tsdn_null(tsdn))) {
-		arena = arena_choose(tsdn_tsd(tsdn), arena);
+		arena = arena_choose_maybe_huge(tsdn_tsd(tsdn), arena, size);
 	}
 	if (unlikely(arena == NULL)) {
 		return NULL;
@@ -1937,6 +1941,58 @@ label_error:
 		base_delete(tsdn, base);
 	}
 	return NULL;
+}
+
+arena_t *
+arena_choose_huge(tsd_t *tsd) {
+	/* huge_arena_ind can be 0 during init (will use a0). */
+	if (huge_arena_ind == 0) {
+		assert(!malloc_initialized());
+	}
+
+	arena_t *huge_arena = arena_get(tsd_tsdn(tsd), huge_arena_ind, false);
+	if (huge_arena == NULL) {
+		/* Create the huge arena on demand. */
+		assert(huge_arena_ind != 0);
+		huge_arena = arena_get(tsd_tsdn(tsd), huge_arena_ind, true);
+		if (huge_arena == NULL) {
+			return NULL;
+		}
+		/*
+		 * Purge eagerly for huge allocations, because: 1) number of
+		 * huge allocations is usually small, which means ticker based
+		 * decay is not reliable; and 2) less immediate reuse is
+		 * expected for huge allocations.
+		 */
+		if (arena_dirty_decay_ms_default_get() > 0) {
+			arena_dirty_decay_ms_set(tsd_tsdn(tsd), huge_arena, 0);
+		}
+		if (arena_muzzy_decay_ms_default_get() > 0) {
+			arena_muzzy_decay_ms_set(tsd_tsdn(tsd), huge_arena, 0);
+		}
+	}
+
+	return huge_arena;
+}
+
+bool
+arena_init_huge(void) {
+	bool huge_enabled;
+
+	/* The threshold should be large size class. */
+	if (opt_huge_threshold > LARGE_MAXCLASS ||
+	    opt_huge_threshold < LARGE_MINCLASS) {
+		opt_huge_threshold = 0;
+		huge_threshold = LARGE_MAXCLASS + PAGE;
+		huge_enabled = false;
+	} else {
+		/* Reserve the index for the huge arena. */
+		huge_arena_ind = narenas_total_get();
+		huge_threshold = opt_huge_threshold;
+		huge_enabled = true;
+	}
+
+	return huge_enabled;
 }
 
 void

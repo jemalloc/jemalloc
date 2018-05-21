@@ -8,6 +8,27 @@
 #include "jemalloc/internal/sz.h"
 #include "jemalloc/internal/ticker.h"
 
+JEMALLOC_ALWAYS_INLINE arena_t *
+arena_choose_maybe_huge(tsd_t *tsd, arena_t *arena, size_t size) {
+	if (arena != NULL) {
+		return arena;
+	}
+
+	/*
+	 * For huge allocations, use the dedicated huge arena if both are true:
+	 * 1) is using auto arena selection (i.e. arena == NULL), and 2) the
+	 * thread is not assigned to a manual arena.
+	 */
+	if (unlikely(size >= huge_threshold)) {
+		arena_t *tsd_arena = tsd_arena_get(tsd);
+		if (tsd_arena == NULL || arena_is_auto(tsd_arena)) {
+			return arena_choose_huge(tsd);
+		}
+	}
+
+	return arena_choose(tsd, NULL);
+}
+
 JEMALLOC_ALWAYS_INLINE prof_tctx_t *
 arena_prof_tctx_get(tsdn_t *tsdn, const void *ptr, alloc_ctx_t *alloc_ctx) {
 	cassert(config_prof);

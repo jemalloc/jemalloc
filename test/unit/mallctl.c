@@ -341,6 +341,9 @@ TEST_BEGIN(test_thread_arena) {
 	sz = sizeof(unsigned);
 	assert_d_eq(mallctl("arenas.narenas", (void *)&narenas, &sz, NULL, 0),
 	    0, "Unexpected mallctl() failure");
+	if (opt_huge_threshold != 0) {
+		narenas--;
+	}
 	assert_u_eq(narenas, opt_narenas, "Number of arenas incorrect");
 
 	if (strcmp(opa, "disabled") == 0) {
