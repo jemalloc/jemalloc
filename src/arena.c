@@ -324,6 +324,11 @@ arena_large_ralloc_stats_update(tsdn_t *tsdn, arena_t *arena, size_t oldusize,
 	arena_large_malloc_stats_update(tsdn, arena, usize);
 }
 
+static bool
+arena_may_have_muzzy(arena_t *arena) {
+	return (pages_can_purge_lazy && (arena_muzzy_decay_ms_get(arena) != 0));
+}
+
 extent_t *
 arena_extent_alloc_large(tsdn_t *tsdn, arena_t *arena, size_t usize,
     size_t alignment, bool *zero) {
@@ -338,7 +343,7 @@ arena_extent_alloc_large(tsdn_t *tsdn, arena_t *arena, size_t usize,
 	extent_t *extent = extents_alloc(tsdn, arena, &extent_hooks,
 	    &arena->extents_dirty, NULL, usize, sz_large_pad, alignment, false,
 	    szind, zero, &commit);
-	if (extent == NULL) {
+	if (extent == NULL && arena_may_have_muzzy(arena)) {
 		extent = extents_alloc(tsdn, arena, &extent_hooks,
 		    &arena->extents_muzzy, NULL, usize, sz_large_pad, alignment,
 		    false, szind, zero, &commit);
@@ -1124,7 +1129,7 @@ arena_slab_alloc(tsdn_t *tsdn, arena_t *arena, szind_t binind,
 	extent_t *slab = extents_alloc(tsdn, arena, &extent_hooks,
 	    &arena->extents_dirty, NULL, bin_info->slab_size, 0, PAGE, true,
 	    binind, &zero, &commit);
-	if (slab == NULL) {
+	if (slab == NULL && arena_may_have_muzzy(arena)) {
 		slab = extents_alloc(tsdn, arena, &extent_hooks,
 		    &arena->extents_muzzy, NULL, bin_info->slab_size, 0, PAGE,
 		    true, binind, &zero, &commit);
