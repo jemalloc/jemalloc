@@ -329,8 +329,9 @@ large_dalloc_prep_impl(tsdn_t *tsdn, arena_t *arena, extent_t *extent,
 		large_dalloc_maybe_junk(extent_addr_get(extent),
 		    extent_usize_get(extent));
 	} else {
-		malloc_mutex_assert_owner(tsdn, &arena->large_mtx);
+		/* Only hold the large_mtx if necessary. */
 		if (!arena_is_auto(arena)) {
+			malloc_mutex_assert_owner(tsdn, &arena->large_mtx);
 			extent_list_remove(&arena->large, extent);
 		}
 	}
