@@ -212,7 +212,10 @@ tcache_bin_flush_large(tsd_t *tsd, cache_bin_t *tbin, szind_t binind,
 			idump = false;
 		}
 
-		malloc_mutex_lock(tsd_tsdn(tsd), &locked_arena->large_mtx);
+		bool lock_large = !arena_is_auto(arena);
+		if (lock_large) {
+			malloc_mutex_lock(tsd_tsdn(tsd), &locked_arena->large_mtx);
+		}
 		for (unsigned i = 0; i < nflush; i++) {
 			void *ptr = *(tbin->avail - 1 - i);
 			assert(ptr != NULL);
@@ -236,7 +239,9 @@ tcache_bin_flush_large(tsd_t *tsd, cache_bin_t *tbin, szind_t binind,
 				tbin->tstats.nrequests = 0;
 			}
 		}
-		malloc_mutex_unlock(tsd_tsdn(tsd), &locked_arena->large_mtx);
+		if (lock_large) {
+			malloc_mutex_unlock(tsd_tsdn(tsd), &locked_arena->large_mtx);
+		}
 
 		unsigned ndeferred = 0;
 		for (unsigned i = 0; i < nflush; i++) {
