@@ -47,7 +47,7 @@
     <ClCompile Include="..\..\..\..\src\extent_dss.c" />
     <ClCompile Include="..\..\..\..\src\extent_mmap.c" />
     <ClCompile Include="..\..\..\..\src\hash.c" />
-    <ClCompile Include="..\..\..\..\src\hooks.c" />
+    <ClCompile Include="..\..\..\..\src\hook.c" />
     <ClCompile Include="..\..\..\..\src\jemalloc.c" />
     <ClCompile Include="..\..\..\..\src\large.c" />
     <ClCompile Include="..\..\..\..\src\log.c" />
