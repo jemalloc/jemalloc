@@ -174,6 +174,7 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/fork.c \
 	$(srcroot)test/unit/hash.c \
 	$(srcroot)test/unit/hook.c \
+	$(srcroot)test/unit/huge.c \
 	$(srcroot)test/unit/junk.c \
 	$(srcroot)test/unit/junk_alloc.c \
 	$(srcroot)test/unit/junk_free.c \
