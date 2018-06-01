@@ -25,6 +25,9 @@ extern unsigned ncpus;
 /* Number of arenas used for automatic multiplexing of threads and arenas. */
 extern unsigned narenas_auto;
 
+/* Base index for manual arenas. */
+extern unsigned manual_arena_base;
+
 /*
  * Arenas that are used to service external requests.  Not all elements of the
  * arenas array are necessarily used; arenas are created lazily as needed.
