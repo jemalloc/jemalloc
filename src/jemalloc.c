@@ -86,8 +86,10 @@ malloc_mutex_t arenas_lock;
 JEMALLOC_ALIGNED(CACHELINE)
 atomic_p_t		arenas[MALLOCX_ARENA_LIMIT];
 static atomic_u_t	narenas_total; /* Use narenas_total_*(). */
-static arena_t		*a0; /* arenas[0]; read-only after initialization. */
-unsigned		narenas_auto; /* Read-only after initialization. */
+/* Below three are read-only after initialization. */
+static arena_t		*a0; /* arenas[0]. */
+unsigned		narenas_auto;
+unsigned		manual_arena_base;
 
 typedef enum {
 	malloc_init_uninitialized	= 3,
@@ -1322,6 +1324,7 @@ malloc_init_hard_a0_locked() {
 	 * malloc_ncpus().
 	 */
 	narenas_auto = 1;
+	manual_arena_base = narenas_auto + 1;
 	memset(arenas, 0, sizeof(arena_t *) * narenas_auto);
 	/*
 	 * Initialize one arena here.  The rest are lazily created in
@@ -1472,6 +1475,7 @@ malloc_init_narenas(void) {
 	if (arena_init_huge()) {
 		narenas_total_inc();
 	}
+	manual_arena_base = narenas_total_get();
 
 	return false;
 }
