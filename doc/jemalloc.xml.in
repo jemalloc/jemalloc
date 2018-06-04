@@ -1055,7 +1055,9 @@ mallctl("arena." STRINGIFY(MALLCTL_ARENAS_ALL) ".decay",
         linkend="arena.i.dirty_decay_ms"><mallctl>arena.&lt;i&gt;.dirty_decay_ms</mallctl></link>
         for related dynamic control options.  See <link
         linkend="opt.muzzy_decay_ms"><mallctl>opt.muzzy_decay_ms</mallctl></link>
-        for a description of muzzy pages.</para></listitem>
+        for a description of muzzy pages.  Note that when the huge_threshold
+        feature is enabled, the special auto arenas may use its own decay
+        settings.</para></listitem>
       </varlistentry>
 
       <varlistentry id="opt.muzzy_decay_ms">
@@ -1763,10 +1765,11 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         to control allocation for arenas explicitly created via <link
         linkend="arenas.create"><mallctl>arenas.create</mallctl></link> such
         that all extents originate from an application-supplied extent allocator
-        (by specifying the custom extent hook functions during arena creation),
-        but the automatically created arenas will have already created extents
-        prior to the application having an opportunity to take over extent
-        allocation.</para>
+        (by specifying the custom extent hook functions during arena creation).
+        However, the API guarantees for the automatically created arenas may be
+        relaxed -- hooks set there may be called in a "best effort" fashion; in
+        addition there may be extents created prior to the application having an
+        opportunity to take over extent allocation.</para>
 
         <programlisting language="C"><![CDATA[
 typedef extent_hooks_s extent_hooks_t;
