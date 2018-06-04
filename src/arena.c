@@ -1585,15 +1585,17 @@ arena_dalloc_small(tsdn_t *tsdn, void *ptr) {
 
 bool
 arena_ralloc_no_move(tsdn_t *tsdn, void *ptr, size_t oldsize, size_t size,
-    size_t extra, bool zero) {
+    size_t extra, bool zero, size_t *newsize) {
+	bool ret;
 	/* Calls with non-zero extra had to clamp extra. */
 	assert(extra == 0 || size + extra <= LARGE_MAXCLASS);
 
+	extent_t *extent = iealloc(tsdn, ptr);
 	if (unlikely(size > LARGE_MAXCLASS)) {
-		return true;
+		ret = true;
+		goto done;
 	}
 
-	extent_t *extent = iealloc(tsdn, ptr);
 	size_t usize_min = sz_s2u(size);
 	size_t usize_max = sz_s2u(size + extra);
 	if (likely(oldsize <= SMALL_MAXCLASS && usize_min <= SMALL_MAXCLASS)) {
@@ -1606,17 +1608,23 @@ arena_ralloc_no_move(tsdn_t *tsdn, void *ptr, size_t oldsize, size_t size,
 		if ((usize_max > SMALL_MAXCLASS || sz_size2index(usize_max) !=
 		    sz_size2index(oldsize)) && (size > oldsize || usize_max <
 		    oldsize)) {
-			return true;
+			ret = true;
+			goto done;
 		}
 
 		arena_decay_tick(tsdn, extent_arena_get(extent));
-		return false;
+		ret = false;
 	} else if (oldsize >= LARGE_MINCLASS && usize_max >= LARGE_MINCLASS) {
-		return large_ralloc_no_move(tsdn, extent, usize_min, usize_max,
+		ret = large_ralloc_no_move(tsdn, extent, usize_min, usize_max,
 		    zero);
+	} else {
+		ret = true;
 	}
+done:
+	assert(extent == iealloc(tsdn, ptr));
+	*newsize = extent_usize_get(extent);
 
-	return true;
+	return ret;
 }
 
 static void *
@@ -1644,7 +1652,9 @@ arena_ralloc(tsdn_t *tsdn, arena_t *arena, void *ptr, size_t oldsize,
 
 	if (likely(usize <= SMALL_MAXCLASS)) {
 		/* Try to avoid moving the allocation. */
-		if (!arena_ralloc_no_move(tsdn, ptr, oldsize, usize, 0, zero)) {
+		UNUSED size_t newsize;
+		if (!arena_ralloc_no_move(tsdn, ptr, oldsize, usize, 0, zero,
+		    &newsize)) {
 			hook_invoke_expand(hook_args->is_realloc
 			    ? hook_expand_realloc : hook_expand_rallocx,
 			    ptr, oldsize, usize, (uintptr_t)ptr,

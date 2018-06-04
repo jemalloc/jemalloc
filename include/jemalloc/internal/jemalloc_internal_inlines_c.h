@@ -203,7 +203,7 @@ iralloc(tsd_t *tsd, void *ptr, size_t oldsize, size_t size, size_t alignment,
 
 JEMALLOC_ALWAYS_INLINE bool
 ixalloc(tsdn_t *tsdn, void *ptr, size_t oldsize, size_t size, size_t extra,
-    size_t alignment, bool zero) {
+    size_t alignment, bool zero, size_t *newsize) {
 	assert(ptr != NULL);
 	assert(size != 0);
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
@@ -212,10 +212,12 @@ ixalloc(tsdn_t *tsdn, void *ptr, size_t oldsize, size_t size, size_t extra,
 	if (alignment != 0 && ((uintptr_t)ptr & ((uintptr_t)alignment-1))
 	    != 0) {
 		/* Existing object alignment is inadequate. */
+		*newsize = oldsize;
 		return true;
 	}
 
-	return arena_ralloc_no_move(tsdn, ptr, oldsize, size, extra, zero);
+	return arena_ralloc_no_move(tsdn, ptr, oldsize, size, extra, zero,
+	    newsize);
 }
 
 #endif /* JEMALLOC_INTERNAL_INLINES_C_H */
