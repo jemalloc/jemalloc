@@ -891,6 +891,8 @@ stats_general_print(emitter_t *emitter) {
 #define OPT_WRITE_UNSIGNED(name)					\
 	OPT_WRITE(name, uv, usz, emitter_type_unsigned)
 
+#define OPT_WRITE_SIZE_T(name)						\
+	OPT_WRITE(name, sv, ssz, emitter_type_size)
 #define OPT_WRITE_SSIZE_T(name)						\
 	OPT_WRITE(name, ssv, sssz, emitter_type_ssize)
 #define OPT_WRITE_SSIZE_T_MUTABLE(name, altname)			\
@@ -912,7 +914,7 @@ stats_general_print(emitter_t *emitter) {
 	OPT_WRITE_BOOL_MUTABLE("background_thread", "background_thread")
 	OPT_WRITE_SSIZE_T_MUTABLE("dirty_decay_ms", "arenas.dirty_decay_ms")
 	OPT_WRITE_SSIZE_T_MUTABLE("muzzy_decay_ms", "arenas.muzzy_decay_ms")
-	OPT_WRITE_UNSIGNED("lg_extent_max_active_fit")
+	OPT_WRITE_SIZE_T("lg_extent_max_active_fit")
 	OPT_WRITE_CHAR_P("junk")
 	OPT_WRITE_BOOL("zero")
 	OPT_WRITE_BOOL("utrace")
