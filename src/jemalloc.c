@@ -2834,14 +2834,14 @@ label_oom:
 JEMALLOC_ALWAYS_INLINE size_t
 ixallocx_helper(tsdn_t *tsdn, void *ptr, size_t old_usize, size_t size,
     size_t extra, size_t alignment, bool zero) {
-	size_t usize;
+	size_t newsize;
 
-	if (ixalloc(tsdn, ptr, old_usize, size, extra, alignment, zero)) {
+	if (ixalloc(tsdn, ptr, old_usize, size, extra, alignment, zero,
+	    &newsize)) {
 		return old_usize;
 	}
-	usize = isalloc(tsdn, ptr);
 
-	return usize;
+	return newsize;
 }
 
 static size_t

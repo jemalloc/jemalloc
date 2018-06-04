@@ -64,7 +64,7 @@ void arena_dalloc_bin_junked_locked(tsdn_t *tsdn, arena_t *arena,
     extent_t *extent, void *ptr);
 void arena_dalloc_small(tsdn_t *tsdn, void *ptr);
 bool arena_ralloc_no_move(tsdn_t *tsdn, void *ptr, size_t oldsize, size_t size,
-    size_t extra, bool zero);
+    size_t extra, bool zero, size_t *newsize);
 void *arena_ralloc(tsdn_t *tsdn, arena_t *arena, void *ptr, size_t oldsize,
     size_t size, size_t alignment, bool zero, tcache_t *tcache,
     hook_ralloc_args_t *hook_args);
