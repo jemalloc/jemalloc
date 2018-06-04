@@ -1147,7 +1147,9 @@ malloc_conf_init(void) {
 			CONF_HANDLE_SSIZE_T(opt_lg_tcache_max, "lg_tcache_max",
 			    -1, (sizeof(size_t) << 3) - 1)
 
-			CONF_HANDLE_SIZE_T(opt_huge_threshold, "huge_threshold",
+			/* Experimental feature.  Will be documented later.*/
+			CONF_HANDLE_SIZE_T(opt_huge_threshold,
+			    "experimental_huge_threshold",
 			    LARGE_MINCLASS, LARGE_MAXCLASS, yes, yes, false)
 			CONF_HANDLE_SIZE_T(opt_lg_extent_max_active_fit,
 			    "lg_extent_max_active_fit", 0,
