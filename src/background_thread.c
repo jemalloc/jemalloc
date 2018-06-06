@@ -22,9 +22,6 @@ size_t max_background_threads;
 /* Thread info per-index. */
 background_thread_info_t *background_thread_info;
 
-/* False if no necessary runtime support. */
-bool can_enable_background_thread;
-
 /******************************************************************************/
 
 #ifdef JEMALLOC_PTHREAD_CREATE_WRAPPER
@@ -812,16 +809,21 @@ pthread_create_fptr_init(void) {
 	if (pthread_create_fptr != NULL) {
 		return false;
 	}
+	/*
+	 * Try the next symbol first, because 1) when use lazy_lock we have a
+	 * wrapper for pthread_create; and 2) application may define its own
+	 * wrapper as well (and can call malloc within the wrapper).
+	 */
 	pthread_create_fptr = dlsym(RTLD_NEXT, "pthread_create");
 	if (pthread_create_fptr == NULL) {
-		can_enable_background_thread = false;
-		if (config_lazy_lock || opt_background_thread) {
+		if (config_lazy_lock) {
 			malloc_write("<jemalloc>: Error in dlsym(RTLD_NEXT, "
 			    "\"pthread_create\")\n");
 			abort();
+		} else {
+			/* Fall back to the default symbol. */
+			pthread_create_fptr = pthread_create;
 		}
-	} else {
-		can_enable_background_thread = true;
 	}
 
 	return false;
