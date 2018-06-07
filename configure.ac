@@ -1588,6 +1588,21 @@ fi
 AC_DEFINE_UNQUOTED([LG_HUGEPAGE], [${je_cv_lg_hugepage}])
 
 dnl ============================================================================
+dnl Enable libdl by default.
+AC_ARG_ENABLE([libdl],
+  [AS_HELP_STRING([--disable-libdl],
+  [Do not use libdl])],
+[if test "x$enable_libdl" = "xno" ; then
+  enable_libdl="0"
+else
+  enable_libdl="1"
+fi
+],
+[enable_libdl="1"]
+)
+AC_SUBST([libdl])
+
+dnl ============================================================================
 dnl Configure pthreads.
 
 if test "x$abi" != "xpecoff" ; then
@@ -1600,15 +1615,21 @@ if test "x$abi" != "xpecoff" ; then
                                AC_MSG_ERROR([libpthread is missing]))])
   wrap_syms="${wrap_syms} pthread_create"
   have_pthread="1"
-  dnl Check if we have dlsym support.
-  have_dlsym="1"
-  AC_CHECK_HEADERS([dlfcn.h],
-    AC_CHECK_FUNC([dlsym], [],
-      [AC_CHECK_LIB([dl], [dlsym], [LIBS="$LIBS -ldl"], [have_dlsym="0"])]),
-    [have_dlsym="0"])
-  if test "x$have_dlsym" = "x1" ; then
-    AC_DEFINE([JEMALLOC_HAVE_DLSYM], [ ])
+
+dnl Check if we have dlsym support.
+  if test "x$enable_libdl" = "x1" ; then
+    have_dlsym="1"
+    AC_CHECK_HEADERS([dlfcn.h],
+      AC_CHECK_FUNC([dlsym], [],
+        [AC_CHECK_LIB([dl], [dlsym], [LIBS="$LIBS -ldl"], [have_dlsym="0"])]),
+      [have_dlsym="0"])
+    if test "x$have_dlsym" = "x1" ; then
+      AC_DEFINE([JEMALLOC_HAVE_DLSYM], [ ])
+    fi
+  else
+    have_dlsym="0"
   fi
+
   JE_COMPILABLE([pthread_atfork(3)], [
 #include <pthread.h>
 ], [

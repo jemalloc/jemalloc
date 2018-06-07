@@ -269,6 +269,11 @@ any of the following arguments (not a definitive list) to 'configure':
     in the same process, which will almost certainly result in confusing runtime
     crashes if pointers leak from one implementation to the other.
 
+* `--disable-libdl`
+
+    Disable the usage of libdl, namely dlsym(3) which is required by the lazy
+    lock option.  This can allow building static binaries.
+
 The following environment variables (not a definitive list) impact configure's
 behavior:
 
