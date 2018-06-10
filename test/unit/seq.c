@@ -30,6 +30,27 @@ struct thd_data_s {
 };
 
 static void *
+seq_reader_thd_spin(void *arg) {
+	thd_data_t *thd_data = (thd_data_t *)arg;
+	int iter = 0;
+	data_t local_data;
+	while (iter < 1000 * 1000 - 1) {
+		while(!seq_try_load_data(&local_data, &thd_data->data)) {
+			//spin wait here
+			#  if HAVE_CPU_SPINWAIT
+				CPU_SPINWAIT;
+			#endif
+		}
+
+		assert_data(&local_data);
+		assert_d_le(iter, local_data.arr[0],
+				"Seq read went back in time.");
+		iter = local_data.arr[0];
+	}
+	return NULL;
+}
+
+static void *
 seq_reader_thd(void *arg) {
 	thd_data_t *thd_data = (thd_data_t *)arg;
 	int iter = 0;
@@ -57,6 +78,22 @@ seq_writer_thd(void *arg) {
 	}
 	return NULL;
 }
+
+TEST_BEGIN(test_seq_threaded_spin) {
+	thd_data_t thd_data;
+	memset(&thd_data, 0, sizeof(thd_data));
+
+	thd_t reader;
+	thd_t writer;
+
+	thd_create(&reader, seq_reader_thd_spin, &thd_data);
+	thd_create(&writer, seq_writer_thd, &thd_data);
+
+	thd_join(reader, NULL);
+	thd_join(writer, NULL);
+}
+TEST_END
+
 
 TEST_BEGIN(test_seq_threaded) {
 	thd_data_t thd_data;
@@ -91,5 +128,6 @@ TEST_END
 int main(void) {
 	return test_no_reentrancy(
 	    test_seq_simple,
-	    test_seq_threaded);
+	    test_seq_threaded,
+		test_seq_threaded_spin);
 }
