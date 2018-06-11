@@ -29,17 +29,19 @@ seq_store_##short_type(seq_##short_type##_t *dst, type *src) {		\
 	for (size_t i = 0; i < sizeof(buf) / sizeof(size_t); i++) {	\
 		atomic_store_zu(&dst->data[i], buf[i], ATOMIC_RELAXED);	\
 	}								\
-	atomic_store_zu(&dst->seq, old_seq + 2, ATOMIC_RELEASE);	\
+	atomic_fence(ATOMIC_RELEASE);					\
+	atomic_store_zu(&dst->seq, old_seq + 2, ATOMIC_RELAXED);	\
 }									\
 									\
 /* Returns whether or not the read was consistent. */			\
 static inline bool							\
 seq_try_load_##short_type(type *dst, seq_##short_type##_t *src) {	\
 	size_t buf[sizeof(src->data) / sizeof(size_t)];			\
-	size_t seq1 = atomic_load_zu(&src->seq, ATOMIC_ACQUIRE);	\
+	size_t seq1 = atomic_load_zu(&src->seq, ATOMIC_RELAXED);	\
 	if (seq1 % 2 != 0) {						\
 		return false;						\
 	}								\
+	atomic_fence(ATOMIC_ACQUIRE);					\
 	for (size_t i = 0; i < sizeof(buf) / sizeof(size_t); i++) {	\
 		buf[i] = atomic_load_zu(&src->data[i], ATOMIC_RELAXED);	\
 	}								\
