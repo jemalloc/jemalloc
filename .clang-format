@@ -1,0 +1,24 @@
+BasedOnStyle: Google
+
+# Big stuff
+ColumnLimit: 80
+ContinuationIndentWidth: 4
+IndentWidth: 2
+
+# Jemalloc style rules that differ from Google style.
+PointerAlignment: Right
+AlignAfterOpenBracket: DontAlign
+AlignEscapedNewlines: Right
+AlwaysBreakAfterDefinitionReturnType: true
+ForEachMacros: ['ql_foreach', 'qr_foreach']
+
+# Blocks and control-flow always get multiple lines.
+AllowShortBlocksOnASingleLine: false
+AllowShortCaseLabelsOnASingleLine: false
+AllowShortFunctionsOnASingleLine: false
+AllowShortIfStatementsOnASingleLine: false
+AllowShortLoopsOnASingleLine: false
+
+# We (unfortunately) rely on include order in some places.
+IncludeBlocks: Preserve
+SortIncludes: false
