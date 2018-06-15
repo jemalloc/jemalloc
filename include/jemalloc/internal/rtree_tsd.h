@@ -26,23 +26,27 @@
  * Zero initializer required for tsd initialization only.  Proper initialization
  * done via rtree_ctx_data_init().
  */
-#define RTREE_CTX_ZERO_INITIALIZER {{{0}}, {{0}}}
-
+#define RTREE_CTX_ZERO_INITIALIZER                                             \
+  {                                                                            \
+    {{0}}, {                                                                   \
+      { 0 }                                                                    \
+    }                                                                          \
+  }
 
 typedef struct rtree_leaf_elm_s rtree_leaf_elm_t;
 
 typedef struct rtree_ctx_cache_elm_s rtree_ctx_cache_elm_t;
 struct rtree_ctx_cache_elm_s {
-	uintptr_t		leafkey;
-	rtree_leaf_elm_t	*leaf;
+  uintptr_t leafkey;
+  rtree_leaf_elm_t *leaf;
 };
 
 typedef struct rtree_ctx_s rtree_ctx_t;
 struct rtree_ctx_s {
-	/* Direct mapped cache. */
-	rtree_ctx_cache_elm_t	cache[RTREE_CTX_NCACHE];
-	/* L2 LRU cache. */
-	rtree_ctx_cache_elm_t	l2_cache[RTREE_CTX_NCACHE_L2];
+  /* Direct mapped cache. */
+  rtree_ctx_cache_elm_t cache[RTREE_CTX_NCACHE];
+  /* L2 LRU cache. */
+  rtree_ctx_cache_elm_t l2_cache[RTREE_CTX_NCACHE_L2];
 };
 
 void rtree_ctx_data_init(rtree_ctx_t *ctx);

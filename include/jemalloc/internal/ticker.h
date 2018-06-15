@@ -12,24 +12,24 @@
  */
 
 typedef struct {
-	int32_t tick;
-	int32_t nticks;
+  int32_t tick;
+  int32_t nticks;
 } ticker_t;
 
 static inline void
 ticker_init(ticker_t *ticker, int32_t nticks) {
-	ticker->tick = nticks;
-	ticker->nticks = nticks;
+  ticker->tick = nticks;
+  ticker->nticks = nticks;
 }
 
 static inline void
 ticker_copy(ticker_t *ticker, const ticker_t *other) {
-	*ticker = *other;
+  *ticker = *other;
 }
 
 static inline int32_t
 ticker_read(const ticker_t *ticker) {
-	return ticker->tick;
+  return ticker->tick;
 }
 
 /*
@@ -51,28 +51,28 @@ ticker_read(const ticker_t *ticker) {
  * worth the hassle, but this is on the fast path of both malloc and free (via
  * tcache_event).
  */
-#if defined(__GNUC__) && !defined(__clang__)				\
-    && (defined(__x86_64__) || defined(__i386__))
+#if defined(__GNUC__) && !defined(__clang__) &&                                \
+    (defined(__x86_64__) || defined(__i386__))
 JEMALLOC_NOINLINE
 #endif
 static bool
 ticker_fixup(ticker_t *ticker) {
-	ticker->tick = ticker->nticks;
-	return true;
+  ticker->tick = ticker->nticks;
+  return true;
 }
 
 static inline bool
 ticker_ticks(ticker_t *ticker, int32_t nticks) {
-	ticker->tick -= nticks;
-	if (unlikely(ticker->tick < 0)) {
-		return ticker_fixup(ticker);
-	}
-	return false;
+  ticker->tick -= nticks;
+  if (unlikely(ticker->tick < 0)) {
+    return ticker_fixup(ticker);
+  }
+  return false;
 }
 
 static inline bool
 ticker_tick(ticker_t *ticker) {
-	return ticker_ticks(ticker, 1);
+  return ticker_ticks(ticker, 1);
 }
 
 #endif /* JEMALLOC_INTERNAL_TICKER_H */

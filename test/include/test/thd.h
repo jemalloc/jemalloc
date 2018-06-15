@@ -5,5 +5,5 @@ typedef HANDLE thd_t;
 typedef pthread_t thd_t;
 #endif
 
-void	thd_create(thd_t *thd, void *(*proc)(void *), void *arg);
-void	thd_join(thd_t thd, void **ret);
+void thd_create(thd_t *thd, void *(*proc)(void *), void *arg);
+void thd_join(thd_t thd, void **ret);

@@ -4,15 +4,15 @@
 #define ATOMIC_INLINE JEMALLOC_ALWAYS_INLINE
 
 #if defined(JEMALLOC_GCC_ATOMIC_ATOMICS)
-#  include "jemalloc/internal/atomic_gcc_atomic.h"
+#include "jemalloc/internal/atomic_gcc_atomic.h"
 #elif defined(JEMALLOC_GCC_SYNC_ATOMICS)
-#  include "jemalloc/internal/atomic_gcc_sync.h"
+#include "jemalloc/internal/atomic_gcc_sync.h"
 #elif defined(_MSC_VER)
-#  include "jemalloc/internal/atomic_msvc.h"
+#include "jemalloc/internal/atomic_msvc.h"
 #elif defined(JEMALLOC_C11_ATOMICS)
-#  include "jemalloc/internal/atomic_c11.h"
+#include "jemalloc/internal/atomic_c11.h"
 #else
-#  error "Don't have atomics implemented on this platform."
+#error "Don't have atomics implemented on this platform."
 #endif
 
 /*
@@ -49,7 +49,7 @@
  * fact.
  */
 #if (LG_SIZEOF_PTR == 3 || LG_SIZEOF_INT == 3)
-#  define JEMALLOC_ATOMIC_U64
+#define JEMALLOC_ATOMIC_U64
 #endif
 
 JEMALLOC_GENERATE_ATOMICS(void *, p, LG_SIZEOF_PTR)

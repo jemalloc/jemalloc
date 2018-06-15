@@ -16,8 +16,8 @@ extent_t *extent_alloc(tsdn_t *tsdn, arena_t *arena);
 void extent_dalloc(tsdn_t *tsdn, arena_t *arena, extent_t *extent);
 
 extent_hooks_t *extent_hooks_get(arena_t *arena);
-extent_hooks_t *extent_hooks_set(tsd_t *tsd, arena_t *arena,
-    extent_hooks_t *extent_hooks);
+extent_hooks_t *extent_hooks_set(
+    tsd_t *tsd, arena_t *arena, extent_hooks_t *extent_hooks);
 
 #ifdef JEMALLOC_JET
 size_t extent_size_quantize_floor(size_t size);
@@ -25,10 +25,10 @@ size_t extent_size_quantize_ceil(size_t size);
 #endif
 
 rb_proto(, extent_avail_, extent_tree_t, extent_t)
-ph_proto(, extent_heap_, extent_heap_t, extent_t)
+    ph_proto(, extent_heap_, extent_heap_t, extent_t)
 
-bool extents_init(tsdn_t *tsdn, extents_t *extents, extent_state_t state,
-    bool delay_coalesce);
+        bool extents_init(tsdn_t *tsdn, extents_t *extents,
+            extent_state_t state, bool delay_coalesce);
 extent_state_t extents_state_get(const extents_t *extents);
 size_t extents_npages_get(extents_t *extents);
 extent_t *extents_alloc(tsdn_t *tsdn, arena_t *arena,

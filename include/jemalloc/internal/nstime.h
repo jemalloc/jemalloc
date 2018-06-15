@@ -3,10 +3,11 @@
 
 /* Maximum supported number of seconds (~584 years). */
 #define NSTIME_SEC_MAX KQU(18446744072)
-#define NSTIME_ZERO_INITIALIZER {0}
+#define NSTIME_ZERO_INITIALIZER                                                \
+  { 0 }
 
 typedef struct {
-	uint64_t ns;
+  uint64_t ns;
 } nstime_t;
 
 void nstime_init(nstime_t *time, uint64_t ns);
@@ -25,10 +26,10 @@ void nstime_imultiply(nstime_t *time, uint64_t multiplier);
 void nstime_idivide(nstime_t *time, uint64_t divisor);
 uint64_t nstime_divide(const nstime_t *time, const nstime_t *divisor);
 
-typedef bool (nstime_monotonic_t)(void);
+typedef bool(nstime_monotonic_t)(void);
 extern nstime_monotonic_t *JET_MUTABLE nstime_monotonic;
 
-typedef bool (nstime_update_t)(nstime_t *);
+typedef bool(nstime_update_t)(nstime_t *);
 extern nstime_update_t *JET_MUTABLE nstime_update;
 
 #endif /* JEMALLOC_INTERNAL_NSTIME_H */

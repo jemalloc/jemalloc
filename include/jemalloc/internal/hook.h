@@ -49,17 +49,17 @@
 #define HOOK_MAX 4
 
 enum hook_alloc_e {
-	hook_alloc_malloc,
-	hook_alloc_posix_memalign,
-	hook_alloc_aligned_alloc,
-	hook_alloc_calloc,
-	hook_alloc_memalign,
-	hook_alloc_valloc,
-	hook_alloc_mallocx,
+  hook_alloc_malloc,
+  hook_alloc_posix_memalign,
+  hook_alloc_aligned_alloc,
+  hook_alloc_calloc,
+  hook_alloc_memalign,
+  hook_alloc_valloc,
+  hook_alloc_mallocx,
 
-	/* The reallocating functions have both alloc and dalloc variants */
-	hook_alloc_realloc,
-	hook_alloc_rallocx,
+  /* The reallocating functions have both alloc and dalloc variants */
+  hook_alloc_realloc,
+  hook_alloc_rallocx,
 };
 /*
  * We put the enum typedef after the enum, since this file may get included by
@@ -68,44 +68,42 @@ enum hook_alloc_e {
 typedef enum hook_alloc_e hook_alloc_t;
 
 enum hook_dalloc_e {
-	hook_dalloc_free,
-	hook_dalloc_dallocx,
-	hook_dalloc_sdallocx,
+  hook_dalloc_free,
+  hook_dalloc_dallocx,
+  hook_dalloc_sdallocx,
 
-	/*
-	 * The dalloc halves of reallocation (not called if in-place expansion
-	 * happens).
-	 */
-	hook_dalloc_realloc,
-	hook_dalloc_rallocx,
+  /*
+   * The dalloc halves of reallocation (not called if in-place expansion
+   * happens).
+   */
+  hook_dalloc_realloc,
+  hook_dalloc_rallocx,
 };
 typedef enum hook_dalloc_e hook_dalloc_t;
 
-
 enum hook_expand_e {
-	hook_expand_realloc,
-	hook_expand_rallocx,
-	hook_expand_xallocx,
+  hook_expand_realloc,
+  hook_expand_rallocx,
+  hook_expand_xallocx,
 };
 typedef enum hook_expand_e hook_expand_t;
 
-typedef void (*hook_alloc)(
-    void *extra, hook_alloc_t type, void *result, uintptr_t result_raw,
-    uintptr_t args_raw[3]);
+typedef void (*hook_alloc)(void *extra, hook_alloc_t type, void *result,
+    uintptr_t result_raw, uintptr_t args_raw[3]);
 
 typedef void (*hook_dalloc)(
     void *extra, hook_dalloc_t type, void *address, uintptr_t args_raw[3]);
 
-typedef void (*hook_expand)(
-    void *extra, hook_expand_t type, void *address, size_t old_usize,
-    size_t new_usize, uintptr_t result_raw, uintptr_t args_raw[4]);
+typedef void (*hook_expand)(void *extra, hook_expand_t type, void *address,
+    size_t old_usize, size_t new_usize, uintptr_t result_raw,
+    uintptr_t args_raw[4]);
 
 typedef struct hooks_s hooks_t;
 struct hooks_s {
-	hook_alloc alloc_hook;
-	hook_dalloc dalloc_hook;
-	hook_expand expand_hook;
-	void *extra;
+  hook_alloc alloc_hook;
+  hook_dalloc dalloc_hook;
+  hook_expand expand_hook;
+  void *extra;
 };
 
 /*
@@ -129,14 +127,14 @@ struct hooks_s {
  */
 typedef struct hook_ralloc_args_s hook_ralloc_args_t;
 struct hook_ralloc_args_s {
-	/* I.e. as opposed to rallocx. */
-	bool is_realloc;
-	/*
-	 * The expand hook takes 4 arguments, even if only 3 are actually used;
-	 * we add an extra one in case the user decides to memcpy without
-	 * looking too closely at the hooked function.
-	 */
-	uintptr_t args[4];
+  /* I.e. as opposed to rallocx. */
+  bool is_realloc;
+  /*
+   * The expand hook takes 4 arguments, even if only 3 are actually used;
+   * we add an extra one in case the user decides to memcpy without
+   * looking too closely at the hooked function.
+   */
+  uintptr_t args[4];
 };
 
 /*
@@ -154,8 +152,8 @@ void hook_remove(tsdn_t *tsdn, void *opaque);
 void hook_invoke_alloc(hook_alloc_t type, void *result, uintptr_t result_raw,
     uintptr_t args_raw[3]);
 
-void hook_invoke_dalloc(hook_dalloc_t type, void *address,
-    uintptr_t args_raw[3]);
+void hook_invoke_dalloc(
+    hook_dalloc_t type, void *address, uintptr_t args_raw[3]);
 
 void hook_invoke_expand(hook_expand_t type, void *address, size_t old_usize,
     size_t new_usize, uintptr_t result_raw, uintptr_t args_raw[4]);

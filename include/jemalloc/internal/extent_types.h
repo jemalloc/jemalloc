@@ -4,7 +4,7 @@
 typedef struct extent_s extent_t;
 typedef struct extents_s extents_t;
 
-#define EXTENT_HOOKS_INITIALIZER	NULL
+#define EXTENT_HOOKS_INITIALIZER NULL
 
 #define EXTENT_GROW_MAX_PIND (NPSIZES - 1)
 
