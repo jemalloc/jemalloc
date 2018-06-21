@@ -59,14 +59,10 @@ typedef void (*test_callback_t)(int *);
 #  define MALLOC_TEST_TSD_INITIALIZER
 #endif
 
-/* Various uses of this struct need it to be a named type. */
-typedef ql_elm(tsd_t) tsd_link_t;
-
 /*  O(name,			type,			nullable type */
 #define MALLOC_TSD							\
     O(tcache_enabled,		bool,			bool)		\
     O(arenas_tdata_bypass,	bool,			bool)		\
-    O(in_hook,			bool,			bool)		\
     O(reentrancy_level,		int8_t,			int8_t)		\
     O(narenas_tdata,		uint32_t,		uint32_t)	\
     O(offset_state,		uint64_t,		uint64_t)	\
@@ -77,7 +73,6 @@ typedef ql_elm(tsd_t) tsd_link_t;
     O(iarena,			arena_t *,		arena_t *)	\
     O(arena,			arena_t *,		arena_t *)	\
     O(arenas_tdata,		arena_tdata_t *,	arena_tdata_t *)\
-    O(link,			tsd_link_t,		tsd_link_t)	\
     O(tcache,			tcache_t,		tcache_t)	\
     O(witness_tsd,              witness_tsd_t,		witness_tsdn_t)	\
     MALLOC_TEST_TSD
@@ -85,7 +80,6 @@ typedef ql_elm(tsd_t) tsd_link_t;
 #define TSD_INITIALIZER {						\
     ATOMIC_INIT(tsd_state_uninitialized),				\
     TCACHE_ENABLED_ZERO_INITIALIZER,					\
-    false,								\
     false,								\
     0,									\
     0,									\
@@ -97,7 +91,6 @@ typedef ql_elm(tsd_t) tsd_link_t;
     NULL,								\
     NULL,								\
     NULL,								\
-    {NULL},								\
     TCACHE_ZERO_INITIALIZER,						\
     WITNESS_TSD_INITIALIZER						\
     MALLOC_TEST_TSD_INITIALIZER						\
