@@ -68,7 +68,7 @@ tsd_in_nominal_list(tsd_t *tsd) {
 	 * out of it here.
 	 */
 	malloc_mutex_lock(TSDN_NULL, &tsd_nominal_tsds_lock);
-	ql_foreach(tsd_list, &tsd_nominal_tsds, TSD_MANGLE(link)) {
+	ql_foreach(tsd_list, &tsd_nominal_tsds, TSD_MANGLE(tcache).tsd_link) {
 		if (tsd == tsd_list) {
 			found = true;
 			break;
@@ -82,9 +82,9 @@ static void
 tsd_add_nominal(tsd_t *tsd) {
 	assert(!tsd_in_nominal_list(tsd));
 	assert(tsd_state_get(tsd) <= tsd_state_nominal_max);
-	ql_elm_new(tsd, TSD_MANGLE(link));
+	ql_elm_new(tsd, TSD_MANGLE(tcache).tsd_link);
 	malloc_mutex_lock(tsd_tsdn(tsd), &tsd_nominal_tsds_lock);
-	ql_tail_insert(&tsd_nominal_tsds, tsd, TSD_MANGLE(link));
+	ql_tail_insert(&tsd_nominal_tsds, tsd, TSD_MANGLE(tcache).tsd_link);
 	malloc_mutex_unlock(tsd_tsdn(tsd), &tsd_nominal_tsds_lock);
 }
 
@@ -93,7 +93,7 @@ tsd_remove_nominal(tsd_t *tsd) {
 	assert(tsd_in_nominal_list(tsd));
 	assert(tsd_state_get(tsd) <= tsd_state_nominal_max);
 	malloc_mutex_lock(tsd_tsdn(tsd), &tsd_nominal_tsds_lock);
-	ql_remove(&tsd_nominal_tsds, tsd, TSD_MANGLE(link));
+	ql_remove(&tsd_nominal_tsds, tsd, TSD_MANGLE(tcache).tsd_link);
 	malloc_mutex_unlock(tsd_tsdn(tsd), &tsd_nominal_tsds_lock);
 }
 
@@ -106,7 +106,7 @@ tsd_force_recompute(tsdn_t *tsdn) {
 	atomic_fence(ATOMIC_RELEASE);
 	malloc_mutex_lock(tsdn, &tsd_nominal_tsds_lock);
 	tsd_t *remote_tsd;
-	ql_foreach(remote_tsd, &tsd_nominal_tsds, TSD_MANGLE(link)) {
+	ql_foreach(remote_tsd, &tsd_nominal_tsds, TSD_MANGLE(tcache).tsd_link) {
 		assert(atomic_load_u8(&remote_tsd->state, ATOMIC_RELAXED)
 		    <= tsd_state_nominal_max);
 		atomic_store_u8(&remote_tsd->state, tsd_state_nominal_recompute,
