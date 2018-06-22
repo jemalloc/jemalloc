@@ -38,6 +38,7 @@ bool		opt_prof_gdump = false;
 bool		opt_prof_final = false;
 bool		opt_prof_leak = false;
 bool		opt_prof_accum = false;
+bool		opt_prof_prod_cons = false;
 char		opt_prof_prefix[
     /* Minimize memory bloat for non-prof builds. */
 #ifdef JEMALLOC_PROF
@@ -130,6 +131,28 @@ static int		prof_dump_fd;
 
 /* Do not dump any profiles until bootstrapping is complete. */
 static bool		prof_booted = false;
+
+
+typedef struct prof_prod_cons_data_s prof_prod_cons_data_t;
+typedef struct prof_prod_cons_key_s prof_prod_cons_key_t;
+
+typedef struct prof_prod_cons_data_s {
+	uint64_t bytes;
+	uint64_t objs;
+} prof_prod_cons_data_t;
+
+typedef struct prof_prod_cons_key_s {
+	/* thread uids of the producer and consumer threads */
+	uint64_t prod;
+	uint64_t cons;
+} prof_prod_cons_key_t;
+
+/*
+ * maps producer-consumer pair (i.e. [prof_prod_cons_key_t]) to bytes and object
+ * counts (i.e. [prof_prod_cons_data_t])
+ */
+static ckh_t		prod_cons;
+static malloc_mutex_t 	prod_cons_mtx;
 
 /******************************************************************************/
 /*
@@ -254,12 +277,61 @@ prof_malloc_sample_object(tsdn_t *tsdn, const void *ptr, size_t usize,
 }
 
 void
+prof_free_sampled_prod_cons(tsd_t *tsd, uint64_t prod_uid, uint64_t cons_uid, 
+    size_t usize) {
+	prof_prod_cons_key_t pair;
+	pair.prod = prod_uid;
+	pair.cons = cons_uid;
+	prof_prod_cons_data_t *data;
+
+	/* global lock for now. TODO: make this reader-writer, perhaps? */
+	malloc_mutex_lock(tsd_tsdn(tsd), &prod_cons_mtx);
+
+	if (ckh_search(&prod_cons, &pair, NULL, (void **)(&data))) {
+
+		/* add this producer-consumer pair to the table */
+
+		void *key = iallocztm(tsd_tsdn(tsd),
+		    sizeof(prof_prod_cons_key_t),
+		    sz_size2index(sizeof(prof_prod_cons_key_t)), false, NULL,
+		    true, arena_get(TSDN_NULL, 0, true), true);
+		memcpy(key, (void *)(&pair), sizeof(prof_prod_cons_key_t));
+
+		data = iallocztm(tsd_tsdn(tsd),
+		    sizeof(prof_prod_cons_data_t),
+		    sz_size2index(sizeof(prof_prod_cons_data_t)), true, NULL,
+		    true, arena_get(TSDN_NULL, 0, true), true);
+
+		ckh_insert(tsd, &prod_cons, key, data);
+	}
+
+	data->bytes += usize;
+	data->objs++;
+
+	malloc_mutex_unlock(tsd_tsdn(tsd), &prod_cons_mtx);
+}
+
+void
 prof_free_sampled_object(tsd_t *tsd, size_t usize, prof_tctx_t *tctx) {
 	malloc_mutex_lock(tsd_tsdn(tsd), tctx->tdata->lock);
 	assert(tctx->cnts.curobjs > 0);
 	assert(tctx->cnts.curbytes >= usize);
 	tctx->cnts.curobjs--;
 	tctx->cnts.curbytes -= usize;
+
+	prof_tdata_t *cons_tdata = prof_tdata_get(tsd, true);
+
+	/*
+	 * cons_tdata can be null if the current thread is in an unusual state:
+	 * e.g. it's being destroyed and tsd is in state tsd_state_purgatory.
+	 * We just ignore these cases.
+	 */
+	if (cons_tdata != NULL && opt_prof_prod_cons) {
+		uint64_t prod_uid, cons_uid;
+		prod_uid = tctx->tdata->thr_uid; 	
+		cons_uid = cons_tdata->thr_uid;	
+		prof_free_sampled_prod_cons(tsd, prod_uid, cons_uid, usize);
+	}
 
 	if (prof_tctx_should_destroy(tsd_tsdn(tsd), tctx)) {
 		prof_tctx_destroy(tsd, tctx);
@@ -2288,6 +2360,20 @@ prof_boot1(void) {
 	}
 }
 
+static void
+prof_prod_cons_hash(const void *key, size_t r_hash[2]) {
+	hash(key, sizeof(prof_prod_cons_key_t), 0x94122f34U, r_hash);
+}
+
+static bool
+prof_prod_cons_keycomp(const void *k1, const void *k2) {
+	prof_prod_cons_key_t *prod_cons1, *prod_cons2;
+	prod_cons1 = (prof_prod_cons_key_t *)k1;
+	prod_cons2 = (prof_prod_cons_key_t *)k2;
+	return prod_cons1->prod == prod_cons2->prod &&
+	    prod_cons1->cons == prod_cons2->cons;
+}
+
 bool
 prof_boot2(tsd_t *tsd) {
 	cassert(config_prof);
@@ -2314,6 +2400,16 @@ prof_boot2(tsd_t *tsd) {
 		    "prof_thread_active_init",
 		    WITNESS_RANK_PROF_THREAD_ACTIVE_INIT,
 		    malloc_mutex_rank_exclusive)) {
+			return true;
+		}
+
+		if (ckh_new(tsd, &prod_cons, 1U, prof_prod_cons_hash,
+		    prof_prod_cons_keycomp)) {
+			return true;
+		}
+
+		if (malloc_mutex_init(&prod_cons_mtx, "prof_prod_cons",
+		    WITNESS_RANK_OMIT, malloc_mutex_rank_exclusive)) {
 			return true;
 		}
 
