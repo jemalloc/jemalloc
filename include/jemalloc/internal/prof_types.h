@@ -40,6 +40,13 @@ typedef struct prof_tdata_s prof_tdata_t;
 #define PROF_NCTX_LOCKS			1024
 
 /*
+ * Shard tracking of producer-consumer objects among this many hashtables.  No
+ * space is allocated for these unless profiling is enabled, so it's okay to
+ * over-provision.
+ */
+#define PROF_PROD_CONS_LOCKS		256
+
+/*
  * Number of mutexes shared among all tdata's.  No space is allocated for these
  * unless profiling is enabled, so it's okay to over-provision.
  */

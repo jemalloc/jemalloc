@@ -90,4 +90,6 @@ void prof_postfork_parent(tsdn_t *tsdn);
 void prof_postfork_child(tsdn_t *tsdn);
 void prof_sample_threshold_update(prof_tdata_t *tdata);
 
+void prof_dump_prod_cons();
+
 #endif /* JEMALLOC_INTERNAL_PROF_EXTERNS_H */

@@ -151,8 +151,8 @@ struct prof_prod_cons_key_s {
  * Maps producer-consumer pair (i.e. [prof_prod_cons_key_t]) to bytes and object
  * counts (i.e. [prof_prod_cons_data_t]).
  */
-static ckh_t		prod_cons;
-static malloc_mutex_t 	prod_cons_mtx;
+ckh_t *prod_cons_tables;
+malloc_mutex_t *prod_cons_locks;
 
 /******************************************************************************/
 /*
@@ -230,6 +230,34 @@ rb_gen(static UNUSED, tdata_tree_, prof_tdata_tree_t, prof_tdata_t, tdata_link,
 
 /******************************************************************************/
 
+void prof_dump_prod_cons() {
+	tsd_t *tsd = tsd_fetch();
+	for (int i = 0; i < PROF_PROD_CONS_LOCKS; i++) {
+		malloc_mutex_t *mtx = &prod_cons_locks[i];
+		ckh_t *tbl = &prod_cons_tables[i];
+
+		if (tbl->tab == NULL) {
+			continue;
+		}
+
+		malloc_mutex_lock(tsd_tsdn(tsd), mtx);
+
+		size_t tabind = 0;
+		prof_prod_cons_key_t *key;
+		prof_prod_cons_data_t *data;
+		while (!ckh_iter(tbl, &tabind, (void **)(&key),
+		    (void **)(&data))) {
+			malloc_printf("Producer: %"FMTu64"\n"
+				      "Consumer: %"FMTu64"\n"
+				      "Bytes:    %"FMTu64"\n"
+				      "Objects:  %"FMTu64"\n\n",
+			    key->prod, key->cons, data->bytes, data->objs);
+		}
+
+		malloc_mutex_unlock(tsd_tsdn(tsd), mtx);
+	}
+}
+
 void
 prof_alloc_rollback(tsd_t *tsd, prof_tctx_t *tctx, bool updated) {
 	prof_tdata_t *tdata;
@@ -276,7 +304,46 @@ prof_malloc_sample_object(tsdn_t *tsdn, const void *ptr, size_t usize,
 	malloc_mutex_unlock(tsdn, tctx->tdata->lock);
 }
 
-void
+static int
+prof_prod_cons_index_choose(prof_prod_cons_key_t key) {
+	size_t r_hash[2];
+	/* hashing to get a good distribution that combines key.{prod, cons} */
+	hash(&key, sizeof(prof_prod_cons_key_t), 0x94122f35U, r_hash);
+	return (int) (r_hash[0] % PROF_PROD_CONS_LOCKS);
+}
+
+static void
+prof_prod_cons_hash(const void *key, size_t r_hash[2]) {
+	hash(key, sizeof(prof_prod_cons_key_t), 0x94122f34U, r_hash);
+}
+
+static bool
+prof_prod_cons_keycomp(const void *k1, const void *k2) {
+	prof_prod_cons_key_t *prod_cons1, *prod_cons2;
+	prod_cons1 = (prof_prod_cons_key_t *)k1;
+	prod_cons2 = (prof_prod_cons_key_t *)k2;
+	return prod_cons1->prod == prod_cons2->prod &&
+	    prod_cons1->cons == prod_cons2->cons;
+}
+
+/* Lazily initializes the table in prod_cons_tables at index i. */
+static ckh_t *
+prof_prod_cons_tbl_get(tsd_t *tsd, int i) {
+	assert(i < PROF_PROD_CONS_LOCKS);
+	ckh_t *tbl = &prod_cons_tables[i];
+	/* The table hasn't been initialized iff the internal table is NULL. */
+	if (tbl->tab == NULL) {
+		malloc_mutex_lock(tsd_tsdn(tsd), &prod_cons_locks[i]);
+		if (ckh_new(tsd, tbl, 1U, &prof_prod_cons_hash,
+		    prof_prod_cons_keycomp)) {
+			return NULL;
+		}
+		malloc_mutex_unlock(tsd_tsdn(tsd), &prod_cons_locks[i]);
+	}
+	return tbl;
+}
+
+static void
 prof_free_sampled_prod_cons(tsd_t *tsd, uint64_t prod_uid, uint64_t cons_uid, 
     size_t usize) {
 	prof_prod_cons_key_t pair;
@@ -284,10 +351,13 @@ prof_free_sampled_prod_cons(tsd_t *tsd, uint64_t prod_uid, uint64_t cons_uid,
 	pair.cons = cons_uid;
 	prof_prod_cons_data_t *data;
 
-	/* global lock for now. TODO: make this reader-writer, perhaps? */
-	malloc_mutex_lock(tsd_tsdn(tsd), &prod_cons_mtx);
+	int i = prof_prod_cons_index_choose(pair);
+	ckh_t *table = prof_prod_cons_tbl_get(tsd, i);
+	malloc_mutex_t *lock = &prod_cons_locks[i];
 
-	if (ckh_search(&prod_cons, &pair, NULL, (void **)(&data))) {
+	malloc_mutex_lock(tsd_tsdn(tsd), lock);
+
+	if (ckh_search(table, &pair, NULL, (void **)(&data))) {
 
 		/* add this producer-consumer pair to the table */
 
@@ -302,13 +372,13 @@ prof_free_sampled_prod_cons(tsd_t *tsd, uint64_t prod_uid, uint64_t cons_uid,
 		    sz_size2index(sizeof(prof_prod_cons_data_t)), true, NULL,
 		    true, arena_get(TSDN_NULL, 0, true), true);
 
-		ckh_insert(tsd, &prod_cons, key, data);
+		ckh_insert(tsd, table, key, data);
 	}
 
 	data->bytes += usize;
 	data->objs++;
 
-	malloc_mutex_unlock(tsd_tsdn(tsd), &prod_cons_mtx);
+	malloc_mutex_unlock(tsd_tsdn(tsd), lock);
 }
 
 void
@@ -2360,20 +2430,6 @@ prof_boot1(void) {
 	}
 }
 
-static void
-prof_prod_cons_hash(const void *key, size_t r_hash[2]) {
-	hash(key, sizeof(prof_prod_cons_key_t), 0x94122f34U, r_hash);
-}
-
-static bool
-prof_prod_cons_keycomp(const void *k1, const void *k2) {
-	prof_prod_cons_key_t *prod_cons1, *prod_cons2;
-	prod_cons1 = (prof_prod_cons_key_t *)k1;
-	prod_cons2 = (prof_prod_cons_key_t *)k2;
-	return prod_cons1->prod == prod_cons2->prod &&
-	    prod_cons1->cons == prod_cons2->cons;
-}
-
 bool
 prof_boot2(tsd_t *tsd) {
 	cassert(config_prof);
@@ -2403,20 +2459,43 @@ prof_boot2(tsd_t *tsd) {
 			return true;
 		}
 
-		if (ckh_new(tsd, &prod_cons, 1U, prof_prod_cons_hash,
-		    prof_prod_cons_keycomp)) {
-			return true;
-		}
+		/* Initialize prod_cons_tables and prod_cons_locks */
+		if (opt_prof_prod_cons) {
+			size_t sz = PROF_PROD_CONS_LOCKS * sizeof(ckh_t);
+			/* Allocate space for tables, but initialize lazily */
+			prod_cons_tables = (ckh_t *)base_alloc(tsd_tsdn(tsd),
+			    b0get(), sz, CACHELINE);
 
-		if (malloc_mutex_init(&prod_cons_mtx, "prof_prod_cons",
-		    WITNESS_RANK_OMIT, malloc_mutex_rank_exclusive)) {
-			return true;
+			memset(prod_cons_tables, 0, sz);
+
+			if (prod_cons_tables == NULL) {
+				return true;
+			}
+
+			sz = PROF_PROD_CONS_LOCKS *
+				        sizeof(malloc_mutex_t);
+			prod_cons_locks = (malloc_mutex_t *)
+					      base_alloc(tsd_tsdn(tsd), b0get(),
+					      sz, CACHELINE);
+
+			if (prod_cons_locks == NULL) {
+				return true;
+			}
+
+			for (i = 0; i < PROF_PROD_CONS_LOCKS; i++) {
+				if (malloc_mutex_init(&prod_cons_locks[i],
+				    "prof_prod_cons", WITNESS_RANK_OMIT,
+				    malloc_mutex_rank_exclusive)) {
+					return true;
+				}
+			}
 		}
 
 		if (ckh_new(tsd, &bt2gctx, PROF_CKH_MINITEMS, prof_bt_hash,
 		    prof_bt_keycomp)) {
 			return true;
 		}
+
 		if (malloc_mutex_init(&bt2gctx_mtx, "prof_bt2gctx",
 		    WITNESS_RANK_PROF_BT2GCTX, malloc_mutex_rank_exclusive)) {
 			return true;
