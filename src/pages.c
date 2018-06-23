@@ -180,6 +180,31 @@ pages_map(void *addr, size_t size, size_t alignment, bool *commit) {
 	assert(alignment >= PAGE);
 	assert(ALIGNMENT_ADDR2BASE(addr, alignment) == addr);
 
+#if defined(__FreeBSD__) && defined(MAP_EXCL)
+	/*
+	 * FreeBSD has mechanisms both to mmap at specific address without
+	 * touching existing mappings, and to mmap with specific alignment.
+	 */
+	{
+		int prot = *commit ? PAGES_PROT_COMMIT : PAGES_PROT_DECOMMIT;
+		int flags = mmap_flags;
+
+		if (addr != NULL) {
+			flags |= MAP_FIXED | MAP_EXCL;
+		} else {
+			unsigned alignment_bits = ffs_zu(alignment);
+			assert(alignment_bits > 1);
+			flags |= MAP_ALIGNED(alignment_bits - 1);
+		}
+
+		void *ret = mmap(addr, size, prot, flags, -1, 0);
+		if (ret == MAP_FAILED) {
+			ret = NULL;
+		}
+
+		return ret;
+	}
+#endif
 	/*
 	 * Ideally, there would be a way to specify alignment to mmap() (like
 	 * NetBSD has), but in the absence of such a feature, we have to work
