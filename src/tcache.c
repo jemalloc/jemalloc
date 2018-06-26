@@ -193,8 +193,8 @@ tcache_bin_flush_large(tsd_t *tsd, cache_bin_t *tbin, szind_t binind,
 	assert(binind < nhbins);
 	assert((cache_bin_sz_t)rem <= tbin->ncached);
 
-	arena_t *arena = tcache->arena;
-	assert(arena != NULL);
+	arena_t *tcache_arena = tcache->arena;
+	assert(tcache_arena != NULL);
 	unsigned nflush = tbin->ncached - rem;
 	VARIABLE_ARRAY(extent_t *, item_extent, nflush);
 	/* Look up extent once per item. */
@@ -212,7 +212,7 @@ tcache_bin_flush_large(tsd_t *tsd, cache_bin_t *tbin, szind_t binind,
 			idump = false;
 		}
 
-		bool lock_large = !arena_is_auto(arena);
+		bool lock_large = !arena_is_auto(locked_arena);
 		if (lock_large) {
 			malloc_mutex_lock(tsd_tsdn(tsd), &locked_arena->large_mtx);
 		}
@@ -225,16 +225,17 @@ tcache_bin_flush_large(tsd_t *tsd, cache_bin_t *tbin, szind_t binind,
 				    extent);
 			}
 		}
-		if ((config_prof || config_stats) && locked_arena == arena) {
+		if ((config_prof || config_stats) &&
+		    (locked_arena == tcache_arena)) {
 			if (config_prof) {
-				idump = arena_prof_accum(tsd_tsdn(tsd), arena,
-				    tcache->prof_accumbytes);
+				idump = arena_prof_accum(tsd_tsdn(tsd),
+				    tcache_arena, tcache->prof_accumbytes);
 				tcache->prof_accumbytes = 0;
 			}
 			if (config_stats) {
 				merged_stats = true;
 				arena_stats_large_nrequests_add(tsd_tsdn(tsd),
-				    &arena->stats, binind,
+				    &tcache_arena->stats, binind,
 				    tbin->tstats.nrequests);
 				tbin->tstats.nrequests = 0;
 			}
@@ -275,8 +276,8 @@ tcache_bin_flush_large(tsd_t *tsd, cache_bin_t *tbin, szind_t binind,
 		 * The flush loop didn't happen to flush to this thread's
 		 * arena, so the stats didn't get merged.  Manually do so now.
 		 */
-		arena_stats_large_nrequests_add(tsd_tsdn(tsd), &arena->stats,
-		    binind, tbin->tstats.nrequests);
+		arena_stats_large_nrequests_add(tsd_tsdn(tsd),
+		    &tcache_arena->stats, binind, tbin->tstats.nrequests);
 		tbin->tstats.nrequests = 0;
 	}
 
