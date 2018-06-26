@@ -71,6 +71,38 @@ TEST_BEGIN(test_overflow) {
 }
 TEST_END
 
+static void *
+remote_alloc(void *arg) {
+	unsigned arena;
+	size_t sz = sizeof(unsigned);
+	assert_d_eq(mallctl("arenas.create", (void *)&arena, &sz, NULL, 0), 0,
+	    "Unexpected mallctl() failure");
+	size_t large_sz;
+	sz = sizeof(size_t);
+	assert_d_eq(mallctl("arenas.lextent.0.size", (void *)&large_sz, &sz,
+	    NULL, 0), 0, "Unexpected mallctl failure");
+
+	void *ptr = mallocx(large_sz, MALLOCX_ARENA(arena)
+	    | MALLOCX_TCACHE_NONE);
+	void **ret = (void **)arg;
+	*ret = ptr;
+
+	return NULL;
+}
+
+TEST_BEGIN(test_remote_free) {
+	thd_t thd;
+	void *ret;
+	thd_create(&thd, remote_alloc, (void *)&ret);
+	thd_join(thd, NULL);
+	assert_ptr_not_null(ret, "Unexpected mallocx failure");
+
+	/* Avoid TCACHE_NONE to explicitly test tcache_flush(). */
+	dallocx(ret, 0);
+	mallctl("thread.tcache.flush", NULL, NULL, NULL, 0);
+}
+TEST_END
+
 TEST_BEGIN(test_oom) {
 	size_t largemax;
 	bool oom;
@@ -223,6 +255,7 @@ main(void) {
 	return test(
 	    test_overflow,
 	    test_oom,
+	    test_remote_free,
 	    test_basic,
 	    test_alignment_and_size);
 }
