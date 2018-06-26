@@ -176,6 +176,11 @@ extent_prof_tctx_get(const extent_t *extent) {
 	    ATOMIC_ACQUIRE);
 }
 
+static inline nstime_t
+extent_prof_alloc_time_get(const extent_t *extent) {
+	return extent->e_alloc_time;
+}
+
 static inline void
 extent_arena_set(extent_t *extent, arena_t *arena) {
 	unsigned arena_ind = (arena != NULL) ? arena_ind_get(arena) : ((1U <<
@@ -297,6 +302,11 @@ extent_slab_set(extent_t *extent, bool slab) {
 static inline void
 extent_prof_tctx_set(extent_t *extent, prof_tctx_t *tctx) {
 	atomic_store_p(&extent->e_prof_tctx, tctx, ATOMIC_RELEASE);
+}
+
+static inline void
+extent_prof_alloc_time_set(extent_t *extent, nstime_t t) {
+	nstime_copy(&extent->e_alloc_time, &t);
 }
 
 static inline void

@@ -57,6 +57,32 @@ arena_prof_tctx_reset(tsdn_t *tsdn, const void *ptr, UNUSED prof_tctx_t *tctx) {
 	large_prof_tctx_reset(tsdn, extent);
 }
 
+JEMALLOC_ALWAYS_INLINE nstime_t
+arena_prof_alloc_time_get(tsdn_t *tsdn, const void *ptr,
+    alloc_ctx_t *alloc_ctx) {
+	cassert(config_prof);
+	assert(ptr != NULL);
+
+	extent_t *extent = iealloc(tsdn, ptr);
+	/* 
+	 * Unlike arena_prof_prof_tctx_{get, set}, we only call this once we're
+	 * sure we have a sampled allocation.
+	 */
+	assert(!extent_slab_get(extent));
+	return large_prof_alloc_time_get(extent);
+}
+
+JEMALLOC_ALWAYS_INLINE void
+arena_prof_alloc_time_set(tsdn_t *tsdn, const void *ptr, alloc_ctx_t *alloc_ctx,
+    nstime_t t) {
+	cassert(config_prof);
+	assert(ptr != NULL);
+
+	extent_t *extent = iealloc(tsdn, ptr);
+	assert(!extent_slab_get(extent));
+	large_prof_alloc_time_set(extent, t);
+}
+
 JEMALLOC_ALWAYS_INLINE void
 arena_decay_ticks(tsdn_t *tsdn, arena_t *arena, unsigned nticks) {
 	tsd_t *tsd;

@@ -38,6 +38,7 @@ bool		opt_prof_gdump = false;
 bool		opt_prof_final = false;
 bool		opt_prof_leak = false;
 bool		opt_prof_accum = false;
+bool		opt_prof_lifetimes = false;
 char		opt_prof_prefix[
     /* Minimize memory bloat for non-prof builds. */
 #ifdef JEMALLOC_PROF
@@ -130,6 +131,34 @@ static int		prof_dump_fd;
 
 /* Do not dump any profiles until bootstrapping is complete. */
 static bool		prof_booted = false;
+
+static uint64_t		lifetime_cnts[NSIZES];
+static uint64_t		lifetime_ns_sum[NSIZES];
+static malloc_mutex_t	lifetime_locks[NSIZES];
+
+void prof_avg_lifetime_dump() {
+	assert(opt_prof_lifetimes);
+	tsd_t *tsd = tsd_fetch();
+	int i;
+	for (i = 0; i < NSIZES; i++) {
+		size_t usize = sz_index2size(i);
+		uint64_t ns_avg = 0;
+		bool should_print;
+		malloc_mutex_lock(tsd_tsdn(tsd), &lifetime_locks[i]);
+		if (lifetime_cnts[i] != 0) {
+			ns_avg = lifetime_ns_sum[i] / lifetime_cnts[i];
+			should_print = true;
+		} else {
+			should_print = false;
+		}
+		malloc_mutex_unlock(tsd_tsdn(tsd), &lifetime_locks[i]);
+
+		if (should_print) {
+			malloc_printf("Size class %"FMTu64": %"FMTu64" ns\n",
+			    (uint64_t)usize, ns_avg);
+		}
+	}
+}
 
 /******************************************************************************/
 /*
@@ -242,6 +271,12 @@ prof_malloc_sample_object(tsdn_t *tsdn, const void *ptr, size_t usize,
     prof_tctx_t *tctx) {
 	prof_tctx_set(tsdn, ptr, usize, NULL, tctx);
 
+	if (opt_prof_lifetimes) {
+		nstime_t t = NSTIME_ZERO_INITIALIZER;
+		nstime_update(&t);
+		prof_alloc_time_set(tsdn, ptr, NULL, t);
+	}	
+
 	malloc_mutex_lock(tsdn, tctx->tdata->lock);
 	tctx->cnts.curobjs++;
 	tctx->cnts.curbytes += usize;
@@ -254,12 +289,29 @@ prof_malloc_sample_object(tsdn_t *tsdn, const void *ptr, size_t usize,
 }
 
 void
-prof_free_sampled_object(tsd_t *tsd, size_t usize, prof_tctx_t *tctx) {
+prof_free_sampled_object(tsd_t *tsd, const void *ptr, size_t usize, 
+    prof_tctx_t *tctx) {
 	malloc_mutex_lock(tsd_tsdn(tsd), tctx->tdata->lock);
 	assert(tctx->cnts.curobjs > 0);
 	assert(tctx->cnts.curbytes >= usize);
 	tctx->cnts.curobjs--;
 	tctx->cnts.curbytes -= usize;
+
+	if (opt_prof_lifetimes) {
+		nstime_t alloc_time = arena_prof_alloc_time_get(tsd_tsdn(tsd),
+			       	          ptr, (alloc_ctx_t *)NULL);
+		nstime_t diff = NSTIME_ZERO_INITIALIZER;
+		nstime_update(&diff);
+		nstime_subtract(&diff, &alloc_time);
+		size_t ind = sz_size2index(usize);
+
+		malloc_mutex_t *mtx = &lifetime_locks[ind];
+
+		malloc_mutex_lock(tsd_tsdn(tsd), mtx);
+		lifetime_cnts[ind]++;
+		lifetime_ns_sum[ind] += nstime_nsec(&diff);
+		malloc_mutex_unlock(tsd_tsdn(tsd), mtx);
+	}
 
 	if (prof_tctx_should_destroy(tsd_tsdn(tsd), tctx)) {
 		prof_tctx_destroy(tsd, tctx);
@@ -2324,6 +2376,19 @@ prof_boot2(tsd_t *tsd) {
 		if (malloc_mutex_init(&bt2gctx_mtx, "prof_bt2gctx",
 		    WITNESS_RANK_PROF_BT2GCTX, malloc_mutex_rank_exclusive)) {
 			return true;
+		}
+
+		if (opt_prof_lifetimes) {
+			for (i = 0; i < NSIZES; i++) {
+				if (malloc_mutex_init(&lifetime_locks[i],
+				    "lifetime_lock", WITNESS_RANK_OMIT,
+				    malloc_mutex_rank_exclusive)) {
+					return true;
+				}
+
+				lifetime_cnts[i] = 0;
+				lifetime_ns_sum[i] = 0;
+			}
 		}
 
 		tdata_tree_new(&tdatas);
