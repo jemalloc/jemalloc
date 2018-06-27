@@ -1176,9 +1176,10 @@ prof_tctx_dump_iter(prof_tctx_tree_t *tctxs, prof_tctx_t *tctx, void *opaque) {
 	case prof_tctx_state_purgatory:
 		if (prof_dump_printf(arg->propagate_err,
 		    "  t%"FMTu64": %"FMTu64": %"FMTu64" [%"FMTu64": "
-		    "%"FMTu64"]\n", tctx->thr_uid, tctx->dump_cnts.curobjs,
-		    tctx->dump_cnts.curbytes, tctx->dump_cnts.accumobjs,
-		    tctx->dump_cnts.accumbytes)) {
+		    "%"FMTu64"] [%"FMTu64": %"FMTu64"]\n", tctx->thr_uid,
+		    tctx->dump_cnts.curobjs, tctx->dump_cnts.curbytes,
+		    tctx->dump_cnts.accumobjs, tctx->dump_cnts.accumbytes,
+		    tctx->lifetime_cnts.objs, tctx->lifetime_cnts.bytes)) {
 			return tctx;
 		}
 		break;
@@ -1435,9 +1436,12 @@ prof_dump_gctx(tsdn_t *tsdn, bool propagate_err, prof_gctx_t *gctx,
 
 	if (prof_dump_printf(propagate_err,
 	    "\n"
-	    "  t*: %"FMTu64": %"FMTu64" [%"FMTu64": %"FMTu64"]\n",
+	    "  t*: %"FMTu64": %"FMTu64" [%"FMTu64": %"FMTu64"] [%"FMTu64": "
+	    "%"FMTu64"]\n",
 	    gctx->cnt_summed.curobjs, gctx->cnt_summed.curbytes,
-	    gctx->cnt_summed.accumobjs, gctx->cnt_summed.accumbytes)) {
+	    gctx->cnt_summed.accumobjs, gctx->cnt_summed.accumbytes,
+	    gctx->lifetime_cnts_summed.objs,
+	    gctx->lifetime_cnts_summed.bytes)) {
 		ret = true;
 		goto label_return;
 	}
