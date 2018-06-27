@@ -14,8 +14,14 @@ extern bool	opt_prof_gdump;       /* High-water memory dumping. */
 extern bool	opt_prof_final;       /* Final profile dumping. */
 extern bool	opt_prof_leak;        /* Dump leak summary at exit. */
 extern bool	opt_prof_accum;       /* Report cumulative bytes. */
-extern bool	opt_prof_lifetimes;   /* Track lifetimes of allocations. */
+
+/* For tracking counts/bytes for allocations with lifetimes within threshold. */
+extern bool	opt_prof_lifetimes; 	    /* Turns on this feature. */
+extern size_t	opt_lg_prof_lifetime_lower; /* Lower bound for threshold. */
+extern size_t	opt_lg_prof_lifetime_upper; /* Upper bound for threshold. */
+
 extern char	opt_prof_prefix[
+
     /* Minimize memory bloat for non-prof builds. */
 #ifdef JEMALLOC_PROF
     PATH_MAX +

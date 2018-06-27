@@ -1193,6 +1193,15 @@ malloc_conf_init(void) {
 				CONF_HANDLE_BOOL(opt_prof_leak, "prof_leak")
 				CONF_HANDLE_BOOL(opt_prof_lifetimes,
 				    "prof_lifetimes")
+				CONF_HANDLE_SIZE_T(opt_lg_prof_lifetime_lower,
+				    "lg_prof_lifetime_lower", 0,
+				    (sizeof(uint64_t) << 3) - 1,
+				    no, yes, true)
+				CONF_HANDLE_SIZE_T(opt_lg_prof_lifetime_upper,
+				    "lg_prof_lifetime_upper",
+				    opt_lg_prof_lifetime_lower,
+				    (sizeof(uint64_t) << 3) - 1,
+				    yes, yes, true)
 			}
 			if (config_log) {
 				if (CONF_MATCH("log")) {

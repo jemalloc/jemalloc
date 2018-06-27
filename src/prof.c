@@ -38,6 +38,8 @@ bool		opt_prof_gdump = false;
 bool		opt_prof_final = false;
 bool		opt_prof_leak = false;
 bool		opt_prof_accum = false;
+size_t		opt_lg_prof_lifetime_lower = LG_PROF_LIFETIME_LOWER_DEFAULT;
+size_t		opt_lg_prof_lifetime_upper = LG_PROF_LIFETIME_UPPER_DEFAULT;
 bool		opt_prof_lifetimes = false;
 char		opt_prof_prefix[
     /* Minimize memory bloat for non-prof builds. */
@@ -131,34 +133,6 @@ static int		prof_dump_fd;
 
 /* Do not dump any profiles until bootstrapping is complete. */
 static bool		prof_booted = false;
-
-static uint64_t		lifetime_cnts[NSIZES];
-static uint64_t		lifetime_ns_sum[NSIZES];
-static malloc_mutex_t	lifetime_locks[NSIZES];
-
-void prof_avg_lifetime_dump() {
-	assert(opt_prof_lifetimes);
-	tsd_t *tsd = tsd_fetch();
-	int i;
-	for (i = 0; i < NSIZES; i++) {
-		size_t usize = sz_index2size(i);
-		uint64_t ns_avg = 0;
-		bool should_print;
-		malloc_mutex_lock(tsd_tsdn(tsd), &lifetime_locks[i]);
-		if (lifetime_cnts[i] != 0) {
-			ns_avg = lifetime_ns_sum[i] / lifetime_cnts[i];
-			should_print = true;
-		} else {
-			should_print = false;
-		}
-		malloc_mutex_unlock(tsd_tsdn(tsd), &lifetime_locks[i]);
-
-		if (should_print) {
-			malloc_printf("Size class %"FMTu64": %"FMTu64" ns\n",
-			    (uint64_t)usize, ns_avg);
-		}
-	}
-}
 
 /******************************************************************************/
 /*
@@ -275,7 +249,7 @@ prof_malloc_sample_object(tsdn_t *tsdn, const void *ptr, size_t usize,
 		nstime_t t = NSTIME_ZERO_INITIALIZER;
 		nstime_update(&t);
 		prof_alloc_time_set(tsdn, ptr, NULL, t);
-	}	
+	}
 
 	malloc_mutex_lock(tsdn, tctx->tdata->lock);
 	tctx->cnts.curobjs++;
@@ -299,19 +273,21 @@ prof_free_sampled_object(tsd_t *tsd, const void *ptr, size_t usize,
 
 	if (opt_prof_lifetimes) {
 		nstime_t alloc_time = arena_prof_alloc_time_get(tsd_tsdn(tsd),
-			       	          ptr, (alloc_ctx_t *)NULL);
+					  ptr, (alloc_ctx_t *)NULL);
 		nstime_t diff = NSTIME_ZERO_INITIALIZER;
 		nstime_update(&diff);
 		nstime_subtract(&diff, &alloc_time);
-		size_t ind = sz_size2index(usize);
 
-		malloc_mutex_t *mtx = &lifetime_locks[ind];
+		uint64_t ns_lifetime = nstime_nsec(&diff);
+		uint64_t lower = 1 << opt_lg_prof_lifetime_lower;
+		uint64_t upper = 1 << opt_lg_prof_lifetime_upper;
 
-		malloc_mutex_lock(tsd_tsdn(tsd), mtx);
-		lifetime_cnts[ind]++;
-		lifetime_ns_sum[ind] += nstime_nsec(&diff);
-		malloc_mutex_unlock(tsd_tsdn(tsd), mtx);
+		if (lower <= ns_lifetime && ns_lifetime <= upper) {
+			tctx->lifetime_cnts.bytes += usize;
+			tctx->lifetime_cnts.objs++;
+		}
 	}
+
 
 	if (prof_tctx_should_destroy(tsd_tsdn(tsd), tctx)) {
 		prof_tctx_destroy(tsd, tctx);
@@ -665,7 +641,9 @@ prof_gctx_try_destroy(tsd_t *tsd, prof_tdata_t *tdata_self, prof_gctx_t *gctx,
 static bool
 prof_tctx_should_destroy(tsdn_t *tsdn, prof_tctx_t *tctx) {
 	malloc_mutex_assert_owner(tsdn, tctx->tdata->lock);
-
+	if (opt_prof_lifetimes) {
+		return false;
+	}
 	if (opt_prof_accum) {
 		return false;
 	}
@@ -675,11 +653,15 @@ prof_tctx_should_destroy(tsdn_t *tsdn, prof_tctx_t *tctx) {
 	if (tctx->prepared) {
 		return false;
 	}
+
 	return true;
 }
 
 static bool
 prof_gctx_should_destroy(prof_gctx_t *gctx) {
+	if (opt_prof_lifetimes) {
+		return false;
+	}
 	if (opt_prof_accum) {
 		return false;
 	}
@@ -883,6 +865,7 @@ prof_lookup(tsd_t *tsd, prof_bt_t *bt) {
 		ret.p->thr_uid = tdata->thr_uid;
 		ret.p->thr_discrim = tdata->thr_discrim;
 		memset(&ret.p->cnts, 0, sizeof(prof_cnt_t));
+		memset(&ret.p->lifetime_cnts, 0, sizeof(prof_lifetime_cnts_t));
 		ret.p->gctx = gctx;
 		ret.p->tctx_uid = tdata->tctx_uid_next++;
 		ret.p->prepared = true;
@@ -1145,6 +1128,10 @@ prof_tctx_merge_gctx(tsdn_t *tsdn, prof_tctx_t *tctx, prof_gctx_t *gctx) {
 		gctx->cnt_summed.accumobjs += tctx->dump_cnts.accumobjs;
 		gctx->cnt_summed.accumbytes += tctx->dump_cnts.accumbytes;
 	}
+	if (opt_prof_lifetimes) {
+		gctx->lifetime_cnts_summed.bytes += tctx->lifetime_cnts.bytes;
+		gctx->lifetime_cnts_summed.objs += tctx->lifetime_cnts.objs;
+	}
 }
 
 static prof_tctx_t *
@@ -1242,6 +1229,7 @@ prof_dump_gctx_prep(tsdn_t *tsdn, prof_gctx_t *gctx, prof_gctx_tree_t *gctxs) {
 	gctx_tree_insert(gctxs, gctx);
 
 	memset(&gctx->cnt_summed, 0, sizeof(prof_cnt_t));
+	memset(&gctx->lifetime_cnts_summed, 0, sizeof(prof_lifetime_cnts_t));
 
 	malloc_mutex_unlock(tsdn, gctx->lock);
 }
@@ -1396,6 +1384,22 @@ prof_dump_header_impl(tsdn_t *tsdn, bool propagate_err,
 prof_dump_header_t *JET_MUTABLE prof_dump_header = prof_dump_header_impl;
 
 static bool
+prof_should_dump_gctx(tsdn_t *tsdn, prof_gctx_t *gctx) {
+	malloc_mutex_assert_owner(tsdn, gctx->lock);
+
+	if (gctx->cnt_summed.curobjs != 0) {
+		return true;
+	}
+	if (opt_prof_accum && gctx->cnt_summed.accumobjs != 0) {
+		return true;
+	}
+	if (opt_prof_lifetimes && gctx->lifetime_cnts_summed.objs != 0) {
+		return true;
+	}
+	return false;
+}
+
+static bool
 prof_dump_gctx(tsdn_t *tsdn, bool propagate_err, prof_gctx_t *gctx,
     const prof_bt_t *bt, prof_gctx_tree_t *gctxs) {
 	bool ret;
@@ -1406,12 +1410,13 @@ prof_dump_gctx(tsdn_t *tsdn, bool propagate_err, prof_gctx_t *gctx,
 	malloc_mutex_assert_owner(tsdn, gctx->lock);
 
 	/* Avoid dumping such gctx's that have no useful data. */
-	if ((!opt_prof_accum && gctx->cnt_summed.curobjs == 0) ||
-	    (opt_prof_accum && gctx->cnt_summed.accumobjs == 0)) {
+	if (!prof_should_dump_gctx(tsdn, gctx)) {
 		assert(gctx->cnt_summed.curobjs == 0);
 		assert(gctx->cnt_summed.curbytes == 0);
 		assert(gctx->cnt_summed.accumobjs == 0);
 		assert(gctx->cnt_summed.accumbytes == 0);
+		assert(gctx->lifetime_cnts_summed.bytes == 0);
+		assert(gctx->lifetime_cnts_summed.objs == 0);
 		ret = false;
 		goto label_return;
 	}
@@ -2376,19 +2381,6 @@ prof_boot2(tsd_t *tsd) {
 		if (malloc_mutex_init(&bt2gctx_mtx, "prof_bt2gctx",
 		    WITNESS_RANK_PROF_BT2GCTX, malloc_mutex_rank_exclusive)) {
 			return true;
-		}
-
-		if (opt_prof_lifetimes) {
-			for (i = 0; i < NSIZES; i++) {
-				if (malloc_mutex_init(&lifetime_locks[i],
-				    "lifetime_lock", WITNESS_RANK_OMIT,
-				    malloc_mutex_rank_exclusive)) {
-					return true;
-				}
-
-				lifetime_cnts[i] = 0;
-				lifetime_ns_sum[i] = 0;
-			}
 		}
 
 		tdata_tree_new(&tdatas);
