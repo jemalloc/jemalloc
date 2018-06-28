@@ -132,28 +132,6 @@ static int		prof_dump_fd;
 /* Do not dump any profiles until bootstrapping is complete. */
 static bool		prof_booted = false;
 
-
-typedef struct prof_prod_cons_data_s prof_prod_cons_data_t;
-typedef struct prof_prod_cons_key_s prof_prod_cons_key_t;
-
-struct prof_prod_cons_data_s {
-	uint64_t bytes;
-	uint64_t objs;
-};
-
-struct prof_prod_cons_key_s {
-	/* thread uids of the producer and consumer threads */
-	uint64_t prod;
-	uint64_t cons;
-};
-
-/*
- * Maps producer-consumer pair (i.e. [prof_prod_cons_key_t]) to bytes and object
- * counts (i.e. [prof_prod_cons_data_t]).
- */
-ckh_t *prod_cons_tables;
-malloc_mutex_t *prod_cons_locks;
-
 /******************************************************************************/
 /*
  * Function prototypes for static functions that are referenced prior to
@@ -230,34 +208,6 @@ rb_gen(static UNUSED, tdata_tree_, prof_tdata_tree_t, prof_tdata_t, tdata_link,
 
 /******************************************************************************/
 
-void prof_dump_prod_cons() {
-	tsd_t *tsd = tsd_fetch();
-	for (int i = 0; i < PROF_PROD_CONS_LOCKS; i++) {
-		malloc_mutex_t *mtx = &prod_cons_locks[i];
-		ckh_t *tbl = &prod_cons_tables[i];
-
-		if (tbl->tab == NULL) {
-			continue;
-		}
-
-		malloc_mutex_lock(tsd_tsdn(tsd), mtx);
-
-		size_t tabind = 0;
-		prof_prod_cons_key_t *key;
-		prof_prod_cons_data_t *data;
-		while (!ckh_iter(tbl, &tabind, (void **)(&key),
-		    (void **)(&data))) {
-			malloc_printf("Producer: %"FMTu64"\n"
-				      "Consumer: %"FMTu64"\n"
-				      "Bytes:    %"FMTu64"\n"
-				      "Objects:  %"FMTu64"\n\n",
-			    key->prod, key->cons, data->bytes, data->objs);
-		}
-
-		malloc_mutex_unlock(tsd_tsdn(tsd), mtx);
-	}
-}
-
 void
 prof_alloc_rollback(tsd_t *tsd, prof_tctx_t *tctx, bool updated) {
 	prof_tdata_t *tdata;
@@ -304,83 +254,6 @@ prof_malloc_sample_object(tsdn_t *tsdn, const void *ptr, size_t usize,
 	malloc_mutex_unlock(tsdn, tctx->tdata->lock);
 }
 
-static int
-prof_prod_cons_index_choose(prof_prod_cons_key_t key) {
-	size_t r_hash[2];
-	/* hashing to get a good distribution that combines key.{prod, cons} */
-	hash(&key, sizeof(prof_prod_cons_key_t), 0x94122f35U, r_hash);
-	return (int) (r_hash[0] % PROF_PROD_CONS_LOCKS);
-}
-
-static void
-prof_prod_cons_hash(const void *key, size_t r_hash[2]) {
-	hash(key, sizeof(prof_prod_cons_key_t), 0x94122f34U, r_hash);
-}
-
-static bool
-prof_prod_cons_keycomp(const void *k1, const void *k2) {
-	prof_prod_cons_key_t *prod_cons1, *prod_cons2;
-	prod_cons1 = (prof_prod_cons_key_t *)k1;
-	prod_cons2 = (prof_prod_cons_key_t *)k2;
-	return prod_cons1->prod == prod_cons2->prod &&
-	    prod_cons1->cons == prod_cons2->cons;
-}
-
-/* Lazily initializes the table in prod_cons_tables at index i. */
-static ckh_t *
-prof_prod_cons_tbl_get(tsd_t *tsd, int i) {
-	assert(i < PROF_PROD_CONS_LOCKS);
-	ckh_t *tbl = &prod_cons_tables[i];
-	/* The table hasn't been initialized iff the internal table is NULL. */
-	if (tbl->tab == NULL) {
-		malloc_mutex_lock(tsd_tsdn(tsd), &prod_cons_locks[i]);
-		if (ckh_new(tsd, tbl, 1U, &prof_prod_cons_hash,
-		    prof_prod_cons_keycomp)) {
-			return NULL;
-		}
-		malloc_mutex_unlock(tsd_tsdn(tsd), &prod_cons_locks[i]);
-	}
-	return tbl;
-}
-
-static void
-prof_free_sampled_prod_cons(tsd_t *tsd, uint64_t prod_uid, uint64_t cons_uid, 
-    size_t usize) {
-	prof_prod_cons_key_t pair;
-	pair.prod = prod_uid;
-	pair.cons = cons_uid;
-	prof_prod_cons_data_t *data;
-
-	int i = prof_prod_cons_index_choose(pair);
-	ckh_t *table = prof_prod_cons_tbl_get(tsd, i);
-	malloc_mutex_t *lock = &prod_cons_locks[i];
-
-	malloc_mutex_lock(tsd_tsdn(tsd), lock);
-
-	if (ckh_search(table, &pair, NULL, (void **)(&data))) {
-
-		/* add this producer-consumer pair to the table */
-
-		void *key = iallocztm(tsd_tsdn(tsd),
-		    sizeof(prof_prod_cons_key_t),
-		    sz_size2index(sizeof(prof_prod_cons_key_t)), false, NULL,
-		    true, arena_get(TSDN_NULL, 0, true), true);
-		memcpy(key, (void *)(&pair), sizeof(prof_prod_cons_key_t));
-
-		data = iallocztm(tsd_tsdn(tsd),
-		    sizeof(prof_prod_cons_data_t),
-		    sz_size2index(sizeof(prof_prod_cons_data_t)), true, NULL,
-		    true, arena_get(TSDN_NULL, 0, true), true);
-
-		ckh_insert(tsd, table, key, data);
-	}
-
-	data->bytes += usize;
-	data->objs++;
-
-	malloc_mutex_unlock(tsd_tsdn(tsd), lock);
-}
-
 void
 prof_free_sampled_object(tsd_t *tsd, size_t usize, prof_tctx_t *tctx) {
 	malloc_mutex_lock(tsd_tsdn(tsd), tctx->tdata->lock);
@@ -389,6 +262,7 @@ prof_free_sampled_object(tsd_t *tsd, size_t usize, prof_tctx_t *tctx) {
 	tctx->cnts.curobjs--;
 	tctx->cnts.curbytes -= usize;
 
+	/* Try to get prof_tdata_t for consumer thread. */
 	prof_tdata_t *cons_tdata = prof_tdata_get(tsd, false);
 
 	/*
@@ -400,7 +274,10 @@ prof_free_sampled_object(tsd_t *tsd, size_t usize, prof_tctx_t *tctx) {
 		uint64_t prod_uid, cons_uid;
 		prod_uid = tctx->tdata->thr_uid; 	
 		cons_uid = cons_tdata->thr_uid;	
-		prof_free_sampled_prod_cons(tsd, prod_uid, cons_uid, usize);
+		if (prod_uid != cons_uid) {
+			tctx->cnts.out_of_thread_objs++;
+			tctx->cnts.out_of_thread_bytes += usize;
+		}
 	}
 
 	if (prof_tctx_should_destroy(tsd_tsdn(tsd), tctx)) {
@@ -759,6 +636,9 @@ prof_tctx_should_destroy(tsdn_t *tsdn, prof_tctx_t *tctx) {
 	if (opt_prof_accum) {
 		return false;
 	}
+	if (opt_prof_prod_cons) {
+		return false;
+	}
 	if (tctx->cnts.curobjs != 0) {
 		return false;
 	}
@@ -771,6 +651,9 @@ prof_tctx_should_destroy(tsdn_t *tsdn, prof_tctx_t *tctx) {
 static bool
 prof_gctx_should_destroy(prof_gctx_t *gctx) {
 	if (opt_prof_accum) {
+		return false;
+	}
+	if (opt_prof_prod_cons) {
 		return false;
 	}
 	if (!tctx_tree_empty(&gctx->tctxs)) {
@@ -795,6 +678,8 @@ prof_tctx_destroy(tsd_t *tsd, prof_tctx_t *tctx) {
 	assert(!opt_prof_accum);
 	assert(tctx->cnts.accumobjs == 0);
 	assert(tctx->cnts.accumbytes == 0);
+	assert(tctx->cnts.out_of_thread_objs == 0);
+	assert(tctx->cnts.out_of_thread_bytes == 0);
 
 	ckh_remove(tsd, &tdata->bt2tctx, &gctx->bt, NULL, NULL);
 	destroy_tdata = prof_tdata_should_destroy(tsd_tsdn(tsd), tdata, false);
@@ -1195,6 +1080,20 @@ prof_dump_printf(bool propagate_err, const char *format, ...) {
 }
 
 static void
+prof_merge_cnts(prof_cnt_t *dst, const prof_cnt_t *src) {
+	dst->curobjs += src->curobjs;
+	dst->curbytes += src->curbytes;
+	if (opt_prof_accum) {
+		dst->accumobjs += src->accumobjs;
+		dst->accumbytes += src->accumbytes;
+	}
+	if (opt_prof_prod_cons) {
+		dst->out_of_thread_objs += src->out_of_thread_objs;
+		dst->out_of_thread_bytes += src->out_of_thread_bytes;
+	}
+}
+
+static void
 prof_tctx_merge_tdata(tsdn_t *tsdn, prof_tctx_t *tctx, prof_tdata_t *tdata) {
 	malloc_mutex_assert_owner(tsdn, tctx->tdata->lock);
 
@@ -1210,14 +1109,7 @@ prof_tctx_merge_tdata(tsdn_t *tsdn, prof_tctx_t *tctx, prof_tdata_t *tdata) {
 
 		memcpy(&tctx->dump_cnts, &tctx->cnts, sizeof(prof_cnt_t));
 
-		tdata->cnt_summed.curobjs += tctx->dump_cnts.curobjs;
-		tdata->cnt_summed.curbytes += tctx->dump_cnts.curbytes;
-		if (opt_prof_accum) {
-			tdata->cnt_summed.accumobjs +=
-			    tctx->dump_cnts.accumobjs;
-			tdata->cnt_summed.accumbytes +=
-			    tctx->dump_cnts.accumbytes;
-		}
+		prof_merge_cnts(&tdata->cnt_summed, &tctx->dump_cnts);
 		break;
 	case prof_tctx_state_dumping:
 	case prof_tctx_state_purgatory:
@@ -1229,12 +1121,7 @@ static void
 prof_tctx_merge_gctx(tsdn_t *tsdn, prof_tctx_t *tctx, prof_gctx_t *gctx) {
 	malloc_mutex_assert_owner(tsdn, gctx->lock);
 
-	gctx->cnt_summed.curobjs += tctx->dump_cnts.curobjs;
-	gctx->cnt_summed.curbytes += tctx->dump_cnts.curbytes;
-	if (opt_prof_accum) {
-		gctx->cnt_summed.accumobjs += tctx->dump_cnts.accumobjs;
-		gctx->cnt_summed.accumbytes += tctx->dump_cnts.accumbytes;
-	}
+	prof_merge_cnts(&gctx->cnt_summed, &tctx->dump_cnts);
 }
 
 static prof_tctx_t *
@@ -1429,12 +1316,7 @@ prof_tdata_merge_iter(prof_tdata_tree_t *tdatas, prof_tdata_t *tdata,
 			prof_tctx_merge_tdata(arg->tsdn, tctx.p, tdata);
 		}
 
-		arg->cnt_all.curobjs += tdata->cnt_summed.curobjs;
-		arg->cnt_all.curbytes += tdata->cnt_summed.curbytes;
-		if (opt_prof_accum) {
-			arg->cnt_all.accumobjs += tdata->cnt_summed.accumobjs;
-			arg->cnt_all.accumbytes += tdata->cnt_summed.accumbytes;
-		}
+		prof_merge_cnts(&arg->cnt_all, &tdata->cnt_summed);
 	} else {
 		tdata->dumping = false;
 	}
@@ -2457,38 +2339,6 @@ prof_boot2(tsd_t *tsd) {
 		    WITNESS_RANK_PROF_THREAD_ACTIVE_INIT,
 		    malloc_mutex_rank_exclusive)) {
 			return true;
-		}
-
-		/* Initialize prod_cons_tables and prod_cons_locks */
-		if (opt_prof_prod_cons) {
-			size_t sz = PROF_PROD_CONS_LOCKS * sizeof(ckh_t);
-			/* Allocate space for tables, but initialize lazily */
-			prod_cons_tables = (ckh_t *)base_alloc(tsd_tsdn(tsd),
-			    b0get(), sz, CACHELINE);
-
-			memset(prod_cons_tables, 0, sz);
-
-			if (prod_cons_tables == NULL) {
-				return true;
-			}
-
-			sz = PROF_PROD_CONS_LOCKS *
-				        sizeof(malloc_mutex_t);
-			prod_cons_locks = (malloc_mutex_t *)
-					      base_alloc(tsd_tsdn(tsd), b0get(),
-					      sz, CACHELINE);
-
-			if (prod_cons_locks == NULL) {
-				return true;
-			}
-
-			for (i = 0; i < PROF_PROD_CONS_LOCKS; i++) {
-				if (malloc_mutex_init(&prod_cons_locks[i],
-				    "prof_prod_cons", WITNESS_RANK_OMIT,
-				    malloc_mutex_rank_exclusive)) {
-					return true;
-				}
-			}
 		}
 
 		if (ckh_new(tsd, &bt2gctx, PROF_CKH_MINITEMS, prof_bt_hash,

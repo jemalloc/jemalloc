@@ -35,6 +35,9 @@ struct prof_cnt_s {
 	uint64_t	curbytes;
 	uint64_t	accumobjs;
 	uint64_t	accumbytes;
+
+	uint64_t	out_of_thread_objs;
+	uint64_t	out_of_thread_bytes;
 };
 
 typedef enum {
