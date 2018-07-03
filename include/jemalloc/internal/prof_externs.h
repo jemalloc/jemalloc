@@ -74,8 +74,6 @@ void prof_reset(tsd_t *tsd, size_t lg_sample);
 void prof_tdata_cleanup(tsd_t *tsd);
 bool prof_active_get(tsdn_t *tsdn);
 bool prof_active_set(tsdn_t *tsdn, bool active);
-bool prof_log_start(tsdn_t *tsdn, const char *filename);
-bool prof_log_stop(tsdn_t *tsdn);
 const char *prof_thread_name_get(tsd_t *tsd);
 int prof_thread_name_set(tsd_t *tsd, const char *thread_name);
 bool prof_thread_active_get(tsd_t *tsd);
@@ -92,5 +90,16 @@ void prof_prefork1(tsdn_t *tsdn);
 void prof_postfork_parent(tsdn_t *tsdn);
 void prof_postfork_child(tsdn_t *tsdn);
 void prof_sample_threshold_update(prof_tdata_t *tdata);
+
+bool prof_log_start(tsdn_t *tsdn, const char *filename);
+bool prof_log_stop(tsdn_t *tsdn);
+#ifdef JEMALLOC_JET
+size_t prof_log_bt_count(void);
+size_t prof_log_alloc_count(void);
+size_t prof_log_thr_count(void);
+bool prof_log_is_logging(void);
+bool prof_log_rep_check(void);
+void prof_log_dummy_set(bool new_value);
+#endif
 
 #endif /* JEMALLOC_INTERNAL_PROF_EXTERNS_H */

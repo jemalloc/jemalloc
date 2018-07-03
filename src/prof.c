@@ -86,6 +86,10 @@ enum prof_logging_state_e {
  */
 prof_logging_state_t prof_logging_state = prof_logging_state_stopped;
 
+#ifdef JEMALLOC_JET
+static bool prof_log_dummy = false;
+#endif
+
 /* Incremented for every log file that is output. */
 static uint64_t log_seq = 0;
 static char log_filename[
@@ -2407,6 +2411,102 @@ prof_active_set(tsdn_t *tsdn, bool active) {
 	return prof_active_old;
 }
 
+#ifdef JEMALLOC_JET
+size_t
+prof_log_bt_count(void) {
+	size_t cnt = 0;
+	prof_bt_node_t *node = log_bt_first;
+	while (node != NULL) {
+		cnt++;
+		node = node->next;
+	}
+	return cnt;
+}
+
+size_t
+prof_log_alloc_count(void) {
+	size_t cnt = 0;
+	prof_alloc_node_t *node = log_alloc_first;
+	while (node != NULL) {
+		cnt++;
+		node = node->next;
+	}
+	return cnt;
+}
+
+size_t
+prof_log_thr_count(void) {
+	size_t cnt = 0;
+	prof_thr_node_t *node = log_thr_first;
+	while (node != NULL) {
+		cnt++;
+		node = node->next;
+	}
+	return cnt;
+}
+
+bool
+prof_log_is_logging(void) {
+	return prof_logging_state == prof_logging_state_started;
+}
+
+bool
+prof_log_rep_check(void) {
+	if (prof_logging_state == prof_logging_state_stopped
+	    && log_tables_initialized) {
+		return true;
+	}
+
+	if (log_bt_last != NULL && log_bt_last->next != NULL) {
+		return true;
+	}
+	if (log_thr_last != NULL && log_thr_last->next != NULL) {
+		return true;
+	}
+	if (log_alloc_last != NULL && log_alloc_last->next != NULL) {
+		return true;
+	}
+
+	size_t bt_count = prof_log_bt_count();
+	size_t thr_count = prof_log_thr_count();
+	size_t alloc_count = prof_log_alloc_count();
+
+
+	if (prof_logging_state == prof_logging_state_stopped) {
+		if (bt_count != 0 || thr_count != 0 || alloc_count || 0) {
+			return true;
+		}
+	}
+
+	prof_alloc_node_t *node = log_alloc_first;
+	while (node != NULL) {
+		if (node->alloc_bt_ind >= bt_count) {
+			return true;
+		}
+		if (node->free_bt_ind >= bt_count) {
+			return true;
+		}
+		if (node->alloc_thr_ind >= thr_count) {
+			return true;
+		}
+		if (node->free_thr_ind >= thr_count) {
+			return true;
+		}
+		if (node->alloc_time_ns > node->free_time_ns) {
+			return true;
+		}
+		node = node->next;
+	}
+
+	return false;
+}
+
+void
+prof_log_dummy_set(bool new_value) {
+	prof_log_dummy = new_value;
+}
+#endif
+
 bool
 prof_log_start(tsdn_t *tsdn, const char *filename) {
 	if (!opt_prof || !prof_booted) {
@@ -2459,6 +2559,11 @@ prof_emitter_write_cb(void *opaque, const char *to_write) {
 	struct prof_emitter_cb_arg_s *arg =
 	    (struct prof_emitter_cb_arg_s *)opaque;
 	size_t bytes = strlen(to_write);
+#ifdef JEMALLOC_JET
+	if (prof_log_dummy) {
+		return;
+	}
+#endif
 	arg->ret = write(arg->fd, (void *)to_write, bytes);
 }
 
@@ -2607,7 +2712,17 @@ prof_log_stop(tsdn_t *tsdn) {
 	emitter_t emitter;
 
 	/* Create a file. */
-	int fd = creat(log_filename, 0644);
+
+	int fd;
+#ifdef JEMALLOC_JET
+	if (prof_log_dummy) {
+		fd = 0;
+	} else {
+		fd = creat(log_filename, 0644);
+	}
+#else
+	fd = creat(log_filename, 0644);
+#endif
 
 	if (fd == -1) {
 		malloc_printf("<jemalloc>: creat() for log file \"%s\" "
@@ -2650,6 +2765,11 @@ prof_log_stop(tsdn_t *tsdn) {
 	prof_logging_state = prof_logging_state_stopped;
 	malloc_mutex_unlock(tsdn, &log_mtx);
 
+#ifdef JEMALLOC_JET
+	if (prof_log_dummy) {
+		return false;
+	}
+#endif
 	return close(fd);
 }
 
