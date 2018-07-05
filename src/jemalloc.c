@@ -1282,6 +1282,7 @@ malloc_conf_init(sc_data_t *sc_data) {
 				CONF_HANDLE_BOOL(opt_prof_gdump, "prof_gdump")
 				CONF_HANDLE_BOOL(opt_prof_final, "prof_final")
 				CONF_HANDLE_BOOL(opt_prof_leak, "prof_leak")
+				CONF_HANDLE_BOOL(opt_prof_log, "prof_log")
 			}
 			if (config_log) {
 				if (CONF_MATCH("log")) {
