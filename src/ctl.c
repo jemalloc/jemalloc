@@ -148,6 +148,8 @@ CTL_PROTO(prof_gdump)
 CTL_PROTO(prof_reset)
 CTL_PROTO(prof_interval)
 CTL_PROTO(lg_prof_sample)
+CTL_PROTO(prof_log_start)
+CTL_PROTO(prof_log_stop)
 CTL_PROTO(stats_arenas_i_small_allocated)
 CTL_PROTO(stats_arenas_i_small_nmalloc)
 CTL_PROTO(stats_arenas_i_small_ndalloc)
@@ -389,7 +391,9 @@ static const ctl_named_node_t	prof_node[] = {
 	{NAME("gdump"),		CTL(prof_gdump)},
 	{NAME("reset"),		CTL(prof_reset)},
 	{NAME("interval"),	CTL(prof_interval)},
-	{NAME("lg_sample"),	CTL(lg_prof_sample)}
+	{NAME("lg_sample"),	CTL(lg_prof_sample)},
+	{NAME("log_start"),	CTL(prof_log_start)},
+	{NAME("log_stop"),	CTL(prof_log_stop)}
 };
 
 static const ctl_named_node_t stats_arenas_i_small_node[] = {
@@ -2643,6 +2647,44 @@ label_return:
 
 CTL_RO_NL_CGEN(config_prof, prof_interval, prof_interval, uint64_t)
 CTL_RO_NL_CGEN(config_prof, lg_prof_sample, lg_prof_sample, size_t)
+
+static int
+prof_log_start_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
+    size_t *oldlenp, void *newp, size_t newlen) {
+	int ret;
+	
+	const char *filename = NULL;
+
+	if (!config_prof) {
+		return ENOENT;
+	}
+
+	WRITEONLY();
+	WRITE(filename, const char *);
+
+	if (prof_log_start(tsd_tsdn(tsd), filename)) {
+		ret = EFAULT;
+		goto label_return; 
+	}
+
+	ret = 0;
+label_return:
+	return ret;
+}
+
+static int
+prof_log_stop_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
+    size_t *oldlenp, void *newp, size_t newlen) {
+	if (!config_prof) {
+		return ENOENT;
+	}
+
+	if (prof_log_stop(tsd_tsdn(tsd))) {
+		return EFAULT;
+	}
+
+	return 0;
+}
 
 /******************************************************************************/
 

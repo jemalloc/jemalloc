@@ -14,6 +14,7 @@ extern bool	opt_prof_gdump;       /* High-water memory dumping. */
 extern bool	opt_prof_final;       /* Final profile dumping. */
 extern bool	opt_prof_leak;        /* Dump leak summary at exit. */
 extern bool	opt_prof_accum;       /* Report cumulative bytes. */
+extern bool	opt_prof_log;	      /* Turn logging on at boot. */
 extern char	opt_prof_prefix[
     /* Minimize memory bloat for non-prof builds. */
 #ifdef JEMALLOC_PROF
@@ -45,7 +46,8 @@ extern size_t	lg_prof_sample;
 void prof_alloc_rollback(tsd_t *tsd, prof_tctx_t *tctx, bool updated);
 void prof_malloc_sample_object(tsdn_t *tsdn, const void *ptr, size_t usize,
     prof_tctx_t *tctx);
-void prof_free_sampled_object(tsd_t *tsd, size_t usize, prof_tctx_t *tctx);
+void prof_free_sampled_object(tsd_t *tsd, const void *ptr, size_t usize,
+    prof_tctx_t *tctx);
 void bt_init(prof_bt_t *bt, void **vec);
 void prof_backtrace(prof_bt_t *bt);
 prof_tctx_t *prof_lookup(tsd_t *tsd, prof_bt_t *bt);
@@ -72,6 +74,8 @@ void prof_reset(tsd_t *tsd, size_t lg_sample);
 void prof_tdata_cleanup(tsd_t *tsd);
 bool prof_active_get(tsdn_t *tsdn);
 bool prof_active_set(tsdn_t *tsdn, bool active);
+bool prof_log_start(tsdn_t *tsdn, const char *filename);
+bool prof_log_stop(tsdn_t *tsdn);
 const char *prof_thread_name_get(tsd_t *tsd);
 int prof_thread_name_set(tsd_t *tsd, const char *thread_name);
 bool prof_thread_active_get(tsd_t *tsd);

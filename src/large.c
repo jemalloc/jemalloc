@@ -381,3 +381,13 @@ void
 large_prof_tctx_reset(tsdn_t *tsdn, extent_t *extent) {
 	large_prof_tctx_set(tsdn, extent, (prof_tctx_t *)(uintptr_t)1U);
 }
+
+nstime_t
+large_prof_alloc_time_get(const extent_t *extent) {
+	return extent_prof_alloc_time_get(extent);
+}
+
+void
+large_prof_alloc_time_set(extent_t *extent, nstime_t t) {
+	extent_prof_alloc_time_set(extent, t);
+}

@@ -26,4 +26,7 @@ prof_tctx_t *large_prof_tctx_get(tsdn_t *tsdn, const extent_t *extent);
 void large_prof_tctx_set(tsdn_t *tsdn, extent_t *extent, prof_tctx_t *tctx);
 void large_prof_tctx_reset(tsdn_t *tsdn, extent_t *extent);
 
+nstime_t large_prof_alloc_time_get(const extent_t *extent);
+void large_prof_alloc_time_set(extent_t *extent, nstime_t time);
+
 #endif /* JEMALLOC_INTERNAL_LARGE_EXTERNS_H */
