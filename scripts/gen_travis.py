@@ -113,8 +113,28 @@ for combination in unusual_combinations_to_test:
 
 # Development build
 include_rows += '''\
+    # Development build
     - os: linux
       env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--enable-debug --disable-cache-oblivious --enable-stats --enable-log --enable-prof" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
 '''
+
+# Valgrind build bots
+include_rows += '''
+    # Valgrind
+    - os: linux
+      env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="" EXTRA_CFLAGS="-Werror -Wno-array-bounds" JEMALLOC_TEST_PREFIX="valgrind"
+      addons:
+        apt:
+          packages:
+            - valgrind
+'''
+
+# To enable valgrind on macosx add:
+#
+#  - os: osx
+#    env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="" EXTRA_CFLAGS="-Werror -Wno-array-bounds" JEMALLOC_TEST_PREFIX="valgrind"
+#    install: brew install valgrind
+#
+# It currently fails due to: https://github.com/jemalloc/jemalloc/issues/1274
 
 print travis_template % include_rows
