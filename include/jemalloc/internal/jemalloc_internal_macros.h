@@ -66,8 +66,19 @@
 #  define JEMALLOC_DIAGNOSTIC_PUSH JEMALLOC_PRAGMA__(GCC diagnostic push)
 #  define JEMALLOC_DIAGNOSTIC_POP JEMALLOC_PRAGMA__(GCC diagnostic pop)
 #  define JEMALLOC_DIAGNOSTIC_IGNORE(W) JEMALLOC_PRAGMA__(GCC diagnostic ignored W)
-#  define JEMALLOC_DIAGNOSTIC_IGNORE_MISSING_STRUCT_FIELD_INITIALIZERS \
-     JEMALLOC_DIAGNOSTIC_IGNORE("-Wmissing-field-initializers")
+
+/*
+ * The -Wmissing-field-initializers warning is buggy in GCC versions < 5.1 and
+ * all clang versions up to version 7 (currently trunk, unreleased).
+ * This macro suppresses the warning for the affected compiler versions only.
+ */
+#  if ((defined(__GNUC__) && !defined(__clang__)) && (__GNUC__ < 5)) || defined(__clang__)
+#    define JEMALLOC_DIAGNOSTIC_IGNORE_MISSING_STRUCT_FIELD_INITIALIZERS  \
+          JEMALLOC_DIAGNOSTIC_IGNORE("-Wmissing-field-initializers")
+#  else
+#    define JEMALLOC_DIAGNOSTIC_IGNORE_MISSING_STRUCT_FIELD_INITIALIZERS
+#  endif
+
 #  define JEMALLOC_DIAGNOSTIC_IGNORE_TYPE_LIMITS  \
      JEMALLOC_DIAGNOSTIC_IGNORE("-Wtype-limits")
 #  define JEMALLOC_DIAGNOSTIC_IGNORE_UNUSED_PARAMETER \
