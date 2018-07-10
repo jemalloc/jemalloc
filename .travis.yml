@@ -119,8 +119,17 @@ matrix:
       env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--with-malloc-conf=dss:primary,background_thread:true" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--with-malloc-conf=percpu_arena:percpu,background_thread:true" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+    # Development build
     - os: linux
       env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--enable-debug --disable-cache-oblivious --enable-stats --enable-log --enable-prof" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+
+    # Valgrind
+    - os: linux
+      env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="" EXTRA_CFLAGS="-Werror -Wno-array-bounds" JEMALLOC_TEST_PREFIX="valgrind"
+      addons:
+        apt:
+          packages:
+            - valgrind
 
 
 before_script:
