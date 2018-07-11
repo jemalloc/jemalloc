@@ -33,7 +33,7 @@ TEST_BEGIN(test_stats_large) {
 	size_t sz;
 	int expected = config_stats ? 0 : ENOENT;
 
-	p = mallocx(sc_data_global.small_maxclass + 1, MALLOCX_ARENA(0));
+	p = mallocx(SC_SMALL_MAXCLASS + 1, MALLOCX_ARENA(0));
 	assert_ptr_not_null(p, "Unexpected mallocx() failure");
 
 	assert_d_eq(mallctl("epoch", NULL, NULL, (void *)&epoch, sizeof(epoch)),
@@ -74,7 +74,7 @@ TEST_BEGIN(test_stats_arenas_summary) {
 	uint64_t dirty_npurge, dirty_nmadvise, dirty_purged;
 	uint64_t muzzy_npurge, muzzy_nmadvise, muzzy_purged;
 
-	little = mallocx(sc_data_global.small_maxclass, MALLOCX_ARENA(0));
+	little = mallocx(SC_SMALL_MAXCLASS, MALLOCX_ARENA(0));
 	assert_ptr_not_null(little, "Unexpected mallocx() failure");
 	large = mallocx((1U << sc_data_global.lg_large_minclass),
 	    MALLOCX_ARENA(0));
@@ -149,7 +149,7 @@ TEST_BEGIN(test_stats_arenas_small) {
 
 	no_lazy_lock(); /* Lazy locking would dodge tcache testing. */
 
-	p = mallocx(sc_data_global.small_maxclass, MALLOCX_ARENA(0));
+	p = mallocx(SC_SMALL_MAXCLASS, MALLOCX_ARENA(0));
 	assert_ptr_not_null(p, "Unexpected mallocx() failure");
 
 	assert_d_eq(mallctl("thread.tcache.flush", NULL, NULL, NULL, 0),

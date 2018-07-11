@@ -167,7 +167,7 @@ tcache_dalloc_small(tsd_t *tsd, tcache_t *tcache, void *ptr, szind_t binind,
 	cache_bin_info_t *bin_info;
 
 	assert(tcache_salloc(tsd_tsdn(tsd), ptr)
-	    <= sc_data_global.small_maxclass);
+	    <= SC_SMALL_MAXCLASS);
 
 	if (slow_path && config_fill && unlikely(opt_junk_free)) {
 		arena_dalloc_junk_small(ptr, &bin_infos[binind]);
@@ -193,7 +193,7 @@ tcache_dalloc_large(tsd_t *tsd, tcache_t *tcache, void *ptr, szind_t binind,
 	cache_bin_info_t *bin_info;
 
 	assert(tcache_salloc(tsd_tsdn(tsd), ptr)
-	    > sc_data_global.small_maxclass);
+	    > SC_SMALL_MAXCLASS);
 	assert(tcache_salloc(tsd_tsdn(tsd), ptr) <= tcache_maxclass);
 
 	if (slow_path && config_fill && unlikely(opt_junk_free)) {

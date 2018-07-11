@@ -238,6 +238,25 @@
 /* The largest size class in the lookup table. */
 #define SC_LOOKUP_MAXCLASS ((size_t)1 << 12)
 
+/* Internal, only used for the definition of SC_SMALL_MAXCLASS. */
+#define SC_SMALL_MAX_BASE ((size_t)1 << (LG_PAGE + SC_LG_NGROUP - 1))
+#define SC_SMALL_MAX_DELTA ((size_t)1 << (LG_PAGE - 1))
+
+/* The largest size class allocated out of a slab. */
+#define SC_SMALL_MAXCLASS (SC_SMALL_MAX_BASE				\
+    + (SC_NGROUP - 1) * SC_SMALL_MAX_DELTA)
+
+/* The smallest size class not allocated out of a slab. */
+#define SC_LARGE_MINCLASS ((size_t)1ULL << (LG_PAGE + SC_LG_NGROUP))
+#define SC_LG_LARGE_MINCLASS (LG_PAGE + SC_LG_NGROUP)
+
+/* Internal; only used for the definition of SC_LARGE_MAXCLASS. */
+#define SC_MAX_BASE ((size_t)1 << (SC_PTR_BITS - 2))
+#define SC_MAX_DELTA ((size_t)1 << (SC_PTR_BITS - 2 - SC_LG_NGROUP))
+
+/* The largest size class supported. */
+#define SC_LARGE_MAXCLASS (SC_MAX_BASE + (SC_NGROUP - 1) * SC_MAX_DELTA)
+
 typedef struct sc_s sc_t;
 struct sc_s {
 	/* Size class index, or -1 if not a valid size class. */

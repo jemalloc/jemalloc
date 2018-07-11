@@ -658,8 +658,8 @@ bool
 tcache_boot(tsdn_t *tsdn) {
 	/* If necessary, clamp opt_lg_tcache_max. */
 	if (opt_lg_tcache_max < 0 || (ZU(1) << opt_lg_tcache_max) <
-	    sc_data_global.small_maxclass) {
-		tcache_maxclass = sc_data_global.small_maxclass;
+	    SC_SMALL_MAXCLASS) {
+		tcache_maxclass = SC_SMALL_MAXCLASS;
 	} else {
 		tcache_maxclass = (ZU(1) << opt_lg_tcache_max);
 	}

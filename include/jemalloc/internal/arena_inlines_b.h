@@ -111,7 +111,7 @@ arena_malloc(tsdn_t *tsdn, arena_t *arena, size_t size, szind_t ind, bool zero,
 	assert(size != 0);
 
 	if (likely(tcache != NULL)) {
-		if (likely(size <= sc_data_global.small_maxclass)) {
+		if (likely(size <= SC_SMALL_MAXCLASS)) {
 			return tcache_alloc_small(tsdn_tsd(tsdn), arena,
 			    tcache, size, ind, zero, slow_path);
 		}
@@ -263,7 +263,7 @@ arena_dalloc(tsdn_t *tsdn, void *ptr, tcache_t *tcache,
 static inline void
 arena_sdalloc_no_tcache(tsdn_t *tsdn, void *ptr, size_t size) {
 	assert(ptr != NULL);
-	assert(size <= sc_data_global.large_maxclass);
+	assert(size <= SC_LARGE_MAXCLASS);
 
 	szind_t szind;
 	bool slab;
@@ -309,7 +309,7 @@ arena_sdalloc(tsdn_t *tsdn, void *ptr, size_t size, tcache_t *tcache,
     alloc_ctx_t *alloc_ctx, bool slow_path) {
 	assert(!tsdn_null(tsdn) || tcache == NULL);
 	assert(ptr != NULL);
-	assert(size <= sc_data_global.large_maxclass);
+	assert(size <= SC_LARGE_MAXCLASS);
 
 	if (unlikely(tcache == NULL)) {
 		arena_sdalloc_no_tcache(tsdn, ptr, size);
