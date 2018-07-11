@@ -118,6 +118,13 @@ include_rows += '''\
       env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--enable-debug --disable-cache-oblivious --enable-stats --enable-log --enable-prof" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
 '''
 
+# Enable-expermental-smallocx
+include_rows += '''\
+    # --enable-expermental-smallocx:
+    - os: linux
+      env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--enable-debug --enable-experimental-smallocx --enable-stats --enable-prof" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+'''
+
 # Valgrind build bots
 include_rows += '''
     # Valgrind
