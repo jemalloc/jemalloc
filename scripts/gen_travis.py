@@ -12,6 +12,7 @@ matrix:
 
 before_script:
   - autoconf
+  - scripts/gen_travis.py > travis_script && diff .travis.yml travis_script
   - ./configure ${COMPILER_FLAGS:+ \
       CC="$CC $COMPILER_FLAGS" \
       CXX="$CXX $COMPILER_FLAGS" } \
