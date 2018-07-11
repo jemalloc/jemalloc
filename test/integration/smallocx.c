@@ -1,5 +1,12 @@
 #include "test/jemalloc_test.h"
 
+typedef struct {
+	void *ptr;
+	size_t size;
+} smallocx_return_t;
+
+extern smallocx_return_t smallocx(size_t size, int flags);
+
 static unsigned
 get_nsizes_impl(const char *cmd) {
 	unsigned ret;
