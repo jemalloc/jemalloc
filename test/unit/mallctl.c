@@ -721,7 +721,7 @@ TEST_BEGIN(test_arenas_lextent_constants) {
 } while (0)
 
 	TEST_ARENAS_LEXTENT_CONSTANT(size_t, size,
-	    sc_data_global.large_minclass);
+	    SC_LARGE_MINCLASS);
 
 #undef TEST_ARENAS_LEXTENT_CONSTANT
 }

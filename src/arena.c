@@ -296,8 +296,8 @@ arena_large_malloc_stats_update(tsdn_t *tsdn, arena_t *arena, size_t usize) {
 
 	cassert(config_stats);
 
-	if (usize < sc_data_global.large_minclass) {
-		usize = sc_data_global.large_minclass;
+	if (usize < SC_LARGE_MINCLASS) {
+		usize = SC_LARGE_MINCLASS;
 	}
 	index = sz_size2index(usize);
 	hindex = (index >= SC_NBINS) ? index - SC_NBINS : 0;
@@ -312,8 +312,8 @@ arena_large_dalloc_stats_update(tsdn_t *tsdn, arena_t *arena, size_t usize) {
 
 	cassert(config_stats);
 
-	if (usize < sc_data_global.large_minclass) {
-		usize = sc_data_global.large_minclass;
+	if (usize < SC_LARGE_MINCLASS) {
+		usize = SC_LARGE_MINCLASS;
 	}
 	index = sz_size2index(usize);
 	hindex = (index >= SC_NBINS) ? index - SC_NBINS : 0;
@@ -1389,7 +1389,7 @@ arena_malloc_hard(tsdn_t *tsdn, arena_t *arena, size_t size, szind_t ind,
 		return NULL;
 	}
 
-	if (likely(size <= sc_data_global.small_maxclass)) {
+	if (likely(size <= SC_SMALL_MAXCLASS)) {
 		return arena_malloc_small(tsdn, arena, ind, zero);
 	}
 	return large_malloc(tsdn, arena, sz_index2size(ind), zero);
@@ -1400,7 +1400,7 @@ arena_palloc(tsdn_t *tsdn, arena_t *arena, size_t usize, size_t alignment,
     bool zero, tcache_t *tcache) {
 	void *ret;
 
-	if (usize <= sc_data_global.small_maxclass
+	if (usize <= SC_SMALL_MAXCLASS
 	    && (alignment < PAGE
 	    || (alignment == PAGE && (usize & PAGE_MASK) == 0))) {
 		/* Small; alignment doesn't require special slab placement. */
@@ -1420,8 +1420,8 @@ void
 arena_prof_promote(tsdn_t *tsdn, const void *ptr, size_t usize) {
 	cassert(config_prof);
 	assert(ptr != NULL);
-	assert(isalloc(tsdn, ptr) == sc_data_global.large_minclass);
-	assert(usize <= sc_data_global.small_maxclass);
+	assert(isalloc(tsdn, ptr) == SC_LARGE_MINCLASS);
+	assert(usize <= SC_SMALL_MAXCLASS);
 
 	rtree_ctx_t rtree_ctx_fallback;
 	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
@@ -1451,9 +1451,9 @@ arena_prof_demote(tsdn_t *tsdn, extent_t *extent, const void *ptr) {
 	rtree_szind_slab_update(tsdn, &extents_rtree, rtree_ctx, (uintptr_t)ptr,
 	    SC_NBINS, false);
 
-	assert(isalloc(tsdn, ptr) == sc_data_global.large_minclass);
+	assert(isalloc(tsdn, ptr) == SC_LARGE_MINCLASS);
 
-	return sc_data_global.large_minclass;
+	return SC_LARGE_MINCLASS;
 }
 
 void
@@ -1594,25 +1594,25 @@ arena_ralloc_no_move(tsdn_t *tsdn, void *ptr, size_t oldsize, size_t size,
     size_t extra, bool zero, size_t *newsize) {
 	bool ret;
 	/* Calls with non-zero extra had to clamp extra. */
-	assert(extra == 0 || size + extra <= sc_data_global.large_maxclass);
+	assert(extra == 0 || size + extra <= SC_LARGE_MAXCLASS);
 
 	extent_t *extent = iealloc(tsdn, ptr);
-	if (unlikely(size > sc_data_global.large_maxclass)) {
+	if (unlikely(size > SC_LARGE_MAXCLASS)) {
 		ret = true;
 		goto done;
 	}
 
 	size_t usize_min = sz_s2u(size);
 	size_t usize_max = sz_s2u(size + extra);
-	if (likely(oldsize <= sc_data_global.small_maxclass && usize_min
-	    <= sc_data_global.small_maxclass)) {
+	if (likely(oldsize <= SC_SMALL_MAXCLASS && usize_min
+	    <= SC_SMALL_MAXCLASS)) {
 		/*
 		 * Avoid moving the allocation if the size class can be left the
 		 * same.
 		 */
 		assert(bin_infos[sz_size2index(oldsize)].reg_size ==
 		    oldsize);
-		if ((usize_max > sc_data_global.small_maxclass
+		if ((usize_max > SC_SMALL_MAXCLASS
 		    || sz_size2index(usize_max) != sz_size2index(oldsize))
 		    && (size > oldsize || usize_max < oldsize)) {
 			ret = true;
@@ -1621,8 +1621,8 @@ arena_ralloc_no_move(tsdn_t *tsdn, void *ptr, size_t oldsize, size_t size,
 
 		arena_decay_tick(tsdn, extent_arena_get(extent));
 		ret = false;
-	} else if (oldsize >= sc_data_global.large_minclass
-	    && usize_max >= sc_data_global.large_minclass) {
+	} else if (oldsize >= SC_LARGE_MINCLASS
+	    && usize_max >= SC_LARGE_MINCLASS) {
 		ret = large_ralloc_no_move(tsdn, extent, usize_min, usize_max,
 		    zero);
 	} else {
@@ -1643,7 +1643,7 @@ arena_ralloc_move_helper(tsdn_t *tsdn, arena_t *arena, size_t usize,
 		    zero, tcache, true);
 	}
 	usize = sz_sa2u(usize, alignment);
-	if (unlikely(usize == 0 || usize > sc_data_global.large_maxclass)) {
+	if (unlikely(usize == 0 || usize > SC_LARGE_MAXCLASS)) {
 		return NULL;
 	}
 	return ipalloct(tsdn, usize, alignment, zero, tcache, arena);
@@ -1654,11 +1654,11 @@ arena_ralloc(tsdn_t *tsdn, arena_t *arena, void *ptr, size_t oldsize,
     size_t size, size_t alignment, bool zero, tcache_t *tcache,
     hook_ralloc_args_t *hook_args) {
 	size_t usize = sz_s2u(size);
-	if (unlikely(usize == 0 || size > sc_data_global.large_maxclass)) {
+	if (unlikely(usize == 0 || size > SC_LARGE_MAXCLASS)) {
 		return NULL;
 	}
 
-	if (likely(usize <= sc_data_global.small_maxclass)) {
+	if (likely(usize <= SC_SMALL_MAXCLASS)) {
 		/* Try to avoid moving the allocation. */
 		UNUSED size_t newsize;
 		if (!arena_ralloc_no_move(tsdn, ptr, oldsize, usize, 0, zero,
@@ -1671,8 +1671,8 @@ arena_ralloc(tsdn_t *tsdn, arena_t *arena, void *ptr, size_t oldsize,
 		}
 	}
 
-	if (oldsize >= sc_data_global.large_minclass
-	    && usize >= sc_data_global.large_minclass) {
+	if (oldsize >= SC_LARGE_MINCLASS
+	    && usize >= SC_LARGE_MINCLASS) {
 		return large_ralloc(tsdn, arena, ptr, usize,
 		    alignment, zero, tcache, hook_args);
 	}
@@ -1985,10 +1985,10 @@ arena_init_huge(void) {
 	bool huge_enabled;
 
 	/* The threshold should be large size class. */
-	if (opt_huge_threshold > sc_data_global.large_maxclass ||
-	    opt_huge_threshold < sc_data_global.large_minclass) {
+	if (opt_huge_threshold > SC_LARGE_MAXCLASS ||
+	    opt_huge_threshold < SC_LARGE_MINCLASS) {
 		opt_huge_threshold = 0;
-		huge_threshold = sc_data_global.large_maxclass + PAGE;
+		huge_threshold = SC_LARGE_MAXCLASS + PAGE;
 		huge_enabled = false;
 	} else {
 		/* Reserve the index for the huge arena. */

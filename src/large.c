@@ -28,7 +28,7 @@ large_palloc(tsdn_t *tsdn, arena_t *arena, size_t usize, size_t alignment,
 	assert(!tsdn_null(tsdn) || arena != NULL);
 
 	ausize = sz_sa2u(usize, alignment);
-	if (unlikely(ausize == 0 || ausize > sc_data_global.large_maxclass)) {
+	if (unlikely(ausize == 0 || ausize > SC_LARGE_MAXCLASS)) {
 		return NULL;
 	}
 
@@ -221,10 +221,10 @@ large_ralloc_no_move(tsdn_t *tsdn, extent_t *extent, size_t usize_min,
 	size_t oldusize = extent_usize_get(extent);
 
 	/* The following should have been caught by callers. */
-	assert(usize_min > 0 && usize_max <= sc_data_global.large_maxclass);
+	assert(usize_min > 0 && usize_max <= SC_LARGE_MAXCLASS);
 	/* Both allocation sizes must be large to avoid a move. */
-	assert(oldusize >= sc_data_global.large_minclass
-	    && usize_max >= sc_data_global.large_minclass);
+	assert(oldusize >= SC_LARGE_MINCLASS
+	    && usize_max >= SC_LARGE_MINCLASS);
 
 	if (usize_max > oldusize) {
 		/* Attempt to expand the allocation in-place. */
@@ -278,10 +278,10 @@ large_ralloc(tsdn_t *tsdn, arena_t *arena, void *ptr, size_t usize,
 
 	size_t oldusize = extent_usize_get(extent);
 	/* The following should have been caught by callers. */
-	assert(usize > 0 && usize <= sc_data_global.large_maxclass);
+	assert(usize > 0 && usize <= SC_LARGE_MAXCLASS);
 	/* Both allocation sizes must be large to avoid a move. */
-	assert(oldusize >= sc_data_global.large_minclass
-	    && usize >= sc_data_global.large_minclass);
+	assert(oldusize >= SC_LARGE_MINCLASS
+	    && usize >= SC_LARGE_MINCLASS);
 
 	/* Try to avoid moving the allocation. */
 	if (!large_ralloc_no_move(tsdn, extent, usize, usize, zero)) {

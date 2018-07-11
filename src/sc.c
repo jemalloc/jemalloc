@@ -228,6 +228,20 @@ size_classes(
 	sc_data->lg_large_minclass = lg_large_minclass;
 	sc_data->large_minclass = (ZU(1) << lg_large_minclass);
 	sc_data->large_maxclass = large_maxclass;
+
+	/*
+	 * We compute these values in two ways:
+	 *   - Incrementally, as above.
+	 *   - In macros, in sc.h.
+	 * The computation is easier when done incrementally, but putting it in
+	 * a constant makes it available to the fast paths without having to
+	 * touch the extra global cacheline.  We assert, however, that the two
+	 * computations are equivalent.
+	 */
+	assert(sc_data->small_maxclass == SC_SMALL_MAXCLASS);
+	assert(sc_data->large_minclass == SC_LARGE_MINCLASS);
+	assert(sc_data->lg_large_minclass == SC_LG_LARGE_MINCLASS);
+	assert(sc_data->large_maxclass == SC_LARGE_MAXCLASS);
 }
 
 void

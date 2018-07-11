@@ -259,7 +259,7 @@ extent_size_quantize_ceil(size_t size) {
 	size_t ret;
 
 	assert(size > 0);
-	assert(size - sz_large_pad <= sc_data_global.large_maxclass);
+	assert(size - sz_large_pad <= SC_LARGE_MAXCLASS);
 	assert((size & PAGE_MASK) == 0);
 
 	ret = extent_size_quantize_floor(size);
@@ -1625,7 +1625,7 @@ extent_record(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
 	if (!extents->delay_coalesce) {
 		extent = extent_try_coalesce(tsdn, arena, r_extent_hooks,
 		    rtree_ctx, extents, extent, NULL, growing_retained);
-	} else if (extent_size_get(extent) >= sc_data_global.large_minclass) {
+	} else if (extent_size_get(extent) >= SC_LARGE_MINCLASS) {
 		/* Always coalesce large extents eagerly. */
 		bool coalesced;
 		size_t prev_size;
@@ -1637,7 +1637,7 @@ extent_record(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
 			    &coalesced, growing_retained);
 		} while (coalesced &&
 		    extent_size_get(extent)
-		    >= prev_size + sc_data_global.large_minclass);
+		    >= prev_size + SC_LARGE_MINCLASS);
 	}
 	extent_deactivate_locked(tsdn, arena, extents, extent);
 

@@ -57,15 +57,15 @@ prof_accum_cancel(tsdn_t *tsdn, prof_accum_t *prof_accum,
 #ifdef JEMALLOC_ATOMIC_U64
 	a0 = atomic_load_u64(&prof_accum->accumbytes, ATOMIC_RELAXED);
 	do {
-		a1 = (a0 >= sc_data_global.large_minclass - usize)
-		    ? a0 - (sc_data_global.large_minclass - usize) : 0;
+		a1 = (a0 >= SC_LARGE_MINCLASS - usize)
+		    ? a0 - (SC_LARGE_MINCLASS - usize) : 0;
 	} while (!atomic_compare_exchange_weak_u64(&prof_accum->accumbytes, &a0,
 	    a1, ATOMIC_RELAXED, ATOMIC_RELAXED));
 #else
 	malloc_mutex_lock(tsdn, &prof_accum->mtx);
 	a0 = prof_accum->accumbytes;
-	a1 = (a0 >= sc_data_global.large_minclass - usize)
-	    ?  a0 - (sc_data_global.large_minclass - usize) : 0;
+	a1 = (a0 >= SC_LARGE_MINCLASS - usize)
+	    ?  a0 - (SC_LARGE_MINCLASS - usize) : 0;
 	prof_accum->accumbytes = a1;
 	malloc_mutex_unlock(tsdn, &prof_accum->mtx);
 #endif

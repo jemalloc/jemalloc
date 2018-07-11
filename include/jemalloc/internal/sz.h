@@ -51,7 +51,7 @@ extern void sz_boot(const sc_data_t *sc_data);
 
 JEMALLOC_ALWAYS_INLINE pszind_t
 sz_psz2ind(size_t psz) {
-	if (unlikely(psz > sc_data_global.large_maxclass)) {
+	if (unlikely(psz > SC_LARGE_MAXCLASS)) {
 		return sc_data_global.npsizes;
 	}
 	pszind_t x = lg_floor((psz<<1)-1);
@@ -73,7 +73,7 @@ sz_psz2ind(size_t psz) {
 static inline size_t
 sz_pind2sz_compute(pszind_t pind) {
 	if (unlikely(pind == sc_data_global.npsizes)) {
-		return sc_data_global.large_maxclass + PAGE;
+		return SC_LARGE_MAXCLASS + PAGE;
 	}
 	size_t grp = pind >> SC_LG_NGROUP;
 	size_t mod = pind & ((ZU(1) << SC_LG_NGROUP) - 1);
@@ -105,8 +105,8 @@ sz_pind2sz(pszind_t pind) {
 
 static inline size_t
 sz_psz2u(size_t psz) {
-	if (unlikely(psz > sc_data_global.large_maxclass)) {
-		return sc_data_global.large_maxclass + PAGE;
+	if (unlikely(psz > SC_LARGE_MAXCLASS)) {
+		return SC_LARGE_MAXCLASS + PAGE;
 	}
 	size_t x = lg_floor((psz<<1)-1);
 	size_t lg_delta = (x < SC_LG_NGROUP + LG_PAGE + 1) ?
@@ -119,7 +119,7 @@ sz_psz2u(size_t psz) {
 
 static inline szind_t
 sz_size2index_compute(size_t size) {
-	if (unlikely(size > sc_data_global.large_maxclass)) {
+	if (unlikely(size > SC_LARGE_MAXCLASS)) {
 		return SC_NSIZES;
 	}
 #if (SC_NTINY != 0)
@@ -207,7 +207,7 @@ sz_index2size(szind_t index) {
 
 JEMALLOC_ALWAYS_INLINE size_t
 sz_s2u_compute(size_t size) {
-	if (unlikely(size > sc_data_global.large_maxclass)) {
+	if (unlikely(size > SC_LARGE_MAXCLASS)) {
 		return 0;
 	}
 #if (SC_NTINY > 0)
@@ -262,7 +262,7 @@ sz_sa2u(size_t size, size_t alignment) {
 	assert(alignment != 0 && ((alignment - 1) & alignment) == 0);
 
 	/* Try for a small size class. */
-	if (size <= sc_data_global.small_maxclass && alignment < PAGE) {
+	if (size <= SC_SMALL_MAXCLASS && alignment < PAGE) {
 		/*
 		 * Round size up to the nearest multiple of alignment.
 		 *
@@ -278,20 +278,20 @@ sz_sa2u(size_t size, size_t alignment) {
 		 *    192 | 11000000 |  64
 		 */
 		usize = sz_s2u(ALIGNMENT_CEILING(size, alignment));
-		if (usize < sc_data_global.large_minclass) {
+		if (usize < SC_LARGE_MINCLASS) {
 			return usize;
 		}
 	}
 
 	/* Large size class.  Beware of overflow. */
 
-	if (unlikely(alignment > sc_data_global.large_maxclass)) {
+	if (unlikely(alignment > SC_LARGE_MAXCLASS)) {
 		return 0;
 	}
 
 	/* Make sure result is a large size class. */
-	if (size <= sc_data_global.large_minclass) {
-		usize = sc_data_global.large_minclass;
+	if (size <= SC_LARGE_MINCLASS) {
+		usize = SC_LARGE_MINCLASS;
 	} else {
 		usize = sz_s2u(size);
 		if (usize < size) {
