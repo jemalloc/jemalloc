@@ -2770,6 +2770,11 @@ int __posix_memalign(void** r, size_t a, size_t s) PREALIAS(je_posix_memalign);
  */
 
 #ifdef JEMALLOC_EXPERIMENTAL_SMALLOCX_API
+typedef struct {
+	void *ptr;
+	size_t size;
+} smallocx_return_t;
+
 JEMALLOC_EXPORT JEMALLOC_ALLOCATOR JEMALLOC_RESTRICT_RETURN
 smallocx_return_t JEMALLOC_NOTHROW
 /*
