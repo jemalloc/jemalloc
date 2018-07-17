@@ -896,6 +896,11 @@ malloc_conf_error(const char *msg, const char *k, size_t klen, const char *v,
 	malloc_printf("<jemalloc>: %s: %.*s:%.*s\n", msg, (int)klen, k,
 	    (int)vlen, v);
 	/* If abort_conf is set, error out after processing all options. */
+	const char *experimental = "experimental_";
+	if (strncmp(k, experimental, strlen(experimental)) == 0) {
+		/* However, tolerate experimental features. */
+		return;
+	}
 	had_conf_error = true;
 }
 
