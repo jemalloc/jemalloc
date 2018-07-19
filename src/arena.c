@@ -2001,11 +2001,11 @@ arena_init_huge(void) {
 }
 
 void
-arena_boot(void) {
+arena_boot(sc_t scs[SC_NSIZES]) {
 	arena_dirty_decay_ms_default_set(opt_dirty_decay_ms);
 	arena_muzzy_decay_ms_default_set(opt_muzzy_decay_ms);
 	for (unsigned i = 0; i < SC_NBINS; i++) {
-		sc_t *sc = &sc_data_global.sc[i];
+		sc_t *sc = &scs[i];
 		div_init(&arena_binind_div_info[i],
 		    (1U << sc->lg_base) + (sc->ndelta << sc->lg_delta));
 	}

@@ -920,7 +920,7 @@ malloc_slow_flag_init(void) {
 }
 
 static void
-malloc_conf_init(void) {
+malloc_conf_init(sc_t scs[SC_NSIZES]) {
 	unsigned i;
 	char buf[PATH_MAX + 1];
 	const char *opts, *k, *v;
@@ -1254,8 +1254,9 @@ malloc_conf_init(void) {
 					    &pgs);
 					if (!err) {
 						sc_data_update_slab_size(
-						    &sc_data_global, slab_start,
-						    slab_end, (int)pgs);
+						    &sc_data_global, scs,
+						    slab_start, slab_end,
+						    (int)pgs);
 					} else {
 						malloc_conf_error(
 						    "Invalid settings for "
@@ -1375,10 +1376,15 @@ malloc_init_hard_a0_locked() {
 	 * before sz_boot and bin_boot, which assume that the values they read
 	 * out of sc_data_global are final.
 	 */
-	sc_boot();
-	malloc_conf_init();
-	sz_boot(&sc_data_global);
-	bin_boot(&sc_data_global);
+	JEMALLOC_DIAGNOSTIC_PUSH
+	    JEMALLOC_DIAGNOSTIC_IGNORE_MISSING_STRUCT_FIELD_INITIALIZERS
+	sc_t scs[SC_NSIZES] = {{0}};
+	JEMALLOC_DIAGNOSTIC_POP
+
+	sc_boot(scs);
+	malloc_conf_init(scs);
+	sz_boot(&sc_data_global, scs);
+	bin_boot(&sc_data_global, scs);
 
 	if (config_prof) {
 		prof_boot0();
@@ -1407,7 +1413,7 @@ malloc_init_hard_a0_locked() {
 	if (config_prof) {
 		prof_boot1();
 	}
-	arena_boot();
+	arena_boot(scs);
 	if (tcache_boot(TSDN_NULL)) {
 		return true;
 	}

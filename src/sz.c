@@ -5,10 +5,10 @@ JEMALLOC_ALIGNED(CACHELINE)
 size_t sz_pind2sz_tab[SC_NPSIZES_MAX+1];
 
 static void
-sz_boot_pind2sz_tab(const sc_data_t *sc_data) {
+sz_boot_pind2sz_tab(const sc_data_t *sc_data, const sc_t scs[SC_NSIZES]) {
 	int pind = 0;
 	for (unsigned i = 0; i < SC_NSIZES; i++) {
-		const sc_t *sc = &sc_data->sc[i];
+		const sc_t *sc = &scs[i];
 		if (sc->psz) {
 			sz_pind2sz_tab[pind] = (ZU(1) << sc->lg_base)
 			    + (ZU(sc->ndelta) << sc->lg_delta);
@@ -22,9 +22,9 @@ JEMALLOC_ALIGNED(CACHELINE)
 size_t sz_index2size_tab[SC_NSIZES];
 
 static void
-sz_boot_index2size_tab(const sc_data_t *sc_data) {
+sz_boot_index2size_tab(const sc_t scs[SC_NSIZES]) {
 	for (unsigned i = 0; i < SC_NSIZES; i++) {
-		const sc_t *sc = &sc_data->sc[i];
+		const sc_t *sc = &scs[i];
 		sz_index2size_tab[i] = (ZU(1) << sc->lg_base)
 		    + (ZU(sc->ndelta) << (sc->lg_delta));
 	}
@@ -38,12 +38,12 @@ JEMALLOC_ALIGNED(CACHELINE)
 uint8_t sz_size2index_tab[SC_LOOKUP_MAXCLASS >> SC_LG_TINY_MIN];
 
 static void
-sz_boot_size2index_tab(const sc_data_t *sc_data) {
+sz_boot_size2index_tab(const sc_t scs[SC_NSIZES]) {
 	size_t dst_max = (SC_LOOKUP_MAXCLASS >> SC_LG_TINY_MIN);
 	size_t dst_ind = 0;
 	for (unsigned sc_ind = 0; sc_ind < SC_NSIZES && dst_ind < dst_max;
 	    sc_ind++) {
-		const sc_t *sc = &sc_data->sc[sc_ind];
+		const sc_t *sc = &scs[sc_ind];
 		size_t sz = (ZU(1) << sc->lg_base)
 		    + (ZU(sc->ndelta) << sc->lg_delta);
 		size_t max_ind = ((sz - 1) >> SC_LG_TINY_MIN);
@@ -54,8 +54,8 @@ sz_boot_size2index_tab(const sc_data_t *sc_data) {
 }
 
 void
-sz_boot(const sc_data_t *sc_data) {
-	sz_boot_pind2sz_tab(sc_data);
-	sz_boot_index2size_tab(sc_data);
-	sz_boot_size2index_tab(sc_data);
+sz_boot(const sc_data_t *sc_data, const sc_t scs[SC_NSIZES]) {
+	sz_boot_pind2sz_tab(sc_data, scs);
+	sz_boot_index2size_tab(scs);
+	sz_boot_size2index_tab(scs);
 }

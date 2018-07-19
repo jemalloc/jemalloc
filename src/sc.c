@@ -87,7 +87,7 @@ size_class(
 static void
 size_classes(
     /* Output. */
-    sc_data_t *sc_data,
+    sc_data_t *sc_data, sc_t scs[SC_NSIZES],
     /* Determined by the system. */
     size_t lg_ptr_size, int lg_quantum,
     /* Configuration decisions. */
@@ -114,7 +114,7 @@ size_classes(
 
 	/* Tiny size classes. */
 	while (lg_base < lg_quantum) {
-		sc_t *sc = &sc_data->sc[index];
+		sc_t *sc = &scs[index];
 		size_class(sc, lg_max_lookup, lg_page, lg_ngroup, index,
 		    lg_base, lg_delta, ndelta);
 		if (sc->lg_delta_lookup != 0) {
@@ -136,7 +136,7 @@ size_classes(
 
 	/* First non-tiny (pseudo) group. */
 	if (ntiny != 0) {
-		sc_t *sc = &sc_data->sc[index];
+		sc_t *sc = &scs[index];
 		/*
 		 * See the note in sc.h; the first non-tiny size class has an
 		 * unusual encoding.
@@ -156,7 +156,7 @@ size_classes(
 		}
 	}
 	while (ndelta < ngroup) {
-		sc_t *sc = &sc_data->sc[index];
+		sc_t *sc = &scs[index];
 		size_class(sc, lg_max_lookup, lg_page, lg_ngroup, index,
 		    lg_base, lg_delta, ndelta);
 		index++;
@@ -180,7 +180,7 @@ size_classes(
 			ndelta_limit = ngroup;
 		}
 		while (ndelta <= ndelta_limit) {
-			sc_t *sc = &sc_data->sc[index];
+			sc_t *sc = &scs[index];
 			size_class(sc, lg_max_lookup, lg_page, lg_ngroup, index,
 			    lg_base, lg_delta, ndelta);
 			if (sc->lg_delta_lookup != 0) {
@@ -245,12 +245,12 @@ size_classes(
 }
 
 void
-sc_data_init(sc_data_t *sc_data) {
+sc_data_init(sc_data_t *sc_data, sc_t scs[SC_NSIZES]) {
 	assert(!sc_data->initialized);
 
 	int lg_max_lookup = 12;
 
-	size_classes(sc_data, LG_SIZEOF_PTR, LG_QUANTUM, SC_LG_TINY_MIN,
+	size_classes(sc_data, scs, LG_SIZEOF_PTR, LG_QUANTUM, SC_LG_TINY_MIN,
 	    lg_max_lookup, LG_PAGE, 2);
 
 	sc_data->initialized = true;
@@ -281,10 +281,11 @@ sc_data_update_sc_slab_size(sc_t *sc, size_t reg_size, size_t pgs_guess) {
 }
 
 void
-sc_data_update_slab_size(sc_data_t *data, size_t begin, size_t end, int pgs) {
+sc_data_update_slab_size(sc_data_t *data, sc_t scs[SC_NSIZES], size_t begin,
+    size_t end, int pgs) {
 	assert(data->initialized);
 	for (int i = 0; i < data->nsizes; i++) {
-		sc_t *sc = &data->sc[i];
+		sc_t *sc = &scs[i];
 		if (!sc->bin) {
 			break;
 		}
@@ -297,6 +298,6 @@ sc_data_update_slab_size(sc_data_t *data, size_t begin, size_t end, int pgs) {
 }
 
 void
-sc_boot() {
-	sc_data_init(&sc_data_global);
+sc_boot(sc_t scs[SC_NSIZES]) {
+	sc_data_init(&sc_data_global, scs);
 }

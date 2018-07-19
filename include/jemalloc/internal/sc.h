@@ -311,17 +311,23 @@ struct sc_data_s {
 	/* True if the sc_data_t has been initialized (for debugging only). */
 	bool initialized;
 
-	sc_t sc[SC_NSIZES];
+	/*
+	 * We omit the actual size class data itself, which is used only at
+	 * initialization.  This can reduce consumption of global data (and, in
+	 * particular, makes it more likely that the bits of global data touched
+	 * on the hot path all live on the same page.
+	 */
+	/* sc_t sc[SC_NSIZES]; */
 };
 
 extern sc_data_t sc_data_global;
-void sc_data_init(sc_data_t *data);
+void sc_data_init(sc_data_t *data, sc_t scs[SC_NSIZES]);
 /*
  * Updates slab sizes in [begin, end] to be pgs pages in length, if possible.
  * Otherwise, does its best to accomodate the request.
  */
-void sc_data_update_slab_size(sc_data_t *data, size_t begin, size_t end,
-    int pgs);
-void sc_boot();
+void sc_data_update_slab_size(sc_data_t *data, sc_t scs[SC_NSIZES],
+    size_t begin, size_t end, int pgs);
+void sc_boot(sc_t scs[SC_NSIZES]);
 
 #endif /* JEMALLOC_INTERNAL_SC_H */

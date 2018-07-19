@@ -79,8 +79,9 @@ struct bin_s {
 	bin_stats_t	stats;
 };
 
-void bin_infos_init(sc_data_t *sc_data, bin_info_t bin_infos[SC_NBINS]);
-void bin_boot();
+void bin_infos_init(sc_data_t *sc_data, sc_t scs[SC_NSIZES],
+    bin_info_t bin_infos[SC_NBINS]);
+void bin_boot(sc_data_t *sc_data, sc_t scs[SC_NSIZES]);
 
 /* Initializes a bin to empty.  Returns true on error. */
 bool bin_init(bin_t *bin);
