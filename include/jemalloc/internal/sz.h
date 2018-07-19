@@ -47,7 +47,7 @@ static const size_t sz_large_pad =
 #endif
     ;
 
-extern void sz_boot(const sc_data_t *sc_data);
+extern void sz_boot(const sc_data_t *sc_data, const sc_t scs[SC_NSIZES]);
 
 JEMALLOC_ALWAYS_INLINE pszind_t
 sz_psz2ind(size_t psz) {
