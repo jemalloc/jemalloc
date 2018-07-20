@@ -181,14 +181,14 @@ struct extents_s {
 	 *
 	 * Synchronization: mtx.
 	 */
-	extent_heap_t		heaps[SC_NPSIZES_MAX + 1];
+	extent_heap_t		heaps[SC_NPSIZES + 1];
 
 	/*
 	 * Bitmap for which set bits correspond to non-empty heaps.
 	 *
 	 * Synchronization: mtx.
 	 */
-	bitmap_t		bitmap[BITMAP_GROUPS(SC_NPSIZES_MAX + 1)];
+	bitmap_t		bitmap[BITMAP_GROUPS(SC_NPSIZES + 1)];
 
 	/*
 	 * LRU of all extents in heaps.

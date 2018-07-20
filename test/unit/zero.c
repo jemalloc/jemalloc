@@ -47,8 +47,7 @@ TEST_END
 
 TEST_BEGIN(test_zero_large) {
 	test_skip_if(!config_fill);
-	test_zero(SC_SMALL_MAXCLASS + 1,
-	    1U << (sc_data_global.lg_large_minclass + 1));
+	test_zero(SC_SMALL_MAXCLASS + 1, 1U << (SC_LG_LARGE_MINCLASS + 1));
 }
 TEST_END
 

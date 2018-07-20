@@ -26,7 +26,7 @@
  * sz_pind2sz_tab encodes the same information as could be computed by
  * sz_pind2sz_compute().
  */
-extern size_t sz_pind2sz_tab[SC_NPSIZES_MAX + 1];
+extern size_t sz_pind2sz_tab[SC_NPSIZES + 1];
 /*
  * sz_index2size_tab encodes the same information as could be computed (at
  * unacceptable cost in some code paths) by sz_index2size_compute().
@@ -52,7 +52,7 @@ extern void sz_boot(const sc_data_t *sc_data);
 JEMALLOC_ALWAYS_INLINE pszind_t
 sz_psz2ind(size_t psz) {
 	if (unlikely(psz > SC_LARGE_MAXCLASS)) {
-		return sc_data_global.npsizes;
+		return SC_NPSIZES;
 	}
 	pszind_t x = lg_floor((psz<<1)-1);
 	pszind_t shift = (x < SC_LG_NGROUP + LG_PAGE) ?
@@ -72,7 +72,7 @@ sz_psz2ind(size_t psz) {
 
 static inline size_t
 sz_pind2sz_compute(pszind_t pind) {
-	if (unlikely(pind == sc_data_global.npsizes)) {
+	if (unlikely(pind == SC_NPSIZES)) {
 		return SC_LARGE_MAXCLASS + PAGE;
 	}
 	size_t grp = pind >> SC_LG_NGROUP;
@@ -99,7 +99,7 @@ sz_pind2sz_lookup(pszind_t pind) {
 
 static inline size_t
 sz_pind2sz(pszind_t pind) {
-	assert(pind < sc_data_global.npsizes + 1);
+	assert(pind < SC_NPSIZES + 1);
 	return sz_pind2sz_lookup(pind);
 }
 
@@ -123,9 +123,8 @@ sz_size2index_compute(size_t size) {
 		return SC_NSIZES;
 	}
 #if (SC_NTINY != 0)
-	if (size <= (ZU(1) << sc_data_global.lg_tiny_maxclass)) {
-		szind_t lg_tmin = sc_data_global.lg_tiny_maxclass
-		    - sc_data_global.ntiny + 1;
+	if (size <= (ZU(1) << SC_LG_TINY_MAXCLASS)) {
+		szind_t lg_tmin = SC_LG_TINY_MAXCLASS - SC_NTINY + 1;
 		szind_t lg_ceil = lg_floor(pow2_ceil_zu(size));
 		return (lg_ceil < lg_tmin ? 0 : lg_ceil - lg_tmin);
 	}
@@ -143,7 +142,7 @@ sz_size2index_compute(size_t size) {
 		szind_t mod = ((((size-1) & delta_inverse_mask) >> lg_delta)) &
 		    ((ZU(1) << SC_LG_NGROUP) - 1);
 
-		szind_t index = sc_data_global.ntiny + grp + mod;
+		szind_t index = SC_NTINY + grp + mod;
 		return index;
 	}
 }
@@ -168,13 +167,12 @@ sz_size2index(size_t size) {
 static inline size_t
 sz_index2size_compute(szind_t index) {
 #if (SC_NTINY > 0)
-	if (index < sc_data_global.ntiny) {
-		return (ZU(1) << (sc_data_global.lg_tiny_maxclass
-		    - sc_data_global.ntiny + 1 + index));
+	if (index < SC_NTINY) {
+		return (ZU(1) << (SC_LG_TINY_MAXCLASS - SC_NTINY + 1 + index));
 	}
 #endif
 	{
-		size_t reduced_index = index - sc_data_global.ntiny;
+		size_t reduced_index = index - SC_NTINY;
 		size_t grp = reduced_index >> SC_LG_NGROUP;
 		size_t mod = reduced_index & ((ZU(1) << SC_LG_NGROUP) -
 		    1);
@@ -211,9 +209,8 @@ sz_s2u_compute(size_t size) {
 		return 0;
 	}
 #if (SC_NTINY > 0)
-	if (size <= (ZU(1) << sc_data_global.lg_tiny_maxclass)) {
-		size_t lg_tmin = sc_data_global.lg_tiny_maxclass
-		    - sc_data_global.ntiny + 1;
+	if (size <= (ZU(1) << SC_LG_TINY_MAXCLASS)) {
+		size_t lg_tmin = SC_LG_TINY_MAXCLASS - SC_NTINY + 1;
 		size_t lg_ceil = lg_floor(pow2_ceil_zu(size));
 		return (lg_ceil < lg_tmin ? (ZU(1) << lg_tmin) :
 		    (ZU(1) << lg_ceil));

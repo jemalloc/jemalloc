@@ -2,7 +2,7 @@
 #include "jemalloc/internal/sz.h"
 
 JEMALLOC_ALIGNED(CACHELINE)
-size_t sz_pind2sz_tab[SC_NPSIZES_MAX+1];
+size_t sz_pind2sz_tab[SC_NPSIZES+1];
 
 static void
 sz_boot_pind2sz_tab(const sc_data_t *sc_data) {
@@ -15,7 +15,9 @@ sz_boot_pind2sz_tab(const sc_data_t *sc_data) {
 			pind++;
 		}
 	}
-	sz_pind2sz_tab[pind] = sc_data->large_maxclass + PAGE;
+	for (int i = pind; i <= (int)SC_NPSIZES; i++) {
+		sz_pind2sz_tab[pind] = sc_data->large_maxclass + PAGE;
+	}
 }
 
 JEMALLOC_ALIGNED(CACHELINE)

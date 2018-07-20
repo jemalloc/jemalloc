@@ -1754,8 +1754,7 @@ arena_retain_grow_limit_get_set(tsd_t *tsd, arena_t *arena, size_t *old_limit,
 	if (new_limit != NULL) {
 		size_t limit = *new_limit;
 		/* Grow no more than the new limit. */
-		if ((new_ind = sz_psz2ind(limit + 1) - 1)
-		    >= sc_data_global.npsizes) {
+		if ((new_ind = sz_psz2ind(limit + 1) - 1) >= SC_NPSIZES) {
 			return true;
 		}
 	}
@@ -1899,7 +1898,7 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 	}
 
 	arena->extent_grow_next = sz_psz2ind(HUGEPAGE);
-	arena->retain_grow_limit = sc_data_global.npsizes - 1;
+	arena->retain_grow_limit = sz_psz2ind(SC_LARGE_MAXCLASS);
 	if (malloc_mutex_init(&arena->extent_grow_mtx, "extent_grow",
 	    WITNESS_RANK_EXTENT_GROW, malloc_mutex_rank_exclusive)) {
 		goto label_error;
@@ -2001,11 +2000,11 @@ arena_init_huge(void) {
 }
 
 void
-arena_boot(void) {
+arena_boot(sc_data_t *sc_data) {
 	arena_dirty_decay_ms_default_set(opt_dirty_decay_ms);
 	arena_muzzy_decay_ms_default_set(opt_muzzy_decay_ms);
 	for (unsigned i = 0; i < SC_NBINS; i++) {
-		sc_t *sc = &sc_data_global.sc[i];
+		sc_t *sc = &sc_data->sc[i];
 		div_init(&arena_binind_div_info[i],
 		    (1U << sc->lg_base) + (sc->ndelta << sc->lg_delta));
 	}

@@ -262,7 +262,7 @@ base_block_alloc(tsdn_t *tsdn, base_t *base, extent_hooks_t *extent_hooks,
 	 */
 	size_t min_block_size = HUGEPAGE_CEILING(sz_psz2u(header_size + gap_size
 	    + usize));
-	pszind_t pind_next = (*pind_last + 1 < sc_data_global.npsizes) ?
+	pszind_t pind_next = (*pind_last + 1 < sz_psz2ind(SC_LARGE_MAXCLASS)) ?
 	    *pind_last + 1 : *pind_last;
 	size_t next_block_size = HUGEPAGE_CEILING(sz_pind2sz(pind_next));
 	size_t block_size = (min_block_size > next_block_size) ? min_block_size

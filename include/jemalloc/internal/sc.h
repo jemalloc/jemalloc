@@ -182,6 +182,7 @@
 #define SC_NGROUP (1ULL << SC_LG_NGROUP)
 #define SC_PTR_BITS ((1ULL << LG_SIZEOF_PTR) * 8)
 #define SC_NTINY (LG_QUANTUM - SC_LG_TINY_MIN)
+#define SC_LG_TINY_MAXCLASS (LG_QUANTUM > SC_LG_TINY_MIN ? LG_QUANTUM - 1 : -1)
 #define SC_NPSEUDO SC_NGROUP
 #define SC_LG_FIRST_REGULAR_BASE (LG_QUANTUM + SC_LG_NGROUP)
 /*
@@ -200,7 +201,7 @@
  * because delta may be smaller than a page, this is not the same as the number
  * of size classes that are *multiples* of the page size.
  */
-#define SC_NPSIZES_MAX (						\
+#define SC_NPSIZES (							\
     /* Start with all the size classes. */				\
     SC_NSIZES								\
     /* Subtract out those groups with too small a base. */		\
@@ -209,11 +210,8 @@
     - SC_NPSEUDO							\
     /* And the tiny group. */						\
     - SC_NTINY								\
-    /*									\
-     * In the lg_base == lg_page - 1 group, only the last sc is big	\
-     * enough to make it to lg_page.					\
-     */									\
-    - (SC_NGROUP - 1))
+    /* Groups where ndelta*delta is not a multiple of the page size. */	\
+    - (2 * (SC_NGROUP)))
 
 /*
  * We declare a size class is binnable if size < page size * group. Or, in other
@@ -314,7 +312,6 @@ struct sc_data_s {
 	sc_t sc[SC_NSIZES];
 };
 
-extern sc_data_t sc_data_global;
 void sc_data_init(sc_data_t *data);
 /*
  * Updates slab sizes in [begin, end] to be pgs pages in length, if possible.
@@ -322,6 +319,6 @@ void sc_data_init(sc_data_t *data);
  */
 void sc_data_update_slab_size(sc_data_t *data, size_t begin, size_t end,
     int pgs);
-void sc_boot();
+void sc_boot(sc_data_t *data);
 
 #endif /* JEMALLOC_INTERNAL_SC_H */

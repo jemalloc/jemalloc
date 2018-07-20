@@ -20,7 +20,7 @@ mutex_pool_t	extent_mutex_pool;
 size_t opt_lg_extent_max_active_fit = LG_EXTENT_MAX_ACTIVE_FIT_DEFAULT;
 
 static const bitmap_info_t extents_bitmap_info =
-    BITMAP_INFO_INITIALIZER(SC_NPSIZES_MAX+1);
+    BITMAP_INFO_INITIALIZER(SC_NPSIZES+1);
 
 static void *extent_alloc_default(extent_hooks_t *extent_hooks, void *new_addr,
     size_t size, size_t alignment, bool *zero, bool *commit,
@@ -288,7 +288,7 @@ extents_init(tsdn_t *tsdn, extents_t *extents, extent_state_t state,
 	    malloc_mutex_rank_exclusive)) {
 		return true;
 	}
-	for (unsigned i = 0; i < sc_data_global.npsizes + 1; i++) {
+	for (unsigned i = 0; i < SC_NPSIZES + 1; i++) {
 		extent_heap_new(&extents->heaps[i]);
 	}
 	bitmap_init(extents->bitmap, &extents_bitmap_info, true);
@@ -375,7 +375,7 @@ extents_fit_alignment(extents_t *extents, size_t min_size, size_t max_size,
 	    &extents_bitmap_info, (size_t)pind); i < pind_max; i =
 	    (pszind_t)bitmap_ffu(extents->bitmap, &extents_bitmap_info,
 	    (size_t)i+1)) {
-		assert(i < sc_data_global.npsizes);
+		assert(i < SC_NPSIZES);
 		assert(!extent_heap_empty(&extents->heaps[i]));
 		extent_t *extent = extent_heap_first(&extents->heaps[i]);
 		uintptr_t base = (uintptr_t)extent_base_get(extent);
@@ -405,7 +405,7 @@ extents_best_fit_locked(tsdn_t *tsdn, arena_t *arena, extents_t *extents,
 	pszind_t pind = sz_psz2ind(extent_size_quantize_ceil(size));
 	pszind_t i = (pszind_t)bitmap_ffu(extents->bitmap, &extents_bitmap_info,
 	    (size_t)pind);
-	if (i < sc_data_global.npsizes + 1) {
+	if (i < SC_NPSIZES + 1) {
 		/*
 		 * In order to reduce fragmentation, avoid reusing and splitting
 		 * large extents for much smaller sizes.
@@ -434,7 +434,7 @@ extents_first_fit_locked(tsdn_t *tsdn, arena_t *arena, extents_t *extents,
 	pszind_t pind = sz_psz2ind(extent_size_quantize_ceil(size));
 	for (pszind_t i = (pszind_t)bitmap_ffu(extents->bitmap,
 	    &extents_bitmap_info, (size_t)pind);
-	    i < sc_data_global.npsizes + 1;
+	    i < SC_NPSIZES + 1;
 	    i = (pszind_t)bitmap_ffu(extents->bitmap, &extents_bitmap_info,
 	    (size_t)i+1)) {
 		assert(!extent_heap_empty(&extents->heaps[i]));
@@ -443,10 +443,10 @@ extents_first_fit_locked(tsdn_t *tsdn, arena_t *arena, extents_t *extents,
 		if (ret == NULL || extent_snad_comp(extent, ret) < 0) {
 			ret = extent;
 		}
-		if (i == sc_data_global.npsizes) {
+		if (i == SC_NPSIZES) {
 			break;
 		}
-		assert(i < sc_data_global.npsizes);
+		assert(i < SC_NPSIZES);
 	}
 
 	return ret;
@@ -1249,13 +1249,11 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena,
 	size_t alloc_size = sz_pind2sz(arena->extent_grow_next + egn_skip);
 	while (alloc_size < alloc_size_min) {
 		egn_skip++;
-		if (arena->extent_grow_next + egn_skip ==
-		    sc_data_global.npsizes) {
+		if (arena->extent_grow_next + egn_skip >=
+		    sz_psz2ind(SC_LARGE_MAXCLASS)) {
 			/* Outside legal range. */
 			goto label_err;
 		}
-		assert(arena->extent_grow_next + egn_skip
-		    < sc_data_global.npsizes);
 		alloc_size = sz_pind2sz(arena->extent_grow_next + egn_skip);
 	}
 
