@@ -581,7 +581,7 @@ TEST_BEGIN(test_arena_i_retain_grow_limit) {
 
 	assert_d_eq(mallctlbymib(mib, miblen, &default_limit, &sz, NULL, 0), 0,
 	    "Unexpected mallctl() failure");
-	assert_zu_eq(default_limit, sz_pind2sz(sc_data_global.npsizes - 1),
+	assert_zu_eq(default_limit, SC_LARGE_MAXCLASS,
 	    "Unexpected default for retain_grow_limit");
 
 	new_limit = PAGE - 1;

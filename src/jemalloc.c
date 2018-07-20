@@ -920,7 +920,7 @@ malloc_slow_flag_init(void) {
 }
 
 static void
-malloc_conf_init(void) {
+malloc_conf_init(sc_data_t *sc_data) {
 	unsigned i;
 	char buf[PATH_MAX + 1];
 	const char *opts, *k, *v;
@@ -1254,7 +1254,7 @@ malloc_conf_init(void) {
 					    &pgs);
 					if (!err) {
 						sc_data_update_slab_size(
-						    &sc_data_global, slab_start,
+						    sc_data, slab_start,
 						    slab_end, (int)pgs);
 					} else {
 						malloc_conf_error(
@@ -1368,6 +1368,11 @@ static bool
 malloc_init_hard_a0_locked() {
 	malloc_initializer = INITIALIZER;
 
+	JEMALLOC_DIAGNOSTIC_PUSH
+	JEMALLOC_DIAGNOSTIC_IGNORE_MISSING_STRUCT_FIELD_INITIALIZERS
+	sc_data_t sc_data = {0};
+	JEMALLOC_DIAGNOSTIC_POP
+
 	/*
 	 * Ordering here is somewhat tricky; we need sc_boot() first, since that
 	 * determines what the size classes will be, and then
@@ -1375,10 +1380,10 @@ malloc_init_hard_a0_locked() {
 	 * before sz_boot and bin_boot, which assume that the values they read
 	 * out of sc_data_global are final.
 	 */
-	sc_boot();
-	malloc_conf_init();
-	sz_boot(&sc_data_global);
-	bin_boot(&sc_data_global);
+	sc_boot(&sc_data);
+	malloc_conf_init(&sc_data);
+	sz_boot(&sc_data);
+	bin_boot(&sc_data);
 
 	if (config_prof) {
 		prof_boot0();
@@ -1407,7 +1412,7 @@ malloc_init_hard_a0_locked() {
 	if (config_prof) {
 		prof_boot1();
 	}
-	arena_boot();
+	arena_boot(&sc_data);
 	if (tcache_boot(TSDN_NULL)) {
 		return true;
 	}

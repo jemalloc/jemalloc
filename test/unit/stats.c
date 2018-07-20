@@ -76,7 +76,7 @@ TEST_BEGIN(test_stats_arenas_summary) {
 
 	little = mallocx(SC_SMALL_MAXCLASS, MALLOCX_ARENA(0));
 	assert_ptr_not_null(little, "Unexpected mallocx() failure");
-	large = mallocx((1U << sc_data_global.lg_large_minclass),
+	large = mallocx((1U << SC_LG_LARGE_MINCLASS),
 	    MALLOCX_ARENA(0));
 	assert_ptr_not_null(large, "Unexpected mallocx() failure");
 
@@ -192,7 +192,7 @@ TEST_BEGIN(test_stats_arenas_large) {
 	uint64_t epoch, nmalloc, ndalloc;
 	int expected = config_stats ? 0 : ENOENT;
 
-	p = mallocx((1U << sc_data_global.lg_large_minclass), MALLOCX_ARENA(0));
+	p = mallocx((1U << SC_LG_LARGE_MINCLASS), MALLOCX_ARENA(0));
 	assert_ptr_not_null(p, "Unexpected mallocx() failure");
 
 	assert_d_eq(mallctl("epoch", NULL, NULL, (void *)&epoch, sizeof(epoch)),

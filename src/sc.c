@@ -238,6 +238,8 @@ size_classes(
 	 * touch the extra global cacheline.  We assert, however, that the two
 	 * computations are equivalent.
 	 */
+	assert(sc_data->npsizes == SC_NPSIZES);
+	assert(sc_data->lg_tiny_maxclass == SC_LG_TINY_MAXCLASS);
 	assert(sc_data->small_maxclass == SC_SMALL_MAXCLASS);
 	assert(sc_data->large_minclass == SC_LARGE_MINCLASS);
 	assert(sc_data->lg_large_minclass == SC_LG_LARGE_MINCLASS);
@@ -297,6 +299,6 @@ sc_data_update_slab_size(sc_data_t *data, size_t begin, size_t end, int pgs) {
 }
 
 void
-sc_boot() {
-	sc_data_init(&sc_data_global);
+sc_boot(sc_data_t *data) {
+	sc_data_init(data);
 }
