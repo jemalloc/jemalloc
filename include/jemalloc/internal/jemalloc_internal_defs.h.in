@@ -363,4 +363,7 @@
  */
 #undef JEMALLOC_STRERROR_R_RETURNS_CHAR_WITH_GNU_SOURCE
 
+/* If defined, jemalloc uses bundled ffs* functions. */
+#undef JEMALLOC_BUNDLED_FFS
+
 #endif /* JEMALLOC_INTERNAL_DEFS_H_ */

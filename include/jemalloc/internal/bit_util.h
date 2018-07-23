@@ -11,7 +11,6 @@
 #  error JEMALLOC_INTERNAL_FFS{,L,LL} should have been defined by configure
 #endif
 
-
 BIT_UTIL_INLINE unsigned
 ffs_llu(unsigned long long bitmap) {
 	return JEMALLOC_INTERNAL_FFSLL(bitmap);

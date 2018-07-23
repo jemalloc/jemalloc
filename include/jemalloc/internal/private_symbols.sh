@@ -14,13 +14,12 @@ cat <<EOF
 
 BEGIN {
   sym_prefix = "${sym_prefix}"
-  split("\\
 EOF
 
+printf 'split("'
+
 for public_sym in "$@" ; do
-  cat <<EOF
-        ${sym_prefix}${public_sym} \\
-EOF
+  printf "${sym_prefix}${public_sym} "
 done
 
 cat <<"EOF"

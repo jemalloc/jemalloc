@@ -1139,7 +1139,7 @@ ctl_lookup(tsdn_t *tsdn, const char *name, ctl_node_t const **nodesp,
 			}
 
 			inode = ctl_indexed_node(node->children);
-			node = inode->index(tsdn, mibp, *depthp, (size_t)index);
+			node = (inode->index)(tsdn, mibp, *depthp, (size_t)index);
 			if (node == NULL) {
 				ret = ENOENT;
 				goto label_return;
@@ -1258,7 +1258,7 @@ ctl_bymib(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
 
 			/* Indexed element. */
 			inode = ctl_indexed_node(node->children);
-			node = inode->index(tsd_tsdn(tsd), mib, miblen, mib[i]);
+			node = (inode->index)(tsd_tsdn(tsd), mib, miblen, mib[i]);
 			if (node == NULL) {
 				ret = ENOENT;
 				goto label_return;

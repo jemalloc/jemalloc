@@ -177,6 +177,14 @@ fi
 )
 AC_SUBST([XSLROOT])
 
+dnl Platform-specific compliler search tweaking
+PLATFORM=`uname -s`
+if test "x$PLATFORM" = "xAIX"; then
+        AC_CHECK_PROG([CC], [xlc_r], [xlc_r])
+        AC_CHECK_PROG([CCC], [xlC_r], [xlC_r])
+	LDFLAGS="$LDFLAGS -q64 -Wl,-brtl"
+fi
+
 dnl If CFLAGS isn't defined, set CFLAGS to something reasonable.  Otherwise,
 dnl just prevent autoconf from molesting CFLAGS.
 CFLAGS=$CFLAGS
@@ -256,6 +264,10 @@ elif test "x$je_cv_msvc" = "xyes" ; then
   JE_CFLAGS_ADD([-W3])
   JE_CFLAGS_ADD([-FS])
   JE_APPEND_VS(CPPFLAGS, -I${srcdir}/include/msvc_compat)
+elif test "x$CC" = "xxlc_r"; then
+  JE_CFLAGS_ADD([-q64])
+  JE_CFLAGS_ADD([-qmaxmem=-1])
+  JE_CFLAGS_ADD([-qsuppress=1506-1300:1506-1385:1506-943])
 fi
 if test "x$je_cv_cray" = "xyes" ; then
   dnl cray compiler 8.4 has an inlining bug
@@ -526,6 +538,11 @@ if test "x${je_cv_cray}" = "xyes" ; then
   CC_MM=
 fi
 
+if test "x$CC" = "xxlc_r"; then
+  CC_MM=
+  DSO_LDFLAGS='-G -q64'
+fi
+
 AN_MAKEVAR([AR], [AC_PROG_AR])
 AN_PROGRAM([ar], [AC_PROG_AR])
 AC_DEFUN([AC_PROG_AR], [AC_CHECK_TOOL(AR, ar, :)])
@@ -550,6 +567,11 @@ maps_coalesce="1"
 DUMP_SYMS="${NM} -a"
 SYM_PREFIX=""
 case "${host}" in
+  *-ibm-aix*)
+	DUMP_SYMS="${NM} -BC -X64"
+	ARFLAGS="-X64 $ARFLAGS"
+	RPATH=""
+	;;
   *-*-darwin* | *-*-ios*)
 	abi="macho"
 	RPATH=""
@@ -1020,6 +1042,9 @@ if test "x$enable_debug" = "x0" ; then
   elif test "x$je_cv_msvc" = "xyes" ; then
     JE_CFLAGS_ADD([-O2])
     JE_CXXFLAGS_ADD([-O2])
+  elif test "x$PLATFORM" = "xAIX" ; then
+    JE_CFLAGS_ADD([-O2])
+    JE_CXXFLAGS_ADD([-O2])
   else
     JE_CFLAGS_ADD([-O])
     JE_CXXFLAGS_ADD([-O])
@@ -1294,7 +1319,7 @@ else
 fi
 
 dnl ============================================================================
-dnl Check for  __builtin_ffsl(), then ffsl(3), and fail if neither are found.
+dnl Check for  __builtin_ffsl(), then ffsl(3), and use built-in implementation if none are found
 dnl One of those two functions should (theoretically) exist on all platforms
 dnl that jemalloc currently has a chance of functioning on without modification.
 dnl We additionally assume ffs[ll]() or __builtin_ffs[ll]() are defined if
@@ -1329,7 +1354,10 @@ else
     AC_DEFINE([JEMALLOC_INTERNAL_FFSL], [ffsl])
     AC_DEFINE([JEMALLOC_INTERNAL_FFS], [ffs])
   else
-    AC_MSG_ERROR([Cannot build without ffsl(3) or __builtin_ffsl()])
+    AC_DEFINE([JEMALLOC_INTERNAL_FFSLL], [__ffsll])
+    AC_DEFINE([JEMALLOC_INTERNAL_FFSL], [__ffsl])
+    AC_DEFINE([JEMALLOC_INTERNAL_FFS], [__ffs])
+    AC_DEFINE([JEMALLOC_BUNDLED_FFS], [1])
   fi
 fi
 
@@ -1357,6 +1385,19 @@ if test "x$LG_PAGE" = "xdetect"; then
 #include <unistd.h>
 #endif
 #include <stdio.h>
+
+#if JEMALLOC_BUNDLED_FFS
+static int __ffsl(long mask)
+{
+	int bit;
+
+	if (mask == 0)
+		return (0);
+	for (bit = 1; !(mask & 1); bit++)
+		mask = (unsigned long)mask >> 1;
+	return (bit);
+}
+#endif
 ]],
 [[
     int result;

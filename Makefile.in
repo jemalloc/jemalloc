@@ -101,6 +101,7 @@ C_SRCS := $(srcroot)src/jemalloc.c \
 	$(srcroot)src/extent.c \
 	$(srcroot)src/extent_dss.c \
 	$(srcroot)src/extent_mmap.c \
+	$(srcroot)src/ffs.c \
 	$(srcroot)src/hash.c \
 	$(srcroot)src/hook.c \
 	$(srcroot)src/large.c \
