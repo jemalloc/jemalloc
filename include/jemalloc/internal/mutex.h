@@ -88,6 +88,10 @@ struct malloc_mutex_s {
 #    define MALLOC_MUTEX_LOCK(m)    OSSpinLockLock(&(m)->lock)
 #    define MALLOC_MUTEX_UNLOCK(m)  OSSpinLockUnlock(&(m)->lock)
 #    define MALLOC_MUTEX_TRYLOCK(m) (!OSSpinLockTry(&(m)->lock))
+#elif (defined(JEMALLOC_INIT_BEFORE_THREADS))
+#    define MALLOC_MUTEX_LOCK(m)    do { if (__n_pthreads > 0) pthread_mutex_lock(&(m)->lock); } while(0)
+#    define MALLOC_MUTEX_UNLOCK(m)  do { if (__n_pthreads > 0) pthread_mutex_unlock(&(m)->lock); } while(0)
+#    define MALLOC_MUTEX_TRYLOCK(m) ((__n_pthreads > 0) ? (pthread_mutex_trylock(&(m)->lock) != 0) : false)
 #else
 #    define MALLOC_MUTEX_LOCK(m)    pthread_mutex_lock(&(m)->lock)
 #    define MALLOC_MUTEX_UNLOCK(m)  pthread_mutex_unlock(&(m)->lock)

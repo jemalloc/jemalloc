@@ -1596,8 +1596,6 @@ malloc_init_hard_finish(void) {
 
 static void
 malloc_init_hard_cleanup(tsdn_t *tsdn, bool reentrancy_set) {
-	malloc_mutex_assert_owner(tsdn, &init_lock);
-	malloc_mutex_unlock(tsdn, &init_lock);
 	if (reentrancy_set) {
 		assert(!tsdn_null(tsdn));
 		tsd_t *tsd = tsdn_tsd(tsdn);
@@ -2135,6 +2133,13 @@ je_malloc(size_t size) {
 	static_opts_t sopts;
 	dynamic_opts_t dopts;
 
+#ifdef JEMALLOC_INIT_BEFORE_THREADS
+	if (__n_pthreads < 1)
+	{
+		return bootstrap_malloc(size);
+	}
+#endif
+
 	LOG("core.malloc.entry", "size: %zu", size);
 
 	static_opts_init(&sopts);
@@ -2251,6 +2256,13 @@ je_calloc(size_t num, size_t size) {
 	void *ret;
 	static_opts_t sopts;
 	dynamic_opts_t dopts;
+
+#ifdef JEMALLOC_INIT_BEFORE_THREADS
+	if (__n_pthreads < 1)
+	{
+		return bootstrap_calloc(num, size);
+	}
+#endif
 
 	LOG("core.calloc.entry", "num: %zu, size: %zu\n", num, size);
 
@@ -2546,6 +2558,14 @@ je_realloc(void *ptr, size_t arg_size) {
 
 JEMALLOC_EXPORT void JEMALLOC_NOTHROW
 je_free(void *ptr) {
+#ifdef JEMALLOC_INIT_BEFORE_THREADS
+	if (__n_pthreads < 1)
+	{
+		bootstrap_free(ptr);
+		return;
+	}
+#endif
+
 	LOG("core.free.entry", "ptr: %p", ptr);
 
 	UTRACE(ptr, 0, 0);

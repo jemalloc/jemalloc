@@ -268,6 +268,7 @@ elif test "x$CC" = "xxlc_r"; then
   JE_CFLAGS_ADD([-q64])
   JE_CFLAGS_ADD([-qmaxmem=-1])
   JE_CFLAGS_ADD([-qsuppress=1506-1300:1506-1385:1506-943])
+  JE_CFLAGS_ADD([-g])
 fi
 if test "x$je_cv_cray" = "xyes" ; then
   dnl cray compiler 8.4 has an inlining bug
@@ -567,11 +568,6 @@ maps_coalesce="1"
 DUMP_SYMS="${NM} -a"
 SYM_PREFIX=""
 case "${host}" in
-  *-ibm-aix*)
-	DUMP_SYMS="${NM} -BC -X64"
-	ARFLAGS="-X64 $ARFLAGS"
-	RPATH=""
-	;;
   *-*-darwin* | *-*-ios*)
 	abi="macho"
 	RPATH=""
@@ -664,6 +660,13 @@ case "${host}" in
 	  LD_PRELOAD_VAR="LDR_PRELOAD"
 	fi
 	abi="xcoff"
+	RPATH=""
+	DUMP_SYMS="${NM} -BC -X64"
+	ARFLAGS="-X64 $ARFLAGS"
+	AIX_WRAPPER="yes"
+	AC_DEFINE([JEMALLOC_HAS_ALLOCA_H])
+	AC_DEFINE([JEMALLOC_INIT_BEFORE_THREADS], [1])
+	AC_DEFINE([JEMALLOC_AIX_WRAPPERS])
 	;;
   *-*-mingw* | *-*-cygwin*)
 	abi="pecoff"
@@ -742,6 +745,7 @@ AC_SUBST([ARFLAGS])
 AC_SUBST([AROUT])
 AC_SUBST([DUMP_SYMS])
 AC_SUBST([CC_MM])
+AC_SUBST([AIX_WRAPPER])
 
 dnl Determine whether libm must be linked to use e.g. log(3).
 AC_SEARCH_LIBS([log], [m], , [AC_MSG_ERROR([Missing math functions])])
@@ -855,6 +859,11 @@ else
   JEMALLOC_PREFIX="je_"
 fi]
 )
+
+dln Always prefix public symbols on AIX
+if test "x$PLATFORM" = "xAIX" -a "x$JEMALLOC_PREFIX" = "x"; then
+  JEMALLOC_PREFIX="je_"
+fi
 if test "x$JEMALLOC_PREFIX" = "x" ; then
   AC_DEFINE([JEMALLOC_IS_MALLOC])
 else

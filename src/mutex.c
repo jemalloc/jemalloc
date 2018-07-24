@@ -157,6 +157,9 @@ malloc_mutex_init(malloc_mutex_t *mutex, const char *name,
 			return true;
 		}
 	}
+#elif (defined(JEMALLOC_INIT_BEFORE_THREADS))
+	static pthread_mutex_t __initializer = PTHREAD_MUTEX_INITIALIZER;
+	mutex->lock = __initializer;
 #else
 	pthread_mutexattr_t attr;
 

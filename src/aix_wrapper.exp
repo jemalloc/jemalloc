@@ -1,0 +1,10 @@
+__malloc__
+__free__
+__realloc__
+__calloc__
+__mallopt__
+__mallinfo__
+__malloc_init__
+__malloc_prefork_lock__
+__malloc_postfork_unlock__
+__posix_memalign__

@@ -73,6 +73,7 @@ AWK := @AWK@
 CC_MM = @CC_MM@
 LM := @LM@
 INSTALL = @INSTALL@
+AIX_WRAPPER = @AIX_WRAPPER@
 
 ifeq (macho, $(ABI))
 TEST_LIBRARY_PATH := DYLD_FALLBACK_LIBRARY_PATH="$(objroot)lib"
@@ -132,6 +133,9 @@ ifdef PIC_CFLAGS
 STATIC_LIBS += $(objroot)lib/$(LIBJEMALLOC)_pic.$(A)
 else
 STATIC_LIBS += $(objroot)lib/$(LIBJEMALLOC)_s.$(A)
+endif
+ifdef AIX_WRAPPER
+WRAPPER_LIBS = $(objroot)lib/$(LIBJEMALLOC)_wrapper.$(A)
 endif
 DSOS := $(objroot)lib/$(LIBJEMALLOC).$(SOREV)
 ifneq ($(SOREV),$(SO))
@@ -395,6 +399,12 @@ $(objroot)lib/$(LIBJEMALLOC).$(SOREV) : $(if $(PIC_CFLAGS),$(C_PIC_OBJS),$(C_OBJ
 	@mkdir -p $(@D)
 	$(CC) $(DSO_LDFLAGS) $(call RPATH,$(RPATH_EXTRA)) $(LDTARGET) $+ $(LDFLAGS) $(LIBS) $(EXTRA_LDFLAGS)
 
+$(objroot)lib/$(LIBJEMALLOC)_wrapper.$(A) : $(objroot)src/aix_wrapper.c
+	@mkdir -p $(@D)
+	$(CC) $(CFLAGS) $(PIC_CFLAGS) -c $(CPPFLAGS) -o $(objroot)src/aix_wrapper.o $<
+	ld -b64 -L$(objroot)lib -m -o $(objroot)lib/mem64.o $(objroot)src/aix_wrapper.o -bnoentry -bE:src/aix_wrapper.exp -bM:SRE -brtl -ljemalloc -lpthreads -lc
+	ar -X32_64 -r $@ $(objroot)lib/mem64.o
+
 $(objroot)lib/$(LIBJEMALLOC)_pic.$(A) : $(C_PIC_OBJS) $(CPP_PIC_OBJS)
 $(objroot)lib/$(LIBJEMALLOC).$(A) : $(C_OBJS) $(CPP_OBJS)
 $(objroot)lib/$(LIBJEMALLOC)_s.$(A) : $(C_OBJS) $(CPP_OBJS)
@@ -421,7 +431,8 @@ $(objroot)test/stress/%$(EXE): $(objroot)test/stress/%.$(O) $(C_JET_OBJS) $(C_TE
 
 build_lib_shared: $(DSOS)
 build_lib_static: $(STATIC_LIBS)
-build_lib: build_lib_shared build_lib_static
+build_wrappers: $(WRAPPER_LIBS)
+build_lib: build_lib_shared build_lib_static build_wrappers
 
 install_bin:
 	$(INSTALL) -d $(BINDIR)
@@ -458,7 +469,14 @@ install_lib_pc: $(PC)
 	$(INSTALL) -m 644 $$l $(LIBDIR)/pkgconfig; \
 done
 
-install_lib: install_lib_shared install_lib_static install_lib_pc
+install_lib_wrappers: $(WRAPPER_LIBS)
+	$(INSTALL) -d $(LIBDIR)
+	@for l in $(WRAPPER_LIBS); do \
+	echo "$(INSTALL) -m 755 $$l $(LIBDIR)"; \
+	$(INSTALL) -m 755 $$l $(LIBDIR); \
+done
+
+install_lib: install_lib_shared install_lib_static install_lib_pc install_lib_wrappers
 
 install_doc_html:
 	$(INSTALL) -d $(DATADIR)/doc/jemalloc$(install_suffix)

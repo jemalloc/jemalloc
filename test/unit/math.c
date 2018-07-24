@@ -5,7 +5,7 @@
 
 #include <float.h>
 
-#ifdef __PGI
+#if defined(__PGI) || defined(__IBMC__)
 #undef INFINITY
 #endif
 

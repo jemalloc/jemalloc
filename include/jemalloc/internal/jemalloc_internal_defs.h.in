@@ -135,6 +135,11 @@
 #undef JEMALLOC_THREADED_INIT
 
 /*
+ * Defined if first allocation is known to be before thread library initialization
+ */
+#undef JEMALLOC_INIT_BEFORE_THREADS
+
+/*
  * Defined if the pthreads implementation defines
  * _pthread_mutex_init_calloc_cb(), in which case the function is used in order
  * to avoid recursive allocation during mutex initialization.
@@ -365,5 +370,8 @@
 
 /* If defined, jemalloc uses bundled ffs* functions. */
 #undef JEMALLOC_BUNDLED_FFS
+
+/* If defined, jemalloc defines AIX memory allocation wrappers. */
+#undef JEMALLOC_AIX_WRAPPERS
 
 #endif /* JEMALLOC_INTERNAL_DEFS_H_ */
