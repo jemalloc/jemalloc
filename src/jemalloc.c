@@ -1596,6 +1596,8 @@ malloc_init_hard_finish(void) {
 
 static void
 malloc_init_hard_cleanup(tsdn_t *tsdn, bool reentrancy_set) {
+	malloc_mutex_assert_owner(tsdn, &init_lock);
+	malloc_mutex_unlock(tsdn, &init_lock);
 	if (reentrancy_set) {
 		assert(!tsdn_null(tsdn));
 		tsd_t *tsd = tsdn_tsd(tsdn);
