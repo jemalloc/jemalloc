@@ -1366,7 +1366,7 @@ else
     AC_DEFINE([JEMALLOC_INTERNAL_FFSLL], [__ffsll])
     AC_DEFINE([JEMALLOC_INTERNAL_FFSL], [__ffsl])
     AC_DEFINE([JEMALLOC_INTERNAL_FFS], [__ffs])
-    AC_DEFINE([JEMALLOC_BUNDLED_FFS], [1])
+    AC_DEFINE([JEMALLOC_BUNDLED_FFS], [ ])
   fi
 fi
 
@@ -1395,7 +1395,7 @@ if test "x$LG_PAGE" = "xdetect"; then
 #endif
 #include <stdio.h>
 
-#if JEMALLOC_BUNDLED_FFS
+#ifdef JEMALLOC_BUNDLED_FFS
 static int __ffsl(long mask)
 {
 	int bit;
