@@ -105,6 +105,9 @@ void tsd_cleanup(void *arg);
 tsd_t *tsd_fetch_slow(tsd_t *tsd, bool internal);
 void tsd_state_set(tsd_t *tsd, uint8_t new_state);
 void tsd_slow_update(tsd_t *tsd);
+void tsd_prefork(tsd_t *tsd);
+void tsd_postfork_parent(tsd_t *tsd);
+void tsd_postfork_child(tsd_t *tsd);
 
 /*
  * Call ..._inc when your module wants to take all threads down the slow paths,

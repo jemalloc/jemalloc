@@ -3470,6 +3470,7 @@ _malloc_prefork(void)
 		}
 	}
 	prof_prefork1(tsd_tsdn(tsd));
+	tsd_prefork(tsd);
 }
 
 #ifndef JEMALLOC_MUTEX_INIT_CB
@@ -3491,6 +3492,8 @@ _malloc_postfork(void)
 	assert(malloc_initialized());
 
 	tsd = tsd_fetch();
+
+	tsd_postfork_parent(tsd);
 
 	witness_postfork_parent(tsd_witness_tsdp_get(tsd));
 	/* Release all mutexes, now that fork() has completed. */
@@ -3518,6 +3521,8 @@ jemalloc_postfork_child(void) {
 	assert(malloc_initialized());
 
 	tsd = tsd_fetch();
+
+	tsd_postfork_child(tsd);
 
 	witness_postfork_child(tsd_witness_tsdp_get(tsd));
 	/* Release all mutexes, now that fork() has completed. */
