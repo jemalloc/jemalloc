@@ -238,6 +238,7 @@ tsd_data_init(tsd_t *tsd) {
 static void
 assert_tsd_data_cleanup_done(tsd_t *tsd) {
 	assert(!tsd_nominal(tsd));
+	assert(!tsd_in_nominal_list(tsd));
 	assert(*tsd_arenap_get_unsafe(tsd) == NULL);
 	assert(*tsd_iarenap_get_unsafe(tsd) == NULL);
 	assert(*tsd_arenas_tdata_bypassp_get_unsafe(tsd) == true);
