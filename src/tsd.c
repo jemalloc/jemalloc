@@ -509,3 +509,23 @@ tsd_init_finish(tsd_init_head_t *head, tsd_init_block_t *block) {
 	malloc_mutex_unlock(TSDN_NULL, &head->lock);
 }
 #endif
+
+void
+tsd_prefork(tsd_t *tsd) {
+	malloc_mutex_prefork(tsd_tsdn(tsd), &tsd_nominal_tsds_lock);
+}
+
+void
+tsd_postfork_parent(tsd_t *tsd) {
+	malloc_mutex_postfork_parent(tsd_tsdn(tsd), &tsd_nominal_tsds_lock);
+}
+
+void
+tsd_postfork_child(tsd_t *tsd) {
+	malloc_mutex_postfork_child(tsd_tsdn(tsd), &tsd_nominal_tsds_lock);
+	ql_new(&tsd_nominal_tsds);
+
+	if (tsd_state_get(tsd) <= tsd_state_nominal_max) {
+		tsd_add_nominal(tsd);
+	}
+}
