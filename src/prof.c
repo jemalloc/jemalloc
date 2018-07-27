@@ -38,6 +38,7 @@ bool		opt_prof_gdump = false;
 bool		opt_prof_final = false;
 bool		opt_prof_leak = false;
 bool		opt_prof_accum = false;
+bool		opt_prof_prod_cons = false;
 char		opt_prof_prefix[
     /* Minimize memory bloat for non-prof builds. */
 #ifdef JEMALLOC_PROF
@@ -260,6 +261,24 @@ prof_free_sampled_object(tsd_t *tsd, size_t usize, prof_tctx_t *tctx) {
 	assert(tctx->cnts.curbytes >= usize);
 	tctx->cnts.curobjs--;
 	tctx->cnts.curbytes -= usize;
+
+	/* Try to get prof_tdata_t for consumer thread. */
+	prof_tdata_t *cons_tdata = prof_tdata_get(tsd, false);
+
+	/*
+	 * cons_tdata can be null if the current thread is in an unusual state:
+	 * e.g. it's being destroyed and tsd is in state tsd_state_purgatory.
+	 * We just ignore these cases.
+	 */
+	if (cons_tdata != NULL && opt_prof_prod_cons) {
+		uint64_t prod_uid, cons_uid;
+		prod_uid = tctx->tdata->thr_uid; 	
+		cons_uid = cons_tdata->thr_uid;	
+		if (prod_uid != cons_uid) {
+			tctx->cnts.out_of_thread_objs++;
+			tctx->cnts.out_of_thread_bytes += usize;
+		}
+	}
 
 	if (prof_tctx_should_destroy(tsd_tsdn(tsd), tctx)) {
 		prof_tctx_destroy(tsd, tctx);
@@ -617,6 +636,9 @@ prof_tctx_should_destroy(tsdn_t *tsdn, prof_tctx_t *tctx) {
 	if (opt_prof_accum) {
 		return false;
 	}
+	if (opt_prof_prod_cons) {
+		return false;
+	}
 	if (tctx->cnts.curobjs != 0) {
 		return false;
 	}
@@ -629,6 +651,9 @@ prof_tctx_should_destroy(tsdn_t *tsdn, prof_tctx_t *tctx) {
 static bool
 prof_gctx_should_destroy(prof_gctx_t *gctx) {
 	if (opt_prof_accum) {
+		return false;
+	}
+	if (opt_prof_prod_cons) {
 		return false;
 	}
 	if (!tctx_tree_empty(&gctx->tctxs)) {
@@ -653,6 +678,8 @@ prof_tctx_destroy(tsd_t *tsd, prof_tctx_t *tctx) {
 	assert(!opt_prof_accum);
 	assert(tctx->cnts.accumobjs == 0);
 	assert(tctx->cnts.accumbytes == 0);
+	assert(tctx->cnts.out_of_thread_objs == 0);
+	assert(tctx->cnts.out_of_thread_bytes == 0);
 
 	ckh_remove(tsd, &tdata->bt2tctx, &gctx->bt, NULL, NULL);
 	destroy_tdata = prof_tdata_should_destroy(tsd_tsdn(tsd), tdata, false);
@@ -1053,6 +1080,20 @@ prof_dump_printf(bool propagate_err, const char *format, ...) {
 }
 
 static void
+prof_merge_cnts(prof_cnt_t *dst, const prof_cnt_t *src) {
+	dst->curobjs += src->curobjs;
+	dst->curbytes += src->curbytes;
+	if (opt_prof_accum) {
+		dst->accumobjs += src->accumobjs;
+		dst->accumbytes += src->accumbytes;
+	}
+	if (opt_prof_prod_cons) {
+		dst->out_of_thread_objs += src->out_of_thread_objs;
+		dst->out_of_thread_bytes += src->out_of_thread_bytes;
+	}
+}
+
+static void
 prof_tctx_merge_tdata(tsdn_t *tsdn, prof_tctx_t *tctx, prof_tdata_t *tdata) {
 	malloc_mutex_assert_owner(tsdn, tctx->tdata->lock);
 
@@ -1068,14 +1109,7 @@ prof_tctx_merge_tdata(tsdn_t *tsdn, prof_tctx_t *tctx, prof_tdata_t *tdata) {
 
 		memcpy(&tctx->dump_cnts, &tctx->cnts, sizeof(prof_cnt_t));
 
-		tdata->cnt_summed.curobjs += tctx->dump_cnts.curobjs;
-		tdata->cnt_summed.curbytes += tctx->dump_cnts.curbytes;
-		if (opt_prof_accum) {
-			tdata->cnt_summed.accumobjs +=
-			    tctx->dump_cnts.accumobjs;
-			tdata->cnt_summed.accumbytes +=
-			    tctx->dump_cnts.accumbytes;
-		}
+		prof_merge_cnts(&tdata->cnt_summed, &tctx->dump_cnts);
 		break;
 	case prof_tctx_state_dumping:
 	case prof_tctx_state_purgatory:
@@ -1087,12 +1121,7 @@ static void
 prof_tctx_merge_gctx(tsdn_t *tsdn, prof_tctx_t *tctx, prof_gctx_t *gctx) {
 	malloc_mutex_assert_owner(tsdn, gctx->lock);
 
-	gctx->cnt_summed.curobjs += tctx->dump_cnts.curobjs;
-	gctx->cnt_summed.curbytes += tctx->dump_cnts.curbytes;
-	if (opt_prof_accum) {
-		gctx->cnt_summed.accumobjs += tctx->dump_cnts.accumobjs;
-		gctx->cnt_summed.accumbytes += tctx->dump_cnts.accumbytes;
-	}
+	prof_merge_cnts(&gctx->cnt_summed, &tctx->dump_cnts);
 }
 
 static prof_tctx_t *
@@ -1287,12 +1316,7 @@ prof_tdata_merge_iter(prof_tdata_tree_t *tdatas, prof_tdata_t *tdata,
 			prof_tctx_merge_tdata(arg->tsdn, tctx.p, tdata);
 		}
 
-		arg->cnt_all.curobjs += tdata->cnt_summed.curobjs;
-		arg->cnt_all.curbytes += tdata->cnt_summed.curbytes;
-		if (opt_prof_accum) {
-			arg->cnt_all.accumobjs += tdata->cnt_summed.accumobjs;
-			arg->cnt_all.accumbytes += tdata->cnt_summed.accumbytes;
-		}
+		prof_merge_cnts(&arg->cnt_all, &tdata->cnt_summed);
 	} else {
 		tdata->dumping = false;
 	}
@@ -2321,6 +2345,7 @@ prof_boot2(tsd_t *tsd) {
 		    prof_bt_keycomp)) {
 			return true;
 		}
+
 		if (malloc_mutex_init(&bt2gctx_mtx, "prof_bt2gctx",
 		    WITNESS_RANK_PROF_BT2GCTX, malloc_mutex_rank_exclusive)) {
 			return true;

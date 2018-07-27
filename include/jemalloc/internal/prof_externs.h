@@ -14,6 +14,7 @@ extern bool	opt_prof_gdump;       /* High-water memory dumping. */
 extern bool	opt_prof_final;       /* Final profile dumping. */
 extern bool	opt_prof_leak;        /* Dump leak summary at exit. */
 extern bool	opt_prof_accum;       /* Report cumulative bytes. */
+extern bool	opt_prof_prod_cons;   /* Track producer consumer stats. */
 extern char	opt_prof_prefix[
     /* Minimize memory bloat for non-prof builds. */
 #ifdef JEMALLOC_PROF
@@ -88,5 +89,7 @@ void prof_prefork1(tsdn_t *tsdn);
 void prof_postfork_parent(tsdn_t *tsdn);
 void prof_postfork_child(tsdn_t *tsdn);
 void prof_sample_threshold_update(prof_tdata_t *tdata);
+
+void prof_dump_prod_cons();
 
 #endif /* JEMALLOC_INTERNAL_PROF_EXTERNS_H */
