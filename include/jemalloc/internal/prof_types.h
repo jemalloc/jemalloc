@@ -4,6 +4,7 @@
 typedef struct prof_bt_s prof_bt_t;
 typedef struct prof_accum_s prof_accum_t;
 typedef struct prof_cnt_s prof_cnt_t;
+typedef struct prof_lifetime_cnts_s prof_lifetime_cnts_t;
 typedef struct prof_tctx_s prof_tctx_t;
 typedef struct prof_gctx_s prof_gctx_t;
 typedef struct prof_tdata_s prof_tdata_t;
@@ -16,6 +17,8 @@ typedef struct prof_tdata_s prof_tdata_t;
 #endif
 #define LG_PROF_SAMPLE_DEFAULT		19
 #define LG_PROF_INTERVAL_DEFAULT	-1
+#define LG_PROF_LIFETIME_LOWER_DEFAULT   0
+#define LG_PROF_LIFETIME_UPPER_DEFAULT 	 ((sizeof(size_t) << 3) - 1)
 
 /*
  * Hard limit on stack backtrace depth.  The version of prof_backtrace() that

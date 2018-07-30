@@ -14,7 +14,14 @@ extern bool	opt_prof_gdump;       /* High-water memory dumping. */
 extern bool	opt_prof_final;       /* Final profile dumping. */
 extern bool	opt_prof_leak;        /* Dump leak summary at exit. */
 extern bool	opt_prof_accum;       /* Report cumulative bytes. */
+
+/* For tracking counts/bytes for allocations with lifetimes within threshold. */
+extern bool	opt_prof_lifetimes; 	    /* Turns on this feature. */
+extern size_t	opt_lg_prof_lifetime_lower; /* Lower bound for threshold. */
+extern size_t	opt_lg_prof_lifetime_upper; /* Upper bound for threshold. */
+
 extern char	opt_prof_prefix[
+
     /* Minimize memory bloat for non-prof builds. */
 #ifdef JEMALLOC_PROF
     PATH_MAX +
@@ -45,7 +52,8 @@ extern size_t	lg_prof_sample;
 void prof_alloc_rollback(tsd_t *tsd, prof_tctx_t *tctx, bool updated);
 void prof_malloc_sample_object(tsdn_t *tsdn, const void *ptr, size_t usize,
     prof_tctx_t *tctx);
-void prof_free_sampled_object(tsd_t *tsd, size_t usize, prof_tctx_t *tctx);
+void prof_free_sampled_object(tsd_t *tsd, const void *ptr, size_t usize,
+    prof_tctx_t *tctx);
 void bt_init(prof_bt_t *bt, void **vec);
 void prof_backtrace(prof_bt_t *bt);
 prof_tctx_t *prof_lookup(tsd_t *tsd, prof_bt_t *bt);

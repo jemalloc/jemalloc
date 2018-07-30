@@ -37,6 +37,11 @@ struct prof_cnt_s {
 	uint64_t	accumbytes;
 };
 
+struct prof_lifetime_cnts_s {
+	uint64_t bytes;
+	uint64_t objs;
+};
+
 typedef enum {
 	prof_tctx_state_initializing,
 	prof_tctx_state_nominal,
@@ -93,6 +98,8 @@ struct prof_tctx_s {
 	 * dump_mtx.
 	 */
 	prof_cnt_t		dump_cnts;
+
+	prof_lifetime_cnts_t    lifetime_cnts;
 };
 typedef rb_tree(prof_tctx_t) prof_tctx_tree_t;
 
@@ -123,6 +130,8 @@ struct prof_gctx_s {
 
 	/* Temporary storage for summation during dump. */
 	prof_cnt_t		cnt_summed;
+
+	prof_lifetime_cnts_t    lifetime_cnts_summed;
 
 	/* Associated backtrace. */
 	prof_bt_t		bt;
