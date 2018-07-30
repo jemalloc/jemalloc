@@ -196,11 +196,7 @@
     (SC_LG_BASE_MAX - SC_LG_FIRST_REGULAR_BASE + 1) - 1)
 #define SC_NSIZES (SC_NTINY + SC_NPSEUDO + SC_NREGULAR)
 
-/*
- * The number of size classes that are at least a page in size. Note that
- * because delta may be smaller than a page, this is not the same as the number
- * of size classes that are *multiples* of the page size.
- */
+ /* The number of size classes that are a multiple of the page size. */
 #define SC_NPSIZES (							\
     /* Start with all the size classes. */				\
     SC_NSIZES								\
