@@ -433,10 +433,11 @@ for (i = 0; i < nbins; i++) {
       arena statistics, respectively; <quote>b</quote> and <quote>l</quote> can
       be specified to omit per size class statistics for bins and large objects,
       respectively; <quote>x</quote> can be specified to omit all mutex
-      statistics.  Unrecognized characters are silently ignored.  Note that
-      thread caching may prevent some statistics from being completely up to
-      date, since extra locking would be required to merge counters that track
-      thread cache operations.</para>
+      statistics; <quote>e</quote> can be used to omit extent statistics.
+      Unrecognized characters are silently ignored.  Note that thread caching
+      may prevent some statistics from being completely up to date, since extra
+      locking would be required to merge counters that track thread cache
+      operations.</para>
 
       <para>The <function>malloc_usable_size()</function> function
       returns the usable size of the allocation pointed to by
@@ -2923,6 +2924,30 @@ struct extent_hooks_s {
         scope; bin operation related).  <mallctl>{counter}</mallctl> is one of
         the counters in <link linkend="mutex_counters">mutex profiling
         counters</link>.</para></listitem>
+      </varlistentry>
+
+      <varlistentry id="stats.arenas.i.extents.n">
+        <term>
+          <mallctl>stats.arenas.&lt;i&gt;.extents.&lt;j&gt;.n{extent_type}</mallctl>
+          (<type>size_t</type>)
+          <literal>r-</literal>
+          [<option>--enable-stats</option>]
+        </term>
+        <listitem><para> Number of extents of the given type in this arena in
+	the bucket corresponding to page size index &lt;j&gt;. The extent type
+	is one of dirty, muzzy, or retained.</para></listitem>
+      </varlistentry>
+
+      <varlistentry id="stats.arenas.i.extents.bytes">
+        <term>
+          <mallctl>stats.arenas.&lt;i&gt;.extents.&lt;j&gt;.{extent_type}_bytes</mallctl>
+          (<type>size_t</type>)
+          <literal>r-</literal>
+          [<option>--enable-stats</option>]
+        </term>
+	<listitem><para> Sum of the bytes managed by extents of the given type
+	in this arena in the bucket corresponding to page size index &lt;j&gt;.
+	The extent type is one of dirty, muzzy, or retained.</para></listitem>
       </varlistentry>
 
       <varlistentry id="stats.arenas.i.lextents.j.nmalloc">

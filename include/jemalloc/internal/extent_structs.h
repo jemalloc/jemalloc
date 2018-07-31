@@ -184,6 +184,8 @@ struct extents_s {
 	 * Synchronization: mtx.
 	 */
 	extent_heap_t		heaps[SC_NPSIZES + 1];
+	atomic_zu_t		nextents[SC_NPSIZES + 1];
+	atomic_zu_t		nbytes[SC_NPSIZES + 1];
 
 	/*
 	 * Bitmap for which set bits correspond to non-empty heaps.
