@@ -309,6 +309,32 @@ extents_npages_get(extents_t *extents) {
 	return atomic_load_zu(&extents->npages, ATOMIC_RELAXED);
 }
 
+size_t
+extents_nextents_get(extents_t *extents, pszind_t pind) {
+	return atomic_load_zu(&extents->nextents[pind], ATOMIC_RELAXED);
+}
+
+size_t
+extents_nbytes_get(extents_t *extents, pszind_t pind) {
+	return atomic_load_zu(&extents->nbytes[pind], ATOMIC_RELAXED);
+}
+
+static void
+extents_stats_add(extents_t *extent, pszind_t pind, size_t sz) {
+	size_t cur = atomic_load_zu(&extent->nextents[pind], ATOMIC_RELAXED);
+	atomic_store_zu(&extent->nextents[pind], cur + 1, ATOMIC_RELAXED);
+	cur = atomic_load_zu(&extent->nbytes[pind], ATOMIC_RELAXED);
+	atomic_store_zu(&extent->nbytes[pind], cur + sz, ATOMIC_RELAXED);
+}
+
+static void
+extents_stats_sub(extents_t *extent, pszind_t pind, size_t sz) {
+	size_t cur = atomic_load_zu(&extent->nextents[pind], ATOMIC_RELAXED);
+	atomic_store_zu(&extent->nextents[pind], cur - 1, ATOMIC_RELAXED);
+	cur = atomic_load_zu(&extent->nbytes[pind], ATOMIC_RELAXED);
+	atomic_store_zu(&extent->nbytes[pind], cur - sz, ATOMIC_RELAXED);
+}
+
 static void
 extents_insert_locked(tsdn_t *tsdn, extents_t *extents, extent_t *extent) {
 	malloc_mutex_assert_owner(tsdn, &extents->mtx);
@@ -322,6 +348,11 @@ extents_insert_locked(tsdn_t *tsdn, extents_t *extents, extent_t *extent) {
 		    (size_t)pind);
 	}
 	extent_heap_insert(&extents->heaps[pind], extent);
+
+	if (config_stats) {
+		extents_stats_add(extents, pind, size);
+	}
+
 	extent_list_append(&extents->lru, extent);
 	size_t npages = size >> LG_PAGE;
 	/*
@@ -344,6 +375,11 @@ extents_remove_locked(tsdn_t *tsdn, extents_t *extents, extent_t *extent) {
 	size_t psz = extent_size_quantize_floor(size);
 	pszind_t pind = sz_psz2ind(psz);
 	extent_heap_remove(&extents->heaps[pind], extent);
+
+	if (config_stats) {
+		extents_stats_sub(extents, pind, size);
+	}
+
 	if (extent_heap_empty(&extents->heaps[pind])) {
 		bitmap_set(extents->bitmap, &extents_bitmap_info,
 		    (size_t)pind);

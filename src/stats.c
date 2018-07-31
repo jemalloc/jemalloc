@@ -495,6 +495,108 @@ stats_arena_lextents_print(emitter_t *emitter, unsigned i) {
 }
 
 static void
+stats_arena_extents_print(emitter_t *emitter, unsigned i) {
+	unsigned j;
+	bool in_gap, in_gap_prev;
+	emitter_row_t header_row;
+	emitter_row_init(&header_row);
+	emitter_row_t row;
+	emitter_row_init(&row);
+#define COL(name, left_or_right, col_width, etype)			\
+	emitter_col_t header_##name;					\
+	emitter_col_init(&header_##name, &header_row);			\
+	header_##name.justify = emitter_justify_##left_or_right;	\
+	header_##name.width = col_width;				\
+	header_##name.type = emitter_type_title;			\
+	header_##name.str_val = #name;					\
+									\
+	emitter_col_t col_##name;					\
+	emitter_col_init(&col_##name, &row);				\
+	col_##name.justify = emitter_justify_##left_or_right;		\
+	col_##name.width = col_width;					\
+	col_##name.type = emitter_type_##etype;
+
+	COL(size, right, 20, size)
+	COL(ind, right, 4, unsigned)
+	COL(ndirty, right, 13, size)
+	COL(dirty, right, 13, size)
+	COL(nmuzzy, right, 13, size)
+	COL(muzzy, right, 13, size)
+	COL(nretained, right, 13, size)
+	COL(retained, right, 13, size)
+	COL(ntotal, right, 13, size)
+	COL(total, right, 13, size)
+#undef COL
+
+	/* Label this section. */
+	header_size.width -= 8;
+	emitter_table_printf(emitter, "extents:");
+	emitter_table_row(emitter, &header_row);
+	emitter_json_array_kv_begin(emitter, "extents");
+
+	in_gap = false;
+	for (j = 0; j < SC_NPSIZES; j++) {
+		size_t ndirty, nmuzzy, nretained, total, dirty_bytes,
+		    muzzy_bytes, retained_bytes, total_bytes;
+		CTL_M2_M4_GET("stats.arenas.0.extents.0.ndirty", i, j,
+		    &ndirty, size_t);
+		CTL_M2_M4_GET("stats.arenas.0.extents.0.nmuzzy", i, j,
+		    &nmuzzy, size_t);
+		CTL_M2_M4_GET("stats.arenas.0.extents.0.nretained", i, j,
+		    &nretained, size_t);
+		CTL_M2_M4_GET("stats.arenas.0.extents.0.dirty_bytes", i, j,
+		    &dirty_bytes, size_t);
+		CTL_M2_M4_GET("stats.arenas.0.extents.0.muzzy_bytes", i, j,
+		    &muzzy_bytes, size_t);
+		CTL_M2_M4_GET("stats.arenas.0.extents.0.retained_bytes", i, j,
+		    &retained_bytes, size_t);
+		total = ndirty + nmuzzy + nretained;
+		total_bytes = dirty_bytes + muzzy_bytes + retained_bytes;
+
+		in_gap_prev = in_gap;
+		in_gap = (total == 0);
+
+		if (in_gap_prev && !in_gap) {
+			emitter_table_printf(emitter,
+			    "                     ---\n");
+		}
+
+		emitter_json_object_begin(emitter);
+		emitter_json_kv(emitter, "ndirty", emitter_type_size, &ndirty);
+		emitter_json_kv(emitter, "nmuzzy", emitter_type_size, &nmuzzy);
+		emitter_json_kv(emitter, "nretained", emitter_type_size,
+		    &nretained);
+
+		emitter_json_kv(emitter, "dirty_bytes", emitter_type_size,
+		    &dirty_bytes);
+		emitter_json_kv(emitter, "muzzy_bytes", emitter_type_size,
+		    &muzzy_bytes);
+		emitter_json_kv(emitter, "retained_bytes", emitter_type_size,
+		    &retained_bytes);
+		emitter_json_object_end(emitter);
+
+		col_size.size_val = sz_pind2sz(j);
+		col_ind.size_val = j;
+		col_ndirty.size_val = ndirty;
+		col_dirty.size_val = dirty_bytes;
+		col_nmuzzy.size_val = nmuzzy;
+		col_muzzy.size_val = muzzy_bytes;
+		col_nretained.size_val = nretained;
+		col_retained.size_val = retained_bytes;
+		col_ntotal.size_val = total;
+		col_total.size_val = total_bytes;
+
+		if (!in_gap) {
+			emitter_table_row(emitter, &row);
+		}
+	}
+	emitter_json_array_end(emitter); /* Close "extents". */
+	if (in_gap) {
+		emitter_table_printf(emitter, "                     ---\n");
+	}
+}
+
+static void
 stats_arena_mutexes_print(emitter_t *emitter, unsigned arena_ind) {
 	emitter_row_t row;
 	emitter_col_t col_name;
@@ -521,7 +623,7 @@ stats_arena_mutexes_print(emitter_t *emitter, unsigned arena_ind) {
 
 static void
 stats_arena_print(emitter_t *emitter, unsigned i, bool bins, bool large,
-    bool mutex) {
+    bool mutex, bool extents) {
 	unsigned nthreads;
 	const char *dss;
 	ssize_t dirty_decay_ms, muzzy_decay_ms;
@@ -820,6 +922,9 @@ stats_arena_print(emitter_t *emitter, unsigned i, bool bins, bool large,
 	if (large) {
 		stats_arena_lextents_print(emitter, i);
 	}
+	if (extents) {
+		stats_arena_extents_print(emitter, i);
+	}
 }
 
 static void
@@ -1066,7 +1171,7 @@ stats_general_print(emitter_t *emitter) {
 
 static void
 stats_print_helper(emitter_t *emitter, bool merged, bool destroyed,
-    bool unmerged, bool bins, bool large, bool mutex) {
+    bool unmerged, bool bins, bool large, bool mutex, bool extents) {
 	/*
 	 * These should be deleted.  We keep them around for a while, to aid in
 	 * the transition to the emitter code.
@@ -1187,7 +1292,7 @@ stats_print_helper(emitter_t *emitter, bool merged, bool destroyed,
 			emitter_table_printf(emitter, "Merged arenas stats:\n");
 			emitter_json_object_kv_begin(emitter, "merged");
 			stats_arena_print(emitter, MALLCTL_ARENAS_ALL, bins,
-			    large, mutex);
+			    large, mutex, extents);
 			emitter_json_object_end(emitter); /* Close "merged". */
 		}
 
@@ -1198,7 +1303,7 @@ stats_print_helper(emitter_t *emitter, bool merged, bool destroyed,
 			    "Destroyed arenas stats:\n");
 			emitter_json_object_kv_begin(emitter, "destroyed");
 			stats_arena_print(emitter, MALLCTL_ARENAS_DESTROYED,
-			    bins, large, mutex);
+			    bins, large, mutex, extents);
 			emitter_json_object_end(emitter); /* Close "destroyed". */
 		}
 
@@ -1214,7 +1319,7 @@ stats_print_helper(emitter_t *emitter, bool merged, bool destroyed,
 					emitter_table_printf(emitter,
 					    "arenas[%s]:\n", arena_ind_str);
 					stats_arena_print(emitter, i, bins,
-					    large, mutex);
+					    large, mutex, extents);
 					/* Close "<arena-ind>". */
 					emitter_json_object_end(emitter);
 				}
@@ -1280,7 +1385,7 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 	}
 	if (config_stats) {
 		stats_print_helper(&emitter, merged, destroyed, unmerged,
-		    bins, large, mutex);
+		    bins, large, mutex, extents);
 	}
 
 	emitter_json_object_end(&emitter); /* Closes the "jemalloc" dict. */
