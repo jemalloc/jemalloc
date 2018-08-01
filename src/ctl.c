@@ -190,6 +190,7 @@ CTL_PROTO(stats_arenas_i_pdirty)
 CTL_PROTO(stats_arenas_i_pmuzzy)
 CTL_PROTO(stats_arenas_i_mapped)
 CTL_PROTO(stats_arenas_i_retained)
+CTL_PROTO(stats_arenas_i_extent_avail)
 CTL_PROTO(stats_arenas_i_dirty_npurge)
 CTL_PROTO(stats_arenas_i_dirty_nmadvise)
 CTL_PROTO(stats_arenas_i_dirty_purged)
@@ -510,6 +511,7 @@ static const ctl_named_node_t stats_arenas_i_node[] = {
 	{NAME("pmuzzy"),	CTL(stats_arenas_i_pmuzzy)},
 	{NAME("mapped"),	CTL(stats_arenas_i_mapped)},
 	{NAME("retained"),	CTL(stats_arenas_i_retained)},
+	{NAME("extent_avail"),	CTL(stats_arenas_i_extent_avail)},
 	{NAME("dirty_npurge"),	CTL(stats_arenas_i_dirty_npurge)},
 	{NAME("dirty_nmadvise"), CTL(stats_arenas_i_dirty_nmadvise)},
 	{NAME("dirty_purged"),	CTL(stats_arenas_i_dirty_purged)},
@@ -804,6 +806,8 @@ ctl_arena_stats_sdmerge(ctl_arena_t *ctl_sdarena, ctl_arena_t *ctl_arena,
 			    &astats->astats.mapped);
 			accum_atomic_zu(&sdstats->astats.retained,
 			    &astats->astats.retained);
+			accum_atomic_zu(&sdstats->astats.extent_avail,
+			    &astats->astats.extent_avail);
 		}
 
 		ctl_accum_arena_stats_u64(&sdstats->astats.decay_dirty.npurge,
@@ -2763,6 +2767,10 @@ CTL_RO_CGEN(config_stats, stats_arenas_i_mapped,
     size_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_retained,
     atomic_load_zu(&arenas_i(mib[2])->astats->astats.retained, ATOMIC_RELAXED),
+    size_t)
+CTL_RO_CGEN(config_stats, stats_arenas_i_extent_avail,
+    atomic_load_zu(&arenas_i(mib[2])->astats->astats.extent_avail,
+        ATOMIC_RELAXED),
     size_t)
 
 CTL_RO_CGEN(config_stats, stats_arenas_i_dirty_npurge,

@@ -628,7 +628,7 @@ stats_arena_print(emitter_t *emitter, unsigned i, bool bins, bool large,
 	const char *dss;
 	ssize_t dirty_decay_ms, muzzy_decay_ms;
 	size_t page, pactive, pdirty, pmuzzy, mapped, retained;
-	size_t base, internal, resident, metadata_thp;
+	size_t base, internal, resident, metadata_thp, extent_avail;
 	uint64_t dirty_npurge, dirty_nmadvise, dirty_purged;
 	uint64_t muzzy_npurge, muzzy_nmadvise, muzzy_purged;
 	size_t small_allocated;
@@ -911,6 +911,7 @@ stats_arena_print(emitter_t *emitter, unsigned i, bool bins, bool large,
 	GET_AND_EMIT_MEM_STAT(metadata_thp)
 	GET_AND_EMIT_MEM_STAT(tcache_bytes)
 	GET_AND_EMIT_MEM_STAT(resident)
+	GET_AND_EMIT_MEM_STAT(extent_avail)
 #undef GET_AND_EMIT_MEM_STAT
 
 	if (mutex) {

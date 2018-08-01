@@ -186,6 +186,7 @@ extent_alloc(tsdn_t *tsdn, arena_t *arena) {
 		return base_alloc_extent(tsdn, arena->base);
 	}
 	extent_avail_remove(&arena->extent_avail, extent);
+	atomic_fetch_sub_zu(&arena->extent_avail_cnt, 1, ATOMIC_RELAXED);
 	malloc_mutex_unlock(tsdn, &arena->extent_avail_mtx);
 	return extent;
 }
@@ -194,6 +195,7 @@ void
 extent_dalloc(tsdn_t *tsdn, arena_t *arena, extent_t *extent) {
 	malloc_mutex_lock(tsdn, &arena->extent_avail_mtx);
 	extent_avail_insert(&arena->extent_avail, extent);
+	atomic_fetch_add_zu(&arena->extent_avail_cnt, 1, ATOMIC_RELAXED);
 	malloc_mutex_unlock(tsdn, &arena->extent_avail_mtx);
 }
 
