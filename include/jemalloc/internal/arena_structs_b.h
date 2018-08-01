@@ -196,6 +196,7 @@ struct arena_s {
 	 * Synchronization: extent_avail_mtx.
 	 */
 	extent_tree_t		extent_avail;
+	atomic_zu_t		extent_avail_cnt;
 	malloc_mutex_t		extent_avail_mtx;
 
 	/*

@@ -100,6 +100,10 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 	arena_stats_accum_zu(&astats->retained,
 	    extents_npages_get(&arena->extents_retained) << LG_PAGE);
 
+	atomic_store_zu(&astats->extent_avail,
+	    atomic_load_zu(&arena->extent_avail_cnt, ATOMIC_RELAXED),
+	    ATOMIC_RELAXED);
+
 	arena_stats_accum_u64(&astats->decay_dirty.npurge,
 	    arena_stats_read_u64(tsdn, &arena->stats,
 	    &arena->stats.decay_dirty.npurge));

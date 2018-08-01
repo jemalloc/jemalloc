@@ -2597,6 +2597,17 @@ struct extent_hooks_s {
         details.</para></listitem>
       </varlistentry>
 
+      <varlistentry id="stats.arenas.i.extent_avail">
+        <term>
+          <mallctl>stats.arenas.&lt;i&gt;.extent_avail</mallctl>
+          (<type>size_t</type>)
+          <literal>r-</literal>
+          [<option>--enable-stats</option>]
+        </term>
+        <listitem><para>Number of allocated (but unused) extent structs in this
+	arena.</para></listitem>
+      </varlistentry>
+
       <varlistentry id="stats.arenas.i.base">
         <term>
           <mallctl>stats.arenas.&lt;i&gt;.base</mallctl>
