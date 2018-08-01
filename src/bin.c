@@ -9,7 +9,7 @@
 bin_info_t bin_infos[SC_NBINS];
 
 void
-bin_infos_init(sc_data_t *sc_data, bin_info_t bin_infos[SC_NBINS]) {
+bin_infos_init(sc_data_t *sc_data, bin_info_t *bin_infos) {
 	for (unsigned i = 0; i < SC_NBINS; i++) {
 		bin_info_t *bin_info = &bin_infos[i];
 		sc_t *sc = &sc_data->sc[i];

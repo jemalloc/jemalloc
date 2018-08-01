@@ -87,8 +87,8 @@ gen_mutex_ctl_str(char *str, size_t buf_len, const char *prefix,
 static void
 mutex_stats_init_cols(emitter_row_t *row, const char *table_name,
     emitter_col_t *name,
-    emitter_col_t col_uint64_t[mutex_prof_num_uint64_t_counters],
-    emitter_col_t col_uint32_t[mutex_prof_num_uint32_t_counters]) {
+    emitter_col_t *col_uint64_t,
+    emitter_col_t *col_uint32_t) {
 	mutex_prof_uint64_t_counter_ind_t k_uint64_t = 0;
 	mutex_prof_uint32_t_counter_ind_t k_uint32_t = 0;
 
@@ -120,8 +120,8 @@ mutex_stats_init_cols(emitter_row_t *row, const char *table_name,
 
 static void
 mutex_stats_read_global(const char *name, emitter_col_t *col_name,
-    emitter_col_t col_uint64_t[mutex_prof_num_uint64_t_counters],
-    emitter_col_t col_uint32_t[mutex_prof_num_uint32_t_counters]) {
+    emitter_col_t *col_uint64_t,
+    emitter_col_t *col_uint32_t) {
 	char cmd[MUTEX_CTL_STR_MAX_LENGTH];
 
 	col_name->str_val = name;
@@ -144,8 +144,8 @@ mutex_stats_read_global(const char *name, emitter_col_t *col_name,
 static void
 mutex_stats_read_arena(unsigned arena_ind, mutex_prof_arena_ind_t mutex_ind,
     const char *name, emitter_col_t *col_name,
-    emitter_col_t col_uint64_t[mutex_prof_num_uint64_t_counters],
-    emitter_col_t col_uint32_t[mutex_prof_num_uint32_t_counters]) {
+    emitter_col_t *col_uint64_t,
+    emitter_col_t *col_uint32_t) {
 	char cmd[MUTEX_CTL_STR_MAX_LENGTH];
 
 	col_name->str_val = name;
@@ -168,8 +168,8 @@ mutex_stats_read_arena(unsigned arena_ind, mutex_prof_arena_ind_t mutex_ind,
 
 static void
 mutex_stats_read_arena_bin(unsigned arena_ind, unsigned bin_ind,
-    emitter_col_t col_uint64_t[mutex_prof_num_uint64_t_counters],
-    emitter_col_t col_uint32_t[mutex_prof_num_uint32_t_counters]) {
+    emitter_col_t *col_uint64_t,
+    emitter_col_t *col_uint32_t) {
 	char cmd[MUTEX_CTL_STR_MAX_LENGTH];
 	emitter_col_t *dst;
 
@@ -191,8 +191,8 @@ mutex_stats_read_arena_bin(unsigned arena_ind, unsigned bin_ind,
 /* "row" can be NULL to avoid emitting in table mode. */
 static void
 mutex_stats_emit(emitter_t *emitter, emitter_row_t *row,
-    emitter_col_t col_uint64_t[mutex_prof_num_uint64_t_counters],
-    emitter_col_t col_uint32_t[mutex_prof_num_uint32_t_counters]) {
+    emitter_col_t *col_uint64_t,
+    emitter_col_t *col_uint32_t) {
 	if (row != NULL) {
 		emitter_table_row(emitter, row);
 	}
