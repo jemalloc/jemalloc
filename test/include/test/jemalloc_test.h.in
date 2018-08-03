@@ -69,7 +69,7 @@ static const bool config_debug =
 
 #  define JEMALLOC_N(n) @private_namespace@##n
 #  include "jemalloc/internal/private_namespace.h"
-#  include "jemalloc/internal/hooks.h"
+#  include "jemalloc/internal/test_hooks.h"
 
 /* Hermetic headers. */
 #  include "jemalloc/internal/assert.h"

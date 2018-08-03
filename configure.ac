@@ -10,7 +10,7 @@ dnl Custom macro definitions.
 dnl JE_CONCAT_VVV(r, a, b)
 dnl
 dnl Set $r to the concatenation of $a and $b, with a space separating them iff
-dnl both $a and $b are non-emty.
+dnl both $a and $b are non-empty.
 AC_DEFUN([JE_CONCAT_VVV],
 if test "x[$]{$2}" = "x" -o "x[$]{$3}" = "x" ; then
   $1="[$]{$2}[$]{$3}"
@@ -242,6 +242,7 @@ if test "x$GCC" = "xyes" ; then
     fi
   fi
   JE_CFLAGS_ADD([-Wall])
+  JE_CFLAGS_ADD([-Wextra])
   JE_CFLAGS_ADD([-Wshorten-64-to-32])
   JE_CFLAGS_ADD([-Wsign-compare])
   JE_CFLAGS_ADD([-Wundef])
@@ -289,6 +290,7 @@ if test "x$enable_cxx" = "x1" ; then
   AX_CXX_COMPILE_STDCXX([14], [noext], [optional])
   if test "x${HAVE_CXX14}" = "x1" ; then
     JE_CXXFLAGS_ADD([-Wall])
+    JE_CXXFLAGS_ADD([-Wextra])
     JE_CXXFLAGS_ADD([-g3])
 
     SAVED_LIBS="${LIBS}"
@@ -409,16 +411,29 @@ esac
 AC_DEFINE_UNQUOTED([HAVE_CPU_SPINWAIT], [$HAVE_CPU_SPINWAIT])
 AC_DEFINE_UNQUOTED([CPU_SPINWAIT], [$CPU_SPINWAIT])
 
+AC_ARG_WITH([lg_vaddr],
+  [AS_HELP_STRING([--with-lg-vaddr=<lg-vaddr>], [Number of significant virtual address bits])],
+  [LG_VADDR="$with_lg_vaddr"], [LG_VADDR="detect"])
+
 case "${host_cpu}" in
   aarch64)
-    AC_MSG_CHECKING([number of significant virtual address bits])
-    LG_VADDR=48
-    AC_MSG_RESULT([$LG_VADDR])
+    if test "x$LG_VADDR" = "xdetect"; then
+      AC_MSG_CHECKING([number of significant virtual address bits])
+      if test "x${LG_SIZEOF_PTR}" = "x2" ; then
+        #aarch64 ILP32
+        LG_VADDR=32
+      else
+        #aarch64 LP64
+        LG_VADDR=48
+      fi
+      AC_MSG_RESULT([$LG_VADDR])
+    fi
     ;;
   x86_64)
-    AC_CACHE_CHECK([number of significant virtual address bits],
-                   [je_cv_lg_vaddr],
-                   AC_RUN_IFELSE([AC_LANG_PROGRAM(
+    if test "x$LG_VADDR" = "xdetect"; then
+      AC_CACHE_CHECK([number of significant virtual address bits],
+                     [je_cv_lg_vaddr],
+                     AC_RUN_IFELSE([AC_LANG_PROGRAM(
 [[
 #include <stdio.h>
 #ifdef _WIN32
@@ -455,27 +470,30 @@ typedef unsigned __int32 uint32_t;
                    [je_cv_lg_vaddr=`cat conftest.out`],
                    [je_cv_lg_vaddr=error],
                    [je_cv_lg_vaddr=57]))
-    if test "x${je_cv_lg_vaddr}" != "x" ; then
-      LG_VADDR="${je_cv_lg_vaddr}"
-    fi
-    if test "x${LG_VADDR}" != "xerror" ; then
-      AC_DEFINE_UNQUOTED([LG_VADDR], [$LG_VADDR])
-    else
-      AC_MSG_ERROR([cannot determine number of significant virtual address bits])
+      if test "x${je_cv_lg_vaddr}" != "x" ; then
+        LG_VADDR="${je_cv_lg_vaddr}"
+      fi
+      if test "x${LG_VADDR}" != "xerror" ; then
+        AC_DEFINE_UNQUOTED([LG_VADDR], [$LG_VADDR])
+      else
+        AC_MSG_ERROR([cannot determine number of significant virtual address bits])
+      fi
     fi
     ;;
   *)
-    AC_MSG_CHECKING([number of significant virtual address bits])
-    if test "x${LG_SIZEOF_PTR}" = "x3" ; then
-      LG_VADDR=64
-    elif test "x${LG_SIZEOF_PTR}" = "x2" ; then
-      LG_VADDR=32
-    elif test "x${LG_SIZEOF_PTR}" = "xLG_SIZEOF_PTR_WIN" ; then
-      LG_VADDR="(1U << (LG_SIZEOF_PTR_WIN+3))"
-    else
-      AC_MSG_ERROR([Unsupported lg(pointer size): ${LG_SIZEOF_PTR}])
+    if test "x$LG_VADDR" = "xdetect"; then
+      AC_MSG_CHECKING([number of significant virtual address bits])
+      if test "x${LG_SIZEOF_PTR}" = "x3" ; then
+        LG_VADDR=64
+      elif test "x${LG_SIZEOF_PTR}" = "x2" ; then
+        LG_VADDR=32
+      elif test "x${LG_SIZEOF_PTR}" = "xLG_SIZEOF_PTR_WIN" ; then
+        LG_VADDR="(1U << (LG_SIZEOF_PTR_WIN+3))"
+      else
+        AC_MSG_ERROR([Unsupported lg(pointer size): ${LG_SIZEOF_PTR}])
+      fi
+      AC_MSG_RESULT([$LG_VADDR])
     fi
-    AC_MSG_RESULT([$LG_VADDR])
     ;;
 esac
 AC_DEFINE_UNQUOTED([LG_VADDR], [$LG_VADDR])
@@ -733,12 +751,9 @@ JE_COMPILABLE([tls_model attribute], [],
                foo = 0;],
               [je_cv_tls_model])
 JE_CFLAGS_RESTORE()
-if test "x${je_cv_tls_model}" = "xyes" ; then
-  AC_DEFINE([JEMALLOC_TLS_MODEL],
-            [__attribute__((tls_model("initial-exec")))])
-else
-  AC_DEFINE([JEMALLOC_TLS_MODEL], [ ])
-fi
+dnl (Setting of JEMALLOC_TLS_MODEL is done later, after we've checked for
+dnl --disable-initial-exec-tls)
+
 dnl Check for alloc_size attribute support.
 JE_CFLAGS_SAVE()
 JE_CFLAGS_ADD([-Werror])
@@ -953,7 +968,6 @@ cfghdrs_in="${cfghdrs_in} include/jemalloc/internal/private_symbols.sh"
 cfghdrs_in="${cfghdrs_in} include/jemalloc/internal/private_namespace.sh"
 cfghdrs_in="${cfghdrs_in} include/jemalloc/internal/public_namespace.sh"
 cfghdrs_in="${cfghdrs_in} include/jemalloc/internal/public_unnamespace.sh"
-cfghdrs_in="${cfghdrs_in} include/jemalloc/internal/size_classes.sh"
 cfghdrs_in="${cfghdrs_in} include/jemalloc/jemalloc_rename.sh"
 cfghdrs_in="${cfghdrs_in} include/jemalloc/jemalloc_mangle.sh"
 cfghdrs_in="${cfghdrs_in} include/jemalloc/jemalloc.sh"
@@ -966,7 +980,6 @@ cfghdrs_out="${cfghdrs_out} include/jemalloc/internal/private_symbols_jet.awk"
 cfghdrs_out="${cfghdrs_out} include/jemalloc/internal/public_symbols.txt"
 cfghdrs_out="${cfghdrs_out} include/jemalloc/internal/public_namespace.h"
 cfghdrs_out="${cfghdrs_out} include/jemalloc/internal/public_unnamespace.h"
-cfghdrs_out="${cfghdrs_out} include/jemalloc/internal/size_classes.h"
 cfghdrs_out="${cfghdrs_out} include/jemalloc/jemalloc_protos_jet.h"
 cfghdrs_out="${cfghdrs_out} include/jemalloc/jemalloc_rename.h"
 cfghdrs_out="${cfghdrs_out} include/jemalloc/jemalloc_mangle.h"
@@ -1416,11 +1429,6 @@ if test "x${LG_PAGE}" != "xundefined" -a \
   AC_MSG_ERROR([Huge page size (2^${je_cv_lg_hugepage}) must be at least page size (2^${LG_PAGE})])
 fi
 AC_DEFINE_UNQUOTED([LG_HUGEPAGE], [${je_cv_lg_hugepage}])
-
-AC_ARG_WITH([lg_page_sizes],
-  [AS_HELP_STRING([--with-lg-page-sizes=<lg-page-sizes>],
-   [Base 2 logs of system page sizes to support])],
-  [LG_PAGE_SIZES="$with_lg_page_sizes"], [LG_PAGE_SIZES="$LG_PAGE"])
 
 dnl ============================================================================
 dnl jemalloc configuration.
@@ -1876,27 +1884,6 @@ case "${host_cpu}" in
 esac
 fi
 
-dnl Enable transparent huge page support by default.
-AC_ARG_ENABLE([thp],
-  [AS_HELP_STRING([--disable-thp],
-                  [Disable transparent huge page support])],
-[if test "x$enable_thp" = "xno" -o "x${je_cv_thp}" != "xyes" ; then
-  enable_thp="0"
-else
-  enable_thp="1"
-fi
-],
-[if test "x${je_cv_thp}" = "xyes" ; then
-  enable_thp="1"
-else
-  enable_thp="0"
-fi
-])
-if test "x$enable_thp" = "x1" ; then
-  AC_DEFINE([JEMALLOC_THP], [ ])
-fi
-AC_SUBST([enable_thp])
-
 dnl ============================================================================
 dnl Check whether __sync_{add,sub}_and_fetch() are available despite
 dnl __GCC_HAVE_SYNC_COMPARE_AND_SWAP_n macros being undefined.
@@ -2012,6 +1999,29 @@ if test "x${enable_zone_allocator}" = "x1" ; then
     AC_MSG_ERROR([--enable-zone-allocator is only supported on Darwin])
   fi
   AC_DEFINE([JEMALLOC_ZONE], [ ])
+fi
+
+dnl ============================================================================
+dnl Use initial-exec TLS by default.
+AC_ARG_ENABLE([initial-exec-tls],
+  [AS_HELP_STRING([--disable-initial-exec-tls],
+                  [Disable the initial-exec tls model])],
+[if test "x$enable_initial_exec_tls" = "xno" ; then
+  enable_initial_exec_tls="0"
+else
+  enable_initial_exec_tls="1"
+fi
+],
+[enable_initial_exec_tls="1"]
+)
+AC_SUBST([enable_initial_exec_tls])
+
+if test "x${je_cv_tls_model}" = "xyes" -a \
+       "x${enable_initial_exec_tls}" = "x1" ; then
+  AC_DEFINE([JEMALLOC_TLS_MODEL],
+            [__attribute__((tls_model("initial-exec")))])
+else
+  AC_DEFINE([JEMALLOC_TLS_MODEL], [ ])
 fi
 
 dnl ============================================================================
@@ -2160,16 +2170,6 @@ AC_CONFIG_COMMANDS([include/jemalloc/internal/public_unnamespace.h], [
   srcdir="${srcdir}"
   objroot="${objroot}"
 ])
-AC_CONFIG_COMMANDS([include/jemalloc/internal/size_classes.h], [
-  mkdir -p "${objroot}include/jemalloc/internal"
-  "${SHELL}" "${srcdir}/include/jemalloc/internal/size_classes.sh" "${LG_QUANTA}" 3 "${LG_PAGE_SIZES}" 2 > "${objroot}include/jemalloc/internal/size_classes.h"
-], [
-  SHELL="${SHELL}"
-  srcdir="${srcdir}"
-  objroot="${objroot}"
-  LG_QUANTA="${LG_QUANTA}"
-  LG_PAGE_SIZES="${LG_PAGE_SIZES}"
-])
 AC_CONFIG_COMMANDS([include/jemalloc/jemalloc_protos_jet.h], [
   mkdir -p "${objroot}include/jemalloc"
   cat "${srcdir}/include/jemalloc/jemalloc_protos.h.in" | sed -e 's/@je_@/jet_/g' > "${objroot}include/jemalloc/jemalloc_protos_jet.h"
@@ -2269,7 +2269,6 @@ AC_MSG_RESULT([prof               : ${enable_prof}])
 AC_MSG_RESULT([prof-libunwind     : ${enable_prof_libunwind}])
 AC_MSG_RESULT([prof-libgcc        : ${enable_prof_libgcc}])
 AC_MSG_RESULT([prof-gcc           : ${enable_prof_gcc}])
-AC_MSG_RESULT([thp                : ${enable_thp}])
 AC_MSG_RESULT([fill               : ${enable_fill}])
 AC_MSG_RESULT([utrace             : ${enable_utrace}])
 AC_MSG_RESULT([xmalloc            : ${enable_xmalloc}])

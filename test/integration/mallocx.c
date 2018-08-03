@@ -51,6 +51,16 @@ purge(void) {
 	    "Unexpected mallctl error");
 }
 
+/*
+ * GCC "-Walloc-size-larger-than" warning detects when one of the memory
+ * allocation functions is called with a size larger than the maximum size that
+ * they support. Here we want to explicitly test that the allocation functions
+ * do indeed fail properly when this is the case, which triggers the warning.
+ * Therefore we disable the warning for these tests.
+ */
+JEMALLOC_DIAGNOSTIC_PUSH
+JEMALLOC_DIAGNOSTIC_IGNORE_ALLOC_SIZE_LARGER_THAN
+
 TEST_BEGIN(test_overflow) {
 	size_t largemax;
 
@@ -68,6 +78,38 @@ TEST_BEGIN(test_overflow) {
 	assert_ptr_null(mallocx(1, MALLOCX_ALIGN(ZU(PTRDIFF_MAX)+1)),
 	    "Expected OOM for mallocx(size=1, MALLOCX_ALIGN(%#zx))",
 	    ZU(PTRDIFF_MAX)+1);
+}
+TEST_END
+
+static void *
+remote_alloc(void *arg) {
+	unsigned arena;
+	size_t sz = sizeof(unsigned);
+	assert_d_eq(mallctl("arenas.create", (void *)&arena, &sz, NULL, 0), 0,
+	    "Unexpected mallctl() failure");
+	size_t large_sz;
+	sz = sizeof(size_t);
+	assert_d_eq(mallctl("arenas.lextent.0.size", (void *)&large_sz, &sz,
+	    NULL, 0), 0, "Unexpected mallctl failure");
+
+	void *ptr = mallocx(large_sz, MALLOCX_ARENA(arena)
+	    | MALLOCX_TCACHE_NONE);
+	void **ret = (void **)arg;
+	*ret = ptr;
+
+	return NULL;
+}
+
+TEST_BEGIN(test_remote_free) {
+	thd_t thd;
+	void *ret;
+	thd_create(&thd, remote_alloc, (void *)&ret);
+	thd_join(thd, NULL);
+	assert_ptr_not_null(ret, "Unexpected mallocx failure");
+
+	/* Avoid TCACHE_NONE to explicitly test tcache_flush(). */
+	dallocx(ret, 0);
+	mallctl("thread.tcache.flush", NULL, NULL, NULL, 0);
 }
 TEST_END
 
@@ -113,6 +155,9 @@ TEST_BEGIN(test_oom) {
 }
 TEST_END
 
+/* Re-enable the "-Walloc-size-larger-than=" warning */
+JEMALLOC_DIAGNOSTIC_POP
+
 TEST_BEGIN(test_basic) {
 #define MAXSZ (((size_t)1) << 23)
 	size_t sz;
@@ -151,9 +196,17 @@ TEST_BEGIN(test_basic) {
 TEST_END
 
 TEST_BEGIN(test_alignment_and_size) {
+	const char *percpu_arena;
+	size_t sz = sizeof(percpu_arena);
+
+	if(mallctl("opt.percpu_arena", (void *)&percpu_arena, &sz, NULL, 0) ||
+	    strcmp(percpu_arena, "disabled") != 0) {
+		test_skip("test_alignment_and_size skipped: "
+		    "not working with percpu arena.");
+	};
 #define MAXALIGN (((size_t)1) << 23)
 #define NITER 4
-	size_t nsz, rsz, sz, alignment, total;
+	size_t nsz, rsz, alignment, total;
 	unsigned i;
 	void *ps[NITER];
 
@@ -215,6 +268,7 @@ main(void) {
 	return test(
 	    test_overflow,
 	    test_oom,
+	    test_remote_free,
 	    test_basic,
 	    test_alignment_and_size);
 }

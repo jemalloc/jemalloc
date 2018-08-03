@@ -1,8 +1,10 @@
 #ifndef JEMALLOC_INTERNAL_ARENA_TYPES_H
 #define JEMALLOC_INTERNAL_ARENA_TYPES_H
 
+#include "jemalloc/internal/sc.h"
+
 /* Maximum number of regions in one slab. */
-#define LG_SLAB_MAXREGS		(LG_PAGE - LG_TINY_MIN)
+#define LG_SLAB_MAXREGS		(LG_PAGE - SC_LG_TINY_MIN)
 #define SLAB_MAXREGS		(1U << LG_SLAB_MAXREGS)
 
 /* Default decay times in milliseconds. */
@@ -39,5 +41,11 @@ typedef enum {
 
 #define PERCPU_ARENA_ENABLED(m)	((m) >= percpu_arena_mode_enabled_base)
 #define PERCPU_ARENA_DEFAULT	percpu_arena_disabled
+
+/*
+ * When allocation_size >= huge_threshold, use the dedicated huge arena (unless
+ * have explicitly spicified arena index).  0 disables the feature.
+ */
+#define HUGE_THRESHOLD_DEFAULT 0
 
 #endif /* JEMALLOC_INTERNAL_ARENA_TYPES_H */

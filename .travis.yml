@@ -11,7 +11,7 @@ matrix:
       env: CC=clang CXX=clang++ COMPILER_FLAGS="" CONFIGURE_FLAGS="" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       env: CC=gcc CXX=g++ COMPILER_FLAGS="-m32" CONFIGURE_FLAGS="" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
-      addons:
+      addons: &gcc_multilib
         apt:
           packages:
             - gcc-multilib
@@ -41,10 +41,7 @@ matrix:
       env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--with-malloc-conf=tcache:false" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       env: CC=clang CXX=clang++ COMPILER_FLAGS="-m32" CONFIGURE_FLAGS="" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
-      addons:
-        apt:
-          packages:
-            - gcc-multilib
+      addons: *gcc_multilib
     - os: linux
       env: CC=clang CXX=clang++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--enable-debug" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
@@ -61,46 +58,25 @@ matrix:
       env: CC=clang CXX=clang++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--with-malloc-conf=background_thread:true" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       env: CC=gcc CXX=g++ COMPILER_FLAGS="-m32" CONFIGURE_FLAGS="--enable-debug" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
-      addons:
-        apt:
-          packages:
-            - gcc-multilib
+      addons: *gcc_multilib
     - os: linux
       env: CC=gcc CXX=g++ COMPILER_FLAGS="-m32" CONFIGURE_FLAGS="--enable-prof" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
-      addons:
-        apt:
-          packages:
-            - gcc-multilib
+      addons: *gcc_multilib
     - os: linux
       env: CC=gcc CXX=g++ COMPILER_FLAGS="-m32" CONFIGURE_FLAGS="--disable-stats" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
-      addons:
-        apt:
-          packages:
-            - gcc-multilib
+      addons: *gcc_multilib
     - os: linux
       env: CC=gcc CXX=g++ COMPILER_FLAGS="-m32" CONFIGURE_FLAGS="--with-malloc-conf=tcache:false" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
-      addons:
-        apt:
-          packages:
-            - gcc-multilib
+      addons: *gcc_multilib
     - os: linux
       env: CC=gcc CXX=g++ COMPILER_FLAGS="-m32" CONFIGURE_FLAGS="--with-malloc-conf=dss:primary" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
-      addons:
-        apt:
-          packages:
-            - gcc-multilib
+      addons: *gcc_multilib
     - os: linux
       env: CC=gcc CXX=g++ COMPILER_FLAGS="-m32" CONFIGURE_FLAGS="--with-malloc-conf=percpu_arena:percpu" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
-      addons:
-        apt:
-          packages:
-            - gcc-multilib
+      addons: *gcc_multilib
     - os: linux
       env: CC=gcc CXX=g++ COMPILER_FLAGS="-m32" CONFIGURE_FLAGS="--with-malloc-conf=background_thread:true" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
-      addons:
-        apt:
-          packages:
-            - gcc-multilib
+      addons: *gcc_multilib
     - os: linux
       env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--enable-debug --enable-prof" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
@@ -143,10 +119,13 @@ matrix:
       env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--with-malloc-conf=dss:primary,background_thread:true" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--with-malloc-conf=percpu_arena:percpu,background_thread:true" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+    - os: linux
+      env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--enable-debug --disable-cache-oblivious --enable-stats --enable-log --enable-prof" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
 
 
 before_script:
   - autoconf
+  - scripts/gen_travis.py > travis_script && diff .travis.yml travis_script
   - ./configure ${COMPILER_FLAGS:+       CC="$CC $COMPILER_FLAGS"       CXX="$CXX $COMPILER_FLAGS" }       $CONFIGURE_FLAGS
   - make -j3
   - make -j3 tests

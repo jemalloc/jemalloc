@@ -171,6 +171,27 @@ lg_floor(size_t x) {
 }
 #endif
 
+BIT_UTIL_INLINE unsigned
+lg_ceil(size_t x) {
+	return lg_floor(x) + ((x & (x - 1)) == 0 ? 0 : 1);
+}
+
 #undef BIT_UTIL_INLINE
+
+/* A compile-time version of lg_floor and lg_ceil. */
+#define LG_FLOOR_1(x) 0
+#define LG_FLOOR_2(x) (x < (1ULL << 1) ? LG_FLOOR_1(x) : 1 + LG_FLOOR_1(x >> 1))
+#define LG_FLOOR_4(x) (x < (1ULL << 2) ? LG_FLOOR_2(x) : 2 + LG_FLOOR_2(x >> 2))
+#define LG_FLOOR_8(x) (x < (1ULL << 4) ? LG_FLOOR_4(x) : 4 + LG_FLOOR_4(x >> 4))
+#define LG_FLOOR_16(x) (x < (1ULL << 8) ? LG_FLOOR_8(x) : 8 + LG_FLOOR_8(x >> 8))
+#define LG_FLOOR_32(x) (x < (1ULL << 16) ? LG_FLOOR_16(x) : 16 + LG_FLOOR_16(x >> 16))
+#define LG_FLOOR_64(x) (x < (1ULL << 32) ? LG_FLOOR_32(x) : 32 + LG_FLOOR_32(x >> 32))
+#if LG_SIZEOF_PTR == 2
+#  define LG_FLOOR(x) LG_FLOOR_32((x))
+#else
+#  define LG_FLOOR(x) LG_FLOOR_64((x))
+#endif
+
+#define LG_CEIL(x) (LG_FLOOR(x) + (((x) & ((x) - 1)) == 0 ? 0 : 1))
 
 #endif /* JEMALLOC_INTERNAL_BIT_UTIL_H */

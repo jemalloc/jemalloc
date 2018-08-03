@@ -3,7 +3,7 @@
 TEST_BEGIN(test_arena_slab_regind) {
 	szind_t binind;
 
-	for (binind = 0; binind < NBINS; binind++) {
+	for (binind = 0; binind < SC_NBINS; binind++) {
 		size_t regind;
 		extent_t slab;
 		const bin_info_t *bin_info = &bin_infos[binind];

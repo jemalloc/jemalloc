@@ -5,7 +5,16 @@
 #ifdef _WIN32
 #  include <windows.h>
 #  include "msvc_compat/windows_extra.h"
-
+#  ifdef _WIN64
+#    if LG_VADDR <= 32
+#      error Generate the headers using x64 vcargs
+#    endif
+#  else
+#    if LG_VADDR > 32
+#      undef LG_VADDR
+#      define LG_VADDR 32
+#    endif
+#  endif
 #else
 #  include <sys/param.h>
 #  include <sys/mman.h>

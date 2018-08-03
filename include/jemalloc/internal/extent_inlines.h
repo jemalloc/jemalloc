@@ -6,6 +6,7 @@
 #include "jemalloc/internal/pages.h"
 #include "jemalloc/internal/prng.h"
 #include "jemalloc/internal/ql.h"
+#include "jemalloc/internal/sc.h"
 #include "jemalloc/internal/sz.h"
 
 static inline void
@@ -53,14 +54,14 @@ static inline szind_t
 extent_szind_get_maybe_invalid(const extent_t *extent) {
 	szind_t szind = (szind_t)((extent->e_bits & EXTENT_BITS_SZIND_MASK) >>
 	    EXTENT_BITS_SZIND_SHIFT);
-	assert(szind <= NSIZES);
+	assert(szind <= SC_NSIZES);
 	return szind;
 }
 
 static inline szind_t
 extent_szind_get(const extent_t *extent) {
 	szind_t szind = extent_szind_get_maybe_invalid(extent);
-	assert(szind < NSIZES); /* Never call when "invalid". */
+	assert(szind < SC_NSIZES); /* Never call when "invalid". */
 	return szind;
 }
 
@@ -176,6 +177,11 @@ extent_prof_tctx_get(const extent_t *extent) {
 	    ATOMIC_ACQUIRE);
 }
 
+static inline nstime_t
+extent_prof_alloc_time_get(const extent_t *extent) {
+	return extent->e_alloc_time;
+}
+
 static inline void
 extent_arena_set(extent_t *extent, arena_t *arena) {
 	unsigned arena_ind = (arena != NULL) ? arena_ind_get(arena) : ((1U <<
@@ -234,7 +240,7 @@ extent_bsize_set(extent_t *extent, size_t bsize) {
 
 static inline void
 extent_szind_set(extent_t *extent, szind_t szind) {
-	assert(szind <= NSIZES); /* NSIZES means "invalid". */
+	assert(szind <= SC_NSIZES); /* SC_NSIZES means "invalid". */
 	extent->e_bits = (extent->e_bits & ~EXTENT_BITS_SZIND_MASK) |
 	    ((uint64_t)szind << EXTENT_BITS_SZIND_SHIFT);
 }
@@ -300,6 +306,11 @@ extent_prof_tctx_set(extent_t *extent, prof_tctx_t *tctx) {
 }
 
 static inline void
+extent_prof_alloc_time_set(extent_t *extent, nstime_t t) {
+	nstime_copy(&extent->e_alloc_time, &t);
+}
+
+static inline void
 extent_init(extent_t *extent, arena_t *arena, void *addr, size_t size,
     bool slab, szind_t szind, size_t sn, extent_state_t state, bool zeroed,
     bool committed, bool dumpable) {
@@ -327,7 +338,7 @@ extent_binit(extent_t *extent, void *addr, size_t bsize, size_t sn) {
 	extent_addr_set(extent, addr);
 	extent_bsize_set(extent, bsize);
 	extent_slab_set(extent, false);
-	extent_szind_set(extent, NSIZES);
+	extent_szind_set(extent, SC_NSIZES);
 	extent_sn_set(extent, sn);
 	extent_state_set(extent, extent_state_active);
 	extent_zeroed_set(extent, true);

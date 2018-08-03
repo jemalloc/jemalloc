@@ -4,17 +4,6 @@
 #include "jemalloc/internal/sz.h"
 
 JEMALLOC_ALWAYS_INLINE bool
-prof_active_get_unlocked(void) {
-	/*
-	 * Even if opt_prof is true, sampling can be temporarily disabled by
-	 * setting prof_active to false.  No locking is used when reading
-	 * prof_active in the fast path, so there are no guarantees regarding
-	 * how long it will take for all threads to notice state changes.
-	 */
-	return prof_active;
-}
-
-JEMALLOC_ALWAYS_INLINE bool
 prof_gdump_get_unlocked(void) {
 	/*
 	 * No locking is used when reading prof_gdump_val in the fast path, so
@@ -70,6 +59,23 @@ prof_tctx_reset(tsdn_t *tsdn, const void *ptr, prof_tctx_t *tctx) {
 	assert(ptr != NULL);
 
 	arena_prof_tctx_reset(tsdn, ptr, tctx);
+}
+
+JEMALLOC_ALWAYS_INLINE nstime_t
+prof_alloc_time_get(tsdn_t *tsdn, const void *ptr, alloc_ctx_t *alloc_ctx) {
+	cassert(config_prof);
+	assert(ptr != NULL);
+
+	return arena_prof_alloc_time_get(tsdn, ptr, alloc_ctx);
+}
+
+JEMALLOC_ALWAYS_INLINE void
+prof_alloc_time_set(tsdn_t *tsdn, const void *ptr, alloc_ctx_t *alloc_ctx,
+    nstime_t t) { 
+	cassert(config_prof);
+	assert(ptr != NULL);
+
+	arena_prof_alloc_time_set(tsdn, ptr, alloc_ctx, t);
 }
 
 JEMALLOC_ALWAYS_INLINE bool
@@ -198,7 +204,7 @@ prof_realloc(tsd_t *tsd, const void *ptr, size_t usize, prof_tctx_t *tctx,
 	 * counters.
 	 */
 	if (unlikely(old_sampled)) {
-		prof_free_sampled_object(tsd, old_usize, old_tctx);
+		prof_free_sampled_object(tsd, ptr, old_usize, old_tctx);
 	}
 }
 
@@ -210,7 +216,7 @@ prof_free(tsd_t *tsd, const void *ptr, size_t usize, alloc_ctx_t *alloc_ctx) {
 	assert(usize == isalloc(tsd_tsdn(tsd), ptr));
 
 	if (unlikely((uintptr_t)tctx > (uintptr_t)1U)) {
-		prof_free_sampled_object(tsd, usize, tctx);
+		prof_free_sampled_object(tsd, ptr, usize, tctx);
 	}
 }
 

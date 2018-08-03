@@ -24,7 +24,7 @@ abs_srcroot := @abs_srcroot@
 abs_objroot := @abs_objroot@
 
 # Build parameters.
-CPPFLAGS := @CPPFLAGS@ -I$(srcroot)include -I$(objroot)include
+CPPFLAGS := @CPPFLAGS@ -I$(objroot)include -I$(srcroot)include
 CONFIGURE_CFLAGS := @CONFIGURE_CFLAGS@
 SPECIFIED_CFLAGS := @SPECIFIED_CFLAGS@
 EXTRA_CFLAGS := @EXTRA_CFLAGS@
@@ -102,7 +102,7 @@ C_SRCS := $(srcroot)src/jemalloc.c \
 	$(srcroot)src/extent_dss.c \
 	$(srcroot)src/extent_mmap.c \
 	$(srcroot)src/hash.c \
-	$(srcroot)src/hooks.c \
+	$(srcroot)src/hook.c \
 	$(srcroot)src/large.c \
 	$(srcroot)src/log.c \
 	$(srcroot)src/malloc_io.c \
@@ -114,8 +114,10 @@ C_SRCS := $(srcroot)src/jemalloc.c \
 	$(srcroot)src/prof.c \
 	$(srcroot)src/rtree.c \
 	$(srcroot)src/stats.c \
+	$(srcroot)src/sc.c \
 	$(srcroot)src/sz.c \
 	$(srcroot)src/tcache.c \
+	$(srcroot)src/test_hooks.c \
 	$(srcroot)src/ticker.c \
 	$(srcroot)src/tsd.c \
 	$(srcroot)src/witness.c
@@ -162,15 +164,19 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/arena_reset.c \
 	$(srcroot)test/unit/atomic.c \
 	$(srcroot)test/unit/background_thread.c \
+	$(srcroot)test/unit/background_thread_enable.c \
 	$(srcroot)test/unit/base.c \
 	$(srcroot)test/unit/bitmap.c \
+	$(srcroot)test/unit/bit_util.c \
 	$(srcroot)test/unit/ckh.c \
 	$(srcroot)test/unit/decay.c \
 	$(srcroot)test/unit/div.c \
+	$(srcroot)test/unit/emitter.c \
 	$(srcroot)test/unit/extent_quantize.c \
 	$(srcroot)test/unit/fork.c \
 	$(srcroot)test/unit/hash.c \
-	$(srcroot)test/unit/hooks.c \
+	$(srcroot)test/unit/hook.c \
+	$(srcroot)test/unit/huge.c \
 	$(srcroot)test/unit/junk.c \
 	$(srcroot)test/unit/junk_alloc.c \
 	$(srcroot)test/unit/junk_free.c \
@@ -188,6 +194,7 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/prof_active.c \
 	$(srcroot)test/unit/prof_gdump.c \
 	$(srcroot)test/unit/prof_idump.c \
+	$(srcroot)test/unit/prof_log.c \
 	$(srcroot)test/unit/prof_reset.c \
 	$(srcroot)test/unit/prof_tctx.c \
 	$(srcroot)test/unit/prof_thread_name.c \
@@ -196,13 +203,16 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/rb.c \
 	$(srcroot)test/unit/retained.c \
 	$(srcroot)test/unit/rtree.c \
+	$(srcroot)test/unit/seq.c \
 	$(srcroot)test/unit/SFMT.c \
+	$(srcroot)test/unit/sc.c \
 	$(srcroot)test/unit/size_classes.c \
 	$(srcroot)test/unit/slab.c \
 	$(srcroot)test/unit/smoothstep.c \
 	$(srcroot)test/unit/spin.c \
 	$(srcroot)test/unit/stats.c \
 	$(srcroot)test/unit/stats_print.c \
+	$(srcroot)test/unit/test_hooks.c \
 	$(srcroot)test/unit/ticker.c \
 	$(srcroot)test/unit/nstime.c \
 	$(srcroot)test/unit/tsd.c \
@@ -221,6 +231,7 @@ TESTS_INTEGRATION := $(srcroot)test/integration/aligned_alloc.c \
 	$(srcroot)test/integration/posix_memalign.c \
 	$(srcroot)test/integration/rallocx.c \
 	$(srcroot)test/integration/sdallocx.c \
+	$(srcroot)test/integration/slab_sizes.c \
 	$(srcroot)test/integration/thread_arena.c \
 	$(srcroot)test/integration/thread_tcache_enabled.c \
 	$(srcroot)test/integration/xallocx.c

@@ -433,10 +433,11 @@ for (i = 0; i < nbins; i++) {
       arena statistics, respectively; <quote>b</quote> and <quote>l</quote> can
       be specified to omit per size class statistics for bins and large objects,
       respectively; <quote>x</quote> can be specified to omit all mutex
-      statistics.  Unrecognized characters are silently ignored.  Note that
-      thread caching may prevent some statistics from being completely up to
-      date, since extra locking would be required to merge counters that track
-      thread cache operations.</para>
+      statistics; <quote>e</quote> can be used to omit extent statistics.
+      Unrecognized characters are silently ignored.  Note that thread caching
+      may prevent some statistics from being completely up to date, since extra
+      locking would be required to merge counters that track thread cache
+      operations.</para>
 
       <para>The <function>malloc_usable_size()</function> function
       returns the usable size of the allocation pointed to by
@@ -761,6 +762,18 @@ mallctl("arena." STRINGIFY(MALLCTL_ARENAS_ALL) ".decay",
         selected pthread-based platforms.</para></listitem>
       </varlistentry>
 
+      <varlistentry id="max_background_threads">
+        <term>
+          <mallctl>max_background_threads</mallctl>
+          (<type>size_t</type>)
+          <literal>rw</literal>
+        </term>
+        <listitem><para>Maximum number of background worker threads that will
+        be created.  This value is capped at <link
+        linkend="opt.max_background_threads"><mallctl>opt.max_background_threads</mallctl></link> at
+        startup.</para></listitem>
+      </varlistentry>
+
       <varlistentry id="config.cache_oblivious">
         <term>
           <mallctl>config.cache_oblivious</mallctl>
@@ -852,16 +865,6 @@ mallctl("arena." STRINGIFY(MALLCTL_ARENAS_ALL) ".decay",
         build configuration.</para></listitem>
       </varlistentry>
 
-      <varlistentry id="config.thp">
-        <term>
-          <mallctl>config.thp</mallctl>
-          (<type>bool</type>)
-          <literal>r-</literal>
-        </term>
-        <listitem><para><option>--disable-thp</option> was not specified
-        during build configuration, and the system supports transparent huge
-        page manipulation.</para></listitem>
-      </varlistentry>
 
       <varlistentry id="config.utrace">
         <term>
@@ -1019,6 +1022,17 @@ mallctl("arena." STRINGIFY(MALLCTL_ARENAS_ALL) ".decay",
         default.</para></listitem>
       </varlistentry>
 
+      <varlistentry id="opt.max_background_threads">
+        <term>
+          <mallctl>opt.max_background_threads</mallctl>
+          (<type>const size_t</type>)
+          <literal>r-</literal>
+        </term>
+        <listitem><para>Maximum number of background threads that will be created
+        if <link linkend="background_thread">background_thread</link> is set.
+        Defaults to number of cpus.</para></listitem>
+      </varlistentry>
+
       <varlistentry id="opt.dirty_decay_ms">
         <term>
           <mallctl>opt.dirty_decay_ms</mallctl>
@@ -1042,7 +1056,9 @@ mallctl("arena." STRINGIFY(MALLCTL_ARENAS_ALL) ".decay",
         linkend="arena.i.dirty_decay_ms"><mallctl>arena.&lt;i&gt;.dirty_decay_ms</mallctl></link>
         for related dynamic control options.  See <link
         linkend="opt.muzzy_decay_ms"><mallctl>opt.muzzy_decay_ms</mallctl></link>
-        for a description of muzzy pages.</para></listitem>
+        for a description of muzzy pages.  Note that when the huge_threshold
+        feature is enabled, the special auto arenas may use its own decay
+        settings.</para></listitem>
       </varlistentry>
 
       <varlistentry id="opt.muzzy_decay_ms">
@@ -1225,6 +1241,28 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         thread-specific cache (tcache).  At a minimum, all small size classes
         are cached, and at a maximum all large size classes are cached.  The
         default maximum is 32 KiB (2^15).</para></listitem>
+      </varlistentry>
+
+      <varlistentry id="opt.thp">
+        <term>
+          <mallctl>opt.thp</mallctl>
+          (<type>const char *</type>)
+          <literal>r-</literal>
+        </term>
+        <listitem><para>Transparent hugepage (THP) mode. Settings "always",
+        "never" and "default" are available if THP is supported by the operating
+        system.  The "always" setting enables transparent hugepage for all user
+        memory mappings with
+        <parameter><constant>MADV_HUGEPAGE</constant></parameter>; "never"
+        ensures no transparent hugepage with
+        <parameter><constant>MADV_NOHUGEPAGE</constant></parameter>; the default
+        setting "default" makes no changes.  Note that: this option does not
+        affect THP for jemalloc internal metadata (see <link
+        linkend="opt.metadata_thp"><mallctl>opt.metadata_thp</mallctl></link>);
+        in addition, for arenas with customized <link
+        linkend="arena.i.extent_hooks"><mallctl>extent_hooks</mallctl></link>,
+        this option is bypassed as it is implemented as part of the default
+        extent hooks.</para></listitem>
       </varlistentry>
 
       <varlistentry id="opt.prof">
@@ -1728,10 +1766,11 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         to control allocation for arenas explicitly created via <link
         linkend="arenas.create"><mallctl>arenas.create</mallctl></link> such
         that all extents originate from an application-supplied extent allocator
-        (by specifying the custom extent hook functions during arena creation),
-        but the automatically created arenas will have already created extents
-        prior to the application having an opportunity to take over extent
-        allocation.</para>
+        (by specifying the custom extent hook functions during arena creation).
+        However, the API guarantees for the automatically created arenas may be
+        relaxed -- hooks set there may be called in a "best effort" fashion; in
+        addition there may be extents created prior to the application having an
+        opportunity to take over extent allocation.</para>
 
         <programlisting language="C"><![CDATA[
 typedef extent_hooks_s extent_hooks_t;
@@ -1757,7 +1796,9 @@ struct extent_hooks_s {
         in favor of less permanent (and often less costly) operations.  All
         operations except allocation can be universally opted out of by setting
         the hook pointers to <constant>NULL</constant>, or selectively opted out
-        of by returning failure.</para>
+        of by returning failure.  Note that once the extent hook is set, the
+        structure is accessed directly by the associated arenas, so it must
+        remain valid for the entire lifetime of the arenas.</para>
 
         <funcsynopsis><funcprototype>
           <funcdef>typedef void *<function>(extent_alloc_t)</function></funcdef>
@@ -2091,6 +2132,15 @@ struct extent_hooks_s {
         <listitem><para>Explicitly create a new arena outside the range of
         automatically managed arenas, with optionally specified extent hooks,
         and return the new arena index.</para></listitem>
+      </varlistentry>
+
+      <varlistentry id="arenas.lookup">
+        <term>
+          <mallctl>arenas.lookup</mallctl>
+          (<type>unsigned</type>, <type>void*</type>)
+          <literal>rw</literal>
+        </term>
+        <listitem><para>Index of the arena to which an allocation belongs to.</para></listitem>
       </varlistentry>
 
       <varlistentry id="prof.thread_active_init">
@@ -2547,6 +2597,17 @@ struct extent_hooks_s {
         details.</para></listitem>
       </varlistentry>
 
+      <varlistentry id="stats.arenas.i.extent_avail">
+        <term>
+          <mallctl>stats.arenas.&lt;i&gt;.extent_avail</mallctl>
+          (<type>size_t</type>)
+          <literal>r-</literal>
+          [<option>--enable-stats</option>]
+        </term>
+        <listitem><para>Number of allocated (but unused) extent structs in this
+	arena.</para></listitem>
+      </varlistentry>
+
       <varlistentry id="stats.arenas.i.base">
         <term>
           <mallctl>stats.arenas.&lt;i&gt;.base</mallctl>
@@ -2874,6 +2935,30 @@ struct extent_hooks_s {
         scope; bin operation related).  <mallctl>{counter}</mallctl> is one of
         the counters in <link linkend="mutex_counters">mutex profiling
         counters</link>.</para></listitem>
+      </varlistentry>
+
+      <varlistentry id="stats.arenas.i.extents.n">
+        <term>
+          <mallctl>stats.arenas.&lt;i&gt;.extents.&lt;j&gt;.n{extent_type}</mallctl>
+          (<type>size_t</type>)
+          <literal>r-</literal>
+          [<option>--enable-stats</option>]
+        </term>
+        <listitem><para> Number of extents of the given type in this arena in
+	the bucket corresponding to page size index &lt;j&gt;. The extent type
+	is one of dirty, muzzy, or retained.</para></listitem>
+      </varlistentry>
+
+      <varlistentry id="stats.arenas.i.extents.bytes">
+        <term>
+          <mallctl>stats.arenas.&lt;i&gt;.extents.&lt;j&gt;.{extent_type}_bytes</mallctl>
+          (<type>size_t</type>)
+          <literal>r-</literal>
+          [<option>--enable-stats</option>]
+        </term>
+	<listitem><para> Sum of the bytes managed by extents of the given type
+	in this arena in the bucket corresponding to page size index &lt;j&gt;.
+	The extent type is one of dirty, muzzy, or retained.</para></listitem>
       </varlistentry>
 
       <varlistentry id="stats.arenas.i.lextents.j.nmalloc">

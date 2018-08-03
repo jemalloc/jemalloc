@@ -28,7 +28,14 @@ static int	mmap_flags;
 #endif
 static bool	os_overcommits;
 
-bool thp_state_madvise;
+const char *thp_mode_names[] = {
+	"default",
+	"always",
+	"never",
+	"not supported"
+};
+thp_mode_t opt_thp = THP_MODE_DEFAULT;
+thp_mode_t init_system_thp_mode;
 
 /* Runtime support for lazy purge. Irrelevant when !pages_can_purge_lazy. */
 static bool pages_can_purge_lazy_runtime = true;
@@ -254,7 +261,7 @@ pages_decommit(void *addr, size_t size) {
 
 bool
 pages_purge_lazy(void *addr, size_t size) {
-	assert(PAGE_ADDR2BASE(addr) == addr);
+	assert(ALIGNMENT_ADDR2BASE(addr, os_page) == addr);
 	assert(PAGE_CEILING(size) == size);
 
 	if (!pages_can_purge_lazy) {
@@ -307,11 +314,12 @@ pages_purge_forced(void *addr, size_t size) {
 #endif
 }
 
-bool
-pages_huge(void *addr, size_t size) {
-	assert(HUGEPAGE_ADDR2BASE(addr) == addr);
-	assert(HUGEPAGE_CEILING(size) == size);
-
+static bool
+pages_huge_impl(void *addr, size_t size, bool aligned) {
+	if (aligned) {
+		assert(HUGEPAGE_ADDR2BASE(addr) == addr);
+		assert(HUGEPAGE_CEILING(size) == size);
+	}
 #ifdef JEMALLOC_HAVE_MADVISE_HUGE
 	return (madvise(addr, size, MADV_HUGEPAGE) != 0);
 #else
@@ -320,15 +328,37 @@ pages_huge(void *addr, size_t size) {
 }
 
 bool
-pages_nohuge(void *addr, size_t size) {
-	assert(HUGEPAGE_ADDR2BASE(addr) == addr);
-	assert(HUGEPAGE_CEILING(size) == size);
+pages_huge(void *addr, size_t size) {
+	return pages_huge_impl(addr, size, true);
+}
+
+static bool
+pages_huge_unaligned(void *addr, size_t size) {
+	return pages_huge_impl(addr, size, false);
+}
+
+static bool
+pages_nohuge_impl(void *addr, size_t size, bool aligned) {
+	if (aligned) {
+		assert(HUGEPAGE_ADDR2BASE(addr) == addr);
+		assert(HUGEPAGE_CEILING(size) == size);
+	}
 
 #ifdef JEMALLOC_HAVE_MADVISE_HUGE
 	return (madvise(addr, size, MADV_NOHUGEPAGE) != 0);
 #else
 	return false;
 #endif
+}
+
+bool
+pages_nohuge(void *addr, size_t size) {
+	return pages_nohuge_impl(addr, size, true);
+}
+
+static bool
+pages_nohuge_unaligned(void *addr, size_t size) {
+	return pages_nohuge_impl(addr, size, false);
 }
 
 bool
@@ -406,7 +436,6 @@ static bool
 os_overcommits_proc(void) {
 	int fd;
 	char buf[1];
-	ssize_t nread;
 
 #if defined(JEMALLOC_USE_SYSCALL) && defined(SYS_open)
 	#if defined(O_CLOEXEC)
@@ -444,12 +473,7 @@ os_overcommits_proc(void) {
 		return false; /* Error. */
 	}
 
-#if defined(JEMALLOC_USE_SYSCALL) && defined(SYS_read)
-	nread = (ssize_t)syscall(SYS_read, fd, &buf, sizeof(buf));
-#else
-	nread = read(fd, &buf, sizeof(buf));
-#endif
-
+	ssize_t nread = malloc_read_fd(fd, &buf, sizeof(buf));
 #if defined(JEMALLOC_USE_SYSCALL) && defined(SYS_close)
 	syscall(SYS_close, fd);
 #else
@@ -469,6 +493,25 @@ os_overcommits_proc(void) {
 }
 #endif
 
+void
+pages_set_thp_state (void *ptr, size_t size) {
+	if (opt_thp == thp_mode_default || opt_thp == init_system_thp_mode) {
+		return;
+	}
+	assert(opt_thp != thp_mode_not_supported &&
+	    init_system_thp_mode != thp_mode_not_supported);
+
+	if (opt_thp == thp_mode_always
+	    && init_system_thp_mode != thp_mode_never) {
+		assert(init_system_thp_mode == thp_mode_default);
+		pages_huge_unaligned(ptr, size);
+	} else if (opt_thp == thp_mode_never) {
+		assert(init_system_thp_mode == thp_mode_default ||
+		    init_system_thp_mode == thp_mode_always);
+		pages_nohuge_unaligned(ptr, size);
+	}
+}
+
 static void
 init_thp_state(void) {
 	if (!have_madvise_huge) {
@@ -479,8 +522,10 @@ init_thp_state(void) {
 		goto label_error;
 	}
 
-	static const char madvise_state[] = "always [madvise] never\n";
-	char buf[sizeof(madvise_state)];
+	static const char sys_state_madvise[] = "always [madvise] never\n";
+	static const char sys_state_always[] = "[always] madvise never\n";
+	static const char sys_state_never[] = "always madvise [never]\n";
+	char buf[sizeof(sys_state_madvise)];
 
 #if defined(JEMALLOC_USE_SYSCALL) && defined(SYS_open)
 	int fd = (int)syscall(SYS_open,
@@ -492,27 +537,25 @@ init_thp_state(void) {
 		goto label_error;
 	}
 
-#if defined(JEMALLOC_USE_SYSCALL) && defined(SYS_read)
-	ssize_t nread = (ssize_t)syscall(SYS_read, fd, &buf, sizeof(buf));
-#else
-	ssize_t nread = read(fd, &buf, sizeof(buf));
-#endif
-
+	ssize_t nread = malloc_read_fd(fd, &buf, sizeof(buf));
 #if defined(JEMALLOC_USE_SYSCALL) && defined(SYS_close)
 	syscall(SYS_close, fd);
 #else
 	close(fd);
 #endif
 
-	if (nread < 1) {
+	if (strncmp(buf, sys_state_madvise, (size_t)nread) == 0) {
+		init_system_thp_mode = thp_mode_default;
+	} else if (strncmp(buf, sys_state_always, (size_t)nread) == 0) {
+		init_system_thp_mode = thp_mode_always;
+	} else if (strncmp(buf, sys_state_never, (size_t)nread) == 0) {
+		init_system_thp_mode = thp_mode_never;
+	} else {
 		goto label_error;
 	}
-	if (strncmp(buf, madvise_state, (size_t)nread) == 0) {
-		thp_state_madvise = true;
-		return;
-	}
+	return;
 label_error:
-	thp_state_madvise = false;
+	opt_thp = init_system_thp_mode = thp_mode_not_supported;
 }
 
 bool

@@ -113,8 +113,8 @@ atomic_store_##short_type(atomic_##short_type##_t *a,			\
 }									\
 									\
 ATOMIC_INLINE type							\
-atomic_exchange_##short_type(atomic_##short_type##_t *a, type val,	\
-    atomic_memory_order_t mo) {						\
+atomic_exchange_##short_type(atomic_##short_type##_t *a, type val, \
+    atomic_memory_order_t mo) {                  					 \
 	/*								\
 	 * Because of FreeBSD, we care about gcc 4.2, which doesn't have\
 	 * an atomic exchange builtin.  We fake it with a CAS loop.	\
@@ -129,8 +129,9 @@ atomic_exchange_##short_type(atomic_##short_type##_t *a, type val,	\
 									\
 ATOMIC_INLINE bool							\
 atomic_compare_exchange_weak_##short_type(atomic_##short_type##_t *a,	\
-    type *expected, type desired, atomic_memory_order_t success_mo,	\
-    atomic_memory_order_t failure_mo) {					\
+    type *expected, type desired,                                     \
+    atomic_memory_order_t success_mo,                          \
+    atomic_memory_order_t failure_mo) {				                \
 	type prev = __sync_val_compare_and_swap(&a->repr, *expected,	\
 	    desired);							\
 	if (prev == *expected) {					\
@@ -142,8 +143,9 @@ atomic_compare_exchange_weak_##short_type(atomic_##short_type##_t *a,	\
 }									\
 ATOMIC_INLINE bool							\
 atomic_compare_exchange_strong_##short_type(atomic_##short_type##_t *a,	\
-    type *expected, type desired, atomic_memory_order_t success_mo,	\
-    atomic_memory_order_t failure_mo) {					\
+    type *expected, type desired,                                       \
+    atomic_memory_order_t success_mo,                            \
+    atomic_memory_order_t failure_mo) {                          \
 	type prev = __sync_val_compare_and_swap(&a->repr, *expected,	\
 	    desired);							\
 	if (prev == *expected) {					\

@@ -24,7 +24,8 @@ const char *metadata_thp_mode_names[] = {
 
 static inline bool
 metadata_thp_madvise(void) {
-	return (metadata_thp_enabled() && thp_state_madvise);
+	return (metadata_thp_enabled() &&
+	    (init_system_thp_mode == thp_mode_default));
 }
 
 static void *
@@ -194,8 +195,8 @@ base_extent_bump_alloc_helper(extent_t *extent, size_t *gap_size, size_t size,
 }
 
 static void
-base_extent_bump_alloc_post(tsdn_t *tsdn, base_t *base, extent_t *extent,
-    size_t gap_size, void *addr, size_t size) {
+base_extent_bump_alloc_post(base_t *base, extent_t *extent, size_t gap_size,
+    void *addr, size_t size) {
 	if (extent_bsize_get(extent) > 0) {
 		/*
 		 * Compute the index for the largest size class that does not
@@ -228,13 +229,13 @@ base_extent_bump_alloc_post(tsdn_t *tsdn, base_t *base, extent_t *extent,
 }
 
 static void *
-base_extent_bump_alloc(tsdn_t *tsdn, base_t *base, extent_t *extent,
-    size_t size, size_t alignment) {
+base_extent_bump_alloc(base_t *base, extent_t *extent, size_t size,
+    size_t alignment) {
 	void *ret;
 	size_t gap_size;
 
 	ret = base_extent_bump_alloc_helper(extent, &gap_size, size, alignment);
-	base_extent_bump_alloc_post(tsdn, base, extent, gap_size, ret, size);
+	base_extent_bump_alloc_post(base, extent, gap_size, ret, size);
 	return ret;
 }
 
@@ -261,8 +262,8 @@ base_block_alloc(tsdn_t *tsdn, base_t *base, extent_hooks_t *extent_hooks,
 	 */
 	size_t min_block_size = HUGEPAGE_CEILING(sz_psz2u(header_size + gap_size
 	    + usize));
-	pszind_t pind_next = (*pind_last + 1 < NPSIZES) ? *pind_last + 1 :
-	    *pind_last;
+	pszind_t pind_next = (*pind_last + 1 < sz_psz2ind(SC_LARGE_MAXCLASS)) ?
+	    *pind_last + 1 : *pind_last;
 	size_t next_block_size = HUGEPAGE_CEILING(sz_pind2sz(pind_next));
 	size_t block_size = (min_block_size > next_block_size) ? min_block_size
 	    : next_block_size;
@@ -371,7 +372,7 @@ base_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 	base->extent_sn_next = extent_sn_next;
 	base->blocks = block;
 	base->auto_thp_switched = false;
-	for (szind_t i = 0; i < NSIZES; i++) {
+	for (szind_t i = 0; i < SC_NSIZES; i++) {
 		extent_heap_new(&base->avail[i]);
 	}
 	if (config_stats) {
@@ -385,7 +386,7 @@ base_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 		assert(base->resident <= base->mapped);
 		assert(base->n_thp << LG_HUGEPAGE <= base->mapped);
 	}
-	base_extent_bump_alloc_post(tsdn, base, &block->extent, gap_size, base,
+	base_extent_bump_alloc_post(base, &block->extent, gap_size, base,
 	    base_size);
 
 	return base;
@@ -425,7 +426,7 @@ base_alloc_impl(tsdn_t *tsdn, base_t *base, size_t size, size_t alignment,
 
 	extent_t *extent = NULL;
 	malloc_mutex_lock(tsdn, &base->mtx);
-	for (szind_t i = sz_size2index(asize); i < NSIZES; i++) {
+	for (szind_t i = sz_size2index(asize); i < SC_NSIZES; i++) {
 		extent = extent_heap_remove_first(&base->avail[i]);
 		if (extent != NULL) {
 			/* Use existing space. */
@@ -442,7 +443,7 @@ base_alloc_impl(tsdn_t *tsdn, base_t *base, size_t size, size_t alignment,
 		goto label_return;
 	}
 
-	ret = base_extent_bump_alloc(tsdn, base, extent, usize, alignment);
+	ret = base_extent_bump_alloc(base, extent, usize, alignment);
 	if (esn != NULL) {
 		*esn = extent_sn_get(extent);
 	}
