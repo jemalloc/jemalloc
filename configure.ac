@@ -1277,6 +1277,22 @@ if test "x$enable_log" = "x1" ; then
 fi
 AC_SUBST([enable_log])
 
+dnl Do not use readlinkat by default
+AC_ARG_ENABLE([readlinkat],
+  [AS_HELP_STRING([--enable-readlinkat], [Use readlinkat over readlink])],
+[if test "x$enable_readlinkat" = "xno" ; then
+  enable_readlinkat="0"
+else
+  enable_readlinkat="1"
+fi
+],
+[enable_readlinkat="0"]
+)
+if test "x$enable_readlinkat" = "x1" ; then
+  AC_DEFINE([JEMALLOC_READLINKAT], [ ])
+fi
+AC_SUBST([enable_readlinkat])
+
 
 JE_COMPILABLE([a program using __builtin_unreachable], [
 void foo (void) {

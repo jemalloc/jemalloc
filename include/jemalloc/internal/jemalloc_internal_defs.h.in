@@ -246,6 +246,12 @@
 #undef JEMALLOC_LOG
 
 /*
+ * If defined, use readlinkat() (instead of readlink()) to follow
+ * /etc/malloc_conf.
+ */
+#undef JEMALLOC_READLINKAT
+
+/*
  * Darwin (OS X) uses zones to work around Mach-O symbol override shortcomings.
  */
 #undef JEMALLOC_ZONE
