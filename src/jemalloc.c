@@ -961,7 +961,12 @@ malloc_conf_init(sc_data_t *sc_data) {
 			 * Try to use the contents of the "/etc/malloc.conf"
 			 * symbolic link's name.
 			 */
+#ifndef JEMALLOC_READLINKAT
 			linklen = readlink(linkname, buf, sizeof(buf) - 1);
+#else
+			linklen = readlinkat(AT_FDCWD, linkname, buf,
+			    sizeof(buf) - 1);
+#endif
 			if (linklen == -1) {
 				/* No configuration specified. */
 				linklen = 0;
