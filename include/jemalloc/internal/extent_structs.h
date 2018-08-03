@@ -190,7 +190,7 @@ struct extents_s {
 	/*
 	 * lowest/oldest sn of extent_t in heap
 	 */
-	size_t      lowest_sn_heaps[NPSIZES+1];
+	size_t      lowest_sn_heaps[SC_NPSIZES+1];
 
 	/*
 	 * Bitmap for which set bits correspond to non-empty heaps.
