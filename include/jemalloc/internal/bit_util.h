@@ -94,7 +94,7 @@ pow2_ceil_u32(uint32_t x) {
 	msb_on_index = (31 ^ __builtin_clz(x - 1));
 #endif
 	assert(msb_on_index < 31);
-	return 1UL << (msb_on_index + 1);
+	return 1U << (msb_on_index + 1);
 }
 
 /* Compute the smallest power of 2 that is >= x. */
