@@ -47,10 +47,17 @@ struct bin_info_s {
 	 * bin.
 	 */
 	bitmap_info_t		bitmap_info;
+
+	extent_class_t		extent_class;
 };
 
 extern bin_info_t bin_infos[SC_NBINS];
 
+/*
+ * The maximum number of regions that a bin can use per slab. This determines
+ * how big large extent_t structs are. Initialized by bin_boot.
+ */
+extern size_t bin_max_regs;
 
 typedef struct bin_s bin_t;
 struct bin_s {

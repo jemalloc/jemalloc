@@ -3,9 +3,21 @@
 
 #include "jemalloc/internal/sc.h"
 
-/* Maximum number of regions in one slab. */
-#define LG_SLAB_MAXREGS		(LG_PAGE - SC_LG_TINY_MIN)
-#define SLAB_MAXREGS		(1U << LG_SLAB_MAXREGS)
+#define LG_SLAB_SMALL_BYTES (LG_CACHELINE)
+
+/* 
+ * The size of the slabs is capped by how many bits we have for nfree in the
+ * extent_t metadata.
+ */
+#define LG_SLAB_LARGE_BYTES (LG_CACHELINE + 3)
+
+#define LG_SLAB_SMALL_REGS  (3 + LG_SLAB_SMALL_BYTES)
+#define LG_SLAB_LARGE_REGS  (3 + LG_SLAB_LARGE_BYTES)
+
+#define SLAB_SMALL_REGS (1 << LG_SLAB_SMALL_REGS)
+#define SLAB_LARGE_REGS (1 << LG_SLAB_LARGE_REGS)
+#define SLAB_SMALL_BYTES (1 << LG_SLAB_SMALL_BYTES)
+#define SLAB_LARGE_BYTES (1 << LG_SLAB_LARGE_BYTES)
 
 /* Default decay times in milliseconds. */
 #define DIRTY_DECAY_MS_DEFAULT	ZD(10 * 1000)

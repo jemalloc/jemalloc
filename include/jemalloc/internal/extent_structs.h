@@ -16,6 +16,19 @@ typedef enum {
 	extent_state_retained = 3
 } extent_state_t;
 
+#define EXTENT_NCLASSES 2
+typedef enum {
+	extent_class_small = 0,
+	extent_class_large = 1
+} extent_class_t;
+
+typedef struct {
+	/* Time when this was allocated. */
+	nstime_t		e_alloc_time;
+	/* Points to a prof_tctx_t. */
+	atomic_p_t		e_prof_tctx;
+} extent_prof_data_t;
+
 /* Extent (span of pages).  Use accessor functions for e_* fields. */
 struct extent_s {
 	/*
@@ -29,9 +42,10 @@ struct extent_s {
 	 * t: state
 	 * i: szind
 	 * f: nfree
+	 * s: class
 	 * n: sn
 	 *
-	 * nnnnnnnn ... nnnnffff ffffffii iiiiiitt zdcbaaaa aaaaaaaa
+	 * nnnnnnnn ... sfffffff ffffffii iiiiiitt zdcbaaaa aaaaaaaa
 	 *
 	 * arena_ind: Arena from which this extent came, or all 1 bits if
 	 *            unassociated.
@@ -117,11 +131,15 @@ struct extent_s {
 #define EXTENT_BITS_SZIND_SHIFT  (EXTENT_BITS_STATE_WIDTH + EXTENT_BITS_STATE_SHIFT)
 #define EXTENT_BITS_SZIND_MASK  MASK(EXTENT_BITS_SZIND_WIDTH, EXTENT_BITS_SZIND_SHIFT)
 
-#define EXTENT_BITS_NFREE_WIDTH  (LG_SLAB_MAXREGS + 1)
+#define EXTENT_BITS_NFREE_WIDTH  (LG_SLAB_LARGE_REGS + 1)
 #define EXTENT_BITS_NFREE_SHIFT  (EXTENT_BITS_SZIND_WIDTH + EXTENT_BITS_SZIND_SHIFT)
 #define EXTENT_BITS_NFREE_MASK  MASK(EXTENT_BITS_NFREE_WIDTH, EXTENT_BITS_NFREE_SHIFT)
 
-#define EXTENT_BITS_SN_SHIFT  (EXTENT_BITS_NFREE_WIDTH + EXTENT_BITS_NFREE_SHIFT)
+#define EXTENT_BITS_CLASS_WIDTH  1
+#define EXTENT_BITS_CLASS_SHIFT  (EXTENT_BITS_NFREE_WIDTH + EXTENT_BITS_NFREE_SHIFT)
+#define EXTENT_BITS_CLASS_MASK  MASK(EXTENT_BITS_CLASS_WIDTH, EXTENT_BITS_CLASS_SHIFT)
+
+#define EXTENT_BITS_SN_SHIFT  (EXTENT_BITS_CLASS_WIDTH + EXTENT_BITS_CLASS_SHIFT)
 #define EXTENT_BITS_SN_MASK  (UINT64_MAX << EXTENT_BITS_SN_SHIFT)
 
 	/* Pointer to the extent that this structure is responsible for. */
@@ -156,20 +174,8 @@ struct extent_s {
 	 * for extent_avail
 	 */
 	phn(extent_t)		ph_link;
-
-	union {
-		/* Small region slab metadata. */
-		arena_slab_data_t	e_slab_data;
-
-		/* Profiling data, used for large objects. */
-		struct {
-			/* Time when this was allocated. */
-			nstime_t		e_alloc_time;
-			/* Points to a prof_tctx_t. */
-			atomic_p_t		e_prof_tctx;
-		};
-	};
 };
+
 typedef ql_head(extent_t) extent_list_t;
 typedef ph(extent_t) extent_tree_t;
 typedef ph(extent_t) extent_heap_t;

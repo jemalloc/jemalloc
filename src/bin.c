@@ -7,6 +7,7 @@
 #include "jemalloc/internal/witness.h"
 
 bin_info_t bin_infos[SC_NBINS];
+size_t bin_max_regs;
 
 void
 bin_infos_init(sc_data_t *sc_data, bin_info_t bin_infos[SC_NBINS]) {
@@ -21,6 +22,16 @@ bin_infos_init(sc_data_t *sc_data, bin_info_t bin_infos[SC_NBINS]) {
 		bitmap_info_t bitmap_info = BITMAP_INFO_INITIALIZER(
 		    bin_info->nregs);
 		bin_info->bitmap_info = bitmap_info;
+
+		if (bin_max_regs < bin_info->nregs) {
+			bin_max_regs = bin_info->nregs;
+		}
+
+		if (bin_info->nregs > SLAB_SMALL_REGS) {
+			bin_info->extent_class = extent_class_large;
+		} else {
+			bin_info->extent_class = extent_class_small;
+		}
 	}
 }
 

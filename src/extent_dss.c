@@ -123,7 +123,7 @@ extent_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
 		return NULL;
 	}
 
-	gap = extent_alloc(tsdn, arena);
+	gap = extent_alloc(tsdn, arena, extent_class_small);
 	if (gap == NULL) {
 		return NULL;
 	}
@@ -187,7 +187,8 @@ extent_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
 				if (gap_size_page != 0) {
 					extent_dalloc_gap(tsdn, arena, gap);
 				} else {
-					extent_dalloc(tsdn, arena, gap);
+					extent_dalloc(tsdn, arena, gap,
+					    extent_class_small);
 				}
 				if (!*commit) {
 					*commit = pages_decommit(ret, size);
@@ -223,7 +224,7 @@ extent_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
 	}
 label_oom:
 	extent_dss_extending_finish();
-	extent_dalloc(tsdn, arena, gap);
+	extent_dalloc(tsdn, arena, gap, extent_class_small);
 	return NULL;
 }
 

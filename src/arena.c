@@ -59,7 +59,7 @@ static void arena_decay_to_limit(tsdn_t *tsdn, arena_t *arena,
 static bool arena_decay_dirty(tsdn_t *tsdn, arena_t *arena,
     bool is_background_thread, bool all);
 static void arena_dalloc_bin_slab(tsdn_t *tsdn, arena_t *arena, extent_t *slab,
-    bin_t *bin);
+    bin_t *bin, const bin_info_t *bin_info);
 static void arena_bin_lower_slab(tsdn_t *tsdn, arena_t *arena, extent_t *slab,
     bin_t *bin);
 
@@ -101,7 +101,8 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 	    extents_npages_get(&arena->extents_retained) << LG_PAGE);
 
 	atomic_store_zu(&astats->extent_avail,
-	    atomic_load_zu(&arena->extent_avail_cnt, ATOMIC_RELAXED),
+	    atomic_load_zu(&arena->extent_avail_cnt[extent_class_small],
+	        ATOMIC_RELAXED),
 	    ATOMIC_RELAXED);
 
 	arena_stats_accum_u64(&astats->decay_dirty.npurge,
@@ -255,13 +256,13 @@ arena_extents_dirty_dalloc(tsdn_t *tsdn, arena_t *arena,
 static void *
 arena_slab_reg_alloc(extent_t *slab, const bin_info_t *bin_info) {
 	void *ret;
-	arena_slab_data_t *slab_data = extent_slab_data_get(slab);
+	bitmap_t *bitmap = extent_slab_data_get(slab);
 	size_t regind;
 
 	assert(extent_nfree_get(slab) > 0);
-	assert(!bitmap_full(slab_data->bitmap, &bin_info->bitmap_info));
+	assert(!bitmap_full(bitmap, &bin_info->bitmap_info));
 
-	regind = bitmap_sfu(slab_data->bitmap, &bin_info->bitmap_info);
+	regind = bitmap_sfu(bitmap, &bin_info->bitmap_info);
 	ret = (void *)((uintptr_t)extent_addr_get(slab) +
 	    (uintptr_t)(bin_info->reg_size * regind));
 	extent_nfree_dec(slab);
@@ -293,16 +294,16 @@ arena_slab_regind(extent_t *slab, szind_t binind, const void *ptr) {
 }
 
 static void
-arena_slab_reg_dalloc(extent_t *slab, arena_slab_data_t *slab_data, void *ptr) {
+arena_slab_reg_dalloc(extent_t *slab, bitmap_t *bitmap, void *ptr) {
 	szind_t binind = extent_szind_get(slab);
 	const bin_info_t *bin_info = &bin_infos[binind];
 	size_t regind = arena_slab_regind(slab, binind, ptr);
 
 	assert(extent_nfree_get(slab) < bin_info->nregs);
 	/* Freeing an unallocated pointer can cause assertion failure. */
-	assert(bitmap_get(slab_data->bitmap, &bin_info->bitmap_info, regind));
+	assert(bitmap_get(bitmap, &bin_info->bitmap_info, regind));
 
-	bitmap_unset(slab_data->bitmap, &bin_info->bitmap_info, regind);
+	bitmap_unset(bitmap, &bin_info->bitmap_info, regind);
 	extent_nfree_inc(slab);
 }
 
@@ -938,9 +939,59 @@ arena_decay(tsdn_t *tsdn, arena_t *arena, bool is_background_thread, bool all) {
 	arena_decay_muzzy(tsdn, arena, is_background_thread, all);
 }
 
+/*
+ * Consumes ownership of cur_extent and returns an extent with class req_class.
+ * The slab parameter allows us to avoid unnecessary rtree registration for
+ * the returned extent.
+ */
+static extent_t *
+arena_slab_swap_extents(tsdn_t *tsdn, arena_t *arena,
+    extent_t *cur_extent, extent_class_t req_class, bool slab) {
+
+	assert(extent_state_get(cur_extent) == extent_state_active);
+
+	extent_class_t cur_class = extent_class_get(cur_extent);
+	/* Do nothing if the extent class is already the requested one. */
+	if (cur_class == req_class) {
+		return cur_extent;
+	}
+
+	extent_t *req_extent = extent_alloc(tsdn, arena, req_class);
+	if (req_extent == NULL) {
+		return NULL;
+	}
+
+	/* Copy metadata. */
+	extent_init(req_extent, arena, extent_addr_get(cur_extent),
+	    extent_size_get(cur_extent), slab,
+	    extent_szind_get(cur_extent), arena_extent_sn_next(arena),
+	    extent_state_active, extent_zeroed_get(cur_extent),
+	    extent_committed_get(cur_extent), extent_dumpable_get(cur_extent));
+
+	/* Deregister cur_extent in the rtree and replace it with req_extent. */
+	extent_deregister_no_gdump_sub(tsdn, cur_extent);
+	bool ret = extent_register_no_gdump_add(tsdn, req_extent);
+
+	/* We just deregistered cur_extent, so registration shouldn't fail. */
+	assert(!ret);
+
+	extent_dalloc(tsdn, arena, cur_extent, cur_class);
+
+	assert(extent_state_get(req_extent) == extent_state_active);
+	return req_extent;
+}
+
 static void
-arena_slab_dalloc(tsdn_t *tsdn, arena_t *arena, extent_t *slab) {
+arena_slab_dalloc(tsdn_t *tsdn, arena_t *arena, extent_t *slab, 
+    const bin_info_t *bin_info) {
 	arena_nactive_sub(arena, extent_size_get(slab) >> LG_PAGE);
+
+	slab = arena_slab_swap_extents(tsdn, arena, slab,
+	    extent_class_small, false);
+
+	if (slab == NULL) {
+		return;
+	}
 
 	extent_hooks_t *extent_hooks = EXTENT_HOOKS_INITIALIZER;
 	arena_extents_dirty_dalloc(tsdn, arena, &extent_hooks, slab);
@@ -1039,25 +1090,26 @@ arena_reset(tsd_t *tsd, arena_t *arena) {
 	for (unsigned i = 0; i < SC_NBINS; i++) {
 		extent_t *slab;
 		bin_t *bin = &arena->bins[i];
+		const bin_info_t *bin_info = &bin_infos[i];
 		malloc_mutex_lock(tsd_tsdn(tsd), &bin->lock);
 		if (bin->slabcur != NULL) {
 			slab = bin->slabcur;
 			bin->slabcur = NULL;
 			malloc_mutex_unlock(tsd_tsdn(tsd), &bin->lock);
-			arena_slab_dalloc(tsd_tsdn(tsd), arena, slab);
+			arena_slab_dalloc(tsd_tsdn(tsd), arena, slab, bin_info);
 			malloc_mutex_lock(tsd_tsdn(tsd), &bin->lock);
 		}
 		while ((slab = extent_heap_remove_first(&bin->slabs_nonfull)) !=
 		    NULL) {
 			malloc_mutex_unlock(tsd_tsdn(tsd), &bin->lock);
-			arena_slab_dalloc(tsd_tsdn(tsd), arena, slab);
+			arena_slab_dalloc(tsd_tsdn(tsd), arena, slab, bin_info);
 			malloc_mutex_lock(tsd_tsdn(tsd), &bin->lock);
 		}
 		for (slab = extent_list_first(&bin->slabs_full); slab != NULL;
 		    slab = extent_list_first(&bin->slabs_full)) {
 			arena_bin_slabs_full_remove(arena, bin, slab);
 			malloc_mutex_unlock(tsd_tsdn(tsd), &bin->lock);
-			arena_slab_dalloc(tsd_tsdn(tsd), arena, slab);
+			arena_slab_dalloc(tsd_tsdn(tsd), arena, slab, bin_info);
 			malloc_mutex_lock(tsd_tsdn(tsd), &bin->lock);
 		}
 		if (config_stats) {
@@ -1175,10 +1227,18 @@ arena_slab_alloc(tsdn_t *tsdn, arena_t *arena, szind_t binind,
 	}
 	assert(extent_slab_get(slab));
 
+	/* Swap out the extent_t for one with the appropriately sized bitmap. */
+	slab = arena_slab_swap_extents(tsdn, arena, slab,
+	    bin_info->extent_class, true);
+	
+	if (slab == NULL) {
+		return NULL;
+	}
+
 	/* Initialize slab internals. */
-	arena_slab_data_t *slab_data = extent_slab_data_get(slab);
+	bitmap_t *bitmap = extent_slab_data_get(slab);
 	extent_nfree_set(slab, bin_info->nregs);
-	bitmap_init(slab_data->bitmap, &bin_info->bitmap_info, false);
+	bitmap_init(bitmap, &bin_info->bitmap_info, false);
 
 	arena_nactive_add(arena, extent_size_get(slab) >> LG_PAGE);
 
@@ -1260,7 +1320,7 @@ arena_bin_malloc_hard(tsdn_t *tsdn, arena_t *arena, bin_t *bin,
 				 */
 				if (extent_nfree_get(slab) == bin_info->nregs) {
 					arena_dalloc_bin_slab(tsdn, arena, slab,
-					    bin);
+					    bin, bin_info);
 				} else {
 					arena_bin_lower_slab(tsdn, arena, slab,
 					    bin);
@@ -1523,12 +1583,12 @@ arena_dissociate_bin_slab(arena_t *arena, extent_t *slab, bin_t *bin) {
 
 static void
 arena_dalloc_bin_slab(tsdn_t *tsdn, arena_t *arena, extent_t *slab,
-    bin_t *bin) {
+    bin_t *bin, const bin_info_t *bin_info) {
 	assert(slab != bin->slabcur);
 
 	malloc_mutex_unlock(tsdn, &bin->lock);
 	/******************************/
-	arena_slab_dalloc(tsdn, arena, slab);
+	arena_slab_dalloc(tsdn, arena, slab, bin_info);
 	/****************************/
 	malloc_mutex_lock(tsdn, &bin->lock);
 	if (config_stats) {
@@ -1566,7 +1626,7 @@ arena_bin_lower_slab(tsdn_t *tsdn, arena_t *arena, extent_t *slab,
 static void
 arena_dalloc_bin_locked_impl(tsdn_t *tsdn, arena_t *arena, extent_t *slab,
     void *ptr, bool junked) {
-	arena_slab_data_t *slab_data = extent_slab_data_get(slab);
+	bitmap_t *bitmap = extent_slab_data_get(slab);
 	szind_t binind = extent_szind_get(slab);
 	bin_t *bin = &arena->bins[binind];
 	const bin_info_t *bin_info = &bin_infos[binind];
@@ -1575,11 +1635,11 @@ arena_dalloc_bin_locked_impl(tsdn_t *tsdn, arena_t *arena, extent_t *slab,
 		arena_dalloc_junk_small(ptr, bin_info);
 	}
 
-	arena_slab_reg_dalloc(slab, slab_data, ptr);
+	arena_slab_reg_dalloc(slab, bitmap, ptr);
 	unsigned nfree = extent_nfree_get(slab);
 	if (nfree == bin_info->nregs) {
 		arena_dissociate_bin_slab(arena, slab, bin);
-		arena_dalloc_bin_slab(tsdn, arena, slab, bin);
+		arena_dalloc_bin_slab(tsdn, arena, slab, bin, bin_info);
 	} else if (nfree == 1 && slab != bin->slabcur) {
 		arena_bin_slabs_full_remove(arena, bin, slab);
 		arena_bin_lower_slab(tsdn, arena, slab, bin);
@@ -1931,7 +1991,10 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 		goto label_error;
 	}
 
-	extent_avail_new(&arena->extent_avail);
+	for (i = 0; i < EXTENT_NCLASSES; i++) {
+		extent_avail_new(&arena->extent_avail[i]);
+	}
+
 	if (malloc_mutex_init(&arena->extent_avail_mtx, "extent_avail",
 	    WITNESS_RANK_EXTENT_AVAIL, malloc_mutex_rank_exclusive)) {
 		goto label_error;

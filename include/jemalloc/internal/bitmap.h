@@ -8,29 +8,13 @@
 typedef unsigned long bitmap_t;
 #define LG_SIZEOF_BITMAP	LG_SIZEOF_LONG
 
-/* Maximum bitmap bit count is 2^LG_BITMAP_MAXBITS. */
-#if LG_SLAB_MAXREGS > LG_CEIL(SC_NSIZES)
-/* Maximum bitmap bit count is determined by maximum regions per slab. */
-#  define LG_BITMAP_MAXBITS	LG_SLAB_MAXREGS
-#else
-/* Maximum bitmap bit count is determined by number of extent size classes. */
-#  define LG_BITMAP_MAXBITS	LG_CEIL(SC_NSIZES)
-#endif
+#define LG_BITMAP_MAXBITS	LG_SLAB_LARGE_REGS
 #define BITMAP_MAXBITS		(ZU(1) << LG_BITMAP_MAXBITS)
 
 /* Number of bits per group. */
 #define LG_BITMAP_GROUP_NBITS		(LG_SIZEOF_BITMAP + 3)
 #define BITMAP_GROUP_NBITS		(1U << LG_BITMAP_GROUP_NBITS)
 #define BITMAP_GROUP_NBITS_MASK		(BITMAP_GROUP_NBITS-1)
-
-/*
- * Do some analysis on how big the bitmap is before we use a tree.  For a brute
- * force linear search, if we would have to call ffs_lu() more than 2^3 times,
- * use a tree instead.
- */
-#if LG_BITMAP_MAXBITS - LG_BITMAP_GROUP_NBITS > 3
-#  define BITMAP_USE_TREE
-#endif
 
 /* Number of groups required to store a given number of bits. */
 #define BITMAP_BITS2GROUPS(nbits)					\

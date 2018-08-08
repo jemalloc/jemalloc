@@ -113,6 +113,12 @@ extent_nfree_get(const extent_t *extent) {
 	    EXTENT_BITS_NFREE_SHIFT);
 }
 
+static inline extent_class_t
+extent_class_get(const extent_t *extent) {
+	return (extent_class_t)((extent->e_bits & EXTENT_BITS_CLASS_MASK) >>
+	    EXTENT_BITS_CLASS_SHIFT);
+}
+
 static inline void *
 extent_base_get(const extent_t *extent) {
 	assert(extent->e_addr == PAGE_ADDR2BASE(extent->e_addr) ||
@@ -159,27 +165,38 @@ extent_past_get(const extent_t *extent) {
 	    extent_size_get(extent));
 }
 
-static inline arena_slab_data_t *
+static inline bitmap_t *
 extent_slab_data_get(extent_t *extent) {
 	assert(extent_slab_get(extent));
-	return &extent->e_slab_data;
+	char *end_of_extent = ((char *)extent) + sizeof(extent_t);
+	return (bitmap_t *)end_of_extent;
 }
 
-static inline const arena_slab_data_t *
+static inline const bitmap_t *
 extent_slab_data_get_const(const extent_t *extent) {
 	assert(extent_slab_get(extent));
-	return &extent->e_slab_data;
+	char *end_of_extent = ((char *)extent) + sizeof(extent_t);
+	return (bitmap_t *)end_of_extent;
+}
+
+static inline extent_prof_data_t *
+extent_prof_data_get(const extent_t *extent) {
+	assert(!extent_slab_get(extent));
+	char *end_of_extent = ((char *)extent) + sizeof(extent_t);
+	return (extent_prof_data_t *)end_of_extent;
 }
 
 static inline prof_tctx_t *
 extent_prof_tctx_get(const extent_t *extent) {
-	return (prof_tctx_t *)atomic_load_p(&extent->e_prof_tctx,
+	extent_prof_data_t *prof_data = extent_prof_data_get(extent);
+	return (prof_tctx_t *)atomic_load_p(&prof_data->e_prof_tctx,
 	    ATOMIC_ACQUIRE);
 }
 
 static inline nstime_t
 extent_prof_alloc_time_get(const extent_t *extent) {
-	return extent->e_alloc_time;
+	extent_prof_data_t *prof_data = extent_prof_data_get(extent);
+	return prof_data->e_alloc_time;
 }
 
 static inline void
@@ -265,6 +282,13 @@ extent_nfree_dec(extent_t *extent) {
 }
 
 static inline void
+extent_class_set(extent_t *extent, extent_class_t extent_class) {
+	extent->e_bits = (extent->e_bits & ~EXTENT_BITS_CLASS_MASK) |
+	    ((uint64_t)extent_class << EXTENT_BITS_CLASS_SHIFT);
+}
+
+
+static inline void
 extent_sn_set(extent_t *extent, size_t sn) {
 	extent->e_bits = (extent->e_bits & ~EXTENT_BITS_SN_MASK) |
 	    ((uint64_t)sn << EXTENT_BITS_SN_SHIFT);
@@ -302,12 +326,14 @@ extent_slab_set(extent_t *extent, bool slab) {
 
 static inline void
 extent_prof_tctx_set(extent_t *extent, prof_tctx_t *tctx) {
-	atomic_store_p(&extent->e_prof_tctx, tctx, ATOMIC_RELEASE);
+	extent_prof_data_t *prof_data = extent_prof_data_get(extent);
+	atomic_store_p(&prof_data->e_prof_tctx, tctx, ATOMIC_RELEASE);
 }
 
 static inline void
 extent_prof_alloc_time_set(extent_t *extent, nstime_t t) {
-	nstime_copy(&extent->e_alloc_time, &t);
+	extent_prof_data_t *prof_data = extent_prof_data_get(extent);
+	nstime_copy(&prof_data->e_alloc_time, &t);
 }
 
 static inline void
@@ -327,7 +353,7 @@ extent_init(extent_t *extent, arena_t *arena, void *addr, size_t size,
 	extent_committed_set(extent, committed);
 	extent_dumpable_set(extent, dumpable);
 	ql_elm_new(extent, ql_link);
-	if (config_prof) {
+	if (config_prof && !slab) {
 		extent_prof_tctx_set(extent, NULL);
 	}
 }

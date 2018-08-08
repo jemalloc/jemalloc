@@ -12,8 +12,10 @@ extern rtree_t extents_rtree;
 extern const extent_hooks_t extent_hooks_default;
 extern mutex_pool_t extent_mutex_pool;
 
-extent_t *extent_alloc(tsdn_t *tsdn, arena_t *arena);
-void extent_dalloc(tsdn_t *tsdn, arena_t *arena, extent_t *extent);
+extent_t *extent_alloc(tsdn_t *tsdn, arena_t *arena, extent_class_t
+    extent_class);
+void extent_dalloc(tsdn_t *tsdn, arena_t *arena, extent_t *extent,
+    extent_class_t extent_class);
 
 extent_hooks_t *extent_hooks_get(arena_t *arena);
 extent_hooks_t *extent_hooks_set(tsd_t *tsd, arena_t *arena,
@@ -71,6 +73,8 @@ extent_t *extent_split_wrapper(tsdn_t *tsdn, arena_t *arena,
     szind_t szind_a, bool slab_a, size_t size_b, szind_t szind_b, bool slab_b);
 bool extent_merge_wrapper(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, extent_t *a, extent_t *b);
+bool extent_register_no_gdump_add(tsdn_t *tsdn, extent_t *extent);
+void extent_deregister_no_gdump_sub(tsdn_t *tsdn, extent_t *extent);
 
 bool extent_boot(void);
 
