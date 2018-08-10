@@ -188,6 +188,11 @@ struct extents_s {
 	atomic_zu_t		nbytes[SC_NPSIZES + 1];
 
 	/*
+	 * lowest/oldest sn of extent_t in heap
+	 */
+	size_t      lowest_sn_heaps[SC_NPSIZES+1];
+
+	/*
 	 * Bitmap for which set bits correspond to non-empty heaps.
 	 *
 	 * Synchronization: mtx.
