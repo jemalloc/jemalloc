@@ -8,6 +8,11 @@
 #include "jemalloc/internal/sz.h"
 #include "jemalloc/internal/ticker.h"
 
+JEMALLOC_ALWAYS_INLINE bool
+arena_has_default_hooks(arena_t *arena) {
+	return (extent_hooks_get(arena) == &extent_hooks_default);
+}
+
 JEMALLOC_ALWAYS_INLINE arena_t *
 arena_choose_maybe_huge(tsd_t *tsd, arena_t *arena, size_t size) {
 	if (arena != NULL) {

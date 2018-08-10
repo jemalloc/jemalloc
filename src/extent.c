@@ -1102,6 +1102,17 @@ extent_recycle_split(tsdn_t *tsdn, arena_t *arena,
 	unreachable();
 }
 
+static bool
+extent_need_manual_zero(arena_t *arena) {
+	/*
+	 * Need to manually zero the extent on repopulating if either; 1) non
+	 * default extent hooks installed (in which case the purge semantics may
+	 * change); or 2) transparent huge pages enabled.
+	 */
+	return (!arena_has_default_hooks(arena) ||
+		(opt_thp == thp_mode_always));
+}
+
 /*
  * Tries to satisfy the given allocation request by reusing one of the extents
  * in the given extents_t.
@@ -1141,7 +1152,9 @@ extent_recycle(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
 			    extent, growing_retained);
 			return NULL;
 		}
-		extent_zeroed_set(extent, true);
+		if (!extent_need_manual_zero(arena)) {
+			extent_zeroed_set(extent, true);
+		}
 	}
 
 	if (extent_committed_get(extent)) {
@@ -1164,7 +1177,8 @@ extent_recycle(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
 		void *addr = extent_base_get(extent);
 		if (!extent_zeroed_get(extent)) {
 			size_t size = extent_size_get(extent);
-			if (pages_purge_forced(addr, size)) {
+			if (extent_need_manual_zero(arena) ||
+			    pages_purge_forced(addr, size)) {
 				memset(addr, 0, size);
 			}
 		} else if (config_debug) {
@@ -1391,7 +1405,9 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena,
 			    &arena->extents_retained, extent, true);
 			goto label_err;
 		}
-		extent_zeroed_set(extent, true);
+		if (!extent_need_manual_zero(arena)) {
+			extent_zeroed_set(extent, true);
+		}
 	}
 
 	/*
@@ -1425,7 +1441,8 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena,
 	if (*zero && !extent_zeroed_get(extent)) {
 		void *addr = extent_base_get(extent);
 		size_t size = extent_size_get(extent);
-		if (pages_purge_forced(addr, size)) {
+		if (extent_need_manual_zero(arena) ||
+		    pages_purge_forced(addr, size)) {
 			memset(addr, 0, size);
 		}
 	}
