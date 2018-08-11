@@ -63,6 +63,22 @@ ffs_u32(uint32_t bitmap) {
 
 BIT_UTIL_INLINE uint64_t
 pow2_ceil_u64(uint64_t x) {
+#if (defined(__amd64__) || defined(__x86_64__) || defined(JEMALLOC_HAVE_BUILTIN_CLZ))
+	if(unlikely(x <= 1)) {
+		return x;
+	}
+	size_t msb_on_index;
+#if (defined(__amd64__) || defined(__x86_64__))
+	asm ("bsrq %1, %0"
+			: "=r"(msb_on_index) // Outputs.
+			: "r"(x-1)           // Inputs.
+		);
+#elif (defined(JEMALLOC_HAVE_BUILTIN_CLZ))
+	msb_on_index = (63 ^ __builtin_clzll(x - 1));
+#endif
+	assert(msb_on_index < 63);
+	return 1ULL << (msb_on_index + 1);
+#else
 	x--;
 	x |= x >> 1;
 	x |= x >> 2;
@@ -72,10 +88,27 @@ pow2_ceil_u64(uint64_t x) {
 	x |= x >> 32;
 	x++;
 	return x;
+#endif
 }
 
 BIT_UTIL_INLINE uint32_t
 pow2_ceil_u32(uint32_t x) {
+#if (defined(__i386__) || defined(JEMALLOC_HAVE_BUILTIN_CLZ))
+	if(unlikely(x <= 1)) {
+		return x;
+	}
+	size_t msb_on_index;
+#if (defined(__i386__))
+	asm ("bsr %1, %0"
+			: "=r"(msb_on_index) // Outputs.
+			: "r"(x-1)           // Inputs.
+		);
+#elif (defined(JEMALLOC_HAVE_BUILTIN_CLZ))
+	msb_on_index = (31 ^ __builtin_clz(x - 1));
+#endif
+	assert(msb_on_index < 31);
+	return 1U << (msb_on_index + 1);
+#else
 	x--;
 	x |= x >> 1;
 	x |= x >> 2;
@@ -84,6 +117,7 @@ pow2_ceil_u32(uint32_t x) {
 	x |= x >> 16;
 	x++;
 	return x;
+#endif
 }
 
 /* Compute the smallest power of 2 that is >= x. */
