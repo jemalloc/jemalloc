@@ -2509,7 +2509,7 @@ prof_log_dummy_set(bool new_value) {
 
 bool
 prof_log_start(tsdn_t *tsdn, const char *filename) {
-	if (!opt_prof || !prof_booted) {
+	if (!opt_prof) {
 		return true;
 	}
 
