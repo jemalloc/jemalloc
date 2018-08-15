@@ -1442,6 +1442,19 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         by default.</para></listitem>
       </varlistentry>
 
+      <varlistentry id="opt.prof_log">
+        <term>
+          <mallctl>opt.prof_log</mallctl>
+          (<type>bool</type>)
+          <literal>r-</literal>
+          [<option>--enable-prof</option>]
+        </term>
+        <listitem><para>Call
+        <link linkend="prof.log_start"><mallctl>prof.log_start</mallctl></link>
+	when jemalloc is initialized. This option is disabled by default.
+	</para></listitem>
+      </varlistentry>
+
       <varlistentry id="thread.arena">
         <term>
           <mallctl>thread.arena</mallctl>
@@ -2243,6 +2256,38 @@ struct extent_hooks_s {
         <link
         linkend="opt.lg_prof_interval"><mallctl>opt.lg_prof_interval</mallctl></link>
         option for additional information.</para></listitem>
+      </varlistentry>
+
+      <varlistentry id="prof.log_start">
+        <term>
+          <mallctl>prof.log_start</mallctl>
+          (<type>const char *</type>)
+          <literal>-w</literal>
+          [<option>--enable-prof</option>]
+        </term>
+	<listitem><para>Begins logging of sampled allocations that will be
+	dumped to the specified file, or if NULL is specified, to the file
+	according to the pattern
+        <filename>&lt;prefix&gt;.&lt;pid&gt;.&lt;seq&gt;.json</filename>,
+        where <literal>&lt;prefix&gt;</literal> is controlled by the
+	<link linkend="opt.prof_prefix"><mallctl>opt.prof_prefix</mallctl></link>
+        option. The file is created and written to once
+	<link linkend="prof.log_stop"><mallctl>prof.log_stop</mallctl></link>
+	is called, or when the process terminates.</para></listitem>
+      </varlistentry>
+
+      <varlistentry id="prof.log_stop">
+        <term>
+          <mallctl>prof.log_stop</mallctl>
+          (<type>void</type>)
+          <literal>--</literal>
+          [<option>--enable-prof</option>]
+        </term>
+        <listitem><para>Stops logging that was started by
+	<link linkend="prof.log_start"><mallctl>prof.log_start</mallctl></link>
+	or
+	<link linkend="opt.prof_log"><mallctl>opt.prof_log</mallctl></link>.
+        Nothing happens if logging isn't currently started.</para></listitem>
       </varlistentry>
 
       <varlistentry id="stats.allocated">
