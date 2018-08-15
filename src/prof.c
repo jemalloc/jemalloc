@@ -479,8 +479,20 @@ prof_try_log(tsd_t *tsd, const void *ptr, size_t usize, prof_tctx_t *tctx) {
 		    sz_size2index(sizeof(prof_alloc_node_t)), false, true);
  
 	const char *prod_thr_name = (tctx->tdata->thread_name == NULL)?
-				        "" : tctx->tdata->thread_name;
+					"" : tctx->tdata->thread_name;
 	const char *cons_thr_name = prof_thread_name_get(tsd);
+#ifdef JEMALLOC_HAVE_PTHREAD_SETNAME_NP
+	/*
+	 * If a jemalloc thread name has been set, use it. Otherwise, default
+	 * to the pthread name.
+	 */
+	if (strcmp(prod_thr_name, "") == 0) {
+		prod_thr_name = tctx->tdata->pthread_name;
+	}
+	if (strcmp(cons_thr_name, "") == 0) {
+		cons_thr_name = cons_tdata->pthread_name;
+	}
+#endif
 
 	prof_bt_t bt;
 	/* Initialize the backtrace, using the buffer in tdata to store it. */
@@ -2211,6 +2223,14 @@ prof_tdata_init_impl(tsd_t *tsd, uint64_t thr_uid, uint64_t thr_discrim,
 	tdata->thr_discrim = thr_discrim;
 	tdata->thread_name = thread_name;
 	tdata->attached = true;
+
+#ifdef JEMALLOC_HAVE_PTHREAD_SETNAME_NP
+	pthread_getname_np(pthread_self(), &tdata->pthread_name[0],
+	    PTHREAD_NAME_MAX_SIZE);
+#else
+	strcpy(&tdata->pthread_name[0], "");
+#endif
+
 	tdata->expired = false;
 	tdata->tctx_uid_next = 0;
 

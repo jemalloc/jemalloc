@@ -6,6 +6,8 @@
 #include "jemalloc/internal/prng.h"
 #include "jemalloc/internal/rb.h"
 
+#define PTHREAD_NAME_MAX_SIZE 16
+
 struct prof_bt_s {
 	/* Backtrace, stored as len program counters. */
 	void		**vec;
@@ -146,6 +148,8 @@ struct prof_tdata_s {
 
 	/* Included in heap profile dumps if non-NULL. */
 	char			*thread_name;
+
+	char			pthread_name[PTHREAD_NAME_MAX_SIZE];
 
 	bool			attached;
 	bool			expired;
