@@ -127,9 +127,9 @@ include_rows += '''
         apt:
           packages:
             - valgrind
-  - os: osx
-    env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="" EXTRA_CFLAGS="-Werror -Wno-array-bounds" JEMALLOC_TEST_PREFIX="valgrind"
-    install: brew install valgrind --HEAD
+    - os: osx
+      env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="" EXTRA_CFLAGS="-Werror -Wno-array-bounds" JEMALLOC_TEST_PREFIX="valgrind"
+      install: brew install valgrind --HEAD
 '''
 
 print travis_template % include_rows
