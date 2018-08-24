@@ -93,7 +93,7 @@ pow2_ceil_u64(uint64_t x) {
 
 BIT_UTIL_INLINE uint32_t
 pow2_ceil_u32(uint32_t x) {
-#if (defined(__i386__) || defined(JEMALLOC_HAVE_BUILTIN_CLZ))
+#if ((defined(__i386__) || defined(JEMALLOC_HAVE_BUILTIN_CLZ)) && (!defined(__s390__)))
 	if(unlikely(x <= 1)) {
 		return x;
 	}
