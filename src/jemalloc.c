@@ -1387,13 +1387,18 @@ malloc_init_hard_a0_locked() {
 	 * out of sc_data_global are final.
 	 */
 	sc_boot(&sc_data);
+	/*
+	 * prof_boot0 only initializes opt_prof_prefix.  We need to do it before
+	 * we parse malloc_conf options, in case malloc_conf parsing overwrites
+	 * it.
+	 */
+	if (config_prof) {
+		prof_boot0();
+	}
 	malloc_conf_init(&sc_data);
 	sz_boot(&sc_data);
 	bin_boot(&sc_data);
 
-	if (config_prof) {
-		prof_boot0();
-	}
 	if (opt_stats_print) {
 		/* Print statistics at exit. */
 		if (atexit(stats_print_atexit) != 0) {
