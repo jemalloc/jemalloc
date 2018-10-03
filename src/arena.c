@@ -58,8 +58,6 @@ static void arena_decay_to_limit(tsdn_t *tsdn, arena_t *arena,
     size_t npages_decay_max, bool is_background_thread);
 static bool arena_decay_dirty(tsdn_t *tsdn, arena_t *arena,
     bool is_background_thread, bool all);
-static void arena_dalloc_bin_slab(tsdn_t *tsdn, arena_t *arena, extent_t *slab,
-    bin_t *bin);
 static void arena_bin_lower_slab(tsdn_t *tsdn, arena_t *arena, extent_t *slab,
     bin_t *bin);
 
@@ -989,7 +987,7 @@ arena_decay(tsdn_t *tsdn, arena_t *arena, bool is_background_thread, bool all) {
 	arena_decay_muzzy(tsdn, arena, is_background_thread, all);
 }
 
-static void
+void
 arena_slab_dalloc(tsdn_t *tsdn, arena_t *arena, extent_t *slab) {
 	arena_nactive_sub(arena, extent_size_get(slab) >> LG_PAGE);
 
@@ -1323,8 +1321,9 @@ arena_bin_malloc_hard(tsdn_t *tsdn, arena_t *arena, bin_t *bin,
 						bin->stats.curslabs--;
 					}
 
-					arena_dalloc_bin_slab(tsdn, arena, slab,
-					    bin);
+					malloc_mutex_unlock(tsdn, &bin->lock);
+					arena_slab_dalloc(tsdn, arena, slab);
+					malloc_mutex_lock(tsdn, &bin->lock);
 				} else {
 					arena_bin_lower_slab(tsdn, arena, slab,
 					    bin);
@@ -1615,16 +1614,6 @@ arena_dissociate_bin_slab(arena_t *arena, extent_t *slab, bin_t *bin) {
 }
 
 static void
-arena_dalloc_bin_slab(tsdn_t *tsdn, arena_t *arena, extent_t *slab,
-    bin_t *bin) {
-	malloc_mutex_unlock(tsdn, &bin->lock);
-	/******************************/
-	arena_slab_dalloc(tsdn, arena, slab);
-	/****************************/
-	malloc_mutex_lock(tsdn, &bin->lock);
-}
-
-static void
 arena_bin_lower_slab(tsdn_t *tsdn, arena_t *arena, extent_t *slab,
     bin_t *bin) {
 	assert(extent_nfree_get(slab) > 0);
@@ -1651,11 +1640,13 @@ arena_bin_lower_slab(tsdn_t *tsdn, arena_t *arena, extent_t *slab,
 	}
 }
 
-static void
+/* Returns true if arena_slab_dalloc must be called on slab */
+static bool
 arena_dalloc_bin_locked_impl(tsdn_t *tsdn, arena_t *arena, bin_t *bin,
     szind_t binind, extent_t *slab, void *ptr, bool junked) {
 	arena_slab_data_t *slab_data = extent_slab_data_get(slab);
 	const bin_info_t *bin_info = &bin_infos[binind];
+	bool ret = false;
 
 	if (!junked && config_fill && unlikely(opt_junk_free)) {
 		arena_dalloc_junk_small(ptr, bin_info);
@@ -1671,7 +1662,7 @@ arena_dalloc_bin_locked_impl(tsdn_t *tsdn, arena_t *arena, bin_t *bin,
 			bin->stats.curslabs--;
 		}
 
-		arena_dalloc_bin_slab(tsdn, arena, slab, bin);
+		ret = true;
 	} else if (nfree == 1 && slab != bin->slabcur) {
 		arena_bin_slabs_full_remove(arena, bin, slab);
 		arena_bin_lower_slab(tsdn, arena, slab, bin);
@@ -1681,12 +1672,14 @@ arena_dalloc_bin_locked_impl(tsdn_t *tsdn, arena_t *arena, bin_t *bin,
 		bin->stats.ndalloc++;
 		bin->stats.curregs--;
 	}
+
+	return ret;
 }
 
-void
+bool
 arena_dalloc_bin_junked_locked(tsdn_t *tsdn, arena_t *arena, bin_t *bin,
     szind_t binind, extent_t *extent, void *ptr) {
-	arena_dalloc_bin_locked_impl(tsdn, arena, bin, binind, extent, ptr,
+	return arena_dalloc_bin_locked_impl(tsdn, arena, bin, binind, extent, ptr,
 	    true);
 }
 
@@ -1697,9 +1690,13 @@ arena_dalloc_bin(tsdn_t *tsdn, arena_t *arena, extent_t *extent, void *ptr) {
 	bin_t *bin = &arena->bins[binind].bin_shards[binshard];
 
 	malloc_mutex_lock(tsdn, &bin->lock);
-	arena_dalloc_bin_locked_impl(tsdn, arena, bin, binind, extent, ptr,
+	bool ret = arena_dalloc_bin_locked_impl(tsdn, arena, bin, binind, extent, ptr,
 	    false);
 	malloc_mutex_unlock(tsdn, &bin->lock);
+
+	if (ret) {
+		arena_slab_dalloc(tsdn, arena, extent);
+	}
 }
 
 void

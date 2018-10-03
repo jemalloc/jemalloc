@@ -183,8 +183,13 @@ tcache_bin_flush_small(tsd_t *tsd, tcache_t *tcache, cache_bin_t *tbin,
 
 			if (extent_arena_ind_get(extent) == bin_arena_ind
 			    && extent_binshard_get(extent) == binshard) {
-				arena_dalloc_bin_junked_locked(tsd_tsdn(tsd),
+				bool ret = arena_dalloc_bin_junked_locked(tsd_tsdn(tsd),
 				    bin_arena, bin, binind, extent, ptr);
+				if (ret) {
+					malloc_mutex_unlock(tsd_tsdn(tsd), &bin->lock);
+					arena_slab_dalloc(tsd_tsdn(tsd), bin_arena, extent);
+					malloc_mutex_lock(tsd_tsdn(tsd), &bin->lock);
+				}
 			} else {
 				/*
 				 * This object was allocated via a different
