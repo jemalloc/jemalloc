@@ -139,7 +139,9 @@ tcache_bin_flush_small(tsd_t *tsd, tcache_t *tcache, cache_bin_t *tbin,
 	arena_t *arena = tcache->arena;
 	assert(arena != NULL);
 	unsigned nflush = tbin->ncached - rem;
+	unsigned dalloc_count = 0;
 	VARIABLE_ARRAY(extent_t *, item_extent, nflush);
+	VARIABLE_ARRAY(extent_t *, dalloc_extents, nflush);
 
 #ifndef JEMALLOC_EXTRA_SIZE_CHECK
 	/* Look up extent once per item. */
@@ -183,12 +185,9 @@ tcache_bin_flush_small(tsd_t *tsd, tcache_t *tcache, cache_bin_t *tbin,
 
 			if (extent_arena_ind_get(extent) == bin_arena_ind
 			    && extent_binshard_get(extent) == binshard) {
-				bool ret = arena_dalloc_bin_junked_locked(tsd_tsdn(tsd),
-				    bin_arena, bin, binind, extent, ptr);
-				if (ret) {
-					malloc_mutex_unlock(tsd_tsdn(tsd), &bin->lock);
-					arena_slab_dalloc(tsd_tsdn(tsd), bin_arena, extent);
-					malloc_mutex_lock(tsd_tsdn(tsd), &bin->lock);
+			  if (arena_dalloc_bin_junked_locked(tsd_tsdn(tsd),
+							     bin_arena, bin, binind, extent, ptr)) {
+					dalloc_extents[dalloc_count++] = extent;
 				}
 			} else {
 				/*
@@ -205,6 +204,9 @@ tcache_bin_flush_small(tsd_t *tsd, tcache_t *tcache, cache_bin_t *tbin,
 		malloc_mutex_unlock(tsd_tsdn(tsd), &bin->lock);
 		arena_decay_ticks(tsd_tsdn(tsd), bin_arena, nflush - ndeferred);
 		nflush = ndeferred;
+	}
+	for (unsigned i = 0; i < dalloc_count; i++) {
+		arena_slab_dalloc(tsd_tsdn(tsd), extent_arena_get(dalloc_extents[i]), dalloc_extents[i]);
 	}
 	if (config_stats && !merged_stats) {
 		/*
