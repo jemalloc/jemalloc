@@ -280,11 +280,13 @@ tsd_fetch_slow(tsd_t *tsd, bool minimal) {
 		tsd_slow_update(tsd);
 	} else if (tsd_state_get(tsd) == tsd_state_uninitialized) {
 		if (!minimal) {
-			tsd_state_set(tsd, tsd_state_nominal);
-			tsd_slow_update(tsd);
-			/* Trigger cleanup handler registration. */
-			tsd_set(tsd);
-			tsd_data_init(tsd);
+			if (tsd_booted) {
+				tsd_state_set(tsd, tsd_state_nominal);
+				tsd_slow_update(tsd);
+				/* Trigger cleanup handler registration. */
+				tsd_set(tsd);
+				tsd_data_init(tsd);
+			}
 		} else {
 			tsd_state_set(tsd, tsd_state_minimal_initialized);
 			tsd_set(tsd);

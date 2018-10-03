@@ -2110,9 +2110,8 @@ label_invalid_alignment:
 	return EINVAL;
 }
 
-/* Returns the errno-style error code of the allocation. */
-JEMALLOC_ALWAYS_INLINE int
-imalloc(static_opts_t *sopts, dynamic_opts_t *dopts) {
+JEMALLOC_ALWAYS_INLINE bool
+imalloc_init_check(static_opts_t *sopts, dynamic_opts_t *dopts) {
 	if (unlikely(!malloc_initialized()) && unlikely(malloc_init())) {
 		if (config_xmalloc && unlikely(opt_xmalloc)) {
 			malloc_write(sopts->oom_string);
@@ -2122,6 +2121,16 @@ imalloc(static_opts_t *sopts, dynamic_opts_t *dopts) {
 		set_errno(ENOMEM);
 		*dopts->result = NULL;
 
+		return false;
+	}
+
+	return true;
+}
+
+/* Returns the errno-style error code of the allocation. */
+JEMALLOC_ALWAYS_INLINE int
+imalloc(static_opts_t *sopts, dynamic_opts_t *dopts) {
+	if (tsd_get_allocates() && !imalloc_init_check(sopts, dopts)) {
 		return ENOMEM;
 	}
 
@@ -2134,6 +2143,10 @@ imalloc(static_opts_t *sopts, dynamic_opts_t *dopts) {
 		sopts->slow = false;
 		return imalloc_body(sopts, dopts, tsd);
 	} else {
+		if (!tsd_get_allocates() && !imalloc_init_check(sopts, dopts)) {
+			return ENOMEM;
+		}
+          
 		sopts->slow = true;
 		return imalloc_body(sopts, dopts, tsd);
 	}
