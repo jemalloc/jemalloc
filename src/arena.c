@@ -1251,6 +1251,7 @@ arena_bin_malloc_with_fresh_slab(tsdn_t *tsdn, arena_t *arena, bin_t *bin,
 	const bin_info_t *bin_info;
 
 	bin_info = &bin_infos[binind];
+	*dalloc = false;
 
 	if (*slab != NULL) {
 		if (config_stats) {
@@ -1295,7 +1296,6 @@ arena_bin_malloc_with_fresh_slab(tsdn_t *tsdn, arena_t *arena, bin_t *bin,
 				} else {
 					arena_bin_lower_slab(tsdn, arena, *slab,
 					    bin);
-					*dalloc = false;
 				}
 			}
 			return ret;
@@ -1331,23 +1331,7 @@ arena_bin_malloc_hard(tsdn_t *tsdn, arena_t *arena, bin_t *bin,
 	/* Look for a usable slab. */
 	slab = arena_bin_slabs_nonfull_tryget(bin);
 	if (slab == NULL) {
-		/* No existing slabs have any space available. */
-		/* Allocate a new slab. */
-		malloc_mutex_unlock(tsdn, &bin->lock);
-		/******************************/
-		slab = arena_slab_alloc(tsdn, arena, binind, binshard, bin_info);
-		/********************************/
-		malloc_mutex_lock(tsdn, &bin->lock);
-
-		bool dalloc;
-
-		void* res = arena_bin_malloc_with_fresh_slab(tsdn, arena, bin, binind, &slab, &dalloc);
-		if (dalloc) {
-			malloc_mutex_unlock(tsdn, &bin->lock);
-			arena_slab_dalloc(tsdn, arena, slab);
-			malloc_mutex_lock(tsdn, &bin->lock);
-		}
-		return res;
+		return NULL;
 	}
 
 	if (slab == NULL) {
@@ -1381,6 +1365,8 @@ void
 arena_tcache_fill_small(tsdn_t *tsdn, arena_t *arena, tcache_t *tcache,
     cache_bin_t *tbin, szind_t binind, uint64_t prof_accumbytes) {
 	unsigned i, nfill, cnt;
+	extent_t *fresh_slab = NULL;
+	bool dalloc = false;
 
 	assert(tbin->ncached == 0);
 
@@ -1404,8 +1390,25 @@ arena_tcache_fill_small(tsdn_t *tsdn, arena_t *arena, tcache_t *tcache,
 			   tbin->avail - nfill + i);
 		} else {
 			cnt = 1;
-			void *ptr = arena_bin_malloc_hard(tsdn, arena, bin,
-							  binind, binshard);
+			void* ptr = arena_bin_malloc_hard(tsdn, arena, bin, binind, binshard);
+
+			if (ptr == NULL) {
+			  if (!fresh_slab) {
+			    const bin_info_t *bin_info;
+			    bin_info = &bin_infos[binind];
+			    malloc_mutex_unlock(tsdn, &bin->lock);
+			    /******************************/
+			    fresh_slab = arena_slab_alloc(tsdn, arena, binind, binshard, bin_info);
+			    /********************************/
+			    malloc_mutex_lock(tsdn, &bin->lock);
+			  }
+
+			  ptr = arena_bin_malloc_with_fresh_slab(tsdn, arena, bin, binind, &fresh_slab, &dalloc);
+			  if (!dalloc) {
+			    fresh_slab = NULL;
+			  }
+			}
+
 			/*
 			 * OOM.  tbin->avail isn't yet filled down to its first
 			 * element, so the successful allocations (if any) must
@@ -1438,6 +1441,9 @@ arena_tcache_fill_small(tsdn_t *tsdn, arena_t *arena, tcache_t *tcache,
 		tbin->tstats.nrequests = 0;
 	}
 	malloc_mutex_unlock(tsdn, &bin->lock);
+	if (fresh_slab) {
+		arena_slab_dalloc(tsdn, arena, fresh_slab);
+	}
 	tbin->ncached = i;
 	arena_decay_tick(tsdn, arena);
 }
@@ -1462,6 +1468,7 @@ arena_malloc_small(tsdn_t *tsdn, arena_t *arena, szind_t binind, bool zero) {
 	bin_t *bin;
 	size_t usize;
 	extent_t *slab;
+	bool dalloc = false;
 
 	assert(binind < SC_NBINS);
 	usize = sz_index2size(binind);
@@ -1472,12 +1479,30 @@ arena_malloc_small(tsdn_t *tsdn, arena_t *arena, szind_t binind, bool zero) {
 		ret = arena_slab_reg_alloc(slab, &bin_infos[binind]);
 	} else {
 	  ret = arena_bin_malloc_hard(tsdn, arena, bin, binind, binshard);
-	}
 
-	if (ret == NULL) {
-		malloc_mutex_unlock(tsdn, &bin->lock);
-		return NULL;
-	}
+		if (ret == NULL) {
+			const bin_info_t *bin_info;
+			bin_info = &bin_infos[binind];
+			malloc_mutex_unlock(tsdn, &bin->lock);
+			/******************************/
+			slab = arena_slab_alloc(tsdn, arena, binind,
+                                                binshard, bin_info);
+			/********************************/
+			malloc_mutex_lock(tsdn, &bin->lock);
+
+			ret = arena_bin_malloc_with_fresh_slab(tsdn, arena,
+                                                               bin, binind,
+                                                               &slab, &dalloc);
+		}
+
+		if (ret == NULL) {
+			malloc_mutex_unlock(tsdn, &bin->lock);
+			if (dalloc) {
+				arena_slab_dalloc(tsdn, arena, slab);
+			}
+			return NULL;
+		}
+        }
 
 	if (config_stats) {
 		bin->stats.nmalloc++;
@@ -1485,6 +1510,9 @@ arena_malloc_small(tsdn_t *tsdn, arena_t *arena, szind_t binind, bool zero) {
 		bin->stats.curregs++;
 	}
 	malloc_mutex_unlock(tsdn, &bin->lock);
+	if (dalloc) {
+		arena_slab_dalloc(tsdn, arena, slab);
+	}
 	if (config_prof && arena_prof_accum(tsdn, arena, usize)) {
 		prof_idump(tsdn);
 	}
