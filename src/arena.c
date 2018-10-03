@@ -1317,6 +1317,12 @@ arena_bin_malloc_hard(tsdn_t *tsdn, arena_t *arena, bin_t *bin,
 				 * a region were just deallocated from the slab.
 				 */
 				if (extent_nfree_get(slab) == bin_info->nregs) {
+					assert(slab != bin->slabcur);
+
+					if (config_stats) {
+						bin->stats.curslabs--;
+					}
+
 					arena_dalloc_bin_slab(tsdn, arena, slab,
 					    bin);
 				} else {
@@ -1611,16 +1617,11 @@ arena_dissociate_bin_slab(arena_t *arena, extent_t *slab, bin_t *bin) {
 static void
 arena_dalloc_bin_slab(tsdn_t *tsdn, arena_t *arena, extent_t *slab,
     bin_t *bin) {
-	assert(slab != bin->slabcur);
-
 	malloc_mutex_unlock(tsdn, &bin->lock);
 	/******************************/
 	arena_slab_dalloc(tsdn, arena, slab);
 	/****************************/
 	malloc_mutex_lock(tsdn, &bin->lock);
-	if (config_stats) {
-		bin->stats.curslabs--;
-	}
 }
 
 static void
@@ -1664,6 +1665,12 @@ arena_dalloc_bin_locked_impl(tsdn_t *tsdn, arena_t *arena, bin_t *bin,
 	unsigned nfree = extent_nfree_get(slab);
 	if (nfree == bin_info->nregs) {
 		arena_dissociate_bin_slab(arena, slab, bin);
+		assert(slab != bin->slabcur);
+
+		if (config_stats) {
+			bin->stats.curslabs--;
+		}
+
 		arena_dalloc_bin_slab(tsdn, arena, slab, bin);
 	} else if (nfree == 1 && slab != bin->slabcur) {
 		arena_bin_slabs_full_remove(arena, bin, slab);
