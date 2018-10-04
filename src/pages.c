@@ -567,6 +567,10 @@ init_thp_state(void) {
 	close(fd);
 #endif
 
+        if (nread < 0) {
+		goto label_error; 
+        }
+
 	if (strncmp(buf, sys_state_madvise, (size_t)nread) == 0) {
 		init_system_thp_mode = thp_mode_default;
 	} else if (strncmp(buf, sys_state_always, (size_t)nread) == 0) {
