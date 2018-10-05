@@ -1748,8 +1748,7 @@ struct static_opts_s {
 	 */
 	bool slow;
 	/*
-	 * Return size
-	 *
+	 * Return size.
 	 */
 	bool usize;
 };
@@ -2770,6 +2769,11 @@ int __posix_memalign(void** r, size_t a, size_t s) PREALIAS(je_posix_memalign);
  */
 
 #ifdef JEMALLOC_EXPERIMENTAL_SMALLOCX_API
+
+#define JEMALLOC_SMALLOCX_CONCAT_HELPER(x, y) x ## y
+#define JEMALLOC_SMALLOCX_CONCAT_HELPER2(x, y)  \
+  JEMALLOC_SMALLOCX_CONCAT_HELPER(x, y)
+
 typedef struct {
 	void *ptr;
 	size_t size;
@@ -2781,7 +2785,8 @@ smallocx_return_t JEMALLOC_NOTHROW
  * The attribute JEMALLOC_ATTR(malloc) cannot be used due to:
  *  - https://gcc.gnu.org/bugzilla/show_bug.cgi?id=86488
  */
-  je_smallocx(size_t size, int flags) {
+JEMALLOC_SMALLOCX_CONCAT_HELPER2(je_smallocx_, JEMALLOC_VERSION_GID_IDENT)
+  (size_t size, int flags) {
 	/*
 	 * Note: the attribute JEMALLOC_ALLOC_SIZE(1) cannot be
 	 * used here because it makes writing beyond the `size`
@@ -2828,8 +2833,6 @@ smallocx_return_t JEMALLOC_NOTHROW
 			dopts.arena_ind = MALLOCX_ARENA_GET(flags);
 	}
 
-
-
 	imalloc(&sopts, &dopts);
 	assert(dopts.usize == je_nallocx(size, flags));
 	ret.size = dopts.usize;
@@ -2837,6 +2840,8 @@ smallocx_return_t JEMALLOC_NOTHROW
 	LOG("core.smallocx.exit", "result: %p, size: %zu", ret.ptr, ret.size);
 	return ret;
 }
+#undef JEMALLOC_SMALLOCX_CONCAT_HELPER
+#undef JEMALLOC_SMALLOCX_CONCAT_HELPER2
 #endif
 
 JEMALLOC_EXPORT JEMALLOC_ALLOCATOR JEMALLOC_RESTRICT_RETURN

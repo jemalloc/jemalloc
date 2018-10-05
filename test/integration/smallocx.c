@@ -1,11 +1,24 @@
 #include "test/jemalloc_test.h"
+#include "jemalloc/jemalloc_macros.h"
+
+#define STR_HELPER(x) #x
+#define STR(x) STR_HELPER(x)
+
+#ifndef JEMALLOC_VERSION_GID_IDENT
+  #error "JEMALLOC_VERSION_GID_IDENT not defined"
+#endif
+
+#define JOIN(x, y) x ## y
+#define JOIN2(x, y) JOIN(x, y)
+#define smallocx JOIN2(smallocx_, JEMALLOC_VERSION_GID_IDENT)
 
 typedef struct {
 	void *ptr;
 	size_t size;
 } smallocx_return_t;
 
-extern smallocx_return_t smallocx(size_t size, int flags);
+extern smallocx_return_t
+smallocx(size_t size, int flags);
 
 static unsigned
 get_nsizes_impl(const char *cmd) {
@@ -99,12 +112,12 @@ remote_alloc(void *arg) {
 	assert_d_eq(mallctl("arenas.lextent.0.size", (void *)&large_sz, &sz,
 	    NULL, 0), 0, "Unexpected mallctl failure");
 
-	smallocx_return_t r = smallocx(large_sz, MALLOCX_ARENA(arena)
-                                 | MALLOCX_TCACHE_NONE);
+	smallocx_return_t r
+	    = smallocx(large_sz, MALLOCX_ARENA(arena) | MALLOCX_TCACHE_NONE);
 	void *ptr = r.ptr;
-  assert_zu_eq(r.size, nallocx(large_sz, MALLOCX_ARENA(arena)
-                               | MALLOCX_TCACHE_NONE),
-               "Expected smalloc(size,flags).size == nallocx(size,flags)");
+	assert_zu_eq(r.size,
+	    nallocx(large_sz, MALLOCX_ARENA(arena) | MALLOCX_TCACHE_NONE),
+	    "Expected smalloc(size,flags).size == nallocx(size,flags)");
 	void **ret = (void **)arg;
 	*ret = ptr;
 
@@ -174,40 +187,40 @@ TEST_BEGIN(test_basic) {
 	size_t sz;
 
 	for (sz = 1; sz < MAXSZ; sz = nallocx(sz, 0) + 1) {
-    smallocx_return_t ret;
+		smallocx_return_t ret;
 		size_t nsz, rsz, smz;
 		void *p;
 		nsz = nallocx(sz, 0);
 		assert_zu_ne(nsz, 0, "Unexpected nallocx() error");
 		ret = smallocx(sz, 0);
-    p = ret.ptr;
-    smz = ret.size;
+		p = ret.ptr;
+		smz = ret.size;
 		assert_ptr_not_null(p,
 		    "Unexpected smallocx(size=%zx, flags=0) error", sz);
 		rsz = sallocx(p, 0);
 		assert_zu_ge(rsz, sz, "Real size smaller than expected");
 		assert_zu_eq(nsz, rsz, "nallocx()/sallocx() size mismatch");
-    assert_zu_eq(nsz, smz, "nallocx()/smallocx() size mismatch");
+		assert_zu_eq(nsz, smz, "nallocx()/smallocx() size mismatch");
 		dallocx(p, 0);
 
 		ret = smallocx(sz, 0);
-    p = ret.ptr;
-    smz = ret.size;
+		p = ret.ptr;
+		smz = ret.size;
 		assert_ptr_not_null(p,
 		    "Unexpected smallocx(size=%zx, flags=0) error", sz);
 		dallocx(p, 0);
 
 		nsz = nallocx(sz, MALLOCX_ZERO);
 		assert_zu_ne(nsz, 0, "Unexpected nallocx() error");
-    assert_zu_ne(smz, 0, "Unexpected smallocx() error");
-    ret = smallocx(sz, MALLOCX_ZERO);
+		assert_zu_ne(smz, 0, "Unexpected smallocx() error");
+		ret = smallocx(sz, MALLOCX_ZERO);
 		p = ret.ptr;
 		assert_ptr_not_null(p,
 		    "Unexpected smallocx(size=%zx, flags=MALLOCX_ZERO) error",
 		    nsz);
 		rsz = sallocx(p, 0);
 		assert_zu_eq(nsz, rsz, "nallocx()/sallocx() rsize mismatch");
-    assert_zu_eq(nsz, smz, "nallocx()/smallocx() size mismatch");
+		assert_zu_eq(nsz, smz, "nallocx()/smallocx() size mismatch");
 		dallocx(p, 0);
 		purge();
 	}
@@ -247,23 +260,23 @@ TEST_BEGIN(test_alignment_and_size) {
 				assert_zu_ne(nsz, 0,
 				    "nallocx() error for alignment=%zu, "
 				    "size=%zu (%#zx)", alignment, sz, sz);
-        smallocx_return_t ret = smallocx(sz, MALLOCX_ALIGN(alignment) |
-                                         MALLOCX_ZERO);
+				smallocx_return_t ret
+				    = smallocx(sz, MALLOCX_ALIGN(alignment) | MALLOCX_ZERO);
 				ps[i] = ret.ptr;
 				assert_ptr_not_null(ps[i],
 				    "smallocx() error for alignment=%zu, "
 				    "size=%zu (%#zx)", alignment, sz, sz);
 				rsz = sallocx(ps[i], 0);
-        smz = ret.size;
+				smz = ret.size;
 				assert_zu_ge(rsz, sz,
 				    "Real size smaller than expected for "
 				    "alignment=%zu, size=%zu", alignment, sz);
 				assert_zu_eq(nsz, rsz,
 				    "nallocx()/sallocx() size mismatch for "
 				    "alignment=%zu, size=%zu", alignment, sz);
-        assert_zu_eq(nsz, smz,
-            "nallocx()/smallocx() size mismatch for "
-            "alignment=%zu, size=%zu", alignment, sz);
+				assert_zu_eq(nsz, smz,
+				    "nallocx()/smallocx() size mismatch for "
+				    "alignment=%zu, size=%zu", alignment, sz);
 				assert_ptr_null(
 				    (void *)((uintptr_t)ps[i] & (alignment-1)),
 				    "%p inadequately aligned for"

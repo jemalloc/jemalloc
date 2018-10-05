@@ -10,6 +10,7 @@
 #define JEMALLOC_VERSION_BUGFIX @jemalloc_version_bugfix@
 #define JEMALLOC_VERSION_NREV @jemalloc_version_nrev@
 #define JEMALLOC_VERSION_GID "@jemalloc_version_gid@"
+#define JEMALLOC_VERSION_GID_IDENT @jemalloc_version_gid@
 
 #define MALLOCX_LG_ALIGN(la)	((int)(la))
 #if LG_SIZEOF_PTR == 2
