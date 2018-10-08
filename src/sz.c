@@ -37,18 +37,19 @@ sz_boot_index2size_tab(const sc_data_t *sc_data) {
  * the smallest interval for which the result can change.
  */
 JEMALLOC_ALIGNED(CACHELINE)
-uint8_t sz_size2index_tab[SC_LOOKUP_MAXCLASS >> SC_LG_TINY_MIN];
+uint8_t sz_size2index_tab[(SC_LOOKUP_MAXCLASS >> SC_LG_TINY_MIN) + 1];
 
 static void
 sz_boot_size2index_tab(const sc_data_t *sc_data) {
-	size_t dst_max = (SC_LOOKUP_MAXCLASS >> SC_LG_TINY_MIN);
+	size_t dst_max = (SC_LOOKUP_MAXCLASS >> SC_LG_TINY_MIN) + 1;
 	size_t dst_ind = 0;
 	for (unsigned sc_ind = 0; sc_ind < SC_NSIZES && dst_ind < dst_max;
 	    sc_ind++) {
 		const sc_t *sc = &sc_data->sc[sc_ind];
 		size_t sz = (ZU(1) << sc->lg_base)
 		    + (ZU(sc->ndelta) << sc->lg_delta);
-		size_t max_ind = ((sz - 1) >> SC_LG_TINY_MIN);
+		size_t max_ind = ((sz + (ZU(1) << SC_LG_TINY_MIN) - 1)
+				   >> SC_LG_TINY_MIN);
 		for (; dst_ind <= max_ind && dst_ind < dst_max; dst_ind++) {
 			sz_size2index_tab[dst_ind] = sc_ind;
 		}
