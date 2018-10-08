@@ -122,6 +122,10 @@ sz_size2index_compute(size_t size) {
 	if (unlikely(size > SC_LARGE_MAXCLASS)) {
 		return SC_NSIZES;
 	}
+
+	if (size == 0) {
+		return 0;
+	}
 #if (SC_NTINY != 0)
 	if (size <= (ZU(1) << SC_LG_TINY_MAXCLASS)) {
 		szind_t lg_tmin = SC_LG_TINY_MAXCLASS - SC_NTINY + 1;
@@ -150,14 +154,14 @@ sz_size2index_compute(size_t size) {
 JEMALLOC_ALWAYS_INLINE szind_t
 sz_size2index_lookup(size_t size) {
 	assert(size <= SC_LOOKUP_MAXCLASS);
-	szind_t ret = (sz_size2index_tab[(size-1) >> SC_LG_TINY_MIN]);
+	szind_t ret = (sz_size2index_tab[(size + (ZU(1) << SC_LG_TINY_MIN) - 1)
+					 >> SC_LG_TINY_MIN]);
 	assert(ret == sz_size2index_compute(size));
 	return ret;
 }
 
 JEMALLOC_ALWAYS_INLINE szind_t
 sz_size2index(size_t size) {
-	assert(size > 0);
 	if (likely(size <= SC_LOOKUP_MAXCLASS)) {
 		return sz_size2index_lookup(size);
 	}
@@ -208,6 +212,10 @@ sz_s2u_compute(size_t size) {
 	if (unlikely(size > SC_LARGE_MAXCLASS)) {
 		return 0;
 	}
+
+	if (size == 0) {
+		size++;
+	}
 #if (SC_NTINY > 0)
 	if (size <= (ZU(1) << SC_LG_TINY_MAXCLASS)) {
 		size_t lg_tmin = SC_LG_TINY_MAXCLASS - SC_NTINY + 1;
@@ -241,7 +249,6 @@ sz_s2u_lookup(size_t size) {
  */
 JEMALLOC_ALWAYS_INLINE size_t
 sz_s2u(size_t size) {
-	assert(size > 0);
 	if (likely(size <= SC_LOOKUP_MAXCLASS)) {
 		return sz_s2u_lookup(size);
 	}
