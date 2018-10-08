@@ -1713,8 +1713,7 @@ typedef struct static_opts_s static_opts_t;
 struct static_opts_s {
 	/* Whether or not allocation size may overflow. */
 	bool may_overflow;
-	/* Whether or not allocations of size 0 should be treated as size 1. */
-	bool bump_empty_alloc;
+
 	/*
 	 * Whether to assert that allocations are not of size 0 (after any
 	 * bumping).
@@ -1752,7 +1751,6 @@ struct static_opts_s {
 JEMALLOC_ALWAYS_INLINE void
 static_opts_init(static_opts_t *static_opts) {
 	static_opts->may_overflow = false;
-	static_opts->bump_empty_alloc = false;
 	static_opts->assert_nonempty_alloc = false;
 	static_opts->null_out_result_on_error = false;
 	static_opts->set_errno_on_error = false;
@@ -1938,12 +1936,6 @@ imalloc_body(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd) {
 	}
 
 	/* Validate the user input. */
-	if (sopts->bump_empty_alloc) {
-		if (unlikely(size == 0)) {
-			size = 1;
-		}
-	}
-
 	if (sopts->assert_nonempty_alloc) {
 		assert (size != 0);
 	}
@@ -2169,7 +2161,6 @@ je_malloc(size_t size) {
 	static_opts_init(&sopts);
 	dynamic_opts_init(&dopts);
 
-	sopts.bump_empty_alloc = true;
 	sopts.null_out_result_on_error = true;
 	sopts.set_errno_on_error = true;
 	sopts.oom_string = "<jemalloc>: Error in malloc(): out of memory\n";
@@ -2206,7 +2197,6 @@ je_posix_memalign(void **memptr, size_t alignment, size_t size) {
 	static_opts_init(&sopts);
 	dynamic_opts_init(&dopts);
 
-	sopts.bump_empty_alloc = true;
 	sopts.min_alignment = sizeof(void *);
 	sopts.oom_string =
 	    "<jemalloc>: Error allocating aligned memory: out of memory\n";
@@ -2247,7 +2237,6 @@ je_aligned_alloc(size_t alignment, size_t size) {
 	static_opts_init(&sopts);
 	dynamic_opts_init(&dopts);
 
-	sopts.bump_empty_alloc = true;
 	sopts.null_out_result_on_error = true;
 	sopts.set_errno_on_error = true;
 	sopts.min_alignment = 1;
@@ -2287,7 +2276,6 @@ je_calloc(size_t num, size_t size) {
 	dynamic_opts_init(&dopts);
 
 	sopts.may_overflow = true;
-	sopts.bump_empty_alloc = true;
 	sopts.null_out_result_on_error = true;
 	sopts.set_errno_on_error = true;
 	sopts.oom_string = "<jemalloc>: Error in calloc(): out of memory\n";
@@ -2530,7 +2518,6 @@ je_realloc(void *ptr, size_t arg_size) {
 		static_opts_init(&sopts);
 		dynamic_opts_init(&dopts);
 
-		sopts.bump_empty_alloc = true;
 		sopts.null_out_result_on_error = true;
 		sopts.set_errno_on_error = true;
 		sopts.oom_string =
@@ -2634,7 +2621,6 @@ je_memalign(size_t alignment, size_t size) {
 	static_opts_init(&sopts);
 	dynamic_opts_init(&dopts);
 
-	sopts.bump_empty_alloc = true;
 	sopts.min_alignment = 1;
 	sopts.oom_string =
 	    "<jemalloc>: Error allocating aligned memory: out of memory\n";
@@ -2674,7 +2660,6 @@ je_valloc(size_t size) {
 	static_opts_init(&sopts);
 	dynamic_opts_init(&dopts);
 
-	sopts.bump_empty_alloc = true;
 	sopts.null_out_result_on_error = true;
 	sopts.min_alignment = PAGE;
 	sopts.oom_string =
