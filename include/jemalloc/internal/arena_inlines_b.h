@@ -134,7 +134,6 @@ JEMALLOC_ALWAYS_INLINE void *
 arena_malloc(tsdn_t *tsdn, arena_t *arena, size_t size, szind_t ind, bool zero,
     tcache_t *tcache, bool slow_path) {
 	assert(!tsdn_null(tsdn) || tcache == NULL);
-	assert(size != 0);
 
 	if (likely(tcache != NULL)) {
 		if (likely(size <= SC_SMALL_MAXCLASS)) {
