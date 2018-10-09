@@ -1168,6 +1168,9 @@ prof_sample_threshold_update(prof_tdata_t *tdata) {
 	uint64_t bytes_until_sample = (uint64_t)(log(u) /
 	    log(1.0 - (1.0 / (double)((uint64_t)1U << lg_prof_sample))))
 	    + (uint64_t)1U;
+	if (bytes_until_sample > SSIZE_MAX) {
+		bytes_until_sample = SSIZE_MAX;
+	}
 	tsd_bytes_until_sample_set(tsd_fetch(), bytes_until_sample);
 
 #endif
