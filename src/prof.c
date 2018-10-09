@@ -1136,15 +1136,12 @@ prof_lookup(tsd_t *tsd, prof_bt_t *bt) {
 void
 prof_sample_threshold_update(prof_tdata_t *tdata) {
 #ifdef JEMALLOC_PROF
-	uint64_t r;
-	double u;
-
 	if (!config_prof) {
 		return;
 	}
 
 	if (lg_prof_sample == 0) {
-		tdata->bytes_until_sample = 0;
+		tsd_bytes_until_sample_set(tsd_fetch(), 0);
 		return;
 	}
 
@@ -1166,11 +1163,13 @@ prof_sample_threshold_update(prof_tdata_t *tdata) {
 	 *   pp 500
 	 *   (http://luc.devroye.org/rnbookindex.html)
 	 */
-	r = prng_lg_range_u64(&tdata->prng_state, 53);
-	u = (double)r * (1.0/9007199254740992.0L);
-	tdata->bytes_until_sample = (uint64_t)(log(u) /
+	uint64_t r = prng_lg_range_u64(&tdata->prng_state, 53);
+	double u = (double)r * (1.0/9007199254740992.0L);
+	uint64_t bytes_until_sample = (uint64_t)(log(u) /
 	    log(1.0 - (1.0 / (double)((uint64_t)1U << lg_prof_sample))))
 	    + (uint64_t)1U;
+	tsd_bytes_until_sample_set(tsd_fetch(), bytes_until_sample);
+
 #endif
 }
 
