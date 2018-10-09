@@ -86,6 +86,14 @@ prof_sample_accum_update(tsd_t *tsd, size_t usize, bool update,
 
 	cassert(config_prof);
 
+	bytes_until_sample = tsd_bytes_until_sample_get(tsd);
+	if (likely(bytes_until_sample >= usize)) {
+		if (update && tsd_nominal(tsd)) {
+			tsd_bytes_until_sample_set(tsd, bytes_until_sample - usize);
+		}
+		return true;
+	}
+
 	tdata = prof_tdata_get(tsd, true);
 	if (unlikely((uintptr_t)tdata <= (uintptr_t)PROF_TDATA_STATE_MAX)) {
 		tdata = NULL;
@@ -99,22 +107,14 @@ prof_sample_accum_update(tsd_t *tsd, size_t usize, bool update,
 		return true;
 	}
 
-	bytes_until_sample = tsd_bytes_until_sample_get(tsd);
-	if (likely(bytes_until_sample >= usize)) {
-		if (update && tsd_nominal(tsd)) {
-			tsd_bytes_until_sample_set(tsd, bytes_until_sample - usize);
-		}
+	if (tsd_reentrancy_level_get(tsd) > 0) {
 		return true;
-	} else {
-		if (tsd_reentrancy_level_get(tsd) > 0) {
-			return true;
-		}
-		/* Compute new sample threshold. */
-		if (update) {
-			prof_sample_threshold_update(tdata);
-		}
-		return !tdata->active;
 	}
+	/* Compute new sample threshold. */
+	if (update) {
+		prof_sample_threshold_update(tdata);
+	}
+	return !tdata->active;
 }
 
 JEMALLOC_ALWAYS_INLINE prof_tctx_t *
