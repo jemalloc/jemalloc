@@ -138,10 +138,20 @@ TEST_BEGIN(test_alignment_and_size) {
 }
 TEST_END
 
+TEST_BEGIN(test_zero_alloc) {
+	void *res = aligned_alloc(8, 0);
+	assert(res);
+	size_t usable = malloc_usable_size(res);
+	assert(usable > 0);
+	free(res);
+}
+TEST_END
+
 int
 main(void) {
 	return test(
 	    test_alignment_errors,
 	    test_oom_errors,
-	    test_alignment_and_size);
+	    test_alignment_and_size,
+	    test_zero_alloc);
 }
