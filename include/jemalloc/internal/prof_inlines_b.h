@@ -82,6 +82,7 @@ JEMALLOC_ALWAYS_INLINE bool
 prof_sample_accum_update(tsd_t *tsd, size_t usize, bool update,
     prof_tdata_t **tdata_out) {
 	prof_tdata_t *tdata;
+	uint64_t bytes_until_sample;
 
 	cassert(config_prof);
 
@@ -98,9 +99,10 @@ prof_sample_accum_update(tsd_t *tsd, size_t usize, bool update,
 		return true;
 	}
 
-	if (likely(tdata->bytes_until_sample >= usize)) {
-		if (update) {
-			tdata->bytes_until_sample -= usize;
+	bytes_until_sample = tsd_bytes_until_sample_get(tsd);
+	if (likely(bytes_until_sample >= usize)) {
+		if (update && tsd_nominal(tsd)) {
+			tsd_bytes_until_sample_set(tsd, bytes_until_sample - usize);
 		}
 		return true;
 	} else {
