@@ -2152,15 +2152,9 @@ imalloc(static_opts_t *sopts, dynamic_opts_t *dopts) {
 		return imalloc_body(sopts, dopts, tsd);
 	}
 }
-/******************************************************************************/
-/*
- * Begin malloc(3)-compatible functions.
- */
 
-JEMALLOC_EXPORT JEMALLOC_ALLOCATOR JEMALLOC_RESTRICT_RETURN
-void JEMALLOC_NOTHROW *
-JEMALLOC_ATTR(malloc) JEMALLOC_ALLOC_SIZE(1)
-je_malloc(size_t size) {
+void *
+malloc_default(size_t size) {
 	void *ret;
 	static_opts_t sopts;
 	dynamic_opts_t dopts;
@@ -2191,6 +2185,93 @@ je_malloc(size_t size) {
 	LOG("core.malloc.exit", "result: %p", ret);
 
 	return ret;
+}
+
+/******************************************************************************/
+/*
+ * Begin malloc(3)-compatible functions.
+ */
+
+/*
+ * malloc() fastpath.
+ *
+ * Fastpath assumes size <= SC_LOOKUP_MAXCLASS, and that we hit
+ * tcache.  If either of these is false, we tail-call to the slowpath,
+ * malloc_default().  Tail-calling is used to avoid any caller-saved
+ * registers.
+ *
+ * fastpath supports ticker and profiling, both of which will also
+ * tail-call to the slowpath if they fire.
+ */
+JEMALLOC_EXPORT JEMALLOC_ALLOCATOR JEMALLOC_RESTRICT_RETURN
+void JEMALLOC_NOTHROW *
+JEMALLOC_ATTR(malloc) JEMALLOC_ALLOC_SIZE(1)
+je_malloc(size_t size) {
+	LOG("core.malloc.entry", "size: %zu", size);
+
+	if (tsd_get_allocates() && unlikely(!malloc_initialized())) {
+		return malloc_default(size);
+	}
+
+	tsd_t *tsd = tsd_get(false);
+	if (unlikely(!tsd || !tsd_fast(tsd) || (size > SC_LOOKUP_MAXCLASS))) {
+		return malloc_default(size);
+	}
+
+	tcache_t *tcache = tsd_tcachep_get(tsd);
+
+	if (unlikely(ticker_trytick(&tcache->gc_ticker))) {
+		return malloc_default(size);
+	}
+
+	szind_t ind = sz_size2index_lookup(size);
+	size_t usize;
+	if (config_stats || config_prof) {
+		usize = sz_index2size(ind);
+	}
+	/* Fast path relies on size being a bin. I.e. SC_LOOKUP_MAXCLASS < SC_SMALL_MAXCLASS */
+	assert(ind < SC_NBINS);
+	assert(size <= SC_SMALL_MAXCLASS);
+
+	if (config_prof) {
+		int64_t bytes_until_sample = tsd_bytes_until_sample_get(tsd);
+		bytes_until_sample -= usize;
+		tsd_bytes_until_sample_set(tsd, bytes_until_sample);
+
+		if (unlikely(bytes_until_sample < 0)) {
+			/* 
+			 * Avoid a prof_active check on the fastpath.
+			 * If prof_active is false, set bytes_until_sample to
+			 * a large value.  If prof_active is set to true,
+			 * bytes_until_sample will be reset.
+			 */
+			if (!prof_active) {
+				tsd_bytes_until_sample_set(tsd, SSIZE_MAX);
+			}
+			return malloc_default(size);
+		}
+	}
+
+	cache_bin_t *bin = tcache_small_bin_get(tcache, ind);
+	bool tcache_success;
+	void* ret = cache_bin_alloc_easy(bin, &tcache_success);
+
+	if (tcache_success) {
+		if (config_stats) {
+			*tsd_thread_allocatedp_get(tsd) += usize;
+			bin->tstats.nrequests++;
+		}
+		if (config_prof) {
+			tcache->prof_accumbytes += usize;
+		}
+
+		LOG("core.malloc.exit", "result: %p", ret);
+
+		/* Fastpath success */
+		return ret;
+	}
+
+	return malloc_default(size);
 }
 
 JEMALLOC_EXPORT int JEMALLOC_NOTHROW
