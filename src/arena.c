@@ -268,6 +268,27 @@ arena_slab_reg_alloc(extent_t *slab, const bin_info_t *bin_info) {
 	return ret;
 }
 
+static void
+arena_slab_reg_alloc_batch(extent_t *slab, const bin_info_t *bin_info,
+			   unsigned cnt, void** ptrs) {
+	arena_slab_data_t *slab_data = extent_slab_data_get(slab);
+
+	assert(extent_nfree_get(slab) > 0);
+	assert(!bitmap_full(slab_data->bitmap, &bin_info->bitmap_info));
+
+	size_t regind = 0;
+	for (unsigned i = 0; i < cnt; i++) {
+		void *ret;
+
+		regind = bitmap_sfu(slab_data->bitmap, &bin_info->bitmap_info);
+		ret = (void *)((uintptr_t)extent_addr_get(slab) +
+		    (uintptr_t)(bin_info->reg_size * regind));
+		extent_nfree_dec(slab);
+
+		*(ptrs + i) = ret;
+	}
+}
+
 #ifndef JEMALLOC_JET
 static
 #endif
@@ -1286,7 +1307,7 @@ arena_bin_malloc_hard(tsdn_t *tsdn, arena_t *arena, bin_t *bin,
 void
 arena_tcache_fill_small(tsdn_t *tsdn, arena_t *arena, tcache_t *tcache,
     cache_bin_t *tbin, szind_t binind, uint64_t prof_accumbytes) {
-	unsigned i, nfill;
+	unsigned i, nfill, cnt;
 	bin_t *bin;
 
 	assert(tbin->ncached == 0);
@@ -1297,32 +1318,43 @@ arena_tcache_fill_small(tsdn_t *tsdn, arena_t *arena, tcache_t *tcache,
 	bin = &arena->bins[binind];
 	malloc_mutex_lock(tsdn, &bin->lock);
 	for (i = 0, nfill = (tcache_bin_info[binind].ncached_max >>
-	    tcache->lg_fill_div[binind]); i < nfill; i++) {
+	    tcache->lg_fill_div[binind]); i < nfill; i += cnt) {
 		extent_t *slab;
-		void *ptr;
 		if ((slab = bin->slabcur) != NULL && extent_nfree_get(slab) >
 		    0) {
-			ptr = arena_slab_reg_alloc(slab, &bin_infos[binind]);
+			unsigned tofill = nfill - i;
+			cnt = tofill < extent_nfree_get(slab) ?
+				tofill : extent_nfree_get(slab);
+			arena_slab_reg_alloc_batch(
+			   slab, &bin_infos[binind], cnt,
+			   tbin->avail - nfill + i);
 		} else {
-			ptr = arena_bin_malloc_hard(tsdn, arena, bin, binind);
-		}
-		if (ptr == NULL) {
+			cnt = 1;
+			void *ptr = arena_bin_malloc_hard(tsdn, arena, bin,
+							  binind);
 			/*
 			 * OOM.  tbin->avail isn't yet filled down to its first
 			 * element, so the successful allocations (if any) must
 			 * be moved just before tbin->avail before bailing out.
 			 */
-			if (i > 0) {
-				memmove(tbin->avail - i, tbin->avail - nfill,
-				    i * sizeof(void *));
+			if (ptr == NULL) {
+				if (i > 0) {
+					memmove(tbin->avail - i,
+						tbin->avail - nfill,
+						i * sizeof(void *));
+				}
+				break;
 			}
-			break;
+			/* Insert such that low regions get used first. */
+			*(tbin->avail - nfill + i) = ptr;
 		}
 		if (config_fill && unlikely(opt_junk_alloc)) {
-			arena_alloc_junk_small(ptr, &bin_infos[binind], true);
+			for (unsigned j = 0; j < cnt; j++) {
+				void* ptr = *(tbin->avail - nfill + i + j);
+				arena_alloc_junk_small(ptr, &bin_infos[binind],
+						       true);
+			}
 		}
-		/* Insert such that low regions get used first. */
-		*(tbin->avail - nfill + i) = ptr;
 	}
 	if (config_stats) {
 		bin->stats.nmalloc += i;
