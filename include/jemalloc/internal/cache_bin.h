@@ -90,7 +90,7 @@ cache_bin_alloc_easy(cache_bin_t *bin, bool *success) {
 
 	bin->ncached--;
 
-	/* 
+	/*
 	 * Check for both bin->ncached == 0 and ncached < low_water
 	 * in a single branch.
 	 */
@@ -102,7 +102,7 @@ cache_bin_alloc_easy(cache_bin_t *bin, bool *success) {
 			return NULL;
 		}
 	}
-        
+
 	/*
 	 * success (instead of ret) should be checked upon the return of this
 	 * function.  We avoid checking (ret == NULL) because there is never a
@@ -114,6 +114,18 @@ cache_bin_alloc_easy(cache_bin_t *bin, bool *success) {
 	ret = *(bin->avail - (bin->ncached + 1));
 
 	return ret;
+}
+
+JEMALLOC_ALWAYS_INLINE bool
+cache_bin_dalloc_easy(cache_bin_t *bin, cache_bin_info_t *bin_info, void *ptr) {
+	if (unlikely(bin->ncached == bin_info->ncached_max)) {
+		return false;
+	}
+	assert(bin->ncached < bin_info->ncached_max);
+	bin->ncached++;
+	*(bin->avail - bin->ncached) = ptr;
+
+	return true;
 }
 
 #endif /* JEMALLOC_INTERNAL_CACHE_BIN_H */
