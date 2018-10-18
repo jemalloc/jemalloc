@@ -452,6 +452,42 @@ rtree_extent_szind_read(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
 	return false;
 }
 
+/*
+ * Try to read szind_slab from the L1 cache.  Returns true on a hit,
+ * and fills in r_szind and r_slab.  Otherwise returns false.
+ *
+ * Key is allowed to be NULL in order to save an extra branch on the
+ * fastpath.  returns false in this case.
+ */
+JEMALLOC_ALWAYS_INLINE bool
+rtree_szind_slab_read_fast(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
+			    uintptr_t key, szind_t *r_szind, bool *r_slab) {
+	rtree_leaf_elm_t *elm;
+
+	size_t slot = rtree_cache_direct_map(key);
+	uintptr_t leafkey = rtree_leafkey(key);
+	assert(leafkey != RTREE_LEAFKEY_INVALID);
+
+	if (likely(rtree_ctx->cache[slot].leafkey == leafkey)) {
+		rtree_leaf_elm_t *leaf = rtree_ctx->cache[slot].leaf;
+		assert(leaf != NULL);
+		uintptr_t subkey = rtree_subkey(key, RTREE_HEIGHT-1);
+		elm = &leaf[subkey];
+
+#ifdef RTREE_LEAF_COMPACT
+		uintptr_t bits = rtree_leaf_elm_bits_read(tsdn, rtree,
+							  elm, true);
+		*r_szind = rtree_leaf_elm_bits_szind_get(bits);
+		*r_slab = rtree_leaf_elm_bits_slab_get(bits);
+#else
+		*r_szind = rtree_leaf_elm_szind_read(tsdn, rtree, elm, true);
+		*r_slab = rtree_leaf_elm_slab_read(tsdn, rtree, elm, true);
+#endif
+		return true;
+	} else {
+		return false;
+	}
+}
 JEMALLOC_ALWAYS_INLINE bool
 rtree_szind_slab_read(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
     uintptr_t key, bool dependent, szind_t *r_szind, bool *r_slab) {
