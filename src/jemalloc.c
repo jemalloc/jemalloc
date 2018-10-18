@@ -2147,12 +2147,13 @@ imalloc(static_opts_t *sopts, dynamic_opts_t *dopts) {
 		if (!tsd_get_allocates() && !imalloc_init_check(sopts, dopts)) {
 			return ENOMEM;
 		}
-          
+
 		sopts->slow = true;
 		return imalloc_body(sopts, dopts, tsd);
 	}
 }
 
+JEMALLOC_NOINLINE
 void *
 malloc_default(size_t size) {
 	void *ret;
@@ -2239,7 +2240,7 @@ je_malloc(size_t size) {
 		tsd_bytes_until_sample_set(tsd, bytes_until_sample);
 
 		if (unlikely(bytes_until_sample < 0)) {
-			/* 
+			/*
 			 * Avoid a prof_active check on the fastpath.
 			 * If prof_active is false, set bytes_until_sample to
 			 * a large value.  If prof_active is set to true,
@@ -2650,10 +2651,9 @@ je_realloc(void *ptr, size_t arg_size) {
 	return ret;
 }
 
-JEMALLOC_EXPORT void JEMALLOC_NOTHROW
-je_free(void *ptr) {
-	LOG("core.free.entry", "ptr: %p", ptr);
-
+JEMALLOC_NOINLINE
+void
+free_default(void *ptr) {
 	UTRACE(ptr, 0, 0);
 	if (likely(ptr != NULL)) {
 		/*
@@ -2685,6 +2685,73 @@ je_free(void *ptr) {
 		}
 		check_entry_exit_locking(tsd_tsdn(tsd));
 	}
+}
+
+JEMALLOC_ALWAYS_INLINE
+bool free_fastpath(void *ptr, size_t size, bool size_hint) {
+	tsd_t *tsd = tsd_get(false);
+	if (unlikely(!tsd || !tsd_fast(tsd))) {
+		return false;
+	}
+
+	tcache_t *tcache = tsd_tcachep_get(tsd);
+
+	alloc_ctx_t alloc_ctx;
+	/* 
+	 * If !config_cache_oblivious, we can check PAGE alignment to
+	 * detect sampled objects.  Otherwise addresses are
+	 * randomized, and we have to look it up in the rtree anyway.
+	 * See also isfree().
+	 */
+	if (!size_hint || config_cache_oblivious) {
+		rtree_ctx_t *rtree_ctx = tsd_rtree_ctx(tsd);
+		bool res = rtree_szind_slab_read_fast(tsd_tsdn(tsd), &extents_rtree,
+						      rtree_ctx, (uintptr_t)ptr,
+						      &alloc_ctx.szind, &alloc_ctx.slab);
+		assert(alloc_ctx.szind != SC_NSIZES);
+
+		/* Note: profiled objects will have alloc_ctx.slab set */
+		if (!res || !alloc_ctx.slab) {
+			return false;
+		}
+	} else {
+		/*
+		 * Check for both sizes that are too large, and for sampled objects.
+		 * Sampled objects are always page-aligned.  The sampled object check
+		 * will also check for null ptr.
+		 */
+		if (size > SC_LOOKUP_MAXCLASS || (((uintptr_t)ptr & PAGE_MASK) == 0)) {
+			return false;
+		}
+		alloc_ctx.szind = sz_size2index_lookup(size);
+	}
+
+	if (unlikely(ticker_trytick(&tcache->gc_ticker))) {
+		return false;
+	}
+
+	cache_bin_t *bin = tcache_small_bin_get(tcache, alloc_ctx.szind);
+	cache_bin_info_t *bin_info = &tcache_bin_info[alloc_ctx.szind];
+	if (!cache_bin_dalloc_easy(bin, bin_info, ptr)) {
+		return false;
+	}
+
+	if (config_stats) {
+		size_t usize = sz_index2size(alloc_ctx.szind);
+		*tsd_thread_deallocatedp_get(tsd) += usize;
+	}
+
+	return true;
+}
+
+JEMALLOC_EXPORT void JEMALLOC_NOTHROW
+je_free(void *ptr) {
+	LOG("core.free.entry", "ptr: %p", ptr);
+
+	if (!free_fastpath(ptr, 0, false)) {
+		free_default(ptr);
+	}
+
 	LOG("core.free.exit", "");
 }
 
@@ -3362,13 +3429,10 @@ inallocx(tsdn_t *tsdn, size_t size, int flags) {
 	return usize;
 }
 
-JEMALLOC_EXPORT void JEMALLOC_NOTHROW
-je_sdallocx(void *ptr, size_t size, int flags) {
+JEMALLOC_NOINLINE void
+sdallocx_default(void *ptr, size_t size, int flags) {
 	assert(ptr != NULL);
 	assert(malloc_initialized() || IS_INITIALIZER);
-
-	LOG("core.sdallocx.entry", "ptr: %p, size: %zu, flags: %d", ptr,
-	    size, flags);
 
 	tsd_t *tsd = tsd_fetch();
 	bool fast = tsd_fast(tsd);
@@ -3408,6 +3472,17 @@ je_sdallocx(void *ptr, size_t size, int flags) {
 		isfree(tsd, ptr, usize, tcache, true);
 	}
 	check_entry_exit_locking(tsd_tsdn(tsd));
+
+}
+
+JEMALLOC_EXPORT void JEMALLOC_NOTHROW
+je_sdallocx(void *ptr, size_t size, int flags) {
+	LOG("core.sdallocx.entry", "ptr: %p, size: %zu, flags: %d", ptr,
+		size, flags);
+
+	if (flags !=0 || !free_fastpath(ptr, size, true)) {
+		sdallocx_default(ptr, size, flags);
+	}
 
 	LOG("core.sdallocx.exit", "");
 }
