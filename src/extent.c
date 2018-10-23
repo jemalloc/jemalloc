@@ -134,13 +134,16 @@ typedef enum {
 
 static lock_result_t
 extent_rtree_leaf_elm_try_lock(tsdn_t *tsdn, rtree_leaf_elm_t *elm,
-    extent_t **result) {
+    extent_t **result, bool inactive_only) {
 	extent_t *extent1 = rtree_leaf_elm_extent_read(tsdn, &extents_rtree,
 	    elm, true);
 
-	if (extent1 == NULL) {
+	/* Slab implies active extents and should be skipped. */
+	if (extent1 == NULL || (inactive_only && rtree_leaf_elm_slab_read(tsdn,
+	    &extents_rtree, elm, true))) {
 		return lock_result_no_extent;
 	}
+
 	/*
 	 * It's possible that the extent changed out from under us, and with it
 	 * the leaf->extent mapping.  We have to recheck while holding the lock.
@@ -163,7 +166,8 @@ extent_rtree_leaf_elm_try_lock(tsdn_t *tsdn, rtree_leaf_elm_t *elm,
  * address, and NULL otherwise.
  */
 static extent_t *
-extent_lock_from_addr(tsdn_t *tsdn, rtree_ctx_t *rtree_ctx, void *addr) {
+extent_lock_from_addr(tsdn_t *tsdn, rtree_ctx_t *rtree_ctx, void *addr,
+    bool inactive_only) {
 	extent_t *ret = NULL;
 	rtree_leaf_elm_t *elm = rtree_leaf_elm_lookup(tsdn, &extents_rtree,
 	    rtree_ctx, (uintptr_t)addr, false, false);
@@ -172,7 +176,8 @@ extent_lock_from_addr(tsdn_t *tsdn, rtree_ctx_t *rtree_ctx, void *addr) {
 	}
 	lock_result_t lock_result;
 	do {
-		lock_result = extent_rtree_leaf_elm_try_lock(tsdn, elm, &ret);
+		lock_result = extent_rtree_leaf_elm_try_lock(tsdn, elm, &ret,
+		    inactive_only);
 	} while (lock_result == lock_result_failure);
 	return ret;
 }
@@ -917,7 +922,8 @@ extent_recycle_extract(tsdn_t *tsdn, arena_t *arena,
 	extent_hooks_assure_initialized(arena, r_extent_hooks);
 	extent_t *extent;
 	if (new_addr != NULL) {
-		extent = extent_lock_from_addr(tsdn, rtree_ctx, new_addr);
+		extent = extent_lock_from_addr(tsdn, rtree_ctx, new_addr,
+		    false);
 		if (extent != NULL) {
 			/*
 			 * We might null-out extent to report an error, but we
@@ -1088,8 +1094,8 @@ extent_recycle_split(tsdn_t *tsdn, arena_t *arena,
 			extent_deregister_no_gdump_sub(tsdn, to_leak);
 			extents_leak(tsdn, arena, r_extent_hooks, extents,
 			    to_leak, growing_retained);
-			assert(extent_lock_from_addr(tsdn, rtree_ctx, leak)
-			    == NULL);
+			assert(extent_lock_from_addr(tsdn, rtree_ctx, leak,
+			    false) == NULL);
 		}
 		return NULL;
 	}
@@ -1567,9 +1573,15 @@ extent_coalesce(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
 }
 
 static extent_t *
-extent_try_coalesce(tsdn_t *tsdn, arena_t *arena,
+extent_try_coalesce_impl(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, rtree_ctx_t *rtree_ctx, extents_t *extents,
-    extent_t *extent, bool *coalesced, bool growing_retained) {
+    extent_t *extent, bool *coalesced, bool growing_retained,
+    bool inactive_only) {
+	/*
+	 * We avoid checking / locking inactive neighbors for large size
+	 * classes, since they are eagerly coalesced on deallocation which can
+	 * cause lock contention.
+	 */
 	/*
 	 * Continue attempting to coalesce until failure, to protect against
 	 * races with other threads that are thwarted by this one.
@@ -1580,7 +1592,7 @@ extent_try_coalesce(tsdn_t *tsdn, arena_t *arena,
 
 		/* Try to coalesce forward. */
 		extent_t *next = extent_lock_from_addr(tsdn, rtree_ctx,
-		    extent_past_get(extent));
+		    extent_past_get(extent), inactive_only);
 		if (next != NULL) {
 			/*
 			 * extents->mtx only protects against races for
@@ -1606,7 +1618,7 @@ extent_try_coalesce(tsdn_t *tsdn, arena_t *arena,
 
 		/* Try to coalesce backward. */
 		extent_t *prev = extent_lock_from_addr(tsdn, rtree_ctx,
-		    extent_before_get(extent));
+		    extent_before_get(extent), inactive_only);
 		if (prev != NULL) {
 			bool can_coalesce = extent_can_coalesce(arena, extents,
 			    extent, prev);
@@ -1630,6 +1642,22 @@ extent_try_coalesce(tsdn_t *tsdn, arena_t *arena,
 		*coalesced = false;
 	}
 	return extent;
+}
+
+static extent_t *
+extent_try_coalesce(tsdn_t *tsdn, arena_t *arena,
+    extent_hooks_t **r_extent_hooks, rtree_ctx_t *rtree_ctx, extents_t *extents,
+    extent_t *extent, bool *coalesced, bool growing_retained) {
+	return extent_try_coalesce_impl(tsdn, arena, r_extent_hooks, rtree_ctx,
+	    extents, extent, coalesced, growing_retained, false);
+}
+
+static extent_t *
+extent_try_coalesce_large(tsdn_t *tsdn, arena_t *arena,
+    extent_hooks_t **r_extent_hooks, rtree_ctx_t *rtree_ctx, extents_t *extents,
+    extent_t *extent, bool *coalesced, bool growing_retained) {
+	return extent_try_coalesce_impl(tsdn, arena, r_extent_hooks, rtree_ctx,
+	    extents, extent, coalesced, growing_retained, true);
 }
 
 /*
@@ -1664,16 +1692,12 @@ extent_record(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
 	} else if (extent_size_get(extent) >= SC_LARGE_MINCLASS) {
 		/* Always coalesce large extents eagerly. */
 		bool coalesced;
-		size_t prev_size;
 		do {
-			prev_size = extent_size_get(extent);
 			assert(extent_state_get(extent) == extent_state_active);
-			extent = extent_try_coalesce(tsdn, arena,
+			extent = extent_try_coalesce_large(tsdn, arena,
 			    r_extent_hooks, rtree_ctx, extents, extent,
 			    &coalesced, growing_retained);
-		} while (coalesced &&
-		    extent_size_get(extent)
-		    >= prev_size + SC_LARGE_MINCLASS);
+		} while (coalesced);
 	}
 	extent_deactivate_locked(tsdn, arena, extents, extent);
 
