@@ -79,15 +79,10 @@ prof_alloc_time_set(tsdn_t *tsdn, const void *ptr, alloc_ctx_t *alloc_ctx,
 }
 
 JEMALLOC_ALWAYS_INLINE bool
-prof_sample_accum_update(tsd_t *tsd, size_t usize, bool update,
-    prof_tdata_t **tdata_out) {
-	prof_tdata_t *tdata;
-	int64_t bytes_until_sample;
-
-	cassert(config_prof);
+prof_sample_check(tsd_t *tsd, size_t usize, bool update) {
 	ssize_t check = update ? 0 : usize;
 
-	bytes_until_sample = tsd_bytes_until_sample_get(tsd);
+	int64_t bytes_until_sample = tsd_bytes_until_sample_get(tsd);
 	if (update) {
 		bytes_until_sample -= usize;
 		if (tsd_nominal(tsd)) {
@@ -96,8 +91,24 @@ prof_sample_accum_update(tsd_t *tsd, size_t usize, bool update,
 	}
 	if (likely(bytes_until_sample >= check)) {
 		return true;
-	} 
+	}
 
+	return false;
+}
+
+JEMALLOC_ALWAYS_INLINE bool
+prof_sample_accum_update(tsd_t *tsd, size_t usize, bool update,
+			 prof_tdata_t **tdata_out) {
+	prof_tdata_t *tdata;
+
+	cassert(config_prof);
+
+	/* Fastpath: no need to load tdata */
+	if (likely(prof_sample_check(tsd, usize, update))) {
+		return true;
+	}
+
+	bool booted = tsd_prof_tdata_get(tsd);
 	tdata = prof_tdata_get(tsd, true);
 	if (unlikely((uintptr_t)tdata <= (uintptr_t)PROF_TDATA_STATE_MAX)) {
 		tdata = NULL;
@@ -108,6 +119,15 @@ prof_sample_accum_update(tsd_t *tsd, size_t usize, bool update,
 	}
 
 	if (unlikely(tdata == NULL)) {
+		return true;
+	}
+
+	/*
+	 * If this was the first creation of tdata, then
+	 * prof_tdata_get() reset bytes_until_sample, so decrement and
+	 * check it again
+	 */
+	if (!booted && prof_sample_check(tsd, usize, update)) {
 		return true;
 	}
 
