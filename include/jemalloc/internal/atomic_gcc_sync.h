@@ -27,8 +27,10 @@ atomic_fence(atomic_memory_order_t mo) {
 	asm volatile("" ::: "memory");
 #  if defined(__i386__) || defined(__x86_64__)
 	/* This is implicit on x86. */
-#  elif defined(__ppc__)
+#  elif defined(__ppc64__)
 	asm volatile("lwsync");
+#  elif defined(__ppc__)
+	asm volatile("sync");
 #  elif defined(__sparc__) && defined(__arch64__)
 	if (mo == atomic_memory_order_acquire) {
 		asm volatile("membar #LoadLoad | #LoadStore");
