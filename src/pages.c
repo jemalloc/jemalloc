@@ -415,6 +415,12 @@ os_page_detect(void) {
 	SYSTEM_INFO si;
 	GetSystemInfo(&si);
 	return si.dwPageSize;
+#elif defined(__FreeBSD__)
+	/*
+	 * This returns the value obtained from
+	 * the auxv vector, avoiding a syscall.
+	 */
+	return getpagesize();
 #else
 	long result = sysconf(_SC_PAGESIZE);
 	if (result == -1) {
