@@ -27,6 +27,25 @@ ffs_u(unsigned bitmap) {
 	return JEMALLOC_INTERNAL_FFS(bitmap);
 }
 
+#ifdef JEMALLOC_INTERNAL_POPCOUNTL
+BIT_UTIL_INLINE unsigned
+popcount_lu(unsigned long bitmap) {
+  return JEMALLOC_INTERNAL_POPCOUNTL(bitmap);
+}
+#endif
+
+/*
+ * Clears first unset bit in bitmap, and returns
+ * place of bit.  bitmap *must not* be 0.
+ */
+
+BIT_UTIL_INLINE size_t
+cfs_lu(unsigned long* bitmap) {
+	size_t bit = ffs_lu(*bitmap) - 1;
+	*bitmap ^= ZU(1) << bit;
+	return bit;
+}
+
 BIT_UTIL_INLINE unsigned
 ffs_zu(size_t bitmap) {
 #if LG_SIZEOF_PTR == LG_SIZEOF_INT

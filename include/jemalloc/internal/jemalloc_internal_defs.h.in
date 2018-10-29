@@ -237,6 +237,12 @@
 #undef JEMALLOC_INTERNAL_FFS
 
 /*
+ * popcount*() functions to use for bitmapping.
+ */
+#undef JEMALLOC_INTERNAL_POPCOUNTL
+#undef JEMALLOC_INTERNAL_POPCOUNT
+
+/*
  * If defined, explicitly attempt to more uniformly distribute large allocation
  * pointer alignments across all cache indices.
  */
