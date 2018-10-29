@@ -283,10 +283,10 @@ arena_slab_reg_alloc_batch(extent_t *slab, const bin_info_t *bin_info,
 		regind = bitmap_sfu(slab_data->bitmap, &bin_info->bitmap_info);
 		ret = (void *)((uintptr_t)extent_addr_get(slab) +
 		    (uintptr_t)(bin_info->reg_size * regind));
-		extent_nfree_dec(slab);
 
 		*(ptrs + i) = ret;
 	}
+	extent_nfree_sub(slab, cnt);
 }
 
 #ifndef JEMALLOC_JET
