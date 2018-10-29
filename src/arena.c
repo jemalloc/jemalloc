@@ -273,19 +273,46 @@ arena_slab_reg_alloc_batch(extent_t *slab, const bin_info_t *bin_info,
 			   unsigned cnt, void** ptrs) {
 	arena_slab_data_t *slab_data = extent_slab_data_get(slab);
 
-	assert(extent_nfree_get(slab) > 0);
+	assert(extent_nfree_get(slab) >= cnt);
 	assert(!bitmap_full(slab_data->bitmap, &bin_info->bitmap_info));
 
-	size_t regind = 0;
+#if (! defined JEMALLOC_INTERNAL_POPCOUNTL) || (defined BITMAP_USE_TREE)
 	for (unsigned i = 0; i < cnt; i++) {
-		void *ret;
-
-		regind = bitmap_sfu(slab_data->bitmap, &bin_info->bitmap_info);
-		ret = (void *)((uintptr_t)extent_addr_get(slab) +
+		size_t regind = bitmap_sfu(slab_data->bitmap,
+					   &bin_info->bitmap_info);
+		*(ptrs + i) = (void *)((uintptr_t)extent_addr_get(slab) +
 		    (uintptr_t)(bin_info->reg_size * regind));
-
-		*(ptrs + i) = ret;
 	}
+#else
+	unsigned group = 0;
+	bitmap_t g = slab_data->bitmap[group];
+	unsigned i = 0;
+	while (i < cnt) {
+		while (g == 0) {
+			g = slab_data->bitmap[++group];
+		}
+		size_t shift = group << LG_BITMAP_GROUP_NBITS;
+		size_t pop = popcount_lu(g);
+		if (pop > (cnt - i)) {
+			pop = cnt - i;
+		}
+
+		/*
+		 * Load from memory locations only once, outside the
+		 * hot loop below.
+		 */
+		uintptr_t base = (uintptr_t)extent_addr_get(slab);
+		uintptr_t regsize = (uintptr_t)bin_info->reg_size;
+		while (pop--) {
+			size_t bit = cfs_lu(&g);
+			size_t regind = shift + bit;
+			*(ptrs + i) = (void *)(base + regsize * regind);
+
+			i++;
+		}
+		slab_data->bitmap[group] = g;
+	}
+#endif
 	extent_nfree_sub(slab, cnt);
 }
 
@@ -1331,7 +1358,7 @@ arena_tcache_fill_small(tsdn_t *tsdn, arena_t *arena, tcache_t *tcache,
 		} else {
 			cnt = 1;
 			void *ptr = arena_bin_malloc_hard(tsdn, arena, bin,
-							  binind);
+								binind);
 			/*
 			 * OOM.  tbin->avail isn't yet filled down to its first
 			 * element, so the successful allocations (if any) must
@@ -1352,7 +1379,7 @@ arena_tcache_fill_small(tsdn_t *tsdn, arena_t *arena, tcache_t *tcache,
 			for (unsigned j = 0; j < cnt; j++) {
 				void* ptr = *(tbin->avail - nfill + i + j);
 				arena_alloc_junk_small(ptr, &bin_infos[binind],
-						       true);
+							true);
 			}
 		}
 	}

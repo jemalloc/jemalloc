@@ -1429,6 +1429,21 @@ else
   fi
 fi
 
+JE_COMPILABLE([a program using __builtin_popcountl], [
+#include <stdio.h>
+#include <strings.h>
+#include <string.h>
+], [
+	{
+		int rv = __builtin_popcountl(0x08);
+		printf("%d\n", rv);
+	}
+], [je_cv_gcc_builtin_popcountl])
+if test "x${je_cv_gcc_builtin_popcountl}" = "xyes" ; then
+  AC_DEFINE([JEMALLOC_INTERNAL_POPCOUNT], [__builtin_popcount])
+  AC_DEFINE([JEMALLOC_INTERNAL_POPCOUNTL], [__builtin_popcountl])
+fi
+
 AC_ARG_WITH([lg_quantum],
   [AS_HELP_STRING([--with-lg-quantum=<lg-quantum>],
    [Base 2 log of minimum allocation alignment])],
@@ -1901,7 +1916,7 @@ if test "x${je_cv_madvise}" = "xyes" ; then
   if test "x${je_cv_madv_dontdump}" = "xyes" ; then
     AC_DEFINE([JEMALLOC_MADVISE_DONTDUMP], [ ])
   fi
- 
+
   dnl Check for madvise(..., MADV_[NO]HUGEPAGE).
   JE_COMPILABLE([madvise(..., MADV_[[NO]]HUGEPAGE)], [
 #include <sys/mman.h>
