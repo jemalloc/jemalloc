@@ -265,6 +265,12 @@ extent_nfree_dec(extent_t *extent) {
 }
 
 static inline void
+extent_nfree_sub(extent_t *extent, uint64_t n) {
+	assert(extent_slab_get(extent));
+	extent->e_bits -= (n << EXTENT_BITS_NFREE_SHIFT);
+}
+
+static inline void
 extent_sn_set(extent_t *extent, size_t sn) {
 	extent->e_bits = (extent->e_bits & ~EXTENT_BITS_SN_MASK) |
 	    ((uint64_t)sn << EXTENT_BITS_SN_SHIFT);
