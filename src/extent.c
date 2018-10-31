@@ -1696,6 +1696,12 @@ extent_dalloc_gap(tsdn_t *tsdn, arena_t *arena, extent_t *extent) {
 }
 
 static bool
+extent_may_dalloc(void) {
+	/* With retain enabled, the default dalloc always fails. */
+	return !opt_retain;
+}
+
+static bool
 extent_dalloc_default_impl(void *addr, size_t size) {
 	if (!have_dss || !extent_in_dss(addr)) {
 		return extent_dalloc_mmap(addr, size);
@@ -1750,16 +1756,20 @@ extent_dalloc_wrapper(tsdn_t *tsdn, arena_t *arena,
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, 0);
 
-	/*
-	 * Deregister first to avoid a race with other allocating threads, and
-	 * reregister if deallocation fails.
-	 */
-	extent_deregister(tsdn, extent);
-	if (!extent_dalloc_wrapper_try(tsdn, arena, r_extent_hooks, extent)) {
-		return;
+	/* Avoid calling the default extent_dalloc unless have to. */
+	if (*r_extent_hooks != &extent_hooks_default || extent_may_dalloc()) {
+		/*
+		 * Deregister first to avoid a race with other allocating
+		 * threads, and reregister if deallocation fails.
+		 */
+		extent_deregister(tsdn, extent);
+		if (!extent_dalloc_wrapper_try(tsdn, arena, r_extent_hooks,
+		    extent)) {
+			return;
+		}
+		extent_reregister(tsdn, extent);
 	}
 
-	extent_reregister(tsdn, extent);
 	if (*r_extent_hooks != &extent_hooks_default) {
 		extent_hook_pre_reentrancy(tsdn, arena);
 	}
