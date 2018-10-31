@@ -10,7 +10,9 @@
 JEMALLOC_ALWAYS_INLINE malloc_cpuid_t
 malloc_getcpu(void) {
 	assert(have_percpu_arena);
-#if defined(JEMALLOC_HAVE_SCHED_GETCPU)
+#if defined(_WIN32)
+	return GetCurrentProcessorNumber();
+#elif defined(JEMALLOC_HAVE_SCHED_GETCPU)
 	return (malloc_cpuid_t)sched_getcpu();
 #else
 	not_reached();
