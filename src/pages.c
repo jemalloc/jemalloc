@@ -186,6 +186,10 @@ pages_map(void *addr, size_t size, size_t alignment, bool *commit) {
 	 * touching existing mappings, and to mmap with specific alignment.
 	 */
 	{
+		if (os_overcommits) {
+			*commit = true;
+		}
+
 		int prot = *commit ? PAGES_PROT_COMMIT : PAGES_PROT_DECOMMIT;
 		int flags = mmap_flags;
 
