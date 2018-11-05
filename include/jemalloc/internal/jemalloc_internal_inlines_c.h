@@ -80,6 +80,7 @@ ipallocztm(tsdn_t *tsdn, size_t usize, size_t alignment, bool zero,
 	if (config_stats && is_internal && likely(ret != NULL)) {
 		arena_internal_add(iaalloc(tsdn, ret), isalloc(tsdn, ret));
 	}
+	arena_decay_tick(tsdn, arena);
 	return ret;
 }
 
@@ -116,6 +117,7 @@ idalloctm(tsdn_t *tsdn, void *ptr, tcache_t *tcache, alloc_ctx_t *alloc_ctx,
 		assert(tcache == NULL);
 	}
 	arena_dalloc(tsdn, ptr, tcache, alloc_ctx, slow_path);
+	arena_decay_tick(tsdn, arena);
 }
 
 JEMALLOC_ALWAYS_INLINE void
