@@ -21,7 +21,7 @@
 #  include "../jemalloc@install_suffix@.h"
 #endif
 
-#if (defined(JEMALLOC_OSATOMIC) || defined(JEMALLOC_OSSPIN))
+#if defined(JEMALLOC_OSATOMIC)
 #include <libkern/OSAtomic.h>
 #endif
 
