@@ -497,6 +497,7 @@ tcache_flush(tsd_t *tsd) {
 static void
 tcache_destroy(tsd_t *tsd, tcache_t *tcache, bool tsd_tcache) {
 	tcache_flush_cache(tsd, tcache);
+	arena_t *arena = tcache->arena;
 	tcache_arena_dissociate(tsd_tsdn(tsd), tcache);
 
 	if (tsd_tcache) {
@@ -508,6 +509,23 @@ tcache_destroy(tsd_t *tsd, tcache_t *tcache, bool tsd_tcache) {
 	} else {
 		/* Release both the tcache struct and avail array. */
 		idalloctm(tsd_tsdn(tsd), tcache, NULL, NULL, true, true);
+	}
+
+	/*
+	 * The deallocation and tcache flush above may not trigger decay since
+	 * we are on the tcache shutdown path (potentially with non-nominal
+	 * tsd).  Manually trigger decay to avoid pathological cases.  Also
+	 * include arena 0 because the tcache array is allocated from it.
+	 */
+	arena_decay(tsd_tsdn(tsd), arena_get(tsd_tsdn(tsd), 0, false),
+	    false, false);
+
+	unsigned nthreads = arena_nthreads_get(arena, false);
+	if (nthreads == 0) {
+		/* Force purging when no threads assigned to the arena anymore. */
+		arena_decay(tsd_tsdn(tsd), arena, false, true);
+	} else {
+		arena_decay(tsd_tsdn(tsd), arena, false, false);
 	}
 }
 
