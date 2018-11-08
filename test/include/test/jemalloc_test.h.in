@@ -25,7 +25,7 @@ extern "C" {
 
 #include "test/jemalloc_test_defs.h"
 
-#ifdef JEMALLOC_OSSPIN
+#if defined(JEMALLOC_OSATOMIC)
 #  include <libkern/OSAtomic.h>
 #endif
 

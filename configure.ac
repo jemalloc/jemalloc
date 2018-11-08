@@ -1830,7 +1830,7 @@ fi
 dnl ============================================================================
 dnl Check for atomic(3) operations as provided on Darwin.
 dnl We need this not for the atomic operations (which are provided above), but
-dnl rather for the OSSpinLock type it exposes.
+dnl rather for the OS_unfair_lock type it exposes.
 
 JE_COMPILABLE([Darwin OSAtomic*()], [
 #include <libkern/OSAtomic.h>
@@ -1997,21 +1997,6 @@ if test "x${je_cv_os_unfair_lock}" = "xyes" ; then
 fi
 
 dnl ============================================================================
-dnl Check for spinlock(3) operations as provided on Darwin.
-
-JE_COMPILABLE([Darwin OSSpin*()], [
-#include <libkern/OSAtomic.h>
-#include <inttypes.h>
-], [
-	OSSpinLock lock = 0;
-	OSSpinLockLock(&lock);
-	OSSpinLockUnlock(&lock);
-], [je_cv_osspin])
-if test "x${je_cv_osspin}" = "xyes" ; then
-  AC_DEFINE([JEMALLOC_OSSPIN], [ ])
-fi
-
-dnl ============================================================================
 dnl Darwin-related configuration.
 
 AC_ARG_ENABLE([zone-allocator],
@@ -2064,8 +2049,7 @@ dnl ============================================================================
 dnl Enable background threads if possible.
 
 if test "x${have_pthread}" = "x1" -a "x${have_dlsym}" = "x1" \
-    -a "x${je_cv_os_unfair_lock}" != "xyes" \
-    -a "x${je_cv_osspin}" != "xyes" ; then
+    -a "x${je_cv_os_unfair_lock}" != "xyes" ; then
   AC_DEFINE([JEMALLOC_BACKGROUND_THREAD])
 fi
 

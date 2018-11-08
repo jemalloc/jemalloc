@@ -144,9 +144,7 @@ malloc_mutex_init(malloc_mutex_t *mutex, const char *name,
 	}
 #  endif
 #elif (defined(JEMALLOC_OS_UNFAIR_LOCK))
-	mutex->lock = OS_UNFAIR_LOCK_INIT;
-#elif (defined(JEMALLOC_OSSPIN))
-	mutex->lock = 0;
+       mutex->lock = OS_UNFAIR_LOCK_INIT;
 #elif (defined(JEMALLOC_MUTEX_INIT_CB))
 	if (postpone_init) {
 		mutex->postponed_next = postponed_mutexes;

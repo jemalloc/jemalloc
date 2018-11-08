@@ -78,12 +78,6 @@
  */
 #undef JEMALLOC_OS_UNFAIR_LOCK
 
-/*
- * Defined if OSSpin*() functions are available, as provided by Darwin, and
- * documented in the spinlock(3) manual page.
- */
-#undef JEMALLOC_OSSPIN
-
 /* Defined if syscall(2) is usable. */
 #undef JEMALLOC_USE_SYSCALL
 
