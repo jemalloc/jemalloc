@@ -638,24 +638,33 @@ label_return:
 }
 
 static tcache_t *
-tcaches_elm_remove(tsd_t *tsd, tcaches_t *elm) {
+tcaches_elm_remove(tsd_t *tsd, tcaches_t *elm, bool allow_reinit) {
 	malloc_mutex_assert_owner(tsd_tsdn(tsd), &tcaches_mtx);
 
 	if (elm->tcache == NULL) {
 		return NULL;
 	}
 	tcache_t *tcache = elm->tcache;
-	elm->tcache = NULL;
+	if (allow_reinit) {
+		elm->tcache = TCACHES_ELM_NEED_REINIT;
+	} else {
+		elm->tcache = NULL;
+	}
+
+	if (tcache == TCACHES_ELM_NEED_REINIT) {
+		return NULL;
+	}
 	return tcache;
 }
 
 void
 tcaches_flush(tsd_t *tsd, unsigned ind) {
 	malloc_mutex_lock(tsd_tsdn(tsd), &tcaches_mtx);
-	tcache_t *tcache = tcaches_elm_remove(tsd, &tcaches[ind]);
+	tcache_t *tcache = tcaches_elm_remove(tsd, &tcaches[ind], true);
 	malloc_mutex_unlock(tsd_tsdn(tsd), &tcaches_mtx);
 	if (tcache != NULL) {
-		tcache_flush_cache(tsd, tcache);
+		/* Destroy the tcache; recreate in tcaches_get() if needed. */
+		tcache_destroy(tsd, tcache, false);
 	}
 }
 
@@ -663,7 +672,7 @@ void
 tcaches_destroy(tsd_t *tsd, unsigned ind) {
 	malloc_mutex_lock(tsd_tsdn(tsd), &tcaches_mtx);
 	tcaches_t *elm = &tcaches[ind];
-	tcache_t *tcache = tcaches_elm_remove(tsd, elm);
+	tcache_t *tcache = tcaches_elm_remove(tsd, elm, false);
 	elm->next = tcaches_avail;
 	tcaches_avail = elm;
 	malloc_mutex_unlock(tsd_tsdn(tsd), &tcaches_mtx);
