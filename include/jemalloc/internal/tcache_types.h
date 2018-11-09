@@ -53,4 +53,7 @@ typedef struct tcaches_s tcaches_t;
 /* Used in TSD static initializer only. Will be initialized to opt_tcache. */
 #define TCACHE_ENABLED_ZERO_INITIALIZER false
 
+/* Used for explicit tcache only. Means flushed but not destroyed. */
+#define TCACHES_ELM_NEED_REINIT ((tcache_t *)(uintptr_t)1)
+
 #endif /* JEMALLOC_INTERNAL_TCACHE_TYPES_H */

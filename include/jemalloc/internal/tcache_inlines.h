@@ -217,6 +217,9 @@ JEMALLOC_ALWAYS_INLINE tcache_t *
 tcaches_get(tsd_t *tsd, unsigned ind) {
 	tcaches_t *elm = &tcaches[ind];
 	if (unlikely(elm->tcache == NULL)) {
+		malloc_printf("<jemalloc>: invalid tcache id (%u).\n", ind);
+		abort();
+	} else if (unlikely(elm->tcache == TCACHES_ELM_NEED_REINIT)) {
 		elm->tcache = tcache_create_explicit(tsd);
 	}
 	return elm->tcache;
