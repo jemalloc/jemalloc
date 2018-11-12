@@ -121,7 +121,9 @@ tcache_bin_flush_small(tsd_t *tsd, tcache_t *tcache, cache_bin_t *tbin,
 		/* Lock the arena bin associated with the first object. */
 		extent_t *extent = item_extent[0];
 		arena_t *bin_arena = extent_arena_get(extent);
-		bin_t *bin = &bin_arena->bins[binind];
+		unsigned binshard = extent_binshard_get(extent);
+		assert(binshard < bin_infos[binind].n_shards);
+		bin_t *bin = &bin_arena->bins[binind].bin_shards[binshard];
 
 		if (config_prof && bin_arena == arena) {
 			if (arena_prof_accum(tsd_tsdn(tsd), arena,
@@ -145,9 +147,10 @@ tcache_bin_flush_small(tsd_t *tsd, tcache_t *tcache, cache_bin_t *tbin,
 			extent = item_extent[i];
 			assert(ptr != NULL && extent != NULL);
 
-			if (extent_arena_get(extent) == bin_arena) {
+			if (extent_arena_get(extent) == bin_arena
+			    && extent_binshard_get(extent) == binshard) {
 				arena_dalloc_bin_junked_locked(tsd_tsdn(tsd),
-				    bin_arena, extent, ptr);
+				    bin_arena, bin, binind, extent, ptr);
 			} else {
 				/*
 				 * This object was allocated via a different
@@ -169,8 +172,9 @@ tcache_bin_flush_small(tsd_t *tsd, tcache_t *tcache, cache_bin_t *tbin,
 		 * The flush loop didn't happen to flush to this thread's
 		 * arena, so the stats didn't get merged.  Manually do so now.
 		 */
-		bin_t *bin = &arena->bins[binind];
-		malloc_mutex_lock(tsd_tsdn(tsd), &bin->lock);
+		unsigned binshard;
+		bin_t *bin = arena_bin_choose_lock(tsd_tsdn(tsd), arena, binind,
+		    &binshard);
 		bin->stats.nflushes++;
 		bin->stats.nrequests += tbin->tstats.nrequests;
 		tbin->tstats.nrequests = 0;
@@ -557,9 +561,9 @@ tcache_stats_merge(tsdn_t *tsdn, tcache_t *tcache, arena_t *arena) {
 
 	/* Merge and reset tcache stats. */
 	for (i = 0; i < SC_NBINS; i++) {
-		bin_t *bin = &arena->bins[i];
 		cache_bin_t *tbin = tcache_small_bin_get(tcache, i);
-		malloc_mutex_lock(tsdn, &bin->lock);
+		unsigned binshard;
+		bin_t *bin = arena_bin_choose_lock(tsdn, arena, i, &binshard);
 		bin->stats.nrequests += tbin->tstats.nrequests;
 		malloc_mutex_unlock(tsdn, &bin->lock);
 		tbin->tstats.nrequests = 0;

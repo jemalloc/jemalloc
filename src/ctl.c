@@ -2913,8 +2913,10 @@ stats_mutexes_reset_ctl(tsd_t *tsd, const size_t *mib,
 		MUTEX_PROF_RESET(arena->base->mtx);
 
 		for (szind_t i = 0; i < SC_NBINS; i++) {
-			bin_t *bin = &arena->bins[i];
-			MUTEX_PROF_RESET(bin->lock);
+			for (unsigned j = 0; j < bin_infos[i].n_shards; j++) {
+				bin_t *bin = &arena->bins[i].bin_shards[j];
+				MUTEX_PROF_RESET(bin->lock);
+			}
 		}
 	}
 #undef MUTEX_PROF_RESET

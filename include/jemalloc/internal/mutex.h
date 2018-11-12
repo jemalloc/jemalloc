@@ -263,4 +263,26 @@ malloc_mutex_prof_read(tsdn_t *tsdn, mutex_prof_data_t *data,
 	atomic_store_u32(&data->n_waiting_thds, 0, ATOMIC_RELAXED);
 }
 
+static inline void
+malloc_mutex_prof_accum(tsdn_t *tsdn, mutex_prof_data_t *data,
+    malloc_mutex_t *mutex) {
+	mutex_prof_data_t *source = &mutex->prof_data;
+	/* Can only read holding the mutex. */
+	malloc_mutex_assert_owner(tsdn, mutex);
+
+	nstime_add(&data->tot_wait_time, &source->tot_wait_time);
+	if (nstime_compare(&source->max_wait_time, &data->max_wait_time) > 0) {
+		nstime_copy(&data->max_wait_time, &source->max_wait_time);
+	}
+	data->n_wait_times += source->n_wait_times;
+	data->n_spin_acquired += source->n_spin_acquired;
+	if (data->max_n_thds < source->max_n_thds) {
+		data->max_n_thds = source->max_n_thds;
+	}
+	/* n_wait_thds is not reported. */
+	atomic_store_u32(&data->n_waiting_thds, 0, ATOMIC_RELAXED);
+	data->n_owner_switches += source->n_owner_switches;
+	data->n_lock_ops += source->n_lock_ops;
+}
+
 #endif /* JEMALLOC_INTERNAL_MUTEX_H */

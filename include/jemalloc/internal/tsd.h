@@ -74,6 +74,7 @@ typedef void (*test_callback_t)(int *);
     O(iarena,			arena_t *,		arena_t *)	\
     O(arena,			arena_t *,		arena_t *)	\
     O(arenas_tdata,		arena_tdata_t *,	arena_tdata_t *)\
+    O(binshard,			unsigned,		unsigned)	\
     O(tcache,			tcache_t,		tcache_t)	\
     O(witness_tsd,              witness_tsd_t,		witness_tsdn_t)	\
     MALLOC_TEST_TSD
@@ -93,6 +94,7 @@ typedef void (*test_callback_t)(int *);
     NULL,								\
     NULL,								\
     NULL,								\
+    ((unsigned)-1),							\
     TCACHE_ZERO_INITIALIZER,						\
     WITNESS_TSD_INITIALIZER						\
     MALLOC_TEST_TSD_INITIALIZER						\
