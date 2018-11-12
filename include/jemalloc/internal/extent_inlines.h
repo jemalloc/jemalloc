@@ -70,6 +70,14 @@ extent_usize_get(const extent_t *extent) {
 	return sz_index2size(extent_szind_get(extent));
 }
 
+static inline unsigned
+extent_binshard_get(const extent_t *extent) {
+	unsigned binshard = (unsigned)((extent->e_bits &
+	    EXTENT_BITS_BINSHARD_MASK) >> EXTENT_BITS_BINSHARD_SHIFT);
+	assert(binshard < bin_infos[extent_szind_get(extent)].n_shards);
+	return binshard;
+}
+
 static inline size_t
 extent_sn_get(const extent_t *extent) {
 	return (size_t)((extent->e_bits & EXTENT_BITS_SN_MASK) >>
@@ -191,6 +199,14 @@ extent_arena_set(extent_t *extent, arena_t *arena) {
 }
 
 static inline void
+extent_binshard_set(extent_t *extent, unsigned binshard) {
+	/* The assertion assumes szind is set already. */
+	assert(binshard < bin_infos[extent_szind_get(extent)].n_shards);
+	extent->e_bits = (extent->e_bits & ~EXTENT_BITS_BINSHARD_MASK) |
+	    ((uint64_t)binshard << EXTENT_BITS_BINSHARD_SHIFT);
+}
+
+static inline void
 extent_addr_set(extent_t *extent, void *addr) {
 	extent->e_addr = addr;
 }
@@ -249,6 +265,16 @@ static inline void
 extent_nfree_set(extent_t *extent, unsigned nfree) {
 	assert(extent_slab_get(extent));
 	extent->e_bits = (extent->e_bits & ~EXTENT_BITS_NFREE_MASK) |
+	    ((uint64_t)nfree << EXTENT_BITS_NFREE_SHIFT);
+}
+
+static inline void
+extent_nfree_binshard_set(extent_t *extent, unsigned nfree, unsigned binshard) {
+	/* The assertion assumes szind is set already. */
+	assert(binshard < bin_infos[extent_szind_get(extent)].n_shards);
+	extent->e_bits = (extent->e_bits &
+	    (~EXTENT_BITS_NFREE_MASK & ~EXTENT_BITS_BINSHARD_MASK)) |
+	    ((uint64_t)binshard << EXTENT_BITS_BINSHARD_SHIFT) |
 	    ((uint64_t)nfree << EXTENT_BITS_NFREE_SHIFT);
 }
 

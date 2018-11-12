@@ -29,9 +29,10 @@ struct extent_s {
 	 * t: state
 	 * i: szind
 	 * f: nfree
+	 * s: bin_shard
 	 * n: sn
 	 *
-	 * nnnnnnnn ... nnnnffff ffffffii iiiiiitt zdcbaaaa aaaaaaaa
+	 * nnnnnnnn ... nnnnnnss ssssffff ffffffii iiiiiitt zdcbaaaa aaaaaaaa
 	 *
 	 * arena_ind: Arena from which this extent came, or all 1 bits if
 	 *            unassociated.
@@ -75,6 +76,8 @@ struct extent_s {
 	 *        sampled small regions.
 	 *
 	 * nfree: Number of free regions in slab.
+	 *
+	 * bin_shard: the shard of the bin from which this extent came.
 	 *
 	 * sn: Serial number (potentially non-unique).
 	 *
@@ -121,7 +124,15 @@ struct extent_s {
 #define EXTENT_BITS_NFREE_SHIFT  (EXTENT_BITS_SZIND_WIDTH + EXTENT_BITS_SZIND_SHIFT)
 #define EXTENT_BITS_NFREE_MASK  MASK(EXTENT_BITS_NFREE_WIDTH, EXTENT_BITS_NFREE_SHIFT)
 
-#define EXTENT_BITS_SN_SHIFT  (EXTENT_BITS_NFREE_WIDTH + EXTENT_BITS_NFREE_SHIFT)
+#define EXTENT_BITS_BINSHARD_WIDTH  6
+#define EXTENT_BITS_BINSHARD_SHIFT  (EXTENT_BITS_NFREE_WIDTH + EXTENT_BITS_NFREE_SHIFT)
+#define EXTENT_BITS_BINSHARD_MASK  MASK(EXTENT_BITS_BINSHARD_WIDTH, EXTENT_BITS_BINSHARD_SHIFT)
+
+/* Will make dynamic options. */
+#define OPT_N_BIN_SHARDS (1)
+#define OPT_BIN_SHARD_MAXSZIND (0)
+
+#define EXTENT_BITS_SN_SHIFT (EXTENT_BITS_BINSHARD_WIDTH + EXTENT_BITS_BINSHARD_SHIFT)
 #define EXTENT_BITS_SN_MASK  (UINT64_MAX << EXTENT_BITS_SN_SHIFT)
 
 	/* Pointer to the extent that this structure is responsible for. */

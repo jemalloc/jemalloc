@@ -90,6 +90,9 @@ struct arena_s {
 	 */
 	atomic_u_t		nthreads[2];
 
+	/* Next bin shard for binding new threads. Synchronization: atomic. */
+	atomic_u_t		binshard_next;
+
 	/*
 	 * When percpu_arena is enabled, to amortize the cost of reading /
 	 * updating the current CPU id, track the most recent thread accessing
@@ -204,7 +207,7 @@ struct arena_s {
 	 *
 	 * Synchronization: internal.
 	 */
-	bin_t			bins[SC_NBINS];
+	bins_t			bins[SC_NBINS];
 
 	/*
 	 * Base allocator, from which arena metadata are allocated.

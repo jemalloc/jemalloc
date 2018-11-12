@@ -7,6 +7,11 @@
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/sc.h"
 
+#define BIN_SHARDS_MAX (1 << EXTENT_BITS_BINSHARD_WIDTH)
+
+extern unsigned opt_bin_shard_maxszind;
+extern unsigned opt_n_bin_shards;
+
 /*
  * A bin contains a set of extents that are currently being used for slab
  * allocations.
@@ -42,6 +47,9 @@ struct bin_info_s {
 	/* Total number of regions in a slab for this bin's size class. */
 	uint32_t		nregs;
 
+	/* Number of sharded bins in each arena for this size class. */
+	uint32_t		n_shards;
+
 	/*
 	 * Metadata used to manipulate bitmaps for slabs associated with this
 	 * bin.
@@ -50,7 +58,6 @@ struct bin_info_s {
 };
 
 extern bin_info_t bin_infos[SC_NBINS];
-
 
 typedef struct bin_s bin_t;
 struct bin_s {
@@ -79,6 +86,13 @@ struct bin_s {
 	bin_stats_t	stats;
 };
 
+/* A set of sharded bins of the same size class. */
+typedef struct bins_s bins_t;
+struct bins_s {
+	/* Sharded bins.  Dynamically sized. */
+	bin_t *bin_shards;
+};
+
 void bin_infos_init(sc_data_t *sc_data, bin_info_t bin_infos[SC_NBINS]);
 void bin_boot();
 
@@ -94,7 +108,7 @@ void bin_postfork_child(tsdn_t *tsdn, bin_t *bin);
 static inline void
 bin_stats_merge(tsdn_t *tsdn, bin_stats_t *dst_bin_stats, bin_t *bin) {
 	malloc_mutex_lock(tsdn, &bin->lock);
-	malloc_mutex_prof_read(tsdn, &dst_bin_stats->mutex_data, &bin->lock);
+	malloc_mutex_prof_accum(tsdn, &dst_bin_stats->mutex_data, &bin->lock);
 	dst_bin_stats->nmalloc += bin->stats.nmalloc;
 	dst_bin_stats->ndalloc += bin->stats.ndalloc;
 	dst_bin_stats->nrequests += bin->stats.nrequests;

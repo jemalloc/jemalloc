@@ -6,6 +6,9 @@
 #include "jemalloc/internal/sc.h"
 #include "jemalloc/internal/witness.h"
 
+unsigned opt_bin_shard_maxszind;
+unsigned opt_n_bin_shards;
+
 bin_info_t bin_infos[SC_NBINS];
 
 void
@@ -18,6 +21,7 @@ bin_infos_init(sc_data_t *sc_data, bin_info_t bin_infos[SC_NBINS]) {
 		bin_info->slab_size = (sc->pgs << LG_PAGE);
 		bin_info->nregs =
 		    (uint32_t)(bin_info->slab_size / bin_info->reg_size);
+		bin_info->n_shards = (i < opt_bin_shard_maxszind) ? opt_n_bin_shards : 1;
 		bitmap_info_t bitmap_info = BITMAP_INFO_INITIALIZER(
 		    bin_info->nregs);
 		bin_info->bitmap_info = bitmap_info;
@@ -27,6 +31,8 @@ bin_infos_init(sc_data_t *sc_data, bin_info_t bin_infos[SC_NBINS]) {
 void
 bin_boot(sc_data_t *sc_data) {
 	assert(sc_data->initialized);
+	opt_bin_shard_maxszind = OPT_BIN_SHARD_MAXSZIND;
+	opt_n_bin_shards = OPT_N_BIN_SHARDS;
 	bin_infos_init(sc_data, bin_infos);
 }
 
