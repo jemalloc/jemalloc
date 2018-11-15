@@ -13,7 +13,7 @@ JEMALLOC_DIAGNOSTIC_DISABLE_SPURIOUS
 #define BACKGROUND_THREAD_DEFAULT false
 /* Read-only after initialization. */
 bool opt_background_thread = BACKGROUND_THREAD_DEFAULT;
-size_t opt_max_background_threads = MAX_BACKGROUND_THREAD_LIMIT;
+size_t opt_max_background_threads = MAX_BACKGROUND_THREAD_LIMIT + 1;
 
 /* Used for thread creation, termination and stats. */
 malloc_mutex_t background_thread_lock;
@@ -870,9 +870,8 @@ background_thread_boot1(tsdn_t *tsdn) {
 	assert(have_background_thread);
 	assert(narenas_total_get() > 0);
 
-	if (opt_max_background_threads == MAX_BACKGROUND_THREAD_LIMIT &&
-	    ncpus < MAX_BACKGROUND_THREAD_LIMIT) {
-		opt_max_background_threads = ncpus;
+	if (opt_max_background_threads > MAX_BACKGROUND_THREAD_LIMIT) {
+		opt_max_background_threads = DEFAULT_NUM_BACKGROUND_THREAD;
 	}
 	max_background_threads = opt_max_background_threads;
 
