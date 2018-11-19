@@ -9,6 +9,7 @@
 #include "jemalloc/internal/jemalloc_internal_types.h"
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/nstime.h"
+#include "jemalloc/internal/page_cache.h"
 #include "jemalloc/internal/ql.h"
 #include "jemalloc/internal/sc.h"
 #include "jemalloc/internal/smoothstep.h"
@@ -165,6 +166,15 @@ struct arena_s {
 	extents_t		extents_dirty;
 	extents_t		extents_muzzy;
 	extents_t		extents_retained;
+
+	/*
+	 * Cache of dirty pages used for slab allocation.  Prevents
+	 * excessive splitting and coalescing in the above extent
+	 * trees.
+	 *
+	 * Synchronization: internal.
+	 */
+	page_cache_t		page_cache;
 
 	/*
 	 * Decay-based purging state, responsible for scheduling extent state

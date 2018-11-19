@@ -992,6 +992,9 @@ arena_decay(tsdn_t *tsdn, arena_t *arena, bool is_background_thread, bool all) {
 static void
 arena_slab_dalloc(tsdn_t *tsdn, arena_t *arena, extent_t *slab) {
 	arena_nactive_sub(arena, extent_size_get(slab) >> LG_PAGE);
+	if (page_cache_put(tsdn, &arena->page_cache, slab)) {
+		return;
+	}
 
 	extent_hooks_t *extent_hooks = EXTENT_HOOKS_INITIALIZER;
 	arena_extents_dirty_dalloc(tsdn, arena, &extent_hooks, slab);
@@ -1126,6 +1129,16 @@ arena_reset(tsd_t *tsd, arena_t *arena) {
 	}
 
 	atomic_store_zu(&arena->nactive, 0, ATOMIC_RELAXED);
+	for (int i = 0; i < PAGE_CACHE_PAGES + 1; i++) {
+                extent_t *slab;
+                while (true) {
+			slab = page_cache_get(tsd_tsdn(tsd), &arena->page_cache, i);
+                        if (!slab)
+				break;
+			extent_hooks_t *extent_hooks = EXTENT_HOOKS_INITIALIZER;
+			arena_extents_dirty_dalloc(tsd_tsdn(tsd), arena, &extent_hooks, slab);
+		}
+	}
 }
 
 static void
@@ -1216,9 +1229,23 @@ arena_slab_alloc(tsdn_t *tsdn, arena_t *arena, szind_t binind, unsigned binshard
 	szind_t szind = sz_size2index(bin_info->reg_size);
 	bool zero = false;
 	bool commit = true;
-	extent_t *slab = extents_alloc(tsdn, arena, &extent_hooks,
-	    &arena->extents_dirty, NULL, bin_info->slab_size, 0, PAGE, true,
-	    binind, &zero, &commit);
+        extent_t *slab = NULL;
+
+        uint64_t pages = bin_info->slab_size >> LG_PAGE;
+        slab = page_cache_get(tsdn, &arena->page_cache, pages);
+        if (slab) {
+		extent_deregister(tsdn, slab);
+		extent_szind_set(slab, binind);
+		extent_slab_set(slab, true);
+		extent_register(tsdn, slab);
+        }
+
+        if (slab == NULL) {
+          slab = extents_alloc(tsdn, arena, &extent_hooks,
+                               &arena->extents_dirty, NULL, bin_info->slab_size, 0, PAGE, true,
+                               binind, &zero, &commit);
+        }
+
 	if (slab == NULL && arena_may_have_muzzy(arena)) {
 		slab = extents_alloc(tsdn, arena, &extent_hooks,
 		    &arena->extents_muzzy, NULL, bin_info->slab_size, 0, PAGE,
@@ -2026,6 +2053,9 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 	    WITNESS_RANK_EXTENT_AVAIL, malloc_mutex_rank_exclusive)) {
 		goto label_error;
 	}
+	if (page_cache_init(&arena->page_cache)) {
+		goto label_error;
+	}
 
 	/* Initialize bins. */
 	uintptr_t bin_addr = (uintptr_t)arena + sizeof(arena_t);
@@ -2170,21 +2200,26 @@ arena_prefork3(tsdn_t *tsdn, arena_t *arena) {
 
 void
 arena_prefork4(tsdn_t *tsdn, arena_t *arena) {
-	malloc_mutex_prefork(tsdn, &arena->extent_avail_mtx);
+	page_cache_prefork(tsdn, &arena->page_cache);
 }
 
 void
 arena_prefork5(tsdn_t *tsdn, arena_t *arena) {
-	base_prefork(tsdn, arena->base);
+	malloc_mutex_prefork(tsdn, &arena->extent_avail_mtx);
 }
 
 void
 arena_prefork6(tsdn_t *tsdn, arena_t *arena) {
-	malloc_mutex_prefork(tsdn, &arena->large_mtx);
+	base_prefork(tsdn, arena->base);
 }
 
 void
 arena_prefork7(tsdn_t *tsdn, arena_t *arena) {
+	malloc_mutex_prefork(tsdn, &arena->large_mtx);
+}
+
+void
+arena_prefork8(tsdn_t *tsdn, arena_t *arena) {
 	for (unsigned i = 0; i < SC_NBINS; i++) {
 		for (unsigned j = 0; j < bin_infos[i].n_shards; j++) {
 			bin_prefork(tsdn, &arena->bins[i].bin_shards[j]);
@@ -2208,6 +2243,7 @@ arena_postfork_parent(tsdn_t *tsdn, arena_t *arena) {
 	extents_postfork_parent(tsdn, &arena->extents_dirty);
 	extents_postfork_parent(tsdn, &arena->extents_muzzy);
 	extents_postfork_parent(tsdn, &arena->extents_retained);
+	page_cache_postfork_parent(tsdn, &arena->page_cache);
 	malloc_mutex_postfork_parent(tsdn, &arena->extent_grow_mtx);
 	malloc_mutex_postfork_parent(tsdn, &arena->decay_dirty.mtx);
 	malloc_mutex_postfork_parent(tsdn, &arena->decay_muzzy.mtx);
@@ -2254,6 +2290,7 @@ arena_postfork_child(tsdn_t *tsdn, arena_t *arena) {
 	extents_postfork_child(tsdn, &arena->extents_dirty);
 	extents_postfork_child(tsdn, &arena->extents_muzzy);
 	extents_postfork_child(tsdn, &arena->extents_retained);
+	page_cache_postfork_child(tsdn, &arena->page_cache);
 	malloc_mutex_postfork_child(tsdn, &arena->extent_grow_mtx);
 	malloc_mutex_postfork_child(tsdn, &arena->decay_dirty.mtx);
 	malloc_mutex_postfork_child(tsdn, &arena->decay_muzzy.mtx);

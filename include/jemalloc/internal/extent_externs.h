@@ -19,6 +19,9 @@ extent_hooks_t *extent_hooks_get(arena_t *arena);
 extent_hooks_t *extent_hooks_set(tsd_t *tsd, arena_t *arena,
     extent_hooks_t *extent_hooks);
 
+void extent_deregister(tsdn_t *tsdn, extent_t *extent);
+bool extent_register(tsdn_t *tsdn, extent_t *extent);
+
 #ifdef JEMALLOC_JET
 size_t extent_size_quantize_floor(size_t size);
 size_t extent_size_quantize_ceil(size_t size);

@@ -579,8 +579,6 @@ TEST_BEGIN(test_decay_never) {
 		dallocx(ptrs[i], flags);
 		size_t pdirty = get_arena_pdirty(arena_ind);
 		size_t pmuzzy = get_arena_pmuzzy(arena_ind);
-		assert_zu_gt(pdirty, pdirty_prev,
-		    "Expected dirty pages to increase.");
 		assert_zu_eq(pmuzzy, 0, "Unexpected muzzy pages");
 		pdirty_prev = pdirty;
 	}

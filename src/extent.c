@@ -103,7 +103,6 @@ static atomic_zu_t highpages;
  * definition.
  */
 
-static void extent_deregister(tsdn_t *tsdn, extent_t *extent);
 static extent_t *extent_recycle(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, extents_t *extents, void *new_addr,
     size_t usize, size_t pad, size_t alignment, bool slab, szind_t szind,
@@ -747,7 +746,7 @@ extent_register_impl(tsdn_t *tsdn, extent_t *extent, bool gdump_add) {
 	return false;
 }
 
-static bool
+bool
 extent_register(tsdn_t *tsdn, extent_t *extent) {
 	return extent_register_impl(tsdn, extent, true);
 }
@@ -810,7 +809,7 @@ extent_deregister_impl(tsdn_t *tsdn, extent_t *extent, bool gdump) {
 	}
 }
 
-static void
+void
 extent_deregister(tsdn_t *tsdn, extent_t *extent) {
 	extent_deregister_impl(tsdn, extent, true);
 }
