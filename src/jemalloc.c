@@ -767,9 +767,10 @@ init_opt_stats_print_opts(const char *v, size_t vlen) {
 	assert(opts_len == strlen(opt_stats_print_opts));
 }
 
+/* Reads the next size pair in a multi-sized option. */
 static bool
-malloc_conf_slab_sizes_next(const char **slab_size_segment_cur,
-    size_t *vlen_left, size_t *slab_start, size_t *slab_end, size_t *pgs) {
+malloc_conf_multi_sizes_next(const char **slab_size_segment_cur,
+    size_t *vlen_left, size_t *slab_start, size_t *slab_end, size_t *new_size) {
 	const char *cur = *slab_size_segment_cur;
 	char *end;
 	uintmax_t um;
@@ -797,7 +798,7 @@ malloc_conf_slab_sizes_next(const char **slab_size_segment_cur,
 	if (get_errno() != 0) {
 		return true;
 	}
-	*pgs = (size_t)um;
+	*new_size = (size_t)um;
 
 	/* Consume the separator if there is one. */
 	if (*end == '|') {
@@ -923,7 +924,7 @@ malloc_slow_flag_init(void) {
 }
 
 static void
-malloc_conf_init(sc_data_t *sc_data) {
+malloc_conf_init(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS]) {
 	unsigned i;
 	char buf[PATH_MAX + 1];
 	const char *opts, *k, *v;
@@ -1161,6 +1162,28 @@ malloc_conf_init(sc_data_t *sc_data) {
 			}
 			CONF_HANDLE_UNSIGNED(opt_narenas, "narenas", 1,
 			    UINT_MAX, yes, no, false)
+			if (CONF_MATCH("bin_shards")) {
+				const char *bin_shards_segment_cur = v;
+				size_t vlen_left = vlen;
+				do {
+					size_t size_start;
+					size_t size_end;
+					size_t nshards;
+					bool err = malloc_conf_multi_sizes_next(
+					    &bin_shards_segment_cur, &vlen_left,
+					    &size_start, &size_end, &nshards);
+					if (err || bin_update_shard_size(
+					    bin_shard_sizes, size_start,
+					    size_end, nshards)) {
+						malloc_conf_error(
+						    "Invalid settings for "
+						    "bin_shards", k, klen, v,
+						    vlen);
+						break;
+					}
+				} while (vlen_left > 0);
+				continue;
+			}
 			CONF_HANDLE_SSIZE_T(opt_dirty_decay_ms,
 			    "dirty_decay_ms", -1, NSTIME_SEC_MAX * KQU(1000) <
 			    QU(SSIZE_MAX) ? NSTIME_SEC_MAX * KQU(1000) :
@@ -1256,7 +1279,7 @@ malloc_conf_init(sc_data_t *sc_data) {
 					size_t slab_start;
 					size_t slab_end;
 					size_t pgs;
-					err = malloc_conf_slab_sizes_next(
+					err = malloc_conf_multi_sizes_next(
 					    &slab_size_segment_cur,
 					    &vlen_left, &slab_start, &slab_end,
 					    &pgs);
@@ -1390,6 +1413,8 @@ malloc_init_hard_a0_locked() {
 	 * out of sc_data_global are final.
 	 */
 	sc_boot(&sc_data);
+	unsigned bin_shard_sizes[SC_NBINS];
+	bin_shard_sizes_boot(bin_shard_sizes);
 	/*
 	 * prof_boot0 only initializes opt_prof_prefix.  We need to do it before
 	 * we parse malloc_conf options, in case malloc_conf parsing overwrites
@@ -1398,9 +1423,9 @@ malloc_init_hard_a0_locked() {
 	if (config_prof) {
 		prof_boot0();
 	}
-	malloc_conf_init(&sc_data);
+	malloc_conf_init(&sc_data, bin_shard_sizes);
 	sz_boot(&sc_data);
-	bin_boot(&sc_data);
+	bin_boot(&sc_data, bin_shard_sizes);
 
 	if (opt_stats_print) {
 		/* Print statistics at exit. */

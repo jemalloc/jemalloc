@@ -1346,8 +1346,7 @@ bin_t *
 arena_bin_choose_lock(tsdn_t *tsdn, arena_t *arena, szind_t binind,
     unsigned *binshard) {
 	bin_t *bin;
-	if (binind >= opt_bin_shard_maxszind || tsdn_null(tsdn) ||
-	    tsd_arena_get(tsdn_tsd(tsdn)) == NULL) {
+	if (tsdn_null(tsdn) || tsd_arena_get(tsdn_tsd(tsdn)) == NULL) {
 		*binshard = 0;
 	} else {
 		*binshard = tsd_binshard_get(tsdn_tsd(tsdn)) %
@@ -1923,9 +1922,11 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 		}
 	}
 
-	size_t arena_size = sizeof(arena_t) +
-	    sizeof(bin_t) * opt_n_bin_shards * opt_bin_shard_maxszind +
-	    sizeof(bin_t) * (SC_NBINS - opt_bin_shard_maxszind);
+	unsigned nbins_total = 0;
+	for (i = 0; i < SC_NBINS; i++) {
+		nbins_total += bin_infos[i].n_shards;
+	}
+	size_t arena_size = sizeof(arena_t) + sizeof(bin_t) * nbins_total;
 	arena = (arena_t *)base_alloc(tsdn, base, arena_size, CACHELINE);
 	if (arena == NULL) {
 		goto label_error;

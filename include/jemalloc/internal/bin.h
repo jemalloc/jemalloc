@@ -8,9 +8,7 @@
 #include "jemalloc/internal/sc.h"
 
 #define BIN_SHARDS_MAX (1 << EXTENT_BITS_BINSHARD_WIDTH)
-
-extern unsigned opt_bin_shard_maxszind;
-extern unsigned opt_n_bin_shards;
+#define N_BIN_SHARDS_DEFAULT 1
 
 /*
  * A bin contains a set of extents that are currently being used for slab
@@ -93,8 +91,10 @@ struct bins_s {
 	bin_t *bin_shards;
 };
 
-void bin_infos_init(sc_data_t *sc_data, bin_info_t bin_infos[SC_NBINS]);
-void bin_boot();
+void bin_shard_sizes_boot(unsigned bin_shards[SC_NBINS]);
+bool bin_update_shard_size(unsigned bin_shards[SC_NBINS], size_t start_size,
+    size_t end_size, size_t nshards);
+void bin_boot(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS]);
 
 /* Initializes a bin to empty.  Returns true on error. */
 bool bin_init(bin_t *bin);
