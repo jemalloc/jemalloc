@@ -127,6 +127,7 @@ INDEX_PROTO(arena_i)
 CTL_PROTO(arenas_bin_i_size)
 CTL_PROTO(arenas_bin_i_nregs)
 CTL_PROTO(arenas_bin_i_slab_size)
+CTL_PROTO(arenas_bin_i_nshards)
 INDEX_PROTO(arenas_bin_i)
 CTL_PROTO(arenas_lextent_i_size)
 INDEX_PROTO(arenas_lextent_i)
@@ -355,7 +356,8 @@ static const ctl_indexed_node_t arena_node[] = {
 static const ctl_named_node_t arenas_bin_i_node[] = {
 	{NAME("size"),		CTL(arenas_bin_i_size)},
 	{NAME("nregs"),		CTL(arenas_bin_i_nregs)},
-	{NAME("slab_size"),	CTL(arenas_bin_i_slab_size)}
+	{NAME("slab_size"),	CTL(arenas_bin_i_slab_size)},
+	{NAME("nshards"),	CTL(arenas_bin_i_nshards)}
 };
 static const ctl_named_node_t super_arenas_bin_i_node[] = {
 	{NAME(""),		CHILD(named, arenas_bin_i)}
@@ -2490,6 +2492,7 @@ CTL_RO_NL_GEN(arenas_nhbins, nhbins, unsigned)
 CTL_RO_NL_GEN(arenas_bin_i_size, bin_infos[mib[2]].reg_size, size_t)
 CTL_RO_NL_GEN(arenas_bin_i_nregs, bin_infos[mib[2]].nregs, uint32_t)
 CTL_RO_NL_GEN(arenas_bin_i_slab_size, bin_infos[mib[2]].slab_size, size_t)
+CTL_RO_NL_GEN(arenas_bin_i_nshards, bin_infos[mib[2]].n_shards, uint32_t)
 static const ctl_named_node_t *
 arenas_bin_i_index(tsdn_t *tsdn, const size_t *mib,
     size_t miblen, size_t i) {
