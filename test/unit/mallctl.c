@@ -706,6 +706,7 @@ TEST_BEGIN(test_arenas_bin_constants) {
 	TEST_ARENAS_BIN_CONSTANT(uint32_t, nregs, bin_infos[0].nregs);
 	TEST_ARENAS_BIN_CONSTANT(size_t, slab_size,
 	    bin_infos[0].slab_size);
+	TEST_ARENAS_BIN_CONSTANT(uint32_t, nshards, bin_infos[0].n_shards);
 
 #undef TEST_ARENAS_BIN_CONSTANT
 }

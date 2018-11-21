@@ -249,6 +249,7 @@ stats_arena_bins_print(emitter_t *emitter, bool mutex, unsigned i) {
 	COL(nmalloc, right, 13, uint64)
 	COL(ndalloc, right, 13, uint64)
 	COL(nrequests, right, 13, uint64)
+	COL(nshards, right, 9, unsigned)
 	COL(curregs, right, 13, size)
 	COL(curslabs, right, 13, size)
 	COL(regs, right, 5, unsigned)
@@ -293,7 +294,7 @@ stats_arena_bins_print(emitter_t *emitter, bool mutex, unsigned i) {
 		uint64_t nslabs;
 		size_t reg_size, slab_size, curregs;
 		size_t curslabs;
-		uint32_t nregs;
+		uint32_t nregs, nshards;
 		uint64_t nmalloc, ndalloc, nrequests, nfills, nflushes;
 		uint64_t nreslabs;
 
@@ -310,6 +311,7 @@ stats_arena_bins_print(emitter_t *emitter, bool mutex, unsigned i) {
 		CTL_M2_GET("arenas.bin.0.size", j, &reg_size, size_t);
 		CTL_M2_GET("arenas.bin.0.nregs", j, &nregs, uint32_t);
 		CTL_M2_GET("arenas.bin.0.slab_size", j, &slab_size, size_t);
+		CTL_M2_GET("arenas.bin.0.nshards", j, &nshards, uint32_t);
 
 		CTL_M2_M4_GET("stats.arenas.0.bins.0.nmalloc", i, j, &nmalloc,
 		    uint64_t);
@@ -383,6 +385,7 @@ stats_arena_bins_print(emitter_t *emitter, bool mutex, unsigned i) {
 		col_nmalloc.uint64_val = nmalloc;
 		col_ndalloc.uint64_val = ndalloc;
 		col_nrequests.uint64_val = nrequests;
+		col_nshards.unsigned_val = nshards;
 		col_curregs.size_val = curregs;
 		col_curslabs.size_val = curslabs;
 		col_regs.unsigned_val = nregs;
@@ -1142,6 +1145,10 @@ stats_general_print(emitter_t *emitter) {
 			CTL_M2_GET("arenas.bin.0.slab_size", i, &sv, size_t);
 			emitter_json_kv(emitter, "slab_size", emitter_type_size,
 			    &sv);
+
+			CTL_M2_GET("arenas.bin.0.nshards", i, &u32v, uint32_t);
+			emitter_json_kv(emitter, "nshards", emitter_type_uint32,
+			    &u32v);
 
 			emitter_json_object_end(emitter);
 		}
