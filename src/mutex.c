@@ -55,7 +55,8 @@ malloc_mutex_lock_slow(malloc_mutex_t *mutex) {
 	int cnt = 0, max_cnt = MALLOC_MUTEX_MAX_SPIN;
 	do {
 		spin_cpu_spinwait();
-		if (!malloc_mutex_trylock_final(mutex)) {
+		if (!atomic_load_b(&mutex->locked, ATOMIC_RELAXED)
+                    && !malloc_mutex_trylock_final(mutex)) {
 			data->n_spin_acquired++;
 			return;
 		}
