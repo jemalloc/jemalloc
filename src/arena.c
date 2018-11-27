@@ -1349,8 +1349,7 @@ arena_bin_choose_lock(tsdn_t *tsdn, arena_t *arena, szind_t binind,
 	if (tsdn_null(tsdn) || tsd_arena_get(tsdn_tsd(tsdn)) == NULL) {
 		*binshard = 0;
 	} else {
-		*binshard = tsd_binshard_get(tsdn_tsd(tsdn)) %
-		    bin_infos[binind].n_shards;
+		*binshard = tsd_binshardsp_get(tsdn_tsd(tsdn))->binshard[binind];
 	}
 	assert(*binshard < bin_infos[binind].n_shards);
 	bin = &arena->bins[binind].bin_shards[*binshard];
