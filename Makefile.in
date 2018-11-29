@@ -169,6 +169,7 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/base.c \
 	$(srcroot)test/unit/bitmap.c \
 	$(srcroot)test/unit/bit_util.c \
+	$(srcroot)test/unit/binshard.c \
 	$(srcroot)test/unit/ckh.c \
 	$(srcroot)test/unit/decay.c \
 	$(srcroot)test/unit/div.c \
