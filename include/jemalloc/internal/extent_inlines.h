@@ -35,18 +35,19 @@ extent_unlock2(tsdn_t *tsdn, extent_t *extent1, extent_t *extent2) {
 	    (uintptr_t)extent2);
 }
 
-static inline arena_t *
-extent_arena_get(const extent_t *extent) {
+static inline unsigned
+extent_arena_ind_get(const extent_t *extent) {
 	unsigned arena_ind = (unsigned)((extent->e_bits &
 	    EXTENT_BITS_ARENA_MASK) >> EXTENT_BITS_ARENA_SHIFT);
-	/*
-	 * The following check is omitted because we should never actually read
-	 * a NULL arena pointer.
-	 */
-	if (false && arena_ind >= MALLOCX_ARENA_LIMIT) {
-		return NULL;
-	}
 	assert(arena_ind < MALLOCX_ARENA_LIMIT);
+
+	return arena_ind;
+}
+
+static inline arena_t *
+extent_arena_get(const extent_t *extent) {
+	unsigned arena_ind = extent_arena_ind_get(extent);
+
 	return (arena_t *)atomic_load_p(&arenas[arena_ind], ATOMIC_ACQUIRE);
 }
 
