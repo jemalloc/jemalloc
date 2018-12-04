@@ -120,7 +120,9 @@ tcache_bin_flush_small(tsd_t *tsd, tcache_t *tcache, cache_bin_t *tbin,
 	while (nflush > 0) {
 		/* Lock the arena bin associated with the first object. */
 		extent_t *extent = item_extent[0];
-		arena_t *bin_arena = extent_arena_get(extent);
+		unsigned bin_arena_ind = extent_arena_ind_get(extent);
+		arena_t *bin_arena = arena_get(tsd_tsdn(tsd), bin_arena_ind,
+		    false);
 		unsigned binshard = extent_binshard_get(extent);
 		assert(binshard < bin_infos[binind].n_shards);
 		bin_t *bin = &bin_arena->bins[binind].bin_shards[binshard];
@@ -146,7 +148,7 @@ tcache_bin_flush_small(tsd_t *tsd, tcache_t *tcache, cache_bin_t *tbin,
 			extent = item_extent[i];
 			assert(ptr != NULL && extent != NULL);
 
-			if (extent_arena_get(extent) == bin_arena
+			if (extent_arena_ind_get(extent) == bin_arena_ind
 			    && extent_binshard_get(extent) == binshard) {
 				arena_dalloc_bin_junked_locked(tsd_tsdn(tsd),
 				    bin_arena, bin, binind, extent, ptr);
@@ -208,7 +210,9 @@ tcache_bin_flush_large(tsd_t *tsd, cache_bin_t *tbin, szind_t binind,
 	while (nflush > 0) {
 		/* Lock the arena associated with the first object. */
 		extent_t *extent = item_extent[0];
-		arena_t *locked_arena = extent_arena_get(extent);
+		unsigned locked_arena_ind = extent_arena_ind_get(extent);
+		arena_t *locked_arena = arena_get(tsd_tsdn(tsd),
+		    locked_arena_ind, false);
 		bool idump;
 
 		if (config_prof) {
@@ -223,7 +227,7 @@ tcache_bin_flush_large(tsd_t *tsd, cache_bin_t *tbin, szind_t binind,
 			void *ptr = *(tbin->avail - 1 - i);
 			assert(ptr != NULL);
 			extent = item_extent[i];
-			if (extent_arena_get(extent) == locked_arena) {
+			if (extent_arena_ind_get(extent) == locked_arena_ind) {
 				large_dalloc_prep_junked_locked(tsd_tsdn(tsd),
 				    extent);
 			}
@@ -253,7 +257,7 @@ tcache_bin_flush_large(tsd_t *tsd, cache_bin_t *tbin, szind_t binind,
 			extent = item_extent[i];
 			assert(ptr != NULL && extent != NULL);
 
-			if (extent_arena_get(extent) == locked_arena) {
+			if (extent_arena_ind_get(extent) == locked_arena_ind) {
 				large_dalloc_finish(tsd_tsdn(tsd), extent);
 			} else {
 				/*
