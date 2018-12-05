@@ -45,6 +45,8 @@ struct tcache_s {
 	 */
 	cache_bin_array_descriptor_t cache_bin_array_descriptor;
 
+	uint8_t binshard[SC_NBINS];
+
 	/* The arena this tcache is associated with. */
 	arena_t		*arena;
 	/* Next bin to GC. */

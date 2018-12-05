@@ -3,7 +3,6 @@
 
 #include "jemalloc/internal/arena_types.h"
 #include "jemalloc/internal/assert.h"
-#include "jemalloc/internal/bin_types.h"
 #include "jemalloc/internal/jemalloc_internal_externs.h"
 #include "jemalloc/internal/prof_types.h"
 #include "jemalloc/internal/ql.h"
@@ -75,7 +74,6 @@ typedef void (*test_callback_t)(int *);
     O(iarena,			arena_t *,		arena_t *)	\
     O(arena,			arena_t *,		arena_t *)	\
     O(arenas_tdata,		arena_tdata_t *,	arena_tdata_t *)\
-    O(binshards,		tsd_binshards_t,	tsd_binshards_t)\
     O(tcache,			tcache_t,		tcache_t)	\
     O(witness_tsd,              witness_tsd_t,		witness_tsdn_t)	\
     MALLOC_TEST_TSD
@@ -95,7 +93,6 @@ typedef void (*test_callback_t)(int *);
     NULL,								\
     NULL,								\
     NULL,								\
-    TSD_BINSHARDS_ZERO_INITIALIZER,					\
     TCACHE_ZERO_INITIALIZER,						\
     WITNESS_TSD_INITIALIZER						\
     MALLOC_TEST_TSD_INITIALIZER						\

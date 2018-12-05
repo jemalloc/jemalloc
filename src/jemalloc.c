@@ -379,14 +379,6 @@ arena_bind(tsd_t *tsd, unsigned ind, bool internal) {
 		tsd_iarena_set(tsd, arena);
 	} else {
 		tsd_arena_set(tsd, arena);
-		unsigned shard = atomic_fetch_add_u(&arena->binshard_next, 1,
-		    ATOMIC_RELAXED);
-		tsd_binshards_t *bins = tsd_binshardsp_get(tsd);
-		for (unsigned i = 0; i < SC_NBINS; i++) {
-			assert(bin_infos[i].n_shards > 0 &&
-			    bin_infos[i].n_shards <= BIN_SHARDS_MAX);
-			bins->binshard[i] = shard % bin_infos[i].n_shards;
-		}
 	}
 }
 

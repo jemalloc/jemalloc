@@ -1343,16 +1343,26 @@ arena_bin_malloc_hard(tsdn_t *tsdn, arena_t *arena, bin_t *bin,
 
 /* Choose a bin shard and return the locked bin. */
 bin_t *
-arena_bin_choose_lock(tsdn_t *tsdn, arena_t *arena, szind_t binind,
-    unsigned *binshard) {
-	bin_t *bin;
-	if (tsdn_null(tsdn) || tsd_arena_get(tsdn_tsd(tsdn)) == NULL) {
-		*binshard = 0;
-	} else {
-		*binshard = tsd_binshardsp_get(tsdn_tsd(tsdn))->binshard[binind];
-	}
+arena_bin_choose_lock(tsdn_t *tsdn, arena_t *arena, tcache_t *tcache,
+    szind_t binind, unsigned *binshard) {
+	assert(tcache != NULL);
+
+	*binshard = tcache->binshard[binind];
 	assert(*binshard < bin_infos[binind].n_shards);
-	bin = &arena->bins[binind].bin_shards[*binshard];
+
+	bin_t *bin = &arena->bins[binind].bin_shards[*binshard];
+	malloc_mutex_lock(tsdn, &bin->lock);
+
+	return bin;
+}
+
+/* Used on non tcache path only.  */
+static bin_t *
+arena_bin_choose_lock_no_tcache(tsdn_t *tsdn, arena_t *arena, szind_t binind,
+    unsigned *binshard) {
+	bin_t *bin = &arena->bins[binind].bin_shards[0];
+
+	*binshard = 0;
 	malloc_mutex_lock(tsdn, &bin->lock);
 
 	return bin;
@@ -1370,7 +1380,8 @@ arena_tcache_fill_small(tsdn_t *tsdn, arena_t *arena, tcache_t *tcache,
 	}
 
 	unsigned binshard;
-	bin_t *bin = arena_bin_choose_lock(tsdn, arena, binind, &binshard);
+	bin_t *bin = arena_bin_choose_lock(tsdn, arena, tcache, binind,
+	    &binshard);
 
 	for (i = 0, nfill = (tcache_bin_info[binind].ncached_max >>
 	    tcache->lg_fill_div[binind]); i < nfill; i += cnt) {
@@ -1447,7 +1458,7 @@ arena_malloc_small(tsdn_t *tsdn, arena_t *arena, szind_t binind, bool zero) {
 	assert(binind < SC_NBINS);
 	usize = sz_index2size(binind);
 	unsigned binshard;
-	bin = arena_bin_choose_lock(tsdn, arena, binind, &binshard);
+	bin = arena_bin_choose_lock_no_tcache(tsdn, arena, binind, &binshard);
 
 	if ((slab = bin->slabcur) != NULL && extent_nfree_get(slab) > 0) {
 		ret = arena_slab_reg_alloc(slab, &bin_infos[binind]);

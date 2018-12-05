@@ -173,8 +173,8 @@ tcache_bin_flush_small(tsd_t *tsd, tcache_t *tcache, cache_bin_t *tbin,
 		 * arena, so the stats didn't get merged.  Manually do so now.
 		 */
 		unsigned binshard;
-		bin_t *bin = arena_bin_choose_lock(tsd_tsdn(tsd), arena, binind,
-		    &binshard);
+		bin_t *bin = arena_bin_choose_lock(tsd_tsdn(tsd), arena, tcache,
+		    binind, &binshard);
 		bin->stats.nflushes++;
 		bin->stats.nrequests += tbin->tstats.nrequests;
 		tbin->tstats.nrequests = 0;
@@ -312,6 +312,15 @@ tcache_arena_associate(tsdn_t *tsdn, tcache_t *tcache, arena_t *arena) {
 
 		malloc_mutex_unlock(tsdn, &arena->tcache_ql_mtx);
 	}
+
+	/* Pick the arena bin shards for the tcache. */
+	unsigned shard = atomic_fetch_add_u(&arena->binshard_next, 1,
+	    ATOMIC_RELAXED);
+	for (unsigned i = 0; i < SC_NBINS; i++) {
+		assert(bin_infos[i].n_shards > 0 &&
+		    bin_infos[i].n_shards <= BIN_SHARDS_MAX);
+		tcache->binshard[i] = shard % bin_infos[i].n_shards;
+	}
 }
 
 static void
@@ -386,6 +395,7 @@ tcache_init(tsd_t *tsd, tcache_t *tcache, void *avail_stack) {
 		 */
 		tcache_small_bin_get(tcache, i)->avail =
 		    (void **)((uintptr_t)avail_stack + (uintptr_t)stack_offset);
+		tcache->binshard[i] = BIN_SHARDS_MAX;
 	}
 	for (; i < nhbins; i++) {
 		stack_offset += tcache_bin_info[i].ncached_max * sizeof(void *);
@@ -563,7 +573,8 @@ tcache_stats_merge(tsdn_t *tsdn, tcache_t *tcache, arena_t *arena) {
 	for (i = 0; i < SC_NBINS; i++) {
 		cache_bin_t *tbin = tcache_small_bin_get(tcache, i);
 		unsigned binshard;
-		bin_t *bin = arena_bin_choose_lock(tsdn, arena, i, &binshard);
+		bin_t *bin = arena_bin_choose_lock(tsdn, arena, tcache, i,
+		    &binshard);
 		bin->stats.nrequests += tbin->tstats.nrequests;
 		malloc_mutex_unlock(tsdn, &bin->lock);
 		tbin->tstats.nrequests = 0;

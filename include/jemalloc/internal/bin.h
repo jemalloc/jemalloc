@@ -2,11 +2,13 @@
 #define JEMALLOC_INTERNAL_BIN_H
 
 #include "jemalloc/internal/bin_stats.h"
-#include "jemalloc/internal/bin_types.h"
 #include "jemalloc/internal/extent_types.h"
 #include "jemalloc/internal/extent_structs.h"
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/sc.h"
+
+#define BIN_SHARDS_MAX (1 << EXTENT_BITS_BINSHARD_WIDTH)
+#define N_BIN_SHARDS_DEFAULT 1
 
 /*
  * A bin contains a set of extents that are currently being used for slab

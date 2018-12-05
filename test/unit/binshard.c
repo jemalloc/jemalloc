@@ -4,15 +4,23 @@
 
 static void *
 thd_start(void *varg) {
-	void *ptr, *ptr2;
+	void *ptr, *ptr2, *ret;
 	extent_t *extent;
 	unsigned shard1, shard2;
 
 	tsdn_t *tsdn = tsdn_fetch();
+
+	unsigned tcache_ind;
+	size_t sz = sizeof(unsigned);
+	assert_d_eq(mallctl("tcache.create", (void *)&tcache_ind, &sz,
+	    NULL, 0), 0, "Unexpected mallctl failure");
+
+	ret = NULL;
 	/* Try triggering allocations from sharded bins. */
 	for (unsigned i = 0; i < 1024; i++) {
-		ptr = mallocx(1, MALLOCX_TCACHE_NONE);
-		ptr2 = mallocx(129, MALLOCX_TCACHE_NONE);
+		ptr = mallocx(1, MALLOCX_TCACHE(tcache_ind) | MALLOCX_ARENA(0));
+		ptr2 = mallocx(129, MALLOCX_TCACHE(tcache_ind) |
+		    MALLOCX_ARENA(0));
 
 		extent = iealloc(tsdn, ptr);
 		shard1 = extent_binshard_get(extent);
@@ -26,11 +34,15 @@ thd_start(void *varg) {
 
 		if (shard1 > 0 || shard2 > 0) {
 			/* Triggered sharded bin usage. */
-			return (void *)(uintptr_t)shard1;
+			ret = (void *)(uintptr_t)shard1;
+			break;
 		}
 	}
+	assert_d_eq(mallctl("tcache.destroy", NULL, NULL,
+	    (void *)&tcache_ind, sizeof(unsigned)), 0,
+	    "Unexpected mallctl failure");
 
-	return NULL;
+	return ret;
 }
 
 TEST_BEGIN(test_bin_shard_mt) {
