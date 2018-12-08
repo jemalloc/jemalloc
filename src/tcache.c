@@ -134,8 +134,7 @@ tcache_bin_flush_small(tsd_t *tsd, tcache_t *tcache, cache_bin_t *tbin,
 		}
 
 		malloc_mutex_lock(tsd_tsdn(tsd), &bin->lock);
-		if (config_stats && bin_arena == arena) {
-			assert(!merged_stats);
+		if (config_stats && bin_arena == arena && !merged_stats) {
 			merged_stats = true;
 			bin->stats.nflushes++;
 			bin->stats.nrequests += tbin->tstats.nrequests;
