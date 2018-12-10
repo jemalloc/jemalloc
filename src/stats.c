@@ -52,6 +52,20 @@ char opt_stats_print_opts[stats_print_tot_num_options+1] = "";
 
 /******************************************************************************/
 
+static uint64_t
+rate_per_second(uint64_t value, uint64_t uptime_ns) {
+	uint64_t billion = 1000000000;
+	if (uptime_ns == 0 || value == 0) {
+		return 0;
+	}
+	if (uptime_ns < billion) {
+		return value;
+	} else {
+		uint64_t uptime_s = uptime_ns / billion;
+		return value / uptime_s;
+	}
+}
+
 /* Calculate x.yyy and output a string (takes a fixed sized char array). */
 static bool
 get_rate_str(uint64_t dividend, uint64_t divisor, char str[6]) {
@@ -104,12 +118,12 @@ mutex_stats_init_cols(emitter_row_t *row, const char *table_name,
 
 #define WIDTH_uint32_t 12
 #define WIDTH_uint64_t 16
-#define OP(counter, counter_type, human)				\
+#define OP(counter, counter_type, human, derived, base_counter)	\
 	col = &col_##counter_type[k_##counter_type];			\
 	++k_##counter_type;						\
 	emitter_col_init(col, row);					\
 	col->justify = emitter_justify_right;				\
-	col->width = WIDTH_##counter_type;				\
+	col->width = derived ? 8 : WIDTH_##counter_type;		\
 	col->type = emitter_type_title;					\
 	col->str_val = human;
 	MUTEX_PROF_COUNTERS
@@ -121,7 +135,8 @@ mutex_stats_init_cols(emitter_row_t *row, const char *table_name,
 static void
 mutex_stats_read_global(const char *name, emitter_col_t *col_name,
     emitter_col_t col_uint64_t[mutex_prof_num_uint64_t_counters],
-    emitter_col_t col_uint32_t[mutex_prof_num_uint32_t_counters]) {
+    emitter_col_t col_uint32_t[mutex_prof_num_uint32_t_counters],
+    uint64_t uptime) {
 	char cmd[MUTEX_CTL_STR_MAX_LENGTH];
 
 	col_name->str_val = name;
@@ -129,12 +144,17 @@ mutex_stats_read_global(const char *name, emitter_col_t *col_name,
 	emitter_col_t *dst;
 #define EMITTER_TYPE_uint32_t emitter_type_uint32
 #define EMITTER_TYPE_uint64_t emitter_type_uint64
-#define OP(counter, counter_type, human)				\
+#define OP(counter, counter_type, human, derived, base_counter)	\
 	dst = &col_##counter_type[mutex_counter_##counter];		\
 	dst->type = EMITTER_TYPE_##counter_type;			\
-	gen_mutex_ctl_str(cmd, MUTEX_CTL_STR_MAX_LENGTH,		\
-	    "mutexes", name, #counter);					\
-	CTL_GET(cmd, (counter_type *)&dst->bool_val, counter_type);
+	if (!derived) {							\
+		gen_mutex_ctl_str(cmd, MUTEX_CTL_STR_MAX_LENGTH,	\
+		    "mutexes", name, #counter);				\
+		CTL_GET(cmd, (counter_type *)&dst->bool_val, counter_type);	\
+	} else { \
+	    emitter_col_t *base = &col_##counter_type[mutex_counter_##base_counter];	\
+	    dst->counter_type##_val = rate_per_second(base->counter_type##_val, uptime); \
+	}
 	MUTEX_PROF_COUNTERS
 #undef OP
 #undef EMITTER_TYPE_uint32_t
@@ -145,7 +165,8 @@ static void
 mutex_stats_read_arena(unsigned arena_ind, mutex_prof_arena_ind_t mutex_ind,
     const char *name, emitter_col_t *col_name,
     emitter_col_t col_uint64_t[mutex_prof_num_uint64_t_counters],
-    emitter_col_t col_uint32_t[mutex_prof_num_uint32_t_counters]) {
+    emitter_col_t col_uint32_t[mutex_prof_num_uint32_t_counters],
+    uint64_t uptime) {
 	char cmd[MUTEX_CTL_STR_MAX_LENGTH];
 
 	col_name->str_val = name;
@@ -153,13 +174,17 @@ mutex_stats_read_arena(unsigned arena_ind, mutex_prof_arena_ind_t mutex_ind,
 	emitter_col_t *dst;
 #define EMITTER_TYPE_uint32_t emitter_type_uint32
 #define EMITTER_TYPE_uint64_t emitter_type_uint64
-#define OP(counter, counter_type, human)				\
+#define OP(counter, counter_type, human, derived, base_counter)	\
 	dst = &col_##counter_type[mutex_counter_##counter];		\
 	dst->type = EMITTER_TYPE_##counter_type;			\
-	gen_mutex_ctl_str(cmd, MUTEX_CTL_STR_MAX_LENGTH,		\
-	    "arenas.0.mutexes",	arena_mutex_names[mutex_ind], #counter);\
-	CTL_M2_GET(cmd, arena_ind,					\
-	    (counter_type *)&dst->bool_val, counter_type);
+	if (!derived) {                                   \
+		gen_mutex_ctl_str(cmd, MUTEX_CTL_STR_MAX_LENGTH,        \
+		    "arenas.0.mutexes", arena_mutex_names[mutex_ind], #counter);\
+		CTL_M2_GET(cmd, arena_ind, (counter_type *)&dst->bool_val, counter_type); \
+	} else {                      \
+		emitter_col_t *base = &col_##counter_type[mutex_counter_##base_counter];	\
+		dst->counter_type##_val = rate_per_second(base->counter_type##_val, uptime); \
+	}
 	MUTEX_PROF_COUNTERS
 #undef OP
 #undef EMITTER_TYPE_uint32_t
@@ -169,19 +194,25 @@ mutex_stats_read_arena(unsigned arena_ind, mutex_prof_arena_ind_t mutex_ind,
 static void
 mutex_stats_read_arena_bin(unsigned arena_ind, unsigned bin_ind,
     emitter_col_t col_uint64_t[mutex_prof_num_uint64_t_counters],
-    emitter_col_t col_uint32_t[mutex_prof_num_uint32_t_counters]) {
+    emitter_col_t col_uint32_t[mutex_prof_num_uint32_t_counters],
+    uint64_t uptime) {
 	char cmd[MUTEX_CTL_STR_MAX_LENGTH];
 	emitter_col_t *dst;
 
 #define EMITTER_TYPE_uint32_t emitter_type_uint32
 #define EMITTER_TYPE_uint64_t emitter_type_uint64
-#define OP(counter, counter_type, human)				\
+#define OP(counter, counter_type, human, derived, base_counter)	\
 	dst = &col_##counter_type[mutex_counter_##counter];		\
 	dst->type = EMITTER_TYPE_##counter_type;			\
-	gen_mutex_ctl_str(cmd, MUTEX_CTL_STR_MAX_LENGTH,		\
-	    "arenas.0.bins.0","mutex", #counter);			\
-	CTL_M2_M4_GET(cmd, arena_ind, bin_ind,				\
-	    (counter_type *)&dst->bool_val, counter_type);
+	if (!derived) {                                   \
+		gen_mutex_ctl_str(cmd, MUTEX_CTL_STR_MAX_LENGTH,        \
+		    "arenas.0.bins.0","mutex", #counter);            \
+		CTL_M2_M4_GET(cmd, arena_ind, bin_ind,                \
+		    (counter_type *)&dst->bool_val, counter_type);  \
+	} else {                      \
+		emitter_col_t *base = &col_##counter_type[mutex_counter_##base_counter]; \
+		dst->counter_type##_val = rate_per_second(base->counter_type##_val, uptime); \
+	}
 	MUTEX_PROF_COUNTERS
 #undef OP
 #undef EMITTER_TYPE_uint32_t
@@ -204,19 +235,38 @@ mutex_stats_emit(emitter_t *emitter, emitter_row_t *row,
 
 #define EMITTER_TYPE_uint32_t emitter_type_uint32
 #define EMITTER_TYPE_uint64_t emitter_type_uint64
-#define OP(counter, type, human)					\
-	col = &col_##type[k_##type];						\
-	++k_##type;							\
-	emitter_json_kv(emitter, #counter, EMITTER_TYPE_##type,		\
-	    (const void *)&col->bool_val);
+#define OP(counter, type, human, derived, base_counter)		\
+	if (!derived) {                    \
+		col = &col_##type[k_##type];                        \
+		++k_##type;                            \
+		emitter_json_kv(emitter, #counter, EMITTER_TYPE_##type,        \
+		    (const void *)&col->bool_val); \
+	}
 	MUTEX_PROF_COUNTERS;
 #undef OP
 #undef EMITTER_TYPE_uint32_t
 #undef EMITTER_TYPE_uint64_t
 }
 
+#define COL(row_name, column_name, left_or_right, col_width, etype)      \
+	emitter_col_t col_##column_name;                                     \
+	emitter_col_init(&col_##column_name, &row_name);                     \
+	col_##column_name.justify = emitter_justify_##left_or_right;         \
+	col_##column_name.width = col_width;                                 \
+	col_##column_name.type = emitter_type_##etype;
+
+#define COL_HDR(row_name, column_name, human, left_or_right, col_width, etype)  \
+	COL(row_name, column_name, left_or_right, col_width, etype)	         \
+	emitter_col_t header_##column_name;                                  \
+	emitter_col_init(&header_##column_name, &header_##row_name);         \
+	header_##column_name.justify = emitter_justify_##left_or_right;      \
+	header_##column_name.width = col_width;                              \
+	header_##column_name.type = emitter_type_title;                      \
+	header_##column_name.str_val = human ? human : #column_name;
+
+
 static void
-stats_arena_bins_print(emitter_t *emitter, bool mutex, unsigned i) {
+stats_arena_bins_print(emitter_t *emitter, bool mutex, unsigned i, uint64_t uptime) {
 	size_t page;
 	bool in_gap, in_gap_prev;
 	unsigned nbins, j;
@@ -230,43 +280,35 @@ stats_arena_bins_print(emitter_t *emitter, bool mutex, unsigned i) {
 
 	emitter_row_t row;
 	emitter_row_init(&row);
-#define COL(name, left_or_right, col_width, etype)			\
-	emitter_col_t col_##name;					\
-	emitter_col_init(&col_##name, &row);				\
-	col_##name.justify = emitter_justify_##left_or_right;		\
-	col_##name.width = col_width;					\
-	col_##name.type = emitter_type_##etype;				\
-	emitter_col_t header_col_##name;				\
-	emitter_col_init(&header_col_##name, &header_row);		\
-	header_col_##name.justify = emitter_justify_##left_or_right;	\
-	header_col_##name.width = col_width;				\
-	header_col_##name.type = emitter_type_title;			\
-	header_col_##name.str_val = #name;
 
-	COL(size, right, 20, size)
-	COL(ind, right, 4, unsigned)
-	COL(allocated, right, 13, uint64)
-	COL(nmalloc, right, 13, uint64)
-	COL(ndalloc, right, 13, uint64)
-	COL(nrequests, right, 13, uint64)
-	COL(nshards, right, 9, unsigned)
-	COL(curregs, right, 13, size)
-	COL(curslabs, right, 13, size)
-	COL(regs, right, 5, unsigned)
-	COL(pgs, right, 4, size)
+	COL_HDR(row, size, NULL, right, 20, size)
+	COL_HDR(row, ind, NULL, right, 4, unsigned)
+	COL_HDR(row, allocated, NULL, right, 13, uint64)
+	COL_HDR(row, nmalloc, NULL, right, 13, uint64)
+	COL_HDR(row, nmalloc_ps, "(#/sec)", right, 8, uint64)
+	COL_HDR(row, ndalloc, NULL, right, 13, uint64)
+	COL_HDR(row, ndalloc_ps, "(#/sec)", right, 8, uint64)
+	COL_HDR(row, nrequests, NULL, right, 13, uint64)
+	COL_HDR(row, nrequests_ps, "(#/sec)", right, 8, uint64)
+	COL_HDR(row, nshards, NULL, right, 9, unsigned)
+	COL_HDR(row, curregs, NULL, right, 13, size)
+	COL_HDR(row, curslabs, NULL, right, 13, size)
+	COL_HDR(row, regs, NULL, right, 5, unsigned)
+	COL_HDR(row, pgs, NULL, right, 4, size)
 	/* To buffer a right- and left-justified column. */
-	COL(justify_spacer, right, 1, title)
-	COL(util, right, 6, title)
-	COL(nfills, right, 13, uint64)
-	COL(nflushes, right, 13, uint64)
-	COL(nslabs, right, 13, uint64)
-	COL(nreslabs, right, 13, uint64)
-#undef COL
+	COL_HDR(row, justify_spacer, NULL, right, 1, title)
+	COL_HDR(row, util, NULL, right, 6, title)
+	COL_HDR(row, nfills, NULL, right, 13, uint64)
+	COL_HDR(row, nfills_ps, "(#/sec)", right, 8, uint64)
+	COL_HDR(row, nflushes, NULL, right, 13, uint64)
+	COL_HDR(row, nflushes_ps, "(#/sec)", right, 8, uint64)
+	COL_HDR(row, nslabs, NULL, right, 13, uint64)
+	COL_HDR(row, nreslabs, NULL, right, 13, uint64)
+	COL_HDR(row, nreslabs_ps, "(#/sec)", right, 8, uint64)
 
 	/* Don't want to actually print the name. */
-	header_col_justify_spacer.str_val = " ";
+	header_justify_spacer.str_val = " ";
 	col_justify_spacer.str_val = " ";
-
 
 	emitter_col_t col_mutex64[mutex_prof_num_uint64_t_counters];
 	emitter_col_t col_mutex32[mutex_prof_num_uint32_t_counters];
@@ -285,7 +327,7 @@ stats_arena_bins_print(emitter_t *emitter, bool mutex, unsigned i) {
 	 * We print a "bins:" header as part of the table row; we need to adjust
 	 * the header size column to compensate.
 	 */
-	header_col_size.width -=5;
+	header_size.width -=5;
 	emitter_table_printf(emitter, "bins:");
 	emitter_table_row(emitter, &header_row);
 	emitter_json_array_kv_begin(emitter, "bins");
@@ -332,7 +374,7 @@ stats_arena_bins_print(emitter_t *emitter, bool mutex, unsigned i) {
 
 		if (mutex) {
 			mutex_stats_read_arena_bin(i, j, col_mutex64,
-			    col_mutex32);
+			    col_mutex32, uptime);
 		}
 
 		emitter_json_object_begin(emitter);
@@ -383,8 +425,11 @@ stats_arena_bins_print(emitter_t *emitter, bool mutex, unsigned i) {
 		col_ind.unsigned_val = j;
 		col_allocated.size_val = curregs * reg_size;
 		col_nmalloc.uint64_val = nmalloc;
+		col_nmalloc_ps.uint64_val = rate_per_second(nmalloc, uptime);
 		col_ndalloc.uint64_val = ndalloc;
+		col_ndalloc_ps.uint64_val = rate_per_second(ndalloc, uptime);
 		col_nrequests.uint64_val = nrequests;
+		col_nrequests_ps.uint64_val = rate_per_second(nrequests, uptime);
 		col_nshards.unsigned_val = nshards;
 		col_curregs.size_val = curregs;
 		col_curslabs.size_val = curslabs;
@@ -392,9 +437,12 @@ stats_arena_bins_print(emitter_t *emitter, bool mutex, unsigned i) {
 		col_pgs.size_val = slab_size / page;
 		col_util.str_val = util;
 		col_nfills.uint64_val = nfills;
+		col_nfills_ps.uint64_val = rate_per_second(nfills, uptime);
 		col_nflushes.uint64_val = nflushes;
+		col_nflushes_ps.uint64_val = rate_per_second(nflushes, uptime);
 		col_nslabs.uint64_val = nslabs;
 		col_nreslabs.uint64_val = nreslabs;
+		col_nreslabs_ps.uint64_val = rate_per_second(nreslabs, uptime);
 
 		/*
 		 * Note that mutex columns were initialized above, if mutex ==
@@ -411,7 +459,7 @@ stats_arena_bins_print(emitter_t *emitter, bool mutex, unsigned i) {
 }
 
 static void
-stats_arena_lextents_print(emitter_t *emitter, unsigned i) {
+stats_arena_lextents_print(emitter_t *emitter, unsigned i, uint64_t uptime) {
 	unsigned nbins, nlextents, j;
 	bool in_gap, in_gap_prev;
 
@@ -423,28 +471,16 @@ stats_arena_lextents_print(emitter_t *emitter, unsigned i) {
 	emitter_row_t row;
 	emitter_row_init(&row);
 
-#define COL(name, left_or_right, col_width, etype)			\
-	emitter_col_t header_##name;					\
-	emitter_col_init(&header_##name, &header_row);			\
-	header_##name.justify = emitter_justify_##left_or_right;	\
-	header_##name.width = col_width;				\
-	header_##name.type = emitter_type_title;			\
-	header_##name.str_val = #name;					\
-									\
-	emitter_col_t col_##name;					\
-	emitter_col_init(&col_##name, &row);				\
-	col_##name.justify = emitter_justify_##left_or_right;		\
-	col_##name.width = col_width;					\
-	col_##name.type = emitter_type_##etype;
-
-	COL(size, right, 20, size)
-	COL(ind, right, 4, unsigned)
-	COL(allocated, right, 13, size)
-	COL(nmalloc, right, 13, uint64)
-	COL(ndalloc, right, 13, uint64)
-	COL(nrequests, right, 13, uint64)
-	COL(curlextents, right, 13, size)
-#undef COL
+	COL_HDR(row, size, NULL, right, 20, size)
+	COL_HDR(row, ind, NULL, right, 4, unsigned)
+	COL_HDR(row, allocated, NULL, right, 13, size)
+	COL_HDR(row, nmalloc, NULL, right, 13, uint64)
+	COL_HDR(row, nmalloc_ps, "(#/sec)", right, 8, uint64)
+	COL_HDR(row, ndalloc, NULL, right, 13, uint64)
+	COL_HDR(row, ndalloc_ps, "(#/sec)", right, 8, uint64)
+	COL_HDR(row, nrequests, NULL, right, 13, uint64)
+	COL_HDR(row, nrequests_ps, "(#/sec)", right, 8, uint64)
+	COL_HDR(row, curlextents, NULL, right, 13, size)
 
 	/* As with bins, we label the large extents table. */
 	header_size.width -= 6;
@@ -483,8 +519,11 @@ stats_arena_lextents_print(emitter_t *emitter, unsigned i) {
 		col_ind.unsigned_val = nbins + j;
 		col_allocated.size_val = curlextents * lextent_size;
 		col_nmalloc.uint64_val = nmalloc;
+		col_nmalloc_ps.uint64_val = rate_per_second(nmalloc, uptime);
 		col_ndalloc.uint64_val = ndalloc;
+		col_ndalloc_ps.uint64_val = rate_per_second(ndalloc, uptime);
 		col_nrequests.uint64_val = nrequests;
+		col_nrequests_ps.uint64_val = rate_per_second(nrequests, uptime);
 		col_curlextents.size_val = curlextents;
 
 		if (!in_gap) {
@@ -505,31 +544,17 @@ stats_arena_extents_print(emitter_t *emitter, unsigned i) {
 	emitter_row_init(&header_row);
 	emitter_row_t row;
 	emitter_row_init(&row);
-#define COL(name, left_or_right, col_width, etype)			\
-	emitter_col_t header_##name;					\
-	emitter_col_init(&header_##name, &header_row);			\
-	header_##name.justify = emitter_justify_##left_or_right;	\
-	header_##name.width = col_width;				\
-	header_##name.type = emitter_type_title;			\
-	header_##name.str_val = #name;					\
-									\
-	emitter_col_t col_##name;					\
-	emitter_col_init(&col_##name, &row);				\
-	col_##name.justify = emitter_justify_##left_or_right;		\
-	col_##name.width = col_width;					\
-	col_##name.type = emitter_type_##etype;
 
-	COL(size, right, 20, size)
-	COL(ind, right, 4, unsigned)
-	COL(ndirty, right, 13, size)
-	COL(dirty, right, 13, size)
-	COL(nmuzzy, right, 13, size)
-	COL(muzzy, right, 13, size)
-	COL(nretained, right, 13, size)
-	COL(retained, right, 13, size)
-	COL(ntotal, right, 13, size)
-	COL(total, right, 13, size)
-#undef COL
+	COL_HDR(row, size, NULL, right, 20, size)
+	COL_HDR(row, ind, NULL, right, 4, unsigned)
+	COL_HDR(row, ndirty, NULL, right, 13, size)
+	COL_HDR(row, dirty, NULL, right, 13, size)
+	COL_HDR(row, nmuzzy, NULL, right, 13, size)
+	COL_HDR(row, muzzy, NULL, right, 13, size)
+	COL_HDR(row, nretained, NULL, right, 13, size)
+	COL_HDR(row, retained, NULL, right, 13, size)
+	COL_HDR(row, ntotal, NULL, right, 13, size)
+	COL_HDR(row, total, NULL, right, 13, size)
 
 	/* Label this section. */
 	header_size.width -= 8;
@@ -600,7 +625,7 @@ stats_arena_extents_print(emitter_t *emitter, unsigned i) {
 }
 
 static void
-stats_arena_mutexes_print(emitter_t *emitter, unsigned arena_ind) {
+stats_arena_mutexes_print(emitter_t *emitter, unsigned arena_ind, uint64_t uptime) {
 	emitter_row_t row;
 	emitter_col_t col_name;
 	emitter_col_t col64[mutex_prof_num_uint64_t_counters];
@@ -617,7 +642,7 @@ stats_arena_mutexes_print(emitter_t *emitter, unsigned arena_ind) {
 		const char *name = arena_mutex_names[i];
 		emitter_json_object_kv_begin(emitter, name);
 		mutex_stats_read_arena(arena_ind, i, name, &col_name, col64,
-		    col32);
+		    col32, uptime);
 		mutex_stats_emit(emitter, &row, col64, col32);
 		emitter_json_object_end(emitter); /* Close the mutex dict. */
 	}
@@ -699,98 +724,74 @@ stats_arena_print(emitter_t *emitter, unsigned i, bool bins, bool large,
 	    &muzzy_purged);
 
 	/* Table-style emission. */
-	emitter_col_t decay_type;
-	emitter_col_init(&decay_type, &decay_row);
-	decay_type.justify = emitter_justify_right;
-	decay_type.width = 9;
-	decay_type.type = emitter_type_title;
-	decay_type.str_val = "decaying:";
+	COL(decay_row, decay_type, right, 9, title);
+	col_decay_type.str_val = "decaying:";
 
-	emitter_col_t decay_time;
-	emitter_col_init(&decay_time, &decay_row);
-	decay_time.justify = emitter_justify_right;
-	decay_time.width = 6;
-	decay_time.type = emitter_type_title;
-	decay_time.str_val = "time";
+	COL(decay_row, decay_time, right, 6, title);
+	col_decay_time.str_val = "time";
 
-	emitter_col_t decay_npages;
-	emitter_col_init(&decay_npages, &decay_row);
-	decay_npages.justify = emitter_justify_right;
-	decay_npages.width = 13;
-	decay_npages.type = emitter_type_title;
-	decay_npages.str_val = "npages";
+	COL(decay_row, decay_npages, right, 13, title);
+	col_decay_npages.str_val = "npages";
 
-	emitter_col_t decay_sweeps;
-	emitter_col_init(&decay_sweeps, &decay_row);
-	decay_sweeps.justify = emitter_justify_right;
-	decay_sweeps.width = 13;
-	decay_sweeps.type = emitter_type_title;
-	decay_sweeps.str_val = "sweeps";
+	COL(decay_row, decay_sweeps, right, 13, title);
+	col_decay_sweeps.str_val = "sweeps";
 
-	emitter_col_t decay_madvises;
-	emitter_col_init(&decay_madvises, &decay_row);
-	decay_madvises.justify = emitter_justify_right;
-	decay_madvises.width = 13;
-	decay_madvises.type = emitter_type_title;
-	decay_madvises.str_val = "madvises";
+	COL(decay_row, decay_madvises, right, 13, title);
+	col_decay_madvises.str_val = "madvises";
 
-	emitter_col_t decay_purged;
-	emitter_col_init(&decay_purged, &decay_row);
-	decay_purged.justify = emitter_justify_right;
-	decay_purged.width = 13;
-	decay_purged.type = emitter_type_title;
-	decay_purged.str_val = "purged";
+	COL(decay_row, decay_purged, right, 13, title);
+	col_decay_purged.str_val = "purged";
 
 	/* Title row. */
 	emitter_table_row(emitter, &decay_row);
 
 	/* Dirty row. */
-	decay_type.str_val = "dirty:";
+	col_decay_type.str_val = "dirty:";
 
 	if (dirty_decay_ms >= 0) {
-		decay_time.type = emitter_type_ssize;
-		decay_time.ssize_val = dirty_decay_ms;
+		col_decay_time.type = emitter_type_ssize;
+		col_decay_time.ssize_val = dirty_decay_ms;
 	} else {
-		decay_time.type = emitter_type_title;
-		decay_time.str_val = "N/A";
+		col_decay_time.type = emitter_type_title;
+		col_decay_time.str_val = "N/A";
 	}
 
-	decay_npages.type = emitter_type_size;
-	decay_npages.size_val = pdirty;
+	col_decay_npages.type = emitter_type_size;
+	col_decay_npages.size_val = pdirty;
 
-	decay_sweeps.type = emitter_type_uint64;
-	decay_sweeps.uint64_val = dirty_npurge;
+	col_decay_sweeps.type = emitter_type_uint64;
+	col_decay_sweeps.uint64_val = dirty_npurge;
 
-	decay_madvises.type = emitter_type_uint64;
-	decay_madvises.uint64_val = dirty_nmadvise;
+	col_decay_madvises.type = emitter_type_uint64;
+	col_decay_madvises.uint64_val = dirty_nmadvise;
 
-	decay_purged.type = emitter_type_uint64;
-	decay_purged.uint64_val = dirty_purged;
+	col_decay_purged.type = emitter_type_uint64;
+	col_decay_purged.uint64_val = dirty_purged;
 
 	emitter_table_row(emitter, &decay_row);
 
 	/* Muzzy row. */
-	decay_type.str_val = "muzzy:";
+	col_decay_type.str_val = "muzzy:";
 
 	if (muzzy_decay_ms >= 0) {
-		decay_time.type = emitter_type_ssize;
-		decay_time.ssize_val = muzzy_decay_ms;
+		col_decay_time.type = emitter_type_ssize;
+		col_decay_time.ssize_val = muzzy_decay_ms;
 	} else {
-		decay_time.type = emitter_type_title;
-		decay_time.str_val = "N/A";
+		col_decay_time.type = emitter_type_title;
+		col_decay_time.str_val = "N/A";
 	}
 
-	decay_npages.type = emitter_type_size;
-	decay_npages.size_val = pmuzzy;
+	col_decay_npages.type = emitter_type_size;
+	col_decay_npages.size_val = pmuzzy;
 
-	decay_sweeps.type = emitter_type_uint64;
-	decay_sweeps.uint64_val = muzzy_npurge;
+	col_decay_sweeps.type = emitter_type_uint64;
+	col_decay_sweeps.uint64_val = muzzy_npurge;
 
-	decay_madvises.type = emitter_type_uint64;
-	decay_madvises.uint64_val = muzzy_nmadvise;
+	col_decay_madvises.type = emitter_type_uint64;
+	col_decay_madvises.uint64_val = muzzy_nmadvise;
 
-	decay_purged.type = emitter_type_uint64;
-	decay_purged.uint64_val = muzzy_purged;
+	col_decay_purged.type = emitter_type_uint64;
+	col_decay_purged.uint64_val = muzzy_purged;
 
 	emitter_table_row(emitter, &decay_row);
 
@@ -798,69 +799,71 @@ stats_arena_print(emitter_t *emitter, unsigned i, bool bins, bool large,
 	emitter_row_t alloc_count_row;
 	emitter_row_init(&alloc_count_row);
 
-	emitter_col_t alloc_count_title;
-	emitter_col_init(&alloc_count_title, &alloc_count_row);
-	alloc_count_title.justify = emitter_justify_left;
-	alloc_count_title.width = 21;
-	alloc_count_title.type = emitter_type_title;
-	alloc_count_title.str_val = "";
+	COL(alloc_count_row, count_title, left, 21, title);
+	col_count_title.str_val = "";
 
-	emitter_col_t alloc_count_allocated;
-	emitter_col_init(&alloc_count_allocated, &alloc_count_row);
-	alloc_count_allocated.justify = emitter_justify_right;
-	alloc_count_allocated.width = 16;
-	alloc_count_allocated.type = emitter_type_title;
-	alloc_count_allocated.str_val = "allocated";
+	COL(alloc_count_row, count_allocated, right, 16, title);
+	col_count_allocated.str_val = "allocated";
 
-	emitter_col_t alloc_count_nmalloc;
-	emitter_col_init(&alloc_count_nmalloc, &alloc_count_row);
-	alloc_count_nmalloc.justify = emitter_justify_right;
-	alloc_count_nmalloc.width = 16;
-	alloc_count_nmalloc.type = emitter_type_title;
-	alloc_count_nmalloc.str_val = "nmalloc";
+	COL(alloc_count_row, count_nmalloc, right, 16, title);
+	col_count_nmalloc.str_val = "nmalloc";
+	COL(alloc_count_row, count_nmalloc_ps, right, 8, title);
+	col_count_nmalloc_ps.str_val = "(#/sec)";
 
-	emitter_col_t alloc_count_ndalloc;
-	emitter_col_init(&alloc_count_ndalloc, &alloc_count_row);
-	alloc_count_ndalloc.justify = emitter_justify_right;
-	alloc_count_ndalloc.width = 16;
-	alloc_count_ndalloc.type = emitter_type_title;
-	alloc_count_ndalloc.str_val = "ndalloc";
+	COL(alloc_count_row, count_ndalloc, right, 16, title);
+	col_count_ndalloc.str_val = "ndalloc";
+	COL(alloc_count_row, count_ndalloc_ps, right, 8, title);
+	col_count_ndalloc_ps.str_val = "(#/sec)";
 
-	emitter_col_t alloc_count_nrequests;
-	emitter_col_init(&alloc_count_nrequests, &alloc_count_row);
-	alloc_count_nrequests.justify = emitter_justify_right;
-	alloc_count_nrequests.width = 16;
-	alloc_count_nrequests.type = emitter_type_title;
-	alloc_count_nrequests.str_val = "nrequests";
+	COL(alloc_count_row, count_nrequests, right, 16, title);
+	col_count_nrequests.str_val = "nrequests";
+	COL(alloc_count_row, count_nrequests_ps, right, 8, title);
+	col_count_nrequests_ps.str_val = "(#/sec)";
 
 	emitter_table_row(emitter, &alloc_count_row);
+
+	col_count_nmalloc_ps.type = emitter_type_uint64;
+	col_count_ndalloc_ps.type = emitter_type_uint64;
+	col_count_nrequests_ps.type = emitter_type_uint64;
 
 #define GET_AND_EMIT_ALLOC_STAT(small_or_large, name, valtype)		\
 	CTL_M2_GET("stats.arenas.0." #small_or_large "." #name, i,	\
 	    &small_or_large##_##name, valtype##_t);			\
 	emitter_json_kv(emitter, #name, emitter_type_##valtype,		\
 	    &small_or_large##_##name);					\
-	alloc_count_##name.type = emitter_type_##valtype;		\
-	alloc_count_##name.valtype##_val = small_or_large##_##name;
+	col_count_##name.type = emitter_type_##valtype;		\
+	col_count_##name.valtype##_val = small_or_large##_##name;
 
 	emitter_json_object_kv_begin(emitter, "small");
-	alloc_count_title.str_val = "small:";
+	col_count_title.str_val = "small:";
 
 	GET_AND_EMIT_ALLOC_STAT(small, allocated, size)
 	GET_AND_EMIT_ALLOC_STAT(small, nmalloc, uint64)
+	col_count_nmalloc_ps.uint64_val =
+	    rate_per_second(col_count_nmalloc.uint64_val, uptime);
 	GET_AND_EMIT_ALLOC_STAT(small, ndalloc, uint64)
+	col_count_ndalloc_ps.uint64_val =
+	    rate_per_second(col_count_ndalloc.uint64_val, uptime);
 	GET_AND_EMIT_ALLOC_STAT(small, nrequests, uint64)
+	col_count_nrequests_ps.uint64_val =
+	    rate_per_second(col_count_nrequests.uint64_val, uptime);
 
 	emitter_table_row(emitter, &alloc_count_row);
 	emitter_json_object_end(emitter); /* Close "small". */
 
 	emitter_json_object_kv_begin(emitter, "large");
-	alloc_count_title.str_val = "large:";
+	col_count_title.str_val = "large:";
 
 	GET_AND_EMIT_ALLOC_STAT(large, allocated, size)
 	GET_AND_EMIT_ALLOC_STAT(large, nmalloc, uint64)
+	col_count_nmalloc_ps.uint64_val =
+	    rate_per_second(col_count_nmalloc.uint64_val, uptime);
 	GET_AND_EMIT_ALLOC_STAT(large, ndalloc, uint64)
+	col_count_ndalloc_ps.uint64_val =
+	    rate_per_second(col_count_ndalloc.uint64_val, uptime);
 	GET_AND_EMIT_ALLOC_STAT(large, nrequests, uint64)
+	col_count_nrequests_ps.uint64_val =
+	    rate_per_second(col_count_nrequests.uint64_val, uptime);
 
 	emitter_table_row(emitter, &alloc_count_row);
 	emitter_json_object_end(emitter); /* Close "large". */
@@ -868,11 +871,11 @@ stats_arena_print(emitter_t *emitter, unsigned i, bool bins, bool large,
 #undef GET_AND_EMIT_ALLOC_STAT
 
 	/* Aggregated small + large stats are emitter only in table mode. */
-	alloc_count_title.str_val = "total:";
-	alloc_count_allocated.size_val = small_allocated + large_allocated;
-	alloc_count_nmalloc.uint64_val = small_nmalloc + large_nmalloc;
-	alloc_count_ndalloc.uint64_val = small_ndalloc + large_ndalloc;
-	alloc_count_nrequests.uint64_val = small_nrequests + large_nrequests;
+	col_count_title.str_val = "total:";
+	col_count_allocated.size_val = small_allocated + large_allocated;
+	col_count_nmalloc.uint64_val = small_nmalloc + large_nmalloc;
+	col_count_ndalloc.uint64_val = small_ndalloc + large_ndalloc;
+	col_count_nrequests.uint64_val = small_nrequests + large_nrequests;
 	emitter_table_row(emitter, &alloc_count_row);
 
 	emitter_row_t mem_count_row;
@@ -918,13 +921,13 @@ stats_arena_print(emitter_t *emitter, unsigned i, bool bins, bool large,
 #undef GET_AND_EMIT_MEM_STAT
 
 	if (mutex) {
-		stats_arena_mutexes_print(emitter, i);
+		stats_arena_mutexes_print(emitter, i, uptime);
 	}
 	if (bins) {
-		stats_arena_bins_print(emitter, mutex, i);
+		stats_arena_bins_print(emitter, mutex, i, uptime);
 	}
 	if (large) {
-		stats_arena_lextents_print(emitter, i);
+		stats_arena_lextents_print(emitter, i, uptime);
 	}
 	if (extents) {
 		stats_arena_extents_print(emitter, i);
@@ -1246,6 +1249,7 @@ stats_print_helper(emitter_t *emitter, bool merged, bool destroyed,
 		emitter_col_t name;
 		emitter_col_t col64[mutex_prof_num_uint64_t_counters];
 		emitter_col_t col32[mutex_prof_num_uint32_t_counters];
+		uint64_t uptime;
 
 		emitter_row_init(&row);
 		mutex_stats_init_cols(&row, "", &name, col64, col32);
@@ -1253,9 +1257,11 @@ stats_print_helper(emitter_t *emitter, bool merged, bool destroyed,
 		emitter_table_row(emitter, &row);
 		emitter_json_object_kv_begin(emitter, "mutexes");
 
+		CTL_M2_GET("stats.arenas.0.uptime", 0, &uptime, uint64_t);
+
 		for (int i = 0; i < mutex_prof_num_global_mutexes; i++) {
 			mutex_stats_read_global(global_mutex_names[i], &name,
-			    col64, col32);
+			    col64, col32, uptime);
 			emitter_json_object_kv_begin(emitter, global_mutex_names[i]);
 			mutex_stats_emit(emitter, &row, col64, col32);
 			emitter_json_object_end(emitter);
