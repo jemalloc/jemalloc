@@ -173,8 +173,10 @@ tcache_bin_flush_small(tsd_t *tsd, tcache_t *tcache, cache_bin_t *tbin,
 		 * arena, so the stats didn't get merged.  Manually do so now.
 		 */
 		unsigned binshard;
-		bin_t *bin = arena_bin_choose_lock(tsd_tsdn(tsd), arena, binind,
+		bin_t *bin = arena_bin_choose(tsd_tsdn(tsd), arena, binind,
 		    &binshard);
+    
+		malloc_mutex_lock(tsd_tsdn(tsd), &bin->lock);
 		bin->stats.nflushes++;
 		bin->stats.nrequests += tbin->tstats.nrequests;
 		tbin->tstats.nrequests = 0;
@@ -563,7 +565,8 @@ tcache_stats_merge(tsdn_t *tsdn, tcache_t *tcache, arena_t *arena) {
 	for (i = 0; i < SC_NBINS; i++) {
 		cache_bin_t *tbin = tcache_small_bin_get(tcache, i);
 		unsigned binshard;
-		bin_t *bin = arena_bin_choose_lock(tsdn, arena, i, &binshard);
+		bin_t *bin = arena_bin_choose(tsdn, arena, i, &binshard);
+		malloc_mutex_lock(tsdn, &bin->lock);
 		bin->stats.nrequests += tbin->tstats.nrequests;
 		malloc_mutex_unlock(tsdn, &bin->lock);
 		tbin->tstats.nrequests = 0;
