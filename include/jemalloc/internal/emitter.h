@@ -45,7 +45,9 @@ struct emitter_col_s {
 		int int_val;
 		unsigned unsigned_val;
 		uint32_t uint32_val;
+		uint32_t uint32_t_val;
 		uint64_t uint64_val;
+		uint64_t uint64_t_val;
 		size_t size_val;
 		ssize_t ssize_val;
 		const char *str_val;
