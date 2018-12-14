@@ -55,6 +55,8 @@ cfghdrs_out := @cfghdrs_out@
 cfgoutputs_in := $(addprefix $(srcroot),@cfgoutputs_in@)
 cfgoutputs_out := @cfgoutputs_out@
 enable_autogen := @enable_autogen@
+enable_shared := @enable_shared@
+enable_static := @enable_static@
 enable_prof := @enable_prof@
 enable_zone_allocator := @enable_zone_allocator@
 enable_experimental_smallocx := @enable_experimental_smallocx@
@@ -430,7 +432,12 @@ $(objroot)test/stress/%$(EXE): $(objroot)test/stress/%.$(O) $(C_JET_OBJS) $(C_TE
 
 build_lib_shared: $(DSOS)
 build_lib_static: $(STATIC_LIBS)
-build_lib: build_lib_shared build_lib_static
+ifeq ($(enable_shared), 1)
+build_lib: build_lib_shared
+endif
+ifeq ($(enable_static), 1)
+build_lib: build_lib_static
+endif
 
 install_bin:
 	$(INSTALL) -d $(BINDIR)
@@ -467,7 +474,13 @@ install_lib_pc: $(PC)
 	$(INSTALL) -m 644 $$l $(LIBDIR)/pkgconfig; \
 done
 
-install_lib: install_lib_shared install_lib_static install_lib_pc
+ifeq ($(enable_shared), 1)
+install_lib: install_lib_shared
+endif
+ifeq ($(enable_static), 1)
+install_lib: install_lib_static
+endif
+install_lib: install_lib_pc
 
 install_doc_html:
 	$(INSTALL) -d $(DATADIR)/doc/jemalloc$(install_suffix)

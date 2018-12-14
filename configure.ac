@@ -878,6 +878,36 @@ AC_PROG_RANLIB
 AC_PATH_PROG([LD], [ld], [false], [$PATH])
 AC_PATH_PROG([AUTOCONF], [autoconf], [false], [$PATH])
 
+dnl Enable shared libs
+AC_ARG_ENABLE([shared],
+  [AS_HELP_STRING([--enable-shared], [Build shared libaries])],
+if test "x$enable_shared" = "xno" ; then
+  enable_shared="0"
+else
+  enable_shared="1"
+fi
+,
+enable_shared="1"
+)
+AC_SUBST([enable_shared])
+
+dnl Enable static libs
+AC_ARG_ENABLE([static],
+  [AS_HELP_STRING([--enable-static], [Build static libaries])],
+if test "x$enable_static" = "xno" ; then
+  enable_static="0"
+else
+  enable_static="1"
+fi
+,
+enable_static="1"
+)
+AC_SUBST([enable_static])
+
+if test "$enable_shared$enable_static" = "00" ; then
+  AC_MSG_ERROR([Please enable one of shared or static builds])
+fi
+
 dnl Perform no name mangling by default.
 AC_ARG_WITH([mangling],
   [AS_HELP_STRING([--with-mangling=<map>], [Mangle symbols in <map>])],
@@ -2297,6 +2327,8 @@ AC_MSG_RESULT([JEMALLOC_PRIVATE_NAMESPACE])
 AC_MSG_RESULT([                   : ${JEMALLOC_PRIVATE_NAMESPACE}])
 AC_MSG_RESULT([install_suffix     : ${install_suffix}])
 AC_MSG_RESULT([malloc_conf        : ${config_malloc_conf}])
+AC_MSG_RESULT([shared libs        : ${enable_shared}])
+AC_MSG_RESULT([static libs        : ${enable_static}])
 AC_MSG_RESULT([autogen            : ${enable_autogen}])
 AC_MSG_RESULT([debug              : ${enable_debug}])
 AC_MSG_RESULT([stats              : ${enable_stats}])
