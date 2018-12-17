@@ -2,6 +2,54 @@
 
 /* Config -- "narenas:1,bin_shards:1-160:16|129-512:4|256-256:8" */
 
+#define NTHREADS 16
+#define REMOTE_NALLOC 256
+
+static void *
+thd_producer(void *varg) {
+	void **mem = varg;
+	unsigned arena, i;
+	size_t sz;
+
+	sz = sizeof(arena);
+	/* Remote arena. */
+	assert_d_eq(mallctl("arenas.create", (void *)&arena, &sz, NULL, 0), 0,
+	    "Unexpected mallctl() failure");
+	for (i = 0; i < REMOTE_NALLOC / 2; i++) {
+		mem[i] = mallocx(1, MALLOCX_TCACHE_NONE | MALLOCX_ARENA(arena));
+	}
+
+	/* Remote bin. */
+	for (; i < REMOTE_NALLOC; i++) {
+		mem[i] = mallocx(1, MALLOCX_TCACHE_NONE | MALLOCX_ARENA(0));
+	}
+
+	return NULL;
+}
+
+TEST_BEGIN(test_producer_consumer) {
+	thd_t thds[NTHREADS];
+	void *mem[NTHREADS][REMOTE_NALLOC];
+	unsigned i;
+
+	/* Create producer threads to allocate. */
+	for (i = 0; i < NTHREADS; i++) {
+		thd_create(&thds[i], thd_producer, mem[i]);
+	}
+	for (i = 0; i < NTHREADS; i++) {
+		thd_join(thds[i], NULL);
+	}
+	/* Remote deallocation by the current thread. */
+	for (i = 0; i < NTHREADS; i++) {
+		for (unsigned j = 0; j < REMOTE_NALLOC; j++) {
+			assert_ptr_not_null(mem[i][j],
+			    "Unexpected remote allocation failure");
+			dallocx(mem[i][j], 0);
+		}
+	}
+}
+TEST_END
+
 static void *
 thd_start(void *varg) {
 	void *ptr, *ptr2;
@@ -34,7 +82,6 @@ thd_start(void *varg) {
 }
 
 TEST_BEGIN(test_bin_shard_mt) {
-#define NTHREADS 16
 	thd_t thds[NTHREADS];
 	unsigned i;
 	for (i = 0; i < NTHREADS; i++) {
@@ -99,5 +146,6 @@ int
 main(void) {
 	return test_no_reentrancy(
 	    test_bin_shard,
-	    test_bin_shard_mt);
+	    test_bin_shard_mt,
+	    test_producer_consumer);
 }
