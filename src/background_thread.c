@@ -229,7 +229,7 @@ background_thread_sleep(tsdn_t *tsdn, background_thread_info_t *info,
 	int ret;
 	if (interval == BACKGROUND_THREAD_INDEFINITE_SLEEP) {
 		assert(background_thread_indefinite_sleep(info));
-		ret = pthread_cond_wait(&info->cond, &info->mtx.lock);
+		ret = fast_cond_wait(&info->cond, &info->mtx.lock);
 		assert(ret == 0);
 	} else {
 		assert(interval >= BACKGROUND_THREAD_MIN_INTERVAL_NS &&
@@ -252,7 +252,7 @@ background_thread_sleep(tsdn_t *tsdn, background_thread_info_t *info,
 		ts.tv_nsec = (size_t)nstime_nsec(&ts_wakeup);
 
 		assert(!background_thread_indefinite_sleep(info));
-		ret = pthread_cond_timedwait(&info->cond, &info->mtx.lock, &ts);
+		ret = fast_cond_timedwait(&info->cond, &info->mtx.lock, &ts);
 		assert(ret == ETIMEDOUT || ret == 0);
 		background_thread_wakeup_time_set(tsdn, info,
 		    BACKGROUND_THREAD_INDEFINITE_SLEEP);
@@ -324,7 +324,7 @@ background_threads_disable_single(tsd_t *tsd, background_thread_info_t *info) {
 	if (info->state == background_thread_started) {
 		has_thread = true;
 		info->state = background_thread_stopped;
-		pthread_cond_signal(&info->cond);
+		fast_cond_signal(&info->cond);
 	} else {
 		has_thread = false;
 	}
@@ -559,7 +559,7 @@ background_thread_create_locked(tsd_t *tsd, unsigned arena_ind) {
 		background_thread_info_t *t0 = &background_thread_info[0];
 		malloc_mutex_lock(tsd_tsdn(tsd), &t0->mtx);
 		assert(t0->state == background_thread_started);
-		pthread_cond_signal(&t0->cond);
+		fast_cond_signal(&t0->cond);
 		malloc_mutex_unlock(tsd_tsdn(tsd), &t0->mtx);
 
 		return false;
@@ -728,7 +728,7 @@ background_thread_interval_check(tsdn_t *tsdn, arena_t *arena,
 
 	if (should_signal) {
 		info->npages_to_purge_new = 0;
-		pthread_cond_signal(&info->cond);
+		fast_cond_signal(&info->cond);
 	}
 label_done_unlock2:
 	malloc_mutex_unlock(tsdn, &decay->mtx);
@@ -777,7 +777,7 @@ background_thread_postfork_child(tsdn_t *tsdn) {
 		background_thread_info_t *info = &background_thread_info[i];
 		malloc_mutex_lock(tsdn, &info->mtx);
 		info->state = background_thread_stopped;
-		int ret = pthread_cond_init(&info->cond, NULL);
+		int ret = fast_cond_init(&info->cond, NULL);
 		assert(ret == 0);
 		background_thread_info_init(tsdn, info);
 		malloc_mutex_unlock(tsdn, &info->mtx);
@@ -919,7 +919,7 @@ background_thread_boot1(tsdn_t *tsdn) {
 		    malloc_mutex_address_ordered)) {
 			return true;
 		}
-		if (pthread_cond_init(&info->cond, NULL)) {
+		if (fast_cond_init(&info->cond, NULL)) {
 			return true;
 		}
 		malloc_mutex_lock(tsdn, &info->mtx);

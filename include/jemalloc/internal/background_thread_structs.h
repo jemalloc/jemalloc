@@ -22,7 +22,7 @@ struct background_thread_info_s {
 #ifdef JEMALLOC_BACKGROUND_THREAD
 	/* Background thread is pthread specific. */
 	pthread_t		thread;
-	pthread_cond_t		cond;
+	fast_cond_t		cond;
 #endif
 	malloc_mutex_t		mtx;
 	background_thread_state_t	state;
