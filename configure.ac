@@ -1579,7 +1579,7 @@ if test "x$abi" != "xpecoff" ; then
   AC_CHECK_HEADERS([pthread.h], , [AC_MSG_ERROR([pthread.h is missing])])
   dnl Some systems may embed pthreads functionality in libc; check for libpthread
   dnl first, but try libc too before failing.
-  AC_CHECK_LIB([pthread], [pthread_create], [JE_APPEND_VS(LIBS, -lpthread)],
+  AC_CHECK_LIB([pthread], [pthread_create], [JE_APPEND_VS(LIBS, -pthread)],
                [AC_SEARCH_LIBS([pthread_create], , ,
                                AC_MSG_ERROR([libpthread is missing]))])
   wrap_syms="${wrap_syms} pthread_create"
