@@ -12,7 +12,7 @@ task:
     - pkg upgrade -y
     - pkg install -y autoconf git gmake
   clone_script:
-    - git clone --tags --branch=${CIRRUS_BASE_BRANCH} https://x-access-token:${CIRRUS_REPO_CLONE_TOKEN}@github.com/${CIRRUS_REPO_FULL_NAME}.git ${CIRRUS_WORKING_DIR}
+    - git clone --tags https://x-access-token:${CIRRUS_REPO_CLONE_TOKEN}@github.com/${CIRRUS_REPO_FULL_NAME}.git ${CIRRUS_WORKING_DIR}
     - git fetch origin ${CIRRUS_BRANCH}/head:${CIRRUS_BRANCH}
     - git checkout ${CIRRUS_BRANCH}
   script:
