@@ -527,8 +527,8 @@ tcache_destroy(tsd_t *tsd, tcache_t *tcache, bool tsd_tcache) {
 	arena_decay(tsd_tsdn(tsd), arena_get(tsd_tsdn(tsd), 0, false),
 	    false, false);
 
-	unsigned nthreads = arena_nthreads_get(arena, false);
-	if (nthreads == 0) {
+	if (arena_nthreads_get(arena, false) == 0 &&
+	    !background_thread_enabled()) {
 		/* Force purging when no threads assigned to the arena anymore. */
 		arena_decay(tsd_tsdn(tsd), arena, false, true);
 	} else {
