@@ -2127,6 +2127,14 @@ arena_init_huge(void) {
 	return huge_enabled;
 }
 
+bool
+arena_is_huge(unsigned arena_ind) {
+	if (huge_arena_ind == 0) {
+		return false;
+	}
+	return (arena_ind == huge_arena_ind);
+}
+
 void
 arena_boot(sc_data_t *sc_data) {
 	arena_dirty_decay_ms_default_set(opt_dirty_decay_ms);

@@ -535,9 +535,8 @@ background_thread_init(tsd_t *tsd, background_thread_info_t *info) {
 	n_background_threads++;
 }
 
-/* Create a new background thread if needed. */
-bool
-background_thread_create(tsd_t *tsd, unsigned arena_ind) {
+static bool
+background_thread_create_locked(tsd_t *tsd, unsigned arena_ind) {
 	assert(have_background_thread);
 	malloc_mutex_assert_owner(tsd_tsdn(tsd), &background_thread_lock);
 
@@ -590,6 +589,19 @@ background_thread_create(tsd_t *tsd, unsigned arena_ind) {
 	return false;
 }
 
+/* Create a new background thread if needed. */
+bool
+background_thread_create(tsd_t *tsd, unsigned arena_ind) {
+	assert(have_background_thread);
+
+	bool ret;
+	malloc_mutex_lock(tsd_tsdn(tsd), &background_thread_lock);
+	ret = background_thread_create_locked(tsd, arena_ind);
+	malloc_mutex_unlock(tsd_tsdn(tsd), &background_thread_lock);
+
+	return ret;
+}
+
 bool
 background_threads_enable(tsd_t *tsd) {
 	assert(n_background_threads == 0);
@@ -623,7 +635,7 @@ background_threads_enable(tsd_t *tsd) {
 		}
 	}
 
-	return background_thread_create(tsd, 0);
+	return background_thread_create_locked(tsd, 0);
 }
 
 bool

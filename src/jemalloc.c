@@ -344,12 +344,12 @@ arena_new_create_background_thread(tsdn_t *tsdn, unsigned ind) {
 	if (ind == 0) {
 		return;
 	}
-	if (have_background_thread) {
-		bool err;
-		malloc_mutex_lock(tsdn, &background_thread_lock);
-		err = background_thread_create(tsdn_tsd(tsdn), ind);
-		malloc_mutex_unlock(tsdn, &background_thread_lock);
-		if (err) {
+	/*
+	 * Avoid creating a new background thread just for the huge arena, which
+	 * purges eagerly by default.
+	 */
+	if (have_background_thread && !arena_is_huge(ind)) {
+		if (background_thread_create(tsdn_tsd(tsdn), ind)) {
 			malloc_printf("<jemalloc>: error in background thread "
 				      "creation for arena %u. Abort.\n", ind);
 			abort();
@@ -1719,11 +1719,7 @@ malloc_init_hard(void) {
 		 * sets isthreaded) needs to be called without holding any lock.
 		 */
 		background_thread_ctl_init(tsd_tsdn(tsd));
-
-		malloc_mutex_lock(tsd_tsdn(tsd), &background_thread_lock);
-		bool err = background_thread_create(tsd, 0);
-		malloc_mutex_unlock(tsd_tsdn(tsd), &background_thread_lock);
-		if (err) {
+		if (background_thread_create(tsd, 0)) {
 			return true;
 		}
 	}
