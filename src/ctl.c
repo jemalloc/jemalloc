@@ -2276,6 +2276,17 @@ arena_i_decay_ms_ctl_impl(tsd_t *tsd, const size_t *mib, size_t miblen,
 			ret = EINVAL;
 			goto label_return;
 		}
+		if (arena_is_huge(arena_ind) && *(ssize_t *)newp > 0) {
+			/*
+			 * By default the huge arena purges eagerly.  If it is
+			 * set to non-zero decay time afterwards, background
+			 * thread might be needed.
+			 */
+			if (background_thread_create(tsd, arena_ind)) {
+				ret = EFAULT;
+				goto label_return;
+			}
+		}
 		if (dirty ? arena_dirty_decay_ms_set(tsd_tsdn(tsd), arena,
 		    *(ssize_t *)newp) : arena_muzzy_decay_ms_set(tsd_tsdn(tsd),
 		    arena, *(ssize_t *)newp)) {
