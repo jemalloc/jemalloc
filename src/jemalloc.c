@@ -1239,7 +1239,14 @@ malloc_conf_init(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS]) {
 			CONF_HANDLE_SSIZE_T(opt_lg_tcache_max, "lg_tcache_max",
 			    -1, (sizeof(size_t) << 3) - 1)
 
-			/* Experimental feature.  Will be documented later.*/
+			/*
+			 * The runtime option of huge_threshold remains
+			 * undocumented.  It may be tweaked in the next major
+			 * release (6.0).  The default value 8M is rather
+			 * conservative / safe.  Tuning it further down may
+			 * improve fragmentation a bit more, but may also cause
+			 * contention on the huge arena.
+			 */
 			CONF_HANDLE_SIZE_T(opt_huge_threshold,
 			    "huge_threshold", SC_LARGE_MINCLASS,
 			    SC_LARGE_MAXCLASS, yes, yes, false)
