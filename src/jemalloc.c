@@ -1241,8 +1241,7 @@ malloc_conf_init(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS]) {
 
 			/* Experimental feature.  Will be documented later.*/
 			CONF_HANDLE_SIZE_T(opt_huge_threshold,
-			    "experimental_huge_threshold",
-			    SC_LARGE_MINCLASS,
+			    "huge_threshold", SC_LARGE_MINCLASS,
 			    SC_LARGE_MAXCLASS, yes, yes, false)
 			CONF_HANDLE_SIZE_T(opt_lg_extent_max_active_fit,
 			    "lg_extent_max_active_fit", 0,

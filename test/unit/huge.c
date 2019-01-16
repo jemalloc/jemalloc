@@ -1,7 +1,7 @@
 #include "test/jemalloc_test.h"
 
 /* Threshold: 2 << 20 = 2097152. */
-const char *malloc_conf = "experimental_huge_threshold:2097152";
+const char *malloc_conf = "huge_threshold:2097152";
 
 #define HUGE_SZ (2 << 20)
 #define SMALL_SZ (8)
