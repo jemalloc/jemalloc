@@ -126,7 +126,7 @@ TEST_BEGIN(test_oom) {
 	largemax = get_large_size(get_nlarge()-1);
 	oom = false;
 	for (i = 0; i < sizeof(ptrs) / sizeof(void *); i++) {
-		ptrs[i] = mallocx(largemax, 0);
+		ptrs[i] = mallocx(largemax, MALLOCX_ARENA(0));
 		if (ptrs[i] == NULL) {
 			oom = true;
 		}
@@ -223,12 +223,12 @@ TEST_BEGIN(test_alignment_and_size) {
 		    sz += (alignment >> (LG_SIZEOF_PTR-1)) - 1) {
 			for (i = 0; i < NITER; i++) {
 				nsz = nallocx(sz, MALLOCX_ALIGN(alignment) |
-				    MALLOCX_ZERO);
+				    MALLOCX_ZERO | MALLOCX_ARENA(0));
 				assert_zu_ne(nsz, 0,
 				    "nallocx() error for alignment=%zu, "
 				    "size=%zu (%#zx)", alignment, sz, sz);
 				ps[i] = mallocx(sz, MALLOCX_ALIGN(alignment) |
-				    MALLOCX_ZERO);
+				    MALLOCX_ZERO | MALLOCX_ARENA(0));
 				assert_ptr_not_null(ps[i],
 				    "mallocx() error for alignment=%zu, "
 				    "size=%zu (%#zx)", alignment, sz, sz);
