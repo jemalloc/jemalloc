@@ -289,7 +289,7 @@ stats_arena_bins_print(emitter_t *emitter, bool mutex, unsigned i, uint64_t upti
 	COL_HDR(row, ndalloc, NULL, right, 13, uint64)
 	COL_HDR(row, ndalloc_ps, "(#/sec)", right, 8, uint64)
 	COL_HDR(row, nrequests, NULL, right, 13, uint64)
-	COL_HDR(row, nrequests_ps, "(#/sec)", right, 8, uint64)
+	COL_HDR(row, nrequests_ps, "(#/sec)", right, 10, uint64)
 	COL_HDR(row, nshards, NULL, right, 9, unsigned)
 	COL_HDR(row, curregs, NULL, right, 13, size)
 	COL_HDR(row, curslabs, NULL, right, 13, size)
@@ -817,7 +817,7 @@ stats_arena_print(emitter_t *emitter, unsigned i, bool bins, bool large,
 
 	COL(alloc_count_row, count_nrequests, right, 16, title);
 	col_count_nrequests.str_val = "nrequests";
-	COL(alloc_count_row, count_nrequests_ps, right, 8, title);
+	COL(alloc_count_row, count_nrequests_ps, right, 10, title);
 	col_count_nrequests_ps.str_val = "(#/sec)";
 
 	emitter_table_row(emitter, &alloc_count_row);
