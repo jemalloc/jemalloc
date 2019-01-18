@@ -876,6 +876,12 @@ stats_arena_print(emitter_t *emitter, unsigned i, bool bins, bool large,
 	col_count_nmalloc.uint64_val = small_nmalloc + large_nmalloc;
 	col_count_ndalloc.uint64_val = small_ndalloc + large_ndalloc;
 	col_count_nrequests.uint64_val = small_nrequests + large_nrequests;
+	col_count_nmalloc_ps.uint64_val =
+	    rate_per_second(col_count_nmalloc.uint64_val, uptime);
+	col_count_ndalloc_ps.uint64_val =
+	    rate_per_second(col_count_ndalloc.uint64_val, uptime);
+	col_count_nrequests_ps.uint64_val =
+	    rate_per_second(col_count_nrequests.uint64_val, uptime);
 	emitter_table_row(emitter, &alloc_count_row);
 
 	emitter_row_t mem_count_row;
