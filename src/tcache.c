@@ -100,6 +100,34 @@ tcache_alloc_small_hard(tsdn_t *tsdn, arena_t *arena, tcache_t *tcache,
 	return ret;
 }
 
+/* Enabled with --enable-extra-size-check. */
+#ifdef JEMALLOC_EXTRA_SIZE_CHECK
+static void
+tbin_extents_lookup_size_check(tsdn_t *tsdn, cache_bin_t *tbin, szind_t binind,
+    size_t nflush, extent_t **extents){
+	rtree_ctx_t rtree_ctx_fallback;
+	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
+
+	/*
+	 * Verify that the items in the tcache all have the correct size; this
+	 * is useful for catching sized deallocation bugs, also to fail early
+	 * instead of corrupting metadata.  Since this can be turned on for opt
+	 * builds, avoid the branch in the loop.
+	 */
+	szind_t szind;
+	size_t sz_sum = binind * nflush;
+	for (unsigned i = 0 ; i < nflush; i++) {
+		rtree_extent_szind_read(tsdn, &extents_rtree,
+		    rtree_ctx, (uintptr_t)*(tbin->avail - 1 - i), true,
+		    &extents[i], &szind);
+		sz_sum -= szind;
+	}
+	if (sz_sum != 0) {
+		abort();
+	}
+}
+#endif
+
 void
 tcache_bin_flush_small(tsd_t *tsd, tcache_t *tcache, cache_bin_t *tbin,
     szind_t binind, unsigned rem) {
@@ -112,11 +140,16 @@ tcache_bin_flush_small(tsd_t *tsd, tcache_t *tcache, cache_bin_t *tbin,
 	assert(arena != NULL);
 	unsigned nflush = tbin->ncached - rem;
 	VARIABLE_ARRAY(extent_t *, item_extent, nflush);
+
+#ifndef JEMALLOC_EXTRA_SIZE_CHECK
 	/* Look up extent once per item. */
 	for (unsigned i = 0 ; i < nflush; i++) {
 		item_extent[i] = iealloc(tsd_tsdn(tsd), *(tbin->avail - 1 - i));
 	}
-
+#else
+	tbin_extents_lookup_size_check(tsd_tsdn(tsd), tbin, binind, nflush,
+	    item_extent);
+#endif
 	while (nflush > 0) {
 		/* Lock the arena bin associated with the first object. */
 		extent_t *extent = item_extent[0];
@@ -202,11 +235,16 @@ tcache_bin_flush_large(tsd_t *tsd, cache_bin_t *tbin, szind_t binind,
 	assert(tcache_arena != NULL);
 	unsigned nflush = tbin->ncached - rem;
 	VARIABLE_ARRAY(extent_t *, item_extent, nflush);
+
+#ifndef JEMALLOC_EXTRA_SIZE_CHECK
 	/* Look up extent once per item. */
 	for (unsigned i = 0 ; i < nflush; i++) {
 		item_extent[i] = iealloc(tsd_tsdn(tsd), *(tbin->avail - 1 - i));
 	}
-
+#else
+	tbin_extents_lookup_size_check(tsd_tsdn(tsd), tbin, binind, nflush,
+	    item_extent);
+#endif
 	while (nflush > 0) {
 		/* Lock the arena associated with the first object. */
 		extent_t *extent = item_extent[0];
