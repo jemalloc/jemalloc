@@ -1403,6 +1403,22 @@ if test "x$enable_readlinkat" = "x1" ; then
 fi
 AC_SUBST([enable_readlinkat])
 
+dnl Avoid the extra size checking by default
+AC_ARG_ENABLE([extra-size-check],
+  [AS_HELP_STRING([--enable-extra-size-check],
+  [Perform additonal size related sanity checks])],
+[if test "x$enable_extra_size_check" = "xno" ; then
+  enable_extra_size_check="0"
+else
+  enable_extra_size_check="1"
+fi
+],
+[enable_extra_size_check=="0"]
+)
+if test "x$enable_extra_size_check" = "x1" ; then
+  AC_DEFINE([JEMALLOC_EXTRA_SIZE_CHECK], [ ])
+fi
+AC_SUBST([enable_extra_size_check])
 
 JE_COMPILABLE([a program using __builtin_unreachable], [
 void foo (void) {
