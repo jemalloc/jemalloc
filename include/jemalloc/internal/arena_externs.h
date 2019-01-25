@@ -16,8 +16,8 @@ extern const char *percpu_arena_mode_names[];
 extern const uint64_t h_steps[SMOOTHSTEP_NSTEPS];
 extern malloc_mutex_t arenas_lock;
 
-extern size_t opt_huge_threshold;
-extern size_t huge_threshold;
+extern size_t opt_oversize_threshold;
+extern size_t oversize_threshold;
 
 void arena_basic_stats_merge(tsdn_t *tsdn, arena_t *arena,
     unsigned *nthreads, const char **dss, ssize_t *dirty_decay_ms,

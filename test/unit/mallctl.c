@@ -164,7 +164,7 @@ TEST_BEGIN(test_mallctl_opt) {
 	TEST_MALLCTL_OPT(const char *, dss, always);
 	TEST_MALLCTL_OPT(unsigned, narenas, always);
 	TEST_MALLCTL_OPT(const char *, percpu_arena, always);
-	TEST_MALLCTL_OPT(size_t, huge_threshold, always);
+	TEST_MALLCTL_OPT(size_t, oversize_threshold, always);
 	TEST_MALLCTL_OPT(bool, background_thread, always);
 	TEST_MALLCTL_OPT(ssize_t, dirty_decay_ms, always);
 	TEST_MALLCTL_OPT(ssize_t, muzzy_decay_ms, always);
@@ -342,7 +342,7 @@ TEST_BEGIN(test_thread_arena) {
 	sz = sizeof(unsigned);
 	assert_d_eq(mallctl("arenas.narenas", (void *)&narenas, &sz, NULL, 0),
 	    0, "Unexpected mallctl() failure");
-	if (opt_huge_threshold != 0) {
+	if (opt_oversize_threshold != 0) {
 		narenas--;
 	}
 	assert_u_eq(narenas, opt_narenas, "Number of arenas incorrect");

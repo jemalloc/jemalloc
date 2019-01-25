@@ -43,9 +43,9 @@ typedef enum {
 #define PERCPU_ARENA_DEFAULT	percpu_arena_disabled
 
 /*
- * When allocation_size >= huge_threshold, use the dedicated huge arena (unless
- * have explicitly spicified arena index).  0 disables the feature.
+ * When allocation_size >= oversize_threshold, use the dedicated huge arena
+ * (unless have explicitly spicified arena index).  0 disables the feature.
  */
-#define HUGE_THRESHOLD_DEFAULT (8 << 20)
+#define OVERSIZE_THRESHOLD_DEFAULT (8 << 20)
 
 #endif /* JEMALLOC_INTERNAL_ARENA_TYPES_H */

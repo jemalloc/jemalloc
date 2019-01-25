@@ -1059,9 +1059,7 @@ mallctl("arena." STRINGIFY(MALLCTL_ARENAS_ALL) ".decay",
         linkend="arena.i.dirty_decay_ms"><mallctl>arena.&lt;i&gt;.dirty_decay_ms</mallctl></link>
         for related dynamic control options.  See <link
         linkend="opt.muzzy_decay_ms"><mallctl>opt.muzzy_decay_ms</mallctl></link>
-        for a description of muzzy pages.  Note that when the huge_threshold
-        feature is enabled, the special auto arenas may use its own decay
-        settings.</para></listitem>
+        for a description of muzzy pages.</para></listitem>
       </varlistentry>
 
       <varlistentry id="opt.muzzy_decay_ms">

@@ -43,8 +43,8 @@ const uint64_t h_steps[SMOOTHSTEP_NSTEPS] = {
 
 static div_info_t arena_binind_div_info[SC_NBINS];
 
-size_t opt_huge_threshold = HUGE_THRESHOLD_DEFAULT;
-size_t huge_threshold = HUGE_THRESHOLD_DEFAULT;
+size_t opt_oversize_threshold = OVERSIZE_THRESHOLD_DEFAULT;
+size_t oversize_threshold = OVERSIZE_THRESHOLD_DEFAULT;
 static unsigned huge_arena_ind;
 
 /******************************************************************************/
@@ -2112,15 +2112,15 @@ arena_init_huge(void) {
 	bool huge_enabled;
 
 	/* The threshold should be large size class. */
-	if (opt_huge_threshold > SC_LARGE_MAXCLASS ||
-	    opt_huge_threshold < SC_LARGE_MINCLASS) {
-		opt_huge_threshold = 0;
-		huge_threshold = SC_LARGE_MAXCLASS + PAGE;
+	if (opt_oversize_threshold > SC_LARGE_MAXCLASS ||
+	    opt_oversize_threshold < SC_LARGE_MINCLASS) {
+		opt_oversize_threshold = 0;
+		oversize_threshold = SC_LARGE_MAXCLASS + PAGE;
 		huge_enabled = false;
 	} else {
 		/* Reserve the index for the huge arena. */
 		huge_arena_ind = narenas_total_get();
-		huge_threshold = opt_huge_threshold;
+		oversize_threshold = opt_oversize_threshold;
 		huge_enabled = true;
 	}
 
