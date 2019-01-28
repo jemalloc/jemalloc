@@ -130,6 +130,7 @@ mutex_stats_init_cols(emitter_row_t *row, const char *table_name,
 #undef OP
 #undef WIDTH_uint32_t
 #undef WIDTH_uint64_t
+	col_uint64_t[mutex_counter_total_wait_time_ps].width = 10;
 }
 
 static void
