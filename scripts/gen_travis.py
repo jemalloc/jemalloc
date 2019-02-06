@@ -45,6 +45,7 @@ configure_flag_unusuals = [
     '--enable-debug',
     '--enable-prof',
     '--disable-stats',
+    '--disable-libdl',
 ]
 
 malloc_conf_unusuals = [
