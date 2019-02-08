@@ -175,6 +175,9 @@ fi
 ],
   XSLROOT="${DEFAULT_XSLROOT}"
 )
+if test "x$XSLTPROC" = "xfalse" ; then
+  XSLROOT=""
+fi
 AC_SUBST([XSLROOT])
 
 dnl If CFLAGS isn't defined, set CFLAGS to something reasonable.  Otherwise,
