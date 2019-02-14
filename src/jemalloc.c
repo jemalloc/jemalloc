@@ -1552,7 +1552,7 @@ malloc_init_hard(void) {
 	malloc_tsd_boot1();
 	/* Update TSD after tsd_boot1. */
 	tsd = tsd_fetch();
-	if (opt_background_thread) {
+	if (opt_background_thread && have_background_thread) {
 		assert(have_background_thread);
 		/*
 		 * Need to finish init & unlock first before creating background
