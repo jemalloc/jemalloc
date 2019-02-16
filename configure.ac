@@ -594,12 +594,14 @@ jemalloc_version_minor=`echo ${jemalloc_version} | tr ".g-" " " | awk '{print [$
 jemalloc_version_bugfix=`echo ${jemalloc_version} | tr ".g-" " " | awk '{print [$]3}'`
 jemalloc_version_nrev=`echo ${jemalloc_version} | tr ".g-" " " | awk '{print [$]4}'`
 jemalloc_version_gid=`echo ${jemalloc_version} | tr ".g-" " " | awk '{print [$]5}'`
+jemalloc_version_short=`echo ${jemalloc_version_major}.${jemalloc_version_minor}.${jemalloc_version_bugfix}_${jemalloc_version_nrev}`
 AC_SUBST([jemalloc_version])
 AC_SUBST([jemalloc_version_major])
 AC_SUBST([jemalloc_version_minor])
 AC_SUBST([jemalloc_version_bugfix])
 AC_SUBST([jemalloc_version_nrev])
 AC_SUBST([jemalloc_version_gid])
+AC_SUBST([jemalloc_version_short])
 
 dnl Platform-specific settings.  abi and RPATH can probably be determined
 dnl programmatically, but doing so is error-prone, which makes it generally

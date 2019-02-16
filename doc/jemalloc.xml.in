@@ -9,7 +9,7 @@
   <refentryinfo>
     <title>User Manual</title>
     <productname>jemalloc</productname>
-    <releaseinfo role="version">@jemalloc_version@</releaseinfo>
+    <releaseinfo role="version">@jemalloc_version_short@</releaseinfo>
     <authorgroup>
       <author>
         <firstname>Jason</firstname>
