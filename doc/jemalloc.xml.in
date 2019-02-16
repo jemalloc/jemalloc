@@ -3403,7 +3403,9 @@ malloc_conf = "narenas:1";]]></programlisting></para>
     <citerefentry><refentrytitle>atexit</refentrytitle>
     <manvolnum>3</manvolnum></citerefentry>,
     <citerefentry><refentrytitle>getpagesize</refentrytitle>
-    <manvolnum>3</manvolnum></citerefentry></para>
+    <manvolnum>3</manvolnum></citerefentry>,
+    <citerefentry><refentrytitle>jeprof</refentrytitle>
+    <manvolnum>1</manvolnum></citerefentry></para>
   </refsect1>
   <refsect1 id="standards">
     <title>STANDARDS</title>

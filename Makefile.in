@@ -146,11 +146,11 @@ else
 LJEMALLOC := $(objroot)lib/$(LIBJEMALLOC).$(IMPORTLIB)
 endif
 PC := $(objroot)jemalloc.pc
-MAN3 := $(objroot)doc/jemalloc$(install_suffix).3
 DOCS_XML := $(objroot)doc/jemalloc$(install_suffix).xml
-DOCS_HTML := $(DOCS_XML:$(objroot)%.xml=$(objroot)%.html)
+DOCS_HTML := $(DOCS_XML:$(objroot)%.xml=$(objroot)%.html) $(objroot)doc/jeprof.html
+DOCS_MAN1 := $(objroot)doc/jeprof.1
 DOCS_MAN3 := $(DOCS_XML:$(objroot)%.xml=$(objroot)%.3)
-DOCS := $(DOCS_HTML) $(DOCS_MAN3)
+DOCS := $(DOCS_HTML) $(DOCS_MAN1) $(DOCS_MAN3)
 C_TESTLIB_SRCS := $(srcroot)test/src/btalloc.c $(srcroot)test/src/btalloc_0.c \
 	$(srcroot)test/src/btalloc_1.c $(srcroot)test/src/math.c \
 	$(srcroot)test/src/mtx.c $(srcroot)test/src/mq.c \
@@ -314,8 +314,14 @@ endif
 	@echo "Missing xsltproc.  "$@" not (re)built."
 endif
 
+$(objroot)doc/jeprof.html: $(objroot)bin/jeprof
+	pod2html --infile=$< --outfile=$@
+
+$(objroot)doc/jeprof.1: $(objroot)bin/jeprof
+	pod2man --center="User Manual" --release="jemalloc @jemalloc_version_short@" $< $@
+
 build_doc_html: $(DOCS_HTML)
-build_doc_man: $(DOCS_MAN3)
+build_doc_man: $(DOCS_MAN1) $(DOCS_MAN3)
 build_doc: $(DOCS)
 
 #
@@ -505,6 +511,11 @@ install_doc_html:
 done
 
 install_doc_man:
+	$(INSTALL) -d $(MANDIR)/man1
+	@for d in $(DOCS_MAN1); do \
+	echo "$(INSTALL) -m 644 $$d $(MANDIR)/man1"; \
+	$(INSTALL) -m 644 $$d $(MANDIR)/man1; \
+done
 	$(INSTALL) -d $(MANDIR)/man3
 	@for d in $(DOCS_MAN3); do \
 	echo "$(INSTALL) -m 644 $$d $(MANDIR)/man3"; \
@@ -589,6 +600,7 @@ relclean: distclean
 	rm -f $(objroot)configure
 	rm -f $(objroot)VERSION
 	rm -f $(DOCS_HTML)
+	rm -f $(DOCS_MAN1)
 	rm -f $(DOCS_MAN3)
 
 #===============================================================================
