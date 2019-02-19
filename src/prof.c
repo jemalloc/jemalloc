@@ -3067,16 +3067,14 @@ prof_boot2(tsd_t *tsd) {
 				return true;
 			}
 		}
-	}
-
 #ifdef JEMALLOC_PROF_LIBGCC
-	/*
-	 * Cause the backtracing machinery to allocate its internal state
-	 * before enabling profiling.
-	 */
-	_Unwind_Backtrace(prof_unwind_init_callback, NULL);
+		/*
+		 * Cause the backtracing machinery to allocate its internal
+		 * state before enabling profiling.
+		 */
+		_Unwind_Backtrace(prof_unwind_init_callback, NULL);
 #endif
-
+	}
 	prof_booted = true;
 
 	return false;
