@@ -5,9 +5,9 @@
 #include "jemalloc/internal/ql.h"
 #include "jemalloc/internal/sc.h"
 #include "jemalloc/internal/ticker.h"
+#include "jemalloc/internal/tsd_types.h"
 
 /* Various uses of this struct need it to be a named type. */
-typedef struct tsd_s tsd_t;
 typedef ql_elm(tsd_t) tsd_link_t;
 
 struct tcache_s {
