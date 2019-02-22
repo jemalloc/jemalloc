@@ -2006,40 +2006,6 @@ esac
 fi
 
 dnl ============================================================================
-dnl Check whether __sync_{add,sub}_and_fetch() are available despite
-dnl __GCC_HAVE_SYNC_COMPARE_AND_SWAP_n macros being undefined.
-
-AC_DEFUN([JE_SYNC_COMPARE_AND_SWAP_CHECK],[
-  AC_CACHE_CHECK([whether to force $1-bit __sync_{add,sub}_and_fetch()],
-               [je_cv_sync_compare_and_swap_$2],
-               [AC_LINK_IFELSE([AC_LANG_PROGRAM([
-                                                 #include <stdint.h>
-                                                ],
-                                                [
-                                                 #ifndef __GCC_HAVE_SYNC_COMPARE_AND_SWAP_$2
-                                                 {
-                                                    uint$1_t x$1 = 0;
-                                                    __sync_add_and_fetch(&x$1, 42);
-                                                    __sync_sub_and_fetch(&x$1, 1);
-                                                 }
-                                                 #else
-                                                 #error __GCC_HAVE_SYNC_COMPARE_AND_SWAP_$2 is defined, no need to force
-                                                 #endif
-                                                ])],
-                               [je_cv_sync_compare_and_swap_$2=yes],
-                               [je_cv_sync_compare_and_swap_$2=no])])
-
-  if test "x${je_cv_sync_compare_and_swap_$2}" = "xyes" ; then
-    AC_DEFINE([JE_FORCE_SYNC_COMPARE_AND_SWAP_$2], [ ])
-  fi
-])
-
-if test "x${je_cv_atomic9}" != "xyes" -a "x${je_cv_osatomic}" != "xyes" ; then
-  JE_SYNC_COMPARE_AND_SWAP_CHECK(32, 4)
-  JE_SYNC_COMPARE_AND_SWAP_CHECK(64, 8)
-fi
-
-dnl ============================================================================
 dnl Check for __builtin_clz() and __builtin_clzl().
 
 AC_CACHE_CHECK([for __builtin_clz],
