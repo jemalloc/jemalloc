@@ -1416,7 +1416,7 @@ else
   enable_extra_size_check="1"
 fi
 ],
-[enable_extra_size_check=="0"]
+[enable_extra_size_check="0"]
 )
 if test "x$enable_extra_size_check" = "x1" ; then
   AC_DEFINE([JEMALLOC_EXTRA_SIZE_CHECK], [ ])
