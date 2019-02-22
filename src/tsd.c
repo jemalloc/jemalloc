@@ -472,7 +472,7 @@ _tls_callback(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved) {
 #    pragma comment(linker, "/INCLUDE:_tls_callback")
 #  else
 #    pragma comment(linker, "/INCLUDE:_tls_used")
-#    pragma comment(linker, "/INCLUDE:tls_callback")
+#    pragma comment(linker, "/INCLUDE:" STRINGIFY(tls_callback) )
 #  endif
 #  pragma section(".CRT$XLY",long,read)
 #endif
