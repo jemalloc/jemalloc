@@ -1366,7 +1366,12 @@ arena_tcache_fill_small(tsdn_t *tsdn, arena_t *arena, tcache_t *tcache,
     cache_bin_t *tbin, szind_t binind, uint64_t prof_accumbytes) {
 	unsigned i, nfill, cnt;
 	extent_t *fresh_slab = NULL;
-	bool dalloc = false;
+	bool dalloc;
+
+	bool alloced = false;
+	const bin_info_t *bin_info;
+
+	bin_info = &bin_infos[binind];
 
 	assert(tbin->ncached == 0);
 
@@ -1374,73 +1379,90 @@ arena_tcache_fill_small(tsdn_t *tsdn, arena_t *arena, tcache_t *tcache,
 		prof_idump(tsdn);
 	}
 
-	unsigned binshard;
-	bin_t *bin = arena_bin_choose_lock(tsdn, arena, binind, &binshard);
+	i = 0;
+	nfill = (tcache_bin_info[binind].ncached_max >>
+		 tcache->lg_fill_div[binind]);
+	while(true) {
+		bool done = true;
+		unsigned binshard;
+		bin_t *bin = arena_bin_choose_lock(tsdn, arena,
+                                                   binind, &binshard);
+		for (; i < nfill; i+=cnt) {
+			extent_t *slab;
+			void *ptr;
+			if ((slab = bin->slabcur) != NULL &&
+                            extent_nfree_get(slab) > 0) {
+				unsigned tofill = nfill - i;
+				cnt = tofill < extent_nfree_get(slab) ?
+					tofill : extent_nfree_get(slab);
+				arena_slab_reg_alloc_batch(
+					slab, &bin_infos[binind], cnt,
+					tbin->avail - nfill + i);
+			} else {
+				cnt=1;
+				ptr = arena_bin_malloc_hard(
+					tsdn, arena, bin, binind, binshard);
 
-	for (i = 0, nfill = (tcache_bin_info[binind].ncached_max >>
-	    tcache->lg_fill_div[binind]); i < nfill; i += cnt) {
-		extent_t *slab;
-		if ((slab = bin->slabcur) != NULL && extent_nfree_get(slab) >
-		    0) {
-			unsigned tofill = nfill - i;
-			cnt = tofill < extent_nfree_get(slab) ?
-				tofill : extent_nfree_get(slab);
-			arena_slab_reg_alloc_batch(
-			   slab, &bin_infos[binind], cnt,
-			   tbin->avail - nfill + i);
-		} else {
-			cnt = 1;
-			void* ptr = arena_bin_malloc_hard(tsdn, arena, bin, binind, binshard);
+                                if (ptr == NULL) {
+					if (!fresh_slab && !alloced) {
+						done = false;
+						break;
+					}
+					alloced = false;
 
-			if (ptr == NULL) {
-			  if (!fresh_slab) {
-			    const bin_info_t *bin_info;
-			    bin_info = &bin_infos[binind];
-			    malloc_mutex_unlock(tsdn, &bin->lock);
-			    /******************************/
-			    fresh_slab = arena_slab_alloc(tsdn, arena, binind, binshard, bin_info);
-			    /********************************/
-			    malloc_mutex_lock(tsdn, &bin->lock);
-			  }
-
-			  ptr = arena_bin_malloc_with_fresh_slab(tsdn, arena, bin, binind, &fresh_slab, &dalloc);
-			  if (!dalloc) {
-			    fresh_slab = NULL;
-			  }
-			}
-
-			/*
-			 * OOM.  tbin->avail isn't yet filled down to its first
-			 * element, so the successful allocations (if any) must
-			 * be moved just before tbin->avail before bailing out.
-			 */
-			if (ptr == NULL) {
-				if (i > 0) {
-					memmove(tbin->avail - i,
-						tbin->avail - nfill,
-						i * sizeof(void *));
+					ptr = arena_bin_malloc_with_fresh_slab(
+						tsdn, arena, bin, binind,
+						&fresh_slab, &dalloc);
+					if (!dalloc) {
+						fresh_slab = NULL;
+					}
 				}
-				break;
-			}
+				if (ptr == NULL) {
+					/*
+					 * OOM.  tbin->avail isn't yet filled
+					 * down to its first element, so the
+					 * successful allocations (if any)
+					 * must be moved just before
+					 * tbin->avail before bailing out.
+					 */
+					if (i > 0) {
+						memmove(tbin->avail - i,
+							tbin->avail - nfill,
+							i * sizeof(void *));
+					}
+					break;
+				}
 			/* Insert such that low regions get used first. */
 			*(tbin->avail - nfill + i) = ptr;
-		}
-		if (config_fill && unlikely(opt_junk_alloc)) {
-			for (unsigned j = 0; j < cnt; j++) {
-				void* ptr = *(tbin->avail - nfill + i + j);
-				arena_alloc_junk_small(ptr, &bin_infos[binind],
-							true);
+			}
+			if (config_fill && unlikely(opt_junk_alloc)) {
+				for (unsigned j = 0; j < cnt; j++) {
+					void* ptr = *(tbin->avail -
+                                                      nfill + i + j);
+					arena_alloc_junk_small(
+						ptr,
+						&bin_infos[binind],
+						true);
+				}
 			}
 		}
+		if (done && config_stats) {
+			bin->stats.nmalloc += i;
+			bin->stats.nrequests += tbin->tstats.nrequests;
+			bin->stats.curregs += i;
+			bin->stats.nfills++;
+			tbin->tstats.nrequests = 0;
+		}
+		malloc_mutex_unlock(tsdn, &bin->lock);
+		if (done) {
+			break;
+		}
+		assert(!fresh_slab);
+		fresh_slab = arena_slab_alloc(tsdn, arena, binind,
+                                              binshard, bin_info);
+		alloced = true;
 	}
-	if (config_stats) {
-		bin->stats.nmalloc += i;
-		bin->stats.nrequests += tbin->tstats.nrequests;
-		bin->stats.curregs += i;
-		bin->stats.nfills++;
-		tbin->tstats.nrequests = 0;
-	}
-	malloc_mutex_unlock(tsdn, &bin->lock);
+
 	if (fresh_slab) {
 		arena_slab_dalloc(tsdn, arena, fresh_slab);
 	}
