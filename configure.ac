@@ -1896,6 +1896,19 @@ JE_COMPILABLE([GCC __atomic atomics], [
 ], [je_cv_gcc_atomic_atomics])
 if test "x${je_cv_gcc_atomic_atomics}" = "xyes" ; then
   AC_DEFINE([JEMALLOC_GCC_ATOMIC_ATOMICS])
+
+  dnl check for 8-bit atomic support
+  JE_COMPILABLE([GCC 8-bit __atomic atomics], [
+  ], [
+      unsigned char x = 0;
+      int val = 1;
+      int y = __atomic_fetch_add(&x, val, __ATOMIC_RELAXED);
+      int after_add = (int)x;
+      return after_add == 1;
+  ], [je_cv_gcc_u8_atomic_atomics])
+  if test "x${je_cv_gcc_u8_atomic_atomics}" = "xyes" ; then
+    AC_DEFINE([JEMALLOC_GCC_U8_ATOMIC_ATOMICS])
+  fi
 fi
 
 dnl ============================================================================
@@ -1910,6 +1923,18 @@ JE_COMPILABLE([GCC __sync atomics], [
 ], [je_cv_gcc_sync_atomics])
 if test "x${je_cv_gcc_sync_atomics}" = "xyes" ; then
   AC_DEFINE([JEMALLOC_GCC_SYNC_ATOMICS])
+
+  dnl check for 8-bit atomic support
+  JE_COMPILABLE([GCC 8-bit __sync atomics], [
+  ], [
+      unsigned char x = 0;
+      int before_add = __sync_fetch_and_add(&x, 1);
+      int after_add = (int)x;
+      return (before_add == 0) && (after_add == 1);
+  ], [je_cv_gcc_u8_sync_atomics])
+  if test "x${je_cv_gcc_u8_sync_atomics}" = "xyes" ; then
+    AC_DEFINE([JEMALLOC_GCC_U8_SYNC_ATOMICS])
+  fi
 fi
 
 dnl ============================================================================
