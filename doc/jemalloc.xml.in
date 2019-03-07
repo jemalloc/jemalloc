@@ -1086,22 +1086,6 @@ mallctl("arena." STRINGIFY(MALLCTL_ARENAS_ALL) ".decay",
         for related dynamic control options.</para></listitem>
       </varlistentry>
 
-      <varlistentry id="opt.lg_extent_max_active_fit">
-        <term>
-          <mallctl>opt.lg_extent_max_active_fit</mallctl>
-          (<type>size_t</type>)
-          <literal>r-</literal>
-        </term>
-        <listitem><para>When reusing dirty extents, this determines the (log
-        base 2 of the) maximum ratio between the size of the active extent
-        selected (to split off from) and the size of the requested allocation.
-        This prevents the splitting of large active extents for smaller
-        allocations, which can reduce fragmentation over the long run
-        (especially for non-active extents).  Lower value may reduce
-        fragmentation, at the cost of extra active extents.  The default value
-        is 6, which gives a maximum ratio of 64 (2^6).</para></listitem>
-      </varlistentry>
-
       <varlistentry id="opt.stats_print">
         <term>
           <mallctl>opt.stats_print</mallctl>

@@ -17,8 +17,6 @@ rtree_t		extents_rtree;
 /* Keyed by the address of the extent_t being protected. */
 mutex_pool_t	extent_mutex_pool;
 
-size_t opt_lg_extent_max_active_fit = LG_EXTENT_MAX_ACTIVE_FIT_DEFAULT;
-
 static const bitmap_info_t extents_bitmap_info =
     BITMAP_INFO_INITIALIZER(SC_NPSIZES+1);
 
@@ -449,13 +447,6 @@ extents_best_fit_locked(tsdn_t *tsdn, arena_t *arena, extents_t *extents,
 	pszind_t i = (pszind_t)bitmap_ffu(extents->bitmap, &extents_bitmap_info,
 	    (size_t)pind);
 	if (i < SC_NPSIZES + 1) {
-		/*
-		 * In order to reduce fragmentation, avoid reusing and splitting
-		 * large extents for much smaller sizes.
-		 */
-		if ((sz_pind2sz(i) >> opt_lg_extent_max_active_fit) > size) {
-			return NULL;
-		}
 		assert(!extent_heap_empty(&extents->heaps[i]));
 		extent_t *extent = extent_heap_first(&extents->heaps[i]);
 		assert(extent_size_get(extent) >= size);
