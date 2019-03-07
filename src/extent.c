@@ -441,30 +441,6 @@ extents_fit_alignment(extents_t *extents, size_t min_size, size_t max_size,
 	return NULL;
 }
 
-/* Do any-best-fit extent selection, i.e. select any extent that best fits. */
-static extent_t *
-extents_best_fit_locked(tsdn_t *tsdn, arena_t *arena, extents_t *extents,
-    size_t size) {
-	pszind_t pind = sz_psz2ind(extent_size_quantize_ceil(size));
-	pszind_t i = (pszind_t)bitmap_ffu(extents->bitmap, &extents_bitmap_info,
-	    (size_t)pind);
-	if (i < SC_NPSIZES + 1) {
-		/*
-		 * In order to reduce fragmentation, avoid reusing and splitting
-		 * large extents for much smaller sizes.
-		 */
-		if ((sz_pind2sz(i) >> opt_lg_extent_max_active_fit) > size) {
-			return NULL;
-		}
-		assert(!extent_heap_empty(&extents->heaps[i]));
-		extent_t *extent = extent_heap_first(&extents->heaps[i]);
-		assert(extent_size_get(extent) >= size);
-		return extent;
-	}
-
-	return NULL;
-}
-
 /*
  * Do first-fit extent selection, i.e. select the oldest/lowest extent that is
  * large enough.
@@ -487,12 +463,15 @@ extents_first_fit_locked(tsdn_t *tsdn, arena_t *arena, extents_t *extents,
 		/*
 		 * In order to reduce fragmentation, avoid reusing and splitting
 		 * large extents for much smaller sizes.
+		 *
+		 * Only do check for dirty extents (delay_coalesce).
 		 */
-		if ((sz_pind2sz(i) >> opt_lg_extent_max_active_fit) > size) {
+		if (extents->delay_coalesce &&
+		    (sz_pind2sz(i) >> opt_lg_extent_max_active_fit) > size) {
 			size_ok = false;
 		}
 		if (size_ok &&
-                    (ret == NULL || extent_snad_comp(extent, ret) < 0)) {
+		    (ret == NULL || extent_snad_comp(extent, ret) < 0)) {
 			ret = extent;
 		}
 		if (i == SC_NPSIZES) {
@@ -505,10 +484,8 @@ extents_first_fit_locked(tsdn_t *tsdn, arena_t *arena, extents_t *extents,
 }
 
 /*
- * Do {best,first}-fit extent selection, where the selection policy choice is
- * based on extents->delay_coalesce.  Best-fit selection requires less
- * searching, but its layout policy is less stable and may cause higher virtual
- * memory fragmentation as a side effect.
+ * Do first-fit extent selection, where the selection policy choice is
+ * based on extents->delay_coalesce.
  */
 static extent_t *
 extents_fit_locked(tsdn_t *tsdn, arena_t *arena, extents_t *extents,
@@ -521,8 +498,7 @@ extents_fit_locked(tsdn_t *tsdn, arena_t *arena, extents_t *extents,
 		return NULL;
 	}
 
-	extent_t *extent = extents->delay_coalesce ?
-	    extents_best_fit_locked(tsdn, arena, extents, max_size) :
+	extent_t *extent =
 	    extents_first_fit_locked(tsdn, arena, extents, max_size);
 
 	if (alignment > PAGE && extent == NULL) {
