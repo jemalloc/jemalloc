@@ -48,9 +48,16 @@
 
 /* Defined if GCC __atomic atomics are available. */
 #undef JEMALLOC_GCC_ATOMIC_ATOMICS
+/* and the 8-bit variant support. */
+#undef JEMALLOC_GCC_U8_ATOMIC_ATOMICS
 
 /* Defined if GCC __sync atomics are available. */
 #undef JEMALLOC_GCC_SYNC_ATOMICS
+/* and the 8-bit variant support. */
+#undef JEMALLOC_GCC_U8_SYNC_ATOMICS
+
+/* Defined if 8-bit atomics are supported. */
+
 
 /*
  * Defined if __builtin_clz() and __builtin_clzl() are available.

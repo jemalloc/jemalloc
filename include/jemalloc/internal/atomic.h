@@ -3,10 +3,17 @@
 
 #define ATOMIC_INLINE JEMALLOC_ALWAYS_INLINE
 
+#define JEMALLOC_U8_ATOMICS
 #if defined(JEMALLOC_GCC_ATOMIC_ATOMICS)
 #  include "jemalloc/internal/atomic_gcc_atomic.h"
+#  if !defined(JEMALLOC_GCC_U8_ATOMIC_ATOMICS)
+#    undef JEMALLOC_U8_ATOMICS
+#  endif
 #elif defined(JEMALLOC_GCC_SYNC_ATOMICS)
 #  include "jemalloc/internal/atomic_gcc_sync.h"
+#  if !defined(JEMALLOC_GCC_U8_SYNC_ATOMICS)
+#    undef JEMALLOC_U8_ATOMICS
+#  endif
 #elif defined(_MSC_VER)
 #  include "jemalloc/internal/atomic_msvc.h"
 #elif defined(JEMALLOC_C11_ATOMICS)
