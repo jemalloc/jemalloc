@@ -2909,6 +2909,7 @@ sub RemoveUninterestingFrames {
                       '@JEMALLOC_PREFIX@xallocx',
                       '@JEMALLOC_PREFIX@dallocx',
                       '@JEMALLOC_PREFIX@sdallocx',
+                      '@JEMALLOC_PREFIX@sdallocx_noflags',
                       'tc_calloc',
                       'tc_cfree',
                       'tc_malloc',

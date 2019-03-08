@@ -2732,7 +2732,7 @@ bool free_fastpath(void *ptr, size_t size, bool size_hint) {
 	tcache_t *tcache = tsd_tcachep_get(tsd);
 
 	alloc_ctx_t alloc_ctx;
-	/* 
+	/*
 	 * If !config_cache_oblivious, we can check PAGE alignment to
 	 * detect sampled objects.  Otherwise addresses are
 	 * randomized, and we have to look it up in the rtree anyway.
@@ -3517,6 +3517,18 @@ je_sdallocx(void *ptr, size_t size, int flags) {
 
 	if (flags !=0 || !free_fastpath(ptr, size, true)) {
 		sdallocx_default(ptr, size, flags);
+	}
+
+	LOG("core.sdallocx.exit", "");
+}
+
+void JEMALLOC_NOTHROW
+je_sdallocx_noflags(void *ptr, size_t size) {
+	LOG("core.sdallocx.entry", "ptr: %p, size: %zu, flags: 0", ptr,
+		size);
+
+	if (!free_fastpath(ptr, size, true)) {
+		sdallocx_default(ptr, size, 0);
 	}
 
 	LOG("core.sdallocx.exit", "");
