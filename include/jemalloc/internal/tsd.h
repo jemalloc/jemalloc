@@ -169,6 +169,18 @@ enum {
  */
 #define TSD_MANGLE(n) cant_access_tsd_items_directly_use_a_getter_or_setter_##n
 
+#ifdef JEMALLOC_U8_ATOMICS
+#  define tsd_state_t atomic_u8_t
+#  define tsd_atomic_load atomic_load_u8
+#  define tsd_atomic_store atomic_store_u8
+#  define tsd_atomic_exchange atomic_exchange_u8
+#else
+#  define tsd_state_t atomic_u32_t
+#  define tsd_atomic_load atomic_load_u32
+#  define tsd_atomic_store atomic_store_u32
+#  define tsd_atomic_exchange atomic_exchange_u32
+#endif
+
 /* The actual tsd. */
 struct tsd_s {
 	/*
@@ -177,8 +189,11 @@ struct tsd_s {
 	 * setters below.
 	 */
 
-	/* We manually limit the state to just a single byte. */
-	atomic_u8_t state;
+	/*
+	 * We manually limit the state to just a single byte.  Unless the 8-bit
+	 * atomics are unavailable (which is rare).
+	 */
+	tsd_state_t state;
 #define O(n, t, nt)							\
 	t TSD_MANGLE(n);
 MALLOC_TSD
