@@ -27,8 +27,7 @@ size_t extent_size_quantize_ceil(size_t size);
 rb_proto(, extent_avail_, extent_tree_t, extent_t)
 ph_proto(, extent_heap_, extent_heap_t, extent_t)
 
-bool extents_init(tsdn_t *tsdn, extents_t *extents, extent_state_t state,
-    bool delay_coalesce);
+bool extents_init(tsdn_t *tsdn, extents_t *extents, extent_state_t state);
 extent_state_t extents_state_get(const extents_t *extents);
 size_t extents_npages_get(extents_t *extents);
 /* Get the number of extents in the given page size index. */

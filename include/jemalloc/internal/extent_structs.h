@@ -220,12 +220,6 @@ struct extents_s {
 
 	/* All stored extents must be in the same state. */
 	extent_state_t		state;
-
-	/*
-	 * If true, delay coalescing until eviction; otherwise coalesce during
-	 * deallocation.
-	 */
-	bool			delay_coalesce;
 };
 
 #endif /* JEMALLOC_INTERNAL_EXTENT_STRUCTS_H */
