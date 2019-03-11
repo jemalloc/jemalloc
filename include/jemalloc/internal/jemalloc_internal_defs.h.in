@@ -56,9 +56,6 @@
 /* and the 8-bit variant support. */
 #undef JEMALLOC_GCC_U8_SYNC_ATOMICS
 
-/* Defined if 8-bit atomics are supported. */
-
-
 /*
  * Defined if __builtin_clz() and __builtin_clzl() are available.
  */
