@@ -1708,6 +1708,7 @@ extent_record(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
 		extent = extent_try_coalesce(tsdn, arena, r_extent_hooks,
 		    rtree_ctx, extents, extent, NULL, growing_retained);
 	} else if (extent_size_get(extent) >= SC_LARGE_MINCLASS) {
+		assert(extents == &arena->extents_dirty);
 		/* Always coalesce large extents eagerly. */
 		bool coalesced;
 		do {
@@ -1716,6 +1717,12 @@ extent_record(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
 			    r_extent_hooks, rtree_ctx, extents, extent,
 			    &coalesced, growing_retained);
 		} while (coalesced);
+		if (extent_size_get(extent) >= oversize_threshold) {
+			/* Shortcut to purge the oversize extent eagerly. */
+			malloc_mutex_unlock(tsdn, &extents->mtx);
+			arena_decay_extent(tsdn, arena, r_extent_hooks, extent);
+			return;
+		}
 	}
 	extent_deactivate_locked(tsdn, arena, extents, extent);
 
