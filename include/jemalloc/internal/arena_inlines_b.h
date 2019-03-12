@@ -135,6 +135,26 @@ arena_decay_tick(tsdn_t *tsdn, arena_t *arena) {
 	arena_decay_ticks(tsdn, arena, 1);
 }
 
+/* Purge a single extent to retained / unmapped directly. */
+JEMALLOC_ALWAYS_INLINE void
+arena_decay_extent(tsdn_t *tsdn,arena_t *arena, extent_hooks_t **r_extent_hooks,
+    extent_t *extent) {
+	size_t extent_size = extent_size_get(extent);
+	extent_dalloc_wrapper(tsdn, arena,
+	    r_extent_hooks, extent);
+	if (config_stats) {
+		/* Update stats accordingly. */
+		arena_stats_lock(tsdn, &arena->stats);
+		arena_stats_add_u64(tsdn, &arena->stats,
+		    &arena->decay_dirty.stats->nmadvise, 1);
+		arena_stats_add_u64(tsdn, &arena->stats,
+		    &arena->decay_dirty.stats->purged, extent_size >> LG_PAGE);
+		arena_stats_sub_zu(tsdn, &arena->stats, &arena->stats.mapped,
+		    extent_size);
+		arena_stats_unlock(tsdn, &arena->stats);
+	}
+}
+
 JEMALLOC_ALWAYS_INLINE void *
 arena_malloc(tsdn_t *tsdn, arena_t *arena, size_t size, szind_t ind, bool zero,
     tcache_t *tcache, bool slow_path) {
