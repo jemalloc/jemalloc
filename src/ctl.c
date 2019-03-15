@@ -216,6 +216,8 @@ CTL_PROTO(stats_mapped)
 CTL_PROTO(stats_retained)
 CTL_PROTO(experimental_hooks_install)
 CTL_PROTO(experimental_hooks_remove)
+CTL_PROTO(experimental_utilization_query)
+CTL_PROTO(experimental_utilization_batch_query)
 
 #define MUTEX_STATS_CTL_PROTO_GEN(n)					\
 CTL_PROTO(stats_##n##_num_ops)						\
@@ -574,11 +576,17 @@ static const ctl_named_node_t stats_node[] = {
 
 static const ctl_named_node_t hooks_node[] = {
 	{NAME("install"),	CTL(experimental_hooks_install)},
-	{NAME("remove"),	CTL(experimental_hooks_remove)},
+	{NAME("remove"),	CTL(experimental_hooks_remove)}
+};
+
+static const ctl_named_node_t utilization_node[] = {
+	{NAME("query"),		CTL(experimental_utilization_query)},
+	{NAME("batch_query"),	CTL(experimental_utilization_batch_query)}
 };
 
 static const ctl_named_node_t experimental_node[] = {
-	{NAME("hooks"),		CHILD(named, hooks)}
+	{NAME("hooks"),		CHILD(named, hooks)},
+	{NAME("utilization"),	CHILD(named, utilization)}
 };
 
 static const ctl_named_node_t	root_node[] = {
@@ -2714,7 +2722,7 @@ static int
 prof_log_start_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
     size_t *oldlenp, void *newp, size_t newlen) {
 	int ret;
-	
+
 	const char *filename = NULL;
 
 	if (!config_prof) {
@@ -2726,7 +2734,7 @@ prof_log_start_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
 
 	if (prof_log_start(tsd_tsdn(tsd), filename)) {
 		ret = EFAULT;
-		goto label_return; 
+		goto label_return;
 	}
 
 	ret = 0;
@@ -3080,6 +3088,226 @@ experimental_hooks_remove_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
 	}
 	hook_remove(tsd_tsdn(tsd), handle);
 	ret = 0;
+label_return:
+	return ret;
+}
+
+/*
+ * Output six memory utilization entries for an input pointer, the first one of
+ * type (void *) and the remaining five of type size_t, describing the following
+ * (in the same order):
+ *
+ * (a) memory address of the extent a potential reallocation would go into,
+ * == the five fields below describe about the extent the pointer resides in ==
+ * (b) number of free regions in the extent,
+ * (c) number of regions in the extent,
+ * (d) size of the extent in terms of bytes,
+ * (e) total number of free regions in the bin the extent belongs to, and
+ * (f) total number of regions in the bin the extent belongs to.
+ *
+ * Note that "(e)" and "(f)" are only available when stats are enabled;
+ * otherwise both are set zero.
+ *
+ * This API is mainly intended for small class allocations, where extents are
+ * used as slab.
+ *
+ * In case of large class allocations, "(a)" will be NULL, and "(e)" and "(f)"
+ * will be zero.  The other three fields will be properly set though the values
+ * are trivial: "(b)" will be 0, "(c)" will be 1, and "(d)" will be the usable
+ * size.
+ *
+ * The input pointer and size are respectively passed in by newp and newlen,
+ * and the output fields and size are respectively oldp and *oldlenp.
+ *
+ * It can be beneficial to define the following macros to make it easier to
+ * access the output:
+ *
+ * #define SLABCUR_READ(out) (*(void **)out)
+ * #define COUNTS(out) ((size_t *)((void **)out + 1))
+ * #define NFREE_READ(out) COUNTS(out)[0]
+ * #define NREGS_READ(out) COUNTS(out)[1]
+ * #define SIZE_READ(out) COUNTS(out)[2]
+ * #define BIN_NFREE_READ(out) COUNTS(out)[3]
+ * #define BIN_NREGS_READ(out) COUNTS(out)[4]
+ *
+ * and then write e.g. NFREE_READ(oldp) to fetch the output.  See the unit test
+ * test_utilization_query in test/unit/mallctl.c for an example.
+ *
+ * For a typical defragmentation workflow making use of this API for
+ * understanding the fragmentation level, please refer to the comment for
+ * experimental_utilization_batch_query_ctl.
+ *
+ * It's up to the application how to determine the significance of
+ * fragmentation relying on the outputs returned.  Possible choices are:
+ *
+ * (a) if extent utilization ratio is below certain threshold,
+ * (b) if extent memory consumption is above certain threshold,
+ * (c) if extent utilization ratio is significantly below bin utilization ratio,
+ * (d) if input pointer deviates a lot from potential reallocation address, or
+ * (e) some selection/combination of the above.
+ *
+ * The caller needs to make sure that the input/output arguments are valid,
+ * in particular, that the size of the output is correct, i.e.:
+ *
+ *     *oldlenp = sizeof(void *) + sizeof(size_t) * 5
+ *
+ * Otherwise, the function immediately returns EINVAL without touching anything.
+ *
+ * In the rare case where there's no associated extent found for the input
+ * pointer, the function zeros out all output fields and return.  Please refer
+ * to the comment for experimental_utilization_batch_query_ctl to understand the
+ * motivation from C++.
+ */
+static int
+experimental_utilization_query_ctl(tsd_t *tsd, const size_t *mib,
+    size_t miblen, void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
+	int ret;
+
+	assert(sizeof(extent_util_stats_verbose_t)
+	    == sizeof(void *) + sizeof(size_t) * 5);
+
+	if (oldp == NULL || oldlenp == NULL
+	    || *oldlenp != sizeof(extent_util_stats_verbose_t)
+	    || newp == NULL) {
+		ret = EINVAL;
+		goto label_return;
+	}
+
+	void *ptr = NULL;
+	WRITE(ptr, void *);
+	extent_util_stats_verbose_t *util_stats
+	    = (extent_util_stats_verbose_t *)oldp;
+	extent_util_stats_verbose_get(tsd_tsdn(tsd), ptr,
+	    &util_stats->nfree, &util_stats->nregs, &util_stats->size,
+	    &util_stats->bin_nfree, &util_stats->bin_nregs,
+	    &util_stats->slabcur_addr);
+	ret = 0;
+
+label_return:
+	return ret;
+}
+
+/*
+ * Given an input array of pointers, output three memory utilization entries of
+ * type size_t for each input pointer about the extent it resides in:
+ *
+ * (a) number of free regions in the extent,
+ * (b) number of regions in the extent, and
+ * (c) size of the extent in terms of bytes.
+ *
+ * This API is mainly intended for small class allocations, where extents are
+ * used as slab.  In case of large class allocations, the outputs are trivial:
+ * "(a)" will be 0, "(b)" will be 1, and "(c)" will be the usable size.
+ *
+ * Note that multiple input pointers may reside on a same extent so the output
+ * fields may contain duplicates.
+ *
+ * The format of the input/output looks like:
+ *
+ * input[0]:  1st_pointer_to_query	|  output[0]: 1st_extent_n_free_regions
+ *					|  output[1]: 1st_extent_n_regions
+ *					|  output[2]: 1st_extent_size
+ * input[1]:  2nd_pointer_to_query	|  output[3]: 2nd_extent_n_free_regions
+ *					|  output[4]: 2nd_extent_n_regions
+ *					|  output[5]: 2nd_extent_size
+ * ...					|  ...
+ *
+ * The input array and size are respectively passed in by newp and newlen, and
+ * the output array and size are respectively oldp and *oldlenp.
+ *
+ * It can be beneficial to define the following macros to make it easier to
+ * access the output:
+ *
+ * #define NFREE_READ(out, i) out[(i) * 3]
+ * #define NREGS_READ(out, i) out[(i) * 3 + 1]
+ * #define SIZE_READ(out, i) out[(i) * 3 + 2]
+ *
+ * and then write e.g. NFREE_READ(oldp, i) to fetch the output.  See the unit
+ * test test_utilization_batch in test/unit/mallctl.c for a concrete example.
+ *
+ * A typical workflow would be composed of the following steps:
+ *
+ * (1) flush tcache: mallctl("thread.tcache.flush", ...)
+ * (2) initialize input array of pointers to query fragmentation
+ * (3) allocate output array to hold utilization statistics
+ * (4) query utilization: mallctl("experimental.utilization.batch_query", ...)
+ * (5) (optional) decide if it's worthwhile to defragment; otherwise stop here
+ * (6) disable tcache: mallctl("thread.tcache.enabled", ...)
+ * (7) defragment allocations with significant fragmentation, e.g.:
+ *         for each allocation {
+ *             if it's fragmented {
+ *                 malloc(...);
+ *                 memcpy(...);
+ *                 free(...);
+ *             }
+ *         }
+ * (8) enable tcache: mallctl("thread.tcache.enabled", ...)
+ *
+ * The application can determine the significance of fragmentation themselves
+ * relying on the statistics returned, both at the overall level i.e. step "(5)"
+ * and at individual allocation level i.e. within step "(7)".  Possible choices
+ * are:
+ *
+ * (a) whether memory utilization ratio is below certain threshold,
+ * (b) whether memory consumption is above certain threshold, or
+ * (c) some combination of the two.
+ *
+ * The caller needs to make sure that the input/output arrays are valid and
+ * their sizes are proper as well as matched, meaning:
+ *
+ * (a) newlen = n_pointers * sizeof(const void *)
+ * (b) *oldlenp = n_pointers * sizeof(size_t) * 3
+ * (c) n_pointers > 0
+ *
+ * Otherwise, the function immediately returns EINVAL without touching anything.
+ *
+ * In the rare case where there's no associated extent found for some pointers,
+ * rather than immediately terminating the computation and raising an error,
+ * the function simply zeros out the corresponding output fields and continues
+ * the computation until all input pointers are handled.  The motivations of
+ * such a design are as follows:
+ *
+ * (a) The function always either processes nothing or processes everything, and
+ * never leaves the output half touched and half untouched.
+ *
+ * (b) It facilitates usage needs especially common in C++.  A vast variety of
+ * C++ objects are instantiated with multiple dynamic memory allocations.  For
+ * example, std::string and std::vector typically use at least two allocations,
+ * one for the metadata and one for the actual content.  Other types may use
+ * even more allocations.  When inquiring about utilization statistics, the
+ * caller often wants to examine into all such allocations, especially internal
+ * one(s), rather than just the topmost one.  The issue comes when some
+ * implementations do certain optimizations to reduce/aggregate some internal
+ * allocations, e.g. putting short strings directly into the metadata, and such
+ * decisions are not known to the caller.  Therefore, we permit pointers to
+ * memory usages that may not be returned by previous malloc calls, and we
+ * provide the caller a convenient way to identify such cases.
+ */
+static int
+experimental_utilization_batch_query_ctl(tsd_t *tsd, const size_t *mib,
+    size_t miblen, void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
+	int ret;
+
+	assert(sizeof(extent_util_stats_t) == sizeof(size_t) * 3);
+
+	const size_t len = newlen / sizeof(const void *);
+	if (oldp == NULL || oldlenp == NULL || newp == NULL || newlen == 0
+	    || newlen != len * sizeof(const void *)
+	    || *oldlenp != len * sizeof(extent_util_stats_t)) {
+		ret = EINVAL;
+		goto label_return;
+	}
+
+	void **ptrs = (void **)newp;
+	extent_util_stats_t *util_stats = (extent_util_stats_t *)oldp;
+	size_t i;
+	for (i = 0; i < len; ++i) {
+		extent_util_stats_get(tsd_tsdn(tsd), ptrs[i],
+		    &util_stats[i].nfree, &util_stats[i].nregs,
+		    &util_stats[i].size);
+	}
+	ret = 0;
+
 label_return:
 	return ret;
 }
