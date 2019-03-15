@@ -74,4 +74,10 @@ bool extent_merge_wrapper(tsdn_t *tsdn, arena_t *arena,
 
 bool extent_boot(void);
 
+void extent_util_stats_get(tsdn_t *tsdn, const void *ptr,
+    size_t *nfree, size_t *nregs, size_t *size);
+void extent_util_stats_verbose_get(tsdn_t *tsdn, const void *ptr,
+    size_t *nfree, size_t *nregs, size_t *size,
+    size_t *bin_nfree, size_t *bin_nregs, void **slabcur_addr);
+
 #endif /* JEMALLOC_INTERNAL_EXTENT_EXTERNS_H */
