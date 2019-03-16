@@ -86,7 +86,7 @@ emitter_printf(emitter_t *emitter, const char *format, ...) {
 	va_end(ap);
 }
 
-static inline const char * __attribute__((__format_arg__(3)))
+static inline const char * JEMALLOC_FORMAT_ARG(3)
 emitter_gen_fmt(char *out_fmt, size_t out_size, const char *fmt_specifier,
     emitter_justify_t justify, int width) {
 	size_t written;

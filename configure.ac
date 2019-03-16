@@ -851,6 +851,18 @@ if test "x${je_cv_format_printf}" = "xyes" ; then
   AC_DEFINE([JEMALLOC_HAVE_ATTR_FORMAT_PRINTF], [ ])
 fi
 
+dnl Check for format_arg(...) attribute support.
+JE_CFLAGS_SAVE()
+JE_CFLAGS_ADD([-Werror])
+JE_CFLAGS_ADD([-herror_on_warning])
+JE_COMPILABLE([format(printf, ...) attribute], [#include <stdlib.h>],
+              [const char * __attribute__((__format_arg__(1))) foo(const char *format);],
+              [je_cv_format_arg])
+JE_CFLAGS_RESTORE()
+if test "x${je_cv_format_arg}" = "xyes" ; then
+  AC_DEFINE([JEMALLOC_HAVE_ATTR_FORMAT_ARG], [ ])
+fi
+
 dnl Support optional additions to rpath.
 AC_ARG_WITH([rpath],
   [AS_HELP_STRING([--with-rpath=<rpath>], [Colon-separated rpath (ELF systems only)])],
