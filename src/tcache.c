@@ -4,6 +4,7 @@
 
 #include "jemalloc/internal/assert.h"
 #include "jemalloc/internal/mutex.h"
+#include "jemalloc/internal/safety_check.h"
 #include "jemalloc/internal/sc.h"
 
 /******************************************************************************/
@@ -122,7 +123,7 @@ tbin_extents_lookup_size_check(tsdn_t *tsdn, cache_bin_t *tbin, szind_t binind,
 		sz_sum -= szind;
 	}
 	if (sz_sum != 0) {
-		malloc_printf("<jemalloc>: size mismatch in thread cache "
+		safety_check_fail("<jemalloc>: size mismatch in thread cache "
 		    "detected, likely caused by sized deallocation bugs by "
 		    "application. Abort.\n");
 		abort();
