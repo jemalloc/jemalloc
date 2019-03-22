@@ -60,7 +60,7 @@ void *arena_malloc_hard(tsdn_t *tsdn, arena_t *arena, size_t size,
     szind_t ind, bool zero);
 void *arena_palloc(tsdn_t *tsdn, arena_t *arena, size_t usize,
     size_t alignment, bool zero, tcache_t *tcache);
-void arena_prof_promote(tsdn_t *tsdn, const void *ptr, size_t usize);
+void arena_prof_promote(tsdn_t *tsdn, void *ptr, size_t usize);
 void arena_dalloc_promoted(tsdn_t *tsdn, void *ptr, tcache_t *tcache,
     bool slow_path);
 void arena_dalloc_bin_junked_locked(tsdn_t *tsdn, arena_t *arena, bin_t *bin,

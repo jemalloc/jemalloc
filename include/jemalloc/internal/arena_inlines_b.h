@@ -90,7 +90,7 @@ arena_prof_alloc_time_get(tsdn_t *tsdn, const void *ptr,
 	assert(ptr != NULL);
 
 	extent_t *extent = iealloc(tsdn, ptr);
-	/* 
+	/*
 	 * Unlike arena_prof_prof_tctx_{get, set}, we only call this once we're
 	 * sure we have a sampled allocation.
 	 */

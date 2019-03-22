@@ -166,7 +166,7 @@ static const bool config_log =
  * deallocations, double-frees, etc.
  */
 static const bool config_opt_safety_checks =
-#if defined(JEMALLOC_EXTRA_SAFETY_CHECKS)
+#ifdef JEMALLOC_OPT_SAFETY_CHECKS
     true
 #elif defined(JEMALLOC_DEBUG)
     /*
