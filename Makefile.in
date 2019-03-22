@@ -210,6 +210,7 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/rb.c \
 	$(srcroot)test/unit/retained.c \
 	$(srcroot)test/unit/rtree.c \
+	$(srcroot)test/unit/safety_check.c \
 	$(srcroot)test/unit/seq.c \
 	$(srcroot)test/unit/SFMT.c \
 	$(srcroot)test/unit/sc.c \
