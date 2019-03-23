@@ -976,6 +976,7 @@ stats_general_print(emitter_t *emitter) {
 	emitter_kv(emitter, "malloc_conf", "config.malloc_conf",
 	    emitter_type_string, &config_malloc_conf);
 
+	CONFIG_WRITE_BOOL(opt_safety_checks);
 	CONFIG_WRITE_BOOL(prof);
 	CONFIG_WRITE_BOOL(prof_libgcc);
 	CONFIG_WRITE_BOOL(prof_libunwind);
