@@ -40,6 +40,7 @@ possible_config_opts = [
     '--enable-debug',
     '--enable-prof',
     '--disable-stats',
+    '--enable-opt-safety-checks',
 ]
 if bits_64:
     possible_config_opts.append('--with-lg-vaddr=56')
