@@ -1248,8 +1248,8 @@ malloc_conf_init(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS]) {
 			 * contention on the huge arena.
 			 */
 			CONF_HANDLE_SIZE_T(opt_oversize_threshold,
-			    "oversize_threshold", SC_LARGE_MINCLASS,
-			    SC_LARGE_MAXCLASS, yes, yes, false)
+			    "oversize_threshold", 0, SC_LARGE_MAXCLASS, no, yes,
+			    false)
 			CONF_HANDLE_SIZE_T(opt_lg_extent_max_active_fit,
 			    "lg_extent_max_active_fit", 0,
 			    (sizeof(size_t) << 3), yes, yes, false)
