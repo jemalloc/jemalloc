@@ -796,6 +796,7 @@ extent_register_impl(tsdn_t *tsdn, extent_t *extent, bool gdump_add) {
 
 	if (extent_rtree_leaf_elms_lookup(tsdn, rtree_ctx, extent, false, true,
 	    &elm_a, &elm_b)) {
+		extent_unlock(tsdn, extent);
 		return true;
 	}
 
