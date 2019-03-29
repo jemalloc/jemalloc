@@ -992,6 +992,24 @@ mallctl("arena." STRINGIFY(MALLCTL_ARENAS_ALL) ".decay",
         number of CPUs, or one if there is a single CPU.</para></listitem>
       </varlistentry>
 
+      <varlistentry id="opt.oversize_threshold">
+        <term>
+          <mallctl>opt.oversize_threshold</mallctl>
+          (<type>size_t</type>)
+          <literal>r-</literal>
+        </term>
+        <listitem><para>The threshold in bytes of which requests are considered
+        oversize.  Allocation requests with greater sizes are fulfilled from a
+        dedicated arena (automatically managed, however not within
+        <literal>narenas</literal>), in order to reduce fragmentation by not
+        mixing huge allocations with small ones.  In addition, the reserved
+        special arena may have its own default decay settings.  Note that
+        requests with arena index specified via
+        <constant>MALLOCX_ARENA</constant>, or threads associated with explicit
+        arenas will not be considered.  The default threshold is 8MiB.  Values
+        not within large size classes disables this feature.</para></listitem>
+      </varlistentry>
+
       <varlistentry id="opt.percpu_arena">
         <term>
           <mallctl>opt.percpu_arena</mallctl>
@@ -1013,7 +1031,7 @@ mallctl("arena." STRINGIFY(MALLCTL_ARENAS_ALL) ".decay",
       <varlistentry id="opt.background_thread">
         <term>
           <mallctl>opt.background_thread</mallctl>
-          (<type>const bool</type>)
+          (<type>bool</type>)
           <literal>r-</literal>
         </term>
         <listitem><para>Internal background worker threads enabled/disabled.
@@ -1028,7 +1046,7 @@ mallctl("arena." STRINGIFY(MALLCTL_ARENAS_ALL) ".decay",
       <varlistentry id="opt.max_background_threads">
         <term>
           <mallctl>opt.max_background_threads</mallctl>
-          (<type>const size_t</type>)
+          (<type>size_t</type>)
           <literal>r-</literal>
         </term>
         <listitem><para>Maximum number of background threads that will be created
@@ -1059,7 +1077,11 @@ mallctl("arena." STRINGIFY(MALLCTL_ARENAS_ALL) ".decay",
         linkend="arena.i.dirty_decay_ms"><mallctl>arena.&lt;i&gt;.dirty_decay_ms</mallctl></link>
         for related dynamic control options.  See <link
         linkend="opt.muzzy_decay_ms"><mallctl>opt.muzzy_decay_ms</mallctl></link>
-        for a description of muzzy pages.</para></listitem>
+        for a description of muzzy pages.for a description of muzzy pages.  Note
+        that when the <link
+        linkend="opt.oversize_threshold"><mallctl>oversize_threshold</mallctl></link>
+        feature is enabled, the arenas reserved for oversize requests may have
+        its own default decay settings.</para></listitem>
       </varlistentry>
 
       <varlistentry id="opt.muzzy_decay_ms">
