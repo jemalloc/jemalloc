@@ -1255,7 +1255,7 @@ extent_alloc_default(extent_hooks_t *extent_hooks, void *new_addr, size_t size,
 	assert(arena != NULL);
 
 	return extent_alloc_default_impl(tsdn, arena, new_addr, size,
-	    alignment, zero, commit);
+	    ALIGNMENT_CEILING(alignment, PAGE), zero, commit);
 }
 
 static void
@@ -1492,14 +1492,15 @@ extent_alloc_wrapper_hard(tsdn_t *tsdn, arena_t *arena,
 		return NULL;
 	}
 	void *addr;
+	size_t palignment = ALIGNMENT_CEILING(alignment, PAGE);
 	if (*r_extent_hooks == &extent_hooks_default) {
 		/* Call directly to propagate tsdn. */
 		addr = extent_alloc_default_impl(tsdn, arena, new_addr, esize,
-		    alignment, zero, commit);
+		    palignment, zero, commit);
 	} else {
 		extent_hook_pre_reentrancy(tsdn, arena);
 		addr = (*r_extent_hooks)->alloc(*r_extent_hooks, new_addr,
-		    esize, alignment, zero, commit, arena_ind_get(arena));
+		    esize, palignment, zero, commit, arena_ind_get(arena));
 		extent_hook_post_reentrancy(tsdn);
 	}
 	if (addr == NULL) {

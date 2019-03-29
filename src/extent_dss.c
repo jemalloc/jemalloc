@@ -113,7 +113,7 @@ extent_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
 
 	cassert(have_dss);
 	assert(size > 0);
-	assert(alignment > 0);
+	assert(alignment == ALIGNMENT_CEILING(alignment, PAGE));
 
 	/*
 	 * sbrk() uses a signed increment argument, so take care not to
