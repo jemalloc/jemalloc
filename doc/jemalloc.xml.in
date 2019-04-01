@@ -1002,9 +1002,9 @@ mallctl("arena." STRINGIFY(MALLCTL_ARENAS_ALL) ".decay",
         oversize.  Allocation requests with greater sizes are fulfilled from a
         dedicated arena (automatically managed, however not within
         <literal>narenas</literal>), in order to reduce fragmentation by not
-        mixing huge allocations with small ones.  In addition, the reserved
-        special arena may have its own default decay settings.  Note that
-        requests with arena index specified via
+        mixing huge allocations with small ones.  In addition, the decay API
+        guarantees on the extents greater than the specified threshold may be
+        overridden.  Note that requests with arena index specified via
         <constant>MALLOCX_ARENA</constant>, or threads associated with explicit
         arenas will not be considered.  The default threshold is 8MiB.  Values
         not within large size classes disables this feature.</para></listitem>
