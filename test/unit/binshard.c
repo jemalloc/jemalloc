@@ -82,6 +82,9 @@ thd_start(void *varg) {
 }
 
 TEST_BEGIN(test_bin_shard_mt) {
+	test_skip_if(have_percpu_arena &&
+	    PERCPU_ARENA_ENABLED(opt_percpu_arena));
+
 	thd_t thds[NTHREADS];
 	unsigned i;
 	for (i = 0; i < NTHREADS; i++) {
