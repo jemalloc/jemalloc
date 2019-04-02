@@ -376,7 +376,8 @@ prof_log_bt_index(tsd_t *tsd, prof_bt_t *bt) {
 		size_t sz = offsetof(prof_bt_node_t, vec) +
 			        (bt->len * sizeof(void *));
 		prof_bt_node_t *new_node = (prof_bt_node_t *)
-			ialloc(tsd, sz, sz_size2index(sz), false, true);
+		    iallocztm(tsd_tsdn(tsd), sz, sz_size2index(sz), false, NULL,
+		    true, arena_get(TSDN_NULL, 0, true), true);
 		if (log_bt_first == NULL) {
 			log_bt_first = new_node;
 			log_bt_last = new_node;
@@ -416,7 +417,8 @@ prof_log_thr_index(tsd_t *tsd, uint64_t thr_uid, const char *name) {
 	    (void **)(&node), NULL)) {
 		size_t sz = offsetof(prof_thr_node_t, name) + strlen(name) + 1;
 		prof_thr_node_t *new_node = (prof_thr_node_t *)
-			ialloc(tsd, sz, sz_size2index(sz), false, true);
+		    iallocztm(tsd_tsdn(tsd), sz, sz_size2index(sz), false, NULL,
+		    true, arena_get(TSDN_NULL, 0, true), true);
 		if (log_thr_first == NULL) {
 			log_thr_first = new_node;
 			log_thr_last = new_node;
@@ -474,10 +476,11 @@ prof_try_log(tsd_t *tsd, const void *ptr, size_t usize, prof_tctx_t *tctx) {
 	nstime_t free_time = NSTIME_ZERO_INITIALIZER;
 	nstime_update(&free_time);
 
+	size_t sz = sizeof(prof_alloc_node_t);
 	prof_alloc_node_t *new_node = (prof_alloc_node_t *)
-		ialloc(tsd, sizeof(prof_alloc_node_t),
-		    sz_size2index(sizeof(prof_alloc_node_t)), false, true);
- 
+	    iallocztm(tsd_tsdn(tsd), sz, sz_size2index(sz), false, NULL, true,
+	    arena_get(TSDN_NULL, 0, true), true);
+
 	const char *prod_thr_name = (tctx->tdata->thread_name == NULL)?
 				        "" : tctx->tdata->thread_name;
 	const char *cons_thr_name = prof_thread_name_get(tsd);
