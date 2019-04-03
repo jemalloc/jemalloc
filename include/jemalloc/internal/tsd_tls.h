@@ -39,8 +39,7 @@ tsd_get_allocates(void) {
 
 /* Get/set. */
 JEMALLOC_ALWAYS_INLINE tsd_t *
-tsd_get(UNUSED bool init) {
-	assert(tsd_booted);
+tsd_get(bool init) {
 	return &tsd_tls;
 }
 

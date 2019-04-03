@@ -4,7 +4,9 @@
 #include "jemalloc/internal/atomic.h"
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/mutex_prof.h"
-#include "jemalloc/internal/size_classes.h"
+#include "jemalloc/internal/sc.h"
+
+JEMALLOC_DIAGNOSTIC_DISABLE_SPURIOUS
 
 /*
  * In those architectures that support 64-bit atomics, we use atomic updates for
@@ -48,6 +50,22 @@ struct arena_stats_decay_s {
 	arena_stats_u64_t	purged;
 };
 
+typedef struct arena_stats_extents_s arena_stats_extents_t;
+struct arena_stats_extents_s {
+	/*
+	 * Stats for a given index in the range [0, SC_NPSIZES] in an extents_t.
+	 * We track both bytes and # of extents: two extents in the same bucket
+	 * may have different sizes if adjacent size classes differ by more than
+	 * a page, so bytes cannot always be derived from # of extents.
+	 */
+	atomic_zu_t ndirty;
+	atomic_zu_t dirty_bytes;
+	atomic_zu_t nmuzzy;
+	atomic_zu_t muzzy_bytes;
+	atomic_zu_t nretained;
+	atomic_zu_t retained_bytes;
+};
+
 /*
  * Arena stats.  Note that fields marked "derived" are not directly maintained
  * within the arena code; rather their values are derived during stats merge
@@ -69,6 +87,9 @@ struct arena_stats_s {
 	 */
 	atomic_zu_t		retained; /* Derived. */
 
+	/* Number of extent_t structs allocated by base, but not being used. */
+	atomic_zu_t		extent_avail;
+
 	arena_stats_decay_t	decay_dirty;
 	arena_stats_decay_t	decay_muzzy;
 
@@ -88,14 +109,14 @@ struct arena_stats_s {
 	mutex_prof_data_t mutex_prof_data[mutex_prof_num_arena_mutexes];
 
 	/* One element for each large size class. */
-	arena_stats_large_t	lstats[NSIZES - NBINS];
+	arena_stats_large_t	lstats[SC_NSIZES - SC_NBINS];
 
 	/* Arena uptime. */
 	nstime_t		uptime;
 };
 
 static inline bool
-arena_stats_init(UNUSED tsdn_t *tsdn, arena_stats_t *arena_stats) {
+arena_stats_init(tsdn_t *tsdn, arena_stats_t *arena_stats) {
 	if (config_debug) {
 		for (size_t i = 0; i < sizeof(arena_stats_t); i++) {
 			assert(((char *)arena_stats)[i] == 0);
@@ -147,11 +168,11 @@ arena_stats_add_u64(tsdn_t *tsdn, arena_stats_t *arena_stats,
 #endif
 }
 
-UNUSED static inline void
+static inline void
 arena_stats_sub_u64(tsdn_t *tsdn, arena_stats_t *arena_stats,
     arena_stats_u64_t *p, uint64_t x) {
 #ifdef JEMALLOC_ATOMIC_U64
-	UNUSED uint64_t r = atomic_fetch_sub_u64(p, x, ATOMIC_RELAXED);
+	uint64_t r = atomic_fetch_sub_u64(p, x, ATOMIC_RELAXED);
 	assert(r - x <= r);
 #else
 	malloc_mutex_assert_owner(tsdn, &arena_stats->mtx);
@@ -176,7 +197,8 @@ arena_stats_accum_u64(arena_stats_u64_t *dst, uint64_t src) {
 }
 
 static inline size_t
-arena_stats_read_zu(tsdn_t *tsdn, arena_stats_t *arena_stats, atomic_zu_t *p) {
+arena_stats_read_zu(tsdn_t *tsdn, arena_stats_t *arena_stats,
+    atomic_zu_t *p) {
 #ifdef JEMALLOC_ATOMIC_U64
 	return atomic_load_zu(p, ATOMIC_RELAXED);
 #else
@@ -186,8 +208,8 @@ arena_stats_read_zu(tsdn_t *tsdn, arena_stats_t *arena_stats, atomic_zu_t *p) {
 }
 
 static inline void
-arena_stats_add_zu(tsdn_t *tsdn, arena_stats_t *arena_stats, atomic_zu_t *p,
-    size_t x) {
+arena_stats_add_zu(tsdn_t *tsdn, arena_stats_t *arena_stats,
+    atomic_zu_t *p, size_t x) {
 #ifdef JEMALLOC_ATOMIC_U64
 	atomic_fetch_add_zu(p, x, ATOMIC_RELAXED);
 #else
@@ -198,10 +220,10 @@ arena_stats_add_zu(tsdn_t *tsdn, arena_stats_t *arena_stats, atomic_zu_t *p,
 }
 
 static inline void
-arena_stats_sub_zu(tsdn_t *tsdn, arena_stats_t *arena_stats, atomic_zu_t *p,
-    size_t x) {
+arena_stats_sub_zu(tsdn_t *tsdn, arena_stats_t *arena_stats,
+    atomic_zu_t *p, size_t x) {
 #ifdef JEMALLOC_ATOMIC_U64
-	UNUSED size_t r = atomic_fetch_sub_zu(p, x, ATOMIC_RELAXED);
+	size_t r = atomic_fetch_sub_zu(p, x, ATOMIC_RELAXED);
 	assert(r - x <= r);
 #else
 	malloc_mutex_assert_owner(tsdn, &arena_stats->mtx);
@@ -222,7 +244,7 @@ arena_stats_large_nrequests_add(tsdn_t *tsdn, arena_stats_t *arena_stats,
     szind_t szind, uint64_t nrequests) {
 	arena_stats_lock(tsdn, arena_stats);
 	arena_stats_add_u64(tsdn, arena_stats, &arena_stats->lstats[szind -
-	    NBINS].nrequests, nrequests);
+	    SC_NBINS].nrequests, nrequests);
 	arena_stats_unlock(tsdn, arena_stats);
 }
 
@@ -232,6 +254,5 @@ arena_stats_mapped_add(tsdn_t *tsdn, arena_stats_t *arena_stats, size_t size) {
 	arena_stats_add_zu(tsdn, arena_stats, &arena_stats->mapped, size);
 	arena_stats_unlock(tsdn, arena_stats);
 }
-
 
 #endif /* JEMALLOC_INTERNAL_ARENA_STATS_H */

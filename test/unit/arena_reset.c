@@ -77,7 +77,7 @@ vsalloc(tsdn_t *tsdn, const void *ptr) {
 		return 0;
 	}
 
-	if (szind == NSIZES) {
+	if (szind == SC_NSIZES) {
 		return 0;
 	}
 
@@ -142,7 +142,7 @@ do_arena_reset_post(void **ptrs, unsigned nptrs, unsigned arena_ind) {
 
 	if (have_background_thread) {
 		malloc_mutex_lock(tsdn,
-		    &background_thread_info[arena_ind % ncpus].mtx);
+		    &background_thread_info_get(arena_ind)->mtx);
 	}
 	/* Verify allocations no longer exist. */
 	for (i = 0; i < nptrs; i++) {
@@ -151,7 +151,7 @@ do_arena_reset_post(void **ptrs, unsigned nptrs, unsigned arena_ind) {
 	}
 	if (have_background_thread) {
 		malloc_mutex_unlock(tsdn,
-		    &background_thread_info[arena_ind % ncpus].mtx);
+		    &background_thread_info_get(arena_ind)->mtx);
 	}
 
 	free(ptrs);
