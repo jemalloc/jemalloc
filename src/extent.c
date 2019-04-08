@@ -483,7 +483,16 @@ extents_first_fit_locked(tsdn_t *tsdn, arena_t *arena, extents_t *extents,
 		assert(!extent_heap_empty(&extents->heaps[i]));
 		extent_t *extent = extent_heap_first(&extents->heaps[i]);
 		assert(extent_size_get(extent) >= size);
-		if (ret == NULL || extent_snad_comp(extent, ret) < 0) {
+                bool size_ok = true;
+		/*
+		 * In order to reduce fragmentation, avoid reusing and splitting
+		 * large extents for much smaller sizes.
+		 */
+		if ((sz_pind2sz(i) >> opt_lg_extent_max_active_fit) > size) {
+			size_ok = false;
+		}
+		if (size_ok &&
+                    (ret == NULL || extent_snad_comp(extent, ret) < 0)) {
 			ret = extent;
 		}
 		if (i == SC_NPSIZES) {
