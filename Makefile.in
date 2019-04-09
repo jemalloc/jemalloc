@@ -178,6 +178,7 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/div.c \
 	$(srcroot)test/unit/emitter.c \
 	$(srcroot)test/unit/extent_quantize.c \
+	$(srcroot)test/unit/extent_util.c \
 	$(srcroot)test/unit/fork.c \
 	$(srcroot)test/unit/hash.c \
 	$(srcroot)test/unit/hook.c \

@@ -3131,7 +3131,7 @@ label_return:
  * #define BIN_NREGS_READ(out) COUNTS(out)[4]
  *
  * and then write e.g. NFREE_READ(oldp) to fetch the output.  See the unit test
- * test_utilization_query in test/unit/mallctl.c for an example.
+ * test_query in test/unit/extent_util.c for an example.
  *
  * For a typical defragmentation workflow making use of this API for
  * understanding the fragmentation level, please refer to the comment for
@@ -3223,7 +3223,7 @@ label_return:
  * #define SIZE_READ(out, i) out[(i) * 3 + 2]
  *
  * and then write e.g. NFREE_READ(oldp, i) to fetch the output.  See the unit
- * test test_utilization_batch in test/unit/mallctl.c for a concrete example.
+ * test test_batch in test/unit/extent_util.c for a concrete example.
  *
  * A typical workflow would be composed of the following steps:
  *
