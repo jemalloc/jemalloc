@@ -105,8 +105,7 @@ void bin_postfork_child(tsdn_t *tsdn, bin_t *bin);
 /* Stats. */
 static inline void
 bin_stats_merge(tsdn_t *tsdn, bin_stats_t *dst_bin_stats, bin_t *bin) {
-	malloc_mutex_lock(tsdn, &bin->lock);
-	malloc_mutex_prof_accum(tsdn, &dst_bin_stats->mutex_data, &bin->lock);
+	/* Must hold bin->lock */
 	dst_bin_stats->nmalloc += bin->stats.nmalloc;
 	dst_bin_stats->ndalloc += bin->stats.ndalloc;
 	dst_bin_stats->nrequests += bin->stats.nrequests;
@@ -116,7 +115,6 @@ bin_stats_merge(tsdn_t *tsdn, bin_stats_t *dst_bin_stats, bin_t *bin) {
 	dst_bin_stats->nslabs += bin->stats.nslabs;
 	dst_bin_stats->reslabs += bin->stats.reslabs;
 	dst_bin_stats->curslabs += bin->stats.curslabs;
-	malloc_mutex_unlock(tsdn, &bin->lock);
 }
 
 #endif /* JEMALLOC_INTERNAL_BIN_H */

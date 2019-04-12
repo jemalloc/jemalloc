@@ -83,8 +83,8 @@ void
 arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
     const char **dss, ssize_t *dirty_decay_ms, ssize_t *muzzy_decay_ms,
     size_t *nactive, size_t *ndirty, size_t *nmuzzy, arena_stats_t *astats,
-    bin_stats_t *bstats, arena_stats_large_t *lstats,
-    arena_stats_extents_t *estats) {
+    bin_stats_t *bstats, mesh_bin_stats_t *mesh_bstats,
+    arena_stats_large_t *lstats, arena_stats_extents_t *estats) {
 	cassert(config_stats);
 
 	arena_basic_stats_merge(tsdn, arena, nthreads, dss, dirty_decay_ms,
@@ -235,8 +235,17 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 
 	for (szind_t i = 0; i < SC_NBINS; i++) {
 		for (unsigned j = 0; j < bin_infos[i].n_shards; j++) {
-			bin_stats_merge(tsdn, &bstats[i],
-			    &arena->bins[i].bin_shards[j]);
+			bin_t *bin = &arena->bins[i].bin_shards[j];
+			malloc_mutex_lock(tsdn, &bin->lock);
+			bin_stats_t *dst_bin_stats = &bstats[i];
+			malloc_mutex_prof_accum(tsdn,
+			    &dst_bin_stats->mutex_data, &bin->lock);
+			bin_stats_merge(tsdn, dst_bin_stats, bin);
+			if (opt_mesh) {
+				mesh_bin_stats_merge(tsdn, &mesh_bstats[i],
+			    arena->mesh_arena_data, bin, i, j);
+			}
+			malloc_mutex_unlock(tsdn, &bin->lock);
 		}
 	}
 }
@@ -1016,14 +1025,16 @@ arena_bin_slabs_nonfull_remove(bin_t *bin, extent_t *slab) {
 }
 
 static extent_t *
-arena_bin_slabs_nonfull_tryget(arena_t *arena, bin_t *bin, const bin_info_t *bin_info) {
+arena_bin_slabs_nonfull_tryget(arena_t *arena, bin_t *bin,
+    const bin_info_t *bin_info) {
 	extent_t *slab = extent_heap_remove_first(&bin->slabs_nonfull);
 	if (slab == NULL) {
 		return NULL;
 	}
 	if (opt_mesh && mesh_slab_is_candidate(slab)) {
 		arena_slab_data_t *slab_data = extent_slab_data_get(slab);
-		mesh_slab_shape_remove(arena->mesh_arena_data, slab_data, bin_info, slab);
+		mesh_slab_shape_remove(arena->mesh_arena_data, slab_data,
+		    bin_info, slab);
 	}
 	if (config_stats) {
 		bin->stats.reslabs++;
@@ -1683,10 +1694,12 @@ arena_dalloc_bin_locked_impl(tsdn_t *tsdn, arena_t *arena, bin_t *bin,
 		arena_dalloc_junk_small(ptr, bin_info);
 	}
 
-	// If slab is not full, then its mesh shape is tracked and needs to be invalidated
+	/* If slab is not full, then its mesh shape is tracked 
+	   and needs to be invalidated. */
 	if (opt_mesh && slab != bin->slabcur && mesh_slab_is_candidate(slab) &&
 	    !bitmap_full(slab_data->bitmap, &bin_info->bitmap_info)) {
-		mesh_slab_shape_remove(arena->mesh_arena_data, slab_data, bin_info, slab);
+		mesh_slab_shape_remove(arena->mesh_arena_data, slab_data,
+		bin_info, slab);
 	}
 
 	arena_slab_reg_dalloc(slab, slab_data, ptr);

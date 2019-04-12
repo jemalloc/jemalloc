@@ -44,6 +44,17 @@ const char *arena_mutex_names[mutex_prof_num_arena_mutexes] = {
 	xmallctlbymib(mib, miblen, (void *)v, &sz, NULL, 0);		\
 } while (0)
 
+#define CTL_M2_M4_M7_GET(n, i, j, k, v, t) do {				\
+	size_t mib[CTL_MAX_DEPTH];					\
+	size_t miblen = sizeof(mib) / sizeof(size_t);			\
+	size_t sz = sizeof(t);						\
+	xmallctlnametomib(n, mib, &miblen);				\
+	mib[2] = (i);							\
+	mib[4] = (j);							\
+	mib[7] = (k);							\
+	xmallctlbymib(mib, miblen, (void *)v, &sz, NULL, 0);		\
+} while (0)
+
 /******************************************************************************/
 /* Data. */
 
@@ -270,7 +281,7 @@ static void
 stats_arena_bins_print(emitter_t *emitter, bool mutex, unsigned i, uint64_t uptime) {
 	size_t page;
 	bool in_gap, in_gap_prev;
-	unsigned nbins, j;
+	unsigned nbins, j, k;
 
 	CTL_GET("arenas.page", &page, size_t);
 
@@ -400,6 +411,20 @@ stats_arena_bins_print(emitter_t *emitter, bool mutex, unsigned i, uint64_t upti
 			mutex_stats_emit(emitter, NULL, col_mutex64,
 			    col_mutex32);
 			emitter_json_object_end(emitter);
+		}
+		if (opt_mesh && mesh_binind_meshable(j)) {
+			emitter_json_object_kv_begin(emitter, "mesh");
+			emitter_json_array_kv_begin(emitter, "shape_counts");
+			for (k = 0; k < (1 << 8); k++) {
+				uint64_t shape_count;
+				CTL_M2_M4_M7_GET("stats.arenas.0.bins.0."
+				    "mesh.shape_counts.0.count", i, j, k,
+				    &shape_count, uint64_t);
+				emitter_json_value(emitter, emitter_type_uint64,
+				    &shape_count);
+			}
+			emitter_json_array_end(emitter); // Close "shape_counts"
+			emitter_json_object_end(emitter); // Close "mesh"
 		}
 		emitter_json_object_end(emitter);
 
