@@ -2947,6 +2947,17 @@ struct extent_hooks_s {
         <listitem><para>Current number of slabs.</para></listitem>
       </varlistentry>
 
+
+      <varlistentry id="stats.arenas.i.bins.j.nonfull_slabs">
+        <term>
+          <mallctl>stats.arenas.&lt;i&gt;.bins.&lt;j&gt;.nonfull_slabs</mallctl>
+          (<type>size_t</type>)
+          <literal>r-</literal>
+          [<option>--enable-stats</option>]
+        </term>
+        <listitem><para>Current number of nonfull slabs.</para></listitem>
+      </varlistentry>
+
       <varlistentry id="stats.arenas.i.bins.mutex">
         <term>
           <mallctl>stats.arenas.&lt;i&gt;.bins.&lt;j&gt;.mutex.{counter}</mallctl>
