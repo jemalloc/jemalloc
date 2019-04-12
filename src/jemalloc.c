@@ -1474,6 +1474,11 @@ malloc_init_hard_a0_locked() {
 		return true;
 	}
 	hook_boot();
+	if (opt_mesh) {
+		if (mesh_boot()) {
+			return true;
+		}
+	}
 	/*
 	 * Create enough scaffolding to allow recursive allocation in
 	 * malloc_ncpus().

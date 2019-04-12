@@ -7,6 +7,7 @@
 #include "jemalloc/internal/bitmap.h"
 #include "jemalloc/internal/extent_dss.h"
 #include "jemalloc/internal/jemalloc_internal_types.h"
+#include "jemalloc/internal/mesh.h"
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/nstime.h"
 #include "jemalloc/internal/ql.h"
@@ -208,6 +209,8 @@ struct arena_s {
 	 * Synchronization: internal.
 	 */
 	bins_t			bins[SC_NBINS];
+
+	mesh_arena_data_t	*mesh_arena_data;
 
 	/*
 	 * Base allocator, from which arena metadata are allocated.

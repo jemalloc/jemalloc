@@ -202,6 +202,12 @@ bitmap_get(bitmap_t *bitmap, const bitmap_info_t *binfo, size_t bit) {
 	return !(g & (ZU(1) << (bit & BITMAP_GROUP_NBITS_MASK)));
 }
 
+static inline uint8_t
+bitmap_get_first_logical_byte(bitmap_t *bitmap, const bitmap_info_t *binfo) {
+	assert(binfo->nbits <= 8);
+	return ~((uint8_t)bitmap[0] & 0xff);
+}
+
 static inline void
 bitmap_set(bitmap_t *bitmap, const bitmap_info_t *binfo, size_t bit) {
 	size_t goff;
