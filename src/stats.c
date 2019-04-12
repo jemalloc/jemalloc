@@ -294,6 +294,7 @@ stats_arena_bins_print(emitter_t *emitter, bool mutex, unsigned i, uint64_t upti
 	COL_HDR(row, nshards, NULL, right, 9, unsigned)
 	COL_HDR(row, curregs, NULL, right, 13, size)
 	COL_HDR(row, curslabs, NULL, right, 13, size)
+	COL_HDR(row, nonfull_slabs, NULL, right, 15, size)
 	COL_HDR(row, regs, NULL, right, 5, unsigned)
 	COL_HDR(row, pgs, NULL, right, 4, size)
 	/* To buffer a right- and left-justified column. */
@@ -337,6 +338,7 @@ stats_arena_bins_print(emitter_t *emitter, bool mutex, unsigned i, uint64_t upti
 		uint64_t nslabs;
 		size_t reg_size, slab_size, curregs;
 		size_t curslabs;
+		size_t nonfull_slabs;
 		uint32_t nregs, nshards;
 		uint64_t nmalloc, ndalloc, nrequests, nfills, nflushes;
 		uint64_t nreslabs;
@@ -372,6 +374,8 @@ stats_arena_bins_print(emitter_t *emitter, bool mutex, unsigned i, uint64_t upti
 		    uint64_t);
 		CTL_M2_M4_GET("stats.arenas.0.bins.0.curslabs", i, j, &curslabs,
 		    size_t);
+		CTL_M2_M4_GET("stats.arenas.0.bins.0.nonfull_slabs", i, j, &nonfull_slabs,
+		    size_t);
 
 		if (mutex) {
 			mutex_stats_read_arena_bin(i, j, col_mutex64,
@@ -395,6 +399,8 @@ stats_arena_bins_print(emitter_t *emitter, bool mutex, unsigned i, uint64_t upti
 		    &nreslabs);
 		emitter_json_kv(emitter, "curslabs", emitter_type_size,
 		    &curslabs);
+		emitter_json_kv(emitter, "nonfull_slabs", emitter_type_size,
+		    &nonfull_slabs);
 		if (mutex) {
 			emitter_json_object_kv_begin(emitter, "mutex");
 			mutex_stats_emit(emitter, NULL, col_mutex64,
@@ -434,6 +440,7 @@ stats_arena_bins_print(emitter_t *emitter, bool mutex, unsigned i, uint64_t upti
 		col_nshards.unsigned_val = nshards;
 		col_curregs.size_val = curregs;
 		col_curslabs.size_val = curslabs;
+		col_nonfull_slabs.size_val = nonfull_slabs;
 		col_regs.unsigned_val = nregs;
 		col_pgs.size_val = slab_size / page;
 		col_util.str_val = util;
