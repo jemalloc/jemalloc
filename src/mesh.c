@@ -13,11 +13,17 @@ unsigned binind_to_meshind_table[SC_NBINS];
 unsigned meshind_to_binind_table[SC_NBINS];
 
 bool
-mesh_slab_is_candidate(extent_t *slab) {
-	szind_t binind = extent_szind_get(slab);
+mesh_binind_meshable(szind_t binind) {
+	assert(binind < SC_NBINS);
 	unsigned meshind = binind_to_meshind_table[binind];
 	assert(meshind < nmeshable_scs || meshind == SC_NBINS);
 	return meshind != SC_NBINS;
+}
+
+bool
+mesh_slab_is_candidate(extent_t *slab) {
+	szind_t binind = extent_szind_get(slab);
+	return mesh_binind_meshable(binind);
 }
 
 static void
@@ -128,4 +134,23 @@ mesh_boot(void) {
 	}
 
 	return nmeshable_scs == 0;
+}
+
+/* Stats. */
+void
+mesh_bin_stats_merge(tsdn_t *tsdn, mesh_bin_stats_t *dst_mesh_bin_stats,
+    mesh_arena_data_t *mesh_arena_data, bin_t *bin, szind_t binind,
+    unsigned binshard) {
+	unsigned meshind = binind_to_meshind_table[binind];
+	if (meshind == SC_NBINS) {
+		return;
+	}
+	mesh_bin_datas_t *mesh_bin_datas =
+	    &mesh_arena_data->bin_datas[meshind];
+	mesh_bin_stats_t *mesh_bin_stats =
+	    &mesh_bin_datas->bin_data_shards[binshard].stats;
+	for (unsigned i = 0; i < (1 << 8); i++) {
+		dst_mesh_bin_stats->shape_counts[i] +=
+		    mesh_bin_stats->shape_counts[i];
+	}
 }

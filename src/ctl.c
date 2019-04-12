@@ -171,7 +171,9 @@ CTL_PROTO(stats_arenas_i_bins_j_nflushes)
 CTL_PROTO(stats_arenas_i_bins_j_nslabs)
 CTL_PROTO(stats_arenas_i_bins_j_nreslabs)
 CTL_PROTO(stats_arenas_i_bins_j_curslabs)
+CTL_PROTO(stats_arenas_i_bins_j_mesh_shape_counts_k_count)
 INDEX_PROTO(stats_arenas_i_bins_j)
+INDEX_PROTO(stats_arenas_i_bins_j_mesh_shape_counts_k)
 CTL_PROTO(stats_arenas_i_lextents_j_nmalloc)
 CTL_PROTO(stats_arenas_i_lextents_j_ndalloc)
 CTL_PROTO(stats_arenas_i_lextents_j_nrequests)
@@ -447,6 +449,28 @@ static const ctl_named_node_t stats_##prefix##_node[] = {		\
 
 MUTEX_PROF_DATA_NODE(arenas_i_bins_j_mutex)
 
+static const ctl_named_node_t
+stats_arenas_i_bins_j_mesh_shape_counts_k_node[] = {
+	{NAME("count"),
+	    CTL(stats_arenas_i_bins_j_mesh_shape_counts_k_count)}
+};
+
+static const ctl_named_node_t
+super_stats_arenas_i_bins_j_mesh_shape_counts_k_node[] = {
+	{NAME(""),
+		CHILD(named, stats_arenas_i_bins_j_mesh_shape_counts_k)}
+};
+
+static const ctl_indexed_node_t
+stats_arenas_i_bins_j_mesh_shape_counts_node[] = {
+	{INDEX(stats_arenas_i_bins_j_mesh_shape_counts_k)}
+};
+
+static const ctl_named_node_t stats_arenas_i_bins_j_mesh_node[] = {
+	{NAME("shape_counts"),
+	    CHILD(indexed, stats_arenas_i_bins_j_mesh_shape_counts)},
+};
+
 static const ctl_named_node_t stats_arenas_i_bins_j_node[] = {
 	{NAME("nmalloc"),	CTL(stats_arenas_i_bins_j_nmalloc)},
 	{NAME("ndalloc"),	CTL(stats_arenas_i_bins_j_ndalloc)},
@@ -457,7 +481,8 @@ static const ctl_named_node_t stats_arenas_i_bins_j_node[] = {
 	{NAME("nslabs"),	CTL(stats_arenas_i_bins_j_nslabs)},
 	{NAME("nreslabs"),	CTL(stats_arenas_i_bins_j_nreslabs)},
 	{NAME("curslabs"),	CTL(stats_arenas_i_bins_j_curslabs)},
-	{NAME("mutex"),		CHILD(named, stats_arenas_i_bins_j_mutex)}
+	{NAME("mutex"),		CHILD(named, stats_arenas_i_bins_j_mutex)},
+	{NAME("mesh"),		CHILD(named, stats_arenas_i_bins_j_mesh)}
 };
 
 static const ctl_named_node_t super_stats_arenas_i_bins_j_node[] = {
@@ -757,6 +782,8 @@ ctl_arena_clear(ctl_arena_t *ctl_arena) {
 		ctl_arena->astats->nrequests_small = 0;
 		memset(ctl_arena->astats->bstats, 0, SC_NBINS *
 		    sizeof(bin_stats_t));
+		memset(ctl_arena->astats->mesh_bstats, 0, SC_NBINS *
+		    sizeof(mesh_bin_stats_t));
 		memset(ctl_arena->astats->lstats, 0, (SC_NSIZES - SC_NBINS) *
 		    sizeof(arena_stats_large_t));
 		memset(ctl_arena->astats->estats, 0, SC_NPSIZES *
@@ -774,6 +801,7 @@ ctl_arena_stats_amerge(tsdn_t *tsdn, ctl_arena_t *ctl_arena, arena_t *arena) {
 		    &ctl_arena->muzzy_decay_ms, &ctl_arena->pactive,
 		    &ctl_arena->pdirty, &ctl_arena->pmuzzy,
 		    &ctl_arena->astats->astats, ctl_arena->astats->bstats,
+		    ctl_arena->astats->mesh_bstats,
 		    ctl_arena->astats->lstats, ctl_arena->astats->estats);
 
 		for (i = 0; i < SC_NBINS; i++) {
@@ -792,6 +820,19 @@ ctl_arena_stats_amerge(tsdn_t *tsdn, ctl_arena_t *ctl_arena, arena_t *arena) {
 		    &ctl_arena->dss, &ctl_arena->dirty_decay_ms,
 		    &ctl_arena->muzzy_decay_ms, &ctl_arena->pactive,
 		    &ctl_arena->pdirty, &ctl_arena->pmuzzy);
+	}
+}
+
+static void
+ctl_sum_mesh_shape_counts(mesh_bin_stats_t *dst, mesh_bin_stats_t *src,
+    bool destroyed) {
+	unsigned i;
+	for (i = 0; i < (1 << 8); i++) {
+		if (!destroyed) {
+			dst->shape_counts[i] += src->shape_counts[i];
+		} else {
+			assert(src->shape_counts[i] == 0);
+		}
 	}
 }
 
@@ -912,6 +953,12 @@ MUTEX_PROF_ARENA_MUTEXES
 				    astats->bstats[i].curslabs;
 			} else {
 				assert(astats->bstats[i].curslabs == 0);
+			}
+			if (opt_mesh && mesh_binind_meshable(i)) {
+				ctl_sum_mesh_shape_counts(
+				    &sdstats->mesh_bstats[i],
+				    &astats->mesh_bstats[i],
+				    destroyed);
 			}
 			malloc_mutex_prof_merge(&sdstats->bstats[i].mutex_data,
 			    &astats->bstats[i].mutex_data);
@@ -2970,6 +3017,8 @@ CTL_RO_CGEN(config_stats, stats_arenas_i_bins_j_nreslabs,
     arenas_i(mib[2])->astats->bstats[mib[4]].reslabs, uint64_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_bins_j_curslabs,
     arenas_i(mib[2])->astats->bstats[mib[4]].curslabs, size_t)
+CTL_RO_CGEN(config_stats, stats_arenas_i_bins_j_mesh_shape_counts_k_count,
+    arenas_i(mib[2])->astats->mesh_bstats[mib[4]].shape_counts[mib[7]], size_t)
 
 static const ctl_named_node_t *
 stats_arenas_i_bins_j_index(tsdn_t *tsdn, const size_t *mib,
@@ -2978,6 +3027,15 @@ stats_arenas_i_bins_j_index(tsdn_t *tsdn, const size_t *mib,
 		return NULL;
 	}
 	return super_stats_arenas_i_bins_j_node;
+}
+
+static const ctl_named_node_t *
+stats_arenas_i_bins_j_mesh_shape_counts_k_index(tsdn_t *tsdn, const size_t *mib,
+    size_t miblen, size_t k) {
+	if (k >= (1 << 8)) {
+		return NULL;
+	}
+	return super_stats_arenas_i_bins_j_mesh_shape_counts_k_node;
 }
 
 CTL_RO_CGEN(config_stats, stats_arenas_i_lextents_j_nmalloc,

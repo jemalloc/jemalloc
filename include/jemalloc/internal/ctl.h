@@ -3,13 +3,14 @@
 
 #include "jemalloc/internal/jemalloc_internal_types.h"
 #include "jemalloc/internal/malloc_io.h"
+#include "jemalloc/internal/mesh.h"
 #include "jemalloc/internal/mutex_prof.h"
 #include "jemalloc/internal/ql.h"
 #include "jemalloc/internal/sc.h"
 #include "jemalloc/internal/stats.h"
 
 /* Maximum ctl tree depth. */
-#define CTL_MAX_DEPTH	7
+#define CTL_MAX_DEPTH	9
 
 typedef struct ctl_node_s {
 	bool named;
@@ -41,6 +42,7 @@ typedef struct ctl_arena_stats_s {
 	uint64_t nrequests_small;
 
 	bin_stats_t bstats[SC_NBINS];
+	mesh_bin_stats_t mesh_bstats[SC_NBINS];
 	arena_stats_large_t lstats[SC_NSIZES - SC_NBINS];
 	arena_stats_extents_t estats[SC_NPSIZES];
 } ctl_arena_stats_t;
