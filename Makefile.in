@@ -110,6 +110,7 @@ C_SRCS := $(srcroot)src/jemalloc.c \
 	$(srcroot)src/large.c \
 	$(srcroot)src/log.c \
 	$(srcroot)src/malloc_io.c \
+	$(srcroot)src/mesh.c \
 	$(srcroot)src/mutex.c \
 	$(srcroot)src/mutex_pool.c \
 	$(srcroot)src/nstime.c \

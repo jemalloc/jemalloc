@@ -6,6 +6,7 @@
 #include "jemalloc/internal/ctl.h"
 #include "jemalloc/internal/extent_dss.h"
 #include "jemalloc/internal/extent_mmap.h"
+#include "jemalloc/internal/mesh.h"
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/nstime.h"
 #include "jemalloc/internal/sc.h"
@@ -89,6 +90,7 @@ CTL_PROTO(opt_percpu_arena)
 CTL_PROTO(opt_oversize_threshold)
 CTL_PROTO(opt_background_thread)
 CTL_PROTO(opt_max_background_threads)
+CTL_PROTO(opt_mesh)
 CTL_PROTO(opt_dirty_decay_ms)
 CTL_PROTO(opt_muzzy_decay_ms)
 CTL_PROTO(opt_stats_print)
@@ -307,6 +309,7 @@ static const ctl_named_node_t opt_node[] = {
 	{NAME("oversize_threshold"),	CTL(opt_oversize_threshold)},
 	{NAME("background_thread"),	CTL(opt_background_thread)},
 	{NAME("max_background_threads"),	CTL(opt_max_background_threads)},
+	{NAME("mesh"),		CTL(opt_mesh)},
 	{NAME("dirty_decay_ms"), CTL(opt_dirty_decay_ms)},
 	{NAME("muzzy_decay_ms"), CTL(opt_muzzy_decay_ms)},
 	{NAME("stats_print"),	CTL(opt_stats_print)},
@@ -1730,6 +1733,7 @@ CTL_RO_NL_GEN(opt_percpu_arena, percpu_arena_mode_names[opt_percpu_arena],
 CTL_RO_NL_GEN(opt_oversize_threshold, opt_oversize_threshold, size_t)
 CTL_RO_NL_GEN(opt_background_thread, opt_background_thread, bool)
 CTL_RO_NL_GEN(opt_max_background_threads, opt_max_background_threads, size_t)
+CTL_RO_NL_GEN(opt_mesh, opt_mesh, bool)
 CTL_RO_NL_GEN(opt_dirty_decay_ms, opt_dirty_decay_ms, ssize_t)
 CTL_RO_NL_GEN(opt_muzzy_decay_ms, opt_muzzy_decay_ms, ssize_t)
 CTL_RO_NL_GEN(opt_stats_print, opt_stats_print, bool)
