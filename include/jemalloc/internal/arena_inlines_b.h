@@ -47,7 +47,11 @@ arena_prof_tctx_get(tsdn_t *tsdn, const void *ptr, alloc_ctx_t *alloc_ctx) {
 		}
 	} else {
 		if (unlikely(!alloc_ctx->slab)) {
-			return large_prof_tctx_get(tsdn, iealloc(tsdn, ptr));
+			extent_t *extent = iealloc(tsdn, ptr);
+			if (unlikely(extent == NULL)) {
+				return (prof_tctx_t *)(uintptr_t)1U;
+			}
+			return large_prof_tctx_get(tsdn, extent);
 		}
 	}
 	return (prof_tctx_t *)(uintptr_t)1U;
@@ -67,7 +71,11 @@ arena_prof_tctx_set(tsdn_t *tsdn, const void *ptr, size_t usize,
 		}
 	} else {
 		if (unlikely(!alloc_ctx->slab)) {
-			large_prof_tctx_set(tsdn, iealloc(tsdn, ptr), tctx);
+			extent_t *extent = iealloc(tsdn, ptr);
+			if (unlikely(extent == NULL)) {
+				return;
+			}
+			large_prof_tctx_set(tsdn, extent, tctx);
 		}
 	}
 }
