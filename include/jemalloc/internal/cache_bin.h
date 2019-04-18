@@ -88,16 +88,13 @@ JEMALLOC_ALWAYS_INLINE void *
 cache_bin_alloc_easy(cache_bin_t *bin, bool *success) {
 	void *ret;
 
-	bin->ncached--;
-
 	/*
 	 * Check for both bin->ncached == 0 and ncached < low_water
 	 * in a single branch.
 	 */
-	if (unlikely(bin->ncached <= bin->low_water)) {
-		bin->low_water = bin->ncached;
-		if (bin->ncached == -1) {
-			bin->ncached = 0;
+	if (unlikely(bin->ncached - 1 <= bin->low_water)) {
+		bin->low_water = bin->ncached - 1;
+		if (bin->ncached == 0) {
 			*success = false;
 			return NULL;
 		}
@@ -111,7 +108,8 @@ cache_bin_alloc_easy(cache_bin_t *bin, bool *success) {
 	 * cacheline).
 	 */
 	*success = true;
-	ret = *(bin->avail - (bin->ncached + 1));
+	ret = *(bin->avail - bin->ncached);
+	bin->ncached--;
 
 	return ret;
 }
