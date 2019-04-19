@@ -893,6 +893,19 @@ AC_PROG_RANLIB
 AC_PATH_PROG([LD], [ld], [false], [$PATH])
 AC_PATH_PROG([AUTOCONF], [autoconf], [false], [$PATH])
 
+dnl Enable documentation
+AC_ARG_ENABLE([doc],
+	      [AS_HELP_STRING([--enable-documentation], [Build documentation])],
+if test "x$enable_doc" = "xno" ; then
+  enable_doc="0"
+else
+  enable_doc="1"
+fi
+,
+enable_doc="1"
+)
+AC_SUBST([enable_doc])
+
 dnl Enable shared libs
 AC_ARG_ENABLE([shared],
   [AS_HELP_STRING([--enable-shared], [Build shared libaries])],
@@ -2369,6 +2382,7 @@ AC_MSG_RESULT([JEMALLOC_PRIVATE_NAMESPACE])
 AC_MSG_RESULT([                   : ${JEMALLOC_PRIVATE_NAMESPACE}])
 AC_MSG_RESULT([install_suffix     : ${install_suffix}])
 AC_MSG_RESULT([malloc_conf        : ${config_malloc_conf}])
+AC_MSG_RESULT([documentation      : ${enable_doc}])
 AC_MSG_RESULT([shared libs        : ${enable_shared}])
 AC_MSG_RESULT([static libs        : ${enable_static}])
 AC_MSG_RESULT([autogen            : ${enable_autogen}])
