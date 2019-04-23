@@ -1239,6 +1239,8 @@ malloc_conf_init(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS]) {
 			}
 			CONF_HANDLE_BOOL(opt_tcache, "tcache")
 			CONF_HANDLE_BOOL(opt_mesh, "mesh")
+			CONF_HANDLE_BOOL(opt_mesh_bin_data_jit,
+			    "mesh_bin_data_jit")
 			CONF_HANDLE_SSIZE_T(opt_lg_tcache_max, "lg_tcache_max",
 			    -1, (sizeof(size_t) << 3) - 1)
 

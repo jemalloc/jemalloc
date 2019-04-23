@@ -4,6 +4,7 @@
 #include "jemalloc/internal/mesh_stats.h"
 
 extern bool opt_mesh;
+extern bool opt_mesh_bin_data_jit;
 
 typedef struct mesh_bin_data_s mesh_bin_data_t;
 struct mesh_bin_data_s {
@@ -21,6 +22,13 @@ struct mesh_arena_data_s {
 	mesh_bin_datas_t *bin_datas;
 };
 
+static inline bool
+mesh_should_update_shape() {
+	return opt_mesh && !opt_mesh_bin_data_jit;
+}
+
+void mesh_populate_bin_data(bin_t *bin, const bitmap_info_t *binfo,
+    mesh_bin_data_t *bin_data);
 bool mesh_binind_meshable(szind_t bindind);
 bool mesh_slab_is_candidate(extent_t *slab);
 void mesh_slab_shape_add(mesh_arena_data_t *data, arena_slab_data_t *slab_data,

@@ -1019,7 +1019,7 @@ arena_bin_slabs_nonfull_insert(arena_t *arena, bin_t *bin,
     const bin_info_t *bin_info, extent_t *slab) {
 	assert(extent_nfree_get(slab) > 0);
 	extent_heap_insert(&bin->slabs_nonfull, slab);
-	if (opt_mesh && mesh_slab_is_candidate(slab)) {
+	if (mesh_should_update_shape() && mesh_slab_is_candidate(slab)) {
 		arena_slab_data_t *slab_data = extent_slab_data_get(slab);
 		mesh_slab_shape_add(arena->mesh_arena_data, slab_data, bin_info,
 		    slab);
@@ -1038,7 +1038,7 @@ arena_bin_slabs_nonfull_tryget(arena_t *arena, bin_t *bin,
 	if (slab == NULL) {
 		return NULL;
 	}
-	if (opt_mesh && mesh_slab_is_candidate(slab)) {
+	if (mesh_should_update_shape() && mesh_slab_is_candidate(slab)) {
 		arena_slab_data_t *slab_data = extent_slab_data_get(slab);
 		mesh_slab_shape_remove(arena->mesh_arena_data, slab_data,
 		    bin_info, slab);
@@ -1701,12 +1701,13 @@ arena_dalloc_bin_locked_impl(tsdn_t *tsdn, arena_t *arena, bin_t *bin,
 		arena_dalloc_junk_small(ptr, bin_info);
 	}
 
-	/* If slab is not full, then its mesh shape is tracked 
+	/* If slab is not full, then its mesh shape is tracked
 	   and needs to be invalidated. */
 	bitmap_t *bitmap = arena_slab_data_bitmap_get(slab_data,
 	    &bin_info->bitmap_info);
-	if (opt_mesh && slab != bin->slabcur && mesh_slab_is_candidate(slab) &&
-	    !bitmap_full(bitmap, &bin_info->bitmap_info)) {
+	if (mesh_should_update_shape() && slab != bin->slabcur &&
+	    mesh_slab_is_candidate(slab) && !bitmap_full(
+	    bitmap, &bin_info->bitmap_info)) {
 		mesh_slab_shape_remove(arena->mesh_arena_data, slab_data,
 		bin_info, slab);
 	}
@@ -1719,7 +1720,7 @@ arena_dalloc_bin_locked_impl(tsdn_t *tsdn, arena_t *arena, bin_t *bin,
 	} else if (nfree == 1 && slab != bin->slabcur) {
 		arena_bin_slabs_full_remove(arena, bin, slab);
 		arena_bin_lower_slab(tsdn, arena, slab, bin, bin_info);
-	} else if (opt_mesh && slab != bin->slabcur &&
+	} else if (mesh_should_update_shape() && slab != bin->slabcur &&
 		   mesh_slab_is_candidate(slab) && nfree != bin_info->nregs) {
 		// If slab is not empty, then track its mesh shape
 		mesh_slab_shape_add(arena->mesh_arena_data, slab_data,
@@ -2104,9 +2105,6 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 
 	if (opt_mesh) {
 		arena->mesh_arena_data = mesh_arena_data_new(tsdn, base);
-		if (arena->mesh_arena_data == NULL) {
-			goto label_error;
-		}
 	}
 
 	arena->base = base;
