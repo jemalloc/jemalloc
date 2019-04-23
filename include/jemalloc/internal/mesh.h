@@ -7,6 +7,7 @@ extern bool opt_mesh;
 
 typedef struct mesh_bin_data_s mesh_bin_data_t;
 struct mesh_bin_data_s {
+	extent_list_t		shape_table[1 << 8];
 	mesh_bin_stats_t	stats;
 };
 

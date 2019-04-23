@@ -1,6 +1,28 @@
 #ifndef JEMALLOC_INTERNAL_ARENA_INLINES_A_H
 #define JEMALLOC_INTERNAL_ARENA_INLINES_A_H
 
+static inline void
+arena_slab_data_init(extent_t *slab, arena_slab_data_t *slab_data,
+    const bitmap_info_t *binfo, bool fill) {
+	if (binfo->nbits <= 8) {
+		bitmap_init(&slab_data->internal.mesh_data.bitmap,
+		    binfo, fill);
+		ql_elm_new(slab, e_slab_data.internal.mesh_data.ql_link);
+	} else {
+		bitmap_init(slab_data->internal.full_bitmap,
+		    binfo, fill);
+	}
+}
+
+static inline bitmap_t *
+arena_slab_data_bitmap_get(arena_slab_data_t *slab_data, const bitmap_info_t *binfo) {
+	if (binfo->nbits <= 8) {
+		return &slab_data->internal.mesh_data.bitmap;
+	} else {
+		return slab_data->internal.full_bitmap;
+	}
+}
+
 static inline unsigned
 arena_ind_get(const arena_t *arena) {
 	return base_ind_get(arena->base);

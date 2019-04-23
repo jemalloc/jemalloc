@@ -27,18 +27,24 @@ mesh_slab_is_candidate(extent_t *slab) {
 }
 
 static void
-insert_into_bin_data(mesh_bin_data_t *bin_data, uint8_t key, extent_t *slab) {
+insert_into_bin_data(mesh_bin_data_t *bin_data,
+    arena_slab_data_t *slab_data, uint8_t key, extent_t *slab) {
 	if (config_stats) {
 		bin_data->stats.shape_counts[key]++;
 	}
+	ql_tail_insert(&bin_data->shape_table[key], slab,
+	    e_slab_data.internal.mesh_data.ql_link);
 }
 
 static void
-remove_from_bin_data(mesh_bin_data_t *bin_data, uint8_t key, extent_t *slab) {
+remove_from_bin_data(mesh_bin_data_t *bin_data,
+    arena_slab_data_t *slab_data, uint8_t key, extent_t *slab) {
 	if (config_stats) {
 		assert(bin_data->stats.shape_counts[key] != 0);
 		bin_data->stats.shape_counts[key]--;
 	}
+	ql_remove(&bin_data->shape_table[key], slab,
+	    e_slab_data.internal.mesh_data.ql_link);
 }
 
 static mesh_bin_data_t *
@@ -54,31 +60,38 @@ get_bin_data_for_slab(mesh_arena_data_t *data, const bin_info_t *bin_info,
 void
 mesh_slab_shape_add(mesh_arena_data_t *data, arena_slab_data_t *slab_data,
     const bin_info_t *bin_info, extent_t *slab) {
-	assert(!bitmap_full(slab_data->bitmap, &bin_info->bitmap_info));
+	bitmap_t *bitmap = arena_slab_data_bitmap_get(slab_data,
+	    &bin_info->bitmap_info);
+	assert(!bitmap_full(bitmap, &bin_info->bitmap_info));
 	assert(extent_nfree_get(slab) != bin_info->nregs);
 
 	mesh_bin_data_t *bin_data = get_bin_data_for_slab(data, bin_info, slab);
-	uint8_t key = bitmap_get_first_logical_byte(slab_data->bitmap,
+	uint8_t key = bitmap_get_first_logical_byte(bitmap,
 	    &bin_info->bitmap_info);
-	insert_into_bin_data(bin_data, key, slab);
+	insert_into_bin_data(bin_data, slab_data, key, slab);
 }
 
 void
 mesh_slab_shape_remove(mesh_arena_data_t *data, arena_slab_data_t *slab_data,
     const bin_info_t *bin_info, extent_t *slab) {
-	assert(!bitmap_full(slab_data->bitmap, &bin_info->bitmap_info));
+	bitmap_t *bitmap = arena_slab_data_bitmap_get(slab_data,
+	    &bin_info->bitmap_info);
+	assert(!bitmap_full(bitmap, &bin_info->bitmap_info));
 	assert(extent_nfree_get(slab) != bin_info->nregs);
 
 	mesh_bin_data_t *bin_data = get_bin_data_for_slab(data, bin_info, slab);
-	uint8_t key = bitmap_get_first_logical_byte(slab_data->bitmap,
+	uint8_t key = bitmap_get_first_logical_byte(bitmap,
 	    &bin_info->bitmap_info);
-	remove_from_bin_data(bin_data, key, slab);
+	remove_from_bin_data(bin_data, slab_data, key, slab);
 }
 
 static void
 bin_data_init(mesh_bin_data_t *bin_data) {
 	if (config_stats) {
 		memset(&bin_data->stats, 0x0, sizeof(mesh_bin_stats_t));
+	}
+	for (size_t i = 0; i < (1 << 8); i++) {
+		extent_list_init(&bin_data->shape_table[i]);
 	}
 }
 

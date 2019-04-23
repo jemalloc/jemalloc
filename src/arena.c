@@ -273,9 +273,11 @@ arena_slab_reg_alloc(extent_t *slab, const bin_info_t *bin_info) {
 	size_t regind;
 
 	assert(extent_nfree_get(slab) > 0);
-	assert(!bitmap_full(slab_data->bitmap, &bin_info->bitmap_info));
+	bitmap_t *bitmap = arena_slab_data_bitmap_get(slab_data,
+	    &bin_info->bitmap_info);
+	assert(!bitmap_full(bitmap, &bin_info->bitmap_info));
 
-	regind = bitmap_sfu(slab_data->bitmap, &bin_info->bitmap_info);
+	regind = bitmap_sfu(bitmap, &bin_info->bitmap_info);
 	ret = (void *)((uintptr_t)extent_addr_get(slab) +
 	    (uintptr_t)(bin_info->reg_size * regind));
 	extent_nfree_dec(slab);
@@ -288,22 +290,24 @@ arena_slab_reg_alloc_batch(extent_t *slab, const bin_info_t *bin_info,
 	arena_slab_data_t *slab_data = extent_slab_data_get(slab);
 
 	assert(extent_nfree_get(slab) >= cnt);
-	assert(!bitmap_full(slab_data->bitmap, &bin_info->bitmap_info));
+	bitmap_t *bitmap = arena_slab_data_bitmap_get(slab_data,
+	    &bin_info->bitmap_info);
+	assert(!bitmap_full(bitmap, &bin_info->bitmap_info));
 
 #if (! defined JEMALLOC_INTERNAL_POPCOUNTL) || (defined BITMAP_USE_TREE)
 	for (unsigned i = 0; i < cnt; i++) {
-		size_t regind = bitmap_sfu(slab_data->bitmap,
+		size_t regind = bitmap_sfu(bitmap,
 					   &bin_info->bitmap_info);
 		*(ptrs + i) = (void *)((uintptr_t)extent_addr_get(slab) +
 		    (uintptr_t)(bin_info->reg_size * regind));
 	}
 #else
 	unsigned group = 0;
-	bitmap_t g = slab_data->bitmap[group];
+	bitmap_t g = bitmap[group];
 	unsigned i = 0;
 	while (i < cnt) {
 		while (g == 0) {
-			g = slab_data->bitmap[++group];
+			g = bitmap[++group];
 		}
 		size_t shift = group << LG_BITMAP_GROUP_NBITS;
 		size_t pop = popcount_lu(g);
@@ -324,7 +328,7 @@ arena_slab_reg_alloc_batch(extent_t *slab, const bin_info_t *bin_info,
 
 			i++;
 		}
-		slab_data->bitmap[group] = g;
+		bitmap[group] = g;
 	}
 #endif
 	extent_nfree_sub(slab, cnt);
@@ -362,9 +366,11 @@ arena_slab_reg_dalloc(extent_t *slab, arena_slab_data_t *slab_data, void *ptr) {
 
 	assert(extent_nfree_get(slab) < bin_info->nregs);
 	/* Freeing an unallocated pointer can cause assertion failure. */
-	assert(bitmap_get(slab_data->bitmap, &bin_info->bitmap_info, regind));
+	bitmap_t *bitmap = arena_slab_data_bitmap_get(slab_data,
+	    &bin_info->bitmap_info);
+	assert(bitmap_get(bitmap, &bin_info->bitmap_info, regind));
 
-	bitmap_unset(slab_data->bitmap, &bin_info->bitmap_info, regind);
+	bitmap_unset(bitmap, &bin_info->bitmap_info, regind);
 	extent_nfree_inc(slab);
 }
 
@@ -1256,11 +1262,11 @@ arena_slab_alloc(tsdn_t *tsdn, arena_t *arena, szind_t binind, unsigned binshard
 	}
 	assert(extent_slab_get(slab));
 
+
 	/* Initialize slab internals. */
 	arena_slab_data_t *slab_data = extent_slab_data_get(slab);
 	extent_nfree_binshard_set(slab, bin_info->nregs, binshard);
-	bitmap_init(slab_data->bitmap, &bin_info->bitmap_info, false);
-
+	arena_slab_data_init(slab, slab_data, &bin_info->bitmap_info, false);
 	arena_nactive_add(arena, extent_size_get(slab) >> LG_PAGE);
 
 	return slab;
@@ -1697,8 +1703,10 @@ arena_dalloc_bin_locked_impl(tsdn_t *tsdn, arena_t *arena, bin_t *bin,
 
 	/* If slab is not full, then its mesh shape is tracked 
 	   and needs to be invalidated. */
+	bitmap_t *bitmap = arena_slab_data_bitmap_get(slab_data,
+	    &bin_info->bitmap_info);
 	if (opt_mesh && slab != bin->slabcur && mesh_slab_is_candidate(slab) &&
-	    !bitmap_full(slab_data->bitmap, &bin_info->bitmap_info)) {
+	    !bitmap_full(bitmap, &bin_info->bitmap_info)) {
 		mesh_slab_shape_remove(arena->mesh_arena_data, slab_data,
 		bin_info, slab);
 	}
