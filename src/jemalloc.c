@@ -1041,10 +1041,10 @@ malloc_conf_init(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS]) {
       JEMALLOC_DIAGNOSTIC_PUSH
       JEMALLOC_DIAGNOSTIC_IGNORE_TYPE_LIMITS
 
-#define CONF_MIN_no(um, min)	false
-#define CONF_MIN_yes(um, min)	((um) < (min))
-#define CONF_MAX_no(um, max)	false
-#define CONF_MAX_yes(um, max)	((um) > (max))
+#define CONF_DONT_CHECK_MIN(um, min)	false
+#define CONF_CHECK_MIN(um, min)	((um) < (min))
+#define CONF_DONT_CHECK_MAX(um, max)	false
+#define CONF_CHECK_MAX(um, max)	((um) > (max))
 #define CONF_HANDLE_T_U(t, o, n, min, max, check_min, check_max, clip)	\
 			if (CONF_MATCH(n)) {				\
 				uintmax_t um;				\
@@ -1058,21 +1058,17 @@ malloc_conf_init(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS]) {
 					    "Invalid conf value",	\
 					    k, klen, v, vlen);		\
 				} else if (clip) {			\
-					if (CONF_MIN_##check_min(um,	\
-					    (t)(min))) {		\
+					if (check_min(um, (t)(min))) {	\
 						o = (t)(min);		\
 					} else if (			\
-					    CONF_MAX_##check_max(um,	\
-					    (t)(max))) {		\
+					    check_max(um, (t)(max))) {	\
 						o = (t)(max);		\
 					} else {			\
 						o = (t)um;		\
 					}				\
 				} else {				\
-					if (CONF_MIN_##check_min(um,	\
-					    (t)(min)) ||		\
-					    CONF_MAX_##check_max(um,	\
-					    (t)(max))) {		\
+					if (check_min(um, (t)(min)) ||	\
+					    check_max(um, (t)(max))) {	\
 						malloc_conf_error(	\
 						    "Out-of-range "	\
 						    "conf value",	\
@@ -1167,7 +1163,8 @@ malloc_conf_init(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS]) {
 				continue;
 			}
 			CONF_HANDLE_UNSIGNED(opt_narenas, "narenas", 1,
-			    UINT_MAX, yes, no, false)
+			    UINT_MAX, CONF_CHECK_MIN, CONF_DONT_CHECK_MAX,
+			    false)
 			if (CONF_MATCH("bin_shards")) {
 				const char *bin_shards_segment_cur = v;
 				size_t vlen_left = vlen;
@@ -1249,11 +1246,12 @@ malloc_conf_init(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS]) {
 			 * contention on the huge arena.
 			 */
 			CONF_HANDLE_SIZE_T(opt_oversize_threshold,
-			    "oversize_threshold", 0, SC_LARGE_MAXCLASS, no, yes,
-			    false)
+			    "oversize_threshold", 0, SC_LARGE_MAXCLASS,
+			    CONF_DONT_CHECK_MIN, CONF_CHECK_MAX, false)
 			CONF_HANDLE_SIZE_T(opt_lg_extent_max_active_fit,
 			    "lg_extent_max_active_fit", 0,
-			    (sizeof(size_t) << 3), no, yes, false)
+			    (sizeof(size_t) << 3), CONF_DONT_CHECK_MIN,
+			    CONF_CHECK_MAX, false)
 
 			if (strncmp("percpu_arena", k, klen) == 0) {
 				bool match = false;
@@ -1281,7 +1279,8 @@ malloc_conf_init(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS]) {
 			    "background_thread");
 			CONF_HANDLE_SIZE_T(opt_max_background_threads,
 					   "max_background_threads", 1,
-					   opt_max_background_threads, yes, yes,
+					   opt_max_background_threads,
+					   CONF_CHECK_MIN, CONF_CHECK_MAX,
 					   true);
 			if (CONF_MATCH("slab_sizes")) {
 				bool err;
@@ -1317,7 +1316,8 @@ malloc_conf_init(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS]) {
 				    "prof_thread_active_init")
 				CONF_HANDLE_SIZE_T(opt_lg_prof_sample,
 				    "lg_prof_sample", 0, (sizeof(uint64_t) << 3)
-				    - 1, no, yes, true)
+				    - 1, CONF_DONT_CHECK_MIN, CONF_CHECK_MAX,
+				    true)
 				CONF_HANDLE_BOOL(opt_prof_accum, "prof_accum")
 				CONF_HANDLE_SSIZE_T(opt_lg_prof_interval,
 				    "lg_prof_interval", -1,
@@ -1363,10 +1363,10 @@ malloc_conf_init(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS]) {
 #undef CONF_MATCH
 #undef CONF_MATCH_VALUE
 #undef CONF_HANDLE_BOOL
-#undef CONF_MIN_no
-#undef CONF_MIN_yes
-#undef CONF_MAX_no
-#undef CONF_MAX_yes
+#undef CONF_DONT_CHECK_MIN
+#undef CONF_CHECK_MIN
+#undef CONF_DONT_CHECK_MAX
+#undef CONF_CHECK_MAX
 #undef CONF_HANDLE_T_U
 #undef CONF_HANDLE_UNSIGNED
 #undef CONF_HANDLE_SIZE_T
