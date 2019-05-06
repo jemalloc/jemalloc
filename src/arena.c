@@ -151,6 +151,15 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 		arena_stats_accum_u64(&astats->nrequests_large,
 		    nmalloc + nrequests);
 
+		/* nfill == nmalloc for large currently. */
+		arena_stats_accum_u64(&lstats[i].nfills, nmalloc);
+		arena_stats_accum_u64(&astats->nfills_large, nmalloc);
+
+		uint64_t nflush = arena_stats_read_u64(tsdn, &arena->stats,
+		    &arena->stats.lstats[i].nflushes);
+		arena_stats_accum_u64(&lstats[i].nflushes, nflush);
+		arena_stats_accum_u64(&astats->nflushes_large, nflush);
+
 		assert(nmalloc >= ndalloc);
 		assert(nmalloc - ndalloc <= SIZE_T_MAX);
 		size_t curlextents = (size_t)(nmalloc - ndalloc);

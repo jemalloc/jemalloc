@@ -156,10 +156,14 @@ CTL_PROTO(stats_arenas_i_small_allocated)
 CTL_PROTO(stats_arenas_i_small_nmalloc)
 CTL_PROTO(stats_arenas_i_small_ndalloc)
 CTL_PROTO(stats_arenas_i_small_nrequests)
+CTL_PROTO(stats_arenas_i_small_nfills)
+CTL_PROTO(stats_arenas_i_small_nflushes)
 CTL_PROTO(stats_arenas_i_large_allocated)
 CTL_PROTO(stats_arenas_i_large_nmalloc)
 CTL_PROTO(stats_arenas_i_large_ndalloc)
 CTL_PROTO(stats_arenas_i_large_nrequests)
+CTL_PROTO(stats_arenas_i_large_nfills)
+CTL_PROTO(stats_arenas_i_large_nflushes)
 CTL_PROTO(stats_arenas_i_bins_j_nmalloc)
 CTL_PROTO(stats_arenas_i_bins_j_ndalloc)
 CTL_PROTO(stats_arenas_i_bins_j_nrequests)
@@ -414,14 +418,18 @@ static const ctl_named_node_t stats_arenas_i_small_node[] = {
 	{NAME("allocated"),	CTL(stats_arenas_i_small_allocated)},
 	{NAME("nmalloc"),	CTL(stats_arenas_i_small_nmalloc)},
 	{NAME("ndalloc"),	CTL(stats_arenas_i_small_ndalloc)},
-	{NAME("nrequests"),	CTL(stats_arenas_i_small_nrequests)}
+	{NAME("nrequests"),	CTL(stats_arenas_i_small_nrequests)},
+	{NAME("nfills"),	CTL(stats_arenas_i_small_nfills)},
+	{NAME("nflushes"),	CTL(stats_arenas_i_small_nflushes)}
 };
 
 static const ctl_named_node_t stats_arenas_i_large_node[] = {
 	{NAME("allocated"),	CTL(stats_arenas_i_large_allocated)},
 	{NAME("nmalloc"),	CTL(stats_arenas_i_large_nmalloc)},
 	{NAME("ndalloc"),	CTL(stats_arenas_i_large_ndalloc)},
-	{NAME("nrequests"),	CTL(stats_arenas_i_large_nrequests)}
+	{NAME("nrequests"),	CTL(stats_arenas_i_large_nrequests)},
+	{NAME("nfills"),	CTL(stats_arenas_i_large_nfills)},
+	{NAME("nflushes"),	CTL(stats_arenas_i_large_nflushes)}
 };
 
 #define MUTEX_PROF_DATA_NODE(prefix)					\
@@ -754,6 +762,8 @@ ctl_arena_clear(ctl_arena_t *ctl_arena) {
 		ctl_arena->astats->nmalloc_small = 0;
 		ctl_arena->astats->ndalloc_small = 0;
 		ctl_arena->astats->nrequests_small = 0;
+		ctl_arena->astats->nfills_small = 0;
+		ctl_arena->astats->nflushes_small = 0;
 		memset(ctl_arena->astats->bstats, 0, SC_NBINS *
 		    sizeof(bin_stats_t));
 		memset(ctl_arena->astats->lstats, 0, (SC_NSIZES - SC_NBINS) *
@@ -785,6 +795,10 @@ ctl_arena_stats_amerge(tsdn_t *tsdn, ctl_arena_t *ctl_arena, arena_t *arena) {
 			    ctl_arena->astats->bstats[i].ndalloc;
 			ctl_arena->astats->nrequests_small +=
 			    ctl_arena->astats->bstats[i].nrequests;
+			ctl_arena->astats->nfills_small +=
+			    ctl_arena->astats->bstats[i].nfills;
+			ctl_arena->astats->nflushes_small +=
+			    ctl_arena->astats->bstats[i].nflushes;
 		}
 	} else {
 		arena_basic_stats_merge(tsdn, arena, &ctl_arena->nthreads,
@@ -867,6 +881,8 @@ MUTEX_PROF_ARENA_MUTEXES
 		sdstats->nmalloc_small += astats->nmalloc_small;
 		sdstats->ndalloc_small += astats->ndalloc_small;
 		sdstats->nrequests_small += astats->nrequests_small;
+		sdstats->nfills_small += astats->nfills_small;
+		sdstats->nflushes_small += astats->nflushes_small;
 
 		if (!destroyed) {
 			accum_atomic_zu(&sdstats->astats.allocated_large,
@@ -2847,6 +2863,10 @@ CTL_RO_CGEN(config_stats, stats_arenas_i_small_ndalloc,
     arenas_i(mib[2])->astats->ndalloc_small, uint64_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_small_nrequests,
     arenas_i(mib[2])->astats->nrequests_small, uint64_t)
+CTL_RO_CGEN(config_stats, stats_arenas_i_small_nfills,
+    arenas_i(mib[2])->astats->nfills_small, uint64_t)
+CTL_RO_CGEN(config_stats, stats_arenas_i_small_nflushes,
+    arenas_i(mib[2])->astats->nflushes_small, uint64_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_large_allocated,
     atomic_load_zu(&arenas_i(mib[2])->astats->astats.allocated_large,
     ATOMIC_RELAXED), size_t)
@@ -2856,12 +2876,19 @@ CTL_RO_CGEN(config_stats, stats_arenas_i_large_nmalloc,
 CTL_RO_CGEN(config_stats, stats_arenas_i_large_ndalloc,
     ctl_arena_stats_read_u64(
     &arenas_i(mib[2])->astats->astats.ndalloc_large), uint64_t)
-/*
- * Note: "nmalloc" here instead of "nrequests" in the read.  This is intentional.
- */
 CTL_RO_CGEN(config_stats, stats_arenas_i_large_nrequests,
     ctl_arena_stats_read_u64(
-    &arenas_i(mib[2])->astats->astats.nmalloc_large), uint64_t) /* Intentional. */
+    &arenas_i(mib[2])->astats->astats.nrequests_large), uint64_t)
+/*
+ * Note: "nmalloc_large" here instead of "nfills" in the read.  This is
+ * intentional (large has no batch fill).
+ */
+CTL_RO_CGEN(config_stats, stats_arenas_i_large_nfills,
+    ctl_arena_stats_read_u64(
+    &arenas_i(mib[2])->astats->astats.nmalloc_large), uint64_t)
+CTL_RO_CGEN(config_stats, stats_arenas_i_large_nflushes,
+    ctl_arena_stats_read_u64(
+    &arenas_i(mib[2])->astats->astats.nflushes_large), uint64_t)
 
 /* Lock profiling related APIs below. */
 #define RO_MUTEX_CTL_GEN(n, l)						\

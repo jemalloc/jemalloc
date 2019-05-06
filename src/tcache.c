@@ -282,8 +282,8 @@ tcache_bin_flush_large(tsd_t *tsd, cache_bin_t *tbin, szind_t binind,
 			}
 			if (config_stats) {
 				merged_stats = true;
-				arena_stats_large_nrequests_add(tsd_tsdn(tsd),
-				    &tcache_arena->stats, binind,
+				arena_stats_large_flush_nrequests_add(
+				    tsd_tsdn(tsd), &tcache_arena->stats, binind,
 				    tbin->tstats.nrequests);
 				tbin->tstats.nrequests = 0;
 			}
@@ -324,7 +324,7 @@ tcache_bin_flush_large(tsd_t *tsd, cache_bin_t *tbin, szind_t binind,
 		 * The flush loop didn't happen to flush to this thread's
 		 * arena, so the stats didn't get merged.  Manually do so now.
 		 */
-		arena_stats_large_nrequests_add(tsd_tsdn(tsd),
+		arena_stats_large_flush_nrequests_add(tsd_tsdn(tsd),
 		    &tcache_arena->stats, binind, tbin->tstats.nrequests);
 		tbin->tstats.nrequests = 0;
 	}
@@ -615,7 +615,7 @@ tcache_stats_merge(tsdn_t *tsdn, tcache_t *tcache, arena_t *arena) {
 
 	for (; i < nhbins; i++) {
 		cache_bin_t *tbin = tcache_large_bin_get(tcache, i);
-		arena_stats_large_nrequests_add(tsdn, &arena->stats, i,
+		arena_stats_large_flush_nrequests_add(tsdn, &arena->stats, i,
 		    tbin->tstats.nrequests);
 		tbin->tstats.nrequests = 0;
 	}

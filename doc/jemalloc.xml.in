@@ -2798,6 +2798,28 @@ struct extent_hooks_s {
         all bin size classes.</para></listitem>
       </varlistentry>
 
+      <varlistentry id="stats.arenas.i.small.nfills">
+        <term>
+          <mallctl>stats.arenas.&lt;i&gt;.small.nfills</mallctl>
+          (<type>uint64_t</type>)
+          <literal>r-</literal>
+          [<option>--enable-stats</option>]
+        </term>
+        <listitem><para>Cumulative number of tcache fills by all small size
+	classes.</para></listitem>
+      </varlistentry>
+
+      <varlistentry id="stats.arenas.i.small.nflushes">
+        <term>
+          <mallctl>stats.arenas.&lt;i&gt;.small.nflushes</mallctl>
+          (<type>uint64_t</type>)
+          <literal>r-</literal>
+          [<option>--enable-stats</option>]
+        </term>
+        <listitem><para>Cumulative number of tcache flushes by all small size
+        classes.</para></listitem>
+      </varlistentry>
+
       <varlistentry id="stats.arenas.i.large.allocated">
         <term>
           <mallctl>stats.arenas.&lt;i&gt;.large.allocated</mallctl>
@@ -2846,6 +2868,28 @@ struct extent_hooks_s {
         </term>
         <listitem><para>Cumulative number of allocation requests satisfied by
         all large size classes.</para></listitem>
+      </varlistentry>
+
+      <varlistentry id="stats.arenas.i.large.nfills">
+        <term>
+          <mallctl>stats.arenas.&lt;i&gt;.large.nfills</mallctl>
+          (<type>uint64_t</type>)
+          <literal>r-</literal>
+          [<option>--enable-stats</option>]
+        </term>
+        <listitem><para>Cumulative number of tcache fills by all large size
+	classes.</para></listitem>
+      </varlistentry>
+
+      <varlistentry id="stats.arenas.i.large.nflushes">
+        <term>
+          <mallctl>stats.arenas.&lt;i&gt;.large.nflushes</mallctl>
+          (<type>uint64_t</type>)
+          <literal>r-</literal>
+          [<option>--enable-stats</option>]
+        </term>
+        <listitem><para>Cumulative number of tcache flushes by all large size
+        classes.</para></listitem>
       </varlistentry>
 
       <varlistentry id="stats.arenas.i.bins.j.nmalloc">
