@@ -3143,15 +3143,15 @@ label_return:
  * (f) total number of regions in the bin the extent belongs to.
  *
  * Note that "(e)" and "(f)" are only available when stats are enabled;
- * otherwise both are set zero.
+ * otherwise their values are undefined.
  *
  * This API is mainly intended for small class allocations, where extents are
  * used as slab.
  *
  * In case of large class allocations, "(a)" will be NULL, and "(e)" and "(f)"
- * will be zero.  The other three fields will be properly set though the values
- * are trivial: "(b)" will be 0, "(c)" will be 1, and "(d)" will be the usable
- * size.
+ * will be zero (if stats are enabled; otherwise undefined).  The other three
+ * fields will be properly set though the values are trivial: "(b)" will be 0,
+ * "(c)" will be 1, and "(d)" will be the usable size.
  *
  * The input pointer and size are respectively passed in by newp and newlen,
  * and the output fields and size are respectively oldp and *oldlenp.
