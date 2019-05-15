@@ -2744,12 +2744,12 @@ bool free_fastpath(void *ptr, size_t size, bool size_hint) {
 		bool res = rtree_szind_slab_read_fast(tsd_tsdn(tsd), &extents_rtree,
 						      rtree_ctx, (uintptr_t)ptr,
 						      &alloc_ctx.szind, &alloc_ctx.slab);
-		assert(alloc_ctx.szind != SC_NSIZES);
 
 		/* Note: profiled objects will have alloc_ctx.slab set */
 		if (!res || !alloc_ctx.slab) {
 			return false;
 		}
+		assert(alloc_ctx.szind != SC_NSIZES);
 	} else {
 		/*
 		 * Check for both sizes that are too large, and for sampled objects.
