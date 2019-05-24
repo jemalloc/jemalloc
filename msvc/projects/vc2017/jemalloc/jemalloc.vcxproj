@@ -67,6 +67,7 @@
     <ClCompile Include="..\..\..\..\src\ticker.c" />
     <ClCompile Include="..\..\..\..\src\tsd.c" />
     <ClCompile Include="..\..\..\..\src\witness.c" />
+    <ClCompile Include="..\..\..\..\src\safety_check.c" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{8D6BB292-9E1C-413D-9F98-4864BDC1514A}</ProjectGuid>
