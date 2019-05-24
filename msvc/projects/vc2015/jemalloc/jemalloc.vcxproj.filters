@@ -100,5 +100,8 @@
     <ClCompile Include="..\..\..\..\src\div.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\..\src\safety_check.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>
