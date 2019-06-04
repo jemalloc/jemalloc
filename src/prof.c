@@ -1292,7 +1292,7 @@ prof_dump_write(bool propagate_err, const char *s) {
 			}
 		}
 
-		if (prof_dump_buf_end + slen <= PROF_DUMP_BUFSIZE) {
+		if (prof_dump_buf_end + slen - i <= PROF_DUMP_BUFSIZE) {
 			/* Finish writing. */
 			n = slen - i;
 		} else {
