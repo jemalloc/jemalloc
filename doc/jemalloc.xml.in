@@ -424,7 +424,7 @@ for (i = 0; i < nbins; i++) {
       called repeatedly.  General information that never changes during
       execution can be omitted by specifying <quote>g</quote> as a character
       within the <parameter>opts</parameter> string.  Note that
-      <function>malloc_message()</function> uses the
+      <function>malloc_stats_print()</function> uses the
       <function>mallctl*()</function> functions internally, so inconsistent
       statistics can be reported if multiple threads use these functions
       simultaneously.  If <option>--enable-stats</option> is specified during
