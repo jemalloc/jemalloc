@@ -116,7 +116,6 @@ struct arena_s {
 
 	/* Synchronization: internal. */
 	prof_accum_t		prof_accum;
-	uint64_t		prof_accumbytes;
 
 	/*
 	 * PRNG state for cache index randomization of large allocation base
