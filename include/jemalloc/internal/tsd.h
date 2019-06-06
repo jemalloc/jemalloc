@@ -20,6 +20,7 @@
  * e: tcache_enabled
  * m: thread_allocated (config_stats)
  * f: thread_deallocated (config_stats)
+ * b: bytes_until_sample (config_prof)
  * p: prof_tdata (config_prof)
  * c: rtree_ctx (rtree cache accessed on deallocation)
  * t: tcache
@@ -27,6 +28,7 @@
  * d: arenas_tdata_bypass
  * r: reentrancy_level
  * x: narenas_tdata
+ * v: offset_state
  * i: iarena
  * a: arena
  * o: arenas_tdata
@@ -35,11 +37,13 @@
  * Use a compact layout to reduce cache footprint.
  * +--- 64-bit and 64B cacheline; 1B each letter; First byte on the left. ---+
  * |----------------------------  1st cacheline  ----------------------------|
- * | sedrxxxx mmmmmmmm ffffffff pppppppp [c * 32  ........ ........ .......] |
+ * | sedrxxxx vvvvvvvv mmmmmmmm ffffffff bbbbbbbb pppppppp [c * 16  .......] |
  * |----------------------------  2nd cacheline  ----------------------------|
  * | [c * 64  ........ ........ ........ ........ ........ ........ .......] |
  * |----------------------------  3nd cacheline  ----------------------------|
- * | [c * 32  ........ ........ .......] iiiiiiii aaaaaaaa oooooooo [t...... |
+ * | [c * 48  ........ ........ ........ ........ .......] iiiiiiii aaaaaaaa |
+ * +----------------------------  4th cacheline  ----------------------------+
+ * | oooooooo [t...... ........ ........ ........ ........ ........ ........ |
  * +-------------------------------------------------------------------------+
  * Note: the entire tcache is embedded into TSD and spans multiple cachelines.
  *
