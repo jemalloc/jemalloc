@@ -2342,6 +2342,10 @@ je_malloc(size_t size) {
 		tsd_bytes_until_sample_set(tsd, bytes_until_sample);
 
 		if (unlikely(bytes_until_sample < 0)) {
+			tcache->prof_accumbytes +=
+			    (uint64_t)-bytes_until_sample +
+			    ((uint64_t)1U << lg_prof_sample);
+
 			/*
 			 * Avoid a prof_active check on the fastpath.
 			 * If prof_active is false, set bytes_until_sample to
@@ -2363,9 +2367,6 @@ je_malloc(size_t size) {
 		if (config_stats) {
 			*tsd_thread_allocatedp_get(tsd) += usize;
 			bin->tstats.nrequests++;
-		}
-		if (config_prof) {
-			tcache->prof_accumbytes += usize;
 		}
 
 		LOG("core.malloc.exit", "result: %p", ret);
