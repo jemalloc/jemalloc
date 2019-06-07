@@ -99,4 +99,29 @@ malloc_read_fd(int fd, void *buf, size_t count) {
 	return (ssize_t)result;
 }
 
+/******************************************************************************/
+
+/*
+ * The rest is buffered writing utility.
+ *
+ * The only difference when using the buffered writer is that cbopaque is
+ * passed to write_cb only when the buffer is flushed.  It would make a
+ * difference if cbopaque points to something that's changing for each write_cb
+ * call, or something that affects write_cb in a way dependent on the content
+ * of the output string.  However, the most typical usage case in practice is
+ * that cbopaque points to some "option like" content for the write_cb, so it
+ * doesn't matter.
+ */
+
+typedef struct {
+	void (*write_cb)(void *, const char *);
+	void *cbopaque;
+	char *buf;
+	size_t buf_size; /* must be one less than the capacity of buf array */
+	size_t buf_end;
+} buf_writer_arg_t;
+
+void buf_writer_flush(buf_writer_arg_t *arg);
+void buffered_write_cb(void *buf_writer_arg, const char *s);
+
 #endif /* JEMALLOC_INTERNAL_MALLOC_IO_H */

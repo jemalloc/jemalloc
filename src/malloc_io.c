@@ -664,6 +664,36 @@ malloc_printf(const char *format, ...) {
 	va_end(ap);
 }
 
+void
+buf_writer_flush(buf_writer_arg_t *arg) {
+	assert(arg->buf_end <= arg->buf_size);
+	arg->buf[arg->buf_end] = '\0';
+	if (arg->write_cb == NULL) {
+		arg->write_cb = je_malloc_message != NULL ?
+		    je_malloc_message : wrtmessage;
+	}
+	arg->write_cb(arg->cbopaque, arg->buf);
+	arg->buf_end = 0;
+}
+
+void
+buffered_write_cb(void *buf_writer_arg, const char *s) {
+	buf_writer_arg_t *arg = (buf_writer_arg_t *)buf_writer_arg;
+	size_t i, slen, n, s_remain, buf_remain;
+	assert(arg->buf_end <= arg->buf_size);
+	for (i = 0, slen = strlen(s); i < slen; i += n) {
+		if (arg->buf_end == arg->buf_size) {
+			buf_writer_flush(arg);
+		}
+		s_remain = slen - i;
+		buf_remain = arg->buf_size - arg->buf_end;
+		n = s_remain < buf_remain ? s_remain : buf_remain;
+		memcpy(arg->buf + arg->buf_end, s + i, n);
+		arg->buf_end += n;
+	}
+	assert(i == slen);
+}
+
 /*
  * Restore normal assertion macros, in order to make it possible to compile all
  * C files as a single concatenation.
