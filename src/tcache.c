@@ -529,10 +529,12 @@ tcache_flush_cache(tsd_t *tsd, tcache_t *tcache) {
 		}
 	}
 
-	if (config_prof && tcache->prof_accumbytes > 0 &&
-	    arena_prof_accum(tsd_tsdn(tsd), tcache->arena,
-	    tcache->prof_accumbytes)) {
-		prof_idump(tsd_tsdn(tsd));
+	if (config_prof && tcache->prof_accumbytes > 0) {
+		if (arena_prof_accum(tsd_tsdn(tsd), tcache->arena,
+		    tcache->prof_accumbytes)) {
+			prof_idump(tsd_tsdn(tsd));
+		}
+		tcache->prof_accumbytes = 0;
 	}
 }
 
