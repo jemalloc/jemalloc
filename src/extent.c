@@ -1058,6 +1058,15 @@ extent_recycle_split(tsdn_t *tsdn, arena_t *arena,
 	    &to_leak, &to_salvage, new_addr, size, pad, alignment, slab, szind,
 	    growing_retained);
 
+#ifndef JEMALLOC_MAPS_COALESCE
+	if ((*r_extent_hooks)->split == NULL &&
+	    result != extent_split_interior_ok) {
+		/* Split isn't supported.  Avoid leaking the extents.*/
+		assert(to_leak != NULL && lead == NULL && trail == NULL);
+		extent_deactivate(tsdn, arena, extents, to_leak);
+		return NULL;
+	}
+#endif
 	if (result == extent_split_interior_ok) {
 		if (lead != NULL) {
 			extent_deactivate(tsdn, arena, extents, lead);
