@@ -181,9 +181,31 @@
       <title>Standard API</title>
 
       <para>The <function>malloc()</function> function allocates
-      <parameter>size</parameter> bytes of uninitialized memory.  The allocated
-      space is suitably aligned (after possible pointer coercion) for storage
-      of any type of object.</para>
+      <parameter>size</parameter> bytes of uninitialized memory. The allocated
+      space is suitably aligned (after possible pointer coercion) for storage of
+      any type of object. The meaning of "suitably aligned" is specified in the
+      C standard. Recall that, in C, the size of an object is a multiple of its
+      alignment (<code language="C">size >= alignment</code>). An allocation is
+      therefore always suited to hold any type of object if its alignment equals
+      the size of the object when the size is a power-of-two, or if the
+      alignment is computed by rounding the object size towards the previous
+      power-of-two. The C standard guarantees this behavior for types with a
+      "fundamental" alignment requirement, that is, for types with alignment
+      smaller or equal to <code
+      language="C">_Alignof(<type>max_align_t</type>)</code>. For allocations
+      with size larger than <code
+      language="C">_Alignof(<type>max_align_t</type>)</code>,
+      <function>malloc()</function> is only required to return memory aligned to
+      an <code language="C">_Alignof(<type>max_align_t</type>)</code> boundary.
+      The value of <code language="C">_Alignof(<type>max_align_t</type>)</code>
+      is implementation-defined, and in practice, platform-dependent. If
+      querying this value via C is not possible, useful lower bounds can be
+      obtained by carefully reading specification of the platform ABI. For
+      example, in platforms following the System V ABI AMD64, <type>long
+      double</type> is the scalar type with the largest "fundamental" alignment.
+      The ABI requires this alignment to be 16, and therefore, <code
+      language="C">_Alignof(<type>max_align_t</type>)</code> has to be at least
+      16. </para>
 
       <para>The <function>calloc()</function> function allocates
       space for <parameter>number</parameter> objects, each
@@ -191,7 +213,7 @@
       calling <function>malloc()</function> with an argument of
       <parameter>number</parameter> * <parameter>size</parameter>, with the
       exception that the allocated memory is explicitly initialized to zero
-      bytes.</para>
+      bytes.</para> 
 
       <para>The <function>posix_memalign()</function> function
       allocates <parameter>size</parameter> bytes of memory such that the
