@@ -185,13 +185,12 @@
       space is suitably aligned (after possible pointer coercion) for storage of
       any type of object. The meaning of "suitably aligned" is specified in the
       C standard. Recall that, in C, the size of an object is a multiple of its
-      alignment (<code language="C">size >= alignment</code>). An allocation is
-      therefore always suited to hold any type of object if its alignment equals
-      the size of the object when the size is a power-of-two, or if the
-      alignment is computed by rounding the object size towards the previous
-      power-of-two. The C standard guarantees this behavior for types with a
-      "fundamental" alignment requirement, that is, for types with alignment
-      smaller or equal to <code
+      alignment (<code language="C">size >= alignment</code>). In general, any
+      allocation is suited to store an object of size N and alignment A, if when
+      N is a power-of-two then N == A, or if A is obtained by rounding N to the
+      previous power-of-two otherwise. The C standard guarantees this behavior
+      for types with a "fundamental" alignment requirement, that is, for types
+      with alignment smaller or equal to <code
       language="C">_Alignof(<type>max_align_t</type>)</code>. For allocations
       with size larger than <code
       language="C">_Alignof(<type>max_align_t</type>)</code>,
