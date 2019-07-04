@@ -451,33 +451,44 @@ extents_first_fit_locked(tsdn_t *tsdn, arena_t *arena, extents_t *extents,
 	extent_t *ret = NULL;
 
 	pszind_t pind = sz_psz2ind(extent_size_quantize_ceil(size));
-	for (pszind_t i = (pszind_t)bitmap_ffu(extents->bitmap,
-	    &extents_bitmap_info, (size_t)pind);
-	    i < SC_NPSIZES + 1;
-	    i = (pszind_t)bitmap_ffu(extents->bitmap, &extents_bitmap_info,
-	    (size_t)i+1)) {
+	pszind_t i = (pszind_t)bitmap_ffu(extents->bitmap, &extents_bitmap_info,
+	(size_t)pind);
+	/*
+	 * In order to reduce fragmentation, if avoidable then prefer to not split
+	 */
+	if (pind == i) {
 		assert(!extent_heap_empty(&extents->heaps[i]));
 		extent_t *extent = extent_heap_first(&extents->heaps[i]);
 		assert(extent_size_get(extent) >= size);
-                bool size_ok = true;
-		/*
-		 * In order to reduce fragmentation, avoid reusing and splitting
-		 * large extents for much smaller sizes.
-		 *
-		 * Only do check for dirty extents (delay_coalesce).
-		 */
-		if (extents->delay_coalesce &&
-		    (sz_pind2sz(i) >> opt_lg_extent_max_active_fit) > size) {
-			size_ok = false;
+		ret = extent;
+	} else {
+		for ( ;
+			i < SC_NPSIZES + 1;
+			i = (pszind_t)bitmap_ffu(extents->bitmap, &extents_bitmap_info,
+			(size_t)i + 1)) {
+			assert(!extent_heap_empty(&extents->heaps[i]));
+			extent_t *extent = extent_heap_first(&extents->heaps[i]);
+			assert(extent_size_get(extent) >= size);
+			bool size_ok = true;
+			/*
+			 * In order to reduce fragmentation, avoid reusing and splitting
+			 * large extents for much smaller sizes.
+			 *
+			 * Only do check for dirty extents (delay_coalesce).
+			 */
+			if (extents->delay_coalesce &&
+				(sz_pind2sz(i) >> opt_lg_extent_max_active_fit) > size) {
+				size_ok = false;
+			}
+			if (size_ok &&
+				(ret == NULL || extent_snad_comp(extent, ret) < 0)) {
+				ret = extent;
+			}
+			if (i == SC_NPSIZES) {
+				break;
+			}
+			assert(i < SC_NPSIZES);
 		}
-		if (size_ok &&
-		    (ret == NULL || extent_snad_comp(extent, ret) < 0)) {
-			ret = extent;
-		}
-		if (i == SC_NPSIZES) {
-			break;
-		}
-		assert(i < SC_NPSIZES);
 	}
 
 	return ret;
