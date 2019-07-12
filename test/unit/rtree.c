@@ -87,9 +87,9 @@ TEST_BEGIN(test_rtree_extrema) {
 	extent_t extent_a, extent_b;
 	extent_init(&extent_a, NULL, NULL, SC_LARGE_MINCLASS, false,
 	    sz_size2index(SC_LARGE_MINCLASS), 0,
-	    extent_state_active, false, false, true);
+	    extent_state_active, false, false, true, EXTENT_NOT_HEAD);
 	extent_init(&extent_b, NULL, NULL, 0, false, SC_NSIZES, 0,
-	    extent_state_active, false, false, true);
+	    extent_state_active, false, false, true, EXTENT_NOT_HEAD);
 
 	tsdn_t *tsdn = tsdn_fetch();
 
@@ -126,7 +126,7 @@ TEST_BEGIN(test_rtree_bits) {
 
 	extent_t extent;
 	extent_init(&extent, NULL, NULL, 0, false, SC_NSIZES, 0,
-	    extent_state_active, false, false, true);
+	    extent_state_active, false, false, true, EXTENT_NOT_HEAD);
 
 	rtree_t *rtree = &test_rtree;
 	rtree_ctx_t rtree_ctx;
@@ -167,7 +167,7 @@ TEST_BEGIN(test_rtree_random) {
 
 	extent_t extent;
 	extent_init(&extent, NULL, NULL, 0, false, SC_NSIZES, 0,
-	    extent_state_active, false, false, true);
+	    extent_state_active, false, false, true, EXTENT_NOT_HEAD);
 
 	assert_false(rtree_new(rtree, false), "Unexpected rtree_new() failure");
 
