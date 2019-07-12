@@ -15,4 +15,9 @@ typedef struct extent_util_stats_verbose_s extent_util_stats_verbose_t;
  */
 #define LG_EXTENT_MAX_ACTIVE_FIT_DEFAULT 6
 
+typedef enum {
+	EXTENT_NOT_HEAD,
+	EXTENT_IS_HEAD   /* Only relevant for Windows && opt.retain. */
+} extent_head_state_t;
+
 #endif /* JEMALLOC_INTERNAL_EXTENT_TYPES_H */
