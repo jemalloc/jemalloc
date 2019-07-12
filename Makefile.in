@@ -117,6 +117,7 @@ C_SRCS := $(srcroot)src/jemalloc.c \
 	$(srcroot)src/pages.c \
 	$(srcroot)src/prng.c \
 	$(srcroot)src/prof.c \
+	$(srcroot)src/prof_log.c \
 	$(srcroot)src/rtree.c \
 	$(srcroot)src/safety_check.c \
 	$(srcroot)src/stats.c \
