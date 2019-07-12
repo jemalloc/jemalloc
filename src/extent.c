@@ -50,20 +50,16 @@ static bool extent_purge_forced_default(extent_hooks_t *extent_hooks,
 static bool extent_purge_forced_impl(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, extent_t *extent, size_t offset,
     size_t length, bool growing_retained);
-#ifdef JEMALLOC_MAPS_COALESCE
 static bool extent_split_default(extent_hooks_t *extent_hooks, void *addr,
     size_t size, size_t size_a, size_t size_b, bool committed,
     unsigned arena_ind);
-#endif
 static extent_t *extent_split_impl(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, extent_t *extent, size_t size_a,
     szind_t szind_a, bool slab_a, size_t size_b, szind_t szind_b, bool slab_b,
     bool growing_retained);
-#ifdef JEMALLOC_MAPS_COALESCE
 static bool extent_merge_default(extent_hooks_t *extent_hooks, void *addr_a,
     size_t size_a, void *addr_b, size_t size_b, bool committed,
     unsigned arena_ind);
-#endif
 static bool extent_merge_impl(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, extent_t *a, extent_t *b,
     bool growing_retained);
@@ -88,11 +84,9 @@ const extent_hooks_t	extent_hooks_default = {
 	,
 	NULL
 #endif
-#ifdef JEMALLOC_MAPS_COALESCE
 	,
 	extent_split_default,
 	extent_merge_default
-#endif
 };
 
 /* Used exclusively for gdump triggering. */
@@ -2045,13 +2039,16 @@ extent_purge_forced_wrapper(tsdn_t *tsdn, arena_t *arena,
 	    offset, length, false);
 }
 
-#ifdef JEMALLOC_MAPS_COALESCE
 static bool
 extent_split_default(extent_hooks_t *extent_hooks, void *addr, size_t size,
     size_t size_a, size_t size_b, bool committed, unsigned arena_ind) {
-	return !maps_coalesce;
+	if (maps_coalesce) {
+		return false;
+	}
+
+	/* See comments in extent_merge_default_impl(). */
+	return opt_retain ? false : true;
 }
-#endif
 
 /*
  * Accepts the extent to split, and the characteristics of each side of the
@@ -2151,9 +2148,23 @@ extent_split_wrapper(tsdn_t *tsdn, arena_t *arena,
 }
 
 static bool
-extent_merge_default_impl(void *addr_a, void *addr_b) {
+extent_merge_default_impl(extent_t *a, void *addr_a, extent_t *b,
+    void *addr_b) {
 	if (!maps_coalesce) {
-		return true;
+		/*
+		 * When coalesce is not always allowed (Windows), only merge
+		 * extents with identical sn (i.e. from the same VirtualAlloc
+		 * region) and with opt.retain only (in which case MEM_DECOMMIT
+		 * is utilized for purging).
+		 */
+		if (!opt_retain) {
+			return true;
+		}
+		assert(a != NULL && b != NULL);
+		if (extent_sn_comp(a, b) != 0) {
+			return true;
+		}
+		/* Fall through. */
 	}
 	if (have_dss && !extent_dss_mergeable(addr_a, addr_b)) {
 		return true;
@@ -2162,13 +2173,19 @@ extent_merge_default_impl(void *addr_a, void *addr_b) {
 	return false;
 }
 
-#ifdef JEMALLOC_MAPS_COALESCE
 static bool
 extent_merge_default(extent_hooks_t *extent_hooks, void *addr_a, size_t size_a,
     void *addr_b, size_t size_b, bool committed, unsigned arena_ind) {
-	return extent_merge_default_impl(addr_a, addr_b);
+	if (!maps_coalesce) {
+		tsdn_t *tsdn = tsdn_fetch();
+		extent_t *a = iealloc(tsdn, addr_a);
+		extent_t *b = iealloc(tsdn, addr_b);
+
+		return extent_merge_default_impl(a, addr_a, b, addr_b);
+	}
+
+	return extent_merge_default_impl(NULL, addr_a, NULL, addr_b);
 }
-#endif
 
 static bool
 extent_merge_impl(tsdn_t *tsdn, arena_t *arena,
@@ -2186,8 +2203,8 @@ extent_merge_impl(tsdn_t *tsdn, arena_t *arena,
 	bool err;
 	if (*r_extent_hooks == &extent_hooks_default) {
 		/* Call directly to propagate tsdn. */
-		err = extent_merge_default_impl(extent_base_get(a),
-		    extent_base_get(b));
+		err = extent_merge_default_impl(a, extent_base_get(a),
+		    b, extent_base_get(b));
 	} else {
 		extent_hook_pre_reentrancy(tsdn, arena);
 		err = (*r_extent_hooks)->merge(*r_extent_hooks,

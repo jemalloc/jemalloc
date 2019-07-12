@@ -279,8 +279,11 @@ extent_dalloc_unmap(extent_hooks_t *extent_hooks, void *addr, size_t size,
 	if (!try_dalloc) {
 		return true;
 	}
-	pages_unmap(addr, size);
 	did_dalloc = true;
+	if (!maps_coalesce && opt_retain) {
+		return true;
+	}
+	pages_unmap(addr, size);
 	return false;
 }
 
@@ -304,7 +307,9 @@ TEST_BEGIN(test_arena_destroy_hooks_unmap) {
 	unsigned nptrs;
 
 	extent_hooks_prep();
-	try_decommit = false;
+	if (maps_coalesce) {
+		try_decommit = false;
+	}
 	memcpy(&hooks_orig, &hooks, sizeof(extent_hooks_t));
 	memcpy(&hooks, &hooks_unmap, sizeof(extent_hooks_t));
 
