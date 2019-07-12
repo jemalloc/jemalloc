@@ -43,6 +43,8 @@ extern uint64_t	prof_interval;
  */
 extern size_t	lg_prof_sample;
 
+extern bool	prof_booted;
+
 void prof_alloc_rollback(tsd_t *tsd, prof_tctx_t *tctx, bool updated);
 void prof_malloc_sample_object(tsdn_t *tsdn, const void *ptr, size_t usize,
     prof_tctx_t *tctx);
@@ -64,10 +66,14 @@ extern prof_dump_header_t *JET_MUTABLE prof_dump_header;
 void prof_cnt_all(uint64_t *curobjs, uint64_t *curbytes, uint64_t *accumobjs,
     uint64_t *accumbytes);
 #endif
+int prof_getpid(void);
 bool prof_accum_init(tsdn_t *tsdn, prof_accum_t *prof_accum);
 void prof_idump(tsdn_t *tsdn);
 bool prof_mdump(tsd_t *tsd, const char *filename);
 void prof_gdump(tsdn_t *tsdn);
+
+void prof_bt_hash(const void *key, size_t r_hash[2]);
+bool prof_bt_keycomp(const void *k1, const void *k2);
 prof_tdata_t *prof_tdata_init(tsd_t *tsd);
 prof_tdata_t *prof_tdata_reinit(tsd_t *tsd, prof_tdata_t *tdata);
 void prof_reset(tsd_t *tsd, size_t lg_sample);
@@ -91,8 +97,10 @@ void prof_postfork_parent(tsdn_t *tsdn);
 void prof_postfork_child(tsdn_t *tsdn);
 void prof_sample_threshold_update(prof_tdata_t *tdata);
 
+void prof_try_log(tsd_t *tsd, const void *ptr, size_t usize, prof_tctx_t *tctx);
 bool prof_log_start(tsdn_t *tsdn, const char *filename);
 bool prof_log_stop(tsdn_t *tsdn);
+bool prof_log_init(tsd_t *tsdn);
 #ifdef JEMALLOC_JET
 size_t prof_log_bt_count(void);
 size_t prof_log_alloc_count(void);
