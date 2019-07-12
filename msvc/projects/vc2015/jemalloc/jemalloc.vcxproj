@@ -58,6 +58,7 @@
     <ClCompile Include="..\..\..\..\src\pages.c" />
     <ClCompile Include="..\..\..\..\src\prng.c" />
     <ClCompile Include="..\..\..\..\src\prof.c" />
+    <ClCompile Include="..\..\..\..\src\prof_log.c" />
     <ClCompile Include="..\..\..\..\src\rtree.c" />
     <ClCompile Include="..\..\..\..\src\sc.c" />
     <ClCompile Include="..\..\..\..\src\stats.c" />
