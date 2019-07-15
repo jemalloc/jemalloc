@@ -738,6 +738,9 @@ case "${host}" in
 	libprefix=""
 	SOREV="${so}"
 	PIC_CFLAGS=""
+	if test "${LG_SIZEOF_PTR}" = "3"; then
+	  default_retain="1"
+	fi
 	;;
   *)
 	AC_MSG_RESULT([Unsupported operating system: ${host}])
