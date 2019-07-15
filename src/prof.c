@@ -169,7 +169,7 @@ prof_malloc_sample_object(tsdn_t *tsdn, const void *ptr, size_t usize,
 	 * when free() is called. */
 	nstime_t t = NSTIME_ZERO_INITIALIZER;
 	nstime_update(&t);
-	prof_alloc_time_set(tsdn, ptr, NULL, t);
+	prof_alloc_time_set(tsdn, ptr, t);
 
 	malloc_mutex_lock(tsdn, tctx->tdata->lock);
 	tctx->cnts.curobjs++;

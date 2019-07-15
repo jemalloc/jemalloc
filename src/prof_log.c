@@ -229,8 +229,7 @@ prof_try_log(tsd_t *tsd, const void *ptr, size_t usize, prof_tctx_t *tctx) {
 		log_tables_initialized = true;
 	}
 
-	nstime_t alloc_time = prof_alloc_time_get(tsd_tsdn(tsd), ptr,
-			          (alloc_ctx_t *)NULL);
+	nstime_t alloc_time = prof_alloc_time_get(tsd_tsdn(tsd), ptr);
 	nstime_t free_time = NSTIME_ZERO_INITIALIZER;
 	nstime_update(&free_time);
 
