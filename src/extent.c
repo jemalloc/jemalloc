@@ -1052,6 +1052,17 @@ extent_recycle_split(tsdn_t *tsdn, arena_t *arena,
 	    &to_leak, &to_salvage, new_addr, size, pad, alignment, slab, szind,
 	    growing_retained);
 
+	if (!maps_coalesce && result != extent_split_interior_ok
+	    && !opt_retain) {
+		/*
+		 * Split isn't supported (implies Windows w/o retain).  Avoid
+		 * leaking the extents.
+		 */
+		assert(to_leak != NULL && lead == NULL && trail == NULL);
+		extent_deactivate(tsdn, arena, extents, to_leak);
+		return NULL;
+	}
+
 	if (result == extent_split_interior_ok) {
 		if (lead != NULL) {
 			extent_deactivate(tsdn, arena, extents, lead);
