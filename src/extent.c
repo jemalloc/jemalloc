@@ -619,16 +619,24 @@ label_return:
 	return extent;
 }
 
+/*
+ * This can only happen when we fail to allocate a new extent struct (which
+ * indicates OOM), e.g. when trying to split an existing extent.
+ */
 static void
-extents_leak(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
+extents_abandon_vm(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
     extents_t *extents, extent_t *extent, bool growing_retained) {
+	size_t sz = extent_size_get(extent);
+	if (config_stats) {
+		arena_stats_accum_zu(&arena->stats.abandoned_vm, sz);
+	}
 	/*
 	 * Leak extent after making sure its pages have already been purged, so
 	 * that this is only a virtual memory leak.
 	 */
 	if (extents_state_get(extents) == extent_state_dirty) {
 		if (extent_purge_lazy_impl(tsdn, arena, r_extent_hooks,
-		    extent, 0, extent_size_get(extent), growing_retained)) {
+		    extent, 0, sz, growing_retained)) {
 			extent_purge_forced_impl(tsdn, arena, r_extent_hooks,
 			    extent, 0, extent_size_get(extent),
 			    growing_retained);
@@ -1083,7 +1091,7 @@ extent_recycle_split(tsdn_t *tsdn, arena_t *arena,
 		if (to_leak != NULL) {
 			void *leak = extent_base_get(to_leak);
 			extent_deregister_no_gdump_sub(tsdn, to_leak);
-			extents_leak(tsdn, arena, r_extent_hooks, extents,
+			extents_abandon_vm(tsdn, arena, r_extent_hooks, extents,
 			    to_leak, growing_retained);
 			assert(extent_lock_from_addr(tsdn, rtree_ctx, leak,
 			    false) == NULL);
@@ -1382,7 +1390,7 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena,
 		}
 		if (to_leak != NULL) {
 			extent_deregister_no_gdump_sub(tsdn, to_leak);
-			extents_leak(tsdn, arena, r_extent_hooks,
+			extents_abandon_vm(tsdn, arena, r_extent_hooks,
 			    &arena->extents_retained, to_leak, true);
 		}
 		goto label_err;
