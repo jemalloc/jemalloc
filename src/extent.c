@@ -1330,8 +1330,7 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena,
 	}
 
 	if (extent_register_no_gdump_add(tsdn, extent)) {
-		extents_leak(tsdn, arena, r_extent_hooks,
-		    &arena->extents_retained, extent, true);
+		extent_dalloc(tsdn, arena, extent);
 		goto label_err;
 	}
 
@@ -1500,8 +1499,7 @@ extent_alloc_wrapper_hard(tsdn_t *tsdn, arena_t *arena,
 		extent_addr_randomize(tsdn, extent, alignment);
 	}
 	if (extent_register(tsdn, extent)) {
-		extents_leak(tsdn, arena, r_extent_hooks,
-		    &arena->extents_retained, extent, false);
+		extent_dalloc(tsdn, arena, extent);
 		return NULL;
 	}
 
@@ -1724,8 +1722,7 @@ extent_dalloc_gap(tsdn_t *tsdn, arena_t *arena, extent_t *extent) {
 	    WITNESS_RANK_CORE, 0);
 
 	if (extent_register(tsdn, extent)) {
-		extents_leak(tsdn, arena, &extent_hooks,
-		    &arena->extents_retained, extent, false);
+		extent_dalloc(tsdn, arena, extent);
 		return;
 	}
 	extent_dalloc_wrapper(tsdn, arena, &extent_hooks, extent);
