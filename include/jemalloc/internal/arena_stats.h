@@ -112,6 +112,9 @@ struct arena_stats_s {
 	arena_stats_u64_t	nflushes_large; /* Derived. */
 	arena_stats_u64_t	nrequests_large; /* Derived. */
 
+	/* VM space had to be leaked (undocumented).  Normally 0. */
+	atomic_zu_t		abandoned_vm;
+
 	/* Number of bytes cached in tcache associated with this arena. */
 	atomic_zu_t		tcache_bytes; /* Derived. */
 
