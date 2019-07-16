@@ -1817,6 +1817,11 @@ struct static_opts_s {
 	bool may_overflow;
 
 	/*
+	 * Whether or not allocations (with alignment) of size 0 should be
+	 * treated as size 1.
+	 */
+	bool bump_empty_aligned_alloc;
+	/*
 	 * Whether to assert that allocations are not of size 0 (after any
 	 * bumping).
 	 */
@@ -1857,6 +1862,7 @@ struct static_opts_s {
 JEMALLOC_ALWAYS_INLINE void
 static_opts_init(static_opts_t *static_opts) {
 	static_opts->may_overflow = false;
+	static_opts->bump_empty_aligned_alloc = false;
 	static_opts->assert_nonempty_alloc = false;
 	static_opts->null_out_result_on_error = false;
 	static_opts->set_errno_on_error = false;
@@ -2044,11 +2050,6 @@ imalloc_body(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd) {
 		goto label_oom;
 	}
 
-	/* Validate the user input. */
-	if (sopts->assert_nonempty_alloc) {
-		assert (size != 0);
-	}
-
 	if (unlikely(dopts->alignment < sopts->min_alignment
 	    || (dopts->alignment & (dopts->alignment - 1)) != 0)) {
 		goto label_invalid_alignment;
@@ -2068,12 +2069,21 @@ imalloc_body(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd) {
 			    <= SC_LARGE_MAXCLASS);
 		}
 	} else {
+		if (sopts->bump_empty_aligned_alloc) {
+			if (unlikely(size == 0)) {
+				size = 1;
+			}
+		}
 		usize = sz_sa2u(size, dopts->alignment);
 		dopts->usize = usize;
 		if (unlikely(usize == 0
 		    || usize > SC_LARGE_MAXCLASS)) {
 			goto label_oom;
 		}
+	}
+	/* Validate the user input. */
+	if (sopts->assert_nonempty_alloc) {
+		assert (size != 0);
 	}
 
 	check_entry_exit_locking(tsd_tsdn(tsd));
@@ -2390,6 +2400,7 @@ je_posix_memalign(void **memptr, size_t alignment, size_t size) {
 	static_opts_init(&sopts);
 	dynamic_opts_init(&dopts);
 
+	sopts.bump_empty_aligned_alloc = true;
 	sopts.min_alignment = sizeof(void *);
 	sopts.oom_string =
 	    "<jemalloc>: Error allocating aligned memory: out of memory\n";
@@ -2430,6 +2441,7 @@ je_aligned_alloc(size_t alignment, size_t size) {
 	static_opts_init(&sopts);
 	dynamic_opts_init(&dopts);
 
+	sopts.bump_empty_aligned_alloc = true;
 	sopts.null_out_result_on_error = true;
 	sopts.set_errno_on_error = true;
 	sopts.min_alignment = 1;
