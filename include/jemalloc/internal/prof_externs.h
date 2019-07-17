@@ -4,6 +4,11 @@
 #include "jemalloc/internal/mutex.h"
 
 extern malloc_mutex_t	bt2gctx_mtx;
+extern malloc_mutex_t	tdatas_mtx;
+extern malloc_mutex_t	prof_dump_mtx;
+
+malloc_mutex_t *prof_gctx_mutex_choose(void);
+malloc_mutex_t *prof_tdata_mutex_choose(uint64_t thr_uid);
 
 extern bool	opt_prof;
 extern bool	opt_prof_active;
@@ -109,5 +114,14 @@ bool prof_log_is_logging(void);
 bool prof_log_rep_check(void);
 void prof_log_dummy_set(bool new_value);
 #endif
+
+/* Functions in prof_data.c only accessed in prof.c */
+bool prof_data_init(tsd_t *tsd);
+bool prof_dump(tsd_t *tsd, bool propagate_err, const char *filename,
+    bool leakcheck);
+prof_tdata_t * prof_tdata_init_impl(tsd_t *tsd, uint64_t thr_uid,
+    uint64_t thr_discrim, char *thread_name, bool active);
+void prof_tdata_detach(tsd_t *tsd, prof_tdata_t *tdata);
+void prof_tctx_destroy(tsd_t *tsd, prof_tctx_t *tctx);
 
 #endif /* JEMALLOC_INTERNAL_PROF_EXTERNS_H */
