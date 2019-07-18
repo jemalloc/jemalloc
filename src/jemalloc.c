@@ -3704,6 +3704,7 @@ je_mallctlbymib(const size_t *mib, size_t miblen, void *oldp, size_t *oldlenp,
 	return ret;
 }
 
+#define STATS_PRINT_BUFSIZE 65536
 JEMALLOC_EXPORT void JEMALLOC_NOTHROW
 je_malloc_stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
     const char *opts) {
@@ -3713,10 +3714,24 @@ je_malloc_stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 
 	tsdn = tsdn_fetch();
 	check_entry_exit_locking(tsdn);
-	stats_print(write_cb, cbopaque, opts);
+
+	if (config_debug) {
+		stats_print(write_cb, cbopaque, opts);
+	} else {
+		char *stats_print_buf = (char *)iallocztm(tsdn,
+		    STATS_PRINT_BUFSIZE, sz_size2index(STATS_PRINT_BUFSIZE),
+		    false, NULL, true, arena_get(TSDN_NULL, 0, true), true);
+		buf_writer_arg_t stats_print_buf_arg = {write_cb, cbopaque,
+		    stats_print_buf, STATS_PRINT_BUFSIZE - 1, 0};
+		stats_print(buffered_write_cb, &stats_print_buf_arg, opts);
+		buf_writer_flush(&stats_print_buf_arg);
+		idalloctm(tsdn, stats_print_buf, NULL, NULL, true, true);
+	}
+
 	check_entry_exit_locking(tsdn);
 	LOG("core.malloc_stats_print.exit", "");
 }
+#undef STATS_PRINT_BUFSIZE
 
 JEMALLOC_EXPORT size_t JEMALLOC_NOTHROW
 je_malloc_usable_size(JEMALLOC_USABLE_SIZE_CONST void *ptr) {
