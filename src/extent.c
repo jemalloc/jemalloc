@@ -1328,7 +1328,7 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena,
 
 	extent_init(extent, arena, ptr, alloc_size, false, SC_NSIZES,
 	    arena_extent_sn_next(arena), extent_state_active, zeroed,
-	    committed, true);
+	    committed, true, true);
 	if (ptr == NULL) {
 		extent_dalloc(tsdn, arena, extent);
 		goto label_err;
@@ -1500,7 +1500,7 @@ extent_alloc_wrapper_hard(tsdn_t *tsdn, arena_t *arena,
 	}
 	extent_init(extent, arena, addr, esize, slab, szind,
 	    arena_extent_sn_next(arena), extent_state_active, *zero, *commit,
-	    true);
+	    true, false);
 	if (pad != 0) {
 		extent_addr_randomize(tsdn, extent, alignment);
 	}
@@ -2091,7 +2091,7 @@ extent_split_impl(tsdn_t *tsdn, arena_t *arena,
 	extent_init(trail, arena, (void *)((uintptr_t)extent_base_get(extent) +
 	    size_a), size_b, slab_b, szind_b, extent_sn_get(extent),
 	    extent_state_get(extent), extent_zeroed_get(extent),
-	    extent_committed_get(extent), extent_dumpable_get(extent));
+	    extent_committed_get(extent), extent_dumpable_get(extent), false);
 
 	rtree_ctx_t rtree_ctx_fallback;
 	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
@@ -2102,7 +2102,8 @@ extent_split_impl(tsdn_t *tsdn, arena_t *arena,
 		extent_init(&lead, arena, extent_addr_get(extent), size_a,
 		    slab_a, szind_a, extent_sn_get(extent),
 		    extent_state_get(extent), extent_zeroed_get(extent),
-		    extent_committed_get(extent), extent_dumpable_get(extent));
+		    extent_committed_get(extent), extent_dumpable_get(extent),
+		    false);
 
 		extent_rtree_leaf_elms_lookup(tsdn, rtree_ctx, &lead, false,
 		    true, &lead_elm_a, &lead_elm_b);
@@ -2159,25 +2160,35 @@ extent_split_wrapper(tsdn_t *tsdn, arena_t *arena,
 }
 
 static bool
-extent_merge_default_impl(extent_t *a, void *addr_a, extent_t *b,
-    void *addr_b) {
+extent_merge_default_impl(void *addr_a, void *addr_b) {
 	if (!maps_coalesce) {
-		/*
-		 * When coalesce is not always allowed (Windows), only merge
-		 * extents with identical sn (i.e. from the same VirtualAlloc
-		 * region) and with opt.retain only (in which case MEM_DECOMMIT
-		 * is utilized for purging).
-		 */
 		if (!opt_retain) {
-			return true;
-		}
-		assert(a != NULL && b != NULL);
-		if (extent_sn_comp(a, b) != 0) {
 			return true;
 		}
 		/* Fall through. */
 	}
 	if (have_dss && !extent_dss_mergeable(addr_a, addr_b)) {
+		return true;
+	}
+
+	return false;
+}
+
+static bool
+extent_head_no_merge(extent_t *a, extent_t *b) {
+	/*
+	 * When coalesce is not always allowed (Windows), only merge extents
+	 * from the same VirtualAlloc region under opt.retain (in which case
+	 * MEM_DECOMMIT is utilized for purging).
+	 */
+	if (maps_coalesce) {
+		return false;
+	}
+	if (!opt_retain) {
+		return true;
+	}
+	if (extent_is_head_get(b)) {
+		assert(extent_sn_comp(a, b) != 0);
 		return true;
 	}
 
@@ -2191,11 +2202,11 @@ extent_merge_default(extent_hooks_t *extent_hooks, void *addr_a, size_t size_a,
 		tsdn_t *tsdn = tsdn_fetch();
 		extent_t *a = iealloc(tsdn, addr_a);
 		extent_t *b = iealloc(tsdn, addr_b);
-
-		return extent_merge_default_impl(a, addr_a, b, addr_b);
+		if (extent_head_no_merge(a, b)) {
+			return true;
+		}
 	}
-
-	return extent_merge_default_impl(NULL, addr_a, NULL, addr_b);
+	return extent_merge_default_impl(addr_a, addr_b);
 }
 
 static bool
@@ -2204,18 +2215,19 @@ extent_merge_impl(tsdn_t *tsdn, arena_t *arena,
     bool growing_retained) {
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, growing_retained ? 1 : 0);
+	assert(extent_base_get(a) < extent_base_get(b));
 
 	extent_hooks_assure_initialized(arena, r_extent_hooks);
 
-	if ((*r_extent_hooks)->merge == NULL) {
+	if ((*r_extent_hooks)->merge == NULL || extent_head_no_merge(a, b)) {
 		return true;
 	}
 
 	bool err;
 	if (*r_extent_hooks == &extent_hooks_default) {
 		/* Call directly to propagate tsdn. */
-		err = extent_merge_default_impl(a, extent_base_get(a),
-		    b, extent_base_get(b));
+		err = extent_merge_default_impl(extent_base_get(a),
+		    extent_base_get(b));
 	} else {
 		extent_hook_pre_reentrancy(tsdn, arena);
 		err = (*r_extent_hooks)->merge(*r_extent_hooks,
