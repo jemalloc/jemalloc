@@ -8,6 +8,18 @@
 #include "jemalloc/internal/ticker.h"
 #include "jemalloc/internal/util.h"
 
+JEMALLOC_ALWAYS_INLINE cache_bin_info_t *
+tcache_small_bin_info_get(szind_t i) {
+	assert(i < SC_NBINS);
+	return &tcache_small_bin_info[i];
+}
+
+JEMALLOC_ALWAYS_INLINE cache_bin_info_t *
+tcache_large_bin_info_get(szind_t i) {
+	assert(i >= SC_NBINS && i < nhbins && tcache_large_bin_info != NULL);
+	return &tcache_large_bin_info[i - SC_NBINS];
+}
+
 static inline bool
 tcache_enabled_get(tsd_t *tsd) {
 	return tsd_tcache_enabled_get(tsd);
@@ -174,7 +186,7 @@ tcache_dalloc_small(tsd_t *tsd, tcache_t *tcache, void *ptr, szind_t binind,
 	}
 
 	bin = tcache_small_bin_get(tcache, binind);
-	bin_info = &tcache_bin_info[binind];
+	bin_info = tcache_small_bin_info_get(binind);
 	if (unlikely(!cache_bin_dalloc_easy(bin, bin_info, ptr))) {
 		tcache_bin_flush_small(tsd, tcache, bin, binind,
 		    (bin_info->ncached_max >> 1));
@@ -200,7 +212,7 @@ tcache_dalloc_large(tsd_t *tsd, tcache_t *tcache, void *ptr, szind_t binind,
 	}
 
 	bin = tcache_large_bin_get(tcache, binind);
-	bin_info = &tcache_bin_info[binind];
+	bin_info = tcache_large_bin_info_get(binind);
 	if (unlikely(bin->ncached == bin_info->ncached_max)) {
 		tcache_bin_flush_large(tsd, bin, binind,
 		    (bin_info->ncached_max >> 1), tcache);

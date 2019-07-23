@@ -4,7 +4,8 @@
 extern bool	opt_tcache;
 extern ssize_t	opt_lg_tcache_max;
 
-extern cache_bin_info_t	*tcache_bin_info;
+extern cache_bin_info_t	tcache_small_bin_info[];
+extern cache_bin_info_t	*tcache_large_bin_info;
 
 /*
  * Number of tcache bins.  There are SC_NBINS small-object bins, plus 0 or more

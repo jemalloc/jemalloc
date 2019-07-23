@@ -2846,7 +2846,7 @@ bool free_fastpath(void *ptr, size_t size, bool size_hint) {
 	}
 
 	cache_bin_t *bin = tcache_small_bin_get(tcache, alloc_ctx.szind);
-	cache_bin_info_t *bin_info = &tcache_bin_info[alloc_ctx.szind];
+	cache_bin_info_t *bin_info = tcache_small_bin_info_get(alloc_ctx.szind);
 	if (!cache_bin_dalloc_easy(bin, bin_info, ptr)) {
 		return false;
 	}

@@ -13,7 +13,9 @@
 bool	opt_tcache = true;
 ssize_t	opt_lg_tcache_max = LG_TCACHE_MAXCLASS_DEFAULT;
 
-cache_bin_info_t	*tcache_bin_info;
+JEMALLOC_ALIGNED(CACHELINE)
+cache_bin_info_t	tcache_small_bin_info[SC_NBINS];
+cache_bin_info_t	*tcache_large_bin_info = NULL;
 static unsigned		stack_nelms; /* Total stack elms per tcache. */
 
 unsigned		nhbins;
@@ -59,7 +61,8 @@ tcache_event_hard(tsd_t *tsd, tcache_t *tcache) {
 			 * Reduce fill count by 2X.  Limit lg_fill_div such that
 			 * the fill count is always at least 1.
 			 */
-			cache_bin_info_t *tbin_info = &tcache_bin_info[binind];
+			cache_bin_info_t *tbin_info =
+			    tcache_small_bin_info_get(binind);
 			if ((tbin_info->ncached_max >>
 			     (tcache->lg_fill_div[binind] + 1)) >= 1) {
 				tcache->lg_fill_div[binind]++;
@@ -422,7 +425,8 @@ tcache_init(tsd_t *tsd, tcache_t *tcache, void *avail_stack) {
 	unsigned i = 0;
 	for (; i < SC_NBINS; i++) {
 		tcache->lg_fill_div[i] = 1;
-		stack_offset += tcache_bin_info[i].ncached_max * sizeof(void *);
+		stack_offset += tcache_small_bin_info_get(i)->ncached_max *
+		    sizeof(void *);
 		/*
 		 * avail points past the available space.  Allocations will
 		 * access the slots toward higher addresses (for the benefit of
@@ -432,7 +436,8 @@ tcache_init(tsd_t *tsd, tcache_t *tcache, void *avail_stack) {
 		    (void **)((uintptr_t)avail_stack + (uintptr_t)stack_offset);
 	}
 	for (; i < nhbins; i++) {
-		stack_offset += tcache_bin_info[i].ncached_max * sizeof(void *);
+		stack_offset += tcache_large_bin_info_get(i)->ncached_max *
+		    sizeof(void *);
 		tcache_large_bin_get(tcache, i)->avail =
 		    (void **)((uintptr_t)avail_stack + (uintptr_t)stack_offset);
 	}
@@ -554,7 +559,8 @@ tcache_destroy(tsd_t *tsd, tcache_t *tcache, bool tsd_tcache) {
 		/* Release the avail array for the TSD embedded auto tcache. */
 		void *avail_array =
 		    (void *)((uintptr_t)tcache_small_bin_get(tcache, 0)->avail -
-		    (uintptr_t)tcache_bin_info[0].ncached_max * sizeof(void *));
+		    (uintptr_t)tcache_small_bin_info_get(0)->ncached_max *
+		    sizeof(void *));
 		idalloctm(tsd_tsdn(tsd), avail_array, NULL, NULL, true, true);
 	} else {
 		/* Release both the tcache struct and avail array. */
@@ -747,32 +753,40 @@ tcache_boot(tsdn_t *tsdn) {
 	}
 
 	nhbins = sz_size2index(tcache_maxclass) + 1;
+	assert(nhbins >= SC_NBINS);
 
-	/* Initialize tcache_bin_info. */
-	tcache_bin_info = (cache_bin_info_t *)base_alloc(tsdn, b0get(), nhbins
-	    * sizeof(cache_bin_info_t), CACHELINE);
-	if (tcache_bin_info == NULL) {
-		return true;
-	}
 	stack_nelms = 0;
 	unsigned i;
+
+	/* Initialize tcache_small_bin_info. */
 	for (i = 0; i < SC_NBINS; i++) {
 		if ((bin_infos[i].nregs << 1) <= TCACHE_NSLOTS_SMALL_MIN) {
-			tcache_bin_info[i].ncached_max =
+			tcache_small_bin_info_get(i)->ncached_max =
 			    TCACHE_NSLOTS_SMALL_MIN;
 		} else if ((bin_infos[i].nregs << 1) <=
 		    TCACHE_NSLOTS_SMALL_MAX) {
-			tcache_bin_info[i].ncached_max =
+			tcache_small_bin_info_get(i)->ncached_max =
 			    (bin_infos[i].nregs << 1);
 		} else {
-			tcache_bin_info[i].ncached_max =
+			tcache_small_bin_info_get(i)->ncached_max =
 			    TCACHE_NSLOTS_SMALL_MAX;
 		}
-		stack_nelms += tcache_bin_info[i].ncached_max;
+		stack_nelms += tcache_small_bin_info_get(i)->ncached_max;
+	}
+
+	if (nhbins == SC_NBINS) {
+		return false;
+	}
+
+	/* Initialize tcache_large_bin_info. */
+	tcache_large_bin_info = (cache_bin_info_t *)base_alloc(tsdn, b0get(),
+	    (nhbins - SC_NBINS) * sizeof(cache_bin_info_t), CACHELINE);
+	if (tcache_large_bin_info == NULL) {
+		return true;
 	}
 	for (; i < nhbins; i++) {
-		tcache_bin_info[i].ncached_max = TCACHE_NSLOTS_LARGE;
-		stack_nelms += tcache_bin_info[i].ncached_max;
+		tcache_large_bin_info_get(i)->ncached_max = TCACHE_NSLOTS_LARGE;
+		stack_nelms += tcache_large_bin_info_get(i)->ncached_max;
 	}
 
 	return false;
