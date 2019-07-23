@@ -18,7 +18,7 @@
 #else
 #  include <sys/param.h>
 #  include <sys/mman.h>
-#  if !defined(__pnacl__) && !defined(__native_client__)
+#  if !defined(__pnacl__) && !defined(__native_client__) && !defined(__CYGWIN__)
 #    include <sys/syscall.h>
 #    if !defined(SYS_write) && defined(__NR_write)
 #      define SYS_write __NR_write
@@ -39,6 +39,9 @@
 #    include <os/lock.h>
 #  endif
 #  ifdef JEMALLOC_GLIBC_MALLOC_HOOK
+#    include <sched.h>
+#  endif
+#  ifdef JEMALLOC_HAVE_SCHED_GETCPU
 #    include <sched.h>
 #  endif
 #  include <errno.h>
