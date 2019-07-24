@@ -229,6 +229,16 @@ arena_vsalloc(tsdn_t *tsdn, const void *ptr) {
 }
 
 static inline void
+arena_dalloc_large_no_tcache(tsdn_t *tsdn, void *ptr, szind_t szind) {
+	if (config_prof && unlikely(szind < SC_NBINS)) {
+		arena_dalloc_promoted(tsdn, ptr, NULL, true);
+	} else {
+		extent_t *extent = iealloc(tsdn, ptr);
+		large_dalloc(tsdn, extent);
+	}
+}
+
+static inline void
 arena_dalloc_no_tcache(tsdn_t *tsdn, void *ptr) {
 	assert(ptr != NULL);
 
@@ -252,8 +262,7 @@ arena_dalloc_no_tcache(tsdn_t *tsdn, void *ptr) {
 		/* Small allocation. */
 		arena_dalloc_small(tsdn, ptr);
 	} else {
-		extent_t *extent = iealloc(tsdn, ptr);
-		large_dalloc(tsdn, extent);
+		arena_dalloc_large_no_tcache(tsdn, ptr, szind);
 	}
 }
 
@@ -349,8 +358,7 @@ arena_sdalloc_no_tcache(tsdn_t *tsdn, void *ptr, size_t size) {
 		/* Small allocation. */
 		arena_dalloc_small(tsdn, ptr);
 	} else {
-		extent_t *extent = iealloc(tsdn, ptr);
-		large_dalloc(tsdn, extent);
+		arena_dalloc_large_no_tcache(tsdn, ptr, szind);
 	}
 }
 

@@ -1610,7 +1610,7 @@ arena_dalloc_promoted(tsdn_t *tsdn, void *ptr, tcache_t *tcache,
 		assert(bumped_usize == SC_LARGE_MINCLASS);
 		safety_check_verify_redzone(ptr, usize, bumped_usize);
 	}
-	if (bumped_usize <= tcache_maxclass) {
+	if (bumped_usize <= tcache_maxclass && tcache != NULL) {
 		tcache_dalloc_large(tsdn_tsd(tsdn), tcache, ptr,
 		    sz_size2index(bumped_usize), slow_path);
 	} else {
