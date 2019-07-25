@@ -1059,9 +1059,10 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 #define CONF_CONTINUE	{						\
 				if (!initial_call && opt_confirm_conf	\
 				    && cur_opt_valid) {			\
-					malloc_printf("<jemalloc>: Set "\
-					    "conf value: %.*s:%.*s\n",	\
-					    (int)klen, k, (int)vlen, v);\
+					malloc_printf("<jemalloc>: -- "	\
+					    "Set conf value: %.*s:%.*s"	\
+					    "\n", (int)klen, k,		\
+					    (int)vlen, v);		\
 				}					\
 				continue;				\
 			}
