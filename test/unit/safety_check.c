@@ -13,9 +13,11 @@ void fake_abort(const char *message) {
 	fake_abort_called = true;
 }
 
+#define SKIP_OVERFLOW_TEST_IF_NEEDED \
+    test_skip_if(!config_prof || !config_opt_safety_checks || !opt_tcache)
+
 TEST_BEGIN(test_malloc_free_overflow) {
-	test_skip_if(!config_prof);
-	test_skip_if(!config_opt_safety_checks);
+	SKIP_OVERFLOW_TEST_IF_NEEDED;
 
 	safety_check_set_abort(&fake_abort);
 	/* Buffer overflow! */
@@ -30,8 +32,7 @@ TEST_BEGIN(test_malloc_free_overflow) {
 TEST_END
 
 TEST_BEGIN(test_mallocx_dallocx_overflow) {
-	test_skip_if(!config_prof);
-	test_skip_if(!config_opt_safety_checks);
+	SKIP_OVERFLOW_TEST_IF_NEEDED;
 
 	safety_check_set_abort(&fake_abort);
 	/* Buffer overflow! */
@@ -46,8 +47,7 @@ TEST_BEGIN(test_mallocx_dallocx_overflow) {
 TEST_END
 
 TEST_BEGIN(test_malloc_sdallocx_overflow) {
-	test_skip_if(!config_prof);
-	test_skip_if(!config_opt_safety_checks);
+	SKIP_OVERFLOW_TEST_IF_NEEDED;
 
 	safety_check_set_abort(&fake_abort);
 	/* Buffer overflow! */
@@ -62,8 +62,7 @@ TEST_BEGIN(test_malloc_sdallocx_overflow) {
 TEST_END
 
 TEST_BEGIN(test_realloc_overflow) {
-	test_skip_if(!config_prof);
-	test_skip_if(!config_opt_safety_checks);
+	SKIP_OVERFLOW_TEST_IF_NEEDED;
 
 	safety_check_set_abort(&fake_abort);
 	/* Buffer overflow! */
@@ -79,8 +78,7 @@ TEST_BEGIN(test_realloc_overflow) {
 TEST_END
 
 TEST_BEGIN(test_rallocx_overflow) {
-	test_skip_if(!config_prof);
-	test_skip_if(!config_opt_safety_checks);
+	SKIP_OVERFLOW_TEST_IF_NEEDED;
 
 	safety_check_set_abort(&fake_abort);
 	/* Buffer overflow! */
@@ -96,8 +94,7 @@ TEST_BEGIN(test_rallocx_overflow) {
 TEST_END
 
 TEST_BEGIN(test_xallocx_overflow) {
-	test_skip_if(!config_prof);
-	test_skip_if(!config_opt_safety_checks);
+	SKIP_OVERFLOW_TEST_IF_NEEDED;
 
 	safety_check_set_abort(&fake_abort);
 	/* Buffer overflow! */
