@@ -963,17 +963,17 @@ mallctl("arena." STRINGIFY(MALLCTL_ARENAS_ALL) ".decay",
         linkend="stats.retained">stats.retained</link> for related details).
         It also makes jemalloc use <citerefentry>
         <refentrytitle>mmap</refentrytitle><manvolnum>2</manvolnum>
-        </citerefentry> in a more greedy way, mapping larger chunks in one go.
-        This option is disabled by default unless discarding virtual memory is
-        known to trigger
-        platform-specific performance problems, e.g. for [64-bit] Linux, which
-        has a quirk in its virtual memory allocation algorithm that causes
-        semi-permanent VM map holes under normal jemalloc operation.  Although
-        <citerefentry><refentrytitle>munmap</refentrytitle>
-        <manvolnum>2</manvolnum></citerefentry> causes issues on 32-bit Linux as
-        well, retaining virtual memory for 32-bit Linux is disabled by default
-        due to the practical possibility of address space exhaustion.
-        </para></listitem>
+        </citerefentry> or equivalent in a more greedy way, mapping larger
+        chunks in one go.  This option is disabled by default unless discarding
+        virtual memory is known to trigger platform-specific performance
+        problems, namely 1) for [64-bit] Linux, which has a quirk in its virtual
+        memory allocation algorithm that causes semi-permanent VM map holes
+        under normal jemalloc operation; and 2) for [64-bit] Windows, which
+        disallows split / merged regions with
+        <parameter><constant>MEM_RELEASE</constant></parameter>.  Although the
+        same issues may present on 32-bit platforms as well, retaining virtual
+        memory for 32-bit Linux and Windows is disabled by default due to the
+        practical possibility of address space exhaustion.  </para></listitem>
       </varlistentry>
 
       <varlistentry id="opt.dss">
