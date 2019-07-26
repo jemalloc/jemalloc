@@ -507,7 +507,9 @@ importlib="${so}"
 o="$ac_objext"
 a="a"
 exe="$ac_exeext"
+soprefix=""
 libprefix="lib"
+enable_import="0"
 link_whole_archive="0"
 DSO_LDFLAGS='-shared -Wl,-soname,$(@F)'
 RPATH='-Wl,-rpath,$(1)'
@@ -722,20 +724,30 @@ case "${host}" in
 	  ARFLAGS='-nologo -out:'
 	  AROUT='$@'
 	  CC_MM=
-        else
+	else
 	  importlib="${so}"
 	  DSO_LDFLAGS="-shared"
 	  link_whole_archive="1"
 	fi
-	#case "${host}" in
-	#  *-*-cygwin*)
-	#    #DUMP_SYMS="dumpbin /SYMBOLS"
-	#    ;;
-	#  *)
-	#    ;;
-	#esac
-	a="lib"
-	libprefix=""
+	case "${host}" in
+	  *-*-cygwin*)
+	    JE_APPEND_VS(CPPFLAGS, "-D_GNU_SOURCE -D_WIN32 -D_WIN32_WINNT=0x0600")
+	    JE_CFLAGS_ADD([-Wno-missing-field-initializers])
+	    JE_CXXFLAGS_ADD([-Wno-missing-field-initializers])
+	    JE_CFLAGS_ADD([-Wno-format])
+	    link_whole_archive="0"
+	    importlib="dll.a"
+	    soprefix="cyg"
+	    enable_import="1"
+	    ;;
+	  *-*-mingw*)
+	    a="lib"
+	    libprefix=""
+	    DUMP_SYMS="dumpbin /SYMBOLS"
+	    ;;
+	  *)
+	    ;;
+	esac
 	SOREV="${so}"
 	PIC_CFLAGS=""
 	if test "${LG_SIZEOF_PTR}" = "3"; then
@@ -773,6 +785,8 @@ AC_SUBST([o])
 AC_SUBST([a])
 AC_SUBST([exe])
 AC_SUBST([libprefix])
+AC_SUBST([soprefix])
+AC_SUBST([enable_import])
 AC_SUBST([link_whole_archive])
 AC_SUBST([DSO_LDFLAGS])
 AC_SUBST([EXTRA_LDFLAGS])
@@ -2388,6 +2402,7 @@ AC_MSG_RESULT([malloc_conf        : ${config_malloc_conf}])
 AC_MSG_RESULT([documentation      : ${enable_doc}])
 AC_MSG_RESULT([shared libs        : ${enable_shared}])
 AC_MSG_RESULT([static libs        : ${enable_static}])
+AC_MSG_RESULT([import lib         : ${enable_import}])
 AC_MSG_RESULT([autogen            : ${enable_autogen}])
 AC_MSG_RESULT([debug              : ${enable_debug}])
 AC_MSG_RESULT([stats              : ${enable_stats}])

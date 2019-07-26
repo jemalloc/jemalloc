@@ -43,6 +43,7 @@ O := @o@
 A := @a@
 EXE := @exe@
 LIBPREFIX := @libprefix@
+SOPREFIX := @soprefix@
 REV := @rev@
 install_suffix := @install_suffix@
 ABI := @abi@
@@ -64,6 +65,7 @@ enable_zone_allocator := @enable_zone_allocator@
 enable_experimental_smallocx := @enable_experimental_smallocx@
 MALLOC_CONF := @JEMALLOC_CPREFIX@MALLOC_CONF
 link_whole_archive := @link_whole_archive@
+enable_import := @enable_import@
 DSO_LDFLAGS = @DSO_LDFLAGS@
 SOREV = @SOREV@
 PIC_CFLAGS = @PIC_CFLAGS@
@@ -142,14 +144,18 @@ STATIC_LIBS += $(objroot)lib/$(LIBJEMALLOC)_pic.$(A)
 else
 STATIC_LIBS += $(objroot)lib/$(LIBJEMALLOC)_s.$(A)
 endif
-DSOS := $(objroot)lib/$(LIBJEMALLOC).$(SOREV)
+DSOS := $(objroot)lib/$(subst $(LIBPREFIX),$(SOPREFIX),$(LIBJEMALLOC)).$(SOREV)
 ifneq ($(SOREV),$(SO))
-DSOS += $(objroot)lib/$(LIBJEMALLOC).$(SO)
+DSOS += $(objroot)lib/$(subst $(LIBPREFIX),$(SOPREFIX),$(LIBJEMALLOC)).$(SO)
+endif
+IMPLIB = $(objroot)lib/$(LIBJEMALLOC).$(IMPORTLIB)
+ifeq ($(enable_import), 1)
+IJEMALLOC := -Wl,--out-implib=$(IMPLIB) -Wl,--export-all-symbols -Wl,--enable-auto-import
 endif
 ifeq (1, $(link_whole_archive))
 LJEMALLOC := -Wl,--whole-archive -L$(objroot)lib -l$(LIBJEMALLOC) -Wl,--no-whole-archive
 else
-LJEMALLOC := $(objroot)lib/$(LIBJEMALLOC).$(IMPORTLIB)
+LJEMALLOC := $(IMPLIB)
 endif
 PC := $(objroot)jemalloc.pc
 MAN3 := $(objroot)doc/jemalloc$(install_suffix).3
@@ -427,9 +433,12 @@ ifneq ($(SOREV),$(SO))
 	ln -sf $(<F) $@
 endif
 
-$(objroot)lib/$(LIBJEMALLOC).$(SOREV) : $(if $(PIC_CFLAGS),$(C_PIC_OBJS),$(C_OBJS)) $(if $(PIC_CFLAGS),$(CPP_PIC_OBJS),$(CPP_OBJS))
+$(DSOS): $(if $(PIC_CFLAGS),$(C_PIC_OBJS),$(C_OBJS)) $(if $(PIC_CFLAGS),$(CPP_PIC_OBJS),$(CPP_OBJS))
 	@mkdir -p $(@D)
 	$(CC) $(DSO_LDFLAGS) $(call RPATH,$(RPATH_EXTRA)) $(LDTARGET) $+ $(LDFLAGS) $(LIBS) $(EXTRA_LDFLAGS)
+$(IMPLIB): $(if $(PIC_CFLAGS),$(C_PIC_OBJS),$(C_OBJS)) $(if $(PIC_CFLAGS),$(CPP_PIC_OBJS),$(CPP_OBJS))
+	@mkdir -p $(@D)
+	$(CC) $(DSO_LDFLAGS) $(IJEMALLOC) $(call RPATH,$(RPATH_EXTRA)) -o $(DSOS) $+ $(LDFLAGS) $(LIBS) $(EXTRA_LDFLAGS)
 
 $(objroot)lib/$(LIBJEMALLOC)_pic.$(A) : $(C_PIC_OBJS) $(CPP_PIC_OBJS)
 $(objroot)lib/$(LIBJEMALLOC).$(A) : $(C_OBJS) $(CPP_OBJS)
@@ -443,25 +452,29 @@ $(objroot)test/unit/%$(EXE): $(objroot)test/unit/%.$(O) $(C_JET_OBJS) $(C_TESTLI
 	@mkdir -p $(@D)
 	$(CC) $(LDTARGET) $(filter %.$(O),$^) $(call RPATH,$(objroot)lib) $(LDFLAGS) $(filter-out -lm,$(LIBS)) $(LM) $(EXTRA_LDFLAGS)
 
-$(objroot)test/integration/%$(EXE): $(objroot)test/integration/%.$(O) $(C_TESTLIB_INTEGRATION_OBJS) $(C_UTIL_INTEGRATION_OBJS) $(objroot)lib/$(LIBJEMALLOC).$(IMPORTLIB)
+$(objroot)test/integration/%$(EXE): $(objroot)test/integration/%.$(O) $(C_TESTLIB_INTEGRATION_OBJS) $(C_UTIL_INTEGRATION_OBJS) $(IMPLIB)
 	@mkdir -p $(@D)
 	$(CC) $(TEST_LD_MODE) $(LDTARGET) $(filter %.$(O),$^) $(call RPATH,$(objroot)lib) $(LJEMALLOC) $(LDFLAGS) $(filter-out -lm,$(filter -lrt -pthread -lstdc++,$(LIBS))) $(LM) $(EXTRA_LDFLAGS)
 
-$(objroot)test/integration/cpp/%$(EXE): $(objroot)test/integration/cpp/%.$(O) $(C_TESTLIB_INTEGRATION_OBJS) $(C_UTIL_INTEGRATION_OBJS) $(objroot)lib/$(LIBJEMALLOC).$(IMPORTLIB)
+$(objroot)test/integration/cpp/%$(EXE): $(objroot)test/integration/cpp/%.$(O) $(C_TESTLIB_INTEGRATION_OBJS) $(C_UTIL_INTEGRATION_OBJS) $(IMPLIB)
 	@mkdir -p $(@D)
-	$(CXX) $(LDTARGET) $(filter %.$(O),$^) $(call RPATH,$(objroot)lib) $(objroot)lib/$(LIBJEMALLOC).$(IMPORTLIB) $(LDFLAGS) $(filter-out -lm,$(LIBS)) -lm $(EXTRA_LDFLAGS)
+	$(CXX) $(LDTARGET) $(filter %.$(O),$^) $(call RPATH,$(objroot)lib) $(LJEMALLOC) $(LDFLAGS) $(filter-out -lm,$(LIBS)) -lm $(EXTRA_LDFLAGS)
 
-$(objroot)test/stress/%$(EXE): $(objroot)test/stress/%.$(O) $(C_JET_OBJS) $(C_TESTLIB_STRESS_OBJS) $(objroot)lib/$(LIBJEMALLOC).$(IMPORTLIB)
+$(objroot)test/stress/%$(EXE): $(objroot)test/stress/%.$(O) $(C_JET_OBJS) $(C_TESTLIB_STRESS_OBJS) $(IMPLIB)
 	@mkdir -p $(@D)
 	$(CC) $(TEST_LD_MODE) $(LDTARGET) $(filter %.$(O),$^) $(call RPATH,$(objroot)lib) $(objroot)lib/$(LIBJEMALLOC).$(IMPORTLIB) $(LDFLAGS) $(filter-out -lm,$(LIBS)) $(LM) $(EXTRA_LDFLAGS)
 
 build_lib_shared: $(DSOS)
 build_lib_static: $(STATIC_LIBS)
+build_lib_import: $(IMPLIB)
 ifeq ($(enable_shared), 1)
 build_lib: build_lib_shared
 endif
 ifeq ($(enable_static), 1)
 build_lib: build_lib_static
+endif
+ifeq ($(enable_import), 1)
+build_lib: build_lib_import
 endif
 
 install_bin:
@@ -492,6 +505,10 @@ install_lib_static: $(STATIC_LIBS)
 	$(INSTALL) -m 755 $$l $(LIBDIR); \
 done
 
+install_lib_import: $(IMLPIB)
+	$(INSTALL) -d $(LIBDIR)
+	$(INSTALL) -m 755 $@ $(LIBDIR)
+
 install_lib_pc: $(PC)
 	$(INSTALL) -d $(LIBDIR)/pkgconfig
 	@for l in $(PC); do \
@@ -504,6 +521,9 @@ install_lib: install_lib_shared
 endif
 ifeq ($(enable_static), 1)
 install_lib: install_lib_static
+endif
+ifeq ($(enable_import), 1)
+install_lib: install_lib_import
 endif
 install_lib: install_lib_pc
 
@@ -587,7 +607,7 @@ clean:
 	rm -f $(TESTS_CPP_OBJS)
 	rm -f $(TESTS_CPP_OBJS:%.$(O)=%.d)
 	rm -f $(TESTS_CPP_OBJS:%.$(O)=%.out)
-	rm -f $(DSOS) $(STATIC_LIBS)
+	rm -f $(DSOS) $(STATIC_LIBS) $(IMPLIB)
 
 distclean: clean
 	rm -f $(objroot)bin/jemalloc-config
