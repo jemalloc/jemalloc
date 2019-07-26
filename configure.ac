@@ -715,6 +715,7 @@ case "${host}" in
 	RPATH=""
 	so="dll"
 	if test "x$je_cv_msvc" = "xyes" ; then
+	  # msvc
 	  importlib="lib"
 	  DSO_LDFLAGS="-LD"
 	  EXTRA_LDFLAGS="-link -DEBUG"
@@ -724,7 +725,11 @@ case "${host}" in
 	  ARFLAGS='-nologo -out:'
 	  AROUT='$@'
 	  CC_MM=
+	  DUMP_SYMS="dumpbin /SYMBOLS"
+	  libprefix=""
+	  soprefix=""
 	else
+	  # gcc (mingw/cygwin)
 	  importlib="${so}"
 	  DSO_LDFLAGS="-shared"
 	  link_whole_archive="1"
@@ -736,14 +741,14 @@ case "${host}" in
 	    JE_CXXFLAGS_ADD([-Wno-missing-field-initializers])
 	    JE_CFLAGS_ADD([-Wno-format])
 	    link_whole_archive="0"
-	    importlib="dll.a"
+	    importlib="${so}.a"
 	    soprefix="cyg"
 	    enable_import="1"
 	    ;;
 	  *-*-mingw*)
 	    a="lib"
 	    libprefix=""
-	    DUMP_SYMS="dumpbin /SYMBOLS"
+	    soprefix=""
 	    ;;
 	  *)
 	    ;;
