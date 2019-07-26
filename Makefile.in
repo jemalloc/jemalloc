@@ -144,7 +144,8 @@ STATIC_LIBS += $(objroot)lib/$(LIBJEMALLOC)_pic.$(A)
 else
 STATIC_LIBS += $(objroot)lib/$(LIBJEMALLOC)_s.$(A)
 endif
-DSOS := $(objroot)lib/$(subst $(LIBPREFIX),$(SOPREFIX),$(LIBJEMALLOC)).$(SOREV)
+DSOREV = $(objroot)lib/$(subst $(LIBPREFIX),$(SOPREFIX),$(LIBJEMALLOC)).$(SOREV)
+DSOS := $(DSOREV)
 ifneq ($(SOREV),$(SO))
 DSOS += $(objroot)lib/$(subst $(LIBPREFIX),$(SOPREFIX),$(LIBJEMALLOC)).$(SO)
 endif
@@ -433,13 +434,14 @@ ifneq ($(SOREV),$(SO))
 	ln -sf $(<F) $@
 endif
 
-$(DSOS): $(if $(PIC_CFLAGS),$(C_PIC_OBJS),$(C_OBJS)) $(if $(PIC_CFLAGS),$(CPP_PIC_OBJS),$(CPP_OBJS))
+$(DSOREV): $(if $(PIC_CFLAGS),$(C_PIC_OBJS),$(C_OBJS)) $(if $(PIC_CFLAGS),$(CPP_PIC_OBJS),$(CPP_OBJS))
 	@mkdir -p $(@D)
 	$(CC) $(DSO_LDFLAGS) $(call RPATH,$(RPATH_EXTRA)) $(LDTARGET) $+ $(LDFLAGS) $(LIBS) $(EXTRA_LDFLAGS)
+ifeq ($(enable_import), 1)	
 $(IMPLIB): $(if $(PIC_CFLAGS),$(C_PIC_OBJS),$(C_OBJS)) $(if $(PIC_CFLAGS),$(CPP_PIC_OBJS),$(CPP_OBJS))
 	@mkdir -p $(@D)
-	$(CC) $(DSO_LDFLAGS) $(IJEMALLOC) $(call RPATH,$(RPATH_EXTRA)) -o $(DSOS) $+ $(LDFLAGS) $(LIBS) $(EXTRA_LDFLAGS)
-
+	$(CC) $(DSO_LDFLAGS) $(IJEMALLOC) $(call RPATH,$(RPATH_EXTRA)) -o $(DSOREV) $+ $(LDFLAGS) $(LIBS) $(EXTRA_LDFLAGS)
+endif
 $(objroot)lib/$(LIBJEMALLOC)_pic.$(A) : $(C_PIC_OBJS) $(CPP_PIC_OBJS)
 $(objroot)lib/$(LIBJEMALLOC).$(A) : $(C_OBJS) $(CPP_OBJS)
 $(objroot)lib/$(LIBJEMALLOC)_s.$(A) : $(C_OBJS) $(CPP_OBJS)
