@@ -261,6 +261,13 @@ prof_backtrace_impl(prof_bt_t *bt) {
 	_Unwind_Backtrace(prof_unwind_callback, &data);
 }
 #elif (defined(JEMALLOC_PROF_GCC))
+ #if defined(__CYGWIN__)
+static void
+prof_backtrace_impl(prof_bt_t *bt) {
+    cassert(config_prof);	
+    bt->len = RtlCaptureStackBackTrace(2, PROF_BT_MAX, bt->vec, NULL);
+}	
+ #else
 static void
 prof_backtrace_impl(prof_bt_t *bt) {
 #define BT_FRAME(i)							\
@@ -423,6 +430,7 @@ prof_backtrace_impl(prof_bt_t *bt) {
 	BT_FRAME(127)
 #undef BT_FRAME
 }
+ #endif // defined(JEMALLOC_PROF_GCC) && !defined(__CYGWIN__)
 #else
 static void
 prof_backtrace_impl(prof_bt_t *bt) {
@@ -509,7 +517,7 @@ prof_sample_threshold_update(prof_tdata_t *tdata) {
 
 int
 prof_getpid(void) {
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(__CYGWIN__)
 	return GetCurrentProcessId();
 #else
 	return getpid();
