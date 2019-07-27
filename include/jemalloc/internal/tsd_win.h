@@ -15,7 +15,7 @@ extern tsd_wrapper_t tsd_boot_wrapper;
 extern bool tsd_booted;
 
 /* Initialization/cleanup. */
-JEMALLOC_ALWAYS_INLINE void
+JEMALLOC_ALWAYS_INLINE void WINAPI
 tsd_cleanup_wrapper(void * arg) {
 	tsd_wrapper_t *wrapper = (tsd_wrapper_t *)arg;
 
