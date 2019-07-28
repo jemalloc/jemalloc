@@ -251,7 +251,11 @@ tsdn_tsd(tsdn_t *tsdn) {
 #elif (defined(JEMALLOC_TLS))
 #include "jemalloc/internal/tsd_tls.h"
 #elif (defined(_WIN32))
-#include "jemalloc/internal/tsd_win.h"
+#  ifdef _MSC_VER
+#    include "jemalloc/internal/tsd_win.h"
+#  else
+#    include "jemalloc/internal/tsd_cyg.h"
+#  endif
 #else
 #include "jemalloc/internal/tsd_generic.h"
 #endif

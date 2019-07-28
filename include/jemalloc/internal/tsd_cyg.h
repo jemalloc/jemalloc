@@ -1,7 +1,9 @@
-#ifdef JEMALLOC_INTERNAL_TSD_WIN_H
+#ifdef JEMALLOC_INTERNAL_TSD_CYG_H
 #error This file should be included only once, by tsd.h.
 #endif
-#define JEMALLOC_INTERNAL_TSD_WIN_H
+#define JEMALLOC_INTERNAL_TSD_CYG_H
+
+#include <fibersapi.h> // Fls* functions
 
 typedef struct {
 	bool initialized;
@@ -13,31 +15,24 @@ extern tsd_wrapper_t tsd_boot_wrapper;
 extern bool tsd_booted;
 
 /* Initialization/cleanup. */
-JEMALLOC_ALWAYS_INLINE bool
-tsd_cleanup_wrapper(void) {
-	DWORD error = GetLastError();
-	tsd_wrapper_t *wrapper = (tsd_wrapper_t *)TlsGetValue(tsd_tsd);
-	SetLastError(error);
+JEMALLOC_ALWAYS_INLINE void WINAPI
+tsd_cleanup_wrapper(void * arg) {
+	tsd_wrapper_t *wrapper = (tsd_wrapper_t *)arg;
 
 	if (wrapper == NULL) {
-		return false;
+		return;
 	}
 
-	if (wrapper->initialized) {
+	while (wrapper->initialized) {
 		wrapper->initialized = false;
 		tsd_cleanup(&wrapper->val);
-		if (wrapper->initialized) {
-			/* Trigger another cleanup round. */
-			return true;
-		}
 	}
 	malloc_tsd_dalloc(wrapper);
-	return false;
 }
 
 JEMALLOC_ALWAYS_INLINE void
 tsd_wrapper_set(tsd_wrapper_t *wrapper) {
-	if (!TlsSetValue(tsd_tsd, (void *)wrapper)) {
+	if (!FlsSetValue(tsd_tsd, (void *)wrapper)) {
 		malloc_write("<jemalloc>: Error setting TSD\n");
 		abort();
 	}
@@ -46,7 +41,7 @@ tsd_wrapper_set(tsd_wrapper_t *wrapper) {
 JEMALLOC_ALWAYS_INLINE tsd_wrapper_t *
 tsd_wrapper_get(bool init) {
 	DWORD error = GetLastError();
-	tsd_wrapper_t *wrapper = (tsd_wrapper_t *) TlsGetValue(tsd_tsd);
+	tsd_wrapper_t *wrapper = (tsd_wrapper_t *) FlsGetValue(tsd_tsd);
 	SetLastError(error);
 
 	if (init && unlikely(wrapper == NULL)) {
@@ -68,11 +63,10 @@ tsd_wrapper_get(bool init) {
 
 JEMALLOC_ALWAYS_INLINE bool
 tsd_boot0(void) {
-	tsd_tsd = TlsAlloc();
+	tsd_tsd = FlsAlloc(&tsd_cleanup_wrapper);
 	if (tsd_tsd == TLS_OUT_OF_INDEXES) {
 		return true;
 	}
-	malloc_tsd_cleanup_register(&tsd_cleanup_wrapper);
 	tsd_wrapper_set(&tsd_boot_wrapper);
 	tsd_booted = true;
 	return false;
