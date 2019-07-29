@@ -445,6 +445,16 @@ extents_first_fit_locked(tsdn_t *tsdn, arena_t *arena, extents_t *extents,
 	extent_t *ret = NULL;
 
 	pszind_t pind = sz_psz2ind(extent_size_quantize_ceil(size));
+
+	if (!maps_coalesce && !opt_retain) {
+		/*
+		 * No split / merge allowed (Windows w/o retain). Try exact fit
+		 * only.
+		 */
+		return extent_heap_empty(&extents->heaps[pind]) ? NULL :
+		    extent_heap_first(&extents->heaps[pind]);
+	}
+
 	for (pszind_t i = (pszind_t)bitmap_ffu(extents->bitmap,
 	    &extents_bitmap_info, (size_t)pind);
 	    i < SC_NPSIZES + 1;
