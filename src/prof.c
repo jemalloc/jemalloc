@@ -1303,6 +1303,7 @@ prof_dump_write(bool propagate_err, const char *s) {
 		prof_dump_buf_end += n;
 		i += n;
 	}
+	assert(i == slen);
 
 	return false;
 }
