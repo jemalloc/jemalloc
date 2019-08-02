@@ -221,7 +221,6 @@ static char		prof_dump_buf[
     1
 #endif
 ];
-static size_t		prof_dump_buf_end;
 static int		prof_dump_fd;
 
 /* Do not dump any profiles until bootstrapping is complete. */
@@ -1241,14 +1240,23 @@ prof_dump_open_impl(bool propagate_err, const char *filename) {
 }
 prof_dump_open_t *JET_MUTABLE prof_dump_open = prof_dump_open_impl;
 
-static bool
-prof_dump_flush(bool propagate_err) {
-	bool ret = false;
+static bool prof_dump_flush_ret = false;
+
+static inline bool
+read_and_clear_prof_dump_flush_ret() {
+	bool ret = prof_dump_flush_ret;
+	prof_dump_flush_ret = false;
+	return ret;
+}
+
+static void
+prof_dump_flush(void *propagate_err_arg, const char *s) {
+	bool propagate_err = *(bool *)propagate_err_arg;
 	ssize_t err;
 
 	cassert(config_prof);
 
-	err = malloc_write_fd(prof_dump_fd, prof_dump_buf, prof_dump_buf_end);
+	err = malloc_write_fd(prof_dump_fd, s, strlen(s));
 	if (err == -1) {
 		if (!propagate_err) {
 			malloc_write("<jemalloc>: write() failed during heap "
@@ -1257,70 +1265,37 @@ prof_dump_flush(bool propagate_err) {
 				abort();
 			}
 		}
-		ret = true;
+		prof_dump_flush_ret = true;
+	} else {
+		prof_dump_flush_ret = false;
 	}
-	prof_dump_buf_end = 0;
-
-	return ret;
 }
 
-static bool
-prof_dump_close(bool propagate_err) {
-	bool ret;
+static buf_writer_arg_t prof_dump_buf_arg =
+    {prof_dump_flush, NULL, prof_dump_buf, PROF_DUMP_BUFSIZE - 1, 0};
 
+static bool
+prof_dump_close() {
 	assert(prof_dump_fd != -1);
-	ret = prof_dump_flush(propagate_err);
+	buf_writer_flush(&prof_dump_buf_arg);
 	close(prof_dump_fd);
 	prof_dump_fd = -1;
 
-	return ret;
-}
-
-static bool
-prof_dump_write(bool propagate_err, const char *s) {
-	size_t i, slen, n;
-
-	cassert(config_prof);
-
-	i = 0;
-	slen = strlen(s);
-	while (i < slen) {
-		/* Flush the buffer if it is full. */
-		if (prof_dump_buf_end == PROF_DUMP_BUFSIZE) {
-			if (prof_dump_flush(propagate_err) && propagate_err) {
-				return true;
-			}
-		}
-
-		if (prof_dump_buf_end + slen - i <= PROF_DUMP_BUFSIZE) {
-			/* Finish writing. */
-			n = slen - i;
-		} else {
-			/* Write as much of s as will fit. */
-			n = PROF_DUMP_BUFSIZE - prof_dump_buf_end;
-		}
-		memcpy(&prof_dump_buf[prof_dump_buf_end], &s[i], n);
-		prof_dump_buf_end += n;
-		i += n;
-	}
-	assert(i == slen);
-
-	return false;
+	return read_and_clear_prof_dump_flush_ret();
 }
 
 JEMALLOC_FORMAT_PRINTF(2, 3)
 static bool
 prof_dump_printf(bool propagate_err, const char *format, ...) {
-	bool ret;
 	va_list ap;
 	char buf[PROF_PRINTF_BUFSIZE];
 
 	va_start(ap, format);
 	malloc_vsnprintf(buf, sizeof(buf), format, ap);
 	va_end(ap);
-	ret = prof_dump_write(propagate_err, buf);
+	buffered_write_cb(&prof_dump_buf_arg, buf);
 
-	return ret;
+	return read_and_clear_prof_dump_flush_ret() && propagate_err;
 }
 
 static void
@@ -1726,25 +1701,28 @@ prof_dump_maps(bool propagate_err) {
 	if (mfd != -1) {
 		ssize_t nread;
 
-		if (prof_dump_write(propagate_err, "\nMAPPED_LIBRARIES:\n") &&
-		    propagate_err) {
+		buffered_write_cb(&prof_dump_buf_arg, "\nMAPPED_LIBRARIES:\n");
+		if (read_and_clear_prof_dump_flush_ret() && propagate_err) {
 			ret = true;
 			goto label_return;
 		}
 		nread = 0;
 		do {
-			prof_dump_buf_end += nread;
-			if (prof_dump_buf_end == PROF_DUMP_BUFSIZE) {
+			prof_dump_buf_arg.buf_end += nread;
+			if (prof_dump_buf_arg.buf_end ==
+			    prof_dump_buf_arg.buf_size) {
 				/* Make space in prof_dump_buf before read(). */
-				if (prof_dump_flush(propagate_err) &&
+				buf_writer_flush(&prof_dump_buf_arg);
+				if (read_and_clear_prof_dump_flush_ret() &&
 				    propagate_err) {
 					ret = true;
 					goto label_return;
 				}
 			}
 			nread = malloc_read_fd(mfd,
-			    &prof_dump_buf[prof_dump_buf_end], PROF_DUMP_BUFSIZE
-			    - prof_dump_buf_end);
+			    prof_dump_buf_arg.buf + prof_dump_buf_arg.buf_end,
+			    prof_dump_buf_arg.buf_size -
+			    prof_dump_buf_arg.buf_end);
 		} while (nread > 0);
 	} else {
 		ret = true;
@@ -1873,6 +1851,8 @@ prof_dump_file(tsd_t *tsd, bool propagate_err, const char *filename,
 		return true;
 	}
 
+	prof_dump_buf_arg.cbopaque = &propagate_err;
+
 	/* Dump profile header. */
 	if (prof_dump_header(tsd_tsdn(tsd), propagate_err,
 	    &prof_tdata_merge_iter_arg->cnt_all)) {
@@ -1892,13 +1872,15 @@ prof_dump_file(tsd_t *tsd, bool propagate_err, const char *filename,
 		goto label_write_error;
 	}
 
-	if (prof_dump_close(propagate_err)) {
+	if (prof_dump_close()) {
+		prof_dump_buf_arg.cbopaque = NULL;
 		return true;
 	}
 
 	return false;
 label_write_error:
-	prof_dump_close(propagate_err);
+	prof_dump_close();
+	prof_dump_buf_arg.cbopaque = NULL;
 	return true;
 }
 
