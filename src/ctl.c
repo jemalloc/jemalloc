@@ -1093,8 +1093,12 @@ ctl_refresh(tsdn_t *tsdn) {
     malloc_mutex_unlock(tsdn, &mtx);
 
 		if (config_prof && opt_prof) {
-			READ_GLOBAL_MUTEX_PROF_DATA(global_prof_mutex_prof,
-			    bt2gctx_mtx);
+			READ_GLOBAL_MUTEX_PROF_DATA(
+			    global_prof_mutex_prof, bt2gctx_mtx);
+			READ_GLOBAL_MUTEX_PROF_DATA(
+			    global_prof_mutex_prof_thds_data, tdatas_mtx);
+			READ_GLOBAL_MUTEX_PROF_DATA(
+			    global_prof_mutex_prof_dump, prof_dump_mtx);
 		}
 		if (have_background_thread) {
 			READ_GLOBAL_MUTEX_PROF_DATA(
@@ -2972,6 +2976,8 @@ stats_mutexes_reset_ctl(tsd_t *tsd, const size_t *mib,
 	}
 	if (config_prof && opt_prof) {
 		MUTEX_PROF_RESET(bt2gctx_mtx);
+		MUTEX_PROF_RESET(tdatas_mtx);
+		MUTEX_PROF_RESET(prof_dump_mtx);
 	}
 
 
