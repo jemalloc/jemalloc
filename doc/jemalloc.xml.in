@@ -2509,6 +2509,30 @@ struct extent_hooks_s {
         counters</link>.</para></listitem>
       </varlistentry>
 
+      <varlistentry id="stats.mutexes.prof_tdatas">
+        <term>
+          <mallctl>stats.mutexes.prof_thds_data.{counter}</mallctl>
+	  (<type>counter specific type</type>) <literal>r-</literal>
+          [<option>--enable-stats</option>]
+        </term>
+	<listitem><para>Statistics on <varname>prof</varname> threads data mutex
+	(global scope; profiling related).  <mallctl>{counter}</mallctl> is one
+	of the counters in <link linkend="mutex_counters">mutex profiling
+        counters</link>.</para></listitem>
+      </varlistentry>
+
+      <varlistentry id="stats.mutexes.prof_dump">
+        <term>
+          <mallctl>stats.mutexes.prof_dump.{counter}</mallctl>
+	  (<type>counter specific type</type>) <literal>r-</literal>
+          [<option>--enable-stats</option>]
+        </term>
+	<listitem><para>Statistics on <varname>prof</varname> dumping mutex
+	(global scope; profiling related).  <mallctl>{counter}</mallctl> is one
+	of the counters in <link linkend="mutex_counters">mutex profiling
+        counters</link>.</para></listitem>
+      </varlistentry>
+
       <varlistentry id="stats.mutexes.reset">
         <term>
           <mallctl>stats.mutexes.reset</mallctl>
