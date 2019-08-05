@@ -35,6 +35,13 @@ struct arena_stats_large_s {
 	 * periodically merges into this counter.
 	 */
 	arena_stats_u64_t	nrequests; /* Partially derived. */
+	/*
+	 * Number of tcache fills / flushes for large (similarly, periodically
+	 * merged).  Note that there is no large tcache batch-fill currently
+	 * (i.e. only fill 1 at a time); however flush may be batched.
+	 */
+	arena_stats_u64_t	nfills; /* Partially derived. */
+	arena_stats_u64_t	nflushes; /* Partially derived. */
 
 	/* Current number of allocations of this size class. */
 	size_t		curlextents; /* Derived. */
@@ -101,7 +108,12 @@ struct arena_stats_s {
 	atomic_zu_t		allocated_large; /* Derived. */
 	arena_stats_u64_t	nmalloc_large; /* Derived. */
 	arena_stats_u64_t	ndalloc_large; /* Derived. */
+	arena_stats_u64_t	nfills_large; /* Derived. */
+	arena_stats_u64_t	nflushes_large; /* Derived. */
 	arena_stats_u64_t	nrequests_large; /* Derived. */
+
+	/* VM space had to be leaked (undocumented).  Normally 0. */
+	atomic_zu_t		abandoned_vm;
 
 	/* Number of bytes cached in tcache associated with this arena. */
 	atomic_zu_t		tcache_bytes; /* Derived. */
@@ -240,11 +252,12 @@ arena_stats_accum_zu(atomic_zu_t *dst, size_t src) {
 }
 
 static inline void
-arena_stats_large_nrequests_add(tsdn_t *tsdn, arena_stats_t *arena_stats,
+arena_stats_large_flush_nrequests_add(tsdn_t *tsdn, arena_stats_t *arena_stats,
     szind_t szind, uint64_t nrequests) {
 	arena_stats_lock(tsdn, arena_stats);
-	arena_stats_add_u64(tsdn, arena_stats, &arena_stats->lstats[szind -
-	    SC_NBINS].nrequests, nrequests);
+	arena_stats_large_t *lstats = &arena_stats->lstats[szind - SC_NBINS];
+	arena_stats_add_u64(tsdn, arena_stats, &lstats->nrequests, nrequests);
+	arena_stats_add_u64(tsdn, arena_stats, &lstats->nflushes, 1);
 	arena_stats_unlock(tsdn, arena_stats);
 }
 

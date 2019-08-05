@@ -56,6 +56,7 @@ cfghdrs_out := @cfghdrs_out@
 cfgoutputs_in := $(addprefix $(srcroot),@cfgoutputs_in@)
 cfgoutputs_out := @cfgoutputs_out@
 enable_autogen := @enable_autogen@
+enable_doc := @enable_doc@
 enable_shared := @enable_shared@
 enable_static := @enable_static@
 enable_prof := @enable_prof@
@@ -117,6 +118,7 @@ C_SRCS := $(srcroot)src/jemalloc.c \
 	$(srcroot)src/prng.c \
 	$(srcroot)src/prof.c \
 	$(srcroot)src/rtree.c \
+	$(srcroot)src/safety_check.c \
 	$(srcroot)src/stats.c \
 	$(srcroot)src/sc.c \
 	$(srcroot)src/sz.c \
@@ -178,6 +180,7 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/div.c \
 	$(srcroot)test/unit/emitter.c \
 	$(srcroot)test/unit/extent_quantize.c \
+	$(srcroot)test/unit/extent_util.c \
 	$(srcroot)test/unit/fork.c \
 	$(srcroot)test/unit/hash.c \
 	$(srcroot)test/unit/hook.c \
@@ -208,6 +211,7 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/rb.c \
 	$(srcroot)test/unit/retained.c \
 	$(srcroot)test/unit/rtree.c \
+	$(srcroot)test/unit/safety_check.c \
 	$(srcroot)test/unit/seq.c \
 	$(srcroot)test/unit/SFMT.c \
 	$(srcroot)test/unit/sc.c \
@@ -513,7 +517,11 @@ done
 
 install_doc: build_doc install_doc_html install_doc_man
 
-install: install_bin install_include install_lib install_doc
+install: install_bin install_include install_lib
+
+ifeq ($(enable_doc), 1)
+install: install_doc
+endif
 
 tests_unit: $(TESTS_UNIT:$(srcroot)%.c=$(objroot)%$(EXE))
 tests_integration: $(TESTS_INTEGRATION:$(srcroot)%.c=$(objroot)%$(EXE)) $(TESTS_INTEGRATION_CPP:$(srcroot)%.cpp=$(objroot)%$(EXE))

@@ -13,6 +13,7 @@
 #include "jemalloc/internal/malloc_io.h"
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/rtree.h"
+#include "jemalloc/internal/safety_check.h"
 #include "jemalloc/internal/sc.h"
 #include "jemalloc/internal/spin.h"
 #include "jemalloc/internal/sz.h"
@@ -42,6 +43,8 @@ bool	opt_abort_conf =
     false
 #endif
     ;
+/* Intentionally default off, even with debug builds. */
+bool	opt_confirm_conf = false;
 const char	*opt_junk =
 #if (defined(JEMALLOC_DEBUG) && defined(JEMALLOC_FILL))
     "true"
@@ -928,93 +931,141 @@ malloc_slow_flag_init(void) {
 	malloc_slow = (malloc_slow_flags != 0);
 }
 
+/* Number of sources for initializing malloc_conf */
+#define MALLOC_CONF_NSOURCES 4
+
+static const char *
+obtain_malloc_conf(unsigned which_source, char buf[PATH_MAX + 1]) {
+	if (config_debug) {
+		static unsigned read_source = 0;
+		/*
+		 * Each source should only be read once, to minimize # of
+		 * syscalls on init.
+		 */
+		assert(read_source++ == which_source);
+	}
+	assert(which_source < MALLOC_CONF_NSOURCES);
+
+	const char *ret;
+	switch (which_source) {
+	case 0:
+		ret = config_malloc_conf;
+		break;
+	case 1:
+		if (je_malloc_conf != NULL) {
+			/* Use options that were compiled into the program. */
+			ret = je_malloc_conf;
+		} else {
+			/* No configuration specified. */
+			ret = NULL;
+		}
+		break;
+	case 2: {
+		ssize_t linklen = 0;
+#ifndef _WIN32
+		int saved_errno = errno;
+		const char *linkname =
+#  ifdef JEMALLOC_PREFIX
+		    "/etc/"JEMALLOC_PREFIX"malloc.conf"
+#  else
+		    "/etc/malloc.conf"
+#  endif
+		    ;
+
+		/*
+		 * Try to use the contents of the "/etc/malloc.conf" symbolic
+		 * link's name.
+		 */
+#ifndef JEMALLOC_READLINKAT
+		linklen = readlink(linkname, buf, PATH_MAX);
+#else
+		linklen = readlinkat(AT_FDCWD, linkname, buf, PATH_MAX);
+#endif
+		if (linklen == -1) {
+			/* No configuration specified. */
+			linklen = 0;
+			/* Restore errno. */
+			set_errno(saved_errno);
+		}
+#endif
+		buf[linklen] = '\0';
+		ret = buf;
+		break;
+	} case 3: {
+		const char *envname =
+#ifdef JEMALLOC_PREFIX
+		    JEMALLOC_CPREFIX"MALLOC_CONF"
+#else
+		    "MALLOC_CONF"
+#endif
+		    ;
+
+		if ((ret = jemalloc_secure_getenv(envname)) != NULL) {
+			/*
+			 * Do nothing; opts is already initialized to the value
+			 * of the MALLOC_CONF environment variable.
+			 */
+		} else {
+			/* No configuration specified. */
+			ret = NULL;
+		}
+		break;
+	} default:
+		not_reached();
+		ret = NULL;
+	}
+	return ret;
+}
+
 static void
-malloc_conf_init(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS]) {
+malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
+    bool initial_call, const char *opts_cache[MALLOC_CONF_NSOURCES],
+    char buf[PATH_MAX + 1]) {
+	static const char *opts_explain[MALLOC_CONF_NSOURCES] = {
+		"string specified via --with-malloc-conf",
+		"string pointed to by the global variable malloc_conf",
+		"\"name\" of the file referenced by the symbolic link named "
+		    "/etc/malloc.conf",
+		"value of the environment variable MALLOC_CONF"
+	};
 	unsigned i;
-	char buf[PATH_MAX + 1];
 	const char *opts, *k, *v;
 	size_t klen, vlen;
 
-	for (i = 0; i < 4; i++) {
+	for (i = 0; i < MALLOC_CONF_NSOURCES; i++) {
 		/* Get runtime configuration. */
-		switch (i) {
-		case 0:
-			opts = config_malloc_conf;
-			break;
-		case 1:
-			if (je_malloc_conf != NULL) {
-				/*
-				 * Use options that were compiled into the
-				 * program.
-				 */
-				opts = je_malloc_conf;
-			} else {
-				/* No configuration specified. */
-				buf[0] = '\0';
-				opts = buf;
-			}
-			break;
-		case 2: {
-			ssize_t linklen = 0;
-#ifndef _WIN32
-			int saved_errno = errno;
-			const char *linkname =
-#  ifdef JEMALLOC_PREFIX
-			    "/etc/"JEMALLOC_PREFIX"malloc.conf"
-#  else
-			    "/etc/malloc.conf"
-#  endif
-			    ;
-
-			/*
-			 * Try to use the contents of the "/etc/malloc.conf"
-			 * symbolic link's name.
-			 */
-#ifndef JEMALLOC_READLINKAT
-			linklen = readlink(linkname, buf, sizeof(buf) - 1);
-#else
-			linklen = readlinkat(AT_FDCWD, linkname, buf,
-			    sizeof(buf) - 1);
-#endif
-			if (linklen == -1) {
-				/* No configuration specified. */
-				linklen = 0;
-				/* Restore errno. */
-				set_errno(saved_errno);
-			}
-#endif
-			buf[linklen] = '\0';
-			opts = buf;
-			break;
-		} case 3: {
-			const char *envname =
-#ifdef JEMALLOC_PREFIX
-			    JEMALLOC_CPREFIX"MALLOC_CONF"
-#else
-			    "MALLOC_CONF"
-#endif
-			    ;
-
-			if ((opts = jemalloc_secure_getenv(envname)) != NULL) {
-				/*
-				 * Do nothing; opts is already initialized to
-				 * the value of the MALLOC_CONF environment
-				 * variable.
-				 */
-			} else {
-				/* No configuration specified. */
-				buf[0] = '\0';
-				opts = buf;
-			}
-			break;
-		} default:
-			not_reached();
-			buf[0] = '\0';
-			opts = buf;
+		if (initial_call) {
+			opts_cache[i] = obtain_malloc_conf(i, buf);
+		}
+		opts = opts_cache[i];
+		if (!initial_call && opt_confirm_conf) {
+			malloc_printf(
+			    "<jemalloc>: malloc_conf #%u (%s): \"%s\"\n",
+			    i + 1, opts_explain[i], opts != NULL ? opts : "");
+		}
+		if (opts == NULL) {
+			continue;
 		}
 
 		while (*opts != '\0' && !malloc_conf_next(&opts, &k, &klen, &v,
 		    &vlen)) {
+
+#define CONF_ERROR(msg, k, klen, v, vlen)				\
+			if (!initial_call) {				\
+				malloc_conf_error(			\
+				    msg, k, klen, v, vlen);		\
+				cur_opt_valid = false;			\
+			}
+#define CONF_CONTINUE	{						\
+				if (!initial_call && opt_confirm_conf	\
+				    && cur_opt_valid) {			\
+					malloc_printf("<jemalloc>: -- "	\
+					    "Set conf value: %.*s:%.*s"	\
+					    "\n", (int)klen, k,		\
+					    (int)vlen, v);		\
+				}					\
+				continue;				\
+			}
 #define CONF_MATCH(n)							\
 	(sizeof(n)-1 == klen && strncmp(n, k, klen) == 0)
 #define CONF_MATCH_VALUE(n)						\
@@ -1026,11 +1077,10 @@ malloc_conf_init(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS]) {
 				} else if (CONF_MATCH_VALUE("false")) {	\
 					o = false;			\
 				} else {				\
-					malloc_conf_error(		\
-					    "Invalid conf value",	\
+					CONF_ERROR("Invalid conf value",\
 					    k, klen, v, vlen);		\
 				}					\
-				continue;				\
+				CONF_CONTINUE;				\
 			}
       /*
        * One of the CONF_MIN macros below expands, in one of the use points,
@@ -1040,10 +1090,10 @@ malloc_conf_init(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS]) {
       JEMALLOC_DIAGNOSTIC_PUSH
       JEMALLOC_DIAGNOSTIC_IGNORE_TYPE_LIMITS
 
-#define CONF_MIN_no(um, min)	false
-#define CONF_MIN_yes(um, min)	((um) < (min))
-#define CONF_MAX_no(um, max)	false
-#define CONF_MAX_yes(um, max)	((um) > (max))
+#define CONF_DONT_CHECK_MIN(um, min)	false
+#define CONF_CHECK_MIN(um, min)	((um) < (min))
+#define CONF_DONT_CHECK_MAX(um, max)	false
+#define CONF_CHECK_MAX(um, max)	((um) > (max))
 #define CONF_HANDLE_T_U(t, o, n, min, max, check_min, check_max, clip)	\
 			if (CONF_MATCH(n)) {				\
 				uintmax_t um;				\
@@ -1053,26 +1103,21 @@ malloc_conf_init(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS]) {
 				um = malloc_strtoumax(v, &end, 0);	\
 				if (get_errno() != 0 || (uintptr_t)end -\
 				    (uintptr_t)v != vlen) {		\
-					malloc_conf_error(		\
-					    "Invalid conf value",	\
+					CONF_ERROR("Invalid conf value",\
 					    k, klen, v, vlen);		\
 				} else if (clip) {			\
-					if (CONF_MIN_##check_min(um,	\
-					    (t)(min))) {		\
+					if (check_min(um, (t)(min))) {	\
 						o = (t)(min);		\
 					} else if (			\
-					    CONF_MAX_##check_max(um,	\
-					    (t)(max))) {		\
+					    check_max(um, (t)(max))) {	\
 						o = (t)(max);		\
 					} else {			\
 						o = (t)um;		\
 					}				\
 				} else {				\
-					if (CONF_MIN_##check_min(um,	\
-					    (t)(min)) ||		\
-					    CONF_MAX_##check_max(um,	\
-					    (t)(max))) {		\
-						malloc_conf_error(	\
+					if (check_min(um, (t)(min)) ||	\
+					    check_max(um, (t)(max))) {	\
+						CONF_ERROR(		\
 						    "Out-of-range "	\
 						    "conf value",	\
 						    k, klen, v, vlen);	\
@@ -1080,7 +1125,7 @@ malloc_conf_init(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS]) {
 						o = (t)um;		\
 					}				\
 				}					\
-				continue;				\
+				CONF_CONTINUE;				\
 			}
 #define CONF_HANDLE_UNSIGNED(o, n, min, max, check_min, check_max,	\
     clip)								\
@@ -1098,18 +1143,17 @@ malloc_conf_init(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS]) {
 				l = strtol(v, &end, 0);			\
 				if (get_errno() != 0 || (uintptr_t)end -\
 				    (uintptr_t)v != vlen) {		\
-					malloc_conf_error(		\
-					    "Invalid conf value",	\
+					CONF_ERROR("Invalid conf value",\
 					    k, klen, v, vlen);		\
 				} else if (l < (ssize_t)(min) || l >	\
 				    (ssize_t)(max)) {			\
-					malloc_conf_error(		\
+					CONF_ERROR(			\
 					    "Out-of-range conf value",	\
 					    k, klen, v, vlen);		\
 				} else {				\
 					o = l;				\
 				}					\
-				continue;				\
+				CONF_CONTINUE;				\
 			}
 #define CONF_HANDLE_CHAR_P(o, n, d)					\
 			if (CONF_MATCH(n)) {				\
@@ -1118,7 +1162,14 @@ malloc_conf_init(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS]) {
 				    sizeof(o)-1;			\
 				strncpy(o, v, cpylen);			\
 				o[cpylen] = '\0';			\
-				continue;				\
+				CONF_CONTINUE;				\
+			}
+
+			bool cur_opt_valid = true;
+
+			CONF_HANDLE_BOOL(opt_confirm_conf, "confirm_conf")
+			if (initial_call) {
+				continue;
 			}
 
 			CONF_HANDLE_BOOL(opt_abort, "abort")
@@ -1135,10 +1186,10 @@ malloc_conf_init(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS]) {
 					}
 				}
 				if (!match) {
-					malloc_conf_error("Invalid conf value",
+					CONF_ERROR("Invalid conf value",
 					    k, klen, v, vlen);
 				}
-				continue;
+				CONF_CONTINUE;
 			}
 			CONF_HANDLE_BOOL(opt_retain, "retain")
 			if (strncmp("dss", k, klen) == 0) {
@@ -1148,7 +1199,7 @@ malloc_conf_init(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS]) {
 					if (strncmp(dss_prec_names[i], v, vlen)
 					    == 0) {
 						if (extent_dss_prec_set(i)) {
-							malloc_conf_error(
+							CONF_ERROR(
 							    "Error setting dss",
 							    k, klen, v, vlen);
 						} else {
@@ -1160,13 +1211,14 @@ malloc_conf_init(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS]) {
 					}
 				}
 				if (!match) {
-					malloc_conf_error("Invalid conf value",
+					CONF_ERROR("Invalid conf value",
 					    k, klen, v, vlen);
 				}
-				continue;
+				CONF_CONTINUE;
 			}
 			CONF_HANDLE_UNSIGNED(opt_narenas, "narenas", 1,
-			    UINT_MAX, yes, no, false)
+			    UINT_MAX, CONF_CHECK_MIN, CONF_DONT_CHECK_MAX,
+			    false)
 			if (CONF_MATCH("bin_shards")) {
 				const char *bin_shards_segment_cur = v;
 				size_t vlen_left = vlen;
@@ -1180,14 +1232,14 @@ malloc_conf_init(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS]) {
 					if (err || bin_update_shard_size(
 					    bin_shard_sizes, size_start,
 					    size_end, nshards)) {
-						malloc_conf_error(
+						CONF_ERROR(
 						    "Invalid settings for "
 						    "bin_shards", k, klen, v,
 						    vlen);
 						break;
 					}
 				} while (vlen_left > 0);
-				continue;
+				CONF_CONTINUE;
 			}
 			CONF_HANDLE_SSIZE_T(opt_dirty_decay_ms,
 			    "dirty_decay_ms", -1, NSTIME_SEC_MAX * KQU(1000) <
@@ -1200,7 +1252,7 @@ malloc_conf_init(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS]) {
 			CONF_HANDLE_BOOL(opt_stats_print, "stats_print")
 			if (CONF_MATCH("stats_print_opts")) {
 				init_opt_stats_print_opts(v, vlen);
-				continue;
+				CONF_CONTINUE;
 			}
 			if (config_fill) {
 				if (CONF_MATCH("junk")) {
@@ -1221,11 +1273,11 @@ malloc_conf_init(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS]) {
 						opt_junk_alloc = false;
 						opt_junk_free = true;
 					} else {
-						malloc_conf_error(
-						    "Invalid conf value", k,
-						    klen, v, vlen);
+						CONF_ERROR(
+						    "Invalid conf value",
+						    k, klen, v, vlen);
 					}
-					continue;
+					CONF_CONTINUE;
 				}
 				CONF_HANDLE_BOOL(opt_zero, "zero")
 			}
@@ -1248,11 +1300,12 @@ malloc_conf_init(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS]) {
 			 * contention on the huge arena.
 			 */
 			CONF_HANDLE_SIZE_T(opt_oversize_threshold,
-			    "oversize_threshold", 0, SC_LARGE_MAXCLASS, no, yes,
-			    false)
+			    "oversize_threshold", 0, SC_LARGE_MAXCLASS,
+			    CONF_DONT_CHECK_MIN, CONF_CHECK_MAX, false)
 			CONF_HANDLE_SIZE_T(opt_lg_extent_max_active_fit,
 			    "lg_extent_max_active_fit", 0,
-			    (sizeof(size_t) << 3), no, yes, false)
+			    (sizeof(size_t) << 3), CONF_DONT_CHECK_MIN,
+			    CONF_CHECK_MAX, false)
 
 			if (strncmp("percpu_arena", k, klen) == 0) {
 				bool match = false;
@@ -1261,7 +1314,7 @@ malloc_conf_init(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS]) {
 					if (strncmp(percpu_arena_mode_names[i],
 					    v, vlen) == 0) {
 						if (!have_percpu_arena) {
-							malloc_conf_error(
+							CONF_ERROR(
 							    "No getcpu support",
 							    k, klen, v, vlen);
 						}
@@ -1271,16 +1324,17 @@ malloc_conf_init(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS]) {
 					}
 				}
 				if (!match) {
-					malloc_conf_error("Invalid conf value",
+					CONF_ERROR("Invalid conf value",
 					    k, klen, v, vlen);
 				}
-				continue;
+				CONF_CONTINUE;
 			}
 			CONF_HANDLE_BOOL(opt_background_thread,
 			    "background_thread");
 			CONF_HANDLE_SIZE_T(opt_max_background_threads,
 					   "max_background_threads", 1,
-					   opt_max_background_threads, yes, yes,
+					   opt_max_background_threads,
+					   CONF_CHECK_MIN, CONF_CHECK_MAX,
 					   true);
 			if (CONF_MATCH("slab_sizes")) {
 				bool err;
@@ -1299,13 +1353,12 @@ malloc_conf_init(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS]) {
 						    sc_data, slab_start,
 						    slab_end, (int)pgs);
 					} else {
-						malloc_conf_error(
-						    "Invalid settings for "
-						    "slab_sizes", k, klen, v,
-						    vlen);
+						CONF_ERROR("Invalid settings "
+						    "for slab_sizes",
+						    k, klen, v, vlen);
 					}
 				} while (!err && vlen_left > 0);
-				continue;
+				CONF_CONTINUE;
 			}
 			if (config_prof) {
 				CONF_HANDLE_BOOL(opt_prof, "prof")
@@ -1316,7 +1369,8 @@ malloc_conf_init(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS]) {
 				    "prof_thread_active_init")
 				CONF_HANDLE_SIZE_T(opt_lg_prof_sample,
 				    "lg_prof_sample", 0, (sizeof(uint64_t) << 3)
-				    - 1, no, yes, true)
+				    - 1, CONF_DONT_CHECK_MIN, CONF_CHECK_MAX,
+				    true)
 				CONF_HANDLE_BOOL(opt_prof_accum, "prof_accum")
 				CONF_HANDLE_SSIZE_T(opt_lg_prof_interval,
 				    "lg_prof_interval", -1,
@@ -1333,7 +1387,7 @@ malloc_conf_init(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS]) {
 					    vlen : sizeof(log_var_names) - 1);
 					strncpy(log_var_names, v, cpylen);
 					log_var_names[cpylen] = '\0';
-					continue;
+					CONF_CONTINUE;
 				}
 			}
 			if (CONF_MATCH("thp")) {
@@ -1342,7 +1396,7 @@ malloc_conf_init(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS]) {
 					if (strncmp(thp_mode_names[i],v, vlen)
 					    == 0) {
 						if (!have_madvise_huge) {
-							malloc_conf_error(
+							CONF_ERROR(
 							    "No THP support",
 							    k, klen, v, vlen);
 						}
@@ -1352,20 +1406,21 @@ malloc_conf_init(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS]) {
 					}
 				}
 				if (!match) {
-					malloc_conf_error("Invalid conf value",
+					CONF_ERROR("Invalid conf value",
 					    k, klen, v, vlen);
 				}
-				continue;
+				CONF_CONTINUE;
 			}
-			malloc_conf_error("Invalid conf pair", k, klen, v,
-			    vlen);
+			CONF_ERROR("Invalid conf pair", k, klen, v, vlen);
+#undef CONF_ERROR
+#undef CONF_CONTINUE
 #undef CONF_MATCH
 #undef CONF_MATCH_VALUE
 #undef CONF_HANDLE_BOOL
-#undef CONF_MIN_no
-#undef CONF_MIN_yes
-#undef CONF_MAX_no
-#undef CONF_MAX_yes
+#undef CONF_DONT_CHECK_MIN
+#undef CONF_CHECK_MIN
+#undef CONF_DONT_CHECK_MAX
+#undef CONF_CHECK_MAX
 #undef CONF_HANDLE_T_U
 #undef CONF_HANDLE_UNSIGNED
 #undef CONF_HANDLE_SIZE_T
@@ -1380,6 +1435,19 @@ malloc_conf_init(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS]) {
 	}
 	atomic_store_b(&log_init_done, true, ATOMIC_RELEASE);
 }
+
+static void
+malloc_conf_init(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS]) {
+	const char *opts_cache[MALLOC_CONF_NSOURCES] = {NULL, NULL, NULL, NULL};
+	char buf[PATH_MAX + 1];
+
+	/* The first call only set the confirm_conf option and opts_cache */
+	malloc_conf_init_helper(NULL, NULL, true, opts_cache, buf);
+	malloc_conf_init_helper(sc_data, bin_shard_sizes, false, opts_cache,
+	    NULL);
+}
+
+#undef MALLOC_CONF_NSOURCES
 
 static bool
 malloc_init_hard_needed(void) {
@@ -1750,6 +1818,11 @@ struct static_opts_s {
 	bool may_overflow;
 
 	/*
+	 * Whether or not allocations (with alignment) of size 0 should be
+	 * treated as size 1.
+	 */
+	bool bump_empty_aligned_alloc;
+	/*
 	 * Whether to assert that allocations are not of size 0 (after any
 	 * bumping).
 	 */
@@ -1790,6 +1863,7 @@ struct static_opts_s {
 JEMALLOC_ALWAYS_INLINE void
 static_opts_init(static_opts_t *static_opts) {
 	static_opts->may_overflow = false;
+	static_opts->bump_empty_aligned_alloc = false;
 	static_opts->assert_nonempty_alloc = false;
 	static_opts->null_out_result_on_error = false;
 	static_opts->set_errno_on_error = false;
@@ -1977,11 +2051,6 @@ imalloc_body(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd) {
 		goto label_oom;
 	}
 
-	/* Validate the user input. */
-	if (sopts->assert_nonempty_alloc) {
-		assert (size != 0);
-	}
-
 	if (unlikely(dopts->alignment < sopts->min_alignment
 	    || (dopts->alignment & (dopts->alignment - 1)) != 0)) {
 		goto label_invalid_alignment;
@@ -2001,12 +2070,21 @@ imalloc_body(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd) {
 			    <= SC_LARGE_MAXCLASS);
 		}
 	} else {
+		if (sopts->bump_empty_aligned_alloc) {
+			if (unlikely(size == 0)) {
+				size = 1;
+			}
+		}
 		usize = sz_sa2u(size, dopts->alignment);
 		dopts->usize = usize;
 		if (unlikely(usize == 0
 		    || usize > SC_LARGE_MAXCLASS)) {
 			goto label_oom;
 		}
+	}
+	/* Validate the user input. */
+	if (sopts->assert_nonempty_alloc) {
+		assert (size != 0);
 	}
 
 	check_entry_exit_locking(tsd_tsdn(tsd));
@@ -2323,6 +2401,7 @@ je_posix_memalign(void **memptr, size_t alignment, size_t size) {
 	static_opts_init(&sopts);
 	dynamic_opts_init(&dopts);
 
+	sopts.bump_empty_aligned_alloc = true;
 	sopts.min_alignment = sizeof(void *);
 	sopts.oom_string =
 	    "<jemalloc>: Error allocating aligned memory: out of memory\n";
@@ -2363,6 +2442,7 @@ je_aligned_alloc(size_t alignment, size_t size) {
 	static_opts_init(&sopts);
 	dynamic_opts_init(&dopts);
 
+	sopts.bump_empty_aligned_alloc = true;
 	sopts.null_out_result_on_error = true;
 	sopts.set_errno_on_error = true;
 	sopts.min_alignment = 1;
@@ -2732,7 +2812,7 @@ bool free_fastpath(void *ptr, size_t size, bool size_hint) {
 	tcache_t *tcache = tsd_tcachep_get(tsd);
 
 	alloc_ctx_t alloc_ctx;
-	/* 
+	/*
 	 * If !config_cache_oblivious, we can check PAGE alignment to
 	 * detect sampled objects.  Otherwise addresses are
 	 * randomized, and we have to look it up in the rtree anyway.
@@ -2743,12 +2823,12 @@ bool free_fastpath(void *ptr, size_t size, bool size_hint) {
 		bool res = rtree_szind_slab_read_fast(tsd_tsdn(tsd), &extents_rtree,
 						      rtree_ctx, (uintptr_t)ptr,
 						      &alloc_ctx.szind, &alloc_ctx.slab);
-		assert(alloc_ctx.szind != SC_NSIZES);
 
 		/* Note: profiled objects will have alloc_ctx.slab set */
 		if (!res || !alloc_ctx.slab) {
 			return false;
 		}
+		assert(alloc_ctx.szind != SC_NSIZES);
 	} else {
 		/*
 		 * Check for both sizes that are too large, and for sampled objects.
@@ -3517,6 +3597,18 @@ je_sdallocx(void *ptr, size_t size, int flags) {
 
 	if (flags !=0 || !free_fastpath(ptr, size, true)) {
 		sdallocx_default(ptr, size, flags);
+	}
+
+	LOG("core.sdallocx.exit", "");
+}
+
+void JEMALLOC_NOTHROW
+je_sdallocx_noflags(void *ptr, size_t size) {
+	LOG("core.sdallocx.entry", "ptr: %p, size: %zu, flags: 0", ptr,
+		size);
+
+	if (!free_fastpath(ptr, size, true)) {
+		sdallocx_default(ptr, size, 0);
 	}
 
 	LOG("core.sdallocx.exit", "");

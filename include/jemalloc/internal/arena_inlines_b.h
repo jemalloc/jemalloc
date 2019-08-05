@@ -90,7 +90,7 @@ arena_prof_alloc_time_get(tsdn_t *tsdn, const void *ptr,
 	assert(ptr != NULL);
 
 	extent_t *extent = iealloc(tsdn, ptr);
-	/* 
+	/*
 	 * Unlike arena_prof_prof_tctx_{get, set}, we only call this once we're
 	 * sure we have a sampled allocation.
 	 */
@@ -229,6 +229,16 @@ arena_vsalloc(tsdn_t *tsdn, const void *ptr) {
 }
 
 static inline void
+arena_dalloc_large_no_tcache(tsdn_t *tsdn, void *ptr, szind_t szind) {
+	if (config_prof && unlikely(szind < SC_NBINS)) {
+		arena_dalloc_promoted(tsdn, ptr, NULL, true);
+	} else {
+		extent_t *extent = iealloc(tsdn, ptr);
+		large_dalloc(tsdn, extent);
+	}
+}
+
+static inline void
 arena_dalloc_no_tcache(tsdn_t *tsdn, void *ptr) {
 	assert(ptr != NULL);
 
@@ -251,6 +261,21 @@ arena_dalloc_no_tcache(tsdn_t *tsdn, void *ptr) {
 	if (likely(slab)) {
 		/* Small allocation. */
 		arena_dalloc_small(tsdn, ptr);
+	} else {
+		arena_dalloc_large_no_tcache(tsdn, ptr, szind);
+	}
+}
+
+JEMALLOC_ALWAYS_INLINE void
+arena_dalloc_large(tsdn_t *tsdn, void *ptr, tcache_t *tcache, szind_t szind,
+    bool slow_path) {
+	if (szind < nhbins) {
+		if (config_prof && unlikely(szind < SC_NBINS)) {
+			arena_dalloc_promoted(tsdn, ptr, tcache, slow_path);
+		} else {
+			tcache_dalloc_large(tsdn_tsd(tsdn), tcache, ptr, szind,
+			    slow_path);
+		}
 	} else {
 		extent_t *extent = iealloc(tsdn, ptr);
 		large_dalloc(tsdn, extent);
@@ -295,18 +320,7 @@ arena_dalloc(tsdn_t *tsdn, void *ptr, tcache_t *tcache,
 		tcache_dalloc_small(tsdn_tsd(tsdn), tcache, ptr, szind,
 		    slow_path);
 	} else {
-		if (szind < nhbins) {
-			if (config_prof && unlikely(szind < SC_NBINS)) {
-				arena_dalloc_promoted(tsdn, ptr, tcache,
-				    slow_path);
-			} else {
-				tcache_dalloc_large(tsdn_tsd(tsdn), tcache, ptr,
-				    szind, slow_path);
-			}
-		} else {
-			extent_t *extent = iealloc(tsdn, ptr);
-			large_dalloc(tsdn, extent);
-		}
+		arena_dalloc_large(tsdn, ptr, tcache, szind, slow_path);
 	}
 }
 
@@ -349,8 +363,7 @@ arena_sdalloc_no_tcache(tsdn_t *tsdn, void *ptr, size_t size) {
 		/* Small allocation. */
 		arena_dalloc_small(tsdn, ptr);
 	} else {
-		extent_t *extent = iealloc(tsdn, ptr);
-		large_dalloc(tsdn, extent);
+		arena_dalloc_large_no_tcache(tsdn, ptr, szind);
 	}
 }
 
@@ -407,18 +420,7 @@ arena_sdalloc(tsdn_t *tsdn, void *ptr, size_t size, tcache_t *tcache,
 		tcache_dalloc_small(tsdn_tsd(tsdn), tcache, ptr, szind,
 		    slow_path);
 	} else {
-		if (szind < nhbins) {
-			if (config_prof && unlikely(szind < SC_NBINS)) {
-				arena_dalloc_promoted(tsdn, ptr, tcache,
-				    slow_path);
-			} else {
-				tcache_dalloc_large(tsdn_tsd(tsdn),
-				    tcache, ptr, szind, slow_path);
-			}
-		} else {
-			extent_t *extent = iealloc(tsdn, ptr);
-			large_dalloc(tsdn, extent);
-		}
+		arena_dalloc_large(tsdn, ptr, tcache, szind, slow_path);
 	}
 }
 

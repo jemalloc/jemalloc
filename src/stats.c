@@ -294,6 +294,7 @@ stats_arena_bins_print(emitter_t *emitter, bool mutex, unsigned i, uint64_t upti
 	COL_HDR(row, nshards, NULL, right, 9, unsigned)
 	COL_HDR(row, curregs, NULL, right, 13, size)
 	COL_HDR(row, curslabs, NULL, right, 13, size)
+	COL_HDR(row, nonfull_slabs, NULL, right, 15, size)
 	COL_HDR(row, regs, NULL, right, 5, unsigned)
 	COL_HDR(row, pgs, NULL, right, 4, size)
 	/* To buffer a right- and left-justified column. */
@@ -337,6 +338,7 @@ stats_arena_bins_print(emitter_t *emitter, bool mutex, unsigned i, uint64_t upti
 		uint64_t nslabs;
 		size_t reg_size, slab_size, curregs;
 		size_t curslabs;
+		size_t nonfull_slabs;
 		uint32_t nregs, nshards;
 		uint64_t nmalloc, ndalloc, nrequests, nfills, nflushes;
 		uint64_t nreslabs;
@@ -372,6 +374,8 @@ stats_arena_bins_print(emitter_t *emitter, bool mutex, unsigned i, uint64_t upti
 		    uint64_t);
 		CTL_M2_M4_GET("stats.arenas.0.bins.0.curslabs", i, j, &curslabs,
 		    size_t);
+		CTL_M2_M4_GET("stats.arenas.0.bins.0.nonfull_slabs", i, j, &nonfull_slabs,
+		    size_t);
 
 		if (mutex) {
 			mutex_stats_read_arena_bin(i, j, col_mutex64,
@@ -395,6 +399,8 @@ stats_arena_bins_print(emitter_t *emitter, bool mutex, unsigned i, uint64_t upti
 		    &nreslabs);
 		emitter_json_kv(emitter, "curslabs", emitter_type_size,
 		    &curslabs);
+		emitter_json_kv(emitter, "nonfull_slabs", emitter_type_size,
+		    &nonfull_slabs);
 		if (mutex) {
 			emitter_json_object_kv_begin(emitter, "mutex");
 			mutex_stats_emit(emitter, NULL, col_mutex64,
@@ -434,6 +440,7 @@ stats_arena_bins_print(emitter_t *emitter, bool mutex, unsigned i, uint64_t upti
 		col_nshards.unsigned_val = nshards;
 		col_curregs.size_val = curregs;
 		col_curslabs.size_val = curslabs;
+		col_nonfull_slabs.size_val = nonfull_slabs;
 		col_regs.unsigned_val = nregs;
 		col_pgs.size_val = slab_size / page;
 		col_util.str_val = util;
@@ -661,10 +668,12 @@ stats_arena_print(emitter_t *emitter, unsigned i, bool bins, bool large,
 	uint64_t dirty_npurge, dirty_nmadvise, dirty_purged;
 	uint64_t muzzy_npurge, muzzy_nmadvise, muzzy_purged;
 	size_t small_allocated;
-	uint64_t small_nmalloc, small_ndalloc, small_nrequests;
+	uint64_t small_nmalloc, small_ndalloc, small_nrequests, small_nfills,
+	    small_nflushes;
 	size_t large_allocated;
-	uint64_t large_nmalloc, large_ndalloc, large_nrequests;
-	size_t tcache_bytes;
+	uint64_t large_nmalloc, large_ndalloc, large_nrequests, large_nfills,
+	    large_nflushes;
+	size_t tcache_bytes, abandoned_vm;
 	uint64_t uptime;
 
 	CTL_GET("arenas.page", &page, size_t);
@@ -821,11 +830,23 @@ stats_arena_print(emitter_t *emitter, unsigned i, bool bins, bool large,
 	COL(alloc_count_row, count_nrequests_ps, right, 10, title);
 	col_count_nrequests_ps.str_val = "(#/sec)";
 
+	COL(alloc_count_row, count_nfills, right, 16, title);
+	col_count_nfills.str_val = "nfill";
+	COL(alloc_count_row, count_nfills_ps, right, 10, title);
+	col_count_nfills_ps.str_val = "(#/sec)";
+
+	COL(alloc_count_row, count_nflushes, right, 16, title);
+	col_count_nflushes.str_val = "nflush";
+	COL(alloc_count_row, count_nflushes_ps, right, 10, title);
+	col_count_nflushes_ps.str_val = "(#/sec)";
+
 	emitter_table_row(emitter, &alloc_count_row);
 
 	col_count_nmalloc_ps.type = emitter_type_uint64;
 	col_count_ndalloc_ps.type = emitter_type_uint64;
 	col_count_nrequests_ps.type = emitter_type_uint64;
+	col_count_nfills_ps.type = emitter_type_uint64;
+	col_count_nflushes_ps.type = emitter_type_uint64;
 
 #define GET_AND_EMIT_ALLOC_STAT(small_or_large, name, valtype)		\
 	CTL_M2_GET("stats.arenas.0." #small_or_large "." #name, i,	\
@@ -848,6 +869,12 @@ stats_arena_print(emitter_t *emitter, unsigned i, bool bins, bool large,
 	GET_AND_EMIT_ALLOC_STAT(small, nrequests, uint64)
 	col_count_nrequests_ps.uint64_val =
 	    rate_per_second(col_count_nrequests.uint64_val, uptime);
+	GET_AND_EMIT_ALLOC_STAT(small, nfills, uint64)
+	col_count_nfills_ps.uint64_val =
+	    rate_per_second(col_count_nfills.uint64_val, uptime);
+	GET_AND_EMIT_ALLOC_STAT(small, nflushes, uint64)
+	col_count_nflushes_ps.uint64_val =
+	    rate_per_second(col_count_nflushes.uint64_val, uptime);
 
 	emitter_table_row(emitter, &alloc_count_row);
 	emitter_json_object_end(emitter); /* Close "small". */
@@ -865,6 +892,12 @@ stats_arena_print(emitter_t *emitter, unsigned i, bool bins, bool large,
 	GET_AND_EMIT_ALLOC_STAT(large, nrequests, uint64)
 	col_count_nrequests_ps.uint64_val =
 	    rate_per_second(col_count_nrequests.uint64_val, uptime);
+	GET_AND_EMIT_ALLOC_STAT(large, nfills, uint64)
+	col_count_nfills_ps.uint64_val =
+	    rate_per_second(col_count_nfills.uint64_val, uptime);
+	GET_AND_EMIT_ALLOC_STAT(large, nflushes, uint64)
+	col_count_nflushes_ps.uint64_val =
+	    rate_per_second(col_count_nflushes.uint64_val, uptime);
 
 	emitter_table_row(emitter, &alloc_count_row);
 	emitter_json_object_end(emitter); /* Close "large". */
@@ -877,12 +910,18 @@ stats_arena_print(emitter_t *emitter, unsigned i, bool bins, bool large,
 	col_count_nmalloc.uint64_val = small_nmalloc + large_nmalloc;
 	col_count_ndalloc.uint64_val = small_ndalloc + large_ndalloc;
 	col_count_nrequests.uint64_val = small_nrequests + large_nrequests;
+	col_count_nfills.uint64_val = small_nfills + large_nfills;
+	col_count_nflushes.uint64_val = small_nflushes + large_nflushes;
 	col_count_nmalloc_ps.uint64_val =
 	    rate_per_second(col_count_nmalloc.uint64_val, uptime);
 	col_count_ndalloc_ps.uint64_val =
 	    rate_per_second(col_count_ndalloc.uint64_val, uptime);
 	col_count_nrequests_ps.uint64_val =
 	    rate_per_second(col_count_nrequests.uint64_val, uptime);
+	col_count_nfills_ps.uint64_val =
+	    rate_per_second(col_count_nfills.uint64_val, uptime);
+	col_count_nflushes_ps.uint64_val =
+	    rate_per_second(col_count_nflushes.uint64_val, uptime);
 	emitter_table_row(emitter, &alloc_count_row);
 
 	emitter_row_t mem_count_row;
@@ -924,6 +963,7 @@ stats_arena_print(emitter_t *emitter, unsigned i, bool bins, bool large,
 	GET_AND_EMIT_MEM_STAT(metadata_thp)
 	GET_AND_EMIT_MEM_STAT(tcache_bytes)
 	GET_AND_EMIT_MEM_STAT(resident)
+	GET_AND_EMIT_MEM_STAT(abandoned_vm)
 	GET_AND_EMIT_MEM_STAT(extent_avail)
 #undef GET_AND_EMIT_MEM_STAT
 
@@ -976,6 +1016,7 @@ stats_general_print(emitter_t *emitter) {
 	emitter_kv(emitter, "malloc_conf", "config.malloc_conf",
 	    emitter_type_string, &config_malloc_conf);
 
+	CONFIG_WRITE_BOOL(opt_safety_checks);
 	CONFIG_WRITE_BOOL(prof);
 	CONFIG_WRITE_BOOL(prof_libgcc);
 	CONFIG_WRITE_BOOL(prof_libunwind);
@@ -1025,6 +1066,7 @@ stats_general_print(emitter_t *emitter) {
 
 	OPT_WRITE_BOOL("abort")
 	OPT_WRITE_BOOL("abort_conf")
+	OPT_WRITE_BOOL("confirm_conf")
 	OPT_WRITE_BOOL("retain")
 	OPT_WRITE_CHAR_P("dss")
 	OPT_WRITE_UNSIGNED("narenas")

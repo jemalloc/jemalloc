@@ -18,7 +18,7 @@
  * each one covers allocations for base / SC_NGROUP possible allocation sizes.
  * We call that value (base / SC_NGROUP) the delta of the group. Each size class
  * is delta larger than the one before it (including the initial size class in a
- * group, which is delta large than 2**base, the largest size class in the
+ * group, which is delta larger than base, the largest size class in the
  * previous group).
  * To make the math all work out nicely, we require that SC_NGROUP is a power of
  * two, and define it in terms of SC_LG_NGROUP. We'll often talk in terms of
@@ -53,10 +53,11 @@
  * classes; one per power of two, up until we hit the quantum size. There are
  * therefore LG_QUANTUM - SC_LG_TINY_MIN such size classes.
  *
- * Next, we have a size class of size LG_QUANTUM. This can't be the start of a
- * group in the sense we described above (covering a power of two range) since,
- * if we divided into it to pick a value of delta, we'd get a delta smaller than
- * (1 << LG_QUANTUM) for sizes >= (1 << LG_QUANTUM), which is against the rules.
+ * Next, we have a size class of size (1 << LG_QUANTUM).  This can't be the
+ * start of a group in the sense we described above (covering a power of two
+ * range) since, if we divided into it to pick a value of delta, we'd get a
+ * delta smaller than (1 << LG_QUANTUM) for sizes >= (1 << LG_QUANTUM), which
+ * is against the rules.
  *
  * The first base we can divide by SC_NGROUP while still being at least
  * (1 << LG_QUANTUM) is SC_NGROUP * (1 << LG_QUANTUM). We can get there by
@@ -196,7 +197,7 @@
     (SC_LG_BASE_MAX - SC_LG_FIRST_REGULAR_BASE + 1) - 1)
 #define SC_NSIZES (SC_NTINY + SC_NPSEUDO + SC_NREGULAR)
 
- /* The number of size classes that are a multiple of the page size. */
+/* The number of size classes that are a multiple of the page size. */
 #define SC_NPSIZES (							\
     /* Start with all the size classes. */				\
     SC_NSIZES								\
@@ -206,8 +207,20 @@
     - SC_NPSEUDO							\
     /* And the tiny group. */						\
     - SC_NTINY								\
-    /* Groups where ndelta*delta is not a multiple of the page size. */	\
-    - (2 * (SC_NGROUP)))
+    /* Sizes where ndelta*delta is not a multiple of the page size. */	\
+    - (SC_LG_NGROUP * SC_NGROUP))
+/*
+ * Note that the last line is computed as the sum of the second column in the
+ * following table:
+ *                      lg(base) | count of sizes to exclude
+ * ------------------------------|-----------------------------
+ *                   LG_PAGE - 1 | SC_NGROUP - 1
+ *                       LG_PAGE | SC_NGROUP - 1
+ *                   LG_PAGE + 1 | SC_NGROUP - 2
+ *                   LG_PAGE + 2 | SC_NGROUP - 4
+ *                           ... | ...
+ *  LG_PAGE + (SC_LG_NGROUP - 1) | SC_NGROUP - (SC_NGROUP / 2)
+ */
 
 /*
  * We declare a size class is binnable if size < page size * group. Or, in other

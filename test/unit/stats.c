@@ -228,7 +228,7 @@ gen_mallctl_str(char *cmd, char *name, unsigned arena_ind) {
 
 TEST_BEGIN(test_stats_arenas_bins) {
 	void *p;
-	size_t sz, curslabs, curregs;
+	size_t sz, curslabs, curregs, nonfull_slabs;
 	uint64_t epoch, nmalloc, ndalloc, nrequests, nfills, nflushes;
 	uint64_t nslabs, nreslabs;
 	int expected = config_stats ? 0 : ENOENT;
@@ -289,6 +289,9 @@ TEST_BEGIN(test_stats_arenas_bins) {
 	gen_mallctl_str(cmd, "curslabs", arena_ind);
 	assert_d_eq(mallctl(cmd, (void *)&curslabs, &sz, NULL, 0), expected,
 	    "Unexpected mallctl() result");
+	gen_mallctl_str(cmd, "nonfull_slabs", arena_ind);
+	assert_d_eq(mallctl(cmd, (void *)&nonfull_slabs, &sz, NULL, 0),
+	    expected, "Unexpected mallctl() result");
 
 	if (config_stats) {
 		assert_u64_gt(nmalloc, 0,
@@ -309,6 +312,8 @@ TEST_BEGIN(test_stats_arenas_bins) {
 		    "At least one slab should have been allocated");
 		assert_zu_gt(curslabs, 0,
 		    "At least one slab should be currently allocated");
+		assert_zu_eq(nonfull_slabs, 0,
+		    "slabs_nonfull should be empty");
 	}
 
 	dallocx(p, 0);

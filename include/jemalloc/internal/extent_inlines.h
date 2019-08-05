@@ -343,10 +343,30 @@ extent_prof_alloc_time_set(extent_t *extent, nstime_t t) {
 	nstime_copy(&extent->e_alloc_time, &t);
 }
 
+static inline bool
+extent_is_head_get(extent_t *extent) {
+	if (maps_coalesce) {
+		not_reached();
+	}
+
+	return (bool)((extent->e_bits & EXTENT_BITS_IS_HEAD_MASK) >>
+	    EXTENT_BITS_IS_HEAD_SHIFT);
+}
+
+static inline void
+extent_is_head_set(extent_t *extent, bool is_head) {
+	if (maps_coalesce) {
+		not_reached();
+	}
+
+	extent->e_bits = (extent->e_bits & ~EXTENT_BITS_IS_HEAD_MASK) |
+	    ((uint64_t)is_head << EXTENT_BITS_IS_HEAD_SHIFT);
+}
+
 static inline void
 extent_init(extent_t *extent, arena_t *arena, void *addr, size_t size,
     bool slab, szind_t szind, size_t sn, extent_state_t state, bool zeroed,
-    bool committed, bool dumpable) {
+    bool committed, bool dumpable, extent_head_state_t is_head) {
 	assert(addr == PAGE_ADDR2BASE(addr) || !slab);
 
 	extent_arena_set(extent, arena);
@@ -360,6 +380,10 @@ extent_init(extent_t *extent, arena_t *arena, void *addr, size_t size,
 	extent_committed_set(extent, committed);
 	extent_dumpable_set(extent, dumpable);
 	ql_elm_new(extent, ql_link);
+	if (!maps_coalesce) {
+		extent_is_head_set(extent, (is_head == EXTENT_IS_HEAD) ? true :
+		    false);
+	}
 	if (config_prof) {
 		extent_prof_tctx_set(extent, NULL);
 	}

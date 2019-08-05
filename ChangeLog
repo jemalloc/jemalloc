@@ -4,6 +4,39 @@ brevity.  Much more detail can be found in the git revision history:
 
     https://github.com/jemalloc/jemalloc
 
+* 5.2.1 (August 5, 2019)
+
+  This release is primarily about Windows.  A critical virtual memory leak is
+  resolved on all Windows platforms.  The regression was present in all releases
+  since 5.0.0.
+
+  Bug fixes:
+  - Fix a severe virtual memory leak on Windows.  This regression was first
+    released in 5.0.0.  (@Ignition, @j0t, @frederik-h, @davidtgoldblatt,
+    @interwq)
+  - Fix size 0 handling in posix_memalign().  This regression was first released
+    in 5.2.0.  (@interwq)
+  - Fix the prof_log unit test which may observe unexpected backtraces from
+    compiler optimizations.  The test was first added in 5.2.0.  (@marxin,
+    @gnzlbg, @interwq)
+  - Fix the declaration of the extent_avail tree.  This regression was first
+    released in 5.1.0.  (@zoulasc)
+  - Fix an incorrect reference in jeprof.  This functionality was first released
+    in 3.0.0.  (@prehistoric-penguin)
+  - Fix an assertion on the deallocation fast-path.  This regression was first
+    released in 5.2.0.  (@yinan1048576)
+  - Fix the TLS_MODEL attribute in headers.  This regression was first released
+    in 5.0.0.  (@zoulasc, @interwq)
+
+  Optimizations and refactors:
+  - Implement opt.retain on Windows and enable by default on 64-bit.  (@interwq,
+    @davidtgoldblatt)
+  - Optimize away a branch on the operator delete[] path.  (@mgrice)
+  - Add format annotation to the format generator function.  (@zoulasc)
+  - Refactor and improve the size class header generation.  (@yinan1048576)
+  - Remove best fit.  (@djwatson)
+  - Avoid blocking on background thread locks for stats.  (@oranagra, @interwq)
+
 * 5.2.0 (April 2, 2019)
 
   This release includes a few notable improvements, which are summarized below:

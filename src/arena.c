@@ -8,6 +8,7 @@
 #include "jemalloc/internal/extent_mmap.h"
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/rtree.h"
+#include "jemalloc/internal/safety_check.h"
 #include "jemalloc/internal/util.h"
 
 JEMALLOC_DIAGNOSTIC_DISABLE_SPURIOUS
@@ -131,6 +132,8 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 	    (((atomic_load_zu(&arena->nactive, ATOMIC_RELAXED) +
 	    extents_npages_get(&arena->extents_dirty) +
 	    extents_npages_get(&arena->extents_muzzy)) << LG_PAGE)));
+	arena_stats_accum_zu(&astats->abandoned_vm, atomic_load_zu(
+	    &arena->stats.abandoned_vm, ATOMIC_RELAXED));
 
 	for (szind_t i = 0; i < SC_NSIZES - SC_NBINS; i++) {
 		uint64_t nmalloc = arena_stats_read_u64(tsdn, &arena->stats,
@@ -149,6 +152,15 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 		    nmalloc + nrequests);
 		arena_stats_accum_u64(&astats->nrequests_large,
 		    nmalloc + nrequests);
+
+		/* nfill == nmalloc for large currently. */
+		arena_stats_accum_u64(&lstats[i].nfills, nmalloc);
+		arena_stats_accum_u64(&astats->nfills_large, nmalloc);
+
+		uint64_t nflush = arena_stats_read_u64(tsdn, &arena->stats,
+		    &arena->stats.lstats[i].nflushes);
+		arena_stats_accum_u64(&lstats[i].nflushes, nflush);
+		arena_stats_accum_u64(&astats->nflushes_large, nflush);
 
 		assert(nmalloc >= ndalloc);
 		assert(nmalloc - ndalloc <= SIZE_T_MAX);
@@ -1001,11 +1013,17 @@ static void
 arena_bin_slabs_nonfull_insert(bin_t *bin, extent_t *slab) {
 	assert(extent_nfree_get(slab) > 0);
 	extent_heap_insert(&bin->slabs_nonfull, slab);
+	if (config_stats) {
+		bin->stats.nonfull_slabs++;
+	}
 }
 
 static void
 arena_bin_slabs_nonfull_remove(bin_t *bin, extent_t *slab) {
 	extent_heap_remove(&bin->slabs_nonfull, slab);
+	if (config_stats) {
+		bin->stats.nonfull_slabs--;
+	}
 }
 
 static extent_t *
@@ -1016,6 +1034,7 @@ arena_bin_slabs_nonfull_tryget(bin_t *bin) {
 	}
 	if (config_stats) {
 		bin->stats.reslabs++;
+		bin->stats.nonfull_slabs--;
 	}
 	return slab;
 }
@@ -1531,11 +1550,15 @@ arena_palloc(tsdn_t *tsdn, arena_t *arena, size_t usize, size_t alignment,
 }
 
 void
-arena_prof_promote(tsdn_t *tsdn, const void *ptr, size_t usize) {
+arena_prof_promote(tsdn_t *tsdn, void *ptr, size_t usize) {
 	cassert(config_prof);
 	assert(ptr != NULL);
 	assert(isalloc(tsdn, ptr) == SC_LARGE_MINCLASS);
 	assert(usize <= SC_SMALL_MAXCLASS);
+
+	if (config_opt_safety_checks) {
+		safety_check_set_redzone(ptr, usize, SC_LARGE_MINCLASS);
+	}
 
 	rtree_ctx_t rtree_ctx_fallback;
 	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
@@ -1577,10 +1600,19 @@ arena_dalloc_promoted(tsdn_t *tsdn, void *ptr, tcache_t *tcache,
 	assert(opt_prof);
 
 	extent_t *extent = iealloc(tsdn, ptr);
-	size_t usize = arena_prof_demote(tsdn, extent, ptr);
-	if (usize <= tcache_maxclass) {
+	size_t usize = extent_usize_get(extent);
+	size_t bumped_usize = arena_prof_demote(tsdn, extent, ptr);
+	if (config_opt_safety_checks && usize < SC_LARGE_MINCLASS) {
+		/*
+		 * Currently, we only do redzoning for small sampled
+		 * allocations.
+		 */
+		assert(bumped_usize == SC_LARGE_MINCLASS);
+		safety_check_verify_redzone(ptr, usize, bumped_usize);
+	}
+	if (bumped_usize <= tcache_maxclass && tcache != NULL) {
 		tcache_dalloc_large(tsdn_tsd(tsdn), tcache, ptr,
-		    sz_size2index(usize), slow_path);
+		    sz_size2index(bumped_usize), slow_path);
 	} else {
 		large_dalloc(tsdn, extent);
 	}

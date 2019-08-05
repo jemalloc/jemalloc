@@ -4,6 +4,7 @@
 
 #include "jemalloc/internal/assert.h"
 #include "jemalloc/internal/mutex.h"
+#include "jemalloc/internal/safety_check.h"
 #include "jemalloc/internal/sc.h"
 
 /******************************************************************************/
@@ -101,7 +102,6 @@ tcache_alloc_small_hard(tsdn_t *tsdn, arena_t *arena, tcache_t *tcache,
 }
 
 /* Enabled with --enable-extra-size-check. */
-#ifdef JEMALLOC_EXTRA_SIZE_CHECK
 static void
 tbin_extents_lookup_size_check(tsdn_t *tsdn, cache_bin_t *tbin, szind_t binind,
     size_t nflush, extent_t **extents){
@@ -123,13 +123,12 @@ tbin_extents_lookup_size_check(tsdn_t *tsdn, cache_bin_t *tbin, szind_t binind,
 		sz_sum -= szind;
 	}
 	if (sz_sum != 0) {
-		malloc_printf("<jemalloc>: size mismatch in thread cache "
+		safety_check_fail("<jemalloc>: size mismatch in thread cache "
 		    "detected, likely caused by sized deallocation bugs by "
 		    "application. Abort.\n");
 		abort();
 	}
 }
-#endif
 
 void
 tcache_bin_flush_small(tsd_t *tsd, tcache_t *tcache, cache_bin_t *tbin,
@@ -144,15 +143,16 @@ tcache_bin_flush_small(tsd_t *tsd, tcache_t *tcache, cache_bin_t *tbin,
 	unsigned nflush = tbin->ncached - rem;
 	VARIABLE_ARRAY(extent_t *, item_extent, nflush);
 
-#ifndef JEMALLOC_EXTRA_SIZE_CHECK
 	/* Look up extent once per item. */
-	for (unsigned i = 0 ; i < nflush; i++) {
-		item_extent[i] = iealloc(tsd_tsdn(tsd), *(tbin->avail - 1 - i));
+	if (config_opt_safety_checks) {
+		tbin_extents_lookup_size_check(tsd_tsdn(tsd), tbin, binind,
+		    nflush, item_extent);
+	} else {
+		for (unsigned i = 0 ; i < nflush; i++) {
+			item_extent[i] = iealloc(tsd_tsdn(tsd),
+			    *(tbin->avail - 1 - i));
+		}
 	}
-#else
-	tbin_extents_lookup_size_check(tsd_tsdn(tsd), tbin, binind, nflush,
-	    item_extent);
-#endif
 	while (nflush > 0) {
 		/* Lock the arena bin associated with the first object. */
 		extent_t *extent = item_extent[0];
@@ -282,8 +282,8 @@ tcache_bin_flush_large(tsd_t *tsd, cache_bin_t *tbin, szind_t binind,
 			}
 			if (config_stats) {
 				merged_stats = true;
-				arena_stats_large_nrequests_add(tsd_tsdn(tsd),
-				    &tcache_arena->stats, binind,
+				arena_stats_large_flush_nrequests_add(
+				    tsd_tsdn(tsd), &tcache_arena->stats, binind,
 				    tbin->tstats.nrequests);
 				tbin->tstats.nrequests = 0;
 			}
@@ -324,7 +324,7 @@ tcache_bin_flush_large(tsd_t *tsd, cache_bin_t *tbin, szind_t binind,
 		 * The flush loop didn't happen to flush to this thread's
 		 * arena, so the stats didn't get merged.  Manually do so now.
 		 */
-		arena_stats_large_nrequests_add(tsd_tsdn(tsd),
+		arena_stats_large_flush_nrequests_add(tsd_tsdn(tsd),
 		    &tcache_arena->stats, binind, tbin->tstats.nrequests);
 		tbin->tstats.nrequests = 0;
 	}
@@ -615,7 +615,7 @@ tcache_stats_merge(tsdn_t *tsdn, tcache_t *tcache, arena_t *arena) {
 
 	for (; i < nhbins; i++) {
 		cache_bin_t *tbin = tcache_large_bin_get(tcache, i);
-		arena_stats_large_nrequests_add(tsdn, &arena->stats, i,
+		arena_stats_large_flush_nrequests_add(tsdn, &arena->stats, i,
 		    tbin->tstats.nrequests);
 		tbin->tstats.nrequests = 0;
 	}

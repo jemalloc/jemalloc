@@ -128,7 +128,11 @@ struct extent_s {
 #define EXTENT_BITS_BINSHARD_SHIFT  (EXTENT_BITS_NFREE_WIDTH + EXTENT_BITS_NFREE_SHIFT)
 #define EXTENT_BITS_BINSHARD_MASK  MASK(EXTENT_BITS_BINSHARD_WIDTH, EXTENT_BITS_BINSHARD_SHIFT)
 
-#define EXTENT_BITS_SN_SHIFT (EXTENT_BITS_BINSHARD_WIDTH + EXTENT_BITS_BINSHARD_SHIFT)
+#define EXTENT_BITS_IS_HEAD_WIDTH 1
+#define EXTENT_BITS_IS_HEAD_SHIFT  (EXTENT_BITS_BINSHARD_WIDTH + EXTENT_BITS_BINSHARD_SHIFT)
+#define EXTENT_BITS_IS_HEAD_MASK  MASK(EXTENT_BITS_IS_HEAD_WIDTH, EXTENT_BITS_IS_HEAD_SHIFT)
+
+#define EXTENT_BITS_SN_SHIFT   (EXTENT_BITS_IS_HEAD_WIDTH + EXTENT_BITS_IS_HEAD_SHIFT)
 #define EXTENT_BITS_SN_MASK  (UINT64_MAX << EXTENT_BITS_SN_SHIFT)
 
 	/* Pointer to the extent that this structure is responsible for. */
@@ -226,6 +230,27 @@ struct extents_s {
 	 * deallocation.
 	 */
 	bool			delay_coalesce;
+};
+
+/*
+ * The following two structs are for experimental purposes. See
+ * experimental_utilization_query_ctl and
+ * experimental_utilization_batch_query_ctl in src/ctl.c.
+ */
+
+struct extent_util_stats_s {
+	size_t nfree;
+	size_t nregs;
+	size_t size;
+};
+
+struct extent_util_stats_verbose_s {
+	void *slabcur_addr;
+	size_t nfree;
+	size_t nregs;
+	size_t size;
+	size_t bin_nfree;
+	size_t bin_nregs;
 };
 
 #endif /* JEMALLOC_INTERNAL_EXTENT_STRUCTS_H */

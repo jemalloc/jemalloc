@@ -103,5 +103,8 @@
     <ClCompile Include="..\..\..\..\src\test_hooks.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\..\src\safety_check.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>

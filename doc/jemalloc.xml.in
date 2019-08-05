@@ -424,7 +424,7 @@ for (i = 0; i < nbins; i++) {
       called repeatedly.  General information that never changes during
       execution can be omitted by specifying <quote>g</quote> as a character
       within the <parameter>opts</parameter> string.  Note that
-      <function>malloc_message()</function> uses the
+      <function>malloc_stats_print()</function> uses the
       <function>mallctl*()</function> functions internally, so inconsistent
       statistics can be reported if multiple threads use these functions
       simultaneously.  If <option>--enable-stats</option> is specified during
@@ -904,6 +904,23 @@ mallctl("arena." STRINGIFY(MALLCTL_ARENAS_ALL) ".decay",
         </para></listitem>
       </varlistentry>
 
+      <varlistentry id="opt.confirm_conf">
+        <term>
+          <mallctl>opt.confirm_conf</mallctl>
+          (<type>bool</type>)
+          <literal>r-</literal>
+        </term>
+	<listitem><para>Confirm-runtime-options-when-program-starts
+	enabled/disabled.  If true, the string specified via
+	<option>--with-malloc-conf</option>, the string pointed to by the
+	global variable <varname>malloc_conf</varname>, the <quote>name</quote>
+	of the file referenced by the symbolic link named
+	<filename class="symlink">/etc/malloc.conf</filename>, and the value of
+	the environment variable <envar>MALLOC_CONF</envar>, will be printed in
+	order.  Then, each option being set will be individually printed.  This
+	option is disabled by default.</para></listitem>
+      </varlistentry>
+
       <varlistentry id="opt.abort_conf">
         <term>
           <mallctl>opt.abort_conf</mallctl>
@@ -946,17 +963,17 @@ mallctl("arena." STRINGIFY(MALLCTL_ARENAS_ALL) ".decay",
         linkend="stats.retained">stats.retained</link> for related details).
         It also makes jemalloc use <citerefentry>
         <refentrytitle>mmap</refentrytitle><manvolnum>2</manvolnum>
-        </citerefentry> in a more greedy way, mapping larger chunks in one go.
-        This option is disabled by default unless discarding virtual memory is
-        known to trigger
-        platform-specific performance problems, e.g. for [64-bit] Linux, which
-        has a quirk in its virtual memory allocation algorithm that causes
-        semi-permanent VM map holes under normal jemalloc operation.  Although
-        <citerefentry><refentrytitle>munmap</refentrytitle>
-        <manvolnum>2</manvolnum></citerefentry> causes issues on 32-bit Linux as
-        well, retaining virtual memory for 32-bit Linux is disabled by default
-        due to the practical possibility of address space exhaustion.
-        </para></listitem>
+        </citerefentry> or equivalent in a more greedy way, mapping larger
+        chunks in one go.  This option is disabled by default unless discarding
+        virtual memory is known to trigger platform-specific performance
+        problems, namely 1) for [64-bit] Linux, which has a quirk in its virtual
+        memory allocation algorithm that causes semi-permanent VM map holes
+        under normal jemalloc operation; and 2) for [64-bit] Windows, which
+        disallows split / merged regions with
+        <parameter><constant>MEM_RELEASE</constant></parameter>.  Although the
+        same issues may present on 32-bit platforms as well, retaining virtual
+        memory for 32-bit Linux and Windows is disabled by default due to the
+        practical possibility of address space exhaustion.  </para></listitem>
       </varlistentry>
 
       <varlistentry id="opt.dss">
@@ -2798,6 +2815,28 @@ struct extent_hooks_s {
         all bin size classes.</para></listitem>
       </varlistentry>
 
+      <varlistentry id="stats.arenas.i.small.nfills">
+        <term>
+          <mallctl>stats.arenas.&lt;i&gt;.small.nfills</mallctl>
+          (<type>uint64_t</type>)
+          <literal>r-</literal>
+          [<option>--enable-stats</option>]
+        </term>
+        <listitem><para>Cumulative number of tcache fills by all small size
+	classes.</para></listitem>
+      </varlistentry>
+
+      <varlistentry id="stats.arenas.i.small.nflushes">
+        <term>
+          <mallctl>stats.arenas.&lt;i&gt;.small.nflushes</mallctl>
+          (<type>uint64_t</type>)
+          <literal>r-</literal>
+          [<option>--enable-stats</option>]
+        </term>
+        <listitem><para>Cumulative number of tcache flushes by all small size
+        classes.</para></listitem>
+      </varlistentry>
+
       <varlistentry id="stats.arenas.i.large.allocated">
         <term>
           <mallctl>stats.arenas.&lt;i&gt;.large.allocated</mallctl>
@@ -2846,6 +2885,28 @@ struct extent_hooks_s {
         </term>
         <listitem><para>Cumulative number of allocation requests satisfied by
         all large size classes.</para></listitem>
+      </varlistentry>
+
+      <varlistentry id="stats.arenas.i.large.nfills">
+        <term>
+          <mallctl>stats.arenas.&lt;i&gt;.large.nfills</mallctl>
+          (<type>uint64_t</type>)
+          <literal>r-</literal>
+          [<option>--enable-stats</option>]
+        </term>
+        <listitem><para>Cumulative number of tcache fills by all large size
+	classes.</para></listitem>
+      </varlistentry>
+
+      <varlistentry id="stats.arenas.i.large.nflushes">
+        <term>
+          <mallctl>stats.arenas.&lt;i&gt;.large.nflushes</mallctl>
+          (<type>uint64_t</type>)
+          <literal>r-</literal>
+          [<option>--enable-stats</option>]
+        </term>
+        <listitem><para>Cumulative number of tcache flushes by all large size
+        classes.</para></listitem>
       </varlistentry>
 
       <varlistentry id="stats.arenas.i.bins.j.nmalloc">
@@ -2945,6 +3006,17 @@ struct extent_hooks_s {
           [<option>--enable-stats</option>]
         </term>
         <listitem><para>Current number of slabs.</para></listitem>
+      </varlistentry>
+
+
+      <varlistentry id="stats.arenas.i.bins.j.nonfull_slabs">
+        <term>
+          <mallctl>stats.arenas.&lt;i&gt;.bins.&lt;j&gt;.nonfull_slabs</mallctl>
+          (<type>size_t</type>)
+          <literal>r-</literal>
+          [<option>--enable-stats</option>]
+        </term>
+        <listitem><para>Current number of nonfull slabs.</para></listitem>
       </varlistentry>
 
       <varlistentry id="stats.arenas.i.bins.mutex">

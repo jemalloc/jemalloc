@@ -86,10 +86,11 @@ emitter_printf(emitter_t *emitter, const char *format, ...) {
 	va_end(ap);
 }
 
-static inline void
+static inline const char * JEMALLOC_FORMAT_ARG(3)
 emitter_gen_fmt(char *out_fmt, size_t out_size, const char *fmt_specifier,
     emitter_justify_t justify, int width) {
 	size_t written;
+	fmt_specifier++;
 	if (justify == emitter_justify_none) {
 		written = malloc_snprintf(out_fmt, out_size,
 		    "%%%s", fmt_specifier);
@@ -102,6 +103,7 @@ emitter_gen_fmt(char *out_fmt, size_t out_size, const char *fmt_specifier,
 	}
 	/* Only happens in case of bad format string, which *we* choose. */
 	assert(written <  out_size);
+	return out_fmt;
 }
 
 /*
@@ -127,26 +129,27 @@ emitter_print_value(emitter_t *emitter, emitter_justify_t justify, int width,
 	char buf[BUF_SIZE];
 
 #define EMIT_SIMPLE(type, format)					\
-	emitter_gen_fmt(fmt, FMT_SIZE, format, justify, width);		\
-	emitter_printf(emitter, fmt, *(const type *)value);		\
+	emitter_printf(emitter,						\
+	    emitter_gen_fmt(fmt, FMT_SIZE, format, justify, width),	\
+	    *(const type *)value);
 
 	switch (value_type) {
 	case emitter_type_bool:
-		emitter_gen_fmt(fmt, FMT_SIZE, "s", justify, width);
-		emitter_printf(emitter, fmt, *(const bool *)value ?
-		    "true" : "false");
+		emitter_printf(emitter, 
+		    emitter_gen_fmt(fmt, FMT_SIZE, "%s", justify, width),
+		    *(const bool *)value ?  "true" : "false");
 		break;
 	case emitter_type_int:
-		EMIT_SIMPLE(int, "d")
+		EMIT_SIMPLE(int, "%d")
 		break;
 	case emitter_type_unsigned:
-		EMIT_SIMPLE(unsigned, "u")
+		EMIT_SIMPLE(unsigned, "%u")
 		break;
 	case emitter_type_ssize:
-		EMIT_SIMPLE(ssize_t, "zd")
+		EMIT_SIMPLE(ssize_t, "%zd")
 		break;
 	case emitter_type_size:
-		EMIT_SIMPLE(size_t, "zu")
+		EMIT_SIMPLE(size_t, "%zu")
 		break;
 	case emitter_type_string:
 		str_written = malloc_snprintf(buf, BUF_SIZE, "\"%s\"",
@@ -156,17 +159,17 @@ emitter_print_value(emitter_t *emitter, emitter_justify_t justify, int width,
 		 * anywhere near the fmt size.
 		 */
 		assert(str_written < BUF_SIZE);
-		emitter_gen_fmt(fmt, FMT_SIZE, "s", justify, width);
-		emitter_printf(emitter, fmt, buf);
+		emitter_printf(emitter, 
+		    emitter_gen_fmt(fmt, FMT_SIZE, "%s", justify, width), buf);
 		break;
 	case emitter_type_uint32:
-		EMIT_SIMPLE(uint32_t, FMTu32)
+		EMIT_SIMPLE(uint32_t, "%" FMTu32)
 		break;
 	case emitter_type_uint64:
-		EMIT_SIMPLE(uint64_t, FMTu64)
+		EMIT_SIMPLE(uint64_t, "%" FMTu64)
 		break;
 	case emitter_type_title:
-		EMIT_SIMPLE(char *const, "s");
+		EMIT_SIMPLE(char *const, "%s");
 		break;
 	default:
 		unreachable();
