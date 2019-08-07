@@ -160,6 +160,7 @@ prof_log_bt_index(tsd_t *tsd, prof_bt_t *bt) {
 		return node->index;
 	}
 }
+
 static size_t
 prof_log_thr_index(tsd_t *tsd, uint64_t thr_uid, const char *name) {
 	assert(prof_logging_state == prof_logging_state_started);
@@ -576,7 +577,7 @@ prof_log_emit_metadata(emitter_t *emitter) {
 	emitter_json_object_end(emitter);
 }
 
-
+#define PROF_LOG_STOP_BUFSIZE PROF_DUMP_BUFSIZE
 bool
 prof_log_stop(tsdn_t *tsdn) {
 	if (!opt_prof || !prof_booted) {
@@ -624,11 +625,18 @@ prof_log_stop(tsdn_t *tsdn) {
 		return true;
 	}
 
-	/* Emit to json. */
 	struct prof_emitter_cb_arg_s arg;
 	arg.fd = fd;
-	emitter_init(&emitter, emitter_output_json, &prof_emitter_write_cb,
-	    (void *)(&arg));
+
+	char *prof_log_stop_buf = (char *)iallocztm(tsdn,
+	    PROF_LOG_STOP_BUFSIZE, sz_size2index(PROF_LOG_STOP_BUFSIZE),
+	    false, NULL, true, arena_get(TSDN_NULL, 0, true), true);
+	buf_writer_arg_t prof_log_stop_buf_arg = {prof_emitter_write_cb, &arg,
+	    prof_log_stop_buf, PROF_LOG_STOP_BUFSIZE - 1, 0};
+
+	/* Emit to json. */
+	emitter_init(&emitter, emitter_output_json, buffered_write_cb,
+	    &prof_log_stop_buf_arg);
 
 	emitter_begin(&emitter);
 	prof_log_emit_metadata(&emitter);
@@ -636,6 +644,9 @@ prof_log_stop(tsdn_t *tsdn) {
 	prof_log_emit_traces(tsd, &emitter);
 	prof_log_emit_allocs(tsd, &emitter);
 	emitter_end(&emitter);
+
+	buf_writer_flush(&prof_log_stop_buf_arg);
+	idalloctm(tsdn, prof_log_stop_buf, NULL, NULL, true, true);
 
 	/* Reset global state. */
 	if (log_tables_initialized) {
@@ -661,8 +672,9 @@ prof_log_stop(tsdn_t *tsdn) {
 		return false;
 	}
 #endif
-	return close(fd);
+	return close(fd) || arg.ret == -1;
 }
+#undef PROF_LOG_STOP_BUFSIZE
 
 bool prof_log_init(tsd_t *tsd) {
 	if (opt_prof_log) {
