@@ -7,6 +7,11 @@
 #include "jemalloc/internal/hash.h"
 #include "jemalloc/internal/malloc_io.h"
 
+#ifdef __FreeBSD__
+#include <sys/sysctl.h>
+#include <sys/user.h>
+#endif
+
 /*
  * This file defines and manages the core profiling data structures.
  *
@@ -864,7 +869,7 @@ label_return:
 	return ret;
 }
 
-#ifndef _WIN32
+#if !defined(_WIN32) && !defined(__FreeBSD__)
 JEMALLOC_FORMAT_PRINTF(1, 2)
 static int
 prof_open_maps(const char *format, ...) {
@@ -892,11 +897,79 @@ prof_open_maps(const char *format, ...) {
 static bool
 prof_dump_maps(bool propagate_err) {
 	bool ret;
-	int mfd;
+	int mfd = -1;
 
 	cassert(config_prof);
 #ifdef __FreeBSD__
-	mfd = prof_open_maps("/proc/curproc/map");
+	int mib[4];
+	size_t sz;
+	char *buf;
+
+	mib[0] = CTL_KERN;
+	mib[1] = KERN_PROC;
+	mib[2] = KERN_PROC_VMMAP;
+	mib[3] = prof_getpid();
+	sz = 0;
+
+	if (prof_dump_write(propagate_err, "\nMAPPED_LIBRARIES:\n") &&
+	    propagate_err) {
+		ret = true;
+		goto label_return;
+	}
+
+	if (sysctl(mib, 4, NULL, &sz, NULL, 0) == -1) {
+		ret = true;
+		goto label_return;
+	}
+
+	/* Size for kinfo_vmentry */
+	sz = sz * 4 / 3;
+	buf = mmap(NULL, sz, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANON, -1, 0);
+
+	if (buf == MAP_FAILED) {
+		ret = true;
+		goto label_return;
+	}
+
+	if (sysctl(mib, 4, buf, &sz, NULL, 0) == -1) {
+		ret = true;
+		munmap(buf, sz);
+		goto label_return;
+	}
+
+	char *low = buf;
+	char *high = buf + sz;
+
+	while (low < high) {
+		/* paths + enough room for address ranges and permissions */
+		char map[PATH_MAX+68];
+		struct kinfo_vmentry *e = (struct kinfo_vmentry *)low;
+		size_t esz = e->kve_structsize;
+
+		if (esz == 0) {
+			ret = true;
+			goto label_return;
+		}
+
+		if (e->kve_path[0] == '\0') {
+			goto loop_cont;
+		}
+
+		malloc_snprintf(map, sizeof(map), "%.12lu-%.12lu %c%c%c %s\n",
+			 e->kve_start,
+			 e->kve_end,
+			 (e->kve_protection & KVME_PROT_READ ? 'r' : '-'),
+			 (e->kve_protection & KVME_PROT_WRITE ? 'w' : '-'),
+			 (e->kve_protection & KVME_PROT_EXEC ? 'x' : '-'),
+			 e->kve_path);
+		prof_dump_write(propagate_err, map);
+loop_cont:
+		low += esz;
+	}
+
+	munmap(buf, sz);
+	ret = false;
+	goto label_return;
 #elif defined(_WIN32)
 	mfd = -1; // Not implemented
 #else
