@@ -448,7 +448,7 @@ tsd_tcache_data_init(tsd_t *tsd) {
 	/* Avoid false cacheline sharing. */
 	size = sz_sa2u(size, CACHELINE);
 
-	void *avail_array = ipallocztm(tsd_tsdn(tsd), size, CACHELINE, true,
+	void *avail_array = ipallocztm(tsd_tsdn(tsd), size, CACHELINE, false,
 	    NULL, true, arena_get(TSDN_NULL, 0, true));
 	if (avail_array == NULL) {
 		return true;
