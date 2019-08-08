@@ -480,7 +480,7 @@ prof_log_emit_threads(tsd_t *tsd, emitter_t *emitter) {
 		emitter_json_object_end(emitter);
 		thr_old_node = thr_node;
 		thr_node = thr_node->next;
-		idalloc(tsd, thr_old_node);
+		idalloctm(tsd_tsdn(tsd), thr_old_node, NULL, NULL, true, true);
 	}
 	emitter_json_array_end(emitter);
 }
@@ -509,7 +509,7 @@ prof_log_emit_traces(tsd_t *tsd, emitter_t *emitter) {
 
 		bt_old_node = bt_node;
 		bt_node = bt_node->next;
-		idalloc(tsd, bt_old_node);
+		idalloctm(tsd_tsdn(tsd), bt_old_node, NULL, NULL, true, true);
 	}
 	emitter_json_array_end(emitter);
 }
@@ -547,7 +547,8 @@ prof_log_emit_allocs(tsd_t *tsd, emitter_t *emitter) {
 
 		alloc_old_node = alloc_node;
 		alloc_node = alloc_node->next;
-		idalloc(tsd, alloc_old_node);
+		idalloctm(tsd_tsdn(tsd), alloc_old_node, NULL, NULL, true,
+		    true);
 	}
 	emitter_json_array_end(emitter);
 }
