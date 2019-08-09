@@ -635,8 +635,8 @@ prof_log_stop(tsdn_t *tsdn) {
 	    prof_log_stop_buf, PROF_LOG_STOP_BUFSIZE - 1, 0};
 
 	/* Emit to json. */
-	emitter_init(&emitter, emitter_output_json, buffered_write_cb,
-	    &prof_log_stop_buf_arg);
+	emitter_init(&emitter, emitter_output_json_compact,
+	    buffered_write_cb, &prof_log_stop_buf_arg);
 
 	emitter_begin(&emitter);
 	prof_log_emit_metadata(&emitter);

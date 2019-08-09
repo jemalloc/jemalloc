@@ -1181,7 +1181,7 @@ stats_general_print(emitter_t *emitter) {
 	 * We do enough mallctls in a loop that we actually want to omit them
 	 * (not just omit the printing).
 	 */
-	if (emitter->output == emitter_output_json) {
+	if (emitter_outputs_json(emitter)) {
 		emitter_json_array_kv_begin(emitter, "bin");
 		for (unsigned i = 0; i < nbins; i++) {
 			emitter_json_object_begin(emitter);
@@ -1212,7 +1212,7 @@ stats_general_print(emitter_t *emitter) {
 	emitter_kv(emitter, "nlextents", "Number of large size classes",
 	    emitter_type_unsigned, &nlextents);
 
-	if (emitter->output == emitter_output_json) {
+	if (emitter_outputs_json(emitter)) {
 		emitter_json_array_kv_begin(emitter, "lextent");
 		for (unsigned i = 0; i < nlextents; i++) {
 			emitter_json_object_begin(emitter);
@@ -1437,8 +1437,8 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 
 	emitter_t emitter;
 	emitter_init(&emitter,
-	    json ? emitter_output_json : emitter_output_table, write_cb,
-	    cbopaque);
+	    json ? emitter_output_json_compact : emitter_output_table,
+	    write_cb, cbopaque);
 	emitter_begin(&emitter);
 	emitter_table_printf(&emitter, "___ Begin jemalloc statistics ___\n");
 	emitter_json_object_kv_begin(&emitter, "jemalloc");
