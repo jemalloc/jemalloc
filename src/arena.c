@@ -202,12 +202,13 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 		for (szind_t i = 0; i < SC_NBINS; i++) {
 			cache_bin_t *tbin = &descriptor->bins_small[i];
 			arena_stats_accum_zu(&astats->tcache_bytes,
-			    tbin->ncached * sz_index2size(i));
+			    cache_bin_ncached_get(tbin, i) * sz_index2size(i));
 		}
 		for (szind_t i = 0; i < nhbins - SC_NBINS; i++) {
 			cache_bin_t *tbin = &descriptor->bins_large[i];
 			arena_stats_accum_zu(&astats->tcache_bytes,
-			    tbin->ncached * sz_index2size(i));
+			    cache_bin_ncached_get(tbin, i + SC_NBINS) *
+			    sz_index2size(i));
 		}
 	}
 	malloc_mutex_prof_read(tsdn,
@@ -1381,7 +1382,7 @@ arena_tcache_fill_small(tsdn_t *tsdn, arena_t *arena, tcache_t *tcache,
     cache_bin_t *tbin, szind_t binind, uint64_t prof_accumbytes) {
 	unsigned i, nfill, cnt;
 
-	assert(tbin->ncached == 0);
+	assert(cache_bin_ncached_get(tbin, binind) == 0);
 
 	if (config_prof && arena_prof_accum(tsdn, arena, prof_accumbytes)) {
 		prof_idump(tsdn);
@@ -1390,6 +1391,7 @@ arena_tcache_fill_small(tsdn_t *tsdn, arena_t *arena, tcache_t *tcache,
 	unsigned binshard;
 	bin_t *bin = arena_bin_choose_lock(tsdn, arena, binind, &binshard);
 
+	void **empty_position = cache_bin_empty_position_get(tbin, binind);
 	for (i = 0, nfill = (tcache_bin_info[binind].ncached_max >>
 	    tcache->lg_fill_div[binind]); i < nfill; i += cnt) {
 		extent_t *slab;
@@ -1400,7 +1402,7 @@ arena_tcache_fill_small(tsdn_t *tsdn, arena_t *arena, tcache_t *tcache,
 				tofill : extent_nfree_get(slab);
 			arena_slab_reg_alloc_batch(
 			   slab, &bin_infos[binind], cnt,
-			   tbin->avail - nfill + i);
+			   empty_position - nfill + i);
 		} else {
 			cnt = 1;
 			void *ptr = arena_bin_malloc_hard(tsdn, arena, bin,
@@ -1412,18 +1414,18 @@ arena_tcache_fill_small(tsdn_t *tsdn, arena_t *arena, tcache_t *tcache,
 			 */
 			if (ptr == NULL) {
 				if (i > 0) {
-					memmove(tbin->avail - i,
-						tbin->avail - nfill,
+					memmove(empty_position - i,
+						empty_position - nfill,
 						i * sizeof(void *));
 				}
 				break;
 			}
 			/* Insert such that low regions get used first. */
-			*(tbin->avail - nfill + i) = ptr;
+			*(empty_position - nfill + i) = ptr;
 		}
 		if (config_fill && unlikely(opt_junk_alloc)) {
 			for (unsigned j = 0; j < cnt; j++) {
-				void* ptr = *(tbin->avail - nfill + i + j);
+				void* ptr = *(empty_position - nfill + i + j);
 				arena_alloc_junk_small(ptr, &bin_infos[binind],
 							true);
 			}
@@ -1437,7 +1439,7 @@ arena_tcache_fill_small(tsdn_t *tsdn, arena_t *arena, tcache_t *tcache,
 		tbin->tstats.nrequests = 0;
 	}
 	malloc_mutex_unlock(tsdn, &bin->lock);
-	tbin->ncached = i;
+	cache_bin_ncached_set(tbin, binind, i);
 	arena_decay_tick(tsdn, arena);
 }
 

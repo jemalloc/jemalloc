@@ -130,8 +130,8 @@ tcache_available(tsd_t *tsd) {
 	if (likely(tsd_tcache_enabled_get(tsd))) {
 		/* Associated arena == NULL implies tcache init in progress. */
 		assert(tsd_tcachep_get(tsd)->arena == NULL ||
-		    tcache_small_bin_get(tsd_tcachep_get(tsd), 0)->avail !=
-		    NULL);
+		    tcache_small_bin_get(tsd_tcachep_get(tsd), 0)->cur_ptr.ptr
+		    != NULL);
 		return true;
 	}
 
