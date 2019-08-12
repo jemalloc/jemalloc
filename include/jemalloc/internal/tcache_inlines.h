@@ -202,8 +202,8 @@ tcache_dalloc_large(tsd_t *tsd, tcache_t *tcache, void *ptr, szind_t binind,
 	bin = tcache_large_bin_get(tcache, binind);
 	bin_info = &tcache_bin_info[binind];
 	if (unlikely(bin->ncached == bin_info->ncached_max)) {
-		tcache_bin_flush_large(tsd, bin, binind,
-		    (bin_info->ncached_max >> 1), tcache);
+		tcache_bin_flush_large(tsd, tcache, bin, binind,
+		    (bin_info->ncached_max >> 1));
 	}
 	assert(bin->ncached < bin_info->ncached_max);
 	bin->ncached++;
