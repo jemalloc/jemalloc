@@ -201,13 +201,12 @@ tcache_dalloc_large(tsd_t *tsd, tcache_t *tcache, void *ptr, szind_t binind,
 
 	bin = tcache_large_bin_get(tcache, binind);
 	bin_info = &tcache_bin_info[binind];
-	if (unlikely(bin->ncached == bin_info->ncached_max)) {
+	if (unlikely(!cache_bin_dalloc_easy(bin, bin_info, ptr))) {
 		tcache_bin_flush_large(tsd, tcache, bin, binind,
 		    (bin_info->ncached_max >> 1));
+		bool ret = cache_bin_dalloc_easy(bin, bin_info, ptr);
+		assert(ret);
 	}
-	assert(bin->ncached < bin_info->ncached_max);
-	bin->ncached++;
-	*(bin->avail - bin->ncached) = ptr;
 
 	tcache_event(tsd, tcache);
 }
