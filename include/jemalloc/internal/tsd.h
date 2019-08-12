@@ -18,8 +18,8 @@
  * --- data accessed on tcache fast path: state, rtree_ctx, stats, prof ---
  * s: state
  * e: tcache_enabled
- * m: thread_allocated (config_stats)
- * f: thread_deallocated (config_stats)
+ * m: thread_allocated
+ * f: thread_deallocated
  * b: bytes_until_sample (config_prof)
  * p: prof_tdata (config_prof)
  * c: rtree_ctx (rtree cache accessed on deallocation)

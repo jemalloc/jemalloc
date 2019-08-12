@@ -1577,25 +1577,6 @@ label_return:								\
 	return ret;							\
 }
 
-#define CTL_TSD_RO_NL_CGEN(c, n, m, t)					\
-static int								\
-n##_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,	\
-    size_t *oldlenp, void *newp, size_t newlen) {			\
-	int ret;							\
-	t oldval;							\
-									\
-	if (!(c)) {							\
-		return ENOENT;						\
-	}								\
-	READONLY();							\
-	oldval = (m(tsd));						\
-	READ(oldval, t);						\
-									\
-	ret = 0;							\
-label_return:								\
-	return ret;							\
-}
-
 #define CTL_RO_CONFIG_GEN(n, t)						\
 static int								\
 n##_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, \
@@ -1859,14 +1840,10 @@ label_return:
 	return ret;
 }
 
-CTL_TSD_RO_NL_CGEN(config_stats, thread_allocated, tsd_thread_allocated_get,
-    uint64_t)
-CTL_TSD_RO_NL_CGEN(config_stats, thread_allocatedp, tsd_thread_allocatedp_get,
-    uint64_t *)
-CTL_TSD_RO_NL_CGEN(config_stats, thread_deallocated, tsd_thread_deallocated_get,
-    uint64_t)
-CTL_TSD_RO_NL_CGEN(config_stats, thread_deallocatedp,
-    tsd_thread_deallocatedp_get, uint64_t *)
+CTL_RO_NL_GEN(thread_allocated, tsd_thread_allocated_get(tsd), uint64_t)
+CTL_RO_NL_GEN(thread_allocatedp, tsd_thread_allocatedp_get(tsd), uint64_t *)
+CTL_RO_NL_GEN(thread_deallocated, tsd_thread_deallocated_get(tsd), uint64_t)
+CTL_RO_NL_GEN(thread_deallocatedp, tsd_thread_deallocatedp_get(tsd), uint64_t *)
 
 static int
 thread_tcache_enabled_ctl(tsd_t *tsd, const size_t *mib,
