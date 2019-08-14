@@ -809,6 +809,8 @@ background_thread_stats_read(tsdn_t *tsdn, background_thread_stats_t *stats) {
 		if (info->state != background_thread_stopped) {
 			num_runs += info->tot_n_runs;
 			nstime_add(&stats->run_interval, &info->tot_sleep_time);
+			malloc_mutex_prof_max_update(tsdn,
+				&stats->max_counter_per_thread, &info->mtx);
 		}
 		malloc_mutex_unlock(tsdn, &info->mtx);
 	}

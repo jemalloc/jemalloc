@@ -1113,6 +1113,8 @@ ctl_refresh(tsdn_t *tsdn) {
 		malloc_mutex_prof_read(tsdn,
 		    &ctl_stats->mutex_prof_data[global_prof_mutex_ctl],
 		    &ctl_mtx);
+		ctl_stats->mutex_prof_data[global_prof_mutex_max_per_bg] =
+			ctl_stats->background_thread.max_counter_per_thread;
 #undef READ_GLOBAL_MUTEX_PROF_DATA
 	}
 	ctl_arenas->epoch++;

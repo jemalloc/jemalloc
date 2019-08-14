@@ -285,4 +285,43 @@ malloc_mutex_prof_accum(tsdn_t *tsdn, mutex_prof_data_t *data,
 	data->n_lock_ops += source->n_lock_ops;
 }
 
+/* Compare the prof data and update to the maximum. */
+static inline void
+malloc_mutex_prof_max_update(tsdn_t *tsdn, mutex_prof_data_t *data,
+    malloc_mutex_t *mutex) {
+	mutex_prof_data_t *source = &mutex->prof_data;
+	/* Can only read holding the mutex. */
+	malloc_mutex_assert_owner(tsdn, mutex);
+
+	if (nstime_compare(&source->tot_wait_time, &data->tot_wait_time) > 0) {
+		nstime_copy(&data->tot_wait_time, &source->tot_wait_time);
+	}
+	if (nstime_compare(&source->max_wait_time, &data->max_wait_time) > 0) {
+		nstime_copy(&data->max_wait_time, &source->max_wait_time);
+	}
+	if (source->n_wait_times > data->n_wait_times) {
+		data->n_wait_times = source->n_wait_times;
+	}
+	if (source->n_spin_acquired > data->n_spin_acquired) {
+		data->n_spin_acquired = source->n_spin_acquired;
+	}
+	if (source->max_n_thds > data->max_n_thds) {
+		data->max_n_thds = source->max_n_thds;
+	}
+	uint32_t cur_n_waiting_thds = atomic_load_u32(&data->n_waiting_thds,
+		ATOMIC_RELAXED);
+	uint32_t source_n_waiting_thds = atomic_load_u32(&source->n_waiting_thds,
+		ATOMIC_RELAXED);
+	if (source_n_waiting_thds > cur_n_waiting_thds) {
+		atomic_store_u32(&data->n_waiting_thds, source_n_waiting_thds,
+			ATOMIC_RELAXED);
+	}
+	if (source->n_owner_switches > data->n_owner_switches) {
+		data->n_owner_switches = source->n_owner_switches;
+	}
+	if (source->n_lock_ops > data->n_lock_ops) {
+		data->n_lock_ops = source->n_lock_ops;
+	}
+}
+
 #endif /* JEMALLOC_INTERNAL_MUTEX_H */
