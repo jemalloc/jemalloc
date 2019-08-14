@@ -70,8 +70,7 @@ tcache_event_hard(tsd_t *tsd, tcache_t *tcache) {
 			 * Reduce fill count by 2X.  Limit lg_fill_div such that
 			 * the fill count is always at least 1.
 			 */
-			cache_bin_info_t *tbin_info = &tcache_bin_info[binind];
-			if ((tbin_info->ncached_max >>
+			if ((cache_bin_ncached_max_get(binind) >>
 			     (tcache->lg_fill_div[binind] + 1)) >= 1) {
 				tcache->lg_fill_div[binind]++;
 			}
@@ -431,8 +430,7 @@ tcache_bin_init(cache_bin_t *bin, szind_t ind, uintptr_t *stack_cur) {
 	 * adjacent prefetch).
 	 */
 	void *full_position = (void *)*stack_cur;
-	uint32_t bin_stack_size = tcache_bin_info[ind].ncached_max *
-	    sizeof(void *);
+	uint32_t bin_stack_size = tcache_bin_info[ind].stack_size;
 
 	*stack_cur += bin_stack_size;
 	void *empty_position = (void *)*stack_cur;
@@ -608,8 +606,8 @@ tcache_destroy(tsd_t *tsd, tcache_t *tcache, bool tsd_tcache) {
 		assert(cache_bin_ncached_get(bin, 0) == 0);
 		assert(cache_bin_empty_position_get(bin, 0) ==
 		    bin->cur_ptr.ptr);
-		void *avail_array = bin->cur_ptr.ptr -
-		    tcache_bin_info[0].ncached_max;
+		void *avail_array = (void *)((uintptr_t)bin->cur_ptr.ptr -
+		    tcache_bin_info[0].stack_size);
 		idalloctm(tsd_tsdn(tsd), avail_array, NULL, NULL, true, true);
 	} else {
 		/* Release both the tcache struct and avail array. */
@@ -810,27 +808,27 @@ tcache_boot(tsdn_t *tsdn) {
 	if (tcache_bin_info == NULL) {
 		return true;
 	}
-	unsigned i, stack_nelms;
-	stack_nelms = 0;
+	unsigned i, ncached_max;
+	total_stack_bytes = 0;
 	for (i = 0; i < SC_NBINS; i++) {
 		if ((bin_infos[i].nregs << 1) <= TCACHE_NSLOTS_SMALL_MIN) {
-			tcache_bin_info[i].ncached_max =
-			    TCACHE_NSLOTS_SMALL_MIN;
+			ncached_max = TCACHE_NSLOTS_SMALL_MIN;
 		} else if ((bin_infos[i].nregs << 1) <=
 		    TCACHE_NSLOTS_SMALL_MAX) {
-			tcache_bin_info[i].ncached_max =
-			    (bin_infos[i].nregs << 1);
+			ncached_max = bin_infos[i].nregs << 1;
 		} else {
-			tcache_bin_info[i].ncached_max =
-			    TCACHE_NSLOTS_SMALL_MAX;
+			ncached_max = TCACHE_NSLOTS_SMALL_MAX;
 		}
-		stack_nelms += tcache_bin_info[i].ncached_max;
+		unsigned stack_size = ncached_max * sizeof(void *);
+		tcache_bin_info[i].stack_size = stack_size;
+		total_stack_bytes += stack_size;
 	}
 	for (; i < nhbins; i++) {
-		tcache_bin_info[i].ncached_max = TCACHE_NSLOTS_LARGE;
-		stack_nelms += tcache_bin_info[i].ncached_max;
+		unsigned stack_size = TCACHE_NSLOTS_LARGE * sizeof(void *);
+		tcache_bin_info[i].stack_size = stack_size;
+		total_stack_bytes += stack_size;
 	}
-	total_stack_bytes = stack_nelms * sizeof(void *) + total_stack_padding;
+	total_stack_bytes += total_stack_padding;
 
 	return false;
 }

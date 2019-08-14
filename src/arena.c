@@ -1392,7 +1392,7 @@ arena_tcache_fill_small(tsdn_t *tsdn, arena_t *arena, tcache_t *tcache,
 	bin_t *bin = arena_bin_choose_lock(tsdn, arena, binind, &binshard);
 
 	void **empty_position = cache_bin_empty_position_get(tbin, binind);
-	for (i = 0, nfill = (tcache_bin_info[binind].ncached_max >>
+	for (i = 0, nfill = (cache_bin_ncached_max_get(binind) >>
 	    tcache->lg_fill_div[binind]); i < nfill; i += cnt) {
 		extent_t *slab;
 		if ((slab = bin->slabcur) != NULL && extent_nfree_get(slab) >
