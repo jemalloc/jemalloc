@@ -794,9 +794,11 @@ background_thread_stats_read(tsdn_t *tsdn, background_thread_stats_t *stats) {
 		return true;
 	}
 
-	stats->num_threads = n_background_threads;
-	uint64_t num_runs = 0;
 	nstime_init(&stats->run_interval, 0);
+	memset(&stats->max_counter_per_bg_thd, 0, sizeof(mutex_prof_data_t));
+
+	uint64_t num_runs = 0;
+	stats->num_threads = n_background_threads;
 	for (unsigned i = 0; i < max_background_threads; i++) {
 		background_thread_info_t *info = &background_thread_info[i];
 		if (malloc_mutex_trylock(tsdn, &info->mtx)) {
@@ -809,6 +811,8 @@ background_thread_stats_read(tsdn_t *tsdn, background_thread_stats_t *stats) {
 		if (info->state != background_thread_stopped) {
 			num_runs += info->tot_n_runs;
 			nstime_add(&stats->run_interval, &info->tot_sleep_time);
+			malloc_mutex_prof_max_update(tsdn,
+			    &stats->max_counter_per_bg_thd, &info->mtx);
 		}
 		malloc_mutex_unlock(tsdn, &info->mtx);
 	}

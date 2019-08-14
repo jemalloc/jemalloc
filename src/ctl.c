@@ -1042,6 +1042,9 @@ ctl_background_thread_stats_read(tsdn_t *tsdn) {
 		memset(stats, 0, sizeof(background_thread_stats_t));
 		nstime_init(&stats->run_interval, 0);
 	}
+	malloc_mutex_prof_copy(
+	    &ctl_stats->mutex_prof_data[global_prof_mutex_max_per_bg_thd],
+	    &stats->max_counter_per_bg_thd);
 }
 
 static void

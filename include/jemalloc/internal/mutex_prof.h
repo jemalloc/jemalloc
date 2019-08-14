@@ -7,6 +7,7 @@
 
 #define MUTEX_PROF_GLOBAL_MUTEXES					\
     OP(background_thread)						\
+    OP(max_per_bg_thd)							\
     OP(ctl)								\
     OP(prof)								\
     OP(prof_thds_data)							\
