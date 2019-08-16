@@ -583,7 +583,7 @@ if test ! -e "${objroot}VERSION" ; then
   if test ! -e "${srcroot}VERSION" ; then
     AC_MSG_RESULT(
       [Missing VERSION file, and unable to generate it; creating bogus VERSION])
-    echo "0.0.0-0-g0000000000000000000000000000000000000000" > "${objroot}VERSION"
+    echo "0.0.0-0-g000000missing_version_try_git_fetch_tags" > "${objroot}VERSION"
   else
     cp ${srcroot}VERSION ${objroot}VERSION
   fi
