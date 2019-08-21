@@ -17,8 +17,8 @@ cache_bin_info_t	*tcache_bin_info;
 /*
  * For the total bin stack region (per tcache), reserve 2 more slots so that 1)
  * the empty position can be safely read on the fast path before checking
- * "is_empty"; and 2) the low_water == -1 case can go beyond the empty position
- * by 1 step safely (i.e. no overflow).
+ * "is_empty"; and 2) the cur_ptr can go beyond the empty position by 1 step
+ * safely on the fast path (i.e. no overflow).
  */
 static const unsigned total_stack_padding = sizeof(void *) * 2;
 
@@ -49,12 +49,14 @@ tcache_salloc(tsdn_t *tsdn, const void *ptr) {
 void
 tcache_event_hard(tsd_t *tsd, tcache_t *tcache) {
 	szind_t binind = tcache->next_gc_bin;
-
 	cache_bin_t *tbin;
+	bool is_small;
 	if (binind < SC_NBINS) {
 		tbin = tcache_small_bin_get(tcache, binind);
+		is_small = true;
 	} else {
 		tbin = tcache_large_bin_get(tcache, binind);
+		is_small = false;
 	}
 
 	cache_bin_sz_t low_water = cache_bin_low_water_get(tbin, binind);
@@ -63,7 +65,8 @@ tcache_event_hard(tsd_t *tsd, tcache_t *tcache) {
 		/*
 		 * Flush (ceiling) 3/4 of the objects below the low water mark.
 		 */
-		if (binind < SC_NBINS) {
+		if (is_small) {
+			assert(!tcache->bin_refilled[binind]);
 			tcache_bin_flush_small(tsd, tcache, tbin, binind,
 			    ncached - low_water + (low_water >> 2));
 			/*
@@ -78,15 +81,16 @@ tcache_event_hard(tsd_t *tsd, tcache_t *tcache) {
 			tcache_bin_flush_large(tsd, tcache, tbin, binind,
 			     ncached - low_water + (low_water >> 2));
 		}
-	} else if (low_water < 0) {
-		assert(low_water == -1);
+	} else if (is_small && tcache->bin_refilled[binind]) {
+		assert(low_water == 0);
 		/*
 		 * Increase fill count by 2X for small bins.  Make sure
 		 * lg_fill_div stays greater than 0.
 		 */
-		if (binind < SC_NBINS && tcache->lg_fill_div[binind] > 1) {
+		if (tcache->lg_fill_div[binind] > 1) {
 			tcache->lg_fill_div[binind]--;
 		}
+		tcache->bin_refilled[binind] = false;
 	}
 	tbin->low_water_position = tbin->cur_ptr.lowbits;
 
@@ -472,6 +476,7 @@ tcache_init(tsd_t *tsd, tcache_t *tcache, void *avail_stack) {
 	uintptr_t stack_cur = (uintptr_t)avail_stack;
 	for (; i < SC_NBINS; i++) {
 		tcache->lg_fill_div[i] = 1;
+		tcache->bin_refilled[i] = false;
 		cache_bin_t *bin = tcache_small_bin_get(tcache, i);
 		tcache_bin_init(bin, i, &stack_cur);
 	}

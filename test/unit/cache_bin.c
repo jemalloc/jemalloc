@@ -23,7 +23,7 @@ TEST_BEGIN(test_cache_bin) {
 	bool success;
 	void *ret = cache_bin_alloc_easy(bin, &success, 0);
 	assert_false(success, "Empty cache bin should not alloc");
-	assert_true(cache_bin_low_water_get(bin, 0) == - 1,
+	assert_true(cache_bin_low_water_get(bin, 0) == 0,
 	    "Incorrect low water mark");
 
 	cache_bin_ncached_set(bin, 0, 0);
