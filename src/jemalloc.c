@@ -2356,13 +2356,15 @@ je_malloc(size_t size) {
 			/*
 			 * Avoid a prof_active check on the fastpath.
 			 * If prof_active is false, set bytes_until_sample to
-			 * a large value.  If prof_active is set to true,
+			 * sampling interval.  If prof_active is set to true,
 			 * bytes_until_sample will be reset.
 			 */
-			if (!prof_active) {
-				tsd_bytes_until_sample_set(tsd, SSIZE_MAX);
+			if (!prof_active_get_unlocked()) {
+				tsd_bytes_until_sample_set(tsd,
+				    ((uint64_t)1U << lg_prof_sample));
+			} else {
+				return malloc_default(size);
 			}
-			return malloc_default(size);
 		}
 	}
 
