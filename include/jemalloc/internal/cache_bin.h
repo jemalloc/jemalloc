@@ -56,7 +56,7 @@ struct cache_bin_s {
 	 * 2) full points to the top of the stack (i.e. ncached == ncached_max),
 	 * which is compared against on free_fastpath to check "is_full".
 	 * 3) low_water indicates a low water mark of ncached.
-	 * Range of low_water is [cur, empty + 1], i.e. values of [ncached, -1].
+	 * Range of low_water is [cur, empty], i.e. values of [ncached, 0].
 	 *
 	 * The empty position (ncached == 0) is derived via full + ncached_max
 	 * and not accessed in the common case (guarded behind low_water).
@@ -87,9 +87,7 @@ struct cache_bin_s {
 	cache_bin_stats_t tstats;
 	/*
 	 * Points to the first item that hasn't been used since last GC, to
-	 * track the low water mark (min # of cached).  It may point to
-	 * empty_position + 1, which indicates the cache has been depleted and
-	 * refilled (low_water == -1).
+	 * track the low water mark (min # of cached).
 	 */
 	uint32_t low_water_position;
 	/*
@@ -165,7 +163,7 @@ cache_bin_low_water_get(cache_bin_t *bin, szind_t ind) {
 	cache_bin_sz_t ncached_max = cache_bin_ncached_max_get(ind);
 	cache_bin_sz_t low_water = ncached_max -
 	    (bin->low_water_position - bin->full_position) / sizeof(void *);
-	assert(low_water >= -1 && low_water <= ncached_max);
+	assert(low_water >= 0 && low_water <= ncached_max);
 	assert(low_water <= cache_bin_ncached_get(bin, ind));
 	assert(bin->low_water_position >= bin->cur_ptr.lowbits);
 
@@ -200,16 +198,17 @@ cache_bin_alloc_easy(cache_bin_t *bin, bool *success, cache_bin_sz_t ind) {
 	 * branch.  This also avoids accessing tcache_bin_info (which is on a
 	 * separate cacheline / page) in the common case.
 	 */
-	if (unlikely(bin->cur_ptr.lowbits >= bin->low_water_position)) {
-		bin->low_water_position = bin->cur_ptr.lowbits;
+	if (unlikely(bin->cur_ptr.lowbits > bin->low_water_position)) {
 		uint32_t empty_position = bin->full_position +
 		    tcache_bin_info[ind].stack_size;
-		if (bin->cur_ptr.lowbits > empty_position) {
+		if (unlikely(bin->cur_ptr.lowbits > empty_position)) {
+			/* Over-allocated; revert. */
 			bin->cur_ptr.ptr--;
 			assert(bin->cur_ptr.lowbits == empty_position);
 			*success = false;
 			return NULL;
 		}
+		bin->low_water_position = bin->cur_ptr.lowbits;
 	}
 
 	/*

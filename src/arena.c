@@ -1383,10 +1383,10 @@ arena_tcache_fill_small(tsdn_t *tsdn, arena_t *arena, tcache_t *tcache,
 	unsigned i, nfill, cnt;
 
 	assert(cache_bin_ncached_get(tbin, binind) == 0);
-
 	if (config_prof && arena_prof_accum(tsdn, arena, prof_accumbytes)) {
 		prof_idump(tsdn);
 	}
+	tcache->bin_refilled[binind] = true;
 
 	unsigned binshard;
 	bin_t *bin = arena_bin_choose_lock(tsdn, arena, binind, &binshard);
