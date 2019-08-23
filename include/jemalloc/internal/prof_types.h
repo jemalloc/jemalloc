@@ -53,4 +53,12 @@ typedef struct prof_tdata_s prof_tdata_t;
 #define PROF_TDATA_STATE_PURGATORY	((prof_tdata_t *)(uintptr_t)2)
 #define PROF_TDATA_STATE_MAX		PROF_TDATA_STATE_PURGATORY
 
+/*
+ * Maximum threshold on thread_allocated for triggering sampling.
+ * If the threshold is at least SC_LOOKUP_MAXCLASS below UINT64_MAX, then there
+ * is no need to check about overflow in malloc fast path, because the
+ * allocation size in malloc fast path never exceeds SC_LOOKUP_MAXCLASS.
+ */
+#define PROF_THREAD_ALLOCATED_SAMPLE_MAX (UINT64_MAX - SC_LOOKUP_MAXCLASS)
+
 #endif /* JEMALLOC_INTERNAL_PROF_TYPES_H */

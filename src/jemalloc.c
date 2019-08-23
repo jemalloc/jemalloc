@@ -2110,17 +2110,22 @@ imalloc_body(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd) {
 	/* If profiling is on, get our profiling context. */
 	if (config_prof && opt_prof) {
 		/*
-		 * The fast path modifies bytes_until_sample regardless of
-		 * prof_active.  We reset it to be the sample interval, so that
-		 * there won't be excessive routings to the slow path, and that
-		 * when prof_active is turned on later, the counting for
-		 * sampling can immediately resume as normal (though the very
-		 * first sampling interval is not randomized).
+		 * The fast path tests thread_allocated + usize against
+		 * thread_allocated_sample regardless of prof_active.  When
+		 * prof_active is off, we reset thread_allocated_sample, so
+		 * that there won't be excessive routings to the slow path, and
+		 * that when prof_active is turned back on later, the counting
+		 * for sampling can immediately resume as normal (though the
+		 * very first sampling interval is not randomized).
 		 */
-		if (unlikely(tsd_bytes_until_sample_get(tsd) < 0) &&
+		if (unlikely(tsd_thread_allocated_get(tsd) + usize >
+		    tsd_thread_allocated_sample_get(tsd)) &&
 		    !prof_active_get_unlocked()) {
-			tsd_bytes_until_sample_set(tsd,
-			    (ssize_t)(1 << lg_prof_sample));
+			uint64_t delay = usize +
+			    (uint64_t)(1U << lg_prof_sample);
+			prof_sample_delay(tsd,
+			    /* Be careful of overflow. */
+			    delay >= usize ? delay : UINT64_MAX);
 		}
 
 		prof_tctx_t *tctx = prof_alloc_prep(
@@ -2147,13 +2152,15 @@ imalloc_body(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd) {
 	} else {
 		assert(!opt_prof);
 		/*
-		 * The fast path modifies bytes_until_sample regardless of
-		 * opt_prof.  We reset it to a huge value here, so as to
-		 * minimize the triggering for slow path.
+		 * The fast path tests thread_allocated + usize against
+		 * thread_allocated_sample regardless of opt_prof.  When
+		 * opt_prof is off, we reset thread_allocated_sample to a huge
+		 * value here, so as to minimize the triggering for slow path.
 		 */
 		if (config_prof &&
-		    unlikely(tsd_bytes_until_sample_get(tsd) < 0)) {
-			tsd_bytes_until_sample_set(tsd, SSIZE_MAX);
+		    unlikely(tsd_thread_allocated_get(tsd) + usize >
+		    tsd_thread_allocated_sample_get(tsd))) {
+			prof_sample_delay(tsd, UINT64_MAX);
 		}
 		allocation = imalloc_no_sample(sopts, dopts, tsd, size, usize,
 		    ind);
@@ -2346,7 +2353,12 @@ je_malloc(size_t size) {
 	}
 
 	szind_t ind = sz_size2index_lookup(size);
-	/* usize is always needed to increment thread_allocated. */
+	/*
+	 * The thread_allocated counter in tsd serves as a general purpose
+	 * accumulator for bytes of allocation to trigger different types of
+	 * events.  usize is always needed to advance thread_allocated, though
+	 * it's not always needed in the core allocation logic.
+	 */
 	size_t usize = sz_index2size(ind);
 	/*
 	 * Fast path relies on size being a bin.
@@ -2355,16 +2367,14 @@ je_malloc(size_t size) {
 	assert(ind < SC_NBINS);
 	assert(size <= SC_SMALL_MAXCLASS);
 
+	uint64_t thread_allocated = tsd_thread_allocated_get(tsd);
 	if (config_prof) {
-		int64_t bytes_until_sample = tsd_bytes_until_sample_get(tsd);
-		bytes_until_sample -= usize;
-		tsd_bytes_until_sample_set(tsd, bytes_until_sample);
-
-		if (unlikely(bytes_until_sample < 0)) {
+		if (unlikely(thread_allocated + usize >
+		    tsd_thread_allocated_sample_get(tsd))) {
 			/*
 			 * Avoid a prof_active check on the fastpath.
-			 * If prof_active is false, bytes_until_sample will be
-			 * reset in slow path.
+			 * If prof_active is false, thread_allocated_sample
+			 * will be reset in slow path.
 			 */
 			return malloc_default(size);
 		}
@@ -2375,7 +2385,7 @@ je_malloc(size_t size) {
 	void *ret = cache_bin_alloc_easy(bin, &tcache_success, ind);
 
 	if (tcache_success) {
-		*tsd_thread_allocatedp_get(tsd) += usize;
+		tsd_thread_allocated_set(tsd, thread_allocated + usize);
 		if (config_stats) {
 			bin->tstats.nrequests++;
 		}

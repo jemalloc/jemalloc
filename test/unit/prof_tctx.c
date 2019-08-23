@@ -24,7 +24,7 @@ TEST_BEGIN(test_prof_realloc) {
 
 	q = rallocx(p, 2048, flags);
 	assert_ptr_ne(p, q, "Expected move");
-	assert_ptr_not_null(p, "Unexpected rmallocx() failure");
+	assert_ptr_not_null(q, "Unexpected rmallocx() failure");
 	tctx_q = prof_tctx_get(tsdn, q, NULL);
 	assert_ptr_ne(tctx_q, (prof_tctx_t *)(uintptr_t)1U,
 	    "Expected valid tctx");

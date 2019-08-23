@@ -79,22 +79,80 @@ prof_alloc_time_set(tsdn_t *tsdn, const void *ptr, alloc_ctx_t *alloc_ctx,
 	arena_prof_alloc_time_set(tsdn, ptr, alloc_ctx, t);
 }
 
+JEMALLOC_ALWAYS_INLINE void
+prof_sample_assert(tsd_t *tsd) {
+	cassert(config_prof);
+
+	if (opt_prof && prof_active_get_unlocked() && tsd_nominal(tsd)) {
+		assert(tsd_thread_allocated_get(tsd) <=
+		    tsd_thread_allocated_sample_get(tsd));
+		assert(tsd_thread_allocated_sample_get(tsd) <=
+		    PROF_THREAD_ALLOCATED_SAMPLE_MAX);
+	}
+}
+
+JEMALLOC_ALWAYS_INLINE void
+prof_sample_delay(tsd_t *tsd, uint64_t delay) {
+	prof_sample_assert(tsd);
+
+	if (!tsd_nominal(tsd)) {
+		return;
+	}
+
+	const uint64_t thread_allocated = tsd_thread_allocated_get(tsd);
+	const uint64_t threshold = tsd_thread_allocated_sample_get(tsd);
+	uint64_t threshold_after = threshold + delay;
+
+	if (likely(threshold_after >= threshold &&
+	    threshold_after <= PROF_THREAD_ALLOCATED_SAMPLE_MAX)) {
+		goto label_return;
+	}
+
+	/*
+	 * Manually rollover thread_allocated and thread_allocated_sample
+	 * to avoid overflow.
+	 */
+
+	/*
+	 * Note that in general we should be avoid overwriting
+	 * thread_allocated, because it's a general purpose accumulator of
+	 * allocation bytes and other places can depend on it for triggering
+	 * various events.  We only overwrite it when there'd be correctness
+	 * issue otherwise (e.g. right here).
+	 */
+	tsd_thread_allocated_set(tsd, 0);
+
+	if (threshold_after >= thread_allocated &&
+	    threshold_after < threshold) {
+		threshold_after = PROF_THREAD_ALLOCATED_SAMPLE_MAX;
+		goto label_return;
+	}
+
+	/* threshold_after may underflow but it's intentional. */
+	threshold_after -= thread_allocated;
+
+	if (threshold_after > PROF_THREAD_ALLOCATED_SAMPLE_MAX) {
+		threshold_after = PROF_THREAD_ALLOCATED_SAMPLE_MAX;
+	}
+
+label_return:
+	tsd_thread_allocated_sample_set(tsd, threshold_after);
+	prof_sample_assert(tsd);
+}
+
 JEMALLOC_ALWAYS_INLINE bool
-prof_sample_check(tsd_t *tsd, size_t usize, bool update) {
-	ssize_t check = update ? 0 : usize;
-
-	int64_t bytes_until_sample = tsd_bytes_until_sample_get(tsd);
-	if (update) {
-		bytes_until_sample -= usize;
-		if (tsd_nominal(tsd)) {
-			tsd_bytes_until_sample_set(tsd, bytes_until_sample);
-		}
-	}
-	if (likely(bytes_until_sample >= check)) {
+prof_sample_check(tsd_t *tsd, size_t usize) {
+	const uint64_t thread_allocated = tsd_thread_allocated_get(tsd);
+	const uint64_t thread_allocated_after = thread_allocated + usize;
+	if (likely(
+	    /* Haven't reached the sample threshold yet ... */
+	    thread_allocated_after <= tsd_thread_allocated_sample_get(tsd)
+	    /* ... and there was no overflow. */
+	    && thread_allocated <= thread_allocated_after)) {
 		return true;
+	} else {
+		return false;
 	}
-
-	return false;
 }
 
 JEMALLOC_ALWAYS_INLINE bool
@@ -105,7 +163,7 @@ prof_sample_accum_update(tsd_t *tsd, size_t usize, bool update,
 	cassert(config_prof);
 
 	/* Fastpath: no need to load tdata */
-	if (likely(prof_sample_check(tsd, usize, update))) {
+	if (likely(prof_sample_check(tsd, usize))) {
 		return true;
 	}
 
@@ -124,11 +182,10 @@ prof_sample_accum_update(tsd_t *tsd, size_t usize, bool update,
 	}
 
 	/*
-	 * If this was the first creation of tdata, then
-	 * prof_tdata_get() reset bytes_until_sample, so decrement and
-	 * check it again
+	 * If this was the first creation of tdata, then prof_tdata_get() reset
+	 * thread_allocated_sample, so check again.
 	 */
-	if (!booted && prof_sample_check(tsd, usize, update)) {
+	if (!booted && prof_sample_check(tsd, usize)) {
 		return true;
 	}
 
@@ -137,7 +194,7 @@ prof_sample_accum_update(tsd_t *tsd, size_t usize, bool update,
 	}
 	/* Compute new sample threshold. */
 	if (update) {
-		prof_sample_threshold_update(tdata);
+		prof_sample_threshold_update(tdata, usize);
 	}
 	return !tdata->active;
 }

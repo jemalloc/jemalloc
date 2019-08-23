@@ -100,7 +100,7 @@ void prof_prefork0(tsdn_t *tsdn);
 void prof_prefork1(tsdn_t *tsdn);
 void prof_postfork_parent(tsdn_t *tsdn);
 void prof_postfork_child(tsdn_t *tsdn);
-void prof_sample_threshold_update(prof_tdata_t *tdata);
+void prof_sample_threshold_update(prof_tdata_t *tdata, size_t delay);
 
 void prof_try_log(tsd_t *tsd, const void *ptr, size_t usize, prof_tctx_t *tctx);
 bool prof_log_start(tsdn_t *tsdn, const char *filename);

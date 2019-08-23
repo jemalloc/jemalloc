@@ -20,7 +20,7 @@
  * e: tcache_enabled
  * m: thread_allocated
  * f: thread_deallocated
- * b: bytes_until_sample (config_prof)
+ * b: thread_allocated_sample (config_prof)
  * p: prof_tdata (config_prof)
  * c: rtree_ctx (rtree cache accessed on deallocation)
  * t: tcache
@@ -73,7 +73,7 @@ typedef void (*test_callback_t)(int *);
     O(offset_state,		uint64_t,		uint64_t)	\
     O(thread_allocated,		uint64_t,		uint64_t)	\
     O(thread_deallocated,	uint64_t,		uint64_t)	\
-    O(bytes_until_sample,	int64_t,		int64_t)	\
+    O(thread_allocated_sample,	uint64_t,		uint64_t)	\
     O(prof_tdata,		prof_tdata_t *,		prof_tdata_t *)	\
     O(rtree_ctx,		rtree_ctx_t,		rtree_ctx_t)	\
     O(iarena,			arena_t *,		arena_t *)	\

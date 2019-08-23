@@ -143,7 +143,7 @@ prof_alloc_rollback(tsd_t *tsd, prof_tctx_t *tctx, bool updated) {
 		 */
 		tdata = prof_tdata_get(tsd, true);
 		if (tdata != NULL) {
-			prof_sample_threshold_update(tdata);
+			prof_sample_threshold_update(tdata, 0);
 		}
 	}
 
@@ -455,14 +455,18 @@ prof_tdata_mutex_choose(uint64_t thr_uid) {
  * -mno-sse) in order for the workaround to be complete.
  */
 void
-prof_sample_threshold_update(prof_tdata_t *tdata) {
+prof_sample_threshold_update(prof_tdata_t *tdata, size_t delay) {
 #ifdef JEMALLOC_PROF
+
 	if (!config_prof) {
 		return;
 	}
 
+	tsd_t *tsd = tsd_fetch();
+	tsd_thread_allocated_sample_set(tsd, tsd_thread_allocated_get(tsd));
+
 	if (lg_prof_sample == 0) {
-		tsd_bytes_until_sample_set(tsd_fetch(), 0);
+		prof_sample_delay(tsd, delay);
 		return;
 	}
 
@@ -470,11 +474,11 @@ prof_sample_threshold_update(prof_tdata_t *tdata) {
 	 * Compute sample interval as a geometrically distributed random
 	 * variable with mean (2^lg_prof_sample).
 	 *
-	 *                             __        __
-	 *                             |  log(u)  |                     1
-	 * tdata->bytes_until_sample = | -------- |, where p = ---------------
-	 *                             | log(1-p) |             lg_prof_sample
-	 *                                                     2
+	 *                      __        __
+	 *                      |  log(u)  |                   1
+	 * bytes_until_sample = | -------- |, where p = ---------------
+	 *                      | log(1-p) |             lg_prof_sample
+	 *                                              2
 	 *
 	 * For more information on the math, see:
 	 *
@@ -489,10 +493,11 @@ prof_sample_threshold_update(prof_tdata_t *tdata) {
 	uint64_t bytes_until_sample = (uint64_t)(log(u) /
 	    log(1.0 - (1.0 / (double)((uint64_t)1U << lg_prof_sample))))
 	    + (uint64_t)1U;
-	if (bytes_until_sample > SSIZE_MAX) {
-		bytes_until_sample = SSIZE_MAX;
-	}
-	tsd_bytes_until_sample_set(tsd_fetch(), bytes_until_sample);
+
+	delay += bytes_until_sample;
+	prof_sample_delay(tsd,
+	    /* Be careful of overflow. */
+	    delay >= bytes_until_sample ? delay : UINT64_MAX);
 
 #endif
 }

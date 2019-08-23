@@ -1226,7 +1226,7 @@ prof_tdata_init_impl(tsd_t *tsd, uint64_t thr_uid, uint64_t thr_discrim,
 	}
 
 	tdata->prng_state = (uint64_t)(uintptr_t)tdata;
-	prof_sample_threshold_update(tdata);
+	prof_sample_threshold_update(tdata, 0);
 
 	tdata->enq = false;
 	tdata->enq_idump = false;
