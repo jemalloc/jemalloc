@@ -492,8 +492,16 @@ tcache_init(tsd_t *tsd, tcache_t *tcache, void *avail_stack) {
 
 static size_t
 tcache_bin_stack_alignment (size_t size) {
+	/*
+	 * 1) Align to at least PAGE, to minimize the # of TLBs needed by the
+	 * smaller sizes; also helps if the larger sizes don't get used at all.
+	 * 2) On 32-bit the pointers won't be compressed; use minimal alignment.
+	 */
+	if (LG_SIZEOF_PTR < 3 || size < PAGE) {
+		return PAGE;
+	}
 	/* Align pow2 to avoid overflow the cache bin compressed pointers. */
-	return (LG_SIZEOF_PTR == 3) ? pow2_ceil_zu(size) : CACHELINE;
+	return pow2_ceil_zu(size);
 }
 
 /* Initialize auto tcache (embedded in TSD). */
@@ -501,11 +509,11 @@ bool
 tsd_tcache_data_init(tsd_t *tsd) {
 	tcache_t *tcache = tsd_tcachep_get_unsafe(tsd);
 	assert(tcache_small_bin_get(tcache, 0)->cur_ptr.ptr == NULL);
-	/* Avoid false cacheline sharing. */
-	size_t size = sz_sa2u(total_stack_bytes, CACHELINE);
-	void *avail_array = ipallocztm(tsd_tsdn(tsd), size,
-	    tcache_bin_stack_alignment(size), true, NULL, true,
-	    arena_get(TSDN_NULL, 0, true));
+	size_t alignment = tcache_bin_stack_alignment(total_stack_bytes);
+	size_t size = sz_sa2u(total_stack_bytes, alignment);
+
+	void *avail_array = ipallocztm(tsd_tsdn(tsd), size, alignment, true,
+	    NULL, true, arena_get(TSDN_NULL, 0, true));
 	if (avail_array == NULL) {
 		return true;
 	}
@@ -545,12 +553,11 @@ tcache_create_explicit(tsd_t *tsd) {
 	size = PTR_CEILING(size);
 	size_t stack_offset = size;
 	size += total_stack_bytes;
-	/* Avoid false cacheline sharing. */
-	size = sz_sa2u(size, CACHELINE);
+	size_t alignment = tcache_bin_stack_alignment(size);
+	size = sz_sa2u(size, alignment);
 
-	tcache_t *tcache = ipallocztm(tsd_tsdn(tsd), size,
-	    tcache_bin_stack_alignment(size), true, NULL, true,
-	    arena_get(TSDN_NULL, 0, true));
+	tcache_t *tcache = ipallocztm(tsd_tsdn(tsd), size, alignment, true,
+	    NULL, true, arena_get(TSDN_NULL, 0, true));
 	if (tcache == NULL) {
 		return NULL;
 	}
