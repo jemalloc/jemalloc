@@ -915,6 +915,8 @@ MUTEX_PROF_ARENA_MUTEXES
 		    &astats->astats.ndalloc_large);
 		ctl_accum_arena_stats_u64(&sdstats->astats.nrequests_large,
 		    &astats->astats.nrequests_large);
+		ctl_accum_arena_stats_u64(&sdstats->astats.nflushes_large,
+		    &astats->astats.nflushes_large);
 		accum_atomic_zu(&sdstats->astats.abandoned_vm,
 		    &astats->astats.abandoned_vm);
 
