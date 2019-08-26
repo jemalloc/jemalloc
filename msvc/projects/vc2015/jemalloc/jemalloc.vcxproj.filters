@@ -88,6 +88,9 @@
     <ClCompile Include="..\..\..\..\src\tcache.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\..\src\test_hooks.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\..\..\src\ticker.c">
       <Filter>Source Files</Filter>
     </ClCompile>
