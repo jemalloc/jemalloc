@@ -2109,6 +2109,20 @@ imalloc_body(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd) {
 
 	/* If profiling is on, get our profiling context. */
 	if (config_prof && opt_prof) {
+		/*
+		 * The fast path modifies bytes_until_sample regardless of
+		 * prof_active.  We reset it to be the sample interval, so that
+		 * there won't be excessive routings to the slow path, and that
+		 * when prof_active is turned on later, the counting for
+		 * sampling can immediately resume as normal (though the very
+		 * first sampling interval is not randomized).
+		 */
+		if (unlikely(tsd_bytes_until_sample_get(tsd) < 0) &&
+		    !prof_active_get_unlocked()) {
+			tsd_bytes_until_sample_set(tsd,
+			    (ssize_t)(1 << lg_prof_sample));
+		}
+
 		prof_tctx_t *tctx = prof_alloc_prep(
 		    tsd, usize, prof_active_get_unlocked(), true);
 
@@ -2131,6 +2145,16 @@ imalloc_body(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd) {
 		}
 		prof_malloc(tsd_tsdn(tsd), allocation, usize, &alloc_ctx, tctx);
 	} else {
+		assert(!opt_prof);
+		/*
+		 * The fast path modifies bytes_until_sample regardless of
+		 * opt_prof.  We reset it to a huge value here, so as to
+		 * minimize the triggering for slow path.
+		 */
+		if (config_prof &&
+		    unlikely(tsd_bytes_until_sample_get(tsd) < 0)) {
+			tsd_bytes_until_sample_set(tsd, SSIZE_MAX);
+		}
 		allocation = imalloc_no_sample(sopts, dopts, tsd, size, usize,
 		    ind);
 		if (unlikely(allocation == NULL)) {
@@ -2339,16 +2363,10 @@ je_malloc(size_t size) {
 		if (unlikely(bytes_until_sample < 0)) {
 			/*
 			 * Avoid a prof_active check on the fastpath.
-			 * If prof_active is false, set bytes_until_sample to
-			 * sampling interval.  If prof_active is set to true,
-			 * bytes_until_sample will be reset.
+			 * If prof_active is false, bytes_until_sample will be
+			 * reset in slow path.
 			 */
-			if (!prof_active_get_unlocked()) {
-				tsd_bytes_until_sample_set(tsd,
-				    ((uint64_t)1U << lg_prof_sample));
-			} else {
-				return malloc_default(size);
-			}
+			return malloc_default(size);
 		}
 	}
 
