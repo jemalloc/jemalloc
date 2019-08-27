@@ -726,6 +726,7 @@ bool
 prof_active_get(tsdn_t *tsdn) {
 	bool prof_active_current;
 
+	prof_active_assert();
 	malloc_mutex_lock(tsdn, &prof_active_mtx);
 	prof_active_current = prof_active;
 	malloc_mutex_unlock(tsdn, &prof_active_mtx);
@@ -736,10 +737,12 @@ bool
 prof_active_set(tsdn_t *tsdn, bool active) {
 	bool prof_active_old;
 
+	prof_active_assert();
 	malloc_mutex_lock(tsdn, &prof_active_mtx);
 	prof_active_old = prof_active;
 	prof_active = active;
 	malloc_mutex_unlock(tsdn, &prof_active_mtx);
+	prof_active_assert();
 	return prof_active_old;
 }
 
