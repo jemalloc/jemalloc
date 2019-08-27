@@ -3,12 +3,17 @@
 #include "jemalloc/internal/log.h"
 
 static void
+update_log_var_names(const char *names) {
+	strncpy_cond(log_var_names, names, config_log);
+}
+
+static void
 expect_no_logging(const char *names) {
 	log_var_t log_l1 = LOG_VAR_INIT("l1");
 	log_var_t log_l2 = LOG_VAR_INIT("l2");
 	log_var_t log_l2_a = LOG_VAR_INIT("l2.a");
 
-	strcpy(log_var_names, names);
+	update_log_var_names(names);
 
 	int count = 0;
 
@@ -50,7 +55,7 @@ TEST_BEGIN(test_log_enabled_direct) {
 	int count;
 
 	count = 0;
-	strcpy(log_var_names, "l1");
+	update_log_var_names("l1");
 	for (int i = 0; i < 10; i++) {
 		log_do_begin(log_l1)
 			count++;
@@ -59,7 +64,7 @@ TEST_BEGIN(test_log_enabled_direct) {
 	assert_d_eq(count, 10, "Mis-logged!");
 
 	count = 0;
-	strcpy(log_var_names, "l1.a");
+	update_log_var_names("l1.a");
 	for (int i = 0; i < 10; i++) {
 		log_do_begin(log_l1_a)
 			count++;
@@ -68,7 +73,7 @@ TEST_BEGIN(test_log_enabled_direct) {
 	assert_d_eq(count, 10, "Mis-logged!");
 
 	count = 0;
-	strcpy(log_var_names, "l1.a|abc|l2|def");
+	update_log_var_names("l1.a|abc|l2|def");
 	for (int i = 0; i < 10; i++) {
 		log_do_begin(log_l1_a)
 			count++;
@@ -85,7 +90,7 @@ TEST_END
 TEST_BEGIN(test_log_enabled_indirect) {
 	test_skip_if(!config_log);
 	atomic_store_b(&log_init_done, true, ATOMIC_RELAXED);
-	strcpy(log_var_names, "l0|l1|abc|l2.b|def");
+	update_log_var_names("l0|l1|abc|l2.b|def");
 
 	/* On. */
 	log_var_t log_l1 = LOG_VAR_INIT("l1");
@@ -135,7 +140,7 @@ TEST_END
 TEST_BEGIN(test_log_enabled_global) {
 	test_skip_if(!config_log);
 	atomic_store_b(&log_init_done, true, ATOMIC_RELAXED);
-	strcpy(log_var_names, "abc|.|def");
+	update_log_var_names("abc|.|def");
 
 	log_var_t log_l1 = LOG_VAR_INIT("l1");
 	log_var_t log_l2_a_a = LOG_VAR_INIT("l2.a.a");
