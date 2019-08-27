@@ -762,6 +762,32 @@ TEST_BEGIN(test_arenas_lookup) {
 }
 TEST_END
 
+TEST_BEGIN(test_prof_active) {
+	/*
+	 * If config_prof is off, then the test for prof_active in
+	 * test_mallctl_opt was already enough.
+	 */
+	test_skip_if(!config_prof);
+
+	bool active, old;
+	size_t len = sizeof(bool);
+
+	active = true;
+	assert_d_eq(mallctl("prof.active", NULL, NULL, &active, len), ENOENT,
+	    "Setting prof_active to true should fail when opt_prof is off");
+	old = true;
+	assert_d_eq(mallctl("prof.active", &old, &len, &active, len), ENOENT,
+	    "Setting prof_active to true should fail when opt_prof is off");
+	assert_true(old, "old valud should not be touched when mallctl fails");
+	active = false;
+	assert_d_eq(mallctl("prof.active", NULL, NULL, &active, len), 0,
+	    "Setting prof_active to false should succeed when opt_prof is off");
+	assert_d_eq(mallctl("prof.active", &old, &len, &active, len), 0,
+	    "Setting prof_active to false should succeed when opt_prof is off");
+	assert_false(old, "prof_active should be false when opt_prof is off");
+}
+TEST_END
+
 TEST_BEGIN(test_stats_arenas) {
 #define TEST_STATS_ARENAS(t, name) do {					\
 	t name;								\
@@ -882,6 +908,7 @@ main(void) {
 	    test_arenas_lextent_constants,
 	    test_arenas_create,
 	    test_arenas_lookup,
+	    test_prof_active,
 	    test_stats_arenas,
 	    test_hooks,
 	    test_hooks_exhaustion);
