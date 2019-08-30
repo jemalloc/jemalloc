@@ -187,7 +187,7 @@ cache_bin_array_descriptor_init(cache_bin_array_descriptor_t *descriptor,
 }
 
 JEMALLOC_ALWAYS_INLINE void *
-cache_bin_alloc_easy(cache_bin_t *bin, bool *success, cache_bin_sz_t ind) {
+cache_bin_alloc_easy(cache_bin_t *bin, bool *success, szind_t ind) {
 	/*
 	 * This may read from the empty position; however the loaded value won't
 	 * be used.  It's safe because the stack has one more slot reserved.
