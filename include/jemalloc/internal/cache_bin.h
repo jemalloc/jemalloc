@@ -13,12 +13,8 @@
  * of the tcache at all.
  */
 
-/*
- * The count of the number of cached allocations in a bin.  We make this signed
- * so that negative numbers can encode "invalid" states (e.g. a low water mark
- * of -1 for a cache that has been depleted).
- */
-typedef int32_t cache_bin_sz_t;
+/* The size in bytes of each cache bin stack. */
+typedef uint16_t cache_bin_sz_t;
 
 typedef struct cache_bin_stats_s cache_bin_stats_t;
 struct cache_bin_stats_s {
@@ -126,7 +122,7 @@ static inline cache_bin_sz_t
 cache_bin_ncached_get(cache_bin_t *bin, szind_t ind) {
 	cache_bin_sz_t n = (tcache_bin_info[ind].stack_size +
 	    bin->full_position - bin->cur_ptr.lowbits) / sizeof(void *);
-	assert(n >= 0 && n <= cache_bin_ncached_max_get(ind));
+	assert(n <= cache_bin_ncached_max_get(ind));
 	assert(n == 0 || *(bin->cur_ptr.ptr) != NULL);
 
 	return n;
@@ -157,13 +153,13 @@ cache_bin_bottom_item_get(cache_bin_t *bin, szind_t ind) {
 	return bottom;
 }
 
-/* Returns the numeric value of low water in [-1, ncached]. */
+/* Returns the numeric value of low water in [0, ncached]. */
 static inline cache_bin_sz_t
 cache_bin_low_water_get(cache_bin_t *bin, szind_t ind) {
 	cache_bin_sz_t ncached_max = cache_bin_ncached_max_get(ind);
 	cache_bin_sz_t low_water = ncached_max -
 	    (bin->low_water_position - bin->full_position) / sizeof(void *);
-	assert(low_water >= 0 && low_water <= ncached_max);
+	assert(low_water <= ncached_max);
 	assert(low_water <= cache_bin_ncached_get(bin, ind));
 	assert(bin->low_water_position >= bin->cur_ptr.lowbits);
 
@@ -174,7 +170,7 @@ static inline void
 cache_bin_ncached_set(cache_bin_t *bin, szind_t ind, cache_bin_sz_t n) {
 	bin->cur_ptr.lowbits = bin->full_position +
 	    tcache_bin_info[ind].stack_size - n * sizeof(void *);
-	assert(n >= 0 && n <= cache_bin_ncached_max_get(ind));
+	assert(n <= cache_bin_ncached_max_get(ind));
 	assert(n == 0 || *bin->cur_ptr.ptr != NULL);
 }
 

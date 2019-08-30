@@ -825,6 +825,8 @@ tcache_boot(tsdn_t *tsdn) {
 			ncached_max = TCACHE_NSLOTS_SMALL_MAX;
 		}
 		unsigned stack_size = ncached_max * sizeof(void *);
+		assert(stack_size < ((uint64_t)1 <<
+		    (sizeof(cache_bin_sz_t) * 8)));
 		tcache_bin_info[i].stack_size = stack_size;
 		total_stack_bytes += stack_size;
 	}
