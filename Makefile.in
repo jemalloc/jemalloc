@@ -123,11 +123,12 @@ C_SRCS := $(srcroot)src/jemalloc.c \
 	$(srcroot)src/prof_log.c \
 	$(srcroot)src/rtree.c \
 	$(srcroot)src/safety_check.c \
-	$(srcroot)src/stats.c \
 	$(srcroot)src/sc.c \
+	$(srcroot)src/stats.c \
 	$(srcroot)src/sz.c \
 	$(srcroot)src/tcache.c \
 	$(srcroot)src/test_hooks.c \
+	$(srcroot)src/thread_event.c \
 	$(srcroot)src/ticker.c \
 	$(srcroot)src/tsd.c \
 	$(srcroot)src/witness.c
@@ -176,9 +177,9 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/background_thread.c \
 	$(srcroot)test/unit/background_thread_enable.c \
 	$(srcroot)test/unit/base.c \
+	$(srcroot)test/unit/binshard.c \
 	$(srcroot)test/unit/bitmap.c \
 	$(srcroot)test/unit/bit_util.c \
-	$(srcroot)test/unit/binshard.c \
 	$(srcroot)test/unit/buf_writer.c \
 	$(srcroot)test/unit/cache_bin.c \
 	$(srcroot)test/unit/ckh.c \
@@ -200,6 +201,7 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/math.c \
 	$(srcroot)test/unit/mq.c \
 	$(srcroot)test/unit/mtx.c \
+	$(srcroot)test/unit/nstime.c \
 	$(srcroot)test/unit/pack.c \
 	$(srcroot)test/unit/pages.c \
 	$(srcroot)test/unit/ph.c \
@@ -218,9 +220,9 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/retained.c \
 	$(srcroot)test/unit/rtree.c \
 	$(srcroot)test/unit/safety_check.c \
+	$(srcroot)test/unit/sc.c \
 	$(srcroot)test/unit/seq.c \
 	$(srcroot)test/unit/SFMT.c \
-	$(srcroot)test/unit/sc.c \
 	$(srcroot)test/unit/size_classes.c \
 	$(srcroot)test/unit/slab.c \
 	$(srcroot)test/unit/smoothstep.c \
@@ -228,8 +230,8 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/stats.c \
 	$(srcroot)test/unit/stats_print.c \
 	$(srcroot)test/unit/test_hooks.c \
+	$(srcroot)test/unit/thread_event.c \
 	$(srcroot)test/unit/ticker.c \
-	$(srcroot)test/unit/nstime.c \
 	$(srcroot)test/unit/tsd.c \
 	$(srcroot)test/unit/witness.c \
 	$(srcroot)test/unit/zero.c \

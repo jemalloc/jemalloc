@@ -5,6 +5,7 @@
 #include "jemalloc/internal/ctl.h"
 #include "jemalloc/internal/assert.h"
 #include "jemalloc/internal/mutex.h"
+#include "jemalloc/internal/thread_event.h"
 
 /*
  * This file implements the profiling "APIs" needed by other parts of jemalloc,
@@ -471,8 +472,11 @@ prof_sample_threshold_update(prof_tdata_t *tdata) {
 		return;
 	}
 
+	tsd_t *tsd = tsd_fetch();
+
 	if (lg_prof_sample == 0) {
-		tsd_bytes_until_sample_set(tsd_fetch(), 0);
+		thread_prof_sample_event_update(tsd,
+		    THREAD_EVENT_MIN_START_WAIT);
 		return;
 	}
 
@@ -480,11 +484,11 @@ prof_sample_threshold_update(prof_tdata_t *tdata) {
 	 * Compute sample interval as a geometrically distributed random
 	 * variable with mean (2^lg_prof_sample).
 	 *
-	 *                             __        __
-	 *                             |  log(u)  |                     1
-	 * tdata->bytes_until_sample = | -------- |, where p = ---------------
-	 *                             | log(1-p) |             lg_prof_sample
-	 *                                                     2
+	 *                      __        __
+	 *                      |  log(u)  |                     1
+	 * bytes_until_sample = | -------- |, where p = ---------------
+	 *                      | log(1-p) |             lg_prof_sample
+	 *                                              2
 	 *
 	 * For more information on the math, see:
 	 *
@@ -499,10 +503,7 @@ prof_sample_threshold_update(prof_tdata_t *tdata) {
 	uint64_t bytes_until_sample = (uint64_t)(log(u) /
 	    log(1.0 - (1.0 / (double)((uint64_t)1U << lg_prof_sample))))
 	    + (uint64_t)1U;
-	if (bytes_until_sample > SSIZE_MAX) {
-		bytes_until_sample = SSIZE_MAX;
-	}
-	tsd_bytes_until_sample_set(tsd_fetch(), bytes_until_sample);
+	thread_prof_sample_event_update(tsd, bytes_until_sample);
 
 #endif
 }
