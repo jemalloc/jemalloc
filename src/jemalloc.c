@@ -18,6 +18,7 @@
 #include "jemalloc/internal/spin.h"
 #include "jemalloc/internal/sz.h"
 #include "jemalloc/internal/ticker.h"
+#include "jemalloc/internal/thread_event.h"
 #include "jemalloc/internal/util.h"
 
 /******************************************************************************/
@@ -1530,6 +1531,7 @@ malloc_init_hard_a0_locked() {
 		prof_boot0();
 	}
 	malloc_conf_init(&sc_data, bin_shard_sizes);
+	thread_event_boot();
 	sz_boot(&sc_data);
 	bin_info_boot(&sc_data, bin_shard_sizes);
 
@@ -2128,6 +2130,8 @@ imalloc_body(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd) {
 		dopts->arena_ind = 0;
 	}
 
+	thread_event(tsd, usize);
+
 	/*
 	 * If dopts->alignment > 0, then ind is still 0, but usize was computed
 	 * in the previous if statement.  Down the positive alignment path,
@@ -2136,20 +2140,6 @@ imalloc_body(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd) {
 
 	/* If profiling is on, get our profiling context. */
 	if (config_prof && opt_prof) {
-		/*
-		 * The fast path modifies bytes_until_sample regardless of
-		 * prof_active.  We reset it to be the sample interval, so that
-		 * there won't be excessive routings to the slow path, and that
-		 * when prof_active is turned on later, the counting for
-		 * sampling can immediately resume as normal (though the very
-		 * first sampling interval is not randomized).
-		 */
-		if (unlikely(tsd_bytes_until_sample_get(tsd) < 0) &&
-		    !prof_active_get_unlocked()) {
-			tsd_bytes_until_sample_set(tsd,
-			    (ssize_t)(1 << lg_prof_sample));
-		}
-
 		prof_tctx_t *tctx = prof_alloc_prep(
 		    tsd, usize, prof_active_get_unlocked(), true);
 
@@ -2167,24 +2157,17 @@ imalloc_body(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd) {
 		}
 
 		if (unlikely(allocation == NULL)) {
+			thread_event_rollback(tsd, usize);
 			prof_alloc_rollback(tsd, tctx, true);
 			goto label_oom;
 		}
 		prof_malloc(tsd_tsdn(tsd), allocation, usize, &alloc_ctx, tctx);
 	} else {
 		assert(!opt_prof);
-		/*
-		 * The fast path modifies bytes_until_sample regardless of
-		 * opt_prof.  We reset it to a huge value here, so as to
-		 * minimize the triggering for slow path.
-		 */
-		if (config_prof &&
-		    unlikely(tsd_bytes_until_sample_get(tsd) < 0)) {
-			tsd_bytes_until_sample_set(tsd, SSIZE_MAX);
-		}
 		allocation = imalloc_no_sample(sopts, dopts, tsd, size, usize,
 		    ind);
 		if (unlikely(allocation == NULL)) {
+			thread_event_rollback(tsd, usize);
 			goto label_oom;
 		}
 	}
@@ -2197,7 +2180,6 @@ imalloc_body(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd) {
 	    || ((uintptr_t)allocation & (dopts->alignment - 1)) == ZU(0));
 
 	assert(usize == isalloc(tsd_tsdn(tsd), allocation));
-	*tsd_thread_allocatedp_get(tsd) += usize;
 
 	if (sopts->slow) {
 		UTRACE(0, size, allocation);
@@ -2373,7 +2355,12 @@ je_malloc(size_t size) {
 	}
 
 	szind_t ind = sz_size2index_lookup(size);
-	/* usize is always needed to increment thread_allocated. */
+	/*
+	 * The thread_allocated counter in tsd serves as a general purpose
+	 * accumulator for bytes of allocation to trigger different types of
+	 * events.  usize is always needed to advance thread_allocated, though
+	 * it's not always needed in the core allocation logic.
+	 */
 	size_t usize = sz_index2size(ind);
 	/*
 	 * Fast path relies on size being a bin.
@@ -2382,19 +2369,12 @@ je_malloc(size_t size) {
 	assert(ind < SC_NBINS);
 	assert(size <= SC_SMALL_MAXCLASS);
 
-	if (config_prof) {
-		int64_t bytes_until_sample = tsd_bytes_until_sample_get(tsd);
-		bytes_until_sample -= usize;
-		tsd_bytes_until_sample_set(tsd, bytes_until_sample);
-
-		if (unlikely(bytes_until_sample < 0)) {
-			/*
-			 * Avoid a prof_active check on the fastpath.
-			 * If prof_active is false, bytes_until_sample will be
-			 * reset in slow path.
-			 */
-			return malloc_default(size);
-		}
+	uint64_t thread_allocated_after = thread_allocated_get(tsd) + usize;
+	assert(thread_allocated_next_event_fast_get(tsd) <=
+	    THREAD_ALLOCATED_NEXT_EVENT_FAST_MAX);
+	if (unlikely(thread_allocated_after >=
+	    thread_allocated_next_event_fast_get(tsd))) {
+		return malloc_default(size);
 	}
 
 	cache_bin_t *bin = tcache_small_bin_get(tcache, ind);
@@ -2402,7 +2382,7 @@ je_malloc(size_t size) {
 	void *ret = cache_bin_alloc_easy_reduced(bin, &tcache_success);
 
 	if (tcache_success) {
-		*tsd_thread_allocatedp_get(tsd) += usize;
+		thread_allocated_set(tsd, thread_allocated_after);
 		if (config_stats) {
 			bin->tstats.nrequests++;
 		}
@@ -3116,9 +3096,11 @@ do_rallocx(void *ptr, size_t size, int flags, bool is_realloc) {
 		if (unlikely(usize == 0 || usize > SC_LARGE_MAXCLASS)) {
 			goto label_oom;
 		}
+		thread_event(tsd, usize);
 		p = irallocx_prof(tsd, ptr, old_usize, size, alignment, &usize,
 		    zero, tcache, arena, &alloc_ctx, &hook_args);
 		if (unlikely(p == NULL)) {
+			thread_event_rollback(tsd, usize);
 			goto label_oom;
 		}
 	} else {
@@ -3128,10 +3110,10 @@ do_rallocx(void *ptr, size_t size, int flags, bool is_realloc) {
 			goto label_oom;
 		}
 		usize = isalloc(tsd_tsdn(tsd), p);
+		thread_event(tsd, usize);
 	}
 	assert(alignment == 0 || ((uintptr_t)p & (alignment - 1)) == ZU(0));
 
-	*tsd_thread_allocatedp_get(tsd) += usize;
 	*tsd_thread_deallocatedp_get(tsd) += old_usize;
 
 	UTRACE(ptr, size, p);
@@ -3307,6 +3289,7 @@ ixallocx_prof(tsd_t *tsd, void *ptr, size_t old_usize, size_t size,
 			usize_max = SC_LARGE_MAXCLASS;
 		}
 	}
+	thread_event(tsd, usize_max);
 	tctx = prof_alloc_prep(tsd, usize_max, prof_active, false);
 
 	if (unlikely((uintptr_t)tctx != (uintptr_t)1U)) {
@@ -3315,6 +3298,18 @@ ixallocx_prof(tsd_t *tsd, void *ptr, size_t old_usize, size_t size,
 	} else {
 		usize = ixallocx_helper(tsd_tsdn(tsd), ptr, old_usize, size,
 		    extra, alignment, zero);
+	}
+	if (usize <= usize_max) {
+		thread_event_rollback(tsd, usize_max - usize);
+	} else {
+		/*
+		 * For downsizing request, usize_max can be less than usize.
+		 * We here further increase thread event counters so as to
+		 * record the true usize, and then when the execution goes back
+		 * to xallocx(), the entire usize will be rolled back if it's
+		 * equal to the old usize.
+		 */
+		thread_event(tsd, usize - usize_max);
 	}
 	if (usize == old_usize) {
 		prof_alloc_rollback(tsd, tctx, false);
@@ -3373,12 +3368,13 @@ je_xallocx(void *ptr, size_t size, size_t extra, int flags) {
 	} else {
 		usize = ixallocx_helper(tsd_tsdn(tsd), ptr, old_usize, size,
 		    extra, alignment, zero);
+		thread_event(tsd, usize);
 	}
 	if (unlikely(usize == old_usize)) {
+		thread_event_rollback(tsd, usize);
 		goto label_not_resized;
 	}
 
-	*tsd_thread_allocatedp_get(tsd) += usize;
 	*tsd_thread_deallocatedp_get(tsd) += old_usize;
 
 label_not_resized:

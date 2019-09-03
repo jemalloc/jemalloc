@@ -3,6 +3,7 @@
 
 #include "jemalloc/internal/safety_check.h"
 #include "jemalloc/internal/sz.h"
+#include "jemalloc/internal/thread_event.h"
 
 JEMALLOC_ALWAYS_INLINE bool
 prof_gdump_get_unlocked(void) {
@@ -80,24 +81,6 @@ prof_alloc_time_set(tsdn_t *tsdn, const void *ptr, nstime_t t) {
 }
 
 JEMALLOC_ALWAYS_INLINE bool
-prof_sample_check(tsd_t *tsd, size_t usize, bool update) {
-	ssize_t check = update ? 0 : usize;
-
-	int64_t bytes_until_sample = tsd_bytes_until_sample_get(tsd);
-	if (update) {
-		bytes_until_sample -= usize;
-		if (tsd_nominal(tsd)) {
-			tsd_bytes_until_sample_set(tsd, bytes_until_sample);
-		}
-	}
-	if (likely(bytes_until_sample >= check)) {
-		return true;
-	}
-
-	return false;
-}
-
-JEMALLOC_ALWAYS_INLINE bool
 prof_sample_accum_update(tsd_t *tsd, size_t usize, bool update,
 			 prof_tdata_t **tdata_out) {
 	prof_tdata_t *tdata;
@@ -105,7 +88,7 @@ prof_sample_accum_update(tsd_t *tsd, size_t usize, bool update,
 	cassert(config_prof);
 
 	/* Fastpath: no need to load tdata */
-	if (likely(prof_sample_check(tsd, usize, update))) {
+	if (likely(prof_sample_event_wait_get(tsd) > 0)) {
 		return true;
 	}
 
@@ -127,13 +110,40 @@ prof_sample_accum_update(tsd_t *tsd, size_t usize, bool update,
 		return true;
 	}
 
-	/*
-	 * If this was the first creation of tdata, then
-	 * prof_tdata_get() reset bytes_until_sample, so decrement and
-	 * check it again
-	 */
-	if (!booted && prof_sample_check(tsd, usize, update)) {
-		return true;
+	if (!booted) {
+		/*
+		 * If this was the first creation of tdata, then it means that
+		 * the previous thread_event() relied on the wrong prof_sample
+		 * wait time, and that it should have relied on the new
+		 * prof_sample wait time just set by prof_tdata_get(), so we
+		 * now manually check again.
+		 *
+		 * If the check fails, then even though we relied on the wrong
+		 * prof_sample wait time, we're now actually in perfect shape,
+		 * in the sense that we can pretend that we have used the right
+		 * prof_sample wait time.
+		 *
+		 * If the check succeeds, then we are now in a tougher
+		 * situation, in the sense that we cannot pretend that we have
+		 * used the right prof_sample wait time.  A straightforward
+		 * solution would be to fully roll back thread_event(), set the
+		 * right prof_sample wait time, and then redo thread_event().
+		 * A simpler way, which is implemented below, is to just set a
+		 * new prof_sample wait time that is usize less, and do nothing
+		 * else.  Strictly speaking, the thread event handler may end
+		 * up in a wrong state, since it has still recorded an event
+		 * whereas in reality there may be no event.  However, the
+		 * difference in the wait time offsets the wrongly recorded
+		 * event, so that, functionally, the countdown to the next
+		 * event will behave exactly as if we have used the right
+		 * prof_sample wait time in the first place.
+		 */
+		uint64_t wait = prof_sample_event_wait_get(tsd);
+		assert(wait > 0);
+		if (usize < wait) {
+			thread_prof_sample_event_update(tsd, wait - usize);
+			return true;
+		}
 	}
 
 	/* Compute new sample threshold. */
