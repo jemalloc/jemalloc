@@ -246,7 +246,7 @@ prof_try_log(tsd_t *tsd, const void *ptr, size_t usize, prof_tctx_t *tctx) {
 	prof_bt_t bt;
 	/* Initialize the backtrace, using the buffer in tdata to store it. */
 	bt_init(&bt, cons_tdata->vec);
-	prof_backtrace(&bt);
+	prof_backtrace(tsd, &bt);
 	prof_bt_t *cons_bt = &bt;
 
 	/* We haven't destroyed tctx yet, so gctx should be good to read. */
