@@ -155,7 +155,7 @@ prof_alloc_prep(tsd_t *tsd, size_t usize, bool prof_active, bool update) {
 		ret = (prof_tctx_t *)(uintptr_t)1U;
 	} else {
 		bt_init(&bt, tdata->vec);
-		prof_backtrace(&bt);
+		prof_backtrace(tsd, &bt);
 		ret = prof_lookup(tsd, &bt);
 	}
 

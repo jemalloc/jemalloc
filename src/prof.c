@@ -430,9 +430,8 @@ prof_backtrace_impl(prof_bt_t *bt) {
 #endif
 
 void
-prof_backtrace(prof_bt_t *bt) {
+prof_backtrace(tsd_t *tsd, prof_bt_t *bt) {
 	cassert(config_prof);
-	tsd_t *tsd = tsd_fetch();
 	pre_reentrancy(tsd, NULL);
 	prof_backtrace_impl(bt);
 	post_reentrancy(tsd);
