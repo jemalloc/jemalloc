@@ -208,8 +208,8 @@ bt_init(prof_bt_t *bt, void **vec) {
 }
 
 #ifdef JEMALLOC_PROF_LIBUNWIND
-void
-prof_backtrace(prof_bt_t *bt) {
+static void
+prof_backtrace_impl(prof_bt_t *bt) {
 	int nframes;
 
 	cassert(config_prof);
@@ -250,8 +250,8 @@ prof_unwind_callback(struct _Unwind_Context *context, void *arg) {
 	return _URC_NO_REASON;
 }
 
-void
-prof_backtrace(prof_bt_t *bt) {
+static void
+prof_backtrace_impl(prof_bt_t *bt) {
 	prof_unwind_data_t data = {bt, PROF_BT_MAX};
 
 	cassert(config_prof);
@@ -259,8 +259,8 @@ prof_backtrace(prof_bt_t *bt) {
 	_Unwind_Backtrace(prof_unwind_callback, &data);
 }
 #elif (defined(JEMALLOC_PROF_GCC))
-void
-prof_backtrace(prof_bt_t *bt) {
+static void
+prof_backtrace_impl(prof_bt_t *bt) {
 #define BT_FRAME(i)							\
 	if ((i) < PROF_BT_MAX) {					\
 		void *p;						\
@@ -422,12 +422,21 @@ prof_backtrace(prof_bt_t *bt) {
 #undef BT_FRAME
 }
 #else
-void
-prof_backtrace(prof_bt_t *bt) {
+static void
+prof_backtrace_impl(prof_bt_t *bt) {
 	cassert(config_prof);
 	not_reached();
 }
 #endif
+
+void
+prof_backtrace(prof_bt_t *bt) {
+	cassert(config_prof);
+	tsd_t *tsd = tsd_fetch();
+	pre_reentrancy(tsd, NULL);
+	prof_backtrace_impl(bt);
+	post_reentrancy(tsd);
+}
 
 malloc_mutex_t *
 prof_gctx_mutex_choose(void) {
