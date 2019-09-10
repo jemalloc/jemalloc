@@ -2,6 +2,7 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/jemalloc_internal_includes.h"
 
+#include "jemalloc/internal/ctl.h"
 #include "jemalloc/internal/assert.h"
 #include "jemalloc/internal/mutex.h"
 
@@ -41,12 +42,7 @@ bool		opt_prof_gdump = false;
 bool		opt_prof_final = false;
 bool		opt_prof_leak = false;
 bool		opt_prof_accum = false;
-char		opt_prof_prefix[
-    /* Minimize memory bloat for non-prof builds. */
-#ifdef JEMALLOC_PROF
-    PATH_MAX +
-#endif
-    1];
+char		opt_prof_prefix[PROF_DUMP_FILENAME_LEN];
 
 /*
  * Initialized as opt_prof_active, and accessed via
@@ -106,6 +102,7 @@ static uint64_t		prof_dump_mseq;
 static uint64_t		prof_dump_useq;
 
 malloc_mutex_t	prof_dump_mtx;
+static char	*prof_dump_prefix = NULL;
 
 /* Do not dump any profiles until bootstrapping is complete. */
 bool			prof_booted = false;
@@ -514,24 +511,51 @@ prof_getpid(void) {
 #endif
 }
 
+static const char *
+prof_dump_prefix_get(tsdn_t* tsdn) {
+	malloc_mutex_assert_owner(tsdn, &prof_dump_filename_mtx);
+
+	return prof_dump_prefix == NULL ? opt_prof_prefix : prof_dump_prefix;
+}
+
+static bool
+prof_dump_prefix_is_empty(tsdn_t *tsdn) {
+	malloc_mutex_lock(tsdn, &prof_dump_filename_mtx);
+	bool ret = (prof_dump_prefix_get(tsdn)[0] == '\0');
+	malloc_mutex_unlock(tsdn, &prof_dump_filename_mtx);
+	return ret;
+}
+
 #define DUMP_FILENAME_BUFSIZE	(PATH_MAX + 1)
 #define VSEQ_INVALID		UINT64_C(0xffffffffffffffff)
 static void
-prof_dump_filename(char *filename, char v, uint64_t vseq) {
+prof_dump_filename(tsd_t *tsd, char *filename, char v, uint64_t vseq) {
 	cassert(config_prof);
+
+	assert(tsd_reentrancy_level_get(tsd) == 0);
+	const char *prof_prefix = prof_dump_prefix_get(tsd_tsdn(tsd));
 
 	if (vseq != VSEQ_INVALID) {
 	        /* "<prefix>.<pid>.<seq>.v<vseq>.heap" */
 		malloc_snprintf(filename, DUMP_FILENAME_BUFSIZE,
 		    "%s.%d.%"FMTu64".%c%"FMTu64".heap",
-		    opt_prof_prefix, prof_getpid(), prof_dump_seq, v, vseq);
+		    prof_prefix, prof_getpid(), prof_dump_seq, v, vseq);
 	} else {
 	        /* "<prefix>.<pid>.<seq>.<v>.heap" */
 		malloc_snprintf(filename, DUMP_FILENAME_BUFSIZE,
 		    "%s.%d.%"FMTu64".%c.heap",
-		    opt_prof_prefix, prof_getpid(), prof_dump_seq, v);
+		    prof_prefix, prof_getpid(), prof_dump_seq, v);
 	}
 	prof_dump_seq++;
+}
+
+void
+prof_get_default_filename(tsdn_t *tsdn, char *filename, uint64_t ind) {
+	malloc_mutex_lock(tsdn, &prof_dump_filename_mtx);
+	malloc_snprintf(filename, PROF_DUMP_FILENAME_LEN,
+	    "%s.%d.%"FMTu64".json", prof_dump_prefix_get(tsdn), prof_getpid(),
+	    ind);
+	malloc_mutex_unlock(tsdn, &prof_dump_filename_mtx);
 }
 
 static void
@@ -541,16 +565,16 @@ prof_fdump(void) {
 
 	cassert(config_prof);
 	assert(opt_prof_final);
-	assert(opt_prof_prefix[0] != '\0');
 
 	if (!prof_booted) {
 		return;
 	}
 	tsd = tsd_fetch();
 	assert(tsd_reentrancy_level_get(tsd) == 0);
+	assert(!prof_dump_prefix_is_empty(tsd_tsdn(tsd)));
 
 	malloc_mutex_lock(tsd_tsdn(tsd), &prof_dump_filename_mtx);
-	prof_dump_filename(filename, 'f', VSEQ_INVALID);
+	prof_dump_filename(tsd, filename, 'f', VSEQ_INVALID);
 	malloc_mutex_unlock(tsd_tsdn(tsd), &prof_dump_filename_mtx);
 	prof_dump(tsd, false, filename, opt_prof_leak);
 }
@@ -568,6 +592,31 @@ prof_accum_init(tsdn_t *tsdn, prof_accum_t *prof_accum) {
 #else
 	atomic_store_u64(&prof_accum->accumbytes, 0, ATOMIC_RELAXED);
 #endif
+	return false;
+}
+
+bool
+prof_dump_prefix_set(tsdn_t *tsdn, const char *prefix) {
+	cassert(config_prof);
+	ctl_mtx_assert_held(tsdn);
+	malloc_mutex_lock(tsdn, &prof_dump_filename_mtx);
+	if (prof_dump_prefix == NULL) {
+		malloc_mutex_unlock(tsdn, &prof_dump_filename_mtx);
+		/* Everything is still guarded by ctl_mtx. */
+		char *buffer = base_alloc(tsdn, b0get(), PROF_DUMP_FILENAME_LEN,
+		    QUANTUM);
+		if (buffer == NULL) {
+			return true;
+		}
+		malloc_mutex_lock(tsdn, &prof_dump_filename_mtx);
+		prof_dump_prefix = buffer;
+	}
+	assert(prof_dump_prefix != NULL);
+
+	strncpy(prof_dump_prefix, prefix, PROF_DUMP_FILENAME_LEN - 1);
+	prof_dump_prefix[PROF_DUMP_FILENAME_LEN - 1] = '\0';
+	malloc_mutex_unlock(tsdn, &prof_dump_filename_mtx);
+
 	return false;
 }
 
@@ -595,14 +644,16 @@ prof_idump(tsdn_t *tsdn) {
 		return;
 	}
 
-	if (opt_prof_prefix[0] != '\0') {
-		char filename[PATH_MAX + 1];
-		malloc_mutex_lock(tsd_tsdn(tsd), &prof_dump_filename_mtx);
-		prof_dump_filename(filename, 'i', prof_dump_iseq);
-		prof_dump_iseq++;
+	malloc_mutex_lock(tsd_tsdn(tsd), &prof_dump_filename_mtx);
+	if (prof_dump_prefix_get(tsd_tsdn(tsd))[0] == '\0') {
 		malloc_mutex_unlock(tsd_tsdn(tsd), &prof_dump_filename_mtx);
-		prof_dump(tsd, false, filename, false);
+		return;
 	}
+	char filename[PATH_MAX + 1];
+	prof_dump_filename(tsd, filename, 'i', prof_dump_iseq);
+	prof_dump_iseq++;
+	malloc_mutex_unlock(tsd_tsdn(tsd), &prof_dump_filename_mtx);
+	prof_dump(tsd, false, filename, false);
 }
 
 bool
@@ -616,11 +667,12 @@ prof_mdump(tsd_t *tsd, const char *filename) {
 	char filename_buf[DUMP_FILENAME_BUFSIZE];
 	if (filename == NULL) {
 		/* No filename specified, so automatically generate one. */
-		if (opt_prof_prefix[0] == '\0') {
+		malloc_mutex_lock(tsd_tsdn(tsd), &prof_dump_filename_mtx);
+		if (prof_dump_prefix_get(tsd_tsdn(tsd))[0] == '\0') {
+			malloc_mutex_unlock(tsd_tsdn(tsd), &prof_dump_filename_mtx);
 			return true;
 		}
-		malloc_mutex_lock(tsd_tsdn(tsd), &prof_dump_filename_mtx);
-		prof_dump_filename(filename_buf, 'm', prof_dump_mseq);
+		prof_dump_filename(tsd, filename_buf, 'm', prof_dump_mseq);
 		prof_dump_mseq++;
 		malloc_mutex_unlock(tsd_tsdn(tsd), &prof_dump_filename_mtx);
 		filename = filename_buf;
@@ -652,14 +704,16 @@ prof_gdump(tsdn_t *tsdn) {
 		return;
 	}
 
-	if (opt_prof_prefix[0] != '\0') {
-		char filename[DUMP_FILENAME_BUFSIZE];
-		malloc_mutex_lock(tsdn, &prof_dump_filename_mtx);
-		prof_dump_filename(filename, 'u', prof_dump_useq);
-		prof_dump_useq++;
+	malloc_mutex_lock(tsdn, &prof_dump_filename_mtx);
+	if (prof_dump_prefix_get(tsdn)[0] == '\0') {
 		malloc_mutex_unlock(tsdn, &prof_dump_filename_mtx);
-		prof_dump(tsd, false, filename, false);
+		return;
 	}
+	char filename[DUMP_FILENAME_BUFSIZE];
+	prof_dump_filename(tsd, filename, 'u', prof_dump_useq);
+	prof_dump_useq++;
+	malloc_mutex_unlock(tsdn, &prof_dump_filename_mtx);
+	prof_dump(tsd, false, filename, false);
 }
 
 static uint64_t

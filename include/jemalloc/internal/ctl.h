@@ -103,6 +103,7 @@ bool ctl_boot(void);
 void ctl_prefork(tsdn_t *tsdn);
 void ctl_postfork_parent(tsdn_t *tsdn);
 void ctl_postfork_child(tsdn_t *tsdn);
+void ctl_mtx_assert_held(tsdn_t *tsdn);
 
 #define xmallctl(name, oldp, oldlenp, newp, newlen) do {		\
 	if (je_mallctl(name, oldp, oldlenp, newp, newlen)		\

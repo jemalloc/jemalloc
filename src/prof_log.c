@@ -405,7 +405,6 @@ prof_log_start(tsdn_t *tsdn, const char *filename) {
 	}
 
 	bool ret = false;
-	size_t buf_size = PATH_MAX + 1;
 
 	malloc_mutex_lock(tsdn, &log_mtx);
 
@@ -413,11 +412,10 @@ prof_log_start(tsdn_t *tsdn, const char *filename) {
 		ret = true;
 	} else if (filename == NULL) {
 		/* Make default name. */
-		malloc_snprintf(log_filename, buf_size, "%s.%d.%"FMTu64".json",
-		    opt_prof_prefix, prof_getpid(), log_seq);
+		prof_get_default_filename(tsdn, log_filename, log_seq);
 		log_seq++;
 		prof_logging_state = prof_logging_state_started;
-	} else if (strlen(filename) >= buf_size) {
+	} else if (strlen(filename) >= PROF_DUMP_FILENAME_LEN) {
 		ret = true;
 	} else {
 		strcpy(log_filename, filename);
