@@ -99,7 +99,7 @@ malloc_mutex_t	tdatas_mtx;
 static uint64_t		next_thr_uid;
 static malloc_mutex_t	next_thr_uid_mtx;
 
-static malloc_mutex_t	prof_dump_seq_mtx;
+static malloc_mutex_t	prof_dump_filename_mtx;
 static uint64_t		prof_dump_seq;
 static uint64_t		prof_dump_iseq;
 static uint64_t		prof_dump_mseq;
@@ -549,9 +549,9 @@ prof_fdump(void) {
 	tsd = tsd_fetch();
 	assert(tsd_reentrancy_level_get(tsd) == 0);
 
-	malloc_mutex_lock(tsd_tsdn(tsd), &prof_dump_seq_mtx);
+	malloc_mutex_lock(tsd_tsdn(tsd), &prof_dump_filename_mtx);
 	prof_dump_filename(filename, 'f', VSEQ_INVALID);
-	malloc_mutex_unlock(tsd_tsdn(tsd), &prof_dump_seq_mtx);
+	malloc_mutex_unlock(tsd_tsdn(tsd), &prof_dump_filename_mtx);
 	prof_dump(tsd, false, filename, opt_prof_leak);
 }
 
@@ -597,10 +597,10 @@ prof_idump(tsdn_t *tsdn) {
 
 	if (opt_prof_prefix[0] != '\0') {
 		char filename[PATH_MAX + 1];
-		malloc_mutex_lock(tsd_tsdn(tsd), &prof_dump_seq_mtx);
+		malloc_mutex_lock(tsd_tsdn(tsd), &prof_dump_filename_mtx);
 		prof_dump_filename(filename, 'i', prof_dump_iseq);
 		prof_dump_iseq++;
-		malloc_mutex_unlock(tsd_tsdn(tsd), &prof_dump_seq_mtx);
+		malloc_mutex_unlock(tsd_tsdn(tsd), &prof_dump_filename_mtx);
 		prof_dump(tsd, false, filename, false);
 	}
 }
@@ -619,10 +619,10 @@ prof_mdump(tsd_t *tsd, const char *filename) {
 		if (opt_prof_prefix[0] == '\0') {
 			return true;
 		}
-		malloc_mutex_lock(tsd_tsdn(tsd), &prof_dump_seq_mtx);
+		malloc_mutex_lock(tsd_tsdn(tsd), &prof_dump_filename_mtx);
 		prof_dump_filename(filename_buf, 'm', prof_dump_mseq);
 		prof_dump_mseq++;
-		malloc_mutex_unlock(tsd_tsdn(tsd), &prof_dump_seq_mtx);
+		malloc_mutex_unlock(tsd_tsdn(tsd), &prof_dump_filename_mtx);
 		filename = filename_buf;
 	}
 	return prof_dump(tsd, true, filename, false);
@@ -654,10 +654,10 @@ prof_gdump(tsdn_t *tsdn) {
 
 	if (opt_prof_prefix[0] != '\0') {
 		char filename[DUMP_FILENAME_BUFSIZE];
-		malloc_mutex_lock(tsdn, &prof_dump_seq_mtx);
+		malloc_mutex_lock(tsdn, &prof_dump_filename_mtx);
 		prof_dump_filename(filename, 'u', prof_dump_useq);
 		prof_dump_useq++;
-		malloc_mutex_unlock(tsdn, &prof_dump_seq_mtx);
+		malloc_mutex_unlock(tsdn, &prof_dump_filename_mtx);
 		prof_dump(tsd, false, filename, false);
 	}
 }
@@ -946,8 +946,8 @@ prof_boot2(tsd_t *tsd) {
 			return true;
 		}
 
-		if (malloc_mutex_init(&prof_dump_seq_mtx, "prof_dump_seq",
-		    WITNESS_RANK_PROF_DUMP_SEQ, malloc_mutex_rank_exclusive)) {
+		if (malloc_mutex_init(&prof_dump_filename_mtx, "prof_dump_filename",
+		    WITNESS_RANK_PROF_DUMP_FILENAME, malloc_mutex_rank_exclusive)) {
 			return true;
 		}
 		if (malloc_mutex_init(&prof_dump_mtx, "prof_dump",
@@ -1028,7 +1028,7 @@ void
 prof_prefork1(tsdn_t *tsdn) {
 	if (config_prof && opt_prof) {
 		malloc_mutex_prefork(tsdn, &prof_active_mtx);
-		malloc_mutex_prefork(tsdn, &prof_dump_seq_mtx);
+		malloc_mutex_prefork(tsdn, &prof_dump_filename_mtx);
 		malloc_mutex_prefork(tsdn, &prof_gdump_mtx);
 		malloc_mutex_prefork(tsdn, &next_thr_uid_mtx);
 		malloc_mutex_prefork(tsdn, &prof_thread_active_init_mtx);
@@ -1044,7 +1044,7 @@ prof_postfork_parent(tsdn_t *tsdn) {
 		    &prof_thread_active_init_mtx);
 		malloc_mutex_postfork_parent(tsdn, &next_thr_uid_mtx);
 		malloc_mutex_postfork_parent(tsdn, &prof_gdump_mtx);
-		malloc_mutex_postfork_parent(tsdn, &prof_dump_seq_mtx);
+		malloc_mutex_postfork_parent(tsdn, &prof_dump_filename_mtx);
 		malloc_mutex_postfork_parent(tsdn, &prof_active_mtx);
 		for (i = 0; i < PROF_NCTX_LOCKS; i++) {
 			malloc_mutex_postfork_parent(tsdn, &gctx_locks[i]);
@@ -1066,7 +1066,7 @@ prof_postfork_child(tsdn_t *tsdn) {
 		malloc_mutex_postfork_child(tsdn, &prof_thread_active_init_mtx);
 		malloc_mutex_postfork_child(tsdn, &next_thr_uid_mtx);
 		malloc_mutex_postfork_child(tsdn, &prof_gdump_mtx);
-		malloc_mutex_postfork_child(tsdn, &prof_dump_seq_mtx);
+		malloc_mutex_postfork_child(tsdn, &prof_dump_filename_mtx);
 		malloc_mutex_postfork_child(tsdn, &prof_active_mtx);
 		for (i = 0; i < PROF_NCTX_LOCKS; i++) {
 			malloc_mutex_postfork_child(tsdn, &gctx_locks[i]);
