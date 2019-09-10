@@ -1344,7 +1344,10 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         set to the empty string, no automatic dumps will occur; this is
         primarily useful for disabling the automatic final heap dump (which
         also disables leak reporting, if enabled).  The default prefix is
-        <filename>jeprof</filename>.</para></listitem>
+        <filename>jeprof</filename>.  This prefix value can be overriden by
+        <link
+        linkend="prof.dump_prefix"><mallctl>prof.dump_prefix</mallctl></link>.
+        </para></listitem>
       </varlistentry>
 
       <varlistentry id="opt.prof_active">
@@ -1423,8 +1426,10 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         <filename>&lt;prefix&gt;.&lt;pid&gt;.&lt;seq&gt;.i&lt;iseq&gt;.heap</filename>,
         where <literal>&lt;prefix&gt;</literal> is controlled by the
         <link
-        linkend="opt.prof_prefix"><mallctl>opt.prof_prefix</mallctl></link>
-        option.  By default, interval-triggered profile dumping is disabled
+        linkend="opt.prof_prefix"><mallctl>opt.prof_prefix</mallctl></link> and
+        <link
+        linkend="prof.dump_prefix"><mallctl>prof.dump_prefix</mallctl></link>
+        options.  By default, interval-triggered profile dumping is disabled
         (encoded as -1).
         </para></listitem>
       </varlistentry>
@@ -1456,8 +1461,10 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         usage to a file named according to the pattern
         <filename>&lt;prefix&gt;.&lt;pid&gt;.&lt;seq&gt;.f.heap</filename>,
         where <literal>&lt;prefix&gt;</literal> is controlled by the <link
-        linkend="opt.prof_prefix"><mallctl>opt.prof_prefix</mallctl></link>
-        option.  Note that <function>atexit()</function> may allocate
+        linkend="opt.prof_prefix"><mallctl>opt.prof_prefix</mallctl></link> and
+        <link
+        linkend="prof.dump_prefix"><mallctl>prof.dump_prefix</mallctl></link>
+        options.  Note that <function>atexit()</function> may allocate
         memory during application initialization and then deadlock internally
         when jemalloc in turn calls <function>atexit()</function>, so
         this option is not universally usable (though the application can
@@ -2224,8 +2231,25 @@ struct extent_hooks_s {
         <filename>&lt;prefix&gt;.&lt;pid&gt;.&lt;seq&gt;.m&lt;mseq&gt;.heap</filename>,
         where <literal>&lt;prefix&gt;</literal> is controlled by the
         <link
+        linkend="opt.prof_prefix"><mallctl>opt.prof_prefix</mallctl></link> and
+        <link
+        linkend="prof.dump_prefix"><mallctl>prof.dump_prefix</mallctl></link>
+        options.</para></listitem>
+      </varlistentry>
+
+      <varlistentry id="prof.dump_prefix">
+        <term>
+          <mallctl>prof.dump_prefix</mallctl>
+          (<type>const char *</type>)
+          <literal>-w</literal>
+          [<option>--enable-prof</option>]
+        </term>
+        <listitem><para>Set the filename prefix for profile dumps. See
+        <link
         linkend="opt.prof_prefix"><mallctl>opt.prof_prefix</mallctl></link>
-        option.</para></listitem>
+        for the default setting.  This can be useful to differentiate profile
+        dumps such as from forked processes.
+        </para></listitem>
       </varlistentry>
 
       <varlistentry id="prof.gdump">
@@ -2240,8 +2264,10 @@ struct extent_hooks_s {
         dumped to files named according to the pattern
         <filename>&lt;prefix&gt;.&lt;pid&gt;.&lt;seq&gt;.u&lt;useq&gt;.heap</filename>,
         where <literal>&lt;prefix&gt;</literal> is controlled by the <link
-        linkend="opt.prof_prefix"><mallctl>opt.prof_prefix</mallctl></link>
-        option.</para></listitem>
+        linkend="opt.prof_prefix"><mallctl>opt.prof_prefix</mallctl></link> and
+        <link
+        linkend="prof.dump_prefix"><mallctl>prof.dump_prefix</mallctl></link>
+        options.</para></listitem>
       </varlistentry>
 
       <varlistentry id="prof.reset">

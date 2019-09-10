@@ -148,6 +148,7 @@ CTL_PROTO(prof_thread_active_init)
 CTL_PROTO(prof_active)
 CTL_PROTO(prof_dump)
 CTL_PROTO(prof_gdump)
+CTL_PROTO(prof_dump_prefix)
 CTL_PROTO(prof_reset)
 CTL_PROTO(prof_interval)
 CTL_PROTO(lg_prof_sample)
@@ -413,6 +414,7 @@ static const ctl_named_node_t	prof_node[] = {
 	{NAME("active"),	CTL(prof_active)},
 	{NAME("dump"),		CTL(prof_dump)},
 	{NAME("gdump"),		CTL(prof_gdump)},
+	{NAME("dump_prefix"),	CTL(prof_dump_prefix)},
 	{NAME("reset"),		CTL(prof_reset)},
 	{NAME("interval"),	CTL(prof_interval)},
 	{NAME("lg_sample"),	CTL(lg_prof_sample)},
@@ -1414,6 +1416,11 @@ ctl_postfork_parent(tsdn_t *tsdn) {
 void
 ctl_postfork_child(tsdn_t *tsdn) {
 	malloc_mutex_postfork_child(tsdn, &ctl_mtx);
+}
+
+void
+ctl_mtx_assert_held(tsdn_t *tsdn) {
+	malloc_mutex_assert_owner(tsdn, &ctl_mtx);
 }
 
 /******************************************************************************/
@@ -2717,6 +2724,26 @@ prof_gdump_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
 
 	ret = 0;
 label_return:
+	return ret;
+}
+
+static int
+prof_dump_prefix_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
+    void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
+	int ret;
+	const char *prefix = NULL;
+
+	if (!config_prof) {
+		return ENOENT;
+	}
+
+	malloc_mutex_lock(tsd_tsdn(tsd), &ctl_mtx);
+	WRITEONLY();
+	WRITE(prefix, const char *);
+
+	ret = prof_dump_prefix_set(tsd_tsdn(tsd), prefix) ? EFAULT : 0;
+label_return:
+	malloc_mutex_unlock(tsd_tsdn(tsd), &ctl_mtx);
 	return ret;
 }
 
