@@ -14,7 +14,7 @@ nparallel = cpu_count() * 2
 
 uname = uname()[0]
 
-if "BSD" in uname:
+if call("command -v gmake", shell=True) == 0:
     make_cmd = 'gmake'
 else:
     make_cmd = 'make'
