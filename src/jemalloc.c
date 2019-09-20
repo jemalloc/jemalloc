@@ -1488,8 +1488,8 @@ malloc_init_hard_a0_locked() {
 	 * Ordering here is somewhat tricky; we need sc_boot() first, since that
 	 * determines what the size classes will be, and then
 	 * malloc_conf_init(), since any slab size tweaking will need to be done
-	 * before sz_boot and bin_boot, which assume that the values they read
-	 * out of sc_data_global are final.
+	 * before sz_boot and bin_info_boot, which assume that the values they
+	 * read out of sc_data_global are final.
 	 */
 	sc_boot(&sc_data);
 	unsigned bin_shard_sizes[SC_NBINS];
@@ -1504,7 +1504,7 @@ malloc_init_hard_a0_locked() {
 	}
 	malloc_conf_init(&sc_data, bin_shard_sizes);
 	sz_boot(&sc_data);
-	bin_boot(&sc_data, bin_shard_sizes);
+	bin_info_boot(&sc_data, bin_shard_sizes);
 
 	if (opt_stats_print) {
 		/* Print statistics at exit. */

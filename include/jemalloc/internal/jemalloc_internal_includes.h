@@ -50,10 +50,9 @@
 /* STRUCTS */
 /******************************************************************************/
 
-#include "jemalloc/internal/extent_structs.h"
-#include "jemalloc/internal/base_structs.h"
 #include "jemalloc/internal/prof_structs.h"
 #include "jemalloc/internal/arena_structs.h"
+#include "jemalloc/internal/base_structs.h"
 #include "jemalloc/internal/tcache_structs.h"
 #include "jemalloc/internal/background_thread_structs.h"
 
