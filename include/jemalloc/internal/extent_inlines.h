@@ -168,13 +168,13 @@ extent_past_get(const extent_t *extent) {
 	    extent_size_get(extent));
 }
 
-static inline arena_slab_data_t *
+static inline slab_data_t *
 extent_slab_data_get(extent_t *extent) {
 	assert(extent_slab_get(extent));
 	return &extent->e_slab_data;
 }
 
-static inline const arena_slab_data_t *
+static inline const slab_data_t *
 extent_slab_data_get_const(const extent_t *extent) {
 	assert(extent_slab_get(extent));
 	return &extent->e_slab_data;
