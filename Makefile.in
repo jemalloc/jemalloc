@@ -99,6 +99,7 @@ C_SRCS := $(srcroot)src/jemalloc.c \
 	$(srcroot)src/background_thread.c \
 	$(srcroot)src/base.c \
 	$(srcroot)src/bin.c \
+	$(srcroot)src/bin_info.c \
 	$(srcroot)src/bitmap.c \
 	$(srcroot)src/ckh.c \
 	$(srcroot)src/ctl.c \

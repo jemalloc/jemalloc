@@ -39,6 +39,7 @@
     <ClCompile Include="..\..\..\..\src\background_thread.c" />
     <ClCompile Include="..\..\..\..\src\base.c" />
     <ClCompile Include="..\..\..\..\src\bin.c" />
+    <ClCompile Include="..\..\..\..\src\bin_info.c" />
     <ClCompile Include="..\..\..\..\src\bitmap.c" />
     <ClCompile Include="..\..\..\..\src\ckh.c" />
     <ClCompile Include="..\..\..\..\src\ctl.c" />
