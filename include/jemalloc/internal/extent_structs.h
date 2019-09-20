@@ -8,6 +8,7 @@
 #include "jemalloc/internal/ql.h"
 #include "jemalloc/internal/ph.h"
 #include "jemalloc/internal/sc.h"
+#include "jemalloc/internal/slab_data.h"
 
 typedef enum {
 	extent_state_active   = 0,
@@ -120,7 +121,7 @@ struct extent_s {
 #define EXTENT_BITS_SZIND_SHIFT  (EXTENT_BITS_STATE_WIDTH + EXTENT_BITS_STATE_SHIFT)
 #define EXTENT_BITS_SZIND_MASK  MASK(EXTENT_BITS_SZIND_WIDTH, EXTENT_BITS_SZIND_SHIFT)
 
-#define EXTENT_BITS_NFREE_WIDTH  (LG_SLAB_MAXREGS + 1)
+#define EXTENT_BITS_NFREE_WIDTH  (SC_LG_SLAB_MAXREGS + 1)
 #define EXTENT_BITS_NFREE_SHIFT  (EXTENT_BITS_SZIND_WIDTH + EXTENT_BITS_SZIND_SHIFT)
 #define EXTENT_BITS_NFREE_MASK  MASK(EXTENT_BITS_NFREE_WIDTH, EXTENT_BITS_NFREE_SHIFT)
 
@@ -170,7 +171,7 @@ struct extent_s {
 
 	union {
 		/* Small region slab metadata. */
-		arena_slab_data_t	e_slab_data;
+		slab_data_t	e_slab_data;
 
 		/* Profiling data, used for large objects. */
 		struct {

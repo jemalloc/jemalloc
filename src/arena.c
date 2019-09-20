@@ -270,7 +270,7 @@ arena_extents_dirty_dalloc(tsdn_t *tsdn, arena_t *arena,
 static void *
 arena_slab_reg_alloc(extent_t *slab, const bin_info_t *bin_info) {
 	void *ret;
-	arena_slab_data_t *slab_data = extent_slab_data_get(slab);
+	slab_data_t *slab_data = extent_slab_data_get(slab);
 	size_t regind;
 
 	assert(extent_nfree_get(slab) > 0);
@@ -286,7 +286,7 @@ arena_slab_reg_alloc(extent_t *slab, const bin_info_t *bin_info) {
 static void
 arena_slab_reg_alloc_batch(extent_t *slab, const bin_info_t *bin_info,
 			   unsigned cnt, void** ptrs) {
-	arena_slab_data_t *slab_data = extent_slab_data_get(slab);
+	slab_data_t *slab_data = extent_slab_data_get(slab);
 
 	assert(extent_nfree_get(slab) >= cnt);
 	assert(!bitmap_full(slab_data->bitmap, &bin_info->bitmap_info));
@@ -356,7 +356,7 @@ arena_slab_regind(extent_t *slab, szind_t binind, const void *ptr) {
 }
 
 static void
-arena_slab_reg_dalloc(extent_t *slab, arena_slab_data_t *slab_data, void *ptr) {
+arena_slab_reg_dalloc(extent_t *slab, slab_data_t *slab_data, void *ptr) {
 	szind_t binind = extent_szind_get(slab);
 	const bin_info_t *bin_info = &bin_infos[binind];
 	size_t regind = arena_slab_regind(slab, binind, ptr);
@@ -1253,7 +1253,7 @@ arena_slab_alloc(tsdn_t *tsdn, arena_t *arena, szind_t binind, unsigned binshard
 	assert(extent_slab_get(slab));
 
 	/* Initialize slab internals. */
-	arena_slab_data_t *slab_data = extent_slab_data_get(slab);
+	slab_data_t *slab_data = extent_slab_data_get(slab);
 	extent_nfree_binshard_set(slab, bin_info->nregs, binshard);
 	bitmap_init(slab_data->bitmap, &bin_info->bitmap_info, false);
 
@@ -1686,7 +1686,7 @@ arena_bin_lower_slab(tsdn_t *tsdn, arena_t *arena, extent_t *slab,
 static void
 arena_dalloc_bin_locked_impl(tsdn_t *tsdn, arena_t *arena, bin_t *bin,
     szind_t binind, extent_t *slab, void *ptr, bool junked) {
-	arena_slab_data_t *slab_data = extent_slab_data_get(slab);
+	slab_data_t *slab_data = extent_slab_data_get(slab);
 	const bin_info_t *bin_info = &bin_infos[binind];
 
 	if (!junked && config_fill && unlikely(opt_junk_free)) {
