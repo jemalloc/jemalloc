@@ -233,3 +233,18 @@ eset_fit_locked(tsdn_t *tsdn, eset_t *eset, size_t esize, size_t alignment) {
 
 	return extent;
 }
+
+void
+eset_prefork(tsdn_t *tsdn, eset_t *eset) {
+	malloc_mutex_prefork(tsdn, &eset->mtx);
+}
+
+void
+eset_postfork_parent(tsdn_t *tsdn, eset_t *eset) {
+	malloc_mutex_postfork_parent(tsdn, &eset->mtx);
+}
+
+void
+eset_postfork_child(tsdn_t *tsdn, eset_t *eset) {
+	malloc_mutex_postfork_child(tsdn, &eset->mtx);
+}

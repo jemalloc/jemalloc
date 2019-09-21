@@ -79,4 +79,8 @@ void eset_remove_locked(tsdn_t *tsdn, eset_t *eset, extent_t *extent);
 extent_t *eset_fit_locked(tsdn_t *tsdn, eset_t *eset, size_t esize,
     size_t alignment);
 
+void eset_prefork(tsdn_t *tsdn, eset_t *eset);
+void eset_postfork_parent(tsdn_t *tsdn, eset_t *eset);
+void eset_postfork_child(tsdn_t *tsdn, eset_t *eset);
+
 #endif /* JEMALLOC_INTERNAL_ESET_H */

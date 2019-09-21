@@ -388,21 +388,6 @@ extents_abandon_vm(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks
 	extent_dalloc(tsdn, arena, extent);
 }
 
-void
-extents_prefork(tsdn_t *tsdn, eset_t *eset) {
-	malloc_mutex_prefork(tsdn, &eset->mtx);
-}
-
-void
-extents_postfork_parent(tsdn_t *tsdn, eset_t *eset) {
-	malloc_mutex_postfork_parent(tsdn, &eset->mtx);
-}
-
-void
-extents_postfork_child(tsdn_t *tsdn, eset_t *eset) {
-	malloc_mutex_postfork_child(tsdn, &eset->mtx);
-}
-
 static void
 extent_deactivate_locked(tsdn_t *tsdn, arena_t *arena, eset_t *eset,
     extent_t *extent) {
