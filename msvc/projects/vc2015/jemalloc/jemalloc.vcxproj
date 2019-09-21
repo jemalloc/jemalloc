@@ -44,6 +44,7 @@
     <ClCompile Include="..\..\..\..\src\ckh.c" />
     <ClCompile Include="..\..\..\..\src\ctl.c" />
     <ClCompile Include="..\..\..\..\src\div.c" />
+    <ClCompile Include="..\..\..\..\src\eset.c" />
     <ClCompile Include="..\..\..\..\src\extent.c" />
     <ClCompile Include="..\..\..\..\src\extent_dss.c" />
     <ClCompile Include="..\..\..\..\src\extent_mmap.c" />
