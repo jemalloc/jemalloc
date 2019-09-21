@@ -43,3 +43,81 @@ size_t
 eset_nbytes_get(eset_t *eset, pszind_t pind) {
 	return atomic_load_zu(&eset->nbytes[pind], ATOMIC_RELAXED);
 }
+
+static void
+eset_stats_add(eset_t *eset, pszind_t pind, size_t sz) {
+	size_t cur = atomic_load_zu(&eset->nextents[pind], ATOMIC_RELAXED);
+	atomic_store_zu(&eset->nextents[pind], cur + 1, ATOMIC_RELAXED);
+	cur = atomic_load_zu(&eset->nbytes[pind], ATOMIC_RELAXED);
+	atomic_store_zu(&eset->nbytes[pind], cur + sz, ATOMIC_RELAXED);
+}
+
+static void
+eset_stats_sub(eset_t *eset, pszind_t pind, size_t sz) {
+	size_t cur = atomic_load_zu(&eset->nextents[pind], ATOMIC_RELAXED);
+	atomic_store_zu(&eset->nextents[pind], cur - 1, ATOMIC_RELAXED);
+	cur = atomic_load_zu(&eset->nbytes[pind], ATOMIC_RELAXED);
+	atomic_store_zu(&eset->nbytes[pind], cur - sz, ATOMIC_RELAXED);
+}
+
+void
+eset_insert_locked(tsdn_t *tsdn, eset_t *eset, extent_t *extent) {
+	malloc_mutex_assert_owner(tsdn, &eset->mtx);
+	assert(extent_state_get(extent) == eset->state);
+
+	size_t size = extent_size_get(extent);
+	size_t psz = sz_psz_quantize_floor(size);
+	pszind_t pind = sz_psz2ind(psz);
+	if (extent_heap_empty(&eset->heaps[pind])) {
+		bitmap_unset(eset->bitmap, &eset_bitmap_info,
+		    (size_t)pind);
+	}
+	extent_heap_insert(&eset->heaps[pind], extent);
+
+	if (config_stats) {
+		eset_stats_add(eset, pind, size);
+	}
+
+	extent_list_append(&eset->lru, extent);
+	size_t npages = size >> LG_PAGE;
+	/*
+	 * All modifications to npages hold the mutex (as asserted above), so we
+	 * don't need an atomic fetch-add; we can get by with a load followed by
+	 * a store.
+	 */
+	size_t cur_eset_npages =
+	    atomic_load_zu(&eset->npages, ATOMIC_RELAXED);
+	atomic_store_zu(&eset->npages, cur_eset_npages + npages,
+	    ATOMIC_RELAXED);
+}
+
+void
+eset_remove_locked(tsdn_t *tsdn, eset_t *eset, extent_t *extent) {
+	malloc_mutex_assert_owner(tsdn, &eset->mtx);
+	assert(extent_state_get(extent) == eset->state);
+
+	size_t size = extent_size_get(extent);
+	size_t psz = sz_psz_quantize_floor(size);
+	pszind_t pind = sz_psz2ind(psz);
+	extent_heap_remove(&eset->heaps[pind], extent);
+
+	if (config_stats) {
+		eset_stats_sub(eset, pind, size);
+	}
+
+	if (extent_heap_empty(&eset->heaps[pind])) {
+		bitmap_set(eset->bitmap, &eset_bitmap_info,
+		    (size_t)pind);
+	}
+	extent_list_remove(&eset->lru, extent);
+	size_t npages = size >> LG_PAGE;
+	/*
+	 * As in eset_insert_locked, we hold eset->mtx and so don't need atomic
+	 * operations for updating eset->npages.
+	 */
+	size_t cur_extents_npages =
+	    atomic_load_zu(&eset->npages, ATOMIC_RELAXED);
+	assert(cur_extents_npages >= npages);
+	atomic_store_zu(&eset->npages,
+	    cur_extents_npages - (size >> LG_PAGE), ATOMIC_RELAXED);
+}
