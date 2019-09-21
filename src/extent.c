@@ -305,11 +305,6 @@ extent_size_quantize_ceil(size_t size) {
 /* Generate pairing heap functions. */
 ph_gen(, extent_heap_, extent_heap_t, extent_t, ph_link, extent_snad_comp)
 
-extent_state_t
-extents_state_get(const eset_t *eset) {
-	return eset->state;
-}
-
 size_t
 extents_npages_get(eset_t *eset) {
 	return atomic_load_zu(&eset->npages, ATOMIC_RELAXED);
@@ -529,7 +524,7 @@ extent_try_delayed_coalesce(tsdn_t *tsdn, arena_t *arena,
 	bool coalesced;
 	extent = extent_try_coalesce(tsdn, arena, r_extent_hooks, rtree_ctx,
 	    eset, extent, &coalesced, false);
-	extent_state_set(extent, extents_state_get(eset));
+	extent_state_set(extent, eset_state_get(eset));
 
 	if (!coalesced) {
 		return true;
@@ -613,7 +608,7 @@ extents_evict(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
 	 * Either mark the extent active or deregister it to protect against
 	 * concurrent operations.
 	 */
-	switch (extents_state_get(eset)) {
+	switch (eset_state_get(eset)) {
 	case extent_state_active:
 		not_reached();
 	case extent_state_dirty:
@@ -647,7 +642,7 @@ extents_abandon_vm(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks
 	 * Leak extent after making sure its pages have already been purged, so
 	 * that this is only a virtual memory leak.
 	 */
-	if (extents_state_get(eset) == extent_state_dirty) {
+	if (eset_state_get(eset) == extent_state_dirty) {
 		if (extent_purge_lazy_impl(tsdn, arena, r_extent_hooks,
 		    extent, 0, sz, growing_retained)) {
 			extent_purge_forced_impl(tsdn, arena, r_extent_hooks,
@@ -679,7 +674,7 @@ extent_deactivate_locked(tsdn_t *tsdn, arena_t *arena, eset_t *eset,
 	assert(extent_arena_ind_get(extent) == arena_ind_get(arena));
 	assert(extent_state_get(extent) == extent_state_active);
 
-	extent_state_set(extent, extents_state_get(eset));
+	extent_state_set(extent, eset_state_get(eset));
 	extents_insert_locked(tsdn, eset, extent);
 }
 
@@ -695,7 +690,7 @@ static void
 extent_activate_locked(tsdn_t *tsdn, arena_t *arena, eset_t *eset,
     extent_t *extent) {
 	assert(extent_arena_ind_get(extent) == arena_ind_get(arena));
-	assert(extent_state_get(extent) == extents_state_get(eset));
+	assert(extent_state_get(extent) == eset_state_get(eset));
 
 	extents_remove_locked(tsdn, eset, extent);
 	extent_state_set(extent, extent_state_active);
@@ -936,7 +931,7 @@ extent_recycle_extract(tsdn_t *tsdn, arena_t *arena,
 			    != arena_ind_get(arena) ||
 			    extent_size_get(extent) < esize ||
 			    extent_state_get(extent) !=
-			    extents_state_get(eset)) {
+			    eset_state_get(eset)) {
 				extent = NULL;
 			}
 			extent_unlock(tsdn, unlock_extent);
@@ -1700,8 +1695,8 @@ extent_record(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
 	rtree_ctx_t rtree_ctx_fallback;
 	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
 
-	assert((extents_state_get(eset) != extent_state_dirty &&
-	    extents_state_get(eset) != extent_state_muzzy) ||
+	assert((eset_state_get(eset) != extent_state_dirty &&
+	    eset_state_get(eset) != extent_state_muzzy) ||
 	    !extent_zeroed_get(extent));
 
 	malloc_mutex_lock(tsdn, &eset->mtx);

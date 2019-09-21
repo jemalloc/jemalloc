@@ -23,3 +23,8 @@ eset_init(tsdn_t *tsdn, eset_t *eset, extent_state_t state,
 	eset->delay_coalesce = delay_coalesce;
 	return false;
 }
+
+extent_state_t
+eset_state_get(const eset_t *eset) {
+	return eset->state;
+}

@@ -62,5 +62,6 @@ struct eset_s {
 
 bool eset_init(tsdn_t *tsdn, eset_t *eset, extent_state_t state,
     bool delay_coalesce);
+extent_state_t eset_state_get(const eset_t *eset);
 
 #endif /* JEMALLOC_INTERNAL_ESET_H */
