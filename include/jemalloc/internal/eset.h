@@ -72,5 +72,11 @@ size_t eset_nbytes_get(eset_t *eset, pszind_t ind);
 
 void eset_insert_locked(tsdn_t *tsdn, eset_t *eset, extent_t *extent);
 void eset_remove_locked(tsdn_t *tsdn, eset_t *eset, extent_t *extent);
+/*
+ * Select an extent from this eset of the given size and alignment.  Returns
+ * null if no such item could be found.
+ */
+extent_t *eset_fit_locked(tsdn_t *tsdn, eset_t *eset, size_t esize,
+    size_t alignment);
 
 #endif /* JEMALLOC_INTERNAL_ESET_H */
