@@ -6,6 +6,9 @@
 #include "jemalloc/internal/extent.h"
 #include "jemalloc/internal/mutex.h"
 
+/* This is a transitional declarion, while we move extent.c into eset.c. */
+extern const bitmap_info_t eset_bitmap_info;
+
 /*
  * An eset ("extent set") is a quantized collection of extents, with built-in
  * LRU queue.
@@ -56,5 +59,8 @@ struct eset_s {
 	 */
 	bool delay_coalesce;
 };
+
+bool eset_init(tsdn_t *tsdn, eset_t *eset, extent_state_t state,
+    bool delay_coalesce);
 
 #endif /* JEMALLOC_INTERNAL_ESET_H */
