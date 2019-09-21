@@ -249,59 +249,6 @@ extent_hooks_assure_initialized(arena_t *arena,
 	}
 }
 
-#ifndef JEMALLOC_JET
-static
-#endif
-size_t
-extent_size_quantize_floor(size_t size) {
-	size_t ret;
-	pszind_t pind;
-
-	assert(size > 0);
-	assert((size & PAGE_MASK) == 0);
-
-	pind = sz_psz2ind(size - sz_large_pad + 1);
-	if (pind == 0) {
-		/*
-		 * Avoid underflow.  This short-circuit would also do the right
-		 * thing for all sizes in the range for which there are
-		 * PAGE-spaced size classes, but it's simplest to just handle
-		 * the one case that would cause erroneous results.
-		 */
-		return size;
-	}
-	ret = sz_pind2sz(pind - 1) + sz_large_pad;
-	assert(ret <= size);
-	return ret;
-}
-
-#ifndef JEMALLOC_JET
-static
-#endif
-size_t
-extent_size_quantize_ceil(size_t size) {
-	size_t ret;
-
-	assert(size > 0);
-	assert(size - sz_large_pad <= SC_LARGE_MAXCLASS);
-	assert((size & PAGE_MASK) == 0);
-
-	ret = extent_size_quantize_floor(size);
-	if (ret < size) {
-		/*
-		 * Skip a quantization that may have an adequately large extent,
-		 * because under-sized extents may be mixed in.  This only
-		 * happens when an unusual size is requested, i.e. for aligned
-		 * allocation, and is just one of several places where linear
-		 * search would potentially find sufficiently aligned available
-		 * memory somewhere lower.
-		 */
-		ret = sz_pind2sz(sz_psz2ind(ret - sz_large_pad + 1)) +
-		    sz_large_pad;
-	}
-	return ret;
-}
-
 /* Generate pairing heap functions. */
 ph_gen(, extent_heap_, extent_heap_t, extent_t, ph_link, extent_snad_comp)
 
@@ -342,7 +289,7 @@ extents_insert_locked(tsdn_t *tsdn, eset_t *eset, extent_t *extent) {
 	assert(extent_state_get(extent) == eset->state);
 
 	size_t size = extent_size_get(extent);
-	size_t psz = extent_size_quantize_floor(size);
+	size_t psz = sz_psz_quantize_floor(size);
 	pszind_t pind = sz_psz2ind(psz);
 	if (extent_heap_empty(&eset->heaps[pind])) {
 		bitmap_unset(eset->bitmap, &eset_bitmap_info,
@@ -373,7 +320,7 @@ extents_remove_locked(tsdn_t *tsdn, eset_t *eset, extent_t *extent) {
 	assert(extent_state_get(extent) == eset->state);
 
 	size_t size = extent_size_get(extent);
-	size_t psz = extent_size_quantize_floor(size);
+	size_t psz = sz_psz_quantize_floor(size);
 	pszind_t pind = sz_psz2ind(psz);
 	extent_heap_remove(&eset->heaps[pind], extent);
 
@@ -405,8 +352,8 @@ extents_remove_locked(tsdn_t *tsdn, eset_t *eset, extent_t *extent) {
 static extent_t *
 extents_fit_alignment(eset_t *eset, size_t min_size, size_t max_size,
     size_t alignment) {
-        pszind_t pind = sz_psz2ind(extent_size_quantize_ceil(min_size));
-        pszind_t pind_max = sz_psz2ind(extent_size_quantize_ceil(max_size));
+        pszind_t pind = sz_psz2ind(sz_psz_quantize_ceil(min_size));
+        pszind_t pind_max = sz_psz2ind(sz_psz_quantize_ceil(max_size));
 
 	for (pszind_t i = (pszind_t)bitmap_ffu(eset->bitmap,
 	    &eset_bitmap_info, (size_t)pind); i < pind_max; i =
@@ -444,7 +391,7 @@ extents_first_fit_locked(tsdn_t *tsdn, arena_t *arena, eset_t *eset,
     size_t size) {
 	extent_t *ret = NULL;
 
-	pszind_t pind = sz_psz2ind(extent_size_quantize_ceil(size));
+	pszind_t pind = sz_psz2ind(sz_psz_quantize_ceil(size));
 
 	if (!maps_coalesce && !opt_retain) {
 		/*

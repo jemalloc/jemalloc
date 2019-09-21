@@ -23,11 +23,11 @@ TEST_BEGIN(test_small_extent_size) {
 		assert_d_eq(mallctlbymib(mib, miblen, (void *)&extent_size, &sz,
 		    NULL, 0), 0, "Unexpected mallctlbymib failure");
 		assert_zu_eq(extent_size,
-		    extent_size_quantize_floor(extent_size),
+		    sz_psz_quantize_floor(extent_size),
 		    "Small extent quantization should be a no-op "
 		    "(extent_size=%zu)", extent_size);
 		assert_zu_eq(extent_size,
-		    extent_size_quantize_ceil(extent_size),
+		    sz_psz_quantize_ceil(extent_size),
 		    "Small extent quantization should be a no-op "
 		    "(extent_size=%zu)", extent_size);
 	}
@@ -65,8 +65,8 @@ TEST_BEGIN(test_large_extent_size) {
 		    &sz, NULL, 0), 0, "Unexpected mallctlbymib failure");
 		extent_size = cache_oblivious ? lextent_size + PAGE :
 		    lextent_size;
-		floor = extent_size_quantize_floor(extent_size);
-		ceil = extent_size_quantize_ceil(extent_size);
+		floor = sz_psz_quantize_floor(extent_size);
+		ceil = sz_psz_quantize_ceil(extent_size);
 
 		assert_zu_eq(extent_size, floor,
 		    "Extent quantization should be a no-op for precise size "
@@ -79,7 +79,7 @@ TEST_BEGIN(test_large_extent_size) {
 
 		if (i > 0) {
 			assert_zu_eq(extent_size_prev,
-			    extent_size_quantize_floor(extent_size - PAGE),
+			    sz_psz_quantize_floor(extent_size - PAGE),
 			    "Floor should be a precise size");
 			if (extent_size_prev < ceil_prev) {
 				assert_zu_eq(ceil_prev, extent_size,
@@ -91,7 +91,7 @@ TEST_BEGIN(test_large_extent_size) {
 		}
 		if (i + 1 < nlextents) {
 			extent_size_prev = floor;
-			ceil_prev = extent_size_quantize_ceil(extent_size +
+			ceil_prev = sz_psz_quantize_ceil(extent_size +
 			    PAGE);
 		}
 	}
@@ -109,8 +109,8 @@ TEST_BEGIN(test_monotonic) {
 		size_t extent_size, floor, ceil;
 
 		extent_size = i << LG_PAGE;
-		floor = extent_size_quantize_floor(extent_size);
-		ceil = extent_size_quantize_ceil(extent_size);
+		floor = sz_psz_quantize_floor(extent_size);
+		ceil = sz_psz_quantize_ceil(extent_size);
 
 		assert_zu_le(floor, extent_size,
 		    "Floor should be <= (floor=%zu, extent_size=%zu, ceil=%zu)",

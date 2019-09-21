@@ -315,4 +315,7 @@ sz_sa2u(size_t size, size_t alignment) {
 	return usize;
 }
 
+size_t sz_psz_quantize_floor(size_t size);
+size_t sz_psz_quantize_ceil(size_t size);
+
 #endif /* JEMALLOC_INTERNAL_SIZE_H */
