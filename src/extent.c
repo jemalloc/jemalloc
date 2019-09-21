@@ -19,9 +19,6 @@ mutex_pool_t	extent_mutex_pool;
 
 size_t opt_lg_extent_max_active_fit = LG_EXTENT_MAX_ACTIVE_FIT_DEFAULT;
 
-static const bitmap_info_t eset_bitmap_info =
-    BITMAP_INFO_INITIALIZER(SC_NPSIZES+1);
-
 static void *extent_alloc_default(extent_hooks_t *extent_hooks, void *new_addr,
     size_t size, size_t alignment, bool *zero, bool *commit,
     unsigned arena_ind);
@@ -307,24 +304,6 @@ extent_size_quantize_ceil(size_t size) {
 
 /* Generate pairing heap functions. */
 ph_gen(, extent_heap_, extent_heap_t, extent_t, ph_link, extent_snad_comp)
-
-bool
-extents_init(tsdn_t *tsdn, eset_t *eset, extent_state_t state,
-    bool delay_coalesce) {
-	if (malloc_mutex_init(&eset->mtx, "extents", WITNESS_RANK_EXTENTS,
-	    malloc_mutex_rank_exclusive)) {
-		return true;
-	}
-	for (unsigned i = 0; i < SC_NPSIZES + 1; i++) {
-		extent_heap_new(&eset->heaps[i]);
-	}
-	bitmap_init(eset->bitmap, &eset_bitmap_info, true);
-	extent_list_init(&eset->lru);
-	atomic_store_zu(&eset->npages, 0, ATOMIC_RELAXED);
-	eset->state = state;
-	eset->delay_coalesce = delay_coalesce;
-	return false;
-}
 
 extent_state_t
 extents_state_get(const eset_t *eset) {
