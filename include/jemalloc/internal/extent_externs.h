@@ -19,11 +19,6 @@ extent_hooks_t *extent_hooks_get(arena_t *arena);
 extent_hooks_t *extent_hooks_set(tsd_t *tsd, arena_t *arena,
     extent_hooks_t *extent_hooks);
 
-#ifdef JEMALLOC_JET
-size_t extent_size_quantize_floor(size_t size);
-size_t extent_size_quantize_ceil(size_t size);
-#endif
-
 ph_proto(, extent_avail_, extent_tree_t, extent_t)
 ph_proto(, extent_heap_, extent_heap_t, extent_t)
 
