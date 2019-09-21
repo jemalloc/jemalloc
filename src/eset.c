@@ -28,3 +28,18 @@ extent_state_t
 eset_state_get(const eset_t *eset) {
 	return eset->state;
 }
+
+size_t
+eset_npages_get(eset_t *eset) {
+	return atomic_load_zu(&eset->npages, ATOMIC_RELAXED);
+}
+
+size_t
+eset_nextents_get(eset_t *eset, pszind_t pind) {
+	return atomic_load_zu(&eset->nextents[pind], ATOMIC_RELAXED);
+}
+
+size_t
+eset_nbytes_get(eset_t *eset, pszind_t pind) {
+	return atomic_load_zu(&eset->nbytes[pind], ATOMIC_RELAXED);
+}

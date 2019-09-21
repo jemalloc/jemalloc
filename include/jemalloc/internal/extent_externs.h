@@ -27,11 +27,6 @@ size_t extent_size_quantize_ceil(size_t size);
 ph_proto(, extent_avail_, extent_tree_t, extent_t)
 ph_proto(, extent_heap_, extent_heap_t, extent_t)
 
-size_t extents_npages_get(eset_t *eset);
-/* Get the number of extents in the given page size index. */
-size_t extents_nextents_get(eset_t *eset, pszind_t ind);
-/* Get the sum total bytes of the extents in the given page size index. */
-size_t extents_nbytes_get(eset_t *eset, pszind_t ind);
 extent_t *extents_alloc(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, eset_t *eset, void *new_addr,
     size_t size, size_t pad, size_t alignment, bool slab, szind_t szind,

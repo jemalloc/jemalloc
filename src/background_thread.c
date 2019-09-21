@@ -130,7 +130,7 @@ arena_decay_compute_purge_interval_impl(tsdn_t *tsdn, arena_decay_t *decay,
 
 	uint64_t decay_interval_ns = nstime_ns(&decay->interval);
 	assert(decay_interval_ns > 0);
-	size_t npages = extents_npages_get(eset);
+	size_t npages = eset_npages_get(eset);
 	if (npages == 0) {
 		unsigned i;
 		for (i = 0; i < SMOOTHSTEP_NSTEPS; i++) {
@@ -718,8 +718,8 @@ background_thread_interval_check(tsdn_t *tsdn, arena_t *arena,
 	if (info->npages_to_purge_new > BACKGROUND_THREAD_NPAGES_THRESHOLD) {
 		should_signal = true;
 	} else if (unlikely(background_thread_indefinite_sleep(info)) &&
-	    (extents_npages_get(&arena->extents_dirty) > 0 ||
-	    extents_npages_get(&arena->extents_muzzy) > 0 ||
+	    (eset_npages_get(&arena->extents_dirty) > 0 ||
+	    eset_npages_get(&arena->extents_muzzy) > 0 ||
 	    info->npages_to_purge_new > 0)) {
 		should_signal = true;
 	} else {

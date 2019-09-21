@@ -252,21 +252,6 @@ extent_hooks_assure_initialized(arena_t *arena,
 /* Generate pairing heap functions. */
 ph_gen(, extent_heap_, extent_heap_t, extent_t, ph_link, extent_snad_comp)
 
-size_t
-extents_npages_get(eset_t *eset) {
-	return atomic_load_zu(&eset->npages, ATOMIC_RELAXED);
-}
-
-size_t
-extents_nextents_get(eset_t *eset, pszind_t pind) {
-	return atomic_load_zu(&eset->nextents[pind], ATOMIC_RELAXED);
-}
-
-size_t
-extents_nbytes_get(eset_t *eset, pszind_t pind) {
-	return atomic_load_zu(&eset->nbytes[pind], ATOMIC_RELAXED);
-}
-
 static void
 extents_stats_add(eset_t *eset, pszind_t pind, size_t sz) {
 	size_t cur = atomic_load_zu(&eset->nextents[pind], ATOMIC_RELAXED);

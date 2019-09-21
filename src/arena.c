@@ -75,8 +75,8 @@ arena_basic_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 	*dirty_decay_ms = arena_dirty_decay_ms_get(arena);
 	*muzzy_decay_ms = arena_muzzy_decay_ms_get(arena);
 	*nactive += atomic_load_zu(&arena->nactive, ATOMIC_RELAXED);
-	*ndirty += extents_npages_get(&arena->extents_dirty);
-	*nmuzzy += extents_npages_get(&arena->extents_muzzy);
+	*ndirty += eset_npages_get(&arena->extents_dirty);
+	*nmuzzy += eset_npages_get(&arena->extents_muzzy);
 }
 
 void
@@ -99,7 +99,7 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 	arena_stats_accum_zu(&astats->mapped, base_mapped
 	    + arena_stats_read_zu(tsdn, &arena->stats, &arena->stats.mapped));
 	arena_stats_accum_zu(&astats->retained,
-	    extents_npages_get(&arena->extents_retained) << LG_PAGE);
+	    eset_npages_get(&arena->extents_retained) << LG_PAGE);
 
 	atomic_store_zu(&astats->extent_avail,
 	    atomic_load_zu(&arena->extent_avail_cnt, ATOMIC_RELAXED),
@@ -130,8 +130,8 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 	arena_stats_accum_zu(&astats->metadata_thp, metadata_thp);
 	arena_stats_accum_zu(&astats->resident, base_resident +
 	    (((atomic_load_zu(&arena->nactive, ATOMIC_RELAXED) +
-	    extents_npages_get(&arena->extents_dirty) +
-	    extents_npages_get(&arena->extents_muzzy)) << LG_PAGE)));
+	    eset_npages_get(&arena->extents_dirty) +
+	    eset_npages_get(&arena->extents_muzzy)) << LG_PAGE)));
 	arena_stats_accum_zu(&astats->abandoned_vm, atomic_load_zu(
 	    &arena->stats.abandoned_vm, ATOMIC_RELAXED));
 
@@ -173,13 +173,12 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 	for (pszind_t i = 0; i < SC_NPSIZES; i++) {
 		size_t dirty, muzzy, retained, dirty_bytes, muzzy_bytes,
 		    retained_bytes;
-		dirty = extents_nextents_get(&arena->extents_dirty, i);
-		muzzy = extents_nextents_get(&arena->extents_muzzy, i);
-		retained = extents_nextents_get(&arena->extents_retained, i);
-		dirty_bytes = extents_nbytes_get(&arena->extents_dirty, i);
-		muzzy_bytes = extents_nbytes_get(&arena->extents_muzzy, i);
-		retained_bytes =
-		    extents_nbytes_get(&arena->extents_retained, i);
+		dirty = eset_nextents_get(&arena->extents_dirty, i);
+		muzzy = eset_nextents_get(&arena->extents_muzzy, i);
+		retained = eset_nextents_get(&arena->extents_retained, i);
+		dirty_bytes = eset_nbytes_get(&arena->extents_dirty, i);
+		muzzy_bytes = eset_nbytes_get(&arena->extents_muzzy, i);
+		retained_bytes = eset_nbytes_get(&arena->extents_retained, i);
 
 		atomic_store_zu(&estats[i].ndirty, dirty, ATOMIC_RELAXED);
 		atomic_store_zu(&estats[i].nmuzzy, muzzy, ATOMIC_RELAXED);
@@ -645,7 +644,7 @@ arena_decay_epoch_advance_helper(arena_decay_t *decay, const nstime_t *time,
 static void
 arena_decay_epoch_advance(tsdn_t *tsdn, arena_t *arena, arena_decay_t *decay,
     eset_t *eset, const nstime_t *time, bool is_background_thread) {
-	size_t current_npages = extents_npages_get(eset);
+	size_t current_npages = eset_npages_get(eset);
 	arena_decay_epoch_advance_helper(decay, time, current_npages);
 
 	size_t npages_limit = arena_decay_backlog_npages_limit(decay);
@@ -720,7 +719,7 @@ arena_maybe_decay(tsdn_t *tsdn, arena_t *arena, arena_decay_t *decay,
 	if (decay_ms <= 0) {
 		if (decay_ms == 0) {
 			arena_decay_to_limit(tsdn, arena, decay, eset, false,
-			    0, extents_npages_get(eset),
+			    0, eset_npages_get(eset),
 			    is_background_thread);
 		}
 		return false;
@@ -760,7 +759,7 @@ arena_maybe_decay(tsdn_t *tsdn, arena_t *arena, arena_decay_t *decay,
 		    is_background_thread);
 	} else if (is_background_thread) {
 		arena_decay_try_purge(tsdn, arena, decay, eset,
-		    extents_npages_get(eset),
+		    eset_npages_get(eset),
 		    arena_decay_backlog_npages_limit(decay),
 		    is_background_thread);
 	}
@@ -907,7 +906,7 @@ arena_decay_stashed(tsdn_t *tsdn, arena_t *arena,
 
 /*
  * npages_limit: Decay at most npages_decay_max pages without violating the
- * invariant: (extents_npages_get(extents) >= npages_limit).  We need an upper
+ * invariant: (eset_npages_get(extents) >= npages_limit).  We need an upper
  * bound on number of pages in order to prevent unbounded growth (namely in
  * stashed), otherwise unbounded new pages could be added to extents during the
  * current decay run, so that the purging thread never finishes.
@@ -950,7 +949,7 @@ arena_decay_impl(tsdn_t *tsdn, arena_t *arena, arena_decay_t *decay,
 	if (all) {
 		malloc_mutex_lock(tsdn, &decay->mtx);
 		arena_decay_to_limit(tsdn, arena, decay, eset, all, 0,
-		    extents_npages_get(eset), is_background_thread);
+		    eset_npages_get(eset), is_background_thread);
 		malloc_mutex_unlock(tsdn, &decay->mtx);
 
 		return false;
@@ -1177,8 +1176,8 @@ arena_destroy(tsd_t *tsd, arena_t *arena) {
 	 * Furthermore, the caller (arena_i_destroy_ctl()) purged all cached
 	 * extents, so only retained extents may remain.
 	 */
-	assert(extents_npages_get(&arena->extents_dirty) == 0);
-	assert(extents_npages_get(&arena->extents_muzzy) == 0);
+	assert(eset_npages_get(&arena->extents_dirty) == 0);
+	assert(eset_npages_get(&arena->extents_muzzy) == 0);
 
 	/* Deallocate retained memory. */
 	arena_destroy_retained(tsd_tsdn(tsd), arena);

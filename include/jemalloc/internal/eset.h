@@ -64,4 +64,10 @@ bool eset_init(tsdn_t *tsdn, eset_t *eset, extent_state_t state,
     bool delay_coalesce);
 extent_state_t eset_state_get(const eset_t *eset);
 
+size_t eset_npages_get(eset_t *eset);
+/* Get the number of extents in the given page size index. */
+size_t eset_nextents_get(eset_t *eset, pszind_t ind);
+/* Get the sum total bytes of the extents in the given page size index. */
+size_t eset_nbytes_get(eset_t *eset, pszind_t ind);
+
 #endif /* JEMALLOC_INTERNAL_ESET_H */
