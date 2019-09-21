@@ -1566,7 +1566,8 @@ arena_prof_promote(tsdn_t *tsdn, void *ptr, size_t usize) {
 
 	extent_t *extent = rtree_extent_read(tsdn, &extents_rtree, rtree_ctx,
 	    (uintptr_t)ptr, true);
-	arena_t *arena = extent_arena_get(extent);
+	arena_t *arena = atomic_load_p(&arenas[extent_arena_ind_get(extent)],
+	    ATOMIC_RELAXED);
 
 	szind_t szind = sz_size2index(usize);
 	extent_szind_set(extent, szind);
@@ -1731,7 +1732,8 @@ arena_dalloc_bin(tsdn_t *tsdn, arena_t *arena, extent_t *extent, void *ptr) {
 void
 arena_dalloc_small(tsdn_t *tsdn, void *ptr) {
 	extent_t *extent = iealloc(tsdn, ptr);
-	arena_t *arena = extent_arena_get(extent);
+	arena_t *arena = atomic_load_p(&arenas[extent_arena_ind_get(extent)],
+	    ATOMIC_RELAXED);
 
 	arena_dalloc_bin(tsdn, arena, extent, ptr);
 	arena_decay_tick(tsdn, arena);
@@ -1767,7 +1769,9 @@ arena_ralloc_no_move(tsdn_t *tsdn, void *ptr, size_t oldsize, size_t size,
 			goto done;
 		}
 
-		arena_decay_tick(tsdn, extent_arena_get(extent));
+		arena_t *arena = atomic_load_p(
+		    &arenas[extent_arena_ind_get(extent)], ATOMIC_RELAXED);
+		arena_decay_tick(tsdn, arena);
 		ret = false;
 	} else if (oldsize >= SC_LARGE_MINCLASS
 	    && usize_max >= SC_LARGE_MINCLASS) {

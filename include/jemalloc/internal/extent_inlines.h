@@ -44,13 +44,6 @@ extent_arena_ind_get(const extent_t *extent) {
 	return arena_ind;
 }
 
-static inline arena_t *
-extent_arena_get(const extent_t *extent) {
-	unsigned arena_ind = extent_arena_ind_get(extent);
-
-	return (arena_t *)atomic_load_p(&arenas[arena_ind], ATOMIC_ACQUIRE);
-}
-
 static inline szind_t
 extent_szind_get_maybe_invalid(const extent_t *extent) {
 	szind_t szind = (szind_t)((extent->e_bits & EXTENT_BITS_SZIND_MASK) >>
@@ -192,9 +185,7 @@ extent_prof_alloc_time_get(const extent_t *extent) {
 }
 
 static inline void
-extent_arena_set(extent_t *extent, arena_t *arena) {
-	unsigned arena_ind = (arena != NULL) ? arena_ind_get(arena) : ((1U <<
-	    MALLOCX_ARENA_BITS) - 1);
+extent_arena_ind_set(extent_t *extent, unsigned arena_ind) {
 	extent->e_bits = (extent->e_bits & ~EXTENT_BITS_ARENA_MASK) |
 	    ((uint64_t)arena_ind << EXTENT_BITS_ARENA_SHIFT);
 }
@@ -210,32 +201,6 @@ extent_binshard_set(extent_t *extent, unsigned binshard) {
 static inline void
 extent_addr_set(extent_t *extent, void *addr) {
 	extent->e_addr = addr;
-}
-
-static inline void
-extent_addr_randomize(tsdn_t *tsdn, extent_t *extent, size_t alignment) {
-	assert(extent_base_get(extent) == extent_addr_get(extent));
-
-	if (alignment < PAGE) {
-		unsigned lg_range = LG_PAGE -
-		    lg_floor(CACHELINE_CEILING(alignment));
-		size_t r;
-		if (!tsdn_null(tsdn)) {
-			tsd_t *tsd = tsdn_tsd(tsdn);
-			r = (size_t)prng_lg_range_u64(
-			    tsd_offset_statep_get(tsd), lg_range);
-		} else {
-			r = prng_lg_range_zu(
-			    &extent_arena_get(extent)->offset_state,
-			    lg_range, true);
-		}
-		uintptr_t random_offset = ((uintptr_t)r) << (LG_PAGE -
-		    lg_range);
-		extent->e_addr = (void *)((uintptr_t)extent->e_addr +
-		    random_offset);
-		assert(ALIGNMENT_ADDR2BASE(extent->e_addr, alignment) ==
-		    extent->e_addr);
-	}
 }
 
 static inline void
@@ -364,12 +329,12 @@ extent_is_head_set(extent_t *extent, bool is_head) {
 }
 
 static inline void
-extent_init(extent_t *extent, arena_t *arena, void *addr, size_t size,
+extent_init(extent_t *extent, unsigned arena_ind, void *addr, size_t size,
     bool slab, szind_t szind, size_t sn, extent_state_t state, bool zeroed,
     bool committed, bool dumpable, extent_head_state_t is_head) {
 	assert(addr == PAGE_ADDR2BASE(addr) || !slab);
 
-	extent_arena_set(extent, arena);
+	extent_arena_ind_set(extent, arena_ind);
 	extent_addr_set(extent, addr);
 	extent_size_set(extent, size);
 	extent_slab_set(extent, slab);
@@ -391,7 +356,7 @@ extent_init(extent_t *extent, arena_t *arena, void *addr, size_t size,
 
 static inline void
 extent_binit(extent_t *extent, void *addr, size_t bsize, size_t sn) {
-	extent_arena_set(extent, NULL);
+	extent_arena_ind_set(extent, (1U << MALLOCX_ARENA_BITS) - 1);
 	extent_addr_set(extent, addr);
 	extent_bsize_set(extent, bsize);
 	extent_slab_set(extent, false);
