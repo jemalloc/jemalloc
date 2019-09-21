@@ -52,8 +52,8 @@ struct arena_decay_s {
 	/*
 	 * Number of unpurged pages at beginning of current epoch.  During epoch
 	 * advancement we use the delta between arena->decay_*.nunpurged and
-	 * extents_npages_get(&arena->extents_*) to determine how many dirty
-	 * pages, if any, were generated.
+	 * eset_npages_get(&arena->extents_*) to determine how many dirty pages,
+	 * if any, were generated.
 	 */
 	size_t			nunpurged;
 	/*
