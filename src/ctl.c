@@ -2612,7 +2612,8 @@ arenas_lookup_ctl(tsd_t *tsd, const size_t *mib,
 	if (extent == NULL)
 		goto label_return;
 
-	arena = extent_arena_get(extent);
+	arena = atomic_load_p(&arenas[extent_arena_ind_get(extent)],
+	    ATOMIC_RELAXED);
 	if (arena == NULL)
 		goto label_return;
 

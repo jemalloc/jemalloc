@@ -2,6 +2,8 @@
 
 #include "jemalloc/internal/rtree.h"
 
+#define INVALID_ARENA_IND ((1U << MALLOCX_ARENA_BITS) - 1)
+
 rtree_node_alloc_t *rtree_node_alloc_orig;
 rtree_node_dalloc_t *rtree_node_dalloc_orig;
 rtree_leaf_alloc_t *rtree_leaf_alloc_orig;
@@ -85,10 +87,10 @@ TEST_END
 
 TEST_BEGIN(test_rtree_extrema) {
 	extent_t extent_a, extent_b;
-	extent_init(&extent_a, NULL, NULL, SC_LARGE_MINCLASS, false,
-	    sz_size2index(SC_LARGE_MINCLASS), 0,
+	extent_init(&extent_a, INVALID_ARENA_IND, NULL, SC_LARGE_MINCLASS,
+	    false, sz_size2index(SC_LARGE_MINCLASS), 0,
 	    extent_state_active, false, false, true, EXTENT_NOT_HEAD);
-	extent_init(&extent_b, NULL, NULL, 0, false, SC_NSIZES, 0,
+	extent_init(&extent_b, INVALID_ARENA_IND, NULL, 0, false, SC_NSIZES, 0,
 	    extent_state_active, false, false, true, EXTENT_NOT_HEAD);
 
 	tsdn_t *tsdn = tsdn_fetch();
@@ -125,7 +127,7 @@ TEST_BEGIN(test_rtree_bits) {
 	    PAGE + (((uintptr_t)1) << LG_PAGE) - 1};
 
 	extent_t extent;
-	extent_init(&extent, NULL, NULL, 0, false, SC_NSIZES, 0,
+	extent_init(&extent, INVALID_ARENA_IND, NULL, 0, false, SC_NSIZES, 0,
 	    extent_state_active, false, false, true, EXTENT_NOT_HEAD);
 
 	rtree_t *rtree = &test_rtree;
@@ -166,7 +168,7 @@ TEST_BEGIN(test_rtree_random) {
 	rtree_ctx_data_init(&rtree_ctx);
 
 	extent_t extent;
-	extent_init(&extent, NULL, NULL, 0, false, SC_NSIZES, 0,
+	extent_init(&extent, INVALID_ARENA_IND, NULL, 0, false, SC_NSIZES, 0,
 	    extent_state_active, false, false, true, EXTENT_NOT_HEAD);
 
 	assert_false(rtree_new(rtree, false), "Unexpected rtree_new() failure");

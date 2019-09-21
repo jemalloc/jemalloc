@@ -178,7 +178,8 @@ arena_malloc(tsdn_t *tsdn, arena_t *arena, size_t size, szind_t ind, bool zero,
 
 JEMALLOC_ALWAYS_INLINE arena_t *
 arena_aalloc(tsdn_t *tsdn, const void *ptr) {
-	return extent_arena_get(iealloc(tsdn, ptr));
+	return (arena_t *)atomic_load_p(&arenas[extent_arena_ind_get(
+	    iealloc(tsdn, ptr))], ATOMIC_RELAXED);
 }
 
 JEMALLOC_ALWAYS_INLINE size_t

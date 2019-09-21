@@ -176,6 +176,32 @@ extent_lock_from_addr(tsdn_t *tsdn, rtree_ctx_t *rtree_ctx, void *addr,
 	return ret;
 }
 
+static void
+extent_addr_randomize(tsdn_t *tsdn, arena_t *arena, extent_t *extent,
+    size_t alignment) {
+	assert(extent_base_get(extent) == extent_addr_get(extent));
+
+	if (alignment < PAGE) {
+		unsigned lg_range = LG_PAGE -
+		    lg_floor(CACHELINE_CEILING(alignment));
+		size_t r;
+		if (!tsdn_null(tsdn)) {
+			tsd_t *tsd = tsdn_tsd(tsdn);
+			r = (size_t)prng_lg_range_u64(
+			    tsd_offset_statep_get(tsd), lg_range);
+		} else {
+			r = prng_lg_range_zu(&arena->offset_state, lg_range,
+			    true);
+		}
+		uintptr_t random_offset = ((uintptr_t)r) << (LG_PAGE -
+		    lg_range);
+		extent->e_addr = (void *)((uintptr_t)extent->e_addr +
+		    random_offset);
+		assert(ALIGNMENT_ADDR2BASE(extent->e_addr, alignment) ==
+		    extent->e_addr);
+	}
+}
+
 extent_t *
 extent_alloc(tsdn_t *tsdn, arena_t *arena) {
 	malloc_mutex_lock(tsdn, &arena->extent_avail_mtx);
@@ -671,7 +697,7 @@ extents_postfork_child(tsdn_t *tsdn, extents_t *extents) {
 static void
 extent_deactivate_locked(tsdn_t *tsdn, arena_t *arena, extents_t *extents,
     extent_t *extent) {
-	assert(extent_arena_get(extent) == arena);
+	assert(extent_arena_ind_get(extent) == arena_ind_get(arena));
 	assert(extent_state_get(extent) == extent_state_active);
 
 	extent_state_set(extent, extents_state_get(extents));
@@ -689,7 +715,7 @@ extent_deactivate(tsdn_t *tsdn, arena_t *arena, extents_t *extents,
 static void
 extent_activate_locked(tsdn_t *tsdn, arena_t *arena, extents_t *extents,
     extent_t *extent) {
-	assert(extent_arena_get(extent) == arena);
+	assert(extent_arena_ind_get(extent) == arena_ind_get(arena));
 	assert(extent_state_get(extent) == extents_state_get(extents));
 
 	extents_remove_locked(tsdn, extents, extent);
@@ -927,7 +953,8 @@ extent_recycle_extract(tsdn_t *tsdn, arena_t *arena,
 			 */
 			extent_t *unlock_extent = extent;
 			assert(extent_base_get(extent) == new_addr);
-			if (extent_arena_get(extent) != arena ||
+			if (extent_arena_ind_get(extent)
+			    != arena_ind_get(arena) ||
 			    extent_size_get(extent) < esize ||
 			    extent_state_get(extent) !=
 			    extents_state_get(extents)) {
@@ -1172,7 +1199,7 @@ extent_recycle(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
 	}
 
 	if (pad != 0) {
-		extent_addr_randomize(tsdn, extent, alignment);
+		extent_addr_randomize(tsdn, arena, extent, alignment);
 	}
 	assert(extent_state_get(extent) == extent_state_active);
 	if (slab) {
@@ -1342,8 +1369,8 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena,
 		extent_hook_post_reentrancy(tsdn);
 	}
 
-	extent_init(extent, arena, ptr, alloc_size, false, SC_NSIZES,
-	    arena_extent_sn_next(arena), extent_state_active, zeroed,
+	extent_init(extent, arena_ind_get(arena), ptr, alloc_size, false,
+	    SC_NSIZES, arena_extent_sn_next(arena), extent_state_active, zeroed,
 	    committed, true, EXTENT_IS_HEAD);
 	if (ptr == NULL) {
 		extent_dalloc(tsdn, arena, extent);
@@ -1434,7 +1461,7 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena,
 		extent_gdump_add(tsdn, extent);
 	}
 	if (pad != 0) {
-		extent_addr_randomize(tsdn, extent, alignment);
+		extent_addr_randomize(tsdn, arena, extent, alignment);
 	}
 	if (slab) {
 		rtree_ctx_t rtree_ctx_fallback;
@@ -1513,11 +1540,11 @@ extent_alloc_wrapper_hard(tsdn_t *tsdn, arena_t *arena,
 		extent_dalloc(tsdn, arena, extent);
 		return NULL;
 	}
-	extent_init(extent, arena, addr, esize, slab, szind,
+	extent_init(extent, arena_ind_get(arena), addr, esize, slab, szind,
 	    arena_extent_sn_next(arena), extent_state_active, *zero, *commit,
 	    true, EXTENT_NOT_HEAD);
 	if (pad != 0) {
-		extent_addr_randomize(tsdn, extent, alignment);
+		extent_addr_randomize(tsdn, arena, extent, alignment);
 	}
 	if (extent_register(tsdn, extent)) {
 		extent_dalloc(tsdn, arena, extent);
@@ -1559,8 +1586,8 @@ extent_alloc_wrapper(tsdn_t *tsdn, arena_t *arena,
 static bool
 extent_can_coalesce(arena_t *arena, extents_t *extents, const extent_t *inner,
     const extent_t *outer) {
-	assert(extent_arena_get(inner) == arena);
-	if (extent_arena_get(outer) != arena) {
+	assert(extent_arena_ind_get(inner) == arena_ind_get(arena));
+	if (extent_arena_ind_get(outer) != arena_ind_get(arena)) {
 		return false;
 	}
 
@@ -2105,11 +2132,11 @@ extent_split_impl(tsdn_t *tsdn, arena_t *arena,
 		goto label_error_a;
 	}
 
-	extent_init(trail, arena, (void *)((uintptr_t)extent_base_get(extent) +
-	    size_a), size_b, slab_b, szind_b, extent_sn_get(extent),
-	    extent_state_get(extent), extent_zeroed_get(extent),
-	    extent_committed_get(extent), extent_dumpable_get(extent),
-	    EXTENT_NOT_HEAD);
+	extent_init(trail, arena_ind_get(arena),
+	    (void *)((uintptr_t)extent_base_get(extent) + size_a), size_b,
+	    slab_b, szind_b, extent_sn_get(extent), extent_state_get(extent),
+	    extent_zeroed_get(extent), extent_committed_get(extent),
+	    extent_dumpable_get(extent), EXTENT_NOT_HEAD);
 
 	rtree_ctx_t rtree_ctx_fallback;
 	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
@@ -2117,7 +2144,8 @@ extent_split_impl(tsdn_t *tsdn, arena_t *arena,
 	{
 		extent_t lead;
 
-		extent_init(&lead, arena, extent_addr_get(extent), size_a,
+		extent_init(&lead, arena_ind_get(arena),
+		    extent_addr_get(extent), size_a,
 		    slab_a, szind_a, extent_sn_get(extent),
 		    extent_state_get(extent), extent_zeroed_get(extent),
 		    extent_committed_get(extent), extent_dumpable_get(extent),
@@ -2304,7 +2332,12 @@ extent_merge_impl(tsdn_t *tsdn, arena_t *arena,
 
 	extent_unlock2(tsdn, a, b);
 
-	extent_dalloc(tsdn, extent_arena_get(b), b);
+	/*
+	 * If we got here, we merged the extents; so they must be from the same
+	 * arena (i.e. this one).
+	 */
+	assert(extent_arena_ind_get(b) == arena_ind_get(arena));
+	extent_dalloc(tsdn, arena, b);
 
 	return false;
 }
@@ -2384,7 +2417,8 @@ extent_util_stats_verbose_get(tsdn_t *tsdn, const void *ptr,
 	assert(*nfree <= *nregs);
 	assert(*nfree * extent_usize_get(extent) <= *size);
 
-	const arena_t *arena = extent_arena_get(extent);
+	const arena_t *arena = (arena_t *)atomic_load_p(
+	    &arenas[extent_arena_ind_get(extent)], ATOMIC_RELAXED);
 	assert(arena != NULL);
 	const unsigned binshard = extent_binshard_get(extent);
 	bin_t *bin = &arena->bins[szind].bin_shards[binshard];
