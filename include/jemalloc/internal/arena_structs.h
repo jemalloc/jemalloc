@@ -5,6 +5,7 @@
 #include "jemalloc/internal/atomic.h"
 #include "jemalloc/internal/bin.h"
 #include "jemalloc/internal/bitmap.h"
+#include "jemalloc/internal/eset.h"
 #include "jemalloc/internal/extent_dss.h"
 #include "jemalloc/internal/jemalloc_internal_types.h"
 #include "jemalloc/internal/mutex.h"
@@ -161,9 +162,9 @@ struct arena_s {
 	 *
 	 * Synchronization: internal.
 	 */
-	extents_t		extents_dirty;
-	extents_t		extents_muzzy;
-	extents_t		extents_retained;
+	eset_t		extents_dirty;
+	eset_t		extents_muzzy;
+	eset_t		extents_retained;
 
 	/*
 	 * Decay-based purging state, responsible for scheduling extent state

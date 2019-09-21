@@ -27,25 +27,25 @@ size_t extent_size_quantize_ceil(size_t size);
 ph_proto(, extent_avail_, extent_tree_t, extent_t)
 ph_proto(, extent_heap_, extent_heap_t, extent_t)
 
-bool extents_init(tsdn_t *tsdn, extents_t *extents, extent_state_t state,
+bool extents_init(tsdn_t *tsdn, eset_t *eset, extent_state_t state,
     bool delay_coalesce);
-extent_state_t extents_state_get(const extents_t *extents);
-size_t extents_npages_get(extents_t *extents);
+extent_state_t extents_state_get(const eset_t *eset);
+size_t extents_npages_get(eset_t *eset);
 /* Get the number of extents in the given page size index. */
-size_t extents_nextents_get(extents_t *extents, pszind_t ind);
+size_t extents_nextents_get(eset_t *eset, pszind_t ind);
 /* Get the sum total bytes of the extents in the given page size index. */
-size_t extents_nbytes_get(extents_t *extents, pszind_t ind);
+size_t extents_nbytes_get(eset_t *eset, pszind_t ind);
 extent_t *extents_alloc(tsdn_t *tsdn, arena_t *arena,
-    extent_hooks_t **r_extent_hooks, extents_t *extents, void *new_addr,
+    extent_hooks_t **r_extent_hooks, eset_t *eset, void *new_addr,
     size_t size, size_t pad, size_t alignment, bool slab, szind_t szind,
     bool *zero, bool *commit);
 void extents_dalloc(tsdn_t *tsdn, arena_t *arena,
-    extent_hooks_t **r_extent_hooks, extents_t *extents, extent_t *extent);
+    extent_hooks_t **r_extent_hooks, eset_t *eset, extent_t *extent);
 extent_t *extents_evict(tsdn_t *tsdn, arena_t *arena,
-    extent_hooks_t **r_extent_hooks, extents_t *extents, size_t npages_min);
-void extents_prefork(tsdn_t *tsdn, extents_t *extents);
-void extents_postfork_parent(tsdn_t *tsdn, extents_t *extents);
-void extents_postfork_child(tsdn_t *tsdn, extents_t *extents);
+    extent_hooks_t **r_extent_hooks, eset_t *eset, size_t npages_min);
+void extents_prefork(tsdn_t *tsdn, eset_t *eset);
+void extents_postfork_parent(tsdn_t *tsdn, eset_t *eset);
+void extents_postfork_child(tsdn_t *tsdn, eset_t *eset);
 extent_t *extent_alloc_wrapper(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, void *new_addr, size_t size, size_t pad,
     size_t alignment, bool slab, szind_t szind, bool *zero, bool *commit);

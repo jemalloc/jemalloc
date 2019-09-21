@@ -114,7 +114,7 @@ decay_npurge_after_interval(arena_decay_t *decay, size_t interval) {
 
 static uint64_t
 arena_decay_compute_purge_interval_impl(tsdn_t *tsdn, arena_decay_t *decay,
-    extents_t *extents) {
+    eset_t *eset) {
 	if (malloc_mutex_trylock(tsdn, &decay->mtx)) {
 		/* Use minimal interval if decay is contended. */
 		return BACKGROUND_THREAD_MIN_INTERVAL_NS;
@@ -130,7 +130,7 @@ arena_decay_compute_purge_interval_impl(tsdn_t *tsdn, arena_decay_t *decay,
 
 	uint64_t decay_interval_ns = nstime_ns(&decay->interval);
 	assert(decay_interval_ns > 0);
-	size_t npages = extents_npages_get(extents);
+	size_t npages = extents_npages_get(eset);
 	if (npages == 0) {
 		unsigned i;
 		for (i = 0; i < SMOOTHSTEP_NSTEPS; i++) {
