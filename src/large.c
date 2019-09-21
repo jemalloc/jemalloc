@@ -155,10 +155,10 @@ large_ralloc_no_move_expand(tsdn_t *tsdn, extent_t *extent, size_t usize,
 	extent_t *trail;
 	bool new_mapping;
 	if ((trail = extents_alloc(tsdn, arena, &extent_hooks,
-	    &arena->extents_dirty, extent_past_get(extent), trailsize, 0,
+	    &arena->eset_dirty, extent_past_get(extent), trailsize, 0,
 	    CACHELINE, false, SC_NSIZES, &is_zeroed_trail, &commit)) != NULL
 	    || (trail = extents_alloc(tsdn, arena, &extent_hooks,
-	    &arena->extents_muzzy, extent_past_get(extent), trailsize, 0,
+	    &arena->eset_muzzy, extent_past_get(extent), trailsize, 0,
 	    CACHELINE, false, SC_NSIZES, &is_zeroed_trail, &commit)) != NULL) {
 		if (config_stats) {
 			new_mapping = false;

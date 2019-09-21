@@ -162,9 +162,9 @@ struct arena_s {
 	 *
 	 * Synchronization: internal.
 	 */
-	eset_t		extents_dirty;
-	eset_t		extents_muzzy;
-	eset_t		extents_retained;
+	eset_t		eset_dirty;
+	eset_t		eset_muzzy;
+	eset_t		eset_retained;
 
 	/*
 	 * Decay-based purging state, responsible for scheduling extent state
