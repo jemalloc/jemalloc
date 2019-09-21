@@ -2200,9 +2200,9 @@ arena_prefork2(tsdn_t *tsdn, arena_t *arena) {
 
 void
 arena_prefork3(tsdn_t *tsdn, arena_t *arena) {
-	extents_prefork(tsdn, &arena->extents_dirty);
-	extents_prefork(tsdn, &arena->extents_muzzy);
-	extents_prefork(tsdn, &arena->extents_retained);
+	eset_prefork(tsdn, &arena->extents_dirty);
+	eset_prefork(tsdn, &arena->extents_muzzy);
+	eset_prefork(tsdn, &arena->extents_retained);
 }
 
 void
@@ -2242,9 +2242,9 @@ arena_postfork_parent(tsdn_t *tsdn, arena_t *arena) {
 	malloc_mutex_postfork_parent(tsdn, &arena->large_mtx);
 	base_postfork_parent(tsdn, arena->base);
 	malloc_mutex_postfork_parent(tsdn, &arena->extent_avail_mtx);
-	extents_postfork_parent(tsdn, &arena->extents_dirty);
-	extents_postfork_parent(tsdn, &arena->extents_muzzy);
-	extents_postfork_parent(tsdn, &arena->extents_retained);
+	eset_postfork_parent(tsdn, &arena->extents_dirty);
+	eset_postfork_parent(tsdn, &arena->extents_muzzy);
+	eset_postfork_parent(tsdn, &arena->extents_retained);
 	malloc_mutex_postfork_parent(tsdn, &arena->extent_grow_mtx);
 	malloc_mutex_postfork_parent(tsdn, &arena->decay_dirty.mtx);
 	malloc_mutex_postfork_parent(tsdn, &arena->decay_muzzy.mtx);
@@ -2288,9 +2288,9 @@ arena_postfork_child(tsdn_t *tsdn, arena_t *arena) {
 	malloc_mutex_postfork_child(tsdn, &arena->large_mtx);
 	base_postfork_child(tsdn, arena->base);
 	malloc_mutex_postfork_child(tsdn, &arena->extent_avail_mtx);
-	extents_postfork_child(tsdn, &arena->extents_dirty);
-	extents_postfork_child(tsdn, &arena->extents_muzzy);
-	extents_postfork_child(tsdn, &arena->extents_retained);
+	eset_postfork_child(tsdn, &arena->extents_dirty);
+	eset_postfork_child(tsdn, &arena->extents_muzzy);
+	eset_postfork_child(tsdn, &arena->extents_retained);
 	malloc_mutex_postfork_child(tsdn, &arena->extent_grow_mtx);
 	malloc_mutex_postfork_child(tsdn, &arena->decay_dirty.mtx);
 	malloc_mutex_postfork_child(tsdn, &arena->decay_muzzy.mtx);
