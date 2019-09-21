@@ -249,86 +249,7 @@ extent_hooks_assure_initialized(arena_t *arena,
 	}
 }
 
-/* Generate pairing heap functions. */
 ph_gen(, extent_heap_, extent_heap_t, extent_t, ph_link, extent_snad_comp)
-
-static void
-extents_stats_add(eset_t *eset, pszind_t pind, size_t sz) {
-	size_t cur = atomic_load_zu(&eset->nextents[pind], ATOMIC_RELAXED);
-	atomic_store_zu(&eset->nextents[pind], cur + 1, ATOMIC_RELAXED);
-	cur = atomic_load_zu(&eset->nbytes[pind], ATOMIC_RELAXED);
-	atomic_store_zu(&eset->nbytes[pind], cur + sz, ATOMIC_RELAXED);
-}
-
-static void
-extents_stats_sub(eset_t *eset, pszind_t pind, size_t sz) {
-	size_t cur = atomic_load_zu(&eset->nextents[pind], ATOMIC_RELAXED);
-	atomic_store_zu(&eset->nextents[pind], cur - 1, ATOMIC_RELAXED);
-	cur = atomic_load_zu(&eset->nbytes[pind], ATOMIC_RELAXED);
-	atomic_store_zu(&eset->nbytes[pind], cur - sz, ATOMIC_RELAXED);
-}
-
-static void
-extents_insert_locked(tsdn_t *tsdn, eset_t *eset, extent_t *extent) {
-	malloc_mutex_assert_owner(tsdn, &eset->mtx);
-	assert(extent_state_get(extent) == eset->state);
-
-	size_t size = extent_size_get(extent);
-	size_t psz = sz_psz_quantize_floor(size);
-	pszind_t pind = sz_psz2ind(psz);
-	if (extent_heap_empty(&eset->heaps[pind])) {
-		bitmap_unset(eset->bitmap, &eset_bitmap_info,
-		    (size_t)pind);
-	}
-	extent_heap_insert(&eset->heaps[pind], extent);
-
-	if (config_stats) {
-		extents_stats_add(eset, pind, size);
-	}
-
-	extent_list_append(&eset->lru, extent);
-	size_t npages = size >> LG_PAGE;
-	/*
-	 * All modifications to npages hold the mutex (as asserted above), so we
-	 * don't need an atomic fetch-add; we can get by with a load followed by
-	 * a store.
-	 */
-	size_t cur_eset_npages =
-	    atomic_load_zu(&eset->npages, ATOMIC_RELAXED);
-	atomic_store_zu(&eset->npages, cur_eset_npages + npages,
-	    ATOMIC_RELAXED);
-}
-
-static void
-extents_remove_locked(tsdn_t *tsdn, eset_t *eset, extent_t *extent) {
-	malloc_mutex_assert_owner(tsdn, &eset->mtx);
-	assert(extent_state_get(extent) == eset->state);
-
-	size_t size = extent_size_get(extent);
-	size_t psz = sz_psz_quantize_floor(size);
-	pszind_t pind = sz_psz2ind(psz);
-	extent_heap_remove(&eset->heaps[pind], extent);
-
-	if (config_stats) {
-		extents_stats_sub(eset, pind, size);
-	}
-
-	if (extent_heap_empty(&eset->heaps[pind])) {
-		bitmap_set(eset->bitmap, &eset_bitmap_info,
-		    (size_t)pind);
-	}
-	extent_list_remove(&eset->lru, extent);
-	size_t npages = size >> LG_PAGE;
-	/*
-	 * As in extents_insert_locked, we hold eset->mtx and so don't need
-	 * atomic operations for updating eset->npages.
-	 */
-	size_t cur_extents_npages =
-	    atomic_load_zu(&eset->npages, ATOMIC_RELAXED);
-	assert(cur_extents_npages >= npages);
-	atomic_store_zu(&eset->npages,
-	    cur_extents_npages - (size >> LG_PAGE), ATOMIC_RELAXED);
-}
 
 /*
  * Find an extent with size [min_size, max_size) to satisfy the alignment
@@ -461,7 +382,7 @@ extent_try_delayed_coalesce(tsdn_t *tsdn, arena_t *arena,
 	if (!coalesced) {
 		return true;
 	}
-	extents_insert_locked(tsdn, eset, extent);
+	eset_insert_locked(tsdn, eset, extent);
 	return false;
 }
 
@@ -521,7 +442,7 @@ extents_evict(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
 			extent = NULL;
 			goto label_return;
 		}
-		extents_remove_locked(tsdn, eset, extent);
+		eset_remove_locked(tsdn, eset, extent);
 		if (!eset->delay_coalesce) {
 			break;
 		}
@@ -607,7 +528,7 @@ extent_deactivate_locked(tsdn_t *tsdn, arena_t *arena, eset_t *eset,
 	assert(extent_state_get(extent) == extent_state_active);
 
 	extent_state_set(extent, eset_state_get(eset));
-	extents_insert_locked(tsdn, eset, extent);
+	eset_insert_locked(tsdn, eset, extent);
 }
 
 static void
@@ -624,7 +545,7 @@ extent_activate_locked(tsdn_t *tsdn, arena_t *arena, eset_t *eset,
 	assert(extent_arena_ind_get(extent) == arena_ind_get(arena));
 	assert(extent_state_get(extent) == eset_state_get(eset));
 
-	extents_remove_locked(tsdn, eset, extent);
+	eset_remove_locked(tsdn, eset, extent);
 	extent_state_set(extent, extent_state_active);
 }
 
