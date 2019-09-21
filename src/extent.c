@@ -1097,11 +1097,11 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena,
 	if (result == extent_split_interior_ok) {
 		if (lead != NULL) {
 			extent_record(tsdn, arena, r_extent_hooks,
-			    &arena->extents_retained, lead, true);
+			    &arena->eset_retained, lead, true);
 		}
 		if (trail != NULL) {
 			extent_record(tsdn, arena, r_extent_hooks,
-			    &arena->extents_retained, trail, true);
+			    &arena->eset_retained, trail, true);
 		}
 	} else {
 		/*
@@ -1114,12 +1114,12 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena,
 				extent_gdump_add(tsdn, to_salvage);
 			}
 			extent_record(tsdn, arena, r_extent_hooks,
-			    &arena->extents_retained, to_salvage, true);
+			    &arena->eset_retained, to_salvage, true);
 		}
 		if (to_leak != NULL) {
 			extent_deregister_no_gdump_sub(tsdn, to_leak);
 			extents_abandon_vm(tsdn, arena, r_extent_hooks,
-			    &arena->extents_retained, to_leak, true);
+			    &arena->eset_retained, to_leak, true);
 		}
 		goto label_err;
 	}
@@ -1128,7 +1128,7 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena,
 		if (extent_commit_impl(tsdn, arena, r_extent_hooks, extent, 0,
 		    extent_size_get(extent), true)) {
 			extent_record(tsdn, arena, r_extent_hooks,
-			    &arena->extents_retained, extent, true);
+			    &arena->eset_retained, extent, true);
 			goto label_err;
 		}
 		if (!extent_need_manual_zero(arena)) {
@@ -1189,7 +1189,7 @@ extent_alloc_retained(tsdn_t *tsdn, arena_t *arena,
 	malloc_mutex_lock(tsdn, &arena->extent_grow_mtx);
 
 	extent_t *extent = extent_recycle(tsdn, arena, r_extent_hooks,
-	    &arena->extents_retained, new_addr, size, pad, alignment, slab,
+	    &arena->eset_retained, new_addr, size, pad, alignment, slab,
 	    szind, zero, commit, true);
 	if (extent != NULL) {
 		malloc_mutex_unlock(tsdn, &arena->extent_grow_mtx);
@@ -1434,7 +1434,7 @@ extent_record(tsdn_t *tsdn, arena_t *arena, extent_hooks_t **r_extent_hooks,
 		extent = extent_try_coalesce(tsdn, arena, r_extent_hooks,
 		    rtree_ctx, eset, extent, NULL, growing_retained);
 	} else if (extent_size_get(extent) >= SC_LARGE_MINCLASS) {
-		assert(eset == &arena->extents_dirty);
+		assert(eset == &arena->eset_dirty);
 		/* Always coalesce large eset eagerly. */
 		bool coalesced;
 		do {
@@ -1577,7 +1577,7 @@ extent_dalloc_wrapper(tsdn_t *tsdn, arena_t *arena,
 		extent_gdump_sub(tsdn, extent);
 	}
 
-	extent_record(tsdn, arena, r_extent_hooks, &arena->extents_retained,
+	extent_record(tsdn, arena, r_extent_hooks, &arena->eset_retained,
 	    extent, false);
 }
 
