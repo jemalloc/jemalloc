@@ -8,6 +8,12 @@
 #include "jemalloc/internal/sz.h"
 #include "jemalloc/internal/ticker.h"
 
+static inline arena_t *
+arena_get_from_extent(extent_t *extent) {
+	return (arena_t *)atomic_load_p(&arenas[extent_arena_ind_get(extent)],
+	    ATOMIC_RELAXED);
+}
+
 JEMALLOC_ALWAYS_INLINE bool
 arena_has_default_hooks(arena_t *arena) {
 	return (extent_hooks_get(arena) == &extent_hooks_default);
