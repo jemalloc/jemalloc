@@ -18,6 +18,8 @@ extern bool opt_utrace;
 extern bool opt_xmalloc;
 extern bool opt_zero;
 extern unsigned opt_narenas;
+extern zero_realloc_action_t opt_zero_realloc_action;
+extern const char *zero_realloc_mode_names[];
 
 /* Number of CPUs. */
 extern unsigned ncpus;

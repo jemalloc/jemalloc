@@ -1489,6 +1489,33 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         by default.</para></listitem>
       </varlistentry>
 
+      <varlistentry id="opt.zero_realloc">
+        <term>
+          <mallctl>opt.zero_realloc</mallctl>
+          (<type>const char *</type>)
+          <literal>r-</literal>
+        </term>
+        <listitem><para> Determines the behavior of
+	<function>realloc()</function> when passed a value of zero for the new
+	size.  <quote>strict</quote> treats this as an allocation of size zero
+	(and returns a non-null result except in case of resource exhaustion).
+	<quote>free</quote> treats this as a deallocation of the pointer, and
+	returns <constant>NULL</constant> without setting
+	<varname>errno</varname>.  <quote>abort</quote> aborts the process if
+	zero is passed.  The default is <quote>strict</quote>.</para>
+
+	<para>There is considerable divergence of behaviors across
+	implementations in handling this case. Many have the behavior of
+	<quote>free</quote>. This can introduce security vulnerabilities, since
+	a <constant>NULL</constant> return value indicates failure, and the
+	continued validity of the passed-in pointer (per POSIX and C11).
+	<quote>strict</quote> is safe, but can cause leaks in programs that
+	expect the common behavior.  Programs intended to be portable and
+	leak-free cannot assume either behavior, and must therefore never call
+	realloc with a size of 0.  The <quote>abort</quote> option enables these
+	testing this behavior.</para></listitem>
+      </varlistentry>
+
       <varlistentry id="thread.arena">
         <term>
           <mallctl>thread.arena</mallctl>
