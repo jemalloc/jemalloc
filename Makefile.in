@@ -232,7 +232,10 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/nstime.c \
 	$(srcroot)test/unit/tsd.c \
 	$(srcroot)test/unit/witness.c \
-	$(srcroot)test/unit/zero.c
+	$(srcroot)test/unit/zero.c \
+	$(srcroot)test/unit/zero_realloc_abort.c \
+	$(srcroot)test/unit/zero_realloc_free.c \
+	$(srcroot)test/unit/zero_realloc_strict.c
 ifeq (@enable_prof@, 1)
 TESTS_UNIT += \
 	$(srcroot)test/unit/arena_reset_prof.c

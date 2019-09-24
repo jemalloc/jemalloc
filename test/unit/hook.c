@@ -428,15 +428,21 @@ TEST_BEGIN(test_hooks_realloc_as_malloc_or_free) {
 	free(ptr);
 
 	/* realloc(ptr, 0) as free */
-	ptr = malloc(1);
-	reset();
-	realloc(ptr, 0);
-	assert_d_eq(call_count, 1, "Hook not called");
-	assert_ptr_eq(arg_extra, (void *)123, "Wrong extra");
-	assert_d_eq(arg_type, (int)hook_dalloc_realloc, "Wrong hook type");
-	assert_ptr_eq(ptr, arg_address, "Wrong pointer freed");
-	assert_u64_eq((uintptr_t)ptr, arg_args_raw[0], "Wrong raw arg");
-	assert_u64_eq((uintptr_t)0, arg_args_raw[1], "Wrong raw arg");
+	if (opt_zero_realloc_action == zero_realloc_action_free) {
+		ptr = malloc(1);
+		reset();
+		realloc(ptr, 0);
+		assert_d_eq(call_count, 1, "Hook not called");
+		assert_ptr_eq(arg_extra, (void *)123, "Wrong extra");
+		assert_d_eq(arg_type, (int)hook_dalloc_realloc,
+		    "Wrong hook type");
+		assert_ptr_eq(ptr, arg_address,
+		    "Wrong pointer freed");
+		assert_u64_eq((uintptr_t)ptr, arg_args_raw[0],
+		    "Wrong raw arg");
+		assert_u64_eq((uintptr_t)0, arg_args_raw[1],
+		    "Wrong raw arg");
+	}
 
 	/* realloc(NULL, 0) as malloc(0) */
 	reset();

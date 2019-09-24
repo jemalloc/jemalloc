@@ -67,6 +67,15 @@ bool	opt_junk_free =
 #endif
     ;
 
+zero_realloc_action_t opt_zero_realloc_action =
+    zero_realloc_action_strict;
+
+const char *zero_realloc_mode_names[] = {
+	"strict",
+	"free",
+	"abort",
+};
+
 bool	opt_utrace = false;
 bool	opt_xmalloc = false;
 bool	opt_zero = false;
@@ -1406,6 +1415,22 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 					}
 				}
 				if (!match) {
+					CONF_ERROR("Invalid conf value",
+					    k, klen, v, vlen);
+				}
+				CONF_CONTINUE;
+			}
+			if (CONF_MATCH("zero_realloc")) {
+				if (CONF_MATCH_VALUE("strict")) {
+					opt_zero_realloc_action
+					    = zero_realloc_action_strict;
+				} else if (CONF_MATCH_VALUE("free")) {
+					opt_zero_realloc_action
+					    = zero_realloc_action_free;
+				} else if (CONF_MATCH_VALUE("abort")) {
+					opt_zero_realloc_action
+					    = zero_realloc_action_abort;
+				} else {
 					CONF_ERROR("Invalid conf value",
 					    k, klen, v, vlen);
 				}
@@ -3133,18 +3158,17 @@ je_rallocx(void *ptr, size_t size, int flags) {
 	return ret;
 }
 
-JEMALLOC_EXPORT JEMALLOC_ALLOCATOR JEMALLOC_RESTRICT_RETURN
-void JEMALLOC_NOTHROW *
-JEMALLOC_ALLOC_SIZE(2)
-je_realloc(void *ptr, size_t size) {
-	LOG("core.realloc.entry", "ptr: %p, size: %zu\n", ptr, size);
-
-	if (likely(ptr != NULL && size != 0)) {
-		void *ret = do_rallocx(ptr, size, 0, true);
-		LOG("core.realloc.exit", "result: %p", ret);
-		return ret;
-	} else if (ptr != NULL && size == 0) {
-		/* realloc(ptr, 0) is equivalent to free(ptr). */
+static void *
+do_realloc_nonnull_zero(void *ptr) {
+	if (opt_zero_realloc_action == zero_realloc_action_strict) {
+		/*
+		 * The user might have gotten a strict setting while expecting a
+		 * free setting.  If that's the case, we at least try to
+		 * reduce the harm, and turn off the tcache while allocating, so
+		 * that we'll get a true first fit.
+		 */
+		return do_rallocx(ptr, 1, MALLOCX_TCACHE_NONE, true);
+	} else if (opt_zero_realloc_action == zero_realloc_action_free) {
 		UTRACE(ptr, 0, 0);
 		tcache_t *tcache;
 		tsd_t *tsd = tsd_fetch();
@@ -3156,14 +3180,39 @@ je_realloc(void *ptr, size_t size) {
 			tcache = NULL;
 		}
 
-		uintptr_t args[3] = {(uintptr_t)ptr, size};
+		uintptr_t args[3] = {(uintptr_t)ptr, 0};
 		hook_invoke_dalloc(hook_dalloc_realloc, ptr, args);
 
 		ifree(tsd, ptr, tcache, true);
 
 		check_entry_exit_locking(tsd_tsdn(tsd));
-		LOG("core.realloc.exit", "result: %p", NULL);
 		return NULL;
+	} else {
+		safety_check_fail("Called realloc(non-null-ptr, 0) with "
+		    "zero_realloc:abort set\n");
+		/* In real code, this will never run; the safety check failure
+		 * will call abort.  In the unit test, we just want to bail out
+		 * without corrupting internal state that the test needs to
+		 * finish.
+		 */
+		return NULL;
+	}
+}
+
+JEMALLOC_EXPORT JEMALLOC_ALLOCATOR JEMALLOC_RESTRICT_RETURN
+void JEMALLOC_NOTHROW *
+JEMALLOC_ALLOC_SIZE(2)
+je_realloc(void *ptr, size_t size) {
+	LOG("core.realloc.entry", "ptr: %p, size: %zu\n", ptr, size);
+
+	if (likely(ptr != NULL && size != 0)) {
+		void *ret = do_rallocx(ptr, size, 0, true);
+		LOG("core.realloc.exit", "result: %p", ret);
+		return ret;
+	} else if (ptr != NULL && size == 0) {
+		void *ret = do_realloc_nonnull_zero(ptr);
+		LOG("core.realloc.exit", "result: %p", ret);
+		return ret;
 	} else {
 		/* realloc(NULL, size) is equivalent to malloc(size). */
 		void *ret;

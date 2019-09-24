@@ -1109,6 +1109,7 @@ stats_general_print(emitter_t *emitter) {
 	OPT_WRITE_BOOL("prof_leak")
 	OPT_WRITE_BOOL("stats_print")
 	OPT_WRITE_CHAR_P("stats_print_opts")
+	OPT_WRITE_CHAR_P("zero_realloc")
 
 	emitter_dict_end(emitter);
 

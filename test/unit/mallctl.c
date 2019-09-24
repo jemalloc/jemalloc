@@ -880,6 +880,16 @@ TEST_BEGIN(test_hooks_exhaustion) {
 }
 TEST_END
 
+TEST_BEGIN(test_zero_realloc) {
+	const char *val;
+	size_t sz = sizeof(val);
+	int err = mallctl("opt.zero_realloc", &val, &sz, NULL, 0);
+	assert_d_eq(err, 0, "Unexpected mallctl result");
+	assert_str_eq(val, "strict",
+	    "Unexpected default zero_realloc_beahvior");
+}
+TEST_END
+
 int
 main(void) {
 	return test(
@@ -911,5 +921,6 @@ main(void) {
 	    test_prof_active,
 	    test_stats_arenas,
 	    test_hooks,
-	    test_hooks_exhaustion);
+	    test_hooks_exhaustion,
+	    test_zero_realloc);
 }

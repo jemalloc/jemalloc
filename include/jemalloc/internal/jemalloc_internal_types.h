@@ -12,6 +12,17 @@ typedef unsigned szind_t;
 /* Processor / core id type. */
 typedef int malloc_cpuid_t;
 
+/* When realloc(non-null-ptr, 0) is called, what happens? */
+enum zero_realloc_action_e {
+	/* Realloc(ptr, 0) is free(ptr); return malloc(0); */
+	zero_realloc_action_strict = 0,
+	/* Realloc(ptr, 0) is free(ptr); */
+	zero_realloc_action_free = 1,
+	/* Realloc(ptr, 0) aborts. */
+	zero_realloc_action_abort = 2
+};
+typedef enum zero_realloc_action_e zero_realloc_action_t;
+
 /*
  * Flags bits:
  *
