@@ -613,8 +613,8 @@ prof_dump_prefix_set(tsdn_t *tsdn, const char *prefix) {
 	}
 	assert(prof_dump_prefix != NULL);
 
-	strncpy(prof_dump_prefix, prefix, PROF_DUMP_FILENAME_LEN - 1);
-	prof_dump_prefix[PROF_DUMP_FILENAME_LEN - 1] = '\0';
+	strncpy(prof_dump_prefix, prefix, sizeof(prof_dump_prefix) - 1);
+	prof_dump_prefix[sizeof(prof_dump_prefix) - 1] = '\0';
 	malloc_mutex_unlock(tsdn, &prof_dump_filename_mtx);
 
 	return false;
