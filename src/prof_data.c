@@ -1199,6 +1199,8 @@ prof_bt_keycomp(const void *k1, const void *k2) {
 prof_tdata_t *
 prof_tdata_init_impl(tsd_t *tsd, uint64_t thr_uid, uint64_t thr_discrim,
     char *thread_name, bool active) {
+	assert(tsd_reentrancy_level_get(tsd) == 0);
+
 	prof_tdata_t *tdata;
 
 	cassert(config_prof);

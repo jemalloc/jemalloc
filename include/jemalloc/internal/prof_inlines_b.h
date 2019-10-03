@@ -22,6 +22,7 @@ prof_tdata_get(tsd_t *tsd, bool create) {
 
 	tdata = tsd_prof_tdata_get(tsd);
 	if (create) {
+		assert(tsd_reentrancy_level_get(tsd) == 0);
 		if (unlikely(tdata == NULL)) {
 			if (tsd_nominal(tsd)) {
 				tdata = prof_tdata_init(tsd);
@@ -109,7 +110,11 @@ prof_sample_accum_update(tsd_t *tsd, size_t usize, bool update,
 		return true;
 	}
 
-	bool booted = tsd_prof_tdata_get(tsd);
+	if (tsd_reentrancy_level_get(tsd) > 0) {
+		return true;
+	}
+
+	bool booted = prof_tdata_get(tsd, false);
 	tdata = prof_tdata_get(tsd, true);
 	if (unlikely((uintptr_t)tdata <= (uintptr_t)PROF_TDATA_STATE_MAX)) {
 		tdata = NULL;
@@ -132,9 +137,6 @@ prof_sample_accum_update(tsd_t *tsd, size_t usize, bool update,
 		return true;
 	}
 
-	if (tsd_reentrancy_level_get(tsd) > 0) {
-		return true;
-	}
 	/* Compute new sample threshold. */
 	if (update) {
 		prof_sample_threshold_update(tdata);

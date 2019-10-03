@@ -127,9 +127,14 @@ prof_tctx_should_destroy(tsdn_t *tsdn, prof_tctx_t *tctx) {
 
 void
 prof_alloc_rollback(tsd_t *tsd, prof_tctx_t *tctx, bool updated) {
-	prof_tdata_t *tdata;
-
 	cassert(config_prof);
+
+	if (tsd_reentrancy_level_get(tsd) > 0) {
+		assert((uintptr_t)tctx == (uintptr_t)1U);
+		return;
+	}
+
+	prof_tdata_t *tdata;
 
 	if (updated) {
 		/*
@@ -810,6 +815,8 @@ prof_active_set(tsdn_t *tsdn, bool active) {
 
 const char *
 prof_thread_name_get(tsd_t *tsd) {
+	assert(tsd_reentrancy_level_get(tsd) == 0);
+
 	prof_tdata_t *tdata;
 
 	tdata = prof_tdata_get(tsd, true);
@@ -821,6 +828,8 @@ prof_thread_name_get(tsd_t *tsd) {
 
 int
 prof_thread_name_set(tsd_t *tsd, const char *thread_name) {
+	assert(tsd_reentrancy_level_get(tsd) == 0);
+
 	prof_tdata_t *tdata;
 	unsigned i;
 	char *s;
@@ -859,6 +868,8 @@ prof_thread_name_set(tsd_t *tsd, const char *thread_name) {
 
 bool
 prof_thread_active_get(tsd_t *tsd) {
+	assert(tsd_reentrancy_level_get(tsd) == 0);
+
 	prof_tdata_t *tdata;
 
 	tdata = prof_tdata_get(tsd, true);
@@ -870,6 +881,8 @@ prof_thread_active_get(tsd_t *tsd) {
 
 bool
 prof_thread_active_set(tsd_t *tsd, bool active) {
+	assert(tsd_reentrancy_level_get(tsd) == 0);
+
 	prof_tdata_t *tdata;
 
 	tdata = prof_tdata_get(tsd, true);
