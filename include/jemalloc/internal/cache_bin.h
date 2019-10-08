@@ -182,8 +182,11 @@ cache_bin_array_descriptor_init(cache_bin_array_descriptor_t *descriptor,
 	descriptor->bins_large = bins_large;
 }
 
+#define INVALID_SZIND ((szind_t)(unsigned)-1)
+
 JEMALLOC_ALWAYS_INLINE void *
-cache_bin_alloc_easy(cache_bin_t *bin, bool *success, szind_t ind) {
+cache_bin_alloc_easy_impl(cache_bin_t *bin, bool *success, szind_t ind,
+    const bool adjust_low_water) {
 	/*
 	 * This may read from the empty position; however the loaded value won't
 	 * be used.  It's safe because the stack has one more slot reserved.
@@ -191,20 +194,30 @@ cache_bin_alloc_easy(cache_bin_t *bin, bool *success, szind_t ind) {
 	void *ret = *(bin->cur_ptr.ptr++);
 	/*
 	 * Check for both bin->ncached == 0 and ncached < low_water in a single
-	 * branch.  This also avoids accessing tcache_bin_info (which is on a
-	 * separate cacheline / page) in the common case.
+	 * branch.  When adjust_low_water is true, this also avoids accessing
+	 * tcache_bin_info (which is on a separate cacheline / page) in the
+	 * common case.
 	 */
 	if (unlikely(bin->cur_ptr.lowbits > bin->low_water_position)) {
-		uint32_t empty_position = bin->full_position +
-		    tcache_bin_info[ind].stack_size;
-		if (unlikely(bin->cur_ptr.lowbits > empty_position)) {
-			/* Over-allocated; revert. */
+		if (adjust_low_water) {
+			assert(ind != INVALID_SZIND);
+			uint32_t empty_position = bin->full_position +
+			    tcache_bin_info[ind].stack_size;
+			if (unlikely(bin->cur_ptr.lowbits > empty_position)) {
+				/* Over-allocated; revert. */
+				bin->cur_ptr.ptr--;
+				assert(bin->cur_ptr.lowbits == empty_position);
+				*success = false;
+				return NULL;
+			}
+			bin->low_water_position = bin->cur_ptr.lowbits;
+		} else {
+			assert(ind == INVALID_SZIND);
 			bin->cur_ptr.ptr--;
-			assert(bin->cur_ptr.lowbits == empty_position);
+			assert(bin->cur_ptr.lowbits == bin->low_water_position);
 			*success = false;
 			return NULL;
 		}
-		bin->low_water_position = bin->cur_ptr.lowbits;
 	}
 
 	/*
@@ -218,6 +231,19 @@ cache_bin_alloc_easy(cache_bin_t *bin, bool *success, szind_t ind) {
 
 	return ret;
 }
+
+JEMALLOC_ALWAYS_INLINE void *
+cache_bin_alloc_easy_reduced(cache_bin_t *bin, bool *success) {
+	/* The szind parameter won't be used. */
+	return cache_bin_alloc_easy_impl(bin, success, INVALID_SZIND, false);
+}
+
+JEMALLOC_ALWAYS_INLINE void *
+cache_bin_alloc_easy(cache_bin_t *bin, bool *success, szind_t ind) {
+	return cache_bin_alloc_easy_impl(bin, success, ind, true);
+}
+
+#undef INVALID_SZIND
 
 JEMALLOC_ALWAYS_INLINE bool
 cache_bin_dalloc_easy(cache_bin_t *bin, void *ptr) {
