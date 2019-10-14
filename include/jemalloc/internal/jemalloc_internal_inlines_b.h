@@ -24,7 +24,7 @@ arena_choose_impl(tsd_t *tsd, arena_t *arena, bool internal) {
 		if (tcache_available(tsd)) {
 			tcache_t *tcache = tcache_get(tsd);
 			if (tcache->arena != NULL) {
-				/* See comments in tcache_data_init().*/
+				/* See comments in tsd_tcache_data_init().*/
 				assert(tcache->arena ==
 				    arena_get(tsd_tsdn(tsd), 0, false));
 				if (tcache->arena != ret) {

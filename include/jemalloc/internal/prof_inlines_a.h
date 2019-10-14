@@ -3,74 +3,6 @@
 
 #include "jemalloc/internal/mutex.h"
 
-static inline bool
-prof_accum_add(tsdn_t *tsdn, prof_accum_t *prof_accum,
-    uint64_t accumbytes) {
-	cassert(config_prof);
-
-	bool overflow;
-	uint64_t a0, a1;
-
-	/*
-	 * If the application allocates fast enough (and/or if idump is slow
-	 * enough), extreme overflow here (a1 >= prof_interval * 2) can cause
-	 * idump trigger coalescing.  This is an intentional mechanism that
-	 * avoids rate-limiting allocation.
-	 */
-#ifdef JEMALLOC_ATOMIC_U64
-	a0 = atomic_load_u64(&prof_accum->accumbytes, ATOMIC_RELAXED);
-	do {
-		a1 = a0 + accumbytes;
-		assert(a1 >= a0);
-		overflow = (a1 >= prof_interval);
-		if (overflow) {
-			a1 %= prof_interval;
-		}
-	} while (!atomic_compare_exchange_weak_u64(&prof_accum->accumbytes, &a0,
-	    a1, ATOMIC_RELAXED, ATOMIC_RELAXED));
-#else
-	malloc_mutex_lock(tsdn, &prof_accum->mtx);
-	a0 = prof_accum->accumbytes;
-	a1 = a0 + accumbytes;
-	overflow = (a1 >= prof_interval);
-	if (overflow) {
-		a1 %= prof_interval;
-	}
-	prof_accum->accumbytes = a1;
-	malloc_mutex_unlock(tsdn, &prof_accum->mtx);
-#endif
-	return overflow;
-}
-
-static inline void
-prof_accum_cancel(tsdn_t *tsdn, prof_accum_t *prof_accum,
-    size_t usize) {
-	cassert(config_prof);
-
-	/*
-	 * Cancel out as much of the excessive prof_accumbytes increase as
-	 * possible without underflowing.  Interval-triggered dumps occur
-	 * slightly more often than intended as a result of incomplete
-	 * canceling.
-	 */
-	uint64_t a0, a1;
-#ifdef JEMALLOC_ATOMIC_U64
-	a0 = atomic_load_u64(&prof_accum->accumbytes, ATOMIC_RELAXED);
-	do {
-		a1 = (a0 >= SC_LARGE_MINCLASS - usize)
-		    ? a0 - (SC_LARGE_MINCLASS - usize) : 0;
-	} while (!atomic_compare_exchange_weak_u64(&prof_accum->accumbytes, &a0,
-	    a1, ATOMIC_RELAXED, ATOMIC_RELAXED));
-#else
-	malloc_mutex_lock(tsdn, &prof_accum->mtx);
-	a0 = prof_accum->accumbytes;
-	a1 = (a0 >= SC_LARGE_MINCLASS - usize)
-	    ?  a0 - (SC_LARGE_MINCLASS - usize) : 0;
-	prof_accum->accumbytes = a1;
-	malloc_mutex_unlock(tsdn, &prof_accum->mtx);
-#endif
-}
-
 JEMALLOC_ALWAYS_INLINE void
 prof_active_assert() {
 	cassert(config_prof);
@@ -91,6 +23,28 @@ prof_active_get_unlocked(void) {
 	 * how long it will take for all threads to notice state changes.
 	 */
 	return prof_active;
+}
+
+JEMALLOC_ALWAYS_INLINE bool
+prof_idump_accum(tsdn_t *tsdn, uint64_t accumbytes) {
+	cassert(config_prof);
+
+	if (prof_interval == 0 || !prof_active_get_unlocked()) {
+		return false;
+	}
+
+	return prof_idump_accum_impl(tsdn, accumbytes);
+}
+
+JEMALLOC_ALWAYS_INLINE void
+prof_idump_rollback(tsdn_t *tsdn, size_t usize) {
+	cassert(config_prof);
+
+	if (prof_interval == 0 || !prof_active_get_unlocked()) {
+		return;
+	}
+
+	prof_idump_rollback_impl(tsdn, usize);
 }
 
 #endif /* JEMALLOC_INTERNAL_PROF_INLINES_A_H */

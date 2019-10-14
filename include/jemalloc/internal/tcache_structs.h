@@ -16,10 +16,9 @@ struct tcache_s {
 	 * together at the start of this struct.
 	 */
 
-	/* Cleared after arena_prof_accum(). */
-	uint64_t	prof_accumbytes;
 	/* Drives incremental GC. */
 	ticker_t	gc_ticker;
+
 	/*
 	 * The pointer stacks associated with bins follow as a contiguous array.
 	 * During tcache initialization, the avail pointer in each element of

@@ -18,6 +18,29 @@ static void thread_##event##_event_handler(tsd_t *tsd);
 ITERATE_OVER_ALL_EVENTS
 #undef E
 
+static void
+thread_prof_sample_event_handler(tsd_t *tsd) {
+	assert(config_prof && opt_prof);
+	assert(prof_sample_event_wait_get(tsd) == 0U);
+	uint64_t last_event = thread_allocated_last_event_get(tsd);
+	uint64_t last_sample_event = prof_sample_last_event_get(tsd);
+	prof_sample_last_event_set(tsd, last_event);
+	if (prof_idump_accum(tsd_tsdn(tsd), last_event - last_sample_event)) {
+		prof_idump(tsd_tsdn(tsd));
+	}
+	if (!prof_active_get_unlocked()) {
+		/*
+		 * If prof_active is off, we reset prof_sample_event_wait to be
+		 * the sample interval when it drops to 0, so that there won't
+		 * be excessive routings to the slow path, and that when
+		 * prof_active is turned on later, the counting for sampling
+		 * can immediately resume as normal.
+		 */
+		thread_prof_sample_event_update(tsd,
+		    (uint64_t)(1 << lg_prof_sample));
+	}
+}
+
 static uint64_t
 thread_allocated_next_event_compute(tsd_t *tsd) {
 	uint64_t wait = THREAD_EVENT_MAX_START_WAIT;
@@ -84,23 +107,6 @@ thread_event_adjust_thresholds_helper(tsd_t *tsd, uint64_t wait) {
 	uint64_t next_event_fast = (next_event <=
 	    THREAD_ALLOCATED_NEXT_EVENT_FAST_MAX) ? next_event : 0U;
 	thread_allocated_next_event_fast_set(tsd, next_event_fast);
-}
-
-static void
-thread_prof_sample_event_handler(tsd_t *tsd) {
-	assert(config_prof && opt_prof);
-	assert(prof_sample_event_wait_get(tsd) == 0U);
-	if (!prof_active_get_unlocked()) {
-		/*
-		 * If prof_active is off, we reset prof_sample_event_wait to be
-		 * the sample interval when it drops to 0, so that there won't
-		 * be excessive routings to the slow path, and that when
-		 * prof_active is turned on later, the counting for sampling
-		 * can immediately resume as normal.
-		 */
-		thread_prof_sample_event_update(tsd,
-		    (uint64_t)(1 << lg_prof_sample));
-	}
 }
 
 static uint64_t

@@ -44,7 +44,8 @@ void thread_event_boot();
     C(thread_allocated_next_event_fast)					\
     C(thread_allocated_last_event)					\
     C(thread_allocated_next_event)					\
-    ITERATE_OVER_ALL_EVENTS
+    ITERATE_OVER_ALL_EVENTS						\
+    C(prof_sample_last_event)
 
 /* Getters directly wrap TSD getters. */
 #define C(counter)							\

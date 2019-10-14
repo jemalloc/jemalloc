@@ -106,11 +106,7 @@ tcache_alloc_small_hard(tsdn_t *tsdn, arena_t *arena, tcache_t *tcache,
 	void *ret;
 
 	assert(tcache->arena != NULL);
-	arena_tcache_fill_small(tsdn, arena, tcache, tbin, binind,
-	    config_prof ? tcache->prof_accumbytes : 0);
-	if (config_prof) {
-		tcache->prof_accumbytes = 0;
-	}
+	arena_tcache_fill_small(tsdn, arena, tcache, tbin, binind);
 	ret = cache_bin_alloc_easy(tbin, tcache_success, binind);
 
 	return ret;
@@ -180,14 +176,6 @@ tcache_bin_flush_small(tsd_t *tsd, tcache_t *tcache, cache_bin_t *tbin,
 		unsigned binshard = extent_binshard_get(extent);
 		assert(binshard < bin_infos[binind].n_shards);
 		bin_t *bin = &bin_arena->bins[binind].bin_shards[binshard];
-
-		if (config_prof && bin_arena == arena) {
-			if (arena_prof_accum(tsd_tsdn(tsd), arena,
-			    tcache->prof_accumbytes)) {
-				prof_idump(tsd_tsdn(tsd));
-			}
-			tcache->prof_accumbytes = 0;
-		}
 
 		malloc_mutex_lock(tsd_tsdn(tsd), &bin->lock);
 		if (config_stats && bin_arena == arena && !merged_stats) {
@@ -274,11 +262,6 @@ tcache_bin_flush_large(tsd_t *tsd, tcache_t *tcache, cache_bin_t *tbin, szind_t 
 		unsigned locked_arena_ind = extent_arena_ind_get(extent);
 		arena_t *locked_arena = arena_get(tsd_tsdn(tsd),
 		    locked_arena_ind, false);
-		bool idump;
-
-		if (config_prof) {
-			idump = false;
-		}
 
 		bool lock_large = !arena_is_auto(locked_arena);
 		if (lock_large) {
@@ -295,11 +278,6 @@ tcache_bin_flush_large(tsd_t *tsd, tcache_t *tcache, cache_bin_t *tbin, szind_t 
 		}
 		if ((config_prof || config_stats) &&
 		    (locked_arena == tcache_arena)) {
-			if (config_prof) {
-				idump = arena_prof_accum(tsd_tsdn(tsd),
-				    tcache_arena, tcache->prof_accumbytes);
-				tcache->prof_accumbytes = 0;
-			}
 			if (config_stats) {
 				merged_stats = true;
 				arena_stats_large_flush_nrequests_add(
@@ -331,9 +309,6 @@ tcache_bin_flush_large(tsd_t *tsd, tcache_t *tcache, cache_bin_t *tbin, szind_t 
 				item_extent[ndeferred] = extent;
 				ndeferred++;
 			}
-		}
-		if (config_prof && idump) {
-			prof_idump(tsd_tsdn(tsd));
 		}
 		arena_decay_ticks(tsd_tsdn(tsd), locked_arena, nflush -
 		    ndeferred);
@@ -462,7 +437,6 @@ tcache_init(tsd_t *tsd, tcache_t *tcache, void *avail_stack) {
 	assert(!tcache_bin_lowbits_overflowable(avail_stack));
 
 	memset(&tcache->link, 0, sizeof(ql_elm(tcache_t)));
-	tcache->prof_accumbytes = 0;
 	tcache->next_gc_bin = 0;
 	tcache->arena = NULL;
 
@@ -589,14 +563,6 @@ tcache_flush_cache(tsd_t *tsd, tcache_t *tcache) {
 		if (config_stats) {
 			assert(tbin->tstats.nrequests == 0);
 		}
-	}
-
-	if (config_prof && tcache->prof_accumbytes > 0) {
-		if (arena_prof_accum(tsd_tsdn(tsd), tcache->arena,
-		    tcache->prof_accumbytes)) {
-			prof_idump(tsd_tsdn(tsd));
-		}
-		tcache->prof_accumbytes = 0;
 	}
 }
 

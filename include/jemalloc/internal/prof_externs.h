@@ -33,13 +33,7 @@ extern bool	prof_active;
 /* Accessed via prof_gdump_[gs]et{_unlocked,}(). */
 extern bool	prof_gdump_val;
 
-/*
- * Profile dump interval, measured in bytes allocated.  Each arena triggers a
- * profile dump when it reaches this threshold.  The effect is that the
- * interval between profile dumps averages prof_interval, though the actual
- * interval between dumps will tend to be sporadic, and the interval will be a
- * maximum of approximately (prof_interval * narenas).
- */
+/* Profile dump interval, measured in bytes allocated. */
 extern uint64_t	prof_interval;
 
 /*
@@ -49,6 +43,10 @@ extern uint64_t	prof_interval;
 extern size_t	lg_prof_sample;
 
 extern bool	prof_booted;
+
+/* Functions only accessed in prof_inlines_a.h */
+bool prof_idump_accum_impl(tsdn_t *tsdn, uint64_t accumbytes);
+void prof_idump_rollback_impl(tsdn_t *tsdn, size_t usize);
 
 void prof_alloc_rollback(tsd_t *tsd, prof_tctx_t *tctx, bool updated);
 void prof_malloc_sample_object(tsdn_t *tsdn, const void *ptr, size_t usize,
@@ -73,7 +71,7 @@ void prof_cnt_all(uint64_t *curobjs, uint64_t *curbytes, uint64_t *accumobjs,
 #endif
 int prof_getpid(void);
 void prof_get_default_filename(tsdn_t *tsdn, char *filename, uint64_t ind);
-bool prof_accum_init(tsdn_t *tsdn, prof_accum_t *prof_accum);
+bool prof_accum_init(tsdn_t *tsdn);
 void prof_idump(tsdn_t *tsdn);
 bool prof_mdump(tsd_t *tsd, const char *filename);
 void prof_gdump(tsdn_t *tsdn);
