@@ -1378,13 +1378,10 @@ arena_bin_choose_lock(tsdn_t *tsdn, arena_t *arena, szind_t binind,
 
 void
 arena_tcache_fill_small(tsdn_t *tsdn, arena_t *arena, tcache_t *tcache,
-    cache_bin_t *tbin, szind_t binind, uint64_t prof_accumbytes) {
+    cache_bin_t *tbin, szind_t binind) {
 	unsigned i, nfill, cnt;
 
 	assert(cache_bin_ncached_get(tbin, binind) == 0);
-	if (config_prof && arena_prof_accum(tsdn, arena, prof_accumbytes)) {
-		prof_idump(tsdn);
-	}
 	tcache->bin_refilled[binind] = true;
 
 	unsigned binshard;
@@ -1484,10 +1481,8 @@ arena_malloc_small(tsdn_t *tsdn, arena_t *arena, szind_t binind, bool zero) {
 		bin->stats.nrequests++;
 		bin->stats.curregs++;
 	}
+
 	malloc_mutex_unlock(tsdn, &bin->lock);
-	if (config_prof && arena_prof_accum(tsdn, arena, usize)) {
-		prof_idump(tsdn);
-	}
 
 	if (!zero) {
 		if (config_fill) {
@@ -1565,14 +1560,13 @@ arena_prof_promote(tsdn_t *tsdn, void *ptr, size_t usize) {
 
 	extent_t *extent = rtree_extent_read(tsdn, &extents_rtree, rtree_ctx,
 	    (uintptr_t)ptr, true);
-	arena_t *arena = arena_get_from_extent(extent);
 
 	szind_t szind = sz_size2index(usize);
 	extent_szind_set(extent, szind);
 	rtree_szind_slab_update(tsdn, &extents_rtree, rtree_ctx, (uintptr_t)ptr,
 	    szind, false);
 
-	prof_accum_cancel(tsdn, &arena->prof_accum, usize);
+	prof_idump_rollback(tsdn, usize);
 
 	assert(isalloc(tsdn, ptr) == usize);
 }
@@ -1982,7 +1976,7 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 	}
 
 	if (config_prof) {
-		if (prof_accum_init(tsdn, &arena->prof_accum)) {
+		if (prof_accum_init(tsdn)) {
 			goto label_error;
 		}
 	}

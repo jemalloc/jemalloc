@@ -45,6 +45,9 @@ bool		opt_prof_leak = false;
 bool		opt_prof_accum = false;
 char		opt_prof_prefix[PROF_DUMP_FILENAME_LEN];
 
+/* Accessed via prof_idump_[accum/rollback](). */
+static prof_accum_t	prof_idump_accumulated;
+
 /*
  * Initialized as opt_prof_active, and accessed via
  * prof_active_[gs]et{_unlocked,}().
@@ -586,19 +589,89 @@ prof_fdump(void) {
 }
 
 bool
-prof_accum_init(tsdn_t *tsdn, prof_accum_t *prof_accum) {
+prof_accum_init(tsdn_t *tsdn) {
 	cassert(config_prof);
 
 #ifndef JEMALLOC_ATOMIC_U64
-	if (malloc_mutex_init(&prof_accum->mtx, "prof_accum",
+	if (malloc_mutex_init(&prof_idump_accumulated.mtx, "prof_accum",
 	    WITNESS_RANK_PROF_ACCUM, malloc_mutex_rank_exclusive)) {
 		return true;
 	}
-	prof_accum->accumbytes = 0;
+	prof_idump_accumulated.accumbytes = 0;
 #else
-	atomic_store_u64(&prof_accum->accumbytes, 0, ATOMIC_RELAXED);
+	atomic_store_u64(&prof_idump_accumulated.accumbytes, 0,
+	    ATOMIC_RELAXED);
 #endif
 	return false;
+}
+
+bool
+prof_idump_accum_impl(tsdn_t *tsdn, uint64_t accumbytes) {
+	cassert(config_prof);
+
+	bool overflow;
+	uint64_t a0, a1;
+
+	/*
+	 * If the application allocates fast enough (and/or if idump is slow
+	 * enough), extreme overflow here (a1 >= prof_interval * 2) can cause
+	 * idump trigger coalescing.  This is an intentional mechanism that
+	 * avoids rate-limiting allocation.
+	 */
+#ifdef JEMALLOC_ATOMIC_U64
+	a0 = atomic_load_u64(&prof_idump_accumulated.accumbytes,
+	    ATOMIC_RELAXED);
+	do {
+		a1 = a0 + accumbytes;
+		assert(a1 >= a0);
+		overflow = (a1 >= prof_interval);
+		if (overflow) {
+			a1 %= prof_interval;
+		}
+	} while (!atomic_compare_exchange_weak_u64(
+	    &prof_idump_accumulated.accumbytes, &a0, a1, ATOMIC_RELAXED,
+	    ATOMIC_RELAXED));
+#else
+	malloc_mutex_lock(tsdn, &prof_idump_accumulated.mtx);
+	a0 = prof_idump_accumulated.accumbytes;
+	a1 = a0 + accumbytes;
+	overflow = (a1 >= prof_interval);
+	if (overflow) {
+		a1 %= prof_interval;
+	}
+	prof_idump_accumulated.accumbytes = a1;
+	malloc_mutex_unlock(tsdn, &prof_idump_accumulated.mtx);
+#endif
+	return overflow;
+}
+
+void
+prof_idump_rollback_impl(tsdn_t *tsdn, size_t usize) {
+	cassert(config_prof);
+
+	/*
+	 * Cancel out as much of the excessive accumbytes increase as possible
+	 * without underflowing.  Interval-triggered dumps occur slightly more
+	 * often than intended as a result of incomplete canceling.
+	 */
+	uint64_t a0, a1;
+#ifdef JEMALLOC_ATOMIC_U64
+	a0 = atomic_load_u64(&prof_idump_accumulated.accumbytes,
+	    ATOMIC_RELAXED);
+	do {
+		a1 = (a0 >= SC_LARGE_MINCLASS - usize)
+		    ? a0 - (SC_LARGE_MINCLASS - usize) : 0;
+	} while (!atomic_compare_exchange_weak_u64(
+	    &prof_idump_accumulated.accumbytes, &a0, a1, ATOMIC_RELAXED,
+	    ATOMIC_RELAXED));
+#else
+	malloc_mutex_lock(tsdn, &prof_idump_accumulated.mtx);
+	a0 = prof_idump_accumulated.accumbytes;
+	a1 = (a0 >= SC_LARGE_MINCLASS - usize)
+	    ?  a0 - (SC_LARGE_MINCLASS - usize) : 0;
+	prof_idump_accumulated.accumbytes = a1;
+	malloc_mutex_unlock(tsdn, &prof_idump_accumulated.mtx);
+#endif
 }
 
 bool
@@ -641,7 +714,7 @@ prof_idump(tsdn_t *tsdn) {
 		return;
 	}
 
-	tdata = prof_tdata_get(tsd, false);
+	tdata = prof_tdata_get(tsd, true);
 	if (tdata == NULL) {
 		return;
 	}

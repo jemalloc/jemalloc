@@ -30,6 +30,7 @@
  * l: thread_allocated_last_event
  * j: thread_allocated_next_event
  * w: prof_sample_event_wait (config_prof)
+ * x: prof_sample_last_event (config_prof)
  * p: prof_tdata (config_prof)
  * v: offset_state
  * i: iarena
@@ -45,11 +46,11 @@
  * |----------------------------  2nd cacheline  ----------------------------|
  * | [c * 64  ........ ........ ........ ........ ........ ........ .......] |
  * |----------------------------  3nd cacheline  ----------------------------|
- * | [c * 32  ........ ........ .......] llllllll jjjjjjjj wwwwwwww pppppppp |
+ * | [c * 32  ........ ........ .......] llllllll jjjjjjjj wwwwwwww xxxxxxxx |
  * +----------------------------  4th cacheline  ----------------------------+
- * | vvvvvvvv iiiiiiii aaaaaaaa oooooooo [b...... ........ ........ ........ |
+ * | pppppppp vvvvvvvv iiiiiiii aaaaaaaa oooooooo [b...... ........ ........ |
  * +----------------------------  5th cacheline  ----------------------------+
- * | ..b][t.. ........ ........ ........ ........ ........ ........ ........ |
+ * | ........ ..b][t.. ........ ........ ........ ........ ........ ........ |
  * +-------------------------------------------------------------------------+
  * Note: the entire tcache is embedded into TSD and spans multiple cachelines.
  *
@@ -83,6 +84,7 @@ typedef void (*test_callback_t)(int *);
     O(thread_allocated_last_event,	uint64_t,	uint64_t)	\
     O(thread_allocated_next_event,	uint64_t,	uint64_t)	\
     O(prof_sample_event_wait,	uint64_t,		uint64_t)	\
+    O(prof_sample_last_event,	uint64_t,		uint64_t)	\
     O(prof_tdata,		prof_tdata_t *,		prof_tdata_t *)	\
     O(offset_state,		uint64_t,		uint64_t)	\
     O(iarena,			arena_t *,		arena_t *)	\
@@ -109,9 +111,10 @@ typedef void (*test_callback_t)(int *);
     /* thread_allocated_next_event_fast */ THREAD_EVENT_MIN_START_WAIT,	\
     /* thread_deallocated */	0,					\
     /* rtree_ctx */		RTREE_CTX_ZERO_INITIALIZER,		\
-    /* thread_allocated_last_event */	0,			\
+    /* thread_allocated_last_event */	0,				\
     /* thread_allocated_next_event */	THREAD_EVENT_MIN_START_WAIT,	\
     /* prof_sample_event_wait */	THREAD_EVENT_MIN_START_WAIT,	\
+    /* prof_sample_last_event */	0,				\
     /* prof_tdata */		NULL,					\
     /* offset_state */		0,					\
     /* iarena */		NULL,					\

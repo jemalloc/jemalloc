@@ -21,17 +21,6 @@ arena_internal_get(arena_t *arena) {
 	return atomic_load_zu(&arena->stats.internal, ATOMIC_RELAXED);
 }
 
-static inline bool
-arena_prof_accum(tsdn_t *tsdn, arena_t *arena, uint64_t accumbytes) {
-	cassert(config_prof);
-
-	if (likely(prof_interval == 0 || !prof_active_get_unlocked())) {
-		return false;
-	}
-
-	return prof_accum_add(tsdn, &arena->prof_accum, accumbytes);
-}
-
 static inline void
 percpu_arena_update(tsd_t *tsd, unsigned cpu) {
 	assert(have_percpu_arena);
