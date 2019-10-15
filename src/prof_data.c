@@ -420,11 +420,11 @@ prof_bt_count(void) {
 #endif
 
 static int
-prof_dump_open_impl(bool propagate_err, const char *filename) {
+prof_dump_open_impl(bool propagate_err_only, const char *filename) {
 	int fd;
 
 	fd = creat(filename, 0644);
-	if (fd == -1 && !propagate_err) {
+	if (fd == -1 && !propagate_err_only) {
 		malloc_printf("<jemalloc>: creat(\"%s\"), 0644) failed\n",
 		    filename);
 		if (opt_abort) {
@@ -437,7 +437,7 @@ prof_dump_open_impl(bool propagate_err, const char *filename) {
 prof_dump_open_t *JET_MUTABLE prof_dump_open = prof_dump_open_impl;
 
 static bool
-prof_dump_flush(bool propagate_err) {
+prof_dump_flush(bool propagate_err_only) {
 	bool ret = false;
 	ssize_t err;
 
@@ -445,7 +445,7 @@ prof_dump_flush(bool propagate_err) {
 
 	err = malloc_write_fd(prof_dump_fd, prof_dump_buf, prof_dump_buf_end);
 	if (err == -1) {
-		if (!propagate_err) {
+		if (!propagate_err_only) {
 			malloc_write("<jemalloc>: write() failed during heap "
 			    "profile flush\n");
 			if (opt_abort) {
@@ -460,11 +460,11 @@ prof_dump_flush(bool propagate_err) {
 }
 
 static bool
-prof_dump_close(bool propagate_err) {
+prof_dump_close(bool propagate_err_only) {
 	bool ret;
 
 	assert(prof_dump_fd != -1);
-	ret = prof_dump_flush(propagate_err);
+	ret = prof_dump_flush(propagate_err_only);
 	close(prof_dump_fd);
 	prof_dump_fd = -1;
 
@@ -472,7 +472,7 @@ prof_dump_close(bool propagate_err) {
 }
 
 static bool
-prof_dump_write(bool propagate_err, const char *s) {
+prof_dump_write(bool propagate_err_only, const char *s) {
 	size_t i, slen, n;
 
 	cassert(config_prof);
@@ -482,7 +482,7 @@ prof_dump_write(bool propagate_err, const char *s) {
 	while (i < slen) {
 		/* Flush the buffer if it is full. */
 		if (prof_dump_buf_end == PROF_DUMP_BUFSIZE) {
-			if (prof_dump_flush(propagate_err) && propagate_err) {
+			if (prof_dump_flush(propagate_err_only)) {
 				return true;
 			}
 		}
@@ -505,7 +505,7 @@ prof_dump_write(bool propagate_err, const char *s) {
 
 JEMALLOC_FORMAT_PRINTF(2, 3)
 static bool
-prof_dump_printf(bool propagate_err, const char *format, ...) {
+prof_dump_printf(bool propagate_err_only, const char *format, ...) {
 	bool ret;
 	va_list ap;
 	char buf[PROF_PRINTF_BUFSIZE];
@@ -513,7 +513,7 @@ prof_dump_printf(bool propagate_err, const char *format, ...) {
 	va_start(ap, format);
 	malloc_vsnprintf(buf, sizeof(buf), format, ap);
 	va_end(ap);
-	ret = prof_dump_write(propagate_err, buf);
+	ret = prof_dump_write(propagate_err_only, buf);
 
 	return ret;
 }
@@ -584,7 +584,7 @@ prof_tctx_merge_iter(prof_tctx_tree_t *tctxs, prof_tctx_t *tctx, void *arg) {
 
 struct prof_tctx_dump_iter_arg_s {
 	tsdn_t	*tsdn;
-	bool	propagate_err;
+	bool	propagate_err_only;
 };
 
 static prof_tctx_t *
@@ -601,7 +601,7 @@ prof_tctx_dump_iter(prof_tctx_tree_t *tctxs, prof_tctx_t *tctx, void *opaque) {
 		break;
 	case prof_tctx_state_dumping:
 	case prof_tctx_state_purgatory:
-		if (prof_dump_printf(arg->propagate_err,
+		if (prof_dump_printf(arg->propagate_err_only,
 		    "  t%"FMTu64": %"FMTu64": %"FMTu64" [%"FMTu64": "
 		    "%"FMTu64"]\n", tctx->thr_uid, tctx->dump_cnts.curobjs,
 		    tctx->dump_cnts.curbytes, tctx->dump_cnts.accumobjs,
@@ -770,13 +770,13 @@ prof_tdata_merge_iter(prof_tdata_tree_t *tdatas, prof_tdata_t *tdata,
 static prof_tdata_t *
 prof_tdata_dump_iter(prof_tdata_tree_t *tdatas, prof_tdata_t *tdata,
     void *arg) {
-	bool propagate_err = *(bool *)arg;
+	bool propagate_err_only = *(bool *)arg;
 
 	if (!tdata->dumping) {
 		return NULL;
 	}
 
-	if (prof_dump_printf(propagate_err,
+	if (prof_dump_printf(propagate_err_only,
 	    "  t%"FMTu64": %"FMTu64": %"FMTu64" [%"FMTu64": %"FMTu64"]%s%s\n",
 	    tdata->thr_uid, tdata->cnt_summed.curobjs,
 	    tdata->cnt_summed.curbytes, tdata->cnt_summed.accumobjs,
@@ -789,11 +789,11 @@ prof_tdata_dump_iter(prof_tdata_tree_t *tdatas, prof_tdata_t *tdata,
 }
 
 static bool
-prof_dump_header_impl(tsdn_t *tsdn, bool propagate_err,
+prof_dump_header_impl(tsdn_t *tsdn, bool propagate_err_only,
     const prof_cnt_t *cnt_all) {
 	bool ret;
 
-	if (prof_dump_printf(propagate_err,
+	if (prof_dump_printf(propagate_err_only,
 	    "heap_v2/%"FMTu64"\n"
 	    "  t*: %"FMTu64": %"FMTu64" [%"FMTu64": %"FMTu64"]\n",
 	    ((uint64_t)1U << lg_prof_sample), cnt_all->curobjs,
@@ -803,14 +803,14 @@ prof_dump_header_impl(tsdn_t *tsdn, bool propagate_err,
 
 	malloc_mutex_lock(tsdn, &tdatas_mtx);
 	ret = (tdata_tree_iter(&tdatas, NULL, prof_tdata_dump_iter,
-	    (void *)&propagate_err) != NULL);
+	    (void *)&propagate_err_only) != NULL);
 	malloc_mutex_unlock(tsdn, &tdatas_mtx);
 	return ret;
 }
 prof_dump_header_t *JET_MUTABLE prof_dump_header = prof_dump_header_impl;
 
 static bool
-prof_dump_gctx(tsdn_t *tsdn, bool propagate_err, prof_gctx_t *gctx,
+prof_dump_gctx(tsdn_t *tsdn, bool propagate_err_only, prof_gctx_t *gctx,
     const prof_bt_t *bt, prof_gctx_tree_t *gctxs) {
 	bool ret;
 	unsigned i;
@@ -830,19 +830,19 @@ prof_dump_gctx(tsdn_t *tsdn, bool propagate_err, prof_gctx_t *gctx,
 		goto label_return;
 	}
 
-	if (prof_dump_printf(propagate_err, "@")) {
+	if (prof_dump_write(propagate_err_only, "@")) {
 		ret = true;
 		goto label_return;
 	}
 	for (i = 0; i < bt->len; i++) {
-		if (prof_dump_printf(propagate_err, " %#"FMTxPTR,
+		if (prof_dump_printf(propagate_err_only, " %#"FMTxPTR,
 		    (uintptr_t)bt->vec[i])) {
 			ret = true;
 			goto label_return;
 		}
 	}
 
-	if (prof_dump_printf(propagate_err,
+	if (prof_dump_printf(propagate_err_only,
 	    "\n"
 	    "  t*: %"FMTu64": %"FMTu64" [%"FMTu64": %"FMTu64"]\n",
 	    gctx->cnt_summed.curobjs, gctx->cnt_summed.curbytes,
@@ -852,7 +852,7 @@ prof_dump_gctx(tsdn_t *tsdn, bool propagate_err, prof_gctx_t *gctx,
 	}
 
 	prof_tctx_dump_iter_arg.tsdn = tsdn;
-	prof_tctx_dump_iter_arg.propagate_err = propagate_err;
+	prof_tctx_dump_iter_arg.propagate_err_only = propagate_err_only;
 	if (tctx_tree_iter(&gctx->tctxs, NULL, prof_tctx_dump_iter,
 	    (void *)&prof_tctx_dump_iter_arg) != NULL) {
 		ret = true;
@@ -890,7 +890,7 @@ prof_open_maps(const char *format, ...) {
 #endif
 
 static bool
-prof_dump_maps(bool propagate_err) {
+prof_dump_maps(bool propagate_err_only) {
 	bool ret;
 	int mfd;
 
@@ -912,8 +912,8 @@ prof_dump_maps(bool propagate_err) {
 	if (mfd != -1) {
 		ssize_t nread;
 
-		if (prof_dump_write(propagate_err, "\nMAPPED_LIBRARIES:\n") &&
-		    propagate_err) {
+		if (prof_dump_write(propagate_err_only,
+		    "\nMAPPED_LIBRARIES:\n")) {
 			ret = true;
 			goto label_return;
 		}
@@ -922,8 +922,7 @@ prof_dump_maps(bool propagate_err) {
 			prof_dump_buf_end += nread;
 			if (prof_dump_buf_end == PROF_DUMP_BUFSIZE) {
 				/* Make space in prof_dump_buf before read(). */
-				if (prof_dump_flush(propagate_err) &&
-				    propagate_err) {
+				if (prof_dump_flush(propagate_err_only)) {
 					ret = true;
 					goto label_return;
 				}
@@ -982,7 +981,7 @@ prof_leakcheck(const prof_cnt_t *cnt_all, size_t leak_ngctx,
 
 struct prof_gctx_dump_iter_arg_s {
 	tsdn_t	*tsdn;
-	bool	propagate_err;
+	bool	propagate_err_only;
 };
 
 static prof_gctx_t *
@@ -993,7 +992,7 @@ prof_gctx_dump_iter(prof_gctx_tree_t *gctxs, prof_gctx_t *gctx, void *opaque) {
 
 	malloc_mutex_lock(arg->tsdn, gctx->lock);
 
-	if (prof_dump_gctx(arg->tsdn, arg->propagate_err, gctx, &gctx->bt,
+	if (prof_dump_gctx(arg->tsdn, arg->propagate_err_only, gctx, &gctx->bt,
 	    gctxs)) {
 		ret = gctx;
 		goto label_return;
@@ -1048,48 +1047,49 @@ prof_dump_prep(tsd_t *tsd, prof_tdata_t *tdata,
 }
 
 static bool
-prof_dump_file(tsd_t *tsd, bool propagate_err, const char *filename,
+prof_dump_file(tsd_t *tsd, bool propagate_err_only, const char *filename,
     bool leakcheck, prof_tdata_t *tdata,
     struct prof_tdata_merge_iter_arg_s *prof_tdata_merge_iter_arg,
     struct prof_gctx_merge_iter_arg_s *prof_gctx_merge_iter_arg,
     struct prof_gctx_dump_iter_arg_s *prof_gctx_dump_iter_arg,
     prof_gctx_tree_t *gctxs) {
 	/* Create dump file. */
-	if ((prof_dump_fd = prof_dump_open(propagate_err, filename)) == -1) {
+	if ((prof_dump_fd = prof_dump_open(propagate_err_only, filename)) ==
+	    -1) {
 		return true;
 	}
 
 	/* Dump profile header. */
-	if (prof_dump_header(tsd_tsdn(tsd), propagate_err,
+	if (prof_dump_header(tsd_tsdn(tsd), propagate_err_only,
 	    &prof_tdata_merge_iter_arg->cnt_all)) {
 		goto label_write_error;
 	}
 
 	/* Dump per gctx profile stats. */
 	prof_gctx_dump_iter_arg->tsdn = tsd_tsdn(tsd);
-	prof_gctx_dump_iter_arg->propagate_err = propagate_err;
+	prof_gctx_dump_iter_arg->propagate_err_only = propagate_err_only;
 	if (gctx_tree_iter(gctxs, NULL, prof_gctx_dump_iter,
 	    (void *)prof_gctx_dump_iter_arg) != NULL) {
 		goto label_write_error;
 	}
 
 	/* Dump /proc/<pid>/maps if possible. */
-	if (prof_dump_maps(propagate_err)) {
+	if (prof_dump_maps(propagate_err_only)) {
 		goto label_write_error;
 	}
 
-	if (prof_dump_close(propagate_err)) {
+	if (prof_dump_close(propagate_err_only)) {
 		return true;
 	}
 
 	return false;
 label_write_error:
-	prof_dump_close(propagate_err);
+	prof_dump_close(propagate_err_only);
 	return true;
 }
 
 bool
-prof_dump(tsd_t *tsd, bool propagate_err, const char *filename,
+prof_dump(tsd_t *tsd, bool propagate_err_only, const char *filename,
     bool leakcheck) {
 	cassert(config_prof);
 	assert(tsd_reentrancy_level_get(tsd) == 0);
@@ -1108,8 +1108,8 @@ prof_dump(tsd_t *tsd, bool propagate_err, const char *filename,
 	struct prof_gctx_dump_iter_arg_s prof_gctx_dump_iter_arg;
 	prof_dump_prep(tsd, tdata, &prof_tdata_merge_iter_arg,
 	    &prof_gctx_merge_iter_arg, &gctxs);
-	bool err = prof_dump_file(tsd, propagate_err, filename, leakcheck, tdata,
-	    &prof_tdata_merge_iter_arg, &prof_gctx_merge_iter_arg,
+	bool err = prof_dump_file(tsd, propagate_err_only, filename, leakcheck,
+	    tdata, &prof_tdata_merge_iter_arg, &prof_gctx_merge_iter_arg,
 	    &prof_gctx_dump_iter_arg, &gctxs);
 	prof_gctx_finish(tsd, &gctxs);
 
