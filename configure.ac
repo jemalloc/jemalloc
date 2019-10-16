@@ -1395,7 +1395,7 @@ else
   enable_cache_oblivious="1"
 fi
 ],
-[enable_cache_oblivious="1"]
+[enable_cache_oblivious="0"]
 )
 if test "x$enable_cache_oblivious" = "x1" ; then
   AC_DEFINE([JEMALLOC_CACHE_OBLIVIOUS], [ ])
