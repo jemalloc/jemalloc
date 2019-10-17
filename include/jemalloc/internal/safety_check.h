@@ -3,7 +3,7 @@
 
 void safety_check_fail(const char *format, ...);
 /* Can set to NULL for a default. */
-void safety_check_set_abort(void (*abort_fn)());
+void safety_check_set_abort(void (*abort_fn)(const char *));
 
 JEMALLOC_ALWAYS_INLINE void
 safety_check_set_redzone(void *ptr, size_t usize, size_t bumped_usize) {

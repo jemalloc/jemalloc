@@ -120,8 +120,8 @@ cache_bin_ncached_max_get(szind_t ind) {
 
 static inline cache_bin_sz_t
 cache_bin_ncached_get(cache_bin_t *bin, szind_t ind) {
-	cache_bin_sz_t n = (tcache_bin_info[ind].stack_size +
-	    bin->full_position - bin->cur_ptr.lowbits) / sizeof(void *);
+	cache_bin_sz_t n = (cache_bin_sz_t)((tcache_bin_info[ind].stack_size +
+	    bin->full_position - bin->cur_ptr.lowbits) / sizeof(void *));
 	assert(n <= cache_bin_ncached_max_get(ind));
 	assert(n == 0 || *(bin->cur_ptr.ptr) != NULL);
 
@@ -158,7 +158,8 @@ static inline cache_bin_sz_t
 cache_bin_low_water_get(cache_bin_t *bin, szind_t ind) {
 	cache_bin_sz_t ncached_max = cache_bin_ncached_max_get(ind);
 	cache_bin_sz_t low_water = ncached_max -
-	    (bin->low_water_position - bin->full_position) / sizeof(void *);
+	    (cache_bin_sz_t)((bin->low_water_position - bin->full_position) /
+	    sizeof(void *));
 	assert(low_water <= ncached_max);
 	assert(low_water <= cache_bin_ncached_get(bin, ind));
 	assert(bin->low_water_position >= bin->cur_ptr.lowbits);

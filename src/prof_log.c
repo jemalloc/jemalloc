@@ -452,7 +452,7 @@ prof_emitter_write_cb(void *opaque, const char *to_write) {
 		return;
 	}
 #endif
-	arg->ret = write(arg->fd, (void *)to_write, bytes);
+	arg->ret = malloc_write_fd(arg->fd, to_write, bytes);
 }
 
 /*
