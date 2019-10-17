@@ -118,7 +118,7 @@ mutex_stats_init_cols(emitter_row_t *row, const char *table_name,
 
 #define WIDTH_uint32_t 12
 #define WIDTH_uint64_t 16
-#define OP(counter, counter_type, human, derived, base_counter)	\
+#define OP(counter, counter_type, human, derived, base_counter)		\
 	col = &col_##counter_type[k_##counter_type];			\
 	++k_##counter_type;						\
 	emitter_col_init(col, row);					\
@@ -145,16 +145,20 @@ mutex_stats_read_global(const char *name, emitter_col_t *col_name,
 	emitter_col_t *dst;
 #define EMITTER_TYPE_uint32_t emitter_type_uint32
 #define EMITTER_TYPE_uint64_t emitter_type_uint64
-#define OP(counter, counter_type, human, derived, base_counter)	\
+#define OP(counter, counter_type, human, derived, base_counter)		\
 	dst = &col_##counter_type[mutex_counter_##counter];		\
 	dst->type = EMITTER_TYPE_##counter_type;			\
 	if (!derived) {							\
 		gen_mutex_ctl_str(cmd, MUTEX_CTL_STR_MAX_LENGTH,	\
 		    "mutexes", name, #counter);				\
-		CTL_GET(cmd, (counter_type *)&dst->bool_val, counter_type);	\
-	} else { \
-	    emitter_col_t *base = &col_##counter_type[mutex_counter_##base_counter];	\
-	    dst->counter_type##_val = rate_per_second(base->counter_type##_val, uptime); \
+		CTL_GET(cmd, (counter_type *)&dst->bool_val,		\
+		    counter_type);					\
+	} else {							\
+		emitter_col_t *base =					\
+		    &col_##counter_type[mutex_counter_##base_counter];	\
+		dst->counter_type##_val =				\
+		    (counter_type)rate_per_second(			\
+		    base->counter_type##_val, uptime);			\
 	}
 	MUTEX_PROF_COUNTERS
 #undef OP
@@ -175,16 +179,21 @@ mutex_stats_read_arena(unsigned arena_ind, mutex_prof_arena_ind_t mutex_ind,
 	emitter_col_t *dst;
 #define EMITTER_TYPE_uint32_t emitter_type_uint32
 #define EMITTER_TYPE_uint64_t emitter_type_uint64
-#define OP(counter, counter_type, human, derived, base_counter)	\
+#define OP(counter, counter_type, human, derived, base_counter)		\
 	dst = &col_##counter_type[mutex_counter_##counter];		\
 	dst->type = EMITTER_TYPE_##counter_type;			\
-	if (!derived) {                                   \
+	if (!derived) {							\
 		gen_mutex_ctl_str(cmd, MUTEX_CTL_STR_MAX_LENGTH,        \
-		    "arenas.0.mutexes", arena_mutex_names[mutex_ind], #counter);\
-		CTL_M2_GET(cmd, arena_ind, (counter_type *)&dst->bool_val, counter_type); \
-	} else {                      \
-		emitter_col_t *base = &col_##counter_type[mutex_counter_##base_counter];	\
-		dst->counter_type##_val = rate_per_second(base->counter_type##_val, uptime); \
+		    "arenas.0.mutexes", arena_mutex_names[mutex_ind],	\
+		    #counter);						\
+		CTL_M2_GET(cmd, arena_ind,				\
+		    (counter_type *)&dst->bool_val, counter_type);	\
+	} else {							\
+		emitter_col_t *base =					\
+		    &col_##counter_type[mutex_counter_##base_counter];	\
+		dst->counter_type##_val =				\
+		    (counter_type)rate_per_second(			\
+		    base->counter_type##_val, uptime);			\
 	}
 	MUTEX_PROF_COUNTERS
 #undef OP
@@ -202,17 +211,20 @@ mutex_stats_read_arena_bin(unsigned arena_ind, unsigned bin_ind,
 
 #define EMITTER_TYPE_uint32_t emitter_type_uint32
 #define EMITTER_TYPE_uint64_t emitter_type_uint64
-#define OP(counter, counter_type, human, derived, base_counter)	\
+#define OP(counter, counter_type, human, derived, base_counter)		\
 	dst = &col_##counter_type[mutex_counter_##counter];		\
 	dst->type = EMITTER_TYPE_##counter_type;			\
-	if (!derived) {                                   \
-		gen_mutex_ctl_str(cmd, MUTEX_CTL_STR_MAX_LENGTH,        \
-		    "arenas.0.bins.0","mutex", #counter);            \
-		CTL_M2_M4_GET(cmd, arena_ind, bin_ind,                \
-		    (counter_type *)&dst->bool_val, counter_type);  \
-	} else {                      \
-		emitter_col_t *base = &col_##counter_type[mutex_counter_##base_counter]; \
-		dst->counter_type##_val = rate_per_second(base->counter_type##_val, uptime); \
+	if (!derived) {							\
+		gen_mutex_ctl_str(cmd, MUTEX_CTL_STR_MAX_LENGTH,	\
+		    "arenas.0.bins.0","mutex", #counter);		\
+		CTL_M2_M4_GET(cmd, arena_ind, bin_ind,			\
+		    (counter_type *)&dst->bool_val, counter_type);	\
+	} else {							\
+		emitter_col_t *base =					\
+		    &col_##counter_type[mutex_counter_##base_counter];	\
+		dst->counter_type##_val =				\
+		    (counter_type)rate_per_second(			\
+		    base->counter_type##_val, uptime);			\
 	}
 	MUTEX_PROF_COUNTERS
 #undef OP
