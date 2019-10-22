@@ -2506,56 +2506,6 @@ je_calloc(size_t num, size_t size) {
 	return ret;
 }
 
-static void *
-irealloc_prof_sample(tsd_t *tsd, void *old_ptr, size_t old_usize, size_t usize,
-    prof_tctx_t *tctx, hook_ralloc_args_t *hook_args) {
-	void *p;
-
-	if (tctx == NULL) {
-		return NULL;
-	}
-	if (usize <= SC_SMALL_MAXCLASS) {
-		p = iralloc(tsd, old_ptr, old_usize,
-		    SC_LARGE_MINCLASS, 0, false, hook_args);
-		if (p == NULL) {
-			return NULL;
-		}
-		arena_prof_promote(tsd_tsdn(tsd), p, usize);
-	} else {
-		p = iralloc(tsd, old_ptr, old_usize, usize, 0, false,
-		    hook_args);
-	}
-
-	return p;
-}
-
-JEMALLOC_ALWAYS_INLINE void *
-irealloc_prof(tsd_t *tsd, void *old_ptr, size_t old_usize, size_t usize,
-   alloc_ctx_t *alloc_ctx, hook_ralloc_args_t *hook_args) {
-	void *p;
-	bool prof_active;
-	prof_tctx_t *old_tctx, *tctx;
-
-	prof_active = prof_active_get_unlocked();
-	old_tctx = prof_tctx_get(tsd_tsdn(tsd), old_ptr, alloc_ctx);
-	tctx = prof_alloc_prep(tsd, usize, prof_active, true);
-	if (unlikely((uintptr_t)tctx != (uintptr_t)1U)) {
-		p = irealloc_prof_sample(tsd, old_ptr, old_usize, usize, tctx,
-		    hook_args);
-	} else {
-		p = iralloc(tsd, old_ptr, old_usize, usize, 0, false,
-		    hook_args);
-	}
-	if (unlikely(p == NULL)) {
-		prof_alloc_rollback(tsd, tctx, true);
-		return NULL;
-	}
-	prof_realloc(tsd, p, usize, tctx, prof_active, true, old_ptr, old_usize,
-	    old_tctx);
-
-	return p;
-}
-
 JEMALLOC_ALWAYS_INLINE void
 ifree(tsd_t *tsd, void *ptr, tcache_t *tcache, bool slow_path) {
 	if (!slow_path) {
@@ -2643,121 +2593,6 @@ isfree(tsd_t *tsd, void *ptr, size_t usize, tcache_t *tcache, bool slow_path) {
 	} else {
 		isdalloct(tsd_tsdn(tsd), ptr, usize, tcache, ctx, true);
 	}
-}
-
-JEMALLOC_EXPORT JEMALLOC_ALLOCATOR JEMALLOC_RESTRICT_RETURN
-void JEMALLOC_NOTHROW *
-JEMALLOC_ALLOC_SIZE(2)
-je_realloc(void *ptr, size_t arg_size) {
-	void *ret;
-	tsdn_t *tsdn JEMALLOC_CC_SILENCE_INIT(NULL);
-	size_t usize JEMALLOC_CC_SILENCE_INIT(0);
-	size_t old_usize = 0;
-	size_t size = arg_size;
-
-	LOG("core.realloc.entry", "ptr: %p, size: %zu\n", ptr, size);
-
-	if (unlikely(size == 0)) {
-		if (ptr != NULL) {
-			/* realloc(ptr, 0) is equivalent to free(ptr). */
-			UTRACE(ptr, 0, 0);
-			tcache_t *tcache;
-			tsd_t *tsd = tsd_fetch();
-			if (tsd_reentrancy_level_get(tsd) == 0) {
-				tcache = tcache_get(tsd);
-			} else {
-				tcache = NULL;
-			}
-
-			uintptr_t args[3] = {(uintptr_t)ptr, size};
-			hook_invoke_dalloc(hook_dalloc_realloc, ptr, args);
-
-			ifree(tsd, ptr, tcache, true);
-
-			LOG("core.realloc.exit", "result: %p", NULL);
-			return NULL;
-		}
-		size = 1;
-	}
-
-	if (likely(ptr != NULL)) {
-		assert(malloc_initialized() || IS_INITIALIZER);
-		tsd_t *tsd = tsd_fetch();
-
-		check_entry_exit_locking(tsd_tsdn(tsd));
-
-
-		hook_ralloc_args_t hook_args = {true, {(uintptr_t)ptr,
-			(uintptr_t)arg_size, 0, 0}};
-
-		alloc_ctx_t alloc_ctx;
-		rtree_ctx_t *rtree_ctx = tsd_rtree_ctx(tsd);
-		rtree_szind_slab_read(tsd_tsdn(tsd), &extents_rtree, rtree_ctx,
-		    (uintptr_t)ptr, true, &alloc_ctx.szind, &alloc_ctx.slab);
-		assert(alloc_ctx.szind != SC_NSIZES);
-		old_usize = sz_index2size(alloc_ctx.szind);
-		assert(old_usize == isalloc(tsd_tsdn(tsd), ptr));
-		usize = sz_s2u(size);
-		if (config_prof && opt_prof) {
-			if (unlikely(usize == 0 || usize > SC_LARGE_MAXCLASS)) {
-				ret = NULL;
-			} else {
-				ret = irealloc_prof(tsd, ptr, old_usize, usize,
-				    &alloc_ctx, &hook_args);
-			}
-		} else {
-			ret = iralloc(tsd, ptr, old_usize, size, 0, false,
-			    &hook_args);
-		}
-		tsdn = tsd_tsdn(tsd);
-	} else {
-		/* realloc(NULL, size) is equivalent to malloc(size). */
-		static_opts_t sopts;
-		dynamic_opts_t dopts;
-
-		static_opts_init(&sopts);
-		dynamic_opts_init(&dopts);
-
-		sopts.null_out_result_on_error = true;
-		sopts.set_errno_on_error = true;
-		sopts.oom_string =
-		    "<jemalloc>: Error in realloc(): out of memory\n";
-
-		dopts.result = &ret;
-		dopts.num_items = 1;
-		dopts.item_size = size;
-
-		imalloc(&sopts, &dopts);
-		if (sopts.slow) {
-			uintptr_t args[3] = {(uintptr_t)ptr, arg_size};
-			hook_invoke_alloc(hook_alloc_realloc, ret,
-			    (uintptr_t)ret, args);
-		}
-
-		return ret;
-	}
-
-	if (unlikely(ret == NULL)) {
-		if (config_xmalloc && unlikely(opt_xmalloc)) {
-			malloc_write("<jemalloc>: Error in realloc(): "
-			    "out of memory\n");
-			abort();
-		}
-		set_errno(ENOMEM);
-	}
-	if (likely(ret != NULL)) {
-		tsd_t *tsd;
-
-		assert(usize == isalloc(tsdn, ret));
-		tsd = tsdn_tsd(tsdn);
-		*tsd_thread_allocatedp_get(tsd) += usize;
-		*tsd_thread_deallocatedp_get(tsd) += old_usize;
-	}
-	UTRACE(ptr, size, ret);
-	check_entry_exit_locking(tsdn);
-
-	LOG("core.realloc.exit", "result: %p", ret);
-	return ret;
 }
 
 JEMALLOC_NOINLINE
@@ -3201,10 +3036,8 @@ irallocx_prof(tsd_t *tsd, void *old_ptr, size_t old_usize, size_t size,
 	return p;
 }
 
-JEMALLOC_EXPORT JEMALLOC_ALLOCATOR JEMALLOC_RESTRICT_RETURN
-void JEMALLOC_NOTHROW *
-JEMALLOC_ALLOC_SIZE(2)
-je_rallocx(void *ptr, size_t size, int flags) {
+JEMALLOC_ALWAYS_INLINE void *
+do_rallocx(void *ptr, size_t size, int flags, bool is_realloc) {
 	void *p;
 	tsd_t *tsd;
 	size_t usize;
@@ -3213,10 +3046,6 @@ je_rallocx(void *ptr, size_t size, int flags) {
 	bool zero = flags & MALLOCX_ZERO;
 	arena_t *arena;
 	tcache_t *tcache;
-
-	LOG("core.rallocx.entry", "ptr: %p, size: %zu, flags: %d", ptr,
-	    size, flags);
-
 
 	assert(ptr != NULL);
 	assert(size != 0);
@@ -3252,8 +3081,8 @@ je_rallocx(void *ptr, size_t size, int flags) {
 	old_usize = sz_index2size(alloc_ctx.szind);
 	assert(old_usize == isalloc(tsd_tsdn(tsd), ptr));
 
-	hook_ralloc_args_t hook_args = {false, {(uintptr_t)ptr, size, flags,
-		0}};
+	hook_ralloc_args_t hook_args = {is_realloc, {(uintptr_t)ptr, size,
+		flags, 0}};
 	if (config_prof && opt_prof) {
 		usize = (alignment == 0) ?
 		    sz_s2u(size) : sz_sa2u(size, alignment);
@@ -3281,7 +3110,6 @@ je_rallocx(void *ptr, size_t size, int flags) {
 	UTRACE(ptr, size, p);
 	check_entry_exit_locking(tsd_tsdn(tsd));
 
-	LOG("core.rallocx.exit", "result: %p", p);
 	return p;
 label_oom:
 	if (config_xmalloc && unlikely(opt_xmalloc)) {
@@ -3291,8 +3119,79 @@ label_oom:
 	UTRACE(ptr, size, 0);
 	check_entry_exit_locking(tsd_tsdn(tsd));
 
-	LOG("core.rallocx.exit", "result: %p", NULL);
 	return NULL;
+}
+
+JEMALLOC_EXPORT JEMALLOC_ALLOCATOR JEMALLOC_RESTRICT_RETURN
+void JEMALLOC_NOTHROW *
+JEMALLOC_ALLOC_SIZE(2)
+je_rallocx(void *ptr, size_t size, int flags) {
+	LOG("core.rallocx.entry", "ptr: %p, size: %zu, flags: %d", ptr,
+	    size, flags);
+	void *ret = do_rallocx(ptr, size, flags, false);
+	LOG("core.rallocx.exit", "result: %p", ret);
+	return ret;
+}
+
+JEMALLOC_EXPORT JEMALLOC_ALLOCATOR JEMALLOC_RESTRICT_RETURN
+void JEMALLOC_NOTHROW *
+JEMALLOC_ALLOC_SIZE(2)
+je_realloc(void *ptr, size_t size) {
+	LOG("core.realloc.entry", "ptr: %p, size: %zu\n", ptr, size);
+
+	if (likely(ptr != NULL && size != 0)) {
+		void *ret = do_rallocx(ptr, size, 0, true);
+		LOG("core.realloc.exit", "result: %p", ret);
+		return ret;
+	} else if (ptr != NULL && size == 0) {
+		/* realloc(ptr, 0) is equivalent to free(ptr). */
+		UTRACE(ptr, 0, 0);
+		tcache_t *tcache;
+		tsd_t *tsd = tsd_fetch();
+		check_entry_exit_locking(tsd_tsdn(tsd));
+
+		if (tsd_reentrancy_level_get(tsd) == 0) {
+			tcache = tcache_get(tsd);
+		} else {
+			tcache = NULL;
+		}
+
+		uintptr_t args[3] = {(uintptr_t)ptr, size};
+		hook_invoke_dalloc(hook_dalloc_realloc, ptr, args);
+
+		ifree(tsd, ptr, tcache, true);
+
+		check_entry_exit_locking(tsd_tsdn(tsd));
+		LOG("core.realloc.exit", "result: %p", NULL);
+		return NULL;
+	} else {
+		/* realloc(NULL, size) is equivalent to malloc(size). */
+		void *ret;
+
+		static_opts_t sopts;
+		dynamic_opts_t dopts;
+
+		static_opts_init(&sopts);
+		dynamic_opts_init(&dopts);
+
+		sopts.null_out_result_on_error = true;
+		sopts.set_errno_on_error = true;
+		sopts.oom_string =
+		    "<jemalloc>: Error in realloc(): out of memory\n";
+
+		dopts.result = &ret;
+		dopts.num_items = 1;
+		dopts.item_size = size;
+
+		imalloc(&sopts, &dopts);
+		if (sopts.slow) {
+			uintptr_t args[3] = {(uintptr_t)ptr, size};
+			hook_invoke_alloc(hook_alloc_realloc, ret,
+			    (uintptr_t)ret, args);
+		}
+		LOG("core.realloc.exit", "result: %p", ret);
+		return ret;
+	}
 }
 
 JEMALLOC_ALWAYS_INLINE size_t
