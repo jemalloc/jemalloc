@@ -9,6 +9,7 @@ extern bool tsd_booted;
 /* Initialization/cleanup. */
 JEMALLOC_ALWAYS_INLINE bool
 tsd_boot0(void) {
+	tsd_booted = true;
 	return false;
 }
 
@@ -19,7 +20,7 @@ tsd_boot1(void) {
 
 JEMALLOC_ALWAYS_INLINE bool
 tsd_boot(void) {
-	return false;
+	return tsd_boot0();
 }
 
 JEMALLOC_ALWAYS_INLINE bool

@@ -22,7 +22,7 @@ pthread_key_t tsd_tsd;
 bool tsd_booted = false;
 #elif (defined(_WIN32))
 __declspec(thread) tsd_t tsd_tls = TSD_INITIALIZER;
-bool tsd_booted = true;
+bool tsd_booted = false;
 #else
 
 /*
@@ -287,6 +287,7 @@ _tls_callback(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved) {
 #endif
 	case DLL_THREAD_DETACH:
 		_malloc_thread_cleanup();
+		tsd_cleanup(tsd_get(false));
 		break;
 	default:
 		break;
