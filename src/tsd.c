@@ -21,9 +21,8 @@ __thread tsd_t JEMALLOC_TLS_MODEL tsd_tls = TSD_INITIALIZER;
 pthread_key_t tsd_tsd;
 bool tsd_booted = false;
 #elif (defined(_WIN32))
-DWORD tsd_tsd;
-tsd_wrapper_t tsd_boot_wrapper = {false, TSD_INITIALIZER};
-bool tsd_booted = false;
+__declspec(thread) tsd_t tsd_tls = TSD_INITIALIZER;
+bool tsd_booted = true;
 #else
 
 /*
