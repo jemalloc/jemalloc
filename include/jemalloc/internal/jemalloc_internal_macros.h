@@ -4,7 +4,11 @@
 #ifdef JEMALLOC_DEBUG
 #  define JEMALLOC_ALWAYS_INLINE static inline
 #else
-#  define JEMALLOC_ALWAYS_INLINE JEMALLOC_ATTR(always_inline) static inline
+#  ifdef _MSC_VER
+#    define JEMALLOC_ALWAYS_INLINE static __forceinline
+#  else
+#    define JEMALLOC_ALWAYS_INLINE JEMALLOC_ATTR(always_inline) static inline
+#  endif
 #endif
 #ifdef _MSC_VER
 #  define inline _inline
