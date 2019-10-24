@@ -93,7 +93,6 @@ tcache_alloc_small(tsd_t *tsd, arena_t *arena, tcache_t *tcache,
 	if (config_stats) {
 		bin->tstats.nrequests++;
 	}
-	tcache_event(tsd, tcache);
 	return ret;
 }
 
@@ -150,7 +149,6 @@ tcache_alloc_large(tsd_t *tsd, arena_t *arena, tcache_t *tcache, size_t size,
 		}
 	}
 
-	tcache_event(tsd, tcache);
 	return ret;
 }
 

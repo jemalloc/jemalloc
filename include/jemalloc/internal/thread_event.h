@@ -33,6 +33,7 @@ void thread_event_boot();
  *  E(event,		(condition))
  */
 #define ITERATE_OVER_ALL_EVENTS						\
+    E(tcache_gc,	(TCACHE_GC_INCR_BYTES > 0))			\
     E(prof_sample,	(config_prof && opt_prof))
 
 #define E(event, condition)						\

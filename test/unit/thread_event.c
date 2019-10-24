@@ -9,8 +9,11 @@ TEST_BEGIN(test_next_event_fast_roll_back) {
 	    THREAD_ALLOCATED_NEXT_EVENT_FAST_MAX);
 	thread_allocated_next_event_fast_set(tsd,
 	    THREAD_ALLOCATED_NEXT_EVENT_FAST_MAX);
-	prof_sample_event_wait_set(tsd,
+#define E(event, condition)						\
+	event##_event_wait_set(tsd,					\
 	    THREAD_ALLOCATED_NEXT_EVENT_FAST_MAX);
+	ITERATE_OVER_ALL_EVENTS
+#undef E
 	void *p = malloc(16U);
 	assert_ptr_not_null(p, "malloc() failed");
 	free(p);
@@ -25,8 +28,11 @@ TEST_BEGIN(test_next_event_fast_resume) {
 	thread_allocated_next_event_set(tsd,
 	    THREAD_ALLOCATED_NEXT_EVENT_FAST_MAX + 16U);
 	thread_allocated_next_event_fast_set(tsd, 0);
-	prof_sample_event_wait_set(tsd,
+#define E(event, condition)						\
+	event##_event_wait_set(tsd,					\
 	    THREAD_ALLOCATED_NEXT_EVENT_FAST_MAX + 16U);
+	ITERATE_OVER_ALL_EVENTS
+#undef E
 	void *p = malloc(SC_LOOKUP_MAXCLASS);
 	assert_ptr_not_null(p, "malloc() failed");
 	free(p);
