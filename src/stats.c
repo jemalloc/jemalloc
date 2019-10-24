@@ -829,12 +829,12 @@ stats_arena_print(emitter_t *emitter, unsigned i, bool bins, bool large,
 
 	COL(alloc_count_row, count_nmalloc, right, 16, title);
 	col_count_nmalloc.str_val = "nmalloc";
-	COL(alloc_count_row, count_nmalloc_ps, right, 8, title);
+	COL(alloc_count_row, count_nmalloc_ps, right, 10, title);
 	col_count_nmalloc_ps.str_val = "(#/sec)";
 
 	COL(alloc_count_row, count_ndalloc, right, 16, title);
 	col_count_ndalloc.str_val = "ndalloc";
-	COL(alloc_count_row, count_ndalloc_ps, right, 8, title);
+	COL(alloc_count_row, count_ndalloc_ps, right, 10, title);
 	col_count_ndalloc_ps.str_val = "(#/sec)";
 
 	COL(alloc_count_row, count_nrequests, right, 16, title);
