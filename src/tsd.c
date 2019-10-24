@@ -233,6 +233,10 @@ tsd_data_init(tsd_t *tsd) {
 	*tsd_offset_statep_get(tsd) = config_debug ? 0 :
 	    (uint64_t)(uintptr_t)tsd;
 
+	if (TCACHE_GC_INCR_BYTES > 0) {
+		thread_tcache_gc_event_update(tsd, TCACHE_GC_INCR_BYTES);
+	}
+
 	return tsd_tcache_enabled_data_init(tsd);
 }
 

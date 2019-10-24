@@ -2350,10 +2350,6 @@ je_malloc(size_t size) {
 
 	tcache_t *tcache = tsd_tcachep_get(tsd);
 
-	if (unlikely(ticker_trytick(&tcache->gc_ticker))) {
-		return malloc_default(size);
-	}
-
 	szind_t ind = sz_size2index_lookup(size);
 	/*
 	 * The thread_allocated counter in tsd serves as a general purpose

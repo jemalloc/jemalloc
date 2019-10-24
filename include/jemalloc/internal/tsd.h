@@ -29,6 +29,7 @@
  * x: narenas_tdata
  * l: thread_allocated_last_event
  * j: thread_allocated_next_event
+ * g: tcache_gc_event_wait
  * w: prof_sample_event_wait (config_prof)
  * x: prof_sample_last_event (config_prof)
  * p: prof_tdata (config_prof)
@@ -46,11 +47,11 @@
  * |----------------------------  2nd cacheline  ----------------------------|
  * | [c * 64  ........ ........ ........ ........ ........ ........ .......] |
  * |----------------------------  3nd cacheline  ----------------------------|
- * | [c * 32  ........ ........ .......] llllllll jjjjjjjj wwwwwwww xxxxxxxx |
+ * | [c * 32  ........ ........ .......] llllllll jjjjjjjj gggggggg wwwwwwww |
  * +----------------------------  4th cacheline  ----------------------------+
- * | pppppppp vvvvvvvv iiiiiiii aaaaaaaa oooooooo [b...... ........ ........ |
+ * | xxxxxxxx pppppppp vvvvvvvv iiiiiiii aaaaaaaa oooooooo [b...... ........ |
  * +----------------------------  5th cacheline  ----------------------------+
- * | ........ ..b][t.. ........ ........ ........ ........ ........ ........ |
+ * | ........ ........ ..b][t.. ........ ........ ........ ........ ........ |
  * +-------------------------------------------------------------------------+
  * Note: the entire tcache is embedded into TSD and spans multiple cachelines.
  *
@@ -83,6 +84,7 @@ typedef void (*test_callback_t)(int *);
     O(rtree_ctx,		rtree_ctx_t,		rtree_ctx_t)	\
     O(thread_allocated_last_event,	uint64_t,	uint64_t)	\
     O(thread_allocated_next_event,	uint64_t,	uint64_t)	\
+    O(tcache_gc_event_wait,	uint64_t,		uint64_t)	\
     O(prof_sample_event_wait,	uint64_t,		uint64_t)	\
     O(prof_sample_last_event,	uint64_t,		uint64_t)	\
     O(prof_tdata,		prof_tdata_t *,		prof_tdata_t *)	\
@@ -113,6 +115,7 @@ typedef void (*test_callback_t)(int *);
     /* rtree_ctx */		RTREE_CTX_ZERO_INITIALIZER,		\
     /* thread_allocated_last_event */	0,				\
     /* thread_allocated_next_event */	THREAD_EVENT_MIN_START_WAIT,	\
+    /* tcache_gc_event_wait */		THREAD_EVENT_MIN_START_WAIT,	\
     /* prof_sample_event_wait */	THREAD_EVENT_MIN_START_WAIT,	\
     /* prof_sample_last_event */	0,				\
     /* prof_tdata */		NULL,					\

@@ -19,6 +19,17 @@ ITERATE_OVER_ALL_EVENTS
 #undef E
 
 static void
+thread_tcache_gc_event_handler(tsd_t *tsd) {
+	assert(TCACHE_GC_INCR_BYTES > 0);
+	assert(tcache_gc_event_wait_get(tsd) == 0U);
+	thread_tcache_gc_event_update(tsd, TCACHE_GC_INCR_BYTES);
+	tcache_t *tcache = tcache_get(tsd);
+	if (tcache != NULL) {
+		tcache_event_hard(tsd, tcache);
+	}
+}
+
+static void
 thread_prof_sample_event_handler(tsd_t *tsd) {
 	assert(config_prof && opt_prof);
 	assert(prof_sample_event_wait_get(tsd) == 0U);
