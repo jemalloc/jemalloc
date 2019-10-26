@@ -224,6 +224,7 @@ CTL_PROTO(stats_metadata_thp)
 CTL_PROTO(stats_resident)
 CTL_PROTO(stats_mapped)
 CTL_PROTO(stats_retained)
+CTL_PROTO(stats_zero_reallocs)
 CTL_PROTO(experimental_hooks_install)
 CTL_PROTO(experimental_hooks_remove)
 CTL_PROTO(experimental_utilization_query)
@@ -593,7 +594,8 @@ static const ctl_named_node_t stats_node[] = {
 	{NAME("background_thread"),
 	 CHILD(named, stats_background_thread)},
 	{NAME("mutexes"),	CHILD(named, stats_mutexes)},
-	{NAME("arenas"),	CHILD(indexed, stats_arenas)}
+	{NAME("arenas"),	CHILD(indexed, stats_arenas)},
+	{NAME("zero_reallocs"),	CTL(stats_zero_reallocs)},
 };
 
 static const ctl_named_node_t experimental_hooks_node[] = {
@@ -2840,6 +2842,9 @@ CTL_RO_CGEN(config_stats, stats_background_thread_num_runs,
     ctl_stats->background_thread.num_runs, uint64_t)
 CTL_RO_CGEN(config_stats, stats_background_thread_run_interval,
     nstime_ns(&ctl_stats->background_thread.run_interval), uint64_t)
+
+CTL_RO_CGEN(config_stats, stats_zero_reallocs,
+    atomic_load_zu(&zero_realloc_count, ATOMIC_RELAXED), size_t)
 
 CTL_RO_GEN(stats_arenas_i_dss, arenas_i(mib[2])->dss, const char *)
 CTL_RO_GEN(stats_arenas_i_dirty_decay_ms, arenas_i(mib[2])->dirty_decay_ms,
