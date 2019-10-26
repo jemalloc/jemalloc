@@ -2451,6 +2451,21 @@ struct extent_hooks_s {
         </para></listitem>
       </varlistentry>
 
+      <varlistentry id="stats.zero_reallocs">
+        <term>
+          <mallctl>stats.zero_reallocs</mallctl>
+          (<type>size_t</type>)
+          <literal>r-</literal>
+          [<option>--enable-stats</option>]
+        </term>
+        <listitem><para>Number of times that the <function>realloc()</function>
+        was called with a non-<constant>NULL</constant> pointer argument and a
+        <constant>0</constant> size argument.  This is a fundamentally unsafe
+        pattern in portable programs; see <link linkend="opt.zero_realloc">
+        <mallctl>opt.zero_realloc</mallctl></link> for details.
+        </para></listitem>
+      </varlistentry>
+
       <varlistentry id="stats.background_thread.num_threads">
         <term>
           <mallctl>stats.background_thread.num_threads</mallctl>

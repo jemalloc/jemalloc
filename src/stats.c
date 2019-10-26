@@ -1252,6 +1252,7 @@ stats_print_helper(emitter_t *emitter, bool merged, bool destroyed,
 	size_t allocated, active, metadata, metadata_thp, resident, mapped,
 	    retained;
 	size_t num_background_threads;
+	size_t zero_reallocs;
 	uint64_t background_thread_num_runs, background_thread_run_interval;
 
 	CTL_GET("stats.allocated", &allocated, size_t);
@@ -1261,6 +1262,8 @@ stats_print_helper(emitter_t *emitter, bool merged, bool destroyed,
 	CTL_GET("stats.resident", &resident, size_t);
 	CTL_GET("stats.mapped", &mapped, size_t);
 	CTL_GET("stats.retained", &retained, size_t);
+
+	CTL_GET("stats.zero_reallocs", &zero_reallocs, size_t);
 
 	if (have_background_thread) {
 		CTL_GET("stats.background_thread.num_threads",
@@ -1285,11 +1288,17 @@ stats_print_helper(emitter_t *emitter, bool merged, bool destroyed,
 	emitter_json_kv(emitter, "resident", emitter_type_size, &resident);
 	emitter_json_kv(emitter, "mapped", emitter_type_size, &mapped);
 	emitter_json_kv(emitter, "retained", emitter_type_size, &retained);
+	emitter_json_kv(emitter, "zero_reallocs", emitter_type_size,
+	    &zero_reallocs);
 
 	emitter_table_printf(emitter, "Allocated: %zu, active: %zu, "
 	    "metadata: %zu (n_thp %zu), resident: %zu, mapped: %zu, "
 	    "retained: %zu\n", allocated, active, metadata, metadata_thp,
 	    resident, mapped, retained);
+
+	/* Strange behaviors */
+	emitter_table_printf(emitter,
+	    "Count of realloc(non-null-ptr, 0) calls: %zu\n", zero_reallocs);
 
 	/* Background thread stats. */
 	emitter_json_object_kv_begin(emitter, "background_thread");

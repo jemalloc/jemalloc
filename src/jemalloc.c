@@ -70,6 +70,8 @@ bool	opt_junk_free =
 zero_realloc_action_t opt_zero_realloc_action =
     zero_realloc_action_strict;
 
+atomic_zu_t zero_realloc_count = ATOMIC_INIT(0);
+
 const char *zero_realloc_mode_names[] = {
 	"strict",
 	"free",
@@ -3160,6 +3162,9 @@ je_rallocx(void *ptr, size_t size, int flags) {
 
 static void *
 do_realloc_nonnull_zero(void *ptr) {
+	if (config_stats) {
+		atomic_fetch_add_zu(&zero_realloc_count, 1, ATOMIC_RELAXED);
+	}
 	if (opt_zero_realloc_action == zero_realloc_action_strict) {
 		/*
 		 * The user might have gotten a strict setting while expecting a
