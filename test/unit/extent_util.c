@@ -94,10 +94,8 @@ TEST_BEGIN(test_query) {
 			    "Extent region count exceeded size");
 			assert_zu_ne(NREGS_READ(out), 0,
 			    "Extent region count must be positive");
-			assert_ptr_not_null(SLABCUR_READ(out),
-			    "Current slab is null");
-			assert_true(NFREE_READ(out) == 0
-			    || SLABCUR_READ(out) <= p,
+			assert_true(NFREE_READ(out) == 0 || (SLABCUR_READ(out)
+			    != NULL && SLABCUR_READ(out) <= p),
 			    "Allocation should follow first fit principle");
 			if (config_stats) {
 				assert_zu_le(BIN_NFREE_READ(out),
