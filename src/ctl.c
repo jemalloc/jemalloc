@@ -3199,7 +3199,8 @@ label_return:
  * otherwise their values are undefined.
  *
  * This API is mainly intended for small class allocations, where extents are
- * used as slab.
+ * used as slab.  Note that if the bin the extent belongs to is completely
+ * full, "(a)" will be NULL.
  *
  * In case of large class allocations, "(a)" will be NULL, and "(e)" and "(f)"
  * will be zero (if stats are enabled; otherwise undefined).  The other three

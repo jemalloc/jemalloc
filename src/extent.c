@@ -2124,7 +2124,12 @@ extent_util_stats_verbose_get(tsdn_t *tsdn, const void *ptr,
 	} else {
 		*bin_nfree = *bin_nregs = 0;
 	}
-	*slabcur_addr = extent_addr_get(bin->slabcur);
-	assert(*slabcur_addr != NULL);
+	extent_t *slab;
+	if (bin->slabcur != NULL) {
+		slab = bin->slabcur;
+	} else {
+		slab = extent_heap_first(&bin->slabs_nonfull);
+	}
+	*slabcur_addr = slab != NULL ? extent_addr_get(slab) : NULL;
 	malloc_mutex_unlock(tsdn, &bin->lock);
 }
