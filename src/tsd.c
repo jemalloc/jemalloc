@@ -389,7 +389,7 @@ tsd_cleanup(void *arg) {
 		 * is still called for testing and completeness.
 		 */
 		assert_tsd_data_cleanup_done(tsd);
-		/* Fall through. */
+		JEMALLOC_FALLTHROUGH;
 	case tsd_state_nominal:
 	case tsd_state_nominal_slow:
 		tsd_do_data_cleanup(tsd);

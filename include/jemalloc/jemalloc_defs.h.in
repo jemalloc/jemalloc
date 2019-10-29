@@ -13,6 +13,9 @@
 /* Defined if format(printf, ...) attribute is supported. */
 #undef JEMALLOC_HAVE_ATTR_FORMAT_PRINTF
 
+/* Defined if fallthrough attribute is supported. */
+#undef JEMALLOC_HAVE_ATTR_FALLTHROUGH
+
 /*
  * Define overrides for non-standard allocator-related functions if they are
  * present on the system.
