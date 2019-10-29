@@ -874,7 +874,7 @@ arena_decay_stashed(tsdn_t *tsdn, arena_t *arena,
 				    arena, is_background_thread);
 				break;
 			}
-			/* Fall through. */
+			JEMALLOC_FALLTHROUGH;
 		case extent_state_muzzy:
 			extent_dalloc_wrapper(tsdn, arena, r_extent_hooks,
 			    extent);

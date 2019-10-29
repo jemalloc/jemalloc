@@ -40,13 +40,6 @@
 #define JEMALLOC_VA_ARGS_HEAD(head, ...) head
 #define JEMALLOC_VA_ARGS_TAIL(head, ...) __VA_ARGS__
 
-#if (defined(__GNUC__) || defined(__GNUG__)) && !defined(__clang__) \
-  && defined(JEMALLOC_HAVE_ATTR) && (__GNUC__ >= 7)
-#define JEMALLOC_FALLTHROUGH JEMALLOC_ATTR(fallthrough);
-#else
-#define JEMALLOC_FALLTHROUGH /* falls through */
-#endif
-
 /* Diagnostic suppression macros */
 #if defined(_MSC_VER) && !defined(__clang__)
 #  define JEMALLOC_DIAGNOSTIC_PUSH __pragma(warning(push))

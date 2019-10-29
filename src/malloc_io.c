@@ -135,10 +135,10 @@ malloc_strtoumax(const char *restrict nptr, char **restrict endptr, int base) {
 			break;
 		case '-':
 			neg = true;
-			/* Fall through. */
+			JEMALLOC_FALLTHROUGH;
 		case '+':
 			p++;
-			/* Fall through. */
+			JEMALLOC_FALLTHROUGH;
 		default:
 			goto label_prefix;
 		}
@@ -289,7 +289,7 @@ d2s(intmax_t x, char sign, char *s, size_t *slen_p) {
 		if (!neg) {
 			break;
 		}
-		/* Fall through. */
+		JEMALLOC_FALLTHROUGH;
 	case ' ':
 	case '+':
 		s--;

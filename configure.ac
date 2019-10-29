@@ -866,6 +866,26 @@ if test "x${je_cv_format_arg}" = "xyes" ; then
   AC_DEFINE([JEMALLOC_HAVE_ATTR_FORMAT_ARG], [ ])
 fi
 
+dnl Check for fallthrough attribute support.
+JE_CFLAGS_SAVE()
+JE_CFLAGS_ADD([-Wimplicit-fallthrough])
+JE_COMPILABLE([fallthrough attribute],
+              [#if !__has_attribute(fallthrough)
+               #error "foo"
+               #endif],
+              [int x = 0;
+               switch (x) {
+               case 0: __attribute__((__fallthrough__));
+               case 1: return 1;
+               }],
+              [je_cv_fallthrough])
+JE_CFLAGS_RESTORE()
+if test "x${je_cv_fallthrough}" = "xyes" ; then
+  AC_DEFINE([JEMALLOC_HAVE_ATTR_FALLTHROUGH], [ ])
+  JE_CFLAGS_ADD([-Wimplicit-fallthrough])
+  JE_CXXFLAGS_ADD([-Wimplicit-fallthrough])
+fi
+
 dnl Support optional additions to rpath.
 AC_ARG_WITH([rpath],
   [AS_HELP_STRING([--with-rpath=<rpath>], [Colon-separated rpath (ELF systems only)])],
