@@ -11,12 +11,31 @@
  */
 static bool thread_event_active = false;
 
+/* TSD event init function signatures. */
+#define E(event, condition)						\
+static void tsd_thread_##event##_event_init(tsd_t *tsd);
+
+ITERATE_OVER_ALL_EVENTS
+#undef E
+
 /* Event handler function signatures. */
 #define E(event, condition)						\
 static void thread_##event##_event_handler(tsd_t *tsd);
 
 ITERATE_OVER_ALL_EVENTS
 #undef E
+
+static void
+tsd_thread_tcache_gc_event_init(tsd_t *tsd) {
+	assert(TCACHE_GC_INCR_BYTES > 0);
+	thread_tcache_gc_event_update(tsd, TCACHE_GC_INCR_BYTES);
+}
+
+static void
+tsd_thread_prof_sample_event_init(tsd_t *tsd) {
+	assert(config_prof && opt_prof);
+	/* Do not set sample interval until the first allocation. */
+}
 
 static void
 thread_tcache_gc_event_handler(tsd_t *tsd) {
@@ -265,6 +284,16 @@ void thread_event_boot() {
 #define E(event, condition)						\
 	if (condition) {						\
 		thread_event_active = true;				\
+	}
+
+	ITERATE_OVER_ALL_EVENTS
+#undef E
+}
+
+void tsd_thread_event_init(tsd_t *tsd) {
+#define E(event, condition)						\
+	if (condition) {						\
+		tsd_thread_##event##_event_init(tsd);			\
 	}
 
 	ITERATE_OVER_ALL_EVENTS
