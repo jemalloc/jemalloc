@@ -27,6 +27,7 @@ void thread_event_trigger(tsd_t *tsd, bool delay_event);
 void thread_event_rollback(tsd_t *tsd, size_t diff);
 void thread_event_update(tsd_t *tsd);
 void thread_event_boot();
+void tsd_thread_event_init(tsd_t *tsd);
 
 /*
  * List of all events, in the following format:
