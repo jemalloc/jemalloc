@@ -185,7 +185,7 @@ extent_addr_randomize(tsdn_t *tsdn, arena_t *arena, extent_t *extent,
 		if (!tsdn_null(tsdn)) {
 			tsd_t *tsd = tsdn_tsd(tsdn);
 			r = (size_t)prng_lg_range_u64(
-			    tsd_offset_statep_get(tsd), lg_range);
+			    tsd_prng_statep_get(tsd), lg_range);
 		} else {
 			uint64_t stack_value = (uint64_t)(uintptr_t)&r;
 			r = (size_t)prng_lg_range_u64(&stack_value, lg_range);

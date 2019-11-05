@@ -230,7 +230,7 @@ tsd_data_init(tsd_t *tsd) {
 	 * cost of test repeatability.  For debug builds, instead use a
 	 * deterministic seed.
 	 */
-	*tsd_offset_statep_get(tsd) = config_debug ? 0 :
+	*tsd_prng_statep_get(tsd) = config_debug ? 0 :
 	    (uint64_t)(uintptr_t)tsd;
 
 	tsd_thread_event_init(tsd);
