@@ -178,6 +178,7 @@ TEST_BEGIN(test_mallctl_opt) {
 	TEST_MALLCTL_OPT(size_t, lg_extent_max_active_fit, always);
 	TEST_MALLCTL_OPT(size_t, lg_tcache_max, always);
 	TEST_MALLCTL_OPT(const char *, thp, always);
+	TEST_MALLCTL_OPT(const char *, zero_realloc, always);
 	TEST_MALLCTL_OPT(bool, prof, prof);
 	TEST_MALLCTL_OPT(const char *, prof_prefix, prof);
 	TEST_MALLCTL_OPT(bool, prof_active, prof);
@@ -880,16 +881,6 @@ TEST_BEGIN(test_hooks_exhaustion) {
 }
 TEST_END
 
-TEST_BEGIN(test_zero_realloc) {
-	const char *val;
-	size_t sz = sizeof(val);
-	int err = mallctl("opt.zero_realloc", &val, &sz, NULL, 0);
-	assert_d_eq(err, 0, "Unexpected mallctl result");
-	assert_str_eq(val, "strict",
-	    "Unexpected default zero_realloc_beahvior");
-}
-TEST_END
-
 int
 main(void) {
 	return test(
@@ -921,6 +912,5 @@ main(void) {
 	    test_prof_active,
 	    test_stats_arenas,
 	    test_hooks,
-	    test_hooks_exhaustion,
-	    test_zero_realloc);
+	    test_hooks_exhaustion);
 }
