@@ -215,7 +215,7 @@ cache_bin_alloc_easy_impl(cache_bin_t *bin, bool *success, szind_t ind,
 		} else {
 			assert(ind == INVALID_SZIND);
 			bin->cur_ptr.ptr--;
-			assert(bin->cur_ptr.lowbits == bin->low_water_position);
+			assert(bin->cur_ptr.lowbits >= bin->low_water_position);
 			*success = false;
 			return NULL;
 		}
