@@ -1981,18 +1981,6 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 		}
 	}
 
-	if (config_cache_oblivious) {
-		/*
-		 * A nondeterministic seed based on the address of arena reduces
-		 * the likelihood of lockstep non-uniform cache index
-		 * utilization among identical concurrent processes, but at the
-		 * cost of test repeatability.  For debug builds, instead use a
-		 * deterministic seed.
-		 */
-		atomic_store_zu(&arena->offset_state, config_debug ? ind :
-		    (size_t)(uintptr_t)arena, ATOMIC_RELAXED);
-	}
-
 	atomic_store_zu(&arena->extent_sn_next, 0, ATOMIC_RELAXED);
 
 	atomic_store_u(&arena->dss_prec, (unsigned)extent_dss_prec_get(),

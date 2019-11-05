@@ -119,14 +119,6 @@ struct arena_s {
 	prof_accum_t		prof_accum;
 
 	/*
-	 * PRNG state for cache index randomization of large allocation base
-	 * pointers.
-	 *
-	 * Synchronization: atomic.
-	 */
-	atomic_zu_t		offset_state;
-
-	/*
 	 * Extent serial number generator state.
 	 *
 	 * Synchronization: atomic.
