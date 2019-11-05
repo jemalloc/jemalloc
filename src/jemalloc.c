@@ -2344,11 +2344,9 @@ je_malloc(size_t size) {
 	}
 
 	tsd_t *tsd = tsd_get(false);
-	if (unlikely(!tsd || !tsd_fast(tsd) || (size > SC_LOOKUP_MAXCLASS))) {
+	if (unlikely((size > SC_LOOKUP_MAXCLASS) || !tsd || !tsd_fast(tsd))) {
 		return malloc_default(size);
 	}
-
-	tcache_t *tcache = tsd_tcachep_get(tsd);
 
 	szind_t ind = sz_size2index_lookup(size);
 	/*
@@ -2373,6 +2371,7 @@ je_malloc(size_t size) {
 		return malloc_default(size);
 	}
 
+	tcache_t *tcache = tsd_tcachep_get(tsd);
 	cache_bin_t *bin = tcache_small_bin_get(tcache, ind);
 	bool tcache_success;
 	void *ret = cache_bin_alloc_easy_reduced(bin, &tcache_success);
