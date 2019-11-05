@@ -1198,7 +1198,7 @@ prof_bt_keycomp(const void *k1, const void *k2) {
 
 prof_tdata_t *
 prof_tdata_init_impl(tsd_t *tsd, uint64_t thr_uid, uint64_t thr_discrim,
-    char *thread_name, bool active) {
+    char *thread_name, bool active, bool reset_interval) {
 	assert(tsd_reentrancy_level_get(tsd) == 0);
 
 	prof_tdata_t *tdata;
@@ -1227,8 +1227,9 @@ prof_tdata_init_impl(tsd_t *tsd, uint64_t thr_uid, uint64_t thr_discrim,
 		return NULL;
 	}
 
-	tdata->prng_state = (uint64_t)(uintptr_t)tdata;
-	prof_sample_threshold_update(tdata);
+	if (reset_interval) {
+		prof_sample_threshold_update(tsd);
+	}
 
 	tdata->enq = false;
 	tdata->enq_idump = false;

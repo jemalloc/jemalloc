@@ -149,7 +149,7 @@ prof_alloc_rollback(tsd_t *tsd, prof_tctx_t *tctx, bool updated) {
 		 */
 		tdata = prof_tdata_get(tsd, true);
 		if (tdata != NULL) {
-			prof_sample_threshold_update(tdata);
+			prof_sample_threshold_update(tsd);
 		}
 	}
 
@@ -469,13 +469,11 @@ prof_tdata_mutex_choose(uint64_t thr_uid) {
  * -mno-sse) in order for the workaround to be complete.
  */
 void
-prof_sample_threshold_update(prof_tdata_t *tdata) {
+prof_sample_threshold_update(tsd_t *tsd) {
 #ifdef JEMALLOC_PROF
 	if (!config_prof) {
 		return;
 	}
-
-	tsd_t *tsd = tsd_fetch();
 
 	if (lg_prof_sample == 0) {
 		thread_prof_sample_event_update(tsd,
@@ -501,13 +499,12 @@ prof_sample_threshold_update(prof_tdata_t *tdata) {
 	 *   pp 500
 	 *   (http://luc.devroye.org/rnbookindex.html)
 	 */
-	uint64_t r = prng_lg_range_u64(&tdata->prng_state, 53);
+	uint64_t r = prng_lg_range_u64(tsd_prng_statep_get(tsd), 53);
 	double u = (double)r * (1.0/9007199254740992.0L);
 	uint64_t bytes_until_sample = (uint64_t)(log(u) /
 	    log(1.0 - (1.0 / (double)((uint64_t)1U << lg_prof_sample))))
 	    + (uint64_t)1U;
 	thread_prof_sample_event_update(tsd, bytes_until_sample);
-
 #endif
 }
 
@@ -810,7 +807,7 @@ prof_thr_uid_alloc(tsdn_t *tsdn) {
 prof_tdata_t *
 prof_tdata_init(tsd_t *tsd) {
 	return prof_tdata_init_impl(tsd, prof_thr_uid_alloc(tsd_tsdn(tsd)), 0,
-	    NULL, prof_thread_active_init_get(tsd_tsdn(tsd)));
+	    NULL, prof_thread_active_init_get(tsd_tsdn(tsd)), false);
 }
 
 static char *
@@ -846,7 +843,7 @@ prof_tdata_reinit(tsd_t *tsd, prof_tdata_t *tdata) {
 
 	prof_tdata_detach(tsd, tdata);
 	return prof_tdata_init_impl(tsd, thr_uid, thr_discrim, thread_name,
-	    active);
+	    active, true);
 }
 
 void

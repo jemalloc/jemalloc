@@ -167,9 +167,6 @@ struct prof_tdata_s {
 	 */
 	ckh_t			bt2tctx;
 
-	/* Sampling state. */
-	uint64_t		prng_state;
-
 	/* State used to avoid dumping while operating on prof internals. */
 	bool			enq;
 	bool			enq_idump;
