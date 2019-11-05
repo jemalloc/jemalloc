@@ -233,6 +233,7 @@ tsd_data_init(tsd_t *tsd) {
 	*tsd_prng_statep_get(tsd) = config_debug ? 0 :
 	    (uint64_t)(uintptr_t)tsd;
 
+	/* event_init may use the prng state above. */
 	tsd_thread_event_init(tsd);
 
 	return tsd_tcache_enabled_data_init(tsd);

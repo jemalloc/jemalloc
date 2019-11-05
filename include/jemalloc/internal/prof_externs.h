@@ -100,7 +100,7 @@ void prof_prefork0(tsdn_t *tsdn);
 void prof_prefork1(tsdn_t *tsdn);
 void prof_postfork_parent(tsdn_t *tsdn);
 void prof_postfork_child(tsdn_t *tsdn);
-void prof_sample_threshold_update(prof_tdata_t *tdata);
+void prof_sample_threshold_update(tsd_t *tsd);
 
 void prof_try_log(tsd_t *tsd, const void *ptr, size_t usize, prof_tctx_t *tctx);
 bool prof_log_start(tsdn_t *tsdn, const char *filename);
@@ -120,7 +120,7 @@ bool prof_data_init(tsd_t *tsd);
 bool prof_dump(tsd_t *tsd, bool propagate_err, const char *filename,
     bool leakcheck);
 prof_tdata_t * prof_tdata_init_impl(tsd_t *tsd, uint64_t thr_uid,
-    uint64_t thr_discrim, char *thread_name, bool active);
+    uint64_t thr_discrim, char *thread_name, bool active, bool reset_interval);
 void prof_tdata_detach(tsd_t *tsd, prof_tdata_t *tdata);
 void prof_tctx_destroy(tsd_t *tsd, prof_tctx_t *tctx);
 

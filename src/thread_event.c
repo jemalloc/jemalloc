@@ -34,7 +34,7 @@ tsd_thread_tcache_gc_event_init(tsd_t *tsd) {
 static void
 tsd_thread_prof_sample_event_init(tsd_t *tsd) {
 	assert(config_prof && opt_prof);
-	/* Do not set sample interval until the first allocation. */
+	prof_sample_threshold_update(tsd);
 }
 
 static void
