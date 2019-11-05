@@ -33,7 +33,7 @@
  * w: prof_sample_event_wait (config_prof)
  * x: prof_sample_last_event (config_prof)
  * p: prof_tdata (config_prof)
- * v: offset_state
+ * v: prng_state
  * i: iarena
  * a: arena
  * o: arenas_tdata
@@ -88,7 +88,7 @@ typedef void (*test_callback_t)(int *);
     O(prof_sample_event_wait,	uint64_t,		uint64_t)	\
     O(prof_sample_last_event,	uint64_t,		uint64_t)	\
     O(prof_tdata,		prof_tdata_t *,		prof_tdata_t *)	\
-    O(offset_state,		uint64_t,		uint64_t)	\
+    O(prng_state,		uint64_t,		uint64_t)	\
     O(iarena,			arena_t *,		arena_t *)	\
     O(arena,			arena_t *,		arena_t *)	\
     O(arenas_tdata,		arena_tdata_t *,	arena_tdata_t *)\
@@ -119,7 +119,7 @@ typedef void (*test_callback_t)(int *);
     /* prof_sample_event_wait */	THREAD_EVENT_MIN_START_WAIT,	\
     /* prof_sample_last_event */	0,				\
     /* prof_tdata */		NULL,					\
-    /* offset_state */		0,					\
+    /* prng_state */		0,					\
     /* iarena */		NULL,					\
     /* arena */			NULL,					\
     /* arenas_tdata */		NULL,					\
