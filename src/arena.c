@@ -1307,21 +1307,21 @@ arena_bin_nonfull_slab_get(tsdn_t *tsdn, arena_t *arena, bin_t *bin,
 static void *
 arena_bin_malloc_hard(tsdn_t *tsdn, arena_t *arena, bin_t *bin,
     szind_t binind, unsigned binshard) {
-	const bin_info_t *bin_info;
-	extent_t *slab;
 
-	bin_info = &bin_infos[binind];
-	if (!arena_is_auto(arena) && bin->slabcur != NULL) {
-		arena_bin_slabs_full_insert(arena, bin, bin->slabcur);
-		bin->slabcur = NULL;
-	}
-	slab = arena_bin_nonfull_slab_get(tsdn, arena, bin, binind, binshard);
 	if (bin->slabcur != NULL) {
-		/*
-		 * Another thread updated slabcur while this one ran without the
-		 * bin lock in arena_bin_nonfull_slab_get().
-		 */
+		/* Only attempted when current slab is full. */
+		assert(extent_nfree_get(bin->slabcur) == 0);
+	}
+
+	const bin_info_t *bin_info = &bin_infos[binind];
+	extent_t *slab = arena_bin_nonfull_slab_get(tsdn, arena, bin, binind,
+	    binshard);
+	if (bin->slabcur != NULL) {
 		if (extent_nfree_get(bin->slabcur) > 0) {
+			/*
+			 * Another thread updated slabcur while this one ran
+			 * without the bin lock in arena_bin_nonfull_slab_get().
+			 */
 			void *ret = arena_slab_reg_alloc(bin->slabcur,
 			    bin_info);
 			if (slab != NULL) {
@@ -1353,7 +1353,6 @@ arena_bin_malloc_hard(tsdn_t *tsdn, arena_t *arena, bin_t *bin,
 		return NULL;
 	}
 	bin->slabcur = slab;
-
 	assert(extent_nfree_get(bin->slabcur) > 0);
 
 	return arena_slab_reg_alloc(slab, bin_info);
