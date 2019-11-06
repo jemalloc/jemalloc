@@ -25,7 +25,7 @@ void arena_basic_stats_merge(tsdn_t *tsdn, arena_t *arena,
 void arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
     const char **dss, ssize_t *dirty_decay_ms, ssize_t *muzzy_decay_ms,
     size_t *nactive, size_t *ndirty, size_t *nmuzzy, arena_stats_t *astats,
-    bin_stats_t *bstats, arena_stats_large_t *lstats,
+    bin_stats_data_t *bstats, arena_stats_large_t *lstats,
     arena_stats_extents_t *estats);
 void arena_extents_dirty_dalloc(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, extent_t *extent);

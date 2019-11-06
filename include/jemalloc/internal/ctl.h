@@ -42,7 +42,7 @@ typedef struct ctl_arena_stats_s {
 	uint64_t nfills_small;
 	uint64_t nflushes_small;
 
-	bin_stats_t bstats[SC_NBINS];
+	bin_stats_data_t bstats[SC_NBINS];
 	arena_stats_large_t lstats[SC_NSIZES - SC_NBINS];
 	arena_stats_extents_t estats[SC_NPSIZES];
 } ctl_arena_stats_t;

@@ -789,7 +789,7 @@ ctl_arena_clear(ctl_arena_t *ctl_arena) {
 		ctl_arena->astats->nfills_small = 0;
 		ctl_arena->astats->nflushes_small = 0;
 		memset(ctl_arena->astats->bstats, 0, SC_NBINS *
-		    sizeof(bin_stats_t));
+		    sizeof(bin_stats_data_t));
 		memset(ctl_arena->astats->lstats, 0, (SC_NSIZES - SC_NBINS) *
 		    sizeof(arena_stats_large_t));
 		memset(ctl_arena->astats->estats, 0, SC_NPSIZES *
@@ -810,19 +810,15 @@ ctl_arena_stats_amerge(tsdn_t *tsdn, ctl_arena_t *ctl_arena, arena_t *arena) {
 		    ctl_arena->astats->lstats, ctl_arena->astats->estats);
 
 		for (i = 0; i < SC_NBINS; i++) {
-			ctl_arena->astats->allocated_small +=
-			    ctl_arena->astats->bstats[i].curregs *
+			bin_stats_t *bstats =
+			    &ctl_arena->astats->bstats[i].stats_data;
+			ctl_arena->astats->allocated_small += bstats->curregs *
 			    sz_index2size(i);
-			ctl_arena->astats->nmalloc_small +=
-			    ctl_arena->astats->bstats[i].nmalloc;
-			ctl_arena->astats->ndalloc_small +=
-			    ctl_arena->astats->bstats[i].ndalloc;
-			ctl_arena->astats->nrequests_small +=
-			    ctl_arena->astats->bstats[i].nrequests;
-			ctl_arena->astats->nfills_small +=
-			    ctl_arena->astats->bstats[i].nfills;
-			ctl_arena->astats->nflushes_small +=
-			    ctl_arena->astats->bstats[i].nflushes;
+			ctl_arena->astats->nmalloc_small += bstats->nmalloc;
+			ctl_arena->astats->ndalloc_small += bstats->ndalloc;
+			ctl_arena->astats->nrequests_small += bstats->nrequests;
+			ctl_arena->astats->nfills_small += bstats->nfills;
+			ctl_arena->astats->nflushes_small += bstats->nflushes;
 		}
 	} else {
 		arena_basic_stats_merge(tsdn, arena, &ctl_arena->nthreads,
@@ -935,29 +931,26 @@ MUTEX_PROF_ARENA_MUTEXES
 
 		/* Merge bin stats. */
 		for (i = 0; i < SC_NBINS; i++) {
-			sdstats->bstats[i].nmalloc += astats->bstats[i].nmalloc;
-			sdstats->bstats[i].ndalloc += astats->bstats[i].ndalloc;
-			sdstats->bstats[i].nrequests +=
-			    astats->bstats[i].nrequests;
+			bin_stats_t *bstats = &astats->bstats[i].stats_data;
+			bin_stats_t *merged = &sdstats->bstats[i].stats_data;
+			merged->nmalloc += bstats->nmalloc;
+			merged->ndalloc += bstats->ndalloc;
+			merged->nrequests += bstats->nrequests;
 			if (!destroyed) {
-				sdstats->bstats[i].curregs +=
-				    astats->bstats[i].curregs;
+				merged->curregs += bstats->curregs;
 			} else {
-				assert(astats->bstats[i].curregs == 0);
+				assert(bstats->curregs == 0);
 			}
-			sdstats->bstats[i].nfills += astats->bstats[i].nfills;
-			sdstats->bstats[i].nflushes +=
-			    astats->bstats[i].nflushes;
-			sdstats->bstats[i].nslabs += astats->bstats[i].nslabs;
-			sdstats->bstats[i].reslabs += astats->bstats[i].reslabs;
+			merged->nfills += bstats->nfills;
+			merged->nflushes += bstats->nflushes;
+			merged->nslabs += bstats->nslabs;
+			merged->reslabs += bstats->reslabs;
 			if (!destroyed) {
-				sdstats->bstats[i].curslabs +=
-				    astats->bstats[i].curslabs;
-				sdstats->bstats[i].nonfull_slabs +=
-				    astats->bstats[i].nonfull_slabs;
+				merged->curslabs += bstats->curslabs;
+				merged->nonfull_slabs += bstats->nonfull_slabs;
 			} else {
-				assert(astats->bstats[i].curslabs == 0);
-				assert(astats->bstats[i].nonfull_slabs == 0);
+				assert(bstats->curslabs == 0);
+				assert(bstats->nonfull_slabs == 0);
 			}
 			malloc_mutex_prof_merge(&sdstats->bstats[i].mutex_data,
 			    &astats->bstats[i].mutex_data);
@@ -3035,25 +3028,25 @@ stats_mutexes_reset_ctl(tsd_t *tsd, const size_t *mib,
 }
 
 CTL_RO_CGEN(config_stats, stats_arenas_i_bins_j_nmalloc,
-    arenas_i(mib[2])->astats->bstats[mib[4]].nmalloc, uint64_t)
+    arenas_i(mib[2])->astats->bstats[mib[4]].stats_data.nmalloc, uint64_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_bins_j_ndalloc,
-    arenas_i(mib[2])->astats->bstats[mib[4]].ndalloc, uint64_t)
+    arenas_i(mib[2])->astats->bstats[mib[4]].stats_data.ndalloc, uint64_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_bins_j_nrequests,
-    arenas_i(mib[2])->astats->bstats[mib[4]].nrequests, uint64_t)
+    arenas_i(mib[2])->astats->bstats[mib[4]].stats_data.nrequests, uint64_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_bins_j_curregs,
-    arenas_i(mib[2])->astats->bstats[mib[4]].curregs, size_t)
+    arenas_i(mib[2])->astats->bstats[mib[4]].stats_data.curregs, size_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_bins_j_nfills,
-    arenas_i(mib[2])->astats->bstats[mib[4]].nfills, uint64_t)
+    arenas_i(mib[2])->astats->bstats[mib[4]].stats_data.nfills, uint64_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_bins_j_nflushes,
-    arenas_i(mib[2])->astats->bstats[mib[4]].nflushes, uint64_t)
+    arenas_i(mib[2])->astats->bstats[mib[4]].stats_data.nflushes, uint64_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_bins_j_nslabs,
-    arenas_i(mib[2])->astats->bstats[mib[4]].nslabs, uint64_t)
+    arenas_i(mib[2])->astats->bstats[mib[4]].stats_data.nslabs, uint64_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_bins_j_nreslabs,
-    arenas_i(mib[2])->astats->bstats[mib[4]].reslabs, uint64_t)
+    arenas_i(mib[2])->astats->bstats[mib[4]].stats_data.reslabs, uint64_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_bins_j_curslabs,
-    arenas_i(mib[2])->astats->bstats[mib[4]].curslabs, size_t)
+    arenas_i(mib[2])->astats->bstats[mib[4]].stats_data.curslabs, size_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_bins_j_nonfull_slabs,
-    arenas_i(mib[2])->astats->bstats[mib[4]].nonfull_slabs, size_t)
+    arenas_i(mib[2])->astats->bstats[mib[4]].stats_data.nonfull_slabs, size_t)
 
 static const ctl_named_node_t *
 stats_arenas_i_bins_j_index(tsdn_t *tsdn, const size_t *mib,

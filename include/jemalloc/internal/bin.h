@@ -61,19 +61,20 @@ void bin_postfork_child(tsdn_t *tsdn, bin_t *bin);
 
 /* Stats. */
 static inline void
-bin_stats_merge(tsdn_t *tsdn, bin_stats_t *dst_bin_stats, bin_t *bin) {
+bin_stats_merge(tsdn_t *tsdn, bin_stats_data_t *dst_bin_stats, bin_t *bin) {
 	malloc_mutex_lock(tsdn, &bin->lock);
 	malloc_mutex_prof_accum(tsdn, &dst_bin_stats->mutex_data, &bin->lock);
-	dst_bin_stats->nmalloc += bin->stats.nmalloc;
-	dst_bin_stats->ndalloc += bin->stats.ndalloc;
-	dst_bin_stats->nrequests += bin->stats.nrequests;
-	dst_bin_stats->curregs += bin->stats.curregs;
-	dst_bin_stats->nfills += bin->stats.nfills;
-	dst_bin_stats->nflushes += bin->stats.nflushes;
-	dst_bin_stats->nslabs += bin->stats.nslabs;
-	dst_bin_stats->reslabs += bin->stats.reslabs;
-	dst_bin_stats->curslabs += bin->stats.curslabs;
-	dst_bin_stats->nonfull_slabs += bin->stats.nonfull_slabs;
+	bin_stats_t *stats = &dst_bin_stats->stats_data;
+	stats->nmalloc += bin->stats.nmalloc;
+	stats->ndalloc += bin->stats.ndalloc;
+	stats->nrequests += bin->stats.nrequests;
+	stats->curregs += bin->stats.curregs;
+	stats->nfills += bin->stats.nfills;
+	stats->nflushes += bin->stats.nflushes;
+	stats->nslabs += bin->stats.nslabs;
+	stats->reslabs += bin->stats.reslabs;
+	stats->curslabs += bin->stats.curslabs;
+	stats->nonfull_slabs += bin->stats.nonfull_slabs;
 	malloc_mutex_unlock(tsdn, &bin->lock);
 }
 
