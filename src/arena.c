@@ -919,7 +919,7 @@ arena_decay_to_limit(tsdn_t *tsdn, arena_t *arena, arena_decay_t *decay,
 	    WITNESS_RANK_CORE, 1);
 	malloc_mutex_assert_owner(tsdn, &decay->mtx);
 
-	if (decay->purging) {
+	if (decay->purging || npages_decay_max == 0) {
 		return;
 	}
 	decay->purging = true;
@@ -988,6 +988,10 @@ arena_decay_dirty(tsdn_t *tsdn, arena_t *arena, bool is_background_thread,
 static bool
 arena_decay_muzzy(tsdn_t *tsdn, arena_t *arena, bool is_background_thread,
     bool all) {
+	if (eset_npages_get(&arena->eset_muzzy) == 0 &&
+	    arena_muzzy_decay_ms_get(arena) <= 0) {
+		return false;
+	}
 	return arena_decay_impl(tsdn, arena, &arena->decay_muzzy,
 	    &arena->eset_muzzy, is_background_thread, all);
 }
