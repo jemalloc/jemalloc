@@ -418,7 +418,7 @@ $(objroot)include/jemalloc/internal/private_namespace_jet.gen.h: $(C_JET_SYMS)
 	$(SHELL) $(srcroot)include/jemalloc/internal/private_namespace.sh $^ > $@
 
 %.h: %.gen.h
-	@if ! `cmp -s $< $@` ; then echo "cp $< $<"; cp $< $@ ; fi
+	@if ! `cmp -s $< $@` ; then echo "cp $< $@"; cp $< $@ ; fi
 
 $(CPP_OBJS) $(CPP_PIC_OBJS) $(TESTS_CPP_OBJS): %.$(O):
 	@mkdir -p $(@D)
