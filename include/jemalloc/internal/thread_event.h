@@ -27,6 +27,7 @@ void thread_event_trigger(tsd_t *tsd, bool delay_event);
 void thread_event_rollback(tsd_t *tsd, size_t diff);
 void thread_event_update(tsd_t *tsd);
 void thread_event_boot();
+void thread_event_recompute_fast_threshold(tsd_t *tsd);
 void tsd_thread_event_init(tsd_t *tsd);
 
 /*
@@ -43,9 +44,7 @@ void tsd_thread_event_init(tsd_t *tsd);
 /* List of all thread event counters. */
 #define ITERATE_OVER_ALL_COUNTERS					\
     C(thread_allocated)							\
-    C(thread_allocated_next_event_fast)					\
     C(thread_allocated_last_event)					\
-    C(thread_allocated_next_event)					\
     ITERATE_OVER_ALL_EVENTS						\
     C(prof_sample_last_event)
 
@@ -80,6 +79,60 @@ ITERATE_OVER_ALL_COUNTERS
  * event.
  */
 #undef E
+
+/*
+ * Two malloc fastpath getters -- use the unsafe getters since tsd may be
+ * non-nominal, in which case the fast_threshold will be set to 0.  This allows
+ * checking for events and tsd non-nominal in a single branch.
+ *
+ * Note that these can only be used on the fastpath.
+ */
+JEMALLOC_ALWAYS_INLINE uint64_t
+thread_allocated_malloc_fastpath(tsd_t *tsd) {
+	return *tsd_thread_allocatedp_get_unsafe(tsd);
+}
+
+JEMALLOC_ALWAYS_INLINE uint64_t
+thread_allocated_next_event_malloc_fastpath(tsd_t *tsd) {
+	uint64_t v = *tsd_thread_allocated_next_event_fastp_get_unsafe(tsd);
+	assert(v <= THREAD_ALLOCATED_NEXT_EVENT_FAST_MAX);
+	return v;
+}
+
+/* Below 3 for next_event_fast. */
+JEMALLOC_ALWAYS_INLINE uint64_t
+thread_allocated_next_event_fast_get(tsd_t *tsd) {
+	uint64_t v = tsd_thread_allocated_next_event_fast_get(tsd);
+	assert(v <= THREAD_ALLOCATED_NEXT_EVENT_FAST_MAX);
+	return v;
+}
+
+JEMALLOC_ALWAYS_INLINE void
+thread_allocated_next_event_fast_set(tsd_t *tsd, uint64_t v) {
+	assert(v <= THREAD_ALLOCATED_NEXT_EVENT_FAST_MAX);
+	*tsd_thread_allocated_next_event_fastp_get(tsd) = v;
+}
+
+JEMALLOC_ALWAYS_INLINE void
+thread_allocated_next_event_fast_set_non_nominal(tsd_t *tsd) {
+	/*
+	 * Set the fast threshold to zero when tsd is non-nominal.  Use the
+	 * unsafe getter as this may get called during tsd init and clean up.
+	 */
+	*tsd_thread_allocated_next_event_fastp_get_unsafe(tsd) = 0;
+}
+
+/* For next_event.  Setter also updates the fast threshold. */
+JEMALLOC_ALWAYS_INLINE uint64_t
+thread_allocated_next_event_get(tsd_t *tsd) {
+	return tsd_thread_allocated_next_event_get(tsd);
+}
+
+JEMALLOC_ALWAYS_INLINE void
+thread_allocated_next_event_set(tsd_t *tsd, uint64_t v) {
+	*tsd_thread_allocated_next_eventp_get(tsd) = v;
+	thread_event_recompute_fast_threshold(tsd);
+}
 
 /*
  * The function checks in debug mode whether the thread event counters are in

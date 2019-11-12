@@ -7,8 +7,6 @@ TEST_BEGIN(test_next_event_fast_roll_back) {
 	    THREAD_ALLOCATED_NEXT_EVENT_FAST_MAX - 8U);
 	thread_allocated_next_event_set(tsd,
 	    THREAD_ALLOCATED_NEXT_EVENT_FAST_MAX);
-	thread_allocated_next_event_fast_set(tsd,
-	    THREAD_ALLOCATED_NEXT_EVENT_FAST_MAX);
 #define E(event, condition)						\
 	event##_event_wait_set(tsd,					\
 	    THREAD_ALLOCATED_NEXT_EVENT_FAST_MAX);
@@ -27,7 +25,6 @@ TEST_BEGIN(test_next_event_fast_resume) {
 	    THREAD_ALLOCATED_NEXT_EVENT_FAST_MAX + 8U);
 	thread_allocated_next_event_set(tsd,
 	    THREAD_ALLOCATED_NEXT_EVENT_FAST_MAX + 16U);
-	thread_allocated_next_event_fast_set(tsd, 0);
 #define E(event, condition)						\
 	event##_event_wait_set(tsd,					\
 	    THREAD_ALLOCATED_NEXT_EVENT_FAST_MAX + 16U);
