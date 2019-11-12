@@ -103,10 +103,11 @@ thread_event_assert_invariants_debug(tsd_t *tsd) {
 	uint64_t next_event_fast = thread_allocated_next_event_fast_get(tsd);
 
 	assert(last_event != next_event);
-	if (next_event <= THREAD_ALLOCATED_NEXT_EVENT_FAST_MAX) {
-		assert(next_event_fast == next_event);
-	} else {
+	if (next_event > THREAD_ALLOCATED_NEXT_EVENT_FAST_MAX ||
+	    !tsd_fast(tsd)) {
 		assert(next_event_fast == 0U);
+	} else {
+		assert(next_event_fast == next_event);
 	}
 
 	/* The subtraction is intentionally susceptible to underflow. */
@@ -128,15 +129,77 @@ thread_event_assert_invariants_debug(tsd_t *tsd) {
 	    (interval < min_wait && interval == THREAD_EVENT_MAX_INTERVAL));
 }
 
+/*
+ * Synchronization around the fast threshold in tsd --
+ * There are two threads to consider in the synchronization here:
+ * - The owner of the tsd being updated by a slow path change
+ * - The remote thread, doing that slow path change.
+ *
+ * As a design constraint, we want to ensure that a slow-path transition cannot
+ * be ignored for arbitrarily long, and that if the remote thread causes a
+ * slow-path transition and then communicates with the owner thread that it has
+ * occurred, then the owner will go down the slow path on the next allocator
+ * operation (so that we don't want to just wait until the owner hits its slow
+ * path reset condition on its own).
+ *
+ * Here's our strategy to do that:
+ *
+ * The remote thread will update the slow-path stores to TSD variables, issue a
+ * SEQ_CST fence, and then update the TSD next_event_fast counter. The owner
+ * thread will update next_event_fast, issue an SEQ_CST fence, and then check
+ * its TSD to see if it's on the slow path.
+
+ * This is fairly straightforward when 64-bit atomics are supported. Assume that
+ * the remote fence is sandwiched between two owner fences in the reset pathway.
+ * The case where there is no preceding or trailing owner fence (i.e. because
+ * the owner thread is near the beginning or end of its life) can be analyzed
+ * similarly. The owner store to next_event_fast preceding the earlier owner
+ * fence will be earlier in coherence order than the remote store to it, so that
+ * the owner thread will go down the slow path once the store becomes visible to
+ * it, which is no later than the time of the second fence.
+
+ * The case where we don't support 64-bit atomics is trickier, since word
+ * tearing is possible. We'll repeat the same analysis, and look at the two
+ * owner fences sandwiching the remote fence. The next_event_fast stores done
+ * alongside the earlier owner fence cannot overwrite any of the remote stores
+ * (since they precede the earlier owner fence in sb, which precedes the remote
+ * fence in sc, which precedes the remote stores in sb). After the second owner
+ * fence there will be a re-check of the slow-path variables anyways, so the
+ * "owner will notice that it's on the slow path eventually" guarantee is
+ * satisfied. To make sure that the out-of-band-messaging constraint is as well,
+ * note that either the message passing is sequenced before the second owner
+ * fence (in which case the remote stores happen before the second set of owner
+ * stores, so malloc sees a value of zero for next_event_fast and goes down the
+ * slow path), or it is not (in which case the owner sees the tsd slow-path
+ * writes on its previous update). This leaves open the possibility that the
+ * remote thread will (at some arbitrary point in the future) zero out one half
+ * of the owner thread's next_event_fast, but that's always safe (it just sends
+ * it down the slow path earlier).
+ */
+void
+thread_event_recompute_fast_threshold(tsd_t *tsd) {
+	if (tsd_state_get(tsd) != tsd_state_nominal) {
+		/* Check first because this is also called on purgatory. */
+		thread_allocated_next_event_fast_set_non_nominal(tsd);
+		return;
+	}
+	uint64_t next_event = thread_allocated_next_event_get(tsd);
+	uint64_t next_event_fast = (next_event <=
+	    THREAD_ALLOCATED_NEXT_EVENT_FAST_MAX) ? next_event : 0U;
+	thread_allocated_next_event_fast_set(tsd, next_event_fast);
+
+	atomic_fence(ATOMIC_SEQ_CST);
+	if (tsd_state_get(tsd) != tsd_state_nominal) {
+		thread_allocated_next_event_fast_set_non_nominal(tsd);
+	}
+}
+
 static void
 thread_event_adjust_thresholds_helper(tsd_t *tsd, uint64_t wait) {
 	assert(wait <= THREAD_EVENT_MAX_START_WAIT);
 	uint64_t next_event = thread_allocated_last_event_get(tsd) + (wait <=
 	    THREAD_EVENT_MAX_INTERVAL ? wait : THREAD_EVENT_MAX_INTERVAL);
 	thread_allocated_next_event_set(tsd, next_event);
-	uint64_t next_event_fast = (next_event <=
-	    THREAD_ALLOCATED_NEXT_EVENT_FAST_MAX) ? next_event : 0U;
-	thread_allocated_next_event_fast_set(tsd, next_event_fast);
 }
 
 static uint64_t
