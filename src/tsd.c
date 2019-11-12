@@ -115,8 +115,11 @@ tsd_force_recompute(tsdn_t *tsdn) {
 	ql_foreach(remote_tsd, &tsd_nominal_tsds, TSD_MANGLE(tcache).tsd_link) {
 		assert(tsd_atomic_load(&remote_tsd->state, ATOMIC_RELAXED)
 		    <= tsd_state_nominal_max);
-		tsd_atomic_store(&remote_tsd->state, tsd_state_nominal_recompute,
-		    ATOMIC_RELAXED);
+		tsd_atomic_store(&remote_tsd->state,
+		    tsd_state_nominal_recompute, ATOMIC_RELAXED);
+		/* See comments in thread_event_recompute_fast_threshold(). */
+		atomic_fence(ATOMIC_SEQ_CST);
+		thread_allocated_next_event_fast_set_non_nominal(remote_tsd);
 	}
 	malloc_mutex_unlock(tsdn, &tsd_nominal_tsds_lock);
 }
@@ -175,6 +178,8 @@ tsd_slow_update(tsd_t *tsd) {
 		old_state = tsd_atomic_exchange(&tsd->state, new_state,
 		    ATOMIC_ACQUIRE);
 	} while (old_state == tsd_state_nominal_recompute);
+
+	thread_event_recompute_fast_threshold(tsd);
 }
 
 void
@@ -213,6 +218,7 @@ tsd_state_set(tsd_t *tsd, uint8_t new_state) {
 			tsd_slow_update(tsd);
 		}
 	}
+	thread_event_recompute_fast_threshold(tsd);
 }
 
 static bool

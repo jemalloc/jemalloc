@@ -110,7 +110,7 @@ typedef void (*test_callback_t)(int *);
     /* reentrancy_level */	0,					\
     /* narenas_tdata */		0,					\
     /* thread_allocated */	0,					\
-    /* thread_allocated_next_event_fast */ THREAD_EVENT_MIN_START_WAIT,	\
+    /* thread_allocated_next_event_fast */ 0, 				\
     /* thread_deallocated */	0,					\
     /* rtree_ctx */		RTREE_CTX_ZERO_INITIALIZER,		\
     /* thread_allocated_last_event */	0,				\
