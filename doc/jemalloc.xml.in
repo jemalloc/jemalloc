@@ -1554,7 +1554,8 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         <link
         linkend="thread.allocated"><mallctl>thread.allocated</mallctl></link>
         mallctl.  This is useful for avoiding the overhead of repeated
-        <function>mallctl*()</function> calls.</para></listitem>
+        <function>mallctl*()</function> calls.  Note that the underlying counter
+        should not be modified by the application.</para></listitem>
       </varlistentry>
 
       <varlistentry id="thread.deallocated">
@@ -1581,7 +1582,8 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         <link
         linkend="thread.deallocated"><mallctl>thread.deallocated</mallctl></link>
         mallctl.  This is useful for avoiding the overhead of repeated
-        <function>mallctl*()</function> calls.</para></listitem>
+        <function>mallctl*()</function> calls.  Note that the underlying counter
+        should not be modified by the application.</para></listitem>
       </varlistentry>
 
       <varlistentry id="thread.tcache.enabled">
