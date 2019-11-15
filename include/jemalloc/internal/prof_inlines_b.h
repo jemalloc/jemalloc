@@ -203,7 +203,7 @@ prof_realloc(tsd_t *tsd, const void *ptr, size_t usize, prof_tctx_t *tctx,
 	 * counters.
 	 */
 	if (unlikely(old_sampled)) {
-		prof_free_sampled_object(tsd, ptr, old_usize, old_tctx);
+		prof_free_sampled_object(tsd, old_ptr, old_usize, old_tctx);
 	}
 }
 
