@@ -186,6 +186,12 @@ prof_malloc_sample_object(tsdn_t *tsdn, const void *ptr, size_t usize,
 	malloc_mutex_unlock(tsdn, tctx->tdata->lock);
 }
 
+/*
+ * The caller of prof_free_sampled_object() should pass in a NULL ptr in cases
+ * where the object being freed might have already been released; otherwise, a
+ * non-NULL ptr is assumed to be still alive and prof_free_sampled_object()
+ * will fetch its associated information for recording purpose.
+ */
 void
 prof_free_sampled_object(tsd_t *tsd, const void *ptr, size_t usize,
     prof_tctx_t *tctx) {
@@ -196,7 +202,9 @@ prof_free_sampled_object(tsd_t *tsd, const void *ptr, size_t usize,
 	tctx->cnts.curobjs--;
 	tctx->cnts.curbytes -= usize;
 
-	prof_try_log(tsd, ptr, usize, tctx);
+	if (ptr != NULL) {
+		prof_try_log(tsd, ptr, usize, tctx);
+	}
 
 	if (prof_tctx_should_destroy(tsd_tsdn(tsd), tctx)) {
 		prof_tctx_destroy(tsd, tctx);
