@@ -2647,7 +2647,7 @@ bool free_fastpath(void *ptr, size_t size, bool size_hint) {
 		return false;
 	}
 
-	alloc_ctx_t alloc_ctx;
+	szind_t szind;
 	/*
 	 * If !config_cache_oblivious, we can check PAGE alignment to
 	 * detect sampled objects.  Otherwise addresses are
@@ -2655,16 +2655,16 @@ bool free_fastpath(void *ptr, size_t size, bool size_hint) {
 	 * See also isfree().
 	 */
 	if (!size_hint || config_cache_oblivious) {
+		bool slab;
 		rtree_ctx_t *rtree_ctx = tsd_rtree_ctx(tsd);
 		bool res = rtree_szind_slab_read_fast(tsd_tsdn(tsd),
-		    &extents_rtree, rtree_ctx, (uintptr_t)ptr, &alloc_ctx.szind,
-		    &alloc_ctx.slab);
+		    &extents_rtree, rtree_ctx, (uintptr_t)ptr, &szind, &slab);
 
 		/* Note: profiled objects will have alloc_ctx.slab set */
-		if (unlikely(!res || !alloc_ctx.slab)) {
+		if (unlikely(!res || !slab)) {
 			return false;
 		}
-		assert(alloc_ctx.szind != SC_NSIZES);
+		assert(szind != SC_NSIZES);
 	} else {
 		/*
 		 * Check for both sizes that are too large, and for sampled
@@ -2675,7 +2675,7 @@ bool free_fastpath(void *ptr, size_t size, bool size_hint) {
 		    (((uintptr_t)ptr & PAGE_MASK) == 0))) {
 			return false;
 		}
-		alloc_ctx.szind = sz_size2index_lookup(size);
+		szind = sz_size2index_lookup(size);
 	}
 
 	tcache_t *tcache = tsd_tcachep_get(tsd);
@@ -2683,12 +2683,12 @@ bool free_fastpath(void *ptr, size_t size, bool size_hint) {
 		return false;
 	}
 
-	cache_bin_t *bin = tcache_small_bin_get(tcache, alloc_ctx.szind);
+	cache_bin_t *bin = tcache_small_bin_get(tcache, szind);
 	if (!cache_bin_dalloc_easy(bin, ptr)) {
 		return false;
 	}
 
-	size_t usize = sz_index2size(alloc_ctx.szind);
+	size_t usize = sz_index2size(szind);
 	*tsd_thread_deallocatedp_get(tsd) += usize;
 
 	return true;
