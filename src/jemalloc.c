@@ -2647,8 +2647,6 @@ bool free_fastpath(void *ptr, size_t size, bool size_hint) {
 		return false;
 	}
 
-	tcache_t *tcache = tsd_tcachep_get(tsd);
-
 	alloc_ctx_t alloc_ctx;
 	/*
 	 * If !config_cache_oblivious, we can check PAGE alignment to
@@ -2658,27 +2656,29 @@ bool free_fastpath(void *ptr, size_t size, bool size_hint) {
 	 */
 	if (!size_hint || config_cache_oblivious) {
 		rtree_ctx_t *rtree_ctx = tsd_rtree_ctx(tsd);
-		bool res = rtree_szind_slab_read_fast(tsd_tsdn(tsd), &extents_rtree,
-						      rtree_ctx, (uintptr_t)ptr,
-						      &alloc_ctx.szind, &alloc_ctx.slab);
+		bool res = rtree_szind_slab_read_fast(tsd_tsdn(tsd),
+		    &extents_rtree, rtree_ctx, (uintptr_t)ptr, &alloc_ctx.szind,
+		    &alloc_ctx.slab);
 
 		/* Note: profiled objects will have alloc_ctx.slab set */
-		if (!res || !alloc_ctx.slab) {
+		if (unlikely(!res || !alloc_ctx.slab)) {
 			return false;
 		}
 		assert(alloc_ctx.szind != SC_NSIZES);
 	} else {
 		/*
-		 * Check for both sizes that are too large, and for sampled objects.
-		 * Sampled objects are always page-aligned.  The sampled object check
-		 * will also check for null ptr.
+		 * Check for both sizes that are too large, and for sampled
+		 * objects.  Sampled objects are always page-aligned.  The
+		 * sampled object check will also check for null ptr.
 		 */
-		if (size > SC_LOOKUP_MAXCLASS || (((uintptr_t)ptr & PAGE_MASK) == 0)) {
+		if (unlikely(size > SC_LOOKUP_MAXCLASS ||
+		    (((uintptr_t)ptr & PAGE_MASK) == 0))) {
 			return false;
 		}
 		alloc_ctx.szind = sz_size2index_lookup(size);
 	}
 
+	tcache_t *tcache = tsd_tcachep_get(tsd);
 	if (unlikely(ticker_trytick(&tcache->gc_ticker))) {
 		return false;
 	}
@@ -3532,7 +3532,7 @@ je_sdallocx(void *ptr, size_t size, int flags) {
 	LOG("core.sdallocx.entry", "ptr: %p, size: %zu, flags: %d", ptr,
 		size, flags);
 
-	if (flags !=0 || !free_fastpath(ptr, size, true)) {
+	if (flags != 0 || !free_fastpath(ptr, size, true)) {
 		sdallocx_default(ptr, size, flags);
 	}
 
