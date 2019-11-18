@@ -15,10 +15,6 @@ extern mutex_pool_t extent_mutex_pool;
 extent_t *extent_alloc(tsdn_t *tsdn, arena_t *arena);
 void extent_dalloc(tsdn_t *tsdn, arena_t *arena, extent_t *extent);
 
-extent_hooks_t *extent_hooks_get(arena_t *arena);
-extent_hooks_t *extent_hooks_set(tsd_t *tsd, arena_t *arena,
-    extent_hooks_t *extent_hooks);
-
 ph_proto(, extent_avail_, extent_tree_t, extent_t)
 ph_proto(, extent_heap_, extent_heap_t, extent_t)
 

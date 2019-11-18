@@ -93,7 +93,7 @@ static bool
 large_ralloc_no_move_shrink(tsdn_t *tsdn, extent_t *extent, size_t usize) {
 	arena_t *arena = arena_get_from_extent(extent);
 	size_t oldusize = extent_usize_get(extent);
-	extent_hooks_t *extent_hooks = extent_hooks_get(arena);
+	extent_hooks_t *extent_hooks = arena_get_extent_hooks(arena);
 	size_t diff = extent_size_get(extent) - (usize + sz_large_pad);
 
 	assert(oldusize > usize);
@@ -129,7 +129,7 @@ large_ralloc_no_move_expand(tsdn_t *tsdn, extent_t *extent, size_t usize,
     bool zero) {
 	arena_t *arena = arena_get_from_extent(extent);
 	size_t oldusize = extent_usize_get(extent);
-	extent_hooks_t *extent_hooks = extent_hooks_get(arena);
+	extent_hooks_t *extent_hooks = arena_get_extent_hooks(arena);
 	size_t trailsize = usize - oldusize;
 
 	if (extent_hooks->merge == NULL) {

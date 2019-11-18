@@ -925,7 +925,7 @@ arena_decay_to_limit(tsdn_t *tsdn, arena_t *arena, arena_decay_t *decay,
 	decay->purging = true;
 	malloc_mutex_unlock(tsdn, &decay->mtx);
 
-	extent_hooks_t *extent_hooks = extent_hooks_get(arena);
+	extent_hooks_t *extent_hooks = arena_get_extent_hooks(arena);
 
 	extent_list_t decay_extents;
 	extent_list_init(&decay_extents);
@@ -1161,7 +1161,7 @@ arena_destroy_retained(tsdn_t *tsdn, arena_t *arena) {
 	 * destroyed, or provide custom extent hooks that track retained
 	 * dss-based extents for later reuse.
 	 */
-	extent_hooks_t *extent_hooks = extent_hooks_get(arena);
+	extent_hooks_t *extent_hooks = arena_get_extent_hooks(arena);
 	extent_t *extent;
 	while ((extent = extents_evict(tsdn, arena, &extent_hooks,
 	    &arena->eset_retained, 0)) != NULL) {
@@ -1847,6 +1847,28 @@ arena_ralloc(tsdn_t *tsdn, arena_t *arena, void *ptr, size_t oldsize,
 	isdalloct(tsdn, ptr, oldsize, tcache, NULL, true);
 	return ret;
 }
+
+extent_hooks_t *
+arena_get_extent_hooks(arena_t *arena) {
+	return base_extent_hooks_get(arena->base);
+}
+
+extent_hooks_t *
+arena_set_extent_hooks(tsd_t *tsd, arena_t *arena,
+    extent_hooks_t *extent_hooks) {
+	background_thread_info_t *info;
+	if (have_background_thread) {
+		info = arena_background_thread_info_get(arena);
+		malloc_mutex_lock(tsd_tsdn(tsd), &info->mtx);
+	}
+	extent_hooks_t *ret = base_extent_hooks_set(arena->base, extent_hooks);
+	if (have_background_thread) {
+		malloc_mutex_unlock(tsd_tsdn(tsd), &info->mtx);
+	}
+
+	return ret;
+}
+
 
 dss_prec_t
 arena_dss_prec_get(arena_t *arena) {
