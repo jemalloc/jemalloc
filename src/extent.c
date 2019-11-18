@@ -221,31 +221,11 @@ extent_dalloc(tsdn_t *tsdn, arena_t *arena, extent_t *extent) {
 	malloc_mutex_unlock(tsdn, &arena->extent_avail_mtx);
 }
 
-extent_hooks_t *
-extent_hooks_get(arena_t *arena) {
-	return base_extent_hooks_get(arena->base);
-}
-
-extent_hooks_t *
-extent_hooks_set(tsd_t *tsd, arena_t *arena, extent_hooks_t *extent_hooks) {
-	background_thread_info_t *info;
-	if (have_background_thread) {
-		info = arena_background_thread_info_get(arena);
-		malloc_mutex_lock(tsd_tsdn(tsd), &info->mtx);
-	}
-	extent_hooks_t *ret = base_extent_hooks_set(arena->base, extent_hooks);
-	if (have_background_thread) {
-		malloc_mutex_unlock(tsd_tsdn(tsd), &info->mtx);
-	}
-
-	return ret;
-}
-
 static void
 extent_hooks_assure_initialized(arena_t *arena,
     extent_hooks_t **r_extent_hooks) {
 	if (*r_extent_hooks == EXTENT_HOOKS_INITIALIZER) {
-		*r_extent_hooks = extent_hooks_get(arena);
+		*r_extent_hooks = arena_get_extent_hooks(arena);
 	}
 }
 

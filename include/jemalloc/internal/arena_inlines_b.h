@@ -16,7 +16,7 @@ arena_get_from_extent(extent_t *extent) {
 
 JEMALLOC_ALWAYS_INLINE bool
 arena_has_default_hooks(arena_t *arena) {
-	return (extent_hooks_get(arena) == &extent_hooks_default);
+	return (arena_get_extent_hooks(arena) == &extent_hooks_default);
 }
 
 JEMALLOC_ALWAYS_INLINE arena_t *
