@@ -195,7 +195,7 @@ extent_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
 				}
 				if (*zero && *commit) {
 					extent_hooks_t *extent_hooks =
-					    EXTENT_HOOKS_INITIALIZER;
+					    arena_get_extent_hooks(arena);
 					extent_t extent;
 
 					extent_init(&extent,
@@ -204,7 +204,7 @@ extent_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
 					    extent_state_active, false, true,
 					    true, EXTENT_NOT_HEAD);
 					if (extent_purge_forced_wrapper(tsdn,
-					    arena, &extent_hooks, &extent, 0,
+					    arena, extent_hooks, &extent, 0,
 					    size)) {
 						memset(ret, 0, size);
 					}
