@@ -72,6 +72,9 @@ void *arena_ralloc(tsdn_t *tsdn, arena_t *arena, void *ptr, size_t oldsize,
     size_t size, size_t alignment, bool zero, tcache_t *tcache,
     hook_ralloc_args_t *hook_args);
 dss_prec_t arena_dss_prec_get(arena_t *arena);
+extent_hooks_t *arena_get_extent_hooks(arena_t *arena);
+extent_hooks_t *arena_set_extent_hooks(tsd_t *tsd, arena_t *arena,
+    extent_hooks_t *extent_hooks);
 bool arena_dss_prec_set(arena_t *arena, dss_prec_t dss_prec);
 ssize_t arena_dirty_decay_ms_default_get(void);
 bool arena_dirty_decay_ms_default_set(ssize_t decay_ms);
