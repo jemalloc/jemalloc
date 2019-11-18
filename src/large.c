@@ -105,7 +105,7 @@ large_ralloc_no_move_shrink(tsdn_t *tsdn, extent_t *extent, size_t usize) {
 	/* Split excess pages. */
 	if (diff != 0) {
 		extent_t *trail = extent_split_wrapper(tsdn, arena,
-		    &extent_hooks, extent, usize + sz_large_pad,
+		    extent_hooks, extent, usize + sz_large_pad,
 		    sz_size2index(usize), false, diff, SC_NSIZES, false);
 		if (trail == NULL) {
 			return true;
@@ -116,7 +116,7 @@ large_ralloc_no_move_shrink(tsdn_t *tsdn, extent_t *extent, size_t usize) {
 			    extent_size_get(trail));
 		}
 
-		arena_extents_dirty_dalloc(tsdn, arena, &extent_hooks, trail);
+		arena_extents_dirty_dalloc(tsdn, arena, extent_hooks, trail);
 	}
 
 	arena_extent_ralloc_large_shrink(tsdn, arena, extent, oldusize);
@@ -149,17 +149,17 @@ large_ralloc_no_move_expand(tsdn_t *tsdn, extent_t *extent, size_t usize,
 	bool commit = true;
 	extent_t *trail;
 	bool new_mapping;
-	if ((trail = extents_alloc(tsdn, arena, &extent_hooks,
+	if ((trail = extents_alloc(tsdn, arena, extent_hooks,
 	    &arena->eset_dirty, extent_past_get(extent), trailsize, 0,
 	    CACHELINE, false, SC_NSIZES, &is_zeroed_trail, &commit)) != NULL
-	    || (trail = extents_alloc(tsdn, arena, &extent_hooks,
+	    || (trail = extents_alloc(tsdn, arena, extent_hooks,
 	    &arena->eset_muzzy, extent_past_get(extent), trailsize, 0,
 	    CACHELINE, false, SC_NSIZES, &is_zeroed_trail, &commit)) != NULL) {
 		if (config_stats) {
 			new_mapping = false;
 		}
 	} else {
-		if ((trail = extent_alloc_wrapper(tsdn, arena, &extent_hooks,
+		if ((trail = extent_alloc_wrapper(tsdn, arena, extent_hooks,
 		    extent_past_get(extent), trailsize, 0, CACHELINE, false,
 		    SC_NSIZES, &is_zeroed_trail, &commit)) == NULL) {
 			return true;
@@ -169,8 +169,8 @@ large_ralloc_no_move_expand(tsdn_t *tsdn, extent_t *extent, size_t usize,
 		}
 	}
 
-	if (extent_merge_wrapper(tsdn, arena, &extent_hooks, extent, trail)) {
-		extent_dalloc_wrapper(tsdn, arena, &extent_hooks, trail);
+	if (extent_merge_wrapper(tsdn, arena, extent_hooks, extent, trail)) {
+		extent_dalloc_wrapper(tsdn, arena, extent_hooks, trail);
 		return true;
 	}
 	rtree_ctx_t rtree_ctx_fallback;
@@ -339,8 +339,8 @@ large_dalloc_prep_impl(tsdn_t *tsdn, arena_t *arena, extent_t *extent,
 
 static void
 large_dalloc_finish_impl(tsdn_t *tsdn, arena_t *arena, extent_t *extent) {
-	extent_hooks_t *extent_hooks = EXTENT_HOOKS_INITIALIZER;
-	arena_extents_dirty_dalloc(tsdn, arena, &extent_hooks, extent);
+	extent_hooks_t *extent_hooks = arena_get_extent_hooks(arena);
+	arena_extents_dirty_dalloc(tsdn, arena, extent_hooks, extent);
 }
 
 void
