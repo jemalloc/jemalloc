@@ -5,6 +5,7 @@ typedef struct prof_bt_s prof_bt_t;
 typedef struct prof_accum_s prof_accum_t;
 typedef struct prof_cnt_s prof_cnt_t;
 typedef struct prof_tctx_s prof_tctx_t;
+typedef struct prof_info_s prof_info_t;
 typedef struct prof_gctx_s prof_gctx_t;
 typedef struct prof_tdata_s prof_tdata_t;
 

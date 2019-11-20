@@ -333,15 +333,12 @@ extent_slab_data_get_const(const extent_t *extent) {
 	return &extent->e_slab_data;
 }
 
-static inline prof_tctx_t *
-extent_prof_tctx_get(const extent_t *extent) {
-	return (prof_tctx_t *)atomic_load_p(&extent->e_prof_tctx,
-	    ATOMIC_ACQUIRE);
-}
-
-static inline nstime_t
-extent_prof_alloc_time_get(const extent_t *extent) {
-	return extent->e_alloc_time;
+static inline void
+extent_prof_info_get(const extent_t *extent, prof_info_t *prof_info) {
+	assert(prof_info != NULL);
+	prof_info->prof_tctx = (prof_tctx_t *)atomic_load_p(
+	    &extent->e_prof_tctx, ATOMIC_ACQUIRE);
+	prof_info->alloc_time = extent->e_alloc_time;
 }
 
 static inline void

@@ -199,7 +199,8 @@ prof_log_thr_index(tsd_t *tsd, uint64_t thr_uid, const char *name) {
 }
 
 void
-prof_try_log(tsd_t *tsd, const void *ptr, size_t usize, prof_tctx_t *tctx) {
+prof_try_log(tsd_t *tsd, size_t usize, prof_info_t *prof_info) {
+	prof_tctx_t *tctx = prof_info->prof_tctx;
 	malloc_mutex_assert_owner(tsd_tsdn(tsd), tctx->tdata->lock);
 
 	prof_tdata_t *cons_tdata = prof_tdata_get(tsd, false);
@@ -229,7 +230,7 @@ prof_try_log(tsd_t *tsd, const void *ptr, size_t usize, prof_tctx_t *tctx) {
 		log_tables_initialized = true;
 	}
 
-	nstime_t alloc_time = prof_alloc_time_get(tsd_tsdn(tsd), ptr);
+	nstime_t alloc_time = prof_info->alloc_time;
 	nstime_t free_time = NSTIME_ZERO_INITIALIZER;
 	nstime_update(&free_time);
 

@@ -51,8 +51,7 @@ void prof_idump_rollback_impl(tsdn_t *tsdn, size_t usize);
 void prof_alloc_rollback(tsd_t *tsd, prof_tctx_t *tctx, bool updated);
 void prof_malloc_sample_object(tsdn_t *tsdn, const void *ptr, size_t usize,
     prof_tctx_t *tctx);
-void prof_free_sampled_object(tsd_t *tsd, const void *ptr, size_t usize,
-    prof_tctx_t *tctx);
+void prof_free_sampled_object(tsd_t *tsd, size_t usize, prof_info_t *prof_info);
 void bt_init(prof_bt_t *bt, void **vec);
 void prof_backtrace(tsd_t *tsd, prof_bt_t *bt);
 prof_tctx_t *prof_lookup(tsd_t *tsd, prof_bt_t *bt);
@@ -102,7 +101,7 @@ void prof_postfork_parent(tsdn_t *tsdn);
 void prof_postfork_child(tsdn_t *tsdn);
 void prof_sample_threshold_update(tsd_t *tsd);
 
-void prof_try_log(tsd_t *tsd, const void *ptr, size_t usize, prof_tctx_t *tctx);
+void prof_try_log(tsd_t *tsd, size_t usize, prof_info_t *prof_info);
 bool prof_log_start(tsdn_t *tsdn, const char *filename);
 bool prof_log_stop(tsdn_t *tsdn);
 bool prof_log_init(tsd_t *tsdn);
