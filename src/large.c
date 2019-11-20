@@ -367,9 +367,10 @@ large_salloc(tsdn_t *tsdn, const extent_t *extent) {
 	return extent_usize_get(extent);
 }
 
-prof_tctx_t *
-large_prof_tctx_get(tsdn_t *tsdn, const extent_t *extent) {
-	return extent_prof_tctx_get(extent);
+void
+large_prof_info_get(tsdn_t *tsdn, const extent_t *extent,
+    prof_info_t *prof_info) {
+	extent_prof_info_get(extent, prof_info);
 }
 
 void
@@ -380,11 +381,6 @@ large_prof_tctx_set(tsdn_t *tsdn, extent_t *extent, prof_tctx_t *tctx) {
 void
 large_prof_tctx_reset(tsdn_t *tsdn, extent_t *extent) {
 	large_prof_tctx_set(tsdn, extent, (prof_tctx_t *)(uintptr_t)1U);
-}
-
-nstime_t
-large_prof_alloc_time_get(const extent_t *extent) {
-	return extent_prof_alloc_time_get(extent);
 }
 
 void

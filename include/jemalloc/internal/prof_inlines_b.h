@@ -39,12 +39,14 @@ prof_tdata_get(tsd_t *tsd, bool create) {
 	return tdata;
 }
 
-JEMALLOC_ALWAYS_INLINE prof_tctx_t *
-prof_tctx_get(tsdn_t *tsdn, const void *ptr, alloc_ctx_t *alloc_ctx) {
+JEMALLOC_ALWAYS_INLINE void
+prof_info_get(tsdn_t *tsdn, const void *ptr, alloc_ctx_t *alloc_ctx,
+    prof_info_t *prof_info) {
 	cassert(config_prof);
 	assert(ptr != NULL);
+	assert(prof_info != NULL);
 
-	return arena_prof_tctx_get(tsdn, ptr, alloc_ctx);
+	arena_prof_info_get(tsdn, ptr, alloc_ctx, prof_info);
 }
 
 JEMALLOC_ALWAYS_INLINE void
@@ -62,14 +64,6 @@ prof_tctx_reset(tsdn_t *tsdn, const void *ptr, prof_tctx_t *tctx) {
 	assert(ptr != NULL);
 
 	arena_prof_tctx_reset(tsdn, ptr, tctx);
-}
-
-JEMALLOC_ALWAYS_INLINE nstime_t
-prof_alloc_time_get(tsdn_t *tsdn, const void *ptr) {
-	cassert(config_prof);
-	assert(ptr != NULL);
-
-	return arena_prof_alloc_time_get(tsdn, ptr);
 }
 
 JEMALLOC_ALWAYS_INLINE void
@@ -152,7 +146,7 @@ prof_malloc(tsdn_t *tsdn, const void *ptr, size_t usize, alloc_ctx_t *alloc_ctx,
 JEMALLOC_ALWAYS_INLINE void
 prof_realloc(tsd_t *tsd, const void *ptr, size_t usize, prof_tctx_t *tctx,
     bool prof_active, bool updated, const void *old_ptr, size_t old_usize,
-    prof_tctx_t *old_tctx) {
+    prof_info_t *old_prof_info) {
 	bool sampled, old_sampled, moved;
 
 	cassert(config_prof);
@@ -174,7 +168,7 @@ prof_realloc(tsd_t *tsd, const void *ptr, size_t usize, prof_tctx_t *tctx,
 	}
 
 	sampled = ((uintptr_t)tctx > (uintptr_t)1U);
-	old_sampled = ((uintptr_t)old_tctx > (uintptr_t)1U);
+	old_sampled = ((uintptr_t)old_prof_info->prof_tctx > (uintptr_t)1U);
 	moved = (ptr != old_ptr);
 
 	if (unlikely(sampled)) {
@@ -191,8 +185,9 @@ prof_realloc(tsd_t *tsd, const void *ptr, size_t usize, prof_tctx_t *tctx,
 		 */
 		prof_tctx_reset(tsd_tsdn(tsd), ptr, tctx);
 	} else {
-		assert((uintptr_t)prof_tctx_get(tsd_tsdn(tsd), ptr, NULL) ==
-		    (uintptr_t)1U);
+		prof_info_t prof_info;
+		prof_info_get(tsd_tsdn(tsd), ptr, NULL, &prof_info);
+		assert((uintptr_t)prof_info.prof_tctx == (uintptr_t)1U);
 	}
 
 	/*
@@ -203,19 +198,20 @@ prof_realloc(tsd_t *tsd, const void *ptr, size_t usize, prof_tctx_t *tctx,
 	 * counters.
 	 */
 	if (unlikely(old_sampled)) {
-		prof_free_sampled_object(tsd, ptr, old_usize, old_tctx);
+		prof_free_sampled_object(tsd, old_usize, old_prof_info);
 	}
 }
 
 JEMALLOC_ALWAYS_INLINE void
 prof_free(tsd_t *tsd, const void *ptr, size_t usize, alloc_ctx_t *alloc_ctx) {
-	prof_tctx_t *tctx = prof_tctx_get(tsd_tsdn(tsd), ptr, alloc_ctx);
+	prof_info_t prof_info;
+	prof_info_get(tsd_tsdn(tsd), ptr, alloc_ctx, &prof_info);
 
 	cassert(config_prof);
 	assert(usize == isalloc(tsd_tsdn(tsd), ptr));
 
-	if (unlikely((uintptr_t)tctx > (uintptr_t)1U)) {
-		prof_free_sampled_object(tsd, ptr, usize, tctx);
+	if (unlikely((uintptr_t)prof_info.prof_tctx > (uintptr_t)1U)) {
+		prof_free_sampled_object(tsd, usize, &prof_info);
 	}
 }
 

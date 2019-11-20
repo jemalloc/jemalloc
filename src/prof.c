@@ -187,8 +187,11 @@ prof_malloc_sample_object(tsdn_t *tsdn, const void *ptr, size_t usize,
 }
 
 void
-prof_free_sampled_object(tsd_t *tsd, const void *ptr, size_t usize,
-    prof_tctx_t *tctx) {
+prof_free_sampled_object(tsd_t *tsd, size_t usize, prof_info_t *prof_info) {
+	assert(prof_info != NULL);
+	prof_tctx_t *tctx = prof_info->prof_tctx;
+	assert((uintptr_t)tctx > (uintptr_t)1U);
+
 	malloc_mutex_lock(tsd_tsdn(tsd), tctx->tdata->lock);
 
 	assert(tctx->cnts.curobjs > 0);
@@ -196,7 +199,7 @@ prof_free_sampled_object(tsd_t *tsd, const void *ptr, size_t usize,
 	tctx->cnts.curobjs--;
 	tctx->cnts.curbytes -= usize;
 
-	prof_try_log(tsd, ptr, usize, tctx);
+	prof_try_log(tsd, usize, prof_info);
 
 	if (prof_tctx_should_destroy(tsd_tsdn(tsd), tctx)) {
 		prof_tctx_destroy(tsd, tctx);

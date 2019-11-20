@@ -40,23 +40,31 @@ arena_choose_maybe_huge(tsd_t *tsd, arena_t *arena, size_t size) {
 	return arena_choose(tsd, NULL);
 }
 
-JEMALLOC_ALWAYS_INLINE prof_tctx_t *
-arena_prof_tctx_get(tsdn_t *tsdn, const void *ptr, alloc_ctx_t *alloc_ctx) {
+JEMALLOC_ALWAYS_INLINE void
+arena_prof_info_get(tsdn_t *tsdn, const void *ptr, alloc_ctx_t *alloc_ctx,
+    prof_info_t *prof_info) {
 	cassert(config_prof);
 	assert(ptr != NULL);
+	assert(prof_info != NULL);
+
+	const extent_t *extent;
+	bool is_slab;
 
 	/* Static check. */
 	if (alloc_ctx == NULL) {
-		const extent_t *extent = iealloc(tsdn, ptr);
-		if (unlikely(!extent_slab_get(extent))) {
-			return large_prof_tctx_get(tsdn, extent);
-		}
-	} else {
-		if (unlikely(!alloc_ctx->slab)) {
-			return large_prof_tctx_get(tsdn, iealloc(tsdn, ptr));
-		}
+		extent = iealloc(tsdn, ptr);
+		is_slab = extent_slab_get(extent);
+	} else if (!unlikely(is_slab = alloc_ctx->slab)) {
+		extent = iealloc(tsdn, ptr);
 	}
-	return (prof_tctx_t *)(uintptr_t)1U;
+
+	if (unlikely(!is_slab)) {
+		/* extent must have been initialized at this point. */
+		large_prof_info_get(tsdn, extent, prof_info);
+	} else {
+		memset(prof_info, 0, sizeof(prof_info_t));
+		prof_info->prof_tctx = (prof_tctx_t *)(uintptr_t)1U;
+	}
 }
 
 JEMALLOC_ALWAYS_INLINE void
@@ -87,20 +95,6 @@ arena_prof_tctx_reset(tsdn_t *tsdn, const void *ptr, prof_tctx_t *tctx) {
 	assert(!extent_slab_get(extent));
 
 	large_prof_tctx_reset(tsdn, extent);
-}
-
-JEMALLOC_ALWAYS_INLINE nstime_t
-arena_prof_alloc_time_get(tsdn_t *tsdn, const void *ptr) {
-	cassert(config_prof);
-	assert(ptr != NULL);
-
-	extent_t *extent = iealloc(tsdn, ptr);
-	/*
-	 * Unlike arena_prof_prof_tctx_{get, set}, we only call this once we're
-	 * sure we have a sampled allocation.
-	 */
-	assert(!extent_slab_get(extent));
-	return large_prof_alloc_time_get(extent);
 }
 
 JEMALLOC_ALWAYS_INLINE void
