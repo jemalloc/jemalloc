@@ -107,7 +107,7 @@ thread_event_assert_invariants_debug(tsd_t *tsd) {
 	    !tsd_fast(tsd)) {
 		assert(next_event_fast == 0U);
 	} else {
-		assert(next_event_fast == next_event);
+		assert(next_event_fast <= next_event);
 	}
 
 	/* The subtraction is intentionally susceptible to underflow. */
@@ -186,6 +186,11 @@ thread_event_recompute_fast_threshold(tsd_t *tsd) {
 	uint64_t next_event = thread_allocated_next_event_get(tsd);
 	uint64_t next_event_fast = (next_event <=
 	    THREAD_ALLOCATED_NEXT_EVENT_FAST_MAX) ? next_event : 0U;
+
+	uint64_t v = thread_allocated_get(tsd) + (SC_LOOKUP_MAXCLASS-512);
+	if (v < next_event_fast) {
+		next_event_fast = v;
+	}
 	thread_allocated_next_event_fast_set(tsd, next_event_fast);
 
 	atomic_fence(ATOMIC_SEQ_CST);

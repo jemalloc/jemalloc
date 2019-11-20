@@ -2354,9 +2354,32 @@ je_malloc(size_t size) {
 	}
 
 	tsd_t *tsd = tsd_get(false);
-	if (unlikely((size > SC_LOOKUP_MAXCLASS) || !tsd)) {
+	if (unlikely(// (size > SC_LOOKUP_MAXCLASS) ||
+		     !tsd)) {
 		return malloc_default(size);
 	}
+
+	uint64_t allocated = thread_allocated_get_malloc_fastpath(tsd);
+	uint64_t threshold = thread_allocated_next_event_malloc_fastpath(tsd);
+	/*
+	 * Check for events and tsd non-nominal (fast_threshold will be set to
+	 * 0) in a single branch.
+	 */
+//	uint64_t allocated_after = allocated + usize;
+	if (unlikely(allocated + size >= threshold)) {
+		if (size <= SC_LOOKUP_MAXCLASS && threshold > 0) {
+			//FIXME
+			uint64_t v = allocated + (SC_LOOKUP_MAXCLASS-512);
+			if (v <= thread_allocated_next_event_get(tsd) &&
+			    v <= THREAD_ALLOCATED_NEXT_EVENT_FAST_MAX) {
+				thread_allocated_next_event_fast_set(tsd, v);
+				goto fine;
+			}
+		}
+		return malloc_default(size);
+	}
+fine:
+	assert(tsd_fast(tsd));
 
 	szind_t ind = sz_size2index_lookup(size);
 	/*
@@ -2373,17 +2396,6 @@ je_malloc(size_t size) {
 	assert(ind < SC_NBINS);
 	assert(size <= SC_SMALL_MAXCLASS);
 
-	uint64_t allocated = thread_allocated_get_malloc_fastpath(tsd);
-	uint64_t threshold = thread_allocated_next_event_malloc_fastpath(tsd);
-	/*
-	 * Check for events and tsd non-nominal (fast_threshold will be set to
-	 * 0) in a single branch.
-	 */
-	uint64_t allocated_after = allocated + usize;
-	if (unlikely(allocated_after >= threshold)) {
-		return malloc_default(size);
-	}
-	assert(tsd_fast(tsd));
 
 	tcache_t *tcache = tsd_tcachep_get(tsd);
 	cache_bin_t *bin = tcache_small_bin_get(tcache, ind);
@@ -2391,7 +2403,7 @@ je_malloc(size_t size) {
 	void *ret = cache_bin_alloc_easy_reduced(bin, &tcache_success);
 
 	if (tcache_success) {
-		thread_allocated_set(tsd, allocated_after);
+		thread_allocated_set(tsd, allocated + usize);
 		if (config_stats) {
 			bin->tstats.nrequests++;
 		}
