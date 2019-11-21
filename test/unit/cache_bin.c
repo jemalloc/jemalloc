@@ -4,7 +4,7 @@ cache_bin_t test_bin;
 
 TEST_BEGIN(test_cache_bin) {
 	cache_bin_t *bin = &test_bin;
-	cassert(PAGE > TCACHE_NSLOTS_SMALL_MAX * sizeof(void *));
+	assert(PAGE > TCACHE_NSLOTS_SMALL_MAX * sizeof(void *));
 	/* Page aligned to make sure lowbits not overflowable. */
 	void **stack = mallocx(PAGE, MALLOCX_TCACHE_NONE | MALLOCX_ALIGN(PAGE));
 

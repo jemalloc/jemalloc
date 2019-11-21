@@ -402,7 +402,7 @@ tsd_tcache_enabled_data_init(tsd_t *tsd) {
 
 static bool
 tcache_bin_init(cache_bin_t *bin, szind_t ind, uintptr_t *stack_cur) {
-	cassert(sizeof(bin->cur_ptr) == sizeof(void *));
+	assert(sizeof(bin->cur_ptr) == sizeof(void *));
 	/*
 	 * The full_position points to the lowest available space.  Allocations
 	 * will access the slots toward higher addresses (for the benefit of

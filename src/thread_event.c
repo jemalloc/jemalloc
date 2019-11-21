@@ -189,8 +189,7 @@ thread_event_trigger(tsd_t *tsd, bool delay_event) {
 	    thread_allocated_last_event_get(tsd);
 
 	/* Make sure that accumbytes cannot overflow uint64_t. */
-	cassert(THREAD_EVENT_MAX_INTERVAL <=
-	    UINT64_MAX - SC_LARGE_MAXCLASS + 1);
+	assert(THREAD_EVENT_MAX_INTERVAL <= UINT64_MAX - SC_LARGE_MAXCLASS + 1);
 
 	thread_allocated_last_event_set(tsd, thread_allocated_after);
 	bool allow_event_trigger = !delay_event && tsd_nominal(tsd) &&
