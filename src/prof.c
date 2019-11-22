@@ -165,17 +165,17 @@ prof_alloc_rollback(tsd_t *tsd, prof_tctx_t *tctx, bool updated) {
 }
 
 void
-prof_malloc_sample_object(tsdn_t *tsdn, const void *ptr, size_t usize,
+prof_malloc_sample_object(tsd_t *tsd, const void *ptr, size_t usize,
     prof_tctx_t *tctx) {
-	prof_tctx_set(tsdn, ptr, usize, NULL, tctx);
+	prof_tctx_set(tsd, ptr, usize, NULL, tctx);
 
 	/* Get the current time and set this in the extent_t. We'll read this
 	 * when free() is called. */
 	nstime_t t = NSTIME_ZERO_INITIALIZER;
 	nstime_update(&t);
-	prof_alloc_time_set(tsdn, ptr, t);
+	prof_alloc_time_set(tsd, ptr, t);
 
-	malloc_mutex_lock(tsdn, tctx->tdata->lock);
+	malloc_mutex_lock(tsd_tsdn(tsd), tctx->tdata->lock);
 	tctx->cnts.curobjs++;
 	tctx->cnts.curbytes += usize;
 	if (opt_prof_accum) {
@@ -183,7 +183,7 @@ prof_malloc_sample_object(tsdn_t *tsdn, const void *ptr, size_t usize,
 		tctx->cnts.accumbytes += usize;
 	}
 	tctx->prepared = false;
-	malloc_mutex_unlock(tsdn, tctx->tdata->lock);
+	malloc_mutex_unlock(tsd_tsdn(tsd), tctx->tdata->lock);
 }
 
 void

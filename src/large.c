@@ -368,19 +368,18 @@ large_salloc(tsdn_t *tsdn, const extent_t *extent) {
 }
 
 void
-large_prof_info_get(tsdn_t *tsdn, const extent_t *extent,
-    prof_info_t *prof_info) {
+large_prof_info_get(const extent_t *extent, prof_info_t *prof_info) {
 	extent_prof_info_get(extent, prof_info);
 }
 
 void
-large_prof_tctx_set(tsdn_t *tsdn, extent_t *extent, prof_tctx_t *tctx) {
+large_prof_tctx_set(extent_t *extent, prof_tctx_t *tctx) {
 	extent_prof_tctx_set(extent, tctx);
 }
 
 void
-large_prof_tctx_reset(tsdn_t *tsdn, extent_t *extent) {
-	large_prof_tctx_set(tsdn, extent, (prof_tctx_t *)(uintptr_t)1U);
+large_prof_tctx_reset(extent_t *extent) {
+	large_prof_tctx_set(extent, (prof_tctx_t *)(uintptr_t)1U);
 }
 
 void
