@@ -1,7 +1,7 @@
 #include "test/jemalloc_test.h"
 
 TEST_BEGIN(test_prof_realloc) {
-	tsdn_t *tsdn;
+	tsd_t *tsd;
 	int flags;
 	void *p, *q;
 	prof_info_t prof_info_p, prof_info_q;
@@ -9,13 +9,13 @@ TEST_BEGIN(test_prof_realloc) {
 
 	test_skip_if(!config_prof);
 
-	tsdn = tsdn_fetch();
+	tsd = tsd_fetch();
 	flags = MALLOCX_TCACHE_NONE;
 
 	prof_cnt_all(&curobjs_0, NULL, NULL, NULL);
 	p = mallocx(1024, flags);
 	assert_ptr_not_null(p, "Unexpected mallocx() failure");
-	prof_info_get(tsdn, p, NULL, &prof_info_p);
+	prof_info_get(tsd, p, NULL, &prof_info_p);
 	assert_ptr_ne(prof_info_p.prof_tctx, (prof_tctx_t *)(uintptr_t)1U,
 	    "Expected valid tctx");
 	prof_cnt_all(&curobjs_1, NULL, NULL, NULL);
@@ -25,7 +25,7 @@ TEST_BEGIN(test_prof_realloc) {
 	q = rallocx(p, 2048, flags);
 	assert_ptr_ne(p, q, "Expected move");
 	assert_ptr_not_null(p, "Unexpected rmallocx() failure");
-	prof_info_get(tsdn, q, NULL, &prof_info_q);
+	prof_info_get(tsd, q, NULL, &prof_info_q);
 	assert_ptr_ne(prof_info_q.prof_tctx, (prof_tctx_t *)(uintptr_t)1U,
 	    "Expected valid tctx");
 	prof_cnt_all(&curobjs_2, NULL, NULL, NULL);

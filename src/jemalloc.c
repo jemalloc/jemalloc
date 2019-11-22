@@ -2171,7 +2171,7 @@ imalloc_body(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd) {
 			prof_alloc_rollback(tsd, tctx, true);
 			goto label_oom;
 		}
-		prof_malloc(tsd_tsdn(tsd), allocation, usize, &alloc_ctx, tctx);
+		prof_malloc(tsd, allocation, usize, &alloc_ctx, tctx);
 	} else {
 		assert(!opt_prof);
 		allocation = imalloc_no_sample(sopts, dopts, tsd, size, usize,
@@ -3010,7 +3010,7 @@ irallocx_prof(tsd_t *tsd, void *old_ptr, size_t old_usize, size_t size,
     size_t alignment, size_t *usize, bool zero, tcache_t *tcache,
     arena_t *arena, alloc_ctx_t *alloc_ctx, hook_ralloc_args_t *hook_args) {
 	prof_info_t old_prof_info;
-	prof_info_get(tsd_tsdn(tsd), old_ptr, alloc_ctx, &old_prof_info);
+	prof_info_get(tsd, old_ptr, alloc_ctx, &old_prof_info);
 	bool prof_active = prof_active_get_unlocked();
 	prof_tctx_t *tctx = prof_alloc_prep(tsd, *usize, prof_active, false);
 	void *p;
@@ -3261,7 +3261,7 @@ JEMALLOC_ALWAYS_INLINE size_t
 ixallocx_prof(tsd_t *tsd, void *ptr, size_t old_usize, size_t size,
     size_t extra, size_t alignment, bool zero, alloc_ctx_t *alloc_ctx) {
 	prof_info_t old_prof_info;
-	prof_info_get(tsd_tsdn(tsd), ptr, alloc_ctx, &old_prof_info);
+	prof_info_get(tsd, ptr, alloc_ctx, &old_prof_info);
 	/*
 	 * usize isn't knowable before ixalloc() returns when extra is non-zero.
 	 * Therefore, compute its maximum possible value and use that in
