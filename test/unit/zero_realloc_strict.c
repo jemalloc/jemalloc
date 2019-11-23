@@ -2,9 +2,6 @@
 
 static uint64_t
 allocated() {
-	if (!config_stats) {
-		return 0;
-	}
 	uint64_t allocated;
 	size_t sz = sizeof(allocated);
 	assert_d_eq(mallctl("thread.allocated", (void *)&allocated, &sz, NULL,
@@ -14,9 +11,6 @@ allocated() {
 
 static uint64_t
 deallocated() {
-	if (!config_stats) {
-		return 0;
-	}
 	uint64_t deallocated;
 	size_t sz = sizeof(deallocated);
 	assert_d_eq(mallctl("thread.deallocated", (void *)&deallocated, &sz,
@@ -32,12 +26,10 @@ TEST_BEGIN(test_realloc_strict) {
 	ptr = realloc(ptr, 0);
 	uint64_t allocated_after = allocated();
 	uint64_t deallocated_after = deallocated();
-	if (config_stats) {
-		assert_u64_lt(allocated_before, allocated_after,
-		    "Unexpected stats change");
-		assert_u64_lt(deallocated_before, deallocated_after,
-		    "Unexpected stats change");
-	}
+	assert_u64_lt(allocated_before, allocated_after,
+	    "Unexpected stats change");
+	assert_u64_lt(deallocated_before, deallocated_after,
+	    "Unexpected stats change");
 	dallocx(ptr, 0);
 }
 TEST_END

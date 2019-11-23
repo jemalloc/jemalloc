@@ -2,9 +2,6 @@
 
 static uint64_t
 deallocated() {
-	if (!config_stats) {
-		return 0;
-	}
 	uint64_t deallocated;
 	size_t sz = sizeof(deallocated);
 	assert_d_eq(mallctl("thread.deallocated", (void *)&deallocated, &sz,
@@ -19,10 +16,8 @@ TEST_BEGIN(test_realloc_free) {
 	ptr = realloc(ptr, 0);
 	uint64_t deallocated_after = deallocated();
 	assert_ptr_null(ptr, "Realloc didn't free");
-	if (config_stats) {
-		assert_u64_gt(deallocated_after, deallocated_before,
-		    "Realloc didn't free");
-	}
+	assert_u64_gt(deallocated_after, deallocated_before,
+	    "Realloc didn't free");
 }
 TEST_END
 
