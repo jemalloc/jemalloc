@@ -3116,7 +3116,11 @@ do_rallocx(void *ptr, size_t size, int flags, bool is_realloc) {
 	}
 	assert(alignment == 0 || ((uintptr_t)p & (alignment - 1)) == ZU(0));
 
-	*tsd_thread_deallocatedp_get(tsd) += old_usize;
+	if (p == ptr && usize == old_usize) {
+		thread_event_rollback(tsd, usize);
+	} else {
+		*tsd_thread_deallocatedp_get(tsd) += old_usize;
+	}
 
 	UTRACE(ptr, size, p);
 	check_entry_exit_locking(tsd_tsdn(tsd));
