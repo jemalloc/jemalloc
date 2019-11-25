@@ -97,6 +97,7 @@ newImpl(std::size_t size) noexcept(IsNoExcept) {
 	return handleOOM(size, IsNoExcept);
 }
 
+#if __cpp_aligned_new >= 201606
 template <bool IsNoExcept>
 JEMALLOC_ALWAYS_INLINE
 void *
@@ -108,6 +109,7 @@ alignedNewImpl(std::size_t size, std::align_val_t alignment) noexcept(IsNoExcept
 
 	return handleOOM(size, IsNoExcept);
 }
+#endif  // __cpp_aligned_new
 
 JEMALLOC_ALWAYS_INLINE
 void
@@ -118,6 +120,7 @@ sizedDeleteImpl(void* ptr, std::size_t size) noexcept {
 	je_sdallocx_noflags(ptr, size);
 }
 
+#if __cpp_aligned_new >= 201606
 JEMALLOC_ALWAYS_INLINE
 void
 alignedSizedDeleteImpl(void* ptr, std::size_t size, std::align_val_t alignment) noexcept {
@@ -129,6 +132,7 @@ alignedSizedDeleteImpl(void* ptr, std::size_t size, std::align_val_t alignment) 
 	}
 	je_sdallocx(ptr, size, MALLOCX_ALIGN(alignment));
 }
+#endif  // __cpp_aligned_new
 
 void *
 operator new(std::size_t size) {
