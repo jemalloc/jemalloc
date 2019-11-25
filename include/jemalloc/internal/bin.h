@@ -39,12 +39,17 @@ struct bin_s {
 };
 
 /* A set of sharded bins of the same size class. */
-typedef struct bins_s bins_t;
-struct bins_s {
-	/* Sharded bins.  Dynamically sized. */
-	bin_t *bin_shards;
+typedef struct sharded_bins_s sharded_bins_t;
+struct sharded_bins_s {
+	/* Total # of shards for this bin. */
+	unsigned n_shards;
+	/* Sharded bins w/ the size above. */
+	bin_t **bin_shards;
 };
 
+extern sharded_bins_t default_bins[SC_NBINS];
+
+bool default_bins_boot(tsd_t *tsd, unsigned narenas_auto);
 void bin_shard_sizes_boot(unsigned bin_shards[SC_NBINS]);
 bool bin_update_shard_size(unsigned bin_shards[SC_NBINS], size_t start_size,
     size_t end_size, size_t nshards);

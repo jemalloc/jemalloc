@@ -245,9 +245,9 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 	nstime_subtract(&astats->uptime, &arena->create_time);
 
 	for (szind_t i = 0; i < SC_NBINS; i++) {
-		for (unsigned j = 0; j < bin_infos[i].n_shards; j++) {
-			bin_stats_merge(tsdn, &bstats[i],
-			    &arena->bins[i].bin_shards[j]);
+		for (unsigned j = 0; j < arena_bin_nshards_get(arena, i); j++) {
+			bin_t *bin = arena_bin_get(arena, i, j);
+			bin_stats_merge(tsdn, &bstats[i], bin);
 		}
 	}
 }
@@ -1134,11 +1134,9 @@ arena_reset(tsd_t *tsd, arena_t *arena) {
 	malloc_mutex_unlock(tsd_tsdn(tsd), &arena->large_mtx);
 
 	/* Bins. */
+	assert(!arena_use_default_bins(arena));
 	for (unsigned i = 0; i < SC_NBINS; i++) {
-		for (unsigned j = 0; j < bin_infos[i].n_shards; j++) {
-			arena_bin_reset(tsd, arena,
-			    &arena->bins[i].bin_shards[j]);
-		}
+		arena_bin_reset(tsd, arena, &arena->manual_bins[i]);
 	}
 
 	atomic_store_zu(&arena->nactive, 0, ATOMIC_RELAXED);
@@ -1358,14 +1356,15 @@ arena_bin_malloc_hard(tsdn_t *tsdn, arena_t *arena, bin_t *bin,
 bin_t *
 arena_bin_choose_lock(tsdn_t *tsdn, arena_t *arena, szind_t binind,
     unsigned *binshard) {
-	bin_t *bin;
-	if (tsdn_null(tsdn) || tsd_arena_get(tsdn_tsd(tsdn)) == NULL) {
+	if (tsdn_null(tsdn) || tsd_arena_get(tsdn_tsd(tsdn)) == NULL ||
+	    !arena_use_default_bins(arena)) {
 		*binshard = 0;
 	} else {
 		*binshard = tsd_binshardsp_get(tsdn_tsd(tsdn))->binshard[binind];
 	}
 	assert(*binshard < bin_infos[binind].n_shards);
-	bin = &arena->bins[binind].bin_shards[*binshard];
+
+	bin_t *bin = arena_bin_get(arena, binind, *binshard);
 	malloc_mutex_lock(tsdn, &bin->lock);
 
 	return bin;
@@ -1708,7 +1707,7 @@ static void
 arena_dalloc_bin(tsdn_t *tsdn, arena_t *arena, edata_t *edata, void *ptr) {
 	szind_t binind = edata_szind_get(edata);
 	unsigned binshard = edata_binshard_get(edata);
-	bin_t *bin = &arena->bins[binind].bin_shards[binshard];
+	bin_t *bin = arena_bin_get(arena, binind, binshard);
 
 	malloc_mutex_lock(tsdn, &bin->lock);
 	arena_dalloc_bin_locked_impl(tsdn, arena, bin, binind, edata, ptr,
@@ -1952,10 +1951,7 @@ arena_extent_sn_next(arena_t *arena) {
 
 arena_t *
 arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
-	arena_t *arena;
 	base_t *base;
-	unsigned i;
-
 	if (ind == 0) {
 		base = b0get();
 	} else {
@@ -1965,12 +1961,22 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 		}
 	}
 
-	unsigned nbins_total = 0;
-	for (i = 0; i < SC_NBINS; i++) {
-		nbins_total += bin_infos[i].n_shards;
+	bool use_manual_bins = (ind == 0) || !arena_ind_is_auto(ind) ||
+	    arena_is_huge(ind);
+	unsigned nbins_attached;
+	if (use_manual_bins) {
+		nbins_attached = SC_NBINS;
+	} else {
+		nbins_attached = 0;
+		for (unsigned i = 0; i < SC_NBINS; i++) {
+			nbins_attached += bin_infos[i].n_shards;
+		}
 	}
-	size_t arena_size = sizeof(arena_t) + sizeof(bin_t) * nbins_total;
-	arena = (arena_t *)base_alloc(tsdn, base, arena_size, CACHELINE);
+
+	size_t arena_total_size = sizeof(arena_t) + sizeof(bin_t) *
+	    nbins_attached;
+	arena_t *arena = (arena_t *)base_alloc(tsdn, base, arena_total_size,
+	    CACHELINE);
 	if (arena == NULL) {
 		goto label_error;
 	}
@@ -2058,20 +2064,36 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 	}
 
 	/* Initialize bins. */
-	uintptr_t bin_addr = (uintptr_t)arena + sizeof(arena_t);
 	atomic_store_u(&arena->binshard_next, 0, ATOMIC_RELEASE);
-	for (i = 0; i < SC_NBINS; i++) {
-		unsigned nshards = bin_infos[i].n_shards;
-		arena->bins[i].bin_shards = (bin_t *)bin_addr;
-		bin_addr += nshards * sizeof(bin_t);
-		for (unsigned j = 0; j < nshards; j++) {
-			bool err = bin_init(&arena->bins[i].bin_shards[j]);
-			if (err) {
-				goto label_error;
-			}
+	bin_t *attached_bins = (bin_t *)((uintptr_t)arena + sizeof(arena_t));
+	assert((uintptr_t)(attached_bins + nbins_attached) == (uintptr_t)arena
+	    + arena_total_size);
+	for (unsigned i = 0; i < nbins_attached; i++) {
+		if (bin_init(&attached_bins[i])) {
+			goto label_error;
 		}
 	}
-	assert(bin_addr == (uintptr_t)arena + arena_size);
+
+	if (use_manual_bins) {
+		/* Embed the bins right past the arena. */
+		arena->manual_bins = attached_bins;
+	} else {
+		arena->manual_bins = NULL;
+		bin_t *next_bin = attached_bins;
+		unsigned i, j;
+		for (i = 0; i < SC_NBINS; i++) {
+			assert(default_bins[i].bin_shards != NULL);
+			unsigned n_shards = bin_infos[i].n_shards;
+			unsigned first_bin = ind * n_shards;
+			for (j = first_bin; j < first_bin + n_shards; j++) {
+				assert(j < default_bins[i].n_shards);
+				assert(default_bins[i].bin_shards[j] == NULL);
+				default_bins[i].bin_shards[j] = next_bin++;
+			}
+		}
+		assert((uintptr_t)next_bin == (uintptr_t)arena +
+		    arena_total_size);
+	}
 
 	arena->base = base;
 	/* Set arena before creating background threads. */
@@ -2215,8 +2237,8 @@ arena_prefork6(tsdn_t *tsdn, arena_t *arena) {
 void
 arena_prefork7(tsdn_t *tsdn, arena_t *arena) {
 	for (unsigned i = 0; i < SC_NBINS; i++) {
-		for (unsigned j = 0; j < bin_infos[i].n_shards; j++) {
-			bin_prefork(tsdn, &arena->bins[i].bin_shards[j]);
+		for (unsigned j = 0; j < arena_bin_nshards_get(arena, i); j++) {
+			bin_prefork(tsdn, arena_bin_get(arena, i, j));
 		}
 	}
 }
@@ -2226,9 +2248,8 @@ arena_postfork_parent(tsdn_t *tsdn, arena_t *arena) {
 	unsigned i;
 
 	for (i = 0; i < SC_NBINS; i++) {
-		for (unsigned j = 0; j < bin_infos[i].n_shards; j++) {
-			bin_postfork_parent(tsdn,
-			    &arena->bins[i].bin_shards[j]);
+		for (unsigned j = 0; j < arena_bin_nshards_get(arena, i); j++) {
+			bin_postfork_parent(tsdn, arena_bin_get(arena, i, j));
 		}
 	}
 	malloc_mutex_postfork_parent(tsdn, &arena->large_mtx);
@@ -2273,8 +2294,8 @@ arena_postfork_child(tsdn_t *tsdn, arena_t *arena) {
 	}
 
 	for (i = 0; i < SC_NBINS; i++) {
-		for (unsigned j = 0; j < bin_infos[i].n_shards; j++) {
-			bin_postfork_child(tsdn, &arena->bins[i].bin_shards[j]);
+		for (unsigned j = 0; j < arena_bin_nshards_get(arena, i); j++) {
+			bin_postfork_child(tsdn, arena_bin_get(arena, i, j));
 		}
 	}
 	malloc_mutex_postfork_child(tsdn, &arena->large_mtx);

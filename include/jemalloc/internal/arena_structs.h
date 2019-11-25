@@ -175,11 +175,12 @@ struct arena_s {
 	edata_cache_t		edata_cache;
 
 	/*
-	 * bins is used to store heaps of free regions.
+	 * Bins for a0 and non auto arenas.  Null for auto arenas which will use
+	 * the default bins which live outside of arena.
 	 *
 	 * Synchronization: internal.
 	 */
-	bins_t			bins[SC_NBINS];
+	bin_t			*manual_bins;
 
 	/*
 	 * Base allocator, from which arena metadata are allocated.

@@ -175,7 +175,7 @@ tcache_bin_flush_small(tsd_t *tsd, tcache_t *tcache, cache_bin_t *tbin,
 		    false);
 		unsigned binshard = edata_binshard_get(edata);
 		assert(binshard < bin_infos[binind].n_shards);
-		bin_t *bin = &bin_arena->bins[binind].bin_shards[binshard];
+		bin_t *bin = arena_bin_get(bin_arena, binind, binshard);
 
 		malloc_mutex_lock(tsd_tsdn(tsd), &bin->lock);
 		if (config_stats && bin_arena == arena && !merged_stats) {

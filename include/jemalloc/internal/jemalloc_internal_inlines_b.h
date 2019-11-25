@@ -70,10 +70,15 @@ arena_ichoose(tsd_t *tsd, arena_t *arena) {
 }
 
 static inline bool
-arena_is_auto(arena_t *arena) {
+arena_ind_is_auto(unsigned ind) {
 	assert(narenas_auto > 0);
 
-	return (arena_ind_get(arena) < manual_arena_base);
+	return ind < manual_arena_base;
+}
+
+static inline bool
+arena_is_auto(arena_t *arena) {
+	return arena_ind_is_auto(arena_ind_get(arena));
 }
 
 JEMALLOC_ALWAYS_INLINE edata_t *

@@ -14,6 +14,39 @@ arena_get_from_edata(edata_t *edata) {
 	    ATOMIC_RELAXED);
 }
 
+JEMALLOC_ALWAYS_INLINE bool
+arena_use_default_bins(arena_t *arena) {
+	return (arena->manual_bins == NULL);
+}
+
+JEMALLOC_ALWAYS_INLINE unsigned
+arena_bin_nshards_get(arena_t *arena, unsigned bin_ind) {
+	return arena_use_default_bins(arena) ? bin_infos[bin_ind].n_shards : 1;
+}
+
+JEMALLOC_ALWAYS_INLINE bin_t *
+arena_default_bin_get(arena_t *arena, unsigned bin_ind, unsigned shard) {
+	assert(arena_use_default_bins(arena));
+	assert(shard < arena_bin_nshards_get(arena, bin_ind));
+
+	unsigned i = arena_ind_get(arena) * bin_infos[bin_ind].n_shards + shard;
+	assert(i < default_bins[bin_ind].n_shards);
+
+	return default_bins[bin_ind].bin_shards[i];
+}
+
+/* Return the bin shard, either default or embedded, associated to the arena. */
+JEMALLOC_ALWAYS_INLINE bin_t *
+arena_bin_get(arena_t *arena, unsigned bin_ind, unsigned shard) {
+	assert(shard < arena_bin_nshards_get(arena, bin_ind));
+
+	if (!arena_use_default_bins(arena)) {
+		assert(shard == 0);
+		return &arena->manual_bins[bin_ind];
+	}
+	return arena_default_bin_get(arena, bin_ind, shard);
+}
+
 JEMALLOC_ALWAYS_INLINE arena_t *
 arena_choose_maybe_huge(tsd_t *tsd, arena_t *arena, size_t size) {
 	if (arena != NULL) {

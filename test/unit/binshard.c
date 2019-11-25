@@ -1,6 +1,6 @@
 #include "test/jemalloc_test.h"
 
-/* Config -- "narenas:1,bin_shards:1-160:16|129-512:4|256-256:8" */
+/* Config -- "narenas:2,bin_shards:1-160:16|129-512:4|256-256:8" */
 
 #define NTHREADS 16
 #define REMOTE_NALLOC 256
@@ -21,7 +21,7 @@ thd_producer(void *varg) {
 
 	/* Remote bin. */
 	for (; i < REMOTE_NALLOC; i++) {
-		mem[i] = mallocx(1, MALLOCX_TCACHE_NONE | MALLOCX_ARENA(0));
+		mem[i] = mallocx(1, MALLOCX_TCACHE_NONE | MALLOCX_ARENA(1));
 	}
 
 	return NULL;
@@ -56,11 +56,12 @@ thd_start(void *varg) {
 	edata_t *edata;
 	unsigned shard1, shard2;
 
-	tsdn_t *tsdn = tsdn_fetch();
 	/* Try triggering allocations from sharded bins. */
+	free(mallocx(1, 0));
+	tsdn_t *tsdn = tsdn_fetch();
 	for (unsigned i = 0; i < 1024; i++) {
-		ptr = mallocx(1, MALLOCX_TCACHE_NONE);
-		ptr2 = mallocx(129, MALLOCX_TCACHE_NONE);
+		ptr = mallocx(1, MALLOCX_TCACHE_NONE | MALLOCX_ARENA(1));
+		ptr2 = mallocx(129, MALLOCX_TCACHE_NONE | MALLOCX_ARENA(1));
 
 		edata = iealloc(tsdn, ptr);
 		shard1 = edata_binshard_get(edata);
@@ -74,7 +75,7 @@ thd_start(void *varg) {
 
 		if (shard1 > 0 || shard2 > 0) {
 			/* Triggered sharded bin usage. */
-			return (void *)(uintptr_t)shard1;
+			return (void *)(uintptr_t)1;
 		}
 	}
 

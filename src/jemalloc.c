@@ -1588,7 +1588,6 @@ malloc_init_hard_a0_locked() {
 	 */
 	narenas_auto = 1;
 	manual_arena_base = narenas_auto + 1;
-	memset(arenas, 0, sizeof(arena_t *) * narenas_auto);
 	/*
 	 * Initialize one arena here.  The rest are lazily created in
 	 * arena_choose_hard().
@@ -1808,7 +1807,9 @@ malloc_init_hard(void) {
 	/* Set reentrancy level to 1 during init. */
 	pre_reentrancy(tsd, NULL);
 	/* Initialize narenas before prof_boot2 (for allocation). */
-	if (malloc_init_narenas() || background_thread_boot1(tsd_tsdn(tsd))) {
+	if (malloc_init_narenas() ||
+	    default_bins_boot(tsd, narenas_auto) ||
+	    background_thread_boot1(tsd_tsdn(tsd))) {
 		UNLOCK_RETURN(tsd_tsdn(tsd), true, true)
 	}
 	if (config_prof && prof_boot2(tsd)) {
