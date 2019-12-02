@@ -5,6 +5,7 @@ env:
 task:
   freebsd_instance:
     matrix:
+      image: freebsd-12-1-release-amd64
       image: freebsd-12-0-release-amd64
       image: freebsd-11-2-release-amd64
   install_script:
