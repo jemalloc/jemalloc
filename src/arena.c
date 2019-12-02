@@ -4,6 +4,7 @@
 
 #include "jemalloc/internal/assert.h"
 #include "jemalloc/internal/div.h"
+#include "jemalloc/internal/ehooks.h"
 #include "jemalloc/internal/extent_dss.h"
 #include "jemalloc/internal/extent_mmap.h"
 #include "jemalloc/internal/mutex.h"
@@ -252,13 +253,12 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 }
 
 void
-arena_extents_dirty_dalloc(tsdn_t *tsdn, arena_t *arena,
-    extent_hooks_t *extent_hooks, extent_t *extent) {
+arena_extents_dirty_dalloc(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
+    extent_t *extent) {
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, 0);
 
-	extents_dalloc(tsdn, arena, extent_hooks, &arena->eset_dirty,
-	    extent);
+	extents_dalloc(tsdn, arena, ehooks, &arena->eset_dirty, extent);
 	if (arena_dirty_decay_ms_get(arena) == 0) {
 		arena_decay_dirty(tsdn, arena, false, true);
 	} else {
@@ -426,7 +426,7 @@ arena_may_have_muzzy(arena_t *arena) {
 extent_t *
 arena_extent_alloc_large(tsdn_t *tsdn, arena_t *arena, size_t usize,
     size_t alignment, bool *zero) {
-	extent_hooks_t *extent_hooks = arena_get_extent_hooks(arena);
+	ehooks_t *ehooks = arena_get_ehooks(arena);
 
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, 0);
@@ -434,19 +434,18 @@ arena_extent_alloc_large(tsdn_t *tsdn, arena_t *arena, size_t usize,
 	szind_t szind = sz_size2index(usize);
 	size_t mapped_add;
 	bool commit = true;
-	extent_t *extent = extents_alloc(tsdn, arena, extent_hooks,
+	extent_t *extent = extents_alloc(tsdn, arena, ehooks,
 	    &arena->eset_dirty, NULL, usize, sz_large_pad, alignment, false,
 	    szind, zero, &commit);
 	if (extent == NULL && arena_may_have_muzzy(arena)) {
-		extent = extents_alloc(tsdn, arena, extent_hooks,
-		    &arena->eset_muzzy, NULL, usize, sz_large_pad, alignment,
-		    false, szind, zero, &commit);
+		extent = extents_alloc(tsdn, arena, ehooks, &arena->eset_muzzy,
+		    NULL, usize, sz_large_pad, alignment, false, szind, zero,
+		    &commit);
 	}
 	size_t size = usize + sz_large_pad;
 	if (extent == NULL) {
-		extent = extent_alloc_wrapper(tsdn, arena, extent_hooks, NULL,
-		    usize, sz_large_pad, alignment, false, szind, zero,
-		    &commit);
+		extent = extent_alloc_wrapper(tsdn, arena, ehooks, NULL, usize,
+		    sz_large_pad, alignment, false, szind, zero, &commit);
 		if (config_stats) {
 			/*
 			 * extent may be NULL on OOM, but in that case
@@ -821,8 +820,8 @@ arena_muzzy_decay_ms_set(tsdn_t *tsdn, arena_t *arena,
 
 static size_t
 arena_stash_decayed(tsdn_t *tsdn, arena_t *arena,
-    extent_hooks_t *extent_hooks, eset_t *eset, size_t npages_limit,
-	size_t npages_decay_max, extent_list_t *decay_extents) {
+    ehooks_t *ehooks, eset_t *eset, size_t npages_limit,
+    size_t npages_decay_max, extent_list_t *decay_extents) {
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, 0);
 
@@ -830,8 +829,8 @@ arena_stash_decayed(tsdn_t *tsdn, arena_t *arena,
 	size_t nstashed = 0;
 	extent_t *extent;
 	while (nstashed < npages_decay_max &&
-	    (extent = extents_evict(tsdn, arena, extent_hooks, eset,
-	    npages_limit)) != NULL) {
+	    (extent = extents_evict(tsdn, arena, ehooks, eset, npages_limit))
+	    != NULL) {
 		extent_list_append(decay_extents, extent);
 		nstashed += extent_size_get(extent) >> LG_PAGE;
 	}
@@ -839,9 +838,9 @@ arena_stash_decayed(tsdn_t *tsdn, arena_t *arena,
 }
 
 static size_t
-arena_decay_stashed(tsdn_t *tsdn, arena_t *arena,
-    extent_hooks_t *extent_hooks, arena_decay_t *decay, eset_t *eset,
-    bool all, extent_list_t *decay_extents, bool is_background_thread) {
+arena_decay_stashed(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
+    arena_decay_t *decay, eset_t *eset, bool all, extent_list_t *decay_extents,
+    bool is_background_thread) {
 	size_t nmadvise, nunmapped;
 	size_t npurged;
 
@@ -866,9 +865,9 @@ arena_decay_stashed(tsdn_t *tsdn, arena_t *arena,
 		case extent_state_dirty:
 			if (!all && muzzy_decay_ms != 0 &&
 			    !extent_purge_lazy_wrapper(tsdn, arena,
-			    extent_hooks, extent, 0,
+			    ehooks, extent, 0,
 			    extent_size_get(extent))) {
-				extents_dalloc(tsdn, arena, extent_hooks,
+				extents_dalloc(tsdn, arena, ehooks,
 				    &arena->eset_muzzy, extent);
 				arena_background_thread_inactivity_check(tsdn,
 				    arena, is_background_thread);
@@ -876,8 +875,7 @@ arena_decay_stashed(tsdn_t *tsdn, arena_t *arena,
 			}
 			JEMALLOC_FALLTHROUGH;
 		case extent_state_muzzy:
-			extent_dalloc_wrapper(tsdn, arena, extent_hooks,
-			    extent);
+			extent_dalloc_wrapper(tsdn, arena, ehooks, extent);
 			if (config_stats) {
 				nunmapped += npages;
 			}
@@ -925,17 +923,16 @@ arena_decay_to_limit(tsdn_t *tsdn, arena_t *arena, arena_decay_t *decay,
 	decay->purging = true;
 	malloc_mutex_unlock(tsdn, &decay->mtx);
 
-	extent_hooks_t *extent_hooks = arena_get_extent_hooks(arena);
+	ehooks_t *ehooks = arena_get_ehooks(arena);
 
 	extent_list_t decay_extents;
 	extent_list_init(&decay_extents);
 
-	size_t npurge = arena_stash_decayed(tsdn, arena, extent_hooks, eset,
+	size_t npurge = arena_stash_decayed(tsdn, arena, ehooks, eset,
 	    npages_limit, npages_decay_max, &decay_extents);
 	if (npurge != 0) {
-		size_t npurged = arena_decay_stashed(tsdn, arena,
-		    extent_hooks, decay, eset, all, &decay_extents,
-		    is_background_thread);
+		size_t npurged = arena_decay_stashed(tsdn, arena, ehooks, decay,
+		    eset, all, &decay_extents, is_background_thread);
 		assert(npurged == npurge);
 	}
 
@@ -1008,8 +1005,8 @@ static void
 arena_slab_dalloc(tsdn_t *tsdn, arena_t *arena, extent_t *slab) {
 	arena_nactive_sub(arena, extent_size_get(slab) >> LG_PAGE);
 
-	extent_hooks_t *extent_hooks = arena_get_extent_hooks(arena);
-	arena_extents_dirty_dalloc(tsdn, arena, extent_hooks, slab);
+	ehooks_t *ehooks = arena_get_ehooks(arena);
+	arena_extents_dirty_dalloc(tsdn, arena, ehooks, slab);
 }
 
 static void
@@ -1161,11 +1158,11 @@ arena_destroy_retained(tsdn_t *tsdn, arena_t *arena) {
 	 * destroyed, or provide custom extent hooks that track retained
 	 * dss-based extents for later reuse.
 	 */
-	extent_hooks_t *extent_hooks = arena_get_extent_hooks(arena);
+	ehooks_t *ehooks = arena_get_ehooks(arena);
 	extent_t *extent;
-	while ((extent = extents_evict(tsdn, arena, extent_hooks,
+	while ((extent = extents_evict(tsdn, arena, ehooks,
 	    &arena->eset_retained, 0)) != NULL) {
-		extent_destroy_wrapper(tsdn, arena, extent_hooks, extent);
+		extent_destroy_wrapper(tsdn, arena, ehooks, extent);
 	}
 }
 
@@ -1206,9 +1203,8 @@ arena_destroy(tsd_t *tsd, arena_t *arena) {
 }
 
 static extent_t *
-arena_slab_alloc_hard(tsdn_t *tsdn, arena_t *arena,
-    extent_hooks_t *extent_hooks, const bin_info_t *bin_info,
-    szind_t szind) {
+arena_slab_alloc_hard(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
+    const bin_info_t *bin_info, szind_t szind) {
 	extent_t *slab;
 	bool zero, commit;
 
@@ -1217,7 +1213,7 @@ arena_slab_alloc_hard(tsdn_t *tsdn, arena_t *arena,
 
 	zero = false;
 	commit = true;
-	slab = extent_alloc_wrapper(tsdn, arena, extent_hooks, NULL,
+	slab = extent_alloc_wrapper(tsdn, arena, ehooks, NULL,
 	    bin_info->slab_size, 0, PAGE, true, szind, &zero, &commit);
 
 	if (config_stats && slab != NULL) {
@@ -1234,21 +1230,20 @@ arena_slab_alloc(tsdn_t *tsdn, arena_t *arena, szind_t binind, unsigned binshard
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, 0);
 
-	extent_hooks_t *extent_hooks = arena_get_extent_hooks(arena);
+	ehooks_t *ehooks = arena_get_ehooks(arena);
 	szind_t szind = sz_size2index(bin_info->reg_size);
 	bool zero = false;
 	bool commit = true;
-	extent_t *slab = extents_alloc(tsdn, arena, extent_hooks,
-	    &arena->eset_dirty, NULL, bin_info->slab_size, 0, PAGE, true,
-	    binind, &zero, &commit);
+	extent_t *slab = extents_alloc(tsdn, arena, ehooks, &arena->eset_dirty,
+	    NULL, bin_info->slab_size, 0, PAGE, true, binind, &zero, &commit);
 	if (slab == NULL && arena_may_have_muzzy(arena)) {
-		slab = extents_alloc(tsdn, arena, extent_hooks,
-		    &arena->eset_muzzy, NULL, bin_info->slab_size, 0, PAGE,
-		    true, binind, &zero, &commit);
+		slab = extents_alloc(tsdn, arena, ehooks, &arena->eset_muzzy,
+		    NULL, bin_info->slab_size, 0, PAGE, true, binind, &zero,
+		    &commit);
 	}
 	if (slab == NULL) {
-		slab = arena_slab_alloc_hard(tsdn, arena, extent_hooks,
-		    bin_info, szind);
+		slab = arena_slab_alloc_hard(tsdn, arena, ehooks, bin_info,
+		    szind);
 		if (slab == NULL) {
 			return NULL;
 		}
@@ -1848,9 +1843,9 @@ arena_ralloc(tsdn_t *tsdn, arena_t *arena, void *ptr, size_t oldsize,
 	return ret;
 }
 
-extent_hooks_t *
-arena_get_extent_hooks(arena_t *arena) {
-	return base_extent_hooks_get(arena->base);
+ehooks_t *
+arena_get_ehooks(arena_t *arena) {
+	return base_ehooks_get(arena->base);
 }
 
 extent_hooks_t *

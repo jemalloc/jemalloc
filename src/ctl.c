@@ -2400,8 +2400,9 @@ arena_i_extent_hooks_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
 				    arena, new_extent_hooks);
 				READ(old_extent_hooks, extent_hooks_t *);
 			} else {
-				old_extent_hooks = arena_get_extent_hooks(
-				    arena);
+				old_extent_hooks =
+				    ehooks_get_extent_hooks_ptr(
+					arena_get_ehooks(arena));
 				READ(old_extent_hooks, extent_hooks_t *);
 			}
 		}

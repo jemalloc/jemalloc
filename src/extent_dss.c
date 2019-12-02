@@ -194,9 +194,9 @@ extent_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
 					*commit = pages_decommit(ret, size);
 				}
 				if (*zero && *commit) {
-					extent_hooks_t *extent_hooks =
-					    arena_get_extent_hooks(arena);
 					extent_t extent;
+					ehooks_t *ehooks = arena_get_ehooks(
+					    arena);
 
 					extent_init(&extent,
 					    arena_ind_get(arena), ret, size,
@@ -204,8 +204,7 @@ extent_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
 					    extent_state_active, false, true,
 					    true, EXTENT_NOT_HEAD);
 					if (extent_purge_forced_wrapper(tsdn,
-					    arena, extent_hooks, &extent, 0,
-					    size)) {
+					    arena, ehooks, &extent, 0, size)) {
 						memset(ret, 0, size);
 					}
 				}
