@@ -1,6 +1,7 @@
 #ifndef JEMALLOC_INTERNAL_BASE_STRUCTS_H
 #define JEMALLOC_INTERNAL_BASE_STRUCTS_H
 
+#include "jemalloc/internal/ehooks.h"
 #include "jemalloc/internal/extent.h"
 #include "jemalloc/internal/jemalloc_internal_types.h"
 #include "jemalloc/internal/mutex.h"
@@ -23,10 +24,9 @@ struct base_s {
 	unsigned ind;
 
 	/*
-	 * User-configurable extent hook functions.  Points to an
-	 * extent_hooks_t.
+	 * User-configurable extent hook functions.
 	 */
-	atomic_p_t extent_hooks;
+	ehooks_t ehooks;
 
 	/* Protects base_alloc() and base_stats_get() operations. */
 	malloc_mutex_t mtx;
