@@ -28,40 +28,38 @@ static void extent_destroy_default(extent_hooks_t *extent_hooks, void *addr,
     size_t size, bool committed, unsigned arena_ind);
 static bool extent_commit_default(extent_hooks_t *extent_hooks, void *addr,
     size_t size, size_t offset, size_t length, unsigned arena_ind);
-static bool extent_commit_impl(tsdn_t *tsdn, arena_t *arena,
-    extent_hooks_t *extent_hooks, extent_t *extent, size_t offset,
-    size_t length, bool growing_retained);
-static bool extent_decommit_default(extent_hooks_t *extent_hooks,
-    void *addr, size_t size, size_t offset, size_t length, unsigned arena_ind);
+static bool extent_commit_impl(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
+    extent_t *extent, size_t offset, size_t length, bool growing_retained);
+static bool extent_decommit_default(extent_hooks_t *extent_hooks, void *addr,
+    size_t size, size_t offset, size_t length, unsigned arena_ind);
 #ifdef PAGES_CAN_PURGE_LAZY
 static bool extent_purge_lazy_default(extent_hooks_t *extent_hooks, void *addr,
     size_t size, size_t offset, size_t length, unsigned arena_ind);
 #endif
 static bool extent_purge_lazy_impl(tsdn_t *tsdn, arena_t *arena,
-    extent_hooks_t *extent_hooks, extent_t *extent, size_t offset,
-    size_t length, bool growing_retained);
+    ehooks_t *ehooks, extent_t *extent, size_t offset, size_t length,
+    bool growing_retained);
 #ifdef PAGES_CAN_PURGE_FORCED
 static bool extent_purge_forced_default(extent_hooks_t *extent_hooks,
     void *addr, size_t size, size_t offset, size_t length, unsigned arena_ind);
 #endif
 static bool extent_purge_forced_impl(tsdn_t *tsdn, arena_t *arena,
-    extent_hooks_t *extent_hooks, extent_t *extent, size_t offset,
-    size_t length, bool growing_retained);
+    ehooks_t *ehooks, extent_t *extent, size_t offset, size_t length,
+    bool growing_retained);
 static bool extent_split_default(extent_hooks_t *extent_hooks, void *addr,
     size_t size, size_t size_a, size_t size_b, bool committed,
     unsigned arena_ind);
 static extent_t *extent_split_impl(tsdn_t *tsdn, arena_t *arena,
-    extent_hooks_t *extent_hooks, extent_t *extent, size_t size_a,
-    szind_t szind_a, bool slab_a, size_t size_b, szind_t szind_b, bool slab_b,
+    ehooks_t *ehooks, extent_t *extent, size_t size_a, szind_t szind_a,
+    bool slab_a, size_t size_b, szind_t szind_b, bool slab_b,
     bool growing_retained);
 static bool extent_merge_default(extent_hooks_t *extent_hooks, void *addr_a,
     size_t size_a, void *addr_b, size_t size_b, bool committed,
     unsigned arena_ind);
-static bool extent_merge_impl(tsdn_t *tsdn, arena_t *arena,
-    extent_hooks_t *extent_hooks, extent_t *a, extent_t *b,
-    bool growing_retained);
+static bool extent_merge_impl(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
+    extent_t *a, extent_t *b, bool growing_retained);
 
-const extent_hooks_t	extent_hooks_default = {
+const extent_hooks_t extent_hooks_default = {
 	extent_alloc_default,
 	extent_dalloc_default,
 	extent_destroy_default,
@@ -97,16 +95,14 @@ static atomic_zu_t highpages;
  */
 
 static void extent_deregister(tsdn_t *tsdn, extent_t *extent);
-static extent_t *extent_recycle(tsdn_t *tsdn, arena_t *arena,
-    extent_hooks_t *extent_hooks, eset_t *eset, void *new_addr,
-    size_t usize, size_t pad, size_t alignment, bool slab, szind_t szind,
-    bool *zero, bool *commit, bool growing_retained);
+static extent_t *extent_recycle(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
+    eset_t *eset, void *new_addr, size_t usize, size_t pad, size_t alignment,
+    bool slab, szind_t szind, bool *zero, bool *commit, bool growing_retained);
 static extent_t *extent_try_coalesce(tsdn_t *tsdn, arena_t *arena,
-    extent_hooks_t *extent_hooks, rtree_ctx_t *rtree_ctx, eset_t *eset,
-    extent_t *extent, bool *coalesced, bool growing_retained);
-static void extent_record(tsdn_t *tsdn, arena_t *arena,
-    extent_hooks_t *extent_hooks, eset_t *eset, extent_t *extent,
-    bool growing_retained);
+    ehooks_t *ehooks, rtree_ctx_t *rtree_ctx, eset_t *eset, extent_t *extent,
+    bool *coalesced, bool growing_retained);
+static void extent_record(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
+    eset_t *eset, extent_t *extent, bool growing_retained);
 
 /******************************************************************************/
 
@@ -224,13 +220,12 @@ extent_dalloc(tsdn_t *tsdn, arena_t *arena, extent_t *extent) {
 ph_gen(, extent_heap_, extent_heap_t, extent_t, ph_link, extent_snad_comp)
 
 static bool
-extent_try_delayed_coalesce(tsdn_t *tsdn, arena_t *arena,
-    extent_hooks_t *extent_hooks, rtree_ctx_t *rtree_ctx, eset_t *eset,
-    extent_t *extent) {
+extent_try_delayed_coalesce(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
+    rtree_ctx_t *rtree_ctx, eset_t *eset, extent_t *extent) {
 	extent_state_set(extent, extent_state_active);
 	bool coalesced;
-	extent = extent_try_coalesce(tsdn, arena, extent_hooks, rtree_ctx,
-	    eset, extent, &coalesced, false);
+	extent = extent_try_coalesce(tsdn, arena, ehooks, rtree_ctx, eset,
+	    extent, &coalesced, false);
 	extent_state_set(extent, eset_state_get(eset));
 
 	if (!coalesced) {
@@ -241,23 +236,23 @@ extent_try_delayed_coalesce(tsdn_t *tsdn, arena_t *arena,
 }
 
 extent_t *
-extents_alloc(tsdn_t *tsdn, arena_t *arena, extent_hooks_t *extent_hooks,
-    eset_t *eset, void *new_addr, size_t size, size_t pad,
-    size_t alignment, bool slab, szind_t szind, bool *zero, bool *commit) {
+extents_alloc(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks, eset_t *eset,
+    void *new_addr, size_t size, size_t pad, size_t alignment, bool slab,
+    szind_t szind, bool *zero, bool *commit) {
 	assert(size + pad != 0);
 	assert(alignment != 0);
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, 0);
 
-	extent_t *extent = extent_recycle(tsdn, arena, extent_hooks, eset,
-	    new_addr, size, pad, alignment, slab, szind, zero, commit, false);
+	extent_t *extent = extent_recycle(tsdn, arena, ehooks, eset, new_addr,
+	    size, pad, alignment, slab, szind, zero, commit, false);
 	assert(extent == NULL || extent_dumpable_get(extent));
 	return extent;
 }
 
 void
-extents_dalloc(tsdn_t *tsdn, arena_t *arena, extent_hooks_t *extent_hooks,
-    eset_t *eset, extent_t *extent) {
+extents_dalloc(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks, eset_t *eset,
+    extent_t *extent) {
 	assert(extent_base_get(extent) != NULL);
 	assert(extent_size_get(extent) != 0);
 	assert(extent_dumpable_get(extent));
@@ -267,12 +262,12 @@ extents_dalloc(tsdn_t *tsdn, arena_t *arena, extent_hooks_t *extent_hooks,
 	extent_addr_set(extent, extent_base_get(extent));
 	extent_zeroed_set(extent, false);
 
-	extent_record(tsdn, arena, extent_hooks, eset, extent, false);
+	extent_record(tsdn, arena, ehooks, eset, extent, false);
 }
 
 extent_t *
-extents_evict(tsdn_t *tsdn, arena_t *arena, extent_hooks_t *extent_hooks,
-    eset_t *eset, size_t npages_min) {
+extents_evict(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks, eset_t *eset,
+    size_t npages_min) {
 	rtree_ctx_t rtree_ctx_fallback;
 	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
 
@@ -301,8 +296,8 @@ extents_evict(tsdn_t *tsdn, arena_t *arena, extent_hooks_t *extent_hooks,
 			break;
 		}
 		/* Try to coalesce. */
-		if (extent_try_delayed_coalesce(tsdn, arena, extent_hooks,
-		    rtree_ctx, eset, extent)) {
+		if (extent_try_delayed_coalesce(tsdn, arena, ehooks, rtree_ctx,
+		    eset, extent)) {
 			break;
 		}
 		/*
@@ -339,8 +334,8 @@ label_return:
  * indicates OOM), e.g. when trying to split an existing extent.
  */
 static void
-extents_abandon_vm(tsdn_t *tsdn, arena_t *arena, extent_hooks_t *extent_hooks,
-    eset_t *eset, extent_t *extent, bool growing_retained) {
+extents_abandon_vm(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks, eset_t *eset,
+    extent_t *extent, bool growing_retained) {
 	size_t sz = extent_size_get(extent);
 	if (config_stats) {
 		arena_stats_accum_zu(&arena->stats.abandoned_vm, sz);
@@ -350,11 +345,10 @@ extents_abandon_vm(tsdn_t *tsdn, arena_t *arena, extent_hooks_t *extent_hooks,
 	 * that this is only a virtual memory leak.
 	 */
 	if (eset_state_get(eset) == extent_state_dirty) {
-		if (extent_purge_lazy_impl(tsdn, arena, extent_hooks,
-		    extent, 0, sz, growing_retained)) {
-			extent_purge_forced_impl(tsdn, arena, extent_hooks,
-			    extent, 0, extent_size_get(extent),
-			    growing_retained);
+		if (extent_purge_lazy_impl(tsdn, arena, ehooks, extent, 0, sz,
+		    growing_retained)) {
+			extent_purge_forced_impl(tsdn, arena, ehooks, extent, 0,
+			    extent_size_get(extent), growing_retained);
 		}
 	}
 	extent_dalloc(tsdn, arena, extent);
@@ -581,10 +575,9 @@ extent_deregister_no_gdump_sub(tsdn_t *tsdn, extent_t *extent) {
  * given allocation request.
  */
 static extent_t *
-extent_recycle_extract(tsdn_t *tsdn, arena_t *arena,
-    extent_hooks_t *extent_hooks, rtree_ctx_t *rtree_ctx, eset_t *eset,
-    void *new_addr, size_t size, size_t pad, size_t alignment, bool slab,
-    bool growing_retained) {
+extent_recycle_extract(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
+    rtree_ctx_t *rtree_ctx, eset_t *eset, void *new_addr, size_t size,
+    size_t pad, size_t alignment, bool slab, bool growing_retained) {
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, growing_retained ? 1 : 0);
 	assert(alignment > 0);
@@ -668,8 +661,8 @@ typedef enum {
 } extent_split_interior_result_t;
 
 static extent_split_interior_result_t
-extent_split_interior(tsdn_t *tsdn, arena_t *arena,
-    extent_hooks_t *extent_hooks, rtree_ctx_t *rtree_ctx,
+extent_split_interior(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
+    rtree_ctx_t *rtree_ctx,
     /* The result of splitting, in case of success. */
     extent_t **extent, extent_t **lead, extent_t **trail,
     /* The mess to clean up, in case of error. */
@@ -693,9 +686,9 @@ extent_split_interior(tsdn_t *tsdn, arena_t *arena,
 	/* Split the lead. */
 	if (leadsize != 0) {
 		*lead = *extent;
-		*extent = extent_split_impl(tsdn, arena, extent_hooks,
-		    *lead, leadsize, SC_NSIZES, false, esize + trailsize, szind,
-		    slab, growing_retained);
+		*extent = extent_split_impl(tsdn, arena, ehooks, *lead,
+		    leadsize, SC_NSIZES, false, esize + trailsize, szind, slab,
+		    growing_retained);
 		if (*extent == NULL) {
 			*to_leak = *lead;
 			*lead = NULL;
@@ -705,9 +698,8 @@ extent_split_interior(tsdn_t *tsdn, arena_t *arena,
 
 	/* Split the trail. */
 	if (trailsize != 0) {
-		*trail = extent_split_impl(tsdn, arena, extent_hooks, *extent,
-		    esize, szind, slab, trailsize, SC_NSIZES, false,
-		    growing_retained);
+		*trail = extent_split_impl(tsdn, arena, ehooks, *extent, esize,
+		    szind, slab, trailsize, SC_NSIZES, false, growing_retained);
 		if (*trail == NULL) {
 			*to_leak = *extent;
 			*to_salvage = *lead;
@@ -745,18 +737,18 @@ extent_split_interior(tsdn_t *tsdn, arena_t *arena,
  * and put back into eset.
  */
 static extent_t *
-extent_recycle_split(tsdn_t *tsdn, arena_t *arena,
-    extent_hooks_t *extent_hooks, rtree_ctx_t *rtree_ctx, eset_t *eset,
-    void *new_addr, size_t size, size_t pad, size_t alignment, bool slab,
-    szind_t szind, extent_t *extent, bool growing_retained) {
+extent_recycle_split(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
+    rtree_ctx_t *rtree_ctx, eset_t *eset, void *new_addr, size_t size,
+    size_t pad, size_t alignment, bool slab, szind_t szind, extent_t *extent,
+    bool growing_retained) {
 	extent_t *lead;
 	extent_t *trail;
 	extent_t *to_leak;
 	extent_t *to_salvage;
 
 	extent_split_interior_result_t result = extent_split_interior(
-	    tsdn, arena, extent_hooks, rtree_ctx, &extent, &lead, &trail,
-	    &to_leak, &to_salvage, new_addr, size, pad, alignment, slab, szind,
+	    tsdn, arena, ehooks, rtree_ctx, &extent, &lead, &trail, &to_leak,
+	    &to_salvage, new_addr, size, pad, alignment, slab, szind,
 	    growing_retained);
 
 	if (!maps_coalesce && result != extent_split_interior_ok
@@ -790,8 +782,8 @@ extent_recycle_split(tsdn_t *tsdn, arena_t *arena,
 		if (to_leak != NULL) {
 			void *leak = extent_base_get(to_leak);
 			extent_deregister_no_gdump_sub(tsdn, to_leak);
-			extents_abandon_vm(tsdn, arena, extent_hooks, eset,
-			    to_leak, growing_retained);
+			extents_abandon_vm(tsdn, arena, ehooks, eset, to_leak,
+			    growing_retained);
 			assert(extent_lock_from_addr(tsdn, rtree_ctx, leak,
 			    false) == NULL);
 		}
@@ -807,7 +799,7 @@ extent_need_manual_zero(arena_t *arena) {
 	 * default extent hooks installed (in which case the purge semantics may
 	 * change); or 2) transparent huge pages enabled.
 	 */
-	return (!arena_has_default_hooks(arena) ||
+	return (!ehooks_are_default(arena_get_ehooks(arena)) ||
 		(opt_thp == thp_mode_always));
 }
 
@@ -816,10 +808,9 @@ extent_need_manual_zero(arena_t *arena) {
  * in the given eset_t.
  */
 static extent_t *
-extent_recycle(tsdn_t *tsdn, arena_t *arena, extent_hooks_t *extent_hooks,
-    eset_t *eset, void *new_addr, size_t size, size_t pad,
-    size_t alignment, bool slab, szind_t szind, bool *zero, bool *commit,
-    bool growing_retained) {
+extent_recycle(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks, eset_t *eset,
+    void *new_addr, size_t size, size_t pad, size_t alignment, bool slab,
+    szind_t szind, bool *zero, bool *commit, bool growing_retained) {
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, growing_retained ? 1 : 0);
 	assert(new_addr == NULL || !slab);
@@ -829,25 +820,25 @@ extent_recycle(tsdn_t *tsdn, arena_t *arena, extent_hooks_t *extent_hooks,
 	rtree_ctx_t rtree_ctx_fallback;
 	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
 
-	extent_t *extent = extent_recycle_extract(tsdn, arena, extent_hooks,
+	extent_t *extent = extent_recycle_extract(tsdn, arena, ehooks,
 	    rtree_ctx, eset, new_addr, size, pad, alignment, slab,
 	    growing_retained);
 	if (extent == NULL) {
 		return NULL;
 	}
 
-	extent = extent_recycle_split(tsdn, arena, extent_hooks, rtree_ctx,
-	    eset, new_addr, size, pad, alignment, slab, szind, extent,
+	extent = extent_recycle_split(tsdn, arena, ehooks, rtree_ctx, eset,
+	    new_addr, size, pad, alignment, slab, szind, extent,
 	    growing_retained);
 	if (extent == NULL) {
 		return NULL;
 	}
 
 	if (*commit && !extent_committed_get(extent)) {
-		if (extent_commit_impl(tsdn, arena, extent_hooks, extent,
-		    0, extent_size_get(extent), growing_retained)) {
-			extent_record(tsdn, arena, extent_hooks, eset,
-			    extent, growing_retained);
+		if (extent_commit_impl(tsdn, arena, ehooks, extent, 0,
+		    extent_size_get(extent), growing_retained)) {
+			extent_record(tsdn, arena, ehooks, eset, extent,
+			    growing_retained);
 			return NULL;
 		}
 		if (!extent_need_manual_zero(arena)) {
@@ -985,9 +976,9 @@ extent_hook_post_reentrancy(tsdn_t *tsdn) {
  * virtual memory ranges retained by each arena.
  */
 static extent_t *
-extent_grow_retained(tsdn_t *tsdn, arena_t *arena,
-    extent_hooks_t *extent_hooks, size_t size, size_t pad, size_t alignment,
-    bool slab, szind_t szind, bool *zero, bool *commit) {
+extent_grow_retained(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
+    size_t size, size_t pad, size_t alignment, bool slab, szind_t szind,
+    bool *zero, bool *commit) {
 	malloc_mutex_assert_owner(tsdn, &arena->extent_grow_mtx);
 	assert(pad == 0 || !slab);
 	assert(!*zero || !slab);
@@ -1022,14 +1013,13 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena,
 	bool committed = false;
 
 	void *ptr;
-	if (extent_hooks == &extent_hooks_default) {
+	if (ehooks_are_default(ehooks)) {
 		ptr = extent_alloc_default_impl(tsdn, arena, NULL,
 		    alloc_size, PAGE, &zeroed, &committed);
 	} else {
 		extent_hook_pre_reentrancy(tsdn, arena);
-		ptr = extent_hooks->alloc(extent_hooks, NULL,
-		    alloc_size, PAGE, &zeroed, &committed,
-		    arena_ind_get(arena));
+		ptr = ehooks_alloc(ehooks, NULL, alloc_size, PAGE, &zeroed,
+		    &committed, arena_ind_get(arena));
 		extent_hook_post_reentrancy(tsdn);
 	}
 
@@ -1060,18 +1050,17 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena,
 	extent_t *trail;
 	extent_t *to_leak;
 	extent_t *to_salvage;
-	extent_split_interior_result_t result = extent_split_interior(
-	    tsdn, arena, extent_hooks, rtree_ctx, &extent, &lead, &trail,
-	    &to_leak, &to_salvage, NULL, size, pad, alignment, slab, szind,
-	    true);
+	extent_split_interior_result_t result = extent_split_interior(tsdn,
+	    arena, ehooks, rtree_ctx, &extent, &lead, &trail, &to_leak,
+	    &to_salvage, NULL, size, pad, alignment, slab, szind, true);
 
 	if (result == extent_split_interior_ok) {
 		if (lead != NULL) {
-			extent_record(tsdn, arena, extent_hooks,
+			extent_record(tsdn, arena, ehooks,
 			    &arena->eset_retained, lead, true);
 		}
 		if (trail != NULL) {
-			extent_record(tsdn, arena, extent_hooks,
+			extent_record(tsdn, arena, ehooks,
 			    &arena->eset_retained, trail, true);
 		}
 	} else {
@@ -1084,21 +1073,21 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena,
 			if (config_prof) {
 				extent_gdump_add(tsdn, to_salvage);
 			}
-			extent_record(tsdn, arena, extent_hooks,
+			extent_record(tsdn, arena, ehooks,
 			    &arena->eset_retained, to_salvage, true);
 		}
 		if (to_leak != NULL) {
 			extent_deregister_no_gdump_sub(tsdn, to_leak);
-			extents_abandon_vm(tsdn, arena, extent_hooks,
+			extents_abandon_vm(tsdn, arena, ehooks,
 			    &arena->eset_retained, to_leak, true);
 		}
 		goto label_err;
 	}
 
 	if (*commit && !extent_committed_get(extent)) {
-		if (extent_commit_impl(tsdn, arena, extent_hooks, extent, 0,
+		if (extent_commit_impl(tsdn, arena, ehooks, extent, 0,
 		    extent_size_get(extent), true)) {
-			extent_record(tsdn, arena, extent_hooks,
+			extent_record(tsdn, arena, ehooks,
 			    &arena->eset_retained, extent, true);
 			goto label_err;
 		}
@@ -1151,15 +1140,15 @@ label_err:
 }
 
 static extent_t *
-extent_alloc_retained(tsdn_t *tsdn, arena_t *arena,
-    extent_hooks_t *extent_hooks, void *new_addr, size_t size, size_t pad,
-    size_t alignment, bool slab, szind_t szind, bool *zero, bool *commit) {
+extent_alloc_retained(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
+    void *new_addr, size_t size, size_t pad, size_t alignment, bool slab,
+    szind_t szind, bool *zero, bool *commit) {
 	assert(size != 0);
 	assert(alignment != 0);
 
 	malloc_mutex_lock(tsdn, &arena->extent_grow_mtx);
 
-	extent_t *extent = extent_recycle(tsdn, arena, extent_hooks,
+	extent_t *extent = extent_recycle(tsdn, arena, ehooks,
 	    &arena->eset_retained, new_addr, size, pad, alignment, slab,
 	    szind, zero, commit, true);
 	if (extent != NULL) {
@@ -1168,8 +1157,8 @@ extent_alloc_retained(tsdn_t *tsdn, arena_t *arena,
 			extent_gdump_add(tsdn, extent);
 		}
 	} else if (opt_retain && new_addr == NULL) {
-		extent = extent_grow_retained(tsdn, arena, extent_hooks, size,
-		    pad, alignment, slab, szind, zero, commit);
+		extent = extent_grow_retained(tsdn, arena, ehooks, size, pad,
+		    alignment, slab, szind, zero, commit);
 		/* extent_grow_retained() always releases extent_grow_mtx. */
 	} else {
 		malloc_mutex_unlock(tsdn, &arena->extent_grow_mtx);
@@ -1180,9 +1169,9 @@ extent_alloc_retained(tsdn_t *tsdn, arena_t *arena,
 }
 
 static extent_t *
-extent_alloc_wrapper_hard(tsdn_t *tsdn, arena_t *arena,
-    extent_hooks_t *extent_hooks, void *new_addr, size_t size, size_t pad,
-    size_t alignment, bool slab, szind_t szind, bool *zero, bool *commit) {
+extent_alloc_wrapper_hard(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
+    void *new_addr, size_t size, size_t pad, size_t alignment, bool slab,
+    szind_t szind, bool *zero, bool *commit) {
 	size_t esize = size + pad;
 	extent_t *extent = extent_alloc(tsdn, arena);
 	if (extent == NULL) {
@@ -1190,14 +1179,14 @@ extent_alloc_wrapper_hard(tsdn_t *tsdn, arena_t *arena,
 	}
 	void *addr;
 	size_t palignment = ALIGNMENT_CEILING(alignment, PAGE);
-	if (extent_hooks == &extent_hooks_default) {
+	if (ehooks_are_default(ehooks)) {
 		/* Call directly to propagate tsdn. */
 		addr = extent_alloc_default_impl(tsdn, arena, new_addr, esize,
 		    palignment, zero, commit);
 	} else {
 		extent_hook_pre_reentrancy(tsdn, arena);
-		addr = extent_hooks->alloc(extent_hooks, new_addr,
-		    esize, palignment, zero, commit, arena_ind_get(arena));
+		addr = ehooks_alloc(ehooks, new_addr, esize, palignment, zero,
+		    commit, arena_ind_get(arena));
 		extent_hook_post_reentrancy(tsdn);
 	}
 	if (addr == NULL) {
@@ -1219,14 +1208,14 @@ extent_alloc_wrapper_hard(tsdn_t *tsdn, arena_t *arena,
 }
 
 extent_t *
-extent_alloc_wrapper(tsdn_t *tsdn, arena_t *arena,
-    extent_hooks_t *extent_hooks, void *new_addr, size_t size, size_t pad,
-    size_t alignment, bool slab, szind_t szind, bool *zero, bool *commit) {
+extent_alloc_wrapper(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
+    void *new_addr, size_t size, size_t pad, size_t alignment, bool slab,
+    szind_t szind, bool *zero, bool *commit) {
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, 0);
 
-	extent_t *extent = extent_alloc_retained(tsdn, arena, extent_hooks,
-	    new_addr, size, pad, alignment, slab, szind, zero, commit);
+	extent_t *extent = extent_alloc_retained(tsdn, arena, ehooks, new_addr,
+	    size, pad, alignment, slab, szind, zero, commit);
 	if (extent == NULL) {
 		if (opt_retain && new_addr != NULL) {
 			/*
@@ -1237,7 +1226,7 @@ extent_alloc_wrapper(tsdn_t *tsdn, arena_t *arena,
 			 */
 			return NULL;
 		}
-		extent = extent_alloc_wrapper_hard(tsdn, arena, extent_hooks,
+		extent = extent_alloc_wrapper_hard(tsdn, arena, ehooks,
 		    new_addr, size, pad, alignment, slab, szind, zero, commit);
 	}
 
@@ -1266,15 +1255,14 @@ extent_can_coalesce(arena_t *arena, eset_t *eset, const extent_t *inner,
 }
 
 static bool
-extent_coalesce(tsdn_t *tsdn, arena_t *arena, extent_hooks_t *extent_hooks,
-    eset_t *eset, extent_t *inner, extent_t *outer, bool forward,
-    bool growing_retained) {
+extent_coalesce(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks, eset_t *eset,
+    extent_t *inner, extent_t *outer, bool forward, bool growing_retained) {
 	assert(extent_can_coalesce(arena, eset, inner, outer));
 
 	extent_activate_locked(tsdn, arena, eset, outer);
 
 	malloc_mutex_unlock(tsdn, &eset->mtx);
-	bool err = extent_merge_impl(tsdn, arena, extent_hooks,
+	bool err = extent_merge_impl(tsdn, arena, ehooks,
 	    forward ? inner : outer, forward ? outer : inner, growing_retained);
 	malloc_mutex_lock(tsdn, &eset->mtx);
 
@@ -1286,10 +1274,9 @@ extent_coalesce(tsdn_t *tsdn, arena_t *arena, extent_hooks_t *extent_hooks,
 }
 
 static extent_t *
-extent_try_coalesce_impl(tsdn_t *tsdn, arena_t *arena,
-    extent_hooks_t *extent_hooks, rtree_ctx_t *rtree_ctx, eset_t *eset,
-    extent_t *extent, bool *coalesced, bool growing_retained,
-    bool inactive_only) {
+extent_try_coalesce_impl(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
+    rtree_ctx_t *rtree_ctx, eset_t *eset, extent_t *extent, bool *coalesced,
+    bool growing_retained, bool inactive_only) {
 	/*
 	 * We avoid checking / locking inactive neighbors for large size
 	 * classes, since they are eagerly coalesced on deallocation which can
@@ -1318,7 +1305,7 @@ extent_try_coalesce_impl(tsdn_t *tsdn, arena_t *arena,
 			extent_unlock(tsdn, next);
 
 			if (can_coalesce && !extent_coalesce(tsdn, arena,
-			    extent_hooks, eset, extent, next, true,
+			    ehooks, eset, extent, next, true,
 			    growing_retained)) {
 				if (eset->delay_coalesce) {
 					/* Do minimal coalescing. */
@@ -1338,7 +1325,7 @@ extent_try_coalesce_impl(tsdn_t *tsdn, arena_t *arena,
 			extent_unlock(tsdn, prev);
 
 			if (can_coalesce && !extent_coalesce(tsdn, arena,
-			    extent_hooks, eset, extent, prev, false,
+			    ehooks, eset, extent, prev, false,
 			    growing_retained)) {
 				extent = prev;
 				if (eset->delay_coalesce) {
@@ -1358,19 +1345,19 @@ extent_try_coalesce_impl(tsdn_t *tsdn, arena_t *arena,
 }
 
 static extent_t *
-extent_try_coalesce(tsdn_t *tsdn, arena_t *arena,
-    extent_hooks_t *extent_hooks, rtree_ctx_t *rtree_ctx, eset_t *eset,
-    extent_t *extent, bool *coalesced, bool growing_retained) {
-	return extent_try_coalesce_impl(tsdn, arena, extent_hooks, rtree_ctx,
-	    eset, extent, coalesced, growing_retained, false);
+extent_try_coalesce(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
+    rtree_ctx_t *rtree_ctx, eset_t *eset, extent_t *extent, bool *coalesced,
+    bool growing_retained) {
+	return extent_try_coalesce_impl(tsdn, arena, ehooks, rtree_ctx, eset,
+	    extent, coalesced, growing_retained, false);
 }
 
 static extent_t *
-extent_try_coalesce_large(tsdn_t *tsdn, arena_t *arena,
-    extent_hooks_t *extent_hooks, rtree_ctx_t *rtree_ctx, eset_t *eset,
-    extent_t *extent, bool *coalesced, bool growing_retained) {
-	return extent_try_coalesce_impl(tsdn, arena, extent_hooks, rtree_ctx,
-	    eset, extent, coalesced, growing_retained, true);
+extent_try_coalesce_large(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
+    rtree_ctx_t *rtree_ctx, eset_t *eset, extent_t *extent, bool *coalesced,
+    bool growing_retained) {
+	return extent_try_coalesce_impl(tsdn, arena, ehooks, rtree_ctx, eset,
+	    extent, coalesced, growing_retained, true);
 }
 
 /*
@@ -1378,8 +1365,8 @@ extent_try_coalesce_large(tsdn_t *tsdn, arena_t *arena,
  * given eset_t (coalesces, deregisters slab interiors, the heap operations).
  */
 static void
-extent_record(tsdn_t *tsdn, arena_t *arena, extent_hooks_t *extent_hooks,
-    eset_t *eset, extent_t *extent, bool growing_retained) {
+extent_record(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks, eset_t *eset,
+    extent_t *extent, bool growing_retained) {
 	rtree_ctx_t rtree_ctx_fallback;
 	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
 
@@ -1399,22 +1386,22 @@ extent_record(tsdn_t *tsdn, arena_t *arena, extent_hooks_t *extent_hooks,
 	    (uintptr_t)extent_base_get(extent), true) == extent);
 
 	if (!eset->delay_coalesce) {
-		extent = extent_try_coalesce(tsdn, arena, extent_hooks,
-		    rtree_ctx, eset, extent, NULL, growing_retained);
+		extent = extent_try_coalesce(tsdn, arena, ehooks, rtree_ctx,
+		    eset, extent, NULL, growing_retained);
 	} else if (extent_size_get(extent) >= SC_LARGE_MINCLASS) {
 		assert(eset == &arena->eset_dirty);
 		/* Always coalesce large eset eagerly. */
 		bool coalesced;
 		do {
 			assert(extent_state_get(extent) == extent_state_active);
-			extent = extent_try_coalesce_large(tsdn, arena,
-			    extent_hooks, rtree_ctx, eset, extent,
-			    &coalesced, growing_retained);
+			extent = extent_try_coalesce_large(tsdn, arena, ehooks,
+			    rtree_ctx, eset, extent, &coalesced,
+			    growing_retained);
 		} while (coalesced);
 		if (extent_size_get(extent) >= oversize_threshold) {
 			/* Shortcut to purge the oversize extent eagerly. */
 			malloc_mutex_unlock(tsdn, &eset->mtx);
-			arena_decay_extent(tsdn, arena, extent_hooks, extent);
+			arena_decay_extent(tsdn, arena, ehooks, extent);
 			return;
 		}
 	}
@@ -1425,7 +1412,7 @@ extent_record(tsdn_t *tsdn, arena_t *arena, extent_hooks_t *extent_hooks,
 
 void
 extent_dalloc_gap(tsdn_t *tsdn, arena_t *arena, extent_t *extent) {
-	extent_hooks_t *extent_hooks = arena_get_extent_hooks(arena);
+	ehooks_t *ehooks = arena_get_ehooks(arena);
 
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, 0);
@@ -1434,7 +1421,7 @@ extent_dalloc_gap(tsdn_t *tsdn, arena_t *arena, extent_t *extent) {
 		extent_dalloc(tsdn, arena, extent);
 		return;
 	}
-	extent_dalloc_wrapper(tsdn, arena, extent_hooks, extent);
+	extent_dalloc_wrapper(tsdn, arena, ehooks, extent);
 }
 
 static bool
@@ -1458,8 +1445,8 @@ extent_dalloc_default(extent_hooks_t *extent_hooks, void *addr, size_t size,
 }
 
 static bool
-extent_dalloc_wrapper_try(tsdn_t *tsdn, arena_t *arena,
-    extent_hooks_t *extent_hooks, extent_t *extent) {
+extent_dalloc_wrapper_try(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
+    extent_t *extent) {
 	bool err;
 
 	assert(extent_base_get(extent) != NULL);
@@ -1470,16 +1457,15 @@ extent_dalloc_wrapper_try(tsdn_t *tsdn, arena_t *arena,
 	extent_addr_set(extent, extent_base_get(extent));
 
 	/* Try to deallocate. */
-	if (extent_hooks == &extent_hooks_default) {
+	if (ehooks_are_default(ehooks)) {
 		/* Call directly to propagate tsdn. */
 		err = extent_dalloc_default_impl(extent_base_get(extent),
 		    extent_size_get(extent));
 	} else {
 		extent_hook_pre_reentrancy(tsdn, arena);
-		err = (extent_hooks->dalloc == NULL ||
-		    extent_hooks->dalloc(extent_hooks,
-		    extent_base_get(extent), extent_size_get(extent),
-		    extent_committed_get(extent), arena_ind_get(arena)));
+		err = ehooks_dalloc(ehooks, extent_base_get(extent),
+		    extent_size_get(extent), extent_committed_get(extent),
+		    arena_ind_get(arena));
 		extent_hook_post_reentrancy(tsdn);
 	}
 
@@ -1491,51 +1477,48 @@ extent_dalloc_wrapper_try(tsdn_t *tsdn, arena_t *arena,
 }
 
 void
-extent_dalloc_wrapper(tsdn_t *tsdn, arena_t *arena,
-    extent_hooks_t *extent_hooks, extent_t *extent) {
+extent_dalloc_wrapper(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
+    extent_t *extent) {
 	assert(extent_dumpable_get(extent));
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, 0);
 
 	/* Avoid calling the default extent_dalloc unless have to. */
-	if (extent_hooks != &extent_hooks_default || extent_may_dalloc()) {
+	if (!ehooks_are_default(ehooks) || extent_may_dalloc()) {
 		/*
 		 * Deregister first to avoid a race with other allocating
 		 * threads, and reregister if deallocation fails.
 		 */
 		extent_deregister(tsdn, extent);
-		if (!extent_dalloc_wrapper_try(tsdn, arena, extent_hooks,
-		    extent)) {
+		if (!extent_dalloc_wrapper_try(tsdn, arena, ehooks, extent)) {
 			return;
 		}
 		extent_reregister(tsdn, extent);
 	}
 
-	if (extent_hooks != &extent_hooks_default) {
+	if (!ehooks_are_default(ehooks)) {
 		extent_hook_pre_reentrancy(tsdn, arena);
 	}
 	/* Try to decommit; purge if that fails. */
 	bool zeroed;
 	if (!extent_committed_get(extent)) {
 		zeroed = true;
-	} else if (!extent_decommit_wrapper(tsdn, arena, extent_hooks, extent,
-	    0, extent_size_get(extent))) {
+	} else if (!extent_decommit_wrapper(tsdn, arena, ehooks, extent, 0,
+	    extent_size_get(extent))) {
 		zeroed = true;
-	} else if (extent_hooks->purge_forced != NULL &&
-	    !extent_hooks->purge_forced(extent_hooks,
-	    extent_base_get(extent), extent_size_get(extent), 0,
-	    extent_size_get(extent), arena_ind_get(arena))) {
+	} else if (!ehooks_purge_forced(ehooks, extent_base_get(extent),
+	    extent_size_get(extent), 0, extent_size_get(extent),
+	    arena_ind_get(arena))) {
 		zeroed = true;
 	} else if (extent_state_get(extent) == extent_state_muzzy ||
-	    (extent_hooks->purge_lazy != NULL &&
-	    !extent_hooks->purge_lazy(extent_hooks,
-	    extent_base_get(extent), extent_size_get(extent), 0,
-	    extent_size_get(extent), arena_ind_get(arena)))) {
+	    !ehooks_purge_lazy(ehooks, extent_base_get(extent),
+	    extent_size_get(extent), 0, extent_size_get(extent),
+	    arena_ind_get(arena))) {
 		zeroed = false;
 	} else {
 		zeroed = false;
 	}
-	if (extent_hooks != &extent_hooks_default) {
+	if (!ehooks_are_default(ehooks)) {
 		extent_hook_post_reentrancy(tsdn);
 	}
 	extent_zeroed_set(extent, zeroed);
@@ -1544,8 +1527,8 @@ extent_dalloc_wrapper(tsdn_t *tsdn, arena_t *arena,
 		extent_gdump_sub(tsdn, extent);
 	}
 
-	extent_record(tsdn, arena, extent_hooks, &arena->eset_retained,
-	    extent, false);
+	extent_record(tsdn, arena, ehooks, &arena->eset_retained, extent,
+	    false);
 }
 
 static void
@@ -1562,8 +1545,8 @@ extent_destroy_default(extent_hooks_t *extent_hooks, void *addr, size_t size,
 }
 
 void
-extent_destroy_wrapper(tsdn_t *tsdn, arena_t *arena,
-    extent_hooks_t *extent_hooks, extent_t *extent) {
+extent_destroy_wrapper(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
+    extent_t *extent) {
 	assert(extent_base_get(extent) != NULL);
 	assert(extent_size_get(extent) != 0);
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
@@ -1575,15 +1558,15 @@ extent_destroy_wrapper(tsdn_t *tsdn, arena_t *arena,
 	extent_addr_set(extent, extent_base_get(extent));
 
 	/* Try to destroy; silently fail otherwise. */
-	if (extent_hooks == &extent_hooks_default) {
+	if (ehooks_are_default(ehooks)) {
 		/* Call directly to propagate tsdn. */
 		extent_destroy_default_impl(extent_base_get(extent),
 		    extent_size_get(extent));
-	} else if (extent_hooks->destroy != NULL) {
+	} else if (!ehooks_destroy_is_noop(ehooks)) {
 		extent_hook_pre_reentrancy(tsdn, arena);
-		extent_hooks->destroy(extent_hooks,
-		    extent_base_get(extent), extent_size_get(extent),
-		    extent_committed_get(extent), arena_ind_get(arena));
+		ehooks_destroy(ehooks, extent_base_get(extent),
+		    extent_size_get(extent), extent_committed_get(extent),
+		    arena_ind_get(arena));
 		extent_hook_post_reentrancy(tsdn);
 	}
 
@@ -1598,19 +1581,17 @@ extent_commit_default(extent_hooks_t *extent_hooks, void *addr, size_t size,
 }
 
 static bool
-extent_commit_impl(tsdn_t *tsdn, arena_t *arena,
-    extent_hooks_t *extent_hooks, extent_t *extent, size_t offset,
-    size_t length, bool growing_retained) {
+extent_commit_impl(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
+    extent_t *extent, size_t offset, size_t length, bool growing_retained) {
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, growing_retained ? 1 : 0);
 
-	if (extent_hooks != &extent_hooks_default) {
+	if (!ehooks_are_default(ehooks)) {
 		extent_hook_pre_reentrancy(tsdn, arena);
 	}
-	bool err = (extent_hooks->commit == NULL ||
-	    extent_hooks->commit(extent_hooks, extent_base_get(extent),
-	    extent_size_get(extent), offset, length, arena_ind_get(arena)));
-	if (extent_hooks != &extent_hooks_default) {
+	bool err = ehooks_commit(ehooks, extent_base_get(extent),
+	    extent_size_get(extent), offset, length, arena_ind_get(arena));
+	if (!ehooks_are_default(ehooks)) {
 		extent_hook_post_reentrancy(tsdn);
 	}
 	extent_committed_set(extent, extent_committed_get(extent) || !err);
@@ -1618,11 +1599,11 @@ extent_commit_impl(tsdn_t *tsdn, arena_t *arena,
 }
 
 bool
-extent_commit_wrapper(tsdn_t *tsdn, arena_t *arena,
-    extent_hooks_t *extent_hooks, extent_t *extent, size_t offset,
+extent_commit_wrapper(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
+    extent_t *extent, size_t offset,
     size_t length) {
-	return extent_commit_impl(tsdn, arena, extent_hooks, extent, offset,
-	    length, false);
+	return extent_commit_impl(tsdn, arena, ehooks, extent, offset, length,
+	    false);
 }
 
 static bool
@@ -1633,20 +1614,17 @@ extent_decommit_default(extent_hooks_t *extent_hooks, void *addr, size_t size,
 }
 
 bool
-extent_decommit_wrapper(tsdn_t *tsdn, arena_t *arena,
-    extent_hooks_t *extent_hooks, extent_t *extent, size_t offset,
-    size_t length) {
+extent_decommit_wrapper(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
+    extent_t *extent, size_t offset, size_t length) {
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, 0);
 
-	if (extent_hooks != &extent_hooks_default) {
+	if (!ehooks_are_default(ehooks)) {
 		extent_hook_pre_reentrancy(tsdn, arena);
 	}
-	bool err = (extent_hooks->decommit == NULL ||
-	    extent_hooks->decommit(extent_hooks,
-	    extent_base_get(extent), extent_size_get(extent), offset, length,
-	    arena_ind_get(arena)));
-	if (extent_hooks != &extent_hooks_default) {
+	bool err = ehooks_decommit(ehooks, extent_base_get(extent),
+	    extent_size_get(extent), offset, length, arena_ind_get(arena));
+	if (!ehooks_are_default(ehooks)) {
 		extent_hook_post_reentrancy(tsdn);
 	}
 	extent_committed_set(extent, extent_committed_get(extent) && err);
@@ -1668,22 +1646,20 @@ extent_purge_lazy_default(extent_hooks_t *extent_hooks, void *addr, size_t size,
 #endif
 
 static bool
-extent_purge_lazy_impl(tsdn_t *tsdn, arena_t *arena,
-    extent_hooks_t *extent_hooks, extent_t *extent, size_t offset,
-    size_t length, bool growing_retained) {
+extent_purge_lazy_impl(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
+    extent_t *extent, size_t offset, size_t length, bool growing_retained) {
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, growing_retained ? 1 : 0);
 
-	if (extent_hooks->purge_lazy == NULL) {
+	if (ehooks_purge_lazy_will_fail(ehooks)) {
 		return true;
 	}
-	if (extent_hooks != &extent_hooks_default) {
+	if (!ehooks_are_default(ehooks)) {
 		extent_hook_pre_reentrancy(tsdn, arena);
 	}
-	bool err = extent_hooks->purge_lazy(extent_hooks,
-	    extent_base_get(extent), extent_size_get(extent), offset, length,
-	    arena_ind_get(arena));
-	if (extent_hooks != &extent_hooks_default) {
+	bool err = ehooks_purge_lazy(ehooks, extent_base_get(extent),
+	    extent_size_get(extent), offset, length, arena_ind_get(arena));
+	if (!ehooks_are_default(ehooks)) {
 		extent_hook_post_reentrancy(tsdn);
 	}
 
@@ -1691,11 +1667,10 @@ extent_purge_lazy_impl(tsdn_t *tsdn, arena_t *arena,
 }
 
 bool
-extent_purge_lazy_wrapper(tsdn_t *tsdn, arena_t *arena,
-    extent_hooks_t *extent_hooks, extent_t *extent, size_t offset,
-    size_t length) {
-	return extent_purge_lazy_impl(tsdn, arena, extent_hooks, extent,
-	    offset, length, false);
+extent_purge_lazy_wrapper(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
+    extent_t *extent, size_t offset, size_t length) {
+	return extent_purge_lazy_impl(tsdn, arena, ehooks, extent, offset,
+	    length, false);
 }
 
 #ifdef PAGES_CAN_PURGE_FORCED
@@ -1713,32 +1688,29 @@ extent_purge_forced_default(extent_hooks_t *extent_hooks, void *addr,
 #endif
 
 static bool
-extent_purge_forced_impl(tsdn_t *tsdn, arena_t *arena,
-    extent_hooks_t *extent_hooks, extent_t *extent, size_t offset,
-    size_t length, bool growing_retained) {
+extent_purge_forced_impl(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
+    extent_t *extent, size_t offset, size_t length, bool growing_retained) {
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, growing_retained ? 1 : 0);
 
-	if (extent_hooks->purge_forced == NULL) {
+	if (ehooks_purge_forced_will_fail(ehooks)) {
 		return true;
 	}
-	if (extent_hooks != &extent_hooks_default) {
+	if (!ehooks_are_default(ehooks)) {
 		extent_hook_pre_reentrancy(tsdn, arena);
 	}
-	bool err = extent_hooks->purge_forced(extent_hooks,
-	    extent_base_get(extent), extent_size_get(extent), offset, length,
-	    arena_ind_get(arena));
-	if (extent_hooks != &extent_hooks_default) {
+	bool err = ehooks_purge_forced(ehooks, extent_base_get(extent),
+	    extent_size_get(extent), offset, length, arena_ind_get(arena));
+	if (!ehooks_are_default(ehooks)) {
 		extent_hook_post_reentrancy(tsdn);
 	}
 	return err;
 }
 
 bool
-extent_purge_forced_wrapper(tsdn_t *tsdn, arena_t *arena,
-    extent_hooks_t *extent_hooks, extent_t *extent, size_t offset,
-    size_t length) {
-	return extent_purge_forced_impl(tsdn, arena, extent_hooks, extent,
+extent_purge_forced_wrapper(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
+    extent_t *extent, size_t offset, size_t length) {
+	return extent_purge_forced_impl(tsdn, arena, ehooks, extent,
 	    offset, length, false);
 }
 
@@ -1765,15 +1737,14 @@ extent_split_default(extent_hooks_t *extent_hooks, void *addr, size_t size,
  * and returns the trail (except in case of error).
  */
 static extent_t *
-extent_split_impl(tsdn_t *tsdn, arena_t *arena,
-    extent_hooks_t *extent_hooks, extent_t *extent, size_t size_a,
-    szind_t szind_a, bool slab_a, size_t size_b, szind_t szind_b, bool slab_b,
-    bool growing_retained) {
+extent_split_impl(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
+    extent_t *extent, size_t size_a, szind_t szind_a, bool slab_a,
+    size_t size_b, szind_t szind_b, bool slab_b, bool growing_retained) {
 	assert(extent_size_get(extent) == size_a + size_b);
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, growing_retained ? 1 : 0);
 
-	if (extent_hooks->split == NULL) {
+	if (ehooks_split_will_fail(ehooks)) {
 		return NULL;
 	}
 
@@ -1815,13 +1786,13 @@ extent_split_impl(tsdn_t *tsdn, arena_t *arena,
 
 	extent_lock2(tsdn, extent, trail);
 
-	if (extent_hooks != &extent_hooks_default) {
+	if (!ehooks_are_default(ehooks)) {
 		extent_hook_pre_reentrancy(tsdn, arena);
 	}
-	bool err = extent_hooks->split(extent_hooks, extent_base_get(extent),
+	bool err = ehooks_split(ehooks, extent_base_get(extent),
 	    size_a + size_b, size_a, size_b, extent_committed_get(extent),
 	    arena_ind_get(arena));
-	if (extent_hooks != &extent_hooks_default) {
+	if (!ehooks_are_default(ehooks)) {
 		extent_hook_post_reentrancy(tsdn);
 	}
 	if (err) {
@@ -1848,11 +1819,11 @@ label_error_a:
 }
 
 extent_t *
-extent_split_wrapper(tsdn_t *tsdn, arena_t *arena,
-    extent_hooks_t *extent_hooks, extent_t *extent, size_t size_a,
-    szind_t szind_a, bool slab_a, size_t size_b, szind_t szind_b, bool slab_b) {
-	return extent_split_impl(tsdn, arena, extent_hooks, extent, size_a,
-	    szind_a, slab_a, size_b, szind_b, slab_b, false);
+extent_split_wrapper(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
+    extent_t *extent, size_t size_a, szind_t szind_a, bool slab_a,
+    size_t size_b, szind_t szind_b, bool slab_b) {
+	return extent_split_impl(tsdn, arena, ehooks, extent, size_a, szind_a,
+	    slab_a, size_b, szind_b, slab_b, false);
 }
 
 static bool
@@ -1914,28 +1885,26 @@ extent_merge_default(extent_hooks_t *extent_hooks, void *addr_a, size_t size_a,
 }
 
 static bool
-extent_merge_impl(tsdn_t *tsdn, arena_t *arena,
-    extent_hooks_t *extent_hooks, extent_t *a, extent_t *b,
-    bool growing_retained) {
+extent_merge_impl(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks, extent_t *a,
+    extent_t *b, bool growing_retained) {
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, growing_retained ? 1 : 0);
 	assert(extent_base_get(a) < extent_base_get(b));
 
-	if (extent_hooks->merge == NULL || extent_head_no_merge(a, b)) {
+	if (ehooks_merge_will_fail(ehooks) || extent_head_no_merge(a, b)) {
 		return true;
 	}
 
 	bool err;
-	if (extent_hooks == &extent_hooks_default) {
+	if (ehooks_are_default(ehooks)) {
 		/* Call directly to propagate tsdn. */
 		err = extent_merge_default_impl(extent_base_get(a),
 		    extent_base_get(b));
 	} else {
 		extent_hook_pre_reentrancy(tsdn, arena);
-		err = extent_hooks->merge(extent_hooks,
-		    extent_base_get(a), extent_size_get(a), extent_base_get(b),
-		    extent_size_get(b), extent_committed_get(a),
-		    arena_ind_get(arena));
+		err = ehooks_merge(ehooks, extent_base_get(a),
+		    extent_size_get(a), extent_base_get(b), extent_size_get(b),
+		    extent_committed_get(a), arena_ind_get(arena));
 		extent_hook_post_reentrancy(tsdn);
 	}
 
@@ -1991,9 +1960,9 @@ extent_merge_impl(tsdn_t *tsdn, arena_t *arena,
 }
 
 bool
-extent_merge_wrapper(tsdn_t *tsdn, arena_t *arena,
-    extent_hooks_t *extent_hooks, extent_t *a, extent_t *b) {
-	return extent_merge_impl(tsdn, arena, extent_hooks, a, b, false);
+extent_merge_wrapper(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
+    extent_t *a, extent_t *b) {
+	return extent_merge_impl(tsdn, arena, ehooks, a, b, false);
 }
 
 bool

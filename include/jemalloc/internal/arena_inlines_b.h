@@ -14,11 +14,6 @@ arena_get_from_extent(extent_t *extent) {
 	    ATOMIC_RELAXED);
 }
 
-JEMALLOC_ALWAYS_INLINE bool
-arena_has_default_hooks(arena_t *arena) {
-	return (arena_get_extent_hooks(arena) == &extent_hooks_default);
-}
-
 JEMALLOC_ALWAYS_INLINE arena_t *
 arena_choose_maybe_huge(tsd_t *tsd, arena_t *arena, size_t size) {
 	if (arena != NULL) {
@@ -134,10 +129,10 @@ arena_decay_tick(tsdn_t *tsdn, arena_t *arena) {
 
 /* Purge a single extent to retained / unmapped directly. */
 JEMALLOC_ALWAYS_INLINE void
-arena_decay_extent(tsdn_t *tsdn,arena_t *arena, extent_hooks_t *extent_hooks,
+arena_decay_extent(tsdn_t *tsdn,arena_t *arena, ehooks_t *ehooks,
     extent_t *extent) {
 	size_t extent_size = extent_size_get(extent);
-	extent_dalloc_wrapper(tsdn, arena, extent_hooks, extent);
+	extent_dalloc_wrapper(tsdn, arena, ehooks, extent);
 	if (config_stats) {
 		/* Update stats accordingly. */
 		arena_stats_lock(tsdn, &arena->stats);

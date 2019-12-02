@@ -28,7 +28,7 @@ void arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
     bin_stats_data_t *bstats, arena_stats_large_t *lstats,
     arena_stats_extents_t *estats);
 void arena_extents_dirty_dalloc(tsdn_t *tsdn, arena_t *arena,
-    extent_hooks_t *extent_hooks, extent_t *extent);
+    ehooks_t *ehooks, extent_t *extent);
 #ifdef JEMALLOC_JET
 size_t arena_slab_regind(extent_t *slab, szind_t binind, const void *ptr);
 #endif
@@ -72,7 +72,7 @@ void *arena_ralloc(tsdn_t *tsdn, arena_t *arena, void *ptr, size_t oldsize,
     size_t size, size_t alignment, bool zero, tcache_t *tcache,
     hook_ralloc_args_t *hook_args);
 dss_prec_t arena_dss_prec_get(arena_t *arena);
-extent_hooks_t *arena_get_extent_hooks(arena_t *arena);
+ehooks_t *arena_get_ehooks(arena_t *arena);
 extent_hooks_t *arena_set_extent_hooks(tsd_t *tsd, arena_t *arena,
     extent_hooks_t *extent_hooks);
 bool arena_dss_prec_set(arena_t *arena, dss_prec_t dss_prec);
