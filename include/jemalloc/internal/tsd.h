@@ -446,4 +446,30 @@ tsd_state_nocleanup(tsd_t *tsd) {
 	    tsd_state_get(tsd) == tsd_state_minimal_initialized;
 }
 
+/*
+ * These "raw" tsd reentrancy functions don't have any debug checking to make
+ * sure that we're not touching arena 0.  Better is to call pre_reentrancy and
+ * post_reentrancy if this is possible.
+ */
+static inline void
+tsd_pre_reentrancy_raw(tsd_t *tsd) {
+	bool fast = tsd_fast(tsd);
+	assert(tsd_reentrancy_level_get(tsd) < INT8_MAX);
+	++*tsd_reentrancy_levelp_get(tsd);
+	if (fast) {
+		/* Prepare slow path for reentrancy. */
+		tsd_slow_update(tsd);
+		assert(tsd_state_get(tsd) == tsd_state_nominal_slow);
+	}
+}
+
+static inline void
+tsd_post_reentrancy_raw(tsd_t *tsd) {
+	int8_t *reentrancy_level = tsd_reentrancy_levelp_get(tsd);
+	assert(*reentrancy_level > 0);
+	if (--*reentrancy_level == 0) {
+		tsd_slow_update(tsd);
+	}
+}
+
 #endif /* JEMALLOC_INTERNAL_TSD_H */
