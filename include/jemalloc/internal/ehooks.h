@@ -42,6 +42,9 @@ bool ehooks_default_purge_forced(extent_hooks_t *extent_hooks, void *addr,
 bool ehooks_default_split_impl();
 bool ehooks_default_split(extent_hooks_t *extent_hooks, void *addr, size_t size,
     size_t size_a, size_t size_b, bool committed, unsigned arena_ind);
+bool ehooks_default_merge_impl(void *addr_a, void *addr_b);
+bool ehooks_default_merge(extent_hooks_t *extent_hooks, void *addr_a, size_t size_a,
+    void *addr_b, size_t size_b, bool committed, unsigned arena_ind);
 
 static inline void
 ehooks_pre_reentrancy(tsdn_t *tsdn) {
@@ -238,14 +241,20 @@ ehooks_split(tsdn_t *tsdn, ehooks_t *ehooks, void *addr, size_t size,
 }
 
 static inline bool
-ehooks_merge(ehooks_t *ehooks, void *addr_a, size_t size_a, void *addr_b,
-    size_t size_b, bool committed, unsigned arena_ind) {
+ehooks_merge(tsdn_t *tsdn, ehooks_t *ehooks, void *addr_a, size_t size_a,
+    void *addr_b, size_t size_b, bool committed, unsigned arena_ind) {
 	extent_hooks_t *extent_hooks = ehooks_get_extent_hooks_ptr(ehooks);
-	if (extent_hooks->merge == NULL) {
+	if (extent_hooks == &extent_hooks_default) {
+		return ehooks_default_merge_impl(addr_a, addr_b);
+	} else if (extent_hooks->merge == NULL) {
 		return true;
+	} else {
+		ehooks_pre_reentrancy(tsdn);
+		bool err = extent_hooks->merge(extent_hooks, addr_a, size_a,
+		    addr_b, size_b, committed, arena_ind);
+		ehooks_post_reentrancy(tsdn);
+		return err;
 	}
-	return extent_hooks->merge(extent_hooks, addr_a, size_a, addr_b, size_b,
-	    committed, arena_ind);
 }
 
 #endif /* JEMALLOC_INTERNAL_EHOOKS_H */

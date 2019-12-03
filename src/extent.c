@@ -31,9 +31,6 @@ static extent_t *extent_split_impl(tsdn_t *tsdn, arena_t *arena,
     ehooks_t *ehooks, extent_t *extent, size_t size_a, szind_t szind_a,
     bool slab_a, size_t size_b, szind_t szind_b, bool slab_b,
     bool growing_retained);
-static bool extent_merge_default(extent_hooks_t *extent_hooks, void *addr_a,
-    size_t size_a, void *addr_b, size_t size_b, bool committed,
-    unsigned arena_ind);
 static bool extent_merge_impl(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
     extent_t *a, extent_t *b, bool growing_retained);
 
@@ -54,7 +51,7 @@ const extent_hooks_t extent_hooks_default = {
 	NULL,
 #endif
 	ehooks_default_split,
-	extent_merge_default
+	ehooks_default_merge
 };
 
 /* Used exclusively for gdump triggering. */
@@ -1576,23 +1573,11 @@ extent_split_wrapper(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 	    slab_a, size_b, szind_b, slab_b, false);
 }
 
-static bool
-extent_merge_default_impl(void *addr_a, void *addr_b) {
-	if (!maps_coalesce && !opt_retain) {
-		return true;
-	}
-	if (have_dss && !extent_dss_mergeable(addr_a, addr_b)) {
-		return true;
-	}
-
-	return false;
-}
-
 /*
  * Returns true if the given extents can't be merged because of their head bit
  * settings.  Assumes the second extent has the higher address.
  */
-static bool
+bool
 extent_head_no_merge(extent_t *a, extent_t *b) {
 	assert(extent_base_get(a) < extent_base_get(b));
 	/*
@@ -1621,20 +1606,6 @@ extent_head_no_merge(extent_t *a, extent_t *b) {
 }
 
 static bool
-extent_merge_default(extent_hooks_t *extent_hooks, void *addr_a, size_t size_a,
-    void *addr_b, size_t size_b, bool committed, unsigned arena_ind) {
-	if (!maps_coalesce) {
-		tsdn_t *tsdn = tsdn_fetch();
-		extent_t *a = iealloc(tsdn, addr_a);
-		extent_t *b = iealloc(tsdn, addr_b);
-		if (extent_head_no_merge(a, b)) {
-			return true;
-		}
-	}
-	return extent_merge_default_impl(addr_a, addr_b);
-}
-
-static bool
 extent_merge_impl(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks, extent_t *a,
     extent_t *b, bool growing_retained) {
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
@@ -1645,18 +1616,9 @@ extent_merge_impl(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks, extent_t *a,
 		return true;
 	}
 
-	bool err;
-	if (ehooks_are_default(ehooks)) {
-		/* Call directly to propagate tsdn. */
-		err = extent_merge_default_impl(extent_base_get(a),
-		    extent_base_get(b));
-	} else {
-		extent_hook_pre_reentrancy(tsdn, arena);
-		err = ehooks_merge(ehooks, extent_base_get(a),
-		    extent_size_get(a), extent_base_get(b), extent_size_get(b),
-		    extent_committed_get(a), arena_ind_get(arena));
-		extent_hook_post_reentrancy(tsdn);
-	}
+	bool err = ehooks_merge(tsdn, ehooks, extent_base_get(a),
+	    extent_size_get(a), extent_base_get(b), extent_size_get(b),
+	    extent_committed_get(a), arena_ind_get(arena));
 
 	if (err) {
 		return true;
