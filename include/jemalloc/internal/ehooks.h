@@ -23,6 +23,12 @@ bool ehooks_default_dalloc(extent_hooks_t *extent_hooks, void *addr,
 void ehooks_default_destroy_impl(void *addr, size_t size);
 void ehooks_default_destroy(extent_hooks_t *extent_hooks, void *addr,
     size_t size, bool committed, unsigned arena_ind);
+bool ehooks_default_commit_impl(void *addr, size_t offset, size_t length);
+bool ehooks_default_commit(extent_hooks_t *extent_hooks, void *addr, size_t size,
+    size_t offset, size_t length, unsigned arena_ind);
+bool ehooks_default_decommit_impl(void *addr, size_t offset, size_t length);
+bool ehooks_default_decommit(extent_hooks_t *extent_hooks, void *addr, size_t size,
+    size_t offset, size_t length, unsigned arena_ind);
 
 static inline void
 ehooks_pre_reentrancy(tsdn_t *tsdn) {
@@ -128,25 +134,37 @@ ehooks_destroy(tsdn_t *tsdn, ehooks_t *ehooks, void *addr, size_t size,
 }
 
 static inline bool
-ehooks_commit(ehooks_t *ehooks, void *addr, size_t size, size_t offset,
-    size_t length, unsigned arena_ind) {
+ehooks_commit(tsdn_t *tsdn, ehooks_t *ehooks, void *addr, size_t size,
+    size_t offset, size_t length, unsigned arena_ind) {
 	extent_hooks_t *extent_hooks = ehooks_get_extent_hooks_ptr(ehooks);
-	if (extent_hooks->commit == NULL) {
+	if (extent_hooks == &extent_hooks_default) {
+		return ehooks_default_commit_impl(addr, offset, length);
+	} else if (extent_hooks->commit == NULL) {
 		return true;
+	} else {
+		ehooks_pre_reentrancy(tsdn);
+		bool err = extent_hooks->commit(extent_hooks, addr, size,
+		    offset, length, arena_ind);
+		ehooks_post_reentrancy(tsdn);
+		return err;
 	}
-	return extent_hooks->commit(extent_hooks, addr, size, offset, length,
-	    arena_ind);
 }
 
 static inline bool
-ehooks_decommit(ehooks_t *ehooks, void *addr, size_t size, size_t offset,
-    size_t length, unsigned arena_ind) {
+ehooks_decommit(tsdn_t *tsdn, ehooks_t *ehooks, void *addr, size_t size,
+    size_t offset, size_t length, unsigned arena_ind) {
 	extent_hooks_t *extent_hooks = ehooks_get_extent_hooks_ptr(ehooks);
-	if (extent_hooks->decommit == NULL) {
+	if (extent_hooks == &extent_hooks_default) {
+		return ehooks_default_decommit_impl(addr, offset, length);
+	} else if (extent_hooks->decommit == NULL) {
 		return true;
+	} else {
+		ehooks_pre_reentrancy(tsdn);
+		bool err = extent_hooks->decommit(extent_hooks, addr, size,
+		    offset, length, arena_ind);
+		ehooks_post_reentrancy(tsdn);
+		return err;
 	}
-	return extent_hooks->decommit(extent_hooks, addr, size, offset, length,
-	    arena_ind);
 }
 
 static inline bool
