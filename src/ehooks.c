@@ -75,3 +75,17 @@ ehooks_default_alloc(extent_hooks_t *extent_hooks, void *new_addr, size_t size,
 	    ALIGNMENT_CEILING(alignment, PAGE), zero, commit,
 	    arena_ind_get(arena));
 }
+
+bool
+ehooks_default_dalloc_impl(void *addr, size_t size) {
+	if (!have_dss || !extent_in_dss(addr)) {
+		return extent_dalloc_mmap(addr, size);
+	}
+	return true;
+}
+
+bool
+ehooks_default_dalloc(extent_hooks_t *extent_hooks, void *addr, size_t size,
+    bool committed, unsigned arena_ind) {
+	return ehooks_default_dalloc_impl(addr, size);
+}
