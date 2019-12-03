@@ -589,7 +589,8 @@ arena_choose_hard(tsd_t *tsd, bool internal) {
 				choose[j] = first_null;
 				arena = arena_init_locked(tsd_tsdn(tsd),
 				    choose[j],
-				    (extent_hooks_t *)&extent_hooks_default);
+				    (extent_hooks_t *)
+				    &ehooks_default_extent_hooks);
 				if (arena == NULL) {
 					malloc_mutex_unlock(tsd_tsdn(tsd),
 					    &arenas_lock);
@@ -1589,8 +1590,8 @@ malloc_init_hard_a0_locked() {
 	 * Initialize one arena here.  The rest are lazily created in
 	 * arena_choose_hard().
 	 */
-	if (arena_init(TSDN_NULL, 0, (extent_hooks_t *)&extent_hooks_default)
-	    == NULL) {
+	if (arena_init(TSDN_NULL, 0,
+	    (extent_hooks_t *)&ehooks_default_extent_hooks) == NULL) {
 		return true;
 	}
 	a0 = arena_get(TSDN_NULL, 0, false);

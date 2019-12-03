@@ -3,13 +3,15 @@
 
 #include "jemalloc/internal/atomic.h"
 
-extern const extent_hooks_t extent_hooks_default;
+extern const extent_hooks_t ehooks_default_extent_hooks;
 
 typedef struct ehooks_s ehooks_t;
 struct ehooks_s {
 	/* Logically an extent_hooks_t *. */
 	atomic_p_t ptr;
 };
+
+extern const extent_hooks_t ehooks_default_extent_hooks;
 
 /* NOT PUBLIC. */
 void *ehooks_default_alloc_impl(tsdn_t *tsdn, void *new_addr, size_t size,
@@ -73,7 +75,8 @@ ehooks_get_extent_hooks_ptr(ehooks_t *ehooks) {
 
 static inline bool
 ehooks_are_default(ehooks_t *ehooks) {
-	return ehooks_get_extent_hooks_ptr(ehooks) == &extent_hooks_default;
+	return ehooks_get_extent_hooks_ptr(ehooks) ==
+	    &ehooks_default_extent_hooks;
 }
 
 static inline bool
@@ -105,7 +108,7 @@ static inline void *
 ehooks_alloc(tsdn_t *tsdn, ehooks_t *ehooks, void *new_addr, size_t size,
     size_t alignment, bool *zero, bool *commit, unsigned arena_ind) {
 	extent_hooks_t *extent_hooks = ehooks_get_extent_hooks_ptr(ehooks);
-	if (extent_hooks == &extent_hooks_default) {
+	if (extent_hooks == &ehooks_default_extent_hooks) {
 		return ehooks_default_alloc_impl(tsdn, new_addr, size,
 		    alignment, zero, commit, arena_ind);
 	}
@@ -120,7 +123,7 @@ static inline bool
 ehooks_dalloc(tsdn_t *tsdn, ehooks_t *ehooks, void *addr, size_t size,
     bool committed, unsigned arena_ind) {
 	extent_hooks_t *extent_hooks = ehooks_get_extent_hooks_ptr(ehooks);
-	if (extent_hooks == &extent_hooks_default) {
+	if (extent_hooks == &ehooks_default_extent_hooks) {
 		return ehooks_default_dalloc_impl(addr, size);
 	} else if (extent_hooks->dalloc == NULL) {
 		return true;
@@ -137,7 +140,7 @@ static inline void
 ehooks_destroy(tsdn_t *tsdn, ehooks_t *ehooks, void *addr, size_t size,
     bool committed, unsigned arena_ind) {
 	extent_hooks_t *extent_hooks = ehooks_get_extent_hooks_ptr(ehooks);
-	if (extent_hooks == &extent_hooks_default) {
+	if (extent_hooks == &ehooks_default_extent_hooks) {
 		return ehooks_default_destroy_impl(addr, size);
 	} else if (extent_hooks->destroy == NULL) {
 		return;
@@ -153,7 +156,7 @@ static inline bool
 ehooks_commit(tsdn_t *tsdn, ehooks_t *ehooks, void *addr, size_t size,
     size_t offset, size_t length, unsigned arena_ind) {
 	extent_hooks_t *extent_hooks = ehooks_get_extent_hooks_ptr(ehooks);
-	if (extent_hooks == &extent_hooks_default) {
+	if (extent_hooks == &ehooks_default_extent_hooks) {
 		return ehooks_default_commit_impl(addr, offset, length);
 	} else if (extent_hooks->commit == NULL) {
 		return true;
@@ -170,7 +173,7 @@ static inline bool
 ehooks_decommit(tsdn_t *tsdn, ehooks_t *ehooks, void *addr, size_t size,
     size_t offset, size_t length, unsigned arena_ind) {
 	extent_hooks_t *extent_hooks = ehooks_get_extent_hooks_ptr(ehooks);
-	if (extent_hooks == &extent_hooks_default) {
+	if (extent_hooks == &ehooks_default_extent_hooks) {
 		return ehooks_default_decommit_impl(addr, offset, length);
 	} else if (extent_hooks->decommit == NULL) {
 		return true;
@@ -188,7 +191,7 @@ ehooks_purge_lazy(tsdn_t *tsdn, ehooks_t *ehooks, void *addr, size_t size,
     size_t offset, size_t length, unsigned arena_ind) {
 	extent_hooks_t *extent_hooks = ehooks_get_extent_hooks_ptr(ehooks);
 #ifdef PAGES_CAN_PURGE_LAZY
-	if (extent_hooks == &extent_hooks_default) {
+	if (extent_hooks == &ehooks_default_extent_hooks) {
 		return ehooks_default_purge_lazy_impl(addr, offset, length);
 	}
 #endif
@@ -208,7 +211,7 @@ ehooks_purge_forced(tsdn_t *tsdn, ehooks_t *ehooks, void *addr, size_t size,
     size_t offset, size_t length, unsigned arena_ind) {
 	extent_hooks_t *extent_hooks = ehooks_get_extent_hooks_ptr(ehooks);
 #ifdef PAGES_CAN_PURGE_FORCED
-	if (extent_hooks == &extent_hooks_default) {
+	if (extent_hooks == &ehooks_default_extent_hooks) {
 		return ehooks_default_purge_forced_impl(addr, offset, length);
 	}
 #endif
@@ -244,7 +247,7 @@ static inline bool
 ehooks_merge(tsdn_t *tsdn, ehooks_t *ehooks, void *addr_a, size_t size_a,
     void *addr_b, size_t size_b, bool committed, unsigned arena_ind) {
 	extent_hooks_t *extent_hooks = ehooks_get_extent_hooks_ptr(ehooks);
-	if (extent_hooks == &extent_hooks_default) {
+	if (extent_hooks == &ehooks_default_extent_hooks) {
 		return ehooks_default_merge_impl(addr_a, addr_b);
 	} else if (extent_hooks->merge == NULL) {
 		return true;
