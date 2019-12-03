@@ -144,3 +144,21 @@ ehooks_default_purge_lazy(extent_hooks_t *extent_hooks, void *addr, size_t size,
 	return ehooks_default_purge_lazy_impl(addr, offset, length);
 }
 #endif
+
+#ifdef PAGES_CAN_PURGE_FORCED
+bool
+ehooks_default_purge_forced_impl(void *addr, size_t offset, size_t length) {
+	return pages_purge_forced((void *)((uintptr_t)addr +
+	    (uintptr_t)offset), length);
+}
+
+bool
+ehooks_default_purge_forced(extent_hooks_t *extent_hooks, void *addr,
+    size_t size, size_t offset, size_t length, unsigned arena_ind) {
+	assert(addr != NULL);
+	assert((offset & PAGE_MASK) == 0);
+	assert(length != 0);
+	assert((length & PAGE_MASK) == 0);
+	return ehooks_default_purge_forced_impl(addr, offset, length);
+}
+#endif
