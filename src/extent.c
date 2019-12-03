@@ -19,12 +19,8 @@ mutex_pool_t	extent_mutex_pool;
 
 size_t opt_lg_extent_max_active_fit = LG_EXTENT_MAX_ACTIVE_FIT_DEFAULT;
 
-static bool extent_commit_default(extent_hooks_t *extent_hooks, void *addr,
-    size_t size, size_t offset, size_t length, unsigned arena_ind);
 static bool extent_commit_impl(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
     extent_t *extent, size_t offset, size_t length, bool growing_retained);
-static bool extent_decommit_default(extent_hooks_t *extent_hooks, void *addr,
-    size_t size, size_t offset, size_t length, unsigned arena_ind);
 #ifdef PAGES_CAN_PURGE_LAZY
 static bool extent_purge_lazy_default(extent_hooks_t *extent_hooks, void *addr,
     size_t size, size_t offset, size_t length, unsigned arena_ind);
@@ -56,8 +52,8 @@ const extent_hooks_t extent_hooks_default = {
 	ehooks_default_alloc,
 	ehooks_default_dalloc,
 	ehooks_default_destroy,
-	extent_commit_default,
-	extent_decommit_default
+	ehooks_default_commit,
+	ehooks_default_decommit
 #ifdef PAGES_CAN_PURGE_LAZY
 	,
 	extent_purge_lazy_default
@@ -1441,26 +1437,12 @@ extent_destroy_wrapper(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 }
 
 static bool
-extent_commit_default(extent_hooks_t *extent_hooks, void *addr, size_t size,
-    size_t offset, size_t length, unsigned arena_ind) {
-	return pages_commit((void *)((uintptr_t)addr + (uintptr_t)offset),
-	    length);
-}
-
-static bool
 extent_commit_impl(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
     extent_t *extent, size_t offset, size_t length, bool growing_retained) {
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, growing_retained ? 1 : 0);
-
-	if (!ehooks_are_default(ehooks)) {
-		extent_hook_pre_reentrancy(tsdn, arena);
-	}
-	bool err = ehooks_commit(ehooks, extent_base_get(extent),
+	bool err = ehooks_commit(tsdn, ehooks, extent_base_get(extent),
 	    extent_size_get(extent), offset, length, arena_ind_get(arena));
-	if (!ehooks_are_default(ehooks)) {
-		extent_hook_post_reentrancy(tsdn);
-	}
 	extent_committed_set(extent, extent_committed_get(extent) || !err);
 	return err;
 }
@@ -1473,27 +1455,13 @@ extent_commit_wrapper(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 	    false);
 }
 
-static bool
-extent_decommit_default(extent_hooks_t *extent_hooks, void *addr, size_t size,
-    size_t offset, size_t length, unsigned arena_ind) {
-	return pages_decommit((void *)((uintptr_t)addr + (uintptr_t)offset),
-	    length);
-}
-
 bool
 extent_decommit_wrapper(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
     extent_t *extent, size_t offset, size_t length) {
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, 0);
-
-	if (!ehooks_are_default(ehooks)) {
-		extent_hook_pre_reentrancy(tsdn, arena);
-	}
-	bool err = ehooks_decommit(ehooks, extent_base_get(extent),
+	bool err = ehooks_decommit(tsdn, ehooks, extent_base_get(extent),
 	    extent_size_get(extent), offset, length, arena_ind_get(arena));
-	if (!ehooks_are_default(ehooks)) {
-		extent_hook_post_reentrancy(tsdn);
-	}
 	extent_committed_set(extent, extent_committed_get(extent) && err);
 	return err;
 }

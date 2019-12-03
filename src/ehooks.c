@@ -103,3 +103,26 @@ ehooks_default_destroy(extent_hooks_t *extent_hooks, void *addr, size_t size,
 	ehooks_default_destroy_impl(addr, size);
 }
 
+bool
+ehooks_default_commit_impl(void *addr, size_t offset, size_t length) {
+	return pages_commit((void *)((uintptr_t)addr + (uintptr_t)offset),
+	    length);
+}
+
+bool
+ehooks_default_commit(extent_hooks_t *extent_hooks, void *addr, size_t size,
+    size_t offset, size_t length, unsigned arena_ind) {
+	return ehooks_default_commit_impl(addr, offset, length);
+}
+
+bool
+ehooks_default_decommit_impl(void *addr, size_t offset, size_t length) {
+	return pages_decommit((void *)((uintptr_t)addr + (uintptr_t)offset),
+	    length);
+}
+
+bool
+ehooks_default_decommit(extent_hooks_t *extent_hooks, void *addr, size_t size,
+    size_t offset, size_t length, unsigned arena_ind) {
+	return ehooks_default_decommit_impl(addr, offset, length);
+}
