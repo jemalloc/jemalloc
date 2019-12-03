@@ -29,6 +29,11 @@ bool ehooks_default_commit(extent_hooks_t *extent_hooks, void *addr, size_t size
 bool ehooks_default_decommit_impl(void *addr, size_t offset, size_t length);
 bool ehooks_default_decommit(extent_hooks_t *extent_hooks, void *addr, size_t size,
     size_t offset, size_t length, unsigned arena_ind);
+#ifdef PAGES_CAN_PURGE_LAZY
+bool ehooks_default_purge_lazy_impl(void *addr, size_t offset, size_t length);
+bool ehooks_default_purge_lazy(extent_hooks_t *extent_hooks, void *addr, size_t size,
+    size_t offset, size_t length, unsigned arena_ind);
+#endif
 
 static inline void
 ehooks_pre_reentrancy(tsdn_t *tsdn) {
@@ -168,14 +173,23 @@ ehooks_decommit(tsdn_t *tsdn, ehooks_t *ehooks, void *addr, size_t size,
 }
 
 static inline bool
-ehooks_purge_lazy(ehooks_t *ehooks, void *addr, size_t size, size_t offset,
-    size_t length, unsigned arena_ind) {
+ehooks_purge_lazy(tsdn_t *tsdn, ehooks_t *ehooks, void *addr, size_t size,
+    size_t offset, size_t length, unsigned arena_ind) {
 	extent_hooks_t *extent_hooks = ehooks_get_extent_hooks_ptr(ehooks);
+#ifdef PAGES_CAN_PURGE_LAZY
+	if (extent_hooks == &extent_hooks_default) {
+		return ehooks_default_purge_lazy_impl(addr, offset, length);
+	}
+#endif
 	if (extent_hooks->purge_lazy == NULL) {
 		return true;
+	} else {
+		ehooks_pre_reentrancy(tsdn);
+		bool err = extent_hooks->purge_lazy(extent_hooks, addr, size,
+		    offset, length, arena_ind);
+		ehooks_post_reentrancy(tsdn);
+		return err;
 	}
-	return extent_hooks->purge_lazy(extent_hooks, addr, size, offset,
-	    length, arena_ind);
 }
 
 static inline bool
