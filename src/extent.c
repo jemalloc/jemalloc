@@ -24,10 +24,6 @@ static bool extent_commit_impl(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 static bool extent_purge_lazy_impl(tsdn_t *tsdn, arena_t *arena,
     ehooks_t *ehooks, extent_t *extent, size_t offset, size_t length,
     bool growing_retained);
-#ifdef PAGES_CAN_PURGE_FORCED
-static bool extent_purge_forced_default(extent_hooks_t *extent_hooks,
-    void *addr, size_t size, size_t offset, size_t length, unsigned arena_ind);
-#endif
 static bool extent_purge_forced_impl(tsdn_t *tsdn, arena_t *arena,
     ehooks_t *ehooks, extent_t *extent, size_t offset, size_t length,
     bool growing_retained);
@@ -56,7 +52,7 @@ const extent_hooks_t extent_hooks_default = {
 	NULL,
 #endif
 #ifdef PAGES_CAN_PURGE_FORCED
-	extent_purge_forced_default,
+	ehooks_default_purge_forced,
 #else
 	NULL,
 #endif
@@ -1381,7 +1377,7 @@ extent_dalloc_wrapper(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 	} else if (!extent_decommit_wrapper(tsdn, arena, ehooks, extent, 0,
 	    extent_size_get(extent))) {
 		zeroed = true;
-	} else if (!ehooks_purge_forced(ehooks, extent_base_get(extent),
+	} else if (!ehooks_purge_forced(tsdn, ehooks, extent_base_get(extent),
 	    extent_size_get(extent), 0, extent_size_get(extent),
 	    arena_ind_get(arena))) {
 		zeroed = true;
@@ -1474,37 +1470,13 @@ extent_purge_lazy_wrapper(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 	    length, false);
 }
 
-#ifdef PAGES_CAN_PURGE_FORCED
-static bool
-extent_purge_forced_default(extent_hooks_t *extent_hooks, void *addr,
-    size_t size, size_t offset, size_t length, unsigned arena_ind) {
-	assert(addr != NULL);
-	assert((offset & PAGE_MASK) == 0);
-	assert(length != 0);
-	assert((length & PAGE_MASK) == 0);
-
-	return pages_purge_forced((void *)((uintptr_t)addr +
-	    (uintptr_t)offset), length);
-}
-#endif
-
 static bool
 extent_purge_forced_impl(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
     extent_t *extent, size_t offset, size_t length, bool growing_retained) {
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, growing_retained ? 1 : 0);
-
-	if (ehooks_purge_forced_will_fail(ehooks)) {
-		return true;
-	}
-	if (!ehooks_are_default(ehooks)) {
-		extent_hook_pre_reentrancy(tsdn, arena);
-	}
-	bool err = ehooks_purge_forced(ehooks, extent_base_get(extent),
+	bool err = ehooks_purge_forced(tsdn, ehooks, extent_base_get(extent),
 	    extent_size_get(extent), offset, length, arena_ind_get(arena));
-	if (!ehooks_are_default(ehooks)) {
-		extent_hook_post_reentrancy(tsdn);
-	}
 	return err;
 }
 
