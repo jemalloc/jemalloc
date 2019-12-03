@@ -182,3 +182,29 @@ ehooks_default_split(extent_hooks_t *extent_hooks, void *addr, size_t size,
     size_t size_a, size_t size_b, bool committed, unsigned arena_ind) {
 	return ehooks_default_split_impl();
 }
+
+bool
+ehooks_default_merge_impl(void *addr_a, void *addr_b) {
+	if (!maps_coalesce && !opt_retain) {
+		return true;
+	}
+	if (have_dss && !extent_dss_mergeable(addr_a, addr_b)) {
+		return true;
+	}
+
+	return false;
+}
+
+bool
+ehooks_default_merge(extent_hooks_t *extent_hooks, void *addr_a, size_t size_a,
+    void *addr_b, size_t size_b, bool committed, unsigned arena_ind) {
+	if (!maps_coalesce) {
+		tsdn_t *tsdn = tsdn_fetch();
+		extent_t *a = iealloc(tsdn, addr_a);
+		extent_t *b = iealloc(tsdn, addr_b);
+		if (extent_head_no_merge(a, b)) {
+			return true;
+		}
+	}
+	return ehooks_default_merge_impl(addr_a, addr_b);
+}
