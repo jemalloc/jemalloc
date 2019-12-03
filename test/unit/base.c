@@ -31,7 +31,8 @@ TEST_BEGIN(test_base_hooks_default) {
 	size_t allocated0, allocated1, resident, mapped, n_thp;
 
 	tsdn_t *tsdn = tsd_tsdn(tsd_fetch());
-	base = base_new(tsdn, 0, (extent_hooks_t *)&extent_hooks_default);
+	base = base_new(tsdn, 0,
+	    (extent_hooks_t *)&ehooks_default_extent_hooks);
 
 	if (config_stats) {
 		base_stats_get(tsdn, base, &allocated0, &resident, &mapped,

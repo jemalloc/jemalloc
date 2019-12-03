@@ -34,26 +34,6 @@ static extent_t *extent_split_impl(tsdn_t *tsdn, arena_t *arena,
 static bool extent_merge_impl(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
     extent_t *a, extent_t *b, bool growing_retained);
 
-const extent_hooks_t extent_hooks_default = {
-	ehooks_default_alloc,
-	ehooks_default_dalloc,
-	ehooks_default_destroy,
-	ehooks_default_commit,
-	ehooks_default_decommit,
-#ifdef PAGES_CAN_PURGE_LAZY
-	ehooks_default_purge_lazy,
-#else
-	NULL,
-#endif
-#ifdef PAGES_CAN_PURGE_FORCED
-	ehooks_default_purge_forced,
-#else
-	NULL,
-#endif
-	ehooks_default_split,
-	ehooks_default_merge
-};
-
 /* Used exclusively for gdump triggering. */
 static atomic_zu_t curpages;
 static atomic_zu_t highpages;

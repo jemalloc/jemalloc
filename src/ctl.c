@@ -2377,7 +2377,7 @@ arena_i_extent_hooks_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
 				goto label_return;
 			}
 			old_extent_hooks =
-			    (extent_hooks_t *)&extent_hooks_default;
+			    (extent_hooks_t *)&ehooks_default_extent_hooks;
 			READ(old_extent_hooks, extent_hooks_t *);
 			if (newp != NULL) {
 				/* Initialize a new arena as a side effect. */
@@ -2581,7 +2581,7 @@ arenas_create_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
 
 	malloc_mutex_lock(tsd_tsdn(tsd), &ctl_mtx);
 
-	extent_hooks = (extent_hooks_t *)&extent_hooks_default;
+	extent_hooks = (extent_hooks_t *)&ehooks_default_extent_hooks;
 	WRITE(extent_hooks, extent_hooks_t *);
 	if ((arena_ind = ctl_arena_init(tsd, extent_hooks)) == UINT_MAX) {
 		ret = EAGAIN;

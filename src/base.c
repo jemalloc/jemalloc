@@ -511,6 +511,6 @@ base_postfork_child(tsdn_t *tsdn, base_t *base) {
 
 bool
 base_boot(tsdn_t *tsdn) {
-	b0 = base_new(tsdn, 0, (extent_hooks_t *)&extent_hooks_default);
+	b0 = base_new(tsdn, 0, (extent_hooks_t *)&ehooks_default_extent_hooks);
 	return (b0 == NULL);
 }

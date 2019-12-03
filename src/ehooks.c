@@ -208,3 +208,23 @@ ehooks_default_merge(extent_hooks_t *extent_hooks, void *addr_a, size_t size_a,
 	}
 	return ehooks_default_merge_impl(addr_a, addr_b);
 }
+
+const extent_hooks_t ehooks_default_extent_hooks = {
+	ehooks_default_alloc,
+	ehooks_default_dalloc,
+	ehooks_default_destroy,
+	ehooks_default_commit,
+	ehooks_default_decommit,
+#ifdef PAGES_CAN_PURGE_LAZY
+	ehooks_default_purge_lazy,
+#else
+	NULL,
+#endif
+#ifdef PAGES_CAN_PURGE_FORCED
+	ehooks_default_purge_forced,
+#else
+	NULL,
+#endif
+	ehooks_default_split,
+	ehooks_default_merge
+};
