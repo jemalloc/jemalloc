@@ -81,7 +81,7 @@ base_unmap(tsdn_t *tsdn, ehooks_t *ehooks, unsigned ind, void *addr,
 	} else {
 		tsd_t *tsd = tsdn_null(tsdn) ? tsd_fetch() : tsdn_tsd(tsdn);
 		pre_reentrancy(tsd, NULL);
-		if (!ehooks_dalloc(ehooks, addr, size, true, ind)) {
+		if (!ehooks_dalloc(tsdn, ehooks, addr, size, true, ind)) {
 			goto label_post_reentrancy;
 		}
 		if (!ehooks_decommit(ehooks, addr, size, 0, size, ind)) {

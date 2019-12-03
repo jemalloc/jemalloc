@@ -19,8 +19,6 @@ mutex_pool_t	extent_mutex_pool;
 
 size_t opt_lg_extent_max_active_fit = LG_EXTENT_MAX_ACTIVE_FIT_DEFAULT;
 
-static bool extent_dalloc_default(extent_hooks_t *extent_hooks, void *addr,
-    size_t size, bool committed, unsigned arena_ind);
 static void extent_destroy_default(extent_hooks_t *extent_hooks, void *addr,
     size_t size, bool committed, unsigned arena_ind);
 static bool extent_commit_default(extent_hooks_t *extent_hooks, void *addr,
@@ -58,7 +56,7 @@ static bool extent_merge_impl(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 
 const extent_hooks_t extent_hooks_default = {
 	ehooks_default_alloc,
-	extent_dalloc_default,
+	ehooks_default_dalloc,
 	extent_destroy_default,
 	extent_commit_default,
 	extent_decommit_default
@@ -1345,20 +1343,6 @@ extent_may_dalloc(void) {
 }
 
 static bool
-extent_dalloc_default_impl(void *addr, size_t size) {
-	if (!have_dss || !extent_in_dss(addr)) {
-		return extent_dalloc_mmap(addr, size);
-	}
-	return true;
-}
-
-static bool
-extent_dalloc_default(extent_hooks_t *extent_hooks, void *addr, size_t size,
-    bool committed, unsigned arena_ind) {
-	return extent_dalloc_default_impl(addr, size);
-}
-
-static bool
 extent_dalloc_wrapper_try(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
     extent_t *extent) {
 	bool err;
@@ -1371,17 +1355,9 @@ extent_dalloc_wrapper_try(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 	extent_addr_set(extent, extent_base_get(extent));
 
 	/* Try to deallocate. */
-	if (ehooks_are_default(ehooks)) {
-		/* Call directly to propagate tsdn. */
-		err = extent_dalloc_default_impl(extent_base_get(extent),
-		    extent_size_get(extent));
-	} else {
-		extent_hook_pre_reentrancy(tsdn, arena);
-		err = ehooks_dalloc(ehooks, extent_base_get(extent),
-		    extent_size_get(extent), extent_committed_get(extent),
-		    arena_ind_get(arena));
-		extent_hook_post_reentrancy(tsdn);
-	}
+	err = ehooks_dalloc(tsdn, ehooks, extent_base_get(extent),
+	    extent_size_get(extent), extent_committed_get(extent),
+	    arena_ind_get(arena));
 
 	if (!err) {
 		extent_dalloc(tsdn, arena, extent);

@@ -18,6 +18,10 @@ void *ehooks_default_alloc(extent_hooks_t *extent_hooks, void *new_addr,
     size_t size, size_t alignment, bool *zero, bool *commit,
     unsigned arena_ind);
 
+bool ehooks_default_dalloc_impl(void *addr, size_t size);
+bool ehooks_default_dalloc(extent_hooks_t *extent_hooks, void *addr,
+    size_t size, bool committed, unsigned arena_ind);
+
 static inline void
 ehooks_pre_reentrancy(tsdn_t *tsdn) {
 	tsd_t *tsd = tsdn_null(tsdn) ? tsd_fetch() : tsdn_tsd(tsdn);
@@ -89,14 +93,20 @@ ehooks_alloc(tsdn_t *tsdn, ehooks_t *ehooks, void *new_addr, size_t size,
 }
 
 static inline bool
-ehooks_dalloc(ehooks_t *ehooks, void *addr, size_t size, bool committed,
-    unsigned arena_ind) {
+ehooks_dalloc(tsdn_t *tsdn, ehooks_t *ehooks, void *addr, size_t size,
+    bool committed, unsigned arena_ind) {
 	extent_hooks_t *extent_hooks = ehooks_get_extent_hooks_ptr(ehooks);
-	if (extent_hooks->dalloc == NULL) {
+	if (extent_hooks == &extent_hooks_default) {
+		return ehooks_default_dalloc_impl(addr, size);
+	} else if (extent_hooks->dalloc == NULL) {
 		return true;
+	} else {
+		ehooks_pre_reentrancy(tsdn);
+		bool err = extent_hooks->dalloc(extent_hooks, addr, size,
+		    committed, arena_ind);
+		ehooks_post_reentrancy(tsdn);
+		return err;
 	}
-	return extent_hooks->dalloc(extent_hooks, addr, size, committed,
-	    arena_ind);
 }
 
 static inline void
