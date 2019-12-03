@@ -21,10 +21,6 @@ size_t opt_lg_extent_max_active_fit = LG_EXTENT_MAX_ACTIVE_FIT_DEFAULT;
 
 static bool extent_commit_impl(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
     extent_t *extent, size_t offset, size_t length, bool growing_retained);
-#ifdef PAGES_CAN_PURGE_LAZY
-static bool extent_purge_lazy_default(extent_hooks_t *extent_hooks, void *addr,
-    size_t size, size_t offset, size_t length, unsigned arena_ind);
-#endif
 static bool extent_purge_lazy_impl(tsdn_t *tsdn, arena_t *arena,
     ehooks_t *ehooks, extent_t *extent, size_t offset, size_t length,
     bool growing_retained);
@@ -55,7 +51,7 @@ const extent_hooks_t extent_hooks_default = {
 	ehooks_default_commit,
 	ehooks_default_decommit,
 #ifdef PAGES_CAN_PURGE_LAZY
-	extent_purge_lazy_default,
+	ehooks_default_purge_lazy,
 #else
 	NULL,
 #endif
@@ -1390,7 +1386,7 @@ extent_dalloc_wrapper(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 	    arena_ind_get(arena))) {
 		zeroed = true;
 	} else if (extent_state_get(extent) == extent_state_muzzy ||
-	    !ehooks_purge_lazy(ehooks, extent_base_get(extent),
+	    !ehooks_purge_lazy(tsdn, ehooks, extent_base_get(extent),
 	    extent_size_get(extent), 0, extent_size_get(extent),
 	    arena_ind_get(arena))) {
 		zeroed = false;
@@ -1461,38 +1457,13 @@ extent_decommit_wrapper(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 	return err;
 }
 
-#ifdef PAGES_CAN_PURGE_LAZY
-static bool
-extent_purge_lazy_default(extent_hooks_t *extent_hooks, void *addr, size_t size,
-    size_t offset, size_t length, unsigned arena_ind) {
-	assert(addr != NULL);
-	assert((offset & PAGE_MASK) == 0);
-	assert(length != 0);
-	assert((length & PAGE_MASK) == 0);
-
-	return pages_purge_lazy((void *)((uintptr_t)addr + (uintptr_t)offset),
-	    length);
-}
-#endif
-
 static bool
 extent_purge_lazy_impl(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
     extent_t *extent, size_t offset, size_t length, bool growing_retained) {
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, growing_retained ? 1 : 0);
-
-	if (ehooks_purge_lazy_will_fail(ehooks)) {
-		return true;
-	}
-	if (!ehooks_are_default(ehooks)) {
-		extent_hook_pre_reentrancy(tsdn, arena);
-	}
-	bool err = ehooks_purge_lazy(ehooks, extent_base_get(extent),
+	bool err = ehooks_purge_lazy(tsdn, ehooks, extent_base_get(extent),
 	    extent_size_get(extent), offset, length, arena_ind_get(arena));
-	if (!ehooks_are_default(ehooks)) {
-		extent_hook_post_reentrancy(tsdn);
-	}
-
 	return err;
 }
 
