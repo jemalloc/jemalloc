@@ -53,22 +53,17 @@ const extent_hooks_t extent_hooks_default = {
 	ehooks_default_dalloc,
 	ehooks_default_destroy,
 	ehooks_default_commit,
-	ehooks_default_decommit
+	ehooks_default_decommit,
 #ifdef PAGES_CAN_PURGE_LAZY
-	,
-	extent_purge_lazy_default
+	extent_purge_lazy_default,
 #else
-	,
-	NULL
+	NULL,
 #endif
 #ifdef PAGES_CAN_PURGE_FORCED
-	,
-	extent_purge_forced_default
+	extent_purge_forced_default,
 #else
-	,
-	NULL
+	NULL,
 #endif
-	,
 	extent_split_default,
 	extent_merge_default
 };
