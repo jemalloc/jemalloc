@@ -40,12 +40,8 @@ base_map(tsdn_t *tsdn, ehooks_t *ehooks, unsigned ind, size_t size) {
 	if (ehooks_are_default(ehooks)) {
 		addr = extent_alloc_mmap(NULL, size, alignment, &zero, &commit);
 	} else {
-		/* No arena context as we are creating new arenas. */
-		tsd_t *tsd = tsdn_null(tsdn) ? tsd_fetch() : tsdn_tsd(tsdn);
-		pre_reentrancy(tsd, NULL);
-		addr = ehooks_alloc(ehooks, NULL, size, alignment, &zero,
+		addr = ehooks_alloc(tsdn, ehooks, NULL, size, alignment, &zero,
 		    &commit, ind);
-		post_reentrancy(tsd);
 	}
 
 	return addr;
