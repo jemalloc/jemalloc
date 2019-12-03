@@ -46,6 +46,7 @@ extent_t *extent_split_wrapper(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
     size_t size_b, szind_t szind_b, bool slab_b);
 bool extent_merge_wrapper(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
     extent_t *a, extent_t *b);
+bool extent_head_no_merge(extent_t *a, extent_t *b);
 
 bool extent_boot(void);
 
