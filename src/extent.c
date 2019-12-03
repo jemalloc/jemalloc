@@ -19,9 +19,6 @@ mutex_pool_t	extent_mutex_pool;
 
 size_t opt_lg_extent_max_active_fit = LG_EXTENT_MAX_ACTIVE_FIT_DEFAULT;
 
-static void *extent_alloc_default(extent_hooks_t *extent_hooks, void *new_addr,
-    size_t size, size_t alignment, bool *zero, bool *commit,
-    unsigned arena_ind);
 static bool extent_dalloc_default(extent_hooks_t *extent_hooks, void *addr,
     size_t size, bool committed, unsigned arena_ind);
 static void extent_destroy_default(extent_hooks_t *extent_hooks, void *addr,
@@ -60,7 +57,7 @@ static bool extent_merge_impl(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
     extent_t *a, extent_t *b, bool growing_retained);
 
 const extent_hooks_t extent_hooks_default = {
-	extent_alloc_default,
+	ehooks_default_alloc,
 	extent_dalloc_default,
 	extent_destroy_default,
 	extent_commit_default,
@@ -881,72 +878,6 @@ extent_recycle(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks, eset_t *eset,
 	return extent;
 }
 
-/*
- * If the caller specifies (!*zero), it is still possible to receive zeroed
- * memory, in which case *zero is toggled to true.  arena_extent_alloc() takes
- * advantage of this to avoid demanding zeroed extents, but taking advantage of
- * them if they are returned.
- */
-static void *
-extent_alloc_core(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
-    size_t alignment, bool *zero, bool *commit, dss_prec_t dss_prec) {
-	void *ret;
-
-	assert(size != 0);
-	assert(alignment != 0);
-
-	/* "primary" dss. */
-	if (have_dss && dss_prec == dss_prec_primary && (ret =
-	    extent_alloc_dss(tsdn, arena, new_addr, size, alignment, zero,
-	    commit)) != NULL) {
-		return ret;
-	}
-	/* mmap. */
-	if ((ret = extent_alloc_mmap(new_addr, size, alignment, zero, commit))
-	    != NULL) {
-		return ret;
-	}
-	/* "secondary" dss. */
-	if (have_dss && dss_prec == dss_prec_secondary && (ret =
-	    extent_alloc_dss(tsdn, arena, new_addr, size, alignment, zero,
-	    commit)) != NULL) {
-		return ret;
-	}
-
-	/* All strategies for allocation failed. */
-	return NULL;
-}
-
-static void *
-extent_alloc_default_impl(tsdn_t *tsdn, arena_t *arena, void *new_addr,
-    size_t size, size_t alignment, bool *zero, bool *commit) {
-	void *ret = extent_alloc_core(tsdn, arena, new_addr, size, alignment, zero,
-	    commit, (dss_prec_t)atomic_load_u(&arena->dss_prec,
-	    ATOMIC_RELAXED));
-	if (have_madvise_huge && ret) {
-		pages_set_thp_state(ret, size);
-	}
-	return ret;
-}
-
-static void *
-extent_alloc_default(extent_hooks_t *extent_hooks, void *new_addr, size_t size,
-    size_t alignment, bool *zero, bool *commit, unsigned arena_ind) {
-	tsdn_t *tsdn;
-	arena_t *arena;
-
-	tsdn = tsdn_fetch();
-	arena = arena_get(tsdn, arena_ind, false);
-	/*
-	 * The arena we're allocating on behalf of must have been initialized
-	 * already.
-	 */
-	assert(arena != NULL);
-
-	return extent_alloc_default_impl(tsdn, arena, new_addr, size,
-	    ALIGNMENT_CEILING(alignment, PAGE), zero, commit);
-}
-
 static void
 extent_hook_pre_reentrancy(tsdn_t *tsdn, arena_t *arena) {
 	tsd_t *tsd = tsdn_null(tsdn) ? tsd_fetch() : tsdn_tsd(tsdn);
@@ -1012,16 +943,8 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 	bool zeroed = false;
 	bool committed = false;
 
-	void *ptr;
-	if (ehooks_are_default(ehooks)) {
-		ptr = extent_alloc_default_impl(tsdn, arena, NULL,
-		    alloc_size, PAGE, &zeroed, &committed);
-	} else {
-		extent_hook_pre_reentrancy(tsdn, arena);
-		ptr = ehooks_alloc(ehooks, NULL, alloc_size, PAGE, &zeroed,
-		    &committed, arena_ind_get(arena));
-		extent_hook_post_reentrancy(tsdn);
-	}
+	void *ptr = ehooks_alloc(tsdn, ehooks, NULL, alloc_size, PAGE, &zeroed,
+	    &committed, arena_ind_get(arena));
 
 	extent_init(extent, arena_ind_get(arena), ptr, alloc_size, false,
 	    SC_NSIZES, arena_extent_sn_next(arena), extent_state_active, zeroed,
@@ -1177,18 +1100,9 @@ extent_alloc_wrapper_hard(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 	if (extent == NULL) {
 		return NULL;
 	}
-	void *addr;
 	size_t palignment = ALIGNMENT_CEILING(alignment, PAGE);
-	if (ehooks_are_default(ehooks)) {
-		/* Call directly to propagate tsdn. */
-		addr = extent_alloc_default_impl(tsdn, arena, new_addr, esize,
-		    palignment, zero, commit);
-	} else {
-		extent_hook_pre_reentrancy(tsdn, arena);
-		addr = ehooks_alloc(ehooks, new_addr, esize, palignment, zero,
-		    commit, arena_ind_get(arena));
-		extent_hook_post_reentrancy(tsdn);
-	}
+	void *addr = ehooks_alloc(tsdn, ehooks, new_addr, esize, palignment,
+	    zero, commit, arena_ind_get(arena));
 	if (addr == NULL) {
 		extent_dalloc(tsdn, arena, extent);
 		return NULL;
