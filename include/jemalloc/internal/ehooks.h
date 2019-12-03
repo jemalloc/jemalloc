@@ -11,6 +11,26 @@ struct ehooks_s {
 	atomic_p_t ptr;
 };
 
+/* NOT PUBLIC. */
+void *ehooks_default_alloc_impl(tsdn_t *tsdn, void *new_addr, size_t size,
+    size_t alignment, bool *zero, bool *commit, unsigned arena_ind);
+void *ehooks_default_alloc(extent_hooks_t *extent_hooks, void *new_addr,
+    size_t size, size_t alignment, bool *zero, bool *commit,
+    unsigned arena_ind);
+
+static inline void
+ehooks_pre_reentrancy(tsdn_t *tsdn) {
+	tsd_t *tsd = tsdn_null(tsdn) ? tsd_fetch() : tsdn_tsd(tsdn);
+	tsd_pre_reentrancy_raw(tsd);
+}
+
+static inline void
+ehooks_post_reentrancy(tsdn_t *tsdn) {
+	tsd_t *tsd = tsdn_null(tsdn) ? tsd_fetch() : tsdn_tsd(tsdn);
+	tsd_post_reentrancy_raw(tsd);
+}
+
+/* PUBLIC. */
 void ehooks_init(ehooks_t *ehooks, extent_hooks_t *extent_hooks);
 
 static inline void
@@ -54,11 +74,18 @@ ehooks_merge_will_fail(ehooks_t *ehooks) {
 }
 
 static inline void *
-ehooks_alloc(ehooks_t *ehooks, void *new_addr, size_t size, size_t alignment,
-    bool *zero, bool *commit, unsigned arena_ind) {
+ehooks_alloc(tsdn_t *tsdn, ehooks_t *ehooks, void *new_addr, size_t size,
+    size_t alignment, bool *zero, bool *commit, unsigned arena_ind) {
 	extent_hooks_t *extent_hooks = ehooks_get_extent_hooks_ptr(ehooks);
-	return extent_hooks->alloc(extent_hooks, new_addr, size, alignment,
+	if (extent_hooks == &extent_hooks_default) {
+		return ehooks_default_alloc_impl(tsdn, new_addr, size,
+		    alignment, zero, commit, arena_ind);
+	}
+	ehooks_pre_reentrancy(tsdn);
+	void *ret = extent_hooks->alloc(extent_hooks, new_addr, size, alignment,
 	    zero, commit, arena_ind);
+	ehooks_post_reentrancy(tsdn);
+	return ret;
 }
 
 static inline bool
