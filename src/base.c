@@ -84,7 +84,7 @@ base_unmap(tsdn_t *tsdn, ehooks_t *ehooks, unsigned ind, void *addr,
 		if (!ehooks_dalloc(tsdn, ehooks, addr, size, true, ind)) {
 			goto label_post_reentrancy;
 		}
-		if (!ehooks_decommit(ehooks, addr, size, 0, size, ind)) {
+		if (!ehooks_decommit(tsdn, ehooks, addr, size, 0, size, ind)) {
 			goto label_post_reentrancy;
 		}
 		if (!ehooks_purge_forced(ehooks, addr, size, 0, size, ind)) {
