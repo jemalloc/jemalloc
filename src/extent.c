@@ -19,8 +19,6 @@ mutex_pool_t	extent_mutex_pool;
 
 size_t opt_lg_extent_max_active_fit = LG_EXTENT_MAX_ACTIVE_FIT_DEFAULT;
 
-static void extent_destroy_default(extent_hooks_t *extent_hooks, void *addr,
-    size_t size, bool committed, unsigned arena_ind);
 static bool extent_commit_default(extent_hooks_t *extent_hooks, void *addr,
     size_t size, size_t offset, size_t length, unsigned arena_ind);
 static bool extent_commit_impl(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
@@ -57,7 +55,7 @@ static bool extent_merge_impl(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 const extent_hooks_t extent_hooks_default = {
 	ehooks_default_alloc,
 	ehooks_default_dalloc,
-	extent_destroy_default,
+	ehooks_default_destroy,
 	extent_commit_default,
 	extent_decommit_default
 #ifdef PAGES_CAN_PURGE_LAZY
@@ -1421,19 +1419,6 @@ extent_dalloc_wrapper(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 	    false);
 }
 
-static void
-extent_destroy_default_impl(void *addr, size_t size) {
-	if (!have_dss || !extent_in_dss(addr)) {
-		pages_unmap(addr, size);
-	}
-}
-
-static void
-extent_destroy_default(extent_hooks_t *extent_hooks, void *addr, size_t size,
-    bool committed, unsigned arena_ind) {
-	extent_destroy_default_impl(addr, size);
-}
-
 void
 extent_destroy_wrapper(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
     extent_t *extent) {
@@ -1448,17 +1433,9 @@ extent_destroy_wrapper(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 	extent_addr_set(extent, extent_base_get(extent));
 
 	/* Try to destroy; silently fail otherwise. */
-	if (ehooks_are_default(ehooks)) {
-		/* Call directly to propagate tsdn. */
-		extent_destroy_default_impl(extent_base_get(extent),
-		    extent_size_get(extent));
-	} else if (!ehooks_destroy_is_noop(ehooks)) {
-		extent_hook_pre_reentrancy(tsdn, arena);
-		ehooks_destroy(ehooks, extent_base_get(extent),
-		    extent_size_get(extent), extent_committed_get(extent),
-		    arena_ind_get(arena));
-		extent_hook_post_reentrancy(tsdn);
-	}
+	ehooks_destroy(tsdn, ehooks, extent_base_get(extent),
+	    extent_size_get(extent), extent_committed_get(extent),
+	    arena_ind_get(arena));
 
 	extent_dalloc(tsdn, arena, extent);
 }

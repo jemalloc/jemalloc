@@ -89,3 +89,17 @@ ehooks_default_dalloc(extent_hooks_t *extent_hooks, void *addr, size_t size,
     bool committed, unsigned arena_ind) {
 	return ehooks_default_dalloc_impl(addr, size);
 }
+
+void
+ehooks_default_destroy_impl(void *addr, size_t size) {
+	if (!have_dss || !extent_in_dss(addr)) {
+		pages_unmap(addr, size);
+	}
+}
+
+void
+ehooks_default_destroy(extent_hooks_t *extent_hooks, void *addr, size_t size,
+    bool committed, unsigned arena_ind) {
+	ehooks_default_destroy_impl(addr, size);
+}
+
