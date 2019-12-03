@@ -17,9 +17,11 @@ void *ehooks_default_alloc_impl(tsdn_t *tsdn, void *new_addr, size_t size,
 void *ehooks_default_alloc(extent_hooks_t *extent_hooks, void *new_addr,
     size_t size, size_t alignment, bool *zero, bool *commit,
     unsigned arena_ind);
-
 bool ehooks_default_dalloc_impl(void *addr, size_t size);
 bool ehooks_default_dalloc(extent_hooks_t *extent_hooks, void *addr,
+    size_t size, bool committed, unsigned arena_ind);
+void ehooks_default_destroy_impl(void *addr, size_t size);
+void ehooks_default_destroy(extent_hooks_t *extent_hooks, void *addr,
     size_t size, bool committed, unsigned arena_ind);
 
 static inline void
@@ -110,13 +112,19 @@ ehooks_dalloc(tsdn_t *tsdn, ehooks_t *ehooks, void *addr, size_t size,
 }
 
 static inline void
-ehooks_destroy(ehooks_t *ehooks, void *addr, size_t size, bool committed,
-    unsigned arena_ind) {
+ehooks_destroy(tsdn_t *tsdn, ehooks_t *ehooks, void *addr, size_t size,
+    bool committed, unsigned arena_ind) {
 	extent_hooks_t *extent_hooks = ehooks_get_extent_hooks_ptr(ehooks);
-	if (extent_hooks->destroy == NULL) {
+	if (extent_hooks == &extent_hooks_default) {
+		return ehooks_default_destroy_impl(addr, size);
+	} else if (extent_hooks->destroy == NULL) {
 		return;
+	} else {
+		ehooks_pre_reentrancy(tsdn);
+		extent_hooks->destroy(extent_hooks, addr, size, committed,
+		    arena_ind);
+		ehooks_post_reentrancy(tsdn);
 	}
-	extent_hooks->destroy(extent_hooks, addr, size, committed, arena_ind);
 }
 
 static inline bool
