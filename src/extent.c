@@ -27,9 +27,6 @@ static bool extent_purge_lazy_impl(tsdn_t *tsdn, arena_t *arena,
 static bool extent_purge_forced_impl(tsdn_t *tsdn, arena_t *arena,
     ehooks_t *ehooks, extent_t *extent, size_t offset, size_t length,
     bool growing_retained);
-static bool extent_split_default(extent_hooks_t *extent_hooks, void *addr,
-    size_t size, size_t size_a, size_t size_b, bool committed,
-    unsigned arena_ind);
 static extent_t *extent_split_impl(tsdn_t *tsdn, arena_t *arena,
     ehooks_t *ehooks, extent_t *extent, size_t size_a, szind_t szind_a,
     bool slab_a, size_t size_b, szind_t szind_b, bool slab_b,
@@ -56,7 +53,7 @@ const extent_hooks_t extent_hooks_default = {
 #else
 	NULL,
 #endif
-	extent_split_default,
+	ehooks_default_split,
 	extent_merge_default
 };
 
@@ -1487,21 +1484,6 @@ extent_purge_forced_wrapper(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 	    offset, length, false);
 }
 
-static bool
-extent_split_default(extent_hooks_t *extent_hooks, void *addr, size_t size,
-    size_t size_a, size_t size_b, bool committed, unsigned arena_ind) {
-	if (!maps_coalesce) {
-		/*
-		 * Without retain, only whole regions can be purged (required by
-		 * MEM_RELEASE on Windows) -- therefore disallow splitting.  See
-		 * comments in extent_head_no_merge().
-		 */
-		return !opt_retain;
-	}
-
-	return false;
-}
-
 /*
  * Accepts the extent to split, and the characteristics of each side of the
  * split.  The 'a' parameters go with the 'lead' of the resulting pair of
@@ -1559,15 +1541,10 @@ extent_split_impl(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 
 	extent_lock2(tsdn, extent, trail);
 
-	if (!ehooks_are_default(ehooks)) {
-		extent_hook_pre_reentrancy(tsdn, arena);
-	}
-	bool err = ehooks_split(ehooks, extent_base_get(extent),
+	bool err = ehooks_split(tsdn, ehooks, extent_base_get(extent),
 	    size_a + size_b, size_a, size_b, extent_committed_get(extent),
 	    arena_ind_get(arena));
-	if (!ehooks_are_default(ehooks)) {
-		extent_hook_post_reentrancy(tsdn);
-	}
+
 	if (err) {
 		goto label_error_c;
 	}

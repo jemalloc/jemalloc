@@ -162,3 +162,23 @@ ehooks_default_purge_forced(extent_hooks_t *extent_hooks, void *addr,
 	return ehooks_default_purge_forced_impl(addr, offset, length);
 }
 #endif
+
+bool
+ehooks_default_split_impl() {
+	if (!maps_coalesce) {
+		/*
+		 * Without retain, only whole regions can be purged (required by
+		 * MEM_RELEASE on Windows) -- therefore disallow splitting.  See
+		 * comments in extent_head_no_merge().
+		 */
+		return !opt_retain;
+	}
+
+	return false;
+}
+
+bool
+ehooks_default_split(extent_hooks_t *extent_hooks, void *addr, size_t size,
+    size_t size_a, size_t size_b, bool committed, unsigned arena_ind) {
+	return ehooks_default_split_impl();
+}
