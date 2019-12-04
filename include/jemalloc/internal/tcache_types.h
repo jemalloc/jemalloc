@@ -51,7 +51,7 @@ typedef struct tcaches_s tcaches_t;
 #define TCACHE_GC_INCR_BYTES 65536U
 
 /* Used in TSD static initializer only. Real init in tsd_tcache_data_init(). */
-#define TCACHE_ZERO_INITIALIZER {{0}}
+#define TCACHE_ZERO_INITIALIZER {0}
 
 /* Used in TSD static initializer only. Will be initialized to opt_tcache. */
 #define TCACHE_ENABLED_ZERO_INITIALIZER false

@@ -113,6 +113,21 @@ bool			prof_booted = false;
 
 /******************************************************************************/
 
+/*
+ * If profiling is off, then PROF_DUMP_FILENAME_LEN is 1, so we'll end up
+ * calling strncpy with a size of 0, which triggers a -Wstringop-truncation
+ * warning (strncpy can never actually be called in this case, since we bail out
+ * much earlier when config_prof is false).  This function works around the
+ * warning to let us leave the warning on.
+ */
+static inline void
+prof_strncpy(char *UNUSED dest, const char *UNUSED src, size_t UNUSED size) {
+	cassert(config_prof);
+#ifdef JEMALLOC_PROF
+	strncpy(dest, src, size);
+#endif
+}
+
 static bool
 prof_tctx_should_destroy(tsdn_t *tsdn, prof_tctx_t *tctx) {
 	malloc_mutex_assert_owner(tsdn, tctx->tdata->lock);
@@ -692,7 +707,7 @@ prof_dump_prefix_set(tsdn_t *tsdn, const char *prefix) {
 	}
 	assert(prof_dump_prefix != NULL);
 
-	strncpy(prof_dump_prefix, prefix, PROF_DUMP_FILENAME_LEN - 1);
+	prof_strncpy(prof_dump_prefix, prefix, PROF_DUMP_FILENAME_LEN - 1);
 	prof_dump_prefix[PROF_DUMP_FILENAME_LEN - 1] = '\0';
 	malloc_mutex_unlock(tsdn, &prof_dump_filename_mtx);
 
