@@ -79,25 +79,21 @@ base_unmap(tsdn_t *tsdn, ehooks_t *ehooks, unsigned ind, void *addr,
 		/* Nothing worked.  This should never happen. */
 		not_reached();
 	} else {
-		tsd_t *tsd = tsdn_null(tsdn) ? tsd_fetch() : tsdn_tsd(tsdn);
-		pre_reentrancy(tsd, NULL);
 		if (!ehooks_dalloc(tsdn, ehooks, addr, size, true, ind)) {
-			goto label_post_reentrancy;
+			goto label_done;
 		}
 		if (!ehooks_decommit(tsdn, ehooks, addr, size, 0, size, ind)) {
-			goto label_post_reentrancy;
+			goto label_done;
 		}
 		if (!ehooks_purge_forced(tsdn, ehooks, addr, size, 0, size,
 		    ind)) {
-			goto label_post_reentrancy;
+			goto label_done;
 		}
 		if (!ehooks_purge_lazy(tsdn, ehooks, addr, size, 0, size,
 		    ind)) {
-			goto label_post_reentrancy;
+			goto label_done;
 		}
 		/* Nothing worked.  That's the application's problem. */
-	label_post_reentrancy:
-		post_reentrancy(tsd);
 	}
 label_done:
 	if (metadata_thp_madvise()) {
