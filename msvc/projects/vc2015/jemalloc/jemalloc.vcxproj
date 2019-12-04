@@ -47,6 +47,7 @@
     <ClCompile Include="..\..\..\..\src\ehooks.c" />
     <ClCompile Include="..\..\..\..\src\eset.c" />
     <ClCompile Include="..\..\..\..\src\extent.c" />
+    <ClCompile Include="..\..\..\..\src\extent2.c" />
     <ClCompile Include="..\..\..\..\src\extent_dss.c" />
     <ClCompile Include="..\..\..\..\src\extent_mmap.c" />
     <ClCompile Include="..\..\..\..\src\hash.c" />

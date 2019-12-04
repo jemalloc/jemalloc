@@ -1,22 +1,55 @@
-#ifndef JEMALLOC_INTERNAL_EXTENT_EXTERNS_H
-#define JEMALLOC_INTERNAL_EXTENT_EXTERNS_H
+#ifndef JEMALLOC_INTERNAL_EXTENT2_H
+#define JEMALLOC_INTERNAL_EXTENT2_H
 
 #include "jemalloc/internal/ehooks.h"
-#include "jemalloc/internal/mutex.h"
-#include "jemalloc/internal/mutex_pool.h"
+#include "jemalloc/internal/eset.h"
 #include "jemalloc/internal/ph.h"
 #include "jemalloc/internal/rtree.h"
 
+/*
+ * This module contains the page-level allocator.  It chooses the addresses that
+ * allocations requested by other modules will inhabit, and updates the global
+ * metadata to reflect allocation/deallocation/purging decisions.
+ *
+ * The naming ("extent2" for the module, and "extent_" or "extents_" for most of
+ * the functions) is historical.  Eventually, the naming should be updated to
+ * reflect the functionality.  Similarly, the utilization stats live here for no
+ * particular reason.  This will also be changed, but much more immediately.
+ */
+
+/*
+ * The following two structs are for experimental purposes. See
+ * experimental_utilization_query_ctl and
+ * experimental_utilization_batch_query_ctl in src/ctl.c.
+ */
+typedef struct extent_util_stats_s extent_util_stats_t;
+struct extent_util_stats_s {
+	size_t nfree;
+	size_t nregs;
+	size_t size;
+};
+
+typedef struct extent_util_stats_verbose_s extent_util_stats_verbose_t;
+struct extent_util_stats_verbose_s {
+	void *slabcur_addr;
+	size_t nfree;
+	size_t nregs;
+	size_t size;
+	size_t bin_nfree;
+	size_t bin_nregs;
+};
+
+/*
+ * When reuse (and split) an active extent, (1U << opt_lg_extent_max_active_fit)
+ * is the max ratio between the size of the active extent and the new extent.
+ */
+#define LG_EXTENT_MAX_ACTIVE_FIT_DEFAULT 6
 extern size_t opt_lg_extent_max_active_fit;
 
 extern rtree_t extents_rtree;
-extern mutex_pool_t extent_mutex_pool;
 
 extent_t *extent_alloc(tsdn_t *tsdn, arena_t *arena);
 void extent_dalloc(tsdn_t *tsdn, arena_t *arena, extent_t *extent);
-
-ph_proto(, extent_avail_, extent_tree_t, extent_t)
-ph_proto(, extent_heap_, extent_heap_t, extent_t)
 
 extent_t *extents_alloc(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
     eset_t *eset, void *new_addr, size_t size, size_t pad, size_t alignment,
@@ -56,4 +89,4 @@ void extent_util_stats_verbose_get(tsdn_t *tsdn, const void *ptr,
     size_t *nfree, size_t *nregs, size_t *size,
     size_t *bin_nfree, size_t *bin_nregs, void **slabcur_addr);
 
-#endif /* JEMALLOC_INTERNAL_EXTENT_EXTERNS_H */
+#endif /* JEMALLOC_INTERNAL_EXTENT2_H */

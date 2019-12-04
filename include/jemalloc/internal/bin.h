@@ -4,8 +4,6 @@
 #include "jemalloc/internal/bin_stats.h"
 #include "jemalloc/internal/bin_types.h"
 #include "jemalloc/internal/extent.h"
-#include "jemalloc/internal/extent_types.h"
-#include "jemalloc/internal/extent_structs.h"
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/sc.h"
 
