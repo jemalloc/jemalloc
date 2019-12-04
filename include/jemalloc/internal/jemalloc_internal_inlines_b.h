@@ -1,6 +1,7 @@
 #ifndef JEMALLOC_INTERNAL_INLINES_B_H
 #define JEMALLOC_INTERNAL_INLINES_B_H
 
+#include "jemalloc/internal/extent2.h"
 #include "jemalloc/internal/rtree.h"
 
 /* Choose an arena based on a per-thread value. */

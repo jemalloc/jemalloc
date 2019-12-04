@@ -620,4 +620,7 @@ extent_esnead_comp(const extent_t *a, const extent_t *b) {
 	return ret;
 }
 
+ph_proto(, extent_avail_, extent_tree_t, extent_t)
+ph_proto(, extent_heap_, extent_heap_t, extent_t)
+
 #endif /* JEMALLOC_INTERNAL_EXTENT_H */
