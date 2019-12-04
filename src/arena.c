@@ -420,7 +420,7 @@ arena_large_ralloc_stats_update(tsdn_t *tsdn, arena_t *arena, size_t oldusize,
 
 static bool
 arena_may_have_muzzy(arena_t *arena) {
-	return (pages_can_purge_lazy && (arena_muzzy_decay_ms_get(arena) != 0));
+	return arena_muzzy_decay_ms_get(arena) != 0;
 }
 
 extent_t *
