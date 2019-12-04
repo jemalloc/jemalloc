@@ -6,6 +6,7 @@
 #include "jemalloc/internal/ctl.h"
 #include "jemalloc/internal/extent_dss.h"
 #include "jemalloc/internal/extent_mmap.h"
+#include "jemalloc/internal/inspect.h"
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/nstime.h"
 #include "jemalloc/internal/sc.h"
@@ -3258,11 +3259,11 @@ experimental_utilization_query_ctl(tsd_t *tsd, const size_t *mib,
     size_t miblen, void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
 	int ret;
 
-	assert(sizeof(extent_util_stats_verbose_t)
+	assert(sizeof(inspect_extent_util_stats_verbose_t)
 	    == sizeof(void *) + sizeof(size_t) * 5);
 
 	if (oldp == NULL || oldlenp == NULL
-	    || *oldlenp != sizeof(extent_util_stats_verbose_t)
+	    || *oldlenp != sizeof(inspect_extent_util_stats_verbose_t)
 	    || newp == NULL) {
 		ret = EINVAL;
 		goto label_return;
@@ -3270,9 +3271,9 @@ experimental_utilization_query_ctl(tsd_t *tsd, const size_t *mib,
 
 	void *ptr = NULL;
 	WRITE(ptr, void *);
-	extent_util_stats_verbose_t *util_stats
-	    = (extent_util_stats_verbose_t *)oldp;
-	extent_util_stats_verbose_get(tsd_tsdn(tsd), ptr,
+	inspect_extent_util_stats_verbose_t *util_stats
+	    = (inspect_extent_util_stats_verbose_t *)oldp;
+	inspect_extent_util_stats_verbose_get(tsd_tsdn(tsd), ptr,
 	    &util_stats->nfree, &util_stats->nregs, &util_stats->size,
 	    &util_stats->bin_nfree, &util_stats->bin_nregs,
 	    &util_stats->slabcur_addr);
@@ -3383,21 +3384,22 @@ experimental_utilization_batch_query_ctl(tsd_t *tsd, const size_t *mib,
     size_t miblen, void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
 	int ret;
 
-	assert(sizeof(extent_util_stats_t) == sizeof(size_t) * 3);
+	assert(sizeof(inspect_extent_util_stats_t) == sizeof(size_t) * 3);
 
 	const size_t len = newlen / sizeof(const void *);
 	if (oldp == NULL || oldlenp == NULL || newp == NULL || newlen == 0
 	    || newlen != len * sizeof(const void *)
-	    || *oldlenp != len * sizeof(extent_util_stats_t)) {
+	    || *oldlenp != len * sizeof(inspect_extent_util_stats_t)) {
 		ret = EINVAL;
 		goto label_return;
 	}
 
 	void **ptrs = (void **)newp;
-	extent_util_stats_t *util_stats = (extent_util_stats_t *)oldp;
+	inspect_extent_util_stats_t *util_stats =
+	    (inspect_extent_util_stats_t *)oldp;
 	size_t i;
 	for (i = 0; i < len; ++i) {
-		extent_util_stats_get(tsd_tsdn(tsd), ptrs[i],
+		inspect_extent_util_stats_get(tsd_tsdn(tsd), ptrs[i],
 		    &util_stats[i].nfree, &util_stats[i].nregs,
 		    &util_stats[i].size);
 	}
