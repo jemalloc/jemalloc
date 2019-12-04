@@ -57,7 +57,7 @@ ehooks_default_alloc_impl(tsdn_t *tsdn, void *new_addr, size_t size,
 	return ret;
 }
 
-void *
+static void *
 ehooks_default_alloc(extent_hooks_t *extent_hooks, void *new_addr, size_t size,
     size_t alignment, bool *zero, bool *commit, unsigned arena_ind) {
 	tsdn_t *tsdn;
@@ -84,7 +84,7 @@ ehooks_default_dalloc_impl(void *addr, size_t size) {
 	return true;
 }
 
-bool
+static bool
 ehooks_default_dalloc(extent_hooks_t *extent_hooks, void *addr, size_t size,
     bool committed, unsigned arena_ind) {
 	return ehooks_default_dalloc_impl(addr, size);
@@ -97,7 +97,7 @@ ehooks_default_destroy_impl(void *addr, size_t size) {
 	}
 }
 
-void
+static void
 ehooks_default_destroy(extent_hooks_t *extent_hooks, void *addr, size_t size,
     bool committed, unsigned arena_ind) {
 	ehooks_default_destroy_impl(addr, size);
@@ -109,7 +109,7 @@ ehooks_default_commit_impl(void *addr, size_t offset, size_t length) {
 	    length);
 }
 
-bool
+static bool
 ehooks_default_commit(extent_hooks_t *extent_hooks, void *addr, size_t size,
     size_t offset, size_t length, unsigned arena_ind) {
 	return ehooks_default_commit_impl(addr, offset, length);
@@ -121,7 +121,7 @@ ehooks_default_decommit_impl(void *addr, size_t offset, size_t length) {
 	    length);
 }
 
-bool
+static bool
 ehooks_default_decommit(extent_hooks_t *extent_hooks, void *addr, size_t size,
     size_t offset, size_t length, unsigned arena_ind) {
 	return ehooks_default_decommit_impl(addr, offset, length);
@@ -134,7 +134,7 @@ ehooks_default_purge_lazy_impl(void *addr, size_t offset, size_t length) {
 	    length);
 }
 
-bool
+static bool
 ehooks_default_purge_lazy(extent_hooks_t *extent_hooks, void *addr, size_t size,
     size_t offset, size_t length, unsigned arena_ind) {
 	assert(addr != NULL);
@@ -152,7 +152,7 @@ ehooks_default_purge_forced_impl(void *addr, size_t offset, size_t length) {
 	    (uintptr_t)offset), length);
 }
 
-bool
+static bool
 ehooks_default_purge_forced(extent_hooks_t *extent_hooks, void *addr,
     size_t size, size_t offset, size_t length, unsigned arena_ind) {
 	assert(addr != NULL);
@@ -177,7 +177,7 @@ ehooks_default_split_impl() {
 	return false;
 }
 
-bool
+static bool
 ehooks_default_split(extent_hooks_t *extent_hooks, void *addr, size_t size,
     size_t size_a, size_t size_b, bool committed, unsigned arena_ind) {
 	return ehooks_default_split_impl();
@@ -195,7 +195,7 @@ ehooks_default_merge_impl(void *addr_a, void *addr_b) {
 	return false;
 }
 
-bool
+static bool
 ehooks_default_merge(extent_hooks_t *extent_hooks, void *addr_a, size_t size_a,
     void *addr_b, size_t size_b, bool committed, unsigned arena_ind) {
 	if (!maps_coalesce) {
