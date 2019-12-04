@@ -831,29 +831,6 @@ extent_recycle(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks, eset_t *eset,
 	return extent;
 }
 
-static void
-extent_hook_pre_reentrancy(tsdn_t *tsdn, arena_t *arena) {
-	tsd_t *tsd = tsdn_null(tsdn) ? tsd_fetch() : tsdn_tsd(tsdn);
-	if (arena == arena_get(tsd_tsdn(tsd), 0, false)) {
-		/*
-		 * The only legitimate case of customized extent hooks for a0 is
-		 * hooks with no allocation activities.  One such example is to
-		 * place metadata on pre-allocated resources such as huge pages.
-		 * In that case, rely on reentrancy_level checks to catch
-		 * infinite recursions.
-		 */
-		pre_reentrancy(tsd, NULL);
-	} else {
-		pre_reentrancy(tsd, arena);
-	}
-}
-
-static void
-extent_hook_post_reentrancy(tsdn_t *tsdn) {
-	tsd_t *tsd = tsdn_null(tsdn) ? tsd_fetch() : tsdn_tsd(tsdn);
-	post_reentrancy(tsd);
-}
-
 /*
  * If virtual memory is retained, create increasingly larger extents from which
  * to split requested extents in order to limit the total number of disjoint
@@ -1341,9 +1318,6 @@ extent_dalloc_wrapper(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 		extent_reregister(tsdn, extent);
 	}
 
-	if (!ehooks_are_default(ehooks)) {
-		extent_hook_pre_reentrancy(tsdn, arena);
-	}
 	/* Try to decommit; purge if that fails. */
 	bool zeroed;
 	if (!extent_committed_get(extent)) {
@@ -1362,9 +1336,6 @@ extent_dalloc_wrapper(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 		zeroed = false;
 	} else {
 		zeroed = false;
-	}
-	if (!ehooks_are_default(ehooks)) {
-		extent_hook_post_reentrancy(tsdn);
 	}
 	extent_zeroed_set(extent, zeroed);
 
