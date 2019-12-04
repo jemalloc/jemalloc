@@ -18,28 +18,6 @@
  */
 
 /*
- * The following two structs are for experimental purposes. See
- * experimental_utilization_query_ctl and
- * experimental_utilization_batch_query_ctl in src/ctl.c.
- */
-typedef struct extent_util_stats_s extent_util_stats_t;
-struct extent_util_stats_s {
-	size_t nfree;
-	size_t nregs;
-	size_t size;
-};
-
-typedef struct extent_util_stats_verbose_s extent_util_stats_verbose_t;
-struct extent_util_stats_verbose_s {
-	void *slabcur_addr;
-	size_t nfree;
-	size_t nregs;
-	size_t size;
-	size_t bin_nfree;
-	size_t bin_nregs;
-};
-
-/*
  * When reuse (and split) an active extent, (1U << opt_lg_extent_max_active_fit)
  * is the max ratio between the size of the active extent and the new extent.
  */
@@ -82,11 +60,5 @@ bool extent_merge_wrapper(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 bool extent_head_no_merge(extent_t *a, extent_t *b);
 
 bool extent_boot(void);
-
-void extent_util_stats_get(tsdn_t *tsdn, const void *ptr,
-    size_t *nfree, size_t *nregs, size_t *size);
-void extent_util_stats_verbose_get(tsdn_t *tsdn, const void *ptr,
-    size_t *nfree, size_t *nregs, size_t *size,
-    size_t *bin_nfree, size_t *bin_nregs, void **slabcur_addr);
 
 #endif /* JEMALLOC_INTERNAL_EXTENT2_H */
