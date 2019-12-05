@@ -75,8 +75,7 @@ prof_alloc_time_set(tsd_t *tsd, const void *ptr, nstime_t t) {
 }
 
 JEMALLOC_ALWAYS_INLINE bool
-prof_sample_accum_update(tsd_t *tsd, size_t usize, bool update,
-    prof_tdata_t **tdata_out) {
+prof_sample_accum_update(tsd_t *tsd, size_t usize, bool update) {
 	cassert(config_prof);
 
 	/* Fastpath: no need to load tdata */
@@ -90,14 +89,6 @@ prof_sample_accum_update(tsd_t *tsd, size_t usize, bool update,
 
 	prof_tdata_t *tdata = prof_tdata_get(tsd, true);
 	if (unlikely((uintptr_t)tdata <= (uintptr_t)PROF_TDATA_STATE_MAX)) {
-		tdata = NULL;
-	}
-
-	if (tdata_out != NULL) {
-		*tdata_out = tdata;
-	}
-
-	if (unlikely(tdata == NULL)) {
 		return true;
 	}
 
@@ -111,18 +102,14 @@ prof_sample_accum_update(tsd_t *tsd, size_t usize, bool update,
 JEMALLOC_ALWAYS_INLINE prof_tctx_t *
 prof_alloc_prep(tsd_t *tsd, size_t usize, bool prof_active, bool update) {
 	prof_tctx_t *ret;
-	prof_tdata_t *tdata;
-	prof_bt_t bt;
 
 	assert(usize == sz_s2u(usize));
 
-	if (!prof_active || likely(prof_sample_accum_update(tsd, usize, update,
-	    &tdata))) {
+	if (!prof_active ||
+	    likely(prof_sample_accum_update(tsd, usize, update))) {
 		ret = (prof_tctx_t *)(uintptr_t)1U;
 	} else {
-		bt_init(&bt, tdata->vec);
-		prof_backtrace(tsd, &bt);
-		ret = prof_lookup(tsd, &bt);
+		ret = prof_tctx_create(tsd);
 	}
 
 	return ret;
@@ -154,7 +141,7 @@ prof_realloc(tsd_t *tsd, const void *ptr, size_t usize, prof_tctx_t *tctx,
 
 	if (prof_active && !updated && ptr != NULL) {
 		assert(usize == isalloc(tsd_tsdn(tsd), ptr));
-		if (prof_sample_accum_update(tsd, usize, true, NULL)) {
+		if (prof_sample_accum_update(tsd, usize, true)) {
 			/*
 			 * Don't sample.  The usize passed to prof_alloc_prep()
 			 * was larger than what actually got allocated, so a

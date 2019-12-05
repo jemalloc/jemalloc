@@ -300,7 +300,7 @@ prof_lookup_global(tsd_t *tsd, prof_bt_t *bt, prof_tdata_t *tdata,
 	return false;
 }
 
-prof_tctx_t *
+static prof_tctx_t *
 prof_lookup(tsd_t *tsd, prof_bt_t *bt) {
 	union {
 		prof_tctx_t	*p;
@@ -312,9 +312,7 @@ prof_lookup(tsd_t *tsd, prof_bt_t *bt) {
 	cassert(config_prof);
 
 	tdata = prof_tdata_get(tsd, false);
-	if (tdata == NULL) {
-		return NULL;
-	}
+	assert(tdata != NULL);
 
 	malloc_mutex_lock(tsd_tsdn(tsd), tdata->lock);
 	not_found = ckh_search(&tdata->bt2tctx, bt, NULL, &ret.v);
@@ -372,6 +370,16 @@ prof_lookup(tsd_t *tsd, prof_bt_t *bt) {
 	}
 
 	return ret.p;
+}
+
+prof_tctx_t *
+prof_tctx_create(tsd_t *tsd) {
+	prof_tdata_t *tdata = prof_tdata_get(tsd, false);
+	assert(tdata != NULL);
+	prof_bt_t bt;
+	bt_init(&bt, tdata->vec);
+	prof_backtrace(tsd, &bt);
+	return prof_lookup(tsd, &bt);
 }
 
 #ifdef JEMALLOC_JET
