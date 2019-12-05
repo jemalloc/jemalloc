@@ -68,8 +68,8 @@ arena_prof_info_get(tsd_t *tsd, const void *ptr, alloc_ctx_t *alloc_ctx,
 }
 
 JEMALLOC_ALWAYS_INLINE void
-arena_prof_tctx_set(tsd_t *tsd, const void *ptr, size_t usize,
-    alloc_ctx_t *alloc_ctx, prof_tctx_t *tctx) {
+arena_prof_tctx_set(tsd_t *tsd, const void *ptr, alloc_ctx_t *alloc_ctx,
+    prof_tctx_t *tctx) {
 	cassert(config_prof);
 	assert(ptr != NULL);
 

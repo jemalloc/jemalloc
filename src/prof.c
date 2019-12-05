@@ -182,7 +182,7 @@ prof_alloc_rollback(tsd_t *tsd, prof_tctx_t *tctx, bool updated) {
 void
 prof_malloc_sample_object(tsd_t *tsd, const void *ptr, size_t usize,
     prof_tctx_t *tctx) {
-	prof_tctx_set(tsd, ptr, usize, NULL, tctx);
+	prof_tctx_set(tsd, ptr, NULL, tctx);
 
 	/* Get the current time and set this in the extent_t. We'll read this
 	 * when free() is called. */

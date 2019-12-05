@@ -50,12 +50,12 @@ prof_info_get(tsd_t *tsd, const void *ptr, alloc_ctx_t *alloc_ctx,
 }
 
 JEMALLOC_ALWAYS_INLINE void
-prof_tctx_set(tsd_t *tsd, const void *ptr, size_t usize,
-    alloc_ctx_t *alloc_ctx, prof_tctx_t *tctx) {
+prof_tctx_set(tsd_t *tsd, const void *ptr, alloc_ctx_t *alloc_ctx,
+    prof_tctx_t *tctx) {
 	cassert(config_prof);
 	assert(ptr != NULL);
 
-	arena_prof_tctx_set(tsd, ptr, usize, alloc_ctx, tctx);
+	arena_prof_tctx_set(tsd, ptr, alloc_ctx, tctx);
 }
 
 JEMALLOC_ALWAYS_INLINE void
@@ -138,7 +138,7 @@ prof_malloc(tsd_t *tsd, const void *ptr, size_t usize, alloc_ctx_t *alloc_ctx,
 	if (unlikely((uintptr_t)tctx > (uintptr_t)1U)) {
 		prof_malloc_sample_object(tsd, ptr, usize, tctx);
 	} else {
-		prof_tctx_set(tsd, ptr, usize, alloc_ctx,
+		prof_tctx_set(tsd, ptr, alloc_ctx,
 		    (prof_tctx_t *)(uintptr_t)1U);
 	}
 }
@@ -174,8 +174,7 @@ prof_realloc(tsd_t *tsd, const void *ptr, size_t usize, prof_tctx_t *tctx,
 	if (unlikely(sampled)) {
 		prof_malloc_sample_object(tsd, ptr, usize, tctx);
 	} else if (moved) {
-		prof_tctx_set(tsd, ptr, usize, NULL,
-		    (prof_tctx_t *)(uintptr_t)1U);
+		prof_tctx_set(tsd, ptr, NULL, (prof_tctx_t *)(uintptr_t)1U);
 	} else if (unlikely(old_sampled)) {
 		/*
 		 * prof_tctx_set() would work for the !moved case as well, but
