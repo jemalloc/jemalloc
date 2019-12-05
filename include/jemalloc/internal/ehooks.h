@@ -43,6 +43,7 @@ bool ehooks_default_purge_forced_impl(void *addr, size_t offset, size_t length);
 #endif
 bool ehooks_default_split_impl();
 bool ehooks_default_merge_impl(void *addr_a, void *addr_b);
+void ehooks_default_zero_impl(void *addr, size_t size);
 
 /*
  * We don't officially support reentrancy from wtihin the extent hooks.  But
@@ -258,6 +259,23 @@ ehooks_merge(tsdn_t *tsdn, ehooks_t *ehooks, void *addr_a, size_t size_a,
 		    addr_b, size_b, committed, arena_ind);
 		ehooks_post_reentrancy(tsdn);
 		return err;
+	}
+}
+
+static inline void
+ehooks_zero(tsdn_t *tsdn, ehooks_t *ehooks, void *addr, size_t size,
+    unsigned arena_ind) {
+	extent_hooks_t *extent_hooks = ehooks_get_extent_hooks_ptr(ehooks);
+	if (extent_hooks == &ehooks_default_extent_hooks) {
+		ehooks_default_zero_impl(addr, size);
+	} else {
+		/*
+		 * It would be correct to try using the user-provided purge
+		 * hooks (since they are required to have zeroed the extent if
+		 * they indicate success), but we don't necessarily know their
+		 * cost.  We'll be conservative and use memset.
+		 */
+		memset(addr, 0, size);
 	}
 }
 

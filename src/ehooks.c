@@ -209,6 +209,23 @@ ehooks_default_merge(extent_hooks_t *extent_hooks, void *addr_a, size_t size_a,
 	return ehooks_default_merge_impl(addr_a, addr_b);
 }
 
+void
+ehooks_default_zero_impl(void *addr, size_t size) {
+	/*
+	 * By default, we try to zero out memory using OS-provided demand-zeroed
+	 * pages.  If the user has specifically requested hugepages, though, we
+	 * don't want to purge in the middle of a hugepage (which would break it
+	 * up), so we act conservatively and use memset.
+	 */
+	bool needs_memset = true;
+	if (opt_thp != thp_mode_always) {
+		needs_memset = pages_purge_forced(addr, size);
+	}
+	if (needs_memset) {
+		memset(addr, 0, size);
+	}
+}
+
 const extent_hooks_t ehooks_default_extent_hooks = {
 	ehooks_default_alloc,
 	ehooks_default_dalloc,
