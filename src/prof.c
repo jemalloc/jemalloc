@@ -204,7 +204,7 @@ prof_malloc_sample_object(tsd_t *tsd, const void *ptr, size_t usize,
 void
 prof_free_sampled_object(tsd_t *tsd, size_t usize, prof_info_t *prof_info) {
 	assert(prof_info != NULL);
-	prof_tctx_t *tctx = prof_info->prof_tctx;
+	prof_tctx_t *tctx = prof_info->alloc_tctx;
 	assert((uintptr_t)tctx > (uintptr_t)1U);
 
 	malloc_mutex_lock(tsd_tsdn(tsd), tctx->tdata->lock);

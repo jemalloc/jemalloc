@@ -336,7 +336,7 @@ extent_slab_data_get_const(const extent_t *extent) {
 static inline void
 extent_prof_info_get(const extent_t *extent, prof_info_t *prof_info) {
 	assert(prof_info != NULL);
-	prof_info->prof_tctx = (prof_tctx_t *)atomic_load_p(
+	prof_info->alloc_tctx = (prof_tctx_t *)atomic_load_p(
 	    &extent->e_prof_tctx, ATOMIC_ACQUIRE);
 	prof_info->alloc_time = extent->e_alloc_time;
 }

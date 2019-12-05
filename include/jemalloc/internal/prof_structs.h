@@ -98,7 +98,7 @@ typedef rb_tree(prof_tctx_t) prof_tctx_tree_t;
 
 struct prof_info_s {
 	/* Points to the prof_tctx_t corresponding to the allocation. */
-	prof_tctx_t		*prof_tctx;
+	prof_tctx_t		*alloc_tctx;
 	/* Time when the allocation was made. */
 	nstime_t		alloc_time;
 };
