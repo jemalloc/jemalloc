@@ -16,7 +16,7 @@ TEST_BEGIN(test_prof_realloc) {
 	p = mallocx(1024, flags);
 	assert_ptr_not_null(p, "Unexpected mallocx() failure");
 	prof_info_get(tsd, p, NULL, &prof_info_p);
-	assert_ptr_ne(prof_info_p.prof_tctx, (prof_tctx_t *)(uintptr_t)1U,
+	assert_ptr_ne(prof_info_p.alloc_tctx, (prof_tctx_t *)(uintptr_t)1U,
 	    "Expected valid tctx");
 	prof_cnt_all(&curobjs_1, NULL, NULL, NULL);
 	assert_u64_eq(curobjs_0 + 1, curobjs_1,
@@ -26,7 +26,7 @@ TEST_BEGIN(test_prof_realloc) {
 	assert_ptr_ne(p, q, "Expected move");
 	assert_ptr_not_null(p, "Unexpected rmallocx() failure");
 	prof_info_get(tsd, q, NULL, &prof_info_q);
-	assert_ptr_ne(prof_info_q.prof_tctx, (prof_tctx_t *)(uintptr_t)1U,
+	assert_ptr_ne(prof_info_q.alloc_tctx, (prof_tctx_t *)(uintptr_t)1U,
 	    "Expected valid tctx");
 	prof_cnt_all(&curobjs_2, NULL, NULL, NULL);
 	assert_u64_eq(curobjs_1, curobjs_2,

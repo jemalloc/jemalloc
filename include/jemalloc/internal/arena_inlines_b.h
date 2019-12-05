@@ -63,7 +63,7 @@ arena_prof_info_get(tsd_t *tsd, const void *ptr, alloc_ctx_t *alloc_ctx,
 		large_prof_info_get(extent, prof_info);
 	} else {
 		memset(prof_info, 0, sizeof(prof_info_t));
-		prof_info->prof_tctx = (prof_tctx_t *)(uintptr_t)1U;
+		prof_info->alloc_tctx = (prof_tctx_t *)(uintptr_t)1U;
 	}
 }
 

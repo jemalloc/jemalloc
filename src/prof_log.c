@@ -200,7 +200,7 @@ prof_log_thr_index(tsd_t *tsd, uint64_t thr_uid, const char *name) {
 
 void
 prof_try_log(tsd_t *tsd, size_t usize, prof_info_t *prof_info) {
-	prof_tctx_t *tctx = prof_info->prof_tctx;
+	prof_tctx_t *tctx = prof_info->alloc_tctx;
 	malloc_mutex_assert_owner(tsd_tsdn(tsd), tctx->tdata->lock);
 
 	prof_tdata_t *cons_tdata = prof_tdata_get(tsd, false);
