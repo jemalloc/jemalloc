@@ -54,7 +54,7 @@ void prof_malloc_sample_object(tsd_t *tsd, const void *ptr, size_t usize,
 void prof_free_sampled_object(tsd_t *tsd, size_t usize, prof_info_t *prof_info);
 void bt_init(prof_bt_t *bt, void **vec);
 void prof_backtrace(tsd_t *tsd, prof_bt_t *bt);
-prof_tctx_t *prof_lookup(tsd_t *tsd, prof_bt_t *bt);
+prof_tctx_t *prof_tctx_create(tsd_t *tsd);
 #ifdef JEMALLOC_JET
 size_t prof_tdata_count(void);
 size_t prof_bt_count(void);
