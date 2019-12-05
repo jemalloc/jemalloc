@@ -758,17 +758,6 @@ extent_recycle_split(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 	unreachable();
 }
 
-static bool
-extent_need_manual_zero(arena_t *arena) {
-	/*
-	 * Need to manually zero the extent on repopulating if either; 1) non
-	 * default extent hooks installed (in which case the purge semantics may
-	 * change); or 2) transparent huge pages enabled.
-	 */
-	return (!ehooks_are_default(arena_get_ehooks(arena)) ||
-		(opt_thp == thp_mode_always));
-}
-
 /*
  * Tries to satisfy the given allocation request by reusing one of the extents
  * in the given eset_t.
@@ -807,9 +796,6 @@ extent_recycle(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks, eset_t *eset,
 			    growing_retained);
 			return NULL;
 		}
-		if (!extent_need_manual_zero(arena)) {
-			extent_zeroed_set(extent, true);
-		}
 	}
 
 	if (extent_committed_get(extent)) {
@@ -832,11 +818,10 @@ extent_recycle(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks, eset_t *eset,
 		void *addr = extent_base_get(extent);
 		if (!extent_zeroed_get(extent)) {
 			size_t size = extent_size_get(extent);
-			if (extent_need_manual_zero(arena) ||
-			    pages_purge_forced(addr, size)) {
-				memset(addr, 0, size);
-			}
-		} else if (config_debug) {
+			ehooks_zero(tsdn, ehooks, addr, size,
+			    arena_ind_get(arena));
+		}
+		if (config_debug) {
 			size_t *p = (size_t *)(uintptr_t)addr;
 			/* Check the first page only. */
 			for (size_t i = 0; i < PAGE / sizeof(size_t); i++) {
@@ -960,8 +945,14 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 			    &arena->eset_retained, extent, true);
 			goto label_err;
 		}
-		if (!extent_need_manual_zero(arena)) {
-			extent_zeroed_set(extent, true);
+		/* A successful commit should return zeroed memory. */
+		if (config_debug) {
+			void *addr = extent_addr_get(extent);
+			size_t *p = (size_t *)(uintptr_t)addr;
+			/* Check the first page only. */
+			for (size_t i = 0; i < PAGE / sizeof(size_t); i++) {
+				assert(p[i] == 0);
+			}
 		}
 	}
 
@@ -996,10 +987,7 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 	if (*zero && !extent_zeroed_get(extent)) {
 		void *addr = extent_base_get(extent);
 		size_t size = extent_size_get(extent);
-		if (extent_need_manual_zero(arena) ||
-		    pages_purge_forced(addr, size)) {
-			memset(addr, 0, size);
-		}
+		ehooks_zero(tsdn, ehooks, addr, size, arena_ind_get(arena));
 	}
 
 	return extent;
