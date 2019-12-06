@@ -34,44 +34,44 @@
 /******************************************************************************/
 /* Data. */
 
-bool		opt_prof = false;
-bool		opt_prof_active = true;
-bool		opt_prof_thread_active_init = true;
-size_t		opt_lg_prof_sample = LG_PROF_SAMPLE_DEFAULT;
-ssize_t		opt_lg_prof_interval = LG_PROF_INTERVAL_DEFAULT;
-bool		opt_prof_gdump = false;
-bool		opt_prof_final = false;
-bool		opt_prof_leak = false;
-bool		opt_prof_accum = false;
-char		opt_prof_prefix[PROF_DUMP_FILENAME_LEN];
+bool opt_prof = false;
+bool opt_prof_active = true;
+bool opt_prof_thread_active_init = true;
+size_t opt_lg_prof_sample = LG_PROF_SAMPLE_DEFAULT;
+ssize_t opt_lg_prof_interval = LG_PROF_INTERVAL_DEFAULT;
+bool opt_prof_gdump = false;
+bool opt_prof_final = false;
+bool opt_prof_leak = false;
+bool opt_prof_accum = false;
+char opt_prof_prefix[PROF_DUMP_FILENAME_LEN];
 
 /* Accessed via prof_idump_[accum/rollback](). */
-static prof_accum_t	prof_idump_accumulated;
+static prof_accum_t prof_idump_accumulated;
 
 /*
  * Initialized as opt_prof_active, and accessed via
  * prof_active_[gs]et{_unlocked,}().
  */
-bool			prof_active;
-static malloc_mutex_t	prof_active_mtx;
+bool prof_active;
+static malloc_mutex_t prof_active_mtx;
 
 /*
  * Initialized as opt_prof_thread_active_init, and accessed via
  * prof_thread_active_init_[gs]et().
  */
-static bool		prof_thread_active_init;
-static malloc_mutex_t	prof_thread_active_init_mtx;
+static bool prof_thread_active_init;
+static malloc_mutex_t prof_thread_active_init_mtx;
 
 /*
  * Initialized as opt_prof_gdump, and accessed via
  * prof_gdump_[gs]et{_unlocked,}().
  */
-bool			prof_gdump_val;
-static malloc_mutex_t	prof_gdump_mtx;
+bool prof_gdump_val;
+static malloc_mutex_t prof_gdump_mtx;
 
-uint64_t	prof_interval = 0;
+uint64_t prof_interval = 0;
 
-size_t		lg_prof_sample;
+size_t lg_prof_sample;
 
 /*
  * Table of mutexes that are shared among gctx's.  These are leaf locks, so
@@ -80,8 +80,8 @@ size_t		lg_prof_sample;
  * and destroying mutexes causes complications for systems that allocate when
  * creating/destroying mutexes.
  */
-static malloc_mutex_t	*gctx_locks;
-static atomic_u_t	cum_gctxs; /* Atomic counter. */
+static malloc_mutex_t *gctx_locks;
+static atomic_u_t cum_gctxs; /* Atomic counter. */
 
 /*
  * Table of mutexes that are shared among tdata's.  No operations require
@@ -89,27 +89,27 @@ static atomic_u_t	cum_gctxs; /* Atomic counter. */
  * than one tdata at the same time, even though a gctx lock may be acquired
  * while holding a tdata lock.
  */
-static malloc_mutex_t	*tdata_locks;
+static malloc_mutex_t *tdata_locks;
 
 /* Non static to enable profiling. */
-malloc_mutex_t		bt2gctx_mtx;
+malloc_mutex_t bt2gctx_mtx;
 
-malloc_mutex_t	tdatas_mtx;
+malloc_mutex_t tdatas_mtx;
 
-static uint64_t		next_thr_uid;
-static malloc_mutex_t	next_thr_uid_mtx;
+static uint64_t next_thr_uid;
+static malloc_mutex_t next_thr_uid_mtx;
 
-static malloc_mutex_t	prof_dump_filename_mtx;
-static uint64_t		prof_dump_seq;
-static uint64_t		prof_dump_iseq;
-static uint64_t		prof_dump_mseq;
-static uint64_t		prof_dump_useq;
+static malloc_mutex_t prof_dump_filename_mtx;
+static uint64_t prof_dump_seq;
+static uint64_t prof_dump_iseq;
+static uint64_t prof_dump_mseq;
+static uint64_t prof_dump_useq;
 
-malloc_mutex_t	prof_dump_mtx;
-static char	*prof_dump_prefix = NULL;
+malloc_mutex_t prof_dump_mtx;
+static char *prof_dump_prefix = NULL;
 
 /* Do not dump any profiles until bootstrapping is complete. */
-bool			prof_booted = false;
+bool prof_booted = false;
 
 /******************************************************************************/
 
@@ -550,8 +550,8 @@ prof_dump_prefix_is_empty(tsdn_t *tsdn) {
 	return ret;
 }
 
-#define DUMP_FILENAME_BUFSIZE	(PATH_MAX + 1)
-#define VSEQ_INVALID		UINT64_C(0xffffffffffffffff)
+#define DUMP_FILENAME_BUFSIZE (PATH_MAX + 1)
+#define VSEQ_INVALID UINT64_C(0xffffffffffffffff)
 static void
 prof_dump_filename(tsd_t *tsd, char *filename, char v, uint64_t vseq) {
 	cassert(config_prof);

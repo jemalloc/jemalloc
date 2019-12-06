@@ -29,19 +29,19 @@
  * Global hash of (prof_bt_t *)-->(prof_gctx_t *).  This is the master data
  * structure that knows about all backtraces currently captured.
  */
-static ckh_t		bt2gctx;
+static ckh_t bt2gctx;
 
 /*
  * Tree of all extant prof_tdata_t structures, regardless of state,
  * {attached,detached,expired}.
  */
-static prof_tdata_tree_t	tdatas;
+static prof_tdata_tree_t tdatas;
 
 /*
  * This buffer is rather large for stack allocation, so use a single buffer for
  * all profile dumps.
  */
-static char		prof_dump_buf[
+static char prof_dump_buf[
     /* Minimize memory bloat for non-prof builds. */
 #ifdef JEMALLOC_PROF
     PROF_DUMP_BUFSIZE
@@ -49,8 +49,8 @@ static char		prof_dump_buf[
     1
 #endif
 ];
-static size_t		prof_dump_buf_end;
-static int		prof_dump_fd;
+static size_t prof_dump_buf_end;
+static int prof_dump_fd;
 
 /******************************************************************************/
 /* Red-black trees. */
