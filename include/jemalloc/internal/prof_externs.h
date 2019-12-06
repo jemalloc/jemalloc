@@ -3,24 +3,24 @@
 
 #include "jemalloc/internal/mutex.h"
 
-extern malloc_mutex_t	bt2gctx_mtx;
-extern malloc_mutex_t	tdatas_mtx;
-extern malloc_mutex_t	prof_dump_mtx;
+extern malloc_mutex_t bt2gctx_mtx;
+extern malloc_mutex_t tdatas_mtx;
+extern malloc_mutex_t prof_dump_mtx;
 
 malloc_mutex_t *prof_gctx_mutex_choose(void);
 malloc_mutex_t *prof_tdata_mutex_choose(uint64_t thr_uid);
 
-extern bool	opt_prof;
-extern bool	opt_prof_active;
-extern bool	opt_prof_thread_active_init;
-extern size_t	opt_lg_prof_sample;   /* Mean bytes between samples. */
-extern ssize_t	opt_lg_prof_interval; /* lg(prof_interval). */
-extern bool	opt_prof_gdump;       /* High-water memory dumping. */
-extern bool	opt_prof_final;       /* Final profile dumping. */
-extern bool	opt_prof_leak;        /* Dump leak summary at exit. */
-extern bool	opt_prof_accum;       /* Report cumulative bytes. */
-extern bool	opt_prof_log;	      /* Turn logging on at boot. */
-extern char	opt_prof_prefix[
+extern bool opt_prof;
+extern bool opt_prof_active;
+extern bool opt_prof_thread_active_init;
+extern size_t opt_lg_prof_sample;    /* Mean bytes between samples. */
+extern ssize_t opt_lg_prof_interval; /* lg(prof_interval). */
+extern bool opt_prof_gdump;          /* High-water memory dumping. */
+extern bool opt_prof_final;          /* Final profile dumping. */
+extern bool opt_prof_leak;           /* Dump leak summary at exit. */
+extern bool opt_prof_accum;          /* Report cumulative bytes. */
+extern bool opt_prof_log;            /* Turn logging on at boot. */
+extern char opt_prof_prefix[
     /* Minimize memory bloat for non-prof builds. */
 #ifdef JEMALLOC_PROF
     PATH_MAX +
@@ -28,21 +28,21 @@ extern char	opt_prof_prefix[
     1];
 
 /* Accessed via prof_active_[gs]et{_unlocked,}(). */
-extern bool	prof_active;
+extern bool prof_active;
 
 /* Accessed via prof_gdump_[gs]et{_unlocked,}(). */
-extern bool	prof_gdump_val;
+extern bool prof_gdump_val;
 
 /* Profile dump interval, measured in bytes allocated. */
-extern uint64_t	prof_interval;
+extern uint64_t prof_interval;
 
 /*
  * Initialized as opt_lg_prof_sample, and potentially modified during profiling
  * resets.
  */
-extern size_t	lg_prof_sample;
+extern size_t lg_prof_sample;
 
-extern bool	prof_booted;
+extern bool prof_booted;
 
 /* Functions only accessed in prof_inlines_a.h */
 bool prof_idump_accum_impl(tsdn_t *tsdn, uint64_t accumbytes);
