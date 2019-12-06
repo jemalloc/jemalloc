@@ -821,13 +821,6 @@ extent_recycle(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks, eset_t *eset,
 			ehooks_zero(tsdn, ehooks, addr, size,
 			    arena_ind_get(arena));
 		}
-		if (config_debug) {
-			size_t *p = (size_t *)(uintptr_t)addr;
-			/* Check the first page only. */
-			for (size_t i = 0; i < PAGE / sizeof(size_t); i++) {
-				assert(p[i] == 0);
-			}
-		}
 	}
 	return extent;
 }

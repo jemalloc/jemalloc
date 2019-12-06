@@ -106,18 +106,63 @@ ehooks_merge_will_fail(ehooks_t *ehooks) {
 	return ehooks_get_extent_hooks_ptr(ehooks)->merge == NULL;
 }
 
+/*
+ * Some hooks are required to return zeroed memory in certain situations.  In
+ * debug mode, we do some heuristic checks that they did what they were supposed
+ * to.
+ *
+ * This isn't really ehooks-specific (i.e. anyone can check for zeroed memory).
+ * But incorrect zero information indicates an ehook bug.
+ */
+static inline void
+ehooks_debug_zero_check(void *addr, size_t size) {
+	assert(((uintptr_t)addr & PAGE_MASK) == 0);
+	assert((size & PAGE_MASK) == 0);
+	assert(size > 0);
+	if (config_debug) {
+		/* Check the whole first page. */
+		size_t *p = (size_t *)addr;
+		for (size_t i = 0; i < PAGE / sizeof(size_t); i++) {
+			assert(p[i] == 0);
+		}
+		/*
+		 * And 4 spots within.  There's a tradeoff here; the larger
+		 * this number, the more likely it is that we'll catch a bug
+		 * where ehooks return a sparsely non-zero range.  But
+		 * increasing the number of checks also increases the number of
+		 * page faults in debug mode.  FreeBSD does much of their
+		 * day-to-day development work in debug mode, so we don't want
+		 * even the debug builds to be too slow.
+		 */
+		const size_t nchecks = 4;
+		assert(PAGE >= sizeof(size_t) * nchecks);
+		for (size_t i = 0; i < nchecks; ++i) {
+			assert(p[i * (size / sizeof(size_t) / nchecks)] == 0);
+		}
+	}
+}
+
+
 static inline void *
 ehooks_alloc(tsdn_t *tsdn, ehooks_t *ehooks, void *new_addr, size_t size,
     size_t alignment, bool *zero, bool *commit, unsigned arena_ind) {
+	bool orig_zero = *zero;
+	void *ret;
 	extent_hooks_t *extent_hooks = ehooks_get_extent_hooks_ptr(ehooks);
 	if (extent_hooks == &ehooks_default_extent_hooks) {
-		return ehooks_default_alloc_impl(tsdn, new_addr, size,
+		ret = ehooks_default_alloc_impl(tsdn, new_addr, size,
 		    alignment, zero, commit, arena_ind);
+	} else {
+		ehooks_pre_reentrancy(tsdn);
+		ret = extent_hooks->alloc(extent_hooks, new_addr, size,
+		    alignment, zero, commit, arena_ind);
+		ehooks_post_reentrancy(tsdn);
 	}
-	ehooks_pre_reentrancy(tsdn);
-	void *ret = extent_hooks->alloc(extent_hooks, new_addr, size, alignment,
-	    zero, commit, arena_ind);
-	ehooks_post_reentrancy(tsdn);
+	assert(new_addr == NULL || ret == NULL || new_addr == ret);
+	assert(!orig_zero || *zero);
+	if (*zero && ret != NULL) {
+		ehooks_debug_zero_check(ret, size);
+	}
 	return ret;
 }
 
@@ -158,17 +203,21 @@ static inline bool
 ehooks_commit(tsdn_t *tsdn, ehooks_t *ehooks, void *addr, size_t size,
     size_t offset, size_t length, unsigned arena_ind) {
 	extent_hooks_t *extent_hooks = ehooks_get_extent_hooks_ptr(ehooks);
+	bool err;
 	if (extent_hooks == &ehooks_default_extent_hooks) {
-		return ehooks_default_commit_impl(addr, offset, length);
+		err = ehooks_default_commit_impl(addr, offset, length);
 	} else if (extent_hooks->commit == NULL) {
-		return true;
+		err = true;
 	} else {
 		ehooks_pre_reentrancy(tsdn);
-		bool err = extent_hooks->commit(extent_hooks, addr, size,
+		err = extent_hooks->commit(extent_hooks, addr, size,
 		    offset, length, arena_ind);
 		ehooks_post_reentrancy(tsdn);
-		return err;
 	}
+	if (!err) {
+		ehooks_debug_zero_check(addr, size);
+	}
+	return err;
 }
 
 static inline bool
@@ -212,6 +261,14 @@ static inline bool
 ehooks_purge_forced(tsdn_t *tsdn, ehooks_t *ehooks, void *addr, size_t size,
     size_t offset, size_t length, unsigned arena_ind) {
 	extent_hooks_t *extent_hooks = ehooks_get_extent_hooks_ptr(ehooks);
+	/*
+	 * It would be correct to have a ehooks_debug_zero_check call at the end
+	 * of this function; purge_forced is required to zero.  But checking
+	 * would touch the page in question, which may have performance
+	 * consequences (imagine the hooks are using hugepages, with a global
+	 * zero page off).  Even in debug mode, it's usually a good idea to
+	 * avoid cases that can dramatically increase memory consumption.
+	 */
 #ifdef PAGES_CAN_PURGE_FORCED
 	if (extent_hooks == &ehooks_default_extent_hooks) {
 		return ehooks_default_purge_forced_impl(addr, offset, length);
