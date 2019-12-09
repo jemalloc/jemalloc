@@ -94,8 +94,8 @@ struct arena_stats_s {
 	 */
 	atomic_zu_t		retained; /* Derived. */
 
-	/* Number of extent_t structs allocated by base, but not being used. */
-	atomic_zu_t		extent_avail;
+	/* Number of edata_t structs allocated by base, but not being used. */
+	atomic_zu_t		edata_avail;
 
 	arena_stats_decay_t	decay_dirty;
 	arena_stats_decay_t	decay_muzzy;

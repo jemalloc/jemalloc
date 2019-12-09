@@ -48,18 +48,18 @@ struct rtree_leaf_elm_s {
 	/*
 	 * Single pointer-width field containing all three leaf element fields.
 	 * For example, on a 64-bit x64 system with 48 significant virtual
-	 * memory address bits, the index, extent, and slab fields are packed as
+	 * memory address bits, the index, edata, and slab fields are packed as
 	 * such:
 	 *
 	 * x: index
-	 * e: extent
+	 * e: edata
 	 * b: slab
 	 *
 	 *   00000000 xxxxxxxx eeeeeeee [...] eeeeeeee eeee000b
 	 */
 	atomic_p_t	le_bits;
 #else
-	atomic_p_t	le_extent; /* (extent_t *) */
+	atomic_p_t	le_edata; /* (edata_t *) */
 	atomic_u_t	le_szind; /* (szind_t) */
 	atomic_b_t	le_slab; /* (bool) */
 #endif
@@ -176,8 +176,8 @@ rtree_leaf_elm_bits_read(tsdn_t *tsdn, rtree_t *rtree,
 	    ? ATOMIC_RELAXED : ATOMIC_ACQUIRE);
 }
 
-JEMALLOC_ALWAYS_INLINE extent_t *
-rtree_leaf_elm_bits_extent_get(uintptr_t bits) {
+JEMALLOC_ALWAYS_INLINE edata_t *
+rtree_leaf_elm_bits_edata_get(uintptr_t bits) {
 #    ifdef __aarch64__
 	/*
 	 * aarch64 doesn't sign extend the highest virtual address bit to set
@@ -187,10 +187,10 @@ rtree_leaf_elm_bits_extent_get(uintptr_t bits) {
 	/* Mask off the slab bit. */
 	uintptr_t low_bit_mask = ~(uintptr_t)1;
 	uintptr_t mask = high_bit_mask & low_bit_mask;
-	return (extent_t *)(bits & mask);
+	return (edata_t *)(bits & mask);
 #    else
 	/* Restore sign-extended high bits, mask slab bit. */
-	return (extent_t *)((uintptr_t)((intptr_t)(bits << RTREE_NHIB) >>
+	return (edata_t *)((uintptr_t)((intptr_t)(bits << RTREE_NHIB) >>
 	    RTREE_NHIB) & ~((uintptr_t)0x1));
 #    endif
 }
@@ -207,16 +207,16 @@ rtree_leaf_elm_bits_slab_get(uintptr_t bits) {
 
 #  endif
 
-JEMALLOC_ALWAYS_INLINE extent_t *
-rtree_leaf_elm_extent_read(tsdn_t *tsdn, rtree_t *rtree,
+JEMALLOC_ALWAYS_INLINE edata_t *
+rtree_leaf_elm_edata_read(tsdn_t *tsdn, rtree_t *rtree,
     rtree_leaf_elm_t *elm, bool dependent) {
 #ifdef RTREE_LEAF_COMPACT
 	uintptr_t bits = rtree_leaf_elm_bits_read(tsdn, rtree, elm, dependent);
-	return rtree_leaf_elm_bits_extent_get(bits);
+	return rtree_leaf_elm_bits_edata_get(bits);
 #else
-	extent_t *extent = (extent_t *)atomic_load_p(&elm->le_extent, dependent
+	edata_t *edata = (edata_t *)atomic_load_p(&elm->le_edata, dependent
 	    ? ATOMIC_RELAXED : ATOMIC_ACQUIRE);
-	return extent;
+	return edata;
 #endif
 }
 
@@ -245,16 +245,16 @@ rtree_leaf_elm_slab_read(tsdn_t *tsdn, rtree_t *rtree,
 }
 
 static inline void
-rtree_leaf_elm_extent_write(tsdn_t *tsdn, rtree_t *rtree,
-    rtree_leaf_elm_t *elm, extent_t *extent) {
+rtree_leaf_elm_edata_write(tsdn_t *tsdn, rtree_t *rtree,
+    rtree_leaf_elm_t *elm, edata_t *edata) {
 #ifdef RTREE_LEAF_COMPACT
 	uintptr_t old_bits = rtree_leaf_elm_bits_read(tsdn, rtree, elm, true);
 	uintptr_t bits = ((uintptr_t)rtree_leaf_elm_bits_szind_get(old_bits) <<
-	    LG_VADDR) | ((uintptr_t)extent & (((uintptr_t)0x1 << LG_VADDR) - 1))
+	    LG_VADDR) | ((uintptr_t)edata & (((uintptr_t)0x1 << LG_VADDR) - 1))
 	    | ((uintptr_t)rtree_leaf_elm_bits_slab_get(old_bits));
 	atomic_store_p(&elm->le_bits, (void *)bits, ATOMIC_RELEASE);
 #else
-	atomic_store_p(&elm->le_extent, extent, ATOMIC_RELEASE);
+	atomic_store_p(&elm->le_edata, edata, ATOMIC_RELEASE);
 #endif
 }
 
@@ -267,7 +267,7 @@ rtree_leaf_elm_szind_write(tsdn_t *tsdn, rtree_t *rtree,
 	uintptr_t old_bits = rtree_leaf_elm_bits_read(tsdn, rtree, elm,
 	    true);
 	uintptr_t bits = ((uintptr_t)szind << LG_VADDR) |
-	    ((uintptr_t)rtree_leaf_elm_bits_extent_get(old_bits) &
+	    ((uintptr_t)rtree_leaf_elm_bits_edata_get(old_bits) &
 	    (((uintptr_t)0x1 << LG_VADDR) - 1)) |
 	    ((uintptr_t)rtree_leaf_elm_bits_slab_get(old_bits));
 	atomic_store_p(&elm->le_bits, (void *)bits, ATOMIC_RELEASE);
@@ -283,7 +283,7 @@ rtree_leaf_elm_slab_write(tsdn_t *tsdn, rtree_t *rtree,
 	uintptr_t old_bits = rtree_leaf_elm_bits_read(tsdn, rtree, elm,
 	    true);
 	uintptr_t bits = ((uintptr_t)rtree_leaf_elm_bits_szind_get(old_bits) <<
-	    LG_VADDR) | ((uintptr_t)rtree_leaf_elm_bits_extent_get(old_bits) &
+	    LG_VADDR) | ((uintptr_t)rtree_leaf_elm_bits_edata_get(old_bits) &
 	    (((uintptr_t)0x1 << LG_VADDR) - 1)) | ((uintptr_t)slab);
 	atomic_store_p(&elm->le_bits, (void *)bits, ATOMIC_RELEASE);
 #else
@@ -293,20 +293,20 @@ rtree_leaf_elm_slab_write(tsdn_t *tsdn, rtree_t *rtree,
 
 static inline void
 rtree_leaf_elm_write(tsdn_t *tsdn, rtree_t *rtree,
-    rtree_leaf_elm_t *elm, extent_t *extent, szind_t szind, bool slab) {
+    rtree_leaf_elm_t *elm, edata_t *edata, szind_t szind, bool slab) {
 #ifdef RTREE_LEAF_COMPACT
 	uintptr_t bits = ((uintptr_t)szind << LG_VADDR) |
-	    ((uintptr_t)extent & (((uintptr_t)0x1 << LG_VADDR) - 1)) |
+	    ((uintptr_t)edata & (((uintptr_t)0x1 << LG_VADDR) - 1)) |
 	    ((uintptr_t)slab);
 	atomic_store_p(&elm->le_bits, (void *)bits, ATOMIC_RELEASE);
 #else
 	rtree_leaf_elm_slab_write(tsdn, rtree, elm, slab);
 	rtree_leaf_elm_szind_write(tsdn, rtree, elm, szind);
 	/*
-	 * Write extent last, since the element is atomically considered valid
-	 * as soon as the extent field is non-NULL.
+	 * Write edata last, since the element is atomically considered valid
+	 * as soon as the edata field is non-NULL.
 	 */
-	rtree_leaf_elm_extent_write(tsdn, rtree, elm, extent);
+	rtree_leaf_elm_edata_write(tsdn, rtree, elm, edata);
 #endif
 }
 
@@ -317,7 +317,7 @@ rtree_leaf_elm_szind_slab_update(tsdn_t *tsdn, rtree_t *rtree,
 
 	/*
 	 * The caller implicitly assures that it is the only writer to the szind
-	 * and slab fields, and that the extent field cannot currently change.
+	 * and slab fields, and that the edata field cannot currently change.
 	 */
 	rtree_leaf_elm_slab_write(tsdn, rtree, elm, slab);
 	rtree_leaf_elm_szind_write(tsdn, rtree, elm, szind);
@@ -384,9 +384,9 @@ rtree_leaf_elm_lookup(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
 
 static inline bool
 rtree_write(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx, uintptr_t key,
-    extent_t *extent, szind_t szind, bool slab) {
-	/* Use rtree_clear() to set the extent to NULL. */
-	assert(extent != NULL);
+    edata_t *edata, szind_t szind, bool slab) {
+	/* Use rtree_clear() to set the edata to NULL. */
+	assert(edata != NULL);
 
 	rtree_leaf_elm_t *elm = rtree_leaf_elm_lookup(tsdn, rtree, rtree_ctx,
 	    key, false, true);
@@ -394,8 +394,8 @@ rtree_write(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx, uintptr_t key,
 		return true;
 	}
 
-	assert(rtree_leaf_elm_extent_read(tsdn, rtree, elm, false) == NULL);
-	rtree_leaf_elm_write(tsdn, rtree, elm, extent, szind, slab);
+	assert(rtree_leaf_elm_edata_read(tsdn, rtree, elm, false) == NULL);
+	rtree_leaf_elm_write(tsdn, rtree, elm, edata, szind, slab);
 
 	return false;
 }
@@ -412,15 +412,15 @@ rtree_read(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx, uintptr_t key,
 	return elm;
 }
 
-JEMALLOC_ALWAYS_INLINE extent_t *
-rtree_extent_read(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
+JEMALLOC_ALWAYS_INLINE edata_t *
+rtree_edata_read(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
     uintptr_t key, bool dependent) {
 	rtree_leaf_elm_t *elm = rtree_read(tsdn, rtree, rtree_ctx, key,
 	    dependent);
 	if (!dependent && elm == NULL) {
 		return NULL;
 	}
-	return rtree_leaf_elm_extent_read(tsdn, rtree, elm, dependent);
+	return rtree_leaf_elm_edata_read(tsdn, rtree, elm, dependent);
 }
 
 JEMALLOC_ALWAYS_INLINE szind_t
@@ -440,14 +440,14 @@ rtree_szind_read(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
  */
 
 JEMALLOC_ALWAYS_INLINE bool
-rtree_extent_szind_read(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
-    uintptr_t key, bool dependent, extent_t **r_extent, szind_t *r_szind) {
+rtree_edata_szind_read(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
+    uintptr_t key, bool dependent, edata_t **r_edata, szind_t *r_szind) {
 	rtree_leaf_elm_t *elm = rtree_read(tsdn, rtree, rtree_ctx, key,
 	    dependent);
 	if (!dependent && elm == NULL) {
 		return true;
 	}
-	*r_extent = rtree_leaf_elm_extent_read(tsdn, rtree, elm, dependent);
+	*r_edata = rtree_leaf_elm_edata_read(tsdn, rtree, elm, dependent);
 	*r_szind = rtree_leaf_elm_szind_read(tsdn, rtree, elm, dependent);
 	return false;
 }
@@ -520,7 +520,7 @@ static inline void
 rtree_clear(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
     uintptr_t key) {
 	rtree_leaf_elm_t *elm = rtree_read(tsdn, rtree, rtree_ctx, key, true);
-	assert(rtree_leaf_elm_extent_read(tsdn, rtree, elm, false) !=
+	assert(rtree_leaf_elm_edata_read(tsdn, rtree, elm, false) !=
 	    NULL);
 	rtree_leaf_elm_write(tsdn, rtree, elm, NULL, SC_NSIZES, false);
 }

@@ -60,9 +60,9 @@ static void arena_decay_to_limit(tsdn_t *tsdn, arena_t *arena,
     size_t npages_decay_max, bool is_background_thread);
 static bool arena_decay_dirty(tsdn_t *tsdn, arena_t *arena,
     bool is_background_thread, bool all);
-static void arena_dalloc_bin_slab(tsdn_t *tsdn, arena_t *arena, extent_t *slab,
+static void arena_dalloc_bin_slab(tsdn_t *tsdn, arena_t *arena, edata_t *slab,
     bin_t *bin);
-static void arena_bin_lower_slab(tsdn_t *tsdn, arena_t *arena, extent_t *slab,
+static void arena_bin_lower_slab(tsdn_t *tsdn, arena_t *arena, edata_t *slab,
     bin_t *bin);
 
 /******************************************************************************/
@@ -102,8 +102,8 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 	arena_stats_accum_zu(&astats->retained,
 	    eset_npages_get(&arena->eset_retained) << LG_PAGE);
 
-	atomic_store_zu(&astats->extent_avail,
-	    atomic_load_zu(&arena->extent_avail_cnt, ATOMIC_RELAXED),
+	atomic_store_zu(&astats->edata_avail,
+	    atomic_load_zu(&arena->edata_avail_cnt, ATOMIC_RELAXED),
 	    ATOMIC_RELAXED);
 
 	arena_stats_accum_u64(&astats->decay_dirty.npurge,
@@ -224,7 +224,7 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 
 	/* Gather per arena mutex profiling data. */
 	READ_ARENA_MUTEX_PROF_DATA(large_mtx, arena_prof_mutex_large);
-	READ_ARENA_MUTEX_PROF_DATA(extent_avail_mtx,
+	READ_ARENA_MUTEX_PROF_DATA(edata_avail_mtx,
 	    arena_prof_mutex_extent_avail)
 	READ_ARENA_MUTEX_PROF_DATA(eset_dirty.mtx,
 	    arena_prof_mutex_extents_dirty)
@@ -254,11 +254,11 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 
 void
 arena_extents_dirty_dalloc(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
-    extent_t *extent) {
+    edata_t *edata) {
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, 0);
 
-	extents_dalloc(tsdn, arena, ehooks, &arena->eset_dirty, extent);
+	extents_dalloc(tsdn, arena, ehooks, &arena->eset_dirty, edata);
 	if (arena_dirty_decay_ms_get(arena) == 0) {
 		arena_decay_dirty(tsdn, arena, false, true);
 	} else {
@@ -267,34 +267,34 @@ arena_extents_dirty_dalloc(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 }
 
 static void *
-arena_slab_reg_alloc(extent_t *slab, const bin_info_t *bin_info) {
+arena_slab_reg_alloc(edata_t *slab, const bin_info_t *bin_info) {
 	void *ret;
-	slab_data_t *slab_data = extent_slab_data_get(slab);
+	slab_data_t *slab_data = edata_slab_data_get(slab);
 	size_t regind;
 
-	assert(extent_nfree_get(slab) > 0);
+	assert(edata_nfree_get(slab) > 0);
 	assert(!bitmap_full(slab_data->bitmap, &bin_info->bitmap_info));
 
 	regind = bitmap_sfu(slab_data->bitmap, &bin_info->bitmap_info);
-	ret = (void *)((uintptr_t)extent_addr_get(slab) +
+	ret = (void *)((uintptr_t)edata_addr_get(slab) +
 	    (uintptr_t)(bin_info->reg_size * regind));
-	extent_nfree_dec(slab);
+	edata_nfree_dec(slab);
 	return ret;
 }
 
 static void
-arena_slab_reg_alloc_batch(extent_t *slab, const bin_info_t *bin_info,
+arena_slab_reg_alloc_batch(edata_t *slab, const bin_info_t *bin_info,
 			   unsigned cnt, void** ptrs) {
-	slab_data_t *slab_data = extent_slab_data_get(slab);
+	slab_data_t *slab_data = edata_slab_data_get(slab);
 
-	assert(extent_nfree_get(slab) >= cnt);
+	assert(edata_nfree_get(slab) >= cnt);
 	assert(!bitmap_full(slab_data->bitmap, &bin_info->bitmap_info));
 
 #if (! defined JEMALLOC_INTERNAL_POPCOUNTL) || (defined BITMAP_USE_TREE)
 	for (unsigned i = 0; i < cnt; i++) {
 		size_t regind = bitmap_sfu(slab_data->bitmap,
 					   &bin_info->bitmap_info);
-		*(ptrs + i) = (void *)((uintptr_t)extent_addr_get(slab) +
+		*(ptrs + i) = (void *)((uintptr_t)edata_addr_get(slab) +
 		    (uintptr_t)(bin_info->reg_size * regind));
 	}
 #else
@@ -315,7 +315,7 @@ arena_slab_reg_alloc_batch(extent_t *slab, const bin_info_t *bin_info,
 		 * Load from memory locations only once, outside the
 		 * hot loop below.
 		 */
-		uintptr_t base = (uintptr_t)extent_addr_get(slab);
+		uintptr_t base = (uintptr_t)edata_addr_get(slab);
 		uintptr_t regsize = (uintptr_t)bin_info->reg_size;
 		while (pop--) {
 			size_t bit = cfs_lu(&g);
@@ -327,24 +327,24 @@ arena_slab_reg_alloc_batch(extent_t *slab, const bin_info_t *bin_info,
 		slab_data->bitmap[group] = g;
 	}
 #endif
-	extent_nfree_sub(slab, cnt);
+	edata_nfree_sub(slab, cnt);
 }
 
 #ifndef JEMALLOC_JET
 static
 #endif
 size_t
-arena_slab_regind(extent_t *slab, szind_t binind, const void *ptr) {
+arena_slab_regind(edata_t *slab, szind_t binind, const void *ptr) {
 	size_t diff, regind;
 
 	/* Freeing a pointer outside the slab can cause assertion failure. */
-	assert((uintptr_t)ptr >= (uintptr_t)extent_addr_get(slab));
-	assert((uintptr_t)ptr < (uintptr_t)extent_past_get(slab));
+	assert((uintptr_t)ptr >= (uintptr_t)edata_addr_get(slab));
+	assert((uintptr_t)ptr < (uintptr_t)edata_past_get(slab));
 	/* Freeing an interior pointer can cause assertion failure. */
-	assert(((uintptr_t)ptr - (uintptr_t)extent_addr_get(slab)) %
+	assert(((uintptr_t)ptr - (uintptr_t)edata_addr_get(slab)) %
 	    (uintptr_t)bin_infos[binind].reg_size == 0);
 
-	diff = (size_t)((uintptr_t)ptr - (uintptr_t)extent_addr_get(slab));
+	diff = (size_t)((uintptr_t)ptr - (uintptr_t)edata_addr_get(slab));
 
 	/* Avoid doing division with a variable divisor. */
 	regind = div_compute(&arena_binind_div_info[binind], diff);
@@ -355,17 +355,17 @@ arena_slab_regind(extent_t *slab, szind_t binind, const void *ptr) {
 }
 
 static void
-arena_slab_reg_dalloc(extent_t *slab, slab_data_t *slab_data, void *ptr) {
-	szind_t binind = extent_szind_get(slab);
+arena_slab_reg_dalloc(edata_t *slab, slab_data_t *slab_data, void *ptr) {
+	szind_t binind = edata_szind_get(slab);
 	const bin_info_t *bin_info = &bin_infos[binind];
 	size_t regind = arena_slab_regind(slab, binind, ptr);
 
-	assert(extent_nfree_get(slab) < bin_info->nregs);
+	assert(edata_nfree_get(slab) < bin_info->nregs);
 	/* Freeing an unallocated pointer can cause assertion failure. */
 	assert(bitmap_get(slab_data->bitmap, &bin_info->bitmap_info, regind));
 
 	bitmap_unset(slab_data->bitmap, &bin_info->bitmap_info, regind);
-	extent_nfree_inc(slab);
+	edata_nfree_inc(slab);
 }
 
 static void
@@ -423,7 +423,7 @@ arena_may_have_muzzy(arena_t *arena) {
 	return arena_muzzy_decay_ms_get(arena) != 0;
 }
 
-extent_t *
+edata_t *
 arena_extent_alloc_large(tsdn_t *tsdn, arena_t *arena, size_t usize,
     size_t alignment, bool *zero) {
 	ehooks_t *ehooks = arena_get_ehooks(arena);
@@ -434,23 +434,22 @@ arena_extent_alloc_large(tsdn_t *tsdn, arena_t *arena, size_t usize,
 	szind_t szind = sz_size2index(usize);
 	size_t mapped_add;
 	bool commit = true;
-	extent_t *extent = extents_alloc(tsdn, arena, ehooks,
-	    &arena->eset_dirty, NULL, usize, sz_large_pad, alignment, false,
-	    szind, zero, &commit);
-	if (extent == NULL && arena_may_have_muzzy(arena)) {
-		extent = extents_alloc(tsdn, arena, ehooks, &arena->eset_muzzy,
+	edata_t *edata = extents_alloc(tsdn, arena, ehooks, &arena->eset_dirty,
+	    NULL, usize, sz_large_pad, alignment, false, szind, zero, &commit);
+	if (edata == NULL && arena_may_have_muzzy(arena)) {
+		edata = extents_alloc(tsdn, arena, ehooks, &arena->eset_muzzy,
 		    NULL, usize, sz_large_pad, alignment, false, szind, zero,
 		    &commit);
 	}
 	size_t size = usize + sz_large_pad;
-	if (extent == NULL) {
-		extent = extent_alloc_wrapper(tsdn, arena, ehooks, NULL, usize,
+	if (edata == NULL) {
+		edata = extent_alloc_wrapper(tsdn, arena, ehooks, NULL, usize,
 		    sz_large_pad, alignment, false, szind, zero, &commit);
 		if (config_stats) {
 			/*
-			 * extent may be NULL on OOM, but in that case
-			 * mapped_add isn't used below, so there's no need to
-			 * conditionlly set it to 0 here.
+			 * edata may be NULL on OOM, but in that case mapped_add
+			 * isn't used below, so there's no need to conditionlly
+			 * set it to 0 here.
 			 */
 			mapped_add = size;
 		}
@@ -458,7 +457,7 @@ arena_extent_alloc_large(tsdn_t *tsdn, arena_t *arena, size_t usize,
 		mapped_add = 0;
 	}
 
-	if (extent != NULL) {
+	if (edata != NULL) {
 		if (config_stats) {
 			arena_stats_lock(tsdn, &arena->stats);
 			arena_large_malloc_stats_update(tsdn, arena, usize);
@@ -471,24 +470,24 @@ arena_extent_alloc_large(tsdn_t *tsdn, arena_t *arena, size_t usize,
 		arena_nactive_add(arena, size >> LG_PAGE);
 	}
 
-	return extent;
+	return edata;
 }
 
 void
-arena_extent_dalloc_large_prep(tsdn_t *tsdn, arena_t *arena, extent_t *extent) {
+arena_extent_dalloc_large_prep(tsdn_t *tsdn, arena_t *arena, edata_t *edata) {
 	if (config_stats) {
 		arena_stats_lock(tsdn, &arena->stats);
 		arena_large_dalloc_stats_update(tsdn, arena,
-		    extent_usize_get(extent));
+		    edata_usize_get(edata));
 		arena_stats_unlock(tsdn, &arena->stats);
 	}
-	arena_nactive_sub(arena, extent_size_get(extent) >> LG_PAGE);
+	arena_nactive_sub(arena, edata_size_get(edata) >> LG_PAGE);
 }
 
 void
-arena_extent_ralloc_large_shrink(tsdn_t *tsdn, arena_t *arena, extent_t *extent,
+arena_extent_ralloc_large_shrink(tsdn_t *tsdn, arena_t *arena, edata_t *edata,
     size_t oldusize) {
-	size_t usize = extent_usize_get(extent);
+	size_t usize = edata_usize_get(edata);
 	size_t udiff = oldusize - usize;
 
 	if (config_stats) {
@@ -500,9 +499,9 @@ arena_extent_ralloc_large_shrink(tsdn_t *tsdn, arena_t *arena, extent_t *extent,
 }
 
 void
-arena_extent_ralloc_large_expand(tsdn_t *tsdn, arena_t *arena, extent_t *extent,
+arena_extent_ralloc_large_expand(tsdn_t *tsdn, arena_t *arena, edata_t *edata,
     size_t oldusize) {
-	size_t usize = extent_usize_get(extent);
+	size_t usize = edata_usize_get(edata);
 	size_t udiff = usize - oldusize;
 
 	if (config_stats) {
@@ -821,25 +820,25 @@ arena_muzzy_decay_ms_set(tsdn_t *tsdn, arena_t *arena,
 static size_t
 arena_stash_decayed(tsdn_t *tsdn, arena_t *arena,
     ehooks_t *ehooks, eset_t *eset, size_t npages_limit,
-    size_t npages_decay_max, extent_list_t *decay_extents) {
+    size_t npages_decay_max, edata_list_t *decay_extents) {
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, 0);
 
 	/* Stash extents according to npages_limit. */
 	size_t nstashed = 0;
-	extent_t *extent;
+	edata_t *edata;
 	while (nstashed < npages_decay_max &&
-	    (extent = extents_evict(tsdn, arena, ehooks, eset, npages_limit))
+	    (edata = extents_evict(tsdn, arena, ehooks, eset, npages_limit))
 	    != NULL) {
-		extent_list_append(decay_extents, extent);
-		nstashed += extent_size_get(extent) >> LG_PAGE;
+		edata_list_append(decay_extents, edata);
+		nstashed += edata_size_get(edata) >> LG_PAGE;
 	}
 	return nstashed;
 }
 
 static size_t
 arena_decay_stashed(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
-    arena_decay_t *decay, eset_t *eset, bool all, extent_list_t *decay_extents,
+    arena_decay_t *decay, eset_t *eset, bool all, edata_list_t *decay_extents,
     bool is_background_thread) {
 	size_t nmadvise, nunmapped;
 	size_t npurged;
@@ -851,31 +850,30 @@ arena_decay_stashed(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 	npurged = 0;
 
 	ssize_t muzzy_decay_ms = arena_muzzy_decay_ms_get(arena);
-	for (extent_t *extent = extent_list_first(decay_extents); extent !=
-	    NULL; extent = extent_list_first(decay_extents)) {
+	for (edata_t *edata = edata_list_first(decay_extents); edata !=
+	    NULL; edata = edata_list_first(decay_extents)) {
 		if (config_stats) {
 			nmadvise++;
 		}
-		size_t npages = extent_size_get(extent) >> LG_PAGE;
+		size_t npages = edata_size_get(edata) >> LG_PAGE;
 		npurged += npages;
-		extent_list_remove(decay_extents, extent);
+		edata_list_remove(decay_extents, edata);
 		switch (eset_state_get(eset)) {
 		case extent_state_active:
 			not_reached();
 		case extent_state_dirty:
 			if (!all && muzzy_decay_ms != 0 &&
 			    !extent_purge_lazy_wrapper(tsdn, arena,
-			    ehooks, extent, 0,
-			    extent_size_get(extent))) {
+			    ehooks, edata, 0, edata_size_get(edata))) {
 				extents_dalloc(tsdn, arena, ehooks,
-				    &arena->eset_muzzy, extent);
+				    &arena->eset_muzzy, edata);
 				arena_background_thread_inactivity_check(tsdn,
 				    arena, is_background_thread);
 				break;
 			}
 			JEMALLOC_FALLTHROUGH;
 		case extent_state_muzzy:
-			extent_dalloc_wrapper(tsdn, arena, ehooks, extent);
+			extent_dalloc_wrapper(tsdn, arena, ehooks, edata);
 			if (config_stats) {
 				nunmapped += npages;
 			}
@@ -925,8 +923,8 @@ arena_decay_to_limit(tsdn_t *tsdn, arena_t *arena, arena_decay_t *decay,
 
 	ehooks_t *ehooks = arena_get_ehooks(arena);
 
-	extent_list_t decay_extents;
-	extent_list_init(&decay_extents);
+	edata_list_t decay_extents;
+	edata_list_init(&decay_extents);
 
 	size_t npurge = arena_stash_decayed(tsdn, arena, ehooks, eset,
 	    npages_limit, npages_decay_max, &decay_extents);
@@ -1002,33 +1000,33 @@ arena_decay(tsdn_t *tsdn, arena_t *arena, bool is_background_thread, bool all) {
 }
 
 static void
-arena_slab_dalloc(tsdn_t *tsdn, arena_t *arena, extent_t *slab) {
-	arena_nactive_sub(arena, extent_size_get(slab) >> LG_PAGE);
+arena_slab_dalloc(tsdn_t *tsdn, arena_t *arena, edata_t *slab) {
+	arena_nactive_sub(arena, edata_size_get(slab) >> LG_PAGE);
 
 	ehooks_t *ehooks = arena_get_ehooks(arena);
 	arena_extents_dirty_dalloc(tsdn, arena, ehooks, slab);
 }
 
 static void
-arena_bin_slabs_nonfull_insert(bin_t *bin, extent_t *slab) {
-	assert(extent_nfree_get(slab) > 0);
-	extent_heap_insert(&bin->slabs_nonfull, slab);
+arena_bin_slabs_nonfull_insert(bin_t *bin, edata_t *slab) {
+	assert(edata_nfree_get(slab) > 0);
+	edata_heap_insert(&bin->slabs_nonfull, slab);
 	if (config_stats) {
 		bin->stats.nonfull_slabs++;
 	}
 }
 
 static void
-arena_bin_slabs_nonfull_remove(bin_t *bin, extent_t *slab) {
-	extent_heap_remove(&bin->slabs_nonfull, slab);
+arena_bin_slabs_nonfull_remove(bin_t *bin, edata_t *slab) {
+	edata_heap_remove(&bin->slabs_nonfull, slab);
 	if (config_stats) {
 		bin->stats.nonfull_slabs--;
 	}
 }
 
-static extent_t *
+static edata_t *
 arena_bin_slabs_nonfull_tryget(bin_t *bin) {
-	extent_t *slab = extent_heap_remove_first(&bin->slabs_nonfull);
+	edata_t *slab = edata_heap_remove_first(&bin->slabs_nonfull);
 	if (slab == NULL) {
 		return NULL;
 	}
@@ -1040,30 +1038,30 @@ arena_bin_slabs_nonfull_tryget(bin_t *bin) {
 }
 
 static void
-arena_bin_slabs_full_insert(arena_t *arena, bin_t *bin, extent_t *slab) {
-	assert(extent_nfree_get(slab) == 0);
+arena_bin_slabs_full_insert(arena_t *arena, bin_t *bin, edata_t *slab) {
+	assert(edata_nfree_get(slab) == 0);
 	/*
 	 *  Tracking extents is required by arena_reset, which is not allowed
-	 *  for auto arenas.  Bypass this step to avoid touching the extent
+	 *  for auto arenas.  Bypass this step to avoid touching the edata
 	 *  linkage (often results in cache misses) for auto arenas.
 	 */
 	if (arena_is_auto(arena)) {
 		return;
 	}
-	extent_list_append(&bin->slabs_full, slab);
+	edata_list_append(&bin->slabs_full, slab);
 }
 
 static void
-arena_bin_slabs_full_remove(arena_t *arena, bin_t *bin, extent_t *slab) {
+arena_bin_slabs_full_remove(arena_t *arena, bin_t *bin, edata_t *slab) {
 	if (arena_is_auto(arena)) {
 		return;
 	}
-	extent_list_remove(&bin->slabs_full, slab);
+	edata_list_remove(&bin->slabs_full, slab);
 }
 
 static void
 arena_bin_reset(tsd_t *tsd, arena_t *arena, bin_t *bin) {
-	extent_t *slab;
+	edata_t *slab;
 
 	malloc_mutex_lock(tsd_tsdn(tsd), &bin->lock);
 	if (bin->slabcur != NULL) {
@@ -1073,13 +1071,13 @@ arena_bin_reset(tsd_t *tsd, arena_t *arena, bin_t *bin) {
 		arena_slab_dalloc(tsd_tsdn(tsd), arena, slab);
 		malloc_mutex_lock(tsd_tsdn(tsd), &bin->lock);
 	}
-	while ((slab = extent_heap_remove_first(&bin->slabs_nonfull)) != NULL) {
+	while ((slab = edata_heap_remove_first(&bin->slabs_nonfull)) != NULL) {
 		malloc_mutex_unlock(tsd_tsdn(tsd), &bin->lock);
 		arena_slab_dalloc(tsd_tsdn(tsd), arena, slab);
 		malloc_mutex_lock(tsd_tsdn(tsd), &bin->lock);
 	}
-	for (slab = extent_list_first(&bin->slabs_full); slab != NULL;
-	     slab = extent_list_first(&bin->slabs_full)) {
+	for (slab = edata_list_first(&bin->slabs_full); slab != NULL;
+	     slab = edata_list_first(&bin->slabs_full)) {
 		arena_bin_slabs_full_remove(arena, bin, slab);
 		malloc_mutex_unlock(tsd_tsdn(tsd), &bin->lock);
 		arena_slab_dalloc(tsd_tsdn(tsd), arena, slab);
@@ -1111,9 +1109,9 @@ arena_reset(tsd_t *tsd, arena_t *arena) {
 	/* Large allocations. */
 	malloc_mutex_lock(tsd_tsdn(tsd), &arena->large_mtx);
 
-	for (extent_t *extent = extent_list_first(&arena->large); extent !=
-	    NULL; extent = extent_list_first(&arena->large)) {
-		void *ptr = extent_base_get(extent);
+	for (edata_t *edata = edata_list_first(&arena->large); edata !=
+	    NULL; edata = edata_list_first(&arena->large)) {
+		void *ptr = edata_base_get(edata);
 		size_t usize;
 
 		malloc_mutex_unlock(tsd_tsdn(tsd), &arena->large_mtx);
@@ -1131,7 +1129,7 @@ arena_reset(tsd_t *tsd, arena_t *arena) {
 		if (config_prof && opt_prof) {
 			prof_free(tsd, ptr, usize, &alloc_ctx);
 		}
-		large_dalloc(tsd_tsdn(tsd), extent);
+		large_dalloc(tsd_tsdn(tsd), edata);
 		malloc_mutex_lock(tsd_tsdn(tsd), &arena->large_mtx);
 	}
 	malloc_mutex_unlock(tsd_tsdn(tsd), &arena->large_mtx);
@@ -1159,10 +1157,10 @@ arena_destroy_retained(tsdn_t *tsdn, arena_t *arena) {
 	 * dss-based extents for later reuse.
 	 */
 	ehooks_t *ehooks = arena_get_ehooks(arena);
-	extent_t *extent;
-	while ((extent = extents_evict(tsdn, arena, ehooks,
+	edata_t *edata;
+	while ((edata = extents_evict(tsdn, arena, ehooks,
 	    &arena->eset_retained, 0)) != NULL) {
-		extent_destroy_wrapper(tsdn, arena, ehooks, extent);
+		extent_destroy_wrapper(tsdn, arena, ehooks, edata);
 	}
 }
 
@@ -1202,10 +1200,10 @@ arena_destroy(tsd_t *tsd, arena_t *arena) {
 	base_delete(tsd_tsdn(tsd), arena->base);
 }
 
-static extent_t *
+static edata_t *
 arena_slab_alloc_hard(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
     const bin_info_t *bin_info, szind_t szind) {
-	extent_t *slab;
+	edata_t *slab;
 	bool zero, commit;
 
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
@@ -1224,7 +1222,7 @@ arena_slab_alloc_hard(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 	return slab;
 }
 
-static extent_t *
+static edata_t *
 arena_slab_alloc(tsdn_t *tsdn, arena_t *arena, szind_t binind, unsigned binshard,
     const bin_info_t *bin_info) {
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
@@ -1234,7 +1232,7 @@ arena_slab_alloc(tsdn_t *tsdn, arena_t *arena, szind_t binind, unsigned binshard
 	szind_t szind = sz_size2index(bin_info->reg_size);
 	bool zero = false;
 	bool commit = true;
-	extent_t *slab = extents_alloc(tsdn, arena, ehooks, &arena->eset_dirty,
+	edata_t *slab = extents_alloc(tsdn, arena, ehooks, &arena->eset_dirty,
 	    NULL, bin_info->slab_size, 0, PAGE, true, binind, &zero, &commit);
 	if (slab == NULL && arena_may_have_muzzy(arena)) {
 		slab = extents_alloc(tsdn, arena, ehooks, &arena->eset_muzzy,
@@ -1248,22 +1246,22 @@ arena_slab_alloc(tsdn_t *tsdn, arena_t *arena, szind_t binind, unsigned binshard
 			return NULL;
 		}
 	}
-	assert(extent_slab_get(slab));
+	assert(edata_slab_get(slab));
 
 	/* Initialize slab internals. */
-	slab_data_t *slab_data = extent_slab_data_get(slab);
-	extent_nfree_binshard_set(slab, bin_info->nregs, binshard);
+	slab_data_t *slab_data = edata_slab_data_get(slab);
+	edata_nfree_binshard_set(slab, bin_info->nregs, binshard);
 	bitmap_init(slab_data->bitmap, &bin_info->bitmap_info, false);
 
-	arena_nactive_add(arena, extent_size_get(slab) >> LG_PAGE);
+	arena_nactive_add(arena, edata_size_get(slab) >> LG_PAGE);
 
 	return slab;
 }
 
-static extent_t *
+static edata_t *
 arena_bin_nonfull_slab_get(tsdn_t *tsdn, arena_t *arena, bin_t *bin,
     szind_t binind, unsigned binshard) {
-	extent_t *slab;
+	edata_t *slab;
 	const bin_info_t *bin_info;
 
 	/* Look for a usable slab. */
@@ -1309,14 +1307,14 @@ arena_bin_malloc_hard(tsdn_t *tsdn, arena_t *arena, bin_t *bin,
 
 	if (bin->slabcur != NULL) {
 		/* Only attempted when current slab is full. */
-		assert(extent_nfree_get(bin->slabcur) == 0);
+		assert(edata_nfree_get(bin->slabcur) == 0);
 	}
 
 	const bin_info_t *bin_info = &bin_infos[binind];
-	extent_t *slab = arena_bin_nonfull_slab_get(tsdn, arena, bin, binind,
+	edata_t *slab = arena_bin_nonfull_slab_get(tsdn, arena, bin, binind,
 	    binshard);
 	if (bin->slabcur != NULL) {
-		if (extent_nfree_get(bin->slabcur) > 0) {
+		if (edata_nfree_get(bin->slabcur) > 0) {
 			/*
 			 * Another thread updated slabcur while this one ran
 			 * without the bin lock in arena_bin_nonfull_slab_get().
@@ -1333,7 +1331,7 @@ arena_bin_malloc_hard(tsdn_t *tsdn, arena_t *arena, bin_t *bin,
 				 * arena_bin_lower_slab() must be called, as if
 				 * a region were just deallocated from the slab.
 				 */
-				if (extent_nfree_get(slab) == bin_info->nregs) {
+				if (edata_nfree_get(slab) == bin_info->nregs) {
 					arena_dalloc_bin_slab(tsdn, arena, slab,
 					    bin);
 				} else {
@@ -1352,7 +1350,7 @@ arena_bin_malloc_hard(tsdn_t *tsdn, arena_t *arena, bin_t *bin,
 		return NULL;
 	}
 	bin->slabcur = slab;
-	assert(extent_nfree_get(bin->slabcur) > 0);
+	assert(edata_nfree_get(bin->slabcur) > 0);
 
 	return arena_slab_reg_alloc(slab, bin_info);
 }
@@ -1388,12 +1386,12 @@ arena_tcache_fill_small(tsdn_t *tsdn, arena_t *arena, tcache_t *tcache,
 	void **empty_position = cache_bin_empty_position_get(tbin, binind);
 	for (i = 0, nfill = (cache_bin_ncached_max_get(binind) >>
 	    tcache->lg_fill_div[binind]); i < nfill; i += cnt) {
-		extent_t *slab;
-		if ((slab = bin->slabcur) != NULL && extent_nfree_get(slab) >
+		edata_t *slab;
+		if ((slab = bin->slabcur) != NULL && edata_nfree_get(slab) >
 		    0) {
 			unsigned tofill = nfill - i;
-			cnt = tofill < extent_nfree_get(slab) ?
-				tofill : extent_nfree_get(slab);
+			cnt = tofill < edata_nfree_get(slab) ?
+				tofill : edata_nfree_get(slab);
 			arena_slab_reg_alloc_batch(
 			   slab, &bin_infos[binind], cnt,
 			   empty_position - nfill + i);
@@ -1456,14 +1454,14 @@ arena_malloc_small(tsdn_t *tsdn, arena_t *arena, szind_t binind, bool zero) {
 	void *ret;
 	bin_t *bin;
 	size_t usize;
-	extent_t *slab;
+	edata_t *slab;
 
 	assert(binind < SC_NBINS);
 	usize = sz_index2size(binind);
 	unsigned binshard;
 	bin = arena_bin_choose_lock(tsdn, arena, binind, &binshard);
 
-	if ((slab = bin->slabcur) != NULL && extent_nfree_get(slab) > 0) {
+	if ((slab = bin->slabcur) != NULL && edata_nfree_get(slab) > 0) {
 		ret = arena_slab_reg_alloc(slab, &bin_infos[binind]);
 	} else {
 		ret = arena_bin_malloc_hard(tsdn, arena, bin, binind, binshard);
@@ -1556,11 +1554,11 @@ arena_prof_promote(tsdn_t *tsdn, void *ptr, size_t usize) {
 	rtree_ctx_t rtree_ctx_fallback;
 	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
 
-	extent_t *extent = rtree_extent_read(tsdn, &extents_rtree, rtree_ctx,
+	edata_t *edata = rtree_edata_read(tsdn, &extents_rtree, rtree_ctx,
 	    (uintptr_t)ptr, true);
 
 	szind_t szind = sz_size2index(usize);
-	extent_szind_set(extent, szind);
+	edata_szind_set(edata, szind);
 	rtree_szind_slab_update(tsdn, &extents_rtree, rtree_ctx, (uintptr_t)ptr,
 	    szind, false);
 
@@ -1570,11 +1568,11 @@ arena_prof_promote(tsdn_t *tsdn, void *ptr, size_t usize) {
 }
 
 static size_t
-arena_prof_demote(tsdn_t *tsdn, extent_t *extent, const void *ptr) {
+arena_prof_demote(tsdn_t *tsdn, edata_t *edata, const void *ptr) {
 	cassert(config_prof);
 	assert(ptr != NULL);
 
-	extent_szind_set(extent, SC_NBINS);
+	edata_szind_set(edata, SC_NBINS);
 	rtree_ctx_t rtree_ctx_fallback;
 	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
 	rtree_szind_slab_update(tsdn, &extents_rtree, rtree_ctx, (uintptr_t)ptr,
@@ -1591,9 +1589,9 @@ arena_dalloc_promoted(tsdn_t *tsdn, void *ptr, tcache_t *tcache,
 	cassert(config_prof);
 	assert(opt_prof);
 
-	extent_t *extent = iealloc(tsdn, ptr);
-	size_t usize = extent_usize_get(extent);
-	size_t bumped_usize = arena_prof_demote(tsdn, extent, ptr);
+	edata_t *edata = iealloc(tsdn, ptr);
+	size_t usize = edata_usize_get(edata);
+	size_t bumped_usize = arena_prof_demote(tsdn, edata, ptr);
 	if (config_opt_safety_checks && usize < SC_LARGE_MINCLASS) {
 		/*
 		 * Currently, we only do redzoning for small sampled
@@ -1606,17 +1604,17 @@ arena_dalloc_promoted(tsdn_t *tsdn, void *ptr, tcache_t *tcache,
 		tcache_dalloc_large(tsdn_tsd(tsdn), tcache, ptr,
 		    sz_size2index(bumped_usize), slow_path);
 	} else {
-		large_dalloc(tsdn, extent);
+		large_dalloc(tsdn, edata);
 	}
 }
 
 static void
-arena_dissociate_bin_slab(arena_t *arena, extent_t *slab, bin_t *bin) {
+arena_dissociate_bin_slab(arena_t *arena, edata_t *slab, bin_t *bin) {
 	/* Dissociate slab from bin. */
 	if (slab == bin->slabcur) {
 		bin->slabcur = NULL;
 	} else {
-		szind_t binind = extent_szind_get(slab);
+		szind_t binind = edata_szind_get(slab);
 		const bin_info_t *bin_info = &bin_infos[binind];
 
 		/*
@@ -1633,7 +1631,7 @@ arena_dissociate_bin_slab(arena_t *arena, extent_t *slab, bin_t *bin) {
 }
 
 static void
-arena_dalloc_bin_slab(tsdn_t *tsdn, arena_t *arena, extent_t *slab,
+arena_dalloc_bin_slab(tsdn_t *tsdn, arena_t *arena, edata_t *slab,
     bin_t *bin) {
 	assert(slab != bin->slabcur);
 
@@ -1648,9 +1646,9 @@ arena_dalloc_bin_slab(tsdn_t *tsdn, arena_t *arena, extent_t *slab,
 }
 
 static void
-arena_bin_lower_slab(tsdn_t *tsdn, arena_t *arena, extent_t *slab,
+arena_bin_lower_slab(tsdn_t *tsdn, arena_t *arena, edata_t *slab,
     bin_t *bin) {
-	assert(extent_nfree_get(slab) > 0);
+	assert(edata_nfree_get(slab) > 0);
 
 	/*
 	 * Make sure that if bin->slabcur is non-NULL, it refers to the
@@ -1658,9 +1656,9 @@ arena_bin_lower_slab(tsdn_t *tsdn, arena_t *arena, extent_t *slab,
 	 * than proactively keeping it pointing at the oldest/lowest non-full
 	 * slab.
 	 */
-	if (bin->slabcur != NULL && extent_snad_comp(bin->slabcur, slab) > 0) {
+	if (bin->slabcur != NULL && edata_snad_comp(bin->slabcur, slab) > 0) {
 		/* Switch slabcur. */
-		if (extent_nfree_get(bin->slabcur) > 0) {
+		if (edata_nfree_get(bin->slabcur) > 0) {
 			arena_bin_slabs_nonfull_insert(bin, bin->slabcur);
 		} else {
 			arena_bin_slabs_full_insert(arena, bin, bin->slabcur);
@@ -1676,8 +1674,8 @@ arena_bin_lower_slab(tsdn_t *tsdn, arena_t *arena, extent_t *slab,
 
 static void
 arena_dalloc_bin_locked_impl(tsdn_t *tsdn, arena_t *arena, bin_t *bin,
-    szind_t binind, extent_t *slab, void *ptr, bool junked) {
-	slab_data_t *slab_data = extent_slab_data_get(slab);
+    szind_t binind, edata_t *slab, void *ptr, bool junked) {
+	slab_data_t *slab_data = edata_slab_data_get(slab);
 	const bin_info_t *bin_info = &bin_infos[binind];
 
 	if (!junked && config_fill && unlikely(opt_junk_free)) {
@@ -1685,7 +1683,7 @@ arena_dalloc_bin_locked_impl(tsdn_t *tsdn, arena_t *arena, bin_t *bin,
 	}
 
 	arena_slab_reg_dalloc(slab, slab_data, ptr);
-	unsigned nfree = extent_nfree_get(slab);
+	unsigned nfree = edata_nfree_get(slab);
 	if (nfree == bin_info->nregs) {
 		arena_dissociate_bin_slab(arena, slab, bin);
 		arena_dalloc_bin_slab(tsdn, arena, slab, bin);
@@ -1702,29 +1700,29 @@ arena_dalloc_bin_locked_impl(tsdn_t *tsdn, arena_t *arena, bin_t *bin,
 
 void
 arena_dalloc_bin_junked_locked(tsdn_t *tsdn, arena_t *arena, bin_t *bin,
-    szind_t binind, extent_t *extent, void *ptr) {
-	arena_dalloc_bin_locked_impl(tsdn, arena, bin, binind, extent, ptr,
+    szind_t binind, edata_t *edata, void *ptr) {
+	arena_dalloc_bin_locked_impl(tsdn, arena, bin, binind, edata, ptr,
 	    true);
 }
 
 static void
-arena_dalloc_bin(tsdn_t *tsdn, arena_t *arena, extent_t *extent, void *ptr) {
-	szind_t binind = extent_szind_get(extent);
-	unsigned binshard = extent_binshard_get(extent);
+arena_dalloc_bin(tsdn_t *tsdn, arena_t *arena, edata_t *edata, void *ptr) {
+	szind_t binind = edata_szind_get(edata);
+	unsigned binshard = edata_binshard_get(edata);
 	bin_t *bin = &arena->bins[binind].bin_shards[binshard];
 
 	malloc_mutex_lock(tsdn, &bin->lock);
-	arena_dalloc_bin_locked_impl(tsdn, arena, bin, binind, extent, ptr,
+	arena_dalloc_bin_locked_impl(tsdn, arena, bin, binind, edata, ptr,
 	    false);
 	malloc_mutex_unlock(tsdn, &bin->lock);
 }
 
 void
 arena_dalloc_small(tsdn_t *tsdn, void *ptr) {
-	extent_t *extent = iealloc(tsdn, ptr);
-	arena_t *arena = arena_get_from_extent(extent);
+	edata_t *edata = iealloc(tsdn, ptr);
+	arena_t *arena = arena_get_from_edata(edata);
 
-	arena_dalloc_bin(tsdn, arena, extent, ptr);
+	arena_dalloc_bin(tsdn, arena, edata, ptr);
 	arena_decay_tick(tsdn, arena);
 }
 
@@ -1735,7 +1733,7 @@ arena_ralloc_no_move(tsdn_t *tsdn, void *ptr, size_t oldsize, size_t size,
 	/* Calls with non-zero extra had to clamp extra. */
 	assert(extra == 0 || size + extra <= SC_LARGE_MAXCLASS);
 
-	extent_t *extent = iealloc(tsdn, ptr);
+	edata_t *edata = iealloc(tsdn, ptr);
 	if (unlikely(size > SC_LARGE_MAXCLASS)) {
 		ret = true;
 		goto done;
@@ -1758,19 +1756,19 @@ arena_ralloc_no_move(tsdn_t *tsdn, void *ptr, size_t oldsize, size_t size,
 			goto done;
 		}
 
-		arena_t *arena = arena_get_from_extent(extent);
+		arena_t *arena = arena_get_from_edata(edata);
 		arena_decay_tick(tsdn, arena);
 		ret = false;
 	} else if (oldsize >= SC_LARGE_MINCLASS
 	    && usize_max >= SC_LARGE_MINCLASS) {
-		ret = large_ralloc_no_move(tsdn, extent, usize_min, usize_max,
+		ret = large_ralloc_no_move(tsdn, edata, usize_min, usize_max,
 		    zero);
 	} else {
 		ret = true;
 	}
 done:
-	assert(extent == iealloc(tsdn, ptr));
-	*newsize = extent_usize_get(extent);
+	assert(edata == iealloc(tsdn, ptr));
+	*newsize = edata_usize_get(edata);
 
 	return ret;
 }
@@ -2008,7 +2006,7 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 
 	atomic_store_zu(&arena->nactive, 0, ATOMIC_RELAXED);
 
-	extent_list_init(&arena->large);
+	edata_list_init(&arena->large);
 	if (malloc_mutex_init(&arena->large_mtx, "arena_large",
 	    WITNESS_RANK_ARENA_LARGE, malloc_mutex_rank_exclusive)) {
 		goto label_error;
@@ -2057,9 +2055,9 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 		goto label_error;
 	}
 
-	extent_avail_new(&arena->extent_avail);
-	if (malloc_mutex_init(&arena->extent_avail_mtx, "extent_avail",
-	    WITNESS_RANK_EXTENT_AVAIL, malloc_mutex_rank_exclusive)) {
+	edata_avail_new(&arena->edata_avail);
+	if (malloc_mutex_init(&arena->edata_avail_mtx, "edata_avail",
+	    WITNESS_RANK_EDATA_AVAIL, malloc_mutex_rank_exclusive)) {
 		goto label_error;
 	}
 
@@ -2206,7 +2204,7 @@ arena_prefork3(tsdn_t *tsdn, arena_t *arena) {
 
 void
 arena_prefork4(tsdn_t *tsdn, arena_t *arena) {
-	malloc_mutex_prefork(tsdn, &arena->extent_avail_mtx);
+	malloc_mutex_prefork(tsdn, &arena->edata_avail_mtx);
 }
 
 void
@@ -2240,7 +2238,7 @@ arena_postfork_parent(tsdn_t *tsdn, arena_t *arena) {
 	}
 	malloc_mutex_postfork_parent(tsdn, &arena->large_mtx);
 	base_postfork_parent(tsdn, arena->base);
-	malloc_mutex_postfork_parent(tsdn, &arena->extent_avail_mtx);
+	malloc_mutex_postfork_parent(tsdn, &arena->edata_avail_mtx);
 	eset_postfork_parent(tsdn, &arena->eset_dirty);
 	eset_postfork_parent(tsdn, &arena->eset_muzzy);
 	eset_postfork_parent(tsdn, &arena->eset_retained);
@@ -2286,7 +2284,7 @@ arena_postfork_child(tsdn_t *tsdn, arena_t *arena) {
 	}
 	malloc_mutex_postfork_child(tsdn, &arena->large_mtx);
 	base_postfork_child(tsdn, arena->base);
-	malloc_mutex_postfork_child(tsdn, &arena->extent_avail_mtx);
+	malloc_mutex_postfork_child(tsdn, &arena->edata_avail_mtx);
 	eset_postfork_child(tsdn, &arena->eset_dirty);
 	eset_postfork_child(tsdn, &arena->eset_muzzy);
 	eset_postfork_child(tsdn, &arena->eset_retained);

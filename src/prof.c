@@ -184,7 +184,7 @@ prof_malloc_sample_object(tsd_t *tsd, const void *ptr, size_t usize,
     prof_tctx_t *tctx) {
 	prof_tctx_set(tsd, ptr, NULL, tctx);
 
-	/* Get the current time and set this in the extent_t. We'll read this
+	/* Get the current time and set this in the edata_t. We'll read this
 	 * when free() is called. */
 	nstime_t t = NSTIME_ZERO_INITIALIZER;
 	nstime_update(&t);

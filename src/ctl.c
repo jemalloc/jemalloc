@@ -855,8 +855,8 @@ ctl_arena_stats_sdmerge(ctl_arena_t *ctl_sdarena, ctl_arena_t *ctl_arena,
 			    &astats->astats.mapped);
 			accum_atomic_zu(&sdstats->astats.retained,
 			    &astats->astats.retained);
-			accum_atomic_zu(&sdstats->astats.extent_avail,
-			    &astats->astats.extent_avail);
+			accum_atomic_zu(&sdstats->astats.edata_avail,
+			    &astats->astats.edata_avail);
 		}
 
 		ctl_accum_arena_stats_u64(&sdstats->astats.decay_dirty.npurge,
@@ -2603,18 +2603,18 @@ arenas_lookup_ctl(tsd_t *tsd, const size_t *mib,
 	int ret;
 	unsigned arena_ind;
 	void *ptr;
-	extent_t *extent;
+	edata_t *edata;
 	arena_t *arena;
 
 	ptr = NULL;
 	ret = EINVAL;
 	malloc_mutex_lock(tsd_tsdn(tsd), &ctl_mtx);
 	WRITE(ptr, void *);
-	extent = iealloc(tsd_tsdn(tsd), ptr);
-	if (extent == NULL)
+	edata = iealloc(tsd_tsdn(tsd), ptr);
+	if (edata == NULL)
 		goto label_return;
 
-	arena = arena_get_from_extent(extent);
+	arena = arena_get_from_edata(edata);
 	if (arena == NULL)
 		goto label_return;
 
@@ -2860,7 +2860,7 @@ CTL_RO_CGEN(config_stats, stats_arenas_i_retained,
     atomic_load_zu(&arenas_i(mib[2])->astats->astats.retained, ATOMIC_RELAXED),
     size_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_extent_avail,
-    atomic_load_zu(&arenas_i(mib[2])->astats->astats.extent_avail,
+    atomic_load_zu(&arenas_i(mib[2])->astats->astats.edata_avail,
         ATOMIC_RELAXED),
     size_t)
 
@@ -3010,7 +3010,7 @@ stats_mutexes_reset_ctl(tsd_t *tsd, const size_t *mib,
 			continue;
 		}
 		MUTEX_PROF_RESET(arena->large_mtx);
-		MUTEX_PROF_RESET(arena->extent_avail_mtx);
+		MUTEX_PROF_RESET(arena->edata_avail_mtx);
 		MUTEX_PROF_RESET(arena->eset_dirty.mtx);
 		MUTEX_PROF_RESET(arena->eset_muzzy.mtx);
 		MUTEX_PROF_RESET(arena->eset_retained.mtx);

@@ -28,18 +28,18 @@ void arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
     bin_stats_data_t *bstats, arena_stats_large_t *lstats,
     arena_stats_extents_t *estats);
 void arena_extents_dirty_dalloc(tsdn_t *tsdn, arena_t *arena,
-    ehooks_t *ehooks, extent_t *extent);
+    ehooks_t *ehooks, edata_t *edata);
 #ifdef JEMALLOC_JET
-size_t arena_slab_regind(extent_t *slab, szind_t binind, const void *ptr);
+size_t arena_slab_regind(edata_t *slab, szind_t binind, const void *ptr);
 #endif
-extent_t *arena_extent_alloc_large(tsdn_t *tsdn, arena_t *arena,
+edata_t *arena_extent_alloc_large(tsdn_t *tsdn, arena_t *arena,
     size_t usize, size_t alignment, bool *zero);
 void arena_extent_dalloc_large_prep(tsdn_t *tsdn, arena_t *arena,
-    extent_t *extent);
+    edata_t *edata);
 void arena_extent_ralloc_large_shrink(tsdn_t *tsdn, arena_t *arena,
-    extent_t *extent, size_t oldsize);
+    edata_t *edata, size_t oldsize);
 void arena_extent_ralloc_large_expand(tsdn_t *tsdn, arena_t *arena,
-    extent_t *extent, size_t oldsize);
+    edata_t *edata, size_t oldsize);
 ssize_t arena_dirty_decay_ms_get(arena_t *arena);
 bool arena_dirty_decay_ms_set(tsdn_t *tsdn, arena_t *arena, ssize_t decay_ms);
 ssize_t arena_muzzy_decay_ms_get(arena_t *arena);
@@ -64,7 +64,7 @@ void arena_prof_promote(tsdn_t *tsdn, void *ptr, size_t usize);
 void arena_dalloc_promoted(tsdn_t *tsdn, void *ptr, tcache_t *tcache,
     bool slow_path);
 void arena_dalloc_bin_junked_locked(tsdn_t *tsdn, arena_t *arena, bin_t *bin,
-    szind_t binind, extent_t *extent, void *ptr);
+    szind_t binind, edata_t *edata, void *ptr);
 void arena_dalloc_small(tsdn_t *tsdn, void *ptr);
 bool arena_ralloc_no_move(tsdn_t *tsdn, void *ptr, size_t oldsize, size_t size,
     size_t extra, bool zero, size_t *newsize);

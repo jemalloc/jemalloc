@@ -75,8 +75,8 @@ TEST_BEGIN(test_rtree_read_empty) {
 	rtree_ctx_t rtree_ctx;
 	rtree_ctx_data_init(&rtree_ctx);
 	assert_false(rtree_new(rtree, false), "Unexpected rtree_new() failure");
-	assert_ptr_null(rtree_extent_read(tsdn, rtree, &rtree_ctx, PAGE,
-	    false), "rtree_extent_read() should return NULL for empty tree");
+	assert_ptr_null(rtree_edata_read(tsdn, rtree, &rtree_ctx, PAGE,
+	    false), "rtree_edata_read() should return NULL for empty tree");
 	rtree_delete(tsdn, rtree);
 }
 TEST_END
@@ -86,11 +86,11 @@ TEST_END
 #undef SEED
 
 TEST_BEGIN(test_rtree_extrema) {
-	extent_t extent_a, extent_b;
-	extent_init(&extent_a, INVALID_ARENA_IND, NULL, SC_LARGE_MINCLASS,
+	edata_t edata_a, edata_b;
+	edata_init(&edata_a, INVALID_ARENA_IND, NULL, SC_LARGE_MINCLASS,
 	    false, sz_size2index(SC_LARGE_MINCLASS), 0,
 	    extent_state_active, false, false, true, EXTENT_NOT_HEAD);
-	extent_init(&extent_b, INVALID_ARENA_IND, NULL, 0, false, SC_NSIZES, 0,
+	edata_init(&edata_b, INVALID_ARENA_IND, NULL, 0, false, SC_NSIZES, 0,
 	    extent_state_active, false, false, true, EXTENT_NOT_HEAD);
 
 	tsdn_t *tsdn = tsdn_fetch();
@@ -100,21 +100,21 @@ TEST_BEGIN(test_rtree_extrema) {
 	rtree_ctx_data_init(&rtree_ctx);
 	assert_false(rtree_new(rtree, false), "Unexpected rtree_new() failure");
 
-	assert_false(rtree_write(tsdn, rtree, &rtree_ctx, PAGE, &extent_a,
-	    extent_szind_get(&extent_a), extent_slab_get(&extent_a)),
+	assert_false(rtree_write(tsdn, rtree, &rtree_ctx, PAGE, &edata_a,
+	    edata_szind_get(&edata_a), edata_slab_get(&edata_a)),
 	    "Unexpected rtree_write() failure");
 	rtree_szind_slab_update(tsdn, rtree, &rtree_ctx, PAGE,
-	    extent_szind_get(&extent_a), extent_slab_get(&extent_a));
-	assert_ptr_eq(rtree_extent_read(tsdn, rtree, &rtree_ctx, PAGE, true),
-	    &extent_a,
-	    "rtree_extent_read() should return previously set value");
+	    edata_szind_get(&edata_a), edata_slab_get(&edata_a));
+	assert_ptr_eq(rtree_edata_read(tsdn, rtree, &rtree_ctx, PAGE, true),
+	    &edata_a,
+	    "rtree_edata_read() should return previously set value");
 
 	assert_false(rtree_write(tsdn, rtree, &rtree_ctx, ~((uintptr_t)0),
-	    &extent_b, extent_szind_get_maybe_invalid(&extent_b),
-	    extent_slab_get(&extent_b)), "Unexpected rtree_write() failure");
-	assert_ptr_eq(rtree_extent_read(tsdn, rtree, &rtree_ctx,
-	    ~((uintptr_t)0), true), &extent_b,
-	    "rtree_extent_read() should return previously set value");
+	    &edata_b, edata_szind_get_maybe_invalid(&edata_b),
+	    edata_slab_get(&edata_b)), "Unexpected rtree_write() failure");
+	assert_ptr_eq(rtree_edata_read(tsdn, rtree, &rtree_ctx,
+	    ~((uintptr_t)0), true), &edata_b,
+	    "rtree_edata_read() should return previously set value");
 
 	rtree_delete(tsdn, rtree);
 }
@@ -126,8 +126,8 @@ TEST_BEGIN(test_rtree_bits) {
 	uintptr_t keys[] = {PAGE, PAGE + 1,
 	    PAGE + (((uintptr_t)1) << LG_PAGE) - 1};
 
-	extent_t extent;
-	extent_init(&extent, INVALID_ARENA_IND, NULL, 0, false, SC_NSIZES, 0,
+	edata_t edata;
+	edata_init(&edata, INVALID_ARENA_IND, NULL, 0, false, SC_NSIZES, 0,
 	    extent_state_active, false, false, true, EXTENT_NOT_HEAD);
 
 	rtree_t *rtree = &test_rtree;
@@ -137,17 +137,17 @@ TEST_BEGIN(test_rtree_bits) {
 
 	for (unsigned i = 0; i < sizeof(keys)/sizeof(uintptr_t); i++) {
 		assert_false(rtree_write(tsdn, rtree, &rtree_ctx, keys[i],
-		    &extent, SC_NSIZES, false),
+		    &edata, SC_NSIZES, false),
 		    "Unexpected rtree_write() failure");
 		for (unsigned j = 0; j < sizeof(keys)/sizeof(uintptr_t); j++) {
-			assert_ptr_eq(rtree_extent_read(tsdn, rtree, &rtree_ctx,
-			    keys[j], true), &extent,
-			    "rtree_extent_read() should return previously set "
+			assert_ptr_eq(rtree_edata_read(tsdn, rtree, &rtree_ctx,
+			    keys[j], true), &edata,
+			    "rtree_edata_read() should return previously set "
 			    "value and ignore insignificant key bits; i=%u, "
 			    "j=%u, set key=%#"FMTxPTR", get key=%#"FMTxPTR, i,
 			    j, keys[i], keys[j]);
 		}
-		assert_ptr_null(rtree_extent_read(tsdn, rtree, &rtree_ctx,
+		assert_ptr_null(rtree_edata_read(tsdn, rtree, &rtree_ctx,
 		    (((uintptr_t)2) << LG_PAGE), false),
 		    "Only leftmost rtree leaf should be set; i=%u", i);
 		rtree_clear(tsdn, rtree, &rtree_ctx, keys[i]);
@@ -167,8 +167,8 @@ TEST_BEGIN(test_rtree_random) {
 	rtree_ctx_t rtree_ctx;
 	rtree_ctx_data_init(&rtree_ctx);
 
-	extent_t extent;
-	extent_init(&extent, INVALID_ARENA_IND, NULL, 0, false, SC_NSIZES, 0,
+	edata_t edata;
+	edata_init(&edata, INVALID_ARENA_IND, NULL, 0, false, SC_NSIZES, 0,
 	    extent_state_active, false, false, true, EXTENT_NOT_HEAD);
 
 	assert_false(rtree_new(rtree, false), "Unexpected rtree_new() failure");
@@ -179,29 +179,29 @@ TEST_BEGIN(test_rtree_random) {
 		    &rtree_ctx, keys[i], false, true);
 		assert_ptr_not_null(elm,
 		    "Unexpected rtree_leaf_elm_lookup() failure");
-		rtree_leaf_elm_write(tsdn, rtree, elm, &extent, SC_NSIZES,
+		rtree_leaf_elm_write(tsdn, rtree, elm, &edata, SC_NSIZES,
 		    false);
-		assert_ptr_eq(rtree_extent_read(tsdn, rtree, &rtree_ctx,
-		    keys[i], true), &extent,
-		    "rtree_extent_read() should return previously set value");
+		assert_ptr_eq(rtree_edata_read(tsdn, rtree, &rtree_ctx,
+		    keys[i], true), &edata,
+		    "rtree_edata_read() should return previously set value");
 	}
 	for (unsigned i = 0; i < NSET; i++) {
-		assert_ptr_eq(rtree_extent_read(tsdn, rtree, &rtree_ctx,
-		    keys[i], true), &extent,
-		    "rtree_extent_read() should return previously set value, "
+		assert_ptr_eq(rtree_edata_read(tsdn, rtree, &rtree_ctx,
+		    keys[i], true), &edata,
+		    "rtree_edata_read() should return previously set value, "
 		    "i=%u", i);
 	}
 
 	for (unsigned i = 0; i < NSET; i++) {
 		rtree_clear(tsdn, rtree, &rtree_ctx, keys[i]);
-		assert_ptr_null(rtree_extent_read(tsdn, rtree, &rtree_ctx,
+		assert_ptr_null(rtree_edata_read(tsdn, rtree, &rtree_ctx,
 		    keys[i], true),
-		   "rtree_extent_read() should return previously set value");
+		   "rtree_edata_read() should return previously set value");
 	}
 	for (unsigned i = 0; i < NSET; i++) {
-		assert_ptr_null(rtree_extent_read(tsdn, rtree, &rtree_ctx,
+		assert_ptr_null(rtree_edata_read(tsdn, rtree, &rtree_ctx,
 		    keys[i], true),
-		    "rtree_extent_read() should return previously set value");
+		    "rtree_edata_read() should return previously set value");
 	}
 
 	rtree_delete(tsdn, rtree);

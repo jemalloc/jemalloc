@@ -22,17 +22,17 @@ struct bin_s {
 	 * slabcur is reassigned, the previous slab must be deallocated or
 	 * inserted into slabs_{nonfull,full}.
 	 */
-	extent_t		*slabcur;
+	edata_t			*slabcur;
 
 	/*
 	 * Heap of non-full slabs.  This heap is used to assure that new
 	 * allocations come from the non-full slab that is oldest/lowest in
 	 * memory.
 	 */
-	extent_heap_t		slabs_nonfull;
+	edata_heap_t		slabs_nonfull;
 
 	/* List used to track full slabs. */
-	extent_list_t		slabs_full;
+	edata_list_t		slabs_full;
 
 	/* Bin statistics. */
 	bin_stats_t	stats;
