@@ -2,7 +2,7 @@
 #define JEMALLOC_INTERNAL_BASE_STRUCTS_H
 
 #include "jemalloc/internal/ehooks.h"
-#include "jemalloc/internal/extent.h"
+#include "jemalloc/internal/edata.h"
 #include "jemalloc/internal/jemalloc_internal_types.h"
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/sc.h"

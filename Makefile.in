@@ -104,9 +104,9 @@ C_SRCS := $(srcroot)src/jemalloc.c \
 	$(srcroot)src/ckh.c \
 	$(srcroot)src/ctl.c \
 	$(srcroot)src/div.c \
+	$(srcroot)src/edata.c \
 	$(srcroot)src/ehooks.c \
 	$(srcroot)src/eset.c \
-	$(srcroot)src/extent.c \
 	$(srcroot)src/extent2.c \
 	$(srcroot)src/extent_dss.c \
 	$(srcroot)src/extent_mmap.c \

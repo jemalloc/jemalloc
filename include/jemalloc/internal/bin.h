@@ -3,7 +3,7 @@
 
 #include "jemalloc/internal/bin_stats.h"
 #include "jemalloc/internal/bin_types.h"
-#include "jemalloc/internal/extent.h"
+#include "jemalloc/internal/edata.h"
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/sc.h"
 
