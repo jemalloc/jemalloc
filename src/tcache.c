@@ -114,8 +114,8 @@ tcache_alloc_small_hard(tsdn_t *tsdn, arena_t *arena, tcache_t *tcache,
 
 /* Enabled with --enable-extra-size-check. */
 static void
-tbin_extents_lookup_size_check(tsdn_t *tsdn, cache_bin_t *tbin, szind_t binind,
-    size_t nflush, extent_t **extents){
+tbin_edatas_lookup_size_check(tsdn_t *tsdn, cache_bin_t *tbin, szind_t binind,
+    size_t nflush, edata_t **edatas){
 	rtree_ctx_t rtree_ctx_fallback;
 	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
 
@@ -129,9 +129,9 @@ tbin_extents_lookup_size_check(tsdn_t *tsdn, cache_bin_t *tbin, szind_t binind,
 	size_t sz_sum = binind * nflush;
 	void **bottom_item = cache_bin_bottom_item_get(tbin, binind);
 	for (unsigned i = 0 ; i < nflush; i++) {
-		rtree_extent_szind_read(tsdn, &extents_rtree,
+		rtree_edata_szind_read(tsdn, &extents_rtree,
 		    rtree_ctx, (uintptr_t)*(bottom_item - i), true,
-		    &extents[i], &szind);
+		    &edatas[i], &szind);
 		sz_sum -= szind;
 	}
 	if (sz_sum != 0) {
@@ -154,26 +154,26 @@ tcache_bin_flush_small(tsd_t *tsd, tcache_t *tcache, cache_bin_t *tbin,
 	arena_t *arena = tcache->arena;
 	assert(arena != NULL);
 	unsigned nflush = ncached - rem;
-	VARIABLE_ARRAY(extent_t *, item_extent, nflush);
+	VARIABLE_ARRAY(edata_t *, item_edata, nflush);
 
 	void **bottom_item = cache_bin_bottom_item_get(tbin, binind);
-	/* Look up extent once per item. */
+	/* Look up edata once per item. */
 	if (config_opt_safety_checks) {
-		tbin_extents_lookup_size_check(tsd_tsdn(tsd), tbin, binind,
-		    nflush, item_extent);
+		tbin_edatas_lookup_size_check(tsd_tsdn(tsd), tbin, binind,
+		    nflush, item_edata);
 	} else {
 		for (unsigned i = 0 ; i < nflush; i++) {
-			item_extent[i] = iealloc(tsd_tsdn(tsd),
+			item_edata[i] = iealloc(tsd_tsdn(tsd),
 			    *(bottom_item - i));
 		}
 	}
 	while (nflush > 0) {
 		/* Lock the arena bin associated with the first object. */
-		extent_t *extent = item_extent[0];
-		unsigned bin_arena_ind = extent_arena_ind_get(extent);
+		edata_t *edata = item_edata[0];
+		unsigned bin_arena_ind = edata_arena_ind_get(edata);
 		arena_t *bin_arena = arena_get(tsd_tsdn(tsd), bin_arena_ind,
 		    false);
-		unsigned binshard = extent_binshard_get(extent);
+		unsigned binshard = edata_binshard_get(edata);
 		assert(binshard < bin_infos[binind].n_shards);
 		bin_t *bin = &bin_arena->bins[binind].bin_shards[binshard];
 
@@ -187,13 +187,13 @@ tcache_bin_flush_small(tsd_t *tsd, tcache_t *tcache, cache_bin_t *tbin,
 		unsigned ndeferred = 0;
 		for (unsigned i = 0; i < nflush; i++) {
 			void *ptr = *(bottom_item - i);
-			extent = item_extent[i];
-			assert(ptr != NULL && extent != NULL);
+			edata = item_edata[i];
+			assert(ptr != NULL && edata != NULL);
 
-			if (extent_arena_ind_get(extent) == bin_arena_ind
-			    && extent_binshard_get(extent) == binshard) {
+			if (edata_arena_ind_get(edata) == bin_arena_ind
+			    && edata_binshard_get(edata) == binshard) {
 				arena_dalloc_bin_junked_locked(tsd_tsdn(tsd),
-				    bin_arena, bin, binind, extent, ptr);
+				    bin_arena, bin, binind, edata, ptr);
 			} else {
 				/*
 				 * This object was allocated via a different
@@ -202,7 +202,7 @@ tcache_bin_flush_small(tsd_t *tsd, tcache_t *tcache, cache_bin_t *tbin,
 				 * handled in a future pass.
 				 */
 				*(bottom_item - ndeferred) = ptr;
-				item_extent[ndeferred] = extent;
+				item_edata[ndeferred] = edata;
 				ndeferred++;
 			}
 		}
@@ -244,22 +244,22 @@ tcache_bin_flush_large(tsd_t *tsd, tcache_t *tcache, cache_bin_t *tbin, szind_t 
 	arena_t *tcache_arena = tcache->arena;
 	assert(tcache_arena != NULL);
 	unsigned nflush = ncached - rem;
-	VARIABLE_ARRAY(extent_t *, item_extent, nflush);
+	VARIABLE_ARRAY(edata_t *, item_edata, nflush);
 
 	void **bottom_item = cache_bin_bottom_item_get(tbin, binind);
 #ifndef JEMALLOC_EXTRA_SIZE_CHECK
-	/* Look up extent once per item. */
+	/* Look up edata once per item. */
 	for (unsigned i = 0 ; i < nflush; i++) {
-		item_extent[i] = iealloc(tsd_tsdn(tsd), *(bottom_item - i));
+		item_edata[i] = iealloc(tsd_tsdn(tsd), *(bottom_item - i));
 	}
 #else
 	tbin_extents_lookup_size_check(tsd_tsdn(tsd), tbin, binind, nflush,
-	    item_extent);
+	    item_edata);
 #endif
 	while (nflush > 0) {
 		/* Lock the arena associated with the first object. */
-		extent_t *extent = item_extent[0];
-		unsigned locked_arena_ind = extent_arena_ind_get(extent);
+		edata_t *edata = item_edata[0];
+		unsigned locked_arena_ind = edata_arena_ind_get(edata);
 		arena_t *locked_arena = arena_get(tsd_tsdn(tsd),
 		    locked_arena_ind, false);
 
@@ -270,10 +270,10 @@ tcache_bin_flush_large(tsd_t *tsd, tcache_t *tcache, cache_bin_t *tbin, szind_t 
 		for (unsigned i = 0; i < nflush; i++) {
 			void *ptr = *(bottom_item - i);
 			assert(ptr != NULL);
-			extent = item_extent[i];
-			if (extent_arena_ind_get(extent) == locked_arena_ind) {
+			edata = item_edata[i];
+			if (edata_arena_ind_get(edata) == locked_arena_ind) {
 				large_dalloc_prep_junked_locked(tsd_tsdn(tsd),
-				    extent);
+				    edata);
 			}
 		}
 		if ((config_prof || config_stats) &&
@@ -293,11 +293,11 @@ tcache_bin_flush_large(tsd_t *tsd, tcache_t *tcache, cache_bin_t *tbin, szind_t 
 		unsigned ndeferred = 0;
 		for (unsigned i = 0; i < nflush; i++) {
 			void *ptr = *(bottom_item - i);
-			extent = item_extent[i];
-			assert(ptr != NULL && extent != NULL);
+			edata = item_edata[i];
+			assert(ptr != NULL && edata != NULL);
 
-			if (extent_arena_ind_get(extent) == locked_arena_ind) {
-				large_dalloc_finish(tsd_tsdn(tsd), extent);
+			if (edata_arena_ind_get(edata) == locked_arena_ind) {
+				large_dalloc_finish(tsd_tsdn(tsd), edata);
 			} else {
 				/*
 				 * This object was allocated via a different
@@ -306,7 +306,7 @@ tcache_bin_flush_large(tsd_t *tsd, tcache_t *tcache, cache_bin_t *tbin, szind_t 
 				 * in a future pass.
 				 */
 				*(bottom_item - ndeferred) = ptr;
-				item_extent[ndeferred] = extent;
+				item_edata[ndeferred] = edata;
 				ndeferred++;
 			}
 		}

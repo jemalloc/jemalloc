@@ -16,10 +16,10 @@ eset_init(tsdn_t *tsdn, eset_t *eset, extent_state_t state,
 		return true;
 	}
 	for (unsigned i = 0; i < SC_NPSIZES + 1; i++) {
-		extent_heap_new(&eset->heaps[i]);
+		edata_heap_new(&eset->heaps[i]);
 	}
 	bitmap_init(eset->bitmap, &eset_bitmap_info, true);
-	extent_list_init(&eset->lru);
+	edata_list_init(&eset->lru);
 	atomic_store_zu(&eset->npages, 0, ATOMIC_RELAXED);
 	eset->state = state;
 	eset->delay_coalesce = delay_coalesce;
@@ -63,24 +63,24 @@ eset_stats_sub(eset_t *eset, pszind_t pind, size_t sz) {
 }
 
 void
-eset_insert_locked(tsdn_t *tsdn, eset_t *eset, extent_t *extent) {
+eset_insert_locked(tsdn_t *tsdn, eset_t *eset, edata_t *edata) {
 	malloc_mutex_assert_owner(tsdn, &eset->mtx);
-	assert(extent_state_get(extent) == eset->state);
+	assert(edata_state_get(edata) == eset->state);
 
-	size_t size = extent_size_get(extent);
+	size_t size = edata_size_get(edata);
 	size_t psz = sz_psz_quantize_floor(size);
 	pszind_t pind = sz_psz2ind(psz);
-	if (extent_heap_empty(&eset->heaps[pind])) {
+	if (edata_heap_empty(&eset->heaps[pind])) {
 		bitmap_unset(eset->bitmap, &eset_bitmap_info,
 		    (size_t)pind);
 	}
-	extent_heap_insert(&eset->heaps[pind], extent);
+	edata_heap_insert(&eset->heaps[pind], edata);
 
 	if (config_stats) {
 		eset_stats_add(eset, pind, size);
 	}
 
-	extent_list_append(&eset->lru, extent);
+	edata_list_append(&eset->lru, edata);
 	size_t npages = size >> LG_PAGE;
 	/*
 	 * All modifications to npages hold the mutex (as asserted above), so we
@@ -94,24 +94,24 @@ eset_insert_locked(tsdn_t *tsdn, eset_t *eset, extent_t *extent) {
 }
 
 void
-eset_remove_locked(tsdn_t *tsdn, eset_t *eset, extent_t *extent) {
+eset_remove_locked(tsdn_t *tsdn, eset_t *eset, edata_t *edata) {
 	malloc_mutex_assert_owner(tsdn, &eset->mtx);
-	assert(extent_state_get(extent) == eset->state);
+	assert(edata_state_get(edata) == eset->state);
 
-	size_t size = extent_size_get(extent);
+	size_t size = edata_size_get(edata);
 	size_t psz = sz_psz_quantize_floor(size);
 	pszind_t pind = sz_psz2ind(psz);
-	extent_heap_remove(&eset->heaps[pind], extent);
+	edata_heap_remove(&eset->heaps[pind], edata);
 
 	if (config_stats) {
 		eset_stats_sub(eset, pind, size);
 	}
 
-	if (extent_heap_empty(&eset->heaps[pind])) {
+	if (edata_heap_empty(&eset->heaps[pind])) {
 		bitmap_set(eset->bitmap, &eset_bitmap_info,
 		    (size_t)pind);
 	}
-	extent_list_remove(&eset->lru, extent);
+	edata_list_remove(&eset->lru, edata);
 	size_t npages = size >> LG_PAGE;
 	/*
 	 * As in eset_insert_locked, we hold eset->mtx and so don't need atomic
@@ -128,7 +128,7 @@ eset_remove_locked(tsdn_t *tsdn, eset_t *eset, extent_t *extent) {
  * Find an extent with size [min_size, max_size) to satisfy the alignment
  * requirement.  For each size, try only the first extent in the heap.
  */
-static extent_t *
+static edata_t *
 eset_fit_alignment(eset_t *eset, size_t min_size, size_t max_size,
     size_t alignment) {
         pszind_t pind = sz_psz2ind(sz_psz_quantize_ceil(min_size));
@@ -139,10 +139,10 @@ eset_fit_alignment(eset_t *eset, size_t min_size, size_t max_size,
 	    (pszind_t)bitmap_ffu(eset->bitmap, &eset_bitmap_info,
 	    (size_t)i+1)) {
 		assert(i < SC_NPSIZES);
-		assert(!extent_heap_empty(&eset->heaps[i]));
-		extent_t *extent = extent_heap_first(&eset->heaps[i]);
-		uintptr_t base = (uintptr_t)extent_base_get(extent);
-		size_t candidate_size = extent_size_get(extent);
+		assert(!edata_heap_empty(&eset->heaps[i]));
+		edata_t *edata = edata_heap_first(&eset->heaps[i]);
+		uintptr_t base = (uintptr_t)edata_base_get(edata);
+		size_t candidate_size = edata_size_get(edata);
 		assert(candidate_size >= min_size);
 
 		uintptr_t next_align = ALIGNMENT_CEILING((uintptr_t)base,
@@ -154,7 +154,7 @@ eset_fit_alignment(eset_t *eset, size_t min_size, size_t max_size,
 
 		size_t leadsize = next_align - base;
 		if (candidate_size - leadsize >= min_size) {
-			return extent;
+			return edata;
 		}
 	}
 
@@ -165,9 +165,9 @@ eset_fit_alignment(eset_t *eset, size_t min_size, size_t max_size,
  * Do first-fit extent selection, i.e. select the oldest/lowest extent that is
  * large enough.
  */
-static extent_t *
+static edata_t *
 eset_first_fit_locked(tsdn_t *tsdn, eset_t *eset, size_t size) {
-	extent_t *ret = NULL;
+	edata_t *ret = NULL;
 
 	pszind_t pind = sz_psz2ind(sz_psz_quantize_ceil(size));
 
@@ -176,8 +176,8 @@ eset_first_fit_locked(tsdn_t *tsdn, eset_t *eset, size_t size) {
 		 * No split / merge allowed (Windows w/o retain). Try exact fit
 		 * only.
 		 */
-		return extent_heap_empty(&eset->heaps[pind]) ? NULL :
-		    extent_heap_first(&eset->heaps[pind]);
+		return edata_heap_empty(&eset->heaps[pind]) ? NULL :
+		    edata_heap_first(&eset->heaps[pind]);
 	}
 
 	for (pszind_t i = (pszind_t)bitmap_ffu(eset->bitmap,
@@ -185,9 +185,9 @@ eset_first_fit_locked(tsdn_t *tsdn, eset_t *eset, size_t size) {
 	    i < SC_NPSIZES + 1;
 	    i = (pszind_t)bitmap_ffu(eset->bitmap, &eset_bitmap_info,
 	    (size_t)i+1)) {
-		assert(!extent_heap_empty(&eset->heaps[i]));
-		extent_t *extent = extent_heap_first(&eset->heaps[i]);
-		assert(extent_size_get(extent) >= size);
+		assert(!edata_heap_empty(&eset->heaps[i]));
+		edata_t *edata = edata_heap_first(&eset->heaps[i]);
+		assert(edata_size_get(edata) >= size);
 		/*
 		 * In order to reduce fragmentation, avoid reusing and splitting
 		 * large eset for much smaller sizes.
@@ -198,8 +198,8 @@ eset_first_fit_locked(tsdn_t *tsdn, eset_t *eset, size_t size) {
 		    (sz_pind2sz(i) >> opt_lg_extent_max_active_fit) > size) {
 			break;
 		}
-		if (ret == NULL || extent_snad_comp(extent, ret) < 0) {
-			ret = extent;
+		if (ret == NULL || edata_snad_comp(edata, ret) < 0) {
+			ret = edata;
 		}
 		if (i == SC_NPSIZES) {
 			break;
@@ -210,7 +210,7 @@ eset_first_fit_locked(tsdn_t *tsdn, eset_t *eset, size_t size) {
 	return ret;
 }
 
-extent_t *
+edata_t *
 eset_fit_locked(tsdn_t *tsdn, eset_t *eset, size_t esize, size_t alignment) {
 	malloc_mutex_assert_owner(tsdn, &eset->mtx);
 
@@ -220,18 +220,18 @@ eset_fit_locked(tsdn_t *tsdn, eset_t *eset, size_t esize, size_t alignment) {
 		return NULL;
 	}
 
-	extent_t *extent = eset_first_fit_locked(tsdn, eset, max_size);
+	edata_t *edata = eset_first_fit_locked(tsdn, eset, max_size);
 
-	if (alignment > PAGE && extent == NULL) {
+	if (alignment > PAGE && edata == NULL) {
 		/*
 		 * max_size guarantees the alignment requirement but is rather
 		 * pessimistic.  Next we try to satisfy the aligned allocation
 		 * with sizes in [esize, max_size).
 		 */
-		extent = eset_fit_alignment(eset, esize, max_size, alignment);
+		edata = eset_fit_alignment(eset, esize, max_size, alignment);
 	}
 
-	return extent;
+	return edata;
 }
 
 void

@@ -200,8 +200,8 @@ ehooks_default_merge(extent_hooks_t *extent_hooks, void *addr_a, size_t size_a,
     void *addr_b, size_t size_b, bool committed, unsigned arena_ind) {
 	if (!maps_coalesce) {
 		tsdn_t *tsdn = tsdn_fetch();
-		extent_t *a = iealloc(tsdn, addr_a);
-		extent_t *b = iealloc(tsdn, addr_b);
+		edata_t *a = iealloc(tsdn, addr_a);
+		edata_t *b = iealloc(tsdn, addr_b);
 		if (extent_head_no_merge(a, b)) {
 			return true;
 		}

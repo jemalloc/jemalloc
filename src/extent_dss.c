@@ -109,7 +109,7 @@ extent_dss_max_update(void *new_addr) {
 void *
 extent_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
     size_t alignment, bool *zero, bool *commit) {
-	extent_t *gap;
+	edata_t *gap;
 
 	cassert(have_dss);
 	assert(size > 0);
@@ -153,7 +153,7 @@ extent_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
 			size_t gap_size_page = (uintptr_t)ret -
 			    (uintptr_t)gap_addr_page;
 			if (gap_size_page != 0) {
-				extent_init(gap, arena_ind_get(arena),
+				edata_init(gap, arena_ind_get(arena),
 				    gap_addr_page, gap_size_page, false,
 				    SC_NSIZES, arena_extent_sn_next(arena),
 				    extent_state_active, false, true, true,
@@ -194,17 +194,17 @@ extent_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
 					*commit = pages_decommit(ret, size);
 				}
 				if (*zero && *commit) {
-					extent_t extent;
+					edata_t edata;
 					ehooks_t *ehooks = arena_get_ehooks(
 					    arena);
 
-					extent_init(&extent,
+					edata_init(&edata,
 					    arena_ind_get(arena), ret, size,
 					    size, false, SC_NSIZES,
 					    extent_state_active, false, true,
 					    true, EXTENT_NOT_HEAD);
 					if (extent_purge_forced_wrapper(tsdn,
-					    arena, ehooks, &extent, 0, size)) {
+					    arena, ehooks, &edata, 0, size)) {
 						memset(ret, 0, size);
 					}
 				}

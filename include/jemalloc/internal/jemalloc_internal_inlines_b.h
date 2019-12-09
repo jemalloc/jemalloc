@@ -76,12 +76,12 @@ arena_is_auto(arena_t *arena) {
 	return (arena_ind_get(arena) < manual_arena_base);
 }
 
-JEMALLOC_ALWAYS_INLINE extent_t *
+JEMALLOC_ALWAYS_INLINE edata_t *
 iealloc(tsdn_t *tsdn, const void *ptr) {
 	rtree_ctx_t rtree_ctx_fallback;
 	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
 
-	return rtree_extent_read(tsdn, &extents_rtree, rtree_ctx,
+	return rtree_edata_read(tsdn, &extents_rtree, rtree_ctx,
 	    (uintptr_t)ptr, true);
 }
 

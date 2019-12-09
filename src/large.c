@@ -21,7 +21,7 @@ void *
 large_palloc(tsdn_t *tsdn, arena_t *arena, size_t usize, size_t alignment,
     bool zero) {
 	size_t ausize;
-	extent_t *extent;
+	edata_t *edata;
 	bool is_zeroed;
 	UNUSED bool idump JEMALLOC_CC_SILENCE_INIT(false);
 
@@ -44,28 +44,28 @@ large_palloc(tsdn_t *tsdn, arena_t *arena, size_t usize, size_t alignment,
 	if (likely(!tsdn_null(tsdn))) {
 		arena = arena_choose_maybe_huge(tsdn_tsd(tsdn), arena, usize);
 	}
-	if (unlikely(arena == NULL) || (extent = arena_extent_alloc_large(tsdn,
+	if (unlikely(arena == NULL) || (edata = arena_extent_alloc_large(tsdn,
 	    arena, usize, alignment, &is_zeroed)) == NULL) {
 		return NULL;
 	}
 
 	/* See comments in arena_bin_slabs_full_insert(). */
 	if (!arena_is_auto(arena)) {
-		/* Insert extent into large. */
+		/* Insert edata into large. */
 		malloc_mutex_lock(tsdn, &arena->large_mtx);
-		extent_list_append(&arena->large, extent);
+		edata_list_append(&arena->large, edata);
 		malloc_mutex_unlock(tsdn, &arena->large_mtx);
 	}
 
 	if (zero) {
 		assert(is_zeroed);
 	} else if (config_fill && unlikely(opt_junk_alloc)) {
-		memset(extent_addr_get(extent), JEMALLOC_ALLOC_JUNK,
-		    extent_usize_get(extent));
+		memset(edata_addr_get(edata), JEMALLOC_ALLOC_JUNK,
+		    edata_usize_get(edata));
 	}
 
 	arena_decay_tick(tsdn, arena);
-	return extent_addr_get(extent);
+	return edata_addr_get(edata);
 }
 
 static void
@@ -90,11 +90,11 @@ large_dalloc_maybe_junk_t *JET_MUTABLE large_dalloc_maybe_junk =
     large_dalloc_maybe_junk_impl;
 
 static bool
-large_ralloc_no_move_shrink(tsdn_t *tsdn, extent_t *extent, size_t usize) {
-	arena_t *arena = arena_get_from_extent(extent);
-	size_t oldusize = extent_usize_get(extent);
+large_ralloc_no_move_shrink(tsdn_t *tsdn, edata_t *edata, size_t usize) {
+	arena_t *arena = arena_get_from_edata(edata);
+	size_t oldusize = edata_usize_get(edata);
 	ehooks_t *ehooks = arena_get_ehooks(arena);
-	size_t diff = extent_size_get(extent) - (usize + sz_large_pad);
+	size_t diff = edata_size_get(edata) - (usize + sz_large_pad);
 
 	assert(oldusize > usize);
 
@@ -104,31 +104,31 @@ large_ralloc_no_move_shrink(tsdn_t *tsdn, extent_t *extent, size_t usize) {
 
 	/* Split excess pages. */
 	if (diff != 0) {
-		extent_t *trail = extent_split_wrapper(tsdn, arena,
-		    ehooks, extent, usize + sz_large_pad, sz_size2index(usize),
+		edata_t *trail = extent_split_wrapper(tsdn, arena,
+		    ehooks, edata, usize + sz_large_pad, sz_size2index(usize),
 		    false, diff, SC_NSIZES, false);
 		if (trail == NULL) {
 			return true;
 		}
 
 		if (config_fill && unlikely(opt_junk_free)) {
-			large_dalloc_maybe_junk(extent_addr_get(trail),
-			    extent_size_get(trail));
+			large_dalloc_maybe_junk(edata_addr_get(trail),
+			    edata_size_get(trail));
 		}
 
 		arena_extents_dirty_dalloc(tsdn, arena, ehooks, trail);
 	}
 
-	arena_extent_ralloc_large_shrink(tsdn, arena, extent, oldusize);
+	arena_extent_ralloc_large_shrink(tsdn, arena, edata, oldusize);
 
 	return false;
 }
 
 static bool
-large_ralloc_no_move_expand(tsdn_t *tsdn, extent_t *extent, size_t usize,
+large_ralloc_no_move_expand(tsdn_t *tsdn, edata_t *edata, size_t usize,
     bool zero) {
-	arena_t *arena = arena_get_from_extent(extent);
-	size_t oldusize = extent_usize_get(extent);
+	arena_t *arena = arena_get_from_edata(edata);
+	size_t oldusize = edata_usize_get(edata);
 	ehooks_t *ehooks = arena_get_ehooks(arena);
 	size_t trailsize = usize - oldusize;
 
@@ -147,20 +147,20 @@ large_ralloc_no_move_expand(tsdn_t *tsdn, extent_t *extent, size_t usize,
 	 */
 	bool is_zeroed_trail = zero;
 	bool commit = true;
-	extent_t *trail;
+	edata_t *trail;
 	bool new_mapping;
 	if ((trail = extents_alloc(tsdn, arena, ehooks, &arena->eset_dirty,
-	    extent_past_get(extent), trailsize, 0, CACHELINE, false, SC_NSIZES,
+	    edata_past_get(edata), trailsize, 0, CACHELINE, false, SC_NSIZES,
 	    &is_zeroed_trail, &commit)) != NULL
 	    || (trail = extents_alloc(tsdn, arena, ehooks, &arena->eset_muzzy,
-	    extent_past_get(extent), trailsize, 0, CACHELINE, false, SC_NSIZES,
+	    edata_past_get(edata), trailsize, 0, CACHELINE, false, SC_NSIZES,
 	    &is_zeroed_trail, &commit)) != NULL) {
 		if (config_stats) {
 			new_mapping = false;
 		}
 	} else {
 		if ((trail = extent_alloc_wrapper(tsdn, arena, ehooks,
-		    extent_past_get(extent), trailsize, 0, CACHELINE, false,
+		    edata_past_get(edata), trailsize, 0, CACHELINE, false,
 		    SC_NSIZES, &is_zeroed_trail, &commit)) == NULL) {
 			return true;
 		}
@@ -169,16 +169,16 @@ large_ralloc_no_move_expand(tsdn_t *tsdn, extent_t *extent, size_t usize,
 		}
 	}
 
-	if (extent_merge_wrapper(tsdn, arena, ehooks, extent, trail)) {
+	if (extent_merge_wrapper(tsdn, arena, ehooks, edata, trail)) {
 		extent_dalloc_wrapper(tsdn, arena, ehooks, trail);
 		return true;
 	}
 	rtree_ctx_t rtree_ctx_fallback;
 	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
 	szind_t szind = sz_size2index(usize);
-	extent_szind_set(extent, szind);
+	edata_szind_set(edata, szind);
 	rtree_szind_slab_update(tsdn, &extents_rtree, rtree_ctx,
-	    (uintptr_t)extent_addr_get(extent), szind, false);
+	    (uintptr_t)edata_addr_get(edata), szind, false);
 
 	if (config_stats && new_mapping) {
 		arena_stats_mapped_add(tsdn, &arena->stats, trailsize);
@@ -194,7 +194,7 @@ large_ralloc_no_move_expand(tsdn_t *tsdn, extent_t *extent, size_t usize,
 			 * of CACHELINE in [0 .. PAGE).
 			 */
 			void *zbase = (void *)
-			    ((uintptr_t)extent_addr_get(extent) + oldusize);
+			    ((uintptr_t)edata_addr_get(edata) + oldusize);
 			void *zpast = PAGE_ADDR2BASE((void *)((uintptr_t)zbase +
 			    PAGE));
 			size_t nzero = (uintptr_t)zpast - (uintptr_t)zbase;
@@ -203,19 +203,19 @@ large_ralloc_no_move_expand(tsdn_t *tsdn, extent_t *extent, size_t usize,
 		}
 		assert(is_zeroed_trail);
 	} else if (config_fill && unlikely(opt_junk_alloc)) {
-		memset((void *)((uintptr_t)extent_addr_get(extent) + oldusize),
+		memset((void *)((uintptr_t)edata_addr_get(edata) + oldusize),
 		    JEMALLOC_ALLOC_JUNK, usize - oldusize);
 	}
 
-	arena_extent_ralloc_large_expand(tsdn, arena, extent, oldusize);
+	arena_extent_ralloc_large_expand(tsdn, arena, edata, oldusize);
 
 	return false;
 }
 
 bool
-large_ralloc_no_move(tsdn_t *tsdn, extent_t *extent, size_t usize_min,
+large_ralloc_no_move(tsdn_t *tsdn, edata_t *edata, size_t usize_min,
     size_t usize_max, bool zero) {
-	size_t oldusize = extent_usize_get(extent);
+	size_t oldusize = edata_usize_get(edata);
 
 	/* The following should have been caught by callers. */
 	assert(usize_min > 0 && usize_max <= SC_LARGE_MAXCLASS);
@@ -225,16 +225,15 @@ large_ralloc_no_move(tsdn_t *tsdn, extent_t *extent, size_t usize_min,
 
 	if (usize_max > oldusize) {
 		/* Attempt to expand the allocation in-place. */
-		if (!large_ralloc_no_move_expand(tsdn, extent, usize_max,
+		if (!large_ralloc_no_move_expand(tsdn, edata, usize_max,
 		    zero)) {
-			arena_decay_tick(tsdn, arena_get_from_extent(extent));
+			arena_decay_tick(tsdn, arena_get_from_edata(edata));
 			return false;
 		}
 		/* Try again, this time with usize_min. */
 		if (usize_min < usize_max && usize_min > oldusize &&
-		    large_ralloc_no_move_expand(tsdn, extent, usize_min,
-		    zero)) {
-			arena_decay_tick(tsdn, arena_get_from_extent(extent));
+		    large_ralloc_no_move_expand(tsdn, edata, usize_min, zero)) {
+			arena_decay_tick(tsdn, arena_get_from_edata(edata));
 			return false;
 		}
 	}
@@ -244,14 +243,14 @@ large_ralloc_no_move(tsdn_t *tsdn, extent_t *extent, size_t usize_min,
 	 * the new size.
 	 */
 	if (oldusize >= usize_min && oldusize <= usize_max) {
-		arena_decay_tick(tsdn, arena_get_from_extent(extent));
+		arena_decay_tick(tsdn, arena_get_from_edata(edata));
 		return false;
 	}
 
 	/* Attempt to shrink the allocation in-place. */
 	if (oldusize > usize_max) {
-		if (!large_ralloc_no_move_shrink(tsdn, extent, usize_max)) {
-			arena_decay_tick(tsdn, arena_get_from_extent(extent));
+		if (!large_ralloc_no_move_shrink(tsdn, edata, usize_max)) {
+			arena_decay_tick(tsdn, arena_get_from_edata(edata));
 			return false;
 		}
 	}
@@ -271,9 +270,9 @@ void *
 large_ralloc(tsdn_t *tsdn, arena_t *arena, void *ptr, size_t usize,
     size_t alignment, bool zero, tcache_t *tcache,
     hook_ralloc_args_t *hook_args) {
-	extent_t *extent = iealloc(tsdn, ptr);
+	edata_t *edata = iealloc(tsdn, ptr);
 
-	size_t oldusize = extent_usize_get(extent);
+	size_t oldusize = edata_usize_get(edata);
 	/* The following should have been caught by callers. */
 	assert(usize > 0 && usize <= SC_LARGE_MAXCLASS);
 	/* Both allocation sizes must be large to avoid a move. */
@@ -281,11 +280,11 @@ large_ralloc(tsdn_t *tsdn, arena_t *arena, void *ptr, size_t usize,
 	    && usize >= SC_LARGE_MINCLASS);
 
 	/* Try to avoid moving the allocation. */
-	if (!large_ralloc_no_move(tsdn, extent, usize, usize, zero)) {
+	if (!large_ralloc_no_move(tsdn, edata, usize, usize, zero)) {
 		hook_invoke_expand(hook_args->is_realloc
 		    ? hook_expand_realloc : hook_expand_rallocx, ptr, oldusize,
 		    usize, (uintptr_t)ptr, hook_args->args);
-		return extent_addr_get(extent);
+		return edata_addr_get(edata);
 	}
 
 	/*
@@ -306,8 +305,8 @@ large_ralloc(tsdn_t *tsdn, arena_t *arena, void *ptr, size_t usize,
 	    ? hook_dalloc_realloc : hook_dalloc_rallocx, ptr, hook_args->args);
 
 	size_t copysize = (usize < oldusize) ? usize : oldusize;
-	memcpy(ret, extent_addr_get(extent), copysize);
-	isdalloct(tsdn, extent_addr_get(extent), oldusize, tcache, NULL, true);
+	memcpy(ret, edata_addr_get(edata), copysize);
+	isdalloct(tsdn, edata_addr_get(edata), oldusize, tcache, NULL, true);
 	return ret;
 }
 
@@ -316,76 +315,75 @@ large_ralloc(tsdn_t *tsdn, arena_t *arena, void *ptr, size_t usize,
  * whether the arena's large_mtx is currently held.
  */
 static void
-large_dalloc_prep_impl(tsdn_t *tsdn, arena_t *arena, extent_t *extent,
+large_dalloc_prep_impl(tsdn_t *tsdn, arena_t *arena, edata_t *edata,
     bool junked_locked) {
 	if (!junked_locked) {
 		/* See comments in arena_bin_slabs_full_insert(). */
 		if (!arena_is_auto(arena)) {
 			malloc_mutex_lock(tsdn, &arena->large_mtx);
-			extent_list_remove(&arena->large, extent);
+			edata_list_remove(&arena->large, edata);
 			malloc_mutex_unlock(tsdn, &arena->large_mtx);
 		}
-		large_dalloc_maybe_junk(extent_addr_get(extent),
-		    extent_usize_get(extent));
+		large_dalloc_maybe_junk(edata_addr_get(edata),
+		    edata_usize_get(edata));
 	} else {
 		/* Only hold the large_mtx if necessary. */
 		if (!arena_is_auto(arena)) {
 			malloc_mutex_assert_owner(tsdn, &arena->large_mtx);
-			extent_list_remove(&arena->large, extent);
+			edata_list_remove(&arena->large, edata);
 		}
 	}
-	arena_extent_dalloc_large_prep(tsdn, arena, extent);
+	arena_extent_dalloc_large_prep(tsdn, arena, edata);
 }
 
 static void
-large_dalloc_finish_impl(tsdn_t *tsdn, arena_t *arena, extent_t *extent) {
+large_dalloc_finish_impl(tsdn_t *tsdn, arena_t *arena, edata_t *edata) {
 	ehooks_t *ehooks = arena_get_ehooks(arena);
-	arena_extents_dirty_dalloc(tsdn, arena, ehooks, extent);
+	arena_extents_dirty_dalloc(tsdn, arena, ehooks, edata);
 }
 
 void
-large_dalloc_prep_junked_locked(tsdn_t *tsdn, extent_t *extent) {
-	large_dalloc_prep_impl(tsdn, arena_get_from_extent(extent), extent,
-	    true);
+large_dalloc_prep_junked_locked(tsdn_t *tsdn, edata_t *edata) {
+	large_dalloc_prep_impl(tsdn, arena_get_from_edata(edata), edata, true);
 }
 
 void
-large_dalloc_finish(tsdn_t *tsdn, extent_t *extent) {
-	large_dalloc_finish_impl(tsdn, arena_get_from_extent(extent), extent);
+large_dalloc_finish(tsdn_t *tsdn, edata_t *edata) {
+	large_dalloc_finish_impl(tsdn, arena_get_from_edata(edata), edata);
 }
 
 void
-large_dalloc(tsdn_t *tsdn, extent_t *extent) {
-	arena_t *arena = arena_get_from_extent(extent);
-	large_dalloc_prep_impl(tsdn, arena, extent, false);
-	large_dalloc_finish_impl(tsdn, arena, extent);
+large_dalloc(tsdn_t *tsdn, edata_t *edata) {
+	arena_t *arena = arena_get_from_edata(edata);
+	large_dalloc_prep_impl(tsdn, arena, edata, false);
+	large_dalloc_finish_impl(tsdn, arena, edata);
 	arena_decay_tick(tsdn, arena);
 }
 
 size_t
-large_salloc(tsdn_t *tsdn, const extent_t *extent) {
-	return extent_usize_get(extent);
+large_salloc(tsdn_t *tsdn, const edata_t *edata) {
+	return edata_usize_get(edata);
 }
 
 void
-large_prof_info_get(const extent_t *extent, prof_info_t *prof_info) {
-	extent_prof_info_get(extent, prof_info);
+large_prof_info_get(const edata_t *edata, prof_info_t *prof_info) {
+	edata_prof_info_get(edata, prof_info);
 }
 
 static void
-large_prof_tctx_set(extent_t *extent, prof_tctx_t *tctx) {
-	extent_prof_tctx_set(extent, tctx);
+large_prof_tctx_set(edata_t *edata, prof_tctx_t *tctx) {
+	edata_prof_tctx_set(edata, tctx);
 }
 
 void
-large_prof_tctx_reset(extent_t *extent) {
-	large_prof_tctx_set(extent, (prof_tctx_t *)(uintptr_t)1U);
+large_prof_tctx_reset(edata_t *edata) {
+	large_prof_tctx_set(edata, (prof_tctx_t *)(uintptr_t)1U);
 }
 
 void
-large_prof_info_set(extent_t *extent, prof_tctx_t *tctx) {
-	large_prof_tctx_set(extent, tctx);
+large_prof_info_set(edata_t *edata, prof_tctx_t *tctx) {
+	large_prof_tctx_set(edata, tctx);
 	nstime_t t;
 	nstime_init_update(&t);
-	extent_prof_alloc_time_set(extent, &t);
+	edata_prof_alloc_time_set(edata, &t);
 }

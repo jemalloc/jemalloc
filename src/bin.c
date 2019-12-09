@@ -45,8 +45,8 @@ bin_init(bin_t *bin) {
 		return true;
 	}
 	bin->slabcur = NULL;
-	extent_heap_new(&bin->slabs_nonfull);
-	extent_list_init(&bin->slabs_full);
+	edata_heap_new(&bin->slabs_nonfull);
+	edata_list_init(&bin->slabs_full);
 	if (config_stats) {
 		memset(&bin->stats, 0, sizeof(bin_stats_t));
 	}

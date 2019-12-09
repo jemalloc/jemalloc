@@ -16,7 +16,7 @@ struct base_block_s {
 	base_block_t *next;
 
 	/* Tracks unused trailing space. */
-	extent_t extent;
+	edata_t edata;
 };
 
 struct base_s {
@@ -47,7 +47,7 @@ struct base_s {
 	base_block_t *blocks;
 
 	/* Heap of extents that track unused trailing space within blocks. */
-	extent_heap_t avail[SC_NSIZES];
+	edata_heap_t avail[SC_NSIZES];
 
 	/* Stats, only maintained if config_stats. */
 	size_t allocated;

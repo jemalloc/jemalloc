@@ -1,5 +1,5 @@
-#ifndef JEMALLOC_INTERNAL_EXTENT_H
-#define JEMALLOC_INTERNAL_EXTENT_H
+#ifndef JEMALLOC_INTERNAL_EDATA_H
+#define JEMALLOC_INTERNAL_EDATA_H
 
 #include "jemalloc/internal/atomic.h"
 #include "jemalloc/internal/bin_info.h"
@@ -26,11 +26,11 @@ enum extent_head_state_e {
 typedef enum extent_head_state_e extent_head_state_t;
 
 /* Extent (span of pages).  Use accessor functions for e_* fields. */
-typedef struct extent_s extent_t;
-typedef ql_head(extent_t) extent_list_t;
-typedef ph(extent_t) extent_tree_t;
-typedef ph(extent_t) extent_heap_t;
-struct extent_s {
+typedef struct edata_s edata_t;
+typedef ql_head(edata_t) edata_list_t;
+typedef ph(edata_t) edata_tree_t;
+typedef ph(edata_t) edata_heap_t;
+struct edata_s {
 	/*
 	 * Bitfield containing several fields:
 	 *
@@ -105,48 +105,48 @@ struct extent_s {
 	uint64_t		e_bits;
 #define MASK(CURRENT_FIELD_WIDTH, CURRENT_FIELD_SHIFT) ((((((uint64_t)0x1U) << (CURRENT_FIELD_WIDTH)) - 1)) << (CURRENT_FIELD_SHIFT))
 
-#define EXTENT_BITS_ARENA_WIDTH  MALLOCX_ARENA_BITS
-#define EXTENT_BITS_ARENA_SHIFT  0
-#define EXTENT_BITS_ARENA_MASK  MASK(EXTENT_BITS_ARENA_WIDTH, EXTENT_BITS_ARENA_SHIFT)
+#define EDATA_BITS_ARENA_WIDTH  MALLOCX_ARENA_BITS
+#define EDATA_BITS_ARENA_SHIFT  0
+#define EDATA_BITS_ARENA_MASK  MASK(EDATA_BITS_ARENA_WIDTH, EDATA_BITS_ARENA_SHIFT)
 
-#define EXTENT_BITS_SLAB_WIDTH  1
-#define EXTENT_BITS_SLAB_SHIFT  (EXTENT_BITS_ARENA_WIDTH + EXTENT_BITS_ARENA_SHIFT)
-#define EXTENT_BITS_SLAB_MASK  MASK(EXTENT_BITS_SLAB_WIDTH, EXTENT_BITS_SLAB_SHIFT)
+#define EDATA_BITS_SLAB_WIDTH  1
+#define EDATA_BITS_SLAB_SHIFT  (EDATA_BITS_ARENA_WIDTH + EDATA_BITS_ARENA_SHIFT)
+#define EDATA_BITS_SLAB_MASK  MASK(EDATA_BITS_SLAB_WIDTH, EDATA_BITS_SLAB_SHIFT)
 
-#define EXTENT_BITS_COMMITTED_WIDTH  1
-#define EXTENT_BITS_COMMITTED_SHIFT  (EXTENT_BITS_SLAB_WIDTH + EXTENT_BITS_SLAB_SHIFT)
-#define EXTENT_BITS_COMMITTED_MASK  MASK(EXTENT_BITS_COMMITTED_WIDTH, EXTENT_BITS_COMMITTED_SHIFT)
+#define EDATA_BITS_COMMITTED_WIDTH  1
+#define EDATA_BITS_COMMITTED_SHIFT  (EDATA_BITS_SLAB_WIDTH + EDATA_BITS_SLAB_SHIFT)
+#define EDATA_BITS_COMMITTED_MASK  MASK(EDATA_BITS_COMMITTED_WIDTH, EDATA_BITS_COMMITTED_SHIFT)
 
-#define EXTENT_BITS_DUMPABLE_WIDTH  1
-#define EXTENT_BITS_DUMPABLE_SHIFT  (EXTENT_BITS_COMMITTED_WIDTH + EXTENT_BITS_COMMITTED_SHIFT)
-#define EXTENT_BITS_DUMPABLE_MASK  MASK(EXTENT_BITS_DUMPABLE_WIDTH, EXTENT_BITS_DUMPABLE_SHIFT)
+#define EDATA_BITS_DUMPABLE_WIDTH  1
+#define EDATA_BITS_DUMPABLE_SHIFT  (EDATA_BITS_COMMITTED_WIDTH + EDATA_BITS_COMMITTED_SHIFT)
+#define EDATA_BITS_DUMPABLE_MASK  MASK(EDATA_BITS_DUMPABLE_WIDTH, EDATA_BITS_DUMPABLE_SHIFT)
 
-#define EXTENT_BITS_ZEROED_WIDTH  1
-#define EXTENT_BITS_ZEROED_SHIFT  (EXTENT_BITS_DUMPABLE_WIDTH + EXTENT_BITS_DUMPABLE_SHIFT)
-#define EXTENT_BITS_ZEROED_MASK  MASK(EXTENT_BITS_ZEROED_WIDTH, EXTENT_BITS_ZEROED_SHIFT)
+#define EDATA_BITS_ZEROED_WIDTH  1
+#define EDATA_BITS_ZEROED_SHIFT  (EDATA_BITS_DUMPABLE_WIDTH + EDATA_BITS_DUMPABLE_SHIFT)
+#define EDATA_BITS_ZEROED_MASK  MASK(EDATA_BITS_ZEROED_WIDTH, EDATA_BITS_ZEROED_SHIFT)
 
-#define EXTENT_BITS_STATE_WIDTH  2
-#define EXTENT_BITS_STATE_SHIFT  (EXTENT_BITS_ZEROED_WIDTH + EXTENT_BITS_ZEROED_SHIFT)
-#define EXTENT_BITS_STATE_MASK  MASK(EXTENT_BITS_STATE_WIDTH, EXTENT_BITS_STATE_SHIFT)
+#define EDATA_BITS_STATE_WIDTH  2
+#define EDATA_BITS_STATE_SHIFT  (EDATA_BITS_ZEROED_WIDTH + EDATA_BITS_ZEROED_SHIFT)
+#define EDATA_BITS_STATE_MASK  MASK(EDATA_BITS_STATE_WIDTH, EDATA_BITS_STATE_SHIFT)
 
-#define EXTENT_BITS_SZIND_WIDTH  LG_CEIL(SC_NSIZES)
-#define EXTENT_BITS_SZIND_SHIFT  (EXTENT_BITS_STATE_WIDTH + EXTENT_BITS_STATE_SHIFT)
-#define EXTENT_BITS_SZIND_MASK  MASK(EXTENT_BITS_SZIND_WIDTH, EXTENT_BITS_SZIND_SHIFT)
+#define EDATA_BITS_SZIND_WIDTH  LG_CEIL(SC_NSIZES)
+#define EDATA_BITS_SZIND_SHIFT  (EDATA_BITS_STATE_WIDTH + EDATA_BITS_STATE_SHIFT)
+#define EDATA_BITS_SZIND_MASK  MASK(EDATA_BITS_SZIND_WIDTH, EDATA_BITS_SZIND_SHIFT)
 
-#define EXTENT_BITS_NFREE_WIDTH  (SC_LG_SLAB_MAXREGS + 1)
-#define EXTENT_BITS_NFREE_SHIFT  (EXTENT_BITS_SZIND_WIDTH + EXTENT_BITS_SZIND_SHIFT)
-#define EXTENT_BITS_NFREE_MASK  MASK(EXTENT_BITS_NFREE_WIDTH, EXTENT_BITS_NFREE_SHIFT)
+#define EDATA_BITS_NFREE_WIDTH  (SC_LG_SLAB_MAXREGS + 1)
+#define EDATA_BITS_NFREE_SHIFT  (EDATA_BITS_SZIND_WIDTH + EDATA_BITS_SZIND_SHIFT)
+#define EDATA_BITS_NFREE_MASK  MASK(EDATA_BITS_NFREE_WIDTH, EDATA_BITS_NFREE_SHIFT)
 
-#define EXTENT_BITS_BINSHARD_WIDTH  6
-#define EXTENT_BITS_BINSHARD_SHIFT  (EXTENT_BITS_NFREE_WIDTH + EXTENT_BITS_NFREE_SHIFT)
-#define EXTENT_BITS_BINSHARD_MASK  MASK(EXTENT_BITS_BINSHARD_WIDTH, EXTENT_BITS_BINSHARD_SHIFT)
+#define EDATA_BITS_BINSHARD_WIDTH  6
+#define EDATA_BITS_BINSHARD_SHIFT  (EDATA_BITS_NFREE_WIDTH + EDATA_BITS_NFREE_SHIFT)
+#define EDATA_BITS_BINSHARD_MASK  MASK(EDATA_BITS_BINSHARD_WIDTH, EDATA_BITS_BINSHARD_SHIFT)
 
-#define EXTENT_BITS_IS_HEAD_WIDTH 1
-#define EXTENT_BITS_IS_HEAD_SHIFT  (EXTENT_BITS_BINSHARD_WIDTH + EXTENT_BITS_BINSHARD_SHIFT)
-#define EXTENT_BITS_IS_HEAD_MASK  MASK(EXTENT_BITS_IS_HEAD_WIDTH, EXTENT_BITS_IS_HEAD_SHIFT)
+#define EDATA_BITS_IS_HEAD_WIDTH 1
+#define EDATA_BITS_IS_HEAD_SHIFT  (EDATA_BITS_BINSHARD_WIDTH + EDATA_BITS_BINSHARD_SHIFT)
+#define EDATA_BITS_IS_HEAD_MASK  MASK(EDATA_BITS_IS_HEAD_WIDTH, EDATA_BITS_IS_HEAD_SHIFT)
 
-#define EXTENT_BITS_SN_SHIFT   (EXTENT_BITS_IS_HEAD_WIDTH + EXTENT_BITS_IS_HEAD_SHIFT)
-#define EXTENT_BITS_SN_MASK  (UINT64_MAX << EXTENT_BITS_SN_SHIFT)
+#define EDATA_BITS_SN_SHIFT   (EDATA_BITS_IS_HEAD_WIDTH + EDATA_BITS_IS_HEAD_SHIFT)
+#define EDATA_BITS_SN_MASK  (UINT64_MAX << EDATA_BITS_SN_SHIFT)
 
 	/* Pointer to the extent that this structure is responsible for. */
 	void			*e_addr;
@@ -160,8 +160,8 @@ struct extent_s {
 		 * ssssssss [...] ssssssss ssssnnnn nnnnnnnn
 		 */
 		size_t			e_size_esn;
-	#define EXTENT_SIZE_MASK	((size_t)~(PAGE-1))
-	#define EXTENT_ESN_MASK		((size_t)PAGE-1)
+	#define EDATA_SIZE_MASK	((size_t)~(PAGE-1))
+	#define EDATA_ESN_MASK		((size_t)PAGE-1)
 		/* Base extent size, which may not be a multiple of PAGE. */
 		size_t			e_bsize;
 	};
@@ -173,13 +173,13 @@ struct extent_s {
 	 * - stashed dirty extents
 	 * - arena's large allocations
 	 */
-	ql_elm(extent_t)	ql_link;
+	ql_elm(edata_t) ql_link;
 
 	/*
 	 * Linkage for per size class sn/address-ordered heaps, and
 	 * for extent_avail
 	 */
-	phn(extent_t)		ph_link;
+	phn(edata_t)		ph_link;
 
 	union {
 		/* Small region slab metadata. */
@@ -196,398 +196,397 @@ struct extent_s {
 };
 
 static inline unsigned
-extent_arena_ind_get(const extent_t *extent) {
-	unsigned arena_ind = (unsigned)((extent->e_bits &
-	    EXTENT_BITS_ARENA_MASK) >> EXTENT_BITS_ARENA_SHIFT);
+edata_arena_ind_get(const edata_t *edata) {
+	unsigned arena_ind = (unsigned)((edata->e_bits &
+	    EDATA_BITS_ARENA_MASK) >> EDATA_BITS_ARENA_SHIFT);
 	assert(arena_ind < MALLOCX_ARENA_LIMIT);
 
 	return arena_ind;
 }
 
 static inline szind_t
-extent_szind_get_maybe_invalid(const extent_t *extent) {
-	szind_t szind = (szind_t)((extent->e_bits & EXTENT_BITS_SZIND_MASK) >>
-	    EXTENT_BITS_SZIND_SHIFT);
+edata_szind_get_maybe_invalid(const edata_t *edata) {
+	szind_t szind = (szind_t)((edata->e_bits & EDATA_BITS_SZIND_MASK) >>
+	    EDATA_BITS_SZIND_SHIFT);
 	assert(szind <= SC_NSIZES);
 	return szind;
 }
 
 static inline szind_t
-extent_szind_get(const extent_t *extent) {
-	szind_t szind = extent_szind_get_maybe_invalid(extent);
+edata_szind_get(const edata_t *edata) {
+	szind_t szind = edata_szind_get_maybe_invalid(edata);
 	assert(szind < SC_NSIZES); /* Never call when "invalid". */
 	return szind;
 }
 
 static inline size_t
-extent_usize_get(const extent_t *extent) {
-	return sz_index2size(extent_szind_get(extent));
+edata_usize_get(const edata_t *edata) {
+	return sz_index2size(edata_szind_get(edata));
 }
 
 static inline unsigned
-extent_binshard_get(const extent_t *extent) {
-	unsigned binshard = (unsigned)((extent->e_bits &
-	    EXTENT_BITS_BINSHARD_MASK) >> EXTENT_BITS_BINSHARD_SHIFT);
-	assert(binshard < bin_infos[extent_szind_get(extent)].n_shards);
+edata_binshard_get(const edata_t *edata) {
+	unsigned binshard = (unsigned)((edata->e_bits &
+	    EDATA_BITS_BINSHARD_MASK) >> EDATA_BITS_BINSHARD_SHIFT);
+	assert(binshard < bin_infos[edata_szind_get(edata)].n_shards);
 	return binshard;
 }
 
 static inline size_t
-extent_sn_get(const extent_t *extent) {
-	return (size_t)((extent->e_bits & EXTENT_BITS_SN_MASK) >>
-	    EXTENT_BITS_SN_SHIFT);
+edata_sn_get(const edata_t *edata) {
+	return (size_t)((edata->e_bits & EDATA_BITS_SN_MASK) >>
+	    EDATA_BITS_SN_SHIFT);
 }
 
 static inline extent_state_t
-extent_state_get(const extent_t *extent) {
-	return (extent_state_t)((extent->e_bits & EXTENT_BITS_STATE_MASK) >>
-	    EXTENT_BITS_STATE_SHIFT);
+edata_state_get(const edata_t *edata) {
+	return (extent_state_t)((edata->e_bits & EDATA_BITS_STATE_MASK) >>
+	    EDATA_BITS_STATE_SHIFT);
 }
 
 static inline bool
-extent_zeroed_get(const extent_t *extent) {
-	return (bool)((extent->e_bits & EXTENT_BITS_ZEROED_MASK) >>
-	    EXTENT_BITS_ZEROED_SHIFT);
+edata_zeroed_get(const edata_t *edata) {
+	return (bool)((edata->e_bits & EDATA_BITS_ZEROED_MASK) >>
+	    EDATA_BITS_ZEROED_SHIFT);
 }
 
 static inline bool
-extent_committed_get(const extent_t *extent) {
-	return (bool)((extent->e_bits & EXTENT_BITS_COMMITTED_MASK) >>
-	    EXTENT_BITS_COMMITTED_SHIFT);
+edata_committed_get(const edata_t *edata) {
+	return (bool)((edata->e_bits & EDATA_BITS_COMMITTED_MASK) >>
+	    EDATA_BITS_COMMITTED_SHIFT);
 }
 
 static inline bool
-extent_dumpable_get(const extent_t *extent) {
-	return (bool)((extent->e_bits & EXTENT_BITS_DUMPABLE_MASK) >>
-	    EXTENT_BITS_DUMPABLE_SHIFT);
+edata_dumpable_get(const edata_t *edata) {
+	return (bool)((edata->e_bits & EDATA_BITS_DUMPABLE_MASK) >>
+	    EDATA_BITS_DUMPABLE_SHIFT);
 }
 
 static inline bool
-extent_slab_get(const extent_t *extent) {
-	return (bool)((extent->e_bits & EXTENT_BITS_SLAB_MASK) >>
-	    EXTENT_BITS_SLAB_SHIFT);
+edata_slab_get(const edata_t *edata) {
+	return (bool)((edata->e_bits & EDATA_BITS_SLAB_MASK) >>
+	    EDATA_BITS_SLAB_SHIFT);
 }
 
 static inline unsigned
-extent_nfree_get(const extent_t *extent) {
-	assert(extent_slab_get(extent));
-	return (unsigned)((extent->e_bits & EXTENT_BITS_NFREE_MASK) >>
-	    EXTENT_BITS_NFREE_SHIFT);
+edata_nfree_get(const edata_t *edata) {
+	assert(edata_slab_get(edata));
+	return (unsigned)((edata->e_bits & EDATA_BITS_NFREE_MASK) >>
+	    EDATA_BITS_NFREE_SHIFT);
 }
 
 static inline void *
-extent_base_get(const extent_t *extent) {
-	assert(extent->e_addr == PAGE_ADDR2BASE(extent->e_addr) ||
-	    !extent_slab_get(extent));
-	return PAGE_ADDR2BASE(extent->e_addr);
+edata_base_get(const edata_t *edata) {
+	assert(edata->e_addr == PAGE_ADDR2BASE(edata->e_addr) ||
+	    !edata_slab_get(edata));
+	return PAGE_ADDR2BASE(edata->e_addr);
 }
 
 static inline void *
-extent_addr_get(const extent_t *extent) {
-	assert(extent->e_addr == PAGE_ADDR2BASE(extent->e_addr) ||
-	    !extent_slab_get(extent));
-	return extent->e_addr;
+edata_addr_get(const edata_t *edata) {
+	assert(edata->e_addr == PAGE_ADDR2BASE(edata->e_addr) ||
+	    !edata_slab_get(edata));
+	return edata->e_addr;
 }
 
 static inline size_t
-extent_size_get(const extent_t *extent) {
-	return (extent->e_size_esn & EXTENT_SIZE_MASK);
+edata_size_get(const edata_t *edata) {
+	return (edata->e_size_esn & EDATA_SIZE_MASK);
 }
 
 static inline size_t
-extent_esn_get(const extent_t *extent) {
-	return (extent->e_size_esn & EXTENT_ESN_MASK);
+edata_esn_get(const edata_t *edata) {
+	return (edata->e_size_esn & EDATA_ESN_MASK);
 }
 
 static inline size_t
-extent_bsize_get(const extent_t *extent) {
-	return extent->e_bsize;
+edata_bsize_get(const edata_t *edata) {
+	return edata->e_bsize;
 }
 
 static inline void *
-extent_before_get(const extent_t *extent) {
-	return (void *)((uintptr_t)extent_base_get(extent) - PAGE);
+edata_before_get(const edata_t *edata) {
+	return (void *)((uintptr_t)edata_base_get(edata) - PAGE);
 }
 
 static inline void *
-extent_last_get(const extent_t *extent) {
-	return (void *)((uintptr_t)extent_base_get(extent) +
-	    extent_size_get(extent) - PAGE);
+edata_last_get(const edata_t *edata) {
+	return (void *)((uintptr_t)edata_base_get(edata) +
+	    edata_size_get(edata) - PAGE);
 }
 
 static inline void *
-extent_past_get(const extent_t *extent) {
-	return (void *)((uintptr_t)extent_base_get(extent) +
-	    extent_size_get(extent));
+edata_past_get(const edata_t *edata) {
+	return (void *)((uintptr_t)edata_base_get(edata) +
+	    edata_size_get(edata));
 }
 
 static inline slab_data_t *
-extent_slab_data_get(extent_t *extent) {
-	assert(extent_slab_get(extent));
-	return &extent->e_slab_data;
+edata_slab_data_get(edata_t *edata) {
+	assert(edata_slab_get(edata));
+	return &edata->e_slab_data;
 }
 
 static inline const slab_data_t *
-extent_slab_data_get_const(const extent_t *extent) {
-	assert(extent_slab_get(extent));
-	return &extent->e_slab_data;
+edata_slab_data_get_const(const edata_t *edata) {
+	assert(edata_slab_get(edata));
+	return &edata->e_slab_data;
 }
 
 static inline void
-extent_prof_info_get(const extent_t *extent, prof_info_t *prof_info) {
+edata_prof_info_get(const edata_t *edata, prof_info_t *prof_info) {
 	assert(prof_info != NULL);
 	prof_info->alloc_tctx = (prof_tctx_t *)atomic_load_p(
-	    &extent->e_prof_tctx, ATOMIC_ACQUIRE);
-	prof_info->alloc_time = extent->e_alloc_time;
+	    &edata->e_prof_tctx, ATOMIC_ACQUIRE);
+	prof_info->alloc_time = edata->e_alloc_time;
 }
 
 static inline void
-extent_arena_ind_set(extent_t *extent, unsigned arena_ind) {
-	extent->e_bits = (extent->e_bits & ~EXTENT_BITS_ARENA_MASK) |
-	    ((uint64_t)arena_ind << EXTENT_BITS_ARENA_SHIFT);
+edata_arena_ind_set(edata_t *edata, unsigned arena_ind) {
+	edata->e_bits = (edata->e_bits & ~EDATA_BITS_ARENA_MASK) |
+	    ((uint64_t)arena_ind << EDATA_BITS_ARENA_SHIFT);
 }
 
 static inline void
-extent_binshard_set(extent_t *extent, unsigned binshard) {
+edata_binshard_set(edata_t *edata, unsigned binshard) {
 	/* The assertion assumes szind is set already. */
-	assert(binshard < bin_infos[extent_szind_get(extent)].n_shards);
-	extent->e_bits = (extent->e_bits & ~EXTENT_BITS_BINSHARD_MASK) |
-	    ((uint64_t)binshard << EXTENT_BITS_BINSHARD_SHIFT);
+	assert(binshard < bin_infos[edata_szind_get(edata)].n_shards);
+	edata->e_bits = (edata->e_bits & ~EDATA_BITS_BINSHARD_MASK) |
+	    ((uint64_t)binshard << EDATA_BITS_BINSHARD_SHIFT);
 }
 
 static inline void
-extent_addr_set(extent_t *extent, void *addr) {
-	extent->e_addr = addr;
+edata_addr_set(edata_t *edata, void *addr) {
+	edata->e_addr = addr;
 }
 
 static inline void
-extent_size_set(extent_t *extent, size_t size) {
-	assert((size & ~EXTENT_SIZE_MASK) == 0);
-	extent->e_size_esn = size | (extent->e_size_esn & ~EXTENT_SIZE_MASK);
+edata_size_set(edata_t *edata, size_t size) {
+	assert((size & ~EDATA_SIZE_MASK) == 0);
+	edata->e_size_esn = size | (edata->e_size_esn & ~EDATA_SIZE_MASK);
 }
 
 static inline void
-extent_esn_set(extent_t *extent, size_t esn) {
-	extent->e_size_esn = (extent->e_size_esn & ~EXTENT_ESN_MASK) | (esn &
-	    EXTENT_ESN_MASK);
+edata_esn_set(edata_t *edata, size_t esn) {
+	edata->e_size_esn = (edata->e_size_esn & ~EDATA_ESN_MASK) | (esn &
+	    EDATA_ESN_MASK);
 }
 
 static inline void
-extent_bsize_set(extent_t *extent, size_t bsize) {
-	extent->e_bsize = bsize;
+edata_bsize_set(edata_t *edata, size_t bsize) {
+	edata->e_bsize = bsize;
 }
 
 static inline void
-extent_szind_set(extent_t *extent, szind_t szind) {
+edata_szind_set(edata_t *edata, szind_t szind) {
 	assert(szind <= SC_NSIZES); /* SC_NSIZES means "invalid". */
-	extent->e_bits = (extent->e_bits & ~EXTENT_BITS_SZIND_MASK) |
-	    ((uint64_t)szind << EXTENT_BITS_SZIND_SHIFT);
+	edata->e_bits = (edata->e_bits & ~EDATA_BITS_SZIND_MASK) |
+	    ((uint64_t)szind << EDATA_BITS_SZIND_SHIFT);
 }
 
 static inline void
-extent_nfree_set(extent_t *extent, unsigned nfree) {
-	assert(extent_slab_get(extent));
-	extent->e_bits = (extent->e_bits & ~EXTENT_BITS_NFREE_MASK) |
-	    ((uint64_t)nfree << EXTENT_BITS_NFREE_SHIFT);
+edata_nfree_set(edata_t *edata, unsigned nfree) {
+	assert(edata_slab_get(edata));
+	edata->e_bits = (edata->e_bits & ~EDATA_BITS_NFREE_MASK) |
+	    ((uint64_t)nfree << EDATA_BITS_NFREE_SHIFT);
 }
 
 static inline void
-extent_nfree_binshard_set(extent_t *extent, unsigned nfree, unsigned binshard) {
+edata_nfree_binshard_set(edata_t *edata, unsigned nfree, unsigned binshard) {
 	/* The assertion assumes szind is set already. */
-	assert(binshard < bin_infos[extent_szind_get(extent)].n_shards);
-	extent->e_bits = (extent->e_bits &
-	    (~EXTENT_BITS_NFREE_MASK & ~EXTENT_BITS_BINSHARD_MASK)) |
-	    ((uint64_t)binshard << EXTENT_BITS_BINSHARD_SHIFT) |
-	    ((uint64_t)nfree << EXTENT_BITS_NFREE_SHIFT);
+	assert(binshard < bin_infos[edata_szind_get(edata)].n_shards);
+	edata->e_bits = (edata->e_bits &
+	    (~EDATA_BITS_NFREE_MASK & ~EDATA_BITS_BINSHARD_MASK)) |
+	    ((uint64_t)binshard << EDATA_BITS_BINSHARD_SHIFT) |
+	    ((uint64_t)nfree << EDATA_BITS_NFREE_SHIFT);
 }
 
 static inline void
-extent_nfree_inc(extent_t *extent) {
-	assert(extent_slab_get(extent));
-	extent->e_bits += ((uint64_t)1U << EXTENT_BITS_NFREE_SHIFT);
+edata_nfree_inc(edata_t *edata) {
+	assert(edata_slab_get(edata));
+	edata->e_bits += ((uint64_t)1U << EDATA_BITS_NFREE_SHIFT);
 }
 
 static inline void
-extent_nfree_dec(extent_t *extent) {
-	assert(extent_slab_get(extent));
-	extent->e_bits -= ((uint64_t)1U << EXTENT_BITS_NFREE_SHIFT);
+edata_nfree_dec(edata_t *edata) {
+	assert(edata_slab_get(edata));
+	edata->e_bits -= ((uint64_t)1U << EDATA_BITS_NFREE_SHIFT);
 }
 
 static inline void
-extent_nfree_sub(extent_t *extent, uint64_t n) {
-	assert(extent_slab_get(extent));
-	extent->e_bits -= (n << EXTENT_BITS_NFREE_SHIFT);
+edata_nfree_sub(edata_t *edata, uint64_t n) {
+	assert(edata_slab_get(edata));
+	edata->e_bits -= (n << EDATA_BITS_NFREE_SHIFT);
 }
 
 static inline void
-extent_sn_set(extent_t *extent, size_t sn) {
-	extent->e_bits = (extent->e_bits & ~EXTENT_BITS_SN_MASK) |
-	    ((uint64_t)sn << EXTENT_BITS_SN_SHIFT);
+edata_sn_set(edata_t *edata, size_t sn) {
+	edata->e_bits = (edata->e_bits & ~EDATA_BITS_SN_MASK) |
+	    ((uint64_t)sn << EDATA_BITS_SN_SHIFT);
 }
 
 static inline void
-extent_state_set(extent_t *extent, extent_state_t state) {
-	extent->e_bits = (extent->e_bits & ~EXTENT_BITS_STATE_MASK) |
-	    ((uint64_t)state << EXTENT_BITS_STATE_SHIFT);
+edata_state_set(edata_t *edata, extent_state_t state) {
+	edata->e_bits = (edata->e_bits & ~EDATA_BITS_STATE_MASK) |
+	    ((uint64_t)state << EDATA_BITS_STATE_SHIFT);
 }
 
 static inline void
-extent_zeroed_set(extent_t *extent, bool zeroed) {
-	extent->e_bits = (extent->e_bits & ~EXTENT_BITS_ZEROED_MASK) |
-	    ((uint64_t)zeroed << EXTENT_BITS_ZEROED_SHIFT);
+edata_zeroed_set(edata_t *edata, bool zeroed) {
+	edata->e_bits = (edata->e_bits & ~EDATA_BITS_ZEROED_MASK) |
+	    ((uint64_t)zeroed << EDATA_BITS_ZEROED_SHIFT);
 }
 
 static inline void
-extent_committed_set(extent_t *extent, bool committed) {
-	extent->e_bits = (extent->e_bits & ~EXTENT_BITS_COMMITTED_MASK) |
-	    ((uint64_t)committed << EXTENT_BITS_COMMITTED_SHIFT);
+edata_committed_set(edata_t *edata, bool committed) {
+	edata->e_bits = (edata->e_bits & ~EDATA_BITS_COMMITTED_MASK) |
+	    ((uint64_t)committed << EDATA_BITS_COMMITTED_SHIFT);
 }
 
 static inline void
-extent_dumpable_set(extent_t *extent, bool dumpable) {
-	extent->e_bits = (extent->e_bits & ~EXTENT_BITS_DUMPABLE_MASK) |
-	    ((uint64_t)dumpable << EXTENT_BITS_DUMPABLE_SHIFT);
+edata_dumpable_set(edata_t *edata, bool dumpable) {
+	edata->e_bits = (edata->e_bits & ~EDATA_BITS_DUMPABLE_MASK) |
+	    ((uint64_t)dumpable << EDATA_BITS_DUMPABLE_SHIFT);
 }
 
 static inline void
-extent_slab_set(extent_t *extent, bool slab) {
-	extent->e_bits = (extent->e_bits & ~EXTENT_BITS_SLAB_MASK) |
-	    ((uint64_t)slab << EXTENT_BITS_SLAB_SHIFT);
+edata_slab_set(edata_t *edata, bool slab) {
+	edata->e_bits = (edata->e_bits & ~EDATA_BITS_SLAB_MASK) |
+	    ((uint64_t)slab << EDATA_BITS_SLAB_SHIFT);
 }
 
 static inline void
-extent_prof_tctx_set(extent_t *extent, prof_tctx_t *tctx) {
-	atomic_store_p(&extent->e_prof_tctx, tctx, ATOMIC_RELEASE);
+edata_prof_tctx_set(edata_t *edata, prof_tctx_t *tctx) {
+	atomic_store_p(&edata->e_prof_tctx, tctx, ATOMIC_RELEASE);
 }
 
 static inline void
-extent_prof_alloc_time_set(extent_t *extent, nstime_t *t) {
-	nstime_copy(&extent->e_alloc_time, t);
+edata_prof_alloc_time_set(edata_t *edata, nstime_t *t) {
+	nstime_copy(&edata->e_alloc_time, t);
 }
 
 static inline bool
-extent_is_head_get(extent_t *extent) {
+edata_is_head_get(edata_t *edata) {
 	if (maps_coalesce) {
 		not_reached();
 	}
 
-	return (bool)((extent->e_bits & EXTENT_BITS_IS_HEAD_MASK) >>
-	    EXTENT_BITS_IS_HEAD_SHIFT);
+	return (bool)((edata->e_bits & EDATA_BITS_IS_HEAD_MASK) >>
+	    EDATA_BITS_IS_HEAD_SHIFT);
 }
 
 static inline void
-extent_is_head_set(extent_t *extent, bool is_head) {
+edata_is_head_set(edata_t *edata, bool is_head) {
 	if (maps_coalesce) {
 		not_reached();
 	}
 
-	extent->e_bits = (extent->e_bits & ~EXTENT_BITS_IS_HEAD_MASK) |
-	    ((uint64_t)is_head << EXTENT_BITS_IS_HEAD_SHIFT);
+	edata->e_bits = (edata->e_bits & ~EDATA_BITS_IS_HEAD_MASK) |
+	    ((uint64_t)is_head << EDATA_BITS_IS_HEAD_SHIFT);
 }
 
 static inline void
-extent_init(extent_t *extent, unsigned arena_ind, void *addr, size_t size,
+edata_init(edata_t *edata, unsigned arena_ind, void *addr, size_t size,
     bool slab, szind_t szind, size_t sn, extent_state_t state, bool zeroed,
     bool committed, bool dumpable, extent_head_state_t is_head) {
 	assert(addr == PAGE_ADDR2BASE(addr) || !slab);
 
-	extent_arena_ind_set(extent, arena_ind);
-	extent_addr_set(extent, addr);
-	extent_size_set(extent, size);
-	extent_slab_set(extent, slab);
-	extent_szind_set(extent, szind);
-	extent_sn_set(extent, sn);
-	extent_state_set(extent, state);
-	extent_zeroed_set(extent, zeroed);
-	extent_committed_set(extent, committed);
-	extent_dumpable_set(extent, dumpable);
-	ql_elm_new(extent, ql_link);
+	edata_arena_ind_set(edata, arena_ind);
+	edata_addr_set(edata, addr);
+	edata_size_set(edata, size);
+	edata_slab_set(edata, slab);
+	edata_szind_set(edata, szind);
+	edata_sn_set(edata, sn);
+	edata_state_set(edata, state);
+	edata_zeroed_set(edata, zeroed);
+	edata_committed_set(edata, committed);
+	edata_dumpable_set(edata, dumpable);
+	ql_elm_new(edata, ql_link);
 	if (!maps_coalesce) {
-		extent_is_head_set(extent, (is_head == EXTENT_IS_HEAD) ? true :
-		    false);
+		edata_is_head_set(edata, is_head == EXTENT_IS_HEAD);
 	}
 	if (config_prof) {
-		extent_prof_tctx_set(extent, NULL);
+		edata_prof_tctx_set(edata, NULL);
 	}
 }
 
 static inline void
-extent_binit(extent_t *extent, void *addr, size_t bsize, size_t sn) {
-	extent_arena_ind_set(extent, (1U << MALLOCX_ARENA_BITS) - 1);
-	extent_addr_set(extent, addr);
-	extent_bsize_set(extent, bsize);
-	extent_slab_set(extent, false);
-	extent_szind_set(extent, SC_NSIZES);
-	extent_sn_set(extent, sn);
-	extent_state_set(extent, extent_state_active);
-	extent_zeroed_set(extent, true);
-	extent_committed_set(extent, true);
-	extent_dumpable_set(extent, true);
+edata_binit(edata_t *edata, void *addr, size_t bsize, size_t sn) {
+	edata_arena_ind_set(edata, (1U << MALLOCX_ARENA_BITS) - 1);
+	edata_addr_set(edata, addr);
+	edata_bsize_set(edata, bsize);
+	edata_slab_set(edata, false);
+	edata_szind_set(edata, SC_NSIZES);
+	edata_sn_set(edata, sn);
+	edata_state_set(edata, extent_state_active);
+	edata_zeroed_set(edata, true);
+	edata_committed_set(edata, true);
+	edata_dumpable_set(edata, true);
 }
 
 static inline void
-extent_list_init(extent_list_t *list) {
+edata_list_init(edata_list_t *list) {
 	ql_new(list);
 }
 
-static inline extent_t *
-extent_list_first(const extent_list_t *list) {
+static inline edata_t *
+edata_list_first(const edata_list_t *list) {
 	return ql_first(list);
 }
 
-static inline extent_t *
-extent_list_last(const extent_list_t *list) {
+static inline edata_t *
+edata_list_last(const edata_list_t *list) {
 	return ql_last(list, ql_link);
 }
 
 static inline void
-extent_list_append(extent_list_t *list, extent_t *extent) {
-	ql_tail_insert(list, extent, ql_link);
+edata_list_append(edata_list_t *list, edata_t *edata) {
+	ql_tail_insert(list, edata, ql_link);
 }
 
 static inline void
-extent_list_prepend(extent_list_t *list, extent_t *extent) {
-	ql_head_insert(list, extent, ql_link);
+edata_list_prepend(edata_list_t *list, edata_t *edata) {
+	ql_head_insert(list, edata, ql_link);
 }
 
 static inline void
-extent_list_replace(extent_list_t *list, extent_t *to_remove,
-    extent_t *to_insert) {
+edata_list_replace(edata_list_t *list, edata_t *to_remove,
+    edata_t *to_insert) {
 	ql_after_insert(to_remove, to_insert, ql_link);
 	ql_remove(list, to_remove, ql_link);
 }
 
 static inline void
-extent_list_remove(extent_list_t *list, extent_t *extent) {
-	ql_remove(list, extent, ql_link);
+edata_list_remove(edata_list_t *list, edata_t *edata) {
+	ql_remove(list, edata, ql_link);
 }
 
 static inline int
-extent_sn_comp(const extent_t *a, const extent_t *b) {
-	size_t a_sn = extent_sn_get(a);
-	size_t b_sn = extent_sn_get(b);
+edata_sn_comp(const edata_t *a, const edata_t *b) {
+	size_t a_sn = edata_sn_get(a);
+	size_t b_sn = edata_sn_get(b);
 
 	return (a_sn > b_sn) - (a_sn < b_sn);
 }
 
 static inline int
-extent_esn_comp(const extent_t *a, const extent_t *b) {
-	size_t a_esn = extent_esn_get(a);
-	size_t b_esn = extent_esn_get(b);
+edata_esn_comp(const edata_t *a, const edata_t *b) {
+	size_t a_esn = edata_esn_get(a);
+	size_t b_esn = edata_esn_get(b);
 
 	return (a_esn > b_esn) - (a_esn < b_esn);
 }
 
 static inline int
-extent_ad_comp(const extent_t *a, const extent_t *b) {
-	uintptr_t a_addr = (uintptr_t)extent_addr_get(a);
-	uintptr_t b_addr = (uintptr_t)extent_addr_get(b);
+edata_ad_comp(const edata_t *a, const edata_t *b) {
+	uintptr_t a_addr = (uintptr_t)edata_addr_get(a);
+	uintptr_t b_addr = (uintptr_t)edata_addr_get(b);
 
 	return (a_addr > b_addr) - (a_addr < b_addr);
 }
 
 static inline int
-extent_ead_comp(const extent_t *a, const extent_t *b) {
+edata_ead_comp(const edata_t *a, const edata_t *b) {
 	uintptr_t a_eaddr = (uintptr_t)a;
 	uintptr_t b_eaddr = (uintptr_t)b;
 
@@ -595,32 +594,32 @@ extent_ead_comp(const extent_t *a, const extent_t *b) {
 }
 
 static inline int
-extent_snad_comp(const extent_t *a, const extent_t *b) {
+edata_snad_comp(const edata_t *a, const edata_t *b) {
 	int ret;
 
-	ret = extent_sn_comp(a, b);
+	ret = edata_sn_comp(a, b);
 	if (ret != 0) {
 		return ret;
 	}
 
-	ret = extent_ad_comp(a, b);
+	ret = edata_ad_comp(a, b);
 	return ret;
 }
 
 static inline int
-extent_esnead_comp(const extent_t *a, const extent_t *b) {
+edata_esnead_comp(const edata_t *a, const edata_t *b) {
 	int ret;
 
-	ret = extent_esn_comp(a, b);
+	ret = edata_esn_comp(a, b);
 	if (ret != 0) {
 		return ret;
 	}
 
-	ret = extent_ead_comp(a, b);
+	ret = edata_ead_comp(a, b);
 	return ret;
 }
 
-ph_proto(, extent_avail_, extent_tree_t, extent_t)
-ph_proto(, extent_heap_, extent_heap_t, extent_t)
+ph_proto(, edata_avail_, edata_tree_t, edata_t)
+ph_proto(, edata_heap_, edata_heap_t, edata_t)
 
-#endif /* JEMALLOC_INTERNAL_EXTENT_H */
+#endif /* JEMALLOC_INTERNAL_EDATA_H */
