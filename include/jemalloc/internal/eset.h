@@ -19,7 +19,7 @@ struct eset_s {
 	 *
 	 * Synchronization: mtx.
 	 */
-	extent_heap_t heaps[SC_NPSIZES + 1];
+	edata_heap_t heaps[SC_NPSIZES + 1];
 	atomic_zu_t nextents[SC_NPSIZES + 1];
 	atomic_zu_t nbytes[SC_NPSIZES + 1];
 
@@ -35,7 +35,7 @@ struct eset_s {
 	 *
 	 * Synchronization: mtx.
 	 */
-	extent_list_t lru;
+	edata_list_t lru;
 
 	/*
 	 * Page sum for all extents in heaps.
@@ -67,13 +67,13 @@ size_t eset_nextents_get(eset_t *eset, pszind_t ind);
 /* Get the sum total bytes of the extents in the given page size index. */
 size_t eset_nbytes_get(eset_t *eset, pszind_t ind);
 
-void eset_insert_locked(tsdn_t *tsdn, eset_t *eset, extent_t *extent);
-void eset_remove_locked(tsdn_t *tsdn, eset_t *eset, extent_t *extent);
+void eset_insert_locked(tsdn_t *tsdn, eset_t *eset, edata_t *edata);
+void eset_remove_locked(tsdn_t *tsdn, eset_t *eset, edata_t *edata);
 /*
  * Select an extent from this eset of the given size and alignment.  Returns
  * null if no such item could be found.
  */
-extent_t *eset_fit_locked(tsdn_t *tsdn, eset_t *eset, size_t esize,
+edata_t *eset_fit_locked(tsdn_t *tsdn, eset_t *eset, size_t esize,
     size_t alignment);
 
 void eset_prefork(tsdn_t *tsdn, eset_t *eset);

@@ -144,7 +144,7 @@ struct arena_s {
 	 *
 	 * Synchronization: large_mtx.
 	 */
-	extent_list_t		large;
+	edata_list_t		large;
 	/* Synchronizes all large allocation/update/deallocation. */
 	malloc_mutex_t		large_mtx;
 
@@ -185,14 +185,14 @@ struct arena_s {
 	malloc_mutex_t		extent_grow_mtx;
 
 	/*
-	 * Available extent structures that were allocated via
-	 * base_alloc_extent().
+	 * Available edata structures that were allocated via
+	 * base_alloc_edata().
 	 *
-	 * Synchronization: extent_avail_mtx.
+	 * Synchronization: edata_avail_mtx.
 	 */
-	extent_tree_t		extent_avail;
-	atomic_zu_t		extent_avail_cnt;
-	malloc_mutex_t		extent_avail_mtx;
+	edata_tree_t		edata_avail;
+	atomic_zu_t		edata_avail_cnt;
+	malloc_mutex_t		edata_avail_mtx;
 
 	/*
 	 * bins is used to store heaps of free regions.
