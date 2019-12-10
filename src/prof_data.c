@@ -1373,7 +1373,23 @@ prof_reset(tsd_t *tsd, size_t lg_sample) {
 	malloc_mutex_unlock(tsd_tsdn(tsd), &prof_dump_mtx);
 }
 
-void
+static bool
+prof_tctx_should_destroy(tsd_t *tsd, prof_tctx_t *tctx) {
+	malloc_mutex_assert_owner(tsd_tsdn(tsd), tctx->tdata->lock);
+
+	if (opt_prof_accum) {
+		return false;
+	}
+	if (tctx->cnts.curobjs != 0) {
+		return false;
+	}
+	if (tctx->prepared) {
+		return false;
+	}
+	return true;
+}
+
+static void
 prof_tctx_destroy(tsd_t *tsd, prof_tctx_t *tctx) {
 	prof_tdata_t *tdata = tctx->tdata;
 	prof_gctx_t *gctx = tctx->gctx;
@@ -1446,6 +1462,17 @@ prof_tctx_destroy(tsd_t *tsd, prof_tctx_t *tctx) {
 
 	if (destroy_tctx) {
 		idalloctm(tsd_tsdn(tsd), tctx, NULL, NULL, true, true);
+	}
+}
+
+void
+prof_tctx_try_destroy(tsd_t *tsd, prof_tctx_t *tctx) {
+	malloc_mutex_assert_owner(tsd_tsdn(tsd), tctx->tdata->lock);
+	if (prof_tctx_should_destroy(tsd, tctx)) {
+		/* tctx->tdata->lock will be released in prof_tctx_destroy(). */
+		prof_tctx_destroy(tsd, tctx);
+	} else {
+		malloc_mutex_unlock(tsd_tsdn(tsd), tctx->tdata->lock);
 	}
 }
 
