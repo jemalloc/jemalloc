@@ -128,22 +128,6 @@ prof_strncpy(char *UNUSED dest, const char *UNUSED src, size_t UNUSED size) {
 #endif
 }
 
-static bool
-prof_tctx_should_destroy(tsdn_t *tsdn, prof_tctx_t *tctx) {
-	malloc_mutex_assert_owner(tsdn, tctx->tdata->lock);
-
-	if (opt_prof_accum) {
-		return false;
-	}
-	if (tctx->cnts.curobjs != 0) {
-		return false;
-	}
-	if (tctx->prepared) {
-		return false;
-	}
-	return true;
-}
-
 void
 prof_alloc_rollback(tsd_t *tsd, prof_tctx_t *tctx, bool updated) {
 	cassert(config_prof);
@@ -171,11 +155,7 @@ prof_alloc_rollback(tsd_t *tsd, prof_tctx_t *tctx, bool updated) {
 	if ((uintptr_t)tctx > (uintptr_t)1U) {
 		malloc_mutex_lock(tsd_tsdn(tsd), tctx->tdata->lock);
 		tctx->prepared = false;
-		if (prof_tctx_should_destroy(tsd_tsdn(tsd), tctx)) {
-			prof_tctx_destroy(tsd, tctx);
-		} else {
-			malloc_mutex_unlock(tsd_tsdn(tsd), tctx->tdata->lock);
-		}
+		prof_tctx_try_destroy(tsd, tctx);
 	}
 }
 
@@ -216,11 +196,7 @@ prof_free_sampled_object(tsd_t *tsd, size_t usize, prof_info_t *prof_info) {
 
 	prof_try_log(tsd, usize, prof_info);
 
-	if (prof_tctx_should_destroy(tsd_tsdn(tsd), tctx)) {
-		prof_tctx_destroy(tsd, tctx);
-	} else {
-		malloc_mutex_unlock(tsd_tsdn(tsd), tctx->tdata->lock);
-	}
+	prof_tctx_try_destroy(tsd, tctx);
 }
 
 void
