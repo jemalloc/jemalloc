@@ -132,14 +132,14 @@ prof_malloc(tsd_t *tsd, const void *ptr, size_t usize, alloc_ctx_t *alloc_ctx,
 
 JEMALLOC_ALWAYS_INLINE void
 prof_realloc(tsd_t *tsd, const void *ptr, size_t usize, prof_tctx_t *tctx,
-    bool prof_active, bool updated, const void *old_ptr, size_t old_usize,
+    bool prof_active, const void *old_ptr, size_t old_usize,
     prof_info_t *old_prof_info) {
 	bool sampled, old_sampled, moved;
 
 	cassert(config_prof);
 	assert(ptr != NULL || (uintptr_t)tctx <= (uintptr_t)1U);
 
-	if (prof_active && !updated && ptr != NULL) {
+	if (prof_active && ptr != NULL) {
 		assert(usize == isalloc(tsd_tsdn(tsd), ptr));
 		if (prof_sample_accum_update(tsd, usize, true)) {
 			/*
