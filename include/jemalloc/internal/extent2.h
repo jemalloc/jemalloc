@@ -26,9 +26,6 @@ extern size_t opt_lg_extent_max_active_fit;
 
 extern rtree_t extents_rtree;
 
-edata_t *extent_alloc(tsdn_t *tsdn, arena_t *arena);
-void extent_dalloc(tsdn_t *tsdn, arena_t *arena, edata_t *edata);
-
 edata_t *extents_alloc(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
     eset_t *eset, void *new_addr, size_t size, size_t pad, size_t alignment,
     bool slab, szind_t szind, bool *zero, bool *commit);

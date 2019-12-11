@@ -103,7 +103,7 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 	    eset_npages_get(&arena->eset_retained) << LG_PAGE);
 
 	atomic_store_zu(&astats->edata_avail,
-	    atomic_load_zu(&arena->edata_avail_cnt, ATOMIC_RELAXED),
+	    atomic_load_zu(&arena->edata_cache.count, ATOMIC_RELAXED),
 	    ATOMIC_RELAXED);
 
 	arena_stats_accum_u64(&astats->decay_dirty.npurge,
@@ -224,7 +224,7 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 
 	/* Gather per arena mutex profiling data. */
 	READ_ARENA_MUTEX_PROF_DATA(large_mtx, arena_prof_mutex_large);
-	READ_ARENA_MUTEX_PROF_DATA(edata_avail_mtx,
+	READ_ARENA_MUTEX_PROF_DATA(edata_cache.mtx,
 	    arena_prof_mutex_extent_avail)
 	READ_ARENA_MUTEX_PROF_DATA(eset_dirty.mtx,
 	    arena_prof_mutex_extents_dirty)
@@ -2053,9 +2053,7 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 		goto label_error;
 	}
 
-	edata_avail_new(&arena->edata_avail);
-	if (malloc_mutex_init(&arena->edata_avail_mtx, "edata_avail",
-	    WITNESS_RANK_EDATA_AVAIL, malloc_mutex_rank_exclusive)) {
+	if (edata_cache_init(&arena->edata_cache)) {
 		goto label_error;
 	}
 
@@ -2201,7 +2199,7 @@ arena_prefork3(tsdn_t *tsdn, arena_t *arena) {
 
 void
 arena_prefork4(tsdn_t *tsdn, arena_t *arena) {
-	malloc_mutex_prefork(tsdn, &arena->edata_avail_mtx);
+	edata_cache_prefork(tsdn, &arena->edata_cache);
 }
 
 void
@@ -2235,7 +2233,7 @@ arena_postfork_parent(tsdn_t *tsdn, arena_t *arena) {
 	}
 	malloc_mutex_postfork_parent(tsdn, &arena->large_mtx);
 	base_postfork_parent(tsdn, arena->base);
-	malloc_mutex_postfork_parent(tsdn, &arena->edata_avail_mtx);
+	edata_cache_postfork_parent(tsdn, &arena->edata_cache);
 	eset_postfork_parent(tsdn, &arena->eset_dirty);
 	eset_postfork_parent(tsdn, &arena->eset_muzzy);
 	eset_postfork_parent(tsdn, &arena->eset_retained);
@@ -2281,7 +2279,7 @@ arena_postfork_child(tsdn_t *tsdn, arena_t *arena) {
 	}
 	malloc_mutex_postfork_child(tsdn, &arena->large_mtx);
 	base_postfork_child(tsdn, arena->base);
-	malloc_mutex_postfork_child(tsdn, &arena->edata_avail_mtx);
+	edata_cache_postfork_child(tsdn, &arena->edata_cache);
 	eset_postfork_child(tsdn, &arena->eset_dirty);
 	eset_postfork_child(tsdn, &arena->eset_muzzy);
 	eset_postfork_child(tsdn, &arena->eset_retained);

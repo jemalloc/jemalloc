@@ -5,6 +5,7 @@
 #include "jemalloc/internal/atomic.h"
 #include "jemalloc/internal/bin.h"
 #include "jemalloc/internal/bitmap.h"
+#include "jemalloc/internal/edata_cache.h"
 #include "jemalloc/internal/eset.h"
 #include "jemalloc/internal/extent_dss.h"
 #include "jemalloc/internal/jemalloc_internal_types.h"
@@ -184,15 +185,8 @@ struct arena_s {
 	pszind_t		retain_grow_limit;
 	malloc_mutex_t		extent_grow_mtx;
 
-	/*
-	 * Available edata structures that were allocated via
-	 * base_alloc_edata().
-	 *
-	 * Synchronization: edata_avail_mtx.
-	 */
-	edata_tree_t		edata_avail;
-	atomic_zu_t		edata_avail_cnt;
-	malloc_mutex_t		edata_avail_mtx;
+	/* The source of edata_t objects. */
+	edata_cache_t		edata_cache;
 
 	/*
 	 * bins is used to store heaps of free regions.
