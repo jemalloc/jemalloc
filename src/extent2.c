@@ -1244,12 +1244,6 @@ extent_dalloc_gap(tsdn_t *tsdn, arena_t *arena, edata_t *edata) {
 }
 
 static bool
-extent_may_dalloc(void) {
-	/* With retain enabled, the default dalloc always fails. */
-	return !opt_retain;
-}
-
-static bool
 extent_dalloc_wrapper_try(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
     edata_t *edata) {
 	bool err;
@@ -1281,7 +1275,7 @@ extent_dalloc_wrapper(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 	    WITNESS_RANK_CORE, 0);
 
 	/* Avoid calling the default extent_dalloc unless have to. */
-	if (!ehooks_are_default(ehooks) || extent_may_dalloc()) {
+	if (!ehooks_dalloc_will_fail(ehooks)) {
 		/*
 		 * Deregister first to avoid a race with other allocating
 		 * threads, and reregister if deallocation fails.

@@ -9,6 +9,7 @@
  */
 
 #include "jemalloc/internal/atomic.h"
+#include "jemalloc/internal/extent_mmap.h"
 
 extern const extent_hooks_t ehooks_default_extent_hooks;
 
@@ -96,6 +97,15 @@ ehooks_are_default(ehooks_t *ehooks) {
  * a hook.  If that hook is doomed to fail, this is wasteful.  We therefore
  * include some checks for such cases.
  */
+static inline bool
+ehooks_dalloc_will_fail(ehooks_t *ehooks) {
+	if (ehooks_are_default(ehooks)) {
+		return opt_retain;
+	} else {
+		return ehooks_get_extent_hooks_ptr(ehooks)->dalloc == NULL;
+	}
+}
+
 static inline bool
 ehooks_split_will_fail(ehooks_t *ehooks) {
 	return ehooks_get_extent_hooks_ptr(ehooks)->split == NULL;
