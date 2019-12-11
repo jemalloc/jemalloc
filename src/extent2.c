@@ -163,28 +163,6 @@ extent_addr_randomize(tsdn_t *tsdn, arena_t *arena, edata_t *edata,
 	}
 }
 
-edata_t *
-extent_alloc(tsdn_t *tsdn, arena_t *arena) {
-	malloc_mutex_lock(tsdn, &arena->edata_avail_mtx);
-	edata_t *edata = edata_avail_first(&arena->edata_avail);
-	if (edata == NULL) {
-		malloc_mutex_unlock(tsdn, &arena->edata_avail_mtx);
-		return base_alloc_edata(tsdn, arena->base);
-	}
-	edata_avail_remove(&arena->edata_avail, edata);
-	atomic_fetch_sub_zu(&arena->edata_avail_cnt, 1, ATOMIC_RELAXED);
-	malloc_mutex_unlock(tsdn, &arena->edata_avail_mtx);
-	return edata;
-}
-
-void
-extent_dalloc(tsdn_t *tsdn, arena_t *arena, edata_t *edata) {
-	malloc_mutex_lock(tsdn, &arena->edata_avail_mtx);
-	edata_avail_insert(&arena->edata_avail, edata);
-	atomic_fetch_add_zu(&arena->edata_avail_cnt, 1, ATOMIC_RELAXED);
-	malloc_mutex_unlock(tsdn, &arena->edata_avail_mtx);
-}
-
 static bool
 extent_try_delayed_coalesce(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
     rtree_ctx_t *rtree_ctx, eset_t *eset, edata_t *edata) {
@@ -317,7 +295,7 @@ extents_abandon_vm(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks, eset_t *eset,
 			    edata_size_get(edata), growing_retained);
 		}
 	}
-	extent_dalloc(tsdn, arena, edata);
+	edata_cache_put(tsdn, &arena->edata_cache, edata);
 }
 
 static void
@@ -858,7 +836,8 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 		alloc_size = sz_pind2sz(arena->extent_grow_next + egn_skip);
 	}
 
-	edata_t *edata = extent_alloc(tsdn, arena);
+	edata_t *edata = edata_cache_get(tsdn, &arena->edata_cache,
+	    arena->base);
 	if (edata == NULL) {
 		goto label_err;
 	}
@@ -872,12 +851,12 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 	    SC_NSIZES, arena_extent_sn_next(arena), extent_state_active, zeroed,
 	    committed, true, EXTENT_IS_HEAD);
 	if (ptr == NULL) {
-		extent_dalloc(tsdn, arena, edata);
+		edata_cache_put(tsdn, &arena->edata_cache, edata);
 		goto label_err;
 	}
 
 	if (extent_register_no_gdump_add(tsdn, edata)) {
-		extent_dalloc(tsdn, arena, edata);
+		edata_cache_put(tsdn, &arena->edata_cache, edata);
 		goto label_err;
 	}
 
@@ -1021,7 +1000,8 @@ extent_alloc_wrapper_hard(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
     void *new_addr, size_t size, size_t pad, size_t alignment, bool slab,
     szind_t szind, bool *zero, bool *commit) {
 	size_t esize = size + pad;
-	edata_t *edata = extent_alloc(tsdn, arena);
+	edata_t *edata = edata_cache_get(tsdn, &arena->edata_cache,
+	    arena->base);
 	if (edata == NULL) {
 		return NULL;
 	}
@@ -1029,7 +1009,7 @@ extent_alloc_wrapper_hard(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 	void *addr = ehooks_alloc(tsdn, ehooks, new_addr, esize, palignment,
 	    zero, commit, arena_ind_get(arena));
 	if (addr == NULL) {
-		extent_dalloc(tsdn, arena, edata);
+		edata_cache_put(tsdn, &arena->edata_cache, edata);
 		return NULL;
 	}
 	edata_init(edata, arena_ind_get(arena), addr, esize, slab, szind,
@@ -1039,7 +1019,7 @@ extent_alloc_wrapper_hard(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 		extent_addr_randomize(tsdn, arena, edata, alignment);
 	}
 	if (extent_register(tsdn, edata)) {
-		extent_dalloc(tsdn, arena, edata);
+		edata_cache_put(tsdn, &arena->edata_cache, edata);
 		return NULL;
 	}
 
@@ -1257,7 +1237,7 @@ extent_dalloc_gap(tsdn_t *tsdn, arena_t *arena, edata_t *edata) {
 	    WITNESS_RANK_CORE, 0);
 
 	if (extent_register(tsdn, edata)) {
-		extent_dalloc(tsdn, arena, edata);
+		edata_cache_put(tsdn, &arena->edata_cache, edata);
 		return;
 	}
 	extent_dalloc_wrapper(tsdn, arena, ehooks, edata);
@@ -1287,7 +1267,7 @@ extent_dalloc_wrapper_try(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 	    arena_ind_get(arena));
 
 	if (!err) {
-		extent_dalloc(tsdn, arena, edata);
+		edata_cache_put(tsdn, &arena->edata_cache, edata);
 	}
 
 	return err;
@@ -1359,7 +1339,7 @@ extent_destroy_wrapper(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 	    edata_size_get(edata), edata_committed_get(edata),
 	    arena_ind_get(arena));
 
-	extent_dalloc(tsdn, arena, edata);
+	edata_cache_put(tsdn, &arena->edata_cache, edata);
 }
 
 static bool
@@ -1445,7 +1425,8 @@ extent_split_impl(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 		return NULL;
 	}
 
-	edata_t *trail = extent_alloc(tsdn, arena);
+	edata_t *trail = edata_cache_get(tsdn, &arena->edata_cache,
+	    arena->base);
 	if (trail == NULL) {
 		goto label_error_a;
 	}
@@ -1505,7 +1486,7 @@ extent_split_impl(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 label_error_c:
 	extent_unlock_edata2(tsdn, edata, trail);
 label_error_b:
-	extent_dalloc(tsdn, arena, trail);
+	edata_cache_put(tsdn, &arena->edata_cache, trail);
 label_error_a:
 	return NULL;
 }
@@ -1611,7 +1592,7 @@ extent_merge_impl(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks, edata_t *a,
 	 * arena (i.e. this one).
 	 */
 	assert(edata_arena_ind_get(b) == arena_ind_get(arena));
-	extent_dalloc(tsdn, arena, b);
+	edata_cache_put(tsdn, &arena->edata_cache, b);
 
 	return false;
 }

@@ -3010,7 +3010,7 @@ stats_mutexes_reset_ctl(tsd_t *tsd, const size_t *mib,
 			continue;
 		}
 		MUTEX_PROF_RESET(arena->large_mtx);
-		MUTEX_PROF_RESET(arena->edata_avail_mtx);
+		MUTEX_PROF_RESET(arena->edata_cache.mtx);
 		MUTEX_PROF_RESET(arena->eset_dirty.mtx);
 		MUTEX_PROF_RESET(arena->eset_muzzy.mtx);
 		MUTEX_PROF_RESET(arena->eset_retained.mtx);

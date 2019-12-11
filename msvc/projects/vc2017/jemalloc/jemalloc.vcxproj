@@ -45,6 +45,7 @@
     <ClCompile Include="..\..\..\..\src\ctl.c" />
     <ClCompile Include="..\..\..\..\src\div.c" />
     <ClCompile Include="..\..\..\..\src\edata.c" />
+    <ClCompile Include="..\..\..\..\src\edata_cache.c" />
     <ClCompile Include="..\..\..\..\src\ehooks.c" />
     <ClCompile Include="..\..\..\..\src\eset.c" />
     <ClCompile Include="..\..\..\..\src\extent2.c" />
