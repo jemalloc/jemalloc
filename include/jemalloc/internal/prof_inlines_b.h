@@ -67,7 +67,7 @@ prof_tctx_reset(tsd_t *tsd, const void *ptr, prof_tctx_t *tctx) {
 }
 
 JEMALLOC_ALWAYS_INLINE void
-prof_alloc_time_set(tsd_t *tsd, const void *ptr, nstime_t t) {
+prof_alloc_time_set(tsd_t *tsd, const void *ptr, nstime_t *t) {
 	cassert(config_prof);
 	assert(ptr != NULL);
 

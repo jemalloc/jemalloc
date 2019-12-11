@@ -383,6 +383,6 @@ large_prof_tctx_reset(extent_t *extent) {
 }
 
 void
-large_prof_alloc_time_set(extent_t *extent, nstime_t t) {
+large_prof_alloc_time_set(extent_t *extent, nstime_t *t) {
 	extent_prof_alloc_time_set(extent, t);
 }
