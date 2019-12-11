@@ -461,8 +461,8 @@ extent_prof_tctx_set(extent_t *extent, prof_tctx_t *tctx) {
 }
 
 static inline void
-extent_prof_alloc_time_set(extent_t *extent, nstime_t t) {
-	nstime_copy(&extent->e_alloc_time, &t);
+extent_prof_alloc_time_set(extent_t *extent, nstime_t *t) {
+	nstime_copy(&extent->e_alloc_time, t);
 }
 
 static inline bool

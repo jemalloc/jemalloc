@@ -98,7 +98,7 @@ arena_prof_tctx_reset(tsd_t *tsd, const void *ptr, prof_tctx_t *tctx) {
 }
 
 JEMALLOC_ALWAYS_INLINE void
-arena_prof_alloc_time_set(tsd_t *tsd, const void *ptr, nstime_t t) {
+arena_prof_alloc_time_set(tsd_t *tsd, const void *ptr, nstime_t *t) {
 	cassert(config_prof);
 	assert(ptr != NULL);
 
