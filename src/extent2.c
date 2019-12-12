@@ -1493,38 +1493,6 @@ extent_split_wrapper(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 	    slab_a, size_b, szind_b, slab_b, false);
 }
 
-/*
- * Returns true if the given extents can't be merged because of their head bit
- * settings.  Assumes the second extent has the higher address.
- */
-bool
-extent_head_no_merge(edata_t *a, edata_t *b) {
-	assert(edata_base_get(a) < edata_base_get(b));
-	/*
-	 * When coalesce is not always allowed (Windows), only merge extents
-	 * from the same VirtualAlloc region under opt.retain (in which case
-	 * MEM_DECOMMIT is utilized for purging).
-	 */
-	if (maps_coalesce) {
-		return false;
-	}
-	if (!opt_retain) {
-		return true;
-	}
-	/* If b is a head extent, disallow the cross-region merge. */
-	if (edata_is_head_get(b)) {
-		/*
-		 * Additionally, sn should not overflow with retain; sanity
-		 * check that different regions have unique sn.
-		 */
-		assert(edata_sn_comp(a, b) != 0);
-		return true;
-	}
-	assert(edata_sn_comp(a, b) == 0);
-
-	return false;
-}
-
 static bool
 extent_merge_impl(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks, edata_t *a,
     edata_t *b, bool growing_retained) {
@@ -1532,13 +1500,10 @@ extent_merge_impl(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks, edata_t *a,
 	    WITNESS_RANK_CORE, growing_retained ? 1 : 0);
 	assert(edata_base_get(a) < edata_base_get(b));
 
-	if (ehooks_merge_will_fail(ehooks) || extent_head_no_merge(a, b)) {
-		return true;
-	}
-
 	bool err = ehooks_merge(tsdn, ehooks, edata_base_get(a),
-	    edata_size_get(a), edata_base_get(b), edata_size_get(b),
-	    edata_committed_get(a), arena_ind_get(arena));
+	    edata_size_get(a), edata_is_head_get(a), edata_base_get(b),
+	    edata_size_get(b), edata_is_head_get(b), edata_committed_get(a),
+	    arena_ind_get(arena));
 
 	if (err) {
 		return true;

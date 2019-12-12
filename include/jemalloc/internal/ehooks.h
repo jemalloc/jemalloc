@@ -1,15 +1,20 @@
 #ifndef JEMALLOC_INTERNAL_EHOOKS_H
 #define JEMALLOC_INTERNAL_EHOOKS_H
 
+#include "jemalloc/internal/atomic.h"
+#include "jemalloc/internal/extent_mmap.h"
+
 /*
  * This module is the internal interface to the extent hooks (both
  * user-specified and external).  Eventually, this will give us the flexibility
  * to use multiple different versions of user-visible extent-hook APIs under a
  * single user interface.
+ *
+ * Current API expansions (not available to anyone but the default hooks yet):
+ *   - Head state tracking.  Hooks can decide whether or not to merge two
+ *     extents based on whether or not one of them is the head (i.e. was
+ *     allocated on its own).  The later extent loses its "head" status.
  */
-
-#include "jemalloc/internal/atomic.h"
-#include "jemalloc/internal/extent_mmap.h"
 
 extern const extent_hooks_t ehooks_default_extent_hooks;
 
@@ -43,7 +48,8 @@ bool ehooks_default_purge_lazy_impl(void *addr, size_t offset, size_t length);
 bool ehooks_default_purge_forced_impl(void *addr, size_t offset, size_t length);
 #endif
 bool ehooks_default_split_impl();
-bool ehooks_default_merge_impl(void *addr_a, void *addr_b);
+bool ehooks_default_merge_impl(tsdn_t *tsdn, void *addr_a, bool head_a,
+    void *addr_b, bool head_b);
 void ehooks_default_zero_impl(void *addr, size_t size);
 
 /*
@@ -314,10 +320,12 @@ ehooks_split(tsdn_t *tsdn, ehooks_t *ehooks, void *addr, size_t size,
 
 static inline bool
 ehooks_merge(tsdn_t *tsdn, ehooks_t *ehooks, void *addr_a, size_t size_a,
-    void *addr_b, size_t size_b, bool committed, unsigned arena_ind) {
+    bool head_a, void *addr_b, size_t size_b, bool head_b, bool committed,
+    unsigned arena_ind) {
 	extent_hooks_t *extent_hooks = ehooks_get_extent_hooks_ptr(ehooks);
 	if (extent_hooks == &ehooks_default_extent_hooks) {
-		return ehooks_default_merge_impl(addr_a, addr_b);
+		return ehooks_default_merge_impl(tsdn, addr_a, head_a, addr_b,
+		    head_b);
 	} else if (extent_hooks->merge == NULL) {
 		return true;
 	} else {

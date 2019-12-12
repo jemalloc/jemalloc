@@ -183,8 +183,51 @@ ehooks_default_split(extent_hooks_t *extent_hooks, void *addr, size_t size,
 	return ehooks_default_split_impl();
 }
 
+static inline bool
+ehooks_same_sn(tsdn_t *tsdn, void *addr_a, void *addr_b) {
+	edata_t *a = iealloc(tsdn, addr_a);
+	edata_t *b = iealloc(tsdn, addr_b);
+	return edata_sn_comp(a, b) == 0;
+}
+
+/*
+ * Returns true if the given extents can't be merged because of their head bit
+ * settings.  Assumes the second extent has the higher address.
+ */
+static bool
+ehooks_no_merge_heads(tsdn_t *tsdn, void *addr_a, bool head_a, void *addr_b,
+    bool head_b) {
+	/*
+	 * When coalesce is not always allowed (Windows), only merge extents
+	 * from the same VirtualAlloc region under opt.retain (in which case
+	 * MEM_DECOMMIT is utilized for purging).
+	 */
+	if (maps_coalesce) {
+		return false;
+	}
+	if (!opt_retain) {
+		return true;
+	}
+	/* If b is a head extent, disallow the cross-region merge. */
+	if (head_b) {
+		/*
+		 * Additionally, sn should not overflow with retain; sanity
+		 * check that different regions have unique sn.
+		 */
+		assert(!ehooks_same_sn(tsdn, addr_a, addr_b));
+		return true;
+	}
+	assert(ehooks_same_sn(tsdn, addr_a, addr_b));
+
+	return false;
+}
+
 bool
-ehooks_default_merge_impl(void *addr_a, void *addr_b) {
+ehooks_default_merge_impl(tsdn_t *tsdn, void *addr_a, bool head_a, void *addr_b,
+    bool head_b) {
+	if (ehooks_no_merge_heads(tsdn, addr_a, head_a, addr_b, head_b)) {
+		return true;
+	}
 	if (!maps_coalesce && !opt_retain) {
 		return true;
 	}
@@ -198,15 +241,12 @@ ehooks_default_merge_impl(void *addr_a, void *addr_b) {
 static bool
 ehooks_default_merge(extent_hooks_t *extent_hooks, void *addr_a, size_t size_a,
     void *addr_b, size_t size_b, bool committed, unsigned arena_ind) {
-	if (!maps_coalesce) {
-		tsdn_t *tsdn = tsdn_fetch();
-		edata_t *a = iealloc(tsdn, addr_a);
-		edata_t *b = iealloc(tsdn, addr_b);
-		if (extent_head_no_merge(a, b)) {
-			return true;
-		}
-	}
-	return ehooks_default_merge_impl(addr_a, addr_b);
+	tsdn_t *tsdn = tsdn_fetch();
+	edata_t *a = iealloc(tsdn, addr_a);
+	bool head_a = edata_is_head_get(a);
+	edata_t *b = iealloc(tsdn, addr_b);
+	bool head_b = edata_is_head_get(b);
+	return ehooks_default_merge_impl(tsdn, addr_a, head_a, addr_b, head_b);
 }
 
 void
