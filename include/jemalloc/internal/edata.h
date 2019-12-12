@@ -467,20 +467,12 @@ edata_prof_alloc_time_set(edata_t *edata, nstime_t *t) {
 
 static inline bool
 edata_is_head_get(edata_t *edata) {
-	if (maps_coalesce) {
-		not_reached();
-	}
-
 	return (bool)((edata->e_bits & EDATA_BITS_IS_HEAD_MASK) >>
 	    EDATA_BITS_IS_HEAD_SHIFT);
 }
 
 static inline void
 edata_is_head_set(edata_t *edata, bool is_head) {
-	if (maps_coalesce) {
-		not_reached();
-	}
-
 	edata->e_bits = (edata->e_bits & ~EDATA_BITS_IS_HEAD_MASK) |
 	    ((uint64_t)is_head << EDATA_BITS_IS_HEAD_SHIFT);
 }
@@ -502,9 +494,7 @@ edata_init(edata_t *edata, unsigned arena_ind, void *addr, size_t size,
 	edata_committed_set(edata, committed);
 	edata_dumpable_set(edata, dumpable);
 	ql_elm_new(edata, ql_link);
-	if (!maps_coalesce) {
-		edata_is_head_set(edata, is_head == EXTENT_IS_HEAD);
-	}
+	edata_is_head_set(edata, is_head == EXTENT_IS_HEAD);
 	if (config_prof) {
 		edata_prof_tctx_set(edata, NULL);
 	}
