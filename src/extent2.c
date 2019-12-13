@@ -1078,7 +1078,7 @@ extent_can_coalesce(ecache_t *ecache, const edata_t *inner,
 }
 
 static bool
-extent_coalesce(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
+extent_coalesce(tsdn_t *tsdn, edata_cache_t *edata_cache, ehooks_t *ehooks,
     ecache_t *ecache, edata_t *inner, edata_t *outer, bool forward,
     bool growing_retained) {
 	assert(extent_can_coalesce(ecache, inner, outer));
@@ -1086,7 +1086,7 @@ extent_coalesce(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 	extent_activate_locked(tsdn, ecache, outer);
 
 	malloc_mutex_unlock(tsdn, &ecache->mtx);
-	bool err = extent_merge_impl(tsdn, ehooks, &arena->edata_cache,
+	bool err = extent_merge_impl(tsdn, ehooks, edata_cache,
 	    forward ? inner : outer, forward ? outer : inner, growing_retained);
 	malloc_mutex_lock(tsdn, &ecache->mtx);
 
@@ -1128,9 +1128,9 @@ extent_try_coalesce_impl(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 
 			extent_unlock_edata(tsdn, next);
 
-			if (can_coalesce && !extent_coalesce(tsdn, arena,
-			    ehooks, ecache, edata, next, true,
-			    growing_retained)) {
+			if (can_coalesce && !extent_coalesce(tsdn,
+			    &arena->edata_cache, ehooks, ecache, edata, next,
+			    true, growing_retained)) {
 				if (ecache->delay_coalesce) {
 					/* Do minimal coalescing. */
 					*coalesced = true;
@@ -1148,9 +1148,9 @@ extent_try_coalesce_impl(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 			    prev);
 			extent_unlock_edata(tsdn, prev);
 
-			if (can_coalesce && !extent_coalesce(tsdn, arena,
-			    ehooks, ecache, edata, prev, false,
-			    growing_retained)) {
+			if (can_coalesce && !extent_coalesce(tsdn,
+			    &arena->edata_cache, ehooks, ecache, edata, prev,
+			    false, growing_retained)) {
 				edata = prev;
 				if (ecache->delay_coalesce) {
 					/* Do minimal coalescing. */
