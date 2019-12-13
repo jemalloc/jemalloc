@@ -2018,14 +2018,16 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 	 * are likely to be reused soon after deallocation, and the cost of
 	 * merging/splitting extents is non-trivial.
 	 */
-	if (ecache_init(tsdn, &arena->ecache_dirty, extent_state_dirty, true)) {
+	if (ecache_init(tsdn, &arena->ecache_dirty, extent_state_dirty, ind,
+	    true)) {
 		goto label_error;
 	}
 	/*
 	 * Coalesce muzzy extents immediately, because operations on them are in
 	 * the critical path much less often than for dirty extents.
 	 */
-	if (ecache_init(tsdn, &arena->ecache_muzzy, extent_state_muzzy, false)) {
+	if (ecache_init(tsdn, &arena->ecache_muzzy, extent_state_muzzy, ind,
+	    false)) {
 		goto label_error;
 	}
 	/*
@@ -2035,7 +2037,7 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 	 * in the critical path.
 	 */
 	if (ecache_init(tsdn, &arena->ecache_retained, extent_state_retained,
-	    false)) {
+	    ind, false)) {
 		goto label_error;
 	}
 
