@@ -30,8 +30,8 @@ static edata_t *extent_split_impl(tsdn_t *tsdn, arena_t *arena,
     ehooks_t *ehooks, edata_t *edata, size_t size_a, szind_t szind_a,
     bool slab_a, size_t size_b, szind_t szind_b, bool slab_b,
     bool growing_retained);
-static bool extent_merge_impl(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
-    edata_t *a, edata_t *b, bool growing_retained);
+static bool extent_merge_impl(tsdn_t *tsdn, ehooks_t *ehooks,
+    edata_cache_t *edata_cache, edata_t *a, edata_t *b, bool growing_retained);
 
 /* Used exclusively for gdump triggering. */
 static atomic_zu_t curpages;
@@ -1087,7 +1087,7 @@ extent_coalesce(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 	extent_activate_locked(tsdn, arena, ecache, outer);
 
 	malloc_mutex_unlock(tsdn, &ecache->mtx);
-	bool err = extent_merge_impl(tsdn, arena, ehooks,
+	bool err = extent_merge_impl(tsdn, ehooks, &arena->edata_cache,
 	    forward ? inner : outer, forward ? outer : inner, growing_retained);
 	malloc_mutex_lock(tsdn, &ecache->mtx);
 
@@ -1495,11 +1495,14 @@ extent_split_wrapper(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 }
 
 static bool
-extent_merge_impl(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks, edata_t *a,
-    edata_t *b, bool growing_retained) {
+extent_merge_impl(tsdn_t *tsdn, ehooks_t *ehooks, edata_cache_t *edata_cache,
+    edata_t *a, edata_t *b, bool growing_retained) {
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, growing_retained ? 1 : 0);
 	assert(edata_base_get(a) < edata_base_get(b));
+
+	assert(edata_arena_ind_get(a) == edata_arena_ind_get(b));
+	assert(edata_arena_ind_get(a) == ehooks_ind_get(ehooks));
 
 	bool err = ehooks_merge(tsdn, ehooks, edata_base_get(a),
 	    edata_size_get(a), edata_is_head_get(a), edata_base_get(b),
@@ -1546,20 +1549,15 @@ extent_merge_impl(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks, edata_t *a,
 
 	extent_unlock_edata2(tsdn, a, b);
 
-	/*
-	 * If we got here, we merged the extents; so they must be from the same
-	 * arena (i.e. this one).
-	 */
-	assert(edata_arena_ind_get(b) == arena_ind_get(arena));
-	edata_cache_put(tsdn, &arena->edata_cache, b);
+	edata_cache_put(tsdn, edata_cache, b);
 
 	return false;
 }
 
 bool
-extent_merge_wrapper(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
+extent_merge_wrapper(tsdn_t *tsdn, ehooks_t *ehooks, edata_cache_t *edata_cache,
     edata_t *a, edata_t *b) {
-	return extent_merge_impl(tsdn, arena, ehooks, a, b, false);
+	return extent_merge_impl(tsdn, ehooks, edata_cache, a, b, false);
 }
 
 bool

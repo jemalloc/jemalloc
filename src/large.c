@@ -170,7 +170,8 @@ large_ralloc_no_move_expand(tsdn_t *tsdn, edata_t *edata, size_t usize,
 		}
 	}
 
-	if (extent_merge_wrapper(tsdn, arena, ehooks, edata, trail)) {
+	if (extent_merge_wrapper(tsdn, ehooks, &arena->edata_cache, edata,
+	    trail)) {
 		extent_dalloc_wrapper(tsdn, arena, ehooks, trail);
 		return true;
 	}
