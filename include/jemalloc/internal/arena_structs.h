@@ -5,8 +5,8 @@
 #include "jemalloc/internal/atomic.h"
 #include "jemalloc/internal/bin.h"
 #include "jemalloc/internal/bitmap.h"
+#include "jemalloc/internal/ecache.h"
 #include "jemalloc/internal/edata_cache.h"
-#include "jemalloc/internal/eset.h"
 #include "jemalloc/internal/extent_dss.h"
 #include "jemalloc/internal/jemalloc_internal_types.h"
 #include "jemalloc/internal/mutex.h"
@@ -53,7 +53,7 @@ struct arena_decay_s {
 	/*
 	 * Number of unpurged pages at beginning of current epoch.  During epoch
 	 * advancement we use the delta between arena->decay_*.nunpurged and
-	 * eset_npages_get(&arena->extents_*) to determine how many dirty pages,
+	 * ecache_npages_get(&arena->ecache_*) to determine how many dirty pages,
 	 * if any, were generated.
 	 */
 	size_t			nunpurged;
@@ -155,9 +155,9 @@ struct arena_s {
 	 *
 	 * Synchronization: internal.
 	 */
-	eset_t		eset_dirty;
-	eset_t		eset_muzzy;
-	eset_t		eset_retained;
+	ecache_t	ecache_dirty;
+	ecache_t	ecache_muzzy;
+	ecache_t	ecache_retained;
 
 	/*
 	 * Decay-based purging state, responsible for scheduling extent state
@@ -168,22 +168,8 @@ struct arena_s {
 	arena_decay_t		decay_dirty; /* dirty --> muzzy */
 	arena_decay_t		decay_muzzy; /* muzzy --> retained */
 
-	/*
-	 * Next extent size class in a growing series to use when satisfying a
-	 * request via the extent hooks (only if opt_retain).  This limits the
-	 * number of disjoint virtual memory ranges so that extent merging can
-	 * be effective even if multiple arenas' extent allocation requests are
-	 * highly interleaved.
-	 *
-	 * retain_grow_limit is the max allowed size ind to expand (unless the
-	 * required size is greater).  Default is no limit, and controlled
-	 * through mallctl only.
-	 *
-	 * Synchronization: extent_grow_mtx
-	 */
-	pszind_t		extent_grow_next;
-	pszind_t		retain_grow_limit;
-	malloc_mutex_t		extent_grow_mtx;
+	/* The grow info for the retained ecache. */
+	ecache_grow_t		ecache_grow;
 
 	/* The source of edata_t objects. */
 	edata_cache_t		edata_cache;

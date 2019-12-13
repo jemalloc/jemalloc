@@ -45,13 +45,13 @@ static atomic_zu_t highpages;
 
 static void extent_deregister(tsdn_t *tsdn, edata_t *edata);
 static edata_t *extent_recycle(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
-    eset_t *eset, void *new_addr, size_t usize, size_t pad, size_t alignment,
+    ecache_t *ecache, void *new_addr, size_t usize, size_t pad, size_t alignment,
     bool slab, szind_t szind, bool *zero, bool *commit, bool growing_retained);
 static edata_t *extent_try_coalesce(tsdn_t *tsdn, arena_t *arena,
-    ehooks_t *ehooks, rtree_ctx_t *rtree_ctx, eset_t *eset, edata_t *edata,
+    ehooks_t *ehooks, rtree_ctx_t *rtree_ctx, ecache_t *ecache, edata_t *edata,
     bool *coalesced, bool growing_retained);
 static void extent_record(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
-    eset_t *eset, edata_t *edata, bool growing_retained);
+    ecache_t *ecache, edata_t *edata, bool growing_retained);
 
 /******************************************************************************/
 
@@ -165,22 +165,22 @@ extent_addr_randomize(tsdn_t *tsdn, arena_t *arena, edata_t *edata,
 
 static bool
 extent_try_delayed_coalesce(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
-    rtree_ctx_t *rtree_ctx, eset_t *eset, edata_t *edata) {
+    rtree_ctx_t *rtree_ctx, ecache_t *ecache, edata_t *edata) {
 	edata_state_set(edata, extent_state_active);
 	bool coalesced;
-	edata = extent_try_coalesce(tsdn, arena, ehooks, rtree_ctx, eset,
+	edata = extent_try_coalesce(tsdn, arena, ehooks, rtree_ctx, ecache,
 	    edata, &coalesced, false);
-	edata_state_set(edata, eset_state_get(eset));
+	edata_state_set(edata, eset_state_get(&ecache->eset));
 
 	if (!coalesced) {
 		return true;
 	}
-	eset_insert_locked(tsdn, eset, edata);
+	eset_insert(&ecache->eset, edata);
 	return false;
 }
 
 edata_t *
-extents_alloc(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks, eset_t *eset,
+extents_alloc(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks, ecache_t *ecache,
     void *new_addr, size_t size, size_t pad, size_t alignment, bool slab,
     szind_t szind, bool *zero, bool *commit) {
 	assert(size + pad != 0);
@@ -188,14 +188,14 @@ extents_alloc(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks, eset_t *eset,
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, 0);
 
-	edata_t *edata = extent_recycle(tsdn, arena, ehooks, eset, new_addr,
+	edata_t *edata = extent_recycle(tsdn, arena, ehooks, ecache, new_addr,
 	    size, pad, alignment, slab, szind, zero, commit, false);
 	assert(edata == NULL || edata_dumpable_get(edata));
 	return edata;
 }
 
 void
-extents_dalloc(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks, eset_t *eset,
+extents_dalloc(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks, ecache_t *ecache,
     edata_t *edata) {
 	assert(edata_base_get(edata) != NULL);
 	assert(edata_size_get(edata) != 0);
@@ -206,16 +206,16 @@ extents_dalloc(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks, eset_t *eset,
 	edata_addr_set(edata, edata_base_get(edata));
 	edata_zeroed_set(edata, false);
 
-	extent_record(tsdn, arena, ehooks, eset, edata, false);
+	extent_record(tsdn, arena, ehooks, ecache, edata, false);
 }
 
 edata_t *
-extents_evict(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks, eset_t *eset,
+extents_evict(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks, ecache_t *ecache,
     size_t npages_min) {
 	rtree_ctx_t rtree_ctx_fallback;
 	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
 
-	malloc_mutex_lock(tsdn, &eset->mtx);
+	malloc_mutex_lock(tsdn, &ecache->mtx);
 
 	/*
 	 * Get the LRU coalesced extent, if any.  If coalescing was delayed,
@@ -224,24 +224,23 @@ extents_evict(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks, eset_t *eset,
 	edata_t *edata;
 	while (true) {
 		/* Get the LRU extent, if any. */
-		edata = edata_list_first(&eset->lru);
+		edata = edata_list_first(&ecache->eset.lru);
 		if (edata == NULL) {
 			goto label_return;
 		}
 		/* Check the eviction limit. */
-		size_t extents_npages = atomic_load_zu(&eset->npages,
-		    ATOMIC_RELAXED);
+		size_t extents_npages = ecache_npages_get(ecache);
 		if (extents_npages <= npages_min) {
 			edata = NULL;
 			goto label_return;
 		}
-		eset_remove_locked(tsdn, eset, edata);
-		if (!eset->delay_coalesce) {
+		eset_remove(&ecache->eset, edata);
+		if (!ecache->eset.delay_coalesce) {
 			break;
 		}
 		/* Try to coalesce. */
 		if (extent_try_delayed_coalesce(tsdn, arena, ehooks, rtree_ctx,
-		    eset, edata)) {
+		    ecache, edata)) {
 			break;
 		}
 		/*
@@ -254,7 +253,7 @@ extents_evict(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks, eset_t *eset,
 	 * Either mark the extent active or deregister it to protect against
 	 * concurrent operations.
 	 */
-	switch (eset_state_get(eset)) {
+	switch (eset_state_get(&ecache->eset)) {
 	case extent_state_active:
 		not_reached();
 	case extent_state_dirty:
@@ -269,7 +268,7 @@ extents_evict(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks, eset_t *eset,
 	}
 
 label_return:
-	malloc_mutex_unlock(tsdn, &eset->mtx);
+	malloc_mutex_unlock(tsdn, &ecache->mtx);
 	return edata;
 }
 
@@ -278,8 +277,8 @@ label_return:
  * indicates OOM), e.g. when trying to split an existing extent.
  */
 static void
-extents_abandon_vm(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks, eset_t *eset,
-    edata_t *edata, bool growing_retained) {
+extents_abandon_vm(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
+    ecache_t *ecache, edata_t *edata, bool growing_retained) {
 	size_t sz = edata_size_get(edata);
 	if (config_stats) {
 		arena_stats_accum_zu(&arena->stats.abandoned_vm, sz);
@@ -288,7 +287,7 @@ extents_abandon_vm(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks, eset_t *eset,
 	 * Leak extent after making sure its pages have already been purged, so
 	 * that this is only a virtual memory leak.
 	 */
-	if (eset_state_get(eset) == extent_state_dirty) {
+	if (eset_state_get(&ecache->eset) == extent_state_dirty) {
 		if (extent_purge_lazy_impl(tsdn, arena, ehooks, edata, 0, sz,
 		    growing_retained)) {
 			extent_purge_forced_impl(tsdn, arena, ehooks, edata, 0,
@@ -299,30 +298,30 @@ extents_abandon_vm(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks, eset_t *eset,
 }
 
 static void
-extent_deactivate_locked(tsdn_t *tsdn, arena_t *arena, eset_t *eset,
+extent_deactivate_locked(tsdn_t *tsdn, arena_t *arena, ecache_t *ecache,
     edata_t *edata) {
 	assert(edata_arena_ind_get(edata) == arena_ind_get(arena));
 	assert(edata_state_get(edata) == extent_state_active);
 
-	edata_state_set(edata, eset_state_get(eset));
-	eset_insert_locked(tsdn, eset, edata);
+	edata_state_set(edata, eset_state_get(&ecache->eset));
+	eset_insert(&ecache->eset, edata);
 }
 
 static void
-extent_deactivate(tsdn_t *tsdn, arena_t *arena, eset_t *eset,
+extent_deactivate(tsdn_t *tsdn, arena_t *arena, ecache_t *ecache,
     edata_t *edata) {
-	malloc_mutex_lock(tsdn, &eset->mtx);
-	extent_deactivate_locked(tsdn, arena, eset, edata);
-	malloc_mutex_unlock(tsdn, &eset->mtx);
+	malloc_mutex_lock(tsdn, &ecache->mtx);
+	extent_deactivate_locked(tsdn, arena, ecache, edata);
+	malloc_mutex_unlock(tsdn, &ecache->mtx);
 }
 
 static void
-extent_activate_locked(tsdn_t *tsdn, arena_t *arena, eset_t *eset,
+extent_activate_locked(tsdn_t *tsdn, arena_t *arena, ecache_t *ecache,
     edata_t *edata) {
 	assert(edata_arena_ind_get(edata) == arena_ind_get(arena));
-	assert(edata_state_get(edata) == eset_state_get(eset));
+	assert(edata_state_get(edata) == eset_state_get(&ecache->eset));
 
-	eset_remove_locked(tsdn, eset, edata);
+	eset_remove(&ecache->eset, edata);
 	edata_state_set(edata, extent_state_active);
 }
 
@@ -515,12 +514,12 @@ extent_deregister_no_gdump_sub(tsdn_t *tsdn, edata_t *edata) {
 }
 
 /*
- * Tries to find and remove an extent from eset that can be used for the
+ * Tries to find and remove an extent from ecache that can be used for the
  * given allocation request.
  */
 static edata_t *
 extent_recycle_extract(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
-    rtree_ctx_t *rtree_ctx, eset_t *eset, void *new_addr, size_t size,
+    rtree_ctx_t *rtree_ctx, ecache_t *ecache, void *new_addr, size_t size,
     size_t pad, size_t alignment, bool slab, bool growing_retained) {
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, growing_retained ? 1 : 0);
@@ -543,7 +542,7 @@ extent_recycle_extract(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 	}
 
 	size_t esize = size + pad;
-	malloc_mutex_lock(tsdn, &eset->mtx);
+	malloc_mutex_lock(tsdn, &ecache->mtx);
 	edata_t *edata;
 	if (new_addr != NULL) {
 		edata = extent_lock_edata_from_addr(tsdn, rtree_ctx, new_addr,
@@ -557,21 +556,22 @@ extent_recycle_extract(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 			assert(edata_base_get(edata) == new_addr);
 			if (edata_arena_ind_get(edata) != arena_ind_get(arena)
 			    || edata_size_get(edata) < esize
-			    || edata_state_get(edata) != eset_state_get(eset)) {
+			    || edata_state_get(edata)
+			    != eset_state_get(&ecache->eset)) {
 				edata = NULL;
 			}
 			extent_unlock_edata(tsdn, unlock_edata);
 		}
 	} else {
-		edata = eset_fit_locked(tsdn, eset, esize, alignment);
+		edata = eset_fit(&ecache->eset, esize, alignment);
 	}
 	if (edata == NULL) {
-		malloc_mutex_unlock(tsdn, &eset->mtx);
+		malloc_mutex_unlock(tsdn, &ecache->mtx);
 		return NULL;
 	}
 
-	extent_activate_locked(tsdn, arena, eset, edata);
-	malloc_mutex_unlock(tsdn, &eset->mtx);
+	extent_activate_locked(tsdn, arena, ecache, edata);
+	malloc_mutex_unlock(tsdn, &ecache->mtx);
 
 	return edata;
 }
@@ -580,7 +580,7 @@ extent_recycle_extract(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
  * Given an allocation request and an extent guaranteed to be able to satisfy
  * it, this splits off lead and trail extents, leaving edata pointing to an
  * extent satisfying the allocation.
- * This function doesn't put lead or trail into any eset_t; it's the caller's
+ * This function doesn't put lead or trail into any ecache; it's the caller's
  * job to ensure that they can be reused.
  */
 typedef enum {
@@ -676,11 +676,11 @@ extent_split_interior(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
  * This fulfills the indicated allocation request out of the given extent (which
  * the caller should have ensured was big enough).  If there's any unused space
  * before or after the resulting allocation, that space is given its own extent
- * and put back into eset.
+ * and put back into ecache.
  */
 static edata_t *
 extent_recycle_split(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
-    rtree_ctx_t *rtree_ctx, eset_t *eset, void *new_addr, size_t size,
+    rtree_ctx_t *rtree_ctx, ecache_t *ecache, void *new_addr, size_t size,
     size_t pad, size_t alignment, bool slab, szind_t szind, edata_t *edata,
     bool growing_retained) {
 	edata_t *lead;
@@ -697,19 +697,19 @@ extent_recycle_split(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 	    && !opt_retain) {
 		/*
 		 * Split isn't supported (implies Windows w/o retain).  Avoid
-		 * leaking the eset.
+		 * leaking the extent.
 		 */
 		assert(to_leak != NULL && lead == NULL && trail == NULL);
-		extent_deactivate(tsdn, arena, eset, to_leak);
+		extent_deactivate(tsdn, arena, ecache, to_leak);
 		return NULL;
 	}
 
 	if (result == extent_split_interior_ok) {
 		if (lead != NULL) {
-			extent_deactivate(tsdn, arena, eset, lead);
+			extent_deactivate(tsdn, arena, ecache, lead);
 		}
 		if (trail != NULL) {
-			extent_deactivate(tsdn, arena, eset, trail);
+			extent_deactivate(tsdn, arena, ecache, trail);
 		}
 		return edata;
 	} else {
@@ -724,7 +724,7 @@ extent_recycle_split(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 		if (to_leak != NULL) {
 			void *leak = edata_base_get(to_leak);
 			extent_deregister_no_gdump_sub(tsdn, to_leak);
-			extents_abandon_vm(tsdn, arena, ehooks, eset, to_leak,
+			extents_abandon_vm(tsdn, arena, ehooks, ecache, to_leak,
 			    growing_retained);
 			assert(extent_lock_edata_from_addr(tsdn, rtree_ctx, leak,
 			    false) == NULL);
@@ -736,10 +736,10 @@ extent_recycle_split(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 
 /*
  * Tries to satisfy the given allocation request by reusing one of the extents
- * in the given eset_t.
+ * in the given ecache_t.
  */
 static edata_t *
-extent_recycle(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks, eset_t *eset,
+extent_recycle(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks, ecache_t *ecache,
     void *new_addr, size_t size, size_t pad, size_t alignment, bool slab,
     szind_t szind, bool *zero, bool *commit, bool growing_retained) {
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
@@ -752,13 +752,13 @@ extent_recycle(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks, eset_t *eset,
 	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
 
 	edata_t *edata = extent_recycle_extract(tsdn, arena, ehooks,
-	    rtree_ctx, eset, new_addr, size, pad, alignment, slab,
+	    rtree_ctx, ecache, new_addr, size, pad, alignment, slab,
 	    growing_retained);
 	if (edata == NULL) {
 		return NULL;
 	}
 
-	edata = extent_recycle_split(tsdn, arena, ehooks, rtree_ctx, eset,
+	edata = extent_recycle_split(tsdn, arena, ehooks, rtree_ctx, ecache,
 	    new_addr, size, pad, alignment, slab, szind, edata,
 	    growing_retained);
 	if (edata == NULL) {
@@ -768,7 +768,7 @@ extent_recycle(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks, eset_t *eset,
 	if (*commit && !edata_committed_get(edata)) {
 		if (extent_commit_impl(tsdn, arena, ehooks, edata, 0,
 		    edata_size_get(edata), growing_retained)) {
-			extent_record(tsdn, arena, ehooks, eset, edata,
+			extent_record(tsdn, arena, ehooks, ecache, edata,
 			    growing_retained);
 			return NULL;
 		}
@@ -810,7 +810,7 @@ static edata_t *
 extent_grow_retained(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
     size_t size, size_t pad, size_t alignment, bool slab, szind_t szind,
     bool *zero, bool *commit) {
-	malloc_mutex_assert_owner(tsdn, &arena->extent_grow_mtx);
+	malloc_mutex_assert_owner(tsdn, &arena->ecache_grow.mtx);
 	assert(pad == 0 || !slab);
 	assert(!*zero || !slab);
 
@@ -825,15 +825,15 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 	 * satisfy this request.
 	 */
 	pszind_t egn_skip = 0;
-	size_t alloc_size = sz_pind2sz(arena->extent_grow_next + egn_skip);
+	size_t alloc_size = sz_pind2sz(arena->ecache_grow.next + egn_skip);
 	while (alloc_size < alloc_size_min) {
 		egn_skip++;
-		if (arena->extent_grow_next + egn_skip >=
+		if (arena->ecache_grow.next + egn_skip >=
 		    sz_psz2ind(SC_LARGE_MAXCLASS)) {
 			/* Outside legal range. */
 			goto label_err;
 		}
-		alloc_size = sz_pind2sz(arena->extent_grow_next + egn_skip);
+		alloc_size = sz_pind2sz(arena->ecache_grow.next + egn_skip);
 	}
 
 	edata_t *edata = edata_cache_get(tsdn, &arena->edata_cache,
@@ -881,11 +881,11 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 	if (result == extent_split_interior_ok) {
 		if (lead != NULL) {
 			extent_record(tsdn, arena, ehooks,
-			    &arena->eset_retained, lead, true);
+			    &arena->ecache_retained, lead, true);
 		}
 		if (trail != NULL) {
 			extent_record(tsdn, arena, ehooks,
-			    &arena->eset_retained, trail, true);
+			    &arena->ecache_retained, trail, true);
 		}
 	} else {
 		/*
@@ -898,12 +898,12 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 				extent_gdump_add(tsdn, to_salvage);
 			}
 			extent_record(tsdn, arena, ehooks,
-			    &arena->eset_retained, to_salvage, true);
+			    &arena->ecache_retained, to_salvage, true);
 		}
 		if (to_leak != NULL) {
 			extent_deregister_no_gdump_sub(tsdn, to_leak);
 			extents_abandon_vm(tsdn, arena, ehooks,
-			    &arena->eset_retained, to_leak, true);
+			    &arena->ecache_retained, to_leak, true);
 		}
 		goto label_err;
 	}
@@ -912,7 +912,7 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 		if (extent_commit_impl(tsdn, arena, ehooks, edata, 0,
 		    edata_size_get(edata), true)) {
 			extent_record(tsdn, arena, ehooks,
-			    &arena->eset_retained, edata, true);
+			    &arena->ecache_retained, edata, true);
 			goto label_err;
 		}
 		/* A successful commit should return zeroed memory. */
@@ -930,14 +930,14 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 	 * Increment extent_grow_next if doing so wouldn't exceed the allowed
 	 * range.
 	 */
-	if (arena->extent_grow_next + egn_skip + 1 <=
-	    arena->retain_grow_limit) {
-		arena->extent_grow_next += egn_skip + 1;
+	if (arena->ecache_grow.next + egn_skip + 1 <=
+	    arena->ecache_grow.limit) {
+		arena->ecache_grow.next += egn_skip + 1;
 	} else {
-		arena->extent_grow_next = arena->retain_grow_limit;
+		arena->ecache_grow.next = arena->ecache_grow.limit;
 	}
 	/* All opportunities for failure are past. */
-	malloc_mutex_unlock(tsdn, &arena->extent_grow_mtx);
+	malloc_mutex_unlock(tsdn, &arena->ecache_grow.mtx);
 
 	if (config_prof) {
 		/* Adjust gdump stats now that extent is final size. */
@@ -962,7 +962,7 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 
 	return edata;
 label_err:
-	malloc_mutex_unlock(tsdn, &arena->extent_grow_mtx);
+	malloc_mutex_unlock(tsdn, &arena->ecache_grow.mtx);
 	return NULL;
 }
 
@@ -973,13 +973,13 @@ extent_alloc_retained(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 	assert(size != 0);
 	assert(alignment != 0);
 
-	malloc_mutex_lock(tsdn, &arena->extent_grow_mtx);
+	malloc_mutex_lock(tsdn, &arena->ecache_grow.mtx);
 
 	edata_t *edata = extent_recycle(tsdn, arena, ehooks,
-	    &arena->eset_retained, new_addr, size, pad, alignment, slab,
+	    &arena->ecache_retained, new_addr, size, pad, alignment, slab,
 	    szind, zero, commit, true);
 	if (edata != NULL) {
-		malloc_mutex_unlock(tsdn, &arena->extent_grow_mtx);
+		malloc_mutex_unlock(tsdn, &arena->ecache_grow.mtx);
 		if (config_prof) {
 			extent_gdump_add(tsdn, edata);
 		}
@@ -988,9 +988,9 @@ extent_alloc_retained(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 		    alignment, slab, szind, zero, commit);
 		/* extent_grow_retained() always releases extent_grow_mtx. */
 	} else {
-		malloc_mutex_unlock(tsdn, &arena->extent_grow_mtx);
+		malloc_mutex_unlock(tsdn, &arena->ecache_grow.mtx);
 	}
-	malloc_mutex_assert_not_owner(tsdn, &arena->extent_grow_mtx);
+	malloc_mutex_assert_not_owner(tsdn, &arena->ecache_grow.mtx);
 
 	return edata;
 }
@@ -1054,7 +1054,7 @@ extent_alloc_wrapper(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 }
 
 static bool
-extent_can_coalesce(arena_t *arena, eset_t *eset, const edata_t *inner,
+extent_can_coalesce(arena_t *arena, ecache_t *ecache, const edata_t *inner,
     const edata_t *outer) {
 	assert(edata_arena_ind_get(inner) == arena_ind_get(arena));
 	if (edata_arena_ind_get(outer) != arena_ind_get(arena)) {
@@ -1062,7 +1062,7 @@ extent_can_coalesce(arena_t *arena, eset_t *eset, const edata_t *inner,
 	}
 
 	assert(edata_state_get(inner) == extent_state_active);
-	if (edata_state_get(outer) != eset->state) {
+	if (edata_state_get(outer) != ecache->eset.state) {
 		return false;
 	}
 
@@ -1074,19 +1074,20 @@ extent_can_coalesce(arena_t *arena, eset_t *eset, const edata_t *inner,
 }
 
 static bool
-extent_coalesce(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks, eset_t *eset,
-    edata_t *inner, edata_t *outer, bool forward, bool growing_retained) {
-	assert(extent_can_coalesce(arena, eset, inner, outer));
+extent_coalesce(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
+    ecache_t *ecache, edata_t *inner, edata_t *outer, bool forward,
+    bool growing_retained) {
+	assert(extent_can_coalesce(arena, ecache, inner, outer));
 
-	extent_activate_locked(tsdn, arena, eset, outer);
+	extent_activate_locked(tsdn, arena, ecache, outer);
 
-	malloc_mutex_unlock(tsdn, &eset->mtx);
+	malloc_mutex_unlock(tsdn, &ecache->mtx);
 	bool err = extent_merge_impl(tsdn, arena, ehooks,
 	    forward ? inner : outer, forward ? outer : inner, growing_retained);
-	malloc_mutex_lock(tsdn, &eset->mtx);
+	malloc_mutex_lock(tsdn, &ecache->mtx);
 
 	if (err) {
-		extent_deactivate_locked(tsdn, arena, eset, outer);
+		extent_deactivate_locked(tsdn, arena, ecache, outer);
 	}
 
 	return err;
@@ -1094,7 +1095,7 @@ extent_coalesce(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks, eset_t *eset,
 
 static edata_t *
 extent_try_coalesce_impl(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
-    rtree_ctx_t *rtree_ctx, eset_t *eset, edata_t *edata, bool *coalesced,
+    rtree_ctx_t *rtree_ctx, ecache_t *ecache, edata_t *edata, bool *coalesced,
     bool growing_retained, bool inactive_only) {
 	/*
 	 * We avoid checking / locking inactive neighbors for large size
@@ -1114,19 +1115,19 @@ extent_try_coalesce_impl(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 		    edata_past_get(edata), inactive_only);
 		if (next != NULL) {
 			/*
-			 * eset->mtx only protects against races for
-			 * like-state eset, so call extent_can_coalesce()
+			 * ecache->mtx only protects against races for
+			 * like-state extents, so call extent_can_coalesce()
 			 * before releasing next's pool lock.
 			 */
-			bool can_coalesce = extent_can_coalesce(arena, eset,
+			bool can_coalesce = extent_can_coalesce(arena, ecache,
 			    edata, next);
 
 			extent_unlock_edata(tsdn, next);
 
 			if (can_coalesce && !extent_coalesce(tsdn, arena,
-			    ehooks, eset, edata, next, true,
+			    ehooks, ecache, edata, next, true,
 			    growing_retained)) {
-				if (eset->delay_coalesce) {
+				if (ecache->eset.delay_coalesce) {
 					/* Do minimal coalescing. */
 					*coalesced = true;
 					return edata;
@@ -1139,15 +1140,15 @@ extent_try_coalesce_impl(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 		edata_t *prev = extent_lock_edata_from_addr(tsdn, rtree_ctx,
 		    edata_before_get(edata), inactive_only);
 		if (prev != NULL) {
-			bool can_coalesce = extent_can_coalesce(arena, eset,
+			bool can_coalesce = extent_can_coalesce(arena, ecache,
 			    edata, prev);
 			extent_unlock_edata(tsdn, prev);
 
 			if (can_coalesce && !extent_coalesce(tsdn, arena,
-			    ehooks, eset, edata, prev, false,
+			    ehooks, ecache, edata, prev, false,
 			    growing_retained)) {
 				edata = prev;
-				if (eset->delay_coalesce) {
+				if (ecache->eset.delay_coalesce) {
 					/* Do minimal coalescing. */
 					*coalesced = true;
 					return edata;
@@ -1157,7 +1158,7 @@ extent_try_coalesce_impl(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 		}
 	} while (again);
 
-	if (eset->delay_coalesce) {
+	if (ecache->eset.delay_coalesce) {
 		*coalesced = false;
 	}
 	return edata;
@@ -1165,35 +1166,35 @@ extent_try_coalesce_impl(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 
 static edata_t *
 extent_try_coalesce(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
-    rtree_ctx_t *rtree_ctx, eset_t *eset, edata_t *edata, bool *coalesced,
+    rtree_ctx_t *rtree_ctx, ecache_t *ecache, edata_t *edata, bool *coalesced,
     bool growing_retained) {
-	return extent_try_coalesce_impl(tsdn, arena, ehooks, rtree_ctx, eset,
+	return extent_try_coalesce_impl(tsdn, arena, ehooks, rtree_ctx, ecache,
 	    edata, coalesced, growing_retained, false);
 }
 
 static edata_t *
 extent_try_coalesce_large(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
-    rtree_ctx_t *rtree_ctx, eset_t *eset, edata_t *edata, bool *coalesced,
+    rtree_ctx_t *rtree_ctx, ecache_t *ecache, edata_t *edata, bool *coalesced,
     bool growing_retained) {
-	return extent_try_coalesce_impl(tsdn, arena, ehooks, rtree_ctx, eset,
+	return extent_try_coalesce_impl(tsdn, arena, ehooks, rtree_ctx, ecache,
 	    edata, coalesced, growing_retained, true);
 }
 
 /*
  * Does the metadata management portions of putting an unused extent into the
- * given eset_t (coalesces, deregisters slab interiors, the heap operations).
+ * given ecache_t (coalesces, deregisters slab interiors, the heap operations).
  */
 static void
-extent_record(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks, eset_t *eset,
+extent_record(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks, ecache_t *ecache,
     edata_t *edata, bool growing_retained) {
 	rtree_ctx_t rtree_ctx_fallback;
 	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
 
-	assert((eset_state_get(eset) != extent_state_dirty &&
-	    eset_state_get(eset) != extent_state_muzzy) ||
+	assert((eset_state_get(&ecache->eset) != extent_state_dirty &&
+	    eset_state_get(&ecache->eset) != extent_state_muzzy) ||
 	    !edata_zeroed_get(edata));
 
-	malloc_mutex_lock(tsdn, &eset->mtx);
+	malloc_mutex_lock(tsdn, &ecache->mtx);
 
 	edata_szind_set(edata, SC_NSIZES);
 	if (edata_slab_get(edata)) {
@@ -1204,29 +1205,29 @@ extent_record(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks, eset_t *eset,
 	assert(rtree_edata_read(tsdn, &extents_rtree, rtree_ctx,
 	    (uintptr_t)edata_base_get(edata), true) == edata);
 
-	if (!eset->delay_coalesce) {
+	if (!ecache->eset.delay_coalesce) {
 		edata = extent_try_coalesce(tsdn, arena, ehooks, rtree_ctx,
-		    eset, edata, NULL, growing_retained);
+		    ecache, edata, NULL, growing_retained);
 	} else if (edata_size_get(edata) >= SC_LARGE_MINCLASS) {
-		assert(eset == &arena->eset_dirty);
-		/* Always coalesce large eset eagerly. */
+		assert(ecache == &arena->ecache_dirty);
+		/* Always coalesce large extents eagerly. */
 		bool coalesced;
 		do {
 			assert(edata_state_get(edata) == extent_state_active);
 			edata = extent_try_coalesce_large(tsdn, arena, ehooks,
-			    rtree_ctx, eset, edata, &coalesced,
+			    rtree_ctx, ecache, edata, &coalesced,
 			    growing_retained);
 		} while (coalesced);
 		if (edata_size_get(edata) >= oversize_threshold) {
 			/* Shortcut to purge the oversize extent eagerly. */
-			malloc_mutex_unlock(tsdn, &eset->mtx);
+			malloc_mutex_unlock(tsdn, &ecache->mtx);
 			arena_decay_extent(tsdn, arena, ehooks, edata);
 			return;
 		}
 	}
-	extent_deactivate_locked(tsdn, arena, eset, edata);
+	extent_deactivate_locked(tsdn, arena, ecache, edata);
 
-	malloc_mutex_unlock(tsdn, &eset->mtx);
+	malloc_mutex_unlock(tsdn, &ecache->mtx);
 }
 
 void
@@ -1312,7 +1313,8 @@ extent_dalloc_wrapper(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 		extent_gdump_sub(tsdn, edata);
 	}
 
-	extent_record(tsdn, arena, ehooks, &arena->eset_retained, edata, false);
+	extent_record(tsdn, arena, ehooks, &arena->ecache_retained, edata,
+	    false);
 }
 
 void
