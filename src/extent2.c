@@ -1060,10 +1060,9 @@ extent_alloc_wrapper(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 }
 
 static bool
-extent_can_coalesce(arena_t *arena, ecache_t *ecache, const edata_t *inner,
+extent_can_coalesce(ecache_t *ecache, const edata_t *inner,
     const edata_t *outer) {
-	assert(edata_arena_ind_get(inner) == arena_ind_get(arena));
-	if (edata_arena_ind_get(outer) != arena_ind_get(arena)) {
+	if (edata_arena_ind_get(inner) != edata_arena_ind_get(outer)) {
 		return false;
 	}
 
@@ -1083,7 +1082,7 @@ static bool
 extent_coalesce(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
     ecache_t *ecache, edata_t *inner, edata_t *outer, bool forward,
     bool growing_retained) {
-	assert(extent_can_coalesce(arena, ecache, inner, outer));
+	assert(extent_can_coalesce(ecache, inner, outer));
 
 	extent_activate_locked(tsdn, arena, ecache, outer);
 
@@ -1125,7 +1124,7 @@ extent_try_coalesce_impl(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 			 * like-state extents, so call extent_can_coalesce()
 			 * before releasing next's pool lock.
 			 */
-			bool can_coalesce = extent_can_coalesce(arena, ecache,
+			bool can_coalesce = extent_can_coalesce(ecache,
 			    edata, next);
 
 			extent_unlock_edata(tsdn, next);
@@ -1146,8 +1145,8 @@ extent_try_coalesce_impl(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 		edata_t *prev = extent_lock_edata_from_addr(tsdn, rtree_ctx,
 		    edata_before_get(edata), inactive_only);
 		if (prev != NULL) {
-			bool can_coalesce = extent_can_coalesce(arena, ecache,
-			    edata, prev);
+			bool can_coalesce = extent_can_coalesce(ecache, edata,
+			    prev);
 			extent_unlock_edata(tsdn, prev);
 
 			if (can_coalesce && !extent_coalesce(tsdn, arena,
