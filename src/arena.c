@@ -857,7 +857,7 @@ arena_decay_stashed(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 		size_t npages = edata_size_get(edata) >> LG_PAGE;
 		npurged += npages;
 		edata_list_remove(decay_extents, edata);
-		switch (eset_state_get(&ecache->eset)) {
+		switch (ecache->state) {
 		case extent_state_active:
 			not_reached();
 		case extent_state_dirty:

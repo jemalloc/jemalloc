@@ -8,6 +8,7 @@ ecache_init(tsdn_t *tsdn, ecache_t *ecache, extent_state_t state,
 	    malloc_mutex_rank_exclusive)) {
 		return true;
 	}
+	ecache->state = state;
 	ecache->delay_coalesce = delay_coalesce;
 	eset_init(&ecache->eset, state);
 	return false;
