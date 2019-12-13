@@ -32,15 +32,9 @@ struct eset_s {
 
 	/* All stored extents must be in the same state. */
 	extent_state_t state;
-
-	/*
-	 * If true, delay coalescing until eviction; otherwise coalesce during
-	 * deallocation.
-	 */
-	bool delay_coalesce;
 };
 
-void eset_init(eset_t *eset, extent_state_t state, bool delay_coalesce);
+void eset_init(eset_t *eset, extent_state_t state);
 extent_state_t eset_state_get(const eset_t *eset);
 
 size_t eset_npages_get(eset_t *eset);
@@ -55,6 +49,7 @@ void eset_remove(eset_t *eset, edata_t *edata);
  * Select an extent from this eset of the given size and alignment.  Returns
  * null if no such item could be found.
  */
-edata_t *eset_fit(eset_t *eset, size_t esize, size_t alignment);
+edata_t *eset_fit(eset_t *eset, size_t esize, size_t alignment,
+    bool delay_coalesce);
 
 #endif /* JEMALLOC_INTERNAL_ESET_H */

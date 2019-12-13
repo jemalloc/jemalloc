@@ -235,7 +235,7 @@ extents_evict(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks, ecache_t *ecache,
 			goto label_return;
 		}
 		eset_remove(&ecache->eset, edata);
-		if (!ecache->eset.delay_coalesce) {
+		if (!ecache->delay_coalesce) {
 			break;
 		}
 		/* Try to coalesce. */
@@ -563,7 +563,8 @@ extent_recycle_extract(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 			extent_unlock_edata(tsdn, unlock_edata);
 		}
 	} else {
-		edata = eset_fit(&ecache->eset, esize, alignment);
+		edata = eset_fit(&ecache->eset, esize, alignment,
+		    ecache->delay_coalesce);
 	}
 	if (edata == NULL) {
 		malloc_mutex_unlock(tsdn, &ecache->mtx);
@@ -1127,7 +1128,7 @@ extent_try_coalesce_impl(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 			if (can_coalesce && !extent_coalesce(tsdn, arena,
 			    ehooks, ecache, edata, next, true,
 			    growing_retained)) {
-				if (ecache->eset.delay_coalesce) {
+				if (ecache->delay_coalesce) {
 					/* Do minimal coalescing. */
 					*coalesced = true;
 					return edata;
@@ -1148,7 +1149,7 @@ extent_try_coalesce_impl(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 			    ehooks, ecache, edata, prev, false,
 			    growing_retained)) {
 				edata = prev;
-				if (ecache->eset.delay_coalesce) {
+				if (ecache->delay_coalesce) {
 					/* Do minimal coalescing. */
 					*coalesced = true;
 					return edata;
@@ -1158,7 +1159,7 @@ extent_try_coalesce_impl(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 		}
 	} while (again);
 
-	if (ecache->eset.delay_coalesce) {
+	if (ecache->delay_coalesce) {
 		*coalesced = false;
 	}
 	return edata;
@@ -1205,7 +1206,7 @@ extent_record(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks, ecache_t *ecache,
 	assert(rtree_edata_read(tsdn, &extents_rtree, rtree_ctx,
 	    (uintptr_t)edata_base_get(edata), true) == edata);
 
-	if (!ecache->eset.delay_coalesce) {
+	if (!ecache->delay_coalesce) {
 		edata = extent_try_coalesce(tsdn, arena, ehooks, rtree_ctx,
 		    ecache, edata, NULL, growing_retained);
 	} else if (edata_size_get(edata) >= SC_LARGE_MINCLASS) {
