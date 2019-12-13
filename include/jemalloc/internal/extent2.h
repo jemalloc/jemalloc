@@ -1,8 +1,8 @@
 #ifndef JEMALLOC_INTERNAL_EXTENT2_H
 #define JEMALLOC_INTERNAL_EXTENT2_H
 
+#include "jemalloc/internal/ecache.h"
 #include "jemalloc/internal/ehooks.h"
-#include "jemalloc/internal/eset.h"
 #include "jemalloc/internal/ph.h"
 #include "jemalloc/internal/rtree.h"
 
@@ -27,12 +27,12 @@ extern size_t opt_lg_extent_max_active_fit;
 extern rtree_t extents_rtree;
 
 edata_t *extents_alloc(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
-    eset_t *eset, void *new_addr, size_t size, size_t pad, size_t alignment,
+    ecache_t *ecache, void *new_addr, size_t size, size_t pad, size_t alignment,
     bool slab, szind_t szind, bool *zero, bool *commit);
 void extents_dalloc(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
-    eset_t *eset, edata_t *edata);
+    ecache_t *ecache, edata_t *edata);
 edata_t *extents_evict(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
-    eset_t *eset, size_t npages_min);
+    ecache_t *ecache, size_t npages_min);
 edata_t *extent_alloc_wrapper(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
     void *new_addr, size_t size, size_t pad, size_t alignment, bool slab,
     szind_t szind, bool *zero, bool *commit);

@@ -8,13 +8,9 @@
 const bitmap_info_t eset_bitmap_info =
     BITMAP_INFO_INITIALIZER(SC_NPSIZES+1);
 
-bool
-eset_init(tsdn_t *tsdn, eset_t *eset, extent_state_t state,
+void
+eset_init(eset_t *eset, extent_state_t state,
     bool delay_coalesce) {
-	if (malloc_mutex_init(&eset->mtx, "extents", WITNESS_RANK_EXTENTS,
-	    malloc_mutex_rank_exclusive)) {
-		return true;
-	}
 	for (unsigned i = 0; i < SC_NPSIZES + 1; i++) {
 		edata_heap_new(&eset->heaps[i]);
 	}
@@ -23,7 +19,6 @@ eset_init(tsdn_t *tsdn, eset_t *eset, extent_state_t state,
 	atomic_store_zu(&eset->npages, 0, ATOMIC_RELAXED);
 	eset->state = state;
 	eset->delay_coalesce = delay_coalesce;
-	return false;
 }
 
 extent_state_t
@@ -63,8 +58,7 @@ eset_stats_sub(eset_t *eset, pszind_t pind, size_t sz) {
 }
 
 void
-eset_insert_locked(tsdn_t *tsdn, eset_t *eset, edata_t *edata) {
-	malloc_mutex_assert_owner(tsdn, &eset->mtx);
+eset_insert(eset_t *eset, edata_t *edata) {
 	assert(edata_state_get(edata) == eset->state);
 
 	size_t size = edata_size_get(edata);
@@ -94,8 +88,7 @@ eset_insert_locked(tsdn_t *tsdn, eset_t *eset, edata_t *edata) {
 }
 
 void
-eset_remove_locked(tsdn_t *tsdn, eset_t *eset, edata_t *edata) {
-	malloc_mutex_assert_owner(tsdn, &eset->mtx);
+eset_remove(eset_t *eset, edata_t *edata) {
 	assert(edata_state_get(edata) == eset->state);
 
 	size_t size = edata_size_get(edata);
@@ -114,8 +107,12 @@ eset_remove_locked(tsdn_t *tsdn, eset_t *eset, edata_t *edata) {
 	edata_list_remove(&eset->lru, edata);
 	size_t npages = size >> LG_PAGE;
 	/*
-	 * As in eset_insert_locked, we hold eset->mtx and so don't need atomic
+	 * As in eset_insert, we hold eset->mtx and so don't need atomic
 	 * operations for updating eset->npages.
+	 */
+	/*
+	 * This class is not thread-safe in general; we rely on external
+	 * synchronization for all mutating operations.
 	 */
 	size_t cur_extents_npages =
 	    atomic_load_zu(&eset->npages, ATOMIC_RELAXED);
@@ -166,7 +163,7 @@ eset_fit_alignment(eset_t *eset, size_t min_size, size_t max_size,
  * large enough.
  */
 static edata_t *
-eset_first_fit_locked(tsdn_t *tsdn, eset_t *eset, size_t size) {
+eset_first_fit(eset_t *eset, size_t size) {
 	edata_t *ret = NULL;
 
 	pszind_t pind = sz_psz2ind(sz_psz_quantize_ceil(size));
@@ -211,16 +208,14 @@ eset_first_fit_locked(tsdn_t *tsdn, eset_t *eset, size_t size) {
 }
 
 edata_t *
-eset_fit_locked(tsdn_t *tsdn, eset_t *eset, size_t esize, size_t alignment) {
-	malloc_mutex_assert_owner(tsdn, &eset->mtx);
-
+eset_fit(eset_t *eset, size_t esize, size_t alignment) {
 	size_t max_size = esize + PAGE_CEILING(alignment) - PAGE;
 	/* Beware size_t wrap-around. */
 	if (max_size < esize) {
 		return NULL;
 	}
 
-	edata_t *edata = eset_first_fit_locked(tsdn, eset, max_size);
+	edata_t *edata = eset_first_fit(eset, max_size);
 
 	if (alignment > PAGE && edata == NULL) {
 		/*
@@ -232,19 +227,4 @@ eset_fit_locked(tsdn_t *tsdn, eset_t *eset, size_t esize, size_t alignment) {
 	}
 
 	return edata;
-}
-
-void
-eset_prefork(tsdn_t *tsdn, eset_t *eset) {
-	malloc_mutex_prefork(tsdn, &eset->mtx);
-}
-
-void
-eset_postfork_parent(tsdn_t *tsdn, eset_t *eset) {
-	malloc_mutex_postfork_parent(tsdn, &eset->mtx);
-}
-
-void
-eset_postfork_child(tsdn_t *tsdn, eset_t *eset) {
-	malloc_mutex_postfork_child(tsdn, &eset->mtx);
 }
