@@ -10,6 +10,8 @@ struct ecache_s {
 	eset_t eset;
 	/* All stored extents must be in the same state. */
 	extent_state_t state;
+	/* The index of the ehooks the ecache is associated with. */
+	unsigned ind;
 	/*
 	 * If true, delay coalescing until eviction; otherwise coalesce during
 	 * deallocation.
@@ -52,8 +54,13 @@ ecache_nbytes_get(ecache_t *ecache, pszind_t ind) {
 	return eset_nbytes_get(&ecache->eset, ind);
 }
 
+static inline unsigned
+ecache_ind_get(ecache_t *ecache) {
+	return ecache->ind;
+}
+
 bool ecache_init(tsdn_t *tsdn, ecache_t *ecache, extent_state_t state,
-    bool delay_coalesce);
+    unsigned ind, bool delay_coalesce);
 void ecache_prefork(tsdn_t *tsdn, ecache_t *ecache);
 void ecache_postfork_parent(tsdn_t *tsdn, ecache_t *ecache);
 void ecache_postfork_child(tsdn_t *tsdn, ecache_t *ecache);

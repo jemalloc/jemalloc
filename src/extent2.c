@@ -1062,6 +1062,8 @@ extent_alloc_wrapper(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 static bool
 extent_can_coalesce(ecache_t *ecache, const edata_t *inner,
     const edata_t *outer) {
+	assert(edata_arena_ind_get(inner) == ecache_ind_get(ecache));
+
 	if (edata_arena_ind_get(inner) != edata_arena_ind_get(outer)) {
 		return false;
 	}

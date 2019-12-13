@@ -2,13 +2,14 @@
 #include "jemalloc/internal/jemalloc_internal_includes.h"
 
 bool
-ecache_init(tsdn_t *tsdn, ecache_t *ecache, extent_state_t state,
+ecache_init(tsdn_t *tsdn, ecache_t *ecache, extent_state_t state, unsigned ind,
     bool delay_coalesce) {
 	if (malloc_mutex_init(&ecache->mtx, "extents", WITNESS_RANK_EXTENTS,
 	    malloc_mutex_rank_exclusive)) {
 		return true;
 	}
 	ecache->state = state;
+	ecache->ind = ind;
 	ecache->delay_coalesce = delay_coalesce;
 	eset_init(&ecache->eset, state);
 	return false;
