@@ -2052,7 +2052,7 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 		goto label_error;
 	}
 
-	if (edata_cache_init(&arena->edata_cache)) {
+	if (edata_cache_init(&arena->edata_cache, base)) {
 		goto label_error;
 	}
 
