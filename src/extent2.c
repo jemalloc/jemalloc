@@ -869,8 +869,7 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 		alloc_size = sz_pind2sz(arena->ecache_grow.next + egn_skip);
 	}
 
-	edata_t *edata = edata_cache_get(tsdn, &arena->edata_cache,
-	    arena->base);
+	edata_t *edata = edata_cache_get(tsdn, &arena->edata_cache);
 	if (edata == NULL) {
 		goto label_err;
 	}
@@ -1036,8 +1035,7 @@ extent_alloc_wrapper(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 	    WITNESS_RANK_CORE, 0);
 
 	size_t esize = size + pad;
-	edata_t *edata = edata_cache_get(tsdn, &arena->edata_cache,
-	    arena->base);
+	edata_t *edata = edata_cache_get(tsdn, &arena->edata_cache);
 	if (edata == NULL) {
 		return NULL;
 	}
@@ -1430,8 +1428,7 @@ extent_split_impl(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 		return NULL;
 	}
 
-	edata_t *trail = edata_cache_get(tsdn, &arena->edata_cache,
-	    arena->base);
+	edata_t *trail = edata_cache_get(tsdn, &arena->edata_cache);
 	if (trail == NULL) {
 		goto label_error_a;
 	}
