@@ -52,6 +52,9 @@ static edata_t *extent_try_coalesce(tsdn_t *tsdn, arena_t *arena,
     bool *coalesced, bool growing_retained);
 static void extent_record(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
     ecache_t *ecache, edata_t *edata, bool growing_retained);
+static edata_t *extent_alloc_retained(tsdn_t *tsdn, arena_t *arena,
+    ehooks_t *ehooks, void *new_addr, size_t size, size_t pad, size_t alignment,
+    bool slab, szind_t szind, bool *zero, bool *commit);
 
 /******************************************************************************/
 
@@ -190,6 +193,35 @@ extents_alloc(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks, ecache_t *ecache,
 
 	edata_t *edata = extent_recycle(tsdn, arena, ehooks, ecache, new_addr,
 	    size, pad, alignment, slab, szind, zero, commit, false);
+	assert(edata == NULL || edata_dumpable_get(edata));
+	return edata;
+}
+
+edata_t *
+extents_alloc_grow(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
+    ecache_t *ecache, void *new_addr, size_t size, size_t pad, size_t alignment,
+    bool slab, szind_t szind, bool *zero, bool *commit) {
+	assert(size + pad != 0);
+	assert(alignment != 0);
+	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
+	    WITNESS_RANK_CORE, 0);
+
+	edata_t *edata = extent_alloc_retained(tsdn, arena, ehooks, new_addr,
+	    size, pad, alignment, slab, szind, zero, commit);
+	if (edata == NULL) {
+		if (opt_retain && new_addr != NULL) {
+			/*
+			 * When retain is enabled and new_addr is set, we do not
+			 * attempt extent_alloc_wrapper which does mmap that is
+			 * very unlikely to succeed (unless it happens to be at
+			 * the end).
+			 */
+			return NULL;
+		}
+		edata = extent_alloc_wrapper(tsdn, arena, ehooks,
+		    new_addr, size, pad, alignment, slab, szind, zero, commit);
+	}
+
 	assert(edata == NULL || edata_dumpable_get(edata));
 	return edata;
 }
@@ -996,10 +1028,13 @@ extent_alloc_retained(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 	return edata;
 }
 
-static edata_t *
-extent_alloc_wrapper_hard(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
+edata_t *
+extent_alloc_wrapper(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
     void *new_addr, size_t size, size_t pad, size_t alignment, bool slab,
     szind_t szind, bool *zero, bool *commit) {
+	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
+	    WITNESS_RANK_CORE, 0);
+
 	size_t esize = size + pad;
 	edata_t *edata = edata_cache_get(tsdn, &arena->edata_cache,
 	    arena->base);
@@ -1024,33 +1059,6 @@ extent_alloc_wrapper_hard(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 		return NULL;
 	}
 
-	return edata;
-}
-
-edata_t *
-extent_alloc_wrapper(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
-    void *new_addr, size_t size, size_t pad, size_t alignment, bool slab,
-    szind_t szind, bool *zero, bool *commit) {
-	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
-	    WITNESS_RANK_CORE, 0);
-
-	edata_t *edata = extent_alloc_retained(tsdn, arena, ehooks, new_addr,
-	    size, pad, alignment, slab, szind, zero, commit);
-	if (edata == NULL) {
-		if (opt_retain && new_addr != NULL) {
-			/*
-			 * When retain is enabled and new_addr is set, we do not
-			 * attempt extent_alloc_wrapper_hard which does mmap
-			 * that is very unlikely to succeed (unless it happens
-			 * to be at the end).
-			 */
-			return NULL;
-		}
-		edata = extent_alloc_wrapper_hard(tsdn, arena, ehooks,
-		    new_addr, size, pad, alignment, slab, szind, zero, commit);
-	}
-
-	assert(edata == NULL || edata_dumpable_get(edata));
 	return edata;
 }
 

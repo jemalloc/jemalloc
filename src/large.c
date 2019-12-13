@@ -159,9 +159,10 @@ large_ralloc_no_move_expand(tsdn_t *tsdn, edata_t *edata, size_t usize,
 			new_mapping = false;
 		}
 	} else {
-		if ((trail = extent_alloc_wrapper(tsdn, arena, ehooks,
-		    edata_past_get(edata), trailsize, 0, CACHELINE, false,
-		    SC_NSIZES, &is_zeroed_trail, &commit)) == NULL) {
+		if ((trail = extents_alloc_grow(tsdn, arena, ehooks,
+		    &arena->ecache_retained, edata_past_get(edata), trailsize,
+		    0, CACHELINE, false, SC_NSIZES, &is_zeroed_trail, &commit))
+			== NULL) {
 			return true;
 		}
 		if (config_stats) {
