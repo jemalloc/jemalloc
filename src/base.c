@@ -44,7 +44,7 @@ base_map(tsdn_t *tsdn, ehooks_t *ehooks, unsigned ind, size_t size) {
 		}
 	} else {
 		addr = ehooks_alloc(tsdn, ehooks, NULL, size, alignment, &zero,
-		    &commit, ind);
+		    &commit);
 	}
 
 	return addr;
@@ -79,18 +79,16 @@ base_unmap(tsdn_t *tsdn, ehooks_t *ehooks, unsigned ind, void *addr,
 		/* Nothing worked.  This should never happen. */
 		not_reached();
 	} else {
-		if (!ehooks_dalloc(tsdn, ehooks, addr, size, true, ind)) {
+		if (!ehooks_dalloc(tsdn, ehooks, addr, size, true)) {
 			goto label_done;
 		}
-		if (!ehooks_decommit(tsdn, ehooks, addr, size, 0, size, ind)) {
+		if (!ehooks_decommit(tsdn, ehooks, addr, size, 0, size)) {
 			goto label_done;
 		}
-		if (!ehooks_purge_forced(tsdn, ehooks, addr, size, 0, size,
-		    ind)) {
+		if (!ehooks_purge_forced(tsdn, ehooks, addr, size, 0, size)) {
 			goto label_done;
 		}
-		if (!ehooks_purge_lazy(tsdn, ehooks, addr, size, 0, size,
-		    ind)) {
+		if (!ehooks_purge_lazy(tsdn, ehooks, addr, size, 0, size)) {
 			goto label_done;
 		}
 		/* Nothing worked.  That's the application's problem. */
