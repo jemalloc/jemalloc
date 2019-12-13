@@ -444,8 +444,9 @@ arena_extent_alloc_large(tsdn_t *tsdn, arena_t *arena, size_t usize,
 	}
 	size_t size = usize + sz_large_pad;
 	if (edata == NULL) {
-		edata = extent_alloc_wrapper(tsdn, arena, ehooks, NULL, usize,
-		    sz_large_pad, alignment, false, szind, zero, &commit);
+		edata = extents_alloc_grow(tsdn, arena, ehooks,
+		    &arena->ecache_retained, NULL, usize, sz_large_pad,
+		    alignment, false, szind, zero, &commit);
 		if (config_stats) {
 			/*
 			 * edata may be NULL on OOM, but in that case mapped_add
@@ -1210,8 +1211,8 @@ arena_slab_alloc_hard(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 
 	zero = false;
 	commit = true;
-	slab = extent_alloc_wrapper(tsdn, arena, ehooks, NULL,
-	    bin_info->slab_size, 0, PAGE, true, szind, &zero, &commit);
+	slab = extents_alloc_grow(tsdn, arena, ehooks, &arena->ecache_retained,
+	    NULL, bin_info->slab_size, 0, PAGE, true, szind, &zero, &commit);
 
 	if (config_stats && slab != NULL) {
 		arena_stats_mapped_add(tsdn, &arena->stats,
