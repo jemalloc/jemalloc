@@ -3,7 +3,7 @@
 
 static inline unsigned
 base_ind_get(const base_t *base) {
-	return base->ind;
+	return ehooks_ind_get(&base->ehooks);
 }
 
 static inline bool

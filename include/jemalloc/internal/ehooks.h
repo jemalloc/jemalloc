@@ -20,6 +20,12 @@ extern const extent_hooks_t ehooks_default_extent_hooks;
 
 typedef struct ehooks_s ehooks_t;
 struct ehooks_s {
+	/*
+	 * The user-visible id that goes with the ehooks (i.e. that of the base
+	 * they're a part of, the associated arena's index within the arenas
+	 * array).
+	 */
+	unsigned ind;
 	/* Logically an extent_hooks_t *. */
 	atomic_p_t ptr;
 };
@@ -80,7 +86,12 @@ ehooks_post_reentrancy(tsdn_t *tsdn) {
 }
 
 /* Beginning of the public API. */
-void ehooks_init(ehooks_t *ehooks, extent_hooks_t *extent_hooks);
+void ehooks_init(ehooks_t *ehooks, extent_hooks_t *extent_hooks, unsigned ind);
+
+static inline unsigned
+ehooks_ind_get(const ehooks_t *ehooks) {
+	return ehooks->ind;
+}
 
 static inline void
 ehooks_set_extent_hooks_ptr(ehooks_t *ehooks, extent_hooks_t *extent_hooks) {
