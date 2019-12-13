@@ -104,7 +104,7 @@ large_ralloc_no_move_shrink(tsdn_t *tsdn, edata_t *edata, size_t usize) {
 
 	/* Split excess pages. */
 	if (diff != 0) {
-		edata_t *trail = extent_split_wrapper(tsdn, arena,
+		edata_t *trail = extent_split_wrapper(tsdn, &arena->edata_cache,
 		    ehooks, edata, usize + sz_large_pad, sz_size2index(usize),
 		    false, diff, SC_NSIZES, false);
 		if (trail == NULL) {

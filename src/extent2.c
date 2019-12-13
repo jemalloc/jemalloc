@@ -26,7 +26,7 @@ static bool extent_purge_lazy_impl(tsdn_t *tsdn, arena_t *arena,
 static bool extent_purge_forced_impl(tsdn_t *tsdn, arena_t *arena,
     ehooks_t *ehooks, edata_t *edata, size_t offset, size_t length,
     bool growing_retained);
-static edata_t *extent_split_impl(tsdn_t *tsdn, arena_t *arena,
+static edata_t *extent_split_impl(tsdn_t *tsdn, edata_cache_t *edata_cache,
     ehooks_t *ehooks, edata_t *edata, size_t size_a, szind_t szind_a,
     bool slab_a, size_t size_b, szind_t szind_b, bool slab_b,
     bool growing_retained);
@@ -659,9 +659,9 @@ extent_split_interior(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 	/* Split the lead. */
 	if (leadsize != 0) {
 		*lead = *edata;
-		*edata = extent_split_impl(tsdn, arena, ehooks, *lead,
-		    leadsize, SC_NSIZES, false, esize + trailsize, szind, slab,
-		    growing_retained);
+		*edata = extent_split_impl(tsdn, &arena->edata_cache, ehooks,
+		    *lead, leadsize, SC_NSIZES, false, esize + trailsize, szind,
+		    slab, growing_retained);
 		if (*edata == NULL) {
 			*to_leak = *lead;
 			*lead = NULL;
@@ -671,8 +671,9 @@ extent_split_interior(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 
 	/* Split the trail. */
 	if (trailsize != 0) {
-		*trail = extent_split_impl(tsdn, arena, ehooks, *edata, esize,
-		    szind, slab, trailsize, SC_NSIZES, false, growing_retained);
+		*trail = extent_split_impl(tsdn, &arena->edata_cache, ehooks,
+		    *edata, esize, szind, slab, trailsize, SC_NSIZES, false,
+		    growing_retained);
 		if (*trail == NULL) {
 			*to_leak = *edata;
 			*to_salvage = *lead;
@@ -1410,7 +1411,7 @@ extent_purge_forced_wrapper(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
  * and returns the trail (except in case of error).
  */
 static edata_t *
-extent_split_impl(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
+extent_split_impl(tsdn_t *tsdn, edata_cache_t *edata_cache, ehooks_t *ehooks,
     edata_t *edata, size_t size_a, szind_t szind_a, bool slab_a,
     size_t size_b, szind_t szind_b, bool slab_b, bool growing_retained) {
 	assert(edata_size_get(edata) == size_a + size_b);
@@ -1421,12 +1422,12 @@ extent_split_impl(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 		return NULL;
 	}
 
-	edata_t *trail = edata_cache_get(tsdn, &arena->edata_cache);
+	edata_t *trail = edata_cache_get(tsdn, edata_cache);
 	if (trail == NULL) {
 		goto label_error_a;
 	}
 
-	edata_init(trail, arena_ind_get(arena),
+	edata_init(trail, ehooks_ind_get(ehooks),
 	    (void *)((uintptr_t)edata_base_get(edata) + size_a), size_b,
 	    slab_b, szind_b, edata_sn_get(edata), edata_state_get(edata),
 	    edata_zeroed_get(edata), edata_committed_get(edata),
@@ -1438,7 +1439,7 @@ extent_split_impl(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 	{
 		edata_t lead;
 
-		edata_init(&lead, arena_ind_get(arena),
+		edata_init(&lead, ehooks_ind_get(ehooks),
 		    edata_addr_get(edata), size_a,
 		    slab_a, szind_a, edata_sn_get(edata),
 		    edata_state_get(edata), edata_zeroed_get(edata),
@@ -1480,17 +1481,17 @@ extent_split_impl(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 label_error_c:
 	extent_unlock_edata2(tsdn, edata, trail);
 label_error_b:
-	edata_cache_put(tsdn, &arena->edata_cache, trail);
+	edata_cache_put(tsdn, edata_cache, trail);
 label_error_a:
 	return NULL;
 }
 
 edata_t *
-extent_split_wrapper(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
+extent_split_wrapper(tsdn_t *tsdn, edata_cache_t *edata_cache, ehooks_t *ehooks,
     edata_t *edata, size_t size_a, szind_t szind_a, bool slab_a,
     size_t size_b, szind_t szind_b, bool slab_b) {
-	return extent_split_impl(tsdn, arena, ehooks, edata, size_a, szind_a,
-	    slab_a, size_b, szind_b, slab_b, false);
+	return extent_split_impl(tsdn, edata_cache, ehooks, edata, size_a,
+	    szind_a, slab_a, size_b, szind_b, slab_b, false);
 }
 
 static bool
