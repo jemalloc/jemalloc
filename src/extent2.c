@@ -170,7 +170,7 @@ extent_try_delayed_coalesce(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 	bool coalesced;
 	edata = extent_try_coalesce(tsdn, arena, ehooks, rtree_ctx, ecache,
 	    edata, &coalesced, false);
-	edata_state_set(edata, eset_state_get(&ecache->eset));
+	edata_state_set(edata, ecache->state);
 
 	if (!coalesced) {
 		return true;
@@ -253,7 +253,7 @@ extents_evict(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks, ecache_t *ecache,
 	 * Either mark the extent active or deregister it to protect against
 	 * concurrent operations.
 	 */
-	switch (eset_state_get(&ecache->eset)) {
+	switch (ecache->state) {
 	case extent_state_active:
 		not_reached();
 	case extent_state_dirty:
@@ -287,7 +287,7 @@ extents_abandon_vm(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 	 * Leak extent after making sure its pages have already been purged, so
 	 * that this is only a virtual memory leak.
 	 */
-	if (eset_state_get(&ecache->eset) == extent_state_dirty) {
+	if (ecache->state == extent_state_dirty) {
 		if (extent_purge_lazy_impl(tsdn, arena, ehooks, edata, 0, sz,
 		    growing_retained)) {
 			extent_purge_forced_impl(tsdn, arena, ehooks, edata, 0,
@@ -303,7 +303,7 @@ extent_deactivate_locked(tsdn_t *tsdn, arena_t *arena, ecache_t *ecache,
 	assert(edata_arena_ind_get(edata) == arena_ind_get(arena));
 	assert(edata_state_get(edata) == extent_state_active);
 
-	edata_state_set(edata, eset_state_get(&ecache->eset));
+	edata_state_set(edata, ecache->state);
 	eset_insert(&ecache->eset, edata);
 }
 
@@ -319,7 +319,7 @@ static void
 extent_activate_locked(tsdn_t *tsdn, arena_t *arena, ecache_t *ecache,
     edata_t *edata) {
 	assert(edata_arena_ind_get(edata) == arena_ind_get(arena));
-	assert(edata_state_get(edata) == eset_state_get(&ecache->eset));
+	assert(edata_state_get(edata) == ecache->state);
 
 	eset_remove(&ecache->eset, edata);
 	edata_state_set(edata, extent_state_active);
@@ -557,7 +557,7 @@ extent_recycle_extract(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 			if (edata_arena_ind_get(edata) != arena_ind_get(arena)
 			    || edata_size_get(edata) < esize
 			    || edata_state_get(edata)
-			    != eset_state_get(&ecache->eset)) {
+			    != ecache->state) {
 				edata = NULL;
 			}
 			extent_unlock_edata(tsdn, unlock_edata);
@@ -1063,7 +1063,7 @@ extent_can_coalesce(arena_t *arena, ecache_t *ecache, const edata_t *inner,
 	}
 
 	assert(edata_state_get(inner) == extent_state_active);
-	if (edata_state_get(outer) != ecache->eset.state) {
+	if (edata_state_get(outer) != ecache->state) {
 		return false;
 	}
 
@@ -1191,8 +1191,8 @@ extent_record(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks, ecache_t *ecache,
 	rtree_ctx_t rtree_ctx_fallback;
 	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
 
-	assert((eset_state_get(&ecache->eset) != extent_state_dirty &&
-	    eset_state_get(&ecache->eset) != extent_state_muzzy) ||
+	assert((ecache->state != extent_state_dirty &&
+	    ecache->state != extent_state_muzzy) ||
 	    !edata_zeroed_get(edata));
 
 	malloc_mutex_lock(tsdn, &ecache->mtx);

@@ -30,12 +30,14 @@ struct eset_s {
 	/* Page sum for all extents in heaps. */
 	atomic_zu_t npages;
 
-	/* All stored extents must be in the same state. */
+	/*
+	 * A duplication of the data in the containing ecache.  We use this only
+	 * for assertions on the states of the passed-in extents.
+	 */
 	extent_state_t state;
 };
 
 void eset_init(eset_t *eset, extent_state_t state);
-extent_state_t eset_state_get(const eset_t *eset);
 
 size_t eset_npages_get(eset_t *eset);
 /* Get the number of extents in the given page size index. */

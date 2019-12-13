@@ -8,6 +8,8 @@ typedef struct ecache_s ecache_t;
 struct ecache_s {
 	malloc_mutex_t mtx;
 	eset_t eset;
+	/* All stored extents must be in the same state. */
+	extent_state_t state;
 	/*
 	 * If true, delay coalescing until eviction; otherwise coalesce during
 	 * deallocation.

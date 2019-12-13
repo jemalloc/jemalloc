@@ -19,11 +19,6 @@ eset_init(eset_t *eset, extent_state_t state) {
 	eset->state = state;
 }
 
-extent_state_t
-eset_state_get(const eset_t *eset) {
-	return eset->state;
-}
-
 size_t
 eset_npages_get(eset_t *eset) {
 	return atomic_load_zu(&eset->npages, ATOMIC_RELAXED);
