@@ -8,6 +8,11 @@ typedef struct ecache_s ecache_t;
 struct ecache_s {
 	malloc_mutex_t mtx;
 	eset_t eset;
+	/*
+	 * If true, delay coalescing until eviction; otherwise coalesce during
+	 * deallocation.
+	 */
+	bool delay_coalesce;
 };
 
 typedef struct ecache_grow_s ecache_grow_t;

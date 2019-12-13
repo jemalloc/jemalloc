@@ -9,8 +9,7 @@ const bitmap_info_t eset_bitmap_info =
     BITMAP_INFO_INITIALIZER(SC_NPSIZES+1);
 
 void
-eset_init(eset_t *eset, extent_state_t state,
-    bool delay_coalesce) {
+eset_init(eset_t *eset, extent_state_t state) {
 	for (unsigned i = 0; i < SC_NPSIZES + 1; i++) {
 		edata_heap_new(&eset->heaps[i]);
 	}
@@ -18,7 +17,6 @@ eset_init(eset_t *eset, extent_state_t state,
 	edata_list_init(&eset->lru);
 	atomic_store_zu(&eset->npages, 0, ATOMIC_RELAXED);
 	eset->state = state;
-	eset->delay_coalesce = delay_coalesce;
 }
 
 extent_state_t
@@ -163,7 +161,7 @@ eset_fit_alignment(eset_t *eset, size_t min_size, size_t max_size,
  * large enough.
  */
 static edata_t *
-eset_first_fit(eset_t *eset, size_t size) {
+eset_first_fit(eset_t *eset, size_t size, bool delay_coalesce) {
 	edata_t *ret = NULL;
 
 	pszind_t pind = sz_psz2ind(sz_psz_quantize_ceil(size));
@@ -191,7 +189,7 @@ eset_first_fit(eset_t *eset, size_t size) {
 		 *
 		 * Only do check for dirty eset (delay_coalesce).
 		 */
-		if (eset->delay_coalesce &&
+		if (delay_coalesce &&
 		    (sz_pind2sz(i) >> opt_lg_extent_max_active_fit) > size) {
 			break;
 		}
@@ -208,14 +206,14 @@ eset_first_fit(eset_t *eset, size_t size) {
 }
 
 edata_t *
-eset_fit(eset_t *eset, size_t esize, size_t alignment) {
+eset_fit(eset_t *eset, size_t esize, size_t alignment, bool delay_coalesce) {
 	size_t max_size = esize + PAGE_CEILING(alignment) - PAGE;
 	/* Beware size_t wrap-around. */
 	if (max_size < esize) {
 		return NULL;
 	}
 
-	edata_t *edata = eset_first_fit(eset, max_size);
+	edata_t *edata = eset_first_fit(eset, max_size, delay_coalesce);
 
 	if (alignment > PAGE && edata == NULL) {
 		/*
