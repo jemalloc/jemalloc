@@ -172,17 +172,17 @@ ehooks_debug_zero_check(void *addr, size_t size) {
 
 static inline void *
 ehooks_alloc(tsdn_t *tsdn, ehooks_t *ehooks, void *new_addr, size_t size,
-    size_t alignment, bool *zero, bool *commit, unsigned arena_ind) {
+    size_t alignment, bool *zero, bool *commit) {
 	bool orig_zero = *zero;
 	void *ret;
 	extent_hooks_t *extent_hooks = ehooks_get_extent_hooks_ptr(ehooks);
 	if (extent_hooks == &ehooks_default_extent_hooks) {
 		ret = ehooks_default_alloc_impl(tsdn, new_addr, size,
-		    alignment, zero, commit, arena_ind);
+		    alignment, zero, commit, ehooks_ind_get(ehooks));
 	} else {
 		ehooks_pre_reentrancy(tsdn);
 		ret = extent_hooks->alloc(extent_hooks, new_addr, size,
-		    alignment, zero, commit, arena_ind);
+		    alignment, zero, commit, ehooks_ind_get(ehooks));
 		ehooks_post_reentrancy(tsdn);
 	}
 	assert(new_addr == NULL || ret == NULL || new_addr == ret);
@@ -195,7 +195,7 @@ ehooks_alloc(tsdn_t *tsdn, ehooks_t *ehooks, void *new_addr, size_t size,
 
 static inline bool
 ehooks_dalloc(tsdn_t *tsdn, ehooks_t *ehooks, void *addr, size_t size,
-    bool committed, unsigned arena_ind) {
+    bool committed) {
 	extent_hooks_t *extent_hooks = ehooks_get_extent_hooks_ptr(ehooks);
 	if (extent_hooks == &ehooks_default_extent_hooks) {
 		return ehooks_default_dalloc_impl(addr, size);
@@ -204,7 +204,7 @@ ehooks_dalloc(tsdn_t *tsdn, ehooks_t *ehooks, void *addr, size_t size,
 	} else {
 		ehooks_pre_reentrancy(tsdn);
 		bool err = extent_hooks->dalloc(extent_hooks, addr, size,
-		    committed, arena_ind);
+		    committed, ehooks_ind_get(ehooks));
 		ehooks_post_reentrancy(tsdn);
 		return err;
 	}
@@ -212,7 +212,7 @@ ehooks_dalloc(tsdn_t *tsdn, ehooks_t *ehooks, void *addr, size_t size,
 
 static inline void
 ehooks_destroy(tsdn_t *tsdn, ehooks_t *ehooks, void *addr, size_t size,
-    bool committed, unsigned arena_ind) {
+    bool committed) {
 	extent_hooks_t *extent_hooks = ehooks_get_extent_hooks_ptr(ehooks);
 	if (extent_hooks == &ehooks_default_extent_hooks) {
 		return ehooks_default_destroy_impl(addr, size);
@@ -221,14 +221,14 @@ ehooks_destroy(tsdn_t *tsdn, ehooks_t *ehooks, void *addr, size_t size,
 	} else {
 		ehooks_pre_reentrancy(tsdn);
 		extent_hooks->destroy(extent_hooks, addr, size, committed,
-		    arena_ind);
+		    ehooks_ind_get(ehooks));
 		ehooks_post_reentrancy(tsdn);
 	}
 }
 
 static inline bool
 ehooks_commit(tsdn_t *tsdn, ehooks_t *ehooks, void *addr, size_t size,
-    size_t offset, size_t length, unsigned arena_ind) {
+    size_t offset, size_t length) {
 	extent_hooks_t *extent_hooks = ehooks_get_extent_hooks_ptr(ehooks);
 	bool err;
 	if (extent_hooks == &ehooks_default_extent_hooks) {
@@ -238,7 +238,7 @@ ehooks_commit(tsdn_t *tsdn, ehooks_t *ehooks, void *addr, size_t size,
 	} else {
 		ehooks_pre_reentrancy(tsdn);
 		err = extent_hooks->commit(extent_hooks, addr, size,
-		    offset, length, arena_ind);
+		    offset, length, ehooks_ind_get(ehooks));
 		ehooks_post_reentrancy(tsdn);
 	}
 	if (!err) {
@@ -249,7 +249,7 @@ ehooks_commit(tsdn_t *tsdn, ehooks_t *ehooks, void *addr, size_t size,
 
 static inline bool
 ehooks_decommit(tsdn_t *tsdn, ehooks_t *ehooks, void *addr, size_t size,
-    size_t offset, size_t length, unsigned arena_ind) {
+    size_t offset, size_t length) {
 	extent_hooks_t *extent_hooks = ehooks_get_extent_hooks_ptr(ehooks);
 	if (extent_hooks == &ehooks_default_extent_hooks) {
 		return ehooks_default_decommit_impl(addr, offset, length);
@@ -258,7 +258,7 @@ ehooks_decommit(tsdn_t *tsdn, ehooks_t *ehooks, void *addr, size_t size,
 	} else {
 		ehooks_pre_reentrancy(tsdn);
 		bool err = extent_hooks->decommit(extent_hooks, addr, size,
-		    offset, length, arena_ind);
+		    offset, length, ehooks_ind_get(ehooks));
 		ehooks_post_reentrancy(tsdn);
 		return err;
 	}
@@ -266,7 +266,7 @@ ehooks_decommit(tsdn_t *tsdn, ehooks_t *ehooks, void *addr, size_t size,
 
 static inline bool
 ehooks_purge_lazy(tsdn_t *tsdn, ehooks_t *ehooks, void *addr, size_t size,
-    size_t offset, size_t length, unsigned arena_ind) {
+    size_t offset, size_t length) {
 	extent_hooks_t *extent_hooks = ehooks_get_extent_hooks_ptr(ehooks);
 #ifdef PAGES_CAN_PURGE_LAZY
 	if (extent_hooks == &ehooks_default_extent_hooks) {
@@ -278,7 +278,7 @@ ehooks_purge_lazy(tsdn_t *tsdn, ehooks_t *ehooks, void *addr, size_t size,
 	} else {
 		ehooks_pre_reentrancy(tsdn);
 		bool err = extent_hooks->purge_lazy(extent_hooks, addr, size,
-		    offset, length, arena_ind);
+		    offset, length, ehooks_ind_get(ehooks));
 		ehooks_post_reentrancy(tsdn);
 		return err;
 	}
@@ -286,7 +286,7 @@ ehooks_purge_lazy(tsdn_t *tsdn, ehooks_t *ehooks, void *addr, size_t size,
 
 static inline bool
 ehooks_purge_forced(tsdn_t *tsdn, ehooks_t *ehooks, void *addr, size_t size,
-    size_t offset, size_t length, unsigned arena_ind) {
+    size_t offset, size_t length) {
 	extent_hooks_t *extent_hooks = ehooks_get_extent_hooks_ptr(ehooks);
 	/*
 	 * It would be correct to have a ehooks_debug_zero_check call at the end
@@ -306,7 +306,7 @@ ehooks_purge_forced(tsdn_t *tsdn, ehooks_t *ehooks, void *addr, size_t size,
 	} else {
 		ehooks_pre_reentrancy(tsdn);
 		bool err = extent_hooks->purge_forced(extent_hooks, addr, size,
-		    offset, length, arena_ind);
+		    offset, length, ehooks_ind_get(ehooks));
 		ehooks_post_reentrancy(tsdn);
 		return err;
 	}
@@ -314,7 +314,7 @@ ehooks_purge_forced(tsdn_t *tsdn, ehooks_t *ehooks, void *addr, size_t size,
 
 static inline bool
 ehooks_split(tsdn_t *tsdn, ehooks_t *ehooks, void *addr, size_t size,
-    size_t size_a, size_t size_b, bool committed, unsigned arena_ind) {
+    size_t size_a, size_t size_b, bool committed) {
 	extent_hooks_t *extent_hooks = ehooks_get_extent_hooks_ptr(ehooks);
 	if (ehooks_are_default(ehooks)) {
 		return ehooks_default_split_impl();
@@ -323,7 +323,7 @@ ehooks_split(tsdn_t *tsdn, ehooks_t *ehooks, void *addr, size_t size,
 	} else {
 		ehooks_pre_reentrancy(tsdn);
 		bool err = extent_hooks->split(extent_hooks, addr, size, size_a,
-		    size_b, committed, arena_ind);
+		    size_b, committed, ehooks_ind_get(ehooks));
 		ehooks_post_reentrancy(tsdn);
 		return err;
 	}
@@ -331,8 +331,7 @@ ehooks_split(tsdn_t *tsdn, ehooks_t *ehooks, void *addr, size_t size,
 
 static inline bool
 ehooks_merge(tsdn_t *tsdn, ehooks_t *ehooks, void *addr_a, size_t size_a,
-    bool head_a, void *addr_b, size_t size_b, bool head_b, bool committed,
-    unsigned arena_ind) {
+    bool head_a, void *addr_b, size_t size_b, bool head_b, bool committed) {
 	extent_hooks_t *extent_hooks = ehooks_get_extent_hooks_ptr(ehooks);
 	if (extent_hooks == &ehooks_default_extent_hooks) {
 		return ehooks_default_merge_impl(tsdn, addr_a, head_a, addr_b,
@@ -342,15 +341,14 @@ ehooks_merge(tsdn_t *tsdn, ehooks_t *ehooks, void *addr_a, size_t size_a,
 	} else {
 		ehooks_pre_reentrancy(tsdn);
 		bool err = extent_hooks->merge(extent_hooks, addr_a, size_a,
-		    addr_b, size_b, committed, arena_ind);
+		    addr_b, size_b, committed, ehooks_ind_get(ehooks));
 		ehooks_post_reentrancy(tsdn);
 		return err;
 	}
 }
 
 static inline void
-ehooks_zero(tsdn_t *tsdn, ehooks_t *ehooks, void *addr, size_t size,
-    unsigned arena_ind) {
+ehooks_zero(tsdn_t *tsdn, ehooks_t *ehooks, void *addr, size_t size) {
 	extent_hooks_t *extent_hooks = ehooks_get_extent_hooks_ptr(ehooks);
 	if (extent_hooks == &ehooks_default_extent_hooks) {
 		ehooks_default_zero_impl(addr, size);

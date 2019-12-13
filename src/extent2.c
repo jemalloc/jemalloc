@@ -827,8 +827,7 @@ extent_recycle(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks, ecache_t *ecache,
 		void *addr = edata_base_get(edata);
 		if (!edata_zeroed_get(edata)) {
 			size_t size = edata_size_get(edata);
-			ehooks_zero(tsdn, ehooks, addr, size,
-			    arena_ind_get(arena));
+			ehooks_zero(tsdn, ehooks, addr, size);
 		}
 	}
 	return edata;
@@ -877,7 +876,7 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 	bool committed = false;
 
 	void *ptr = ehooks_alloc(tsdn, ehooks, NULL, alloc_size, PAGE, &zeroed,
-	    &committed, arena_ind_get(arena));
+	    &committed);
 
 	edata_init(edata, arena_ind_get(arena), ptr, alloc_size, false,
 	    SC_NSIZES, arena_extent_sn_next(arena), extent_state_active, zeroed,
@@ -989,7 +988,7 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 	if (*zero && !edata_zeroed_get(edata)) {
 		void *addr = edata_base_get(edata);
 		size_t size = edata_size_get(edata);
-		ehooks_zero(tsdn, ehooks, addr, size, arena_ind_get(arena));
+		ehooks_zero(tsdn, ehooks, addr, size);
 	}
 
 	return edata;
@@ -1041,7 +1040,7 @@ extent_alloc_wrapper(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 	}
 	size_t palignment = ALIGNMENT_CEILING(alignment, PAGE);
 	void *addr = ehooks_alloc(tsdn, ehooks, new_addr, esize, palignment,
-	    zero, commit, arena_ind_get(arena));
+	    zero, commit);
 	if (addr == NULL) {
 		edata_cache_put(tsdn, &arena->edata_cache, edata);
 		return NULL;
@@ -1265,8 +1264,7 @@ extent_dalloc_wrapper_try(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 
 	/* Try to deallocate. */
 	err = ehooks_dalloc(tsdn, ehooks, edata_base_get(edata),
-	    edata_size_get(edata), edata_committed_get(edata),
-	    arena_ind_get(arena));
+	    edata_size_get(edata), edata_committed_get(edata));
 
 	if (!err) {
 		edata_cache_put(tsdn, &arena->edata_cache, edata);
@@ -1303,13 +1301,11 @@ extent_dalloc_wrapper(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 	    edata_size_get(edata))) {
 		zeroed = true;
 	} else if (!ehooks_purge_forced(tsdn, ehooks, edata_base_get(edata),
-	    edata_size_get(edata), 0, edata_size_get(edata),
-	    arena_ind_get(arena))) {
+	    edata_size_get(edata), 0, edata_size_get(edata))) {
 		zeroed = true;
 	} else if (edata_state_get(edata) == extent_state_muzzy ||
 	    !ehooks_purge_lazy(tsdn, ehooks, edata_base_get(edata),
-	    edata_size_get(edata), 0, edata_size_get(edata),
-	    arena_ind_get(arena))) {
+	    edata_size_get(edata), 0, edata_size_get(edata))) {
 		zeroed = false;
 	} else {
 		zeroed = false;
@@ -1339,8 +1335,7 @@ extent_destroy_wrapper(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 
 	/* Try to destroy; silently fail otherwise. */
 	ehooks_destroy(tsdn, ehooks, edata_base_get(edata),
-	    edata_size_get(edata), edata_committed_get(edata),
-	    arena_ind_get(arena));
+	    edata_size_get(edata), edata_committed_get(edata));
 
 	edata_cache_put(tsdn, &arena->edata_cache, edata);
 }
@@ -1351,7 +1346,7 @@ extent_commit_impl(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, growing_retained ? 1 : 0);
 	bool err = ehooks_commit(tsdn, ehooks, edata_base_get(edata),
-	    edata_size_get(edata), offset, length, arena_ind_get(arena));
+	    edata_size_get(edata), offset, length);
 	edata_committed_set(edata, edata_committed_get(edata) || !err);
 	return err;
 }
@@ -1370,7 +1365,7 @@ extent_decommit_wrapper(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, 0);
 	bool err = ehooks_decommit(tsdn, ehooks, edata_base_get(edata),
-	    edata_size_get(edata), offset, length, arena_ind_get(arena));
+	    edata_size_get(edata), offset, length);
 	edata_committed_set(edata, edata_committed_get(edata) && err);
 	return err;
 }
@@ -1381,7 +1376,7 @@ extent_purge_lazy_impl(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, growing_retained ? 1 : 0);
 	bool err = ehooks_purge_lazy(tsdn, ehooks, edata_base_get(edata),
-	    edata_size_get(edata), offset, length, arena_ind_get(arena));
+	    edata_size_get(edata), offset, length);
 	return err;
 }
 
@@ -1398,7 +1393,7 @@ extent_purge_forced_impl(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, growing_retained ? 1 : 0);
 	bool err = ehooks_purge_forced(tsdn, ehooks, edata_base_get(edata),
-	    edata_size_get(edata), offset, length, arena_ind_get(arena));
+	    edata_size_get(edata), offset, length);
 	return err;
 }
 
@@ -1467,8 +1462,7 @@ extent_split_impl(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 	extent_lock_edata2(tsdn, edata, trail);
 
 	bool err = ehooks_split(tsdn, ehooks, edata_base_get(edata),
-	    size_a + size_b, size_a, size_b, edata_committed_get(edata),
-	    arena_ind_get(arena));
+	    size_a + size_b, size_a, size_b, edata_committed_get(edata));
 
 	if (err) {
 		goto label_error_c;
@@ -1510,8 +1504,7 @@ extent_merge_impl(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks, edata_t *a,
 
 	bool err = ehooks_merge(tsdn, ehooks, edata_base_get(a),
 	    edata_size_get(a), edata_is_head_get(a), edata_base_get(b),
-	    edata_size_get(b), edata_is_head_get(b), edata_committed_get(a),
-	    arena_ind_get(arena));
+	    edata_size_get(b), edata_is_head_get(b), edata_committed_get(a));
 
 	if (err) {
 		return true;
