@@ -330,9 +330,8 @@ extents_abandon_vm(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 }
 
 static void
-extent_deactivate_locked(tsdn_t *tsdn, arena_t *arena, ecache_t *ecache,
-    edata_t *edata) {
-	assert(edata_arena_ind_get(edata) == arena_ind_get(arena));
+extent_deactivate_locked(tsdn_t *tsdn, ecache_t *ecache, edata_t *edata) {
+	assert(edata_arena_ind_get(edata) == ecache_ind_get(ecache));
 	assert(edata_state_get(edata) == extent_state_active);
 
 	edata_state_set(edata, ecache->state);
@@ -340,17 +339,15 @@ extent_deactivate_locked(tsdn_t *tsdn, arena_t *arena, ecache_t *ecache,
 }
 
 static void
-extent_deactivate(tsdn_t *tsdn, arena_t *arena, ecache_t *ecache,
-    edata_t *edata) {
+extent_deactivate(tsdn_t *tsdn, ecache_t *ecache, edata_t *edata) {
 	malloc_mutex_lock(tsdn, &ecache->mtx);
-	extent_deactivate_locked(tsdn, arena, ecache, edata);
+	extent_deactivate_locked(tsdn, ecache, edata);
 	malloc_mutex_unlock(tsdn, &ecache->mtx);
 }
 
 static void
-extent_activate_locked(tsdn_t *tsdn, arena_t *arena, ecache_t *ecache,
-    edata_t *edata) {
-	assert(edata_arena_ind_get(edata) == arena_ind_get(arena));
+extent_activate_locked(tsdn_t *tsdn, ecache_t *ecache, edata_t *edata) {
+	assert(edata_arena_ind_get(edata) == ecache_ind_get(ecache));
 	assert(edata_state_get(edata) == ecache->state);
 
 	eset_remove(&ecache->eset, edata);
@@ -603,7 +600,7 @@ extent_recycle_extract(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 		return NULL;
 	}
 
-	extent_activate_locked(tsdn, arena, ecache, edata);
+	extent_activate_locked(tsdn, ecache, edata);
 	malloc_mutex_unlock(tsdn, &ecache->mtx);
 
 	return edata;
@@ -733,16 +730,16 @@ extent_recycle_split(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 		 * leaking the extent.
 		 */
 		assert(to_leak != NULL && lead == NULL && trail == NULL);
-		extent_deactivate(tsdn, arena, ecache, to_leak);
+		extent_deactivate(tsdn, ecache, to_leak);
 		return NULL;
 	}
 
 	if (result == extent_split_interior_ok) {
 		if (lead != NULL) {
-			extent_deactivate(tsdn, arena, ecache, lead);
+			extent_deactivate(tsdn, ecache, lead);
 		}
 		if (trail != NULL) {
-			extent_deactivate(tsdn, arena, ecache, trail);
+			extent_deactivate(tsdn, ecache, trail);
 		}
 		return edata;
 	} else {
@@ -1086,7 +1083,7 @@ extent_coalesce(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
     bool growing_retained) {
 	assert(extent_can_coalesce(ecache, inner, outer));
 
-	extent_activate_locked(tsdn, arena, ecache, outer);
+	extent_activate_locked(tsdn, ecache, outer);
 
 	malloc_mutex_unlock(tsdn, &ecache->mtx);
 	bool err = extent_merge_impl(tsdn, ehooks, &arena->edata_cache,
@@ -1094,7 +1091,7 @@ extent_coalesce(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 	malloc_mutex_lock(tsdn, &ecache->mtx);
 
 	if (err) {
-		extent_deactivate_locked(tsdn, arena, ecache, outer);
+		extent_deactivate_locked(tsdn, ecache, outer);
 	}
 
 	return err;
@@ -1232,7 +1229,7 @@ extent_record(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks, ecache_t *ecache,
 			return;
 		}
 	}
-	extent_deactivate_locked(tsdn, arena, ecache, edata);
+	extent_deactivate_locked(tsdn, ecache, edata);
 
 	malloc_mutex_unlock(tsdn, &ecache->mtx);
 }
