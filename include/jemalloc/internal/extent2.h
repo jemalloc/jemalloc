@@ -45,10 +45,10 @@ void extent_dalloc_wrapper(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
     edata_t *edata);
 void extent_destroy_wrapper(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
     edata_t *edata);
-bool extent_commit_wrapper(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
-    edata_t *edata, size_t offset, size_t length);
-bool extent_decommit_wrapper(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
-    edata_t *edata, size_t offset, size_t length);
+bool extent_commit_wrapper(tsdn_t *tsdn, ehooks_t *ehooks, edata_t *edata,
+    size_t offset, size_t length);
+bool extent_decommit_wrapper(tsdn_t *tsdn, ehooks_t *ehooks, edata_t *edata,
+    size_t offset, size_t length);
 bool extent_purge_lazy_wrapper(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
     edata_t *edata, size_t offset, size_t length);
 bool extent_purge_forced_wrapper(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,

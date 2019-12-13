@@ -18,8 +18,8 @@ mutex_pool_t	extent_mutex_pool;
 
 size_t opt_lg_extent_max_active_fit = LG_EXTENT_MAX_ACTIVE_FIT_DEFAULT;
 
-static bool extent_commit_impl(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
-    edata_t *edata, size_t offset, size_t length, bool growing_retained);
+static bool extent_commit_impl(tsdn_t *tsdn, ehooks_t *ehooks, edata_t *edata,
+    size_t offset, size_t length, bool growing_retained);
 static bool extent_purge_lazy_impl(tsdn_t *tsdn, arena_t *arena,
     ehooks_t *ehooks, edata_t *edata, size_t offset, size_t length,
     bool growing_retained);
@@ -47,7 +47,7 @@ static void extent_deregister(tsdn_t *tsdn, edata_t *edata);
 static edata_t *extent_recycle(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
     ecache_t *ecache, void *new_addr, size_t usize, size_t pad, size_t alignment,
     bool slab, szind_t szind, bool *zero, bool *commit, bool growing_retained);
-static edata_t *extent_try_coalesce(tsdn_t *tsdn, arena_t *arena,
+static edata_t *extent_try_coalesce(tsdn_t *tsdn, edata_cache_t *edata_cache,
     ehooks_t *ehooks, rtree_ctx_t *rtree_ctx, ecache_t *ecache, edata_t *edata,
     bool *coalesced, bool growing_retained);
 static void extent_record(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
@@ -167,12 +167,13 @@ extent_addr_randomize(tsdn_t *tsdn, arena_t *arena, edata_t *edata,
 }
 
 static bool
-extent_try_delayed_coalesce(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
-    rtree_ctx_t *rtree_ctx, ecache_t *ecache, edata_t *edata) {
+extent_try_delayed_coalesce(tsdn_t *tsdn, edata_cache_t *edata_cache,
+    ehooks_t *ehooks, rtree_ctx_t *rtree_ctx, ecache_t *ecache,
+    edata_t *edata) {
 	edata_state_set(edata, extent_state_active);
 	bool coalesced;
-	edata = extent_try_coalesce(tsdn, arena, ehooks, rtree_ctx, ecache,
-	    edata, &coalesced, false);
+	edata = extent_try_coalesce(tsdn, edata_cache, ehooks, rtree_ctx,
+	    ecache, edata, &coalesced, false);
 	edata_state_set(edata, ecache->state);
 
 	if (!coalesced) {
@@ -271,8 +272,8 @@ extents_evict(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks, ecache_t *ecache,
 			break;
 		}
 		/* Try to coalesce. */
-		if (extent_try_delayed_coalesce(tsdn, arena, ehooks, rtree_ctx,
-		    ecache, edata)) {
+		if (extent_try_delayed_coalesce(tsdn, &arena->edata_cache,
+		    ehooks, rtree_ctx, ecache, edata)) {
 			break;
 		}
 		/*
@@ -796,7 +797,7 @@ extent_recycle(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks, ecache_t *ecache,
 	}
 
 	if (*commit && !edata_committed_get(edata)) {
-		if (extent_commit_impl(tsdn, arena, ehooks, edata, 0,
+		if (extent_commit_impl(tsdn, ehooks, edata, 0,
 		    edata_size_get(edata), growing_retained)) {
 			extent_record(tsdn, arena, ehooks, ecache, edata,
 			    growing_retained);
@@ -937,7 +938,7 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 	}
 
 	if (*commit && !edata_committed_get(edata)) {
-		if (extent_commit_impl(tsdn, arena, ehooks, edata, 0,
+		if (extent_commit_impl(tsdn, ehooks, edata, 0,
 		    edata_size_get(edata), true)) {
 			extent_record(tsdn, arena, ehooks,
 			    &arena->ecache_retained, edata, true);
@@ -1098,9 +1099,9 @@ extent_coalesce(tsdn_t *tsdn, edata_cache_t *edata_cache, ehooks_t *ehooks,
 }
 
 static edata_t *
-extent_try_coalesce_impl(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
-    rtree_ctx_t *rtree_ctx, ecache_t *ecache, edata_t *edata, bool *coalesced,
-    bool growing_retained, bool inactive_only) {
+extent_try_coalesce_impl(tsdn_t *tsdn, edata_cache_t *edata_cache,
+    ehooks_t *ehooks, rtree_ctx_t *rtree_ctx, ecache_t *ecache, edata_t *edata,
+    bool *coalesced, bool growing_retained, bool inactive_only) {
 	/*
 	 * We avoid checking / locking inactive neighbors for large size
 	 * classes, since they are eagerly coalesced on deallocation which can
@@ -1128,9 +1129,9 @@ extent_try_coalesce_impl(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 
 			extent_unlock_edata(tsdn, next);
 
-			if (can_coalesce && !extent_coalesce(tsdn,
-			    &arena->edata_cache, ehooks, ecache, edata, next,
-			    true, growing_retained)) {
+			if (can_coalesce && !extent_coalesce(tsdn, edata_cache,
+			    ehooks, ecache, edata, next, true,
+			    growing_retained)) {
 				if (ecache->delay_coalesce) {
 					/* Do minimal coalescing. */
 					*coalesced = true;
@@ -1148,9 +1149,9 @@ extent_try_coalesce_impl(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 			    prev);
 			extent_unlock_edata(tsdn, prev);
 
-			if (can_coalesce && !extent_coalesce(tsdn,
-			    &arena->edata_cache, ehooks, ecache, edata, prev,
-			    false, growing_retained)) {
+			if (can_coalesce && !extent_coalesce(tsdn, edata_cache,
+			    ehooks, ecache, edata, prev, false,
+			    growing_retained)) {
 				edata = prev;
 				if (ecache->delay_coalesce) {
 					/* Do minimal coalescing. */
@@ -1169,19 +1170,19 @@ extent_try_coalesce_impl(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 }
 
 static edata_t *
-extent_try_coalesce(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
+extent_try_coalesce(tsdn_t *tsdn, edata_cache_t *edata_cache, ehooks_t *ehooks,
     rtree_ctx_t *rtree_ctx, ecache_t *ecache, edata_t *edata, bool *coalesced,
     bool growing_retained) {
-	return extent_try_coalesce_impl(tsdn, arena, ehooks, rtree_ctx, ecache,
-	    edata, coalesced, growing_retained, false);
+	return extent_try_coalesce_impl(tsdn, edata_cache, ehooks, rtree_ctx,
+	    ecache, edata, coalesced, growing_retained, false);
 }
 
 static edata_t *
-extent_try_coalesce_large(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
-    rtree_ctx_t *rtree_ctx, ecache_t *ecache, edata_t *edata, bool *coalesced,
-    bool growing_retained) {
-	return extent_try_coalesce_impl(tsdn, arena, ehooks, rtree_ctx, ecache,
-	    edata, coalesced, growing_retained, true);
+extent_try_coalesce_large(tsdn_t *tsdn, edata_cache_t *edata_cache,
+    ehooks_t *ehooks, rtree_ctx_t *rtree_ctx, ecache_t *ecache, edata_t *edata,
+    bool *coalesced, bool growing_retained) {
+	return extent_try_coalesce_impl(tsdn, edata_cache, ehooks, rtree_ctx,
+	    ecache, edata, coalesced, growing_retained, true);
 }
 
 /*
@@ -1210,17 +1211,17 @@ extent_record(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks, ecache_t *ecache,
 	    (uintptr_t)edata_base_get(edata), true) == edata);
 
 	if (!ecache->delay_coalesce) {
-		edata = extent_try_coalesce(tsdn, arena, ehooks, rtree_ctx,
-		    ecache, edata, NULL, growing_retained);
+		edata = extent_try_coalesce(tsdn, &arena->edata_cache, ehooks,
+		    rtree_ctx, ecache, edata, NULL, growing_retained);
 	} else if (edata_size_get(edata) >= SC_LARGE_MINCLASS) {
 		assert(ecache == &arena->ecache_dirty);
 		/* Always coalesce large extents eagerly. */
 		bool coalesced;
 		do {
 			assert(edata_state_get(edata) == extent_state_active);
-			edata = extent_try_coalesce_large(tsdn, arena, ehooks,
-			    rtree_ctx, ecache, edata, &coalesced,
-			    growing_retained);
+			edata = extent_try_coalesce_large(tsdn,
+			    &arena->edata_cache, ehooks, rtree_ctx, ecache,
+			    edata, &coalesced, growing_retained);
 		} while (coalesced);
 		if (edata_size_get(edata) >= oversize_threshold) {
 			/* Shortcut to purge the oversize extent eagerly. */
@@ -1295,7 +1296,7 @@ extent_dalloc_wrapper(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 	bool zeroed;
 	if (!edata_committed_get(edata)) {
 		zeroed = true;
-	} else if (!extent_decommit_wrapper(tsdn, arena, ehooks, edata, 0,
+	} else if (!extent_decommit_wrapper(tsdn, ehooks, edata, 0,
 	    edata_size_get(edata))) {
 		zeroed = true;
 	} else if (!ehooks_purge_forced(tsdn, ehooks, edata_base_get(edata),
@@ -1339,8 +1340,8 @@ extent_destroy_wrapper(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 }
 
 static bool
-extent_commit_impl(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
-    edata_t *edata, size_t offset, size_t length, bool growing_retained) {
+extent_commit_impl(tsdn_t *tsdn, ehooks_t *ehooks, edata_t *edata,
+    size_t offset, size_t length, bool growing_retained) {
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, growing_retained ? 1 : 0);
 	bool err = ehooks_commit(tsdn, ehooks, edata_base_get(edata),
@@ -1350,16 +1351,15 @@ extent_commit_impl(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 }
 
 bool
-extent_commit_wrapper(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
-    edata_t *edata, size_t offset,
-    size_t length) {
-	return extent_commit_impl(tsdn, arena, ehooks, edata, offset, length,
+extent_commit_wrapper(tsdn_t *tsdn, ehooks_t *ehooks, edata_t *edata,
+    size_t offset, size_t length) {
+	return extent_commit_impl(tsdn, ehooks, edata, offset, length,
 	    false);
 }
 
 bool
-extent_decommit_wrapper(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
-    edata_t *edata, size_t offset, size_t length) {
+extent_decommit_wrapper(tsdn_t *tsdn, ehooks_t *ehooks, edata_t *edata,
+    size_t offset, size_t length) {
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, 0);
 	bool err = ehooks_decommit(tsdn, ehooks, edata_base_get(edata),
