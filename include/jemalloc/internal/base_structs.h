@@ -20,9 +20,6 @@ struct base_block_s {
 };
 
 struct base_s {
-	/* Associated arena's index within the arenas array. */
-	unsigned ind;
-
 	/*
 	 * User-configurable extent hook functions.
 	 */

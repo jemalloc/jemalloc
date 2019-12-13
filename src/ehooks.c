@@ -4,7 +4,9 @@
 #include "jemalloc/internal/ehooks.h"
 #include "jemalloc/internal/extent_mmap.h"
 
-void ehooks_init(ehooks_t *ehooks, extent_hooks_t *extent_hooks) {
+void
+ehooks_init(ehooks_t *ehooks, extent_hooks_t *extent_hooks, unsigned ind) {
+	ehooks->ind = ind;
 	ehooks_set_extent_hooks_ptr(ehooks, extent_hooks);
 }
 
