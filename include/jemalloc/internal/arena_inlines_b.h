@@ -68,8 +68,7 @@ arena_prof_info_get(tsd_t *tsd, const void *ptr, alloc_ctx_t *alloc_ctx,
 }
 
 JEMALLOC_ALWAYS_INLINE void
-arena_prof_tctx_set(tsd_t *tsd, const void *ptr, alloc_ctx_t *alloc_ctx,
-    prof_tctx_t *tctx) {
+arena_prof_tctx_reset(tsd_t *tsd, const void *ptr, alloc_ctx_t *alloc_ctx) {
 	cassert(config_prof);
 	assert(ptr != NULL);
 
@@ -77,17 +76,17 @@ arena_prof_tctx_set(tsd_t *tsd, const void *ptr, alloc_ctx_t *alloc_ctx,
 	if (alloc_ctx == NULL) {
 		extent_t *extent = iealloc(tsd_tsdn(tsd), ptr);
 		if (unlikely(!extent_slab_get(extent))) {
-			large_prof_tctx_set(extent, tctx);
+			large_prof_tctx_reset(extent);
 		}
 	} else {
 		if (unlikely(!alloc_ctx->slab)) {
-			large_prof_tctx_set(iealloc(tsd_tsdn(tsd), ptr), tctx);
+			large_prof_tctx_reset(iealloc(tsd_tsdn(tsd), ptr));
 		}
 	}
 }
 
-static inline void
-arena_prof_tctx_reset(tsd_t *tsd, const void *ptr, prof_tctx_t *tctx) {
+JEMALLOC_ALWAYS_INLINE void
+arena_prof_tctx_reset_sampled(tsd_t *tsd, const void *ptr) {
 	cassert(config_prof);
 	assert(ptr != NULL);
 
@@ -98,13 +97,13 @@ arena_prof_tctx_reset(tsd_t *tsd, const void *ptr, prof_tctx_t *tctx) {
 }
 
 JEMALLOC_ALWAYS_INLINE void
-arena_prof_alloc_time_set(tsd_t *tsd, const void *ptr, nstime_t *t) {
+arena_prof_info_set(tsd_t *tsd, const void *ptr, prof_tctx_t *tctx) {
 	cassert(config_prof);
 	assert(ptr != NULL);
 
 	extent_t *extent = iealloc(tsd_tsdn(tsd), ptr);
 	assert(!extent_slab_get(extent));
-	large_prof_alloc_time_set(extent, t);
+	large_prof_info_set(extent, tctx);
 }
 
 JEMALLOC_ALWAYS_INLINE void

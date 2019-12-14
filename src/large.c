@@ -372,7 +372,7 @@ large_prof_info_get(const extent_t *extent, prof_info_t *prof_info) {
 	extent_prof_info_get(extent, prof_info);
 }
 
-void
+static void
 large_prof_tctx_set(extent_t *extent, prof_tctx_t *tctx) {
 	extent_prof_tctx_set(extent, tctx);
 }
@@ -383,6 +383,9 @@ large_prof_tctx_reset(extent_t *extent) {
 }
 
 void
-large_prof_alloc_time_set(extent_t *extent, nstime_t *t) {
-	extent_prof_alloc_time_set(extent, t);
+large_prof_info_set(extent_t *extent, prof_tctx_t *tctx) {
+	large_prof_tctx_set(extent, tctx);
+	nstime_t t;
+	nstime_init_update(&t);
+	extent_prof_alloc_time_set(extent, &t);
 }

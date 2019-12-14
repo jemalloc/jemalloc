@@ -50,28 +50,28 @@ prof_info_get(tsd_t *tsd, const void *ptr, alloc_ctx_t *alloc_ctx,
 }
 
 JEMALLOC_ALWAYS_INLINE void
-prof_tctx_set(tsd_t *tsd, const void *ptr, alloc_ctx_t *alloc_ctx,
-    prof_tctx_t *tctx) {
+prof_tctx_reset(tsd_t *tsd, const void *ptr, alloc_ctx_t *alloc_ctx) {
 	cassert(config_prof);
 	assert(ptr != NULL);
 
-	arena_prof_tctx_set(tsd, ptr, alloc_ctx, tctx);
+	arena_prof_tctx_reset(tsd, ptr, alloc_ctx);
 }
 
 JEMALLOC_ALWAYS_INLINE void
-prof_tctx_reset(tsd_t *tsd, const void *ptr, prof_tctx_t *tctx) {
+prof_tctx_reset_sampled(tsd_t *tsd, const void *ptr) {
 	cassert(config_prof);
 	assert(ptr != NULL);
 
-	arena_prof_tctx_reset(tsd, ptr, tctx);
+	arena_prof_tctx_reset_sampled(tsd, ptr);
 }
 
 JEMALLOC_ALWAYS_INLINE void
-prof_alloc_time_set(tsd_t *tsd, const void *ptr, nstime_t *t) {
+prof_info_set(tsd_t *tsd, const void *ptr, prof_tctx_t *tctx) {
 	cassert(config_prof);
 	assert(ptr != NULL);
+	assert((uintptr_t)tctx > (uintptr_t)1U);
 
-	arena_prof_alloc_time_set(tsd, ptr, t);
+	arena_prof_info_set(tsd, ptr, tctx);
 }
 
 JEMALLOC_ALWAYS_INLINE bool
@@ -125,8 +125,7 @@ prof_malloc(tsd_t *tsd, const void *ptr, size_t usize, alloc_ctx_t *alloc_ctx,
 	if (unlikely((uintptr_t)tctx > (uintptr_t)1U)) {
 		prof_malloc_sample_object(tsd, ptr, usize, tctx);
 	} else {
-		prof_tctx_set(tsd, ptr, alloc_ctx,
-		    (prof_tctx_t *)(uintptr_t)1U);
+		prof_tctx_reset(tsd, ptr, alloc_ctx);
 	}
 }
 
@@ -161,15 +160,15 @@ prof_realloc(tsd_t *tsd, const void *ptr, size_t usize, prof_tctx_t *tctx,
 	if (unlikely(sampled)) {
 		prof_malloc_sample_object(tsd, ptr, usize, tctx);
 	} else if (moved) {
-		prof_tctx_set(tsd, ptr, NULL, (prof_tctx_t *)(uintptr_t)1U);
+		prof_tctx_reset(tsd, ptr, NULL);
 	} else if (unlikely(old_sampled)) {
 		/*
-		 * prof_tctx_set() would work for the !moved case as well, but
-		 * prof_tctx_reset() is slightly cheaper, and the proper thing
-		 * to do here in the presence of explicit knowledge re: moved
-		 * state.
+		 * prof_tctx_reset() would work for the !moved case as well,
+		 * but prof_tctx_reset_sampled() is slightly cheaper, and the
+		 * proper thing to do here in the presence of explicit
+		 * knowledge re: moved state.
 		 */
-		prof_tctx_reset(tsd, ptr, tctx);
+		prof_tctx_reset_sampled(tsd, ptr);
 	} else {
 		prof_info_t prof_info;
 		prof_info_get(tsd, ptr, NULL, &prof_info);
