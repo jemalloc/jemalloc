@@ -39,6 +39,9 @@ base_map(tsdn_t *tsdn, extent_hooks_t *extent_hooks, unsigned ind, size_t size) 
 	size_t alignment = HUGEPAGE;
 	if (extent_hooks == &extent_hooks_default) {
 		addr = extent_alloc_mmap(NULL, size, alignment, &zero, &commit);
+		if (have_madvise_huge && addr) {
+			pages_set_thp_state(addr, size);
+		}
 	} else {
 		/* No arena context as we are creating new arenas. */
 		tsd_t *tsd = tsdn_null(tsdn) ? tsd_fetch() : tsdn_tsd(tsdn);
