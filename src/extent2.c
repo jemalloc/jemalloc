@@ -184,7 +184,7 @@ extent_try_delayed_coalesce(tsdn_t *tsdn, edata_cache_t *edata_cache,
 }
 
 edata_t *
-extents_alloc(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks, ecache_t *ecache,
+ecache_alloc(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks, ecache_t *ecache,
     void *new_addr, size_t size, size_t pad, size_t alignment, bool slab,
     szind_t szind, bool *zero, bool *commit) {
 	assert(size + pad != 0);
@@ -199,7 +199,7 @@ extents_alloc(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks, ecache_t *ecache,
 }
 
 edata_t *
-extents_alloc_grow(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
+ecache_alloc_grow(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
     ecache_t *ecache, void *new_addr, size_t size, size_t pad, size_t alignment,
     bool slab, szind_t szind, bool *zero, bool *commit) {
 	assert(size + pad != 0);
@@ -228,7 +228,7 @@ extents_alloc_grow(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 }
 
 void
-extents_dalloc(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks, ecache_t *ecache,
+ecache_dalloc(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks, ecache_t *ecache,
     edata_t *edata) {
 	assert(edata_base_get(edata) != NULL);
 	assert(edata_size_get(edata) != 0);
@@ -243,7 +243,7 @@ extents_dalloc(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks, ecache_t *ecache,
 }
 
 edata_t *
-extents_evict(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks, ecache_t *ecache,
+ecache_evict(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks, ecache_t *ecache,
     size_t npages_min) {
 	rtree_ctx_t rtree_ctx_fallback;
 	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
