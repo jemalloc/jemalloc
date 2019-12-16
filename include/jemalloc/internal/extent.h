@@ -1,5 +1,5 @@
-#ifndef JEMALLOC_INTERNAL_EXTENT2_H
-#define JEMALLOC_INTERNAL_EXTENT2_H
+#ifndef JEMALLOC_INTERNAL_EXTENT_H
+#define JEMALLOC_INTERNAL_EXTENT_H
 
 #include "jemalloc/internal/ecache.h"
 #include "jemalloc/internal/ehooks.h"
@@ -10,11 +10,6 @@
  * This module contains the page-level allocator.  It chooses the addresses that
  * allocations requested by other modules will inhabit, and updates the global
  * metadata to reflect allocation/deallocation/purging decisions.
- *
- * The naming ("extent2" for the module, and "extent_" or "extents_" for most of
- * the functions) is historical.  Eventually, the naming should be updated to
- * reflect the functionality.  Similarly, the utilization stats live here for no
- * particular reason.  This will also be changed, but much more immediately.
  */
 
 /*
@@ -61,4 +56,4 @@ bool extent_merge_wrapper(tsdn_t *tsdn, ehooks_t *ehooks,
 
 bool extent_boot(void);
 
-#endif /* JEMALLOC_INTERNAL_EXTENT2_H */
+#endif /* JEMALLOC_INTERNAL_EXTENT_H */
