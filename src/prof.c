@@ -166,8 +166,8 @@ prof_malloc_sample_object(tsd_t *tsd, const void *ptr, size_t usize,
 
 	/* Get the current time and set this in the extent_t. We'll read this
 	 * when free() is called. */
-	nstime_t t = NSTIME_ZERO_INITIALIZER;
-	nstime_update(&t);
+	nstime_t t;
+	nstime_init_update(&t);
 	prof_alloc_time_set(tsd, ptr, &t);
 
 	malloc_mutex_lock(tsd_tsdn(tsd), tctx->tdata->lock);

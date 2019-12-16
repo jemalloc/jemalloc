@@ -25,7 +25,7 @@ TEST_BEGIN(test_nstime_copy) {
 	nstime_t nsta, nstb;
 
 	nstime_init2(&nsta, 42, 43);
-	nstime_init(&nstb, 0);
+	nstime_init_zero(&nstb);
 	nstime_copy(&nstb, &nsta);
 	assert_u64_eq(nstime_sec(&nstb), 42, "sec incorrectly copied");
 	assert_u64_eq(nstime_nsec(&nstb), 43, "nsec incorrectly copied");
@@ -108,7 +108,7 @@ TEST_BEGIN(test_nstime_subtract) {
 	nstime_init2(&nsta, 42, 43);
 	nstime_copy(&nstb, &nsta);
 	nstime_subtract(&nsta, &nstb);
-	nstime_init(&nstb, 0);
+	nstime_init_zero(&nstb);
 	assert_d_eq(nstime_compare(&nsta, &nstb), 0,
 	    "Incorrect subtraction result");
 
@@ -126,7 +126,7 @@ TEST_BEGIN(test_nstime_isubtract) {
 
 	nstime_init2(&nsta, 42, 43);
 	nstime_isubtract(&nsta, 42*BILLION + 43);
-	nstime_init(&nstb, 0);
+	nstime_init_zero(&nstb);
 	assert_d_eq(nstime_compare(&nsta, &nstb), 0,
 	    "Incorrect subtraction result");
 
@@ -209,9 +209,7 @@ TEST_END
 TEST_BEGIN(test_nstime_update) {
 	nstime_t nst;
 
-	nstime_init(&nst, 0);
-
-	assert_false(nstime_update(&nst), "Basic time update failed.");
+	assert_false(nstime_init_update(&nst), "Basic time update failed.");
 
 	/* Only Rip Van Winkle sleeps this long. */
 	{

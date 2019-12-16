@@ -31,4 +31,12 @@ extern nstime_monotonic_t *JET_MUTABLE nstime_monotonic;
 typedef bool (nstime_update_t)(nstime_t *);
 extern nstime_update_t *JET_MUTABLE nstime_update;
 
+bool nstime_init_update(nstime_t *time);
+
+JEMALLOC_ALWAYS_INLINE void
+nstime_init_zero(nstime_t *time) {
+	static const nstime_t zero = NSTIME_ZERO_INITIALIZER;
+	nstime_copy(time, &zero);
+}
+
 #endif /* JEMALLOC_INTERNAL_NSTIME_H */
